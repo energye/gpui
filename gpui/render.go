@@ -8,22 +8,32 @@
 
 package gpui
 
-// PresentOptions controls pixmap display.
-type PresentOptions struct {
-	FlipY bool
-}
+import (
+	"github.com/energye/lcl/lcl"
+)
 
-// DefaultPresentOptions returns default present options.
-func DefaultPresentOptions() PresentOptions {
-	return PresentOptions{FlipY: false}
-}
-
-// StartAnimation begins continuous rendering at ~60fps.
+// StartAnimation begins continuous rendering at ~60fps using LCL TTimer.
 func (c *TGPUControl) StartAnimation() {
-	// TODO: implement with LCL TTimer
+	if c == nil || c.timer != nil || c.ctrl == nil {
+		return
+	}
+	owner, ok := c.ctrl.(lcl.IComponent)
+	if !ok {
+		return
+	}
+	c.timer = lcl.NewTimer(owner)
+	c.timer.SetInterval(16) // ~60fps
+	c.timer.SetOnTimer(func(sender lcl.IObject) {
+		c.Invalidate()
+	})
+	c.timer.SetEnabled(true)
 }
 
 // StopAnimation stops continuous rendering.
 func (c *TGPUControl) StopAnimation() {
-	// TODO: implement with LCL TTimer
+	if c == nil || c.timer == nil {
+		return
+	}
+	c.timer.SetEnabled(false)
+	c.timer = nil
 }

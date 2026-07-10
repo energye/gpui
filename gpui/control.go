@@ -28,6 +28,7 @@ type TGPUControl struct {
 	height   int32
 	onRender func(*gg.Context) // user render callback (receives gg.Context)
 	initDone bool
+	timer    lcl.ITimer       // animation timer
 }
 
 // NewGPUControl creates a new TGPUControl.

@@ -58,9 +58,5 @@ func (f *windowForm) FormCreate(sender lcl.IObject) {
 	if f.window == nil {
 		return
 	}
-	form, ok := sender.(lcl.IEngForm)
-	if !ok || form == nil {
-		return
-	}
-	f.window.setupForm(form)
+	f.window.setupForm(f)
 }
