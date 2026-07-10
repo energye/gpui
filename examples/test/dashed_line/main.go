@@ -1,4 +1,19 @@
-// GPU Test: Dashed Line
+// GPU Test: Dashed Line - 虚线渲染验证
+//
+// 预期效果:
+// =========
+// 1. 实线: 线宽1px 黑色, 连续无间断
+// 2. 红色虚线: 线宽2px 8px实+4px空
+// 3. 绿色宽虚线: 线宽3px 12px实+6px空
+// 4. 蓝色点线: 线宽1px 4px实+4px空
+// 5. 黄色长虚线: 线宽2px 20px实+10px空
+// 6. 紫色细虚线: 线宽1.5px 6px实+3px空
+// 7. 文字标注: 每种虚线样式左侧有名称标签
+//
+// 验证标准:
+// - 虚线间距均匀
+// - 线端平滑
+// - 不同线宽显示正确
 package main
 
 import (
@@ -11,21 +26,28 @@ func main() {
 	libname.UseWS = "gtk3"
 	app := gpui.NewApplication()
 	win := gpui.NewWindow(gpui.WindowConfig{Title: "Dashed Line", Width: 800, Height: 600})
+
 	win.OnInit(func(ctrl *gpui.TGPUControl) {
 		ctrl.SetOnRender(func(ctx *gg.Context) {
 			ctx.ClearWithColor(gg.RGBA{R: 1, G: 1, B: 1, A: 1})
-			ctx.SetLineWidth(2)
-			dashes := []float64{10, 5, 20, 10, 5, 5}
-			colors := []gg.RGBA{{R: 1, G: 0, B: 0, A: 1}, {R: 0, G: 1, B: 0, A: 1}, {R: 0, G: 0, B: 1, A: 1}, {R: 1, G: 1, B: 0, A: 1}}
-			for i, col := range colors {
-				ctx.SetRGBA(col.R, col.G, col.B, col.A)
-				ctx.SetDash(dashes[i*2], dashes[i*2+1])
-				ctx.MoveTo(100, 100+float64(i*100))
-				ctx.LineTo(700, 100+float64(i*100))
-				ctx.Stroke()
+			ctx.LoadFontFace("../NotoSansCJK-Regular.ttc", 14)
+
+			patterns := []struct{dash,gap,width float64; color gg.RGBA; name string}{
+				{0,0,1,gg.RGBA{R:0,G:0,B:0,A:1},"Solid"},
+				{8,4,2,gg.RGBA{R:1,G:0,B:0,A:1},"Red Dash"},
+				{12,6,3,gg.RGBA{R:0,G:1,B:0,A:1},"Green Wide"},
+				{4,4,1,gg.RGBA{R:0,G:0,B:1,A:1},"Blue Dotted"},
+				{20,10,2,gg.RGBA{R:1,G:1,B:0,A:1},"Yellow Long"},
+				{6,3,1.5,gg.RGBA{R:0.8,G:0,B:0.8,A:1},"Purple Fine"},
 			}
-			ctx.SetDash()
-			ctx.SavePNG("gpu_dashed_line.png")
+			for i, p := range patterns {
+				y := 60.0 + float64(i)*80
+				ctx.SetDash(p.dash, p.gap); ctx.SetLineWidth(p.width)
+				ctx.SetRGBA(p.color.R, p.color.G, p.color.B, p.color.A)
+				ctx.MoveTo(100, y); ctx.LineTo(700, y); ctx.Stroke()
+				ctx.SetRGBA(0,0,0,1); ctx.DrawString(p.name, 100, y-20)
+			}
+			ctx.SetDash(); ctx.SavePNG("gpu_dashed_line.png")
 		})
 	})
 	app.AddWindow(win)

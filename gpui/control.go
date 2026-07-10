@@ -190,6 +190,14 @@ func (c *TGPUControl) PresentPixmap(data []byte, width, height int) {
 	c.doPresent()
 }
 
+// SavePNG saves the current gg context content to a PNG file.
+func (c *TGPUControl) SavePNG(path string) error {
+	if c.ggCtx == nil {
+		return nil
+	}
+	return c.ggCtx.SavePNG(path)
+}
+
 func (c *TGPUControl) initQuad() {
 	vertices := []float32{
 		-1, -1, 0, 0,
