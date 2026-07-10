@@ -17,9 +17,14 @@
 package main
 
 import (
+	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/gpui"
 	"github.com/energye/gpui/internal/gg"
+	"github.com/energye/gpui/internal/gg/text"
 	"github.com/energye/lcl/api/libname"
+	"github.com/energye/lcl/tool/exec"
+	"log"
+	"path/filepath"
 )
 
 func main() {
@@ -28,26 +33,41 @@ func main() {
 	win := gpui.NewWindow(gpui.WindowConfig{Title: "Dashed Line", Width: 800, Height: 600})
 
 	win.OnInit(func(ctrl *gpui.TGPUControl) {
+		src, err := text.NewFontSource(examples.Font)
+		if err != nil {
+			log.Fatalf("Font load error: %v", err)
+		}
+		face14 := src.Face(14)
+
 		ctrl.SetOnRender(func(ctx *gg.Context) {
 			ctx.ClearWithColor(gg.RGBA{R: 1, G: 1, B: 1, A: 1})
-			ctx.LoadFontFace("../NotoSansCJK-Regular.ttc", 14)
+			ctx.SetFont(face14)
 
-			patterns := []struct{dash,gap,width float64; color gg.RGBA; name string}{
-				{0,0,1,gg.RGBA{R:0,G:0,B:0,A:1},"Solid"},
-				{8,4,2,gg.RGBA{R:1,G:0,B:0,A:1},"Red Dash"},
-				{12,6,3,gg.RGBA{R:0,G:1,B:0,A:1},"Green Wide"},
-				{4,4,1,gg.RGBA{R:0,G:0,B:1,A:1},"Blue Dotted"},
-				{20,10,2,gg.RGBA{R:1,G:1,B:0,A:1},"Yellow Long"},
-				{6,3,1.5,gg.RGBA{R:0.8,G:0,B:0.8,A:1},"Purple Fine"},
+			patterns := []struct {
+				dash, gap, width float64
+				color            gg.RGBA
+				name             string
+			}{
+				{0, 0, 1, gg.RGBA{R: 0, G: 0, B: 0, A: 1}, "Solid"},
+				{8, 4, 2, gg.RGBA{R: 1, G: 0, B: 0, A: 1}, "Red Dash"},
+				{12, 6, 3, gg.RGBA{R: 0, G: 1, B: 0, A: 1}, "Green Wide"},
+				{4, 4, 1, gg.RGBA{R: 0, G: 0, B: 1, A: 1}, "Blue Dotted"},
+				{20, 10, 2, gg.RGBA{R: 1, G: 1, B: 0, A: 1}, "Yellow Long"},
+				{6, 3, 1.5, gg.RGBA{R: 0.8, G: 0, B: 0.8, A: 1}, "Purple Fine"},
 			}
 			for i, p := range patterns {
 				y := 60.0 + float64(i)*80
-				ctx.SetDash(p.dash, p.gap); ctx.SetLineWidth(p.width)
+				ctx.SetDash(p.dash, p.gap)
+				ctx.SetLineWidth(p.width)
 				ctx.SetRGBA(p.color.R, p.color.G, p.color.B, p.color.A)
-				ctx.MoveTo(100, y); ctx.LineTo(700, y); ctx.Stroke()
-				ctx.SetRGBA(0,0,0,1); ctx.DrawString(p.name, 100, y-20)
+				ctx.MoveTo(100, y)
+				ctx.LineTo(700, y)
+				ctx.Stroke()
+				ctx.SetRGBA(0, 0, 0, 1)
+				ctx.DrawString(p.name, 100, y-20)
 			}
-			ctx.SetDash(); ctx.SavePNG("gpu_dashed_line.png")
+			ctx.SetDash()
+			ctx.SavePNG(filepath.Join(exec.CurrentDir, "examples/dashed_line/gpu_dashed_line.png"))
 		})
 	})
 	app.AddWindow(win)

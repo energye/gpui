@@ -9,8 +9,10 @@
 package main
 
 import (
+	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/gpui"
 	"github.com/energye/gpui/internal/gg"
+	"github.com/energye/gpui/internal/gg/text"
 	"github.com/energye/lcl/api/libname"
 )
 
@@ -18,6 +20,12 @@ func main() {
 	libname.UseWS = "gtk3"
 
 	app := gpui.NewApplication()
+
+	var face14 text.Face
+	src, err := text.NewFontSource(examples.Font)
+	if err == nil {
+		face14 = src.Face(14)
+	}
 
 	// Main window: blue circle
 	mainWin := gpui.NewWindow(gpui.WindowConfig{
@@ -31,8 +39,11 @@ func main() {
 			ctx.SetRGBA(0.2, 0.4, 0.8, 1.0)
 			ctx.DrawCircle(400, 300, 200)
 			ctx.Fill()
-			ctx.SetRGBA(0, 0, 0, 1)
-			ctx.DrawString("Main Window", 350, 320)
+			if face14 != nil {
+				ctx.SetFont(face14)
+				ctx.SetRGBA(0, 0, 0, 1)
+				ctx.DrawString("Main Window", 350, 320)
+			}
 		})
 	})
 
@@ -48,8 +59,11 @@ func main() {
 			ctx.SetRGBA(0.8, 0.2, 0.2, 1.0)
 			ctx.DrawRectangle(50, 50, 300, 200)
 			ctx.Fill()
-			ctx.SetRGBA(0, 0, 0, 1)
-			ctx.DrawString("Second Window", 120, 160)
+			if face14 != nil {
+				ctx.SetFont(face14)
+				ctx.SetRGBA(0, 0, 0, 1)
+				ctx.DrawString("Second Window", 120, 160)
+			}
 		})
 	})
 
@@ -68,8 +82,11 @@ func main() {
 			ctx.LineTo(50, 260)
 			ctx.ClosePath()
 			ctx.Fill()
-			ctx.SetRGBA(0, 0, 0, 1)
-			ctx.DrawString("Third Window", 150, 160)
+			if face14 != nil {
+				ctx.SetFont(face14)
+				ctx.SetRGBA(0, 0, 0, 1)
+				ctx.DrawString("Third Window", 150, 160)
+			}
 		})
 	})
 

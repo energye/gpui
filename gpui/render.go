@@ -8,32 +8,22 @@
 
 package gpui
 
-import (
-	"github.com/energye/lcl/lcl"
-)
-
-// StartAnimation begins continuous rendering at ~60fps using LCL TTimer.
+// StartAnimation begins continuous rendering (OnDraw style).
+// Each frame triggers Invalidate() at the end of onPaint, creating a
+// render loop tied to the display refresh rate via SwapBuffers vsync.
+// This avoids the timer precision issues of lcl.TTimer.
 func (c *TGPUControl) StartAnimation() {
-	if c == nil || c.timer != nil || c.ctrl == nil {
+	if c == nil || c.ctrl == nil {
 		return
 	}
-	owner, ok := c.ctrl.(lcl.IComponent)
-	if !ok {
-		return
-	}
-	c.timer = lcl.NewTimer(owner)
-	c.timer.SetInterval(16) // ~60fps
-	c.timer.SetOnTimer(func(sender lcl.IObject) {
-		c.Invalidate()
-	})
-	c.timer.SetEnabled(true)
+	c.animating = true
+	c.Invalidate() // start the render loop
 }
 
 // StopAnimation stops continuous rendering.
 func (c *TGPUControl) StopAnimation() {
-	if c == nil || c.timer == nil {
+	if c == nil {
 		return
 	}
-	c.timer.SetEnabled(false)
-	c.timer = nil
+	c.animating = false
 }

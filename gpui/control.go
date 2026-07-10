@@ -28,7 +28,7 @@ type TGPUControl struct {
 	height   int32
 	onRender func(*gg.Context) // user render callback (receives gg.Context)
 	initDone bool
-	timer    lcl.ITimer       // animation timer
+	animating bool             // continuous render loop flag (OnDraw style)
 }
 
 // NewGPUControl creates a new TGPUControl.
@@ -133,21 +133,28 @@ func (c *TGPUControl) onPaint(sender lcl.IObject) {
 	}
 
 	// Clear the gg context
-	c.ggCtx.Clear()
+	  c.ggCtx.Clear()
 
-	// Call user render callback
-	if c.onRender != nil {
-		c.onRender(c.ggCtx)
-	}
+	  // Call user render callback
+	  if c.onRender != nil {
+	   c.onRender(c.ggCtx)
+	  }
 
-	// Get pixmap data and upload to OpenGL texture
-	pixmap := c.ggCtx.Pixmap()
-	data := pixmap.Data()
-	c.UploadPixmap(data, w, h)
+	  // Get pixmap data and upload to OpenGL texture
+	  pixmap := c.ggCtx.Pixmap()
+	  data := pixmap.Data()
+	  c.UploadPixmap(data, w, h)
 
-	// Display
-	c.doPresent()
-}
+	  // Display
+	  c.doPresent()
+
+	  // Continuous render loop (OnDraw style): schedule next frame when animation is active
+	  // This ties rendering to the display refresh rate via SwapBuffers vsync,
+	  // avoiding timer precision issues from lcl.TTimer.
+	  if c.animating {
+	   c.Invalidate()
+	  }
+	 }
 
 // SetSize updates the control's size.
 func (c *TGPUControl) SetSize(w, h int32) {
