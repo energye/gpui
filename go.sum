@@ -1,0 +1,12 @@
+github.com/ebitengine/purego v0.10.1 h1:dewVBCBT2GaMu1SrNTYxQhgQBethzfhiwvZiLGP/qyY=
+github.com/ebitengine/purego v0.10.1/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
+github.com/energye/lcl v1.0.9 h1:OvBMuBVlNL6oK/8LYywGEVPW1DHNtoou2AdjdFH2Xto=
+github.com/energye/lcl v1.0.9/go.mod h1:k9apUIp1r1FMg1e+S3psbS4rQigEiyOmqxMsIOOz+Rs=
+github.com/gogpu/gpucontext v0.21.0 h1:O1SnXBiednIyVP4Zx5SASh0svYiG6g/wF1igNZVo1Pc=
+github.com/gogpu/gpucontext v0.21.0/go.mod h1:6zwdmYXH5GQltoiHbb3WXVS/UJ5bFsCux0mXCVqGlzY=
+github.com/gogpu/gputypes v0.5.0 h1:i2ED/9w6m6yLxf8XJT69/NIMSNTLO2y5F1LqvugCKIE=
+github.com/gogpu/gputypes v0.5.0/go.mod h1:cnXrDMwTpWTvJLW1Vreop3PcT6a2YP/i3s91rPaOavw=
+golang.org/x/image v0.44.0 h1:+tDekMZED9+LrtB3G5xzRggpVh9CARjZqROla3R3R+I=
+golang.org/x/image v0.44.0/go.mod h1:V8K3KE9KKKE+pLpQDOeN18w9oacNSvy1tDOirTu4xtY=
+golang.org/x/text v0.40.0 h1:Ub2Z6/xjgF1WrYQz2nuITOEegKFtiIy+rieRJ5lHZKs=
+golang.org/x/text v0.40.0/go.mod h1:hpnzDAfGV753zIKo+wk3u1bVKCGPbrnF7+7LBF/UHVY=
