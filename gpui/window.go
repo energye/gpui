@@ -82,6 +82,11 @@ func (w *Window) setupForm(form lcl.IEngForm) {
 			w.control.Invalidate()
 		}
 	})
+
+	// Call the onInit callback to let user set up rendering
+	if w.onInit != nil {
+		w.onInit(w.control)
+	}
 }
 
 // configureOpenGLControl configures the OpenGL control's visual settings.
