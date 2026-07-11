@@ -27,17 +27,15 @@ import (
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
-	"log"
-	"os"
 	"path/filepath"
 )
 
 func main() {
 	libname.UseWS = "gtk3"
 
-	sources := loadTextSources()
+	sources := examples.LoadTextSources()
 	face := func(size float64) text.Face {
-		return makeFallbackFace(sources, size)
+		return examples.MakeFallbackFace(sources, size)
 	}
 
 	app := ui.NewApplication()
@@ -56,21 +54,6 @@ func main() {
 
 	app.AddWindow(win)
 	app.Run()
-}
-
-func makeFallbackFace(sources []*text.FontSource, size float64) text.Face {
-	faces := make([]text.Face, 0, len(sources))
-	for _, src := range sources {
-		faces = append(faces, src.Face(size))
-	}
-	if len(faces) == 1 {
-		return faces[0]
-	}
-	mf, err := text.NewMultiFace(faces...)
-	if err != nil {
-		log.Fatalf("Font fallback error: %v", err)
-	}
-	return mf
 }
 
 func drawTextDemo(ctx *render.Context, face func(float64) text.Face) {
@@ -117,40 +100,4 @@ func drawTextDemo(ctx *render.Context, face func(float64) text.Face) {
 		ctx.SetRGBA(c.R, c.G, c.B, c.A)
 		ctx.DrawString("Colored Text Example", 100+float64(i)*130, 500)
 	}
-}
-
-func loadTextSources() []*text.FontSource {
-	var sources []*text.FontSource
-
-	for _, candidate := range []struct {
-		path string
-		opts []text.SourceOption
-	}{
-		{path: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"},
-		//{path: "/usr/share/fonts/TTF/DejaVuSans.ttf"},
-		//{path: "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"},
-		//{path: "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", opts: []text.SourceOption{text.WithCollectionIndex(1)}},
-		//{path: "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"},
-		//{path: "/System/Library/Fonts/Supplemental/Arial.ttf"},
-		//{path: "C:\\Windows\\Fonts\\arial.ttf"},
-		//{path: "C:\\Windows\\Fonts\\malgun.ttf"},
-	} {
-		if _, err := os.Stat(candidate.path); err != nil {
-			continue
-		}
-		src, err := text.NewFontSourceFromFile(candidate.path, candidate.opts...)
-		if err != nil {
-			log.Printf("Skipping font %s: %v", candidate.path, err)
-			continue
-		}
-		sources = append(sources, src)
-	}
-
-	src, err := text.NewFontSource(examples.Font)
-	if err != nil {
-		log.Fatalf("Embedded font load error: %v", err)
-	}
-	sources = append(sources, src)
-
-	return sources
 }
