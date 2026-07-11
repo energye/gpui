@@ -207,12 +207,12 @@ func (c *TGPUControl) SavePNG(path string) error {
 
 func (c *TGPUControl) initQuad() {
 	vertices := []float32{
-		-1, -1, 0, 0,
-		1, -1, 1, 0,
-		-1, 1, 0, 1,
-		-1, 1, 0, 1,
-		1, -1, 1, 0,
-		1, 1, 1, 1,
+		-1, -1, 0, 1,
+		1, -1, 1, 1,
+		-1, 1, 0, 0,
+		-1, 1, 0, 0,
+		1, -1, 1, 1,
+		1, 1, 1, 0,
 	}
 	gl.GenVertexArrays(1, &c.vao)
 	gl.GenBuffers(1, &c.vbo)
