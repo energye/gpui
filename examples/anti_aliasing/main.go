@@ -4,9 +4,7 @@ package main
 import (
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 	"github.com/energye/lcl/tool/exec"
-	"log"
 	"path/filepath"
 )
 
@@ -14,14 +12,10 @@ func main() {
 	const W, H = 800, 600
 	ctx := render.NewContext(W, H)
 	ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
-	// Font loading with fallback paths
-	src, err := text.NewFontSource(examples.Font)
-	if err != nil {
-		log.Fatalf("Font load error: %v", err)
-	}
-	defer src.Close()
 
-	ctx.SetFont(src.Face(14))
+	face := examples.Face
+
+	ctx.SetFont(face(14))
 	ctx.SetRGBA(0.2, 0.5, 1, 1)
 	ctx.DrawRoundedRectangle(100, 100, 80, 32, 4)
 	ctx.Fill()
@@ -64,13 +58,13 @@ func main() {
 		ctx.LineTo(400+150*cos(a), 450+150*sin(a))
 		ctx.Stroke()
 	}
-	ctx.SetFont(src.Face(18))
+	ctx.SetFont(face(18))
 	ctx.SetRGBA(0, 0, 0, 1)
 	ctx.DrawString("Hello World 你好世界", 100, 400)
-	ctx.SetFont(src.Face(24))
+	ctx.SetFont(face(24))
 	ctx.SetRGBA(0.2, 0.4, 0.8, 1)
 	ctx.DrawString("Anti-aliasing Text Test", 100, 430)
-	ctx.SetFont(src.Face(14))
+	ctx.SetFont(face(14))
 	ctx.SetRGBA(0.5, 0.5, 0.5, 1)
 	ctx.DrawString("Small text for testing", 100, 450)
 	ctx.SetRGBA(0.8, 0.2, 0.2, 0.7)
@@ -79,7 +73,7 @@ func main() {
 	ctx.SetRGBA(0.2, 0.8, 0.2, 0.7)
 	ctx.DrawCircle(560, 480, 30)
 	ctx.Fill()
-	ctx.SetFont(src.Face(14))
+	ctx.SetFont(face(14))
 	ctx.SetRGBA(1, 1, 1, 1)
 	ctx.DrawString("Mixed", 530, 435)
 	ctx.SavePNG(filepath.Join(exec.CurrentDir, "examples/anti_aliasing/gpu_anti_aliasing.png"))

@@ -11,7 +11,6 @@ package main
 import (
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"math"
@@ -28,11 +27,7 @@ func main() {
 		Height: 600,
 	})
 
-	var face14 text.Face
-	src, err := text.NewFontSource(examples.Font)
-	if err == nil {
-		face14 = src.Face(14)
-	}
+	face := examples.Face
 
 	var angle float64
 
@@ -52,11 +47,9 @@ func main() {
 			ctx.LineTo(400+150*math.Cos(angle), 300+150*math.Sin(angle))
 			ctx.Stroke()
 
-			if face14 != nil {
-				ctx.SetFont(face14)
-				ctx.SetRGBA(0, 0, 0, 1)
-				ctx.DrawString("GPUI Animation", 350, 500)
-			}
+			ctx.SetFont(face(14))
+			ctx.SetRGBA(0, 0, 0, 1)
+			ctx.DrawString("GPUI Animation", 350, 500)
 
 			angle += 0.02
 		})

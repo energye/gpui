@@ -19,11 +19,9 @@ package main
 import (
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
-	"log"
 	"path/filepath"
 )
 
@@ -31,17 +29,13 @@ func main() {
 	libname.UseWS = "gtk3"
 	app := ui.NewApplication()
 	win := ui.NewWindow(ui.WindowConfig{Title: "Dashed Line", Width: 800, Height: 600})
+	face := examples.Face
 
 	win.OnInit(func(ctrl *ui.TGPUControl) {
-		src, err := text.NewFontSource(examples.Font)
-		if err != nil {
-			log.Fatalf("Font load error: %v", err)
-		}
-		face14 := src.Face(14)
 
 		ctrl.SetOnRender(func(ctx *render.Context) {
 			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
-			ctx.SetFont(face14)
+			ctx.SetFont(face(14))
 
 			patterns := []struct {
 				dash, gap, width float64

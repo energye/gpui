@@ -21,11 +21,9 @@ import (
 	"fmt"
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
-	"log"
 	"path/filepath"
 )
 
@@ -35,15 +33,11 @@ func main() {
 	win := ui.NewWindow(ui.WindowConfig{Title: "Bezier Test", Width: 800, Height: 600})
 
 	win.OnInit(func(ctrl *ui.TGPUControl) {
-		src, err := text.NewFontSource(examples.Font)
-		if err != nil {
-			log.Fatalf("Font load error: %v", err)
-		}
-		face13 := src.Face(13)
+		face := examples.Face
 
 		ctrl.SetOnRender(func(ctx *render.Context) {
 			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
-			ctx.SetFont(face13)
+			ctx.SetFont(face(13))
 
 			curves := []struct {
 				x1, y1, x2, y2, x3, y3, x4, y4 float64

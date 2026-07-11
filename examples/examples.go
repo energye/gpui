@@ -60,3 +60,9 @@ func MakeFallbackFace(sources []*text.FontSource, size float64) text.Face {
 	}
 	return mf
 }
+
+var sources = LoadTextSources()
+
+func Face(size float64) text.Face {
+	return MakeFallbackFace(sources, size)
+}

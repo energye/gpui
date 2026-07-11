@@ -19,11 +19,9 @@ package main
 import (
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
-	"log"
 	"path/filepath"
 )
 
@@ -33,15 +31,12 @@ func main() {
 	win := ui.NewWindow(ui.WindowConfig{Title: "Gradient Test", Width: 800, Height: 600})
 
 	win.OnInit(func(ctrl *ui.TGPUControl) {
-		src, err := text.NewFontSource(examples.Font)
-		if err != nil {
-			log.Fatalf("Font load error: %v", err)
-		}
-		face14 := src.Face(14)
+
+		face := examples.Face
 
 		ctrl.SetOnRender(func(ctx *render.Context) {
 			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
-			ctx.SetFont(face14)
+			ctx.SetFont(face(14))
 
 			g1 := render.NewLinearGradientBrush(100, 100, 300, 100)
 			g1.AddColorStop(0, render.RGBA{R: 1, G: 0, B: 0, A: 1})

@@ -33,10 +33,7 @@ import (
 func main() {
 	libname.UseWS = "gtk3"
 
-	sources := examples.LoadTextSources()
-	face := func(size float64) text.Face {
-		return examples.MakeFallbackFace(sources, size)
-	}
+	face := examples.Face
 
 	app := ui.NewApplication()
 

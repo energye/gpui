@@ -16,11 +16,9 @@ package main
 import (
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
-	"log"
 	"path/filepath"
 )
 
@@ -30,15 +28,12 @@ func main() {
 	win := ui.NewWindow(ui.WindowConfig{Title: "Shadow Test", Width: 800, Height: 600})
 
 	win.OnInit(func(ctrl *ui.TGPUControl) {
-		src, err := text.NewFontSource(examples.Font)
-		if err != nil {
-			log.Fatalf("Font load error: %v", err)
-		}
-		face14 := src.Face(14)
+
+		face := examples.Face
 
 		ctrl.SetOnRender(func(ctx *render.Context) {
 			ctx.ClearWithColor(render.RGBA{R: 0.95, G: 0.95, B: 0.95, A: 1})
-			ctx.SetFont(face14)
+			ctx.SetFont(face(14))
 
 			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 0.6}))
 			ctx.DrawRectangle(100, 100, 150, 150)

@@ -17,11 +17,9 @@ package main
 import (
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
-	"log"
 	"path/filepath"
 )
 
@@ -29,18 +27,12 @@ func main() {
 	libname.UseWS = "gtk3"
 	app := ui.NewApplication()
 	win := ui.NewWindow(ui.WindowConfig{Title: "Text Cursor", Width: 800, Height: 600})
+	face := examples.Face
 
 	win.OnInit(func(ctrl *ui.TGPUControl) {
-		src, err := text.NewFontSource(examples.Font)
-		if err != nil {
-			log.Fatalf("Font load error: %v", err)
-		}
-		face28 := src.Face(28)
-		face20 := src.Face(20)
-
 		ctrl.SetOnRender(func(ctx *render.Context) {
 			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
-			ctx.SetFont(face28)
+			ctx.SetFont(face(28))
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Text with cursor|", 100, 100)
 			ctx.SetLineWidth(2)
@@ -52,7 +44,7 @@ func main() {
 			ctx.MoveTo(420, 188)
 			ctx.LineTo(420, 208)
 			ctx.Stroke()
-			ctx.SetFont(face20)
+			ctx.SetFont(face(20))
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Multiple cursor positions:", 100, 300)
 			ctx.SetRGBA(1, 0, 0, 1)
@@ -68,7 +60,7 @@ func main() {
 			ctx.MoveTo(300, 310)
 			ctx.LineTo(300, 328)
 			ctx.Stroke()
-			ctx.SetFont(face28)
+			ctx.SetFont(face(28))
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Edit this text", 100, 400)
 			ctx.SetRGBA(0, 0, 0, 0.7)

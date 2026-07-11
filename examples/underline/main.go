@@ -16,11 +16,9 @@ package main
 import (
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
-	"log"
 	"path/filepath"
 )
 
@@ -30,16 +28,12 @@ func main() {
 	win := ui.NewWindow(ui.WindowConfig{Title: "Underline", Width: 800, Height: 600})
 
 	win.OnInit(func(ctrl *ui.TGPUControl) {
-		src, err := text.NewFontSource(examples.Font)
-		if err != nil {
-			log.Fatalf("Font load error: %v", err)
-		}
-		face28 := src.Face(28)
-		face20 := src.Face(20)
+
+		face := examples.Face
 
 		ctrl.SetOnRender(func(ctx *render.Context) {
 			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
-			ctx.SetFont(face28)
+			ctx.SetFont(face(28))
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Underlined text example", 100, 100)
 			ctx.SetLineWidth(1)
@@ -52,7 +46,7 @@ func main() {
 			ctx.MoveTo(100, 210)
 			ctx.LineTo(400, 210)
 			ctx.Stroke()
-			ctx.SetFont(face20)
+			ctx.SetFont(face(20))
 			ctx.SetRGBA(0, 0.5, 0, 1)
 			ctx.DrawString("Thick green underline", 100, 300)
 			ctx.SetRGBA(0, 0.5, 0, 1)
