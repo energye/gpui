@@ -304,6 +304,139 @@ go effectC.RequestRedraw()  // requestCh <- struct{}{} (channel 满，丢弃)
 5. **SavePNG 每帧调用** — 严重卡顿 (磁盘 IO 阻塞主线程)
 6. **requestCh 不是 buffered(1)** — 请求丢失或阻塞
 
+### 测试策略
+
+> 本项目使用**视觉测试**而非单元测试 — 每个功能有对应的 example，运行后目视验证。
+
+#### 测试原则
+
+1. **每个功能必须有对应的 example** — 没有 example = 没有测试
+2. **example 头部写明预期效果** — 注释描述应该看到什么
+3. **新功能先写 example 再写实现** — TDD 风格
+4. **改动后必须运行相关 example** — 确认视觉效果正确
+
+#### 现有测试示例清单
+
+| 示例 | 测试功能 | 运行命令 |
+|------|---------|---------|
+| `examples/basic/` | 基础绘图 (矩形、圆形) | `go run ./examples/basic/...` |
+| `examples/animation/` | 基础动画 (帧调度) | `go run ./examples/animation/...` |
+| `examples/dynamic_animation/` | 动态动画 (FramePump) | `go run ./examples/dynamic_animation/...` |
+| `examples/text/` | 文字渲染 (字号、颜色) | `go run ./examples/text/...` |
+| `examples/text_cursor/` | 文本光标 (光标闪烁) | `go run ./examples/text_cursor/...` |
+| `examples/bezier_curves/` | 贝塞尔曲线 (路径) | `go run ./examples/bezier_curves/...` |
+| `examples/complex_shapes/` | 复杂图形 (六边形、星形) | `go run ./examples/complex_shapes/...` |
+| `examples/gradient_effects/` | 渐变效果 (线性、径向) | `go run ./examples/gradient_effects/...` |
+| `examples/shadow_effects/` | 阴影效果 (模糊、投影) | `go run ./examples/shadow_effects/...` |
+| `examples/anti_aliasing/` | 抗锯齿 (边缘平滑) | `go run ./examples/anti_aliasing/...` |
+| `examples/arrow/` | 箭头 (路径绘制) | `go run ./examples/arrow/...` |
+| `examples/dashed_line/` | 虚线 (线型) | `go run ./examples/dashed_line/...` |
+| `examples/strikethrough/` | 删除线 (文字装饰) | `go run ./examples/strikethrough/...` |
+| `examples/underline/` | 下划线 (文字装饰) | `go run ./examples/underline/...` |
+
+#### 各 Phase 测试计划
+
+**Phase 1: FramePump 基座** ✅ 已有测试
+- 测试示例: `examples/dynamic_animation/`
+- 验证点: 动画流畅、帧率稳定、无卡顿
+- 运行: `go run ./examples/dynamic_animation/...`
+
+**Phase 2: 帧时间与动画基础** 📋 需要新建测试
+- 需要新建: `examples/frame_timing/`
+- 验证点: FPS 显示、dt 计算正确、60fps cap 生效
+- 需要新建: `examples/easing/`
+- 验证点: 各种 easing 曲线可视化对比
+
+**Phase 3: Effect System** 📋 需要新建测试
+- 需要新建: `examples/hover_effect/`
+- 验证点: 鼠标悬停颜色渐变、离开恢复
+- 需要新建: `examples/press_effect/`
+- 验证点: 按下缩放、释放恢复
+- 需要新建: `examples/focus_effect/`
+- 验证点: Tab 切换焦点环渐变
+
+**Phase 4: Event System** 📋 需要新建测试
+- 需要新建: `examples/event_dispatch/`
+- 验证点: 鼠标事件分发、命中测试正确
+- 需要新建: `examples/keyboard_input/`
+- 验证点: 键盘事件、文本输入
+- 需要新建: `examples/gesture_recognition/`
+- 验证点: 长按、双击、拖拽
+
+**Phase 5: State Machine** 📋 需要新建测试
+- 需要新建: `examples/state_transition/`
+- 验证点: 状态转换触发 Effect
+
+**Phase 6: Layout System** 📋 需要新建测试
+- 需要新建: `examples/flexbox/`
+- 验证点: 各种 flex 布局排列
+- 需要新建: `examples/responsive_layout/`
+- 验证点: 窗口大小变化时布局自适应
+
+**Phase 7: Theme System** 📋 需要新建测试
+- 需要新建: `examples/theme_switch/`
+- 验证点: 明暗主题切换、颜色过渡动画
+
+**Phase 8: Widget System** 📋 需要新建测试
+- 需要新建: `examples/button/`
+- 验证点: Button 所有状态 (default/hover/press/disabled/loading)
+- 需要新建: `examples/input/`
+- 验证点: Input 聚焦、输入、错误状态
+- 需要新建: `examples/modal/`
+- 验证点: Modal 开关动画、遮罩
+
+#### 测试示例模板
+
+```go
+// examples/xxx/main.go
+//
+// 功能验证: [功能名称]
+// 预期效果:
+// =========
+// 1. [效果1描述]
+// 2. [效果2描述]
+// 3. [效果3描述]
+//
+// 验证标准:
+// - [标准1]
+// - [标准2]
+package main
+
+import (
+    "github.com/energye/gpui/ui"
+    "github.com/energye/gpui/render"
+)
+
+func main() {
+    app := ui.NewApplication()
+    win := ui.NewWindow(ui.WindowConfig{Title: "Test", Width: 800, Height: 600})
+
+    win.OnInit(func(ctrl *ui.TGPUControl) {
+        ctrl.SetOnRender(func(ctx *render.Context) {
+            // 渲染测试内容
+        })
+        // 如需动画: ctrl.StartAnimation()
+    })
+
+    app.AddWindow(win)
+    app.Run()
+}
+```
+
+#### 测试流程
+
+```
+1. 编写 example (预期效果 + 验证标准)
+   ↓
+2. 运行 example (go run ./examples/xxx/...)
+   ↓
+3. 目视验证 (对照预期效果)
+   ↓
+4. 如不通过 → 修改代码 → 回到 2
+   ↓
+5. 通过 → 提交代码
+```
+
 ### 参考库关键文件
 
 | 库 | 关键文件 | 参考点 |
