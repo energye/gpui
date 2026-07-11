@@ -28,11 +28,17 @@ import (
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
 	"log"
+	"os"
 	"path/filepath"
 )
 
 func main() {
 	libname.UseWS = "gtk3"
+
+	sources := loadTextSources()
+	face := func(size float64) text.Face {
+		return makeFallbackFace(sources, size)
+	}
 
 	app := ui.NewApplication()
 
@@ -42,51 +48,109 @@ func main() {
 		Height: 600,
 	})
 	win.OnInit(func(ctrl *ui.TGPUControl) {
-		src, err := text.NewFontSource(examples.Font)
-		if err != nil {
-			log.Fatalf("Font load error: %v", err)
-		}
 		ctrl.SetOnRender(func(ctx *render.Context) {
-			ctx.SetFont(src.Face(14))
-			ctx.SetRGBA(0, 0, 0, 1)
-			ctx.DrawString("Font Size 14 - The quick brown fox jumps over the lazy dog", 100, 80)
-
-			ctx.SetFont(src.Face(18))
-			ctx.DrawString("Font Size 18 - The quick brown fox jumps over the lazy dog", 100, 120)
-
-			ctx.SetFont(src.Face(24))
-			ctx.DrawString("Font Size 24 - ABCDEFGHIJKLMNOPQRSTUVWXYZ", 100, 160)
-
-			ctx.SetFont(src.Face(28))
-			ctx.DrawString("Font Size 28 - abcdefghijklmnopqrstuvwxyz", 100, 210)
-
-			ctx.SetFont(src.Face(36))
-			ctx.DrawString("Font Size 36 - 0123456789", 100, 270)
-
-			ctx.SetFont(src.Face(20))
-			ctx.SetRGBA(0, 0, 0.8, 1)
-			ctx.DrawString("中文文本渲染测试 - 你好世界", 100, 320)
-			ctx.SetRGBA(0.8, 0, 0, 1)
-			ctx.DrawString("日本語のテキストレンダリング - こんにちは", 100, 360)
-			ctx.SetRGBA(0, 0.5, 0, 1)
-			ctx.DrawString("한국어 텍스트 렌더링 - 안녕하세요", 100, 400)
-			ctx.SetRGBA(0.5, 0, 0.5, 1)
-			ctx.DrawString("Mixed Text English + 中文 + 日本語 + 한국어", 100, 440)
-
-			ctx.SetFont(src.Face(16))
-			colors := []render.RGBA{
-				{R: 1, G: 0, B: 0, A: 1}, {R: 0, G: 1, B: 0, A: 1},
-				{R: 0, G: 0, B: 1, A: 1}, {R: 1, G: 1, B: 0, A: 1},
-				{R: 0.8, G: 0, B: 0.8, A: 1},
-			}
-			for i, c := range colors {
-				ctx.SetRGBA(c.R, c.G, c.B, c.A)
-				ctx.DrawString("Colored Text Example", 100+float64(i)*130, 500)
-			}
+			drawTextDemo(ctx, face)
 			ctx.SavePNG(filepath.Join(exec.CurrentDir, "examples/text/gpu_text.png"))
 		})
 	})
 
 	app.AddWindow(win)
 	app.Run()
+}
+
+func makeFallbackFace(sources []*text.FontSource, size float64) text.Face {
+	faces := make([]text.Face, 0, len(sources))
+	for _, src := range sources {
+		faces = append(faces, src.Face(size))
+	}
+	if len(faces) == 1 {
+		return faces[0]
+	}
+	mf, err := text.NewMultiFace(faces...)
+	if err != nil {
+		log.Fatalf("Font fallback error: %v", err)
+	}
+	return mf
+}
+
+func drawTextDemo(ctx *render.Context, face func(float64) text.Face) {
+	ctx.ClearWithColor(render.White)
+	//ctx.SetTextMode(render.TextModeBitmap)
+
+	ctx.SetFont(face(12))
+	ctx.SetRGBA(0, 0, 0, 1)
+	ctx.DrawString("Font Size 12 - The quick brown fox jumps over the lazy dog", 100, 40)
+
+	ctx.SetFont(face(14))
+	ctx.SetRGBA(0, 0, 0, 1)
+	ctx.DrawString("Font Size 14 - The quick brown fox jumps over the lazy dog", 100, 80)
+
+	ctx.SetFont(face(18))
+	ctx.DrawString("Font Size 18 - The quick brown fox jumps over the lazy dog", 100, 120)
+
+	ctx.SetFont(face(24))
+	ctx.DrawString("Font Size 24 - ABCDEFGHIJKLMNOPQRSTUVWXYZ", 100, 160)
+
+	ctx.SetFont(face(28))
+	ctx.DrawString("Font Size 28 - abcdefghijklmnopqrstuvwxyz", 100, 210)
+
+	ctx.SetFont(face(36))
+	ctx.DrawString("Font Size 36 - 0123456789", 100, 270)
+
+	ctx.SetFont(face(20))
+	ctx.SetRGBA(0, 0, 0.8, 1)
+	ctx.DrawString("中文文本渲染测试 - 你好世界", 100, 320)
+	ctx.SetRGBA(0.8, 0, 0, 1)
+	ctx.DrawString("日本語のテキストレンダリング - こんにちは", 100, 360)
+	ctx.SetRGBA(0, 0.5, 0, 1)
+	ctx.DrawString("한국어 텍스트 렌더링 - 안녕하세요", 100, 400)
+	ctx.SetRGBA(0.5, 0, 0.5, 1)
+	ctx.DrawString("Mixed Text English + 中文 + 日本語 + 한국어", 100, 440)
+
+	ctx.SetFont(face(16))
+	colors := []render.RGBA{
+		{R: 1, G: 0, B: 0, A: 1}, {R: 0, G: 1, B: 0, A: 1},
+		{R: 0, G: 0, B: 1, A: 1}, {R: 1, G: 1, B: 0, A: 1},
+		{R: 0.8, G: 0, B: 0.8, A: 1},
+	}
+	for i, c := range colors {
+		ctx.SetRGBA(c.R, c.G, c.B, c.A)
+		ctx.DrawString("Colored Text Example", 100+float64(i)*130, 500)
+	}
+}
+
+func loadTextSources() []*text.FontSource {
+	var sources []*text.FontSource
+
+	for _, candidate := range []struct {
+		path string
+		opts []text.SourceOption
+	}{
+		{path: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"},
+		//{path: "/usr/share/fonts/TTF/DejaVuSans.ttf"},
+		//{path: "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"},
+		//{path: "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", opts: []text.SourceOption{text.WithCollectionIndex(1)}},
+		//{path: "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"},
+		//{path: "/System/Library/Fonts/Supplemental/Arial.ttf"},
+		//{path: "C:\\Windows\\Fonts\\arial.ttf"},
+		//{path: "C:\\Windows\\Fonts\\malgun.ttf"},
+	} {
+		if _, err := os.Stat(candidate.path); err != nil {
+			continue
+		}
+		src, err := text.NewFontSourceFromFile(candidate.path, candidate.opts...)
+		if err != nil {
+			log.Printf("Skipping font %s: %v", candidate.path, err)
+			continue
+		}
+		sources = append(sources, src)
+	}
+
+	src, err := text.NewFontSource(examples.Font)
+	if err != nil {
+		log.Fatalf("Embedded font load error: %v", err)
+	}
+	sources = append(sources, src)
+
+	return sources
 }
