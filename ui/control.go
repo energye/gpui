@@ -18,17 +18,16 @@ import (
 
 // TGPUControl wraps an LCL OpenGL control with GPU-accelerated 2D rendering.
 type TGPUControl struct {
-	ctrl      lcl.IOpenGLControl
-	ggCtx     *render.Context // gg rendering context
-	texture   uint32
-	vao       uint32
-	vbo       uint32
-	program   uint32
-	width     int32
-	height    int32
-	onRender  func(*render.Context) // user render callback (receives render.Context)
-	initDone  bool
-	animating bool // continuous render loop flag (OnDraw style)
+	ctrl     lcl.IOpenGLControl
+	ggCtx    *render.Context // gg rendering context
+	texture  uint32
+	vao      uint32
+	vbo      uint32
+	program  uint32
+	width    int32
+	height   int32
+	onRender func(*render.Context) // user render callback (receives render.Context)
+	initDone bool
 }
 
 // NewGPUControl creates a new TGPUControl.
@@ -148,12 +147,6 @@ func (c *TGPUControl) onPaint(sender lcl.IObject) {
 	// Display
 	c.doPresent()
 
-	// Continuous render loop (OnDraw style): schedule next frame when animation is active
-	// This ties rendering to the display refresh rate via SwapBuffers vsync,
-	// avoiding timer precision issues from lcl.TTimer.
-	if c.animating {
-		c.Invalidate()
-	}
 }
 
 // SetSize updates the control's size.
@@ -257,8 +250,8 @@ func (c *TGPUControl) StartAnimation() {
 	if c == nil || c.ctrl == nil {
 		return
 	}
-	c.animating = true
-	c.Invalidate() // start the render loop
+	c.Invalidate()
+	// TODO 未实现，或者不需要这个函数，因为要求是动态触发动态渲染机制
 }
 
 // StopAnimation stops continuous rendering.
@@ -266,7 +259,7 @@ func (c *TGPUControl) StopAnimation() {
 	if c == nil {
 		return
 	}
-	c.animating = false
+	// TODO 未实现，或者不需要这个函数，因为要求是动态触发动态渲染机制
 }
 
 // strPtr returns a *byte pointer to a null-terminated string.
