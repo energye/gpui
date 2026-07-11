@@ -92,6 +92,8 @@ const (
 	GL_DEPTH24_STENCIL8         = 0x88F0
 )
 
+const cglCPSwapInterval = 222
+
 // GL function pointers — callable after Init().
 var (
 	// State management
@@ -173,6 +175,22 @@ var (
 	BindRenderbuffer        func(target uint32, renderbuffer uint32)
 	RenderbufferStorage     func(target uint32, internalformat uint32, width int32, height int32)
 	FramebufferRenderbuffer func(target uint32, attachment uint32, renderbuffertarget uint32, renderbuffer uint32)
+)
+
+var (
+	glXGetProcAddressARB  func(name *byte) uintptr
+	glXGetProcAddress     func(name *byte) uintptr
+	glXGetCurrentDisplay  func() uintptr
+	glXGetCurrentDrawable func() uintptr
+	glXSwapIntervalEXT    func(display uintptr, drawable uintptr, interval int32)
+	glXSwapIntervalMESA   func(interval uint32) int32
+	glXSwapIntervalSGI    func(interval int32) int32
+
+	wglGetProcAddress  func(name *byte) uintptr
+	wglSwapIntervalEXT func(interval int32) int32
+
+	cglGetCurrentContext func() uintptr
+	cglSetParameter      func(ctx uintptr, pname int32, params *int32) int32
 )
 
 var (
@@ -299,9 +317,56 @@ func Init() error {
 		bind(&FramebufferRenderbuffer, "glFramebufferRenderbuffer")
 	}
 
+	loadSwapIntervalFuncs(lib)
+
 	initOK = true
 	initialized = true
 	return nil
+}
+
+// SetVSync enables or disables presentation pacing through the platform swap
+// interval API. The OpenGL context must be current on the calling thread.
+func SetVSync(enabled bool) error {
+	if enabled {
+		return SetSwapInterval(1)
+	}
+	return SetSwapInterval(0)
+}
+
+// SetSwapInterval sets the platform swap interval for the current OpenGL
+// context. interval=1 enables VSync pacing; interval=0 disables it when the
+// platform extension supports that operation.
+func SetSwapInterval(interval int) error {
+	if !initialized {
+		return fmt.Errorf("gl: Init must be called before SetSwapInterval")
+	}
+
+	switch runtime.GOOS {
+	case "linux":
+		return setGLXSwapInterval(int32(interval))
+	case "windows":
+		return setWGLSwapInterval(int32(interval))
+	case "darwin":
+		return setCGLSwapInterval(int32(interval))
+	default:
+		return fmt.Errorf("gl: swap interval unsupported on %s", runtime.GOOS)
+	}
+}
+
+// SwapIntervalSupported reports whether a platform swap interval binding was
+// found during Init. It does not guarantee that a later SetSwapInterval call
+// succeeds, because some APIs also require a current drawable/context.
+func SwapIntervalSupported() bool {
+	switch runtime.GOOS {
+	case "linux":
+		return glXSwapIntervalEXT != nil || glXSwapIntervalMESA != nil || glXSwapIntervalSGI != nil
+	case "windows":
+		return wglSwapIntervalEXT != nil
+	case "darwin":
+		return cglGetCurrentContext != nil && cglSetParameter != nil
+	default:
+		return false
+	}
 }
 
 func resetGLFuncs() {
@@ -376,6 +441,20 @@ func resetGLFuncs() {
 	BindRenderbuffer = nil
 	RenderbufferStorage = nil
 	FramebufferRenderbuffer = nil
+
+	glXGetProcAddressARB = nil
+	glXGetProcAddress = nil
+	glXGetCurrentDisplay = nil
+	glXGetCurrentDrawable = nil
+	glXSwapIntervalEXT = nil
+	glXSwapIntervalMESA = nil
+	glXSwapIntervalSGI = nil
+
+	wglGetProcAddress = nil
+	wglSwapIntervalEXT = nil
+
+	cglGetCurrentContext = nil
+	cglSetParameter = nil
 }
 
 func openGLLibrary() (uintptr, error) {
@@ -413,4 +492,142 @@ func getGLFunc(lib uintptr, name string) uintptr {
 		return 0
 	}
 	return fn
+}
+
+func loadSwapIntervalFuncs(lib uintptr) {
+	switch runtime.GOOS {
+	case "linux":
+		loadGLXSwapIntervalFuncs(lib)
+	case "windows":
+		loadWGLSwapIntervalFuncs(lib)
+	case "darwin":
+		loadCGLSwapIntervalFuncs(lib)
+	}
+}
+
+func loadGLXSwapIntervalFuncs(lib uintptr) {
+	if fn := getGLFunc(lib, "glXGetProcAddressARB"); fn != 0 {
+		purego.RegisterFunc(&glXGetProcAddressARB, fn)
+	}
+	if fn := getGLFunc(lib, "glXGetProcAddress"); fn != 0 {
+		purego.RegisterFunc(&glXGetProcAddress, fn)
+	}
+	if fn := getGLFunc(lib, "glXGetCurrentDisplay"); fn != 0 {
+		purego.RegisterFunc(&glXGetCurrentDisplay, fn)
+	}
+	if fn := getGLFunc(lib, "glXGetCurrentDrawable"); fn != 0 {
+		purego.RegisterFunc(&glXGetCurrentDrawable, fn)
+	}
+
+	if fn := getGLXProcAddress(lib, "glXSwapIntervalEXT"); validProcAddress(fn) {
+		purego.RegisterFunc(&glXSwapIntervalEXT, fn)
+	}
+	if fn := getGLXProcAddress(lib, "glXSwapIntervalMESA"); validProcAddress(fn) {
+		purego.RegisterFunc(&glXSwapIntervalMESA, fn)
+	}
+	if fn := getGLXProcAddress(lib, "glXSwapIntervalSGI"); validProcAddress(fn) {
+		purego.RegisterFunc(&glXSwapIntervalSGI, fn)
+	}
+}
+
+func getGLXProcAddress(lib uintptr, name string) uintptr {
+	if glXGetProcAddressARB != nil {
+		if fn := glXGetProcAddressARB(cString(name)); validProcAddress(fn) {
+			return fn
+		}
+	}
+	if glXGetProcAddress != nil {
+		if fn := glXGetProcAddress(cString(name)); validProcAddress(fn) {
+			return fn
+		}
+	}
+	return getGLFunc(lib, name)
+}
+
+func setGLXSwapInterval(interval int32) error {
+	if glXSwapIntervalEXT != nil {
+		if glXGetCurrentDisplay == nil || glXGetCurrentDrawable == nil {
+			return fmt.Errorf("gl: GLX current display/drawable bindings unavailable")
+		}
+		display := glXGetCurrentDisplay()
+		drawable := glXGetCurrentDrawable()
+		if display == 0 || drawable == 0 {
+			return fmt.Errorf("gl: GLX context or drawable is not current")
+		}
+		glXSwapIntervalEXT(display, drawable, interval)
+		return nil
+	}
+	if glXSwapIntervalMESA != nil {
+		if interval < 0 {
+			return fmt.Errorf("gl: glXSwapIntervalMESA does not support negative intervals")
+		}
+		if status := glXSwapIntervalMESA(uint32(interval)); status != 0 {
+			return fmt.Errorf("gl: glXSwapIntervalMESA failed with status %d", status)
+		}
+		return nil
+	}
+	if glXSwapIntervalSGI != nil {
+		if interval <= 0 {
+			return fmt.Errorf("gl: glXSwapIntervalSGI only supports positive intervals")
+		}
+		if status := glXSwapIntervalSGI(interval); status != 0 {
+			return fmt.Errorf("gl: glXSwapIntervalSGI failed with status %d", status)
+		}
+		return nil
+	}
+	return fmt.Errorf("gl: GLX swap interval extension unavailable")
+}
+
+func loadWGLSwapIntervalFuncs(lib uintptr) {
+	if fn := getGLFunc(lib, "wglGetProcAddress"); fn != 0 {
+		purego.RegisterFunc(&wglGetProcAddress, fn)
+	}
+	if wglGetProcAddress == nil {
+		return
+	}
+	if fn := wglGetProcAddress(cString("wglSwapIntervalEXT")); validProcAddress(fn) {
+		purego.RegisterFunc(&wglSwapIntervalEXT, fn)
+	}
+}
+
+func setWGLSwapInterval(interval int32) error {
+	if wglSwapIntervalEXT == nil {
+		return fmt.Errorf("gl: WGL_EXT_swap_control unavailable")
+	}
+	if status := wglSwapIntervalEXT(interval); status == 0 {
+		return fmt.Errorf("gl: wglSwapIntervalEXT failed")
+	}
+	return nil
+}
+
+func loadCGLSwapIntervalFuncs(lib uintptr) {
+	if fn := getGLFunc(lib, "CGLGetCurrentContext"); fn != 0 {
+		purego.RegisterFunc(&cglGetCurrentContext, fn)
+	}
+	if fn := getGLFunc(lib, "CGLSetParameter"); fn != 0 {
+		purego.RegisterFunc(&cglSetParameter, fn)
+	}
+}
+
+func setCGLSwapInterval(interval int32) error {
+	if cglGetCurrentContext == nil || cglSetParameter == nil {
+		return fmt.Errorf("gl: CGL swap interval bindings unavailable")
+	}
+	ctx := cglGetCurrentContext()
+	if ctx == 0 {
+		return fmt.Errorf("gl: CGL context is not current")
+	}
+	if status := cglSetParameter(ctx, cglCPSwapInterval, &interval); status != 0 {
+		return fmt.Errorf("gl: CGLSetParameter(kCGLCPSwapInterval) failed with status %d", status)
+	}
+	return nil
+}
+
+func validProcAddress(fn uintptr) bool {
+	return fn != 0 && fn != 1 && fn != 2 && fn != 3 && fn != ^uintptr(0)
+}
+
+func cString(s string) *byte {
+	b := append([]byte(s), 0)
+	return &b[0]
 }
