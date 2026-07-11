@@ -15,9 +15,9 @@ package main
 
 import (
 	"github.com/energye/gpui/examples"
-	"github.com/energye/gpui/gpui"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
 	"log"
@@ -26,47 +26,47 @@ import (
 
 func main() {
 	libname.UseWS = "gtk3"
-	app := gpui.NewApplication()
-	win := gpui.NewWindow(gpui.WindowConfig{Title: "Shadow Test", Width: 800, Height: 600})
+	app := ui.NewApplication()
+	win := ui.NewWindow(ui.WindowConfig{Title: "Shadow Test", Width: 800, Height: 600})
 
-	win.OnInit(func(ctrl *gpui.TGPUControl) {
+	win.OnInit(func(ctrl *ui.TGPUControl) {
 		src, err := text.NewFontSource(examples.Font)
 		if err != nil {
 			log.Fatalf("Font load error: %v", err)
 		}
 		face14 := src.Face(14)
 
-		ctrl.SetOnRender(func(ctx *gg.Context) {
-			ctx.ClearWithColor(gg.RGBA{R: 0.95, G: 0.95, B: 0.95, A: 1})
+		ctrl.SetOnRender(func(ctx *render.Context) {
+			ctx.ClearWithColor(render.RGBA{R: 0.95, G: 0.95, B: 0.95, A: 1})
 			ctx.SetFont(face14)
 
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 0.6}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 0.6}))
 			ctx.DrawRectangle(100, 100, 150, 150)
 			ctx.Fill()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.8, G: 0.2, B: 0.2, A: 0.6}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.8, G: 0.2, B: 0.2, A: 0.6}))
 			ctx.DrawRectangle(180, 130, 150, 150)
 			ctx.Fill()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.2, G: 0.8, B: 0.2, A: 0.6}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.2, G: 0.8, B: 0.2, A: 0.6}))
 			ctx.DrawRectangle(140, 170, 150, 150)
 			ctx.Fill()
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Alpha Blended Rectangles", 100, 80)
 
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 1, G: 0, B: 0, A: 0.3}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 1, G: 0, B: 0, A: 0.3}))
 			ctx.DrawCircle(500, 150, 60)
 			ctx.Fill()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0, G: 1, B: 0, A: 0.3}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0, G: 1, B: 0, A: 0.3}))
 			ctx.DrawCircle(550, 150, 60)
 			ctx.Fill()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0, G: 0, B: 1, A: 0.3}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0, G: 0, B: 1, A: 0.3}))
 			ctx.DrawCircle(525, 120, 60)
 			ctx.Fill()
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Alpha Blended Circles", 400, 80)
 
-			g := gg.NewRadialGradientBrush(500, 400, 10, 100)
-			g.AddColorStop(0, gg.RGBA{R: 0, G: 0, B: 0, A: 0.8})
-			g.AddColorStop(1, gg.RGBA{R: 0, G: 0, B: 0, A: 0})
+			g := render.NewRadialGradientBrush(500, 400, 10, 100)
+			g.AddColorStop(0, render.RGBA{R: 0, G: 0, B: 0, A: 0.8})
+			g.AddColorStop(1, render.RGBA{R: 0, G: 0, B: 0, A: 0})
 			ctx.SetFillBrush(g)
 			ctx.DrawCircle(500, 400, 100)
 			ctx.Fill()

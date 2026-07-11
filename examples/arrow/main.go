@@ -20,9 +20,9 @@ package main
 
 import (
 	"github.com/energye/gpui/examples"
-	"github.com/energye/gpui/gpui"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
 	"log"
@@ -31,10 +31,10 @@ import (
 
 func main() {
 	libname.UseWS = "gtk3"
-	app := gpui.NewApplication()
-	win := gpui.NewWindow(gpui.WindowConfig{Title: "Arrow Test", Width: 800, Height: 600})
+	app := ui.NewApplication()
+	win := ui.NewWindow(ui.WindowConfig{Title: "Arrow Test", Width: 800, Height: 600})
 
-	win.OnInit(func(ctrl *gpui.TGPUControl) {
+	win.OnInit(func(ctrl *ui.TGPUControl) {
 		// Font loading with fallback paths
 		src, err := text.NewFontSource(examples.Font)
 		if err != nil {
@@ -42,36 +42,36 @@ func main() {
 		}
 		face14 := src.Face(14)
 
-		ctrl.SetOnRender(func(ctx *gg.Context) {
-			ctx.ClearWithColor(gg.RGBA{R: 1, G: 1, B: 1, A: 1})
+		ctrl.SetOnRender(func(ctx *render.Context) {
+			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
 			ctx.SetFont(face14)
 
-			drawArrow(ctx, 100, 100, 200, 100, gg.RGBA{R: 1, G: 0, B: 0, A: 1}, 2)
+			drawArrow(ctx, 100, 100, 200, 100, render.RGBA{R: 1, G: 0, B: 0, A: 1}, 2)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Right", 100, 80)
 
-			drawArrow(ctx, 300, 100, 200, 100, gg.RGBA{R: 0, G: 1, B: 0, A: 1}, 3)
+			drawArrow(ctx, 300, 100, 200, 100, render.RGBA{R: 0, G: 1, B: 0, A: 1}, 3)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Left", 200, 80)
 
-			drawArrow(ctx, 400, 200, 400, 100, gg.RGBA{R: 0, G: 0, B: 1, A: 1}, 2)
+			drawArrow(ctx, 400, 200, 400, 100, render.RGBA{R: 0, G: 0, B: 1, A: 1}, 2)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Up", 380, 80)
 
-			drawArrow(ctx, 500, 100, 500, 200, gg.RGBA{R: 1, G: 1, B: 0, A: 1}, 3)
+			drawArrow(ctx, 500, 100, 500, 200, render.RGBA{R: 1, G: 1, B: 0, A: 1}, 3)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Down", 480, 220)
 
-			drawArrow(ctx, 100, 300, 250, 300, gg.RGBA{R: 0.5, G: 0, B: 0.5, A: 1}, 2)
-			drawArrow(ctx, 250, 300, 100, 300, gg.RGBA{R: 0.5, G: 0, B: 0.5, A: 1}, 2)
+			drawArrow(ctx, 100, 300, 250, 300, render.RGBA{R: 0.5, G: 0, B: 0.5, A: 1}, 2)
+			drawArrow(ctx, 250, 300, 100, 300, render.RGBA{R: 0.5, G: 0, B: 0.5, A: 1}, 2)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Double", 120, 280)
 
-			drawArrow(ctx, 400, 400, 550, 250, gg.RGBA{R: 0, G: 0.5, B: 0.5, A: 1}, 2)
+			drawArrow(ctx, 400, 400, 550, 250, render.RGBA{R: 0, G: 0.5, B: 0.5, A: 1}, 2)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("45° Arrow", 420, 240)
 
-			colors := []gg.RGBA{{R: 1, G: 0, B: 0, A: 1}, {R: 0, G: 1, B: 0, A: 1}, {R: 0, G: 0, B: 1, A: 1}, {R: 1, G: 1, B: 0, A: 1}}
+			colors := []render.RGBA{{R: 1, G: 0, B: 0, A: 1}, {R: 0, G: 1, B: 0, A: 1}, {R: 0, G: 0, B: 1, A: 1}, {R: 1, G: 1, B: 0, A: 1}}
 			for i, c := range colors {
 				drawArrow(ctx, 600, 100+float64(i*50), 750, 100+float64(i*50), c, float64(i)+1)
 			}
@@ -82,7 +82,7 @@ func main() {
 	app.Run()
 }
 
-func drawArrow(ctx *gg.Context, x1, y1, x2, y2 float64, col gg.RGBA, w float64) {
+func drawArrow(ctx *render.Context, x1, y1, x2, y2 float64, col render.RGBA, w float64) {
 	dx, dy := x2-x1, y2-y1
 	l := sqrt(dx*dx + dy*dy)
 	if l < 1 {

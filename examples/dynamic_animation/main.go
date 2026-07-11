@@ -17,9 +17,9 @@ package main
 import (
 	"fmt"
 	"github.com/energye/gpui/examples"
-	"github.com/energye/gpui/gpui"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
 	"log"
@@ -29,8 +29,8 @@ import (
 
 func main() {
 	libname.UseWS = "gtk3"
-	app := gpui.NewApplication()
-	win := gpui.NewWindow(gpui.WindowConfig{Title: "Animation", Width: 800, Height: 600})
+	app := ui.NewApplication()
+	win := ui.NewWindow(ui.WindowConfig{Title: "Animation", Width: 800, Height: 600})
 
 	src, err := text.NewFontSource(examples.Font)
 	if err != nil {
@@ -39,24 +39,24 @@ func main() {
 	face14 := src.Face(14)
 
 	var angle float64 = 0
-	win.OnInit(func(ctrl *gpui.TGPUControl) {
-		ctrl.SetOnRender(func(ctx *gg.Context) {
-			ctx.ClearWithColor(gg.RGBA{R: 0.95, G: 0.95, B: 0.98, A: 1})
+	win.OnInit(func(ctrl *ui.TGPUControl) {
+		ctrl.SetOnRender(func(ctx *render.Context) {
+			ctx.ClearWithColor(render.RGBA{R: 0.95, G: 0.95, B: 0.98, A: 1})
 			ctx.SetFont(face14)
 
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 1}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 1}))
 			ctx.DrawCircle(400, 300, 80)
 			ctx.Fill()
-			ctx.SetStrokeBrush(gg.Solid(gg.RGBA{R: 1, G: 0, B: 0, A: 1}))
+			ctx.SetStrokeBrush(render.Solid(render.RGBA{R: 1, G: 0, B: 0, A: 1}))
 			ctx.SetLineWidth(3)
 			ctx.MoveTo(400, 300)
 			ctx.LineTo(400+120*math.Cos(angle), 300+120*math.Sin(angle))
 			ctx.Stroke()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 1, G: 0.8, B: 0, A: 1}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 1, G: 0.8, B: 0, A: 1}))
 			ctx.DrawCircle(400+80*math.Cos(angle*2), 300+80*math.Sin(angle*2), 10)
 			ctx.Fill()
 			pulse := 30 + 20*math.Sin(angle)
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.2, G: 0.8, B: 0.2, A: 0.5}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.2, G: 0.8, B: 0.2, A: 0.5}))
 			ctx.DrawCircle(400, 300, pulse)
 			ctx.Fill()
 

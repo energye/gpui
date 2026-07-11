@@ -18,9 +18,9 @@ package main
 
 import (
 	"github.com/energye/gpui/examples"
-	"github.com/energye/gpui/gpui"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
 	"log"
@@ -29,31 +29,31 @@ import (
 
 func main() {
 	libname.UseWS = "gtk3"
-	app := gpui.NewApplication()
-	win := gpui.NewWindow(gpui.WindowConfig{Title: "Dashed Line", Width: 800, Height: 600})
+	app := ui.NewApplication()
+	win := ui.NewWindow(ui.WindowConfig{Title: "Dashed Line", Width: 800, Height: 600})
 
-	win.OnInit(func(ctrl *gpui.TGPUControl) {
+	win.OnInit(func(ctrl *ui.TGPUControl) {
 		src, err := text.NewFontSource(examples.Font)
 		if err != nil {
 			log.Fatalf("Font load error: %v", err)
 		}
 		face14 := src.Face(14)
 
-		ctrl.SetOnRender(func(ctx *gg.Context) {
-			ctx.ClearWithColor(gg.RGBA{R: 1, G: 1, B: 1, A: 1})
+		ctrl.SetOnRender(func(ctx *render.Context) {
+			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
 			ctx.SetFont(face14)
 
 			patterns := []struct {
 				dash, gap, width float64
-				color            gg.RGBA
+				color            render.RGBA
 				name             string
 			}{
-				{0, 0, 1, gg.RGBA{R: 0, G: 0, B: 0, A: 1}, "Solid"},
-				{8, 4, 2, gg.RGBA{R: 1, G: 0, B: 0, A: 1}, "Red Dash"},
-				{12, 6, 3, gg.RGBA{R: 0, G: 1, B: 0, A: 1}, "Green Wide"},
-				{4, 4, 1, gg.RGBA{R: 0, G: 0, B: 1, A: 1}, "Blue Dotted"},
-				{20, 10, 2, gg.RGBA{R: 1, G: 1, B: 0, A: 1}, "Yellow Long"},
-				{6, 3, 1.5, gg.RGBA{R: 0.8, G: 0, B: 0.8, A: 1}, "Purple Fine"},
+				{0, 0, 1, render.RGBA{R: 0, G: 0, B: 0, A: 1}, "Solid"},
+				{8, 4, 2, render.RGBA{R: 1, G: 0, B: 0, A: 1}, "Red Dash"},
+				{12, 6, 3, render.RGBA{R: 0, G: 1, B: 0, A: 1}, "Green Wide"},
+				{4, 4, 1, render.RGBA{R: 0, G: 0, B: 1, A: 1}, "Blue Dotted"},
+				{20, 10, 2, render.RGBA{R: 1, G: 1, B: 0, A: 1}, "Yellow Long"},
+				{6, 3, 1.5, render.RGBA{R: 0.8, G: 0, B: 0.8, A: 1}, "Purple Fine"},
 			}
 			for i, p := range patterns {
 				y := 60.0 + float64(i)*80

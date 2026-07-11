@@ -10,9 +10,9 @@ package main
 
 import (
 	"github.com/energye/gpui/examples"
-	"github.com/energye/gpui/gpui"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"math"
 )
@@ -20,9 +20,9 @@ import (
 func main() {
 	libname.UseWS = "gtk3"
 
-	app := gpui.NewApplication()
+	app := ui.NewApplication()
 
-	win := gpui.NewWindow(gpui.WindowConfig{
+	win := ui.NewWindow(ui.WindowConfig{
 		Title:  "GPUI - Animation",
 		Width:  800,
 		Height: 600,
@@ -36,9 +36,9 @@ func main() {
 
 	var angle float64
 
-	win.OnInit(func(ctrl *gpui.TGPUControl) {
-		ctrl.SetOnRender(func(ctx *gg.Context) {
-			ctx.ClearWithColor(gg.RGBA{R: 0.95, G: 0.95, B: 0.98, A: 1})
+	win.OnInit(func(ctrl *ui.TGPUControl) {
+		ctrl.SetOnRender(func(ctx *render.Context) {
+			ctx.ClearWithColor(render.RGBA{R: 0.95, G: 0.95, B: 0.98, A: 1})
 
 			// Rotating circle
 			ctx.SetRGBA(0.2, 0.4, 0.8, 1.0)

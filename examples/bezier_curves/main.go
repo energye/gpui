@@ -20,9 +20,9 @@ package main
 import (
 	"fmt"
 	"github.com/energye/gpui/examples"
-	"github.com/energye/gpui/gpui"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
 	"log"
@@ -31,18 +31,18 @@ import (
 
 func main() {
 	libname.UseWS = "gtk3"
-	app := gpui.NewApplication()
-	win := gpui.NewWindow(gpui.WindowConfig{Title: "Bezier Test", Width: 800, Height: 600})
+	app := ui.NewApplication()
+	win := ui.NewWindow(ui.WindowConfig{Title: "Bezier Test", Width: 800, Height: 600})
 
-	win.OnInit(func(ctrl *gpui.TGPUControl) {
+	win.OnInit(func(ctrl *ui.TGPUControl) {
 		src, err := text.NewFontSource(examples.Font)
 		if err != nil {
 			log.Fatalf("Font load error: %v", err)
 		}
 		face13 := src.Face(13)
 
-		ctrl.SetOnRender(func(ctx *gg.Context) {
-			ctx.ClearWithColor(gg.RGBA{R: 1, G: 1, B: 1, A: 1})
+		ctrl.SetOnRender(func(ctx *render.Context) {
+			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
 			ctx.SetFont(face13)
 
 			curves := []struct {

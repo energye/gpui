@@ -18,9 +18,9 @@ package main
 
 import (
 	"github.com/energye/gpui/examples"
-	"github.com/energye/gpui/gpui"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 	"github.com/energye/lcl/tool/exec"
 	"log"
@@ -29,62 +29,62 @@ import (
 
 func main() {
 	libname.UseWS = "gtk3"
-	app := gpui.NewApplication()
-	win := gpui.NewWindow(gpui.WindowConfig{Title: "Gradient Test", Width: 800, Height: 600})
+	app := ui.NewApplication()
+	win := ui.NewWindow(ui.WindowConfig{Title: "Gradient Test", Width: 800, Height: 600})
 
-	win.OnInit(func(ctrl *gpui.TGPUControl) {
+	win.OnInit(func(ctrl *ui.TGPUControl) {
 		src, err := text.NewFontSource(examples.Font)
 		if err != nil {
 			log.Fatalf("Font load error: %v", err)
 		}
 		face14 := src.Face(14)
 
-		ctrl.SetOnRender(func(ctx *gg.Context) {
-			ctx.ClearWithColor(gg.RGBA{R: 1, G: 1, B: 1, A: 1})
+		ctrl.SetOnRender(func(ctx *render.Context) {
+			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
 			ctx.SetFont(face14)
 
-			g1 := gg.NewLinearGradientBrush(100, 100, 300, 100)
-			g1.AddColorStop(0, gg.RGBA{R: 1, G: 0, B: 0, A: 1})
-			g1.AddColorStop(0.5, gg.RGBA{R: 0, G: 1, B: 0, A: 1})
-			g1.AddColorStop(1, gg.RGBA{R: 0, G: 0, B: 1, A: 1})
+			g1 := render.NewLinearGradientBrush(100, 100, 300, 100)
+			g1.AddColorStop(0, render.RGBA{R: 1, G: 0, B: 0, A: 1})
+			g1.AddColorStop(0.5, render.RGBA{R: 0, G: 1, B: 0, A: 1})
+			g1.AddColorStop(1, render.RGBA{R: 0, G: 0, B: 1, A: 1})
 			ctx.SetFillBrush(g1)
 			ctx.DrawRectangle(100, 100, 200, 80)
 			ctx.Fill()
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Horizontal Linear", 100, 90)
 
-			g2 := gg.NewLinearGradientBrush(400, 100, 400, 180)
-			g2.AddColorStop(0, gg.RGBA{R: 1, G: 1, B: 0, A: 1})
-			g2.AddColorStop(0.5, gg.RGBA{R: 0.8, G: 0, B: 0.8, A: 1})
-			g2.AddColorStop(1, gg.RGBA{R: 0, G: 1, B: 1, A: 1})
+			g2 := render.NewLinearGradientBrush(400, 100, 400, 180)
+			g2.AddColorStop(0, render.RGBA{R: 1, G: 1, B: 0, A: 1})
+			g2.AddColorStop(0.5, render.RGBA{R: 0.8, G: 0, B: 0.8, A: 1})
+			g2.AddColorStop(1, render.RGBA{R: 0, G: 1, B: 1, A: 1})
 			ctx.SetFillBrush(g2)
 			ctx.DrawRectangle(400, 100, 200, 80)
 			ctx.Fill()
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Vertical Linear", 400, 90)
 
-			g3 := gg.NewLinearGradientBrush(100, 250, 300, 400)
-			g3.AddColorStop(0, gg.RGBA{R: 1, G: 0, B: 0, A: 1})
-			g3.AddColorStop(1, gg.RGBA{R: 0, G: 0, B: 1, A: 1})
+			g3 := render.NewLinearGradientBrush(100, 250, 300, 400)
+			g3.AddColorStop(0, render.RGBA{R: 1, G: 0, B: 0, A: 1})
+			g3.AddColorStop(1, render.RGBA{R: 0, G: 0, B: 1, A: 1})
 			ctx.SetFillBrush(g3)
 			ctx.DrawRectangle(100, 250, 200, 150)
 			ctx.Fill()
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Diagonal Linear", 100, 240)
 
-			g4 := gg.NewRadialGradientBrush(600, 250, 10, 80)
-			g4.AddColorStop(0, gg.RGBA{R: 1, G: 1, B: 1, A: 1})
-			g4.AddColorStop(0.5, gg.RGBA{R: 1, G: 0.5, B: 0, A: 1})
-			g4.AddColorStop(1, gg.RGBA{R: 1, G: 0, B: 0, A: 1})
+			g4 := render.NewRadialGradientBrush(600, 250, 10, 80)
+			g4.AddColorStop(0, render.RGBA{R: 1, G: 1, B: 1, A: 1})
+			g4.AddColorStop(0.5, render.RGBA{R: 1, G: 0.5, B: 0, A: 1})
+			g4.AddColorStop(1, render.RGBA{R: 1, G: 0, B: 0, A: 1})
 			ctx.SetFillBrush(g4)
 			ctx.DrawCircle(600, 250, 80)
 			ctx.Fill()
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Radial Gradient", 560, 160)
 
-			g5 := gg.NewRadialGradientBrush(150, 500, 5, 60)
-			g5.AddColorStop(0, gg.RGBA{R: 1, G: 1, B: 1, A: 1})
-			g5.AddColorStop(1, gg.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 1})
+			g5 := render.NewRadialGradientBrush(150, 500, 5, 60)
+			g5.AddColorStop(0, render.RGBA{R: 1, G: 1, B: 1, A: 1})
+			g5.AddColorStop(1, render.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 1})
 			ctx.SetFillBrush(g5)
 			ctx.DrawCircle(150, 500, 60)
 			ctx.Fill()

@@ -22,8 +22,8 @@ package main
 
 import (
 	"github.com/energye/gpui/examples"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
 	"github.com/energye/lcl/tool/exec"
 	"log"
 	"path/filepath"
@@ -31,8 +31,8 @@ import (
 
 func main() {
 	const W, H = 800, 600
-	ctx := gg.NewContext(W, H)
-	ctx.ClearWithColor(gg.RGBA{R: 1, G: 1, B: 1, A: 1})
+	ctx := render.NewContext(W, H)
+	ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
 
 	src, err := text.NewFontSource(examples.Font)
 	if err != nil {
@@ -67,7 +67,7 @@ func main() {
 	ctx.DrawString("Mixed Text English + 中文 + 日本語 + 한국어", 100, 440)
 
 	ctx.SetFont(src.Face(16))
-	colors := []gg.RGBA{
+	colors := []render.RGBA{
 		{R: 1, G: 0, B: 0, A: 1}, {R: 0, G: 1, B: 0, A: 1},
 		{R: 0, G: 0, B: 1, A: 1}, {R: 1, G: 1, B: 0, A: 1},
 		{R: 0.8, G: 0, B: 0.8, A: 1},

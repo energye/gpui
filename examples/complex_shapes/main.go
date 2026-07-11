@@ -22,21 +22,20 @@ import (
 	"github.com/energye/lcl/tool/exec"
 	"log"
 	"math"
-	"os"
 	"path/filepath"
 
-	"github.com/energye/gpui/gpui"
-	"github.com/energye/gpui/internal/gg"
-	"github.com/energye/gpui/internal/gg/text"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
 )
 
 func main() {
 	libname.UseWS = "gtk3"
-	app := gpui.NewApplication()
-	win := gpui.NewWindow(gpui.WindowConfig{Title: "Complex Shapes", Width: 800, Height: 600})
+	app := ui.NewApplication()
+	win := ui.NewWindow(ui.WindowConfig{Title: "Complex Shapes", Width: 800, Height: 600})
 
-	win.OnInit(func(ctrl *gpui.TGPUControl) {
+	win.OnInit(func(ctrl *ui.TGPUControl) {
 
 		src, err := text.NewFontSource(examples.Font)
 		if err != nil {
@@ -44,12 +43,12 @@ func main() {
 		}
 		face14 := src.Face(14)
 
-		ctrl.SetOnRender(func(ctx *gg.Context) {
-			ctx.ClearWithColor(gg.RGBA{R: 1, G: 1, B: 1, A: 1})
+		ctrl.SetOnRender(func(ctx *render.Context) {
+			ctx.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
 			ctx.SetFont(face14)
 
 			// 1. 正六边形
-			p := gg.NewPath()
+			p := render.NewPath()
 			for i := 0; i < 6; i++ {
 				a := float64(i) * math.Pi / 3
 				if i == 0 {
@@ -59,18 +58,18 @@ func main() {
 				}
 			}
 			p.Close()
-			ctx.SetFillRule(gg.FillRuleNonZero)
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.2, G: 0.6, B: 1, A: 1}))
+			ctx.SetFillRule(render.FillRuleNonZero)
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.2, G: 0.6, B: 1, A: 1}))
 			ctx.FillPath(p)
-			ctx.SetStrokeBrush(gg.Solid(gg.RGBA{R: 0, G: 0, B: 0, A: 0.3}))
+			ctx.SetStrokeBrush(render.Solid(render.RGBA{R: 0, G: 0, B: 0, A: 0.3}))
 			ctx.SetLineWidth(2)
 			ctx.StrokePath(p)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Hexagon", 180, 280)
 
 			// 2. 五角星
-			ctx.SetFillRule(gg.FillRuleEvenOdd)
-			p = gg.NewPath()
+			ctx.SetFillRule(render.FillRuleEvenOdd)
+			p = render.NewPath()
 			for i := 0; i < 10; i++ {
 				a := float64(i)*math.Pi/5 - math.Pi/2
 				r := 60.0
@@ -84,39 +83,39 @@ func main() {
 				}
 			}
 			p.Close()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 1, G: 0.8, B: 0, A: 1}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 1, G: 0.8, B: 0, A: 1}))
 			ctx.FillPath(p)
-			ctx.SetStrokeBrush(gg.Solid(gg.RGBA{R: 0.8, G: 0.6, B: 0, A: 1}))
+			ctx.SetStrokeBrush(render.Solid(render.RGBA{R: 0.8, G: 0.6, B: 0, A: 1}))
 			ctx.SetLineWidth(1.5)
 			ctx.StrokePath(p)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Star", 430, 280)
 
 			// 3. 菱形
-			p = gg.NewPath()
+			p = render.NewPath()
 			p.MoveTo(700, 140)
 			p.LineTo(760, 200)
 			p.LineTo(700, 260)
 			p.LineTo(640, 200)
 			p.Close()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.8, G: 0.2, B: 0.8, A: 1}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.8, G: 0.2, B: 0.8, A: 1}))
 			ctx.FillPath(p)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Diamond", 680, 280)
 
 			// 4. 圆环
-			ctx.SetFillRule(gg.FillRuleNonZero)
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.2, G: 0.8, B: 0.4, A: 1}))
+			ctx.SetFillRule(render.FillRuleNonZero)
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.2, G: 0.8, B: 0.4, A: 1}))
 			ctx.DrawCircle(900, 200, 60)
 			ctx.Fill()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 1, G: 1, B: 1, A: 1}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 1, G: 1, B: 1, A: 1}))
 			ctx.DrawCircle(900, 200, 40)
 			ctx.Fill()
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Donut", 880, 280)
 
 			// 5. 十字形
-			p = gg.NewPath()
+			p = render.NewPath()
 			p.MoveTo(1100, 160)
 			p.LineTo(1120, 160)
 			p.LineTo(1120, 180)
@@ -130,13 +129,13 @@ func main() {
 			p.LineTo(1080, 180)
 			p.LineTo(1100, 180)
 			p.Close()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.8, G: 0.2, B: 0.2, A: 1}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.8, G: 0.2, B: 0.2, A: 1}))
 			ctx.FillPath(p)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Cross", 1080, 260)
 
 			// 6. 齿轮
-			p = gg.NewPath()
+			p = render.NewPath()
 			for i := 0; i < 24; i++ {
 				a := float64(i) * math.Pi / 12
 				r := 60.0
@@ -150,23 +149,23 @@ func main() {
 				}
 			}
 			p.Close()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 1}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 0.2, G: 0.4, B: 0.8, A: 1}))
 			ctx.FillPath(p)
-			ctx.SetStrokeBrush(gg.Solid(gg.RGBA{R: 0, G: 0, B: 0, A: 0.3}))
+			ctx.SetStrokeBrush(render.Solid(render.RGBA{R: 0, G: 0, B: 0, A: 0.3}))
 			ctx.SetLineWidth(1)
 			ctx.StrokePath(p)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Gear", 180, 530)
 
 			// 7. 心形
-			p = gg.NewPath()
+			p = render.NewPath()
 			p.MoveTo(450, 450)
 			p.CubicTo(450, 420, 410, 400, 410, 440)
 			p.CubicTo(410, 470, 450, 490, 450, 490)
 			p.CubicTo(450, 490, 490, 470, 490, 440)
 			p.CubicTo(490, 400, 450, 420, 450, 450)
 			p.Close()
-			ctx.SetFillBrush(gg.Solid(gg.RGBA{R: 1, G: 0.2, B: 0.2, A: 1}))
+			ctx.SetFillBrush(render.Solid(render.RGBA{R: 1, G: 0.2, B: 0.2, A: 1}))
 			ctx.FillPath(p)
 			ctx.SetRGBA(0, 0, 0, 1)
 			ctx.DrawString("Heart", 430, 510)
