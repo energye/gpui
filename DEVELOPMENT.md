@@ -5,6 +5,321 @@
 
 ---
 
+## 冷启动知识 (AI/新人必读)
+
+> 本章是**冷启动指南**，让 AI 或新开发者在无上下文情况下快速理解项目。
+> 阅读本章后应能：理解架构、找到关键文件、编写代码、验证构建。
+
+### 项目结构
+
+```
+gpui/
+├── ui/                          # GUI 层 — 窗口、控件、帧调度
+│   ├── control.go               # TGPUControl — OpenGL 控件封装 + 渲染管线
+│   ├── frame_pump.go            # FramePump — 帧调度器 (goroutine + chan)
+│   ├── window.go                # Window — LCL 窗口 + OpenGL 控件组合
+│   ├── application.go           # Application — 应用入口
+│   └── doc.go                   # 包文档
+│
+├── render/                      # 渲染层 — gg 2D 矢量图形引擎
+│   ├── context.go               # Context — 主渲染 API (绘图、变换、裁剪)
+│   ├── color.go                 # RGBA — 颜色类型 + Lerp 插值
+│   ├── brush.go                 # Brush — SolidBrush, 渐变画刷
+│   ├── scene/                   # 场景图 — 保留模式渲染
+│   │   ├── builder.go           # SceneBuilder — 场景构建器
+│   │   ├── shape.go             # Shape — Rect, Circle, Ellipse, RoundRect
+│   │   ├── filter.go            # Filter — Blur, Shadow, ColorMatrix
+│   │   └── layer.go             # Layer — 合成层 + ClipStack
+│   ├── text/                    # 文字渲染 — OpenType 解析 + 字形缓存
+│   ├── gl/                      # OpenGL 绑定 — purego 无 CGo
+│   │   ├── gl.go                # GL 函数指针 + Init() + SwapInterval
+│   │   └── swap_*.go            # (计划中) 平台特定 SwapInterval
+│   ├── widget/                  # Widget 系统 — 占位包 (待实现)
+│   │   └── widget.go            # Widget 接口占位
+│   └── event/                   # Event 系统 — 占位包 (待实现)
+│       └── event.go             # Event 接口占位
+│
+├── examples/                    # 示例程序
+│   ├── dynamic_animation/       # 动态动画示例
+│   ├── animation/               # 基础动画示例
+│   ├── text/                    # 文字渲染示例
+│   └── shadow_effects/          # 阴影效果示例
+│
+├── go.mod                       # 模块定义
+├── DEVELOPMENT.md               # 本开发计划文档
+└── README.md                    # 项目说明
+```
+
+### 核心依赖关系
+
+```
+gpui (本项目)
+├── github.com/energye/lcl       # LCL 窗口系统 (Free Pascal 绑定)
+│   └── 提供: 窗口、OpenGL 控件、事件回调、主线程调度
+├── github.com/ebitengine/purego # 无 CGo FFI
+│   └── 提供: Dlopen, Dlsym, RegisterLibFunc, RegisterFunc
+├── github.com/gogpu/wgpu        # WebGPU 绑定
+│   └── 提供: GPU 设备、命令编码、着色器编译
+└── github.com/gogpu/gpucontext  # GPU 上下文
+    └── 提供: 设备抽象、平台适配
+```
+
+**关键约束**:
+- LCL 是 Free Pascal 绑定，事件回调在主线程执行
+- purego 无 CGo，通过 Dlopen/Dlsym 加载原生库
+- OpenGL context 绑定到创建它的线程，所有 GL 调用必须在同一线程
+
+### 核心 API 速查
+
+#### FramePump (帧调度器)
+
+```go
+// 文件: ui/frame_pump.go
+
+// 创建
+pump := NewFramePump(ctrl *TGPUControl) *FramePump
+
+// 生命周期
+pump.Start()                    // 启动 goroutine (幂等)
+pump.Stop()                     // 停止 goroutine (幂等)
+
+// 重绘请求 (任意 goroutine 安全)
+pump.RequestRedraw()            // 请求一帧 (多次调用合并为一次)
+
+// 动画管理
+token := pump.StartAnimation()  // 引用计数 +1，返回生命周期句柄
+token.Stop()                    // 引用计数 -1 (幂等)
+pump.IsAnimating() bool         // 是否有活跃动画
+
+// 内部机制
+// - requestCh: chan struct{}(1) — 无锁合并
+// - run(): goroutine 主循环 — select { <-requestCh → RunOnMainThreadSync(Invalidate) }
+// - animCount: atomic.Int32 — 引用计数
+```
+
+#### TGPUControl (OpenGL 控件)
+
+```go
+// 文件: ui/control.go
+
+// 创建
+ctrl := NewGPUControl() *TGPUControl
+
+// 绑定 LCL 控件 (自动启动 FramePump)
+ctrl.Attach(glCtrl lcl.IOpenGLControl)
+
+// 渲染回调
+ctrl.SetOnRender(fn func(*render.Context))
+
+// 帧请求 (委托给 FramePump)
+ctrl.RequestRedraw()            // 等价于 ctrl.Pump().RequestRedraw()
+
+// 动画
+token := ctrl.StartAnimation()  // 等价于 ctrl.Pump().StartAnimation()
+ctrl.StopAnimation()            // 停止所有动画
+
+// 诊断
+ctrl.FrameCount() uint64        // 帧计数
+ctrl.LastFrameTime() time.Time  // 最近帧时间戳
+ctrl.IsAnimating() bool         // 是否有活跃动画
+
+// GL 操作
+ctrl.MakeCurrent() bool         // 激活 GL 上下文
+ctrl.ReleaseContext()           // 释放 GL 上下文
+ctrl.SwapBuffers()              // 交换缓冲区
+
+// 尺寸
+ctrl.Width() int32              // 控件宽度
+ctrl.Height() int32             // 控件高度
+ctrl.SetSize(w, h int32)        // 设置尺寸
+```
+
+#### render.Context (渲染上下文)
+
+```go
+// 文件: render/context.go
+
+ctx := render.NewContext(w, h int) *Context  // 创建
+ctx.Close()                                   // 释放
+
+// 绘图
+ctx.Clear()
+ctx.ClearWithColor(c RGBA)
+ctx.DrawCircle(x, y, r float64)
+ctx.DrawRect(x, y, w, h float64)
+ctx.DrawRoundRect(x, y, w, h, rx, ry float64)
+ctx.MoveTo(x, y float64)
+ctx.LineTo(x, y float64)
+ctx.Fill()
+ctx.Stroke()
+
+// 画刷
+ctx.SetFillBrush(brush Brush)
+ctx.SetStrokeBrush(brush Brush)
+ctx.SetLineWidth(w float64)
+
+// 文字
+ctx.SetFont(face FontFace)
+ctx.DrawString(s string, x, y float64)
+
+// 变换
+ctx.Push()                      // 保存状态
+ctx.Pop()                       // 恢复状态
+ctx.Translate(x, y float64)
+
+// 输出
+ctx.Pixmap() *Pixmap            // 获取像素数据
+ctx.SavePNG(path string) error  // 保存为 PNG
+```
+
+### 代码约定
+
+#### 命名规范
+
+```
+包名:      小写单词 (ui, render, gl, event)
+导出类型:  PascalCase (TGPUControl, FramePump, AnimationToken)
+导出方法:  PascalCase (RequestRedraw, StartAnimation, IsAnimating)
+内部方法:  camelCase (requestRedraw, onPaint, doPresent)
+常量:      GL_ 前缀 (GL_TEXTURE_2D, GL_RGBA)
+文件名:    snake_case (frame_pump.go, control.go)
+```
+
+#### 文件组织
+
+```
+每个包一个目录
+每个文件一个职责 (control.go = 控件逻辑, frame_pump.go = 帧调度)
+平台特定代码用 build tag 或文件后缀 (_linux.go, _windows.go)
+占位包用 doc.go 说明意图 (widget/, event/)
+```
+
+#### 错误处理
+
+```go
+// Init 返回 error，调用方必须检查
+if err := gl.Init(); err != nil {
+    return err
+}
+
+// FramePump 方法不返回 error (最佳努力)
+pump.RequestRedraw()  // 无返回值
+
+// AnimationToken.Stop() 幂等
+token.Stop()  // 可多次调用
+```
+
+#### 线程安全约定
+
+```
+GL 操作:     必须在主线程 (MakeCurrent 后)
+FramePump:   任意 goroutine 安全 (chan 合并)
+LCL 回调:    在主线程执行
+render.Context: 非线程安全，单线程使用
+```
+
+### 构建与运行
+
+```bash
+# 编译检查
+go build ./ui/...                          # 编译 ui 包
+go build ./render/...                      # 编译 render 包
+go build ./examples/dynamic_animation/...  # 编译动画示例
+
+# 运行示例
+go run ./examples/dynamic_animation/...    # 运行动态动画
+go run ./examples/animation/...            # 运行基础动画
+go run ./examples/text/...                 # 运行文字渲染
+
+# 全量编译
+go build ./...                             # 编译所有包
+
+# 注意: 运行需要图形环境 (X11/Wayland/Windows/macOS)
+# 无图形环境只能编译，不能运行
+```
+
+### 关键设计模式
+
+#### 1. FramePump 帧调度模式
+
+```
+onPaint (main thread)
+  │
+  └─ pump.RequestRedraw()  →  requestCh <- struct{}{}  (非阻塞)
+                                  │
+FramePump goroutine               │
+  │                               │
+  └─ <-requestCh  ←──────────────┘
+       │
+       └─ RunOnMainThreadSync(Invalidate)
+              │
+              └─ 主线程执行 Invalidate()  →  LCL 队列 OnPaint
+                                              │
+                                              └─ onPaint 运行
+```
+
+**关键**: onPaint **永远不直接调用 Invalidate**，所有重绘通过 FramePump goroutine 中转。
+
+#### 2. 动画引用计数模式
+
+```go
+token1 := ctrl.StartAnimation()  // count=1, 开始渲染
+token2 := ctrl.StartAnimation()  // count=2
+token1.Stop()                    // count=1, 继续渲染
+token2.Stop()                    // count=0, 停止渲染
+```
+
+多个动画独立启停，所有动画停止后自动停止渲染。
+
+#### 3. 请求合并模式
+
+```go
+// 多个 goroutine 同时调用
+go effectA.RequestRedraw()  // requestCh <- struct{}{} (成功)
+go effectB.RequestRedraw()  // requestCh <- struct{}{} (channel 满，丢弃)
+go effectC.RequestRedraw()  // requestCh <- struct{}{} (channel 满，丢弃)
+// 结果: 只触发一次 Invalidate
+```
+
+### 已有资源清单
+
+| 资源 | 位置 | 用途 |
+|------|------|------|
+| RGBA.Lerp() | render/color.go | 颜色线性插值 |
+| SolidBrush.Lerp() | render/brush.go | 画刷颜色插值 |
+| FilterBlur | render/scene/filter.go | 模糊滤镜 |
+| FilterDropShadow | render/scene/filter.go | 阴影滤镜 |
+| Shape.Contains() | render/scene/shape.go | 命中测试原语 |
+| RunOnMainThreadSync | lcl/lcl/ | 主线程同步投递 |
+| RunOnMainThreadAsync | lcl/lcl/ | 主线程异步投递 |
+| OpenGLControl | lcl/lcl/ | OpenGL 控件接口 |
+| SetSwapInterval | render/gl/gl.go | VSync 控制 |
+
+### 常见陷阱
+
+1. **onPaint 中调用 Invalidate** — 会死锁 (RunOnMainThreadSync 阻塞主线程)
+2. **GL 操作不在主线程** — 会崩溃 (GL context 绑定线程)
+3. **AnimationToken 忘记 Stop** — 动画永远不会停止，持续消耗 CPU
+4. **dt 不 clamp** — 长时间 idle 后动画跳帧 (参考 gogpu 的 0.066s 上限)
+5. **SavePNG 每帧调用** — 严重卡顿 (磁盘 IO 阻塞主线程)
+6. **requestCh 不是 buffered(1)** — 请求丢失或阻塞
+
+### 参考库关键文件
+
+| 库 | 关键文件 | 参考点 |
+|---|---------|--------|
+| gogpu | app.go:runFrame() | 三模式帧循环 (IDLE/ANIMATING/CONTINUOUS) |
+| gogpu | invalidator.go | chan struct{}(1) 合并模式 |
+| gogpu | animation.go | AnimationController 引用计数 |
+| gogpu | internal/thread/thread.go | 专用线程 + 消息队列 |
+| gg | render/context.go | 即时模式绘图 API |
+| gg | render/scene/builder.go | 场景图构建 |
+| gg | render/text/ | 文字渲染管线 |
+| LCL | lcl/customopenglcontrol.go | OpenGL 控件接口 |
+| LCL | lcl/lcl_runonmain_thread.go | 主线程调度 API |
+
+---
+
 ## 总体目标
 
 基于 gg 渲染引擎 + LCL 窗口系统，构建跨平台 GPU 加速的 GUI 框架，对标 ant.design 级别的控件体系。
