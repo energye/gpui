@@ -18,11 +18,10 @@ import (
 	"fmt"
 	"github.com/energye/gpui/examples"
 	"github.com/energye/gpui/render"
+	//_ "github.com/energye/gpui/render/gpu"
 	"github.com/energye/gpui/ui"
 	"github.com/energye/lcl/api/libname"
-	"github.com/energye/lcl/tool/exec"
 	"math"
-	"path/filepath"
 )
 
 func main() {
@@ -61,9 +60,8 @@ func main() {
 			if angle > 2*math.Pi {
 				angle -= 2 * math.Pi
 			}
-			ctx.SavePNG(filepath.Join(exec.CurrentDir, "examples/dynamic_animation/gpu_dynamic_animation.png"))
 		})
-		ctrl.StartAnimation()
+		ctrl.StartAnimation() // returns AnimationToken, ignored for continuous animation
 	})
 	app.AddWindow(win)
 	app.Run()

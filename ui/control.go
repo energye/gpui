@@ -9,6 +9,7 @@
 package ui
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/energye/gpui/render"
@@ -28,17 +29,28 @@ type TGPUControl struct {
 	height   int32
 	onRender func(*render.Context) // user render callback (receives render.Context)
 	initDone bool
+
+	// FramePump — goroutine-driven frame scheduler (see frame_pump.go).
+	pump *FramePump
+
+	// Diagnostics
+	painting      bool      // true during onPaint to prevent re-entrant paint
+	lastFrameTime time.Time // timestamp of the most recent frame start
+	frameCount    uint64    // total frames rendered since StartAnimation
 }
 
 // NewGPUControl creates a new TGPUControl.
 func NewGPUControl() *TGPUControl {
-	return &TGPUControl{}
+	c := &TGPUControl{}
+	c.pump = NewFramePump(c)
+	return c
 }
 
-// Attach binds this TGPUControl to an LCL OpenGL control.
+// Attach binds this TGPUControl to an LCL OpenGL control and starts the FramePump.
 func (c *TGPUControl) Attach(ctrl lcl.IOpenGLControl) {
 	c.ctrl = ctrl
 	ctrl.SetOnPaint(c.onPaint)
+	c.pump.Start()
 }
 
 // GLControl returns the underlying LCL OpenGL control.
@@ -72,11 +84,22 @@ func (c *TGPUControl) SwapBuffers() {
 	}
 }
 
-// Invalidate requests a repaint.
+// Invalidate requests a repaint via the LCL control.
 func (c *TGPUControl) Invalidate() {
 	if c.ctrl != nil {
 		c.ctrl.Invalidate()
 	}
+}
+
+// RequestRedraw requests a frame redraw through the FramePump.
+// Safe to call from any goroutine. Multiple calls coalesce.
+func (c *TGPUControl) RequestRedraw() {
+	c.pump.RequestRedraw()
+}
+
+// Pump returns the FramePump for advanced use cases.
+func (c *TGPUControl) Pump() *FramePump {
+	return c.pump
 }
 
 // InitGL initializes OpenGL function pointers and resources.
@@ -99,8 +122,22 @@ func (c *TGPUControl) InitGL() error {
 	return nil
 }
 
-// onPaint handles the LCL OnPaint event.
+// onPaint handles the LCL OnPaint event — the core of the redraw pump.
+//
+//	Entry:  guard against re-entrant paint.
+//	Middle: MakeCurrent → render.Context → UploadPixmap → SwapBuffers.
+//	Exit:   if animating, pump.RequestRedraw() for the next frame (OnDraw tail-call).
+//
+// Note: onPaint NEVER calls Invalidate directly. All redraw requests go through
+// the FramePump goroutine → RunOnMainThreadSync(Invalidate) to avoid deadlocks.
 func (c *TGPUControl) onPaint(sender lcl.IObject) {
+	// Guard against re-entrant paint.
+	if c.painting {
+		return
+	}
+	c.painting = true
+	defer func() { c.painting = false }()
+
 	if !c.MakeCurrent() {
 		return
 	}
@@ -120,6 +157,9 @@ func (c *TGPUControl) onPaint(sender lcl.IObject) {
 	if c.width <= 0 || c.height <= 0 {
 		return
 	}
+
+	c.lastFrameTime = time.Now()
+	c.frameCount++
 
 	// Create or recreate gg context if size changed
 	w := int(c.width)
@@ -147,6 +187,11 @@ func (c *TGPUControl) onPaint(sender lcl.IObject) {
 	// Display
 	c.doPresent()
 
+	// OnDraw tail-call: schedule next frame through FramePump.
+	// NEVER call Invalidate directly — FramePump goroutine handles dispatch.
+	if c.pump.IsAnimating() {
+		c.pump.RequestRedraw()
+	}
 }
 
 // SetSize updates the control's size.
@@ -242,24 +287,40 @@ func (c *TGPUControl) initShader() {
 	gl.DeleteShader(fs)
 }
 
-// StartAnimation begins continuous rendering (OnDraw style).
-// Each frame triggers Invalidate() at the end of onPaint, creating a
-// render loop tied to the display refresh rate via SwapBuffers vsync.
-// This avoids the timer precision issues of lcl.TTimer.
-func (c *TGPUControl) StartAnimation() {
+// StartAnimation begins continuous rendering via the FramePump.
+// Returns an AnimationToken that must be Stop()'d when the animation completes.
+// Multiple independent animations can coexist.
+func (c *TGPUControl) StartAnimation() *AnimationToken {
 	if c == nil || c.ctrl == nil {
-		return
+		return nil
 	}
-	c.Invalidate()
-	// TODO 未实现，或者不需要这个函数，因为要求是动态触发动态渲染机制
+	c.frameCount = 0
+	return c.pump.StartAnimation()
 }
 
-// StopAnimation stops continuous rendering.
+// StopAnimation is a convenience method that stops all animations.
+// For fine-grained control, use AnimationToken.Stop() instead.
 func (c *TGPUControl) StopAnimation() {
 	if c == nil {
 		return
 	}
-	// TODO 未实现，或者不需要这个函数，因为要求是动态触发动态渲染机制
+	c.pump.Stop()
+}
+
+// FrameCount returns the total number of frames rendered since the last
+// StartAnimation call. Useful for diagnostics.
+func (c *TGPUControl) FrameCount() uint64 {
+	return c.frameCount
+}
+
+// LastFrameTime returns the timestamp of the most recent frame start.
+func (c *TGPUControl) LastFrameTime() time.Time {
+	return c.lastFrameTime
+}
+
+// IsAnimating reports whether any animations are active.
+func (c *TGPUControl) IsAnimating() bool {
+	return c.pump.IsAnimating()
 }
 
 // strPtr returns a *byte pointer to a null-terminated string.

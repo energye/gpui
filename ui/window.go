@@ -73,13 +73,14 @@ func (w *Window) setupForm(form lcl.IEngForm) {
 	w.form.SetOnResize(func(sender lcl.IObject) {
 		if w.control != nil {
 			w.control.SetSize(w.form.ClientWidth(), w.form.ClientHeight())
+			w.control.RequestRedraw()
 		}
 	})
 
 	// Auto-init on first show
 	w.form.SetOnShow(func(sender lcl.IObject) {
 		if w.control != nil {
-			w.control.Invalidate()
+			w.control.RequestRedraw()
 		}
 	})
 
