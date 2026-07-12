@@ -1,7 +1,7 @@
 # GPUI 开发任务计划
 
 > 由 AI 会话维护，新会话读取此文档了解当前进度。
-> 最后更新: 2026-07-12
+> 最后更新: 2026-07-12（新增迁移工具）
 
 ---
 
@@ -21,6 +21,31 @@
 | Metal | ❌ 仅 macOS |
 
 **当前可测试的后端：** Vulkan ✅ | GLES ✅ | Software ✅ | X11 blit ✅ | Wayland blit ✅
+
+---
+
+## 迁移工具 `cmd/migrate` ✅
+
+| 阶段项 | 状态 | 完成的事情 |
+|--------|:----:|-----------|
+| 工具代码编写 | ✅ 完成 | 656 行 Go 代码，自动解析依赖、重写导入、删除不可用文件 |
+| 自动识别不可用文件 | ✅ 完成 | 扫描所有 .go 文件的 import，自动删除引用了未迁移库的文件 |
+| 自动识别示例有效性 | ✅ 完成 | 示例引用了未迁移的库（如 gogpu）自动删除，引用了已迁移的库保留 |
+| 可配置目录名 | ✅ 完成 | mappings 中 target 可自定义，如 `gg/` → `render/` |
+| 替换导入路径 | ✅ 完成 | 自动重写 `github.com/gogpu/*` → `github.com/energye/gpui/*` |
+| 合并外部依赖 | ✅ 完成 | 从各源模块 go.mod 收集外部依赖，写入根 go.mod |
+| 清理子模块 go.mod | ✅ 完成 | 自动删除，合并为单模块 |
+| 空目录清理 | ✅ 完成 | 自动删除因文件删除产生的空目录 |
+| go mod tidy + go build | ✅ 完成 | 自动执行验证 |
+
+**工具位置：** `cmd/migrate/main.go`
+**配置文件：** `cmd/migrate/migrate.json`
+
+**用法：**
+```bash
+cd /home/yanghy/app/projects/gogpu/gpui
+go run ./cmd/migrate -config cmd/migrate/migrate.json
+```
 
 ---
 

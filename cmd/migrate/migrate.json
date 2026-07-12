@@ -1,0 +1,29 @@
+{
+  "target_module": "github.com/energye/gpui",
+  "target_dir": "/home/yanghy/app/projects/gogpu/gpui",
+  "mappings": [
+    {"source": "/home/yanghy/app/projects/gogpu/gg/gg", "target": "gg", "module": "github.com/gogpu/gg"},
+    {"source": "/home/yanghy/app/projects/gogpu/wgpu/wgpu", "target": "wgpu", "module": "github.com/gogpu/wgpu"},
+    {"source": "/home/yanghy/app/projects/gogpu/naga/naga", "target": "naga", "module": "github.com/gogpu/naga"},
+    {"source": "/home/yanghy/app/projects/gogpu/gputypes/gputypes", "target": "gputypes", "module": "github.com/gogpu/gputypes"},
+    {"source": "/home/yanghy/app/projects/gogpu/gpucontext/gpucontext", "target": "gpucontext", "module": "github.com/gogpu/gpucontext"}
+  ],
+  "replace_imports": {
+    "github.com/go-webgpu/goffi/ffi": "github.com/go-webgpu/goffi/ffi",
+    "github.com/go-webgpu/goffi/types": "github.com/go-webgpu/goffi/ffi/types"
+  },
+  "external_deps": [
+    "github.com/go-webgpu/goffi",
+    "golang.org/x/image",
+    "golang.org/x/text",
+    "golang.org/x/sys"
+  ],
+  "exclude_patterns": [
+    ".git", ".github", "go.mod", "go.sum", ".gitignore",
+    ".golangci.yml", "codecov.yml", "llms.txt", "AGENTS.md",
+    "ROADMAP.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md",
+    "UPSTREAM", "UPSTREAM.md", "STABILITY.md", "MIGRATION.md",
+    "SPONSORS.md", "assets", "docs", "scripts",
+    "snapshot", ".codecov.yml"
+  ]
+}
