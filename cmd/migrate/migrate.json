@@ -2,11 +2,11 @@
   "target_module": "github.com/energye/gpui",
   "target_dir": "/home/yanghy/app/projects/gogpu/gpui",
   "mappings": [
-    {"source": "/home/yanghy/app/projects/gogpu/gg/gg", "target": "gg", "module": "github.com/gogpu/gg"},
-    {"source": "/home/yanghy/app/projects/gogpu/wgpu/wgpu", "target": "wgpu", "module": "github.com/gogpu/wgpu"},
-    {"source": "/home/yanghy/app/projects/gogpu/naga/naga", "target": "naga", "module": "github.com/gogpu/naga"},
-    {"source": "/home/yanghy/app/projects/gogpu/gputypes/gputypes", "target": "gputypes", "module": "github.com/gogpu/gputypes"},
-    {"source": "/home/yanghy/app/projects/gogpu/gpucontext/gpucontext", "target": "gpucontext", "module": "github.com/gogpu/gpucontext"}
+    {"source": "/home/yanghy/app/projects/gogpu/gg", "target": "gg", "module": "github.com/gogpu/gg"},
+    {"source": "/home/yanghy/app/projects/gogpu/wgpu", "target": "wgpu", "module": "github.com/gogpu/wgpu"},
+    {"source": "/home/yanghy/app/projects/gogpu/naga", "target": "naga", "module": "github.com/gogpu/naga"},
+    {"source": "/home/yanghy/app/projects/gogpu/gputypes", "target": "gputypes", "module": "github.com/gogpu/gputypes"},
+    {"source": "/home/yanghy/app/projects/gogpu/gpucontext", "target": "gpucontext", "module": "github.com/gogpu/gpucontext"}
   ],
   "replace_imports": {
     "github.com/go-webgpu/goffi/ffi": "github.com/go-webgpu/goffi/ffi",
@@ -24,6 +24,7 @@
     "ROADMAP.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md",
     "UPSTREAM", "UPSTREAM.md", "STABILITY.md", "MIGRATION.md",
     "SPONSORS.md", "assets", "docs", "scripts",
-    "snapshot", ".codecov.yml"
+    "snapshot", ".codecov.yml",
+    "cmd"
   ]
 }
