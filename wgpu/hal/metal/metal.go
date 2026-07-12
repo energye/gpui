@@ -10,9 +10,9 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/energye/gpui/wgpu/hal"
 	"github.com/go-webgpu/goffi/ffi"
 	"github.com/go-webgpu/goffi/types"
+	"github.com/energye/gpui/wgpu/hal"
 )
 
 var (

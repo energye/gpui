@@ -8,10 +8,7 @@
     {"source": "/home/yanghy/app/projects/gogpu/gputypes", "target": "gputypes", "module": "github.com/gogpu/gputypes"},
     {"source": "/home/yanghy/app/projects/gogpu/gpucontext", "target": "gpucontext", "module": "github.com/gogpu/gpucontext"}
   ],
-  "replace_imports": {
-    "github.com/go-webgpu/goffi/ffi": "github.com/go-webgpu/goffi/ffi",
-    "github.com/go-webgpu/goffi/types": "github.com/go-webgpu/goffi/ffi/types"
-  },
+  "replace_imports": {},
   "external_deps": [
     "github.com/go-webgpu/goffi",
     "golang.org/x/image",
