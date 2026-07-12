@@ -1,9 +1,8 @@
 package webgpu
 
 import (
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"unsafe"
-
-	"github.com/energye/gpui/gpu/context"
 )
 
 // Handle conversion helpers — isolate unsafe.Pointer from consumers.
@@ -12,7 +11,7 @@ import (
 // like database/sql depends on database/sql/driver.
 
 // DeviceFromHandle extracts *Device from a gpucontext.Device handle.
-func DeviceFromHandle(h context.Device) *Device {
+func DeviceFromHandle(h gpucontext.Device) *Device {
 	if h.IsNil() {
 		return nil
 	}
@@ -20,7 +19,7 @@ func DeviceFromHandle(h context.Device) *Device {
 }
 
 // QueueFromHandle extracts *Queue from a gpucontext.Queue handle.
-func QueueFromHandle(h context.Queue) *Queue {
+func QueueFromHandle(h gpucontext.Queue) *Queue {
 	if h.IsNil() {
 		return nil
 	}
@@ -28,7 +27,7 @@ func QueueFromHandle(h context.Queue) *Queue {
 }
 
 // AdapterFromHandle extracts *Adapter from a gpucontext.Adapter handle.
-func AdapterFromHandle(h context.Adapter) *Adapter {
+func AdapterFromHandle(h gpucontext.Adapter) *Adapter {
 	if h.IsNil() {
 		return nil
 	}
@@ -36,7 +35,7 @@ func AdapterFromHandle(h context.Adapter) *Adapter {
 }
 
 // SurfaceFromHandle extracts *Surface from a gpucontext.Surface handle.
-func SurfaceFromHandle(h context.Surface) *Surface {
+func SurfaceFromHandle(h gpucontext.Surface) *Surface {
 	if h.IsNil() {
 		return nil
 	}
@@ -44,7 +43,7 @@ func SurfaceFromHandle(h context.Surface) *Surface {
 }
 
 // InstanceFromHandle extracts *Instance from a gpucontext.Instance handle.
-func InstanceFromHandle(h context.Instance) *Instance {
+func InstanceFromHandle(h gpucontext.Instance) *Instance {
 	if h.IsNil() {
 		return nil
 	}
@@ -52,26 +51,26 @@ func InstanceFromHandle(h context.Instance) *Instance {
 }
 
 // DeviceToHandle wraps *Device into a gpucontext.Device handle.
-func DeviceToHandle(d *Device) context.Device {
-	return context.NewDevice(unsafe.Pointer(d)) //nolint:gosec // ADR-018 opaque handle
+func DeviceToHandle(d *Device) gpucontext.Device {
+	return gpucontext.NewDevice(unsafe.Pointer(d)) //nolint:gosec // ADR-018 opaque handle
 }
 
 // QueueToHandle wraps *Queue into a gpucontext.Queue handle.
-func QueueToHandle(q *Queue) context.Queue {
-	return context.NewQueue(unsafe.Pointer(q)) //nolint:gosec // ADR-018 opaque handle
+func QueueToHandle(q *Queue) gpucontext.Queue {
+	return gpucontext.NewQueue(unsafe.Pointer(q)) //nolint:gosec // ADR-018 opaque handle
 }
 
 // AdapterToHandle wraps *Adapter into a gpucontext.Adapter handle.
-func AdapterToHandle(a *Adapter) context.Adapter {
-	return context.NewAdapter(unsafe.Pointer(a)) //nolint:gosec // ADR-018 opaque handle
+func AdapterToHandle(a *Adapter) gpucontext.Adapter {
+	return gpucontext.NewAdapter(unsafe.Pointer(a)) //nolint:gosec // ADR-018 opaque handle
 }
 
 // SurfaceToHandle wraps *Surface into a gpucontext.Surface handle.
-func SurfaceToHandle(s *Surface) context.Surface {
-	return context.NewSurface(unsafe.Pointer(s)) //nolint:gosec // ADR-018 opaque handle
+func SurfaceToHandle(s *Surface) gpucontext.Surface {
+	return gpucontext.NewSurface(unsafe.Pointer(s)) //nolint:gosec // ADR-018 opaque handle
 }
 
 // InstanceToHandle wraps *Instance into a gpucontext.Instance handle.
-func InstanceToHandle(i *Instance) context.Instance {
-	return context.NewInstance(unsafe.Pointer(i)) //nolint:gosec // ADR-018 opaque handle
+func InstanceToHandle(i *Instance) gpucontext.Instance {
+	return gpucontext.NewInstance(unsafe.Pointer(i)) //nolint:gosec // ADR-018 opaque handle
 }

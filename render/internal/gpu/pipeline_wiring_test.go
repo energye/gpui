@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 )
 
@@ -416,7 +416,7 @@ func TestGPURenderContext_BaseLayer_PendingCount(t *testing.T) {
 	target := render.GPURenderTarget{
 		Data: make([]byte, 100*100*4), Width: 100, Height: 100,
 	}
-	rc.QueueBaseLayer(target, context.TextureView{}, 0, 0, 100, 100, 1.0, 100, 100)
+	rc.QueueBaseLayer(target, gpucontext.TextureView{}, 0, 0, 100, 100, 1.0, 100, 100)
 
 	if rc.PendingCount() != 1 {
 		t.Errorf("expected 1 pending (base layer), got %d", rc.PendingCount())
@@ -433,8 +433,8 @@ func TestGPURenderContext_BaseLayer_LastCallWins(t *testing.T) {
 		Data: make([]byte, 100*100*4), Width: 100, Height: 100,
 	}
 
-	rc.QueueBaseLayer(target, context.TextureView{}, 0, 0, 50, 50, 1.0, 100, 100)
-	rc.QueueBaseLayer(target, context.TextureView{}, 0, 0, 100, 100, 0.5, 100, 100)
+	rc.QueueBaseLayer(target, gpucontext.TextureView{}, 0, 0, 50, 50, 1.0, 100, 100)
+	rc.QueueBaseLayer(target, gpucontext.TextureView{}, 0, 0, 100, 100, 0.5, 100, 100)
 
 	if rc.PendingCount() != 1 {
 		t.Errorf("expected 1 pending (base layer, last call wins), got %d", rc.PendingCount())
@@ -452,7 +452,7 @@ func TestGPURenderContext_BaseLayer_ClearedAfterClose(t *testing.T) {
 	target := render.GPURenderTarget{
 		Data: make([]byte, 100*100*4), Width: 100, Height: 100,
 	}
-	rc.QueueBaseLayer(target, context.TextureView{}, 0, 0, 100, 100, 1.0, 100, 100)
+	rc.QueueBaseLayer(target, gpucontext.TextureView{}, 0, 0, 100, 100, 1.0, 100, 100)
 	rc.Close()
 
 	if rc.baseLayer != nil {
@@ -471,7 +471,7 @@ func TestGPURenderContext_BaseLayer_DoesNotAffectOtherCounts(t *testing.T) {
 		Data: make([]byte, 100*100*4), Width: 100, Height: 100,
 	}
 
-	rc.QueueBaseLayer(target, context.TextureView{}, 0, 0, 100, 100, 1.0, 100, 100)
+	rc.QueueBaseLayer(target, gpucontext.TextureView{}, 0, 0, 100, 100, 1.0, 100, 100)
 
 	shapes := len(rc.pendingShapes)
 	images := len(rc.pendingImageCommands)

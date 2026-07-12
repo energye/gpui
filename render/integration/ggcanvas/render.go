@@ -6,8 +6,7 @@ package ggcanvas
 import (
 	"errors"
 	"fmt"
-
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 )
 
 // Rendering errors.
@@ -66,7 +65,7 @@ func DefaultRenderOptions() RenderOptions {
 // Returns error if:
 //   - Canvas is closed
 //   - Texture creation or drawing fails
-func (c *Canvas) RenderTo(dc context.TextureDrawer) error {
+func (c *Canvas) RenderTo(dc gpucontext.TextureDrawer) error {
 	return c.RenderToEx(dc, DefaultRenderOptions())
 }
 
@@ -81,7 +80,7 @@ func (c *Canvas) RenderTo(dc context.TextureDrawer) error {
 //	    Alpha: 0.8,
 //	}
 //	canvas.RenderToEx(dc.AsTextureDrawer(), opts)
-func (c *Canvas) RenderToEx(dc context.TextureDrawer, opts RenderOptions) error {
+func (c *Canvas) RenderToEx(dc gpucontext.TextureDrawer, opts RenderOptions) error {
 	if c.closed {
 		return ErrCanvasClosed
 	}
@@ -102,7 +101,7 @@ func (c *Canvas) RenderToEx(dc context.TextureDrawer, opts RenderOptions) error 
 	}
 
 	// Get gpucontext.Texture for drawing
-	gpuTex, ok := tex.(context.Texture)
+	gpuTex, ok := tex.(gpucontext.Texture)
 	if !ok {
 		return ErrInvalidDrawContext
 	}
@@ -120,7 +119,7 @@ func (c *Canvas) RenderToEx(dc context.TextureDrawer, opts RenderOptions) error 
 // is equivalent to:
 //
 //	canvas.RenderToEx(dc.AsTextureDrawer(), RenderOptions{X: 100, Y: 50, ScaleX: 1, ScaleY: 1, Alpha: 1})
-func (c *Canvas) RenderToPosition(dc context.TextureDrawer, x, y float32) error {
+func (c *Canvas) RenderToPosition(dc gpucontext.TextureDrawer, x, y float32) error {
 	return c.RenderToEx(dc, RenderOptions{
 		X:      x,
 		Y:      y,
@@ -133,7 +132,7 @@ func (c *Canvas) RenderToPosition(dc context.TextureDrawer, x, y float32) error 
 // RenderToScaled is a convenience method for rendering with uniform scaling.
 //
 //	canvas.RenderToScaled(dc.AsTextureDrawer(), 0.5) // Render at half size
-func (c *Canvas) RenderToScaled(dc context.TextureDrawer, scale float32) error {
+func (c *Canvas) RenderToScaled(dc gpucontext.TextureDrawer, scale float32) error {
 	return c.RenderToEx(dc, RenderOptions{
 		X:      0,
 		Y:      0,
@@ -146,7 +145,7 @@ func (c *Canvas) RenderToScaled(dc context.TextureDrawer, scale float32) error {
 // promotePendingTexture creates a real GPU texture from a pending placeholder.
 // It also destroys any deferred old texture since the GPU is idle after
 // WriteTexture's internal wait.
-func (c *Canvas) promotePendingTexture(tex any, dc context.TextureDrawer) (any, error) {
+func (c *Canvas) promotePendingTexture(tex any, dc gpucontext.TextureDrawer) (any, error) {
 	pending := tex.(*pendingTexture)
 	creator := dc.TextureCreator()
 	if creator == nil {

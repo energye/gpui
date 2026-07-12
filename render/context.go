@@ -9,7 +9,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render/internal/clip"
 	"github.com/energye/gpui/render/text"
 )
@@ -1306,10 +1306,10 @@ func (c *Context) ResizeTarget() *Pixmap {
 //
 // Pass a zero-value CommandEncoder (IsNil() == true) to restore normal
 // per-context submit behavior.
-func (c *Context) SetSharedEncoder(encoder context.CommandEncoder) {
+func (c *Context) SetSharedEncoder(encoder gpucontext.CommandEncoder) {
 	if rc := c.gpuCtxOps(); rc != nil {
 		type encoderSetter interface {
-			SetSharedEncoder(encoder context.CommandEncoder)
+			SetSharedEncoder(encoder gpucontext.CommandEncoder)
 		}
 		if es, ok := rc.(encoderSetter); ok {
 			es.SetSharedEncoder(encoder)
@@ -1322,31 +1322,31 @@ func (c *Context) SetSharedEncoder(encoder context.CommandEncoder) {
 // encoder via SetSharedEncoder. Call SubmitSharedEncoder after all contexts
 // have flushed to submit in one GPU call.
 // Returns a zero-value CommandEncoder (IsNil() == true) if GPU is not available.
-func (c *Context) CreateSharedEncoder() context.CommandEncoder {
+func (c *Context) CreateSharedEncoder() gpucontext.CommandEncoder {
 	rc := c.gpuCtxOps()
 	if rc == nil {
-		return context.CommandEncoder{}
+		return gpucontext.CommandEncoder{}
 	}
 	type encoderCreator interface {
-		CreateEncoder() context.CommandEncoder
+		CreateEncoder() gpucontext.CommandEncoder
 	}
 	if ec, ok := rc.(encoderCreator); ok {
 		return ec.CreateEncoder()
 	}
-	return context.CommandEncoder{}
+	return gpucontext.CommandEncoder{}
 }
 
 // SubmitSharedEncoder finishes the shared encoder and submits the resulting
 // command buffer to the GPU. Call after all contexts have flushed their
 // render passes into the encoder. Returns the command buffer submission
 // index for fence tracking, or error.
-func (c *Context) SubmitSharedEncoder(encoder context.CommandEncoder) error {
+func (c *Context) SubmitSharedEncoder(encoder gpucontext.CommandEncoder) error {
 	rc := c.gpuCtxOps()
 	if rc == nil {
 		return nil
 	}
 	type encoderSubmitter interface {
-		SubmitEncoder(encoder context.CommandEncoder) error
+		SubmitEncoder(encoder gpucontext.CommandEncoder) error
 	}
 	if es, ok := rc.(encoderSubmitter); ok {
 		return es.SubmitEncoder(encoder)
@@ -1387,7 +1387,7 @@ func (c *Context) FlushGPU() error {
 //
 // This is the per-pass render target path for ggcanvas.RenderDirect.
 // When view is nil/zero, behaves identically to FlushGPU (CPU readback).
-func (c *Context) FlushGPUWithView(view context.TextureView, width, height uint32) error {
+func (c *Context) FlushGPUWithView(view gpucontext.TextureView, width, height uint32) error {
 	t := c.gpuRenderTarget()
 	if !view.IsNil() {
 		t.View = view
@@ -1421,7 +1421,7 @@ func (c *Context) FlushGPUWithView(view context.TextureView, width, height uint3
 //
 // This enables sub-region compositing: a 48×48 spinner updates only 9KB
 // instead of the full surface (8MB at 1080p). See ADR-016 Phase 2.
-func (c *Context) FlushGPUWithViewDamage(view context.TextureView, width, height uint32, damageRect image.Rectangle) error {
+func (c *Context) FlushGPUWithViewDamage(view gpucontext.TextureView, width, height uint32, damageRect image.Rectangle) error {
 	t := c.gpuRenderTarget()
 	if !view.IsNil() {
 		t.View = view
@@ -1444,7 +1444,7 @@ func (c *Context) FlushGPUWithViewDamage(view context.TextureView, width, height
 // FlushGPUWithViewDamageRects renders to a surface view with multiple damage rects
 // (ADR-028). Each overlay gets its own scissor from the closest damage rect,
 // enabling per-draw dynamic scissor for distant dirty regions.
-func (c *Context) FlushGPUWithViewDamageRects(view context.TextureView, width, height uint32, rects []image.Rectangle) error {
+func (c *Context) FlushGPUWithViewDamageRects(view gpucontext.TextureView, width, height uint32, rects []image.Rectangle) error {
 	t := c.gpuRenderTarget()
 	if !view.IsNil() {
 		t.View = view
@@ -1478,9 +1478,9 @@ type gpuContextOps interface {
 	QueueImageDraw(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 		dstX, dstY, dstW, dstH, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32)
-	QueueGPUTextureDraw(target GPURenderTarget, view context.TextureView,
+	QueueGPUTextureDraw(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
-	QueueBaseLayer(target GPURenderTarget, view context.TextureView,
+	QueueBaseLayer(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
 	Flush(target GPURenderTarget) error
 	SetClipRect(x, y, w, h uint32)

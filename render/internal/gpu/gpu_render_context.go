@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -160,7 +160,7 @@ func (rc *GPURenderContext) BeginFrame() {
 // encoder.Finish() + queue.Submit() after all contexts have flushed.
 // Pass a zero-value CommandEncoder (IsNil() == true) to restore normal
 // per-context submit behavior.
-func (rc *GPURenderContext) SetSharedEncoder(encoder context.CommandEncoder) {
+func (rc *GPURenderContext) SetSharedEncoder(encoder gpucontext.CommandEncoder) {
 	if encoder.IsNil() {
 		rc.sharedEncoder = nil
 		return
@@ -171,21 +171,21 @@ func (rc *GPURenderContext) SetSharedEncoder(encoder context.CommandEncoder) {
 // CreateEncoder creates a new command encoder for shared use across contexts.
 // Returns a zero-value CommandEncoder (IsNil() == true) if the session is not
 // initialized or encoder creation fails.
-func (rc *GPURenderContext) CreateEncoder() context.CommandEncoder {
+func (rc *GPURenderContext) CreateEncoder() gpucontext.CommandEncoder {
 	if rc.session == nil {
-		return context.CommandEncoder{}
+		return gpucontext.CommandEncoder{}
 	}
 	enc, err := rc.session.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
 		Label: "shared_frame_encoder",
 	})
 	if err != nil {
-		return context.CommandEncoder{}
+		return gpucontext.CommandEncoder{}
 	}
-	return context.NewCommandEncoder(unsafe.Pointer(enc)) //nolint:gosec // Go spec Rule 1 (ADR-018)
+	return gpucontext.NewCommandEncoder(unsafe.Pointer(enc)) //nolint:gosec // Go spec Rule 1 (ADR-018)
 }
 
 // SubmitEncoder finishes the shared encoder and submits the command buffer.
-func (rc *GPURenderContext) SubmitEncoder(encoder context.CommandEncoder) error {
+func (rc *GPURenderContext) SubmitEncoder(encoder gpucontext.CommandEncoder) error {
 	if rc.session == nil {
 		return fmt.Errorf("GPU session not initialized")
 	}
@@ -333,7 +333,7 @@ func (rc *GPURenderContext) queueImageCmd(target render.GPURenderTarget, cmd Ima
 // QueueBaseLayer sets the compositor base layer — a textured quad drawn BEFORE
 // all tiers in the render pass. Last call wins. Used for CPU pixmap compositing
 // in zero-readback rendering (ADR-015, Flutter OffsetLayer pattern).
-func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view context.TextureView,
+func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view gpucontext.TextureView,
 	dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32,
 ) {
 	rc.baseLayer = &GPUTextureDrawCommand{
@@ -346,7 +346,7 @@ func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view c
 
 // QueueGPUTextureDraw queues a GPU-to-GPU texture compositing command.
 // The texture view is sampled directly — zero CPU readback, zero upload.
-func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, view context.TextureView,
+func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, view gpucontext.TextureView,
 	dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32,
 ) {
 	if rc.hasPendingTarget && !sameTarget(&rc.pendingTarget, &target) {
@@ -911,10 +911,10 @@ func (rc *GPURenderContext) effectivePipelineMode() render.PipelineMode {
 // CreateOffscreenTexture allocates a GPU texture for offscreen rendering.
 // The texture has usage flags suitable for both FlushGPUWithView (render to)
 // and DrawGPUTexture (sample from). Returns view + release function.
-func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (context.TextureView, func()) {
+func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func()) {
 	if rc.shared == nil {
 		slogger().Warn("CreateOffscreenTexture: shared is nil")
-		return context.TextureView{}, nil
+		return gpucontext.TextureView{}, nil
 	}
 	if !rc.shared.gpuReady {
 		rc.shared.mu.Lock()
@@ -922,17 +922,17 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (context.TextureVie
 		rc.shared.mu.Unlock()
 		if err != nil {
 			slogger().Warn("CreateOffscreenTexture: ensureGPU failed", "error", err)
-			return context.TextureView{}, nil
+			return gpucontext.TextureView{}, nil
 		}
 		if !rc.shared.gpuReady {
 			slogger().Warn("CreateOffscreenTexture: GPU not ready after ensureGPU")
-			return context.TextureView{}, nil
+			return gpucontext.TextureView{}, nil
 		}
 	}
 	device := rc.shared.Device()
 	if device == nil {
 		slogger().Warn("CreateOffscreenTexture: device is nil")
-		return context.TextureView{}, nil
+		return gpucontext.TextureView{}, nil
 	}
 
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
@@ -948,7 +948,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (context.TextureVie
 		slogger().Warn("CreateOffscreenTexture: CreateTexture failed",
 			"error", err, "width", w, "height", h,
 			"format", "BGRA8Unorm", "usage", "RenderAttachment|CopySrc|TextureBinding")
-		return context.TextureView{}, nil
+		return gpucontext.TextureView{}, nil
 	}
 
 	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
@@ -962,14 +962,14 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (context.TextureVie
 		slogger().Warn("CreateOffscreenTexture: CreateTextureView failed",
 			"error", err, "width", w, "height", h)
 		tex.Release()
-		return context.TextureView{}, nil
+		return gpucontext.TextureView{}, nil
 	}
 
 	release := func() {
 		view.Release()
 		tex.Release()
 	}
-	return context.NewTextureView(unsafe.Pointer(view)), release //nolint:gosec // Go spec Rule 1 (ADR-018)
+	return gpucontext.NewTextureView(unsafe.Pointer(view)), release //nolint:gosec // Go spec Rule 1 (ADR-018)
 }
 
 // Close releases this context's GPU resources. Shared resources are NOT

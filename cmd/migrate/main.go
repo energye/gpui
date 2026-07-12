@@ -3,10 +3,13 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"io"
@@ -15,8 +18,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
+
+//go:embed migrate.json
+var embeddedConfigFS embed.FS
+
+const defaultConfigName = "migrate.json"
 
 type Config struct {
 	TargetModule   string            `json:"target_module"`
@@ -24,6 +33,7 @@ type Config struct {
 	Mappings       []Mapping         `json:"mappings"`
 	ExternalDeps   []string          `json:"external_deps"`
 	ReplaceImports map[string]string `json:"replace_imports"`
+	ImportAliases  map[string]string `json:"import_aliases"`
 	ExcludePats    []string          `json:"exclude_patterns"`
 }
 
@@ -36,7 +46,7 @@ type Mapping struct {
 }
 
 func main() {
-	cfgPath := flag.String("config", "migrate.json", "配置文件路径")
+	cfgPath := flag.String("config", "", "配置文件路径或目录（为空使用内嵌 migrate.json）")
 	flag.Parse()
 
 	cfg, err := loadConfig(*cfgPath)
@@ -60,14 +70,6 @@ func main() {
 	copy(externalPrefixes, cfg.ExternalDeps)
 	sort.Slice(externalPrefixes, func(i, j int) bool {
 		return len(externalPrefixes[i]) > len(externalPrefixes[j])
-	})
-
-	replaceOld := make([]string, 0, len(cfg.ReplaceImports))
-	for old := range cfg.ReplaceImports {
-		replaceOld = append(replaceOld, old)
-	}
-	sort.Slice(replaceOld, func(i, j int) bool {
-		return len(replaceOld[i]) > len(replaceOld[j])
 	})
 
 	targetDir := cfg.TargetDir
@@ -118,7 +120,7 @@ func main() {
 	fmt.Printf("   ✅ 重写了 %d 个文件的 package 声明\n", pkgRenameCount)
 
 	// 步骤3: 扫描各映射子目录中的 .go 文件（不扫描根目录）
-	fmt.Println("\n🔍 步骤2: 扫描各映射子目录中的 .go 文件...")
+	fmt.Println("\n🔍 步骤3: 扫描各映射子目录中的 .go 文件...")
 	var goFiles []fileInfo
 	for _, m := range cfg.Mappings {
 		subDir := filepath.Join(targetDir, m.Target)
@@ -134,47 +136,6 @@ func main() {
 		}
 	}
 	fmt.Printf("   📄 发现 %d 个 .go 文件\n", len(goFiles))
-
-	// 步骤3: 分析导入依赖
-	fmt.Println("\n🔎 步骤3: 分析导入依赖，识别不可用文件...")
-	var deadFiles []string
-	for _, gf := range goFiles {
-		imports, err := parseImports(filepath.Join(targetDir, gf.path))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "   ⚠️  解析 %s 失败: %v\n", gf.path, err)
-			continue
-		}
-
-		var hasUnresolved bool
-		for _, imp := range imports {
-			switch {
-			case isSelfImport(imp, moduleMap):
-			case isMappedImport(imp, moduleMap):
-			case isExternalDep(imp, externalPrefixes):
-			case isReplaceImport(imp, replaceOld):
-			default:
-				hasUnresolved = true
-				fmt.Printf("   ⚠️  %s: 不可解析的导入 %s\n", gf.path, imp)
-			}
-		}
-		if hasUnresolved {
-			deadFiles = append(deadFiles, gf.path)
-		}
-	}
-
-	// 步骤4: 删除不可用文件
-	fmt.Println("\n🗑️  步骤4: 删除不可用文件...")
-	deadCount := 0
-	for _, f := range deadFiles {
-		fullPath := filepath.Join(targetDir, f)
-		if err := os.Remove(fullPath); err != nil {
-			fmt.Fprintf(os.Stderr, "   ⚠️  删除 %s 失败: %v\n", f, err)
-			continue
-		}
-		deadCount++
-		fmt.Printf("   🗑️  删除 %s\n", f)
-	}
-	fmt.Printf("   ✅ 删除了 %d 个不可用文件\n", deadCount)
 
 	// 步骤5: 清理各映射子目录中的空目录（不清理根目录）
 	fmt.Println("\n🧹 步骤5: 清理各映射子目录中的空目录...")
@@ -220,7 +181,7 @@ func main() {
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			continue
 		}
-		changed, err := rewriteImports(fullPath, moduleMap, cfg.TargetModule, externalPrefixes, cfg.ReplaceImports)
+		changed, err := rewriteImports(fullPath, moduleMap, cfg.TargetModule, cfg.ReplaceImports, cfg.ImportAliases)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "   ⚠️  重写 %s 失败: %v\n", gf.path, err)
 			continue
@@ -236,6 +197,7 @@ func main() {
 	// 自动添加别名 gpucontext "github.com/energye/gpui/gpu/context"
 	fmt.Println("\n🔀 步骤9: 检测 stdlib 冲突并添加导入别名...")
 	aliasAddCount := 0
+	mappedGoFiles := listMappedGoFiles(targetDir, cfg.Mappings)
 	for _, m := range cfg.Mappings {
 		if m.RenamePackage == "" {
 			continue
@@ -245,12 +207,11 @@ func main() {
 			oldPkg = oldPkg[idx+1:]
 		}
 		newPath := cfg.TargetModule + "/" + m.Target
-		allGoFiles := listAllGoFiles(targetDir)
 		aliasName := m.Alias
 		if aliasName == "" {
 			aliasName = oldPkg // 默认使用旧包名作为别名
 		}
-		for _, f := range allGoFiles {
+		for _, f := range mappedGoFiles {
 			changed, err := addStdlibConflictAlias(f, aliasName, m.RenamePackage, newPath)
 			if err != nil {
 				continue
@@ -274,9 +235,12 @@ func main() {
 		if idx := strings.LastIndex(oldPkg, "/"); idx >= 0 {
 			oldPkg = oldPkg[idx+1:]
 		}
-		allGoFiles := listAllGoFiles(targetDir)
-		for _, f := range allGoFiles {
-			changed, err := renamePackageQualifier(f, oldPkg, m.RenamePackage)
+		newQualifier := m.RenamePackage
+		if m.Alias != "" {
+			newQualifier = m.Alias
+		}
+		for _, f := range mappedGoFiles {
+			changed, err := renamePackageQualifier(f, oldPkg, newQualifier)
 			if err != nil {
 				continue
 			}
@@ -294,13 +258,15 @@ func main() {
 		if m.RenamePackage == "" {
 			continue
 		}
+		if m.Alias != "" {
+			continue
+		}
 		oldPkg := m.Module
 		if idx := strings.LastIndex(oldPkg, "/"); idx >= 0 {
 			oldPkg = oldPkg[idx+1:]
 		}
 		newPath := cfg.TargetModule + "/" + m.Target
-		allGoFiles := listAllGoFiles(targetDir)
-		for _, f := range allGoFiles {
+		for _, f := range mappedGoFiles {
 			changed, err := updateImportAlias(f, oldPkg, m.RenamePackage, newPath)
 			if err != nil {
 				continue
@@ -312,8 +278,35 @@ func main() {
 	}
 	fmt.Printf("   ✅ 更新了 %d 个文件的导入别名\n", aliasUpdateCount)
 
-	// 步骤12: go mod tidy
-	fmt.Println("\n🧪 步骤12: go mod tidy...")
+	// 步骤12: 根据最终导入图迭代删除不可解析的生产文件。
+	// 测试文件保留，避免迁移时丢失上游单元测试；最终 go test 可暴露测试侧缺失依赖。
+	fmt.Println("\n🗑️  步骤12: 删除不可解析的生产文件...")
+	removedFiles, err := pruneUnresolvedProductionFiles(targetDir, cfg.Mappings, cfg.TargetModule, externalPrefixes, cfg.ReplaceImports)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "   ❌ 删除不可解析文件失败: %v\n", err)
+		os.Exit(1)
+	}
+	for _, f := range removedFiles {
+		fmt.Printf("   🗑️  删除 %s\n", f)
+	}
+	fmt.Printf("   ✅ 删除了 %d 个不可解析的生产文件\n", len(removedFiles))
+
+	fmt.Println("\n🧹 步骤12b: 清理剔除后的空目录...")
+	for _, m := range cfg.Mappings {
+		subDir := filepath.Join(targetDir, m.Target)
+		cleanEmptyDirs(subDir)
+	}
+	fmt.Println("   ✅ 空目录已清理")
+
+	fmt.Println("\n🔎 步骤13: 验证迁移后的生产导入...")
+	if err := validateMigrationOutput(targetDir, cfg.Mappings, cfg.TargetModule, externalPrefixes, cfg.ReplaceImports); err != nil {
+		fmt.Fprintf(os.Stderr, "   ❌ 迁移结果验证失败: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("   ✅ 生产导入无多余非迁移依赖")
+
+	// 步骤14: go mod tidy
+	fmt.Println("\n🧪 步骤14: go mod tidy...")
 	cmd := exec.Command("go", "mod", "tidy")
 	cmd.Dir = targetDir
 	cmd.Stdout = os.Stdout
@@ -324,8 +317,8 @@ func main() {
 		fmt.Println("   ✅ go mod tidy 完成")
 	}
 
-	// 步骤13: go fmt
-	fmt.Println("\n✅ 步骤13: go fmt ...")
+	// 步骤15: go fmt
+	fmt.Println("\n✅ 步骤15: go fmt ...")
 	fmtCmd := exec.Command("go", "fmt", "./...")
 	fmtCmd.Dir = targetDir
 	fmtCmd.Stdout = os.Stdout
@@ -334,10 +327,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "   ❌ go fmt 失败: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("   ✅ go fmt 通过")
+	fmt.Println("✅ go fmt 通过")
 
-	// 步骤14: go build 验证
-	fmt.Println("\n✅ 步骤14: go build 验证...")
+	// 步骤16: go build 验证
+	fmt.Println("\n✅ 步骤16: go build 验证...")
 	buildCmd := exec.Command("go", "build", "./...")
 	buildCmd.Dir = targetDir
 	buildCmd.Stdout = os.Stdout
@@ -351,9 +344,9 @@ func main() {
 }
 
 func loadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := readConfigData(path)
 	if err != nil {
-		return nil, fmt.Errorf("读取配置文件: %w", err)
+		return nil, err
 	}
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
@@ -369,6 +362,30 @@ func loadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("mappings 不能为空")
 	}
 	return &cfg, nil
+}
+
+func readConfigData(path string) ([]byte, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		data, err := embeddedConfigFS.ReadFile(defaultConfigName)
+		if err != nil {
+			return nil, fmt.Errorf("读取内嵌配置文件 %s: %w", defaultConfigName, err)
+		}
+		return data, nil
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("读取配置文件 %s: %w", path, err)
+	}
+	if info.IsDir() {
+		path = filepath.Join(path, defaultConfigName)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("读取配置文件 %s: %w", path, err)
+	}
+	return data, nil
 }
 
 func makeSet(pats []string) map[string]bool {
@@ -540,22 +557,190 @@ func parseImports(filePath string) ([]string, error) {
 	return imports, nil
 }
 
-func isSelfImport(imp string, moduleMap map[string]*Mapping) bool {
-	for _, m := range moduleMap {
-		if imp == m.Module || strings.HasPrefix(imp, m.Module+"/") {
-			return true
+func pruneUnresolvedProductionFiles(targetDir string, mappings []Mapping, targetModule string, externalPrefixes []string, replaceImports map[string]string) ([]string, error) {
+	var removed []string
+	moduleMap := make(map[string]*Mapping)
+	for i := range mappings {
+		moduleMap[mappings[i].Module] = &mappings[i]
+	}
+
+	for {
+		available, err := availableMigratedPackages(targetDir, mappings, targetModule)
+		if err != nil {
+			return removed, err
+		}
+
+		var batch []string
+		for _, m := range mappings {
+			root := filepath.Join(targetDir, m.Target)
+			if _, err := os.Stat(root); os.IsNotExist(err) {
+				continue
+			}
+			err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if d.IsDir() {
+					return nil
+				}
+				if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+					return nil
+				}
+				imports, err := parseImports(path)
+				if err != nil {
+					return err
+				}
+				for _, imp := range imports {
+					if isAllowedMigratedImport(imp, available, moduleMap, targetModule, externalPrefixes, replaceImports) {
+						continue
+					}
+					rel, _ := filepath.Rel(targetDir, path)
+					batch = append(batch, filepath.ToSlash(rel))
+					return nil
+				}
+				return nil
+			})
+			if err != nil {
+				return removed, err
+			}
+		}
+
+		if len(batch) == 0 {
+			return removed, nil
+		}
+		sort.Strings(batch)
+		for _, rel := range batch {
+			if err := os.Remove(filepath.Join(targetDir, filepath.FromSlash(rel))); err != nil {
+				return removed, err
+			}
+			removed = append(removed, rel)
 		}
 	}
-	return false
 }
 
-func isMappedImport(imp string, moduleMap map[string]*Mapping) bool {
-	for _, m := range moduleMap {
-		if imp == m.Module || strings.HasPrefix(imp, m.Module+"/") {
+func availableMigratedPackages(targetDir string, mappings []Mapping, targetModule string) (map[string]bool, error) {
+	available := make(map[string]bool)
+	for _, m := range mappings {
+		root := filepath.Join(targetDir, m.Target)
+		if _, err := os.Stat(root); os.IsNotExist(err) {
+			continue
+		}
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			dir := filepath.Dir(path)
+			rel, err := filepath.Rel(targetDir, dir)
+			if err != nil {
+				return err
+			}
+			available[targetModule+"/"+filepath.ToSlash(rel)] = true
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return available, nil
+}
+
+func isAllowedMigratedImport(imp string, available map[string]bool, moduleMap map[string]*Mapping, targetModule string, externalPrefixes []string, replaceImports map[string]string) bool {
+	if imp == "C" {
+		return true
+	}
+	if isStdlibImport(imp) {
+		return true
+	}
+	if isExternalDep(imp, externalPrefixes) {
+		return true
+	}
+	for _, newPath := range replaceImports {
+		if importPathMatches(imp, newPath) {
 			return true
 		}
 	}
-	return false
+	if available[imp] {
+		return true
+	}
+	rewritten := rewriteImportPath(imp, moduleMap, targetModule, replaceImports)
+	return rewritten != imp && available[rewritten]
+}
+
+func validateMigrationOutput(targetDir string, mappings []Mapping, targetModule string, externalPrefixes []string, replaceImports map[string]string) error {
+	available, err := availableMigratedPackages(targetDir, mappings, targetModule)
+	if err != nil {
+		return err
+	}
+	for _, m := range mappings {
+		rootImport := targetModule + "/" + filepath.ToSlash(m.Target)
+		hasPackage := false
+		for imp := range available {
+			if importPathMatches(imp, rootImport) {
+				hasPackage = true
+				break
+			}
+		}
+		if !hasPackage {
+			return fmt.Errorf("%s 没有保留可用的生产 Go 文件", m.Target)
+		}
+	}
+
+	moduleMap := make(map[string]*Mapping)
+	for i := range mappings {
+		moduleMap[mappings[i].Module] = &mappings[i]
+	}
+	var unresolved []string
+	for _, m := range mappings {
+		root := filepath.Join(targetDir, m.Target)
+		if _, err := os.Stat(root); os.IsNotExist(err) {
+			continue
+		}
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			imports, err := parseImports(path)
+			if err != nil {
+				return err
+			}
+			for _, imp := range imports {
+				if isAllowedMigratedImport(imp, available, moduleMap, targetModule, externalPrefixes, replaceImports) {
+					continue
+				}
+				rel, _ := filepath.Rel(targetDir, path)
+				unresolved = append(unresolved, fmt.Sprintf("%s imports %s", filepath.ToSlash(rel), imp))
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	if len(unresolved) > 0 {
+		sort.Strings(unresolved)
+		return fmt.Errorf("发现不可解析导入: %s", strings.Join(unresolved, "; "))
+	}
+	return nil
+}
+
+func isStdlibImport(imp string) bool {
+	first := imp
+	if i := strings.IndexByte(first, '/'); i >= 0 {
+		first = first[:i]
+	}
+	return !strings.Contains(first, ".")
 }
 
 func isExternalDep(imp string, prefixes []string) bool {
@@ -570,63 +755,145 @@ func isExternalDep(imp string, prefixes []string) bool {
 	return false
 }
 
-func isReplaceImport(imp string, replaceOld []string) bool {
-	for _, old := range replaceOld {
-		if imp == old || strings.HasPrefix(imp, old+"/") {
-			return true
-		}
-	}
-	return false
-}
-
-func rewriteImports(filePath string, moduleMap map[string]*Mapping, targetModule string, externalPrefixes []string, replaceImports map[string]string) (bool, error) {
+func rewriteImports(filePath string, moduleMap map[string]*Mapping, targetModule string, replaceImports map[string]string, importAliases map[string]string) (bool, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return false, err
 	}
-	content := string(data)
-	original := content
-
-	// 替换模块路径（带 " 前缀，用于 import 语句）
-	for _, m := range moduleMap {
-		oldPrefix := "\"" + m.Module
-		newPrefix := "\"" + targetModule + "/" + m.Target
-		content = strings.ReplaceAll(content, oldPrefix, newPrefix)
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, data, parser.ParseComments)
+	if err != nil {
+		return false, err
 	}
 
-	// 替换模块路径（不带 " 前缀，用于注释、URL 等）
-	sorted := make([]*Mapping, 0, len(moduleMap))
-	for _, m := range moduleMap {
-		sorted = append(sorted, m)
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return len(sorted[i].Module) > len(sorted[j].Module)
-	})
-	for _, m := range sorted {
-		content = strings.ReplaceAll(content, m.Module, targetModule+"/"+m.Target)
-	}
-
-	// 替换自定义导入（如 goffi → gpui/ffi）
-	if len(replaceImports) > 0 {
-		rOld := make([]string, 0, len(replaceImports))
-		for old := range replaceImports {
-			rOld = append(rOld, old)
+	changed := false
+	for _, imp := range f.Imports {
+		oldPath, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			continue
 		}
-		sort.Slice(rOld, func(i, j int) bool {
-			return len(rOld[i]) > len(rOld[j])
+		newPath := rewriteImportPath(oldPath, moduleMap, targetModule, replaceImports)
+		if newPath != oldPath {
+			imp.Path.Value = strconv.Quote(newPath)
+			changed = true
+		}
+		if alias := configuredImportAlias(newPath, moduleMap, targetModule, importAliases); alias != "" {
+			if imp.Name == nil || imp.Name.Name != alias {
+				imp.Name = ast.NewIdent(alias)
+				changed = true
+			}
+		}
+	}
+	if rewriteComments(f, moduleMap, targetModule, replaceImports) {
+		changed = true
+	}
+
+	output := data
+	if changed {
+		var buf bytes.Buffer
+		if err := format.Node(&buf, fset, f); err != nil {
+			return false, err
+		}
+		output = buf.Bytes()
+	}
+
+	rewritten := []byte(rewriteSourceText(string(output), moduleMap, targetModule, replaceImports))
+	if !bytes.Equal(output, rewritten) {
+		output = rewritten
+		changed = true
+	}
+
+	if !changed || bytes.Equal(data, output) {
+		return false, nil
+	}
+	return true, os.WriteFile(filePath, output, 0644)
+}
+
+func rewriteComments(f *ast.File, moduleMap map[string]*Mapping, targetModule string, replaceImports map[string]string) bool {
+	changed := false
+	for _, group := range f.Comments {
+		for _, comment := range group.List {
+			text := rewriteCommentText(comment.Text, moduleMap, targetModule, replaceImports)
+			if text != comment.Text {
+				comment.Text = text
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+func rewriteCommentText(text string, moduleMap map[string]*Mapping, targetModule string, replaceImports map[string]string) string {
+	return rewriteSourceText(text, moduleMap, targetModule, replaceImports)
+}
+
+func rewriteSourceText(text string, moduleMap map[string]*Mapping, targetModule string, replaceImports map[string]string) string {
+	replacements := importPathReplacements(moduleMap, targetModule, replaceImports)
+	for _, r := range replacements {
+		text = strings.ReplaceAll(text, r.old, r.new)
+	}
+	return text
+}
+
+type importPathReplacement struct {
+	old string
+	new string
+}
+
+func importPathReplacements(moduleMap map[string]*Mapping, targetModule string, replaceImports map[string]string) []importPathReplacement {
+	var replacements []importPathReplacement
+	for _, m := range moduleMap {
+		replacements = append(replacements, importPathReplacement{
+			old: m.Module,
+			new: targetModule + "/" + m.Target,
 		})
-		for _, old := range rOld {
-			newPrefix := replaceImports[old]
-			oldStr := "\"" + old
-			newStr := "\"" + newPrefix
-			content = strings.ReplaceAll(content, oldStr, newStr)
+	}
+	for old, newPath := range replaceImports {
+		replacements = append(replacements, importPathReplacement{old: old, new: newPath})
+	}
+	sort.Slice(replacements, func(i, j int) bool {
+		return len(replacements[i].old) > len(replacements[j].old)
+	})
+	return replacements
+}
+
+func rewriteImportPath(path string, moduleMap map[string]*Mapping, targetModule string, replaceImports map[string]string) string {
+	var bestOld, bestNew string
+	for _, m := range moduleMap {
+		if importPathMatches(path, m.Module) && len(m.Module) > len(bestOld) {
+			bestOld = m.Module
+			bestNew = targetModule + "/" + m.Target
 		}
 	}
-
-	if content != original {
-		return true, os.WriteFile(filePath, []byte(content), 0644)
+	for old, newPath := range replaceImports {
+		if importPathMatches(path, old) && len(old) > len(bestOld) {
+			bestOld = old
+			bestNew = newPath
+		}
 	}
-	return false, nil
+	if bestOld == "" {
+		return path
+	}
+	return bestNew + strings.TrimPrefix(path, bestOld)
+}
+
+func configuredImportAlias(path string, moduleMap map[string]*Mapping, targetModule string, importAliases map[string]string) string {
+	if alias := importAliases[path]; alias != "" {
+		return alias
+	}
+	for _, m := range moduleMap {
+		if m.Alias == "" {
+			continue
+		}
+		if path == targetModule+"/"+m.Target {
+			return m.Alias
+		}
+	}
+	return ""
+}
+
+func importPathMatches(path, prefix string) bool {
+	return path == prefix || strings.HasPrefix(path, prefix+"/")
 }
 
 func cleanEmptyDirs(root string) {
@@ -877,6 +1144,15 @@ func listAllGoFiles(root string) []string {
 		}
 		return nil
 	})
+	return files
+}
+
+func listMappedGoFiles(targetDir string, mappings []Mapping) []string {
+	var files []string
+	for _, m := range mappings {
+		files = append(files, listAllGoFiles(filepath.Join(targetDir, m.Target))...)
+	}
+	sort.Strings(files)
 	return files
 }
 

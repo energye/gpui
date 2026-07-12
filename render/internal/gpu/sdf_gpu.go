@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
@@ -203,7 +203,7 @@ func (a *SDFAccelerator) SetLogger(l *slog.Logger) {
 }
 
 // SetDeviceProvider switches the accelerator to use a shared GPU device.
-func (a *SDFAccelerator) SetDeviceProvider(provider context.DeviceProvider) error {
+func (a *SDFAccelerator) SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 	a.mu.Lock()
 	// Close default context's session since device is changing.
 	if a.defaultCtx != nil {

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -180,7 +180,7 @@ func (s *GPUShared) SetForceSDF(force bool) {
 // SwiftShader, wgpu treats CPU adapters identically, Flutter Impeller uses
 // SwiftShader for testing. Capability differences are handled via probing
 // (e.g., MSAA fallback to 1x), not blanket disabling.
-func (s *GPUShared) SetDeviceProvider(provider context.DeviceProvider) error {
+func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 	if adapter := provider.Adapter(); !adapter.IsNil() {
 		wgpuAdapter := webgpu.AdapterFromHandle(adapter)
 		if wgpuAdapter != nil && wgpuAdapter.Info().DeviceType == types.DeviceTypeCPU {

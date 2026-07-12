@@ -4,10 +4,9 @@
 package render
 
 import (
-	"testing"
-
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
+	"testing"
 )
 
 func TestNullDeviceHandle(t *testing.T) {
@@ -86,7 +85,7 @@ func TestDeviceHandleAlias(t *testing.T) {
 
 	// Verify DeviceHandle is compatible with gpucontext.DeviceProvider
 	// This is a compile-time check - if it compiles, types are compatible
-	acceptProvider := func(_ context.DeviceProvider) {}
+	acceptProvider := func(_ gpucontext.DeviceProvider) {}
 	acceptProvider(handle)
 }
 

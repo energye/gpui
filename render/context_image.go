@@ -3,7 +3,7 @@ package render
 import (
 	"image"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	intImage "github.com/energye/gpui/render/internal/image"
 )
 
@@ -583,7 +583,7 @@ func ImageBufFromImage(img image.Image) *ImageBuf {
 //
 // This is the Skia GrSurfaceProxyView direct-bind pattern for cached
 // offscreen rendering (RepaintBoundary, layer compositing).
-func (c *Context) DrawGPUTexture(view context.TextureView, x, y float64, width, height int) {
+func (c *Context) DrawGPUTexture(view gpucontext.TextureView, x, y float64, width, height int) {
 	rc := c.gpuCtxOps()
 	if rc == nil || view.IsNil() {
 		return
@@ -607,7 +607,7 @@ func (c *Context) DrawGPUTexture(view context.TextureView, x, y float64, width, 
 // the specified opacity (0.0 = fully transparent, 1.0 = fully opaque).
 // Same as DrawGPUTexture but with alpha blending for fade transitions
 // and OpacityLayer compositing (Flutter pattern).
-func (c *Context) DrawGPUTextureWithOpacity(view context.TextureView, x, y float64, width, height int, opacity float32) {
+func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y float64, width, height int, opacity float32) {
 	rc := c.gpuCtxOps()
 	if rc == nil || view.IsNil() {
 		return
@@ -635,7 +635,7 @@ func (c *Context) DrawGPUTextureWithOpacity(view context.TextureView, x, y float
 // rendered on top in the same render pass. Last call per frame wins.
 //
 // See ADR-015 (Compositor Base Layer), Flutter OffsetLayer pattern.
-func (c *Context) DrawGPUTextureBase(view context.TextureView, x, y float64, width, height int) {
+func (c *Context) DrawGPUTextureBase(view gpucontext.TextureView, x, y float64, width, height int) {
 	rc := c.gpuCtxOps()
 	if rc == nil || view.IsNil() {
 		return
@@ -662,16 +662,16 @@ func (c *Context) DrawGPUTextureBase(view context.TextureView, x, y float64, wid
 // Call release() to return the texture resources to the GPU.
 //
 // Usage flags: RenderAttachment | CopySrc | TextureBinding.
-func (c *Context) CreateOffscreenTexture(width, height int) (context.TextureView, func()) {
+func (c *Context) CreateOffscreenTexture(width, height int) (gpucontext.TextureView, func()) {
 	rc := c.gpuCtxOps()
 	if rc == nil {
-		return context.TextureView{}, nil
+		return gpucontext.TextureView{}, nil
 	}
 	type offscreenCreator interface {
-		CreateOffscreenTexture(w, h int) (context.TextureView, func())
+		CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func())
 	}
 	if oc, ok := rc.(offscreenCreator); ok {
 		return oc.CreateOffscreenTexture(width, height)
 	}
-	return context.TextureView{}, nil
+	return gpucontext.TextureView{}, nil
 }

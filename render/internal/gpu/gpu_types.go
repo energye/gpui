@@ -3,7 +3,7 @@
 package gpu
 
 import (
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 )
 
@@ -12,7 +12,7 @@ import (
 // texture view directly — zero CPU readback, zero re-upload.
 // Follows the Skia GrSurfaceProxyView direct-bind pattern.
 type GPUTextureDrawCommand struct {
-	View           context.TextureView // type-safe, asserted to *wgpu.TextureView internally
+	View           gpucontext.TextureView // type-safe, asserted to *wgpu.TextureView internally
 	DstX, DstY     float32
 	DstW, DstH     float32
 	Opacity        float32

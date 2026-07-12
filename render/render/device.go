@@ -4,7 +4,7 @@
 package render
 
 import (
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -37,7 +37,7 @@ import (
 // DeviceHandle is an alias for gpucontext.DeviceProvider, providing a
 // gg-specific name for the interface while maintaining full compatibility
 // with the gpucontext ecosystem.
-type DeviceHandle = context.DeviceProvider
+type DeviceHandle = gpucontext.DeviceProvider
 
 // TextureDescriptor describes parameters for creating a texture.
 // This mirrors the WebGPU GPUTextureDescriptor specification.
@@ -158,13 +158,13 @@ type DeviceCapabilities struct {
 type NullDeviceHandle struct{}
 
 // Device returns zero-value (nil) device handle.
-func (NullDeviceHandle) Device() context.Device { return context.Device{} }
+func (NullDeviceHandle) Device() gpucontext.Device { return gpucontext.Device{} }
 
 // Queue returns zero-value (nil) queue handle.
-func (NullDeviceHandle) Queue() context.Queue { return context.Queue{} }
+func (NullDeviceHandle) Queue() gpucontext.Queue { return gpucontext.Queue{} }
 
 // Adapter returns zero-value (nil) adapter handle.
-func (NullDeviceHandle) Adapter() context.Adapter { return context.Adapter{} }
+func (NullDeviceHandle) Adapter() gpucontext.Adapter { return gpucontext.Adapter{} }
 
 // SurfaceFormat returns undefined format for the null device.
 func (NullDeviceHandle) SurfaceFormat() types.TextureFormat {
@@ -172,8 +172,8 @@ func (NullDeviceHandle) SurfaceFormat() types.TextureFormat {
 }
 
 // AdapterInfo returns unknown adapter info.
-func (NullDeviceHandle) AdapterInfo() context.AdapterInfo {
-	return context.AdapterInfo{Type: context.AdapterTypeUnknown}
+func (NullDeviceHandle) AdapterInfo() gpucontext.AdapterInfo {
+	return gpucontext.AdapterInfo{Type: gpucontext.AdapterTypeUnknown}
 }
 
 // Ensure NullDeviceHandle implements DeviceHandle.

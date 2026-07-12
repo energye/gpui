@@ -20,7 +20,7 @@
 package gpu
 
 import (
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 	gpuimpl "github.com/energye/gpui/render/internal/gpu"
 )
@@ -47,6 +47,6 @@ func init() {
 //
 // Call this before drawing operations, typically from ggcanvas.New() or
 // manually after registering the accelerator.
-func SetDeviceProvider(provider context.DeviceProvider) error {
+func SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 	return render.SetAcceleratorDeviceProvider(provider)
 }

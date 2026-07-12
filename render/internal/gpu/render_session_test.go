@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -526,7 +526,7 @@ func TestRenderSessionSurfaceMode(t *testing.T) {
 	// Render a frame with SDF shapes in surface mode.
 	// Pass the view through GPURenderTarget.View (per-pass routing).
 	target := render.GPURenderTarget{
-		View:       context.NewTextureView(unsafe.Pointer(view)),
+		View:       gpucontext.NewTextureView(unsafe.Pointer(view)),
 		ViewWidth:  800,
 		ViewHeight: 600,
 		Width:      800,

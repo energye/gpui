@@ -10,7 +10,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 )
 
@@ -51,7 +51,7 @@ type resourceTracker interface {
 // or use external synchronization.
 type Canvas struct {
 	ctx          *render.Context
-	provider     context.DeviceProvider
+	provider     gpucontext.DeviceProvider
 	texture      any             // Lazy-created texture (*gogpu.Texture)
 	oldTexture   any             // Previous texture awaiting deferred destruction
 	dirty        bool            // Needs GPU upload
@@ -79,9 +79,9 @@ type Canvas struct {
 // Use Context() to access and configure the drawing context.
 //
 // Returns error if dimensions are invalid or provider is nil.
-func New(provider context.DeviceProvider, width, height int) (*Canvas, error) {
+func New(provider gpucontext.DeviceProvider, width, height int) (*Canvas, error) {
 	scale := 1.0
-	if wp, ok := provider.(context.WindowProvider); ok {
+	if wp, ok := provider.(gpucontext.WindowProvider); ok {
 		if s := wp.ScaleFactor(); s > 0 {
 			scale = s
 		}
@@ -92,7 +92,7 @@ func New(provider context.DeviceProvider, width, height int) (*Canvas, error) {
 
 // warnIfPhysicalDimensions logs a warning when passed dimensions appear to be
 // physical pixels instead of logical points. Common mistake on HiDPI displays.
-func warnIfPhysicalDimensions(wp context.WindowProvider, width, height int, scale float64) {
+func warnIfPhysicalDimensions(wp gpucontext.WindowProvider, width, height int, scale float64) {
 	if scale <= 1.0 {
 		return
 	}
@@ -124,7 +124,7 @@ func warnIfPhysicalDimensions(wp context.WindowProvider, width, height int, scal
 //	canvas, err := ggcanvas.NewWithScale(provider, 800, 600, scale)
 //
 // Returns error if dimensions are invalid, provider is nil, or scale <= 0.
-func NewWithScale(provider context.DeviceProvider, width, height int, scale float64) (*Canvas, error) {
+func NewWithScale(provider gpucontext.DeviceProvider, width, height int, scale float64) (*Canvas, error) {
 	if provider == nil {
 		return nil, ErrNilProvider
 	}
@@ -166,11 +166,11 @@ func NewWithScale(provider context.DeviceProvider, width, height int, scale floa
 	// Auto-detect LCD subpixel layout from platform (ADR-024).
 	// PlatformProvider exposes OS-level display properties; SubpixelLayout
 	// enables ClearType rendering matching native Windows DirectWrite quality.
-	if pp, ok := provider.(context.PlatformProvider); ok {
+	if pp, ok := provider.(gpucontext.PlatformProvider); ok {
 		switch pp.SubpixelLayout() {
-		case context.SubpixelRGB:
+		case gpucontext.SubpixelRGB:
 			c.ctx.SetLCDLayout(render.LCDLayoutRGB)
-		case context.SubpixelBGR:
+		case gpucontext.SubpixelBGR:
 			c.ctx.SetLCDLayout(render.LCDLayoutBGR)
 		}
 	}
@@ -188,7 +188,7 @@ func NewWithScale(provider context.DeviceProvider, width, height int, scale floa
 
 // MustNew is like New but panics on error.
 // Use only when errors are programming mistakes (e.g., hardcoded dimensions).
-func MustNew(provider context.DeviceProvider, width, height int) *Canvas {
+func MustNew(provider gpucontext.DeviceProvider, width, height int) *Canvas {
 	c, err := New(provider, width, height)
 	if err != nil {
 		panic(err)
@@ -197,7 +197,7 @@ func MustNew(provider context.DeviceProvider, width, height int) *Canvas {
 }
 
 // MustNewWithScale is like NewWithScale but panics on error.
-func MustNewWithScale(provider context.DeviceProvider, width, height int, scale float64) *Canvas {
+func MustNewWithScale(provider gpucontext.DeviceProvider, width, height int, scale float64) *Canvas {
 	c, err := NewWithScale(provider, width, height, scale)
 	if err != nil {
 		panic(err)
@@ -256,17 +256,17 @@ func (c *Canvas) DeviceScale() float64 {
 //
 // The view is valid until the texture is destroyed (resize, close).
 // Uses Go structural typing — no gogpu import required.
-func (c *Canvas) PixmapTextureView() context.TextureView {
+func (c *Canvas) PixmapTextureView() gpucontext.TextureView {
 	if c.texture == nil {
-		return context.TextureView{}
+		return gpucontext.TextureView{}
 	}
 	type viewProvider interface {
-		TextureView() context.TextureView
+		TextureView() gpucontext.TextureView
 	}
 	if vp, ok := c.texture.(viewProvider); ok {
 		return vp.TextureView()
 	}
-	return context.TextureView{}
+	return gpucontext.TextureView{}
 }
 
 // SetDeviceScale changes the device scale factor on the canvas.
@@ -533,7 +533,7 @@ func (c *Canvas) FlushPixmap() (any, error) {
 //	    w, h := dc.SurfaceSize()
 //	    canvas.RenderDirect(dc.RenderTarget().SurfaceView(), w, h)
 //	})
-func (c *Canvas) RenderDirect(surfaceView context.TextureView, width, height uint32) error {
+func (c *Canvas) RenderDirect(surfaceView gpucontext.TextureView, width, height uint32) error {
 	if c.closed {
 		return ErrCanvasClosed
 	}
@@ -574,7 +574,7 @@ func (c *Canvas) RenderDirect(surfaceView context.TextureView, width, height uin
 //
 // Use when only a subset of GPU content changed (e.g., a single RepaintBoundary
 // item in a compositor). Pass image.Rectangle{} for full-frame render.
-func (c *Canvas) RenderDirectWithDamage(surfaceView context.TextureView, width, height uint32, damage image.Rectangle) error {
+func (c *Canvas) RenderDirectWithDamage(surfaceView gpucontext.TextureView, width, height uint32, damage image.Rectangle) error {
 	if c.closed {
 		return ErrCanvasClosed
 	}
@@ -594,7 +594,7 @@ func (c *Canvas) RenderDirectWithDamage(surfaceView context.TextureView, width, 
 // RenderDirectWithDamageRects renders with multiple damage rects (ADR-028).
 // Each rect gets its own scissor — per-draw dynamic scissor for distant dirty
 // regions. Falls back to single-rect behavior when len(rects) <= 1.
-func (c *Canvas) RenderDirectWithDamageRects(surfaceView context.TextureView, width, height uint32, rects []image.Rectangle) error {
+func (c *Canvas) RenderDirectWithDamageRects(surfaceView gpucontext.TextureView, width, height uint32, rects []image.Rectangle) error {
 	if c.closed {
 		return ErrCanvasClosed
 	}
@@ -615,7 +615,7 @@ func (c *Canvas) RenderDirectWithDamageRects(surfaceView context.TextureView, wi
 // Implement this on your application context. *gogpu.Context satisfies this
 // via the gogpu.RenderTarget() adapter.
 type RenderTarget interface {
-	SurfaceView() context.TextureView
+	SurfaceView() gpucontext.TextureView
 	SurfaceSize() (uint32, uint32)
 	PresentTexture(tex any) error
 }
@@ -732,7 +732,7 @@ func (c *Canvas) promoteIfPending(tex any, dc RenderTarget) (any, error) {
 		return tex, nil
 	}
 	type textureCreatorProvider interface {
-		TextureCreator() context.TextureCreator
+		TextureCreator() gpucontext.TextureCreator
 	}
 	tcp, ok := dc.(textureCreatorProvider)
 	if !ok {
@@ -805,7 +805,7 @@ func (c *Canvas) Close() error {
 // dirty region is extracted and uploaded. Otherwise falls back to full upload.
 func (c *Canvas) uploadTexture(pixmap *render.Pixmap, fullData []byte) error {
 	dr := c.dirtyRect
-	regionUpdater, hasRegion := c.texture.(context.TextureRegionUpdater)
+	regionUpdater, hasRegion := c.texture.(gpucontext.TextureRegionUpdater)
 
 	// Use partial upload when: texture supports it, dirty rect is set (non-empty),
 	// and the dirty rect is strictly smaller than the full pixmap.
@@ -823,7 +823,7 @@ func (c *Canvas) uploadTexture(pixmap *render.Pixmap, fullData []byte) error {
 	}
 
 	// Full upload fallback.
-	if updater, ok := c.texture.(context.TextureUpdater); ok {
+	if updater, ok := c.texture.(gpucontext.TextureUpdater); ok {
 		if err := updater.UpdateData(fullData); err != nil {
 			return fmt.Errorf("ggcanvas: texture update failed: %w", err)
 		}
@@ -909,7 +909,7 @@ type pendingTexture struct {
 
 // Provider returns the DeviceProvider associated with this canvas.
 // Returns nil if the canvas is closed.
-func (c *Canvas) Provider() context.DeviceProvider {
+func (c *Canvas) Provider() gpucontext.DeviceProvider {
 	if c.closed {
 		return nil
 	}

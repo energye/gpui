@@ -9,7 +9,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 )
 
@@ -131,7 +131,7 @@ func TestQueueGPUTextureDraw_OverlayCoordinates(t *testing.T) {
 	rc := &GPURenderContext{shared: NewGPUShared()}
 	target := makeTestTarget(600, 400)
 
-	view := context.NewTextureView(unsafe.Pointer(new(int)))
+	view := gpucontext.NewTextureView(unsafe.Pointer(new(int)))
 
 	rc.QueueGPUTextureDraw(target, view,
 		100, 100, 48, 48, 1.0, 600, 400)
@@ -153,7 +153,7 @@ func TestQueueGPUTextureDraw_OverlayCoordinates(t *testing.T) {
 func TestQueueGPUTextureDraw_OpacityPassthrough(t *testing.T) {
 	rc := &GPURenderContext{shared: NewGPUShared()}
 	target := makeTestTarget(600, 400)
-	view := context.NewTextureView(unsafe.Pointer(new(int)))
+	view := gpucontext.NewTextureView(unsafe.Pointer(new(int)))
 
 	rc.QueueGPUTextureDraw(target, view, 0, 0, 48, 48, 0.5, 600, 400)
 
@@ -164,7 +164,7 @@ func TestQueueGPUTextureDraw_OpacityPassthrough(t *testing.T) {
 func TestQueueGPUTextureDraw_OpacityZero(t *testing.T) {
 	rc := &GPURenderContext{shared: NewGPUShared()}
 	target := makeTestTarget(600, 400)
-	view := context.NewTextureView(unsafe.Pointer(new(int)))
+	view := gpucontext.NewTextureView(unsafe.Pointer(new(int)))
 
 	rc.QueueGPUTextureDraw(target, view, 0, 0, 48, 48, 0.0, 600, 400)
 
@@ -176,7 +176,7 @@ func TestQueueBaseLayer_FullScreen(t *testing.T) {
 	rc := &GPURenderContext{shared: NewGPUShared()}
 	target := makeTestTarget(600, 400)
 
-	view := context.NewTextureView(unsafe.Pointer(new(int)))
+	view := gpucontext.NewTextureView(unsafe.Pointer(new(int)))
 
 	rc.QueueBaseLayer(target, view,
 		0, 0, 600, 400, 1.0, 600, 400)
@@ -199,7 +199,7 @@ func TestPendingCount_BaseLayerOnly(t *testing.T) {
 		t.Errorf("empty: got %d, want 0", rc.PendingCount())
 	}
 
-	view := context.NewTextureView(unsafe.Pointer(new(int)))
+	view := gpucontext.NewTextureView(unsafe.Pointer(new(int)))
 	rc.QueueBaseLayer(makeTestTarget(600, 400), view,
 		0, 0, 600, 400, 1.0, 600, 400)
 
@@ -211,7 +211,7 @@ func TestPendingCount_BaseLayerOnly(t *testing.T) {
 func TestPendingCount_OverlayOnly(t *testing.T) {
 	rc := &GPURenderContext{shared: NewGPUShared()}
 
-	view := context.NewTextureView(unsafe.Pointer(new(int)))
+	view := gpucontext.NewTextureView(unsafe.Pointer(new(int)))
 	rc.QueueGPUTextureDraw(makeTestTarget(600, 400), view,
 		100, 100, 48, 48, 1.0, 600, 400)
 
@@ -223,7 +223,7 @@ func TestPendingCount_OverlayOnly(t *testing.T) {
 func TestPendingCount_BaseLayerPlusOverlay(t *testing.T) {
 	rc := &GPURenderContext{shared: NewGPUShared()}
 
-	view := context.NewTextureView(unsafe.Pointer(new(int)))
+	view := gpucontext.NewTextureView(unsafe.Pointer(new(int)))
 	target := makeTestTarget(600, 400)
 
 	rc.QueueBaseLayer(target, view, 0, 0, 600, 400, 1.0, 600, 400)

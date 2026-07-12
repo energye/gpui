@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/energye/gpui/gpu/context"
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render/text"
 )
 
@@ -62,7 +62,7 @@ type GPURenderTarget struct {
 	// GPU-direct path: resolve directly to this view.
 	// When non-nil, Data/Stride are ignored -- no CPU readback.
 	// Type-assert to *wgpu.TextureView in internal/gpu consumers.
-	View       context.TextureView
+	View       gpucontext.TextureView
 	ViewWidth  uint32
 	ViewHeight uint32
 
@@ -136,7 +136,7 @@ type GPUAccelerator interface {
 //
 //	wgpuDev := wgpu.DeviceFromHandle(provider.Device())
 type DeviceProviderAware interface {
-	SetDeviceProvider(provider context.DeviceProvider) error
+	SetDeviceProvider(provider gpucontext.DeviceProvider) error
 }
 
 // GPURenderContextProvider is an optional interface for accelerators that
@@ -313,7 +313,7 @@ func CloseAccelerator() {
 //
 // The provider's Device() returns gpucontext.Device; accelerators type-assert
 // to *wgpu.Device to obtain HAL access for GPU operations.
-func SetAcceleratorDeviceProvider(provider context.DeviceProvider) error {
+func SetAcceleratorDeviceProvider(provider gpucontext.DeviceProvider) error {
 	a := Accelerator()
 	if a == nil {
 		return nil
