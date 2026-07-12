@@ -92,12 +92,21 @@ func main() {
 	}
 	fmt.Printf("   ✅ 复制了 %d 个文件\n", copiedFiles)
 
-	// 步骤2: 扫描所有 .go 文件
-	fmt.Println("\n🔍 步骤2: 扫描并解析导入依赖...")
-	goFiles, err := scanGoFiles(targetDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ 扫描文件失败: %v\n", err)
-		os.Exit(1)
+	// 步骤2: 扫描各映射子目录中的 .go 文件（不扫描根目录）
+	fmt.Println("\n🔍 步骤2: 扫描各映射子目录中的 .go 文件...")
+	var goFiles []fileInfo
+	for _, m := range cfg.Mappings {
+		subDir := filepath.Join(targetDir, m.Target)
+		files, err := scanGoFiles(subDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "   ⚠️  扫描 %s 失败: %v\n", subDir, err)
+			continue
+		}
+		// 将相对路径调整为相对于 targetDir 的路径
+		for _, f := range files {
+			f.path = m.Target + "/" + f.path
+			goFiles = append(goFiles, f)
+		}
 	}
 	fmt.Printf("   📄 发现 %d 个 .go 文件\n", len(goFiles))
 
@@ -142,9 +151,12 @@ func main() {
 	}
 	fmt.Printf("   ✅ 删除了 %d 个不可用文件\n", deadCount)
 
-	// 步骤5: 清理空目录
-	fmt.Println("\n🧹 步骤5: 清理空目录...")
-	cleanEmptyDirs(targetDir)
+	// 步骤5: 清理各映射子目录中的空目录（不清理根目录）
+	fmt.Println("\n🧹 步骤5: 清理各映射子目录中的空目录...")
+	for _, m := range cfg.Mappings {
+		subDir := filepath.Join(targetDir, m.Target)
+		cleanEmptyDirs(subDir)
+	}
 	fmt.Println("   ✅ 空目录已清理")
 
 	// 步骤6: 删除各映射子目录中的 go.mod/go.sum（保留根 go.mod）
@@ -206,8 +218,20 @@ func main() {
 		fmt.Println("   ✅ go mod tidy 完成")
 	}
 
+	// 步骤10: go fmt
+	fmt.Println("\n✅ 步骤10: go fmt ...")
+	fmtCmd := exec.Command("go", "fmt", "./...")
+	fmtCmd.Dir = targetDir
+	fmtCmd.Stdout = os.Stdout
+	fmtCmd.Stderr = os.Stderr
+	if err := fmtCmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "   ❌ go fmt 失败: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("   ✅ go fmt 通过")
+
 	// 步骤10: go build 验证
-	fmt.Println("\n✅ 步骤10: go build 验证...")
+	fmt.Println("\n✅ 步骤11: go build 验证...")
 	buildCmd := exec.Command("go", "build", "./...")
 	buildCmd.Dir = targetDir
 	buildCmd.Stdout = os.Stdout
@@ -408,7 +432,7 @@ func parseImports(filePath string) ([]string, error) {
 
 func isSelfImport(imp string, moduleMap map[string]*Mapping) bool {
 	for _, m := range moduleMap {
-		if strings.HasPrefix(imp, m.Module) {
+		if imp == m.Module || strings.HasPrefix(imp, m.Module+"/") {
 			return true
 		}
 	}

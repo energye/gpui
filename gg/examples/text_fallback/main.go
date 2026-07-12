@@ -30,7 +30,7 @@ func main() {
 	dc.ClearWithColor(gg.White)
 
 	// Create main face
-	mainFace := mainSource.Face(10)
+	mainFace := mainSource.Face(32)
 
 	// Title
 	dc.SetFont(mainFace)
@@ -40,7 +40,7 @@ func main() {
 	// Draw text with main font only
 	dc.SetFont(mainFace)
 	dc.SetRGB(0.3, 0.3, 0.3)
-	dc.DrawString("Single font: Hello World!中文", 50, 120)
+	dc.DrawString("Single font: Hello World!", 50, 120)
 
 	// Try to create MultiFace with emoji support
 	drawMultiFaceDemo(dc, mainFace, mainSource, emojiFont)

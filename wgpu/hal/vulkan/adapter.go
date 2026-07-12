@@ -12,6 +12,7 @@ import (
 	"github.com/energye/gpui/gputypes"
 	"github.com/energye/gpui/wgpu/hal"
 	"github.com/energye/gpui/wgpu/hal/vulkan/vk"
+	"github.com/go-webgpu/goffi/ffi"
 )
 
 // Adapter implements hal.Adapter for Vulkan.
