@@ -223,7 +223,7 @@ func TestNativeScalarDescriptors(t *testing.T) {
 		cif := prepareNativeCIF(t, types.UInt8TypeDescriptor, types.UInt8TypeDescriptor)
 		in := uint8(250)
 		var got uint8
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != in {
@@ -236,7 +236,7 @@ func TestNativeScalarDescriptors(t *testing.T) {
 		cif := prepareNativeCIF(t, types.SInt8TypeDescriptor, types.SInt8TypeDescriptor)
 		in := int8(-12)
 		var got int8
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != in {
@@ -249,7 +249,7 @@ func TestNativeScalarDescriptors(t *testing.T) {
 		cif := prepareNativeCIF(t, types.UInt16TypeDescriptor, types.UInt16TypeDescriptor)
 		in := uint16(0xfeed)
 		var got uint16
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != in {
@@ -262,7 +262,7 @@ func TestNativeScalarDescriptors(t *testing.T) {
 		cif := prepareNativeCIF(t, types.SInt16TypeDescriptor, types.SInt16TypeDescriptor)
 		in := int16(-1234)
 		var got int16
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != in {
@@ -275,7 +275,7 @@ func TestNativeScalarDescriptors(t *testing.T) {
 		cif := prepareNativeCIF(t, types.UInt32TypeDescriptor, types.UInt32TypeDescriptor)
 		in := uint32(0xfedcba98)
 		var got uint32
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != in {
@@ -288,7 +288,7 @@ func TestNativeScalarDescriptors(t *testing.T) {
 		cif := prepareNativeCIF(t, types.SInt32TypeDescriptor, types.SInt32TypeDescriptor)
 		in := int32(-123456)
 		var got int32
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != in {
@@ -301,7 +301,7 @@ func TestNativeScalarDescriptors(t *testing.T) {
 		cif := prepareNativeCIF(t, types.UInt64TypeDescriptor, types.UInt64TypeDescriptor)
 		in := uint64(0xfeedfacecafebeef)
 		var got uint64
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != in {
@@ -314,7 +314,7 @@ func TestNativeScalarDescriptors(t *testing.T) {
 		cif := prepareNativeCIF(t, types.SInt64TypeDescriptor, types.SInt64TypeDescriptor)
 		in := int64(-0x123456789)
 		var got int64
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != in {
@@ -332,7 +332,7 @@ func TestNativePointerAndVulkanLikePatterns(t *testing.T) {
 		target := byte(42)
 		ptr := unsafe.Pointer(&target)
 		var got unsafe.Pointer
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&ptr)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&ptr)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != ptr {
@@ -360,7 +360,7 @@ func TestNativePointerAndVulkanLikePatterns(t *testing.T) {
 			unsafe.Pointer(&b),
 			unsafe.Pointer(&outPtr),
 		}
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&result), args); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&result), args); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if result != -7 {
@@ -410,7 +410,7 @@ func TestNativePointerAndVulkanLikePatterns(t *testing.T) {
 			unsafe.Pointer(&q),
 			unsafe.Pointer(&h),
 		}
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), args); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), args); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		want := a + uint64(b) + uint64(c) + uint64(d) + uint64(uint32(e)) + f + uint64(uintptr(p)) + uint64(g) + uint64(uintptr(q)) + h
@@ -445,7 +445,7 @@ func TestNativeFloatABI(t *testing.T) {
 			unsafe.Pointer(&d),
 			unsafe.Pointer(&outPtr),
 		}
-		if err := CallFunction(&cif, fn, nil, args); err != nil {
+		if _, err := CallFunction(&cif, fn, nil, args); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if out[0] != 3.75 || out[1] != 7.75 || out[2] != 5.0 {
@@ -462,7 +462,7 @@ func TestNativeFloatABI(t *testing.T) {
 		a := float32(10.5)
 		b := float32(0.25)
 		var got float32
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&a), unsafe.Pointer(&b)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&a), unsafe.Pointer(&b)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != 10.75 {
@@ -479,7 +479,7 @@ func TestNativeFloatABI(t *testing.T) {
 		a := float64(0.125)
 		b := float64(10.0)
 		var got float64
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&a), unsafe.Pointer(&b)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&a), unsafe.Pointer(&b)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != 10.125 {
@@ -500,7 +500,7 @@ func TestNativeFloatABI(t *testing.T) {
 		c := float64(2.25)
 		d := uint32(3)
 		var got float64
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
 			unsafe.Pointer(&a),
 			unsafe.Pointer(&b),
 			unsafe.Pointer(&c),
@@ -554,7 +554,7 @@ func TestNativeStructABI(t *testing.T) {
 		cif := prepareNativeCIF(t, types.DoubleTypeDescriptor, pairType)
 		in := pairF64{X: 3.25, Y: 4.5}
 		var got float64
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&in)}); err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
 		if got != 7.75 {
@@ -571,7 +571,7 @@ func TestNativeStructABI(t *testing.T) {
 		x := float64(8.5)
 		y := float64(9.25)
 		var got pairF64
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
 			unsafe.Pointer(&x),
 			unsafe.Pointer(&y),
 		}); err != nil {
@@ -587,7 +587,7 @@ func TestNativeStructABI(t *testing.T) {
 		makeCIF := prepareNativeCIF(t, sixType, types.DoubleTypeDescriptor)
 		base := float64(10)
 		var made sixF64
-		if err := CallFunction(&makeCIF, makeFn, unsafe.Pointer(&made), []unsafe.Pointer{unsafe.Pointer(&base)}); err != nil {
+		if _, err := CallFunction(&makeCIF, makeFn, unsafe.Pointer(&made), []unsafe.Pointer{unsafe.Pointer(&base)}); err != nil {
 			t.Fatalf("CallFunction(make_six) failed: %v", err)
 		}
 		wantMade := sixF64{A: 10, B: 11, C: 12, D: 13, E: 14, F: 15}
@@ -598,7 +598,7 @@ func TestNativeStructABI(t *testing.T) {
 		sumFn := nativeSymbol(t, handle, "gpui_ffi_sum_six_f64")
 		sumCIF := prepareNativeCIF(t, types.DoubleTypeDescriptor, sixType)
 		var got float64
-		if err := CallFunction(&sumCIF, sumFn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&made)}); err != nil {
+		if _, err := CallFunction(&sumCIF, sumFn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&made)}); err != nil {
 			t.Fatalf("CallFunction(sum_six) failed: %v", err)
 		}
 		if got != 75 {
@@ -632,7 +632,7 @@ func TestNativeVariadicCall(t *testing.T) {
 	c := uint32(30)
 	d := uint32(40)
 	var got uint64
-	if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
+	if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
 		unsafe.Pointer(&n),
 		unsafe.Pointer(&a),
 		unsafe.Pointer(&b),
@@ -663,7 +663,7 @@ func TestNativeCallbacksCalledFromC(t *testing.T) {
 		a := uint64(7)
 		b := uint64(9)
 		var got uint64
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
 			unsafe.Pointer(&cbPtr),
 			unsafe.Pointer(&a),
 			unsafe.Pointer(&b),
@@ -695,7 +695,7 @@ func TestNativeCallbacksCalledFromC(t *testing.T) {
 		a := uint64(11)
 		b := uint64(12)
 		c := uint64(13)
-		if err := CallFunction(&cif, fn, nil, []unsafe.Pointer{
+		if _, err := CallFunction(&cif, fn, nil, []unsafe.Pointer{
 			unsafe.Pointer(&cbPtr),
 			unsafe.Pointer(&a),
 			unsafe.Pointer(&b),
@@ -727,7 +727,7 @@ func TestNativeCallbacksCalledFromC(t *testing.T) {
 		c := uint64(3)
 		d := uint64(4)
 		var got uint64
-		if err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
+		if _, err := CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{
 			unsafe.Pointer(&cbPtr),
 			unsafe.Pointer(&a),
 			unsafe.Pointer(&b),
@@ -749,7 +749,7 @@ func TestNativeArgumentCountValidation(t *testing.T) {
 	cif := prepareNativeCIF(t, types.UInt32TypeDescriptor, types.UInt32TypeDescriptor)
 
 	var got uint32
-	err := CallFunction(&cif, fn, unsafe.Pointer(&got), nil)
+	_, err := CallFunction(&cif, fn, unsafe.Pointer(&got), nil)
 	if err == nil {
 		t.Fatal("CallFunction with too few args should fail")
 	}
@@ -760,7 +760,7 @@ func TestNativeArgumentCountValidation(t *testing.T) {
 
 	a := uint32(1)
 	b := uint32(2)
-	err = CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&a), unsafe.Pointer(&b)})
+	_, err = CallFunction(&cif, fn, unsafe.Pointer(&got), []unsafe.Pointer{unsafe.Pointer(&a), unsafe.Pointer(&b)})
 	if err == nil {
 		t.Fatal("CallFunction with too many args should fail")
 	}

@@ -2,13 +2,16 @@
   "target_module": "github.com/energye/gpui",
   "target_dir": "/home/yanghy/app/projects/gogpu/gpui",
   "mappings": [
-    {"source": "/home/yanghy/app/projects/gogpu/gg", "target": "gg", "module": "github.com/gogpu/gg"},
-    {"source": "/home/yanghy/app/projects/gogpu/wgpu", "target": "wgpu", "module": "github.com/gogpu/wgpu"},
-    {"source": "/home/yanghy/app/projects/gogpu/naga", "target": "naga", "module": "github.com/gogpu/naga"},
-    {"source": "/home/yanghy/app/projects/gogpu/gputypes", "target": "gputypes", "module": "github.com/gogpu/gputypes"},
-    {"source": "/home/yanghy/app/projects/gogpu/gpucontext", "target": "gpucontext", "module": "github.com/gogpu/gpucontext"}
+    {"source": "/home/yanghy/app/projects/gogpu/gg", "target": "render", "module": "github.com/gogpu/gg", "rename_package": "render"},
+    {"source": "/home/yanghy/app/projects/gogpu/wgpu", "target": "gpu/webgpu", "module": "github.com/gogpu/wgpu", "rename_package": "webgpu"},
+    {"source": "/home/yanghy/app/projects/gogpu/naga", "target": "gpu/shader", "module": "github.com/gogpu/naga", "rename_package": "shader"},
+    {"source": "/home/yanghy/app/projects/gogpu/gputypes", "target": "gpu/types", "module": "github.com/gogpu/gputypes", "rename_package": "types"},
+    {"source": "/home/yanghy/app/projects/gogpu/gpucontext", "target": "gpu/context", "module": "github.com/gogpu/gpucontext", "rename_package": "context", "alias": "gpucontext"}
   ],
-  "replace_imports": {},
+  "replace_imports": {
+    "github.com/go-webgpu/goffi/ffi": "github.com/energye/gpui/ffi",
+    "github.com/go-webgpu/goffi/types": "github.com/energye/gpui/ffi/types"
+  },
   "external_deps": [
     "github.com/go-webgpu/goffi",
     "golang.org/x/image",

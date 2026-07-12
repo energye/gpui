@@ -63,6 +63,7 @@ import (
 	"math"
 	"reflect"
 	"runtime"
+	"syscall"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -467,25 +468,25 @@ func CallFunctionContext(
 	fn unsafe.Pointer,
 	rvalue unsafe.Pointer,
 	avalue []unsafe.Pointer,
-) error {
+) (syscall.Errno, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	// Check context before expensive call
 	if err := ctx.Err(); err != nil {
-		return err
+		return 0, err
 	}
 
 	if cif == nil {
-		return &InvalidCallInterfaceError{
+		return 0, &InvalidCallInterfaceError{
 			Field:  "cif",
 			Reason: "must not be nil",
 			Index:  -1,
 		}
 	}
 	if fn == nil {
-		return &InvalidCallInterfaceError{
+		return 0, &InvalidCallInterfaceError{
 			Field:  "fn",
 			Reason: "function pointer must not be nil",
 			Index:  -1,
@@ -500,7 +501,7 @@ func CallFunctionContext(
 	}
 
 	if len(avalue) != argCount {
-		return &InvalidCallInterfaceError{
+		return 0, &InvalidCallInterfaceError{
 			Field:  "avalue",
 			Reason: fmt.Sprintf("argument count mismatch: got %d, want %d", len(avalue), argCount),
 			Index:  -1,
@@ -512,7 +513,7 @@ func CallFunctionContext(
 	// the signature contains values that may use FP registers or aggregate ABI
 	// classification.
 	if needsReflectCall(cif) {
-		return callReflect(ctx, cif, fn, rvalue, avalue, argCount)
+		return 0, callReflect(ctx, cif, fn, rvalue, avalue, argCount)
 	}
 
 	args := make([]uintptr, 0, argCount)
@@ -546,7 +547,7 @@ func CallFunctionContext(
 		writeReturnValue(rvalue, r1, cif.ReturnType)
 	}
 
-	return nil
+	return syscall.Errno(r1), nil
 }
 
 // CallFunction executes a C function call without context support.
@@ -557,7 +558,7 @@ func CallFunction(
 	fn unsafe.Pointer,
 	rvalue unsafe.Pointer,
 	avalue []unsafe.Pointer,
-) error {
+) (syscall.Errno, error) {
 	return CallFunctionContext(context.Background(), cif, fn, rvalue, avalue)
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io"
@@ -27,9 +28,11 @@ type Config struct {
 }
 
 type Mapping struct {
-	Source string `json:"source"`
-	Target string `json:"target"`
-	Module string `json:"module"`
+	Source        string `json:"source"`
+	Target        string `json:"target"`
+	Module        string `json:"module"`
+	RenamePackage string `json:"rename_package,omitempty"`
+	Alias         string `json:"alias,omitempty"`
 }
 
 func main() {
@@ -92,7 +95,29 @@ func main() {
 	}
 	fmt.Printf("   ✅ 复制了 %d 个文件\n", copiedFiles)
 
-	// 步骤2: 扫描各映射子目录中的 .go 文件（不扫描根目录）
+	// 步骤2: 重写根包中的 package 声明（如 gg → render）
+	fmt.Println("\n📛 步骤2: 重写根包中的 package 声明...")
+	pkgRenameCount := 0
+	for _, m := range cfg.Mappings {
+		if m.RenamePackage == "" {
+			continue
+		}
+		subDir := filepath.Join(targetDir, m.Target)
+		// 从 module 路径提取旧包名（最后一段）
+		oldPkg := m.Module
+		if idx := strings.LastIndex(oldPkg, "/"); idx >= 0 {
+			oldPkg = oldPkg[idx+1:]
+		}
+		n, err := renamePackageDeclarations(subDir, oldPkg, m.RenamePackage)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "   ⚠️  重写 %s 包名失败: %v\n", m.Target, err)
+			continue
+		}
+		pkgRenameCount += n
+	}
+	fmt.Printf("   ✅ 重写了 %d 个文件的 package 声明\n", pkgRenameCount)
+
+	// 步骤3: 扫描各映射子目录中的 .go 文件（不扫描根目录）
 	fmt.Println("\n🔍 步骤2: 扫描各映射子目录中的 .go 文件...")
 	var goFiles []fileInfo
 	for _, m := range cfg.Mappings {
@@ -206,8 +231,89 @@ func main() {
 	}
 	fmt.Printf("   ✅ 重写了 %d 个文件的导入路径\n", rewriteCount)
 
-	// 步骤9: go mod tidy
-	fmt.Println("\n🧪 步骤9: go mod tidy...")
+	// 步骤9: 检测 stdlib 冲突并添加导入别名
+	// 例如：当包名改为 "context" 但文件同时导入 stdlib "context" 时，
+	// 自动添加别名 gpucontext "github.com/energye/gpui/gpu/context"
+	fmt.Println("\n🔀 步骤9: 检测 stdlib 冲突并添加导入别名...")
+	aliasAddCount := 0
+	for _, m := range cfg.Mappings {
+		if m.RenamePackage == "" {
+			continue
+		}
+		oldPkg := m.Module
+		if idx := strings.LastIndex(oldPkg, "/"); idx >= 0 {
+			oldPkg = oldPkg[idx+1:]
+		}
+		newPath := cfg.TargetModule + "/" + m.Target
+		allGoFiles := listAllGoFiles(targetDir)
+		aliasName := m.Alias
+		if aliasName == "" {
+			aliasName = oldPkg // 默认使用旧包名作为别名
+		}
+		for _, f := range allGoFiles {
+			changed, err := addStdlibConflictAlias(f, aliasName, m.RenamePackage, newPath)
+			if err != nil {
+				continue
+			}
+			if changed {
+				aliasAddCount++
+			}
+		}
+	}
+	fmt.Printf("   ✅ 添加了 %d 个导入别名\n", aliasAddCount)
+
+	// 步骤10: 重写包限定符引用（如 gg.SomeType → render.SomeType）
+	// 跳过新包名与文件内其他导入冲突的情况（如 context 与 stdlib 冲突）
+	fmt.Println("\n🔀 步骤10: 重写包限定符引用...")
+	qualRenameCount := 0
+	for _, m := range cfg.Mappings {
+		if m.RenamePackage == "" {
+			continue
+		}
+		oldPkg := m.Module
+		if idx := strings.LastIndex(oldPkg, "/"); idx >= 0 {
+			oldPkg = oldPkg[idx+1:]
+		}
+		allGoFiles := listAllGoFiles(targetDir)
+		for _, f := range allGoFiles {
+			changed, err := renamePackageQualifier(f, oldPkg, m.RenamePackage)
+			if err != nil {
+				continue
+			}
+			if changed {
+				qualRenameCount++
+			}
+		}
+	}
+	fmt.Printf("   ✅ 重写了 %d 个文件的包限定符引用\n", qualRenameCount)
+
+	// 步骤11: 更新不再需要的导入别名（如 naga "gpu/shader" → "shader"）
+	fmt.Println("\n🧹 步骤11: 更新不再需要的导入别名...")
+	aliasUpdateCount := 0
+	for _, m := range cfg.Mappings {
+		if m.RenamePackage == "" {
+			continue
+		}
+		oldPkg := m.Module
+		if idx := strings.LastIndex(oldPkg, "/"); idx >= 0 {
+			oldPkg = oldPkg[idx+1:]
+		}
+		newPath := cfg.TargetModule + "/" + m.Target
+		allGoFiles := listAllGoFiles(targetDir)
+		for _, f := range allGoFiles {
+			changed, err := updateImportAlias(f, oldPkg, m.RenamePackage, newPath)
+			if err != nil {
+				continue
+			}
+			if changed {
+				aliasUpdateCount++
+			}
+		}
+	}
+	fmt.Printf("   ✅ 更新了 %d 个文件的导入别名\n", aliasUpdateCount)
+
+	// 步骤12: go mod tidy
+	fmt.Println("\n🧪 步骤12: go mod tidy...")
 	cmd := exec.Command("go", "mod", "tidy")
 	cmd.Dir = targetDir
 	cmd.Stdout = os.Stdout
@@ -218,8 +324,8 @@ func main() {
 		fmt.Println("   ✅ go mod tidy 完成")
 	}
 
-	// 步骤10: go fmt
-	fmt.Println("\n✅ 步骤10: go fmt ...")
+	// 步骤13: go fmt
+	fmt.Println("\n✅ 步骤13: go fmt ...")
 	fmtCmd := exec.Command("go", "fmt", "./...")
 	fmtCmd.Dir = targetDir
 	fmtCmd.Stdout = os.Stdout
@@ -230,8 +336,8 @@ func main() {
 	}
 	fmt.Println("   ✅ go fmt 通过")
 
-	// 步骤10: go build 验证
-	fmt.Println("\n✅ 步骤11: go build 验证...")
+	// 步骤14: go build 验证
+	fmt.Println("\n✅ 步骤14: go build 验证...")
 	buildCmd := exec.Command("go", "build", "./...")
 	buildCmd.Dir = targetDir
 	buildCmd.Stdout = os.Stdout
@@ -309,7 +415,11 @@ func copyDir(src, dst string, excludeSet map[string]bool) (int, error) {
 		}
 		ext := filepath.Ext(path)
 		if ext != ".go" && ext != ".wgsl" && ext != ".s" && ext != ".h" && ext != ".mod" {
-			return nil
+			// 保留 testdata 目录中的所有文件（测试用二进制数据）
+			if !strings.Contains(rel, "testdata"+string(filepath.Separator)) &&
+				!strings.Contains(rel, "testdata/") {
+				return nil
+			}
 		}
 		if err := copyFile(path, target); err != nil {
 			return err
@@ -614,4 +724,334 @@ func writeRootGoMod(targetDir, moduleName string, deps map[string]string) {
 		sb.WriteString(")\n")
 	}
 	os.WriteFile(filepath.Join(targetDir, "go.mod"), []byte(sb.String()), 0644)
+}
+
+// renamePackageDeclarations 重写指定目录（不含子目录）中 .go 文件的 package 声明。
+// 例如：package gg → package render，package gg_test → package render_test
+func renamePackageDeclarations(root, oldName, newName string) (int, error) {
+	count := 0
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return 0, err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(e.Name(), ".go") {
+			continue
+		}
+		path := filepath.Join(root, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		// 找到 package 声明行并替换
+		lines := strings.Split(content, "\n")
+		changed := false
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "package ") {
+				fields := strings.Fields(trimmed)
+				if len(fields) >= 2 {
+					pkgName := strings.TrimSuffix(fields[1], "_test")
+					if pkgName == oldName {
+						oldPkg := fields[1]
+						newPkg := newName
+						if strings.HasSuffix(oldPkg, "_test") {
+							newPkg = newName + "_test"
+						}
+						lines[i] = strings.Replace(line, "package "+oldPkg, "package "+newPkg, 1)
+						changed = true
+					}
+				}
+				break // package 声明只有一行
+			}
+		}
+		if changed {
+			if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+				return count, err
+			}
+			count++
+			fmt.Printf("   📛 %s: package %s → %s\n", e.Name(), oldName, newName)
+		}
+	}
+	return count, nil
+}
+
+// renamePackageQualifier 使用 AST 精确重写文件中包限定符引用。
+// 例如：gg.SomeType → render.SomeType，只替换作为 SelectorExpr.X 的 Ident。
+// 如果新包名与文件中的其他导入冲突（如 context 与 stdlib 冲突），则跳过重写。
+func renamePackageQualifier(filePath, oldName, newName string) (bool, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return false, err
+	}
+	content := string(data)
+	original := content
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, content, parser.ParseComments)
+	if err != nil {
+		return false, nil // 忽略无法解析的文件
+	}
+
+	// 检查新包名是否与文件中的其他导入冲突
+	// 如果新包名已经被其他导入（非当前包）使用，则跳过重写
+	newNameInUse := false
+	for _, imp := range f.Imports {
+		path := strings.Trim(imp.Path.Value, "\"")
+		// 跳过当前要处理的导入
+		if strings.HasSuffix(path, "/"+oldName) || strings.HasSuffix(path, "/"+newName) {
+			continue
+		}
+		// 检查其他导入的默认包名（无别名时使用路径最后一段）
+		pkgName := path
+		if idx := strings.LastIndex(pkgName, "/"); idx >= 0 {
+			pkgName = pkgName[idx+1:]
+		}
+		// 或用别名
+		if imp.Name != nil {
+			pkgName = imp.Name.Name
+		}
+		if pkgName == newName {
+			newNameInUse = true
+			break
+		}
+	}
+	if newNameInUse {
+		return false, nil
+	}
+
+	// 查找所有 SelectorExpr 中 X 为 oldName 的 Ident
+	var positions []token.Pos
+	ast.Inspect(f, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		ident, ok := sel.X.(*ast.Ident)
+		if !ok || ident.Name != oldName {
+			return true
+		}
+		positions = append(positions, ident.NamePos)
+		return true
+	})
+
+	if len(positions) == 0 {
+		return false, nil
+	}
+
+	// 逆序替换，避免偏移量变化
+	sort.Slice(positions, func(i, j int) bool {
+		return positions[i] > positions[j]
+	})
+
+	for _, pos := range positions {
+		p := fset.Position(pos)
+		offset := p.Offset
+		if offset+len(oldName) <= len(content) && content[offset:offset+len(oldName)] == oldName {
+			content = content[:offset] + newName + content[offset+len(oldName):]
+		}
+	}
+
+	if content != original {
+		return true, os.WriteFile(filePath, []byte(content), 0644)
+	}
+	return false, nil
+}
+
+// listAllGoFiles 递归列出目录下所有 .go 文件的绝对路径。
+func listAllGoFiles(root string) []string {
+	var files []string
+	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".go") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files
+}
+
+// addStdlibConflictAlias 检测 stdlib 冲突并添加导入别名。
+// 当导入路径匹配 newPath 且新包名与文件中的其他导入冲突时（如 stdlib "context"），
+// 添加别名：oldName "github.com/energye/gpui/gpu/context"
+func addStdlibConflictAlias(filePath, oldName, newPkgName, newPath string) (bool, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return false, err
+	}
+	content := string(data)
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		return false, nil
+	}
+
+	// 检查文件是否已经导入了新包名（作为其他包）
+	hasStdlibConflict := false
+	targetImported := false
+	for _, imp := range f.Imports {
+		path := strings.Trim(imp.Path.Value, "\"")
+		if path == newPath || strings.HasPrefix(path, newPath+"/") {
+			targetImported = true
+			// 如果已经有别名且别名与旧名不同，说明已处理
+			if imp.Name != nil && imp.Name.Name != newPkgName {
+				return false, nil
+			}
+			continue
+		}
+		// 检查是否有其他导入使用了新包名（如 stdlib "context"）
+		if imp.Name == nil {
+			pkgName := path
+			if idx := strings.LastIndex(pkgName, "/"); idx >= 0 {
+				pkgName = pkgName[idx+1:]
+			}
+			if pkgName == newPkgName {
+				hasStdlibConflict = true
+			}
+		} else if imp.Name.Name == newPkgName {
+			hasStdlibConflict = true
+		}
+	}
+
+	if !targetImported || !hasStdlibConflict {
+		return false, nil
+	}
+
+	// 已有别名，不需要添加
+	for _, imp := range f.Imports {
+		path := strings.Trim(imp.Path.Value, "\"")
+		if path == newPath || strings.HasPrefix(path, newPath+"/") {
+			if imp.Name != nil {
+				return false, nil
+			}
+		}
+	}
+
+	// 添加别名：oldName "newPath"
+	// 找到目标 import 并添加别名
+	oldImport := `"` + newPath + `"`
+	newImport := oldName + ` "` + newPath + `"`
+	if strings.Contains(content, oldImport) {
+		content = strings.Replace(content, oldImport, newImport, 1)
+		if content != string(data) {
+			return true, os.WriteFile(filePath, []byte(content), 0644)
+		}
+	}
+	return false, nil
+}
+
+// hasImportAlias 检查文件是否对指定导入路径使用了别名。
+func hasImportAlias(filePath, oldName, newPath string) (bool, error) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		return false, nil
+	}
+	for _, imp := range f.Imports {
+		path := strings.Trim(imp.Path.Value, "\"")
+		if path == newPath || strings.HasPrefix(path, newPath+"/") {
+			if imp.Name != nil && imp.Name.Name == oldName {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// updateImportAlias 更新导入别名：当别名匹配 oldName 且导入路径匹配 newPath 时，
+// 将别名从 oldName 更新为 newPkgName。但如果新包名与 stdlib 冲突，则保留旧别名。
+func updateImportAlias(filePath, oldName, newPkgName, newPath string) (bool, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return false, err
+	}
+	content := string(data)
+	original := content
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		return false, nil
+	}
+
+	type fix struct {
+		start, end int
+		text       string
+	}
+	var fixes []fix
+
+	for _, imp := range f.Imports {
+		if imp.Name == nil {
+			continue
+		}
+		alias := imp.Name.Name
+		if alias != oldName {
+			continue
+		}
+		path := strings.Trim(imp.Path.Value, "\"")
+		if !strings.HasPrefix(path, newPath) && !strings.HasPrefix(path, newPath+"/") {
+			continue
+		}
+		// 如果新包名与旧别名相同，不需要修改
+		if newPkgName == oldName {
+			continue
+		}
+		// 检查新包名是否与 stdlib 冲突
+		hasConflict := false
+		for _, other := range f.Imports {
+			if other == imp {
+				continue
+			}
+			otherPath := strings.Trim(other.Path.Value, "\"")
+			otherName := otherPath
+			if idx := strings.LastIndex(otherName, "/"); idx >= 0 {
+				otherName = otherName[idx+1:]
+			}
+			if other.Name != nil {
+				otherName = other.Name.Name
+			}
+			if otherName == newPkgName {
+				hasConflict = true
+				break
+			}
+		}
+		if hasConflict {
+			continue // 保留旧别名
+		}
+		// 更新别名：oldName → newPkgName
+		start := imp.Name.Pos()
+		end := imp.Name.End()
+		fixes = append(fixes, fix{
+			start: int(start) - 1,
+			end:   int(end) - 1,
+			text:  newPkgName,
+		})
+	}
+
+	if len(fixes) == 0 {
+		return false, nil
+	}
+
+	sort.Slice(fixes, func(i, j int) bool {
+		return fixes[i].start > fixes[j].start
+	})
+
+	for _, fx := range fixes {
+		content = content[:fx.start] + fx.text + content[fx.end:]
+	}
+
+	if content != original {
+		return true, os.WriteFile(filePath, []byte(content), 0644)
+	}
+	return false, nil
 }

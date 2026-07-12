@@ -504,7 +504,7 @@ func TestCallFunction_strlen(t *testing.T) {
 			// For pointer types, use pointer-to-pointer.
 			strPtr := unsafe.Pointer(&cstr[0])
 			var result uint64
-			err = CallFunction(&cif, strlenPtr, unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&strPtr)})
+			_, err = CallFunction(&cif, strlenPtr, unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&strPtr)})
 			if err != nil {
 				t.Fatalf("CallFunction(strlen) failed: %v", err)
 			}
@@ -556,7 +556,7 @@ func TestCallFunction_abs(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("abs(%d)", tc.input), func(t *testing.T) {
 			var result int32
-			err = CallFunction(&cif, absPtr, unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&tc.input)})
+			_, err = CallFunction(&cif, absPtr, unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&tc.input)})
 			if err != nil {
 				t.Fatalf("CallFunction(abs) failed: %v", err)
 			}
@@ -616,7 +616,7 @@ func TestCallFunction_sqrt(t *testing.T) {
 		t.Run(fmt.Sprintf("sqrt(%v)", tc.input), func(t *testing.T) {
 			input := tc.input
 			var result float64
-			err = CallFunction(&cif, sqrtPtr, unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&input)})
+			_, err = CallFunction(&cif, sqrtPtr, unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&input)})
 			if err != nil {
 				t.Fatalf("CallFunction(sqrt) failed: %v", err)
 			}
@@ -657,7 +657,7 @@ func TestCallFunction_voidNoArgs(t *testing.T) {
 	}
 
 	var result int32
-	err = CallFunction(&cif, getpidPtr, unsafe.Pointer(&result), nil)
+	_, err = CallFunction(&cif, getpidPtr, unsafe.Pointer(&result), nil)
 	if err != nil {
 		t.Fatalf("CallFunction(getpid) failed: %v", err)
 	}
@@ -692,7 +692,7 @@ func TestCallFunction_nilArgSlice(t *testing.T) {
 
 	var result int32
 	// Test with nil args (same as nil avalue)
-	err = CallFunction(&cif, getpidPtr, unsafe.Pointer(&result), nil)
+	_, err = CallFunction(&cif, getpidPtr, unsafe.Pointer(&result), nil)
 	if err != nil {
 		t.Fatalf("CallFunction with nil args failed: %v", err)
 	}
@@ -731,7 +731,7 @@ func TestCallFunction_voidReturn(t *testing.T) {
 
 	seed := uint32(42)
 	// Call with nil rvalue (void return)
-	err = CallFunction(&cif, srandPtr, nil, []unsafe.Pointer{unsafe.Pointer(&seed)})
+	_, err = CallFunction(&cif, srandPtr, nil, []unsafe.Pointer{unsafe.Pointer(&seed)})
 	if err != nil {
 		t.Fatalf("CallFunction(srand) failed: %v", err)
 	}
@@ -744,7 +744,7 @@ func TestCallFunction_nilFn(t *testing.T) {
 		t.Fatalf("PrepareCallInterface failed: %v", err)
 	}
 
-	err = CallFunction(&cif, nil, nil, nil)
+	_, err = CallFunction(&cif, nil, nil, nil)
 	if err == nil {
 		t.Fatal("CallFunction with nil fn should return error")
 	}
@@ -756,7 +756,7 @@ func TestCallFunction_nilFn(t *testing.T) {
 
 func TestCallFunction_nilCif(t *testing.T) {
 	var fnPtr uintptr = 1
-	err := CallFunction(nil, *(*unsafe.Pointer)(unsafe.Pointer(&fnPtr)), nil, nil)
+	_, err := CallFunction(nil, *(*unsafe.Pointer)(unsafe.Pointer(&fnPtr)), nil, nil)
 	if err == nil {
 		t.Fatal("CallFunction with nil cif should return error")
 	}
@@ -798,7 +798,7 @@ func TestCallFunctionContext(t *testing.T) {
 	t.Run("context background", func(t *testing.T) {
 		var result int32
 		input := int32(-10)
-		err = CallFunctionContext(context.Background(), &cif, absPtr,
+		_, err = CallFunctionContext(context.Background(), &cif, absPtr,
 			unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&input)})
 		if err != nil {
 			t.Fatalf("CallFunctionContext failed: %v", err)
@@ -811,7 +811,7 @@ func TestCallFunctionContext(t *testing.T) {
 	t.Run("nil context behaves as background", func(t *testing.T) {
 		var result int32
 		input := int32(-11)
-		err = CallFunctionContext(nil, &cif, absPtr,
+		_, err = CallFunctionContext(nil, &cif, absPtr,
 			unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&input)})
 		if err != nil {
 			t.Fatalf("CallFunctionContext with nil context failed: %v", err)
@@ -827,7 +827,7 @@ func TestCallFunctionContext(t *testing.T) {
 
 		var result int32
 		input := int32(42)
-		err = CallFunctionContext(ctx, &cif, absPtr,
+		_, err = CallFunctionContext(ctx, &cif, absPtr,
 			unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&input)})
 		if err == nil {
 			t.Fatal("CallFunctionContext with cancelled context should return error")
@@ -1094,7 +1094,7 @@ func TestFullFFIPipeline(t *testing.T) {
 	// For pointer types, use pointer-to-pointer.
 	strPtr := unsafe.Pointer(&cstr[0])
 	var result uint64
-	err = CallFunction(&cif, strlenPtr, unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&strPtr)})
+	_, err = CallFunction(&cif, strlenPtr, unsafe.Pointer(&result), []unsafe.Pointer{unsafe.Pointer(&strPtr)})
 	if err != nil {
 		t.Fatalf("Step 4 (CallFunction) failed: %v", err)
 	}
@@ -1138,7 +1138,7 @@ func TestVulkanBackendPattern(t *testing.T) {
 		unsafe.Pointer(&input),
 		unsafe.Pointer(&outPtr),
 	}
-	err = CallFunction(&cif, fn, unsafe.Pointer(&result), args[:])
+	_, err = CallFunction(&cif, fn, unsafe.Pointer(&result), args[:])
 	if err != nil {
 		t.Fatalf("CallFunction failed: %v", err)
 	}
@@ -1200,11 +1200,11 @@ func TestGLESBackendPattern(t *testing.T) {
 	storeI32 := nativeSymbol(t, handle, "gpui_ffi_store_i32")
 
 	enableValue := uint32(0x0BE2)
-	if err := CallFunction(&cifVoid1, recordU32, nil, []unsafe.Pointer{unsafe.Pointer(&enableValue)}); err != nil {
+	if _, err := CallFunction(&cifVoid1, recordU32, nil, []unsafe.Pointer{unsafe.Pointer(&enableValue)}); err != nil {
 		t.Fatalf("CallFunction(void uint32) failed: %v", err)
 	}
 	var gotU32 uint32
-	if err := CallFunction(&cifUInt32, getLastU32, unsafe.Pointer(&gotU32), nil); err != nil {
+	if _, err := CallFunction(&cifUInt32, getLastU32, unsafe.Pointer(&gotU32), nil); err != nil {
 		t.Fatalf("CallFunction(uint32 void) failed: %v", err)
 	}
 	if gotU32 != enableValue {
@@ -1212,7 +1212,7 @@ func TestGLESBackendPattern(t *testing.T) {
 	}
 
 	r, g, b, a := float32(0.25), float32(0.5), float32(0.75), float32(1.0)
-	if err := CallFunction(&cifVoid4Float, recordFourFloats, nil, []unsafe.Pointer{
+	if _, err := CallFunction(&cifVoid4Float, recordFourFloats, nil, []unsafe.Pointer{
 		unsafe.Pointer(&r),
 		unsafe.Pointer(&g),
 		unsafe.Pointer(&b),
@@ -1225,7 +1225,7 @@ func TestGLESBackendPattern(t *testing.T) {
 	if err := PrepareCallInterface(&cifFloatReturn, types.DefaultCall, types.FloatTypeDescriptor, nil); err != nil {
 		t.Fatalf("PrepareCallInterface(float return) failed: %v", err)
 	}
-	if err := CallFunction(&cifFloatReturn, getLastFloatSum, unsafe.Pointer(&gotFloatSum), nil); err != nil {
+	if _, err := CallFunction(&cifFloatReturn, getLastFloatSum, unsafe.Pointer(&gotFloatSum), nil); err != nil {
 		t.Fatalf("CallFunction(float void) failed: %v", err)
 	}
 	if gotFloatSum != 2.5 {
@@ -1235,7 +1235,7 @@ func TestGLESBackendPattern(t *testing.T) {
 	pname := uint32(44)
 	var data int32
 	dataPtr := unsafe.Pointer(&data)
-	if err := CallFunction(&cifVoid2, storeI32, nil, []unsafe.Pointer{
+	if _, err := CallFunction(&cifVoid2, storeI32, nil, []unsafe.Pointer{
 		unsafe.Pointer(&pname),
 		unsafe.Pointer(&dataPtr),
 	}); err != nil {
@@ -1577,7 +1577,7 @@ func TestPointerToPointerConvention(t *testing.T) {
 			unsafe.Pointer(&namePtr), // pointer TO the pointer
 		}
 		var result uint64
-		err = CallFunction(&cif, strlenPtr, unsafe.Pointer(&result), args[:])
+		_, err = CallFunction(&cif, strlenPtr, unsafe.Pointer(&result), args[:])
 		if err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
@@ -1603,7 +1603,7 @@ func TestPointerToPointerConvention(t *testing.T) {
 			unsafe.Pointer(&outPtr), // pointer arg: pointer to pointer
 		}
 		var result int32
-		err = CallFunction(&cif, fn, unsafe.Pointer(&result), args[:])
+		_, err = CallFunction(&cif, fn, unsafe.Pointer(&result), args[:])
 		if err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
@@ -1633,7 +1633,7 @@ func TestPointerToPointerConvention(t *testing.T) {
 			unsafe.Pointer(&pname),   // scalar: pointer to value
 			unsafe.Pointer(&dataPtr), // pointer: dataPtr is *int32, &dataPtr is **int32
 		}
-		err = CallFunction(&cif, fn, nil, args[:])
+		_, err = CallFunction(&cif, fn, nil, args[:])
 		if err != nil {
 			t.Fatalf("CallFunction failed: %v", err)
 		}
@@ -1669,7 +1669,7 @@ func TestPointerToPointerConvention(t *testing.T) {
 			unsafe.Pointer(&data), // data is unsafe.Pointer, &data is *unsafe.Pointer
 			unsafe.Pointer(&usage),
 		}
-		err = CallFunction(&cif, recordFn, nil, args[:])
+		_, err = CallFunction(&cif, recordFn, nil, args[:])
 		if err != nil {
 			t.Fatalf("CallFunction(record buffer data) failed: %v", err)
 		}
@@ -1680,7 +1680,7 @@ func TestPointerToPointerConvention(t *testing.T) {
 			t.Fatalf("PrepareCallInterface(return) failed: %v", err)
 		}
 		var got uint64
-		err = CallFunction(&cifReturn, getFn, unsafe.Pointer(&got), nil)
+		_, err = CallFunction(&cifReturn, getFn, unsafe.Pointer(&got), nil)
 		if err != nil {
 			t.Fatalf("CallFunction(get buffer data) failed: %v", err)
 		}
