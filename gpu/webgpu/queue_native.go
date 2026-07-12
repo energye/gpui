@@ -150,6 +150,9 @@ func (q *Queue) postSubmit(subIdx uint64, commandBuffers []*CommandBuffer) {
 	for _, cb := range commandBuffers {
 		if cb != nil {
 			cb.submitted = true
+			cb.usedBuffers = nil
+			cb.usedTextures = nil
+			cb.usedBindGroups = nil
 		}
 	}
 
@@ -181,6 +184,7 @@ func (q *Queue) postSubmit(subIdx uint64, commandBuffers []*CommandBuffer) {
 		halEnc := cb.halEncoder
 		halCmdBuf := cb.halBuffer()
 		cb.halEncoder = nil // ownership moves to deferred callback
+		cb.core = nil       // wrapper no longer owns the submitted HAL buffer
 
 		pool := q.device.cmdEncoderPool
 		dq.Defer(subIdx, "CmdEncoder", func() {

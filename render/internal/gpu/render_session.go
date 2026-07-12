@@ -1578,14 +1578,7 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 			A: float64(cmd.Color[3]),
 		}
 
-		// Destroy old pooled entry and create fresh buffers.
-		// Stencil paths vary wildly per frame (different vertex counts, colors),
-		// so recreating is simpler than capacity tracking for 6 sub-buffers.
-		if s.stencilBufPool[i] != nil {
-			s.stencilBufPool[i].destroy()
-			s.stencilBufPool[i] = nil
-		}
-		bufs, err := s.stencilRenderer.createRenderBuffers(w, h, cmd.Vertices, cmd.CoverQuad, color)
+		bufs, err := s.stencilRenderer.updateRenderBuffers(s.stencilBufPool[i], w, h, cmd.Vertices, cmd.CoverQuad, color)
 		if err != nil {
 			// Clean up buffers created in this batch.
 			for j := 0; j < i; j++ {
@@ -2324,6 +2317,16 @@ func (s *GPURenderSession) SetGlyphMaskAtlasView(batchIndex int, atlasView *webg
 		slogger().Warn("SetGlyphMaskAtlasView: nil atlas view", "batchIndex", batchIndex)
 		return
 	}
+	for i := range s.glyphMaskPendingViews {
+		if s.glyphMaskPendingViews[i].batchIndex == batchIndex {
+			s.glyphMaskPendingViews[i] = glyphMaskPendingView{
+				batchIndex: batchIndex,
+				atlasView:  atlasView,
+				isLCD:      isLCD,
+			}
+			return
+		}
+	}
 	s.glyphMaskPendingViews = append(s.glyphMaskPendingViews, glyphMaskPendingView{
 		batchIndex: batchIndex,
 		atlasView:  atlasView,
@@ -2346,10 +2349,6 @@ func (s *GPURenderSession) materializeGlyphMaskBindGroups() {
 		if pv.batchIndex >= len(s.glyphMaskBindGroups) {
 			continue
 		}
-		if s.glyphMaskBindGroups[pv.batchIndex] != nil {
-			s.glyphMaskBindGroups[pv.batchIndex].Release()
-			s.glyphMaskBindGroups[pv.batchIndex] = nil
-		}
 
 		layout := s.glyphMaskPipeline.uniformLayout
 		uniformSize := uint64(glyphMaskUniformSize)
@@ -2370,6 +2369,9 @@ func (s *GPURenderSession) materializeGlyphMaskBindGroups() {
 		if err != nil {
 			slogger().Warn("failed to create glyph mask bind group", "index", pv.batchIndex, "err", err)
 			continue
+		}
+		if s.glyphMaskBindGroups[pv.batchIndex] != nil {
+			s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, s.glyphMaskBindGroups[pv.batchIndex])
 		}
 		s.glyphMaskBindGroups[pv.batchIndex] = bg
 	}

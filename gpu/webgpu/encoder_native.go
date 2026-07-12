@@ -506,6 +506,10 @@ func (cb *CommandBuffer) Release() {
 		ref.Drop()
 	}
 	cb.trackedRefs = nil
+	cb.usedBuffers = nil
+	cb.usedTextures = nil
+	cb.usedBindGroups = nil
+	cb.core = nil
 }
 
 // halBuffer returns the underlying HAL command buffer.

@@ -179,7 +179,9 @@ func (sr *StencilRenderer) Size() (uint32, uint32) {
 // up via destroy.
 type stencilCoverBuffers struct {
 	fanVertBuf       *webgpu.Buffer
+	fanVertBufCap    uint64
 	coverVertBuf     *webgpu.Buffer
+	coverVertBufCap  uint64
 	stencilUniBuf    *webgpu.Buffer
 	coverUniBuf      *webgpu.Buffer
 	stencilBindGroup *webgpu.BindGroup
@@ -272,37 +274,33 @@ func (sr *StencilRenderer) ensureReady(w, h uint32) error {
 func (sr *StencilRenderer) createRenderBuffers(
 	w, h uint32, fanVerts []float32, coverQuad [12]float32, color render.RGBA,
 ) (*stencilCoverBuffers, error) {
-	b := &stencilCoverBuffers{
-		fanVertexCount: uint32(len(fanVerts) / 2), //nolint:gosec // len/2 fits uint32
-	}
+	return sr.updateRenderBuffers(nil, w, h, fanVerts, coverQuad, color)
+}
 
-	var err error
+// updateRenderBuffers creates or updates reusable stencil-then-cover buffers.
+func (sr *StencilRenderer) updateRenderBuffers(
+	b *stencilCoverBuffers, w, h uint32, fanVerts []float32, coverQuad [12]float32, color render.RGBA,
+) (*stencilCoverBuffers, error) {
+	if b == nil {
+		b = &stencilCoverBuffers{}
+	}
+	b.fanVertexCount = uint32(len(fanVerts) / 2) //nolint:gosec // len/2 fits uint32
 
 	// Vertex buffers.
-	b.fanVertBuf, err = sr.createAndUploadVertexBuffer("stencil_fan_verts", float32SliceToBytes(fanVerts))
-	if err != nil {
-		b.destroy()
+	if err := sr.updateVertexBuffer(&b.fanVertBuf, &b.fanVertBufCap, "stencil_fan_verts", float32SliceToBytes(fanVerts)); err != nil {
 		return nil, err
 	}
-	b.coverVertBuf, err = sr.createAndUploadVertexBuffer("stencil_cover_verts", float32SliceToBytes(coverQuad[:]))
-	if err != nil {
-		b.destroy()
+	if err := sr.updateVertexBuffer(&b.coverVertBuf, &b.coverVertBufCap, "stencil_cover_verts", float32SliceToBytes(coverQuad[:])); err != nil {
 		return nil, err
 	}
 
 	// Uniform buffers + bind groups.
-	b.stencilUniBuf, b.stencilBindGroup, err = sr.createUniformAndBindGroup(
-		"stencil_fill", makeStencilFillUniform(w, h), stencilFillUniformSize,
-	)
-	if err != nil {
-		b.destroy()
+	if err := sr.updateUniformAndBindGroup(&b.stencilUniBuf, &b.stencilBindGroup,
+		"stencil_fill", makeStencilFillUniform(w, h), stencilFillUniformSize); err != nil {
 		return nil, err
 	}
-	b.coverUniBuf, b.coverBindGroup, err = sr.createUniformAndBindGroup(
-		"cover", makeCoverUniform(w, h, color), coverUniformSize,
-	)
-	if err != nil {
-		b.destroy()
+	if err := sr.updateUniformAndBindGroup(&b.coverUniBuf, &b.coverBindGroup,
+		"cover", makeCoverUniform(w, h, color), coverUniformSize); err != nil {
 		return nil, err
 	}
 
@@ -323,6 +321,37 @@ func (sr *StencilRenderer) createAndUploadVertexBuffer(label string, data []byte
 		return nil, fmt.Errorf("write %s buffer: %w", label, err)
 	}
 	return buf, nil
+}
+
+func (sr *StencilRenderer) updateVertexBuffer(buf **webgpu.Buffer, capBytes *uint64, label string, data []byte) error {
+	needed := uint64(len(data))
+	if *buf == nil || *capBytes < needed {
+		if *buf != nil {
+			(*buf).Release()
+			*buf = nil
+		}
+		allocSize := needed * 2
+		if allocSize == 0 {
+			allocSize = 4
+		}
+		newBuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+			Label: label, Size: allocSize,
+			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
+		})
+		if err != nil {
+			*capBytes = 0
+			return fmt.Errorf("create %s buffer: %w", label, err)
+		}
+		*buf = newBuf
+		*capBytes = allocSize
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := sr.queue.WriteBuffer(*buf, 0, data); err != nil {
+		return fmt.Errorf("write %s buffer: %w", label, err)
+	}
+	return nil
 }
 
 // createUniformAndBindGroup creates a uniform buffer, uploads data, and creates
@@ -353,6 +382,34 @@ func (sr *StencilRenderer) createUniformAndBindGroup(
 		return nil, nil, fmt.Errorf("create %s bind group: %w", label, err)
 	}
 	return buf, bg, nil
+}
+
+func (sr *StencilRenderer) updateUniformAndBindGroup(buf **webgpu.Buffer, bg **webgpu.BindGroup, label string, data []byte, size uint64) error {
+	if *buf == nil {
+		newBuf, newBG, err := sr.createUniformAndBindGroup(label, data, size)
+		if err != nil {
+			return err
+		}
+		*buf = newBuf
+		*bg = newBG
+		return nil
+	}
+	if err := sr.queue.WriteBuffer(*buf, 0, data); err != nil {
+		return fmt.Errorf("write %s uniform: %w", label, err)
+	}
+	if *bg == nil {
+		newBG, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+			Label: label + "_bind", Layout: sr.uniformLayout,
+			Entries: []webgpu.BindGroupEntry{
+				{Binding: 0, Buffer: *buf, Offset: 0, Size: size},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("create %s bind group: %w", label, err)
+		}
+		*bg = newBG
+	}
+	return nil
 }
 
 // encodeAndReadback encodes the stencil-then-cover render pass, copies the
