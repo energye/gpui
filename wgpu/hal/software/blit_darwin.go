@@ -11,8 +11,8 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/go-webgpu/goffi/ffi"
-	"github.com/go-webgpu/goffi/types"
+	"github.com/energye/gpui/ffi"
+	"github.com/energye/gpui/ffi/types"
 )
 
 // platformBlit is a no-op on platforms without native blit support.

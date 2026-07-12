@@ -7,7 +7,7 @@ package vk
 import (
 	"unsafe"
 
-	"github.com/go-webgpu/goffi/ffi"
+	"github.com/energye/gpui/ffi"
 )
 
 // Prevent unused import error

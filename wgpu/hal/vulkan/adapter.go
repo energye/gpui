@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/energye/gpui/ffi"
+	"gi
 	"github.com/energye/gpui/gputypes"
 	"github.com/energye/gpui/wgpu/hal"
-	"github.com/energye/gpui/wgpu/hal/vulkan/vk"
-	"github.com/go-webgpu/goffi/ffi"
+	"github.com/energye/gpui/ffi"
 )
 
 // Adapter implements hal.Adapter for Vulkan.

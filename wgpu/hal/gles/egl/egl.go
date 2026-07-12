@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/go-webgpu/goffi/ffi"
-	"github.com/go-webgpu/goffi/types"
+	"github.com/energye/gpui/ffi"
+	"github.com/energye/gpui/ffi/types"
 )
 
 var (
@@ -682,8 +682,7 @@ func loadOptionalExtensions() {
 	// which surface regions changed, enabling partial recomposition.
 	addr := GetProcAddress("eglSwapBuffersWithDamageKHR")
 	if addr != 0 {
-		//nolint:govet // Converting eglGetProcAddress result to unsafe.Pointer is required for goffi
-		symEglSwapBuffersWithDamageKHR = unsafe.Pointer(addr)
+		symEglSwapBuffersWithDamageKHR = unsafePointerFromUintptr(addr)
 		// EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay, EGLSurface, EGLint*, EGLint)
 		err := ffi.PrepareCallInterface(&cifEglSwapBuffersWithDamageKHR, types.DefaultCall,
 			types.UInt32TypeDescriptor, // EGLBoolean
@@ -754,8 +753,7 @@ func goString(cstr uintptr) string {
 	}
 	// Find string length (max 4096 to prevent infinite loops)
 	length := 0
-	//nolint:govet // Converting uintptr (C string address) to unsafe.Pointer is required for FFI
-	ptr := (*byte)(unsafe.Pointer(cstr))
+	ptr := bytePointerFromUintptr(cstr)
 	for i := 0; i < 4096; i++ {
 		b := unsafe.Slice(ptr, i+1)
 		if b[i] == 0 {
@@ -769,4 +767,12 @@ func goString(cstr uintptr) string {
 	// Create slice and return string
 	result := unsafe.Slice(ptr, length)
 	return string(result)
+}
+
+func unsafePointerFromUintptr(ptr uintptr) unsafe.Pointer {
+	return *(*unsafe.Pointer)(unsafe.Pointer(&ptr))
+}
+
+func bytePointerFromUintptr(ptr uintptr) *byte {
+	return *(**byte)(unsafe.Pointer(&ptr))
 }

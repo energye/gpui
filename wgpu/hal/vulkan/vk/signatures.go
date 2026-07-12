@@ -11,8 +11,8 @@
 package vk
 
 import (
-	"github.com/go-webgpu/goffi/ffi"
-	"github.com/go-webgpu/goffi/types"
+	"github.com/energye/gpui/ffi"
+	"github.com/energye/gpui/ffi/types"
 )
 
 // Signature templates - reused across functions with identical signatures.

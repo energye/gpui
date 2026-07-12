@@ -8,8 +8,8 @@ package gl
 import (
 	"unsafe"
 
-	"github.com/go-webgpu/goffi/ffi"
-	"github.com/go-webgpu/goffi/types"
+	"github.com/energye/gpui/ffi"
+	"github.com/energye/gpui/ffi/types"
 )
 
 // Common CallInterface signatures (reused across multiple GL functions)

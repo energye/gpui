@@ -11,9 +11,9 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/energye/gpui/ffi"
 	"github.com/energye/gpui/wgpu/hal"
 	"github.com/energye/gpui/wgpu/hal/vulkan/vk"
-	"github.com/go-webgpu/goffi/ffi"
 )
 
 // debugCallbackPtr holds the callback function pointer to prevent GC collection.

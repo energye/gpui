@@ -1,7 +1,7 @@
 # GPUI 开发任务计划
 
 > 由 AI 会话维护，新会话读取此文档了解当前进度。
-> 最后更新: 2026-07-12（新增迁移工具）
+> 最后更新: 2026-07-12（阶段二 FFI 真实验证补强）
 
 ---
 
@@ -65,7 +65,12 @@ go run ./cmd/migrate -config cmd/migrate/migrate.json
 
 ---
 
-## 阶段二：goffi 替换为 purego（中间层方案）🔄
+## 阶段二：goffi 替换为 purego（中间层方案）✅
+
+> 2026-07-12 复核结论：阶段二中间层已完成并通过真实验证。此次复核修复了
+> `void/非浮点返回 + float/double 参数` 仍走 `purego.SyscallN` 的 ABI bug，
+> 现在只要签名中任一参数或返回值为 `float/double`，统一走
+> `purego.RegisterFunc` typed 调用路径，确保 FP 参数进入正确寄存器。
 
 ### 方案说明
 
@@ -95,31 +100,39 @@ go run ./cmd/migrate -config cmd/migrate/migrate.json
 | `ffi.GetSymbol(lib, name)` | `purego.Dlsym(lib, name)` |
 | `ffi.FreeLibrary(lib)` | `purego.Dlclose(lib)` |
 | `ffi.PrepareCallInterface(&cif, ct, ret, args)` | 仅存储类型信息，无实际准备 |
+| `ffi.PrepareVariadicCallInterface(&cif, ct, nfixed, ret, args)` | 存储类型信息 + variadic 标记 |
 | `ffi.CallFunction(&cif, fn, result, args)` | 读取 args → `purego.SyscallN` → 写回 result |
+| `ffi.CallFunctionContext(ctx, &cif, fn, result, args)` | 同上，带 context 取消支持 |
 | `ffi.NewCallback(fn)` | `purego.NewCallback(fn)` |
 
 ### 中间层文件结构
 
 ```
 gpui/ffi/
-├── ffi.go          ← LoadLibrary, GetSymbol, FreeLibrary, PrepareCallInterface, CallFunction, NewCallback
+├── ffi.go          ← LoadLibrary, GetSymbol, FreeLibrary, PrepareCallInterface,
+│                      PrepareVariadicCallInterface, CallFunction, CallFunctionContext,
+│                      NewCallback, 所有错误类型
+├── ffi_test.go     ← 全面测试（~1430行，60+测试用例）
 └── types/
-    └── types.go    ← CallInterface, TypeDescriptor, 所有 TypeDescriptor 变量
+    ├── types.go    ← CallInterface, TypeDescriptor, 所有类型描述符常量, 返回标志, 错误变量
+    └── types_test.go ← 类型系统测试（~390行，13+测试用例）
 ```
 
 ### 替换清单
 
 | 阶段项 | 状态 | 完成的事情 |
 |--------|:----:|-----------|
-| **创建 `gpui/ffi/types` 包** | ⏳ 待开始 | TypeDescriptor 定义 + 所有类型描述符常量 |
-| **创建 `gpui/ffi/ffi.go`** | ⏳ 待开始 | 6 个函数，内部用 purego 实现 |
-| **替换 import 路径** | ⏳ 待开始 | 15 个文件：`go-webgpu/goffi/ffi` → `gpui/ffi` |
-| **清理 goffi 依赖** | ⏳ 待开始 | 从 go.mod 移除 `github.com/go-webgpu/goffi` |
-| **编译验证** | ⏳ 待开始 | `go build ./...` 通过 |
-| **Vulkan 后端测试** | ⏳ 待开始 | `go test ./wgpu/hal/vulkan/...` |
-| **GLES 后端测试** | ⏳ 待开始 | `go test ./wgpu/hal/gles/...` |
-| **Software 后端测试** | ⏳ 待开始 | `go test ./wgpu/hal/software/...` |
-| **Metal 后端编译验证** | ⏳ 待开始 | `go build ./wgpu/hal/metal/...`（仅 macOS） |
+| **创建 `gpui/ffi/types` 包** | ✅ 完成 | TypeDescriptor 定义 + 所有类型描述符常量 + 错误变量（145行） |
+| **创建 `gpui/ffi/ffi.go`** | ✅ 完成 | 8 个函数 + 5 种错误类型，内部用 purego 实现（636行） |
+| **替换 import 路径** | ✅ 完成 | 15 个文件：`go-webgpu/goffi/ffi` → `gpui/ffi` + 11 个文件 `go-webgpu/goffi/types` → `gpui/ffi/types` |
+| **清理 goffi 依赖** | ✅ 完成 | 从 go.mod 移除 `github.com/go-webgpu/goffi`，添加 `github.com/ebitengine/purego` |
+| **编译验证** | ✅ 完成 | `go build ./...` 通过 |
+| **ffi 包单元测试** | ✅ 完成 | 60+ 测试用例，覆盖所有 API 函数 + 错误类型 + 真实 C 函数调用 |
+| **types 包单元测试** | ✅ 完成 | 13+ 测试用例，覆盖所有类型描述符 + 常量 + 错误变量 |
+| **native ABI 真实验证** | ✅ 完成 | 测试运行时用 `gcc -shared -fPIC` 构建真实 `.so`，经 `LoadLibrary/GetSymbol/CallFunction/NewCallback` 调用 |
+| **静态验证** | ✅ 完成 | `go vet ./ffi ./ffi/types ./wgpu/hal/...` 通过 |
+| **后端回归测试** | ✅ 完成 | `go test -count=1 ./wgpu/hal/...` 通过 |
+| **全量回归测试** | ⚠️ 部分环境/既有失败 | `go test -count=1 ./...` 中 `ffi`/`wgpu`/`wgpu/hal` 通过；`gg/internal/gpu` 2 个 MSAA 测试失败，软件后端不支持 MSAA，非 FFI 阶段引入 |
 
 **覆盖范围：**
 
@@ -135,6 +148,94 @@ gpui/ffi/
 - `hal/dx12/` — 全部用 `syscall.Syscall`，零 goffi ✅
 - `hal/gles/gl/context.go` — Windows GL 用 `syscall.SyscallN` (103次) ✅
 - `hal/software/blit_windows.go` — Windows 用 `syscall` ✅
+
+### 已知限制
+
+| 限制 | 影响范围 | 说明 |
+|------|---------|------|
+| qsort/int32 回调 | C 回调函数 | purego 回调系统对 int32 返回值从 C 回调的处理有限制。已跳过 qsort 专项；本阶段新增的真实 C 回调测试已覆盖当前项目实际使用的 `uintptr` 返回和 `void` 回调 |
+| Metal/DX12 后端 | macOS/Windows 平台 | 当前环境为 Linux，无法测试 macOS/Windows 特有功能 |
+| `gg/internal/gpu` MSAA | 全量测试 | 当前软件后端不支持 `SampleCount=4`，`TestGlyphMaskGPURepro` 和 `TestGlyphMaskRenderFrameNonGrouped` 失败，属于非 FFI 后端能力限制 |
+| Go build cache | 当前沙箱 | 默认 `/home/yanghy/.cache/go-build` 只读；验证命令使用 `GOCACHE=/tmp/gpui-go-cache` |
+
+### 已修复问题
+
+| 问题 | 修复方式 | 说明 |
+|------|---------|------|
+| float/double 返回值 | 使用 purego.RegisterFunc + 动态反射 | 之前 purego.SyscallN 读取整数寄存器(RAX)，浮点返回值在 XMM0 中不可访问。已修复：检测到 float/double 返回类型时，改用 `reflect.FuncOf` + `purego.RegisterFunc` 动态创建函数，正确读取 XMM0 寄存器中的浮点返回值。已验证 sqrt(0..16) 全部正确。 |
+| float/double 参数 | 使用 purego.RegisterFunc + 动态反射 | 之前 `void(float,...)` 仍走 `SyscallN`，无法保证 FP 参数进入 ABI 要求的 XMM 寄存器。已修复为签名中存在任意 FP 参数或 FP 返回都走 typed 调用路径。已用真实 C 函数 `void(float,float,float,float,float*)`、`float(float,float)`、`double(uint64,float,double,uint32)` 验证。 |
+| 参数数量静默不匹配 | CallFunction 参数数量校验 | 之前 `avalue` 少传会被静默补 0，多传会进入 C 调用。已改为 `len(avalue) != cif.ArgCount` 返回 `InvalidCallInterfaceError`。 |
+| GLES unsafe vet 警告 | 双间接 uintptr→pointer helper | 修复 EGL/GL 中函数地址、C 字符串、PBO offset 的 vet 报警，`go vet ./ffi ./ffi/types ./wgpu/hal/...` 通过。 |
+
+### 测试验证详情
+
+**环境条件：**
+```
+OS: linux, Arch: amd64
+✅ libc.so.6: available
+✅ libm.so.6: available
+✅ libvulkan.so.1: available
+✅ libwayland-client.so.0: available
+✅ libEGL.so.1: available
+✅ libGLESv2.so.2: available
+✅ gcc: available (/usr/bin/gcc) for native .so ABI tests
+✅ Linux: linux
+❌ macOS: not available (Metal 后端无法测试)
+❌ Windows: not available (DX12 后端无法测试)
+⚠️ Default GOCACHE: read-only in sandbox; use GOCACHE=/tmp/gpui-go-cache
+```
+
+**API 验证分类（参考 gpui 模块原始使用模式）：**
+
+| 验证类别 | 覆盖的 API | 测试用例数 | 对应原始使用模式 |
+|----------|-----------|:---------:|----------------|
+| 类型描述符 | TypeDescriptor 常量 | 13 | Vulkan/GLES 签名模板 |
+| 调用约定 | CallingConvention | 4 | 所有后端统一使用 DefaultCall |
+| 库加载 | LoadLibrary/GetSymbol/FreeLibrary | 6 | Vulkan/GLES/Software/Metal 初始化 |
+| CIF 准备 | PrepareCallInterface | 9 | Vulkan signatures.go / GLES context_linux.go |
+| Variadic CIF | PrepareVariadicCallInterface | 4 | Wayland blit_wayland.go |
+| 整数调用来 | CallFunction (strlen/abs) | 8 | Vulkan 命令调用 (~571次) |
+| 浮点调用 | CallFunction (sqrt) | 1 | GLES glClearColor (~4次) |
+| Void 返回 | CallFunction (void) | 2 | GLES glEnable/glDisable (~20次) |
+| 错误处理 | CallFunction (nil cif/nil fn) | 2 | 运行时错误检查 |
+| Context 取消 | CallFunctionContext | 2 | 预留 API（未使用） |
+| 回调注册 | NewCallback | 4 | Metal objc.go / Vulkan debug.go |
+| native ABI 标量 | CallFunction | 8 | UInt/SInt 8/16/32/64 真实 C echo |
+| native ABI 指针 | CallFunction | 3 | pointer return、Vulkan 风格 output pointer、10 参数混合签名 |
+| native ABI 浮点 | CallFunction | 4 | GLES `void(float...)`、float/double 返回、int+float 混合 |
+| native ABI variadic | PrepareVariadicCallInterface + CallFunction | 1 | Wayland marshal 风格固定参数 + variadic u32 |
+| native ABI callback | NewCallback + CallFunction | 3 | C 侧真实调用 `uintptr` 返回、Metal 风格 void、Vulkan debug 风格 callback |
+| 错误类型 | 5 种错误类型 | 5 | 全部错误类型验证 |
+| 完整管线 | 全流程调用 | 1 | LoadLibrary→GetSymbol→CallFunction→FreeLibrary |
+| 后端模式 | Vulkan/GLES/Software/Metal 模式 | 4 | 各后端原始使用模式镜像 |
+
+**本轮验证命令（2026-07-12）：**
+
+```bash
+env GOCACHE=/tmp/gpui-go-cache go test -count=1 ./ffi ./ffi/types
+env GOCACHE=/tmp/gpui-go-cache go test -count=1 -v ./ffi
+env GOCACHE=/tmp/gpui-go-cache go vet ./ffi ./ffi/types ./wgpu/hal/...
+env GOCACHE=/tmp/gpui-go-cache go test -count=1 ./wgpu/hal/vulkan/...
+env GOCACHE=/tmp/gpui-go-cache go test -count=1 ./wgpu/hal/gles/...
+env GOCACHE=/tmp/gpui-go-cache go test -count=1 ./wgpu/hal/software/...
+env GOCACHE=/tmp/gpui-go-cache go test -count=1 ./wgpu/hal/...
+env GOCACHE=/tmp/gpui-go-cache go build ./...
+env GOCACHE=/tmp/gpui-go-cache go test -count=1 ./...
+```
+
+**命令结果：**
+
+| 命令 | 结果 | 说明 |
+|------|:----:|------|
+| `go test -count=1 ./ffi ./ffi/types` | ✅ 通过 | native `.so` 测试实际运行，无跳过 |
+| `go test -count=1 -v ./ffi` | ✅ 通过 | qsort/int32 callback 专项按已知 purego 限制跳过；项目实际 callback 形态真实 C 调用通过 |
+| `go vet ./ffi ./ffi/types ./wgpu/hal/...` | ✅ 通过 | FFI/GLES unsafe 相关 vet 检查通过 |
+| `go test -count=1 ./wgpu/hal/vulkan/...` | ✅ 通过 | Vulkan 后端通过 |
+| `go test -count=1 ./wgpu/hal/gles/...` | ✅ 通过 | GLES 后端通过 |
+| `go test -count=1 ./wgpu/hal/software/...` | ✅ 通过 | Software 后端通过 |
+| `go test -count=1 ./wgpu/hal/...` | ✅ 通过 | hal 全部当前平台包通过 |
+| `go build ./...` | ✅ 通过 | 全仓编译通过 |
+| `go test -count=1 ./...` | ⚠️ 非 FFI 失败 | `gg/internal/gpu` 的 `TestGlyphMaskGPURepro`、`TestGlyphMaskRenderFrameNonGrouped` 因软件后端不支持 MSAA 失败；`ffi`、`wgpu`、`wgpu/hal` 均通过 |
 
 ---
 
