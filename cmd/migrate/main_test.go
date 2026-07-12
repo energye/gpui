@@ -243,6 +243,64 @@ const docs = "example.com/up/toolkit/subpkg"
 	requireNotContains(t, got, "example.com/up/toolkit")
 }
 
+func TestCheckFFICompatibilityReportsMissingSymbols(t *testing.T) {
+	tmp := t.TempDir()
+	targetDir := filepath.Join(tmp, "target")
+	writeTestFile(t, filepath.Join(targetDir, "ffi", "ffi.go"), `package ffi
+
+func LoadLibrary(name string) (uintptr, error) { return 0, nil }
+`)
+	writeTestFile(t, filepath.Join(targetDir, "ffi", "types", "types.go"), `package types
+
+type TypeDescriptor struct{}
+`)
+	writeTestFile(t, filepath.Join(targetDir, "gpu", "webgpu", "native.go"), `package webgpu
+
+import (
+	goffi "example.com/acme/gpui/ffi"
+	ffitypes "example.com/acme/gpui/ffi/types"
+)
+
+var _ ffitypes.TypeDescriptor
+
+func use() {
+	_, _ = goffi.LoadLibrary("libwgpu_native.so")
+	goffi.NewUpstreamOnlyAPI()
+}
+`)
+
+	report, err := checkFFICompatibility(targetDir, []Mapping{
+		{Target: "gpu/webgpu", Module: "example.com/up/wgpu"},
+	}, "example.com/acme/gpui")
+	if err != nil {
+		t.Fatalf("checkFFICompatibility: %v", err)
+	}
+	if len(report.Used) != 3 {
+		t.Fatalf("unexpected used symbol count: %d (%+v)", len(report.Used), report.Used)
+	}
+	if len(report.Satisfied) != 2 {
+		t.Fatalf("unexpected satisfied symbol count: %d (%+v)", len(report.Satisfied), report.Satisfied)
+	}
+	if len(report.Missing) != 1 {
+		t.Fatalf("unexpected missing symbol count: %d (%+v)", len(report.Missing), report.Missing)
+	}
+	if report.Missing[0].Package != "ffi" || report.Missing[0].Symbol != "NewUpstreamOnlyAPI" {
+		t.Fatalf("unexpected missing symbol: %+v", report.Missing[0])
+	}
+	requireContains(t, strings.Join(report.Missing[0].Locations, "\n"), "gpu/webgpu/native.go:12")
+
+	reportPath, err := writeFFICompatibilityReport(targetDir, report)
+	if err != nil {
+		t.Fatalf("writeFFICompatibilityReport: %v", err)
+	}
+	reportText := readTestFile(t, reportPath)
+	requireContains(t, reportText, "# FFI 迁移检查报告")
+	requireContains(t, reportText, "## 缺失符号")
+	requireContains(t, reportText, "## 已覆盖符号")
+	requireContains(t, reportText, "`ffi.NewUpstreamOnlyAPI`")
+	requireContains(t, reportText, "`types.TypeDescriptor`")
+}
+
 func TestValidateMigrationOutputRejectsUnexpectedProductionImports(t *testing.T) {
 	tmp := t.TempDir()
 	targetDir := filepath.Join(tmp, "target")

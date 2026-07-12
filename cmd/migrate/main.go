@@ -26,6 +26,7 @@ import (
 var embeddedConfigFS embed.FS
 
 const defaultConfigName = "migrate.json"
+const ffiMigrationReportName = "FFI_MIGRATION_REPORT.md"
 
 type Config struct {
 	TargetModule   string            `json:"target_module"`
@@ -305,8 +306,30 @@ func main() {
 	}
 	fmt.Println("   ✅ 生产导入无多余非迁移依赖")
 
-	// 步骤14: go mod tidy
-	fmt.Println("\n🧪 步骤14: go mod tidy...")
+	fmt.Println("\n🔎 步骤14: 检查 goffi/purego ffi 适配层...")
+	ffiReport, err := checkFFICompatibility(targetDir, cfg.Mappings, cfg.TargetModule)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "   ❌ ffi 适配层检查失败: %v\n", err)
+		os.Exit(1)
+	}
+	if ffiReport.HasUsage() {
+		reportPath, err := writeFFICompatibilityReport(targetDir, ffiReport)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "   ❌ 写入 ffi 检查报告失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("   📝 ffi 检查报告: %s\n", reportPath)
+		if len(ffiReport.Missing) > 0 {
+			fmt.Fprintf(os.Stderr, "   ❌ gpui/ffi 缺少 %d 个迁移代码正在使用的 goffi API\n", len(ffiReport.Missing))
+			os.Exit(1)
+		}
+		fmt.Println("   ✅ gpui/ffi 已覆盖迁移代码使用的 goffi API")
+	} else {
+		fmt.Println("   ℹ️  迁移代码未使用 gpui/ffi，跳过")
+	}
+
+	// 步骤15: go mod tidy
+	fmt.Println("\n🧪 步骤15: go mod tidy...")
 	cmd := exec.Command("go", "mod", "tidy")
 	cmd.Dir = targetDir
 	cmd.Stdout = os.Stdout
@@ -317,8 +340,8 @@ func main() {
 		fmt.Println("   ✅ go mod tidy 完成")
 	}
 
-	// 步骤15: go fmt
-	fmt.Println("\n✅ 步骤15: go fmt ...")
+	// 步骤16: go fmt
+	fmt.Println("\n✅ 步骤16: go fmt ...")
 	fmtCmd := exec.Command("go", "fmt", "./...")
 	fmtCmd.Dir = targetDir
 	fmtCmd.Stdout = os.Stdout
@@ -329,8 +352,8 @@ func main() {
 	}
 	fmt.Println("✅ go fmt 通过")
 
-	// 步骤16: go build 验证
-	fmt.Println("\n✅ 步骤16: go build 验证...")
+	// 步骤17: go build 验证
+	fmt.Println("\n✅ 步骤17: go build 验证...")
 	buildCmd := exec.Command("go", "build", "./...")
 	buildCmd.Dir = targetDir
 	buildCmd.Stdout = os.Stdout
@@ -733,6 +756,260 @@ func validateMigrationOutput(targetDir string, mappings []Mapping, targetModule 
 		return fmt.Errorf("发现不可解析导入: %s", strings.Join(unresolved, "; "))
 	}
 	return nil
+}
+
+type FFICompatibilityReport struct {
+	Used      []FFIUsedSymbol
+	Satisfied []FFIUsedSymbol
+	Missing   []FFIMissingSymbol
+}
+
+func (r FFICompatibilityReport) HasUsage() bool {
+	return len(r.Used) > 0
+}
+
+type FFIUsedSymbol struct {
+	Package   string
+	Symbol    string
+	Locations []string
+}
+
+type FFIMissingSymbol struct {
+	Package   string
+	Symbol    string
+	Locations []string
+}
+
+func checkFFICompatibility(targetDir string, mappings []Mapping, targetModule string) (FFICompatibilityReport, error) {
+	available := map[string]map[string]bool{
+		"ffi":   collectExportedSymbols(filepath.Join(targetDir, "ffi")),
+		"types": collectExportedSymbols(filepath.Join(targetDir, "ffi", "types")),
+	}
+
+	used, err := collectFFIUsages(targetDir, mappings, targetModule)
+	if err != nil {
+		return FFICompatibilityReport{}, err
+	}
+
+	report := FFICompatibilityReport{Used: used}
+	for _, usage := range used {
+		if available[usage.Package][usage.Symbol] {
+			report.Satisfied = append(report.Satisfied, usage)
+			continue
+		}
+		report.Missing = append(report.Missing, FFIMissingSymbol{
+			Package:   usage.Package,
+			Symbol:    usage.Symbol,
+			Locations: usage.Locations,
+		})
+	}
+	return report, nil
+}
+
+func collectExportedSymbols(dir string) map[string]bool {
+	symbols := make(map[string]bool)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return symbols
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			continue
+		}
+		for _, decl := range f.Decls {
+			switch d := decl.(type) {
+			case *ast.FuncDecl:
+				if d.Recv == nil && d.Name.IsExported() {
+					symbols[d.Name.Name] = true
+				}
+			case *ast.GenDecl:
+				for _, spec := range d.Specs {
+					switch s := spec.(type) {
+					case *ast.TypeSpec:
+						if s.Name.IsExported() {
+							symbols[s.Name.Name] = true
+						}
+					case *ast.ValueSpec:
+						for _, name := range s.Names {
+							if name.IsExported() {
+								symbols[name.Name] = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return symbols
+}
+
+func collectFFIUsages(targetDir string, mappings []Mapping, targetModule string) ([]FFIUsedSymbol, error) {
+	type usageKey struct {
+		pkg    string
+		symbol string
+	}
+	locationsBySymbol := make(map[usageKey]map[string]bool)
+	ffiPath := targetModule + "/ffi"
+	typesPath := targetModule + "/ffi/types"
+
+	for _, m := range mappings {
+		root := filepath.Join(targetDir, m.Target)
+		if _, err := os.Stat(root); os.IsNotExist(err) {
+			continue
+		}
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") {
+				return nil
+			}
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+			if err != nil {
+				return err
+			}
+			aliases := ffiImportAliases(f, ffiPath, typesPath)
+			if len(aliases) == 0 {
+				return nil
+			}
+
+			f, err = parser.ParseFile(fset, path, nil, 0)
+			if err != nil {
+				return err
+			}
+			ast.Inspect(f, func(n ast.Node) bool {
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				ident, ok := sel.X.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				pkg, ok := aliases[ident.Name]
+				if !ok || !sel.Sel.IsExported() {
+					return true
+				}
+				key := usageKey{pkg: pkg, symbol: sel.Sel.Name}
+				if locationsBySymbol[key] == nil {
+					locationsBySymbol[key] = make(map[string]bool)
+				}
+				rel, _ := filepath.Rel(targetDir, path)
+				pos := fset.Position(sel.Sel.Pos())
+				locationsBySymbol[key][fmt.Sprintf("%s:%d", filepath.ToSlash(rel), pos.Line)] = true
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var usages []FFIUsedSymbol
+	for key, locSet := range locationsBySymbol {
+		locations := make([]string, 0, len(locSet))
+		for loc := range locSet {
+			locations = append(locations, loc)
+		}
+		sort.Strings(locations)
+		usages = append(usages, FFIUsedSymbol{
+			Package:   key.pkg,
+			Symbol:    key.symbol,
+			Locations: locations,
+		})
+	}
+	sort.Slice(usages, func(i, j int) bool {
+		if usages[i].Package != usages[j].Package {
+			return usages[i].Package < usages[j].Package
+		}
+		return usages[i].Symbol < usages[j].Symbol
+	})
+	return usages, nil
+}
+
+func ffiImportAliases(f *ast.File, ffiPath, typesPath string) map[string]string {
+	aliases := make(map[string]string)
+	for _, imp := range f.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			continue
+		}
+		pkg := ""
+		switch path {
+		case ffiPath:
+			pkg = "ffi"
+		case typesPath:
+			pkg = "types"
+		default:
+			continue
+		}
+		name := defaultImportName(path)
+		if imp.Name != nil {
+			if imp.Name.Name == "_" || imp.Name.Name == "." {
+				continue
+			}
+			name = imp.Name.Name
+		}
+		aliases[name] = pkg
+	}
+	return aliases
+}
+
+func defaultImportName(path string) string {
+	if idx := strings.LastIndex(path, "/"); idx >= 0 {
+		return path[idx+1:]
+	}
+	return path
+}
+
+func writeFFICompatibilityReport(targetDir string, report FFICompatibilityReport) (string, error) {
+	reportPath := filepath.Join(targetDir, "ffi", ffiMigrationReportName)
+	if err := os.MkdirAll(filepath.Dir(reportPath), 0755); err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	sb.WriteString("# FFI 迁移检查报告\n\n")
+	sb.WriteString("本报告由 `cmd/migrate` 在将 `goffi` 导入重写为 `gpui/ffi` 后生成。\n\n")
+	sb.WriteString(fmt.Sprintf("- 使用的符号数: %d\n", len(report.Used)))
+	sb.WriteString(fmt.Sprintf("- 已覆盖的符号数: %d\n", len(report.Satisfied)))
+	sb.WriteString(fmt.Sprintf("- 缺失的符号数: %d\n\n", len(report.Missing)))
+
+	if len(report.Missing) > 0 {
+		sb.WriteString("## 缺失符号\n\n")
+		for _, missing := range report.Missing {
+			sb.WriteString(fmt.Sprintf("- `%s.%s`\n", missing.Package, missing.Symbol))
+			for _, loc := range missing.Locations {
+				sb.WriteString(fmt.Sprintf("  - `%s`\n", loc))
+			}
+		}
+		sb.WriteString("\n")
+		sb.WriteString("这些符号已被迁移后的代码使用，但当前 `gpui/ffi` 或 `gpui/ffi/types` 没有导出。\n")
+		sb.WriteString("第一阶段迁移不会为缺失符号生成参与编译的 stub，因为函数签名、内存所有权和运行时语义需要先确认。\n\n")
+	}
+
+	if len(report.Satisfied) > 0 {
+		sb.WriteString("## 已覆盖符号\n\n")
+		for _, used := range report.Satisfied {
+			sb.WriteString(fmt.Sprintf("- `%s.%s`", used.Package, used.Symbol))
+			if len(used.Locations) > 0 {
+				sb.WriteString(fmt.Sprintf("（%d 处使用）", len(used.Locations)))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	if err := os.WriteFile(reportPath, []byte(sb.String()), 0644); err != nil {
+		return "", err
+	}
+	return reportPath, nil
 }
 
 func isStdlibImport(imp string) bool {
