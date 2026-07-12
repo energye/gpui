@@ -720,6 +720,10 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
 	pending := rc.PendingCount()
 	if pending == 0 {
+		// rasterAtlas: CPU shapes already in pixmap, upload to offscreen texture.
+		if !target.View.IsNil() && rc.shared.strategy == strategyRasterAtlas {
+			return rc.uploadPixmapToView(target)
+		}
 		return rc.flushVello(target)
 	}
 
@@ -896,6 +900,45 @@ func (rc *GPURenderContext) flushVello(target render.GPURenderTarget) error {
 	return nil
 }
 
+// uploadPixmapToView uploads CPU-rasterized pixmap content to an offscreen
+// GPU texture on rasterAtlas strategy. Skia Graphite pattern: shapes are
+// CPU-rasterized, then uploaded via WriteTexture (no render pass needed).
+func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) error {
+	rc.sceneStats = render.SceneStats{}
+
+	queue := rc.shared.Queue()
+	if queue == nil || len(target.Data) == 0 {
+		return nil
+	}
+
+	wgpuView := (*webgpu.TextureView)(target.View.Pointer())
+	if wgpuView == nil {
+		return nil
+	}
+	tex := wgpuView.Texture()
+	if tex == nil {
+		return nil
+	}
+
+	w, h := uint32(target.Width), uint32(target.Height) //nolint:gosec // bounded by pixmap
+
+	// Pixmap is RGBA, offscreen texture is BGRA8Unorm — swizzle R↔B.
+	bgra := make([]byte, len(target.Data))
+	for i := 0; i < len(target.Data); i += 4 {
+		bgra[i+0] = target.Data[i+2]
+		bgra[i+1] = target.Data[i+1]
+		bgra[i+2] = target.Data[i+0]
+		bgra[i+3] = target.Data[i+3]
+	}
+
+	return queue.WriteTexture(
+		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		bgra,
+		&webgpu.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
+		&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	)
+}
+
 // effectivePipelineMode determines the actual mode for this flush.
 func (rc *GPURenderContext) effectivePipelineMode() render.PipelineMode {
 	mode := rc.pipelineMode
@@ -909,14 +952,15 @@ func (rc *GPURenderContext) effectivePipelineMode() render.PipelineMode {
 }
 
 // CreateOffscreenTexture allocates a GPU texture for offscreen rendering.
-// The texture has usage flags suitable for both FlushGPUWithView (render to)
-// and DrawGPUTexture (sample from). Returns view + release function.
+// Checks deviceReady (not gpuReady): texture allocation needs a live device,
+// not shape pipelines. On rasterAtlas, gpuReady is false but device is alive.
+// Skia Graphite: TextureProxy::Make() works under kRasterAtlas.
 func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func()) {
 	if rc.shared == nil {
 		slogger().Warn("CreateOffscreenTexture: shared is nil")
 		return gpucontext.TextureView{}, nil
 	}
-	if !rc.shared.gpuReady {
+	if !rc.shared.deviceReady {
 		rc.shared.mu.Lock()
 		err := rc.shared.ensureGPU()
 		rc.shared.mu.Unlock()
@@ -924,8 +968,8 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 			slogger().Warn("CreateOffscreenTexture: ensureGPU failed", "error", err)
 			return gpucontext.TextureView{}, nil
 		}
-		if !rc.shared.gpuReady {
-			slogger().Warn("CreateOffscreenTexture: GPU not ready after ensureGPU")
+		if !rc.shared.deviceReady {
+			slogger().Warn("CreateOffscreenTexture: device not ready after ensureGPU")
 			return gpucontext.TextureView{}, nil
 		}
 	}
@@ -942,7 +986,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
 		Format:        types.TextureFormatBGRA8Unorm,
-		Usage:         types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageTextureBinding,
+		Usage:         types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding,
 	})
 	if err != nil {
 		slogger().Warn("CreateOffscreenTexture: CreateTexture failed",
