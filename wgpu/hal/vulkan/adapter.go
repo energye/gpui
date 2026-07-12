@@ -7,13 +7,11 @@ package vulkan
 
 import (
 	"fmt"
-	"unsafe"
-
 	"github.com/energye/gpui/ffi"
-	"gi
 	"github.com/energye/gpui/gputypes"
 	"github.com/energye/gpui/wgpu/hal"
-	"github.com/energye/gpui/ffi"
+	"github.com/energye/gpui/wgpu/hal/vulkan/vk"
+	"unsafe"
 )
 
 // Adapter implements hal.Adapter for Vulkan.
