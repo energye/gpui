@@ -14,8 +14,8 @@ package rwgpu
 //   - WGPULimits gained nextInChain as first field
 //   - MinUniform/StorageBufferOffsetAlignment moved after MaxStorageBufferBindingSize
 //   - WGPUStatus Success=0x01 (was 0x00 in v27)
-//   - WGPUVertexAttribute gained nextInChain (Go wire struct does NOT have it — known gap)
-//   - WGPUBindGroupLayoutEntry gained bindingArraySize (Go wire struct does NOT have it — known gap)
+//   - WGPUVertexAttribute gained nextInChain
+//   - WGPUBindGroupLayoutEntry gained bindingArraySize
 //   - WGPUPassTimestampWrites gained nextInChain
 
 import (
@@ -98,6 +98,9 @@ func TestABIStructSizes(t *testing.T) {
 		{"computePipelineDescriptorWire", unsafe.Sizeof(computePipelineDescriptorWire{}), 80},
 
 		// BindGroup types
+		// bindGroupLayoutEntryWire: nextInChain(8)+binding(4)+pad(4)+visibility(8)+
+		//   bindingArraySize(4)+pad(4)+buffer(24)+sampler(16)+texture(24)+storageTexture(24) = 120
+		{"bindGroupLayoutEntryWire", unsafe.Sizeof(bindGroupLayoutEntryWire{}), 120},
 		// bindGroupEntryWire: nextInChain(8)+binding(4)+pad(4)+buffer(8)+offset(8)+size(8)+
 		//   sampler(8)+textureView(8) = 56
 		{"bindGroupEntryWire", unsafe.Sizeof(bindGroupEntryWire{}), 56},
@@ -121,6 +124,8 @@ func TestABIStructSizes(t *testing.T) {
 		// renderPassColorAttachment: nextInChain(8)+view(8)+depthSlice(4)+pad(4)+
 		//   resolveTarget(8)+loadOp(4)+storeOp(4)+clearValue(32) = 72
 		{"renderPassColorAttachment (wire)", unsafe.Sizeof(renderPassColorAttachment{}), 72},
+		// vertexAttributeWire: nextInChain(8)+format(4)+pad(4)+offset(8)+shaderLocation(4)+pad(4) = 32
+		{"vertexAttributeWire", unsafe.Sizeof(vertexAttributeWire{}), 32},
 		// vertexBufferLayoutWire: nextInChain(8)+stepMode(4)+pad(4)+arrayStride(8)+
 		//   attributeCount(8)+attributes(8) = 40
 		{"vertexBufferLayoutWire", unsafe.Sizeof(vertexBufferLayoutWire{}), 40},
@@ -837,69 +842,51 @@ func TestABIWireStructAlignment(t *testing.T) {
 		}
 	})
 
-	t.Run("vertexAttributeWire_size", func(t *testing.T) {
-		// v29 STATUS: WGPUVertexAttribute in C v29 has nextInChain as first field (32 bytes).
-		// Our vertexAttributeWire does NOT have nextInChain (24 bytes).
-		//
-		// This is a KNOWN MIGRATION GAP:
-		//   C v29 WGPUVertexAttribute:
-		//     nextInChain(8)+format(4)+pad(4)+offset(8)+shaderLocation(4)+pad(4) = 32 bytes
-		//   Go vertexAttributeWire (current):
-		//     format(4)+pad(4)+offset(8)+shaderLocation(4)+pad(4) = 24 bytes  [MISSING nextInChain]
-		//
-		// TODO(v29-migration): Add nextInChain to vertexAttributeWire when upgrading to wgpu-native v29.
-		// Tracked in: docs/dev/kanban/blocked/0010-webgpu-headers-upgrade.md
-		const gotSize = unsafe.Sizeof(vertexAttributeWire{})
-		const expectedCurrent = uintptr(24) // current Go wire (no nextInChain)
-		const expectedV29C = uintptr(32)    // C v29 target (has nextInChain)
-
-		if gotSize != expectedCurrent {
-			t.Errorf("sizeof(vertexAttributeWire) = %d, want %d (current Go layout)",
-				gotSize, expectedCurrent)
+	t.Run("vertexAttributeWire", func(t *testing.T) {
+		var a vertexAttributeWire
+		if got := unsafe.Sizeof(a); got != 32 {
+			t.Errorf("sizeof(vertexAttributeWire) = %d, want 32", got)
 		}
-		// Document the gap: once v29 migration is complete, this must be 32.
-		if gotSize == expectedV29C {
-			t.Log("vertexAttributeWire already matches C v29 size (32 bytes) — remove migration TODO")
-		} else {
-			t.Logf("MIGRATION GAP: vertexAttributeWire is %d bytes, C v29 target is %d bytes (missing nextInChain)",
-				gotSize, expectedV29C)
+		offsets := []struct {
+			name     string
+			got      uintptr
+			expected uintptr
+		}{
+			{"NextInChain", unsafe.Offsetof(a.NextInChain), 0},
+			{"Format", unsafe.Offsetof(a.Format), 8},
+			{"Offset", unsafe.Offsetof(a.Offset), 16},
+			{"ShaderLocation", unsafe.Offsetof(a.ShaderLocation), 24},
+		}
+		for _, o := range offsets {
+			if o.got != o.expected {
+				t.Errorf("offsetof(vertexAttributeWire.%s) = %d, want %d",
+					o.name, o.got, o.expected)
+			}
 		}
 	})
 
-	t.Run("bindGroupLayoutEntryWire_knownGap", func(t *testing.T) {
-		// v29 STATUS: WGPUBindGroupLayoutEntry in C v29 has bindingArraySize (uint32)
-		// between visibility (uint64) and buffer (bufferBindingLayoutWire).
-		//
-		// This is a KNOWN MIGRATION GAP:
-		//   C v29 layout after visibility:
-		//     bindingArraySize(4)+pad(4)+buffer(...)+sampler(...)+...
-		//   Go bindGroupLayoutEntryWire (current):
-		//     NO bindingArraySize field between visibility and buffer
-		//
-		// Impact: buffer, sampler, texture, storageTexture offsets are all shifted
-		// by -8 relative to C v29. This will cause incorrect binding when binding arrays
-		// are used (NativeFeatureTextureBindingArray).
-		//
-		// TODO(v29-migration): Add bindingArraySize uint32 + padding after Visibility
-		// in bindGroupLayoutEntryWire when upgrading to wgpu-native v29.
-		// Tracked in: docs/dev/kanban/blocked/0010-webgpu-headers-upgrade.md
-
+	t.Run("bindGroupLayoutEntryWire", func(t *testing.T) {
 		var e bindGroupLayoutEntryWire
-		// Verify current layout is self-consistent (no accidental regressions)
-		visibilityOffset := unsafe.Offsetof(e.Visibility)
-		bufferOffset := uintptr(unsafe.Pointer(&e.Buffer)) - uintptr(unsafe.Pointer(&e))
-
-		// Current: visibility at some offset, buffer directly after (no bindingArraySize gap)
-		// In C v29: buffer should be at visibility+8+8 = visibility+16 (bindingArraySize+pad)
-		// Currently buffer is at visibility+8 (just uint64 visibility, no bindingArraySize)
-		expectedCurrentGap := uintptr(8) // sizeof(Visibility uint64) = 8, buffer follows directly
-		actualGap := bufferOffset - visibilityOffset
-		if actualGap != expectedCurrentGap {
-			t.Errorf("gap(Visibility→Buffer) = %d bytes, want %d (current layout without bindingArraySize)",
-				actualGap, expectedCurrentGap)
+		offsets := []struct {
+			name     string
+			got      uintptr
+			expected uintptr
+		}{
+			{"NextInChain", unsafe.Offsetof(e.NextInChain), 0},
+			{"Binding", unsafe.Offsetof(e.Binding), 8},
+			{"Visibility", unsafe.Offsetof(e.Visibility), 16},
+			{"BindingArraySize", unsafe.Offsetof(e.BindingArraySize), 24},
+			{"Buffer", unsafe.Offsetof(e.Buffer), 32},
+			{"Sampler", unsafe.Offsetof(e.Sampler), 56},
+			{"Texture", unsafe.Offsetof(e.Texture), 72},
+			{"StorageTexture", unsafe.Offsetof(e.StorageTexture), 96},
 		}
-		t.Logf("MIGRATION GAP: C v29 expects gap(Visibility→Buffer)=16 bytes (bindingArraySize+pad), current Go has %d bytes",
-			actualGap)
+		for _, o := range offsets {
+			if o.got != o.expected {
+				t.Errorf("offsetof(bindGroupLayoutEntryWire.%s) = %d, want %d",
+					o.name, o.got, o.expected)
+			}
+		}
 	})
 
 	t.Run("colorTargetStateWire", func(t *testing.T) {
@@ -932,9 +919,7 @@ func TestABIWireStructAlignment(t *testing.T) {
 		// This is NOT uint32 as in the webgpu.h spec — wgpu-native uses WGPUFlags typedef.
 		// Verify the Visibility field size via its offset and the next field offset.
 		var e bindGroupLayoutEntryWire
-		visibilityOffset := unsafe.Offsetof(e.Visibility)
-		bufferOffset := uintptr(unsafe.Pointer(&e.Buffer)) - uintptr(unsafe.Pointer(&e))
-		visibilitySize := bufferOffset - visibilityOffset
+		visibilitySize := unsafe.Sizeof(e.Visibility)
 		const expectedVisibilitySize = uintptr(8) // must be uint64 = 8 bytes
 		if visibilitySize != expectedVisibilitySize {
 			t.Errorf("sizeof(Visibility in bindGroupLayoutEntryWire) = %d, want %d (must be uint64)",

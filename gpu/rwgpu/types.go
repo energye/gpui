@@ -24,8 +24,9 @@ type Instance struct{ handle uintptr }
 // Adapter represents a physical GPU and its capabilities.
 // Obtained via [Instance.RequestAdapter], release with [Adapter.Release].
 type Adapter struct {
-	handle uintptr
-	limits Limits // cached at request time, returned by Limits() without FFI call
+	handle   uintptr
+	instance uintptr
+	limits   Limits // cached at request time, returned by Limits() without FFI call
 }
 
 // Device is the logical connection to a GPU, used to create all other resources.

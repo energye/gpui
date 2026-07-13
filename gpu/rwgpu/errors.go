@@ -67,14 +67,10 @@ var (
 // Signature matches: void callback(WGPUPopErrorScopeStatus status, WGPUErrorType type,
 //
 //	WGPUStringView message, void* userdata1, void* userdata2)
-func errorScopeCallbackHandler(status uintptr, errType uintptr, message uintptr, userdata1, _ uintptr) uintptr {
-	// Extract message string (message is pointer to StringView)
+func errorScopeCallbackHandler(status uintptr, errType uintptr, messageData uintptr, messageLength uintptr, userdata1, _ uintptr) uintptr {
 	var msg string
-	if message != 0 {
-		sv := (*StringView)(ptrFromUintptr(message))
-		if sv.Data != 0 && sv.Length > 0 && sv.Length < 1<<20 {
-			msg = unsafe.String((*byte)(ptrFromUintptr(sv.Data)), int(sv.Length))
-		}
+	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
+		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
 	}
 
 	// Find and complete the operation
@@ -164,40 +160,40 @@ func (d *Device) PopErrorScopeAsync(instance *Instance) (ErrorType, string, erro
 	// Prepare callback info
 	callbackInfo := popErrorScopeCallbackInfo{
 		nextInChain: 0,
-		mode:        CallbackModeAllowProcessEvents,
+		mode:        CallbackModeWaitAnyOnly,
 		callback:    errorScopeCallbackPtr,
 		userdata1:   resultID,
 		userdata2:   0,
 	}
 
-	// Call wgpuDevicePopErrorScope (returns WGPUFuture)
-	// nolint:errcheck // Error handling is done via callback, not return value
-	// nolint:gosec // FFI requires unsafe.Pointer conversion for struct passing
-	procDevicePopErrorScope.Call(
-		d.handle,
-		uintptr(unsafe.Pointer(&callbackInfo)),
-	)
+	future, err := callDevicePopErrorScope(d.handle, &callbackInfo)
+	if err != nil {
+		errorScopeResultsMu.Lock()
+		delete(errorScopeResults, resultID)
+		errorScopeResultsMu.Unlock()
+		return ErrorTypeNoError, "", err
+	}
+	if err := waitForFuture(instance.handle, future, "PopErrorScopeAsync"); err != nil {
+		errorScopeResultsMu.Lock()
+		delete(errorScopeResults, resultID)
+		errorScopeResultsMu.Unlock()
+		return ErrorTypeNoError, "", err
+	}
 
-	// Process events until callback fires
-	// With CallbackModeAllowProcessEvents, we need to call ProcessEvents
-	for {
-		select {
-		case <-result.done:
-			// Callback completed
-			if result.status != PopErrorScopeStatusSuccess {
-				switch result.status {
-				case PopErrorScopeStatusEmptyStack:
-					return ErrorTypeNoError, "", &WGPUError{Op: "PopErrorScopeAsync", Message: "error scope stack is empty"}
-				case PopErrorScopeStatusInstanceDropped:
-					return ErrorTypeNoError, "", &WGPUError{Op: "PopErrorScopeAsync", Message: "instance was dropped"}
-				default:
-					return ErrorTypeNoError, "", &WGPUError{Op: "PopErrorScopeAsync", Message: fmt.Sprintf("pop error scope failed with status %d", result.status)}
-				}
+	select {
+	case <-result.done:
+		if result.status != PopErrorScopeStatusSuccess {
+			switch result.status {
+			case PopErrorScopeStatusEmptyStack:
+				return ErrorTypeNoError, "", &WGPUError{Op: "PopErrorScopeAsync", Message: "error scope stack is empty"}
+			case PopErrorScopeStatusInstanceDropped:
+				return ErrorTypeNoError, "", &WGPUError{Op: "PopErrorScopeAsync", Message: "instance was dropped"}
+			default:
+				return ErrorTypeNoError, "", &WGPUError{Op: "PopErrorScopeAsync", Message: fmt.Sprintf("pop error scope failed with status %d", result.status)}
 			}
-			return result.errType, result.message, nil
-		default:
-			// Process events to fire callbacks
-			instance.ProcessEvents()
 		}
+		return result.errType, result.message, nil
+	default:
+		return ErrorTypeNoError, "", &WGPUError{Op: "PopErrorScopeAsync", Message: "future completed without invoking callback"}
 	}
 }

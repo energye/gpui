@@ -1,7 +1,6 @@
 package rwgpu
 
 import (
-	"math"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
@@ -348,15 +347,7 @@ func (rpe *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDept
 	if rpe == nil || rpe.handle == 0 {
 		return
 	}
-	procRenderPassEncoderSetViewport.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(math.Float32bits(x)),
-		uintptr(math.Float32bits(y)),
-		uintptr(math.Float32bits(width)),
-		uintptr(math.Float32bits(height)),
-		uintptr(math.Float32bits(minDepth)),
-		uintptr(math.Float32bits(maxDepth)),
-	)
+	callRenderPassEncoderSetViewport(rpe.handle, x, y, width, height, minDepth, maxDepth)
 }
 
 // SetScissorRect sets the scissor rectangle used during the rasterization stage.
@@ -417,10 +408,7 @@ func (rpe *RenderPassEncoder) InsertDebugMarker(markerLabel string) {
 		Data:   uintptr(unsafe.Pointer(&labelBytes[0])),
 		Length: uintptr(len(labelBytes)),
 	}
-	procRenderPassEncoderInsertDebugMarker.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(unsafe.Pointer(&label)),
-	)
+	callHandleStringView(procRenderPassEncoderInsertDebugMarker, rpe.handle, &label)
 }
 
 // PushDebugGroup begins a labeled debug group in the render pass.
@@ -438,10 +426,7 @@ func (rpe *RenderPassEncoder) PushDebugGroup(groupLabel string) {
 		Data:   uintptr(unsafe.Pointer(&labelBytes[0])),
 		Length: uintptr(len(labelBytes)),
 	}
-	procRenderPassEncoderPushDebugGroup.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(unsafe.Pointer(&label)),
-	)
+	callHandleStringView(procRenderPassEncoderPushDebugGroup, rpe.handle, &label)
 }
 
 // PopDebugGroup ends the current debug group in the render pass.

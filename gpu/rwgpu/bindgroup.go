@@ -39,6 +39,8 @@ type BindGroupLayoutEntry struct {
 	Binding uint32
 	// Visibility specifies which shader stages can access this binding.
 	Visibility types.ShaderStage
+	// BindingArraySize enables binding arrays when non-zero.
+	BindingArraySize uint32
 	// Buffer describes a buffer binding (nil if not a buffer binding).
 	Buffer *BufferBindingLayout
 	// Sampler describes a sampler binding (nil if not a sampler binding).
@@ -99,22 +101,25 @@ type storageTextureBindingLayoutWire struct {
 // bindGroupLayoutEntryWire is the FFI-compatible struct with converted enums.
 // CRITICAL: Visibility is uint64 because wgpu-native defines WGPUShaderStageFlags as uint64!
 type bindGroupLayoutEntryWire struct {
-	NextInChain    uintptr
-	Binding        uint32
-	_pad           [4]byte // padding to align Visibility to 8 bytes
-	Visibility     uint64  // WGPUShaderStageFlags = uint64 in wgpu-native!
-	Buffer         bufferBindingLayoutWire
-	Sampler        samplerBindingLayoutWire
-	Texture        textureBindingLayoutWire
-	StorageTexture storageTextureBindingLayoutWire
+	NextInChain      uintptr
+	Binding          uint32
+	_pad             [4]byte // padding to align Visibility to 8 bytes
+	Visibility       uint64  // WGPUShaderStageFlags = uint64 in wgpu-native!
+	BindingArraySize uint32
+	_pad2            [4]byte // padding to align Buffer to 8 bytes
+	Buffer           bufferBindingLayoutWire
+	Sampler          samplerBindingLayoutWire
+	Texture          textureBindingLayoutWire
+	StorageTexture   storageTextureBindingLayoutWire
 }
 
 // toWire converts a BindGroupLayoutEntry to its wire representation.
 // Nil sub-layout pointers produce zero-value wire structs (BindingNotUsed sentinel).
 func (e *BindGroupLayoutEntry) toWire() bindGroupLayoutEntryWire {
 	wire := bindGroupLayoutEntryWire{
-		Binding:    e.Binding,
-		Visibility: uint64(e.Visibility), // widen uint32 to uint64
+		Binding:          e.Binding,
+		Visibility:       uint64(e.Visibility), // widen uint32 to uint64
+		BindingArraySize: e.BindingArraySize,
 	}
 	if e.Buffer != nil {
 		wire.Buffer = bufferBindingLayoutWire{

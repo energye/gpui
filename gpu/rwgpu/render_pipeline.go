@@ -15,8 +15,9 @@ type VertexAttribute struct {
 }
 
 // vertexAttributeWire is the FFI-compatible structure with converted Format.
-// Field order matches webgpu.h: format, offset, shaderLocation
+// Field order matches webgpu.h v29: nextInChain, format, offset, shaderLocation.
 type vertexAttributeWire struct {
+	NextInChain    uintptr
 	Format         uint32 // converted from gputypes.VertexFormat
 	_pad1          [4]byte
 	Offset         uint64
@@ -257,6 +258,7 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 				allNativeAttrs[i] = make([]vertexAttributeWire, len(attrs))
 				for j, attr := range attrs {
 					allNativeAttrs[i][j] = vertexAttributeWire{
+						NextInChain:    0,
 						Format:         toWGPUVertexFormat(attr.Format),
 						Offset:         attr.Offset,
 						ShaderLocation: attr.ShaderLocation,

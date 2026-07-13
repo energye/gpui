@@ -163,10 +163,7 @@ func (enc *CommandEncoder) InsertDebugMarker(markerLabel string) {
 		Data:   uintptr(unsafe.Pointer(&labelBytes[0])),
 		Length: uintptr(len(labelBytes)),
 	}
-	procCommandEncoderInsertDebugMarker.Call( //nolint:errcheck
-		enc.handle,
-		uintptr(unsafe.Pointer(&label)),
-	)
+	callHandleStringView(procCommandEncoderInsertDebugMarker, enc.handle, &label)
 }
 
 // PushDebugGroup begins a labeled debug group.
@@ -184,10 +181,7 @@ func (enc *CommandEncoder) PushDebugGroup(groupLabel string) {
 		Data:   uintptr(unsafe.Pointer(&labelBytes[0])),
 		Length: uintptr(len(labelBytes)),
 	}
-	procCommandEncoderPushDebugGroup.Call( //nolint:errcheck
-		enc.handle,
-		uintptr(unsafe.Pointer(&label)),
-	)
+	callHandleStringView(procCommandEncoderPushDebugGroup, enc.handle, &label)
 }
 
 // PopDebugGroup ends the current debug group.

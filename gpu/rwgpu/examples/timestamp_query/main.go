@@ -1,0 +1,348 @@
+// Package main demonstrates GPU timestamp queries for profiling.
+// NOTE: Timestamp queries require the TIMESTAMP_QUERY feature which may not
+// be enabled by default. This example shows how the API works.
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+	"unsafe"
+
+	"github.com/energye/gpui/gpu/rwgpu"
+)
+
+func main() {
+	fmt.Println("=== Timestamp Query Example ===")
+	fmt.Println()
+	fmt.Println("GPU Timestamp Queries enable precise GPU profiling.")
+	fmt.Println("They measure execution time in nanoseconds.")
+	fmt.Println()
+	fmt.Println("NOTE: This example requires TIMESTAMP_QUERY feature.")
+	fmt.Println("      If not available, it demonstrates CPU timing instead.")
+	fmt.Println()
+
+	if err := run(); err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+}
+
+func run() error {
+	// Initialize WebGPU
+	if err := rwgpu.Init(); err != nil {
+		return fmt.Errorf("init wgpu: %w", err)
+	}
+
+	inst, err := rwgpu.CreateInstance(nil)
+	if err != nil {
+		return fmt.Errorf("create instance: %w", err)
+	}
+	defer inst.Release()
+
+	adapter, err := inst.RequestAdapter(nil)
+	if err != nil {
+		return fmt.Errorf("request adapter: %w", err)
+	}
+	defer adapter.Release()
+
+	device, err := adapter.RequestDevice(nil)
+	if err != nil {
+		return fmt.Errorf("request device: %w", err)
+	}
+	defer device.Release()
+
+	queue := device.Queue()
+	defer queue.Release()
+
+	// Try to create a timestamp query set.
+	// This will fail if TIMESTAMP_QUERY feature is not enabled.
+	querySet, _ := device.CreateQuerySet(&rwgpu.QuerySetDescriptor{
+		Type:  rwgpu.QueryTypeTimestamp,
+		Count: 2,
+	})
+
+	if querySet != nil {
+		defer querySet.Release()
+		fmt.Println("TIMESTAMP_QUERY feature is available!")
+		return runWithTimestamps(device, queue, querySet)
+	}
+
+	fmt.Println("TIMESTAMP_QUERY feature not available.")
+	fmt.Println("Demonstrating with CPU timing instead.")
+	fmt.Println()
+	return runWithCPUTiming(device, queue)
+}
+
+// runWithTimestamps demonstrates actual GPU timestamp queries
+func runWithTimestamps(device *rwgpu.Device, queue *rwgpu.Queue, querySet *rwgpu.QuerySet) error {
+	fmt.Println()
+	fmt.Println("Using GPU timestamp queries for accurate profiling...")
+	fmt.Println()
+
+	// Create buffer to resolve query results (2 timestamps * 8 bytes each)
+	queryResultSize := uint64(16)
+	queryResultBuffer, err := device.CreateBuffer(&rwgpu.BufferDescriptor{
+		Usage: rwgpu.BufferUsageQueryResolve | rwgpu.BufferUsageCopySrc,
+		Size:  queryResultSize,
+	})
+	if err != nil {
+		return fmt.Errorf("create query result buffer: %w", err)
+	}
+	defer queryResultBuffer.Release()
+
+	// Create staging buffer for CPU read
+	stagingBuffer, err := device.CreateBuffer(&rwgpu.BufferDescriptor{
+		Usage: rwgpu.BufferUsageMapRead | rwgpu.BufferUsageCopyDst,
+		Size:  queryResultSize,
+	})
+	if err != nil {
+		return fmt.Errorf("create staging buffer: %w", err)
+	}
+	defer stagingBuffer.Release()
+
+	// Create compute pipeline for workload
+	shaderCode := `
+@group(0) @binding(0) var<storage, read_write> data: array<f32>;
+
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let idx = global_id.x;
+    if (idx < arrayLength(&data)) {
+        var sum: f32 = data[idx];
+        for (var i: u32 = 0u; i < 100u; i = i + 1u) {
+            sum = sum * 1.01 + 0.01;
+        }
+        data[idx] = sum;
+    }
+}
+`
+	shader, err := device.CreateShaderModuleWGSL(shaderCode)
+	if err != nil {
+		return fmt.Errorf("create shader: %w", err)
+	}
+	defer shader.Release()
+
+	pipeline, err := device.CreateComputePipelineSimple(nil, shader, "main")
+	if err != nil {
+		return fmt.Errorf("create pipeline: %w", err)
+	}
+	defer pipeline.Release()
+
+	// Create data buffer
+	const numElements = 1024 * 1024
+	bufferSize := uint64(numElements * 4)
+
+	dataBuffer, err := device.CreateBuffer(&rwgpu.BufferDescriptor{
+		Usage: rwgpu.BufferUsageStorage,
+		Size:  bufferSize,
+	})
+	if err != nil {
+		return fmt.Errorf("create data buffer: %w", err)
+	}
+	defer dataBuffer.Release()
+
+	// Create bind group
+	bindGroupLayout := pipeline.GetBindGroupLayout(0)
+	defer bindGroupLayout.Release()
+
+	bindGroup, err := device.CreateBindGroupSimple(bindGroupLayout, []rwgpu.BindGroupEntry{
+		rwgpu.BufferBindingEntry(0, dataBuffer, 0, bufferSize),
+	})
+	if err != nil {
+		return fmt.Errorf("create bind group: %w", err)
+	}
+	defer bindGroup.Release()
+
+	// Record commands with timestamps
+	encoder, err := device.CreateCommandEncoder(nil)
+	if err != nil {
+		return fmt.Errorf("create command encoder: %w", err)
+	}
+
+	// Write start timestamp
+	encoder.WriteTimestamp(querySet, 0)
+
+	// Execute compute pass
+	pass, err := encoder.BeginComputePass(nil)
+	if err != nil {
+		return fmt.Errorf("begin compute pass: %w", err)
+	}
+	pass.SetPipeline(pipeline)
+	pass.SetBindGroup(0, bindGroup, nil)
+	pass.DispatchWorkgroups(numElements/256, 1, 1)
+	pass.End()
+	pass.Release()
+
+	// Write end timestamp
+	encoder.WriteTimestamp(querySet, 1)
+
+	// Resolve query results to buffer
+	encoder.ResolveQuerySet(querySet, 0, 2, queryResultBuffer, 0)
+
+	// Copy to staging buffer
+	encoder.CopyBufferToBuffer(queryResultBuffer, 0, stagingBuffer, 0, queryResultSize)
+
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		return fmt.Errorf("finish encoder: %w", err)
+	}
+	encoder.Release()
+
+	if _, err = queue.Submit(cmdBuffer); err != nil {
+		return fmt.Errorf("submit: %w", err)
+	}
+	cmdBuffer.Release()
+
+	// Wait for GPU
+	device.Poll(true)
+
+	// Map staging buffer
+	mapPending, err := stagingBuffer.MapAsync(rwgpu.MapModeRead, 0, queryResultSize)
+	if err != nil {
+		return fmt.Errorf("map staging buffer: %w", err)
+	}
+	if werr := mapPending.Wait(context.Background()); werr != nil {
+		mapPending.Release()
+		return fmt.Errorf("map staging buffer wait: %w", werr)
+	}
+	mapPending.Release()
+
+	// Read timestamp values
+	ptr := stagingBuffer.GetMappedRange(0, queryResultSize)
+	if ptr == nil {
+		return fmt.Errorf("failed to get mapped range")
+	}
+
+	data := (*[16]byte)(ptr)
+	startTimestamp := *(*uint64)(unsafe.Pointer(&data[0]))
+	endTimestamp := *(*uint64)(unsafe.Pointer(&data[8]))
+
+	if err := stagingBuffer.Unmap(); err != nil {
+		log.Printf("unmap staging buffer: %v", err)
+	}
+
+	// Calculate elapsed ticks.
+	// Note: To convert to nanoseconds, you need the timestamp period
+	// from the adapter (typically 1 ns/tick, but varies by GPU).
+	elapsedTicks := endTimestamp - startTimestamp
+
+	// Assume 1 ns/tick (common on most GPUs).
+	const assumedPeriodNs = 1.0
+	elapsedNs := float64(elapsedTicks) * assumedPeriodNs
+
+	fmt.Printf("Timestamp Query Results:\n")
+	fmt.Printf("  Start timestamp:   %d ticks\n", startTimestamp)
+	fmt.Printf("  End timestamp:     %d ticks\n", endTimestamp)
+	fmt.Printf("  Elapsed ticks:     %d\n", elapsedTicks)
+	fmt.Printf("  GPU execution time: ~%.3f ms (assuming 1 ns/tick)\n", elapsedNs/1_000_000)
+	fmt.Println()
+	fmt.Println("GPU timestamp queries provide accurate profiling!")
+
+	return nil
+}
+
+// runWithCPUTiming demonstrates timing with CPU (fallback)
+func runWithCPUTiming(device *rwgpu.Device, queue *rwgpu.Queue) error {
+	fmt.Println("Demonstrating compute workload with CPU timing...")
+	fmt.Println()
+
+	// Create compute pipeline
+	shaderCode := `
+@group(0) @binding(0) var<storage, read_write> data: array<f32>;
+
+@compute @workgroup_size(256)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let idx = global_id.x;
+    if (idx < arrayLength(&data)) {
+        var sum: f32 = data[idx];
+        for (var i: u32 = 0u; i < 100u; i = i + 1u) {
+            sum = sum * 1.01 + 0.01;
+        }
+        data[idx] = sum;
+    }
+}
+`
+	shader, err := device.CreateShaderModuleWGSL(shaderCode)
+	if err != nil {
+		return fmt.Errorf("create shader: %w", err)
+	}
+	defer shader.Release()
+
+	pipeline, err := device.CreateComputePipelineSimple(nil, shader, "main")
+	if err != nil {
+		return fmt.Errorf("create pipeline: %w", err)
+	}
+	defer pipeline.Release()
+
+	// Create buffer
+	const numElements = 1024 * 1024
+	bufferSize := uint64(numElements * 4)
+
+	buffer, err := device.CreateBuffer(&rwgpu.BufferDescriptor{
+		Usage: rwgpu.BufferUsageStorage,
+		Size:  bufferSize,
+	})
+	if err != nil {
+		return fmt.Errorf("create buffer: %w", err)
+	}
+	defer buffer.Release()
+
+	// Create bind group
+	bindGroupLayout := pipeline.GetBindGroupLayout(0)
+	defer bindGroupLayout.Release()
+
+	bindGroup, err := device.CreateBindGroupSimple(bindGroupLayout, []rwgpu.BindGroupEntry{
+		rwgpu.BufferBindingEntry(0, buffer, 0, bufferSize),
+	})
+	if err != nil {
+		return fmt.Errorf("create bind group: %w", err)
+	}
+	defer bindGroup.Release()
+
+	// Time the GPU work with CPU timer
+	start := time.Now()
+
+	encoder, err := device.CreateCommandEncoder(nil)
+	if err != nil {
+		return fmt.Errorf("create command encoder: %w", err)
+	}
+
+	pass, err := encoder.BeginComputePass(nil)
+	if err != nil {
+		return fmt.Errorf("begin compute pass: %w", err)
+	}
+	pass.SetPipeline(pipeline)
+	pass.SetBindGroup(0, bindGroup, nil)
+	pass.DispatchWorkgroups(numElements/256, 1, 1)
+	pass.End()
+	pass.Release()
+
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		return fmt.Errorf("finish encoder: %w", err)
+	}
+	encoder.Release()
+
+	if _, err = queue.Submit(cmdBuffer); err != nil {
+		return fmt.Errorf("submit: %w", err)
+	}
+	cmdBuffer.Release()
+
+	// Wait for GPU to complete
+	device.Poll(true)
+
+	elapsed := time.Since(start)
+
+	fmt.Printf("Compute Workload Results (CPU timing):\n")
+	fmt.Printf("  Elements processed: %d\n", numElements)
+	fmt.Printf("  CPU-measured time:  %v\n", elapsed)
+	fmt.Println()
+	fmt.Println("NOTE: CPU timing includes submission overhead.")
+	fmt.Println("      GPU timestamp queries provide more accurate GPU-only timing.")
+	fmt.Println()
+	fmt.Println("To enable GPU timestamps, request TIMESTAMP_QUERY feature")
+	fmt.Println("when creating the device.")
+
+	return nil
+}

@@ -68,15 +68,11 @@ var (
 )
 
 // mapCallbackHandler is the Go function called by C code via ffi.NewCallback.
-// Signature: void(status uint32, message *StringView, userdata1 uintptr, userdata2 uintptr)
-func mapCallbackHandler(status uintptr, message uintptr, userdata1, userdata2 uintptr) uintptr {
-	// Extract message string
+// Signature: void(status uint32, message StringView, userdata1 uintptr, userdata2 uintptr)
+func mapCallbackHandler(status uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
 	var msg string
-	if message != 0 {
-		sv := (*StringView)(ptrFromUintptr(message))
-		if sv.Data != 0 && sv.Length > 0 && sv.Length < 1<<20 {
-			msg = unsafe.String((*byte)(ptrFromUintptr(sv.Data)), int(sv.Length))
-		}
+	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
+		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
 	}
 
 	// Find and complete the request

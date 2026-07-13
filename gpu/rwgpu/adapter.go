@@ -5,6 +5,7 @@ import (
 	"unsafe"
 
 	"github.com/energye/gpui/ffi"
+	ffitypes "github.com/energye/gpui/ffi/types"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -58,6 +59,19 @@ type RequestAdapterCallbackInfo struct {
 	Userdata2   uintptr
 }
 
+var requestAdapterCallbackInfoType = &ffitypes.TypeDescriptor{
+	Kind:      ffitypes.StructType,
+	Size:      40,
+	Alignment: 8,
+	Members: []*ffitypes.TypeDescriptor{
+		ffitypes.PointerTypeDescriptor, // nextInChain
+		ffitypes.UInt32TypeDescriptor,  // mode
+		ffitypes.PointerTypeDescriptor, // callback
+		ffitypes.PointerTypeDescriptor, // userdata1
+		ffitypes.PointerTypeDescriptor, // userdata2
+	},
+}
+
 // adapterRequest holds state for an async adapter request.
 type adapterRequest struct {
 	done    chan struct{}
@@ -81,17 +95,13 @@ var (
 
 // adapterCallbackHandler is the Go function called by C code via ffi.NewCallback.
 // Windows x64 ABI: args in RCX, RDX, R8, R9, then stack.
-// Signature: void(status uint32, adapter uintptr, message *StringView, userdata1 uintptr, userdata2 uintptr)
-// Note: On Windows x64 ABI, structs > 8 bytes are passed by pointer.
+// Signature: void(status uint32, adapter uintptr, message StringView, userdata1 uintptr, userdata2 uintptr)
+// On Linux SysV, WGPUStringView is passed by value as two integer words.
 // goffi v0.2.1+ requires all args to be uintptr and exactly one uintptr return.
-func adapterCallbackHandler(status uintptr, adapter uintptr, message uintptr, userdata1, userdata2 uintptr) uintptr {
-	// Extract message string (message is pointer to StringView on Windows)
+func adapterCallbackHandler(status uintptr, adapter uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
 	var msg string
-	if message != 0 {
-		sv := (*StringView)(ptrFromUintptr(message))
-		if sv.Data != 0 && sv.Length > 0 && sv.Length < 1<<20 {
-			msg = unsafe.String((*byte)(ptrFromUintptr(sv.Data)), int(sv.Length))
-		}
+	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
+		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
 	}
 
 	// Find and complete the request
@@ -164,42 +174,80 @@ func (i *Instance) RequestAdapter(options *RequestAdapterOptions) (*Adapter, err
 	// Prepare callback info
 	callbackInfo := RequestAdapterCallbackInfo{
 		NextInChain: 0,
-		Mode:        CallbackModeAllowProcessEvents,
+		Mode:        CallbackModeWaitAnyOnly,
 		Callback:    adapterCallbackPtr,
 		Userdata1:   reqID,
 		Userdata2:   0,
 	}
 
-	// Call wgpuInstanceRequestAdapter
-	// Returns WGPUFuture (uint64) but we use callback mode
-	procInstanceRequestAdapter.Call( //nolint:errcheck
-		i.handle,
-		optionsPtr,
-		uintptr(unsafe.Pointer(&callbackInfo)),
-	)
-
-	// Process events until callback fires
-	for {
-		select {
-		case <-req.done:
-			// Callback completed
-			if req.status != RequestAdapterStatusSuccess {
-				msg := req.message
-				if msg == "" {
-					msg = "adapter request failed"
-				}
-				return nil, &WGPUError{Op: "RequestAdapter", Message: msg}
-			}
-			// Cache limits at creation time so Limits() returns value without FFI.
-			if req.adapter != nil {
-				req.adapter.limits = fetchAdapterLimits(req.adapter.handle)
-			}
-			return req.adapter, nil
-		default:
-			// Process events to trigger callback
-			i.ProcessEvents()
-		}
+	future, err := callInstanceRequestAdapter(i.handle, optionsPtr, &callbackInfo)
+	if err != nil {
+		return nil, err
 	}
+	if err := waitForFuture(i.handle, future, "RequestAdapter"); err != nil {
+		adapterRequestsMu.Lock()
+		delete(adapterRequests, reqID)
+		adapterRequestsMu.Unlock()
+		return nil, err
+	}
+
+	select {
+	case <-req.done:
+		if req.status != RequestAdapterStatusSuccess {
+			msg := req.message
+			if msg == "" {
+				msg = "adapter request failed"
+			}
+			return nil, &WGPUError{Op: "RequestAdapter", Message: msg}
+		}
+		if req.adapter != nil {
+			req.adapter.instance = i.handle
+			req.adapter.limits = fetchAdapterLimits(req.adapter.handle)
+		}
+		return req.adapter, nil
+	default:
+		return nil, &WGPUError{Op: "RequestAdapter", Message: "future completed without invoking callback"}
+	}
+}
+
+func callInstanceRequestAdapter(instance uintptr, options uintptr, callbackInfo *RequestAdapterCallbackInfo) (Future, error) {
+	proc, ok := procInstanceRequestAdapter.(*unixProc)
+	if !ok {
+		future, _, err := procInstanceRequestAdapter.Call(
+			instance,
+			options,
+			uintptr(unsafe.Pointer(callbackInfo)),
+		)
+		return Future{ID: uint64(future)}, err
+	}
+	if proc.fnPtr == nil {
+		return Future{}, &WGPUError{Op: "RequestAdapter", Message: "wgpuInstanceRequestAdapter symbol is missing"}
+	}
+
+	var cif ffitypes.CallInterface
+	if err := ffi.PrepareCallInterface(
+		&cif,
+		ffitypes.UnixCallingConvention,
+		ffitypes.UInt64TypeDescriptor,
+		[]*ffitypes.TypeDescriptor{
+			ffitypes.PointerTypeDescriptor,
+			ffitypes.PointerTypeDescriptor,
+			requestAdapterCallbackInfoType,
+		},
+	); err != nil {
+		return Future{}, &WGPUError{Op: "RequestAdapter", Message: err.Error()}
+	}
+
+	var future uint64
+	args := []unsafe.Pointer{
+		unsafe.Pointer(&instance),
+		unsafe.Pointer(&options),
+		unsafe.Pointer(callbackInfo),
+	}
+	if _, err := ffi.CallFunction(&cif, proc.fnPtr, unsafe.Pointer(&future), args); err != nil {
+		return Future{}, &WGPUError{Op: "RequestAdapter", Message: err.Error()}
+	}
+	return Future{ID: future}, nil
 }
 
 // fetchAdapterLimits calls wgpuAdapterGetLimits and converts the wire struct to public Limits.

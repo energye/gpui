@@ -18,6 +18,7 @@ var (
 	procCreateInstance        Proc
 	procInstanceRelease       Proc
 	procInstanceProcessEvents Proc
+	procInstanceWaitAny       Proc
 
 	// Function pointers - Adapter
 	procAdapterRelease               Proc
@@ -251,6 +252,7 @@ func initSymbols() {
 	procCreateInstance = wgpuLib.NewProc("wgpuCreateInstance")
 	procInstanceRelease = wgpuLib.NewProc("wgpuInstanceRelease")
 	procInstanceProcessEvents = wgpuLib.NewProc("wgpuInstanceProcessEvents")
+	procInstanceWaitAny = wgpuLib.NewProc("wgpuInstanceWaitAny")
 
 	// Adapter
 	procAdapterRelease = wgpuLib.NewProc("wgpuAdapterRelease")

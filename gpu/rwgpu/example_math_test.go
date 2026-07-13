@@ -8,14 +8,14 @@ import (
 // ExampleMat4_basic demonstrates basic matrix operations
 func ExampleMat4_basic() {
 	// Create transformation matrices
-	translate := webgpu.Mat4Translate(10, 0, 0)
-	scale := webgpu.Mat4Scale(2, 2, 2)
+	translate := rwgpu.Mat4Translate(10, 0, 0)
+	scale := rwgpu.Mat4Scale(2, 2, 2)
 
 	// Combine transformations (order matters: scale first, then translate)
 	combined := translate.Mul(scale)
 
 	// Transform a point
-	point := webgpu.Vec4{X: 1, Y: 0, Z: 0, W: 1}
+	point := rwgpu.Vec4{X: 1, Y: 0, Z: 0, W: 1}
 	result := combined.MulVec4(point)
 
 	fmt.Printf("Transformed point: (%.0f, %.0f, %.0f)\n", result.X, result.Y, result.Z)
@@ -30,13 +30,13 @@ func ExampleMat4Perspective() {
 	near := float32(0.1)
 	far := float32(100.0)
 
-	projection := webgpu.Mat4Perspective(fov, aspect, near, far)
+	projection := rwgpu.Mat4Perspective(fov, aspect, near, far)
 
 	// Create view matrix (camera looking from (0, 0, 5) towards origin)
-	eye := webgpu.Vec3{X: 0, Y: 0, Z: 5}
-	center := webgpu.Vec3{X: 0, Y: 0, Z: 0}
-	up := webgpu.Vec3{X: 0, Y: 1, Z: 0}
-	view := webgpu.Mat4LookAt(eye, center, up)
+	eye := rwgpu.Vec3{X: 0, Y: 0, Z: 5}
+	center := rwgpu.Vec3{X: 0, Y: 0, Z: 0}
+	up := rwgpu.Vec3{X: 0, Y: 1, Z: 0}
+	view := rwgpu.Mat4LookAt(eye, center, up)
 
 	// Combine projection and view
 	viewProj := projection.Mul(view)
@@ -49,9 +49,9 @@ func ExampleMat4Perspective() {
 func ExampleVec3_cross() {
 	// Calculate normal for a triangle (right-hand rule)
 	// Triangle vertices: v0, v1, v2
-	v0 := webgpu.Vec3{X: 0, Y: 0, Z: 0}
-	v1 := webgpu.Vec3{X: 1, Y: 0, Z: 0}
-	v2 := webgpu.Vec3{X: 0, Y: 1, Z: 0}
+	v0 := rwgpu.Vec3{X: 0, Y: 0, Z: 0}
+	v1 := rwgpu.Vec3{X: 1, Y: 0, Z: 0}
+	v2 := rwgpu.Vec3{X: 0, Y: 1, Z: 0}
 
 	// Edge vectors
 	edge1 := v1.Sub(v0)
@@ -67,10 +67,10 @@ func ExampleVec3_cross() {
 // ExampleMat4_rotation demonstrates rotation matrices
 func ExampleMat4_rotation() {
 	// Rotate 90 degrees around Y axis
-	rotation := webgpu.Mat4RotateY(3.14159 / 2) // 90 degrees in radians
+	rotation := rwgpu.Mat4RotateY(3.14159 / 2) // 90 degrees in radians
 
 	// Apply rotation to a point on X axis
-	point := webgpu.Vec4{X: 1, Y: 0, Z: 0, W: 1}
+	point := rwgpu.Vec4{X: 1, Y: 0, Z: 0, W: 1}
 	rotated := rotation.MulVec4(point)
 
 	// Right-hand rule: rotating +X around +Y by 90° gives -Z direction

@@ -5,6 +5,7 @@ import (
 	"unsafe"
 
 	"github.com/energye/gpui/ffi"
+	ffitypes "github.com/energye/gpui/ffi/types"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -15,6 +16,19 @@ type RequestDeviceCallbackInfo struct {
 	Callback    uintptr // Function pointer
 	Userdata1   uintptr
 	Userdata2   uintptr
+}
+
+var requestDeviceCallbackInfoType = &ffitypes.TypeDescriptor{
+	Kind:      ffitypes.StructType,
+	Size:      40,
+	Alignment: 8,
+	Members: []*ffitypes.TypeDescriptor{
+		ffitypes.PointerTypeDescriptor, // nextInChain
+		ffitypes.UInt32TypeDescriptor,  // mode
+		ffitypes.PointerTypeDescriptor, // callback
+		ffitypes.PointerTypeDescriptor, // userdata1
+		ffitypes.PointerTypeDescriptor, // userdata2
+	},
 }
 
 // deviceRequest holds state for an async device request.
@@ -39,15 +53,11 @@ var (
 )
 
 // deviceCallbackHandler is the Go function called by C code via ffi.NewCallback.
-// Signature: void(status uint32, device uintptr, message *StringView, userdata1 uintptr, userdata2 uintptr)
-func deviceCallbackHandler(status uintptr, device uintptr, message uintptr, userdata1, userdata2 uintptr) uintptr {
-	// Extract message string (message is pointer to StringView on Windows)
+// Signature: void(status uint32, device uintptr, message StringView, userdata1 uintptr, userdata2 uintptr)
+func deviceCallbackHandler(status uintptr, device uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
 	var msg string
-	if message != 0 {
-		sv := (*StringView)(ptrFromUintptr(message))
-		if sv.Data != 0 && sv.Length > 0 && sv.Length < 1<<20 {
-			msg = unsafe.String((*byte)(ptrFromUintptr(sv.Data)), int(sv.Length))
-		}
+	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
+		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
 	}
 
 	// Find and complete the request
@@ -122,41 +132,79 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 	// Prepare callback info
 	callbackInfo := RequestDeviceCallbackInfo{
 		NextInChain: 0,
-		Mode:        CallbackModeAllowProcessEvents,
+		Mode:        CallbackModeWaitAnyOnly,
 		Callback:    deviceCallbackPtr,
 		Userdata1:   reqID,
 		Userdata2:   0,
 	}
 
-	// Call wgpuAdapterRequestDevice
-	procAdapterRequestDevice.Call( //nolint:errcheck
-		a.handle,
-		optionsPtr,
-		uintptr(unsafe.Pointer(&callbackInfo)),
-	)
-
-	// Process events until callback fires
-	for {
-		select {
-		case <-req.done:
-			// Callback completed
-			if req.status != RequestDeviceStatusSuccess {
-				msg := req.message
-				if msg == "" {
-					msg = "device request failed"
-				}
-				return nil, &WGPUError{Op: "RequestDevice", Message: msg}
-			}
-			// Cache limits at creation time so Limits() returns value without FFI.
-			if req.device != nil {
-				req.device.limits = fetchDeviceLimits(req.device.handle)
-			}
-			return req.device, nil
-		default:
-			// Brief pause to avoid busy spinning
-			// In real usage, you'd call instance.ProcessEvents()
-		}
+	future, err := callAdapterRequestDevice(a.handle, optionsPtr, &callbackInfo)
+	if err != nil {
+		return nil, err
 	}
+	if err := waitForFuture(a.instance, future, "RequestDevice"); err != nil {
+		deviceRequestsMu.Lock()
+		delete(deviceRequests, reqID)
+		deviceRequestsMu.Unlock()
+		return nil, err
+	}
+
+	select {
+	case <-req.done:
+		if req.status != RequestDeviceStatusSuccess {
+			msg := req.message
+			if msg == "" {
+				msg = "device request failed"
+			}
+			return nil, &WGPUError{Op: "RequestDevice", Message: msg}
+		}
+		if req.device != nil {
+			req.device.limits = fetchDeviceLimits(req.device.handle)
+		}
+		return req.device, nil
+	default:
+		return nil, &WGPUError{Op: "RequestDevice", Message: "future completed without invoking callback"}
+	}
+}
+
+func callAdapterRequestDevice(adapter uintptr, options uintptr, callbackInfo *RequestDeviceCallbackInfo) (Future, error) {
+	proc, ok := procAdapterRequestDevice.(*unixProc)
+	if !ok {
+		future, _, err := procAdapterRequestDevice.Call(
+			adapter,
+			options,
+			uintptr(unsafe.Pointer(callbackInfo)),
+		)
+		return Future{ID: uint64(future)}, err
+	}
+	if proc.fnPtr == nil {
+		return Future{}, &WGPUError{Op: "RequestDevice", Message: "wgpuAdapterRequestDevice symbol is missing"}
+	}
+
+	var cif ffitypes.CallInterface
+	if err := ffi.PrepareCallInterface(
+		&cif,
+		ffitypes.UnixCallingConvention,
+		ffitypes.UInt64TypeDescriptor,
+		[]*ffitypes.TypeDescriptor{
+			ffitypes.PointerTypeDescriptor,
+			ffitypes.PointerTypeDescriptor,
+			requestDeviceCallbackInfoType,
+		},
+	); err != nil {
+		return Future{}, &WGPUError{Op: "RequestDevice", Message: err.Error()}
+	}
+
+	var future uint64
+	args := []unsafe.Pointer{
+		unsafe.Pointer(&adapter),
+		unsafe.Pointer(&options),
+		unsafe.Pointer(callbackInfo),
+	}
+	if _, err := ffi.CallFunction(&cif, proc.fnPtr, unsafe.Pointer(&future), args); err != nil {
+		return Future{}, &WGPUError{Op: "RequestDevice", Message: err.Error()}
+	}
+	return Future{ID: future}, nil
 }
 
 // fetchDeviceLimits calls wgpuDeviceGetLimits and converts the wire struct to public Limits.

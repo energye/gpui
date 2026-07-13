@@ -3,7 +3,6 @@ package rwgpu
 import (
 	"context"
 	"runtime"
-	"unsafe"
 )
 
 // MapPending represents an in-flight buffer map request.
@@ -104,13 +103,12 @@ func (b *Buffer) mapAsyncStart(mode MapMode, offset, size uint64) (*mapRequest, 
 		Userdata2:   0,
 	}
 
-	procBufferMapAsync.Call( //nolint:errcheck
-		b.handle,
-		uintptr(mode),
-		uintptr(offset),
-		uintptr(size),
-		uintptr(unsafe.Pointer(&callbackInfo)),
-	)
+	if _, err := callBufferMapAsync(b.handle, mode, offset, size, &callbackInfo); err != nil {
+		mapRequestsMu.Lock()
+		delete(mapRequests, reqID)
+		mapRequestsMu.Unlock()
+		return nil, err
+	}
 
 	return req, nil
 }
