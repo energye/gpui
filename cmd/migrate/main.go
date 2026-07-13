@@ -1048,11 +1048,13 @@ func rewriteImports(filePath string, moduleMap map[string]*Mapping, targetModule
 	}
 
 	changed := false
+	qualifierRenames := make(map[string]string)
 	for _, imp := range f.Imports {
 		oldPath, err := strconv.Unquote(imp.Path.Value)
 		if err != nil {
 			continue
 		}
+		oldQualifier := importQualifier(oldPath, imp.Name)
 		newPath := rewriteImportPath(oldPath, moduleMap, targetModule, replaceImports)
 		if newPath != oldPath {
 			imp.Path.Value = strconv.Quote(newPath)
@@ -1060,10 +1062,16 @@ func rewriteImports(filePath string, moduleMap map[string]*Mapping, targetModule
 		}
 		if alias := configuredImportAlias(newPath, moduleMap, targetModule, importAliases); alias != "" {
 			if imp.Name == nil || imp.Name.Name != alias {
+				if oldQualifier != "" && oldQualifier != alias {
+					qualifierRenames[oldQualifier] = alias
+				}
 				imp.Name = ast.NewIdent(alias)
 				changed = true
 			}
 		}
+	}
+	if renameImportQualifiers(f, qualifierRenames) {
+		changed = true
 	}
 	if rewriteComments(f, moduleMap, targetModule, replaceImports) {
 		changed = true
@@ -1088,6 +1096,39 @@ func rewriteImports(filePath string, moduleMap map[string]*Mapping, targetModule
 		return false, nil
 	}
 	return true, os.WriteFile(filePath, output, 0644)
+}
+
+func importQualifier(path string, name *ast.Ident) string {
+	if name != nil {
+		if name.Name == "_" || name.Name == "." {
+			return ""
+		}
+		return name.Name
+	}
+	return defaultImportName(path)
+}
+
+func renameImportQualifiers(f *ast.File, renames map[string]string) bool {
+	if len(renames) == 0 {
+		return false
+	}
+	changed := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		ident, ok := sel.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if next := renames[ident.Name]; next != "" {
+			ident.Name = next
+			changed = true
+		}
+		return true
+	})
+	return changed
 }
 
 func rewriteComments(f *ast.File, moduleMap map[string]*Mapping, targetModule string, replaceImports map[string]string) bool {

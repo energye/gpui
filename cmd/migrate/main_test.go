@@ -220,6 +220,32 @@ var _ = toolkit.Value
 	requireContains(t, got, `gputools "example.com/acme/gpui/tools"`)
 }
 
+func TestRewriteImportsRenamesExplicitOldAliasSelectors(t *testing.T) {
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "consumer.go")
+	writeTestFile(t, file, `package consumer
+
+import toolkit "example.com/up/toolkit"
+
+var _ = toolkit.Value
+`)
+
+	mapping := Mapping{Source: filepath.Join(tmp, "toolkit"), Target: "tools", Module: "example.com/up/toolkit", RenamePackage: "tools", Alias: "gputools"}
+	moduleMap := map[string]*Mapping{mapping.Module: &mapping}
+	changed, err := rewriteImports(file, moduleMap, "example.com/acme/gpui", nil, nil)
+	if err != nil {
+		t.Fatalf("rewriteImports: %v", err)
+	}
+	if !changed {
+		t.Fatal("rewriteImports did not report a change")
+	}
+
+	got := readTestFile(t, file)
+	requireContains(t, got, `gputools "example.com/acme/gpui/tools"`)
+	requireContains(t, got, `var _ = gputools.Value`)
+	requireNotContains(t, got, `toolkit.Value`)
+}
+
 func TestRewriteImportsRewritesStringOnlyReferences(t *testing.T) {
 	tmp := t.TempDir()
 	file := filepath.Join(tmp, "string_only.go")
