@@ -14,7 +14,6 @@
     "github.com/go-webgpu/goffi/types": "github.com/energye/gpui/ffi/types"
   },
   "external_deps": [
-    "github.com/go-webgpu/goffi",
     "golang.org/x/image",
     "golang.org/x/text",
     "golang.org/x/sys"
