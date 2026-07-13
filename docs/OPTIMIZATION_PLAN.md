@@ -1,55 +1,187 @@
-# gg 渲染库底层优化开发计划
+# GPUI 渲染库底层优化开发计划
 
-> 版本：2.0 | 更新日期：2026-07-13 | 状态：进行中
+> 版本：3.0 | 更新日期：2026-07-13 | 状态：待启动
+> 项目：github.com/energye/gpui
+> 文档位置：/home/yanghy/app/projects/gogpu/gpui/docs/OPTIMIZATION_PLAN.md
 
 ---
 
 ## 📋 项目概述
 
 ### 项目名称
-gg 渲染库底层性能优化 - 对标 Skia
+GPUI 渲染库底层性能优化 - 对标 Skia
+
+### 项目背景
+GPUI 是从 gogpu 生态迁移而来的独立渲染库，已完成：
+- ✅ 阶段一：代码迁移与基础清理
+- ✅ 阶段二：goffi 替换为 purego（FFI 中间层）
+- ✅ 阶段三：验证测试
+- ⏳ 阶段四：代码清理与优化（待开始）
+- ⏳ 阶段五：框架集成（待开始）
 
 ### 项目目标
-将 gg 渲染库优化到能够支撑复杂 UI 控件库和高性能 2D 渲染的水平，性能对标 Skia。
+将 GPUI 渲染库优化到能够支撑复杂 UI 控件库和高性能 2D 渲染的水平，性能对标 Skia。
+
+### 库结构
+```
+gpui/
+├── render/              # 2D 渲染库（原 gg）
+│   ├── context.go       # 核心 Context
+│   ├── path.go          # 路径系统
+│   ├── gradient.go      # 渐变
+│   ├── text.go          # 文本渲染
+│   ├── software.go      # CPU 光栅化
+│   ├── gpu/             # GPU 加速
+│   ├── internal/        # 内部实现
+│   ├── raster/          # CPU 光栅化
+│   ├── scene/           # 场景图
+│   └── examples/        # 示例程序
+├── gpu/                 # GPU HAL 层（原 wgpu）
+│   ├── webgpu/          # WebGPU 后端
+│   ├── shader/          # 着色器
+│   └── types/           # 类型定义
+├── ffi/                 # FFI 中间层（purego）
+│   ├── ffi.go           # FFI 实现
+│   └── types/           # 类型定义
+└── docs/                # 文档
+```
+
+### 已有任务计划
+- `TASK_PLAN.md` - 迁移和 FFI 替换任务（已完成）
 
 ### 当前状态
-- ✅ 基础架构完善（批处理、实例化渲染、MSDF 文本）
-- ✅ ShaderModule 内存泄漏已修复
-- ⚠️ 路径渲染性能不足
-- ⚠️ 渐变渲染使用 CPU
-- ⚠️ 内存管理可优化
-
-### 目标性能
-| 场景 | 当前 | 目标 | 差距 |
-|------|------|------|------|
-| 1000 个圆角矩形动画 | 38 FPS | 60 FPS | 1.6x |
-| 1000 个路径动画 | ~25 FPS | 60 FPS | 2.4x |
-| 复杂文本渲染 | 45 FPS | 60 FPS | 1.3x |
-| 渐变填充 | ~30 FPS | 60 FPS | 2x |
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| render（原 gg） | ✅ 可用 | 2D 渲染核心 |
+| gpu（原 wgpu） | ✅ 可用 | GPU HAL 层 |
+| ffi | ✅ 完成 | purego FFI 中间层 |
+| text | ✅ 可用 | 文本渲染 |
+| scene | ✅ 可用 | 场景图 |
 
 ---
 
-## 🎯 里程碑规划
+## 🎯 性能目标
 
-### 里程碑 1：核心渲染路径优化（第 1-3 周）
-**目标**：解决最核心的性能瓶颈
+### 当前性能（待测试）
+| 场景 | 当前 FPS | 目标 FPS | 差距 |
+|------|----------|----------|------|
+| 1000 个圆形动画 | ? | 60 | - |
+| 1000 个路径动画 | ? | 60 | - |
+| 渐变填充 | ? | 60 | - |
+| 文本渲染 | ? | 60 | - |
+| 混合场景 | ? | 60 | - |
 
-### 里程碑 2：内存和资源优化（第 4-5 周）
-**目标**：减少内存占用，提升资源复用
-
-### 里程碑 3：高级渲染特性（第 6-9 周）
-**目标**：实现 Skia 级别的渲染能力
-
-### 里程碑 4：验证和调优（第 10-11 周）
-**目标**：性能对标，质量验证
+### 对标 Skia
+| 场景 | Skia FPS | GPUI 目标 | 差距 |
+|------|----------|-----------|------|
+| 1000 圆形 | 60 | 60 | 0% |
+| 1000 路径 | 60 | 60 | 0% |
+| 渐变填充 | 60 | 60 | 0% |
+| 文本渲染 | 60 | 60 | 0% |
 
 ---
 
-## 📝 详细任务清单
+## 📝 优化任务清单
 
 ---
 
-### 【任务 1.1】路径缓存系统
+### 【任务 0】性能基准测试（前置任务）
+
+**优先级**：🔴 P0 - 最高
+
+**任务描述**：
+建立性能基准，量化当前性能，为后续优化提供对比依据。
+
+**实现要求**：
+
+1. **FPS 测量器**
+```go
+// render/benchmark_fps.go
+
+type FPSResult struct {
+    AverageFPS   float64
+    MinFPS       float64
+    MaxFPS       float64
+    P95FPS       float64
+    P99FPS       float64
+    TotalFrames  int
+    TotalTime    time.Duration
+    FrameTimes   []time.Duration
+}
+
+func MeasureFPS(duration time.Duration, renderFunc func(frame int)) FPSResult {
+    // 实现 FPS 测量
+}
+```
+
+2. **测试场景**
+```go
+// render/benchmark_scenes_test.go
+
+func BenchmarkSceneFPS(b *testing.B) {
+    scenes := []Scene{
+        SceneStaticCircles(100),
+        SceneStaticCircles(500),
+        SceneStaticCircles(1000),
+        SceneAnimatedCircles(100),
+        SceneAnimatedCircles(500),
+        SceneAnimatedCircles(1000),
+        SceneGradientFill(),
+        SceneTextRendering(50),
+        SceneTextRendering(200),
+        SceneComplexPath(10),
+        SceneComplexPath(50),
+        SceneMixed(),
+    }
+    
+    for _, scene := range scenes {
+        b.Run(scene.Name, func(b *testing.B) {
+            // 测量并报告 FPS
+        })
+    }
+}
+```
+
+3. **Skia 对比测试**
+```go
+// render/benchmark_skia_compare_test.go
+
+func TestCompareWithSkia(t *testing.T) {
+    // 运行 Skia Python 脚本
+    // 运行 GPUI 测试
+    // 生成对比报告
+}
+```
+
+**验收标准**：
+- [ ] FPS 测量器准确（误差 < 5%）
+- [ ] 覆盖所有主要渲染路径
+- [ ] 自动生成性能报告
+- [ ] 与 Skia 对比报告
+
+**测试用例**：
+```bash
+# 运行所有基准测试
+go test ./render/... -bench=BenchmarkSceneFPS -benchmem -count=3
+
+# 生成性能报告
+go test ./render/... -v -run=TestGenerateReport
+
+# 运行 Skia 对比
+go test ./render/... -v -run=TestCompareWithSkia
+```
+
+**依赖项**：无
+
+**预计工时**：3 天
+
+**负责人**：___________
+
+**状态**：⬜ 未开始 / 🔄 进行中 / ✅ 已完成
+
+---
+
+### 【任务 1】路径缓存系统
 
 **优先级**：🔴 P0 - 最高
 
@@ -65,6 +197,8 @@ gg 渲染库底层性能优化 - 对标 Skia
 
 1. **缓存键设计**
 ```go
+// render/path_cache.go
+
 type PathCacheKey struct {
     VerbHash   uint64   // 路径命令哈希
     CoordHash  uint64   // 坐标哈希
@@ -98,20 +232,19 @@ type PathCache struct {
 4. **集成点**
 - 在 `tryGPUFillWithMode()` 中调用缓存
 - 在 `tryGPUStrokeWithMode()` 中调用缓存
-- 在 `GPURenderSession` 中管理缓存生命周期
+- 在 GPU 会话中管理缓存生命周期
 
 **验收标准**：
 - [ ] 相同路径第二次渲染时，FPS 提升 50% 以上
-- [ ] 路径动画场景 FPS 从 25 提升到 40+
+- [ ] 路径动画场景 FPS 从 ? 提升到 40+
 - [ ] 内存占用合理（不超过 256MB）
 - [ ] 缓存命中率 > 80%（动画场景）
 - [ ] 无内存泄漏
 
 **测试用例**：
 ```go
-// 测试 1：静态路径缓存
 func TestPathCacheStatic(t *testing.T) {
-    ctx := gg.NewContext(800, 600)
+    ctx := render.NewContext(800, 600)
     path := createComplexPath()
     
     // 第一次渲染
@@ -129,22 +262,9 @@ func TestPathCacheStatic(t *testing.T) {
     // 验证第二次更快
     assert.Less(t, secondTime, firstTime/2)
 }
-
-// 测试 2：动画路径缓存
-func TestPathCacheAnimation(t *testing.T) {
-    ctx := gg.NewContext(800, 600)
-    
-    fps := measureFPS(func(frame int) {
-        path := createPathWithAnimation(float64(frame))
-        ctx.DrawPath(path)
-        ctx.Fill()
-    }, 100)
-    
-    assert.Greater(t, fps, 40.0) // 目标 40+ FPS
-}
 ```
 
-**依赖项**：无
+**依赖项**：任务 0
 
 **预计工时**：5 天
 
@@ -152,14 +272,9 @@ func TestPathCacheAnimation(t *testing.T) {
 
 **状态**：⬜ 未开始 / 🔄 进行中 / ✅ 已完成
 
-**问题记录**：
-| 日期 | 问题描述 | 解决方案 | 状态 |
-|------|----------|----------|------|
-|      |          |          |      |
-
 ---
 
-### 【任务 1.2】GPU 渐变支持
+### 【任务 2】GPU 渐变支持
 
 **优先级**：🔴 P0 - 最高
 
@@ -175,6 +290,8 @@ func TestPathCacheAnimation(t *testing.T) {
 
 1. **渐变纹理生成**
 ```go
+// render/gpu_gradient.go
+
 type GPUGradient struct {
     Texture  *Texture
     Type     GradientType  // Linear, Radial, Conic
@@ -183,7 +300,6 @@ type GPUGradient struct {
     Key      GradientKey
 }
 
-// 渐变纹理只生成一次
 func NewGPUGradient(grad Gradient) *GPUGradient {
     key := computeGradientKey(grad)
     
@@ -210,16 +326,14 @@ func NewGPUGradient(grad Gradient) *GPUGradient {
 
 2. **渐变着色器**
 ```glsl
-// 渐变 fragment shader
+// render/gpu/shaders/gradient.wgsl
+
 @group(0) @binding(0) var gradient_texture: texture_2d<f32>;
 @group(0) @binding(1) var gradient_sampler: sampler;
 
 @fragment
 fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-    // 根据渐变类型计算 UV
     let grad_uv = calculate_gradient_uv(uv, gradient_params);
-    
-    // 从纹理采样
     return textureSample(gradient_texture, gradient_sampler, grad_uv);
 }
 ```
@@ -229,14 +343,13 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
 var gradientCache = struct {
     sync.RWMutex
     cache map[GradientKey]*GPUGradient
-    size  int
 }{
     cache: make(map[GradientKey]*GPUGradient),
 }
 ```
 
 **验收标准**：
-- [ ] 渐变渲染 FPS 提升 100% 以上（从 30 到 60）
+- [ ] 渐变渲染 FPS 提升 100% 以上（从 ? 到 60）
 - [ ] 渐变质量与 CPU 渲染一致
 - [ ] 渐变纹理缓存命中率 > 90%
 - [ ] 支持线性、径向、锥形渐变
@@ -245,10 +358,10 @@ var gradientCache = struct {
 **测试用例**：
 ```go
 func TestGPULinearGradient(t *testing.T) {
-    ctx := gg.NewContext(800, 600)
-    grad := gg.NewLinearGradient(0, 0, 800, 600)
-    grad.AddColorStop(0, gg.Red)
-    grad.AddColorStop(1, gg.Blue)
+    ctx := render.NewContext(800, 600)
+    grad := render.NewLinearGradient(0, 0, 800, 600)
+    grad.AddColorStop(0, render.Red)
+    grad.AddColorStop(1, render.Blue)
     
     fps := measureFPS(func(frame int) {
         ctx.SetGradient(grad)
@@ -260,7 +373,7 @@ func TestGPULinearGradient(t *testing.T) {
 }
 ```
 
-**依赖项**：无
+**依赖项**：任务 0
 
 **预计工时**：5 天
 
@@ -270,7 +383,7 @@ func TestGPULinearGradient(t *testing.T) {
 
 ---
 
-### 【任务 1.3】批处理排序优化
+### 【任务 3】批处理排序优化
 
 **优先级**：🟡 P1 - 高
 
@@ -286,26 +399,24 @@ func TestGPULinearGradient(t *testing.T) {
 
 1. **操作排序**
 ```go
+// render/batch_sort.go
+
 type DrawOp struct {
     Type       OpType
     Material   MaterialID
     BlendMode  BlendMode
     ClipRect   Rectangle
     Priority   int
-    Data       interface{}
 }
 
 func sortDrawOps(ops []DrawOp) {
     sort.Slice(ops, func(i, j int) bool {
-        // 1. 先按材质排序（减少纹理切换）
         if ops[i].Material != ops[j].Material {
             return ops[i].Material < ops[j].Material
         }
-        // 2. 再按混合模式排序
         if ops[i].BlendMode != ops[j].BlendMode {
             return ops[i].BlendMode < ops[j].BlendMode
         }
-        // 3. 最后按裁剪区域排序
         return ops[i].ClipRect.Min.X < ops[j].ClipRect.Min.X
     })
 }
@@ -314,13 +425,8 @@ func sortDrawOps(ops []DrawOp) {
 2. **延迟排序**
 ```go
 func (rc *GPURenderContext) Flush(target GPURenderTarget) error {
-    // 收集所有操作
     ops := rc.collectAllOps()
-    
-    // 排序优化
     sortDrawOps(ops)
-    
-    // 执行优化后的操作
     for _, op := range ops {
         rc.executeOp(op)
     }
@@ -331,7 +437,6 @@ func (rc *GPURenderContext) Flush(target GPURenderTarget) error {
 ```go
 func mergeAdjacentOps(ops []DrawOp) []DrawOp {
     merged := make([]DrawOp, 0, len(ops))
-    
     for _, op := range ops {
         if len(merged) > 0 && canMerge(merged[len(merged)-1], op) {
             merged[len(merged)-1] = mergeOps(merged[len(merged)-1], op)
@@ -339,7 +444,6 @@ func mergeAdjacentOps(ops []DrawOp) []DrawOp {
             merged = append(merged, op)
         }
     }
-    
     return merged
 }
 ```
@@ -356,22 +460,19 @@ func mergeAdjacentOps(ops []DrawOp) []DrawOp {
 
 ---
 
-### 【任务 2.1】纹理图集优化
+### 【任务 4】纹理图集优化
 
 **优先级**：🟡 P1 - 高
 
 **任务描述**：
 优化纹理图集管理，减少纹理切换。
 
-**技术背景**：
-- 每次纹理切换都有 GPU 开销
-- 小纹理（字形、图标）应该打包到图集
-- Skia 使用 GrTextureAtlas 管理
-
 **实现要求**：
 
 1. **图集管理器**
 ```go
+// render/texture_atlas.go
+
 type TextureAtlas struct {
     texture    *Texture
     packer     *BinPacker
@@ -382,17 +483,13 @@ type TextureAtlas struct {
 }
 
 func (at *TextureAtlas) Add(key AtlasKey, data []byte, size image.Point) (Rectangle, error) {
-    // 尝试打包到图集
     region, err := at.packer.Pack(size)
     if err != nil {
-        return Rectangle{}, err // 图集已满
+        return Rectangle{}, err
     }
-    
-    // 上传数据
     at.texture.Upload(region, data)
     at.regions[key] = region
     at.dirty = true
-    
     return region, nil
 }
 ```
@@ -400,9 +497,9 @@ func (at *TextureAtlas) Add(key AtlasKey, data []byte, size image.Point) (Rectan
 2. **多图集支持**
 ```go
 type AtlasManager struct {
-    glyphAtlas    *TextureAtlas  // 字形图集
-    iconAtlas     *TextureAtlas  // 图标图集
-    gradientAtlas *TextureAtlas  // 渐变图集
+    glyphAtlas    *TextureAtlas
+    iconAtlas     *TextureAtlas
+    gradientAtlas *TextureAtlas
 }
 ```
 
@@ -418,7 +515,7 @@ type AtlasManager struct {
 
 ---
 
-### 【任务 2.2】资源缓存 LRU
+### 【任务 5】资源缓存 LRU
 
 **优先级**：🟡 P1 - 高
 
@@ -429,6 +526,8 @@ type AtlasManager struct {
 
 1. **LRU 缓存**
 ```go
+// render/lru_cache.go
+
 type LRUCache struct {
     capacity int
     size     int
@@ -454,7 +553,6 @@ type ResourceCache struct {
     pathCache     *LRUCache
     gradientCache *LRUCache
     textureCache  *LRUCache
-    
     totalBudget   int
     currentUsage  int
 }
@@ -472,7 +570,7 @@ type ResourceCache struct {
 
 ---
 
-### 【任务 3.1】并行光栅化
+### 【任务 6】并行光栅化
 
 **优先级**：🟡 P1 - 高
 
@@ -488,6 +586,8 @@ type ResourceCache struct {
 
 1. **并行 tessellate**
 ```go
+// render/parallel_raster.go
+
 func (r *Rasterizer) TessellateParallel(paths []Path) []TessellatedMesh {
     numWorkers := runtime.NumCPU()
     results := make([]TessellatedMesh, len(paths))
@@ -502,7 +602,6 @@ func (r *Rasterizer) TessellateParallel(paths []Path) []TessellatedMesh {
         go func(idx int, p Path) {
             defer wg.Done()
             defer func() { <-semaphore }()
-            
             results[idx] = r.tessellatePath(p)
         }(i, path)
     }
@@ -518,7 +617,6 @@ func (r *Rasterizer) RasterizeParallel(paths []Path, bounds Rectangle) []Mask {
     numWorkers := runtime.NumCPU()
     masks := make([]Mask, len(paths))
     
-    // 分配工作
     chunkSize := len(paths) / numWorkers
     var wg sync.WaitGroup
     
@@ -555,7 +653,7 @@ func (r *Rasterizer) RasterizeParallel(paths []Path, bounds Rectangle) []Mask {
 
 ---
 
-### 【任务 3.2】亚像素精度提升
+### 【任务 7】亚像素精度提升
 
 **优先级**：🟢 P2 - 中
 
@@ -566,6 +664,8 @@ func (r *Rasterizer) RasterizeParallel(paths []Path, bounds Rectangle) []Mask {
 
 1. **修改 aaShift 常量**
 ```go
+// render/software.go
+
 // 当前
 const aaShift = 2  // 4x 子像素
 
@@ -576,11 +676,9 @@ const aaShift = 3  // 8x 子像素
 2. **更新相关计算**
 ```go
 func (r *Rasterizer) rasterizePath(path Path) Mask {
-    // 使用 8x 子像素
     shift := aaShift
     scale := 1 << shift
     
-    // 坐标缩放
     scaledPath := path.Transform(Matrix{
         A: float64(scale), D: float64(scale),
     })
@@ -600,87 +698,57 @@ func (r *Rasterizer) rasterizePath(path Path) Mask {
 
 ---
 
-### 【任务 4.1】基准测试套件
-
-**优先级**：🔴 P0 - 最高
-
-**任务描述**：
-创建完整的基准测试套件，用于量化优化效果。
-
-**测试场景**：
-
-1. **基础图形测试**
-```go
-func BenchmarkCircles(b *testing.B) {
-    ctx := gg.NewContext(800, 600)
-    
-    b.Run("100", func(b *testing.B) {
-        for i := 0; i < b.N; i++ {
-            for j := 0; j < 100; j++ {
-                ctx.DrawCircle(rand.Float64()*800, rand.Float64()*600, 20)
-                ctx.Fill()
-            }
-        }
-    })
-}
-```
-
-2. **动画测试**
-3. **渐变测试**
-4. **文本测试**
-5. **路径测试**
-6. **混合场景测试**
-
-**验收标准**：
-- [ ] 覆盖所有主要渲染路径
-- [ ] 测试结果可复现
-- [ ] 自动生成报告
-
-**依赖项**：无
-
-**预计工时**：3 天
-
----
-
 ## 🧪 测试计划
 
 ### 单元测试
 - **覆盖率目标**：> 80%
 - **测试范围**：路径、矩阵、颜色、变换等核心组件
 - **运行频率**：每次 PR 必须通过
+- **命令**：`go test ./render/... -v -short`
 
 ### 视觉回归测试
 - **测试用例**：45 个基准测试用例
 - **像素差异容忍度**：< 1%
 - **运行频率**：每次提交自动运行
+- **命令**：`go test ./render/... -v -run TestVisualRegression`
 
 ### 性能基准测试
 - **运行频率**：每个优化前后都要运行
 - **报告格式**：自动生成 FPS 对比报告
 - **告警阈值**：FPS 下降 > 10%
+- **命令**：`go test ./render/... -bench=. -benchmem -count=3`
 
 ### 压力测试
 - **对象数量**：10000+ 对象渲染
 - **帧数**：10000 帧内存稳定性
 - **边界测试**：快速调整大小测试
+- **命令**：`go test ./render/... -v -run TestStress -timeout 30m`
 
 ### 兼容性测试
 - **GPU 测试**：Intel、NVIDIA、AMD
-- **后端测试**：Vulkan、Metal、DX12
+- **后端测试**：Vulkan、GLES、Software
 - **分辨率测试**：720p - 4K
+- **命令**：`go test ./render/... -v -run TestCompatibility`
 
 ---
 
 ## 🎯 性能基准目标
 
-### 里程碑 1 完成后
+### 里程碑 1：基准测试建立（第 1 周）
+| 任务 | 目标 | 状态 |
+|------|------|------|
+| 0.1 FPS 测量器 | 准确测量 FPS | ⬜ |
+| 0.2 测试场景 | 覆盖所有渲染路径 | ⬜ |
+| 0.3 Skia 对比 | 生成对比报告 | ⬜ |
+
+### 里程碑 2：核心路径优化（第 2-4 周）
 | 场景 | 目标 FPS | 当前 FPS | 提升 |
 |------|----------|----------|------|
-| 1000 圆形动画 | 60 | 38 | 58% |
-| 1000 路径动画 | 55 | 25 | 120% |
-| 渐变填充 | 60 | 30 | 100% |
+| 1000 圆形动画 | 60 | ? | - |
+| 1000 路径动画 | 55 | ? | - |
+| 渐变填充 | 60 | ? | - |
 
-### 里程碑 2 完成后
+### 里程碑 3：内存和资源优化（第 5-6 周）
 | 场景 | 目标 FPS | 当前 FPS | 提升 |
 |------|----------|----------|------|
 | 1000 圆形动画 | 60 | - | - |
@@ -688,15 +756,15 @@ func BenchmarkCircles(b *testing.B) {
 | 渐变填充 | 60 | - | - |
 | 内存占用 | < 200MB | - | - |
 
-### 里程碑 3 完成后
+### 里程碑 4：高级渲染特性（第 7-10 周）
 | 场景 | 目标 FPS | 当前 FPS | 提升 |
 |------|----------|----------|------|
-| 复杂 UI 场景 | 60 | 20 | 200% |
-| 混合渲染 | 60 | 25 | 140% |
+| 复杂 UI 场景 | 60 | ? | - |
+| 混合渲染 | 60 | ? | - |
 
 ### 最终目标（对标 Skia）
-| 场景 | Skia FPS | gg 目标 | 差距 |
-|------|----------|---------|------|
+| 场景 | Skia FPS | GPUI 目标 | 差距 |
+|------|----------|-----------|------|
 | 1000 圆形 | 60 | 60 | 0% |
 | 1000 路径 | 60 | 60 | 0% |
 | 渐变填充 | 60 | 60 | 0% |
@@ -733,21 +801,21 @@ func BenchmarkCircles(b *testing.B) {
 
 ### 硬件资源
 - **测试 GPU**：
-  - Intel HD Graphics（集成显卡）
+  - Intel HD Graphics（集成显卡）✅ 已有
   - NVIDIA GTX 1060+（独立显卡）
   - AMD Radeon（可选）
 - **测试机器**：
-  - Linux（主要开发）
+  - Linux（主要开发）✅ 已有
   - Windows（兼容性测试）
   - macOS（Metal 后端）
 
 ### 软件资源
 - **开发工具**：
-  - Go 1.21+
-  - Vulkan SDK
+  - Go 1.25+ ✅ 已有
+  - Vulkan SDK ✅ 已有
   - RenderDoc（GPU 调试）
 - **测试工具**：
-  - pprof（性能分析）
+  - pprof（性能分析）✅ 已有
   - valgrind（内存检查）
   - 自动化测试框架
 
@@ -758,15 +826,21 @@ func BenchmarkCircles(b *testing.B) {
 - **文档**：0.5 人
 
 ### 时间预算
-- **总工期**：11 周
+- **总工期**：10 周
 - **缓冲时间**：2 周（20%）
-- **总预算**：13 周
+- **总预算**：12 周
 
 ---
 
 ## ✅ 验收标准
 
-### 里程碑 1 验收
+### 里程碑 1 验收（基准测试）
+- [ ] FPS 测量器准确（误差 < 5%）
+- [ ] 覆盖所有主要渲染路径
+- [ ] 自动生成性能报告
+- [ ] 与 Skia 对比报告
+
+### 里程碑 2 验收（核心优化）
 - [ ] 路径缓存命中率 > 80%
 - [ ] 1000 圆形 FPS ≥ 60
 - [ ] 1000 路径 FPS ≥ 55
@@ -775,13 +849,13 @@ func BenchmarkCircles(b *testing.B) {
 - [ ] 无内存泄漏
 - [ ] 单元测试覆盖率 > 80%
 
-### 里程碑 2 验收
+### 里程碑 3 验收（资源优化）
 - [ ] 纹理图集利用率 > 80%
 - [ ] 资源缓存命中率 > 85%
 - [ ] 内存占用 < 250MB
 - [ ] 所有基准测试通过
 
-### 里程碑 3 验收
+### 里程碑 4 验收（高级特性）
 - [ ] 并行光栅化效率 > 70%
 - [ ] 亚像素精度提升可见
 - [ ] 复杂场景 FPS ≥ 60
@@ -921,31 +995,31 @@ func BenchmarkCircles(b *testing.B) {
 
 ## 📊 进度追踪表
 
-### 里程碑 1：核心渲染路径优化
+### 里程碑 1：基准测试建立
 | 任务 | 负责人 | 计划开始 | 计划结束 | 实际开始 | 实际结束 | 状态 | 备注 |
 |------|--------|----------|----------|----------|----------|------|------|
-| 1.1 路径缓存 |  | W1D1 | W1D5 |  |  | ⬜ |  |
-| 1.2 GPU 渐变 |  | W2D1 | W2D5 |  |  | ⬜ |  |
-| 1.3 批处理排序 |  | W3D1 | W3D3 |  |  | ⬜ |  |
+| 0.1 FPS 测量器 |  | W1D1 | W1D2 |  |  | ⬜ |  |
+| 0.2 测试场景 |  | W1D2 | W1D3 |  |  | ⬜ |  |
+| 0.3 Skia 对比 |  | W1D3 | W1D5 |  |  | ⬜ |  |
 
-### 里程碑 2：内存和资源优化
+### 里程碑 2：核心路径优化
 | 任务 | 负责人 | 计划开始 | 计划结束 | 实际开始 | 实际结束 | 状态 | 备注 |
 |------|--------|----------|----------|----------|----------|------|------|
-| 2.1 纹理图集 |  | W4D1 | W4D4 |  |  | ⬜ |  |
-| 2.2 资源缓存 LRU |  | W4D5 | W5D3 |  |  | ⬜ |  |
+| 1 路径缓存 |  | W2D1 | W2D5 |  |  | ⬜ |  |
+| 2 GPU 渐变 |  | W3D1 | W3D5 |  |  | ⬜ |  |
+| 3 批处理排序 |  | W4D1 | W4D3 |  |  | ⬜ |  |
 
-### 里程碑 3：高级渲染特性
+### 里程碑 3：内存和资源优化
 | 任务 | 负责人 | 计划开始 | 计划结束 | 实际开始 | 实际结束 | 状态 | 备注 |
 |------|--------|----------|----------|----------|----------|------|------|
-| 3.1 并行光栅化 |  | W6D1 | W6D5 |  |  | ⬜ |  |
-| 3.2 亚像素精度 |  | W7D1 | W7D3 |  |  | ⬜ |  |
+| 4 纹理图集 |  | W5D1 | W5D4 |  |  | ⬜ |  |
+| 5 资源缓存 LRU |  | W5D5 | W6D3 |  |  | ⬜ |  |
 
-### 里程碑 4：验证和调优
+### 里程碑 4：高级渲染特性
 | 任务 | 负责人 | 计划开始 | 计划结束 | 实际开始 | 实际结束 | 状态 | 备注 |
 |------|--------|----------|----------|----------|----------|------|------|
-| 4.1 基准测试 |  | W10D1 | W10D3 |  |  | ⬜ |  |
-| 4.2 性能调优 |  | W10D4 | W11D3 |  |  | ⬜ |  |
-| 4.3 文档完善 |  | W11D4 | W11D5 |  |  | ⬜ |  |
+| 6 并行光栅化 |  | W7D1 | W7D5 |  |  | ⬜ |  |
+| 7 亚像素精度 |  | W8D1 | W8D3 |  |  | ⬜ |  |
 
 ---
 
@@ -955,8 +1029,7 @@ func BenchmarkCircles(b *testing.B) {
 
 | 日期 | 问题描述 | 影响范围 | 优先级 | 解决方案 | 状态 |
 |------|----------|----------|--------|----------|------|
-| 2026-07-13 | ShaderModule.irModule 内存泄漏 | 所有场景 | 🔴 高 | 添加 m.irModule = nil | ✅ 已修复 |
-|      |  |  |  |  |  |
+|  |  |  |  |  |  |
 
 ### 补充需求
 
@@ -968,7 +1041,6 @@ func BenchmarkCircles(b *testing.B) {
 
 | 日期 | 决策 | 原因 | 影响 |
 |------|------|------|------|
-| 2026-07-13 | 选择路径缓存作为第一个优化 | 通用性最强，收益最大 | 所有场景 |
 |  |  |  |  |
 
 ---
@@ -986,8 +1058,8 @@ func BenchmarkCircles(b *testing.B) {
 - "Fast GPU Path Rendering" - NVIDIA 路径渲染优化
 
 ### 内部文档
-- `internal/gpu/README.md` - GPU 架构说明
-- `docs/ARCHITECTURE.md` - 整体架构
+- `TASK_PLAN.md` - 已有任务计划（迁移和 FFI 替换）
+- `render/internal/` - 内部实现
 
 ---
 
@@ -997,6 +1069,7 @@ func BenchmarkCircles(b *testing.B) {
 |------|------|----------|------|
 | 2026-07-13 | 1.0 | 初始版本 | Claude |
 | 2026-07-13 | 2.0 | 补充测试计划、性能目标、风险评估、资源需求、验收标准、监控策略、文档计划、发布计划、代码审查、沟通计划 | Claude |
+| 2026-07-13 | 3.0 | 根据 gpui 库实际情况重写，更新项目背景、库结构、依赖关系 | Claude |
 |  |  |  |  |
 
 ---
