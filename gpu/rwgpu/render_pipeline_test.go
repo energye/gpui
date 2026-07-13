@@ -1,0 +1,289 @@
+package wgpu
+
+import (
+	"testing"
+
+	"github.com/energye/gpui/gpu/types"
+)
+
+func TestCreateRenderPipelineSimple(t *testing.T) {
+	inst, err := CreateInstance(nil)
+	if err != nil {
+		t.Fatalf("CreateInstance failed: %v", err)
+	}
+	defer inst.Release()
+
+	adapter, err := inst.RequestAdapter(nil)
+	if err != nil {
+		t.Fatalf("RequestAdapter failed: %v", err)
+	}
+	defer adapter.Release()
+
+	device, err := adapter.RequestDevice(nil)
+	if err != nil {
+		t.Fatalf("RequestDevice failed: %v", err)
+	}
+	defer device.Release()
+
+	shaderCode := `
+@vertex
+fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 3>(
+        vec2<f32>(0.0, 0.5),
+        vec2<f32>(-0.5, -0.5),
+        vec2<f32>(0.5, -0.5)
+    );
+    return vec4<f32>(pos[idx], 0.0, 1.0);
+}
+
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+}
+`
+	shader, err := device.CreateShaderModuleWGSL(shaderCode)
+	if err != nil {
+		t.Fatalf("CreateShaderModuleWGSL: %v", err)
+	}
+	defer shader.Release()
+
+	t.Log("Creating simple render pipeline...")
+	pipeline, err := device.CreateRenderPipelineSimple(
+		nil,
+		shader, "vs_main",
+		shader, "fs_main",
+		types.TextureFormatBGRA8Unorm,
+	)
+	if err != nil {
+		t.Fatalf("CreateRenderPipelineSimple: %v", err)
+	}
+	defer pipeline.Release()
+
+	if pipeline.Handle() == 0 {
+		t.Fatal("RenderPipeline handle is zero")
+	}
+
+	t.Logf("RenderPipeline created: handle=%#x", pipeline.Handle())
+}
+
+func TestCreateRenderPipelineWithDescriptor(t *testing.T) {
+	inst, err := CreateInstance(nil)
+	if err != nil {
+		t.Fatalf("CreateInstance failed: %v", err)
+	}
+	defer inst.Release()
+
+	adapter, err := inst.RequestAdapter(nil)
+	if err != nil {
+		t.Fatalf("RequestAdapter failed: %v", err)
+	}
+	defer adapter.Release()
+
+	device, err := adapter.RequestDevice(nil)
+	if err != nil {
+		t.Fatalf("RequestDevice failed: %v", err)
+	}
+	defer device.Release()
+
+	shaderCode := `
+@vertex
+fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 3>(
+        vec2<f32>(0.0, 0.5),
+        vec2<f32>(-0.5, -0.5),
+        vec2<f32>(0.5, -0.5)
+    );
+    return vec4<f32>(pos[idx], 0.0, 1.0);
+}
+
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+}
+`
+	shader, err := device.CreateShaderModuleWGSL(shaderCode)
+	if err != nil {
+		t.Fatalf("CreateShaderModuleWGSL: %v", err)
+	}
+	defer shader.Release()
+
+	t.Log("Creating render pipeline with descriptor...")
+	pipeline, err := device.CreateRenderPipeline(&RenderPipelineDescriptor{
+		Vertex: VertexState{
+			Module:     shader,
+			EntryPoint: "vs_main",
+		},
+		Fragment: &FragmentState{
+			Module:     shader,
+			EntryPoint: "fs_main",
+			Targets: []ColorTargetState{{
+				Format:    types.TextureFormatBGRA8Unorm,
+				WriteMask: types.ColorWriteMaskAll,
+			}},
+		},
+		Primitive: PrimitiveState{
+			Topology:  types.PrimitiveTopologyTriangleList,
+			FrontFace: types.FrontFaceCCW,
+			CullMode:  types.CullModeNone,
+		},
+		Multisample: MultisampleState{
+			Count: 1,
+			Mask:  0xFFFFFFFF,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateRenderPipeline: %v", err)
+	}
+	defer pipeline.Release()
+
+	t.Logf("RenderPipeline with descriptor created: handle=%#x", pipeline.Handle())
+}
+
+func TestRenderPipelineGetBindGroupLayout(t *testing.T) {
+	inst, err := CreateInstance(nil)
+	if err != nil {
+		t.Fatalf("CreateInstance failed: %v", err)
+	}
+	defer inst.Release()
+
+	adapter, err := inst.RequestAdapter(nil)
+	if err != nil {
+		t.Fatalf("RequestAdapter failed: %v", err)
+	}
+	defer adapter.Release()
+
+	device, err := adapter.RequestDevice(nil)
+	if err != nil {
+		t.Fatalf("RequestDevice failed: %v", err)
+	}
+	defer device.Release()
+
+	// Shader with uniform binding
+	shaderCode := `
+struct Uniforms {
+    color: vec4<f32>,
+};
+
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+@vertex
+fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 3>(
+        vec2<f32>(0.0, 0.5),
+        vec2<f32>(-0.5, -0.5),
+        vec2<f32>(0.5, -0.5)
+    );
+    return vec4<f32>(pos[idx], 0.0, 1.0);
+}
+
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+    return uniforms.color;
+}
+`
+	shader, err := device.CreateShaderModuleWGSL(shaderCode)
+	if err != nil {
+		t.Fatalf("CreateShaderModuleWGSL: %v", err)
+	}
+	defer shader.Release()
+
+	pipeline, err := device.CreateRenderPipelineSimple(
+		nil,
+		shader, "vs_main",
+		shader, "fs_main",
+		types.TextureFormatBGRA8Unorm,
+	)
+	if err != nil {
+		t.Fatalf("CreateRenderPipelineSimple: %v", err)
+	}
+	defer pipeline.Release()
+
+	t.Log("Getting bind group layout from render pipeline...")
+	layout := pipeline.GetBindGroupLayout(0)
+	if layout == nil {
+		t.Fatal("GetBindGroupLayout returned nil")
+	}
+	defer layout.Release()
+
+	if layout.Handle() == 0 {
+		t.Fatal("BindGroupLayout handle is zero")
+	}
+
+	t.Logf("BindGroupLayout from render pipeline: handle=%#x", layout.Handle())
+}
+
+func TestRenderPipelineWithDepth(t *testing.T) {
+	inst, err := CreateInstance(nil)
+	if err != nil {
+		t.Fatalf("CreateInstance failed: %v", err)
+	}
+	defer inst.Release()
+
+	adapter, err := inst.RequestAdapter(nil)
+	if err != nil {
+		t.Fatalf("RequestAdapter failed: %v", err)
+	}
+	defer adapter.Release()
+
+	device, err := adapter.RequestDevice(nil)
+	if err != nil {
+		t.Fatalf("RequestDevice failed: %v", err)
+	}
+	defer device.Release()
+
+	shaderCode := `
+@vertex
+fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 3>(
+        vec2<f32>(0.0, 0.5),
+        vec2<f32>(-0.5, -0.5),
+        vec2<f32>(0.5, -0.5)
+    );
+    return vec4<f32>(pos[idx], 0.5, 1.0); // z = 0.5
+}
+
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+}
+`
+	shader, err := device.CreateShaderModuleWGSL(shaderCode)
+	if err != nil {
+		t.Fatalf("CreateShaderModuleWGSL: %v", err)
+	}
+	defer shader.Release()
+
+	t.Log("Creating render pipeline with depth testing...")
+	pipeline, err := device.CreateRenderPipeline(&RenderPipelineDescriptor{
+		Vertex: VertexState{
+			Module:     shader,
+			EntryPoint: "vs_main",
+		},
+		Fragment: &FragmentState{
+			Module:     shader,
+			EntryPoint: "fs_main",
+			Targets: []ColorTargetState{{
+				Format:    types.TextureFormatBGRA8Unorm,
+				WriteMask: types.ColorWriteMaskAll,
+			}},
+		},
+		DepthStencil: &DepthStencilState{
+			Format:            types.TextureFormatDepth24Plus,
+			DepthWriteEnabled: true,
+			DepthCompare:      types.CompareFunctionLess,
+		},
+		Primitive: PrimitiveState{
+			Topology: types.PrimitiveTopologyTriangleList,
+		},
+		Multisample: MultisampleState{
+			Count: 1,
+			Mask:  0xFFFFFFFF,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateRenderPipeline with depth: %v", err)
+	}
+	defer pipeline.Release()
+
+	t.Logf("RenderPipeline with depth: handle=%#x", pipeline.Handle())
+}

@@ -39,11 +39,12 @@ type Config struct {
 }
 
 type Mapping struct {
-	Source        string `json:"source"`
-	Target        string `json:"target"`
-	Module        string `json:"module"`
-	RenamePackage string `json:"rename_package,omitempty"`
-	Alias         string `json:"alias,omitempty"`
+	Source             string `json:"source"`
+	Target             string `json:"target"`
+	Module             string `json:"module"`
+	RenamePackage      string `json:"rename_package,omitempty"`
+	Alias              string `json:"alias,omitempty"`
+	PreserveUnresolved bool   `json:"preserve_unresolved,omitempty"`
 }
 
 func main() {
@@ -595,6 +596,9 @@ func pruneUnresolvedProductionFiles(targetDir string, mappings []Mapping, target
 
 		var batch []string
 		for _, m := range mappings {
+			if m.PreserveUnresolved {
+				continue
+			}
 			root := filepath.Join(targetDir, m.Target)
 			if _, err := os.Stat(root); os.IsNotExist(err) {
 				continue

@@ -1,6 +1,6 @@
 # GPUI 渲染库底层优化开发计划
 
-> 版本：3.0 | 更新日期：2026-07-13 | 状态：待启动
+> 版本：3.1 | 更新日期：2026-07-13 | 状态：待启动
 > 项目：github.com/energye/gpui
 > 文档位置：/home/yanghy/app/projects/gogpu/gpui/docs/OPTIMIZATION_PLAN.md
 
@@ -57,6 +57,182 @@ gpui/
 | ffi | ✅ 完成 | purego FFI 中间层 |
 | text | ✅ 可用 | 文本渲染 |
 | scene | ✅ 可用 | 场景图 |
+
+---
+
+## 🚦 新人 / AI 开工指南
+
+本节是执行入口。新人或 AI 开发代理必须先读本节，再领取后续优化任务。
+
+### 开工前必读代码
+
+| 主题 | 必读文件 | 目的 |
+|------|----------|------|
+| Context 绘制入口 | `render/context.go` | 理解 `Fill()` / `Stroke()`、brush、path、GPU fallback |
+| GPU 加速接口 | `render/accelerator.go` | 理解 `Accelerator`、`GPURenderContextProvider`、`Flush` 合约 |
+| GPU 渲染上下文 | `render/internal/gpu/gpu_render_context.go` | 理解 GPU op 收集、flush、clip、pipeline 执行 |
+| 软件光栅化 | `render/software.go`、`render/internal/raster/` | 理解 CPU fallback、AA、edge builder、filler |
+| 渐变 API | `render/gradient_*.go`、`render/brush.go` | 理解当前实际 API：`NewLinearGradientBrush`、`SetFillBrush` |
+| 场景图 | `render/scene/` | 理解批量绘制和并行遍历的现有入口 |
+
+### 实际调用链
+
+```text
+render.Context
+  ├─ Fill() / Stroke()
+  │   ├─ tryGPUFillWithMode() / tryGPUStrokeWithMode()
+  │   │   └─ Accelerator / GPURenderContextProvider
+  │   │       └─ render/internal/gpu.GPURenderContext
+  │   │           └─ Flush(target)
+  │   └─ SoftwareRenderer fallback
+  └─ Brush / Pattern / Path / Transform state
+```
+
+### 本地验证命令
+
+```bash
+# 快速单元测试
+go test ./render/... -short
+
+# 渲染核心测试
+go test ./render/... -run 'Test.*(Context|Gradient|Raster|Accelerator)'
+
+# 性能基准（任务 0 完成后必须稳定可用）
+go test ./render/... -bench=BenchmarkSceneFPS -benchmem -count=3
+```
+
+如果 GPU 环境不可用，任务实现必须保留 CPU fallback，并在 PR/提交说明中写明哪些测试因本机 GPU 环境未运行。
+
+### AI 开发代理执行规则
+
+1. 不要直接照抄本文伪代码；先用 `rg` 对照实际类型、函数名和调用链。
+2. 每个任务必须先提交基线数据，再提交优化结果；没有基线时不得声称性能提升。
+3. 优化必须保持渲染语义：alpha 混合、clip、transform、fill rule、绘制顺序不得被无证明地改变。
+4. 缓存类任务必须定义 key、生命周期、内存预算、失效条件、并发策略和统计指标。
+5. 新增 public API 前必须说明必要性；优先使用现有 `Context`、`Brush`、`Accelerator`、`GPURenderContext` 模型。
+6. 每个任务至少包含：单元测试、视觉/像素一致性测试或性能 benchmark 中的一类；高风险任务必须同时包含正确性和性能测试。
+7. 不要修改与任务无关的格式、命名、目录结构或历史未跟踪文件。
+
+### 并行开发边界
+
+| 任务 | 是否适合新人直接做 | 并行建议 | 注意事项 |
+|------|--------------------|----------|----------|
+| 任务 0 性能基准 | ✅ 适合 | 第一个启动，其他任务依赖它的报告格式 | 不改渲染行为，只加测试和报告工具 |
+| 任务 1 路径缓存 | ⚠️ 需熟悉 GPU 调用链 | 等任务 0 有基线后启动 | 不能和任务 5 各自实现重复 LRU |
+| 任务 2 GPU 渐变 | ⚠️ 需熟悉 brush + shader pipeline | 可和任务 1 并行，但共享资源预算接口 | 示例必须使用实际 `Brush` API |
+| 任务 3 批处理排序 | ❌ 不建议新人独立做 | 需先做渲染语义审计 | 透明混合、clip、depth/order 会影响正确性 |
+| 任务 4 纹理图集 | ⚠️ 需熟悉纹理生命周期 | 可在任务 5 cache 接口确定后做 | glyph/icon/gradient atlas 不要重复造轮子 |
+| 任务 5 资源缓存 LRU | ✅ 可拆给有 Go 经验新人 | 应先定义统一接口，供任务 1/2/4 使用 | 重点是测试淘汰、预算、并发 |
+| 任务 6 并行光栅化 | ⚠️ 需熟悉 `internal/parallel` | 可独立实验，但先保持 CPU 输出一致 | 必须跑 race/一致性测试 |
+| 任务 7 亚像素精度 | ❌ 暂不建议直接做 | 先分析 overflow 和质量收益 | 当前实现不是 `const aaShift`，而是 `NewEdgeBuilder(2)` |
+
+### 可直接派发任务卡模板
+
+每个具体任务必须补成以下格式后再交给新人或 AI：
+
+```md
+#### Task X.Y 标题
+
+目标：
+- 一句话说明要交付的可运行结果。
+
+先读：
+- 相关源码文件列表。
+
+修改范围：
+- 允许新增/修改的文件。
+
+禁止修改：
+- 与任务无关的模块或 public API。
+
+实现要点：
+- 关键数据结构、调用点、错误处理、fallback、并发/缓存策略。
+
+验证：
+- 必跑命令。
+- 需要保存或输出的报告。
+
+完成标准：
+- 可客观检查的正确性、性能、内存、兼容性指标。
+```
+
+### 第一批推荐派发任务
+
+#### Task 0.1 FPS 测量器
+
+目标：
+- 新增可复用 FPS / frame time 测量工具，输出 average/min/max/p95/p99。
+
+先读：
+- `render/context.go`
+- `render/software.go`
+- `render/examples/`
+
+修改范围：
+- `render/benchmark_fps_test.go`
+- `render/benchmark_scenes_test.go`
+- 如需共享给非测试代码，先放在 `render/internal/benchutil/`，不要直接增加 public API。
+
+验证：
+```bash
+go test ./render/... -run TestFPSMeasureSmoke
+go test ./render/... -bench=BenchmarkSceneFPS -benchmem -count=3
+```
+
+完成标准：
+- 固定场景能输出 frame time 分布。
+- 报告包含分辨率、对象数量、backend、CPU/GPU 基本信息。
+- 同一机器连续 3 次波动可解释，报告格式稳定。
+
+#### Task 5.1 通用 LRU 缓存
+
+目标：
+- 提供可被 path、gradient、texture 共用的预算型 LRU cache。
+
+先读：
+- `render/internal/`
+- `render/text/glyph_mask_atlas.go`
+- `render/internal/gpu/gpu_render_context.go`
+
+修改范围：
+- 优先新增 `render/internal/cache/`，除非调用点证明必须放到 public `render` 包。
+
+验证：
+```bash
+go test ./render/internal/... -run Test.*LRU
+go test ./render/... -short
+```
+
+完成标准：
+- 支持条目数预算和字节预算。
+- 支持命中、未命中、淘汰统计。
+- 并发安全策略明确，有测试覆盖。
+
+#### Task 1.1 路径缓存设计草案
+
+目标：
+- 在不改变渲染行为的前提下，提交路径缓存 key、生命周期和集成点设计，并用测试验证 key 稳定性。
+
+先读：
+- `render/path.go`
+- `render/context.go`
+- `render/internal/gpu/gpu_render_context.go`
+- `render/internal/gpu/render_session.go`
+
+修改范围：
+- `render/internal/cache/` 或 `render/internal/gpu/` 内部实验文件。
+- 不直接改 public `Path` API，除非先写设计说明。
+
+验证：
+```bash
+go test ./render/... -run Test.*Path.*Cache
+go test ./render/... -short
+```
+
+完成标准：
+- 相同 path + transform 产生稳定 key。
+- path 内容变化会失效。
+- 明确 CPU tessellation cache 和 GPU buffer cache 是否分层。
 
 ---
 
@@ -250,13 +426,13 @@ func TestPathCacheStatic(t *testing.T) {
     // 第一次渲染
     start := time.Now()
     ctx.DrawPath(path)
-    ctx.Fill()
+    require.NoError(t, ctx.Fill())
     firstTime := time.Since(start)
     
     // 第二次渲染（应该命中缓存）
     start = time.Now()
     ctx.DrawPath(path)
-    ctx.Fill()
+    require.NoError(t, ctx.Fill())
     secondTime := time.Since(start)
     
     // 验证第二次更快
@@ -359,14 +535,14 @@ var gradientCache = struct {
 ```go
 func TestGPULinearGradient(t *testing.T) {
     ctx := render.NewContext(800, 600)
-    grad := render.NewLinearGradient(0, 0, 800, 600)
-    grad.AddColorStop(0, render.Red)
-    grad.AddColorStop(1, render.Blue)
+    grad := render.NewLinearGradientBrush(0, 0, 800, 600).
+        AddColorStop(0, render.Red).
+        AddColorStop(1, render.Blue)
     
     fps := measureFPS(func(frame int) {
-        ctx.SetGradient(grad)
+        ctx.SetFillBrush(grad)
         ctx.DrawRectangle(0, 0, 800, 600)
-        ctx.Fill()
+        _ = ctx.Fill()
     }, 100)
     
     assert.Greater(t, fps, 55.0)
@@ -662,29 +838,23 @@ func (r *Rasterizer) RasterizeParallel(paths []Path, bounds Rectangle) []Mask {
 
 **实现要求**：
 
-1. **修改 aaShift 常量**
+1. **修改 EdgeBuilder AA 参数**
 ```go
 // render/software.go
 
 // 当前
-const aaShift = 2  // 4x 子像素
+eb := raster.NewEdgeBuilder(2) // 4x AA
 
 // 优化后
-const aaShift = 3  // 8x 子像素
+eb := raster.NewEdgeBuilder(3) // 8x AA
 ```
 
 2. **更新相关计算**
 ```go
-func (r *Rasterizer) rasterizePath(path Path) Mask {
-    shift := aaShift
-    scale := 1 << shift
-    
-    scaledPath := path.Transform(Matrix{
-        A: float64(scale), D: float64(scale),
-    })
-    
-    // 光栅化...
-}
+// 注意：
+// - 当前软件渲染入口在 NewSoftwareRenderer() 中创建 EdgeBuilder。
+// - render/internal/raster/ 中也有多个测试显式使用 aaShift=2 或 aaShift=4。
+// - 修改前必须确认 FDot6 -> FDot16 overflow 边界和视觉收益。
 ```
 
 **验收标准**：
@@ -1070,6 +1240,7 @@ func (r *Rasterizer) rasterizePath(path Path) Mask {
 | 2026-07-13 | 1.0 | 初始版本 | Claude |
 | 2026-07-13 | 2.0 | 补充测试计划、性能目标、风险评估、资源需求、验收标准、监控策略、文档计划、发布计划、代码审查、沟通计划 | Claude |
 | 2026-07-13 | 3.0 | 根据 gpui 库实际情况重写，更新项目背景、库结构、依赖关系 | Claude |
+| 2026-07-13 | 3.1 | 补充新人/AI 开工指南、并行开发边界、任务卡模板，并修正渐变和 AA 示例 API | Codex |
 |  |  |  |  |
 
 ---

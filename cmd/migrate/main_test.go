@@ -327,6 +327,38 @@ func TestOnly() {}
 	requireNotContains(t, err.Error(), "example.com/test/only")
 }
 
+func TestPruneUnresolvedProductionFilesPreservesProtectedMappings(t *testing.T) {
+	tmp := t.TempDir()
+	targetDir := filepath.Join(tmp, "target")
+	writeTestFile(t, filepath.Join(targetDir, "gpu", "webgpu", "rust.go"), `package webgpu
+
+import "example.com/not/migrated"
+
+var _ = migrated.Value
+`)
+	writeTestFile(t, filepath.Join(targetDir, "render", "bad.go"), `package render
+
+import "example.com/not/migrated"
+
+var _ = migrated.Value
+`)
+
+	mappings := []Mapping{
+		{Target: "gpu/webgpu", Module: "example.com/up/wgpu", PreserveUnresolved: true},
+		{Target: "render", Module: "example.com/up/gg", RenamePackage: "render"},
+	}
+	removed, err := pruneUnresolvedProductionFiles(targetDir, mappings, "example.com/acme/gpui", nil, nil)
+	if err != nil {
+		t.Fatalf("pruneUnresolvedProductionFiles: %v", err)
+	}
+	if len(removed) != 1 || removed[0] != "render/bad.go" {
+		t.Fatalf("unexpected removals: %v", removed)
+	}
+	if _, err := os.Stat(filepath.Join(targetDir, "gpu", "webgpu", "rust.go")); err != nil {
+		t.Fatalf("protected mapping file was pruned: %v", err)
+	}
+}
+
 func packageNameFromModule(module string) string {
 	if i := strings.LastIndex(module, "/"); i >= 0 {
 		return module[i+1:]
