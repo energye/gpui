@@ -3378,3 +3378,29 @@ func (s *GPURenderSession) SetConvexRenderer(r *ConvexRenderer) {
 func (s *GPURenderSession) SetStencilRenderer(r *StencilRenderer) {
 	s.stencilRenderer = r
 }
+
+// RenderSessionStats holds diagnostic statistics for the render session.
+type RenderSessionStats struct {
+	SDFBindGroup     bool
+	ConvexBindGroup  bool
+	ImageBindGroups  int
+	TextBindGroups   int
+	GlyphBindGroups  int
+	GPUTexBindGroups int
+	PendingRelease   int
+	StencilPoolSize  int
+}
+
+// Stats returns render session statistics for diagnostics.
+func (s *GPURenderSession) Stats() RenderSessionStats {
+	return RenderSessionStats{
+		SDFBindGroup:     s.sdfBindGroup != nil,
+		ConvexBindGroup:  s.convexBindGroup != nil,
+		ImageBindGroups:  len(s.imageBindGroups),
+		TextBindGroups:   len(s.textBindGroups),
+		GlyphBindGroups:  len(s.glyphMaskBindGroups),
+		GPUTexBindGroups: len(s.gpuTexBindGroups),
+		PendingRelease:   len(s.pendingBindGroupRelease),
+		StencilPoolSize:  len(s.stencilBufPool),
+	}
+}

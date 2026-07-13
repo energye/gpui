@@ -76,6 +76,12 @@ func (p *encoderPool) release(enc hal.CommandEncoder) {
 	p.mu.Unlock()
 }
 
+func (p *encoderPool) len() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.free)
+}
+
 // destroy releases all pooled encoders. Called during device shutdown.
 func (p *encoderPool) destroy() {
 	p.mu.Lock()

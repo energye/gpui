@@ -191,3 +191,19 @@ func (c *ImageCache) evictOldest() {
 		delete(c.entries, oldestKey)
 	}
 }
+
+// Stats returns cache statistics for diagnostics.
+type ImageCacheStats struct {
+	Entries     int
+	Budget      int
+	Generations uint64
+}
+
+// Stats returns cache statistics.
+func (c *ImageCache) Stats() ImageCacheStats {
+	return ImageCacheStats{
+		Entries:     len(c.entries),
+		Budget:      c.budget,
+		Generations: c.gen,
+	}
+}

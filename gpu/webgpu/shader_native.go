@@ -87,6 +87,12 @@ func (m *ShaderModule) Release() {
 	}
 	m.released = true
 
+	// Release the naga IR module to free ~20MB of parsed shader data.
+	// This was previously leaked, causing RSS to grow with each shader compilation.
+	if m.irModule != nil {
+		m.irModule = nil
+	}
+
 	halDevice := m.device.halDevice()
 	if halDevice == nil {
 		return

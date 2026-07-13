@@ -533,3 +533,24 @@ func (s *GPUShared) destroyPipelinesLocked() {
 		s.stencilRenderer = nil
 	}
 }
+
+// GPUMemoryStats holds diagnostic information about GPU resource usage.
+type GPUMemoryStats struct {
+	TexturePoolPooled int
+	TexturePoolMB     int
+	TilePoolPooled    int
+}
+
+// MemoryStats returns GPU memory statistics for diagnostics.
+func (s *GPUShared) MemoryStats() GPUMemoryStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stats := GPUMemoryStats{}
+	if s.texturePool != nil {
+		stats.TexturePoolPooled = s.texturePool.PooledCount()
+		stats.TexturePoolMB = s.texturePool.EstimatedUsageMB()
+	}
+	stats.TilePoolPooled = globalTilePool.Stats().Pooled
+	return stats
+}

@@ -355,7 +355,11 @@ func (b *stagingBelt) recall(completedIndex uint64) {
 	}
 
 	if cutoff > 0 {
-		b.closedSubmissions = b.closedSubmissions[cutoff:]
+		remaining := copy(b.closedSubmissions, b.closedSubmissions[cutoff:])
+		for i := remaining; i < len(b.closedSubmissions); i++ {
+			b.closedSubmissions[i] = closedSubmission{}
+		}
+		b.closedSubmissions = b.closedSubmissions[:remaining]
 	}
 }
 

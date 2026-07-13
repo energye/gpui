@@ -82,6 +82,8 @@ type CommandEncoder struct {
 
 	label       string
 	poolManaged bool // true when managed by wgpu-level encoder pool
+
+	bufferBarrierScratch []vk.BufferMemoryBarrier
 }
 
 // BeginEncoding begins command recording.
@@ -266,6 +268,7 @@ func (e *CommandEncoder) Destroy() {
 	e.active = 0
 	e.free = nil
 	e.discarded = nil
+	e.bufferBarrierScratch = nil
 	e.device = nil
 }
 
@@ -275,7 +278,14 @@ func (e *CommandEncoder) TransitionBuffers(barriers []hal.BufferBarrier) {
 		return
 	}
 
-	bufferBarriers := make([]vk.BufferMemoryBarrier, 0, len(barriers))
+	var stackBarriers [16]vk.BufferMemoryBarrier
+	bufferBarriers := stackBarriers[:0]
+	if len(barriers) > len(stackBarriers) {
+		if cap(e.bufferBarrierScratch) < len(barriers) {
+			e.bufferBarrierScratch = make([]vk.BufferMemoryBarrier, 0, len(barriers))
+		}
+		bufferBarriers = e.bufferBarrierScratch[:0]
+	}
 	for _, b := range barriers {
 		buf, ok := b.Buffer.(*Buffer)
 		if !ok || buf.handle == 0 {

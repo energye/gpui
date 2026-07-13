@@ -4,10 +4,74 @@ package webgpu
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/energye/gpui/gpu/webgpu/core"
 	"github.com/energye/gpui/gpu/webgpu/hal"
 )
+
+const (
+	maxPooledUsedBuffers   = 1024
+	maxPooledUsedTextures  = 256
+	maxPooledUsedBindGroup = 256
+)
+
+var (
+	usedBufferMapPool = sync.Pool{
+		New: func() any { return make(map[*Buffer]struct{}, 64) },
+	}
+	usedTextureMapPool = sync.Pool{
+		New: func() any { return make(map[*Texture]struct{}, 16) },
+	}
+	usedBindGroupMapPool = sync.Pool{
+		New: func() any { return make(map[*BindGroup]struct{}, 16) },
+	}
+)
+
+func acquireUsedBufferMap() map[*Buffer]struct{} {
+	return usedBufferMapPool.Get().(map[*Buffer]struct{})
+}
+
+func releaseUsedBufferMap(m map[*Buffer]struct{}) {
+	if m == nil {
+		return
+	}
+	pooled := len(m) <= maxPooledUsedBuffers
+	clear(m)
+	if pooled {
+		usedBufferMapPool.Put(m)
+	}
+}
+
+func acquireUsedTextureMap() map[*Texture]struct{} {
+	return usedTextureMapPool.Get().(map[*Texture]struct{})
+}
+
+func releaseUsedTextureMap(m map[*Texture]struct{}) {
+	if m == nil {
+		return
+	}
+	pooled := len(m) <= maxPooledUsedTextures
+	clear(m)
+	if pooled {
+		usedTextureMapPool.Put(m)
+	}
+}
+
+func acquireUsedBindGroupMap() map[*BindGroup]struct{} {
+	return usedBindGroupMapPool.Get().(map[*BindGroup]struct{})
+}
+
+func releaseUsedBindGroupMap(m map[*BindGroup]struct{}) {
+	if m == nil {
+		return
+	}
+	pooled := len(m) <= maxPooledUsedBindGroup
+	clear(m)
+	if pooled {
+		usedBindGroupMapPool.Put(m)
+	}
+}
 
 // CommandEncoder records GPU commands for later submission.
 //
@@ -73,7 +137,7 @@ func (e *CommandEncoder) trackBuffer(buf *Buffer) {
 		return
 	}
 	if e.usedBuffers == nil {
-		e.usedBuffers = make(map[*Buffer]struct{})
+		e.usedBuffers = acquireUsedBufferMap()
 	}
 	e.usedBuffers[buf] = struct{}{}
 }
@@ -85,7 +149,7 @@ func (e *CommandEncoder) trackTexture(tex *Texture) {
 		return
 	}
 	if e.usedTextures == nil {
-		e.usedTextures = make(map[*Texture]struct{})
+		e.usedTextures = acquireUsedTextureMap()
 	}
 	e.usedTextures[tex] = struct{}{}
 }
@@ -98,7 +162,7 @@ func (e *CommandEncoder) trackBindGroup(bg *BindGroup) {
 		return
 	}
 	if e.usedBindGroups == nil {
-		e.usedBindGroups = make(map[*BindGroup]struct{})
+		e.usedBindGroups = acquireUsedBindGroupMap()
 	}
 	e.usedBindGroups[bg] = struct{}{}
 }
@@ -313,6 +377,12 @@ func (e *CommandEncoder) DiscardEncoding() {
 		ref.Drop()
 	}
 	e.trackedRefs = nil
+	releaseUsedBufferMap(e.usedBuffers)
+	releaseUsedTextureMap(e.usedTextures)
+	releaseUsedBindGroupMap(e.usedBindGroups)
+	e.usedBuffers = nil
+	e.usedTextures = nil
+	e.usedBindGroups = nil
 	raw := e.core.RawEncoder()
 	if raw != nil {
 		raw.DiscardEncoding()
@@ -356,6 +426,12 @@ func (e *CommandEncoder) Finish() (*CommandBuffer, error) {
 			ref.Drop()
 		}
 		e.trackedRefs = nil
+		releaseUsedBufferMap(e.usedBuffers)
+		releaseUsedTextureMap(e.usedTextures)
+		releaseUsedBindGroupMap(e.usedBindGroups)
+		e.usedBuffers = nil
+		e.usedTextures = nil
+		e.usedBindGroups = nil
 		// Return the pooled encoder on error — it won't be submitted.
 		e.returnEncoderToPool()
 		return nil, err
@@ -506,6 +582,9 @@ func (cb *CommandBuffer) Release() {
 		ref.Drop()
 	}
 	cb.trackedRefs = nil
+	releaseUsedBufferMap(cb.usedBuffers)
+	releaseUsedTextureMap(cb.usedTextures)
+	releaseUsedBindGroupMap(cb.usedBindGroups)
 	cb.usedBuffers = nil
 	cb.usedTextures = nil
 	cb.usedBindGroups = nil

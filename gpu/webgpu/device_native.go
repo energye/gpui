@@ -40,6 +40,10 @@ type Device struct {
 	//
 	// nil when no HAL device (e.g., core-only path).
 	cmdEncoderPool *encoderPool
+
+	// Diagnostic counters for memory leak detection.
+	bufCreated  atomic.Int64
+	bufReleased atomic.Int64
 }
 
 // Queue returns the device's command queue.
@@ -96,6 +100,9 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 	// resource leaks when callers create per-frame buffers without
 	// explicit lifecycle management (BUG-WGPU-RESOURCE-LIFECYCLE-001).
 	buf.cleanup = registerBufferCleanup(buf, d, coreBuffer, desc.Label)
+
+	// Diagnostic: track buffer creation
+	d.bufCreated.Add(1)
 
 	return buf, nil
 }
@@ -1011,4 +1018,22 @@ func (d *Device) halDevice() hal.Device {
 	guard := d.core.SnatchLock().Read()
 	defer guard.Release()
 	return d.core.Raw(guard)
+}
+
+// BufferStats returns buffer creation/release statistics for diagnostics.
+type BufferStats struct {
+	Created  int64
+	Released int64
+	Active   int64 // Created - Released
+}
+
+// GetBufferStats returns buffer lifecycle statistics.
+func (d *Device) GetBufferStats() BufferStats {
+	created := d.bufCreated.Load()
+	released := d.bufReleased.Load()
+	return BufferStats{
+		Created:  created,
+		Released: released,
+		Active:   created - released,
+	}
 }

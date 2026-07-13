@@ -4,6 +4,8 @@ package webgpu
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sync"
 
 	"github.com/energye/gpui/gpu/webgpu/core"
@@ -29,6 +31,10 @@ type Queue struct {
 	// resource destruction until after the latest known submission completes.
 	// Protected by mu.
 	lastSubmissionIndex uint64
+
+	// debugSubmitCount is used only when WGPU_QUEUE_DEBUG is enabled.
+	// Protected by mu because Submit holds q.mu while calling postSubmit.
+	debugSubmitCount uint64
 }
 
 // Submit submits command buffers for execution. Non-blocking.
@@ -150,6 +156,9 @@ func (q *Queue) postSubmit(subIdx uint64, commandBuffers []*CommandBuffer) {
 	for _, cb := range commandBuffers {
 		if cb != nil {
 			cb.submitted = true
+			releaseUsedBufferMap(cb.usedBuffers)
+			releaseUsedTextureMap(cb.usedTextures)
+			releaseUsedBindGroupMap(cb.usedBindGroups)
 			cb.usedBuffers = nil
 			cb.usedTextures = nil
 			cb.usedBindGroups = nil
@@ -195,7 +204,57 @@ func (q *Queue) postSubmit(subIdx uint64, commandBuffers []*CommandBuffer) {
 
 	// Triage deferred resource destructions from the DestroyQueue.
 	// Resources whose GPU submissions have completed are now safe to destroy.
-	dq.Triage(q.hal.PollCompleted())
+	completed := q.hal.PollCompleted()
+	dq.Triage(completed)
+	q.debugLogQueueState(subIdx, completed, dq)
+}
+
+func (q *Queue) debugLogQueueState(subIdx, completed uint64, dq *core.DestroyQueue) {
+	if os.Getenv("WGPU_QUEUE_DEBUG") == "" {
+		return
+	}
+	q.debugSubmitCount++
+	if q.debugSubmitCount%60 != 0 {
+		return
+	}
+
+	pendingInflight := 0
+	beltActive := 0
+	beltFree := 0
+	beltClosed := 0
+	var beltBytes uint64
+	if q.pending != nil {
+		q.pending.mu.Lock()
+		pendingInflight = len(q.pending.inflight)
+		if q.pending.belt != nil {
+			stats := q.pending.belt.stats()
+			beltActive = stats.ActiveChunks
+			beltFree = stats.FreeChunks
+			beltClosed = stats.ClosedSubs
+			beltBytes = stats.TotalAllocated
+		}
+		q.pending.mu.Unlock()
+	}
+
+	encoderPoolFree := 0
+	if q.device != nil && q.device.cmdEncoderPool != nil {
+		encoderPoolFree = q.device.cmdEncoderPool.len()
+	}
+
+	log.Printf(
+		"WGPU_QUEUE submits=%d lastSubmit=%d completed=%d destroyPending=%d trackedSubmissions=%d pendingInflight=%d beltActive=%d beltFree=%d beltClosed=%d beltBytes=%d encoderPoolFree=%d",
+		q.debugSubmitCount,
+		subIdx,
+		completed,
+		dq.Len(),
+		dq.TrackedLen(),
+		pendingInflight,
+		beltActive,
+		beltFree,
+		beltClosed,
+		beltBytes,
+		encoderPoolFree,
+	)
 }
 
 // Poll returns the last completed submission index. Non-blocking.
@@ -421,4 +480,21 @@ func (q *Queue) release() {
 		q.pending.destroy()
 		q.pending = nil
 	}
+}
+
+// PendingWritesStats returns statistics about the queue's pending writes system.
+// Useful for diagnosing memory leaks in staging buffers.
+func (q *Queue) PendingWritesStats() pendingWritesStats {
+	if q.pending == nil {
+		return pendingWritesStats{}
+	}
+	return q.pending.Stats()
+}
+
+// GetBufferStats returns buffer lifecycle statistics from the device.
+func (q *Queue) GetBufferStats() BufferStats {
+	if q.device == nil {
+		return BufferStats{}
+	}
+	return q.device.GetBufferStats()
 }

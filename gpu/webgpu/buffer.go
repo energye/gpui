@@ -63,6 +63,11 @@ func (b *Buffer) Release() {
 
 	b.cleanup.Stop()
 
+	// Diagnostic: track buffer release
+	if b.device != nil {
+		b.device.bufReleased.Add(1)
+	}
+
 	if b.core == nil {
 		return
 	}

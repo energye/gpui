@@ -8,7 +8,10 @@ package vulkan
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
+	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -108,6 +111,8 @@ type Device struct {
 	// Vulkan object creation (PERF-VK-001). Not thread-safe — setObjectName
 	// is only called during resource creation which is single-threaded per device.
 	debugNameBuf []byte
+
+	debugAllocEventCount atomic.Uint64
 }
 
 // initAllocator initializes the memory allocator for this device.
@@ -339,6 +344,7 @@ func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error) {
 	} else {
 		d.setObjectName(vk.ObjectTypeBuffer, uint64(buffer), "Buffer")
 	}
+	d.debugLogAllocatorStats("create_buffer")
 	return b, nil
 }
 
@@ -481,6 +487,7 @@ func (d *Device) DestroyBuffer(buffer hal.Buffer) {
 		vkBuffer.memory.MappedPtr = 0
 		_ = d.allocator.Free(vkBuffer.memory)
 		vkBuffer.memory = nil
+		d.debugLogAllocatorStats("destroy_buffer")
 	}
 
 	vkBuffer.device = nil
@@ -608,6 +615,7 @@ func (d *Device) CreateTexture(desc *hal.TextureDescriptor) (hal.Texture, error)
 	} else {
 		d.setObjectName(vk.ObjectTypeImage, uint64(image), "Texture")
 	}
+	d.debugLogAllocatorStats("create_texture")
 	return t, nil
 }
 
@@ -626,9 +634,30 @@ func (d *Device) DestroyTexture(texture hal.Texture) {
 	if vkTexture.memory != nil {
 		_ = d.allocator.Free(vkTexture.memory)
 		vkTexture.memory = nil
+		d.debugLogAllocatorStats("destroy_texture")
 	}
 
 	vkTexture.device = nil
+}
+
+func (d *Device) debugLogAllocatorStats(event string) {
+	if os.Getenv("VULKAN_ALLOC_DEBUG") == "" || d.allocator == nil {
+		return
+	}
+	count := d.debugAllocEventCount.Add(1)
+	if count%120 != 0 {
+		return
+	}
+	stats := d.allocator.Stats()
+	log.Printf("VULKAN_ALLOC events=%d event=%s totalAllocated=%dMB totalUsed=%dMB allocationCount=%d pooled=%d dedicated=%d",
+		count,
+		event,
+		stats.TotalAllocated/(1<<20),
+		stats.TotalUsed/(1<<20),
+		stats.AllocationCount,
+		stats.PooledAllocations,
+		stats.DedicatedAllocations,
+	)
 }
 
 // CreateTextureView creates a view into a texture.

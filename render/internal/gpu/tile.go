@@ -362,3 +362,17 @@ func PixelToTileF(px, py float32) (tx, ty int32) {
 	ty = floorPy >> TileShift
 	return
 }
+
+// TilePoolStats holds tile pool statistics for diagnostics.
+type TilePoolStats struct {
+	Pooled int
+}
+
+// Stats returns pool statistics.
+func (p *TilePool) Stats() TilePoolStats {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return TilePoolStats{
+		Pooled: len(p.pool),
+	}
+}

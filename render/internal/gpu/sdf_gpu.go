@@ -343,3 +343,31 @@ func sameTarget(a *render.GPURenderTarget, b *render.GPURenderTarget) bool {
 	return a.Width == b.Width && a.Height == b.Height &&
 		len(a.Data) == len(b.Data) && len(a.Data) > 0 && &a.Data[0] == &b.Data[0]
 }
+
+// MemoryStats returns GPU memory statistics for diagnostics.
+func (a *SDFAccelerator) MemoryStats() GPUMemoryStats {
+	if a.shared == nil {
+		return GPUMemoryStats{}
+	}
+	return a.shared.MemoryStats()
+}
+
+// GlyphAtlasStats returns GPU glyph atlas statistics for diagnostics.
+func (a *SDFAccelerator) GlyphAtlasStats() (hits, misses uint64, entryCount, pageCount int) {
+	if a.shared == nil || a.shared.glyphMaskEngine == nil {
+		return 0, 0, 0, 0
+	}
+	a.shared.glyphMaskEngine.mu.Lock()
+	defer a.shared.glyphMaskEngine.mu.Unlock()
+	return a.shared.glyphMaskEngine.atlas.Stats()
+}
+
+// RenderSessionStats returns GPU render session statistics for diagnostics.
+// Returns nil if no default context exists.
+func (a *SDFAccelerator) RenderSessionStats() *RenderSessionStats {
+	if a.shared == nil || a.defaultCtx == nil || a.defaultCtx.session == nil {
+		return nil
+	}
+	stats := a.defaultCtx.session.Stats()
+	return &stats
+}

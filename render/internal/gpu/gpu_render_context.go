@@ -47,6 +47,9 @@ type GPURenderContext struct {
 	clipRRect       *ClipParams
 	clipPath        *render.Path // arbitrary clip path for depth clipping (GPU-CLIP-003a)
 	scissorSegments []scissorSegment
+	scissorGroups   []ScissorGroup
+	scissorRects    [][4]uint32
+	scissorClips    []ClipParams
 
 	// Per-tier batch seal flags prevent merging across scissor boundaries.
 	// Two separate flags needed: a single shared flag would be consumed by
@@ -800,6 +803,14 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	}
 
 	// Clear pending state.
+	clear(rc.pendingShapes)
+	clear(rc.pendingConvexCommands)
+	clear(rc.pendingStencilPaths)
+	clear(rc.pendingImageCommands)
+	clear(rc.pendingGPUTextureCommands)
+	clear(rc.pendingTextBatches)
+	clear(rc.pendingGlyphMaskBatches)
+	clear(rc.scissorSegments)
 	rc.pendingShapes = rc.pendingShapes[:0]
 	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
 	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
@@ -1039,6 +1050,9 @@ func (rc *GPURenderContext) Close() {
 	rc.clipRRect = nil
 	rc.clipPath = nil
 	rc.scissorSegments = nil
+	rc.scissorGroups = nil
+	rc.scissorRects = nil
+	rc.scissorClips = nil
 	rc.textBatchSealed = false
 	rc.glyphBatchSealed = false
 	rc.sceneStats = render.SceneStats{}
@@ -1073,8 +1087,25 @@ func (rc *GPURenderContext) recordScissorSegment(rect *[4]uint32) {
 
 // buildScissorGroups builds scissor groups from the pending commands and timeline.
 func (rc *GPURenderContext) buildScissorGroups() []ScissorGroup {
+	needed := len(rc.scissorSegments) + 1
+	if cap(rc.scissorGroups) < needed {
+		rc.scissorGroups = make([]ScissorGroup, 0, needed)
+	}
+	if cap(rc.scissorRects) < needed {
+		rc.scissorRects = make([][4]uint32, 0, needed)
+	}
+	if cap(rc.scissorClips) < needed {
+		rc.scissorClips = make([]ClipParams, 0, needed)
+	}
+	clear(rc.scissorGroups)
+	clear(rc.scissorRects)
+	clear(rc.scissorClips)
+	groups := rc.scissorGroups[:0]
+	rects := rc.scissorRects[:0]
+	clips := rc.scissorClips[:0]
+
 	if len(rc.scissorSegments) == 0 {
-		return []ScissorGroup{{
+		groups = append(groups, ScissorGroup{
 			Rect:               nil,
 			SDFShapes:          rc.pendingShapes,
 			ConvexCommands:     rc.pendingConvexCommands,
@@ -1083,10 +1114,12 @@ func (rc *GPURenderContext) buildScissorGroups() []ScissorGroup {
 			GPUTextureCommands: rc.pendingGPUTextureCommands,
 			TextBatches:        rc.pendingTextBatches,
 			GlyphMaskBatches:   rc.pendingGlyphMaskBatches,
-		}}
+		})
+		rc.scissorGroups = groups
+		rc.scissorRects = rects
+		rc.scissorClips = clips
+		return groups
 	}
-
-	var groups []ScissorGroup
 
 	firstSeg := rc.scissorSegments[0]
 	if firstSeg.sdfCount > 0 || firstSeg.convexCount > 0 || firstSeg.stencilCount > 0 ||
@@ -1132,13 +1165,13 @@ func (rc *GPURenderContext) buildScissorGroups() []ScissorGroup {
 
 		var groupRect *[4]uint32
 		if seg.hasRect {
-			r := seg.rect
-			groupRect = &r
+			rects = append(rects, seg.rect)
+			groupRect = &rects[len(rects)-1]
 		}
 		var groupClip *ClipParams
 		if seg.hasClipRRect {
-			c := seg.clipRRect
-			groupClip = &c
+			clips = append(clips, seg.clipRRect)
+			groupClip = &clips[len(clips)-1]
 		}
 		groups = append(groups, ScissorGroup{
 			Rect:               groupRect,
@@ -1154,6 +1187,9 @@ func (rc *GPURenderContext) buildScissorGroups() []ScissorGroup {
 		})
 	}
 
+	rc.scissorGroups = groups
+	rc.scissorRects = rects
+	rc.scissorClips = clips
 	return groups
 }
 

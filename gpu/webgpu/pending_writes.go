@@ -549,8 +549,38 @@ func (pw *pendingWrites) maintain(completedIndex uint64) {
 	}
 
 	if cutoff > 0 {
-		pw.inflight = pw.inflight[cutoff:]
+		remaining := copy(pw.inflight, pw.inflight[cutoff:])
+		for i := remaining; i < len(pw.inflight); i++ {
+			pw.inflight[i] = inflightSubmission{}
+		}
+		pw.inflight = pw.inflight[:remaining]
 	}
+}
+
+// pendingWritesStats holds pendingWrites statistics for diagnostics/logging.
+type pendingWritesStats struct {
+	BeltStats     beltStats
+	InflightCount int
+	IsRecording   bool
+	DstBuffers    int
+	DstTextures   int
+}
+
+// Stats returns pendingWrites statistics for diagnostics/logging.
+func (pw *pendingWrites) Stats() pendingWritesStats {
+	pw.mu.Lock()
+	defer pw.mu.Unlock()
+
+	stats := pendingWritesStats{
+		InflightCount: len(pw.inflight),
+		IsRecording:   pw.isRecording,
+		DstBuffers:    len(pw.dstBuffers),
+		DstTextures:   len(pw.dstTextures),
+	}
+	if pw.belt != nil {
+		stats.BeltStats = pw.belt.stats()
+	}
+	return stats
 }
 
 // HasPendingWork returns true if there are buffered writes waiting to be flushed.
