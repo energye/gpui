@@ -1,4 +1,4 @@
-package wgpu
+package rwgpu
 
 import "github.com/energye/gpui/gpu/types"
 

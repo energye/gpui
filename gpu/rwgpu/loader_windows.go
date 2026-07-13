@@ -1,6 +1,6 @@
 //go:build windows
 
-package wgpu
+package rwgpu
 
 import (
 	"syscall"

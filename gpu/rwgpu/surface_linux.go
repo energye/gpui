@@ -1,6 +1,6 @@
 //go:build linux
 
-package wgpu
+package rwgpu
 
 import (
 	"unsafe"

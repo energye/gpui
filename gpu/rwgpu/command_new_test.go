@@ -1,4 +1,4 @@
-package wgpu
+package rwgpu
 
 import (
 	"testing"

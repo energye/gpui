@@ -1,6 +1,6 @@
 // math.go contains 3D math helpers optimized for WebGPU/WGSL compatibility.
 
-package wgpu
+package rwgpu
 
 import "math"
 

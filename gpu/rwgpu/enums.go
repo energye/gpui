@@ -1,4 +1,4 @@
-package wgpu
+package rwgpu
 
 // RequestAdapterStatus is the status returned by RequestAdapter callback.
 type RequestAdapterStatus uint32

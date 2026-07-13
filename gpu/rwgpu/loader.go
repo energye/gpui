@@ -1,6 +1,6 @@
 // loader.go provides cross-platform library loading abstractions.
 
-package wgpu
+package rwgpu
 
 // Library represents a dynamically loaded library (DLL/SO/DYLIB).
 // Platform-specific implementations handle the actual loading mechanism.

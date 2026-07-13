@@ -1,4 +1,4 @@
-package wgpu_test
+package rwgpu_test
 
 import (
 	"fmt"

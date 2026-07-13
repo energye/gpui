@@ -164,4 +164,4 @@
 //   - macOS: libwgpu_native.dylib
 //
 // Download from: https://github.com/gfx-rs/wgpu-native/releases
-package wgpu
+package rwgpu

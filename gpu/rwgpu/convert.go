@@ -31,7 +31,7 @@
 //   - FilterMode, MipmapFilterMode, AddressMode, CompareFunction, StencilOperation
 //   - IndexFormat, PresentMode, CompositeAlphaMode, PowerPreference
 
-package wgpu
+package rwgpu
 
 import "github.com/energye/gpui/gpu/types"
 

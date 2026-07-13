@@ -4,7 +4,7 @@
   "mappings": [
     {"source": "/home/yanghy/app/projects/gogpu/gg", "target": "render", "module": "github.com/gogpu/gg", "rename_package": "render"},
     {"source": "/home/yanghy/app/projects/gogpu/wgpu", "target": "gpu/webgpu", "module": "github.com/gogpu/wgpu", "rename_package": "webgpu", "preserve_unresolved": true},
-    {"source": "/home/yanghy/app/projects/gogpu/webgpu/wgpu", "target": "gpu/rwgpu", "module": "github.com/go-webgpu/webgpu/wgpu", "alias": "rwgpu", "preserve_unresolved": true},
+    {"source": "/home/yanghy/app/projects/gogpu/webgpu/wgpu", "target": "gpu/rwgpu", "module": "github.com/go-webgpu/webgpu/wgpu", "rename_package": "rwgpu", "alias": "rwgpu", "preserve_unresolved": true},
     {"source": "/home/yanghy/app/projects/gogpu/naga", "target": "gpu/shader", "module": "github.com/gogpu/naga", "rename_package": "shader"},
     {"source": "/home/yanghy/app/projects/gogpu/gputypes", "target": "gpu/types", "module": "github.com/gogpu/gputypes", "rename_package": "types"},
     {"source": "/home/yanghy/app/projects/gogpu/gpucontext", "target": "gpu/context", "module": "github.com/gogpu/gpucontext", "rename_package": "context", "alias": "gpucontext"}

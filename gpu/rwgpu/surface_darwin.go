@@ -1,6 +1,6 @@
 //go:build darwin
 
-package wgpu
+package rwgpu
 
 import (
 	"unsafe"

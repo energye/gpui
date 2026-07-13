@@ -1,6 +1,6 @@
 //go:build linux || darwin
 
-package wgpu
+package rwgpu
 
 import (
 	"fmt"

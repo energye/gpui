@@ -1,4 +1,4 @@
-package wgpu
+package rwgpu
 
 // abi_test.go — ABI validation tests for wgpu-native v29 migration.
 //
