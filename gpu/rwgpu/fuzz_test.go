@@ -98,6 +98,35 @@ func FuzzToWGPUVertexStepMode(f *testing.F) {
 	})
 }
 
+func FuzzToWGPUPrimitiveTopology(f *testing.F) {
+	f.Add(uint32(types.PrimitiveTopologyTriangleList))
+	f.Add(uint32(types.PrimitiveTopologyPointList))
+	f.Add(uint32(types.PrimitiveTopologyTriangleStrip))
+	f.Add(uint32(0xFFFFFFFF))
+	f.Fuzz(func(t *testing.T, v uint32) {
+		_ = toWGPUPrimitiveTopology(types.PrimitiveTopology(v))
+	})
+}
+
+func FuzzToWGPUFrontFace(f *testing.F) {
+	f.Add(uint32(types.FrontFaceCCW))
+	f.Add(uint32(types.FrontFaceCW))
+	f.Add(uint32(0xFFFFFFFF))
+	f.Fuzz(func(t *testing.T, v uint32) {
+		_ = toWGPUFrontFace(types.FrontFace(v))
+	})
+}
+
+func FuzzToWGPUCullMode(f *testing.F) {
+	f.Add(uint32(types.CullModeNone))
+	f.Add(uint32(types.CullModeFront))
+	f.Add(uint32(types.CullModeBack))
+	f.Add(uint32(0xFFFFFFFF))
+	f.Fuzz(func(t *testing.T, v uint32) {
+		_ = toWGPUCullMode(types.CullMode(v))
+	})
+}
+
 func FuzzToWGPUVertexFormat(f *testing.F) {
 	for i := uint32(0); i <= 40; i++ {
 		f.Add(i)

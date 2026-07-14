@@ -67,7 +67,7 @@ func TestGlyphMaskDeviceGridAlignment(t *testing.T) {
 		engine := NewGlyphMaskEngine()
 		batch, err := engine.LayoutShapedGlyphs(
 			face, glyphs, originX, 40, render.RGBA{A: 1},
-			render.Identity(), deviceScale, false,
+			render.Scale(deviceScale, deviceScale), deviceScale, false,
 		)
 		if err != nil {
 			t.Fatalf("deviceScale=%g: LayoutShapedGlyphs: %v", deviceScale, err)

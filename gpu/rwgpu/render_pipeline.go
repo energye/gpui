@@ -59,13 +59,13 @@ type vertexState struct {
 
 // primitiveState is the native structure for primitive assembly.
 type primitiveState struct {
-	nextInChain      uintptr                 // 8 bytes
-	topology         types.PrimitiveTopology // 4 bytes
-	stripIndexFormat types.IndexFormat       // 4 bytes
-	frontFace        types.FrontFace         // 4 bytes
-	cullMode         types.CullMode          // 4 bytes
-	unclippedDepth   Bool                    // 4 bytes
-	_pad             [4]byte                 // 4 bytes padding
+	nextInChain      uintptr           // 8 bytes
+	topology         uint32            // 4 bytes, converted WGPUPrimitiveTopology
+	stripIndexFormat types.IndexFormat // 4 bytes, values match WGPUIndexFormat
+	frontFace        uint32            // 4 bytes, converted WGPUFrontFace
+	cullMode         uint32            // 4 bytes, converted WGPUCullMode
+	unclippedDepth   Bool              // 4 bytes
+	_pad             [4]byte           // 4 bytes padding
 }
 
 // multisampleState is the native structure for multisample state.
@@ -280,10 +280,10 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 	// Build primitive state
 	nativePrimitive := primitiveState{
 		nextInChain:      0,
-		topology:         desc.Primitive.Topology,
+		topology:         toWGPUPrimitiveTopology(desc.Primitive.Topology),
 		stripIndexFormat: desc.Primitive.StripIndexFormat,
-		frontFace:        desc.Primitive.FrontFace,
-		cullMode:         desc.Primitive.CullMode,
+		frontFace:        toWGPUFrontFace(desc.Primitive.FrontFace),
+		cullMode:         toWGPUCullMode(desc.Primitive.CullMode),
 		unclippedDepth:   False,
 	}
 

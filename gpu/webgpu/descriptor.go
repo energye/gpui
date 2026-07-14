@@ -2,6 +2,8 @@
 
 package webgpu
 
+import "github.com/energye/gpui/gpu/types"
+
 // Extent3D is a 3D size.
 type Extent3D struct {
 	Width              uint32
@@ -98,18 +100,19 @@ type SurfaceConfiguration struct {
 }
 
 // StencilOperation describes a stencil operation.
-type StencilOperation uint32
+type StencilOperation = types.StencilOperation
 
-// Stencil operation constants.
+// Stencil operation constants. Values match webgpu.h / wgpu-native:
+// Undefined=0, Keep=1, Zero=2, ...
 const (
-	StencilOperationKeep           StencilOperation = 0
-	StencilOperationZero           StencilOperation = 1
-	StencilOperationReplace        StencilOperation = 2
-	StencilOperationInvert         StencilOperation = 3
-	StencilOperationIncrementClamp StencilOperation = 4
-	StencilOperationDecrementClamp StencilOperation = 5
-	StencilOperationIncrementWrap  StencilOperation = 6
-	StencilOperationDecrementWrap  StencilOperation = 7
+	StencilOperationKeep           = types.StencilOperationKeep
+	StencilOperationZero           = types.StencilOperationZero
+	StencilOperationReplace        = types.StencilOperationReplace
+	StencilOperationInvert         = types.StencilOperationInvert
+	StencilOperationIncrementClamp = types.StencilOperationIncrementClamp
+	StencilOperationDecrementClamp = types.StencilOperationDecrementClamp
+	StencilOperationIncrementWrap  = types.StencilOperationIncrementWrap
+	StencilOperationDecrementWrap  = types.StencilOperationDecrementWrap
 )
 
 // StencilFaceState describes stencil operations for a face.

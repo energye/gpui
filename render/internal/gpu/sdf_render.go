@@ -694,7 +694,7 @@ func DetectedShapeToRenderShape(shape render.DetectedShape, paint *render.Paint,
 	rs.CenterY = float32(shape.CenterY)
 
 	if stroked {
-		rs.HalfStroke = float32(paint.EffectiveLineWidth() / 2)
+		rs.HalfStroke = float32(effectiveStrokeWidth(paint) / 2)
 		rs.IsStroked = 1.0
 	}
 

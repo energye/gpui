@@ -598,6 +598,27 @@ func TestDetectedShapeToRenderShapeStroked(t *testing.T) {
 	}
 }
 
+func TestDetectedShapeToRenderShapeStrokedUsesTransformScale(t *testing.T) {
+	shape := render.DetectedShape{
+		Kind:    render.ShapeCircle,
+		CenterX: 100, CenterY: 100,
+		RadiusX: 50, RadiusY: 50,
+	}
+	paint := &render.Paint{
+		Brush:          render.SolidBrush{Color: render.RGBA{R: 1, G: 0, B: 0, A: 1}},
+		LineWidth:      4,
+		TransformScale: 2,
+	}
+
+	rs, ok := DetectedShapeToRenderShape(shape, paint, true)
+	if !ok {
+		t.Fatal("expected ok=true for stroked circle")
+	}
+	if rs.HalfStroke != 4.0 {
+		t.Errorf("HalfStroke = %f, expected 4.0", rs.HalfStroke)
+	}
+}
+
 func TestDetectedShapeToRenderShapeUnknown(t *testing.T) {
 	shape := render.DetectedShape{Kind: render.ShapeUnknown}
 	paint := &render.Paint{Brush: render.SolidBrush{Color: render.RGBA{R: 1, A: 1}}}

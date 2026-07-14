@@ -18,6 +18,12 @@
 //     causing a non-trivial numbering gap throughout the enum.
 //   - VertexStepMode: gputypes has VertexBufferNotUsed=1 (removed in v29);
 //     v29 maps Vertex=1, Instance=2 instead of gputypes Vertex=2, Instance=3.
+//   - PrimitiveTopology: gputypes uses WebGPU JS default numbering
+//     (TriangleList=0), while v29 has Undefined=0 and TriangleList=4.
+//   - FrontFace: gputypes uses CCW=0/CW=1, while v29 has Undefined=0,
+//     CCW=1, CW=2.
+//   - CullMode: gputypes uses None=0/Front=1/Back=2, while v29 has
+//     Undefined=0, None=1, Front=2, Back=3.
 //
 // # Enums matching v29 exactly — use direct uint32 cast, no converter needed
 //
@@ -26,7 +32,7 @@
 //   - LoadOp (Undefined=0, Load=1, Clear=2), StoreOp (Undefined=0, Store=1, Discard=2)
 //   - BlendFactor values 0x00–0x0D match v29; gputypes lacks Src1* (0x0E–0x11) but those
 //     are unused via gputypes API so no conversion is needed.
-//   - BlendOperation, PrimitiveTopology, FrontFace, CullMode
+//   - BlendOperation
 //   - All bitflags: BufferUsage, TextureUsage, ShaderStage, ColorWriteMask, MapMode
 //   - FilterMode, MipmapFilterMode, AddressMode, CompareFunction, StencilOperation
 //   - IndexFormat, PresentMode, CompositeAlphaMode, PowerPreference
@@ -113,6 +119,73 @@ func toWGPUVertexStepMode(m types.VertexStepMode) uint32 {
 	default:
 		// VertexStepModeUndefined(0) and VertexStepModeVertexBufferNotUsed(1)
 		// both map to v29 Undefined(0) — buffer slot not used
+		return 0
+	}
+}
+
+// =============================================================================
+// PrimitiveTopology conversion
+// gputypes follows the WebGPU JS enum default model where TriangleList is the
+// zero value. wgpu-native v29 reserves 0 for Undefined and assigns
+// TriangleList=4.
+//
+// Mapping:
+//   gputypes TriangleList(0)  → v29 TriangleList(4)
+//   gputypes PointList(1)     → v29 PointList(1)
+//   gputypes LineList(2)      → v29 LineList(2)
+//   gputypes LineStrip(3)     → v29 LineStrip(3)
+//   gputypes TriangleStrip(4) → v29 TriangleStrip(5)
+// =============================================================================
+
+func toWGPUPrimitiveTopology(t types.PrimitiveTopology) uint32 {
+	switch t {
+	case types.PrimitiveTopologyTriangleList:
+		return 4
+	case types.PrimitiveTopologyPointList:
+		return 1
+	case types.PrimitiveTopologyLineList:
+		return 2
+	case types.PrimitiveTopologyLineStrip:
+		return 3
+	case types.PrimitiveTopologyTriangleStrip:
+		return 5
+	default:
+		return 0
+	}
+}
+
+// =============================================================================
+// FrontFace conversion
+// gputypes: CCW=0, CW=1
+// wgpu-native v29: Undefined=0, CCW=1, CW=2
+// =============================================================================
+
+func toWGPUFrontFace(f types.FrontFace) uint32 {
+	switch f {
+	case types.FrontFaceCCW:
+		return 1
+	case types.FrontFaceCW:
+		return 2
+	default:
+		return 0
+	}
+}
+
+// =============================================================================
+// CullMode conversion
+// gputypes: None=0, Front=1, Back=2
+// wgpu-native v29: Undefined=0, None=1, Front=2, Back=3
+// =============================================================================
+
+func toWGPUCullMode(m types.CullMode) uint32 {
+	switch m {
+	case types.CullModeNone:
+		return 1
+	case types.CullModeFront:
+		return 2
+	case types.CullModeBack:
+		return 3
+	default:
 		return 0
 	}
 }

@@ -113,10 +113,8 @@ func (e *GlyphMaskEngine) LayoutText(
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	fontSize := face.Size() * deviceScale
-	if fontSize <= 0 {
-		fontSize = face.Size()
-	}
+	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
+	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
 	fontSource := face.Source()
 	fontID := computeGlyphMaskFontID(fontSource)
 	parsed := fontSource.Parsed()
@@ -145,7 +143,7 @@ func (e *GlyphMaskEngine) LayoutText(
 		shaped = append(shaped, text.ShapedGlyph{GID: glyph.GID, X: glyph.X, Y: glyph.Y, IsCJK: text.IsCJKRune(glyph.Rune)})
 	}
 
-	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, isCJK, false), nil
+	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
 }
 
 // LayoutTextAliased converts a text string into a GlyphMaskBatch with binary
@@ -171,10 +169,8 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	fontSize := face.Size() * deviceScale
-	if fontSize <= 0 {
-		fontSize = face.Size()
-	}
+	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
+	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
 	fontSource := face.Source()
 	fontID := computeGlyphMaskFontID(fontSource)
 	parsed := fontSource.Parsed()
@@ -203,7 +199,7 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 
 	lcdLayout := text.LCDLayoutNone
 	var lcdFilter text.LCDFilter
-	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, isCJK, true), nil
+	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true), nil
 }
 
 // LayoutShapedGlyphs lays out pre-shaped glyphs into a GlyphMaskBatch.
@@ -226,10 +222,8 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	fontSize := face.Size() * deviceScale
-	if fontSize <= 0 {
-		fontSize = face.Size()
-	}
+	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
+	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
 	fontSource := face.Source()
 	fontID := computeGlyphMaskFontID(fontSource)
 	parsed := fontSource.Parsed()
@@ -243,7 +237,35 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 	}
 
 	lcdFilter := e.lcdFilter
-	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, e.lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, isCJK, false), nil
+	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, e.lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
+}
+
+func glyphMaskRasterScale(matrix render.Matrix, deviceScale float64) float64 {
+	if deviceScale <= 0 {
+		deviceScale = 1.0
+	}
+	if matrix.B != 0 || matrix.D != 0 {
+		return 1.0
+	}
+	scale := math.Abs(matrix.E) / deviceScale
+	if scale <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
+		return 1.0
+	}
+	return scale
+}
+
+func glyphMaskFontSize(faceSize, deviceScale, rasterScale float64) float64 {
+	if deviceScale <= 0 {
+		deviceScale = 1.0
+	}
+	if rasterScale <= 0 {
+		rasterScale = 1.0
+	}
+	fontSize := faceSize * deviceScale * rasterScale
+	if fontSize <= 0 {
+		return faceSize
+	}
+	return fontSize
 }
 
 // snapXGrid precomputes the integer device-space X position for each glyph by
@@ -307,6 +329,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	batchColor [4]float32,
 	matrix render.Matrix,
 	deviceScale float64,
+	rasterScale float64,
 	isCJK bool,
 	aliased bool,
 ) GlyphMaskBatch {
@@ -371,11 +394,12 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		// BearingY: offset from baseline to top edge of mask (positive = above).
 		//
 		// The mask was rasterized at deviceScale * rasterSize. We convert
-		// mask pixel coordinates to user space by dividing by deviceScale,
-		// then scale by bucketScale to match the actual display size.
+		// mask pixel coordinates to user space by dividing by deviceScale and
+		// the CTM Y scale baked into rasterSize, then scale by bucketScale to
+		// match the actual display size.
 		// In normal mode bucketScale=1.0 (no-op). In bucketed mode
 		// bucketScale = actualSize/bucketSize (Skia strikeToSourceScale).
-		scale := bucketScale / deviceScale
+		scale := bucketScale / (deviceScale * rasterScale)
 
 		// For LCD glyphs, the atlas region.Width is 3x the logical pixel width.
 		// The screen quad width must use the logical width (region.Width / 3).

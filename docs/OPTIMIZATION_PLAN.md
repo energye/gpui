@@ -1,6 +1,6 @@
 # GPUI 渲染库底层优化与 WebGPU 架构迁移开发计划
 
-> 版本：3.2 | 更新日期：2026-07-14 | 状态：架构迁移进行中
+> 版本：3.4 | 更新日期：2026-07-15 | 状态：架构已接通，P0.A-D 首轮修复完成，进入 examples 端到端收敛阶段
 > 项目：github.com/energye/gpui
 > 文档位置：/home/yanghy/app/projects/gogpu/gpui/docs/OPTIMIZATION_PLAN.md
 
@@ -29,10 +29,15 @@ render/internal/gpu
 - ✅ 阶段三：基础 ABI 与 native device / clear pass / readback 验证
 - ✅ 阶段四 A：`render` 依赖方向收敛到 `gpu/webgpu`
 - ✅ 阶段四 B：shader module、texture upload/download、clear pass、pipeline cache 进入真实 native 调用
+- ✅ P0.A 首轮：`rwgpu` render pipeline primitive enum 转换修复并加 ABI 测试
+- ✅ P0.B 首轮：`gpu/webgpu` descriptor 转换与 pointer lifetime 修复并加测试
+- ✅ P0.C 首轮：`text_transform` CPU/GPU 程序化视觉诊断，不上传 PNG
+- ✅ P0.D 首轮：glyph mask scale 与 GPU stroke hairline 语义修复
 
 进行中：
-- ⏳ 阶段四 C：修复迁移后与源 go-wgpu 渲染效果不一致的问题
-- ⏳ 阶段四 D：清理旧 stub / legacy helper，避免它们进入生产渲染链路
+- ⏳ 阶段四 C：`rwgpu` ABI / enum / descriptor 映射继续全量审计
+- ⏳ 阶段四 D：继续修复迁移后与 CPU / 源 go-wgpu 渲染效果不一致的问题
+- ⏳ 阶段四 E：清理旧 stub / legacy helper，避免它们进入生产渲染链路
 - ⏳ 阶段五：LCL surface handle / swapchain / 窗口渲染集成
 - ⏳ 阶段六：性能优化、批处理、资源缓存、图集化
 
@@ -77,9 +82,9 @@ gpui/
 ### 当前状态
 | 组件 | 状态 | 说明 |
 |------|------|------|
-| render（原 gg） | ⚠️ 可用但需校准 | 2D 渲染核心；部分 examples 在新 native 路径下效果与源 go-wgpu 不一致 |
-| gpu/webgpu | ⚠️ 进行中 | 作为 render 层对象 API；已封装 rwgpu 的 device、queue、texture、buffer、shader、pipeline 等对象 |
-| gpu/rwgpu | ⚠️ 进行中 | Rust wgpu-native 绑定；已真实跑通 device、clear pass、readback、shader、pipeline |
+| render（原 gg） | ⚠️ 可运行，首个视觉问题已收敛 | 2D 渲染核心；`text_transform` 的 scale glyph mask 与 0.5px crosshair 已有程序化诊断和首轮修复，仍需扩大 examples 覆盖 |
+| gpu/webgpu | ⚠️ 已接通但需继续校验 | 作为 render 层对象 API；已修复 StencilOperation 和 vertex attribute lifetime，其他 descriptor 仍需系统审计 |
+| gpu/rwgpu | ⚠️ 可调用但未完整 | Rust wgpu-native 绑定；primitive topology/frontFace/cullMode 已修复，其他 ABI/enum/descriptor 仍需继续审计 |
 | ffi | ✅ 完成 | purego FFI 中间层 |
 | text | ✅ 可用 | 文本渲染 |
 | scene | ✅ 可用 | 场景图 |
@@ -135,11 +140,116 @@ env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so 
 - blit / blend / strip / composite pipeline 创建
 - `render` 包不直接 import `gpu/rwgpu`
 
-### 当前完成度判断
+### 当前完成度判断（2026-07-15）
 
 总体完成度约 60%-65%。
 
-已经完成的是“架构方向”和“部分真实 native 对象能力”。尚未完成的是“渲染效果一致性”和“全部 render 流程生产级收敛”。在修复 examples 渲染差异前，不允许声称已经完成 Ant Design 级控件库渲染能力。
+已经完成的是“架构方向”“部分真实 native 对象能力”“P0.A-D 首轮收敛”。尚未完成的是“ABI 完整性证明”“`gpu/webgpu` facade 到 `gpu/rwgpu` 的全量转换正确性”“examples 端到端视觉基线”和“跨平台动态库绑定生成”。
+
+当前阶段位置：
+
+```text
+阶段 1：迁移结构搭起来       已完成
+阶段 2：去掉 go-wgpu 主路径   基本完成
+阶段 3：rwgpu native 可调用   部分完成
+阶段 4：ABI/descriptor 完整   部分完成，继续审计
+阶段 5：render 语义对齐       text_transform 首轮完成，继续扩大覆盖
+阶段 6：视觉回归稳定         已有首个诊断，未形成完整基线
+阶段 7：跨平台完整化         未开始
+```
+
+在阶段 4、阶段 5 完成前，不允许声称已经完成 Ant Design 级控件库渲染能力，也不应该继续扩大功能面。
+
+### 当前冻结规则
+
+从 2026-07-15 起，当前迁移进入“正确性收敛”窗口：
+
+1. 不继续扩大 GPU feature surface，除非是为了修复当前 render 已调用 API。
+2. 不继续做批处理、atlas、cache、排序等性能优化，直到视觉正确性回归稳定。
+3. 不回退目标架构；仍保持 `render -> gpu/webgpu -> gpu/rwgpu -> libwgpu_native`。
+4. 不让 `render` 直接 import `gpu/rwgpu`。
+5. 所有修复必须说明属于哪一层：`rwgpu ABI`、`gpu/webgpu descriptor 转换`、`render 渲染语义`、`测试/回归工具`。
+
+### 已确认问题（2026-07-15）
+
+#### 1. `rwgpu` enum / descriptor 转换存在实错（primitive 首轮已修）
+
+`gpu/rwgpu/convert.go` 中把 `PrimitiveTopology`、`FrontFace`、`CullMode` 归类为“与 wgpu-native v29 完全一致”，但 `lib/webgpu.h` 显示并不一致。
+
+示例：
+
+```text
+gpu/types.PrimitiveTopologyTriangleList = 0
+lib/webgpu.h WGPUPrimitiveTopology_TriangleList = 4
+```
+
+已修复：
+
+```go
+toWGPUPrimitiveTopology
+toWGPUFrontFace
+toWGPUCullMode
+```
+
+并在 `gpu/rwgpu/abi_test.go`、`gpu/rwgpu/fuzz_test.go` 中加入转换和 primitive wire struct 测试。
+
+剩余风险：当前只完成 render pipeline primitive 相关 enum 的首轮修复，不能据此认为 rust native 绑定层 ABI 已完整正确。必须继续对所有从 `gpu/types` 进入 native wire struct 的 enum 做逐项审计。
+
+#### 2. `text_transform` 中 Scale 文字虚影来自 glyph mask 策略不等价（已首轮修）
+
+`render/text.go` 的 `shouldUseGlyphMask()` 只判断无旋转/斜切，并用 Y scale 估算大小，因此 `Scale(2,2)`、`Scale(3,1)` 等场景会进入 GPU glyph mask。
+
+原问题：`render/internal/gpu/glyph_mask_engine.go` 中 rasterize size 使用：
+
+```go
+fontSize := face.Size() * deviceScale
+```
+
+没有吸收用户 CTM scale；同时 batch 又保留完整 `Transform: matrix`，最终 shader 再放大 quad。实际效果是低分辨率 glyph mask 被 GPU 放大，导致 scale 文本发虚、有重影感。
+
+已修复：
+- 通过 `glyphMaskRasterScale(matrix, deviceScale)` 从 total matrix 中提取用户 Y scale。
+- atlas raster font size 使用 `face.Size() * deviceScale * rasterScale`。
+- glyph quad 尺寸使用 `bucketScale / (deviceScale * rasterScale)` 抵消重复 scale，最终屏幕尺寸仍由 CTM 决定。
+
+#### 3. 细线 / crosshair / border 与 CPU 不一致来自 GPU stroke 语义缺口（已首轮修）
+
+CPU stroke 在 `render/software.go` 中会：
+
+```go
+effectiveWidth := width * transformScale
+if effectiveWidth < 1.0 {
+    effectiveWidth = 1.0
+}
+```
+
+原问题：GPU `StrokePath` 直接使用：
+
+```go
+Width: paint.EffectiveLineWidth()
+```
+
+没有乘 `TransformScale`，也没有 hairline 最小 1px 保护。`text_transform` 中的 `SetLineWidth(0.5)` crosshair 在 GPU 路径下会变成真正 0.5px 几何，容易不可见；缩放下 stroke 线宽也会与 CPU 不一致。
+
+已修复：
+- 新增 `render/internal/gpu/effectiveStrokeWidth`，对齐 CPU 的 `width * TransformScale` 与 `>= 1.0` hairline clamp。
+- `StrokePath`、`StrokeShape` thin-stroke 判断、SDF stroked shape `HalfStroke` 共用该语义。
+
+#### 4. 源 gg 示例不能直接作为 go-wgpu golden
+
+`/home/yanghy/app/projects/gogpu/gg/examples/text_transform/main.go` 当前导入的是：
+
+```go
+_ "github.com/energye/gpui/render/gpu"
+```
+
+不是：
+
+```go
+_ "github.com/gogpu/gg/gpu"
+```
+
+因此该示例当前不能证明“源 go-wgpu GPU 路径正确”。后续如果需要 go-wgpu golden，必须单独使用真正的 `github.com/gogpu/gg/gpu` 路径生成。
 
 ---
 
@@ -210,21 +320,43 @@ timeout 120s go test -count=1 -run \
 
 ---
 
-## P0：渲染效果一致性修复计划
+## P0：ABI 与渲染效果一致性修复计划
 
 ### 背景
 
-本轮架构是从源 go-wgpu 路径切到 Rust wgpu-native 路径。当前 `render/examples` 中部分示例在新路径下渲染效果与源 go-wgpu 不一致，总体观感不好。这个问题优先级高于性能优化。
+本轮架构是从源 go-wgpu 路径切到 Rust wgpu-native 路径。当前 `render/examples` 中部分示例在新路径下渲染效果与 CPU / 源 go-wgpu 不一致，总体观感不好。这个问题优先级高于性能优化。
 
-在视觉正确性未收敛前，不要继续做批处理排序、atlas、缓存等优化，因为这些优化会扩大排查面。
+当前问题已经确认不是单一 shader 或单一示例问题，而是至少包含：
+
+```text
+rwgpu ABI / enum / descriptor 转换风险
++ gpu/webgpu facade 转换完整性风险
++ render 文本 / stroke 语义不一致
+```
+
+在 ABI 与视觉正确性未收敛前，不要继续做批处理排序、atlas、缓存等优化，因为这些优化会扩大排查面。
 
 ### 目标
 
-建立可重复的视觉回归流程，并把当前 native 路径输出校准到以下基准之一：
+建立可重复的 ABI 与视觉回归流程，并把当前 native 路径输出校准到以下基准之一：
 
 1. 源 go-wgpu 实现输出。
 2. 当前 CPU/software renderer 输出。
 3. 明确写入文档的预期差异，例如采样精度或平台字体差异。
+
+### P0 执行顺序
+
+必须按以下顺序推进，不允许跳过 ABI 直接修示例：
+
+```text
+P0.A rwgpu ABI / enum / descriptor 审计
+  -> P0.B gpu/webgpu facade 转换审计
+  -> P0.C 无图片上传的程序化视觉回归
+  -> P0.D text_transform 定点修复
+  -> P0.E 第一批 examples 端到端收敛
+```
+
+原因：如果 `rwgpu` wire 层仍有 enum/descriptor 错误，render 层修复可能只是绕过当前驱动表现，不能作为架构验收。
 
 ### 必测 examples
 
@@ -232,6 +364,7 @@ timeout 120s go test -count=1 -run \
 
 | 示例 | 关注点 |
 |------|--------|
+| `render/examples/text_transform` | 当前核心回归；glyph mask scale、stroke hairline、clip、transform |
 | `render/examples/basic` | 基础形状、颜色、线宽 |
 | `render/examples/shapes` | path、fill rule、AA 边缘 |
 | `render/examples/clipping` | clip stack、裁剪边界 |
@@ -255,9 +388,34 @@ render/internal/testutil/imagediff/
 工具必须支持：
 - 固定尺寸输出 PNG。
 - 记录 backend：`software`、`source-go-wgpu`、`rwgpu-native`。
-- 输出 per-pixel diff、max diff、mean diff、不同像素数量、diff heatmap。
+- 输出 per-pixel diff、max diff、mean diff、不同像素数量、结构化 JSON / text 报告。
 - 支持阈值：文本和 GPU AA 可有小阈值，但纯色矩形、图片、clear、blend 不允许大面积差异。
-- 失败时保留 actual / expected / diff 三张图。
+- 失败时保留 actual / expected / diff 三张图到本地文件，但默认不要把 PNG 图片上传或粘贴到对话中。
+- 对关键区域做语义检测，例如 red crosshair 像素数量、边框像素数量、文本 bounding box、非背景像素覆盖率。
+
+### 无图片上传测试规则
+
+排查时默认不把 PNG 图片发到对话中，避免浪费上下文 token。测试输出应尽量是文本：
+
+```text
+example=text_transform backend=rwgpu-native
+scale_2_text_bbox=(637,132)-(813,178)
+scale_2_text_rmse=...
+crosshair_red_pixels=0 want>=40
+border_gray_pixels=... want>=...
+max_diff=...
+mean_diff=...
+```
+
+允许保留图片文件路径，例如：
+
+```text
+/tmp/gpui-visual/text_transform/cpu.png
+/tmp/gpui-visual/text_transform/gpu.png
+/tmp/gpui-visual/text_transform/diff.png
+```
+
+只有当程序化指标不足以定位问题时，才人工查看图片。
 
 ### 排查顺序
 
@@ -294,18 +452,186 @@ render/internal/testutil/imagediff/
    - 验证 glyph atlas、mask format、LCD/subpixel、baseline。
    - 字体差异要单独记录，不能混入 GPU 渲染差异。
 
-### 当前高概率差异来源
+### 当前已确认差异来源
 
-根据当前迁移状态，优先怀疑：
+根据 2026-07-15 的代码级排查，当前已确认：
 
-- `TextureFormatRGBA8Unorm` 与 surface / compositor 期望 `BGRA8Unorm` 不一致。
-- premultiplied alpha 在 CPU、texture upload、shader blend 中处理不一致。
-- sampler 默认值不同导致图片或 glyph 边缘发糊。
-- shader pipeline 新建成功，但 bind group layout / shader 资源使用与实际 draw path 不完全一致。
-- GPU readback 或示例保存 PNG 时发生通道顺序差异。
-- legacy stub 路径仍被某些示例间接调用，导致看似成功但实际未执行真实 GPU draw。
+- `rwgpu` primitive/front-face/cull-mode enum 转换说明与 `lib/webgpu.h` 不一致。
+- glyph mask rasterize size 没有吸收 CTM scale，但 shader 继续应用 CTM，导致 scale text 被低分辨率放大。
+- GPU stroke 没有对齐 CPU 的 `transformScale` 与 hairline 最小 1px 行为，导致 0.5px crosshair 和 1px 边框表现不一致。
+- 源 gg `text_transform` 示例当前导入 `github.com/energye/gpui/render/gpu`，不能直接作为 go-wgpu golden。
+
+仍需继续验证：
+
+- `TextureFormatRGBA8Unorm` 与 surface / compositor 期望 `BGRA8Unorm` 是否存在隐藏差异。
+- premultiplied alpha 在 CPU、texture upload、shader blend 中是否存在重复或遗漏。
+- sampler 默认值是否导致图片或 glyph 边缘差异。
+- stencil / depth clip pipeline 在 rwgpu 路径下的 depth/stencil 状态是否完全正确。
+- legacy stub 路径是否仍被某些示例间接调用。
 
 ### P0 任务卡
+
+#### Task P0.A rwgpu ABI / enum / descriptor 审计
+
+目标：
+- 以 `lib/webgpu.h` 为准，校准当前 render 已调用的全部 `rwgpu` native ABI。
+
+先读：
+- `lib/webgpu.h`
+- `gpu/rwgpu/convert.go`
+- `gpu/rwgpu/render_pipeline.go`
+- `gpu/rwgpu/texture.go`
+- `gpu/rwgpu/sampler.go`
+- `gpu/rwgpu/render.go`
+- `gpu/rwgpu/bindgroup.go`
+- `gpu/rwgpu/command.go`
+
+修改范围：
+- `gpu/rwgpu/`
+- `gpu/rwgpu/*_test.go`
+
+实现要点：
+- 修正 `PrimitiveTopology`、`FrontFace`、`CullMode` native enum 转换。
+- 扫描所有直接把 `types.*` 写入 native wire struct 的地方。
+- 对当前 render 已使用 API 建立 enum mapping 单元测试。
+- 对关键 wire struct 建立 size / offset 测试。
+- 真实 native 调用仍必须通过 `WGPU_NATIVE_PATH` 运行。
+
+验证：
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+export GOCACHE=/tmp/gpui-go-cache
+
+go test -count=1 ./gpu/rwgpu
+go test -count=1 ./gpu/webgpu
+go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Clear|Texture|Stencil)'
+```
+
+完成标准：
+- `convert.go` 文档与 `lib/webgpu.h` 一致。
+- render 当前用到的 enum 不再依赖“碰巧相等”。
+- 新增测试能在未来 header 更新时暴露 enum / layout 漂移。
+
+#### Task P0.B gpu/webgpu facade 转换审计
+
+目标：
+- 确保 `gpu/webgpu` 到 `gpu/rwgpu` 的 descriptor 转换完整、显式、可测试。
+
+先读：
+- `gpu/webgpu/device.go`
+- `gpu/webgpu/queue.go`
+- `gpu/webgpu/encoder.go`
+- `gpu/webgpu/renderpass.go`
+- `gpu/webgpu/texture.go`
+- `gpu/webgpu/bind.go`
+
+修改范围：
+- `gpu/webgpu/`
+- `gpu/webgpu/*_test.go`
+
+实现要点：
+- 不允许 facade 层无证明地直传 enum。
+- 对 render pipeline、bind group layout、texture、sampler、render pass descriptor 建立转换测试。
+- 检查 pointer lifetime：slice / StringView / nested descriptor 在 native 调用期间必须存活。
+
+验证：
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+go test -count=1 ./gpu/webgpu/... ./gpu/rwgpu/...
+```
+
+完成标准：
+- `gpu/webgpu` 的每类 descriptor 都有转换测试。
+- render 通过 `gpu/webgpu` 创建的 pipeline / texture / bind group 都是真实 native 对象。
+
+#### Task P0.C text_transform 程序化视觉回归（首轮完成）
+
+目标：
+- 为 `render/examples/text_transform` 建立不上传图片的 CPU vs rwgpu-native 程序化回归。
+
+先读：
+- `render/examples/text_transform/main.go`
+- `render/text.go`
+- `render/internal/gpu/glyph_mask_engine.go`
+- `render/internal/gpu/gpu_render_context.go`
+
+修改范围：
+- `render/internal/visualcmd/text_transform/`
+- `render/text_transform_gpu_visual_test.go`
+
+实现要点：
+- 使用同一份内部 helper 绘制 `text_transform`，默认 CPU，`-tags gpui_visual_gpu` 时 blank import `render/gpu`。
+- 测试默认 skip；设置 `GPUI_TEXT_TRANSFORM_VISUAL=1` 后生成 CPU baseline 与 GPU actual。
+- 默认只输出 text 指标。
+- 指标至少覆盖：
+  - Scale(2,2) 文本 bbox / RMSE / 非背景像素数量。
+  - Scale(3,1) non-uniform 文本 bbox / RMSE。
+  - red crosshair 像素数量。
+- 失败时保留 PNG 文件路径，但不上传图片。
+
+验证：
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+GPUI_TEXT_TRANSFORM_VISUAL=1 \
+GPUI_TEXT_TRANSFORM_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestTextTransformCPUvsGPUVisualDiagnostic -v
+```
+
+完成标准：
+- 当前诊断可稳定输出 CPU/GPU diff、每个 cell 的 dark pixel、red pixel 和 bbox。
+- 后续修复能用同一测试证明结果改善。
+
+最新指标（2026-07-15，P0.D 修复后）：
+```text
+diff changed=11270/630000 mean_abs=1.253 rmse=12.572 max_delta=212
+scale2x    cpu_dark=2135 gpu_dark=2133 ratio=0.999 cpu_bbox=203x46 gpu_bbox=207x46
+scale_down cpu_dark=175  gpu_dark=178  ratio=1.017 cpu_bbox=67x15  gpu_bbox=72x15
+crosshair red pixels 已恢复：identity/translate/scale2x/scale_down 均 cpu_red=4 gpu_red=4
+```
+
+#### Task P0.D text scale 与 stroke hairline 修复（首轮完成）
+
+目标：
+- 修复 `text_transform` 中 Scale 文本虚影、crosshair 和 thin border 消失/变弱问题。
+
+先读：
+- `render/text.go`
+- `render/internal/gpu/glyph_mask_engine.go`
+- `render/internal/gpu/glyph_mask_pipeline.go`
+- `render/internal/gpu/gpu_render_context.go`
+- `render/software.go`
+
+修改范围：
+- `render/internal/gpu/glyph_mask_engine.go`
+- `render/internal/gpu/gpu_render_context.go`
+- `render/internal/gpu/sdf_render.go`
+- 必要测试文件
+
+实现要点：
+- glyph mask 不得在低分辨率 rasterize 后再被 CTM 放大。
+- 对 horizontal scale，按目标 device size rasterize，然后在 quad 尺寸中抵消重复 scale。
+- 对 non-uniform scale、rotation、shear，优先走 vector/MSDF 或明确写入策略。
+- GPU stroke 必须对齐 CPU 的 `transformScale` 和 hairline 最小 1px 语义。
+
+验证：
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+go test -count=1 ./render/internal/gpu -run 'TestGlyphMask|TestEffectiveStrokeWidth|TestDetectedShapeToRenderShapeStroked'
+GPUI_TEXT_TRANSFORM_VISUAL=1 GPUI_TEXT_TRANSFORM_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestTextTransformCPUvsGPUVisualDiagnostic -v
+```
+
+完成标准：
+- `text_transform` 程序化指标通过。
+- CPU 与 GPU 对 scale text、0.5px crosshair 的差异在阈值内。
+- 没有通过强制 CPU fallback 掩盖 GPU 路径问题。
+
+本轮实际改动：
+- `render/internal/gpu/stroke_width.go`：新增 `effectiveStrokeWidth`。
+- `render/internal/gpu/gpu_render_context.go`：`StrokePath` 和 `StrokeShape` 使用 GPU/CPU 一致的 stroke width 语义。
+- `render/internal/gpu/sdf_render.go`：stroked SDF shape `HalfStroke` 使用同一 helper。
+- `render/internal/gpu/glyph_mask_engine.go`：glyph mask raster size 吸收用户 Y scale，quad 尺寸抵消重复 scale。
+- `render/internal/gpu/glyph_mask_spacing_test.go`：HiDPI 测试输入改为 total matrix，符合生产调用契约。
 
 #### Task P0.1 examples 视觉基线采集
 

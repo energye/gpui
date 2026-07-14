@@ -129,6 +129,9 @@ func TestABIStructSizes(t *testing.T) {
 		// vertexBufferLayoutWire: nextInChain(8)+stepMode(4)+pad(4)+arrayStride(8)+
 		//   attributeCount(8)+attributes(8) = 40
 		{"vertexBufferLayoutWire", unsafe.Sizeof(vertexBufferLayoutWire{}), 40},
+		// primitiveState: nextInChain(8)+topology(4)+stripIndexFormat(4)+
+		//   frontFace(4)+cullMode(4)+unclippedDepth(4)+pad(4) = 32
+		{"primitiveState", unsafe.Sizeof(primitiveState{}), 32},
 		// colorTargetStateWire: nextInChain(8)+format(4)+pad(4)+blend(8)+writeMask(8) = 32
 		{"colorTargetStateWire (wire)", unsafe.Sizeof(colorTargetStateWire{}), 32},
 	}
@@ -810,12 +813,85 @@ func TestABIGputypesEnumAlignment(t *testing.T) {
 	})
 }
 
+func TestABIEnumConversions(t *testing.T) {
+	t.Run("PrimitiveTopology", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			got      uint32
+			expected uint32
+		}{
+			{"TriangleList", toWGPUPrimitiveTopology(types.PrimitiveTopologyTriangleList), 0x00000004},
+			{"PointList", toWGPUPrimitiveTopology(types.PrimitiveTopologyPointList), 0x00000001},
+			{"LineList", toWGPUPrimitiveTopology(types.PrimitiveTopologyLineList), 0x00000002},
+			{"LineStrip", toWGPUPrimitiveTopology(types.PrimitiveTopologyLineStrip), 0x00000003},
+			{"TriangleStrip", toWGPUPrimitiveTopology(types.PrimitiveTopologyTriangleStrip), 0x00000005},
+			{"Unknown", toWGPUPrimitiveTopology(types.PrimitiveTopology(0xFFFFFFFF)), 0x00000000},
+		}
+		runEnumTests(t, tests)
+	})
+
+	t.Run("FrontFace", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			got      uint32
+			expected uint32
+		}{
+			{"CCW", toWGPUFrontFace(types.FrontFaceCCW), 0x00000001},
+			{"CW", toWGPUFrontFace(types.FrontFaceCW), 0x00000002},
+			{"Unknown", toWGPUFrontFace(types.FrontFace(0xFFFFFFFF)), 0x00000000},
+		}
+		runEnumTests(t, tests)
+	})
+
+	t.Run("CullMode", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			got      uint32
+			expected uint32
+		}{
+			{"None", toWGPUCullMode(types.CullModeNone), 0x00000001},
+			{"Front", toWGPUCullMode(types.CullModeFront), 0x00000002},
+			{"Back", toWGPUCullMode(types.CullModeBack), 0x00000003},
+			{"Unknown", toWGPUCullMode(types.CullMode(0xFFFFFFFF)), 0x00000000},
+		}
+		runEnumTests(t, tests)
+	})
+}
+
 // =============================================================================
 // TestABIWireStructAlignment — verify wire struct (FFI-compatible) field offsets.
 // Wire structs are internal types; their layout must exactly match C ABI.
 // =============================================================================
 
 func TestABIWireStructAlignment(t *testing.T) {
+	t.Run("primitiveState", func(t *testing.T) {
+		// WGPUPrimitiveState:
+		// nextInChain(0)+topology(8)+stripIndexFormat(12)+frontFace(16)+
+		// cullMode(20)+unclippedDepth(24)+pad(28) = 32
+		var w primitiveState
+		offsets := []struct {
+			name     string
+			got      uintptr
+			expected uintptr
+		}{
+			{"nextInChain", unsafe.Offsetof(w.nextInChain), 0},
+			{"topology", unsafe.Offsetof(w.topology), 8},
+			{"stripIndexFormat", unsafe.Offsetof(w.stripIndexFormat), 12},
+			{"frontFace", unsafe.Offsetof(w.frontFace), 16},
+			{"cullMode", unsafe.Offsetof(w.cullMode), 20},
+			{"unclippedDepth", unsafe.Offsetof(w.unclippedDepth), 24},
+		}
+		for _, o := range offsets {
+			o := o
+			t.Run(o.name, func(t *testing.T) {
+				if o.got != o.expected {
+					t.Errorf("offsetof(primitiveState.%s) = %d, want %d",
+						o.name, o.got, o.expected)
+				}
+			})
+		}
+	})
+
 	t.Run("vertexBufferLayoutWire", func(t *testing.T) {
 		// v29 BREAKING: nextInChain added as FIRST field in WGPUVertexBufferLayout.
 		// nextInChain(0)+stepMode(8)+pad(12)+arrayStride(16)+attributeCount(24)+attributes(32) = 40

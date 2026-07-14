@@ -644,7 +644,7 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 
 	strokeVerbs := convertPathVerbsToStroke(path.Verbs())
 	style := stroke.Stroke{
-		Width:      paint.EffectiveLineWidth(),
+		Width:      effectiveStrokeWidth(paint),
 		Cap:        stroke.LineCap(paint.EffectiveLineCap()),
 		Join:       stroke.LineJoin(paint.EffectiveLineJoin()),
 		MiterLimit: paint.EffectiveMiterLimit(),
@@ -702,7 +702,7 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 
 	// Thin strokes (< 2px) fall back to geometric expansion — SDF annular ring
 	// is thinner than smoothstep AA zone, producing near-zero coverage (ADR-040).
-	if paint.EffectiveLineWidth() < 2.0 {
+	if effectiveStrokeWidth(paint) < 2.0 {
 		return render.ErrFallbackToCPU
 	}
 

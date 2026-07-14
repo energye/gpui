@@ -268,9 +268,10 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: render pipeline descriptor is nil")
 	}
-	rDesc := convertRenderPipelineDesc(desc)
+	rDesc, keepAlive := convertRenderPipelineDesc(desc)
 
 	rp, err := d.r.CreateRenderPipeline(rDesc)
+	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, fmt.Errorf("wgpu: failed to create render pipeline: %w", err)
 	}
@@ -504,10 +505,11 @@ func convertBindGroupEntry(e BindGroupEntry) rwgpu.BindGroupEntry {
 }
 
 // convertRenderPipelineDesc converts our RenderPipelineDescriptor to rwgpu.
-func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) *rwgpu.RenderPipelineDescriptor {
+func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) (*rwgpu.RenderPipelineDescriptor, [][]rwgpu.VertexAttribute) {
 	rDesc := &rwgpu.RenderPipelineDescriptor{
 		Label: desc.Label,
 	}
+	var keepAlive [][]rwgpu.VertexAttribute
 
 	if desc.Layout != nil {
 		rDesc.Layout = desc.Layout.r
@@ -520,7 +522,7 @@ func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) *rwgpu.RenderPipe
 	if desc.Vertex.Module != nil {
 		rDesc.Vertex.Module = desc.Vertex.Module.r
 	}
-	rDesc.Vertex.Buffers = convertVertexBufferLayouts(desc.Vertex.Buffers)
+	rDesc.Vertex.Buffers, keepAlive = convertVertexBufferLayouts(desc.Vertex.Buffers)
 
 	// Primitive state.
 	rDesc.Primitive = rwgpu.PrimitiveState{
@@ -549,13 +551,14 @@ func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) *rwgpu.RenderPipe
 		rDesc.Fragment = convertFragmentState(desc.Fragment)
 	}
 
-	return rDesc
+	return rDesc, keepAlive
 }
 
 // convertVertexBufferLayouts converts vertex buffer layouts.
 // rwgpu uses C-style pointer+count for attributes (FFI layer).
-func convertVertexBufferLayouts(layouts []VertexBufferLayout) []rwgpu.VertexBufferLayout {
+func convertVertexBufferLayouts(layouts []VertexBufferLayout) ([]rwgpu.VertexBufferLayout, [][]rwgpu.VertexAttribute) {
 	result := make([]rwgpu.VertexBufferLayout, len(layouts))
+	keepAlive := make([][]rwgpu.VertexAttribute, len(layouts))
 	for i, l := range layouts {
 		attrs := make([]rwgpu.VertexAttribute, len(l.Attributes))
 		for j, a := range l.Attributes {
@@ -565,6 +568,7 @@ func convertVertexBufferLayouts(layouts []VertexBufferLayout) []rwgpu.VertexBuff
 				ShaderLocation: a.ShaderLocation,
 			}
 		}
+		keepAlive[i] = attrs
 		result[i] = rwgpu.VertexBufferLayout{
 			ArrayStride:    l.ArrayStride,
 			StepMode:       l.StepMode,
@@ -573,11 +577,8 @@ func convertVertexBufferLayouts(layouts []VertexBufferLayout) []rwgpu.VertexBuff
 		if len(attrs) > 0 {
 			result[i].Attributes = (*rwgpu.VertexAttribute)(unsafe.Pointer(&attrs[0])) //nolint:gosec // G103: FFI interop requires unsafe pointer to C-style attribute array
 		}
-		// Keep attrs alive past the unsafe.Pointer conversion so GC
-		// does not collect the backing array while the pointer is in use.
-		runtime.KeepAlive(attrs)
 	}
-	return result
+	return result, keepAlive
 }
 
 // convertDepthStencilState converts depth-stencil state.
