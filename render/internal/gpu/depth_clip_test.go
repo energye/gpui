@@ -14,7 +14,7 @@ import (
 // TestDepthClipPipeline_Lifecycle verifies DepthClipPipeline creation,
 // pipeline compilation, and destruction.
 func TestDepthClipPipeline_Lifecycle(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewDepthClipPipeline(device, queue, 4)
@@ -101,7 +101,7 @@ func TestDepthClipPipeline_Lifecycle(t *testing.T) {
 // TestDepthClipPipeline_BuildClipResources_NilPath verifies that a nil
 // clip path returns nil resources (no-op).
 func TestDepthClipPipeline_BuildClipResources_NilPath(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewDepthClipPipeline(device, queue, 4)
@@ -124,7 +124,7 @@ func TestDepthClipPipeline_BuildClipResources_NilPath(t *testing.T) {
 // TestDepthClipPipeline_BuildClipResources_EmptyPath verifies that an
 // empty path (no subpaths) returns nil resources.
 func TestDepthClipPipeline_BuildClipResources_EmptyPath(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewDepthClipPipeline(device, queue, 4)
@@ -217,7 +217,7 @@ func TestScissorGroup_ClipPath(t *testing.T) {
 // TestHasAnyDepthClip verifies the hasAnyDepthClip helper detects depth clip
 // presence across a slice of groupResources.
 func TestHasAnyDepthClip(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -287,7 +287,7 @@ func TestHasAnyDepthClip(t *testing.T) {
 // The stencil renderer must use the base (non-depth-clipped) pipelines when
 // hasDepthClip is false, ensuring backward compatibility.
 func TestRecordGroupDraws_NoDepthClip_Regression(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -361,7 +361,7 @@ func TestRecordGroupDraws_NoDepthClip_Regression(t *testing.T) {
 // TestStencilRenderer_EnsureDepthClipPipelines verifies that the depth-clipped
 // pipeline variants are created correctly and are idempotent on second call.
 func TestStencilRenderer_EnsureDepthClipPipelines(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -418,7 +418,7 @@ func TestStencilRenderer_EnsureDepthClipPipelines(t *testing.T) {
 // depth clip pipeline writes Z=0.0 fresh each pass, so a clean 1.0 is
 // always the correct starting point.
 func TestDepthLoadOp_AlwaysClear_Regression(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))

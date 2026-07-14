@@ -7,7 +7,6 @@ import (
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
-	"github.com/energye/gpui/gpu/webgpu/hal/noop"
 )
 
 // testSampleCount probes the device for 4x MSAA support, falling back to 1x.
@@ -18,46 +17,8 @@ func testSampleCount(t *testing.T, device *webgpu.Device) uint32 {
 	return resolveSampleCount(device)
 }
 
-// createNoopDevice creates a noop-backed *wgpu.Device and *wgpu.Queue for testing.
-// Returns the device, queue, and a cleanup function.
-func createNoopDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
-	t.Helper()
-	api := noop.API{}
-	instance, err := api.CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
-	adapters := instance.EnumerateAdapters(nil)
-	openDev, err := adapters[0].Adapter.Open(0, types.DefaultLimits())
-	if err != nil {
-		instance.Destroy()
-		t.Fatalf("Open failed: %v", err)
-	}
-
-	device, err := webgpu.NewDeviceFromHAL(
-		openDev.Device,
-		openDev.Queue,
-		types.Features(0),
-		types.DefaultLimits(),
-		"noop-test",
-	)
-	if err != nil {
-		openDev.Device.Destroy()
-		instance.Destroy()
-		t.Fatalf("NewDeviceFromHAL failed: %v", err)
-	}
-
-	queue := device.Queue()
-
-	cleanup := func() {
-		device.Release()
-		instance.Destroy()
-	}
-	return device, queue, cleanup
-}
-
 func TestStencilRendererNew(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeTestDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -87,7 +48,7 @@ func TestStencilRendererNew(t *testing.T) {
 }
 
 func TestStencilRendererEnsureTextures(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeTestDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -128,7 +89,7 @@ func TestStencilRendererEnsureTextures(t *testing.T) {
 }
 
 func TestStencilRendererEnsureTexturesIdempotent(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeTestDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -167,7 +128,7 @@ func TestStencilRendererEnsureTexturesIdempotent(t *testing.T) {
 }
 
 func TestStencilRendererEnsureTexturesResize(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeTestDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -207,7 +168,7 @@ func TestStencilRendererEnsureTexturesResize(t *testing.T) {
 }
 
 func TestStencilRendererDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -253,7 +214,7 @@ func TestStencilRendererDestroy(t *testing.T) {
 }
 
 func TestStencilRendererDestroyBeforeEnsure(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -263,7 +224,7 @@ func TestStencilRendererDestroyBeforeEnsure(t *testing.T) {
 }
 
 func TestStencilRendererRenderPassDescriptor(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -340,7 +301,7 @@ func TestStencilRendererRenderPassDescriptor(t *testing.T) {
 }
 
 func TestStencilRendererResolveTextureNilBeforeEnsure(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -352,7 +313,7 @@ func TestStencilRendererResolveTextureNilBeforeEnsure(t *testing.T) {
 }
 
 func TestStencilRendererEnsureAfterDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)

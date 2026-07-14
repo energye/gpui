@@ -41,12 +41,12 @@ func TestBackendInit(t *testing.T) {
 		t.Error("backend should be initialized after Init()")
 	}
 
-	// Device and Queue should be non-zero
-	if b.Device().IsZero() {
-		t.Error("Device() should not be zero after Init()")
+	// Device and Queue should be available
+	if b.Device() == nil {
+		t.Error("Device() should not be nil after Init()")
 	}
-	if b.Queue().IsZero() {
-		t.Error("Queue() should not be zero after Init()")
+	if b.Queue() == nil {
+		t.Error("Queue() should not be nil after Init()")
 	}
 
 	// GPUInfo should be available
@@ -95,12 +95,12 @@ func TestBackendClose(t *testing.T) {
 		t.Error("backend should not be initialized after Close()")
 	}
 
-	// IDs should be zero
-	if !b.Device().IsZero() {
-		t.Error("Device() should be zero after Close()")
+	// Objects should be released
+	if b.Device() != nil {
+		t.Error("Device() should be nil after Close()")
 	}
-	if !b.Queue().IsZero() {
-		t.Error("Queue() should be zero after Close()")
+	if b.Queue() != nil {
+		t.Error("Queue() should be nil after Close()")
 	}
 	if b.GPUInfo() != nil {
 		t.Error("GPUInfo() should be nil after Close()")

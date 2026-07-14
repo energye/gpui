@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/types"
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
@@ -118,7 +120,7 @@ func NewGPUSceneRenderer(backend *Backend, config GPUSceneRendererConfig) (*GPUS
 	})
 
 	// Compile shaders and create pipeline cache
-	shaders, err := CompileShaders(uint64(backend.Device().Raw()))
+	shaders, err := CompileShaders(backend.Device())
 	if err != nil {
 		memory.Close()
 		return nil, fmt.Errorf("shader compilation failed: %w", err)
@@ -139,6 +141,7 @@ func NewGPUSceneRenderer(backend *Backend, config GPUSceneRendererConfig) (*GPUS
 		Height: config.Height,
 		Format: TextureFormatRGBA8,
 		Label:  "render-target",
+		Usage:  DefaultTextureUsage | types.TextureUsageRenderAttachment,
 	})
 	if err != nil {
 		pipelines.Close()
@@ -146,14 +149,13 @@ func NewGPUSceneRenderer(backend *Backend, config GPUSceneRendererConfig) (*GPUS
 		return nil, fmt.Errorf("target texture allocation failed: %w", err)
 	}
 
-	// Create HybridPipeline for GPU/CPU path rasterization
-	// TODO: Wire up HAL device/queue when core↔HAL bridge is implemented
-	// For now, use CPU-only mode which provides correct functionality
+	// Create HybridPipeline for GPU/CPU path rasterization.
+	// Each stage keeps its CPU fallback, but the primary path uses the backend's
+	// WebGPU objects backed by wgpu-native.
 	//nolint:gosec // dimensions are validated above
 	hybridPipeline := NewHybridPipeline(uint16(config.Width), uint16(config.Height), HybridPipelineConfig{
-		Device:   nil, // Will be populated when HAL bridge is ready
-		Queue:    nil,
-		ForceCPU: true, // Use CPU fallback until HAL integration is complete
+		Device: backend.Device(),
+		Queue:  backend.Queue(),
 	})
 
 	r := &GPUSceneRenderer{
@@ -218,7 +220,9 @@ func (r *GPUSceneRenderer) RenderSceneWithContext(ctx context.Context, s *scene.
 	}
 
 	// Clear target texture
-	r.clearTexture(r.targetTex)
+	if err := r.clearTexture(r.targetTex); err != nil {
+		return err
+	}
 
 	// Reset state
 	r.currentTransform = scene.IdentityAffine()
@@ -574,13 +578,17 @@ func (r *GPUSceneRenderer) pushLayer(blend scene.BlendMode, alpha float32) error
 		Height: r.height,
 		Format: TextureFormatRGBA8,
 		Label:  fmt.Sprintf("layer-%d", len(r.layerStack)),
+		Usage:  DefaultTextureUsage | types.TextureUsageRenderAttachment,
 	})
 	if err != nil {
 		return fmt.Errorf("layer allocation failed: %w", err)
 	}
 
 	// Clear the layer
-	r.clearTexture(layerTex)
+	if err := r.clearTexture(layerTex); err != nil {
+		_ = r.memory.FreeTexture(layerTex)
+		return err
+	}
 
 	// Push to stack (store blend mode and alpha for pop)
 	// For simplicity, we store them in a separate tracking structure
@@ -765,13 +773,50 @@ func (r *GPUSceneRenderer) renderImage(imageIdx uint32, transform scene.Affine) 
 }
 
 // clearTexture clears a texture to transparent.
-func (r *GPUSceneRenderer) clearTexture(tex *GPUTexture) {
-	// TODO: When wgpu is ready:
-	// 1. Create command encoder
-	// 2. Begin render pass with LoadOp: Clear, ClearValue: transparent
-	// 3. End pass immediately
-	// 4. Submit
-	_ = tex
+func (r *GPUSceneRenderer) clearTexture(tex *GPUTexture) error {
+	if tex == nil {
+		return ErrTextureReleased
+	}
+	view := tex.View()
+	if view == nil {
+		return ErrTextureReleased
+	}
+
+	encoder, err := r.backend.Device().CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+		Label: "scene-renderer-clear",
+	})
+	if err != nil {
+		return fmt.Errorf("create clear encoder: %w", err)
+	}
+
+	pass, err := encoder.BeginRenderPass(&webgpu.RenderPassDescriptor{
+		Label: "scene-renderer-clear-pass",
+		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+			View:       view,
+			LoadOp:     types.LoadOpClear,
+			StoreOp:    types.StoreOpStore,
+			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
+		}},
+	})
+	if err != nil {
+		encoder.DiscardEncoding()
+		return fmt.Errorf("begin clear pass: %w", err)
+	}
+	if err := pass.End(); err != nil {
+		encoder.DiscardEncoding()
+		return fmt.Errorf("end clear pass: %w", err)
+	}
+
+	cmdBuf, err := encoder.Finish()
+	if err != nil {
+		return fmt.Errorf("finish clear encoder: %w", err)
+	}
+	defer cmdBuf.Release()
+
+	if _, err := r.backend.Queue().Submit(cmdBuf); err != nil {
+		return fmt.Errorf("submit clear pass: %w", err)
+	}
+	return nil
 }
 
 // compositeToTarget performs final compositing to the target texture.
@@ -789,15 +834,16 @@ func (r *GPUSceneRenderer) compositeToTarget() error {
 
 // downloadToPixmap downloads the target texture to a pixmap.
 func (r *GPUSceneRenderer) downloadToPixmap(target *render.Pixmap) error {
-	// TODO: When wgpu texture readback is implemented:
-	// 1. Create staging buffer
-	// 2. Copy texture to buffer
-	// 3. Map buffer for reading
-	// 4. Copy data to pixmap
-	// 5. Unmap and destroy buffer
-
-	// For now, return stub error
-	return ErrTextureReadbackNotSupported
+	if r.targetTex == nil {
+		return ErrTextureReleased
+	}
+	pixmap, err := r.targetTex.DownloadPixmap()
+	if err != nil {
+		return err
+	}
+	copy(target.Data(), pixmap.Data())
+	target.NotifyPixelsChanged()
+	return nil
 }
 
 // Resize resizes the renderer to new dimensions.
@@ -837,6 +883,7 @@ func (r *GPUSceneRenderer) Resize(width, height int) error {
 		Height: height,
 		Format: TextureFormatRGBA8,
 		Label:  "render-target",
+		Usage:  DefaultTextureUsage | types.TextureUsageRenderAttachment,
 	})
 	if err != nil {
 		return fmt.Errorf("target allocation failed: %w", err)

@@ -5,6 +5,9 @@ package gpu
 import (
 	"encoding/binary"
 	"math"
+
+	"github.com/energye/gpui/gpu/types"
+	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // clipParamsSize is the byte size of the ClipParams uniform buffer.
@@ -45,4 +48,17 @@ func (p *ClipParams) Bytes() []byte {
 // NoClipParams returns a ClipParams with Enabled=0 (no clipping).
 func NoClipParams() *ClipParams {
 	return &ClipParams{Enabled: 0}
+}
+
+func createClipBindGroupLayout(device *webgpu.Device, label string) (*webgpu.BindGroupLayout, error) {
+	return device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		Label: label,
+		Entries: []types.BindGroupLayoutEntry{
+			{
+				Binding:    0,
+				Visibility: types.ShaderStageFragment,
+				Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: clipParamsSize},
+			},
+		},
+	})
 }

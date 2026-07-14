@@ -467,7 +467,7 @@ func (s *GPUShared) initGPU() error {
 		s.softwareMode = true
 	}
 
-	device, err := adapter.RequestDevice(&webgpu.DeviceDescriptor{Label: "gg-shared"})
+	device, err := adapter.RequestDevice(renderDeviceDescriptor("gg-shared"))
 	if err != nil {
 		return fmt.Errorf("request device: %w", err)
 	}

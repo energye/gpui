@@ -361,10 +361,10 @@ type VelloComputeBuffers struct {
 type VelloComputeDispatcher struct {
 	mu sync.RWMutex
 
-	// device is the HAL device providing GPU resource creation.
+	// device is the GPU device providing GPU resource creation.
 	device *webgpu.Device
 
-	// queue is the HAL queue for command submission and buffer writes.
+	// queue is the GPU queue for command submission and buffer writes.
 	queue *webgpu.Queue
 
 	// pipelines are the compiled compute pipelines, one per stage.
@@ -390,7 +390,7 @@ type VelloComputeDispatcher struct {
 }
 
 // NewVelloComputeDispatcher creates a new dispatcher attached to the given
-// HAL device and queue. The dispatcher must be initialized with Init()
+// GPU device and queue. The dispatcher must be initialized with Init()
 // before Dispatch() can be called.
 func NewVelloComputeDispatcher(device *webgpu.Device, queue *webgpu.Queue) *VelloComputeDispatcher {
 	d := &VelloComputeDispatcher{
@@ -860,18 +860,18 @@ func (d *VelloComputeDispatcher) AllocateBuffers(
 
 	specs := []bufSpec{
 		{&bufs.Config, "vello_config", sz.config, uniformCPU, false},
-		{&bufs.Scene, "vello_scene", sz.scene, storageCPU, false},
+		{&bufs.Scene, "vello_scene", sz.scene, storageCPU | types.BufferUsageCopySrc, false},
 		{&bufs.Reduced, "vello_reduced", sz.reduced, storageGPU, false},
 		{&bufs.TagMonoids, "vello_tag_monoids", sz.tagMonoids, storageGPU, false},
 		{&bufs.DrawReduced, "vello_draw_reduced", sz.drawReduced, storageGPU, false},
-		{&bufs.DrawMonoids, "vello_draw_monoids", sz.drawMonoids, storageGPU, false},
+		{&bufs.DrawMonoids, "vello_draw_monoids", sz.drawMonoids, storageGPU | types.BufferUsageCopySrc, false},
 		{&bufs.Info, "vello_info", sz.info, storageGPU, false},
 		{&bufs.Lines, "vello_lines", sz.lines, storageCPU | types.BufferUsageCopySrc, false},
 		{&bufs.Paths, "vello_paths", sz.paths, storageCPU | types.BufferUsageCopySrc, false},
 		{&bufs.Tiles, "vello_tiles", sz.tiles, storageZero | types.BufferUsageCopySrc, true},              // atomicAdd in path_count
 		{&bufs.SegCounts, "vello_seg_counts", sz.segCounts, storageGPU, false},                            // written by path_count
-		{&bufs.Segments, "vello_segments", sz.segments, storageGPU, false},                                // written by coarse
-		{&bufs.PTCL, "vello_ptcl", sz.ptcl, storageZero, true},                                            // CMD_END=0 sentinel
+		{&bufs.Segments, "vello_segments", sz.segments, storageGPU | types.BufferUsageCopySrc, false},     // written by coarse
+		{&bufs.PTCL, "vello_ptcl", sz.ptcl, storageZero | types.BufferUsageCopySrc, true},                 // CMD_END=0 sentinel
 		{&bufs.BumpAlloc, "vello_bump_alloc", sz.bumpAlloc, storageZero | types.BufferUsageCopySrc, true}, // atomicAdd in path_count
 		{&bufs.TilePTCLOffsets, "vello_tile_ptcl_offsets", sz.tilePTCLOffsets, storageZero, true},         // coarse write positions
 		{&bufs.PathStyles, "vello_path_styles", sz.pathStyles, storageCPU, false},

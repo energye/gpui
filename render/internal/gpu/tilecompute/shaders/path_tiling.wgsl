@@ -199,7 +199,7 @@ fn main(
     let safe_dx = select(dx_full, 1.0, abs(dx_full) < EPSILON);
 
     // --- Top clipping ---
-    var p0 = xy0;
+    var clipped_p0 = xy0;
     if seg_within_line > 0u {
         let z_prev = floor(a * (f32(seg_within_line) - 1.0) + b);
         let is_top_edge = z == z_prev;
@@ -215,45 +215,45 @@ fn main(
         );
 
         if is_top_edge {
-            p0 = vec2<f32>(xt_top, tile_y_f);
+            clipped_p0 = vec2<f32>(xt_top, tile_y_f);
         } else {
-            p0 = vec2<f32>(x_clip_top, yt_top);
+            clipped_p0 = vec2<f32>(x_clip_top, yt_top);
         }
     }
 
     // --- Bottom clipping (uses top-clipped p0) ---
-    var p1 = xy1;
+    var clipped_p1 = xy1;
     if seg_within_line < count - 1u {
         let z_next = floor(a * (f32(seg_within_line) + 1.0) + b);
         let is_bottom_edge = z == z_next;
 
-        let dy_bc = xy1.y - p0.y;
-        let dx_bc = xy1.x - p0.x;
+        let dy_bc = xy1.y - clipped_p0.y;
+        let dx_bc = xy1.x - clipped_p0.x;
         let safe_dy_bc = select(dy_bc, 1.0, abs(dy_bc) < EPSILON);
         let safe_dx_bc = select(dx_bc, 1.0, abs(dx_bc) < EPSILON);
 
         let xt_bot = clamp(
-            p0.x + dx_bc * (tile_y1_f - p0.y) / safe_dy_bc,
+            clipped_p0.x + dx_bc * (tile_y1_f - clipped_p0.y) / safe_dy_bc,
             tile_x_f + 1e-3, tile_x1_f
         );
         let x_clip_bot = select(tile_x_f, tile_x1_f, is_positive_slope);
         let yt_bot = clamp(
-            p0.y + dy_bc * (x_clip_bot - p0.x) / safe_dx_bc,
+            clipped_p0.y + dy_bc * (x_clip_bot - clipped_p0.x) / safe_dx_bc,
             tile_y_f + 1e-3, tile_y1_f
         );
 
         if is_bottom_edge {
-            p1 = vec2<f32>(xt_bot, tile_y1_f);
+            clipped_p1 = vec2<f32>(xt_bot, tile_y1_f);
         } else {
-            p1 = vec2<f32>(x_clip_bot, yt_bot);
+            clipped_p1 = vec2<f32>(x_clip_bot, yt_bot);
         }
     }
 
     // --- Tile-local coordinates ---
-    let p0x = p0.x - tile_x_f;
-    let p0y = p0.y - tile_y_f;
-    let p1x = p1.x - tile_x_f;
-    let p1y = p1.y - tile_y_f;
+    let p0x = clipped_p0.x - tile_x_f;
+    let p0y = clipped_p0.y - tile_y_f;
+    let p1x = clipped_p1.x - tile_x_f;
+    let p1y = clipped_p1.y - tile_y_f;
 
     // --- y_edge computation ---
     let p0_on_left = p0x == 0.0;

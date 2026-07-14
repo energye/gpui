@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu/core"
+	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Command encoder errors.
@@ -52,6 +52,17 @@ var (
 	ErrCopySizeNotAligned = errors.New("gpu: copy size must be 4-byte aligned")
 )
 
+// CommandEncoderStatus is the render package's command encoder state.
+type CommandEncoderStatus int
+
+const (
+	CommandEncoderStatusError CommandEncoderStatus = iota
+	CommandEncoderStatusRecording
+	CommandEncoderStatusLocked
+	CommandEncoderStatusFinished
+	CommandEncoderStatusConsumed
+)
+
 // =============================================================================
 // Command Encoder
 // =============================================================================
@@ -79,8 +90,8 @@ var (
 type CoreCommandEncoder struct {
 	mu sync.Mutex
 
-	// coreEncoder is the underlying wgpu core command encoder.
-	coreEncoder *core.CoreCommandEncoder
+	// gpuEncoder is the underlying WebGPU command encoder.
+	gpuEncoder *webgpu.CommandEncoder
 
 	// device is the parent gpu backend device reference.
 	device *Backend
@@ -116,16 +127,25 @@ func NewCoreCommandEncoder(backend *Backend, label string) (*CoreCommandEncoder,
 	if !backend.initialized {
 		return nil, ErrNotInitialized
 	}
+	device := backend.device
+	if device == nil {
+		return nil, ErrNilDevice
+	}
+	gpuEncoder, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: label})
+	if err != nil {
+		return nil, fmt.Errorf("create command encoder: %w", err)
+	}
 
 	enc := &CoreCommandEncoder{
-		device: backend,
-		label:  label,
+		device:     backend,
+		gpuEncoder: gpuEncoder,
+		label:      label,
 	}
 
 	return enc, nil
 }
 
-// NewCoreCommandEncoderWithDevice creates a command encoder using a core.Device.
+// NewCoreCommandEncoderWithDevice creates a command encoder using a WebGPU device.
 //
 // This version creates a real wgpu command encoder.
 //
@@ -135,19 +155,19 @@ func NewCoreCommandEncoder(backend *Backend, label string) (*CoreCommandEncoder,
 //
 // Returns the encoder and nil on success.
 // Returns nil and an error if the device is invalid or creation fails.
-func NewCoreCommandEncoderWithDevice(device *core.Device, label string) (*CoreCommandEncoder, error) {
+func NewCoreCommandEncoderWithDevice(device *webgpu.Device, label string) (*CoreCommandEncoder, error) {
 	if device == nil {
 		return nil, ErrNilDevice
 	}
 
-	coreEncoder, err := device.CreateCommandEncoder(label)
+	gpuEncoder, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: label})
 	if err != nil {
 		return nil, fmt.Errorf("create command encoder: %w", err)
 	}
 
 	enc := &CoreCommandEncoder{
-		coreEncoder: coreEncoder,
-		label:       label,
+		gpuEncoder: gpuEncoder,
+		label:      label,
 	}
 
 	return enc, nil
@@ -162,9 +182,9 @@ func (e *CoreCommandEncoder) Label() string {
 }
 
 // Status returns the current encoder status.
-func (e *CoreCommandEncoder) Status() core.CommandEncoderStatus {
+func (e *CoreCommandEncoder) Status() CommandEncoderStatus {
 	if e == nil {
-		return core.CommandEncoderStatusError
+		return CommandEncoderStatusError
 	}
 
 	e.mu.Lock()
@@ -193,13 +213,13 @@ func (e *CoreCommandEncoder) checkRecording() error {
 func (e *CoreCommandEncoder) checkRecordingLocked() error {
 	status := e.statusLocked()
 	switch status {
-	case core.CommandEncoderStatusRecording:
+	case CommandEncoderStatusRecording:
 		return nil
-	case core.CommandEncoderStatusLocked:
+	case CommandEncoderStatusLocked:
 		return ErrEncoderLocked
-	case core.CommandEncoderStatusFinished:
+	case CommandEncoderStatusFinished:
 		return ErrEncoderFinished
-	case core.CommandEncoderStatusConsumed:
+	case CommandEncoderStatusConsumed:
 		return ErrEncoderConsumed
 	default:
 		return ErrEncoderNotRecording
@@ -207,16 +227,11 @@ func (e *CoreCommandEncoder) checkRecordingLocked() error {
 }
 
 // statusLocked returns the encoder status. The caller must hold e.mu.
-func (e *CoreCommandEncoder) statusLocked() core.CommandEncoderStatus {
-	if e.coreEncoder != nil {
-		return e.coreEncoder.Status()
-	}
-
-	// Fallback for mock mode (no core encoder)
+func (e *CoreCommandEncoder) statusLocked() CommandEncoderStatus {
 	if e.activeRenderPass != nil || e.activeComputePass != nil {
-		return core.CommandEncoderStatusLocked
+		return CommandEncoderStatusLocked
 	}
-	return core.CommandEncoderStatusRecording
+	return CommandEncoderStatusRecording
 }
 
 // BeginRenderPass starts a render pass with the given descriptor.
@@ -245,18 +260,16 @@ func (e *CoreCommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*Rende
 		return nil, fmt.Errorf("begin render pass: descriptor is nil")
 	}
 
-	// If we have a core encoder, use it
-	if e.coreEncoder != nil {
-		coreDesc := desc.toCoreDescriptor()
-		corePass, err := e.coreEncoder.BeginRenderPass(coreDesc)
+	if e.gpuEncoder != nil {
+		gpuPass, err := e.gpuEncoder.BeginRenderPass(desc.toWebGPUDescriptor())
 		if err != nil {
 			return nil, fmt.Errorf("begin render pass: %w", err)
 		}
 
 		pass := &RenderPassEncoder{
-			corePass: corePass,
-			encoder:  e,
-			state:    RenderPassStateRecording,
+			gpuPass: gpuPass,
+			encoder: e,
+			state:   RenderPassStateRecording,
 		}
 		e.activeRenderPass = pass
 		return pass, nil
@@ -308,22 +321,21 @@ func (e *CoreCommandEncoder) BeginComputePass(desc *ComputePassDescriptor) (*Com
 		return nil, fmt.Errorf("begin compute pass: %w", err)
 	}
 
-	// If we have a core encoder, use it
-	if e.coreEncoder != nil {
-		coreDesc := &core.CoreComputePassDescriptor{}
+	if e.gpuEncoder != nil {
+		gpuDesc := &webgpu.ComputePassDescriptor{}
 		if desc != nil {
-			coreDesc.Label = desc.Label
+			gpuDesc.Label = desc.Label
 		}
 
-		corePass, err := e.coreEncoder.BeginComputePass(coreDesc)
+		gpuPass, err := e.gpuEncoder.BeginComputePass(gpuDesc)
 		if err != nil {
 			return nil, fmt.Errorf("begin compute pass: %w", err)
 		}
 
 		pass := &ComputePassEncoder{
-			corePass: corePass,
-			encoder:  e,
-			state:    ComputePassStateRecording,
+			gpuPass: gpuPass,
+			encoder: e,
+			state:   ComputePassStateRecording,
 		}
 		e.activeComputePass = pass
 		return pass, nil
@@ -372,7 +384,7 @@ func (e *CoreCommandEncoder) endComputePass(pass *ComputePassEncoder) error {
 //
 // Returns nil on success.
 // Returns an error if validation fails or the encoder state is invalid.
-func (e *CoreCommandEncoder) CopyBufferToBuffer(src, dst *core.Buffer, srcOffset, dstOffset, size uint64) error {
+func (e *CoreCommandEncoder) CopyBufferToBuffer(src, dst *Buffer, srcOffset, dstOffset, size uint64) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -407,8 +419,9 @@ func (e *CoreCommandEncoder) CopyBufferToBuffer(src, dst *core.Buffer, srcOffset
 			ErrCopyRangeOutOfBounds, dstOffset, size, dst.Size())
 	}
 
-	// TODO: When HAL is integrated, record the copy command:
-	// e.coreEncoder.CopyBufferToBuffer(src, dst, srcOffset, dstOffset, size)
+	if e.gpuEncoder != nil {
+		e.gpuEncoder.CopyBufferToBuffer(src.Raw(), srcOffset, dst.Raw(), dstOffset, size)
+	}
 
 	return nil
 }
@@ -439,7 +452,18 @@ func (e *CoreCommandEncoder) CopyBufferToTexture(source *ImageCopyBuffer, destin
 		return fmt.Errorf("copy buffer to texture: destination is nil")
 	}
 
-	// TODO: When HAL is integrated, record the copy command
+	if e.gpuEncoder != nil {
+		e.gpuEncoder.CopyBufferToTexture(source.Buffer.Raw(), destination.Texture.Texture(), []webgpu.BufferTextureCopy{{
+			BufferLayout: webgpu.ImageDataLayout(source.Layout),
+			TextureBase: webgpu.ImageCopyTexture{
+				Texture:  destination.Texture.Texture(),
+				MipLevel: destination.MipLevel,
+				Origin:   webgpu.Origin3D(destination.Origin),
+				Aspect:   destination.Aspect,
+			},
+			Size: webgpu.Extent3D(copySize),
+		}})
+	}
 
 	return nil
 }
@@ -470,7 +494,18 @@ func (e *CoreCommandEncoder) CopyTextureToBuffer(source *ImageCopyTexture, desti
 		return fmt.Errorf("copy texture to buffer: destination is nil")
 	}
 
-	// TODO: When HAL is integrated, record the copy command
+	if e.gpuEncoder != nil {
+		e.gpuEncoder.CopyTextureToBuffer(source.Texture.Texture(), destination.Buffer.Raw(), []webgpu.BufferTextureCopy{{
+			BufferLayout: webgpu.ImageDataLayout(destination.Layout),
+			TextureBase: webgpu.ImageCopyTexture{
+				Texture:  source.Texture.Texture(),
+				MipLevel: source.MipLevel,
+				Origin:   webgpu.Origin3D(source.Origin),
+				Aspect:   source.Aspect,
+			},
+			Size: webgpu.Extent3D(copySize),
+		}})
+	}
 
 	return nil
 }
@@ -501,7 +536,23 @@ func (e *CoreCommandEncoder) CopyTextureToTexture(source, destination *ImageCopy
 		return fmt.Errorf("copy texture to texture: destination is nil")
 	}
 
-	// TODO: When HAL is integrated, record the copy command
+	if e.gpuEncoder != nil {
+		e.gpuEncoder.CopyTextureToTexture(source.Texture.Texture(), destination.Texture.Texture(), []webgpu.TextureCopy{{
+			Source: webgpu.ImageCopyTexture{
+				Texture:  source.Texture.Texture(),
+				MipLevel: source.MipLevel,
+				Origin:   webgpu.Origin3D(source.Origin),
+				Aspect:   source.Aspect,
+			},
+			Destination: webgpu.ImageCopyTexture{
+				Texture:  destination.Texture.Texture(),
+				MipLevel: destination.MipLevel,
+				Origin:   webgpu.Origin3D(destination.Origin),
+				Aspect:   destination.Aspect,
+			},
+			Size: webgpu.Extent3D(copySize),
+		}})
+	}
 
 	return nil
 }
@@ -517,7 +568,7 @@ func (e *CoreCommandEncoder) CopyTextureToTexture(source, destination *ImageCopy
 //
 // Returns nil on success.
 // Returns an error if validation fails or the encoder state is invalid.
-func (e *CoreCommandEncoder) ClearBuffer(buffer *core.Buffer, offset, size uint64) error {
+func (e *CoreCommandEncoder) ClearBuffer(buffer *Buffer, offset, size uint64) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -551,7 +602,9 @@ func (e *CoreCommandEncoder) ClearBuffer(buffer *core.Buffer, offset, size uint6
 			ErrCopyRangeOutOfBounds, offset, actualSize, buffer.Size())
 	}
 
-	// TODO: When HAL is integrated, record the clear command
+	if e.gpuEncoder != nil {
+		e.gpuEncoder.ClearBuffer(buffer.Raw(), offset, actualSize)
+	}
 
 	return nil
 }
@@ -572,16 +625,15 @@ func (e *CoreCommandEncoder) Finish() (*CoreCommandBuffer, error) {
 		return nil, fmt.Errorf("finish: %w", err)
 	}
 
-	// If we have a core encoder, finish it
-	if e.coreEncoder != nil {
-		coreBuffer, err := e.coreEncoder.Finish()
+	if e.gpuEncoder != nil {
+		gpuBuffer, err := e.gpuEncoder.Finish()
 		if err != nil {
 			return nil, fmt.Errorf("finish: %w", err)
 		}
 
 		return &CoreCommandBuffer{
-			coreBuffer: coreBuffer,
-			label:      e.label,
+			gpuBuffer: gpuBuffer,
+			label:     e.label,
 		}, nil
 	}
 
@@ -607,28 +659,30 @@ type RenderPassDescriptor struct {
 	DepthStencilAttachment *RenderPassDepthStencilAttachment
 }
 
-// toCoreDescriptor converts to a core.RenderPassDescriptor.
-func (d *RenderPassDescriptor) toCoreDescriptor() *core.RenderPassDescriptor {
+// toWebGPUDescriptor converts to a WebGPU render pass descriptor.
+func (d *RenderPassDescriptor) toWebGPUDescriptor() *webgpu.RenderPassDescriptor {
 	if d == nil {
 		return nil
 	}
 
-	coreDesc := &core.RenderPassDescriptor{
+	gpuDesc := &webgpu.RenderPassDescriptor{
 		Label: d.Label,
 	}
 
 	for _, ca := range d.ColorAttachments {
-		coreCA := core.RenderPassColorAttachment{
-			LoadOp:     ca.LoadOp,
-			StoreOp:    ca.StoreOp,
-			ClearValue: ca.ClearValue,
-			// Note: View conversion pending TextureView HAL integration
+		gpuCA := webgpu.RenderPassColorAttachment{
+			LoadOp:        ca.LoadOp,
+			StoreOp:       ca.StoreOp,
+			ClearValue:    ca.ClearValue,
+			View:          rawTextureView(ca.View),
+			ResolveTarget: rawTextureView(ca.ResolveTarget),
 		}
-		coreDesc.ColorAttachments = append(coreDesc.ColorAttachments, coreCA)
+		gpuDesc.ColorAttachments = append(gpuDesc.ColorAttachments, gpuCA)
 	}
 
 	if d.DepthStencilAttachment != nil {
-		coreDesc.DepthStencilAttachment = &core.RenderPassDepthStencilAttachment{
+		gpuDesc.DepthStencilAttachment = &webgpu.RenderPassDepthStencilAttachment{
+			View:              rawTextureView(d.DepthStencilAttachment.View),
 			DepthLoadOp:       d.DepthStencilAttachment.DepthLoadOp,
 			DepthStoreOp:      d.DepthStencilAttachment.DepthStoreOp,
 			DepthClearValue:   d.DepthStencilAttachment.DepthClearValue,
@@ -640,7 +694,14 @@ func (d *RenderPassDescriptor) toCoreDescriptor() *core.RenderPassDescriptor {
 		}
 	}
 
-	return coreDesc
+	return gpuDesc
+}
+
+func rawTextureView(view *TextureView) *webgpu.TextureView {
+	if view == nil {
+		return nil
+	}
+	return view.Raw()
 }
 
 // RenderPassColorAttachment describes a color attachment.
@@ -702,9 +763,6 @@ type ComputePassDescriptor struct {
 
 // ComputePassTimestampWrites describes timestamp query writes for a compute pass.
 type ComputePassTimestampWrites struct {
-	// QuerySet is the query set to write timestamps to.
-	QuerySet core.QuerySetID
-
 	// BeginningOfPassWriteIndex is the query index for pass start.
 	BeginningOfPassWriteIndex *uint32
 
@@ -715,7 +773,7 @@ type ComputePassTimestampWrites struct {
 // ImageCopyBuffer describes a buffer for texture copy operations.
 type ImageCopyBuffer struct {
 	// Buffer is the buffer to copy to/from.
-	Buffer *core.Buffer
+	Buffer *Buffer
 
 	// Layout describes how the data is laid out in the buffer.
 	Layout types.TextureDataLayout
@@ -749,8 +807,8 @@ type ImageCopyTexture struct {
 // Command buffers are created by CoreCommandEncoder.Finish() and submitted
 // to a Queue for execution.
 type CoreCommandBuffer struct {
-	// coreBuffer is the underlying core command buffer.
-	coreBuffer *core.CoreCommandBuffer
+	// gpuBuffer is the underlying WebGPU command buffer.
+	gpuBuffer *webgpu.CommandBuffer
 
 	// label is the debug label.
 	label string
@@ -764,11 +822,10 @@ func (cb *CoreCommandBuffer) Label() string {
 	return cb.label
 }
 
-// CoreBuffer returns the underlying core command buffer.
-// Returns nil if the buffer was created without a core encoder.
-func (cb *CoreCommandBuffer) CoreBuffer() *core.CoreCommandBuffer {
+// Raw returns the underlying WebGPU command buffer.
+func (cb *CoreCommandBuffer) Raw() *webgpu.CommandBuffer {
 	if cb == nil {
 		return nil
 	}
-	return cb.coreBuffer
+	return cb.gpuBuffer
 }

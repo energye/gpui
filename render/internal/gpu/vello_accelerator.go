@@ -764,6 +764,16 @@ func (a *VelloAccelerator) uploadPathAuxData(
 // result back to CPU memory. The output buffer has CopySrc usage but not MapRead;
 // a temporary staging buffer with MapRead|CopyDst is created for the transfer.
 func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint64) ([]byte, error) {
+	if outputBuffer == nil {
+		return nil, fmt.Errorf("output buffer is nil")
+	}
+	if bufSize := outputBuffer.Size(); size > bufSize {
+		size = bufSize
+	}
+	if size == 0 {
+		return []byte{}, nil
+	}
+
 	// Create staging buffer for readback.
 	stagingBuffer, err := a.device.CreateBuffer(&webgpu.BufferDescriptor{
 		Label: "vello_staging_readback",
@@ -1248,7 +1258,7 @@ func (a *VelloAccelerator) initGPU() error {
 		return fmt.Errorf("request adapter: %w", err)
 	}
 
-	device, err := adapter.RequestDevice(&webgpu.DeviceDescriptor{Label: "gg-vello"})
+	device, err := adapter.RequestDevice(renderDeviceDescriptor("gg-vello"))
 	if err != nil {
 		return fmt.Errorf("request device: %w", err)
 	}

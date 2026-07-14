@@ -5,7 +5,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/energye/gpui/ffi"
+	"github.com/ebitengine/purego"
 )
 
 // PushErrorScope pushes an error scope for catching GPU errors.
@@ -63,7 +63,7 @@ var (
 	errorScopeCallbackOnce sync.Once
 )
 
-// errorScopeCallbackHandler is the Go function called by C code via ffi.NewCallback.
+// errorScopeCallbackHandler is the Go function called by native code via purego.NewCallback.
 // Signature matches: void callback(WGPUPopErrorScopeStatus status, WGPUErrorType type,
 //
 //	WGPUStringView message, void* userdata1, void* userdata2)
@@ -91,9 +91,9 @@ func errorScopeCallbackHandler(status uintptr, errType uintptr, messageData uint
 	return 0 // void return
 }
 
-// initErrorScopeCallback creates the C callback function pointer using goffi.
+// initErrorScopeCallback creates the C callback function pointer using purego.
 func initErrorScopeCallback() {
-	errorScopeCallbackPtr = ffi.NewCallback(errorScopeCallbackHandler)
+	errorScopeCallbackPtr = purego.NewCallback(errorScopeCallbackHandler)
 }
 
 // Deprecated: PopErrorScope panics on failure. Use PopErrorScopeAsync instead.

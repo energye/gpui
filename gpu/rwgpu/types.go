@@ -43,8 +43,9 @@ type Queue struct{ handle uintptr }
 // Buffer represents a block of GPU-accessible memory.
 // Create with [Device.CreateBuffer], release with [Buffer.Release].
 type Buffer struct {
-	handle uintptr
-	device *Device // retained for Map/Poll; set by CreateBuffer
+	handle   uintptr
+	device   *Device // retained for Map/Poll; set by CreateBuffer
+	mapState BufferMapState
 }
 
 // Texture represents a GPU texture resource (1D, 2D, or 3D).

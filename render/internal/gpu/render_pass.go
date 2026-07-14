@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu/core"
+	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Render pass errors.
@@ -99,8 +99,8 @@ type RenderPassEncoder struct {
 	// mu protects mutable state.
 	mu sync.Mutex
 
-	// corePass is the underlying core render pass encoder.
-	corePass *core.CoreRenderPassEncoder
+	// gpuPass is the underlying WebGPU render pass encoder.
+	gpuPass *webgpu.RenderPassEncoder
 
 	// encoder is the parent command encoder.
 	encoder *CoreCommandEncoder
@@ -172,11 +172,9 @@ func (p *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) error {
 
 	p.currentPipeline = pipeline
 
-	// Forward to core pass if available
-	// Note: core.CoreRenderPassEncoder.SetPipeline takes *core.RenderPipeline
-	// Integration pending for core.RenderPipeline
-	// For now, we record the state locally
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.SetPipeline(pipeline.Raw())
+	}
 
 	return nil
 }
@@ -213,10 +211,9 @@ func (p *RenderPassEncoder) SetBindGroup(index uint32, bindGroup *BindGroup, dyn
 		return ErrNilBindGroup
 	}
 
-	// Forward to core pass if available
-	// Note: core.CoreRenderPassEncoder does not have SetBindGroup yet
-	// Integration pending
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.SetBindGroup(index, bindGroup.Raw(), dynamicOffsets)
+	}
 
 	return nil
 }
@@ -254,11 +251,9 @@ func (p *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, offset,
 		p.vertexBufferCount = slot + 1
 	}
 
-	// Forward to core pass if available
-	// core.CoreRenderPassEncoder.SetVertexBuffer takes *core.Buffer
-	// We need to convert Buffer to core.Buffer
-	// For now, this is a no-op until buffer integration is complete
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.SetVertexBuffer(slot, buffer.Raw(), offset)
+	}
 
 	return nil
 }
@@ -292,11 +287,9 @@ func (p *RenderPassEncoder) SetIndexBuffer(buffer *Buffer, format IndexFormat, o
 
 	p.hasIndexBuffer = true
 
-	// Forward to core pass if available
-	// core.CoreRenderPassEncoder.SetIndexBuffer takes *core.Buffer
-	// Convert format and forward
-	// For now, this is a no-op until buffer integration is complete
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.SetIndexBuffer(buffer.Raw(), types.IndexFormat(format), offset)
+	}
 
 	return nil
 }
@@ -321,9 +314,8 @@ func (p *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth 
 		return fmt.Errorf("set viewport: %w", err)
 	}
 
-	// Forward to core pass if available
-	if p.corePass != nil {
-		p.corePass.SetViewport(x, y, width, height, minDepth, maxDepth)
+	if p.gpuPass != nil {
+		p.gpuPass.SetViewport(x, y, width, height, minDepth, maxDepth)
 	}
 
 	return nil
@@ -348,9 +340,8 @@ func (p *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) error {
 		return fmt.Errorf("set scissor rect: %w", err)
 	}
 
-	// Forward to core pass if available
-	if p.corePass != nil {
-		p.corePass.SetScissorRect(x, y, width, height)
+	if p.gpuPass != nil {
+		p.gpuPass.SetScissorRect(x, y, width, height)
 	}
 
 	return nil
@@ -374,9 +365,8 @@ func (p *RenderPassEncoder) SetBlendConstant(color types.Color) error {
 		return fmt.Errorf("set blend constant: %w", err)
 	}
 
-	// Forward to core pass if available
-	if p.corePass != nil {
-		p.corePass.SetBlendConstant(&color)
+	if p.gpuPass != nil {
+		p.gpuPass.SetBlendConstant(&color)
 	}
 
 	return nil
@@ -399,9 +389,8 @@ func (p *RenderPassEncoder) SetStencilReference(reference uint32) error {
 		return fmt.Errorf("set stencil reference: %w", err)
 	}
 
-	// Forward to core pass if available
-	if p.corePass != nil {
-		p.corePass.SetStencilReference(reference)
+	if p.gpuPass != nil {
+		p.gpuPass.SetStencilReference(reference)
 	}
 
 	return nil
@@ -428,9 +417,8 @@ func (p *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstI
 		return fmt.Errorf("draw: %w", err)
 	}
 
-	// Forward to core pass if available
-	if p.corePass != nil {
-		p.corePass.Draw(vertexCount, instanceCount, firstVertex, firstInstance)
+	if p.gpuPass != nil {
+		p.gpuPass.Draw(vertexCount, instanceCount, firstVertex, firstInstance)
 	}
 
 	return nil
@@ -458,9 +446,8 @@ func (p *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex ui
 		return fmt.Errorf("draw indexed: %w", err)
 	}
 
-	// Forward to core pass if available
-	if p.corePass != nil {
-		p.corePass.DrawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
+	if p.gpuPass != nil {
+		p.gpuPass.DrawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
 	}
 
 	return nil
@@ -503,10 +490,9 @@ func (p *RenderPassEncoder) DrawIndirect(indirectBuffer *Buffer, indirectOffset 
 		return fmt.Errorf("%w: offset %d", ErrIndirectOffsetNotAligned, indirectOffset)
 	}
 
-	// Forward to core pass if available
-	// core.CoreRenderPassEncoder.DrawIndirect takes *core.Buffer
-	// For now, this is a no-op until buffer integration is complete
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.DrawIndirect(indirectBuffer.Raw(), indirectOffset)
+	}
 
 	return nil
 }
@@ -549,10 +535,9 @@ func (p *RenderPassEncoder) DrawIndexedIndirect(indirectBuffer *Buffer, indirect
 		return fmt.Errorf("%w: offset %d", ErrIndirectOffsetNotAligned, indirectOffset)
 	}
 
-	// Forward to core pass if available
-	// core.CoreRenderPassEncoder.DrawIndexedIndirect takes *core.Buffer
-	// For now, this is a no-op until buffer integration is complete
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.DrawIndexedIndirect(indirectBuffer.Raw(), indirectOffset)
+	}
 
 	return nil
 }
@@ -573,9 +558,8 @@ func (p *RenderPassEncoder) End() error {
 	}
 	p.state = RenderPassStateEnded
 
-	// End the core pass if available
-	if p.corePass != nil {
-		if err := p.corePass.End(); err != nil {
+	if p.gpuPass != nil {
+		if err := p.gpuPass.End(); err != nil {
 			return fmt.Errorf("end render pass: %w", err)
 		}
 	}
@@ -604,6 +588,9 @@ func (p *RenderPassEncoder) End() error {
 // RenderPipeline is a placeholder type that will be expanded when
 // pipeline creation is implemented.
 type RenderPipeline struct {
+	// gpuPipeline is the underlying WebGPU render pipeline.
+	gpuPipeline *webgpu.RenderPipeline
+
 	// id is a unique identifier for the pipeline.
 	id uint64
 
@@ -615,6 +602,19 @@ type RenderPipeline struct {
 
 	// mu protects mutable state.
 	mu sync.RWMutex
+}
+
+// Raw returns the underlying WebGPU render pipeline.
+func (p *RenderPipeline) Raw() *webgpu.RenderPipeline {
+	if p == nil {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.destroyed {
+		return nil
+	}
+	return p.gpuPipeline
 }
 
 // ID returns the pipeline's unique identifier.
@@ -652,6 +652,9 @@ func (p *RenderPipeline) Destroy() {
 // BindGroup is a placeholder type that will be expanded when
 // bind group creation is implemented.
 type BindGroup struct {
+	// gpuBindGroup is the underlying WebGPU bind group.
+	gpuBindGroup *webgpu.BindGroup
+
 	// id is a unique identifier for the bind group.
 	id uint64
 
@@ -663,6 +666,19 @@ type BindGroup struct {
 
 	// mu protects mutable state.
 	mu sync.RWMutex
+}
+
+// Raw returns the underlying WebGPU bind group.
+func (bg *BindGroup) Raw() *webgpu.BindGroup {
+	if bg == nil {
+		return nil
+	}
+	bg.mu.RLock()
+	defer bg.mu.RUnlock()
+	if bg.destroyed {
+		return nil
+	}
+	return bg.gpuBindGroup
 }
 
 // ID returns the bind group's unique identifier.

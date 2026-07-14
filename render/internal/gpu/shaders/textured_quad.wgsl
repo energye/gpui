@@ -17,8 +17,7 @@
 
 struct ImageUniforms {
     transform: mat4x4<f32>,  // ortho projection matrix
-    opacity: f32,            // opacity multiplier (0.0 to 1.0)
-    _pad: vec3<f32>,
+    opacity_pad: vec4<f32>,  // x = opacity multiplier (0.0 to 1.0)
 }
 
 struct VertexInput {
@@ -74,6 +73,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let clip_cov = rrect_clip_coverage(in.position.xy);
 
     // Apply opacity to premultiplied texel (scale all channels uniformly).
-    let opacity = uniforms.opacity * clip_cov;
+    let opacity = uniforms.opacity_pad.x * clip_cov;
     return texel * opacity;
 }

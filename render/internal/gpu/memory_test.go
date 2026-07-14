@@ -3,6 +3,7 @@
 package gpu
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 
@@ -93,7 +94,7 @@ func TestCreateTexture(t *testing.T) {
 		},
 	}
 
-	// Note: We pass nil backend since CreateTexture is a stub
+	// Pass nil backend to create a logical texture without native GPU resources.
 	// and doesn't actually create GPU resources
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -159,7 +160,7 @@ func TestTextureUploadDownload(t *testing.T) {
 		t.Error("UploadPixmap() expected error for size mismatch")
 	}
 
-	// Test download (stub returns error)
+	// Logical textures do not have native resources to read back from.
 	_, err = tex.DownloadPixmap()
 	if !errors.Is(err, ErrTextureReadbackNotSupported) {
 		t.Errorf("DownloadPixmap() error = %v, want %v", err, ErrTextureReadbackNotSupported)
@@ -169,6 +170,48 @@ func TestTextureUploadDownload(t *testing.T) {
 	tex.Close()
 	if err := tex.UploadPixmap(pixmap); !errors.Is(err, ErrTextureReleased) {
 		t.Errorf("UploadPixmap() on released texture error = %v, want %v", err, ErrTextureReleased)
+	}
+}
+
+func TestTextureUploadDownloadNative(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	backend := &Backend{
+		device:      device,
+		queue:       queue,
+		initialized: true,
+	}
+
+	const width = 64 // RGBA row pitch is 256 bytes, matching WebGPU copy alignment.
+	const height = 3
+	tex, err := CreateTexture(backend, TextureConfig{
+		Width:  width,
+		Height: height,
+		Format: TextureFormatRGBA8,
+		Label:  "upload-download-native",
+	})
+	if err != nil {
+		t.Fatalf("CreateTexture() error = %v", err)
+	}
+	defer tex.Close()
+
+	src := render.NewPixmap(width, height)
+	for i := range src.Data() {
+		src.Data()[i] = byte((i*37 + 11) & 0xff)
+	}
+	src.NotifyPixelsChanged()
+
+	if err := tex.UploadPixmap(src); err != nil {
+		t.Fatalf("UploadPixmap() error = %v", err)
+	}
+
+	got, err := tex.DownloadPixmap()
+	if err != nil {
+		t.Fatalf("DownloadPixmap() error = %v", err)
+	}
+	if !bytes.Equal(got.Data(), src.Data()) {
+		t.Fatal("DownloadPixmap() data mismatch after native upload/readback roundtrip")
 	}
 }
 

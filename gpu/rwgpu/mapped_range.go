@@ -24,8 +24,10 @@ func (m *MappedRange) Bytes() []byte {
 	if m == nil || m.data == nil {
 		return nil
 	}
-	// Safety check: buffer must still exist and be mapped.
-	if m.buf != nil && m.buf.MapState() != BufferMapStateMapped {
+	// Safety check: buffer must still exist and be mapped. This deliberately
+	// uses Go-side state; current wgpu-native exposes wgpuBufferGetMapState as
+	// an aborting unimplemented symbol.
+	if m.buf != nil && m.buf.mapState != BufferMapStateMapped {
 		return nil
 	}
 	return unsafe.Slice((*byte)(m.data), m.size)

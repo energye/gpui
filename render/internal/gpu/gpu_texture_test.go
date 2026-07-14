@@ -237,7 +237,7 @@ func TestPendingCount_BaseLayerPlusOverlay(t *testing.T) {
 // --- isBlitOnly tests ---
 
 func TestIsBlitOnly_BaseLayerOnly(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -253,7 +253,7 @@ func TestIsBlitOnly_BaseLayerOnly(t *testing.T) {
 }
 
 func TestIsBlitOnly_NoBaseLayer(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -265,7 +265,7 @@ func TestIsBlitOnly_NoBaseLayer(t *testing.T) {
 }
 
 func TestIsBlitOnly_WithSDFShapes(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -289,7 +289,7 @@ func TestRenderFrameGrouped_BaseLayerOnlyGuard(t *testing.T) {
 	// Regression test for BUG-GG-BLIT-PATH-001:
 	// totalItems==0 && baseLayer!=nil must NOT early-return.
 	// We test the guard logic directly without full render pipeline.
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -371,7 +371,7 @@ func TestBlitLoadOp_DamageRectWithoutFrameRendered(t *testing.T) {
 	// LoadOpLoad, but BeginGPUFrame always sets frameRendered=false.
 	// Result: damage rect ignored → full surface blit every frame.
 	// Fix: damage rect alone is sufficient signal (caller ensures warmup).
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -402,7 +402,7 @@ func TestBlitLoadOp_DamageRectWithoutFrameRendered(t *testing.T) {
 
 func TestBlitLoadOp_NoDamageRect(t *testing.T) {
 	// Without damage rect, LoadOpClear must be used (full surface redraw).
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -426,7 +426,7 @@ func TestBuildGPUTextureResources_SeparateVertexBuffers(t *testing.T) {
 	// Regression test for BUG-GG-GPU-TEXTURE-OVERLAY-SIZE:
 	// Base layer (full-screen quad) must NOT overwrite overlay vertices.
 	// Before fix: both used s.gpuTexVertBuf → base layer overwrote overlay.
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -474,7 +474,7 @@ func TestBuildGPUTextureResources_SeparateVertexBuffers(t *testing.T) {
 // --- Regression: BUG-GG-OVERLAY-ONLY-BLIT-001 ---
 
 func TestIsBlitOnly_BaseOnly(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -489,7 +489,7 @@ func TestIsBlitOnly_BaseOnly(t *testing.T) {
 }
 
 func TestIsBlitOnly_OverlayOnly(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -505,7 +505,7 @@ func TestIsBlitOnly_OverlayOnly(t *testing.T) {
 }
 
 func TestIsBlitOnly_BaseAndOverlay(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -522,7 +522,7 @@ func TestIsBlitOnly_BaseAndOverlay(t *testing.T) {
 }
 
 func TestIsBlitOnly_VectorShapesRejectsBlit(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -552,7 +552,7 @@ func TestIsBlitOnly_VectorShapesRejectsBlit(t *testing.T) {
 }
 
 func TestIsBlitOnly_EmptyFrame(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -566,7 +566,7 @@ func TestIsBlitOnly_EmptyFrame(t *testing.T) {
 }
 
 func TestRenderFrameGrouped_OverlayOnlyNotSkipped(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))

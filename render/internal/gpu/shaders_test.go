@@ -249,7 +249,7 @@ func TestShaderToBlendMode(t *testing.T) {
 
 // TestCompileShaders tests the shader compilation function.
 func TestCompileShaders(t *testing.T) {
-	modules, err := CompileShaders(0)
+	modules, err := CompileShaders(nil)
 	if err != nil {
 		t.Fatalf("CompileShaders() returned error: %v", err)
 	}
@@ -274,6 +274,24 @@ func TestCompileShaders(t *testing.T) {
 	}
 	if modules.Composite == InvalidShaderModule {
 		t.Error("Composite shader module is invalid")
+	}
+}
+
+func TestCompileShadersNative(t *testing.T) {
+	device, _, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	modules, err := CompileShaders(device)
+	if err != nil {
+		t.Fatalf("CompileShaders(native) returned error: %v", err)
+	}
+	defer modules.Release()
+
+	if !modules.IsValid() {
+		t.Fatal("CompileShaders(native) returned invalid modules")
+	}
+	if !modules.HasNativeModules() {
+		t.Fatal("CompileShaders(native) did not create native shader modules")
 	}
 }
 

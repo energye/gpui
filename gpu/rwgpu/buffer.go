@@ -5,7 +5,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/energye/gpui/ffi"
+	"github.com/ebitengine/purego"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -67,7 +67,7 @@ var (
 	mapCallbackOnce sync.Once
 )
 
-// mapCallbackHandler is the Go function called by C code via ffi.NewCallback.
+// mapCallbackHandler is the Go function called by native code via purego.NewCallback.
 // Signature: void(status uint32, message StringView, userdata1 uintptr, userdata2 uintptr)
 func mapCallbackHandler(status uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
 	var msg string
@@ -91,9 +91,9 @@ func mapCallbackHandler(status uintptr, messageData uintptr, messageLength uintp
 	return 0
 }
 
-// initMapCallback creates the C callback function pointer using goffi.
+// initMapCallback creates the C callback function pointer using purego.
 func initMapCallback() {
-	mapCallbackPtr = ffi.NewCallback(mapCallbackHandler)
+	mapCallbackPtr = purego.NewCallback(mapCallbackHandler)
 }
 
 // BufferDescriptor describes a GPU buffer to create.
@@ -142,7 +142,11 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 		return nil, &WGPUError{Op: "CreateBuffer", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "Buffer")
-	return &Buffer{handle: handle, device: d}, nil
+	mapState := BufferMapStateUnmapped
+	if desc.MappedAtCreation {
+		mapState = BufferMapStateMapped
+	}
+	return &Buffer{handle: handle, device: d, mapState: mapState}, nil
 }
 
 // GetMappedRange returns a pointer to the mapped buffer data.
@@ -174,6 +178,7 @@ func (b *Buffer) Unmap() error {
 		return nil
 	}
 	procBufferUnmap.Call(b.handle) //nolint:errcheck
+	b.mapState = BufferMapStateUnmapped
 	// wgpu-native returns void for wgpuBufferUnmap; always nil per WebGPU spec.
 	return nil
 }
@@ -204,6 +209,7 @@ func (b *Buffer) Destroy() {
 	if b.handle != 0 {
 		procBufferDestroy.Call(b.handle) //nolint:errcheck
 	}
+	b.mapState = BufferMapStateUnmapped
 }
 
 // Release releases the buffer reference.
@@ -213,6 +219,7 @@ func (b *Buffer) Release() {
 		procBufferRelease.Call(b.handle) //nolint:errcheck
 		b.handle = 0
 	}
+	b.mapState = BufferMapStateUnmapped
 }
 
 // WriteBuffer writes data to a buffer.
@@ -261,12 +268,10 @@ func (b *Buffer) Usage() types.BufferUsage {
 
 // MapState returns the current mapping state of this buffer.
 func (b *Buffer) MapState() BufferMapState {
-	mustInit()
 	if b == nil || b.handle == 0 {
 		return BufferMapStateUnmapped
 	}
-	state, _, _ := procBufferGetMapState.Call(b.handle)
-	return BufferMapState(state)
+	return b.mapState
 }
 
 // Handle returns the underlying handle. For advanced use only.

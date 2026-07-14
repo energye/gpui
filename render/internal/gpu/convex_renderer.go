@@ -84,6 +84,9 @@ type ConvexRenderer struct {
 	// Clip bind group layout for @group(1). Set by the session before
 	// pipeline creation. When non-nil, included in the pipeline layout.
 	clipBindLayout *webgpu.BindGroupLayout
+	// defaultClipBindLayout is owned by this renderer and used only when a
+	// standalone pipeline is created before the session supplies its layout.
+	defaultClipBindLayout *webgpu.BindGroupLayout
 	// pipeLayoutHasClip tracks whether the current pipeLayout was created
 	// with clipBindLayout included. If clipBindLayout is set after the
 	// layout was created, the pipeline must be recreated.
@@ -278,14 +281,21 @@ func (cr *ConvexRenderer) createPipeline() error {
 	}
 	cr.uniformLayout = uniformLayout
 
-	bgLayouts := []*webgpu.BindGroupLayout{cr.uniformLayout}
-	hasClip := cr.clipBindLayout != nil
-	if hasClip {
-		bgLayouts = append(bgLayouts, cr.clipBindLayout)
+	clipLayout := cr.clipBindLayout
+	hasClip := clipLayout != nil
+	if clipLayout == nil {
+		if cr.defaultClipBindLayout == nil {
+			layout, err := createClipBindGroupLayout(cr.device, "convex_default_clip_layout")
+			if err != nil {
+				return fmt.Errorf("create default clip layout: %w", err)
+			}
+			cr.defaultClipBindLayout = layout
+		}
+		clipLayout = cr.defaultClipBindLayout
 	}
 	pipeLayout, err := cr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
 		Label:            "convex_pipe_layout",
-		BindGroupLayouts: bgLayouts,
+		BindGroupLayouts: []*webgpu.BindGroupLayout{cr.uniformLayout, clipLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create convex pipeline layout: %w", err)
@@ -345,6 +355,10 @@ func (cr *ConvexRenderer) destroyPipeline() {
 		cr.pipeLayout.Release()
 		cr.pipeLayout = nil
 		cr.pipeLayoutHasClip = false
+	}
+	if cr.defaultClipBindLayout != nil {
+		cr.defaultClipBindLayout.Release()
+		cr.defaultClipBindLayout = nil
 	}
 	if cr.uniformLayout != nil {
 		cr.uniformLayout.Release()

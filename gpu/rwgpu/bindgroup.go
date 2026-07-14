@@ -169,6 +169,8 @@ type BindGroupEntry struct {
 	TextureView *TextureView // For texture view bindings (nil if not used)
 }
 
+const wgpuWholeSize = ^uint64(0)
+
 // bindGroupEntryWire is the FFI-compatible C-layout struct for wgpu-native.
 // CRITICAL: layout must match WGPUBindGroupEntry exactly.
 // nextInChain(8)+binding(4)+pad(4)+buffer(8)+offset(8)+size(8)+sampler(8)+textureView(8) = 56 bytes.
@@ -192,6 +194,9 @@ func (e *BindGroupEntry) toWire() bindGroupEntryWire {
 	}
 	if e.Buffer != nil {
 		wire.Buffer = e.Buffer.handle
+		if wire.Size == 0 {
+			wire.Size = wgpuWholeSize
+		}
 	}
 	if e.Sampler != nil {
 		wire.Sampler = e.Sampler.handle

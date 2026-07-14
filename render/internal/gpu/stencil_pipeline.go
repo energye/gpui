@@ -90,14 +90,21 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	}
 	sr.stencilPipeLayout = stencilPipeLayout
 
-	coverBGLayouts := []*webgpu.BindGroupLayout{sr.uniformLayout}
-	hasClip := sr.clipBindLayout != nil
-	if hasClip {
-		coverBGLayouts = append(coverBGLayouts, sr.clipBindLayout)
+	clipLayout := sr.clipBindLayout
+	hasClip := clipLayout != nil
+	if clipLayout == nil {
+		if sr.defaultClipBindLayout == nil {
+			layout, err := createClipBindGroupLayout(sr.device, "stencil_default_clip_layout")
+			if err != nil {
+				return fmt.Errorf("create default clip layout: %w", err)
+			}
+			sr.defaultClipBindLayout = layout
+		}
+		clipLayout = sr.defaultClipBindLayout
 	}
 	coverPipeLayout, err := sr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
 		Label:            "cover_pipe_layout",
-		BindGroupLayouts: coverBGLayouts,
+		BindGroupLayouts: []*webgpu.BindGroupLayout{sr.uniformLayout, clipLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create cover pipeline layout: %w", err)
@@ -495,6 +502,10 @@ func (sr *StencilRenderer) destroyPipelines() {
 		sr.coverPipeLayout.Release()
 		sr.coverPipeLayout = nil
 		sr.coverPipeLayoutHasClip = false
+	}
+	if sr.defaultClipBindLayout != nil {
+		sr.defaultClipBindLayout.Release()
+		sr.defaultClipBindLayout = nil
 	}
 	if sr.stencilPipeLayout != nil {
 		sr.stencilPipeLayout.Release()

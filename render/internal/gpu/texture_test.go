@@ -12,14 +12,14 @@ import (
 )
 
 // =============================================================================
-// Texture Tests (using noop device)
+// Texture Tests (using native device)
 // =============================================================================
 
 func TestNewTexture(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
-	halTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	gpuTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "raw-texture",
 		Size:          webgpu.Extent3D{Width: 256, Height: 256, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
@@ -46,7 +46,7 @@ func TestNewTexture(t *testing.T) {
 		Usage:         types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
 	}
 
-	tex := NewTexture(halTex, device, desc)
+	tex := NewTexture(gpuTex, device, desc)
 
 	if tex == nil {
 		t.Fatal("NewTexture returned nil")
@@ -69,7 +69,7 @@ func TestNewTexture(t *testing.T) {
 }
 
 func TestTexture_GetDefaultView(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(
@@ -105,7 +105,7 @@ func TestTexture_GetDefaultView(t *testing.T) {
 }
 
 func TestTexture_GetDefaultView_Concurrent(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(
@@ -146,7 +146,7 @@ func TestTexture_GetDefaultView_Concurrent(t *testing.T) {
 }
 
 func TestTexture_CreateView(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTexture(device, &TextureDescriptor{
@@ -203,7 +203,7 @@ func TestTexture_CreateView(t *testing.T) {
 }
 
 func TestTexture_CreateView_NilDescriptor(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(
@@ -230,7 +230,7 @@ func TestTexture_CreateView_NilDescriptor(t *testing.T) {
 }
 
 func TestTexture_Destroy(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(
@@ -258,7 +258,7 @@ func TestTexture_Destroy(t *testing.T) {
 }
 
 func TestTexture_Destroy_Idempotent(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(
@@ -282,7 +282,7 @@ func TestTexture_Destroy_Idempotent(t *testing.T) {
 }
 
 func TestTexture_GetDefaultView_AfterDestroy(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(
@@ -309,7 +309,7 @@ func TestTexture_GetDefaultView_AfterDestroy(t *testing.T) {
 // =============================================================================
 
 func TestTextureView_Destroy_NonDefault(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(
@@ -336,7 +336,7 @@ func TestTextureView_Destroy_NonDefault(t *testing.T) {
 }
 
 func TestTextureView_Destroy_Default_NoOp(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(
@@ -365,7 +365,7 @@ func TestTextureView_Destroy_Default_NoOp(t *testing.T) {
 // =============================================================================
 
 func TestCreateCoreTexture(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	desc := &TextureDescriptor{
@@ -408,13 +408,13 @@ func TestCreateCoreTexture_NilDevice(t *testing.T) {
 	}
 
 	_, err := CreateCoreTexture(nil, desc)
-	if !errors.Is(err, ErrNilHALDevice) {
-		t.Errorf("CreateCoreTexture(nil device): got %v, want ErrNilHALDevice", err)
+	if !errors.Is(err, ErrNilGPUDevice) {
+		t.Errorf("CreateCoreTexture(nil device): got %v, want ErrNilGPUDevice", err)
 	}
 }
 
 func TestCreateCoreTexture_NilDescriptor(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	_, err := CreateCoreTexture(device, nil)
@@ -424,7 +424,7 @@ func TestCreateCoreTexture_NilDescriptor(t *testing.T) {
 }
 
 func TestCreateCoreTexture_InvalidSize(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -457,7 +457,7 @@ func TestCreateCoreTexture_InvalidSize(t *testing.T) {
 }
 
 func TestCreateCoreTexture_DefaultValues(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	desc := &TextureDescriptor{
@@ -491,7 +491,7 @@ func TestCreateCoreTexture_DefaultValues(t *testing.T) {
 }
 
 func TestCreateCoreTextureSimple(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tex, err := CreateCoreTextureSimple(

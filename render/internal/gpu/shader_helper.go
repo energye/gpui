@@ -31,11 +31,11 @@ func CompileShaderToSPIRV(wgslSource string) ([]uint32, error) {
 	return spirvCode, nil
 }
 
-// CreateShaderModule creates a HAL shader module from SPIR-V code.
-func CreateShaderModule(device *webgpu.Device, label string, spirvCode []uint32) (*webgpu.ShaderModule, error) {
+// CreateShaderModule creates a shader module from WGSL source.
+func CreateShaderModule(device *webgpu.Device, label string, wgslSource string) (*webgpu.ShaderModule, error) {
 	return device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
 		Label: label,
-		SPIRV: spirvCode,
+		WGSL:  wgslSource,
 	})
 }
 

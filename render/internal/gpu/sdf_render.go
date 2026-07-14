@@ -81,6 +81,9 @@ type SDFRenderPipeline struct {
 	// Clip bind group layout for @group(1). Set by the session before
 	// pipeline creation. When non-nil, included in the pipeline layout.
 	clipBindLayout *webgpu.BindGroupLayout
+	// defaultClipBindLayout is owned by this pipeline and used only when a
+	// standalone pipeline is created before the session supplies its layout.
+	defaultClipBindLayout *webgpu.BindGroupLayout
 	// pipeLayoutHasClip tracks whether the current pipeLayout was created
 	// with clipBindLayout included. If clipBindLayout is set after the
 	// layout was created, the pipeline must be recreated.
@@ -315,14 +318,21 @@ func (p *SDFRenderPipeline) createPipeline() error {
 	}
 	p.uniformLayout = uniformLayout
 
-	bgLayouts := []*webgpu.BindGroupLayout{p.uniformLayout}
-	hasClip := p.clipBindLayout != nil
-	if hasClip {
-		bgLayouts = append(bgLayouts, p.clipBindLayout)
+	clipLayout := p.clipBindLayout
+	hasClip := clipLayout != nil
+	if clipLayout == nil {
+		if p.defaultClipBindLayout == nil {
+			layout, err := createClipBindGroupLayout(p.device, "sdf_render_default_clip_layout")
+			if err != nil {
+				return fmt.Errorf("create default clip layout: %w", err)
+			}
+			p.defaultClipBindLayout = layout
+		}
+		clipLayout = p.defaultClipBindLayout
 	}
 	pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
 		Label:            "sdf_render_pipe_layout",
-		BindGroupLayouts: bgLayouts,
+		BindGroupLayouts: []*webgpu.BindGroupLayout{p.uniformLayout, clipLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create pipeline layout: %w", err)
@@ -511,6 +521,10 @@ func (p *SDFRenderPipeline) destroyPipeline() {
 		p.pipeLayout = nil
 		p.pipeLayoutHasClip = false
 	}
+	if p.defaultClipBindLayout != nil {
+		p.defaultClipBindLayout.Release()
+		p.defaultClipBindLayout = nil
+	}
 	if p.uniformLayout != nil {
 		p.uniformLayout.Release()
 		p.uniformLayout = nil
@@ -559,7 +573,7 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 	// VK-LAYOUT-001: After MSAA resolve the texture is in
 	// COLOR_ATTACHMENT_OPTIMAL layout. CopyTextureToBuffer requires
 	// TRANSFER_SRC_OPTIMAL. Insert an explicit barrier to transition.
-	// This is a no-op on Metal, GLES, software, and noop backends.
+	// This is a no-op on Metal, GLES, software, and native backends.
 	encoder.TransitionTextures([]webgpu.TextureBarrier{{
 		Texture: p.resolveTex,
 		Usage: webgpu.TextureUsageTransition{

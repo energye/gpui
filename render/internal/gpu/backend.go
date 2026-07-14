@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu/core"
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
@@ -25,10 +25,10 @@ type Backend struct {
 	mu sync.RWMutex
 
 	// GPU resources
-	instance *core.Instance
-	adapter  core.AdapterID
-	device   core.DeviceID
-	queue    core.QueueID
+	instance *webgpu.Instance
+	adapter  *webgpu.Adapter
+	device   *webgpu.Device
+	queue    *webgpu.Queue
 
 	// GPU information
 	gpuInfo *GPUInfo
@@ -62,42 +62,46 @@ func (b *Backend) Init() error {
 	}
 
 	// Step 1: Create Instance
-	desc := &types.InstanceDescriptor{
+	desc := &webgpu.InstanceDescriptor{
 		Backends: types.BackendsPrimary,
 		Flags:    0,
 	}
-	b.instance = core.NewInstance(desc)
+	instance, err := webgpu.CreateInstance(desc)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrNoGPU, err)
+	}
+	b.instance = instance
 
 	// Step 2: Request Adapter (prefer high performance GPU)
-	adapterID, err := b.instance.RequestAdapter(&types.RequestAdapterOptions{
+	adapter, err := b.instance.RequestAdapter(&webgpu.RequestAdapterOptions{
 		PowerPreference: types.PowerPreferenceHighPerformance,
 	})
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrNoGPU, err)
 	}
-	b.adapter = adapterID
+	b.adapter = adapter
 
 	// Log GPU information
-	logGPUInfo(adapterID)
+	logGPUInfo(adapter)
 
 	// Get GPU info for later use
-	b.gpuInfo, _ = getGPUInfo(adapterID)
+	b.gpuInfo, _ = getGPUInfo(adapter)
 
 	// Step 3: Create Device
-	deviceID, err := createDevice(adapterID, "gg-wgpu-device")
+	device, err := createDevice(adapter, "gg-wgpu-device")
 	if err != nil {
 		return fmt.Errorf("device creation failed: %w", err)
 	}
-	b.device = deviceID
+	b.device = device
 
 	// Step 4: Get Queue
-	queueID, err := getDeviceQueue(deviceID)
+	queue, err := getDeviceQueue(device)
 	if err != nil {
 		// Cleanup on failure
-		_ = releaseDevice(deviceID)
+		_ = releaseDevice(device)
 		return fmt.Errorf("queue retrieval failed: %w", err)
 	}
-	b.queue = queueID
+	b.queue = queue
 
 	b.initialized = true
 	slogger().Debug("backend initialized")
@@ -118,23 +122,26 @@ func (b *Backend) Close() {
 	// Release resources in reverse order of creation
 	// Note: Queue is released when device is dropped
 
-	if !b.device.IsZero() {
+	if b.device != nil {
 		if err := releaseDevice(b.device); err != nil {
 			slogger().Warn("error releasing device", "err", err)
 		}
-		b.device = core.DeviceID{}
+		b.device = nil
 	}
 
-	if !b.adapter.IsZero() {
+	if b.adapter != nil {
 		if err := releaseAdapter(b.adapter); err != nil {
 			slogger().Warn("error releasing adapter", "err", err)
 		}
-		b.adapter = core.AdapterID{}
+		b.adapter = nil
 	}
 
-	// Instance doesn't need explicit cleanup in the current implementation
+	if b.instance != nil {
+		b.instance.Release()
+	}
+
 	b.instance = nil
-	b.queue = core.QueueID{}
+	b.queue = nil
 	b.gpuInfo = nil
 	b.initialized = false
 
@@ -167,9 +174,8 @@ func (b *Backend) NewRenderer(width, height int) render.Renderer {
 // This method is optimized for complex scenes with many draw operations.
 //
 // The implementation uses GPUSceneRenderer for tessellation, strip
-// rasterization, and layer compositing on the GPU. When wgpu texture
-// readback is fully implemented, results will be downloaded to the target
-// pixmap. Currently, data flows through the GPU pipeline as stubs.
+// rasterization, and layer compositing on the GPU, then reads the target
+// texture back into the pixmap.
 func (b *Backend) RenderScene(target *render.Pixmap, s *scene.Scene) error {
 	b.mu.RLock()
 	initialized := b.initialized
@@ -199,11 +205,9 @@ func (b *Backend) RenderScene(target *render.Pixmap, s *scene.Scene) error {
 
 	// Render the scene to GPU
 	if err := renderer.RenderToPixmap(target, s); err != nil {
-		// ErrTextureReadbackNotSupported is expected until wgpu implements readback
-		// In this case, the GPU pipeline was executed but we can't retrieve results
+		// Logical or degraded test backends may not have native resources to read back.
 		if errors.Is(err, ErrTextureReadbackNotSupported) {
-			// Log for debugging but don't fail - GPU ops were executed
-			slogger().Debug("RenderScene completed on GPU", "note", "readback pending wgpu support")
+			slogger().Debug("RenderScene completed without readback", "err", err)
 			return nil
 		}
 		return fmt.Errorf("GPU render failed: %w", err)
@@ -229,7 +233,7 @@ func (b *Backend) GPUInfo() *GPUInfo {
 
 // Device returns the GPU device ID.
 // Returns a zero ID if the backend is not initialized.
-func (b *Backend) Device() core.DeviceID {
+func (b *Backend) Device() *webgpu.Device {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.device
@@ -237,7 +241,7 @@ func (b *Backend) Device() core.DeviceID {
 
 // Queue returns the GPU queue ID.
 // Returns a zero ID if the backend is not initialized.
-func (b *Backend) Queue() core.QueueID {
+func (b *Backend) Queue() *webgpu.Queue {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.queue

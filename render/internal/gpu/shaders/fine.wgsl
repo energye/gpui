@@ -201,8 +201,8 @@ fn cs_fine(
 
     // Process all segments for this tile
     for (var seg_i: u32 = 0u; seg_i < tile.count; seg_i = seg_i + 1u) {
-        var ref: TileSegmentRef = tile_segments[tile.start_idx + seg_i];
-        var seg: Segment = segments[ref.segment_idx];
+        var seg_ref: TileSegmentRef = tile_segments[tile.start_idx + seg_i];
+        var seg: Segment = segments[seg_ref.segment_idx];
 
         // Compute this pixel's area contribution (pass segment fields individually)
         var area: f32 = compute_pixel_area(

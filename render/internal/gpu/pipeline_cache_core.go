@@ -401,8 +401,8 @@ type ShaderModule struct {
 	// Used for pipeline descriptor hashing.
 	codeHash uint64
 
-	// halModule is the underlying shader module (when available).
-	halModule *webgpu.ShaderModule
+	// gpuModule is the underlying shader module (when available).
+	gpuModule *webgpu.ShaderModule
 
 	// destroyed indicates whether the module has been destroyed.
 	destroyed bool
@@ -417,13 +417,13 @@ type ShaderModule struct {
 //   - id: Unique identifier for this module.
 //   - label: Debug label.
 //   - code: SPIR-V bytecode.
-//   - halModule: The underlying module (may be nil for testing).
-func NewShaderModule(id uint64, label string, code []byte, halModule *webgpu.ShaderModule) *ShaderModule {
+//   - gpuModule: The underlying module (may be nil for testing).
+func NewShaderModule(id uint64, label string, code []byte, gpuModule *webgpu.ShaderModule) *ShaderModule {
 	return &ShaderModule{
 		id:        id,
 		label:     label,
 		codeHash:  hashBytes(code),
-		halModule: halModule,
+		gpuModule: gpuModule,
 	}
 }
 
@@ -449,7 +449,7 @@ func (m *ShaderModule) Raw() *webgpu.ShaderModule {
 	if m.destroyed {
 		return nil
 	}
-	return m.halModule
+	return m.gpuModule
 }
 
 // IsDestroyed returns true if the module has been destroyed.
@@ -464,7 +464,7 @@ func (m *ShaderModule) Destroy() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.destroyed = true
-	m.halModule = nil
+	m.gpuModule = nil
 }
 
 // =============================================================================
@@ -643,7 +643,7 @@ func createRenderPipeline(device *webgpu.Device, desc *RenderPipelineDescriptor)
 	}
 
 	// TODO: When pipeline creation is implemented, create actual pipeline:
-	// halDesc := &wgpu.RenderPipelineDescriptor{
+	// gpuDesc := &wgpu.RenderPipelineDescriptor{
 	//     Label: desc.Label,
 	//     Vertex: wgpu.VertexState{
 	//         Module:     desc.VertexShader.Raw(),
@@ -669,7 +669,7 @@ func createRenderPipeline(device *webgpu.Device, desc *RenderPipelineDescriptor)
 	//         Count: sampleCount,
 	//     },
 	// }
-	// halPipeline, err := device.CreateRenderPipeline(halDesc)
+	// gpuPipeline, err := device.CreateRenderPipeline(gpuDesc)
 	// if err != nil {
 	//     return nil, fmt.Errorf("create render pipeline: %w", err)
 	// }
@@ -703,14 +703,14 @@ func createComputePipeline(device *webgpu.Device, desc *ComputePipelineDescripto
 	}
 
 	// TODO: When pipeline creation is implemented, create actual pipeline:
-	// halDesc := &wgpu.ComputePipelineDescriptor{
+	// gpuDesc := &wgpu.ComputePipelineDescriptor{
 	//     Label: desc.Label,
 	//     Compute: hal.ProgrammableStageDescriptor{
 	//         Module:     desc.ComputeShader.Raw(),
 	//         EntryPoint: entryPoint,
 	//     },
 	// }
-	// halPipeline, err := device.CreateComputePipeline(halDesc)
+	// gpuPipeline, err := device.CreateComputePipeline(gpuDesc)
 	// if err != nil {
 	//     return nil, fmt.Errorf("create compute pipeline: %w", err)
 	// }

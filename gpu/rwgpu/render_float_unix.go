@@ -3,44 +3,24 @@
 package rwgpu
 
 import (
-	"unsafe"
+	"sync"
 
-	"github.com/energye/gpui/ffi"
-	ffitypes "github.com/energye/gpui/ffi/types"
+	"github.com/ebitengine/purego"
+)
+
+var (
+	setViewportOnce sync.Once
+	setViewportFn   func(uintptr, float32, float32, float32, float32, float32, float32)
 )
 
 func callRenderPassEncoderSetViewport(handle uintptr, x, y, width, height, minDepth, maxDepth float32) {
 	proc, ok := procRenderPassEncoderSetViewport.(*unixProc)
-	if !ok || proc.fnPtr == nil {
+	if !ok || proc.fnPtr == 0 {
 		return
 	}
 
-	var cif ffitypes.CallInterface
-	if err := ffi.PrepareCallInterface(
-		&cif,
-		ffitypes.UnixCallingConvention,
-		ffitypes.VoidTypeDescriptor,
-		[]*ffitypes.TypeDescriptor{
-			ffitypes.PointerTypeDescriptor,
-			ffitypes.FloatTypeDescriptor,
-			ffitypes.FloatTypeDescriptor,
-			ffitypes.FloatTypeDescriptor,
-			ffitypes.FloatTypeDescriptor,
-			ffitypes.FloatTypeDescriptor,
-			ffitypes.FloatTypeDescriptor,
-		},
-	); err != nil {
-		return
-	}
-
-	args := []unsafe.Pointer{
-		unsafe.Pointer(&handle),
-		unsafe.Pointer(&x),
-		unsafe.Pointer(&y),
-		unsafe.Pointer(&width),
-		unsafe.Pointer(&height),
-		unsafe.Pointer(&minDepth),
-		unsafe.Pointer(&maxDepth),
-	}
-	_, _ = ffi.CallFunction(&cif, proc.fnPtr, nil, args)
+	setViewportOnce.Do(func() {
+		purego.RegisterFunc(&setViewportFn, proc.fnPtr)
+	})
+	setViewportFn(handle, x, y, width, height, minDepth, maxDepth)
 }

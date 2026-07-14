@@ -50,6 +50,9 @@ type StencilRenderer struct {
 	// Set by the session before createPipelines. Only the cover pipeline needs
 	// it (stencil fill has no color output, so clip is irrelevant there).
 	clipBindLayout *webgpu.BindGroupLayout
+	// defaultClipBindLayout is owned by this renderer and used only when cover
+	// pipelines are created before the session supplies its layout.
+	defaultClipBindLayout *webgpu.BindGroupLayout
 	// coverPipeLayoutHasClip tracks whether coverPipeLayout was created with
 	// clipBindLayout included. If clip is set after creation, pipelines must
 	// be recreated to avoid SetBindGroup(1) crashes on AMD/NVIDIA.
@@ -430,6 +433,45 @@ func (sr *StencilRenderer) encodeAndReadback(
 		return fmt.Errorf("begin render pass: %w", rpErr)
 	}
 
+	clipLayout := sr.clipBindLayout
+	if clipLayout == nil {
+		clipLayout = sr.defaultClipBindLayout
+	}
+	if clipLayout == nil {
+		_ = rp.End()
+		encoder.DiscardEncoding()
+		return fmt.Errorf("stencil cover clip layout is nil")
+	}
+	noClipBuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "stencil_no_clip_uniform",
+		Size:  clipParamsSize,
+		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		_ = rp.End()
+		encoder.DiscardEncoding()
+		return fmt.Errorf("create stencil no-clip uniform: %w", err)
+	}
+	defer noClipBuf.Release()
+	if err := sr.queue.WriteBuffer(noClipBuf, 0, NoClipParams().Bytes()); err != nil {
+		_ = rp.End()
+		encoder.DiscardEncoding()
+		return fmt.Errorf("write stencil no-clip uniform: %w", err)
+	}
+	noClipBG, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		Label:  "stencil_no_clip_bind",
+		Layout: clipLayout,
+		Entries: []webgpu.BindGroupEntry{
+			{Binding: 0, Buffer: noClipBuf, Offset: 0, Size: clipParamsSize},
+		},
+	})
+	if err != nil {
+		_ = rp.End()
+		encoder.DiscardEncoding()
+		return fmt.Errorf("create stencil no-clip bind group: %w", err)
+	}
+	defer noClipBG.Release()
+
 	// Select stencil pipeline based on fill rule.
 	stencilPipeline := sr.nonZeroStencilPipeline
 	if fillRule == render.FillRuleEvenOdd {
@@ -443,6 +485,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 
 	rp.SetPipeline(sr.nonZeroCoverPipeline)
 	rp.SetBindGroup(0, bufs.coverBindGroup, nil)
+	rp.SetBindGroup(1, noClipBG, nil)
 	rp.SetVertexBuffer(0, bufs.coverVertBuf, 0)
 	rp.SetStencilReference(0)
 	rp.Draw(6, 1, 0, 0)
@@ -452,7 +495,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 	// VK-LAYOUT-001: After MSAA resolve the texture is in
 	// COLOR_ATTACHMENT_OPTIMAL layout. CopyTextureToBuffer requires
 	// TRANSFER_SRC_OPTIMAL. Insert an explicit barrier to transition.
-	// This is a no-op on Metal, GLES, software, and noop backends.
+	// This is a no-op on Metal, GLES, software, and native backends.
 	encoder.TransitionTextures([]webgpu.TextureBarrier{{
 		Texture: sr.textures.resolveTex,
 		Usage: webgpu.TextureUsageTransition{
@@ -462,9 +505,13 @@ func (sr *StencilRenderer) encodeAndReadback(
 	}})
 
 	// Copy resolve texture to staging buffer for CPU readback.
-	pixelBufSize := uint64(w) * uint64(h) * 4
+	// WebGPU requires BytesPerRow to be aligned to 256 bytes.
+	bytesPerRow := w * 4
+	const copyPitchAlignment = 256
+	alignedBytesPerRow := (bytesPerRow + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
+	stagingBufSize := uint64(alignedBytesPerRow) * uint64(h)
 	stagingBuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
-		Label: "stencil_staging", Size: pixelBufSize,
+		Label: "stencil_staging", Size: stagingBufSize,
 		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
 	})
 	if err != nil {
@@ -474,7 +521,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 	defer stagingBuf.Release()
 
 	encoder.CopyTextureToBuffer(sr.textures.resolveTex, stagingBuf, []webgpu.BufferTextureCopy{{
-		BufferLayout: webgpu.ImageDataLayout{Offset: 0, BytesPerRow: w * 4, RowsPerImage: h},
+		BufferLayout: webgpu.ImageDataLayout{Offset: 0, BytesPerRow: alignedBytesPerRow, RowsPerImage: h},
 		TextureBase:  webgpu.ImageCopyTexture{Texture: sr.textures.resolveTex, MipLevel: 0},
 		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
 	}})
@@ -485,36 +532,47 @@ func (sr *StencilRenderer) encodeAndReadback(
 	}
 	// cmdBuf freed after fence wait
 
-	return sr.submitAndReadback(cmdBuf, stagingBuf, pixelBufSize, target)
+	return sr.submitAndReadback(cmdBuf, stagingBuf, stagingBufSize, bytesPerRow, alignedBytesPerRow, h, target)
 }
 
 // submitAndReadback submits the command buffer, waits for GPU completion,
 // reads back pixel data, and converts BGRA to RGBA into the target buffer.
 func (sr *StencilRenderer) submitAndReadback(
 	cmdBuf *webgpu.CommandBuffer, stagingBuf *webgpu.Buffer,
-	pixelBufSize uint64, target render.GPURenderTarget,
+	stagingBufSize uint64, bytesPerRow, alignedBytesPerRow, height uint32, target render.GPURenderTarget,
 ) error {
 	if _, err := sr.queue.Submit(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
 
-	if err := stagingBuf.Map(context.Background(), webgpu.MapModeRead, 0, pixelBufSize); err != nil {
+	if err := stagingBuf.Map(context.Background(), webgpu.MapModeRead, 0, stagingBufSize); err != nil {
 		return fmt.Errorf("map staging: %w", err)
 	}
-	rng, err := stagingBuf.MappedRange(0, pixelBufSize)
+	rng, err := stagingBuf.MappedRange(0, stagingBufSize)
 	if err != nil {
 		if err := stagingBuf.Unmap(); err != nil {
 			slogger().Warn("unmap failed", "err", err)
 		}
 		return fmt.Errorf("mapped range: %w", err)
 	}
-	readback := make([]byte, pixelBufSize)
+	readback := make([]byte, stagingBufSize)
 	copy(readback, rng.Bytes())
 	if err := stagingBuf.Unmap(); err != nil {
 		slogger().Warn("unmap failed", "err", err)
 	}
 
-	compositeBGRAOverRGBA(readback, target.Data, target.Width*target.Height)
+	if alignedBytesPerRow == bytesPerRow {
+		compositeBGRAOverRGBA(readback, target.Data, target.Width*target.Height)
+		return nil
+	}
+
+	tight := make([]byte, uint64(bytesPerRow)*uint64(height))
+	for row := uint32(0); row < height; row++ {
+		srcOff := int(row) * int(alignedBytesPerRow)
+		dstOff := int(row) * int(bytesPerRow)
+		copy(tight[dstOff:dstOff+int(bytesPerRow)], readback[srcOff:srcOff+int(bytesPerRow)])
+	}
+	compositeBGRAOverRGBA(tight, target.Data, target.Width*target.Height)
 	return nil
 }
 

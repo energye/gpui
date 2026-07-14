@@ -5,14 +5,14 @@ package gpu
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/webgpu/core"
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
 
-// testDeviceID returns a DeviceID suitable for testing (zero value).
-// In real usage, this would be obtained from backend initialization.
-var testDeviceID core.DeviceID
+// testDevice is nil for legacy pipeline-cache unit tests that do not create
+// real GPU objects yet.
+var testDevice *webgpu.Device
 
 // TestPipelineCacheCreation tests PipelineCache creation.
 func TestPipelineCacheCreation(t *testing.T) {
@@ -25,7 +25,7 @@ func TestPipelineCacheCreation(t *testing.T) {
 	}
 
 	// Test creation
-	pc, err := NewPipelineCache(testDeviceID, shaders)
+	pc, err := NewPipelineCache(testDevice, shaders)
 	if err != nil {
 		t.Fatalf("NewPipelineCache failed: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestPipelineCacheCreation(t *testing.T) {
 
 // TestPipelineCacheNilShaders tests that nil shaders returns error.
 func TestPipelineCacheNilShaders(t *testing.T) {
-	pc, err := NewPipelineCache(testDeviceID, nil)
+	pc, err := NewPipelineCache(testDevice, nil)
 	if err == nil {
 		t.Error("Expected error for nil shaders")
 		if pc != nil {
@@ -72,7 +72,7 @@ func TestPipelineCacheBlendPipelines(t *testing.T) {
 		Composite: ShaderModuleID(4),
 	}
 
-	pc, err := NewPipelineCache(testDeviceID, shaders)
+	pc, err := NewPipelineCache(testDevice, shaders)
 	if err != nil {
 		t.Fatalf("NewPipelineCache failed: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestPipelineCacheWarmup(t *testing.T) {
 		Composite: ShaderModuleID(4),
 	}
 
-	pc, err := NewPipelineCache(testDeviceID, shaders)
+	pc, err := NewPipelineCache(testDevice, shaders)
 	if err != nil {
 		t.Fatalf("NewPipelineCache failed: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestPipelineCacheClose(t *testing.T) {
 		Composite: ShaderModuleID(4),
 	}
 
-	pc, err := NewPipelineCache(testDeviceID, shaders)
+	pc, err := NewPipelineCache(testDevice, shaders)
 	if err != nil {
 		t.Fatalf("NewPipelineCache failed: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestPipelineCacheClose(t *testing.T) {
 
 // TestCommandEncoderCreation tests CommandEncoder creation.
 func TestCommandEncoderCreation(t *testing.T) {
-	enc := NewCommandEncoder(testDeviceID)
+	enc := NewCommandEncoder(testDevice)
 
 	if enc == nil {
 		t.Fatal("NewCommandEncoder returned nil")
@@ -176,7 +176,7 @@ func TestCommandEncoderCreation(t *testing.T) {
 
 // TestCommandEncoderRenderPass tests render pass creation.
 func TestCommandEncoderRenderPass(t *testing.T) {
-	enc := NewCommandEncoder(testDeviceID)
+	enc := NewCommandEncoder(testDevice)
 
 	// Create stub texture
 	tex := &GPUTexture{
@@ -220,7 +220,7 @@ func TestCommandEncoderRenderPass(t *testing.T) {
 
 // TestCommandEncoderComputePass tests compute pass creation.
 func TestCommandEncoderComputePass(t *testing.T) {
-	enc := NewCommandEncoder(testDeviceID)
+	enc := NewCommandEncoder(testDevice)
 
 	// Begin compute pass
 	pass := enc.BeginComputePass()
@@ -247,7 +247,7 @@ func TestCommandEncoderComputePass(t *testing.T) {
 
 // TestCommandEncoderFinish tests command buffer creation.
 func TestCommandEncoderFinish(t *testing.T) {
-	enc := NewCommandEncoder(testDeviceID)
+	enc := NewCommandEncoder(testDevice)
 
 	// Create and end a pass
 	tex := &GPUTexture{width: 100, height: 100, format: TextureFormatRGBA8}
@@ -263,7 +263,7 @@ func TestCommandEncoderFinish(t *testing.T) {
 
 // TestRenderPassOperations tests render pass draw operations.
 func TestRenderPassOperations(t *testing.T) {
-	enc := NewCommandEncoder(testDeviceID)
+	enc := NewCommandEncoder(testDevice)
 	tex := &GPUTexture{width: 100, height: 100, format: TextureFormatRGBA8}
 	pass := enc.BeginRenderPass(tex, true)
 
@@ -285,7 +285,7 @@ func TestRenderPassOperations(t *testing.T) {
 
 // TestComputePassOperations tests compute pass dispatch operations.
 func TestComputePassOperations(t *testing.T) {
-	enc := NewCommandEncoder(testDeviceID)
+	enc := NewCommandEncoder(testDevice)
 	pass := enc.BeginComputePass()
 
 	// Dispatch without pipeline (should be no-op)
@@ -308,7 +308,7 @@ func TestComputePassOperations(t *testing.T) {
 func TestRenderCommandBuilder(t *testing.T) {
 	tex := &GPUTexture{width: 100, height: 100, format: TextureFormatRGBA8}
 
-	cmdBuf := NewRenderCommandBuilder(testDeviceID, tex, true).
+	cmdBuf := NewRenderCommandBuilder(testDevice, tex, true).
 		SetPipeline(StubPipelineID(1)).
 		SetBindGroup(0, StubBindGroupID(1)).
 		DrawFullScreen().
@@ -321,7 +321,7 @@ func TestRenderCommandBuilder(t *testing.T) {
 
 // TestComputeCommandBuilder tests the compute builder API.
 func TestComputeCommandBuilder(t *testing.T) {
-	cmdBuf := NewComputeCommandBuilder(testDeviceID).
+	cmdBuf := NewComputeCommandBuilder(testDevice).
 		SetPipeline(StubComputePipelineID(1)).
 		SetBindGroup(0, StubBindGroupID(1)).
 		DispatchForSize(1024, 64).
@@ -477,8 +477,7 @@ func TestLayerStackOperations(t *testing.T) {
 
 // TestQueueSubmitter tests queue submission helper.
 func TestQueueSubmitter(t *testing.T) {
-	var testQueueID core.QueueID
-	submitter := NewQueueSubmitter(testQueueID)
+	submitter := NewQueueSubmitter(nil)
 
 	// Submit should not panic with nil buffers
 	submitter.Submit()
@@ -497,7 +496,7 @@ func TestQueueSubmitter(t *testing.T) {
 
 // TestBindGroupBuilder tests bind group builder.
 func TestBindGroupBuilder(t *testing.T) {
-	builder := NewBindGroupBuilder(testDeviceID, StubBindGroupLayoutID(1))
+	builder := NewBindGroupBuilder(testDevice, StubBindGroupLayoutID(1))
 	bg := builder.Build()
 
 	if bg == 0 {

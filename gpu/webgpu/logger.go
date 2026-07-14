@@ -1,26 +1,17 @@
-//go:build !rust && !(js && wasm)
+//go:build !(js && wasm)
 
 package webgpu
 
-import (
-	"log/slog"
+import "log/slog"
 
-	"github.com/energye/gpui/gpu/webgpu/hal"
-)
-
-// SetLogger configures the logger for the entire wgpu stack (public API,
-// core validation layer, and HAL backends: Vulkan, Metal, DX12, GLES).
-//
-// By default, wgpu produces no log output. Call SetLogger to enable logging
-// for deep debugging across the full GPU pipeline.
-//
-// SetLogger is safe for concurrent use.
-// Pass nil to disable logging (restore default silent behavior).
-func SetLogger(l *slog.Logger) {
-	hal.SetLogger(l)
+// SetLogger configures the logger for the wgpu stack.
+// On the wgpu-native backend, logging is handled by wgpu-native internally.
+func SetLogger(_ *slog.Logger) {
+	// wgpu-native backend: wgpu-native has its own logging.
 }
 
 // Logger returns the current logger used by the wgpu stack.
+// On the wgpu-native backend, returns nil.
 func Logger() *slog.Logger {
-	return hal.Logger()
+	return nil
 }

@@ -63,9 +63,10 @@ type RenderPassDepthStencilAttachment struct {
 	StencilReadOnly   bool
 }
 
-// renderPassDepthStencilAttachment is the native structure (40 bytes).
+// renderPassDepthStencilAttachment is the native WGPURenderPassDepthStencilAttachment.
 // Uses uint32 for LoadOp/StoreOp with wgpu-native converted values.
 type renderPassDepthStencilAttachment struct {
+	nextInChain       uintptr
 	view              uintptr
 	depthLoadOp       uint32 // wgpu-native converted value
 	depthStoreOp      uint32 // wgpu-native converted value
@@ -161,6 +162,7 @@ func (enc *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderP
 		}
 
 		nativeDepthStencil = renderPassDepthStencilAttachment{
+			nextInChain:       0,
 			view:              desc.DepthStencilAttachment.View.handle,
 			depthLoadOp:       uint32(desc.DepthStencilAttachment.DepthLoadOp),
 			depthStoreOp:      uint32(desc.DepthStencilAttachment.DepthStoreOp),

@@ -146,8 +146,8 @@ type Buffer struct {
 	// mu protects mutable state.
 	mu sync.RWMutex
 
-	// halBuffer is the underlying buffer handle.
-	halBuffer *webgpu.Buffer
+	// gpuBuffer is the underlying buffer handle.
+	gpuBuffer *webgpu.Buffer
 
 	// device is the parent device.
 	device *webgpu.Device
@@ -198,14 +198,14 @@ type BufferDescriptor struct {
 // creating the underlying buffer.
 //
 // Parameters:
-//   - halBuffer: The underlying buffer (ownership transferred)
+//   - gpuBuffer: The underlying buffer (ownership transferred)
 //   - device: The parent device (retained for operations)
 //   - desc: The buffer descriptor (copied)
 //
 // Returns the new Buffer.
-func NewBuffer(halBuffer *webgpu.Buffer, device *webgpu.Device, desc *BufferDescriptor) *Buffer {
+func NewBuffer(gpuBuffer *webgpu.Buffer, device *webgpu.Device, desc *BufferDescriptor) *Buffer {
 	buf := &Buffer{
-		halBuffer:  halBuffer,
+		gpuBuffer:  gpuBuffer,
 		device:     device,
 		descriptor: *desc,
 		mapState:   BufferMapStateUnmapped,
@@ -267,7 +267,7 @@ func (b *Buffer) Raw() *webgpu.Buffer {
 	if b.destroyed {
 		return nil
 	}
-	return b.halBuffer
+	return b.gpuBuffer
 }
 
 // MapAsync initiates an async map operation.
@@ -527,10 +527,10 @@ func (b *Buffer) Destroy() {
 	}
 	b.destroyed = true
 	device := b.device
-	halBuf := b.halBuffer
+	gpuBuf := b.gpuBuffer
 	callback := b.mapCallback
 	wasMapping := b.mapState == BufferMapStatePending
-	b.halBuffer = nil
+	b.gpuBuffer = nil
 	b.mappedData = nil
 	b.mapCallback = nil
 	b.mapState = BufferMapStateUnmapped
@@ -542,8 +542,8 @@ func (b *Buffer) Destroy() {
 	}
 
 	// Destroy the buffer
-	if device != nil && halBuf != nil {
-		halBuf.Release()
+	if device != nil && gpuBuf != nil {
+		gpuBuf.Release()
 	}
 }
 
@@ -553,7 +553,7 @@ func (b *Buffer) Destroy() {
 
 // CreateBuffer creates a new buffer from a device.
 //
-// This is a helper function for creating buffers using the HAL API directly.
+// This is a helper function for creating buffers using the webgpu object API directly.
 // It handles validation and wraps the buffer in a Buffer.
 //
 // Parameters:
@@ -568,7 +568,7 @@ func (b *Buffer) Destroy() {
 //   - Buffer creation fails
 func CreateBuffer(device *webgpu.Device, desc *BufferDescriptor) (*Buffer, error) {
 	if device == nil {
-		return nil, ErrNilHALDevice
+		return nil, ErrNilGPUDevice
 	}
 
 	if desc == nil {
@@ -598,7 +598,7 @@ func CreateBuffer(device *webgpu.Device, desc *BufferDescriptor) (*Buffer, error
 	alignedSize := (desc.Size + copyBufferAlignment - 1) &^ (copyBufferAlignment - 1)
 
 	// Convert to descriptor
-	halDesc := &webgpu.BufferDescriptor{
+	gpuDesc := &webgpu.BufferDescriptor{
 		Label:            desc.Label,
 		Size:             alignedSize,
 		Usage:            desc.Usage,
@@ -606,7 +606,7 @@ func CreateBuffer(device *webgpu.Device, desc *BufferDescriptor) (*Buffer, error
 	}
 
 	// Create buffer
-	halBuffer, err := device.CreateBuffer(halDesc)
+	gpuBuffer, err := device.CreateBuffer(gpuDesc)
 	if err != nil {
 		return nil, fmt.Errorf("buffer creation failed: %w", err)
 	}
@@ -615,7 +615,7 @@ func CreateBuffer(device *webgpu.Device, desc *BufferDescriptor) (*Buffer, error
 	resolvedDesc := *desc
 	resolvedDesc.Size = alignedSize
 
-	return NewBuffer(halBuffer, device, &resolvedDesc), nil
+	return NewBuffer(gpuBuffer, device, &resolvedDesc), nil
 }
 
 // CreateBufferSimple creates a buffer with common defaults.

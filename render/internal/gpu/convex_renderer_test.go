@@ -12,7 +12,7 @@ import (
 )
 
 func TestConvexRendererCreation(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
@@ -35,7 +35,7 @@ func TestConvexRendererCreation(t *testing.T) {
 }
 
 func TestConvexRendererPipeline(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
@@ -71,7 +71,7 @@ func TestConvexRendererPipeline(t *testing.T) {
 }
 
 func TestConvexRendererPipelineWithStencil(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
@@ -102,7 +102,7 @@ func TestConvexRendererPipelineWithStencil(t *testing.T) {
 }
 
 func TestConvexRendererDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
@@ -135,7 +135,7 @@ func TestConvexRendererDestroy(t *testing.T) {
 }
 
 func TestConvexRendererDestroyBeforeCreate(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
@@ -149,7 +149,7 @@ func TestConvexRendererShaderCompilation(t *testing.T) {
 		t.Fatal("convex shader source is empty")
 	}
 
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	module, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
@@ -165,7 +165,7 @@ func TestConvexRendererShaderCompilation(t *testing.T) {
 }
 
 func TestConvexRendererRecordDrawsEmpty(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
@@ -584,7 +584,7 @@ func TestBuildConvexVerticesRegularPolygons(t *testing.T) {
 }
 
 func TestConvexFrameResourcesDestroy(t *testing.T) {
-	_, _, cleanup := createNoopDevice(t)
+	_, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	// Destroying nil resources should not panic.
@@ -752,7 +752,7 @@ func TestExtractConvexPolygonWithQuadCurve(t *testing.T) {
 // --- Render session convex integration tests ---
 
 func TestRenderSessionConvexOnly(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -789,7 +789,7 @@ func TestRenderSessionConvexOnly(t *testing.T) {
 }
 
 func TestRenderSessionMixedWithConvex(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -839,7 +839,7 @@ func TestRenderSessionMixedWithConvex(t *testing.T) {
 }
 
 func TestRenderSessionConvexRendererSetter(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))

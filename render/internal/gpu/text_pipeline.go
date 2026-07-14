@@ -923,11 +923,11 @@ func DefaultTextRendererConfig() TextRendererConfig {
 	}
 }
 
-// NewTextRenderer creates a new text renderer with the given HAL device and
+// NewTextRenderer creates a new text renderer with the given GPU device and
 // queue. The renderer manages a TextPipeline and AtlasManager internally.
 func NewTextRenderer(device *webgpu.Device, queue *webgpu.Queue, config TextRendererConfig) (*TextRenderer, error) {
 	if device == nil {
-		return nil, ErrNilHALDevice
+		return nil, ErrNilGPUDevice
 	}
 
 	atlasManager, err := msdf.NewAtlasManager(config.AtlasConfig)

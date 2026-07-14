@@ -176,9 +176,9 @@ func TestTextPipelineConfig(t *testing.T) {
 	})
 }
 
-// TestNewTextPipeline tests pipeline creation with noop device and queue.
+// TestNewTextPipeline tests pipeline creation with native device and queue.
 func TestNewTextPipeline(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	t.Run("with default config", func(t *testing.T) {
@@ -226,9 +226,9 @@ func TestNewTextPipeline(t *testing.T) {
 	})
 }
 
-// TestTextPipelineInit tests pipeline initialization via noop device.
+// TestTextPipelineInit tests pipeline initialization via native device.
 func TestTextPipelineInit(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	pipeline, err := NewTextPipelineDefault(device, queue)
@@ -256,7 +256,7 @@ func TestTextPipelineInit(t *testing.T) {
 
 // TestTextPipelineClose tests pipeline cleanup.
 func TestTextPipelineClose(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	pipeline, err := NewTextPipelineDefault(device, queue)
@@ -277,7 +277,7 @@ func TestTextPipelineClose(t *testing.T) {
 
 // TestTextPipelineRenderText tests the RenderText method.
 func TestTextPipelineRenderText(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	pipeline, _ := NewTextPipelineDefault(device, queue)
@@ -387,13 +387,13 @@ func TestTextRendererConfig(t *testing.T) {
 func TestNewTextRenderer(t *testing.T) {
 	t.Run("nil device error", func(t *testing.T) {
 		_, err := NewTextRenderer(nil, nil, DefaultTextRendererConfig())
-		if !errors.Is(err, ErrNilHALDevice) {
-			t.Errorf("expected ErrNilHALDevice, got %v", err)
+		if !errors.Is(err, ErrNilGPUDevice) {
+			t.Errorf("expected ErrNilGPUDevice, got %v", err)
 		}
 	})
 
 	t.Run("with valid device", func(t *testing.T) {
-		device, queue, cleanup := createNoopDevice(t)
+		device, queue, cleanup := createNativeDevice(t)
 		defer cleanup()
 
 		renderer, err := NewTextRenderer(device, queue, DefaultTextRendererConfig())
@@ -414,7 +414,7 @@ func TestNewTextRenderer(t *testing.T) {
 
 // TestTextRendererInit tests renderer initialization.
 func TestTextRendererInit(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	renderer, err := NewTextRenderer(device, queue, DefaultTextRendererConfig())
@@ -437,7 +437,7 @@ func TestTextRendererInit(t *testing.T) {
 
 // TestTextRendererSyncAtlases tests atlas synchronization.
 func TestTextRendererSyncAtlases(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	renderer, _ := NewTextRenderer(device, queue, DefaultTextRendererConfig())
@@ -469,7 +469,7 @@ func TestTextBatch(t *testing.T) {
 
 // TestRenderTextBatch tests batch rendering.
 func TestRenderTextBatch(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	pipeline, _ := NewTextPipelineDefault(device, queue)
@@ -608,9 +608,9 @@ func TestRgbToRGBA(t *testing.T) {
 	})
 }
 
-// TestMSDFTextPipelineCreate tests real pipeline creation via noop backend.
+// TestMSDFTextPipelineCreate tests real pipeline creation via native backend.
 func TestMSDFTextPipelineCreate(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewMSDFTextPipeline(device, queue, 4)
@@ -638,7 +638,7 @@ func TestMSDFTextPipelineCreate(t *testing.T) {
 
 // TestMSDFTextPipelineWithStencil tests stencil variant creation.
 func TestMSDFTextPipelineWithStencil(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewMSDFTextPipeline(device, queue, 4)
@@ -659,7 +659,7 @@ func TestMSDFTextPipelineWithStencil(t *testing.T) {
 
 // TestMSDFTextPipelineDestroy tests cleanup.
 func TestMSDFTextPipelineDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewMSDFTextPipeline(device, queue, 4)

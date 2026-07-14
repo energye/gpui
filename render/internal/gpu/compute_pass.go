@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/energye/gpui/gpu/webgpu/core"
+	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // Compute pass errors.
@@ -90,8 +90,8 @@ type ComputePassEncoder struct {
 	// mu protects mutable state.
 	mu sync.Mutex
 
-	// corePass is the underlying core compute pass encoder.
-	corePass *core.CoreComputePassEncoder
+	// gpuPass is the underlying WebGPU compute pass encoder.
+	gpuPass *webgpu.ComputePassEncoder
 
 	// encoder is the parent command encoder.
 	encoder *CoreCommandEncoder
@@ -156,11 +156,9 @@ func (p *ComputePassEncoder) SetPipeline(pipeline *ComputePipeline) error {
 
 	p.currentPipeline = pipeline
 
-	// Forward to core pass if available
-	// Note: core.CoreComputePassEncoder.SetPipeline takes *core.ComputePipeline
-	// Integration pending for core.ComputePipeline
-	// For now, we record the state locally
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.SetPipeline(pipeline.Raw())
+	}
 
 	return nil
 }
@@ -197,10 +195,9 @@ func (p *ComputePassEncoder) SetBindGroup(index uint32, bindGroup *BindGroup, dy
 		return ErrNilComputeBindGroup
 	}
 
-	// Forward to core pass if available
-	// Note: core.CoreComputePassEncoder does not have SetBindGroup yet
-	// Integration pending
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.SetBindGroup(index, bindGroup.Raw(), dynamicOffsets)
+	}
 
 	return nil
 }
@@ -234,9 +231,8 @@ func (p *ComputePassEncoder) DispatchWorkgroups(x, y, z uint32) error {
 
 	p.dispatchCount++
 
-	// Forward to core pass if available
-	if p.corePass != nil {
-		p.corePass.Dispatch(x, y, z)
+	if p.gpuPass != nil {
+		p.gpuPass.Dispatch(x, y, z)
 	}
 
 	return nil
@@ -281,10 +277,9 @@ func (p *ComputePassEncoder) DispatchWorkgroupsIndirect(indirectBuffer *Buffer, 
 
 	p.dispatchCount++
 
-	// Forward to core pass if available
-	// core.CoreComputePassEncoder.DispatchIndirect takes *core.Buffer
-	// For now, this is a no-op until buffer integration is complete
-	_ = p.corePass // Silence linter until integration complete
+	if p.gpuPass != nil {
+		p.gpuPass.DispatchIndirect(indirectBuffer.Raw(), indirectOffset)
+	}
 
 	return nil
 }
@@ -305,9 +300,8 @@ func (p *ComputePassEncoder) End() error {
 	}
 	p.state = ComputePassStateEnded
 
-	// End the core pass if available
-	if p.corePass != nil {
-		if err := p.corePass.End(); err != nil {
+	if p.gpuPass != nil {
+		if err := p.gpuPass.End(); err != nil {
 			return fmt.Errorf("end compute pass: %w", err)
 		}
 	}
@@ -341,6 +335,9 @@ func (p *ComputePassEncoder) DispatchCount() uint32 {
 // ComputePipeline is a placeholder type that will be expanded when
 // pipeline creation is implemented.
 type ComputePipeline struct {
+	// gpuPipeline is the underlying WebGPU compute pipeline.
+	gpuPipeline *webgpu.ComputePipeline
+
 	// id is a unique identifier for the pipeline.
 	id uint64
 
@@ -355,6 +352,19 @@ type ComputePipeline struct {
 
 	// mu protects mutable state.
 	mu sync.RWMutex
+}
+
+// Raw returns the underlying WebGPU compute pipeline.
+func (p *ComputePipeline) Raw() *webgpu.ComputePipeline {
+	if p == nil {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.destroyed {
+		return nil
+	}
+	return p.gpuPipeline
 }
 
 // ID returns the pipeline's unique identifier.

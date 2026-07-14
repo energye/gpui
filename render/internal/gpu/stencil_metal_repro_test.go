@@ -16,7 +16,7 @@ import (
 
 // createMetalDevice creates a REAL Metal-backed *wgpu.Device + *wgpu.Queue for
 // pixel-exact integration testing on Apple Silicon. Uses public wgpu API with
-// BackendsMetal filter — no HAL imports needed.
+// BackendsMetal filter — no direct backend imports needed.
 func createMetalDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
 	t.Helper()
 	instance, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{

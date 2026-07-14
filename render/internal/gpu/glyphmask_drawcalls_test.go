@@ -14,7 +14,7 @@ import (
 // for BUG-GLYPHMASK-001: when a bind group is nil, buildGlyphMaskDrawCalls
 // must still advance quadOffset so subsequent batches get correct indexOffset.
 func TestBuildGlyphMaskDrawCalls_QuadOffsetOnNilBindGroup(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -74,7 +74,7 @@ func TestBuildGlyphMaskDrawCalls_QuadOffsetOnNilBindGroup(t *testing.T) {
 // TestBuildGlyphMaskDrawCalls_AllBindGroupsValid verifies correct offsets
 // when no batches are skipped (normal operation).
 func TestBuildGlyphMaskDrawCalls_AllBindGroupsValid(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -122,7 +122,7 @@ func TestBuildGlyphMaskDrawCalls_AllBindGroupsValid(t *testing.T) {
 // TestBuildGlyphMaskDrawCalls_EmptyBatchSkipped verifies that batches with
 // zero quads are skipped without affecting quadOffset.
 func TestBuildGlyphMaskDrawCalls_EmptyBatchSkipped(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))

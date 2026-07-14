@@ -101,8 +101,9 @@ func (r *GPUCoarseRasterizer) init() error {
 	r.spirvCode = spirvCode
 	r.shaderReady = true
 
-	// Create shader module using shared helper
-	shaderModule, err := CreateShaderModule(r.device, "coarse_shader", r.spirvCode)
+	// Create shader module from WGSL. The SPIR-V code above is retained for
+	// diagnostics/tests, but wgpu-native is more robust with WGSL source here.
+	shaderModule, err := CreateShaderModule(r.device, "coarse_shader", coarseShaderWGSL)
 	if err != nil {
 		return fmt.Errorf("gpu_coarse: failed to create shader module: %w", err)
 	}
@@ -229,7 +230,7 @@ func (r *GPUCoarseRasterizer) createPipelines() error {
 // It takes segments and produces tile entries.
 //
 // Note: Phase 6.2 implementation. Full GPU dispatch requires buffer binding
-// which needs HAL API extensions. Currently falls back to CPU-computed entries.
+// which needs webgpu object API extensions. Currently falls back to CPU-computed entries.
 func (r *GPUCoarseRasterizer) Rasterize(segments *SegmentList) ([]GPUTileSegmentRef, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -249,7 +250,7 @@ func (r *GPUCoarseRasterizer) Rasterize(segments *SegmentList) ([]GPUTileSegment
 	// Estimate: 4 entries per segment average (conservative)
 	maxEntries := len(gpuSegments) * 4
 
-	// Phase 6.2: GPU infrastructure is ready, but buffer binding needs HAL extension.
+	// Phase 6.2: GPU infrastructure is ready, but buffer binding needs webgpu object API support.
 	// For now, compute tile entries on CPU using the same algorithm as the shader.
 	entries := r.computeEntriesCPU(gpuSegments, maxEntries)
 

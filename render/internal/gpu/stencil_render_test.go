@@ -11,7 +11,7 @@ import (
 )
 
 func TestRenderPathTriangle(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -37,12 +37,12 @@ func TestRenderPathTriangle(t *testing.T) {
 		t.Fatalf("RenderPath failed: %v", err)
 	}
 
-	// Noop backend returns zeroed readback data, so we verify the code path
-	// executed without error rather than checking pixel values.
+	// This test exercises the native render path and verifies it completes without
+	// error; pixel-level coverage is handled by golden tests.
 }
 
 func TestRenderPathEmpty(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -69,7 +69,7 @@ func TestRenderPathEmpty(t *testing.T) {
 }
 
 func TestRenderPathCircle(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -94,7 +94,7 @@ func TestRenderPathCircle(t *testing.T) {
 }
 
 func TestRenderPathEvenOdd(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -127,7 +127,7 @@ func TestRenderPathEvenOdd(t *testing.T) {
 }
 
 func TestRenderPathBothFillRules(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -171,7 +171,7 @@ func TestRenderPathBothFillRules(t *testing.T) {
 }
 
 func TestRenderPathPipelinesCreatedOnce(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -214,7 +214,7 @@ func TestRenderPathPipelinesCreatedOnce(t *testing.T) {
 }
 
 func TestRenderPathResizesTextures(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)

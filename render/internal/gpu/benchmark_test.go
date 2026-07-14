@@ -5,7 +5,7 @@ package gpu
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/webgpu/core"
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
@@ -23,11 +23,11 @@ func BenchmarkPipelineCreation(b *testing.B) {
 		Composite: ShaderModuleID(4),
 	}
 
-	var deviceID core.DeviceID
+	var device *webgpu.Device
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pc, err := NewPipelineCache(deviceID, shaders)
+		pc, err := NewPipelineCache(device, shaders)
 		if err != nil {
 			b.Fatalf("NewPipelineCache failed: %v", err)
 		}
@@ -44,8 +44,8 @@ func BenchmarkBlendPipelineCache(b *testing.B) {
 		Composite: ShaderModuleID(4),
 	}
 
-	var deviceID core.DeviceID
-	pc, err := NewPipelineCache(deviceID, shaders)
+	var device *webgpu.Device
+	pc, err := NewPipelineCache(device, shaders)
 	if err != nil {
 		b.Fatalf("NewPipelineCache failed: %v", err)
 	}

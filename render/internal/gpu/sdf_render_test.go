@@ -12,7 +12,7 @@ import (
 )
 
 func TestSDFRenderPipelineCreation(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -38,7 +38,7 @@ func TestSDFRenderPipelineCreation(t *testing.T) {
 }
 
 func TestSDFRenderPipelineDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -72,7 +72,7 @@ func TestSDFRenderPipelineDestroy(t *testing.T) {
 }
 
 func TestSDFRenderPipelineDestroyBeforeCreate(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -82,7 +82,7 @@ func TestSDFRenderPipelineDestroyBeforeCreate(t *testing.T) {
 }
 
 func TestSDFRenderPipelineTextures(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -113,7 +113,7 @@ func TestSDFRenderPipelineTextures(t *testing.T) {
 }
 
 func TestSDFRenderPipelineTexturesIdempotent(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -142,7 +142,7 @@ func TestSDFRenderPipelineTexturesIdempotent(t *testing.T) {
 }
 
 func TestSDFRenderPipelineTexturesResize(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -175,7 +175,7 @@ func TestSDFRenderPipelineTexturesResize(t *testing.T) {
 }
 
 func TestSDFRenderPipelineFullDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -211,7 +211,7 @@ func TestSDFRenderPipelineFullDestroy(t *testing.T) {
 }
 
 func TestSDFRenderPipelineRecreate(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -239,7 +239,7 @@ func TestSDFRenderShaderCompilation(t *testing.T) {
 		t.Fatal("sdf_render shader source is empty")
 	}
 
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	module, err := device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
@@ -609,7 +609,7 @@ func TestDetectedShapeToRenderShapeUnknown(t *testing.T) {
 }
 
 func TestSDFRenderPipelineRenderShapesEmpty(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -640,7 +640,7 @@ func TestSDFRenderPipelineRenderShapesEmpty(t *testing.T) {
 }
 
 func TestSDFRenderPipelineEnsureReady(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -670,7 +670,7 @@ func TestSDFRenderPipelineEnsureReady(t *testing.T) {
 }
 
 func TestSDFRenderPipelineTexturesAfterDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)

@@ -153,8 +153,8 @@
 //
 // Supported platforms:
 //   - Windows (x64) - uses syscall.LazyDLL
-//   - Linux (x64, arm64) - uses goffi/dlopen
-//   - macOS (x64, arm64) - uses goffi/dlopen
+//   - Linux (x64, arm64) - uses purego/dlopen
+//   - macOS (x64, arm64) - uses purego/dlopen
 //
 // # Dependencies
 //

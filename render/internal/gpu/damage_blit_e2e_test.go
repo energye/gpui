@@ -9,55 +9,12 @@ import (
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
-	"github.com/energye/gpui/gpu/webgpu/hal/software"
 )
 
-// createSoftwareDevice creates a software-backed *wgpu.Device for pixel-exact
-// integration testing. Unlike noop, this performs REAL CPU rasterization —
-// LoadOpLoad preserves content, scissor clips draws, pixels are verifiable.
-func createSoftwareDevice(t *testing.T) (*webgpu.Device, *webgpu.Queue, func()) {
-	t.Helper()
-	api := software.API{}
-	instance, err := api.CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("software CreateInstance: %v", err)
-	}
-	adapters := instance.EnumerateAdapters(nil)
-	if len(adapters) == 0 {
-		instance.Destroy()
-		t.Fatal("software backend: no adapters")
-	}
-	openDev, err := adapters[0].Adapter.Open(0, types.DefaultLimits())
-	if err != nil {
-		instance.Destroy()
-		t.Fatalf("software Open: %v", err)
-	}
-
-	device, err := webgpu.NewDeviceFromHAL(
-		openDev.Device,
-		openDev.Queue,
-		types.Features(0),
-		types.DefaultLimits(),
-		"software-test",
-	)
-	if err != nil {
-		openDev.Device.Destroy()
-		instance.Destroy()
-		t.Fatalf("NewDeviceFromHAL: %v", err)
-	}
-
-	queue := device.Queue()
-	cleanup := func() {
-		device.Release()
-		instance.Destroy()
-	}
-	return device, queue, cleanup
-}
-
 // TestDamageBlit_LoadOpLoad_PreservesContent verifies that LoadOpLoad + scissor
-// preserves pixels outside the damage rect (e2e through software backend).
+// preserves pixels outside the damage rect (e2e through wgpu-native).
 func TestDamageBlit_LoadOpLoad_PreservesContent(t *testing.T) {
-	device, queue, cleanup := createSoftwareDevice(t)
+	device, queue, cleanup := createNativeTestDevice(t)
 	defer cleanup()
 
 	const W, H = 8, 8
@@ -168,7 +125,9 @@ func TestDamageBlit_NBufferAccumulation(t *testing.T) {
 
 func readbackTexture(t *testing.T, device *webgpu.Device, queue *webgpu.Queue, tex *webgpu.Texture, w, h int) []byte {
 	t.Helper()
-	bufSize := uint64(w * h * 4)
+	rowBytes := uint32(w * 4)
+	paddedRowBytes := alignTo(rowBytes, 256)
+	bufSize := uint64(paddedRowBytes) * uint64(h)
 	buf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
 		Label: "readback",
 		Size:  bufSize,
@@ -185,7 +144,7 @@ func readbackTexture(t *testing.T, device *webgpu.Device, queue *webgpu.Queue, t
 		TextureBase: webgpu.ImageCopyTexture{Texture: tex},
 		BufferLayout: webgpu.ImageDataLayout{
 			Offset:       0,
-			BytesPerRow:  uint32(w * 4),
+			BytesPerRow:  paddedRowBytes,
 			RowsPerImage: uint32(h),
 		},
 		Size: webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},
@@ -205,11 +164,20 @@ func readbackTexture(t *testing.T, device *webgpu.Device, queue *webgpu.Queue, t
 		t.Logf("MappedRange: %v", err)
 		return nil
 	}
-	result := make([]byte, len(mr.Bytes()))
-	copy(result, mr.Bytes())
+	mapped := mr.Bytes()
+	result := make([]byte, w*h*4)
+	for y := 0; y < h; y++ {
+		srcStart := y * int(paddedRowBytes)
+		dstStart := y * int(rowBytes)
+		copy(result[dstStart:dstStart+int(rowBytes)], mapped[srcStart:srcStart+int(rowBytes)])
+	}
 	mr.Release()
 	buf.Unmap()
 	return result
+}
+
+func alignTo(v, alignment uint32) uint32 {
+	return (v + alignment - 1) &^ (alignment - 1)
 }
 
 func assertPixel(t *testing.T, data []byte, stride, x, y int, wantR, wantG, wantB uint8, label string) {

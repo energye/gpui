@@ -9,7 +9,7 @@ import (
 )
 
 func TestStencilPipelineCreation(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -53,7 +53,7 @@ func TestStencilPipelineCreation(t *testing.T) {
 }
 
 func TestStencilPipelineDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -101,7 +101,7 @@ func TestStencilPipelineDestroy(t *testing.T) {
 }
 
 func TestStencilPipelineDestroyBeforeCreate(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -111,7 +111,7 @@ func TestStencilPipelineDestroyBeforeCreate(t *testing.T) {
 }
 
 func TestStencilPipelineFullDestroy(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -151,7 +151,7 @@ func TestStencilPipelineFullDestroy(t *testing.T) {
 }
 
 func TestShaderCompilation(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	// Test stencil fill shader compilation.
@@ -188,7 +188,7 @@ func TestShaderCompilation(t *testing.T) {
 }
 
 func TestStencilPipelineRecreate(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)

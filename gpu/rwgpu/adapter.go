@@ -4,8 +4,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/energye/gpui/ffi"
-	ffitypes "github.com/energye/gpui/ffi/types"
+	"github.com/ebitengine/purego"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -59,19 +58,6 @@ type RequestAdapterCallbackInfo struct {
 	Userdata2   uintptr
 }
 
-var requestAdapterCallbackInfoType = &ffitypes.TypeDescriptor{
-	Kind:      ffitypes.StructType,
-	Size:      40,
-	Alignment: 8,
-	Members: []*ffitypes.TypeDescriptor{
-		ffitypes.PointerTypeDescriptor, // nextInChain
-		ffitypes.UInt32TypeDescriptor,  // mode
-		ffitypes.PointerTypeDescriptor, // callback
-		ffitypes.PointerTypeDescriptor, // userdata1
-		ffitypes.PointerTypeDescriptor, // userdata2
-	},
-}
-
 // adapterRequest holds state for an async adapter request.
 type adapterRequest struct {
 	done    chan struct{}
@@ -93,11 +79,9 @@ var (
 	adapterCallbackOnce sync.Once
 )
 
-// adapterCallbackHandler is the Go function called by C code via ffi.NewCallback.
-// Windows x64 ABI: args in RCX, RDX, R8, R9, then stack.
+// adapterCallbackHandler is the Go function called by native code via purego.NewCallback.
 // Signature: void(status uint32, adapter uintptr, message StringView, userdata1 uintptr, userdata2 uintptr)
 // On Linux SysV, WGPUStringView is passed by value as two integer words.
-// goffi v0.2.1+ requires all args to be uintptr and exactly one uintptr return.
 func adapterCallbackHandler(status uintptr, adapter uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
 	var msg string
 	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
@@ -124,10 +108,9 @@ func adapterCallbackHandler(status uintptr, adapter uintptr, messageData uintptr
 	return 0
 }
 
-// initAdapterCallback creates the C callback function pointer using goffi.
-// goffi v0.2.1+ properly handles Windows x64 calling convention.
+// initAdapterCallback creates the C callback function pointer using purego.
 func initAdapterCallback() {
-	adapterCallbackPtr = ffi.NewCallback(adapterCallbackHandler)
+	adapterCallbackPtr = purego.NewCallback(adapterCallbackHandler)
 }
 
 // RequestAdapter requests a GPU adapter from the instance.
@@ -220,34 +203,13 @@ func callInstanceRequestAdapter(instance uintptr, options uintptr, callbackInfo 
 		)
 		return Future{ID: uint64(future)}, err
 	}
-	if proc.fnPtr == nil {
+	if proc.fnPtr == 0 {
 		return Future{}, &WGPUError{Op: "RequestAdapter", Message: "wgpuInstanceRequestAdapter symbol is missing"}
 	}
 
-	var cif ffitypes.CallInterface
-	if err := ffi.PrepareCallInterface(
-		&cif,
-		ffitypes.UnixCallingConvention,
-		ffitypes.UInt64TypeDescriptor,
-		[]*ffitypes.TypeDescriptor{
-			ffitypes.PointerTypeDescriptor,
-			ffitypes.PointerTypeDescriptor,
-			requestAdapterCallbackInfoType,
-		},
-	); err != nil {
-		return Future{}, &WGPUError{Op: "RequestAdapter", Message: err.Error()}
-	}
-
-	var future uint64
-	args := []unsafe.Pointer{
-		unsafe.Pointer(&instance),
-		unsafe.Pointer(&options),
-		unsafe.Pointer(callbackInfo),
-	}
-	if _, err := ffi.CallFunction(&cif, proc.fnPtr, unsafe.Pointer(&future), args); err != nil {
-		return Future{}, &WGPUError{Op: "RequestAdapter", Message: err.Error()}
-	}
-	return Future{ID: future}, nil
+	var requestAdapter func(uintptr, uintptr, RequestAdapterCallbackInfo) Future
+	purego.RegisterFunc(&requestAdapter, proc.fnPtr)
+	return requestAdapter(instance, options, *callbackInfo), nil
 }
 
 // fetchAdapterLimits calls wgpuAdapterGetLimits and converts the wire struct to public Limits.

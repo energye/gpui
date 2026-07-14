@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
 )
 
@@ -26,9 +27,8 @@ var stripShaderSource string
 //go:embed shaders/composite.wgsl
 var compositeShaderSource string
 
-// ShaderModuleID represents a compiled shader module handle.
-// This is a placeholder type that will be replaced with the actual
-// wgpu core.ShaderModuleID once shader compilation is implemented.
+// ShaderModuleID is a logical module marker used only when no native device is
+// available, such as source-validation unit tests.
 type ShaderModuleID uint64
 
 // InvalidShaderModule represents an invalid/uninitialized shader module.
@@ -36,39 +36,91 @@ const InvalidShaderModule ShaderModuleID = 0
 
 // ShaderModules holds compiled shader modules for all rendering operations.
 type ShaderModules struct {
-	// Blit is the simple texture copy shader
+	// Blit is the simple texture copy shader marker.
 	Blit ShaderModuleID
 
-	// Blend is the 29-mode blend shader
+	// Blend is the 29-mode blend shader marker.
 	Blend ShaderModuleID
 
-	// Strip is the strip rasterization compute shader
+	// Strip is the strip rasterization compute shader marker.
 	Strip ShaderModuleID
 
-	// Composite is the final layer compositing shader
+	// Composite is the final layer compositing shader marker.
 	Composite ShaderModuleID
+
+	// Native modules are populated when CompileShaders is called with a real
+	// WebGPU device.
+	BlitModule      *webgpu.ShaderModule
+	BlendModule     *webgpu.ShaderModule
+	StripModule     *webgpu.ShaderModule
+	CompositeModule *webgpu.ShaderModule
 }
 
 // IsValid returns true if all shader modules are initialized.
 func (s *ShaderModules) IsValid() bool {
+	if s == nil {
+		return false
+	}
+	if s.BlitModule != nil || s.BlendModule != nil || s.StripModule != nil || s.CompositeModule != nil {
+		return s.BlitModule != nil &&
+			s.BlendModule != nil &&
+			s.StripModule != nil &&
+			s.CompositeModule != nil
+	}
 	return s.Blit != InvalidShaderModule &&
 		s.Blend != InvalidShaderModule &&
 		s.Strip != InvalidShaderModule &&
 		s.Composite != InvalidShaderModule
 }
 
+// HasNativeModules reports whether all shaders were compiled into native
+// WebGPU shader modules.
+func (s *ShaderModules) HasNativeModules() bool {
+	return s != nil &&
+		s.BlitModule != nil &&
+		s.BlendModule != nil &&
+		s.StripModule != nil &&
+		s.CompositeModule != nil
+}
+
+// Release releases native shader modules owned by this ShaderModules value.
+func (s *ShaderModules) Release() {
+	if s == nil {
+		return
+	}
+	if s.BlitModule != nil {
+		s.BlitModule.Release()
+		s.BlitModule = nil
+	}
+	if s.BlendModule != nil {
+		s.BlendModule.Release()
+		s.BlendModule = nil
+	}
+	if s.StripModule != nil {
+		s.StripModule.Release()
+		s.StripModule = nil
+	}
+	if s.CompositeModule != nil {
+		s.CompositeModule.Release()
+		s.CompositeModule = nil
+	}
+	s.Blit = InvalidShaderModule
+	s.Blend = InvalidShaderModule
+	s.Strip = InvalidShaderModule
+	s.Composite = InvalidShaderModule
+}
+
 // CompileShaders compiles all WGSL shaders and returns the shader modules.
-// This function currently returns stub module IDs since gogpu/wgpu shader
-// compilation is not yet fully implemented. The WGSL sources are validated
-// for correct syntax.
+// If device is nil, it validates embedded sources and returns logical markers
+// for tests that do not initialize a GPU.
 //
 // Parameters:
-//   - deviceID: The GPU device ID to use for compilation (currently unused)
+//   - device: The GPU device to use for native WGSL compilation
 //
 // Returns:
 //   - *ShaderModules: Compiled shader module handles
 //   - error: Compilation error if shader sources are invalid
-func CompileShaders(deviceID uint64) (*ShaderModules, error) {
+func CompileShaders(device *webgpu.Device) (*ShaderModules, error) {
 	// Validate shader sources are non-empty
 	if blitShaderSource == "" {
 		return nil, errors.New("blit shader source is empty")
@@ -83,17 +135,51 @@ func CompileShaders(deviceID uint64) (*ShaderModules, error) {
 		return nil, errors.New("composite shader source is empty")
 	}
 
-	// TODO: When gogpu/wgpu shader compilation is implemented, compile here:
-	// blitSPIRV, err := naga.Compile(blitShaderSource)
-	// blitModule, err := core.CreateShaderModule(device, blitSPIRV)
-
-	// For now, return stub module IDs
-	// These will be replaced with actual compiled modules when wgpu support is ready
 	modules := &ShaderModules{
 		Blit:      ShaderModuleID(1),
 		Blend:     ShaderModuleID(2),
 		Strip:     ShaderModuleID(3),
 		Composite: ShaderModuleID(4),
+	}
+	if device == nil {
+		return modules, nil
+	}
+
+	var err error
+	modules.BlitModule, err = device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		Label: "gg-blit",
+		WGSL:  blitShaderSource,
+	})
+	if err != nil {
+		modules.Release()
+		return nil, fmt.Errorf("compile blit shader: %w", err)
+	}
+
+	modules.BlendModule, err = device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		Label: "gg-blend",
+		WGSL:  blendShaderSource,
+	})
+	if err != nil {
+		modules.Release()
+		return nil, fmt.Errorf("compile blend shader: %w", err)
+	}
+
+	modules.StripModule, err = device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		Label: "gg-strip",
+		WGSL:  stripShaderSource,
+	})
+	if err != nil {
+		modules.Release()
+		return nil, fmt.Errorf("compile strip shader: %w", err)
+	}
+
+	modules.CompositeModule, err = device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		Label: "gg-composite",
+		WGSL:  compositeShaderSource,
+	})
+	if err != nil {
+		modules.Release()
+		return nil, fmt.Errorf("compile composite shader: %w", err)
 	}
 
 	return modules, nil

@@ -12,6 +12,7 @@ import (
 // ready=true with err=nil, or Wait() returns nil.
 type MapPending struct {
 	req  *mapRequest
+	buf  *Buffer
 	done bool
 	err  error
 }
@@ -35,6 +36,8 @@ func (p *MapPending) Status() (ready bool, err error) {
 				msg = "buffer map failed"
 			}
 			p.err = &WGPUError{Op: "Buffer.MapAsync", Message: msg}
+		} else if p.buf != nil {
+			p.buf.mapState = BufferMapStateMapped
 		}
 		return true, p.err
 	default:
@@ -63,6 +66,8 @@ func (p *MapPending) Wait(ctx context.Context) error {
 				msg = "buffer map failed"
 			}
 			p.err = &WGPUError{Op: "Buffer.MapAsync", Message: msg}
+		} else if p.buf != nil {
+			p.buf.mapState = BufferMapStateMapped
 		}
 		return p.err
 	case <-ctx.Done():
@@ -125,7 +130,7 @@ func (b *Buffer) MapAsync(mode MapMode, offset, size uint64) (*MapPending, error
 	if err != nil {
 		return nil, err
 	}
-	return &MapPending{req: req}, nil
+	return &MapPending{req: req, buf: b}, nil
 }
 
 // Map blocks until a CPU-visible mapping is established for the given byte
@@ -177,6 +182,7 @@ func (b *Buffer) Map(ctx context.Context, mode MapMode, offset, size uint64) err
 			}
 			return &WGPUError{Op: "Buffer.Map", Message: msg}
 		}
+		b.mapState = BufferMapStateMapped
 		return nil
 	default:
 	}
@@ -207,6 +213,7 @@ func (b *Buffer) Map(ctx context.Context, mode MapMode, offset, size uint64) err
 			}
 			return &WGPUError{Op: "Buffer.Map", Message: msg}
 		}
+		b.mapState = BufferMapStateMapped
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

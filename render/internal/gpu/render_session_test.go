@@ -13,7 +13,7 @@ import (
 )
 
 func TestRenderSessionCreation(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -33,7 +33,7 @@ func TestRenderSessionCreation(t *testing.T) {
 }
 
 func TestRenderSessionTextures(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -71,7 +71,7 @@ func TestRenderSessionTextures(t *testing.T) {
 }
 
 func TestRenderSessionTexturesIdempotent(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -104,7 +104,7 @@ func TestRenderSessionTexturesIdempotent(t *testing.T) {
 }
 
 func TestRenderSessionTexturesResize(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -131,7 +131,7 @@ func TestRenderSessionTexturesResize(t *testing.T) {
 }
 
 func TestRenderSessionDestroyAndRecreate(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -161,7 +161,7 @@ func TestRenderSessionDestroyAndRecreate(t *testing.T) {
 }
 
 func TestRenderSessionEmpty(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -192,7 +192,7 @@ func TestRenderSessionEmpty(t *testing.T) {
 }
 
 func TestRenderSessionSDFOnly(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -214,7 +214,7 @@ func TestRenderSessionSDFOnly(t *testing.T) {
 	}
 
 	// This tests the full pipeline creation and render pass encoding
-	// with the noop device.
+	// with the native device.
 	err := s.RenderFrame(target, shapes, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("RenderFrame with SDF shapes failed: %v", err)
@@ -236,7 +236,7 @@ func TestRenderSessionSDFOnly(t *testing.T) {
 }
 
 func TestRenderSessionStencilOnly(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -275,7 +275,7 @@ func TestRenderSessionStencilOnly(t *testing.T) {
 }
 
 func TestRenderSessionMixed(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -333,7 +333,7 @@ func TestRenderSessionMixed(t *testing.T) {
 }
 
 func TestRenderSessionMultipleFrames(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -368,7 +368,7 @@ func TestRenderSessionMultipleFrames(t *testing.T) {
 }
 
 func TestRenderSessionPipelineSetters(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -422,7 +422,7 @@ func TestStencilPathCommandFields(t *testing.T) {
 }
 
 func TestSDFRenderPipelineWithStencil(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -453,7 +453,7 @@ func TestSDFRenderPipelineWithStencil(t *testing.T) {
 }
 
 func TestSDFRenderPipelineDestroyWithStencilVariant(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
@@ -501,7 +501,7 @@ func createMockSurfaceView(t *testing.T, device *webgpu.Device, w, h uint32) (*w
 }
 
 func TestRenderSessionSurfaceMode(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -561,7 +561,7 @@ func TestRenderSessionSurfaceMode(t *testing.T) {
 }
 
 func TestRenderSessionSurfaceModeReset(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -611,7 +611,7 @@ func TestRenderSessionSurfaceModeReset(t *testing.T) {
 }
 
 func TestRenderSessionSurfaceModeTextures(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -658,7 +658,7 @@ func TestRenderSessionSurfaceModeTextures(t *testing.T) {
 }
 
 func TestRenderSessionSurfaceModeResize(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -716,7 +716,7 @@ func TestRenderSessionSurfaceModeResize(t *testing.T) {
 }
 
 func TestRenderSessionSurfaceModeStencilPaths(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -760,7 +760,7 @@ func TestRenderSessionSurfaceModeStencilPaths(t *testing.T) {
 }
 
 func TestRenderSessionDestroyClearsSurface(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -783,7 +783,7 @@ func TestRenderSessionDestroyClearsSurface(t *testing.T) {
 }
 
 func TestStencilRendererRecordPath(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -812,7 +812,7 @@ func TestStencilRendererRecordPath(t *testing.T) {
 // This prevents Vulkan crashes on AMD/NVIDIA when SetBindGroup(1, ...) is
 // called with a pipeline whose layout only has 1 descriptor set.
 func TestEnsurePipelines_ClipLayoutRecreation(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	// Step 1: Create SDF pipeline and force pipeline creation WITHOUT clip layout.
@@ -868,7 +868,7 @@ func TestEnsurePipelines_ClipLayoutRecreation(t *testing.T) {
 // TestEnsurePipelines_ConvexClipRecreation verifies the same clip layout
 // recreation behavior for the ConvexRenderer.
 func TestEnsurePipelines_ConvexClipRecreation(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
@@ -914,7 +914,7 @@ func TestEnsurePipelines_ConvexClipRecreation(t *testing.T) {
 // TestEnsurePipelines_StencilClipRecreation verifies clip layout recreation
 // for the StencilRenderer's cover pipeline.
 func TestEnsurePipelines_StencilClipRecreation(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
@@ -962,7 +962,7 @@ func TestEnsurePipelines_StencilClipRecreation(t *testing.T) {
 // and the session automatically recovers between frames.
 // This is the regression test for BUG-GG-ENCODER-LIFECYCLE-001.
 func TestRenderSession_EncoderLifecycleRecovery(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -1037,7 +1037,7 @@ func TestRenderSession_EncoderLifecycleRecovery(t *testing.T) {
 // is kept alive for deferred free. Rapid consecutive surface renders must
 // not leak command buffers.
 func TestRenderSession_EncoderLifecycleSurface(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -1103,7 +1103,7 @@ func TestRenderSession_EncoderLifecycleSurface(t *testing.T) {
 // pipeline creation flow: ensureClipBindLayout + ensurePipelines creates
 // all pipelines with clip layout from the start.
 func TestRenderSessionEnsurePipelines_FullFlow(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -1147,7 +1147,7 @@ func TestRenderSessionEnsurePipelines_FullFlow(t *testing.T) {
 
 // TestIsBlitOnly verifies blit-only detection for compositor fast path (ADR-016).
 func TestIsBlitOnly(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -1210,7 +1210,7 @@ func TestIsBlitOnly(t *testing.T) {
 // when textures have been destroyed (e.g., concurrent resize).
 // Regression test for TransitionTextures NULL VkImage crash (ui#101).
 func TestReadbackGrouped_NilTexturesReturnsError(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -1233,7 +1233,7 @@ func TestReadbackGrouped_NilTexturesReturnsError(t *testing.T) {
 // TestReadback_NilTexturesReturnsError verifies the non-grouped readback
 // path also returns an error when textures are nil.
 func TestReadback_NilTexturesReturnsError(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
@@ -1255,7 +1255,7 @@ func TestReadback_NilTexturesReturnsError(t *testing.T) {
 // TestCopySubmitAndReadback_NilResolveTexReturnsError verifies
 // copySubmitAndReadback returns an error when resolveTex is nil.
 func TestCopySubmitAndReadback_NilResolveTexReturnsError(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))

@@ -3,13 +3,14 @@
 package gpu
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu/core"
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
@@ -25,7 +26,7 @@ var (
 	ErrNilPixmap = errors.New("wgpu: pixmap is nil")
 
 	// ErrTextureReadbackNotSupported is returned when readback is not available.
-	ErrTextureReadbackNotSupported = errors.New("wgpu: texture readback not supported (stub)")
+	ErrTextureReadbackNotSupported = errors.New("wgpu: texture readback not available")
 )
 
 // TextureFormat represents the pixel format of a GPU texture.
@@ -68,8 +69,7 @@ func (f TextureFormat) BytesPerPixel() int {
 	}
 }
 
-// ToWGPUFormat converts to wgpu gputypes.TextureFormat.
-// This will be used when actual GPU texture creation is implemented.
+// ToWGPUFormat converts to WebGPU TextureFormat.
 func (f TextureFormat) ToWGPUFormat() types.TextureFormat {
 	switch f {
 	case TextureFormatRGBA8:
@@ -92,9 +92,12 @@ func (f TextureFormat) ToWGPUFormat() types.TextureFormat {
 type GPUTexture struct {
 	mu sync.RWMutex
 
-	// GPU resource IDs (stub - will be real wgpu handles when available)
-	textureID core.TextureID
-	viewID    core.TextureViewID
+	// GPU resources. These are nil only for legacy tests that create textures
+	// without an initialized backend.
+	device  *webgpu.Device
+	texture *webgpu.Texture
+	view    *webgpu.TextureView
+	queue   *webgpu.Queue
 
 	// Texture properties
 	width  int
@@ -133,9 +136,6 @@ const DefaultTextureUsage = types.TextureUsageCopySrc | types.TextureUsageCopyDs
 
 // CreateTexture creates a new GPU texture with the given configuration.
 // The texture is uninitialized and should be filled with UploadPixmap.
-//
-// Note: This is a stub implementation. The actual GPU texture creation
-// will be implemented when wgpu texture support is complete.
 func CreateTexture(backend *Backend, config TextureConfig) (*GPUTexture, error) {
 	if config.Width <= 0 || config.Height <= 0 {
 		return nil, ErrInvalidDimensions
@@ -151,27 +151,10 @@ func CreateTexture(backend *Backend, config TextureConfig) (*GPUTexture, error) 
 	//nolint:gosec // G115: dimensions are validated positive, overflow is acceptable for this use case
 	sizeBytes := uint64(config.Width * config.Height * config.Format.BytesPerPixel())
 
-	// Set default usage if not specified
-	// Note: usage will be used when actual GPU texture creation is implemented
-	_ = config.Usage // Acknowledge usage for future GPU texture creation
-
-	// TODO: Actual wgpu texture creation when available
-	// For now, create stub IDs to track the logical texture
-	//
-	// desc := &gputypes.TextureDescriptor{
-	//     Label: config.Label,
-	//     Size: gputypes.Extent3D{
-	//         Width:              uint32(config.Width),
-	//         Height:             uint32(config.Height),
-	//         DepthOrArrayLayers: 1,
-	//     },
-	//     MipLevelCount: 1,
-	//     SampleCount:   1,
-	//     Dimension:     gputypes.TextureDimension2D,
-	//     Format:        config.Format.toWGPUFormat(),
-	//     Usage:         usage,
-	// }
-	// textureID, err := core.CreateTexture(backend.Device(), desc)
+	usage := config.Usage
+	if usage == 0 {
+		usage = DefaultTextureUsage
+	}
 
 	tex := &GPUTexture{
 		width:     config.Width,
@@ -179,8 +162,53 @@ func CreateTexture(backend *Backend, config TextureConfig) (*GPUTexture, error) 
 		format:    config.Format,
 		sizeBytes: sizeBytes,
 		label:     config.Label,
-		// textureID and viewID are zero (stub)
 	}
+
+	if backend == nil {
+		return tex, nil
+	}
+
+	device := backend.Device()
+	if device == nil {
+		return nil, ErrNotInitialized
+	}
+
+	wtex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		Label: config.Label,
+		Size: webgpu.Extent3D{
+			Width:              uint32(config.Width),  //nolint:gosec // dimensions are validated positive
+			Height:             uint32(config.Height), //nolint:gosec // dimensions are validated positive
+			DepthOrArrayLayers: 1,
+		},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        config.Format.ToWGPUFormat(),
+		Usage:         usage,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	view, err := device.CreateTextureView(wtex, &webgpu.TextureViewDescriptor{
+		Label:           config.Label + "-view",
+		Format:          config.Format.ToWGPUFormat(),
+		Dimension:       types.TextureViewDimension2D,
+		Aspect:          types.TextureAspectAll,
+		BaseMipLevel:    0,
+		MipLevelCount:   1,
+		BaseArrayLayer:  0,
+		ArrayLayerCount: 1,
+	})
+	if err != nil {
+		wtex.Release()
+		return nil, err
+	}
+
+	tex.texture = wtex
+	tex.view = view
+	tex.device = device
+	tex.queue = backend.Queue()
 
 	return tex, nil
 }
@@ -240,27 +268,22 @@ func (t *GPUTexture) IsReleased() bool {
 	return t.released.Load()
 }
 
-// TextureID returns the underlying wgpu texture ID.
-// Returns a zero ID for stub textures.
-func (t *GPUTexture) TextureID() core.TextureID {
+// Texture returns the underlying WebGPU texture.
+func (t *GPUTexture) Texture() *webgpu.Texture {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.textureID
+	return t.texture
 }
 
-// ViewID returns the texture view ID.
-// Returns a zero ID for stub textures.
-func (t *GPUTexture) ViewID() core.TextureViewID {
+// View returns the default WebGPU texture view.
+func (t *GPUTexture) View() *webgpu.TextureView {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.viewID
+	return t.view
 }
 
 // UploadPixmap uploads pixel data from a Pixmap to the GPU texture.
 // The pixmap dimensions must match the texture dimensions.
-//
-// Note: This is a stub implementation. The actual GPU upload will be
-// implemented when wgpu queue.WriteTexture is available.
 func (t *GPUTexture) UploadPixmap(pixmap *render.Pixmap) error {
 	if t.released.Load() {
 		return ErrTextureReleased
@@ -275,33 +298,32 @@ func (t *GPUTexture) UploadPixmap(pixmap *render.Pixmap) error {
 			ErrTextureSizeMismatch, t.width, t.height, pixmap.Width(), pixmap.Height())
 	}
 
-	// TODO: Actual GPU upload when wgpu queue.WriteTexture is available
-	//
-	// data := pixmap.Data()
-	// queue := backend.Queue()
-	//
-	// core.QueueWriteTexture(queue, &gputypes.ImageCopyTexture{
-	//     Texture:  uintptr(t.textureID.Raw()),
-	//     MipLevel: 0,
-	//     Origin:   gputypes.Origin3D{X: 0, Y: 0, Z: 0},
-	//     Aspect:   gputypes.TextureAspectAll,
-	// }, data, &gputypes.TextureDataLayout{
-	//     Offset:       0,
-	//     BytesPerRow:  uint32(t.width * t.format.BytesPerPixel()),
-	//     RowsPerImage: uint32(t.height),
-	// }, &gputypes.Extent3D{
-	//     Width:              uint32(t.width),
-	//     Height:             uint32(t.height),
-	//     DepthOrArrayLayers: 1,
-	// })
+	t.mu.RLock()
+	texture := t.texture
+	queue := t.queue
+	t.mu.RUnlock()
+	if texture == nil || queue == nil {
+		return nil
+	}
 
-	return nil
+	return queue.WriteTexture(&webgpu.ImageCopyTexture{
+		Texture:  texture,
+		MipLevel: 0,
+		Origin:   webgpu.Origin3D{},
+		Aspect:   types.TextureAspectAll,
+	}, pixmap.Data(), &webgpu.ImageDataLayout{
+		Offset:       0,
+		BytesPerRow:  uint32(t.width * t.format.BytesPerPixel()), //nolint:gosec // dimensions validated
+		RowsPerImage: uint32(t.height),                           //nolint:gosec // dimensions validated
+	}, &webgpu.Extent3D{
+		Width:              uint32(t.width),  //nolint:gosec // dimensions validated
+		Height:             uint32(t.height), //nolint:gosec // dimensions validated
+		DepthOrArrayLayers: 1,
+	})
 }
 
 // UploadRegion uploads pixel data to a region of the texture.
 // This is useful for texture atlas updates.
-//
-// Note: This is a stub implementation.
 func (t *GPUTexture) UploadRegion(x, y int, pixmap *render.Pixmap) error {
 	if t.released.Load() {
 		return ErrTextureReleased
@@ -317,32 +339,147 @@ func (t *GPUTexture) UploadRegion(x, y int, pixmap *render.Pixmap) error {
 			ErrInvalidDimensions, x, y, pixmap.Width(), pixmap.Height(), t.width, t.height)
 	}
 
-	// TODO: Actual GPU upload with offset when wgpu is available
-	// Similar to UploadPixmap but with Origin3D{X: uint32(x), Y: uint32(y), Z: 0}
+	t.mu.RLock()
+	texture := t.texture
+	queue := t.queue
+	t.mu.RUnlock()
+	if texture == nil || queue == nil {
+		return nil
+	}
 
-	return nil
+	return queue.WriteTexture(&webgpu.ImageCopyTexture{
+		Texture:  texture,
+		MipLevel: 0,
+		Origin: webgpu.Origin3D{
+			X: uint32(x), //nolint:gosec // bounds checked above
+			Y: uint32(y), //nolint:gosec // bounds checked above
+			Z: 0,
+		},
+		Aspect: types.TextureAspectAll,
+	}, pixmap.Data(), &webgpu.ImageDataLayout{
+		Offset:       0,
+		BytesPerRow:  uint32(pixmap.Width() * t.format.BytesPerPixel()), //nolint:gosec // bounds checked
+		RowsPerImage: uint32(pixmap.Height()),                           //nolint:gosec // bounds checked
+	}, &webgpu.Extent3D{
+		Width:              uint32(pixmap.Width()),  //nolint:gosec // bounds checked
+		Height:             uint32(pixmap.Height()), //nolint:gosec // bounds checked
+		DepthOrArrayLayers: 1,
+	})
 }
 
 // DownloadPixmap downloads pixel data from GPU to a new Pixmap.
 // This operation requires the texture to have CopySrc usage.
-//
-// Note: This is a stub implementation that returns an error.
-// GPU readback requires staging buffers and synchronization.
 func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 	if t.released.Load() {
 		return nil, ErrTextureReleased
 	}
 
-	// TODO: Implement GPU readback when wgpu supports it
-	// This requires:
-	// 1. Create staging buffer with MapRead usage
-	// 2. Copy texture to buffer
-	// 3. Map buffer
-	// 4. Read data
-	// 5. Unmap buffer
-	// 6. Destroy staging buffer
+	t.mu.RLock()
+	device := t.device
+	texture := t.texture
+	queue := t.queue
+	width := t.width
+	height := t.height
+	format := t.format
+	t.mu.RUnlock()
+	if device == nil || texture == nil || queue == nil {
+		return nil, ErrTextureReadbackNotSupported
+	}
 
-	return nil, ErrTextureReadbackNotSupported
+	bytesPerPixel := format.BytesPerPixel()
+	bytesPerRow := uint32(width * bytesPerPixel) //nolint:gosec // dimensions validated at creation
+	const copyPitchAlignment = 256
+	alignedBytesPerRow := (bytesPerRow + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
+	stagingBufSize := uint64(alignedBytesPerRow) * uint64(height)
+
+	stagingBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "gpu_texture_readback_staging",
+		Size:  stagingBufSize,
+		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create texture readback staging buffer: %w", err)
+	}
+	defer stagingBuf.Release()
+
+	encoder, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+		Label: "gpu_texture_readback_encoder",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create texture readback encoder: %w", err)
+	}
+
+	encoder.CopyTextureToBuffer(texture, stagingBuf, []webgpu.BufferTextureCopy{{
+		BufferLayout: webgpu.ImageDataLayout{
+			Offset:       0,
+			BytesPerRow:  alignedBytesPerRow,
+			RowsPerImage: uint32(height), //nolint:gosec // dimensions validated at creation
+		},
+		TextureBase: webgpu.ImageCopyTexture{
+			Texture:  texture,
+			MipLevel: 0,
+			Origin:   webgpu.Origin3D{},
+			Aspect:   types.TextureAspectAll,
+		},
+		Size: webgpu.Extent3D{
+			Width:              uint32(width),  //nolint:gosec // dimensions validated at creation
+			Height:             uint32(height), //nolint:gosec // dimensions validated at creation
+			DepthOrArrayLayers: 1,
+		},
+	}})
+
+	cmdBuf, err := encoder.Finish()
+	if err != nil {
+		return nil, fmt.Errorf("finish texture readback encoder: %w", err)
+	}
+	defer cmdBuf.Release()
+
+	if _, err := queue.Submit(cmdBuf); err != nil {
+		return nil, fmt.Errorf("submit texture readback: %w", err)
+	}
+
+	if err := stagingBuf.Map(context.Background(), webgpu.MapModeRead, 0, stagingBufSize); err != nil {
+		return nil, fmt.Errorf("map texture readback staging buffer: %w", err)
+	}
+	mapped, err := stagingBuf.MappedRange(0, stagingBufSize)
+	if err != nil {
+		if unmapErr := stagingBuf.Unmap(); unmapErr != nil {
+			return nil, fmt.Errorf("mapped texture readback range: %w (also failed to unmap: %v)", err, unmapErr)
+		}
+		return nil, fmt.Errorf("mapped texture readback range: %w", err)
+	}
+	readback := make([]byte, stagingBufSize)
+	copy(readback, mapped.Bytes())
+	if err := stagingBuf.Unmap(); err != nil {
+		return nil, fmt.Errorf("unmap texture readback staging buffer: %w", err)
+	}
+
+	pixmap := render.NewPixmap(width, height)
+	dst := pixmap.Data()
+	for y := 0; y < height; y++ {
+		srcRow := readback[y*int(alignedBytesPerRow) : y*int(alignedBytesPerRow)+int(bytesPerRow)]
+		dstRow := dst[y*width*4 : (y+1)*width*4]
+		switch format {
+		case TextureFormatRGBA8:
+			copy(dstRow, srcRow)
+		case TextureFormatBGRA8:
+			convertBGRAToRGBA(srcRow, dstRow, width)
+		case TextureFormatR8:
+			for x := 0; x < width; x++ {
+				v := srcRow[x]
+				off := x * 4
+				dstRow[off+0] = 255
+				dstRow[off+1] = 255
+				dstRow[off+2] = 255
+				dstRow[off+3] = v
+			}
+		default:
+			return nil, fmt.Errorf("wgpu: unsupported texture readback format %s", format)
+		}
+	}
+	pixmap.NotifyPixelsChanged()
+
+	return pixmap, nil
 }
 
 // SetMemoryManager sets the memory manager for tracking.
@@ -369,20 +506,22 @@ func (t *GPUTexture) Close() {
 		manager.unregisterTexture(t)
 	}
 
-	// TODO: Release actual GPU resources when wgpu supports it
-	//
-	// if !t.viewID.IsZero() {
-	//     core.TextureViewDrop(t.viewID)
-	// }
-	// if !t.textureID.IsZero() {
-	//     core.TextureDrop(t.textureID)
-	// }
-
 	t.mu.Lock()
-	t.textureID = core.TextureID{}
-	t.viewID = core.TextureViewID{}
+	view := t.view
+	texture := t.texture
+	t.view = nil
+	t.texture = nil
+	t.device = nil
+	t.queue = nil
 	t.manager = nil
 	t.mu.Unlock()
+
+	if view != nil {
+		view.Release()
+	}
+	if texture != nil {
+		texture.Release()
+	}
 }
 
 // String returns a string representation of the texture.

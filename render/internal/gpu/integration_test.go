@@ -5,7 +5,6 @@ package gpu
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/webgpu/core"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
@@ -264,8 +263,7 @@ func TestPipelineIntegration(t *testing.T) {
 		Composite: ShaderModuleID(4),
 	}
 
-	var testDeviceID = (*DeviceID)(nil)
-	pc, err := NewPipelineCache(testDeviceID.Zero(), shaders)
+	pc, err := NewPipelineCache(nil, shaders)
 	if err != nil {
 		t.Fatalf("NewPipelineCache failed: %v", err)
 	}
@@ -319,15 +317,6 @@ func TestPipelineIntegration(t *testing.T) {
 	if pc.BlendPipelineCount() != initialCount {
 		t.Error("Blend pipelines not being cached")
 	}
-}
-
-// DeviceID is a helper type to get zero value for tests.
-type DeviceID struct{}
-
-// Zero returns a zero-value core.DeviceID.
-func (d *DeviceID) Zero() core.DeviceID {
-	var id core.DeviceID
-	return id
 }
 
 // =============================================================================

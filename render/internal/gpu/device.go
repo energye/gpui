@@ -6,8 +6,21 @@ import (
 	"fmt"
 
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu/core"
+	"github.com/energye/gpui/gpu/webgpu"
 )
+
+const minRenderStorageBuffersPerShaderStage = 9
+
+func renderDeviceDescriptor(label string) *webgpu.DeviceDescriptor {
+	limits := webgpu.DefaultLimits()
+	if limits.MaxStorageBuffersPerShaderStage < minRenderStorageBuffersPerShaderStage {
+		limits.MaxStorageBuffersPerShaderStage = minRenderStorageBuffersPerShaderStage
+	}
+	return &webgpu.DeviceDescriptor{
+		Label:          label,
+		RequiredLimits: limits,
+	}
+}
 
 // GPUInfo contains information about the selected GPU.
 type GPUInfo struct {
@@ -29,11 +42,11 @@ func (g *GPUInfo) String() string {
 }
 
 // getGPUInfo retrieves information about the GPU adapter.
-func getGPUInfo(adapterID core.AdapterID) (*GPUInfo, error) {
-	info, err := core.GetAdapterInfo(adapterID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get adapter info: %w", err)
+func getGPUInfo(adapter *webgpu.Adapter) (*GPUInfo, error) {
+	if adapter == nil {
+		return nil, fmt.Errorf("adapter is nil")
 	}
+	info := adapter.Info()
 
 	return &GPUInfo{
 		Name:       info.Name,
@@ -45,8 +58,8 @@ func getGPUInfo(adapterID core.AdapterID) (*GPUInfo, error) {
 }
 
 // logGPUInfo logs information about the selected GPU.
-func logGPUInfo(adapterID core.AdapterID) {
-	info, err := getGPUInfo(adapterID)
+func logGPUInfo(adapter *webgpu.Adapter) {
+	info, err := getGPUInfo(adapter)
 	if err != nil {
 		slogger().Warn("failed to get GPU info", "err", err)
 		return
@@ -57,64 +70,56 @@ func logGPUInfo(adapterID core.AdapterID) {
 
 // createDevice creates a logical device from an adapter.
 // This is a helper function that encapsulates device creation logic.
-func createDevice(adapterID core.AdapterID, label string) (core.DeviceID, error) {
-	desc := &types.DeviceDescriptor{
-		Label: label,
-		// Use default limits and no special features for now
-		RequiredFeatures: nil,
-		RequiredLimits:   types.DefaultLimits(),
+func createDevice(adapter *webgpu.Adapter, label string) (*webgpu.Device, error) {
+	if adapter == nil {
+		return nil, fmt.Errorf("adapter is nil")
 	}
 
-	deviceID, err := core.RequestDevice(adapterID, desc)
+	device, err := adapter.RequestDevice(renderDeviceDescriptor(label))
 	if err != nil {
-		return core.DeviceID{}, fmt.Errorf("failed to create device: %w", err)
+		return nil, fmt.Errorf("failed to create device: %w", err)
 	}
 
-	return deviceID, nil
+	return device, nil
 }
 
 // getDeviceQueue retrieves the queue associated with a device.
-func getDeviceQueue(deviceID core.DeviceID) (core.QueueID, error) {
-	queueID, err := core.GetDeviceQueue(deviceID)
-	if err != nil {
-		return core.QueueID{}, fmt.Errorf("failed to get device queue: %w", err)
+func getDeviceQueue(device *webgpu.Device) (*webgpu.Queue, error) {
+	if device == nil {
+		return nil, fmt.Errorf("device is nil")
 	}
-	return queueID, nil
+	queue := device.Queue()
+	if queue == nil {
+		return nil, fmt.Errorf("device returned nil queue")
+	}
+	return queue, nil
 }
 
 // releaseDevice releases a device and its associated resources.
-func releaseDevice(deviceID core.DeviceID) error {
-	if deviceID.IsZero() {
+func releaseDevice(device *webgpu.Device) error {
+	if device == nil {
 		return nil
 	}
-
-	err := core.DeviceDrop(deviceID)
-	if err != nil {
-		return fmt.Errorf("failed to release device: %w", err)
-	}
+	device.Release()
 	return nil
 }
 
 // releaseAdapter releases an adapter.
-func releaseAdapter(adapterID core.AdapterID) error {
-	if adapterID.IsZero() {
+func releaseAdapter(adapter *webgpu.Adapter) error {
+	if adapter == nil {
 		return nil
 	}
-
-	err := core.AdapterDrop(adapterID)
-	if err != nil {
-		return fmt.Errorf("failed to release adapter: %w", err)
-	}
+	adapter.Release()
 	return nil
 }
 
 // CheckDeviceLimits verifies that the device meets minimum requirements.
 // This can be used to validate GPU capabilities before rendering.
-func CheckDeviceLimits(deviceID core.DeviceID) error {
-	limits, err := core.GetDeviceLimits(deviceID)
-	if err != nil {
-		return fmt.Errorf("failed to get device limits: %w", err)
+func CheckDeviceLimits(device *webgpu.Device) error {
+	if device == nil {
+		return fmt.Errorf("device is nil")
 	}
+	limits := device.Limits()
 
 	// Log some basic limits for diagnostics.
 	slogger().Debug("device limits",

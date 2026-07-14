@@ -20,8 +20,8 @@ var (
 	// ErrTextureViewDestroyed is returned when operating on a destroyed texture view.
 	ErrTextureViewDestroyed = errors.New("gpu: texture view has been destroyed")
 
-	// ErrNilHALDevice is returned when creating a texture without a device.
-	ErrNilHALDevice = errors.New("gpu: device is nil")
+	// ErrNilGPUDevice is returned when creating a texture without a device.
+	ErrNilGPUDevice = errors.New("gpu: device is nil")
 
 	// ErrNilTexture is returned when creating a view without a texture.
 	ErrNilTexture = errors.New("gpu: texture is nil")
@@ -54,8 +54,8 @@ type Texture struct {
 	// mu protects mutable state.
 	mu sync.RWMutex
 
-	// halTexture is the underlying texture handle.
-	halTexture *webgpu.Texture
+	// gpuTexture is the underlying texture handle.
+	gpuTexture *webgpu.Texture
 
 	// device is the parent device.
 	device *webgpu.Device
@@ -109,14 +109,14 @@ type TextureDescriptor struct {
 // creating the underlying texture.
 //
 // Parameters:
-//   - halTexture: The underlying texture (ownership transferred)
+//   - gpuTexture: The underlying texture (ownership transferred)
 //   - device: The parent device (retained for view creation)
 //   - desc: The texture descriptor (copied)
 //
 // Returns the new Texture.
-func NewTexture(halTexture *webgpu.Texture, device *webgpu.Device, desc *TextureDescriptor) *Texture {
+func NewTexture(gpuTexture *webgpu.Texture, device *webgpu.Device, desc *TextureDescriptor) *Texture {
 	return &Texture{
-		halTexture: halTexture,
+		gpuTexture: gpuTexture,
 		device:     device,
 		descriptor: *desc,
 	}
@@ -195,7 +195,7 @@ func (t *Texture) Raw() *webgpu.Texture {
 	if t.destroyed {
 		return nil
 	}
-	return t.halTexture
+	return t.gpuTexture
 }
 
 // GetDefaultView returns the default texture view, creating it lazily on first call.
@@ -237,7 +237,7 @@ func (t *Texture) GetDefaultView() (*TextureView, error) {
 func (t *Texture) createDefaultView() (*TextureView, error) {
 	t.mu.RLock()
 	device := t.device
-	halTex := t.halTexture
+	gpuTex := t.gpuTexture
 	destroyed := t.destroyed
 	t.mu.RUnlock()
 
@@ -246,11 +246,11 @@ func (t *Texture) createDefaultView() (*TextureView, error) {
 	}
 
 	if device == nil {
-		return nil, ErrNilHALDevice
+		return nil, ErrNilGPUDevice
 	}
 
 	// Create default view descriptor - use zero values to inherit from texture
-	halDesc := &webgpu.TextureViewDescriptor{
+	gpuDesc := &webgpu.TextureViewDescriptor{
 		Label:           t.descriptor.Label + " (default view)",
 		Format:          types.TextureFormatUndefined, // Inherit from texture
 		Dimension:       types.TextureViewDimensionUndefined,
@@ -261,16 +261,16 @@ func (t *Texture) createDefaultView() (*TextureView, error) {
 		ArrayLayerCount: 0, // 0 means all remaining layers
 	}
 
-	halView, err := device.CreateTextureView(halTex, halDesc)
+	gpuView, err := device.CreateTextureView(gpuTex, gpuDesc)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrDefaultViewCreationFailed, err)
 	}
 
 	view := &TextureView{
-		halView:    halView,
+		gpuView:    gpuView,
 		texture:    t,
 		device:     device,
-		descriptor: halViewDescToViewDesc(halDesc, t),
+		descriptor: gpuViewDescToViewDesc(gpuDesc, t),
 		isDefault:  true,
 	}
 
@@ -297,7 +297,7 @@ func (t *Texture) createDefaultView() (*TextureView, error) {
 func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) {
 	t.mu.RLock()
 	device := t.device
-	halTex := t.halTexture
+	gpuTex := t.gpuTexture
 	destroyed := t.destroyed
 	t.mu.RUnlock()
 
@@ -311,11 +311,11 @@ func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) 
 	}
 
 	if device == nil {
-		return nil, ErrNilHALDevice
+		return nil, ErrNilGPUDevice
 	}
 
 	// Convert to descriptor
-	halDesc := &webgpu.TextureViewDescriptor{
+	gpuDesc := &webgpu.TextureViewDescriptor{
 		Label:           desc.Label,
 		Format:          desc.Format,
 		Dimension:       desc.Dimension,
@@ -326,13 +326,13 @@ func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) 
 		ArrayLayerCount: desc.ArrayLayerCount,
 	}
 
-	halView, err := device.CreateTextureView(halTex, halDesc)
+	gpuView, err := device.CreateTextureView(gpuTex, gpuDesc)
 	if err != nil {
 		return nil, fmt.Errorf("create texture view: %w", err)
 	}
 
 	view := &TextureView{
-		halView:    halView,
+		gpuView:    gpuView,
 		texture:    t,
 		device:     device,
 		descriptor: *desc,
@@ -356,9 +356,9 @@ func (t *Texture) Destroy() {
 	}
 	t.destroyed = true
 	device := t.device
-	halTex := t.halTexture
+	gpuTex := t.gpuTexture
 	defaultView := t.defaultView
-	t.halTexture = nil
+	t.gpuTexture = nil
 	t.mu.Unlock()
 
 	// Destroy the default view if it was created
@@ -367,8 +367,8 @@ func (t *Texture) Destroy() {
 	}
 
 	// Destroy the texture
-	if device != nil && halTex != nil {
-		halTex.Release()
+	if device != nil && gpuTex != nil {
+		gpuTex.Release()
 	}
 }
 
@@ -387,8 +387,8 @@ type TextureView struct {
 	// mu protects mutable state.
 	mu sync.RWMutex
 
-	// halView is the underlying texture view handle.
-	halView *webgpu.TextureView
+	// gpuView is the underlying texture view handle.
+	gpuView *webgpu.TextureView
 
 	// texture is the parent texture (retained reference).
 	texture *Texture
@@ -508,7 +508,7 @@ func (v *TextureView) Raw() *webgpu.TextureView {
 	if v.destroyed {
 		return nil
 	}
-	return v.halView
+	return v.gpuView
 }
 
 // Destroy releases the texture view.
@@ -535,26 +535,26 @@ func (v *TextureView) destroy() {
 	}
 	v.destroyed = true
 	device := v.device
-	halView := v.halView
-	v.halView = nil
+	gpuView := v.gpuView
+	v.gpuView = nil
 	v.mu.Unlock()
 
-	if device != nil && halView != nil {
-		halView.Release()
+	if device != nil && gpuView != nil {
+		gpuView.Release()
 	}
 }
 
-// halViewDescToViewDesc converts a wgpu.TextureViewDescriptor to TextureViewDescriptor.
-func halViewDescToViewDesc(halDesc *webgpu.TextureViewDescriptor, tex *Texture) TextureViewDescriptor {
+// gpuViewDescToViewDesc converts a wgpu.TextureViewDescriptor to TextureViewDescriptor.
+func gpuViewDescToViewDesc(gpuDesc *webgpu.TextureViewDescriptor, tex *Texture) TextureViewDescriptor {
 	desc := TextureViewDescriptor{
-		Label:           halDesc.Label,
-		Format:          halDesc.Format,
-		Dimension:       halDesc.Dimension,
-		Aspect:          halDesc.Aspect,
-		BaseMipLevel:    halDesc.BaseMipLevel,
-		MipLevelCount:   halDesc.MipLevelCount,
-		BaseArrayLayer:  halDesc.BaseArrayLayer,
-		ArrayLayerCount: halDesc.ArrayLayerCount,
+		Label:           gpuDesc.Label,
+		Format:          gpuDesc.Format,
+		Dimension:       gpuDesc.Dimension,
+		Aspect:          gpuDesc.Aspect,
+		BaseMipLevel:    gpuDesc.BaseMipLevel,
+		MipLevelCount:   gpuDesc.MipLevelCount,
+		BaseArrayLayer:  gpuDesc.BaseArrayLayer,
+		ArrayLayerCount: gpuDesc.ArrayLayerCount,
 	}
 
 	// Resolve inherited values
@@ -594,7 +594,7 @@ func textureViewDimensionFromTexture(dim types.TextureDimension) types.TextureVi
 
 // CreateCoreTexture creates a new texture from a device.
 //
-// This is a helper function for creating textures using the HAL API directly.
+// This is a helper function for creating textures using the webgpu object API directly.
 // It handles validation and wraps the texture in a Texture.
 //
 // Parameters:
@@ -609,7 +609,7 @@ func textureViewDimensionFromTexture(dim types.TextureDimension) types.TextureVi
 //   - Texture creation fails
 func CreateCoreTexture(device *webgpu.Device, desc *TextureDescriptor) (*Texture, error) {
 	if device == nil {
-		return nil, ErrNilHALDevice
+		return nil, ErrNilGPUDevice
 	}
 
 	if desc == nil {
@@ -639,7 +639,7 @@ func CreateCoreTexture(device *webgpu.Device, desc *TextureDescriptor) (*Texture
 	}
 
 	// Convert to descriptor
-	halDesc := &webgpu.TextureDescriptor{
+	gpuDesc := &webgpu.TextureDescriptor{
 		Label: desc.Label,
 		Size: webgpu.Extent3D{
 			Width:              desc.Size.Width,
@@ -655,7 +655,7 @@ func CreateCoreTexture(device *webgpu.Device, desc *TextureDescriptor) (*Texture
 	}
 
 	// Create texture
-	halTexture, err := device.CreateTexture(halDesc)
+	gpuTexture, err := device.CreateTexture(gpuDesc)
 	if err != nil {
 		return nil, fmt.Errorf("texture creation failed: %w", err)
 	}
@@ -666,7 +666,7 @@ func CreateCoreTexture(device *webgpu.Device, desc *TextureDescriptor) (*Texture
 	resolvedDesc.SampleCount = sampleCount
 	resolvedDesc.Size.DepthOrArrayLayers = depthOrArrayLayers
 
-	return NewTexture(halTexture, device, &resolvedDesc), nil
+	return NewTexture(gpuTexture, device, &resolvedDesc), nil
 }
 
 // CreateCoreTextureSimple creates a 2D texture with common defaults.

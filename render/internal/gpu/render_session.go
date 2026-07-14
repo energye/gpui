@@ -418,7 +418,7 @@ func extractTextureView(view gpucontext.TextureView) *webgpu.TextureView {
 // When sampleCount > 1 (MSAA), renders to msaaView and resolves to targetView.
 // When sampleCount == 1, renders DIRECTLY to targetView (no MSAA indirection).
 // This fixes BUG-GPU-002: on llvmpipe, ResolveTarget with sampleCount=1 is
-// spec-invalid (Vulkan HAL skips resolve → content stays in msaaView, target empty).
+// spec-invalid (Vulkan backend skips resolve → content stays in msaaView, target empty).
 // Also avoids Mesa 23.2.1 lavapipe MSAA resolve regression for offscreen textures.
 func (s *GPURenderSession) colorAttachment(targetView *webgpu.TextureView, loadOp types.LoadOp) webgpu.RenderPassColorAttachment {
 	if s.sampleCount > 1 && s.textures.msaaView != nil {
@@ -1283,16 +1283,7 @@ func (s *GPURenderSession) ensureClipBindLayout() error {
 		return nil
 	}
 
-	layout, err := s.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
-		Label: "clip_bind_layout",
-		Entries: []types.BindGroupLayoutEntry{
-			{
-				Binding:    0,
-				Visibility: types.ShaderStageFragment,
-				Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: clipParamsSize},
-			},
-		},
-	})
+	layout, err := createClipBindGroupLayout(s.device, "clip_bind_layout")
 	if err != nil {
 		return fmt.Errorf("create clip bind layout: %w", err)
 	}
@@ -2471,7 +2462,7 @@ func (s *GPURenderSession) encodeSubmitReadback(
 	// VK-LAYOUT-001: After MSAA resolve the texture is in
 	// COLOR_ATTACHMENT_OPTIMAL layout. CopyTextureToBuffer requires
 	// TRANSFER_SRC_OPTIMAL. Insert an explicit barrier to transition.
-	// This is a no-op on Metal, GLES, software, and noop backends.
+	// This is a no-op on Metal, GLES, software, and native backends.
 	encoder.TransitionTextures([]webgpu.TextureBarrier{{
 		Texture: s.textures.resolveTex,
 		Usage: webgpu.TextureUsageTransition{

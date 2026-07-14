@@ -79,7 +79,7 @@ func FillRuleToGPU(rule scene.FillStyle) uint32 {
 // It creates compute pipelines and manages GPU buffers for coverage calculation.
 //
 // Note: This is Phase 6.1 implementation. Full GPU buffer binding requires
-// HAL API extensions to expose buffer handles. Currently this serves as
+// webgpu object API extensions to expose buffer handles. Currently this serves as
 // infrastructure and data flow verification.
 type GPUFineRasterizer struct {
 	mu sync.Mutex
@@ -147,8 +147,9 @@ func (r *GPUFineRasterizer) init() error {
 	r.spirvCode = spirvCode
 	r.shaderReady = true
 
-	// Create shader module using shared helper
-	shaderModule, err := CreateShaderModule(r.device, "fine_shader", r.spirvCode)
+	// Create shader module from WGSL. The SPIR-V code above is retained for
+	// diagnostics/tests, but wgpu-native is more robust with WGSL source here.
+	shaderModule, err := CreateShaderModule(r.device, "fine_shader", fineShaderWGSL)
 	if err != nil {
 		return fmt.Errorf("gpu_fine: failed to create shader module: %w", err)
 	}
@@ -294,7 +295,7 @@ func (r *GPUFineRasterizer) createPipelines() error {
 // It takes the coarse rasterizer output and produces coverage values.
 //
 // Note: Phase 6.1 implementation. Full GPU dispatch requires buffer binding
-// which needs HAL API extensions. Currently falls back to CPU-computed coverage.
+// which needs webgpu object API extensions. Currently falls back to CPU-computed coverage.
 func (r *GPUFineRasterizer) Rasterize(
 	coarse *CoarseRasterizer,
 	segments *SegmentList,
@@ -328,7 +329,7 @@ func (r *GPUFineRasterizer) Rasterize(
 	gpuTileRefs := r.convertTileSegmentRefs(tileSegRefs)
 	gpuTiles := r.convertTileInfos(tiles)
 
-	// Phase 6.1: GPU infrastructure is ready, but buffer binding needs HAL extension.
+	// Phase 6.1: GPU infrastructure is ready, but buffer binding needs webgpu object API support.
 	// For now, compute coverage on CPU using the same algorithm as the shader.
 	coverage := r.computeCoverageCPU(gpuSegments, gpuTileRefs, gpuTiles, fillRule)
 

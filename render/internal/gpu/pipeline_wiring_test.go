@@ -580,15 +580,15 @@ func TestEvenOddFillRouting_AutoModeUsesStencil(t *testing.T) {
 	}
 }
 
-// TestResolveSampleCount_NoopDevice verifies that resolveSampleCount returns 4
-// on a noop device (which accepts any texture descriptor).
-func TestResolveSampleCount_NoopDevice(t *testing.T) {
-	device, _, cleanup := createNoopDevice(t)
+// TestResolveSampleCount_NativeDevice verifies that resolveSampleCount returns 4
+// on a native device (which accepts any texture descriptor).
+func TestResolveSampleCount_NativeDevice(t *testing.T) {
+	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sc := resolveSampleCount(device)
 	if sc != 4 {
-		t.Errorf("resolveSampleCount(noop) = %d, want 4", sc)
+		t.Errorf("resolveSampleCount(native) = %d, want 4", sc)
 	}
 }
 
@@ -648,7 +648,7 @@ func TestMultisampleState(t *testing.T) {
 // TestConstructors_WithSampleCount verifies that pipeline constructors
 // propagate the sampleCount field correctly for both 4x and 1x.
 func TestConstructors_WithSampleCount(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -804,7 +804,7 @@ func TestFillPath_RasterAtlas_FallsBackToCPU(t *testing.T) {
 }
 
 func TestUploadPixmapToView_RasterAtlas(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPUShared()
@@ -888,7 +888,7 @@ func TestUploadPixmapToView_NilQueue(t *testing.T) {
 }
 
 func TestUploadPixmapToView_EmptyData(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPUShared()
@@ -908,7 +908,7 @@ func TestUploadPixmapToView_EmptyData(t *testing.T) {
 }
 
 func TestUploadPixmapToView_NilView(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPUShared()
@@ -929,7 +929,7 @@ func TestUploadPixmapToView_NilView(t *testing.T) {
 }
 
 func TestFlush_RasterAtlas_OffscreenTriggersUpload(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPUShared()
@@ -989,7 +989,7 @@ func TestFlush_RasterAtlas_OffscreenTriggersUpload(t *testing.T) {
 }
 
 func TestFlush_FullStrategy_OffscreenDoesNotUpload(t *testing.T) {
-	device, queue, cleanup := createNoopDevice(t)
+	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	s := NewGPUShared()
@@ -1029,7 +1029,7 @@ func TestRGBASwizzle(t *testing.T) {
 
 	// uploadPixmapToView returns nil (no queue), but we verify the swizzle
 	// by checking internal behavior — the function bails at queue==nil
-	// before WriteTexture. For real swizzle verification, use the noop device test.
+	// before WriteTexture. For real swizzle verification, use the native device test.
 	err := rc.uploadPixmapToView(target)
 	if err != nil {
 		t.Fatalf("uploadPixmapToView: %v", err)

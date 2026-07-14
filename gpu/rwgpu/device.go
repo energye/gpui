@@ -4,8 +4,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/energye/gpui/ffi"
-	ffitypes "github.com/energye/gpui/ffi/types"
+	"github.com/ebitengine/purego"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -16,19 +15,6 @@ type RequestDeviceCallbackInfo struct {
 	Callback    uintptr // Function pointer
 	Userdata1   uintptr
 	Userdata2   uintptr
-}
-
-var requestDeviceCallbackInfoType = &ffitypes.TypeDescriptor{
-	Kind:      ffitypes.StructType,
-	Size:      40,
-	Alignment: 8,
-	Members: []*ffitypes.TypeDescriptor{
-		ffitypes.PointerTypeDescriptor, // nextInChain
-		ffitypes.UInt32TypeDescriptor,  // mode
-		ffitypes.PointerTypeDescriptor, // callback
-		ffitypes.PointerTypeDescriptor, // userdata1
-		ffitypes.PointerTypeDescriptor, // userdata2
-	},
 }
 
 // deviceRequest holds state for an async device request.
@@ -52,7 +38,7 @@ var (
 	deviceCallbackOnce sync.Once
 )
 
-// deviceCallbackHandler is the Go function called by C code via ffi.NewCallback.
+// deviceCallbackHandler is the Go function called by native code via purego.NewCallback.
 // Signature: void(status uint32, device uintptr, message StringView, userdata1 uintptr, userdata2 uintptr)
 func deviceCallbackHandler(status uintptr, device uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
 	var msg string
@@ -80,9 +66,9 @@ func deviceCallbackHandler(status uintptr, device uintptr, messageData uintptr, 
 	return 0
 }
 
-// initDeviceCallback creates the C callback function pointer using goffi.
+// initDeviceCallback creates the C callback function pointer using purego.
 func initDeviceCallback() {
-	deviceCallbackPtr = ffi.NewCallback(deviceCallbackHandler)
+	deviceCallbackPtr = purego.NewCallback(deviceCallbackHandler)
 }
 
 // RequestDevice requests a GPU device from the adapter.
@@ -177,34 +163,13 @@ func callAdapterRequestDevice(adapter uintptr, options uintptr, callbackInfo *Re
 		)
 		return Future{ID: uint64(future)}, err
 	}
-	if proc.fnPtr == nil {
+	if proc.fnPtr == 0 {
 		return Future{}, &WGPUError{Op: "RequestDevice", Message: "wgpuAdapterRequestDevice symbol is missing"}
 	}
 
-	var cif ffitypes.CallInterface
-	if err := ffi.PrepareCallInterface(
-		&cif,
-		ffitypes.UnixCallingConvention,
-		ffitypes.UInt64TypeDescriptor,
-		[]*ffitypes.TypeDescriptor{
-			ffitypes.PointerTypeDescriptor,
-			ffitypes.PointerTypeDescriptor,
-			requestDeviceCallbackInfoType,
-		},
-	); err != nil {
-		return Future{}, &WGPUError{Op: "RequestDevice", Message: err.Error()}
-	}
-
-	var future uint64
-	args := []unsafe.Pointer{
-		unsafe.Pointer(&adapter),
-		unsafe.Pointer(&options),
-		unsafe.Pointer(callbackInfo),
-	}
-	if _, err := ffi.CallFunction(&cif, proc.fnPtr, unsafe.Pointer(&future), args); err != nil {
-		return Future{}, &WGPUError{Op: "RequestDevice", Message: err.Error()}
-	}
-	return Future{ID: future}, nil
+	var requestDevice func(uintptr, uintptr, RequestDeviceCallbackInfo) Future
+	purego.RegisterFunc(&requestDevice, proc.fnPtr)
+	return requestDevice(adapter, options, *callbackInfo), nil
 }
 
 // fetchDeviceLimits calls wgpuDeviceGetLimits and converts the wire struct to public Limits.

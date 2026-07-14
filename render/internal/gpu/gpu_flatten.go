@@ -163,8 +163,9 @@ func (r *GPUFlattenRasterizer) init() error {
 	r.spirvCode = spirvCode
 	r.shaderReady = true
 
-	// Create shader module using shared helper
-	shaderModule, err := CreateShaderModule(r.device, "flatten_shader", r.spirvCode)
+	// Create shader module from WGSL. The SPIR-V code above is retained for
+	// diagnostics/tests, but wgpu-native is more robust with WGSL source here.
+	shaderModule, err := CreateShaderModule(r.device, "flatten_shader", flattenShaderWGSL)
 	if err != nil {
 		return fmt.Errorf("gpu_flatten: failed to create shader module: %w", err)
 	}
