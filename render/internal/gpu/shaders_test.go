@@ -295,6 +295,40 @@ func TestCompileShadersNative(t *testing.T) {
 	}
 }
 
+func TestPipelineCacheNativePipelines(t *testing.T) {
+	device, _, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	modules, err := CompileShaders(device)
+	if err != nil {
+		t.Fatalf("CompileShaders(native) returned error: %v", err)
+	}
+
+	cache, err := NewPipelineCache(device, modules)
+	if err != nil {
+		modules.Release()
+		t.Fatalf("NewPipelineCache(native) returned error: %v", err)
+	}
+	defer cache.Close()
+
+	if !cache.HasNativePipelines() {
+		t.Fatal("NewPipelineCache(native) did not create native pipelines")
+	}
+	if cache.NativeBlitPipeline() == nil {
+		t.Fatal("native blit pipeline is nil")
+	}
+	if cache.NativeStripPipeline() == nil {
+		t.Fatal("native strip pipeline is nil")
+	}
+	if cache.NativeCompositePipeline() == nil {
+		t.Fatal("native composite pipeline is nil")
+	}
+	cache.WarmupBlendPipelines()
+	if cache.NativeBlendPipeline(scene.BlendNormal) == nil {
+		t.Fatal("native blend pipeline was not created by warmup")
+	}
+}
+
 // TestShaderModulesIsValid tests the IsValid method.
 func TestShaderModulesIsValid(t *testing.T) {
 	tests := []struct {

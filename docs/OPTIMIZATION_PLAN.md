@@ -1,6 +1,6 @@
-# GPUI 渲染库底层优化开发计划
+# GPUI 渲染库底层优化与 WebGPU 架构迁移开发计划
 
-> 版本：3.1 | 更新日期：2026-07-13 | 状态：待启动
+> 版本：3.2 | 更新日期：2026-07-14 | 状态：架构迁移进行中
 > 项目：github.com/energye/gpui
 > 文档位置：/home/yanghy/app/projects/gogpu/gpui/docs/OPTIMIZATION_PLAN.md
 
@@ -9,18 +9,42 @@
 ## 📋 项目概述
 
 ### 项目名称
-GPUI 渲染库底层性能优化 - 对标 Skia
+GPUI 渲染库底层 WebGPU 迁移与性能优化 - 对标 Skia / Ant Design 级 UI 渲染
 
 ### 项目背景
-GPUI 是从 gogpu 生态迁移而来的独立渲染库，已完成：
+GPUI 是从 gogpu 生态迁移而来的独立渲染库。当前架构调整的核心目标是：
+
+```text
+render/internal/gpu
+  -> gpu/webgpu object facade
+  -> gpu/rwgpu
+  -> libwgpu_native.so / wgpu_native.dll / libwgpu_native.dylib
+```
+
+本轮迁移不是继续保留原 go-wgpu 作为 GPU 实现，也不是让 `render` 直接调用 `rwgpu`。目标是用 `gpu/webgpu` 作为面向渲染层的对象 API，并由 `gpu/webgpu` 内部绑定 Rust wgpu-native 能力。
+
+已完成：
 - ✅ 阶段一：代码迁移与基础清理
 - ✅ 阶段二：goffi 替换为 purego（FFI 中间层）
-- ✅ 阶段三：验证测试
-- ⏳ 阶段四：代码清理与优化（待开始）
-- ⏳ 阶段五：框架集成（待开始）
+- ✅ 阶段三：基础 ABI 与 native device / clear pass / readback 验证
+- ✅ 阶段四 A：`render` 依赖方向收敛到 `gpu/webgpu`
+- ✅ 阶段四 B：shader module、texture upload/download、clear pass、pipeline cache 进入真实 native 调用
+
+进行中：
+- ⏳ 阶段四 C：修复迁移后与源 go-wgpu 渲染效果不一致的问题
+- ⏳ 阶段四 D：清理旧 stub / legacy helper，避免它们进入生产渲染链路
+- ⏳ 阶段五：LCL surface handle / swapchain / 窗口渲染集成
+- ⏳ 阶段六：性能优化、批处理、资源缓存、图集化
 
 ### 项目目标
-将 GPUI 渲染库优化到能够支撑复杂 UI 控件库和高性能 2D 渲染的水平，性能对标 Skia。
+将 GPUI 渲染库优化到能够支撑复杂 UI 控件库和高性能 2D 渲染的水平，能力对标 Ant Design 类控件库的渲染需求，性能方向对标 Skia。
+
+必须同时满足：
+- 渲染正确性：路径、文本、图片、渐变、clip、blend、alpha、transform、MSAA/resolve 与源实现一致或差异可解释。
+- 架构稳定性：`render` 不直接依赖 `gpu/rwgpu`；Rust wgpu-native 绑定只通过 `gpu/webgpu` object facade 暴露。
+- 动态库调用真实有效：测试必须真实加载 `libwgpu_native.so`，不能只通过 stub 或空跑编译。
+- UI 控件库可用性：支持大量小图元、文本、图标、圆角、阴影、裁剪、透明叠加、滚动区域和重复绘制。
+- 后续可维护性：ABI 绑定最终需要由工具从 wgpu-native header 自动生成，避免手写 ABI 长期漂移。
 
 ### 库结构
 ```
@@ -37,7 +61,8 @@ gpui/
 │   ├── scene/           # 场景图
 │   └── examples/        # 示例程序
 ├── gpu/                 # GPU HAL 层（原 wgpu）
-│   ├── webgpu/          # WebGPU 后端
+│   ├── webgpu/          # 面向 render 的 WebGPU 对象 facade，内部调用 rwgpu
+│   ├── rwgpu/           # Rust wgpu-native 的 Go 绑定层
 │   ├── shader/          # 着色器
 │   └── types/           # 类型定义
 ├── ffi/                 # FFI 中间层（purego）
@@ -52,11 +77,69 @@ gpui/
 ### 当前状态
 | 组件 | 状态 | 说明 |
 |------|------|------|
-| render（原 gg） | ✅ 可用 | 2D 渲染核心 |
-| gpu（原 wgpu） | ✅ 可用 | GPU HAL 层 |
+| render（原 gg） | ⚠️ 可用但需校准 | 2D 渲染核心；部分 examples 在新 native 路径下效果与源 go-wgpu 不一致 |
+| gpu/webgpu | ⚠️ 进行中 | 作为 render 层对象 API；已封装 rwgpu 的 device、queue、texture、buffer、shader、pipeline 等对象 |
+| gpu/rwgpu | ⚠️ 进行中 | Rust wgpu-native 绑定；已真实跑通 device、clear pass、readback、shader、pipeline |
 | ffi | ✅ 完成 | purego FFI 中间层 |
 | text | ✅ 可用 | 文本渲染 |
 | scene | ✅ 可用 | 场景图 |
+
+---
+
+## 🧭 当前固定架构与边界
+
+### 目标调用链
+
+```text
+render.Context / render examples
+  -> render/internal/gpu.GPURenderContext / GPUSceneRenderer / GPURenderSession
+  -> gpu/webgpu.Device / Queue / Texture / Buffer / RenderPipeline / CommandEncoder
+  -> gpu/rwgpu
+  -> wgpu-native dynamic library
+```
+
+### 强制边界
+
+1. `render` 层不得直接 import `github.com/energye/gpui/gpu/rwgpu`。
+2. `render` 层不得重新接回旧 go-wgpu HAL/core 路径。
+3. `gpu/webgpu` 是 render 层唯一稳定 GPU 对象入口。
+4. `gpu/rwgpu` 负责 Rust wgpu-native ABI 绑定与低层对象生命周期。
+5. legacy stub helper 只能用于旧单元测试，不得作为生产渲染路径。
+
+### 当前已验证事实（2026-07-14）
+
+本地动态库：
+
+```bash
+WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+GOCACHE=/tmp/gpui-go-cache
+```
+
+已通过验证：
+
+```bash
+env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so \
+  GOCACHE=/tmp/gpui-go-cache \
+  timeout 180s go test -count=1 ./render/internal/gpu
+
+env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so \
+  GOCACHE=/tmp/gpui-go-cache \
+  timeout 120s go test -run '^$' ./gpu/webgpu/... ./gpu/rwgpu/... ./render/internal/gpu ./render
+```
+
+当前已真实调用 native 的能力：
+- 最小 device 创建
+- clear render pass + submit
+- texture upload / download readback
+- shader module 创建
+- blit / blend / strip / composite pipeline 创建
+- `render` 包不直接 import `gpu/rwgpu`
+
+### 当前完成度判断
+
+总体完成度约 60%-65%。
+
+已经完成的是“架构方向”和“部分真实 native 对象能力”。尚未完成的是“渲染效果一致性”和“全部 render 流程生产级收敛”。在修复 examples 渲染差异前，不允许声称已经完成 Ant Design 级控件库渲染能力。
 
 ---
 
@@ -102,6 +185,212 @@ go test ./render/... -bench=BenchmarkSceneFPS -benchmem -count=3
 ```
 
 如果 GPU 环境不可用，任务实现必须保留 CPU fallback，并在 PR/提交说明中写明哪些测试因本机 GPU 环境未运行。
+
+### Rust WebGPU native 路径验证命令
+
+迁移期间必须优先跑这些命令，确认当前路径不是 stub：
+
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+export GOCACHE=/tmp/gpui-go-cache
+
+# 编译和包边界检查
+go test -run '^$' ./gpu/webgpu/... ./gpu/rwgpu/... ./render/internal/gpu ./render
+
+# 真实 native 调用：device、shader、pipeline、texture readback
+timeout 180s go test -count=1 ./render/internal/gpu
+
+# 关键 native 子集，适合快速回归
+timeout 120s go test -count=1 -run \
+  'TestCompileShadersNative|TestPipelineCacheNativePipelines|TestTextureUploadDownloadNative' \
+  ./render/internal/gpu
+```
+
+通过编译不等于渲染正确。examples 视觉输出必须单独验证。
+
+---
+
+## P0：渲染效果一致性修复计划
+
+### 背景
+
+本轮架构是从源 go-wgpu 路径切到 Rust wgpu-native 路径。当前 `render/examples` 中部分示例在新路径下渲染效果与源 go-wgpu 不一致，总体观感不好。这个问题优先级高于性能优化。
+
+在视觉正确性未收敛前，不要继续做批处理排序、atlas、缓存等优化，因为这些优化会扩大排查面。
+
+### 目标
+
+建立可重复的视觉回归流程，并把当前 native 路径输出校准到以下基准之一：
+
+1. 源 go-wgpu 实现输出。
+2. 当前 CPU/software renderer 输出。
+3. 明确写入文档的预期差异，例如采样精度或平台字体差异。
+
+### 必测 examples
+
+第一批必须覆盖：
+
+| 示例 | 关注点 |
+|------|--------|
+| `render/examples/basic` | 基础形状、颜色、线宽 |
+| `render/examples/shapes` | path、fill rule、AA 边缘 |
+| `render/examples/clipping` | clip stack、裁剪边界 |
+| `render/examples/images` | texture upload、采样、premultiply alpha |
+| `render/examples/text` | glyph mask、subpixel、baseline |
+| `render/examples/cjk_text` | 字体 fallback、CJK glyph |
+| `render/examples/scene` | scene encoding、批量绘制顺序 |
+| `render/examples/scene_gpu` | GPU scene path |
+| `render/examples/gpu` | GPU backend 端到端 |
+
+### 视觉回归工具要求
+
+新增或整理一个统一工具，建议位置：
+
+```text
+render/test_output/
+render/internal/gpu/visual_test.go
+render/internal/testutil/imagediff/
+```
+
+工具必须支持：
+- 固定尺寸输出 PNG。
+- 记录 backend：`software`、`source-go-wgpu`、`rwgpu-native`。
+- 输出 per-pixel diff、max diff、mean diff、不同像素数量、diff heatmap。
+- 支持阈值：文本和 GPU AA 可有小阈值，但纯色矩形、图片、clear、blend 不允许大面积差异。
+- 失败时保留 actual / expected / diff 三张图。
+
+### 排查顺序
+
+必须按层排查，不要一次性改大段 render 代码。
+
+1. Clear / render target format
+   - 验证 RGBA8 / BGRA8 是否和目标一致。
+   - 验证 clear color、load/store op、alpha 初值。
+   - 验证 readback 是否有 BGRA/RGBA 通道交换。
+
+2. Texture upload / sampling
+   - 验证 `BytesPerRow`、row padding、premultiplied alpha。
+   - 验证 sampler：nearest / linear、clamp、mipmap 默认值。
+   - 用 2x2、3x1、非 256 对齐宽度图片做 readback。
+
+3. Blend / alpha
+   - 单独验证 SourceOver、Premultiplied、Copy、Plus。
+   - 用红/绿半透明叠加测试，比较 CPU 与 native 输出。
+   - 确认 shader blend 与 hardware blend 没有重复 premultiply。
+
+4. Transform / coordinate system
+   - 验证 y 轴方向、pixel center、viewport、scissor。
+   - 用 1px 线、半像素位移、整数矩形测试。
+
+5. Clip / stencil / depth clip
+   - 单独验证矩形 clip、圆角 clip、嵌套 clip。
+   - 排查 `SetBindGroup(1)`、depth/stencil attachment、pipeline layout 是否匹配。
+
+6. Path AA / fill rule
+   - 对比 software raster 与 GPU path。
+   - 先修 fill rule、边界和 winding，再谈性能。
+
+7. Text / glyph
+   - 验证 glyph atlas、mask format、LCD/subpixel、baseline。
+   - 字体差异要单独记录，不能混入 GPU 渲染差异。
+
+### 当前高概率差异来源
+
+根据当前迁移状态，优先怀疑：
+
+- `TextureFormatRGBA8Unorm` 与 surface / compositor 期望 `BGRA8Unorm` 不一致。
+- premultiplied alpha 在 CPU、texture upload、shader blend 中处理不一致。
+- sampler 默认值不同导致图片或 glyph 边缘发糊。
+- shader pipeline 新建成功，但 bind group layout / shader 资源使用与实际 draw path 不完全一致。
+- GPU readback 或示例保存 PNG 时发生通道顺序差异。
+- legacy stub 路径仍被某些示例间接调用，导致看似成功但实际未执行真实 GPU draw。
+
+### P0 任务卡
+
+#### Task P0.1 examples 视觉基线采集
+
+目标：
+- 对必测 examples 生成 software 与 rwgpu-native 输出，保存 PNG 和 diff 报告。
+
+先读：
+- `render/examples/*/main.go`
+- `render/context.go`
+- `render/internal/gpu/gpu_render_context.go`
+- `render/internal/gpu/render_session.go`
+
+修改范围：
+- 新增 `render/internal/testutil/imagediff/`
+- 新增或整理 `render/test_output/`
+- 可新增 examples runner，但不要修改示例绘制语义。
+
+验证：
+```bash
+go test ./render/... -run TestVisualExamples
+```
+
+完成标准：
+- 至少覆盖 basic、shapes、clipping、images、text、scene_gpu。
+- 每个失败样例都有 actual / expected / diff。
+- 报告能指出是通道、alpha、位置、clip、AA 还是字体类差异。
+
+#### Task P0.2 render target format 与 readback 校准
+
+目标：
+- 确认 RGBA/BGRA、premultiply、row padding 在 native 路径下完全可控。
+
+先读：
+- `render/internal/gpu/gpu_texture.go`
+- `render/internal/gpu/renderer.go`
+- `gpu/webgpu/texture.go`
+- `gpu/webgpu/queue.go`
+
+验证：
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+go test -count=1 ./render/internal/gpu -run 'Test.*(Upload|Download|Readback|Format|Clear)'
+```
+
+完成标准：
+- RGBA8、BGRA8、R8 readback 明确。
+- 非 256 对齐宽度图片正确。
+- clear 后像素值和 alpha 与预期完全一致。
+
+#### Task P0.3 blend / alpha 一致性
+
+目标：
+- 让常用 UI blend 输出与 CPU/source-go-wgpu 一致。
+
+先读：
+- `render/internal/gpu/shaders/blend.wgsl`
+- `render/internal/gpu/pipeline.go`
+- `render/internal/gpu/render_session.go`
+- `render/scene/`
+
+验证：
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+go test -count=1 ./render/internal/gpu -run 'Test.*(Blend|Alpha|Premul)'
+```
+
+完成标准：
+- Normal、SourceOver、Copy、Plus、Multiply 有固定像素测试。
+- premultiplied 与 straight alpha 的边界写入文档。
+
+#### Task P0.4 examples 端到端修复
+
+目标：
+- 修复第一批必测 examples 的 native 输出差异。
+
+验证：
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+go test -count=1 ./render/internal/gpu ./render
+go test ./render/... -run TestVisualExamples
+```
+
+完成标准：
+- 除字体平台差异外，第一批 examples 差异进入可接受阈值。
+- 每个仍保留的差异都有原因、截图和后续任务。
 
 ### AI 开发代理执行规则
 
@@ -1168,6 +1457,10 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 ### 里程碑 1：基准测试建立
 | 任务 | 负责人 | 计划开始 | 计划结束 | 实际开始 | 实际结束 | 状态 | 备注 |
 |------|--------|----------|----------|----------|----------|------|------|
+| P0.1 examples 视觉基线采集 |  | W0D1 | W0D2 |  |  | ⬜ | 新 native 路径正确性优先 |
+| P0.2 render target/readback 校准 |  | W0D2 | W0D3 |  |  | ⬜ | RGBA/BGRA/premul/row padding |
+| P0.3 blend/alpha 一致性 |  | W0D3 | W0D4 |  |  | ⬜ | UI 控件高频路径 |
+| P0.4 examples 端到端修复 |  | W0D4 | W0D5 |  |  | ⬜ | basic/shapes/clipping/images/text/scene_gpu |
 | 0.1 FPS 测量器 |  | W1D1 | W1D2 |  |  | ⬜ |  |
 | 0.2 测试场景 |  | W1D2 | W1D3 |  |  | ⬜ |  |
 | 0.3 Skia 对比 |  | W1D3 | W1D5 |  |  | ⬜ |  |
@@ -1199,19 +1492,25 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 
 | 日期 | 问题描述 | 影响范围 | 优先级 | 解决方案 | 状态 |
 |------|----------|----------|--------|----------|------|
-|  |  |  |  |  |  |
+| 2026-07-14 | 切到 Rust wgpu-native 路径后，部分 `render/examples` 输出与源 go-wgpu 不一致，整体渲染效果不好 | examples、UI 控件渲染正确性、后续性能优化可信度 | P0 | 先建立 examples 视觉基线和 diff，再按 format/readback、texture、blend、transform、clip、path AA、text 分层修复 | 待处理 |
+| 2026-07-14 | `commands.go` 仍保留旧 `Stub*ID` API，容易被误认为生产 WebGPU 命令路径 | 新人理解、架构维护 | P1 | 已标记为 legacy/test helper；生产路径集中到 `CoreCommandEncoder` 与 `gpu/webgpu` 对象 | 已缓解 |
 
 ### 补充需求
 
 | 日期 | 需求描述 | 来源 | 优先级 | 状态 |
 |------|----------|------|--------|------|
-|  |  |  |  |  |
+| 2026-07-14 | 固定最终架构为 `render -> gpu/webgpu object facade -> gpu/rwgpu -> wgpu-native dynamic library` | 架构调整 | P0 | 进行中 |
+| 2026-07-14 | 新增 examples 视觉回归工具，支持 software/source-go-wgpu/rwgpu-native 输出对比和 PNG diff | 渲染差异排查 | P0 | 待实现 |
+| 2026-07-14 | 后续从 wgpu-native header 自动生成 ABI binding，覆盖 Linux/Windows/macOS 动态库 | ABI 维护 | P1 | 待设计 |
 
 ### 技术决策记录
 
 | 日期 | 决策 | 原因 | 影响 |
 |------|------|------|------|
-|  |  |  |  |
+| 2026-07-14 | 不再把原 go-wgpu 作为 GPUI GPU 实现保留，默认目标改为 Rust wgpu-native | LCL Go 绑定使用 purego ffi；原 go-wgpu/goffi 路径存在冲突，且后续希望统一到 wgpu-native 能力 | 需要补齐 `gpu/webgpu` object facade，修复迁移后渲染差异 |
+| 2026-07-14 | `render` 不直接调用 `gpu/rwgpu`，只调用 `gpu/webgpu` 对象层 | 避免 render 层被 ABI 细节污染，保持后续替换和跨平台 surface 接入空间 | `gpu/webgpu` 需要承担完整 object API 和资源生命周期 |
+| 2026-07-14 | 在修复 examples 视觉一致性前暂停大规模性能优化 | 当前输出效果与源 go-wgpu 不一致，性能优化会掩盖正确性问题 | P0 阶段先做视觉回归、format/readback、blend/alpha 校准 |
+| 2026-07-14 | `commands.go` 保留为 legacy/test helper，生产命令路径使用 `CoreCommandEncoder` | 该文件参数仍是 `Stub*ID`，强行接 native 会形成重复且半真实的 API | 后续可逐步把旧测试迁移到 `CoreCommandEncoder` 后删除 |
 
 ---
 
@@ -1241,6 +1540,7 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 | 2026-07-13 | 2.0 | 补充测试计划、性能目标、风险评估、资源需求、验收标准、监控策略、文档计划、发布计划、代码审查、沟通计划 | Claude |
 | 2026-07-13 | 3.0 | 根据 gpui 库实际情况重写，更新项目背景、库结构、依赖关系 | Claude |
 | 2026-07-13 | 3.1 | 补充新人/AI 开工指南、并行开发边界、任务卡模板，并修正渐变和 AA 示例 API | Codex |
+| 2026-07-14 | 3.2 | 记录 Rust wgpu-native 目标架构、当前 native 验证状态、examples 视觉一致性 P0 计划、架构决策和遗留风险 | Codex |
 |  |  |  |  |
 
 ---

@@ -3,8 +3,10 @@
 package gpu
 
 import (
+	"fmt"
 	"sync"
 
+	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render/scene"
 )
@@ -25,20 +27,36 @@ type PipelineCache struct {
 	shaders *ShaderModules
 
 	// Cached render pipelines
-	blitPipeline      StubPipelineID
-	compositePipeline StubPipelineID
+	blitPipeline            StubPipelineID
+	compositePipeline       StubPipelineID
+	nativeBlitPipeline      *webgpu.RenderPipeline
+	nativeCompositePipeline *webgpu.RenderPipeline
 
 	// Blend mode pipelines (one per blend mode for now)
-	blendPipelines map[scene.BlendMode]StubPipelineID
+	blendPipelines       map[scene.BlendMode]StubPipelineID
+	nativeBlendPipelines map[scene.BlendMode]*webgpu.RenderPipeline
 
 	// Compute pipeline for strip rasterization
-	stripPipeline StubComputePipelineID
+	stripPipeline       StubComputePipelineID
+	nativeStripPipeline *webgpu.ComputePipeline
 
 	// Bind group layouts
-	blitLayout      StubBindGroupLayoutID
-	blendLayout     StubBindGroupLayoutID
-	stripLayout     StubBindGroupLayoutID
-	compositeLayout StubBindGroupLayoutID
+	blitLayout                  StubBindGroupLayoutID
+	blendLayout                 StubBindGroupLayoutID
+	stripLayout                 StubBindGroupLayoutID
+	compositeLayout             StubBindGroupLayoutID
+	nativeBlitLayout            *webgpu.BindGroupLayout
+	nativeBlendLayout           *webgpu.BindGroupLayout
+	nativeStripLayout           *webgpu.BindGroupLayout
+	nativeCompositeLayout       *webgpu.BindGroupLayout
+	nativeCompositeParamsLayout *webgpu.BindGroupLayout
+
+	// Pipeline layouts and shared resources.
+	blitPipelineLayout      *webgpu.PipelineLayout
+	blendPipelineLayout     *webgpu.PipelineLayout
+	stripPipelineLayout     *webgpu.PipelineLayout
+	compositePipelineLayout *webgpu.PipelineLayout
+	defaultSampler          *webgpu.Sampler
 
 	// State
 	initialized bool
@@ -70,9 +88,10 @@ func NewPipelineCache(device *webgpu.Device, shaders *ShaderModules) (*PipelineC
 	}
 
 	pc := &PipelineCache{
-		device:         device,
-		shaders:        shaders,
-		blendPipelines: make(map[scene.BlendMode]StubPipelineID),
+		device:               device,
+		shaders:              shaders,
+		blendPipelines:       make(map[scene.BlendMode]StubPipelineID),
+		nativeBlendPipelines: make(map[scene.BlendMode]*webgpu.RenderPipeline),
 	}
 
 	// Create base pipelines
@@ -93,81 +112,183 @@ func NewPipelineCache(device *webgpu.Device, shaders *ShaderModules) (*PipelineC
 }
 
 // createBlitPipeline creates the blit (texture copy) pipeline.
-//
-//nolint:unparam // error return prepared for when wgpu implementation is complete
 func (pc *PipelineCache) createBlitPipeline() error {
-	// Create bind group layout for blit: texture + sampler
-	// Layout binding 0: texture
-	// Layout binding 1: sampler
 	pc.blitLayout = StubBindGroupLayoutID(1)
-
-	// TODO: When wgpu is ready, create actual bind group layout:
-	// layoutDesc := &gputypes.BindGroupLayoutDescriptor{
-	//     Entries: []gputypes.BindGroupLayoutEntry{
-	//         {
-	//             Binding:    0,
-	//             Visibility: gputypes.ShaderStageFragment,
-	//             Texture: &gputypes.TextureBindingLayout{
-	//                 SampleType:    gputypes.TextureSampleTypeFloat,
-	//                 ViewDimension: gputypes.TextureViewDimension2D,
-	//             },
-	//         },
-	//         {
-	//             Binding:    1,
-	//             Visibility: gputypes.ShaderStageFragment,
-	//             Sampler: &gputypes.SamplerBindingLayout{
-	//                 Type: gputypes.SamplerBindingTypeFiltering,
-	//             },
-	//         },
-	//     },
-	// }
-	// pc.blitLayout, err = core.CreateBindGroupLayout(pc.device, layoutDesc)
-
-	// Create pipeline
-	// TODO: Actual pipeline creation when wgpu is ready
 	pc.blitPipeline = StubPipelineID(1)
+
+	if !pc.hasNativeDevice() {
+		return nil
+	}
+
+	layout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		Label: "gg_blit_bind_group_layout",
+		Entries: []types.BindGroupLayoutEntry{
+			textureBinding(0),
+			samplerBinding(1),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create blit bind group layout: %w", err)
+	}
+	pc.nativeBlitLayout = layout
+
+	pipeLayout, err := pc.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+		Label:            "gg_blit_pipeline_layout",
+		BindGroupLayouts: []*webgpu.BindGroupLayout{pc.nativeBlitLayout},
+	})
+	if err != nil {
+		return fmt.Errorf("create blit pipeline layout: %w", err)
+	}
+	pc.blitPipelineLayout = pipeLayout
+
+	pipeline, err := pc.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		Label:  "gg_blit_pipeline",
+		Layout: pc.blitPipelineLayout,
+		Vertex: webgpu.VertexState{
+			Module:     pc.shaders.BlitModule,
+			EntryPoint: "vs_main",
+		},
+		Fragment: &webgpu.FragmentState{
+			Module:     pc.shaders.BlitModule,
+			EntryPoint: "fs_main",
+			Targets:    []types.ColorTargetState{defaultColorTarget()},
+		},
+		Primitive:   types.DefaultPrimitiveState(),
+		Multisample: types.DefaultMultisampleState(),
+	})
+	if err != nil {
+		return fmt.Errorf("create blit pipeline: %w", err)
+	}
+	pc.nativeBlitPipeline = pipeline
 
 	return nil
 }
 
 // createStripPipeline creates the strip rasterization compute pipeline.
-//
-//nolint:unparam // error return prepared for when wgpu implementation is complete
 func (pc *PipelineCache) createStripPipeline() error {
-	// Create bind group layout for strip compute:
-	// Binding 0: Strip headers (storage buffer)
-	// Binding 1: Coverage data (storage buffer)
-	// Binding 2: Output texture (storage texture)
-	// Binding 3: Params uniform
 	pc.stripLayout = StubBindGroupLayoutID(2)
-
-	// TODO: When wgpu is ready, create actual compute pipeline:
-	// pipelineDesc := &gputypes.ComputePipelineDescriptor{
-	//     Layout: pipelineLayoutID,
-	//     Compute: gputypes.ProgrammableStageDescriptor{
-	//         Module:     pc.shaders.Strip,
-	//         EntryPoint: "main",
-	//     },
-	// }
-	// pc.stripPipeline, err = core.CreateComputePipeline(pc.device, pipelineDesc)
-
 	pc.stripPipeline = StubComputePipelineID(1)
+
+	if !pc.hasNativeDevice() {
+		return nil
+	}
+
+	layout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		Label: "gg_strip_bind_group_layout",
+		Entries: []types.BindGroupLayoutEntry{
+			readOnlyStorageBinding(0),
+			readOnlyStorageBinding(1),
+			uniformBinding(2, 32),
+			{
+				Binding:    3,
+				Visibility: types.ShaderStageCompute,
+				StorageTexture: &types.StorageTextureBindingLayout{
+					Access:        types.StorageTextureAccessWriteOnly,
+					Format:        types.TextureFormatRGBA8Unorm,
+					ViewDimension: types.TextureViewDimension2D,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create strip bind group layout: %w", err)
+	}
+	pc.nativeStripLayout = layout
+
+	pipeLayout, err := pc.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+		Label:            "gg_strip_pipeline_layout",
+		BindGroupLayouts: []*webgpu.BindGroupLayout{pc.nativeStripLayout},
+	})
+	if err != nil {
+		return fmt.Errorf("create strip pipeline layout: %w", err)
+	}
+	pc.stripPipelineLayout = pipeLayout
+
+	pipeline, err := pc.device.CreateComputePipeline(&webgpu.ComputePipelineDescriptor{
+		Label:      "gg_strip_pipeline",
+		Layout:     pc.stripPipelineLayout,
+		Module:     pc.shaders.StripModule,
+		EntryPoint: "cs_main",
+	})
+	if err != nil {
+		return fmt.Errorf("create strip pipeline: %w", err)
+	}
+	pc.nativeStripPipeline = pipeline
 
 	return nil
 }
 
 // createCompositePipeline creates the layer compositing pipeline.
-//
-//nolint:unparam // error return prepared for when wgpu implementation is complete
 func (pc *PipelineCache) createCompositePipeline() error {
-	// Create bind group layout for composite:
-	// Binding 0: Layer textures (texture array or individual bindings)
-	// Binding 1: Layer descriptors (uniform buffer)
-	// Binding 2: Sampler
 	pc.compositeLayout = StubBindGroupLayoutID(3)
-
-	// TODO: Actual pipeline creation
 	pc.compositePipeline = StubPipelineID(2)
+
+	if !pc.hasNativeDevice() {
+		return nil
+	}
+
+	textureLayout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		Label: "gg_composite_texture_layout",
+		Entries: []types.BindGroupLayoutEntry{
+			{
+				Binding:    0,
+				Visibility: types.ShaderStageFragment,
+				Texture: &types.TextureBindingLayout{
+					SampleType:    types.TextureSampleTypeFloat,
+					ViewDimension: types.TextureViewDimension2DArray,
+				},
+			},
+			samplerBinding(1),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create composite texture layout: %w", err)
+	}
+	pc.nativeCompositeLayout = textureLayout
+
+	paramsLayout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		Label: "gg_composite_params_layout",
+		Entries: []types.BindGroupLayoutEntry{
+			readOnlyStorageBinding(0),
+			uniformBinding(1, 16),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create composite params layout: %w", err)
+	}
+	pc.nativeCompositeParamsLayout = paramsLayout
+
+	pipeLayout, err := pc.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+		Label: "gg_composite_pipeline_layout",
+		BindGroupLayouts: []*webgpu.BindGroupLayout{
+			pc.nativeCompositeLayout,
+			pc.nativeCompositeParamsLayout,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create composite pipeline layout: %w", err)
+	}
+	pc.compositePipelineLayout = pipeLayout
+
+	pipeline, err := pc.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		Label:  "gg_composite_pipeline",
+		Layout: pc.compositePipelineLayout,
+		Vertex: webgpu.VertexState{
+			Module:     pc.shaders.CompositeModule,
+			EntryPoint: "vs_main",
+		},
+		Fragment: &webgpu.FragmentState{
+			Module:     pc.shaders.CompositeModule,
+			EntryPoint: "fs_main",
+			Targets:    []types.ColorTargetState{defaultColorTarget()},
+		},
+		Primitive:   types.DefaultPrimitiveState(),
+		Multisample: types.DefaultMultisampleState(),
+	})
+	if err != nil {
+		return fmt.Errorf("create composite pipeline: %w", err)
+	}
+	pc.nativeCompositePipeline = pipeline
 
 	return nil
 }
@@ -207,21 +328,65 @@ func (pc *PipelineCache) GetBlendPipeline(mode scene.BlendMode) StubPipelineID {
 
 // createBlendPipeline creates a render pipeline for a specific blend mode.
 func (pc *PipelineCache) createBlendPipeline(mode scene.BlendMode) StubPipelineID {
-	// Create bind group layout for blend if not exists
 	if pc.blendLayout == 0 {
-		// Layout:
-		// Binding 0: Source texture
-		// Binding 1: Sampler
-		// Binding 2: Blend params uniform
 		pc.blendLayout = StubBindGroupLayoutID(4)
 	}
 
-	// TODO: When wgpu is ready, create actual blend pipeline with appropriate
-	// blend state based on mode. For Porter-Duff modes, use hardware blending.
-	// For advanced modes, use shader-based blending.
+	if pc.hasNativeDevice() && pc.nativeBlendLayout == nil {
+		if err := pc.createNativeBlendResources(); err != nil {
+			return InvalidPipelineID
+		}
+	}
 
-	// For now, return stub ID based on mode (mode is a small enum value)
+	if pc.hasNativeDevice() {
+		pipeline, err := pc.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+			Label:  fmt.Sprintf("gg_blend_pipeline_%d", mode),
+			Layout: pc.blendPipelineLayout,
+			Vertex: webgpu.VertexState{
+				Module:     pc.shaders.BlendModule,
+				EntryPoint: "vs_main",
+			},
+			Fragment: &webgpu.FragmentState{
+				Module:     pc.shaders.BlendModule,
+				EntryPoint: "fs_main",
+				Targets:    []types.ColorTargetState{defaultColorTarget()},
+			},
+			Primitive:   types.DefaultPrimitiveState(),
+			Multisample: types.DefaultMultisampleState(),
+		})
+		if err != nil {
+			return InvalidPipelineID
+		}
+		pc.nativeBlendPipelines[mode] = pipeline
+	}
+
 	return StubPipelineID(100 + uint64(mode))
+}
+
+func (pc *PipelineCache) createNativeBlendResources() error {
+	layout, err := pc.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		Label: "gg_blend_bind_group_layout",
+		Entries: []types.BindGroupLayoutEntry{
+			textureBinding(0),
+			textureBinding(1),
+			samplerBinding(2),
+			uniformBinding(3, 16),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create blend bind group layout: %w", err)
+	}
+	pc.nativeBlendLayout = layout
+
+	pipeLayout, err := pc.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+		Label:            "gg_blend_pipeline_layout",
+		BindGroupLayouts: []*webgpu.BindGroupLayout{pc.nativeBlendLayout},
+	})
+	if err != nil {
+		return fmt.Errorf("create blend pipeline layout: %w", err)
+	}
+	pc.blendPipelineLayout = pipeLayout
+	return nil
 }
 
 // GetStripPipeline returns the strip rasterization compute pipeline.
@@ -236,6 +401,34 @@ func (pc *PipelineCache) GetCompositePipeline() StubPipelineID {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
 	return pc.compositePipeline
+}
+
+// NativeBlitPipeline returns the WebGPU blit pipeline for runtime rendering.
+func (pc *PipelineCache) NativeBlitPipeline() *webgpu.RenderPipeline {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return pc.nativeBlitPipeline
+}
+
+// NativeBlendPipeline returns the WebGPU blend pipeline for the specified mode.
+func (pc *PipelineCache) NativeBlendPipeline(mode scene.BlendMode) *webgpu.RenderPipeline {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return pc.nativeBlendPipelines[mode]
+}
+
+// NativeStripPipeline returns the WebGPU strip compute pipeline.
+func (pc *PipelineCache) NativeStripPipeline() *webgpu.ComputePipeline {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return pc.nativeStripPipeline
+}
+
+// NativeCompositePipeline returns the WebGPU composite render pipeline.
+func (pc *PipelineCache) NativeCompositePipeline() *webgpu.RenderPipeline {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return pc.nativeCompositePipeline
 }
 
 // GetBlitLayout returns the bind group layout for blit operations.
@@ -259,6 +452,15 @@ func (pc *PipelineCache) GetStripLayout() StubBindGroupLayoutID {
 	return pc.stripLayout
 }
 
+// HasNativePipelines reports whether the runtime WebGPU pipelines were created.
+func (pc *PipelineCache) HasNativePipelines() bool {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+	return pc.nativeBlitPipeline != nil &&
+		pc.nativeStripPipeline != nil &&
+		pc.nativeCompositePipeline != nil
+}
+
 // IsInitialized returns true if the cache has been initialized.
 func (pc *PipelineCache) IsInitialized() bool {
 	pc.mu.RLock()
@@ -271,12 +473,31 @@ func (pc *PipelineCache) Close() {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
-	// TODO: When wgpu is ready, release all pipelines:
-	// core.RenderPipelineDrop(pc.blitPipeline)
-	// core.ComputePipelineDrop(pc.stripPipeline)
-	// for _, p := range pc.blendPipelines {
-	//     core.RenderPipelineDrop(p)
-	// }
+	releaseRenderPipeline(&pc.nativeBlitPipeline)
+	releaseRenderPipeline(&pc.nativeCompositePipeline)
+	for mode, p := range pc.nativeBlendPipelines {
+		if p != nil {
+			p.Release()
+		}
+		delete(pc.nativeBlendPipelines, mode)
+	}
+	if pc.nativeStripPipeline != nil {
+		pc.nativeStripPipeline.Release()
+		pc.nativeStripPipeline = nil
+	}
+	releaseBindGroupLayout(&pc.nativeBlitLayout)
+	releaseBindGroupLayout(&pc.nativeBlendLayout)
+	releaseBindGroupLayout(&pc.nativeStripLayout)
+	releaseBindGroupLayout(&pc.nativeCompositeLayout)
+	releaseBindGroupLayout(&pc.nativeCompositeParamsLayout)
+	releasePipelineLayout(&pc.blitPipelineLayout)
+	releasePipelineLayout(&pc.blendPipelineLayout)
+	releasePipelineLayout(&pc.stripPipelineLayout)
+	releasePipelineLayout(&pc.compositePipelineLayout)
+	if pc.defaultSampler != nil {
+		pc.defaultSampler.Release()
+		pc.defaultSampler = nil
+	}
 
 	pc.blitPipeline = InvalidPipelineID
 	pc.stripPipeline = 0
@@ -319,8 +540,9 @@ func (pc *PipelineCache) WarmupBlendPipelines() {
 
 // BindGroupBuilder helps construct bind groups for rendering.
 type BindGroupBuilder struct {
-	device *webgpu.Device
-	layout StubBindGroupLayoutID
+	device       *webgpu.Device
+	layout       StubBindGroupLayoutID
+	nativeLayout *webgpu.BindGroupLayout
 }
 
 // NewBindGroupBuilder creates a new bind group builder.
@@ -373,3 +595,77 @@ func (pc *PipelineCache) CreateStripBindGroup(
 
 // StubBufferID is a placeholder for actual wgpu BufferID.
 type StubBufferID uint64
+
+func (pc *PipelineCache) hasNativeDevice() bool {
+	return pc.device != nil && pc.shaders != nil && pc.shaders.HasNativeModules()
+}
+
+func textureBinding(binding uint32) types.BindGroupLayoutEntry {
+	return types.BindGroupLayoutEntry{
+		Binding:    binding,
+		Visibility: types.ShaderStageFragment,
+		Texture: &types.TextureBindingLayout{
+			SampleType:    types.TextureSampleTypeFloat,
+			ViewDimension: types.TextureViewDimension2D,
+		},
+	}
+}
+
+func samplerBinding(binding uint32) types.BindGroupLayoutEntry {
+	return types.BindGroupLayoutEntry{
+		Binding:    binding,
+		Visibility: types.ShaderStageFragment,
+		Sampler: &types.SamplerBindingLayout{
+			Type: types.SamplerBindingTypeFiltering,
+		},
+	}
+}
+
+func uniformBinding(binding uint32, minSize uint64) types.BindGroupLayoutEntry {
+	return types.BindGroupLayoutEntry{
+		Binding:    binding,
+		Visibility: types.ShaderStagesAll,
+		Buffer: &types.BufferBindingLayout{
+			Type:           types.BufferBindingTypeUniform,
+			MinBindingSize: minSize,
+		},
+	}
+}
+
+func readOnlyStorageBinding(binding uint32) types.BindGroupLayoutEntry {
+	return types.BindGroupLayoutEntry{
+		Binding:    binding,
+		Visibility: types.ShaderStagesAll,
+		Buffer: &types.BufferBindingLayout{
+			Type: types.BufferBindingTypeReadOnlyStorage,
+		},
+	}
+}
+
+func defaultColorTarget() types.ColorTargetState {
+	return types.ColorTargetState{
+		Format:    types.TextureFormatRGBA8Unorm,
+		WriteMask: types.ColorWriteMaskAll,
+	}
+}
+
+func releaseRenderPipeline(p **webgpu.RenderPipeline) {
+	if *p != nil {
+		(*p).Release()
+		*p = nil
+	}
+}
+
+func releaseBindGroupLayout(l **webgpu.BindGroupLayout) {
+	if *l != nil {
+		(*l).Release()
+		*l = nil
+	}
+}
+
+func releasePipelineLayout(l **webgpu.PipelineLayout) {
+	if *l != nil {
+		(*l).Release()
+		*l = nil
+	}
+}

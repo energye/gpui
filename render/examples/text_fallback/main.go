@@ -6,6 +6,9 @@ import (
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
+	// Blank import enables GPU acceleration.
+	// Without this import, all rendering uses CPU (software) rasterization.
+	_ "github.com/energye/gpui/render/gpu"
 )
 
 func main() {

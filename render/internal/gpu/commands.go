@@ -6,12 +6,13 @@ import (
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
-// CommandEncoder wraps GPU command encoding operations.
-// It provides a high-level interface for building command buffers
-// that can be submitted to the GPU queue.
+// CommandEncoder is a legacy lightweight command-recording helper kept for
+// older unit tests.
 //
-// CommandEncoder accumulates render passes and compute passes,
-// then produces a command buffer when Finish is called.
+// Runtime rendering should use CoreCommandEncoder, which wraps webgpu objects
+// and submits real commands through rwgpu/wgpu-native. This type intentionally
+// preserves the old stub ID API so existing pure state-machine tests do not
+// require a native GPU device.
 type CommandEncoder struct {
 	device  *webgpu.Device
 	encoder StubCommandEncoderID
@@ -21,17 +22,14 @@ type CommandEncoder struct {
 	passCount     int
 }
 
-// StubCommandEncoderID is a placeholder for actual wgpu CommandEncoderID.
+// StubCommandEncoderID is a legacy logical marker for command-encoder tests.
 type StubCommandEncoderID uint64
 
-// StubCommandBufferID is a placeholder for actual wgpu CommandBufferID.
+// StubCommandBufferID is a legacy logical marker for command-buffer tests.
 type StubCommandBufferID uint64
 
-// NewCommandEncoder creates a new command encoder for the given device.
+// NewCommandEncoder creates a legacy test command encoder.
 func NewCommandEncoder(device *webgpu.Device) *CommandEncoder {
-	// TODO: When wgpu is ready:
-	// encoder, _ := core.CreateCommandEncoder(device, nil)
-
 	return &CommandEncoder{
 		device:  device,
 		encoder: StubCommandEncoderID(1),
@@ -48,24 +46,6 @@ func (e *CommandEncoder) BeginRenderPass(target *GPUTexture, clearTarget bool) *
 
 	e.hasActivePass = true
 	e.passCount++
-
-	// TODO: When wgpu is ready:
-	// loadOp := gputypes.LoadOpLoad
-	// if clearTarget {
-	//     loadOp = gputypes.LoadOpClear
-	// }
-	//
-	// desc := &gputypes.RenderPassDescriptor{
-	//     ColorAttachments: []gputypes.RenderPassColorAttachment{
-	//         {
-	//             View:       target.ViewID(),
-	//             LoadOp:     loadOp,
-	//             StoreOp:    gputypes.StoreOpStore,
-	//             ClearValue: gputypes.Color{R: 0, G: 0, B: 0, A: 0},
-	//         },
-	//     },
-	// }
-	// pass, _ := core.BeginRenderPass(e.encoder, desc)
 
 	return &RenderPass{
 		encoder: e,
@@ -84,9 +64,6 @@ func (e *CommandEncoder) BeginComputePass() *ComputePass {
 	e.hasActivePass = true
 	e.passCount++
 
-	// TODO: When wgpu is ready:
-	// pass, _ := core.BeginComputePass(e.encoder, nil)
-
 	return &ComputePass{
 		encoder: e,
 		//nolint:gosec // passCount is incremented sequentially, overflow not possible in practice
@@ -94,20 +71,12 @@ func (e *CommandEncoder) BeginComputePass() *ComputePass {
 	}
 }
 
-// CopyTextureToTexture copies a region from one texture to another.
+// CopyTextureToTexture records a legacy logical copy operation.
 func (e *CommandEncoder) CopyTextureToTexture(src, dst *GPUTexture, width, height int) {
 	if e.hasActivePass {
 		// Can't copy while a pass is active
 		return
 	}
-
-	// TODO: When wgpu is ready:
-	// core.CommandEncoderCopyTextureToTexture(
-	//     e.encoder,
-	//     &gputypes.ImageCopyTexture{Texture: src.TextureID()},
-	//     &gputypes.ImageCopyTexture{Texture: dst.TextureID()},
-	//     &gputypes.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
-	// )
 
 	_ = src
 	_ = dst
@@ -115,31 +84,20 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst *GPUTexture, width, heigh
 	_ = height
 }
 
-// CopyTextureToBuffer copies a texture to a buffer for readback.
+// CopyTextureToBuffer records a legacy logical readback copy operation.
 func (e *CommandEncoder) CopyTextureToBuffer(src *GPUTexture, dst StubBufferID, bytesPerRow uint32) {
 	if e.hasActivePass {
 		return
 	}
-
-	// TODO: When wgpu is ready:
-	// core.CommandEncoderCopyTextureToBuffer(
-	//     e.encoder,
-	//     &gputypes.ImageCopyTexture{Texture: src.TextureID()},
-	//     &gputypes.ImageCopyBuffer{Buffer: dst, Layout: gputypes.TextureDataLayout{BytesPerRow: bytesPerRow}},
-	//     &gputypes.Extent3D{Width: uint32(src.Width()), Height: uint32(src.Height()), DepthOrArrayLayers: 1},
-	// )
 
 	_ = src
 	_ = dst
 	_ = bytesPerRow
 }
 
-// Finish completes the command encoder and returns the command buffer.
-// The encoder cannot be used after calling Finish.
+// Finish completes the legacy command encoder and returns its logical command
+// buffer marker.
 func (e *CommandEncoder) Finish() StubCommandBufferID {
-	// TODO: When wgpu is ready:
-	// return core.FinishCommandEncoder(e.encoder)
-
 	return StubCommandBufferID(1)
 }
 
@@ -165,42 +123,30 @@ type RenderPass struct {
 	bindGroupSet  bool
 }
 
-// StubRenderPassID is a placeholder for actual wgpu RenderPassID.
+// StubRenderPassID is a legacy logical marker for render-pass tests.
 type StubRenderPassID uint64
 
-// SetPipeline sets the render pipeline for subsequent draw calls.
+// SetPipeline marks a legacy render pipeline as bound.
 func (p *RenderPass) SetPipeline(pipeline StubPipelineID) {
-	// TODO: When wgpu is ready:
-	// core.SetRenderPipeline(p.pass, pipeline)
-
 	_ = pipeline
 	p.pipelineBound = true
 }
 
-// SetBindGroup sets a bind group at the specified index.
+// SetBindGroup marks a legacy bind group as set.
 func (p *RenderPass) SetBindGroup(index uint32, bindGroup StubBindGroupID) {
-	// TODO: When wgpu is ready:
-	// core.SetBindGroup(p.pass, index, bindGroup)
-
 	_ = index
 	_ = bindGroup
 	p.bindGroupSet = true
 }
 
-// SetVertexBuffer sets a vertex buffer at the specified slot.
+// SetVertexBuffer records a legacy vertex buffer binding.
 func (p *RenderPass) SetVertexBuffer(slot uint32, buffer StubBufferID) {
-	// TODO: When wgpu is ready:
-	// core.SetVertexBuffer(p.pass, slot, buffer)
-
 	_ = slot
 	_ = buffer
 }
 
-// SetIndexBuffer sets the index buffer for indexed drawing.
+// SetIndexBuffer records a legacy index buffer binding.
 func (p *RenderPass) SetIndexBuffer(buffer StubBufferID, format IndexFormat) {
-	// TODO: When wgpu is ready:
-	// core.SetIndexBuffer(p.pass, buffer, format)
-
 	_ = buffer
 	_ = format
 }
@@ -215,9 +161,6 @@ func (p *RenderPass) Draw(vertexCount, instanceCount, firstVertex, firstInstance
 		return
 	}
 
-	// TODO: When wgpu is ready:
-	// core.Draw(p.pass, vertexCount, instanceCount, firstVertex, firstInstance)
-
 	_ = vertexCount
 	_ = instanceCount
 	_ = firstVertex
@@ -229,9 +172,6 @@ func (p *RenderPass) DrawIndexed(indexCount, instanceCount, firstIndex uint32, b
 	if !p.pipelineBound {
 		return
 	}
-
-	// TODO: When wgpu is ready:
-	// core.DrawIndexed(p.pass, indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
 
 	_ = indexCount
 	_ = instanceCount
@@ -250,9 +190,6 @@ func (p *RenderPass) DrawFullScreenTriangle() {
 // End finishes the render pass.
 // No more draw calls can be issued after this.
 func (p *RenderPass) End() {
-	// TODO: When wgpu is ready:
-	// core.EndRenderPass(p.pass)
-
 	p.encoder.endPass()
 }
 
@@ -271,23 +208,17 @@ type ComputePass struct {
 	bindGroupSet  bool
 }
 
-// StubComputePassID is a placeholder for actual wgpu ComputePassID.
+// StubComputePassID is a legacy logical marker for compute-pass tests.
 type StubComputePassID uint64
 
-// SetPipeline sets the compute pipeline for subsequent dispatch calls.
+// SetPipeline marks a legacy compute pipeline as bound.
 func (p *ComputePass) SetPipeline(pipeline StubComputePipelineID) {
-	// TODO: When wgpu is ready:
-	// core.SetComputePipeline(p.pass, pipeline)
-
 	_ = pipeline
 	p.pipelineBound = true
 }
 
-// SetBindGroup sets a bind group at the specified index.
+// SetBindGroup marks a legacy compute bind group as set.
 func (p *ComputePass) SetBindGroup(index uint32, bindGroup StubBindGroupID) {
-	// TODO: When wgpu is ready:
-	// core.SetBindGroup(p.pass, index, bindGroup)
-
 	_ = index
 	_ = bindGroup
 	p.bindGroupSet = true
@@ -299,9 +230,6 @@ func (p *ComputePass) DispatchWorkgroups(workgroupCountX, workgroupCountY, workg
 	if !p.pipelineBound {
 		return
 	}
-
-	// TODO: When wgpu is ready:
-	// core.DispatchWorkgroups(p.pass, workgroupCountX, workgroupCountY, workgroupCountZ)
 
 	_ = workgroupCountX
 	_ = workgroupCountY
@@ -321,9 +249,6 @@ func (p *ComputePass) DispatchWorkgroupsForSize(workSize, workgroupSize uint32) 
 
 // End finishes the compute pass.
 func (p *ComputePass) End() {
-	// TODO: When wgpu is ready:
-	// core.EndComputePass(p.pass)
-
 	p.encoder.endPass()
 }
 
@@ -353,60 +278,34 @@ func (b *CommandBuffer) ID() StubCommandBufferID {
 	return b.id
 }
 
-// QueueSubmitter submits command buffers to a GPU queue.
+// QueueSubmitter is a legacy logical queue helper for tests.
 type QueueSubmitter struct {
 	queue *webgpu.Queue
 }
 
-// NewQueueSubmitter creates a new queue submitter.
+// NewQueueSubmitter creates a legacy logical queue helper.
 func NewQueueSubmitter(queue *webgpu.Queue) *QueueSubmitter {
 	return &QueueSubmitter{queue: queue}
 }
 
-// Submit submits command buffers to the queue.
+// Submit records logical command buffer submission.
 func (s *QueueSubmitter) Submit(buffers ...*CommandBuffer) {
 	if len(buffers) == 0 {
 		return
 	}
 
-	// TODO: When wgpu is ready:
-	// ids := make([]core.CommandBufferID, len(buffers))
-	// for i, b := range buffers {
-	//     ids[i] = b.id
-	// }
-	// core.QueueSubmit(s.queue, ids)
-
 	_ = buffers
 }
 
-// WriteBuffer writes data to a GPU buffer.
+// WriteBuffer records a legacy logical buffer write.
 func (s *QueueSubmitter) WriteBuffer(buffer StubBufferID, offset uint64, data []byte) {
-	// TODO: When wgpu is ready:
-	// core.QueueWriteBuffer(s.queue, buffer, offset, data)
-
 	_ = buffer
 	_ = offset
 	_ = data
 }
 
-// WriteTexture writes data to a GPU texture.
+// WriteTexture records a legacy logical texture write.
 func (s *QueueSubmitter) WriteTexture(texture *GPUTexture, data []byte) {
-	// TODO: When wgpu is ready:
-	// core.QueueWriteTexture(
-	//     s.queue,
-	//     &gputypes.ImageCopyTexture{Texture: texture.TextureID()},
-	//     data,
-	//     &gputypes.TextureDataLayout{
-	//         BytesPerRow: uint32(texture.Width() * texture.Format().BytesPerPixel()),
-	//         RowsPerImage: uint32(texture.Height()),
-	//     },
-	//     &gputypes.Extent3D{
-	//         Width: uint32(texture.Width()),
-	//         Height: uint32(texture.Height()),
-	//         DepthOrArrayLayers: 1,
-	//     },
-	// )
-
 	_ = texture
 	_ = data
 }
