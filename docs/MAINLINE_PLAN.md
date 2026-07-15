@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.36 | 日期：2026-07-15  
+> 版本：1.42 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -163,7 +163,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 6 | S3c M3 + S.03 Swapchain/PresentFrame | ✅ **S3c 关闭**（窗口 e2e 需 DISPLAY） |
 | 7 | 能力表 🔄 / M4 GPU 相关 | ✅（仅 R.02 PDF/SVG document ⬜ 旁路） |
 | 8 | P1 复杂 UI 形态 Tier A–U | ✅（形态密度探针，非控件层） |
-| 9 | **阶段 A：任意组合维度 D01–D36** | 🔄 **当前焦点**（高密度已扩；待全量 P1 回归后可关） |
+| 9 | **阶段 A：任意组合维度 D01–D140** | 🔄 **当前焦点**（sigma 至 D140 已绿；关 A 前全量 `TestP1_*` → 后 S4.0） |
 | 10 | **S4 性能** | 📋 已入主线；**A 收口后**从 S4.0 启动 |
 
 ### 阶段 A — 任意组合维度（非 antd 控件清单）
@@ -174,10 +174,10 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 **A 关闭条件**：
 
-- [x] 组合维度文档 + **D01–D36** 探针  
-- [x] `TestP1_Comp_*` 全绿（真 GPU，`cpu_fallback` 主路径为 0）  
-- [x] 覆盖 clip/layer/blend/text/image/transform/HiDPI/mask/mesh/atlas/pathEffect/gradient/pattern/backdrop/damage/filter  
-- [ ] 可选 D37+；关闭 A 前再跑全量 `TestP1_*`（形态 Tier A–U）  
+- [x] 组合维度文档 + **D01–D140** 探针（omega+sigma；**停在 D140**）  
+- [x] `TestP1_Comp_*` 全绿（真 GPU；140 条）  
+- [x] 覆盖 clip(含 Preserve)/layer/blend/text(modes+shape)/image/transform/HiDPI/mask/mesh/atlas/pathEffect/gradient/pattern/backdrop/FrameDamage/PresentFrame/filter/writePixels/external/Resize/multi-context + 更深形态应力  
+- [ ] 关闭 A 前再跑全量 `TestP1_*`（形态 Tier A–U）  
 - [ ] A 关闭后启动 **S4.0 基线**  
 
 **A 之后**：进入 **S4.0 基线**（只测不改），再 S4.1+。
@@ -226,6 +226,12 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.42 | 阶段 A 扩展至 **D01–D140**（omega+sigma）；**停 D140**；关 A 前全量 P1 → S4.0 |
+| 2026-07-15 | 1.41 | 阶段 A 扩展至 **D01–D120** omega 组合；仍焦点 A → 后 S4.0 |
+| 2026-07-15 | 1.40 | 阶段 A 扩展至 **D01–D105** hyper 组合；仍焦点 A → 后 S4.0 |
+| 2026-07-15 | 1.39 | 阶段 A 扩展至 **D01–D90** ultra 组合；仍焦点 A → 后 S4.0 |
+| 2026-07-15 | 1.38 | 阶段 A 扩展至 **D01–D75** mega 组合；仍焦点 A → 后 S4.0 |
+| 2026-07-15 | 1.37 | 阶段 A 扩展至 **D01–D58** 极端组合；仍焦点 A → 后 S4.0 |
 | 2026-07-15 | 1.36 | 阶段 A 扩展 D09–D36 高密度复杂组合；仍焦点 A（近收口）→ 后 S4.0 |
 | 2026-07-15 | 1.35 | **开 S4 入主线**（S4.0–S4.4）；焦点=阶段 A 组合维度 → A 后 S4.0；非控件层 |
 | 2026-07-15 | 1.31 | K.01/Q.02 gates + B.03 ColorBurn/Exclusion + Tier O/P + X11 multi-rect PresentDamage |
