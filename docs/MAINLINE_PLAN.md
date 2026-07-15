@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.52 | 日期：2026-07-15  
+> 版本：1.53 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -156,7 +156,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 ---
 
 
-### S5 — UI 引擎硬化（当前焦点；S4 之后）
+### S5 — UI 引擎硬化（✅ 已关闭）
 
 **进入条件**：S3 能力门禁绿 + 阶段 A 关闭 + **S4.0–S4.4 关闭**。  
 **总目标**：Skia **能画的主路径**在本引擎上不仅“测得过”，还要 **能当复杂 2D / 未来 UI 控件的后端**——窗口 present 稳定、retained/damage 可用、主路径帧预算可验收。  
@@ -228,11 +228,13 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 
 #### S5 关闭条件（总）
 
-- [ ] S5.0–S5.5 文档与对应测试均已产出  
-- [ ] Present-only 基线可复跑；主路径 U01–U04 达预算或书面豁免（豁免须说明为何不阻塞控件）  
-- [ ] P0 控件向 Skia 缺口清零或仅剩已签字后置  
-- [ ] 回归全绿 + `GPUOps>0`  
-- [ ] **仍无控件层代码**；`S5_WIDGET_ENTRY.md` 入口条件已冻结  
+- [x] S5.0–S5.5 文档与对应测试均已产出  
+- [x] Present-only 基线可复跑；主路径 U01–U04 达预算（p50≤16.7ms）  
+- [x] P0 控件向 Skia 缺口清零或仅剩已签字后置（S5.0/S5.4 队列空）  
+- [x] 回归抽样绿 + `GPUOps>0`  
+- [x] **仍无控件层代码**；`S5_WIDGET_ENTRY.md` 入口条件已冻结  
+
+**S5.0–S5.5 已关闭。** 允许开控件层主线（另章）。  
 
 **S5 关闭后**：才允许开 **控件层主线**（类 Ant Design 组件），且控件实现不得绕过 render 能力表另起一套光栅化。
 
@@ -252,7 +254,8 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 | 8 | P1 复杂 UI 形态 Tier A–U | ✅（形态密度探针，非控件层） |
 | 9 | **阶段 A：任意组合维度 D01–D200** | ✅ **已关闭**（chi 至 D200；停扩组合探针） |
 | 10 | **S4 性能** | ✅ **S4.0–S4.4 全线关闭**（见 `docs/S4_*.md`） |
-| 11 | **S5 UI 引擎硬化** | 🔄 **当前焦点** → 先 **S5.0 Skia 控件向对账** |
+| 11 | **S5 UI 引擎硬化** | ✅ **S5.0–S5.5 全线关闭**（见 `docs/S5_*.md`） |
+| 12 | **控件层（可选下一主线）** | ⬜ 入口条件已满足（`S5_WIDGET_ENTRY.md`）；未开工 |
 
 ### 阶段 A — 任意组合维度（非 antd 控件清单）
 
@@ -275,10 +278,10 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 - [x] **S4.4 damage/retained 关闭** → `docs/S4_4_DAMAGE_RETAINED.md`（**S4.x 全线关闭**）  
 
 **A 已关闭**。**S4.0–S4.4 已关闭**。  
-**当前焦点：S5 UI 引擎硬化**（先 S5.0 对账 → S5.1 present 基线）。  
-R.02 / 真 YUV / Skia 绝对 FPS 报表仍后置，不阻塞 S5。
+**A / S4 / S5 已关闭。** 控件层入口条件已满足，**尚未开工**。  
+R.02 / 真 YUV / Skia 绝对 FPS 报表仍后置。
 
-**非目标（仍排除）**：控件层 / Ant Design 组件实现（直至 **S5.5 入口条件**满足）；R.02 可并行旁路。
+**下一步（可选）**：控件层主线（类 Ant Design 组件，必须走 render）；或继续性能/媒体旁路。
 
 ```bash
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
@@ -318,11 +321,12 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 | `docs/S4_2_GLYPH_ATLAS.md` | S4.2 产出（✅ dirty partial upload） |
 | `docs/S4_3_PATH_TEXTURE_CACHE.md` | S4.3 产出（✅ path/stroke/image cache） |
 | `docs/S4_4_DAMAGE_RETAINED.md` | S4.4 产出（✅ damage/retained；**S4.x 关闭**） |
-| `docs/S5_SKIA_UI_GAP.md` | S5.0 产出（控件向 Skia 对账；待写） |
-| `docs/S5_PRESENT_BASELINE.md` | S5.1 产出（present-only 基线；待写） |
-| `docs/S5_FRAME_MODEL.md` | S5.2 产出（retained/damage 帧模型；待写） |
-| `docs/S5_60FPS_GATE.md` | S5.3 产出（主路径 60fps 门禁；待写） |
-| `docs/S5_WIDGET_ENTRY.md` | S5.5 产出（控件层开工条件；待写） |
+| `docs/S5_SKIA_UI_GAP.md` | S5.0 产出（✅ 控件向 Skia 对账） |
+| `docs/S5_PRESENT_BASELINE.md` | S5.1 产出（✅ present-only 基线） |
+| `docs/S5_FRAME_MODEL.md` | S5.2 产出（✅ 帧模型） |
+| `docs/S5_60FPS_GATE.md` | S5.3 产出（✅ 60fps 门禁） |
+| `docs/S5_WIDGET_ENTRY.md` | S5.5 产出（✅ 控件入口；**S5 关闭**） |
+| `docs/S5_4_CAPABILITY_PATCH.md` | S5.4 产出（✅ 无阻塞补丁队列） |
 | `docs/OPTIMIZATION_PLAN.md` | 历史大计划；服从主线 |
 
 ---
@@ -331,6 +335,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.53 | **S5.x 全线关闭**：S5.0–S5.5 文档+TestS5*/S52/S53/S54；U01–U04 present-only p50≤16.7ms；控件入口冻结 |
 | 2026-07-15 | 1.52 | **写入 S5 UI 引擎硬化**：S5.0–S5.5 定义；当前焦点 S5.0；控件层推迟到 S5.5 入口条件 |
 | 2026-07-15 | 1.51 | **S4 收口审计**：产出表补齐 S4_1–S4_4；回归套件复验；确认 S4.x 全线关闭 |
 | 2026-07-15 | 1.50 | **S4.x 全线关闭**：S4.3 path/texture cache + S4.4 damage/retained；文档 `S4_3_*`/`S4_4_*`；B14/B15 retained 基线 |
