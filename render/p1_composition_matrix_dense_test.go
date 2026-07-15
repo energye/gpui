@@ -18,6 +18,7 @@ import (
 func compMinGPU(t *testing.T, dc *render.Context, min int) {
 	t.Helper()
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	stats := dc.RenderPathStats()
 	if stats.GPUOps < min {
 		t.Fatalf("expected GPUOps>=%d: %s", min, stats.LogLine())
@@ -691,6 +692,7 @@ func TestP1_Comp_D22_ShadowBlurDenseScene(t *testing.T) {
 	dc.ApplyBlur(0.8)
 
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	stats := dc.RenderPathStats()
 	t.Logf("D22 stats %s base=%d", stats.LogLine(), base)
 	// Filters should keep GPU activity or at least leave readable structure
@@ -1000,6 +1002,7 @@ func TestP1_Comp_D28_DamageGradientTextImage(t *testing.T) {
 		}
 	}
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 
 	stats := dc.RenderPathStats()
 	if stats.GPUOps <= base {

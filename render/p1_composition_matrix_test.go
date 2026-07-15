@@ -12,6 +12,9 @@ package render_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -30,6 +33,60 @@ func compMakeImage(t *testing.T, w, h int, r, g, b uint8) *render.ImageBuf {
 		}
 	}
 	return img
+}
+
+// compRepoTmpCompDir resolves <repo>/tmp/comp for PNG dumps (cwd may be render/).
+func compRepoTmpCompDir(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	dir := wd
+	for i := 0; i < 8; i++ {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			out := filepath.Join(dir, "tmp", "comp")
+			if err := os.MkdirAll(out, 0o755); err != nil {
+				t.Fatalf("mkdir %s: %v", out, err)
+			}
+			return out
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	out := filepath.Join(wd, "tmp", "comp")
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", out, err)
+	}
+	return out
+}
+
+// compSavePNG writes GPU-flushed context pixels to gpui/tmp/comp/<name>.png.
+func compSavePNG(t *testing.T, dc *render.Context, name string) {
+	t.Helper()
+	path := filepath.Join(compRepoTmpCompDir(t), name+".png")
+	if err := dc.SavePNG(path); err != nil {
+		t.Fatalf("SavePNG %s: %v", path, err)
+	}
+	t.Logf("wrote %s", path)
+}
+
+// compAutoSavePNG dumps PNG named from the test function (Dxx_...).
+func compAutoSavePNG(t *testing.T, dc *render.Context) {
+	t.Helper()
+	name := t.Name()
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	name = strings.TrimPrefix(name, "TestP1_Comp_")
+	name = strings.ReplaceAll(name, "/", "_")
+	if name == "" {
+		name = "unnamed"
+	}
+	compSavePNG(t, dc, name)
 }
 
 // D01: nested ClipRect × semi-transparent PushLayer × text.
@@ -65,6 +122,7 @@ func TestP1_Comp_D01_ClipLayerText(t *testing.T) {
 	dc.PopLayer()
 
 	p1Flush(t, dc)
+	compSavePNG(t, dc, "D01_ClipLayerText")
 
 	// Inside nested clip: yellow-ish over blue through layer opacity → not pure white
 	r, g, b, _ := p1Sample(dc, 160, 100)
@@ -112,6 +170,7 @@ func TestP1_Comp_D02_ClipImageBlend(t *testing.T) {
 	dc.SetBlendMode(render.BlendNormal)
 
 	p1Flush(t, dc)
+	compSavePNG(t, dc, "D02_ClipImageBlend")
 
 	// Center should not be pure red base (image+plus)
 	r, g, b, _ := p1Sample(dc, 100, 80)
@@ -160,6 +219,7 @@ func TestP1_Comp_D03_ClipPathLayerFill(t *testing.T) {
 	dc.PopLayer()
 
 	p1Flush(t, dc)
+	compSavePNG(t, dc, "D03_ClipPathLayerFill")
 
 	// Center inside diamond: green-ish
 	r, g, b, _ := p1Sample(dc, 130, 110)
@@ -210,6 +270,7 @@ func TestP1_Comp_D04_HiDPIHairlineText(t *testing.T) {
 	dc.DrawString("HiDPI hairline×text", 12, 58)
 
 	p1Flush(t, dc)
+	compSavePNG(t, dc, "D04_HiDPIHairlineText")
 
 	// Physical midline rows for hairlines (logical y=20 → phys 40)
 	ink := 0
@@ -268,6 +329,7 @@ func TestP1_Comp_D05_LayerBlendClip(t *testing.T) {
 	dc.PopLayer()
 
 	p1Flush(t, dc)
+	compSavePNG(t, dc, "D05_LayerBlendClip")
 
 	// Inside card
 	r, g, b, _ := p1Sample(dc, 130, 95)
@@ -326,6 +388,7 @@ func TestP1_Comp_D06_ImageTextClipBackdrop(t *testing.T) {
 	dc.PopLayer()
 
 	p1Flush(t, dc)
+	compSavePNG(t, dc, "D06_ImageTextClipBackdrop")
 	stats := dc.RenderPathStats()
 	if stats.GPUOps <= base {
 		t.Fatalf("D06 backdrop should add GPUOps base=%d now=%s", base, stats.LogLine())
@@ -377,6 +440,7 @@ func TestP1_Comp_D07_TransformClipFill(t *testing.T) {
 	dc.Pop()
 
 	p1Flush(t, dc)
+	compSavePNG(t, dc, "D07_TransformClipFill")
 
 	// Transformed red region roughly at device (40+0*1.5, 30) ..
 	r, g, b, _ := p1Sample(dc, 80, 50)
@@ -448,6 +512,7 @@ func TestP1_Comp_D08_MultiRegionRedraw(t *testing.T) {
 	dc.ResetClip()
 
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	stats := dc.RenderPathStats()
 	if stats.GPUOps <= baseOps {
 		t.Fatalf("D08 dirty redraw should increase GPUOps base=%d now=%s", baseOps, stats.LogLine())
@@ -472,5 +537,131 @@ func TestP1_Comp_D08_MultiRegionRedraw(t *testing.T) {
 	r4, g4, b4, _ := p1Sample(dc, 160, 110)
 	if r4 < 200 {
 		t.Fatalf("D08 gap between regions polluted rgba=%d,%d,%d", r4, g4, b4)
+	}
+}
+
+// TestP1_Comp_DimensionAxes_DumpPNG renders a one-shot board of the Phase A
+// dimension axes (docs/P1_COMPOSITION_MATRIX.md) and writes:
+//
+//	tmp/comp/dimension_axes.png
+func TestP1_Comp_DimensionAxes_DumpPNG(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 720, 420
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 14)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+	dc.SetRGB(0.12, 0.13, 0.16)
+	dc.DrawRectangle(0, 0, w, 44)
+	_ = dc.Fill()
+	dc.SetRGB(0.95, 0.96, 0.98)
+	dc.DrawString("Phase A dimension axes — composition matrix", 16, 28)
+
+	axes := []struct {
+		title string
+		draw  func()
+	}{
+		{"clip", func() {
+			dc.ClipRoundRect(0, 0, 140, 90, 12)
+			dc.SetRGB(0.25, 0.55, 0.9)
+			dc.DrawRectangle(0, 0, 200, 120)
+			_ = dc.Fill()
+			dc.ResetClip()
+		}},
+		{"layer", func() {
+			dc.SetRGB(0.3, 0.35, 0.45)
+			dc.DrawRoundedRectangle(10, 10, 100, 60, 8)
+			_ = dc.Fill()
+			dc.PushLayer(render.BlendNormal, 0.55)
+			dc.SetRGB(0.95, 0.75, 0.2)
+			dc.DrawRoundedRectangle(30, 25, 100, 55, 8)
+			_ = dc.Fill()
+			dc.PopLayer()
+		}},
+		{"blend", func() {
+			dc.SetRGB(0.2, 0.6, 0.9)
+			dc.DrawCircle(50, 45, 30)
+			_ = dc.Fill()
+			dc.SetBlendMode(render.BlendMultiply)
+			dc.SetRGB(0.95, 0.4, 0.3)
+			dc.DrawCircle(75, 45, 30)
+			_ = dc.Fill()
+			dc.SetBlendMode(render.BlendNormal)
+		}},
+		{"text", func() {
+			_ = dc.LoadFontFace(font, 16)
+			dc.SetRGB(0.15, 0.16, 0.2)
+			dc.DrawString("Aa 文字", 16, 50)
+			_ = dc.LoadFontFace(font, 12)
+		}},
+		{"image", func() {
+			img := compMakeImage(t, 48, 48, 40, 160, 220)
+			dc.DrawImage(img, 20, 20)
+			dc.DrawImage(img, 55, 35)
+		}},
+		{"transform", func() {
+			dc.Push()
+			dc.Translate(70, 50)
+			dc.Rotate(0.35)
+			dc.SetRGB(0.9, 0.35, 0.4)
+			dc.DrawRoundedRectangle(-40, -20, 80, 40, 6)
+			_ = dc.Fill()
+			dc.Pop()
+		}},
+		{"HiDPI", func() {
+			dc.SetRGB(0.2, 0.25, 0.35)
+			dc.SetLineWidth(0)
+			dc.DrawLine(10, 20, 130, 20)
+			_ = dc.Stroke()
+			dc.DrawLine(10, 40, 130, 40)
+			_ = dc.Stroke()
+			dc.SetRGB(0.9, 0.92, 0.95)
+			dc.DrawString("scale/hairline", 16, 70)
+		}},
+		{"damage", func() {
+			dc.SetRGB(0.85, 0.87, 0.9)
+			dc.DrawRoundedRectangle(8, 8, 124, 74, 8)
+			_ = dc.Fill()
+			dc.ClipRect(20, 20, 50, 40)
+			dc.SetRGB(0.25, 0.55, 0.95)
+			dc.DrawRectangle(0, 0, 200, 120)
+			_ = dc.Fill()
+			dc.ResetClip()
+			dc.ClipRect(70, 35, 50, 40)
+			dc.SetRGB(0.3, 0.75, 0.45)
+			dc.DrawRectangle(0, 0, 200, 120)
+			_ = dc.Fill()
+			dc.ResetClip()
+		}},
+	}
+
+	for i, ax := range axes {
+		col, row := i%4, i/4
+		x, y := 20+float64(col)*175, 60+float64(row)*170
+		// card
+		dc.SetRGB(0.98, 0.98, 1)
+		dc.DrawRoundedRectangle(x, y, 160, 150, 12)
+		_ = dc.Fill()
+		dc.SetRGB(0.2, 0.22, 0.28)
+		dc.DrawString(ax.title, x+12, y+22)
+		// content region
+		dc.Push()
+		dc.Translate(x+10, y+36)
+		ax.draw()
+		dc.Pop()
+	}
+
+	p1Flush(t, dc)
+	compSavePNG(t, dc, "dimension_axes")
+	r, g, b, _ := p1Sample(dc, 40, 20)
+	if r > 80 && g > 80 && b > 80 {
+		// header dark expected
+		r, g, b, _ = p1Sample(dc, 8, 8)
+	}
+	if r > 100 && g > 100 && b > 100 {
+		t.Fatalf("dimension axes header missing rgba=%d,%d,%d", r, g, b)
 	}
 }

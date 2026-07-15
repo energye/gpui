@@ -809,6 +809,7 @@ func TestP1_Comp_D118_RotateMaskBlurShadowStack(t *testing.T) {
 	dc.ApplyDropShadow(3, 4, 6, render.RGBA{R: 0, G: 0, B: 0, A: 0.35})
 	dc.ApplyBlurXY(0.8, 0.3)
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	r, g, b, _ := p1Sample(dc, 180, 130)
 	p1NotNearWhite(t, "D118 card", r, g, b)
 }

@@ -293,6 +293,19 @@ export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
 go test -count=1 ./render -run 'TestP1_Comp_' -timeout 250s
 ```
 
+### PNG 结果落盘
+
+跑 `TestP1_Comp_*` 时，每个探针在 GPU flush 后写出：
+
+- 目录：`tmp/comp/`
+- 维度轴总览：`tmp/comp/dimension_axes.png`（`TestP1_Comp_DimensionAxes_DumpPNG`）
+- 场景探针：`tmp/comp/D001…` 命名为 `Dxx_TestSuffix.png`（D01–D200，共 200 张）
+
+```bash
+go test -count=1 ./render -run 'TestP1_Comp_' -timeout 400s
+ls tmp/comp | wc -l   # 期望 201（200 场景 + dimension_axes）
+```
+
 ## 与后续 S4 的关系
 
 - A 场景将作为 S4.0 **测量输入**（尤其 D05/D06/D08 与既有 P1 压力场景）  

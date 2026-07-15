@@ -114,6 +114,7 @@ func TestP1_Comp_D92_GrayscaleColorMatrixDense(t *testing.T) {
 	dc.ApplyColorMatrix(mat)
 	dc.ApplyGrayscale()
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 
 	// after grayscale, channels should be similar on red card area
 	r, g, b, _ := p1Sample(dc, 60, 50)
@@ -240,6 +241,7 @@ func TestP1_Comp_D94_PresentFrameComplexScene(t *testing.T) {
 	}
 	// also resolve to Image for sampling
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	r, g, b, _ := p1Sample(dc, 40, 90)
 	p1NotNearWhite(t, "D94 card", r, g, b)
 }
@@ -776,6 +778,7 @@ func TestP1_Comp_D103_HybridDamageWritePixelsTexture(t *testing.T) {
 		})
 	}
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	if dc.RenderPathStats().GPUOps <= base {
 		t.Fatalf("D103 expected more GPUOps")
 	}

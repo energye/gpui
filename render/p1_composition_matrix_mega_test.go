@@ -254,6 +254,7 @@ func TestP1_Comp_D63_FrameDamageSingleRectPresent(t *testing.T) {
 		t.Fatalf("PresentFrameDamage: %v", err)
 	}
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	r, g, b, _ := p1Sample(dc, 200, 80)
 	if r < 100 {
 		t.Fatalf("D63 orange panel missing rgba=%d,%d,%d", r, g, b)
@@ -987,6 +988,7 @@ func TestP1_Comp_D74_FilterMaskBlendTextMega(t *testing.T) {
 	}
 	dc.ApplyImageFilterGraph(render.ImageFilterNode{Kind: render.ImageFilterBlur, Radius: 0.5})
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 
 	r, g, b, _ := p1Sample(dc, 60, 50)
 	p1NotNearWhite(t, "D74 image", r, g, b)

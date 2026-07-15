@@ -52,6 +52,7 @@ func TestP1_Comp_D37_FilterGraphColorOpsClip(t *testing.T) {
 	dc.ApplyInvert()
 
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	stats := dc.RenderPathStats()
 	t.Logf("D37 stats %s base=%d", stats.LogLine(), base)
 	// After grayscale+invert, pure white bg becomes black-ish or dark
@@ -291,6 +292,7 @@ func TestP1_Comp_D42_BlurXYShadowGraphDense(t *testing.T) {
 		render.ImageFilterNode{Kind: render.ImageFilterBlurXY, RadiusX: 1.2, RadiusY: 0.4},
 	)
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	r, g, b, _ := p1Sample(dc, 120, 50)
 	p1NotNearWhite(t, "D42 card header after filters", r, g, b)
 }
@@ -411,6 +413,7 @@ func TestP1_Comp_D44_ExternalOpacityDamageRects(t *testing.T) {
 		})
 	}
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	if dc.RenderPathStats().GPUOps <= base {
 		t.Fatalf("D44 expected more GPUOps")
 	}
@@ -521,6 +524,7 @@ func TestP1_Comp_D46_FilterGraphMultiNodeScene(t *testing.T) {
 		render.ImageFilterNode{Kind: render.ImageFilterColorMatrix, Matrix: mat},
 	)
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	r, g, b, _ := p1Sample(dc, 90, 70)
 	p1NotNearWhite(t, "D46 filtered rect", r, g, b)
 	r2, g2, b2, _ := p1Sample(dc, 210, 100)

@@ -741,6 +741,7 @@ func TestP1_Comp_D152_PresentFrameDamageMultiRect(t *testing.T) {
 		t.Fatal("present not called")
 	}
 	p1Flush(t, dc)
+	compAutoSavePNG(t, dc)
 	r, g, b, _ := p1Sample(dc, 50, 60)
 	if r < 100 {
 		t.Fatalf("D152 red damage missing rgba=%d,%d,%d", r, g, b)
