@@ -51,3 +51,12 @@ func init() {
 func SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 	return render.SetAcceleratorDeviceProvider(provider)
 }
+
+// ResetAccelerator closes the current accelerator and registers a fresh SDF
+// accelerator. Used by tests that inject a temporary window device via
+// SetDeviceProvider so later tests are not left holding a released device.
+func ResetAccelerator() error {
+	render.CloseAccelerator()
+	accel := &gpuimpl.SDFAccelerator{}
+	return render.RegisterAccelerator(accel)
+}

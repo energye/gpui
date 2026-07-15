@@ -11,7 +11,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
-	_ "github.com/energye/gpui/render/gpu"
+	rendgpu "github.com/energye/gpui/render/gpu"
 )
 
 // --- S.03 PresentFrame orchestration ---
@@ -93,7 +93,7 @@ func TestS3c_M3_WindowSwapchain_PresentFrame(t *testing.T) {
 		t.Skipf("RequestAdapter: %v", err)
 	}
 	defer adapter.Release()
-	device, err := adapter.RequestDevice(nil)
+	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("s3c-window-present"))
 	if err != nil {
 		t.Skipf("RequestDevice: %v", err)
 	}
@@ -105,6 +105,14 @@ func TestS3c_M3_WindowSwapchain_PresentFrame(t *testing.T) {
 		t.Skipf("Configure: %v", err)
 	}
 	defer sc.Release()
+
+	// Share the window/swapchain device with render GPUShared.
+	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+		Dev: device, Adpt: adapter, Format: sc.Format,
+	}); err != nil {
+		t.Fatalf("SetDeviceProvider: %v", err)
+	}
+	t.Cleanup(func() { _ = rendgpu.ResetAccelerator() })
 
 	frame, err := sc.BeginFrame()
 	if err != nil {

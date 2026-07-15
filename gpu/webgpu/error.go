@@ -92,12 +92,12 @@ func (e *GPUError) Error() string {
 type ErrorFilter int
 
 const (
-	// ErrorFilterValidation captures validation errors.
-	ErrorFilterValidation ErrorFilter = 0
+	// ErrorFilterValidation captures validation errors (WGPUErrorFilter_Validation).
+	ErrorFilterValidation ErrorFilter = 0x00000001
 	// ErrorFilterOutOfMemory captures out-of-memory errors.
-	ErrorFilterOutOfMemory ErrorFilter = 1
+	ErrorFilterOutOfMemory ErrorFilter = 0x00000002
 	// ErrorFilterInternal captures internal errors.
-	ErrorFilterInternal ErrorFilter = 2
+	ErrorFilterInternal ErrorFilter = 0x00000003
 )
 
 // String returns a human-readable name for the error filter.

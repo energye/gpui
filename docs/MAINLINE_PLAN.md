@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.11 | 日期：2026-07-15  
+> 版本：1.12 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -152,7 +152,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 5 | S3b M2 UI 级 2D | ✅ **S3b 关闭** |
 | 6 | S3c M3 + S.03 Swapchain/PresentFrame | ✅ **S3c 关闭**（窗口 e2e 需 DISPLAY） |
 
-S0–S3c 已关闭（含 M3 residual + Swapchain/PresentFrame）。窗口 e2e 依赖 DISPLAY；F.03 / 完整 K.01 后置。下一步：复杂 UI 场景矩阵或 S4 性能。
+S0–S3c 已关闭。S.03 真窗口 **draw+present** 已在 X11 验证（须 SetDeviceProvider 同 device）。下一步：复杂 UI 场景矩阵或能力表 🔄 收口。
 
 ```bash
 go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
@@ -194,6 +194,7 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.12 | S.03 真窗口 draw+present：SetDeviceProvider 同 device + DeviceDescriptor limits；X11 multi-frame e2e |
 | 2026-07-15 | 1.11 | S.03 Swapchain + PresentFrame + CreateSurface 空句柄防护；窗口 e2e（X11） |
 | 2026-07-15 | 1.10 | S3c M3 residual 清零：B.04/C.06/H.04/I.04/I.07/X.08–X.10 门禁 |
 | 2026-07-15 | 1.9 | S3c 关闭：V.01 DrawVertices + V.02 DrawAtlas GPU 门禁；窗口 Present 后置 |

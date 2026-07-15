@@ -422,12 +422,22 @@ func extractTextureView(view gpucontext.TextureView) *webgpu.TextureView {
 // Also avoids Mesa 23.2.1 lavapipe MSAA resolve regression for offscreen textures.
 func (s *GPURenderSession) colorAttachment(targetView *webgpu.TextureView, loadOp types.LoadOp) webgpu.RenderPassColorAttachment {
 	if s.sampleCount > 1 && s.textures.msaaView != nil {
+		// Guard against invalid resolve wiring (same view/texture as MSAA color).
+		if targetView == nil || targetView == s.textures.msaaView {
+			return webgpu.RenderPassColorAttachment{
+				View:       s.textures.msaaView,
+				LoadOp:     loadOp,
+				StoreOp:    types.StoreOpStore,
+				ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
+			}
+		}
 		return webgpu.RenderPassColorAttachment{
 			View:          s.textures.msaaView,
 			ResolveTarget: targetView,
 			LoadOp:        loadOp,
-			StoreOp:       types.StoreOpStore,
-			ClearValue:    types.Color{R: 0, G: 0, B: 0, A: 0},
+			// Multisampled content is not needed after resolve (ADR-021).
+			StoreOp:    types.StoreOpDiscard,
+			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 		}
 	}
 	return webgpu.RenderPassColorAttachment{

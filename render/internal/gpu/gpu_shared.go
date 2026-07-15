@@ -5,6 +5,8 @@ package gpu
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -234,8 +236,15 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	s.queue = wgpuQueue
 	s.externalDevice = true
 
-	// Probe MSAA support (Skia Graphite pattern: try 4x, fallback to 1x).
-	s.sampleCount = resolveSampleCount(s.device)
+	// External/window devices: avoid MSAA probe CreateTexture (can abort via
+	// uncaptured OOM on software backends after long suites). Prefer prior
+	// sampleCount when set; otherwise default to 4. Callers that need lower
+	// memory can set GPUI_SURFACE_SAMPLE_COUNT=1 before SetDeviceProvider.
+	if sc := os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"); sc == "1" {
+		s.sampleCount = 1
+	} else if s.sampleCount == 0 {
+		s.sampleCount = 4
+	}
 
 	// Auto-detect rendering strategy (Skia PathRendererStrategy pattern).
 	s.strategy = s.detectStrategy()

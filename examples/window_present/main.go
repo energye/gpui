@@ -1,0 +1,216 @@
+//go:build linux && !nogpu
+
+// Window present demo (S.03): X11 window → webgpu Swapchain → render.PresentFrame.
+//
+//	export DISPLAY=:1
+//	export WGPU_NATIVE_PATH=/path/to/libwgpu_native.so
+//	go run ./examples/window_present
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"time"
+	"unsafe"
+
+	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/gpu/types"
+	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/render"
+	rendgpu "github.com/energye/gpui/render/gpu"
+)
+
+func main() {
+	if os.Getenv("WGPU_NATIVE_PATH") == "" {
+		// Prefer in-repo native lib when unset.
+		if _, err := os.Stat("lib/libwgpu_native.so"); err == nil {
+			_ = os.Setenv("WGPU_NATIVE_PATH", "lib/libwgpu_native.so")
+		}
+	}
+
+	const (
+		winW   = 480
+		winH   = 320
+		frames = 90 // ~1.5s at 60fps-ish sleep
+	)
+
+	xw, err := openX11Window(winW, winH, "gpui window present (S.03)")
+	if err != nil {
+		log.Fatalf("X11: %v", err)
+	}
+	defer xw.Close()
+	log.Printf("X11 window mapped display=%#x window=%#x", xw.Display, xw.Window)
+
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	if err != nil {
+		log.Fatalf("CreateInstance: %v", err)
+	}
+	defer inst.Release()
+
+	surf, err := inst.CreateSurface(xw.Display, xw.Window)
+	if err != nil {
+		log.Fatalf("CreateSurface: %v", err)
+	}
+	defer surf.Release()
+
+	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
+		CompatibleSurface: surf,
+	})
+	if err != nil {
+		log.Fatalf("RequestAdapter: %v", err)
+	}
+	defer adapter.Release()
+
+	// Must match GPUI render limits (Vello needs max_storage_buffers >= 9).
+	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("window_present"))
+	if err != nil {
+		log.Fatalf("RequestDevice: %v", err)
+	}
+	defer device.Release()
+
+	sc := webgpu.NewSwapchain(surf, device, winW, winH)
+	sc.Usage = types.TextureUsageRenderAttachment
+	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
+		log.Fatalf("Configure: %v", err)
+	}
+	defer sc.Release()
+
+	// CRITICAL: render must use the SAME device that owns the swapchain.
+	// GPUShared otherwise creates a second device; MSAA resolve into a
+	// foreign surface texture fails native validation.
+	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+		Dev: device, Adpt: adapter, Format: sc.Format,
+	}); err != nil {
+		log.Fatalf("SetDeviceProvider: %v", err)
+	}
+
+	dc := render.NewContext(winW, winH)
+	defer dc.Close()
+
+	for i := 0; i < frames; i++ {
+		// Animated clear + shapes
+		t := float64(i) / float64(frames)
+		dc.ClearWithColor(render.RGBA{R: 0.08, G: 0.10, B: 0.14, A: 1})
+		dc.SetRGB(0.2+0.6*t, 0.5, 1.0-0.4*t)
+		dc.DrawRoundedRectangle(40+20*t, 40, 200, 120, 16)
+		_ = dc.Fill()
+		dc.SetRGB(1, 0.4, 0.2)
+		dc.DrawCircle(320, 160, 48+12*t)
+		_ = dc.Fill()
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRectangle(20, 250, 440*(0.2+0.8*t), 12)
+		_ = dc.Fill()
+
+		frame, err := sc.BeginFrame()
+		if err != nil {
+			log.Fatalf("BeginFrame: %v", err)
+		}
+		if err := dc.PresentFrame(frame.Handle, frame.Width, frame.Height, func() error {
+			return sc.EndFrame(frame)
+		}); err != nil {
+			sc.DiscardFrame(frame)
+			log.Fatalf("PresentFrame: %v", err)
+		}
+		// Keep window responsive / visible
+		xw.Flush()
+		time.Sleep(16 * time.Millisecond)
+	}
+
+	stats := dc.RenderPathStats()
+	fmt.Printf("done frames=%d %s\n", frames, stats.LogLine())
+}
+
+type x11Win struct {
+	lib     uintptr
+	Display uintptr
+	Window  uintptr
+	closeF  func()
+	flushF  func()
+}
+
+func (w *x11Win) Close() {
+	if w != nil && w.closeF != nil {
+		w.closeF()
+	}
+}
+
+func (w *x11Win) Flush() {
+	if w != nil && w.flushF != nil {
+		w.flushF()
+	}
+}
+
+func openX11Window(w, h int, title string) (*x11Win, error) {
+	lib, err := purego.Dlopen("libX11.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	if err != nil {
+		lib, err = purego.Dlopen("libX11.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("dlopen libX11: %w", err)
+	}
+
+	var (
+		xOpenDisplay   func(name *byte) uintptr
+		xCloseDisplay  func(dpy uintptr) int
+		xDefaultScreen func(dpy uintptr) int
+		xRootWindow    func(dpy uintptr, screen int) uintptr
+		xCreateSimple  func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
+		xMapWindow     func(dpy uintptr, win uintptr) int
+		xFlush         func(dpy uintptr) int
+		xDestroyWindow func(dpy uintptr, win uintptr) int
+		xStoreName     func(dpy uintptr, win uintptr, name *byte) int
+		xSelectInput   func(dpy uintptr, win uintptr, mask int64) int
+	)
+	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
+	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
+	purego.RegisterLibFunc(&xDefaultScreen, lib, "XDefaultScreen")
+	purego.RegisterLibFunc(&xRootWindow, lib, "XRootWindow")
+	purego.RegisterLibFunc(&xCreateSimple, lib, "XCreateSimpleWindow")
+	purego.RegisterLibFunc(&xMapWindow, lib, "XMapWindow")
+	purego.RegisterLibFunc(&xFlush, lib, "XFlush")
+	purego.RegisterLibFunc(&xDestroyWindow, lib, "XDestroyWindow")
+	purego.RegisterLibFunc(&xStoreName, lib, "XStoreName")
+	purego.RegisterLibFunc(&xSelectInput, lib, "XSelectInput")
+
+	dpy := xOpenDisplay(nil)
+	if dpy == 0 {
+		_ = purego.Dlclose(lib)
+		return nil, fmt.Errorf("XOpenDisplay failed (DISPLAY=%q)", os.Getenv("DISPLAY"))
+	}
+	screen := xDefaultScreen(dpy)
+	root := xRootWindow(dpy, screen)
+	// black background
+	win := xCreateSimple(dpy, root, 80, 80, uint(w), uint(h), 1, 0, 0)
+	if win == 0 {
+		xCloseDisplay(dpy)
+		_ = purego.Dlclose(lib)
+		return nil, fmt.Errorf("XCreateSimpleWindow failed")
+	}
+	name := append([]byte(title), 0)
+	xStoreName(dpy, win, &name[0])
+	// StructureNotifyMask | ExposureMask
+	const structureNotify = 1 << 17
+	const exposureMask = 1 << 15
+	xSelectInput(dpy, win, structureNotify|exposureMask)
+	xMapWindow(dpy, win)
+	xFlush(dpy)
+	// Give the WM a moment to map
+	time.Sleep(50 * time.Millisecond)
+
+	return &x11Win{
+		lib:     lib,
+		Display: dpy,
+		Window:  win,
+		flushF:  func() { xFlush(dpy) },
+		closeF: func() {
+			xDestroyWindow(dpy, win)
+			xCloseDisplay(dpy)
+			_ = purego.Dlclose(lib)
+		},
+	}, nil
+}
+
+// keep unsafe import for purego pointer patterns if needed later
+var _ = unsafe.Sizeof(0)

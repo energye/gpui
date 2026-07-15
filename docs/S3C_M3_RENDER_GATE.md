@@ -71,3 +71,23 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
 | 2026-07-15 | 0.3 | M3 residual 清零 |
 | 2026-07-15 | 0.2 | V.01/V.02 |
 | 2026-07-15 | 0.1 | filter/present 首切片 |
+
+## S.03 设备共享硬规则（2026-07-15）
+
+窗口 Present **必须**与 `render` 使用同一 WebGPU device：
+
+1. `adapter.RequestDevice(rendgpu.DeviceDescriptor(...))` — limits 满足 Vello（`max_storage_buffers_per_shader_stage >= 9`）
+2. `rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{Dev, Adpt, Format})` — 注入 GPUShared
+3. 再 `PresentFrame(frame.Handle, ...)`
+
+双 device（swapchain 一套、GPUShared 另起一套）会导致 MSAA resolve 到 surface 在 native 校验失败（`session_msaa_color_view already attached` 类错误）。
+
+验证：
+
+```bash
+export DISPLAY=:1
+export WGPU_NATIVE_PATH=.../lib/libwgpu_native.so
+go run ./examples/window_present
+# Real X11 draw+present gate (opt-in tag: software backends may OOM in long suites)
+go test -tags gpui_x11_present -count=1 ./render -run 'TestS3c_M3_WindowPresentFrame_X11Draw' -v
+```

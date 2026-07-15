@@ -66,7 +66,7 @@ func (e *GPUError) Error() string { return e.Message }
 type ErrorFilter int
 
 const (
-	ErrorFilterValidation  ErrorFilter = 0
-	ErrorFilterOutOfMemory ErrorFilter = 1
-	ErrorFilterInternal    ErrorFilter = 2
+	ErrorFilterValidation  ErrorFilter = 0x00000001
+	ErrorFilterOutOfMemory ErrorFilter = 0x00000002
+	ErrorFilterInternal    ErrorFilter = 0x00000003
 )
