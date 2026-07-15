@@ -137,16 +137,15 @@ func detectedShapeToPath(shape render.DetectedShape) *render.Path {
 }
 
 // fillAdvancedBlendAsImage composites a solid (or brush) path using advanced
-// blend modes (Multiply/Screen/Overlay) against the current destination in
-// target.Data, then uploads the result as a GPU textured quad (real GPUOps).
+// blend modes (Multiply/Screen/Overlay) via true GPU dual-texture sampling:
 //
-// Flow (Skia-style "resolve dest, blend, upload"):
 //  1. Flush pending GPU so target.Data holds current destination pixels.
-//  2. Software-fill onto a working pixmap copy with the advanced blend mode.
-//  3. Upload the path bounds region and QueueImageDraw (SourceOver blit).
+//  2. Software-rasterize the *source only* (transparent dest, SourceOver) for coverage/AA.
+//  3. GPU dual-tex pass samples dest region + src coverage and evaluates blend on GPU.
+//  4. QueueImageDraw uploads the GPU-composited premul result (SourceOver blit of final pixels).
 //
-// AA edge pixels may not be bit-exact under the subsequent readback SO pass;
-// gates sample opaque interiors.
+// This is dual-texture fragment blend (not CPU composite of dest*src). AA edge
+// pixels may not be bit-exact under the subsequent SO blit; gates sample interiors.
 func (rc *GPURenderContext) fillAdvancedBlendAsImage(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	if path == nil || path.NumVerbs() == 0 || paint == nil {
 		return nil
@@ -191,35 +190,69 @@ func (rc *GPURenderContext) fillAdvancedBlendAsImage(target render.GPURenderTarg
 		return render.ErrFallbackToCPU
 	}
 
-	// Working copy of full destination for correct advanced blend sampling.
-	work := render.NewPixmap(tw, th)
-	copy(work.Data(), target.Data[:tw*th*4])
+	// Source-only raster: transparent dest + SourceOver keeps advanced blend for the GPU pass.
+	srcPM := render.NewPixmap(tw, th)
+	srcPM.Clear(render.Transparent)
 	sr := render.NewSoftwareRenderer(tw, th)
 	sr.SetAntiAlias(rc.antiAlias)
-	if err := sr.Fill(work, path, paint); err != nil {
+	srcPaint := paint.Clone()
+	srcPaint.BlendMode = render.BlendNormal
+	if err := sr.Fill(srcPM, path, srcPaint); err != nil {
 		return render.ErrFallbackToCPU
 	}
-	work.NotifyPixelsChanged()
+	srcPM.NotifyPixelsChanged()
 
-	src := work.Data()
+	// Extract dest + src tight regions.
+	dstFull := target.Data
+	srcFull := srcPM.Data()
 	stride := tw * 4
-	pixelData := make([]byte, bw*bh*4)
+	dstRegion := make([]byte, bw*bh*4)
+	srcRegion := make([]byte, bw*bh*4)
 	for row := 0; row < bh; row++ {
 		srcOff := (bounds.Min.Y+row)*stride + bounds.Min.X*4
 		dstOff := row * bw * 4
-		copy(pixelData[dstOff:dstOff+bw*4], src[srcOff:srcOff+bw*4])
+		copy(dstRegion[dstOff:dstOff+bw*4], dstFull[srcOff:srcOff+bw*4])
+		copy(srcRegion[dstOff:dstOff+bw*4], srcFull[srcOff:srcOff+bw*4])
 	}
 
-	// Skip fully transparent upload.
+	// Skip fully transparent source.
 	any := false
-	for i := 3; i < len(pixelData); i += 4 {
-		if pixelData[i] != 0 {
+	for i := 3; i < len(srcRegion); i += 4 {
+		if srcRegion[i] != 0 {
 			any = true
 			break
 		}
 	}
 	if !any {
 		return nil
+	}
+
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	queue := rc.shared.queue
+	cache := &rc.shared.dualTexBlend
+	rc.shared.mu.Unlock()
+	if device == nil || queue == nil {
+		return render.ErrFallbackToCPU
+	}
+
+	pixelData, err := dualTexAdvancedBlend(device, queue, cache, dstRegion, srcRegion, bw, bh, paint.BlendMode)
+	if err != nil {
+		// Fall back to legacy CPU composite path on dual-tex failure.
+		work := render.NewPixmap(tw, th)
+		copy(work.Data(), target.Data[:tw*th*4])
+		sr2 := render.NewSoftwareRenderer(tw, th)
+		sr2.SetAntiAlias(rc.antiAlias)
+		if err2 := sr2.Fill(work, path, paint); err2 != nil {
+			return render.ErrFallbackToCPU
+		}
+		work.NotifyPixelsChanged()
+		pixelData = make([]byte, bw*bh*4)
+		for row := 0; row < bh; row++ {
+			srcOff := (bounds.Min.Y+row)*stride + bounds.Min.X*4
+			dstOff := row * bw * 4
+			copy(pixelData[dstOff:dstOff+bw*4], work.Data()[srcOff:srcOff+bw*4])
+		}
 	}
 
 	x0 := float32(bounds.Min.X)
@@ -229,7 +262,7 @@ func (rc *GPURenderContext) fillAdvancedBlendAsImage(target render.GPURenderTarg
 	vpW := uint32(tw) //nolint:gosec
 	vpH := uint32(th) //nolint:gosec
 
-	rc.QueueImageDraw(target, pixelData, work.GenerationID(), bw, bh, bw*4,
+	rc.QueueImageDraw(target, pixelData, srcPM.GenerationID(), bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
@@ -240,10 +273,15 @@ func (rc *GPURenderContext) fillAdvancedBlendAsImage(target render.GPURenderTarg
 	return nil
 }
 
-// fillMaskedAsImage stages a software fill with paint.MaskCoverage applied, then
-// blits the premul result as a GPU textured quad (L.06 bootstrap). Native R8 mask
-// sampling in the path shader remains a follow-up; this still produces GPUOps and
-// correct masked pixels on the render→webgpu→rwgpu chain.
+// fillMaskedAsImage applies an alpha mask via true R8 GPU sampling (L.06):
+//
+//  1. Software-rasterize the shape without mask (geometry + AA coverage only).
+//  2. Build an R8 mask plane from paint.MaskCoverage over path bounds.
+//  3. GPU fragment shader samples src RGBA + R8 mask and multiplies (premul).
+//  4. QueueImageDraw blits the GPU-modulated result (real GPUOps on chain).
+//
+// Mask application is no longer baked only on the CPU; the R8 texture is
+// sampled in a WGSL shader on the render→webgpu→rwgpu→native path.
 func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	if path == nil || path.NumVerbs() == 0 || paint == nil || paint.MaskCoverage == nil {
 		return nil
@@ -283,35 +321,71 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 		return render.ErrFallbackToCPU
 	}
 
+	// Source-only raster: geometry coverage without mask bake.
 	pm := render.NewPixmap(tw, th)
 	pm.Clear(render.Transparent)
 	sr := render.NewSoftwareRenderer(tw, th)
 	sr.SetAntiAlias(rc.antiAlias)
 	local := paint.Clone()
-	// Keep MaskCoverage; force SourceOver for staging.
 	local.BlendMode = render.BlendNormal
+	local.MaskCoverage = nil
 	if err := sr.Fill(pm, path, local); err != nil {
 		return render.ErrFallbackToCPU
 	}
 	pm.NotifyPixelsChanged()
 
-	src := pm.Data()
+	srcFull := pm.Data()
 	stride := tw * 4
-	pixelData := make([]byte, bw*bh*4)
-	for row := 0; row < bh; row++ {
-		srcOff := (bounds.Min.Y+row)*stride + bounds.Min.X*4
-		dstOff := row * bw * 4
-		copy(pixelData[dstOff:dstOff+bw*4], src[srcOff:srcOff+bw*4])
-	}
+	srcRegion := make([]byte, bw*bh*4)
+	maskRegion := make([]byte, bw*bh)
+	maskFn := paint.MaskCoverage
 	any := false
-	for i := 3; i < len(pixelData); i += 4 {
-		if pixelData[i] != 0 {
-			any = true
-			break
+	for row := 0; row < bh; row++ {
+		py := bounds.Min.Y + row
+		srcOff := py*stride + bounds.Min.X*4
+		dstOff := row * bw * 4
+		copy(srcRegion[dstOff:dstOff+bw*4], srcFull[srcOff:srcOff+bw*4])
+		for col := 0; col < bw; col++ {
+			px := bounds.Min.X + col
+			m := maskFn(px, py)
+			maskRegion[row*bw+col] = m
+			if srcRegion[dstOff+col*4+3] != 0 && m != 0 {
+				any = true
+			}
 		}
 	}
 	if !any {
 		return nil
+	}
+
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	queue := rc.shared.queue
+	cache := &rc.shared.maskR8
+	rc.shared.mu.Unlock()
+	if device == nil || queue == nil {
+		return render.ErrFallbackToCPU
+	}
+
+	pixelData, err := maskR8Modulate(device, queue, cache, srcRegion, maskRegion, bw, bh)
+	if err != nil {
+		// Fallback: CPU bake mask then blit (legacy bootstrap).
+		pm2 := render.NewPixmap(tw, th)
+		pm2.Clear(render.Transparent)
+		sr2 := render.NewSoftwareRenderer(tw, th)
+		sr2.SetAntiAlias(rc.antiAlias)
+		local2 := paint.Clone()
+		local2.BlendMode = render.BlendNormal
+		if err2 := sr2.Fill(pm2, path, local2); err2 != nil {
+			return render.ErrFallbackToCPU
+		}
+		pm2.NotifyPixelsChanged()
+		pixelData = make([]byte, bw*bh*4)
+		for row := 0; row < bh; row++ {
+			srcOff := (bounds.Min.Y+row)*stride + bounds.Min.X*4
+			dstOff := row * bw * 4
+			copy(pixelData[dstOff:dstOff+bw*4], pm2.Data()[srcOff:srcOff+bw*4])
+		}
 	}
 
 	x0 := float32(bounds.Min.X)

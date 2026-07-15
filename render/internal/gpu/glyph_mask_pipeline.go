@@ -378,9 +378,13 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 	switch {
 	case useDepthClip:
 		drawAll(p.pipelineWithDepthClip)
-	case resources.isLCD && p.lcdPipelineDarken != nil:
-		// Per-channel LCD (white-dest composite + Replace). See glyph_mask_lcd.wgsl.
+	case resources.isLCD && p.lcdPipelineDarken != nil && p.lcdPipelineAdd != nil:
+		// Two-pass LCD ClearType (no dual-source blend required):
+		// 1) darken: out = dst * (1 - cov_rgb)
+		// 2) add:    out = dst + color * cov_rgb
+		// Works on arbitrary destinations (not just white).
 		drawAll(p.lcdPipelineDarken)
+		drawAll(p.lcdPipelineAdd)
 	case resources.isLCD && p.lcdPipelineWithStencil != nil:
 		drawAll(p.lcdPipelineWithStencil)
 	default:
@@ -468,22 +472,34 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 	p.lcdPipeLayout = lcdPipeLayout
 	p.lcdPipeLayoutHasClip = hasClip
 
-	// LCD Replace blend: fragment already composites against white.
-	lcdBlend := types.BlendState{
+	// Two-pass LCD blends (Skia/DirectWrite ClearType without dual-source).
+	darkenBlend := types.BlendState{
+		Color: types.BlendComponent{
+			SrcFactor: types.BlendFactorZero,
+			DstFactor: types.BlendFactorOneMinusSrc,
+			Operation: types.BlendOperationAdd,
+		},
+		Alpha: types.BlendComponent{
+			SrcFactor: types.BlendFactorZero,
+			DstFactor: types.BlendFactorOneMinusSrc,
+			Operation: types.BlendOperationAdd,
+		},
+	}
+	addBlend := types.BlendState{
 		Color: types.BlendComponent{
 			SrcFactor: types.BlendFactorOne,
-			DstFactor: types.BlendFactorZero,
+			DstFactor: types.BlendFactorOne,
 			Operation: types.BlendOperationAdd,
 		},
 		Alpha: types.BlendComponent{
 			SrcFactor: types.BlendFactorOne,
-			DstFactor: types.BlendFactorZero,
+			DstFactor: types.BlendFactorOne,
 			Operation: types.BlendOperationAdd,
 		},
 	}
-	darkenBlend := lcdBlend
 
 	mkLCD := func(label, entry string, blend types.BlendState) (*webgpu.RenderPipeline, error) {
+		b := blend
 		return p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
 			Label:  label,
 			Layout: p.lcdPipeLayout,
@@ -498,7 +514,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 				Targets: []types.ColorTargetState{
 					{
 						Format:    types.TextureFormatBGRA8Unorm,
-						Blend:     &blend,
+						Blend:     &b,
 						WriteMask: types.ColorWriteMaskAll,
 					},
 				},
@@ -509,13 +525,18 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 		})
 	}
 
-	lcdPipe, err := mkLCD("glyph_mask_lcd", "fs_lcd", darkenBlend)
+	darkenPipe, err := mkLCD("glyph_mask_lcd_darken", "fs_darken", darkenBlend)
 	if err != nil {
-		return fmt.Errorf("create glyph mask LCD pipeline: %w", err)
+		return fmt.Errorf("create glyph mask LCD darken pipeline: %w", err)
 	}
-	p.lcdPipelineDarken = lcdPipe
-	p.lcdPipelineAdd = lcdPipe
-	p.lcdPipelineWithStencil = lcdPipe
+	addPipe, err := mkLCD("glyph_mask_lcd_add", "fs_add", addBlend)
+	if err != nil {
+		darkenPipe.Release()
+		return fmt.Errorf("create glyph mask LCD add pipeline: %w", err)
+	}
+	p.lcdPipelineDarken = darkenPipe
+	p.lcdPipelineAdd = addPipe
+	p.lcdPipelineWithStencil = addPipe
 	return nil
 }
 
@@ -556,17 +577,22 @@ func (p *GlyphMaskPipeline) destroyLCDPipeline() {
 	if p.device == nil {
 		return
 	}
-	// darken/add/withStencil may alias the same pipeline handle.
-	if p.lcdPipelineDarken != nil {
-		p.lcdPipelineDarken.Release()
-	} else if p.lcdPipelineAdd != nil {
-		p.lcdPipelineAdd.Release()
-	} else if p.lcdPipelineWithStencil != nil {
-		p.lcdPipelineWithStencil.Release()
-	}
+	// darken and add are distinct pipelines; withStencil may alias add.
+	darken := p.lcdPipelineDarken
+	add := p.lcdPipelineAdd
+	stencil := p.lcdPipelineWithStencil
 	p.lcdPipelineDarken = nil
 	p.lcdPipelineAdd = nil
 	p.lcdPipelineWithStencil = nil
+	if darken != nil {
+		darken.Release()
+	}
+	if add != nil && add != darken {
+		add.Release()
+	}
+	if stencil != nil && stencil != darken && stencil != add {
+		stencil.Release()
+	}
 	if p.lcdPipeLayout != nil {
 		p.lcdPipeLayout.Release()
 		p.lcdPipeLayout = nil

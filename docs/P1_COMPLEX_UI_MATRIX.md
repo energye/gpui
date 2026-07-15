@@ -1,6 +1,6 @@
 # P1 — 复杂 UI 场景矩阵门禁
 
-> 版本：1.5 | 日期：2026-07-15  
+> 版本：1.6 | 日期：2026-07-15  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) / 能力表 [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > **非控件层**：场景只模拟 Ant Design 级 UI 的绘制形态。
@@ -43,6 +43,13 @@
 | C1 | Nested modal + form + menu | `TestP1_C1_NestedModalFormMenu` | ✅ |
 | C2 | Table scroll + FAB overlay | `TestP1_C2_TableScrollOverlayDensity` | ✅ |
 
+## Tier D（Ant 布局密度）
+
+| ID | 场景 | 门禁 | 状态 |
+|----|------|------|------|
+| D1 | Drawer + tree + select | `TestP1_D1_DrawerTreeSelectDensity` | ✅ |
+| D2 | Tabs + badge + popconfirm | `TestP1_D2_TabsBadgePopconfirmDensity` | ✅ |
+
 ## 能力表同步收口
 
 | ID | 能力 | 门禁 |
@@ -59,6 +66,11 @@
 | D.05 | ImagePattern GPU | `TestP1_Capability_D05_*` |
 | D.06 | Pattern local matrix | `TestP1_Capability_D06_*` |
 | G.06 | RRect XY radii | `TestP1_Capability_G06_RRectXYRadiiGPU` |
+| L.06 | R8 mask GPU modulate | `TestP1_Capability_L06_*` |
+| P.05/P.06 | Stroke cap/join pixels | `TestP1_Capability_P05_*` / `P06_*` |
+| B.05 | Premul pipeline | `TestP1_Capability_B05_PremulPipelineGPU` |
+| X.05 | LCD two-pass | `TestP1_Capability_X05_*` |
+| B.03 | dual-tex Multiply/Screen | `TestP1_Capability_B03_*` |
 
 ## 命令
 
@@ -72,8 +84,8 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 
 ## 仍 open（下一切片）
 
-- B.03 真 fragment shader 双纹理 blend（当前 resolve+CPU composite+GPU blit）  
-- X.05 非白 dest dual-source LCD  
-- L.06 真 R8 mask texture in path shader（当前 staging bootstrap）  
-- X.11 atlas 管理精修；B.05 premul 全路径精修  
+- L.06 path/SDF 内联 R8 sample（当前独立 R8 modulate pass，非 cover 管线内嵌）  
+- B.05 全路径（image/text/layer）premul 一致性继续加压  
+- 更多 Ant 级密度场景（DatePicker 面板、Transfer、虚拟列表）  
+- M4 后置质量项  
 

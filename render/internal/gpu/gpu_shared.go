@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	
+
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -96,6 +96,10 @@ type GPUShared struct {
 
 	// Texture pool for per-context MSAA/stencil textures (Flutter RenderTargetCache pattern).
 	texturePool *TexturePool
+
+	// Dual-texture advanced blend (B.03 Multiply/Screen/Overlay) pipeline cache.
+	dualTexBlend dualTexBlendCache
+	maskR8       maskR8Cache
 
 	// CPU SDF fallback accelerator.
 	cpuFallback render.SDFAccelerator
@@ -330,6 +334,8 @@ func (s *GPUShared) Close() {
 	}
 	if s.texturePool != nil {
 		s.texturePool.DestroyAll()
+		s.dualTexBlend.release()
+		s.maskR8.release()
 	}
 	s.destroyPipelinesLocked()
 	if !s.externalDevice {

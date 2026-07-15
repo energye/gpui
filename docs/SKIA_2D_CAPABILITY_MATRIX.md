@@ -73,8 +73,8 @@
 | P.02 | Style Fill/Stroke/StrokeAndFill | `setStyle` | 几何生成 | N/A | N/A | ✅ | M1 |
 | P.03 | Stroke width | `setStrokeWidth` | 展平/SDF | N/A | N/A | ✅ | M1 |
 | P.04 | Hairline（设备 1px） | width=0 语义 | 像素对齐 stroke | N/A | N/A | ✅/🔄 门禁 `TestS3a_M1_Hairline` | M1 |
-| P.05 | Cap Butt/Round/Square | `setStrokeCap` | 几何 | N/A | N/A | ✅/🔄 | M1 |
-| P.06 | Join Miter/Round/Bevel | `setStrokeJoin` | 几何 | N/A | N/A | ✅/🔄 | M1 |
+| P.05 | Cap Butt/Round/Square | `setStrokeCap` | 几何 | N/A | N/A | ✅ GPU pixels `TestP1_Capability_P05_StrokeCapsGPU` | M1 |
+| P.06 | Join Miter/Round/Bevel | `setStrokeJoin` | 几何 | N/A | N/A | ✅ GPU pixels `TestP1_Capability_P06_StrokeJoinsGPU` | M1 |
 | P.07 | Miter limit | `setStrokeMiter` | 几何 | N/A | N/A | ✅ `TestS3b_M2_MiterLimit` | M2 |
 | P.08 | Anti-alias 开关 | `setAntiAlias` | MSAA 或 coverage AA | 🔄 MSAA | 🔄 | ✅ SetAntiAlias | M1 |
 | P.09 | Dither（可选） | `setDither` | shader | N/A | N/A | ⬜ | M4 |
@@ -85,9 +85,9 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | B.01 | SrcOver（默认） | `kSrcOver` | BlendState premul | ✅ enum | ✅ | ✅ `TestP12GPUFixedPixel_SourceOverPremul` | M1 |
 | B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | ✅ enum+factors | ✅ BlendState | ✅ GPU fixed PD: Clear/Copy/Plus/SrcOver/DstOut/SrcAtop/Xor/DstOver/SrcIn/SrcOut/DstIn/DstAtop `TestP12GPUFixedPixel_Blend*` | M2 |
-| B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 shader | 🔄 | ✅ GPU：dest resolve + composite + textured blit `TestP1_Capability_B03_*`；HSL 仍 CPU | M2 |
+| B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 shader | 🔄 | ✅ GPU dual-tex fragment blend（src coverage + dest sample）`TestP1_Capability_B03_*`；HSL 仍 CPU | M2 |
 | B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | ✅ BlendHue/Sat/Color/Lum `TestS3c_M3_Blend*` | M3 |
-| B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | 🔄 premul solid+fixed blend 测试增强；全路径仍可精修 | M1 |
+| B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | ✅ solid+image premul SO `TestP1_Capability_B05`（layer/text 可再加压） | M1 |
 | B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | ✅ SetRGBA alpha GPU `TestP1_Capability_B06_PaintAlpha`（预乘路径仍可精修） | M1 |
 | B.07 | Plus/Modulate 等 | `kPlus`… | blend/shader | ✅ Plus factors | ✅ | ✅ GPU Plus `TestP12GPUFixedPixel_BlendPlus`；Modulate 仍后置 | M2 |
 
@@ -134,7 +134,7 @@
 | L.03 | Layer opacity | saveLayer alpha | premul composite | 🔄 | 🔄 | ✅ 层 GPU 内容+CPU composite `TestS3b` | M2 |
 | L.04 | Layer blend mode | saveLayer blend | blend/shader | 🔄 | 🔄 | ✅ Multiply/Screen 层 `TestS3b` | M2 |
 | L.05 | Layer + backdrop（可选） | backdrop filter | 采样背景 | ⬜ | ⬜ | ⬜ | M4 |
-| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 | 🔄 | ✅ SetMask + GPU staging blit `TestP1_Capability_L06`（真 R8 shader 后置） | M2 |
+| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 | 🔄 | ✅ SetMask + **R8 GPU modulate shader** `TestP1_Capability_L06_*`（path cover 内联 sample 可再加深） | M2 |
 
 ### 1.9 Shader / Gradient / Pattern
 
@@ -168,7 +168,7 @@
 | X.02 | DrawString baseline | `drawString` | glyph atlas tex | 🔄 R8 atlas | 🔄 | ✅ GPU `TestS3b_M2_DrawString` | M2 |
 | X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | ✅ OwnShaper GSUB/GPOS + DrawShapedGlyphs GPU `TestP1_Capability_X03` | M2 |
 | X.04 | Subpixel positioning | subpixel | atlas/frac | N/A | N/A | ✅ 1/4 px glyph mask frac GPU `TestP1_Capability_X04` | M2 |
-| X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | 🔄 | 🔄 | ✅ LCD RGB GPU fringe `TestP1_Capability_X05`（白底 composite；非白 dest 后置 dual-source） | M2 |
+| X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | 🔄 | 🔄 | ✅ LCD two-pass darken+add（白底+彩底）`TestP1_Capability_X05` / `X05_LCDTextOnColoredDestGPU` | M2 |
 | X.06 | CJK / fallback 字体 | fallback | 同 text | N/A | N/A | ✅ MultiFace Runs + GPU glyph mask `TestP1_Capability_X06` | M2 |
 | X.07 | 路径化文本 | text → path | path 管线 | N/A | N/A | ✅ outline | M2 |
 | X.08 | 文本装饰 underline 等 | decorations | 几何 | N/A | N/A | ✅ SetTextDecoration `TestS3c_M3_TextUnderline` | M3 |
@@ -347,6 +347,8 @@
 | 2026-07-15 | 1.8 | P1：T.03 non-uniform stroke、X.06 MultiFace GPU、X.11 atlas |
 | 2026-07-15 | 1.7 | P1：X.03/X.04/Q.03/L.06 GPU 门禁（shape/subpixel/snap/mask staging） |
 | 2026-07-15 | 1.6 | P1：B.02 全 PD fixed GPU + D.04–D.06 pattern/tile/localMatrix GPU 门禁；Tier C 复杂 UI |
+| 2026-07-15 | 1.20 | L.06 R8 modulate + P.05/P.06 + B.05 + Tier D 复杂 UI |
+| 2026-07-15 | 1.19 | X.05 彩底 two-pass LCD + B.03 dual-tex GPU 合成 |
 | 2026-07-15 | 1.5 | P1 closers：I.03 Nearest/Linear、C.05 clip AA、X.05 LCD GPU 门禁 |
 | 2026-07-15 | 1.4 | S3a 关闭：M0–M1 GPU 门禁 |
 | 2026-07-15 | 1.3 | S2 关闭：webgpu facade |

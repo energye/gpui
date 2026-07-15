@@ -905,6 +905,87 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 	return rc.QueueShape(target, shape, paint, true)
 }
 
+// ensureLCDDestBase uploads the current CPU pixmap as a GPU base layer so
+// two-pass LCD ClearType can blend against real destination colors.
+// encodeSubmitReadbackGrouped always LoadOpClears the offscreen RT, so LCD
+// must re-seed dest from the pixmap (ClearWithColor / prior readback) each
+// flush when no other baseLayer is set.
+// Returns a release func for the temporary texture/view (call after Flush render).
+func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, hasLCD bool) func() {
+	if !hasLCD || rc.baseLayer != nil {
+		return nil
+	}
+	tw, th := target.Width, target.Height
+	if tw <= 0 || th <= 0 || len(target.Data) < tw*th*4 {
+		return nil
+	}
+	device := rc.shared.Device()
+	queue := rc.shared.Queue()
+	if device == nil || queue == nil {
+		return nil
+	}
+	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		Label: "lcd_dest_base",
+		Size: webgpu.Extent3D{
+			Width: uint32(tw), Height: uint32(th), DepthOrArrayLayers: 1, //nolint:gosec
+		},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatRGBA8Unorm,
+		Usage:         types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return nil
+	}
+	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		Label:         "lcd_dest_base_view",
+		Format:        types.TextureFormatRGBA8Unorm,
+		Dimension:     types.TextureViewDimension2D,
+		Aspect:        types.TextureAspectAll,
+		MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Release()
+		return nil
+	}
+	// Align pitch for multi-row WriteTexture.
+	tight := uint32(tw * 4) //nolint:gosec
+	aligned := alignTextureBytesPerRow(tight)
+	upload := target.Data[:tw*th*4]
+	if aligned != tight && th > 1 {
+		padded := make([]byte, int(aligned)*th)
+		for y := 0; y < th; y++ {
+			copy(padded[y*int(aligned):y*int(aligned)+tw*4], upload[y*tw*4:(y+1)*tw*4])
+		}
+		upload = padded
+	}
+	if err := queue.WriteTexture(
+		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		upload,
+		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(th)},        //nolint:gosec
+		&webgpu.Extent3D{Width: uint32(tw), Height: uint32(th), DepthOrArrayLayers: 1}, //nolint:gosec
+	); err != nil {
+		view.Release()
+		tex.Release()
+		return nil
+	}
+	rc.baseLayer = &GPUTextureDrawCommand{
+		View:           gpucontext.NewTextureView(unsafe.Pointer(view)), //nolint:gosec
+		DstX:           0,
+		DstY:           0,
+		DstW:           float32(tw),
+		DstH:           float32(th),
+		Opacity:        1,
+		ViewportWidth:  uint32(tw), //nolint:gosec
+		ViewportHeight: uint32(th), //nolint:gosec
+	}
+	return func() {
+		view.Release()
+		tex.Release()
+	}
+}
+
 // Flush dispatches all pending commands for this context via the render session.
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
 	pending := rc.PendingCount()
@@ -1057,6 +1138,21 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 				rc.session.SetGlyphMaskAtlasView(i, view, batch.IsLCD)
 			}
 		}
+	}
+
+	// Two-pass LCD needs real destination colors on the GPU. On the first
+	// frame LoadOpClear is transparent; upload the CPU pixmap (ClearWithColor
+	// background) as base layer so darken+add samples correct dest.
+	hasLCDBatch := false
+	for i := range allGlyphMaskBatches {
+		if allGlyphMaskBatches[i].IsLCD {
+			hasLCDBatch = true
+			break
+		}
+	}
+	lcdDestRelease := rc.ensureLCDDestBase(target, hasLCDBatch)
+	if lcdDestRelease != nil {
+		defer lcdDestRelease()
 	}
 
 	baseLayer := rc.baseLayer

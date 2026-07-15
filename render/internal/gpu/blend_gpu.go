@@ -18,8 +18,8 @@ func paintSupportsGPUFixedBlend(paint *render.Paint) bool {
 }
 
 // paintSupportsGPUAdvancedBlend reports separable advanced modes that need
-// destination sampling. These use fillAdvancedBlendAsImage (CPU composite of
-// the shape against current pixmap dest, then GPU textured blit).
+// destination sampling. These use fillAdvancedBlendAsImage (GPU dual-texture
+// Multiply/Screen/Overlay: source-only raster + dual-tex fragment blend + blit).
 func paintSupportsGPUAdvancedBlend(paint *render.Paint) bool {
 	if paint == nil {
 		return false

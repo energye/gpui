@@ -154,9 +154,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 S0–S3c 已关闭。S.03 真窗口 draw+present 已通。
 
-**本轮（P1 推进）**：T.03 non-uniform stroke、X.06 MultiFace GPU、X.11 atlas、X.03/X.04/Q.03/L.06、B.02、D.04–D.06、Tier A/B/C 已绿。仍 open：真 dual-texture B.03、X.05 dual-source LCD、L.06 真 R8 shader 等。
+**本轮（P1 推进）**：T.03 non-uniform stroke、X.06 MultiFace GPU、X.11 atlas、X.03/X.04/Q.03/L.06、B.02、D.04–D.06、Tier A/B/C 已绿。已收：X.05、B.03 dual-tex、L.06 R8 modulate、P.05/P.06、B.05 solid+image、Tier D。仍 open：L.06 cover 内联 R8、B.05 layer/text 加压、更多 Ant 密度、M4。
 
-下一步：能力表剩余 🔄（真 B.03、X.05 dual-source、更多 M3/M4…）与 Ant 级绘制密度回归。
+下一步：能力表剩余质量 🔄 + 更复杂 UI 密度回归。
 
 ```bash
 go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
@@ -199,6 +199,8 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.20 | L.06 R8 modulate + P.05/P.06/B.05 + Tier D |
+| 2026-07-15 | 1.19 | X.05 彩底 two-pass LCD + B.03 dual-tex 合成 |
 | 2026-07-15 | 1.18 | T.03/X.06/X.11 GPU 门禁 |
 | 2026-07-15 | 1.17 | X.03/X.04/Q.03/L.06 GPU 门禁 |
 | 2026-07-15 | 1.16 | B.02 全 PD + D.04–D.06 GPU 门禁；P1 Tier C 复杂 UI |

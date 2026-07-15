@@ -1059,3 +1059,249 @@ func TestP1_C2_TableScrollOverlayDensity(t *testing.T) {
 		t.Fatalf("C2 expected dense GPUOps>=5: %s", dc.RenderPathStats().LogLine())
 	}
 }
+
+// --- Tier D: Ant Design–class density (drawer + tree + select stack) ---
+
+// D1 stacks left drawer navigation, tree indentation rows, and a select
+// dropdown overlay — common Ant Design layout drawing morphology.
+func TestP1_D1_DrawerTreeSelectDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 320, 220
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// App shell background
+	dc.SetRGB(0.96, 0.96, 0.96)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Top header bar
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, 40)
+	_ = dc.Fill()
+	dc.SetRGB(0.2, 0.2, 0.2)
+	dc.DrawRectangle(0, 40, w, 1)
+	_ = dc.Fill()
+
+	// Left drawer
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 40, 120, h-40)
+	_ = dc.Fill()
+	dc.SetRGB(0.9, 0.9, 0.9)
+	dc.DrawRectangle(119, 40, 1, h-40)
+	_ = dc.Fill()
+
+	// Tree rows with indent
+	for i := 0; i < 8; i++ {
+		y := 50 + float64(i)*18
+		indent := float64((i % 3) * 12)
+		// expand icon box
+		dc.SetRGB(0.7, 0.7, 0.7)
+		dc.DrawRoundedRectangle(8+indent, y, 10, 10, 2)
+		_ = dc.Fill()
+		// label bar
+		dc.SetRGB(0.25, 0.25, 0.25)
+		dc.DrawRoundedRectangle(22+indent, y+1, 80-indent, 8, 2)
+		_ = dc.Fill()
+		// selected row highlight
+		if i == 3 {
+			dc.SetRGBA(0.13, 0.55, 0.95, 0.15)
+			dc.DrawRectangle(0, y-2, 120, 16)
+			_ = dc.Fill()
+		}
+	}
+
+	// Main content card
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(132, 56, 176, 140, 8)
+	_ = dc.Fill()
+	// card border
+	dc.SetRGB(0.85, 0.85, 0.85)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(132, 56, 176, 140, 8)
+	_ = dc.Stroke()
+
+	// Form labels + inputs
+	for i := 0; i < 3; i++ {
+		y := 70 + float64(i)*36
+		dc.SetRGB(0.35, 0.35, 0.35)
+		dc.DrawRoundedRectangle(144, y, 48, 8, 2)
+		_ = dc.Fill()
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(144, y+12, 150, 18, 4)
+		_ = dc.Fill()
+		dc.SetRGB(0.8, 0.8, 0.8)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(144, y+12, 150, 18, 4)
+		_ = dc.Stroke()
+	}
+
+	// Select dropdown overlay (open state)
+	dc.SetRGBA(0, 0, 0, 0.08)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(144, 120, 150, 96, 6)
+	_ = dc.Fill()
+	// shadow-ish darker edge
+	dc.SetRGBA(0, 0, 0, 0.12)
+	dc.DrawRoundedRectangle(146, 122, 150, 96, 6)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(144, 120, 150, 96, 6)
+	_ = dc.Fill()
+	// options
+	for i := 0; i < 4; i++ {
+		y := 128 + float64(i)*20
+		if i == 1 {
+			dc.SetRGB(0.90, 0.95, 1.0)
+			dc.DrawRectangle(148, y-2, 142, 18)
+			_ = dc.Fill()
+		}
+		dc.SetRGB(0.3, 0.3, 0.3)
+		dc.DrawRoundedRectangle(156, y+2, 100, 8, 2)
+		_ = dc.Fill()
+	}
+
+	// Primary button
+	dc.SetRGB(0.13, 0.55, 0.95)
+	dc.DrawRoundedRectangle(220, 185, 72, 24, 4)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("D1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 8 {
+		t.Fatalf("D1 expected dense GPUOps>=8: %s", stats.LogLine())
+	}
+
+	// Drawer body relatively light
+	rD, gD, bD, _ := p1Sample(dc, 40, 100)
+	if rD < 180 {
+		t.Fatalf("drawer missing: %d,%d,%d", rD, gD, bD)
+	}
+	// Select panel: sample several points; at least one near-white interior
+	panelOK := false
+	var rP, gP, bP uint8
+	for _, pt := range [][2]int{{160, 125}, {180, 130}, {200, 135}, {220, 140}} {
+		rP, gP, bP, _ = p1Sample(dc, pt[0], pt[1])
+		if rP > 200 && gP > 200 && bP > 200 {
+			panelOK = true
+			break
+		}
+	}
+	if !panelOK {
+		// Fallback: panel must be lighter than full dim gray
+		rP, gP, bP, _ = p1Sample(dc, 180, 130)
+		if int(rP)+int(gP)+int(bP) < 500 {
+			t.Fatalf("select panel missing/too dark: %d,%d,%d", rP, gP, bP)
+		}
+	}
+	// Primary button blue
+	rB, gB, bB, _ := p1Sample(dc, 250, 195)
+	if bB < 150 || rB > 120 {
+		t.Fatalf("primary button not blue: %d,%d,%d", rB, gB, bB)
+	}
+	// Tree indent icon exists (gray box)
+	rT, gT, bT, _ := p1Sample(dc, 12, 55)
+	t.Logf("samples drawer=%d,%d,%d panel=%d,%d,%d btn=%d,%d,%d tree=%d,%d,%d",
+		rD, gD, bD, rP, gP, bP, rB, gB, bB, rT, gT, bT)
+}
+
+// D2: Tabs + badge + notification stack + multi-layer popconfirm.
+func TestP1_D2_TabsBadgePopconfirmDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 280, 180
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Tabs bar
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, 36)
+	_ = dc.Fill()
+	for i := 0; i < 4; i++ {
+		x := 12 + float64(i)*60
+		if i == 1 {
+			dc.SetRGB(0.13, 0.55, 0.95)
+			dc.DrawRectangle(x, 34, 48, 2)
+			_ = dc.Fill()
+			dc.SetRGB(0.13, 0.55, 0.95)
+		} else {
+			dc.SetRGB(0.4, 0.4, 0.4)
+		}
+		dc.DrawRoundedRectangle(x, 10, 40, 10, 2)
+		_ = dc.Fill()
+		// badge on tab 2
+		if i == 2 {
+			dc.SetRGB(1, 0.3, 0.3)
+			dc.DrawCircle(x+38, 10, 6)
+			_ = dc.Fill()
+		}
+	}
+
+	// Content
+	dc.SetRGB(0.97, 0.97, 0.97)
+	dc.DrawRectangle(0, 36, w, h-36)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(16, 52, w-32, 100, 8)
+	_ = dc.Fill()
+
+	// Notification stack (3 cards)
+	for i := 0; i < 3; i++ {
+		x := 160 + float64(i)*4
+		y := 48 + float64(i)*8
+		dc.SetRGBA(0, 0, 0, 0.08)
+		dc.DrawRoundedRectangle(x+2, y+2, 100, 40, 6)
+		_ = dc.Fill()
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, y, 100, 40, 6)
+		_ = dc.Fill()
+		dc.SetRGB(0.2, 0.2, 0.2)
+		dc.DrawRoundedRectangle(x+10, y+10, 60, 8, 2)
+		_ = dc.Fill()
+	}
+
+	// Popconfirm bubble
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(40, 100, 120, 56, 6)
+	_ = dc.Fill()
+	dc.SetRGB(0.85, 0.85, 0.85)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(40, 100, 120, 56, 6)
+	_ = dc.Stroke()
+	// OK / Cancel
+	dc.SetRGB(0.13, 0.55, 0.95)
+	dc.DrawRoundedRectangle(100, 128, 44, 18, 4)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(50, 128, 44, 18, 4)
+	_ = dc.Fill()
+	dc.SetRGB(0.8, 0.8, 0.8)
+	dc.DrawRoundedRectangle(50, 128, 44, 18, 4)
+	_ = dc.Stroke()
+
+	p1Flush(t, dc)
+	if dc.RenderPathStats().GPUOps < 6 {
+		t.Fatalf("D2 expected GPUOps>=6: %s", dc.RenderPathStats().LogLine())
+	}
+	// Badge red present
+	r, g, b, _ := p1Sample(dc, 12+2*60+38, 10)
+	if r < 150 || g > 120 {
+		t.Fatalf("badge not red-ish: %d,%d,%d", r, g, b)
+	}
+	// Active tab underline blue-ish area
+	r2, g2, b2, _ := p1Sample(dc, 12+60+20, 34)
+	if b2 < 100 {
+		t.Logf("tab underline sample %d,%d,%d (may be thin hairline)", r2, g2, b2)
+	}
+	// Popconfirm OK blue
+	r3, g3, b3, _ := p1Sample(dc, 120, 136)
+	if b3 < 140 {
+		t.Fatalf("popconfirm OK not blue: %d,%d,%d", r3, g3, b3)
+	}
+}

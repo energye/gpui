@@ -76,33 +76,47 @@ fn sample_lcd_cov(uv: vec2<f32>) -> vec3<f32> {
     return vec3<f32>(cov_r, cov_g, cov_b);
 }
 
-fn lcd_composite(uv: vec2<f32>, frag_pos: vec2<f32>) -> vec4<f32> {
+// Coverage vector for LCD (scaled by paint alpha + clip).
+fn lcd_cov(uv: vec2<f32>, frag_pos: vec2<f32>) -> vec3<f32> {
     let clip_cov = rrect_clip_coverage(frag_pos);
-    let cov = sample_lcd_cov(uv) * uniforms.color.a * clip_cov;
+    return sample_lcd_cov(uv) * uniforms.color.a * clip_cov;
+}
+
+// White-destination Replace path (legacy/fast for light UIs).
+fn lcd_composite_white_dest(uv: vec2<f32>, frag_pos: vec2<f32>) -> vec4<f32> {
+    let cov = lcd_cov(uv, frag_pos);
     let color = uniforms.color;
-    // White-destination per-channel LCD: out = color*cov + (1-cov)
     let out_rgb = color.rgb * cov + (vec3<f32>(1.0, 1.0, 1.0) - cov);
     let a_max = max(cov.r, max(cov.g, cov.b));
     return vec4<f32>(out_rgb, max(a_max, max(out_rgb.r, max(out_rgb.g, out_rgb.b))));
 }
 
-// Primary LCD entry (Replace blend).
-@fragment
-fn fs_lcd(in: VertexOutput) -> @location(0) vec4<f32> {
-    return lcd_composite(in.tex_coord, in.position.xy);
-}
-
+// Pass 1: emit coverage as src color for blend dst * (1 - src)
+// Blend: SrcFactor=Zero, DstFactor=OneMinusSrc  → out = dst * (1 - cov)
 @fragment
 fn fs_darken(in: VertexOutput) -> @location(0) vec4<f32> {
-    return lcd_composite(in.tex_coord, in.position.xy);
+    let cov = lcd_cov(in.tex_coord, in.position.xy);
+    let a = max(cov.r, max(cov.g, cov.b));
+    return vec4<f32>(cov, a);
 }
 
+// Pass 2: emit color*cov for additive blend
+// Blend: SrcFactor=One, DstFactor=One → out = dst + color*cov
 @fragment
 fn fs_add(in: VertexOutput) -> @location(0) vec4<f32> {
-    return lcd_composite(in.tex_coord, in.position.xy);
+    let cov = lcd_cov(in.tex_coord, in.position.xy);
+    let color = uniforms.color;
+    let a = max(cov.r, max(cov.g, cov.b));
+    return vec4<f32>(color.rgb * cov, a);
+}
+
+// Optional single-pass white-dest (Replace). Not used when two-pass is active.
+@fragment
+fn fs_lcd(in: VertexOutput) -> @location(0) vec4<f32> {
+    return lcd_composite_white_dest(in.tex_coord, in.position.xy);
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return lcd_composite(in.tex_coord, in.position.xy);
+    return lcd_composite_white_dest(in.tex_coord, in.position.xy);
 }

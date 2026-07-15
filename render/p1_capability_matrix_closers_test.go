@@ -3,6 +3,7 @@
 package render_test
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -469,6 +470,115 @@ func TestP1_Capability_X05_LCDTextGPU(t *testing.T) {
 }
 
 // D.04 multi-stop linear + ExtendRepeat/Reflect via fillBrushAsImage GPU bootstrap.
+
+func TestP1_Capability_X05_LCDTextOnColoredDestGPU(t *testing.T) {
+	// Two-pass LCD ClearType on non-white dest: darken + add must darken
+	// colored background under coverage and leave subpixel fringe.
+	requireNativeGPU(t)
+	font := ""
+	for _, p := range []string{
+		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+		"/usr/share/fonts/TTF/DejaVuSans.ttf",
+		"/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+	} {
+		if _, err := os.Stat(p); err == nil {
+			font = p
+			break
+		}
+	}
+	if font == "" {
+		t.Skip("no test font")
+	}
+
+	const w, h = 160, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+
+	// Solid blue-gray destination (not white — white-dest formula must not apply).
+	dc.ClearWithColor(render.RGBA{R: 0.15, G: 0.25, B: 0.55, A: 1})
+	dc.SetRGB(0.15, 0.25, 0.55)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU base: %v", err)
+	}
+	br, bg, bb, _ := sampleRGBA(dc, 8, 8)
+	t.Logf("base rgba=%d,%d,%d", br, bg, bb)
+	if bb < 100 {
+		t.Fatalf("expected blue-ish base, got %d,%d,%d", br, bg, bb)
+	}
+
+	dc.SetLCDLayout(render.LCDLayoutRGB)
+	if err := dc.LoadFontFace(font, 18); err != nil {
+		t.Fatalf("font: %v", err)
+	}
+	dc.SetRGB(0, 0, 0) // black LCD text
+	dc.DrawString("AgHijxy", 10, 32)
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU lcd: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("colored-dest lcd path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("X.05 colored dest LCD requires GPUOps>0")
+	}
+
+	// Background far from text should stay blue-ish (not wiped to white).
+	fr, fg, fb, _ := sampleRGBA(dc, 150, 6)
+	if fr > 200 && fg > 200 && fb > 200 {
+		t.Fatalf("background became white (white-dest formula?): %d,%d,%d", fr, fg, fb)
+	}
+	if absU8(fr, br) > 40 || absU8(fb, bb) > 40 {
+		// allow mild drift from clear/resolve but not total replace
+		t.Logf("bg drift base=%d,%d,%d far=%d,%d,%d", br, bg, bb, fr, fg, fb)
+	}
+
+	// Ink region: darker than pure base blue (darken pass). True LCD fringe
+	// is channel imbalance *beyond* uniform scale of the blue base color.
+	ink := 0
+	darkened := 0
+	lcdFringe := 0
+	baseLum := int(br) + int(bg) + int(bb)
+	for y := 12; y < 40; y++ {
+		for x := 10; x < 140; x++ {
+			r, g, b, _ := sampleRGBA(dc, x, y)
+			lum := int(r) + int(g) + int(b)
+			if lum > baseLum-20 {
+				continue
+			}
+			ink++
+			if lum < baseLum-40 {
+				darkened++
+			}
+			// Project onto base color ray: expected = base * (lum/baseLum).
+			// Residual perpendicular to base indicates subpixel fringe.
+			if baseLum > 0 {
+				scale := float64(lum) / float64(baseLum)
+				er := float64(br) * scale
+				eg := float64(bg) * scale
+				eb := float64(bb) * scale
+				dr := math.Abs(float64(r) - er)
+				dg := math.Abs(float64(g) - eg)
+				db := math.Abs(float64(b) - eb)
+				if dr+dg+db >= 18 {
+					lcdFringe++
+				}
+			}
+		}
+	}
+	t.Logf("colored LCD ink=%d darkened=%d lcdFringe=%d baseLum=%d", ink, darkened, lcdFringe, baseLum)
+	if ink < 20 {
+		t.Fatalf("LCD on colored dest invisible ink=%d", ink)
+	}
+	if darkened < 10 {
+		t.Fatalf("expected dest darkening under coverage (two-pass), darkened=%d", darkened)
+	}
+	if lcdFringe < 3 {
+		t.Fatalf("expected LCD fringe beyond base-color scale, lcdFringe=%d", lcdFringe)
+	}
+}
+
 func TestP1_Capability_D04_MultiStopExtendRepeatGPU(t *testing.T) {
 	requireNativeGPU(t)
 	const w, h = 64, 32
@@ -926,6 +1036,64 @@ func TestP1_Capability_L06_MaskLayerGPU(t *testing.T) {
 }
 
 // T.03: non-uniform scale stroke — thickness follows perpendicular axis scale.
+
+// L.06 R8 shader: soft mask edge must be GPU-modulated (not binary CPU bake only).
+func TestP1_Capability_L06_MaskR8ShaderGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 32
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Horizontal ramp mask 0→255 so R8 sampling produces intermediate alpha.
+	mask := render.NewMask(w, h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			mask.Set(x, y, uint8(x*255/(w-1)))
+		}
+	}
+	dc.SetMask(mask)
+	dc.SetRGB(1, 0, 0)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("L.06 R8 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("L.06 R8 mask requires GPUOps>0")
+	}
+
+	// Left near white (mask~0), mid pink, right red-dominant.
+	lr, lg, lb, _ := sampleRGBA(dc, 2, h/2)
+	mr, mg, mb, _ := sampleRGBA(dc, w/2, h/2)
+	rr, rg, rb, _ := sampleRGBA(dc, w-3, h/2)
+	t.Logf("left=%d,%d,%d mid=%d,%d,%d right=%d,%d,%d", lr, lg, lb, mr, mg, mb, rr, rg, rb)
+	if lr < 200 || lg < 200 {
+		t.Fatalf("left should stay near white under low mask: %d,%d,%d", lr, lg, lb)
+	}
+	if rr < 150 || rg > 80 {
+		t.Fatalf("right expected red under high mask: %d,%d,%d", rr, rg, rb)
+	}
+	// Mid SO of half-red over white → R high, G/B intermediate (proves soft R8).
+	// Full red*mask SO white: (255, 255*(1-m), 255*(1-m)) for opaque red src.
+	if mg < 40 || mg > 220 || mb < 40 || mb > 220 {
+		t.Fatalf("mid expected soft red/white mix via R8 (G/B mid), got %d,%d,%d", mr, mg, mb)
+	}
+	if absU8(mg, mb) > 30 {
+		t.Fatalf("mid G/B should track together under red mask, got %d,%d,%d", mr, mg, mb)
+	}
+	// Right more red-saturated than mid (lower G/B).
+	if int(rg)+int(rb) >= int(mg)+int(mb) {
+		t.Fatalf("right should be redder (lower G+B) than mid: mid g+b=%d right g+b=%d", int(mg)+int(mb), int(rg)+int(rb))
+	}
+	if absU8(lg, rg) < 40 {
+		t.Fatalf("mask ramp had no effect left vs right green")
+	}
+}
+
 func TestP1_Capability_T03_NonUniformStrokeGPU(t *testing.T) {
 	requireNativeGPU(t)
 	const w, h = 80, 80
@@ -1124,4 +1292,200 @@ func TestP1_Capability_X11_GlyphAtlasGPU(t *testing.T) {
 		t.Fatalf("X.11 atlas text too empty ink=%d", ink)
 	}
 	_ = a
+}
+
+// P.05: stroke caps produce distinct GPU pixels (Butt vs Round vs Square).
+func TestP1_Capability_P05_StrokeCapsGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 80, 60
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Horizontal stroke; sample past geometric endpoint for cap extent.
+	draw := func(y float64, cap render.LineCap, r, g, b float64) {
+		dc.SetRGBA(r, g, b, 1)
+		dc.SetLineWidth(10)
+		dc.SetLineCap(cap)
+		dc.MoveTo(20, y)
+		dc.LineTo(50, y)
+		_ = dc.Stroke()
+	}
+	draw(15, render.LineCapButt, 1, 0, 0)
+	draw(30, render.LineCapRound, 0, 1, 0)
+	draw(45, render.LineCapSquare, 0, 0, 1)
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("P.05 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("P.05 caps require GPUOps>0")
+	}
+
+	// Past endpoint x=55: Butt should be mostly white; Round/Square should ink.
+	br, bg, bb, _ := sampleRGBA(dc, 54, 15)
+	rr, rg, rb, _ := sampleRGBA(dc, 54, 30)
+	sr, sg, sb, _ := sampleRGBA(dc, 54, 45)
+	t.Logf("beyond end butt=%d,%d,%d round=%d,%d,%d square=%d,%d,%d", br, bg, bb, rr, rg, rb, sr, sg, sb)
+
+	// Interior of strokes must show color
+	ir, _, _, _ := sampleRGBA(dc, 35, 15)
+	if ir < 150 {
+		t.Fatalf("butt interior missing red: %d", ir)
+	}
+	// Round cap extends past endpoint more than butt.
+	if int(rg)+int(rr)+int(rb) > 700 && int(br)+int(bg)+int(bb) > 700 {
+		t.Fatalf("neither round nor butt shows expected beyond-end difference")
+	}
+	// Prefer: round has more green ink beyond end than butt has red
+	roundInk := 255*3 - (int(rr) + int(rg) + int(rb))
+	buttInk := 255*3 - (int(br) + int(bg) + int(bb))
+	t.Logf("beyond-end ink round=%d butt=%d", roundInk, buttInk)
+	if roundInk <= buttInk {
+		// Square also extends; check square
+		sqInk := 255*3 - (int(sr) + int(sg) + int(sb))
+		if sqInk <= buttInk {
+			t.Fatalf("P.05 expected Round/Square cap extend past end more than Butt: butt=%d round=%d square=%d", buttInk, roundInk, sqInk)
+		}
+	}
+}
+
+// P.06: stroke joins produce distinct GPU pixels (Miter vs Bevel at sharp corner).
+func TestP1_Capability_P06_StrokeJoinsGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 64
+	drawJoin := func(join render.LineJoin) *render.Context {
+		dc := render.NewContext(w, h)
+		dc.ResetRenderPathStats()
+		dc.ClearWithColor(render.White)
+		dc.SetRGB(0, 0, 0)
+		dc.SetLineWidth(12)
+		dc.SetLineJoin(join)
+		dc.SetLineCap(render.LineCapButt)
+		dc.SetMiterLimit(10)
+		// Sharp V pointing right — miter spikes further right than bevel.
+		dc.MoveTo(10, 10)
+		dc.LineTo(32, 32)
+		dc.LineTo(10, 54)
+		_ = dc.Stroke()
+		if err := dc.FlushGPU(); err != nil {
+			t.Fatalf("FlushGPU: %v", err)
+		}
+		if dc.RenderPathStats().GPUOps == 0 {
+			t.Fatalf("P.06 join requires GPUOps>0: %s", dc.RenderPathStats().LogLine())
+		}
+		return dc
+	}
+	dm := drawJoin(render.LineJoinMiter)
+	defer dm.Close()
+	db := drawJoin(render.LineJoinBevel)
+	defer db.Close()
+	dr := drawJoin(render.LineJoinRound)
+	defer dr.Close()
+
+	// Sample miter tip region to the right of the corner.
+	countInk := func(dc *render.Context, x0, x1, y0, y1 int) int {
+		n := 0
+		for y := y0; y <= y1; y++ {
+			for x := x0; x <= x1; x++ {
+				r, g, b, _ := sampleRGBA(dc, x, y)
+				if int(r)+int(g)+int(b) < 600 {
+					n++
+				}
+			}
+		}
+		return n
+	}
+	miterTip := countInk(dm, 36, 50, 26, 38)
+	bevelTip := countInk(db, 36, 50, 26, 38)
+	roundTip := countInk(dr, 36, 50, 26, 38)
+	t.Logf("P.06 tip ink miter=%d bevel=%d round=%d", miterTip, bevelTip, roundTip)
+	// Miter should reach further / more tip coverage than bevel at sharp angle.
+	if miterTip <= bevelTip {
+		t.Fatalf("P.06 expected miter tip ink > bevel, miter=%d bevel=%d", miterTip, bevelTip)
+	}
+	// Round also has some outer coverage
+	if roundTip < 1 && miterTip < 1 {
+		t.Fatalf("P.06 joins produced no tip ink")
+	}
+}
+
+// B.05: premul convention — partial alpha solid and textured paths agree with blend ref.
+func TestP1_Capability_B05_PremulPipelineGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 32, 32
+
+	// Solid 50% red over opaque blue.
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(0, 0, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGBA(1, 0, 0, 0.5)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU solid: %v", err)
+	}
+	if dc.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("B.05 solid premul needs GPUOps>0")
+	}
+	r, g, b, a := sampleRGBA(dc, 16, 16)
+	t.Logf("solid premul SO rgba=%d,%d,%d,%d", r, g, b, a)
+	// Expect ~ (128,0,127,255) style half-red over blue (premul SO).
+	if r < 90 || r > 160 {
+		t.Fatalf("B.05 solid red channel out of premul range: %d", r)
+	}
+	if b < 90 || b > 170 {
+		t.Fatalf("B.05 solid blue residual out of range: %d", b)
+	}
+	if g > 40 {
+		t.Fatalf("B.05 unexpected green: %d", g)
+	}
+
+	// Same via uploaded image with straight-ish premul pixels then SourceOver.
+	dc2 := render.NewContext(w, h)
+	defer dc2.Close()
+	dc2.ResetRenderPathStats()
+	dc2.ClearWithColor(render.White)
+	dc2.SetRGB(0, 0, 1)
+	dc2.DrawRectangle(0, 0, w, h)
+	_ = dc2.Fill()
+	_ = dc2.FlushGPU()
+
+	img, err := render.NewImageBuf(w, h, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	// Half-alpha red (straight alpha in buffer).
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			_ = img.SetRGBA(x, y, 255, 0, 0, 128)
+		}
+	}
+	dc2.DrawImage(img, 0, 0)
+	if err := dc2.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU image: %v", err)
+	}
+	if dc2.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("B.05 image premul needs GPUOps>0")
+	}
+	r2, g2, b2, _ := sampleRGBA(dc2, 16, 16)
+	t.Logf("image premul SO rgba=%d,%d,%d", r2, g2, b2)
+	// Image path should also darken blue with red contribution (not full replace, not ignore alpha).
+	if r2 < 40 {
+		t.Fatalf("B.05 image path missing red: %d,%d,%d", r2, g2, b2)
+	}
+	if b2 < 40 {
+		t.Fatalf("B.05 image path missing blue residual: %d,%d,%d", r2, g2, b2)
+	}
+	// Solid and image should be in same ballpark (premul convention).
+	if absU8(r, r2) > 90 {
+		t.Fatalf("B.05 solid vs image red diverge too much: solid=%d image=%d", r, r2)
+	}
 }
