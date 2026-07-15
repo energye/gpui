@@ -1,6 +1,6 @@
 # 阶段 A — 任意组合维度矩阵（Composition Matrix）
 
-> 版本：1.11 | 日期：2026-07-15  
+> 版本：1.12 | 日期：2026-07-15  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) v1.45+  
 > 能力表：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 形态密度（旁证）：[`P1_COMPLEX_UI_MATRIX.md`](./P1_COMPLEX_UI_MATRIX.md)  
@@ -281,7 +281,7 @@
 - [x] 主交叉轴 + 呈现路径/文本模式全套/混合脏更新 + 更深应用形态组合  
 - [x] **停扩**：组合探针止于 **D200**  
 - [x] 关闭 A 前全量 `TestP1_*`（形态 Tier A–U）再确认  
-- [x] **阶段 A 关闭**；主线焦点切到 **S4.0 基线**  
+- [x] **阶段 A 关闭**；主线焦点切到 **S4.0 基线** → **S4.0 已关，现 S4.1**  
 
 ## 验证命令
 
