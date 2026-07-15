@@ -1,6 +1,6 @@
 # Skia 级 2D 渲染能力表（GPUI 主线验收基准）
 
-> 版本：0.2 | 日期：2026-07-15  
+> 版本：1.3 | 日期：2026-07-15  
 > 用途：定义 render 对标 **Skia 2D 渲染能力** 的全面清单，并反推 `rwgpu` / `gpu/webgpu` 必绑 WebGPU 子集。  
 > 范围：**仅渲染栈** `render → gpu/webgpu → gpu/rwgpu → libwgpu_native`。不含控件层、不含过早性能优化。  
 > 维护：能力缺口只允许“新增行”，不允许静默缩小已列必选项。
@@ -48,12 +48,12 @@
 |----|------|-----------|---------------------|-------|--------|--------|-----|
 | S.01 | 离屏像素表面 | `SkSurface::MakeRaster` | Buffer/Texture + readback | ✅ | ✅ | ✅ Pixmap/Context | M0 |
 | S.02 | GPU 离屏 RT | `SkSurface::MakeRenderTarget` | Texture RenderAttachment + resolve | ✅ | ✅ | ✅ Context+FlushGPU | M0 |
-| S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | 🔄 | ✅ Swapchain API | ✅ PresentFrame + 离屏；窗口 e2e `TestSwapchain_WindowPresentE2E`（无 DISPLAY skip） | M3 |
+| S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | ✅ 绑定+CreateSurface | ✅ Swapchain API | ✅ PresentFrame + 同 device 注入；X11 draw `window_present` / `-tags gpui_x11_present` | M3 |
 | S.04 | 清屏/clear 色 | `canvas->clear` | LoadOpClear + clearValue | ✅ | ✅ | ✅ Clear/ClearWithColor | M0 |
-| S.05 | 尺寸/resize | surface 重建 | 重建 texture/pipeline 依赖 | 🔄 | 🔄 | 🔄 | M1 |
+| S.05 | 尺寸/resize | surface 重建 | 重建 texture/pipeline 依赖 | 🔄 | 🔄 | ✅ `Resize` + GPU 重绘 `TestP1_Capability_S05_ResizeGPU` | M1 |
 | S.06 | 读回像素 | `peekPixels` / `readPixels` | copyTextureToBuffer + map | ✅ | ✅ | ✅ Image/SavePNG/FlushGPU | M0 |
 | S.07 | 写像素/上传 | `writePixels` | queue.writeTexture/writeBuffer | ✅ | ✅ | 🔄 CPU write; GPU upload 路径存在 | M0 |
-| S.08 | DPR / 逻辑像素 | surface props scale | 视口/纹理物理尺寸 | N/A | N/A | 🔄 deviceScale | M1 |
+| S.08 | DPR / 逻辑像素 | surface props scale | 视口/纹理物理尺寸 | N/A | N/A | ✅ deviceScale + HiDPI hairline `TestP1_Capability_S08_HiDPIHairline` | M1 |
 | S.09 | 部分更新/damage | dirty rect present | scissor + LoadOpLoad | 🔄 | 🔄 | ✅ FlushGPUWithViewDamage `TestS3c` | M3 |
 
 ### 1.2 变换 (Matrix)
@@ -88,7 +88,7 @@
 | B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 | 🔄 | ✅ 直绘 CPU `SetBlendMode`；层 GPU 内容+CPU composite | M2 |
 | B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | ✅ BlendHue/Sat/Color/Lum `TestS3c_M3_Blend*` | M3 |
 | B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | 🔄 文档+部分测试 | M1 |
-| B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | 🔄 | M1 |
+| B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | ✅ SetRGBA alpha GPU `TestP1_Capability_B06_PaintAlpha`（预乘路径仍可精修） | M1 |
 | B.07 | Plus/Modulate 等 | `kPlus`… | blend/shader | 🔄 | 🔄 | 🔄 | M2 |
 
 ### 1.5 Path 构建与填充
@@ -346,8 +346,33 @@
 |------|------|------|
 | 2026-07-15 | 1.4 | S3a 关闭：M0–M1 GPU 门禁 |
 | 2026-07-15 | 1.3 | S2 关闭：webgpu facade |
+| 2026-07-15 | 1.3 | P1 复杂 UI 矩阵 A1–A8 + S.05/S.08/B.06 门禁；S.03 真窗口 draw |
 | 2026-07-15 | 1.2 | S1 关闭：A–E 烟测；§2.7/§4 更新 |
 | 2026-07-15 | 1.1 | §4 rwgpu：S1 枚举 header-lock 已落地 |
 | 2026-07-15 | 1.0 | 首版：全面 Skia 2D 能力表 + WebGPU 反推子集 + 里程碑 |
 
 | 2026-07-15 | M3 residual | B.04/C.06/H.04/I.04/I.07/X.08–X.10 实现 + S3c residual 门禁 |
+
+
+---
+
+## 3. P1 复杂 UI 场景矩阵（2026-07-15）
+
+> 非控件实现；模拟 Ant Design 级 UI 的 **绘制组合** 压测。
+
+| ID | 场景 | 门禁 | GPUOps |
+|----|------|------|--------|
+| A1 | Button states | `TestP1_A1_UIButtonStates` | >0 |
+| A2 | Input field | `TestP1_A2_UIInputField` | >0 |
+| A3 | Menu overlay | `TestP1_A3_UIMenuOverlay` | >0 |
+| A4 | Modal mask | `TestP1_A4_UIModalMask` | >0 |
+| A5 | Table cells | `TestP1_A5_UITableCells` | >0 |
+| A6 | Tabs/badge/tag | `TestP1_A6_UITabsBadge` | >0 |
+| A7 | Icon+text mix | `TestP1_A7_UIIconTextMix` | >0 |
+| A8 | Scroll clip | `TestP1_A8_UIScrollClip` | >0 |
+| B1 | Many rrects | `TestP1_B1_ManyRRectsCorrectness` | >0 |
+
+```bash
+export WGPU_NATIVE_PATH=.../lib/libwgpu_native.so
+go test -count=1 ./render -run 'TestP1_'
+```

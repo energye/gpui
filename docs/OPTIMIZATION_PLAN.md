@@ -48,7 +48,7 @@ render/internal/gpu
 - ✅ P1.2 首轮：GPU 固定像素 SourceOver/opaque/clip/hairline（真链 `render`→GPU→readback）
 
 进行中：
-- ⏳ **P1 渲染能力门禁**：复杂 UI 场景矩阵 + 分层硬证据（ABI → webgpu → render 真链路）
+- ⏳ **P1 渲染能力门禁**：Tier A A1–A8 ✅；Tier B 压力部分；分层硬证据持续补强
 - ⏳ 阶段四 C：`rwgpu` ABI / enum / descriptor 映射全量审计（render 已用 + UI 控件会用到的子集）
 - ⏳ 阶段四 D：语义精修升级为门禁级（premul/blend GPU 固定像素、clip/AA、fallback 可观测）
 - ⏳ 阶段四 E：清理旧 stub / legacy helper，避免它们进入生产渲染链路
@@ -2178,7 +2178,7 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 | P1.0 门禁基础设施（fallback 计数） |  | W1D1 | W1D2 | 2026-07-15 | 2026-07-15 | ✅ | Context path stats + visualcmd + STRICT |
 | P1.1 ABI/WebGPU UI 子集审计 |  | W1D2 | W1D4 |  |  | ⬜ | L1/L2 硬证据 |
 | P1.2 GPU 固定像素 blend/clip |  | W1D3 | W1D5 | 2026-07-15 |  | 🔄 | SourceOver/opaque/clip/hairline 首轮绿；扩展 Multiply/Plus/Copy |
-| P1.3 Tier A 复杂 UI 绘制场景 A1–A8 |  | W1D4 | W2D3 |  |  | ⬜ | render 能力压测（非控件实现） |
+| P1.3 Tier A 复杂 UI 绘制场景 A1–A8 |  | W1D4 | W2D3 | 2026-07-15 | 2026-07-15 | ✅ | `TestP1_A1`–`A8` GPU 真链；Tier B 部分 B1 |
 | P1.4 Tier B 压力正确性 B1–B6 |  | W2D2 | W2D5 |  |  | ⬜ | Skia 方向正确性 |
 | P1.5 render 能力门禁关闭评审 |  | W2D5 | W3D1 |  |  | ⬜ | 通过后可声明对标能力门槛 |
 | 0.1 FPS 测量器 |  | W3D1 | W3D2 |  |  | ⬜ | 仅 P1 后启动性能基线 |
