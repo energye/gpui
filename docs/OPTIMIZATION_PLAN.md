@@ -1,6 +1,6 @@
 # GPUI 渲染库底层优化与 WebGPU 架构迁移开发计划
 
-> 版本：3.4 | 更新日期：2026-07-15 | 状态：架构已接通，P0.A-D 首轮修复完成，进入 examples 端到端收敛阶段
+> 版本：3.5 | 更新日期：2026-07-15 | 状态：架构已接通，P0.A-D 首轮修复完成，P0.E 第一批 examples 视觉基线已接入
 > 项目：github.com/energye/gpui
 > 文档位置：/home/yanghy/app/projects/gogpu/gpui/docs/OPTIMIZATION_PLAN.md
 
@@ -33,13 +33,13 @@ render/internal/gpu
 - ✅ P0.B 首轮：`gpu/webgpu` descriptor 转换与 pointer lifetime 修复并加测试
 - ✅ P0.C 首轮：公共 imagediff 工具与 `text_transform` CPU/GPU 程序化视觉诊断，不上传 PNG
 - ✅ P0.D 首轮：glyph mask scale 与 GPU stroke hairline 语义修复
-- ✅ P0.E 启动：`basic`、`shapes`、`clipping` example CPU/GPU 程序化视觉基线已接入
+- ✅ P0.E 首轮：第一批必测 examples 的 CPU/GPU 程序化视觉基线已接入（含 images/text/cjk_text/scene/scene_gpu/gpu）
 
 进行中：
 - ⏳ 阶段四 C：`rwgpu` ABI / enum / descriptor 映射继续全量审计
 - ⏳ 阶段四 D：继续修复迁移后与 CPU / 源 go-wgpu 渲染效果不一致的问题
-- ⏳ 阶段四 F：补齐第一批 examples 的程序化视觉基线
 - ⏳ 阶段四 E：清理旧 stub / legacy helper，避免它们进入生产渲染链路
+- ⏳ P0.2 / P0.3 / P0.F：按 images transform、cjk text coverage、blend/readback 分层修复
 - ⏳ 阶段五：LCL surface handle / swapchain / 窗口渲染集成
 - ⏳ 阶段六：性能优化、批处理、资源缓存、图集化
 
@@ -146,7 +146,7 @@ env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so 
 
 总体完成度约 62%-67%。
 
-已经完成的是“架构方向”“部分真实 native 对象能力”“P0.A-D 首轮收敛”“P0.E 的 text_transform/basic/shapes 基线”。尚未完成的是“ABI 完整性证明”“`gpu/webgpu` facade 到 `gpu/rwgpu` 的全量转换正确性”“examples 端到端视觉基线全覆盖”和“跨平台动态库绑定生成”。
+已经完成的是“架构方向”“部分真实 native 对象能力”“P0.A-D 首轮收敛”“P0.E 第一批 examples 程序化视觉基线接入”。尚未完成的是“ABI 完整性证明”“`gpu/webgpu` facade 到 `gpu/rwgpu` 的全量转换正确性”“P0.F 端到端视觉阈值收敛”和“跨平台动态库绑定生成”。
 
 当前阶段位置：
 
@@ -156,7 +156,7 @@ env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so 
 阶段 3：rwgpu native 可调用   部分完成
 阶段 4：ABI/descriptor 完整   部分完成，继续审计
 阶段 5：render 语义对齐       text_transform 首轮完成，继续扩大覆盖
-阶段 6：视觉回归稳定         已有 text_transform/basic/shapes/clipping 诊断，未形成完整基线
+阶段 6：视觉回归稳定         第一批 examples 诊断已接入，进入 P0.F 阈值收敛
 阶段 7：跨平台完整化         未开始
 ```
 
@@ -636,7 +636,7 @@ go test -count=1 ./render -run TestTextTransformCPUvsGPUVisualDiagnostic -v
 - `render/internal/gpu/glyph_mask_engine.go`：glyph mask raster size 吸收用户 Y scale，quad 尺寸抵消重复 scale。
 - `render/internal/gpu/glyph_mask_spacing_test.go`：HiDPI 测试输入改为 total matrix，符合生产调用契约。
 
-#### Task P0.E examples 视觉基线采集（已启动）
+#### Task P0.E examples 视觉基线采集（首轮完成）
 
 目标：
 - 对必测 examples 生成 software 与 rwgpu-native 输出，保存 PNG 和 diff 报告。
@@ -668,6 +668,24 @@ go test -count=1 ./render -run TestShapesCPUvsGPUVisualDiagnostic -v
 
 GPUI_CLIPPING_VISUAL=1 GPUI_CLIPPING_VISUAL_STRICT=1 \
 go test -count=1 ./render -run TestClippingCPUvsGPUVisualDiagnostic -v
+
+GPUI_IMAGES_VISUAL=1 GPUI_IMAGES_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestImagesCPUvsGPUVisualDiagnostic -v
+
+GPUI_TEXT_VISUAL=1 GPUI_TEXT_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestTextCPUvsGPUVisualDiagnostic -v
+
+GPUI_CJK_TEXT_VISUAL=1 GPUI_CJK_TEXT_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestCJKTextCPUvsGPUVisualDiagnostic -v
+
+GPUI_SCENE_VISUAL=1 GPUI_SCENE_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestSceneCPUvsGPUVisualDiagnostic -v
+
+GPUI_SCENE_GPU_VISUAL=1 GPUI_SCENE_GPU_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestSceneGPUCPUvsGPUVisualDiagnostic -v
+
+GPUI_GPU_EXAMPLE_VISUAL=1 GPUI_GPU_EXAMPLE_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestGPUExampleCPUvsGPUVisualDiagnostic -v
 ```
 
 完成标准：
@@ -681,6 +699,12 @@ go test -count=1 ./render -run TestClippingCPUvsGPUVisualDiagnostic -v
 - `render/internal/visualcmd/basic` + `TestBasicCPUvsGPUVisualDiagnostic`。
 - `render/internal/visualcmd/shapes` + `TestShapesCPUvsGPUVisualDiagnostic`。
 - `render/internal/visualcmd/clipping` + `TestClippingCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/images` + `TestImagesCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/text` + `TestTextCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/cjk_text` + `TestCJKTextCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/scene` + `TestSceneCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/scene_gpu` + `TestSceneGPUCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/gpu` + `TestGPUExampleCPUvsGPUVisualDiagnostic`。
 
 `basic` 最新指标（2026-07-15）：
 ```text
@@ -719,13 +743,52 @@ reset_clip_fill    ratio=1.000 bbox=158x158@301,601
 reset_clip_leak    cpu_pixels=0 gpu_pixels=0
 ```
 
-未完成：
-- `render/examples/images`
-- `render/examples/text`
-- `render/examples/cjk_text`
-- `render/examples/scene`
-- `render/examples/scene_gpu`
-- `render/examples/gpu`
+`images` 最新指标（2026-07-15）：
+```text
+diff changed=18094/480000 mean_abs=3.171 rmse=20.132 max_delta=242
+basic/scaled/opacity/nearest/src_rect/multiply ratio≈1.000
+transform ratio=0.005  # GPU 图元 transform 明显缺失
+pattern ratio=0.999 sample_center_delta=102
+```
+
+`text` 最新指标（2026-07-15）：
+```text
+diff changed=1737/320000 mean_abs=0.253 rmse=5.145 max_delta=204
+title/subtitle/left/center/right/measured/fontinfo ratio≈0.997-1.003
+```
+
+`cjk_text` 最新指标（2026-07-15）：
+```text
+diff changed=10656/480000 mean_abs=3.049 rmse=23.272 max_delta=255
+body ratio=2.122  # GPU 文本覆盖明显偏大
+display ratio=1.000
+mixed ratio=3.330
+titles ratio=1.000
+```
+
+`scene` 最新指标（2026-07-15）：
+```text
+diff changed=7999/262144 mean_abs=1.020 rmse=10.575 max_delta=192
+rect_* / center_circle / blend_zone ratio≈1.000-1.001
+gpu path tiles_rendered=0（走 GPUSceneRenderer）
+```
+
+`scene_gpu` 最新指标（2026-07-15）：
+```text
+diff changed=4611/262144 mean_abs=0.145 rmse=1.466 max_delta=49
+corner_*/center/orbit ratio≈1.000-1.001
+```
+
+`gpu` 最新指标（2026-07-15）：
+```text
+diff changed=17969/480000 mean_abs=0.761 rmse=4.959 max_delta=113
+circle/rrect/stroke/triangle/pentagon/hexagon/star/curve ratio≈0.956-1.024
+```
+
+P0.E 结论与下一步：
+- 第一批 examples 视觉基线已可重复采集。
+- 优先进入 P0.F / P0.2 排查：`images.transform` 失效、`cjk_text` body/mixed 覆盖膨胀、images pattern/sample 颜色差。
+- `text`、`scene_gpu`、`gpu` 主体形状已较接近，可作为回归门禁参考。
 
 #### Task P0.2 render target format 与 readback 校准
 
@@ -1852,7 +1915,7 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 ### 里程碑 1：基准测试建立
 | 任务 | 负责人 | 计划开始 | 计划结束 | 实际开始 | 实际结束 | 状态 | 备注 |
 |------|--------|----------|----------|----------|----------|------|------|
-| P0.E examples 视觉基线采集 |  | W0D1 | W0D2 | 2026-07-15 |  | 🔄 | text_transform/basic/shapes/clipping 已接入；继续补 images/text/scene |
+| P0.E examples 视觉基线采集 |  | W0D1 | W0D2 | 2026-07-15 | 2026-07-15 | ✅ | 第一批必测 examples 基线已接入；images.transform 与 cjk body/mixed 待 P0.F |
 | P0.2 render target/readback 校准 |  | W0D2 | W0D3 |  |  | ⬜ | RGBA/BGRA/premul/row padding |
 | P0.3 blend/alpha 一致性 |  | W0D3 | W0D4 |  |  | ⬜ | UI 控件高频路径 |
 | P0.F examples 端到端修复 |  | W0D4 | W0D5 |  |  | ⬜ | basic/shapes/clipping/images/text/scene_gpu |
@@ -1935,6 +1998,7 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 | 2026-07-13 | 2.0 | 补充测试计划、性能目标、风险评估、资源需求、验收标准、监控策略、文档计划、发布计划、代码审查、沟通计划 | Claude |
 | 2026-07-13 | 3.0 | 根据 gpui 库实际情况重写，更新项目背景、库结构、依赖关系 | Claude |
 | 2026-07-13 | 3.1 | 补充新人/AI 开工指南、并行开发边界、任务卡模板，并修正渐变和 AA 示例 API | Codex |
+| 2026-07-15 | 3.5 | P0.E 第一批 examples 程序化视觉基线接入完成，记录 images/text/cjk/scene/gpu 指标与 P0.F 优先问题 | Codex |
 | 2026-07-14 | 3.2 | 记录 Rust wgpu-native 目标架构、当前 native 验证状态、examples 视觉一致性 P0 计划、架构决策和遗留风险 | Codex |
 |  |  |  |  |
 

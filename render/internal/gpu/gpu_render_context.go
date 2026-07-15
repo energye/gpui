@@ -295,21 +295,34 @@ func (rc *GPURenderContext) QueueText(target render.GPURenderTarget, batch TextB
 }
 
 // QueueImageDraw accumulates an image draw command for Tier 3 dispatch.
-// Parameters are kept primitive to avoid import cycles (gg root -> internal/gpu).
+// Destination is a CTM-transformed quad given as TL, TR, BR, BL corners in
+// device pixels. Parameters are kept primitive to avoid import cycles.
 func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
-	dstX, dstY, dstW, dstH, opacity float32, viewportW, viewportH uint32,
+	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
 ) {
+	minX := min4f(tlX, trX, brX, blX)
+	minY := min4f(tlY, trY, brY, blY)
+	maxX := max4f(tlX, trX, brX, blX)
+	maxY := max4f(tlY, trY, brY, blY)
 	cmd := ImageDrawCommand{
 		PixelData:      pixelData,
 		GenerationID:   genID,
 		ImgWidth:       imgWidth,
 		ImgHeight:      imgHeight,
 		ImgStride:      imgStride,
-		DstX:           dstX,
-		DstY:           dstY,
-		DstW:           dstW,
-		DstH:           dstH,
+		DstX:           minX,
+		DstY:           minY,
+		DstW:           maxX - minX,
+		DstH:           maxY - minY,
+		TLX:            tlX,
+		TLY:            tlY,
+		TRX:            trX,
+		TRY:            trY,
+		BRX:            brX,
+		BRY:            brY,
+		BLX:            blX,
+		BLY:            blY,
 		Opacity:        opacity,
 		ViewportWidth:  viewportW,
 		ViewportHeight: viewportH,
@@ -319,6 +332,34 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 		V1:             v1,
 	}
 	rc.queueImageCmd(target, cmd)
+}
+
+func min4f(a, b, c, d float32) float32 {
+	m := a
+	if b < m {
+		m = b
+	}
+	if c < m {
+		m = c
+	}
+	if d < m {
+		m = d
+	}
+	return m
+}
+
+func max4f(a, b, c, d float32) float32 {
+	m := a
+	if b > m {
+		m = b
+	}
+	if c > m {
+		m = c
+	}
+	if d > m {
+		m = d
+	}
+	return m
 }
 
 // queueImageCmd accumulates an image draw command for Tier 3 dispatch.

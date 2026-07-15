@@ -45,9 +45,20 @@ type ImageDrawCommand struct {
 	ImgHeight    int
 	ImgStride    int
 
-	// Destination quad in device pixels (4 corners: TL, TR, BL, BR).
-	DstX, DstY     float32 // top-left position
-	DstW, DstH     float32 // width, height
+	// Destination axis-aligned bounds in device pixels.
+	// For rotated/skewed images this is the AABB of the transformed quad.
+	DstX, DstY float32
+	DstW, DstH float32
+
+	// Destination quad corners in device pixels after CTM:
+	// TL, TR, BR, BL. Vertex emission always uses these corners so rotation
+	// and non-uniform scale are preserved (axis-aligned is the special case
+	// where corners form a rectangle).
+	TLX, TLY float32
+	TRX, TRY float32
+	BRX, BRY float32
+	BLX, BLY float32
+
 	Opacity        float32
 	ViewportWidth  uint32
 	ViewportHeight uint32
@@ -458,15 +469,24 @@ func imageVertexLayout() []types.VertexBufferLayout {
 
 // buildImageVertices generates vertex data for a single image quad.
 // Returns 6 vertices (2 triangles: TL, TR, BL, TR, BR, BL).
+// Corners may form a rotated/skewed parallelogram after CTM.
 func buildImageVertices(cmd *ImageDrawCommand) []byte {
 	const vertsPerQuad = 6
 	buf := make([]byte, vertsPerQuad*imageVertexStride)
 
-	// Quad corners in pixel coordinates.
-	x0 := cmd.DstX
-	y0 := cmd.DstY
-	x1 := cmd.DstX + cmd.DstW
-	y1 := cmd.DstY + cmd.DstH
+	// Prefer explicit CTM-transformed corners. Fall back to axis-aligned
+	// DstX/Y/W/H when corners were not populated (legacy callers / texture overlays).
+	x0, y0 := cmd.TLX, cmd.TLY
+	x1, y1 := cmd.TRX, cmd.TRY
+	x2, y2 := cmd.BRX, cmd.BRY
+	x3, y3 := cmd.BLX, cmd.BLY
+	if x0 == 0 && y0 == 0 && x1 == 0 && y1 == 0 && x2 == 0 && y2 == 0 && x3 == 0 && y3 == 0 &&
+		(cmd.DstW != 0 || cmd.DstH != 0 || cmd.DstX != 0 || cmd.DstY != 0) {
+		x0, y0 = cmd.DstX, cmd.DstY
+		x1, y1 = cmd.DstX+cmd.DstW, cmd.DstY
+		x2, y2 = cmd.DstX+cmd.DstW, cmd.DstY+cmd.DstH
+		x3, y3 = cmd.DstX, cmd.DstY+cmd.DstH
+	}
 
 	// UV coordinates.
 	u0, v0, u1, v1 := cmd.U0, cmd.V0, cmd.U1, cmd.V1
@@ -479,11 +499,11 @@ func buildImageVertices(cmd *ImageDrawCommand) []byte {
 	}
 	verts := [6]vertex{
 		{x0, y0, u0, v0}, // TL
-		{x1, y0, u1, v0}, // TR
-		{x0, y1, u0, v1}, // BL
-		{x1, y0, u1, v0}, // TR
-		{x1, y1, u1, v1}, // BR
-		{x0, y1, u0, v1}, // BL
+		{x1, y1, u1, v0}, // TR
+		{x3, y3, u0, v1}, // BL
+		{x1, y1, u1, v0}, // TR
+		{x2, y2, u1, v1}, // BR
+		{x3, y3, u0, v1}, // BL
 	}
 
 	offset := 0

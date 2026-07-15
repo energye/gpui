@@ -63,6 +63,24 @@ func TestBuildImageVertices_ZeroSize(t *testing.T) {
 
 // --- Ortho uniform tests ---
 
+func TestBuildImageVertices_RotatedQuad(t *testing.T) {
+	cmd := &ImageDrawCommand{
+		// AABB unused for vertex positions when corners are set.
+		DstX: 0, DstY: 0, DstW: 100, DstH: 100,
+		TLX: 10, TLY: 20,
+		TRX: 50, TRY: 10,
+		BRX: 60, BRY: 50,
+		BLX: 20, BLY: 60,
+		U0: 0, V0: 0, U1: 1, V1: 1,
+	}
+	buf := buildImageVertices(cmd)
+	verts := decodeVertices(t, buf)
+	assertVertex(t, verts[0], 10, 20, 0, 0, "TL")
+	assertVertex(t, verts[1], 50, 10, 1, 0, "TR")
+	assertVertex(t, verts[2], 20, 60, 0, 1, "BL")
+	assertVertex(t, verts[4], 60, 50, 1, 1, "BR")
+}
+
 func TestMakeImageUniform_OrthoProjection(t *testing.T) {
 	tests := []struct {
 		name   string
