@@ -14,6 +14,9 @@ var ErrNilSurfaceView = errors.New("render: nil surface texture view")
 // PresentFrame flushes the current GPU scene into a surface texture view and
 // then invokes present (typically Swapchain.EndFrame / Surface.Present).
 //
+// For retained UI steady frames prefer PresentFrameAuto (S6.1); use PresentFrame
+// / PresentFrameFull for bootstrap and deliberate full redraw only.
+//
 // This is the S.03 window present entry point for application code:
 //
 //	frame, err := swapchain.BeginFrame()

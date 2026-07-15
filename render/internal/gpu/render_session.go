@@ -74,6 +74,34 @@ type ScissorGroup struct {
 	GlyphMaskBatches   []GlyphMaskBatch
 }
 
+// S6.2: static encoder descriptors avoid per-frame descriptor heap allocs.
+var (
+	sessionSurfaceEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "session_surface_encoder"}
+	sessionEncoderDesc        = &webgpu.CommandEncoderDescriptor{Label: "session_encoder"}
+	sessionBlitEncoderDesc    = &webgpu.CommandEncoderDescriptor{Label: "session_blit_encoder"}
+)
+
+// SubmitPathStats records per-frame encode/submit CPU-path counters (S6.2).
+type SubmitPathStats struct {
+	Groups          int
+	EncodersCreated int
+	Submits         int
+	WriteBuffers    int
+	WriteBytes      int64
+	SingleGroupFast bool
+}
+
+// groupOffset tracks per-scissor-group ranges inside concatenated tier arrays.
+type groupOffset struct {
+	sdfStart, sdfCount         int
+	convexStart, convexCount   int
+	stencilStart, stencilCount int
+	imageStart, imageCount     int
+	gpuTexStart, gpuTexCount   int
+	textStart, textCount       int
+	glyphStart, glyphCount     int
+}
+
 // StencilPathCommand holds a path and paint for stencil-then-cover rendering
 // within a unified render session. The vertices are pre-tessellated fan
 // triangles from FanTessellator.
@@ -184,6 +212,23 @@ type GPURenderSession struct {
 	// S4.1 last-frame image batch stats (tests / profiling).
 	lastImageDrawCalls int
 	lastImageQuads     int
+
+	// S6.2 submit/record path diagnostics (most recent frame).
+	lastSubmitStats SubmitPathStats
+
+	// S6.2 reusable scratch (avoid per-frame concat/uniform allocs).
+	clipBytesScratch    []byte
+	uniformBytesScratch []byte
+	scratchSDF          []SDFRenderShape
+	scratchConvex       []ConvexDrawCommand
+	scratchStencil      []StencilPathCommand
+	scratchImage        []ImageDrawCommand
+	scratchGPUTex       []GPUTextureDrawCommand
+	scratchText         []TextBatch
+	scratchGlyph        []GlyphMaskBatch
+	scratchImageSeal    []bool
+	scratchGroupOff     []groupOffset
+	scratchGrpRes       []groupResources
 
 	// Tier 4: MSDF text persistent buffers.
 	textVertBuf    *webgpu.Buffer
@@ -714,12 +759,17 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	}
 	// Reset clip pool usage for this frame.
 	s.clipPoolUsed = 0
+	// Reset S6.2 path stats; encoder/submit counters accumulate in encodeSubmit*.
+	s.lastSubmitStats = SubmitPathStats{Groups: len(groups)}
 
 	// Concatenate all items across groups into combined arrays, tracking
 	// per-group offsets. Resources are built ONCE from combined data to avoid
 	// overwriting shared GPU buffers (vertex, index, uniform) — all build*
 	// methods write to session-level shared buffers, so calling them per-group
 	// would overwrite previous groups' data.
+	//
+	// S6.2: single-group frames skip concat (use group slices directly) and
+	// multi-group frames reuse session scratch buffers.
 	var allSDF []SDFRenderShape
 	var allConvex []ConvexDrawCommand
 	var allStencil []StencilPathCommand
@@ -728,35 +778,62 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	var allText []TextBatch
 	var allGlyph []GlyphMaskBatch
 
-	type groupOffset struct {
-		sdfStart, sdfCount         int
-		convexStart, convexCount   int
-		stencilStart, stencilCount int
-		imageStart, imageCount     int
-		gpuTexStart, gpuTexCount   int
-		textStart, textCount       int
-		glyphStart, glyphCount     int
+	if cap(s.scratchGroupOff) < len(groups) {
+		s.scratchGroupOff = make([]groupOffset, len(groups))
+	} else {
+		s.scratchGroupOff = s.scratchGroupOff[:len(groups)]
+		clear(s.scratchGroupOff)
 	}
-	gOff := make([]groupOffset, len(groups))
+	gOff := s.scratchGroupOff
 
-	for i := range groups {
-		g := &groups[i]
-		gOff[i] = groupOffset{
-			sdfStart: len(allSDF), sdfCount: len(g.SDFShapes),
-			convexStart: len(allConvex), convexCount: len(g.ConvexCommands),
-			stencilStart: len(allStencil), stencilCount: len(g.StencilPaths),
-			imageStart: len(allImage), imageCount: len(g.ImageCommands),
-			gpuTexStart: len(allGPUTex), gpuTexCount: len(g.GPUTextureCommands),
-			textStart: len(allText), textCount: len(g.TextBatches),
-			glyphStart: len(allGlyph), glyphCount: len(g.GlyphMaskBatches),
+	if len(groups) == 1 {
+		s.lastSubmitStats.SingleGroupFast = true
+		g := &groups[0]
+		allSDF = g.SDFShapes
+		allConvex = g.ConvexCommands
+		allStencil = g.StencilPaths
+		allImage = g.ImageCommands
+		allGPUTex = g.GPUTextureCommands
+		allText = g.TextBatches
+		allGlyph = g.GlyphMaskBatches
+		gOff[0] = groupOffset{
+			sdfCount: len(allSDF), convexCount: len(allConvex), stencilCount: len(allStencil),
+			imageCount: len(allImage), gpuTexCount: len(allGPUTex), textCount: len(allText), glyphCount: len(allGlyph),
 		}
-		allSDF = append(allSDF, g.SDFShapes...)
-		allConvex = append(allConvex, g.ConvexCommands...)
-		allStencil = append(allStencil, g.StencilPaths...)
-		allImage = append(allImage, g.ImageCommands...)
-		allGPUTex = append(allGPUTex, g.GPUTextureCommands...)
-		allText = append(allText, g.TextBatches...)
-		allGlyph = append(allGlyph, g.GlyphMaskBatches...)
+	} else {
+		s.scratchSDF = s.scratchSDF[:0]
+		s.scratchConvex = s.scratchConvex[:0]
+		s.scratchStencil = s.scratchStencil[:0]
+		s.scratchImage = s.scratchImage[:0]
+		s.scratchGPUTex = s.scratchGPUTex[:0]
+		s.scratchText = s.scratchText[:0]
+		s.scratchGlyph = s.scratchGlyph[:0]
+		for i := range groups {
+			g := &groups[i]
+			gOff[i] = groupOffset{
+				sdfStart: len(s.scratchSDF), sdfCount: len(g.SDFShapes),
+				convexStart: len(s.scratchConvex), convexCount: len(g.ConvexCommands),
+				stencilStart: len(s.scratchStencil), stencilCount: len(g.StencilPaths),
+				imageStart: len(s.scratchImage), imageCount: len(g.ImageCommands),
+				gpuTexStart: len(s.scratchGPUTex), gpuTexCount: len(g.GPUTextureCommands),
+				textStart: len(s.scratchText), textCount: len(g.TextBatches),
+				glyphStart: len(s.scratchGlyph), glyphCount: len(g.GlyphMaskBatches),
+			}
+			s.scratchSDF = append(s.scratchSDF, g.SDFShapes...)
+			s.scratchConvex = append(s.scratchConvex, g.ConvexCommands...)
+			s.scratchStencil = append(s.scratchStencil, g.StencilPaths...)
+			s.scratchImage = append(s.scratchImage, g.ImageCommands...)
+			s.scratchGPUTex = append(s.scratchGPUTex, g.GPUTextureCommands...)
+			s.scratchText = append(s.scratchText, g.TextBatches...)
+			s.scratchGlyph = append(s.scratchGlyph, g.GlyphMaskBatches...)
+		}
+		allSDF = s.scratchSDF
+		allConvex = s.scratchConvex
+		allStencil = s.scratchStencil
+		allImage = s.scratchImage
+		allGPUTex = s.scratchGPUTex
+		allText = s.scratchText
+		allGlyph = s.scratchGlyph
 	}
 
 	// Build combined resources (single buffer write per tier).
@@ -791,7 +868,13 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	if len(allImage) > 0 {
 		// S4.1: seal batch merges at scissor-group boundaries so multi-quad
 		// draws never span different scissors (sliceImageResources assumes this).
-		imageSeal := make([]bool, len(allImage))
+		if cap(s.scratchImageSeal) < len(allImage) {
+			s.scratchImageSeal = make([]bool, len(allImage))
+		} else {
+			s.scratchImageSeal = s.scratchImageSeal[:len(allImage)]
+			clear(s.scratchImageSeal)
+		}
+		imageSeal := s.scratchImageSeal
 		for i := range groups {
 			start := gOff[i].imageStart
 			if gOff[i].imageCount > 0 && start > 0 && start < len(imageSeal) {
@@ -833,7 +916,13 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	}
 
 	// Create per-group resources as sub-ranges of the combined data.
-	grpRes := make([]groupResources, len(groups))
+	if cap(s.scratchGrpRes) < len(groups) {
+		s.scratchGrpRes = make([]groupResources, len(groups))
+	} else {
+		s.scratchGrpRes = s.scratchGrpRes[:len(groups)]
+		clear(s.scratchGrpRes)
+	}
+	grpRes := s.scratchGrpRes
 	for i := range groups {
 		o := &gOff[i]
 		grpRes[i].scissorRect = groups[i].Rect
@@ -1378,9 +1467,10 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGro
 
 	// Reuse from pool if available.
 	idx := s.clipPoolUsed
+	s.clipBytesScratch = params.BytesInto(s.clipBytesScratch)
 	if idx < len(s.clipUniformPool) {
 		// Reuse existing buffer, just update its contents.
-		if err := s.queue.WriteBuffer(s.clipUniformPool[idx], 0, params.Bytes()); err != nil {
+		if err := s.queueWriteBuffer(s.clipUniformPool[idx], 0, s.clipBytesScratch); err != nil {
 			return nil, fmt.Errorf("write clip uniform: %w", err)
 		}
 		s.clipPoolUsed++
@@ -1396,7 +1486,7 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGro
 	if err != nil {
 		return nil, fmt.Errorf("create clip uniform buffer: %w", err)
 	}
-	if err := s.queue.WriteBuffer(buf, 0, params.Bytes()); err != nil {
+	if err := s.queueWriteBuffer(buf, 0, s.clipBytesScratch); err != nil {
 		buf.Release()
 		return nil, fmt.Errorf("write clip uniform: %w", err)
 	}
@@ -1694,11 +1784,12 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 		s.sdfVertBuf = buf
 		s.sdfVertBufCap = allocSize
 	}
-	if err := s.queue.WriteBuffer(s.sdfVertBuf, 0, vertexData); err != nil {
+	if err := s.queueWriteBuffer(s.sdfVertBuf, 0, vertexData); err != nil {
 		return nil, fmt.Errorf("write vertex buffer: %w", err)
 	}
 
-	uniformData := makeSDFRenderUniform(w, h, s.antiAlias)
+	uniformData := makeSDFRenderUniformInto(s.uniformBytesScratch, w, h, s.antiAlias)
+	s.uniformBytesScratch = uniformData
 	if s.sdfUniformBuf == nil {
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
 			Label: "session_sdf_uniform",
@@ -1715,7 +1806,7 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 			s.sdfBindGroup = nil
 		}
 	}
-	if err := s.queue.WriteBuffer(s.sdfUniformBuf, 0, uniformData); err != nil {
+	if err := s.queueWriteBuffer(s.sdfUniformBuf, 0, uniformData); err != nil {
 		return nil, fmt.Errorf("write uniform buffer: %w", err)
 	}
 
@@ -1775,11 +1866,12 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		s.convexVertBuf = buf
 		s.convexVertBufCap = allocSize
 	}
-	if err := s.queue.WriteBuffer(s.convexVertBuf, 0, vertexData); err != nil {
+	if err := s.queueWriteBuffer(s.convexVertBuf, 0, vertexData); err != nil {
 		return nil, fmt.Errorf("write convex vertex buffer: %w", err)
 	}
 
-	uniformData := makeSDFRenderUniform(w, h, true) // Same 16-byte viewport layout; convex AA is per-vertex.
+	uniformData := makeSDFRenderUniformInto(s.uniformBytesScratch, w, h, true) // Same 16-byte viewport layout; convex AA is per-vertex.
+	s.uniformBytesScratch = uniformData
 	if s.convexUniformBuf == nil {
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
 			Label: "session_convex_uniform",
@@ -1795,7 +1887,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 			s.convexBindGroup = nil
 		}
 	}
-	if err := s.queue.WriteBuffer(s.convexUniformBuf, 0, uniformData); err != nil {
+	if err := s.queueWriteBuffer(s.convexUniformBuf, 0, uniformData); err != nil {
 		return nil, fmt.Errorf("write convex uniform buffer: %w", err)
 	}
 
@@ -2244,6 +2336,18 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 // LastImageBatchStats returns the most recent image multi-quad batch stats (S4.1).
 func (s *GPURenderSession) LastImageBatchStats() (drawCalls, quads int) {
 	return s.lastImageDrawCalls, s.lastImageQuads
+}
+
+// LastSubmitPathStats returns S6.2 encode/submit counters from the last frame.
+func (s *GPURenderSession) LastSubmitPathStats() SubmitPathStats {
+	return s.lastSubmitStats
+}
+
+// queueWriteBuffer wraps Queue.WriteBuffer and accounts S6.2 diagnostics.
+func (s *GPURenderSession) queueWriteBuffer(buf *webgpu.Buffer, offset uint64, data []byte) error {
+	s.lastSubmitStats.WriteBuffers++
+	s.lastSubmitStats.WriteBytes += int64(len(data))
+	return s.queue.WriteBuffer(buf, offset, data)
 }
 
 // buildGPUTextureResources builds render resources for GPU-to-GPU texture compositing.
@@ -2702,9 +2806,8 @@ func (s *GPURenderSession) encodeSubmitReadback(
 		return fmt.Errorf("offscreen textures destroyed (concurrent resize?)")
 	}
 
-	encoder, err := s.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
-		Label: "session_encoder",
-	})
+	encoder, err := s.device.CreateCommandEncoder(sessionEncoderDesc)
+	s.lastSubmitStats.EncodersCreated++
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}
@@ -2917,12 +3020,11 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	textRes *textFrameResources,
 	glyphMaskRes *glyphMaskFrameResources,
 ) error {
-	encoder, err := s.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
-		Label: "session_surface_encoder",
-	})
+	encoder, err := s.device.CreateCommandEncoder(sessionSurfaceEncoderDesc)
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}
+	s.lastSubmitStats.EncodersCreated++
 	// BUG-GG-ENCODER-LIFECYCLE-001: defer-based safety net ensures the encoder
 	// is always finalized even if a panic or unexpected error path is hit.
 	// DiscardEncoding is idempotent (no-op if already released by Finish).
@@ -3027,6 +3129,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// manifests as trail artifacts from incomplete MSAA resolve).
 	// All command buffers are freed at the start of the NEXT frame
 	// (BeginFrame) when VSync guarantees the GPU is done.
+	s.lastSubmitStats.Submits++
 	if _, err := s.queue.Submit(cmdBuf); err != nil {
 		// BUG-GG-ENCODER-LIFECYCLE-001: free the command buffer that was not
 		// submitted. Without this, the Vulkan command pool entry leaks.
@@ -3225,9 +3328,8 @@ func (s *GPURenderSession) encodeSubmitReadbackGrouped(
 		return fmt.Errorf("offscreen textures destroyed (concurrent resize?)")
 	}
 
-	encoder, err := s.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
-		Label: "session_encoder",
-	})
+	encoder, err := s.device.CreateCommandEncoder(sessionEncoderDesc)
+	s.lastSubmitStats.EncodersCreated++
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}
@@ -3337,9 +3439,8 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 		return fmt.Errorf("ensure blit pipeline: %w", err)
 	}
 
-	encoder, err := s.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
-		Label: "session_blit_encoder",
-	})
+	encoder, err := s.device.CreateCommandEncoder(sessionBlitEncoderDesc)
+	s.lastSubmitStats.EncodersCreated++
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}

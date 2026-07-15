@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.54 | 日期：2026-07-15  
+> 版本：1.56 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -317,8 +317,8 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 
 | 子阶段 | 优化范围（全面） | 退出条件 |
 |--------|------------------|----------|
-| **S6.0 深基线与回归锁** | 冻结场景集（S5 U/P + S4 重场景 present-only 移植 + 全量 redraw / layer / path / text 应力）；锁定 warmup/iters；双轨基线（present-only + 可选读回对照）；写出回归契约与回退阈值 | `docs/S6_PERF_BASELINE.md` + `TestS6_*` + `tmp/s6_present_baseline.json`；L2 全量 Comp 绿 |
-| **S6.1 帧模型强制** | 默认 API/文档/辅助：idle 帧、局部 invalidation、禁止无意义全清屏；damage 合并策略；HiDPI 物理脏区；多 region 与 union 选择策略 | `docs/S6_1_FRAME_ENFORCE.md`；全量 redraw 场景有明确 API 路径；L0/L1 绿；U01–U04 不回退 |
+| **S6.0 深基线与回归锁** | 冻结场景集（S5 U/P + 重场景 present-only）；锁定 warmup/iters；双轨基线；回归契约 | ✅ `docs/S6_PERF_BASELINE.md` + `TestS6_*` + `tmp/s6_present_baseline.json`；L2 Comp 锁存 |
+| **S6.1 帧模型强制** | 默认 API/文档/辅助：idle 帧、局部 invalidation、禁止无意义全清屏；damage 合并策略；HiDPI 物理脏区；多 region 与 union 选择策略 | ✅ `docs/S6_1_FRAME_ENFORCE.md` + `TestS61_*` / `TestPlanFramePresent_*`；`BeginFrame`/`PresentFrameAuto`/`PresentFrameFull` |
 | **S6.2 录制/提交 CPU 路径** | 命令缓冲录制分配、pass 合并、多余 `Flush`、同步点、`Queue.Write*` 批次数、encoder 生命周期；减少每帧 Go alloc | 前后 present p50；alloc 诊断（测试内可选 metrics）；L1 绿 |
 | **S6.3 绘制合并加深** | 在 S4.1 之上：SDF/convex/text/glyphMask/image 跨更长 run 合并；禁止错误跨 clip/blend/scissor 合并；instance/vertex 打包 | draw/bind 统计（若可得）+ 像素回归；B02/B13/U 类场景改进或说明 |
 | **S6.4 Layer / Backdrop / Filter** | PushLayer 成本、backdrop 快照复用、blur/shadow 中间 RT、滤镜图节点合并；避免每帧重建 | U05/B09/B07 类 present p50 下降；L05/F 系 Capability 绿 |
@@ -340,8 +340,8 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 
 #### S6 关闭条件（总）
 
-- [ ] S6.0 基线 + 回归契约文档落地；场景定义冻结  
-- [ ] S6.1–S6.9 均有退出文档或书面「无工作量」说明（不得空跳）  
+- [x] S6.0 基线 + 回归契约文档落地；场景定义冻结  
+- [ ] S6.1–S6.9 均有退出文档或书面「无工作量」说明（不得空跳）（S6.1 ✅）  
 - [ ] P0 主路径 U01–U04 present p50 **未回退**且仍 ≤16.7ms  
 - [ ] P2 重场景相对 S6.0 达文档目标或签字豁免  
 - [ ] L2 全量 `TestP1_Comp_` 绿；L0/L1/L3 绿；`GPUOps>0` / 无 silent CPU  
@@ -366,7 +366,7 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 | 9 | **阶段 A：任意组合维度 D01–D200** | ✅ **已关闭**（chi 至 D200；停扩组合探针） |
 | 10 | **S4 性能** | ✅ **S4.0–S4.4 全线关闭**（见 `docs/S4_*.md`） |
 | 11 | **S5 UI 引擎硬化** | ✅ **S5.0–S5.5 全线关闭**（见 `docs/S5_*.md`） |
-| 12 | **S6 生产级深度性能** | 🔄 **当前焦点** → 先 **S6.0 深基线与回归锁** |
+| 12 | **S6 生产级深度性能** | 🔄 **S6.0–S6.1 ✅** → 当前 **S6.2 录制/提交 CPU 路径** |
 | 13 | **控件层（可选）** | ⬜ 入口已满足（`S5_WIDGET_ENTRY.md`）；**推荐 S6 主路径不回退后开工** |
 
 ### 阶段 A — 任意组合维度（非 antd 控件清单）
@@ -391,8 +391,8 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 
 **A 已关闭**。**S4.0–S4.4 已关闭**。  
 **A / S4 / S5 已关闭。**  
-**当前焦点：S6 生产级深度性能优化**（先 S6.0 深基线 + 回归锁）。  
-控件层入口已满足但 **推荐 S6 推进后再开工**；R.02 / 真 YUV 仍旁路；Skia FPS 报表为 S6.10 可选附录。
+**S6.0 已关闭**（`docs/S6_PERF_BASELINE.md` + `TestS6_*` + L2 Comp 锁存）。  
+**当前焦点：S6.2 录制/提交 CPU 路径**。控件层仍推荐 S6 推进后再开工。
 
 ```bash
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
@@ -437,8 +437,8 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 | `docs/S5_FRAME_MODEL.md` | S5.2 产出（✅ 帧模型） |
 | `docs/S5_60FPS_GATE.md` | S5.3 产出（✅ 60fps 门禁） |
 | `docs/S5_WIDGET_ENTRY.md` | S5.5 产出（✅ 控件入口；**S5 关闭**） |
-| `docs/S6_PERF_BASELINE.md` | S6.0 产出（深基线+回归契约；待写） |
-| `docs/S6_1_FRAME_ENFORCE.md` | S6.1 产出（帧模型强制；待写） |
+| `docs/S6_PERF_BASELINE.md` | S6.0 产出（✅ 深基线+回归锁+JSON） |
+| `docs/S6_1_FRAME_ENFORCE.md` | S6.1 产出（✅ 帧模型强制） |
 | `docs/S6_8_WINDOW_PRESENT.md` | S6.8 产出（真窗口 present；待写） |
 | `docs/S6_9_HEAVY_BUDGET.md` | S6.9 产出（重场景分级预算；待写） |
 | `docs/S5_4_CAPABILITY_PATCH.md` | S5.4 产出（✅ 无阻塞补丁队列） |
@@ -450,6 +450,8 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.56 | **S6.1 关闭**：`BeginFrame`/`Invalidate`/`PresentFrameAuto`/`PresentFrameFull` + damage multi/union/full 策略；`docs/S6_1_FRAME_ENFORCE.md`；焦点 → S6.2 |
+| 2026-07-15 | 1.55 | **S6.0 关闭**：13 场景 present-only 深基线 + 回归契约 + `TestS6_*`；L2 Comp 分片全绿；焦点 → S6.1 |
 | 2026-07-15 | 1.54 | **写入 S6 生产级深度性能**：S6.0–S6.10 定义；回归 L0–L4 契约；当前焦点 S6.0；控件层推荐 S6 后 |
 | 2026-07-15 | 1.53 | **S5.x 全线关闭**：S5.0–S5.5 文档+TestS5*/S52/S53/S54；U01–U04 present-only p50≤16.7ms；控件入口冻结 |
 | 2026-07-15 | 1.52 | **写入 S5 UI 引擎硬化**：S5.0–S5.5 定义；当前焦点 S5.0；控件层推迟到 S5.5 入口条件 |

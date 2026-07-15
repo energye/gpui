@@ -32,16 +32,28 @@ type ClipParams struct {
 	Enabled float32
 }
 
-// Bytes serializes ClipParams to a 32-byte buffer suitable for GPU upload.
+// Bytes serializes ClipParams to a fresh 32-byte buffer suitable for GPU upload.
+// Hot paths should prefer BytesInto to avoid per-call allocation (S6.2).
 func (p *ClipParams) Bytes() []byte {
-	buf := make([]byte, clipParamsSize)
+	return p.BytesInto(nil)
+}
+
+// BytesInto serializes into buf when cap >= clipParamsSize; otherwise allocates.
+func (p *ClipParams) BytesInto(buf []byte) []byte {
+	if cap(buf) < clipParamsSize {
+		buf = make([]byte, clipParamsSize)
+	} else {
+		buf = buf[:clipParamsSize]
+		for i := range buf {
+			buf[i] = 0
+		}
+	}
 	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(p.RectX1))
 	binary.LittleEndian.PutUint32(buf[4:8], math.Float32bits(p.RectY1))
 	binary.LittleEndian.PutUint32(buf[8:12], math.Float32bits(p.RectX2))
 	binary.LittleEndian.PutUint32(buf[12:16], math.Float32bits(p.RectY2))
 	binary.LittleEndian.PutUint32(buf[16:20], math.Float32bits(p.Radius))
 	binary.LittleEndian.PutUint32(buf[20:24], math.Float32bits(p.Enabled))
-	// bytes 24..31 remain zero (padding).
 	return buf
 }
 
@@ -72,9 +84,21 @@ type MaskParams struct {
 	Enabled float32
 }
 
-// Bytes serializes MaskParams to a 16-byte GPU uniform.
+// Bytes serializes MaskParams to a fresh 16-byte GPU uniform.
 func (p *MaskParams) Bytes() []byte {
-	buf := make([]byte, maskParamsSize)
+	return p.BytesInto(nil)
+}
+
+// BytesInto serializes into buf when cap >= maskParamsSize; otherwise allocates.
+func (p *MaskParams) BytesInto(buf []byte) []byte {
+	if cap(buf) < maskParamsSize {
+		buf = make([]byte, maskParamsSize)
+	} else {
+		buf = buf[:maskParamsSize]
+		for i := range buf {
+			buf[i] = 0
+		}
+	}
 	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(p.Enabled))
 	return buf
 }

@@ -835,7 +835,19 @@ func writeSDFRenderVertex(buf []byte, px, py, lx, ly float32, s *SDFRenderShape)
 // makeSDFRenderUniform creates the 16-byte uniform buffer.
 // Layout: viewport (vec2<f32>) + anti_alias (u32) + padding (u32).
 func makeSDFRenderUniform(w, h uint32, antiAlias bool) []byte {
-	buf := make([]byte, sdfRenderUniformSize)
+	return makeSDFRenderUniformInto(nil, w, h, antiAlias)
+}
+
+// makeSDFRenderUniformInto reuses buf when possible (S6.2 hot path).
+func makeSDFRenderUniformInto(buf []byte, w, h uint32, antiAlias bool) []byte {
+	if cap(buf) < sdfRenderUniformSize {
+		buf = make([]byte, sdfRenderUniformSize)
+	} else {
+		buf = buf[:sdfRenderUniformSize]
+		for i := range buf {
+			buf[i] = 0
+		}
+	}
 	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(float32(w)))
 	binary.LittleEndian.PutUint32(buf[4:8], math.Float32bits(float32(h)))
 	aa := uint32(1)
@@ -843,7 +855,6 @@ func makeSDFRenderUniform(w, h uint32, antiAlias bool) []byte {
 		aa = 0
 	}
 	binary.LittleEndian.PutUint32(buf[8:12], aa)
-	// Padding byte 12..15 remains zero.
 	slogger().Debug("SDF uniform viewport", "width", w, "height", h, "anti_alias", antiAlias)
 	return buf
 }
