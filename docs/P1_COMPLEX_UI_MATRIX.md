@@ -114,6 +114,13 @@
 | L.06 | MaskAware native R8 upload | `TestP1_Capability_L06_MaskAware*` |
 | L.06 | Convex cover-inline R8 | `TestP1_Capability_L06_CoverInlineR8GPU` |
 | L.06 | SDF cover-inline R8 | `TestP1_Capability_L06_SDFCoverInlineR8GPU` |
+| L.06 | Stencil cover-inline R8 | `TestP1_Capability_L06_StencilCoverInlineR8GPU` |
+| F.03 | GPU multi-RT filter graph | `TestP1_Capability_F03_GPUMultiRTFilterGraph` |
+| F.03 | GPU ColorMatrix+DropShadow | `TestP1_Capability_F03_GPUColorMatrixDropShadow` |
+| B.04 | HSL Hue/Color GPU dual-tex | `TestP1_Capability_B04_*` |
+| S.07 | WritePixels GPU upload | `TestP1_Capability_S07_WritePixelsGPU` |
+| B.03 | Darken/Difference/Lighten GPU | `TestP1_Capability_B03_DarkenGPU` / `Difference` / `Lighten` |
+| B.03 | SoftLight/HardLight/ColorDodge GPU | `TestP1_Capability_B03_SoftLightGPU` / `HardLight` / `ColorDodge` |
 
 ## 命令
 
@@ -125,9 +132,48 @@ go test -count=1 ./render -run 'TestP1_'
 go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|TestP1_'
 ```
 
+## Tier J（通知栈 / 双抽屉叠层）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| J1 | Notification stack | `TestP1_J1_NotificationStackDensity` | ✅ |
+| J2 | Dual drawer + FAB | `TestP1_J2_DualDrawerOverlayDensity` | ✅ |
+
+## Tier K（damage / HiDPI 密度）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| K1 | Multi-region damage UI | `TestP1_K1_DamageMultiRegionUI` | ✅ |
+| K2 | HiDPI toolbar+table+overlay | `TestP1_K2_HiDPIToolbarTableOverlay` | ✅ |
+
+## Tier L（表单校验 / 表格选择+Toast）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| L1 | Form validation dense | `TestP1_L1_FormValidationDense` | ✅ |
+| L2 | Table selection + toasts | `TestP1_L2_TableSelectionToasts` | ✅ |
+
+## Tier M（图表/热力 advanced blend）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| M1 | Chart dashboard + Darken/Difference | `TestP1_M1_ChartDashboardBlend` | ✅ |
+| M2 | Heatmap SoftLight density | `TestP1_M2_HeatmapSoftLightDensity` | ✅ |
+
+## Tier N（retained 多面板 / IDE 密度）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| N1 | Retained multi-panel + WritePixels | `TestP1_N1_RetainedMultiPanelDamage` | ✅ |
+| N2 | IDE layout density | `TestP1_N2_IDELayoutDensity` | ✅ |
+
 ## 仍 open（下一切片）
 
-- F.03 GPU multi-RT ping-pong（pixmap multi-pass on GPU pixels ✅；true multi-RT 可再加深）  
-- 更极端 Ant 数据集 / 滚动 damage 加压  
-- M4 后置质量项  
-- L.06 stencil-then-cover 路径 mask 内联（convex/SDF 已 ✅）  
+- M4 可选项（F16/mesh/PDF/透视等）  
+- K.01 vello compute path 深化  
+- 真窗口 multi-rect Present damage e2e（DISPLAY）  
+
+
+
+
+

@@ -112,6 +112,16 @@ const (
 	BlendDestinationIn = intImage.BlendDestinationIn
 	// BlendDestinationAtop is Porter-Duff DstAtop (B.02).
 	BlendDestinationAtop = intImage.BlendDestinationAtop
+
+	// Separable advanced modes (B.03 extended).
+	BlendDarken     = intImage.BlendDarken
+	BlendLighten    = intImage.BlendLighten
+	BlendColorDodge = intImage.BlendColorDodge
+	BlendColorBurn  = intImage.BlendColorBurn
+	BlendHardLight  = intImage.BlendHardLight
+	BlendSoftLight  = intImage.BlendSoftLight
+	BlendDifference = intImage.BlendDifference
+	BlendExclusion  = intImage.BlendExclusion
 )
 
 // DrawImageOptions specifies parameters for drawing an image.

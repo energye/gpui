@@ -825,6 +825,22 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 		br = overlayChannelU8(sr, dr)
 		bg = overlayChannelU8(sg, dg)
 		bb = overlayChannelU8(sb, db)
+	case BlendDarken:
+		br, bg, bb = min3u8(sr, dr), min3u8(sg, dg), min3u8(sb, db)
+	case BlendLighten:
+		br, bg, bb = max3u8(sr, dr), max3u8(sg, dg), max3u8(sb, db)
+	case BlendDifference:
+		br, bg, bb = absDiff3u8(sr, dr), absDiff3u8(sg, dg), absDiff3u8(sb, db)
+	case BlendExclusion:
+		br, bg, bb = exclusionU8(sr, dr), exclusionU8(sg, dg), exclusionU8(sb, db)
+	case BlendHardLight:
+		br, bg, bb = hardLightU8(sr, dr), hardLightU8(sg, dg), hardLightU8(sb, db)
+	case BlendSoftLight:
+		br, bg, bb = softLightU8(sr, dr), softLightU8(sg, dg), softLightU8(sb, db)
+	case BlendColorDodge:
+		br, bg, bb = colorDodgeU8(sr, dr), colorDodgeU8(sg, dg), colorDodgeU8(sb, db)
+	case BlendColorBurn:
+		br, bg, bb = colorBurnU8(sr, dr), colorBurnU8(sg, dg), colorBurnU8(sb, db)
 	case BlendHue, BlendSaturation, BlendColor, BlendLuminosity:
 		br, bg, bb = advancedBlendRGB(mode, sr, sg, sb, dr, dg, db)
 	}
@@ -854,6 +870,77 @@ func overlayChannelU8(src, dst uint8) uint8 {
 // the paint color at each pixel instead of using a single constant color.
 // When clipFn is non-nil, each pixel's alpha is multiplied by the clip coverage.
 // When maskFn is non-nil, each pixel's alpha is multiplied by the mask coverage.
+func min3u8(a, b uint8) uint8 {
+	if a < b {
+		return a
+	}
+	return b
+}
+func max3u8(a, b uint8) uint8 {
+	if a > b {
+		return a
+	}
+	return b
+}
+func absDiff3u8(a, b uint8) uint8 {
+	if a >= b {
+		return a - b
+	}
+	return b - a
+}
+func exclusionU8(s, d uint8) uint8 {
+	return uint8(int(s) + int(d) - (2*int(s)*int(d))/255)
+}
+func hardLightU8(s, d uint8) uint8 {
+	if s <= 127 {
+		return uint8((2 * int(s) * int(d)) / 255)
+	}
+	return uint8(255 - (2*(255-int(s))*(255-int(d)))/255)
+}
+func softLightU8(s, d uint8) uint8 {
+	sf := float64(s) / 255.0
+	df := float64(d) / 255.0
+	var r float64
+	if sf <= 0.5 {
+		r = df - (1.0-2.0*sf)*df*(1.0-df)
+	} else {
+		var d2 float64
+		if df <= 0.25 {
+			d2 = ((16.0*df-12.0)*df + 4.0) * df
+		} else {
+			d2 = math.Sqrt(df)
+		}
+		r = df + (2.0*sf-1.0)*(d2-df)
+	}
+	if r < 0 {
+		r = 0
+	}
+	if r > 1 {
+		r = 1
+	}
+	return uint8(r * 255.0)
+}
+func colorDodgeU8(s, d uint8) uint8 {
+	if s >= 255 {
+		return 255
+	}
+	v := (int(d) * 255) / (255 - int(s))
+	if v > 255 {
+		return 255
+	}
+	return uint8(v)
+}
+func colorBurnU8(s, d uint8) uint8 {
+	if s == 0 {
+		return 0
+	}
+	v := 255 - ((255-int(d))*255)/int(s)
+	if v < 0 {
+		return 0
+	}
+	return uint8(v)
+}
+
 func (r *SoftwareRenderer) blendAlphaRunsFromCoreRunsPaint(pixmap *Pixmap, y int, runs *raster.AlphaRuns, paint *Paint, clipFn func(x, y float64) byte, maskFn func(x, y int) uint8) {
 	if y < 0 || y >= pixmap.Height() {
 		return

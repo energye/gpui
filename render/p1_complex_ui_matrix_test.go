@@ -2347,3 +2347,993 @@ func TestP1_I2_ModalStackDensity(t *testing.T) {
 		t.Fatalf("popconfirm OK missing: %d,%d,%d", r3, g3, b3)
 	}
 }
+
+// --- Tier J: notification stack + multi-drawer damage morphology ---
+
+// J1: stacked notifications (top-right) over dense list — Ant Design notification morph.
+func TestP1_J1_NotificationStackDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 480, 360
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// App shell
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	// Sider
+	dc.SetRGB(0.12, 0.16, 0.24)
+	dc.DrawRectangle(0, 0, 72, h)
+	_ = dc.Fill()
+	// Content cards
+	for i := 0; i < 8; i++ {
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(88, 16+float64(i)*40, w-110, 32, 6)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.08)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(88.5, 16.5+float64(i)*40, w-111, 31, 6)
+		_ = dc.Stroke()
+		dc.SetRGB(0.2, 0.2, 0.2)
+		dc.DrawString(fmt.Sprintf("List item %02d", i+1), 100, 36+float64(i)*40)
+	}
+
+	// Notification stack top-right (4 cards with accent bars)
+	for i := 0; i < 4; i++ {
+		x := float64(w - 220)
+		y := 12 + float64(i)*64
+		// shadow plate
+		dc.SetRGBA(0, 0, 0, 0.12)
+		dc.DrawRoundedRectangle(x+3, y+3, 200, 56, 8)
+		_ = dc.Fill()
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, y, 200, 56, 8)
+		_ = dc.Fill()
+		// accent
+		cols := [][3]float64{{0.09, 0.47, 0.95}, {0.32, 0.69, 0.31}, {0.95, 0.61, 0.07}, {0.86, 0.21, 0.27}}
+		c := cols[i%4]
+		dc.SetRGB(c[0], c[1], c[2])
+		dc.DrawRoundedRectangle(x, y, 4, 56, 2)
+		_ = dc.Fill()
+		dc.SetRGB(0.15, 0.15, 0.15)
+		dc.DrawString(fmt.Sprintf("Notify #%d", i+1), x+14, y+22)
+		dc.SetRGB(0.45, 0.45, 0.45)
+		dc.DrawString("Operation completed", x+14, y+40)
+	}
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("J1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 25 {
+		t.Fatalf("J1 expected GPUOps>=25: %s", stats.LogLine())
+	}
+	// Sider dark
+	r, g, b, _ := p1Sample(dc, 20, 40)
+	if r > 80 || g > 80 || b > 90 {
+		t.Fatalf("sider missing: %d,%d,%d", r, g, b)
+	}
+	// Top notification white-ish body
+	r2, g2, b2, _ := p1Sample(dc, w-100, 30)
+	if r2 < 230 {
+		t.Fatalf("notification card missing: %d,%d,%d", r2, g2, b2)
+	}
+	// Accent bar blue-ish on first toast
+	r3, g3, b3, _ := p1Sample(dc, w-218, 40)
+	if b3 < 150 {
+		t.Fatalf("notification accent missing: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// J2: dual drawer + floating action + damage-like partial overlays.
+func TestP1_J2_DualDrawerOverlayDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 520, 340
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Base page grid
+	dc.SetRGB(0.94, 0.95, 0.97)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	for row := 0; row < 5; row++ {
+		for col := 0; col < 4; col++ {
+			dc.SetRGB(1, 1, 1)
+			x := 16 + float64(col)*120
+			y := 16 + float64(row)*60
+			dc.DrawRoundedRectangle(x, y, 108, 48, 6)
+			_ = dc.Fill()
+		}
+	}
+
+	// Left drawer
+	dc.SetRGBA(0, 0, 0, 0.35)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, 220, h)
+	_ = dc.Fill()
+	for i := 0; i < 10; i++ {
+		dc.SetRGB(0.95, 0.96, 0.98)
+		dc.DrawRoundedRectangle(12, 16+float64(i)*30, 196, 24, 4)
+		_ = dc.Fill()
+	}
+
+	// Right nested settings drawer
+	dc.SetRGBA(0, 0, 0, 0.2)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(w-240, 0, 240, h)
+	_ = dc.Fill()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRectangle(w-240, 0, 240, 44)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("Settings", float64(w-220), 28)
+	for i := 0; i < 6; i++ {
+		dc.SetRGB(0.93, 0.94, 0.96)
+		dc.DrawRoundedRectangle(float64(w-224), 60+float64(i)*40, 208, 32, 6)
+		_ = dc.Fill()
+	}
+
+	// FAB
+	dc.SetRGBA(0, 0, 0, 0.18)
+	dc.DrawCircle(float64(w-48), float64(h-48), 26)
+	_ = dc.Fill()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawCircle(float64(w-50), float64(h-50), 24)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("J2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 30 {
+		t.Fatalf("J2 expected GPUOps>=30: %s", stats.LogLine())
+	}
+	// Left drawer still visible after right-drawer dim (~SourceOver 0.2 black → ~204).
+	r, g, b, _ := p1Sample(dc, 40, 40)
+	if r < 180 || r > 230 {
+		t.Fatalf("left drawer under dim missing/wrong: %d,%d,%d", r, g, b)
+	}
+	// Right header blue
+	r2, g2, b2, _ := p1Sample(dc, w-120, 20)
+	if b2 < 150 {
+		t.Fatalf("right drawer header missing: %d,%d,%d", r2, g2, b2)
+	}
+	// FAB blue
+	r3, g3, b3, _ := p1Sample(dc, w-50, h-50)
+	if b3 < 150 {
+		t.Fatalf("FAB missing: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// --- Tier K: multi-region damage / HiDPI shell morphology ---
+
+// K1: page shell with multi-region damage redraw (partial FlushGPUWithViewDamage).
+func TestP1_K1_DamageMultiRegionUI(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 400, 280
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Full page first paint
+	dc.SetRGB(0.95, 0.96, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	// header
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, 48)
+	_ = dc.Fill()
+	dc.SetRGB(0.15, 0.15, 0.15)
+	dc.DrawString("Dashboard", 16, 30)
+	// 3 content cards
+	for i := 0; i < 3; i++ {
+		x := 16 + float64(i)*124
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, 64, 112, 160, 8)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.08)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(x+0.5, 64.5, 111, 159, 8)
+		_ = dc.Stroke()
+	}
+	p1Flush(t, dc)
+	base := dc.RenderPathStats().GPUOps
+
+	// Damage region 1: update card 0 badge
+	dc.ResetFrameDamage()
+	dc.SetRGB(0.86, 0.21, 0.27)
+	dc.DrawCircle(100, 84, 10)
+	_ = dc.Fill()
+	// Damage region 2: update card 2 button
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(280, 180, 80, 28, 6)
+	_ = dc.Fill()
+
+	damage := dc.FrameDamage()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU damage content: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("K1 path_stats %s base=%d damageRects=%d", stats.LogLine(), base, len(damage))
+	if stats.GPUOps <= base {
+		t.Fatalf("K1 expected more GPUOps after partial updates: %s", stats.LogLine())
+	}
+	// Badge red
+	r, g, b, _ := p1Sample(dc, 100, 84)
+	if r < 150 {
+		t.Fatalf("badge missing: %d,%d,%d", r, g, b)
+	}
+	// Button blue
+	r2, g2, b2, _ := p1Sample(dc, 320, 194)
+	if b2 < 150 {
+		t.Fatalf("damaged button missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// K2: HiDPI-ish dense toolbar + table + sticky footer overlay stack.
+func TestP1_K2_HiDPIToolbarTableOverlay(t *testing.T) {
+	p1RequireGPU(t)
+	// Logical 2x density canvas
+	const w, h = 640, 400
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.97, 0.98, 0.99)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Toolbar with many icon buttons
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, 44)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.06)
+	dc.DrawRectangle(0, 43, w, 1)
+	_ = dc.Fill()
+	for i := 0; i < 14; i++ {
+		x := 12 + float64(i)*44
+		dc.SetRGB(0.94, 0.95, 0.97)
+		dc.DrawRoundedRectangle(x, 8, 36, 28, 6)
+		_ = dc.Fill()
+	}
+
+	// Dense table grid
+	for row := 0; row < 10; row++ {
+		for col := 0; col < 6; col++ {
+			x := 12 + float64(col)*104
+			y := 56 + float64(row)*28
+			if row%2 == 0 {
+				dc.SetRGB(1, 1, 1)
+			} else {
+				dc.SetRGB(0.97, 0.98, 0.99)
+			}
+			dc.DrawRectangle(x, y, 100, 26)
+			_ = dc.Fill()
+			dc.SetRGBA(0, 0, 0, 0.06)
+			dc.DrawRectangle(x, y+25, 100, 1)
+			_ = dc.Fill()
+		}
+	}
+
+	// Sticky footer
+	dc.SetRGBA(1, 1, 1, 0.96)
+	dc.DrawRectangle(0, float64(h-48), w, 48)
+	_ = dc.Fill()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(float64(w-120), float64(h-38), 100, 28, 6)
+	_ = dc.Fill()
+
+	// Floating tooltip
+	dc.SetRGBA(0, 0, 0, 0.75)
+	dc.DrawRoundedRectangle(200, 120, 160, 40, 6)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("K2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 50 {
+		t.Fatalf("K2 expected dense GPUOps>=50: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 30, 20)
+	if r < 230 {
+		t.Fatalf("toolbar missing: %d,%d,%d", r, g, b)
+	}
+	r2, g2, b2, _ := p1Sample(dc, w-70, h-24)
+	if b2 < 150 {
+		t.Fatalf("footer CTA missing: %d,%d,%d", r2, g2, b2)
+	}
+	r3, g3, b3, _ := p1Sample(dc, 280, 140)
+	if r3 > 80 {
+		t.Fatalf("tooltip missing: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// --- Tier L: form validation + selection table + multi-toast ---
+
+// L1: Ant Design form morphology — labels, inputs, error text, primary CTA.
+func TestP1_L1_FormValidationDense(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 420, 360
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Card
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(40, 24, 340, 300, 10)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.08)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(40.5, 24.5, 339, 299, 10)
+	_ = dc.Stroke()
+
+	// Title
+	dc.SetRGB(0.15, 0.15, 0.15)
+	dc.DrawString("Create project", 60, 52)
+
+	// Fields
+	for i, label := range []string{"Name", "Owner", "Region", "Budget"} {
+		y := 72 + float64(i)*52
+		dc.SetRGB(0.35, 0.35, 0.35)
+		dc.DrawString(label, 60, y)
+		// input
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(60, y+6, 300, 28, 6)
+		_ = dc.Fill()
+		border := render.RGBA{R: 0.85, G: 0.85, B: 0.85, A: 1}
+		if i == 0 {
+			border = render.RGBA{R: 0.86, G: 0.21, B: 0.27, A: 1} // error
+		} else if i == 1 {
+			border = render.RGBA{R: 0.09, G: 0.47, B: 0.95, A: 1} // focus
+		}
+		dc.SetRGBA(border.R, border.G, border.B, border.A)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(60.5, y+6.5, 299, 27, 6)
+		_ = dc.Stroke()
+		if i == 0 {
+			dc.SetRGB(0.86, 0.21, 0.27)
+			dc.DrawString("Name is required", 60, y+48)
+		}
+	}
+
+	// Primary + cancel
+	dc.SetRGB(0.95, 0.95, 0.96)
+	dc.DrawRoundedRectangle(220, 290, 80, 28, 6)
+	_ = dc.Fill()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(310, 290, 80, 28, 6)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("L1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 15 {
+		t.Fatalf("L1 expected GPUOps>=15: %s", stats.LogLine())
+	}
+	// Error border red-ish near first input
+	r, g, b, _ := p1Sample(dc, 62, 84)
+	if r < 150 {
+		t.Fatalf("error input border missing: %d,%d,%d", r, g, b)
+	}
+	// Primary blue
+	r2, g2, b2, _ := p1Sample(dc, 350, 304)
+	if b2 < 150 {
+		t.Fatalf("primary CTA missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// L2: selectable table rows + multi toast stack (status feedback).
+func TestP1_L2_TableSelectionToasts(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 520, 360
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.95, 0.96, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Table header
+	dc.SetRGB(0.98, 0.98, 0.99)
+	dc.DrawRectangle(16, 16, w-32, 32)
+	_ = dc.Fill()
+	// Rows
+	for i := 0; i < 9; i++ {
+		y := 48 + float64(i)*28
+		if i == 2 || i == 5 {
+			dc.SetRGB(0.90, 0.95, 1.0) // selected
+		} else if i%2 == 0 {
+			dc.SetRGB(1, 1, 1)
+		} else {
+			dc.SetRGB(0.98, 0.98, 0.99)
+		}
+		dc.DrawRectangle(16, y, w-32, 28)
+		_ = dc.Fill()
+		// checkbox
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(24, y+6, 16, 16, 3)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.15)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(24.5, y+6.5, 15, 15, 3)
+		_ = dc.Stroke()
+		if i == 2 || i == 5 {
+			dc.SetRGB(0.09, 0.47, 0.95)
+			dc.DrawRoundedRectangle(26, y+8, 12, 12, 2)
+			_ = dc.Fill()
+		}
+	}
+
+	// Multi toasts top-right
+	for i := 0; i < 3; i++ {
+		x := float64(w - 200)
+		y := 20 + float64(i)*56
+		dc.SetRGBA(0, 0, 0, 0.1)
+		dc.DrawRoundedRectangle(x+2, y+2, 180, 48, 8)
+		_ = dc.Fill()
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, y, 180, 48, 8)
+		_ = dc.Fill()
+		cols := [][3]float64{{0.32, 0.69, 0.31}, {0.09, 0.47, 0.95}, {0.95, 0.61, 0.07}}
+		c := cols[i]
+		dc.SetRGB(c[0], c[1], c[2])
+		dc.DrawRoundedRectangle(x, y, 4, 48, 2)
+		_ = dc.Fill()
+	}
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("L2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 30 {
+		t.Fatalf("L2 expected GPUOps>=30: %s", stats.LogLine())
+	}
+	// selected row blue-ish
+	r, g, b, _ := p1Sample(dc, 80, 48+2*28+10)
+	if b < 200 {
+		t.Fatalf("selected row missing: %d,%d,%d", r, g, b)
+	}
+	// toast body white
+	r2, g2, b2, _ := p1Sample(dc, w-100, 40)
+	if r2 < 240 {
+		t.Fatalf("toast missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// --- Tier M: chart/dashboard with advanced blend accents ---
+
+// M1: dashboard cards + Difference/Darken accent overlays (UI viz morphology).
+func TestP1_M1_ChartDashboardBlend(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 560, 360
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.94, 0.95, 0.97)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// KPI cards
+	for i := 0; i < 4; i++ {
+		x := 16 + float64(i)*134
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, 16, 124, 72, 8)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.06)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(x+0.5, 16.5, 123, 71, 8)
+		_ = dc.Stroke()
+		dc.SetRGB(0.2, 0.2, 0.2)
+		dc.DrawString(fmt.Sprintf("KPI %d", i+1), x+12, 40)
+	}
+
+	// Chart panel
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(16, 104, w-32, 200, 10)
+	_ = dc.Fill()
+
+	// Base bars
+	for i := 0; i < 12; i++ {
+		x := 40 + float64(i)*40
+		ht := 40.0 + float64((i*37)%120)
+		dc.SetRGB(0.55, 0.72, 0.95)
+		dc.DrawRoundedRectangle(x, 280-ht, 28, ht, 4)
+		_ = dc.Fill()
+	}
+
+	// Darken overlay strip (selection range highlight)
+	dc.SetRGBA(0.1, 0.2, 0.5, 0.85)
+	dc.SetBlendMode(render.BlendDarken)
+	dc.DrawRectangle(120, 120, 160, 160)
+	_ = dc.Fill()
+	dc.SetBlendMode(render.BlendNormal)
+
+	// Difference accent sparkline plate
+	dc.SetRGB(0.95, 0.4, 0.2)
+	dc.SetBlendMode(render.BlendDifference)
+	dc.DrawRoundedRectangle(360, 140, 140, 100, 8)
+	_ = dc.Fill()
+	dc.SetBlendMode(render.BlendNormal)
+
+	// Legend chips
+	for i, col := range [][3]float64{{0.09, 0.47, 0.95}, {0.32, 0.69, 0.31}, {0.95, 0.61, 0.07}} {
+		x := 40 + float64(i)*90
+		dc.SetRGB(col[0], col[1], col[2])
+		dc.DrawRoundedRectangle(x, 320, 16, 16, 3)
+		_ = dc.Fill()
+	}
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("M1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 25 {
+		t.Fatalf("M1 expected GPUOps>=25: %s", stats.LogLine())
+	}
+	// Darken region should not be pure white
+	r, g, b, _ := p1Sample(dc, 180, 180)
+	if r > 230 && g > 230 && b > 230 {
+		t.Fatalf("darken overlay missing: %d,%d,%d", r, g, b)
+	}
+	// KPI card white
+	r2, g2, b2, _ := p1Sample(dc, 40, 40)
+	if r2 < 240 {
+		t.Fatalf("KPI card missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// M2: multi-layer map-like heat using SoftLight/Lighten (geo-dashboard morph).
+func TestP1_M2_HeatmapSoftLightDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 400, 300
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Base map tiles
+	for row := 0; row < 6; row++ {
+		for col := 0; col < 8; col++ {
+			x := float64(col * 50)
+			y := float64(row * 50)
+			if (row+col)%2 == 0 {
+				dc.SetRGB(0.88, 0.90, 0.93)
+			} else {
+				dc.SetRGB(0.92, 0.93, 0.95)
+			}
+			dc.DrawRectangle(x, y, 50, 50)
+			_ = dc.Fill()
+		}
+	}
+
+	// Heat blobs with SoftLight
+	dc.SetBlendMode(render.BlendSoftLight)
+	for i, cxy := range [][3]float64{{80, 70, 50}, {200, 140, 70}, {300, 90, 45}, {150, 220, 60}} {
+		warm := 0.5 + 0.1*float64(i)
+		dc.SetRGBA(1.0, warm*0.4, 0.05, 0.9)
+		dc.DrawCircle(cxy[0], cxy[1], cxy[2])
+		_ = dc.Fill()
+	}
+	dc.SetBlendMode(render.BlendNormal)
+
+	// Lighten highlight pins
+	dc.SetBlendMode(render.BlendLighten)
+	dc.SetRGB(1, 1, 0.6)
+	for _, p := range [][2]float64{{80, 70}, {200, 140}, {300, 90}} {
+		dc.DrawCircle(p[0], p[1], 6)
+		_ = dc.Fill()
+	}
+	dc.SetBlendMode(render.BlendNormal)
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("M2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 40 {
+		t.Fatalf("M2 expected dense GPUOps>=40: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 200, 140)
+	// heat center should be warmer than cool tile gray
+	if r < 150 {
+		t.Fatalf("heat blob missing: %d,%d,%d", r, g, b)
+	}
+}
+
+// --- Tier N: retained multi-panel + WritePixels icon strip + damage ---
+
+// N1: multi-panel shell with partial panel redraw + WritePixels badge strip.
+func TestP1_N1_RetainedMultiPanelDamage(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 640, 400
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Shell
+	dc.SetRGB(0.12, 0.14, 0.18)
+	dc.DrawRectangle(0, 0, 64, h)
+	_ = dc.Fill()
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(64, 0, w-64, h)
+	_ = dc.Fill()
+
+	// Three content panels
+	panels := [][4]float64{
+		{80, 16, 260, 180},
+		{356, 16, 260, 180},
+		{80, 212, 536, 168},
+	}
+	for i, p := range panels {
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(p[0], p[1], p[2], p[3], 8)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.08)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(p[0]+0.5, p[1]+0.5, p[2]-1, p[3]-1, 8)
+		_ = dc.Stroke()
+		dc.SetRGB(0.2, 0.2, 0.2)
+		dc.DrawString(fmt.Sprintf("Panel %d", i+1), p[0]+12, p[1]+24)
+		// content lines
+		for j := 0; j < 4; j++ {
+			dc.SetRGB(0.93, 0.94, 0.96)
+			dc.DrawRoundedRectangle(p[0]+12, p[1]+40+float64(j)*28, p[2]-24, 20, 4)
+			_ = dc.Fill()
+		}
+	}
+	p1Flush(t, dc)
+	base := dc.RenderPathStats().GPUOps
+
+	// Retained-style partial update: only panel 2 body + badge via WritePixels
+	dc.ResetFrameDamage()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(368, 56, 120, 28, 6)
+	_ = dc.Fill()
+	// 8x8 red badge via WritePixels into panel 2 corner
+	badge := make([]byte, 8*8*4)
+	for i := 0; i < 64; i++ {
+		badge[i*4+0] = 220
+		badge[i*4+1] = 40
+		badge[i*4+2] = 50
+		badge[i*4+3] = 255
+	}
+	dc.WritePixels(580, 24, 8, 8, badge)
+	// panel 3 row highlight
+	dc.SetRGB(0.90, 0.95, 1.0)
+	dc.DrawRoundedRectangle(92, 260, 500, 24, 4)
+	_ = dc.Fill()
+
+	damage := dc.FrameDamage()
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("N1 path_stats %s base=%d damage=%d", stats.LogLine(), base, len(damage))
+	if stats.GPUOps <= base {
+		t.Fatalf("N1 expected more GPUOps after retained updates: %s", stats.LogLine())
+	}
+	// blue button in panel 2
+	r, g, b, _ := p1Sample(dc, 400, 70)
+	if b < 150 {
+		t.Fatalf("panel2 update missing: %d,%d,%d", r, g, b)
+	}
+	// WritePixels badge
+	r2, g2, b2, _ := p1Sample(dc, 583, 27)
+	if r2 < 180 {
+		t.Fatalf("WritePixels badge missing: %d,%d,%d", r2, g2, b2)
+	}
+	// sider still dark
+	r3, g3, b3, _ := p1Sample(dc, 20, 40)
+	if r3 > 60 {
+		t.Fatalf("sider clobbered: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// N2: nested tabs + tree + inspector (IDE-like density).
+func TestP1_N2_IDELayoutDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 720, 440
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Activity bar
+	dc.SetRGB(0.18, 0.18, 0.2)
+	dc.DrawRectangle(0, 0, 48, h)
+	_ = dc.Fill()
+	for i := 0; i < 6; i++ {
+		dc.SetRGB(0.3, 0.3, 0.35)
+		dc.DrawRoundedRectangle(8, 16+float64(i)*48, 32, 32, 6)
+		_ = dc.Fill()
+	}
+	// Sidebar tree
+	dc.SetRGB(0.95, 0.95, 0.96)
+	dc.DrawRectangle(48, 0, 200, h)
+	_ = dc.Fill()
+	for i := 0; i < 14; i++ {
+		indent := float64((i % 4) * 12)
+		if i == 5 {
+			dc.SetRGB(0.09, 0.47, 0.95)
+			dc.DrawRectangle(48, 40+float64(i)*24, 200, 22)
+			_ = dc.Fill()
+			dc.SetRGB(1, 1, 1)
+		} else {
+			dc.SetRGB(0.2, 0.2, 0.2)
+		}
+		dc.DrawString(fmt.Sprintf("node-%02d", i), 60+indent, 56+float64(i)*24)
+	}
+	// Editor tabs
+	dc.SetRGB(0.98, 0.98, 0.99)
+	dc.DrawRectangle(248, 0, w-248-220, 36)
+	_ = dc.Fill()
+	for i := 0; i < 4; i++ {
+		x := 256 + float64(i)*110
+		if i == 1 {
+			dc.SetRGB(1, 1, 1)
+		} else {
+			dc.SetRGB(0.93, 0.93, 0.95)
+		}
+		dc.DrawRoundedRectangle(x, 6, 100, 24, 4)
+		_ = dc.Fill()
+	}
+	// Editor body lines
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(248, 36, w-248-220, h-36)
+	_ = dc.Fill()
+	for i := 0; i < 18; i++ {
+		dc.SetRGB(0.15, 0.15, 0.18)
+		dc.DrawRoundedRectangle(264, 48+float64(i)*18, 200+float64((i*17)%180), 8, 2)
+		_ = dc.Fill()
+	}
+	// Inspector
+	dc.SetRGB(0.97, 0.97, 0.98)
+	dc.DrawRectangle(w-220, 0, 220, h)
+	_ = dc.Fill()
+	for i := 0; i < 10; i++ {
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(float64(w-208), 16+float64(i)*36, 196, 28, 4)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.08)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(float64(w-207)+0.5, 16.5+float64(i)*36, 195, 27, 4)
+		_ = dc.Stroke()
+	}
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("N2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 60 {
+		t.Fatalf("N2 expected dense GPUOps>=60: %s", stats.LogLine())
+	}
+	// selected tree row blue
+	r, g, b, _ := p1Sample(dc, 100, 40+5*24+10)
+	if b < 150 {
+		t.Fatalf("tree selection missing: %d,%d,%d", r, g, b)
+	}
+	// activity bar dark
+	r2, g2, b2, _ := p1Sample(dc, 20, 20)
+	if r2 > 80 {
+		t.Fatalf("activity bar missing: %d,%d,%d", r2, g2, b2)
+	}
+	// inspector card
+	r3, g3, b3, _ := p1Sample(dc, w-100, 30)
+	if r3 < 240 {
+		t.Fatalf("inspector missing: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// --- Tier O: calendar + timeline + Gantt morph ---
+
+// O1: month grid + agenda list + floating event popover.
+func TestP1_O1_CalendarTimelineDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 640, 420
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Header
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, 48)
+	_ = dc.Fill()
+	dc.SetRGB(0.15, 0.15, 0.15)
+	dc.DrawString("July 2026", 24, 30)
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(float64(w-120), 10, 96, 28, 6)
+	_ = dc.Fill()
+
+	// Month grid 7x5
+	for row := 0; row < 5; row++ {
+		for col := 0; col < 7; col++ {
+			x := 16 + float64(col)*60
+			y := 64 + float64(row)*52
+			dc.SetRGB(1, 1, 1)
+			dc.DrawRoundedRectangle(x, y, 56, 48, 4)
+			_ = dc.Fill()
+			dc.SetRGBA(0, 0, 0, 0.06)
+			dc.SetLineWidth(1)
+			dc.DrawRoundedRectangle(x+0.5, y+0.5, 55, 47, 4)
+			_ = dc.Stroke()
+			// event chips
+			if (row+col)%3 == 0 {
+				dc.SetRGB(0.09, 0.47, 0.95)
+				dc.DrawRoundedRectangle(x+4, y+22, 48, 8, 2)
+				_ = dc.Fill()
+			}
+			if (row*7+col)%5 == 0 {
+				dc.SetRGB(0.32, 0.69, 0.31)
+				dc.DrawRoundedRectangle(x+4, y+34, 36, 8, 2)
+				_ = dc.Fill()
+			}
+		}
+	}
+
+	// Agenda sidebar
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(440, 64, 184, 280, 8)
+	_ = dc.Fill()
+	for i := 0; i < 7; i++ {
+		dc.SetRGB(0.95, 0.96, 0.98)
+		dc.DrawRoundedRectangle(452, 80+float64(i)*36, 160, 28, 4)
+		_ = dc.Fill()
+	}
+
+	// Popover over calendar
+	dc.SetRGBA(0, 0, 0, 0.12)
+	dc.DrawRoundedRectangle(150, 140, 180, 100, 8)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(146, 136, 180, 100, 8)
+	_ = dc.Fill()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(160, 190, 70, 24, 4)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("O1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 50 {
+		t.Fatalf("O1 expected GPUOps>=50: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 200, 180)
+	if r < 240 {
+		t.Fatalf("popover missing: %d,%d,%d", r, g, b)
+	}
+	r2, g2, b2, _ := p1Sample(dc, w-70, 24)
+	if b2 < 150 {
+		t.Fatalf("header CTA missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// O2: gantt bars + today line + dependency arrows morph.
+func TestP1_O2_GanttDependencyDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 700, 320
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.97, 0.98, 0.99)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Left task names
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, 140, h)
+	_ = dc.Fill()
+	for i := 0; i < 8; i++ {
+		dc.SetRGB(0.2, 0.2, 0.2)
+		dc.DrawString(fmt.Sprintf("Task %02d", i+1), 12, 36+float64(i)*34)
+	}
+
+	// Grid
+	for i := 0; i < 12; i++ {
+		x := 140 + float64(i)*45
+		dc.SetRGBA(0, 0, 0, 0.05)
+		dc.DrawRectangle(x, 0, 1, h)
+		_ = dc.Fill()
+	}
+
+	// Gantt bars
+	cols := [][3]float64{{0.09, 0.47, 0.95}, {0.32, 0.69, 0.31}, {0.95, 0.61, 0.07}, {0.61, 0.15, 0.69}}
+	for i := 0; i < 8; i++ {
+		c := cols[i%4]
+		x := 150 + float64((i*17)%8)*40
+		y := 20 + float64(i)*34
+		ww := 80 + float64((i*13)%5)*30
+		dc.SetRGB(c[0], c[1], c[2])
+		dc.DrawRoundedRectangle(x, y, ww, 18, 4)
+		_ = dc.Fill()
+		// dependency polyline
+		if i > 0 {
+			dc.SetRGB(0.45, 0.45, 0.5)
+			dc.SetLineWidth(1)
+			dc.MoveTo(x-10, y-16)
+			dc.LineTo(x-10, y+9)
+			dc.LineTo(x, y+9)
+			_ = dc.Stroke()
+		}
+	}
+
+	// Today line
+	dc.SetRGB(0.86, 0.21, 0.27)
+	dc.DrawRectangle(420, 0, 2, h)
+	_ = dc.Fill()
+
+	// Milestone diamonds via small rrects
+	for _, mx := range []float64{280, 500, 610} {
+		dc.SetRGB(0.95, 0.61, 0.07)
+		dc.DrawRoundedRectangle(mx, 140, 12, 12, 2)
+		_ = dc.Fill()
+	}
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("O2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 30 {
+		t.Fatalf("O2 expected GPUOps>=30: %s", stats.LogLine())
+	}
+	// today line red
+	r, g, b, _ := p1Sample(dc, 421, 40)
+	if r < 150 {
+		t.Fatalf("today line missing: %d,%d,%d", r, g, b)
+	}
+	// a bar blue-ish
+	r2, g2, b2, _ := p1Sample(dc, 170, 28)
+	if b2 < 100 && r2 < 100 {
+		t.Fatalf("gantt bar missing: %d,%d,%d", r2, g2, b2)
+	}
+}

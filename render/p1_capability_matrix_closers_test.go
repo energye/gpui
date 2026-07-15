@@ -2144,3 +2144,678 @@ func TestP1_Capability_L06_SDFCoverInlineR8GPU(t *testing.T) {
 		t.Fatalf("ramp mid still near-white (mask not applied): %d,%d,%d", mr, mg, mb)
 	}
 }
+
+// L.06 stencil-then-cover + R8 mask: non-convex solid must sample mask on cover pass.
+func TestP1_Capability_L06_StencilCoverInlineR8GPU(t *testing.T) {
+	requireNativeGPU(t)
+	if _, ok := render.Accelerator().(render.MaskAware); !ok {
+		t.Fatal("MaskAware required for stencil cover-inline R8")
+	}
+
+	const w, h = 96, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	mask := render.NewMask(w, h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x < w/2 {
+				mask.Set(x, y, 255)
+			} else {
+				mask.Set(x, y, 0)
+			}
+		}
+	}
+	dc.SetMask(mask)
+
+	// Concave "C" / arrow-notch polygon: not convex → stencil-then-cover.
+	// Spans both left (mask on) and right (mask off).
+	dc.SetRGB(0.85, 0.12, 0.2)
+	dc.MoveTo(8, 8)
+	dc.LineTo(88, 8)
+	dc.LineTo(88, 56)
+	dc.LineTo(8, 56)
+	dc.LineTo(8, 40)
+	dc.LineTo(48, 32) // concave notch toward center
+	dc.LineTo(8, 24)
+	dc.ClosePath()
+	_ = dc.Fill()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("L.06 stencil cover-inline path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("stencil cover-inline requires GPUOps>0")
+	}
+
+	// Solid band above the concave notch (left, under mask) → red.
+	lr, lg, lb, _ := sampleRGBA(dc, 20, 14)
+	// Solid band below the notch (left, under mask) → red.
+	lr2, lg2, lb2, _ := sampleRGBA(dc, 20, 50)
+	// Right interior outside mask → white (cover discards via R8).
+	rr, rg, rb, _ := sampleRGBA(dc, 72, h/2)
+	// Inside the concave notch (outside polygon) → white.
+	nr, ng, nb, _ := sampleRGBA(dc, 20, 32)
+	t.Logf("leftTop=%d,%d,%d leftBot=%d,%d,%d right=%d,%d,%d notch=%d,%d,%d",
+		lr, lg, lb, lr2, lg2, lb2, rr, rg, rb, nr, ng, nb)
+	if lr < 140 || lg > 100 {
+		t.Fatalf("left-top under mask expected red stencil cover: %d,%d,%d", lr, lg, lb)
+	}
+	if lr2 < 140 || lg2 > 100 {
+		t.Fatalf("left-bot under mask expected red stencil cover: %d,%d,%d", lr2, lg2, lb2)
+	}
+	if rr < 240 || rg < 240 || rb < 240 {
+		t.Fatalf("right outside mask expected white: %d,%d,%d", rr, rg, rb)
+	}
+	if nr < 240 || ng < 240 || nb < 240 {
+		t.Fatalf("concave notch should remain white: %d,%d,%d", nr, ng, nb)
+	}
+}
+
+// F.03 true multi-RT GPU filter graph: registered path, blur→grayscale, GPUOps increases.
+func TestP1_Capability_F03_GPUMultiRTFilterGraph(t *testing.T) {
+	requireNativeGPU(t)
+	if !render.FiltersRegistered() {
+		t.Fatal("filters not registered")
+	}
+
+	// Force GPUShared init so RegisterGPUFilterGraph is wired.
+	const w, h = 64, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGB(0.1, 0.25, 0.95)
+	dc.DrawRoundedRectangle(16, 16, 32, 32, 4)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU content: %v", err)
+	}
+	if dc.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("content requires GPUOps>0")
+	}
+	if !render.GPUFilterGraphRegistered() {
+		t.Fatal("GPU multi-RT filter graph not registered (F.03)")
+	}
+	baseGPU := dc.RenderPathStats().GPUOps
+	br, bg, bb, _ := sampleRGBA(dc, 32, 32)
+	if bb < 150 {
+		t.Fatalf("pre-filter center expected blue: %d,%d,%d", br, bg, bb)
+	}
+
+	// GPU-supported nodes only (no DropShadow) → true multi-RT path.
+	dc.ApplyImageFilterGraph(
+		render.ImageFilterNode{Kind: render.ImageFilterBlur, Radius: 2},
+		render.ImageFilterNode{Kind: render.ImageFilterGrayscale},
+	)
+	stats := dc.RenderPathStats()
+	t.Logf("F.03 GPU multi-RT path_stats %s base=%d", stats.LogLine(), baseGPU)
+	if stats.GPUOps <= baseGPU {
+		t.Fatalf("GPU multi-RT graph must record GPUOps: base=%d after=%d", baseGPU, stats.GPUOps)
+	}
+
+	cr, cg, cb, _ := sampleRGBA(dc, 32, 32)
+	t.Logf("center after blur+gray=%d,%d,%d", cr, cg, cb)
+	// Grayscale of blue → channels near-equal, not saturated blue.
+	if cb > cr+40 && cb > cg+40 {
+		t.Fatalf("center still saturated blue after GPU grayscale: %d,%d,%d", cr, cg, cb)
+	}
+	if absU8(cr, cg) > 25 || absU8(cg, cb) > 25 {
+		// allow some blur residual but should be roughly gray
+		if cr > 200 && cg > 200 && cb > 200 {
+			t.Fatalf("center washed to white: %d,%d,%d", cr, cg, cb)
+		}
+	}
+	// Blur spreads: near-edge outside card should darken vs pure white.
+	er, eg, eb, _ := sampleRGBA(dc, 14, 32)
+	t.Logf("edge=%d,%d,%d", er, eg, eb)
+	if er > 252 && eg > 252 && eb > 252 {
+		er, eg, eb, _ = sampleRGBA(dc, 15, 32)
+	}
+	if er > 254 && eg > 254 && eb > 254 {
+		t.Fatalf("expected blur spill near card edge: %d,%d,%d", er, eg, eb)
+	}
+
+	// Invert-only GPU path sanity.
+	dc2 := render.NewContext(32, 32)
+	defer dc2.Close()
+	dc2.ResetRenderPathStats()
+	dc2.ClearWithColor(render.White)
+	dc2.SetRGB(1, 0, 0)
+	dc2.DrawRectangle(8, 8, 16, 16)
+	_ = dc2.Fill()
+	_ = dc2.FlushGPU()
+	base2 := dc2.RenderPathStats().GPUOps
+	dc2.ApplyImageFilterGraph(render.ImageFilterNode{Kind: render.ImageFilterInvert})
+	if dc2.RenderPathStats().GPUOps <= base2 {
+		t.Fatalf("invert GPU graph must record GPUOps")
+	}
+	ir, ig, ib, _ := sampleRGBA(dc2, 16, 16)
+	t.Logf("invert center=%d,%d,%d", ir, ig, ib)
+	// Red inverted ≈ cyan-ish (low R, high G/B) on white-inverted bg elsewhere.
+	if ir > 80 {
+		t.Fatalf("invert expected low red channel: %d,%d,%d", ir, ig, ib)
+	}
+	if ig < 150 || ib < 150 {
+		t.Fatalf("invert expected high G/B: %d,%d,%d", ir, ig, ib)
+	}
+}
+
+// B.04 HSL Hue via dual-tex advanced blend GPU path (not CPU-only residual).
+func TestP1_Capability_B04_HueGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	// Red backdrop
+	dc.SetRGB(0.9, 0.1, 0.1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU backdrop: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+	// Green source with Hue blend
+	dc.SetRGB(0.1, 0.85, 0.15)
+	dc.SetBlendMode(render.BlendHue)
+	dc.DrawRoundedRectangle(16, 16, 32, 32, 4)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU hue: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("B.04 Hue path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("Hue blend requires additional GPUOps: %s", stats.LogLine())
+	}
+	if stats.CPUFallbackOps > 0 {
+		t.Fatalf("Hue blend must not CPU-fallback: %s", stats.LogLine())
+	}
+	r, g, b, _ := sampleRGBA(dc, 32, 32)
+	t.Logf("hue center=%d,%d,%d", r, g, b)
+	// Hue of green on red lum/sat → greenish, not pure red
+	if g <= r {
+		t.Fatalf("Hue expected greener than red channel: %d,%d,%d", r, g, b)
+	}
+	if g < 80 {
+		t.Fatalf("Hue result too dark: %d,%d,%d", r, g, b)
+	}
+}
+
+func TestP1_Capability_B04_ColorGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 48, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.SetRGB(0.2, 0.2, 0.85) // blue-ish backdrop
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	base := dc.RenderPathStats().GPUOps
+	dc.SetRGB(0.95, 0.75, 0.1) // warm source
+	dc.SetBlendMode(render.BlendColor)
+	dc.DrawCircle(24, 24, 14)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	if dc.RenderPathStats().GPUOps <= base {
+		t.Fatalf("Color blend needs GPUOps increase")
+	}
+	r, g, b, _ := sampleRGBA(dc, 24, 24)
+	t.Logf("color blend center=%d,%d,%d", r, g, b)
+	// Should shift toward warm hues while keeping some blue lum influence
+	if r < 40 {
+		t.Fatalf("Color blend expected warmer red channel: %d,%d,%d", r, g, b)
+	}
+}
+
+// F.03 GPU ColorMatrix + DropShadow multi-RT nodes.
+func TestP1_Capability_F03_GPUColorMatrixDropShadow(t *testing.T) {
+	requireNativeGPU(t)
+	if !render.FiltersRegistered() {
+		t.Fatal("filters not registered")
+	}
+	const w, h = 80, 80
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGB(0.15, 0.4, 0.95)
+	dc.DrawRoundedRectangle(24, 20, 28, 28, 4)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	if !render.GPUFilterGraphRegistered() {
+		t.Fatal("GPU filter graph not registered")
+	}
+	base := dc.RenderPathStats().GPUOps
+
+	// Sepia-like matrix (straight 0-255 space, same as filter package)
+	sepia := [20]float32{
+		0.393, 0.769, 0.189, 0, 0,
+		0.349, 0.686, 0.168, 0, 0,
+		0.272, 0.534, 0.131, 0, 0,
+		0, 0, 0, 1, 0,
+	}
+	dc.ApplyImageFilterGraph(
+		render.ImageFilterNode{Kind: render.ImageFilterColorMatrix, Matrix: sepia},
+		render.ImageFilterNode{
+			Kind:        render.ImageFilterDropShadow,
+			OffsetX:     5,
+			OffsetY:     5,
+			ShadowBlur:  2,
+			ShadowColor: render.RGBA{R: 0, G: 0, B: 0, A: 0.5},
+		},
+	)
+	stats := dc.RenderPathStats()
+	t.Logf("F.03 CM+Shadow path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("GPU CM+DropShadow must record GPUOps")
+	}
+	cr, cg, cb, _ := sampleRGBA(dc, 38, 34)
+	t.Logf("sepia card=%d,%d,%d", cr, cg, cb)
+	// Sepia of blue → brownish, R and G elevated vs pure blue
+	if cb > cr+60 && cb > cg+60 {
+		t.Fatalf("still saturated blue after sepia matrix: %d,%d,%d", cr, cg, cb)
+	}
+	// Shadow darkening bottom-right of card
+	sr, sg, sb, _ := sampleRGBA(dc, 55, 52)
+	t.Logf("shadow sample=%d,%d,%d", sr, sg, sb)
+	if sr > 250 && sg > 250 && sb > 250 {
+		sr, sg, sb, _ = sampleRGBA(dc, 58, 55)
+		t.Logf("shadow sample2=%d,%d,%d", sr, sg, sb)
+	}
+	if sr > 252 && sg > 252 && sb > 252 {
+		t.Fatalf("expected drop-shadow darkening: %d,%d,%d", sr, sg, sb)
+	}
+}
+
+// S.07 WritePixels: CPU mirror + GPU textured upload (WriteTexture under image draw).
+func TestP1_Capability_S07_WritePixelsGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU clear: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+
+	// 16x12 solid red block (premul opaque)
+	const bw, bh = 16, 12
+	block := make([]byte, bw*bh*4)
+	for i := 0; i < bw*bh; i++ {
+		block[i*4+0] = 220
+		block[i*4+1] = 30
+		block[i*4+2] = 40
+		block[i*4+3] = 255
+	}
+	dc.WritePixels(20, 10, bw, bh, block)
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU write: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("S.07 path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("WritePixels must record GPUOps (true upload path): %s", stats.LogLine())
+	}
+
+	// Center of written block
+	r, g, b, a := sampleRGBA(dc, 28, 16)
+	t.Logf("block center=%d,%d,%d,%d", r, g, b, a)
+	if r < 180 || g > 80 || b > 80 {
+		t.Fatalf("WritePixels GPU result expected red block: %d,%d,%d", r, g, b)
+	}
+	// Outside block remains white
+	r2, g2, b2, _ := sampleRGBA(dc, 4, 4)
+	if r2 < 240 || g2 < 240 || b2 < 240 {
+		t.Fatalf("outside write rect expected white: %d,%d,%d", r2, g2, b2)
+	}
+
+	// Clipped write near edge still works
+	edge := make([]byte, 8*8*4)
+	for i := 0; i < 64; i++ {
+		edge[i*4+0] = 20
+		edge[i*4+1] = 40
+		edge[i*4+2] = 200
+		edge[i*4+3] = 255
+	}
+	base2 := dc.RenderPathStats().GPUOps
+	dc.WritePixels(w-4, h-4, 8, 8, edge) // mostly clipped
+	_ = dc.FlushGPU()
+	if dc.RenderPathStats().GPUOps <= base2 {
+		t.Fatalf("clipped WritePixels still needs GPUOps")
+	}
+	r3, g3, b3, _ := sampleRGBA(dc, w-2, h-2)
+	t.Logf("edge clip sample=%d,%d,%d", r3, g3, b3)
+	if b3 < 120 {
+		t.Fatalf("clipped edge write expected blue-ish: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// B.03 extended separable advanced blends via dual-tex GPU.
+func TestP1_Capability_B03_DarkenGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 48, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	// Light yellow backdrop
+	dc.SetRGB(0.95, 0.9, 0.3)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	base := dc.RenderPathStats().GPUOps
+	// Dark blue source with Darken → should pick darker channels
+	dc.SetRGB(0.1, 0.15, 0.7)
+	dc.SetBlendMode(render.BlendDarken)
+	dc.DrawRoundedRectangle(8, 8, 32, 32, 4)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	stats := dc.RenderPathStats()
+	t.Logf("B.03 Darken path_stats %s", stats.LogLine())
+	if stats.GPUOps <= base {
+		t.Fatalf("Darken needs GPUOps increase")
+	}
+	if stats.CPUFallbackOps > 0 {
+		t.Fatalf("Darken must not CPU fallback: %s", stats.LogLine())
+	}
+	r, g, b, _ := sampleRGBA(dc, 24, 24)
+	t.Logf("darken center=%d,%d,%d", r, g, b)
+	// min(yellow≈(242,230,76), blue≈(25,38,178)) → ≈(25,38,76)
+	if r > 60 || g > 80 {
+		t.Fatalf("expected darkened RGB from min(): %d,%d,%d", r, g, b)
+	}
+	if b < 50 || b > 120 {
+		t.Fatalf("expected mid blue from yellow.B min: %d,%d,%d", r, g, b)
+	}
+}
+
+func TestP1_Capability_B03_DifferenceGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 40, 40
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.SetRGB(1, 0, 0) // red
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	base := dc.RenderPathStats().GPUOps
+	dc.SetRGB(0, 1, 0) // green
+	dc.SetBlendMode(render.BlendDifference)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	if dc.RenderPathStats().GPUOps <= base {
+		t.Fatalf("Difference needs GPUOps")
+	}
+	r, g, b, _ := sampleRGBA(dc, 20, 20)
+	t.Logf("difference center=%d,%d,%d", r, g, b)
+	// |red-green| ≈ yellow-ish (R and G high)
+	if r < 150 || g < 150 {
+		t.Fatalf("Difference expected high R/G: %d,%d,%d", r, g, b)
+	}
+}
+
+func TestP1_Capability_B03_LightenGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 32, 32
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.SetRGB(0.2, 0.2, 0.2)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	base := dc.RenderPathStats().GPUOps
+	dc.SetRGB(0.9, 0.3, 0.3)
+	dc.SetBlendMode(render.BlendLighten)
+	dc.DrawCircle(16, 16, 10)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	if dc.RenderPathStats().GPUOps <= base {
+		t.Fatalf("Lighten needs GPUOps")
+	}
+	r, g, b, _ := sampleRGBA(dc, 16, 16)
+	t.Logf("lighten center=%d,%d,%d", r, g, b)
+	if r < 180 {
+		t.Fatalf("Lighten expected bright red channel: %d,%d,%d", r, g, b)
+	}
+}
+
+func TestP1_Capability_B03_SoftLightGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 40, 40
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.SetRGB(0.3, 0.45, 0.7)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	base := dc.RenderPathStats().GPUOps
+	dc.SetRGB(0.95, 0.85, 0.2)
+	dc.SetBlendMode(render.BlendSoftLight)
+	dc.DrawCircle(20, 20, 12)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	stats := dc.RenderPathStats()
+	t.Logf("SoftLight path_stats %s", stats.LogLine())
+	if stats.GPUOps <= base || stats.CPUFallbackOps > 0 {
+		t.Fatalf("SoftLight GPU path required: %s", stats.LogLine())
+	}
+	r, g, b, _ := sampleRGBA(dc, 20, 20)
+	t.Logf("softlight center=%d,%d,%d", r, g, b)
+	// SoftLight warms/lifts blue backdrop with yellow source → brighter overall
+	if int(r)+int(g)+int(b) < 200 {
+		t.Fatalf("SoftLight expected lifted luminance: %d,%d,%d", r, g, b)
+	}
+}
+
+func TestP1_Capability_B03_HardLightGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 36, 36
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.SetRGB(0.5, 0.5, 0.5)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	base := dc.RenderPathStats().GPUOps
+	dc.SetRGB(0.2, 0.9, 0.3)
+	dc.SetBlendMode(render.BlendHardLight)
+	dc.DrawRoundedRectangle(6, 6, 24, 24, 4)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	if dc.RenderPathStats().GPUOps <= base || dc.RenderPathStats().CPUFallbackOps > 0 {
+		t.Fatalf("HardLight GPU path required: %s", dc.RenderPathStats().LogLine())
+	}
+	r, g, b, _ := sampleRGBA(dc, 18, 18)
+	t.Logf("hardlight center=%d,%d,%d", r, g, b)
+	if g < r || g < 100 {
+		t.Fatalf("HardLight expected green dominance: %d,%d,%d", r, g, b)
+	}
+}
+
+func TestP1_Capability_B03_ColorDodgeGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 32, 32
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.SetRGB(0.25, 0.25, 0.35)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	base := dc.RenderPathStats().GPUOps
+	dc.SetRGB(0.7, 0.5, 0.2)
+	dc.SetBlendMode(render.BlendColorDodge)
+	dc.DrawCircle(16, 16, 10)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	if dc.RenderPathStats().GPUOps <= base || dc.RenderPathStats().CPUFallbackOps > 0 {
+		t.Fatalf("ColorDodge GPU path required: %s", dc.RenderPathStats().LogLine())
+	}
+	r, g, b, _ := sampleRGBA(dc, 16, 16)
+	t.Logf("colordodge center=%d,%d,%d", r, g, b)
+	// Dodge brightens — should exceed dark backdrop mid-gray
+	if int(r)+int(g)+int(b) < 180 {
+		t.Fatalf("ColorDodge expected brightened result: %d,%d,%d", r, g, b)
+	}
+}
+
+// K.01: Vello-style compute path rasterization via Context PipelineModeCompute.
+// Real chain: render.Context → SDFAccelerator → VelloAccelerator compute stages → pixmap.
+func TestP1_Capability_K01_VelloComputePathGPU(t *testing.T) {
+	requireNativeGPU(t)
+
+	const w, h = 96, 96
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	// Bootstrap shared GPU + vello dispatcher.
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("bootstrap FlushGPU: %v", err)
+	}
+
+	a := render.Accelerator()
+	if a == nil {
+		t.Fatal("no accelerator")
+	}
+	cpa, ok := a.(render.ComputePipelineAware)
+	if !ok {
+		t.Skip("accelerator is not ComputePipelineAware")
+	}
+	if !cpa.CanCompute() {
+		t.Skip("vello compute pipeline not available on this device")
+	}
+
+	dc.SetPipelineMode(render.PipelineModeCompute)
+	if dc.PipelineMode() != render.PipelineModeCompute {
+		t.Fatalf("PipelineMode not Compute: %v", dc.PipelineMode())
+	}
+	base := dc.RenderPathStats().GPUOps
+
+	// Non-trivial path density: overlapping star-ish polygons + even-odd ring.
+	dc.SetRGB(0.15, 0.45, 0.95)
+	dc.MoveTo(48, 12)
+	for i := 1; i < 5; i++ {
+		ang := float64(i) * 144.0 * math.Pi / 180.0
+		// star points via pentagram angles
+		x := 48 + 30*math.Sin(ang)
+		y := 48 - 30*math.Cos(ang)
+		dc.LineTo(x, y)
+	}
+	dc.ClosePath()
+	_ = dc.Fill()
+
+	dc.SetRGB(0.95, 0.25, 0.2)
+	dc.DrawCircle(48, 48, 22)
+	_ = dc.Stroke()
+
+	dc.SetRGB(0.2, 0.75, 0.35)
+	// Concave arrow (forces general path, not pure SDF shape)
+	dc.MoveTo(16, 70)
+	dc.LineTo(48, 58)
+	dc.LineTo(80, 70)
+	dc.LineTo(64, 70)
+	dc.LineTo(64, 86)
+	dc.LineTo(32, 86)
+	dc.LineTo(32, 70)
+	dc.ClosePath()
+	_ = dc.Fill()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("compute FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("K.01 compute path_stats %s base=%d mode=%v", stats.LogLine(), base, dc.PipelineMode())
+	if stats.GPUOps <= base {
+		t.Fatalf("K.01 compute requires additional GPUOps: %s", stats.LogLine())
+	}
+
+	// Star/fill center should not remain pure white.
+	r, g, b, _ := sampleRGBA(dc, 48, 40)
+	t.Logf("center=%d,%d,%d", r, g, b)
+	if r > 250 && g > 250 && b > 250 {
+		t.Fatalf("compute path produced no ink at center: %d,%d,%d", r, g, b)
+	}
+	// Arrow body green-ish
+	r2, g2, b2, _ := sampleRGBA(dc, 48, 78)
+	t.Logf("arrow=%d,%d,%d", r2, g2, b2)
+	if g2 < 80 {
+		t.Fatalf("compute arrow fill missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+func TestP1_Capability_B03_ColorBurnExclusionGPU(t *testing.T) {
+	requireNativeGPU(t)
+	// ColorBurn
+	dc := render.NewContext(32, 32)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.SetRGB(0.85, 0.85, 0.9)
+	dc.DrawRectangle(0, 0, 32, 32)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	base := dc.RenderPathStats().GPUOps
+	dc.SetRGB(0.6, 0.2, 0.15)
+	dc.SetBlendMode(render.BlendColorBurn)
+	dc.DrawCircle(16, 16, 10)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+	if dc.RenderPathStats().GPUOps <= base || dc.RenderPathStats().CPUFallbackOps > 0 {
+		t.Fatalf("ColorBurn GPU required: %s", dc.RenderPathStats().LogLine())
+	}
+	r, g, b, _ := sampleRGBA(dc, 16, 16)
+	t.Logf("colorburn center=%d,%d,%d", r, g, b)
+
+	// Exclusion
+	dc2 := render.NewContext(32, 32)
+	defer dc2.Close()
+	dc2.ResetRenderPathStats()
+	dc2.SetRGB(0.9, 0.2, 0.2)
+	dc2.DrawRectangle(0, 0, 32, 32)
+	_ = dc2.Fill()
+	_ = dc2.FlushGPU()
+	base2 := dc2.RenderPathStats().GPUOps
+	dc2.SetRGB(0.2, 0.2, 0.9)
+	dc2.SetBlendMode(render.BlendExclusion)
+	dc2.DrawRectangle(0, 0, 32, 32)
+	_ = dc2.Fill()
+	_ = dc2.FlushGPU()
+	if dc2.RenderPathStats().GPUOps <= base2 || dc2.RenderPathStats().CPUFallbackOps > 0 {
+		t.Fatalf("Exclusion GPU required: %s", dc2.RenderPathStats().LogLine())
+	}
+	r2, g2, b2, _ := sampleRGBA(dc2, 16, 16)
+	t.Logf("exclusion center=%d,%d,%d", r2, g2, b2)
+	// Exclusion of red and blue should lift green channel relative to pure red/blue.
+	if g2 < 50 {
+		t.Fatalf("Exclusion expected non-trivial green: %d,%d,%d", r2, g2, b2)
+	}
+}

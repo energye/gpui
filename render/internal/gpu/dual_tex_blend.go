@@ -13,7 +13,8 @@ import (
 )
 
 // dual-tex advanced blend shader: sample dest + src, write composited premul RGBA.
-// Mode codes: 1=Multiply, 2=Screen, 3=Overlay (match render.Blend* iota).
+// Mode codes: 1=Mul 2=Screen 3=Overlay 4=Hue 5=Sat 6=Color 7=Lum
+// 8=Darken 9=Lighten 10=ColorDodge 11=ColorBurn 12=HardLight 13=SoftLight 14=Diff 15=Exclusion.
 const dualTexBlendWGSL = `
 struct VSOut {
     @builtin(position) pos: vec4<f32>,
@@ -34,7 +35,6 @@ struct Params {
 
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> VSOut {
-    // Fullscreen triangle
     var p = array<vec2<f32>, 3>(
         vec2<f32>(-1.0, -1.0),
         vec2<f32>( 3.0, -1.0),
@@ -67,6 +67,80 @@ fn blend_channel_overlay(cb: f32, cs: f32) -> f32 {
     return 1.0 - 2.0 * (1.0 - cb) * (1.0 - cs);
 }
 
+fn luminosity(c: vec3<f32>) -> f32 {
+    return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+}
+fn saturation(c: vec3<f32>) -> f32 {
+    return max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
+}
+fn clip_color(c: vec3<f32>) -> vec3<f32> {
+    let lum = luminosity(c);
+    let n = min(c.r, min(c.g, c.b));
+    let x = max(c.r, max(c.g, c.b));
+    var result = c;
+    if (n < 0.0) {
+        result = lum + (result - lum) * lum / (lum - n);
+    }
+    if (x > 1.0) {
+        result = lum + (result - lum) * (1.0 - lum) / (x - lum);
+    }
+    return result;
+}
+fn set_lum(c: vec3<f32>, lum: f32) -> vec3<f32> {
+    let d = lum - luminosity(c);
+    return clip_color(c + d);
+}
+fn set_sat(c: vec3<f32>, sat: f32) -> vec3<f32> {
+    let min_c = min(c.r, min(c.g, c.b));
+    let max_c = max(c.r, max(c.g, c.b));
+    if (max_c > min_c) {
+        let scale = sat / (max_c - min_c);
+        return (c - min_c) * scale;
+    }
+    return vec3<f32>(0.0);
+}
+fn blend_hue(cs: vec3<f32>, cb: vec3<f32>) -> vec3<f32> {
+    return set_lum(set_sat(cs, saturation(cb)), luminosity(cb));
+}
+fn blend_sat(cs: vec3<f32>, cb: vec3<f32>) -> vec3<f32> {
+    return set_lum(set_sat(cb, saturation(cs)), luminosity(cb));
+}
+fn blend_color(cs: vec3<f32>, cb: vec3<f32>) -> vec3<f32> {
+    return set_lum(cs, luminosity(cb));
+}
+fn blend_lum(cs: vec3<f32>, cb: vec3<f32>) -> vec3<f32> {
+    return set_lum(cb, luminosity(cs));
+}
+
+// blend_fn(mode, backdrop cb, source cs)
+fn blend_channel_hardlight(cb: f32, cs: f32) -> f32 {
+    // decision on source
+    if (cs <= 0.5) {
+        return 2.0 * cb * cs;
+    }
+    return 1.0 - 2.0 * (1.0 - cb) * (1.0 - cs);
+}
+fn blend_channel_softlight(cb: f32, cs: f32) -> f32 {
+    if (cs <= 0.5) {
+        return cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb);
+    }
+    var d: f32;
+    if (cb <= 0.25) {
+        d = ((16.0 * cb - 12.0) * cb + 4.0) * cb;
+    } else {
+        d = sqrt(cb);
+    }
+    return cb + (2.0 * cs - 1.0) * (d - cb);
+}
+fn blend_channel_dodge(cb: f32, cs: f32) -> f32 {
+    if (cs >= 1.0) { return 1.0; }
+    return min(1.0, cb / (1.0 - cs));
+}
+fn blend_channel_burn(cb: f32, cs: f32) -> f32 {
+    if (cs <= 0.0) { return 0.0; }
+    return max(0.0, 1.0 - (1.0 - cb) / cs);
+}
+
 fn blend_fn(mode: u32, cb: vec3<f32>, cs: vec3<f32>) -> vec3<f32> {
     if (mode == 2u) {
         return vec3<f32>(
@@ -82,6 +156,34 @@ fn blend_fn(mode: u32, cb: vec3<f32>, cs: vec3<f32>) -> vec3<f32> {
             blend_channel_overlay(cb.b, cs.b),
         );
     }
+    if (mode == 4u) { return blend_hue(cs, cb); }
+    if (mode == 5u) { return blend_sat(cs, cb); }
+    if (mode == 6u) { return blend_color(cs, cb); }
+    if (mode == 7u) { return blend_lum(cs, cb); }
+    if (mode == 8u) {
+        return min(cb, cs);
+    }
+    if (mode == 9u) {
+        return max(cb, cs);
+    }
+    if (mode == 10u) {
+        return vec3<f32>(blend_channel_dodge(cb.r, cs.r), blend_channel_dodge(cb.g, cs.g), blend_channel_dodge(cb.b, cs.b));
+    }
+    if (mode == 11u) {
+        return vec3<f32>(blend_channel_burn(cb.r, cs.r), blend_channel_burn(cb.g, cs.g), blend_channel_burn(cb.b, cs.b));
+    }
+    if (mode == 12u) {
+        return vec3<f32>(blend_channel_hardlight(cb.r, cs.r), blend_channel_hardlight(cb.g, cs.g), blend_channel_hardlight(cb.b, cs.b));
+    }
+    if (mode == 13u) {
+        return vec3<f32>(blend_channel_softlight(cb.r, cs.r), blend_channel_softlight(cb.g, cs.g), blend_channel_softlight(cb.b, cs.b));
+    }
+    if (mode == 14u) {
+        return abs(cs - cb);
+    }
+    if (mode == 15u) {
+        return cs + cb - 2.0 * cs * cb;
+    }
     // Multiply (1) default
     return vec3<f32>(
         blend_channel_multiply(cb.r, cs.r),
@@ -91,8 +193,6 @@ fn blend_fn(mode: u32, cb: vec3<f32>, cs: vec3<f32>) -> vec3<f32> {
 }
 
 // W3C Compositing: backdrop b, source s; advanced color B(Cb,Cs)
-// Co = (1-αb)*Cs + (1-αs)*Cb + αb*αs*B(Cb,Cs)
-// αo = αs + αb*(1-αs)
 @fragment
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let dp = textureSample(dst_tex, samp, in.uv);
@@ -104,7 +204,6 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let bcol = blend_fn(params.mode, d.rgb, s.rgb);
     let co = (1.0 - ab) * s.rgb + (1.0 - as_) * d.rgb + ab * as_ * bcol;
     let ao = as_ + ab * (1.0 - as_);
-    // Premultiply output for later SourceOver blit of opaque interiors.
     return vec4<f32>(co * ao, ao);
 }
 `
@@ -309,7 +408,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 }
 
 // dualTexAdvancedBlend composites src over dst using GPU dual-texture sampling.
-// dstRGBA/srcRGBA are tight premul RGBA8 (bw*bh*4). mode is Multiply/Screen/Overlay.
+// dstRGBA/srcRGBA are tight premul RGBA8 (bw*bh*4). mode is Multiply/Screen/Overlay/HSL.
 func dualTexAdvancedBlend(
 	device *webgpu.Device,
 	queue *webgpu.Queue,
@@ -334,12 +433,38 @@ func dualTexAdvancedBlend(
 
 	modeU := uint32(1)
 	switch mode {
+	case render.BlendMultiply:
+		modeU = 1
 	case render.BlendScreen:
 		modeU = 2
 	case render.BlendOverlay:
 		modeU = 3
+	case render.BlendHue:
+		modeU = 4
+	case render.BlendSaturation:
+		modeU = 5
+	case render.BlendColor:
+		modeU = 6
+	case render.BlendLuminosity:
+		modeU = 7
+	case render.BlendDarken:
+		modeU = 8
+	case render.BlendLighten:
+		modeU = 9
+	case render.BlendColorDodge:
+		modeU = 10
+	case render.BlendColorBurn:
+		modeU = 11
+	case render.BlendHardLight:
+		modeU = 12
+	case render.BlendSoftLight:
+		modeU = 13
+	case render.BlendDifference:
+		modeU = 14
+	case render.BlendExclusion:
+		modeU = 15
 	default:
-		modeU = 1 // Multiply
+		modeU = 1
 	}
 	// Uniform: mode + pad (16 bytes)
 	uniData := make([]byte, 16)

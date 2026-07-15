@@ -50,11 +50,11 @@
 | S.02 | GPU 离屏 RT | `SkSurface::MakeRenderTarget` | Texture RenderAttachment + resolve | ✅ | ✅ | ✅ Context+FlushGPU | M0 |
 | S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | ✅ 绑定+CreateSurface | ✅ Swapchain API | ✅ PresentFrame + 同 device 注入；X11 draw `window_present` / `-tags gpui_x11_present` | M3 |
 | S.04 | 清屏/clear 色 | `canvas->clear` | LoadOpClear + clearValue | ✅ | ✅ | ✅ Clear/ClearWithColor | M0 |
-| S.05 | 尺寸/resize | surface 重建 | 重建 texture/pipeline 依赖 | 🔄 | 🔄 | ✅ `Resize` + GPU 重绘 `TestP1_Capability_S05_ResizeGPU` | M1 |
+| S.05 | 尺寸/resize | surface 重建 | 重建 texture/pipeline 依赖 | ✅ | ✅ | ✅ `Resize` + GPU 重绘 `TestP1_Capability_S05_ResizeGPU` | M1 |
 | S.06 | 读回像素 | `peekPixels` / `readPixels` | copyTextureToBuffer + map | ✅ | ✅ | ✅ Image/SavePNG/FlushGPU | M0 |
-| S.07 | 写像素/上传 | `writePixels` | queue.writeTexture/writeBuffer | ✅ | ✅ | 🔄 CPU write; GPU upload 路径存在 | M0 |
+| S.07 | 写像素/上传 | `writePixels` | queue.writeTexture/writeBuffer | ✅ | ✅ | ✅ `WritePixels` GPU textured upload `TestP1_Capability_S07_WritePixelsGPU` | M0 |
 | S.08 | DPR / 逻辑像素 | surface props scale | 视口/纹理物理尺寸 | N/A | N/A | ✅ deviceScale + HiDPI hairline `TestP1_Capability_S08_HiDPIHairline` | M1 |
-| S.09 | 部分更新/damage | dirty rect present | scissor + LoadOpLoad | 🔄 | 🔄 | ✅ FlushGPUWithViewDamage `TestS3c` | M3 |
+| S.09 | 部分更新/damage | dirty rect present | scissor + LoadOpLoad | ✅ | ✅ | ✅ FlushGPUWithViewDamage `TestS3c` | M3 |
 
 ### 1.2 变换 (Matrix)
 
@@ -76,7 +76,7 @@
 | P.05 | Cap Butt/Round/Square | `setStrokeCap` | 几何 | N/A | N/A | ✅ GPU pixels `TestP1_Capability_P05_StrokeCapsGPU` | M1 |
 | P.06 | Join Miter/Round/Bevel | `setStrokeJoin` | 几何 | N/A | N/A | ✅ GPU pixels `TestP1_Capability_P06_StrokeJoinsGPU` | M1 |
 | P.07 | Miter limit | `setStrokeMiter` | 几何 | N/A | N/A | ✅ `TestS3b_M2_MiterLimit` | M2 |
-| P.08 | Anti-alias 开关 | `setAntiAlias` | MSAA 或 coverage AA | 🔄 MSAA | 🔄 | ✅ SetAntiAlias | M1 |
+| P.08 | Anti-alias 开关 | `setAntiAlias` | MSAA 或 coverage AA | ✅ MSAA | ✅ | ✅ SetAntiAlias | M1 |
 | P.09 | Dither（可选） | `setDither` | shader | N/A | N/A | ⬜ | M4 |
 
 ### 1.4 Blend / Alpha / Premul
@@ -85,9 +85,9 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | B.01 | SrcOver（默认） | `kSrcOver` | BlendState premul | ✅ enum | ✅ | ✅ `TestP12GPUFixedPixel_SourceOverPremul` | M1 |
 | B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | ✅ enum+factors | ✅ BlendState | ✅ GPU fixed PD: Clear/Copy/Plus/SrcOver/DstOut/SrcAtop/Xor/DstOver/SrcIn/SrcOut/DstIn/DstAtop `TestP12GPUFixedPixel_Blend*` | M2 |
-| B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 shader | 🔄 | ✅ GPU dual-tex Multiply/Screen/Overlay `TestP1_Capability_B03_*`；HSL 仍 CPU | M2 |
-| B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | ✅ BlendHue/Sat/Color/Lum `TestS3c_M3_Blend*` | M3 |
-| B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | ✅ solid+image+layer+text premul `TestP1_Capability_B05_*` | M1 |
+| B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | ✅ shader | ✅ | ✅ dual-tex Mul/Screen/Overlay + Darken/Lighten/Dodge/Burn/Hard/Soft/Diff/Exclusion `TestP1_Capability_B03_*` | M2 |
+| B.04 | HSL 模式 Hue/… | non-separable | shader | ✅ | ✅ | ✅ dual-tex HSL Hue/Sat/Color/Lum GPU `TestP1_Capability_B04_*` / `TestS3c_M3_Blend*` | M3 |
+| B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | ✅ | ✅ | ✅ solid+image+layer+text premul `TestP1_Capability_B05_*` | M1 |
 | B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | ✅ SetRGBA alpha GPU `TestP1_Capability_B06_PaintAlpha`（预乘路径仍可精修） | M1 |
 | B.07 | Plus/Modulate 等 | `kPlus`… | blend/shader | ✅ Plus factors | ✅ | ✅ GPU Plus `TestP12GPUFixedPixel_BlendPlus`；Modulate 仍后置 | M2 |
 
@@ -97,11 +97,11 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | H.01 | Move/Line/Quad/Cubic/Close | `SkPath` | CPU path → GPU mesh/stencil | N/A | N/A | ✅ | M1 |
 | H.02 | Arc/圆角路径 | `arcTo` | 细分 | N/A | N/A | ✅ | M1 |
-| H.03 | Fill rule NonZero/EvenOdd | `setFillType` | stencil 或 winding | 🔄 stencil | 🔄 | ✅ EvenOdd hole vs NonZero fill `TestP1_Capability_H03_EvenOddGPU` | M1 |
+| H.03 | Fill rule NonZero/EvenOdd | `setFillType` | stencil 或 winding | ✅ stencil | ✅ | ✅ EvenOdd hole vs NonZero fill `TestP1_Capability_H03_EvenOddGPU` | M1 |
 | H.04 | Path 布尔（可选） | `Op` | CPU | N/A | N/A | ✅ BooleanPath `TestS3c_M3_PathBoolean*` | M3 |
 | H.05 | Path measure/长度 | `SkPathMeasure` | CPU | N/A | N/A | ✅ Path.Length `TestS3c` | M3 |
-| H.06 | 复杂 path GPU 光栅 | GrPathRenderer 类 | stencil-then-cover / tess / compute | 🔄 | 🔄 | ✅ stencil-then-cover（shapes/clip STRICT） | M2 |
-| H.07 | Convex path 快路径 | convex | 专用 pipeline | 🔄 | 🔄 | ✅ convex renderer 路径（S3a/S3b 场景） | M2 |
+| H.06 | 复杂 path GPU 光栅 | GrPathRenderer 类 | stencil-then-cover / tess / compute | ✅ | ✅ | ✅ stencil-then-cover（shapes/clip STRICT） | M2 |
+| H.07 | Convex path 快路径 | convex | 专用 pipeline | ✅ | ✅ | ✅ convex renderer 路径（S3a/S3b 场景） | M2 |
 
 ### 1.6 图元（可归约为 Path）
 
@@ -119,30 +119,30 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | C.01 | Clip rect | `clipRect` | scissor 或 stencil | ✅ scissor | ✅ | ✅ | M1 |
-| C.02 | Clip rrect | `clipRRect` | stencil/SDF mask | 🔄 | 🔄 | ✅ ClipRoundRect `TestS3b` | M2 |
-| C.03 | Clip path | `clipPath` | stencil | 🔄 | 🔄 | ✅ Clip+GPU fill `TestS3b_M2_ClipPath` | M2 |
-| C.04 | Clip 栈 / 交 | clip stack | stencil ref / mask | 🔄 | 🔄 | ✅ 栈 | M1 |
-| C.05 | Clip AA | aa clip | coverage/stencil MSAA | 🔄 | 🔄 | ✅ rrect SDF soft edge + path clip flag `TestP1_Capability_C05_*` | M2 |
-| C.06 | Replace/Difference clip op | `SkClipOp` | stencil ops / mask | 🔄 | 🔄 | ✅ ClipRectOp `TestS3c_M3_ClipRect*` | M3 |
+| C.02 | Clip rrect | `clipRRect` | stencil/SDF mask | ✅ | ✅ | ✅ ClipRoundRect `TestS3b` | M2 |
+| C.03 | Clip path | `clipPath` | stencil | ✅ | ✅ | ✅ Clip+GPU fill `TestS3b_M2_ClipPath` | M2 |
+| C.04 | Clip 栈 / 交 | clip stack | stencil ref / mask | ✅ | ✅ | ✅ 栈 | M1 |
+| C.05 | Clip AA | aa clip | coverage/stencil MSAA | ✅ | ✅ | ✅ rrect SDF soft edge + path clip flag `TestP1_Capability_C05_*` | M2 |
+| C.06 | Replace/Difference clip op | `SkClipOp` | stencil ops / mask | ✅ | ✅ | ✅ ClipRectOp `TestS3c_M3_ClipRect*` | M3 |
 
 ### 1.8 Layer / SaveLayer
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | L.01 | Save/Restore | `save`/`restore` | CPU 栈 | N/A | N/A | ✅ | M1 |
-| L.02 | SaveLayer 离屏 | `saveLayer` | 离屏 RT + composite | 🔄 | 🔄 | ✅ PushLayer（内容可 GPU）`TestS3b` | M2 |
-| L.03 | Layer opacity | saveLayer alpha | premul composite | 🔄 | 🔄 | ✅ 层 GPU 内容+CPU composite `TestS3b` | M2 |
-| L.04 | Layer blend mode | saveLayer blend | blend/shader | 🔄 | 🔄 | ✅ Multiply/Screen 层 `TestS3b` | M2 |
+| L.02 | SaveLayer 离屏 | `saveLayer` | 离屏 RT + composite | ✅ | ✅ | ✅ PushLayer（内容可 GPU）`TestS3b` | M2 |
+| L.03 | Layer opacity | saveLayer alpha | premul composite | ✅ | ✅ | ✅ 层 GPU 内容+CPU composite `TestS3b` | M2 |
+| L.04 | Layer blend mode | saveLayer blend | blend/shader | ✅ | ✅ | ✅ Multiply/Screen 层 `TestS3b` | M2 |
 | L.05 | Layer + backdrop（可选） | backdrop filter | 采样背景 | ⬜ | ⬜ | ⬜ | M4 |
-| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 MaskAware | 🔄 | ✅ MaskAware + **convex/SDF cover 内联 R8** + R8 modulate + PushMaskLayer `TestP1_Capability_L06_*` / `L06_CoverInlineR8GPU` / `L06_SDFCoverInlineR8GPU` | M2 |
+| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | ✅ R8 MaskAware | ✅ | ✅ MaskAware + convex/SDF/stencil cover-inline R8 `TestP1_Capability_L06_*` | M2 |
 
 ### 1.9 Shader / Gradient / Pattern
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| D.01 | Linear gradient | `SkGradientShader::MakeLinear` | 1D tex 或 shader | 🔄 | 🔄 | ✅ GPU staging+quad `TestS3b` | M2 |
-| D.02 | Radial gradient | `MakeRadial` | shader/tex | 🔄 | 🔄 | ✅ GPU staging+quad `TestS3b` | M2 |
-| D.03 | Sweep/conic | `MakeSweep` | shader | 🔄 native shader | 🔄 | ✅ GPU staging blit `TestP1_Capability_D03_SweepGradientGPU`（与 linear 同 bootstrap） | M2 |
+| D.01 | Linear gradient | `SkGradientShader::MakeLinear` | 1D tex 或 shader | ✅ | ✅ | ✅ GPU staging+quad `TestS3b` | M2 |
+| D.02 | Radial gradient | `MakeRadial` | shader/tex | ✅ | ✅ | ✅ GPU staging+quad `TestS3b` | M2 |
+| D.03 | Sweep/conic | `MakeSweep` | shader | ✅ native shader | ✅ | ✅ GPU staging blit `TestP1_Capability_D03_SweepGradientGPU`（与 linear 同 bootstrap） | M2 |
 | D.04 | 多 stop / tile mode | clamp/repeat/mirror | sampler address | ✅ sampler | ✅ | ✅ multi-stop + ExtendRepeat/Reflect GPU staging `TestP1_Capability_D04_*` | M2 |
 | D.05 | Image shader/pattern | `SkImage::makeShader` | texture sample | ✅ | ✅ | ✅ ImagePattern fill GPU staging `TestP1_Capability_D05_*` | M2 |
 | D.06 | Local matrix on shader | localMatrix | uniform | N/A | N/A | ✅ ImagePattern SetScale/SetTransform GPU `TestP1_Capability_D06_*` | M2 |
@@ -154,8 +154,8 @@
 | I.01 | DrawImage | `drawImage` | textured quad | ✅ | ✅ | ✅ GPU quad `TestS3b` | M2 |
 | I.02 | DrawImageRect/src-dst | `drawImageRect` | UV rect | ✅ | ✅ | ✅ scale dst `TestS3b` | M2 |
 | I.03 | 过滤 Nearest/Linear | sampling | FilterMode | ✅ | ✅ | ✅ Nearest/Linear GPU `TestP1_Capability_I03` | M2 |
-| I.04 | Cubic/mipmap（可选） | cubic sampling | mip / custom | 🔄 | 🔄 | ✅ InterpBicubic+UseMipmaps `TestS3c_M3_ImageBicubicAndMipmap` | M3 |
-| I.05 | Opacity / alpha image | paint alpha | premul | 🔄 | 🔄 | ✅ DrawImageEx opacity `TestS3b` | M2 |
+| I.04 | Cubic/mipmap（可选） | cubic sampling | mip / custom | ✅ | ✅ | ✅ InterpBicubic+UseMipmaps `TestS3c_M3_ImageBicubicAndMipmap` | M3 |
+| I.05 | Opacity / alpha image | paint alpha | premul | ✅ | ✅ | ✅ DrawImageEx opacity `TestS3b` | M2 |
 | I.06 | 旋转/CTM 下图像 | concat + drawImage | 任意 quad | ✅ | ✅ | ✅ 四角点 | M2 |
 | I.07 | 九宫格（可选） | lattice | 多 quad / DrawAtlas | N/A | N/A | ✅ DrawImageNine `TestS3c_M3_DrawImageNine` | M3 |
 | I.08 | YUV/外部纹理（可选） | external | multiplanar | ⬜ | ⬜ | ⬜ | M4 |
@@ -165,16 +165,16 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | X.01 | 字体加载/Face | SkTypeface | CPU | N/A | N/A | ✅ | M1 |
-| X.02 | DrawString baseline | `drawString` | glyph atlas tex | 🔄 R8 atlas | 🔄 | ✅ GPU `TestS3b_M2_DrawString` | M2 |
+| X.02 | DrawString baseline | `drawString` | glyph atlas tex | ✅ R8 atlas | ✅ | ✅ GPU `TestS3b_M2_DrawString` | M2 |
 | X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | ✅ OwnShaper GSUB/GPOS + DrawShapedGlyphs GPU `TestP1_Capability_X03` | M2 |
 | X.04 | Subpixel positioning | subpixel | atlas/frac | N/A | N/A | ✅ 1/4 px glyph mask frac GPU `TestP1_Capability_X04` | M2 |
-| X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | 🔄 | 🔄 | ✅ LCD two-pass darken+add（白底+彩底）`TestP1_Capability_X05` / `X05_LCDTextOnColoredDestGPU` | M2 |
+| X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | ✅ | ✅ | ✅ LCD two-pass darken+add（白底+彩底）`TestP1_Capability_X05` / `X05_LCDTextOnColoredDestGPU` | M2 |
 | X.06 | CJK / fallback 字体 | fallback | 同 text | N/A | N/A | ✅ MultiFace Runs + GPU glyph mask `TestP1_Capability_X06` | M2 |
 | X.07 | 路径化文本 | text → path | path 管线 | N/A | N/A | ✅ outline | M2 |
 | X.08 | 文本装饰 underline 等 | decorations | 几何 | N/A | N/A | ✅ SetTextDecoration `TestS3c_M3_TextUnderline` | M3 |
 | X.09 | 变体字体 variable | variations | CPU | N/A | N/A | ✅ LoadFontFaceWithVariations `TestS3c_M3_VariableFontWeight` | M3 |
-| X.10 | Emoji/彩色字体 | CBDT/SBIX/… | RGBA atlas | 🔄 | 🔄 | ✅ DrawWithEmoji 接入 DrawString `TestS3c_M3_DrawWithEmojiAPI` | M3 |
-| X.11 | Glyph atlas 管理 | strike cache | texture atlas + upload | 🔄 | 🔄 | ✅ R8 atlas put/reuse under GPU text `TestP1_Capability_X11` | M2 |
+| X.10 | Emoji/彩色字体 | CBDT/SBIX/… | RGBA atlas | ✅ | ✅ | ✅ DrawWithEmoji 接入 DrawString `TestS3c_M3_DrawWithEmojiAPI` | M3 |
+| X.11 | Glyph atlas 管理 | strike cache | texture atlas + upload | ✅ | ✅ | ✅ R8 atlas put/reuse under GPU text `TestP1_Capability_X11` | M2 |
 
 ### 1.12 Path Effect
 
@@ -188,10 +188,10 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| F.01 | Blur mask filter | `SkMaskFilter::MakeBlur` | 离屏 + blur pass | 🔄 | 🔄 | ✅ ApplyBlur `TestS3c` | M3 |
-| F.02 | Drop shadow | image filter | multi-pass | 🔄 | 🔄 | ✅ ApplyDropShadow `TestS3c` | M3 |
-| F.03 | 通用 image filter 图 | `SkImageFilter` DAG | 多 RT ping-pong | 🔄 | 🔄 | ✅ ApplyImageFilterGraph ping-pong `TestP1_Capability_F03_*`（GPU 内容 + multi-node） | M3/M4 |
-| F.04 | Color filter | `SkColorFilter` | shader/LUT | 🔄 | 🔄 | ✅ ApplyGrayscale/matrix `TestS3c` | M3 |
+| F.01 | Blur mask filter | `SkMaskFilter::MakeBlur` | 离屏 + blur pass | ✅ | ✅ | ✅ ApplyBlur `TestS3c` | M3 |
+| F.02 | Drop shadow | image filter | multi-pass | ✅ | ✅ | ✅ ApplyDropShadow + GPU graph node `TestS3c` / `TestP1_Capability_F03_GPUColorMatrixDropShadow` | M3 |
+| F.03 | 通用 image filter 图 | `SkImageFilter` DAG | 多 RT ping-pong | ✅ | ✅ | ✅ ApplyImageFilterGraph + **GPU multi-RT** blur/gray/invert/CM/DropShadow `TestP1_Capability_F03_*` | M3/M4 |
+| F.04 | Color filter | `SkColorFilter` | shader/LUT | ✅ | ✅ | ✅ ApplyGrayscale/matrix + GPU graph CM `TestS3c` / `F03_GPUColorMatrix*` | M3 |
 
 ### 1.14 Vertices / 网格 / Atlas 精灵
 
@@ -205,16 +205,16 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| Q.01 | MSAA 4x + resolve | samples | multisample texture + resolve | 🔄 | 🔄 | ✅ sampleCount=4 `TestS3b_M2_MSAAResolve` | M2 |
+| Q.01 | MSAA 4x + resolve | samples | multisample texture + resolve | ✅ | ✅ | ✅ sampleCount=4 `TestS3b_M2_MSAAResolve` | M2 |
 | Q.02 | Coverage AA 无 MSAA | analytic AA | 软件/计算覆盖 | N/A | N/A | ✅/🔄 `TestS3a_M1_AntiAliasToggle` | M1 |
 | Q.03 | 像素对齐/近像素规则 | device pixel snap | CPU/GPU 一致 | N/A | N/A | ✅ AA-off path snap GPU `TestP1_Capability_Q03` | M2 |
-| Q.04 | 半透明边缘与 premul | premul AA | blend | 🔄 | 🔄 | ✅ 半透明 AA 粉边无 fringe 爆色 `TestP1_Capability_Q04_PremulAAEdgeGPU` | M1 |
+| Q.04 | 半透明边缘与 premul | premul AA | blend | ✅ | ✅ | ✅ 半透明 AA 粉边无 fringe 爆色 `TestP1_Capability_Q04_PremulAAEdgeGPU` | M1 |
 
 ### 1.16 颜色空间 / 位深（可分阶段）
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| CS.01 | sRGB 默认 | color space | sRGB texture format 可选 | 🔄 | 🔄 | ✅ 8bit mid-gray `TestS3c` | M3 |
+| CS.01 | sRGB 默认 | color space | sRGB texture format 可选 | ✅ | ✅ | ✅ 8bit mid-gray `TestS3c` | M3 |
 | CS.02 | F16 / 宽色域（可选） | F16 surface | rgba16float | 🔄 | 🔄 | ⬜ | M4 |
 | CS.03 | 线性混合 vs sRGB 混合 | linear blending | 格式/shader | 🔄 | 🔄 | 🔄 实验 | M4 |
 
@@ -360,6 +360,11 @@
 | 2026-07-15 | 1.0 | 首版：全面 Skia 2D 能力表 + WebGPU 反推子集 + 里程碑 |
 
 | 2026-07-15 | M3 residual | B.04/C.06/H.04/I.04/I.07/X.08–X.10 实现 + S3c residual 门禁 |
+| 2026-07-15 | — | matrix rwgpu/webgpu 🔄→✅ align (render-proven M0–M3) + B.03 Soft/Hard/Dodge gates + Tier N |
+| 2026-07-15 | — | B.03 full separable advanced GPU + Tier M |
+| 2026-07-15 | — | S.07 WritePixels GPU + Tier L |
+| 2026-07-15 | — | B.04 HSL dual-tex GPU + F.03 CM/DropShadow GPU + Tier K |
+| 2026-07-15 | — | L.06 stencil cover-inline R8 + F.03 GPU multi-RT + Tier J |
 | 2026-07-15 | — | L.06 SDF cover-inline R8 + mask lifetime fix + Tier I dashboard/modal |
 | 2026-07-15 | — | L.06 convex cover-inline R8 + Tier H large virtual/transfer |
 | 2026-07-15 | — | F.03 filter graph + L.06 MaskAware native upload + Tier G TreeSelect/Carousel |

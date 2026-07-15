@@ -60,6 +60,25 @@ const (
 	BlendDestinationIn
 	// BlendDestinationAtop: src*(1-dstA) + dst*srcA (DstAtop).
 	BlendDestinationAtop
+
+	// Separable advanced modes (B.03 extended). Appended after Porter-Duff so
+	// existing iota values stay stable.
+	// BlendDarken selects the darker of source and destination per channel.
+	BlendDarken
+	// BlendLighten selects the lighter of source and destination per channel.
+	BlendLighten
+	// BlendColorDodge brightens destination to reflect source.
+	BlendColorDodge
+	// BlendColorBurn darkens destination to reflect source.
+	BlendColorBurn
+	// BlendHardLight is Multiply or Screen depending on source.
+	BlendHardLight
+	// BlendSoftLight is a softer HardLight variant.
+	BlendSoftLight
+	// BlendDifference is absolute difference of channels.
+	BlendDifference
+	// BlendExclusion is a lower-contrast difference.
+	BlendExclusion
 )
 
 const unknownBlendMode = "Unknown"
@@ -105,6 +124,22 @@ func (b BlendMode) String() string {
 		return "DestinationIn"
 	case BlendDestinationAtop:
 		return "DestinationAtop"
+	case BlendDarken:
+		return "Darken"
+	case BlendLighten:
+		return "Lighten"
+	case BlendColorDodge:
+		return "ColorDodge"
+	case BlendColorBurn:
+		return "ColorBurn"
+	case BlendHardLight:
+		return "HardLight"
+	case BlendSoftLight:
+		return "SoftLight"
+	case BlendDifference:
+		return "Difference"
+	case BlendExclusion:
+		return "Exclusion"
 	default:
 		return unknownBlendMode
 	}
@@ -304,6 +339,22 @@ func blend(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA uint8, mode BlendMode)
 		blendedR, blendedG, blendedB = blendColor(srcR, srcG, srcB, dstR, dstG, dstB)
 	case BlendLuminosity:
 		blendedR, blendedG, blendedB = blendLuminosity(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendDarken:
+		blendedR, blendedG, blendedB = blendDarken(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendLighten:
+		blendedR, blendedG, blendedB = blendLighten(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendColorDodge:
+		blendedR, blendedG, blendedB = blendColorDodge(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendColorBurn:
+		blendedR, blendedG, blendedB = blendColorBurn(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendHardLight:
+		blendedR, blendedG, blendedB = blendHardLight(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendSoftLight:
+		blendedR, blendedG, blendedB = blendSoftLight(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendDifference:
+		blendedR, blendedG, blendedB = blendDifference(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendExclusion:
+		blendedR, blendedG, blendedB = blendExclusion(srcR, srcG, srcB, dstR, dstG, dstB)
 	default:
 		blendedR, blendedG, blendedB = srcR, srcG, srcB
 	}
@@ -501,4 +552,108 @@ func blendColor(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
 // blendLuminosity: lum of source, hue+sat of destination.
 func blendLuminosity(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
 	return setLum(float64(dr), float64(dg), float64(db), lumU8(sr, sg, sb))
+}
+
+// --- Separable advanced helpers (straight 0-255 channels) ---
+
+func minU8(a, b uint8) uint8 {
+	if a < b {
+		return a
+	}
+	return b
+}
+func maxU8(a, b uint8) uint8 {
+	if a > b {
+		return a
+	}
+	return b
+}
+func absDiffU8(a, b uint8) uint8 {
+	if a >= b {
+		return a - b
+	}
+	return b - a
+}
+
+func blendDarken(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return minU8(sr, dr), minU8(sg, dg), minU8(sb, db)
+}
+func blendLighten(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return maxU8(sr, dr), maxU8(sg, dg), maxU8(sb, db)
+}
+func blendColorDodgeChan(s, d uint8) uint8 {
+	if s >= 255 {
+		return 255
+	}
+	// min(1, d/(1-s))
+	inv := 255 - int(s)
+	v := (int(d) * 255) / inv
+	if v > 255 {
+		return 255
+	}
+	return uint8(v)
+}
+func blendColorDodge(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return blendColorDodgeChan(sr, dr), blendColorDodgeChan(sg, dg), blendColorDodgeChan(sb, db)
+}
+func blendColorBurnChan(s, d uint8) uint8 {
+	if s == 0 {
+		return 0
+	}
+	// max(0, 1 - (1-d)/s)
+	v := 255 - ((255-int(d))*255)/int(s)
+	if v < 0 {
+		return 0
+	}
+	return uint8(v)
+}
+func blendColorBurn(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return blendColorBurnChan(sr, dr), blendColorBurnChan(sg, dg), blendColorBurnChan(sb, db)
+}
+func blendHardLightChan(s, d uint8) uint8 {
+	// HardLight = Overlay with src/dst swapped roles (decision on source)
+	if s <= 127 {
+		return uint8((2 * int(s) * int(d)) / 255)
+	}
+	return uint8(255 - (2*(255-int(s))*(255-int(d)))/255)
+}
+func blendHardLight(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return blendHardLightChan(sr, dr), blendHardLightChan(sg, dg), blendHardLightChan(sb, db)
+}
+func blendSoftLightChan(s, d uint8) uint8 {
+	// W3C soft-light (approx with 0-255 ints)
+	sf := float64(s) / 255.0
+	df := float64(d) / 255.0
+	var r float64
+	if sf <= 0.5 {
+		r = df - (1.0-2.0*sf)*df*(1.0-df)
+	} else {
+		var d2 float64
+		if df <= 0.25 {
+			d2 = ((16.0*df-12.0)*df + 4.0) * df
+		} else {
+			d2 = math.Sqrt(df)
+		}
+		r = df + (2.0*sf-1.0)*(d2-df)
+	}
+	if r < 0 {
+		r = 0
+	}
+	if r > 1 {
+		r = 1
+	}
+	return uint8(r * 255.0)
+}
+func blendSoftLight(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return blendSoftLightChan(sr, dr), blendSoftLightChan(sg, dg), blendSoftLightChan(sb, db)
+}
+func blendDifference(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return absDiffU8(sr, dr), absDiffU8(sg, dg), absDiffU8(sb, db)
+}
+func blendExclusion(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	// s+d-2*s*d
+	ex := func(s, d uint8) uint8 {
+		return uint8(int(s) + int(d) - (2*int(s)*int(d))/255)
+	}
+	return ex(sr, dr), ex(sg, dg), ex(sb, db)
 }

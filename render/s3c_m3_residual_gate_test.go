@@ -53,31 +53,39 @@ func residualVF(t *testing.T) string {
 // --- B.04 HSL blend modes ---
 
 func TestS3c_M3_BlendHue(t *testing.T) {
-	// CPU advanced blend path (GPU falls back for non-normal).
+	// B.04 dual-tex GPU path (also matches CPU HSL: green hue + red lum ≈ dark green).
 	dc := render.NewContext(32, 32)
 	defer dc.Close()
 	// Red destination
 	dc.SetRGB(1, 0, 0)
 	dc.DrawRectangle(0, 0, 32, 32)
 	_ = dc.Fill()
-	// Green source with Hue blend: result should keep red luminosity/sat roughly but take green hue → yellowish/greenish shift
+	// Green source with Hue blend: hue(src)+sat/lum(dst) → green channel dominates, lum≈0.21.
 	dc.SetRGB(0, 1, 0)
 	dc.SetBlendMode(render.BlendHue)
 	dc.DrawRectangle(0, 0, 32, 32)
 	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
 	r, g, b, a := s3cSample(dc, 16, 16)
-	t.Logf("BlendHue rgba=%d,%d,%d,%d", r, g, b, a)
+	t.Logf("BlendHue rgba=%d,%d,%d,%d stats=%s", r, g, b, a, dc.RenderPathStats().LogLine())
 	// Not pure red anymore
 	if r == 255 && g == 0 && b == 0 {
 		t.Fatalf("BlendHue left pure red unchanged")
 	}
-	// Still opaque-ish
 	if a < 200 {
 		t.Fatalf("expected opaque, a=%d", a)
 	}
-	// Luminosity roughly preserved near red (bright) → some channel high
-	if int(r)+int(g)+int(b) < 100 {
-		t.Fatalf("unexpectedly dark after Hue blend: %d,%d,%d", r, g, b)
+	// Green-dominant dark-green (lum of pure red ≈ 0.21 → G≈50–90)
+	if g < 40 {
+		t.Fatalf("expected green-dominant Hue result, got %d,%d,%d", r, g, b)
+	}
+	if g <= r || g <= b {
+		t.Fatalf("expected G max for green Hue on red: %d,%d,%d", r, g, b)
+	}
+	if dc.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("BlendHue GPU path required GPUOps>0")
 	}
 }
 

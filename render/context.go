@@ -1107,6 +1107,103 @@ func (c *Context) SetPixel(x, y int, col RGBA) {
 	c.pixmap.SetPixel(x, y, col)
 }
 
+// WritePixels writes a tight premul RGBA8 rectangle into the surface (S.07).
+// Coordinates are in surface pixel space (device pixels), not transformed by CTM.
+//
+// Pipeline:
+//  1. CPU pixmap mirror is updated (so Image/readback stay consistent).
+//  2. When a GPU accelerator is available, pixels are uploaded via the
+//     textured-quad path (queue.WriteTexture under the hood) and count as
+//     a GPU op — not a silent CPU-only store.
+//
+// pixels must be row-major premul RGBA8 with length >= width*height*4.
+// Out-of-bounds regions are clipped; the clipped sub-rectangle is uploaded.
+func (c *Context) WritePixels(x, y, width, height int, pixels []byte) {
+	if c == nil || c.pixmap == nil || width <= 0 || height <= 0 {
+		return
+	}
+	if len(pixels) < width*height*4 {
+		return
+	}
+
+	origW := width
+	srcOX, srcOY := 0, 0
+	dstW, dstH := c.pixmap.Width(), c.pixmap.Height()
+
+	if x < 0 {
+		srcOX = -x
+		width += x
+		x = 0
+	}
+	if y < 0 {
+		srcOY = -y
+		height += y
+		y = 0
+	}
+	if x >= dstW || y >= dstH || width <= 0 || height <= 0 {
+		return
+	}
+	if x+width > dstW {
+		width = dstW - x
+	}
+	if y+height > dstH {
+		height = dstH - y
+	}
+	if width <= 0 || height <= 0 {
+		return
+	}
+
+	// CPU mirror: copy clipped rows into pixmap.
+	dst := c.pixmap.Data()
+	for row := 0; row < height; row++ {
+		srcOff := ((srcOY+row)*origW + srcOX) * 4
+		dstOff := ((y+row)*dstW + x) * 4
+		copy(dst[dstOff:dstOff+width*4], pixels[srcOff:srcOff+width*4])
+	}
+	c.pixmap.NotifyPixelsChanged()
+	c.trackDamage(image.Rect(x, y, x+width, y+height))
+
+	// GPU path: textured blit of the same clipped pixels.
+	if c.tryGPUWritePixels(x, y, width, height, pixels, origW, srcOX, srcOY) {
+		c.recordGPUOp()
+	}
+}
+
+// tryGPUWritePixels uploads a clipped premul RGBA8 block via GPU image draw.
+// origW/srcOX/srcOY describe the source packing of the full WritePixels buffer.
+func (c *Context) tryGPUWritePixels(dstX, dstY, width, height int, pixels []byte, origW, srcOX, srcOY int) bool {
+	if !c.gpuPathAvailable() {
+		return false
+	}
+	rc := c.gpuCtxOps()
+	if rc == nil {
+		return false
+	}
+
+	// Pack tight buffer for upload (GPU path accepts tight rows via stride=w*4).
+	tight := make([]byte, width*height*4)
+	for row := 0; row < height; row++ {
+		srcOff := ((srcOY+row)*origW + srcOX) * 4
+		copy(tight[row*width*4:(row+1)*width*4], pixels[srcOff:srcOff+width*4])
+	}
+
+	target := c.gpuRenderTarget()
+	vpW := uint32(target.Width)  //nolint:gosec
+	vpH := uint32(target.Height) //nolint:gosec
+	fx, fy := float32(dstX), float32(dstY)
+	fw, fh := float32(width), float32(height)
+	rc.QueueImageDraw(target, tight, c.pixmap.GenerationID(), width, height, width*4,
+		fx, fy,
+		fx+fw, fy,
+		fx+fw, fy+fh,
+		fx, fy+fh,
+		1.0, vpW, vpH,
+		0, 0, 1, 1,
+		true, // nearest — pixel-exact write
+	)
+	return true
+}
+
 // DrawPoint draws a single point at the given coordinates.
 func (c *Context) DrawPoint(x, y, r float64) {
 	c.DrawCircle(x, y, r)

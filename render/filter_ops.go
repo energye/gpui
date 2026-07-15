@@ -10,6 +10,9 @@ var (
 	colorMatrixApply func(src, dst *Pixmap, matrix [20]float32)
 	grayscaleApply   func(src, dst *Pixmap)
 	invertApply      func(src, dst *Pixmap)
+	// gpuFilterGraphApply runs F.03 multi-RT GPU ping-pong (optional).
+	// src is tight RGBA8 w*h*4; returns same layout result.
+	gpuFilterGraphApply func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)
 )
 
 // RegisterFilterOps wires image-filter implementations (blur/shadow/color matrix).
@@ -110,6 +113,17 @@ func FiltersRegistered() bool {
 	return blurApply != nil && dropShadowApply != nil && grayscaleApply != nil
 }
 
+// RegisterGPUFilterGraph wires an optional GPU multi-RT image filter graph (F.03).
+// When set, ApplyImageFilterGraph prefers the GPU path for supported node sets.
+func RegisterGPUFilterGraph(fn func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)) {
+	gpuFilterGraphApply = fn
+}
+
+// GPUFilterGraphRegistered reports whether a GPU multi-RT filter graph is wired.
+func GPUFilterGraphRegistered() bool {
+	return gpuFilterGraphApply != nil
+}
+
 // ImageFilterKind identifies a node in an image-filter graph (F.03).
 type ImageFilterKind int
 
@@ -179,7 +193,19 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 		return
 	}
 
-	// Ping-pong intermediate surfaces (multi-pass RT analogue).
+	// F.03 GPU multi-RT ping-pong when all nodes are GPU-supported.
+	if gpuFilterGraphApply != nil && imageFilterGraphGPUSupported(nodes) {
+		out, err := gpuFilterGraphApply(append([]byte(nil), src.Data()...), w, h, nodes)
+		if err == nil && len(out) >= w*h*4 {
+			copy(src.Data(), out[:w*h*4])
+			src.NotifyPixelsChanged()
+			// True GPU texture ping-pong counts as a GPU op for path stats.
+			c.recordGPUOp()
+			return
+		}
+	}
+
+	// CPU fallback: pixmap ping-pong intermediate surfaces.
 	bufA := NewPixmap(w, h)
 	bufB := NewPixmap(w, h)
 	copy(bufA.Data(), src.Data())
@@ -201,6 +227,24 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 
 	copy(src.Data(), cur.Data())
 	src.NotifyPixelsChanged()
+}
+
+func imageFilterGraphGPUSupported(nodes []ImageFilterNode) bool {
+	any := false
+	for i := range nodes {
+		n := nodes[i]
+		if !imageFilterNodeRunnable(n) {
+			continue
+		}
+		switch n.Kind {
+		case ImageFilterBlur, ImageFilterBlurXY, ImageFilterGrayscale, ImageFilterInvert,
+			ImageFilterColorMatrix, ImageFilterDropShadow:
+			any = true
+		default:
+			return false
+		}
+	}
+	return any
 }
 
 func imageFilterNodeRunnable(n ImageFilterNode) bool {

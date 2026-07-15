@@ -100,6 +100,7 @@ type GPUShared struct {
 	// Dual-texture advanced blend (B.03 Multiply/Screen/Overlay) pipeline cache.
 	dualTexBlend dualTexBlendCache
 	maskR8       maskR8Cache
+	filterGPU    filterGPUCache
 
 	// L.06 GPU-resident alpha mask (MaskAware). Full-surface R8 plane + texture.
 	maskData   []byte
@@ -345,6 +346,7 @@ func (s *GPUShared) Close() {
 	}
 	s.dualTexBlend.release()
 	s.maskR8.release()
+	s.filterGPU.release()
 	s.clearMaskLocked()
 	s.destroyPipelinesLocked()
 	if !s.externalDevice {
@@ -429,9 +431,14 @@ func resolveSampleCount(device *webgpu.Device) uint32 {
 // was provided. Must be called with s.mu held.
 func (s *GPUShared) ensureGPU() error {
 	if s.device != nil {
+		s.registerFilterGraphIfNeeded()
 		return nil
 	}
-	return s.initGPU()
+	if err := s.initGPU(); err != nil {
+		return err
+	}
+	s.registerFilterGraphIfNeeded()
+	return nil
 }
 
 // ensurePipelines lazily creates shape rendering pipelines. Skipped on
@@ -702,4 +709,24 @@ func (s *GPUShared) MaskTextureView() (*webgpu.TextureView, bool) {
 		return nil, false
 	}
 	return s.maskView, true
+}
+
+var gpuFilterGraphRegistered bool
+
+func (s *GPUShared) registerFilterGraphIfNeeded() {
+	if gpuFilterGraphRegistered {
+		return
+	}
+	render.RegisterGPUFilterGraph(func(src []byte, w, h int, nodes []render.ImageFilterNode) ([]byte, error) {
+		s.mu.Lock()
+		if err := s.ensureGPU(); err != nil {
+			s.mu.Unlock()
+			return nil, err
+		}
+		device, queue := s.device, s.queue
+		cache := &s.filterGPU
+		s.mu.Unlock()
+		return runGPUFilterGraph(device, queue, cache, src, w, h, nodes)
+	})
+	gpuFilterGraphRegistered = true
 }

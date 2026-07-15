@@ -25,7 +25,10 @@ func paintSupportsGPUAdvancedBlend(paint *render.Paint) bool {
 		return false
 	}
 	switch paint.BlendMode {
-	case render.BlendMultiply, render.BlendScreen, render.BlendOverlay:
+	case render.BlendMultiply, render.BlendScreen, render.BlendOverlay,
+		render.BlendHue, render.BlendSaturation, render.BlendColor, render.BlendLuminosity,
+		render.BlendDarken, render.BlendLighten, render.BlendColorDodge, render.BlendColorBurn,
+		render.BlendHardLight, render.BlendSoftLight, render.BlendDifference, render.BlendExclusion:
 		return true
 	default:
 		return false
