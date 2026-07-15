@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.30 | 日期：2026-07-15  
+> 版本：1.31 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -154,9 +154,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 S0–S3c 已关闭。S.03 真窗口 draw+present 已通。
 
-**本轮（P1 推进）**：已收矩阵 **rwgpu/webgpu 🔄→✅ 对齐**（render 已证 M0–M3 行）、B.03 Soft/Hard/ColorDodge 门禁补全、Tier G–**N**（retained multi-panel damage + IDE layout）。仍 open：M4 可选项、K.01 vello 深化。
+**本轮（P1 推进）**：K.01 Context Compute 门禁 ✅、Q.02 Coverage AA ✅、B.03 ColorBurn/Exclusion ✅、复杂 UI Tier **O–P**（日历/甘特 + 高级混合/compute chrome）。矩阵 M0–M3 主 🔄 已基本收口；仍 open：M4 可选项、真窗口 multi-rect Present e2e。
 
-下一步：M4 后置；K.01 或更多 retained e2e（真 view damage present）可选。
+下一步：M4 后置；按需继续加复杂 UI Tier（非控件层）。真窗口 multi-rect Present damage 已在 X11 标签门禁覆盖。
 
 ```bash
 go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
@@ -199,6 +199,7 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.31 | K.01/Q.02 gates + B.03 ColorBurn/Exclusion + Tier O/P + X11 multi-rect PresentDamage |
 | 2026-07-15 | 1.30 | matrix lower-layer align + B.03 Soft/Hard/Dodge gates + Tier N |
 | 2026-07-15 | 1.29 | B.03 full separable advanced dual-tex + Tier M chart/heatmap |
 | 2026-07-15 | 1.28 | S.07 WritePixels GPU + Tier L form/table/toasts |

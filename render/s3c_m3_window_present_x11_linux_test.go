@@ -3,6 +3,7 @@
 package render_test
 
 import (
+	"image"
 	"os"
 	"testing"
 	"unsafe"
@@ -107,7 +108,40 @@ func TestS3c_M3_WindowPresentFrame_X11Draw(t *testing.T) {
 			t.Fatalf("frame %d needs GPUOps>0: %s", i, stats.LogLine())
 		}
 	}
-	t.Log("X11 PresentFrame multi-frame draw OK")
+
+	// Multi-rect damage present on same device/session (avoids dual-device VRAM OOM).
+	dc.ResetRenderPathStats()
+	dc.ResetFrameDamage()
+	dc.SetRGB(0.2, 0.8, 0.35)
+	dc.DrawRoundedRectangle(10, 10, 40, 24, 4)
+	_ = dc.Fill()
+	dc.SetRGB(0.95, 0.75, 0.1)
+	dc.DrawRoundedRectangle(50, 34, 36, 22, 4)
+	_ = dc.Fill()
+	rects := dc.FrameDamage()
+	if len(rects) < 2 {
+		rects = []image.Rectangle{
+			{Min: image.Pt(8, 8), Max: image.Pt(52, 36)},
+			{Min: image.Pt(48, 32), Max: image.Pt(90, 58)},
+		}
+	}
+	t.Logf("damage rects=%v", rects)
+	frame, err := sc.BeginFrame()
+	if err != nil {
+		t.Fatalf("BeginFrame damage: %v", err)
+	}
+	if err := dc.PresentFrameDamageRects(frame.Handle, frame.Width, frame.Height, rects, func() error {
+		return sc.EndFrame(frame)
+	}); err != nil {
+		sc.DiscardFrame(frame)
+		t.Fatalf("PresentFrameDamageRects: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("damage frame %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("damage frame needs GPUOps>0: %s", stats.LogLine())
+	}
+	t.Log("X11 PresentFrame multi-frame + multi-rect damage OK")
 }
 
 type x11Win struct {

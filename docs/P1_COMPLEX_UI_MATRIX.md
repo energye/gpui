@@ -167,11 +167,38 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 | N1 | Retained multi-panel + WritePixels | `TestP1_N1_RetainedMultiPanelDamage` | ✅ |
 | N2 | IDE layout density | `TestP1_N2_IDELayoutDensity` | ✅ |
 
+## Tier O（日历时间线 / 甘特依赖）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| O1 | Calendar + timeline density | `TestP1_O1_CalendarTimelineDensity` | ✅ |
+| O2 | Gantt dependency density | `TestP1_O2_GanttDependencyDensity` | ✅ |
+
+## Tier P（高级混合 / compute 形态）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| P1 | Advanced blend composite density | `TestP1_P1_AdvancedBlendCompositeDensity` | ✅ |
+| P2 | Compute path + UI chrome density | `TestP1_P2_ComputePathUIChromeDensity` | ✅ |
+
+## 能力门禁补充（本轮）
+
+| ID | 能力 | 门禁 |
+|----|------|------|
+| K.01 | Vello compute path | `TestP1_Capability_K01_VelloComputePathGPU` |
+| Q.02 | Coverage AA GPU | `TestP1_Capability_Q02_CoverageAAGPU` |
+| B.03 | ColorBurn/Exclusion GPU | `TestP1_Capability_B03_ColorBurnExclusionGPU` |
+
+## 窗口 Present multi-rect damage
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| S.03 multi-rect | X11 PresentFrame + PresentFrameDamageRects | `TestS3c_M3_WindowPresentFrame_X11Draw` (`-tags gpui_x11_present`) | ✅ |
+
 ## 仍 open（下一切片）
 
 - M4 可选项（F16/mesh/PDF/透视等）  
-- K.01 vello compute path 深化  
-- 真窗口 multi-rect Present damage e2e（DISPLAY）  
+- 更密 retained / multi-viewport 形态（按需继续加 Tier）  
 
 
 

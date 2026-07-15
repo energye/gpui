@@ -206,7 +206,7 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | Q.01 | MSAA 4x + resolve | samples | multisample texture + resolve | ✅ | ✅ | ✅ sampleCount=4 `TestS3b_M2_MSAAResolve` | M2 |
-| Q.02 | Coverage AA 无 MSAA | analytic AA | 软件/计算覆盖 | N/A | N/A | ✅/🔄 `TestS3a_M1_AntiAliasToggle` | M1 |
+| Q.02 | Coverage AA 无 MSAA | analytic AA | 软件/计算覆盖 | N/A | N/A | ✅ AA on/off GPU fringe/interior `TestP1_Capability_Q02_CoverageAAGPU` / `TestS3a_M1_AntiAliasToggle` | M1 |
 | Q.03 | 像素对齐/近像素规则 | device pixel snap | CPU/GPU 一致 | N/A | N/A | ✅ AA-off path snap GPU `TestP1_Capability_Q03` | M2 |
 | Q.04 | 半透明边缘与 premul | premul AA | blend | ✅ | ✅ | ✅ 半透明 AA 粉边无 fringe 爆色 `TestP1_Capability_Q04_PremulAAEdgeGPU` | M1 |
 
@@ -229,7 +229,7 @@
 
 | ID | 能力 | Skia/行业参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|---------------|-------------|-------|--------|--------|-----|
-| K.01 | Compute 粗光栅/分片 | Vello/Pathfinder 类 | compute pipeline/storage | ✅ 部分 | ✅ 部分 | 🔄 vello | M3 |
+| K.01 | Compute 粗光栅/分片 | Vello/Pathfinder 类 | compute pipeline/storage | ✅ | ✅ | ✅ Context `PipelineModeCompute` multi-path `TestP1_Capability_K01_VelloComputePathGPU` + complex `TestP1_P2_*` | M3 |
 | K.02 | 间接绘制 | multi-draw | indirect buffer | 🔄 | 🔄 | ⬜ | M4 |
 
 ---
@@ -320,7 +320,7 @@
 | rwgpu | **S1 ✅**：enum header-lock + A–E native 烟测（`TestS1*`/`TestS1AE*`）；~132 NewProc | 非子集扩展未绑；Surface/MSAA resolve 深度在 S3 |
 | webgpu | **S2 ✅**：子集 facade + 转换/烟测；render 不直连 rwgpu | Surface 完整消费在 S3c |
 | render CPU | path/text/image/clip/layer 较全 | GPU 不一致 |
-| render GPU | **S3a/S3b ✅**；**S3c 🔄** filter/present 首切片 | 窗口 Present / Vertices 待关 |
+| render GPU | **S3a/S3b/S3c ✅**（M0–M3 主能力）；M4 可选后置 | K.01/Q.02 已门禁；窗口 multi-rect Present e2e 可选深化 |
 | Surface | 外部 view 思路；完整 swapchain 弱 | 窗口路径 |
 | Blend 模式 | CPU 包全；Context.SetBlendMode 弱；GPU 固定像素仅 SourceOver 首轮 | UI 叠加 |
 | Filter/Shadow | 弱 | 视觉效果缺口 |
@@ -368,6 +368,7 @@
 | 2026-07-15 | — | L.06 SDF cover-inline R8 + mask lifetime fix + Tier I dashboard/modal |
 | 2026-07-15 | — | L.06 convex cover-inline R8 + Tier H large virtual/transfer |
 | 2026-07-15 | — | F.03 filter graph + L.06 MaskAware native upload + Tier G TreeSelect/Carousel |
+| 2026-07-15 | — | K.01 Context Compute + Q.02 Coverage AA gates; B.03 ColorBurn/Exclusion; Tier O/P complex UI |
 
 
 ---

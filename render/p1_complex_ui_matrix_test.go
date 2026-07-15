@@ -16,6 +16,7 @@ package render_test
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -3335,5 +3336,223 @@ func TestP1_O2_GanttDependencyDensity(t *testing.T) {
 	r2, g2, b2, _ := p1Sample(dc, 170, 28)
 	if b2 < 100 && r2 < 100 {
 		t.Fatalf("gantt bar missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// --- Tier P: advanced blend + compute path UI morphology ---
+
+// P1: dense cards + staged advanced blends (ColorBurn/Exclusion/SoftLight).
+// Dual-tex blends sample destination pixmap — FlushGPU before blend ops.
+// ColorBurn over pure white is mathematically near-identity; sample over inked bars.
+func TestP1_P1_AdvancedBlendCompositeDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 640, 400
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Known bar sample points (col,row) -> (x,y)
+	// col1 row1 bar0: x=16+208+14=238, y=16+180+140-40 ≈ 296 (bh varies)
+	type bar struct{ x, y float64 }
+	bars := make([]bar, 0, 6)
+	for col := 0; col < 3; col++ {
+		for row := 0; row < 2; row++ {
+			x := 16 + float64(col)*208
+			y := 16 + float64(row)*180
+			dc.SetRGB(1, 1, 1)
+			dc.DrawRoundedRectangle(x, y, 196, 164, 10)
+			_ = dc.Fill()
+			dc.SetRGB(0.09, 0.47, 0.95)
+			dc.DrawRoundedRectangle(x, y, 196, 36, 10)
+			_ = dc.Fill()
+			dc.SetRGB(1, 1, 1)
+			dc.DrawRectangle(x, y+20, 196, 16)
+			_ = dc.Fill()
+			dc.SetRGB(0.15, 0.15, 0.18)
+			dc.DrawString(fmt.Sprintf("Panel %c%d", 'A'+col, row+1), x+12, y+24)
+			for i := 0; i < 8; i++ {
+				bh := 30.0 + float64((i*17+col*5+row*9)%30)
+				bx := x + 14 + float64(i)*22
+				by := y + 140 - bh
+				dc.SetRGBA(0.2, 0.55, 0.9, 0.85)
+				dc.DrawRoundedRectangle(bx, by, 16, bh, 3)
+				_ = dc.Fill()
+				if col == 1 && row == 1 && i == 2 {
+					bars = append(bars, bar{x: bx + 8, y: by + bh/2})
+				}
+				if col == 0 && row == 0 && i == 3 {
+					bars = append(bars, bar{x: bx + 8, y: by + bh/2})
+				}
+			}
+		}
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("base FlushGPU: %v", err)
+	}
+	baseOps := dc.RenderPathStats().GPUOps
+	if baseOps == 0 {
+		t.Fatalf("base UI produced no GPU ops")
+	}
+	if len(bars) < 2 {
+		t.Fatalf("internal: expected bar anchors")
+	}
+	br, bg, bb, _ := p1Sample(dc, int(bars[0].x), int(bars[0].y))
+	t.Logf("bar0 before blend @%.0f,%.0f = %d,%d,%d", bars[0].x, bars[0].y, br, bg, bb)
+	p1NotNearWhite(t, "bar0 before", br, bg, bb)
+
+	// SoftLight over left bar cluster
+	dc.SetBlendMode(render.BlendSoftLight)
+	dc.SetRGBA(0.95, 0.55, 0.1, 0.9)
+	dc.DrawCircle(bars[1].x, bars[1].y, 36)
+	_ = dc.Fill()
+
+	// ColorBurn over known blue bar (non-white dest — ColorBurn(white,*) is identity)
+	dc.SetBlendMode(render.BlendColorBurn)
+	dc.SetRGB(0.6, 0.2, 0.15)
+	dc.DrawCircle(bars[0].x, bars[0].y, 40)
+	_ = dc.Fill()
+
+	// Exclusion blue over pale card body
+	dc.SetBlendMode(render.BlendExclusion)
+	dc.SetRGB(0.2, 0.25, 0.9)
+	dc.DrawRoundedRectangle(430, 50, 160, 100, 10)
+	_ = dc.Fill()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("blend FlushGPU: %v", err)
+	}
+	t.Logf("P1 after blends path_stats %s baseOps=%d", dc.RenderPathStats().LogLine(), baseOps)
+	if dc.RenderPathStats().GPUOps <= baseOps {
+		t.Fatalf("advanced blends must add GPUOps")
+	}
+	if dc.RenderPathStats().CPUFallbackOps > 0 {
+		t.Fatalf("P1 unexpected CPU fallback: %s", dc.RenderPathStats().LogLine())
+	}
+
+	r, g, b, _ := p1Sample(dc, int(bars[0].x), int(bars[0].y))
+	t.Logf("colorburn sample=%d,%d,%d (was %d,%d,%d)", r, g, b, br, bg, bb)
+	p1NotNearWhite(t, "colorburn bar", r, g, b)
+	// Must differ from pre-blend bar (dual-tex took effect)
+	if r == br && g == bg && b == bb {
+		t.Fatalf("colorburn did not modify destination bar pixel")
+	}
+
+	r2, g2, b2, _ := p1Sample(dc, 500, 90)
+	t.Logf("exclusion sample=%d,%d,%d", r2, g2, b2)
+	p1NotNearWhite(t, "exclusion panel", r2, g2, b2)
+
+	dc.SetBlendMode(render.BlendNormal)
+	dc.SetRGBA(0, 0, 0, 0.12)
+	dc.DrawRectangle(0, h-36, w, 36)
+	_ = dc.Fill()
+	dc.SetRGB(0.2, 0.2, 0.25)
+	dc.DrawString("advanced blend composite density", 16, h-14)
+	p1Flush(t, dc)
+	if dc.RenderPathStats().GPUOps < 40 {
+		t.Fatalf("P1 expected GPUOps>=40: %s", dc.RenderPathStats().LogLine())
+	}
+}
+
+// P2: UI chrome + compute-path canvas (K.01) in one scene.
+func TestP1_P2_ComputePathUIChromeDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 520, 360
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("bootstrap FlushGPU: %v", err)
+	}
+	a := render.Accelerator()
+	cpa, ok := a.(render.ComputePipelineAware)
+	if !ok || !cpa.CanCompute() {
+		t.Skip("compute pipeline unavailable")
+	}
+
+	dc.SetRGB(0.12, 0.14, 0.18)
+	dc.DrawRectangle(0, 0, w, 40)
+	_ = dc.Fill()
+	dc.SetRGB(0.95, 0.96, 0.98)
+	dc.DrawString("Compute path canvas + UI chrome", 12, 26)
+
+	dc.SetRGB(0.94, 0.95, 0.97)
+	dc.DrawRectangle(0, 40, 140, h-40)
+	_ = dc.Fill()
+	for i := 0; i < 8; i++ {
+		dc.SetRGB(0.2, 0.22, 0.28)
+		dc.DrawString(fmt.Sprintf("Layer %02d", i+1), 16, 70+float64(i)*30)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("chrome FlushGPU: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+
+	dc.SetPipelineMode(render.PipelineModeCompute)
+	for i := 0; i < 6; i++ {
+		cx := 230.0 + float64(i%3)*95
+		cy := 120.0 + float64(i/3)*110
+		dc.SetRGB(0.15+float64(i)*0.1, 0.4+float64(i%2)*0.15, 0.85-float64(i)*0.05)
+		dc.MoveTo(cx, cy-34)
+		for p := 1; p < 5; p++ {
+			ang := float64(p) * 144.0 * math.Pi / 180.0
+			dc.LineTo(cx+34*math.Sin(ang), cy-34*math.Cos(ang))
+		}
+		dc.ClosePath()
+		_ = dc.Fill()
+
+		dc.SetRGB(0.2, 0.75, 0.4)
+		dc.MoveTo(cx-20, cy+28)
+		dc.LineTo(cx, cy+10)
+		dc.LineTo(cx+20, cy+28)
+		dc.LineTo(cx+10, cy+28)
+		dc.LineTo(cx+10, cy+42)
+		dc.LineTo(cx-10, cy+42)
+		dc.LineTo(cx-10, cy+28)
+		dc.ClosePath()
+		_ = dc.Fill()
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("compute FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("P2 compute path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("P2 compute density requires additional GPUOps: %s", stats.LogLine())
+	}
+
+	r, g, b, _ := p1Sample(dc, 230, 110)
+	t.Logf("compute star sample=%d,%d,%d", r, g, b)
+	p1NotNearWhite(t, "compute star", r, g, b)
+	rA, gA, bA, _ := p1Sample(dc, 230, 150)
+	t.Logf("compute arrow sample=%d,%d,%d", rA, gA, bA)
+	p1NotNearWhite(t, "compute arrow", rA, gA, bA)
+
+	dc.SetPipelineMode(render.PipelineModeAuto)
+	dc.SetRGB(0.18, 0.2, 0.24)
+	dc.DrawRectangle(0, h-28, w, 28)
+	_ = dc.Fill()
+	dc.SetRGB(0.9, 0.9, 0.92)
+	dc.DrawString("status: compute path active", 12, h-10)
+	p1Flush(t, dc)
+	if dc.RenderPathStats().GPUOps < 15 {
+		t.Fatalf("P2 expected GPUOps>=15: %s", dc.RenderPathStats().LogLine())
+	}
+	r2, g2, b2, _ := p1Sample(dc, 40, 100)
+	t.Logf("sidebar sample=%d,%d,%d", r2, g2, b2)
+	if r2 < 200 {
+		t.Fatalf("sidebar chrome corrupted: %d,%d,%d", r2, g2, b2)
 	}
 }
