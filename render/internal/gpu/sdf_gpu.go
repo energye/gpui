@@ -58,6 +58,20 @@ func (a *SDFAccelerator) Shared() *GPUShared {
 	return a.shared
 }
 
+// MSAASampleCount implements render.MSAAAware.
+// Ensures GPU init so the probed sample count is available.
+func (a *SDFAccelerator) MSAASampleCount() uint32 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.shared == nil {
+		a.shared = NewGPUShared()
+	}
+	if err := a.shared.ensureGPU(); err != nil {
+		return 0
+	}
+	return a.shared.SampleCount()
+}
+
 // IsSoftwareAdapter reports whether the accelerator is running on a software
 // (CPU) adapter such as llvmpipe, SwiftShader, or WARP. Used by
 // AcceleratorCanRenderDirect in auto mode (ADR-020) to route shapes to CPU.

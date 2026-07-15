@@ -426,7 +426,7 @@ func (r *SoftwareRenderer) Fill(pixmap *Pixmap, p *Path, paint *Paint) error {
 		clipFn := paint.ClipCoverage
 		maskFn := paint.MaskCoverage
 		r.analyticFiller.Fill(r.edgeBuilder, coreFillRule, func(y int, runs *raster.AlphaRuns) {
-			r.blendAlphaRunsFromCoreRuns(pixmap, y, runs, color, clipFn, maskFn)
+			r.blendAlphaRunsFromCoreRuns(pixmap, y, runs, color, clipFn, maskFn, paint.BlendMode)
 		})
 	} else {
 		// Pattern/gradient path: per-pixel color sampling
@@ -662,12 +662,13 @@ func solidColorFromPaint(paint *Paint) (RGBA, bool) {
 // Uses source-over compositing for proper alpha blending.
 // When clipFn is non-nil, each pixel's alpha is multiplied by the clip coverage.
 // When maskFn is non-nil, each pixel's alpha is multiplied by the mask coverage.
-func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, runs *raster.AlphaRuns, color RGBA, clipFn func(x, y float64) byte, maskFn func(x, y int) uint8) {
+func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, runs *raster.AlphaRuns, color RGBA, clipFn func(x, y float64) byte, maskFn func(x, y int) uint8, blendMode BlendMode) {
 	if y < 0 || y >= pixmap.Height() {
 		return
 	}
 
 	fy := float64(y) + 0.5
+	useAdvanced := blendMode != BlendNormal
 
 	for x, alpha := range runs.Iter() {
 		if alpha == 0 {
@@ -695,6 +696,11 @@ func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, run
 			continue
 		}
 
+		if useAdvanced {
+			compositeAdvanced(pixmap, x, y, color, alpha, blendMode)
+			continue
+		}
+
 		// Full coverage - just set the pixel
 		if alpha == 255 && color.A == 1.0 {
 			pixmap.SetPixel(x, y, color)
@@ -718,6 +724,62 @@ func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, run
 			srcAlpha+dstA*invSrcAlpha,
 		)
 	}
+}
+
+// compositeAdvanced blends src (straight color) with coverage into pixmap using
+// CSS-style separable blend modes, then SourceOver alpha (matches intImage.DrawImage).
+func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mode BlendMode) {
+	srcA := color.A * float64(coverage) / 255.0
+	if srcA <= 0 {
+		return
+	}
+	dst := pixmap.GetPixel(x, y)
+
+	// Work in 0..255 straight channels for blend formulas.
+	sr := uint8(clamp255(color.R * 255))
+	sg := uint8(clamp255(color.G * 255))
+	sb := uint8(clamp255(color.B * 255))
+	sa := uint8(clamp255(srcA * 255))
+	dr := uint8(clamp255(dst.R * 255))
+	dg := uint8(clamp255(dst.G * 255))
+	db := uint8(clamp255(dst.B * 255))
+	da := uint8(clamp255(dst.A * 255))
+
+	br, bg, bb := sr, sg, sb
+	switch mode {
+	case BlendMultiply:
+		br = uint8((int(sr) * int(dr)) / 255)
+		bg = uint8((int(sg) * int(dg)) / 255)
+		bb = uint8((int(sb) * int(db)) / 255)
+	case BlendScreen:
+		br = uint8(255 - (255-int(sr))*(255-int(dr))/255)
+		bg = uint8(255 - (255-int(sg))*(255-int(dg))/255)
+		bb = uint8(255 - (255-int(sb))*(255-int(db))/255)
+	case BlendOverlay:
+		br = overlayChannelU8(sr, dr)
+		bg = overlayChannelU8(sg, dg)
+		bb = overlayChannelU8(sb, db)
+	}
+
+	// Source-over of blended straight color with src alpha onto dst.
+	srcAlpha := float64(sa) / 255.0
+	dstAlpha := float64(da) / 255.0
+	outA := srcAlpha + dstAlpha*(1-srcAlpha)
+	if outA <= 0 {
+		pixmap.SetPixel(x, y, Transparent)
+		return
+	}
+	outR := (float64(br)/255.0*srcAlpha + float64(dr)/255.0*dstAlpha*(1-srcAlpha)) / outA
+	outG := (float64(bg)/255.0*srcAlpha + float64(dg)/255.0*dstAlpha*(1-srcAlpha)) / outA
+	outB := (float64(bb)/255.0*srcAlpha + float64(db)/255.0*dstAlpha*(1-srcAlpha)) / outA
+	pixmap.SetPixel(x, y, RGBA{R: outR, G: outG, B: outB, A: outA})
+}
+
+func overlayChannelU8(src, dst uint8) uint8 {
+	if dst < 128 {
+		return uint8((2 * int(src) * int(dst)) / 255)
+	}
+	return uint8(255 - (2*(255-int(src))*(255-int(dst)))/255)
 }
 
 // blendAlphaRunsFromCoreRunsPaint is like blendAlphaRunsFromCoreRuns but samples
@@ -761,6 +823,11 @@ func (r *SoftwareRenderer) blendAlphaRunsFromCoreRunsPaint(pixmap *Pixmap, y int
 
 		// Sample color from paint at pixel center
 		color := paint.ColorAt(fx, fy)
+
+		if paint.BlendMode != BlendNormal {
+			compositeAdvanced(pixmap, x, y, color, alpha, paint.BlendMode)
+			continue
+		}
 
 		if alpha == 255 && color.A == 1.0 {
 			pixmap.SetPixel(x, y, color)

@@ -584,6 +584,9 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 // FillPath queues a filled path for GPU rendering.
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	if !isGPUSolidPaint(paint) {
+		return rc.fillBrushAsImage(target, path, paint)
+	}
+	if !paintUsesSourceOver(paint) {
 		return render.ErrFallbackToCPU
 	}
 	if !rc.shared.gpuReady {
@@ -661,7 +664,10 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 
 // StrokePath renders a stroked path by expanding to filled outline.
 func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
-	if paint.IsDashed() {
+	if !isGPUSolidPaint(paint) {
+		return render.ErrFallbackToCPU
+	}
+	if !paintUsesSourceOver(paint) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -686,7 +692,27 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		return nil
 	}
 
-	strokeVerbs := convertPathVerbsToStroke(path.Verbs())
+	// Apply dash before geometric stroke expansion (same as software renderer).
+	pathToStroke := path
+	if paint.IsDashed() {
+		dash := paint.EffectiveDash()
+		if dash != nil && dash.IsDashed() {
+			transformScale := paint.TransformScale
+			if transformScale <= 0 {
+				transformScale = 1.0
+			}
+			// Match software.go: scale dash only when scale > 1.
+			if transformScale > 1.0 {
+				dash = dash.Scale(transformScale)
+			}
+			pathToStroke = render.ApplyDash(path, dash)
+			if pathToStroke == nil || pathToStroke.NumVerbs() == 0 {
+				return nil
+			}
+		}
+	}
+
+	strokeVerbs := convertPathVerbsToStroke(pathToStroke.Verbs())
 	style := stroke.Stroke{
 		Width:      effectiveStrokeWidth(paint),
 		Cap:        stroke.LineCap(paint.EffectiveLineCap()),
@@ -694,7 +720,7 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		MiterLimit: paint.EffectiveMiterLimit(),
 	}
 	expander := stroke.NewStrokeExpander(style)
-	outVerbs, outCoords := expander.Expand(strokeVerbs, path.Coords())
+	outVerbs, outCoords := expander.Expand(strokeVerbs, pathToStroke.Coords())
 	if len(outVerbs) == 0 {
 		return nil
 	}
@@ -719,6 +745,13 @@ func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape rende
 	rc.sceneStats.ShapeCount++
 
 	if !isGPUSolidPaint(paint) {
+		p := detectedShapeToPath(shape)
+		if p == nil {
+			return render.ErrFallbackToCPU
+		}
+		return rc.fillBrushAsImage(target, p, paint)
+	}
+	if !paintUsesSourceOver(paint) {
 		return render.ErrFallbackToCPU
 	}
 	if !rc.shared.gpuReady {
@@ -745,6 +778,15 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 
 	if !rc.shared.gpuReady {
 		return rc.shared.cpuFallback.StrokeShape(target, shape, paint)
+	}
+
+	// Dashed strokes must go through StrokePath so ApplyDash runs before expand.
+	// SDF shape stroke does not model dash patterns.
+	if paint.IsDashed() {
+		return render.ErrFallbackToCPU
+	}
+	if !paintUsesSourceOver(paint) {
+		return render.ErrFallbackToCPU
 	}
 
 	// Thin strokes (< 2px) fall back to geometric expansion — SDF annular ring

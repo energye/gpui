@@ -194,9 +194,8 @@ func (c *Context) applyMaskToPixmap(pm *Pixmap, mask *Mask) {
 //
 //	dc.SetBlendMode(gg.BlendMultiply)
 //	dc.Fill() // Future: will use multiply blend mode
-func (c *Context) SetBlendMode(_ BlendMode) {
-	// Store for future use in paint operations
-	// Currently, blending is primarily done via layers
+func (c *Context) SetBlendMode(mode BlendMode) {
+	c.paint.BlendMode = mode
 }
 
 // compositeLayer composites a layer onto a parent pixmap using the layer's

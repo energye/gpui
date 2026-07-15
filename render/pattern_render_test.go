@@ -4,6 +4,11 @@ import (
 	"testing"
 )
 
+// flushForRead ensures GPU-queued draws are written back before pixmap sampling.
+func flushForRead(dc *Context) {
+	_ = dc.FlushGPU()
+}
+
 // TestCustomPatternFill reproduces the original bug: custom Pattern
 // implementations should produce non-black pixels when used as fill.
 func TestCustomPatternFill(t *testing.T) {
@@ -16,6 +21,7 @@ func TestCustomPatternFill(t *testing.T) {
 	// Draw and fill a rectangle
 	dc.DrawRectangle(10, 10, 80, 80)
 	dc.Fill()
+	flushForRead(dc)
 
 	// Check center pixel — should be Green, not Black
 	center := dc.pixmap.GetPixel(50, 50)
@@ -37,6 +43,7 @@ func TestCustomBrushFill(t *testing.T) {
 
 	dc.DrawRectangle(0, 0, 100, 100)
 	dc.Fill()
+	flushForRead(dc)
 
 	// Left side should be reddish
 	left := dc.pixmap.GetPixel(5, 50)
@@ -65,6 +72,7 @@ func TestCheckerboardFill(t *testing.T) {
 
 	dc.DrawRectangle(0, 0, 100, 100)
 	dc.Fill()
+	flushForRead(dc)
 
 	// Pixel at (5, 5) — first square (should be White or Black)
 	p1 := dc.pixmap.GetPixel(5, 5)
@@ -85,6 +93,7 @@ func TestSolidFillStillWorks(t *testing.T) {
 
 	dc.DrawRectangle(10, 10, 80, 80)
 	dc.Fill()
+	flushForRead(dc)
 
 	center := dc.pixmap.GetPixel(50, 50)
 	if center.R < 0.9 || center.G > 0.1 || center.B > 0.1 {
@@ -136,6 +145,7 @@ func TestGradientFillVariation(t *testing.T) {
 	dc.SetFillBrush(VerticalGradient(White, Black, 0, 100))
 	dc.DrawRectangle(0, 0, 100, 100)
 	dc.Fill()
+	flushForRead(dc)
 
 	// Top should be bright, bottom should be dark
 	top := dc.pixmap.GetPixel(50, 5)

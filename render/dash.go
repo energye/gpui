@@ -175,3 +175,12 @@ func (d *Dash) effectiveArray() []float64 {
 	copy(result[len(d.Array):], d.Array)
 	return result
 }
+
+// ApplyDash returns a new path containing only the dash segments of p.
+// If dash is nil or not dashed, returns p unchanged.
+//
+// Used by both software stroke and GPU stroke expansion so dash semantics
+// stay consistent (Cairo/Skia-style pattern application before stroke expand).
+func ApplyDash(p *Path, dash *Dash) *Path {
+	return dashPath(p, dash)
+}

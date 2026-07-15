@@ -104,6 +104,11 @@ type Paint struct {
 	// Uses int coords because masks are pixel-aligned (no sub-pixel sampling).
 	// Set automatically by Context before rendering when a mask is active.
 	MaskCoverage func(x, y int) uint8
+
+	// BlendMode controls how source pixels composite with the destination
+	// for fill/stroke. Default BlendNormal (SourceOver). Non-normal modes
+	// currently rasterize on CPU (GPU fixed-function blend is SourceOver).
+	BlendMode BlendMode
 }
 
 // NewPaint creates a new Paint with default values.
@@ -133,6 +138,7 @@ func (p *Paint) Clone() *Paint {
 		MiterLimit: p.MiterLimit,
 		FillRule:   p.FillRule,
 		Antialias:  p.Antialias,
+		BlendMode:  p.BlendMode,
 	}
 	if p.Stroke != nil {
 		strokeClone := p.Stroke.Clone()

@@ -166,6 +166,15 @@ type FrameAware interface {
 	BeginFrame()
 }
 
+// MSAAAware is an optional interface for accelerators that expose the resolved
+// multisample count used by offscreen render targets (typically 4 or 1).
+// Used by S3b Q.01 gates to prove MSAA+resolve is active on the real device.
+type MSAAAware interface {
+	// MSAASampleCount returns the active sample count after GPU init (4 or 1).
+	// Returns 0 if GPU is not initialized yet.
+	MSAASampleCount() uint32
+}
+
 // GPUTextAccelerator is an optional interface for accelerators that support
 // GPU-accelerated text rendering via MSDF (Multi-channel Signed Distance
 // Field). When the registered accelerator implements this interface,

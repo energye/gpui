@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.4 | 日期：2026-07-15  
+> 版本：1.7 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -128,9 +128,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 **完成标准（S3b 作为“可宣称 Skia 级 UI 2D 能力”门槛）**：
 
-- [ ] 能力表 M0–M2 必选行使 rwgpu/webgpu/render 均非 ⬜  
-- [ ] 关键固定像素 + 场景回归绿  
-- [ ] 已知差异全部写回能力表备注  
+- [x] M2 核心能力 GPU 门禁（含 MSAA/clip path/miter/gradient）— `docs/S3B_M2_RENDER_GATE.md`  
+- [x] 固定像素 + STRICT 场景（basic/shapes/images/text/clipping）  
+- [x] 已知差异书面后置（完整 PD GPU、sweep gradient 等）  
 
 ---
 
@@ -149,9 +149,16 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 2 | S1 enum + A–E 烟测 | ✅ |
 | 3 | S2 webgpu facade | ✅ |
 | 4 | S3a render M0–M1 GPU 门禁 | ✅ **S3a 关闭** |
-| 5 | S3b M2 UI 级 2D | ⬜ **下一步** |
+| 5 | S3b M2 UI 级 2D | ✅ **S3b 关闭** |
+| 6 | S3c M3 高级 2D / present | ⬜ **下一步** |
 
-S0–S3a 已关闭。S3a 门禁：`go test ./render -run 'TestS3a_|TestP12GPUFixedPixel'`。
+S0–S3b 已关闭。下一步 S3c（M3）。
+
+门禁：
+```bash
+go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
+```
+
 
 已完成可复用资产（并入主线，不另开叙事）：
 
@@ -180,6 +187,9 @@ S0–S3a 已关闭。S3a 门禁：`go test ./render -run 'TestS3a_|TestP12GPUFix
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.7 | S3b 关闭：MSAA Q.01 + STRICT 五场景；下一步 S3c |
+| 2026-07-15 | 1.6 | S3b：gradient GPU fillBrushAsImage + SetBlendMode；接近关闭 |
+| 2026-07-15 | 1.5 | S3b 推进：M2 核心 GPU 门禁 + GPU dash + Image() flush；gradient GPU 仍 open |
 | 2026-07-15 | 1.4 | S3a 关闭：M0–M1 GPU 固定像素门禁；下一步 S3b |
 | 2026-07-15 | 1.3 | S2 关闭：facade 转换/烟测；下一步 S3a |
 | 2026-07-15 | 1.2 | S1 关闭：A–E `TestS1AE*` 烟测；下一步 S2 |

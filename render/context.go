@@ -488,7 +488,10 @@ func (c *Context) SetDeviceScale(scale float64) {
 }
 
 // Image returns the context's image.
+// Pending GPU commands are flushed first so readback matches SavePNG semantics
+// (CPU pixmap must include GPU-rendered content).
 func (c *Context) Image() image.Image {
+	_ = c.FlushGPU()
 	return c.pixmap.ToImage()
 }
 
