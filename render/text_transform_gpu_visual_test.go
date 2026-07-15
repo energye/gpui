@@ -1,18 +1,13 @@
 package render
 
 import (
-	"bytes"
-	"context"
-	"fmt"
 	"image"
-	"image/png"
-	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/energye/gpui/render/internal/testutil/imagediff"
 )
 
 const (
@@ -40,12 +35,15 @@ func TestTextTransformCPUvsGPUVisualDiagnostic(t *testing.T) {
 	cpuPath := filepath.Join(outDir, "text_transform_cpu.png")
 	gpuPath := filepath.Join(outDir, "text_transform_gpu.png")
 
-	cpuLog := runTextTransformVisualCommand(t, repoRoot, nil, cpuPath)
-	gpuLog := runTextTransformVisualCommand(t, repoRoot, []string{"-tags", "gpui_visual_gpu"}, gpuPath)
+	cpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/text_transform", nil, cpuPath)
+	gpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/text_transform", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
 
-	cpuImg := decodePNG(t, cpuPath)
-	gpuImg := decodePNG(t, gpuPath)
-	diff := diffImages(cpuImg, gpuImg)
+	cpuImg := decodePNGForVisualTest(t, cpuPath)
+	gpuImg := decodePNGForVisualTest(t, gpuPath)
+	diff, err := imagediff.Images(cpuImg, gpuImg)
+	if err != nil {
+		t.Fatalf("diff images: %v", err)
+	}
 	cpuCells := collectTextTransformCellMetrics(cpuImg)
 	gpuCells := collectTextTransformCellMetrics(gpuImg)
 
@@ -65,7 +63,7 @@ func TestTextTransformCPUvsGPUVisualDiagnostic(t *testing.T) {
 		}
 		t.Logf("cell=%s cpu_dark=%d gpu_dark=%d ratio=%.3f cpu_red=%d gpu_red=%d cpu_bbox=%s gpu_bbox=%s",
 			cpu.Name, cpu.DarkPixels, gpu.DarkPixels, ratio, cpu.RedPixels, gpu.RedPixels,
-			formatRect(cpu.Bounds), formatRect(gpu.Bounds))
+			imagediff.FormatRect(cpu.Bounds), imagediff.FormatRect(gpu.Bounds))
 	}
 
 	if os.Getenv("GPUI_TEXT_TRANSFORM_VISUAL_STRICT") == "1" {
@@ -73,112 +71,13 @@ func TestTextTransformCPUvsGPUVisualDiagnostic(t *testing.T) {
 	}
 }
 
-func visualRepoRoot(t *testing.T) string {
+func decodePNGForVisualTest(t *testing.T, path string) image.Image {
 	t.Helper()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if filepath.Base(wd) == "render" {
-		return filepath.Dir(wd)
-	}
-	return wd
-}
-
-func runTextTransformVisualCommand(t *testing.T, repoRoot string, goArgs []string, out string) string {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-
-	args := append([]string{"run"}, goArgs...)
-	args = append(args, "./render/internal/visualcmd/text_transform", "-out", out)
-	cmd := exec.CommandContext(ctx, "go", args...)
-	cmd.Dir = repoRoot
-	cmd.Env = os.Environ()
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("go %s failed: %v\nstdout:\n%s\nstderr:\n%s",
-			strings.Join(args, " "), err, stdout.String(), stderr.String())
-	}
-	if ctx.Err() != nil {
-		t.Fatalf("go %s timed out", strings.Join(args, " "))
-	}
-	return strings.TrimSpace(stdout.String() + "\n" + stderr.String())
-}
-
-func decodePNG(t *testing.T, path string) image.Image {
-	t.Helper()
-	f, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("open png %s: %v", path, err)
-	}
-	defer func() { _ = f.Close() }()
-	img, err := png.Decode(f)
+	img, err := imagediff.DecodePNG(path)
 	if err != nil {
 		t.Fatalf("decode png %s: %v", path, err)
 	}
 	return img
-}
-
-type visualDiffStats struct {
-	TotalPixels   int
-	ChangedPixels int
-	MeanAbs       float64
-	RMSE          float64
-	MaxDelta      uint32
-}
-
-func diffImages(a, b image.Image) visualDiffStats {
-	ab := a.Bounds()
-	bb := b.Bounds()
-	if !ab.Eq(bb) {
-		panic(fmt.Sprintf("image bounds differ: %v vs %v", ab, bb))
-	}
-
-	var sumAbs, sumSq float64
-	var changed int
-	var maxDelta uint32
-	total := ab.Dx() * ab.Dy()
-	for y := ab.Min.Y; y < ab.Max.Y; y++ {
-		for x := ab.Min.X; x < ab.Max.X; x++ {
-			ar, ag, abv, _ := a.At(x, y).RGBA()
-			br, bg, bbv, _ := b.At(x, y).RGBA()
-			deltas := [3]uint32{absU32(ar, br), absU32(ag, bg), absU32(abv, bbv)}
-			pixelChanged := false
-			for _, d16 := range deltas {
-				d8 := d16 / 257
-				if d8 > 2 {
-					pixelChanged = true
-				}
-				if d8 > maxDelta {
-					maxDelta = d8
-				}
-				sumAbs += float64(d8)
-				sumSq += float64(d8 * d8)
-			}
-			if pixelChanged {
-				changed++
-			}
-		}
-	}
-
-	samples := float64(total * 3)
-	return visualDiffStats{
-		TotalPixels:   total,
-		ChangedPixels: changed,
-		MeanAbs:       sumAbs / samples,
-		RMSE:          math.Sqrt(sumSq / samples),
-		MaxDelta:      maxDelta,
-	}
-}
-
-func absU32(a, b uint32) uint32 {
-	if a > b {
-		return a - b
-	}
-	return b - a
 }
 
 type textTransformCellMetric struct {
@@ -208,9 +107,8 @@ func collectTextTransformCellMetrics(img image.Image) []textTransformCellMetric 
 			maxX, maxY := rect.Min.X, rect.Min.Y
 			for y := rect.Min.Y; y < rect.Max.Y; y++ {
 				for x := rect.Min.X; x < rect.Max.X; x++ {
-					r16, g16, b16, _ := img.At(x, y).RGBA()
-					r, g, b := uint8(r16/257), uint8(g16/257), uint8(b16/257)
-					if isTextDark(r, g, b) {
+					p := imagediff.PixelAt(img, x, y)
+					if isTextDark(p) {
 						metric.DarkPixels++
 						if x < minX {
 							minX = x
@@ -225,7 +123,7 @@ func collectTextTransformCellMetrics(img image.Image) []textTransformCellMetric 
 							maxY = y + 1
 						}
 					}
-					if isCrosshairRed(r, g, b) {
+					if isCrosshairRed(p) {
 						metric.RedPixels++
 					}
 				}
@@ -239,22 +137,15 @@ func collectTextTransformCellMetrics(img image.Image) []textTransformCellMetric 
 	return metrics
 }
 
-func isTextDark(r, g, b uint8) bool {
-	return r < 90 && g < 90 && b < 90
+func isTextDark(p imagediff.Pixel) bool {
+	return p.R < 90 && p.G < 90 && p.B < 90
 }
 
-func isCrosshairRed(r, g, b uint8) bool {
-	return r > 150 && g < 100 && b < 100
+func isCrosshairRed(p imagediff.Pixel) bool {
+	return p.R > 150 && p.G < 100 && p.B < 100
 }
 
-func formatRect(r image.Rectangle) string {
-	if r.Empty() {
-		return "empty"
-	}
-	return fmt.Sprintf("%dx%d@%d,%d", r.Dx(), r.Dy(), r.Min.X, r.Min.Y)
-}
-
-func assertTextTransformVisualStrict(t *testing.T, diff visualDiffStats, cpuCells, gpuCells []textTransformCellMetric) {
+func assertTextTransformVisualStrict(t *testing.T, diff imagediff.Stats, cpuCells, gpuCells []textTransformCellMetric) {
 	t.Helper()
 	if diff.RMSE > 16 || diff.MeanAbs > 2.5 {
 		t.Errorf("CPU/GPU image diff too high: mean_abs=%.3f rmse=%.3f max_delta=%d",
@@ -272,16 +163,9 @@ func assertTextTransformVisualStrict(t *testing.T, diff visualDiffStats, cpuCell
 			t.Errorf("cell %s dark-pixel ratio out of range: cpu=%d gpu=%d ratio=%.3f",
 				cpu.Name, cpu.DarkPixels, gpu.DarkPixels, ratio)
 		}
-		if absInt(gpu.Bounds.Dx()-cpu.Bounds.Dx()) > 20 || absInt(gpu.Bounds.Dy()-cpu.Bounds.Dy()) > 20 {
+		if imagediff.AbsInt(gpu.Bounds.Dx()-cpu.Bounds.Dx()) > 20 || imagediff.AbsInt(gpu.Bounds.Dy()-cpu.Bounds.Dy()) > 20 {
 			t.Errorf("cell %s bbox differs too much: cpu=%s gpu=%s",
-				cpu.Name, formatRect(cpu.Bounds), formatRect(gpu.Bounds))
+				cpu.Name, imagediff.FormatRect(cpu.Bounds), imagediff.FormatRect(gpu.Bounds))
 		}
 	}
-}
-
-func absInt(v int) int {
-	if v < 0 {
-		return -v
-	}
-	return v
 }

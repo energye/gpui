@@ -31,12 +31,14 @@ render/internal/gpu
 - ✅ 阶段四 B：shader module、texture upload/download、clear pass、pipeline cache 进入真实 native 调用
 - ✅ P0.A 首轮：`rwgpu` render pipeline primitive enum 转换修复并加 ABI 测试
 - ✅ P0.B 首轮：`gpu/webgpu` descriptor 转换与 pointer lifetime 修复并加测试
-- ✅ P0.C 首轮：`text_transform` CPU/GPU 程序化视觉诊断，不上传 PNG
+- ✅ P0.C 首轮：公共 imagediff 工具与 `text_transform` CPU/GPU 程序化视觉诊断，不上传 PNG
 - ✅ P0.D 首轮：glyph mask scale 与 GPU stroke hairline 语义修复
+- ✅ P0.E 启动：`basic`、`shapes`、`clipping` example CPU/GPU 程序化视觉基线已接入
 
 进行中：
 - ⏳ 阶段四 C：`rwgpu` ABI / enum / descriptor 映射继续全量审计
 - ⏳ 阶段四 D：继续修复迁移后与 CPU / 源 go-wgpu 渲染效果不一致的问题
+- ⏳ 阶段四 F：补齐第一批 examples 的程序化视觉基线
 - ⏳ 阶段四 E：清理旧 stub / legacy helper，避免它们进入生产渲染链路
 - ⏳ 阶段五：LCL surface handle / swapchain / 窗口渲染集成
 - ⏳ 阶段六：性能优化、批处理、资源缓存、图集化
@@ -142,9 +144,9 @@ env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so 
 
 ### 当前完成度判断（2026-07-15）
 
-总体完成度约 60%-65%。
+总体完成度约 62%-67%。
 
-已经完成的是“架构方向”“部分真实 native 对象能力”“P0.A-D 首轮收敛”。尚未完成的是“ABI 完整性证明”“`gpu/webgpu` facade 到 `gpu/rwgpu` 的全量转换正确性”“examples 端到端视觉基线”和“跨平台动态库绑定生成”。
+已经完成的是“架构方向”“部分真实 native 对象能力”“P0.A-D 首轮收敛”“P0.E 的 text_transform/basic/shapes 基线”。尚未完成的是“ABI 完整性证明”“`gpu/webgpu` facade 到 `gpu/rwgpu` 的全量转换正确性”“examples 端到端视觉基线全覆盖”和“跨平台动态库绑定生成”。
 
 当前阶段位置：
 
@@ -154,7 +156,7 @@ env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so 
 阶段 3：rwgpu native 可调用   部分完成
 阶段 4：ABI/descriptor 完整   部分完成，继续审计
 阶段 5：render 语义对齐       text_transform 首轮完成，继续扩大覆盖
-阶段 6：视觉回归稳定         已有首个诊断，未形成完整基线
+阶段 6：视觉回归稳定         已有 text_transform/basic/shapes/clipping 诊断，未形成完整基线
 阶段 7：跨平台完整化         未开始
 ```
 
@@ -556,6 +558,7 @@ go test -count=1 ./gpu/webgpu/... ./gpu/rwgpu/...
 - `render/internal/gpu/gpu_render_context.go`
 
 修改范围：
+- `render/internal/testutil/imagediff/`
 - `render/internal/visualcmd/text_transform/`
 - `render/text_transform_gpu_visual_test.go`
 
@@ -633,7 +636,7 @@ go test -count=1 ./render -run TestTextTransformCPUvsGPUVisualDiagnostic -v
 - `render/internal/gpu/glyph_mask_engine.go`：glyph mask raster size 吸收用户 Y scale，quad 尺寸抵消重复 scale。
 - `render/internal/gpu/glyph_mask_spacing_test.go`：HiDPI 测试输入改为 total matrix，符合生产调用契约。
 
-#### Task P0.1 examples 视觉基线采集
+#### Task P0.E examples 视觉基线采集（已启动）
 
 目标：
 - 对必测 examples 生成 software 与 rwgpu-native 输出，保存 PNG 和 diff 报告。
@@ -645,19 +648,84 @@ go test -count=1 ./render -run TestTextTransformCPUvsGPUVisualDiagnostic -v
 - `render/internal/gpu/render_session.go`
 
 修改范围：
-- 新增 `render/internal/testutil/imagediff/`
-- 新增或整理 `render/test_output/`
+- `render/internal/testutil/imagediff/`
+- `render/internal/visualcmd/<example>/`
+- `render/*_gpu_visual_test.go`
 - 可新增 examples runner，但不要修改示例绘制语义。
 
 验证：
 ```bash
-go test ./render/... -run TestVisualExamples
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+
+GPUI_TEXT_TRANSFORM_VISUAL=1 GPUI_TEXT_TRANSFORM_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestTextTransformCPUvsGPUVisualDiagnostic -v
+
+GPUI_BASIC_VISUAL=1 GPUI_BASIC_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestBasicCPUvsGPUVisualDiagnostic -v
+
+GPUI_SHAPES_VISUAL=1 GPUI_SHAPES_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestShapesCPUvsGPUVisualDiagnostic -v
+
+GPUI_CLIPPING_VISUAL=1 GPUI_CLIPPING_VISUAL_STRICT=1 \
+go test -count=1 ./render -run TestClippingCPUvsGPUVisualDiagnostic -v
 ```
 
 完成标准：
 - 至少覆盖 basic、shapes、clipping、images、text、scene_gpu。
 - 每个失败样例都有 actual / expected / diff。
 - 报告能指出是通道、alpha、位置、clip、AA 还是字体类差异。
+
+已接入：
+- `render/internal/testutil/imagediff`：PNG decode、per-pixel diff、region metric、bbox 格式化。
+- `render/internal/visualcmd/text_transform` + `TestTextTransformCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/basic` + `TestBasicCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/shapes` + `TestShapesCPUvsGPUVisualDiagnostic`。
+- `render/internal/visualcmd/clipping` + `TestClippingCPUvsGPUVisualDiagnostic`。
+
+`basic` 最新指标（2026-07-15）：
+```text
+diff changed=2254/262144 mean_abs=0.074 rmse=1.083 max_delta=63
+red_circle   cpu_pixels=29029 gpu_pixels=29040 ratio=1.000 bbox=200x200@156,156
+blue_rect    cpu_pixels=15000 gpu_pixels=15000 ratio=1.000 bbox=150x100@100,100
+green_stroke cpu_pixels=1464  gpu_pixels=1444  ratio=0.986 bbox=104x104@348,98
+```
+
+`shapes` 最新指标（2026-07-15）：
+```text
+diff changed=4861/480000 mean_abs=0.160 rmse=2.721 max_delta=204
+rect_red       ratio=1.000 bbox=150x100@50,50
+rrect_green    ratio=1.000 bbox=150x100@250,50
+circle_blue    ratio=1.000 bbox=120x120@440,40
+ellipse_yellow ratio=0.997 bbox=160x100@570,50
+pentagon       ratio=1.025 bbox_cpu=89x94@51,253 bbox_gpu=91x94@50,253
+hexagon        ratio=1.012 bbox_cpu=98x86@201,257 bbox_gpu=100x86@200,257
+octagon        ratio=1.000 bbox=92x92@354,254
+black_line     ratio=1.019 bbox=700x2@50,449
+arc_magenta    ratio=0.969 bbox=124x124@588,238
+rotated_teal   ratio=0.992 bbox=112x112@344,444
+```
+
+`clipping` 最新指标（2026-07-15）：
+```text
+diff changed=10244/720000 mean_abs=0.248 rmse=3.240 max_delta=128
+circular_clip      ratio=0.997 bbox=160x160@70,70
+rect_clip          ratio=1.000 bbox=149x149@301,51
+rect_clip_leak     cpu_pixels=0 gpu_pixels=0
+clip_preserve_star ratio=0.989 bbox=134x127@83,380
+nested_clips       ratio=0.999 bbox=160x160@300,350
+complex_path       ratio=0.982 bbox=154x101@598,66
+round_rect         ratio=0.998 bbox=200x140@50,600
+reset_clip_fill    ratio=1.000 bbox=158x158@301,601
+reset_clip_leak    cpu_pixels=0 gpu_pixels=0
+```
+
+未完成：
+- `render/examples/images`
+- `render/examples/text`
+- `render/examples/cjk_text`
+- `render/examples/scene`
+- `render/examples/scene_gpu`
+- `render/examples/gpu`
 
 #### Task P0.2 render target format 与 readback 校准
 
@@ -702,7 +770,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Blend|Alpha|Premul)'
 - Normal、SourceOver、Copy、Plus、Multiply 有固定像素测试。
 - premultiplied 与 straight alpha 的边界写入文档。
 
-#### Task P0.4 examples 端到端修复
+#### Task P0.F examples 端到端修复
 
 目标：
 - 修复第一批必测 examples 的 native 输出差异。
@@ -711,7 +779,8 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Blend|Alpha|Premul)'
 ```bash
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
 go test -count=1 ./render/internal/gpu ./render
-go test ./render/... -run TestVisualExamples
+GPUI_TEXT_TRANSFORM_VISUAL=1 GPUI_TEXT_TRANSFORM_VISUAL_STRICT=1 go test -count=1 ./render -run TestTextTransformCPUvsGPUVisualDiagnostic -v
+GPUI_BASIC_VISUAL=1 GPUI_BASIC_VISUAL_STRICT=1 go test -count=1 ./render -run TestBasicCPUvsGPUVisualDiagnostic -v
 ```
 
 完成标准：
@@ -1783,10 +1852,10 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 ### 里程碑 1：基准测试建立
 | 任务 | 负责人 | 计划开始 | 计划结束 | 实际开始 | 实际结束 | 状态 | 备注 |
 |------|--------|----------|----------|----------|----------|------|------|
-| P0.1 examples 视觉基线采集 |  | W0D1 | W0D2 |  |  | ⬜ | 新 native 路径正确性优先 |
+| P0.E examples 视觉基线采集 |  | W0D1 | W0D2 | 2026-07-15 |  | 🔄 | text_transform/basic/shapes/clipping 已接入；继续补 images/text/scene |
 | P0.2 render target/readback 校准 |  | W0D2 | W0D3 |  |  | ⬜ | RGBA/BGRA/premul/row padding |
 | P0.3 blend/alpha 一致性 |  | W0D3 | W0D4 |  |  | ⬜ | UI 控件高频路径 |
-| P0.4 examples 端到端修复 |  | W0D4 | W0D5 |  |  | ⬜ | basic/shapes/clipping/images/text/scene_gpu |
+| P0.F examples 端到端修复 |  | W0D4 | W0D5 |  |  | ⬜ | basic/shapes/clipping/images/text/scene_gpu |
 | 0.1 FPS 测量器 |  | W1D1 | W1D2 |  |  | ⬜ |  |
 | 0.2 测试场景 |  | W1D2 | W1D3 |  |  | ⬜ |  |
 | 0.3 Skia 对比 |  | W1D3 | W1D5 |  |  | ⬜ |  |
