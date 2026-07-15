@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.42 | 日期：2026-07-15  
+> 版本：1.45 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -163,8 +163,8 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 6 | S3c M3 + S.03 Swapchain/PresentFrame | ✅ **S3c 关闭**（窗口 e2e 需 DISPLAY） |
 | 7 | 能力表 🔄 / M4 GPU 相关 | ✅（仅 R.02 PDF/SVG document ⬜ 旁路） |
 | 8 | P1 复杂 UI 形态 Tier A–U | ✅（形态密度探针，非控件层） |
-| 9 | **阶段 A：任意组合维度 D01–D140** | 🔄 **当前焦点**（sigma 至 D140 已绿；关 A 前全量 `TestP1_*` → 后 S4.0） |
-| 10 | **S4 性能** | 📋 已入主线；**A 收口后**从 S4.0 启动 |
+| 9 | **阶段 A：任意组合维度 D01–D200** | ✅ **已关闭**（chi 至 D200；停扩组合探针） |
+| 10 | **S4 性能** | 🔄 **当前焦点**；从 **S4.0 基线**启动 |
 
 ### 阶段 A — 任意组合维度（非 antd 控件清单）
 
@@ -174,13 +174,14 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 **A 关闭条件**：
 
-- [x] 组合维度文档 + **D01–D140** 探针（omega+sigma；**停在 D140**）  
-- [x] `TestP1_Comp_*` 全绿（真 GPU；140 条）  
-- [x] 覆盖 clip(含 Preserve)/layer/blend/text(modes+shape)/image/transform/HiDPI/mask/mesh/atlas/pathEffect/gradient/pattern/backdrop/FrameDamage/PresentFrame/filter/writePixels/external/Resize/multi-context + 更深形态应力  
-- [ ] 关闭 A 前再跑全量 `TestP1_*`（形态 Tier A–U）  
-- [ ] A 关闭后启动 **S4.0 基线**  
+- [x] 组合维度文档 + **D01–D200** 探针（omega+sigma+tau+phi+chi）  
+- [x] `TestP1_Comp_*` 全绿（真 GPU；200 条）  
+- [x] 覆盖 clip(含 Preserve)/layer/blend/text(modes+shape)/image/transform/HiDPI/mask/mesh/atlas/pathEffect/gradient/pattern/backdrop/FrameDamage/PresentFrame/PresentFrameDamageRects/filter/writePixels/external/Resize/multi-context + 更深形态应力  
+- [x] **停扩**组合探针（止 D200）  
+- [x] 关闭 A 前全量 `TestP1_*`（形态 Tier A–U）回归  
+- [x] **阶段 A 关闭** → 启动 **S4.0 基线**  
 
-**A 之后**：进入 **S4.0 基线**（只测不改），再 S4.1+。
+**A 已关闭**。当前进入 **S4.0 基线**（只测不改），再 S4.1+。
 
 **非目标（仍排除）**：控件层 / Ant Design 组件实现；R.02 可并行旁路。
 
@@ -226,6 +227,9 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.45 | **阶段 A 关闭**：D01–D200 全绿；停扩组合探针；焦点 → S4.0 |
+| 2026-07-15 | 1.44 | 阶段 A 扩展至 **D01–D180** phi 组合；继续复杂场景 |
+| 2026-07-15 | 1.43 | 阶段 A 扩展至 **D01–D160** tau 组合；继续复杂场景 → 后 S4.0 |
 | 2026-07-15 | 1.42 | 阶段 A 扩展至 **D01–D140**（omega+sigma）；**停 D140**；关 A 前全量 P1 → S4.0 |
 | 2026-07-15 | 1.41 | 阶段 A 扩展至 **D01–D120** omega 组合；仍焦点 A → 后 S4.0 |
 | 2026-07-15 | 1.40 | 阶段 A 扩展至 **D01–D105** hyper 组合；仍焦点 A → 后 S4.0 |

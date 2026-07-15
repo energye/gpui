@@ -1,7 +1,7 @@
 # 阶段 A — 任意组合维度矩阵（Composition Matrix）
 
-> 版本：1.8 | 日期：2026-07-15  
-> 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) v1.42+  
+> 版本：1.11 | 日期：2026-07-15  
+> 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) v1.45+  
 > 能力表：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 形态密度（旁证）：[`P1_COMPLEX_UI_MATRIX.md`](./P1_COMPLEX_UI_MATRIX.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`
@@ -201,6 +201,75 @@
 | D140 | kitchen-sink v4 stress | 导航+lattice+inspector+toast+filter | `TestP1_Comp_D140_KitchenSinkV4Stress` | ✅ |
 
 
+| D141 | command palette workspace | scrim×命令列表×快捷键×选中 | `TestP1_Comp_D141_CommandPaletteOverWorkspace` | ✅ |
+| D142 | nested popover cascade | 菜单×子菜单×tip | `TestP1_Comp_D142_NestedPopoverCascade` | ✅ |
+| D143 | dual viewport mock | 双视口独立 clip×共享 chrome | `TestP1_Comp_D143_DualViewportMockComposition` | ✅ |
+| D144 | sankey flow density | 流带×节点×图例 | `TestP1_Comp_D144_SankeyFlowDensityComposition` | ✅ |
+| D145 | map tiles route markers | 瓦片×路线×标记×罗盘 | `TestP1_Comp_D145_MapTilesRouteMarkersComposition` | ✅ |
+| D146 | trading terminal | 盘口×曲线×成交×徽章 | `TestP1_Comp_D146_TradingTerminalComposition` | ✅ |
+| D147 | coverage heatmap overlay | 代码行×覆盖条×热力层 | `TestP1_Comp_D147_CoverageHeatmapCodeOverlay` | ✅ |
+| D148 | recursive card stack | 深度偏移卡片栈×选中 | `TestP1_Comp_D148_RecursiveCardStackDepth` | ✅ |
+| D149 | before/after filter compare | 对比条×grayscale×分割线 | `TestP1_Comp_D149_BeforeAfterFilterCompare` | ✅ |
+| D150 | dense atlas toolbar | DrawAtlas 图标条×overflow | `TestP1_Comp_D150_DenseAtlasToolbarOverflow` | ✅ |
+| D151 | mesh terrain contours | fan mesh×等高线×标签 | `TestP1_Comp_D151_MeshTerrainContourLabels` | ✅ |
+| D152 | PresentFrame multi damage | 多脏区 PresentFrameDamageRects | `TestP1_Comp_D152_PresentFrameDamageMultiRect` | ✅ |
+| D153 | nested backdrop panels | PushBackdrop×半透明叠层 | `TestP1_Comp_D153_NestedBackdropTranslucentPanels` | ✅ |
+| D154 | path dash join gallery | 多 dash 样式×圆角 clip | `TestP1_Comp_D154_PathDashJoinGalleryClip` | ✅ |
+| D155 | image quad warp clip | DrawImageQuad×path clip×stroke text | `TestP1_Comp_D155_ImageQuadWarpClipStrokeText` | ✅ |
+| D156 | radial sweep gradient stack | 径向/扫描渐变×layer | `TestP1_Comp_D156_RadialSweepGradientLayerStack` | ✅ |
+| D157 | window tiling manager | 多 pane×splitter×active | `TestP1_Comp_D157_WindowTilingManagerMock` | ✅ |
+| D158 | circular progress dashboard | 环形进度×磁贴 | `TestP1_Comp_D158_CircularProgressDashboard` | ✅ |
+| D159 | multi-context snapshot merge | 多 Context 合成 merge | `TestP1_Comp_D159_MultiContextSnapshotMerge` | ✅ |
+| D160 | kitchen-sink v5 ultimate | mesh+blend+atlas+filter 终极应力 | `TestP1_Comp_D160_KitchenSinkV5UltimateStress` | ✅ |
+
+
+| D161 | kanban WIP ghost | 泳道×WIP×拖拽幽灵层 | `TestP1_Comp_D161_KanbanWIPGhostComposition` | ✅ |
+| D162 | tree inspector multi-select | 树×属性×面包屑×多选 | `TestP1_Comp_D162_TreeInspectorBreadcrumbMultiSelect` | ✅ |
+| D163 | three-way diff gutter | 三方 diff×gutter×toggle | `TestP1_Comp_D163_ThreeWayDiffGutterComposition` | ✅ |
+| D164 | candles volume MA tooltip | K线×成交量×均线×十字线 | `TestP1_Comp_D164_CandlesVolumeMACrosshairTooltip` | ✅ |
+| D165 | wizard form sticky footer | 步骤条×校验×粘性底栏 | `TestP1_Comp_D165_WizardFormValidationStickyFooter` | ✅ |
+| D166 | particle mask additive HUD | mask×Plus 粒子×HUD | `TestP1_Comp_D166_ParticleFieldMaskAdditiveHUD` | ✅ |
+| D167 | z-index layers occlusion | 多层遮挡×选中描边 | `TestP1_Comp_D167_ZIndexLayersReorderOcclusion` | ✅ |
+| D168 | rich tooltip caret actions | tip×caret×action chips | `TestP1_Comp_D168_RichTooltipStackCaretActions` | ✅ |
+| D169 | CSS grid hero span | hero 跨列×卡片网格 | `TestP1_Comp_D169_CSSGridDenseCardsHeroSpan` | ✅ |
+| D170 | responsive breakpoint reflow | 多宽度 reflow 模拟 | `TestP1_Comp_D170_ResponsiveBreakpointReflowMock` | ✅ |
+| D171 | image annotation freehand | 图注×箭头×框×手绘 | `TestP1_Comp_D171_ImageAnnotationArrowsBoxesFreehand` | ✅ |
+| D172 | sidebar rail flyout | 图标轨×flyout×active | `TestP1_Comp_D172_SidebarRailFlyoutActiveRoute` | ✅ |
+| D173 | nested clip damage islands | 多岛 clip×WritePixels | `TestP1_Comp_D173_NestedClipDamageIslands` | ✅ |
+| D174 | perspective fan cards | rotate×scale 扇形卡片 | `TestP1_Comp_D174_PerspectiveFanCardRotateScale` | ✅ |
+| D175 | audio mixer faders | 推子×电平×mute | `TestP1_Comp_D175_AudioMixerFadersMeters` | ✅ |
+| D176 | deep clip layer recursion | 5 层 clip×layer×blend | `TestP1_Comp_D176_DeepClipLayerBlendRecursion` | ✅ |
+| D177 | type hierarchy shadow cards | 字号层级×阴影卡 | `TestP1_Comp_D177_TypeHierarchyShadowCards` | ✅ |
+| D178 | constellation clusters | 星团×hull×连边 | `TestP1_Comp_D178_ConstellationClustersHullLabels` | ✅ |
+| D179 | multipage preview strip | 多页预览×active | `TestP1_Comp_D179_MultipagePreviewStripActive` | ✅ |
+| D180 | kitchen-sink v6 mega | atlas+mesh+filter+damage | `TestP1_Comp_D180_KitchenSinkV6MegaStress` | ✅ |
+
+
+| D181 | chat thread reactions | 会话气泡×反应×composer | `TestP1_Comp_D181_ChatThreadReactionsComposer` | ✅ |
+| D182 | inbox bulk actions | 侧栏×多选×批量栏 | `TestP1_Comp_D182_InboxFiltersBulkActions` | ✅ |
+| D183 | settings search sections | 搜索×锚点分区 | `TestP1_Comp_D183_SettingsSearchAnchoredSections` | ✅ |
+| D184 | board filters collapsed lanes | chips×折叠泳道 | `TestP1_Comp_D184_BoardFiltersSwimLanesCollapsed` | ✅ |
+| D185 | pivot heat cells | 透视热力格 | `TestP1_Comp_D185_PivotTableHeatCells` | ✅ |
+| D186 | gantt deps today | 依赖箭头×今日线 | `TestP1_Comp_D186_GanttDependencyArrowsToday` | ✅ |
+| D187 | carousel peek dots | 窥视页×圆点×进度 | `TestP1_Comp_D187_CarouselPeekDotsProgress` | ✅ |
+| D188 | org chart collapse | 组织树×连线 | `TestP1_Comp_D188_OrgChartConnectorsCollapse` | ✅ |
+| D189 | mindmap radial | 放射脑图分支 | `TestP1_Comp_D189_MindmapRadialBranches` | ✅ |
+| D190 | video editor timeline | 预览×多轨×playhead | `TestP1_Comp_D190_VideoEditorTimelineTracks` | ✅ |
+| D191 | ER diagram | 表卡×关系线 | `TestP1_Comp_D191_SchemaERDiagramCrowFoot` | ✅ |
+| D192 | log stream severity | 级别 chip×流 | `TestP1_Comp_D192_LogStreamSeverityFilters` | ✅ |
+| D193 | sitemap hierarchy | 站点地图连线 | `TestP1_Comp_D193_SitemapHierarchyConnectors` | ✅ |
+| D194 | notebook cells fold | 代码格×折叠输出 | `TestP1_Comp_D194_NotebookCellsOutputFold` | ✅ |
+| D195 | CMS block nest | 块编辑嵌套 | `TestP1_Comp_D195_CMSBlockEditorNest` | ✅ |
+| D196 | shop gallery variant | 主图×缩略×规格 | `TestP1_Comp_D196_ShopProductGalleryVariant` | ✅ |
+| D197 | admin CRUD table | 表行操作 | `TestP1_Comp_D197_AdminCRUDTableRowActions` | ✅ |
+| D198 | onboarding coachmarks | 遮罩×聚光×引导 | `TestP1_Comp_D198_OnboardingCoachmarksOverlay` | ✅ |
+| D199 | status page incidents | 状态条×组件×事件 | `TestP1_Comp_D199_StatusPageIncidentsTimeline` | ✅ |
+| D200 | kitchen-sink v7 blast | 密面板×blend×mesh×filter | `TestP1_Comp_D200_KitchenSinkV7CompositionBlast` | ✅ |
+
+
+
+
+
 
 ## A 关闭清单
 
@@ -212,10 +281,13 @@
 - [x] D91–D105 hyper：ClipPreserve、灰度/矩阵滤波、TextureBase、PresentFrame、多 TextMode、文件管理器/邮件/泳道/雷达/PiP/双滚动、多次 Resize、混合脏更、设计标注、kitchen-sink v3  
 - [x] D106–D120 omega：播放器/三栏/PR/日历/图网络/图像编辑/结账/抽屉/终端/markdown/表格多选/悬浮条/变换滤镜/mesh/应力格  
 - [x] D121–D140 sigma：模态栈/分栏文/CAD/视频通话/表格多区/时间线/粘性滚动/拾色器/等距板/IDE/深度变换/blend 级联/filter 链/mask 粒子/无限画布/HiDPI/damage/多 TextMode/pattern/kitchen-sink v4  
+- [x] D141–D160 tau：命令面板/嵌套弹出/双视口/sankey/地图/交易终端/覆盖率热力/卡片栈/前后对比/atlas 工具条/mesh 地形/多脏区 Present/backdrop/dash 画廊/quad warp/径向扫描渐变/平铺窗口/环形仪表/多 Context/kitchen-sink v5  
+- [x] D161–D180 phi：看板/树检视/三方diff/K线/向导表单/粒子/ z 层/富 tip/网格 hero/响应式 reflow/图注/侧栏 flyout/损伤岛/扇形卡/混音台/深递归/字体层级/星团/多页预览/kitchen-sink v6  
+- [x] D181–D200 chi：会话/收件箱/设置/看板过滤/透视热力/Gantt/轮播/组织图/脑图/视频时间线/ER/日志流/站点地图/笔记本/CMS/商城/Admin CRUD/引导/状态页/kitchen-sink v7  
 - [x] 主交叉轴 + 呈现路径/文本模式全套/混合脏更新 + 更深应用形态组合  
-- [x] 本轮停在 **D140**（不再扩 D141+）  
-- [ ] 关闭 A 前全量 `TestP1_*`（形态 Tier A–U）再确认  
-- [ ] 主线焦点切到 **S4.0 基线**  
+- [x] **停扩**：组合探针止于 **D200**  
+- [x] 关闭 A 前全量 `TestP1_*`（形态 Tier A–U）再确认  
+- [x] **阶段 A 关闭**；主线焦点切到 **S4.0 基线**  
 
 ## 验证命令
 
@@ -242,6 +314,9 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 250s
 | 2026-07-15 | 1.3 | D37–D58 极端组合：filter graph/ImageEx/高级 blend/WritePixels/应用形态密度 |
 | 2026-07-15 | 1.4 | D59–D75 mega：富文本/FrameDamage/canvas/chat/gantt/heatmap/map/diff/IDE/dashboard |
 | 2026-07-15 | 1.5 | D76–D90 ultra：shaped/vector text、carousel/video、org/mindmap/K线/isometric/多Context/粒子 |
+| 2026-07-15 | 1.11 | D181–D200 chi 完成；**阶段 A 关闭（停 D200）**；下一焦点 S4.0 |
+| 2026-07-15 | 1.10 | D161–D180 phi：看板/三方diff/K线/粒子/混音台/深递归/kitchen-sink v6 |
+| 2026-07-15 | 1.9 | D141–D160 tau：命令面板/双视口/sankey/地图/交易/热力/atlas/mesh/PresentDamage/backdrop/渐变/平铺/kitchen-sink v5 |
 | 2026-07-15 | 1.8 | D121–D140 sigma：模态/CAD/视频/表格/时间线/拾色器/IDE/深度变换/blend/filter/mask/canvas/HiDPI/damage/kitchen-sink v4；**停 D140** |
 | 2026-07-15 | 1.7 | D106–D120 omega：播放器/三栏/PR/日历/图网络/图像编辑/结账/抽屉/终端/markdown/多选/悬浮条/应力格 |
 | 2026-07-15 | 1.6 | D91–D105 hyper：ClipPreserve/PresentFrame/多TextMode/文件管理/邮件/泳道/雷达/PiP/混合脏更 |
