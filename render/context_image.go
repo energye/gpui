@@ -240,6 +240,9 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, srcY, srcW, srcH int, dstWidth, dstHeight float64) bool {
 	rc := c.gpuCtxOps()
 	if rc == nil {
+		if c.gpuPathAvailable() {
+			c.recordCPUFallbackOp()
+		}
 		return false
 	}
 
@@ -267,6 +270,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 	// Get premultiplied pixel data for GPU upload.
 	pixelData := img.PremultipliedData()
 	if len(pixelData) == 0 {
+		c.recordCPUFallbackOp()
 		return false
 	}
 
@@ -276,6 +280,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 		float32(br.X), float32(br.Y),
 		float32(bl.X), float32(bl.Y),
 		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1)
+	c.recordGPUOp()
 	return true
 }
 

@@ -38,6 +38,8 @@ func main() {
 	}
 	drawExamples(dc, testImg)
 
+	fmt.Println(dc.RenderPathStats().LogLine())
+
 	if err := dc.SavePNG(*out); err != nil {
 		log.Fatalf("save png: %v", err)
 	}

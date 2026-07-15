@@ -83,6 +83,8 @@ func main() {
 	dc.DrawString("Go言語 is 素晴らしい", 500, 90)
 	dc.DrawString("1234 가나다라", 500, 120)
 
+	fmt.Println(dc.RenderPathStats().LogLine())
+
 	if err := dc.SavePNG(*out); err != nil {
 		log.Fatalf("save png: %v", err)
 	}

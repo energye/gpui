@@ -55,6 +55,7 @@ func TestCJKTextCPUvsGPUVisualDiagnostic(t *testing.T) {
 	}
 
 	if os.Getenv("GPUI_CJK_TEXT_VISUAL_STRICT") == "1" {
+		RequireGPUPathStats(t, gpuLog, true)
 		assertCJKTextVisualStrict(t, diff, cpuMetrics, gpuMetrics)
 	}
 }

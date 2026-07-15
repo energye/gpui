@@ -50,6 +50,7 @@ func main() {
 		fmt.Printf("path=cpu tiles_rendered=%d\n", stats.TilesRendered)
 	}
 
+	fmt.Println("gpu_ops=0 cpu_fallback_ops=0 note=scene_renderer")
 	if err := target.SavePNG(*out); err != nil {
 		log.Fatalf("save png: %v", err)
 	}

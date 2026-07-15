@@ -61,6 +61,7 @@ func TestImagesCPUvsGPUVisualDiagnostic(t *testing.T) {
 	}
 
 	if os.Getenv("GPUI_IMAGES_VISUAL_STRICT") == "1" {
+		RequireGPUPathStats(t, gpuLog, true)
 		assertImagesVisualStrict(t, diff, cpuMetrics, gpuMetrics, samples)
 	}
 }

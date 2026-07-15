@@ -80,8 +80,45 @@ type Context struct {
 	gpuCtx            gpuContextOps
 	gpuFallbackWarned bool // true after first global fallback warning (avoid log spam)
 
+	// P1.0: per-context GPU vs CPU routing counters for visual/foundation gates.
+	pathStats RenderPathStats
+
 	// Lifecycle
 	closed bool // Indicates whether Close has been called
+}
+
+// RenderPathStats counts how draw operations were routed for this Context.
+// Used by P1 Foundation Gate visual harness (gpu_ops / cpu_fallback_ops).
+type RenderPathStats struct {
+	GPUOps         int // ops successfully queued/executed on GPU path
+	CPUFallbackOps int // ops that had a GPU path available but fell back to CPU
+}
+
+// RenderPathStats returns a copy of the current routing counters.
+func (c *Context) RenderPathStats() RenderPathStats {
+	return c.pathStats
+}
+
+// ResetRenderPathStats clears GPU/CPU routing counters.
+func (c *Context) ResetRenderPathStats() {
+	c.pathStats = RenderPathStats{}
+}
+
+// LogLine formats counters for visualcmd stdout (parsed by STRICT tests).
+func (s RenderPathStats) LogLine() string {
+	return fmt.Sprintf("gpu_ops=%d cpu_fallback_ops=%d", s.GPUOps, s.CPUFallbackOps)
+}
+
+func (c *Context) gpuPathAvailable() bool {
+	return c.gpuCtxOps() != nil || Accelerator() != nil
+}
+
+func (c *Context) recordGPUOp() {
+	c.pathStats.GPUOps++
+}
+
+func (c *Context) recordCPUFallbackOp() {
+	c.pathStats.CPUFallbackOps++
 }
 
 // Ensure Context implements io.Closer
@@ -1944,13 +1981,18 @@ func (c *Context) tryGPUFillWithMode(mode RasterizerMode) (bool, RasterizerMode)
 		err := c.tryGPUFill()
 		c.setForceSDF(false)
 		if err == nil {
+			c.recordGPUOp()
 			return true, mode
 		}
 		mode = RasterizerAuto // Non-SDF shape → auto CPU fallback.
 	}
 	if mode == RasterizerAuto {
 		if err := c.tryGPUFill(); err == nil {
+			c.recordGPUOp()
 			return true, mode
+		}
+		if c.gpuPathAvailable() {
+			c.recordCPUFallbackOp()
 		}
 	}
 	return false, mode
@@ -1965,13 +2007,18 @@ func (c *Context) tryGPUStrokeWithMode(mode RasterizerMode) (bool, RasterizerMod
 		err := c.tryGPUStroke()
 		c.setForceSDF(false)
 		if err == nil {
+			c.recordGPUOp()
 			return true, mode
 		}
 		mode = RasterizerAuto
 	}
 	if mode == RasterizerAuto {
 		if err := c.tryGPUStroke(); err == nil {
+			c.recordGPUOp()
 			return true, mode
+		}
+		if c.gpuPathAvailable() {
+			c.recordCPUFallbackOp()
 		}
 	}
 	return false, mode

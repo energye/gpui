@@ -55,6 +55,7 @@ func TestBasicCPUvsGPUVisualDiagnostic(t *testing.T) {
 	}
 
 	if os.Getenv("GPUI_BASIC_VISUAL_STRICT") == "1" {
+		RequireGPUPathStats(t, gpuLog, true)
 		assertBasicVisualStrict(t, diff, cpuMetrics, gpuMetrics)
 	}
 }

@@ -67,6 +67,7 @@ func TestTextTransformCPUvsGPUVisualDiagnostic(t *testing.T) {
 	}
 
 	if os.Getenv("GPUI_TEXT_TRANSFORM_VISUAL_STRICT") == "1" {
+		RequireGPUPathStats(t, gpuLog, true)
 		assertTextTransformVisualStrict(t, diff, cpuCells, gpuCells)
 	}
 }

@@ -55,6 +55,7 @@ func TestTextCPUvsGPUVisualDiagnostic(t *testing.T) {
 	}
 
 	if os.Getenv("GPUI_TEXT_VISUAL_STRICT") == "1" {
+		RequireGPUPathStats(t, gpuLog, true)
 		assertTextVisualStrict(t, diff, cpuMetrics, gpuMetrics)
 	}
 }

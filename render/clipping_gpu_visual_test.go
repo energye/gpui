@@ -55,6 +55,7 @@ func TestClippingCPUvsGPUVisualDiagnostic(t *testing.T) {
 	}
 
 	if os.Getenv("GPUI_CLIPPING_VISUAL_STRICT") == "1" {
+		RequireGPUPathStats(t, gpuLog, true)
 		assertClippingVisualStrict(t, diff, cpuMetrics, gpuMetrics)
 	}
 }

@@ -45,6 +45,8 @@ func main() {
 	dc.DrawCircle(400, 150, 50)
 	dc.Stroke()
 
+	fmt.Println(dc.RenderPathStats().LogLine())
+
 	if err := dc.SavePNG(*out); err != nil {
 		log.Fatalf("save png: %v", err)
 	}

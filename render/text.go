@@ -243,7 +243,12 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
 	if rc := c.gpuCtxOps(); rc != nil {
-		return rc.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil
+		if rc.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+			c.recordGPUOp()
+			return true
+		}
+		c.recordCPUFallbackOp()
+		return false
 	}
 	a := Accelerator()
 	if a == nil {
@@ -251,13 +256,20 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 	}
 	c.warnGPUFallback("tryGPUText")
 	if !a.CanAccelerate(AccelText) {
+		c.recordCPUFallbackOp()
 		return false
 	}
 	ta, ok := a.(GPUTextAccelerator)
 	if !ok {
+		c.recordCPUFallbackOp()
 		return false
 	}
-	return ta.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil
+	if ta.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+		c.recordGPUOp()
+		return true
+	}
+	c.recordCPUFallbackOp()
+	return false
 }
 
 // glyphMaskMaxSize is the maximum font size (in device pixels) for which
@@ -279,7 +291,12 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
 	if rc := c.gpuCtxOps(); rc != nil {
-		return rc.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil
+		if rc.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+			c.recordGPUOp()
+			return true
+		}
+		c.recordCPUFallbackOp()
+		return false
 	}
 	a := Accelerator()
 	if a == nil {
@@ -288,9 +305,15 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 	c.warnGPUFallback("tryGPUGlyphMaskText")
 	gma, ok := a.(GPUGlyphMaskAccelerator)
 	if !ok {
+		c.recordCPUFallbackOp()
 		return false
 	}
-	return gma.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil
+	if gma.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+		c.recordGPUOp()
+		return true
+	}
+	c.recordCPUFallbackOp()
+	return false
 }
 
 // tryGPUGlyphMaskTextAliased attempts to render aliased text via the GPU glyph
@@ -300,7 +323,12 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
 	if rc := c.gpuCtxOps(); rc != nil {
-		return rc.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil
+		if rc.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+			c.recordGPUOp()
+			return true
+		}
+		c.recordCPUFallbackOp()
+		return false
 	}
 	a := Accelerator()
 	if a == nil {
@@ -308,9 +336,15 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 	}
 	ata, ok := a.(GPUAliasedTextAccelerator)
 	if !ok {
+		c.recordCPUFallbackOp()
 		return false
 	}
-	return ata.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil
+	if ata.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+		c.recordGPUOp()
+		return true
+	}
+	c.recordCPUFallbackOp()
+	return false
 }
 
 // selectTextStrategy returns the effective text rendering strategy.

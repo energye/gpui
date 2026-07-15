@@ -1,10 +1,13 @@
 # GPUI 渲染库底层优化与 WebGPU 架构迁移开发计划
 
-> 版本：3.9 | 更新日期：2026-07-15 | 状态：P0 完成；进入 P1 底层门禁（Ant Design/Skia 级渲染能力），控件层禁止开工
+> 版本：4.0 | 更新日期：2026-07-15 | 状态：**主线已切换** — 见 `docs/MAINLINE_PLAN.md` + `docs/SKIA_2D_CAPABILITY_MATRIX.md`
 > 项目：github.com/energye/gpui
 > 文档位置：/home/yanghy/app/projects/gogpu/gpui/docs/OPTIMIZATION_PLAN.md
-
----
+>
+> **重要（2026-07-15）**：执行优先级以精简主线为准：
+> 1. `docs/SKIA_2D_CAPABILITY_MATRIX.md` — Skia 2D 全面能力表  
+> 2. `docs/MAINLINE_PLAN.md` — S0→S1 rwgpu ABI → S2 webgpu → S3 render → S4 性能  
+> 本文档其余章节保留为历史与细节档案；与主线冲突时以 MAINLINE 为准。杂项任务（控件层、过早性能大任务等）主线排除。
 
 ## 📋 项目概述
 
@@ -40,8 +43,12 @@ render/internal/gpu
 - ✅ P0.3：UI 关键 blend 固定像素测试（Normal/SourceOver/Copy/Plus/Multiply）+ premul/straight 边界文档
 - ✅ P0.F：第一批必测 examples STRICT 视觉门禁全部 PASS；残留 AA/ fringe 差异已登记为可接受阈值
 
+已完成（P1 首轮）：
+- ✅ P1.0：`RenderPathStats`（gpu_ops/cpu_fallback_ops）接入 Context + visualcmd 日志 + STRICT 解析
+- ✅ P1.2 首轮：GPU 固定像素 SourceOver/opaque/clip/hairline（真链 `render`→GPU→readback）
+
 进行中：
-- ⏳ **P1 底层门禁（阻断控件层）**：复杂 UI 场景矩阵 + 分层硬证据（ABI / webgpu / render 真链路）
+- ⏳ **P1 渲染能力门禁**：复杂 UI 场景矩阵 + 分层硬证据（ABI → webgpu → render 真链路）
 - ⏳ 阶段四 C：`rwgpu` ABI / enum / descriptor 映射全量审计（render 已用 + UI 控件会用到的子集）
 - ⏳ 阶段四 D：语义精修升级为门禁级（premul/blend GPU 固定像素、clip/AA、fallback 可观测）
 - ⏳ 阶段四 E：清理旧 stub / legacy helper，避免它们进入生产渲染链路
@@ -58,10 +65,15 @@ render/internal/gpu
 - UI 控件库可用性：支持大量小图元、文本、图标、圆角、阴影、裁剪、透明叠加、滚动区域和重复绘制。
 - 后续可维护性：ABI 绑定最终需要由工具从 wgpu-native header 自动生成，避免手写 ABI 长期漂移。
 
-**硬门槛（2026-07-15 起）**：
-- **禁止**在 P1 底层门禁通过前开工 Ant Design 对标控件层。
-- P0 第一批 examples STRICT 只是“迁移可跑”门禁，**不足以**证明可支撑 Ant Design / Skia 级 UI。
-- 控件层开工条件 = 下文 **P1 Foundation Gate** 全部 ✅。
+**范围与主线（2026-07-15 澄清）**：
+- 本计划**只做渲染栈**：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`。
+- **不包含** Ant Design 控件层/组件库实现；“对标 Ant Design / Skia”指 **render 层渲染能力与正确性标准**，不是开工写控件。
+- 正确推进顺序：
+  1. `rwgpu` ABI 与 native 绑定正确、可测
+  2. `gpu/webgpu` facade 能力补全并对齐
+  3. `render` 层语义/视觉达到 Ant Design 级 UI 所需的绘制能力 + Skia 方向质量
+- P0 第一批 examples STRICT 只是“迁移可跑”门禁，**不足以**声明 render 已达 Ant Design/Skia 级能力。
+- P1 是 **render 能力门禁**（复杂场景 + 分层硬证据），关闭后表示底层渲染可用于后续独立的控件库项目，**不是本仓库的控件层交付**。
 
 ### 库结构
 ```
@@ -159,10 +171,10 @@ env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so 
 已经完成的是“架构方向”“部分真实 native 对象能力”“P0.A–F / P0.2 / P0.3 正确性门禁”。
 第一批必测 examples STRICT 视觉诊断、format/readback、软件侧 UI blend 固定像素测试均已通过。
 尚未完成的是：
-- P1 Foundation Gate（复杂控件原子场景 + GPU 固定像素 + fallback 可观测）
+- P1 渲染能力门禁（复杂 UI 绘制场景 + GPU 固定像素 + fallback 可观测）
 - “ABI 完整性证明”“`gpu/webgpu` facade 到 `gpu/rwgpu` 的全量转换正确性”
+- `render` 对标 Ant Design/Skia 所需绘制语义的补全与回归
 - 跨平台动态库绑定生成
-- **控件层开工许可**（依赖 P1.5）
 
 当前阶段位置：
 
@@ -174,10 +186,10 @@ env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so 
 阶段 5：render 语义对齐       P0 完成；P1 控件原子/GPU 固定像素进行中
 阶段 6：视觉回归稳定         P0 examples 绿；P1 复杂矩阵未完成
 阶段 7：跨平台完整化         未开始
-阶段 8：控件层（Ant Design）  禁止开工，待 P1.5
+阶段 8：（本计划外）上层控件库   不在本计划交付范围
 ```
 
-在 **P1 Foundation Gate** 与阶段 4/5 完成前，不允许声称已经完成 Ant Design 级控件库渲染能力，不允许开工控件层，也不应该用性能优化掩盖正确性缺口。
+在 **P1 渲染能力门禁** 与阶段 4/5 完成前，不允许声称 render 已达到 Ant Design/Skia 级渲染能力，也不应该用性能优化掩盖正确性缺口。
 
 ### 当前冻结规则
 
@@ -185,7 +197,7 @@ env WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so 
 
 1. 不继续扩大 GPU feature surface，除非是为了修复当前 render 已调用 API 或接入 Stage 5 surface。
 2. 大规模批处理、atlas、cache、排序等性能优化仍冻结到 **P1 底层门禁通过** 且 Stage 4 ABI 审计、Stage 5 窗口路径更稳之后；小范围非行为变更清理允许。
-7. **禁止**开工 Ant Design 对标控件层，直到 P1 Foundation Gate 关闭。
+7. “对标 Ant Design/Skia”仅作 **render 能力验收标准**；本计划不交付控件层。
 3. 不回退目标架构；仍保持 `render -> gpu/webgpu -> gpu/rwgpu -> libwgpu_native`。
 4. 不让 `render` 直接 import `gpu/rwgpu`。
 5. 所有修复必须说明属于哪一层：`rwgpu ABI`、`gpu/webgpu descriptor 转换`、`render 渲染语义`、`测试/回归工具`。
@@ -910,28 +922,37 @@ text_transform changed=11270/630000 rmse=12.572  PASS
 
 ---
 
-## P1：Ant Design / Skia 级底层门禁（Foundation Gate）
+## P1：Ant Design / Skia 级 **render 能力门禁**（Foundation Gate）
 
 > **定位**：P0 证明“native 路径能画、主 examples 不炸”。  
-> P1 证明“底层足以支撑 Ant Design 类控件库 + Skia 方向的 2D 渲染正确性”。  
-> **P1 未关闭前，禁止开工 Ant Design 对标控件层。**
+> P1 证明 `render`（经 `webgpu`/`rwgpu`）达到 Ant Design 级 UI **所需的绘制能力** 与 Skia 方向的 2D 正确性。  
+> **本计划不实现 Ant Design 控件层**；复杂场景只是 render 回归用的“控件形态压测”，用来逼出 ABI/webgpu/render 缺口。
+
+### 主线顺序（必须遵守）
+
+```text
+rwgpu ABI 绑定正确
+  -> gpu/webgpu 能力补全（真实 native，非 stub）
+  -> render 语义/视觉对标（Ant Design 所需绘制能力 + Skia 质量方向）
+  -> （计划外）上层控件库可另开项目，依赖本库渲染能力
+```
 
 ### 为什么第一批 examples 不够
 
 当前 P0 必测集（basic/shapes/clipping/images/text/cjk/scene/gpu/text_transform）覆盖的是：
 - 基础图元、简单 clip、单层 text/image、轻量 scene
 
-Ant Design 控件层真实会持续压到的底层能力远不止这些，例如：
+要达到 Ant Design/Skia **渲染能力**，底层必须稳定覆盖更复杂的绘制组合，例如：
 - 大量小圆角矩形 + 1px 边框 + 半透明遮罩
-- 多层叠加（dropdown/modal/drawer/tooltip）
-- 表格/列表虚拟滚动：重复 cell、clip、文本省略
+- 多层叠加（模拟 dropdown/modal/drawer/tooltip 的绘制结构）
+- 重复 cell / 网格线 / 文本省略（模拟 table/list 压力）
 - 图标字体 / SVG path / 彩色 emoji
-- 输入框 caret、选区、IME 组合态文本
-- 渐变按钮、阴影、focus ring
-- 高 DPI / devicePixelRatio 缩放
-- 动画帧间 damage/redraw（正确性先于性能）
+- caret、选区、混排文本
+- 渐变、阴影、focus ring
+- 高 DPI / devicePixelRatio
+- damage/redraw 正确性（先于性能）
 
-因此必须把“可支撑控件层”定义为 **分层硬证据 + 复杂场景矩阵**，而不是再加几个简单 demo。
+因此 P1 用 **分层硬证据 + 复杂场景矩阵** 验收 render 栈，而不是再加几个简单 demo。
 
 ### P1 分层硬证据（必须全部真实调用链）
 
@@ -948,7 +969,7 @@ export GOCACHE=/tmp/gpui-go-cache
 | L2 WebGPU facade | `gpu/webgpu` → `rwgpu` 创建/上传/提交/readback 真实成功 | device/texture/pipeline/queue 原生测试 | facade 空实现、静默 no-op |
 | L3 Render 语义 | `render.Context` / scene 路径最终像素正确 | visualcmd + imagediff STRICT；关键路径禁止 silent CPU fallback | 关键 region GPU miss 或 diff 超阈值 |
 | L4 GPU 固定像素 | blend/alpha/clip/transform 在 RT 上 readback 可复算 | 小 RT clear→draw→download 与公式/CPU 参考比对 | GPU blend/premul 与文档契约不符 |
-| L5 复杂场景 | Ant Design 原子场景矩阵覆盖 | 新增 complex visual suite | 任一 P1 场景 STRICT 失败 |
+| L5 复杂场景 | 控件形态压测场景矩阵（render 能力） | 新增 complex visual suite | 任一 P1 场景 STRICT 失败 |
 
 **强制可观测性**：
 - 每个 GPU 视觉用例输出：`accelerator`、`direct`、`gpu_ops`、`cpu_fallback_ops`（新增计数器）。
@@ -959,7 +980,7 @@ export GOCACHE=/tmp/gpui-go-cache
 
 #### Tier A — 控件原子（必须新增 visualcmd + STRICT）
 
-| ID | 场景 | 对标 Ant Design 能力 | 底层关注点 |
+| ID | 场景 | 模拟的 UI 绘制形态（非控件实现） | 底层关注点 |
 |----|------|----------------------|------------|
 | A1 | `ui_button_states` | Button default/hover/active/disabled | rrect、1px border、text baseline、focus ring |
 | A2 | `ui_input_field` | Input / TextArea | 边框、placeholder、caret、selection rect、clip |
@@ -989,33 +1010,59 @@ export GOCACHE=/tmp/gpui-go-cache
 
 ### P1 任务卡
 
-#### Task P1.0 门禁基础设施
+#### Task P1.0 门禁基础设施 ✅（首轮）
 
 目标：
 - 统一 visual harness：env 门禁、STRICT、区域 metric、**fallback 计数**、报告输出。
 
+实现：
+- `render.Context`：`RenderPathStats` / `gpu_ops` / `cpu_fallback_ops`（fill/stroke/image/text 路径计数）
+- visualcmd 输出 `gpu_ops=N cpu_fallback_ops=M`
+- `ParseRenderPathStatsLog` / `RequireGPUPathStats`；basic/shapes/… STRICT 强制 `gpu_ops>0`
+
+验证：
+```bash
+GPUI_BASIC_VISUAL=1 GPUI_BASIC_VISUAL_STRICT=1 go test -count=1 -v ./render -run TestBasicCPUvsGPUVisualDiagnostic
+# gpu_log 含 gpu_ops=3 cpu_fallback_ops=0
+```
+
 完成标准：
-- `gpu_ops` / `cpu_fallback_ops` 可在 visual log 中读到。
-- 任一关键 region `gpu_ops==0` 且未声明允许 fallback → 失败。
+- ✅ `gpu_ops` / `cpu_fallback_ops` 可在 visual log 中读到
+- ✅ STRICT 下 GPU 路径 `gpu_ops==0` 失败（Context 类 examples）
+- ⏳ scene/scene_gpu 仍为 scene renderer 路径（暂记 note=scene_renderer）
 
 #### Task P1.1 ABI/WebGPU 全量（UI 子集）审计
 
 目标：
-- 对控件层会触达的 descriptor/enum 完成 `lib/webgpu.h` 对齐。
+- 对 render/UI 绘制路径会触达的 descriptor/enum 完成 `lib/webgpu.h` 对齐。
 
 完成标准：
 - `go test ./gpu/rwgpu ./gpu/webgpu` 全绿（含 ABI size/offset/enum）。
 - 文档列出“UI 子集 API 清单”与测试映射。
 
-#### Task P1.2 GPU 固定像素（blend/clip/transform）
+#### Task P1.2 GPU 固定像素（blend/clip/transform） 🔄
 
 目标：
 - 小 RT 真链路上验证 UI 高频语义。
 
+首轮实现（2026-07-15）：
+- `render/p1_gpu_fixed_pixel_test.go`（`import _ render/gpu`，真实 accelerator）
+- SourceOver premul：中心像素与 `blend.SourceOver` 参考 **完全一致** `(128,0,127,255)`
+- Opaque replace、clip outside 保持白、1px hairline 可见
+- 强制 `gpu_ops>0`
+
+验证：
+```bash
+export WGPU_NATIVE_PATH=.../lib/libwgpu_native.so
+go test -count=1 -v ./render -run 'TestP12GPUFixedPixel'
+```
+
 完成标准：
-- Normal/SourceOver/Copy/Plus/Multiply：**GPU readback** 固定像素通过（不仅 CPU `blend` 包）。
-- nested clip + hairline + rrect 固定像素通过。
-- premul 契约与实现一致，无 double-premultiply。
+- 🔄 SourceOver GPU readback 固定像素通过（首轮）
+- ⬜ Copy/Plus/Multiply GPU 固定像素
+- ✅ clip + hairline 首轮通过
+- ⬜ nested clip / rrect / transform 扩展
+- ✅ premul SourceOver 与 CPU blend 公式对齐（本机验证）
 
 #### Task P1.3 Tier A 控件原子场景
 
@@ -1033,10 +1080,10 @@ export GOCACHE=/tmp/gpui-go-cache
 完成标准：
 - 无花屏/错层/漏 clip；抽样 region 与 CPU 参考在阈值内。
 
-#### Task P1.5 关闭 Foundation Gate
+#### Task P1.5 关闭 render 能力门禁
 
 目标：
-- 汇总 L1–L5 证据，宣布“允许开工控件层”。
+- 汇总 L1–L5 证据，宣布“render 栈达到 Ant Design/Skia 级渲染能力门槛”。
 
 完成标准（**全部满足才算 P1 完成**）：
 - [ ] L1 ABI 套件绿
@@ -1045,16 +1092,18 @@ export GOCACHE=/tmp/gpui-go-cache
 - [ ] L4 GPU 固定像素绿
 - [ ] fallback 可观测且无未解释 fallback
 - [ ] 已知差异全部文档化
-- [ ] **明确书面结论：底层达到 Ant Design 控件渲染支撑标准；允许启动控件层**
+- [ ] **明确书面结论：render（经 webgpu/rwgpu）达到 Ant Design/Skia 级渲染能力门槛**
+- [ ] 不包含、不要求本仓库交付任何控件层代码
 
 ### P1 与后续阶段关系
 
 ```text
 P0（已完成）迁移可跑 / 主 examples 门禁
-  -> P1 Foundation Gate（进行中，阻断控件层）
+  -> P1 render 能力门禁（ABI→webgpu→render 对标）
+      -> 阶段四 C/D/E 继续补全与精修
       -> 阶段五 窗口/swapchain 真显示路径
-      -> 阶段六 性能（batch/atlas/cache）——仅 P1 后
-      -> 控件层（Ant Design 对标）——仅 P1.5 后
+      -> 阶段六 性能（batch/atlas/cache）——建议 P1 后
+      -> （计划外）上层控件库项目可依赖本渲染能力
 ```
 
 ### AI 开发代理执行规则
@@ -2126,12 +2175,12 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 | P0.2 render target/readback 校准 |  | W0D2 | W0D3 | 2026-07-15 | 2026-07-15 | ✅ | RGBA/BGRA/R8 + 256 pitch + clear-via-upload |
 | P0.3 blend/alpha 一致性 |  | W0D3 | W0D4 | 2026-07-15 | 2026-07-15 | ✅ | Normal/SourceOver/Copy/Plus/Multiply 固定像素 + premul 边界 |
 | P0.F examples 端到端修复 |  | W0D4 | W0D5 | 2026-07-15 | 2026-07-15 | ✅ | STRICT 全绿；残留 AA 记为可接受阈值 |
-| P1.0 门禁基础设施（fallback 计数） |  | W1D1 | W1D2 |  |  | ⬜ | 阻断控件层 |
+| P1.0 门禁基础设施（fallback 计数） |  | W1D1 | W1D2 | 2026-07-15 | 2026-07-15 | ✅ | Context path stats + visualcmd + STRICT |
 | P1.1 ABI/WebGPU UI 子集审计 |  | W1D2 | W1D4 |  |  | ⬜ | L1/L2 硬证据 |
-| P1.2 GPU 固定像素 blend/clip |  | W1D3 | W1D5 |  |  | ⬜ | 超越 CPU-only blend 测试 |
-| P1.3 Tier A 控件原子场景 A1–A8 |  | W1D4 | W2D3 |  |  | ⬜ | Ant Design 原子能力 |
+| P1.2 GPU 固定像素 blend/clip |  | W1D3 | W1D5 | 2026-07-15 |  | 🔄 | SourceOver/opaque/clip/hairline 首轮绿；扩展 Multiply/Plus/Copy |
+| P1.3 Tier A 复杂 UI 绘制场景 A1–A8 |  | W1D4 | W2D3 |  |  | ⬜ | render 能力压测（非控件实现） |
 | P1.4 Tier B 压力正确性 B1–B6 |  | W2D2 | W2D5 |  |  | ⬜ | Skia 方向正确性 |
-| P1.5 Foundation Gate 关闭评审 |  | W2D5 | W3D1 |  |  | ⬜ | 通过后才允许控件层 |
+| P1.5 render 能力门禁关闭评审 |  | W2D5 | W3D1 |  |  | ⬜ | 通过后可声明对标能力门槛 |
 | 0.1 FPS 测量器 |  | W3D1 | W3D2 |  |  | ⬜ | 仅 P1 后启动性能基线 |
 | 0.2 测试场景 |  | W1D2 | W1D3 |  |  | ⬜ |  |
 | 0.3 Skia 对比 |  | W1D3 | W1D5 |  |  | ⬜ |  |
@@ -2211,6 +2260,9 @@ eb := raster.NewEdgeBuilder(3) // 8x AA
 | 2026-07-13 | 2.0 | 补充测试计划、性能目标、风险评估、资源需求、验收标准、监控策略、文档计划、发布计划、代码审查、沟通计划 | Claude |
 | 2026-07-13 | 3.0 | 根据 gpui 库实际情况重写，更新项目背景、库结构、依赖关系 | Claude |
 | 2026-07-13 | 3.1 | 补充新人/AI 开工指南、并行开发边界、任务卡模板，并修正渐变和 AA 示例 API | Codex |
+| 2026-07-15 | 4.0 | 主线切换：Skia 2D 能力表 + MAINLINE S0–S4；本文降为档案 | Codex |
+| 2026-07-15 | 3.11 | 澄清主线：仅 render/webgpu/rwgpu 能力补全与对标；移除“控件层开工”误表述 | Codex |
+| 2026-07-15 | 3.10 | P1.0 path stats + P1.2 GPU 固定像素首轮（SourceOver/clip/hairline）；STRICT 强制 gpu_ops | Codex |
 | 2026-07-15 | 3.9 | 升级 P1 Foundation Gate：复杂 UI 场景矩阵 + 分层硬证据；明确控件层开工阻断条件 | Codex |
 | 2026-07-15 | 3.8 | P0 整体完成：P0.2 format/readback、P0.3 blend 固定像素、P0.F STRICT 全绿；更新进度表与可接受 AA 残留 | Codex |
 | 2026-07-15 | 3.7 | P0.F：GPU 跳过 .notdef + isCJK 整串检测；cjk_text body/mixed ratio≈1.0 | Codex |

@@ -55,6 +55,7 @@ func TestShapesCPUvsGPUVisualDiagnostic(t *testing.T) {
 	}
 
 	if os.Getenv("GPUI_SHAPES_VISUAL_STRICT") == "1" {
+		RequireGPUPathStats(t, gpuLog, true)
 		assertShapesVisualStrict(t, diff, cpuMetrics, gpuMetrics)
 	}
 }

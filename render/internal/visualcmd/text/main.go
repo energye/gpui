@@ -79,6 +79,8 @@ func main() {
 	dc.SetRGB(0.4, 0.4, 0.4)
 	dc.DrawString("Font: "+source.Name(), 50, 370)
 
+	fmt.Println(dc.RenderPathStats().LogLine())
+
 	if err := dc.SavePNG(*out); err != nil {
 		log.Fatalf("save png: %v", err)
 	}
