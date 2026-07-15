@@ -105,12 +105,25 @@ type ConvexRenderer struct {
 	// with clipBindLayout included. If clipBindLayout is set after the
 	// layout was created, the pipeline must be recreated.
 	pipeLayoutHasClip bool
+
+	// maskBindLayout is @group(2) for L.06 full-surface R8 mask sampling.
+	// Owned by this renderer (always present in pipeline layout).
+	maskBindLayout *webgpu.BindGroupLayout
 }
 
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil.
 func (cr *ConvexRenderer) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
 	cr.clipBindLayout = layout
+}
+
+// MaskBindLayout returns the @group(2) layout for L.06 R8 mask sampling.
+// Creates the pipeline base layouts if needed so the layout is available.
+func (cr *ConvexRenderer) MaskBindLayout() *webgpu.BindGroupLayout {
+	if cr.maskBindLayout == nil {
+		_ = cr.ensurePipeline()
+	}
+	return cr.maskBindLayout
 }
 
 // NewConvexRenderer creates a new convex polygon renderer with the given
@@ -246,7 +259,7 @@ func (cr *ConvexRenderer) ensureDepthClipPipeline() error {
 // RecordDraws records convex polygon draws into an existing render pass.
 // When depthClipped is true (GPU-CLIP-003a), the depth-clipped pipeline
 // variant is used to test fragments against the depth clip buffer.
-func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *convexFrameResources, clipBG *webgpu.BindGroup, depthClipped ...bool) {
+func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *convexFrameResources, clipBG *webgpu.BindGroup, maskBG *webgpu.BindGroup, depthClipped ...bool) {
 	if resources == nil || resources.vertCount == 0 {
 		return
 	}
@@ -254,6 +267,9 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 	rp.SetBindGroup(0, resources.bindGroup, nil)
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
+	}
+	if maskBG != nil {
+		rp.SetBindGroup(2, maskBG, nil)
 	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 
@@ -392,9 +408,16 @@ func (cr *ConvexRenderer) createPipeline() error {
 		}
 		clipLayout = cr.defaultClipBindLayout
 	}
+	if cr.maskBindLayout == nil {
+		layout, err := createMaskBindGroupLayout(cr.device, "convex_mask_layout")
+		if err != nil {
+			return fmt.Errorf("create mask layout: %w", err)
+		}
+		cr.maskBindLayout = layout
+	}
 	pipeLayout, err := cr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
 		Label:            "convex_pipe_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{cr.uniformLayout, clipLayout},
+		BindGroupLayouts: []*webgpu.BindGroupLayout{cr.uniformLayout, clipLayout, cr.maskBindLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create convex pipeline layout: %w", err)
@@ -464,6 +487,10 @@ func (cr *ConvexRenderer) destroyPipeline() {
 	if cr.defaultClipBindLayout != nil {
 		cr.defaultClipBindLayout.Release()
 		cr.defaultClipBindLayout = nil
+	}
+	if cr.maskBindLayout != nil {
+		cr.maskBindLayout.Release()
+		cr.maskBindLayout = nil
 	}
 	if cr.uniformLayout != nil {
 		cr.uniformLayout.Release()

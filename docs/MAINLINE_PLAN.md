@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.23 | 日期：2026-07-15  
+> 版本：1.24 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -154,9 +154,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 S0–S3c 已关闭。S.03 真窗口 draw+present 已通。
 
-**本轮（P1 推进）**：T.03 non-uniform stroke、X.06 MultiFace GPU、X.11 atlas、X.03/X.04/Q.03/L.06、B.02、D.04–D.06、Tier A/B/C 已绿。已收：至 Tier F（Cascader/VirtualList）、H.03 EvenOdd、L.06 PushMaskLayer、P.04 hairline。已收：F.03 ApplyImageFilterGraph、L.06 MaskAware、Tier G。仍 open：cover 内联 R8 sample、F.03 GPU-RT 加深、M4。
+**本轮（P1 推进）**：T.03 non-uniform stroke、X.06 MultiFace GPU、X.11 atlas、X.03/X.04/Q.03/L.06、B.02、D.04–D.06、Tier A/B/C 已绿。已收：至 Tier F（Cascader/VirtualList）、H.03 EvenOdd、L.06 PushMaskLayer、P.04 hairline。已收：F.03、L.06 MaskAware + convex cover-inline R8、Tier G/H。仍 open：SDF cover 内联、F.03 GPU-RT 加深、M4。
 
-下一步：L.06 cover 着色器内联 R8、F.03 GPU multi-RT 加深、M4 质量项与更大 Ant 密度。
+下一步：L.06 SDF cover 内联 R8、F.03 GPU multi-RT 加深、M4 与极端 Ant 密度。
 
 ```bash
 go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
@@ -199,6 +199,7 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.24 | L.06 convex cover-inline R8 + Tier H virtual/transfer density |
 | 2026-07-15 | 1.23 | F.03 ApplyImageFilterGraph + L.06 MaskAware + Tier G TreeSelect/Carousel |
 | 2026-07-15 | 1.22 | H.03/L.06 PushMask/P.04 + Tier F Cascader/VirtualList |
 | 2026-07-15 | 1.21 | B.05 layer/text + Q.04 + Overlay + Tier E |

@@ -692,3 +692,14 @@ func (s *GPUShared) HasGPUMask() bool {
 	defer s.mu.Unlock()
 	return s.maskActive && s.maskTex != nil && s.maskView != nil
 }
+
+// MaskTextureView returns the active R8 mask view when a GPU mask is bound.
+// Caller must not release the view; ownership remains with GPUShared.
+func (s *GPUShared) MaskTextureView() (*webgpu.TextureView, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.maskActive || s.maskView == nil {
+		return nil, false
+	}
+	return s.maskView, true
+}

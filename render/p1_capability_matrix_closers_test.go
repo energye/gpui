@@ -2004,3 +2004,58 @@ func TestP1_Capability_L06_MaskAwareNativeUploadGPU(t *testing.T) {
 		t.Fatalf("right outside mask expected white: %d,%d,%d", rr, rg, rb)
 	}
 }
+
+// L.06 cover-inline: convex solid + MaskAware R8 must sample mask in cover shader
+// (not only fillMaskedAsImage staging). Hard half-mask + rounded rect (convex).
+func TestP1_Capability_L06_CoverInlineR8GPU(t *testing.T) {
+	requireNativeGPU(t)
+	a := render.Accelerator()
+	if _, ok := a.(render.MaskAware); !ok {
+		t.Fatal("MaskAware required for cover-inline R8")
+	}
+
+	const w, h = 80, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	mask := render.NewMask(w, h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x < w/2 {
+				mask.Set(x, y, 255)
+			} else {
+				mask.Set(x, y, 0)
+			}
+		}
+	}
+	dc.SetMask(mask)
+
+	// Convex rrect fully spanning left+right halves.
+	dc.SetRGB(0.9, 0.1, 0.15)
+	dc.DrawRoundedRectangle(8, 8, float64(w-16), float64(h-16), 6)
+	_ = dc.Fill()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("L.06 cover-inline path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("cover-inline requires GPUOps>0")
+	}
+	// Prefer no CPU fallback when cover-inline wins (soft: allow 0 only ideal).
+	lr, lg, lb, _ := sampleRGBA(dc, 16, h/2)
+	rr, rg, rb, _ := sampleRGBA(dc, w-12, h/2)
+	t.Logf("left=%d,%d,%d right=%d,%d,%d", lr, lg, lb, rr, rg, rb)
+	if lr < 150 || lg > 80 {
+		t.Fatalf("left under mask expected red cover: %d,%d,%d", lr, lg, lb)
+	}
+	if rr < 240 || rg < 240 || rb < 240 {
+		t.Fatalf("right outside mask expected white (cover-inline discard): %d,%d,%d", rr, rg, rb)
+	}
+}

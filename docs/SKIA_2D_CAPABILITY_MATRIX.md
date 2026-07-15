@@ -134,7 +134,7 @@
 | L.03 | Layer opacity | saveLayer alpha | premul composite | 🔄 | 🔄 | ✅ 层 GPU 内容+CPU composite `TestS3b` | M2 |
 | L.04 | Layer blend mode | saveLayer blend | blend/shader | 🔄 | 🔄 | ✅ Multiply/Screen 层 `TestS3b` | M2 |
 | L.05 | Layer + backdrop（可选） | backdrop filter | 采样背景 | ⬜ | ⬜ | ⬜ | M4 |
-| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 MaskAware | 🔄 | ✅ SetMask R8 modulate + MaskAware native upload + PushMaskLayer GPU `TestP1_Capability_L06_*`（convex cover 内联 sample 可再加深） | M2 |
+| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 MaskAware | 🔄 | ✅ SetMask R8 modulate + MaskAware + **convex cover 内联 R8 sample** + PushMaskLayer `TestP1_Capability_L06_*` / `L06_CoverInlineR8GPU`（SDF cover 内联可再加深） | M2 |
 
 ### 1.9 Shader / Gradient / Pattern
 
@@ -360,6 +360,7 @@
 | 2026-07-15 | 1.0 | 首版：全面 Skia 2D 能力表 + WebGPU 反推子集 + 里程碑 |
 
 | 2026-07-15 | M3 residual | B.04/C.06/H.04/I.04/I.07/X.08–X.10 实现 + S3c residual 门禁 |
+| 2026-07-15 | — | L.06 convex cover-inline R8 + Tier H large virtual/transfer |
 | 2026-07-15 | — | F.03 filter graph + L.06 MaskAware native upload + Tier G TreeSelect/Carousel |
 
 

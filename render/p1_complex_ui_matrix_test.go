@@ -1970,3 +1970,190 @@ func TestP1_G2_CarouselStageDensity(t *testing.T) {
 	}
 	t.Logf("stage=%d,%d,%d cta=%d,%d,%d dot=%d,%d,%d prog=%d,%d,%d", r, g, b, r2, g2, b2, r3, g3, b3, r4, g4, b4)
 }
+
+// --- Tier H denser virtual window / transfer-scale pressure ---
+
+// H1 large virtual list window: sticky header + 40 rows + alternating cells +
+// scrollbar track/thumb + floating action.
+func TestP1_H1_LargeVirtualListWindow(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 420, 520
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Chrome
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(16, 16, 360, 480, 8)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.1)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(16.5, 16.5, 359, 479, 8)
+	_ = dc.Stroke()
+
+	// Sticky header
+	dc.SetRGB(0.97, 0.97, 0.98)
+	dc.DrawRectangle(17, 17, 358, 40)
+	_ = dc.Fill()
+	dc.SetRGB(0.25, 0.25, 0.25)
+	dc.DrawString("Virtual List · 10k items", 28, 42)
+	dc.SetRGBA(0, 0, 0, 0.08)
+	dc.DrawRectangle(17, 56, 358, 1)
+	_ = dc.Fill()
+
+	// 40 visible rows
+	for i := 0; i < 40; i++ {
+		y := 60.0 + float64(i)*10.5
+		if i%2 == 0 {
+			dc.SetRGB(1, 1, 1)
+		} else {
+			dc.SetRGB(0.98, 0.99, 1.0)
+		}
+		dc.DrawRectangle(20, y, 330, 10)
+		_ = dc.Fill()
+		// avatar
+		if i%3 == 0 {
+			dc.SetRGB(0.2, 0.45, 0.9)
+		} else if i%3 == 1 {
+			dc.SetRGB(0.2, 0.7, 0.45)
+		} else {
+			dc.SetRGB(0.85, 0.45, 0.2)
+		}
+		dc.DrawCircle(34, y+5, 3.5)
+		_ = dc.Fill()
+		// status pill
+		dc.SetRGBA(0.09, 0.47, 0.95, 0.15)
+		dc.DrawRoundedRectangle(300, y+1.5, 36, 7, 3)
+		_ = dc.Fill()
+	}
+
+	// Scrollbar
+	dc.SetRGBA(0, 0, 0, 0.06)
+	dc.DrawRoundedRectangle(358, 64, 8, 400, 4)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.28)
+	dc.DrawRoundedRectangle(358, 120, 8, 70, 4)
+	_ = dc.Fill()
+
+	// FAB
+	dc.SetRGBA(0.09, 0.47, 0.95, 0.95)
+	dc.DrawCircle(340, 460, 22)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("+", 334, 466)
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("H1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 30 {
+		t.Fatalf("H1 expected dense GPUOps>=30: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 34, 70)
+	if b < 80 && g < 80 {
+		t.Fatalf("row avatar missing: %d,%d,%d", r, g, b)
+	}
+	r2, g2, b2, _ := p1Sample(dc, 340, 460)
+	if b2 < 150 {
+		t.Fatalf("FAB missing: %d,%d,%d", r2, g2, b2)
+	}
+	r3, g3, b3, _ := p1Sample(dc, 362, 150)
+	if r3 > 240 && g3 > 240 && b3 > 240 {
+		t.Fatalf("scrollbar thumb missing: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// H2 Transfer dual-list heavy: two panels, many rows, ops buttons, search bars.
+func TestP1_H2_TransferDualListHeavy(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 560, 360
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+	dc.SetRGB(0.95, 0.96, 0.97)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	drawPanel := func(x float64, title string, selected int) {
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, 24, 220, 300, 8)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.12)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(x+0.5, 24.5, 219, 299, 8)
+		_ = dc.Stroke()
+		dc.SetRGB(0.2, 0.2, 0.2)
+		dc.DrawString(title, x+12, 48)
+		// search
+		dc.SetRGB(0.98, 0.98, 0.98)
+		dc.DrawRoundedRectangle(x+12, 56, 196, 26, 4)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.15)
+		dc.DrawRoundedRectangle(x+12.5, 56.5, 195, 25, 4)
+		_ = dc.Stroke()
+		// rows
+		for i := 0; i < 14; i++ {
+			y := 92.0 + float64(i)*15
+			if i == selected {
+				dc.SetRGBA(0.09, 0.47, 0.95, 0.12)
+				dc.DrawRectangle(x+8, y-2, 204, 14)
+				_ = dc.Fill()
+			}
+			// checkbox
+			dc.SetRGB(1, 1, 1)
+			dc.DrawRoundedRectangle(x+14, y, 10, 10, 2)
+			_ = dc.Fill()
+			dc.SetRGBA(0, 0, 0, 0.25)
+			dc.DrawRoundedRectangle(x+14.5, y+0.5, 9, 9, 2)
+			_ = dc.Stroke()
+			if i < 3 || i == selected {
+				dc.SetRGB(0.09, 0.47, 0.95)
+				dc.DrawRoundedRectangle(x+16, y+2, 6, 6, 1)
+				_ = dc.Fill()
+			}
+			dc.SetRGB(0.2, 0.2, 0.2)
+			dc.DrawString("Item row", x+32, y+9)
+		}
+	}
+	drawPanel(24, "Source (128)", 2)
+	drawPanel(316, "Target (36)", 0)
+
+	// Ops
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(256, 140, 44, 28, 4)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString(">", 272, 158)
+	dc.SetRGB(0.65, 0.65, 0.7)
+	dc.DrawRoundedRectangle(256, 180, 44, 28, 4)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("<", 272, 198)
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("H2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 40 {
+		t.Fatalf("H2 expected dense GPUOps>=40: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 278, 154)
+	if b < 150 {
+		t.Fatalf("transfer > button missing: %d,%d,%d", r, g, b)
+	}
+	// checked box blue
+	r2, g2, b2, _ := p1Sample(dc, 42, 97)
+	if b2 < 100 {
+		t.Fatalf("source checkbox missing: %d,%d,%d", r2, g2, b2)
+	}
+}

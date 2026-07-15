@@ -649,8 +649,13 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 
 // FillPath queues a filled path for GPU rendering.
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
-	// L.06: alpha mask modulates coverage — stage software masked fill then GPU blit.
+	// L.06: prefer convex cover-inline R8 sampling when MaskAware texture is live
+	// and the path is a convex solid SourceOver fill. Non-convex / advanced
+	// paints fall back to fillMaskedAsImage (geometry stage + R8 modulate).
 	if paint != nil && paint.MaskCoverage != nil {
+		if rc.tryFillMaskedConvexInline(target, path, paint) {
+			return nil
+		}
 		return rc.fillMaskedAsImage(target, path, paint)
 	}
 	if !isGPUSolidPaint(paint) {
@@ -1158,6 +1163,11 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	baseLayer := rc.baseLayer
 	rc.baseLayer = nil
 
+	// L.06: bind full-surface R8 mask for convex cover-inline sampling when active.
+	if err := rc.session.PrepareFrameMask(rc.shared); err != nil {
+		slogger().Warn("prepare frame mask failed", "err", err)
+	}
+
 	err := rc.session.RenderFrameGrouped(target, ownedGroups, baseLayer, rc.sharedEncoder)
 	if err != nil {
 		total := 0
@@ -1573,4 +1583,49 @@ func (rc *GPURenderContext) syncGlyphMaskAtlases(batches []GlyphMaskBatch) error
 		rc.session.SetGlyphMaskAtlasView(i, view, batch.IsLCD)
 	}
 	return nil
+}
+
+// tryFillMaskedConvexInline routes solid convex fills through the convex cover
+// pipeline with L.06 R8 mask sampling in the fragment shader (true cover-inline).
+// Returns true when the draw was queued (caller must not fall back).
+func (rc *GPURenderContext) tryFillMaskedConvexInline(target render.GPURenderTarget, path *render.Path, paint *render.Paint) bool {
+	if path == nil || paint == nil || paint.MaskCoverage == nil {
+		return false
+	}
+	if !isGPUSolidPaint(paint) || !paintUsesSourceOver(paint) {
+		return false
+	}
+	if paint.FillRule == render.FillRuleEvenOdd {
+		return false
+	}
+	if !rc.shared.HasGPUMask() {
+		return false
+	}
+	if !rc.shared.gpuReady {
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return false
+		}
+	}
+	points, ok := extractConvexPolygon(path)
+	if !ok {
+		return false
+	}
+	color := getColorFromPaint(paint)
+	cmd := ConvexDrawCommand{
+		Points: points,
+		Color: [4]float32{
+			float32(color.R * color.A),
+			float32(color.G * color.A),
+			float32(color.B * color.A),
+			float32(color.A),
+		},
+		BlendMode: paintBlendMode(paint),
+	}
+	rc.QueueConvex(target, cmd)
+	rc.sceneStats.PathCount++
+	rc.sceneStats.ShapeCount++
+	return true
 }

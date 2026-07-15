@@ -62,3 +62,50 @@ func createClipBindGroupLayout(device *webgpu.Device, label string) (*webgpu.Bin
 		},
 	})
 }
+
+// maskParamsSize is the byte size of MaskParams uniform (enabled + pad).
+const maskParamsSize = 16
+
+// MaskParams controls full-surface R8 mask sampling in cover shaders (L.06).
+type MaskParams struct {
+	// Enabled is 0.0 (ignore mask tex) or 1.0 (sample R channel).
+	Enabled float32
+}
+
+// Bytes serializes MaskParams to a 16-byte GPU uniform.
+func (p *MaskParams) Bytes() []byte {
+	buf := make([]byte, maskParamsSize)
+	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(p.Enabled))
+	return buf
+}
+
+// NoMaskParams returns disabled mask sampling.
+func NoMaskParams() *MaskParams {
+	return &MaskParams{Enabled: 0}
+}
+
+func createMaskBindGroupLayout(device *webgpu.Device, label string) (*webgpu.BindGroupLayout, error) {
+	return device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+		Label: label,
+		Entries: []types.BindGroupLayoutEntry{
+			{
+				Binding:    0,
+				Visibility: types.ShaderStageFragment,
+				Texture: &types.TextureBindingLayout{
+					SampleType:    types.TextureSampleTypeFloat,
+					ViewDimension: types.TextureViewDimension2D,
+				},
+			},
+			{
+				Binding:    1,
+				Visibility: types.ShaderStageFragment,
+				Sampler:    &types.SamplerBindingLayout{Type: types.SamplerBindingTypeFiltering},
+			},
+			{
+				Binding:    2,
+				Visibility: types.ShaderStageFragment,
+				Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: maskParamsSize},
+			},
+		},
+	})
+}

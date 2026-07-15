@@ -1,12 +1,12 @@
 // convex.wgsl - Vertex + Fragment shader for convex polygon rendering with
-// per-edge analytic anti-aliasing.
+// per-edge analytic anti-aliasing and optional full-surface R8 mask (L.06).
 //
 // Each vertex carries a pixel position, a coverage value (1.0 = interior,
 // 0.0 = outermost AA fringe), and a premultiplied RGBA color.
 //
 // The vertex shader transforms pixel coordinates to NDC.
-// The fragment shader outputs color * coverage, discarding fully transparent
-// fragments.
+// The fragment shader outputs color * coverage * clip * mask, discarding
+// fully transparent fragments.
 
 struct Uniforms {
     viewport: vec2<f32>,  // width, height in pixels
@@ -35,6 +35,17 @@ struct ClipParams {
     _pad: vec2<f32>,
 }
 @group(1) @binding(0) var<uniform> clip: ClipParams;
+
+// --- L.06 full-surface R8 alpha mask (cover-inline sample) ---
+struct MaskParams {
+    mask_enabled: f32,
+    _p0: f32,
+    _p1: f32,
+    _p2: f32,
+}
+@group(2) @binding(0) var mask_tex: texture_2d<f32>;
+@group(2) @binding(1) var mask_samp: sampler;
+@group(2) @binding(2) var<uniform> mask_u: MaskParams;
 
 fn rrect_clip_coverage(frag_pos: vec2<f32>) -> f32 {
     // Branchless: Intel Vulkan shader compiler generates bad code for complex
@@ -67,6 +78,13 @@ fn rrect_clip_coverage(frag_pos: vec2<f32>) -> f32 {
     return clip.clip_enabled * sdf_cov + (1.0 - clip.clip_enabled);
 }
 
+fn mask_coverage(frag_pos: vec2<f32>) -> f32 {
+    // Branchless enable: sample always (1x1 white default when disabled).
+    let uv = frag_pos / max(u.viewport, vec2<f32>(1.0, 1.0));
+    let m = textureSampleLevel(mask_tex, mask_samp, uv, 0.0).r;
+    return mask_u.mask_enabled * m + (1.0 - mask_u.mask_enabled);
+}
+
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
@@ -81,7 +99,8 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let clip_cov = rrect_clip_coverage(in.clip_position.xy);
-    let final_coverage = in.coverage * clip_cov;
+    let mask_cov = mask_coverage(in.clip_position.xy);
+    let final_coverage = in.coverage * clip_cov * mask_cov;
     if final_coverage < 1.0 / 255.0 {
         discard;
     }

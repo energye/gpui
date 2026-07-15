@@ -1,6 +1,6 @@
 # P1 — 复杂 UI 场景矩阵门禁
 
-> 版本：1.9 | 日期：2026-07-15  
+> 版本：1.10 | 日期：2026-07-15  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) / 能力表 [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > **非控件层**：场景只模拟 Ant Design 级 UI 的绘制形态。
@@ -71,6 +71,13 @@
 | G1 | TreeSelect 面板 | `TestP1_G1_TreeSelectPanelDensity` | ✅ |
 | G2 | Carousel 舞台 | `TestP1_G2_CarouselStageDensity` | ✅ |
 
+## Tier H（大虚拟窗口 / Transfer 重密度）
+
+| ID | 场景 | 门禁 | 状态 |
+|----|------|------|------|
+| H1 | Large virtual list window | `TestP1_H1_LargeVirtualListWindow` | ✅ |
+| H2 | Transfer dual-list heavy | `TestP1_H2_TransferDualListHeavy` | ✅ |
+
 ## 能力表同步收口
 
 | ID | 能力 | 门禁 |
@@ -98,6 +105,7 @@
 | P.04 | Hairline | `TestP1_Capability_P04_*` |
 | F.03 | Image filter graph ping-pong | `TestP1_Capability_F03_*` |
 | L.06 | MaskAware native R8 upload | `TestP1_Capability_L06_MaskAware*` |
+| L.06 | Convex cover-inline R8 | `TestP1_Capability_L06_CoverInlineR8GPU` |
 
 ## 命令
 
@@ -111,8 +119,8 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 
 ## 仍 open（下一切片）
 
-- L.06 convex/SDF **cover 着色器内联** R8 sample（MaskAware 上传 + R8 modulate 已 ✅）  
-- F.03 GPU multi-RT ping-pong（当前 multi-pass pixmap ping-pong on GPU pixels ✅）  
-- 更大虚拟窗口 / Transfer 大数据集加压  
+- L.06 **SDF** cover 着色器内联 R8（convex cover-inline 已 ✅）  
+- F.03 GPU multi-RT ping-pong（pixmap multi-pass on GPU pixels ✅）  
+- 更极端 Ant 数据集 / 滚动 damage 加压  
 - M4 后置质量项  
 

@@ -275,6 +275,16 @@ type GPURenderSession struct {
 	clipBindLayout   *webgpu.BindGroupLayout
 	noClipUniformBuf *webgpu.Buffer
 	noClipBindGroup  *webgpu.BindGroup
+
+	// L.06 cover-inline R8 mask (@group(2) on convex).
+	noMaskTex       *webgpu.Texture
+	noMaskView      *webgpu.TextureView
+	maskSampler     *webgpu.Sampler
+	noMaskUniform   *webgpu.Buffer
+	noMaskBindGroup *webgpu.BindGroup
+	maskUniform     *webgpu.Buffer    // enabled=1
+	maskBindGroup   *webgpu.BindGroup // frame-active (noMask or real)
+	maskBGOwned     bool              // true when maskBindGroup is not noMask
 	// Pool of per-group clip uniform buffers and bind groups.
 	clipUniformPool []*webgpu.Buffer
 	clipBindPool    []*webgpu.BindGroup
@@ -1176,6 +1186,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.noClipUniformBuf.Release()
 		s.noClipUniformBuf = nil
 	}
+	s.releaseMaskResources()
 	if s.clipBindLayout != nil {
 		s.clipBindLayout.Release()
 		s.clipBindLayout = nil
@@ -1210,6 +1221,9 @@ func (s *GPURenderSession) ensurePipelines() error {
 	s.convexRenderer.SetClipBindLayout(s.clipBindLayout)
 	if err := s.convexRenderer.ensurePipelineWithStencil(); err != nil {
 		return fmt.Errorf("convex pipeline: %w", err)
+	}
+	if err := s.ensureMaskDefaults(); err != nil {
+		return fmt.Errorf("convex mask defaults: %w", err)
 	}
 
 	if s.stencilRenderer == nil {
@@ -1384,6 +1398,219 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGro
 // ClipBindLayout returns the shared clip bind group layout for @group(1).
 // Pipeline creation methods use this to include the clip layout in their
 // pipeline layouts. Must call ensureClipBindLayout() first.
+
+// ensureMaskDefaults creates the disabled (1x1 white R8) mask bind group for
+// convex @group(2). Safe to call multiple times.
+func (s *GPURenderSession) ensureMaskDefaults() error {
+	if s.noMaskBindGroup != nil {
+		return nil
+	}
+	if s.convexRenderer == nil {
+		return fmt.Errorf("convex renderer required for mask defaults")
+	}
+	layout := s.convexRenderer.MaskBindLayout()
+	if layout == nil {
+		return fmt.Errorf("convex mask bind layout unavailable")
+	}
+
+	// 1x1 white R8 — samples as coverage 1.0 when mask_enabled=0 path still samples.
+	tex, err := s.device.CreateTexture(&webgpu.TextureDescriptor{
+		Label:         "convex_nomask_r8",
+		Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+		Format: types.TextureFormatR8Unorm,
+		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return fmt.Errorf("create no-mask texture: %w", err)
+	}
+	view, err := s.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		Label: "convex_nomask_view", Format: types.TextureFormatR8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Release()
+		return fmt.Errorf("create no-mask view: %w", err)
+	}
+	if err := s.queue.WriteTexture(
+		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		[]byte{255},
+		&webgpu.ImageDataLayout{BytesPerRow: 256, RowsPerImage: 1},
+		&webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+	); err != nil {
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("upload no-mask texel: %w", err)
+	}
+
+	samp, err := s.device.CreateSampler(&webgpu.SamplerDescriptor{
+		Label:        "convex_mask_samp",
+		AddressModeU: types.AddressModeClampToEdge,
+		AddressModeV: types.AddressModeClampToEdge,
+		AddressModeW: types.AddressModeClampToEdge,
+		MagFilter:    types.FilterModeNearest,
+		MinFilter:    types.FilterModeNearest,
+		MipmapFilter: types.MipmapFilterModeNearest,
+	})
+	if err != nil {
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("create mask sampler: %w", err)
+	}
+
+	uOff := NoMaskParams()
+	ubuf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "convex_nomask_uniform",
+		Size:  maskParamsSize,
+		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		samp.Release()
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("create no-mask uniform: %w", err)
+	}
+	if err := s.queue.WriteBuffer(ubuf, 0, uOff.Bytes()); err != nil {
+		ubuf.Release()
+		samp.Release()
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("write no-mask uniform: %w", err)
+	}
+
+	bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		Label:  "convex_nomask_bg",
+		Layout: layout,
+		Entries: []webgpu.BindGroupEntry{
+			{Binding: 0, TextureView: view},
+			{Binding: 1, Sampler: samp},
+			{Binding: 2, Buffer: ubuf, Offset: 0, Size: maskParamsSize},
+		},
+	})
+	if err != nil {
+		ubuf.Release()
+		samp.Release()
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("create no-mask bind group: %w", err)
+	}
+
+	// Enabled mask uniform (reused; view changes per frame).
+	uOn := &MaskParams{Enabled: 1}
+	ubufOn, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "convex_mask_on_uniform",
+		Size:  maskParamsSize,
+		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		bg.Release()
+		ubuf.Release()
+		samp.Release()
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("create mask-on uniform: %w", err)
+	}
+	if err := s.queue.WriteBuffer(ubufOn, 0, uOn.Bytes()); err != nil {
+		ubufOn.Release()
+		bg.Release()
+		ubuf.Release()
+		samp.Release()
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("write mask-on uniform: %w", err)
+	}
+
+	s.noMaskTex = tex
+	s.noMaskView = view
+	s.maskSampler = samp
+	s.noMaskUniform = ubuf
+	s.noMaskBindGroup = bg
+	s.maskUniform = ubufOn
+	s.maskBindGroup = bg
+	s.maskBGOwned = false
+	return nil
+}
+
+// PrepareFrameMask selects the convex @group(2) bind group for this frame.
+// When shared has an active MaskAware R8 texture, cover shaders sample it inline.
+func (s *GPURenderSession) PrepareFrameMask(shared *GPUShared) error {
+	if err := s.ensureMaskDefaults(); err != nil {
+		return err
+	}
+	// Drop previous owned active BG (not the shared noMask one).
+	if s.maskBGOwned && s.maskBindGroup != nil && s.maskBindGroup != s.noMaskBindGroup {
+		s.maskBindGroup.Release()
+	}
+	s.maskBindGroup = s.noMaskBindGroup
+	s.maskBGOwned = false
+
+	if shared == nil {
+		return nil
+	}
+	view, ok := shared.MaskTextureView()
+	if !ok || view == nil {
+		return nil
+	}
+	layout := s.convexRenderer.MaskBindLayout()
+	if layout == nil {
+		return nil
+	}
+	bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		Label:  "convex_mask_active_bg",
+		Layout: layout,
+		Entries: []webgpu.BindGroupEntry{
+			{Binding: 0, TextureView: view},
+			{Binding: 1, Sampler: s.maskSampler},
+			{Binding: 2, Buffer: s.maskUniform, Offset: 0, Size: maskParamsSize},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create active mask bind group: %w", err)
+	}
+	s.maskBindGroup = bg
+	s.maskBGOwned = true
+	return nil
+}
+
+func (s *GPURenderSession) frameMaskBindGroup() *webgpu.BindGroup {
+	if s.maskBindGroup != nil {
+		return s.maskBindGroup
+	}
+	return s.noMaskBindGroup
+}
+
+func (s *GPURenderSession) releaseMaskResources() {
+	if s.maskBGOwned && s.maskBindGroup != nil && s.maskBindGroup != s.noMaskBindGroup {
+		s.maskBindGroup.Release()
+	}
+	s.maskBindGroup = nil
+	s.maskBGOwned = false
+	if s.noMaskBindGroup != nil {
+		s.noMaskBindGroup.Release()
+		s.noMaskBindGroup = nil
+	}
+	if s.noMaskUniform != nil {
+		s.noMaskUniform.Release()
+		s.noMaskUniform = nil
+	}
+	if s.maskUniform != nil {
+		s.maskUniform.Release()
+		s.maskUniform = nil
+	}
+	if s.maskSampler != nil {
+		s.maskSampler.Release()
+		s.maskSampler = nil
+	}
+	if s.noMaskView != nil {
+		s.noMaskView.Release()
+		s.noMaskView = nil
+	}
+	if s.noMaskTex != nil {
+		s.noMaskTex.Release()
+		s.noMaskTex = nil
+	}
+}
+
 func (s *GPURenderSession) ClipBindLayout() *webgpu.BindGroupLayout {
 	return s.clipBindLayout
 }
@@ -2451,7 +2678,7 @@ func (s *GPURenderSession) encodeSubmitReadback(
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
 	if convexRes != nil {
-		s.convexRenderer.RecordDraws(rp, convexRes, clipBG)
+		s.convexRenderer.RecordDraws(rp, convexRes, clipBG, s.frameMaskBindGroup())
 	}
 
 	// Tier 2b: Stencil-then-cover paths.
@@ -2690,7 +2917,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
 	if convexRes != nil {
-		s.convexRenderer.RecordDraws(rp, convexRes, clipBG)
+		s.convexRenderer.RecordDraws(rp, convexRes, clipBG, s.frameMaskBindGroup())
 	}
 
 	// Tier 2b: Stencil-then-cover paths.
@@ -2767,7 +2994,7 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
 	if gr.convexRes != nil {
-		s.convexRenderer.RecordDraws(rp, gr.convexRes, clipBG, gr.hasDepthClip)
+		s.convexRenderer.RecordDraws(rp, gr.convexRes, clipBG, s.frameMaskBindGroup(), gr.hasDepthClip)
 	}
 
 	// Tier 2b: Stencil-then-cover paths.
