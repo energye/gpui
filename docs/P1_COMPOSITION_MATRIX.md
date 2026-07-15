@@ -199,8 +199,6 @@
 | D138 | mixed text modes clip | 多 TextMode×layer×path clip | `TestP1_Comp_D138_MixedTextModesLayerClip` | ✅ |
 | D139 | pattern dash image clip | hatch×dash×image×text plate | `TestP1_Comp_D139_PatternDashImageClipText` | ✅ |
 | D140 | kitchen-sink v4 stress | 导航+lattice+inspector+toast+filter | `TestP1_Comp_D140_KitchenSinkV4Stress` | ✅ |
-
-
 | D141 | command palette workspace | scrim×命令列表×快捷键×选中 | `TestP1_Comp_D141_CommandPaletteOverWorkspace` | ✅ |
 | D142 | nested popover cascade | 菜单×子菜单×tip | `TestP1_Comp_D142_NestedPopoverCascade` | ✅ |
 | D143 | dual viewport mock | 双视口独立 clip×共享 chrome | `TestP1_Comp_D143_DualViewportMockComposition` | ✅ |
@@ -221,8 +219,6 @@
 | D158 | circular progress dashboard | 环形进度×磁贴 | `TestP1_Comp_D158_CircularProgressDashboard` | ✅ |
 | D159 | multi-context snapshot merge | 多 Context 合成 merge | `TestP1_Comp_D159_MultiContextSnapshotMerge` | ✅ |
 | D160 | kitchen-sink v5 ultimate | mesh+blend+atlas+filter 终极应力 | `TestP1_Comp_D160_KitchenSinkV5UltimateStress` | ✅ |
-
-
 | D161 | kanban WIP ghost | 泳道×WIP×拖拽幽灵层 | `TestP1_Comp_D161_KanbanWIPGhostComposition` | ✅ |
 | D162 | tree inspector multi-select | 树×属性×面包屑×多选 | `TestP1_Comp_D162_TreeInspectorBreadcrumbMultiSelect` | ✅ |
 | D163 | three-way diff gutter | 三方 diff×gutter×toggle | `TestP1_Comp_D163_ThreeWayDiffGutterComposition` | ✅ |
@@ -243,8 +239,6 @@
 | D178 | constellation clusters | 星团×hull×连边 | `TestP1_Comp_D178_ConstellationClustersHullLabels` | ✅ |
 | D179 | multipage preview strip | 多页预览×active | `TestP1_Comp_D179_MultipagePreviewStripActive` | ✅ |
 | D180 | kitchen-sink v6 mega | atlas+mesh+filter+damage | `TestP1_Comp_D180_KitchenSinkV6MegaStress` | ✅ |
-
-
 | D181 | chat thread reactions | 会话气泡×反应×composer | `TestP1_Comp_D181_ChatThreadReactionsComposer` | ✅ |
 | D182 | inbox bulk actions | 侧栏×多选×批量栏 | `TestP1_Comp_D182_InboxFiltersBulkActions` | ✅ |
 | D183 | settings search sections | 搜索×锚点分区 | `TestP1_Comp_D183_SettingsSearchAnchoredSections` | ✅ |

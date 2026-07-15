@@ -218,7 +218,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 | `docs/S3C_M3_RENDER_GATE.md` | S3c 产出（M3 vertices/atlas/filter/present） |
 | `docs/P1_COMPLEX_UI_MATRIX.md` | P1 复杂 UI **形态**矩阵（Tier A–U，密度探针） |
 | `docs/P1_COMPOSITION_MATRIX.md` | **阶段 A** 任意组合维度矩阵（正确性完备） |
-| `docs/S4_PERF_BASELINE.md` | S4.0 产出（待 A 后） |
+| `docs/S4_PERF_BASELINE.md` | S4.0 产出（A 已关；待测量写入） |
 | `docs/OPTIMIZATION_PLAN.md` | 历史大计划；服从主线 |
 
 ---
