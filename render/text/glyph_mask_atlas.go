@@ -214,6 +214,12 @@ type glyphMaskPage struct {
 	// dirty marks if the page needs GPU re-upload.
 	dirty bool
 
+	// dirtyMin/Max track the axis-aligned dirty region for partial GPU upload
+	// (S4.2). Coordinates are inclusive min / exclusive max in page pixels.
+	// Empty when dirtyMinX >= dirtyMaxX.
+	dirtyMinX, dirtyMinY int
+	dirtyMaxX, dirtyMaxY int
+
 	// index is the page index in the manager.
 	index int
 
@@ -247,6 +253,64 @@ func (p *glyphMaskPage) copyMask(mask []byte, maskW, maskH, dstX, dstY int) {
 		copy(p.Data[dstOffset:dstOffset+maskW], mask[srcOffset:srcOffset+maskW])
 	}
 	p.dirty = true
+	p.expandDirty(dstX, dstY, maskW, maskH)
+}
+
+// expandDirty unions a rectangle into the page dirty region.
+// Grows by 1px padding for linear filter bleed at glyph edges (S4.2).
+func (p *glyphMaskPage) expandDirty(x, y, w, h int) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	const pad = 1
+	x0 := x - pad
+	y0 := y - pad
+	x1 := x + w + pad
+	y1 := y + h + pad
+	if x0 < 0 {
+		x0 = 0
+	}
+	if y0 < 0 {
+		y0 = 0
+	}
+	if x1 > p.Size {
+		x1 = p.Size
+	}
+	if y1 > p.Size {
+		y1 = p.Size
+	}
+	if p.dirtyMinX >= p.dirtyMaxX || p.dirtyMinY >= p.dirtyMaxY {
+		p.dirtyMinX, p.dirtyMinY = x0, y0
+		p.dirtyMaxX, p.dirtyMaxY = x1, y1
+		return
+	}
+	if x0 < p.dirtyMinX {
+		p.dirtyMinX = x0
+	}
+	if y0 < p.dirtyMinY {
+		p.dirtyMinY = y0
+	}
+	if x1 > p.dirtyMaxX {
+		p.dirtyMaxX = x1
+	}
+	if y1 > p.dirtyMaxY {
+		p.dirtyMaxY = y1
+	}
+}
+
+// clearDirty marks the page clean and clears the dirty region.
+func (p *glyphMaskPage) clearDirty() {
+	p.dirty = false
+	p.dirtyMinX, p.dirtyMinY = 0, 0
+	p.dirtyMaxX, p.dirtyMaxY = 0, 0
+}
+
+// dirtyRegion returns the dirty rectangle (x,y,w,h). ok=false if none.
+func (p *glyphMaskPage) dirtyRegion() (x, y, w, h int, ok bool) {
+	if !p.dirty || p.dirtyMinX >= p.dirtyMaxX || p.dirtyMinY >= p.dirtyMaxY {
+		return 0, 0, 0, 0, false
+	}
+	return p.dirtyMinX, p.dirtyMinY, p.dirtyMaxX - p.dirtyMinX, p.dirtyMaxY - p.dirtyMinY, true
 }
 
 // glyphMaskShelfAllocator is a shelf-based allocator for variable-sized glyph masks.
@@ -681,7 +745,10 @@ func (a *GlyphMaskAtlas) evictTail() {
 func (a *GlyphMaskAtlas) resetPage(page *glyphMaskPage) {
 	page.allocator.Reset()
 	clear(page.Data)
+	// Full-page dirty so GPU texture is zeroed after eviction/reset.
 	page.dirty = true
+	page.dirtyMinX, page.dirtyMinY = 0, 0
+	page.dirtyMaxX, page.dirtyMaxY = page.Size, page.Size
 	page.entryCount = 0
 }
 
@@ -800,8 +867,50 @@ func (a *GlyphMaskAtlas) MarkClean(index int) {
 	defer a.mu.Unlock()
 
 	if index >= 0 && index < len(a.pages) {
-		a.pages[index].dirty = false
+		a.pages[index].clearDirty()
 	}
+}
+
+// GlyphMaskDirtyUpload describes a dirty page region for GPU upload (S4.2).
+type GlyphMaskDirtyUpload struct {
+	Index      int
+	X, Y, W, H int  // region in page pixels
+	FullPage   bool // true → upload entire page (region still valid as full size)
+}
+
+// DirtyUploads returns per-page dirty regions for GPU upload.
+// Prefer partial regions; falls back to full page when dirty covers ≥50% area
+// or when region is empty but page is marked dirty.
+func (a *GlyphMaskAtlas) DirtyUploads() []GlyphMaskDirtyUpload {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	var out []GlyphMaskDirtyUpload
+	for i, page := range a.pages {
+		if !page.dirty {
+			continue
+		}
+		x, y, w, h, ok := page.dirtyRegion()
+		if !ok {
+			out = append(out, GlyphMaskDirtyUpload{
+				Index: i, X: 0, Y: 0, W: page.Size, H: page.Size, FullPage: true,
+			})
+			continue
+		}
+		pageArea := page.Size * page.Size
+		dirtyArea := w * h
+		full := dirtyArea*2 >= pageArea // ≥50%
+		if full {
+			out = append(out, GlyphMaskDirtyUpload{
+				Index: i, X: 0, Y: 0, W: page.Size, H: page.Size, FullPage: true,
+			})
+		} else {
+			out = append(out, GlyphMaskDirtyUpload{
+				Index: i, X: x, Y: y, W: w, H: h, FullPage: false,
+			})
+		}
+	}
+	return out
 }
 
 // Clear removes all cached glyphs and resets all pages.

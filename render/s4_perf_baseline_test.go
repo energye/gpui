@@ -130,6 +130,9 @@ type s4Scene struct {
 	Name     string
 	W, H     int
 	NeedFont bool
+	// Retained reuses one Context across measured frames (S4.4).
+	// First warmup frames still cold-start; measured iters amortize caches.
+	Retained bool
 	// Draw builds one frame. May call intermediate FlushGPU (backdrop scenes).
 	Draw func(t *testing.T, dc *render.Context, font string)
 }
@@ -164,27 +167,48 @@ func s4Measure(t *testing.T, sc s4Scene, warmup, iters int) s4SceneResult {
 	flushes := make([]float64, 0, iters)
 	var lastStats render.RenderPathStats
 
-	for i := 0; i < warmup+iters; i++ {
-		// Fresh context each measured frame avoids retained-layer amortization
-		// and matches "rebuild + flush" baseline semantics for S4.0.
-		// Reuse one context for cost realism of retained GPU device, but clear stats.
-		_ = i
-		frameDC := render.NewContext(sc.W, sc.H)
+	var retainedDC *render.Context
+	if sc.Retained {
+		retainedDC = render.NewContext(sc.W, sc.H)
+		defer retainedDC.Close()
 		if sc.NeedFont {
-			_ = frameDC.LoadFontFace(font, 13)
+			_ = retainedDC.LoadFontFace(font, 13)
+		}
+	}
+
+	for i := 0; i < warmup+iters; i++ {
+		var frameDC *render.Context
+		owned := false
+		if sc.Retained {
+			frameDC = retainedDC
+		} else {
+			// Fresh context each frame: S4.0 cold rebuild baseline.
+			frameDC = render.NewContext(sc.W, sc.H)
+			owned = true
+			if sc.NeedFont {
+				_ = frameDC.LoadFontFace(font, 13)
+			}
 		}
 		frameDC.ResetRenderPathStats()
+		if sc.Retained {
+			// Clear full canvas between retained frames.
+			p1White(frameDC, sc.W, sc.H)
+		}
 
 		t0 := time.Now()
 		sc.Draw(t, frameDC, font)
 		t1 := time.Now()
 		if err := frameDC.FlushGPU(); err != nil {
-			frameDC.Close()
+			if owned {
+				frameDC.Close()
+			}
 			t.Fatalf("%s FlushGPU iter=%d: %v", sc.Name, i, err)
 		}
 		t2 := time.Now()
 		stats := frameDC.RenderPathStats()
-		frameDC.Close()
+		if owned {
+			frameDC.Close()
+		}
 
 		if stats.GPUOps == 0 {
 			t.Fatalf("%s iter=%d GPUOps==0: %s", sc.Name, i, stats.LogLine())
@@ -568,6 +592,67 @@ func s4Scenes() []s4Scene {
 				dc.SetDash()
 			},
 		},
+		{
+			// S4.4 retained: reuse Context so path/glyph/image caches hit across frames.
+			Name:     "B14_RetainedPathText",
+			W:        480,
+			H:        360,
+			NeedFont: true,
+			Retained: true,
+			Draw: func(t *testing.T, dc *render.Context, _ string) {
+				s4SolidRGBA(dc, 0.97, 0.97, 0.98, 1, 0, 0, 480, 360)
+				for i := 0; i < 20; i++ {
+					p := render.NewPath()
+					x0 := 20 + float64(i%5)*90
+					y0 := 30 + float64(i/5)*70
+					p.MoveTo(x0, y0)
+					p.LineTo(x0+50, y0+5)
+					p.LineTo(x0+40, y0+45)
+					p.Close()
+					dc.SetRGB(0.2, 0.35, 0.8)
+					dc.SetLineWidth(2)
+					dc.AppendPath(p)
+					_ = dc.Stroke()
+				}
+				dc.SetRGB(0.12, 0.12, 0.15)
+				for i := 0; i < 12; i++ {
+					dc.DrawString(fmt.Sprintf("retained-row-%02d cache", i), 24, 280+float64(i)*6)
+				}
+			},
+		},
+		{
+			// S4.4 damage: multi-region dirty redraw on retained context.
+			Name:     "B15_RetainedMultiDamage",
+			W:        320,
+			H:        200,
+			NeedFont: true,
+			Retained: true,
+			Draw: func(t *testing.T, dc *render.Context, _ string) {
+				s4SolidRGBA(dc, 0.15, 0.16, 0.2, 1, 0, 0, 320, 36)
+				dc.SetRGB(0.95, 0.96, 0.98)
+				dc.DrawString("damage retained", 12, 24)
+				dc.SetRGB(0.88, 0.90, 0.93)
+				dc.DrawRoundedRectangle(16, 52, 130, 120, 8)
+				_ = dc.Fill()
+				dc.DrawRoundedRectangle(174, 52, 130, 120, 8)
+				_ = dc.Fill()
+				if err := dc.FlushGPU(); err != nil {
+					t.Fatalf("B15 base flush: %v", err)
+				}
+				dc.ResetFrameDamage()
+				dc.ClipRect(16, 52, 130, 120)
+				s4SolidRGBA(dc, 0.20, 0.45, 0.90, 1, 16, 52, 130, 120)
+				dc.SetRGB(1, 1, 1)
+				dc.DrawString("A*", 66, 120)
+				dc.ResetClip()
+				dc.ClipRect(174, 52, 130, 120)
+				s4SolidRGBA(dc, 0.15, 0.65, 0.40, 1, 174, 52, 130, 120)
+				dc.SetRGB(1, 1, 1)
+				dc.DrawString("B*", 226, 120)
+				dc.ResetClip()
+				_ = dc.FrameDamage() // ensure tracking API exercised
+			},
+		},
 	}
 }
 
@@ -591,7 +676,7 @@ func TestS4_PerfBaseline_Scenes(t *testing.T) {
 		NumCPU:   runtime.NumCPU(),
 		Hostname: host,
 		WGPUPath: os.Getenv("WGPU_NATIVE_PATH"),
-		Note:     "S4.0 measure-only. upload/draw counters N/A (only gpu_ops/cpu_fallback_ops). Fresh Context per measured frame.",
+		Note:     "S4.0 measure-only. upload/draw counters N/A (only gpu_ops/cpu_fallback_ops). Default: fresh Context per frame; B14/B15 Retained=true reuses Context.",
 	}
 
 	scenes := s4Scenes()

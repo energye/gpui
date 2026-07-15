@@ -60,7 +60,7 @@ go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes' -timeout 10m -v
 
 ---
 
-## 3. 场景表（B01–B12）
+## 3. 场景表（B01–B15）
 
 | ID | 场景 | 尺寸 | 对应 / 意图 |
 |----|------|------|-------------|
@@ -77,6 +77,8 @@ go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes' -timeout 10m -v
 | B11 | StressNestedClipLayerText | 640×480 | 嵌套 clip/layer/text 应力 |
 | B12 | PathStrokeDashCloud | 480×360 | path stroke + dash 云（S4.3 输入） |
 | B13 | ImageBatchNoClip | 512×512 | **S4.1** 同纹理无 clip 批压（64 tiles） |
+| B14 | RetainedPathText | 480×360 | **S4.4** retained Context：path + text |
+| B15 | RetainedMultiDamage | 320×200 | **S4.4** retained + multi-region damage |
 
 ---
 
@@ -110,7 +112,7 @@ go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes' -timeout 10m -v
 3. **S4.1 batch** 优先对比：**B02**（200 rect）、**B08/B10**（高 `gpu_ops`）。  
 4. **S4.2 glyph/atlas** 优先对比：**B03**、**B08**、kitchen-sink 文本段。  
 5. **S4.3 path/texture cache** 优先对比：**B12**、**B10**、**B07**。  
-6. **S4.4 damage/retained** 优先对比：**B06**；并扩展 retained Context（非每帧 NewContext）测量模式。  
+6. **S4.4 damage/retained** 对比：**B06** + **B14/B15**（`Retained=true`，复用 Context）。  
 7. **upload/draw 计数仍 N/A** — S4.1 前可按需给 accelerator 加轻量计数器，但不阻塞 S4.0 关闭。
 
 ---
@@ -139,12 +141,19 @@ go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes|TestS3|TestP1_' -time
 | 条件 | 状态 |
 |------|------|
 | 只测量、不改算法 | ✅ |
-| P1/A 场景 wall-time + path stats | ✅ B01–B12 |
+| P1/A 场景 wall-time + path stats | ✅ B01–B15 |
 | 产出本文 + `tmp/s4_baseline.json` | ✅ |
 | 真 `WGPU_NATIVE_PATH` + `GPUOps>0` | ✅ |
 | upload/draw 可得则记 | ⚠️ N/A（书面记录） |
 
-**S4.0 关闭。** S4.1 见 `docs/S4_1_BATCH.md`（已关闭）。下一焦点：**S4.2 glyph/atlas**。
+**S4.0 关闭。** 后续切片均已关闭：
+
+- S4.1 `docs/S4_1_BATCH.md`
+- S4.2 `docs/S4_2_GLYPH_ATLAS.md`
+- S4.3 `docs/S4_3_PATH_TEXTURE_CACHE.md`
+- S4.4 `docs/S4_4_DAMAGE_RETAINED.md`
+
+**S4.x 全线关闭。**
 
 ---
 
@@ -152,4 +161,5 @@ go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes|TestS3|TestP1_' -time
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.1 | 增补 B13–B15（image batch / retained path-text / multi-damage）；S4.x 关闭交叉引用 |
 | 2026-07-15 | 1.0 | 首版基线：12 场景 × 20 iters；Intel/NVIDIA 双 GPU 机器实测 |

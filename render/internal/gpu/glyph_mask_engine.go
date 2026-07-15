@@ -41,6 +41,13 @@ type GlyphMaskEngine struct {
 	// GPU textures for atlas pages. Index matches atlas page index.
 	pageTextures []*webgpu.Texture
 	pageViews    []*webgpu.TextureView
+
+	// S4.2 upload convergence stats (last SyncAtlasTextures call).
+	lastUploadBytes    int64
+	lastUploadRegions  int
+	lastPartialUploads int
+	lastFullUploads    int
+	totalUploadBytes   int64
 }
 
 // NewGlyphMaskEngine creates a new glyph mask engine with the default atlas
@@ -505,16 +512,28 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 // SyncAtlasTextures uploads dirty atlas pages to the GPU as R8 textures.
 // Must be called before rendering any glyph mask batches. Creates new
 // textures on first use and re-uploads data when pages are modified.
+//
+// S4.2: prefers partial dirty-region uploads (with 256-byte row alignment)
+// when the dirty area is <50% of the page; otherwise falls back to full-page
+// upload. Advances the atlas frame after upload so LRU compaction can reclaim
+// stale pages (Skia GrAtlasManager::postFlush pattern).
 func (e *GlyphMaskEngine) SyncAtlasTextures(device *webgpu.Device, queue *webgpu.Queue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	dirtyPages := e.atlas.DirtyPages()
-	if len(dirtyPages) == 0 {
+	uploads := e.atlas.DirtyUploads()
+	e.lastUploadBytes = 0
+	e.lastUploadRegions = 0
+	e.lastPartialUploads = 0
+	e.lastFullUploads = 0
+	if len(uploads) == 0 {
+		// Still advance frame so compaction runs even on hit-only frames.
+		e.atlas.AdvanceFrame()
 		return nil
 	}
 
-	for _, idx := range dirtyPages {
+	for _, up := range uploads {
+		idx := up.Index
 		r8Data, pageSize, _ := e.atlas.PageR8Data(idx)
 		if r8Data == nil || pageSize == 0 {
 			continue
@@ -528,7 +547,7 @@ func (e *GlyphMaskEngine) SyncAtlasTextures(device *webgpu.Device, queue *webgpu
 
 		size := uint32(pageSize) //nolint:gosec // atlas size always fits uint32
 
-		// Create texture on first use.
+		// Create texture on first use (always full page size).
 		if e.pageTextures[idx] == nil {
 			tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 				Label:         fmt.Sprintf("glyph_mask_atlas_%d", idx),
@@ -555,29 +574,109 @@ func (e *GlyphMaskEngine) SyncAtlasTextures(device *webgpu.Device, queue *webgpu
 				return fmt.Errorf("create glyph mask atlas view %d: %w", idx, err)
 			}
 			e.pageViews[idx] = view
+			// First create: must upload full page (texture is uninitialized).
+			up.FullPage = true
+			up.X, up.Y, up.W, up.H = 0, 0, pageSize, pageSize
 		}
 
-		// Upload R8 data. R8 format = 1 byte per pixel, so BytesPerRow = width.
+		var (
+			uploadData  []byte
+			originX     uint32
+			originY     uint32
+			extentW     uint32
+			extentH     uint32
+			bytesPerRow uint32
+			rowsPerImg  uint32
+			byteCount   int
+		)
+
+		if up.FullPage || up.W <= 0 || up.H <= 0 || up.W >= pageSize && up.H >= pageSize {
+			uploadData = r8Data
+			originX, originY = 0, 0
+			extentW, extentH = size, size
+			bytesPerRow = size
+			rowsPerImg = size
+			byteCount = pageSize * pageSize
+			e.lastFullUploads++
+		} else {
+			// Partial upload with 256-byte row alignment (WebGPU multi-row rule).
+			x, y, w, h := up.X, up.Y, up.W, up.H
+			if x < 0 {
+				x = 0
+			}
+			if y < 0 {
+				y = 0
+			}
+			if x+w > pageSize {
+				w = pageSize - x
+			}
+			if y+h > pageSize {
+				h = pageSize - y
+			}
+			if w <= 0 || h <= 0 {
+				e.atlas.MarkClean(idx)
+				continue
+			}
+			alignedBPR := uint32((w + 255) &^ 255) //nolint:gosec
+			if h == 1 {
+				// Single-row copies may use tight packing.
+				alignedBPR = uint32(w) //nolint:gosec
+			}
+			staging := make([]byte, int(alignedBPR)*h)
+			for row := 0; row < h; row++ {
+				src := (y+row)*pageSize + x
+				dst := row * int(alignedBPR)
+				copy(staging[dst:dst+w], r8Data[src:src+w])
+			}
+			uploadData = staging
+			originX = uint32(x) //nolint:gosec
+			originY = uint32(y) //nolint:gosec
+			extentW = uint32(w) //nolint:gosec
+			extentH = uint32(h) //nolint:gosec
+			bytesPerRow = alignedBPR
+			rowsPerImg = extentH
+			byteCount = len(staging)
+			e.lastPartialUploads++
+		}
+
 		if err := queue.WriteTexture(
 			&webgpu.ImageCopyTexture{
 				Texture:  e.pageTextures[idx],
 				MipLevel: 0,
+				Origin:   webgpu.Origin3D{X: originX, Y: originY, Z: 0},
 			},
-			r8Data,
+			uploadData,
 			&webgpu.ImageDataLayout{
 				Offset:       0,
-				BytesPerRow:  size,
-				RowsPerImage: size,
+				BytesPerRow:  bytesPerRow,
+				RowsPerImage: rowsPerImg,
 			},
-			&webgpu.Extent3D{Width: size, Height: size, DepthOrArrayLayers: 1},
+			&webgpu.Extent3D{Width: extentW, Height: extentH, DepthOrArrayLayers: 1},
 		); err != nil {
 			return fmt.Errorf("upload glyph mask atlas %d: %w", idx, err)
 		}
 
+		e.lastUploadBytes += int64(byteCount)
+		e.lastUploadRegions++
 		e.atlas.MarkClean(idx)
 	}
 
+	e.totalUploadBytes += e.lastUploadBytes
+	// Skia postFlush: advance frame after atlas work so stale pages compact.
+	e.atlas.AdvanceFrame()
 	return nil
+}
+
+// LastUploadStats returns S4.2 stats from the most recent SyncAtlasTextures.
+func (e *GlyphMaskEngine) LastUploadStats() (bytes int64, regions, partial, full int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lastUploadBytes, e.lastUploadRegions, e.lastPartialUploads, e.lastFullUploads
+}
+
+// AtlasStats returns hit/miss/entry/page counts from the underlying atlas.
+func (e *GlyphMaskEngine) AtlasStats() (hits, misses uint64, entries, pages int) {
+	return e.atlas.Stats()
 }
 
 // PageTextureView returns the GPU texture view for the given atlas page.

@@ -601,3 +601,63 @@ func TestGlyphMaskAtlas_EvictTail_ResetsEmptyPage(t *testing.T) {
 		t.Errorf("EntryCount = %d, want 3 (capacity)", atlas.EntryCount())
 	}
 }
+
+func TestS42_DirtyRegionPartialUnion(t *testing.T) {
+	atlas := NewGlyphMaskAtlasDefault()
+	key1 := MakeGlyphMaskKey(1, 10, 16, 0, 0)
+	key2 := MakeGlyphMaskKey(1, 11, 16, 0, 0)
+	mask := make([]byte, 8*8)
+	for i := range mask {
+		mask[i] = 255
+	}
+	if _, err := atlas.Put(key1, mask, 8, 8, 0, 0); err != nil {
+		t.Fatalf("Put1: %v", err)
+	}
+	ups := atlas.DirtyUploads()
+	if len(ups) != 1 {
+		t.Fatalf("want 1 dirty upload, got %d", len(ups))
+	}
+	if ups[0].FullPage {
+		// First put into empty page — dirty is small, should be partial unless ≥50%.
+		// 8x8 on 1024x1024 is partial.
+		t.Fatalf("expected partial upload for small glyph, got full page %v", ups[0])
+	}
+	if ups[0].W < 8 || ups[0].H < 8 {
+		t.Fatalf("dirty region too small: %+v", ups[0])
+	}
+	atlas.MarkClean(ups[0].Index)
+	if len(atlas.DirtyUploads()) != 0 {
+		t.Fatal("expected clean after MarkClean")
+	}
+
+	if _, err := atlas.Put(key2, mask, 8, 8, 0, 0); err != nil {
+		t.Fatalf("Put2: %v", err)
+	}
+	ups = atlas.DirtyUploads()
+	if len(ups) != 1 || ups[0].FullPage {
+		t.Fatalf("second glyph should partial dirty: %+v", ups)
+	}
+}
+
+func TestS42_DirtyRegionFullWhenLarge(t *testing.T) {
+	cfg := DefaultGlyphMaskAtlasConfig()
+	cfg.Size = 64 // small page so 50% threshold easy
+	atlas, err := NewGlyphMaskAtlas(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Fill roughly half+ of page with one big mask via copyMask path (Put).
+	// 48x48 = 2304, page=4096 → >50%
+	big := make([]byte, 48*48)
+	key := MakeGlyphMaskKey(2, 1, 40, 0, 0)
+	if _, err := atlas.Put(key, big, 48, 48, 0, 0); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	ups := atlas.DirtyUploads()
+	if len(ups) != 1 {
+		t.Fatalf("want 1 upload, got %d", len(ups))
+	}
+	if !ups[0].FullPage {
+		t.Fatalf("expected full page when dirty ≥50%%, got %+v", ups[0])
+	}
+}

@@ -734,22 +734,36 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		}
 	}
 
-	// Fall back to stencil-then-cover.
-	tess := NewFanTessellator()
-	tess.TessellatePath(path)
-	fanVerts := tess.Vertices()
+	// Fall back to stencil-then-cover (S4.3: reuse tessellation via pathGeomCache).
+	var fanVerts []float32
+	var coverQuad [12]float32
+	aaOff := !rc.antiAlias
+	fr := paint.FillRule
+	if cache := rc.shared.PathGeomCache(); cache != nil {
+		if v, cq, ok := cache.GetOrTessellate(path, fr, aaOff); ok {
+			fanVerts, coverQuad = v, cq
+		}
+	}
+	if fanVerts == nil {
+		tess := NewFanTessellator()
+		tess.TessellatePath(path)
+		fanVerts = tess.Vertices()
+		if len(fanVerts) == 0 {
+			return nil
+		}
+		coverQuad = tess.CoverQuad()
+	}
 	if len(fanVerts) == 0 {
 		return nil
 	}
 
 	cmd := StencilPathCommand{
-		Vertices:  make([]float32, len(fanVerts)),
-		CoverQuad: tess.CoverQuad(),
+		Vertices:  fanVerts, // already owned copy from cache/miss path
+		CoverQuad: coverQuad,
 		Color:     [4]float32{premulR, premulG, premulB, premulA},
 		FillRule:  paint.FillRule,
 		BlendMode: paintBlendMode(paint),
 	}
-	copy(cmd.Vertices, fanVerts)
 	rc.QueueStencil(target, cmd)
 	return nil
 }
@@ -807,20 +821,38 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		}
 	}
 
-	strokeVerbs := convertPathVerbsToStroke(pathToStroke.Verbs())
-	style := stroke.Stroke{
-		Width:      effectiveStrokeWidth(paint),
-		Cap:        stroke.LineCap(paint.EffectiveLineCap()),
-		Join:       stroke.LineJoin(paint.EffectiveLineJoin()),
-		MiterLimit: paint.EffectiveMiterLimit(),
+	// S4.3: stroke expansion cache keyed by path + style + dash.
+	var dashHash uint64
+	if paint.IsDashed() {
+		if d := paint.EffectiveDash(); d != nil {
+			dashHash = hashDash(d)
+		}
 	}
-	expander := stroke.NewStrokeExpander(style)
-	outVerbs, outCoords := expander.Expand(strokeVerbs, pathToStroke.Coords())
-	if len(outVerbs) == 0 {
-		return nil
+	skey := makeStrokeCacheKey(pathToStroke, paint, !rc.antiAlias, dashHash)
+	var fillPath *render.Path
+	if sc := rc.shared.StrokeGeomCache(); sc != nil {
+		if cached, ok := sc.Get(skey); ok {
+			fillPath = cached
+		}
 	}
-
-	fillPath := strokeResultToPath(outVerbs, outCoords)
+	if fillPath == nil {
+		strokeVerbs := convertPathVerbsToStroke(pathToStroke.Verbs())
+		style := stroke.Stroke{
+			Width:      effectiveStrokeWidth(paint),
+			Cap:        stroke.LineCap(paint.EffectiveLineCap()),
+			Join:       stroke.LineJoin(paint.EffectiveLineJoin()),
+			MiterLimit: paint.EffectiveMiterLimit(),
+		}
+		expander := stroke.NewStrokeExpander(style)
+		outVerbs, outCoords := expander.Expand(strokeVerbs, pathToStroke.Coords())
+		if len(outVerbs) == 0 {
+			return nil
+		}
+		fillPath = strokeResultToPath(outVerbs, outCoords)
+		if sc := rc.shared.StrokeGeomCache(); sc != nil && fillPath != nil {
+			sc.Put(skey, fillPath)
+		}
+	}
 
 	// EvenOdd correctly handles both stroke topologies:
 	//   - Smooth paths (round-rects, circles): 2-contour ring (outer CW + inner CCW).

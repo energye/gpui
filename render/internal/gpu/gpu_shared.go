@@ -94,6 +94,10 @@ type GPUShared struct {
 	// Compute pipeline.
 	velloAccel *VelloAccelerator
 
+	// S4.3 geometry caches (shared across contexts).
+	pathGeomCache   *PathGeometryCache
+	strokeGeomCache *StrokeGeometryCache
+
 	// Texture pool for per-context MSAA/stencil textures (Flutter RenderTargetCache pattern).
 	texturePool *TexturePool
 
@@ -729,4 +733,24 @@ func (s *GPUShared) registerFilterGraphIfNeeded() {
 		return runGPUFilterGraph(device, queue, cache, src, w, h, nodes)
 	})
 	gpuFilterGraphRegistered = true
+}
+
+// PathGeomCache returns the shared path tessellation cache (S4.3), creating if needed.
+func (s *GPUShared) PathGeomCache() *PathGeometryCache {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pathGeomCache == nil {
+		s.pathGeomCache = NewPathGeometryCache()
+	}
+	return s.pathGeomCache
+}
+
+// StrokeGeomCache returns the shared stroke expansion cache (S4.3).
+func (s *GPUShared) StrokeGeomCache() *StrokeGeometryCache {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.strokeGeomCache == nil {
+		s.strokeGeomCache = NewStrokeGeometryCache()
+	}
+	return s.strokeGeomCache
 }

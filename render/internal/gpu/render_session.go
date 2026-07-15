@@ -933,13 +933,12 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 
 	blitOnly := s.isBlitOnly(grpRes, baseLayerRes)
 
-	// ADR-021: DamageRect (LoadOpLoad + scissor) is only supported on the
-	// blit-only compositor path. MSAA render passes cannot use LoadOpLoad
-	// because multisampled content is discarded after resolve (StoreOp=DontCare).
-	// No enterprise framework (Chrome, Flutter, Skia) uses LoadOpLoad on MSAA.
-	// Warn if caller passed damageRect but MSAA path will be used.
+	// ADR-021: true LoadOpLoad damage preserve is blit-only only.
+	// MSAA cannot LoadOpLoad after resolve (StoreOp=DontCare). S4.4 still
+	// intersects group scissor with damage union on MSAA to cut overdraw;
+	// outside-damage content is re-cleared/redrawn when the pass clears.
 	if !blitOnly && len(target.DamageRects) > 0 {
-		slogger().Warn("damageRects ignored: MSAA render path requires full LoadOpClear; use blit-only compositor for damage-aware rendering (ADR-021)")
+		slogger().Debug("MSAA path: damage applied as scissor intersection only (no LoadOpLoad; ADR-021)")
 	}
 
 	// ADR-017: shared encoder → record render pass without submit.
@@ -947,13 +946,13 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 		if blitOnly {
 			return s.encodeBlitToEncoder(sharedEncoder, activeView, w, h, grpRes, baseLayerRes, target.DamageRects)
 		}
-		return s.encodeToEncoder(sharedEncoder, activeView, w, h, grpRes, baseLayerRes)
+		return s.encodeToEncoder(sharedEncoder, activeView, w, h, grpRes, baseLayerRes, target.DamageRects)
 	}
 
 	if blitOnly {
 		return s.encodeBlitOnlyPass(activeView, w, h, grpRes, baseLayerRes, target.DamageRects)
 	}
-	return s.encodeSubmitSurfaceGrouped(activeView, w, h, grpRes, baseLayerRes)
+	return s.encodeSubmitSurfaceGrouped(activeView, w, h, grpRes, baseLayerRes, target.DamageRects)
 }
 
 // releaseDepthClipResources frees per-group owned depth clip buffers.
@@ -3428,6 +3427,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	w, h uint32,
 	grpRes []groupResources,
 	baseLayerRes *imageFrameResources,
+	damageRects []image.Rectangle,
 ) error {
 	encoder, err := s.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
 		Label: "session_surface_encoder",
@@ -3494,9 +3494,12 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	}
 
 	// Render each group with its scissor rect applied.
+	// S4.4: damage scissor intersection on MSAA surface path.
+	damageUnion := damageRectsUnion(damageRects)
 	for i := range grpRes {
-		s.applyGroupScissor(rp, grpRes[i].scissorRect, w, h)
-		s.recordGroupDraws(rp, &grpRes[i])
+		if s.applyGroupScissorWithDamage(rp, grpRes[i].scissorRect, w, h, damageUnion) {
+			s.recordGroupDraws(rp, &grpRes[i])
+		}
 	}
 
 	if endErr := rp.End(); endErr != nil {
@@ -3537,6 +3540,7 @@ func (s *GPURenderSession) encodeToEncoder(
 	w, h uint32,
 	grpRes []groupResources,
 	baseLayerRes *imageFrameResources,
+	damageRects []image.Rectangle,
 ) error {
 	if view != s.lastView {
 		s.frameRendered = false
@@ -3575,9 +3579,11 @@ func (s *GPURenderSession) encodeToEncoder(
 		s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
 	}
 
+	damageUnion := damageRectsUnion(damageRects)
 	for i := range grpRes {
-		s.applyGroupScissor(rp, grpRes[i].scissorRect, w, h)
-		s.recordGroupDraws(rp, &grpRes[i])
+		if s.applyGroupScissorWithDamage(rp, grpRes[i].scissorRect, w, h, damageUnion) {
+			s.recordGroupDraws(rp, &grpRes[i])
+		}
 	}
 
 	if endErr := rp.End(); endErr != nil {

@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.47 | 日期：2026-07-15  
+> 版本：1.51 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -143,11 +143,11 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 |--------|------|----------|
 | **S4.0 基线** | 只测量、不改算法：在 P1/A 场景上记录 FPS/frame time、`gpu_ops`、`cpu_fallback_ops`、上传/draw 计数（可得则记） | ✅ 产出 `docs/S4_PERF_BASELINE.md` + `TestS4_PerfBaseline_Scenes` + `tmp/s4_baseline.json` |
 | **S4.1 batch** | 同类 draw 合并 / instance 或顶点批 | ✅ Image multi-quad（`docs/S4_1_BATCH.md`）；SDF/text 既有 batch 保留 |
-| **S4.2 glyph/atlas** | 字形图集命中与上传收敛 | 文本压力场景 + 回归绿 |
-| **S4.3 path/texture cache** | path 几何/纹理复用 | 形状/图像压力 + 回归绿 |
-| **S4.4 damage/retained** | 脏区/保留层减少重绘 | multi-region damage + 回归绿 |
+| **S4.2 glyph/atlas** | 字形图集命中与上传收敛 | ✅ partial dirty upload + AdvanceFrame（`docs/S4_2_GLYPH_ATLAS.md`） |
+| **S4.3 path/texture cache** | path 几何/纹理复用 | ✅ `docs/S4_3_PATH_TEXTURE_CACHE.md` + `TestS43_*` |
+| **S4.4 damage/retained** | 脏区/保留层减少重绘 | ✅ `docs/S4_4_DAMAGE_RETAINED.md` + B14/B15 + `TestS44_*` |
 
-**明确后置（不阻塞 S4.0–S4.4 开跑）**：完整 multiplanar YUV、完整 PDF/SVG 引擎（R.02）、与 Skia 绝对 FPS 对标报表。
+**明确后置（S4 已关闭，仍不阻塞主线）**：完整 multiplanar YUV、完整 PDF/SVG 引擎（R.02）、与 Skia 绝对 FPS 对标报表。
 
 ---
 
@@ -164,7 +164,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 7 | 能力表 🔄 / M4 GPU 相关 | ✅（仅 R.02 PDF/SVG document ⬜ 旁路） |
 | 8 | P1 复杂 UI 形态 Tier A–U | ✅（形态密度探针，非控件层） |
 | 9 | **阶段 A：任意组合维度 D01–D200** | ✅ **已关闭**（chi 至 D200；停扩组合探针） |
-| 10 | **S4 性能** | 🔄 **当前焦点**；**S4.0–S4.1 ✅** → **S4.2 glyph/atlas** |
+| 10 | **S4 性能** | ✅ **S4.0–S4.4 全线关闭**（见 `docs/S4_*.md`） |
 
 ### 阶段 A — 任意组合维度（非 antd 控件清单）
 
@@ -182,8 +182,11 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 - [x] **阶段 A 关闭** → 启动 **S4.0 基线**  
 - [x] **S4.0 基线关闭** → 启动 **S4.1 batch**  
 - [x] **S4.1 batch 关闭**（image multi-quad）→ 启动 **S4.2 glyph/atlas**  
+- [x] **S4.2 glyph/atlas 关闭**
+- [x] **S4.3 path/texture cache 关闭** → `docs/S4_3_PATH_TEXTURE_CACHE.md`
+- [x] **S4.4 damage/retained 关闭** → `docs/S4_4_DAMAGE_RETAINED.md`（**S4.x 全线关闭**）  
 
-**A 已关闭**。**S4.0 / S4.1 已关闭**。当前进入 **S4.2 glyph/atlas**。
+**A 已关闭**。**S4.0–S4.4 已关闭**。性能主线收口；后置项仍不阻塞。
 
 **非目标（仍排除）**：控件层 / Ant Design 组件实现；R.02 可并行旁路。
 
@@ -220,7 +223,11 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 | `docs/S3C_M3_RENDER_GATE.md` | S3c 产出（M3 vertices/atlas/filter/present） |
 | `docs/P1_COMPLEX_UI_MATRIX.md` | P1 复杂 UI **形态**矩阵（Tier A–U，密度探针） |
 | `docs/P1_COMPOSITION_MATRIX.md` | **阶段 A** 任意组合维度矩阵（正确性完备） |
-| `docs/S4_PERF_BASELINE.md` | S4.0 产出（✅ 已写入；B01–B12 基线） |
+| `docs/S4_PERF_BASELINE.md` | S4.0 产出（✅ B01–B15 + retained B14/B15） |
+| `docs/S4_1_BATCH.md` | S4.1 产出（✅ image multi-quad） |
+| `docs/S4_2_GLYPH_ATLAS.md` | S4.2 产出（✅ dirty partial upload） |
+| `docs/S4_3_PATH_TEXTURE_CACHE.md` | S4.3 产出（✅ path/stroke/image cache） |
+| `docs/S4_4_DAMAGE_RETAINED.md` | S4.4 产出（✅ damage/retained；**S4.x 关闭**） |
 | `docs/OPTIMIZATION_PLAN.md` | 历史大计划；服从主线 |
 
 ---
@@ -229,6 +236,10 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.51 | **S4 收口审计**：产出表补齐 S4_1–S4_4；回归套件复验；确认 S4.x 全线关闭 |
+| 2026-07-15 | 1.50 | **S4.x 全线关闭**：S4.3 path/texture cache + S4.4 damage/retained；文档 `S4_3_*`/`S4_4_*`；B14/B15 retained 基线 |
+| 2026-07-15 | 1.49 | **S4.3 关闭**：Path/Stroke geometry cache + ImageCache stats |
+| 2026-07-15 | 1.48 | **S4.2 关闭**：glyph atlas dirty partial upload + AdvanceFrame；焦点 → S4.3 |
 | 2026-07-15 | 1.47 | **S4.1 batch 关闭**：image multi-quad coalescing + B13 + TestS41_*；焦点 → S4.2 |
 | 2026-07-15 | 1.46 | **S4.0 基线关闭**：`TestS4_PerfBaseline_Scenes` + `docs/S4_PERF_BASELINE.md`；焦点 → S4.1 batch |
 | 2026-07-15 | 1.45 | **阶段 A 关闭**：D01–D200 全绿；停扩组合探针；焦点 → S4.0 |

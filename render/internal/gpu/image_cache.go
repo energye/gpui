@@ -41,6 +41,11 @@ type ImageCache struct {
 	entries map[uint64]*imageCacheEntry // keyed by Pixmap.GenerationID()
 	budget  int
 	gen     uint64 // global LRU generation counter
+
+	// S4.3 texture cache stats
+	hits    uint64
+	misses  uint64
+	uploads uint64
 }
 
 // NewImageCache creates a new image texture cache with the given device and queue.
@@ -74,9 +79,11 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (*webgpu.TextureView, er
 	if entry, ok := c.entries[key]; ok {
 		c.gen++
 		entry.gen = c.gen
+		c.hits++
 		return entry.view, nil
 	}
 
+	c.misses++
 	if len(c.entries) >= c.budget {
 		c.evictOldest()
 	}
@@ -85,6 +92,7 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (*webgpu.TextureView, er
 	if err != nil {
 		return nil, err
 	}
+	c.uploads++
 
 	c.gen++
 	entry.gen = c.gen
@@ -192,18 +200,27 @@ func (c *ImageCache) evictOldest() {
 	}
 }
 
-// Stats returns cache statistics for diagnostics.
+// ImageCacheStats returns cache statistics for diagnostics (S4.3).
 type ImageCacheStats struct {
 	Entries     int
 	Budget      int
 	Generations uint64
+	Hits        uint64
+	Misses      uint64
+	Uploads     uint64
 }
 
 // Stats returns cache statistics.
 func (c *ImageCache) Stats() ImageCacheStats {
+	if c == nil {
+		return ImageCacheStats{}
+	}
 	return ImageCacheStats{
 		Entries:     len(c.entries),
 		Budget:      c.budget,
 		Generations: c.gen,
+		Hits:        c.hits,
+		Misses:      c.misses,
+		Uploads:     c.uploads,
 	}
 }
