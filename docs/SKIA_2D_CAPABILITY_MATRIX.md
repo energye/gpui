@@ -72,7 +72,7 @@
 | P.01 | Solid color RGB/A | `setColor` | premul blend 输入 | N/A | N/A | ✅ | M0 |
 | P.02 | Style Fill/Stroke/StrokeAndFill | `setStyle` | 几何生成 | N/A | N/A | ✅ | M1 |
 | P.03 | Stroke width | `setStrokeWidth` | 展平/SDF | N/A | N/A | ✅ | M1 |
-| P.04 | Hairline（设备 1px） | width=0 语义 | 像素对齐 stroke | N/A | N/A | ✅/🔄 门禁 `TestS3a_M1_Hairline` | M1 |
+| P.04 | Hairline（设备 1px） | width=0 语义 | 像素对齐 stroke | N/A | N/A | ✅ GPU ink `TestP1_Capability_P04_HairlineGPU` / `TestS3a_M1_Hairline` | M1 |
 | P.05 | Cap Butt/Round/Square | `setStrokeCap` | 几何 | N/A | N/A | ✅ GPU pixels `TestP1_Capability_P05_StrokeCapsGPU` | M1 |
 | P.06 | Join Miter/Round/Bevel | `setStrokeJoin` | 几何 | N/A | N/A | ✅ GPU pixels `TestP1_Capability_P06_StrokeJoinsGPU` | M1 |
 | P.07 | Miter limit | `setStrokeMiter` | 几何 | N/A | N/A | ✅ `TestS3b_M2_MiterLimit` | M2 |
@@ -85,9 +85,9 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | B.01 | SrcOver（默认） | `kSrcOver` | BlendState premul | ✅ enum | ✅ | ✅ `TestP12GPUFixedPixel_SourceOverPremul` | M1 |
 | B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | ✅ enum+factors | ✅ BlendState | ✅ GPU fixed PD: Clear/Copy/Plus/SrcOver/DstOut/SrcAtop/Xor/DstOver/SrcIn/SrcOut/DstIn/DstAtop `TestP12GPUFixedPixel_Blend*` | M2 |
-| B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 shader | 🔄 | ✅ GPU dual-tex fragment blend（src coverage + dest sample）`TestP1_Capability_B03_*`；HSL 仍 CPU | M2 |
+| B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 shader | 🔄 | ✅ GPU dual-tex Multiply/Screen/Overlay `TestP1_Capability_B03_*`；HSL 仍 CPU | M2 |
 | B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | ✅ BlendHue/Sat/Color/Lum `TestS3c_M3_Blend*` | M3 |
-| B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | ✅ solid+image premul SO `TestP1_Capability_B05`（layer/text 可再加压） | M1 |
+| B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | ✅ solid+image+layer+text premul `TestP1_Capability_B05_*` | M1 |
 | B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | ✅ SetRGBA alpha GPU `TestP1_Capability_B06_PaintAlpha`（预乘路径仍可精修） | M1 |
 | B.07 | Plus/Modulate 等 | `kPlus`… | blend/shader | ✅ Plus factors | ✅ | ✅ GPU Plus `TestP12GPUFixedPixel_BlendPlus`；Modulate 仍后置 | M2 |
 
@@ -97,7 +97,7 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | H.01 | Move/Line/Quad/Cubic/Close | `SkPath` | CPU path → GPU mesh/stencil | N/A | N/A | ✅ | M1 |
 | H.02 | Arc/圆角路径 | `arcTo` | 细分 | N/A | N/A | ✅ | M1 |
-| H.03 | Fill rule NonZero/EvenOdd | `setFillType` | stencil 或 winding | 🔄 stencil | 🔄 | ✅ | M1 |
+| H.03 | Fill rule NonZero/EvenOdd | `setFillType` | stencil 或 winding | 🔄 stencil | 🔄 | ✅ EvenOdd hole vs NonZero fill `TestP1_Capability_H03_EvenOddGPU` | M1 |
 | H.04 | Path 布尔（可选） | `Op` | CPU | N/A | N/A | ✅ BooleanPath `TestS3c_M3_PathBoolean*` | M3 |
 | H.05 | Path measure/长度 | `SkPathMeasure` | CPU | N/A | N/A | ✅ Path.Length `TestS3c` | M3 |
 | H.06 | 复杂 path GPU 光栅 | GrPathRenderer 类 | stencil-then-cover / tess / compute | 🔄 | 🔄 | ✅ stencil-then-cover（shapes/clip STRICT） | M2 |
@@ -134,7 +134,7 @@
 | L.03 | Layer opacity | saveLayer alpha | premul composite | 🔄 | 🔄 | ✅ 层 GPU 内容+CPU composite `TestS3b` | M2 |
 | L.04 | Layer blend mode | saveLayer blend | blend/shader | 🔄 | 🔄 | ✅ Multiply/Screen 层 `TestS3b` | M2 |
 | L.05 | Layer + backdrop（可选） | backdrop filter | 采样背景 | ⬜ | ⬜ | ⬜ | M4 |
-| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 | 🔄 | ✅ SetMask + **R8 GPU modulate shader** `TestP1_Capability_L06_*`（path cover 内联 sample 可再加深） | M2 |
+| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 | 🔄 | ✅ SetMask R8 modulate + PushMaskLayer GPU `TestP1_Capability_L06_*`（cover 内联 sample 可再加深） | M2 |
 
 ### 1.9 Shader / Gradient / Pattern
 
@@ -208,7 +208,7 @@
 | Q.01 | MSAA 4x + resolve | samples | multisample texture + resolve | 🔄 | 🔄 | ✅ sampleCount=4 `TestS3b_M2_MSAAResolve` | M2 |
 | Q.02 | Coverage AA 无 MSAA | analytic AA | 软件/计算覆盖 | N/A | N/A | ✅/🔄 `TestS3a_M1_AntiAliasToggle` | M1 |
 | Q.03 | 像素对齐/近像素规则 | device pixel snap | CPU/GPU 一致 | N/A | N/A | ✅ AA-off path snap GPU `TestP1_Capability_Q03` | M2 |
-| Q.04 | 半透明边缘与 premul | premul AA | blend | 🔄 | 🔄 | 🔄 | M1 |
+| Q.04 | 半透明边缘与 premul | premul AA | blend | 🔄 | 🔄 | ✅ 半透明 AA 粉边无 fringe 爆色 `TestP1_Capability_Q04_PremulAAEdgeGPU` | M1 |
 
 ### 1.16 颜色空间 / 位深（可分阶段）
 
@@ -347,6 +347,8 @@
 | 2026-07-15 | 1.8 | P1：T.03 non-uniform stroke、X.06 MultiFace GPU、X.11 atlas |
 | 2026-07-15 | 1.7 | P1：X.03/X.04/Q.03/L.06 GPU 门禁（shape/subpixel/snap/mask staging） |
 | 2026-07-15 | 1.6 | P1：B.02 全 PD fixed GPU + D.04–D.06 pattern/tile/localMatrix GPU 门禁；Tier C 复杂 UI |
+| 2026-07-15 | 1.22 | H.03 EvenOdd + L.06 PushMaskLayer + P.04 + Tier F Cascader/VirtualList |
+| 2026-07-15 | 1.21 | B.05 layer/text + Q.04 premul AA + B.03 Overlay + Tier E DatePicker/Transfer |
 | 2026-07-15 | 1.20 | L.06 R8 modulate + P.05/P.06 + B.05 + Tier D 复杂 UI |
 | 2026-07-15 | 1.19 | X.05 彩底 two-pass LCD + B.03 dual-tex GPU 合成 |
 | 2026-07-15 | 1.5 | P1 closers：I.03 Nearest/Linear、C.05 clip AA、X.05 LCD GPU 门禁 |

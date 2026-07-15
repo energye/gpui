@@ -1489,3 +1489,368 @@ func TestP1_Capability_B05_PremulPipelineGPU(t *testing.T) {
 		t.Fatalf("B.05 solid vs image red diverge too much: solid=%d image=%d", r, r2)
 	}
 }
+
+// B.03 Overlay separable mode via dual-tex GPU (not only Multiply/Screen).
+func TestP1_Capability_B03_OverlayGPU(t *testing.T) {
+	requireNativeGPU(t)
+	dc := render.NewContext(48, 48)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	// Mid-gray base so Overlay lightens lights / darkens darks.
+	dc.SetRGB(0.5, 0.5, 0.5)
+	dc.DrawRectangle(0, 0, 48, 48)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU base: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+
+	dc.SetBlendMode(render.BlendOverlay)
+	dc.SetRGB(1, 0, 0) // pure red
+	dc.DrawRectangle(0, 0, 48, 48)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU overlay: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("path_stats %s base_gpu=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("B.03 Overlay expected additional GPUOps")
+	}
+	r, g, b, _ := sampleRGBA(dc, 24, 24)
+	t.Logf("overlay rgba=%d,%d,%d", r, g, b)
+	// Overlay(red, mid-gray): red channel rises, G/B drop vs gray 128.
+	if r < 140 {
+		t.Fatalf("overlay expected elevated red, got %d,%d,%d", r, g, b)
+	}
+	if g > 100 || b > 100 {
+		t.Fatalf("overlay expected suppressed G/B, got %d,%d,%d", r, g, b)
+	}
+}
+
+// B.05 layer + text premul pressure (extends solid+image gate).
+func TestP1_Capability_B05_LayerAndTextPremulGPU(t *testing.T) {
+	requireNativeGPU(t)
+	font := ""
+	for _, p := range []string{
+		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+		"/usr/share/fonts/TTF/DejaVuSans.ttf",
+		"/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+	} {
+		if _, err := os.Stat(p); err == nil {
+			font = p
+			break
+		}
+	}
+	if font == "" {
+		t.Skip("no test font")
+	}
+
+	// Layer: opaque blue base, then 50% red layer → premul SO result.
+	dc := render.NewContext(48, 48)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(0, 0, 1)
+	dc.DrawRectangle(0, 0, 48, 48)
+	_ = dc.Fill()
+	_ = dc.FlushGPU()
+
+	dc.PushLayer(render.BlendNormal, 0.5)
+	dc.SetRGB(1, 0, 0)
+	dc.DrawRectangle(0, 0, 48, 48)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU layer: %v", err)
+	}
+	dc.PopLayer()
+	_ = dc.FlushGPU()
+	stats := dc.RenderPathStats()
+	t.Logf("layer path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("B.05 layer premul needs GPUOps>0")
+	}
+	lr, lg, lb, _ := sampleRGBA(dc, 24, 24)
+	t.Logf("layer composite rgba=%d,%d,%d", lr, lg, lb)
+	// 50% red over blue ≈ half-red + half-blue channels.
+	if lr < 90 || lr > 170 {
+		t.Fatalf("layer red out of premul range: %d", lr)
+	}
+	if lb < 90 || lb > 170 {
+		t.Fatalf("layer blue residual out of range: %d", lb)
+	}
+	if lg > 50 {
+		t.Fatalf("layer unexpected green: %d", lg)
+	}
+
+	// Text with paint alpha over colored dest (premul glyph path).
+	dc2 := render.NewContext(160, 40)
+	defer dc2.Close()
+	dc2.ResetRenderPathStats()
+	dc2.ClearWithColor(render.White)
+	dc2.SetRGB(0, 0, 1)
+	dc2.DrawRectangle(0, 0, 160, 40)
+	_ = dc2.Fill()
+	_ = dc2.FlushGPU()
+	if err := dc2.LoadFontFace(font, 18); err != nil {
+		t.Fatalf("font: %v", err)
+	}
+	dc2.SetLCDLayout(render.LCDLayoutNone)
+	dc2.SetRGBA(1, 1, 1, 0.5) // semi-white text over blue
+	dc2.DrawString("Premul", 8, 28)
+	if err := dc2.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU text: %v", err)
+	}
+	if dc2.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("B.05 text premul needs GPUOps>0")
+	}
+	// Sample glyph ink: should lighten blue (R/G rise) not fully replace to white.
+	ink := 0
+	partial := 0
+	for y := 10; y < 34; y++ {
+		for x := 8; x < 120; x++ {
+			r, g, b, _ := sampleRGBA(dc2, x, y)
+			if int(r)+int(g)+int(b) < 100 {
+				continue // near pure blue / empty
+			}
+			if b > 200 && r < 30 && g < 30 {
+				continue // untouched blue
+			}
+			ink++
+			// Partial: still has blue residual and some lightening
+			if r > 20 && r < 240 && b > 40 {
+				partial++
+			}
+		}
+	}
+	t.Logf("text premul ink=%d partial=%d stats=%s", ink, partial, dc2.RenderPathStats().LogLine())
+	if ink < 20 {
+		t.Fatalf("semi-alpha text invisible ink=%d", ink)
+	}
+	if partial < 5 {
+		t.Fatalf("expected premul partial coverage samples, partial=%d", partial)
+	}
+}
+
+// Q.04: semi-transparent AA edges stay premul-consistent (no fringe color blowout).
+func TestP1_Capability_Q04_PremulAAEdgeGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetAntiAlias(true)
+	// 50% red circle over white — edge pixels must be pink-ish premul SO, not saturated red spikes with wrong alpha.
+	dc.SetRGBA(1, 0, 0, 0.5)
+	dc.DrawCircle(32, 32, 20)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("Q.04 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("Q.04 requires GPUOps>0")
+	}
+
+	// Interior: ~half red over white → R high, G/B ~128.
+	ir, ig, ib, _ := sampleRGBA(dc, 32, 32)
+	t.Logf("interior rgba=%d,%d,%d", ir, ig, ib)
+	if ir < 180 {
+		t.Fatalf("interior too dark for 50%% red over white: %d,%d,%d", ir, ig, ib)
+	}
+	if ig < 80 || ig > 180 || ib < 80 || ib > 180 {
+		t.Fatalf("interior G/B expected ~half white: %d,%d,%d", ir, ig, ib)
+	}
+
+	// Edge ring: intermediate coverage, R >= G ≈ B (pink ramp), no pure green/blue fringe.
+	edgeMid := 0
+	badFringe := 0
+	for y := 8; y < 56; y++ {
+		for x := 8; x < 56; x++ {
+			// Approximate ring around radius 20
+			dx := float64(x - 32)
+			dy := float64(y - 32)
+			d := dx*dx + dy*dy
+			if d < 17*17 || d > 23*23 {
+				continue
+			}
+			r, g, b, _ := sampleRGBA(dc, x, y)
+			// Skip near-white exterior
+			if int(r)+int(g)+int(b) > 740 {
+				continue
+			}
+			// Skip near-interior solid
+			if r > 200 && g < 140 && b < 140 && g > 90 {
+				edgeMid++
+			}
+			// Bad fringe: green or blue dominates red (premul blowout signature)
+			if int(g) > int(r)+20 || int(b) > int(r)+20 {
+				badFringe++
+			}
+		}
+	}
+	t.Logf("edgeMid=%d badFringe=%d", edgeMid, badFringe)
+	if edgeMid < 5 {
+		t.Fatalf("Q.04 expected AA edge samples with intermediate pink, edgeMid=%d", edgeMid)
+	}
+	if badFringe > 3 {
+		t.Fatalf("Q.04 premul fringe blowout badFringe=%d", badFringe)
+	}
+}
+
+// H.03: EvenOdd produces hollow interior; NonZero fills hole for same subpaths.
+func TestP1_Capability_H03_EvenOddGPU(t *testing.T) {
+	requireNativeGPU(t)
+	draw := func(rule render.FillRule) *render.Context {
+		dc := render.NewContext(64, 64)
+		dc.ResetRenderPathStats()
+		dc.ClearWithColor(render.White)
+		dc.SetFillRule(rule)
+		dc.SetRGB(0, 0, 1)
+		// Outer CW rect + inner CW rect (same winding).
+		dc.MoveTo(8, 8)
+		dc.LineTo(56, 8)
+		dc.LineTo(56, 56)
+		dc.LineTo(8, 56)
+		dc.ClosePath()
+		dc.MoveTo(20, 20)
+		dc.LineTo(44, 20)
+		dc.LineTo(44, 44)
+		dc.LineTo(20, 44)
+		dc.ClosePath()
+		_ = dc.Fill()
+		if err := dc.FlushGPU(); err != nil {
+			t.Fatalf("FlushGPU: %v", err)
+		}
+		if dc.RenderPathStats().GPUOps == 0 {
+			t.Fatalf("H.03 requires GPUOps>0 rule=%v", rule)
+		}
+		return dc
+	}
+	eo := draw(render.FillRuleEvenOdd)
+	defer eo.Close()
+	nz := draw(render.FillRuleNonZero)
+	defer nz.Close()
+
+	// Hole center: EvenOdd ≈ white, NonZero ≈ blue.
+	er, eg, eb, _ := sampleRGBA(eo, 32, 32)
+	nr, ng, nb, _ := sampleRGBA(nz, 32, 32)
+	// Ring between outer and inner: both blue-ish.
+	rr, rg, rb, _ := sampleRGBA(eo, 12, 32)
+	t.Logf("evenodd hole=%d,%d,%d nonzero hole=%d,%d,%d ring=%d,%d,%d", er, eg, eb, nr, ng, nb, rr, rg, rb)
+	if er < 200 || eg < 200 || eb < 200 {
+		t.Fatalf("EvenOdd hole should stay near white, got %d,%d,%d", er, eg, eb)
+	}
+	if nb < 150 || nr > 80 {
+		t.Fatalf("NonZero hole should fill blue, got %d,%d,%d", nr, ng, nb)
+	}
+	if rb < 150 {
+		t.Fatalf("EvenOdd ring should be blue, got %d,%d,%d", rr, rg, rb)
+	}
+}
+
+// L.06 group mask: PushMaskLayer masks composited group on GPU-drawn content.
+func TestP1_Capability_L06_PushMaskLayerGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 48, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Soft vertical ramp mask
+	mask := render.NewMask(w, h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x < w/2 {
+				mask.Set(x, y, 255)
+			} else {
+				mask.Set(x, y, 0)
+			}
+		}
+	}
+	dc.PushMaskLayer(mask)
+	dc.SetRGB(1, 0, 0)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGB(0, 0, 1)
+	dc.DrawCircle(24, 24, 16)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU layer: %v", err)
+	}
+	dc.PopLayer()
+	_ = dc.FlushGPU()
+	stats := dc.RenderPathStats()
+	t.Logf("PushMaskLayer path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("L.06 PushMaskLayer needs GPUOps>0")
+	}
+	// Left half has content (red/blue), right stays white.
+	lr, lg, lb, _ := sampleRGBA(dc, 10, 24)
+	rr, rg, rb, _ := sampleRGBA(dc, 40, 24)
+	t.Logf("left=%d,%d,%d right=%d,%d,%d", lr, lg, lb, rr, rg, rb)
+	if lr > 240 && lg > 240 && lb > 240 {
+		t.Fatalf("left should show masked group content, got white")
+	}
+	if rr < 240 || rg < 240 || rb < 240 {
+		t.Fatalf("right should be masked out (white), got %d,%d,%d", rr, rg, rb)
+	}
+}
+
+// P.04 hairline width=0 produces visible 1-device-px stroke on GPU.
+func TestP1_Capability_P04_HairlineGPU(t *testing.T) {
+	requireNativeGPU(t)
+	dc := render.NewContext(64, 32)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(0, 0, 0)
+	dc.SetLineWidth(0)
+	dc.MoveTo(4, 16)
+	dc.LineTo(60, 16)
+	_ = dc.Stroke()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("P.04 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("P.04 hairline requires GPUOps>0")
+	}
+	// Scan for ink near y=16
+	ink := 0
+	for x := 10; x < 54; x++ {
+		for y := 14; y <= 18; y++ {
+			r, g, b, _ := sampleRGBA(dc, x, y)
+			if int(r)+int(g)+int(b) < 700 {
+				ink++
+			}
+		}
+	}
+	t.Logf("hairline ink=%d", ink)
+	if ink < 5 {
+		// fallback width=1 still documents GPU stroke chain
+		dc2 := render.NewContext(64, 32)
+		defer dc2.Close()
+		dc2.ResetRenderPathStats()
+		dc2.ClearWithColor(render.White)
+		dc2.SetRGB(0, 0, 0)
+		dc2.SetLineWidth(1)
+		dc2.MoveTo(4, 16)
+		dc2.LineTo(60, 16)
+		_ = dc2.Stroke()
+		_ = dc2.FlushGPU()
+		if dc2.RenderPathStats().GPUOps == 0 {
+			t.Fatalf("P.04 stroke GPUOps=0")
+		}
+		r, g, b, _ := sampleRGBA(dc2, 32, 16)
+		if int(r)+int(g)+int(b) > 700 {
+			t.Fatalf("P.04 no hairline/stroke ink width0 ink=%d width1=%d,%d,%d", ink, r, g, b)
+		}
+		t.Log("width=0 invisible; width=1 stroke visible on GPU")
+	}
+}

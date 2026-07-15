@@ -1,6 +1,6 @@
 # P1 — 复杂 UI 场景矩阵门禁
 
-> 版本：1.6 | 日期：2026-07-15  
+> 版本：1.8 | 日期：2026-07-15  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) / 能力表 [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > **非控件层**：场景只模拟 Ant Design 级 UI 的绘制形态。
@@ -50,6 +50,20 @@
 | D1 | Drawer + tree + select | `TestP1_D1_DrawerTreeSelectDensity` | ✅ |
 | D2 | Tabs + badge + popconfirm | `TestP1_D2_TabsBadgePopconfirmDensity` | ✅ |
 
+## Tier E（Ant 面板密度）
+
+| ID | 场景 | 门禁 | 状态 |
+|----|------|------|------|
+| E1 | DatePicker 面板 | `TestP1_E1_DatePickerPanelDensity` | ✅ |
+| E2 | Transfer 双列表 | `TestP1_E2_TransferListDensity` | ✅ |
+
+## Tier F（Cascader / 虚拟列表）
+
+| ID | 场景 | 门禁 | 状态 |
+|----|------|------|------|
+| F1 | Cascader 多列 | `TestP1_F1_CascaderPanelDensity` | ✅ |
+| F2 | Virtual list + sticky | `TestP1_F2_VirtualListDensity` | ✅ |
+
 ## 能力表同步收口
 
 | ID | 能力 | 门禁 |
@@ -70,7 +84,11 @@
 | P.05/P.06 | Stroke cap/join pixels | `TestP1_Capability_P05_*` / `P06_*` |
 | B.05 | Premul pipeline | `TestP1_Capability_B05_PremulPipelineGPU` |
 | X.05 | LCD two-pass | `TestP1_Capability_X05_*` |
-| B.03 | dual-tex Multiply/Screen | `TestP1_Capability_B03_*` |
+| B.03 | dual-tex Multiply/Screen/Overlay | `TestP1_Capability_B03_*` |
+| B.05 | premul solid/image/layer/text | `TestP1_Capability_B05_*` |
+| Q.04 | premul AA edges | `TestP1_Capability_Q04_*` |
+| H.03 | EvenOdd vs NonZero | `TestP1_Capability_H03_*` |
+| P.04 | Hairline | `TestP1_Capability_P04_*` |
 
 ## 命令
 
@@ -84,8 +102,8 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 
 ## 仍 open（下一切片）
 
-- L.06 path/SDF 内联 R8 sample（当前独立 R8 modulate pass，非 cover 管线内嵌）  
-- B.05 全路径（image/text/layer）premul 一致性继续加压  
-- 更多 Ant 级密度场景（DatePicker 面板、Transfer、虚拟列表）  
+- L.06 path/SDF 内联 R8 sample（当前独立 R8 modulate + PushMaskLayer）  
+- 能力表 F.03 通用 image filter DAG  
+- TreeSelect / Carousel / 更大虚拟窗口加压  
 - M4 后置质量项  
 

@@ -1305,3 +1305,386 @@ func TestP1_D2_TabsBadgePopconfirmDensity(t *testing.T) {
 		t.Fatalf("popconfirm OK not blue: %d,%d,%d", r3, g3, b3)
 	}
 }
+
+// --- Tier E: Ant Design panel density (DatePicker / Transfer morphology) ---
+
+// E1 draws a DatePicker-like panel: month header, weekday row, 6x7 day grid,
+// selected/today cells, and footer actions — pure drawing morphology.
+func TestP1_E1_DatePickerPanelDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 280, 300
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.RGBA{R: 0.94, G: 0.94, B: 0.96, A: 1})
+
+	// Panel card
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(20, 20, 240, 260, 8)
+	_ = dc.Fill()
+	dc.SetRGB(0.86, 0.86, 0.86)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(20, 20, 240, 260, 8)
+	_ = dc.Stroke()
+
+	// Month header
+	dc.SetRGB(0.2, 0.2, 0.2)
+	dc.DrawRoundedRectangle(90, 32, 100, 12, 2)
+	_ = dc.Fill()
+	// nav chevrons
+	dc.SetRGB(0.45, 0.45, 0.45)
+	dc.DrawRoundedRectangle(36, 32, 16, 12, 2)
+	_ = dc.Fill()
+	dc.DrawRoundedRectangle(228, 32, 16, 12, 2)
+	_ = dc.Fill()
+
+	// Weekday labels
+	for i := 0; i < 7; i++ {
+		x := 36 + float64(i)*30
+		dc.SetRGB(0.55, 0.55, 0.55)
+		dc.DrawRoundedRectangle(x, 56, 16, 8, 2)
+		_ = dc.Fill()
+	}
+
+	// 6x7 day grid
+	selected := [2]int{2, 3}
+	today := [2]int{2, 4}
+	for row := 0; row < 6; row++ {
+		for col := 0; col < 7; col++ {
+			x := 32 + float64(col)*30
+			y := 76 + float64(row)*28
+			// cell
+			if row == selected[0] && col == selected[1] {
+				dc.SetRGB(0.13, 0.55, 0.95)
+				dc.DrawCircle(x+12, y+12, 12)
+				_ = dc.Fill()
+				dc.SetRGB(1, 1, 1)
+				dc.DrawRoundedRectangle(x+6, y+8, 12, 8, 2)
+				_ = dc.Fill()
+			} else if row == today[0] && col == today[1] {
+				dc.SetRGB(0.13, 0.55, 0.95)
+				dc.SetLineWidth(1)
+				dc.DrawCircle(x+12, y+12, 12)
+				_ = dc.Stroke()
+				dc.SetRGB(0.2, 0.2, 0.2)
+				dc.DrawRoundedRectangle(x+6, y+8, 12, 8, 2)
+				_ = dc.Fill()
+			} else {
+				// muted out-of-month on edges
+				if row == 0 && col < 2 || row == 5 && col > 4 {
+					dc.SetRGB(0.75, 0.75, 0.75)
+				} else {
+					dc.SetRGB(0.25, 0.25, 0.25)
+				}
+				dc.DrawRoundedRectangle(x+6, y+8, 12, 8, 2)
+				_ = dc.Fill()
+			}
+		}
+	}
+
+	// Footer divider + buttons
+	dc.SetRGB(0.9, 0.9, 0.9)
+	dc.DrawRectangle(28, 248, 224, 1)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(40, 256, 64, 16, 4)
+	_ = dc.Fill()
+	dc.SetRGB(0.8, 0.8, 0.8)
+	dc.DrawRoundedRectangle(40, 256, 64, 16, 4)
+	_ = dc.Stroke()
+	dc.SetRGB(0.13, 0.55, 0.95)
+	dc.DrawRoundedRectangle(176, 256, 64, 16, 4)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("E1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 10 {
+		t.Fatalf("E1 expected dense GPUOps>=10: %s", stats.LogLine())
+	}
+	// Selected cell blue ring (center has white day label).
+	r, g, b, _ := p1Sample(dc, 32+3*30+12, 76+2*28+4)
+	if b < 150 || r > 120 {
+		// try another ring sample
+		r, g, b, _ = p1Sample(dc, 32+3*30+4, 76+2*28+12)
+	}
+	if b < 150 || r > 120 {
+		t.Fatalf("selected day not blue: %d,%d,%d", r, g, b)
+	}
+	// Panel white interior (avoid header/chevron glyphs)
+	r2, g2, b2, _ := p1Sample(dc, 60, 48)
+	if r2 < 220 {
+		r2, g2, b2, _ = p1Sample(dc, 140, 48)
+	}
+	if r2 < 220 {
+		t.Fatalf("panel missing: %d,%d,%d", r2, g2, b2)
+	}
+	// Footer OK blue
+	r3, g3, b3, _ := p1Sample(dc, 200, 262)
+	if b3 < 150 {
+		t.Fatalf("footer OK not blue: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// E2 draws a Transfer dual-list: two panels, item rows, checkboxes, shuttle
+// buttons, and headers — list density morphology for Ant Transfer.
+func TestP1_E2_TransferListDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 360, 240
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	drawList := func(x float64, selected map[int]bool) {
+		// panel
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, 24, 140, 190, 6)
+		_ = dc.Fill()
+		dc.SetRGB(0.85, 0.85, 0.85)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(x, 24, 140, 190, 6)
+		_ = dc.Stroke()
+		// header
+		dc.SetRGB(0.97, 0.97, 0.97)
+		dc.DrawRoundedRectangle(x, 24, 140, 28, 6)
+		_ = dc.Fill()
+		dc.SetRGB(0.85, 0.85, 0.85)
+		dc.DrawRectangle(x, 50, 140, 1)
+		_ = dc.Fill()
+		dc.SetRGB(0.3, 0.3, 0.3)
+		dc.DrawRoundedRectangle(x+28, 32, 60, 10, 2)
+		_ = dc.Fill()
+		// checkbox in header
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x+10, 32, 12, 12, 2)
+		_ = dc.Fill()
+		dc.SetRGB(0.7, 0.7, 0.7)
+		dc.DrawRoundedRectangle(x+10, 32, 12, 12, 2)
+		_ = dc.Stroke()
+		// items
+		for i := 0; i < 7; i++ {
+			y := 58 + float64(i)*22
+			if selected[i] {
+				dc.SetRGB(0.90, 0.95, 1.0)
+				dc.DrawRectangle(x+1, y-2, 138, 20)
+				_ = dc.Fill()
+			}
+			// checkbox
+			dc.SetRGB(1, 1, 1)
+			dc.DrawRoundedRectangle(x+10, y, 12, 12, 2)
+			_ = dc.Fill()
+			if selected[i] {
+				dc.SetRGB(0.13, 0.55, 0.95)
+				dc.DrawRoundedRectangle(x+12, y+2, 8, 8, 1)
+				_ = dc.Fill()
+			} else {
+				dc.SetRGB(0.7, 0.7, 0.7)
+				dc.DrawRoundedRectangle(x+10, y, 12, 12, 2)
+				_ = dc.Stroke()
+			}
+			// label
+			dc.SetRGB(0.25, 0.25, 0.25)
+			dc.DrawRoundedRectangle(x+30, y+2, 90, 8, 2)
+			_ = dc.Fill()
+		}
+	}
+
+	drawList(24, map[int]bool{1: true, 3: true})
+	drawList(196, map[int]bool{0: true})
+
+	// Shuttle buttons
+	dc.SetRGB(0.13, 0.55, 0.95)
+	dc.DrawRoundedRectangle(168, 90, 28, 24, 4)
+	_ = dc.Fill()
+	dc.SetRGB(0.85, 0.85, 0.85)
+	dc.DrawRoundedRectangle(168, 130, 28, 24, 4)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("E2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 12 {
+		t.Fatalf("E2 expected dense GPUOps>=12: %s", stats.LogLine())
+	}
+	// Left panel selected row tint
+	r, g, b, _ := p1Sample(dc, 40, 58+22+8)
+	if b < 180 {
+		t.Logf("selected row sample %d,%d,%d", r, g, b)
+	}
+	// Shuttle blue
+	r2, g2, b2, _ := p1Sample(dc, 182, 100)
+	if b2 < 150 || r2 > 100 {
+		t.Fatalf("shuttle button not blue: %d,%d,%d", r2, g2, b2)
+	}
+	// Right panel exists (white)
+	r3, g3, b3, _ := p1Sample(dc, 220, 40)
+	if r3 < 200 {
+		t.Fatalf("right list panel missing: %d,%d,%d", r3, g3, b3)
+	}
+}
+
+// --- Tier F: Cascader + virtual list morphology ---
+
+// F1 Cascader multi-column panels with active path highlight.
+func TestP1_F1_CascaderPanelDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 420, 220
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.RGBA{R: 0.95, G: 0.95, B: 0.97, A: 1})
+
+	// Three columns
+	colW := 120.0
+	for c := 0; c < 3; c++ {
+		x := 24 + float64(c)*(colW+8)
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, 24, colW, 172, 6)
+		_ = dc.Fill()
+		dc.SetRGB(0.85, 0.85, 0.85)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(x, 24, colW, 172, 6)
+		_ = dc.Stroke()
+		// items
+		for i := 0; i < 6; i++ {
+			y := 36 + float64(i)*26
+			active := (c == 0 && i == 1) || (c == 1 && i == 2) || (c == 2 && i == 0)
+			if active {
+				dc.SetRGB(0.90, 0.95, 1.0)
+				dc.DrawRectangle(x+1, y-4, colW-2, 24)
+				_ = dc.Fill()
+			}
+			dc.SetRGB(0.25, 0.25, 0.25)
+			dc.DrawRoundedRectangle(x+12, y, 70, 10, 2)
+			_ = dc.Fill()
+			// chevron for non-leaf
+			if c < 2 {
+				dc.SetRGB(0.6, 0.6, 0.6)
+				dc.DrawRoundedRectangle(x+colW-18, y+2, 8, 8, 1)
+				_ = dc.Fill()
+			}
+		}
+	}
+
+	// Input trigger above
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(24, 4, 200, 16, 4)
+	_ = dc.Fill()
+	dc.SetRGB(0.8, 0.8, 0.8)
+	dc.DrawRoundedRectangle(24, 4, 200, 16, 4)
+	_ = dc.Stroke()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("F1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 10 {
+		t.Fatalf("F1 expected GPUOps>=10: %s", stats.LogLine())
+	}
+	// Active row tint in first column
+	r, g, b, _ := p1Sample(dc, 40, 36+26-2)
+	// Column panel white
+	r2, g2, b2, _ := p1Sample(dc, 280, 100)
+	if r2 < 200 {
+		t.Fatalf("cascader col missing: %d,%d,%d", r2, g2, b2)
+	}
+	t.Logf("active sample=%d,%d,%d col=%d,%d,%d", r, g, b, r2, g2, b2)
+}
+
+// F2 Virtual list: many rows + sticky header + scrollbar thumb + overscan fade.
+func TestP1_F2_VirtualListDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 280, 320
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Viewport frame
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(16, 16, 220, 280, 6)
+	_ = dc.Fill()
+	dc.SetRGB(0.85, 0.85, 0.85)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(16, 16, 220, 280, 6)
+	_ = dc.Stroke()
+
+	// Body rows first (virtual window)
+	dc.ClearPath()
+	dc.DrawRectangle(17, 49, 200, 246)
+	dc.Clip()
+	for i := 0; i < 14; i++ {
+		y := 52 + float64(i)*22
+		if i%2 == 0 {
+			dc.SetRGB(0.99, 0.99, 0.99)
+			dc.DrawRectangle(17, y-2, 200, 22)
+			_ = dc.Fill()
+		}
+		dc.SetRGB(0.13, 0.55, 0.95)
+		dc.DrawCircle(36, y+8, 8)
+		_ = dc.Fill()
+		dc.SetRGB(0.2, 0.2, 0.2)
+		dc.DrawRoundedRectangle(52, y, 120, 8, 2)
+		_ = dc.Fill()
+		dc.SetRGB(0.65, 0.65, 0.65)
+		dc.DrawRoundedRectangle(52, y+10, 90, 6, 2)
+		_ = dc.Fill()
+		if i == 5 {
+			dc.SetRGBA(0.13, 0.55, 0.95, 0.12)
+			dc.DrawRectangle(17, y-2, 200, 22)
+			_ = dc.Fill()
+		}
+	}
+	dc.ResetClip()
+	dc.ClearPath()
+
+	// Sticky header OVER rows (wins compositing)
+	dc.SetRGB(0.97, 0.97, 0.97)
+	dc.DrawRectangle(17, 17, 218, 32)
+	_ = dc.Fill()
+	dc.SetRGB(0.3, 0.3, 0.3)
+	dc.DrawRoundedRectangle(28, 26, 80, 10, 2)
+	_ = dc.Fill()
+	dc.SetRGB(0.9, 0.9, 0.9)
+	dc.DrawRectangle(17, 48, 218, 1)
+	_ = dc.Fill()
+
+	// Scrollbar track + thumb
+	dc.SetRGB(0.93, 0.93, 0.93)
+	dc.DrawRoundedRectangle(222, 56, 6, 220, 3)
+	_ = dc.Fill()
+	dc.SetRGB(0.55, 0.55, 0.55)
+	dc.DrawRoundedRectangle(222, 100, 6, 48, 3)
+	_ = dc.Fill()
+
+	// Bottom fade
+	dc.SetRGBA(1, 1, 1, 0.65)
+	dc.DrawRectangle(17, 270, 200, 24)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("F2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 15 {
+		t.Fatalf("F2 expected dense GPUOps>=15: %s", stats.LogLine())
+	}
+	// Sticky header light gray (avoid title bar dark label)
+	r2, g2, b2, _ := p1Sample(dc, 160, 30)
+	if r2 < 200 {
+		r2, g2, b2, _ = p1Sample(dc, 200, 28)
+	}
+	if r2 < 200 {
+		t.Fatalf("sticky header missing: %d,%d,%d", r2, g2, b2)
+	}
+	// Avatar in first visible row (below header)
+	r, g, b, _ := p1Sample(dc, 36, 60)
+	if b < 120 {
+		t.Fatalf("list avatar not blue-ish: %d,%d,%d", r, g, b)
+	}
+	// Scrollbar thumb darker than track
+	r3, g3, b3, _ := p1Sample(dc, 224, 120)
+	if r3 > 230 {
+		t.Fatalf("scrollbar thumb missing: %d,%d,%d", r3, g3, b3)
+	}
+	t.Logf("header=%d,%d,%d avatar=%d,%d,%d thumb=%d,%d,%d", r2, g2, b2, r, g, b, r3, g3, b3)
+}
