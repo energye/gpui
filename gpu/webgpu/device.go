@@ -433,8 +433,16 @@ func (d *Device) Poll(pollType PollType) bool {
 	return d.r.Poll(pollType == PollWait)
 }
 
-// FreeCommandBuffer is a no-op on wgpu-native backend.
-func (d *Device) FreeCommandBuffer(_ *CommandBuffer) {}
+// FreeCommandBuffer releases a command buffer after GPU work that used it has
+// completed (or after WaitIdle). wgpu-native command buffers hold device
+// resources; leaving them unreleased prevents Device.Release from reclaiming
+// VRAM and causes subsequent CreateTexture failures under ResetAccelerator.
+func (d *Device) FreeCommandBuffer(cb *CommandBuffer) {
+	if cb == nil {
+		return
+	}
+	cb.Release()
+}
 
 // HalDevice returns nil on wgpu-native backend. There is no HAL layer.
 func (d *Device) HalDevice() any { return nil }
@@ -445,8 +453,16 @@ func (d *Device) Release() {
 		return
 	}
 	d.released = true
+	// Drop queue ref first (wgpuDeviceGetQueue holds a separate refcount).
+	// Without this, DeviceRelease may not free the native device and a later
+	// RequestDevice + CreateTexture can OOM ("Not enough memory left").
+	if d.queue != nil {
+		d.queue.Release()
+		d.queue = nil
+	}
 	if d.r != nil {
 		d.r.Release()
+		d.r = nil
 	}
 }
 

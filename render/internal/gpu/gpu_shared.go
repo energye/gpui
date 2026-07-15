@@ -74,6 +74,7 @@ type GPUShared struct {
 	mu sync.Mutex
 
 	instance *webgpu.Instance // standalone mode only; nil when using external device
+	adapter  *webgpu.Adapter  // standalone mode only; must Release on Close
 	device   *webgpu.Device
 	queue    *webgpu.Queue
 
@@ -243,14 +244,20 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	// Destroy own resources if we created them.
 	s.destroyPipelinesLocked()
 	if !s.externalDevice && s.device != nil {
-		s.device.Release()
+		s.device.Release() // also releases owned queue
+	}
+	s.device = nil
+	s.queue = nil
+	if s.adapter != nil {
+		s.adapter.Release()
+		s.adapter = nil
 	}
 	if s.instance != nil {
 		s.instance.Release()
 		s.instance = nil
 	}
 
-	// Use provided resources.
+	// Use provided resources (caller owns device/queue lifetime).
 	s.device = wgpuDev
 	s.queue = wgpuQueue
 	s.externalDevice = true
@@ -284,9 +291,7 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
 
 	s.gpuReady = true
-
-	// Initialize internal VelloAccelerator with the shared device.
-	s.initVelloAccelerator(s.device, s.queue)
+	// Vello compute: lazy on first CanCompute (see initVelloAccelerator).
 
 	slogger().Info("gpu-shared: switched to shared GPU device",
 		"strategy", s.strategy.String(),
@@ -313,6 +318,12 @@ func (s *GPUShared) CanRenderDirect() bool {
 func (s *GPUShared) CanCompute() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.device == nil || !s.deviceReady {
+		return false
+	}
+	if s.velloAccel == nil {
+		s.initVelloAccelerator(s.device, s.queue)
+	}
 	return s.velloAccel != nil && s.velloAccel.CanCompute()
 }
 
@@ -329,6 +340,14 @@ func (s *GPUShared) SetTexturePoolBudget(mb int) {
 func (s *GPUShared) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Drain GPU before tearing down pools/device so VRAM can be reclaimed
+	// before a subsequent ResetAccelerator / ensureGPU msaa_probe.
+	if s.device != nil {
+		if err := s.device.WaitIdle(); err != nil {
+			slogger().Warn("gpu-shared: WaitIdle before Close failed", "err", err)
+		}
+	}
 
 	s.textEngine = nil
 	if s.sharedAtlasView != nil {
@@ -350,25 +369,41 @@ func (s *GPUShared) Close() {
 	if s.texturePool != nil {
 		s.texturePool.DestroyAll()
 	}
+	// CPU geometry caches hold no GPU handles but can pin large host allocations.
+	s.pathGeomCache = nil
+	s.strokeGeomCache = nil
+	s.dashGeomCache = nil
+	s.convexPathCache = nil
 	s.dualTexBlend.release()
 	s.maskR8.release()
 	s.filterGPU.release()
 	s.clearMaskLocked()
 	s.destroyPipelinesLocked()
 	if !s.externalDevice {
+		// Device.Release also releases the owned Queue ref.
 		if s.device != nil {
 			s.device.Release()
 			s.device = nil
+		}
+		s.queue = nil
+		if s.adapter != nil {
+			s.adapter.Release()
+			s.adapter = nil
 		}
 		if s.instance != nil {
 			s.instance.Release()
 			s.instance = nil
 		}
 	} else {
+		// External device/queue ownership stays with the caller.
 		s.device = nil
+		s.queue = nil
+		s.adapter = nil
 		s.instance = nil
 	}
-	s.queue = nil
+	s.sampleCount = 0
+	s.strategy = 0
+	s.softwareMode = false
 	s.deviceReady = false
 	s.gpuReady = false
 	s.externalDevice = false
@@ -416,6 +451,12 @@ func (s *GPUShared) detectStrategy() gpuRenderStrategy {
 // The WebGPU spec guarantees sampleCount=4 for standard formats on compliant
 // implementations, but software backends may not be fully compliant.
 func resolveSampleCount(device *webgpu.Device) uint32 {
+	// Prefer env override: on some drivers CreateTexture(4x) for the probe is an
+	// uncaptured abort ("Not enough memory") rather than a Go error — skip probe.
+	if os.Getenv("GPUI_SURFACE_SAMPLE_COUNT") == "1" {
+		slogger().Info("MSAA probe skipped (GPUI_SURFACE_SAMPLE_COUNT=1)")
+		return 1
+	}
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "msaa_probe",
 		Size:          webgpu.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
@@ -493,8 +534,11 @@ func (s *GPUShared) initGPU() error {
 		PowerPreference: webgpu.PowerPreferenceHighPerformance,
 	})
 	if err != nil {
+		instance.Release()
+		s.instance = nil
 		return fmt.Errorf("request adapter: %w", err)
 	}
+	s.adapter = adapter
 
 	// Check for software/CPU adapter before creating device.
 	adapterInfo := adapter.Info()
@@ -506,6 +550,10 @@ func (s *GPUShared) initGPU() error {
 
 	device, err := adapter.RequestDevice(renderDeviceDescriptor("gg-shared"))
 	if err != nil {
+		adapter.Release()
+		s.adapter = nil
+		instance.Release()
+		s.instance = nil
 		return fmt.Errorf("request device: %w", err)
 	}
 	s.device = device
@@ -526,8 +574,9 @@ func (s *GPUShared) initGPU() error {
 
 	s.gpuReady = true
 
-	// Initialize internal VelloAccelerator for compute routing.
-	s.initVelloAccelerator(s.device, s.queue)
+	// Vello compute is initialized lazily on first CanCompute/compute path
+	// (initVelloAccelerator). Eager init of 8 compute stages is costly on
+	// low-VRAM hosts and is not needed for the default render-pass UI path.
 
 	slogger().Info("gpu-shared: GPU initialized",
 		"strategy", s.strategy.String(),

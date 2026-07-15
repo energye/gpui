@@ -189,14 +189,15 @@ type GPURenderSession struct {
 	// Shared textures (MSAA 4x color + depth/stencil + 1x resolve).
 	textures textureSet
 
-	// Pipeline owners (lazily created). The session does not own these
-	// pipelines -- it holds references and delegates draw recording to them.
-	sdfPipeline     *SDFRenderPipeline
-	convexRenderer  *ConvexRenderer
-	stencilRenderer *StencilRenderer
-	imagePipeline   *TexturedQuadPipeline
-	imageCache      *ImageCache
-	textPipeline    *MSDFTextPipeline
+	// Shape pipelines may be injected from GPUShared (not owned) or created
+	// lazily by ensurePipelines (owned). ownsShapePipelines tracks which.
+	sdfPipeline        *SDFRenderPipeline
+	convexRenderer     *ConvexRenderer
+	stencilRenderer    *StencilRenderer
+	ownsShapePipelines bool
+	imagePipeline      *TexturedQuadPipeline
+	imageCache         *ImageCache
+	textPipeline       *MSDFTextPipeline
 
 	// Surface rendering mode fields. When surfaceView is non-nil, the session
 	// renders directly to the surface instead of reading back to CPU.
@@ -436,14 +437,22 @@ func (s *GPURenderSession) SetSurfaceTarget(view *webgpu.TextureView, width, hei
 // For offscreen mode this is a no-op — offscreen readback composites via
 // Porter-Duff "over", so LoadOpClear is always safe there.
 func (s *GPURenderSession) BeginFrame() {
-	// Free all command buffers from the previous frame. By now, VSync (or
-	// the equivalent present barrier) guarantees the GPU is done with them.
+	// Free all command buffers from the previous frame.
 	// This MUST happen at frame boundaries — not mid-frame — because
 	// multiple FlushGPUWithView calls within a single frame produce
 	// separate command buffers that may still be in-flight when the next
 	// flush begins. Freeing them mid-frame would vkResetCommandPool on an
 	// in-flight pool, causing undefined behavior (trail artifacts from
 	// incomplete MSAA resolve).
+	//
+	// Surface mode: swapchain present usually provides a barrier; still drain
+	// when buffers remain to avoid holding MSAA memory across many sizes.
+	// Offscreen mode: there is no vsync/present barrier — always WaitIdle
+	// before FreeCommandBuffer so session textures can be recreated safely.
+	if len(s.prevCmdBufs) > 0 && s.surfaceView == nil {
+		// Offscreen present has no swapchain barrier.
+		s.drainQueue()
+	}
 	for _, cb := range s.prevCmdBufs {
 		if cb != nil {
 			s.device.FreeCommandBuffer(cb)
@@ -1168,24 +1177,52 @@ func (s *GPURenderSession) Size() (uint32, uint32) {
 // multiple times or on a session with no allocated resources.
 // The surface view is not destroyed -- it is owned by the caller.
 func (s *GPURenderSession) Destroy() {
-	// Drain the GPU queue before freeing any in-flight resources.
-	// WaitIdle guarantees all prior submissions are complete (FIFO queue).
-	if len(s.prevCmdBufs) > 0 {
+	// Always WaitIdle before releasing session-owned GPU memory.
+	// prevCmdBufs may already be empty after BeginFrame freed them without a
+	// present/vsync barrier (common on offscreen PresentFrame test paths); if we
+	// skip the drain, MSAA/depth textures can still be referenced by in-flight
+	// work and native VRAM is not reclaimed → "Not enough memory left" under
+	// suite pressure.
+	if s.device != nil {
 		s.drainQueue()
-		for _, cb := range s.prevCmdBufs {
-			if cb != nil {
-				s.device.FreeCommandBuffer(cb)
-			}
-		}
-		s.prevCmdBufs = s.prevCmdBufs[:0]
 	}
+	for _, cb := range s.prevCmdBufs {
+		if cb != nil {
+			s.device.FreeCommandBuffer(cb)
+		}
+	}
+	s.prevCmdBufs = s.prevCmdBufs[:0]
 	s.destroyPersistentBuffers()
+	// Only destroy shape pipelines created by this session. Shared pipelines
+	// injected via SetSDFPipeline/SetConvexRenderer/SetStencilRenderer are owned
+	// by GPUShared and must survive Context.Close.
+	if s.ownsShapePipelines {
+		if s.sdfPipeline != nil {
+			s.sdfPipeline.Destroy()
+		}
+		if s.convexRenderer != nil {
+			s.convexRenderer.Destroy()
+		}
+		if s.stencilRenderer != nil {
+			s.stencilRenderer.Destroy()
+		}
+	}
+	s.sdfPipeline = nil
+	s.convexRenderer = nil
+	s.stencilRenderer = nil
+	s.ownsShapePipelines = false
+	// Text pipeline is always session-owned (ensureTextPipeline).
+	if s.textPipeline != nil {
+		s.textPipeline.Destroy()
+		s.textPipeline = nil
+	}
 	s.textures.destroyTextures()
 	s.surfaceView = nil
 	s.surfaceWidth = 0
 	s.surfaceHeight = 0
 	s.lastView = nil
-	// Do not destroy pipelines -- they are owned by the caller.
+	s.device = nil
+	s.queue = nil
 }
 
 // drainQueue waits for all prior GPU submissions to complete.
@@ -1391,6 +1428,7 @@ func (s *GPURenderSession) ensurePipelines() error {
 
 	if s.sdfPipeline == nil {
 		s.sdfPipeline = NewSDFRenderPipeline(s.device, s.queue, s.sampleCount)
+		s.ownsShapePipelines = true
 	}
 	s.sdfPipeline.SetClipBindLayout(s.clipBindLayout)
 	s.sdfPipeline.SetMaskBindLayout(s.maskBindLayout)
@@ -1400,6 +1438,7 @@ func (s *GPURenderSession) ensurePipelines() error {
 
 	if s.convexRenderer == nil {
 		s.convexRenderer = NewConvexRenderer(s.device, s.queue, s.sampleCount)
+		s.ownsShapePipelines = true
 	}
 	s.convexRenderer.SetClipBindLayout(s.clipBindLayout)
 	s.convexRenderer.SetMaskBindLayout(s.maskBindLayout)
@@ -1412,6 +1451,7 @@ func (s *GPURenderSession) ensurePipelines() error {
 
 	if s.stencilRenderer == nil {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
+		s.ownsShapePipelines = true
 	}
 	s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
 	s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
@@ -3939,6 +3979,7 @@ func (s *GPURenderSession) StencilRendererRef() *StencilRenderer {
 // The session does not own the pipeline and will not destroy it.
 func (s *GPURenderSession) SetSDFPipeline(p *SDFRenderPipeline) {
 	s.sdfPipeline = p
+	s.ownsShapePipelines = false
 }
 
 // ConvexRendererRef returns the convex renderer.
@@ -3950,12 +3991,14 @@ func (s *GPURenderSession) ConvexRendererRef() *ConvexRenderer {
 // The session does not own the renderer and will not destroy it.
 func (s *GPURenderSession) SetConvexRenderer(r *ConvexRenderer) {
 	s.convexRenderer = r
+	s.ownsShapePipelines = false
 }
 
 // SetStencilRenderer sets an external stencil renderer for the session to use.
 // The session does not own the renderer and will not destroy it.
 func (s *GPURenderSession) SetStencilRenderer(r *StencilRenderer) {
 	s.stencilRenderer = r
+	s.ownsShapePipelines = false
 }
 
 // RenderSessionStats holds diagnostic statistics for the render session.

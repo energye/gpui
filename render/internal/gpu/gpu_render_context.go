@@ -1361,9 +1361,6 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 // released — they are owned by GPUShared.
 func (rc *GPURenderContext) Close() {
 	if rc.session != nil {
-		if tp := rc.session.TextPipelineRef(); tp != nil {
-			tp.Destroy()
-		}
 		rc.session.Destroy()
 		rc.session = nil
 	}

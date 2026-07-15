@@ -349,6 +349,37 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 
 **S6 关闭后**：推荐进入控件层主线；控件绘制必须享受 S6 帧模型与合并路径，不得旁路。
 
+### M — 内存 / VRAM 生命周期（S4–S6 正确性锁并存）
+
+> 详案：`docs/MEM_LEAK_TEST_PLAN.md`。目标：在 **不降 S4–S6 正确性/语义** 的前提下，堵住 render→webgpu→rwgpu 释放链泄漏，并用进程隔离档自动反复验证。
+
+| 档 | 测试 | 说明 |
+|----|------|------|
+| T0–T2 | `TestMem_T0_` / `T1_` / `T2_` | CreateClose / RetainedResize / ResetAccelerator |
+| T3 | `TestMem_T3_ComplexOffscreen_*` | 复杂离屏 + 尺寸抖动 |
+| T4 | `TestMem_T4_WindowComplex_*` | X11 窗口 resize + 复杂动态帧 |
+| T5 | `GPUI_MEM_STRESS=1` | 可选长压 |
+
+```bash
+export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+export GPUI_SURFACE_SAMPLE_COUNT=1   # 低 VRAM 主机必开
+./scripts/run_mem_leak_tests.sh      # 进程隔离；默认 COUNT=3
+
+# S4–S6 正确性抽样（建议与 mem 一样进程隔离重窗口用例）
+go test -count=1 ./render -run 'TestS54_|TestS52_|TestS53_' -timeout 120s
+go test -count=1 ./render -run 'TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 180s
+go test -count=1 ./render -run 'TestS68_WindowPresent_MultiFrameDraw$' -timeout 120s
+```
+
+**硬规则**：
+
+1. mem 修复若触及 encoder/queue/device/session/Close，必须重跑上表 L0 + Comp 抽样 + 相关 S6x。  
+2. 本机 iGPU 共享内存紧时：**单进程串跑全 S6x+窗口可能 OOM abort**；门禁以进程隔离为准，不把「同进程全绿」当唯一标准。  
+3. 控件层（W）后置不阻塞 M；M 也不替代 L2 Comp 全量。
+
+- [x] T0–T4 + 脚本 + 释放链修复（2026-07-15）  
+- [x] S4–S6 抽样在隔离下可复跑  
+
 
 ### W — 控件层（类设计系统组件；走 render）
 
@@ -412,7 +443,7 @@ go test -count=1 ./widget -timeout 120s
 **A 已关闭**。**S4.0–S4.4 已关闭**。  
 **A / S4 / S5 已关闭。**  
 **S6.0–S6.9 已关闭**（深基线 + 帧/提交/batch/layer/text/path/资源/窗口 + 重场景分级预算）。  
-**S6.0–S6.9 已关闭**。**当前焦点：控件层 W1**（W0 脚手架+第一批 Draw 已关，见 `docs/W0_WIDGET_LAYER.md`）。可选 S6.10 Skia FPS 附录仍不阻塞。
+**S6.0–S6.9 已关闭**。**M 内存生命周期档已落地**（`docs/MEM_LEAK_TEST_PLAN.md`）。用户当前侧重 **内存/VRAM 泄漏验证与释放链**；控件层 W 仍后置。可选 S6.10 Skia FPS 附录仍不阻塞。
 
 ```bash
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
@@ -476,6 +507,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.66 | **M 内存泄漏套件**：T0–T4 + `scripts/run_mem_leak_tests.sh`；修 encoder/pass/queue/adapter/cmdbuf 释放与 session pipeline 所有权；lazy Vello；与 S4–S6 正确性门禁进程隔离并存；`docs/MEM_LEAK_TEST_PLAN.md` |
 | 2026-07-15 | 1.65 | **W0 关闭**：`widget` 包 Button/Input/Modal/ListRow/TableCell + Theme；CPU/GPU present 门禁；`docs/W0_WIDGET_LAYER.md`；焦点 → W1 |
 | 2026-07-15 | 1.64 | **S6.9 关闭**：分级预算 P0/P1/P2/P3；`TestS69_*` + `tmp/s6_9_heavy_budget.json`；P2 相对 S6.0 可解释下降；L2 Comp 分片 201 绿；S6 总关闭条件齐；焦点 → 可选 S6.10 / 控件层入口 |
 | 2026-07-15 | 1.63 | **S6.8 关闭**：Swapchain stats/reconfigure/Fifo；X11 multi-frame PresentFrameAuto p50≈11ms；`docs/S6_8_WINDOW_PRESENT.md`；焦点 → S6.9 |

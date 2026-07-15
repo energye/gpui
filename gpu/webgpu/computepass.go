@@ -47,6 +47,10 @@ func (p *ComputePassEncoder) End() error {
 		return ErrReleased
 	}
 	p.released = true
-	p.r.End()
+	if p.r != nil {
+		p.r.End()
+		p.r.Release()
+		p.r = nil
+	}
 	return nil
 }

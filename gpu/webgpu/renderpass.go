@@ -104,12 +104,18 @@ func (p *RenderPassEncoder) DrawIndexedIndirect(buffer *Buffer, offset uint64) {
 	p.r.DrawIndexedIndirect(buffer.r, offset)
 }
 
-// End ends the render pass.
+// End ends the render pass and drops the native pass-encoder reference.
+// wgpu requires wgpuRenderPassEncoderRelease after End; without it the
+// encoder handle (and associated device memory) leaks.
 func (p *RenderPassEncoder) End() error {
 	if p.released {
 		return ErrReleased
 	}
 	p.released = true
-	p.r.End()
+	if p.r != nil {
+		p.r.End()
+		p.r.Release()
+		p.r = nil
+	}
 	return nil
 }

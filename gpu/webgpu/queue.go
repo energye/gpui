@@ -104,3 +104,17 @@ func (q *Queue) SetSwapchainSuppressed(_ bool) {}
 func (q *Queue) LastSubmissionIndex() uint64 {
 	return 0
 }
+
+// Release drops the native queue reference obtained via Device.Queue /
+// wgpuDeviceGetQueue. Must be called before or as part of Device.Release so
+// the logical device can fully tear down and VRAM can be reclaimed.
+func (q *Queue) Release() {
+	if q == nil || q.released {
+		return
+	}
+	q.released = true
+	if q.r != nil {
+		q.r.Release()
+		q.r = nil
+	}
+}

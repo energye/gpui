@@ -88,7 +88,13 @@ func (a *SDFAccelerator) IsSoftwareAdapter() bool {
 // NewGPURenderContext creates a new per-context GPU render context.
 // Implements gg.GPURenderContextProvider.
 func (a *SDFAccelerator) NewGPURenderContext() any {
-	return a.shared.NewRenderContext()
+	a.mu.Lock()
+	if a.shared == nil {
+		a.shared = NewGPUShared()
+	}
+	shared := a.shared
+	a.mu.Unlock()
+	return shared.NewRenderContext()
 }
 
 // SetLCDLayout propagates the LCD subpixel layout to the glyph mask engine.
@@ -237,6 +243,7 @@ func (a *SDFAccelerator) Close() {
 	}
 	if a.shared != nil {
 		a.shared.Close()
+		a.shared = nil
 	}
 }
 

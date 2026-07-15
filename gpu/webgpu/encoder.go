@@ -155,16 +155,25 @@ func (e *CommandEncoder) DiscardEncoding() {
 	e.released = true
 	if e.r != nil {
 		e.r.Release()
+		e.r = nil
 	}
 }
 
 // Finish completes command recording and returns a CommandBuffer.
+// The native command encoder is released after Finish (wgpu refcounting);
+// callers must still FreeCommandBuffer/Release the resulting CommandBuffer
+// after GPU completion.
 func (e *CommandEncoder) Finish() (*CommandBuffer, error) {
 	if e.released {
 		return nil, ErrReleased
 	}
 	e.released = true
 	rcb, err := e.r.Finish()
+	// Drop encoder ref regardless of Finish success — handle is consumed.
+	if e.r != nil {
+		e.r.Release()
+		e.r = nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("wgpu: failed to finish command encoder: %w", err)
 	}
@@ -179,7 +188,8 @@ type CommandBuffer struct {
 	submitted bool
 }
 
-// Release releases a CommandBuffer that will NOT be submitted to the GPU.
+// Release drops the native command-buffer reference. Safe after Submit once
+// the GPU has finished using it (or after Device.WaitIdle / next-frame drain).
 func (cb *CommandBuffer) Release() {
 	if cb == nil || cb.r == nil {
 		return
