@@ -165,7 +165,7 @@ func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 				float32(tr.X), float32(tr.Y),
 				float32(br.X), float32(br.Y),
 				float32(bl.X), float32(bl.Y),
-				float32(op), vpW, vpH, u0, v0, u1, v1)
+				float32(op), vpW, vpH, u0, v0, u1, v1, false)
 			queued++
 		}
 		if queued > 0 {

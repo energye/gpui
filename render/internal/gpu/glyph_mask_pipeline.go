@@ -97,9 +97,15 @@ type GlyphMaskPipeline struct {
 	// different fragment shader (per-channel alpha compositing).
 	// This avoids the Intel Vulkan null pipeline handle bug caused by
 	// adding is_lcd to the grayscale uniform struct.
-	lcdShader              *webgpu.ShaderModule
-	lcdUniformLayout       *webgpu.BindGroupLayout
-	lcdPipeLayout          *webgpu.PipelineLayout
+	lcdShader        *webgpu.ShaderModule
+	lcdUniformLayout *webgpu.BindGroupLayout
+	lcdPipeLayout    *webgpu.PipelineLayout
+	// Two-pass LCD (true per-channel ClearType without dual-source blending):
+	// 1) darken: out = dst * (1 - cov_rgb)   blend Zero / OneMinusSrc
+	// 2) add:    out = dst + color * cov_rgb blend One / One
+	lcdPipelineDarken *webgpu.RenderPipeline
+	lcdPipelineAdd    *webgpu.RenderPipeline
+	// lcdPipelineWithStencil is kept as an alias of lcdPipelineAdd for older checks.
 	lcdPipelineWithStencil *webgpu.RenderPipeline
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
@@ -348,27 +354,37 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
 
-	// Select pipeline: depth-clipped variant takes priority, then LCD, then grayscale.
-	selectedPipeline := p.pipelineWithStencil
-	switch {
-	case useDepthClip:
-		selectedPipeline = p.pipelineWithDepthClip
-	case resources.isLCD && p.lcdPipelineWithStencil != nil:
-		selectedPipeline = p.lcdPipelineWithStencil
-	}
-
-	rp.SetPipeline(selectedPipeline)
+	// Select pipeline: depth-clipped variant takes priority, then LCD two-pass, then grayscale.
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
 	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.SetIndexBuffer(resources.idxBuf, types.IndexFormatUint16, 0)
-	for _, dc := range resources.drawCalls {
-		if dc.indexCount == 0 {
-			continue
+
+	drawAll := func(pipeline *webgpu.RenderPipeline) {
+		if pipeline == nil {
+			return
 		}
-		rp.SetBindGroup(0, dc.bindGroup, nil)
-		rp.DrawIndexed(dc.indexCount, 1, dc.indexOffset, 0, 0)
+		rp.SetPipeline(pipeline)
+		for _, dc := range resources.drawCalls {
+			if dc.indexCount == 0 {
+				continue
+			}
+			rp.SetBindGroup(0, dc.bindGroup, nil)
+			rp.DrawIndexed(dc.indexCount, 1, dc.indexOffset, 0, 0)
+		}
+	}
+
+	switch {
+	case useDepthClip:
+		drawAll(p.pipelineWithDepthClip)
+	case resources.isLCD && p.lcdPipelineDarken != nil:
+		// Per-channel LCD (white-dest composite + Replace). See glyph_mask_lcd.wgsl.
+		drawAll(p.lcdPipelineDarken)
+	case resources.isLCD && p.lcdPipelineWithStencil != nil:
+		drawAll(p.lcdPipelineWithStencil)
+	default:
+		drawAll(p.pipelineWithStencil)
 	}
 }
 
@@ -390,7 +406,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 	if p.clipBindLayout != nil && !p.lcdPipeLayoutHasClip {
 		p.destroyLCDPipeline()
 	}
-	if p.lcdPipelineWithStencil != nil {
+	if p.lcdPipelineDarken != nil && p.lcdPipelineAdd != nil {
 		return nil
 	}
 
@@ -415,7 +431,7 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 			{
 				Binding:    0,
 				Visibility: types.ShaderStageVertex | types.ShaderStageFragment,
-				Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: glyphMaskUniformSize},
+				Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: glyphMaskLCDUniformSize},
 			},
 			{
 				Binding:    1,
@@ -452,34 +468,54 @@ func (p *GlyphMaskPipeline) ensureLCDPipelineWithStencil() error {
 	p.lcdPipeLayout = lcdPipeLayout
 	p.lcdPipeLayoutHasClip = hasClip
 
-	premulBlend := types.BlendStatePremultiplied()
-	lcdPipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
-		Label:  "glyph_mask_lcd_pipeline_with_stencil",
-		Layout: p.lcdPipeLayout,
-		Vertex: webgpu.VertexState{
-			Module:     p.lcdShader,
-			EntryPoint: shaderEntryVS,
-			Buffers:    glyphMaskVertexLayout(),
+	// LCD Replace blend: fragment already composites against white.
+	lcdBlend := types.BlendState{
+		Color: types.BlendComponent{
+			SrcFactor: types.BlendFactorOne,
+			DstFactor: types.BlendFactorZero,
+			Operation: types.BlendOperationAdd,
 		},
-		Fragment: &webgpu.FragmentState{
-			Module:     p.lcdShader,
-			EntryPoint: shaderEntryFS,
-			Targets: []types.ColorTargetState{
-				{
-					Format:    types.TextureFormatBGRA8Unorm,
-					Blend:     &premulBlend,
-					WriteMask: types.ColorWriteMaskAll,
+		Alpha: types.BlendComponent{
+			SrcFactor: types.BlendFactorOne,
+			DstFactor: types.BlendFactorZero,
+			Operation: types.BlendOperationAdd,
+		},
+	}
+	darkenBlend := lcdBlend
+
+	mkLCD := func(label, entry string, blend types.BlendState) (*webgpu.RenderPipeline, error) {
+		return p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+			Label:  label,
+			Layout: p.lcdPipeLayout,
+			Vertex: webgpu.VertexState{
+				Module:     p.lcdShader,
+				EntryPoint: shaderEntryVS,
+				Buffers:    glyphMaskVertexLayout(),
+			},
+			Fragment: &webgpu.FragmentState{
+				Module:     p.lcdShader,
+				EntryPoint: entry,
+				Targets: []types.ColorTargetState{
+					{
+						Format:    types.TextureFormatBGRA8Unorm,
+						Blend:     &blend,
+						WriteMask: types.ColorWriteMaskAll,
+					},
 				},
 			},
-		},
-		DepthStencil: stencilPassthroughDepthStencil(),
-		Primitive:    triangleListPrimitive(),
-		Multisample:  multisampleState(p.sampleCount),
-	})
-	if err != nil {
-		return fmt.Errorf("create glyph mask LCD pipeline with stencil: %w", err)
+			DepthStencil: stencilPassthroughDepthStencil(),
+			Primitive:    triangleListPrimitive(),
+			Multisample:  multisampleState(p.sampleCount),
+		})
 	}
-	p.lcdPipelineWithStencil = lcdPipeline
+
+	lcdPipe, err := mkLCD("glyph_mask_lcd", "fs_lcd", darkenBlend)
+	if err != nil {
+		return fmt.Errorf("create glyph mask LCD pipeline: %w", err)
+	}
+	p.lcdPipelineDarken = lcdPipe
+	p.lcdPipelineAdd = lcdPipe
+	p.lcdPipelineWithStencil = lcdPipe
 	return nil
 }
 
@@ -520,10 +556,17 @@ func (p *GlyphMaskPipeline) destroyLCDPipeline() {
 	if p.device == nil {
 		return
 	}
-	if p.lcdPipelineWithStencil != nil {
+	// darken/add/withStencil may alias the same pipeline handle.
+	if p.lcdPipelineDarken != nil {
+		p.lcdPipelineDarken.Release()
+	} else if p.lcdPipelineAdd != nil {
+		p.lcdPipelineAdd.Release()
+	} else if p.lcdPipelineWithStencil != nil {
 		p.lcdPipelineWithStencil.Release()
-		p.lcdPipelineWithStencil = nil
 	}
+	p.lcdPipelineDarken = nil
+	p.lcdPipelineAdd = nil
+	p.lcdPipelineWithStencil = nil
 	if p.lcdPipeLayout != nil {
 		p.lcdPipeLayout.Release()
 		p.lcdPipeLayout = nil

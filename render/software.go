@@ -726,8 +726,6 @@ func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, run
 	}
 }
 
-// compositeAdvanced blends src (straight color) with coverage into pixmap using
-// CSS-style separable blend modes, then SourceOver alpha (matches intImage.DrawImage).
 func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mode BlendMode) {
 	srcA := color.A * float64(coverage) / 255.0
 	if srcA <= 0 && mode != BlendClear {
@@ -739,13 +737,11 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 	// Porter-Duff fixed modes (B.02): premul ops with coverage as source alpha scale.
 	switch mode {
 	case BlendClear:
-		// out = dst * (1 - cov)
 		inv := 1.0 - cov
 		dr, dg, db, da := pixmap.getPremul(x, y)
 		pixmap.setPremul(x, y, dr*inv, dg*inv, db*inv, da*inv)
 		return
 	case BlendCopy:
-		// out = src*cov + dst*(1-cov) in premul space for AA fringe
 		sa := color.A * cov
 		inv := 1.0 - cov
 		dr, dg, db, da := pixmap.getPremul(x, y)
@@ -757,7 +753,6 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 		)
 		return
 	case BlendPlus:
-		// out = clamp(src*cov + dst)
 		sa := color.A * cov
 		dr, dg, db, da := pixmap.getPremul(x, y)
 		add := func(a, b float64) float64 {
@@ -777,9 +772,36 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 			add(sa, da),
 		)
 		return
+	case BlendDestinationOut:
+		sa := color.A * cov
+		inv := 1.0 - sa
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		pixmap.setPremul(x, y, dr*inv, dg*inv, db*inv, da*inv)
+		return
+	case BlendSourceAtop:
+		sa := color.A * cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		invs := 1.0 - sa
+		pixmap.setPremul(x, y,
+			color.R*sa*da+dr*invs,
+			color.G*sa*da+dg*invs,
+			color.B*sa*da+db*invs,
+			sa*da+da*invs,
+		)
+		return
+	case BlendXor:
+		sa := color.A * cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		pixmap.setPremul(x, y,
+			color.R*sa*(1-da)+dr*(1-sa),
+			color.G*sa*(1-da)+dg*(1-sa),
+			color.B*sa*(1-da)+db*(1-sa),
+			sa*(1-da)+da*(1-sa),
+		)
+		return
 	}
 
-	// Work in 0..255 straight channels for blend formulas.
+	// Work in 0..255 straight channels for advanced/separable blend formulas.
 	sr := uint8(clamp255(color.R * 255))
 	sg := uint8(clamp255(color.G * 255))
 	sb := uint8(clamp255(color.B * 255))

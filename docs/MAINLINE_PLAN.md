@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.14 | 日期：2026-07-15  
+> 版本：1.16 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -154,9 +154,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 S0–S3c 已关闭。S.03 真窗口 draw+present 已通。
 
-**本轮（P1 推进）**：Tier A A1–A8 + Tier B B1–B6 门禁绿；B.02/B.07 GPU 固定函数 Clear/Copy/Plus（`TestP12GPUFixedPixel_Blend*`）+ convex/stencil blend pipeline。仍 open：其余 PD 模式、Multiply GPU shader、D.03 sweep、X.05 LCD、C.05 clip AA 等。
+**本轮（P1 推进）**：B.02 全 Porter-Duff fixed GPU、D.04–D.06 tile/pattern/localMatrix GPU、I.03/C.05/X.05 与 Tier A/B/C 复杂 UI 已绿。仍 open：真 dual-texture B.03、X.05 非白 dest dual-source、X.03/X.04/Q.03、L.06 等。
 
-下一步：能力表剩余 🔄（优先 D.03 / C.05 / X.05 / B.03 GPU Multiply shader）与更深场景回归。
+下一步：能力表剩余 🔄（X.03/X.04、Q.03、L.06、真 B.03…）与更多 Ant 级绘制密度回归。
 
 ```bash
 go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
@@ -199,6 +199,7 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.16 | B.02 全 PD + D.04–D.06 GPU 门禁；P1 Tier C 复杂 UI |
 | 2026-07-15 | 1.13 | P1 复杂 UI 矩阵 A1–A8/B1 + S.05/S.08/B.06 能力表收口 |
 | 2026-07-15 | 1.12 | S.03 真窗口 draw+present：SetDeviceProvider 同 device + DeviceDescriptor limits；X11 multi-frame e2e |
 | 2026-07-15 | 1.11 | S.03 Swapchain + PresentFrame + CreateSurface 空句柄防护；窗口 e2e（X11） |

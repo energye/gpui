@@ -235,3 +235,11 @@ func (b SolidBrush) toCustomBrush() CustomBrush {
 		Name: "solid",
 	}
 }
+
+// SweepGradient creates an angular (conic) two-stop gradient around (cx, cy).
+// Angle 0 is +X, increasing counter-clockwise (matches SweepGradientBrush).
+func SweepGradient(c0, c1 RGBA, cx, cy float64) *SweepGradientBrush {
+	return NewSweepGradientBrush(cx, cy, 0).
+		AddColorStop(0, c0).
+		AddColorStop(1, c1)
+}

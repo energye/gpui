@@ -373,9 +373,14 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 			key = text.MakeGlyphMaskKey(fontID, glyph.GID, fontSize, fracX, fracY)
 		}
 
-		// Set aliased flag in cache key so aliased and AA masks are stored separately.
+		// Set mode flags in cache key so gray/LCD/aliased masks never collide.
 		if aliased {
 			key.Flags = text.GlyphMaskFlagAliased
+		} else if useLCD {
+			key.Flags = text.GlyphMaskFlagLCD
+			if lcdLayout == text.LCDLayoutBGR {
+				key.Flags |= text.GlyphMaskFlagLCDBGR
+			}
 		}
 
 		region, rErr := e.rasterizeGlyph(key, parsed, glyph.GID, rasterSize, fracX, fracY, hinting, useLCD, aliased, *lcdFilter, lcdLayout)

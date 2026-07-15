@@ -325,6 +325,7 @@ func TestP1_A5_UITableCells(t *testing.T) {
 	_ = dc.LoadFontFace(font, 11)
 
 	dc.ResetRenderPathStats()
+	dc.SetLCDLayout(render.LCDLayoutNone) // isolate from other LCD tests
 	p1White(dc, w, h)
 
 	// Header
@@ -336,17 +337,30 @@ func TestP1_A5_UITableCells(t *testing.T) {
 		for col := 0; col < cols; col++ {
 			x := ox + float64(col)*cw
 			y := oy + float64(row)*rh
+			// Cell background (hover tint is stronger so sample is stable)
 			if row == 3 && col == 1 {
-				dc.SetRGBA(0.90, 0.94, 1.0, 1)
-				dc.DrawRectangle(x, y, cw, rh)
-				_ = dc.Fill()
+				dc.SetRGB(0.55, 0.72, 1.0)
+			} else if row%2 == 0 {
+				dc.SetRGB(1, 1, 1)
+			} else {
+				dc.SetRGB(0.98, 0.98, 0.99)
 			}
+			dc.DrawRectangle(x, y, cw, rh)
+			_ = dc.Fill()
 			// Clip text to cell
 			dc.ClipRect(x+2, y+2, cw-4, rh-4)
 			dc.SetRGB(0.15, 0.15, 0.18)
 			dc.DrawString("cell-long-text", x+4, y+18)
 			dc.ResetClip()
 		}
+	}
+	// Re-paint hover on top so text/grid cannot leave sample pure white.
+	{
+		x := ox + 1*cw
+		y := oy + 3*rh
+		dc.SetRGB(0.55, 0.72, 1.0)
+		dc.DrawRectangle(x, y, cw, rh)
+		_ = dc.Fill()
 	}
 	// Grid lines
 	dc.SetRGBA(0.80, 0.80, 0.84, 1)
@@ -854,4 +868,194 @@ func TestP1_B6_StressHiDPI(t *testing.T) {
 	// Physical sample near rrect center (logical 50,40 → physical ~100,80)
 	r, g, b, _ := p1Sample(dc, 100, 80)
 	p1NotNearWhite(t, "hidpi rrect", r, g, b)
+}
+
+// --- Tier C: denser nested Ant Design–class drawing (not widget APIs) ---
+
+// C1 nests modal mask + form fields + dropdown overlay + badge density.
+func TestP1_C1_NestedModalFormMenu(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 320, 240
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.RGBA{R: 0.96, G: 0.96, B: 0.96, A: 1})
+
+	// App chrome bar
+	dc.SetRGB(0.12, 0.23, 0.54)
+	dc.DrawRectangle(0, 0, w, 36)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("App / Settings", 12, 24)
+
+	// Page cards
+	for i := 0; i < 3; i++ {
+		x := 12 + float64(i)*100
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, 48, 92, 70, 6)
+		_ = dc.Fill()
+		dc.SetRGB(0.2, 0.2, 0.2)
+		dc.DrawString("Card", x+10, 70)
+	}
+
+	// Modal mask
+	dc.SetRGBA(0, 0, 0, 0.45)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Modal panel
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(50, 40, 220, 160, 8)
+	_ = dc.Fill()
+	dc.SetRGB(0.1, 0.1, 0.1)
+	dc.DrawString("Edit profile", 66, 64)
+
+	// Form inputs (labels + fields)
+	labels := []string{"Name", "Email", "Role"}
+	for i, lab := range labels {
+		y := 80 + float64(i)*28
+		dc.SetRGB(0.35, 0.35, 0.35)
+		dc.DrawString(lab, 66, y)
+		dc.SetRGB(0.95, 0.95, 0.95)
+		dc.DrawRoundedRectangle(120, y-14, 130, 22, 4)
+		_ = dc.Fill()
+		dc.SetRGB(0.75, 0.75, 0.75)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(120, y-14, 130, 22, 4)
+		_ = dc.Stroke()
+	}
+
+	// Primary / default buttons
+	dc.SetRGB(0.13, 0.55, 0.95)
+	dc.DrawRoundedRectangle(150, 172, 72, 22, 4)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("Save", 168, 188)
+	dc.SetRGB(0.92, 0.92, 0.92)
+	dc.DrawRoundedRectangle(230, 172, 56, 22, 4)
+	_ = dc.Fill()
+
+	// Nested dropdown menu over the Role field
+	dc.SetRGBA(0, 0, 0, 0.08)
+	dc.DrawRoundedRectangle(124, 148, 120, 72, 4)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(122, 146, 120, 70, 4)
+	_ = dc.Fill()
+	for i, item := range []string{"Admin", "Editor", "Viewer"} {
+		y := 162 + float64(i)*18
+		if i == 1 {
+			dc.SetRGB(0.90, 0.94, 1.0)
+			dc.DrawRectangle(126, y-12, 112, 18)
+			_ = dc.Fill()
+		}
+		dc.SetRGB(0.15, 0.15, 0.15)
+		dc.DrawString(item, 134, y)
+	}
+
+	// Badge on modal title
+	dc.SetRGB(1, 0.3, 0.3)
+	dc.DrawCircle(210, 56, 8)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("3", 206, 60)
+
+	p1Flush(t, dc)
+
+	// Structure checks: mask darkens chrome; modal white; menu has ink.
+	rMask, gMask, bMask, _ := p1Sample(dc, 10, 200)
+	// Masked page area should not be pure white page
+	if rMask > 250 && gMask > 250 && bMask > 250 {
+		t.Fatalf("modal mask missing at page bg: %d,%d,%d", rMask, gMask, bMask)
+	}
+	rModal, gModal, bModal, _ := p1Sample(dc, 160, 50)
+	// Title bar area of modal is white-ish (may catch text)
+	if int(rModal)+int(gModal)+int(bModal) < 500 {
+		t.Fatalf("modal panel too dark: %d,%d,%d", rModal, gModal, bModal)
+	}
+	// Hover item in menu should have some blue-ish fill
+	rH, gH, bH, _ := p1Sample(dc, 180, 168)
+	t.Logf("mask=%d,%d,%d modal=%d,%d,%d hover=%d,%d,%d", rMask, gMask, bMask, rModal, gModal, bModal, rH, gH, bH)
+	// Ensure GPU density: multi-primitive scene
+	if dc.RenderPathStats().GPUOps < 5 {
+		t.Fatalf("C1 expected dense GPUOps>=5: %s", dc.RenderPathStats().LogLine())
+	}
+}
+
+// C2: table + sticky header + row selection + scroll clip + floating action.
+func TestP1_C2_TableScrollOverlayDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 280, 200
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Clip to table viewport
+	dc.DrawRoundedRectangle(20, 20, 200, 140, 4)
+	dc.Clip()
+
+	// Sticky header
+	dc.SetRGB(0.96, 0.96, 0.96)
+	dc.DrawRectangle(20, 20, 200, 24)
+	_ = dc.Fill()
+	dc.SetRGB(0.2, 0.2, 0.2)
+	dc.DrawString("Name", 28, 36)
+	dc.DrawString("Status", 120, 36)
+
+	// Rows (more than viewport)
+	for i := 0; i < 12; i++ {
+		y := 44 + float64(i)*18
+		if i%2 == 0 {
+			dc.SetRGB(1, 1, 1)
+		} else {
+			dc.SetRGB(0.98, 0.98, 0.98)
+		}
+		if i == 3 {
+			dc.SetRGB(0.90, 0.94, 1.0) // selected
+		}
+		dc.DrawRectangle(20, y, 200, 18)
+		_ = dc.Fill()
+		dc.SetRGB(0.15, 0.15, 0.15)
+		dc.DrawString("Row", 28, y+13)
+		dc.SetRGB(0.3, 0.7, 0.4)
+		dc.DrawRoundedRectangle(120, y+3, 40, 12, 6)
+		_ = dc.Fill()
+	}
+	dc.ResetClip()
+
+	// Floating action button over table corner
+	dc.SetRGB(0.13, 0.55, 0.95)
+	dc.DrawCircle(230, 160, 18)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("+", 225, 166)
+
+	// Tooltip-like overlay
+	dc.SetRGBA(0.1, 0.1, 0.1, 0.9)
+	dc.DrawRoundedRectangle(190, 120, 70, 28, 4)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("Add", 210, 138)
+
+	p1Flush(t, dc)
+
+	// Outside clip should stay white (no row bleed)
+	rOut, gOut, bOut, _ := p1Sample(dc, 10, 100)
+	if rOut < 240 || gOut < 240 || bOut < 240 {
+		t.Fatalf("clip leak outside table: %d,%d,%d", rOut, gOut, bOut)
+	}
+	// Header gray
+	rH, gH, bH, _ := p1Sample(dc, 40, 28)
+	if rH < 200 {
+		t.Fatalf("header missing: %d,%d,%d", rH, gH, bH)
+	}
+	// FAB blue
+	rF, gF, bF, _ := p1Sample(dc, 230, 160)
+	if bF < 150 || rF > 100 {
+		t.Fatalf("FAB not blue-ish: %d,%d,%d", rF, gF, bF)
+	}
+	if dc.RenderPathStats().GPUOps < 5 {
+		t.Fatalf("C2 expected dense GPUOps>=5: %s", dc.RenderPathStats().LogLine())
+	}
 }

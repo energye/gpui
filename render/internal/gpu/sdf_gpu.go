@@ -92,7 +92,13 @@ func (a *SDFAccelerator) NewGPURenderContext() any {
 
 // SetLCDLayout propagates the LCD subpixel layout to the glyph mask engine.
 func (a *SDFAccelerator) SetLCDLayout(layout text.LCDLayout) {
-	a.shared.SetLCDLayout(layout)
+	a.mu.Lock()
+	if a.shared == nil {
+		a.shared = NewGPUShared()
+	}
+	shared := a.shared
+	a.mu.Unlock()
+	shared.SetLCDLayout(layout)
 }
 
 // SetForceSDF propagates the force-SDF flag to the CPU fallback accelerator.

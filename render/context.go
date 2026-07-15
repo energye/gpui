@@ -70,6 +70,7 @@ type Context struct {
 
 	// Text rendering
 	textMode         TextMode               // text strategy selection (default: Auto)
+	lcdLayout        LCDLayout              // LCD/ClearType layout (default None)
 	textDecoration   TextDecoration         // underline/line-through/overline (X.08)
 	outlineExtractor *text.OutlineExtractor // lazy: for transform-aware text (Strategy B)
 	glyphCache       *text.GlyphCache       // lazy: cached glyph outlines for drawStringAsOutlines
@@ -398,6 +399,7 @@ func (c *Context) TextMode() TextMode {
 //
 // The setting is per-Context. Call this before drawing text.
 func (c *Context) SetLCDLayout(layout LCDLayout) {
+	c.lcdLayout = layout
 	a := Accelerator()
 	if a == nil {
 		return
@@ -1131,30 +1133,53 @@ func (c *Context) DrawRectangle(x, y, w, h float64) {
 // All coordinates are transformed through the current matrix,
 // ensuring correct rendering on HiDPI/Retina displays.
 func (c *Context) DrawRoundedRectangle(x, y, w, h, r float64) {
-	maxR := math.Min(w, h) / 2
-	if r > maxR {
-		r = maxR
+	c.DrawRoundedRectangleXY(x, y, w, h, r, r)
+}
+
+// DrawRoundedRectangleXY draws a rounded rectangle with independent X/Y corner radii
+// (G.06 Skia-style elliptical corners). Radii are clamped to half width/height.
+func (c *Context) DrawRoundedRectangleXY(x, y, w, h, rx, ry float64) {
+	if w <= 0 || h <= 0 {
+		return
 	}
-	// Cubic Bézier approximation for 90° arcs (same constant as DrawCircle).
+	if rx < 0 {
+		rx = 0
+	}
+	if ry < 0 {
+		ry = 0
+	}
+	if rx > w/2 {
+		rx = w / 2
+	}
+	if ry > h/2 {
+		ry = h / 2
+	}
+	// Axis-aligned rect fast path.
+	if rx <= 0 && ry <= 0 {
+		c.DrawRectangle(x, y, w, h)
+		return
+	}
+	// Cubic Bézier approximation for quarter-ellipses (same k as DrawCircle/Ellipse).
 	const k = 0.5522847498307936
-	kr := k * r
+	kx := k * rx
+	ky := k * ry
 	// Top edge
-	c.MoveTo(x+r, y)
-	c.LineTo(x+w-r, y)
+	c.MoveTo(x+rx, y)
+	c.LineTo(x+w-rx, y)
 	// Top-right corner
-	c.CubicTo(x+w-r+kr, y, x+w, y+r-kr, x+w, y+r)
+	c.CubicTo(x+w-rx+kx, y, x+w, y+ry-ky, x+w, y+ry)
 	// Right edge
-	c.LineTo(x+w, y+h-r)
+	c.LineTo(x+w, y+h-ry)
 	// Bottom-right corner
-	c.CubicTo(x+w, y+h-r+kr, x+w-r+kr, y+h, x+w-r, y+h)
+	c.CubicTo(x+w, y+h-ry+ky, x+w-rx+kx, y+h, x+w-rx, y+h)
 	// Bottom edge
-	c.LineTo(x+r, y+h)
+	c.LineTo(x+rx, y+h)
 	// Bottom-left corner
-	c.CubicTo(x+r-kr, y+h, x, y+h-r+kr, x, y+h-r)
+	c.CubicTo(x+rx-kx, y+h, x, y+h-ry+ky, x, y+h-ry)
 	// Left edge
-	c.LineTo(x, y+r)
+	c.LineTo(x, y+ry)
 	// Top-left corner
-	c.CubicTo(x, y+r-kr, x+r-kr, y, x+r, y)
+	c.CubicTo(x, y+ry-ky, x+rx-kx, y, x+rx, y)
 	c.ClosePath()
 }
 
@@ -1518,7 +1543,7 @@ type gpuContextOps interface {
 	DrawGlyphMaskTextAliased(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 	QueueImageDraw(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
-		u0, v0, u1, v1 float32)
+		u0, v0, u1, v1 float32, nearest bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
 	QueueGPUTextureDraw(target GPURenderTarget, view gpucontext.TextureView,

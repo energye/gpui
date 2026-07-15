@@ -1934,7 +1934,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			Entries: []webgpu.BindGroupEntry{
 				{Binding: 0, Buffer: s.imageUniformBufs[i], Offset: 0, Size: imageUniformSize},
 				{Binding: 1, TextureView: texView},
-				{Binding: 2, Sampler: s.imagePipeline.sampler},
+				{Binding: 2, Sampler: s.imagePipeline.SamplerFor(cmd.Nearest)},
 			},
 		})
 		if err != nil {
@@ -2056,7 +2056,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			Entries: []webgpu.BindGroupEntry{
 				{Binding: 0, Buffer: s.gpuTexUniformBufs[i], Offset: 0, Size: imageUniformSize},
 				{Binding: 1, TextureView: texView},
-				{Binding: 2, Sampler: s.imagePipeline.sampler},
+				{Binding: 2, Sampler: s.imagePipeline.SamplerFor(false)},
 			},
 		})
 		if err != nil {

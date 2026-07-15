@@ -84,8 +84,8 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | B.01 | SrcOver（默认） | `kSrcOver` | BlendState premul | ✅ enum | ✅ | ✅ `TestP12GPUFixedPixel_SourceOverPremul` | M1 |
-| B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | ✅ enum+factors | ✅ BlendState | ✅ GPU fixed: Clear/Copy/Plus + SrcOver；`TestP12GPUFixedPixel_Blend*`；其余 PD/advanced 仍 CPU/层 | M2 |
-| B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 | 🔄 | ✅ 直绘 CPU `SetBlendMode`；层 GPU 内容+CPU composite | M2 |
+| B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | ✅ enum+factors | ✅ BlendState | ✅ GPU fixed PD: Clear/Copy/Plus/SrcOver/DstOut/SrcAtop/Xor/DstOver/SrcIn/SrcOut/DstIn/DstAtop `TestP12GPUFixedPixel_Blend*` | M2 |
+| B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 shader | 🔄 | ✅ GPU：dest resolve + composite + textured blit `TestP1_Capability_B03_*`；HSL 仍 CPU | M2 |
 | B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | ✅ BlendHue/Sat/Color/Lum `TestS3c_M3_Blend*` | M3 |
 | B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | 🔄 premul solid+fixed blend 测试增强；全路径仍可精修 | M1 |
 | B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | ✅ SetRGBA alpha GPU `TestP1_Capability_B06_PaintAlpha`（预乘路径仍可精修） | M1 |
@@ -112,7 +112,7 @@
 | G.03 | RRect | `drawRRect` | SDF/path | N/A | N/A | ✅ + SDF | M1 |
 | G.04 | Line / 折线 | `drawLine`/`drawPoints` | stroke | N/A | N/A | ✅ | M1 |
 | G.05 | Arc | `drawArc` | path | N/A | N/A | ✅ | M1 |
-| G.06 | RoundRect 变体 XY 半径 | `SkRRect` | path | N/A | N/A | ✅ 等半径 rrect `TestS3b`；XY 不等 🔄 | M2 |
+| G.06 | RoundRect 变体 XY 半径 | `SkRRect` | path | N/A | N/A | ✅ `DrawRoundedRectangleXY` + GPU `TestP1_Capability_G06_*` | M2 |
 
 ### 1.7 Clip
 
@@ -122,7 +122,7 @@
 | C.02 | Clip rrect | `clipRRect` | stencil/SDF mask | 🔄 | 🔄 | ✅ ClipRoundRect `TestS3b` | M2 |
 | C.03 | Clip path | `clipPath` | stencil | 🔄 | 🔄 | ✅ Clip+GPU fill `TestS3b_M2_ClipPath` | M2 |
 | C.04 | Clip 栈 / 交 | clip stack | stencil ref / mask | 🔄 | 🔄 | ✅ 栈 | M1 |
-| C.05 | Clip AA | aa clip | coverage/stencil MSAA | 🔄 | 🔄 | 🔄 | M2 |
+| C.05 | Clip AA | aa clip | coverage/stencil MSAA | 🔄 | 🔄 | ✅ rrect SDF soft edge + path clip flag `TestP1_Capability_C05_*` | M2 |
 | C.06 | Replace/Difference clip op | `SkClipOp` | stencil ops / mask | 🔄 | 🔄 | ✅ ClipRectOp `TestS3c_M3_ClipRect*` | M3 |
 
 ### 1.8 Layer / SaveLayer
@@ -142,10 +142,10 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | D.01 | Linear gradient | `SkGradientShader::MakeLinear` | 1D tex 或 shader | 🔄 | 🔄 | ✅ GPU staging+quad `TestS3b` | M2 |
 | D.02 | Radial gradient | `MakeRadial` | shader/tex | 🔄 | 🔄 | ✅ GPU staging+quad `TestS3b` | M2 |
-| D.03 | Sweep/conic | `MakeSweep` | shader | 🔄 | 🔄 | 🔄 | M2 |
-| D.04 | 多 stop / tile mode | clamp/repeat/mirror | sampler address | ✅ sampler | ✅ | 🔄 | M2 |
-| D.05 | Image shader/pattern | `SkImage::makeShader` | texture sample | ✅ | ✅ | 🔄 ImagePattern | M2 |
-| D.06 | Local matrix on shader | localMatrix | uniform | N/A | N/A | 🔄 | M2 |
+| D.03 | Sweep/conic | `MakeSweep` | shader | 🔄 native shader | 🔄 | ✅ GPU staging blit `TestP1_Capability_D03_SweepGradientGPU`（与 linear 同 bootstrap） | M2 |
+| D.04 | 多 stop / tile mode | clamp/repeat/mirror | sampler address | ✅ sampler | ✅ | ✅ multi-stop + ExtendRepeat/Reflect GPU staging `TestP1_Capability_D04_*` | M2 |
+| D.05 | Image shader/pattern | `SkImage::makeShader` | texture sample | ✅ | ✅ | ✅ ImagePattern fill GPU staging `TestP1_Capability_D05_*` | M2 |
+| D.06 | Local matrix on shader | localMatrix | uniform | N/A | N/A | ✅ ImagePattern SetScale/SetTransform GPU `TestP1_Capability_D06_*` | M2 |
 
 ### 1.10 Image / Bitmap
 
@@ -153,7 +153,7 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | I.01 | DrawImage | `drawImage` | textured quad | ✅ | ✅ | ✅ GPU quad `TestS3b` | M2 |
 | I.02 | DrawImageRect/src-dst | `drawImageRect` | UV rect | ✅ | ✅ | ✅ scale dst `TestS3b` | M2 |
-| I.03 | 过滤 Nearest/Linear | sampling | FilterMode | ✅ | ✅ | 🔄 | M2 |
+| I.03 | 过滤 Nearest/Linear | sampling | FilterMode | ✅ | ✅ | ✅ Nearest/Linear GPU `TestP1_Capability_I03` | M2 |
 | I.04 | Cubic/mipmap（可选） | cubic sampling | mip / custom | 🔄 | 🔄 | ✅ InterpBicubic+UseMipmaps `TestS3c_M3_ImageBicubicAndMipmap` | M3 |
 | I.05 | Opacity / alpha image | paint alpha | premul | 🔄 | 🔄 | ✅ DrawImageEx opacity `TestS3b` | M2 |
 | I.06 | 旋转/CTM 下图像 | concat + drawImage | 任意 quad | ✅ | ✅ | ✅ 四角点 | M2 |
@@ -168,7 +168,7 @@
 | X.02 | DrawString baseline | `drawString` | glyph atlas tex | 🔄 R8 atlas | 🔄 | ✅ GPU `TestS3b_M2_DrawString` | M2 |
 | X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | 🔄 | M2 |
 | X.04 | Subpixel positioning | subpixel | atlas/frac | N/A | N/A | 🔄 | M2 |
-| X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | 🔄 | 🔄 | 🔄 LCDLayout | M2 |
+| X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | 🔄 | 🔄 | ✅ LCD RGB GPU fringe `TestP1_Capability_X05`（白底 composite；非白 dest 后置 dual-source） | M2 |
 | X.06 | CJK / fallback 字体 | fallback | 同 text | N/A | N/A | 🔄 | M2 |
 | X.07 | 路径化文本 | text → path | path 管线 | N/A | N/A | ✅ outline | M2 |
 | X.08 | 文本装饰 underline 等 | decorations | 几何 | N/A | N/A | ✅ SetTextDecoration `TestS3c_M3_TextUnderline` | M3 |
@@ -344,6 +344,8 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.6 | P1：B.02 全 PD fixed GPU + D.04–D.06 pattern/tile/localMatrix GPU 门禁；Tier C 复杂 UI |
+| 2026-07-15 | 1.5 | P1 closers：I.03 Nearest/Linear、C.05 clip AA、X.05 LCD GPU 门禁 |
 | 2026-07-15 | 1.4 | S3a 关闭：M0–M1 GPU 门禁 |
 | 2026-07-15 | 1.3 | S2 关闭：webgpu facade |
 | 2026-07-15 | 1.3 | P1 复杂 UI 矩阵 A1–A8 + S.05/S.08/B.06 门禁；S.03 真窗口 draw |

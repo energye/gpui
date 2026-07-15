@@ -39,7 +39,9 @@ type GlyphMaskKey struct {
 	// for the same glyph and must be cached separately.
 	//
 	// Bit 0 (GlyphMaskFlagAliased): binary coverage (0/255 only, NoAAFiller).
-	// Bits 1-7: reserved for future use.
+	// Bit 1 (GlyphMaskFlagLCD): LCD/ClearType 3x horizontal mask.
+	// Bit 2 (GlyphMaskFlagLCDBGR): LCD BGR order (with FlagLCD).
+	// Bits 3-7: reserved for future use.
 	Flags uint8
 }
 
@@ -47,6 +49,14 @@ type GlyphMaskKey struct {
 // (0 or 255 only) using the NoAAFiller. When set, the same glyph at the same
 // size gets a different cache key from its anti-aliased counterpart.
 const GlyphMaskFlagAliased uint8 = 1 << 0
+
+// GlyphMaskFlagLCD marks the glyph mask as LCD/ClearType (3x horizontal
+// coverage stored in the R8 atlas). Must be distinct from grayscale AA keys
+// so enabling SetLCDLayout cannot reuse a previously cached gray mask.
+const GlyphMaskFlagLCD uint8 = 1 << 1
+
+// GlyphMaskFlagLCDBGR marks LCD data stored in BGR subpixel order (vs RGB).
+const GlyphMaskFlagLCDBGR uint8 = 1 << 2
 
 // MakeGlyphMaskKey creates a GlyphMaskKey from rendering parameters.
 // The size is in pixels (ppem). The subpixelX/Y are fractional pixel offsets [0, 1).

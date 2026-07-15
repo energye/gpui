@@ -44,6 +44,22 @@ const (
 	BlendCopy
 	// BlendPlus: result is clamped source+destination (additive).
 	BlendPlus
+	// BlendDestinationOut: dst * (1 - srcA) — eraser / cutout.
+	BlendDestinationOut
+	// BlendSourceAtop: src*dstA + dst*(1-srcA).
+	BlendSourceAtop
+	// BlendXor: src*(1-dstA) + dst*(1-srcA).
+	BlendXor
+	// BlendDestinationOver: src*(1-dstA) + dst (DstOver).
+	BlendDestinationOver
+	// BlendSourceIn: src * dstA (SrcIn).
+	BlendSourceIn
+	// BlendSourceOut: src * (1-dstA) (SrcOut).
+	BlendSourceOut
+	// BlendDestinationIn: dst * srcA (DstIn).
+	BlendDestinationIn
+	// BlendDestinationAtop: src*(1-dstA) + dst*srcA (DstAtop).
+	BlendDestinationAtop
 )
 
 const unknownBlendMode = "Unknown"
@@ -73,6 +89,22 @@ func (b BlendMode) String() string {
 		return "Copy"
 	case BlendPlus:
 		return "Plus"
+	case BlendDestinationOut:
+		return "DestinationOut"
+	case BlendSourceAtop:
+		return "SourceAtop"
+	case BlendXor:
+		return "Xor"
+	case BlendDestinationOver:
+		return "DestinationOver"
+	case BlendSourceIn:
+		return "SourceIn"
+	case BlendSourceOut:
+		return "SourceOut"
+	case BlendDestinationIn:
+		return "DestinationIn"
+	case BlendDestinationAtop:
+		return "DestinationAtop"
 	default:
 		return unknownBlendMode
 	}

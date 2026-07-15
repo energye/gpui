@@ -7,9 +7,11 @@ import "math"
 type InterpolationMode uint8
 
 const (
+	// Zero value means "unspecified" and DrawImageEx maps it to InterpBilinear.
+	// Modes start at 1 so InterpNearest is not swallowed by defaulting.
 	// InterpNearest selects the closest pixel (no interpolation).
 	// Fast but produces blocky results when scaling.
-	InterpNearest InterpolationMode = iota
+	InterpNearest InterpolationMode = 1 + iota
 
 	// InterpBilinear performs linear interpolation between 4 neighboring pixels.
 	// Good balance between quality and performance.

@@ -1,6 +1,6 @@
 # P1 — 复杂 UI 场景矩阵门禁
 
-> 版本：1.1 | 日期：2026-07-15  
+> 版本：1.3 | 日期：2026-07-15  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) / 能力表 [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > **非控件层**：场景只模拟 Ant Design 级 UI 的绘制形态。
@@ -36,6 +36,13 @@
 | B5 | Path AA stress | `TestP1_B5_StressPathAA` | ✅ |
 | B6 | HiDPI stress | `TestP1_B6_StressHiDPI` | ✅ |
 
+## Tier C（更深嵌套密度）
+
+| ID | 场景 | 门禁 | 状态 |
+|----|------|------|------|
+| C1 | Nested modal + form + menu | `TestP1_C1_NestedModalFormMenu` | ✅ |
+| C2 | Table scroll + FAB overlay | `TestP1_C2_TableScrollOverlayDensity` | ✅ |
+
 ## 能力表同步收口
 
 | ID | 能力 | 门禁 |
@@ -43,9 +50,15 @@
 | S.03 | 窗口 present | `window_present` / X11 tags |
 | S.05 | Resize + GPU 重绘 | `TestP1_Capability_S05_ResizeGPU` |
 | S.08 | HiDPI hairline | `TestP1_Capability_S08_HiDPIHairline` |
-| B.02 | PD fixed GPU (Clear/Copy/Plus) | `TestP12GPUFixedPixel_Blend*` |
+| B.02 | PD fixed GPU (full set incl. DstOver/SrcIn/…) | `TestP12GPUFixedPixel_Blend*` |
+| B.03 | Multiply/Screen GPU path | `TestP1_Capability_B03_*` |
 | B.06 | Paint alpha | `TestP1_Capability_B06_PaintAlpha` |
 | B.07 | Plus GPU | `TestP12GPUFixedPixel_BlendPlus` |
+| D.03 | Sweep gradient GPU | `TestP1_Capability_D03_SweepGradientGPU` |
+| D.04 | Multi-stop + Repeat/Reflect | `TestP1_Capability_D04_*` |
+| D.05 | ImagePattern GPU | `TestP1_Capability_D05_*` |
+| D.06 | Pattern local matrix | `TestP1_Capability_D06_*` |
+| G.06 | RRect XY radii | `TestP1_Capability_G06_RRectXYRadiiGPU` |
 
 ## 命令
 
@@ -59,10 +72,9 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 
 ## 仍 open（下一切片）
 
-- B.02 其余 Porter-Duff（DstOver/In/Out/Atop/Xor…）GPU  
-- B.03 Multiply/Screen **GPU** shader 路径（当前 CPU / 层 composite）  
-- D.03 Sweep/conic gradient  
-- X.05 LCD / subpixel text  
-- C.05 Clip AA 深度  
+- B.03 真 fragment shader 双纹理 blend（当前 resolve+CPU composite+GPU blit）  
+- X.05 非白 dest dual-source LCD  
+- X.03/X.04 shaping / subpixel pos；Q.03 pixel snap  
+- L.06 Mask layer；X.11 atlas 管理精修  
 - B.05 premul 全路径精修  
 

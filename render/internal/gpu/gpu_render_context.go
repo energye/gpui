@@ -364,6 +364,7 @@ func (rc *GPURenderContext) QueueText(target render.GPURenderTarget, batch TextB
 func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
+	nearest bool,
 ) {
 	minX := min4f(tlX, trX, brX, blX)
 	minY := min4f(tlY, trY, brY, blY)
@@ -394,6 +395,7 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 		V0:             v0,
 		U1:             u1,
 		V1:             v1,
+		Nearest:        nearest,
 	}
 	rc.queueImageCmd(target, cmd)
 }
@@ -648,9 +650,15 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 // FillPath queues a filled path for GPU rendering.
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	if !isGPUSolidPaint(paint) {
+		if paintSupportsGPUAdvancedBlend(paint) {
+			return rc.fillAdvancedBlendAsImage(target, path, paint)
+		}
 		return rc.fillBrushAsImage(target, path, paint)
 	}
 	if !paintSupportsGPUFixedBlend(paint) {
+		if paintSupportsGPUAdvancedBlend(paint) {
+			return rc.fillAdvancedBlendAsImage(target, path, paint)
+		}
 		return render.ErrFallbackToCPU
 	}
 	if !rc.shared.gpuReady {
@@ -733,7 +741,7 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	if !isGPUSolidPaint(paint) {
 		return render.ErrFallbackToCPU
 	}
-	if !paintSupportsGPUFixedBlend(paint) {
+	if !paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint) {
 		return render.ErrFallbackToCPU
 	}
 

@@ -289,6 +289,12 @@ const glyphMaskMaxSizeCJK = 64.0
 // R8 alpha atlas, then drawn as textured quads by the GPU.
 // Returns true if text was successfully queued for glyph mask rendering.
 func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
+	// Re-apply per-context LCD layout so suite tests cannot leak global layout.
+	if a := Accelerator(); a != nil {
+		if la, ok := a.(LCDLayoutAware); ok {
+			la.SetLCDLayout(c.lcdLayout)
+		}
+	}
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
 	if rc := c.gpuCtxOps(); rc != nil {

@@ -96,6 +96,22 @@ const (
 	BlendCopy = intImage.BlendCopy
 	// BlendPlus is Porter-Duff Plus (B.02 / B.07): clamped source+destination.
 	BlendPlus = intImage.BlendPlus
+	// BlendDestinationOut is Porter-Duff DstOut (B.02).
+	BlendDestinationOut = intImage.BlendDestinationOut
+	// BlendSourceAtop is Porter-Duff SrcAtop (B.02).
+	BlendSourceAtop = intImage.BlendSourceAtop
+	// BlendXor is Porter-Duff Xor (B.02).
+	BlendXor = intImage.BlendXor
+	// BlendDestinationOver is Porter-Duff DstOver (B.02).
+	BlendDestinationOver = intImage.BlendDestinationOver
+	// BlendSourceIn is Porter-Duff SrcIn (B.02).
+	BlendSourceIn = intImage.BlendSourceIn
+	// BlendSourceOut is Porter-Duff SrcOut (B.02).
+	BlendSourceOut = intImage.BlendSourceOut
+	// BlendDestinationIn is Porter-Duff DstIn (B.02).
+	BlendDestinationIn = intImage.BlendDestinationIn
+	// BlendDestinationAtop is Porter-Duff DstAtop (B.02).
+	BlendDestinationAtop = intImage.BlendDestinationAtop
 )
 
 // DrawImageOptions specifies parameters for drawing an image.
@@ -165,7 +181,7 @@ func (c *Context) DrawImage(img *ImageBuf, x, y float64) {
 //	    BlendMode:     gg.BlendNormal,
 //	})
 func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
-	// Default values
+	// Default values. InterpNearest starts at 1 so zero means unspecified, not nearest.
 	if opts.Interpolation == 0 {
 		opts.Interpolation = InterpBilinear
 	}
@@ -322,12 +338,13 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 		return false
 	}
 
+	nearest := opts.Interpolation == InterpNearest
 	rc.QueueImageDraw(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
 		float32(tl.X), float32(tl.Y),
 		float32(tr.X), float32(tr.Y),
 		float32(br.X), float32(br.Y),
 		float32(bl.X), float32(bl.Y),
-		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1)
+		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1, nearest)
 	c.recordGPUOp()
 	return true
 }

@@ -66,6 +66,9 @@ type ImageDrawCommand struct {
 	// Source UV rectangle (normalized 0..1 within the image).
 	// For full-image draws: u0=0, v0=0, u1=1, v1=1.
 	U0, V0, U1, V1 float32
+
+	// Filter selects texture sampling (I.03). false = Linear (default), true = Nearest.
+	Nearest bool
 }
 
 // TexturedQuadPipeline manages GPU resources for image rendering (Tier 3).
@@ -107,6 +110,8 @@ type TexturedQuadPipeline struct {
 
 	// Default sampler for image textures (bilinear filtering, clamp-to-edge).
 	sampler *webgpu.Sampler
+	// Nearest-neighbor sampler (I.03).
+	nearestSampler *webgpu.Sampler
 
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before ensurePipelineWithStencil.
@@ -298,7 +303,7 @@ func (p *TexturedQuadPipeline) RecordBlitDraws(rp *webgpu.RenderPassEncoder, res
 // ensureBase creates the shader, sampler, bind group layout, and pipeline layout
 // if they don't exist yet.
 func (p *TexturedQuadPipeline) ensureBase() error {
-	if p.shader != nil && p.uniformLayout != nil && p.pipeLayout != nil && p.sampler != nil {
+	if p.shader != nil && p.uniformLayout != nil && p.pipeLayout != nil && p.sampler != nil && p.nearestSampler != nil {
 		return nil
 	}
 
@@ -316,9 +321,9 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 	}
 	p.shader = shader
 
-	// Sampler (bilinear, clamp-to-edge — matching Skia default for image rects).
+	// Samplers: bilinear default + nearest (I.03), clamp-to-edge.
 	sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
-		Label:        "image_sampler",
+		Label:        "image_sampler_linear",
 		AddressModeU: types.AddressModeClampToEdge,
 		AddressModeV: types.AddressModeClampToEdge,
 		AddressModeW: types.AddressModeClampToEdge,
@@ -330,6 +335,19 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 		return fmt.Errorf("create image sampler: %w", err)
 	}
 	p.sampler = sampler
+	nearest, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+		Label:        "image_sampler_nearest",
+		AddressModeU: types.AddressModeClampToEdge,
+		AddressModeV: types.AddressModeClampToEdge,
+		AddressModeW: types.AddressModeClampToEdge,
+		MagFilter:    types.FilterModeNearest,
+		MinFilter:    types.FilterModeNearest,
+		MipmapFilter: types.MipmapFilterModeNearest,
+	})
+	if err != nil {
+		return fmt.Errorf("create nearest image sampler: %w", err)
+	}
+	p.nearestSampler = nearest
 
 	// Bind group layout: uniform + texture + sampler.
 	uniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
@@ -433,6 +451,10 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 	if p.sampler != nil {
 		p.sampler.Release()
 		p.sampler = nil
+	}
+	if p.nearestSampler != nil {
+		p.nearestSampler.Release()
+		p.nearestSampler = nil
 	}
 	if p.shader != nil {
 		p.shader.Release()
@@ -552,4 +574,12 @@ func makeImageUniform(viewportW, viewportH uint32, opacity float32) []byte {
 	// Padding bytes 68..79 remain zero.
 
 	return buf
+}
+
+// SamplerFor returns the sampler for the command filter mode (I.03).
+func (p *TexturedQuadPipeline) SamplerFor(nearest bool) *webgpu.Sampler {
+	if nearest && p.nearestSampler != nil {
+		return p.nearestSampler
+	}
+	return p.sampler
 }

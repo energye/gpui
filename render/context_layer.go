@@ -188,8 +188,8 @@ func (c *Context) applyMaskToPixmap(pm *Pixmap, mask *Mask) {
 // SetBlendMode sets the blend mode for subsequent fill and stroke operations.
 //
 // GPU fixed-function modes (B.02): BlendNormal (SourceOver), BlendCopy, BlendClear,
-// BlendPlus. Advanced modes (Multiply/Screen/…) use the CPU paint path today
-// (or layer composite via PushLayer/PopLayer).
+// BlendPlus, DstOut/SrcAtop/Xor, DstOver/SrcIn/SrcOut/DstIn/DstAtop.
+// Advanced modes (Multiply/Screen/…) use resolve+CPU composite+GPU blit or CPU.
 //
 // Example:
 //

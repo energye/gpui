@@ -63,38 +63,46 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     return out;
 }
 
+// Sample LCD R/G/B coverages from the 3x-wide atlas strip using texelLoad
+// so filtering cannot collapse adjacent R/G/B subpixel coverages.
+fn sample_lcd_cov(uv: vec2<f32>) -> vec3<f32> {
+    let dims = vec2<f32>(textureDimensions(atlas_texture));
+    let tex = uv * dims;
+    let gx = i32(floor(tex.x));
+    let gy = i32(floor(tex.y));
+    let cov_r = textureLoad(atlas_texture, vec2<i32>(gx - 1, gy), 0).r;
+    let cov_g = textureLoad(atlas_texture, vec2<i32>(gx, gy), 0).r;
+    let cov_b = textureLoad(atlas_texture, vec2<i32>(gx + 1, gy), 0).r;
+    return vec3<f32>(cov_r, cov_g, cov_b);
+}
+
+fn lcd_composite(uv: vec2<f32>, frag_pos: vec2<f32>) -> vec4<f32> {
+    let clip_cov = rrect_clip_coverage(frag_pos);
+    let cov = sample_lcd_cov(uv) * uniforms.color.a * clip_cov;
+    let color = uniforms.color;
+    // White-destination per-channel LCD: out = color*cov + (1-cov)
+    let out_rgb = color.rgb * cov + (vec3<f32>(1.0, 1.0, 1.0) - cov);
+    let a_max = max(cov.r, max(cov.g, cov.b));
+    return vec4<f32>(out_rgb, max(a_max, max(out_rgb.r, max(out_rgb.g, out_rgb.b))));
+}
+
+// Primary LCD entry (Replace blend).
+@fragment
+fn fs_lcd(in: VertexOutput) -> @location(0) vec4<f32> {
+    return lcd_composite(in.tex_coord, in.position.xy);
+}
+
+@fragment
+fn fs_darken(in: VertexOutput) -> @location(0) vec4<f32> {
+    return lcd_composite(in.tex_coord, in.position.xy);
+}
+
+@fragment
+fn fs_add(in: VertexOutput) -> @location(0) vec4<f32> {
+    return lcd_composite(in.tex_coord, in.position.xy);
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // The UV coordinates span the 3x-wide region in the R8 atlas.
-    // The logical pixel width is 1/3 of the UV width.
-    // Each logical pixel maps to 3 adjacent R8 texels: [R, G, B].
-    //
-    // texel_step = 1.0 / atlas_width (one R8 texel in UV space).
-    // The UV center (in.tex_coord.x) is at the center of the 3-texel group
-    // for each fragment.
-
-    let texel_step = 1.0 / uniforms.atlas_size.x;
-
-    // Sample 3 adjacent texels for R, G, B coverage.
-    // The center texel (green) is at the interpolated UV.
-    // Red is one texel to the left, Blue one to the right.
-    let uv_center = in.tex_coord;
-    let cov_r = textureSample(atlas_texture, atlas_sampler, vec2<f32>(uv_center.x - texel_step, uv_center.y)).r;
-    let cov_g = textureSample(atlas_texture, atlas_sampler, uv_center).r;
-    let cov_b = textureSample(atlas_texture, atlas_sampler, vec2<f32>(uv_center.x + texel_step, uv_center.y)).r;
-
-    let clip_cov = rrect_clip_coverage(in.position.xy);
-    let color = uniforms.color;
-
-    // Per-channel premultiplied alpha compositing:
-    //   output.r = color.r * cov_r * color.a * clip_cov
-    //   output.g = color.g * cov_g * color.a * clip_cov
-    //   output.b = color.b * cov_b * color.a * clip_cov
-    //   output.a = max(cov_r, cov_g, cov_b) * color.a * clip_cov
-    let a_r = cov_r * color.a * clip_cov;
-    let a_g = cov_g * color.a * clip_cov;
-    let a_b = cov_b * color.a * clip_cov;
-    let a_max = max(a_r, max(a_g, a_b));
-
-    return vec4<f32>(color.r * a_r, color.g * a_g, color.b * a_b, a_max);
+    return lcd_composite(in.tex_coord, in.position.xy);
 }
