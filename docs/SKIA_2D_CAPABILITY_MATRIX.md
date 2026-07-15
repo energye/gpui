@@ -1,6 +1,6 @@
 # Skia 级 2D 渲染能力表（GPUI 主线验收基准）
 
-> 版本：1.0 | 日期：2026-07-15  
+> 版本：1.2 | 日期：2026-07-15  
 > 用途：定义 render 对标 **Skia 2D 渲染能力** 的全面清单，并反推 `rwgpu` / `gpu/webgpu` 必绑 WebGPU 子集。  
 > 范围：**仅渲染栈** `render → gpu/webgpu → gpu/rwgpu → libwgpu_native`。不含控件层、不含过早性能优化。  
 > 维护：能力缺口只允许“新增行”，不允许静默缩小已列必选项。
@@ -283,6 +283,13 @@
 | Surface/Swapchain | create surface, configure, getCurrentTexture, present | S.03 窗口 |
 | 与外部 view 互操作 | 接受外部 TextureView | 嵌入宿主 |
 
+### 2.7 S1 绑定状态（2026-07-15）
+
+- **Enum 严格性（G）**：✅ `s1_skia_subset_enum_test.go`
+- **函数 NewProc（A–F）**：约 132 项，子集无函数级 ⬜
+- **A–E 真链路烟测**：✅ `s1_ae_smoke_test.go`（Write/Map、WriteTexture/Copy、Draw/DrawIndexed 像素读回）
+- **S1**：✅ 关闭（Skia 2D 子集）；**下一步 S2** facade
+
 ### 2.6 明确可后置（非 Skia 2D 阻塞）
 
 - Ray tracing、video、WebGPU 实验扩展  
@@ -309,7 +316,7 @@
 
 | 区域 | 现状摘要 | 风险 |
 |------|----------|------|
-| rwgpu | 设备/缓冲/纹理/管线/pass/copy 大部分有；enum 仅部分严格对齐 header | 静默错拓扑/stencil/blend |
+| rwgpu | **S1 ✅**：enum header-lock + A–E native 烟测（`TestS1*`/`TestS1AE*`）；~132 NewProc | 非子集扩展未绑；Surface/MSAA resolve 深度在 S3 |
 | webgpu | facade 已接 rwgpu；转换/lifetime 需按子集证明 | 半接/漏字段 |
 | render CPU | path/text/image/clip/layer 较全 | GPU 不一致 |
 | render GPU | SDF/stencil/image/text/atlas 混合；fallback 多 | 语义漂移 |
@@ -336,4 +343,6 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.2 | S1 关闭：A–E 烟测；§2.7/§4 更新 |
+| 2026-07-15 | 1.1 | §4 rwgpu：S1 枚举 header-lock 已落地 |
 | 2026-07-15 | 1.0 | 首版：全面 Skia 2D 能力表 + WebGPU 反推子集 + 里程碑 |

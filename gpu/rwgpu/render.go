@@ -18,7 +18,8 @@ type Color struct {
 }
 
 // renderPassColorAttachment is the native structure for color attachments.
-// Uses uint32 for LoadOp/StoreOp with wgpu-native converted values.
+// Uses uint32 for LoadOp/StoreOp. Values are identity with lib/webgpu.h
+// (locked by TestS1IdentityEnumsMatchWebGPUHeader); no toWGPU* needed.
 type renderPassColorAttachment struct {
 	nextInChain   uintptr // 8 bytes
 	view          uintptr // 8 bytes (WGPUTextureView)
@@ -64,7 +65,8 @@ type RenderPassDepthStencilAttachment struct {
 }
 
 // renderPassDepthStencilAttachment is the native WGPURenderPassDepthStencilAttachment.
-// Uses uint32 for LoadOp/StoreOp with wgpu-native converted values.
+// Uses uint32 for LoadOp/StoreOp. Values are identity with lib/webgpu.h
+// (locked by TestS1IdentityEnumsMatchWebGPUHeader); no toWGPU* needed.
 type renderPassDepthStencilAttachment struct {
 	nextInChain       uintptr
 	view              uintptr

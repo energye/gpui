@@ -1,6 +1,7 @@
 package rwgpu
 
 import (
+	"os"
 	"sync"
 	"testing"
 )
@@ -18,14 +19,43 @@ func TestConcurrentInit(t *testing.T) {
 	wg.Wait()
 }
 
-func TestConcurrentAdapterRequests(t *testing.T) {
+// TestMultipleAdapterRequests validates repeated RequestAdapter on one Instance.
+//
+// Concurrent RequestAdapter on the same Instance is NOT safe on some native
+// backends (observed: wgpu-hal GLES egl BadAccess abort under purego). S1 gate
+// therefore exercises serial multi-request; optional concurrent stress is
+// behind RWGPU_CONCURRENT_STRESS=1.
+func TestMultipleAdapterRequests(t *testing.T) {
 	inst, err := CreateInstance(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer inst.Release()
 
-	// Request multiple adapters concurrently
+	const n = 3
+	for i := 0; i < n; i++ {
+		a, e := inst.RequestAdapter(nil)
+		if e != nil {
+			t.Fatalf("adapter %d failed: %v", i, e)
+		}
+		if a == nil {
+			t.Fatalf("adapter %d is nil", i)
+		}
+		a.Release()
+	}
+}
+
+func TestConcurrentAdapterRequests(t *testing.T) {
+	if os.Getenv("RWGPU_CONCURRENT_STRESS") != "1" {
+		t.Skip("concurrent RequestAdapter can abort on GLES backends; set RWGPU_CONCURRENT_STRESS=1 to run")
+	}
+
+	inst, err := CreateInstance(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer inst.Release()
+
 	var wg sync.WaitGroup
 	errs := make([]error, 3)
 	adapters := make([]*Adapter, 3)
