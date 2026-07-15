@@ -121,11 +121,13 @@ func (e *GPUTextEngine) LayoutText(
 	fontSource := face.Source()
 	fontID := computeFontID(fontSource)
 
-	// ADR-027: detect CJK from first rune → select appropriate atlas.
+	// ADR-027: detect CJK anywhere → select CJK atlas when mixed script.
 	isCJK := false
 	for _, r := range s {
-		isCJK = text.IsCJKRune(r)
-		break
+		if text.IsCJKRune(r) {
+			isCJK = true
+			break
+		}
 	}
 	activeAtlas := e.atlasManager
 	atlasIndex := 0
@@ -149,6 +151,13 @@ func (e *GPUTextEngine) LayoutText(
 
 	for glyph := range face.Glyphs(s) {
 		glyphCount++
+
+		// Match CPU text.Draw: GID 0 is .notdef — advance-only, no ink.
+		// Drawing the .notdef tofu box inflates coverage for fonts that lack
+		// Latin glyphs (common with CJK fallback fonts).
+		if glyph.GID == 0 {
+			continue
+		}
 
 		// ADR-027: CJK display text uses 128px reference for dense strokes.
 		glyphRefSize := refSize

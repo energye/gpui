@@ -134,6 +134,67 @@ type TextureConfig struct {
 // DefaultTextureUsage is the default usage for textures created without specific flags.
 const DefaultTextureUsage = types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
 
+// copyPitchAlignment is the WebGPU minimum bytesPerRow alignment for texture
+// copies and queue.WriteTexture when more than one row is written.
+const copyPitchAlignment = 256
+
+func alignTextureBytesPerRow(bytesPerRow uint32) uint32 {
+	return (bytesPerRow + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
+}
+
+// packTextureUpload prepares tightly or pitch-aligned texture upload bytes.
+// For multi-row uploads WebGPU requires BytesPerRow to be a multiple of 256.
+// R8 textures accept either a packed R8 plane (len=w*h) or an RGBA pixmap
+// (len=w*h*4), in which case the alpha channel is used as the mask.
+func packTextureUpload(format TextureFormat, width, height int, src []byte) (data []byte, bytesPerRow uint32, err error) {
+	if width <= 0 || height <= 0 {
+		return nil, 0, ErrInvalidDimensions
+	}
+	bpp := format.BytesPerPixel()
+	tightRow := width * bpp
+	need := tightRow * height
+
+	switch format {
+	case TextureFormatR8:
+		switch len(src) {
+		case width * height:
+			// already packed R8
+		case width * height * 4:
+			// extract alpha plane from RGBA pixmap
+			packed := make([]byte, width*height)
+			for i := 0; i < width*height; i++ {
+				packed[i] = src[i*4+3]
+			}
+			src = packed
+		default:
+			return nil, 0, fmt.Errorf("%w: R8 upload expects %d or %d bytes, got %d",
+				ErrTextureSizeMismatch, width*height, width*height*4, len(src))
+		}
+	default:
+		if len(src) < need {
+			return nil, 0, fmt.Errorf("%w: upload expects at least %d bytes, got %d",
+				ErrTextureSizeMismatch, need, len(src))
+		}
+	}
+
+	alignedRow := alignTextureBytesPerRow(uint32(tightRow)) //nolint:gosec // positive dims
+	if int(alignedRow) == tightRow {
+		// No padding required (single-row or already aligned).
+		if height == 1 || len(src) == need {
+			return src[:need], alignedRow, nil
+		}
+		// src may be longer; take exact plane
+		return src[:need], alignedRow, nil
+	}
+
+	// Pad each row to the WebGPU copy pitch.
+	out := make([]byte, int(alignedRow)*height)
+	for y := 0; y < height; y++ {
+		copy(out[y*int(alignedRow):y*int(alignedRow)+tightRow], src[y*tightRow:(y+1)*tightRow])
+	}
+	return out, alignedRow, nil
+}
+
 // CreateTexture creates a new GPU texture with the given configuration.
 // The texture is uninitialized and should be filled with UploadPixmap.
 func CreateTexture(backend *Backend, config TextureConfig) (*GPUTexture, error) {
@@ -301,9 +362,17 @@ func (t *GPUTexture) UploadPixmap(pixmap *render.Pixmap) error {
 	t.mu.RLock()
 	texture := t.texture
 	queue := t.queue
+	format := t.format
+	width := t.width
+	height := t.height
 	t.mu.RUnlock()
 	if texture == nil || queue == nil {
 		return nil
+	}
+
+	data, bytesPerRow, err := packTextureUpload(format, width, height, pixmap.Data())
+	if err != nil {
+		return err
 	}
 
 	return queue.WriteTexture(&webgpu.ImageCopyTexture{
@@ -311,13 +380,13 @@ func (t *GPUTexture) UploadPixmap(pixmap *render.Pixmap) error {
 		MipLevel: 0,
 		Origin:   webgpu.Origin3D{},
 		Aspect:   types.TextureAspectAll,
-	}, pixmap.Data(), &webgpu.ImageDataLayout{
+	}, data, &webgpu.ImageDataLayout{
 		Offset:       0,
-		BytesPerRow:  uint32(t.width * t.format.BytesPerPixel()), //nolint:gosec // dimensions validated
-		RowsPerImage: uint32(t.height),                           //nolint:gosec // dimensions validated
+		BytesPerRow:  bytesPerRow,
+		RowsPerImage: uint32(height), //nolint:gosec // dimensions validated
 	}, &webgpu.Extent3D{
-		Width:              uint32(t.width),  //nolint:gosec // dimensions validated
-		Height:             uint32(t.height), //nolint:gosec // dimensions validated
+		Width:              uint32(width),  //nolint:gosec // dimensions validated
+		Height:             uint32(height), //nolint:gosec // dimensions validated
 		DepthOrArrayLayers: 1,
 	})
 }
@@ -342,9 +411,15 @@ func (t *GPUTexture) UploadRegion(x, y int, pixmap *render.Pixmap) error {
 	t.mu.RLock()
 	texture := t.texture
 	queue := t.queue
+	format := t.format
 	t.mu.RUnlock()
 	if texture == nil || queue == nil {
 		return nil
+	}
+
+	data, bytesPerRow, err := packTextureUpload(format, pixmap.Width(), pixmap.Height(), pixmap.Data())
+	if err != nil {
+		return err
 	}
 
 	return queue.WriteTexture(&webgpu.ImageCopyTexture{
@@ -356,10 +431,10 @@ func (t *GPUTexture) UploadRegion(x, y int, pixmap *render.Pixmap) error {
 			Z: 0,
 		},
 		Aspect: types.TextureAspectAll,
-	}, pixmap.Data(), &webgpu.ImageDataLayout{
+	}, data, &webgpu.ImageDataLayout{
 		Offset:       0,
-		BytesPerRow:  uint32(pixmap.Width() * t.format.BytesPerPixel()), //nolint:gosec // bounds checked
-		RowsPerImage: uint32(pixmap.Height()),                           //nolint:gosec // bounds checked
+		BytesPerRow:  bytesPerRow,
+		RowsPerImage: uint32(pixmap.Height()), //nolint:gosec // bounds checked
 	}, &webgpu.Extent3D{
 		Width:              uint32(pixmap.Width()),  //nolint:gosec // bounds checked
 		Height:             uint32(pixmap.Height()), //nolint:gosec // bounds checked
@@ -388,8 +463,7 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 
 	bytesPerPixel := format.BytesPerPixel()
 	bytesPerRow := uint32(width * bytesPerPixel) //nolint:gosec // dimensions validated at creation
-	const copyPitchAlignment = 256
-	alignedBytesPerRow := (bytesPerRow + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
+	alignedBytesPerRow := alignTextureBytesPerRow(bytesPerRow)
 	stagingBufSize := uint64(alignedBytesPerRow) * uint64(height)
 
 	stagingBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{

@@ -361,10 +361,14 @@ func (c *Context) shouldUseGlyphMask() bool {
 	return c.glyphMaskDeviceSize() <= glyphMaskMaxSize
 }
 
-// isCJKText checks the first rune of text for CJK script (ADR-027).
+// isCJKText reports whether s contains any CJK character (ADR-027).
+// Mixed strings such as "12px: 中文" must still prefer the CJK bitmap path;
+// checking only the first rune misroutes Latin-prefixed body text to MSDF.
 func (c *Context) isCJKText(s string) bool {
 	for _, r := range s {
-		return text.IsCJKRune(r)
+		if text.IsCJKRune(r) {
+			return true
+		}
 	}
 	return false
 }

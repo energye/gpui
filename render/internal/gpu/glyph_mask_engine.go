@@ -119,13 +119,10 @@ func (e *GlyphMaskEngine) LayoutText(
 	fontID := computeGlyphMaskFontID(fontSource)
 	parsed := fontSource.Parsed()
 
-	// Detect CJK script from first rune (ADR-027). CJK text uses reduced
-	// hinting to avoid stroke collapse on dense parallel strokes.
-	isCJK := false
-	for _, r := range s {
-		isCJK = text.IsCJKRune(r)
-		break
-	}
+	// Detect CJK anywhere in the string (ADR-027). Mixed strings like
+	// "12px: 中文" must still use CJK reduced hinting for dense strokes;
+	// checking only the first rune mis-classifies Latin-prefixed body text.
+	isCJK := stringContainsCJK(s)
 	hinting := selectGlyphMaskHinting(fontSize, matrix, isCJK, deviceScale)
 
 	useLCD := e.lcdLayout != text.LCDLayoutNone && selectGlyphMaskLCD(fontSize, matrix)
@@ -175,11 +172,7 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 	fontID := computeGlyphMaskFontID(fontSource)
 	parsed := fontSource.Parsed()
 
-	isCJK := false
-	for _, r := range s {
-		isCJK = text.IsCJKRune(r)
-		break
-	}
+	isCJK := stringContainsCJK(s)
 	hinting := selectGlyphMaskHinting(fontSize, matrix, isCJK, deviceScale)
 
 	// Aliased text never uses LCD subpixel rendering — binary coverage
@@ -347,6 +340,13 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 
 	for i := range glyphs {
 		glyph := glyphs[i]
+		// GID 0 is .notdef. CPU text.Draw skips it (no ink), only advancing the
+		// pen. Rasterizing .notdef draws a tofu box, which massively inflates
+		// coverage for CJK-only fonts that lack Latin glyphs (e.g. DroidSansFallback
+		// mapping "12px:" to GID 0). Match CPU: skip missing glyphs.
+		if glyph.GID == 0 {
+			continue
+		}
 		// Compute the device-space placement and sub-pixel fraction for this
 		// glyph, applying hinting pixel-snapping (see glyphPlacement). snapped
 		// is only consulted when snapX is set.
@@ -648,6 +648,15 @@ const glyphMaskHintingMaxSize = 48.0
 // CJK text uses reduced hinting (ADR-027): full grid-fitting collapses thin
 // CJK strokes. FreeType afcjk module applies Y-direction only; DirectWrite
 // uses NATURAL_SYMMETRIC for unhinted CJK fonts; macOS ignores hinting entirely.
+func stringContainsCJK(s string) bool {
+	for _, r := range s {
+		if text.IsCJKRune(r) {
+			return true
+		}
+	}
+	return false
+}
+
 func selectGlyphMaskHinting(fontSize float64, matrix render.Matrix, isCJK bool, deviceScale float64) text.Hinting {
 	if matrix.B != 0 || matrix.D != 0 {
 		return text.HintingNone

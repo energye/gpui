@@ -333,6 +333,27 @@ func getColorFromPaint(paint *render.Paint) render.RGBA {
 	return render.Black
 }
 
+// isGPUSolidPaint reports whether the paint can be represented as a single
+// solid color on GPU path/shape pipelines. Image patterns, gradients, and
+// other non-solid brushes must fall back to CPU until textured-fill support
+// is wired (otherwise ColorAt(0,0) is incorrectly used as a solid fill).
+func isGPUSolidPaint(paint *render.Paint) bool {
+	if paint == nil {
+		return false
+	}
+	if paint.IsSolid() {
+		return true
+	}
+	if paint.Brush != nil {
+		if _, ok := paint.Brush.(render.SolidBrush); ok {
+			return true
+		}
+		return false
+	}
+	_, ok := paint.SolidColor()
+	return ok
+}
+
 // sameTarget compares two GPU render targets for identity.
 func sameTarget(a *render.GPURenderTarget, b *render.GPURenderTarget) bool {
 	// GPU-direct mode: compare View identity (same underlying pointer).

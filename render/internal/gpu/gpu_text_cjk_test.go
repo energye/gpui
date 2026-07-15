@@ -162,3 +162,44 @@ func TestSelectGlyphMaskHinting_CJKEnterprise(t *testing.T) {
 func identityMatrix() render.Matrix {
 	return render.Identity()
 }
+
+// TestGlyphMaskSkipsNotdef matches CPU text.Draw: GID 0 (.notdef) must not
+// produce ink. CJK-only fonts map missing Latin runes to GID 0; drawing tofu
+// boxes previously inflated cjk_text body/mixed coverage by 2–3x.
+func TestGlyphMaskSkipsNotdef(t *testing.T) {
+	fontPath := "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"
+	src, err := text.NewFontSourceFromFile(fontPath)
+	if err != nil {
+		t.Skipf("font unavailable: %v", err)
+	}
+	t.Cleanup(func() { _ = src.Close() })
+
+	face := src.Face(12)
+	s := "12px: 中"
+	var hasNotdef, hasCJK bool
+	for g := range face.Glyphs(s) {
+		if g.GID == 0 {
+			hasNotdef = true
+		}
+		if text.IsCJKRune(g.Rune) && g.GID != 0 {
+			hasCJK = true
+		}
+	}
+	if !hasNotdef || !hasCJK {
+		t.Skipf("fixture font does not map Latin to .notdef and CJK to real gids (notdef=%v cjk=%v)", hasNotdef, hasCJK)
+	}
+
+	engine := NewGlyphMaskEngine()
+	batch, err := engine.LayoutText(face, s, 20, 40, render.Black, render.Identity(), 1.0)
+	if err != nil {
+		t.Fatalf("LayoutText: %v", err)
+	}
+	// Only the CJK glyph "中" should produce a quad; Latin .notdef must be skipped.
+	if len(batch.Quads) != 1 {
+		t.Fatalf("expected 1 quad for CJK glyph only, got %d", len(batch.Quads))
+	}
+	// Quad should start near 20+advance("12px: ") ≈ 83, not near 20.
+	if batch.Quads[0].X0 < 70 {
+		t.Fatalf("CJK quad X0=%.1f too far left; .notdef tofu may still be drawn", batch.Quads[0].X0)
+	}
+}

@@ -583,6 +583,9 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 
 // FillPath queues a filled path for GPU rendering.
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
+	if !isGPUSolidPaint(paint) {
+		return render.ErrFallbackToCPU
+	}
 	if !rc.shared.gpuReady {
 		rc.shared.mu.Lock()
 		err := rc.shared.ensureGPU()
@@ -715,6 +718,9 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape render.DetectedShape, paint *render.Paint) error {
 	rc.sceneStats.ShapeCount++
 
+	if !isGPUSolidPaint(paint) {
+		return render.ErrFallbackToCPU
+	}
 	if !rc.shared.gpuReady {
 		return rc.shared.cpuFallback.FillShape(target, shape, paint)
 	}
