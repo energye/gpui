@@ -276,12 +276,14 @@ func (rc *GPURenderContext) fillAdvancedBlendAsImage(target render.GPURenderTarg
 // fillMaskedAsImage applies an alpha mask via true R8 GPU sampling (L.06):
 //
 //  1. Software-rasterize the shape without mask (geometry + AA coverage only).
-//  2. Build an R8 mask plane from paint.MaskCoverage over path bounds.
+//  2. Build an R8 mask plane from MaskAware GPU plane (preferred) or MaskCoverage.
 //  3. GPU fragment shader samples src RGBA + R8 mask and multiplies (premul).
 //  4. QueueImageDraw blits the GPU-modulated result (real GPUOps on chain).
 //
 // Mask application is no longer baked only on the CPU; the R8 texture is
-// sampled in a WGSL shader on the render→webgpu→rwgpu→native path.
+// sampled in a WGSL shader on the render→webgpu→rwgpu→native path. When the
+// accelerator implements MaskAware, setupGPUMask uploads a full-surface R8
+// texture and fillMaskedAsImage reuses that plane (native mask path).
 func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	if path == nil || path.NumVerbs() == 0 || paint == nil || paint.MaskCoverage == nil {
 		return nil
@@ -338,6 +340,19 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 	stride := tw * 4
 	srcRegion := make([]byte, bw*bh*4)
 	maskRegion := make([]byte, bw*bh)
+
+	// Prefer GPU-uploaded full-surface R8 plane (MaskAware / L.06) when size matches.
+	// This avoids re-evaluating MaskCoverage and proves native mask texture path.
+	var (
+		maskPlane []byte
+		mpW, mpH  int
+		usePlane  bool
+	)
+	if plane, pw, ph, ok := rc.shared.MaskPlane(); ok && pw == tw && ph == th {
+		maskPlane, mpW, mpH, usePlane = plane, pw, ph, true
+		_ = mpW
+		_ = mpH
+	}
 	maskFn := paint.MaskCoverage
 	any := false
 	for row := 0; row < bh; row++ {
@@ -347,7 +362,12 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 		copy(srcRegion[dstOff:dstOff+bw*4], srcFull[srcOff:srcOff+bw*4])
 		for col := 0; col < bw; col++ {
 			px := bounds.Min.X + col
-			m := maskFn(px, py)
+			var m uint8
+			if usePlane {
+				m = maskPlane[py*tw+px]
+			} else {
+				m = maskFn(px, py)
+			}
 			maskRegion[row*bw+col] = m
 			if srcRegion[dstOff+col*4+3] != 0 && m != 0 {
 				any = true

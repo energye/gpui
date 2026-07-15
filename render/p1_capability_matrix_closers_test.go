@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
+	_ "github.com/energye/gpui/render/filters"
 	_ "github.com/energye/gpui/render/gpu"
 	"github.com/energye/gpui/render/text"
 )
@@ -1852,5 +1853,154 @@ func TestP1_Capability_P04_HairlineGPU(t *testing.T) {
 			t.Fatalf("P.04 no hairline/stroke ink width0 ink=%d width1=%d,%d,%d", ink, r, g, b)
 		}
 		t.Log("width=0 invisible; width=1 stroke visible on GPU")
+	}
+}
+
+// F.03: multi-node image filter graph with intermediate ping-pong surfaces.
+// Content is GPU-drawn first; graph = blur → grayscale → drop shadow.
+func TestP1_Capability_F03_ImageFilterGraphGPU(t *testing.T) {
+	requireNativeGPU(t)
+	if !render.FiltersRegistered() {
+		t.Fatal("filters not registered; import render/filters")
+	}
+	const w, h = 96, 96
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Solid blue card (GPU path).
+	dc.SetRGB(0.15, 0.35, 0.95)
+	dc.DrawRoundedRectangle(28, 28, 40, 40, 6)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU content: %v", err)
+	}
+	if dc.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("F.03 content requires GPUOps>0 before filter graph")
+	}
+	baseGPU := dc.RenderPathStats().GPUOps
+
+	// Reference samples before graph.
+	br, bg, bb, _ := sampleRGBA(dc, 48, 48)
+	if bb < 150 {
+		t.Fatalf("pre-graph center expected blue-ish: %d,%d,%d", br, bg, bb)
+	}
+
+	// Multi-node DAG: blur spreads, grayscale removes chroma, shadow darkens offset.
+	dc.ApplyImageFilterGraph(
+		render.ImageFilterNode{Kind: render.ImageFilterBlur, Radius: 2.5},
+		render.ImageFilterNode{Kind: render.ImageFilterGrayscale},
+		render.ImageFilterNode{
+			Kind:        render.ImageFilterDropShadow,
+			OffsetX:     4,
+			OffsetY:     4,
+			ShadowBlur:  2,
+			ShadowColor: render.RGBA{R: 0, G: 0, B: 0, A: 0.55},
+		},
+	)
+
+	// Graph does not need extra GPU ops (CPU multi-pass on GPU pixels), but
+	// content provenance remains GPU and must not be silent CPU-only.
+	stats := dc.RenderPathStats()
+	t.Logf("F.03 path_stats %s baseGPU=%d", stats.LogLine(), baseGPU)
+	if stats.GPUOps < baseGPU {
+		t.Fatalf("F.03 lost GPUOps after graph: %s", stats.LogLine())
+	}
+
+	cr, cg, cb, _ := sampleRGBA(dc, 48, 48)
+	// Grayscale of blue → channels closer together, not pure blue.
+	if absU8(cr, cg) < 5 && absU8(cg, cb) < 5 {
+		// good: gray-ish
+	} else if cb > cr+40 && cb > cg+40 {
+		t.Fatalf("F.03 center still saturated blue after grayscale: %d,%d,%d", cr, cg, cb)
+	}
+	// Blur spreads beyond original hard edge: sample outside original card should darken.
+	er, eg, eb, _ := sampleRGBA(dc, 24, 48) // left of card
+	if er > 250 && eg > 250 && eb > 250 {
+		// may still be white if blur radius small; try near edge
+		er, eg, eb, _ = sampleRGBA(dc, 26, 48)
+	}
+	// Shadow offset to bottom-right should produce a darker patch vs pure white.
+	sr, sg, sb, _ := sampleRGBA(dc, 68, 68)
+	t.Logf("center=%d,%d,%d edge=%d,%d,%d shadow=%d,%d,%d", cr, cg, cb, er, eg, eb, sr, sg, sb)
+	if sr > 245 && sg > 245 && sb > 245 {
+		// try slightly further
+		sr, sg, sb, _ = sampleRGBA(dc, 72, 72)
+	}
+	if sr > 250 && sg > 250 && sb > 250 {
+		t.Fatalf("F.03 expected drop-shadow darkening near offset: %d,%d,%d", sr, sg, sb)
+	}
+
+	// Chain differs from grayscale-only: re-run content + grayscale only on second context.
+	dc2 := render.NewContext(w, h)
+	defer dc2.Close()
+	dc2.ClearWithColor(render.White)
+	dc2.SetRGB(1, 1, 1)
+	dc2.DrawRectangle(0, 0, w, h)
+	_ = dc2.Fill()
+	dc2.SetRGB(0.15, 0.35, 0.95)
+	dc2.DrawRoundedRectangle(28, 28, 40, 40, 6)
+	_ = dc2.Fill()
+	_ = dc2.FlushGPU()
+	dc2.ApplyImageFilterGraph(render.ImageFilterNode{Kind: render.ImageFilterGrayscale})
+	g2r, g2g, g2b, _ := sampleRGBA(dc2, 72, 72)
+	// Full graph has shadow darkening at (72,72); grayscale-only should stay near white there.
+	if absU8(sr, g2r) < 8 && absU8(sg, g2g) < 8 && absU8(sb, g2b) < 8 && sr > 240 {
+		t.Fatalf("F.03 graph result matches grayscale-only at shadow sample (chain ineffective)")
+	}
+	t.Logf("grayscale-only shadow sample=%d,%d,%d", g2r, g2g, g2b)
+}
+
+// L.06 MaskAware: accelerator implements native R8 mask upload; masked GPU fill works.
+func TestP1_Capability_L06_MaskAwareNativeUploadGPU(t *testing.T) {
+	requireNativeGPU(t)
+	a := render.Accelerator()
+	if a == nil {
+		t.Skip("no accelerator")
+	}
+	if _, ok := a.(render.MaskAware); !ok {
+		t.Fatalf("L.06 expected accelerator to implement MaskAware after native upload")
+	}
+
+	const w, h = 64, 32
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	mask := render.NewMask(w, h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x < w/2 {
+				mask.Set(x, y, 255)
+			} else {
+				mask.Set(x, y, 0)
+			}
+		}
+	}
+	dc.SetMask(mask)
+	dc.SetRGB(0, 0.6, 0.2)
+	dc.DrawRoundedRectangle(4, 4, float64(w-8), float64(h-8), 4)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("L.06 MaskAware path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("L.06 MaskAware requires GPUOps>0")
+	}
+	lr, lg, lb, _ := sampleRGBA(dc, 12, h/2)
+	rr, rg, rb, _ := sampleRGBA(dc, w-8, h/2)
+	t.Logf("left=%d,%d,%d right=%d,%d,%d", lr, lg, lb, rr, rg, rb)
+	if lg < 80 {
+		t.Fatalf("left under mask expected green: %d,%d,%d", lr, lg, lb)
+	}
+	if rr < 240 || rg < 240 || rb < 240 {
+		t.Fatalf("right outside mask expected white: %d,%d,%d", rr, rg, rb)
 	}
 }

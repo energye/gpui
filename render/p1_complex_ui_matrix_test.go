@@ -1688,3 +1688,285 @@ func TestP1_F2_VirtualListDensity(t *testing.T) {
 	}
 	t.Logf("header=%d,%d,%d avatar=%d,%d,%d thumb=%d,%d,%d", r2, g2, b2, r, g, b, r3, g3, b3)
 }
+
+// --- Tier G denser Ant Design morphology (TreeSelect / Carousel) ---
+
+// G1 TreeSelect panel: search bar + tree with expand chevrons + nested indent
+// + selected row + checkbox markers + dropdown chrome.
+func TestP1_G1_TreeSelectPanelDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 360, 320
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 13)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Page backdrop
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Trigger control (closed select look)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(24, 16, 200, 32, 6)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.15)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(24.5, 16.5, 199, 31, 6)
+	_ = dc.Stroke()
+	dc.SetRGB(0.2, 0.2, 0.2)
+	dc.DrawString("TreeSelect / org units", 36, 37)
+	// Caret
+	dc.SetRGB(0.45, 0.45, 0.45)
+	dc.MoveTo(204, 28)
+	dc.LineTo(212, 28)
+	dc.LineTo(208, 34)
+	dc.ClosePath()
+	_ = dc.Fill()
+
+	// Dropdown panel
+	panelX, panelY := 24.0, 56.0
+	panelW, panelH := 280.0, 240.0
+	// Shadow
+	dc.SetRGBA(0, 0, 0, 0.12)
+	dc.DrawRoundedRectangle(panelX+3, panelY+4, panelW, panelH, 8)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(panelX, panelY, panelW, panelH, 8)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.12)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(panelX+0.5, panelY+0.5, panelW-1, panelH-1, 8)
+	_ = dc.Stroke()
+
+	// Search input
+	dc.SetRGB(0.98, 0.98, 0.98)
+	dc.DrawRoundedRectangle(panelX+12, panelY+12, panelW-24, 28, 4)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.15)
+	dc.DrawRoundedRectangle(panelX+12.5, panelY+12.5, panelW-25, 27, 4)
+	_ = dc.Stroke()
+	dc.SetRGB(0.55, 0.55, 0.55)
+	dc.DrawString("Search…", panelX+22, panelY+31)
+
+	// Tree rows
+	type row struct {
+		indent int
+		label  string
+		open   bool
+		sel    bool
+		check  bool
+	}
+	rows := []row{
+		{0, "Company", true, false, false},
+		{1, "Engineering", true, false, true},
+		{2, "Frontend", false, true, true},
+		{2, "Backend", false, false, false},
+		{2, "Platform", false, false, false},
+		{1, "Design", false, false, false},
+		{1, "Operations", true, false, false},
+		{2, "SRE", false, false, true},
+		{2, "Support", false, false, false},
+		{0, "Partners", false, false, false},
+	}
+	y := panelY + 52
+	for _, r := range rows {
+		x := panelX + 12 + float64(r.indent)*18
+		if r.sel {
+			dc.SetRGBA(0.09, 0.47, 0.95, 0.12)
+			dc.DrawRectangle(panelX+8, y-2, panelW-16, 22)
+			_ = dc.Fill()
+		}
+		// Expand chevron box
+		dc.SetRGB(0.55, 0.55, 0.55)
+		if r.open {
+			dc.MoveTo(x, y+6)
+			dc.LineTo(x+8, y+6)
+			dc.LineTo(x+4, y+12)
+		} else {
+			dc.MoveTo(x, y+4)
+			dc.LineTo(x, y+12)
+			dc.LineTo(x+6, y+8)
+		}
+		dc.ClosePath()
+		_ = dc.Fill()
+		// Checkbox
+		cx := x + 14
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(cx, y+2, 14, 14, 2)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.25)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(cx+0.5, y+2.5, 13, 13, 2)
+		_ = dc.Stroke()
+		if r.check {
+			dc.SetRGB(0.09, 0.47, 0.95)
+			dc.DrawRoundedRectangle(cx+2, y+4, 10, 10, 1)
+			_ = dc.Fill()
+		}
+		dc.SetRGB(0.15, 0.15, 0.15)
+		if r.sel {
+			dc.SetRGB(0.09, 0.35, 0.75)
+		}
+		dc.DrawString(r.label, cx+20, y+14)
+		y += 22
+	}
+
+	// Footer actions
+	dc.SetRGBA(0, 0, 0, 0.06)
+	dc.DrawRectangle(panelX, panelY+panelH-36, panelW, 36)
+	_ = dc.Fill()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(panelX+panelW-88, panelY+panelH-28, 72, 24, 4)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawString("OK", panelX+panelW-62, panelY+panelH-12)
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("G1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 12 {
+		t.Fatalf("G1 expected dense GPUOps>=12: %s", stats.LogLine())
+	}
+	// Panel white body
+	r, g, b, _ := p1Sample(dc, 100, 100)
+	if r < 240 {
+		t.Fatalf("panel body missing: %d,%d,%d", r, g, b)
+	}
+	// Selected row tint near Frontend
+	r2, g2, b2, _ := p1Sample(dc, 80, 130)
+	if b2 < g2 {
+		// selected has blue tint — sample may land on text; try another x
+		r2, g2, b2, _ = p1Sample(dc, 40, 128)
+	}
+	// Checkbox blue checked on Engineering row ~ y=52+22+8
+	r3, g3, b3, _ := p1Sample(dc, 62, 122)
+	t.Logf("panel=%d,%d,%d sel=%d,%d,%d check=%d,%d,%d", r, g, b, r2, g2, b2, r3, g3, b3)
+	// Primary OK button
+	r4, g4, b4, _ := p1Sample(dc, int(panelX+panelW-50), int(panelY+panelH-16))
+	if b4 < 150 {
+		t.Fatalf("OK button missing blue: %d,%d,%d", r4, g4, b4)
+	}
+}
+
+// G2 Carousel: stage with slides, gradient overlay, dots, arrows, card content.
+func TestP1_G2_CarouselStageDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 400, 260
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 14)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.94, 0.95, 0.97)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Stage
+	sx, sy, sw, sh := 40.0, 28.0, 320.0, 180.0
+	// Soft shadow
+	dc.SetRGBA(0, 0, 0, 0.14)
+	dc.DrawRoundedRectangle(sx+4, sy+6, sw, sh, 10)
+	_ = dc.Fill()
+
+	// Active slide gradient-ish (two layered rects)
+	dc.SetRGB(0.12, 0.36, 0.78)
+	dc.DrawRoundedRectangle(sx, sy, sw, sh, 10)
+	_ = dc.Fill()
+	dc.SetRGBA(0.2, 0.65, 0.95, 0.55)
+	dc.DrawRoundedRectangle(sx+sw*0.35, sy, sw*0.65, sh, 10)
+	_ = dc.Fill()
+
+	// Title + subtitle
+	dc.SetRGB(1, 1, 1)
+	_ = dc.LoadFontFace(font, 20)
+	dc.DrawString("Featured release", sx+24, sy+48)
+	_ = dc.LoadFontFace(font, 13)
+	dc.SetRGBA(1, 1, 1, 0.85)
+	dc.DrawString("Ship complex UI with GPU render foundation", sx+24, sy+72)
+
+	// CTA
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(sx+24, sy+100, 110, 32, 16)
+	_ = dc.Fill()
+	dc.SetRGB(0.12, 0.36, 0.78)
+	dc.DrawString("Learn more", sx+40, sy+121)
+
+	// Side peeks (prev/next cards)
+	dc.SetRGBA(0.75, 0.8, 0.9, 0.9)
+	dc.DrawRoundedRectangle(8, sy+20, 28, sh-40, 6)
+	_ = dc.Fill()
+	dc.DrawRoundedRectangle(w-36, sy+20, 28, sh-40, 6)
+	_ = dc.Fill()
+
+	// Arrows
+	dc.SetRGBA(1, 1, 1, 0.9)
+	dc.DrawCircle(sx+18, sy+sh/2, 14)
+	_ = dc.Fill()
+	dc.DrawCircle(sx+sw-18, sy+sh/2, 14)
+	_ = dc.Fill()
+	dc.SetRGB(0.25, 0.25, 0.25)
+	dc.MoveTo(sx+22, sy+sh/2-6)
+	dc.LineTo(sx+14, sy+sh/2)
+	dc.LineTo(sx+22, sy+sh/2+6)
+	_ = dc.Stroke()
+	dc.MoveTo(sx+sw-22, sy+sh/2-6)
+	dc.LineTo(sx+sw-14, sy+sh/2)
+	dc.LineTo(sx+sw-22, sy+sh/2+6)
+	_ = dc.Stroke()
+
+	// Dots
+	for i := 0; i < 5; i++ {
+		dx := w/2 - 40 + i*18
+		if i == 2 {
+			dc.SetRGB(0.12, 0.36, 0.78)
+			dc.DrawCircle(float64(dx), sy+sh+22, 5)
+		} else {
+			dc.SetRGBA(0, 0, 0, 0.25)
+			dc.DrawCircle(float64(dx), sy+sh+22, 4)
+		}
+		_ = dc.Fill()
+	}
+
+	// Progress bar under stage
+	dc.SetRGBA(0, 0, 0, 0.08)
+	dc.DrawRoundedRectangle(sx, sy+sh+40, sw, 4, 2)
+	_ = dc.Fill()
+	dc.SetRGB(0.12, 0.36, 0.78)
+	dc.DrawRoundedRectangle(sx, sy+sh+40, sw*0.42, 4, 2)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("G2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 10 {
+		t.Fatalf("G2 expected dense GPUOps>=10: %s", stats.LogLine())
+	}
+	// Stage blue region
+	r, g, b, _ := p1Sample(dc, 80, 80)
+	if b < 120 {
+		t.Fatalf("carousel stage not blue: %d,%d,%d", r, g, b)
+	}
+	// CTA white pill
+	r2, g2, b2, _ := p1Sample(dc, int(sx+50), int(sy+116))
+	if r2 < 220 {
+		t.Fatalf("CTA pill missing: %d,%d,%d", r2, g2, b2)
+	}
+	// Active dot
+	r3, g3, b3, _ := p1Sample(dc, w/2-40+2*18, int(sy+sh+22))
+	if b3 < 100 {
+		t.Fatalf("active dot missing: %d,%d,%d", r3, g3, b3)
+	}
+	// Progress filled
+	r4, g4, b4, _ := p1Sample(dc, int(sx+40), int(sy+sh+42))
+	if b4 < 100 {
+		t.Fatalf("progress fill missing: %d,%d,%d", r4, g4, b4)
+	}
+	t.Logf("stage=%d,%d,%d cta=%d,%d,%d dot=%d,%d,%d prog=%d,%d,%d", r, g, b, r2, g2, b2, r3, g3, b3, r4, g4, b4)
+}

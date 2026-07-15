@@ -101,6 +101,14 @@ type GPUShared struct {
 	dualTexBlend dualTexBlendCache
 	maskR8       maskR8Cache
 
+	// L.06 GPU-resident alpha mask (MaskAware). Full-surface R8 plane + texture.
+	maskData   []byte
+	maskW      int
+	maskH      int
+	maskTex    *webgpu.Texture
+	maskView   *webgpu.TextureView
+	maskActive bool
+
 	// CPU SDF fallback accelerator.
 	cpuFallback render.SDFAccelerator
 
@@ -334,9 +342,10 @@ func (s *GPUShared) Close() {
 	}
 	if s.texturePool != nil {
 		s.texturePool.DestroyAll()
-		s.dualTexBlend.release()
-		s.maskR8.release()
 	}
+	s.dualTexBlend.release()
+	s.maskR8.release()
+	s.clearMaskLocked()
 	s.destroyPipelinesLocked()
 	if !s.externalDevice {
 		if s.device != nil {
@@ -568,4 +577,118 @@ func (s *GPUShared) MemoryStats() GPUMemoryStats {
 	}
 	stats.TilePoolPooled = globalTilePool.Stats().Pooled
 	return stats
+}
+
+// clearMaskLocked releases GPU mask resources. Caller must hold s.mu.
+func (s *GPUShared) clearMaskLocked() {
+	if s.maskView != nil {
+		s.maskView.Release()
+		s.maskView = nil
+	}
+	if s.maskTex != nil {
+		s.maskTex.Release()
+		s.maskTex = nil
+	}
+	s.maskData = nil
+	s.maskW = 0
+	s.maskH = 0
+	s.maskActive = false
+}
+
+// SetMaskTexture uploads a full-surface R8 alpha mask (L.06 MaskAware).
+// data is width*height bytes; nil clears the mask.
+func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clearMaskLocked()
+	if data == nil || width <= 0 || height <= 0 {
+		return
+	}
+	need := width * height
+	if len(data) < need {
+		return
+	}
+	s.maskData = append([]byte(nil), data[:need]...)
+	s.maskW = width
+	s.maskH = height
+	s.maskActive = true
+
+	if err := s.ensureGPU(); err != nil || s.device == nil || s.queue == nil {
+		// CPU plane retained for fillMaskedAsImage region sampling.
+		return
+	}
+
+	tex, err := s.device.CreateTexture(&webgpu.TextureDescriptor{
+		Label: "l06_mask_r8",
+		Size: webgpu.Extent3D{
+			Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1, //nolint:gosec
+		},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatR8Unorm,
+		Usage:         types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return
+	}
+	view, err := s.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		Label:         "l06_mask_r8_view",
+		Format:        types.TextureFormatR8Unorm,
+		Dimension:     types.TextureViewDimension2D,
+		Aspect:        types.TextureAspectAll,
+		MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Release()
+		return
+	}
+	tight := uint32(width) //nolint:gosec
+	aligned := alignTextureBytesPerRow(tight)
+	upload := s.maskData
+	if aligned != tight {
+		padded := make([]byte, int(aligned)*height)
+		for y := 0; y < height; y++ {
+			copy(padded[y*int(aligned):y*int(aligned)+width], s.maskData[y*width:(y+1)*width])
+		}
+		upload = padded
+	}
+	if err := s.queue.WriteTexture(
+		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		upload,
+		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(height)},           //nolint:gosec
+		&webgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}, //nolint:gosec
+	); err != nil {
+		view.Release()
+		tex.Release()
+		return
+	}
+	s.maskTex = tex
+	s.maskView = view
+}
+
+// ClearMaskTexture removes the GPU-resident alpha mask.
+func (s *GPUShared) ClearMaskTexture() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clearMaskLocked()
+}
+
+// MaskPlane returns a copy of the active R8 mask plane when set.
+// ok is false when no mask is active.
+func (s *GPUShared) MaskPlane() (data []byte, w, h int, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.maskActive || s.maskW <= 0 || s.maskH <= 0 || len(s.maskData) < s.maskW*s.maskH {
+		return nil, 0, 0, false
+	}
+	out := append([]byte(nil), s.maskData[:s.maskW*s.maskH]...)
+	return out, s.maskW, s.maskH, true
+}
+
+// HasGPUMask reports whether a native R8 mask texture is currently bound.
+func (s *GPUShared) HasGPUMask() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.maskActive && s.maskTex != nil && s.maskView != nil
 }

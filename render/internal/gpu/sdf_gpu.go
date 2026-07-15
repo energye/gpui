@@ -46,6 +46,7 @@ var _ render.ForceSDFAware = (*SDFAccelerator)(nil)
 var _ render.ClipAware = (*SDFAccelerator)(nil)
 var _ render.RRectClipAware = (*SDFAccelerator)(nil)
 var _ render.LCDLayoutAware = (*SDFAccelerator)(nil)
+var _ render.MaskAware = (*SDFAccelerator)(nil)
 
 // Name returns the accelerator identifier.
 func (a *SDFAccelerator) Name() string { return "sdf-gpu" }
@@ -99,6 +100,28 @@ func (a *SDFAccelerator) SetLCDLayout(layout text.LCDLayout) {
 	shared := a.shared
 	a.mu.Unlock()
 	shared.SetLCDLayout(layout)
+}
+
+// SetMaskTexture uploads a full-surface R8 alpha mask for GPU sampling (L.06).
+// Pass nil data to clear. Implements render.MaskAware.
+func (a *SDFAccelerator) SetMaskTexture(data []byte, width, height int) {
+	a.mu.Lock()
+	if a.shared == nil {
+		a.shared = NewGPUShared()
+	}
+	shared := a.shared
+	a.mu.Unlock()
+	shared.SetMaskTexture(data, width, height)
+}
+
+// ClearMaskTexture removes the GPU-resident alpha mask. Implements render.MaskAware.
+func (a *SDFAccelerator) ClearMaskTexture() {
+	a.mu.Lock()
+	shared := a.shared
+	a.mu.Unlock()
+	if shared != nil {
+		shared.ClearMaskTexture()
+	}
 }
 
 // SetForceSDF propagates the force-SDF flag to the CPU fallback accelerator.
