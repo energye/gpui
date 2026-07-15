@@ -48,7 +48,7 @@
 |----|------|-----------|---------------------|-------|--------|--------|-----|
 | S.01 | 离屏像素表面 | `SkSurface::MakeRaster` | Buffer/Texture + readback | ✅ | ✅ | ✅ Pixmap/Context | M0 |
 | S.02 | GPU 离屏 RT | `SkSurface::MakeRenderTarget` | Texture RenderAttachment + resolve | ✅ | ✅ | ✅ Context+FlushGPU | M0 |
-| S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | 🔄 | 🔄 | ✅ 离屏 view `TestS3c_M3_OffscreenPresentPath`；窗口 Swapchain 🔄 后置 | M3 |
+| S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | 🔄 | ✅ Swapchain API | ✅ PresentFrame + 离屏；窗口 e2e `TestSwapchain_WindowPresentE2E`（无 DISPLAY skip） | M3 |
 | S.04 | 清屏/clear 色 | `canvas->clear` | LoadOpClear + clearValue | ✅ | ✅ | ✅ Clear/ClearWithColor | M0 |
 | S.05 | 尺寸/resize | surface 重建 | 重建 texture/pipeline 依赖 | 🔄 | 🔄 | 🔄 | M1 |
 | S.06 | 读回像素 | `peekPixels` / `readPixels` | copyTextureToBuffer + map | ✅ | ✅ | ✅ Image/SavePNG/FlushGPU | M0 |

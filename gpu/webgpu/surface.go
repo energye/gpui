@@ -33,6 +33,17 @@ func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface,
 	if i.released {
 		return nil, ErrReleased
 	}
+	// Native wgpu aborts on null platform pointers (Vulkan "Display pointer is not set").
+	// Reject early so callers get a Go error instead of process abort.
+	if windowHandle == 0 {
+		return nil, fmt.Errorf("wgpu: CreateSurface requires a non-zero window handle")
+	}
+	// X11/Wayland need a display; Windows may pass 0 HINSTANCE, macOS passes 0 display.
+	// Platform create functions may still require display on Linux.
+	if displayHandle == 0 {
+		// Linux X11/Wayland require display; allow zero only on platforms that ignore it.
+		// createPlatformSurface will re-check for Linux.
+	}
 
 	rs, err := createPlatformSurface(i.r, displayHandle, windowHandle)
 	if err != nil {

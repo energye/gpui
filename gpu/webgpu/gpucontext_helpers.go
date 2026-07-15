@@ -74,3 +74,19 @@ func SurfaceToHandle(s *Surface) gpucontext.Surface {
 func InstanceToHandle(i *Instance) gpucontext.Instance {
 	return gpucontext.NewInstance(unsafe.Pointer(i)) //nolint:gosec // ADR-018 opaque handle
 }
+
+// TextureViewToHandle wraps *TextureView into a gpucontext.TextureView handle.
+func TextureViewToHandle(v *TextureView) gpucontext.TextureView {
+	if v == nil {
+		return gpucontext.TextureView{}
+	}
+	return gpucontext.NewTextureView(unsafe.Pointer(v)) //nolint:gosec // ADR-018 opaque handle
+}
+
+// TextureViewFromHandle extracts *TextureView from a gpucontext.TextureView handle.
+func TextureViewFromHandle(h gpucontext.TextureView) *TextureView {
+	if h.IsNil() {
+		return nil
+	}
+	return (*TextureView)(h.Pointer())
+}
