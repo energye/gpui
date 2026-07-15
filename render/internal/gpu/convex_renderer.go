@@ -107,14 +107,21 @@ type ConvexRenderer struct {
 	pipeLayoutHasClip bool
 
 	// maskBindLayout is @group(2) for L.06 full-surface R8 mask sampling.
-	// Owned by this renderer (always present in pipeline layout).
-	maskBindLayout *webgpu.BindGroupLayout
+	// Usually session-owned; maskLayoutOwned true only for standalone create.
+	maskBindLayout  *webgpu.BindGroupLayout
+	maskLayoutOwned bool
 }
 
 // SetClipBindLayout sets the bind group layout for the @group(1) RRect clip
 // uniform. Must be called before ensurePipelineWithStencil.
 func (cr *ConvexRenderer) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
 	cr.clipBindLayout = layout
+}
+
+// SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
+func (cr *ConvexRenderer) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
+	cr.maskBindLayout = layout
+	cr.maskLayoutOwned = false
 }
 
 // MaskBindLayout returns the @group(2) layout for L.06 R8 mask sampling.
@@ -414,6 +421,7 @@ func (cr *ConvexRenderer) createPipeline() error {
 			return fmt.Errorf("create mask layout: %w", err)
 		}
 		cr.maskBindLayout = layout
+		cr.maskLayoutOwned = true
 	}
 	pipeLayout, err := cr.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
 		Label:            "convex_pipe_layout",
@@ -488,10 +496,11 @@ func (cr *ConvexRenderer) destroyPipeline() {
 		cr.defaultClipBindLayout.Release()
 		cr.defaultClipBindLayout = nil
 	}
-	if cr.maskBindLayout != nil {
+	if cr.maskLayoutOwned && cr.maskBindLayout != nil {
 		cr.maskBindLayout.Release()
-		cr.maskBindLayout = nil
 	}
+	cr.maskBindLayout = nil
+	cr.maskLayoutOwned = false
 	if cr.uniformLayout != nil {
 		cr.uniformLayout.Release()
 		cr.uniformLayout = nil

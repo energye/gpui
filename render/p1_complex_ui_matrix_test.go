@@ -2157,3 +2157,193 @@ func TestP1_H2_TransferDualListHeavy(t *testing.T) {
 		t.Fatalf("source checkbox missing: %d,%d,%d", r2, g2, b2)
 	}
 }
+
+// --- Tier I: nested dashboard density ---
+
+// I1 Dashboard shell: sider + header + multi cards + charts bars + table strip.
+func TestP1_I1_DashboardShellDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 640, 400
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Sider
+	dc.SetRGB(0.08, 0.12, 0.2)
+	dc.DrawRectangle(0, 0, 160, h)
+	_ = dc.Fill()
+	for i := 0; i < 8; i++ {
+		y := 48.0 + float64(i)*36
+		if i == 1 {
+			dc.SetRGBA(0.09, 0.47, 0.95, 0.35)
+			dc.DrawRoundedRectangle(12, y, 136, 28, 6)
+			_ = dc.Fill()
+		}
+		dc.SetRGB(0.85, 0.9, 0.95)
+		dc.DrawString("Nav item", 28, y+18)
+	}
+
+	// Header
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(160, 0, w-160, 52)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.08)
+	dc.DrawRectangle(160, 51, w-160, 1)
+	_ = dc.Fill()
+	dc.SetRGB(0.2, 0.2, 0.2)
+	dc.DrawString("Dashboard · Ant density", 176, 32)
+
+	// Content bg
+	dc.SetRGB(0.95, 0.96, 0.98)
+	dc.DrawRectangle(160, 52, w-160, h-52)
+	_ = dc.Fill()
+
+	// Stat cards
+	for i := 0; i < 4; i++ {
+		x := 176.0 + float64(i)*112
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(x, 68, 100, 72, 8)
+		_ = dc.Fill()
+		dc.SetRGBA(0, 0, 0, 0.08)
+		dc.SetLineWidth(1)
+		dc.DrawRoundedRectangle(x+0.5, 68.5, 99, 71, 8)
+		_ = dc.Stroke()
+		dc.SetRGB(0.09, 0.47, 0.95)
+		dc.DrawRoundedRectangle(x+12, 88, 40, 8, 2)
+		_ = dc.Fill()
+		dc.SetRGB(0.4, 0.4, 0.4)
+		dc.DrawString("KPI", x+12, 120)
+	}
+
+	// Chart card with bars
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(176, 156, 300, 160, 8)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.08)
+	dc.DrawRoundedRectangle(176.5, 156.5, 299, 159, 8)
+	_ = dc.Stroke()
+	for i := 0; i < 12; i++ {
+		bh := 20.0 + float64((i*17)%90)
+		x := 196.0 + float64(i)*22
+		dc.SetRGB(0.2, 0.55, 0.95)
+		dc.DrawRoundedRectangle(x, 290-bh, 14, bh, 2)
+		_ = dc.Fill()
+	}
+
+	// Side list card
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(492, 156, 132, 220, 8)
+	_ = dc.Fill()
+	for i := 0; i < 10; i++ {
+		y := 172.0 + float64(i)*18
+		dc.SetRGB(0.9, 0.92, 0.95)
+		dc.DrawCircle(508, y+6, 5)
+		_ = dc.Fill()
+		dc.SetRGB(0.3, 0.3, 0.3)
+		dc.DrawString("row", 520, y+10)
+	}
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("I1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 40 {
+		t.Fatalf("I1 expected dense GPUOps>=40: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 40, 200)
+	if r > 80 {
+		t.Fatalf("sider not dark: %d,%d,%d", r, g, b)
+	}
+	r2, g2, b2, _ := p1Sample(dc, 220, 250)
+	if b2 < 100 {
+		t.Fatalf("chart bar missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// I2 Modal stack: page + dim + modal + nested popconfirm chips.
+func TestP1_I2_ModalStackDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 480, 320
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 13)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Page content
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	for i := 0; i < 6; i++ {
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(24, 24+float64(i)*44, w-48, 36, 6)
+		_ = dc.Fill()
+	}
+
+	// Dim mask
+	dc.SetRGBA(0, 0, 0, 0.45)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Modal
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(90, 48, 300, 220, 10)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.12)
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(90.5, 48.5, 299, 219, 10)
+	_ = dc.Stroke()
+	dc.SetRGB(0.15, 0.15, 0.15)
+	dc.DrawString("Confirm bulk action", 110, 80)
+	// body lines
+	for i := 0; i < 5; i++ {
+		dc.SetRGB(0.94, 0.95, 0.97)
+		dc.DrawRoundedRectangle(110, 100+float64(i)*22, 260, 16, 4)
+		_ = dc.Fill()
+	}
+	// buttons
+	dc.SetRGB(0.95, 0.95, 0.96)
+	dc.DrawRoundedRectangle(200, 230, 80, 28, 6)
+	_ = dc.Fill()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(292, 230, 80, 28, 6)
+	_ = dc.Fill()
+
+	// Nested popconfirm
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(250, 160, 160, 90, 8)
+	_ = dc.Fill()
+	dc.SetRGBA(0, 0, 0, 0.15)
+	dc.DrawRoundedRectangle(250.5, 160.5, 159, 89, 8)
+	_ = dc.Stroke()
+	dc.SetRGB(0.2, 0.2, 0.2)
+	dc.DrawString("Are you sure?", 266, 188)
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRoundedRectangle(330, 210, 60, 24, 4)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("I2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 20 {
+		t.Fatalf("I2 expected GPUOps>=20: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 20, 20)
+	// dimmed page corner darker than pure white
+	if r > 200 {
+		t.Fatalf("dim mask missing: %d,%d,%d", r, g, b)
+	}
+	r2, g2, b2, _ := p1Sample(dc, 240, 160)
+	if r2 < 240 {
+		t.Fatalf("modal body missing: %d,%d,%d", r2, g2, b2)
+	}
+	r3, g3, b3, _ := p1Sample(dc, 360, 222)
+	if b3 < 150 {
+		t.Fatalf("popconfirm OK missing: %d,%d,%d", r3, g3, b3)
+	}
+}

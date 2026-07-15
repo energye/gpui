@@ -178,10 +178,10 @@ func TestConvexRendererRecordDrawsEmpty(t *testing.T) {
 
 	// RecordDraws with nil resources should be a no-op (not panic).
 	// We cannot call it without a real render pass, but we can verify the nil guard.
-	cr.RecordDraws(nil, nil, nil)
+	cr.RecordDraws(nil, nil, nil, nil)
 
 	// RecordDraws with zero vertex count should be a no-op.
-	cr.RecordDraws(nil, &convexFrameResources{vertCount: 0}, nil)
+	cr.RecordDraws(nil, &convexFrameResources{vertCount: 0}, nil, nil)
 }
 
 func TestConvexVertexLayout(t *testing.T) {

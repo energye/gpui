@@ -1677,23 +1677,27 @@ func (c *Context) tryGPUStroke() error {
 }
 
 // setupGPUMask uploads the active alpha mask to the GPU accelerator.
-// Returns a cleanup function to clear the mask (must be deferred by caller).
+// The mask remains bound until ClearMask/SetMask(nil) or a replacement
+// SetMaskTexture — it must survive until FlushGPU so cover-inline R8 sampling
+// (L.06) can bind the texture during RecordDraws.
+//
+// Returns a no-op cleanup for call-site defer compatibility.
 func (c *Context) setupGPUMask() (func(), error) {
-	if c.mask == nil {
-		return func() {}, nil
-	}
 	a := Accelerator()
 	if a == nil {
 		return func() {}, nil
 	}
 	ma, ok := a.(MaskAware)
 	if !ok {
-		// No native mask texture upload yet. paint.MaskCoverage is already set
-		// (applyMaskToPaint); GPU paths may bootstrap via staging blit (L.06).
+		// paint.MaskCoverage still drives fillMaskedAsImage bootstrap (L.06).
+		return func() {}, nil
+	}
+	if c.mask == nil {
+		ma.ClearMaskTexture()
 		return func() {}, nil
 	}
 	ma.SetMaskTexture(c.mask.Data(), c.mask.Width(), c.mask.Height())
-	return ma.ClearMaskTexture, nil
+	return func() {}, nil
 }
 
 // tryGPUOpRC routes GPU operations through the per-context GPURenderContext.

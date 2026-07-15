@@ -46,6 +46,11 @@ type StencilRenderer struct {
 	stencilPipeLayout *webgpu.PipelineLayout
 	coverPipeLayout   *webgpu.PipelineLayout
 
+	// maskBindLayout is @group(2) for L.06 R8 mask on the cover pass.
+	// Session-owned when set via SetMaskBindLayout.
+	maskBindLayout  *webgpu.BindGroupLayout
+	maskLayoutOwned bool
+
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before createPipelines. Only the cover pipeline needs
 	// it (stencil fill has no color output, so clip is irrelevant there).
@@ -99,6 +104,12 @@ func NewStencilRenderer(device *webgpu.Device, queue *webgpu.Queue, sampleCount 
 // session and must not be destroyed by the renderer.
 func (sr *StencilRenderer) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
 	sr.clipBindLayout = layout
+}
+
+// SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
+func (sr *StencilRenderer) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
+	sr.maskBindLayout = layout
+	sr.maskLayoutOwned = false
 }
 
 // EnsureTextures creates or recreates the MSAA color, stencil, and resolve textures
@@ -593,7 +604,7 @@ func (sr *StencilRenderer) submitAndReadback(
 // When depthClipped is true (GPU-CLIP-003a), depth-clipped pipeline variants
 // are used. These add DepthCompare=GreaterEqual to restrict both stencil
 // fill and cover passes to pixels where the clip geometry wrote depth=0.0.
-func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stencilCoverBuffers, fillRule render.FillRule, clipBG *webgpu.BindGroup, blendMode render.BlendMode, depthClipped ...bool) {
+func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stencilCoverBuffers, fillRule render.FillRule, clipBG *webgpu.BindGroup, maskBG *webgpu.BindGroup, blendMode render.BlendMode, depthClipped ...bool) {
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0]
 
 	// Select stencil pipeline based on fill rule and depth clip state.
@@ -627,11 +638,14 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	rp.SetVertexBuffer(0, bufs.fanVertBuf, 0)
 	rp.Draw(bufs.fanVertexCount, 1, 0, 0)
 
-	// Pass 2: Cover (clip applied here — writes color output).
+	// Pass 2: Cover (clip + L.06 mask applied here — writes color output).
 	rp.SetPipeline(coverPipeline)
 	rp.SetBindGroup(0, bufs.coverBindGroup, nil)
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
+	}
+	if maskBG != nil {
+		rp.SetBindGroup(2, maskBG, nil)
 	}
 	rp.SetVertexBuffer(0, bufs.coverVertBuf, 0)
 	rp.SetStencilReference(0)

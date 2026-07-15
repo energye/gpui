@@ -89,6 +89,12 @@ type SDFRenderPipeline struct {
 	// layout was created, the pipeline must be recreated.
 	pipeLayoutHasClip bool
 
+	// maskBindLayout is @group(2) for L.06 R8 mask sampling. Usually set by
+	// the session (not owned). maskLayoutOwned is true only for standalone
+	// pipelines that create their own layout.
+	maskBindLayout  *webgpu.BindGroupLayout
+	maskLayoutOwned bool
+
 	// MSAA and resolve textures for offscreen rendering (standalone mode).
 	// When used via GPURenderSession, these are nil -- the session owns textures.
 	msaaTex     *webgpu.Texture
@@ -104,6 +110,12 @@ type SDFRenderPipeline struct {
 // owned by the session and must not be destroyed by the pipeline.
 func (p *SDFRenderPipeline) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
 	p.clipBindLayout = layout
+}
+
+// SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
+func (p *SDFRenderPipeline) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
+	p.maskBindLayout = layout
+	p.maskLayoutOwned = false
 }
 
 // NewSDFRenderPipeline creates a new SDF render pipeline with the given device
@@ -330,9 +342,17 @@ func (p *SDFRenderPipeline) createPipeline() error {
 		}
 		clipLayout = p.defaultClipBindLayout
 	}
+	if p.maskBindLayout == nil {
+		layout, err := createMaskBindGroupLayout(p.device, "sdf_render_mask_layout")
+		if err != nil {
+			return fmt.Errorf("create mask layout: %w", err)
+		}
+		p.maskBindLayout = layout
+		p.maskLayoutOwned = true
+	}
 	pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
 		Label:            "sdf_render_pipe_layout",
-		BindGroupLayouts: []*webgpu.BindGroupLayout{p.uniformLayout, clipLayout},
+		BindGroupLayouts: []*webgpu.BindGroupLayout{p.uniformLayout, clipLayout, p.maskBindLayout},
 	})
 	if err != nil {
 		return fmt.Errorf("create pipeline layout: %w", err)
@@ -484,7 +504,7 @@ func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
 //
 // The resources parameter holds pre-built vertex buffer, uniform buffer,
 // and bind group for the current frame.
-func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *sdfFrameResources, clipBG *webgpu.BindGroup, depthClipped ...bool) {
+func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *sdfFrameResources, clipBG *webgpu.BindGroup, maskBG *webgpu.BindGroup, depthClipped ...bool) {
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
 	if useDepthClip {
 		rp.SetPipeline(p.pipelineWithDepthClip)
@@ -494,6 +514,9 @@ func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 	rp.SetBindGroup(0, resources.bindGroup, nil)
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
+	}
+	if maskBG != nil {
+		rp.SetBindGroup(2, maskBG, nil)
 	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.Draw(resources.vertCount, 1, resources.firstVertex, 0)
@@ -525,6 +548,11 @@ func (p *SDFRenderPipeline) destroyPipeline() {
 		p.defaultClipBindLayout.Release()
 		p.defaultClipBindLayout = nil
 	}
+	if p.maskLayoutOwned && p.maskBindLayout != nil {
+		p.maskBindLayout.Release()
+	}
+	p.maskBindLayout = nil
+	p.maskLayoutOwned = false
 	if p.uniformLayout != nil {
 		p.uniformLayout.Release()
 		p.uniformLayout = nil

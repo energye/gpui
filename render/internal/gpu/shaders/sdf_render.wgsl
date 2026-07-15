@@ -54,6 +54,17 @@ struct ClipParams {
 }
 @group(1) @binding(0) var<uniform> clip: ClipParams;
 
+// --- L.06 full-surface R8 alpha mask (SDF cover-inline sample) ---
+struct MaskParams {
+    mask_enabled: f32,
+    _p0: f32,
+    _p1: f32,
+    _p2: f32,
+}
+@group(2) @binding(0) var mask_tex: texture_2d<f32>;
+@group(2) @binding(1) var mask_samp: sampler;
+@group(2) @binding(2) var<uniform> mask_u: MaskParams;
+
 // rrect_clip_coverage computes anti-aliased coverage for the RRect clip
 // region at the given fragment position. Returns 1.0 when clip is disabled.
 // All math is naga-safe (no abs/min/max/clamp/smoothstep builtins).
@@ -88,6 +99,12 @@ fn rrect_clip_coverage(frag_pos: vec2<f32>) -> f32 {
     let t = (t_pos + 1.0 - sqrt(t_diff * t_diff)) * 0.5;
     let sdf_cov = 1.0 - t * t * (3.0 - 2.0 * t);
     return clip.clip_enabled * sdf_cov + (1.0 - clip.clip_enabled);
+}
+
+fn mask_coverage(frag_pos: vec2<f32>) -> f32 {
+    let uv = frag_pos / max(u.viewport, vec2<f32>(1.0, 1.0));
+    let m = textureSampleLevel(mask_tex, mask_samp, uv, 0.0).r;
+    return mask_u.mask_enabled * m + (1.0 - mask_u.mask_enabled);
 }
 
 @vertex
@@ -172,9 +189,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let aa_f = f32(u.anti_alias);
     let coverage = aa_f * aa_coverage + (1.0 - aa_f) * noaa_coverage;
 
-    // Apply RRect clip coverage.
+    // Apply RRect clip + L.06 full-surface R8 mask coverage.
     let clip_cov = rrect_clip_coverage(in.clip_position.xy);
-    let final_coverage = coverage * clip_cov;
+    let mask_cov = mask_coverage(in.clip_position.xy);
+    let final_coverage = coverage * clip_cov * mask_cov;
 
     // Discard fully transparent pixels.
     if final_coverage < 1.0 / 255.0 {

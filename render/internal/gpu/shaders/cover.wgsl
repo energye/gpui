@@ -22,6 +22,17 @@ struct ClipParams {
 }
 @group(1) @binding(0) var<uniform> clip: ClipParams;
 
+// --- L.06 full-surface R8 alpha mask (stencil cover-inline sample) ---
+struct MaskParams {
+    mask_enabled: f32,
+    _p0: f32,
+    _p1: f32,
+    _p2: f32,
+}
+@group(2) @binding(0) var mask_tex: texture_2d<f32>;
+@group(2) @binding(1) var mask_samp: sampler;
+@group(2) @binding(2) var<uniform> mask_u: MaskParams;
+
 fn rrect_clip_coverage(frag_pos: vec2<f32>) -> f32 {
     // Branchless: Intel Vulkan shader compiler generates bad code for complex
     // sqrt-heavy math inside conditional blocks. Compute SDF unconditionally,
@@ -66,11 +77,19 @@ fn vs_main(@location(0) pos: vec2<f32>) -> CoverVertexOutput {
     return out;
 }
 
+fn mask_coverage(frag_pos: vec2<f32>) -> f32 {
+    let uv = frag_pos / max(u.viewport, vec2<f32>(1.0, 1.0));
+    let m = textureSampleLevel(mask_tex, mask_samp, uv, 0.0).r;
+    return mask_u.mask_enabled * m + (1.0 - mask_u.mask_enabled);
+}
+
 @fragment
 fn fs_main(in: CoverVertexOutput) -> @location(0) vec4<f32> {
     let clip_cov = rrect_clip_coverage(in.position.xy);
-    if clip_cov < 1.0 / 255.0 {
+    let mask_cov = mask_coverage(in.position.xy);
+    let final_cov = clip_cov * mask_cov;
+    if final_cov < 1.0 / 255.0 {
         discard;
     }
-    return u.color * clip_cov;
+    return u.color * final_cov;
 }

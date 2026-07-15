@@ -649,14 +649,18 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 
 // FillPath queues a filled path for GPU rendering.
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
-	// L.06: prefer convex cover-inline R8 sampling when MaskAware texture is live
-	// and the path is a convex solid SourceOver fill. Non-convex / advanced
-	// paints fall back to fillMaskedAsImage (geometry stage + R8 modulate).
+	// L.06: prefer cover-inline R8 (convex / stencil-then-cover) when MaskAware
+	// texture is live. Advanced paints fall back to fillMaskedAsImage.
 	if paint != nil && paint.MaskCoverage != nil {
 		if rc.tryFillMaskedConvexInline(target, path, paint) {
 			return nil
 		}
-		return rc.fillMaskedAsImage(target, path, paint)
+		// Solid SourceOver + GPU mask: fall through to stencil-then-cover with
+		// cover-pass R8 sampling (same mask bind group as convex/SDF).
+		if !(isGPUSolidPaint(paint) && paintUsesSourceOver(paint) && paintSupportsGPUFixedBlend(paint) && rc.shared.HasGPUMask()) {
+			return rc.fillMaskedAsImage(target, path, paint)
+		}
+		// continue into GPU solid fill path below
 	}
 	if !isGPUSolidPaint(paint) {
 		if paintSupportsGPUAdvancedBlend(paint) {
@@ -833,13 +837,16 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 
 // FillShape accumulates a filled shape for batch dispatch.
 func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape render.DetectedShape, paint *render.Paint) error {
-	// L.06: mask coverage not in SDF shaders — stage software+GPU blit.
+	// L.06: prefer SDF cover-inline R8 when MaskAware texture is live.
 	if paint != nil && paint.MaskCoverage != nil {
-		p := detectedShapeToPath(shape)
-		if p == nil {
+		if rc.tryFillMaskedSDFInline(target, shape, paint) {
+			return nil
+		}
+		pth := detectedShapeToPath(shape)
+		if pth == nil {
 			return render.ErrFallbackToCPU
 		}
-		return rc.fillMaskedAsImage(target, p, paint)
+		return rc.fillMaskedAsImage(target, pth, paint)
 	}
 
 	rc.sceneStats.ShapeCount++
@@ -1627,5 +1634,36 @@ func (rc *GPURenderContext) tryFillMaskedConvexInline(target render.GPURenderTar
 	rc.QueueConvex(target, cmd)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
+	return true
+}
+
+// tryFillMaskedSDFInline routes solid SDF shapes through the SDF cover pipeline
+// with L.06 R8 mask sampling in the fragment shader (true cover-inline).
+func (rc *GPURenderContext) tryFillMaskedSDFInline(target render.GPURenderTarget, shape render.DetectedShape, paint *render.Paint) bool {
+	if paint == nil || paint.MaskCoverage == nil {
+		return false
+	}
+	if !isGPUSolidPaint(paint) || !paintUsesSourceOver(paint) {
+		return false
+	}
+	if !rc.shared.HasGPUMask() {
+		return false
+	}
+	switch shape.Kind {
+	case render.ShapeCircle, render.ShapeEllipse, render.ShapeRect, render.ShapeRRect:
+	default:
+		return false
+	}
+	if !rc.shared.gpuReady {
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return false
+		}
+	}
+	if err := rc.QueueShape(target, shape, paint, false); err != nil {
+		return false
+	}
 	return true
 }

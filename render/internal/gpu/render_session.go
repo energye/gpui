@@ -276,7 +276,8 @@ type GPURenderSession struct {
 	noClipUniformBuf *webgpu.Buffer
 	noClipBindGroup  *webgpu.BindGroup
 
-	// L.06 cover-inline R8 mask (@group(2) on convex).
+	// L.06 cover-inline R8 mask (@group(2) on convex + SDF).
+	maskBindLayout  *webgpu.BindGroupLayout // session-owned, shared by pipelines
 	noMaskTex       *webgpu.Texture
 	noMaskView      *webgpu.TextureView
 	maskSampler     *webgpu.Sampler
@@ -1207,10 +1208,15 @@ type sdfFrameResources struct {
 // is NOT created here — it is created on demand when text batches are present
 // (see ensureTextPipeline).
 func (s *GPURenderSession) ensurePipelines() error {
+	if err := s.ensureMaskBindLayout(); err != nil {
+		return fmt.Errorf("mask bind layout: %w", err)
+	}
+
 	if s.sdfPipeline == nil {
 		s.sdfPipeline = NewSDFRenderPipeline(s.device, s.queue, s.sampleCount)
 	}
 	s.sdfPipeline.SetClipBindLayout(s.clipBindLayout)
+	s.sdfPipeline.SetMaskBindLayout(s.maskBindLayout)
 	if err := s.sdfPipeline.ensurePipelineWithStencil(); err != nil {
 		return fmt.Errorf("SDF pipeline: %w", err)
 	}
@@ -1219,21 +1225,26 @@ func (s *GPURenderSession) ensurePipelines() error {
 		s.convexRenderer = NewConvexRenderer(s.device, s.queue, s.sampleCount)
 	}
 	s.convexRenderer.SetClipBindLayout(s.clipBindLayout)
+	s.convexRenderer.SetMaskBindLayout(s.maskBindLayout)
 	if err := s.convexRenderer.ensurePipelineWithStencil(); err != nil {
 		return fmt.Errorf("convex pipeline: %w", err)
 	}
 	if err := s.ensureMaskDefaults(); err != nil {
-		return fmt.Errorf("convex mask defaults: %w", err)
+		return fmt.Errorf("mask defaults: %w", err)
 	}
 
 	if s.stencilRenderer == nil {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
 	}
 	s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
-	// Recreate stencil pipelines if cover layout was created without clip.
+	s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
+	// Recreate stencil pipelines if cover layout was created without clip/mask.
 	if s.stencilRenderer.nonZeroStencilPipeline == nil ||
-		(s.clipBindLayout != nil && !s.stencilRenderer.coverPipeLayoutHasClip) {
+		(s.clipBindLayout != nil && !s.stencilRenderer.coverPipeLayoutHasClip) ||
+		s.stencilRenderer.maskBindLayout != s.maskBindLayout {
 		s.stencilRenderer.destroyPipelines()
+		s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
+		s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
 		if err := s.stencilRenderer.createPipelines(); err != nil {
 			return fmt.Errorf("stencil pipelines: %w", err)
 		}
@@ -1401,17 +1412,26 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (*webgpu.BindGro
 
 // ensureMaskDefaults creates the disabled (1x1 white R8) mask bind group for
 // convex @group(2). Safe to call multiple times.
+func (s *GPURenderSession) ensureMaskBindLayout() error {
+	if s.maskBindLayout != nil {
+		return nil
+	}
+	layout, err := createMaskBindGroupLayout(s.device, "session_mask_bind_layout")
+	if err != nil {
+		return fmt.Errorf("create mask bind layout: %w", err)
+	}
+	s.maskBindLayout = layout
+	return nil
+}
+
 func (s *GPURenderSession) ensureMaskDefaults() error {
 	if s.noMaskBindGroup != nil {
 		return nil
 	}
-	if s.convexRenderer == nil {
-		return fmt.Errorf("convex renderer required for mask defaults")
+	if err := s.ensureMaskBindLayout(); err != nil {
+		return err
 	}
-	layout := s.convexRenderer.MaskBindLayout()
-	if layout == nil {
-		return fmt.Errorf("convex mask bind layout unavailable")
-	}
+	layout := s.maskBindLayout
 
 	// 1x1 white R8 — samples as coverage 1.0 when mask_enabled=0 path still samples.
 	tex, err := s.device.CreateTexture(&webgpu.TextureDescriptor{
@@ -1551,12 +1571,12 @@ func (s *GPURenderSession) PrepareFrameMask(shared *GPUShared) error {
 	if !ok || view == nil {
 		return nil
 	}
-	layout := s.convexRenderer.MaskBindLayout()
+	layout := s.maskBindLayout
 	if layout == nil {
 		return nil
 	}
 	bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
-		Label:  "convex_mask_active_bg",
+		Label:  "frame_mask_active_bg",
 		Layout: layout,
 		Entries: []webgpu.BindGroupEntry{
 			{Binding: 0, TextureView: view},
@@ -1585,6 +1605,10 @@ func (s *GPURenderSession) releaseMaskResources() {
 	}
 	s.maskBindGroup = nil
 	s.maskBGOwned = false
+	if s.maskBindLayout != nil {
+		s.maskBindLayout.Release()
+		s.maskBindLayout = nil
+	}
 	if s.noMaskBindGroup != nil {
 		s.noMaskBindGroup.Release()
 		s.noMaskBindGroup = nil
@@ -2673,7 +2697,7 @@ func (s *GPURenderSession) encodeSubmitReadback(
 
 	// Tier 1: SDF shapes (no stencil interaction).
 	if sdfRes != nil && len(sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG)
+		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG, s.frameMaskBindGroup())
 	}
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
@@ -2683,7 +2707,7 @@ func (s *GPURenderSession) encodeSubmitReadback(
 
 	// Tier 2b: Stencil-then-cover paths.
 	for i, bufs := range stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG, stencilPaths[i].BlendMode)
+		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG, s.frameMaskBindGroup(), stencilPaths[i].BlendMode)
 	}
 
 	// Tier 4: MSDF text (rendered after shapes).
@@ -2912,7 +2936,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 
 	// Tier 1: SDF shapes (no stencil interaction).
 	if sdfRes != nil && len(sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG)
+		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG, s.frameMaskBindGroup())
 	}
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
@@ -2922,7 +2946,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 
 	// Tier 2b: Stencil-then-cover paths.
 	for i, bufs := range stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG, stencilPaths[i].BlendMode)
+		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG, s.frameMaskBindGroup(), stencilPaths[i].BlendMode)
 	}
 
 	// Tier 4: MSDF text (rendered after shapes).
@@ -2989,7 +3013,7 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 
 	// Tier 1: SDF shapes (no stencil interaction).
 	if gr.sdfRes != nil && len(gr.sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, gr.sdfRes, clipBG, gr.hasDepthClip)
+		s.sdfPipeline.RecordDraws(rp, gr.sdfRes, clipBG, s.frameMaskBindGroup(), gr.hasDepthClip)
 	}
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
@@ -2999,7 +3023,7 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 
 	// Tier 2b: Stencil-then-cover paths.
 	for i, bufs := range gr.stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, gr.stencilPaths[i].FillRule, clipBG, gr.stencilPaths[i].BlendMode, gr.hasDepthClip)
+		s.stencilRenderer.RecordPath(rp, bufs, gr.stencilPaths[i].FillRule, clipBG, s.frameMaskBindGroup(), gr.stencilPaths[i].BlendMode, gr.hasDepthClip)
 	}
 
 	// Tier 3: Textured quad images (CPU-uploaded).

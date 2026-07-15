@@ -11,6 +11,7 @@ package render
 // Pass nil to clear the mask.
 func (c *Context) SetMask(mask *Mask) {
 	c.mask = mask
+	c.syncGPUMaskTexture()
 }
 
 // GetMask returns the current mask, or nil if no mask is set.
@@ -23,12 +24,31 @@ func (c *Context) GetMask() *Mask {
 func (c *Context) InvertMask() {
 	if c.mask != nil {
 		c.mask.Invert()
+		c.syncGPUMaskTexture()
 	}
 }
 
 // ClearMask removes the current mask.
 func (c *Context) ClearMask() {
 	c.mask = nil
+	c.syncGPUMaskTexture()
+}
+
+// syncGPUMaskTexture uploads or clears the MaskAware R8 plane on the accelerator.
+func (c *Context) syncGPUMaskTexture() {
+	a := Accelerator()
+	if a == nil {
+		return
+	}
+	ma, ok := a.(MaskAware)
+	if !ok {
+		return
+	}
+	if c.mask == nil {
+		ma.ClearMaskTexture()
+		return
+	}
+	ma.SetMaskTexture(c.mask.Data(), c.mask.Width(), c.mask.Height())
 }
 
 // ApplyMask applies a mask to already-drawn content using DestinationIn blending.

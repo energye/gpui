@@ -2059,3 +2059,88 @@ func TestP1_Capability_L06_CoverInlineR8GPU(t *testing.T) {
 		t.Fatalf("right outside mask expected white (cover-inline discard): %d,%d,%d", rr, rg, rb)
 	}
 }
+
+// L.06 SDF cover-inline: circle/rrect via SDF pipeline with MaskAware R8 sample.
+func TestP1_Capability_L06_SDFCoverInlineR8GPU(t *testing.T) {
+	requireNativeGPU(t)
+	if _, ok := render.Accelerator().(render.MaskAware); !ok {
+		t.Fatal("MaskAware required")
+	}
+	const w, h = 96, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	mask := render.NewMask(w, h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x < w/2 {
+				mask.Set(x, y, 255)
+			} else {
+				mask.Set(x, y, 0)
+			}
+		}
+	}
+	dc.SetMask(mask)
+
+	// Circle spans both halves — SDF cover-inline should cut right side.
+	dc.SetRGB(0.1, 0.2, 0.95)
+	dc.DrawCircle(float64(w)/2, float64(h)/2, 22)
+	_ = dc.Fill()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("L.06 SDF cover-inline path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("SDF cover-inline requires GPUOps>0")
+	}
+
+	// Left of center inside circle under mask → blue
+	lr, lg, lb, _ := sampleRGBA(dc, w/2-10, h/2)
+	// Right of center inside circle outside mask → white
+	rr, rg, rb, _ := sampleRGBA(dc, w/2+10, h/2)
+	t.Logf("left=%d,%d,%d right=%d,%d,%d", lr, lg, lb, rr, rg, rb)
+	if lb < 150 {
+		t.Fatalf("SDF left under mask expected blue: %d,%d,%d", lr, lg, lb)
+	}
+	if rr < 240 || rg < 240 || rb < 240 {
+		t.Fatalf("SDF right outside mask expected white: %d,%d,%d", rr, rg, rb)
+	}
+
+	// Soft ramp: horizontal gradient mask on rrect
+	dc2 := render.NewContext(64, 32)
+	defer dc2.Close()
+	dc2.ResetRenderPathStats()
+	dc2.ClearWithColor(render.White)
+	m2 := render.NewMask(64, 32)
+	for y := 0; y < 32; y++ {
+		for x := 0; x < 64; x++ {
+			m2.Set(x, y, uint8(x*255/63))
+		}
+	}
+	dc2.SetMask(m2)
+	dc2.SetRGB(1, 0, 0)
+	dc2.DrawRoundedRectangle(4, 4, 56, 24, 8)
+	_ = dc2.Fill()
+	if err := dc2.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU ramp: %v", err)
+	}
+	if dc2.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("rrect SDF mask ramp needs GPUOps>0")
+	}
+	// Mid should be pink-ish (not full red, not white)
+	mr, mg, mb, _ := sampleRGBA(dc2, 32, 16)
+	t.Logf("ramp mid=%d,%d,%d", mr, mg, mb)
+	if mr < 100 {
+		t.Fatalf("ramp mid too dark: %d,%d,%d", mr, mg, mb)
+	}
+	if mg > 200 && mb > 200 {
+		t.Fatalf("ramp mid still near-white (mask not applied): %d,%d,%d", mr, mg, mb)
+	}
+}
