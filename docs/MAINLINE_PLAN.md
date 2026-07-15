@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.2 | 日期：2026-07-15  
+> 版本：1.4 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -104,9 +104,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 **完成标准**：
 
-- [ ] 子集 API 均有 facade 对象方法  
-- [ ] conversion 测试覆盖高风险 enum/stencil/blend/topology  
-- [ ] `go test ./gpu/webgpu` 全绿  
+- [x] 子集 API 均有 facade 对象方法 — 见 `docs/WEBGPU_FACADE_S2_CHECKLIST.md`  
+- [x] conversion 测试覆盖高风险 enum/stencil/blend/topology — `TestS2Convert*`  
+- [x] `go test ./gpu/webgpu` 全绿 — 含 `TestS2AE*` 真链路  
 
 ---
 
@@ -116,7 +116,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 | 切片 | 能力焦点 | 退出条件（摘要） |
 |------|----------|------------------|
-| **S3a M0–M1** | 清屏、path fill/stroke、AA、CTM、solid、clip rect、hairline | CPU/GPU 基础图元门禁绿 |
+| **S3a M0–M1** | 清屏、path fill/stroke、AA、CTM、solid、clip rect、hairline | ✅ `docs/S3A_M0M1_RENDER_GATE.md` |
 | **S3b M2** | blend/premul、image、text、rrect、layer opacity、dash、gradient、MSAA | UI 级 2D 门禁绿 |
 | **S3c M3** | 高级 clip/filter/shadow、surface present、color space… | 完整 2D + 窗口路径 |
 
@@ -146,18 +146,20 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 顺序 | 动作 | 状态 |
 |------|------|------|
 | 1 | S0 能力表 + 主线计划 | ✅ |
-| 2 | S1 enum header-lock（`TestS1*`） | ✅ |
-| 3 | S1 A–E native 烟测（`TestS1AE*`） | ✅ **S1 关闭** |
-| 4 | S2 facade 对齐 | ⬜ **下一步** |
-| 5 | S3a → S3b render 对标 | ⬜ |
+| 2 | S1 enum + A–E 烟测 | ✅ |
+| 3 | S2 webgpu facade | ✅ |
+| 4 | S3a render M0–M1 GPU 门禁 | ✅ **S3a 关闭** |
+| 5 | S3b M2 UI 级 2D | ⬜ **下一步** |
 
-S1 已关闭：enum + A–E 真链路（含像素/字节读回）；门禁 `go test ./gpu/rwgpu`。
+S0–S3a 已关闭。S3a 门禁：`go test ./render -run 'TestS3a_|TestP12GPUFixedPixel'`。
 
 已完成可复用资产（并入主线，不另开叙事）：
 
 - P0 视觉 STRICT / format readback / path stats / SourceOver GPU 固定像素 → 作为 S3 回归工具  
 - S1 enum header-lock：身份枚举 + 转换枚举 + silent-identity 回归  
 - S1 A–E smoke：`s1_ae_smoke_test.go`（buffer/texture/draw 读回）  
+- S2 facade：`s2_facade_conversion_test.go` + `s2_ae_smoke_test.go`  
+- S3a gate：`s3a_m0m1_gpu_gate_test.go` + P1.2 fixed pixels  
 
 ---
 
@@ -167,7 +169,9 @@ S1 已关闭：enum + A–E 真链路（含像素/字节读回）；门禁 `go t
 |------|------|
 | `docs/SKIA_2D_CAPABILITY_MATRIX.md` | **能力真相来源** |
 | `docs/MAINLINE_PLAN.md` | **执行主线**（本文） |
-| `docs/RWGPU_SKIA_SUBSET_CHECKLIST.md` | S1 产出（枚举 header-lock 已落地） |
+| `docs/RWGPU_SKIA_SUBSET_CHECKLIST.md` | S1 产出（已关闭） |
+| `docs/WEBGPU_FACADE_S2_CHECKLIST.md` | S2 产出（facade 已关闭） |
+| `docs/S3A_M0M1_RENDER_GATE.md` | S3a 产出（M0–M1 GPU 门禁） |
 | `docs/OPTIMIZATION_PLAN.md` | 历史大计划；服从主线 |
 
 ---
@@ -176,6 +180,8 @@ S1 已关闭：enum + A–E 真链路（含像素/字节读回）；门禁 `go t
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.4 | S3a 关闭：M0–M1 GPU 固定像素门禁；下一步 S3b |
+| 2026-07-15 | 1.3 | S2 关闭：facade 转换/烟测；下一步 S3a |
 | 2026-07-15 | 1.2 | S1 关闭：A–E `TestS1AE*` 烟测；下一步 S2 |
 | 2026-07-15 | 1.1 | S1 枚举 header-lock（TestS1*）；焦点转到 A–E 深度审计 |
 | 2026-07-15 | 1.0 | 确立 S0–S4；排除控件层与杂项目录；能力表驱动 ABI→facade→render |

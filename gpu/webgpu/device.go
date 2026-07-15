@@ -95,13 +95,15 @@ func (d *Device) CreateTextureView(texture *Texture, desc *TextureViewDescriptor
 
 	var rDesc *rwgpu.TextureViewDescriptor
 	if desc != nil {
+		// webgpu.h: omitted counts use UINT32_MAX (WGPU_*_COUNT_UNDEFINED).
+		const countUndefined = ^uint32(0)
 		mipLevelCount := desc.MipLevelCount
 		if mipLevelCount == 0 {
-			mipLevelCount = 1
+			mipLevelCount = countUndefined
 		}
 		arrayLayerCount := desc.ArrayLayerCount
 		if arrayLayerCount == 0 {
-			arrayLayerCount = 1
+			arrayLayerCount = countUndefined
 		}
 		rDesc = &rwgpu.TextureViewDescriptor{
 			Label:           desc.Label,
@@ -137,7 +139,7 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 			AddressModeW: desc.AddressModeW,
 			MagFilter:    desc.MagFilter,
 			MinFilter:    desc.MinFilter,
-			MipmapFilter: rwgpu.MipmapFilterMode(desc.MipmapFilter),
+			MipmapFilter: desc.MipmapFilter,
 			LodMinClamp:  desc.LodMinClamp,
 			LodMaxClamp:  desc.LodMaxClamp,
 			Compare:      desc.Compare,
@@ -524,11 +526,12 @@ func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) (*rwgpu.RenderPip
 	}
 	rDesc.Vertex.Buffers, keepAlive = convertVertexBufferLayouts(desc.Vertex.Buffers)
 
-	// Primitive state.
+	// Primitive state (topology/front/cull converted to native wire inside rwgpu).
 	rDesc.Primitive = rwgpu.PrimitiveState{
-		Topology:  desc.Primitive.Topology,
-		FrontFace: desc.Primitive.FrontFace,
-		CullMode:  desc.Primitive.CullMode,
+		Topology:       desc.Primitive.Topology,
+		FrontFace:      desc.Primitive.FrontFace,
+		CullMode:       desc.Primitive.CullMode,
+		UnclippedDepth: desc.Primitive.UnclippedDepth,
 	}
 	if desc.Primitive.StripIndexFormat != nil {
 		rDesc.Primitive.StripIndexFormat = *desc.Primitive.StripIndexFormat

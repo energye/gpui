@@ -324,7 +324,7 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 		AddressModeW: types.AddressModeClampToEdge,
 		MagFilter:    types.FilterModeLinear,
 		MinFilter:    types.FilterModeLinear,
-		MipmapFilter: types.FilterModeNearest,
+		MipmapFilter: types.MipmapFilterModeNearest,
 	})
 	if err != nil {
 		return fmt.Errorf("create image sampler: %w", err)

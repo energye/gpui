@@ -201,7 +201,7 @@ func (p *MSDFTextPipeline) createPipeline() error {
 		AddressModeW: types.AddressModeClampToEdge,
 		MagFilter:    types.FilterModeLinear,
 		MinFilter:    types.FilterModeLinear,
-		MipmapFilter: types.FilterModeLinear,
+		MipmapFilter: types.MipmapFilterModeLinear,
 		Anisotropy:   4, // reduces blurring at small text sizes
 	})
 	if err != nil {

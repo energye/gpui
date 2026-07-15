@@ -117,7 +117,13 @@ type ColorTargetState = types.ColorTargetState
 // Sampler types
 type AddressMode = types.AddressMode
 type FilterMode = types.FilterMode
+type MipmapFilterMode = types.MipmapFilterMode
 type CompareFunction = types.CompareFunction
+
+const (
+	MipmapFilterModeNearest = types.MipmapFilterModeNearest
+	MipmapFilterModeLinear  = types.MipmapFilterModeLinear
+)
 
 // Surface/presentation types
 type PresentMode = types.PresentMode

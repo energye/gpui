@@ -1,6 +1,6 @@
 # Skia 级 2D 渲染能力表（GPUI 主线验收基准）
 
-> 版本：1.2 | 日期：2026-07-15  
+> 版本：1.4 | 日期：2026-07-15  
 > 用途：定义 render 对标 **Skia 2D 渲染能力** 的全面清单，并反推 `rwgpu` / `gpu/webgpu` 必绑 WebGPU 子集。  
 > 范围：**仅渲染栈** `render → gpu/webgpu → gpu/rwgpu → libwgpu_native`。不含控件层、不含过早性能优化。  
 > 维护：能力缺口只允许“新增行”，不允许静默缩小已列必选项。
@@ -47,12 +47,12 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求（摘要） | rwgpu | webgpu | render | Pri |
 |----|------|-----------|---------------------|-------|--------|--------|-----|
 | S.01 | 离屏像素表面 | `SkSurface::MakeRaster` | Buffer/Texture + readback | ✅ | ✅ | ✅ Pixmap/Context | M0 |
-| S.02 | GPU 离屏 RT | `SkSurface::MakeRenderTarget` | Texture RenderAttachment + resolve | 🔄 | 🔄 | 🔄 | M0 |
+| S.02 | GPU 离屏 RT | `SkSurface::MakeRenderTarget` | Texture RenderAttachment + resolve | ✅ | ✅ | ✅ Context+FlushGPU | M0 |
 | S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | 🔄/⬜ | 🔄/⬜ | ⬜ 外部 view | M3 |
 | S.04 | 清屏/clear 色 | `canvas->clear` | LoadOpClear + clearValue | ✅ | ✅ | ✅ Clear/ClearWithColor | M0 |
 | S.05 | 尺寸/resize | surface 重建 | 重建 texture/pipeline 依赖 | 🔄 | 🔄 | 🔄 | M1 |
 | S.06 | 读回像素 | `peekPixels` / `readPixels` | copyTextureToBuffer + map | ✅ | ✅ | ✅ Image/SavePNG/FlushGPU | M0 |
-| S.07 | 写像素/上传 | `writePixels` | queue.writeTexture/writeBuffer | ✅ | ✅ | 🔄 | M0 |
+| S.07 | 写像素/上传 | `writePixels` | queue.writeTexture/writeBuffer | ✅ | ✅ | 🔄 CPU write; GPU upload 路径存在 | M0 |
 | S.08 | DPR / 逻辑像素 | surface props scale | 视口/纹理物理尺寸 | N/A | N/A | 🔄 deviceScale | M1 |
 | S.09 | 部分更新/damage | dirty rect present | scissor + LoadOpLoad | 🔄 | 🔄 | 🔄 | M3 |
 
@@ -72,7 +72,7 @@
 | P.01 | Solid color RGB/A | `setColor` | premul blend 输入 | N/A | N/A | ✅ | M0 |
 | P.02 | Style Fill/Stroke/StrokeAndFill | `setStyle` | 几何生成 | N/A | N/A | ✅ | M1 |
 | P.03 | Stroke width | `setStrokeWidth` | 展平/SDF | N/A | N/A | ✅ | M1 |
-| P.04 | Hairline（设备 1px） | width=0 语义 | 像素对齐 stroke | N/A | N/A | 🔄 | M1 |
+| P.04 | Hairline（设备 1px） | width=0 语义 | 像素对齐 stroke | N/A | N/A | ✅/🔄 门禁 `TestS3a_M1_Hairline` | M1 |
 | P.05 | Cap Butt/Round/Square | `setStrokeCap` | 几何 | N/A | N/A | ✅/🔄 | M1 |
 | P.06 | Join Miter/Round/Bevel | `setStrokeJoin` | 几何 | N/A | N/A | ✅/🔄 | M1 |
 | P.07 | Miter limit | `setStrokeMiter` | 几何 | N/A | N/A | 🔄 | M2 |
@@ -83,7 +83,7 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| B.01 | SrcOver（默认） | `kSrcOver` | BlendState premul | ✅ enum | ✅ | 🔄 GPU 已验 SourceOver | M1 |
+| B.01 | SrcOver（默认） | `kSrcOver` | BlendState premul | ✅ enum | ✅ | ✅ `TestP12GPUFixedPixel_SourceOverPremul` | M1 |
 | B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | 🔄 | 🔄 | 🔄 CPU 多；SetBlendMode 弱 | M2 |
 | B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 | 🔄 | 🔄 CPU blend 包 | M2 |
 | B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | 🔄 | M3 |
@@ -206,7 +206,7 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | Q.01 | MSAA 4x + resolve | samples | multisample texture + resolve | 🔄 | 🔄 | 🔄 | M2 |
-| Q.02 | Coverage AA 无 MSAA | analytic AA | 软件/计算覆盖 | N/A | N/A | 🔄 | M1 |
+| Q.02 | Coverage AA 无 MSAA | analytic AA | 软件/计算覆盖 | N/A | N/A | ✅/🔄 `TestS3a_M1_AntiAliasToggle` | M1 |
 | Q.03 | 像素对齐/近像素规则 | device pixel snap | CPU/GPU 一致 | N/A | N/A | 🔄 | M2 |
 | Q.04 | 半透明边缘与 premul | premul AA | blend | 🔄 | 🔄 | 🔄 | M1 |
 
@@ -288,7 +288,8 @@
 - **Enum 严格性（G）**：✅ `s1_skia_subset_enum_test.go`
 - **函数 NewProc（A–F）**：约 132 项，子集无函数级 ⬜
 - **A–E 真链路烟测**：✅ `s1_ae_smoke_test.go`（Write/Map、WriteTexture/Copy、Draw/DrawIndexed 像素读回）
-- **S1**：✅ 关闭（Skia 2D 子集）；**下一步 S2** facade
+- **S1**：✅ 关闭（Skia 2D 子集）
+- **S2**：✅ 关闭（`gpu/webgpu` facade + `TestS2*`）；**下一步 S3a** render
 
 ### 2.6 明确可后置（非 Skia 2D 阻塞）
 
@@ -317,9 +318,9 @@
 | 区域 | 现状摘要 | 风险 |
 |------|----------|------|
 | rwgpu | **S1 ✅**：enum header-lock + A–E native 烟测（`TestS1*`/`TestS1AE*`）；~132 NewProc | 非子集扩展未绑；Surface/MSAA resolve 深度在 S3 |
-| webgpu | facade 已接 rwgpu；转换/lifetime 需按子集证明 | 半接/漏字段 |
+| webgpu | **S2 ✅**：子集 facade + 转换/烟测；render 不直连 rwgpu | Surface 完整消费在 S3c |
 | render CPU | path/text/image/clip/layer 较全 | GPU 不一致 |
-| render GPU | SDF/stencil/image/text/atlas 混合；fallback 多 | 语义漂移 |
+| render GPU | **S3a ✅** M0–M1 固定像素门禁；SDF/stencil 路径；S3b 待加强 | M2 能力仍 🔄 |
 | Surface | 外部 view 思路；完整 swapchain 弱 | 窗口路径 |
 | Blend 模式 | CPU 包全；Context.SetBlendMode 弱；GPU 固定像素仅 SourceOver 首轮 | UI 叠加 |
 | Filter/Shadow | 弱 | 视觉效果缺口 |
@@ -343,6 +344,8 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.4 | S3a 关闭：M0–M1 GPU 门禁 |
+| 2026-07-15 | 1.3 | S2 关闭：webgpu facade |
 | 2026-07-15 | 1.2 | S1 关闭：A–E 烟测；§2.7/§4 更新 |
 | 2026-07-15 | 1.1 | §4 rwgpu：S1 枚举 header-lock 已落地 |
 | 2026-07-15 | 1.0 | 首版：全面 Skia 2D 能力表 + WebGPU 反推子集 + 里程碑 |

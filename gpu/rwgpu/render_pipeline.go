@@ -150,6 +150,8 @@ type PrimitiveState struct {
 	StripIndexFormat types.IndexFormat
 	FrontFace        types.FrontFace
 	CullMode         types.CullMode
+	// UnclippedDepth enables depth values outside [0, 1] (requires feature).
+	UnclippedDepth bool
 }
 
 // MultisampleState describes multisampling.
@@ -278,13 +280,17 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 	}
 
 	// Build primitive state
+	unclipped := False
+	if desc.Primitive.UnclippedDepth {
+		unclipped = True
+	}
 	nativePrimitive := primitiveState{
 		nextInChain:      0,
 		topology:         toWGPUPrimitiveTopology(desc.Primitive.Topology),
 		stripIndexFormat: desc.Primitive.StripIndexFormat,
 		frontFace:        toWGPUFrontFace(desc.Primitive.FrontFace),
 		cullMode:         toWGPUCullMode(desc.Primitive.CullMode),
-		unclippedDepth:   False,
+		unclippedDepth:   unclipped,
 	}
 
 	// Build multisample state

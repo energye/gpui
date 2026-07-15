@@ -65,7 +65,7 @@ type SamplerDescriptor struct {
 	AddressModeW AddressMode
 	MagFilter    FilterMode
 	MinFilter    FilterMode
-	MipmapFilter FilterMode
+	MipmapFilter MipmapFilterMode
 	LodMinClamp  float32
 	LodMaxClamp  float32
 	Compare      CompareFunction

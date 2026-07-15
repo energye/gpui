@@ -222,7 +222,7 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 		AddressModeW: types.AddressModeClampToEdge,
 		MagFilter:    types.FilterModeNearest,
 		MinFilter:    types.FilterModeNearest,
-		MipmapFilter: types.FilterModeNearest,
+		MipmapFilter: types.MipmapFilterModeNearest,
 	})
 	if err != nil {
 		return fmt.Errorf("create glyph_mask sampler: %w", err)
