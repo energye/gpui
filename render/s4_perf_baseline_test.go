@@ -528,6 +528,23 @@ func s4Scenes() []s4Scene {
 			},
 		},
 		{
+			// S4.1 input: same GenerationID tiles WITHOUT per-tile clip so
+			// image multi-quad coalescing can collapse N draws → 1.
+			Name: "B13_ImageBatchNoClip",
+			W:    512, H: 512,
+			Draw: func(t *testing.T, dc *render.Context, _ string) {
+				p1White(dc, 512, 512)
+				img := compMakeImage(t, 32, 32, 30, 140, 220)
+				for row := 0; row < 8; row++ {
+					for col := 0; col < 8; col++ {
+						x := float64(col*60 + 16)
+						y := float64(row*60 + 16)
+						dc.DrawImage(img, x+8, y+8)
+					}
+				}
+			},
+		},
+		{
 			Name: "B12_PathStrokeDashCloud",
 			W:    480, H: 360,
 			Draw: func(t *testing.T, dc *render.Context, _ string) {

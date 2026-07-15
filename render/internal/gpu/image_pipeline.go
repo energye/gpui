@@ -296,7 +296,7 @@ func (p *TexturedQuadPipeline) RecordBlitDraws(rp *webgpu.RenderPassEncoder, res
 	rp.SetVertexBuffer(0, res.vertBuf, 0)
 	for _, dc := range res.drawCalls {
 		rp.SetBindGroup(0, dc.bindGroup, nil)
-		rp.Draw(6, 1, dc.firstVertex, 0)
+		rp.Draw(imageDrawVertexCount(dc), 1, dc.firstVertex, 0)
 	}
 }
 
@@ -414,7 +414,8 @@ func (p *TexturedQuadPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, res *im
 	rp.SetVertexBuffer(0, res.vertBuf, 0)
 	for _, dc := range res.drawCalls {
 		rp.SetBindGroup(0, dc.bindGroup, nil)
-		rp.Draw(6, 1, dc.firstVertex, 0) //nolint:mnd // 6 vertices per quad (2 triangles)
+		// S4.1: vertexCount may cover multiple quads sharing one bind group.
+		rp.Draw(imageDrawVertexCount(dc), 1, dc.firstVertex, 0)
 	}
 }
 
@@ -469,10 +470,42 @@ type imageFrameResources struct {
 	drawCalls []imageDrawCall
 }
 
-// imageDrawCall holds per-image draw parameters within a frame.
+// imageDrawCall holds per-image (or multi-quad batch) draw parameters within a frame.
+// S4.1: consecutive quads with identical texture/opacity/filter share one bind
+// group and one Draw(vertexCount) spanning vertexCount/6 quads.
 type imageDrawCall struct {
 	bindGroup   *webgpu.BindGroup
 	firstVertex uint32
+	vertexCount uint32 // 0 means 6 (single quad, backward compatible)
+}
+
+// imageDrawVertexCount returns the vertex count for a draw call.
+func imageDrawVertexCount(dc imageDrawCall) uint32 {
+	if dc.vertexCount == 0 {
+		return 6
+	}
+	return dc.vertexCount
+}
+
+// canMergeImageDraw reports whether two image commands may share one bind group
+// and multi-quad draw (same GPU texture key + sampling + opacity + viewport).
+func canMergeImageDraw(a, b *ImageDrawCommand) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if a.GenerationID == 0 || a.GenerationID != b.GenerationID {
+		return false
+	}
+	if a.Nearest != b.Nearest || a.Opacity != b.Opacity {
+		return false
+	}
+	if a.ViewportWidth != b.ViewportWidth || a.ViewportHeight != b.ViewportHeight {
+		return false
+	}
+	if a.ImgWidth != b.ImgWidth || a.ImgHeight != b.ImgHeight {
+		return false
+	}
+	return true
 }
 
 // imageVertexLayout returns the vertex buffer layout for the textured quad pipeline.

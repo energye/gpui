@@ -76,6 +76,7 @@ go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes' -timeout 10m -v
 | B10 | ImageTileGrid | 512×512 | 图像/clip 网格（S4.3 输入） |
 | B11 | StressNestedClipLayerText | 640×480 | 嵌套 clip/layer/text 应力 |
 | B12 | PathStrokeDashCloud | 480×360 | path stroke + dash 云（S4.3 输入） |
+| B13 | ImageBatchNoClip | 512×512 | **S4.1** 同纹理无 clip 批压（64 tiles） |
 
 ---
 
@@ -143,7 +144,7 @@ go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes|TestS3|TestP1_' -time
 | 真 `WGPU_NATIVE_PATH` + `GPUOps>0` | ✅ |
 | upload/draw 可得则记 | ⚠️ N/A（书面记录） |
 
-**S4.0 关闭。** 下一焦点：**S4.1 batch**。
+**S4.0 关闭。** S4.1 见 `docs/S4_1_BATCH.md`（已关闭）。下一焦点：**S4.2 glyph/atlas**。
 
 ---
 

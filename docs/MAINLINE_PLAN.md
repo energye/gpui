@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.46 | 日期：2026-07-15  
+> 版本：1.47 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -142,7 +142,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 子阶段 | 目标 | 退出条件 |
 |--------|------|----------|
 | **S4.0 基线** | 只测量、不改算法：在 P1/A 场景上记录 FPS/frame time、`gpu_ops`、`cpu_fallback_ops`、上传/draw 计数（可得则记） | ✅ 产出 `docs/S4_PERF_BASELINE.md` + `TestS4_PerfBaseline_Scenes` + `tmp/s4_baseline.json` |
-| **S4.1 batch** | 同类 draw 合并 / instance 或顶点批 | 基线对比 + 回归门禁绿 |
+| **S4.1 batch** | 同类 draw 合并 / instance 或顶点批 | ✅ Image multi-quad（`docs/S4_1_BATCH.md`）；SDF/text 既有 batch 保留 |
 | **S4.2 glyph/atlas** | 字形图集命中与上传收敛 | 文本压力场景 + 回归绿 |
 | **S4.3 path/texture cache** | path 几何/纹理复用 | 形状/图像压力 + 回归绿 |
 | **S4.4 damage/retained** | 脏区/保留层减少重绘 | multi-region damage + 回归绿 |
@@ -164,7 +164,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 7 | 能力表 🔄 / M4 GPU 相关 | ✅（仅 R.02 PDF/SVG document ⬜ 旁路） |
 | 8 | P1 复杂 UI 形态 Tier A–U | ✅（形态密度探针，非控件层） |
 | 9 | **阶段 A：任意组合维度 D01–D200** | ✅ **已关闭**（chi 至 D200；停扩组合探针） |
-| 10 | **S4 性能** | 🔄 **当前焦点**；**S4.0 ✅** → **S4.1 batch** |
+| 10 | **S4 性能** | 🔄 **当前焦点**；**S4.0–S4.1 ✅** → **S4.2 glyph/atlas** |
 
 ### 阶段 A — 任意组合维度（非 antd 控件清单）
 
@@ -181,8 +181,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 - [x] 关闭 A 前全量 `TestP1_*`（形态 Tier A–U）回归  
 - [x] **阶段 A 关闭** → 启动 **S4.0 基线**  
 - [x] **S4.0 基线关闭** → 启动 **S4.1 batch**  
+- [x] **S4.1 batch 关闭**（image multi-quad）→ 启动 **S4.2 glyph/atlas**  
 
-**A 已关闭**。**S4.0 基线已关闭**（`docs/S4_PERF_BASELINE.md`）。当前进入 **S4.1 batch**。
+**A 已关闭**。**S4.0 / S4.1 已关闭**。当前进入 **S4.2 glyph/atlas**。
 
 **非目标（仍排除）**：控件层 / Ant Design 组件实现；R.02 可并行旁路。
 
@@ -228,6 +229,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.47 | **S4.1 batch 关闭**：image multi-quad coalescing + B13 + TestS41_*；焦点 → S4.2 |
 | 2026-07-15 | 1.46 | **S4.0 基线关闭**：`TestS4_PerfBaseline_Scenes` + `docs/S4_PERF_BASELINE.md`；焦点 → S4.1 batch |
 | 2026-07-15 | 1.45 | **阶段 A 关闭**：D01–D200 全绿；停扩组合探针；焦点 → S4.0 |
 | 2026-07-15 | 1.44 | 阶段 A 扩展至 **D01–D180** phi 组合；继续复杂场景 |

@@ -181,6 +181,9 @@ type GPURenderSession struct {
 	// Per-draw uniform buffers and bind groups (pool, grows as needed).
 	imageUniformBufs []*webgpu.Buffer
 	imageBindGroups  []*webgpu.BindGroup
+	// S4.1 last-frame image batch stats (tests / profiling).
+	lastImageDrawCalls int
+	lastImageQuads     int
 
 	// Tier 4: MSDF text persistent buffers.
 	textVertBuf    *webgpu.Buffer
@@ -786,7 +789,16 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 
 	var combinedImageRes *imageFrameResources
 	if len(allImage) > 0 {
-		res, err := s.buildImageResources(allImage, w, h)
+		// S4.1: seal batch merges at scissor-group boundaries so multi-quad
+		// draws never span different scissors (sliceImageResources assumes this).
+		imageSeal := make([]bool, len(allImage))
+		for i := range groups {
+			start := gOff[i].imageStart
+			if gOff[i].imageCount > 0 && start > 0 && start < len(imageSeal) {
+				imageSeal[start] = true
+			}
+		}
+		res, err := s.buildImageResources(allImage, w, h, imageSeal)
 		if err != nil {
 			return fmt.Errorf("build image resources: %w", err)
 		}
@@ -2105,18 +2117,21 @@ func (s *GPURenderSession) prepareGlyphMaskResources(batches []GlyphMaskBatch) (
 }
 
 // buildImageResources creates GPU resources for all image draw commands in the
-// current frame. Each command gets its own uniform buffer + bind group (with
-// texture and sampler), but all share a single vertex buffer.
-func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uint32) (*imageFrameResources, error) {
+// current frame. Vertices for every quad are packed into one buffer. Consecutive
+// commands with the same texture/opacity/filter coalesce into a single bind
+// group + multi-quad Draw (S4.1), except where batchSeal[i] is true (cannot
+// merge command i with the previous one — typically a scissor-group boundary).
+func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uint32, batchSeal []bool) (*imageFrameResources, error) {
 	if len(cmds) == 0 {
 		return nil, nil //nolint:nilnil // no images
 	}
 
-	// Build combined vertex data (6 verts per quad).
+	// Build combined vertex data (6 verts per quad) with a single allocation.
 	totalVertBytes := len(cmds) * 6 * imageVertexStride //nolint:mnd // 6 verts per quad
-	var allVertData []byte
+	allVertData := make([]byte, totalVertBytes)
 	for i := range cmds {
-		allVertData = append(allVertData, buildImageVertices(&cmds[i])...)
+		off := i * 6 * imageVertexStride
+		copy(allVertData[off:], buildImageVertices(&cmds[i]))
 	}
 
 	// Ensure persistent vertex buffer is large enough.
@@ -2140,19 +2155,6 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		return nil, fmt.Errorf("upload image vertices: %w", err)
 	}
 
-	// Grow the uniform buffer and bind group pools as needed.
-	for len(s.imageUniformBufs) < len(cmds) {
-		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
-			Label: fmt.Sprintf("image_uniform_%d", len(s.imageUniformBufs)),
-			Size:  imageUniformSize,
-			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("create image uniform buffer: %w", err)
-		}
-		s.imageUniformBufs = append(s.imageUniformBufs, buf)
-	}
-
 	// Release stale bind groups from previous frame.
 	for i := range s.imageBindGroups {
 		if s.imageBindGroups[i] != nil {
@@ -2162,52 +2164,87 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	}
 
 	drawCalls := make([]imageDrawCall, 0, len(cmds))
-	for i := range cmds {
-		cmd := &cmds[i]
-
-		// Upload uniform data.
-		uniformData := makeImageUniform(w, h, cmd.Opacity)
-		if err := s.queue.WriteBuffer(s.imageUniformBufs[i], 0, uniformData); err != nil {
-			return nil, fmt.Errorf("upload image uniform %d: %w", i, err)
+	poolIdx := 0
+	for i := 0; i < len(cmds); {
+		// Extend coalesced run while mergeable and not sealed.
+		j := i + 1
+		for j < len(cmds) {
+			if len(batchSeal) > j && batchSeal[j] {
+				break
+			}
+			if !canMergeImageDraw(&cmds[i], &cmds[j]) {
+				break
+			}
+			j++
 		}
 
-		// Get or upload image texture.
+		cmd := &cmds[i]
+
+		// Grow uniform buffer pool to poolIdx+1.
+		for len(s.imageUniformBufs) <= poolIdx {
+			buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+				Label: fmt.Sprintf("image_uniform_%d", len(s.imageUniformBufs)),
+				Size:  imageUniformSize,
+				Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("create image uniform buffer: %w", err)
+			}
+			s.imageUniformBufs = append(s.imageUniformBufs, buf)
+		}
+
+		uniformData := makeImageUniform(w, h, cmd.Opacity)
+		if err := s.queue.WriteBuffer(s.imageUniformBufs[poolIdx], 0, uniformData); err != nil {
+			return nil, fmt.Errorf("upload image uniform %d: %w", poolIdx, err)
+		}
+
 		texView, err := s.imageCache.GetOrUpload(cmd)
 		if err != nil {
-			slogger().Warn("image cache upload failed, skipping", "err", err)
+			slogger().Warn("image cache upload failed, skipping batch", "err", err, "start", i, "end", j)
+			i = j
 			continue
 		}
 
-		// Create bind group: uniform + texture + sampler.
 		bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
-			Label:  fmt.Sprintf("image_bind_%d", i),
+			Label:  fmt.Sprintf("image_bind_%d", poolIdx),
 			Layout: s.imagePipeline.uniformLayout,
 			Entries: []webgpu.BindGroupEntry{
-				{Binding: 0, Buffer: s.imageUniformBufs[i], Offset: 0, Size: imageUniformSize},
+				{Binding: 0, Buffer: s.imageUniformBufs[poolIdx], Offset: 0, Size: imageUniformSize},
 				{Binding: 1, TextureView: texView},
 				{Binding: 2, Sampler: s.imagePipeline.SamplerFor(cmd.Nearest)},
 			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("create image bind group %d: %w", i, err)
+			return nil, fmt.Errorf("create image bind group %d: %w", poolIdx, err)
 		}
 
-		// Grow the bind group pool if needed.
-		for len(s.imageBindGroups) <= i {
+		for len(s.imageBindGroups) <= poolIdx {
 			s.imageBindGroups = append(s.imageBindGroups, nil)
 		}
-		s.imageBindGroups[i] = bg
+		s.imageBindGroups[poolIdx] = bg
 
+		quads := j - i
 		drawCalls = append(drawCalls, imageDrawCall{
 			bindGroup:   bg,
-			firstVertex: uint32(i * 6), //nolint:gosec // bounded by command count, 6 verts per quad
+			firstVertex: uint32(i * 6),     //nolint:gosec // bounded by command count
+			vertexCount: uint32(quads * 6), //nolint:gosec // bounded by command count
 		})
+		poolIdx++
+		i = j
 	}
 
+	quads := len(cmds)
+	s.lastImageDrawCalls = len(drawCalls)
+	s.lastImageQuads = quads
 	return &imageFrameResources{
 		vertBuf:   s.imageVertBuf,
 		drawCalls: drawCalls,
 	}, nil
+}
+
+// LastImageBatchStats returns the most recent image multi-quad batch stats (S4.1).
+func (s *GPURenderSession) LastImageBatchStats() (drawCalls, quads int) {
+	return s.lastImageDrawCalls, s.lastImageQuads
 }
 
 // buildGPUTextureResources builds render resources for GPU-to-GPU texture compositing.
@@ -2327,18 +2364,32 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	}, nil
 }
 
-// sliceImageResources creates an imageFrameResources referencing a sub-range of
-// the combined drawCalls. One drawCall per ImageDrawCommand.
+// sliceImageResources creates an imageFrameResources covering the draw calls
+// whose vertices lie entirely within the command sub-range [cmdStart, cmdStart+cmdCount).
+// S4.1 multi-quad batches are included only when fully inside the range (they never
+// cross scissor-group seals by construction).
 func (s *GPURenderSession) sliceImageResources(
 	combined *imageFrameResources,
 	cmdStart, cmdCount int,
 ) *imageFrameResources {
-	if cmdCount == 0 || combined == nil || cmdStart+cmdCount > len(combined.drawCalls) {
+	if cmdCount == 0 || combined == nil || len(combined.drawCalls) == 0 {
+		return nil
+	}
+	firstVert := uint32(cmdStart * 6)            //nolint:gosec // bounded
+	endVert := uint32((cmdStart + cmdCount) * 6) //nolint:gosec // bounded
+	var dcs []imageDrawCall
+	for _, dc := range combined.drawCalls {
+		vc := imageDrawVertexCount(dc)
+		if dc.firstVertex >= firstVert && dc.firstVertex+vc <= endVert {
+			dcs = append(dcs, dc)
+		}
+	}
+	if len(dcs) == 0 {
 		return nil
 	}
 	return &imageFrameResources{
 		vertBuf:   combined.vertBuf,
-		drawCalls: combined.drawCalls[cmdStart : cmdStart+cmdCount],
+		drawCalls: dcs,
 	}
 }
 
