@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.53 | 日期：2026-07-15  
+> 版本：1.54 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -14,13 +14,15 @@
 1. **`rwgpu`**：按 Skia 级 2D 所需 WebGPU 能力，把 ABI **绑全、绑对、可测**（对照 `lib/webgpu.h`）。
 2. **`gpu/webgpu`**：对象 facade 完整承接上述子集（转换、生命周期、真 native）。
 3. **`render`**：按同一能力表实现对标 Skia 的 2D 渲染语义与可验证像素结果。
-4. **`S5 起`**：在 Skia 级 2D 能力之上，把引擎做成 **可支撑复杂 2D / 未来 UI 控件** 的产品形态（present/retained/damage/主路径帧预算）；**仍不实现控件层**。
+4. **`S5`**：在 Skia 级 2D 能力之上，把引擎做成 **可支撑复杂 2D / 未来 UI 控件** 的产品形态（present/retained/damage/主路径帧预算）。  
+5. **`S6`**：在 S4 底座 + S5 帧模型之上做 **生产级深度性能优化**（全量重绘/重特效/真窗口/提交路径），**正确性回归不得降级**；S6 期间默认仍不实现控件层（可与控件层并行，但优化不得为控件特化而破坏通用语义）。
 
 ### 非目标（本主线排除）
 
 - Ant Design / 任何 **控件层** 实现  
-- 在 S3 正确性之前做大规模性能优化；**S4 已完成 batch/atlas/cache/damage 底座**；S5 只做 **present 真帧率 + UI 主路径预算**，不做无边界“刷分”  
-- 旧计划中与主线无关的杂项里程碑（Skia FPS 对比报表、并行光栅化任务卡等）**暂不执行**  
+- 在 S3 正确性之前做大规模性能优化；**S4=底座，S5=UI 帧模型/主路径 60fps，S6=生产级深度优化**  
+- 用降像素精度、关 AA、silent CPU、删组合断言等方式“刷”性能数字  
+- 旧计划中与主线无关的杂项里程碑（并行光栅化任务卡等）**暂不执行**；Skia 绝对 FPS **报表**仅作 S6 可选附录，不替代本机 present 门禁  
 - 无界“WebGPU 规范 100% 每个扩展都绑”
 
 历史文档 [`OPTIMIZATION_PLAN.md`](./OPTIMIZATION_PLAN.md) 保留作档案；**任务优先级以本文 + 能力表为准**。
@@ -37,7 +39,8 @@ S0  冻结 Skia 2D 能力表（全面，只增不删必选项）
   → A   任意组合维度门禁（D01–D200）
   → S4  性能底座（batch / atlas / cache / damage）
   → S5  UI 引擎硬化（present 真帧率 + Skia 控件向缺口 + 主路径 60fps）
-  → （之后才允许）控件层 / 类 Ant Design 组件
+  → S6  生产级深度性能优化（提交路径 / 重场景 / 真窗口；正确性回归锁定）
+  → （推荐 S6 主路径达标后）控件层 / 类 Ant Design 组件
 ```
 
 每个 S3 切片若发现 ABI/facade 缺口：**先回 S1/S2 补齐再继续**，禁止用 CPU silent fallback 冒充 GPU 完成。
@@ -240,6 +243,114 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 
 ---
 
+
+### S6 — 生产级深度性能优化（当前焦点；S5 之后）
+
+**进入条件**：S4.0–S4.4 关闭 + S5.0–S5.5 关闭 + 主路径 U01–U04 present-only 门禁可复跑。  
+**总目标**：把引擎从「主路径能 60fps」推进到 **可支撑真实复杂 2D / 高密度 UI 的生产性能**——全量重绘、layer/blend 叠压、长列表、复杂 path、真窗口 present 均可解释、可回归、可优化。  
+**一句话**：S4=底座，S5=能扛 UI 主路径，**S6=生产级深度优化（非玩具）**。
+
+#### 非目标（S6 排除 / 克制）
+
+- 为刷分关闭 AA、降低默认像素语义、删 `TestP1_Comp_*` 断言  
+- silent CPU / 假 `GPUOps`  
+- 无界扩 D201+ 组合探针（A 仅回归）  
+- 完整 PDF/SVG（R.02）、真 multiplanar YUV（旁路，除非成为实测瓶颈再单列）  
+- 控件组件实现（可并行另章；S6 优化必须保持 **通用 render 语义**）  
+- 把 Skia 绝对 FPS 数字当作唯一关闭条件（本机 present 门禁 + 相对 S6.0 基线改进 为主）
+
+#### 硬规则（正确性优先于速度）
+
+1. **正确性回归锁（每个 S6.x 切片结束强制）**  
+   - 真 `WGPU_NATIVE_PATH`；声称 GPU 的路径 **`GPUOps>0` 且 `cpu_fallback_ops=0`**（允许书面解释的 CPU 段除外）。  
+   - 像素/结构门禁不得削弱：至少  
+     - `TestS3*`（或 S3a/b/c 门禁集）  
+     - `TestP1_Comp_` 抽样 **D01/D06/D08/D36/D63/D152** + 每切片相关 Comp  
+     - 切片触及的 `TestP1_Capability_*` / `TestS4*` / `TestS5*`  
+   - **全量** `TestP1_Comp_`（D01–D200）在 **S6.0 基线锁** 与 **S6 关闭前** 各跑至少一次；切片中期可用抽样，但关闭 S6 必须全量绿。  
+   - 任何语义变化必须更新能力表 + 固定像素/区域断言；禁止“看起来差不多”。  
+
+2. **性能计量锁**  
+   - 产品/门禁数字只认 **present-only**（`PresentFrame*`，无 ReadPixels）；与 S4 读回基线 **分列**。  
+   - 主指标：`total_ms_p50` / `fps_p50`；avg/p95 仅诊断。  
+   - 每个优化切片必须提交：优化前/后 JSON 片段 + 回归命令输出摘要。  
+   - 禁止用减少场景内容冒充优化（场景定义冻结在 S6.0）。  
+
+3. **架构锁**  
+   - 仍走 `render → webgpu → rwgpu → libwgpu_native`。  
+   - MSAA damage 仍遵守 ADR-021（scissor∩damage，非 LoadOpLoad）。  
+   - 发现 ABI/facade 缺口：先回 S1/S2。  
+
+#### 回归测试准确性（强制契约）
+
+| 层级 | 套件 | 何时 | 失败含义 |
+|------|------|------|----------|
+| L0 烟测 | `TestS54_*` / `TestS52_*` / `TestS53_*`（U01–U04） | 每切片 | 帧模型或主路径 60fps 回退 |
+| L1 正确性 | `TestS3*` + Comp 抽样 + 相关 Capability | 每切片 | 像素/语义回退 |
+| L2 组合全量 | `TestP1_Comp_` D01–D200 | S6.0 锁存 + S6 关闭 | 组合维度回归 |
+| L3 性能 | `TestS5_PresentBaseline_Scenes` + S6 扩展场景 | 每切片前后 | 无改进或无故回退 |
+| L4 窗口（可选加深） | `gpui_x11_present` / S6.8 套件 | S6.8 及关闭前 | 真 present 回退 |
+
+**准确性要求**：
+
+- 断言基于 **采样点 / 区域结构 / 路径统计**，不只 `err==nil`。  
+- 性能门禁用 **p50**，固定 `S5_PERF_WARMUP`/`ITERS`（S6.0 写入文档）；机器差异用文档记录 GPU/驱动，不静默放宽。  
+- 允许 `S5_ALLOW_SLOW=1` 仅用于过载机器软过；**不得**作为切片关闭的常规手段。  
+- 回归失败 → 切片不得关闭；性能回退超过 S6.0 文档阈值（默认主路径 p50 恶化 >10% 且无说明）→ 必须修或书面豁免。
+
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+export GOCACHE=/tmp/gpui-go-cache
+export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
+
+# L0+L3 性能与帧模型
+go test -count=1 ./render -run 'TestS5_|TestS52_|TestS53_|TestS54_|TestS6_' -timeout 300s
+
+# L1 正确性抽样
+go test -count=1 ./render -run 'TestS3|TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 300s
+
+# L2 组合全量（S6.0 / S6 关闭）
+go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
+```
+
+#### 子阶段（深度、可验收）
+
+| 子阶段 | 优化范围（全面） | 退出条件 |
+|--------|------------------|----------|
+| **S6.0 深基线与回归锁** | 冻结场景集（S5 U/P + S4 重场景 present-only 移植 + 全量 redraw / layer / path / text 应力）；锁定 warmup/iters；双轨基线（present-only + 可选读回对照）；写出回归契约与回退阈值 | `docs/S6_PERF_BASELINE.md` + `TestS6_*` + `tmp/s6_present_baseline.json`；L2 全量 Comp 绿 |
+| **S6.1 帧模型强制** | 默认 API/文档/辅助：idle 帧、局部 invalidation、禁止无意义全清屏；damage 合并策略；HiDPI 物理脏区；多 region 与 union 选择策略 | `docs/S6_1_FRAME_ENFORCE.md`；全量 redraw 场景有明确 API 路径；L0/L1 绿；U01–U04 不回退 |
+| **S6.2 录制/提交 CPU 路径** | 命令缓冲录制分配、pass 合并、多余 `Flush`、同步点、`Queue.Write*` 批次数、encoder 生命周期；减少每帧 Go alloc | 前后 present p50；alloc 诊断（测试内可选 metrics）；L1 绿 |
+| **S6.3 绘制合并加深** | 在 S4.1 之上：SDF/convex/text/glyphMask/image 跨更长 run 合并；禁止错误跨 clip/blend/scissor 合并；instance/vertex 打包 | draw/bind 统计（若可得）+ 像素回归；B02/B13/U 类场景改进或说明 |
+| **S6.4 Layer / Backdrop / Filter** | PushLayer 成本、backdrop 快照复用、blur/shadow 中间 RT、滤镜图节点合并；避免每帧重建 | U05/B09/B07 类 present p50 下降；L05/F 系 Capability 绿 |
+| **S6.5 Text / Shaping / Atlas** | shape 结果缓存、字体run合并、LCD/glyph 上传、atlas 增长策略、滚动复用 | B03/B08/U02 改进；X.* Capability + GlyphMask 绿 |
+| **S6.6 Path / Stroke / Geometry** | tess/stroke 缓存命中率、dash 几何、复杂 polygon、stencil vs convex 选择、AA 成本可控 | B12 与 path 组合改进；H/P path 门禁绿 |
+| **S6.7 上传 / 资源 / 内存** | 纹理/buffer 池、暂存上传、图像 generation 失效、glyph/image 预算、显存峰值 | 上传字节/次数诊断；无泄漏烟测；L1 绿 |
+| **S6.8 真窗口 Present 管线** | X11/swapchain：Acquire/Present、vsync、damage present、多帧；与离屏基线对照；减少 CPU-GPU 空等 | `docs/S6_8_WINDOW_PRESENT.md` + 窗口测试；DISPLAY 下 e2e 绿 |
+| **S6.9 重场景预算与总回归** | 为 U05/kitchen-sink/嵌套 clip-layer 设 **分级预算**（非一律 16.7ms）；全量 L2 + L0–L3；回写 S6 总表 | `docs/S6_9_HEAVY_BUDGET.md`；关闭阈值见下 |
+| **S6.10 可选附录** | 与 Skia 同场景绝对 FPS **对照报表**（不阻塞关闭） | 可选 `docs/S6_10_SKIA_FPS_APPENDIX.md` |
+
+#### S6 场景与预算策略
+
+| 级别 | 代表 | 预算策略 |
+|------|------|----------|
+| **P0 主路径** | U01–U04（S5） | 保持 **p50≤16.7ms**；S6 期间 **禁止回退**（>10% 需修） |
+| **P1 高密度 UI** | 长列表、多卡片壳、表单多字段局部更新 | S6.0 定标后设目标（建议 ≤16.7ms 或 ≤8.3ms@120 可选） |
+| **P2 重特效** | U05、多层 blend、backdrop+blur | **分级预算**（S6.9）；要求相对 S6.0 显著下降并可解释 |
+| **P3 应力** | 嵌套 clip×layer×text 极限 | 只防回归性恶化 + 正确性 |
+
+#### S6 关闭条件（总）
+
+- [ ] S6.0 基线 + 回归契约文档落地；场景定义冻结  
+- [ ] S6.1–S6.9 均有退出文档或书面「无工作量」说明（不得空跳）  
+- [ ] P0 主路径 U01–U04 present p50 **未回退**且仍 ≤16.7ms  
+- [ ] P2 重场景相对 S6.0 达文档目标或签字豁免  
+- [ ] L2 全量 `TestP1_Comp_` 绿；L0/L1/L3 绿；`GPUOps>0` / 无 silent CPU  
+- [ ] 无靠降语义刷分；能力表与固定像素门禁仍成立  
+
+**S6 关闭后**：推荐进入控件层主线；控件绘制必须享受 S6 帧模型与合并路径，不得旁路。
+
+---
+
 ## 4. 当前执行焦点（2026-07-15）
 
 | 顺序 | 动作 | 状态 |
@@ -255,7 +366,8 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 | 9 | **阶段 A：任意组合维度 D01–D200** | ✅ **已关闭**（chi 至 D200；停扩组合探针） |
 | 10 | **S4 性能** | ✅ **S4.0–S4.4 全线关闭**（见 `docs/S4_*.md`） |
 | 11 | **S5 UI 引擎硬化** | ✅ **S5.0–S5.5 全线关闭**（见 `docs/S5_*.md`） |
-| 12 | **控件层（可选下一主线）** | ⬜ 入口条件已满足（`S5_WIDGET_ENTRY.md`）；未开工 |
+| 12 | **S6 生产级深度性能** | 🔄 **当前焦点** → 先 **S6.0 深基线与回归锁** |
+| 13 | **控件层（可选）** | ⬜ 入口已满足（`S5_WIDGET_ENTRY.md`）；**推荐 S6 主路径不回退后开工** |
 
 ### 阶段 A — 任意组合维度（非 antd 控件清单）
 
@@ -278,10 +390,9 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 - [x] **S4.4 damage/retained 关闭** → `docs/S4_4_DAMAGE_RETAINED.md`（**S4.x 全线关闭**）  
 
 **A 已关闭**。**S4.0–S4.4 已关闭**。  
-**A / S4 / S5 已关闭。** 控件层入口条件已满足，**尚未开工**。  
-R.02 / 真 YUV / Skia 绝对 FPS 报表仍后置。
-
-**下一步（可选）**：控件层主线（类 Ant Design 组件，必须走 render）；或继续性能/媒体旁路。
+**A / S4 / S5 已关闭。**  
+**当前焦点：S6 生产级深度性能优化**（先 S6.0 深基线 + 回归锁）。  
+控件层入口已满足但 **推荐 S6 推进后再开工**；R.02 / 真 YUV 仍旁路；Skia FPS 报表为 S6.10 可选附录。
 
 ```bash
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
@@ -326,6 +437,10 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 | `docs/S5_FRAME_MODEL.md` | S5.2 产出（✅ 帧模型） |
 | `docs/S5_60FPS_GATE.md` | S5.3 产出（✅ 60fps 门禁） |
 | `docs/S5_WIDGET_ENTRY.md` | S5.5 产出（✅ 控件入口；**S5 关闭**） |
+| `docs/S6_PERF_BASELINE.md` | S6.0 产出（深基线+回归契约；待写） |
+| `docs/S6_1_FRAME_ENFORCE.md` | S6.1 产出（帧模型强制；待写） |
+| `docs/S6_8_WINDOW_PRESENT.md` | S6.8 产出（真窗口 present；待写） |
+| `docs/S6_9_HEAVY_BUDGET.md` | S6.9 产出（重场景分级预算；待写） |
 | `docs/S5_4_CAPABILITY_PATCH.md` | S5.4 产出（✅ 无阻塞补丁队列） |
 | `docs/OPTIMIZATION_PLAN.md` | 历史大计划；服从主线 |
 
@@ -335,6 +450,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.54 | **写入 S6 生产级深度性能**：S6.0–S6.10 定义；回归 L0–L4 契约；当前焦点 S6.0；控件层推荐 S6 后 |
 | 2026-07-15 | 1.53 | **S5.x 全线关闭**：S5.0–S5.5 文档+TestS5*/S52/S53/S54；U01–U04 present-only p50≤16.7ms；控件入口冻结 |
 | 2026-07-15 | 1.52 | **写入 S5 UI 引擎硬化**：S5.0–S5.5 定义；当前焦点 S5.0；控件层推迟到 S5.5 入口条件 |
 | 2026-07-15 | 1.51 | **S4 收口审计**：产出表补齐 S4_1–S4_4；回归套件复验；确认 S4.x 全线关闭 |
