@@ -1688,7 +1688,9 @@ func (c *Context) setupGPUMask() (func(), error) {
 	}
 	ma, ok := a.(MaskAware)
 	if !ok {
-		return nil, ErrFallbackToCPU
+		// No native mask texture upload yet. paint.MaskCoverage is already set
+		// (applyMaskToPaint); GPU paths may bootstrap via staging blit (L.06).
+		return func() {}, nil
 	}
 	ma.SetMaskTexture(c.mask.Data(), c.mask.Width(), c.mask.Height())
 	return ma.ClearMaskTexture, nil
@@ -1832,58 +1834,34 @@ func (c *Context) doFill() error {
 }
 
 // doStroke performs the stroke operation respecting the current RasterizerMode.
+//
+// T.03: stroke is expanded in pure user space, then the outline is transformed
+// by the CTM and filled (EvenOdd). This matches Skia/Cairo under non-uniform
+// scale (anisotropic thickness) and keeps HiDPI via deviceSpacePath in doFill.
 func (c *Context) doStroke() error {
-	c.paint.TransformScale = c.totalMatrix().ScaleFactor()
-	mode := c.rasterizerMode
-
-	// Set GPU scissor rect for rectangular clips.
-	defer c.setGPUClipRect()()
-
-	// Set clip/mask coverage BEFORE GPU attempt so that CPU SDF fallback
-	// (SDFAccelerator.StrokeShape) can apply per-pixel clip+mask coverage.
-	c.applyClipToPaint()
-	defer func() { c.paint.ClipCoverage = nil }()
-
-	c.applyMaskToPaint()
-	defer func() { c.paint.MaskCoverage = nil }()
-
-	// Transform path to device-space for rendering.
-	devicePath := c.deviceSpacePath()
-
-	// Propagate anti-aliasing state to GPU render context.
-	if rc := c.gpuCtxOps(); rc != nil {
-		rc.SetAntiAlias(c.antiAlias)
-	}
-
-	// Temporarily swap c.path to device-space for GPU tryGPUOp.
-	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
-	origPath := c.path
-	c.path = devicePath
-	var ok bool
-	var cpuMode RasterizerMode
-	if forceCPUClip {
-		ok, cpuMode = false, mode
-		if c.gpuPathAvailable() {
-			c.recordCPUFallbackOp()
-		}
-	} else {
-		ok, cpuMode = c.tryGPUStrokeWithMode(mode)
-	}
-	c.path = origPath
-	if ok {
+	outline := c.expandStrokeToPathSpace()
+	if outline == nil || outline.NumVerbs() == 0 {
 		return nil
 	}
-	c.flushGPUAccelerator()
-	if sr, ok := c.renderer.(*SoftwareRenderer); ok {
-		sr.rasterizerMode = cpuMode
-		sr.antiAlias = c.antiAlias
-		defer func() {
-			sr.rasterizerMode = RasterizerAuto
-			sr.antiAlias = true
-		}()
-	}
 
-	return c.renderer.Stroke(c.pixmap, devicePath, c.paint)
+	origPath := c.path
+	origRule := c.paint.FillRule
+	origScale := c.paint.TransformScale
+	c.path = outline
+	c.paint.FillRule = FillRuleEvenOdd
+	// Outline already includes user CTM; device scale applied in doFill.
+	c.paint.TransformScale = 1
+	err := c.doFill()
+	c.path = origPath
+	c.paint.FillRule = origRule
+	c.paint.TransformScale = origScale
+	// Stroke is typically an immediate op for Context pixmap consumers
+	// (tests/widgets read pixels without an explicit FlushGPU). Materialize
+	// any GPU-queued outline fill now.
+	if err == nil {
+		c.flushGPUAccelerator()
+	}
+	return err
 }
 
 // applyClipToPaint sets the ClipCoverage function on the paint when a clip

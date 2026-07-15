@@ -2,6 +2,7 @@ package text
 
 import (
 	"iter"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -182,4 +183,52 @@ func (m *MultiFace) faceForRune(r rune) Face {
 	}
 	// Fallback to first face if no face has the glyph
 	return m.faces[0]
+}
+
+// FaceRun is a contiguous substring rendered with one fallback face (X.06).
+type FaceRun struct {
+	Face Face
+	Text string
+	// X is the horizontal offset of this run relative to the text origin.
+	X float64
+}
+
+// Runs splits text into contiguous face runs using the same fallback policy as Glyphs.
+func (m *MultiFace) Runs(text string) []FaceRun {
+	if text == "" || m == nil || len(m.faces) == 0 {
+		return nil
+	}
+	var runs []FaceRun
+	var cur Face
+	var b strings.Builder
+	x := 0.0
+	runX := 0.0
+	flush := func() {
+		if b.Len() == 0 || cur == nil {
+			return
+		}
+		runs = append(runs, FaceRun{Face: cur, Text: b.String(), X: runX})
+		b.Reset()
+	}
+	for _, r := range text {
+		face := m.faceForRune(r)
+		if cur == nil {
+			cur = face
+			runX = x
+		} else if face != cur {
+			flush()
+			cur = face
+			runX = x
+		}
+		b.WriteRune(r)
+		// Advance using selected face metrics for this rune.
+		adv := 0.0
+		for g := range face.Glyphs(string(r)) {
+			adv = g.Advance
+			break
+		}
+		x += adv
+	}
+	flush()
+	return runs
 }

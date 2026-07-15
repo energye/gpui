@@ -1,6 +1,6 @@
 # P1 — 复杂 UI 场景矩阵门禁
 
-> 版本：1.3 | 日期：2026-07-15  
+> 版本：1.5 | 日期：2026-07-15  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) / 能力表 [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > **非控件层**：场景只模拟 Ant Design 级 UI 的绘制形态。
@@ -74,7 +74,6 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 
 - B.03 真 fragment shader 双纹理 blend（当前 resolve+CPU composite+GPU blit）  
 - X.05 非白 dest dual-source LCD  
-- X.03/X.04 shaping / subpixel pos；Q.03 pixel snap  
-- L.06 Mask layer；X.11 atlas 管理精修  
-- B.05 premul 全路径精修  
+- L.06 真 R8 mask texture in path shader（当前 staging bootstrap）  
+- X.11 atlas 管理精修；B.05 premul 全路径精修  
 

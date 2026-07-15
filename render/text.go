@@ -77,6 +77,12 @@ func (c *Context) DrawString(s string, x, y float64) {
 		return
 	}
 
+	// X.06: MultiFace → per-face runs so each FontSource can use GPU glyph masks.
+	if mf, ok := c.face.(*text.MultiFace); ok {
+		c.drawStringMultiFace(mf, s, x, y)
+		return
+	}
+
 	// Set GPU scissor rect for rectangular clips.
 	defer c.setGPUClipRect()()
 	defer c.applyTextDecorations(s, x, y)
@@ -132,6 +138,66 @@ func (c *Context) DrawString(s string, x, y float64) {
 	}
 }
 
+// drawStringMultiFace renders fallback font runs (X.06). Each contiguous run
+// uses a single FontSource so the GPU glyph-mask path can operate correctly.
+func (c *Context) drawStringMultiFace(mf *text.MultiFace, s string, x, y float64) {
+	if mf == nil || s == "" {
+		return
+	}
+	defer c.setGPUClipRect()()
+	defer c.applyTextDecorations(s, x, y)
+
+	orig := c.face
+	for _, run := range mf.Runs(s) {
+		if run.Text == "" || run.Face == nil {
+			continue
+		}
+		c.face = run.Face
+		// Call DrawString with a concrete face (no MultiFace recursion).
+		c.drawStringResolved(run.Text, x+run.X, y)
+	}
+	c.face = orig
+}
+
+// drawStringResolved is DrawString after MultiFace resolution (no decorations/clip re-entry).
+func (c *Context) drawStringResolved(s string, x, y float64) {
+	switch c.selectTextStrategy() {
+	case TextModeGlyphMask:
+		if c.tryGPUGlyphMaskText(s, x, y) {
+			return
+		}
+		if c.tryGPUText(s, x, y) {
+			return
+		}
+		c.drawStringCPU(s, x, y)
+	case TextModeAliased:
+		if c.tryGPUGlyphMaskTextAliased(s, x, y) {
+			return
+		}
+		c.drawStringCPUAliased(s, x, y)
+	case TextModeMSDF:
+		if c.tryGPUText(s, x, y) {
+			return
+		}
+		c.drawStringCPU(s, x, y)
+	case TextModeVector:
+		c.drawStringAsOutlines(s, x, y)
+	case TextModeBitmap:
+		c.flushGPUAccelerator()
+		c.drawStringCPU(s, x, y)
+	default:
+		if c.isCJKText(s) && c.glyphMaskDeviceSize() <= glyphMaskMaxSizeCJK {
+			if c.tryGPUGlyphMaskText(s, x, y) {
+				return
+			}
+		}
+		if c.tryGPUText(s, x, y) {
+			return
+		}
+		c.drawStringCPU(s, x, y)
+	}
+}
+
 // DrawShapedGlyphs renders pre-shaped glyphs through the GPU text pipeline
 // without re-shaping. This implements the ADR-022 "shape once" guarantee:
 // glyphs are shaped at scene recording time, then rendered here with stored
@@ -165,6 +231,7 @@ func (c *Context) DrawShapedGlyphs(glyphs []text.ShapedGlyph, face text.Face, x,
 	if rc := c.gpuCtxOps(); rc != nil {
 		if sta, ok := rc.(GPUShapedTextAccelerator); ok {
 			if sta.DrawShapedGlyphMaskText(target, face, glyphs, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+				c.recordGPUOp()
 				return
 			}
 		}
@@ -174,6 +241,7 @@ func (c *Context) DrawShapedGlyphs(glyphs []text.ShapedGlyph, face text.Face, x,
 	if a != nil {
 		if sta, ok := a.(GPUShapedTextAccelerator); ok {
 			if sta.DrawShapedGlyphMaskText(target, face, glyphs, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+				c.recordGPUOp()
 				return
 			}
 		}

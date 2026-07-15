@@ -62,7 +62,7 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | T.01 | 2D 仿射 Translate/Scale/Rotate/Skew | `concat`/`setMatrix` | Uniform / vertex xform | N/A | N/A | ✅ | M1 |
 | T.02 | Save/Restore CTM | `save`/`restore` | 栈在 CPU | N/A | N/A | ✅ | M1 |
-| T.03 | 非均匀缩放 stroke | stroke 受 CTM | 管线或 CPU 展平 | N/A | N/A | 🔄 | M2 |
+| T.03 | 非均匀缩放 stroke | stroke 受 CTM | 管线或 CPU 展平 | N/A | N/A | ✅ user-space expand + CTM `TestP1_Capability_T03` | M2 |
 | T.04 | 透视/非仿射（可选） | `SkMatrix` persp | 网格细分/homography | N/A | N/A | ⬜ | M4 |
 
 ### 1.3 Paint：颜色、样式、描边
@@ -134,7 +134,7 @@
 | L.03 | Layer opacity | saveLayer alpha | premul composite | 🔄 | 🔄 | ✅ 层 GPU 内容+CPU composite `TestS3b` | M2 |
 | L.04 | Layer blend mode | saveLayer blend | blend/shader | 🔄 | 🔄 | ✅ Multiply/Screen 层 `TestS3b` | M2 |
 | L.05 | Layer + backdrop（可选） | backdrop filter | 采样背景 | ⬜ | ⬜ | ⬜ | M4 |
-| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 | 🔄 | 🔄 Mask API | M2 |
+| L.06 | Mask layer | mask filter/clip mask | R8 mask texture | 🔄 R8 | 🔄 | ✅ SetMask + GPU staging blit `TestP1_Capability_L06`（真 R8 shader 后置） | M2 |
 
 ### 1.9 Shader / Gradient / Pattern
 
@@ -166,15 +166,15 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | X.01 | 字体加载/Face | SkTypeface | CPU | N/A | N/A | ✅ | M1 |
 | X.02 | DrawString baseline | `drawString` | glyph atlas tex | 🔄 R8 atlas | 🔄 | ✅ GPU `TestS3b_M2_DrawString` | M2 |
-| X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | 🔄 | M2 |
-| X.04 | Subpixel positioning | subpixel | atlas/frac | N/A | N/A | 🔄 | M2 |
+| X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | ✅ OwnShaper GSUB/GPOS + DrawShapedGlyphs GPU `TestP1_Capability_X03` | M2 |
+| X.04 | Subpixel positioning | subpixel | atlas/frac | N/A | N/A | ✅ 1/4 px glyph mask frac GPU `TestP1_Capability_X04` | M2 |
 | X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | 🔄 | 🔄 | ✅ LCD RGB GPU fringe `TestP1_Capability_X05`（白底 composite；非白 dest 后置 dual-source） | M2 |
-| X.06 | CJK / fallback 字体 | fallback | 同 text | N/A | N/A | 🔄 | M2 |
+| X.06 | CJK / fallback 字体 | fallback | 同 text | N/A | N/A | ✅ MultiFace Runs + GPU glyph mask `TestP1_Capability_X06` | M2 |
 | X.07 | 路径化文本 | text → path | path 管线 | N/A | N/A | ✅ outline | M2 |
 | X.08 | 文本装饰 underline 等 | decorations | 几何 | N/A | N/A | ✅ SetTextDecoration `TestS3c_M3_TextUnderline` | M3 |
 | X.09 | 变体字体 variable | variations | CPU | N/A | N/A | ✅ LoadFontFaceWithVariations `TestS3c_M3_VariableFontWeight` | M3 |
 | X.10 | Emoji/彩色字体 | CBDT/SBIX/… | RGBA atlas | 🔄 | 🔄 | ✅ DrawWithEmoji 接入 DrawString `TestS3c_M3_DrawWithEmojiAPI` | M3 |
-| X.11 | Glyph atlas 管理 | strike cache | texture atlas + upload | 🔄 | 🔄 | 🔄 | M2 |
+| X.11 | Glyph atlas 管理 | strike cache | texture atlas + upload | 🔄 | 🔄 | ✅ R8 atlas put/reuse under GPU text `TestP1_Capability_X11` | M2 |
 
 ### 1.12 Path Effect
 
@@ -207,7 +207,7 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | Q.01 | MSAA 4x + resolve | samples | multisample texture + resolve | 🔄 | 🔄 | ✅ sampleCount=4 `TestS3b_M2_MSAAResolve` | M2 |
 | Q.02 | Coverage AA 无 MSAA | analytic AA | 软件/计算覆盖 | N/A | N/A | ✅/🔄 `TestS3a_M1_AntiAliasToggle` | M1 |
-| Q.03 | 像素对齐/近像素规则 | device pixel snap | CPU/GPU 一致 | N/A | N/A | 🔄 | M2 |
+| Q.03 | 像素对齐/近像素规则 | device pixel snap | CPU/GPU 一致 | N/A | N/A | ✅ AA-off path snap GPU `TestP1_Capability_Q03` | M2 |
 | Q.04 | 半透明边缘与 premul | premul AA | blend | 🔄 | 🔄 | 🔄 | M1 |
 
 ### 1.16 颜色空间 / 位深（可分阶段）
@@ -344,6 +344,8 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.8 | P1：T.03 non-uniform stroke、X.06 MultiFace GPU、X.11 atlas |
+| 2026-07-15 | 1.7 | P1：X.03/X.04/Q.03/L.06 GPU 门禁（shape/subpixel/snap/mask staging） |
 | 2026-07-15 | 1.6 | P1：B.02 全 PD fixed GPU + D.04–D.06 pattern/tile/localMatrix GPU 门禁；Tier C 复杂 UI |
 | 2026-07-15 | 1.5 | P1 closers：I.03 Nearest/Linear、C.05 clip AA、X.05 LCD GPU 门禁 |
 | 2026-07-15 | 1.4 | S3a 关闭：M0–M1 GPU 门禁 |

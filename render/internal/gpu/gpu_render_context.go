@@ -649,6 +649,10 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 
 // FillPath queues a filled path for GPU rendering.
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
+	// L.06: alpha mask modulates coverage — stage software masked fill then GPU blit.
+	if paint != nil && paint.MaskCoverage != nil {
+		return rc.fillMaskedAsImage(target, path, paint)
+	}
 	if !isGPUSolidPaint(paint) {
 		if paintSupportsGPUAdvancedBlend(paint) {
 			return rc.fillAdvancedBlendAsImage(target, path, paint)
@@ -668,6 +672,11 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		if err != nil || !rc.shared.gpuReady {
 			return render.ErrFallbackToCPU
 		}
+	}
+
+	// Q.03: when AA is off, snap path verts to device pixels (Skia Graphite-style).
+	if !rc.antiAlias && path != nil {
+		path = snapPathToPixelGrid(path)
 	}
 
 	rc.sceneStats.PathCount++
@@ -766,8 +775,11 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		return nil
 	}
 
-	// Apply dash before geometric stroke expansion (same as software renderer).
+	// Q.03: snap stroke geometry when AA disabled.
 	pathToStroke := path
+	if !rc.antiAlias {
+		pathToStroke = snapPathToPixelGrid(path)
+	}
 	if paint.IsDashed() {
 		dash := paint.EffectiveDash()
 		if dash != nil && dash.IsDashed() {
@@ -816,6 +828,15 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 
 // FillShape accumulates a filled shape for batch dispatch.
 func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape render.DetectedShape, paint *render.Paint) error {
+	// L.06: mask coverage not in SDF shaders — stage software+GPU blit.
+	if paint != nil && paint.MaskCoverage != nil {
+		p := detectedShapeToPath(shape)
+		if p == nil {
+			return render.ErrFallbackToCPU
+		}
+		return rc.fillMaskedAsImage(target, p, paint)
+	}
+
 	rc.sceneStats.ShapeCount++
 
 	if !isGPUSolidPaint(paint) {

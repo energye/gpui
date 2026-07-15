@@ -116,8 +116,15 @@ func (e *GlyphMaskEngine) LayoutText(
 	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
 	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
 	fontSource := face.Source()
+	if fontSource == nil {
+		// MultiFace and other composites: caller should split runs (X.06).
+		return GlyphMaskBatch{}, fmt.Errorf("glyph mask: face has no FontSource")
+	}
 	fontID := computeGlyphMaskFontID(fontSource)
 	parsed := fontSource.Parsed()
+	if parsed == nil {
+		return GlyphMaskBatch{}, fmt.Errorf("glyph mask: parsed font unavailable")
+	}
 
 	// Detect CJK anywhere in the string (ADR-027). Mixed strings like
 	// "12px: 中文" must still use CJK reduced hinting for dense strokes;

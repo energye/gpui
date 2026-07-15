@@ -239,3 +239,95 @@ func (rc *GPURenderContext) fillAdvancedBlendAsImage(target render.GPURenderTarg
 	rc.sceneStats.ShapeCount++
 	return nil
 }
+
+// fillMaskedAsImage stages a software fill with paint.MaskCoverage applied, then
+// blits the premul result as a GPU textured quad (L.06 bootstrap). Native R8 mask
+// sampling in the path shader remains a follow-up; this still produces GPUOps and
+// correct masked pixels on the render→webgpu→rwgpu chain.
+func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
+	if path == nil || path.NumVerbs() == 0 || paint == nil || paint.MaskCoverage == nil {
+		return nil
+	}
+	if !rc.shared.gpuReady {
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return render.ErrFallbackToCPU
+		}
+	}
+	// Non-SourceOver + mask: keep full CPU for now.
+	if paint.BlendMode != render.BlendNormal {
+		return render.ErrFallbackToCPU
+	}
+
+	tw, th := target.Width, target.Height
+	if tw <= 0 || th <= 0 {
+		return render.ErrFallbackToCPU
+	}
+
+	bounds := path.Bounds().Intersect(image.Rect(0, 0, tw, th))
+	if bounds.Empty() {
+		bb := path.BoundingBox()
+		x0 := int(math.Floor(bb.Min.X)) - 1
+		y0 := int(math.Floor(bb.Min.Y)) - 1
+		x1 := int(math.Ceil(bb.Max.X)) + 1
+		y1 := int(math.Ceil(bb.Max.Y)) + 1
+		bounds = image.Rect(x0, y0, x1, y1).Intersect(image.Rect(0, 0, tw, th))
+	}
+	if bounds.Empty() {
+		return nil
+	}
+	bw, bh := bounds.Dx(), bounds.Dy()
+	if bw <= 0 || bh <= 0 || bw*bh > maxBrushFillPixels {
+		return render.ErrFallbackToCPU
+	}
+
+	pm := render.NewPixmap(tw, th)
+	pm.Clear(render.Transparent)
+	sr := render.NewSoftwareRenderer(tw, th)
+	sr.SetAntiAlias(rc.antiAlias)
+	local := paint.Clone()
+	// Keep MaskCoverage; force SourceOver for staging.
+	local.BlendMode = render.BlendNormal
+	if err := sr.Fill(pm, path, local); err != nil {
+		return render.ErrFallbackToCPU
+	}
+	pm.NotifyPixelsChanged()
+
+	src := pm.Data()
+	stride := tw * 4
+	pixelData := make([]byte, bw*bh*4)
+	for row := 0; row < bh; row++ {
+		srcOff := (bounds.Min.Y+row)*stride + bounds.Min.X*4
+		dstOff := row * bw * 4
+		copy(pixelData[dstOff:dstOff+bw*4], src[srcOff:srcOff+bw*4])
+	}
+	any := false
+	for i := 3; i < len(pixelData); i += 4 {
+		if pixelData[i] != 0 {
+			any = true
+			break
+		}
+	}
+	if !any {
+		return nil
+	}
+
+	x0 := float32(bounds.Min.X)
+	y0 := float32(bounds.Min.Y)
+	x1 := float32(bounds.Max.X)
+	y1 := float32(bounds.Max.Y)
+	vpW := uint32(tw) //nolint:gosec
+	vpH := uint32(th) //nolint:gosec
+
+	rc.QueueImageDraw(target, pixelData, pm.GenerationID(), bw, bh, bw*4,
+		x0, y0, x1, y0, x1, y1, x0, y1,
+		1.0, vpW, vpH,
+		0, 0, 1, 1,
+		false,
+	)
+	rc.sceneStats.PathCount++
+	rc.sceneStats.ShapeCount++
+	return nil
+}

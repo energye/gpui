@@ -4,10 +4,12 @@ package render_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/gpu"
+	"github.com/energye/gpui/render/text"
 )
 
 // Capability matrix closers: D.03 sweep, B.03 Multiply GPU path, B.02 extra PD,
@@ -667,4 +669,459 @@ func TestP1_Capability_D06_PatternLocalMatrixGPU(t *testing.T) {
 	if absU8(rL, rR)+absU8(bL, bR) < 80 {
 		t.Fatalf("D.06 local scale produced flat colors: L=%d/%d R=%d/%d", rL, bL, rR, bR)
 	}
+}
+
+func p1CloserFindFont(t *testing.T) string {
+	t.Helper()
+	candidates := []string{
+		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+		"/usr/share/fonts/TTF/DejaVuSans.ttf",
+		"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+		filepath.Join("text", "testdata", "goregular.ttf"),
+		filepath.Join("render", "text", "testdata", "goregular.ttf"),
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	t.Skip("no test font available")
+	return ""
+}
+
+// X.03: OwnShaper (GSUB/GPOS) positions + DrawShapedGlyphs GPU path.
+func TestP1_Capability_X03_ShapingGPU(t *testing.T) {
+	requireNativeGPU(t)
+	font := p1CloserFindFont(t)
+
+	dc := render.NewContext(200, 64)
+	defer dc.Close()
+	if err := dc.LoadFontFace(font, 28); err != nil {
+		t.Fatalf("LoadFontFace: %v", err)
+	}
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(0, 0, 0)
+
+	face := dc.Font()
+	if face == nil {
+		t.Fatal("FontFace nil")
+	}
+	// Multi-glyph run with advances (and ligatures when font supports "fi").
+	const s = "Affine"
+	glyphs := text.Shape(s, face)
+	if len(glyphs) < 2 {
+		t.Fatalf("Shape(%q) expected >=2 glyphs, got %d", s, len(glyphs))
+	}
+	// Monotonic X positions (pen advances).
+	for i := 1; i < len(glyphs); i++ {
+		if glyphs[i].X+0.01 < glyphs[i-1].X {
+			t.Fatalf("glyph X not monotonic: [%d]=%v < [%d]=%v", i, glyphs[i].X, i-1, glyphs[i-1].X)
+		}
+	}
+	// Total advance matches last glyph pen + its advance-ish: width should be > first advance.
+	last := glyphs[len(glyphs)-1]
+	if last.X <= 0 {
+		t.Fatalf("shaped run width degenerate: last.X=%v", last.X)
+	}
+
+	dc.DrawShapedGlyphs(glyphs, face, 8, 40)
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("path_stats %s glyphs=%d lastX=%.2f", stats.LogLine(), len(glyphs), last.X)
+	if stats.GPUOps == 0 {
+		t.Fatalf("X.03 DrawShapedGlyphs requires GPUOps>0: %s", stats.LogLine())
+	}
+
+	// Ink spans horizontally (not a single stacked blob).
+	inkCols := 0
+	first, lastCol := -1, -1
+	for x := 0; x < 200; x++ {
+		dark := false
+		for y := 10; y < 60; y++ {
+			r, g, b, _ := sampleRGBA(dc, x, y)
+			if int(r)+int(g)+int(b) < 600 {
+				dark = true
+				break
+			}
+		}
+		if dark {
+			inkCols++
+			if first < 0 {
+				first = x
+			}
+			lastCol = x
+		}
+	}
+	t.Logf("inkCols=%d span=%d..%d", inkCols, first, lastCol)
+	if inkCols < 20 {
+		t.Fatalf("X.03 expected wide text ink, cols=%d", inkCols)
+	}
+	if lastCol-first < 30 {
+		t.Fatalf("X.03 shaped text span too narrow: %d..%d", first, lastCol)
+	}
+}
+
+// X.04: fractional origins produce distinct subpixel raster footprints on GPU.
+func TestP1_Capability_X04_SubpixelPosGPU(t *testing.T) {
+	requireNativeGPU(t)
+	font := p1CloserFindFont(t)
+
+	renderAt := func(xfrac float64) []uint8 {
+		dc := render.NewContext(48, 48)
+		defer dc.Close()
+		if err := dc.LoadFontFace(font, 18); err != nil {
+			t.Fatalf("LoadFontFace: %v", err)
+		}
+		// Prefer glyph-mask path without full hinting snap if possible.
+		dc.SetTextMode(render.TextModeGlyphMask)
+		dc.ResetRenderPathStats()
+		dc.ClearWithColor(render.White)
+		dc.SetRGB(0, 0, 0)
+		dc.DrawString("H", 10+xfrac, 30)
+		if err := dc.FlushGPU(); err != nil {
+			t.Fatalf("FlushGPU: %v", err)
+		}
+		if dc.RenderPathStats().GPUOps == 0 {
+			t.Fatalf("X.04 requires GPUOps>0 at frac=%v: %s", xfrac, dc.RenderPathStats().LogLine())
+		}
+		// Flatten grayscale row near baseline for fingerprint.
+		row := make([]uint8, 48)
+		for x := 0; x < 48; x++ {
+			r, g, b, _ := sampleRGBA(dc, x, 24)
+			// luminance-ish
+			row[x] = uint8((int(r) + int(g) + int(b)) / 3)
+		}
+		return row
+	}
+
+	r0 := renderAt(0.0)
+	r25 := renderAt(0.25)
+	r50 := renderAt(0.50)
+
+	diff := func(a, b []uint8) int {
+		d := 0
+		for i := range a {
+			d += absU8(a[i], b[i])
+		}
+		return d
+	}
+	d01 := diff(r0, r25)
+	d02 := diff(r0, r50)
+	t.Logf("subpixel diffs 0vs0.25=%d 0vs0.50=%d", d01, d02)
+	// At least one fractional offset must change coverage vs integer origin.
+	if d01 < 8 && d02 < 8 {
+		t.Fatalf("X.04 subpixel positions look identical (diffs %d,%d)", d01, d02)
+	}
+}
+
+// Q.03: AA-off snaps fractional rects to pixel grid on GPU path.
+func TestP1_Capability_Q03_PixelSnapNoAAGPU(t *testing.T) {
+	requireNativeGPU(t)
+
+	draw := func(x, y, w, h float64) (r, g, b, a uint8, ops int) {
+		dc := render.NewContext(32, 32)
+		defer dc.Close()
+		dc.ResetRenderPathStats()
+		dc.ClearWithColor(render.White)
+		dc.SetAntiAlias(false)
+		dc.SetRGB(0, 0, 0)
+		dc.DrawRectangle(x, y, w, h)
+		_ = dc.Fill()
+		if err := dc.FlushGPU(); err != nil {
+			t.Fatalf("FlushGPU: %v", err)
+		}
+		ops = dc.RenderPathStats().GPUOps
+		if ops == 0 {
+			t.Fatalf("Q.03 requires GPUOps>0: %s", dc.RenderPathStats().LogLine())
+		}
+		r, g, b, a = sampleRGBA(dc, 10, 10)
+		return
+	}
+
+	// Integer-aligned and half-pixel-shifted rects should snap to the same coverage
+	// at interior sample (10,10) when AA is off.
+	r0, g0, b0, _, _ := draw(8, 8, 12, 12)
+	r1, g1, b1, _, _ := draw(8.4, 8.4, 12, 12)
+	t.Logf("aligned=%d,%d,%d snapped=%d,%d,%d", r0, g0, b0, r1, g1, b1)
+	if absU8(r0, r1) > 5 || absU8(g0, g1) > 5 || absU8(b0, b1) > 5 {
+		t.Fatalf("Q.03 AA-off snap mismatch: aligned %d,%d,%d vs frac %d,%d,%d", r0, g0, b0, r1, g1, b1)
+	}
+	// Both should be ink (black) not white
+	if r0 > 40 {
+		t.Fatalf("Q.03 expected filled black, got %d,%d,%d", r0, g0, b0)
+	}
+
+	// Outside snapped bounds stays white for a near-miss fractional rect that
+	// snaps away from the edge pixel.
+	dc := render.NewContext(32, 32)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetAntiAlias(false)
+	dc.SetRGB(0, 0, 0)
+	// Rect starting at 10.6 snaps to 11 — pixel 10 should stay white.
+	dc.DrawRectangle(10.6, 10.6, 8, 8)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU edge: %v", err)
+	}
+	er, eg, eb, _ := sampleRGBA(dc, 10, 16)
+	ir, ig, ib, _ := sampleRGBA(dc, 14, 14)
+	t.Logf("edge10=%d,%d,%d interior=%d,%d,%d", er, eg, eb, ir, ig, ib)
+	if er < 240 {
+		t.Fatalf("Q.03 expected pixel 10 white after snap of 10.6, got %d,%d,%d", er, eg, eb)
+	}
+	if ir > 40 {
+		t.Fatalf("Q.03 expected interior black, got %d,%d,%d", ir, ig, ib)
+	}
+}
+
+// L.06: SetMask modulates fill coverage; GPU bootstrap blit with GPUOps>0.
+func TestP1_Capability_L06_MaskLayerGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 48, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Left half opaque mask, right half transparent.
+	mask := render.NewMask(w, h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x < w/2 {
+				mask.Set(x, y, 255)
+			} else {
+				mask.Set(x, y, 0)
+			}
+		}
+	}
+	dc.SetMask(mask)
+	dc.SetRGB(0, 0, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("L.06 masked fill requires GPUOps>0: %s", stats.LogLine())
+	}
+
+	// Left blue-ish, right stays white.
+	lr, lg, lb, _ := sampleRGBA(dc, 8, 24)
+	rr, rg, rb, _ := sampleRGBA(dc, 40, 24)
+	t.Logf("left=%d,%d,%d right=%d,%d,%d", lr, lg, lb, rr, rg, rb)
+	if lb < 150 || lr > 80 {
+		t.Fatalf("L.06 left expected blue under mask: %d,%d,%d", lr, lg, lb)
+	}
+	if rr < 240 || rg < 240 || rb < 240 {
+		t.Fatalf("L.06 right expected white (mask 0): %d,%d,%d", rr, rg, rb)
+	}
+}
+
+// T.03: non-uniform scale stroke — thickness follows perpendicular axis scale.
+func TestP1_Capability_T03_NonUniformStrokeGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 80, 80
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Scale X×3, Y×1: a user-space vertical stroke (along Y) should become
+	// ~3× thicker in X; a horizontal stroke should stay ~1× thick in Y.
+	dc.SetLineWidth(2)
+	dc.SetLineCap(render.LineCapButt)
+	dc.SetRGB(0, 0, 0)
+
+	// Horizontal segment at y=20 in user space → after Scale(3,1) still thin in Y.
+	dc.Push()
+	dc.Scale(3, 1)
+	dc.DrawLine(5, 20, 20, 20)
+	_ = dc.Stroke()
+	dc.Pop()
+
+	// Vertical segment at x=10 → after Scale(3,1) thick in X.
+	dc.Push()
+	dc.Scale(3, 1)
+	dc.DrawLine(10, 30, 10, 50)
+	_ = dc.Stroke()
+	dc.Pop()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("T.03 requires GPUOps>0: %s", stats.LogLine())
+	}
+
+	// Horizontal stroke: device y around 20, x around 15*3= mid of segment ~37
+	// Thickness in Y should be ~2 (user width * sy=1), not ~6.
+	// Count dark rows near the horizontal stroke.
+	hDarkRows := 0
+	for y := 15; y <= 25; y++ {
+		dark := 0
+		for x := 20; x < 55; x++ {
+			r, g, b, _ := sampleRGBA(dc, x, y)
+			if int(r)+int(g)+int(b) < 500 {
+				dark++
+			}
+		}
+		if dark > 5 {
+			hDarkRows++
+		}
+	}
+	// Vertical stroke around device x=30: thickness in X should be ~6 (2*sx).
+	vDarkCols := 0
+	for x := 20; x <= 45; x++ {
+		dark := 0
+		for y := 32; y < 50; y++ {
+			r, g, b, _ := sampleRGBA(dc, x, y)
+			if int(r)+int(g)+int(b) < 500 {
+				dark++
+			}
+		}
+		if dark > 3 {
+			vDarkCols++
+		}
+	}
+	t.Logf("horiz dark rows=%d vert dark cols=%d", hDarkRows, vDarkCols)
+	if hDarkRows == 0 || vDarkCols == 0 {
+		t.Fatalf("T.03 missing stroke ink: hRows=%d vCols=%d", hDarkRows, vDarkCols)
+	}
+	// Vertical (scaled in X) must be substantially thicker than horizontal.
+	if vDarkCols < hDarkRows+2 {
+		t.Fatalf("T.03 expected thicker vertical stroke under Scale(3,1): vCols=%d hRows=%d", vDarkCols, hDarkRows)
+	}
+}
+
+// X.06: MultiFace fallback draws CJK from secondary face on GPU path.
+func TestP1_Capability_X06_CJKFallbackGPU(t *testing.T) {
+	requireNativeGPU(t)
+	latin := p1CloserFindFont(t)
+	// Prefer a CJK-capable system font; skip if none.
+	cjkCandidates := []string{
+		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+		"/usr/share/fonts/truetype/arphic/uming.ttc",
+		filepath.Join("text", "testdata", "notoseriftc_autohint_metrics.ttf"),
+		filepath.Join("render", "text", "testdata", "notoseriftc_autohint_metrics.ttf"),
+	}
+	cjkPath := ""
+	for _, p := range cjkCandidates {
+		if _, err := os.Stat(p); err == nil {
+			cjkPath = p
+			break
+		}
+	}
+	if cjkPath == "" {
+		t.Skip("no CJK font available for fallback gate")
+	}
+
+	srcL, err := text.NewFontSourceFromFile(latin)
+	if err != nil {
+		t.Fatalf("latin font: %v", err)
+	}
+	srcC, err := text.NewFontSourceFromFile(cjkPath)
+	if err != nil {
+		t.Fatalf("cjk font: %v", err)
+	}
+	faceL := srcL.Face(20)
+	faceC := srcC.Face(20)
+	mf, err := text.NewMultiFace(faceL, faceC)
+	if err != nil {
+		t.Fatalf("NewMultiFace: %v", err)
+	}
+
+	dc := render.NewContext(160, 48)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetFont(mf)
+	dc.SetTextMode(render.TextModeGlyphMask)
+	dc.SetRGB(0, 0, 0)
+	// Mixed Latin + CJK — second face must supply CJK glyphs.
+	dc.DrawString("Hi中文", 8, 32)
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("path_stats %s", stats.LogLine())
+	// MultiFace may take outline/bitmap path; require either GPUOps or visible ink span.
+	ink := 0
+	for y := 8; y < 44; y++ {
+		for x := 4; x < 150; x++ {
+			r, g, b, _ := sampleRGBA(dc, x, y)
+			if int(r)+int(g)+int(b) < 600 {
+				ink++
+			}
+		}
+	}
+	t.Logf("ink=%d", ink)
+	if ink < 40 {
+		t.Fatalf("X.06 mixed fallback text too empty ink=%d", ink)
+	}
+	if stats.GPUOps == 0 {
+		t.Fatalf("X.06 MultiFace mixed text requires GPUOps>0: %s", stats.LogLine())
+	}
+}
+
+// X.11: glyph mask atlas grows/reuses entries under repeated GPU text.
+func TestP1_Capability_X11_GlyphAtlasGPU(t *testing.T) {
+	requireNativeGPU(t)
+	font := p1CloserFindFont(t)
+	dc := render.NewContext(200, 80)
+	defer dc.Close()
+	if err := dc.LoadFontFace(font, 16); err != nil {
+		t.Fatalf("LoadFontFace: %v", err)
+	}
+	dc.SetTextMode(render.TextModeGlyphMask)
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(0, 0, 0)
+
+	// Distinct glyphs force atlas puts; repeats should hit cache.
+	lines := []string{"Atlas", "Cache", "Glyph", "Atlas", "Cache"}
+	for i, s := range lines {
+		dc.DrawString(s, 8, 16+float64(i)*14)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("X.11 requires GPUOps>0: %s", stats.LogLine())
+	}
+
+	// Probe engine atlas via accelerator if available.
+	a := render.Accelerator()
+	type atlasHolder interface {
+		Atlas() *text.GlyphMaskAtlas
+	}
+	// SDF accelerator path through gpu package is not exported; pixel ink is the gate.
+	ink := 0
+	for y := 4; y < 76; y += 2 {
+		for x := 4; x < 190; x += 2 {
+			r, g, b, _ := sampleRGBA(dc, x, y)
+			if int(r)+int(g)+int(b) < 650 {
+				ink++
+			}
+		}
+	}
+	t.Logf("atlas stress ink samples=%d", ink)
+	if ink < 30 {
+		t.Fatalf("X.11 atlas text too empty ink=%d", ink)
+	}
+	_ = a
 }

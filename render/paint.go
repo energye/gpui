@@ -128,17 +128,20 @@ func NewPaint() *Paint {
 // Clone creates a copy of the Paint.
 func (p *Paint) Clone() *Paint {
 	clone := &Paint{
-		solidColor: p.solidColor,
-		isSolid:    p.isSolid,
-		Pattern:    p.Pattern,
-		Brush:      p.Brush,
-		LineWidth:  p.LineWidth,
-		LineCap:    p.LineCap,
-		LineJoin:   p.LineJoin,
-		MiterLimit: p.MiterLimit,
-		FillRule:   p.FillRule,
-		Antialias:  p.Antialias,
-		BlendMode:  p.BlendMode,
+		solidColor:     p.solidColor,
+		isSolid:        p.isSolid,
+		Pattern:        p.Pattern,
+		Brush:          p.Brush,
+		LineWidth:      p.LineWidth,
+		LineCap:        p.LineCap,
+		LineJoin:       p.LineJoin,
+		MiterLimit:     p.MiterLimit,
+		FillRule:       p.FillRule,
+		Antialias:      p.Antialias,
+		BlendMode:      p.BlendMode,
+		ClipCoverage:   p.ClipCoverage,
+		MaskCoverage:   p.MaskCoverage,
+		TransformScale: p.TransformScale,
 	}
 	if p.Stroke != nil {
 		strokeClone := p.Stroke.Clone()
