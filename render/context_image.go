@@ -670,6 +670,7 @@ func (c *Context) DrawGPUTexture(view gpucontext.TextureView, x, y float64, widt
 	rc.QueueGPUTextureDraw(target, view,
 		float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
 		1.0, vpW, vpH)
+	c.recordGPUOp()
 }
 
 // DrawGPUTextureWithOpacity composites a GPU texture view as an overlay with
@@ -694,6 +695,7 @@ func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y fl
 	rc.QueueGPUTextureDraw(target, view,
 		float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
 		opacity, vpW, vpH)
+	c.recordGPUOp()
 }
 
 // DrawGPUTextureBase composites a GPU texture view as the compositor base layer.
@@ -721,6 +723,7 @@ func (c *Context) DrawGPUTextureBase(view gpucontext.TextureView, x, y float64, 
 	rc.QueueBaseLayer(target, view,
 		float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
 		1.0, vpW, vpH)
+	c.recordGPUOp()
 }
 
 // CreateOffscreenTexture allocates a GPU texture for offscreen rendering.

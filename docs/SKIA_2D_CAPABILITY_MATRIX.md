@@ -63,7 +63,7 @@
 | T.01 | 2D 仿射 Translate/Scale/Rotate/Skew | `concat`/`setMatrix` | Uniform / vertex xform | N/A | N/A | ✅ | M1 |
 | T.02 | Save/Restore CTM | `save`/`restore` | 栈在 CPU | N/A | N/A | ✅ | M1 |
 | T.03 | 非均匀缩放 stroke | stroke 受 CTM | 管线或 CPU 展平 | N/A | N/A | ✅ user-space expand + CTM `TestP1_Capability_T03` | M2 |
-| T.04 | 透视/非仿射（可选） | `SkMatrix` persp | 网格细分/homography | N/A | N/A | ⬜ | M4 |
+| T.04 | 透视/非仿射（可选） | `SkMatrix` persp | 网格细分/homography | N/A | N/A | ✅ `DrawImageQuad` 任意四边形 `TestP1_Capability_T04_ImageQuadGPU` | M4 |
 
 ### 1.3 Paint：颜色、样式、描边
 
@@ -77,7 +77,7 @@
 | P.06 | Join Miter/Round/Bevel | `setStrokeJoin` | 几何 | N/A | N/A | ✅ GPU pixels `TestP1_Capability_P06_StrokeJoinsGPU` | M1 |
 | P.07 | Miter limit | `setStrokeMiter` | 几何 | N/A | N/A | ✅ `TestS3b_M2_MiterLimit` | M2 |
 | P.08 | Anti-alias 开关 | `setAntiAlias` | MSAA 或 coverage AA | ✅ MSAA | ✅ | ✅ SetAntiAlias | M1 |
-| P.09 | Dither（可选） | `setDither` | shader | N/A | N/A | ⬜ | M4 |
+| P.09 | Dither（可选） | `setDither` | shader | N/A | N/A | ✅ ordered Bayer `SetDither` `TestP1_Capability_P09_DitherGPU` | M4 |
 
 ### 1.4 Blend / Alpha / Premul
 
@@ -133,7 +133,7 @@
 | L.02 | SaveLayer 离屏 | `saveLayer` | 离屏 RT + composite | ✅ | ✅ | ✅ PushLayer（内容可 GPU）`TestS3b` | M2 |
 | L.03 | Layer opacity | saveLayer alpha | premul composite | ✅ | ✅ | ✅ 层 GPU 内容+CPU composite `TestS3b` | M2 |
 | L.04 | Layer blend mode | saveLayer blend | blend/shader | ✅ | ✅ | ✅ Multiply/Screen 层 `TestS3b` | M2 |
-| L.05 | Layer + backdrop（可选） | backdrop filter | 采样背景 | ⬜ | ⬜ | ⬜ | M4 |
+| L.05 | Layer + backdrop（可选） | backdrop filter | 采样背景 | N/A | N/A | ✅ `PushBackdropLayer` 快照父画布 `TestP1_Capability_L05_BackdropLayerGPU` | M4 |
 | L.06 | Mask layer | mask filter/clip mask | R8 mask texture | ✅ R8 MaskAware | ✅ | ✅ MaskAware + convex/SDF/stencil cover-inline R8 `TestP1_Capability_L06_*` | M2 |
 
 ### 1.9 Shader / Gradient / Pattern
@@ -158,7 +158,7 @@
 | I.05 | Opacity / alpha image | paint alpha | premul | ✅ | ✅ | ✅ DrawImageEx opacity `TestS3b` | M2 |
 | I.06 | 旋转/CTM 下图像 | concat + drawImage | 任意 quad | ✅ | ✅ | ✅ 四角点 | M2 |
 | I.07 | 九宫格（可选） | lattice | 多 quad / DrawAtlas | N/A | N/A | ✅ DrawImageNine `TestS3c_M3_DrawImageNine` | M3 |
-| I.08 | YUV/外部纹理（可选） | external | multiplanar | ⬜ | ⬜ | ⬜ | M4 |
+| I.08 | YUV/外部纹理（可选） | external | multiplanar | ✅ view bind | ✅ | ✅ offscreen external `DrawGPUTexture` `TestP1_Capability_I08_ExternalTextureGPU`（真 multiplanar YUV 后置） | M4 |
 
 ### 1.11 Text / Font / Glyph
 
@@ -181,8 +181,8 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | E.01 | Dash | `SkDashPathEffect` | CPU 展平 stroke | N/A | N/A | ✅ GPU ApplyDash+expand | M2 |
-| E.02 | Corner/1D/2D path effect | path effects | CPU | N/A | N/A | ⬜ | M4 |
-| E.03 | Trim path（可选） | trim | CPU | N/A | N/A | ⬜ | M4 |
+| E.02 | Corner/1D/2D path effect | path effects | CPU | N/A | N/A | ✅ `WithCorners`/`Discrete` `TestP1_Capability_E02_PathEffectsGPU` | M4 |
+| E.03 | Trim path（可选） | trim | CPU | N/A | N/A | ✅ `Path.Trim` + GPU stroke `TestP1_Capability_E03_TrimPathGPU` | M4 |
 
 ### 1.13 MaskFilter / ImageFilter（质量项）
 
@@ -199,7 +199,7 @@
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | V.01 | DrawVertices | `drawVertices` | vertex color/uv pipeline | ✅ buffer | ✅ | ✅ GPU `TestS3c_M3_DrawVertices` | M3 |
 | V.02 | DrawAtlas | `drawAtlas` | multi QueueImageDraw | ✅ | ✅ | ✅ GPU `TestS3c_M3_DrawAtlas` | M3 |
-| V.03 | Mesh（可选） | `drawMesh` | 自定义 shader | 🔄 | 🔄 | ⬜ | M4 |
+| V.03 | Mesh（可选） | `drawMesh` | 自定义 shader / indexed mesh | ✅ | ✅ | ✅ indexed+Gouraud `DrawMesh` `TestP1_Capability_V03_DrawMeshIndexedGPU` | M4 |
 
 ### 1.15 MSAA / 质量 / 像素惯例
 
@@ -215,8 +215,8 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | CS.01 | sRGB 默认 | color space | sRGB texture format 可选 | ✅ | ✅ | ✅ 8bit mid-gray `TestS3c` | M3 |
-| CS.02 | F16 / 宽色域（可选） | F16 surface | rgba16float | 🔄 | 🔄 | ⬜ | M4 |
-| CS.03 | 线性混合 vs sRGB 混合 | linear blending | 格式/shader | 🔄 | 🔄 | 🔄 实验 | M4 |
+| CS.02 | F16 / 宽色域（可选） | F16 surface | rgba16float | ✅ | ✅ | ✅ RGBA16Float RT clear+readback `TestP1_Capability_CS02_RGBA16FloatSurfaceGPU`（render Context 仍 8-bit） | M4 |
+| CS.03 | 线性混合 vs sRGB 混合 | linear blending | 格式/shader | ✅ | ✅ | ✅ black→white linear mid≈0.735 `TestP1_Capability_CS03_LinearBlendMidGPU` | M4 |
 
 ### 1.17 录制 / 回放 / 文档后端（后置）
 
@@ -230,7 +230,7 @@
 | ID | 能力 | Skia/行业参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|---------------|-------------|-------|--------|--------|-----|
 | K.01 | Compute 粗光栅/分片 | Vello/Pathfinder 类 | compute pipeline/storage | ✅ | ✅ | ✅ Context `PipelineModeCompute` multi-path `TestP1_Capability_K01_VelloComputePathGPU` + complex `TestP1_P2_*` | M3 |
-| K.02 | 间接绘制 | multi-draw | indirect buffer | 🔄 | 🔄 | ⬜ | M4 |
+| K.02 | 间接绘制 | multi-draw | indirect buffer | ✅ | ✅ | ✅ DrawIndirect 真链路读回 `TestP1_Capability_K02_DrawIndirectGPU`（高层 scene multi-draw 后置） | M4 |
 
 ---
 
@@ -369,6 +369,9 @@
 | 2026-07-15 | — | L.06 convex cover-inline R8 + Tier H large virtual/transfer |
 | 2026-07-15 | — | F.03 filter graph + L.06 MaskAware native upload + Tier G TreeSelect/Carousel |
 | 2026-07-15 | — | K.01 Context Compute + Q.02 Coverage AA gates; B.03 ColorBurn/Exclusion; Tier O/P complex UI |
+| 2026-07-15 | — | V.03/K.02/CS.02/CS.03 M4 gates + Tier Q/R complex UI |
+| 2026-07-15 | — | E.03 Trim + P.09 Dither + T.04 ImageQuad + L.05 Backdrop + Tier S/T |
+| 2026-07-15 | — | E.02 PathEffects + I.08 ExternalTexture + Tier U complex UI |
 
 
 ---

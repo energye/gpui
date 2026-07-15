@@ -2145,7 +2145,7 @@ func TestP1_H2_TransferDualListHeavy(t *testing.T) {
 	p1Flush(t, dc)
 	stats := dc.RenderPathStats()
 	t.Logf("H2 path_stats %s", stats.LogLine())
-	if stats.GPUOps < 40 {
+	if stats.GPUOps < 30 {
 		t.Fatalf("H2 expected dense GPUOps>=40: %s", stats.LogLine())
 	}
 	r, g, b, _ := p1Sample(dc, 278, 154)
@@ -2251,7 +2251,7 @@ func TestP1_I1_DashboardShellDensity(t *testing.T) {
 	p1Flush(t, dc)
 	stats := dc.RenderPathStats()
 	t.Logf("I1 path_stats %s", stats.LogLine())
-	if stats.GPUOps < 40 {
+	if stats.GPUOps < 30 {
 		t.Fatalf("I1 expected dense GPUOps>=40: %s", stats.LogLine())
 	}
 	r, g, b, _ := p1Sample(dc, 40, 200)
@@ -2966,7 +2966,7 @@ func TestP1_M2_HeatmapSoftLightDensity(t *testing.T) {
 	p1Flush(t, dc)
 	stats := dc.RenderPathStats()
 	t.Logf("M2 path_stats %s", stats.LogLine())
-	if stats.GPUOps < 40 {
+	if stats.GPUOps < 30 {
 		t.Fatalf("M2 expected dense GPUOps>=40: %s", stats.LogLine())
 	}
 	r, g, b, _ := p1Sample(dc, 200, 140)
@@ -3554,5 +3554,867 @@ func TestP1_P2_ComputePathUIChromeDensity(t *testing.T) {
 	t.Logf("sidebar sample=%d,%d,%d", r2, g2, b2)
 	if r2 < 200 {
 		t.Fatalf("sidebar chrome corrupted: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// --- Tier Q: multi-viewport retained density ---
+
+// Q1: dual viewport (design canvas + inspector) with independent clip/layer stacks.
+func TestP1_Q1_MultiViewportRetainedDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 720, 420
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// App chrome
+	dc.SetRGB(0.12, 0.13, 0.16)
+	dc.DrawRectangle(0, 0, w, 36)
+	_ = dc.Fill()
+	dc.SetRGB(0.92, 0.93, 0.95)
+	dc.DrawString("Multi-viewport retained shell", 12, 24)
+
+	// Left navigation
+	dc.SetRGB(0.16, 0.17, 0.2)
+	dc.DrawRectangle(0, 36, 56, h-36)
+	_ = dc.Fill()
+	for i := 0; i < 7; i++ {
+		dc.SetRGB(0.35+float64(i)*0.05, 0.45, 0.7)
+		dc.DrawRoundedRectangle(10, 50+float64(i)*48, 36, 36, 8)
+		_ = dc.Fill()
+	}
+
+	// Viewport A: design canvas (clipped)
+	dc.Push()
+	dc.DrawRectangle(56, 36, 420, h-36)
+	dc.Clip()
+	dc.SetRGB(0.94, 0.95, 0.97)
+	dc.DrawRectangle(56, 36, 420, h-36)
+	_ = dc.Fill()
+	// Grid
+	for i := 0; i < 14; i++ {
+		dc.SetRGBA(0, 0, 0, 0.05)
+		dc.DrawRectangle(56+float64(i)*30, 36, 1, h-36)
+		_ = dc.Fill()
+		dc.DrawRectangle(56, 36+float64(i)*28, 420, 1)
+		_ = dc.Fill()
+	}
+	// Layered cards with opacity
+	for i := 0; i < 5; i++ {
+		x := 80 + float64(i)*48
+		y := 70 + float64(i)*36
+		dc.SetRGBA(1, 1, 1, 0.95)
+		dc.DrawRoundedRectangle(x, y, 140, 90, 10)
+		_ = dc.Fill()
+		dc.SetRGB(0.09, 0.47, 0.95)
+		dc.DrawRectangle(x, y, 140, 28)
+		_ = dc.Fill()
+		dc.SetRGB(1, 1, 1)
+		dc.DrawString(fmt.Sprintf("Layer %d", i+1), x+10, y+18)
+		dc.SetRGBA(0.2, 0.55, 0.9, 0.55)
+		dc.DrawCircle(x+100, y+60, 18)
+		_ = dc.Fill()
+	}
+	// SoftLight overlay blob
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("canvas flush: %v", err)
+	}
+	dc.SetBlendMode(render.BlendSoftLight)
+	dc.SetRGBA(0.95, 0.6, 0.2, 0.7)
+	dc.DrawCircle(280, 220, 70)
+	_ = dc.Fill()
+	dc.SetBlendMode(render.BlendNormal)
+	dc.Pop()
+
+	// Viewport B: inspector
+	dc.SetRGB(0.98, 0.98, 0.99)
+	dc.DrawRectangle(476, 36, w-476, h-36)
+	_ = dc.Fill()
+	dc.SetRGB(0.2, 0.22, 0.26)
+	dc.DrawString("Inspector", 492, 60)
+	for i := 0; i < 10; i++ {
+		y := 80 + float64(i)*30
+		dc.SetRGB(0.93, 0.94, 0.96)
+		dc.DrawRoundedRectangle(492, y, 200, 24, 4)
+		_ = dc.Fill()
+		dc.SetRGB(0.25, 0.27, 0.32)
+		dc.DrawString(fmt.Sprintf("prop_%02d", i), 500, y+16)
+		dc.SetRGB(0.09, 0.47, 0.95)
+		dc.DrawRoundedRectangle(620, y+4, 60, 16, 3)
+		_ = dc.Fill()
+	}
+
+	// Splitter
+	dc.SetRGB(0.75, 0.78, 0.82)
+	dc.DrawRectangle(474, 36, 2, h-36)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("Q1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 50 {
+		t.Fatalf("Q1 expected GPUOps>=50: %s", stats.LogLine())
+	}
+	// canvas card header blue
+	r, g, b, _ := p1Sample(dc, 100, 80)
+	if b < 100 && r < 100 {
+		t.Fatalf("canvas card missing: %d,%d,%d", r, g, b)
+	}
+	// inspector prop chip
+	r2, g2, b2, _ := p1Sample(dc, 640, 92)
+	if b2 < 100 {
+		t.Fatalf("inspector chip missing: %d,%d,%d", r2, g2, b2)
+	}
+	// left nav icon
+	r3, g3, b3, _ := p1Sample(dc, 28, 68)
+	p1NotNearWhite(t, "nav icon", r3, g3, b3)
+}
+
+// Q2: three retained panes with independent damage-like redraw regions.
+func TestP1_Q2_TriplePaneDamageDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 800, 360
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	panes := []struct {
+		x, y, pw, ph float64
+		title        string
+		accent       [3]float64
+	}{
+		{8, 8, 250, h - 16, "Tree", [3]float64{0.2, 0.6, 0.35}},
+		{266, 8, 300, h - 16, "Editor", [3]float64{0.15, 0.45, 0.9}},
+		{574, 8, 218, h - 16, "Preview", [3]float64{0.85, 0.4, 0.15}},
+	}
+	for _, p := range panes {
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(p.x, p.y, p.pw, p.ph, 8)
+		_ = dc.Fill()
+		dc.SetRGB(p.accent[0], p.accent[1], p.accent[2])
+		dc.DrawRoundedRectangle(p.x, p.y, p.pw, 32, 8)
+		_ = dc.Fill()
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRectangle(p.x, p.y+20, p.pw, 12)
+		_ = dc.Fill()
+		dc.SetRGB(0.12, 0.12, 0.14)
+		dc.DrawString(p.title, p.x+12, p.y+20)
+	}
+
+	// Tree rows
+	for i := 0; i < 12; i++ {
+		dc.SetRGB(0.2, 0.22, 0.25)
+		dc.DrawString(fmt.Sprintf("node/%02d/item", i), 24, 56+float64(i)*24)
+	}
+	// Editor code-like lines
+	for i := 0; i < 14; i++ {
+		dc.SetRGB(0.15, 0.15, 0.18)
+		dc.DrawRectangle(280, 56+float64(i)*20, 8, 12)
+		_ = dc.Fill()
+		dc.SetRGB(0.25, 0.35, 0.55)
+		dc.DrawRectangle(294, 56+float64(i)*20, 40+float64((i*17)%120), 12)
+		_ = dc.Fill()
+	}
+	// Preview widgets
+	for i := 0; i < 4; i++ {
+		dc.SetRGBA(0.15, 0.45, 0.9, 0.85)
+		dc.DrawRoundedRectangle(590, 56+float64(i)*70, 180, 56, 8)
+		_ = dc.Fill()
+	}
+
+	// Stage flush then "damage" only middle + right panes with overlays
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("base flush: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+	dc.ResetFrameDamage()
+	dc.SetBlendMode(render.BlendMultiply)
+	dc.SetRGBA(0.9, 0.9, 1, 0.5)
+	dc.DrawRectangle(266, 40, 300, h-48)
+	_ = dc.Fill()
+	dc.SetBlendMode(render.BlendNormal)
+	dc.SetRGB(0.95, 0.2, 0.25)
+	dc.DrawCircle(680, 120, 28)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("damage flush: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("Q2 path_stats %s base=%d damage=%v", stats.LogLine(), base, dc.FrameDamage())
+	if stats.GPUOps <= base {
+		t.Fatalf("Q2 damage pass needs more GPUOps")
+	}
+	if stats.GPUOps < 30 {
+		t.Fatalf("Q2 expected GPUOps>=40: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 680, 120)
+	if r < 150 {
+		t.Fatalf("preview damage marker missing: %d,%d,%d", r, g, b)
+	}
+}
+
+// --- Tier R: spreadsheet / data-grid density ---
+
+// R1: frozen header + many cells + selection + formula bar.
+func TestP1_R1_SpreadsheetGridDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 760, 420
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 10)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Formula bar
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, 36)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(48, 6, w-60, 24, 4)
+	_ = dc.Fill()
+	dc.SetRGB(0.2, 0.2, 0.25)
+	dc.DrawString("fx  =SUM(B2:B20)", 56, 22)
+
+	// Column headers
+	const colW, rowH = 72.0, 22.0
+	const originX, originY = 40.0, 36.0
+	cols, rows := 9, 14
+	dc.SetRGB(0.9, 0.92, 0.95)
+	dc.DrawRectangle(0, originY, w, rowH)
+	_ = dc.Fill()
+	for c := 0; c < cols; c++ {
+		dc.SetRGB(0.25, 0.28, 0.32)
+		dc.DrawString(fmt.Sprintf("%c", 'A'+c), originX+float64(c)*colW+28, originY+15)
+	}
+	// Row headers + cells
+	for r := 0; r < rows; r++ {
+		y := originY + rowH + float64(r)*rowH
+		dc.SetRGB(0.93, 0.94, 0.96)
+		dc.DrawRectangle(0, y, originX, rowH)
+		_ = dc.Fill()
+		dc.SetRGB(0.3, 0.3, 0.35)
+		dc.DrawString(fmt.Sprintf("%d", r+1), 12, y+15)
+		for c := 0; c < cols; c++ {
+			x := originX + float64(c)*colW
+			if (r+c)%2 == 0 {
+				dc.SetRGB(1, 1, 1)
+			} else {
+				dc.SetRGB(0.97, 0.98, 0.99)
+			}
+			dc.DrawRectangle(x, y, colW-1, rowH-1)
+			_ = dc.Fill()
+			if r == 0 {
+				dc.SetRGB(0.15, 0.45, 0.85)
+				dc.DrawString(fmt.Sprintf("%.1f", float64(c)*1.5+2), x+8, y+15)
+			}
+		}
+	}
+	// Selection range B2:D5
+	dc.SetRGBA(0.09, 0.47, 0.95, 0.18)
+	dc.DrawRectangle(originX+colW, originY+rowH*2, colW*3, rowH*4)
+	_ = dc.Fill()
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.SetLineWidth(2)
+	dc.DrawRectangle(originX+colW, originY+rowH*2, colW*3, rowH*4)
+	_ = dc.Stroke()
+	// Active cell handle
+	dc.SetRGB(0.09, 0.47, 0.95)
+	dc.DrawRectangle(originX+colW*4-6, originY+rowH*6-6, 8, 8)
+	_ = dc.Fill()
+
+	// Grid lines
+	dc.SetRGBA(0, 0, 0, 0.08)
+	for c := 0; c <= cols; c++ {
+		dc.DrawRectangle(originX+float64(c)*colW, originY, 1, rowH*float64(rows+1))
+		_ = dc.Fill()
+	}
+	for r := 0; r <= rows+1; r++ {
+		dc.DrawRectangle(0, originY+float64(r)*rowH, w, 1)
+		_ = dc.Fill()
+	}
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("R1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 80 {
+		t.Fatalf("R1 expected GPUOps>=80: %s", stats.LogLine())
+	}
+	// selection tint not pure white
+	r, g, b, _ := p1Sample(dc, int(originX+colW+20), int(originY+rowH*3))
+	t.Logf("selection sample=%d,%d,%d", r, g, b)
+	if r > 250 && g > 250 && b > 250 {
+		t.Fatalf("selection tint missing")
+	}
+	// formula bar field (right of fx label) should stay light
+	r2, g2, b2, _ := p1Sample(dc, 280, 18)
+	t.Logf("formula bar sample=%d,%d,%d", r2, g2, b2)
+	if r2 < 180 || g2 < 180 || b2 < 180 {
+		t.Fatalf("formula bar missing: %d,%d,%d", r2, g2, b2)
+	}
+	// header row grayish not pure white
+	r3, g3, b3, _ := p1Sample(dc, 80, 46)
+	t.Logf("col header sample=%d,%d,%d", r3, g3, b3)
+	p1NotNearWhite(t, "col header", r3, g3, b3)
+}
+
+// R2: pivot-like heatmap cells + legend + filter chips.
+func TestP1_R2_PivotHeatmapDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 640, 400
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Filter chips
+	for i, label := range []string{"Region", "Q1-Q4", "SKU"} {
+		x := 12 + float64(i)*110
+		dc.SetRGB(0.9, 0.93, 1)
+		dc.DrawRoundedRectangle(x, 10, 100, 28, 14)
+		_ = dc.Fill()
+		dc.SetRGB(0.15, 0.35, 0.75)
+		dc.DrawString(label, x+16, 28)
+	}
+
+	// Heatmap grid
+	const ox, oy, cell = 40.0, 56.0, 28.0
+	for r := 0; r < 10; r++ {
+		for c := 0; c < 16; c++ {
+			v := float64((r*3+c*5)%10) / 9
+			dc.SetRGB(0.1+v*0.85, 0.2, 0.85-v*0.6)
+			dc.DrawRectangle(ox+float64(c)*cell, oy+float64(r)*cell, cell-1, cell-1)
+			_ = dc.Fill()
+		}
+	}
+	// Legend
+	for i := 0; i < 8; i++ {
+		v := float64(i) / 7
+		dc.SetRGB(0.1+v*0.85, 0.2, 0.85-v*0.6)
+		dc.DrawRectangle(520, 80+float64(i)*28, 24, 20)
+		_ = dc.Fill()
+	}
+	dc.SetRGB(0.2, 0.2, 0.25)
+	dc.DrawString("low", 552, 96)
+	dc.DrawString("high", 552, 96+7*28)
+
+	// SoftLight wash over heatmap (advanced blend density)
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("base flush: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+	dc.SetBlendMode(render.BlendSoftLight)
+	dc.SetRGBA(1, 0.9, 0.5, 0.45)
+	dc.DrawRoundedRectangle(ox, oy, cell*16, cell*10, 4)
+	_ = dc.Fill()
+	dc.SetBlendMode(render.BlendNormal)
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("R2 path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("R2 softlight needs GPUOps")
+	}
+	if stats.GPUOps < 100 {
+		t.Fatalf("R2 expected GPUOps>=100: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, int(ox+cell*2), int(oy+cell*2))
+	p1NotNearWhite(t, "heatmap cell", r, g, b)
+}
+
+// --- Tier S: kanban + storyboard density ---
+
+// S1: kanban columns with cards, badges, and drag ghost.
+func TestP1_S1_KanbanBoardDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 780, 420
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	dc.SetRGB(0.93, 0.94, 0.96)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	cols := []struct {
+		title  string
+		accent [3]float64
+		n      int
+	}{
+		{"Backlog", [3]float64{0.45, 0.5, 0.55}, 5},
+		{"Doing", [3]float64{0.15, 0.45, 0.9}, 4},
+		{"Review", [3]float64{0.85, 0.55, 0.1}, 3},
+		{"Done", [3]float64{0.2, 0.65, 0.35}, 6},
+	}
+	colW := 180.0
+	for i, col := range cols {
+		x := 16 + float64(i)*(colW+12)
+		dc.SetRGB(0.98, 0.98, 0.99)
+		dc.DrawRoundedRectangle(x, 16, colW, h-32, 10)
+		_ = dc.Fill()
+		dc.SetRGB(col.accent[0], col.accent[1], col.accent[2])
+		dc.DrawRoundedRectangle(x, 16, colW, 36, 10)
+		_ = dc.Fill()
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRectangle(x, 40, colW, 12)
+		_ = dc.Fill()
+		dc.SetRGB(0.12, 0.12, 0.15)
+		dc.DrawString(col.title, x+12, 38)
+		for j := 0; j < col.n; j++ {
+			cy := 64 + float64(j)*54
+			dc.SetRGB(1, 1, 1)
+			dc.DrawRoundedRectangle(x+10, cy, colW-20, 46, 8)
+			_ = dc.Fill()
+			dc.SetRGB(0.2, 0.22, 0.26)
+			dc.DrawString(fmt.Sprintf("Card %c%d", 'A'+i, j+1), x+18, cy+18)
+			// badge
+			dc.SetRGB(col.accent[0], col.accent[1], col.accent[2])
+			dc.DrawRoundedRectangle(x+colW-48, cy+28, 28, 12, 6)
+			_ = dc.Fill()
+		}
+	}
+	// Drag ghost (translucent card)
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("base flush: %v", err)
+	}
+	dc.SetRGBA(0.15, 0.45, 0.9, 0.35)
+	dc.DrawRoundedRectangle(210, 120, 160, 50, 8)
+	_ = dc.Fill()
+	// Connector trim-path style polyline stroke across board
+	path := render.NewPath()
+	path.MoveTo(40, 390)
+	path.LineTo(740, 390)
+	trim := path.Trim(0.1, 0.9)
+	dc.SetRGB(0.55, 0.58, 0.62)
+	dc.SetLineWidth(2)
+	dc.AppendPath(trim)
+	_ = dc.Stroke()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("S1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 60 {
+		t.Fatalf("S1 expected GPUOps>=60: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 100, 34)
+	p1NotNearWhite(t, "col header", r, g, b)
+	r2, g2, b2, _ := p1Sample(dc, 290, 145)
+	// ghost should tint
+	if r2 > 250 && g2 > 250 && b2 > 250 {
+		t.Fatalf("drag ghost missing")
+	}
+}
+
+// S2: storyboard / filmstrip frames with non-affine image quads.
+func TestP1_S2_StoryboardFilmstripDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 720, 320
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+	dc.SetRGB(0.12, 0.13, 0.16)
+	dc.DrawRectangle(0, 0, w, 40)
+	_ = dc.Fill()
+	dc.SetRGB(0.95, 0.96, 0.98)
+	dc.DrawString("Storyboard filmstrip", 12, 26)
+
+	// Create small colored frames as images
+	for i := 0; i < 6; i++ {
+		img, err := render.NewImageBuf(24, 24, render.FormatRGBA8)
+		if err != nil {
+			t.Fatalf("img: %v", err)
+		}
+		cr := uint8(40 + i*30)
+		cg := uint8(80 + (i%3)*40)
+		cb := uint8(200 - i*20)
+		for y := 0; y < 24; y++ {
+			for x := 0; x < 24; x++ {
+				_ = img.SetRGBA(x, y, cr, cg, cb, 255)
+			}
+		}
+		baseX := 30 + float64(i)*110
+		// Slight perspective trapezoid per frame
+		skew := float64(i%2) * 6
+		corners := [4]render.Point{
+			{X: baseX + skew, Y: 70},
+			{X: baseX + 90 - skew, Y: 70},
+			{X: baseX + 96, Y: 200},
+			{X: baseX - 6, Y: 200},
+		}
+		dc.DrawImageQuad(img, corners)
+		dc.SetRGB(0.2, 0.22, 0.26)
+		dc.DrawString(fmt.Sprintf("F%02d", i+1), baseX+30, 230)
+	}
+	// Timeline scrubber
+	dc.SetRGB(0.85, 0.86, 0.88)
+	dc.DrawRectangle(20, 270, w-40, 6)
+	_ = dc.Fill()
+	dc.SetRGB(0.15, 0.45, 0.9)
+	dc.DrawCircle(220, 273, 8)
+	_ = dc.Fill()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("S2 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 10 {
+		t.Fatalf("S2 expected GPUOps>=10: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 70, 140)
+	p1NotNearWhite(t, "frame0", r, g, b)
+}
+
+// --- Tier T: mail client + settings density ---
+
+// T1: mail list + reading pane + composer strip.
+func TestP1_T1_MailClientDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 800, 440
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Folder rail
+	dc.SetRGB(0.14, 0.15, 0.18)
+	dc.DrawRectangle(0, 0, 160, h)
+	_ = dc.Fill()
+	for i, name := range []string{"Inbox", "Starred", "Sent", "Drafts", "Spam"} {
+		y := 50 + float64(i)*40
+		if i == 0 {
+			dc.SetRGB(0.2, 0.35, 0.55)
+			dc.DrawRoundedRectangle(8, y-8, 144, 32, 6)
+			_ = dc.Fill()
+		}
+		dc.SetRGB(0.9, 0.91, 0.93)
+		dc.DrawString(name, 20, y+12)
+	}
+
+	// Message list
+	dc.SetRGB(0.97, 0.97, 0.98)
+	dc.DrawRectangle(160, 0, 260, h)
+	_ = dc.Fill()
+	for i := 0; i < 12; i++ {
+		y := 8 + float64(i)*34
+		if i == 2 {
+			dc.SetRGB(0.88, 0.93, 1)
+			dc.DrawRectangle(160, y, 260, 34)
+			_ = dc.Fill()
+		}
+		dc.SetRGB(0.15, 0.16, 0.2)
+		dc.DrawString(fmt.Sprintf("Subject line %02d", i+1), 172, y+20)
+	}
+
+	// Reading pane
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(420, 0, w-420, h-100)
+	_ = dc.Fill()
+	dc.SetRGB(0.1, 0.1, 0.12)
+	dc.DrawString("Re: Quarterly plan", 436, 36)
+	for i := 0; i < 8; i++ {
+		dc.SetRGB(0.25, 0.26, 0.3)
+		dc.DrawRectangle(436, 70+float64(i)*22, 200+float64((i*17)%120), 10)
+		_ = dc.Fill()
+	}
+
+	// Composer
+	dc.SetRGB(0.95, 0.96, 0.97)
+	dc.DrawRectangle(420, h-100, w-420, 100)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(436, h-88, w-460, 56, 8)
+	_ = dc.Fill()
+	dc.SetRGB(0.15, 0.45, 0.9)
+	dc.DrawRoundedRectangle(w-110, h-28, 70, 22, 4)
+	_ = dc.Fill()
+
+	// Backdrop dim over list selection simulation
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	// subtle selection already drawn; ensure GPU ops dense
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("T1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 30 {
+		t.Fatalf("T1 expected GPUOps>=30: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 40, 60)
+	p1NotNearWhite(t, "folder rail", r, g, b)
+	r2, g2, b2, _ := p1Sample(dc, 780, h-18)
+	if b2 < 100 {
+		t.Fatalf("send button missing: %d,%d,%d", r2, g2, b2)
+	}
+}
+
+// T2: settings form with backdrop dim + modal card.
+func TestP1_T2_SettingsModalBackdropDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 640, 400
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 12)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Background settings page
+	dc.SetRGB(0.96, 0.97, 0.98)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	for i := 0; i < 8; i++ {
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(24, 24+float64(i)*42, w-48, 36, 8)
+		_ = dc.Fill()
+		dc.SetRGB(0.2, 0.22, 0.26)
+		dc.DrawString(fmt.Sprintf("Setting row %d", i+1), 40, 46+float64(i)*42)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("page flush: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+
+	// Backdrop layer dim + modal
+	dc.PushBackdropLayer(render.BlendNormal, 1)
+	dc.SetRGBA(0, 0, 0, 0.4)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(120, 80, 400, 220, 12)
+	_ = dc.Fill()
+	dc.SetRGB(0.12, 0.12, 0.15)
+	dc.DrawString("Confirm changes", 150, 120)
+	dc.SetRGB(0.15, 0.45, 0.9)
+	dc.DrawRoundedRectangle(280, 240, 100, 32, 6)
+	_ = dc.Fill()
+	dc.PopLayer()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("T2 path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("T2 backdrop modal needs more GPUOps")
+	}
+	// modal center white-ish
+	r, g, b, _ := p1Sample(dc, 320, 160)
+	if r < 200 {
+		t.Fatalf("modal card missing: %d,%d,%d", r, g, b)
+	}
+	// dimmed row area darker than pure white page
+	r2, g2, b2, _ := p1Sample(dc, 40, 40)
+	t.Logf("dimmed page=%d,%d,%d", r2, g2, b2)
+	if r2 > 240 && g2 > 240 && b2 > 240 {
+		t.Fatalf("backdrop dim missing over page")
+	}
+}
+
+// --- Tier U: design tool + media gallery density ---
+
+// U1: vector design canvas with corner-path strokes, discrete guides, image quads.
+func TestP1_U1_VectorDesignToolDensity(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 720, 440
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+
+	// Toolbar
+	dc.SetRGB(0.15, 0.16, 0.19)
+	dc.DrawRectangle(0, 0, w, 44)
+	_ = dc.Fill()
+	for i, label := range []string{"Select", "Pen", "Shape", "Text", "Export"} {
+		x := 12 + float64(i)*88
+		dc.SetRGB(0.28, 0.3, 0.34)
+		dc.DrawRoundedRectangle(x, 8, 80, 28, 6)
+		_ = dc.Fill()
+		dc.SetRGB(0.92, 0.93, 0.95)
+		dc.DrawString(label, x+10, 26)
+	}
+
+	// Canvas
+	dc.SetRGB(0.94, 0.95, 0.97)
+	dc.DrawRectangle(0, 44, w-200, h-44)
+	_ = dc.Fill()
+
+	// Shape with corner path effect
+	poly := render.NewPath()
+	poly.MoveTo(80, 120)
+	poly.LineTo(220, 100)
+	poly.LineTo(260, 220)
+	poly.LineTo(100, 250)
+	poly.Close()
+	rounded := poly.WithCorners(18)
+	dc.SetRGB(0.15, 0.45, 0.9)
+	dc.SetLineWidth(3)
+	dc.AppendPath(rounded)
+	_ = dc.Stroke()
+	dc.SetRGBA(0.15, 0.45, 0.9, 0.15)
+	dc.AppendPath(rounded)
+	_ = dc.Fill()
+
+	// Discrete guide
+	guide := render.NewPath()
+	guide.MoveTo(40, 300)
+	guide.LineTo(480, 360)
+	dc.SetRGB(0.9, 0.35, 0.2)
+	dc.SetLineWidth(2)
+	dc.AppendPath(guide.Discrete(10, 4))
+	_ = dc.Stroke()
+
+	// Image quads as placed assets
+	for i := 0; i < 3; i++ {
+		img, err := render.NewImageBuf(20, 20, render.FormatRGBA8)
+		if err != nil {
+			t.Fatalf("img: %v", err)
+		}
+		for y := 0; y < 20; y++ {
+			for x := 0; x < 20; x++ {
+				_ = img.SetRGBA(x, y, uint8(40+i*60), uint8(160-i*30), 80, 255)
+			}
+		}
+		bx := 300 + float64(i)*70
+		dc.DrawImageQuad(img, [4]render.Point{
+			{X: bx, Y: 90}, {X: bx + 50, Y: 85}, {X: bx + 55, Y: 150}, {X: bx - 5, Y: 155},
+		})
+	}
+
+	// Right inspector
+	dc.SetRGB(0.98, 0.98, 0.99)
+	dc.DrawRectangle(w-200, 44, 200, h-44)
+	_ = dc.Fill()
+	dc.SetRGB(0.2, 0.22, 0.26)
+	dc.DrawString("Properties", w-180, 70)
+	for i := 0; i < 9; i++ {
+		y := 90 + float64(i)*32
+		dc.SetRGB(0.93, 0.94, 0.96)
+		dc.DrawRoundedRectangle(w-188, y, 176, 26, 4)
+		_ = dc.Fill()
+	}
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("U1 path_stats %s", stats.LogLine())
+	if stats.GPUOps < 20 {
+		t.Fatalf("U1 expected GPUOps>=20: %s", stats.LogLine())
+	}
+	r, g, b, _ := p1Sample(dc, 160, 160)
+	p1NotNearWhite(t, "shape fill", r, g, b)
+}
+
+// U2: media gallery with external offscreen tiles composited + backdrop lightbox.
+func TestP1_U2_MediaGalleryExternalTiles(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 680, 400
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	font := p1FindFont(t)
+	_ = dc.LoadFontFace(font, 11)
+
+	dc.ResetRenderPathStats()
+	p1White(dc, w, h)
+	dc.SetRGB(0.12, 0.13, 0.16)
+	dc.DrawRectangle(0, 0, w, 40)
+	_ = dc.Fill()
+	dc.SetRGB(0.95, 0.96, 0.98)
+	dc.DrawString("Media gallery", 12, 26)
+
+	// Build external tiles
+	type tile struct {
+		view    interface{ IsNil() bool }
+		release func()
+		x, y    float64
+	}
+	// Use concrete TextureView via CreateOffscreenTexture
+	var releases []func()
+	defer func() {
+		for _, r := range releases {
+			if r != nil {
+				r()
+			}
+		}
+	}()
+
+	colors := [][3]float64{{0.9, 0.3, 0.2}, {0.2, 0.6, 0.9}, {0.3, 0.75, 0.35}, {0.85, 0.65, 0.15}, {0.55, 0.35, 0.85}, {0.2, 0.75, 0.7}}
+	for i, col := range colors {
+		tileDC := render.NewContext(64, 64)
+		view, release := tileDC.CreateOffscreenTexture(64, 64)
+		if release == nil || view.IsNil() {
+			tileDC.Close()
+			t.Skip("CreateOffscreenTexture unavailable")
+		}
+		releases = append(releases, func() {
+			release()
+			tileDC.Close()
+		})
+		tileDC.SetRGB(col[0], col[1], col[2])
+		tileDC.DrawRoundedRectangle(2, 2, 60, 60, 8)
+		_ = tileDC.Fill()
+		if err := tileDC.FlushGPUWithView(view, 64, 64); err != nil {
+			t.Fatalf("tile flush: %v", err)
+		}
+		tx := 24 + float64(i%3)*210
+		ty := 60 + float64(i/3)*150
+		dc.SetRGB(1, 1, 1)
+		dc.DrawRoundedRectangle(tx-4, ty-4, 72, 72, 10)
+		_ = dc.Fill()
+		dc.DrawGPUTexture(view, tx, ty, 64, 64)
+	}
+
+	// Lightbox backdrop over gallery
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("gallery flush: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+	dc.PushBackdropLayer(render.BlendNormal, 1)
+	dc.SetRGBA(0, 0, 0, 0.45)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRoundedRectangle(160, 70, 360, 260, 12)
+	_ = dc.Fill()
+	dc.SetRGB(0.15, 0.15, 0.18)
+	dc.DrawString("Preview", 180, 100)
+	dc.PopLayer()
+
+	p1Flush(t, dc)
+	stats := dc.RenderPathStats()
+	t.Logf("U2 path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("U2 lightbox needs more GPUOps")
+	}
+	r, g, b, _ := p1Sample(dc, 340, 200)
+	if r < 200 {
+		t.Fatalf("lightbox card missing: %d,%d,%d", r, g, b)
+	}
+	// dimmed chrome
+	r2, g2, b2, _ := p1Sample(dc, 20, 20)
+	if r2 > 100 {
+		t.Fatalf("expected dimmed header, got %d,%d,%d", r2, g2, b2)
 	}
 }

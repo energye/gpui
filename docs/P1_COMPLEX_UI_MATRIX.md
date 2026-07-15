@@ -188,6 +188,9 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 | K.01 | Vello compute path | `TestP1_Capability_K01_VelloComputePathGPU` |
 | Q.02 | Coverage AA GPU | `TestP1_Capability_Q02_CoverageAAGPU` |
 | B.03 | ColorBurn/Exclusion GPU | `TestP1_Capability_B03_ColorBurnExclusionGPU` |
+| V.03 | DrawMesh indexed GPU | `TestP1_Capability_V03_DrawMeshIndexedGPU` |
+| K.02 | DrawIndirect GPU | `TestP1_Capability_K02_DrawIndirectGPU` |
+| CS.02 | RGBA16Float surface | `TestP1_Capability_CS02_RGBA16FloatSurfaceGPU` |
 
 ## 窗口 Present multi-rect damage
 
@@ -195,10 +198,71 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 |----|------|------|------|
 | S.03 multi-rect | X11 PresentFrame + PresentFrameDamageRects | `TestS3c_M3_WindowPresentFrame_X11Draw` (`-tags gpui_x11_present`) | ✅ |
 
+## Tier Q（multi-viewport / retained damage）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| Q1 | Multi-viewport retained density | `TestP1_Q1_MultiViewportRetainedDensity` | ✅ |
+| Q2 | Triple-pane damage density | `TestP1_Q2_TriplePaneDamageDensity` | ✅ |
+
+## Tier R（spreadsheet / pivot heatmap）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| R1 | Spreadsheet grid density | `TestP1_R1_SpreadsheetGridDensity` | ✅ |
+| R2 | Pivot heatmap density | `TestP1_R2_PivotHeatmapDensity` | ✅ |
+
+## M4 能力门禁（本轮）
+
+| ID | 能力 | 门禁 |
+|----|------|------|
+| V.03 | DrawMesh indexed | `TestP1_Capability_V03_DrawMeshIndexedGPU` |
+| K.02 | DrawIndirect | `TestP1_Capability_K02_DrawIndirectGPU` |
+| CS.02 | RGBA16Float RT | `TestP1_Capability_CS02_RGBA16FloatSurfaceGPU` |
+| CS.03 | Linear blend mid | `TestP1_Capability_CS03_LinearBlendMidGPU` |
+
+## Tier S（Kanban / Storyboard）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| S1 | Kanban board density | `TestP1_S1_KanbanBoardDensity` | ✅ |
+| S2 | Storyboard filmstrip + ImageQuad | `TestP1_S2_StoryboardFilmstripDensity` | ✅ |
+
+## Tier T（Mail / Settings modal）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| T1 | Mail client density | `TestP1_T1_MailClientDensity` | ✅ |
+| T2 | Settings modal + backdrop | `TestP1_T2_SettingsModalBackdropDensity` | ✅ |
+
+## M4 门禁补充（本轮）
+
+| ID | 能力 | 门禁 |
+|----|------|------|
+| E.03 | Path.Trim | `TestP1_Capability_E03_TrimPathGPU` |
+| P.09 | SetDither | `TestP1_Capability_P09_DitherGPU` |
+| T.04 | DrawImageQuad | `TestP1_Capability_T04_ImageQuadGPU` |
+| L.05 | PushBackdropLayer | `TestP1_Capability_L05_BackdropLayerGPU` |
+
+## Tier U（Vector design / Media gallery）
+
+| ID | 场景 | 测试 | 状态 |
+|----|------|------|------|
+| U1 | Vector design tool density | `TestP1_U1_VectorDesignToolDensity` | ✅ |
+| U2 | Media gallery + external tiles | `TestP1_U2_MediaGalleryExternalTiles` | ✅ |
+
+## M4 门禁补充（本轮）
+
+| ID | 能力 | 门禁 |
+|----|------|------|
+| E.02 | Corner/Discrete path effects | `TestP1_Capability_E02_PathEffectsGPU` |
+| I.08 | External GPU texture composite | `TestP1_Capability_I08_ExternalTextureGPU` |
+
 ## 仍 open（下一切片）
 
-- M4 可选项（F16/mesh/PDF/透视等）  
-- 更密 retained / multi-viewport 形态（按需继续加 Tier）  
+- 其余 M4：R.02 PDF/SVG document 后端（非 GPU 主线）  
+- 真 multiplanar YUV（I.08 已覆盖 external texture 子集）  
+- 按需继续加更密 UI 形态 Tier（非控件层）  
 
 
 

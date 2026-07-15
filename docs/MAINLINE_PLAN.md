@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.31 | 日期：2026-07-15  
+> 版本：1.34 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -154,9 +154,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 S0–S3c 已关闭。S.03 真窗口 draw+present 已通。
 
-**本轮（P1 推进）**：K.01 Context Compute 门禁 ✅、Q.02 Coverage AA ✅、B.03 ColorBurn/Exclusion ✅、复杂 UI Tier **O–P**（日历/甘特 + 高级混合/compute chrome）。矩阵 M0–M3 主 🔄 已基本收口；仍 open：M4 可选项、真窗口 multi-rect Present e2e。
+**本轮（P1 推进）**：M4 再收 E.02 PathEffects + I.08 ExternalTexture；复杂 UI Tier **U**（vector design / media gallery）。能力表仅剩 R.02 PDF/SVG document（非 GPU）。
 
-下一步：M4 后置；按需继续加复杂 UI Tier（非控件层）。真窗口 multi-rect Present damage 已在 X11 标签门禁覆盖。
+下一步：R.02 document 后端可选；按需加 UI Tier。不启动控件层/S4 大性能。
 
 ```bash
 go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'

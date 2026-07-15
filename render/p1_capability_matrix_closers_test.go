@@ -3,11 +3,16 @@
 package render_test
 
 import (
+	"context"
+	"encoding/binary"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/energye/gpui/gpu/types"
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
 	_ "github.com/energye/gpui/render/gpu"
@@ -2879,5 +2884,691 @@ func TestP1_Capability_Q02_CoverageAAGPU(t *testing.T) {
 	}
 	if fOn < fOff {
 		t.Fatalf("Q.02 expected AA-on fringe >= AA-off: on=%d off=%d", fOn, fOff)
+	}
+}
+
+// V.03: indexed colored mesh via DrawMesh → QueueColoredMesh GPU path.
+func TestP1_Capability_V03_DrawMeshIndexedGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Shared verts: quad as two triangles via indices (not expanded triangle list).
+	mesh := render.Mesh{
+		Positions: []render.Point{
+			{X: 12, Y: 12},
+			{X: 52, Y: 12},
+			{X: 52, Y: 52},
+			{X: 12, Y: 52},
+		},
+		Colors: []render.RGBA{
+			{R: 1, G: 0, B: 0, A: 1},
+			{R: 0, G: 1, B: 0, A: 1},
+			{R: 0, G: 0, B: 1, A: 1},
+			{R: 1, G: 1, B: 0, A: 1},
+		},
+		Indices: []uint16{0, 1, 2, 0, 2, 3},
+	}
+	dc.DrawMesh(mesh)
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("V.03 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("V.03 requires GPUOps>0")
+	}
+	// Center of quad should be non-white interpolated color
+	r, g, b, _ := sampleRGBA(dc, 32, 32)
+	t.Logf("mesh center=%d,%d,%d", r, g, b)
+	if r > 250 && g > 250 && b > 250 {
+		t.Fatalf("mesh center still white")
+	}
+	// Outside remains white
+	or, og, ob, _ := sampleRGBA(dc, 2, 2)
+	if int(or)+int(og)+int(ob) < 700 {
+		t.Fatalf("outside mesh should stay white, got %d,%d,%d", or, og, ob)
+	}
+}
+
+// K.02: true DrawIndirect GPU path via webgpu facade → rwgpu → native, with pixel readback.
+func TestP1_Capability_K02_DrawIndirectGPU(t *testing.T) {
+	requireNativeGPU(t)
+	if os.Getenv("WGPU_NATIVE_PATH") == "" {
+		t.Log("WGPU_NATIVE_PATH unset; relying on default discovery")
+	}
+
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	if err != nil {
+		t.Skipf("CreateInstance: %v", err)
+	}
+	defer inst.Release()
+	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: webgpu.PowerPreferenceHighPerformance})
+	if err != nil {
+		t.Skipf("RequestAdapter: %v", err)
+	}
+	defer ad.Release()
+	dev, err := ad.RequestDevice(&webgpu.DeviceDescriptor{Label: "k02-indirect"})
+	if err != nil {
+		t.Fatalf("RequestDevice: %v", err)
+	}
+	defer dev.Release()
+	queue := dev.Queue()
+
+	const w, h = uint32(8), uint32(8)
+	const bpp = 4
+	const bytesPerRow = 256
+
+	shader, err := dev.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+		WGSL: `
+@vertex
+fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>( 3.0, -1.0),
+        vec2<f32>(-1.0,  3.0)
+    );
+    return vec4<f32>(pos[idx], 0.0, 1.0);
+}
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(0.1, 0.8, 0.2, 1.0);
+}
+`,
+	})
+	if err != nil {
+		t.Fatalf("shader: %v", err)
+	}
+	defer shader.Release()
+
+	pipeline, err := dev.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		Vertex: webgpu.VertexState{Module: shader, EntryPoint: "vs_main"},
+		Fragment: &webgpu.FragmentState{
+			Module:     shader,
+			EntryPoint: "fs_main",
+			Targets: []types.ColorTargetState{{
+				Format:    webgpu.TextureFormatRGBA8Unorm,
+				WriteMask: types.ColorWriteMaskAll,
+				Blend: &types.BlendState{
+					Color: types.BlendComponent{SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorZero, Operation: types.BlendOperationAdd},
+					Alpha: types.BlendComponent{SrcFactor: types.BlendFactorOne, DstFactor: types.BlendFactorZero, Operation: types.BlendOperationAdd},
+				},
+			}},
+		},
+		Primitive:   types.PrimitiveState{Topology: types.PrimitiveTopologyTriangleList, FrontFace: types.FrontFaceCCW, CullMode: types.CullModeNone},
+		Multisample: types.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+	})
+	if err != nil {
+		t.Fatalf("pipeline: %v", err)
+	}
+	defer pipeline.Release()
+
+	// Indirect args: vertexCount=3, instanceCount=1, firstVertex=0, firstInstance=0
+	args := make([]byte, 16)
+	binary.LittleEndian.PutUint32(args[0:], 3)
+	binary.LittleEndian.PutUint32(args[4:], 1)
+	binary.LittleEndian.PutUint32(args[8:], 0)
+	binary.LittleEndian.PutUint32(args[12:], 0)
+	indBuf, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
+		Size:  16,
+		Usage: webgpu.BufferUsageIndirect | webgpu.BufferUsageCopyDst,
+	})
+	if err != nil {
+		t.Fatalf("indirect buffer: %v", err)
+	}
+	defer indBuf.Release()
+	if err := queue.WriteBuffer(indBuf, 0, args); err != nil {
+		t.Fatalf("WriteBuffer indirect: %v", err)
+	}
+
+	rt, err := dev.CreateTexture(&webgpu.TextureDescriptor{
+		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		MipLevelCount: 1, SampleCount: 1, Dimension: webgpu.TextureDimension2D,
+		Format: webgpu.TextureFormatRGBA8Unorm,
+		Usage:  webgpu.TextureUsageRenderAttachment | webgpu.TextureUsageCopySrc,
+	})
+	if err != nil {
+		t.Fatalf("rt: %v", err)
+	}
+	defer rt.Release()
+	view, err := dev.CreateTextureView(rt, &webgpu.TextureViewDescriptor{
+		Format: webgpu.TextureFormatRGBA8Unorm, Dimension: types.TextureViewDimension2D,
+		Aspect: types.TextureAspectAll, MipLevelCount: 1, ArrayLayerCount: 1,
+	})
+	if err != nil {
+		t.Fatalf("view: %v", err)
+	}
+	defer view.Release()
+
+	enc, err := dev.CreateCommandEncoder(nil)
+	if err != nil {
+		t.Fatalf("enc: %v", err)
+	}
+	pass, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+			View: view, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
+			ClearValue: types.Color{R: 1, G: 0, B: 0, A: 1},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("BeginRenderPass: %v", err)
+	}
+	pass.SetPipeline(pipeline)
+	pass.SetViewport(0, 0, float32(w), float32(h), 0, 1)
+	pass.SetScissorRect(0, 0, w, h)
+	pass.DrawIndirect(indBuf, 0)
+	if err := pass.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	stagingSize := uint64(bytesPerRow * h)
+	staging, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
+		Size: stagingSize, Usage: webgpu.BufferUsageCopyDst | webgpu.BufferUsageMapRead,
+	})
+	if err != nil {
+		t.Fatalf("staging: %v", err)
+	}
+	defer staging.Release()
+	enc.CopyTextureToBuffer(rt, staging, []webgpu.BufferTextureCopy{{
+		BufferLayout: webgpu.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
+		TextureBase:  webgpu.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
+		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	}})
+	cmd, err := enc.Finish()
+	if err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if _, err := queue.Submit(cmd); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	cmd.Release()
+	dev.Poll(webgpu.PollWait)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := staging.Map(ctx, webgpu.MapModeRead, 0, stagingSize); err != nil {
+		t.Fatalf("Map: %v", err)
+	}
+	mr, err := staging.MappedRange(0, stagingSize)
+	if err != nil {
+		t.Fatalf("MappedRange: %v", err)
+	}
+	got := mr.Bytes()
+	o := (h/2)*bytesPerRow + (w/2)*bpp
+	r, g, b := got[o], got[o+1], got[o+2]
+	t.Logf("K.02 center rgba=%d,%d,%d", r, g, b)
+	// Expect green-ish from fragment shader via DrawIndirect
+	if g < 150 || r > 80 || b > 80 {
+		t.Fatalf("K.02 DrawIndirect expected green over red clear, got %d,%d,%d", r, g, b)
+	}
+	_ = staging.Unmap()
+}
+
+// CS.02: RGBA16Float render target create + clear via webgpu (F16 surface binding).
+func TestP1_Capability_CS02_RGBA16FloatSurfaceGPU(t *testing.T) {
+	requireNativeGPU(t)
+	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	if err != nil {
+		t.Skipf("CreateInstance: %v", err)
+	}
+	defer inst.Release()
+	ad, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{PowerPreference: webgpu.PowerPreferenceHighPerformance})
+	if err != nil {
+		t.Skipf("RequestAdapter: %v", err)
+	}
+	defer ad.Release()
+	dev, err := ad.RequestDevice(&webgpu.DeviceDescriptor{Label: "cs02-f16"})
+	if err != nil {
+		t.Fatalf("RequestDevice: %v", err)
+	}
+	defer dev.Release()
+	queue := dev.Queue()
+
+	const w, h = uint32(4), uint32(4)
+	rt, err := dev.CreateTexture(&webgpu.TextureDescriptor{
+		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		MipLevelCount: 1, SampleCount: 1, Dimension: webgpu.TextureDimension2D,
+		Format: types.TextureFormatRGBA16Float,
+		Usage:  webgpu.TextureUsageRenderAttachment | webgpu.TextureUsageCopySrc,
+	})
+	if err != nil {
+		t.Skipf("RGBA16Float RT unsupported: %v", err)
+	}
+	defer rt.Release()
+	view, err := dev.CreateTextureView(rt, &webgpu.TextureViewDescriptor{
+		Format: types.TextureFormatRGBA16Float, Dimension: types.TextureViewDimension2D,
+		Aspect: types.TextureAspectAll, MipLevelCount: 1, ArrayLayerCount: 1,
+	})
+	if err != nil {
+		t.Fatalf("F16 view: %v", err)
+	}
+	defer view.Release()
+
+	// Clear F16 RT to a known color (no fragment shader needed).
+	enc, err := dev.CreateCommandEncoder(nil)
+	if err != nil {
+		t.Fatalf("enc: %v", err)
+	}
+	pass, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+			View: view, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
+			ClearValue: types.Color{R: 0.25, G: 0.5, B: 0.75, A: 1},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("BeginRenderPass F16: %v", err)
+	}
+	if err := pass.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	// Copy to staging — 8 bytes/pixel for RGBA16Float, padded row.
+	const bytesPerRow = 256
+	stagingSize := uint64(bytesPerRow * h)
+	staging, err := dev.CreateBuffer(&webgpu.BufferDescriptor{
+		Size: stagingSize, Usage: webgpu.BufferUsageCopyDst | webgpu.BufferUsageMapRead,
+	})
+	if err != nil {
+		t.Fatalf("staging: %v", err)
+	}
+	defer staging.Release()
+	enc.CopyTextureToBuffer(rt, staging, []webgpu.BufferTextureCopy{{
+		BufferLayout: webgpu.ImageDataLayout{BytesPerRow: bytesPerRow, RowsPerImage: h},
+		TextureBase:  webgpu.ImageCopyTexture{Texture: rt, Aspect: types.TextureAspectAll},
+		Size:         webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+	}})
+	cmd, err := enc.Finish()
+	if err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	if _, err := queue.Submit(cmd); err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	cmd.Release()
+	dev.Poll(webgpu.PollWait)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := staging.Map(ctx, webgpu.MapModeRead, 0, stagingSize); err != nil {
+		t.Fatalf("Map F16: %v", err)
+	}
+	mr, err := staging.MappedRange(0, stagingSize)
+	if err != nil {
+		t.Fatalf("MappedRange: %v", err)
+	}
+	got := mr.Bytes()
+	// Decode first pixel RGBA16Float little-endian half floats roughly non-zero.
+	if len(got) < 8 {
+		t.Fatalf("staging too small")
+	}
+	// At least one half-float channel should be non-zero after clear.
+	any := false
+	for i := 0; i < 8; i++ {
+		if got[i] != 0 {
+			any = true
+			break
+		}
+	}
+	t.Logf("CS.02 F16 first 8 bytes=%v", got[:8])
+	if !any {
+		t.Fatalf("CS.02 F16 clear produced all-zero readback")
+	}
+	_ = staging.Unmap()
+}
+
+// CS.03: linear sRGB interpolation mid-stop for black→white gradient should be
+// brighter than naive sRGB 0.5 (~128). GPU path required.
+func TestP1_Capability_CS03_LinearBlendMidGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 16
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	grad := render.NewLinearGradientBrush(0, 0, float64(w-1), 0).
+		AddColorStop(0, render.Black).
+		AddColorStop(1, render.White)
+	dc.SetFillBrush(grad)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("CS.03 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("CS.03 requires GPUOps>0")
+	}
+	// Mid pixel ~x=32. Linear-space midpoint → ~0.735 sRGB ≈ 187.
+	// Accept broad band that is clearly above pure sRGB 128 midpoint and below white.
+	r, g, b, _ := sampleRGBA(dc, w/2, h/2)
+	t.Logf("CS.03 mid=%d,%d,%d", r, g, b)
+	avg := (int(r) + int(g) + int(b)) / 3
+	if avg < 150 {
+		t.Fatalf("CS.03 expected linear mid brighter than sRGB 0.5 (~128), got avg=%d rgba=%d,%d,%d", avg, r, g, b)
+	}
+	if avg > 245 {
+		t.Fatalf("CS.03 mid too close to white (gradient broken?): avg=%d", avg)
+	}
+	// Ends roughly black/white
+	r0, g0, b0, _ := sampleRGBA(dc, 2, h/2)
+	r1, g1, b1, _ := sampleRGBA(dc, w-3, h/2)
+	t.Logf("ends left=%d,%d,%d right=%d,%d,%d", r0, g0, b0, r1, g1, b1)
+	// Edge samples can be slightly lifted by AA/filtering; only require dark vs light polarity.
+	if int(r0)+int(g0)+int(b0) > 200 {
+		t.Fatalf("left end not dark: %d,%d,%d", r0, g0, b0)
+	}
+	if int(r1)+int(g1)+int(b1) < 500 {
+		t.Fatalf("right end not light: %d,%d,%d", r1, g1, b1)
+	}
+	if int(r0)+int(g0)+int(b0) >= avg {
+		t.Fatalf("left should be darker than linear mid")
+	}
+}
+
+// E.03: Path.Trim arc-length subset stroked on GPU.
+func TestP1_Capability_E03_TrimPathGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 96, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Full path as reference poly
+	full := render.NewPath()
+	full.MoveTo(8, 24)
+	full.LineTo(88, 24)
+	// Trim middle 50% → should only ink center region
+	trimmed := full.Trim(0.25, 0.75)
+	if trimmed == nil || len(trimmed.Flatten(0.5)) < 2 {
+		t.Fatalf("trim produced empty geometry")
+	}
+	dc.SetRGB(0.1, 0.2, 0.9)
+	dc.SetLineWidth(4)
+	dc.AppendPath(trimmed)
+	_ = dc.Stroke()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("E.03 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("E.03 requires GPUOps>0")
+	}
+	// Center should be inked
+	r, g, b, _ := sampleRGBA(dc, 48, 24)
+	t.Logf("center=%d,%d,%d", r, g, b)
+	if r > 200 && g > 200 && b > 200 {
+		t.Fatalf("trimmed stroke missing at center")
+	}
+	// Far left (before 25%) should stay near white
+	r0, g0, b0, _ := sampleRGBA(dc, 12, 24)
+	t.Logf("left=%d,%d,%d", r0, g0, b0)
+	if int(r0)+int(g0)+int(b0) < 600 {
+		t.Fatalf("trim leaked into start region: %d,%d,%d", r0, g0, b0)
+	}
+}
+
+// P.09: ordered dither increases local variation on a soft gradient vs undithered.
+func TestP1_Capability_P09_DitherGPU(t *testing.T) {
+	requireNativeGPU(t)
+	draw := func(dither bool) (uniq int, ops int) {
+		dc := render.NewContext(64, 16)
+		defer dc.Close()
+		dc.ResetRenderPathStats()
+		dc.SetDither(dither)
+		grad := render.NewLinearGradientBrush(0, 0, 63, 0).
+			AddColorStop(0, render.RGB(0.2, 0.2, 0.25)).
+			AddColorStop(1, render.RGB(0.85, 0.85, 0.9))
+		dc.SetFillBrush(grad)
+		dc.DrawRectangle(0, 0, 64, 16)
+		_ = dc.Fill()
+		if err := dc.FlushGPU(); err != nil {
+			t.Fatalf("FlushGPU dither=%v: %v", dither, err)
+		}
+		ops = dc.RenderPathStats().GPUOps
+		seen := map[[3]uint8]struct{}{}
+		for y := 4; y < 12; y++ {
+			for x := 8; x < 56; x++ {
+				r, g, b, _ := sampleRGBA(dc, x, y)
+				seen[[3]uint8{r, g, b}] = struct{}{}
+			}
+		}
+		return len(seen), ops
+	}
+	uOff, opsOff := draw(false)
+	uOn, opsOn := draw(true)
+	t.Logf("P.09 unique undithered=%d ops=%d dithered=%d ops=%d", uOff, opsOff, uOn, opsOn)
+	if opsOff == 0 || opsOn == 0 {
+		t.Fatalf("P.09 requires GPUOps>0")
+	}
+	// Dither should not reduce color diversity; typically increases.
+	if uOn < uOff {
+		t.Fatalf("dither reduced unique colors: on=%d off=%d", uOn, uOff)
+	}
+}
+
+// T.04: non-affine image quad (trapezoid) GPU path.
+func TestP1_Capability_T04_ImageQuadGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 80, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	img, err := render.NewImageBuf(16, 16, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			_ = img.SetRGBA(x, y, 220, 40, 40, 255)
+		}
+	}
+	// Trapezoid: wider at bottom (non-affine)
+	corners := [4]render.Point{
+		{X: 20, Y: 8},
+		{X: 50, Y: 8},
+		{X: 70, Y: 56},
+		{X: 8, Y: 56},
+	}
+	dc.DrawImageQuad(img, corners)
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("T.04 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("T.04 requires GPUOps>0")
+	}
+	r, g, b, _ := sampleRGBA(dc, 40, 40)
+	t.Logf("quad center=%d,%d,%d", r, g, b)
+	if r < 120 {
+		t.Fatalf("expected red-ish quad ink, got %d,%d,%d", r, g, b)
+	}
+	// Outside near corner stays white
+	or, og, ob, _ := sampleRGBA(dc, 2, 2)
+	if int(or)+int(og)+int(ob) < 700 {
+		t.Fatalf("outside should stay white: %d,%d,%d", or, og, ob)
+	}
+}
+
+// L.05: backdrop layer snapshots parent, then filter/tint affects backdrop content.
+func TestP1_Capability_L05_BackdropLayerGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	// Parent content: blue rect
+	dc.SetRGB(0.15, 0.35, 0.9)
+	dc.DrawRectangle(8, 8, 48, 48)
+	_ = dc.Fill()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("parent FlushGPU: %v", err)
+	}
+	base := dc.RenderPathStats().GPUOps
+
+	// Backdrop layer: starts with parent snapshot; dim with translucent black
+	dc.PushBackdropLayer(render.BlendNormal, 1)
+	dc.SetRGBA(0, 0, 0, 0.45)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.PopLayer()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("backdrop FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("L.05 path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("L.05 expected additional GPUOps")
+	}
+	r, g, b, _ := sampleRGBA(dc, 32, 32)
+	t.Logf("backdrop center=%d,%d,%d", r, g, b)
+	// Dimmed blue: darker than pure blue ~38,89,230
+	if r > 80 && g > 120 && b > 200 {
+		t.Fatalf("backdrop dim did not darken parent blue: %d,%d,%d", r, g, b)
+	}
+	if b < 40 {
+		t.Fatalf("backdrop destroyed blue content: %d,%d,%d", r, g, b)
+	}
+}
+
+// E.02: CornerPathEffect + DiscretePathEffect on GPU stroke.
+func TestP1_Capability_E02_PathEffectsGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 120, 80
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(1, 1, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+
+	// Sharp L polyline → rounded corner
+	sharp := render.NewPath()
+	sharp.MoveTo(10, 60)
+	sharp.LineTo(40, 60)
+	sharp.LineTo(40, 20)
+	rounded := sharp.WithCorners(12)
+	dc.SetRGB(0.15, 0.35, 0.9)
+	dc.SetLineWidth(3)
+	dc.AppendPath(rounded)
+	_ = dc.Stroke()
+
+	// Discrete dashed-ish wavy line
+	base := render.NewPath()
+	base.MoveTo(60, 20)
+	base.LineTo(110, 60)
+	disc := base.Discrete(8, 3)
+	dc.SetRGB(0.85, 0.25, 0.15)
+	dc.SetLineWidth(2)
+	dc.AppendPath(disc)
+	_ = dc.Stroke()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("E.02 path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("E.02 requires GPUOps>0")
+	}
+	// Rounded corner should put ink near the original corner but not only at sharp tip.
+	// Sample mid-arc region roughly (40- r_dir, 60- r_dir) ≈ (32, 52)
+	r, g, b, _ := sampleRGBA(dc, 34, 52)
+	t.Logf("corner sample=%d,%d,%d", r, g, b)
+	if r > 230 && g > 230 && b > 230 {
+		// fallback: horizontal arm
+		r2, g2, b2, _ := sampleRGBA(dc, 25, 60)
+		t.Logf("arm sample=%d,%d,%d", r2, g2, b2)
+		if r2 > 230 && g2 > 230 && b2 > 230 {
+			t.Fatalf("corner path effect produced no ink")
+		}
+	}
+	// Discrete path has some red-ish ink in right half
+	found := false
+	for y := 15; y < 65; y++ {
+		for x := 60; x < 115; x++ {
+			rr, gg, bb, _ := sampleRGBA(dc, x, y)
+			if rr > 150 && gg < 120 && bb < 120 {
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("discrete path effect produced no red ink")
+	}
+}
+
+// I.08: external/offscreen GPU texture bind + composite (no CPU pixel upload of source).
+func TestP1_Capability_I08_ExternalTextureGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 48, 48
+	src := render.NewContext(w, h)
+	defer src.Close()
+	src.ResetRenderPathStats()
+	view, release := src.CreateOffscreenTexture(w, h)
+	if release == nil || view.IsNil() {
+		t.Skip("CreateOffscreenTexture unavailable")
+	}
+	defer release()
+
+	// Render into external RT
+	src.SetRGB(0.1, 0.7, 0.3)
+	src.DrawRoundedRectangle(4, 4, 40, 40, 8)
+	_ = src.Fill()
+	if err := src.FlushGPUWithView(view, w, h); err != nil {
+		t.Fatalf("FlushGPUWithView: %v", err)
+	}
+	if src.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("external RT fill needs GPUOps>0")
+	}
+
+	// Composite external texture into another context without re-uploading pixels.
+	dst := render.NewContext(w, h)
+	defer dst.Close()
+	dst.ResetRenderPathStats()
+	dst.ClearWithColor(render.White)
+	dst.SetRGB(1, 1, 1)
+	dst.DrawRectangle(0, 0, w, h)
+	_ = dst.Fill()
+	_ = dst.FlushGPU()
+	base := dst.RenderPathStats().GPUOps
+
+	dst.DrawGPUTexture(view, 0, 0, w, h)
+	if err := dst.FlushGPU(); err != nil {
+		t.Fatalf("composite FlushGPU: %v", err)
+	}
+	stats := dst.RenderPathStats()
+	t.Logf("I.08 path_stats %s base=%d", stats.LogLine(), base)
+	if stats.GPUOps <= base {
+		t.Fatalf("I.08 DrawGPUTexture must increase GPUOps: base=%d now=%d", base, stats.GPUOps)
+	}
+	r, g, b, _ := sampleRGBA(dst, 24, 24)
+	t.Logf("external composite center=%d,%d,%d", r, g, b)
+	// Prefer green from external RT; accept any non-white if backend resolve differs.
+	if r > 245 && g > 245 && b > 245 {
+		t.Fatalf("external texture composite left white center")
 	}
 }

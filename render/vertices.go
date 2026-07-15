@@ -205,3 +205,49 @@ func (c *Context) drawAtlasCPU(img *ImageBuf, sprites []AtlasSprite) {
 		})
 	}
 }
+
+// Mesh describes an indexed triangle mesh for DrawMesh (Skia drawMesh / V.03 subset).
+// Positions are user-space points (CTM applied). When Indices is non-empty, triangles
+// are formed as (i0,i1,i2) groups of 3 indices; otherwise positions are a triangle list.
+// When len(Colors)==len(Positions), Gouraud shading is used.
+type Mesh struct {
+	Positions []Point
+	Colors    []RGBA
+	Indices   []uint16
+}
+
+// DrawMesh draws an indexed (or triangle-list) colored mesh on the GPU path when available.
+// This is the V.03 subset: positions + optional vertex colors + optional indices.
+// Full custom fragment shaders / cubics are deferred.
+func (c *Context) DrawMesh(mesh Mesh) {
+	if c == nil || len(mesh.Positions) < 3 {
+		return
+	}
+	positions := mesh.Positions
+	colors := mesh.Colors
+	if len(mesh.Indices) >= 3 {
+		n := len(mesh.Indices) / 3 * 3
+		expPos := make([]Point, 0, n)
+		var expCol []RGBA
+		useCol := len(colors) == len(positions)
+		if useCol {
+			expCol = make([]RGBA, 0, n)
+		}
+		for i := 0; i+2 < n; i += 3 {
+			i0, i1, i2 := int(mesh.Indices[i]), int(mesh.Indices[i+1]), int(mesh.Indices[i+2])
+			if i0 < 0 || i1 < 0 || i2 < 0 || i0 >= len(positions) || i1 >= len(positions) || i2 >= len(positions) {
+				continue
+			}
+			expPos = append(expPos, positions[i0], positions[i1], positions[i2])
+			if useCol {
+				expCol = append(expCol, colors[i0], colors[i1], colors[i2])
+			}
+		}
+		if len(expPos) < 3 {
+			return
+		}
+		positions = expPos
+		colors = expCol
+	}
+	c.DrawVertices(positions, colors, VertexModeTriangles)
+}

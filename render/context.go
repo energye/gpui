@@ -67,6 +67,7 @@ type Context struct {
 	// Anti-aliasing
 	antiAlias      bool   // anti-aliasing enabled (default: true)
 	antiAliasStack []bool // Push/Pop stack for antiAlias state
+	dither         bool   // P.09 ordered dither after resolve
 
 	// Text rendering
 	textMode         TextMode               // text strategy selection (default: Auto)
@@ -494,7 +495,7 @@ func (c *Context) SetDeviceScale(scale float64) {
 // Pending GPU commands are flushed first so readback matches SavePNG semantics
 // (CPU pixmap must include GPU-rendered content).
 func (c *Context) Image() image.Image {
-	_ = c.FlushGPU()
+	_ = c.FlushGPU() // also applies dither when enabled
 	return c.pixmap.ToImage()
 }
 
@@ -1532,14 +1533,17 @@ func (c *Context) BeginGPUFrame() {
 
 func (c *Context) FlushGPU() error {
 	t := c.gpuRenderTarget()
+	var err error
 	if rc := c.gpuCtxOps(); rc != nil {
-		return rc.Flush(t)
-	}
-	if a := Accelerator(); a != nil {
+		err = rc.Flush(t)
+	} else if a := Accelerator(); a != nil {
 		c.warnGPUFallback("FlushGPU")
-		return a.Flush(t)
+		err = a.Flush(t)
 	}
-	return nil
+	if err == nil {
+		c.applyDitherIfEnabled()
+	}
+	return err
 }
 
 // FlushGPUWithView flushes pending GPU operations, resolving directly to the
