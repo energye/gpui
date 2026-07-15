@@ -40,8 +40,14 @@ type ConvexDrawCommand struct {
 	// (last point connects to first).
 	Points []render.Point
 
-	// Color is the premultiplied RGBA fill color.
+	// Color is the premultiplied RGBA fill color used when VertexColors
+	// is empty (solid fill).
 	Color [4]float32
+
+	// VertexColors are optional per-vertex premultiplied RGBA colors.
+	// When len(VertexColors) == len(Points), Gouraud shading is used;
+	// the fan centroid uses the average of VertexColors.
+	VertexColors [][4]float32
 }
 
 // ConvexRenderer renders convex polygons in a single draw call with per-edge
@@ -463,7 +469,27 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 		centroidX := float32(cx)
 		centroidY := float32(cy)
 
+		useVC := len(cmd.VertexColors) == n
 		color := cmd.Color
+		var cCentroid [4]float32
+		if useVC {
+			var ar, ag, ab, aa float32
+			for _, vc := range cmd.VertexColors {
+				ar += vc[0]
+				ag += vc[1]
+				ab += vc[2]
+				aa += vc[3]
+			}
+			inv := float32(1) / float32(n)
+			cCentroid = [4]float32{ar * inv, ag * inv, ab * inv, aa * inv}
+		} else {
+			cCentroid = color
+		}
+		// AA fringe uses a single color; prefer centroid average when Gouraud.
+		fringeColor := color
+		if useVC {
+			fringeColor = cCentroid
+		}
 
 		for j := 0; j < n; j++ {
 			v0 := cmd.Points[j]
@@ -474,12 +500,18 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 			v1x := float32(v1.X)
 			v1y := float32(v1.Y)
 
-			// Interior fan triangle: centroid, v0, v1.
-			writeConvexVertex(buf[offset:], centroidX, centroidY, 1.0, color)
+			c0, c1 := color, color
+			if useVC {
+				c0 = cmd.VertexColors[j]
+				c1 = cmd.VertexColors[(j+1)%n]
+			}
+
+			// Interior fan triangle: centroid, v0, v1 (Gouraud when VertexColors set).
+			writeConvexVertex(buf[offset:], centroidX, centroidY, 1.0, cCentroid)
 			offset += convexVertexStride
-			writeConvexVertex(buf[offset:], v0x, v0y, 1.0, color)
+			writeConvexVertex(buf[offset:], v0x, v0y, 1.0, c0)
 			offset += convexVertexStride
-			writeConvexVertex(buf[offset:], v1x, v1y, 1.0, color)
+			writeConvexVertex(buf[offset:], v1x, v1y, 1.0, c1)
 			offset += convexVertexStride
 
 			// AA fringe: outward expansion along edge normal.
@@ -489,18 +521,18 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 			edgeLen := float32(math.Sqrt(float64(edx*edx + edy*edy)))
 			if edgeLen < 1e-8 {
 				// Degenerate edge; emit degenerate fringe triangles.
-				writeConvexVertex(buf[offset:], v0x, v0y, 1.0, color)
+				writeConvexVertex(buf[offset:], v0x, v0y, 1.0, fringeColor)
 				offset += convexVertexStride
-				writeConvexVertex(buf[offset:], v1x, v1y, 1.0, color)
+				writeConvexVertex(buf[offset:], v1x, v1y, 1.0, fringeColor)
 				offset += convexVertexStride
-				writeConvexVertex(buf[offset:], v0x, v0y, 0.0, color)
+				writeConvexVertex(buf[offset:], v0x, v0y, 0.0, fringeColor)
 				offset += convexVertexStride
 
-				writeConvexVertex(buf[offset:], v1x, v1y, 1.0, color)
+				writeConvexVertex(buf[offset:], v1x, v1y, 1.0, fringeColor)
 				offset += convexVertexStride
-				writeConvexVertex(buf[offset:], v1x, v1y, 0.0, color)
+				writeConvexVertex(buf[offset:], v1x, v1y, 0.0, fringeColor)
 				offset += convexVertexStride
-				writeConvexVertex(buf[offset:], v0x, v0y, 0.0, color)
+				writeConvexVertex(buf[offset:], v0x, v0y, 0.0, fringeColor)
 				offset += convexVertexStride
 				continue
 			}
@@ -533,19 +565,19 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 
 			// Fringe quad: two triangles.
 			// Triangle 1: v0, v1, v0_outer.
-			writeConvexVertex(buf[offset:], v0x, v0y, 1.0, color)
+			writeConvexVertex(buf[offset:], v0x, v0y, 1.0, fringeColor)
 			offset += convexVertexStride
-			writeConvexVertex(buf[offset:], v1x, v1y, 1.0, color)
+			writeConvexVertex(buf[offset:], v1x, v1y, 1.0, fringeColor)
 			offset += convexVertexStride
-			writeConvexVertex(buf[offset:], v0ox, v0oy, 0.0, color)
+			writeConvexVertex(buf[offset:], v0ox, v0oy, 0.0, fringeColor)
 			offset += convexVertexStride
 
 			// Triangle 2: v1, v1_outer, v0_outer.
-			writeConvexVertex(buf[offset:], v1x, v1y, 1.0, color)
+			writeConvexVertex(buf[offset:], v1x, v1y, 1.0, fringeColor)
 			offset += convexVertexStride
-			writeConvexVertex(buf[offset:], v1ox, v1oy, 0.0, color)
+			writeConvexVertex(buf[offset:], v1ox, v1oy, 0.0, fringeColor)
 			offset += convexVertexStride
-			writeConvexVertex(buf[offset:], v0ox, v0oy, 0.0, color)
+			writeConvexVertex(buf[offset:], v0ox, v0oy, 0.0, fringeColor)
 			offset += convexVertexStride
 		}
 	}

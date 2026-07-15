@@ -48,13 +48,13 @@
 |----|------|-----------|---------------------|-------|--------|--------|-----|
 | S.01 | 离屏像素表面 | `SkSurface::MakeRaster` | Buffer/Texture + readback | ✅ | ✅ | ✅ Pixmap/Context | M0 |
 | S.02 | GPU 离屏 RT | `SkSurface::MakeRenderTarget` | Texture RenderAttachment + resolve | ✅ | ✅ | ✅ Context+FlushGPU | M0 |
-| S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | 🔄/⬜ | 🔄/⬜ | ⬜ 外部 view | M3 |
+| S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | 🔄 | 🔄 | 🔄 离屏 view ✅；窗口 Swapchain 🔄 | M3 |
 | S.04 | 清屏/clear 色 | `canvas->clear` | LoadOpClear + clearValue | ✅ | ✅ | ✅ Clear/ClearWithColor | M0 |
 | S.05 | 尺寸/resize | surface 重建 | 重建 texture/pipeline 依赖 | 🔄 | 🔄 | 🔄 | M1 |
 | S.06 | 读回像素 | `peekPixels` / `readPixels` | copyTextureToBuffer + map | ✅ | ✅ | ✅ Image/SavePNG/FlushGPU | M0 |
 | S.07 | 写像素/上传 | `writePixels` | queue.writeTexture/writeBuffer | ✅ | ✅ | 🔄 CPU write; GPU upload 路径存在 | M0 |
 | S.08 | DPR / 逻辑像素 | surface props scale | 视口/纹理物理尺寸 | N/A | N/A | 🔄 deviceScale | M1 |
-| S.09 | 部分更新/damage | dirty rect present | scissor + LoadOpLoad | 🔄 | 🔄 | 🔄 | M3 |
+| S.09 | 部分更新/damage | dirty rect present | scissor + LoadOpLoad | 🔄 | 🔄 | ✅ FlushGPUWithViewDamage `TestS3c` | M3 |
 
 ### 1.2 变换 (Matrix)
 
@@ -99,7 +99,7 @@
 | H.02 | Arc/圆角路径 | `arcTo` | 细分 | N/A | N/A | ✅ | M1 |
 | H.03 | Fill rule NonZero/EvenOdd | `setFillType` | stencil 或 winding | 🔄 stencil | 🔄 | ✅ | M1 |
 | H.04 | Path 布尔（可选） | `Op` | CPU | N/A | N/A | 🔄/⬜ | M3 |
-| H.05 | Path measure/长度 | `SkPathMeasure` | CPU | N/A | N/A | 🔄 | M3 |
+| H.05 | Path measure/长度 | `SkPathMeasure` | CPU | N/A | N/A | ✅ Path.Length `TestS3c` | M3 |
 | H.06 | 复杂 path GPU 光栅 | GrPathRenderer 类 | stencil-then-cover / tess / compute | 🔄 | 🔄 | ✅ stencil-then-cover（shapes/clip STRICT） | M2 |
 | H.07 | Convex path 快路径 | convex | 专用 pipeline | 🔄 | 🔄 | ✅ convex renderer 路径（S3a/S3b 场景） | M2 |
 
@@ -188,10 +188,10 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| F.01 | Blur mask filter | `SkMaskFilter::MakeBlur` | 离屏 + blur pass | 🔄 | 🔄 | ⬜/🔄 | M3 |
-| F.02 | Drop shadow | image filter | multi-pass | 🔄 | 🔄 | ⬜ | M3 |
+| F.01 | Blur mask filter | `SkMaskFilter::MakeBlur` | 离屏 + blur pass | 🔄 | 🔄 | ✅ ApplyBlur `TestS3c` | M3 |
+| F.02 | Drop shadow | image filter | multi-pass | 🔄 | 🔄 | ✅ ApplyDropShadow `TestS3c` | M3 |
 | F.03 | 通用 image filter 图 | `SkImageFilter` DAG | 多 RT ping-pong | 🔄 | 🔄 | ⬜ | M4 |
-| F.04 | Color filter | `SkColorFilter` | shader/LUT | 🔄 | 🔄 | ⬜/🔄 | M3 |
+| F.04 | Color filter | `SkColorFilter` | shader/LUT | 🔄 | 🔄 | ✅ ApplyGrayscale/matrix `TestS3c` | M3 |
 
 ### 1.14 Vertices / 网格 / Atlas 精灵
 
@@ -214,7 +214,7 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| CS.01 | sRGB 默认 | color space | sRGB texture format 可选 | 🔄 | 🔄 | 🔄 默认 8bit | M3 |
+| CS.01 | sRGB 默认 | color space | sRGB texture format 可选 | 🔄 | 🔄 | ✅ 8bit mid-gray `TestS3c` | M3 |
 | CS.02 | F16 / 宽色域（可选） | F16 surface | rgba16float | 🔄 | 🔄 | ⬜ | M4 |
 | CS.03 | 线性混合 vs sRGB 混合 | linear blending | 格式/shader | 🔄 | 🔄 | 🔄 实验 | M4 |
 
@@ -222,7 +222,7 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| R.01 | Picture 录制回放 | `SkPicture` | 无（命令表） | N/A | N/A | 🔄 recording | M3 |
+| R.01 | Picture 录制回放 | `SkPicture` | 无（命令表） | N/A | N/A | ✅ recording Playback `TestS3c` | M3 |
 | R.02 | PDF/SVG 后端 | document | 无 GPU | N/A | N/A | ⬜ | M4 |
 
 ### 1.18 计算路径 / 高级 GPU（可选增强）
@@ -320,7 +320,7 @@
 | rwgpu | **S1 ✅**：enum header-lock + A–E native 烟测（`TestS1*`/`TestS1AE*`）；~132 NewProc | 非子集扩展未绑；Surface/MSAA resolve 深度在 S3 |
 | webgpu | **S2 ✅**：子集 facade + 转换/烟测；render 不直连 rwgpu | Surface 完整消费在 S3c |
 | render CPU | path/text/image/clip/layer 较全 | GPU 不一致 |
-| render GPU | **S3a ✅** + **S3b ✅** M2 UI 级门禁 + STRICT | 增强项/完整 PD GPU → S3c |
+| render GPU | **S3a/S3b ✅**；**S3c 🔄** filter/present 首切片 | 窗口 Present / Vertices 待关 |
 | Surface | 外部 view 思路；完整 swapchain 弱 | 窗口路径 |
 | Blend 模式 | CPU 包全；Context.SetBlendMode 弱；GPU 固定像素仅 SourceOver 首轮 | UI 叠加 |
 | Filter/Shadow | 弱 | 视觉效果缺口 |

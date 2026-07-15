@@ -22,6 +22,7 @@ package gpu
 import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
+	_ "github.com/energye/gpui/render/filters"
 	gpuimpl "github.com/energye/gpui/render/internal/gpu"
 )
 

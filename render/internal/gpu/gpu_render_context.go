@@ -254,6 +254,70 @@ func (rc *GPURenderContext) QueueConvex(target render.GPURenderTarget, cmd Conve
 	rc.hasPendingTarget = true
 }
 
+// QueueColoredMesh queues a triangle mesh with optional per-vertex colors
+// via the convex fast-path (each triangle is convex).
+// positions are pixel-space points; colors are straight RGBA (premultiplied here).
+// mode 0 = triangle list (groups of 3).
+func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, triangleList bool) {
+	if len(positions) < 3 {
+		return
+	}
+	nTri := len(positions) / 3
+	if !triangleList {
+		// triangle fan: (0,i,i+1)
+		nTri = len(positions) - 2
+	}
+	_ = nTri
+	if rc.hasPendingTarget && !sameTarget(&rc.pendingTarget, &target) {
+		if fErr := rc.Flush(rc.pendingTarget); fErr != nil {
+			slogger().Warn("auto-flush failed", "err", fErr)
+		}
+	}
+	toPremul := func(c render.RGBA) [4]float32 {
+		return [4]float32{
+			float32(c.R * c.A),
+			float32(c.G * c.A),
+			float32(c.B * c.A),
+			float32(c.A),
+		}
+	}
+	solid := [4]float32{0, 0, 0, 1}
+	if len(colors) > 0 {
+		solid = toPremul(colors[0])
+	}
+	emitTri := func(i0, i1, i2 int) {
+		pts := []render.Point{positions[i0], positions[i1], positions[i2]}
+		cmd := ConvexDrawCommand{Points: pts, Color: solid}
+		if len(colors) == len(positions) {
+			cmd.VertexColors = [][4]float32{
+				toPremul(colors[i0]),
+				toPremul(colors[i1]),
+				toPremul(colors[i2]),
+			}
+			// solid fallback average
+			cmd.Color = [4]float32{
+				(cmd.VertexColors[0][0] + cmd.VertexColors[1][0] + cmd.VertexColors[2][0]) / 3,
+				(cmd.VertexColors[0][1] + cmd.VertexColors[1][1] + cmd.VertexColors[2][1]) / 3,
+				(cmd.VertexColors[0][2] + cmd.VertexColors[1][2] + cmd.VertexColors[2][2]) / 3,
+				(cmd.VertexColors[0][3] + cmd.VertexColors[1][3] + cmd.VertexColors[2][3]) / 3,
+			}
+		}
+		rc.pendingConvexCommands = append(rc.pendingConvexCommands, cmd)
+	}
+	if triangleList {
+		for i := 0; i+2 < len(positions); i += 3 {
+			emitTri(i, i+1, i+2)
+		}
+	} else {
+		for i := 1; i+1 < len(positions); i++ {
+			emitTri(0, i, i+1)
+		}
+	}
+	rc.pendingTarget = target
+	rc.hasPendingTarget = true
+	rc.sceneStats.ShapeCount++
+}
+
 // QueueStencil accumulates a stencil path for batch dispatch.
 func (rc *GPURenderContext) QueueStencil(target render.GPURenderTarget, cmd StencilPathCommand) {
 	if rc.hasPendingTarget && !sameTarget(&rc.pendingTarget, &target) {
