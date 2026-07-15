@@ -1086,7 +1086,12 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 
 	// GPU-CLIP-003a: release per-group depth clip buffers after frame encoding.
 	defer s.releaseDepthClipResources(grpRes)
-	defer s.releasePendingBindGroups()
+	defer func() {
+		s.releasePendingBindGroups()
+		if s.imageCache != nil {
+			s.imageCache.ReleaseEphemeral()
+		}
+	}()
 
 	if activeView == nil {
 		return s.encodeSubmitReadbackGrouped(w, h, grpRes, target, baseLayerRes)

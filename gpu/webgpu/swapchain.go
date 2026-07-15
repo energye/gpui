@@ -4,13 +4,21 @@ package webgpu
 
 import (
 	"fmt"
+	"image"
+	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 )
 
-// Swapchain manages Configure → GetCurrentTexture → Present for a platform Surface (S.03).
+// Swapchain manages Configure → GetCurrentTexture → Present for a platform Surface (S.03/S6.8).
 // It is the production path for window presentation; offscreen textures remain a headless stand-in.
+//
+// S6.8 additions:
+//   - Stats (acquire/present/reconfigure/suboptimal)
+//   - Auto reconfigure on suboptimal / outdated surface
+//   - EndFrameWithDamage hook
+//   - Present-mode preference (Fifo vs low-latency Mailbox)
 type Swapchain struct {
 	Surface     *Surface
 	Device      *Device
@@ -21,7 +29,22 @@ type Swapchain struct {
 	PresentMode PresentMode
 	AlphaMode   CompositeAlphaMode
 
-	configured bool
+	// PreferPresentModes, when non-empty, is tried in order during
+	// ConfigureFromCapabilities (S6.8). Empty → prefer Fifo then first available.
+	PreferPresentModes []PresentMode
+
+	configured         bool
+	pendingReconfigure bool
+
+	// stats
+	acquires       uint64
+	presents       uint64
+	discards       uint64
+	reconfigures   uint64
+	suboptimal     uint64
+	acquireRetries uint64
+	lastAcquireNs  int64
+	lastPresentNs  int64
 }
 
 // Frame is one acquired swapchain image ready for rendering.
@@ -33,6 +56,25 @@ type Frame struct {
 	Suboptimal bool
 	Width      uint32
 	Height     uint32
+	// DamageRects optionally records dirty regions for EndFrameWithDamage (S6.8).
+	// wgpu-native currently ignores them at present; still used for diagnostics
+	// and future partial-present backends.
+	DamageRects []image.Rectangle
+}
+
+// SwapchainStats is S6.8 diagnostics for the window present path.
+type SwapchainStats struct {
+	Acquires       uint64
+	Presents       uint64
+	Discards       uint64
+	Reconfigures   uint64
+	Suboptimal     uint64
+	AcquireRetries uint64
+	LastAcquireNs  int64
+	LastPresentNs  int64
+	// Derived: last present wall time in milliseconds.
+	LastPresentMs float64
+	LastAcquireMs float64
 }
 
 // NewSwapchain builds a swapchain for an existing surface + device.
@@ -48,6 +90,57 @@ func NewSwapchain(surface *Surface, device *Device, width, height uint32) *Swapc
 		PresentMode: PresentModeFifo,
 		AlphaMode:   types.CompositeAlphaModeOpaque,
 	}
+}
+
+// Stats returns cumulative present-path counters.
+func (sc *Swapchain) Stats() SwapchainStats {
+	if sc == nil {
+		return SwapchainStats{}
+	}
+	st := SwapchainStats{
+		Acquires:       sc.acquires,
+		Presents:       sc.presents,
+		Discards:       sc.discards,
+		Reconfigures:   sc.reconfigures,
+		Suboptimal:     sc.suboptimal,
+		AcquireRetries: sc.acquireRetries,
+		LastAcquireNs:  sc.lastAcquireNs,
+		LastPresentNs:  sc.lastPresentNs,
+	}
+	st.LastAcquireMs = float64(sc.lastAcquireNs) / 1e6
+	st.LastPresentMs = float64(sc.lastPresentNs) / 1e6
+	return st
+}
+
+// ResetStats clears counters (configuration retained).
+func (sc *Swapchain) ResetStats() {
+	if sc == nil {
+		return
+	}
+	sc.acquires = 0
+	sc.presents = 0
+	sc.discards = 0
+	sc.reconfigures = 0
+	sc.suboptimal = 0
+	sc.acquireRetries = 0
+	sc.lastAcquireNs = 0
+	sc.lastPresentNs = 0
+}
+
+// SetPreferVSync selects Fifo when available (default production UI path).
+func (sc *Swapchain) SetPreferVSync() {
+	if sc == nil {
+		return
+	}
+	sc.PreferPresentModes = []PresentMode{PresentModeFifo, PresentModeFifoRelaxed, PresentModeMailbox, PresentModeImmediate}
+}
+
+// SetPreferLowLatency prefers Mailbox/Immediate when supported (gamesing; may tear).
+func (sc *Swapchain) SetPreferLowLatency() {
+	if sc == nil {
+		return
+	}
+	sc.PreferPresentModes = []PresentMode{PresentModeMailbox, PresentModeFifoRelaxed, PresentModeFifo, PresentModeImmediate}
 }
 
 // Configure applies SurfaceConfiguration to the underlying surface.
@@ -89,6 +182,8 @@ func (sc *Swapchain) Configure() error {
 		return err
 	}
 	sc.configured = true
+	sc.pendingReconfigure = false
+	sc.reconfigures++
 	return nil
 }
 
@@ -109,15 +204,7 @@ func (sc *Swapchain) ConfigureFromCapabilities(adapter *Adapter) error {
 				}
 			}
 		}
-		if len(caps.PresentModes) > 0 {
-			sc.PresentMode = caps.PresentModes[0]
-			for _, pm := range caps.PresentModes {
-				if pm == PresentModeFifo {
-					sc.PresentMode = pm
-					break
-				}
-			}
-		}
+		sc.PresentMode = pickPresentMode(caps.PresentModes, sc.PreferPresentModes)
 		if len(caps.AlphaModes) > 0 {
 			sc.AlphaMode = caps.AlphaModes[0]
 			for _, am := range caps.AlphaModes {
@@ -131,6 +218,31 @@ func (sc *Swapchain) ConfigureFromCapabilities(adapter *Adapter) error {
 	return sc.Configure()
 }
 
+func pickPresentMode(available []PresentMode, prefer []PresentMode) PresentMode {
+	if len(available) == 0 {
+		return PresentModeFifo
+	}
+	has := func(m PresentMode) bool {
+		for _, a := range available {
+			if a == m {
+				return true
+			}
+		}
+		return false
+	}
+	// Explicit preference list.
+	for _, p := range prefer {
+		if has(p) {
+			return p
+		}
+	}
+	// Default: Fifo (vsync) for steady UI.
+	if has(PresentModeFifo) {
+		return PresentModeFifo
+	}
+	return available[0]
+}
+
 // Resize updates extent and reconfigures.
 func (sc *Swapchain) Resize(width, height uint32) error {
 	if sc == nil {
@@ -141,24 +253,53 @@ func (sc *Swapchain) Resize(width, height uint32) error {
 	return sc.Configure()
 }
 
+// MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame (S6.8).
+// Call after window resize events or when the compositor reports outdated.
+func (sc *Swapchain) MarkNeedsReconfigure() {
+	if sc != nil {
+		sc.pendingReconfigure = true
+	}
+}
+
 // BeginFrame acquires the next surface texture and creates a render view.
 // Caller must EndFrame (or DiscardFrame) exactly once per successful BeginFrame.
+//
+// S6.8: if the previous frame was suboptimal or MarkNeedsReconfigure was called,
+// reconfigures before acquire. On outdated/lost acquire errors, reconfigures once
+// and retries.
 func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if sc == nil {
 		return nil, fmt.Errorf("wgpu: swapchain is nil")
 	}
-	if !sc.configured {
+	if sc.pendingReconfigure || !sc.configured {
 		if err := sc.Configure(); err != nil {
 			return nil, err
 		}
 	}
+
+	t0 := time.Now()
 	st, suboptimal, err := sc.Surface.GetCurrentTexture()
 	if err != nil {
-		return nil, err
+		// One-shot recover: reconfigure and retry (outdated/needs-reconfigure).
+		if cfgErr := sc.Configure(); cfgErr != nil {
+			return nil, err
+		}
+		sc.acquireRetries++
+		st, suboptimal, err = sc.Surface.GetCurrentTexture()
+		if err != nil {
+			return nil, err
+		}
 	}
+	sc.lastAcquireNs = time.Since(t0).Nanoseconds()
+	sc.acquires++
+
 	view, err := st.CreateView(nil)
 	if err != nil {
 		return nil, fmt.Errorf("wgpu: surface texture CreateView: %w", err)
+	}
+	if suboptimal {
+		sc.suboptimal++
+		sc.pendingReconfigure = true
 	}
 	return &Frame{
 		SurfaceTexture: st,
@@ -172,6 +313,16 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 
 // EndFrame presents the frame to the platform surface.
 func (sc *Swapchain) EndFrame(frame *Frame) error {
+	return sc.endFrame(frame, nil)
+}
+
+// EndFrameWithDamage presents the frame, forwarding damage rects when the
+// backend supports partial present (wgpu-native currently ignores them).
+func (sc *Swapchain) EndFrameWithDamage(frame *Frame, rects []image.Rectangle) error {
+	return sc.endFrame(frame, rects)
+}
+
+func (sc *Swapchain) endFrame(frame *Frame, rects []image.Rectangle) error {
 	if sc == nil {
 		return fmt.Errorf("wgpu: swapchain is nil")
 	}
@@ -182,7 +333,20 @@ func (sc *Swapchain) EndFrame(frame *Frame) error {
 		frame.View.Release()
 		frame.View = nil
 	}
-	err := sc.Surface.Present(frame.SurfaceTexture)
+	if frame.Suboptimal {
+		sc.pendingReconfigure = true
+	}
+	t0 := time.Now()
+	var err error
+	if len(rects) > 0 {
+		err = sc.Surface.PresentWithDamage(frame.SurfaceTexture, rects)
+	} else if len(frame.DamageRects) > 0 {
+		err = sc.Surface.PresentWithDamage(frame.SurfaceTexture, frame.DamageRects)
+	} else {
+		err = sc.Surface.Present(frame.SurfaceTexture)
+	}
+	sc.lastPresentNs = time.Since(t0).Nanoseconds()
+	sc.presents++
 	frame.SurfaceTexture = nil
 	return err
 }
@@ -198,8 +362,28 @@ func (sc *Swapchain) DiscardFrame(frame *Frame) {
 	}
 	if sc != nil && sc.Surface != nil {
 		sc.Surface.DiscardTexture()
+		sc.discards++
 	}
 	frame.SurfaceTexture = nil
+}
+
+// PresentModeName returns a short label for the active present mode.
+func (sc *Swapchain) PresentModeName() string {
+	if sc == nil {
+		return "nil"
+	}
+	switch sc.PresentMode {
+	case PresentModeFifo:
+		return "fifo"
+	case PresentModeFifoRelaxed:
+		return "fifo-relaxed"
+	case PresentModeMailbox:
+		return "mailbox"
+	case PresentModeImmediate:
+		return "immediate"
+	default:
+		return fmt.Sprintf("mode(%d)", int(sc.PresentMode))
+	}
 }
 
 // Release unconfigures the surface; does not release Surface/Device ownership.

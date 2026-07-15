@@ -1,6 +1,7 @@
 //go:build linux && !nogpu
 
-// Window present demo (S.03): X11 window → webgpu Swapchain → render.PresentFrame.
+// Window present demo (S.03 / S6.8): X11 → Swapchain (Fifo vsync) → PresentFrameAuto.
+// Suboptimal reconfigure + swapchain stats; no artificial sleep under Fifo (present blocks).
 //
 //	export DISPLAY=:1
 //	export WGPU_NATIVE_PATH=/path/to/libwgpu_native.so
@@ -72,10 +73,12 @@ func main() {
 
 	sc := webgpu.NewSwapchain(surf, device, winW, winH)
 	sc.Usage = types.TextureUsageRenderAttachment
+	sc.SetPreferVSync() // S6.8: Fifo when available
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
 		log.Fatalf("Configure: %v", err)
 	}
 	defer sc.Release()
+	sc.ResetStats()
 
 	// CRITICAL: render must use the SAME device that owns the swapchain.
 	// GPUShared otherwise creates a second device; MSAA resolve into a
@@ -90,36 +93,43 @@ func main() {
 	defer dc.Close()
 
 	for i := 0; i < frames; i++ {
+		dc.BeginFrame()
 		// Animated clear + shapes
-		t := float64(i) / float64(frames)
-		dc.ClearWithColor(render.RGBA{R: 0.08, G: 0.10, B: 0.14, A: 1})
-		dc.SetRGB(0.2+0.6*t, 0.5, 1.0-0.4*t)
-		dc.DrawRoundedRectangle(40+20*t, 40, 200, 120, 16)
+		tt := float64(i) / float64(frames)
+		dc.SetRGB(0.08, 0.10, 0.14)
+		dc.DrawRectangle(0, 0, float64(winW), float64(winH))
+		_ = dc.Fill()
+		dc.SetRGB(0.2+0.6*tt, 0.5, 1.0-0.4*tt)
+		dc.DrawRoundedRectangle(40+20*tt, 40, 200, 120, 16)
 		_ = dc.Fill()
 		dc.SetRGB(1, 0.4, 0.2)
-		dc.DrawCircle(320, 160, 48+12*t)
+		dc.DrawCircle(320, 160, 48+12*tt)
 		_ = dc.Fill()
 		dc.SetRGB(1, 1, 1)
-		dc.DrawRectangle(20, 250, 440*(0.2+0.8*t), 12)
+		dc.DrawRectangle(20, 250, 440*(0.2+0.8*tt), 12)
 		_ = dc.Fill()
 
 		frame, err := sc.BeginFrame()
 		if err != nil {
 			log.Fatalf("BeginFrame: %v", err)
 		}
-		if err := dc.PresentFrame(frame.Handle, frame.Width, frame.Height, func() error {
+		if _, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
 			return sc.EndFrame(frame)
 		}); err != nil {
 			sc.DiscardFrame(frame)
-			log.Fatalf("PresentFrame: %v", err)
+			log.Fatalf("PresentFrameAuto: %v", err)
 		}
-		// Keep window responsive / visible
 		xw.Flush()
-		time.Sleep(16 * time.Millisecond)
+		// Fifo present already waits for vsync — only pad Immediate/Mailbox.
+		if sc.PresentMode == webgpu.PresentModeImmediate {
+			time.Sleep(16 * time.Millisecond)
+		}
 	}
 
 	stats := dc.RenderPathStats()
-	fmt.Printf("done frames=%d %s\n", frames, stats.LogLine())
+	sst := sc.Stats()
+	fmt.Printf("done frames=%d mode=%s %s swapchain acquires=%d presents=%d reconfig=%d lastPresentMs=%.2f\n",
+		frames, sc.PresentModeName(), stats.LogLine(), sst.Acquires, sst.Presents, sst.Reconfigures, sst.LastPresentMs)
 }
 
 type x11Win struct {

@@ -434,6 +434,52 @@ func (a *SDFAccelerator) GlyphMaskUploadStats() (bytes int64, regions, partial, 
 	return a.shared.glyphMaskEngine.LastUploadStats()
 }
 
+// GeometryCacheStats returns S4.3/S6.6 path/stroke/dash/convex cache stats.
+func (a *SDFAccelerator) GeometryCacheStats() GeometryCacheStats {
+	if a.shared == nil {
+		return GeometryCacheStats{}
+	}
+	return a.shared.GeometryCacheStats()
+}
+
+// ResetGeometryCacheStats clears geometry cache hit/miss counters.
+func (a *SDFAccelerator) ResetGeometryCacheStats() {
+	if a.shared != nil {
+		a.shared.ResetGeometryCacheStats()
+	}
+}
+
+// ImageCacheStatsFromDefault returns image cache stats from the default session if present.
+func (a *SDFAccelerator) ImageCacheStatsFromDefault() ImageCacheStats {
+	if a == nil || a.defaultCtx == nil || a.defaultCtx.session == nil || a.defaultCtx.session.imageCache == nil {
+		return ImageCacheStats{}
+	}
+	return a.defaultCtx.session.imageCache.Stats()
+}
+
+// ResourceUploadStats aggregates S6.7 upload/resource diagnostics from default session + shared pools.
+type ResourceUploadStats struct {
+	Image   ImageCacheStats
+	Texture TexturePoolStats
+	Memory  GPUMemoryStats
+}
+
+// ResourceUploadStats returns combined resource diagnostics (S6.7).
+func (a *SDFAccelerator) ResourceUploadStats() ResourceUploadStats {
+	var out ResourceUploadStats
+	if a == nil {
+		return out
+	}
+	out.Image = a.ImageCacheStatsFromDefault()
+	if a.shared != nil {
+		out.Memory = a.shared.MemoryStats()
+		if a.shared.texturePool != nil {
+			out.Texture = a.shared.texturePool.Stats()
+		}
+	}
+	return out
+}
+
 // RenderSessionStats returns GPU render session statistics for diagnostics.
 // Returns nil if no default context exists.
 func (a *SDFAccelerator) RenderSessionStats() *RenderSessionStats {

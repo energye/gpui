@@ -10,28 +10,30 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// defaultPathGeomBudget is max tessellation entries (S4.3).
-const defaultPathGeomBudget = 256
-
-// defaultStrokeGeomBudget is max stroke-expansion entries (S4.3).
-const defaultStrokeGeomBudget = 128
+// S4.3 budgets raised in S6.6 for retained UI frames with many unique paths.
+const (
+	defaultPathGeomBudget    = 512
+	defaultStrokeGeomBudget  = 256
+	defaultDashGeomBudget    = 256
+	defaultConvexClassBudget = 512
+)
 
 // pathTessKey identifies a tessellated fill path.
 type pathTessKey struct {
 	hash     uint64
 	fillRule render.FillRule
-	aaOff    bool // anti-alias disabled → pixel-snapped geometry
+	aaOff    bool // anti-alias disabled → pixel-snapped geometry slot
 }
 
 // pathTessEntry holds fan-tessellated geometry for stencil-then-cover.
+// vertices are immutable after insert (S6.6 zero-copy hit).
 type pathTessEntry struct {
 	vertices  []float32
 	coverQuad [12]float32
 	gen       uint64
 }
 
-// PathGeometryCache reuses path tessellation across draws/frames (S4.3).
-// Not shared across threads; one instance per GPUShared (or per session).
+// PathGeometryCache reuses path tessellation across draws/frames (S4.3/S6.6).
 type PathGeometryCache struct {
 	mu      sync.Mutex
 	entries map[pathTessKey]*pathTessEntry
@@ -50,6 +52,10 @@ func NewPathGeometryCache() *PathGeometryCache {
 }
 
 // GetOrTessellate returns fan vertices for path, computing on miss.
+//
+// S6.6: on hit, returns the cached slice directly (zero-copy). Callers must
+// treat the returned vertices as immutable. StencilPathCommand / flush only
+// read vertices into GPU buffers.
 func (c *PathGeometryCache) GetOrTessellate(path *render.Path, fillRule render.FillRule, aaOff bool) (verts []float32, cover [12]float32, ok bool) {
 	if c == nil || path == nil || path.NumVerbs() == 0 {
 		return nil, cover, false
@@ -67,10 +73,7 @@ func (c *PathGeometryCache) GetOrTessellate(path *render.Path, fillRule render.F
 		c.gen++
 		e.gen = c.gen
 		c.hits++
-		// Return copies so callers can own/mutate safely.
-		out := make([]float32, len(e.vertices))
-		copy(out, e.vertices)
-		return out, e.coverQuad, true
+		return e.vertices, e.coverQuad, true
 	}
 
 	c.misses++
@@ -89,10 +92,8 @@ func (c *PathGeometryCache) GetOrTessellate(path *render.Path, fillRule render.F
 	}
 	c.gen++
 	c.entries[key] = &pathTessEntry{vertices: stored, coverQuad: cq, gen: c.gen}
-
-	out := make([]float32, len(stored))
-	copy(out, stored)
-	return out, cq, true
+	// Return the stored slice (same immutability contract as hit).
+	return stored, cq, true
 }
 
 // Stats returns hit/miss/entry counts.
@@ -113,6 +114,19 @@ func (c *PathGeometryCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries = make(map[pathTessKey]*pathTessEntry, 64)
+	c.hits = 0
+	c.misses = 0
+}
+
+// ResetStats clears hit/miss counters without dropping entries.
+func (c *PathGeometryCache) ResetStats() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.hits = 0
+	c.misses = 0
 }
 
 func (c *PathGeometryCache) evictOldestLocked() {
@@ -141,13 +155,12 @@ type strokeCacheKey struct {
 }
 
 type strokeCacheEntry struct {
-	// Expanded path as verbs/coords for FillPath.
-	verbs  []render.PathVerb
-	coords []float64
-	gen    uint64
+	// path is an immutable clone of the expanded outline (S6.6 shared hit).
+	path *render.Path
+	gen  uint64
 }
 
-// StrokeGeometryCache caches stroke expansion results (S4.3).
+// StrokeGeometryCache caches stroke expansion results (S4.3/S6.6).
 type StrokeGeometryCache struct {
 	mu      sync.Mutex
 	entries map[strokeCacheKey]*strokeCacheEntry
@@ -175,7 +188,8 @@ func (c *StrokeGeometryCache) Stats() (hits, misses uint64, entries int) {
 	return c.hits, c.misses, len(c.entries)
 }
 
-// Get returns a cloned expanded path if present.
+// Get returns the shared expanded path if present.
+// S6.6: no clone on hit — callers must not mutate the returned path.
 func (c *StrokeGeometryCache) Get(key strokeCacheKey) (*render.Path, bool) {
 	if c == nil {
 		return nil, false
@@ -190,10 +204,10 @@ func (c *StrokeGeometryCache) Get(key strokeCacheKey) (*render.Path, bool) {
 	c.gen++
 	e.gen = c.gen
 	c.hits++
-	return pathFromVerbsCoords(e.verbs, e.coords), true
+	return e.path, true
 }
 
-// Put stores an expanded path under key.
+// Put stores an expanded path under key (cloned once).
 func (c *StrokeGeometryCache) Put(key strokeCacheKey, p *render.Path) {
 	if c == nil || p == nil {
 		return
@@ -203,10 +217,31 @@ func (c *StrokeGeometryCache) Put(key strokeCacheKey, p *render.Path) {
 	if len(c.entries) >= c.budget {
 		c.evictOldestLocked()
 	}
-	verbs := append([]render.PathVerb(nil), p.Verbs()...)
-	coords := append([]float64(nil), p.Coords()...)
 	c.gen++
-	c.entries[key] = &strokeCacheEntry{verbs: verbs, coords: coords, gen: c.gen}
+	c.entries[key] = &strokeCacheEntry{path: p.Clone(), gen: c.gen}
+}
+
+// Clear drops all entries and stats.
+func (c *StrokeGeometryCache) Clear() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = make(map[strokeCacheKey]*strokeCacheEntry, 32)
+	c.hits = 0
+	c.misses = 0
+}
+
+// ResetStats clears hit/miss counters.
+func (c *StrokeGeometryCache) ResetStats() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.hits = 0
+	c.misses = 0
 }
 
 func (c *StrokeGeometryCache) evictOldestLocked() {
@@ -223,10 +258,286 @@ func (c *StrokeGeometryCache) evictOldestLocked() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// S6.6 Dash geometry cache — avoid re-running ApplyDash on retained frames
+// ---------------------------------------------------------------------------
+
+type dashGeomKey struct {
+	pathHash  uint64
+	dashHash  uint64
+	scaleBits uint64
+}
+
+type dashGeomEntry struct {
+	path *render.Path
+	gen  uint64
+}
+
+// DashGeometryCache caches dashed path expansions (S6.6).
+type DashGeometryCache struct {
+	mu      sync.Mutex
+	entries map[dashGeomKey]*dashGeomEntry
+	budget  int
+	gen     uint64
+	hits    uint64
+	misses  uint64
+}
+
+// NewDashGeometryCache creates an empty dash geometry cache.
+func NewDashGeometryCache() *DashGeometryCache {
+	return &DashGeometryCache{
+		entries: make(map[dashGeomKey]*dashGeomEntry, 32),
+		budget:  defaultDashGeomBudget,
+	}
+}
+
+// GetOrApply returns a dashed path for (path, dash, scale), computing on miss.
+// Returned path is immutable shared storage.
+func (c *DashGeometryCache) GetOrApply(path *render.Path, dash *render.Dash, transformScale float64) *render.Path {
+	if c == nil || path == nil || dash == nil || !dash.IsDashed() {
+		return nil
+	}
+	if transformScale <= 0 {
+		transformScale = 1
+	}
+	key := dashGeomKey{
+		pathHash:  hashPathContent(path),
+		dashHash:  hashDash(dash),
+		scaleBits: math.Float64bits(transformScale),
+	}
+
+	c.mu.Lock()
+	if e, ok := c.entries[key]; ok {
+		c.gen++
+		e.gen = c.gen
+		c.hits++
+		out := e.path
+		c.mu.Unlock()
+		return out
+	}
+	c.mu.Unlock()
+
+	// Apply outside lock (ApplyDash can be heavy).
+	d := dash
+	if transformScale > 1.0 {
+		d = dash.Scale(transformScale)
+	}
+	dashed := render.ApplyDash(path, d)
+	if dashed == nil || dashed.NumVerbs() == 0 {
+		c.mu.Lock()
+		c.misses++
+		c.mu.Unlock()
+		return dashed
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.entries[key]; ok {
+		c.gen++
+		e.gen = c.gen
+		c.hits++
+		return e.path
+	}
+	c.misses++
+	if len(c.entries) >= c.budget {
+		c.evictOldestLocked()
+	}
+	c.gen++
+	stored := dashed.Clone()
+	c.entries[key] = &dashGeomEntry{path: stored, gen: c.gen}
+	return stored
+}
+
+// Stats returns hit/miss/entry counts.
+func (c *DashGeometryCache) Stats() (hits, misses uint64, entries int) {
+	if c == nil {
+		return 0, 0, 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.hits, c.misses, len(c.entries)
+}
+
+// Clear drops all entries.
+func (c *DashGeometryCache) Clear() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = make(map[dashGeomKey]*dashGeomEntry, 32)
+	c.hits = 0
+	c.misses = 0
+}
+
+// ResetStats clears hit/miss counters.
+func (c *DashGeometryCache) ResetStats() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.hits = 0
+	c.misses = 0
+}
+
+func (c *DashGeometryCache) evictOldestLocked() {
+	var oldest dashGeomKey
+	var oldestGen uint64 = ^uint64(0)
+	found := false
+	for k, e := range c.entries {
+		if !found || e.gen < oldestGen {
+			oldest, oldestGen, found = k, e.gen, true
+		}
+	}
+	if found {
+		delete(c.entries, oldest)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// S6.6 Convex classification cache — skip re-walk + IsConvex on hot paths
+// ---------------------------------------------------------------------------
+
+type convexClassEntry struct {
+	ok     bool
+	points []render.Point // immutable after insert when ok
+	gen    uint64
+}
+
+// ConvexPathCache caches extractConvexPolygon results by path content hash.
+type ConvexPathCache struct {
+	mu      sync.Mutex
+	entries map[uint64]*convexClassEntry
+	budget  int
+	gen     uint64
+	hits    uint64
+	misses  uint64
+}
+
+// NewConvexPathCache creates an empty convex classification cache.
+func NewConvexPathCache() *ConvexPathCache {
+	return &ConvexPathCache{
+		entries: make(map[uint64]*convexClassEntry, 64),
+		budget:  defaultConvexClassBudget,
+	}
+}
+
+// GetOrClassify returns convex polygon points when path is a simple convex
+// closed polyline. Negative results (non-convex / curves / multi-contour) are
+// also cached to avoid repeated walks.
+func (c *ConvexPathCache) GetOrClassify(path *render.Path) ([]render.Point, bool) {
+	if c == nil || path == nil || path.NumVerbs() == 0 {
+		return nil, false
+	}
+	key := hashPathContent(path)
+
+	c.mu.Lock()
+	if e, ok := c.entries[key]; ok {
+		c.gen++
+		e.gen = c.gen
+		c.hits++
+		pts, isConvex := e.points, e.ok
+		c.mu.Unlock()
+		if !isConvex {
+			return nil, false
+		}
+		return pts, true
+	}
+	c.mu.Unlock()
+
+	pts, isConvex := extractConvexPolygon(path)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.entries[key]; ok {
+		c.gen++
+		e.gen = c.gen
+		c.hits++
+		if !e.ok {
+			return nil, false
+		}
+		return e.points, true
+	}
+	c.misses++
+	if len(c.entries) >= c.budget {
+		c.evictOldestLocked()
+	}
+	var stored []render.Point
+	if isConvex && len(pts) > 0 {
+		stored = make([]render.Point, len(pts))
+		copy(stored, pts)
+	}
+	c.gen++
+	c.entries[key] = &convexClassEntry{ok: isConvex, points: stored, gen: c.gen}
+	if !isConvex {
+		return nil, false
+	}
+	return stored, true
+}
+
+// Stats returns hit/miss/entry counts.
+func (c *ConvexPathCache) Stats() (hits, misses uint64, entries int) {
+	if c == nil {
+		return 0, 0, 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.hits, c.misses, len(c.entries)
+}
+
+// Clear drops all entries.
+func (c *ConvexPathCache) Clear() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = make(map[uint64]*convexClassEntry, 64)
+	c.hits = 0
+	c.misses = 0
+}
+
+// ResetStats clears hit/miss counters.
+func (c *ConvexPathCache) ResetStats() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.hits = 0
+	c.misses = 0
+}
+
+func (c *ConvexPathCache) evictOldestLocked() {
+	var oldest uint64
+	var oldestGen uint64 = ^uint64(0)
+	found := false
+	for k, e := range c.entries {
+		if !found || e.gen < oldestGen {
+			oldest, oldestGen, found = k, e.gen, true
+		}
+	}
+	if found {
+		delete(c.entries, oldest)
+	}
+}
+
+// GeometryCacheStats aggregates S4.3/S6.6 path/stroke/dash/convex cache stats.
+type GeometryCacheStats struct {
+	PathHits, PathMisses     uint64
+	PathEntries              int
+	StrokeHits, StrokeMisses uint64
+	StrokeEntries            int
+	DashHits, DashMisses     uint64
+	DashEntries              int
+	ConvexHits, ConvexMisses uint64
+	ConvexEntries            int
+}
+
+// pathFromVerbsCoords rebuilds a path from stored verbs/coords (legacy helper).
 func pathFromVerbsCoords(verbs []render.PathVerb, coords []float64) *render.Path {
 	p := render.NewPath()
-	// Replay via Append from a temporary path built with low-level if available.
-	// Path has no public SetVerbs; use NewPath + MoveTo/LineTo/etc via replay.
 	ci := 0
 	for _, v := range verbs {
 		switch v {

@@ -28,6 +28,12 @@ type TexturePool struct {
 	pool     map[textureKey][]*textureSet // available textures by size
 	inUse    map[textureKey]int           // count in use this frame
 	budgetMB int                          // max memory in megabytes
+
+	// S6.7 diagnostics
+	hits      uint64 // Acquire returned pooled set
+	misses    uint64 // Acquire returned nil (caller creates)
+	releases  uint64
+	endFrames uint64
 }
 
 // NewTexturePool creates a texture pool with the given memory budget in MB.
@@ -62,9 +68,11 @@ func (tp *TexturePool) Acquire(w, h, samples uint32) *textureSet { //nolint:revi
 		ts := sets[len(sets)-1]
 		tp.pool[key] = sets[:len(sets)-1]
 		tp.inUse[key]++
+		tp.hits++
 		return ts
 	}
 	tp.inUse[key]++
+	tp.misses++
 	return nil
 }
 
@@ -82,13 +90,16 @@ func (tp *TexturePool) Release(ts *textureSet, samples uint32) {
 	if tp.inUse[key] > 0 {
 		tp.inUse[key]--
 	}
+	tp.releases++
 }
 
 // EndFrame frees unused texture sets that were not acquired during this frame.
 // Call this once per frame after all contexts have flushed.
+// S6.7: enforces per-key cap and global budgetMB by destroying LRU excess sets.
 func (tp *TexturePool) EndFrame() {
 	tp.mu.Lock()
 	defer tp.mu.Unlock()
+	tp.endFrames++
 	// Reset in-use counts for next frame.
 	for k := range tp.inUse {
 		tp.inUse[k] = 0
@@ -102,6 +113,34 @@ func (tp *TexturePool) EndFrame() {
 			tp.pool[key] = sets[:2]
 		}
 	}
+	// Global budget: if estimated usage still over budget, drop oldest keys' extras.
+	for tp.estimatedUsageBytesLocked() > uint64(tp.budgetMB)*1024*1024 {
+		freed := false
+		for key, sets := range tp.pool {
+			if len(sets) == 0 {
+				continue
+			}
+			// Drop one set from this key.
+			ts := sets[len(sets)-1]
+			ts.destroyTextures()
+			tp.pool[key] = sets[:len(sets)-1]
+			freed = true
+			break
+		}
+		if !freed {
+			break
+		}
+	}
+}
+
+func (tp *TexturePool) estimatedUsageBytesLocked() uint64 {
+	var total uint64
+	for key, sets := range tp.pool {
+		for range sets {
+			total += textureSetEstimatedBytes(key.width, key.height, key.sampleCount)
+		}
+	}
+	return total
 }
 
 // DestroyAll releases all pooled textures.
@@ -152,4 +191,50 @@ func (tp *TexturePool) PooledCount() int {
 		count += len(sets)
 	}
 	return count
+}
+
+// TexturePoolStats is S6.7 diagnostics for MSAA/stencil texture reuse.
+type TexturePoolStats struct {
+	Hits      uint64
+	Misses    uint64
+	Releases  uint64
+	EndFrames uint64
+	Pooled    int
+	UsageMB   int
+	BudgetMB  int
+}
+
+// Stats returns pool counters.
+func (tp *TexturePool) Stats() TexturePoolStats {
+	if tp == nil {
+		return TexturePoolStats{}
+	}
+	tp.mu.Lock()
+	defer tp.mu.Unlock()
+	pooled := 0
+	for _, sets := range tp.pool {
+		pooled += len(sets)
+	}
+	return TexturePoolStats{
+		Hits:      tp.hits,
+		Misses:    tp.misses,
+		Releases:  tp.releases,
+		EndFrames: tp.endFrames,
+		Pooled:    pooled,
+		UsageMB:   int(tp.estimatedUsageBytesLocked() / (1024 * 1024)),
+		BudgetMB:  tp.budgetMB,
+	}
+}
+
+// ResetStats clears hit/miss counters.
+func (tp *TexturePool) ResetStats() {
+	if tp == nil {
+		return
+	}
+	tp.mu.Lock()
+	defer tp.mu.Unlock()
+	tp.hits = 0
+	tp.misses = 0
+	tp.releases = 0
+	tp.endFrames = 0
 }

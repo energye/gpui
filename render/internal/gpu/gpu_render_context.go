@@ -737,8 +737,16 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	// (e.g., stroke-expanded ring outlines), the stencil-then-cover path below
 	// must be used — it correctly implements EvenOdd via stencil bit inversion.
 	// Skia Ganesh gates its convex fast-path on isSimpleFill() for the same reason.
+	// S6.6: ConvexPathCache avoids re-walking path + IsConvex on retained frames.
 	if paint.FillRule != render.FillRuleEvenOdd {
-		if points, ok := extractConvexPolygon(path); ok {
+		var points []render.Point
+		var ok bool
+		if cache := rc.shared.ConvexPathCache(); cache != nil {
+			points, ok = cache.GetOrClassify(path)
+		} else {
+			points, ok = extractConvexPolygon(path)
+		}
+		if ok {
 			slogger().Debug("FillPath: convex fast-path", "points", len(points), "fillRule", paint.FillRule)
 			cmd := ConvexDrawCommand{
 				Points:    points,
@@ -819,6 +827,7 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	if !rc.antiAlias {
 		pathToStroke = snapPathToPixelGrid(path)
 	}
+	var dashHash uint64
 	if paint.IsDashed() {
 		dash := paint.EffectiveDash()
 		if dash != nil && dash.IsDashed() {
@@ -826,24 +835,24 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 			if transformScale <= 0 {
 				transformScale = 1.0
 			}
-			// Match software.go: scale dash only when scale > 1.
-			if transformScale > 1.0 {
-				dash = dash.Scale(transformScale)
+			dashHash = hashDash(dash)
+			// S6.6: dash geometry cache; apply on snapped path (AA-off correctness).
+			if dc := rc.shared.DashGeomCache(); dc != nil {
+				pathToStroke = dc.GetOrApply(pathToStroke, dash, transformScale)
+			} else {
+				d := dash
+				if transformScale > 1.0 {
+					d = dash.Scale(transformScale)
+				}
+				pathToStroke = render.ApplyDash(pathToStroke, d)
 			}
-			pathToStroke = render.ApplyDash(path, dash)
 			if pathToStroke == nil || pathToStroke.NumVerbs() == 0 {
 				return nil
 			}
 		}
 	}
 
-	// S4.3: stroke expansion cache keyed by path + style + dash.
-	var dashHash uint64
-	if paint.IsDashed() {
-		if d := paint.EffectiveDash(); d != nil {
-			dashHash = hashDash(d)
-		}
-	}
+	// S4.3/S6.6: stroke expansion cache keyed by path + style + dash.
 	skey := makeStrokeCacheKey(pathToStroke, paint, !rc.antiAlias, dashHash)
 	var fillPath *render.Path
 	if sc := rc.shared.StrokeGeomCache(); sc != nil {

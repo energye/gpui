@@ -94,9 +94,11 @@ type GPUShared struct {
 	// Compute pipeline.
 	velloAccel *VelloAccelerator
 
-	// S4.3 geometry caches (shared across contexts).
+	// S4.3/S6.6 geometry caches (shared across contexts).
 	pathGeomCache   *PathGeometryCache
 	strokeGeomCache *StrokeGeometryCache
+	dashGeomCache   *DashGeometryCache
+	convexPathCache *ConvexPathCache
 
 	// Texture pool for per-context MSAA/stencil textures (Flutter RenderTargetCache pattern).
 	texturePool *TexturePool
@@ -573,7 +575,15 @@ func (s *GPUShared) destroyPipelinesLocked() {
 type GPUMemoryStats struct {
 	TexturePoolPooled int
 	TexturePoolMB     int
+	TexturePoolHits   uint64
+	TexturePoolMisses uint64
 	TilePoolPooled    int
+	// ImageCache* filled when a live session image cache is reported via session; shared path leaves 0.
+	ImageCacheEntries int
+	ImageCacheBytes   int64
+	ImageCacheHits    uint64
+	ImageCacheMisses  uint64
+	ImageUploadBytes  uint64
 }
 
 // MemoryStats returns GPU memory statistics for diagnostics.
@@ -583,8 +593,11 @@ func (s *GPUShared) MemoryStats() GPUMemoryStats {
 
 	stats := GPUMemoryStats{}
 	if s.texturePool != nil {
-		stats.TexturePoolPooled = s.texturePool.PooledCount()
-		stats.TexturePoolMB = s.texturePool.EstimatedUsageMB()
+		st := s.texturePool.Stats()
+		stats.TexturePoolPooled = st.Pooled
+		stats.TexturePoolMB = st.UsageMB
+		stats.TexturePoolHits = st.Hits
+		stats.TexturePoolMisses = st.Misses
 	}
 	stats.TilePoolPooled = globalTilePool.Stats().Pooled
 	return stats
@@ -753,4 +766,64 @@ func (s *GPUShared) StrokeGeomCache() *StrokeGeometryCache {
 		s.strokeGeomCache = NewStrokeGeometryCache()
 	}
 	return s.strokeGeomCache
+}
+
+// DashGeomCache returns the shared dash geometry cache (S6.6).
+func (s *GPUShared) DashGeomCache() *DashGeometryCache {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.dashGeomCache == nil {
+		s.dashGeomCache = NewDashGeometryCache()
+	}
+	return s.dashGeomCache
+}
+
+// ConvexPathCache returns the shared convex classification cache (S6.6).
+func (s *GPUShared) ConvexPathCache() *ConvexPathCache {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.convexPathCache == nil {
+		s.convexPathCache = NewConvexPathCache()
+	}
+	return s.convexPathCache
+}
+
+// GeometryCacheStats aggregates path/stroke/dash/convex cache counters (S6.6).
+func (s *GPUShared) GeometryCacheStats() GeometryCacheStats {
+	if s == nil {
+		return GeometryCacheStats{}
+	}
+	var st GeometryCacheStats
+	if c := s.PathGeomCache(); c != nil {
+		st.PathHits, st.PathMisses, st.PathEntries = c.Stats()
+	}
+	if c := s.StrokeGeomCache(); c != nil {
+		st.StrokeHits, st.StrokeMisses, st.StrokeEntries = c.Stats()
+	}
+	if c := s.DashGeomCache(); c != nil {
+		st.DashHits, st.DashMisses, st.DashEntries = c.Stats()
+	}
+	if c := s.ConvexPathCache(); c != nil {
+		st.ConvexHits, st.ConvexMisses, st.ConvexEntries = c.Stats()
+	}
+	return st
+}
+
+// ResetGeometryCacheStats clears hit/miss counters for geometry caches.
+func (s *GPUShared) ResetGeometryCacheStats() {
+	if s == nil {
+		return
+	}
+	if c := s.PathGeomCache(); c != nil {
+		c.ResetStats()
+	}
+	if c := s.StrokeGeomCache(); c != nil {
+		c.ResetStats()
+	}
+	if c := s.DashGeomCache(); c != nil {
+		c.ResetStats()
+	}
+	if c := s.ConvexPathCache(); c != nil {
+		c.ResetStats()
+	}
 }
