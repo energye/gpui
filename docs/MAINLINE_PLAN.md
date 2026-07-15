@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.63 | 日期：2026-07-15  
+> 版本：1.65 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -244,7 +244,7 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 ---
 
 
-### S6 — 生产级深度性能优化（当前焦点；S5 之后）
+### S6 — 生产级深度性能优化（S6.0–S6.9 ✅；S5 之后）
 
 **进入条件**：S4.0–S4.4 关闭 + S5.0–S5.5 关闭 + 主路径 U01–U04 present-only 门禁可复跑。  
 **总目标**：把引擎从「主路径能 60fps」推进到 **可支撑真实复杂 2D / 高密度 UI 的生产性能**——全量重绘、layer/blend 叠压、长列表、复杂 path、真窗口 present 均可解释、可回归、可优化。  
@@ -326,7 +326,7 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 | **S6.6 Path / Stroke / Geometry** | tess/stroke 缓存命中率、dash 几何、复杂 polygon、stencil vs convex 选择、AA 成本可控 | ✅ `docs/S6_6_PATH_GEOMETRY.md` + `TestS66_*`；zero-copy tess；dash/convex cache |
 | **S6.7 上传 / 资源 / 内存** | 纹理/buffer 池、暂存上传、图像 generation 失效、glyph/image 预算、显存峰值 | ✅ `docs/S6_7_RESOURCES.md` + `TestS67_*`；ImageCache 字节预算/ephemeral；TexturePool stats |
 | **S6.8 真窗口 Present 管线** | X11/swapchain：Acquire/Present、vsync、damage present、多帧；与离屏基线对照；减少 CPU-GPU 空等 | ✅ `docs/S6_8_WINDOW_PRESENT.md` + `TestS68_*`；Fifo p50≈11ms；suboptimal reconfig |
-| **S6.9 重场景预算与总回归** | 为 U05/kitchen-sink/嵌套 clip-layer 设 **分级预算**（非一律 16.7ms）；全量 L2 + L0–L3；回写 S6 总表 | `docs/S6_9_HEAVY_BUDGET.md`；关闭阈值见下 |
+| **S6.9 重场景预算与总回归** | 为 U05/kitchen-sink/嵌套 clip-layer 设 **分级预算**（非一律 16.7ms）；全量 L2 + L0–L3；回写 S6 总表 | ✅ `docs/S6_9_HEAVY_BUDGET.md` + `TestS69_*` + `tmp/s6_9_heavy_budget.json`；L2 Comp 分片 201 绿 |
 | **S6.10 可选附录** | 与 Skia 同场景绝对 FPS **对照报表**（不阻塞关闭） | 可选 `docs/S6_10_SKIA_FPS_APPENDIX.md` |
 
 #### S6 场景与预算策略
@@ -341,13 +341,33 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 #### S6 关闭条件（总）
 
 - [x] S6.0 基线 + 回归契约文档落地；场景定义冻结  
-- [ ] S6.1–S6.9 均有退出文档或书面「无工作量」说明（不得空跳）（S6.1–S6.4 ✅）  
-- [ ] P0 主路径 U01–U04 present p50 **未回退**且仍 ≤16.7ms  
-- [ ] P2 重场景相对 S6.0 达文档目标或签字豁免  
-- [ ] L2 全量 `TestP1_Comp_` 绿；L0/L1/L3 绿；`GPUOps>0` / 无 silent CPU  
-- [ ] 无靠降语义刷分；能力表与固定像素门禁仍成立  
+- [x] S6.1–S6.9 均有退出文档或书面「无工作量」说明（不得空跳）（S6.1–S6.9 ✅）  
+- [x] P0 主路径 U01–U04 present p50 **未回退**且仍 ≤16.7ms（S6.9 测 U01–U04 p50≪16.7）  
+- [x] P2 重场景相对 S6.0 达文档目标或签字豁免（U05/H02 ~19–21%↓；H03 ~50%↓）  
+- [x] L2 全量 `TestP1_Comp_` 绿（分片 201）；L0/L1/L3 绿；`GPUOps>0` / 无 silent CPU  
+- [x] 无靠降语义刷分；能力表与固定像素门禁仍成立  
 
 **S6 关闭后**：推荐进入控件层主线；控件绘制必须享受 S6 帧模型与合并路径，不得旁路。
+
+
+### W — 控件层（类设计系统组件；走 render）
+
+> 入口：`docs/S5_WIDGET_ENTRY.md`（✅）。绘制必须走 `render.Context`；享受 S6 帧模型/合并，不得旁路。
+
+| 子阶段 | 范围 | 退出 |
+|--------|------|------|
+| **W0 脚手架 + 第一批绘制** | `widget` 包；Button/Input/Modal/ListRow/TableCell；Theme；CPU+GPU 门禁 | ✅ `docs/W0_WIDGET_LAYER.md` + `TestW0_*` |
+| **W1 状态与命中** | pressed/hover/focus/disabled 矩阵；统一 HitTest；焦点环 | `docs/W1_STATE_HIT.md` + `TestW1_*` |
+| **W2 组合壳** | Form / List / Table 场景用控件拼装（非 antd 全量） | `docs/W2_COMPOSITION_SHELL.md` + present 软预算 |
+| **W3 交互最小环** | 可选：指针/键盘路由草图（仍可不绑平台窗体） | 后置 |
+
+```bash
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+export GOCACHE=/tmp/gpui-go-cache
+export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
+go test -count=1 ./widget -timeout 120s
+```
+
 
 ---
 
@@ -366,8 +386,8 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 | 9 | **阶段 A：任意组合维度 D01–D200** | ✅ **已关闭**（chi 至 D200；停扩组合探针） |
 | 10 | **S4 性能** | ✅ **S4.0–S4.4 全线关闭**（见 `docs/S4_*.md`） |
 | 11 | **S5 UI 引擎硬化** | ✅ **S5.0–S5.5 全线关闭**（见 `docs/S5_*.md`） |
-| 12 | **S6 生产级深度性能** | 🔄 **S6.0–S6.8 ✅** → 当前 **S6.9 重场景预算** |
-| 13 | **控件层（可选）** | ⬜ 入口已满足（`S5_WIDGET_ENTRY.md`）；**推荐 S6 主路径不回退后开工** |
+| 12 | **S6 生产级深度性能** | ✅ **S6.0–S6.9 关闭**（可选 S6.10 Skia FPS 附录不阻塞） |
+| 13 | **控件层 W*** | 🔄 **W0 ✅** → 当前 **W1 状态/命中契约**（`docs/W0_WIDGET_LAYER.md`） |
 
 ### 阶段 A — 任意组合维度（非 antd 控件清单）
 
@@ -391,8 +411,8 @@ go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s
 
 **A 已关闭**。**S4.0–S4.4 已关闭**。  
 **A / S4 / S5 已关闭。**  
-**S6.0 已关闭**（`docs/S6_PERF_BASELINE.md` + `TestS6_*` + L2 Comp 锁存）。  
-**当前焦点：S6.9 重场景分级预算**。控件层仍推荐 S6 推进后再开工。
+**S6.0–S6.9 已关闭**（深基线 + 帧/提交/batch/layer/text/path/资源/窗口 + 重场景分级预算）。  
+**S6.0–S6.9 已关闭**。**当前焦点：控件层 W1**（W0 脚手架+第一批 Draw 已关，见 `docs/W0_WIDGET_LAYER.md`）。可选 S6.10 Skia FPS 附录仍不阻塞。
 
 ```bash
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
@@ -446,7 +466,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 | `docs/S6_6_PATH_GEOMETRY.md` | S6.6 产出（✅ Path/Stroke/Geometry） |
 | `docs/S6_7_RESOURCES.md` | S6.7 产出（✅ 上传/资源/内存） |
 | `docs/S6_8_WINDOW_PRESENT.md` | S6.8 产出（✅ 真窗口 Present） |
-| `docs/S6_9_HEAVY_BUDGET.md` | S6.9 产出（重场景分级预算；待写） |
+| `docs/S6_9_HEAVY_BUDGET.md` | S6.9 产出（✅ 重场景分级预算 + TestS69 + JSON） |
 | `docs/S5_4_CAPABILITY_PATCH.md` | S5.4 产出（✅ 无阻塞补丁队列） |
 | `docs/OPTIMIZATION_PLAN.md` | 历史大计划；服从主线 |
 
@@ -456,6 +476,8 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.65 | **W0 关闭**：`widget` 包 Button/Input/Modal/ListRow/TableCell + Theme；CPU/GPU present 门禁；`docs/W0_WIDGET_LAYER.md`；焦点 → W1 |
+| 2026-07-15 | 1.64 | **S6.9 关闭**：分级预算 P0/P1/P2/P3；`TestS69_*` + `tmp/s6_9_heavy_budget.json`；P2 相对 S6.0 可解释下降；L2 Comp 分片 201 绿；S6 总关闭条件齐；焦点 → 可选 S6.10 / 控件层入口 |
 | 2026-07-15 | 1.63 | **S6.8 关闭**：Swapchain stats/reconfigure/Fifo；X11 multi-frame PresentFrameAuto p50≈11ms；`docs/S6_8_WINDOW_PRESENT.md`；焦点 → S6.9 |
 | 2026-07-15 | 1.62 | **S6.7 关闭**：ImageCache 字节预算/ephemeral/staging；TexturePool stats+budget；`docs/S6_7_RESOURCES.md`；焦点 → S6.8 |
 | 2026-07-15 | 1.61 | **S6.6 关闭**：tess 零拷贝、stroke 共享 path、dash/convex cache；`docs/S6_6_PATH_GEOMETRY.md`；焦点 → S6.7 |
