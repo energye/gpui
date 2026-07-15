@@ -18,15 +18,32 @@ type Layer struct {
 // layerStack manages the layer hierarchy for the context.
 type layerStack struct {
 	layers []*Layer
-	pool   *intImage.Pool
+	// pool reuses full-surface layer Pixmaps (S6.4). intImage.Pool is ImageBuf-only.
+	pool *pixmapPool
 }
 
 // newLayerStack creates a new layer stack with a pool for memory reuse.
 func newLayerStack() *layerStack {
 	return &layerStack{
 		layers: make([]*Layer, 0, 4),
-		pool:   intImage.NewPool(8),
+		pool:   newPixmapPool(8),
 	}
+}
+
+// LayerPoolStats returns S6.4 layer pixmap pool counters for the context.
+func (c *Context) LayerPoolStats() (gets, puts, hits, misses int) {
+	if c == nil || c.layerStack == nil || c.layerStack.pool == nil {
+		return 0, 0, 0, 0
+	}
+	return c.layerStack.pool.Stats()
+}
+
+// ResetLayerPoolStats clears layer pool counters (tests).
+func (c *Context) ResetLayerPoolStats() {
+	if c == nil || c.layerStack == nil || c.layerStack.pool == nil {
+		return
+	}
+	c.layerStack.pool.ResetStats()
 }
 
 // PushLayer creates a new layer and makes it the active drawing target.
@@ -47,6 +64,12 @@ func newLayerStack() *layerStack {
 //	dc.Fill()
 //	dc.PopLayer() // Composite circle onto canvas with multiply blend at 50% opacity
 func (c *Context) PushLayer(blendMode BlendMode, opacity float64) {
+	c.pushLayerSurface(blendMode, opacity, true)
+}
+
+// pushLayerSurface is the shared PushLayer implementation.
+// clear=true for normal layers; false when the caller will fully overwrite (backdrop).
+func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear bool) {
 	// Clamp opacity to valid range
 	if opacity < 0 {
 		opacity = 0
@@ -65,9 +88,13 @@ func (c *Context) PushLayer(blendMode BlendMode, opacity float64) {
 		c.basePixmap = c.pixmap
 	}
 
-	// Create new pixmap for the layer (same size as context)
-	layerPixmap := NewPixmap(c.width, c.height)
-	layerPixmap.Clear(Transparent)
+	// Acquire layer surface from pool (S6.4: avoid per-push NewPixmap).
+	var layerPixmap *Pixmap
+	if clear {
+		layerPixmap = c.layerStack.pool.Get(c.width, c.height)
+	} else {
+		layerPixmap = c.layerStack.pool.GetForOverwrite(c.width, c.height)
+	}
 
 	// Create layer
 	layer := &Layer{
@@ -122,6 +149,13 @@ func (c *Context) PopLayer() {
 	// Composite layer onto parent
 	c.compositeLayer(layer, parentPixmap)
 
+	// Return layer surface to pool (S6.4).
+	if c.layerStack.pool != nil {
+		c.layerStack.pool.Put(layer.pixmap)
+	}
+	layer.pixmap = nil
+	layer.mask = nil
+
 	// Restore parent pixmap as current drawing target
 	c.pixmap = parentPixmap
 }
@@ -162,9 +196,8 @@ func (c *Context) PushMaskLayer(mask *Mask) {
 		c.basePixmap = c.pixmap
 	}
 
-	// Create new pixmap for the layer (same size as context).
-	layerPixmap := NewPixmap(c.width, c.height)
-	layerPixmap.Clear(Transparent)
+	// Acquire layer surface from pool (S6.4).
+	layerPixmap := c.layerStack.pool.Get(c.width, c.height)
 
 	// Create layer with mask.
 	layer := &Layer{

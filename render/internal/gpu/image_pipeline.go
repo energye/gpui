@@ -508,6 +508,28 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 	return true
 }
 
+// canMergeGPUTextureDraw reports whether two GPU-to-GPU texture overlays may share
+// one bind group + multi-quad Draw (S6.3). Same texture view pointer, opacity, and
+// viewport; never merge across scissor seals (caller enforces batchSeal).
+func canMergeGPUTextureDraw(a, b *GPUTextureDrawCommand) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if a.View.IsNil() || b.View.IsNil() {
+		return false
+	}
+	if a.View.Pointer() != b.View.Pointer() {
+		return false
+	}
+	if a.Opacity != b.Opacity {
+		return false
+	}
+	if a.ViewportWidth != b.ViewportWidth || a.ViewportHeight != b.ViewportHeight {
+		return false
+	}
+	return true
+}
+
 // imageVertexLayout returns the vertex buffer layout for the textured quad pipeline.
 func imageVertexLayout() []types.VertexBufferLayout {
 	return []types.VertexBufferLayout{

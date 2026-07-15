@@ -3,6 +3,7 @@ package text
 import (
 	"iter"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -193,11 +194,69 @@ type FaceRun struct {
 	X float64
 }
 
+// multiFaceRunsCache caches MultiFace.Runs results for repeated mixed-script
+// DrawString (S6.5 font-run merge reuse). Keyed by MultiFace identity + text.
+type multiFaceRunsCache struct {
+	mu      sync.Mutex
+	entries map[multiFaceRunsKey][]FaceRun
+	limit   int
+}
+
+type multiFaceRunsKey struct {
+	mf   *MultiFace
+	text string
+}
+
+var globalMultiFaceRunsCache = &multiFaceRunsCache{
+	entries: make(map[multiFaceRunsKey][]FaceRun),
+	limit:   2048,
+}
+
+// ClearMultiFaceRunsCache drops cached MultiFace run splits (tests/tuning).
+func ClearMultiFaceRunsCache() {
+	globalMultiFaceRunsCache.mu.Lock()
+	globalMultiFaceRunsCache.entries = make(map[multiFaceRunsKey][]FaceRun)
+	globalMultiFaceRunsCache.mu.Unlock()
+}
+
 // Runs splits text into contiguous face runs using the same fallback policy as Glyphs.
+// S6.5: consecutive same-face runes are already merged here; results are cached
+// for hot multi-script labels (CJK fallback + Latin).
 func (m *MultiFace) Runs(text string) []FaceRun {
 	if text == "" || m == nil || len(m.faces) == 0 {
 		return nil
 	}
+	key := multiFaceRunsKey{mf: m, text: text}
+	globalMultiFaceRunsCache.mu.Lock()
+	if runs, ok := globalMultiFaceRunsCache.entries[key]; ok {
+		globalMultiFaceRunsCache.mu.Unlock()
+		return runs
+	}
+	globalMultiFaceRunsCache.mu.Unlock()
+
+	runs := m.runsUncached(text)
+
+	globalMultiFaceRunsCache.mu.Lock()
+	if len(globalMultiFaceRunsCache.entries) >= globalMultiFaceRunsCache.limit {
+		// Drop ~25% arbitrarily (map iteration order is fine for soft cache).
+		n := len(globalMultiFaceRunsCache.entries) / 4
+		if n < 1 {
+			n = 1
+		}
+		for k := range globalMultiFaceRunsCache.entries {
+			delete(globalMultiFaceRunsCache.entries, k)
+			n--
+			if n <= 0 {
+				break
+			}
+		}
+	}
+	globalMultiFaceRunsCache.entries[key] = runs
+	globalMultiFaceRunsCache.mu.Unlock()
+	return runs
+}
+
+func (m *MultiFace) runsUncached(text string) []FaceRun {
 	var runs []FaceRun
 	var cur Face
 	var b strings.Builder
@@ -222,12 +281,8 @@ func (m *MultiFace) Runs(text string) []FaceRun {
 		}
 		b.WriteRune(r)
 		// Advance using selected face metrics for this rune.
-		adv := 0.0
-		for g := range face.Glyphs(string(r)) {
-			adv = g.Advance
-			break
-		}
-		x += adv
+		// Face.Advance on a single-rune string avoids Glyphs iterator allocs.
+		x += face.Advance(string(r))
 	}
 	flush()
 	return runs

@@ -461,13 +461,13 @@ func TestBuildGPUTextureResources_SeparateVertexBuffers(t *testing.T) {
 
 	// Build overlay first, then base layer (same order as RenderFrameGrouped).
 	overlayRes, err := s.buildGPUTextureResources(
-		[]GPUTextureDrawCommand{overlayCmd}, 600, 400, false)
+		[]GPUTextureDrawCommand{overlayCmd}, 600, 400, false, nil)
 	if err != nil {
 		t.Fatalf("overlay build: %v", err)
 	}
 
 	baseRes, err := s.buildGPUTextureResources(
-		[]GPUTextureDrawCommand{baseCmd}, 600, 400, true)
+		[]GPUTextureDrawCommand{baseCmd}, 600, 400, true, nil)
 	if err != nil {
 		t.Fatalf("base build: %v", err)
 	}

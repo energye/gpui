@@ -155,9 +155,9 @@ func (c *Context) PushBackdropLayer(blendMode BlendMode, opacity float64) {
 	c.applyDitherIfEnabled()
 
 	parent := c.pixmap
-	c.PushLayer(blendMode, opacity)
+	// S6.4: push layer without Clear — full backdrop copy overwrites every pixel.
+	c.pushLayerSurface(blendMode, opacity, false)
 	if parent != nil && c.pixmap != nil {
-		// Copy parent pixels into the new transparent layer as backdrop.
 		dst := c.pixmap.Data()
 		src := parent.Data()
 		n := len(dst)

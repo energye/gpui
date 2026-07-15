@@ -426,6 +426,14 @@ func (a *SDFAccelerator) GlyphAtlasStats() (hits, misses uint64, entryCount, pag
 	return a.shared.glyphMaskEngine.atlas.Stats()
 }
 
+// GlyphMaskUploadStats returns S4.2/S6.5 upload stats from the last atlas sync.
+func (a *SDFAccelerator) GlyphMaskUploadStats() (bytes int64, regions, partial, full int) {
+	if a.shared == nil || a.shared.glyphMaskEngine == nil {
+		return 0, 0, 0, 0
+	}
+	return a.shared.glyphMaskEngine.LastUploadStats()
+}
+
 // RenderSessionStats returns GPU render session statistics for diagnostics.
 // Returns nil if no default context exists.
 func (a *SDFAccelerator) RenderSessionStats() *RenderSessionStats {

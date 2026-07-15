@@ -149,10 +149,9 @@ func (e *GlyphMaskEngine) LayoutText(
 		float32(premul.B), float32(premul.A),
 	}
 
-	var shaped []text.ShapedGlyph
-	for glyph := range face.Glyphs(s) {
-		shaped = append(shaped, text.ShapedGlyph{GID: glyph.GID, X: glyph.X, Y: glyph.Y, IsCJK: text.IsCJKRune(glyph.Rune)})
-	}
+	// S6.5: LayoutGlyphs caches Face.Glyphs results for repeated DrawString
+	// (list scroll / static labels). Same cmap+advance semantics as before.
+	shaped := text.LayoutGlyphs(face, s)
 
 	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
 }
@@ -199,10 +198,8 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 		float32(premul.B), float32(premul.A),
 	}
 
-	var shaped []text.ShapedGlyph
-	for glyph := range face.Glyphs(s) {
-		shaped = append(shaped, text.ShapedGlyph{GID: glyph.GID, X: glyph.X, Y: glyph.Y, IsCJK: text.IsCJKRune(glyph.Rune)})
-	}
+	// S6.5: shared layout-glyph cache (distinct from OT Shape cache by mode).
+	shaped := text.LayoutGlyphs(face, s)
 
 	lcdLayout := text.LCDLayoutNone
 	var lcdFilter text.LCDFilter

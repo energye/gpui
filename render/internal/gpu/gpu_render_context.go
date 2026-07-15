@@ -77,6 +77,22 @@ type GPURenderContext struct {
 	sharedEncoder *webgpu.CommandEncoder
 }
 
+// LastSubmitPathStats returns S6.2 encode/submit counters from the last Flush.
+func (rc *GPURenderContext) LastSubmitPathStats() SubmitPathStats {
+	if rc == nil || rc.session == nil {
+		return SubmitPathStats{}
+	}
+	return rc.session.LastSubmitPathStats()
+}
+
+// LastBatchDrawStats returns S6.3 post-coalesce draw/quad counters from the last Flush.
+func (rc *GPURenderContext) LastBatchDrawStats() BatchDrawStats {
+	if rc == nil || rc.session == nil {
+		return BatchDrawStats{}
+	}
+	return rc.session.LastBatchDrawStats()
+}
+
 // PendingCount returns the total number of pending commands (for testing).
 func (rc *GPURenderContext) PendingCount() int {
 	n := len(rc.pendingShapes) + len(rc.pendingConvexCommands) +
@@ -1076,69 +1092,25 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	rc.session.SetFrameState(rc.frameRendered, rc.lastView)
 
 	// Build scissor groups from the timeline.
+	// S6.2: groups reference pending command slices directly (no deep-copy).
+	// Pending queues are reset only AFTER atlas sync + RenderFrameGrouped so
+	// sub-slices remain valid for the whole encode/submit path.
 	groups := rc.buildScissorGroups()
-
-	// Deep-copy each group's slices so we own the data, then clear pending.
-	ownedGroups := make([]ScissorGroup, len(groups))
-	for i := range groups {
-		g := &groups[i]
-		ownedGroups[i] = ScissorGroup{Rect: g.Rect, ClipRRect: g.ClipRRect, ClipPath: g.ClipPath, ClipDepthLevel: g.ClipDepthLevel}
-		if len(g.SDFShapes) > 0 {
-			ownedGroups[i].SDFShapes = make([]SDFRenderShape, len(g.SDFShapes))
-			copy(ownedGroups[i].SDFShapes, g.SDFShapes)
-		}
-		if len(g.ConvexCommands) > 0 {
-			ownedGroups[i].ConvexCommands = make([]ConvexDrawCommand, len(g.ConvexCommands))
-			copy(ownedGroups[i].ConvexCommands, g.ConvexCommands)
-		}
-		if len(g.StencilPaths) > 0 {
-			ownedGroups[i].StencilPaths = make([]StencilPathCommand, len(g.StencilPaths))
-			copy(ownedGroups[i].StencilPaths, g.StencilPaths)
-		}
-		if len(g.ImageCommands) > 0 {
-			ownedGroups[i].ImageCommands = make([]ImageDrawCommand, len(g.ImageCommands))
-			copy(ownedGroups[i].ImageCommands, g.ImageCommands)
-		}
-		if len(g.GPUTextureCommands) > 0 {
-			ownedGroups[i].GPUTextureCommands = make([]GPUTextureDrawCommand, len(g.GPUTextureCommands))
-			copy(ownedGroups[i].GPUTextureCommands, g.GPUTextureCommands)
-		}
-		if len(g.TextBatches) > 0 {
-			ownedGroups[i].TextBatches = make([]TextBatch, len(g.TextBatches))
-			copy(ownedGroups[i].TextBatches, g.TextBatches)
-		}
-		if len(g.GlyphMaskBatches) > 0 {
-			ownedGroups[i].GlyphMaskBatches = make([]GlyphMaskBatch, len(g.GlyphMaskBatches))
-			copy(ownedGroups[i].GlyphMaskBatches, g.GlyphMaskBatches)
-		}
-	}
-
-	// Clear pending state.
-	clear(rc.pendingShapes)
-	clear(rc.pendingConvexCommands)
-	clear(rc.pendingStencilPaths)
-	clear(rc.pendingImageCommands)
-	clear(rc.pendingGPUTextureCommands)
-	clear(rc.pendingTextBatches)
-	clear(rc.pendingGlyphMaskBatches)
-	clear(rc.scissorSegments)
-	rc.pendingShapes = rc.pendingShapes[:0]
-	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
-	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
-	rc.pendingImageCommands = rc.pendingImageCommands[:0]
-	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
-	rc.pendingTextBatches = rc.pendingTextBatches[:0]
-	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
-	rc.scissorSegments = rc.scissorSegments[:0]
 	rc.hasPendingTarget = false
 	rc.sceneStats = render.SceneStats{}
 
-	// Collect all text and glyph mask batches for atlas sync.
+	// Collect all text and glyph mask batches for atlas sync without extra copies
+	// when a single group owns the full pending text/glyph queues.
 	var allTextBatches []TextBatch
 	var allGlyphMaskBatches []GlyphMaskBatch
-	for i := range ownedGroups {
-		allTextBatches = append(allTextBatches, ownedGroups[i].TextBatches...)
-		allGlyphMaskBatches = append(allGlyphMaskBatches, ownedGroups[i].GlyphMaskBatches...)
+	if len(groups) == 1 {
+		allTextBatches = groups[0].TextBatches
+		allGlyphMaskBatches = groups[0].GlyphMaskBatches
+	} else {
+		for i := range groups {
+			allTextBatches = append(allTextBatches, groups[i].TextBatches...)
+			allGlyphMaskBatches = append(allGlyphMaskBatches, groups[i].GlyphMaskBatches...)
+		}
 	}
 
 	// Upload dirty MSDF atlases to the GPU before rendering text.
@@ -1148,8 +1120,8 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		rc.shared.mu.Unlock()
 		if err != nil {
 			slogger().Warn("atlas sync failed", "err", err)
-			for i := range ownedGroups {
-				ownedGroups[i].TextBatches = nil
+			for i := range groups {
+				groups[i].TextBatches = nil
 			}
 		}
 	}
@@ -1161,8 +1133,8 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		rc.shared.mu.Unlock()
 		if err != nil {
 			slogger().Warn("glyph mask atlas sync failed", "err", err)
-			for i := range ownedGroups {
-				ownedGroups[i].GlyphMaskBatches = nil
+			for i := range groups {
+				groups[i].GlyphMaskBatches = nil
 			}
 		}
 	}
@@ -1207,16 +1179,34 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		slogger().Warn("prepare frame mask failed", "err", err)
 	}
 
-	err := rc.session.RenderFrameGrouped(target, ownedGroups, baseLayer, rc.sharedEncoder)
+	err := rc.session.RenderFrameGrouped(target, groups, baseLayer, rc.sharedEncoder)
 	if err != nil {
 		total := 0
-		for i := range ownedGroups {
-			total += len(ownedGroups[i].SDFShapes) + len(ownedGroups[i].ConvexCommands) + len(ownedGroups[i].StencilPaths) +
-				len(ownedGroups[i].ImageCommands) + len(ownedGroups[i].TextBatches) + len(ownedGroups[i].GlyphMaskBatches)
+		for i := range groups {
+			total += len(groups[i].SDFShapes) + len(groups[i].ConvexCommands) + len(groups[i].StencilPaths) +
+				len(groups[i].ImageCommands) + len(groups[i].TextBatches) + len(groups[i].GlyphMaskBatches)
 		}
 		slogger().Warn("render session error",
-			"groups", len(ownedGroups), "totalItems", total, "err", err)
+			"groups", len(groups), "totalItems", total, "err", err)
 	}
+
+	// S6.2: drop pending command ownership after encode/submit consumed the slices.
+	clear(rc.pendingShapes)
+	clear(rc.pendingConvexCommands)
+	clear(rc.pendingStencilPaths)
+	clear(rc.pendingImageCommands)
+	clear(rc.pendingGPUTextureCommands)
+	clear(rc.pendingTextBatches)
+	clear(rc.pendingGlyphMaskBatches)
+	clear(rc.scissorSegments)
+	rc.pendingShapes = rc.pendingShapes[:0]
+	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
+	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
+	rc.pendingImageCommands = rc.pendingImageCommands[:0]
+	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
+	rc.pendingTextBatches = rc.pendingTextBatches[:0]
+	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+	rc.scissorSegments = rc.scissorSegments[:0]
 
 	// Read back frame tracking from session.
 	rc.frameRendered, rc.lastView = rc.session.FrameState()

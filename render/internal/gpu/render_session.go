@@ -91,6 +91,23 @@ type SubmitPathStats struct {
 	SingleGroupFast bool
 }
 
+// BatchDrawStats records per-tier draw/quad counts after coalescing (S6.3).
+// Draw counts are post-merge GPU draw calls; quad/shape counts are geometry units.
+type BatchDrawStats struct {
+	ImageDraws  int
+	ImageQuads  int
+	GPUTexDraws int
+	GPUTexQuads int
+	TextDraws   int
+	TextQuads   int
+	GlyphDraws  int
+	GlyphQuads  int
+	SDFDraws    int
+	SDFShapes   int
+	ConvexDraws int
+	ConvexCmds  int
+}
+
 // groupOffset tracks per-scissor-group ranges inside concatenated tier arrays.
 type groupOffset struct {
 	sdfStart, sdfCount         int
@@ -212,6 +229,9 @@ type GPURenderSession struct {
 	// S4.1 last-frame image batch stats (tests / profiling).
 	lastImageDrawCalls int
 	lastImageQuads     int
+
+	// S6.3 multi-tier batch draw stats (most recent frame).
+	lastBatchStats BatchDrawStats
 
 	// S6.2 submit/record path diagnostics (most recent frame).
 	lastSubmitStats SubmitPathStats
@@ -761,6 +781,7 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	s.clipPoolUsed = 0
 	// Reset S6.2 path stats; encoder/submit counters accumulate in encodeSubmit*.
 	s.lastSubmitStats = SubmitPathStats{Groups: len(groups)}
+	s.lastBatchStats = BatchDrawStats{}
 
 	// Concatenate all items across groups into combined arrays, tracking
 	// per-group offsets. Resources are built ONCE from combined data to avoid
@@ -789,6 +810,9 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	if len(groups) == 1 {
 		s.lastSubmitStats.SingleGroupFast = true
 		g := &groups[0]
+		// S6.3: deepen text/glyph runs inside the group (never cross scissor).
+		g.TextBatches = coalesceTextBatches(g.TextBatches)
+		g.GlyphMaskBatches = coalesceGlyphMaskBatches(g.GlyphMaskBatches)
 		allSDF = g.SDFShapes
 		allConvex = g.ConvexCommands
 		allStencil = g.StencilPaths
@@ -810,6 +834,9 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 		s.scratchGlyph = s.scratchGlyph[:0]
 		for i := range groups {
 			g := &groups[i]
+			// S6.3: deepen text/glyph runs inside each scissor group only.
+			g.TextBatches = coalesceTextBatches(g.TextBatches)
+			g.GlyphMaskBatches = coalesceGlyphMaskBatches(g.GlyphMaskBatches)
 			gOff[i] = groupOffset{
 				sdfStart: len(s.scratchSDF), sdfCount: len(g.SDFShapes),
 				convexStart: len(s.scratchConvex), convexCount: len(g.ConvexCommands),
@@ -890,7 +917,22 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 
 	var combinedGPUTexRes *imageFrameResources
 	if len(allGPUTex) > 0 {
-		res, err := s.buildGPUTextureResources(allGPUTex, w, h, false)
+		// S6.3: seal multi-quad GPU-tex merges at scissor-group boundaries.
+		if cap(s.scratchImageSeal) < len(allGPUTex) {
+			// Reuse image seal scratch only when image path did not need larger; grow as needed.
+			s.scratchImageSeal = make([]bool, len(allGPUTex))
+		} else {
+			s.scratchImageSeal = s.scratchImageSeal[:len(allGPUTex)]
+			clear(s.scratchImageSeal)
+		}
+		gpuSeal := s.scratchImageSeal
+		for i := range groups {
+			start := gOff[i].gpuTexStart
+			if gOff[i].gpuTexCount > 0 && start > 0 && start < len(gpuSeal) {
+				gpuSeal[start] = true
+			}
+		}
+		res, err := s.buildGPUTextureResources(allGPUTex, w, h, false, gpuSeal)
 		if err != nil {
 			return fmt.Errorf("build gpu texture resources: %w", err)
 		}
@@ -914,6 +956,36 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 		}
 		combinedGlyphRes = res
 	}
+
+	// S6.3: record post-coalesce geometry / draw stats (image/gpu-tex set in builders).
+	if len(allSDF) > 0 {
+		s.lastBatchStats.SDFShapes = len(allSDF)
+		s.lastBatchStats.SDFDraws = 1 // one multi-shape draw per combined SDF buffer
+	}
+	if len(allConvex) > 0 {
+		s.lastBatchStats.ConvexCmds = len(allConvex)
+		if combinedConvexRes != nil {
+			s.lastBatchStats.ConvexDraws = len(combinedConvexRes.ranges)
+			if s.lastBatchStats.ConvexDraws == 0 {
+				s.lastBatchStats.ConvexDraws = 1
+			}
+		}
+	}
+	if combinedTextRes != nil {
+		s.lastBatchStats.TextDraws = len(combinedTextRes.drawCalls)
+		for i := range allText {
+			s.lastBatchStats.TextQuads += len(allText[i].Quads)
+		}
+	}
+	if combinedGlyphRes != nil {
+		s.lastBatchStats.GlyphDraws = len(combinedGlyphRes.drawCalls)
+		for i := range allGlyph {
+			s.lastBatchStats.GlyphQuads += len(allGlyph[i].Quads)
+		}
+	}
+	// Keep S4.1 image stats mirrored into BatchDrawStats.
+	s.lastBatchStats.ImageDraws = s.lastImageDrawCalls
+	s.lastBatchStats.ImageQuads = s.lastImageQuads
 
 	// Create per-group resources as sub-ranges of the combined data.
 	if cap(s.scratchGrpRes) < len(groups) {
@@ -1004,7 +1076,7 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 
 	var baseLayerRes *imageFrameResources
 	if baseLayer != nil {
-		res, err := s.buildGPUTextureResources([]GPUTextureDrawCommand{*baseLayer}, w, h, true)
+		res, err := s.buildGPUTextureResources([]GPUTextureDrawCommand{*baseLayer}, w, h, true, nil)
 		if err != nil {
 			slogger().Warn("base layer resource build failed", "err", err)
 		} else {
@@ -2343,11 +2415,72 @@ func (s *GPURenderSession) LastSubmitPathStats() SubmitPathStats {
 	return s.lastSubmitStats
 }
 
+// LastBatchDrawStats returns S6.3 post-coalesce draw/quad counters from the last frame.
+func (s *GPURenderSession) LastBatchDrawStats() BatchDrawStats {
+	return s.lastBatchStats
+}
+
 // queueWriteBuffer wraps Queue.WriteBuffer and accounts S6.2 diagnostics.
 func (s *GPURenderSession) queueWriteBuffer(buf *webgpu.Buffer, offset uint64, data []byte) error {
 	s.lastSubmitStats.WriteBuffers++
 	s.lastSubmitStats.WriteBytes += int64(len(data))
 	return s.queue.WriteBuffer(buf, offset, data)
+}
+
+// coalesceTextBatches merges consecutive TextBatch entries that CanMerge
+// (same transform/color/atlas/MSDF params). Scissor/group isolation is the
+// caller's responsibility — never pass batches from different scissors here.
+func coalesceTextBatches(in []TextBatch) []TextBatch {
+	if len(in) <= 1 {
+		return in
+	}
+	out := make([]TextBatch, 0, len(in))
+	for i := range in {
+		if len(in[i].Quads) == 0 {
+			continue
+		}
+		if len(out) > 0 && out[len(out)-1].CanMerge(in[i]) {
+			last := &out[len(out)-1]
+			// Copy quads to avoid aliasing pending slices across frames.
+			last.Quads = append(last.Quads[:len(last.Quads):len(last.Quads)], in[i].Quads...)
+			continue
+		}
+		b := in[i]
+		if len(b.Quads) > 0 {
+			q := make([]TextQuad, len(b.Quads))
+			copy(q, b.Quads)
+			b.Quads = q
+		}
+		out = append(out, b)
+	}
+	return out
+}
+
+// coalesceGlyphMaskBatches merges consecutive GlyphMaskBatch entries that CanMerge
+// (same transform/color/LCD/atlas page). Caller must not cross scissor groups.
+func coalesceGlyphMaskBatches(in []GlyphMaskBatch) []GlyphMaskBatch {
+	if len(in) <= 1 {
+		return in
+	}
+	out := make([]GlyphMaskBatch, 0, len(in))
+	for i := range in {
+		if len(in[i].Quads) == 0 {
+			continue
+		}
+		if len(out) > 0 && out[len(out)-1].CanMerge(in[i]) {
+			last := &out[len(out)-1]
+			last.Quads = append(last.Quads[:len(last.Quads):len(last.Quads)], in[i].Quads...)
+			continue
+		}
+		b := in[i]
+		if len(b.Quads) > 0 {
+			q := make([]GlyphMaskQuad, len(b.Quads))
+			copy(q, b.Quads)
+			b.Quads = q
+		}
+		out = append(out, b)
+	}
+	return out
 }
 
 // buildGPUTextureResources builds render resources for GPU-to-GPU texture compositing.
@@ -2357,7 +2490,10 @@ func (s *GPURenderSession) queueWriteBuffer(buf *webgpu.Buffer, offset uint64, d
 // isBaseLayer selects a separate vertex buffer for the base layer to prevent
 // base layer vertices (full-screen quad) from overwriting overlay vertices
 // (BUG-GG-GPU-TEXTURE-OVERLAY-SIZE).
-func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand, w, h uint32, isBaseLayer bool) (*imageFrameResources, error) {
+//
+// S6.3: consecutive overlays with the same texture view / opacity / viewport
+// coalesce into multi-quad draws unless batchSeal[j] is true (scissor boundary).
+func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand, w, h uint32, isBaseLayer bool, batchSeal []bool) (*imageFrameResources, error) {
 	if len(cmds) == 0 {
 		return nil, nil //nolint:nilnil // no GPU texture commands
 	}
@@ -2366,7 +2502,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	}
 
 	totalVertBytes := len(cmds) * 6 * imageVertexStride //nolint:mnd // 6 verts per quad
-	var allVertData []byte
+	allVertData := make([]byte, totalVertBytes)
 	for i := range cmds {
 		cmd := &cmds[i]
 		imgCmd := ImageDrawCommand{
@@ -2374,7 +2510,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			Opacity: cmd.Opacity, ViewportWidth: cmd.ViewportWidth, ViewportHeight: cmd.ViewportHeight,
 			U0: 0, V0: 0, U1: 1, V1: 1,
 		}
-		allVertData = append(allVertData, buildImageVertices(&imgCmd)...)
+		copy(allVertData[i*6*imageVertexStride:], buildImageVertices(&imgCmd))
 	}
 
 	// Select vertex buffer: base layer and overlays use SEPARATE buffers
@@ -2404,20 +2540,34 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		*vertBufPtr = buf
 		*vertCapPtr = needed
 	}
-	if err := s.queue.WriteBuffer(*vertBufPtr, 0, allVertData); err != nil {
+	if err := s.queueWriteBuffer(*vertBufPtr, 0, allVertData); err != nil {
 		return nil, fmt.Errorf("upload gpu texture vertices: %w", err)
 	}
 
 	drawCalls := make([]imageDrawCall, 0, len(cmds))
-	for i := range cmds {
-		cmd := &cmds[i]
-		if cmd.View.IsNil() {
+	poolIdx := 0
+	quadsTotal := 0
+	for i := 0; i < len(cmds); {
+		if cmds[i].View.IsNil() {
+			i++
 			continue
 		}
+		// Extend coalesced run while mergeable and not sealed.
+		j := i + 1
+		for j < len(cmds) {
+			if len(batchSeal) > j && batchSeal[j] {
+				break
+			}
+			if cmds[j].View.IsNil() || !canMergeGPUTextureDraw(&cmds[i], &cmds[j]) {
+				break
+			}
+			j++
+		}
+
+		cmd := &cmds[i]
 		texView := (*webgpu.TextureView)(cmd.View.Pointer())
 
-		// Grow uniform buffer pool.
-		for len(s.gpuTexUniformBufs) <= i {
+		for len(s.gpuTexUniformBufs) <= poolIdx {
 			buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
 				Label: fmt.Sprintf("gpu_tex_uniform_%d", len(s.gpuTexUniformBufs)),
 				Size:  imageUniformSize,
@@ -2431,34 +2581,43 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		}
 
 		uniformData := makeImageUniform(w, h, cmd.Opacity)
-		if err := s.queue.WriteBuffer(s.gpuTexUniformBufs[i], 0, uniformData); err != nil {
+		if err := s.queueWriteBuffer(s.gpuTexUniformBufs[poolIdx], 0, uniformData); err != nil {
+			i = j
 			continue
 		}
 
-		// Bind group must be recreated each frame because the texture view changes.
-		// DON'T Release() here — shared command encoder may still reference it.
-		// Defer release until after submit (Skia Graphite/Rust wgpu pattern).
-		if s.gpuTexBindGroups[i] != nil {
-			s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, s.gpuTexBindGroups[i])
+		if s.gpuTexBindGroups[poolIdx] != nil {
+			s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, s.gpuTexBindGroups[poolIdx])
 		}
 		bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
-			Label:  fmt.Sprintf("gpu_tex_bind_%d", i),
+			Label:  fmt.Sprintf("gpu_tex_bind_%d", poolIdx),
 			Layout: s.imagePipeline.uniformLayout,
 			Entries: []webgpu.BindGroupEntry{
-				{Binding: 0, Buffer: s.gpuTexUniformBufs[i], Offset: 0, Size: imageUniformSize},
+				{Binding: 0, Buffer: s.gpuTexUniformBufs[poolIdx], Offset: 0, Size: imageUniformSize},
 				{Binding: 1, TextureView: texView},
 				{Binding: 2, Sampler: s.imagePipeline.SamplerFor(false)},
 			},
 		})
 		if err != nil {
+			i = j
 			continue
 		}
-		s.gpuTexBindGroups[i] = bg
+		s.gpuTexBindGroups[poolIdx] = bg
 
+		quads := j - i
+		quadsTotal += quads
 		drawCalls = append(drawCalls, imageDrawCall{
 			bindGroup:   bg,
-			firstVertex: uint32(i * 6), //nolint:gosec // bounded
+			firstVertex: uint32(i * 6),     //nolint:gosec // bounded
+			vertexCount: uint32(quads * 6), //nolint:gosec // multi-quad
 		})
+		poolIdx++
+		i = j
+	}
+
+	if !isBaseLayer {
+		s.lastBatchStats.GPUTexDraws = len(drawCalls)
+		s.lastBatchStats.GPUTexQuads = quadsTotal
 	}
 
 	return &imageFrameResources{

@@ -855,6 +855,6 @@ func makeSDFRenderUniformInto(buf []byte, w, h uint32, antiAlias bool) []byte {
 		aa = 0
 	}
 	binary.LittleEndian.PutUint32(buf[8:12], aa)
-	slogger().Debug("SDF uniform viewport", "width", w, "height", h, "anti_alias", antiAlias)
+	// Intentionally no slogger here: Into is a hot path (S6.2 zero-alloc).
 	return buf
 }

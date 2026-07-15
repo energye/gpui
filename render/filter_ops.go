@@ -13,7 +13,20 @@ var (
 	// gpuFilterGraphApply runs F.03 multi-RT GPU ping-pong (optional).
 	// src is tight RGBA8 w*h*4; returns same layout result.
 	gpuFilterGraphApply func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)
+
+	// S6.4: shared intermediate pool for CPU filter ping-pong (blur/shadow/graph).
+	filterPixmapPool = newPixmapPool(8)
 )
+
+// FilterPoolStats returns S6.4 filter intermediate pool counters.
+func FilterPoolStats() (gets, puts, hits, misses int) {
+	return filterPixmapPool.Stats()
+}
+
+// ResetFilterPoolStats clears filter pool counters (tests).
+func ResetFilterPoolStats() {
+	filterPixmapPool.ResetStats()
+}
 
 // RegisterFilterOps wires image-filter implementations (blur/shadow/color matrix).
 // Called from render/filters init to avoid import cycles with internal/filter.
@@ -39,12 +52,13 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 	}
 	_ = c.FlushGPU()
 	src := c.pixmap
-	dst := NewPixmap(src.Width(), src.Height())
-	dst.Clear(Transparent)
+	// S6.4: reuse intermediate RT; full overwrite path (copy src→dst first).
+	dst := filterPixmapPool.GetForOverwrite(src.Width(), src.Height())
 	copy(dst.Data(), src.Data())
 	fn(src, dst)
 	copy(src.Data(), dst.Data())
 	src.NotifyPixelsChanged()
+	filterPixmapPool.Put(dst)
 }
 
 // ApplyBlur applies a Gaussian blur to the current surface contents (F.01).
@@ -185,6 +199,8 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 	if runnable == 0 {
 		return
 	}
+	// S6.4: drop no-ops / merge consecutive color matrices before GPU or CPU path.
+	nodes = coalesceImageFilterNodes(nodes)
 
 	_ = c.FlushGPU()
 	src := c.pixmap
@@ -205,9 +221,9 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 		}
 	}
 
-	// CPU fallback: pixmap ping-pong intermediate surfaces.
-	bufA := NewPixmap(w, h)
-	bufB := NewPixmap(w, h)
+	// CPU fallback: pooled pixmap ping-pong intermediate surfaces (S6.4).
+	bufA := filterPixmapPool.GetForOverwrite(w, h)
+	bufB := filterPixmapPool.GetForOverwrite(w, h)
 	copy(bufA.Data(), src.Data())
 	bufA.NotifyPixelsChanged()
 
@@ -227,6 +243,44 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 
 	copy(src.Data(), cur.Data())
 	src.NotifyPixelsChanged()
+	filterPixmapPool.Put(bufA)
+	filterPixmapPool.Put(bufB)
+}
+
+// coalesceImageFilterNodes drops no-ops and merges consecutive color-matrix nodes (S6.4).
+// Blur radii are NOT merged (Gaussian convolution is not a simple max/sum of radii).
+func coalesceImageFilterNodes(nodes []ImageFilterNode) []ImageFilterNode {
+	if len(nodes) <= 1 {
+		return nodes
+	}
+	out := make([]ImageFilterNode, 0, len(nodes))
+	for i := range nodes {
+		n := nodes[i]
+		if !imageFilterNodeRunnable(n) {
+			continue
+		}
+		if len(out) > 0 && out[len(out)-1].Kind == ImageFilterColorMatrix && n.Kind == ImageFilterColorMatrix {
+			out[len(out)-1].Matrix = composeColorMatrix4x5(out[len(out)-1].Matrix, n.Matrix)
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+// composeColorMatrix4x5 multiplies two 4x5 row-major color matrices: result applies a then b.
+// Layout: rows [R,G,B,A] × columns [R,G,B,A,bias].
+func composeColorMatrix4x5(a, b [20]float32) [20]float32 {
+	var r [20]float32
+	for i := 0; i < 4; i++ {
+		bi := i * 5
+		r[bi+0] = b[bi+0]*a[0] + b[bi+1]*a[5] + b[bi+2]*a[10] + b[bi+3]*a[15]
+		r[bi+1] = b[bi+0]*a[1] + b[bi+1]*a[6] + b[bi+2]*a[11] + b[bi+3]*a[16]
+		r[bi+2] = b[bi+0]*a[2] + b[bi+1]*a[7] + b[bi+2]*a[12] + b[bi+3]*a[17]
+		r[bi+3] = b[bi+0]*a[3] + b[bi+1]*a[8] + b[bi+2]*a[13] + b[bi+3]*a[18]
+		r[bi+4] = b[bi+0]*a[4] + b[bi+1]*a[9] + b[bi+2]*a[14] + b[bi+3]*a[19] + b[bi+4]
+	}
+	return r
 }
 
 func imageFilterGraphGPUSupported(nodes []ImageFilterNode) bool {
