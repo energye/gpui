@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.8 | 日期：2026-07-15  
+> 版本：1.9 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -118,7 +118,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 |------|----------|------------------|
 | **S3a M0–M1** | 清屏、path fill/stroke、AA、CTM、solid、clip rect、hairline | ✅ `docs/S3A_M0M1_RENDER_GATE.md` |
 | **S3b M2** | blend/premul、image、text、rrect、layer opacity、dash、gradient、MSAA | UI 级 2D 门禁绿 |
-| **S3c M3** | 高级 clip/filter/shadow、surface present、color space… | 完整 2D + 窗口路径 |
+| **S3c M3** | 高级 clip/filter/shadow、vertices/atlas、surface present、color space… | ✅ `docs/S3C_M3_RENDER_GATE.md`（窗口 Present 后置） |
 
 **硬规则**：
 
@@ -150,9 +150,9 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 3 | S2 webgpu facade | ✅ |
 | 4 | S3a render M0–M1 GPU 门禁 | ✅ **S3a 关闭** |
 | 5 | S3b M2 UI 级 2D | ✅ **S3b 关闭** |
-| 6 | S3c M3 高级 2D / present | 🔄 **进行中**（filter/present 首切片） |
+| 6 | S3c M3 vertices/atlas/filter/present | ✅ **S3c 关闭**（窗口 Present 后置） |
 
-S0–S3b 已关闭。S3c 进行中（filter/shadow/present 首切片已绿）。
+S0–S3c 已关闭（窗口 Swapchain Present 书面后置）。下一步 S4 性能（可选）或平台窗口集成。
 
 ```bash
 go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
@@ -184,6 +184,8 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 | `docs/RWGPU_SKIA_SUBSET_CHECKLIST.md` | S1 产出（已关闭） |
 | `docs/WEBGPU_FACADE_S2_CHECKLIST.md` | S2 产出（facade 已关闭） |
 | `docs/S3A_M0M1_RENDER_GATE.md` | S3a 产出（M0–M1 GPU 门禁） |
+| `docs/S3B_M2_RENDER_GATE.md` | S3b 产出（M2 UI 2D） |
+| `docs/S3C_M3_RENDER_GATE.md` | S3c 产出（M3 vertices/atlas/filter/present） |
 | `docs/OPTIMIZATION_PLAN.md` | 历史大计划；服从主线 |
 
 ---
@@ -192,6 +194,7 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.9 | S3c 关闭：V.01 DrawVertices + V.02 DrawAtlas GPU 门禁；窗口 Present 后置 |
 | 2026-07-15 | 1.8 | S3c 启动：ApplyBlur/Shadow/Color + offscreen present 门禁 |
 | 2026-07-15 | 1.7 | S3b 关闭：MSAA Q.01 + STRICT 五场景；下一步 S3c |
 | 2026-07-15 | 1.6 | S3b：gradient GPU fillBrushAsImage + SetBlendMode；接近关闭 |

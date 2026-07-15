@@ -48,7 +48,7 @@
 |----|------|-----------|---------------------|-------|--------|--------|-----|
 | S.01 | 离屏像素表面 | `SkSurface::MakeRaster` | Buffer/Texture + readback | ✅ | ✅ | ✅ Pixmap/Context | M0 |
 | S.02 | GPU 离屏 RT | `SkSurface::MakeRenderTarget` | Texture RenderAttachment + resolve | ✅ | ✅ | ✅ Context+FlushGPU | M0 |
-| S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | 🔄 | 🔄 | 🔄 离屏 view ✅；窗口 Swapchain 🔄 | M3 |
+| S.03 | 窗口 Surface/Swapchain | `MakeFromBackendRenderTarget` / Window | Surface/Swapchain/Present/配置 | 🔄 | 🔄 | ✅ 离屏 view `TestS3c_M3_OffscreenPresentPath`；窗口 Swapchain 🔄 后置 | M3 |
 | S.04 | 清屏/clear 色 | `canvas->clear` | LoadOpClear + clearValue | ✅ | ✅ | ✅ Clear/ClearWithColor | M0 |
 | S.05 | 尺寸/resize | surface 重建 | 重建 texture/pipeline 依赖 | 🔄 | 🔄 | 🔄 | M1 |
 | S.06 | 读回像素 | `peekPixels` / `readPixels` | copyTextureToBuffer + map | ✅ | ✅ | ✅ Image/SavePNG/FlushGPU | M0 |
@@ -197,8 +197,8 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| V.01 | DrawVertices | `drawVertices` | vertex color/uv pipeline | ✅ buffer | ✅ | ⬜/🔄 | M3 |
-| V.02 | DrawAtlas | `drawAtlas` | instanced quads | ✅ | ✅ | 🔄 | M3 |
+| V.01 | DrawVertices | `drawVertices` | vertex color/uv pipeline | ✅ buffer | ✅ | ✅ GPU `TestS3c_M3_DrawVertices` | M3 |
+| V.02 | DrawAtlas | `drawAtlas` | multi QueueImageDraw | ✅ | ✅ | ✅ GPU `TestS3c_M3_DrawAtlas` | M3 |
 | V.03 | Mesh（可选） | `drawMesh` | 自定义 shader | 🔄 | 🔄 | ⬜ | M4 |
 
 ### 1.15 MSAA / 质量 / 像素惯例

@@ -1518,6 +1518,8 @@ type gpuContextOps interface {
 	QueueImageDraw(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32)
+	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
+	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
 	QueueGPUTextureDraw(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
 	QueueBaseLayer(target GPURenderTarget, view gpucontext.TextureView,

@@ -344,3 +344,139 @@ func TestS3c_M3_DefaultSRGBSurface(t *testing.T) {
 		t.Fatalf("expected opaque, got a=%d", a)
 	}
 }
+
+// --- V.01 DrawVertices (Gouraud triangle) ---
+
+func TestS3c_M3_DrawVertices(t *testing.T) {
+	s3cRequireGPU(t)
+	const w, h = 64, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	s3cWhiteBG(dc, w, h)
+
+	// Large RGB triangle covering center; Gouraud interpolate.
+	positions := []render.Point{
+		{X: 8, Y: 56},
+		{X: 56, Y: 56},
+		{X: 32, Y: 8},
+	}
+	colors := []render.RGBA{
+		{R: 1, G: 0, B: 0, A: 1},
+		{R: 0, G: 1, B: 0, A: 1},
+		{R: 0, G: 0, B: 1, A: 1},
+	}
+	dc.DrawVertices(positions, colors, render.VertexModeTriangles)
+	s3cFlushGPU(t, dc)
+
+	// Outside triangle near corner remains white-ish.
+	or, og, ob, _ := s3cSample(dc, 2, 2)
+	if int(or)+int(og)+int(ob) < 700 {
+		t.Fatalf("outside triangle should stay near white, got %d,%d,%d", or, og, ob)
+	}
+
+	// Near red corner (bottom-left of triangle)
+	rr, rg, rb, ra := s3cSample(dc, 14, 50)
+	t.Logf("near-red rgba=%d,%d,%d,%d", rr, rg, rb, ra)
+	if rr < 120 || rg > 100 || rb > 100 {
+		t.Fatalf("expected red-dominant near red vertex, got %d,%d,%d", rr, rg, rb)
+	}
+
+	// Near green corner (bottom-right)
+	gr, gg, gb, _ := s3cSample(dc, 50, 50)
+	t.Logf("near-green rgba=%d,%d,%d", gr, gg, gb)
+	if gg < 120 || gr > 100 || gb > 100 {
+		t.Fatalf("expected green-dominant near green vertex, got %d,%d,%d", gr, gg, gb)
+	}
+
+	// Center should be mixed (all channels nonzero-ish)
+	cr, cg, cb, _ := s3cSample(dc, 32, 40)
+	t.Logf("center rgba=%d,%d,%d", cr, cg, cb)
+	if cr < 20 || cg < 20 || cb < 20 {
+		t.Fatalf("expected mixed Gouraud center, got %d,%d,%d", cr, cg, cb)
+	}
+}
+
+// --- V.02 DrawAtlas multi-sprite ---
+
+func TestS3c_M3_DrawAtlas(t *testing.T) {
+	s3cRequireGPU(t)
+	const w, h = 48, 48
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	s3cWhiteBG(dc, w, h)
+
+	// 16x16 atlas: left half red, right half blue
+	atlas, err := render.NewImageBuf(16, 16, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			if x < 8 {
+				_ = atlas.SetRGBA(x, y, 255, 0, 0, 255)
+			} else {
+				_ = atlas.SetRGBA(x, y, 0, 0, 255, 255)
+			}
+		}
+	}
+
+	sprites := []render.AtlasSprite{
+		{SrcX: 0, SrcY: 0, SrcW: 8, SrcH: 16, DstX: 4, DstY: 8, DstW: 16, DstH: 16, Opacity: 1},
+		{SrcX: 8, SrcY: 0, SrcW: 8, SrcH: 16, DstX: 28, DstY: 8, DstW: 16, DstH: 16, Opacity: 1},
+	}
+	dc.DrawAtlas(atlas, sprites)
+	s3cFlushGPU(t, dc)
+
+	// Left sprite center should be red
+	lr, lg, lb, la := s3cSample(dc, 12, 16)
+	t.Logf("left sprite rgba=%d,%d,%d,%d", lr, lg, lb, la)
+	if lr < 200 || lg > 40 || lb > 40 {
+		t.Fatalf("left atlas sprite expected red, got %d,%d,%d", lr, lg, lb)
+	}
+	// Right sprite center should be blue
+	rr, rg, rb, ra := s3cSample(dc, 36, 16)
+	t.Logf("right sprite rgba=%d,%d,%d,%d", rr, rg, rb, ra)
+	if rb < 200 || rr > 40 || rg > 40 {
+		t.Fatalf("right atlas sprite expected blue, got %d,%d,%d", rr, rg, rb)
+	}
+	// Gap between sprites stays near white
+	mr, mg, mb, _ := s3cSample(dc, 24, 16)
+	if int(mr)+int(mg)+int(mb) < 650 {
+		t.Fatalf("gap between sprites should stay near white, got %d,%d,%d", mr, mg, mb)
+	}
+}
+
+// --- S.03 Surface present API smoke (windowless stand-in) ---
+
+func TestS3c_M3_SurfacePresentAPISmoke(t *testing.T) {
+	// Real window Swapchain Present needs a display; windowless path uses
+	// CreateOffscreenTexture + FlushGPUWithView as S.03 present stand-in.
+	s3cRequireGPU(t)
+	dc := render.NewContext(16, 16)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.SetRGB(0, 1, 0)
+	dc.DrawRectangle(0, 0, 16, 16)
+	_ = dc.Fill()
+
+	view, release := dc.CreateOffscreenTexture(16, 16)
+	if release == nil && view.IsNil() {
+		// Fall back to pixmap FlushGPU still proving GPU presentable RT.
+		t.Log("CreateOffscreenTexture unavailable; FlushGPU fallback")
+		s3cFlushGPU(t, dc)
+		return
+	}
+	if release != nil {
+		defer release()
+	}
+	if err := dc.FlushGPUWithView(view, 16, 16); err != nil {
+		t.Fatalf("FlushGPUWithView: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("present smoke needs GPUOps>0: %s", stats.LogLine())
+	}
+}

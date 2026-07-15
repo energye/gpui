@@ -899,3 +899,42 @@ func BenchmarkBuildConvexVertices100Gon(b *testing.B) {
 		BuildConvexVertices(commands)
 	}
 }
+
+func TestBuildConvexVertices_VertexColors(t *testing.T) {
+	// Red, green, blue triangle → Gouraud: centroid average should be non-zero RGB.
+	cmd := ConvexDrawCommand{
+		Points: []render.Point{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 0, Y: 10}},
+		Color:  [4]float32{1, 1, 1, 1}, // unused when VertexColors set
+		VertexColors: [][4]float32{
+			{1, 0, 0, 1},
+			{0, 1, 0, 1},
+			{0, 0, 1, 1},
+		},
+	}
+	data := BuildConvexVertices([]ConvexDrawCommand{cmd})
+	if len(data) == 0 {
+		t.Fatal("expected vertices")
+	}
+	// First vertex is centroid of first edge fan with coverage 1 and avg color
+	// Layout: pos.xy, coverage, color.rgba  (7 floats = 28 bytes)
+	// Read first color components
+	cr := math.Float32frombits(binary.LittleEndian.Uint32(data[12:16]))
+	cg := math.Float32frombits(binary.LittleEndian.Uint32(data[16:20]))
+	cb := math.Float32frombits(binary.LittleEndian.Uint32(data[20:24]))
+	ca := math.Float32frombits(binary.LittleEndian.Uint32(data[24:28]))
+	// Average of RGB should be ~1/3 each
+	if math.Abs(float64(cr-1.0/3)) > 1e-4 || math.Abs(float64(cg-1.0/3)) > 1e-4 || math.Abs(float64(cb-1.0/3)) > 1e-4 {
+		t.Fatalf("centroid color got %v,%v,%v want ~1/3 each", cr, cg, cb)
+	}
+	if ca != 1 {
+		t.Fatalf("centroid alpha=%v want 1", ca)
+	}
+	// A later corner vertex of interior tri should be pure red (v0)
+	// verts: centroid, v0, v1 for edge0 → bytes 28..56 is v0
+	r0 := math.Float32frombits(binary.LittleEndian.Uint32(data[28+12 : 28+16]))
+	g0 := math.Float32frombits(binary.LittleEndian.Uint32(data[28+16 : 28+20]))
+	b0 := math.Float32frombits(binary.LittleEndian.Uint32(data[28+20 : 28+24]))
+	if r0 != 1 || g0 != 0 || b0 != 0 {
+		t.Fatalf("v0 color got %v,%v,%v want 1,0,0", r0, g0, b0)
+	}
+}
