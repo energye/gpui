@@ -86,7 +86,7 @@
 | B.01 | SrcOver（默认） | `kSrcOver` | BlendState premul | ✅ enum | ✅ | ✅ `TestP12GPUFixedPixel_SourceOverPremul` | M1 |
 | B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | 🔄 | 🔄 | 🔄 SetBlendMode 已存；GPU 仅 SrcOver；CPU 多模式 | M2 |
 | B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 | 🔄 | ✅ 直绘 CPU `SetBlendMode`；层 GPU 内容+CPU composite | M2 |
-| B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | 🔄 | M3 |
+| B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | ✅ BlendHue/Sat/Color/Lum `TestS3c_M3_Blend*` | M3 |
 | B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | 🔄 文档+部分测试 | M1 |
 | B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | 🔄 | M1 |
 | B.07 | Plus/Modulate 等 | `kPlus`… | blend/shader | 🔄 | 🔄 | 🔄 | M2 |
@@ -98,7 +98,7 @@
 | H.01 | Move/Line/Quad/Cubic/Close | `SkPath` | CPU path → GPU mesh/stencil | N/A | N/A | ✅ | M1 |
 | H.02 | Arc/圆角路径 | `arcTo` | 细分 | N/A | N/A | ✅ | M1 |
 | H.03 | Fill rule NonZero/EvenOdd | `setFillType` | stencil 或 winding | 🔄 stencil | 🔄 | ✅ | M1 |
-| H.04 | Path 布尔（可选） | `Op` | CPU | N/A | N/A | 🔄/⬜ | M3 |
+| H.04 | Path 布尔（可选） | `Op` | CPU | N/A | N/A | ✅ BooleanPath `TestS3c_M3_PathBoolean*` | M3 |
 | H.05 | Path measure/长度 | `SkPathMeasure` | CPU | N/A | N/A | ✅ Path.Length `TestS3c` | M3 |
 | H.06 | 复杂 path GPU 光栅 | GrPathRenderer 类 | stencil-then-cover / tess / compute | 🔄 | 🔄 | ✅ stencil-then-cover（shapes/clip STRICT） | M2 |
 | H.07 | Convex path 快路径 | convex | 专用 pipeline | 🔄 | 🔄 | ✅ convex renderer 路径（S3a/S3b 场景） | M2 |
@@ -123,7 +123,7 @@
 | C.03 | Clip path | `clipPath` | stencil | 🔄 | 🔄 | ✅ Clip+GPU fill `TestS3b_M2_ClipPath` | M2 |
 | C.04 | Clip 栈 / 交 | clip stack | stencil ref / mask | 🔄 | 🔄 | ✅ 栈 | M1 |
 | C.05 | Clip AA | aa clip | coverage/stencil MSAA | 🔄 | 🔄 | 🔄 | M2 |
-| C.06 | Replace/Difference clip op | `SkClipOp` | stencil ops | 🔄 | 🔄 | 🔄 | M3 |
+| C.06 | Replace/Difference clip op | `SkClipOp` | stencil ops / mask | 🔄 | 🔄 | ✅ ClipRectOp `TestS3c_M3_ClipRect*` | M3 |
 
 ### 1.8 Layer / SaveLayer
 
@@ -154,10 +154,10 @@
 | I.01 | DrawImage | `drawImage` | textured quad | ✅ | ✅ | ✅ GPU quad `TestS3b` | M2 |
 | I.02 | DrawImageRect/src-dst | `drawImageRect` | UV rect | ✅ | ✅ | ✅ scale dst `TestS3b` | M2 |
 | I.03 | 过滤 Nearest/Linear | sampling | FilterMode | ✅ | ✅ | 🔄 | M2 |
-| I.04 | Cubic/mipmap（可选） | cubic sampling | mip / custom | 🔄 | 🔄 | ⬜ | M3 |
+| I.04 | Cubic/mipmap（可选） | cubic sampling | mip / custom | 🔄 | 🔄 | ✅ InterpBicubic+UseMipmaps `TestS3c_M3_ImageBicubicAndMipmap` | M3 |
 | I.05 | Opacity / alpha image | paint alpha | premul | 🔄 | 🔄 | ✅ DrawImageEx opacity `TestS3b` | M2 |
 | I.06 | 旋转/CTM 下图像 | concat + drawImage | 任意 quad | ✅ | ✅ | ✅ 四角点 | M2 |
-| I.07 | 九宫格（可选） | lattice | 多 quad | N/A | N/A | ⬜ | M3 |
+| I.07 | 九宫格（可选） | lattice | 多 quad / DrawAtlas | N/A | N/A | ✅ DrawImageNine `TestS3c_M3_DrawImageNine` | M3 |
 | I.08 | YUV/外部纹理（可选） | external | multiplanar | ⬜ | ⬜ | ⬜ | M4 |
 
 ### 1.11 Text / Font / Glyph
@@ -171,9 +171,9 @@
 | X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | 🔄 | 🔄 | 🔄 LCDLayout | M2 |
 | X.06 | CJK / fallback 字体 | fallback | 同 text | N/A | N/A | 🔄 | M2 |
 | X.07 | 路径化文本 | text → path | path 管线 | N/A | N/A | ✅ outline | M2 |
-| X.08 | 文本装饰 underline 等 | decorations | 几何 | N/A | N/A | ⬜/🔄 | M3 |
-| X.09 | 变体字体 variable | variations | CPU | N/A | N/A | 🔄 | M3 |
-| X.10 | Emoji/彩色字体 | CBDT/SBIX/… | RGBA atlas | 🔄 | 🔄 | 🔄 | M3 |
+| X.08 | 文本装饰 underline 等 | decorations | 几何 | N/A | N/A | ✅ SetTextDecoration `TestS3c_M3_TextUnderline` | M3 |
+| X.09 | 变体字体 variable | variations | CPU | N/A | N/A | ✅ LoadFontFaceWithVariations `TestS3c_M3_VariableFontWeight` | M3 |
+| X.10 | Emoji/彩色字体 | CBDT/SBIX/… | RGBA atlas | 🔄 | 🔄 | ✅ DrawWithEmoji 接入 DrawString `TestS3c_M3_DrawWithEmojiAPI` | M3 |
 | X.11 | Glyph atlas 管理 | strike cache | texture atlas + upload | 🔄 | 🔄 | 🔄 | M2 |
 
 ### 1.12 Path Effect
@@ -349,3 +349,5 @@
 | 2026-07-15 | 1.2 | S1 关闭：A–E 烟测；§2.7/§4 更新 |
 | 2026-07-15 | 1.1 | §4 rwgpu：S1 枚举 header-lock 已落地 |
 | 2026-07-15 | 1.0 | 首版：全面 Skia 2D 能力表 + WebGPU 反推子集 + 里程碑 |
+
+| 2026-07-15 | M3 residual | B.04/C.06/H.04/I.04/I.07/X.08–X.10 实现 + S3c residual 门禁 |

@@ -27,6 +27,15 @@ const (
 	// BlendOverlay combines multiply and screen based on destination brightness.
 	// Dark areas are multiplied, bright areas are screened.
 	BlendOverlay
+
+	// BlendHue (non-separable): hue of source, saturation/luminosity of destination.
+	BlendHue
+	// BlendSaturation (non-separable): saturation of source, hue/luminosity of destination.
+	BlendSaturation
+	// BlendColor (non-separable): hue+saturation of source, luminosity of destination.
+	BlendColor
+	// BlendLuminosity (non-separable): luminosity of source, hue+saturation of destination.
+	BlendLuminosity
 )
 
 const unknownBlendMode = "Unknown"
@@ -42,6 +51,14 @@ func (b BlendMode) String() string {
 		return "Screen"
 	case BlendOverlay:
 		return "Overlay"
+	case BlendHue:
+		return "Hue"
+	case BlendSaturation:
+		return "Saturation"
+	case BlendColor:
+		return "Color"
+	case BlendLuminosity:
+		return "Luminosity"
 	default:
 		return unknownBlendMode
 	}
@@ -69,6 +86,9 @@ type DrawParams struct {
 
 	// BlendMode specifies how to blend source and destination pixels.
 	BlendMode BlendMode
+
+	// UseMipmaps selects a prefiltered mip level when drawing smaller than 1:1 (I.04).
+	UseMipmaps bool
 }
 
 // DrawImage draws the source image onto the destination image using the specified parameters.
@@ -101,6 +121,34 @@ func DrawImage(dst, src *ImageBuf, params DrawParams) {
 	if !ok {
 		// Singular matrix, cannot draw
 		return
+	}
+
+	// Optional mipmap level selection when downscaling.
+	if params.UseMipmaps && srcRect.Width > 0 && srcRect.Height > 0 {
+		scaleX := float64(params.DstRect.Width) / float64(srcRect.Width)
+		scaleY := float64(params.DstRect.Height) / float64(srcRect.Height)
+		scale := scaleX
+		if scaleY < scale {
+			scale = scaleY
+		}
+		if scale > 0 && scale < 0.99 {
+			if chain := GenerateMipmaps(src); chain != nil {
+				if lvl := chain.LevelForScale(scale); lvl != nil && lvl != src {
+					// Map srcRect into the mip level coordinate space.
+					sw0, sh0 := src.Bounds()
+					lw, lh := lvl.Bounds()
+					sx := float64(lw) / float64(sw0)
+					sy := float64(lh) / float64(sh0)
+					src = lvl
+					srcRect = &Rect{
+						X:      int(float64(srcRect.X) * sx),
+						Y:      int(float64(srcRect.Y) * sy),
+						Width:  max(1, int(float64(srcRect.Width)*sx+0.5)),
+						Height: max(1, int(float64(srcRect.Height)*sy+0.5)),
+					}
+				}
+			}
+		}
 	}
 
 	// Clamp opacity to valid range
@@ -202,6 +250,14 @@ func blend(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA uint8, mode BlendMode)
 		blendedR, blendedG, blendedB = blendScreen(srcR, srcG, srcB, dstR, dstG, dstB)
 	case BlendOverlay:
 		blendedR, blendedG, blendedB = blendOverlay(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendHue:
+		blendedR, blendedG, blendedB = blendHue(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendSaturation:
+		blendedR, blendedG, blendedB = blendSaturation(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendColor:
+		blendedR, blendedG, blendedB = blendColor(srcR, srcG, srcB, dstR, dstG, dstB)
+	case BlendLuminosity:
+		blendedR, blendedG, blendedB = blendLuminosity(srcR, srcG, srcB, dstR, dstG, dstB)
 	default:
 		blendedR, blendedG, blendedB = srcR, srcG, srcB
 	}
@@ -276,4 +332,127 @@ func overlayChannel(src, dst uint8) uint8 {
 		return uint8((2 * int(src) * int(dst)) / 255)
 	}
 	return uint8(255 - (2*(255-int(src))*(255-int(dst)))/255)
+}
+
+// --- Non-separable HSL-style blends (CSS Compositing / PDF) ---
+
+func lumU8(r, g, b uint8) float64 {
+	return 0.3*float64(r) + 0.59*float64(g) + 0.11*float64(b)
+}
+
+func satU8(r, g, b uint8) float64 {
+	maxv := float64(r)
+	if float64(g) > maxv {
+		maxv = float64(g)
+	}
+	if float64(b) > maxv {
+		maxv = float64(b)
+	}
+	minv := float64(r)
+	if float64(g) < minv {
+		minv = float64(g)
+	}
+	if float64(b) < minv {
+		minv = float64(b)
+	}
+	return maxv - minv
+}
+
+func clipColor(r, g, b float64) (uint8, uint8, uint8) {
+	l := 0.3*r + 0.59*g + 0.11*b
+	n := r
+	if g < n {
+		n = g
+	}
+	if b < n {
+		n = b
+	}
+	x := r
+	if g > x {
+		x = g
+	}
+	if b > x {
+		x = b
+	}
+	if n < 0 {
+		r = l + (r-l)*l/(l-n)
+		g = l + (g-l)*l/(l-n)
+		b = l + (b-l)*l/(l-n)
+	}
+	if x > 255 {
+		r = l + (r-l)*(255-l)/(x-l)
+		g = l + (g-l)*(255-l)/(x-l)
+		b = l + (b-l)*(255-l)/(x-l)
+	}
+	return clampU8(r), clampU8(g), clampU8(b)
+}
+
+func clampU8(v float64) uint8 {
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return uint8(v + 0.5)
+}
+
+func setLum(r, g, b, l float64) (uint8, uint8, uint8) {
+	d := l - (0.3*r + 0.59*g + 0.11*b)
+	return clipColor(r+d, g+d, b+d)
+}
+
+func setSat(r, g, b, s float64) (float64, float64, float64) {
+	// Sort channels
+	type ch struct {
+		v float64
+		i int
+	}
+	cs := [3]ch{{r, 0}, {g, 1}, {b, 2}}
+	// bubble sort by value
+	if cs[0].v > cs[1].v {
+		cs[0], cs[1] = cs[1], cs[0]
+	}
+	if cs[1].v > cs[2].v {
+		cs[1], cs[2] = cs[2], cs[1]
+	}
+	if cs[0].v > cs[1].v {
+		cs[0], cs[1] = cs[1], cs[0]
+	}
+	minc, midc, maxc := cs[0], cs[1], cs[2]
+	if maxc.v > minc.v {
+		midc.v = ((midc.v - minc.v) * s) / (maxc.v - minc.v)
+		maxc.v = s
+	} else {
+		midc.v = 0
+		maxc.v = 0
+	}
+	minc.v = 0
+	out := [3]float64{}
+	out[minc.i] = minc.v
+	out[midc.i] = midc.v
+	out[maxc.i] = maxc.v
+	return out[0], out[1], out[2]
+}
+
+// blendHue: hue of source, sat/lum of destination.
+func blendHue(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	r, g, b := setSat(float64(sr), float64(sg), float64(sb), satU8(dr, dg, db))
+	return setLum(r, g, b, lumU8(dr, dg, db))
+}
+
+// blendSaturation: sat of source, hue/lum of destination.
+func blendSaturation(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	r, g, b := setSat(float64(dr), float64(dg), float64(db), satU8(sr, sg, sb))
+	return setLum(r, g, b, lumU8(dr, dg, db))
+}
+
+// blendColor: hue+sat of source, lum of destination.
+func blendColor(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return setLum(float64(sr), float64(sg), float64(sb), lumU8(dr, dg, db))
+}
+
+// blendLuminosity: lum of source, hue+sat of destination.
+func blendLuminosity(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return setLum(float64(dr), float64(dg), float64(db), lumU8(sr, sg, sb))
 }

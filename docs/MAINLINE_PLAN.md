@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.9 | 日期：2026-07-15  
+> 版本：1.10 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -152,7 +152,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 5 | S3b M2 UI 级 2D | ✅ **S3b 关闭** |
 | 6 | S3c M3 vertices/atlas/filter/present | ✅ **S3c 关闭**（窗口 Present 后置） |
 
-S0–S3c 已关闭（窗口 Swapchain Present 书面后置）。下一步 S4 性能（可选）或平台窗口集成。
+S0–S3c 已关闭（含 M3 residual；窗口 Swapchain Present / F.03 / 完整 K.01 书面后置）。下一步 S4 性能（可选）或平台窗口集成。
 
 ```bash
 go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
@@ -194,6 +194,7 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.10 | S3c M3 residual 清零：B.04/C.06/H.04/I.04/I.07/X.08–X.10 门禁 |
 | 2026-07-15 | 1.9 | S3c 关闭：V.01 DrawVertices + V.02 DrawAtlas GPU 门禁；窗口 Present 后置 |
 | 2026-07-15 | 1.8 | S3c 启动：ApplyBlur/Shadow/Color + offscreen present 门禁 |
 | 2026-07-15 | 1.7 | S3b 关闭：MSAA Q.01 + STRICT 五场景；下一步 S3c |

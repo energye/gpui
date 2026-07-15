@@ -2,6 +2,7 @@ package render
 
 import (
 	"image"
+	"math"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	intImage "github.com/energye/gpui/render/internal/image"
@@ -79,6 +80,15 @@ const (
 	// BlendOverlay combines multiply and screen based on destination brightness.
 	// Dark areas are multiplied, bright areas are screened.
 	BlendOverlay = intImage.BlendOverlay
+
+	// BlendHue is a non-separable HSL-style blend (B.04).
+	BlendHue = intImage.BlendHue
+	// BlendSaturation is a non-separable HSL-style blend (B.04).
+	BlendSaturation = intImage.BlendSaturation
+	// BlendColor is a non-separable HSL-style blend (B.04).
+	BlendColor = intImage.BlendColor
+	// BlendLuminosity is a non-separable HSL-style blend (B.04).
+	BlendLuminosity = intImage.BlendLuminosity
 )
 
 // DrawImageOptions specifies parameters for drawing an image.
@@ -103,6 +113,10 @@ type DrawImageOptions struct {
 	// 1.0 means fully opaque, 0.0 means fully transparent.
 	// Default is 1.0.
 	Opacity float64
+
+	// UseMipmaps enables mipmap sampling when the image is drawn smaller than
+	// its native size (I.04). Currently applied on the CPU image path.
+	UseMipmaps bool
 
 	// BlendMode specifies how to blend source and destination pixels.
 	// Default is BlendNormal.
@@ -173,11 +187,38 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 		dstHeight = float64(srcH)
 	}
 
-	// Try GPU textured quad path first (Tier 3).
-	// This avoids the SetFillPattern→Fill() path which triggers mid-frame
-	// CPU flushes when GPU is active (the ImagePattern fallback problem).
-	if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
-		return
+	// Mipmap / bicubic quality paths currently resolve on CPU image pipeline (I.04).
+	// Prefer GPU textured quads otherwise.
+	if !opts.UseMipmaps && opts.Interpolation != InterpBicubic {
+		if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
+			return
+		}
+	} else if opts.UseMipmaps || opts.Interpolation == InterpBicubic {
+		// Direct CPU DrawImage with mipmap/bicubic sampling for correctness.
+		dstImg := c.pixmapToImageBuf(c.pixmap)
+		if dstImg != nil {
+			srcRect := &intImage.Rect{X: srcX, Y: srcY, Width: srcW, Height: srcH}
+			// Destination in device pixels via CTM translation+scale approx for axis-aligned.
+			ctm := c.totalMatrix()
+			tl := ctm.TransformPoint(Pt(opts.X, opts.Y))
+			br := ctm.TransformPoint(Pt(opts.X+dstWidth, opts.Y+dstHeight))
+			dx := int(math.Min(tl.X, br.X))
+			dy := int(math.Min(tl.Y, br.Y))
+			dw := int(math.Abs(br.X-tl.X) + 0.5)
+			dh := int(math.Abs(br.Y-tl.Y) + 0.5)
+			if dw > 0 && dh > 0 {
+				intImage.DrawImage(dstImg, img, intImage.DrawParams{
+					SrcRect:    srcRect,
+					DstRect:    intImage.Rect{X: dx, Y: dy, Width: dw, Height: dh},
+					Interp:     opts.Interpolation,
+					Opacity:    opts.Opacity,
+					BlendMode:  opts.BlendMode,
+					UseMipmaps: opts.UseMipmaps,
+				})
+				c.recordCPUFallbackOp()
+				return
+			}
+		}
 	}
 
 	// Compute scale factors for the image pattern.

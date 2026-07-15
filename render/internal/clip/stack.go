@@ -1,6 +1,10 @@
 package clip
 
-import "math"
+import (
+	"math"
+
+	"github.com/energye/gpui/render/internal/image"
+)
 
 // RRectClip describes a rounded rectangle clip region.
 // The Rect field holds the bounding rectangle in device coordinates,
@@ -247,6 +251,15 @@ func rrectCoverage(px, py float64, rr *RRectClip) byte {
 // (no path-based masks and no rounded rectangle clips). When true, clipping
 // can be applied by restricting the destination bounds rather than per-pixel
 // coverage, which preserves bitmap text quality and is significantly faster.
+func (cs *ClipStack) HasMaskClip() bool {
+	for i := range cs.entries {
+		if cs.entries[i].mask != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func (cs *ClipStack) IsRectOnly() bool {
 	for i := range cs.entries {
 		if cs.entries[i].mask != nil || cs.entries[i].rrect != nil {
@@ -294,4 +307,70 @@ func (cs *ClipStack) Depth() int {
 func (cs *ClipStack) Reset(bounds Rect) {
 	cs.entries = cs.entries[:0]
 	cs.bounds = bounds
+}
+
+// PushRectDifference subtracts rectangle r from the current clip (Skia Difference).
+// Coverage becomes zero inside r while remaining clip outside r is preserved.
+func (cs *ClipStack) PushRectDifference(r Rect) error {
+	mask, err := NewRectDifferenceMask(cs.bounds, r)
+	if err != nil {
+		return err
+	}
+	// Bounds stay the same (difference does not shrink AABB in general).
+	cs.entries = append(cs.entries, clipEntry{
+		prevBounds: cs.bounds,
+		mask:       mask,
+		antiAlias:  false,
+	})
+	return nil
+}
+
+// ReplaceRect replaces the entire clip stack with a single rectangular clip
+// relative to the original canvas bounds (bottom of stack / max area).
+func (cs *ClipStack) ReplaceRect(canvas, r Rect) {
+	cs.entries = cs.entries[:0]
+	cs.bounds = canvas
+	cs.PushRect(r)
+}
+
+// ReplacePath replaces the clip stack with a single path clip on the canvas.
+func (cs *ClipStack) ReplacePath(canvas Rect, verbs []PathVerb, coords []float64, antiAlias bool) error {
+	cs.entries = cs.entries[:0]
+	cs.bounds = canvas
+	return cs.PushPath(verbs, coords, antiAlias)
+}
+
+// PushPathDifference subtracts path coverage from the current clip.
+// Implemented by rasterizing the path and inverting coverage inside current bounds.
+func (cs *ClipStack) PushPathDifference(verbs []PathVerb, coords []float64, antiAlias bool) error {
+	pos, err := NewMaskClipper(verbs, coords, cs.bounds, antiAlias)
+	if err != nil {
+		return err
+	}
+	// Invert: coverage' = 255 - coverage for each pixel in pos mask, then
+	// combine into a new mask over cs.bounds.
+	w := int(cs.bounds.W + 0.5)
+	h := int(cs.bounds.H + 0.5)
+	if w <= 0 || h <= 0 {
+		return image.ErrInvalidDimensions
+	}
+	inv, err := image.NewImageBuf(w, h, image.FormatGray8)
+	if err != nil {
+		return err
+	}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			px := cs.bounds.X + float64(x) + 0.5
+			py := cs.bounds.Y + float64(y) + 0.5
+			cov := pos.Coverage(px, py)
+			v := uint8(255 - int(cov))
+			_ = inv.SetRGBA(x, y, v, v, v, 255)
+		}
+	}
+	cs.entries = append(cs.entries, clipEntry{
+		prevBounds: cs.bounds,
+		mask:       &MaskClipper{mask: inv, bounds: cs.bounds},
+		antiAlias:  antiAlias,
+	})
+	return nil
 }

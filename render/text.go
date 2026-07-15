@@ -79,6 +79,7 @@ func (c *Context) DrawString(s string, x, y float64) {
 
 	// Set GPU scissor rect for rectangular clips.
 	defer c.setGPUClipRect()()
+	defer c.applyTextDecorations(s, x, y)
 
 	switch c.selectTextStrategy() {
 	case TextModeGlyphMask:
@@ -487,6 +488,33 @@ func (c *Context) LoadFontFace(path string, points float64) error {
 	return nil
 }
 
+// LoadFontFaceWithVariations loads a variable font and applies axis values (X.09).
+// Example: dc.LoadFontFaceWithVariations("Cantarell.ttf", 16, text.NewFontVariation("wght", 700))
+func (c *Context) LoadFontFaceWithVariations(path string, points float64, vars ...text.FontVariation) error {
+	source, err := text.NewFontSourceFromFile(path)
+	if err != nil {
+		return err
+	}
+	if len(vars) > 0 {
+		c.face = source.Face(points, text.WithVariations(vars...))
+	} else {
+		c.face = source.Face(points)
+	}
+	return nil
+}
+
+// FontVariationAxes returns variation axes for the current face's font source (X.09).
+func (c *Context) FontVariationAxes() []text.VariationAxis {
+	if c == nil || c.face == nil {
+		return nil
+	}
+	src := c.face.Source()
+	if src == nil {
+		return nil
+	}
+	return src.VariationAxes()
+}
+
 // WordWrap wraps text to fit within the given width using word boundaries.
 // Returns a slice of strings, one per wrapped line.
 // If no font face is set, returns the input string as a single-element slice.
@@ -636,7 +664,7 @@ func (c *Context) drawStringBitmap(s string, x, y float64) {
 			face = source.Face(c.face.Size() * c.deviceScale)
 		}
 	}
-	text.Draw(c.pixmap, s, face, p.X, p.Y, c.currentColor())
+	text.DrawWithEmoji(c.pixmap, s, face, p.X, p.Y, c.currentColor())
 }
 
 // drawStringScaled renders text via bitmap rasterization at the device pixel size.

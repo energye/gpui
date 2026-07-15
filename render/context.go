@@ -70,6 +70,7 @@ type Context struct {
 
 	// Text rendering
 	textMode         TextMode               // text strategy selection (default: Auto)
+	textDecoration   TextDecoration         // underline/line-through/overline (X.08)
 	outlineExtractor *text.OutlineExtractor // lazy: for transform-aware text (Strategy B)
 	glyphCache       *text.GlyphCache       // lazy: cached glyph outlines for drawStringAsOutlines
 
@@ -1768,11 +1769,24 @@ func (c *Context) doFill() error {
 		rc.SetAntiAlias(c.antiAlias)
 	}
 
+	// Mask clips without a GPU depth clip path (e.g. ClipOpDifference) are only
+	// honored on the CPU ClipCoverage path — skip GPU to avoid silent wrong results.
+	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
+
 	// Temporarily swap c.path to device-space for GPU tryGPUOp
 	// (which reads c.path for shape detection and path rendering).
 	origPath := c.path
 	c.path = devicePath
-	ok, cpuMode := c.tryGPUFillWithMode(mode)
+	var ok bool
+	var cpuMode RasterizerMode
+	if forceCPUClip {
+		ok, cpuMode = false, mode
+		if c.gpuPathAvailable() {
+			c.recordCPUFallbackOp()
+		}
+	} else {
+		ok, cpuMode = c.tryGPUFillWithMode(mode)
+	}
 	c.path = origPath
 	if ok {
 		return nil
@@ -1817,9 +1831,19 @@ func (c *Context) doStroke() error {
 	}
 
 	// Temporarily swap c.path to device-space for GPU tryGPUOp.
+	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
 	origPath := c.path
 	c.path = devicePath
-	ok, cpuMode := c.tryGPUStrokeWithMode(mode)
+	var ok bool
+	var cpuMode RasterizerMode
+	if forceCPUClip {
+		ok, cpuMode = false, mode
+		if c.gpuPathAvailable() {
+			c.recordCPUFallbackOp()
+		}
+	} else {
+		ok, cpuMode = c.tryGPUStrokeWithMode(mode)
+	}
 	c.path = origPath
 	if ok {
 		return nil

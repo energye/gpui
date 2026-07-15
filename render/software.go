@@ -759,6 +759,8 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 		br = overlayChannelU8(sr, dr)
 		bg = overlayChannelU8(sg, dg)
 		bb = overlayChannelU8(sb, db)
+	case BlendHue, BlendSaturation, BlendColor, BlendLuminosity:
+		br, bg, bb = advancedBlendRGB(mode, sr, sg, sb, dr, dg, db)
 	}
 
 	// Source-over of blended straight color with src alpha onto dst.
@@ -1272,4 +1274,128 @@ func pointLineDistance(px, py, x0, y0, x1, y1 float64) float64 {
 	}
 	// Cross product gives area of parallelogram, divide by base for height
 	return math.Abs((py-y0)*dx-(px-x0)*dy) / length
+}
+
+func advancedBlendRGB(mode BlendMode, sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	// Delegate to image package blend helpers via DrawParams blend path.
+	// Reconstruct using same formulas as internal/image (keep in sync).
+	switch mode {
+	case BlendHue:
+		return hslBlendHue(sr, sg, sb, dr, dg, db)
+	case BlendSaturation:
+		return hslBlendSat(sr, sg, sb, dr, dg, db)
+	case BlendColor:
+		return hslBlendColor(sr, sg, sb, dr, dg, db)
+	case BlendLuminosity:
+		return hslBlendLum(sr, sg, sb, dr, dg, db)
+	default:
+		return sr, sg, sb
+	}
+}
+
+func hslLum(r, g, b uint8) float64 { return 0.3*float64(r) + 0.59*float64(g) + 0.11*float64(b) }
+func hslSat(r, g, b uint8) float64 {
+	maxv := float64(max3(r, g, b))
+	minv := float64(min3(r, g, b))
+	return maxv - minv
+}
+func max3(a, b, c uint8) uint8 {
+	if a >= b && a >= c {
+		return a
+	}
+	if b >= c {
+		return b
+	}
+	return c
+}
+func min3(a, b, c uint8) uint8 {
+	if a <= b && a <= c {
+		return a
+	}
+	if b <= c {
+		return b
+	}
+	return c
+}
+func hslClip(r, g, b float64) (uint8, uint8, uint8) {
+	l := 0.3*r + 0.59*g + 0.11*b
+	n := r
+	if g < n {
+		n = g
+	}
+	if b < n {
+		n = b
+	}
+	x := r
+	if g > x {
+		x = g
+	}
+	if b > x {
+		x = b
+	}
+	if n < 0 {
+		r = l + (r-l)*l/(l-n)
+		g = l + (g-l)*l/(l-n)
+		b = l + (b-l)*l/(l-n)
+	}
+	if x > 255 {
+		r = l + (r-l)*(255-l)/(x-l)
+		g = l + (g-l)*(255-l)/(x-l)
+		b = l + (b-l)*(255-l)/(x-l)
+	}
+	cl := func(v float64) uint8 {
+		if v < 0 {
+			return 0
+		}
+		if v > 255 {
+			return 255
+		}
+		return uint8(v + 0.5)
+	}
+	return cl(r), cl(g), cl(b)
+}
+func hslSetLum(r, g, b, l float64) (uint8, uint8, uint8) {
+	d := l - (0.3*r + 0.59*g + 0.11*b)
+	return hslClip(r+d, g+d, b+d)
+}
+func hslSetSat(r, g, b, s float64) (float64, float64, float64) {
+	type ch struct {
+		v float64
+		i int
+	}
+	cs := [3]ch{{r, 0}, {g, 1}, {b, 2}}
+	if cs[0].v > cs[1].v {
+		cs[0], cs[1] = cs[1], cs[0]
+	}
+	if cs[1].v > cs[2].v {
+		cs[1], cs[2] = cs[2], cs[1]
+	}
+	if cs[0].v > cs[1].v {
+		cs[0], cs[1] = cs[1], cs[0]
+	}
+	minc, midc, maxc := cs[0], cs[1], cs[2]
+	if maxc.v > minc.v {
+		midc.v = ((midc.v - minc.v) * s) / (maxc.v - minc.v)
+		maxc.v = s
+	} else {
+		midc.v, maxc.v = 0, 0
+	}
+	minc.v = 0
+	out := [3]float64{}
+	out[minc.i], out[midc.i], out[maxc.i] = minc.v, midc.v, maxc.v
+	return out[0], out[1], out[2]
+}
+func hslBlendHue(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	r, g, b := hslSetSat(float64(sr), float64(sg), float64(sb), hslSat(dr, dg, db))
+	return hslSetLum(r, g, b, hslLum(dr, dg, db))
+}
+func hslBlendSat(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	r, g, b := hslSetSat(float64(dr), float64(dg), float64(db), hslSat(sr, sg, sb))
+	return hslSetLum(r, g, b, hslLum(dr, dg, db))
+}
+func hslBlendColor(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return hslSetLum(float64(sr), float64(sg), float64(sb), hslLum(dr, dg, db))
+}
+func hslBlendLum(sr, sg, sb, dr, dg, db uint8) (uint8, uint8, uint8) {
+	return hslSetLum(float64(dr), float64(dg), float64(db), hslLum(sr, sg, sb))
 }
