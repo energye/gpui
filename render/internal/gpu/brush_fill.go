@@ -134,10 +134,3 @@ func detectedShapeToPath(shape render.DetectedShape) *render.Path {
 	}
 	return path
 }
-
-func paintUsesSourceOver(paint *render.Paint) bool {
-	if paint == nil {
-		return true
-	}
-	return paint.BlendMode == render.BlendNormal
-}

@@ -71,6 +71,9 @@ type StencilRenderer struct {
 	// then resets stencil to zero via PassOp. Shared by both fill rules.
 	nonZeroCoverPipeline *webgpu.RenderPipeline
 
+	// coverBlendPipelines caches cover pipelines for non-SourceOver modes (B.02).
+	coverBlendPipelines map[render.BlendMode]*webgpu.RenderPipeline
+
 	// GPU-CLIP-003a: depth-clipped pipeline variants for depth-based clipping.
 	// These use DepthCompare=GreaterEqual to restrict stencil/cover rendering
 	// to only pixels where the depth clip geometry wrote Z=0.0.
@@ -590,7 +593,7 @@ func (sr *StencilRenderer) submitAndReadback(
 // When depthClipped is true (GPU-CLIP-003a), depth-clipped pipeline variants
 // are used. These add DepthCompare=GreaterEqual to restrict both stencil
 // fill and cover passes to pixels where the clip geometry wrote depth=0.0.
-func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stencilCoverBuffers, fillRule render.FillRule, clipBG *webgpu.BindGroup, depthClipped ...bool) {
+func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stencilCoverBuffers, fillRule render.FillRule, clipBG *webgpu.BindGroup, blendMode render.BlendMode, depthClipped ...bool) {
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0]
 
 	// Select stencil pipeline based on fill rule and depth clip state.
@@ -603,14 +606,19 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 		if fillRule == render.FillRuleEvenOdd {
 			stencilPipeline = sr.pipelineWithDepthClipEO
 		}
-		coverPipeline = sr.pipelineWithDepthClipCover
+		// Depth-clip cover is SourceOver only; non-SO falls back to standard cover.
+		if blendMode == render.BlendNormal {
+			coverPipeline = sr.pipelineWithDepthClipCover
+		} else {
+			coverPipeline = sr.coverPipelineForBlend(blendMode)
+		}
 	} else {
 		// Normal path: DepthCompare=Always (no depth restriction).
 		stencilPipeline = sr.nonZeroStencilPipeline
 		if fillRule == render.FillRuleEvenOdd {
 			stencilPipeline = sr.evenOddStencilPipeline
 		}
-		coverPipeline = sr.nonZeroCoverPipeline
+		coverPipeline = sr.coverPipelineForBlend(blendMode)
 	}
 
 	// Pass 1: Stencil fill (clip not needed — only writes stencil buffer).
@@ -628,6 +636,89 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	rp.SetVertexBuffer(0, bufs.coverVertBuf, 0)
 	rp.SetStencilReference(0)
 	rp.Draw(6, 1, 0, 0)
+}
+
+func (sr *StencilRenderer) coverPipelineForBlend(mode render.BlendMode) *webgpu.RenderPipeline {
+	if mode == render.BlendNormal || mode == 0 {
+		return sr.nonZeroCoverPipeline
+	}
+	if pipe, ok := sr.coverBlendPipelines[mode]; ok && pipe != nil {
+		return pipe
+	}
+	pipe, err := sr.createCoverBlendPipeline(mode)
+	if err != nil {
+		slogger().Warn("stencil cover blend pipeline", "mode", mode, "err", err)
+		return sr.nonZeroCoverPipeline
+	}
+	return pipe
+}
+
+func (sr *StencilRenderer) createCoverBlendPipeline(mode render.BlendMode) (*webgpu.RenderPipeline, error) {
+	if sr.coverPipeLayout == nil || sr.coverShader == nil {
+		return nil, fmt.Errorf("stencil cover resources not ready")
+	}
+	bs, ok := gpuBlendStateForPaint(mode)
+	if !ok {
+		return nil, fmt.Errorf("unsupported cover blend mode %v", mode)
+	}
+	vertexBufferLayout := []types.VertexBufferLayout{
+		{
+			ArrayStride: 8,
+			StepMode:    types.VertexStepModeVertex,
+			Attributes: []types.VertexAttribute{
+				{Format: types.VertexFormatFloat32x2, Offset: 0, ShaderLocation: 0},
+			},
+		},
+	}
+	pipeline, err := sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		Label:  fmt.Sprintf("cover_pipeline_blend_%v", mode),
+		Layout: sr.coverPipeLayout,
+		Vertex: webgpu.VertexState{
+			Module:     sr.coverShader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    vertexBufferLayout,
+		},
+		Fragment: &webgpu.FragmentState{
+			Module:     sr.coverShader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     &bs,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		DepthStencil: &webgpu.DepthStencilState{
+			Format:            types.TextureFormatDepth24PlusStencil8,
+			DepthWriteEnabled: false,
+			DepthCompare:      types.CompareFunctionAlways,
+			StencilFront: webgpu.StencilFaceState{
+				Compare:     types.CompareFunctionNotEqual,
+				FailOp:      webgpu.StencilOperationKeep,
+				DepthFailOp: webgpu.StencilOperationKeep,
+				PassOp:      webgpu.StencilOperationZero,
+			},
+			StencilBack: webgpu.StencilFaceState{
+				Compare:     types.CompareFunctionNotEqual,
+				FailOp:      webgpu.StencilOperationKeep,
+				DepthFailOp: webgpu.StencilOperationKeep,
+				PassOp:      webgpu.StencilOperationZero,
+			},
+			StencilReadMask:  0xFF,
+			StencilWriteMask: 0xFF,
+		},
+		Multisample: multisampleState(sr.sampleCount),
+		Primitive:   triangleListPrimitive(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if sr.coverBlendPipelines == nil {
+		sr.coverBlendPipelines = make(map[render.BlendMode]*webgpu.RenderPipeline)
+	}
+	sr.coverBlendPipelines[mode] = pipeline
+	return pipeline, nil
 }
 
 // makeStencilFillUniform creates the 16-byte uniform buffer for the stencil fill pass.

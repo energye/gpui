@@ -186,9 +186,10 @@ func (c *Context) applyMaskToPixmap(pm *Pixmap, mask *Mask) {
 }
 
 // SetBlendMode sets the blend mode for subsequent fill and stroke operations.
-// This is currently a placeholder for future blend mode support in direct drawing operations.
 //
-// For now, blend modes are primarily used with layers via PushLayer/PopLayer.
+// GPU fixed-function modes (B.02): BlendNormal (SourceOver), BlendCopy, BlendClear,
+// BlendPlus. Advanced modes (Multiply/Screen/…) use the CPU paint path today
+// (or layer composite via PushLayer/PopLayer).
 //
 // Example:
 //

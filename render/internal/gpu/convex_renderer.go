@@ -48,6 +48,10 @@ type ConvexDrawCommand struct {
 	// When len(VertexColors) == len(Points), Gouraud shading is used;
 	// the fan centroid uses the average of VertexColors.
 	VertexColors [][4]float32
+
+	// BlendMode selects the WebGPU blend state for this draw (B.02).
+	// Zero value is BlendNormal (SourceOver).
+	BlendMode render.BlendMode
 }
 
 // ConvexRenderer renders convex polygons in a single draw call with per-edge
@@ -86,6 +90,10 @@ type ConvexRenderer struct {
 	// Depth-clipped pipeline variant (GPU-CLIP-003a). Same as pipelineWithStencil
 	// but with DepthCompare=GreaterEqual to test against the depth clip buffer.
 	pipelineWithDepthClip *webgpu.RenderPipeline
+
+	// blendPipelinesWithStencil caches SourceOver-alternative cover pipelines
+	// keyed by render.BlendMode (B.02 fixed-function Porter-Duff).
+	blendPipelinesWithStencil map[render.BlendMode]*webgpu.RenderPipeline
 
 	// Clip bind group layout for @group(1). Set by the session before
 	// pipeline creation. When non-nil, included in the pipeline layout.
@@ -243,17 +251,102 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 		return
 	}
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && cr.pipelineWithDepthClip != nil
-	if useDepthClip {
-		rp.SetPipeline(cr.pipelineWithDepthClip)
-	} else {
-		rp.SetPipeline(cr.pipelineWithStencil)
-	}
 	rp.SetBindGroup(0, resources.bindGroup, nil)
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
 	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
-	rp.Draw(resources.vertCount, 1, resources.firstVertex, 0)
+
+	ranges := resources.ranges
+	if len(ranges) == 0 {
+		ranges = []convexDrawRange{{
+			firstVertex: resources.firstVertex,
+			vertCount:   resources.vertCount,
+			blendMode:   render.BlendNormal,
+		}}
+	}
+	for _, rg := range ranges {
+		if rg.vertCount == 0 {
+			continue
+		}
+		pipe := cr.pipelineForBlend(rg.blendMode, useDepthClip)
+		if pipe == nil {
+			continue
+		}
+		rp.SetPipeline(pipe)
+		rp.Draw(rg.vertCount, 1, rg.firstVertex, 0)
+	}
+}
+
+// pipelineForBlend returns the stencil-pass-compatible pipeline for mode.
+// Depth-clipped variants currently only exist for SourceOver; non-SO depth-clip
+// falls back to the non-depth-clipped blend pipeline.
+func (cr *ConvexRenderer) pipelineForBlend(mode render.BlendMode, depthClip bool) *webgpu.RenderPipeline {
+	if mode == render.BlendNormal {
+		if depthClip && cr.pipelineWithDepthClip != nil {
+			return cr.pipelineWithDepthClip
+		}
+		return cr.pipelineWithStencil
+	}
+	if depthClip {
+		// No depth-clip specialized non-SO pipelines yet.
+		depthClip = false
+	}
+	if pipe, ok := cr.blendPipelinesWithStencil[mode]; ok && pipe != nil {
+		return pipe
+	}
+	pipe, err := cr.createBlendPipelineWithStencil(mode)
+	if err != nil {
+		slogger().Warn("convex blend pipeline", "mode", mode, "err", err)
+		return cr.pipelineWithStencil
+	}
+	return pipe
+}
+
+func (cr *ConvexRenderer) createBlendPipelineWithStencil(mode render.BlendMode) (*webgpu.RenderPipeline, error) {
+	if cr.pipeLayout == nil || cr.shader == nil {
+		if err := cr.createPipeline(); err != nil {
+			return nil, err
+		}
+	}
+	if err := cr.ensurePipelineWithStencil(); err != nil {
+		return nil, err
+	}
+	bs, ok := gpuBlendStateForPaint(mode)
+	if !ok {
+		return nil, fmt.Errorf("unsupported convex blend mode %v", mode)
+	}
+	pipeline, err := cr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		Label:  fmt.Sprintf("convex_pipeline_blend_%v", mode),
+		Layout: cr.pipeLayout,
+		Vertex: webgpu.VertexState{
+			Module:     cr.shader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    convexVertexLayout(),
+		},
+		Fragment: &webgpu.FragmentState{
+			Module:     cr.shader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     &bs,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		DepthStencil: stencilPassthroughDepthStencil(),
+		Primitive:    triangleListPrimitive(),
+		Multisample:  multisampleState(cr.sampleCount),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create convex blend pipeline %v: %w", mode, err)
+	}
+	if cr.blendPipelinesWithStencil == nil {
+		cr.blendPipelinesWithStencil = make(map[render.BlendMode]*webgpu.RenderPipeline)
+	}
+	cr.blendPipelinesWithStencil[mode] = pipeline
+	return pipeline, nil
 }
 
 // createPipeline compiles the convex render shader and creates the render
@@ -353,6 +446,12 @@ func (cr *ConvexRenderer) destroyPipeline() {
 		cr.pipelineWithStencil.Release()
 		cr.pipelineWithStencil = nil
 	}
+	for mode, pipe := range cr.blendPipelinesWithStencil {
+		if pipe != nil {
+			pipe.Release()
+		}
+		delete(cr.blendPipelinesWithStencil, mode)
+	}
 	if cr.pipeline != nil {
 		cr.pipeline.Release()
 		cr.pipeline = nil
@@ -377,12 +476,22 @@ func (cr *ConvexRenderer) destroyPipeline() {
 }
 
 // convexFrameResources holds per-frame GPU resources for convex rendering.
+// convexDrawRange is a contiguous vertex sub-range sharing one blend mode.
+type convexDrawRange struct {
+	firstVertex uint32
+	vertCount   uint32
+	blendMode   render.BlendMode
+}
+
 type convexFrameResources struct {
 	vertBuf     *webgpu.Buffer
 	uniformBuf  *webgpu.Buffer
 	bindGroup   *webgpu.BindGroup
 	vertCount   uint32
 	firstVertex uint32 // offset into shared vertex buffer (for scissor group sub-ranges)
+	// ranges groups consecutive vertices by blend mode. When empty, a single
+	// SourceOver draw of [firstVertex, vertCount) is used (legacy path).
+	ranges []convexDrawRange
 }
 
 func (r *convexFrameResources) destroy() {
@@ -598,6 +707,38 @@ func writeConvexVertex(buf []byte, px, py, coverage float32, color [4]float32) {
 }
 
 // convexVertexCount returns the total vertex count for the given commands.
+
+// buildConvexBlendRanges groups consecutive convex commands that share a blend
+// mode into vertex ranges suitable for multi-draw with pipeline switches.
+// baseFirstVertex is the absolute firstVertex of the first command in commands.
+func buildConvexBlendRanges(commands []ConvexDrawCommand, baseFirstVertex uint32) []convexDrawRange {
+	if len(commands) == 0 {
+		return nil
+	}
+	var ranges []convexDrawRange
+	var cur *convexDrawRange
+	first := baseFirstVertex
+	for i := range commands {
+		n := convexVertexCount(commands[i : i+1])
+		if n == 0 {
+			continue
+		}
+		mode := commands[i].BlendMode
+		if cur == nil || cur.blendMode != mode {
+			ranges = append(ranges, convexDrawRange{
+				firstVertex: first,
+				vertCount:   n,
+				blendMode:   mode,
+			})
+			cur = &ranges[len(ranges)-1]
+		} else {
+			cur.vertCount += n
+		}
+		first += n
+	}
+	return ranges
+}
+
 func convexVertexCount(commands []ConvexDrawCommand) uint32 {
 	var total uint32
 	for i := range commands {

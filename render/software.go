@@ -730,10 +730,54 @@ func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, run
 // CSS-style separable blend modes, then SourceOver alpha (matches intImage.DrawImage).
 func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mode BlendMode) {
 	srcA := color.A * float64(coverage) / 255.0
-	if srcA <= 0 {
+	if srcA <= 0 && mode != BlendClear {
 		return
 	}
 	dst := pixmap.GetPixel(x, y)
+	cov := float64(coverage) / 255.0
+
+	// Porter-Duff fixed modes (B.02): premul ops with coverage as source alpha scale.
+	switch mode {
+	case BlendClear:
+		// out = dst * (1 - cov)
+		inv := 1.0 - cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		pixmap.setPremul(x, y, dr*inv, dg*inv, db*inv, da*inv)
+		return
+	case BlendCopy:
+		// out = src*cov + dst*(1-cov) in premul space for AA fringe
+		sa := color.A * cov
+		inv := 1.0 - cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		pixmap.setPremul(x, y,
+			color.R*sa+dr*inv,
+			color.G*sa+dg*inv,
+			color.B*sa+db*inv,
+			sa+da*inv,
+		)
+		return
+	case BlendPlus:
+		// out = clamp(src*cov + dst)
+		sa := color.A * cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		add := func(a, b float64) float64 {
+			v := a + b
+			if v > 1 {
+				return 1
+			}
+			if v < 0 {
+				return 0
+			}
+			return v
+		}
+		pixmap.setPremul(x, y,
+			add(color.R*sa, dr),
+			add(color.G*sa, dg),
+			add(color.B*sa, db),
+			add(sa, da),
+		)
+		return
+	}
 
 	// Work in 0..255 straight channels for blend formulas.
 	sr := uint8(clamp255(color.R * 255))

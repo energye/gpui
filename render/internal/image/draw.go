@@ -36,6 +36,14 @@ const (
 	BlendColor
 	// BlendLuminosity (non-separable): luminosity of source, hue+saturation of destination.
 	BlendLuminosity
+
+	// Porter-Duff fixed-function modes (B.02). Values continue after HSL modes.
+	// BlendClear: result is transparent black (0).
+	BlendClear
+	// BlendCopy: result is source (Src / Replace).
+	BlendCopy
+	// BlendPlus: result is clamped source+destination (additive).
+	BlendPlus
 )
 
 const unknownBlendMode = "Unknown"
@@ -59,6 +67,12 @@ func (b BlendMode) String() string {
 		return "Color"
 	case BlendLuminosity:
 		return "Luminosity"
+	case BlendClear:
+		return "Clear"
+	case BlendCopy:
+		return "Copy"
+	case BlendPlus:
+		return "Plus"
 	default:
 		return unknownBlendMode
 	}

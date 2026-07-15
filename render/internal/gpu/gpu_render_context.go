@@ -650,7 +650,7 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	if !isGPUSolidPaint(paint) {
 		return rc.fillBrushAsImage(target, path, paint)
 	}
-	if !paintUsesSourceOver(paint) {
+	if !paintSupportsGPUFixedBlend(paint) {
 		return render.ErrFallbackToCPU
 	}
 	if !rc.shared.gpuReady {
@@ -699,8 +699,9 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		if points, ok := extractConvexPolygon(path); ok {
 			slogger().Debug("FillPath: convex fast-path", "points", len(points), "fillRule", paint.FillRule)
 			cmd := ConvexDrawCommand{
-				Points: points,
-				Color:  [4]float32{premulR, premulG, premulB, premulA},
+				Points:    points,
+				Color:     [4]float32{premulR, premulG, premulB, premulA},
+				BlendMode: paintBlendMode(paint),
 			}
 			rc.QueueConvex(target, cmd)
 			return nil
@@ -720,6 +721,7 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		CoverQuad: tess.CoverQuad(),
 		Color:     [4]float32{premulR, premulG, premulB, premulA},
 		FillRule:  paint.FillRule,
+		BlendMode: paintBlendMode(paint),
 	}
 	copy(cmd.Vertices, fanVerts)
 	rc.QueueStencil(target, cmd)
@@ -731,7 +733,7 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	if !isGPUSolidPaint(paint) {
 		return render.ErrFallbackToCPU
 	}
-	if !paintUsesSourceOver(paint) {
+	if !paintSupportsGPUFixedBlend(paint) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -815,6 +817,7 @@ func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape rende
 		}
 		return rc.fillBrushAsImage(target, p, paint)
 	}
+	// SDF pipelines are SourceOver-only; factor PD modes fall through to FillPath.
 	if !paintUsesSourceOver(paint) {
 		return render.ErrFallbackToCPU
 	}
@@ -849,6 +852,7 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 	if paint.IsDashed() {
 		return render.ErrFallbackToCPU
 	}
+	// SDF stroke is SourceOver-only; PD modes fall through to StrokePath/FillPath.
 	if !paintUsesSourceOver(paint) {
 		return render.ErrFallbackToCPU
 	}

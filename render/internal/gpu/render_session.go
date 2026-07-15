@@ -91,6 +91,9 @@ type StencilPathCommand struct {
 
 	// FillRule determines inside/outside testing (NonZero or EvenOdd).
 	FillRule render.FillRule
+
+	// BlendMode selects cover-pass WebGPU blend state (B.02). Zero = SourceOver.
+	BlendMode render.BlendMode
 }
 
 // RenderMode controls how the GPURenderSession outputs rendering results.
@@ -1553,6 +1556,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		uniformBuf: s.convexUniformBuf,
 		bindGroup:  s.convexBindGroup,
 		vertCount:  vertexCount,
+		ranges:     buildConvexBlendRanges(commands, 0),
 	}, nil
 }
 
@@ -2452,7 +2456,7 @@ func (s *GPURenderSession) encodeSubmitReadback(
 
 	// Tier 2b: Stencil-then-cover paths.
 	for i, bufs := range stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG)
+		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG, stencilPaths[i].BlendMode)
 	}
 
 	// Tier 4: MSDF text (rendered after shapes).
@@ -2691,7 +2695,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 
 	// Tier 2b: Stencil-then-cover paths.
 	for i, bufs := range stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG)
+		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG, stencilPaths[i].BlendMode)
 	}
 
 	// Tier 4: MSDF text (rendered after shapes).
@@ -2768,7 +2772,7 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 
 	// Tier 2b: Stencil-then-cover paths.
 	for i, bufs := range gr.stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, gr.stencilPaths[i].FillRule, clipBG, gr.hasDepthClip)
+		s.stencilRenderer.RecordPath(rp, bufs, gr.stencilPaths[i].FillRule, clipBG, gr.stencilPaths[i].BlendMode, gr.hasDepthClip)
 	}
 
 	// Tier 3: Textured quad images (CPU-uploaded).
@@ -2842,6 +2846,7 @@ func (s *GPURenderSession) sliceConvexResources(
 		bindGroup:   combined.bindGroup,
 		firstVertex: firstVertex,
 		vertCount:   vertCount,
+		ranges:      buildConvexBlendRanges(allCommands[cmdStart:cmdStart+cmdCount], firstVertex),
 	}
 }
 

@@ -89,6 +89,13 @@ const (
 	BlendColor = intImage.BlendColor
 	// BlendLuminosity is a non-separable HSL-style blend (B.04).
 	BlendLuminosity = intImage.BlendLuminosity
+
+	// BlendClear is Porter-Duff Clear (B.02): result is transparent black.
+	BlendClear = intImage.BlendClear
+	// BlendCopy is Porter-Duff Src/Copy (B.02): result is source.
+	BlendCopy = intImage.BlendCopy
+	// BlendPlus is Porter-Duff Plus (B.02 / B.07): clamped source+destination.
+	BlendPlus = intImage.BlendPlus
 )
 
 // DrawImageOptions specifies parameters for drawing an image.

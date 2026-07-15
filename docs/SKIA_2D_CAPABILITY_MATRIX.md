@@ -84,12 +84,12 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | B.01 | SrcOver（默认） | `kSrcOver` | BlendState premul | ✅ enum | ✅ | ✅ `TestP12GPUFixedPixel_SourceOverPremul` | M1 |
-| B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | 🔄 | 🔄 | 🔄 SetBlendMode 已存；GPU 仅 SrcOver；CPU 多模式 | M2 |
+| B.02 | Clear/Src/Dst/… Porter-Duff | `SkBlendMode` PD | blend factor 或 shader blend | ✅ enum+factors | ✅ BlendState | ✅ GPU fixed: Clear/Copy/Plus + SrcOver；`TestP12GPUFixedPixel_Blend*`；其余 PD/advanced 仍 CPU/层 | M2 |
 | B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | 🔄 | 🔄 | ✅ 直绘 CPU `SetBlendMode`；层 GPU 内容+CPU composite | M2 |
 | B.04 | HSL 模式 Hue/… | non-separable | shader | 🔄 | 🔄 | ✅ BlendHue/Sat/Color/Lum `TestS3c_M3_Blend*` | M3 |
-| B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | 🔄 文档+部分测试 | M1 |
+| B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | 🔄 | 🔄 | 🔄 premul solid+fixed blend 测试增强；全路径仍可精修 | M1 |
 | B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | ✅ SetRGBA alpha GPU `TestP1_Capability_B06_PaintAlpha`（预乘路径仍可精修） | M1 |
-| B.07 | Plus/Modulate 等 | `kPlus`… | blend/shader | 🔄 | 🔄 | 🔄 | M2 |
+| B.07 | Plus/Modulate 等 | `kPlus`… | blend/shader | ✅ Plus factors | ✅ | ✅ GPU Plus `TestP12GPUFixedPixel_BlendPlus`；Modulate 仍后置 | M2 |
 
 ### 1.5 Path 构建与填充
 

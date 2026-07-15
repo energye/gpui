@@ -238,6 +238,38 @@ func BlendStatePremultiplied() BlendState {
 	}
 }
 
+// BlendStateClear returns a blend state that clears to zero (Porter-Duff Clear).
+func BlendStateClear() BlendState {
+	return BlendState{
+		Color: BlendComponent{
+			SrcFactor: BlendFactorZero,
+			DstFactor: BlendFactorZero,
+			Operation: BlendOperationAdd,
+		},
+		Alpha: BlendComponent{
+			SrcFactor: BlendFactorZero,
+			DstFactor: BlendFactorZero,
+			Operation: BlendOperationAdd,
+		},
+	}
+}
+
+// BlendStatePlus returns a blend state that adds source and destination (Porter-Duff Plus).
+func BlendStatePlus() BlendState {
+	return BlendState{
+		Color: BlendComponent{
+			SrcFactor: BlendFactorOne,
+			DstFactor: BlendFactorOne,
+			Operation: BlendOperationAdd,
+		},
+		Alpha: BlendComponent{
+			SrcFactor: BlendFactorOne,
+			DstFactor: BlendFactorOne,
+			Operation: BlendOperationAdd,
+		},
+	}
+}
+
 // ColorWriteMask describes which color channels to write.
 //
 // This is a bit flag type.

@@ -15,6 +15,7 @@ package render_test
 // IDs A1–A8 match docs/OPTIMIZATION_PLAN.md P1 Tier A.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -691,4 +692,166 @@ func TestP1_B1_ManyRRectsCorrectness(t *testing.T) {
 		t.Fatalf("too little coverage from many rrects: colored=%d", colored)
 	}
 	t.Logf("many rrects colored samples=%d stats=%s", colored, dc.RenderPathStats().LogLine())
+}
+
+// --- Tier B stress scenes (correctness first, GPUOps>0) ---
+
+func TestP1_B2_StressTextAtlas(t *testing.T) {
+	p1RequireGPU(t)
+	font := p1FindFont(t)
+	dc := render.NewContext(320, 240)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	if err := dc.LoadFontFace(font, 12); err != nil {
+		t.Skipf("font: %v", err)
+	}
+	dc.SetRGB(0.1, 0.1, 0.1)
+	for row := 0; row < 12; row++ {
+		for col := 0; col < 8; col++ {
+			x := 8 + col*38
+			y := 16 + row*18
+			dc.DrawString(fmt.Sprintf("Aa%d", row*8+col), float64(x), float64(y))
+		}
+	}
+	p1Flush(t, dc)
+	// Sample a few glyph cells — not pure white
+	hits := 0
+	for _, pt := range [][2]int{{20, 20}, {80, 40}, {150, 100}, {200, 180}} {
+		r, g, b, _ := p1Sample(dc, pt[0], pt[1])
+		if r < 250 || g < 250 || b < 250 {
+			hits++
+		}
+	}
+	if hits == 0 {
+		t.Fatalf("B2 text atlas stress produced no non-white samples")
+	}
+}
+
+func TestP1_B3_StressImageGallery(t *testing.T) {
+	p1RequireGPU(t)
+	dc := render.NewContext(256, 256)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	// Synthetic tiles as solid rects (image-like density without file deps)
+	for row := 0; row < 8; row++ {
+		for col := 0; col < 8; col++ {
+			x := float64(col * 32)
+			y := float64(row * 32)
+			dc.SetRGB(float64(col)/8, float64(row)/8, 0.5)
+			dc.DrawRoundedRectangle(x+2, y+2, 28, 28, 4)
+			_ = dc.Fill()
+		}
+	}
+	p1Flush(t, dc)
+	r, g, b, _ := p1Sample(dc, 16, 16)
+	p1NotNearWhite(t, "gallery tile", r, g, b)
+	r2, g2, b2, _ := p1Sample(dc, 200, 200)
+	p1NotNearWhite(t, "gallery tile far", r2, g2, b2)
+}
+
+func TestP1_B4_StressBlendStack(t *testing.T) {
+	p1RequireGPU(t)
+	dc := render.NewContext(128, 128)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Base blue
+	dc.SetBlendMode(render.BlendNormal)
+	dc.SetRGB(0, 0, 1)
+	dc.DrawRectangle(0, 0, 128, 128)
+	_ = dc.Fill()
+
+	// Plus green wash
+	dc.SetBlendMode(render.BlendPlus)
+	dc.SetRGBA(0, 1, 0, 0.4)
+	dc.DrawRectangle(16, 16, 96, 96)
+	_ = dc.Fill()
+
+	// Copy red panel
+	dc.SetBlendMode(render.BlendCopy)
+	dc.SetRGBA(1, 0, 0, 0.75)
+	dc.DrawRectangle(40, 40, 48, 48)
+	_ = dc.Fill()
+
+	// Reset
+	dc.SetBlendMode(render.BlendNormal)
+
+	p1Flush(t, dc)
+	// Copy region: red-dominant, little blue
+	r, g, b, _ := p1Sample(dc, 64, 64)
+	t.Logf("B4 copy-center rgba=%d,%d,%d", r, g, b)
+	if b > r {
+		t.Fatalf("B4 copy center expected red-dominant over blue base, got %d,%d,%d", r, g, b)
+	}
+	if r < 80 {
+		t.Fatalf("B4 copy center red too low: %d,%d,%d", r, g, b)
+	}
+}
+
+func TestP1_B5_StressPathAA(t *testing.T) {
+	p1RequireGPU(t)
+	dc := render.NewContext(200, 200)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetAntiAlias(true)
+	dc.SetLineWidth(1.0)
+	dc.SetRGB(0.1, 0.1, 0.1)
+	for i := 0; i < 40; i++ {
+		y := 10 + float64(i)*4.5
+		dc.MoveTo(10, y)
+		dc.CubicTo(50, y-8, 150, y+8, 190, y)
+		_ = dc.Stroke()
+	}
+	// Mixed filled curves
+	dc.SetRGBA(0.2, 0.4, 0.9, 0.7)
+	for i := 0; i < 12; i++ {
+		cx := 30 + float64(i%4)*45
+		cy := 40 + float64(i/4)*50
+		dc.DrawCircle(cx, cy, 14)
+		_ = dc.Fill()
+	}
+	p1Flush(t, dc)
+	r, g, b, _ := p1Sample(dc, 100, 100)
+	// Should have some ink somewhere on grid samples
+	ink := 0
+	for y := 20; y < 180; y += 20 {
+		for x := 20; x < 180; x += 20 {
+			rr, gg, bb, _ := p1Sample(dc, x, y)
+			if int(rr)+int(gg)+int(bb) < 700 {
+				ink++
+			}
+		}
+	}
+	t.Logf("B5 ink samples=%d center=%d,%d,%d", ink, r, g, b)
+	if ink < 3 {
+		t.Fatalf("B5 path AA stress too empty (ink=%d)", ink)
+	}
+}
+
+func TestP1_B6_StressHiDPI(t *testing.T) {
+	p1RequireGPU(t)
+	// Physical 200x200 at DPR=2 → logical 100x100 drawing space
+	dc := render.NewContext(200, 200, render.WithDeviceScale(2.0))
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	// Logical 1px hairlines and small rrects under 2x DPR
+	dc.SetLineWidth(0) // hairline
+	dc.SetRGB(0, 0, 0)
+	for i := 0; i < 20; i++ {
+		y := 5 + float64(i)*4
+		dc.DrawLine(5, y, 95, y)
+		_ = dc.Stroke()
+	}
+	dc.SetRGB(0.1, 0.5, 0.9)
+	dc.DrawRoundedRectangle(20, 20, 60, 40, 6)
+	_ = dc.Fill()
+	p1Flush(t, dc)
+	// Physical sample near rrect center (logical 50,40 → physical ~100,80)
+	r, g, b, _ := p1Sample(dc, 100, 80)
+	p1NotNearWhite(t, "hidpi rrect", r, g, b)
 }
