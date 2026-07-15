@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.34 | 日期：2026-07-15  
+> 版本：1.35 | 日期：2026-07-15  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -134,10 +134,20 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 ---
 
-### S4 — 性能（后置）
+### S4 — 性能（已入主线；A 收口后启动）
 
-仅当对应能力在 S3 正确后：批处理、图集、缓存、并行等。  
-仍须回归 S3 门禁。
+**进入条件**：S3 对应能力正确 + **阶段 A（组合维度）门禁绿**。  
+**硬规则**：任何优化切片结束后必须回归 `TestS3*` / `TestP1_*` / `TestP1_Comp_*` 像素与 `GPUOps>0`；禁止 silent CPU 冒充 GPU 加速。
+
+| 子阶段 | 目标 | 退出条件 |
+|--------|------|----------|
+| **S4.0 基线** | 只测量、不改算法：在 P1/A 场景上记录 FPS/frame time、`gpu_ops`、`cpu_fallback_ops`、上传/draw 计数（可得则记） | 产出 `docs/S4_PERF_BASELINE.md` |
+| **S4.1 batch** | 同类 draw 合并 / instance 或顶点批 | 基线对比 + 回归门禁绿 |
+| **S4.2 glyph/atlas** | 字形图集命中与上传收敛 | 文本压力场景 + 回归绿 |
+| **S4.3 path/texture cache** | path 几何/纹理复用 | 形状/图像压力 + 回归绿 |
+| **S4.4 damage/retained** | 脏区/保留层减少重绘 | multi-region damage + 回归绿 |
+
+**明确后置（不阻塞 S4.0–S4.4 开跑）**：完整 multiplanar YUV、完整 PDF/SVG 引擎（R.02）、与 Skia 绝对 FPS 对标报表。
 
 ---
 
@@ -151,21 +161,35 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 | 4 | S3a render M0–M1 GPU 门禁 | ✅ **S3a 关闭** |
 | 5 | S3b M2 UI 级 2D | ✅ **S3b 关闭** |
 | 6 | S3c M3 + S.03 Swapchain/PresentFrame | ✅ **S3c 关闭**（窗口 e2e 需 DISPLAY） |
+| 7 | 能力表 🔄 / M4 GPU 相关 | ✅（仅 R.02 PDF/SVG document ⬜ 旁路） |
+| 8 | P1 复杂 UI 形态 Tier A–U | ✅（形态密度探针，非控件层） |
+| 9 | **阶段 A：任意组合维度** | 🔄 **当前焦点** |
+| 10 | **S4 性能** | 📋 已入主线；**A 收口后**从 S4.0 启动 |
 
-S0–S3c 已关闭。S.03 真窗口 draw+present 已通。
+### 阶段 A — 任意组合维度（非 antd 控件清单）
 
-**本轮（P1 推进）**：M4 再收 E.02 PathEffects + I.08 ExternalTexture；复杂 UI Tier **U**（vector design / media gallery）。能力表仅剩 R.02 PDF/SVG document（非 GPU）。
+**目标**：用**可组合图元 + 便捷 API** 支撑任意 UI 场景，而不是固定 antd 场景目录。  
+**形态**：组合维度矩阵（`clip × layer × blend × text × image × transform × HiDPI × damage/backdrop`），见 [`P1_COMPOSITION_MATRIX.md`](./P1_COMPOSITION_MATRIX.md)。  
+**验证**：真 `WGPU_NATIVE_PATH` + `GPUOps>0` + 结构像素/区域检查。
 
-下一步：R.02 document 后端可选；按需加 UI Tier。不启动控件层/S4 大性能。
+**A 关闭条件**：
+
+- [x] 组合维度文档与 D01–D08 主交叉轴首批  
+- [x] `TestP1_Comp_D01`–`D08` GPU 门禁绿  
+- [ ] 按需扩展 D09+ / 更密交叉后关闭 A  
+- [ ] 既有 `TestP1_|TestS3*` 回归仍绿（关闭 A 前全量）  
+
+**A 之后**：进入 **S4.0 基线**（只测不改），再 S4.1+。
+
+**非目标（仍排除）**：控件层 / Ant Design 组件实现；R.02 可并行旁路。
 
 ```bash
-go test ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
-```
+export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+export GOCACHE=/tmp/gpui-go-cache
+export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
 
-
-门禁：
-```bash
-go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
+# 阶段 A + 回归
+go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|TestP12GPUFixedPixel' -timeout 180s
 ```
 
 
@@ -190,7 +214,9 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 | `docs/S3A_M0M1_RENDER_GATE.md` | S3a 产出（M0–M1 GPU 门禁） |
 | `docs/S3B_M2_RENDER_GATE.md` | S3b 产出（M2 UI 2D） |
 | `docs/S3C_M3_RENDER_GATE.md` | S3c 产出（M3 vertices/atlas/filter/present） |
-| `docs/P1_COMPLEX_UI_MATRIX.md` | P1 复杂 UI 场景矩阵（A1–A8/B1） |
+| `docs/P1_COMPLEX_UI_MATRIX.md` | P1 复杂 UI **形态**矩阵（Tier A–U，密度探针） |
+| `docs/P1_COMPOSITION_MATRIX.md` | **阶段 A** 任意组合维度矩阵（正确性完备） |
+| `docs/S4_PERF_BASELINE.md` | S4.0 产出（待 A 后） |
 | `docs/OPTIMIZATION_PLAN.md` | 历史大计划；服从主线 |
 
 ---
@@ -199,6 +225,7 @@ go test ./render -run 'TestS3a_|TestP12GPUFixedPixel|TestS3b_'
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | 1.35 | **开 S4 入主线**（S4.0–S4.4）；焦点=阶段 A 组合维度 → A 后 S4.0；非控件层 |
 | 2026-07-15 | 1.31 | K.01/Q.02 gates + B.03 ColorBurn/Exclusion + Tier O/P + X11 multi-rect PresentDamage |
 | 2026-07-15 | 1.30 | matrix lower-layer align + B.03 Soft/Hard/Dodge gates + Tier N |
 | 2026-07-15 | 1.29 | B.03 full separable advanced dual-tex + Tier M chart/heatmap |

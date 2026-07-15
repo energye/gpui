@@ -1,6 +1,6 @@
 # P1 — 复杂 UI 场景矩阵门禁
 
-> 版本：1.11 | 日期：2026-07-15  
+> 版本：1.12 | 日期：2026-07-15  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) / 能力表 [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > **非控件层**：场景只模拟 Ant Design 级 UI 的绘制形态。
@@ -258,11 +258,12 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 | E.02 | Corner/Discrete path effects | `TestP1_Capability_E02_PathEffectsGPU` |
 | I.08 | External GPU texture composite | `TestP1_Capability_I08_ExternalTextureGPU` |
 
-## 仍 open（下一切片）
+## 仍 open / 后续
 
-- 其余 M4：R.02 PDF/SVG document 后端（非 GPU 主线）  
-- 真 multiplanar YUV（I.08 已覆盖 external texture 子集）  
-- 按需继续加更密 UI 形态 Tier（非控件层）  
+- **阶段 A（当前主线焦点）**：任意组合维度 → [`P1_COMPOSITION_MATRIX.md`](./P1_COMPOSITION_MATRIX.md)  
+- A 收口后：**S4.0 性能基线**（见主线 S4）  
+- 旁路：R.02 PDF/SVG document；真 multiplanar YUV 全量  
+- 本文件 Tier A–U 保留为 **形态密度回归**；新增场景优先写组合维度 ID，不绑控件产品名  
 
 
 
