@@ -1,6 +1,6 @@
 # 能力矩阵窗口验收（examples/capability_matrix）
 
-> 版本：1.10 | 日期：2026-07-16  
+> 版本：1.11 | 日期：2026-07-16  
 > 真源：`docs/SKIA_2D_CAPABILITY_MATRIX.md`（Skia 2D 语义 ID）  
 > 实现：`examples/capability_matrix/`（真实 X11 窗口 + webgpu → render 呈现链）
 
@@ -41,7 +41,7 @@
 | **L2** | 窗口 ID 覆盖扩展 C21+（工作项 3） | ✅ Wave-A C21–C25 PASS |
 | **L3** | 质量全管线（工作项 4） | ✅ P4（CS/MSAA/Filter/Premul；F16 书面后置） |
 | **L4** | 像素/性能对标 Skia（工作项 5） | ✅ P6 关闭（golden+compare+perf+C01–C32 final） |
-| **L5 画布 100%** | L1+L2+L3 绿 + 范围声明排除 R.02 | ⬜ 目标态 |
+| **L5 画布 100%** | L1–L4 绿 + 范围声明排除 R.02 + 矩阵审计无必选 ⬜ | ✅ 已宣告（§7.7） |
 | **L6 document** | R.02 PDF/SVG（**非画布 100% 必选项**） | 🚫 本阶段不做 |
 
 ---
@@ -140,7 +140,7 @@ GPUI_SCENARIO=C01 GPUI_ANIM_SECONDS=12 GPUI_RESULT_FILE=/tmp/cap_C01.json \
 2. **一层一进程**：禁止进程内轮换场景。  
 3. **Layer/Filter/Backdrop**：小离屏 RT → 真 API → `ExportImageBuf` → `DrawImage`。  
 4. **中英混排字体**：`MultiFace(DejaVuSans + DroidSansFallback)`（X.06）。  
-5. **未达 L5 前不宣称「2D 画布 100%」**；永不因 R.02 未做而卡住画布 100%。  
+5. **L5 已宣告**「2D 画布 100%（排除 document）」；永不因 R.02 未做而宣称含 document 全栈。  
 6. 解决问题时 **全场景对标 Skia 画布语义**（非玩具单点补丁）。
 
 ---
@@ -424,7 +424,29 @@ done
 | 全量回归脚本 | ✅ | `scripts/run_capability_matrix_p6.sh` |
 | 画面修正 | ✅ | C06 渐变坐标溢出；C10 文本衬底；C15 backdrop 隔帧；C22 clip RT 隔帧 |
 
-**P6 已关闭**：C01–C32 全 PASS（`/tmp/cap_p6_final`，cpu_fb=0）+ golden 32 张 + compare 脚本 + PERF 表。L4 ✅。下一：P7 L5 画布 100% 宣告。
+**P6 已关闭**：C01–C32 全 PASS（`/tmp/cap_p6_final`，cpu_fb=0）+ golden 32 张 + compare 脚本 + PERF 表。L4 ✅。→ 已衔接到 §7.7 P7/L5。
+
+### 7.7 P7 L5 画布 100% 宣告（关闭）
+
+**审计日期**：2026-07-16  
+
+| 检查项 | 结果 | 证据 |
+|--------|------|------|
+| L0 C01–C20 窗口基线 | ✅ | 历史 final + `/tmp/cap_p6_final` 复验 |
+| L1 语义硬缺口 B.07/B.06 | ✅ | P1 单测 + C07/C08/C17 |
+| L2/L3 窗口扩展 + 质量管线 | ✅ | C21–C32；P4（F16 书面后置） |
+| L4 golden/性能 | ✅ | golden 32 + `/tmp/cap_p6_final` 32/32 PASS，cpu_fb=0 |
+| 矩阵画布行无必选 ⬜ | ✅ | 仅 **R.02** 为 ⬜ 且 **排除 document**（`SKIA_2D_CAPABILITY_MATRIX.md` §4） |
+| 子集边界书面化 | ✅ | I.08 真 multiplanar YUV 后置；CS.02 Context 8-bit / RT F16 门禁；K.02 高层 multi-draw 后置 |
+| R.02 不进 L5 | ✅ | 本文件 §0 / §8.2 |
+
+**宣告（可对外使用）**：
+
+> gpui **2D 画布能力 100%（排除 PDF/SVG document）**：  
+> `render → webgpu → rwgpu → libwgpu_native` 真窗口 present 覆盖矩阵画布语义；  
+> **不包含** R.02 document 后端；**不包含** 控件层 / ant.design。
+
+**非本宣告范围**：控件层、游戏 3D 专有路径、DOC.1 PDF/SVG、真 multiplanar 视频 YUV 产品化。
 
 ## 8. 迈向「2D 画布 100%」的五项工作（主计划）
 
@@ -531,7 +553,7 @@ P5  窗口扩展 Wave-C (C30–C32) + 回归   → ✅ Atlas/Picture/合成（§
 P6  像素/性能 5.1–5.5                   → ✅ golden + 基线报告
     │
     ▼
-L5  宣称「2D 画布 100%（排除 document）」
+L5  宣称「2D 画布 100%（排除 document）」  → ✅
     │
     └── DOC.1 (可选) R.02 PDF/SVG       → 与 L5 解耦，默认不排期
 ```
@@ -547,7 +569,7 @@ L5  宣称「2D 画布 100%（排除 document）」
 | **P4** | 质量管线 | CS/MSAA/Filter/Premul 门禁与窗口挂钩 | ✅ §8.4 已勾/边界（§7.4） |
 | **P5** | C30–C32 | Atlas/Picture/合成回归 | ✅ 三场景 PASS（§7.5） |
 | **P6** | 对标 | golden 目录、对比工具、性能表 | ✅ §7.6 / §8.5 |
-| **P7** | L5 宣告 | 更新矩阵 §4 差距表 + 本文件 L5=✅ | 清单审计无必选项残留 |
+| **P7** | L5 宣告 | 更新矩阵 §4 差距表 + 本文件 L5=✅ | ✅ §7.7 |
 | **Px** | DOC.1 | PDF/SVG（可选） | **不阻塞 P7** |
 
 ### 9.3 每阶段工程纪律
@@ -598,7 +620,7 @@ L5  宣称「2D 画布 100%（排除 document）」
 | P4 质量管线 | ✅ §7.4 / §8.4 | 2026-07-16 |
 | P5 C30–C32 | ✅ `/tmp/cap_p5_final` | 2026-07-16 |
 | P6 golden/性能 | ✅ `/tmp/cap_p6_final` + golden 32 | 2026-07-16 |
-| L5 画布 100% 宣告 | ⬜ | — |
+| L5 画布 100% 宣告 | ✅ §7.7 / 矩阵 §4 | 2026-07-16 |
 | Px R.02 document | 🚫 默认不做 | 2026-07-16 |
 
 ---
@@ -618,3 +640,4 @@ L5  宣称「2D 画布 100%（排除 document）」
 | 2026-07-16 | 1.8 | P4 质量管线收口（F16 后置）+ P5 C30–C32 全 PASS；L3 ✅；证据 `/tmp/cap_p5_final` |
 | 2026-07-16 | 1.9 | 画面修正 C06/C10/C15/C22；P6 启动：golden C01–C32 + 对比/回归脚本 + 性能表 `/tmp/cap_p6_capture` |
 | 2026-07-16 | 1.10 | P6 关闭：C01–C32 final 全 PASS `/tmp/cap_p6_final`；L4 ✅；下一 P7 L5 宣告 |
+| 2026-07-16 | 1.11 | **P7/L5 关闭**：矩阵 §4 审计重写；宣告 2D 画布 100%（排除 document）；证据 `/tmp/cap_p6_final` |

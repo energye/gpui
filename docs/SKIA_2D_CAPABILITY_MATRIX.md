@@ -313,18 +313,24 @@
 
 ---
 
-## 4. 与当前仓库的粗粒度差距（2026-07-15）
+## 4. 与当前仓库的粗粒度差距（2026-07-16 · L5 审计）
 
-| 区域 | 现状摘要 | 风险 |
-|------|----------|------|
-| rwgpu | **S1 ✅**：enum header-lock + A–E native 烟测（`TestS1*`/`TestS1AE*`）；~132 NewProc | 非子集扩展未绑；Surface/MSAA resolve 深度在 S3 |
-| webgpu | **S2 ✅**：子集 facade + 转换/烟测；render 不直连 rwgpu | Surface 完整消费在 S3c |
-| render CPU | path/text/image/clip/layer 较全 | GPU 不一致 |
-| render GPU | **S3a/S3b/S3c ✅**（M0–M3 主能力）；M4 可选后置 | K.01/Q.02 已门禁；窗口 multi-rect Present e2e 可选深化 |
-| Surface | 外部 view 思路；完整 swapchain 弱 | 窗口路径 |
-| Blend 模式 | CPU 包全；Context.SetBlendMode 弱；GPU 固定像素仅 SourceOver 首轮 | UI 叠加 |
-| Filter/Shadow | 弱 | 视觉效果缺口 |
-| Gradient GPU | 弱/回退 | 按钮/进度类 |
+> **宣告**：在排除 **R.02 PDF/SVG document** 的前提下，本矩阵 **2D 画布语义行** 已关闭（render/GPU 门禁 + 窗口 C01–C32 present）。  
+> 验收真源窗口计划：`docs/CAPABILITY_MATRIX_WINDOW.md`（L0–L5 / P0–P7）。  
+> 允许话术：**「2D 画布 100%（排除 document）」**。禁止话术：未做 R.02 时称「全 Skia 含 PDF/SVG 完整」。
+
+| 区域 | 现状摘要 | L5 结论 |
+|------|----------|---------|
+| rwgpu | S1 ✅ enum header-lock + A–E 烟测 | ✅ 不阻塞画布 |
+| webgpu | S2 ✅ facade；窗口走 CreateSurface/Swapchain | ✅ |
+| render 画布行（S/T/P/G/C/D/B/L/I/X/F/V/H/E/Q/CS/R.01/K…） | 表内除 R.02 外 render 列均为 ✅（单测/门禁） | ✅ |
+| 窗口 present | C01–C32 全 PASS，`cpu_fb=0`（`/tmp/cap_p6_final`） | ✅ L0–L4 |
+| golden/性能 | `examples/capability_matrix/golden` + P6 脚本 | ✅ L4 |
+| **R.02 PDF/SVG** | ⬜ **画布 100% 排除**；DOC.1 专项 | 🚫 不阻塞 L5 |
+| 子集边界（不阻塞） | I.08 真 multiplanar YUV 后置；CS.02 Context 仍 8-bit（RT F16 有门禁）；K.02 高层 scene multi-draw 后置 | 📝 书面边界 |
+| 控件层 / ant.design | 不在本矩阵 L5 范围 | 后置于 `S5_WIDGET_ENTRY` |
+
+**审计结果（P7）**：必选画布缺口 **0**；唯一 ⬜ 为 R.02（排除）。→ **L5 可宣告**。
 
 ---
 
@@ -371,6 +377,7 @@
 | 2026-07-15 | — | K.01 Context Compute + Q.02 Coverage AA gates; B.03 ColorBurn/Exclusion; Tier O/P complex UI |
 | 2026-07-15 | — | V.03/K.02/CS.02/CS.03 M4 gates + Tier Q/R complex UI |
 | 2026-07-16 | — | R.02：2D 画布 100% **不含** PDF/SVG；计划见 CAPABILITY_MATRIX_WINDOW §0/§8/§9 |
+| 2026-07-16 | — | **L5 宣告**：§4 重写；画布行除 R.02 外全 ✅；窗口 C01–C32 final |
 | 2026-07-15 | — | E.03 Trim + P.09 Dither + T.04 ImageQuad + L.05 Backdrop + Tier S/T |
 | 2026-07-15 | — | E.02 PathEffects + I.08 ExternalTexture + Tier U complex UI |
 
