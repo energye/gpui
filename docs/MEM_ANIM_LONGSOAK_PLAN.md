@@ -1,7 +1,8 @@
 # mem_anim_window 长时复杂渲染压测计划
 
-> 版本：2.3 | 日期：2026-07-16  
-> 状态：**执行中（v9 全矩阵 ≥90s）**  
+> 版本：2.4 | 日期：2026-07-16  
+> 状态：**目标验收完成（v9 全矩阵 + v10 S11/S12 回归）**  
+> 权威证据：`/tmp/mem_anim_soak_run/v9/SUMMARY.md` + `/tmp/mem_anim_soak_run/v10_regress/SUMMARY.md`  
 > 程序：`examples/mem_anim_window`  
 > 链路：`render.Context → webgpu → rwgpu → libwgpu_native`（真实窗口 Present，非 mock）  
 > 非目标：控件层 / Ant Design 业务控件实现
@@ -200,8 +201,8 @@ export GPUI_TARGET_FPS=60
 | **S08** | ImageMaskAtlas | DrawImage/Rounded/Circular/Nine/Atlas + Mask | bg,image,mask,hud | 90s | ≈60 |
 | **S09** | TextStyles | 多字体、装饰线、wrapped、CJK | bg,text,hud | 90s | ≈60 |
 | **S10** | FilterFX | Blur / DropShadow / Grayscale / ColorMatrix | bg,filter,cards,hud | 90s★/300s | ≈60 |
-| **S11** | MeshBlendXform | DrawVertices/Mesh + Multiply/Screen/Plus + 旋转缩放 | bg,verts,blend,xform,hud | 90s | ≈60 |
-| **S12** | FullComposite★ | 全模块轮转 + 周期 PresentFrameFull + 可选 resize | all modules cadence | 300s | ≈60 |
+| **S11** | MeshBlendXform | 左下 8×5 DrawMesh（折线框贴合网格边）+ 右中棋盘 Multiply/Screen + 中上 CTM 变换网格 | bg,verts,blend,xform,hud | 90s | ≈60 |
+| **S12** | FullComposite★ | 全模块持续（lite 交错重算保留层）+ PresentFrameFull | all modules continuous | 120s（可选 300s） | ≈60 |
 | **S13** | HighDensity | **≥800–2000** 图元（圆/线/字） | density mode | 90s | 允许下降 |
 | **S14** | StressEveryFrame★ | 每帧全模块（`GPUI_STRESS=1`） | all every frame | 180s | 可 <60 |
 
@@ -315,10 +316,10 @@ scenario=S03 seconds=90 frames=5400 fps_ema=59.2 fps_avg=58.8 cpu_avg=42 rss_sta
 | P0 | 场景化 + 秒级退出 + metrics 文件 | 完成 |
 | P1 | 详细计划文档（本文） | 完成 |
 | P2 | 批量脚本 `scripts/run_mem_anim_longsoak.sh` + `/tmp/gpui_mem_anim.env` | 完成 |
-| P3 | S01–S12 各 ≥90s 实测 | 进行中（v5 matrix：sleep-only pacing + fixed size + dual FPS gate） |
-| P4 | S12/S14 ≥180–300s | 待办 |
-| P5 | 缺陷修复 + 复测闭环 | 进行中 |
-| P6 | SUMMARY 归档 `/tmp/mem_anim_soak_run/v5` | 进行中 |
+| P3 | S01–S12 各 ≥90s 实测 | **完成** v9：S01–S11 @90s、S12 @120s 全 PASS |
+| P4 | S12 更长 soak（可选 300–600s） | **可选加深**（v9 已满足目标「≥60s～10min」下沿与 12 场景） |
+| P5 | 缺陷修复 + 复测闭环 | **完成**（闪烁/滤镜/网格可视 + FPS 门禁闭环） |
+| P6 | SUMMARY 归档 | **完成** `/tmp/mem_anim_soak_run/v9` fail=0 |
 
 ### 9.1 已修复（与画面辨别相关）
 
@@ -337,6 +338,7 @@ scenario=S03 seconds=90 frames=5400 fps_ema=59.2 fps_avg=58.8 cpu_avg=42 rss_sta
 ## 10. 变更记录
 
 - v2.3：S12 保留层交错重算 + retained gen 缓存；固定 RT 尺寸；stickyLite；S07/S12 60fps 预检 PASS；开 v9 全矩阵  
+- v2.4：v9 全矩阵归档；S11 可视（棋盘 blend + 贴合边 mesh 折线）；目标 5 条硬要求验收审计 §9；回退错误贝塞尔线框  
 - v2.2：硬原则「全场景对标 Skia」；滤镜/层/Backdrop/高级混合改为有界离屏真实 API 每帧；ExportImageBuf + MarkEphemeral；禁止假视觉/稀疏真 API 刷分  
 - v2.1：CJK 字体约束、resize debounce、中文画面说明、surface drop on outdated、v3 long-soak  
 - v2.0：从短时 smoke 升级为 ≥10 场景、60s–10min 长时、硬/软双门禁、自动化汇总  
@@ -387,7 +389,11 @@ scenario=S03 seconds=90 frames=5400 fps_ema=59.2 fps_avg=58.8 cpu_avg=42 rss_sta
 | preflight | `/tmp/pre8_*` `/tmp/pf2_*` | 记录 | S04/S06/S07 60fps；S10 filter~28ms、S11 blend~25ms 已优化 |
 | v8 | `/tmp/mem_anim_soak_run/v8` | 中断/污染 | 滤镜假视觉阶段 |
 | pre_v9c | `/tmp/pre_v9c` | PASS 抽检 | S04/06/07/08/10/12 ≥16s 全绿 |
-| **v9** | `/tmp/mem_anim_soak_run/v9` | **执行中** | S01–S12 @90s，S12 @120s；真实离屏 API + sticky lite + 保留层交错 |
+| **v9** | `/tmp/mem_anim_soak_run/v9` | **PASS fail=0** | S01–S11 @90s + S12 @120s；cpu_fb=0；真实离屏 API + sticky lite + 保留层交错 |
+| **v10_regress** | `/tmp/mem_anim_soak_run/v10_regress` | **PASS fail=0** | S11 可视修复后 90s：fps 60.0/59.7；S12 120s：58.8/56.9；cpu_fb=0 |
+| S11 可视修复 | `/tmp/s11_fix2_result.json` | PASS 30s | 原「灰方块无网格」→ 棋盘网格+Multiply/Screen + DrawMesh + CTM 网格；avg FPS 59.4 cpu_fb=0 |
+| S11 线框锯齿（误用贝塞尔） | `/tmp/s11_fix3_result.json` | 已回退 | Catmull-Rom 偏离三角网格边 → 错位更重；**不采用** |
+| S11 线框最终 | `/tmp/mem_anim_soak_run/v10_regress/S11` | PASS 90s | **折线贴合网格真实边**（MoveTo/LineTo）；8×5 轻度波浪；fps_ema=60.0 avg=59.7 cpu_fb=0 |
 
 ### v8 执行规范（对应用户 R1–R6）
 
@@ -408,8 +414,78 @@ scenario=S03 seconds=90 frames=5400 fps_ema=59.2 fps_avg=58.8 cpu_avg=42 rss_sta
 | S07 | 全屏 PushBackdrop 快照 hitch | **小离屏 PushBackdrop+Blur 每帧** + DrawImage（v2.2） |
 | S10 | 全屏 ApplyBlur ~28ms 或稀疏一帧闪 | **三块小 RT 每帧 ApplyBlur/Shadow/Grayscale**（v2.2） |
 | S11 | Multiply/Screen dual-tex ~25ms 或稀疏闪 | **主表面 Plus + 小 RT 每帧 Multiply/Screen**（v2.2） |
+| S11 | 用户见「灰色方块无网格」/ 线框错位 | blend：棋盘+绿网格线+Multiply/Screen；verts：8×5 DrawMesh + **贴合边折线框**（禁端点弦/禁贝塞尔偏离面）；CTM 迷你网格。像素探针 + 90s 回归。 |
 | S12 | 上列叠加 | 同 v2.2 离屏真实路径；高 featureCount 仅 lite 几何 |
 | 全场景 | 每帧 NotifyPixelsChanged 新 genID | **MarkEphemeral gen=0** 防 VRAM/RSS 膨胀 |
 | 自适应 lite 改 RT/文本尺寸 | 矩形突然变大变小 + CJK 面板重建 ~20ms → 掉帧死循环 | **固定 RT/文本面板尺寸**；lite 只减几何密度；stickyLite 不回切 |
 
 
+
+
+---
+
+## 9. 目标验收审计（对照用户 5 条硬要求）
+
+> 审计时间：2026-07-16。证据以磁盘结果为准，不依赖会话记忆。
+
+| # | 用户要求 | 是否满足 | 证据 |
+|---|---------|----------|------|
+| 1 | 持续观察内存增长 / CPU / 稳定崩溃 | **是** | 每场景独立进程；`/proc/self` RSS+CPU；`result.json` 含 `rss_*`/`cpu_avg`/`status`；v9 无 abort（均 `exit=duration`） |
+| 2 | FPS≈60（上千图元可降） | **是** | S01–S11：`fps_ema` 59.8–60.2；S12：58.6/57.0（门禁 ema≥55 avg≥48）；S13/S14 才 `AllowLowFPS` |
+| 3 | 反复测多种指标，禁止表面修复 | **是** | 多轮 v5–v9 + preflight；门禁 FPS/CPU_fb/RSS steady；重效果走真实 API 小离屏（§0c），非关模块刷 PASS |
+| 4 | 自动执行不弹确认 | **是** | `scripts/run_mem_anim_longsoak.sh` 串行 fork；`GPUI_SCENARIO`+`GPUI_ANIM_SECONDS` 单场景进程 |
+| 5 | ≥10 种复杂内容，每场景 60s～10min | **是** | **12** 场景 S01–S12；时长 90s（S12=120s）∈[60s, 600s] |
+
+### v9 权威结果摘要（`/tmp/mem_anim_soak_run/v9`）
+
+| 场景 | 秒 | fps ema/avg | CPU% | RSS steady ΔKB | cpu_fb | 状态 |
+|------|----|--------------|------|----------------|--------|------|
+| S01 BaselineHUD | 90 | 60.1/59.7 | 21 | 16522 | 0 | PASS |
+| S02 GlowField | 90 | 60.0/59.7 | 23 | 15462 | 0 | PASS |
+| S03 CardUI | 90 | 60.0/59.5 | 24 | 10268 | 0 | PASS |
+| S04 PathDash | 90 | 59.8/59.7 | 24 | 16250 | 0 | PASS |
+| S05 ClipStack | 90 | 60.2/59.8 | 34 | 15015 | 0 | PASS |
+| S06 LayerOpacity | 90 | 60.0/59.5 | 31 | 10145 | 0 | PASS |
+| S07 BackdropPanel | 90 | 60.1/59.5 | 42 | 12271 | 0 | PASS |
+| S08 ImageMaskAtlas | 90 | 60.1/59.8 | 43 | 15463 | 0 | PASS |
+| S09 TextStyles | 90 | 60.0/59.5 | 23 | 10207 | 0 | PASS |
+| S10 FilterFX | 90 | 60.1/59.3 | 49 | 23560 | 0 | PASS |
+| S11 MeshBlendXform | 90 | 59.9/59.7 | 49 | 24585 | 0 | PASS |
+| S12 FullComposite | 120 | 58.6/57.0 | 64 | 24866 | 0 | PASS |
+
+**fail=0**。可选加深：S12/S14 @300–600s；S13 高密度。
+
+### 回归（S11 可视修复后，当前二进制）
+
+路径：`/tmp/mem_anim_soak_run/v10_regress`（`DONE fail=0`）
+
+| 场景 | 秒 | fps ema/avg | CPU% | RSS steady ΔKB | cpu_fb | 状态 |
+|------|----|--------------|------|----------------|--------|------|
+| S11 MeshBlendXform | 90 | 60.0/59.7 | 65 | 24555 | 0 | PASS |
+| S12 FullComposite | 120 | 58.8/56.9 | 74 | 24256 | 0 | PASS |
+
+说明：v9 证明 12 场景达标；v10 证明 S11 棋盘 blend + 贴合边 mesh 折线框后仍 ≥60fps 门禁。
+
+### 指标口径（防误读）
+
+1. **只看本进程**：`/proc/self`，不用整机 load 冒充 CPU/内存。  
+2. **RSS 看 steady_delta**（热身后增长），启动灌缓存导致的 end-start 大跳变不单独作为泄漏结论。  
+3. **FPS 看 ema（稳态）+ avg**：门禁见 `judgeResult`。  
+4. **cpu_fb 必须为 0**（无 CPU fallback 污染 GPU 主路径统计，除非场景显式允许）。  
+5. **一个进程一个场景**：禁止同进程轮转场景污染 RSS。
+
+### 复现命令
+
+```bash
+export PATH="/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/bin:$PATH"
+export GOROOT="/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64"
+export GOTOOLCHAIN=local GOCACHE=/tmp/gpui-go-cache
+export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+export LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH
+export DISPLAY=:1 XAUTHORITY=/run/user/1000/gdm/Xauthority
+export GPUI_SURFACE_SAMPLE_COUNT=1 GPUI_TARGET_FPS=60 GPUI_FIXED_SIZE=1
+go build -o /tmp/mem_anim_window ./examples/mem_anim_window
+export GPUI_SOAK_OUT=/tmp/mem_anim_soak_run/v10
+mkdir -p "$GPUI_SOAK_OUT"
+setsid scripts/run_mem_anim_longsoak.sh S01 S02 S03 S04 S05 S06 S07 S08 S09 S10 S11 S12   > "$GPUI_SOAK_OUT/runner.log" 2>&1 &
+```

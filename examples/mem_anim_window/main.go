@@ -1307,18 +1307,18 @@ func drawImages(dc *render.Context, fw, fh, t float64, img *render.ImageBuf, lit
 
 func drawVertices(dc *render.Context, fw, fh, t float64) {
 	// Colored triangle-list (V.01) + indexed mesh grid (V.03).
-	// S11 网格 must read as an actual multi-cell mesh, not two tiny triangles.
+	// Wire lines MUST be exact mesh edges (LineTo between consecutive verts).
+	// Catmull-Rom/Bezier overlays leave the triangulated surface → worse 错位.
 	ox, oy := fw*0.18, fh*0.58
-	// Background plate so the mesh is never "lost" on animated bg.
 	dc.SetRGBA(0.08, 0.09, 0.14, 0.72)
 	dc.DrawRectangle(ox-8, oy-12, 250, 168)
 	_ = dc.Fill()
-	dc.SetRGBA(0.55, 0.95, 0.75, 0.95)
+	dc.SetRGBA(0.55, 0.95, 0.75, 0.7)
 	dc.SetLineWidth(1.5)
 	dc.DrawRectangle(ox-8, oy-12, 250, 168)
 	_ = dc.Stroke()
 
-	// Free-form rainbow triangle fan / list near the plate top.
+	// Free-form rainbow triangles (V.01) near plate top.
 	s := 36 + 8*math.Sin(t)
 	pts := []render.Point{
 		{X: ox + 40, Y: oy + 8 - s*0.35},
@@ -1338,15 +1338,16 @@ func drawVertices(dc *render.Context, fw, fh, t float64) {
 	}
 	dc.DrawVertices(pts, cols, render.VertexModeTriangles)
 
-	// Indexed multi-cell mesh grid (the main "网格" visual).
-	const colsN, rowsN = 7, 5
-	cellW, cellH := 28.0, 22.0
-	gx, gy := ox+8, oy+42
+	// Main mesh grid. Mild wave so edges stay readable; denser than 2-triangle demo.
+	const colsN, rowsN = 8, 5
+	cellW, cellH := 24.0, 20.0
+	gx, gy := ox+10, oy+42
 	positions := make([]render.Point, 0, (colsN+1)*(rowsN+1))
 	colors := make([]render.RGBA, 0, (colsN+1)*(rowsN+1))
 	for j := 0; j <= rowsN; j++ {
 		for i := 0; i <= colsN; i++ {
-			wave := 5 * math.Sin(t*1.6+float64(i)*0.55+float64(j)*0.4)
+			// Only vertical displace, continuous in i — each row is a clean polyline.
+			wave := 2.5 * math.Sin(t*1.4+float64(i)*0.5+float64(j)*0.15)
 			positions = append(positions, render.Point{
 				X: gx + float64(i)*cellW,
 				Y: gy + float64(j)*cellH + wave,
@@ -1366,7 +1367,6 @@ func drawVertices(dc *render.Context, fw, fh, t float64) {
 			i1 := i0 + 1
 			i2 := i0 + uint16(colsN+1)
 			i3 := i2 + 1
-			// two triangles per cell
 			indices = append(indices, i0, i1, i2, i1, i3, i2)
 		}
 	}
@@ -1375,25 +1375,33 @@ func drawVertices(dc *render.Context, fw, fh, t float64) {
 		Colors:    colors,
 		Indices:   indices,
 	})
-	// Wire overlay so cells read as a grid even if Gouraud is soft.
-	dc.SetRGBA(1, 1, 1, 0.55)
-	dc.SetLineWidth(1)
+
+	// Exact-edge wire: one path, LineTo along every grid row & col (matches triangles).
+	// Do NOT cubic-smooth: curves leave the mesh surface and look more misaligned.
+	dc.SetRGBA(1, 1, 1, 0.72)
+	dc.SetLineWidth(1.05)
+	dc.SetLineCap(render.LineCapRound)
+	dc.SetLineJoin(render.LineJoinRound)
+	// horizontal edges
 	for j := 0; j <= rowsN; j++ {
-		for i := 0; i < colsN; i++ {
-			a := positions[j*(colsN+1)+i]
-			b := positions[j*(colsN+1)+i+1]
-			dc.DrawLine(a.X, a.Y, b.X, b.Y)
-			_ = dc.Stroke()
+		base := j * (colsN + 1)
+		p0 := positions[base]
+		dc.MoveTo(p0.X, p0.Y)
+		for i := 1; i <= colsN; i++ {
+			p := positions[base+i]
+			dc.LineTo(p.X, p.Y)
 		}
 	}
+	// vertical edges
 	for i := 0; i <= colsN; i++ {
-		for j := 0; j < rowsN; j++ {
-			a := positions[j*(colsN+1)+i]
-			b := positions[(j+1)*(colsN+1)+i]
-			dc.DrawLine(a.X, a.Y, b.X, b.Y)
-			_ = dc.Stroke()
+		p0 := positions[i]
+		dc.MoveTo(p0.X, p0.Y)
+		for j := 1; j <= rowsN; j++ {
+			p := positions[j*(colsN+1)+i]
+			dc.LineTo(p.X, p.Y)
 		}
 	}
+	_ = dc.Stroke()
 }
 
 func drawWritePixels(dc *render.Context, fw, fh float64, frame int, pix []byte) {
@@ -1725,7 +1733,7 @@ func buildGuideLines(spec scenarioSpec, master, active FeatureFlags, adaptiveLit
 		{master.Filter, "filter", "三块真实滤镜：模糊/阴影/灰度（每帧）"},
 		{master.Transform, "xform", "中上：旋转缩放的网格+黄块+绿菱形"},
 		{master.Blend, "blend", "右中：棋盘网格方块上 Multiply橙/Screen蓝/Plus光晕"},
-		{master.Vertices, "verts", "左下：彩色顶点网格(7x5)+白线框（非灰块）"},
+		{master.Vertices, "verts", "左下：彩色顶点网格(8x5)+贴合网格的折线框"},
 		{master.Pixels, "pixels", "小块像素写入"},
 		{master.HUD, "hud", "右上角FPS/CPU与底部耗时条"},
 	}
