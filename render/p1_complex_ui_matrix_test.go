@@ -670,6 +670,140 @@ func TestP1_Capability_B06_PaintAlpha(t *testing.T) {
 	_ = a
 }
 
+// B.06: paint/global alpha consistent across solid, image, layer, text (premul SO).
+func TestP1_Capability_B06_PaintAlphaMultiPath(t *testing.T) {
+	p1RequireGPU(t)
+	const w, h = 96, 96
+
+	// --- solid 50% red over blue ---
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+	dc.SetRGB(0, 0, 1)
+	dc.DrawRectangle(0, 0, w, h)
+	_ = dc.Fill()
+	dc.SetRGBA(1, 0, 0, 0.5)
+	dc.DrawRectangle(16, 16, 64, 64)
+	_ = dc.Fill()
+	p1Flush(t, dc)
+	sr, sg, sb, _ := p1Sample(dc, 48, 48)
+	t.Logf("B06 solid rgba=%d,%d,%d stats=%s", sr, sg, sb, dc.RenderPathStats().LogLine())
+	if dc.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("solid paint alpha needs GPUOps>0")
+	}
+	if sr < 80 || sr > 180 || sb < 80 {
+		t.Fatalf("solid half-red over blue out of premul range: %d,%d,%d", sr, sg, sb)
+	}
+
+	// --- image with Opacity 0.5 red over blue ---
+	dc2 := render.NewContext(w, h)
+	defer dc2.Close()
+	dc2.ResetRenderPathStats()
+	dc2.ClearWithColor(render.White)
+	dc2.SetRGB(0, 0, 1)
+	dc2.DrawRectangle(0, 0, w, h)
+	_ = dc2.Fill()
+	img, err := render.NewImageBuf(32, 32, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	for y := 0; y < 32; y++ {
+		for x := 0; x < 32; x++ {
+			_ = img.SetRGBA(x, y, 255, 0, 0, 255)
+		}
+	}
+	dc2.DrawImageEx(img, render.DrawImageOptions{
+		X: 32, Y: 32, DstWidth: 32, DstHeight: 32,
+		Opacity: 0.5, Interpolation: render.InterpNearest, BlendMode: render.BlendNormal,
+	})
+	p1Flush(t, dc2)
+	ir, ig, ib, _ := p1Sample(dc2, 48, 48)
+	t.Logf("B06 image opacity rgba=%d,%d,%d stats=%s", ir, ig, ib, dc2.RenderPathStats().LogLine())
+	if dc2.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("image opacity needs GPUOps>0")
+	}
+	if ir < 80 || ir > 180 || ib < 80 {
+		t.Fatalf("image half-red over blue out of premul range: %d,%d,%d", ir, ig, ib)
+	}
+	// solid vs image within ballpark
+	if absI(int(sr)-int(ir)) > 48 {
+		t.Fatalf("solid vs image red diverge too much: solid=%d image=%d", sr, ir)
+	}
+
+	// --- layer opacity 0.5 red over blue ---
+	dc3 := render.NewContext(w, h)
+	defer dc3.Close()
+	dc3.ResetRenderPathStats()
+	dc3.ClearWithColor(render.White)
+	dc3.SetRGB(0, 0, 1)
+	dc3.DrawRectangle(0, 0, w, h)
+	_ = dc3.Fill()
+	dc3.PushLayer(render.BlendNormal, 0.5)
+	dc3.SetRGB(1, 0, 0)
+	dc3.DrawRectangle(16, 16, 64, 64)
+	_ = dc3.Fill()
+	dc3.PopLayer()
+	p1Flush(t, dc3)
+	lr, lg, lb, _ := p1Sample(dc3, 48, 48)
+	t.Logf("B06 layer opacity rgba=%d,%d,%d stats=%s", lr, lg, lb, dc3.RenderPathStats().LogLine())
+	if dc3.RenderPathStats().GPUOps == 0 {
+		t.Fatalf("layer opacity needs GPUOps>0")
+	}
+	if lr < 80 || lr > 180 || lb < 80 {
+		t.Fatalf("layer half-red over blue out of premul range: %d,%d,%d", lr, lg, lb)
+	}
+
+	// --- text paint alpha 0.5 white over blue (ink presence + partial) ---
+	font := p1FindFont(t)
+	dc4 := render.NewContext(160, 64)
+	defer dc4.Close()
+	dc4.ResetRenderPathStats()
+	dc4.ClearWithColor(render.White)
+	dc4.SetRGB(0, 0, 1)
+	dc4.DrawRectangle(0, 0, 160, 64)
+	_ = dc4.Fill()
+	if err := dc4.LoadFontFace(font, 28); err != nil {
+		t.Fatalf("font: %v", err)
+	}
+	dc4.SetLCDLayout(render.LCDLayoutNone)
+	dc4.SetRGBA(1, 1, 1, 0.5)
+	dc4.DrawString("Aa中", 12, 42)
+	p1Flush(t, dc4)
+	stats4 := dc4.RenderPathStats()
+	t.Logf("B06 text alpha stats=%s", stats4.LogLine())
+	if stats4.GPUOps == 0 {
+		t.Fatalf("text paint alpha needs GPUOps>0")
+	}
+	ink, partial := 0, 0
+	for y := 8; y < 56; y += 2 {
+		for x := 8; x < 150; x += 2 {
+			r, g, b, _ := p1Sample(dc4, x, y)
+			// not pure blue and not pure white
+			if r > 20 || g > 20 {
+				ink++
+			}
+			if r > 20 && r < 240 && b > 40 {
+				partial++
+			}
+		}
+	}
+	if ink < 10 {
+		t.Fatalf("text paint alpha produced no ink samples ink=%d", ink)
+	}
+	if partial < 1 {
+		t.Fatalf("text paint alpha missing premul partial samples partial=%d ink=%d", partial, ink)
+	}
+	t.Logf("B06 text ink=%d partial=%d", ink, partial)
+}
+
+func absI(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // Combined density scene: stack A-like elements once for stress correctness (Tier B lite).
 func TestP1_B1_ManyRRectsCorrectness(t *testing.T) {
 	p1RequireGPU(t)

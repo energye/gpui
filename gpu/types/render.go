@@ -270,6 +270,22 @@ func BlendStatePlus() BlendState {
 	}
 }
 
+// BlendStateModulate returns Skia kModulate / B.07: out = src * dst (premul).
+func BlendStateModulate() BlendState {
+	return BlendState{
+		Color: BlendComponent{
+			SrcFactor: BlendFactorDst,
+			DstFactor: BlendFactorZero,
+			Operation: BlendOperationAdd,
+		},
+		Alpha: BlendComponent{
+			SrcFactor: BlendFactorDst,
+			DstFactor: BlendFactorZero,
+			Operation: BlendOperationAdd,
+		},
+	}
+}
+
 // ColorWriteMask describes which color channels to write.
 //
 // This is a bit flag type.

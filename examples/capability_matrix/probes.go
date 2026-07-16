@@ -866,6 +866,7 @@ func drawAdvBlend(dc *render.Context, fw, fh, t float64, frame int) {
 		{render.BlendSoftLight, render.RGBA{R: 0.4, G: 0.8, B: 1, A: 0.85}},
 		{render.BlendDifference, render.RGBA{R: 0.9, G: 0.9, B: 0.2, A: 0.8}},
 		{render.BlendPlus, render.RGBA{R: 0.6, G: 0.3, B: 0.1, A: 0.7}},
+		{render.BlendModulate, render.RGBA{R: 0.95, G: 0.75, B: 0.55, A: 0.95}},
 	}
 	cols := 3
 	cellW := float64(tw) / float64(cols)

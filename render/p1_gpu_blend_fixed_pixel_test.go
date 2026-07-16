@@ -100,6 +100,50 @@ func TestP12GPUFixedPixel_BlendPlus(t *testing.T) {
 	}
 }
 
+func TestP12GPUFixedPixel_BlendModulate(t *testing.T) {
+	requireNativeGPU(t)
+	dc := render.NewContext(32, 32)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+
+	// Opaque medium gray dest (premul ~ (128,128,128,255) after SetRGB? use 0.5 channels)
+	dc.ClearWithColor(render.Black)
+	dc.SetRGB(0.5, 0.5, 0.5)
+	dc.DrawRectangle(0, 0, 32, 32)
+	_ = dc.Fill()
+
+	// Modulate with opaque red: out = (1,0,0,1)*(0.5,0.5,0.5,1) = (0.5,0,0,1)
+	dc.SetBlendMode(render.BlendModulate)
+	dc.SetRGB(1, 0, 0)
+	dc.DrawRectangle(0, 0, 32, 32)
+	_ = dc.Fill()
+
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("FlushGPU: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("path_stats %s", stats.LogLine())
+	if stats.GPUOps == 0 {
+		t.Fatalf("B.07 Modulate requires GPUOps>0: %s", stats.LogLine())
+	}
+	if stats.CPUFallbackOps != 0 {
+		t.Fatalf("B.07 Modulate must be GPU-first (cpu_fb=0): %s", stats.LogLine())
+	}
+	r, g, b, a := sampleRGBA(dc, 16, 16)
+	t.Logf("modulate center rgba=%d,%d,%d,%d", r, g, b, a)
+	// Expect ~ (128,0,0,255): red half intensity, no green/blue residual.
+	if r < 90 || r > 170 {
+		t.Fatalf("Modulate red out of band: %d,%d,%d,%d", r, g, b, a)
+	}
+	if g > 40 || b > 40 {
+		t.Fatalf("Modulate residual G/B too high: %d,%d,%d,%d", r, g, b, a)
+	}
+	// SourceOver red over gray would be ~ (255,128,128) - catch that mistake.
+	if g > 80 {
+		t.Fatalf("Modulate looks like SourceOver: %d,%d,%d,%d", r, g, b, a)
+	}
+}
+
 func TestP12GPUFixedPixel_BlendClear(t *testing.T) {
 	requireNativeGPU(t)
 	dc := render.NewContext(32, 32)

@@ -79,6 +79,10 @@ const (
 	BlendDifference
 	// BlendExclusion is a lower-contrast difference.
 	BlendExclusion
+
+	// BlendModulate multiplies source and destination (Skia kModulate / B.07).
+	// Premul: out = src * dst (component-wise). Fixed-function GPU factors: Src*Dst + Dst*0.
+	BlendModulate
 )
 
 const unknownBlendMode = "Unknown"
@@ -140,6 +144,8 @@ func (b BlendMode) String() string {
 		return "Difference"
 	case BlendExclusion:
 		return "Exclusion"
+	case BlendModulate:
+		return "Modulate"
 	default:
 		return unknownBlendMode
 	}
@@ -319,6 +325,14 @@ func blend(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA uint8, mode BlendMode)
 	if mode == BlendNormal {
 		// Standard alpha blending (source over destination)
 		return blendNormal(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA)
+	}
+
+	// Skia kModulate / B.07: component-wise product (including alpha).
+	if mode == BlendModulate {
+		return uint8(int(srcR) * int(dstR) / 255),
+			uint8(int(srcG) * int(dstG) / 255),
+			uint8(int(srcB) * int(dstB) / 255),
+			uint8(int(srcA) * int(dstA) / 255)
 	}
 
 	// For other blend modes, first blend the colors, then apply alpha

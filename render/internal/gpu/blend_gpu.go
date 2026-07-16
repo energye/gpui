@@ -54,6 +54,8 @@ func gpuBlendStateForPaint(mode render.BlendMode) (types.BlendState, bool) {
 		return types.BlendStateClear(), true
 	case render.BlendPlus:
 		return types.BlendStatePlus(), true
+	case render.BlendModulate:
+		return types.BlendStateModulate(), true
 	case render.BlendDestinationOut:
 		// out = dst * (1 - srcA)
 		return types.BlendState{

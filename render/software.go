@@ -772,6 +772,17 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 			add(sa, da),
 		)
 		return
+	case BlendModulate:
+		// Premul component product: out = (src*cov) * dst
+		sa := color.A * cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		pixmap.setPremul(x, y,
+			color.R*sa*dr,
+			color.G*sa*dg,
+			color.B*sa*db,
+			sa*da,
+		)
+		return
 	case BlendDestinationOut:
 		sa := color.A * cov
 		inv := 1.0 - sa

@@ -96,6 +96,8 @@ const (
 	BlendCopy = intImage.BlendCopy
 	// BlendPlus is Porter-Duff Plus (B.02 / B.07): clamped source+destination.
 	BlendPlus = intImage.BlendPlus
+	// BlendModulate multiplies source*destination (Skia kModulate / B.07).
+	BlendModulate = intImage.BlendModulate
 	// BlendDestinationOut is Porter-Duff DstOut (B.02).
 	BlendDestinationOut = intImage.BlendDestinationOut
 	// BlendSourceAtop is Porter-Duff SrcAtop (B.02).
