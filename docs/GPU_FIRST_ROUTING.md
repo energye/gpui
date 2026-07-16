@@ -1,8 +1,10 @@
 # GPU 优先路由原则与「有 GPU 仍 CPU」清单
 
-> 版本：3.9 | 日期：2026-07-16  
+> 版本：3.9.1 | 日期：2026-07-16  
+> 状态：**主线已关闭（v3.9 可签字；见 §9）**  
 > 状态：**§7 三轮遗漏审计已关闭（证据见 §7.4）**  
-> 状态：**主线硬原则执行中；剩余工作 = GPU\*→原生升级，禁止降级已有 GPU 路径**  
+> 状态：**本文保留为活文档 / 硬原则**；禁止降级已有 GPU 路径  
+> 后置（不阻塞主线）：N3 真 fragment ColorAt · N4 Bicubic · N5 极冷门 path effect  
 > 权威：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) §1b  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`
 
@@ -299,6 +301,7 @@ N1/N2：**GPU session-inline**（v3.9：`bootstrap_ops=0`，仅 GPU\* 回退记 
 
 | 版本 | 说明 |
 |------|------|
+| 3.9.1 | **文档状态收口**：主线标 **已关闭**；页眉与 §9 对齐；N3/N4/N5 仅书面后置不阻塞；本文继续作硬原则活文档，不删清单 |
 | 3.9 | **Bootstrap 语义收口**：session-inline 成功 → `bootstrap_ops=0`（`markBrushSessionInline` / `noteBrushBootstrapIfGPUStar`）；仅 retain/field/ColorAt GPU\* 记 reason；`TestP02_*` nonconvex/evenodd/pattern 零 bootstrap；Custom 仍 `brush:custom`；N1–N2 标 **GPU 完成**；N3–N5 书面后置 |
 | 3.8 | N2：**session-inline pattern cover** — `queueSessionPatternCover` + `cover_textured_pattern.wgsl`（inverse UV + clip/mask 同 solid）；主 pass stencil+sample，无离屏 result；失败回退 v3.6 retain / sample×R8；rect native tile **不降级**；`TestP02_NonRectImagePattern*` PASS |
 | 3.7 | N1：**session-inline textured cover** — `queueSessionTexturedCover` 把 fan+cover 写入主 pass stencil/color（`cover_textured_linear.wgsl` + clip/mask 同 solid cover）；linear/radial/focal/sweep± 优先；失败回退 v3.6 retain；无离屏 result / QueueGPUTextureDraw 热路径；原生 solid/rect **不降级**；`TestP02_*` PASS |
@@ -346,3 +349,13 @@ N1/N2：**GPU session-inline**（v3.9：`bootstrap_ops=0`，仅 GPU\* 回退记 
 | 禁止降级已 GPU 路径 | **铁律** §1b |
 
 **主线执行结论（v3.9）**：填充/笔刷 GPU 优先路由已达可签字完成态；剩余仅签字后置项（N3 fragment / N4 / N5），不阻塞 2D canvas / Skia 对标主路径。后续优化属性能加深，非 B 类缺口清零。
+
+### 9.1 文档生命周期（v3.9.1）
+
+| 项 | 处理 |
+|----|------|
+| **主线任务** | **关闭** — 不再把 N1–N2 当 open work |
+| **硬原则 R0/R1 + 清单** | **保留** — 新代码仍须遵守；发现 silent CPU 再开审计 |
+| **N3 / N4 / N5** | **书面后置** — 产品热路径或质量对标需要时再开，不默认排期 |
+| **下一主文档** | [`CAPABILITY_MATRIX_WINDOW.md`](./CAPABILITY_MATRIX_WINDOW.md) / [`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) 控件入口；**不要**为本文件再开 N3/N5 默认优化 |
+| **改代码时** | 先确认路径是否已 GPU；**禁止**把已 GPU 路径退回 CPU / ColorAt for |
