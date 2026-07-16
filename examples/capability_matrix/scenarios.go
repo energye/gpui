@@ -1,0 +1,154 @@
+//go:build linux && !nogpu
+
+package main
+
+import (
+	"log"
+	"strings"
+)
+
+// scenarioSpec maps one window scenario to SKIA_2D_CAPABILITY_MATRIX rows.
+// MatrixIDs are the authoritative capability IDs from docs/SKIA_2D_CAPABILITY_MATRIX.md
+// (Skia 2D semantic parity). C01–C20 group those IDs for real X11 present verification.
+// Harness code may reuse mem_anim X11 patterns; scenario content must track the matrix.
+type scenarioSpec struct {
+	ID     string
+	Name   string
+	NameCN string
+	// MatrixIDs: comma-separated IDs from SKIA_2D_CAPABILITY_MATRIX.md
+	MatrixIDs   string
+	AllowLowFPS bool
+	DamageMode  bool
+	// DrawKind selects probe drawer in probes.go
+	DrawKind string
+	// Expect: Chinese on-screen guide of what the operator should see
+	Expect string
+}
+
+func allScenarios() map[string]scenarioSpec {
+	return map[string]scenarioSpec{
+		// --- M0/M1 surface + paint + path (Skia Canvas/Paint/Path) ---
+		"C01": {
+			ID: "C01", Name: "SurfacePresentClear", NameCN: "窗口呈现/清屏",
+			MatrixIDs: "S.03,S.04,S.05", DrawKind: "clear",
+			Expect: "整窗清屏色相缓慢变化，中部圆横向移动（Skia clear + window present）",
+		},
+		"C02": {
+			ID: "C02", Name: "TransformStack", NameCN: "变换栈",
+			MatrixIDs: "T.01,T.02,P.01", DrawKind: "xform",
+			Expect: "中心旋转缩放色块 + 左上独立旋转圆（concat/save/restore）",
+		},
+		"C03": {
+			ID: "C03", Name: "PathFillStroke", NameCN: "路径填充+描边",
+			MatrixIDs: "H.01,G.01,G.02,G.04,P.02,P.03,P.05,P.06", DrawKind: "path",
+			Expect: "波浪描边 + Cap 三线(Butt/Round/Square) + 星形填充",
+		},
+		"C04": {
+			ID: "C04", Name: "HairlineDash", NameCN: "Hairline+虚线",
+			MatrixIDs: "P.04,E.01,P.08", DrawKind: "dash",
+			Expect: "Hairline 虚线贝塞尔 + 脉动虚线圆（dash path effect）",
+		},
+		"C05": {
+			ID: "C05", Name: "ClipRectRRect", NameCN: "矩形/圆角裁剪",
+			MatrixIDs: "C.01,C.02,C.05,G.03", DrawKind: "clip",
+			Expect: "条纹底上圆角裁剪窗与矩形裁剪窗内有运动圆",
+		},
+		// --- M2 UI high-frequency ---
+		"C06": {
+			ID: "C06", Name: "GradientPattern", NameCN: "渐变+图案",
+			MatrixIDs: "D.01,D.02,D.03,D.05", DrawKind: "grad",
+			Expect: "线性/径向/扫描渐变色块 + 图像 pattern 条带",
+		},
+		"C07": {
+			ID: "C07", Name: "BlendModes", NameCN: "可分离混合",
+			MatrixIDs: "B.03,B.05,B.01", DrawKind: "blend",
+			Expect: "棋盘底上 Multiply橙 / Screen蓝 / Overlay黄 叠加圆",
+		},
+		"C08": {
+			ID: "C08", Name: "LayerOpacity", NameCN: "半透明图层",
+			MatrixIDs: "L.01,L.02,L.03", DrawKind: "layer",
+			Expect: "双圆背景 + 半透明 saveLayer 卡片（离屏层再 DrawImage）",
+		},
+		"C09": {
+			ID: "C09", Name: "ImageWritePixels", NameCN: "贴图+写像素",
+			MatrixIDs: "I.01,I.02,I.03,S.07", DrawKind: "image",
+			Expect: "棋盘贴图缩放旋转 + 右下 WritePixels 动态色块",
+		},
+		"C10": {
+			ID: "C10", Name: "TextCJKDecor", NameCN: "中英文+装饰",
+			MatrixIDs: "X.01,X.02,X.06,X.08", DrawKind: "text",
+			Expect: "中英混排文本 + 下划线装饰，字号/颜色可读",
+		},
+		// --- M3 extended ---
+		"C11": {
+			ID: "C11", Name: "FilterBlurShadow", NameCN: "模糊/阴影滤镜",
+			MatrixIDs: "F.01,F.02,F.04", DrawKind: "filter",
+			Expect: "离屏小 RT：模糊圆 / 投影色块 / 灰度（ImageFilter）",
+		},
+		"C12": {
+			ID: "C12", Name: "MeshVertices", NameCN: "顶点网格",
+			MatrixIDs: "V.01,V.03", DrawKind: "mesh",
+			Expect: "彩色 Gouraud 网格起伏变形（drawVertices/drawMesh）",
+		},
+		"C13": {
+			ID: "C13", Name: "EvenOddPath", NameCN: "EvenOdd 填充",
+			MatrixIDs: "H.03,H.01", DrawKind: "evenodd",
+			Expect: "EvenOdd 圆环孔洞 vs NonZero 实心对比",
+		},
+		"C14": {
+			ID: "C14", Name: "MaskLayer", NameCN: "蒙版图层",
+			MatrixIDs: "L.06", DrawKind: "mask",
+			Expect: "圆形 alpha 蒙版内可见彩色内容，蒙版外被裁掉",
+		},
+		"C15": {
+			ID: "C15", Name: "BackdropBlur", NameCN: "背景采样层",
+			MatrixIDs: "L.05,F.01", DrawKind: "backdrop",
+			Expect: "动态底图上半透明 Backdrop 卡片（采样父内容）",
+		},
+		"C16": {
+			ID: "C16", Name: "DamagePresent", NameCN: "局部 Damage Present",
+			MatrixIDs: "S.09", DrawKind: "damage", DamageMode: true,
+			Expect: "仅局部 dirty 区更新动画，全屏不应整帧清闪",
+		},
+		"C17": {
+			ID: "C17", Name: "AdvBlendPanel", NameCN: "高级混合",
+			MatrixIDs: "B.03,B.04,B.07", DrawKind: "advblend",
+			Expect: "多混合模式色圆网格（SoftLight/Diff/HSL 相关）",
+		},
+		"C18": {
+			ID: "C18", Name: "TextLCDShape", NameCN: "LCD 子像素文本",
+			MatrixIDs: "X.04,X.05,X.02", DrawKind: "textlcd",
+			Expect: "GlyphMask/LCD-RGB/Aliased 多行对照 + 中英",
+		},
+		"C19": {
+			ID: "C19", Name: "RRectXYRadii", NameCN: "独立圆角半径",
+			MatrixIDs: "G.06,G.03", DrawKind: "rrect",
+			Expect: "多组 XY 独立圆角矩形并排，圆角半径可见差异",
+		},
+		"C20": {
+			ID: "C20", Name: "CompositeUI", NameCN: "多能力 UI 合成",
+			MatrixIDs: "S.03,T.01,P.01,G.01,C.01,D.01,L.03,I.01,X.02,V.01", DrawKind: "composite",
+			Expect: "渐变底+变换块+文本+网格+贴图同屏，稳定 present",
+		},
+	}
+}
+
+func applyScenario(id string) (scenarioSpec, bool) {
+	id = strings.ToUpper(strings.TrimSpace(id))
+	if id == "" {
+		return scenarioSpec{}, false
+	}
+	s, ok := allScenarios()[id]
+	if !ok {
+		log.Printf("unknown GPUI_SCENARIO=%q — use C01..C20", id)
+		return scenarioSpec{}, false
+	}
+	return s, true
+}
+
+func scenarioListOrdered() []string {
+	return []string{
+		"C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
+		"C11", "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20",
+	}
+}
