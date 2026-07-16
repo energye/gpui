@@ -18,7 +18,7 @@ import (
 // Removes O(pixels) CPU field expand. Still GPU* (coverage may be stenciled
 // offscreen; blit via QueueImageDraw); not solid stencil cover of a solid color.
 const linearRampMaskWGSL = `
-// mode: 0=linear, 1=radial simple, 2=sweep+, 3=focal radial
+// mode: 0=linear, 1=radial simple, 2=sweep (signed), 3=focal radial
 struct Params {
     bounds_min: vec2<f32>,
     bounds_size: vec2<f32>,
@@ -65,7 +65,8 @@ fn gradient_t(px: f32, py: f32) -> f32 {
         return (d - p.p1.x) * p.p1.y;
     }
     if (p.mode < 2.5) {
-        // sweep+: p0=center, p1=(startAngle, invSweepRange)
+        // sweep (signed): p0=center, p1=(startAngle, invSweepRange)
+        // invSweepRange may be negative. Wrap matches render.normalizeAngle.
         let v = vec2<f32>(px, py) - p.p0;
         if (dot(v, v) < 1e-12) {
             return p.t_min;
@@ -73,7 +74,13 @@ fn gradient_t(px: f32, py: f32) -> f32 {
         let angle = atan2(v.y, v.x);
         var rel = angle - p.p1.x;
         let two_pi = 6.283185307179586;
-        rel = rel - floor(rel / two_pi) * two_pi;
+        if (p.p1.y >= 0.0) {
+            // Positive sweep: [0, 2π)
+            rel = rel - floor(rel / two_pi) * two_pi;
+        } else {
+            // Negative sweep: (-2π, 0]
+            rel = rel - ceil(rel / two_pi) * two_pi;
+        }
         return rel * p.p1.y;
     }
     // mode 3: focal radial. p0=focus, p1=center, inv_len2=endRadius
@@ -137,7 +144,7 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 `
 
 // linearRampMaskParams carries device-space projection for the GPU expand.
-// Mode: 0=linear, 1=radial simple, 2=sweep+, 3=focal radial.
+// Mode: 0=linear, 1=radial simple, 2=sweep (signed), 3=focal radial.
 type linearRampMaskParams struct {
 	boundsMinX, boundsMinY float32
 	boundsW, boundsH       float32

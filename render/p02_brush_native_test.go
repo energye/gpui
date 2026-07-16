@@ -576,6 +576,59 @@ func TestP02_NonConvexSweepGradientGPU(t *testing.T) {
 	}
 }
 
+// TestP02_NonConvexNegativeSweepGradientGPU verifies N1 signed (reverse) sweep:
+// EndAngle < StartAngle uses the same textured-cover / ramp×R8 path as positive,
+// not a demotion to pure CPU. cpu_fb must stay 0.
+func TestP02_NonConvexNegativeSweepGradientGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 80, 80
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	dc.MoveTo(10, 20)
+	dc.LineTo(40, 10)
+	dc.LineTo(70, 20)
+	dc.LineTo(55, 40)
+	dc.LineTo(70, 60)
+	dc.LineTo(40, 70)
+	dc.LineTo(10, 60)
+	dc.LineTo(25, 40)
+	dc.ClosePath()
+
+	// Reverse full turn: Start=0, End=-2π → sweepRange < 0.
+	g := render.NewSweepGradientBrush(40, 40, 0).
+		SetEndAngle(-2*3.141592653589793).
+		AddColorStop(0, render.RGB(1, 0, 0)).
+		AddColorStop(0.5, render.RGB(0, 1, 0)).
+		AddColorStop(1, render.RGB(0, 0, 1))
+	dc.SetFillBrush(g)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("fill: %v", err)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("nonconvex-neg-sweep %s bootstrap_ops=%d reason=%q", stats.LogLine(), stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	if stats.GPUOps == 0 {
+		t.Fatalf("expected GPUOps: %s", stats.LogLine())
+	}
+	if stats.CPUFallbackOps > 0 {
+		t.Fatalf("hard cpu_fb should stay 0: %s reason=%q", stats.LogLine(), stats.LastCPUFallbackReason)
+	}
+	r, gch, b, _ := sampleRGBA(dc, 40, 40)
+	t.Logf("center=%d,%d,%d", r, gch, b)
+	if int(r)+int(gch)+int(b) > 740 {
+		r, gch, b, _ = sampleRGBA(dc, 40, 25)
+		t.Logf("alt=%d,%d,%d", r, gch, b)
+	}
+	if int(r)+int(gch)+int(b) > 740 {
+		t.Fatalf("expected negative-sweep ink inside non-convex path")
+	}
+}
+
 // TestP02_NonConvexFocalRadialGradientGPU verifies N1 focal radial (focus≠center)
 // on non-convex path stays GPU* with bootstrap reason, not hard cpu_fb.
 func TestP02_NonConvexFocalRadialGradientGPU(t *testing.T) {

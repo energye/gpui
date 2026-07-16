@@ -393,11 +393,8 @@ func (rc *GPURenderContext) rasterCoverageMask(
 }
 
 // fillLinearGradientFieldMasked is N1 textured linear cover for non-convex/EvenOdd:
-// coverage (GPU stencil preferred) × 1D ColorAt ramp sampled on GPU by projected t
-// (O(n) ColorAt only; no O(pixels) CPU field expand), then GPU blit.
-//
-// GPU path: linearRampMaskExpand (ramp texture + R8 mask + projection uniforms).
-// CPU expand + maskR8Modulate remains only if GPU expand fails.
+// prefer true stencil-then-cover sampling 1D ramp in cover FS (one readback),
+// else coverage R8 × GPU ramp expand, else CPU field. O(n) ColorAt for ramp only.
 // Native span/field/convex still run first and must not be demoted.
 func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	target render.GPURenderTarget,
@@ -517,20 +514,12 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 		ramp[off+3] = uint8(clamp255(a * 255))
 	}
 
-	// Coverage at field resolution (GPU stencil preferred).
 	sx := float64(nw) / float64(bw)
 	sy := float64(nh) / float64(bh)
 	toField := render.Scale(sx, sy).Multiply(
 		render.Translate(-float64(bounds.Min.X), -float64(bounds.Min.Y)),
 	)
 	localPath := path.Transform(toField)
-	mask, covGPU, err := rc.rasterCoverageMask(localPath, nw, nh, paint.FillRule)
-	if err != nil {
-		return render.ErrFallbackToCPU
-	}
-	if mask == nil {
-		return nil
-	}
 
 	bx := float64(bounds.Min.X)
 	by := float64(bounds.Min.Y)
@@ -539,19 +528,25 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	invSpan := 1.0 / span
 	invLen2 := 1.0 / len2
 
-	// Prefer true GPU textured expand: sample 1D ramp by projected t × R8 mask.
-	// No O(pixels) CPU field write.
 	rc.shared.mu.Lock()
 	device := rc.shared.device
 	queue := rc.shared.queue
+	texCache := &rc.shared.texturedStencilLinear
 	rampCache := &rc.shared.linearRampMask
 	maskCache := &rc.shared.maskR8
+	sc := uint32(4)
+	if rc.shared.stencilRenderer != nil && rc.shared.stencilRenderer.sampleCount > 0 {
+		sc = rc.shared.stencilRenderer.sampleCount
+	}
 	rc.shared.mu.Unlock()
 
 	usedGPURamp := false
+	covGPU := false
 	var pixelData []byte
+
+	// 1) True textured stencil cover: prefer no-readback retain + GPUTextureDraw.
 	if device != nil && queue != nil {
-		params := linearRampMaskParams{
+		tp := texturedStencilLinearParams{
 			boundsMinX: float32(bx),
 			boundsMinY: float32(by),
 			boundsW:    float32(fw),
@@ -563,11 +558,71 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 			invLen2:    float32(invLen2),
 			tMin:       float32(tMin),
 			invSpan:    float32(invSpan),
-			mode:       0, // linear
 		}
-		if out, gerr := linearRampMaskExpand(device, queue, rampCache, ramp, n, mask, nw, nh, params); gerr == nil && len(out) == nw*nh*4 {
-			pixelData = out
-			usedGPURamp = true
+		if tex, view, gerr := texturedStencilCoverLinearRetain(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
+			if tex == nil && view == nil {
+				return nil
+			}
+			if view != nil {
+				rc.retainBrushCoverResult(tex, view)
+				vpW := uint32(tw) //nolint:gosec
+				vpH := uint32(th) //nolint:gosec
+				if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
+					vpW, vpH = target.ViewWidth, target.ViewHeight
+				}
+				x0 := float32(bounds.Min.X)
+				y0 := float32(bounds.Min.Y)
+				x1 := float32(bounds.Max.X)
+				y1 := float32(bounds.Max.Y)
+				rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
+				rc.sceneStats.PathCount++
+				rc.sceneStats.ShapeCount++
+				return nil
+			}
+		}
+		// Fallback: readback cover (legacy GPU*).
+		if out, gerr := texturedStencilCoverLinear(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
+			if out == nil {
+				return nil
+			}
+			if len(out) == nw*nh*4 {
+				pixelData = out
+				usedGPURamp = true
+				covGPU = true
+			}
+		}
+	}
+
+	// 2) Fallback: GPU stencil/software coverage R8 × ramp expand.
+	var mask []byte
+	if !usedGPURamp {
+		var err error
+		mask, covGPU, err = rc.rasterCoverageMask(localPath, nw, nh, paint.FillRule)
+		if err != nil {
+			return render.ErrFallbackToCPU
+		}
+		if mask == nil {
+			return nil
+		}
+		if device != nil && queue != nil {
+			params := linearRampMaskParams{
+				boundsMinX: float32(bx),
+				boundsMinY: float32(by),
+				boundsW:    float32(fw),
+				boundsH:    float32(fh),
+				startX:     float32(g.Start.X),
+				startY:     float32(g.Start.Y),
+				dX:         float32(dx),
+				dY:         float32(dy),
+				invLen2:    float32(invLen2),
+				tMin:       float32(tMin),
+				invSpan:    float32(invSpan),
+				mode:       0,
+			}
+			if out, gerr := linearRampMaskExpand(device, queue, rampCache, ramp, n, mask, nw, nh, params); gerr == nil && len(out) == nw*nh*4 {
+				pixelData = out
+				usedGPURamp = true
+			}
 		}
 	}
 
@@ -647,9 +702,11 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	}
 	genID := brushFieldSeedLinear(g) ^ fieldGeomGenID(bx, by, fw, fh, nw, nh) ^ 0x11AEA8A5000001
 	if usedGPURamp {
-		genID ^= 0x00000000A1A1A001 // GPU 1D ramp × mask textured expand
+		genID ^= 0x00000000A1A1A001 // GPU ramp path (stencil cover or ramp×mask)
+		if covGPU {
+			genID ^= 0x000000001E15C001 // textured stencil cover namespace
+		}
 	} else {
-		// CPU expand fallback namespace (may also XOR A11C if modulate used — not tracked here).
 		genID ^= 0x00000000C01D0001
 	}
 	if covGPU {
@@ -672,10 +729,10 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 }
 
 // fillRadialGradientFieldMasked is N1 textured radial cover:
-//   - simple (focus==center): t=(dist-startR)/radiusDiff
-//   - focal (focus!=center): GPU computeTFocal (mode 3)
+//   - simple (focus==center): mode 1
+//   - focal (focus!=center): mode 3 computeTFocal
 //
-// O(n) ColorAt 1D ramp + GPU t×R8 mask. Native rect/convex still first.
+// Prefer textured stencil cover; else ramp×R8. Native rect/convex still first.
 func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	target render.GPURenderTarget,
 	path *render.Path,
@@ -847,13 +904,6 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 		render.Translate(-float64(bounds.Min.X), -float64(bounds.Min.Y)),
 	)
 	localPath := path.Transform(toField)
-	mask, covGPU, err := rc.rasterCoverageMask(localPath, nw, nh, paint.FillRule)
-	if err != nil {
-		return render.ErrFallbackToCPU
-	}
-	if mask == nil {
-		return nil
-	}
 
 	bx := float64(bounds.Min.X)
 	by := float64(bounds.Min.Y)
@@ -864,47 +914,106 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	rc.shared.mu.Lock()
 	device := rc.shared.device
 	queue := rc.shared.queue
+	texCache := &rc.shared.texturedStencilLinear
 	rampCache := &rc.shared.linearRampMask
+	sc := uint32(4)
+	if rc.shared.stencilRenderer != nil && rc.shared.stencilRenderer.sampleCount > 0 {
+		sc = rc.shared.stencilRenderer.sampleCount
+	}
 	rc.shared.mu.Unlock()
 	if device == nil || queue == nil {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedRadial(g))
 	}
 
-	var params linearRampMaskParams
+	var out []byte
+	covGPU := false
+	usedTexCover := false
+
+	// 1) Textured stencil cover (mode 1 simple / 3 focal).
+	var tp texturedStencilLinearParams
 	if !focal {
-		params = linearRampMaskParams{
-			boundsMinX: float32(bx),
-			boundsMinY: float32(by),
-			boundsW:    float32(fw),
-			boundsH:    float32(fh),
-			startX:     float32(g.Center.X),
-			startY:     float32(g.Center.Y),
-			dX:         float32(g.StartRadius),
-			dY:         float32(1.0 / radiusDiff),
-			invLen2:    0,
-			tMin:       float32(tMin),
-			invSpan:    float32(invSpan),
-			mode:       1,
+		tp = texturedStencilLinearParams{
+			boundsMinX: float32(bx), boundsMinY: float32(by),
+			boundsW: float32(fw), boundsH: float32(fh),
+			startX: float32(g.Center.X), startY: float32(g.Center.Y),
+			dX: float32(g.StartRadius), dY: float32(1.0 / radiusDiff),
+			invLen2: 0, tMin: float32(tMin), invSpan: float32(invSpan), mode: 1,
 		}
 	} else {
-		params = linearRampMaskParams{
-			boundsMinX: float32(bx),
-			boundsMinY: float32(by),
-			boundsW:    float32(fw),
-			boundsH:    float32(fh),
-			startX:     float32(g.Focus.X),
-			startY:     float32(g.Focus.Y),
-			dX:         float32(g.Center.X),
-			dY:         float32(g.Center.Y),
-			invLen2:    float32(g.EndRadius),
-			tMin:       float32(tMin),
-			invSpan:    float32(invSpan),
-			mode:       3, // focal
+		tp = texturedStencilLinearParams{
+			boundsMinX: float32(bx), boundsMinY: float32(by),
+			boundsW: float32(fw), boundsH: float32(fh),
+			startX: float32(g.Focus.X), startY: float32(g.Focus.Y),
+			dX: float32(g.Center.X), dY: float32(g.Center.Y),
+			invLen2: float32(g.EndRadius), tMin: float32(tMin), invSpan: float32(invSpan), mode: 3,
 		}
 	}
-	out, gerr := linearRampMaskExpand(device, queue, rampCache, ramp, n, mask, nw, nh, params)
-	if gerr != nil || len(out) != nw*nh*4 {
-		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedRadial(g))
+	if tex, view, gerr := texturedStencilCoverLinearRetain(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
+		if tex == nil && view == nil {
+			return nil
+		}
+		if view != nil {
+			rc.retainBrushCoverResult(tex, view)
+			vpW := uint32(tw) //nolint:gosec
+			vpH := uint32(th) //nolint:gosec
+			if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
+				vpW, vpH = target.ViewWidth, target.ViewHeight
+			}
+			x0 := float32(bounds.Min.X)
+			y0 := float32(bounds.Min.Y)
+			x1 := float32(bounds.Max.X)
+			y1 := float32(bounds.Max.Y)
+			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
+			rc.sceneStats.PathCount++
+			rc.sceneStats.ShapeCount++
+			return nil
+		}
+	}
+	// Fallback: readback cover.
+	if pixels, gerr := texturedStencilCoverLinear(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
+		if pixels == nil {
+			return nil
+		}
+		if len(pixels) == nw*nh*4 {
+			out = pixels
+			usedTexCover = true
+			covGPU = true
+		}
+	}
+
+	// 2) Fallback: coverage R8 × ramp expand.
+	if !usedTexCover {
+		mask, cov, err := rc.rasterCoverageMask(localPath, nw, nh, paint.FillRule)
+		if err != nil {
+			return render.ErrFallbackToCPU
+		}
+		if mask == nil {
+			return nil
+		}
+		covGPU = cov
+		var params linearRampMaskParams
+		if !focal {
+			params = linearRampMaskParams{
+				boundsMinX: float32(bx), boundsMinY: float32(by),
+				boundsW: float32(fw), boundsH: float32(fh),
+				startX: float32(g.Center.X), startY: float32(g.Center.Y),
+				dX: float32(g.StartRadius), dY: float32(1.0 / radiusDiff),
+				invLen2: 0, tMin: float32(tMin), invSpan: float32(invSpan), mode: 1,
+			}
+		} else {
+			params = linearRampMaskParams{
+				boundsMinX: float32(bx), boundsMinY: float32(by),
+				boundsW: float32(fw), boundsH: float32(fh),
+				startX: float32(g.Focus.X), startY: float32(g.Focus.Y),
+				dX: float32(g.Center.X), dY: float32(g.Center.Y),
+				invLen2: float32(g.EndRadius), tMin: float32(tMin), invSpan: float32(invSpan), mode: 3,
+			}
+		}
+		pixels, gerr := linearRampMaskExpand(device, queue, rampCache, ramp, n, mask, nw, nh, params)
+		if gerr != nil || len(pixels) != nw*nh*4 {
+			return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedRadial(g))
+		}
+		out = pixels
 	}
 
 	vpW := uint32(tw) //nolint:gosec
@@ -915,6 +1024,9 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	genID := brushFieldSeedRadial(g) ^ fieldGeomGenID(bx, by, fw, fh, nw, nh) ^ 0x11AEA8A5AAD0001
 	if focal {
 		genID ^= 0x00000000F0CA1001
+	}
+	if usedTexCover {
+		genID ^= 0x000000001E15C001
 	}
 	if covGPU {
 		genID ^= 0x0000000057EAC001
@@ -1012,9 +1124,10 @@ func focalRayIntersectDist(g *render.RadialGradientBrush, ux, uy float64) float6
 	}
 }
 
-// fillSweepGradientFieldMasked is N1 textured sweep cover for positive sweep ranges:
-// O(n) ColorAt angular ramp + GPU atan2 projection × R8 mask.
-// Negative / zero sweep falls back to ColorAt field×R8. Native rect/convex first.
+// fillSweepGradientFieldMasked is N1 textured sweep cover for signed sweep ranges:
+// Prefer textured stencil cover (mode 2); else ramp×R8. Zero → ColorAt field.
+// invSweepRange may be negative (matches SweepGradientBrush.normalizeAngle).
+// Native rect/convex still first.
 func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 	target render.GPURenderTarget,
 	path *render.Path,
@@ -1025,8 +1138,8 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		return render.ErrFallbackToCPU
 	}
 	sweepRange := g.EndAngle - g.StartAngle
-	if sweepRange <= 1e-12 {
-		// Zero/negative: keep ColorAt field (shader assumes positive wrap).
+	if math.Abs(sweepRange) <= 1e-12 {
+		// Degenerate zero sweep: solid-ish ColorAt field.
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedSweep(g))
 	}
 	sweepStart := g.StartAngle
@@ -1097,7 +1210,13 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 			ang := math.Atan2(c[1]-cy, c[0]-cx)
 			rel := ang - sweepStart
 			twoPi := 2 * math.Pi
-			rel = rel - math.Floor(rel/twoPi)*twoPi
+			if sweepRange > 0 {
+				// Positive: [0, 2π)
+				rel = rel - math.Floor(rel/twoPi)*twoPi
+			} else {
+				// Negative: (-2π, 0] — matches normalizeAngle
+				rel = rel - math.Ceil(rel/twoPi)*twoPi
+			}
 			tt := rel * invSR
 			if i == 0 || tt < tMin {
 				tMin = tt
@@ -1143,13 +1262,6 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		render.Translate(-float64(bounds.Min.X), -float64(bounds.Min.Y)),
 	)
 	localPath := path.Transform(toField)
-	mask, covGPU, err := rc.rasterCoverageMask(localPath, nw, nh, paint.FillRule)
-	if err != nil {
-		return render.ErrFallbackToCPU
-	}
-	if mask == nil {
-		return nil
-	}
 
 	bx := float64(bounds.Min.X)
 	by := float64(bounds.Min.Y)
@@ -1161,28 +1273,86 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 	rc.shared.mu.Lock()
 	device := rc.shared.device
 	queue := rc.shared.queue
+	texCache := &rc.shared.texturedStencilLinear
 	rampCache := &rc.shared.linearRampMask
+	sc := uint32(4)
+	if rc.shared.stencilRenderer != nil && rc.shared.stencilRenderer.sampleCount > 0 {
+		sc = rc.shared.stencilRenderer.sampleCount
+	}
 	rc.shared.mu.Unlock()
 	if device == nil || queue == nil {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedSweep(g))
 	}
-	params := linearRampMaskParams{
-		boundsMinX: float32(bx),
-		boundsMinY: float32(by),
-		boundsW:    float32(fw),
-		boundsH:    float32(fh),
-		startX:     float32(cx),
-		startY:     float32(cy),
-		dX:         float32(sweepStart),
-		dY:         float32(invSR),
-		invLen2:    0,
-		tMin:       float32(tMin),
-		invSpan:    float32(invSpan),
-		mode:       2, // sweep
+
+	var out []byte
+	covGPU := false
+	usedTexCover := false
+	tp := texturedStencilLinearParams{
+		boundsMinX: float32(bx), boundsMinY: float32(by),
+		boundsW: float32(fw), boundsH: float32(fh),
+		startX: float32(cx), startY: float32(cy),
+		dX: float32(sweepStart), dY: float32(invSR),
+		invLen2: 0, tMin: float32(tMin), invSpan: float32(invSpan), mode: 2,
 	}
-	out, gerr := linearRampMaskExpand(device, queue, rampCache, ramp, n, mask, nw, nh, params)
-	if gerr != nil || len(out) != nw*nh*4 {
-		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedSweep(g))
+	if tex, view, gerr := texturedStencilCoverLinearRetain(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
+		if tex == nil && view == nil {
+			return nil
+		}
+		if view != nil {
+			rc.retainBrushCoverResult(tex, view)
+			vpW := uint32(tw) //nolint:gosec
+			vpH := uint32(th) //nolint:gosec
+			if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
+				vpW, vpH = target.ViewWidth, target.ViewHeight
+			}
+			x0 := float32(bounds.Min.X)
+			y0 := float32(bounds.Min.Y)
+			x1 := float32(bounds.Max.X)
+			y1 := float32(bounds.Max.Y)
+			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
+			rc.sceneStats.PathCount++
+			rc.sceneStats.ShapeCount++
+			return nil
+		}
+	}
+	if pixels, gerr := texturedStencilCoverLinear(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
+		if pixels == nil {
+			return nil
+		}
+		if len(pixels) == nw*nh*4 {
+			out = pixels
+			usedTexCover = true
+			covGPU = true
+		}
+	}
+	if !usedTexCover {
+		mask, cov, err := rc.rasterCoverageMask(localPath, nw, nh, paint.FillRule)
+		if err != nil {
+			return render.ErrFallbackToCPU
+		}
+		if mask == nil {
+			return nil
+		}
+		covGPU = cov
+		params := linearRampMaskParams{
+			boundsMinX: float32(bx),
+			boundsMinY: float32(by),
+			boundsW:    float32(fw),
+			boundsH:    float32(fh),
+			startX:     float32(cx),
+			startY:     float32(cy),
+			dX:         float32(sweepStart),
+			dY:         float32(invSR),
+			invLen2:    0,
+			tMin:       float32(tMin),
+			invSpan:    float32(invSpan),
+			mode:       2,
+		}
+		pixels, gerr := linearRampMaskExpand(device, queue, rampCache, ramp, n, mask, nw, nh, params)
+		if gerr != nil || len(pixels) != nw*nh*4 {
+			return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedSweep(g))
+		}
+		out = pixels
 	}
 
 	vpW := uint32(tw) //nolint:gosec
@@ -1191,6 +1361,9 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		vpW, vpH = target.ViewWidth, target.ViewHeight
 	}
 	genID := brushFieldSeedSweep(g) ^ fieldGeomGenID(bx, by, fw, fh, nw, nh) ^ 0x11AEA8A55EE0001
+	if usedTexCover {
+		genID ^= 0x000000001E15C001
+	}
 	if covGPU {
 		genID ^= 0x0000000057EAC001
 	}
@@ -1256,10 +1429,10 @@ func (rc *GPURenderContext) fillGradientFieldMasked(
 	return rc.fillColorAtFieldMaskedGPU(target, path, paint, colorAt, genSeed)
 }
 
-// fillImagePatternFieldMasked is N2: non-rect ImagePattern fill via GPU texture
-// sample (inverse affine UV) × R8 coverage. Used when AA-rect GPU tile path
-// cannot run. Keeps fillImagePatternNative first for rects (no demotion).
-// Falls back to ColorAt field×R8 only if GPU sample path fails.
+// fillImagePatternFieldMasked is N2: non-rect ImagePattern fill.
+// Prefer textured stencil cover (stencil + pattern sample in cover FS, one
+// readback); else GPU texture sample × R8 coverage; else ColorAt field×R8.
+// Keeps fillImagePatternNative first for rects (no demotion).
 func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	target render.GPURenderTarget,
 	path *render.Path,
@@ -1343,20 +1516,12 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 		copy(tile[dstOff:dstOff+srcW*4], data[srcOff:srcOff+srcW*4])
 	}
 
-	// Coverage at field resolution (GPU stencil preferred).
 	sx := float64(nw) / float64(bw)
 	sy := float64(nh) / float64(bh)
 	toField := render.Scale(sx, sy).Multiply(
 		render.Translate(-float64(bounds.Min.X), -float64(bounds.Min.Y)),
 	)
 	localPath := path.Transform(toField)
-	mask, covGPU, err := rc.rasterCoverageMask(localPath, nw, nh, paint.FillRule)
-	if err != nil {
-		return render.ErrFallbackToCPU
-	}
-	if mask == nil {
-		return nil
-	}
 
 	op := opacity
 	if op <= 0 {
@@ -1377,12 +1542,18 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	rc.shared.mu.Lock()
 	device := rc.shared.device
 	queue := rc.shared.queue
-	cache := &rc.shared.patternMaskSample
+	patCoverCache := &rc.shared.texturedStencilPattern
+	maskCache := &rc.shared.patternMaskSample
+	sc := uint32(4)
+	if rc.shared.stencilRenderer != nil && rc.shared.stencilRenderer.sampleCount > 0 {
+		sc = rc.shared.stencilRenderer.sampleCount
+	}
 	rc.shared.mu.Unlock()
 	if device == nil || queue == nil {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, pat.ColorAt, patternFieldSeed(pat))
 	}
-	params := patternMaskSampleParams{
+
+	tp := texturedStencilPatternParams{
 		boundsMinX: float32(bx),
 		boundsMinY: float32(by),
 		boundsW:    float32(fw),
@@ -1398,9 +1569,71 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 		opacity:    float32(op),
 		clampMode:  clampMode,
 	}
-	out, gerr := patternMaskSampleExpand(device, queue, cache, tile, srcW, srcH, mask, nw, nh, params)
-	if gerr != nil || len(out) != nw*nh*4 {
-		return rc.fillColorAtFieldMaskedGPU(target, path, paint, pat.ColorAt, patternFieldSeed(pat))
+
+	var out []byte
+	covGPU := false
+	usedTexCover := false
+	if tex, view, gerr := texturedStencilCoverPatternRetain(device, queue, patCoverCache, localPath, paint.FillRule, nw, nh, tile, srcW, srcH, tp, sc); gerr == nil {
+		if tex == nil && view == nil {
+			return nil
+		}
+		if view != nil {
+			rc.retainBrushCoverResult(tex, view)
+			vpW := uint32(tw) //nolint:gosec
+			vpH := uint32(th) //nolint:gosec
+			if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
+				vpW, vpH = target.ViewWidth, target.ViewHeight
+			}
+			x0 := float32(bounds.Min.X)
+			y0 := float32(bounds.Min.Y)
+			x1 := float32(bounds.Max.X)
+			y1 := float32(bounds.Max.Y)
+			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
+			rc.sceneStats.PathCount++
+			rc.sceneStats.ShapeCount++
+			return nil
+		}
+	}
+	if pixels, gerr := texturedStencilCoverPattern(device, queue, patCoverCache, localPath, paint.FillRule, nw, nh, tile, srcW, srcH, tp, sc); gerr == nil {
+		if pixels == nil {
+			return nil
+		}
+		if len(pixels) == nw*nh*4 {
+			out = pixels
+			usedTexCover = true
+			covGPU = true
+		}
+	}
+	if !usedTexCover {
+		mask, cov, err := rc.rasterCoverageMask(localPath, nw, nh, paint.FillRule)
+		if err != nil {
+			return render.ErrFallbackToCPU
+		}
+		if mask == nil {
+			return nil
+		}
+		covGPU = cov
+		params := patternMaskSampleParams{
+			boundsMinX: float32(bx),
+			boundsMinY: float32(by),
+			boundsW:    float32(fw),
+			boundsH:    float32(fh),
+			invA:       float32(inv.A),
+			invB:       float32(inv.B),
+			invC:       float32(inv.C),
+			invD:       float32(inv.D),
+			invE:       float32(inv.E),
+			invF:       float32(inv.F),
+			patW:       float32(srcW),
+			patH:       float32(srcH),
+			opacity:    float32(op),
+			clampMode:  clampMode,
+		}
+		pixels, gerr := patternMaskSampleExpand(device, queue, maskCache, tile, srcW, srcH, mask, nw, nh, params)
+		if gerr != nil || len(pixels) != nw*nh*4 {
+			return rc.fillColorAtFieldMaskedGPU(target, path, paint, pat.ColorAt, patternFieldSeed(pat))
+		}
+		out = pixels
 	}
 
 	vpW := uint32(tw) //nolint:gosec
@@ -1409,6 +1642,9 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 		vpW, vpH = target.ViewWidth, target.ViewHeight
 	}
 	genID := patternFieldSeed(pat) ^ fieldGeomGenID(bx, by, fw, fh, nw, nh) ^ 0x0A77E41100000001
+	if usedTexCover {
+		genID ^= 0x000000001E15C0A7
+	}
 	if covGPU {
 		genID ^= 0x0000000057EAC001
 	}

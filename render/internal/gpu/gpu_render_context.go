@@ -40,11 +40,13 @@ type GPURenderContext struct {
 	pendingStencilPaths       []StencilPathCommand
 	pendingImageCommands      []ImageDrawCommand
 	pendingGPUTextureCommands []GPUTextureDrawCommand
-	pendingTextBatches        []TextBatch
-	pendingGlyphMaskBatches   []GlyphMaskBatch
-	baseLayer                 *GPUTextureDrawCommand
-	pendingTarget             render.GPURenderTarget
-	hasPendingTarget          bool
+	// Brush cover results retained until after Flush (no-readback N1/N2).
+	pendingBrushCoverResults []brushCoverResult
+	pendingTextBatches       []TextBatch
+	pendingGlyphMaskBatches  []GlyphMaskBatch
+	baseLayer                *GPUTextureDrawCommand
+	pendingTarget            render.GPURenderTarget
+	hasPendingTarget         bool
 
 	// Per-context clip state.
 	clipRect        *[4]uint32
@@ -566,6 +568,52 @@ func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view g
 	}
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true
+}
+
+// brushCoverResult owns a per-draw stencil-cover texture until Flush finishes.
+type brushCoverResult struct {
+	tex  *webgpu.Texture
+	view *webgpu.TextureView
+}
+
+func (rc *GPURenderContext) retainBrushCoverResult(tex *webgpu.Texture, view *webgpu.TextureView) {
+	if rc == nil || tex == nil || view == nil {
+		return
+	}
+	rc.pendingBrushCoverResults = append(rc.pendingBrushCoverResults, brushCoverResult{tex: tex, view: view})
+}
+
+func (rc *GPURenderContext) releaseBrushCoverResults() {
+	if rc == nil {
+		return
+	}
+	for i := range rc.pendingBrushCoverResults {
+		r := &rc.pendingBrushCoverResults[i]
+		if r.view != nil {
+			r.view.Release()
+			r.view = nil
+		}
+		if r.tex != nil {
+			r.tex.Release()
+			r.tex = nil
+		}
+	}
+	rc.pendingBrushCoverResults = rc.pendingBrushCoverResults[:0]
+}
+
+// queueBrushCoverTexture composites a retained brush cover texture into the
+// session via GPU-to-GPU draw (no CPU readback / re-upload).
+func (rc *GPURenderContext) queueBrushCoverTexture(
+	target render.GPURenderTarget,
+	view *webgpu.TextureView,
+	x0, y0, x1, y1 float32,
+	vpW, vpH uint32,
+) {
+	if rc == nil || view == nil {
+		return
+	}
+	rc.QueueGPUTextureDraw(target, gpucontext.NewTextureView(unsafe.Pointer(view)), //nolint:gosec
+		x0, y0, x1-x0, y1-y0, 1.0, vpW, vpH)
 }
 
 // QueueGPUTextureDraw queues a GPU-to-GPU texture compositing command.
@@ -1312,6 +1360,8 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		slogger().Warn("render session error",
 			"groups", len(groups), "totalItems", total, "err", err)
 	}
+	// Cover textures must outlive RenderFrameGrouped bind/sample; free after submit.
+	rc.releaseBrushCoverResults()
 
 	// S6.2: drop pending command ownership after encode/submit consumed the slices.
 	clear(rc.pendingShapes)
@@ -1485,6 +1535,7 @@ func (rc *GPURenderContext) Close() {
 	rc.pendingStencilPaths = nil
 	rc.pendingImageCommands = nil
 	rc.pendingGPUTextureCommands = nil
+	rc.releaseBrushCoverResults()
 	rc.baseLayer = nil
 	rc.pendingTextBatches = nil
 	rc.pendingGlyphMaskBatches = nil
