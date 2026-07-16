@@ -45,7 +45,7 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		// Non-rect / complex outline: field×coverage with GPU R8 modulate (N2), then
 		// coverage+ColorAt / full stage. Rect GPU tile path stays first (no demotion).
 		if err := rc.fillImagePatternFieldMasked(target, path, paint, pat); err == nil {
-			rc.noteBrushBootstrap("brush:pattern-path")
+			rc.noteBrushBootstrapIfGPUStar("brush:pattern-path")
 			return nil
 		}
 		if err := rc.fillBrushCoverageColorAt(target, path, paint); err == nil {
@@ -65,17 +65,17 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		switch gb := paint.GetBrush().(type) {
 		case *render.LinearGradientBrush:
 			if err := rc.fillLinearGradientFieldMasked(target, path, paint, gb); err == nil {
-				rc.noteBrushBootstrap("brush:evenodd")
+				rc.noteBrushBootstrapIfGPUStar("brush:evenodd")
 				return nil
 			}
 		case *render.RadialGradientBrush:
 			if err := rc.fillRadialGradientFieldMasked(target, path, paint, gb); err == nil {
-				rc.noteBrushBootstrap("brush:evenodd")
+				rc.noteBrushBootstrapIfGPUStar("brush:evenodd")
 				return nil
 			}
 		case *render.SweepGradientBrush:
 			if err := rc.fillSweepGradientFieldMasked(target, path, paint, gb); err == nil {
-				rc.noteBrushBootstrap("brush:evenodd")
+				rc.noteBrushBootstrapIfGPUStar("brush:evenodd")
 				return nil
 			}
 		}
@@ -122,7 +122,7 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		// Non-convex / complex outline: linear 1D-ramp×coverage (O(n) ColorAt),
 		// then generic ColorAt field×coverage, then denser bootstrap. Native first.
 		if err := rc.fillLinearGradientFieldMasked(target, path, paint, b); err == nil {
-			rc.noteBrushBootstrap("brush:nonconvex-path")
+			rc.noteBrushBootstrapIfGPUStar("brush:nonconvex-path")
 			return nil
 		}
 		if colorAt, seed, ok := gradientColorAtSeed(brush); ok {
@@ -152,12 +152,12 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		switch gb := brush.(type) {
 		case *render.RadialGradientBrush:
 			if err := rc.fillRadialGradientFieldMasked(target, path, paint, gb); err == nil {
-				rc.noteBrushBootstrap("brush:nonconvex-path")
+				rc.noteBrushBootstrapIfGPUStar("brush:nonconvex-path")
 				return nil
 			}
 		case *render.SweepGradientBrush:
 			if err := rc.fillSweepGradientFieldMasked(target, path, paint, gb); err == nil {
-				rc.noteBrushBootstrap("brush:nonconvex-path")
+				rc.noteBrushBootstrapIfGPUStar("brush:nonconvex-path")
 				return nil
 			}
 		}

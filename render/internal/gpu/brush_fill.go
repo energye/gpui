@@ -120,6 +120,7 @@ func (rc *GPURenderContext) fillBrushCoverageColorAt(target render.GPURenderTarg
 	// Distinct gen so image cache does not collide with full-Fill bootstrap frames.
 	genID := pm.GenerationID() ^ 0xC0A7_C01A_0000_0001
 
+	rc.markBrushGPUStar()
 	rc.QueueImageDraw(target, pixelData, genID, bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
@@ -304,6 +305,7 @@ func (rc *GPURenderContext) fillColorAtFieldMaskedGPU(
 	y0 := float32(bounds.Min.Y)
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
+	rc.markBrushGPUStar()
 	rc.QueueImageDraw(target, pixelData, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
@@ -544,6 +546,19 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	covGPU := false
 	var pixelData []byte
 
+	// 0) Session-inline textured cover (true native into main pass — v3.7).
+	// Device-space tessellation + ramp cover; no offscreen result / blit.
+	if device != nil && queue != nil {
+		if err := rc.queueSessionTexturedCover(
+			target, path, paint, ramp, n,
+			float32(g.Start.X), float32(g.Start.Y),
+			float32(dx), float32(dy),
+			float32(invLen2), float32(tMin), float32(invSpan), 0,
+		); err == nil {
+			return nil
+		}
+	}
+
 	// 1) True textured stencil cover: prefer no-readback retain + GPUTextureDraw.
 	if device != nil && queue != nil {
 		tp := texturedStencilLinearParams{
@@ -574,6 +589,7 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 				y0 := float32(bounds.Min.Y)
 				x1 := float32(bounds.Max.X)
 				y1 := float32(bounds.Max.Y)
+				rc.markBrushGPUStar()
 				rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
 				rc.sceneStats.PathCount++
 				rc.sceneStats.ShapeCount++
@@ -717,6 +733,7 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	y0 := float32(bounds.Min.Y)
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
+	rc.markBrushGPUStar()
 	rc.QueueImageDraw(target, pixelData, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
@@ -929,7 +946,27 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	covGPU := false
 	usedTexCover := false
 
-	// 1) Textured stencil cover (mode 1 simple / 3 focal).
+	// 0) Session-inline textured cover (device space).
+	var modeF, p0x, p0y, p1x, p1y, invL float32
+	if !focal {
+		modeF = 1
+		p0x, p0y = float32(g.Center.X), float32(g.Center.Y)
+		p1x, p1y = float32(g.StartRadius), float32(1.0/radiusDiff)
+		invL = 0
+	} else {
+		modeF = 3
+		p0x, p0y = float32(g.Focus.X), float32(g.Focus.Y)
+		p1x, p1y = float32(g.Center.X), float32(g.Center.Y)
+		invL = float32(g.EndRadius)
+	}
+	if err := rc.queueSessionTexturedCover(
+		target, path, paint, ramp, n,
+		p0x, p0y, p1x, p1y, invL, float32(tMin), float32(invSpan), modeF,
+	); err == nil {
+		return nil
+	}
+
+	// 1) Textured stencil cover retain fallback (mode 1 simple / 3 focal).
 	var tp texturedStencilLinearParams
 	if !focal {
 		tp = texturedStencilLinearParams{
@@ -963,6 +1000,7 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 			y0 := float32(bounds.Min.Y)
 			x1 := float32(bounds.Max.X)
 			y1 := float32(bounds.Max.Y)
+			rc.markBrushGPUStar()
 			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
 			rc.sceneStats.PathCount++
 			rc.sceneStats.ShapeCount++
@@ -1035,6 +1073,7 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	y0 := float32(bounds.Min.Y)
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
+	rc.markBrushGPUStar()
 	rc.QueueImageDraw(target, out, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
@@ -1287,6 +1326,15 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 	var out []byte
 	covGPU := false
 	usedTexCover := false
+	// 0) Session-inline textured cover (device space, signed sweep).
+	if err := rc.queueSessionTexturedCover(
+		target, path, paint, ramp, n,
+		float32(cx), float32(cy),
+		float32(sweepStart), float32(invSR),
+		0, float32(tMin), float32(invSpan), 2,
+	); err == nil {
+		return nil
+	}
 	tp := texturedStencilLinearParams{
 		boundsMinX: float32(bx), boundsMinY: float32(by),
 		boundsW: float32(fw), boundsH: float32(fh),
@@ -1309,6 +1357,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 			y0 := float32(bounds.Min.Y)
 			x1 := float32(bounds.Max.X)
 			y1 := float32(bounds.Max.Y)
+			rc.markBrushGPUStar()
 			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
 			rc.sceneStats.PathCount++
 			rc.sceneStats.ShapeCount++
@@ -1371,6 +1420,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 	y0 := float32(bounds.Min.Y)
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
+	rc.markBrushGPUStar()
 	rc.QueueImageDraw(target, out, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
@@ -1430,8 +1480,8 @@ func (rc *GPURenderContext) fillGradientFieldMasked(
 }
 
 // fillImagePatternFieldMasked is N2: non-rect ImagePattern fill.
-// Prefer textured stencil cover (stencil + pattern sample in cover FS, one
-// readback); else GPU texture sample × R8 coverage; else ColorAt field×R8.
+// Prefer session-inline pattern cover (main pass); else retain offscreen cover;
+// else GPU texture sample × R8; else ColorAt field×R8.
 // Keeps fillImagePatternNative first for rects (no demotion).
 func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	target render.GPURenderTarget,
@@ -1516,13 +1566,6 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 		copy(tile[dstOff:dstOff+srcW*4], data[srcOff:srcOff+srcW*4])
 	}
 
-	sx := float64(nw) / float64(bw)
-	sy := float64(nh) / float64(bh)
-	toField := render.Scale(sx, sy).Multiply(
-		render.Translate(-float64(bounds.Min.X), -float64(bounds.Min.Y)),
-	)
-	localPath := path.Transform(toField)
-
 	op := opacity
 	if op <= 0 {
 		op = 1
@@ -1534,6 +1577,24 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	if clamp {
 		clampMode = 1
 	}
+
+	// 0) Session-inline pattern cover into main pass (v3.8) — no offscreen result.
+	if err := rc.queueSessionPatternCover(
+		target, path, paint, tile, srcW, srcH,
+		float32(inv.A), float32(inv.B), float32(inv.C),
+		float32(inv.D), float32(inv.E), float32(inv.F),
+		float32(op), clampMode,
+	); err == nil {
+		return nil
+	}
+
+	sx := float64(nw) / float64(bw)
+	sy := float64(nh) / float64(bh)
+	toField := render.Scale(sx, sy).Multiply(
+		render.Translate(-float64(bounds.Min.X), -float64(bounds.Min.Y)),
+	)
+	localPath := path.Transform(toField)
+
 	bx := float64(bounds.Min.X)
 	by := float64(bounds.Min.Y)
 	fw := float64(bw)
@@ -1588,6 +1649,7 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 			y0 := float32(bounds.Min.Y)
 			x1 := float32(bounds.Max.X)
 			y1 := float32(bounds.Max.Y)
+			rc.markBrushGPUStar()
 			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
 			rc.sceneStats.PathCount++
 			rc.sceneStats.ShapeCount++
@@ -1652,6 +1714,7 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	y0 := float32(bounds.Min.Y)
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
+	rc.markBrushGPUStar()
 	rc.QueueImageDraw(target, out, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
@@ -1753,6 +1816,7 @@ func (rc *GPURenderContext) fillBrushAsImage(target render.GPURenderTarget, path
 	vpW := uint32(tw) //nolint:gosec
 	vpH := uint32(th) //nolint:gosec
 
+	rc.markBrushGPUStar()
 	rc.QueueImageDraw(target, pixelData, pm.GenerationID(), bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
@@ -1942,6 +2006,7 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 	vpW := uint32(tw) //nolint:gosec
 	vpH := uint32(th) //nolint:gosec
 
+	rc.markBrushGPUStar()
 	rc.QueueImageDraw(target, pixelData, pm.GenerationID(), bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,

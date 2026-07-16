@@ -139,6 +139,27 @@ type StencilPathCommand struct {
 
 	// BlendMode selects cover-pass WebGPU blend state (B.02). Zero = SourceOver.
 	BlendMode render.BlendMode
+
+	// Textured cover (session-inline gradient/pattern).
+	// Gradient: RampN > 0 → 1D ramp sample (modes 0–3).
+	// Pattern: PatW > 0 → 2D image sample with inverse affine.
+	// Neither set → solid Color cover (legacy).
+	Ramp           []byte
+	RampN          int
+	TexP0X, TexP0Y float32
+	TexP1X, TexP1Y float32
+	TexInvLen2     float32
+	TexTMin        float32
+	TexInvSpan     float32
+	TexMode        float32 // 0 linear, 1 radial, 2 sweep, 3 focal
+
+	// ImagePattern session-inline (N2). Premul RGBA tile PatW×PatH.
+	PatTile                   []byte
+	PatW, PatH                int
+	PatInvA, PatInvB, PatInvC float32
+	PatInvD, PatInvE, PatInvF float32
+	PatOpacity                float32
+	PatClamp                  float32 // >0.5 clamp OOB transparent
 }
 
 // RenderMode controls how the GPURenderSession outputs rendering results.
@@ -2072,6 +2093,32 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 				}
 			}
 			return nil, fmt.Errorf("build stencil resources for path %d: %w", i, err)
+		}
+		if cmd.PatW > 0 && cmd.PatH > 0 && len(cmd.PatTile) >= cmd.PatW*cmd.PatH*4 {
+			if err := s.stencilRenderer.updatePatternCoverResources(bufs, w, h, cmd); err != nil {
+				for j := 0; j < i; j++ {
+					if s.stencilBufPool[j] != nil {
+						s.stencilBufPool[j].destroy()
+						s.stencilBufPool[j] = nil
+					}
+				}
+				bufs.destroy()
+				return nil, fmt.Errorf("build pattern cover for path %d: %w", i, err)
+			}
+		} else if cmd.RampN > 0 {
+			if err := s.stencilRenderer.updateTexturedCoverResources(bufs, w, h, cmd); err != nil {
+				for j := 0; j < i; j++ {
+					if s.stencilBufPool[j] != nil {
+						s.stencilBufPool[j].destroy()
+						s.stencilBufPool[j] = nil
+					}
+				}
+				bufs.destroy()
+				return nil, fmt.Errorf("build textured cover for path %d: %w", i, err)
+			}
+		} else {
+			bufs.isTextured = false
+			bufs.isPattern = false
 		}
 		s.stencilBufPool[i] = bufs
 		result[i] = bufs

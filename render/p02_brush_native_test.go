@@ -297,8 +297,9 @@ func TestP02_CustomBrushBootstrapReason(t *testing.T) {
 	}
 }
 
-// TestP02_NonConvexLinearGradientGPU verifies non-convex path gradient uses
-// GPU blit bootstrap with explicit reason (not silent CPU, not hard cpu_fb).
+// TestP02_NonConvexLinearGradientGPU verifies non-convex path gradient stays
+// on GPU (session-inline preferred; GPU* bootstrap only if fallback).
+// Not silent CPU, not hard cpu_fb.
 func TestP02_NonConvexLinearGradientGPU(t *testing.T) {
 	requireNativeGPU(t)
 	const w, h = 80, 80
@@ -355,8 +356,8 @@ func TestP02_NonConvexLinearGradientGPU(t *testing.T) {
 	}
 }
 
-// TestP02_EvenOddLinearGradientFieldMaskedGPU verifies EvenOdd gradient uses
-// GPU* field×coverage bootstrap (reason brush:evenodd), not hard cpu_fb.
+// TestP02_EvenOddLinearGradientFieldMaskedGPU verifies EvenOdd gradient stays
+// GPU (session-inline or GPU* brush:evenodd), not hard cpu_fb.
 func TestP02_EvenOddLinearGradientFieldMaskedGPU(t *testing.T) {
 	requireNativeGPU(t)
 	const w, h = 64, 64
@@ -396,8 +397,10 @@ func TestP02_EvenOddLinearGradientFieldMaskedGPU(t *testing.T) {
 	if stats.CPUFallbackOps > 0 {
 		t.Fatalf("hard cpu_fb must stay 0: %s reason=%q", stats.LogLine(), stats.LastCPUFallbackReason)
 	}
-	if stats.BrushBootstrapOps < 1 || stats.LastBrushBootstrapReason != "brush:evenodd" {
-		t.Fatalf("expected brush:evenodd bootstrap, ops=%d reason=%q", stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	// v3.9: session-inline EvenOdd cover is true GPU (bootstrap_ops==0).
+	// GPU* retain/field fallback still reports brush:evenodd.
+	if stats.BrushBootstrapOps > 0 && stats.LastBrushBootstrapReason != "brush:evenodd" {
+		t.Fatalf("unexpected bootstrap reason %q", stats.LastBrushBootstrapReason)
 	}
 	// Ring band should have ink; hole center should stay near white.
 	rBand, gBand, bBand, _ := sampleRGBA(dc, 12, 32)
@@ -412,7 +415,7 @@ func TestP02_EvenOddLinearGradientFieldMaskedGPU(t *testing.T) {
 }
 
 // TestP02_NonRectImagePatternFieldMaskedGPU verifies N2: non-rect path + ImagePattern
-// uses GPU* texture-sample×coverage bootstrap (brush:pattern-path), not hard cpu_fb; rect native stays separate.
+// stays GPU (session-inline preferred; GPU* brush:pattern-path only on fallback); rect native separate.
 func TestP02_NonRectImagePatternFieldMaskedGPU(t *testing.T) {
 	requireNativeGPU(t)
 	const w, h = 64, 64
@@ -457,8 +460,9 @@ func TestP02_NonRectImagePatternFieldMaskedGPU(t *testing.T) {
 	if stats.CPUFallbackOps > 0 {
 		t.Fatalf("hard cpu_fb must stay 0: %s reason=%q", stats.LogLine(), stats.LastCPUFallbackReason)
 	}
-	if stats.BrushBootstrapOps < 1 || stats.LastBrushBootstrapReason != "brush:pattern-path" {
-		t.Fatalf("expected brush:pattern-path bootstrap, ops=%d reason=%q", stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	// v3.9: session-inline pattern cover is true GPU (bootstrap_ops==0).
+	if stats.BrushBootstrapOps > 0 && stats.LastBrushBootstrapReason != "brush:pattern-path" {
+		t.Fatalf("unexpected bootstrap reason %q", stats.LastBrushBootstrapReason)
 	}
 	r, g, b, _ := sampleRGBA(dc, 32, 40)
 	t.Logf("ink=%d,%d,%d", r, g, b)

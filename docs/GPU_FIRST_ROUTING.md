@@ -1,6 +1,6 @@
 # GPU 优先路由原则与「有 GPU 仍 CPU」清单
 
-> 版本：3.6 | 日期：2026-07-16  
+> 版本：3.9 | 日期：2026-07-16  
 > 状态：**§7 三轮遗漏审计已关闭（证据见 §7.4）**  
 > 状态：**主线硬原则执行中；剩余工作 = GPU\*→原生升级，禁止降级已有 GPU 路径**  
 > 权威：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) §1b  
@@ -101,8 +101,8 @@
 | ID | 能力 | 状态 | 现状 | 证据 | 目标 |
 |----|------|------|------|------|------|
 | G.01 | Solid fill/stroke（简单几何） | **GPU** | SDF/path 主路径 | `tryGPUFill` / convex / path | 保持 |
-| G.02 | Linear / Radial / Sweep **gradient fill** | **GPU / GPU\*** | 原生 span/field/convex **保持**；非凸/EvenOdd → **textured stencil cover retain**（无 CPU readback，session `GPUTextureDraw`）失败再 readback / ramp×R8；零 sweep → ColorAt field | `textured_stencil_linear.go`；`TestP02_*` | session pass 内联 cover |
-| G.03 | Image **pattern** fill | **GPU**（AA 矩形） / **GPU\*** | 轴对齐矩形 **GPU tile 保持**；非矩形 → **textured stencil cover retain** 优先；失败 readback / `patternMaskSampleExpand`；reason=`brush:pattern-path` | `textured_stencil_pattern.go`；`TestP02_*` | session pass 内联 |
+| G.02 | Linear / Radial / Sweep **gradient fill** | **GPU** | 原生 span/field/convex **保持**；非凸/EvenOdd → **session-inline textured cover**（主 pass，`bootstrap_ops=0`）；失败再 GPU\* retain/readback/ramp×R8 | `session_textured_cover.go`；`TestP02_*` | 保持 |
+| G.03 | Image **pattern** fill | **GPU** | 轴对齐矩形 **GPU tile**；非矩形 → **session-inline pattern cover**（`bootstrap_ops=0`）；失败 GPU\* retain/sample×R8 | `queueSessionPatternCover`；`TestP02_*` | 保持 |
 | G.04 | CustomBrush / 任意 ColorAt brush | **GPU\***（显式 bootstrap） | **AA-rect ColorAt field 优先** + 非矩形 field×R8；reason=`brush:custom`；任意 Func 真 fragment **书面后置** | `brush_native.go`/`brush_fill.go`；`TestP02_CustomBrushBootstrapReason` | 表达式/后置 fragment ColorAt |
 | G.05 | Blend **SourceOver / Plus** 等 fixed-function | **GPU** | WebGPU blend state | `blend_gpu.go` `gpuBlendStateForPaint` | 保持 |
 | G.06 | Blend **Multiply/Screen/Overlay** 等 advanced | **GPU** | P0-3：`fillAdvancedBlendTiled` dual-tex 默认；View 目标先 readback dest；layer Pop advanced 走 `CompositeAdvancedLayer` | `brush_advanced.go`；`dual_tex_blend.go`；`TestP03_*` | 保持；非 solid 源仍 SO 栅格覆盖 |
@@ -253,7 +253,7 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 | R3.01 | `StrokeShape` dash / thin / non-SO | 直接 `ErrFallbackToCPU` | 改走 `StrokePath` 几何展开 + GPU fill | **FIXED** `TestR3_*` |
 | R3.02 | `FillShape` non-SO solid | 直接 CPU | 改走 `FillPath`（含 advanced dual-tex） | **FIXED** |
 | R3.03 | `DrawImageQuad` fallback | `recordCPUFallbackOp` 无 reason | → `image:DrawImageQuad` | **FIXED** |
-| R3.04 | Bicubic / CustomBrush / non-rect pattern | 仍 CPU† 或 GPU\* | 书面后置；均有 reason/bootstrap | **DOC** |
+| R3.04 | Bicubic / CustomBrush / non-rect pattern | Bicubic CPU†；Custom GPU\*；non-rect pattern **GPU session-inline**（v3.8/3.9） | 后置项有 reason；pattern 已原生 | **DOC** |
 | R3.05 | 静态 reason 表 | 见 §7.1–7.3 | 无 silent 调用点 | **DONE** |
 | R3.06 | S4–S6 + examples 回归 | 运行门禁 | 见 §7.4 证据 | **DONE** |
 
@@ -275,9 +275,9 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 
 | 优先级 | 项 | 当前 | 升级方向 | 验收 |
 |--------|-----|------|----------|------|
-| N1 | G.02 非凸/EvenOdd 渐变 | GPU\* **textured stencil cover retain**（v3.6：无 readback，`QueueGPUTextureDraw`）linear/radial/focal/sweep±；失败回退 readback / ramp×R8 | 下一步：session pass 内联 stencil+cover（无离屏 result） | `TestP02_*` |
-| N2 | G.03 非矩形 pattern | GPU\* **textured stencil cover retain**（v3.6）优先；失败 readback / patternMaskSampleExpand；rect tile 不降级 | 下一步：session pass 内联 | `TestP02_NonRectImagePattern*` |
-| N3 | G.04 CustomBrush | GPU\* **AA-rect field native + field×R8**（v3.1，`brush:custom`）；任意 Func 真 fragment **书面后置** | 表达式 DSL / 后置；bootstrap 保留 | `TestP02_CustomBrushBootstrapReason` |
+| N1 | G.02 非凸/EvenOdd 渐变 | **GPU** session-inline（v3.7+）；v3.9 不记 bootstrap | 完成 | `TestP02_*` bootstrap_ops=0 |
+| N2 | G.03 非矩形 pattern | **GPU** session-inline（v3.8+）；v3.9 不记 bootstrap | 完成 | `TestP02_NonRectImagePattern*` bootstrap_ops=0 |
+| N3 | G.04 CustomBrush | GPU\* field + **书面后置**任意 Func fragment | 表达式 DSL 时重开 | `TestP02_CustomBrushBootstrapReason` |
 | N4 | Bicubic | **CPU† 书面后置** reason=`image:bicubic` | GPU bicubic 不阻塞 2D canvas 主路径；DrawImageEx 非 bicubic 已 GPU | reason 可观测 |
 | N5 | 冷门 path effect | **部分 GPU**（dash stroke / E.02 能力表）+ 极冷门 CPU† | 书面后置极冷门；主路径 dash/corner 已有 GPU 门禁 | `TestR3_DashedCircleStrokeGPU` / E.02 |
 
@@ -290,7 +290,7 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 | **N4 Bicubic** | **书面后置 CPU†** | `image:bicubic`（`DrawImageEx`）；非 bicubic 插值已走 GPU | 需要 4×4 GPU filter 质量对标时 |
 | **N5 极冷门 path effect** | **书面后置** | 主路径 dash 等已 GPU（`TestR3_DashedCircleStrokeGPU` / E.02）；未列能力的冷门 effect 保持 reason 可观测 | 产品出现该 effect 热路径时逐项 GPU |
 
-N1/N2/N3 当前均为 **GPU\***（N1/N2：**textured stencil cover retain** 无 readback + session GPUTextureDraw；失败再 readback/sample×R8；N3 custom field）。**禁止**为「消 bootstrap」而把已有 span/field/convex/rect-pattern 改回 CPU。
+N1/N2：**GPU session-inline**（v3.9：`bootstrap_ops=0`，仅 GPU\* 回退记 reason）；N3 custom **GPU\*** + 任意 Func fragment **书面后置**；N4/N5 已后置。**禁止**降级已有 GPU 路径。
 
 
 ---
@@ -299,6 +299,9 @@ N1/N2/N3 当前均为 **GPU\***（N1/N2：**textured stencil cover retain** 无 
 
 | 版本 | 说明 |
 |------|------|
+| 3.9 | **Bootstrap 语义收口**：session-inline 成功 → `bootstrap_ops=0`（`markBrushSessionInline` / `noteBrushBootstrapIfGPUStar`）；仅 retain/field/ColorAt GPU\* 记 reason；`TestP02_*` nonconvex/evenodd/pattern 零 bootstrap；Custom 仍 `brush:custom`；N1–N2 标 **GPU 完成**；N3–N5 书面后置 |
+| 3.8 | N2：**session-inline pattern cover** — `queueSessionPatternCover` + `cover_textured_pattern.wgsl`（inverse UV + clip/mask 同 solid）；主 pass stencil+sample，无离屏 result；失败回退 v3.6 retain / sample×R8；rect native tile **不降级**；`TestP02_NonRectImagePattern*` PASS |
+| 3.7 | N1：**session-inline textured cover** — `queueSessionTexturedCover` 把 fan+cover 写入主 pass stencil/color（`cover_textured_linear.wgsl` + clip/mask 同 solid cover）；linear/radial/focal/sweep± 优先；失败回退 v3.6 retain；无离屏 result / QueueGPUTextureDraw 热路径；原生 solid/rect **不降级**；`TestP02_*` PASS |
 | 3.6 | N1/N2：**session 级无 readback** — cover 写入专用 BGRA result（TextureBinding），`retainBrushCoverResult` + `QueueGPUTextureDraw`；去掉 cover 热路径 CPU map/swizzle/re-upload；Flush 后释放；readback 仍作失败回退；原生阶不降级；`TestP02_*` PASS |
 | 3.5 | N2：非矩形 ImagePattern **textured stencil cover**（`texturedStencilCoverPattern`：stencil + inverse UV sample，单 readback）；失败回退 `patternMaskSampleExpand`；rect native tile **不降级**；`TestP02_*` PASS |
 | 3.4 | N1：**负向 sweep** 走同一 textured cover / ramp×R8（mode 2 signed wrap：`floor` 正 / `ceil` 负，对齐 `normalizeAngle`）；`fillSweepGradientFieldMasked` 仅零范围退 field；`TestP02_NonConvexNegativeSweepGradientGPU`；原生阶不降级 |
@@ -326,3 +329,20 @@ N1/N2/N3 当前均为 **GPU\***（N1/N2：**textured stencil cover retain** 无 
 | 1.2 | P1-2 DONE：Mask/Difference clip → GPU R8 MaskAware；forceCPUClip 仅无 MaskAware |
 | 1.1 | P0-4 DONE：standalone Apply* filter → GPU multi-RT + Gaussian 对齐 CPU；P0-1..P0-3 既有 |
 | 1.0 | 初版：硬原则 + B/C 类清单 + 清缺口序；对齐用户目标「能 GPU 就 GPU，平台不能才 CPU」 |
+
+---
+
+## 9. GPU_FIRST 主线完成定义（v3.9）
+
+| 要求 | 状态 |
+|------|------|
+| R0 有 GPU 主路径走 GPU | **满足**（P0 无裸 CPU†） |
+| R1 fallback 可观测 | **满足**（`GPUOps` / `cpu_fb` / reason / bootstrap） |
+| N1 非凸/EvenOdd 渐变原生 | **完成** session-inline，`bootstrap_ops=0` |
+| N2 非矩形 pattern 原生 | **完成** session-inline，`bootstrap_ops=0` |
+| N3 Custom 任意 Func fragment | **书面后置**（GPU\* field 已有） |
+| N4 Bicubic | **书面后置** `image:bicubic` |
+| N5 极冷门 path effect | **书面后置**（主路径 dash 已 GPU） |
+| 禁止降级已 GPU 路径 | **铁律** §1b |
+
+**主线执行结论（v3.9）**：填充/笔刷 GPU 优先路由已达可签字完成态；剩余仅签字后置项（N3 fragment / N4 / N5），不阻塞 2D canvas / Skia 对标主路径。后续优化属性能加深，非 B 类缺口清零。

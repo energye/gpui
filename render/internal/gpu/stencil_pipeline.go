@@ -483,6 +483,46 @@ func (sr *StencilRenderer) destroyPipelines() {
 	}
 	sr.releaseNoMask()
 	sr.coverPipeMaskLayout = nil
+	if sr.texturedCoverPipeline != nil {
+		sr.texturedCoverPipeline.Release()
+		sr.texturedCoverPipeline = nil
+	}
+	if sr.texturedCoverPipeLay != nil {
+		sr.texturedCoverPipeLay.Release()
+		sr.texturedCoverPipeLay = nil
+	}
+	if sr.texturedCoverBGL0 != nil {
+		sr.texturedCoverBGL0.Release()
+		sr.texturedCoverBGL0 = nil
+	}
+	if sr.texturedCoverShader != nil {
+		sr.texturedCoverShader.Release()
+		sr.texturedCoverShader = nil
+	}
+	if sr.texturedCoverSampler != nil {
+		sr.texturedCoverSampler.Release()
+		sr.texturedCoverSampler = nil
+	}
+	if sr.patternCoverPipeline != nil {
+		sr.patternCoverPipeline.Release()
+		sr.patternCoverPipeline = nil
+	}
+	if sr.patternCoverPipeLay != nil {
+		sr.patternCoverPipeLay.Release()
+		sr.patternCoverPipeLay = nil
+	}
+	if sr.patternCoverBGL0 != nil {
+		sr.patternCoverBGL0.Release()
+		sr.patternCoverBGL0 = nil
+	}
+	if sr.patternCoverShader != nil {
+		sr.patternCoverShader.Release()
+		sr.patternCoverShader = nil
+	}
+	if sr.patternCoverSampler != nil {
+		sr.patternCoverSampler.Release()
+		sr.patternCoverSampler = nil
+	}
 	// Depth-clipped variants (GPU-CLIP-003a).
 	if sr.pipelineWithDepthClipCover != nil {
 		sr.pipelineWithDepthClipCover.Release()

@@ -75,7 +75,9 @@ type GPURenderContext struct {
 
 	// G.04 / residual brush bootstrap diagnostic (ColorAt stage + GPU blit).
 	brushBootstrapReason string
-	pipelineMode         render.PipelineMode
+	// lastBrushPathKind: session-inline (true GPU) vs GPU* bootstrap (v3.9).
+	lastBrushPathKind brushPathKind
+	pipelineMode      render.PipelineMode
 
 	// Anti-aliasing state for GPU rendering (propagated from Context).
 	antiAlias bool
@@ -235,6 +237,41 @@ func (rc *GPURenderContext) SubmitEncoder(encoder gpucontext.CommandEncoder) err
 // SceneStats returns the accumulated scene statistics for this context.
 func (rc *GPURenderContext) SceneStats() render.SceneStats {
 	return rc.sceneStats
+}
+
+// brushPathKind classifies the last successful non-solid brush fill path.
+type brushPathKind int
+
+const (
+	brushPathNone brushPathKind = iota
+	// brushPathSessionInline: main-pass stencil+cover (true GPU, not bootstrap).
+	brushPathSessionInline
+	// brushPathGPUStar: retain/readback/field×R8/ColorAt stage (GPU* bootstrap).
+	brushPathGPUStar
+)
+
+func (rc *GPURenderContext) markBrushSessionInline() {
+	if rc != nil {
+		rc.lastBrushPathKind = brushPathSessionInline
+	}
+}
+
+func (rc *GPURenderContext) markBrushGPUStar() {
+	if rc != nil {
+		rc.lastBrushPathKind = brushPathGPUStar
+	}
+}
+
+// noteBrushBootstrapIfGPUStar records bootstrap only for GPU* paths, not
+// session-inline native covers (v3.9). Clears lastBrushPathKind.
+func (rc *GPURenderContext) noteBrushBootstrapIfGPUStar(reason string) {
+	if rc == nil {
+		return
+	}
+	if rc.lastBrushPathKind == brushPathGPUStar {
+		rc.noteBrushBootstrap(reason)
+	}
+	rc.lastBrushPathKind = brushPathNone
 }
 
 // noteBrushBootstrap records an explicit ColorAt→GPU-blit bootstrap reason (G.04).

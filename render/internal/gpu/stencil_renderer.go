@@ -91,6 +91,20 @@ type StencilRenderer struct {
 	// coverBlendPipelines caches cover pipelines for non-SourceOver modes (B.02).
 	coverBlendPipelines map[render.BlendMode]*webgpu.RenderPipeline
 
+	// Session-inline textured cover (gradient ramp) — v3.7 GPU_FIRST.
+	texturedCoverShader   *webgpu.ShaderModule
+	texturedCoverBGL0     *webgpu.BindGroupLayout
+	texturedCoverPipeLay  *webgpu.PipelineLayout
+	texturedCoverPipeline *webgpu.RenderPipeline
+	texturedCoverSampler  *webgpu.Sampler
+
+	// Session-inline pattern cover (ImagePattern) — v3.8 GPU_FIRST.
+	patternCoverShader   *webgpu.ShaderModule
+	patternCoverBGL0     *webgpu.BindGroupLayout
+	patternCoverPipeLay  *webgpu.PipelineLayout
+	patternCoverPipeline *webgpu.RenderPipeline
+	patternCoverSampler  *webgpu.Sampler
+
 	// GPU-CLIP-003a: depth-clipped pipeline variants for depth-based clipping.
 	// These use DepthCompare=GreaterEqual to restrict stencil/cover rendering
 	// to only pixels where the depth clip geometry wrote Z=0.0.
@@ -236,10 +250,30 @@ type stencilCoverBuffers struct {
 	stencilBindGroup *webgpu.BindGroup
 	coverBindGroup   *webgpu.BindGroup
 	fanVertexCount   uint32
+
+	// Textured cover extras (session-inline gradient or pattern).
+	isTextured      bool
+	isPattern       bool
+	rampTex         *webgpu.Texture
+	rampView        *webgpu.TextureView
+	texturedCoverBG *webgpu.BindGroup
+	coverUniCap     uint64 // capacity of coverUniBuf
 }
 
 // destroy releases all GPU resources.
 func (b *stencilCoverBuffers) destroy() {
+	if b.texturedCoverBG != nil {
+		b.texturedCoverBG.Release()
+		b.texturedCoverBG = nil
+	}
+	if b.rampView != nil {
+		b.rampView.Release()
+		b.rampView = nil
+	}
+	if b.rampTex != nil {
+		b.rampTex.Release()
+		b.rampTex = nil
+	}
 	if b.coverBindGroup != nil {
 		b.coverBindGroup.Release()
 	}
@@ -258,6 +292,9 @@ func (b *stencilCoverBuffers) destroy() {
 	if b.fanVertBuf != nil {
 		b.fanVertBuf.Release()
 	}
+	b.isTextured = false
+	b.isPattern = false
+	b.coverUniCap = 0
 }
 
 // RenderPath renders a filled path using the stencil-then-cover algorithm.
@@ -794,8 +831,16 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	rp.Draw(bufs.fanVertexCount, 1, 0, 0)
 
 	// Pass 2: Cover (clip + L.06 mask applied here — writes color output).
-	rp.SetPipeline(coverPipeline)
-	rp.SetBindGroup(0, bufs.coverBindGroup, nil)
+	if bufs.isPattern && bufs.texturedCoverBG != nil && sr.patternCoverPipeline != nil {
+		rp.SetPipeline(sr.patternCoverPipeline)
+		rp.SetBindGroup(0, bufs.texturedCoverBG, nil)
+	} else if bufs.isTextured && bufs.texturedCoverBG != nil && sr.texturedCoverPipeline != nil {
+		rp.SetPipeline(sr.texturedCoverPipeline)
+		rp.SetBindGroup(0, bufs.texturedCoverBG, nil)
+	} else {
+		rp.SetPipeline(coverPipeline)
+		rp.SetBindGroup(0, bufs.coverBindGroup, nil)
+	}
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
 	}
