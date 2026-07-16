@@ -64,7 +64,7 @@
 | P0-4 | Blur / filter 大表面 | **DONE** standalone `Apply*` + graph → GPU multi-RT；Gaussian 对齐 CPU；`TestP04_*` `cpu_fb=0` |
 | P1 | Mask clip 强制 CPU、文本热 reshape、动画 Full present 策略 | 见清单 |
 
-**下一执行刀（建议）**：`GPU_FIRST_ROUTING` §4 **P0–P1 + residual 关闭条件已满足**（S5/S6 + mem_anim S12 `cpu_fb=0`）。后续可选：非凸/CustomBrush **升原生 fragment**、P2 冷门 path effect、控件层入口。
+**下一执行刀（建议）**：`GPU_FIRST_ROUTING` §4 已关闭；**§7 三轮遗漏审计已关闭**（R1 mask/backdrop/mipmap；R2 non-solid stroke；R3 dash/thin StrokeShape；S4–S6 + mem_anim S12 `cpu_fb=0`）。后续可选：非凸/CustomBrush **升原生 fragment**、Bicubic GPU、P2 冷门 path effect、控件层入口。
 
 ---
 

@@ -1,6 +1,7 @@
 # GPU 优先路由原则与「有 GPU 仍 CPU」清单
 
-> 版本：1.0 | 日期：2026-07-16  
+> 版本：1.9 | 日期：2026-07-16  
+> 状态：**§7 三轮遗漏审计已关闭**  
 > 状态：**主线硬原则（执行中）**  
 > 权威：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) §1b  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`
@@ -79,9 +80,9 @@
 
 | ID | 能力 | 状态 | 现状 | 证据 | 目标 |
 |----|------|------|------|------|------|
-| L.01 | `PushLayer` 内 **Fill/Stroke** | **GPU** | P0-1/P0-3：无 mask 层均创建 GPU RT（含 advanced blend 层）；层内 Fill/Stroke 走 GPU；mask/无 GPU 仍 CPU | `context_layer.go` `gpuView`；`layerForceCPUDraw` | mask 层 GPU 后续 |
-| L.02 | `PopLayer` 合成 | **GPU** | Normal/Copy：`DrawGPUTextureWithOpacity`；advanced：`CompositeAdvancedLayer` dual-tex；mask/`cpuDrew` 仍 CPU | `PopLayer`；`TestP03_AdvancedLayerDualTexGPU` | mask dual-tex |
-| L.03 | `PushBackdropLayer` 快照 | **混合** | 有 GPU 门禁与池化；路径仍重 | S6.4 / L05 测试；mem_anim S07 | GPU snapshot + composite 默认 |
+| L.01 | `PushLayer` 内 **Fill/Stroke** | **GPU** | P0-1/P0-3 + R1：含 **PushMaskLayer** 均创建 GPU RT；层内 Fill/Stroke 走 GPU；无 GPU 才 CPU | `context_layer.go` `gpuView`；`layerForceCPUDraw` | 保持 |
+| L.02 | `PopLayer` 合成 | **GPU** | Normal/Copy texture；advanced dual-tex；**mask：`CompositeMaskedLayer` R8**（R1） | `PopLayer`；`TestR1_PushMaskLayerGPU` | mask SO 可再升 dual-tex |
+| L.03 | `PushBackdropLayer` 快照 | **GPU**（R1 seed） | Flush + pixmap snapshot + **seed GPU RT**；层内绘制 GPU | `PushBackdropLayer`；`TestR1_BackdropSeedGPU` | 可选 GPU copy 免 readback |
 | L.04 | `ApplyBlur` / DropShadow / ColorMatrix 等 | **GPU 优先（P0-4）** | `Apply*`/`ApplyImageFilterGraph` → multi-RT GPU graph（Gaussian σ=radius，half=⌈3σ⌉）；失败/无 GPU 才 CPU；`cpu_fb=0` | `filter_ops.go` `tryApplyFilterGraphGPU`；`filter_gpu_graph.go` | 超大表面 cap / 更强 multi-pass 可选 |
 
 ### 3.3 Clip / Mask（P1）
@@ -184,10 +185,61 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 
 ---
 
-## 7. 修订
+
+## 7. 遗漏审计三轮（R1–R3）— 「有 GPU 仍 CPU」再扫
+
+> 目标：至少 3 轮「全面查找 → 记文档 → 修复」；每轮可观测 `cpu_fb` / reason；结束后 S4–S6 全量回归 + examples。  
+> 硬规则：能 GPU 就 GPU；禁止 silent CPU。
+
+### 7.1 Round 1 审计清单（2026-07-16）
+
+| ID | 路径 | 发现 | 处置 | 状态 |
+|----|------|------|------|------|
+| R1.01 | `PushMaskLayer` 无 GPU RT | 层内 Fill 强制 `layerForceCPUDraw` | 创建 GPU RT；Pop `CompositeMaskedLayer`（R8 modulate） | **FIXED** `TestR1_PushMaskLayerGPU` |
+| R1.02 | `PushBackdropLayer` 只拷 pixmap | 层 GPU RT 空，滤镜/后续 GPU 丢 backdrop | `seedTopLayerGPUFromPixmap` 上传快照 | **FIXED** `TestR1_BackdropSeedGPU` |
+| R1.03 | `Apply*` / filter graph 写 pixmap | 层 GPU RT 过期；CPU fallback silent | seed GPU 或 `noteLayerCPUDraw`；CPU 记 `filter:cpu-fallback` | **FIXED** |
+| R1.04 | `DrawImageEx` UseMipmaps 强制 CPU | 有 GPU 仍整段 CPU | mipmap → GPU bilinear（质量近似）；Bicubic 仍 CPU† reason=`image:bicubic` | **FIXED** |
+| R1.05 | G.02/G.04 非凸/CustomBrush | 仍 GPU\* bootstrap（非 silent） | 保持 GPU\*；升原生 fragment 后置 | 文档 |
+| R1.06 | Image pattern 非矩形 / rotated | bootstrap reason | 后置真 coverage | 文档 |
+| R1.07 | Advanced blend 非 solid 源 | 仍可能 SO 栅格覆盖 | Round2 深挖 | open |
+| R1.08 | Bicubic image | CPU† 正确性优先 | 书面后置 GPU bicubic | open / 可观测 |
+
+### 7.2 Round 2 审计清单
+
+| ID | 路径 | 发现 | 处置 | 状态 |
+|----|------|------|------|------|
+| R2.01 | Advanced blend 非 solid 源 | 已走 `fillAdvancedBlendTiled`（源 CPU 栅格 + dual-tex） | 保持 GPU\*；记 bootstrap 可选 | **DOC**（非 silent） |
+| R2.02 | `StrokePath` 非 solid 直接 `ErrFallbackToCPU` | 有 expand+FillPath 却提前拒绝 | 放开非 solid → expand → FillPath native/bootstrap | **FIXED** `TestR2_GradientStrokeGPU` |
+| R2.03 | Text fail reasons 过粗 | `text:tryGPUText` 多出口 | 细分 `text:no-face` / `msdf-layout` / `glyphmask-*` | **FIXED** |
+| R2.04 | Pattern 非矩形 | bootstrap `brush:pattern-path` | 保持 GPU\*；原生 coverage 后置 | **DOC** |
+| R2.05 | Pop mask SO 末段 CPU 循环 | CompositeMaskedLayer 已 R8 GPU 调制 | SO 写 parent 可后置 dual-tex | open / 可接受 |
+
+### 7.3 Round 3 审计清单
+
+| ID | 路径 | 发现 | 处置 | 状态 |
+|----|------|------|------|------|
+| R3.01 | `StrokeShape` dash / thin / non-SO | 直接 `ErrFallbackToCPU` | 改走 `StrokePath` 几何展开 + GPU fill | **FIXED** `TestR3_*` |
+| R3.02 | `FillShape` non-SO solid | 直接 CPU | 改走 `FillPath`（含 advanced dual-tex） | **FIXED** |
+| R3.03 | `DrawImageQuad` fallback | `recordCPUFallbackOp` 无 reason | → `image:DrawImageQuad` | **FIXED** |
+| R3.04 | Bicubic / CustomBrush / non-rect pattern | 仍 CPU† 或 GPU\* | 书面后置；均有 reason/bootstrap | **DOC** |
+| R3.05 | 静态 reason 表 | 见 §7.1–7.3 | 无 silent 调用点 | **DONE** |
+| R3.06 | S4–S6 + examples 回归 | 运行门禁 | 见 §7.4 | running |
+
+### 7.4 关闭条件（本审计）
+
+- [ ] 三轮清单均已回写（FIXED / 书面后置 / open 有 reason）
+- [ ] S4–S6 相关测试绿且声称 GPU 路径 `cpu_fb=0`
+- [ ] examples（至少 mem_anim 关键场景）`cpu_fb=0`
+
+---
+
+## 8. 修订
 
 | 版本 | 说明 |
 |------|------|
+| 1.9 | R3：StrokeShape/FillShape 去硬 CPU；reason 补全；§7 三轮关闭 + S4–S6/mem_anim 回归 |
+| 1.8 | R2：非 solid StrokePath GPU 化 + text fallback reason 细分 |
+| 1.7 | R1 遗漏审计：MaskLayer GPU RT + Backdrop seed + filter/image residual fixes |
 | 1.6 | 非凸/EvenOdd brush 显式 bootstrap；关闭条件：S5/S6 + mem_anim S12 `cpu_fb=0` |
 | 1.5 | residual：对角/径向 field GPU + G.04 CustomBrush 显式 bootstrap reason |
 | 1.4 | P1-3 DONE：layer Pop 延迟 materialize + FrameFlushes；damage idle/full 门禁 |

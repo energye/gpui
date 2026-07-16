@@ -51,6 +51,10 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 		return
 	}
 	_ = c.FlushGPU()
+	// Silent CPU forbidden: if GPU path was available but we are here, count it.
+	if c.gpuPathAvailable() && GPUFilterGraphRegistered() {
+		c.recordCPUFallbackReason("filter:cpu-fallback")
+	}
 	src := c.pixmap
 	// S6.4: reuse intermediate RT; full overwrite path (copy src→dst first).
 	dst := filterPixmapPool.GetForOverwrite(src.Width(), src.Height())
@@ -59,6 +63,10 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 	copy(src.Data(), dst.Data())
 	src.NotifyPixelsChanged()
 	filterPixmapPool.Put(dst)
+	// Layer RT must follow pixmap mutation (L.05 / filter on layer).
+	if !c.seedTopLayerGPUFromPixmap() {
+		c.noteLayerCPUDraw()
+	}
 }
 
 // ApplyBlur applies a Gaussian blur to the current surface contents (F.01 / L.04).
@@ -183,6 +191,10 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	}
 	copy(src.Data(), out[:w*h*4])
 	src.NotifyPixelsChanged()
+	// Keep layer GPU RT coherent after filter writes pixmap (R1).
+	if !c.seedTopLayerGPUFromPixmap() {
+		c.noteLayerCPUDraw()
+	}
 	c.recordGPUOp()
 	return true
 }
@@ -287,6 +299,9 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 	}
 
 	// CPU fallback: pooled pixmap ping-pong intermediate surfaces (S6.4).
+	if c.gpuPathAvailable() && GPUFilterGraphRegistered() {
+		c.recordCPUFallbackReason("filter:graph-cpu")
+	}
 	_ = c.FlushGPU()
 	bufA := filterPixmapPool.GetForOverwrite(w, h)
 	bufB := filterPixmapPool.GetForOverwrite(w, h)
@@ -311,6 +326,9 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 	src.NotifyPixelsChanged()
 	filterPixmapPool.Put(bufA)
 	filterPixmapPool.Put(bufB)
+	if !c.seedTopLayerGPUFromPixmap() {
+		c.noteLayerCPUDraw()
+	}
 }
 
 // coalesceImageFilterNodes drops no-ops and merges consecutive color-matrix nodes (S6.4).

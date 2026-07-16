@@ -309,6 +309,12 @@ func (c *Context) drawShapedGlyphsAsOutlines(glyphs []text.ShapedGlyph, face tex
 // in the vertex shader, enabling correct scaling, rotation, and skew of text.
 // Returns true if GPU text rendering was successful (queued for batch render).
 func (c *Context) tryGPUText(s string, x, y float64) bool {
+	if c.face == nil {
+		if c.gpuPathAvailable() {
+			c.recordCPUFallbackReason("text:no-face")
+		}
+		return false
+	}
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
 	if rc := c.gpuCtxOps(); rc != nil {
@@ -316,7 +322,7 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 			c.recordGPUOp()
 			return true
 		}
-		c.recordCPUFallbackReason("text:tryGPUText")
+		c.recordCPUFallbackReason("text:msdf-layout")
 		return false
 	}
 	a := Accelerator()
@@ -325,19 +331,19 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 	}
 	c.warnGPUFallback("tryGPUText")
 	if !a.CanAccelerate(AccelText) {
-		c.recordCPUFallbackReason("text:tryGPUText")
+		c.recordCPUFallbackReason("text:no-accel")
 		return false
 	}
 	ta, ok := a.(GPUTextAccelerator)
 	if !ok {
-		c.recordCPUFallbackReason("text:tryGPUText")
+		c.recordCPUFallbackReason("text:no-msdf-iface")
 		return false
 	}
 	if ta.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
 		c.recordGPUOp()
 		return true
 	}
-	c.recordCPUFallbackReason("text:tryGPUText")
+	c.recordCPUFallbackReason("text:msdf-draw")
 	return false
 }
 
@@ -365,12 +371,18 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 	}
 	col := FromColor(c.currentColor())
 	target := c.gpuRenderTarget()
+	if c.face == nil {
+		if c.gpuPathAvailable() {
+			c.recordCPUFallbackReason("text:glyphmask-no-face")
+		}
+		return false
+	}
 	if rc := c.gpuCtxOps(); rc != nil {
 		if rc.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
 			c.recordGPUOp()
 			return true
 		}
-		c.recordCPUFallbackReason("text:tryGPUGlyphMaskText")
+		c.recordCPUFallbackReason("text:glyphmask-layout")
 		return false
 	}
 	a := Accelerator()
@@ -380,14 +392,14 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 	c.warnGPUFallback("tryGPUGlyphMaskText")
 	gma, ok := a.(GPUGlyphMaskAccelerator)
 	if !ok {
-		c.recordCPUFallbackReason("text:tryGPUGlyphMaskText")
+		c.recordCPUFallbackReason("text:glyphmask-no-iface")
 		return false
 	}
 	if gma.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
 		c.recordGPUOp()
 		return true
 	}
-	c.recordCPUFallbackReason("text:tryGPUGlyphMaskText")
+	c.recordCPUFallbackReason("text:glyphmask-draw")
 	return false
 }
 

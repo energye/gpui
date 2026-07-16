@@ -235,14 +235,14 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 		dstHeight = float64(srcH)
 	}
 
-	// Mipmap / bicubic quality paths currently resolve on CPU image pipeline (I.04).
-	// Prefer GPU textured quads otherwise.
-	if !opts.UseMipmaps && opts.Interpolation != InterpBicubic {
+	// I.04 R1: Prefer GPU textured quads. UseMipmaps uses GPU bilinear (approx
+	// vs true mip chain). Bicubic remains CPU† for filter correctness.
+	if opts.Interpolation != InterpBicubic {
 		if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
 			return
 		}
-	} else if opts.UseMipmaps || opts.Interpolation == InterpBicubic {
-		// Direct CPU DrawImage with mipmap/bicubic sampling for correctness.
+	} else {
+		// Direct CPU DrawImage with bicubic sampling for correctness.
 		dstImg := c.pixmapToImageBuf(c.pixmap)
 		if dstImg != nil {
 			srcRect := &intImage.Rect{X: srcX, Y: srcY, Width: srcW, Height: srcH}
@@ -263,7 +263,7 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 					BlendMode:  opts.BlendMode,
 					UseMipmaps: opts.UseMipmaps,
 				})
-				c.recordCPUFallbackReason("image:DrawImageEx")
+				c.recordCPUFallbackReason("image:bicubic")
 				return
 			}
 		}

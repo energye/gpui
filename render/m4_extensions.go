@@ -104,7 +104,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point) {
 		pixelData := img.PremultipliedData()
 		if len(pixelData) == 0 {
 			if c.gpuPathAvailable() {
-				c.recordCPUFallbackOp()
+				c.recordCPUFallbackReason("image:DrawImageQuad")
 			}
 			c.drawImageQuadCPU(img, corners)
 			return
@@ -126,7 +126,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point) {
 		return
 	}
 	if c.gpuPathAvailable() {
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("image:DrawImageQuad")
 	}
 	c.drawImageQuadCPU(img, corners)
 }
@@ -166,6 +166,12 @@ func (c *Context) PushBackdropLayer(blendMode BlendMode, opacity float64) {
 		}
 		copy(dst[:n], src[:n])
 		c.pixmap.NotifyPixelsChanged()
+	}
+	// R1 L.05: seed layer GPU RT from snapshot so subsequent GPU draws composite
+	// over real backdrop content (not an empty RT).
+	if !c.seedTopLayerGPUFromPixmap() {
+		// If seed fails, mark CPU drew so Pop uses pixmap composite path.
+		c.noteLayerCPUDraw()
 	}
 	// Backdrop is a full-surface snapshot; Pop must blend the whole layer.
 	c.markLayerFullComposite()

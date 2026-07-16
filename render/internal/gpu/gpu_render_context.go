@@ -819,11 +819,17 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 
 // StrokePath renders a stroked path by expanding to filled outline.
 func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
-	if !isGPUSolidPaint(paint) {
-		return render.ErrFallbackToCPU
-	}
-	if !paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint) {
-		return render.ErrFallbackToCPU
+	// R2: non-solid strokes expand to filled outlines then route through FillPath
+	// (native gradient/pattern or bootstrap). Solid keeps fixed/advanced blend gates.
+	if isGPUSolidPaint(paint) {
+		if !paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint) {
+			return render.ErrFallbackToCPU
+		}
+	} else {
+		// Non-solid: SourceOver bootstrap/native or advanced dual-tex only.
+		if !paintUsesSourceOver(paint) && !paintSupportsGPUAdvancedBlend(paint) {
+			return render.ErrFallbackToCPU
+		}
 	}
 
 	rc.sceneStats.PathCount++
@@ -943,9 +949,13 @@ func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape rende
 		}
 		return rc.fillBrushAsImage(target, p, paint)
 	}
-	// SDF pipelines are SourceOver-only; factor PD modes fall through to FillPath.
+	// SDF pipelines are SourceOver-only; PD / advanced modes route via FillPath.
 	if !paintUsesSourceOver(paint) {
-		return render.ErrFallbackToCPU
+		p := detectedShapeToPath(shape)
+		if p == nil {
+			return render.ErrFallbackToCPU
+		}
+		return rc.FillPath(target, p, paint)
 	}
 	if !rc.shared.gpuReady {
 		return rc.shared.cpuFallback.FillShape(target, shape, paint)
@@ -973,20 +983,14 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 		return rc.shared.cpuFallback.StrokeShape(target, shape, paint)
 	}
 
-	// Dashed strokes must go through StrokePath so ApplyDash runs before expand.
-	// SDF shape stroke does not model dash patterns.
-	if paint.IsDashed() {
-		return render.ErrFallbackToCPU
-	}
-	// SDF stroke is SourceOver-only; PD modes fall through to StrokePath/FillPath.
-	if !paintUsesSourceOver(paint) {
-		return render.ErrFallbackToCPU
-	}
-
-	// Thin strokes (< 2px) fall back to geometric expansion — SDF annular ring
-	// is thinner than smoothstep AA zone, producing near-zero coverage (ADR-040).
-	if effectiveStrokeWidth(paint) < 2.0 {
-		return render.ErrFallbackToCPU
+	// R3: dashed / non-SO / thin strokes → geometric StrokePath (GPU expand+fill)
+	// instead of hard CPU fallback. SDF annular path stays SourceOver solid ≥2px.
+	if paint.IsDashed() || !paintUsesSourceOver(paint) || effectiveStrokeWidth(paint) < 2.0 || !isGPUSolidPaint(paint) {
+		p := detectedShapeToPath(shape)
+		if p == nil {
+			return render.ErrFallbackToCPU
+		}
+		return rc.StrokePath(target, p, paint)
 	}
 
 	if rc.pipelineMode == render.PipelineModeCompute {

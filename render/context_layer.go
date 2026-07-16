@@ -126,7 +126,7 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 	// P0-1/P0-3: layers without a mask get a GPU offscreen RT when GPU is
 	// available. Content draws SourceOver into the RT; Pop uses texture blit
 	// (Normal/Copy) or dual-tex advanced blend (Multiply/Screen/…).
-	// Mask layers stay CPU (mask modulation on pixmap).
+	// Mask layers also take a GPU RT (R1); Pop uses masked composite.
 	pw, ph := layerPixmap.Width(), layerPixmap.Height()
 	if pw > 0 && ph > 0 {
 		view, release := c.CreateOffscreenTexture(pw, ph)
@@ -193,15 +193,32 @@ func (c *Context) PopLayer() {
 	c.pixmap = parentPixmap
 
 	// Apply mask to layer content before compositing (PushMaskLayer).
+	// Prefer GPU R8 modulate composite when layer content is on a GPU RT.
+	maskedGPUDone := false
 	if layer.mask != nil {
-		c.applyMaskToPixmap(layer.pixmap, layer.mask)
-		// Mask modulation can touch any layer pixel; force full composite.
 		layer.fullComposite = true
+		if !layer.gpuView.IsNil() && !layer.cpuDrew && parentPixmap != nil {
+			if c.compositeLayerMaskedGPU(layer, parentPixmap) {
+				maskedGPUDone = true
+				if layer.gpuRelease != nil {
+					layer.gpuRelease()
+					layer.gpuRelease = nil
+				}
+				layer.gpuView = gpucontext.TextureView{}
+			}
+		}
+		if !maskedGPUDone {
+			// Materialize GPU content into pixmap, then CPU DestinationIn mask.
+			if !layer.gpuView.IsNil() && !layer.cpuDrew {
+				_ = c.materializeLayerGPUToPixmap(layer)
+			}
+			c.applyMaskToPixmap(layer.pixmap, layer.mask)
+		}
 	}
 
 	// GPU composite path: no mask, no CPU writes into the layer pixmap.
 	// Content lives on layer.gpuView.
-	canGPUTexture := !layer.gpuView.IsNil() && !layer.cpuDrew && layer.mask == nil
+	canGPUTexture := !layer.gpuView.IsNil() && !layer.cpuDrew && layer.mask == nil && !maskedGPUDone
 	canGPUComposite := canGPUTexture &&
 		(layer.blendMode == BlendNormal || layer.blendMode == BlendCopy)
 	canGPUAdvanced := canGPUTexture && IsAdvancedBlendMode(layer.blendMode)
@@ -253,7 +270,7 @@ func (c *Context) PopLayer() {
 		// the next FlushGPU / Image / PresentFrame — single submit per frame.
 		// Callers that sample pixmap.GetPixel without Flush must FlushGPU first
 		// (Image() already flushes). Nested GPU parents already batch.
-	} else {
+	} else if !maskedGPUDone {
 		// CPU composite (advanced blend, mask, CPU-drawn content, or no GPU).
 		if layer.gpuRelease != nil {
 			layer.gpuRelease()
@@ -261,6 +278,13 @@ func (c *Context) PopLayer() {
 		}
 		layer.gpuView = gpucontext.TextureView{}
 		c.compositeLayer(layer, parentPixmap)
+	} else {
+		// Masked GPU composite already wrote parent; just drop any residual RT.
+		if layer.gpuRelease != nil {
+			layer.gpuRelease()
+			layer.gpuRelease = nil
+		}
+		layer.gpuView = gpucontext.TextureView{}
 	}
 
 	// Return layer surface to pool (S6.4).
@@ -316,6 +340,19 @@ func (c *Context) PushMaskLayer(mask *Mask) {
 		blendMode: BlendNormal,
 		opacity:   1.0,
 		mask:      mask,
+	}
+
+	// R1 residual fix: mask layers also get a GPU RT so in-layer Fill/Stroke
+	// stay on GPU. Pop uses CompositeMaskedLayer (R8 modulate) or CPU mask.
+	pw, ph := layerPixmap.Width(), layerPixmap.Height()
+	if pw > 0 && ph > 0 {
+		view, release := c.CreateOffscreenTexture(pw, ph)
+		if !view.IsNil() && release != nil {
+			layer.gpuView = view
+			layer.gpuRelease = release
+			layer.gpuW = pw
+			layer.gpuH = ph
+		}
 	}
 
 	// Switch to layer pixmap.
@@ -470,6 +507,86 @@ func (c *Context) noteLayerCPUDraw() {
 	if top != nil {
 		top.cpuDrew = true
 	}
+}
+
+// materializeLayerGPUToPixmap readbacks a layer GPU RT into its pixmap (R1).
+func (c *Context) materializeLayerGPUToPixmap(layer *Layer) bool {
+	if c == nil || layer == nil || layer.gpuView.IsNil() || layer.pixmap == nil {
+		return false
+	}
+	type viewReader interface {
+		ReadbackViewRGBA(view gpucontext.TextureView, w, h int) ([]byte, error)
+	}
+	raw := c.GPURenderContext()
+	vr, ok := raw.(viewReader)
+	if !ok || vr == nil {
+		return false
+	}
+	rgba, err := vr.ReadbackViewRGBA(layer.gpuView, layer.gpuW, layer.gpuH)
+	if err != nil || len(rgba) < layer.gpuW*layer.gpuH*4 {
+		return false
+	}
+	dst := layer.pixmap.Data()
+	n := layer.gpuW * layer.gpuH * 4
+	if len(dst) < n {
+		n = len(dst)
+	}
+	copy(dst[:n], rgba[:n])
+	layer.pixmap.NotifyPixelsChanged()
+	return true
+}
+
+// seedTopLayerGPUFromPixmap uploads the top layer pixmap into its GPU RT (L.05).
+// Keeps GPU RT coherent after CPU snapshot / filter writes.
+func (c *Context) seedTopLayerGPUFromPixmap() bool {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return false
+	}
+	top := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if top == nil || top.gpuView.IsNil() || top.pixmap == nil {
+		return false
+	}
+	type viewUploader interface {
+		UploadRGBAToView(view gpucontext.TextureView, data []byte, w, h int) error
+	}
+	raw := c.GPURenderContext()
+	vu, ok := raw.(viewUploader)
+	if !ok || vu == nil {
+		return false
+	}
+	if err := vu.UploadRGBAToView(top.gpuView, top.pixmap.Data(), top.gpuW, top.gpuH); err != nil {
+		return false
+	}
+	// GPU RT matches pixmap; allow GPU Pop composite again.
+	top.cpuDrew = false
+	return true
+}
+
+// compositeLayerMaskedGPU dual-path: GPU layer RT × R8 mask → parent (R1 L.02 mask).
+func (c *Context) compositeLayerMaskedGPU(layer *Layer, parent *Pixmap) bool {
+	if c == nil || layer == nil || parent == nil || layer.mask == nil || layer.gpuView.IsNil() {
+		return false
+	}
+	type maskedCompositor interface {
+		CompositeMaskedLayer(parentData []byte, parentW, parentH int,
+			srcView gpucontext.TextureView, srcW, srcH int,
+			mask *Mask, opacity float64) error
+	}
+	raw := c.GPURenderContext()
+	mc, ok := raw.(maskedCompositor)
+	if !ok || mc == nil {
+		return false
+	}
+	err := mc.CompositeMaskedLayer(
+		parent.Data(), parent.Width(), parent.Height(),
+		layer.gpuView, layer.gpuW, layer.gpuH,
+		layer.mask, layer.opacity,
+	)
+	if err != nil {
+		return false
+	}
+	c.recordGPUOp()
+	return true
 }
 
 // drainLayerGPUReleases releases GPU layer textures whose composite draws have
