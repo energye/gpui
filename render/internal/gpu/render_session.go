@@ -1206,6 +1206,13 @@ func (s *GPURenderSession) Destroy() {
 		if s.stencilRenderer != nil {
 			s.stencilRenderer.Destroy()
 		}
+	} else {
+		// GPUShared-owned stencil/convex/SDF: session clip/mask BGLs are about to
+		// be released in destroyPersistentBuffers. Detach so shared pipelines do
+		// not keep dangling BGL handles (N1 field×coverage RenderPath crash).
+		if s.stencilRenderer != nil {
+			s.stencilRenderer.DetachExternalLayouts()
+		}
 	}
 	s.sdfPipeline = nil
 	s.convexRenderer = nil
@@ -1453,12 +1460,13 @@ func (s *GPURenderSession) ensurePipelines() error {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
 		s.ownsShapePipelines = true
 	}
+	// Detect layout mismatch BEFORE Set* (SetMask would make identity compare useless).
+	stencilMaskMismatch := s.maskBindLayout != nil &&
+		s.stencilRenderer.coverPipeMaskLayout != s.maskBindLayout
+	stencilClipMismatch := s.clipBindLayout != nil && !s.stencilRenderer.coverPipeLayoutHasClip
 	s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
 	s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
-	// Recreate stencil pipelines if cover layout was created without clip/mask.
-	if s.stencilRenderer.nonZeroStencilPipeline == nil ||
-		(s.clipBindLayout != nil && !s.stencilRenderer.coverPipeLayoutHasClip) ||
-		s.stencilRenderer.maskBindLayout != s.maskBindLayout {
+	if s.stencilRenderer.nonZeroStencilPipeline == nil || stencilClipMismatch || stencilMaskMismatch {
 		s.stencilRenderer.destroyPipelines()
 		s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
 		s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)

@@ -105,9 +105,11 @@ type GPUShared struct {
 	texturePool *TexturePool
 
 	// Dual-texture advanced blend (B.03 Multiply/Screen/Overlay) pipeline cache.
-	dualTexBlend dualTexBlendCache
-	maskR8       maskR8Cache
-	filterGPU    filterGPUCache
+	dualTexBlend      dualTexBlendCache
+	maskR8            maskR8Cache
+	linearRampMask    linearRampMaskCache
+	patternMaskSample patternMaskSampleCache
+	filterGPU         filterGPUCache
 
 	// L.06 GPU-resident alpha mask (MaskAware). Full-surface R8 plane + texture.
 	maskData   []byte
@@ -376,6 +378,8 @@ func (s *GPUShared) Close() {
 	s.convexPathCache = nil
 	s.dualTexBlend.release()
 	s.maskR8.release()
+	s.linearRampMask.release()
+	s.patternMaskSample.release()
 	s.filterGPU.release()
 	s.clearMaskLocked()
 	s.destroyPipelinesLocked()

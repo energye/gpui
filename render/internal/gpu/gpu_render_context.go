@@ -777,6 +777,11 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		// continue into GPU solid fill path below
 	}
 	if !isGPUSolidPaint(paint) {
+		// GPU-FIRST order (do not reorder / demote):
+		//  1) advanced dual-tex GPU
+		//  2) fillBrushNative: span/field/convex/pattern-rect GPU, then field×coverage / coverage+ColorAt GPU*
+		//  3) fillBrushAsImage full software stage + GPU blit (GPU*)
+		//  4) only if both fail → ErrFallbackToCPU (caller may pure-CPU)
 		if paintSupportsGPUAdvancedBlend(paint) {
 			return rc.fillAdvancedBlendAsImage(target, path, paint)
 		}

@@ -51,6 +51,14 @@ type StencilRenderer struct {
 	maskBindLayout  *webgpu.BindGroupLayout
 	maskLayoutOwned bool
 
+	// Standalone RenderPath: disabled mask BG (1x1 white R8, mask_enabled=0).
+	// Cover pipeline always samples @group(2); encodeAndReadback must bind this.
+	noMaskTex  *webgpu.Texture
+	noMaskView *webgpu.TextureView
+	noMaskSamp *webgpu.Sampler
+	noMaskUni  *webgpu.Buffer
+	noMaskBG   *webgpu.BindGroup
+
 	// clipBindLayout is the shared @group(1) bind group layout for RRect clip.
 	// Set by the session before createPipelines. Only the cover pipeline needs
 	// it (stencil fill has no color output, so clip is irrelevant there).
@@ -62,6 +70,10 @@ type StencilRenderer struct {
 	// clipBindLayout included. If clip is set after creation, pipelines must
 	// be recreated to avoid SetBindGroup(1) crashes on AMD/NVIDIA.
 	coverPipeLayoutHasClip bool
+	// coverPipeMaskLayout is the exact @group(2) BGL object used when cover
+	// pipelines were created. Session must recreate when it injects a different
+	// mask layout; after session Destroy the pointer may be freed — DetachExternalLayouts.
+	coverPipeMaskLayout *webgpu.BindGroupLayout
 
 	// Render pipelines.
 	// nonZeroStencilPipeline implements the non-zero winding fill rule:
@@ -108,8 +120,27 @@ func (sr *StencilRenderer) SetClipBindLayout(layout *webgpu.BindGroupLayout) {
 
 // SetMaskBindLayout sets the shared @group(2) mask layout (session-owned).
 func (sr *StencilRenderer) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
+	if sr.maskBindLayout != layout {
+		sr.releaseNoMask()
+	}
 	sr.maskBindLayout = layout
 	sr.maskLayoutOwned = false
+}
+
+// DetachExternalLayouts drops session-owned clip/mask layout pointers and
+// destroys pipelines so the next ensureReady rebuilds with owned layouts.
+// Must be called before a session releases its BindGroupLayouts while this
+// StencilRenderer is shared via GPUShared (Context.Close path).
+func (sr *StencilRenderer) DetachExternalLayouts() {
+	sr.releaseNoMask()
+	hadExternal := sr.clipBindLayout != nil || !sr.maskLayoutOwned
+	sr.clipBindLayout = nil
+	if !sr.maskLayoutOwned {
+		sr.maskBindLayout = nil
+	}
+	if hadExternal || sr.nonZeroStencilPipeline != nil {
+		sr.destroyPipelines()
+	}
 }
 
 // EnsureTextures creates or recreates the MSAA color, stencil, and resolve textures
@@ -128,6 +159,7 @@ func (sr *StencilRenderer) EnsureTextures(width, height uint32) error {
 // with no allocated resources. After Destroy, createPipelines and EnsureTextures
 // must be called again before rendering.
 func (sr *StencilRenderer) Destroy() {
+	sr.releaseNoMask()
 	sr.destroyPipelines()
 	sr.destroyTextures()
 }
@@ -429,6 +461,121 @@ func (sr *StencilRenderer) updateUniformAndBindGroup(buf **webgpu.Buffer, bg **w
 	return nil
 }
 
+// ensureNoMaskBindGroup creates a disabled @group(2) mask (1×1 white R8,
+// mask_enabled=0) for standalone RenderPath / encodeAndReadback.
+func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
+	if sr.noMaskBG != nil {
+		return nil
+	}
+	if sr.maskBindLayout == nil {
+		layout, err := createMaskBindGroupLayout(sr.device, "stencil_standalone_mask_layout")
+		if err != nil {
+			return err
+		}
+		sr.maskBindLayout = layout
+		sr.maskLayoutOwned = true
+	}
+	tex, err := sr.device.CreateTexture(&webgpu.TextureDescriptor{
+		Label:         "stencil_nomask_r8",
+		Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+		Format: types.TextureFormatR8Unorm,
+		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return fmt.Errorf("no-mask tex: %w", err)
+	}
+	view, err := sr.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		Label: "stencil_nomask_view", Format: types.TextureFormatR8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Release()
+		return err
+	}
+	if err := sr.queue.WriteTexture(
+		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		[]byte{255},
+		&webgpu.ImageDataLayout{BytesPerRow: 256, RowsPerImage: 1},
+		&webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+	); err != nil {
+		view.Release()
+		tex.Release()
+		return err
+	}
+	samp, err := sr.device.CreateSampler(&webgpu.SamplerDescriptor{
+		Label:        "stencil_nomask_samp",
+		AddressModeU: types.AddressModeClampToEdge,
+		AddressModeV: types.AddressModeClampToEdge,
+		AddressModeW: types.AddressModeClampToEdge,
+		MagFilter:    types.FilterModeNearest, MinFilter: types.FilterModeNearest,
+		MipmapFilter: types.MipmapFilterModeNearest, Anisotropy: 1,
+	})
+	if err != nil {
+		view.Release()
+		tex.Release()
+		return err
+	}
+	ubuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "stencil_nomask_uniform", Size: maskParamsSize,
+		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		samp.Release()
+		view.Release()
+		tex.Release()
+		return err
+	}
+	if err := sr.queue.WriteBuffer(ubuf, 0, NoMaskParams().Bytes()); err != nil {
+		ubuf.Release()
+		samp.Release()
+		view.Release()
+		tex.Release()
+		return err
+	}
+	bg, err := sr.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		Label:  "stencil_nomask_bg",
+		Layout: sr.maskBindLayout,
+		Entries: []webgpu.BindGroupEntry{
+			{Binding: 0, TextureView: view},
+			{Binding: 1, Sampler: samp},
+			{Binding: 2, Buffer: ubuf, Offset: 0, Size: maskParamsSize},
+		},
+	})
+	if err != nil {
+		ubuf.Release()
+		samp.Release()
+		view.Release()
+		tex.Release()
+		return err
+	}
+	sr.noMaskTex, sr.noMaskView, sr.noMaskSamp, sr.noMaskUni, sr.noMaskBG = tex, view, samp, ubuf, bg
+	return nil
+}
+
+func (sr *StencilRenderer) releaseNoMask() {
+	if sr.noMaskBG != nil {
+		sr.noMaskBG.Release()
+		sr.noMaskBG = nil
+	}
+	if sr.noMaskUni != nil {
+		sr.noMaskUni.Release()
+		sr.noMaskUni = nil
+	}
+	if sr.noMaskSamp != nil {
+		sr.noMaskSamp.Release()
+		sr.noMaskSamp = nil
+	}
+	if sr.noMaskView != nil {
+		sr.noMaskView.Release()
+		sr.noMaskView = nil
+	}
+	if sr.noMaskTex != nil {
+		sr.noMaskTex.Release()
+		sr.noMaskTex = nil
+	}
+}
+
 // encodeAndReadback encodes the stencil-then-cover render pass, copies the
 // resolve texture to a staging buffer, submits GPU commands, waits for
 // completion, and writes pixel data to the target.
@@ -447,14 +594,21 @@ func (sr *StencilRenderer) encodeAndReadback(
 		return fmt.Errorf("begin render pass: %w", rpErr)
 	}
 
-	clipLayout := sr.clipBindLayout
-	if clipLayout == nil {
-		clipLayout = sr.defaultClipBindLayout
+	// Bind group layouts must be the *same objects* used when coverPipeLayout
+	// was created (wgpu rejects a structurally-equal but distinct BGL).
+	clipLayout := sr.defaultClipBindLayout
+	if sr.coverPipeLayoutHasClip && sr.clipBindLayout != nil {
+		clipLayout = sr.clipBindLayout
 	}
 	if clipLayout == nil {
 		_ = rp.End()
 		encoder.DiscardEncoding()
 		return fmt.Errorf("stencil cover clip layout is nil")
+	}
+	if err := sr.ensureNoMaskBindGroup(); err != nil {
+		_ = rp.End()
+		encoder.DiscardEncoding()
+		return fmt.Errorf("stencil no-mask bind: %w", err)
 	}
 	noClipBuf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
 		Label: "stencil_no_clip_uniform",
@@ -500,6 +654,7 @@ func (sr *StencilRenderer) encodeAndReadback(
 	rp.SetPipeline(sr.nonZeroCoverPipeline)
 	rp.SetBindGroup(0, bufs.coverBindGroup, nil)
 	rp.SetBindGroup(1, noClipBG, nil)
+	rp.SetBindGroup(2, sr.noMaskBG, nil)
 	rp.SetVertexBuffer(0, bufs.coverVertBuf, 0)
 	rp.SetStencilReference(0)
 	rp.Draw(6, 1, 0, 0)

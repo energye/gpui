@@ -119,6 +119,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	}
 	sr.coverPipeLayout = coverPipeLayout
 	sr.coverPipeLayoutHasClip = hasClip
+	sr.coverPipeMaskLayout = sr.maskBindLayout
 
 	// Shared vertex buffer layout: float32x2 position at location(0).
 	vertexBufferLayout := []types.VertexBufferLayout{
@@ -480,6 +481,8 @@ func (sr *StencilRenderer) destroyPipelines() {
 	if sr.device == nil {
 		return
 	}
+	sr.releaseNoMask()
+	sr.coverPipeMaskLayout = nil
 	// Depth-clipped variants (GPU-CLIP-003a).
 	if sr.pipelineWithDepthClipCover != nil {
 		sr.pipelineWithDepthClipCover.Release()

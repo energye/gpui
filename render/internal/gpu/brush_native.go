@@ -13,8 +13,14 @@ import (
 const gradientEdgeSamples = 16
 
 // fillBrushNative tries GPU-native gradient/pattern fills without large-area
-// CPU ColorAt rasterization. Returns ErrFallbackToCPU when the brush/path
-// combination is not supported (caller uses fillBrushAsImage bootstrap).
+// CPU ColorAt rasterization, then GPU* field×coverage / coverage+ColorAt.
+//
+// GPU-FIRST invariant: try native GPU stages first (span/field/convex Gouraud/
+// image-pattern rect). Only when those fail, try GPU* upgrades in order:
+// fillLinear/Radial/SweepGradientFieldMasked / fillColorAtFieldMaskedGPU / fillImagePatternFieldMasked
+// (field×coverage + GPU R8) → fillBrushCoverageColorAt → fillBrushAsImage.
+// Never skip native stages to go straight to pure CPU.
+// Returns ErrFallbackToCPU only when no GPU path (including bootstrap) works.
 func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	if path == nil || path.NumVerbs() == 0 || paint == nil {
 		return nil
@@ -36,7 +42,16 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		if err := rc.fillImagePatternNative(target, path, paint, pat); err == nil {
 			return nil
 		}
-		// Non-rect / rotated / complex path: ColorAt stage + GPU blit.
+		// Non-rect / complex outline: field×coverage with GPU R8 modulate (N2), then
+		// coverage+ColorAt / full stage. Rect GPU tile path stays first (no demotion).
+		if err := rc.fillImagePatternFieldMasked(target, path, paint, pat); err == nil {
+			rc.noteBrushBootstrap("brush:pattern-path")
+			return nil
+		}
+		if err := rc.fillBrushCoverageColorAt(target, path, paint); err == nil {
+			rc.noteBrushBootstrap("brush:pattern-path")
+			return nil
+		}
 		if err := rc.fillBrushAsImage(target, path, paint); err == nil {
 			rc.noteBrushBootstrap("brush:pattern-path")
 			return nil
@@ -44,8 +59,43 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		return render.ErrFallbackToCPU
 	}
 
-	// EvenOdd / non-convex: no Gouraud fan; bootstrap with reason (not silent).
+	// EvenOdd: no Gouraud fan. Prefer field×coverage for gradients (GPU*), then
+	// coverage+ColorAt / full stage. Never pure CPU when a GPU* path works.
 	if paint.FillRule == render.FillRuleEvenOdd {
+		switch gb := paint.GetBrush().(type) {
+		case *render.LinearGradientBrush:
+			if err := rc.fillLinearGradientFieldMasked(target, path, paint, gb); err == nil {
+				rc.noteBrushBootstrap("brush:evenodd")
+				return nil
+			}
+		case *render.RadialGradientBrush:
+			if err := rc.fillRadialGradientFieldMasked(target, path, paint, gb); err == nil {
+				rc.noteBrushBootstrap("brush:evenodd")
+				return nil
+			}
+		case *render.SweepGradientBrush:
+			if err := rc.fillSweepGradientFieldMasked(target, path, paint, gb); err == nil {
+				rc.noteBrushBootstrap("brush:evenodd")
+				return nil
+			}
+		}
+		if colorAt, seed, ok := gradientColorAtSeed(paint.GetBrush()); ok {
+			if err := rc.fillGradientFieldMasked(target, path, paint, colorAt, seed); err == nil {
+				rc.noteBrushBootstrap("brush:evenodd")
+				return nil
+			}
+		}
+		// Custom / other ColorAt on EvenOdd: field×R8 before denser coverage pass.
+		if !paint.IsSolid() {
+			if err := rc.fillColorAtFieldMaskedGPU(target, path, paint, paint.ColorAt, 0x61205a12E0E0E0E1); err == nil {
+				rc.noteBrushBootstrap("brush:evenodd")
+				return nil
+			}
+		}
+		if err := rc.fillBrushCoverageColorAt(target, path, paint); err == nil {
+			rc.noteBrushBootstrap("brush:evenodd")
+			return nil
+		}
 		if err := rc.fillBrushAsImage(target, path, paint); err == nil {
 			rc.noteBrushBootstrap("brush:evenodd")
 			return nil
@@ -69,7 +119,22 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		if err := rc.fillGradientConvexNative(target, path, paint, brush); err == nil {
 			return nil
 		}
-		// Non-convex / complex outline: software coverage + GPU blit.
+		// Non-convex / complex outline: linear 1D-ramp×coverage (O(n) ColorAt),
+		// then generic ColorAt field×coverage, then denser bootstrap. Native first.
+		if err := rc.fillLinearGradientFieldMasked(target, path, paint, b); err == nil {
+			rc.noteBrushBootstrap("brush:nonconvex-path")
+			return nil
+		}
+		if colorAt, seed, ok := gradientColorAtSeed(brush); ok {
+			if err := rc.fillGradientFieldMasked(target, path, paint, colorAt, seed); err == nil {
+				rc.noteBrushBootstrap("brush:nonconvex-path")
+				return nil
+			}
+		}
+		if err := rc.fillBrushCoverageColorAt(target, path, paint); err == nil {
+			rc.noteBrushBootstrap("brush:nonconvex-path")
+			return nil
+		}
 		if err := rc.fillBrushAsImage(target, path, paint); err == nil {
 			rc.noteBrushBootstrap("brush:nonconvex-path")
 			return nil
@@ -83,22 +148,61 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		if err := rc.fillGradientConvexNative(target, path, paint, brush); err == nil {
 			return nil
 		}
+		// Non-rect / non-convex: GPU 1D ramp×mask (radial simple / sweep+) then ColorAt field.
+		switch gb := brush.(type) {
+		case *render.RadialGradientBrush:
+			if err := rc.fillRadialGradientFieldMasked(target, path, paint, gb); err == nil {
+				rc.noteBrushBootstrap("brush:nonconvex-path")
+				return nil
+			}
+		case *render.SweepGradientBrush:
+			if err := rc.fillSweepGradientFieldMasked(target, path, paint, gb); err == nil {
+				rc.noteBrushBootstrap("brush:nonconvex-path")
+				return nil
+			}
+		}
+		if colorAt, seed, ok := gradientColorAtSeed(brush); ok {
+			if err := rc.fillGradientFieldMasked(target, path, paint, colorAt, seed); err == nil {
+				rc.noteBrushBootstrap("brush:nonconvex-path")
+				return nil
+			}
+		}
+		if err := rc.fillBrushCoverageColorAt(target, path, paint); err == nil {
+			rc.noteBrushBootstrap("brush:nonconvex-path")
+			return nil
+		}
 		if err := rc.fillBrushAsImage(target, path, paint); err == nil {
 			rc.noteBrushBootstrap("brush:nonconvex-path")
 			return nil
 		}
 		return render.ErrFallbackToCPU
 	case render.CustomBrush:
-		// G.04: no fragment ColorAt on GPU — bootstrap ColorAt stage + GPU blit,
-		// with explicit reason (not silent).
+		// G.04 / N3: field×coverage + GPU R8 modulate (same chain as gradients).
+		// True fragment ColorAt shader remains post; reason stays brush:custom.
+		if err := rc.fillColorAtFieldMaskedGPU(target, path, paint, b.ColorAt, customBrushFieldSeed(b)); err == nil {
+			rc.noteBrushBootstrap("brush:custom")
+			return nil
+		}
+		if err := rc.fillBrushCoverageColorAt(target, path, paint); err == nil {
+			rc.noteBrushBootstrap("brush:custom")
+			return nil
+		}
 		if err := rc.fillBrushAsImage(target, path, paint); err == nil {
 			rc.noteBrushBootstrap("brush:custom")
 			return nil
 		}
 		return render.ErrFallbackToCPU
 	default:
-		// Other ColorAt brushes (unknown) — same bootstrap with reason.
+		// Other ColorAt brushes (unknown) — field×R8 then coverage/full bootstrap.
 		if brush != nil {
+			if err := rc.fillColorAtFieldMaskedGPU(target, path, paint, brush.ColorAt, 0x61205a1100000001); err == nil {
+				rc.noteBrushBootstrap("brush:colorat")
+				return nil
+			}
+			if err := rc.fillBrushCoverageColorAt(target, path, paint); err == nil {
+				rc.noteBrushBootstrap("brush:colorat")
+				return nil
+			}
 			if err := rc.fillBrushAsImage(target, path, paint); err == nil {
 				rc.noteBrushBootstrap("brush:colorat")
 				return nil
@@ -383,6 +487,77 @@ func linearRampGenID(g *render.LinearGradientBrush, rx, ry, rw, rh float64, n in
 	}
 	// Namespace away from pixmap GenerationIDs.
 	return h ^ 0x6022a39000000000
+}
+
+// patternFieldSeed namespaces ImagePattern field×mask bootstrap genIDs.
+
+// customBrushFieldSeed namespaces CustomBrush field×R8 bootstrap genIDs (N3).
+func customBrushFieldSeed(b render.CustomBrush) uint64 {
+	h := uint64(0x61204a1100000001)
+	mix := func(v uint64) {
+		h ^= v
+		h *= 0x100000001b3
+	}
+	for _, r := range b.Name {
+		mix(uint64(r))
+	}
+	// Func identity is not stable; name + path geom seed separates frames.
+	if b.Func == nil {
+		mix(0)
+	} else {
+		mix(1)
+	}
+	return h
+}
+
+func patternFieldSeed(pat *render.ImagePattern) uint64 {
+	h := uint64(0x61203a1100000001)
+	if pat == nil {
+		return h
+	}
+	mix := func(v uint64) {
+		h ^= v
+		h *= 0x100000001b3
+	}
+	img, sx, sy, sw, sh, inv, op, clamp := pat.GPUPatternSource()
+	if img != nil {
+		mix(img.GenerationID())
+	}
+	mix(uint64(sx))
+	mix(uint64(sy))
+	mix(uint64(sw))
+	mix(uint64(sh))
+	mix(math.Float64bits(inv.A))
+	mix(math.Float64bits(inv.B))
+	mix(math.Float64bits(inv.C))
+	mix(math.Float64bits(inv.D))
+	mix(math.Float64bits(inv.E))
+	mix(math.Float64bits(inv.F))
+	mix(math.Float64bits(op))
+	if clamp {
+		mix(1)
+	} else {
+		mix(2)
+	}
+	return h
+}
+
+// gradientColorAtSeed returns ColorAt + field gen seed for known gradient brushes.
+// Used by fillGradientFieldMasked after native span/field/convex fail.
+func gradientColorAtSeed(brush render.Brush) (func(x, y float64) render.RGBA, uint64, bool) {
+	if brush == nil {
+		return nil, 0, false
+	}
+	switch b := brush.(type) {
+	case *render.LinearGradientBrush:
+		return b.ColorAt, brushFieldSeedLinear(b), true
+	case *render.RadialGradientBrush:
+		return b.ColorAt, brushFieldSeedRadial(b), true
+	case *render.SweepGradientBrush:
+		return b.ColorAt, brushFieldSeedSweep(b), true
+	default:
+		return nil, 0, false
+	}
 }
 
 // fillLinearGradientFieldNative fills an AA rect with a linear gradient of any

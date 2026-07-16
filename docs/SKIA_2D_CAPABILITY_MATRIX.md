@@ -223,7 +223,7 @@
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
 | R.01 | Picture 录制回放 | `SkPicture` | 无（命令表） | N/A | N/A | ✅ recording Playback `TestS3c` | M3 |
-| R.02 | PDF/SVG 后端 | document | 无 GPU | N/A | N/A | ⬜ | M4 |
+| R.02 | PDF/SVG 后端 | document | 无 GPU | N/A | N/A | ⬜ **画布 100% 排除**（见 `CAPABILITY_MATRIX_WINDOW.md` §0；document 专项 DOC.1） | M4 |
 
 ### 1.18 计算路径 / 高级 GPU（可选增强）
 
@@ -370,6 +370,7 @@
 | 2026-07-15 | — | F.03 filter graph + L.06 MaskAware native upload + Tier G TreeSelect/Carousel |
 | 2026-07-15 | — | K.01 Context Compute + Q.02 Coverage AA gates; B.03 ColorBurn/Exclusion; Tier O/P complex UI |
 | 2026-07-15 | — | V.03/K.02/CS.02/CS.03 M4 gates + Tier Q/R complex UI |
+| 2026-07-16 | — | R.02：2D 画布 100% **不含** PDF/SVG；计划见 CAPABILITY_MATRIX_WINDOW §0/§8/§9 |
 | 2026-07-15 | — | E.03 Trim + P.09 Dither + T.04 ImageQuad + L.05 Backdrop + Tier S/T |
 | 2026-07-15 | — | E.02 PathEffects + I.08 ExternalTexture + Tier U complex UI |
 

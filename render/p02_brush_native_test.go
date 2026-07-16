@@ -38,6 +38,10 @@ func TestP02_LinearGradientNativeGPU(t *testing.T) {
 	if stats.CPUFallbackOps > 0 {
 		t.Fatalf("P02 linear must not CPU-fallback: %s", stats.LogLine())
 	}
+	if stats.BrushBootstrapOps > 0 {
+		t.Fatalf("P02 linear must stay true-native (no field×coverage bootstrap): ops=%d reason=%q",
+			stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	}
 
 	rL, gL, bL, _ := sampleRGBA(dc, 4, 32)
 	rM, gM, bM, _ := sampleRGBA(dc, 64, 32)
@@ -348,5 +352,226 @@ func TestP02_NonConvexLinearGradientGPU(t *testing.T) {
 	}
 	if int(r)+int(gch)+int(b) > 740 {
 		t.Fatalf("expected gradient ink inside non-convex path")
+	}
+}
+
+// TestP02_EvenOddLinearGradientFieldMaskedGPU verifies EvenOdd gradient uses
+// GPU* field×coverage bootstrap (reason brush:evenodd), not hard cpu_fb.
+func TestP02_EvenOddLinearGradientFieldMaskedGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 64
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Ring-like EvenOdd: outer rect + inner hole rect as one path with EO.
+	dc.MoveTo(8, 8)
+	dc.LineTo(56, 8)
+	dc.LineTo(56, 56)
+	dc.LineTo(8, 56)
+	dc.ClosePath()
+	dc.MoveTo(24, 24)
+	dc.LineTo(40, 24)
+	dc.LineTo(40, 40)
+	dc.LineTo(24, 40)
+	dc.ClosePath()
+
+	g := render.NewLinearGradientBrush(0, 0, w, 0).
+		AddColorStop(0, render.RGBA{R: 1, G: 0, B: 0, A: 1}).
+		AddColorStop(1, render.RGBA{R: 0, G: 0, B: 1, A: 1})
+	dc.SetFillBrush(g)
+	dc.SetFillRule(render.FillRuleEvenOdd)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("fill: %v", err)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("evenodd %s bootstrap_ops=%d reason=%q", stats.LogLine(), stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	if stats.GPUOps == 0 {
+		t.Fatalf("expected GPUOps: %s", stats.LogLine())
+	}
+	if stats.CPUFallbackOps > 0 {
+		t.Fatalf("hard cpu_fb must stay 0: %s reason=%q", stats.LogLine(), stats.LastCPUFallbackReason)
+	}
+	if stats.BrushBootstrapOps < 1 || stats.LastBrushBootstrapReason != "brush:evenodd" {
+		t.Fatalf("expected brush:evenodd bootstrap, ops=%d reason=%q", stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	}
+	// Ring band should have ink; hole center should stay near white.
+	rBand, gBand, bBand, _ := sampleRGBA(dc, 12, 32)
+	rHole, gHole, bHole, _ := sampleRGBA(dc, 32, 32)
+	t.Logf("band=%d,%d,%d hole=%d,%d,%d", rBand, gBand, bBand, rHole, gHole, bHole)
+	if int(rBand)+int(gBand)+int(bBand) > 740 {
+		t.Fatalf("expected gradient ink in EvenOdd band")
+	}
+	if int(rHole)+int(gHole)+int(bHole) < 700 {
+		t.Fatalf("EvenOdd hole should remain near background white, got %d,%d,%d", rHole, gHole, bHole)
+	}
+}
+
+// TestP02_NonRectImagePatternFieldMaskedGPU verifies N2: non-rect path + ImagePattern
+// uses GPU* texture-sample×coverage bootstrap (brush:pattern-path), not hard cpu_fb; rect native stays separate.
+func TestP02_NonRectImagePatternFieldMaskedGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 64, 64
+	img, err := render.NewImageBuf(8, 8, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("img: %v", err)
+	}
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			_ = img.SetRGBA(x, y, 255, 40, 20, 255)
+		}
+	}
+	img.NotifyPixelsChanged()
+
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Triangle — not axis-aligned rect → cannot use fillImagePatternNative.
+	dc.MoveTo(8, 56)
+	dc.LineTo(32, 8)
+	dc.LineTo(56, 56)
+	dc.ClosePath()
+
+	pat := dc.CreateImagePattern(img, 0, 0, 8, 8)
+	if ip, ok := pat.(*render.ImagePattern); ok {
+		ip.SetClamp(false)
+	}
+	dc.SetFillPattern(pat)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("fill: %v", err)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("nonrect-pattern %s bootstrap_ops=%d reason=%q", stats.LogLine(), stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	if stats.GPUOps == 0 {
+		t.Fatalf("expected GPUOps: %s", stats.LogLine())
+	}
+	if stats.CPUFallbackOps > 0 {
+		t.Fatalf("hard cpu_fb must stay 0: %s reason=%q", stats.LogLine(), stats.LastCPUFallbackReason)
+	}
+	if stats.BrushBootstrapOps < 1 || stats.LastBrushBootstrapReason != "brush:pattern-path" {
+		t.Fatalf("expected brush:pattern-path bootstrap, ops=%d reason=%q", stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	}
+	r, g, b, _ := sampleRGBA(dc, 32, 40)
+	t.Logf("ink=%d,%d,%d", r, g, b)
+	if int(r)+int(g)+int(b) > 700 {
+		t.Fatalf("expected pattern ink inside triangle, got %d,%d,%d", r, g, b)
+	}
+	// Outside triangle near corner should stay white-ish.
+	or, og, ob, _ := sampleRGBA(dc, 4, 4)
+	if int(or)+int(og)+int(ob) < 700 {
+		t.Fatalf("outside should stay near white, got %d,%d,%d", or, og, ob)
+	}
+}
+
+// TestP02_NonConvexRadialGradientGPU verifies non-convex radial uses GPU*
+// ramp×mask bootstrap (not hard cpu_fb), with non-white interior ink.
+func TestP02_NonConvexRadialGradientGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 80, 80
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	// Concave chevron (same as linear nonconvex).
+	dc.MoveTo(10, 20)
+	dc.LineTo(40, 10)
+	dc.LineTo(70, 20)
+	dc.LineTo(55, 40)
+	dc.LineTo(70, 60)
+	dc.LineTo(40, 70)
+	dc.LineTo(10, 60)
+	dc.LineTo(25, 40)
+	dc.ClosePath()
+
+	g := render.NewRadialGradientBrush(40, 40, 0, 40).
+		AddColorStop(0, render.RGB(1, 1, 1)).
+		AddColorStop(1, render.RGB(0, 0, 0))
+	dc.SetFillBrush(g)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("fill: %v", err)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("nonconvex-radial %s bootstrap_ops=%d reason=%q", stats.LogLine(), stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	if stats.GPUOps == 0 {
+		t.Fatalf("expected GPUOps: %s", stats.LogLine())
+	}
+	if stats.CPUFallbackOps > 0 {
+		t.Fatalf("hard cpu_fb should stay 0: %s reason=%q", stats.LogLine(), stats.LastCPUFallbackReason)
+	}
+	if stats.BrushBootstrapOps < 1 {
+		t.Logf("no bootstrap (path may be convex-classified); checking ink only")
+	} else if stats.LastBrushBootstrapReason != "brush:nonconvex-path" && stats.LastBrushBootstrapReason != "brush:evenodd" {
+		t.Fatalf("unexpected bootstrap reason %q", stats.LastBrushBootstrapReason)
+	}
+	r, gch, b, _ := sampleRGBA(dc, 40, 40)
+	t.Logf("center=%d,%d,%d", r, gch, b)
+	if int(r)+int(gch)+int(b) > 740 {
+		r, gch, b, _ = sampleRGBA(dc, 40, 25)
+		t.Logf("alt=%d,%d,%d", r, gch, b)
+	}
+	if int(r)+int(gch)+int(b) > 740 {
+		t.Fatalf("expected radial ink inside non-convex path")
+	}
+}
+
+// TestP02_NonConvexSweepGradientGPU verifies non-convex sweep GPU* path.
+func TestP02_NonConvexSweepGradientGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const w, h = 80, 80
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.White)
+
+	dc.MoveTo(10, 20)
+	dc.LineTo(40, 10)
+	dc.LineTo(70, 20)
+	dc.LineTo(55, 40)
+	dc.LineTo(70, 60)
+	dc.LineTo(40, 70)
+	dc.LineTo(10, 60)
+	dc.LineTo(25, 40)
+	dc.ClosePath()
+
+	g := render.NewSweepGradientBrush(40, 40, 0).
+		AddColorStop(0, render.RGB(1, 0, 0)).
+		AddColorStop(0.5, render.RGB(0, 1, 0)).
+		AddColorStop(1, render.RGB(0, 0, 1))
+	dc.SetFillBrush(g)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("fill: %v", err)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	stats := dc.RenderPathStats()
+	t.Logf("nonconvex-sweep %s bootstrap_ops=%d reason=%q", stats.LogLine(), stats.BrushBootstrapOps, stats.LastBrushBootstrapReason)
+	if stats.GPUOps == 0 {
+		t.Fatalf("expected GPUOps: %s", stats.LogLine())
+	}
+	if stats.CPUFallbackOps > 0 {
+		t.Fatalf("hard cpu_fb should stay 0: %s reason=%q", stats.LogLine(), stats.LastCPUFallbackReason)
+	}
+	r, gch, b, _ := sampleRGBA(dc, 40, 40)
+	t.Logf("center=%d,%d,%d", r, gch, b)
+	if int(r)+int(gch)+int(b) > 740 {
+		r, gch, b, _ = sampleRGBA(dc, 40, 25)
+		t.Logf("alt=%d,%d,%d", r, gch, b)
+	}
+	if int(r)+int(gch)+int(b) > 740 {
+		t.Fatalf("expected sweep ink inside non-convex path")
 	}
 }

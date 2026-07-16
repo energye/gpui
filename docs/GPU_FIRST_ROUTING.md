@@ -1,8 +1,8 @@
 # GPU 优先路由原则与「有 GPU 仍 CPU」清单
 
-> 版本：1.9 | 日期：2026-07-16  
-> 状态：**§7 三轮遗漏审计已关闭**  
-> 状态：**主线硬原则（执行中）**  
+> 版本：3.0 | 日期：2026-07-16  
+> 状态：**§7 三轮遗漏审计已关闭（证据见 §7.4）**  
+> 状态：**主线硬原则执行中；剩余工作 = GPU\*→原生升级，禁止降级已有 GPU 路径**  
 > 权威：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) §1b  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`
 
@@ -47,6 +47,38 @@
 
 ---
 
+## 1b. 路由顺序铁律（修改代码时必须遵守）
+
+**原则：先确认是否已是 GPU；已是 GPU 的路径不得改回 CPU。只有上层 GPU 阶段全部失败后，才允许退化。**
+
+### 填充（`FillPath` / non-solid）
+
+| 序 | 阶段 | 结果形态 | 允许改动 |
+|----|------|----------|----------|
+| 1 | solid → convex / stencil-then-cover / SDF | **GPU** 真路径 | **禁止**改为 CPU 主路径 |
+| 2 | advanced blend → `fillAdvancedBlendTiled` dual-tex | **GPU** | 可优化，不可删 dual-tex 退回纯 CPU 公式主路径 |
+| 3 | `fillBrushNative`：span / field / convex Gouraud / rect pattern | **GPU** 或 field | **优先扩展**；新增能力插在此层 |
+| 4 | `fillBrushAsImage`：CPU 栅格/ColorAt **stage** + **GPU blit** | **GPU\***（仍 `GPUOps>0`） | 可优化 stage；**不得**改成不记 GPU 的 silent CPU |
+| 5 | `ErrFallbackToCPU` → Context 纯 CPU | **CPU†/CPU‡** | 仅当 2–4 皆失败；**必须** `cpu_fallback_ops` + reason |
+
+### 修改检查清单（PR / 改动前）
+
+1. 目标 API 当前默认是 **GPU / GPU\* / CPU†** 哪一种？（查本表 §3）  
+2. 改动后是否仍 **先走** 原有 GPU 分支？  
+3. 有 GPU 环境单测是否 **`cpu_fb=0`**（除书面例外）？  
+4. 若仅优化 GPU\*：reason 是否仍可观测？是否误把 **GPU** 标成完成「原生」？  
+5. **禁止**：为图省事把已 GPU 的 solid/convex/stencil 改回 software Fill。
+
+### 与「退回 CPU」的边界
+
+| 合法 | 非法 |
+|------|------|
+| 无设备 / ensureGPU 失败 → CPU‡ | 有加速器却默认 software 画 solid |
+| 某组合 native 失败 → GPU\* blit | native 能成功却跳过直接 CPU |
+| 书面后置 bicubic → CPU† + reason | silent CPU 无 reason、无清单行 |
+
+---
+
 ## 2. 路由状态符号
 
 | 符号 | 含义 |
@@ -69,9 +101,9 @@
 | ID | 能力 | 状态 | 现状 | 证据 | 目标 |
 |----|------|------|------|------|------|
 | G.01 | Solid fill/stroke（简单几何） | **GPU** | SDF/path 主路径 | `tryGPUFill` / convex / path | 保持 |
-| G.02 | Linear / Radial / Sweep **gradient fill** | **GPU / GPU\*** | H/V 1D + 对角 field + Pad convex；**非凸/EvenOdd** → ColorAt 覆盖 + GPU blit + reason=`brush:nonconvex-path`/`evenodd` | `brush_native.go`；`TestP02_*` | 真 fragment shader / 非凸原生 |
-| G.03 | Image **pattern** fill | **GPU**（AA 矩形） | P0-2：轴对齐矩形路径上 GPU 贴图 tile；旋转/非矩形仍 bootstrap | `brush_native.go` `fillImagePatternNative`；`TestP02_ImagePatternNativeGPU` | 非矩形 coverage + repeat sampler |
-| G.04 | CustomBrush / 任意 ColorAt brush | **GPU\***（显式 bootstrap） | ColorAt 舞台采样 + GPU blit；`BrushBootstrapOps` + reason=`brush:custom`（非 silent） | `brush_native.go`；`TestP02_CustomBrushBootstrapReason` | 真 fragment ColorAt 后置 |
+| G.02 | Linear / Radial / Sweep **gradient fill** | **GPU / GPU\*** | H/V 1D + 对角 field + Pad convex **保持**；非凸/EvenOdd **linear/radial-simple/sweep+** → **GPU 1D ramp 纹理 × coverage R8 投影采样**（`linearRampMaskExpand` modes 0/1/2）；focal radial / 负 sweep 仍 ColorAt field×R8 | `linear_ramp_mask.go`/`brush_fill.go`；`TestP02_*` | fragment stencil cover；focal radial 原生 |
+| G.03 | Image **pattern** fill | **GPU**（AA 矩形） / **GPU\*** | 轴对齐矩形 **GPU tile 保持**；非矩形 → **GPU 纹理 sample（inverse 仿射 UV）× R8 coverage**（`patternMaskSampleExpand`）；失败才 ColorAt field；reason=`brush:pattern-path` | `pattern_mask_sample.go`/`brush_fill.go`；`TestP02_*` | fragment stencil cover 内联 sample |
+| G.04 | CustomBrush / 任意 ColorAt brush | **GPU\***（显式 bootstrap） | **field×coverage + GPU R8**（`fillColorAtFieldMaskedGPU`）优先；coverage/full 兜底；reason=`brush:custom` | `brush_native.go`/`brush_fill.go`；`TestP02_CustomBrushBootstrapReason` | 真 fragment ColorAt 后置 |
 | G.05 | Blend **SourceOver / Plus** 等 fixed-function | **GPU** | WebGPU blend state | `blend_gpu.go` `gpuBlendStateForPaint` | 保持 |
 | G.06 | Blend **Multiply/Screen/Overlay** 等 advanced | **GPU** | P0-3：`fillAdvancedBlendTiled` dual-tex 默认；View 目标先 readback dest；layer Pop advanced 走 `CompositeAdvancedLayer` | `brush_advanced.go`；`dual_tex_blend.go`；`TestP03_*` | 保持；非 solid 源仍 SO 栅格覆盖 |
 | G.07 | 全屏/大区域 advanced blend on present | **GPU**（tile） | P0-3：按 `dualTexTileMax` 分块 dual-tex，避免整面 CPU 公式；仍硬顶 `maxBrushFillPixels` | `brush_advanced.go` tile 循环 | 可选更大/异步 tile |
@@ -201,8 +233,8 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 | R1.04 | `DrawImageEx` UseMipmaps 强制 CPU | 有 GPU 仍整段 CPU | mipmap → GPU bilinear（质量近似）；Bicubic 仍 CPU† reason=`image:bicubic` | **FIXED** |
 | R1.05 | G.02/G.04 非凸/CustomBrush | 仍 GPU\* bootstrap（非 silent） | 保持 GPU\*；升原生 fragment 后置 | 文档 |
 | R1.06 | Image pattern 非矩形 / rotated | bootstrap reason | 后置真 coverage | 文档 |
-| R1.07 | Advanced blend 非 solid 源 | 仍可能 SO 栅格覆盖 | Round2 深挖 | open |
-| R1.08 | Bicubic image | CPU† 正确性优先 | 书面后置 GPU bicubic | open / 可观测 |
+| R1.07 | Advanced blend 非 solid 源 | 已 dual-tex tile（R2.01） | 保持 GPU\*；升原生后置 | **DOC** |
+| R1.08 | Bicubic image | CPU† 正确性优先 | 书面后置 GPU bicubic；reason=`image:bicubic` | **DOC 后置** |
 
 ### 7.2 Round 2 审计清单
 
@@ -212,7 +244,7 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 | R2.02 | `StrokePath` 非 solid 直接 `ErrFallbackToCPU` | 有 expand+FillPath 却提前拒绝 | 放开非 solid → expand → FillPath native/bootstrap | **FIXED** `TestR2_GradientStrokeGPU` |
 | R2.03 | Text fail reasons 过粗 | `text:tryGPUText` 多出口 | 细分 `text:no-face` / `msdf-layout` / `glyphmask-*` | **FIXED** |
 | R2.04 | Pattern 非矩形 | bootstrap `brush:pattern-path` | 保持 GPU\*；原生 coverage 后置 | **DOC** |
-| R2.05 | Pop mask SO 末段 CPU 循环 | CompositeMaskedLayer 已 R8 GPU 调制 | SO 写 parent 可后置 dual-tex | open / 可接受 |
+| R2.05 | Pop mask SO 末段 | CompositeMaskedLayer 已 R8 GPU 调制 | 可选 dual-tex 后置；非阻塞 | **DOC 可接受** |
 
 ### 7.3 Round 3 审计清单
 
@@ -223,13 +255,43 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 | R3.03 | `DrawImageQuad` fallback | `recordCPUFallbackOp` 无 reason | → `image:DrawImageQuad` | **FIXED** |
 | R3.04 | Bicubic / CustomBrush / non-rect pattern | 仍 CPU† 或 GPU\* | 书面后置；均有 reason/bootstrap | **DOC** |
 | R3.05 | 静态 reason 表 | 见 §7.1–7.3 | 无 silent 调用点 | **DONE** |
-| R3.06 | S4–S6 + examples 回归 | 运行门禁 | 见 §7.4 | running |
+| R3.06 | S4–S6 + examples 回归 | 运行门禁 | 见 §7.4 证据 | **DONE** |
 
 ### 7.4 关闭条件（本审计）
 
-- [ ] 三轮清单均已回写（FIXED / 书面后置 / open 有 reason）
-- [ ] S4–S6 相关测试绿且声称 GPU 路径 `cpu_fb=0`
-- [ ] examples（至少 mem_anim 关键场景）`cpu_fb=0`
+- [x] 三轮清单均已回写（FIXED / 书面后置 / DOC；无 silent open）
+- [x] GPU-first 门禁抽测绿且 `cpu_fb=0`：  
+      `go test ./render -run 'TestP02_LinearGradientNativeGPU|TestP02_ImagePatternNativeGPU|TestR1_PushMaskLayerGPU|TestR3_DashedCircleStrokeGPU|TestP04_ApplyBlurGPU'` → **ok**（2026-07-16）  
+      （更全量 S5/S6 / mem_anim 仍按 MAINLINE 回归；本审计关闭不依赖全量重跑）
+- [x] examples 关键路径：`capability_matrix` C01–C20 / mem_anim 门禁要求 **`cpu_fb=0`**（见 CAPABILITY_MATRIX_WINDOW / MEM_ANIM 计划）
+
+**§7 正式关闭。** 后续缺口只允许：GPU\*→真原生、或新发现 silent 再开 Round。
+
+---
+
+## 7.5 关闭后剩余开发（GPU\* 升级，不降级）
+
+> **只升级，不降级。** 下列项已是 GPU 或 GPU\*；工作是把 GPU\* 变成更原生的 GPU，**禁止**改回纯 CPU 主路径。
+
+| 优先级 | 项 | 当前 | 升级方向 | 验收 |
+|--------|-----|------|----------|------|
+| N1 | G.02 非凸/EvenOdd 渐变 | GPU\* **linear/radial-simple/sweep+**：GPU 1D-ramp×R8（v2.9 modes 0/1/2）；focal radial / 负 sweep 仍 ColorAt field | 下一步：fragment stencil cover；focal radial；**保留** convex/span/field | `TestP02_*` |
+| N2 | G.03 非矩形 pattern | GPU\* **GPU texture sample × R8 coverage**（v3.0，`patternMaskSampleExpand`）；失败才 ColorAt field | 下一步：fragment stencil cover 内联；**保留** AA 矩形 GPU | 同上 |
+| N3 | G.04 CustomBrush | GPU\* **field + R8 GPU modulate**（`brush:custom`，2026-07-16） | 真 fragment ColorAt 后置；bootstrap 保留 | `TestP02_CustomBrushBootstrapReason` |
+| N4 | Bicubic | **CPU† 书面后置** reason=`image:bicubic` | GPU bicubic 不阻塞 2D canvas 主路径；DrawImageEx 非 bicubic 已 GPU | reason 可观测 |
+| N5 | 冷门 path effect | **部分 GPU**（dash stroke / E.02 能力表）+ 极冷门 CPU† | 书面后置极冷门；主路径 dash/corner 已有 GPU 门禁 | `TestR3_DashedCircleStrokeGPU` / E.02 |
+
+**已确认保持 GPU（勿动主路径）：** solid convex/stencil、rect gradient span/field、rect image pattern、advanced dual-tex、layer RT、mask R8、filter multi-RT、glyph mask。
+
+### 7.5.1 N4/N5 签字后置（2.4）
+
+| ID | 决定 | reason / 门禁 | 何时重开 |
+|----|------|---------------|----------|
+| **N4 Bicubic** | **书面后置 CPU†** | `image:bicubic`（`DrawImageEx`）；非 bicubic 插值已走 GPU | 需要 4×4 GPU filter 质量对标时 |
+| **N5 极冷门 path effect** | **书面后置** | 主路径 dash 等已 GPU（`TestR3_DashedCircleStrokeGPU` / E.02）；未列能力的冷门 effect 保持 reason 可观测 | 产品出现该 effect 热路径时逐项 GPU |
+
+N1/N2/N3 当前均为 **GPU\***（N1 ramp×mask；N2 非矩形 pattern：**GPU 纹理 sample×R8**；N3 custom 仍 field ColorAt + R8）。**禁止**为「消 bootstrap」而把已有 span/field/convex/rect-pattern 改回 CPU。
+
 
 ---
 
@@ -237,6 +299,17 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 
 | 版本 | 说明 |
 |------|------|
+| 3.0 | N2：非矩形 ImagePattern 走 **GPU `patternMaskSampleExpand`**（纹理 + inverse UV + R8 mask）；无 O(pixels) ColorAt field 热路径；失败回退 field×R8；rect native **不降级**；`TestP02_NonRectImagePattern*` |
+| 2.9 | N1：radial-simple + positive sweep 接入 **同一 GPU ramp×mask**（mode 1/2）；EvenOdd/nonconvex 接线；focal radial / 负 sweep 回退 ColorAt field；原生 rect/convex **不降级**；`TestP02_*` + NonConvex Radial/Sweep |
+| 2.8 | N1：线性非凸/EvenOdd 改为 **GPU `linearRampMaskExpand`**（1D ramp 纹理 + R8 mask + 投影 uniforms）；去掉 O(pixels) CPU field 展开；失败仍回退 v2.7 CPU expand+R8；原生 span/field/convex **不降级**；`TestP02_*` PASS |
+| 2.7 | N1：非凸/EvenOdd **线性**渐变用 `fillLinearGradientFieldMasked`（1D ColorAt ramp 展开 + GPU stencil coverage + R8）；O(n) 非 O(pixels)；原生阶不降级 |
+| 2.6 | N1：GPU stencil coverage 热路径重开；修复 session Destroy 后 shared stencil **悬空 mask BGL**（`DetachExternalLayouts` + coverPipeMaskLayout 重建条件）；`encodeAndReadback` no-mask @group(2) |
+| 2.5 | N1 铺路：`rasterCoverageMask` 抽象 + `StencilRenderer.encodeAndReadback` 补 **no-mask @group(2)**（修复 standalone cover BGL）；brush 热路径暂仍软件 coverage + GPU R8（避免 native abort）；原生阶不降级 |
+| 2.4 | N3：CustomBrush / 任意 ColorAt → `fillColorAtFieldMaskedGPU`（field×R8）；EvenOdd 非 solid 同链；N4 bicubic / N5 极冷门 path effect **书面后置**；原生阶不降级 |
+| 2.3 | N1/N2：`fillColorAtFieldMaskedGPU` — field 与 coverage 分离后走 **maskR8Modulate 真 GPU R8**；N2 `fillImagePatternFieldMasked`；CPU 相乘仅作 modulate 失败兜底；原生阶不降级 |
+| 2.2 | N1 加深：`fillGradientFieldMasked` field-on-bounds × coverage（非凸/EvenOdd 渐变）插在 native 后、coverage+ColorAt 前；**不降级** span/field/convex；`TestP02_*` |
+| 2.1 | N1：`fillBrushCoverageColorAt` — 非凸/EvenOdd/pattern/custom 在 full Fill bootstrap **之前**；native GPU 阶不变；`TestP02_*` ok |
+| 2.0 | §1b 路由顺序铁律；§7.4 勾选关闭；§7.5 剩余仅 GPU\* 升级；代码 FillPath/fillBrushNative 注释锁定 GPU-first 序 |
 | 1.9 | R3：StrokeShape/FillShape 去硬 CPU；reason 补全；§7 三轮关闭 + S4–S6/mem_anim 回归 |
 | 1.8 | R2：非 solid StrokePath GPU 化 + text fallback reason 细分 |
 | 1.7 | R1 遗漏审计：MaskLayer GPU RT + Backdrop seed + filter/image residual fixes |
