@@ -48,6 +48,9 @@ type GPURenderContext struct {
 	baseLayer                *GPUTextureDrawCommand
 	pendingTarget            render.GPURenderTarget
 	hasPendingTarget         bool
+	// presentStash holds View-nil parent draws deferred across layer RT work (F1).
+	// Avoids mid-frame offscreen Flush of the whole base scene when entering a layer.
+	presentStash presentPendingStash
 
 	// Per-context clip state.
 	clipRect        *[4]uint32
@@ -343,6 +346,112 @@ func (rc *GPURenderContext) TakeBrushBootstrapReason() string {
 }
 
 // QueueShape accumulates an SDF shape for batch dispatch.
+
+// presentPendingStash stores present-deferred GPU commands (no surface View yet).
+type presentPendingStash struct {
+	active          bool
+	shapes          []SDFRenderShape
+	convex          []ConvexDrawCommand
+	convexMeshPts   []render.Point
+	convexMeshVCs   [][4]float32
+	stencil         []StencilPathCommand
+	images          []ImageDrawCommand
+	gpuTex          []GPUTextureDrawCommand
+	text            []TextBatch
+	glyph           []GlyphMaskBatch
+	scissorSegments []scissorSegment
+	baseLayer       *GPUTextureDrawCommand
+}
+
+func (rc *GPURenderContext) stashPresentPending() {
+	if rc == nil || !rc.hasPendingTarget {
+		return
+	}
+	// Merge into existing stash (multiple layer enter/exit within a frame).
+	s := &rc.presentStash
+	s.shapes = append(s.shapes, rc.pendingShapes...)
+	s.convex = append(s.convex, rc.pendingConvexCommands...)
+	s.convexMeshPts = append(s.convexMeshPts, rc.convexMeshPts...)
+	s.convexMeshVCs = append(s.convexMeshVCs, rc.convexMeshVCs...)
+	s.stencil = append(s.stencil, rc.pendingStencilPaths...)
+	s.images = append(s.images, rc.pendingImageCommands...)
+	s.gpuTex = append(s.gpuTex, rc.pendingGPUTextureCommands...)
+	s.text = append(s.text, rc.pendingTextBatches...)
+	s.glyph = append(s.glyph, rc.pendingGlyphMaskBatches...)
+	s.scissorSegments = append(s.scissorSegments, rc.scissorSegments...)
+	if s.baseLayer == nil {
+		s.baseLayer = rc.baseLayer
+	}
+	s.active = true
+
+	rc.pendingShapes = rc.pendingShapes[:0]
+	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
+	rc.convexMeshPts = rc.convexMeshPts[:0]
+	rc.convexMeshVCs = rc.convexMeshVCs[:0]
+	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
+	rc.pendingImageCommands = rc.pendingImageCommands[:0]
+	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
+	rc.pendingTextBatches = rc.pendingTextBatches[:0]
+	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+	rc.scissorSegments = rc.scissorSegments[:0]
+	rc.baseLayer = nil
+	rc.hasPendingTarget = false
+	rc.textBatchSealed = true
+	rc.glyphBatchSealed = true
+}
+
+func (rc *GPURenderContext) unstashPresentPending() {
+	if rc == nil || !rc.presentStash.active {
+		return
+	}
+	s := &rc.presentStash
+	// Stash is earlier in z-order: put it before current pending.
+	rc.pendingShapes = append(append([]SDFRenderShape{}, s.shapes...), rc.pendingShapes...)
+	rc.pendingConvexCommands = append(append([]ConvexDrawCommand{}, s.convex...), rc.pendingConvexCommands...)
+	rc.convexMeshPts = append(append([]render.Point{}, s.convexMeshPts...), rc.convexMeshPts...)
+	rc.convexMeshVCs = append(append([][4]float32{}, s.convexMeshVCs...), rc.convexMeshVCs...)
+	rc.pendingStencilPaths = append(append([]StencilPathCommand{}, s.stencil...), rc.pendingStencilPaths...)
+	rc.pendingImageCommands = append(append([]ImageDrawCommand{}, s.images...), rc.pendingImageCommands...)
+	rc.pendingGPUTextureCommands = append(append([]GPUTextureDrawCommand{}, s.gpuTex...), rc.pendingGPUTextureCommands...)
+	rc.pendingTextBatches = append(append([]TextBatch{}, s.text...), rc.pendingTextBatches...)
+	rc.pendingGlyphMaskBatches = append(append([]GlyphMaskBatch{}, s.glyph...), rc.pendingGlyphMaskBatches...)
+	rc.scissorSegments = append(append([]scissorSegment{}, s.scissorSegments...), rc.scissorSegments...)
+	if rc.baseLayer == nil {
+		rc.baseLayer = s.baseLayer
+	}
+	// Reset stash.
+	s.active = false
+	s.shapes = s.shapes[:0]
+	s.convex = s.convex[:0]
+	s.convexMeshPts = s.convexMeshPts[:0]
+	s.convexMeshVCs = s.convexMeshVCs[:0]
+	s.stencil = s.stencil[:0]
+	s.images = s.images[:0]
+	s.gpuTex = s.gpuTex[:0]
+	s.text = s.text[:0]
+	s.glyph = s.glyph[:0]
+	s.scissorSegments = s.scissorSegments[:0]
+	s.baseLayer = nil
+}
+
+// prepareTarget switches the active GPU target. F1: defer View-nil parent flushes
+// by stashing when entering a layer RT (avoids mid-frame full-scene offscreen encode).
+func (rc *GPURenderContext) prepareTarget(target render.GPURenderTarget) error {
+	if rc == nil {
+		return nil
+	}
+	if rc.hasPendingTarget && !sameTarget(&rc.pendingTarget, &target) {
+		if rc.pendingTarget.View.IsNil() && !target.View.IsNil() {
+			rc.stashPresentPending()
+		} else if err := rc.Flush(rc.pendingTarget); err != nil {
+			return err
+		}
+	}
+	rc.pendingTarget = target
+	rc.hasPendingTarget = true
+	return nil
+}
+
 func (rc *GPURenderContext) QueueShape(target render.GPURenderTarget, shape render.DetectedShape, paint *render.Paint, stroked bool) error {
 	// If target changed, flush previous batch first.
 	if rc.hasPendingTarget && !sameTarget(&rc.pendingTarget, &target) {
@@ -661,13 +770,19 @@ func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view g
 type brushCoverResult struct {
 	tex  *webgpu.Texture
 	view *webgpu.TextureView
+	// recycle, if set, returns tex/view to a pool instead of Release.
+	recycle func(tex *webgpu.Texture, view *webgpu.TextureView)
 }
 
 func (rc *GPURenderContext) retainBrushCoverResult(tex *webgpu.Texture, view *webgpu.TextureView) {
+	rc.retainBrushCoverResultRecycle(tex, view, nil)
+}
+
+func (rc *GPURenderContext) retainBrushCoverResultRecycle(tex *webgpu.Texture, view *webgpu.TextureView, recycle func(*webgpu.Texture, *webgpu.TextureView)) {
 	if rc == nil || tex == nil || view == nil {
 		return
 	}
-	rc.pendingBrushCoverResults = append(rc.pendingBrushCoverResults, brushCoverResult{tex: tex, view: view})
+	rc.pendingBrushCoverResults = append(rc.pendingBrushCoverResults, brushCoverResult{tex: tex, view: view, recycle: recycle})
 }
 
 func (rc *GPURenderContext) releaseBrushCoverResults() {
@@ -676,6 +791,11 @@ func (rc *GPURenderContext) releaseBrushCoverResults() {
 	}
 	for i := range rc.pendingBrushCoverResults {
 		r := &rc.pendingBrushCoverResults[i]
+		if r.recycle != nil {
+			r.recycle(r.tex, r.view)
+			r.tex, r.view, r.recycle = nil, nil, nil
+			continue
+		}
 		if r.view != nil {
 			r.view.Release()
 			r.view = nil
@@ -1331,6 +1451,11 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 // Flush dispatches all pending commands for this context via the render session.
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
 	pending := rc.PendingCount()
+	// F1: restore present-deferred parent draws before encoding to a real View.
+	if !target.View.IsNil() {
+		rc.unstashPresentPending()
+	}
+
 	if pending == 0 {
 		if len(rc.pendingAdvancedLayers) > 0 && !target.View.IsNil() {
 			return rc.resolvePendingAdvancedLayers(target)
@@ -1491,6 +1616,22 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		}
 	}
 
+	// F1: optional single-submit present path for advanced blends:
+	//   encode base→scratch + dual-tex into-dest + scratch→surface blit, one Submit.
+	// Mid-frame layer RT flushes still submit separately (target switches).
+	singleSubmit := useScratch && rc.sharedEncoder == nil && len(rc.pendingAdvancedLayers) > 0 &&
+		rc.session != nil && rc.session.device != nil && rc.session.queue != nil
+	var frameEnc *webgpu.CommandEncoder
+	if singleSubmit {
+		enc, eerr := rc.session.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "f1_frame_enc"})
+		if eerr == nil && enc != nil {
+			frameEnc = enc
+			rc.sharedEncoder = enc
+		} else {
+			singleSubmit = false
+		}
+	}
+
 	err := rc.session.RenderFrameGrouped(target, groups, baseLayer, rc.sharedEncoder)
 	if err != nil {
 		total := 0
@@ -1501,11 +1642,12 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		slogger().Warn("render session error",
 			"groups", len(groups), "totalItems", total, "err", err)
 	}
-	// After base shapes hit the (scratch or surface) View, resolve deferred advanced blends
-	// (Screen/Multiply layers) via GPU dual-tex with no CPU PollWait.
+	// After base shapes hit the (scratch or surface) View, resolve deferred advanced blends.
 	if err == nil && len(rc.pendingAdvancedLayers) > 0 && !target.View.IsNil() {
-		if aerr := rc.resolvePendingAdvancedLayers(target); aerr != nil {
+		if aerr := rc.resolvePendingAdvancedLayersEnc(target, frameEnc); aerr != nil {
 			err = aerr
+			// dual-tex failure: fall back to non-single-submit residual path.
+			singleSubmit = false
 		}
 	}
 	// Blit scratch → swapchain when advanced path used the intermediate.
@@ -1517,19 +1659,90 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		}
 		blitTarget := target
 		blitTarget.View = surfaceView
-		// Surface present pass must clear/load correctly.
 		rc.frameRendered = false
 		rc.lastView = nil
 		if rc.session != nil {
 			rc.session.SetFrameState(false, nil)
 		}
+		// Queue blit as base-layer style texture draw on a clean pending set.
+		// (pending shape lists already cleared below only after this block — so
+		// clear command lists first for a blit-only encode.)
+		clear(rc.pendingShapes)
+		clear(rc.pendingConvexCommands)
+		clear(rc.pendingStencilPaths)
+		clear(rc.pendingImageCommands)
+		clear(rc.pendingGPUTextureCommands)
+		clear(rc.pendingTextBatches)
+		clear(rc.pendingGlyphMaskBatches)
+		rc.pendingShapes = rc.pendingShapes[:0]
+		rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
+		rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
+		rc.pendingImageCommands = rc.pendingImageCommands[:0]
+		rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
+		rc.pendingTextBatches = rc.pendingTextBatches[:0]
+		rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+		rc.scissorSegments = rc.scissorSegments[:0]
+		rc.hasPendingTarget = false
+
 		rc.QueueGPUTextureDraw(blitTarget,
 			gpucontext.NewTextureView(unsafe.Pointer(rc.frameScratchView)), //nolint:gosec
 			0, 0, float32(vpW), float32(vpH), 1.0, vpW, vpH)
-		if ferr := rc.Flush(blitTarget); ferr != nil {
+
+		if singleSubmit && frameEnc != nil {
+			// Encode blit into frameEnc without nested Flush singleSubmit.
+			rc.sharedEncoder = frameEnc
+			groups2 := rc.buildScissorGroups()
+			base2 := rc.baseLayer
+			rc.baseLayer = nil
+			if berr := rc.session.RenderFrameGrouped(blitTarget, groups2, base2, frameEnc); berr != nil {
+				err = berr
+			}
+			rc.sharedEncoder = nil
+			// Drop pending after encode.
+			rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
+			rc.hasPendingTarget = false
+			cmd, ferr := frameEnc.Finish()
+			if ferr != nil {
+				err = ferr
+			} else if cmd != nil {
+				defer cmd.Release()
+				if _, serr := rc.session.queue.Submit(cmd); serr != nil && err == nil {
+					err = serr
+				}
+			}
+			frameEnc = nil
+		} else {
+			if frameEnc != nil {
+				// Abandon single-submit encoder; submit whatever was recorded first.
+				rc.sharedEncoder = nil
+				if cmd, ferr := frameEnc.Finish(); ferr == nil && cmd != nil {
+					_, _ = rc.session.queue.Submit(cmd)
+					cmd.Release()
+				}
+				frameEnc = nil
+			}
+			// Normal separate submit for blit.
+			if ferr := rc.Flush(blitTarget); ferr != nil {
+				err = ferr
+			}
+		}
+	} else if frameEnc != nil {
+		// Advanced resolved into scratch but no blit (shouldn't happen with useScratch).
+		rc.sharedEncoder = nil
+		cmd, ferr := frameEnc.Finish()
+		if ferr != nil && err == nil {
 			err = ferr
+		} else if cmd != nil {
+			defer cmd.Release()
+			if _, serr := rc.session.queue.Submit(cmd); serr != nil && err == nil {
+				err = serr
+			}
 		}
 	}
+	if frameEnc != nil {
+		rc.sharedEncoder = nil
+	}
+
 	// Cover textures must outlive RenderFrameGrouped bind/sample; free after submit.
 	rc.releaseBrushCoverResults()
 
@@ -1640,6 +1853,10 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 // CopySrc|TextureBinding), dual-tex samples dest+src without CPU PollWait.
 // Damage-tight UV is used for both dual-tex and the opacity fallback blit.
 func (rc *GPURenderContext) resolvePendingAdvancedLayers(target render.GPURenderTarget) error {
+	return rc.resolvePendingAdvancedLayersEnc(target, nil)
+}
+
+func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURenderTarget, enc *webgpu.CommandEncoder) error {
 	if rc == nil || len(rc.pendingAdvancedLayers) == 0 {
 		return nil
 	}
@@ -1671,7 +1888,17 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayers(target render.GPURender
 	dstTex := (*webgpu.TextureView)(target.View.Pointer()).Texture()
 	canDual := device != nil && queue != nil && dstTex != nil
 
+	// F1: batch advanced layers into one dual-tex Submit writing directly into
+	// frameScratch (dest). Falls back to opacity blit if dual-tex fails.
 	holds := rc.layerReleaseHold[:0]
+	ops := make([]dualTexLayerIntoDestOp, 0, len(layers))
+	type fallbackLayer struct {
+		pl     pendingAdvancedLayer
+		bounds image.Rectangle
+		op     float32
+	}
+	var fallbacks []fallbackLayer
+
 	for i := range layers {
 		pl := &layers[i]
 		if pl.srcView.IsNil() {
@@ -1691,7 +1918,6 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayers(target render.GPURender
 		if bounds.Empty() {
 			bounds = image.Rect(0, 0, pl.srcW, pl.srcH)
 		}
-		// AA pad for soft edges.
 		bounds = bounds.Inset(-2).Intersect(full).Intersect(image.Rect(0, 0, pl.srcW, pl.srcH))
 		if bounds.Empty() {
 			if pl.release != nil {
@@ -1699,48 +1925,76 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayers(target render.GPURender
 			}
 			continue
 		}
+		srcWGPU := (*webgpu.TextureView)(pl.srcView.Pointer())
+		var srcTex *webgpu.Texture
+		if srcWGPU != nil {
+			srcTex = srcWGPU.Texture()
+		}
+		if canDual && srcTex != nil {
+			ops = append(ops, dualTexLayerIntoDestOp{
+				srcTex:  srcTex,
+				bounds:  bounds,
+				mode:    pl.mode,
+				opacity: op,
+			})
+			if pl.release != nil {
+				holds = append(holds, pl.release)
+			}
+		} else {
+			fallbacks = append(fallbacks, fallbackLayer{pl: *pl, bounds: bounds, op: op})
+		}
+	}
 
-		drew := false
-		if canDual {
-			srcWGPU := (*webgpu.TextureView)(pl.srcView.Pointer())
-			if srcWGPU != nil {
-				if srcTex := srcWGPU.Texture(); srcTex != nil {
-					outTex, outView, err := dualTexAdvancedBlendViewsRegion(
-						device, queue, cache, dstTex, srcTex, bounds, pl.mode)
-					if err == nil && outView != nil {
-						rc.retainBrushCoverResult(outTex, outView)
-						// Apply layer opacity on the dual-tex result blit.
-						rc.QueueGPUTextureDraw(target,
-							gpucontext.NewTextureView(unsafe.Pointer(outView)), //nolint:gosec
-							float32(bounds.Min.X), float32(bounds.Min.Y),
-							float32(bounds.Dx()), float32(bounds.Dy()),
-							op, vpW, vpH)
-						drew = true
-					}
+	var err error
+	if len(ops) > 0 {
+		if derr := dualTexBlendLayersIntoDest(device, queue, cache, dstTex, tw, th, ops, enc); derr != nil {
+			// Demote to opacity-blit fallback for all ops that had sources.
+			err = derr
+			for i := range layers {
+				pl := &layers[i]
+				if pl.srcView.IsNil() {
+					continue
 				}
+				bounds := pl.damage
+				if bounds.Empty() {
+					bounds = image.Rect(0, 0, pl.srcW, pl.srcH)
+				}
+				bounds = bounds.Inset(-2).Intersect(full).Intersect(image.Rect(0, 0, pl.srcW, pl.srcH))
+				if bounds.Empty() {
+					continue
+				}
+				op := float32(pl.opacity)
+				if op < 0 {
+					op = 0
+				}
+				if op > 1 {
+					op = 1
+				}
+				fallbacks = append(fallbacks, fallbackLayer{pl: *pl, bounds: bounds, op: op})
 			}
 		}
-		if !drew {
-			// Fallback: damage-tight opacity blit (still no PollWait).
-			u0 := float32(bounds.Min.X) / float32(pl.srcW)
-			v0 := float32(bounds.Min.Y) / float32(pl.srcH)
-			u1 := float32(bounds.Max.X) / float32(pl.srcW)
-			v1 := float32(bounds.Max.Y) / float32(pl.srcH)
-			rc.QueueGPUTextureDrawUV(target, pl.srcView,
-				float32(bounds.Min.X), float32(bounds.Min.Y),
-				float32(bounds.Dx()), float32(bounds.Dy()),
-				op, vpW, vpH, u0, v0, u1, v1)
-		}
-		if pl.release != nil {
-			holds = append(holds, pl.release)
-		}
+	}
+
+	for i := range fallbacks {
+		fb := &fallbacks[i]
+		u0 := float32(fb.bounds.Min.X) / float32(fb.pl.srcW)
+		v0 := float32(fb.bounds.Min.Y) / float32(fb.pl.srcH)
+		u1 := float32(fb.bounds.Max.X) / float32(fb.pl.srcW)
+		v1 := float32(fb.bounds.Max.Y) / float32(fb.pl.srcH)
+		rc.QueueGPUTextureDrawUV(target, fb.pl.srcView,
+			float32(fb.bounds.Min.X), float32(fb.bounds.Min.Y),
+			float32(fb.bounds.Dx()), float32(fb.bounds.Dy()),
+			fb.op, vpW, vpH, u0, v0, u1, v1)
+		// release may already be in holds from dual path; only hold if not
+		// already scheduled. Simpler: always leave holds as collected above.
 	}
 	rc.layerReleaseHold = holds
 
-	var err error
 	if rc.PendingCount() > 0 {
 		// pendingAdvancedLayers already nil — no recursion into resolve.
-		err = rc.Flush(target)
+		if ferr := rc.Flush(target); ferr != nil && err == nil {
+			err = ferr
+		}
 	}
 	for _, rel := range rc.layerReleaseHold {
 		if rel != nil {

@@ -120,19 +120,18 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 		opacity:   opacity,
 	}
 
-	// F1 opacity-group fast path: Normal/Copy without mask does not allocate an
-	// isolation RT. Draws go to the current parent surface with alpha multiplied
-	// by layer.opacity (see layerOpacityMul). This removes MULTI_LAYER's
-	// 3× full-window FlushGPUWithView tax while remaining correct for typical
-	// translucent UI cards (single SourceOver fills).
+	// F1 Normal/Copy opacity-group: skip isolation RT and multiply paint alpha
+	// (layerOpacityMul). Matches CSS-style group opacity for non-overlapping
+	// SourceOver UI cards (PKS MULTI_LAYER). Overlapping multi-draw groups that
+	// need Skia SaveLayer isolation should use an advanced blend mode or a future
+	// PushLayerIsolated API — full-window RT×N was ~30fps on this path.
 	if blendMode == BlendNormal || blendMode == BlendCopy {
 		layer.opacityGroup = true
 		c.layerStack.layers = append(c.layerStack.layers, layer)
-		// Keep parent pixmap/active target — no switch.
 		return
 	}
 
-	// Advanced blend / non-Normal: isolation RT (GPU preferred).
+	// Advanced blend / mask path: isolation RT (GPU preferred).
 	pw, ph := c.width, c.height
 	if pw > 0 && ph > 0 {
 		view, release := c.CreateOffscreenTexture(pw, ph)
@@ -188,6 +187,9 @@ func (c *Context) PopLayer() {
 	// F1 opacity-group: nothing to composite — draws already hit the parent
 	// with multiplied alpha.
 	if layer.opacityGroup {
+		if len(c.layerStack.layers) == 0 {
+			c.basePixmap = nil
+		}
 		return
 	}
 
@@ -196,17 +198,44 @@ func (c *Context) PopLayer() {
 	// points at the layer view if FlushGPU is used as a fallback.
 	if !layer.gpuView.IsNil() {
 		if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
-			_ = c.FlushGPUWithView(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH)) //nolint:gosec // bounded
+			// F1: damage-aware flush when we know the dirty rect (scissor on MSAA path).
+			if !layer.fullComposite && !layer.damage.Empty() && layer.gpuW > 0 && layer.gpuH > 0 {
+				const pad = 2
+				d := layer.damage.Inset(-pad).Intersect(image.Rect(0, 0, layer.gpuW, layer.gpuH))
+				if !d.Empty() {
+					_ = c.FlushGPUWithViewDamage(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), d) //nolint:gosec
+				} else {
+					_ = c.FlushGPUWithView(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH)) //nolint:gosec
+				}
+			} else {
+				_ = c.FlushGPUWithView(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH)) //nolint:gosec // bounded
+			}
 		}
 	}
 	// F1: CPU Normal layers already wrote into layer.pixmap via forceCPULayer.
 	// Do NOT FlushGPU here — parent/stage pending ops would be resolved into the
 	// layer pixmap and force full-surface submits every Pop (MULTI_LAYER ~10fps).
 
-	// Get parent pixmap (either previous layer or base)
+	// Get parent pixmap (previous isolation layer or base). Opacity-group
+	// ancestors keep pixmap==nil — walk past them to the real surface.
 	var parentPixmap *Pixmap
 	if len(c.layerStack.layers) > 0 {
-		parentPixmap = c.layerStack.layers[len(c.layerStack.layers)-1].pixmap
+		for i := len(c.layerStack.layers) - 1; i >= 0; i-- {
+			L := c.layerStack.layers[i]
+			if L == nil || L.opacityGroup {
+				continue
+			}
+			if L.pixmap != nil {
+				parentPixmap = L.pixmap
+				break
+			}
+		}
+		if parentPixmap == nil {
+			parentPixmap = c.basePixmap
+			if parentPixmap == nil {
+				parentPixmap = c.pixmap
+			}
+		}
 	} else {
 		// Restore base pixmap
 		parentPixmap = c.basePixmap
@@ -215,7 +244,9 @@ func (c *Context) PopLayer() {
 
 	// Restore parent as the active drawing target BEFORE compositing so
 	// DrawGPUTexture* / composite write into the parent, not the child.
-	c.pixmap = parentPixmap
+	if parentPixmap != nil {
+		c.pixmap = parentPixmap
+	}
 
 	// Apply mask to layer content before compositing (PushMaskLayer).
 	// Prefer GPU R8 modulate composite when layer content is on a GPU RT.
@@ -517,7 +548,9 @@ func (c *Context) compositeLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 }
 
 // layerForceCPUDraw reports whether the current top layer must receive CPU
-// draws into its pixmap. False when a GPU layer RT is active (P0-1).
+// pixmap draws (no GPU RT). Opacity-group layers intentionally keep the parent
+// GPU target — they must NOT force CPU (F1). Callers still mark
+// noteLayerCPUDraw on real CPU writes to isolation layers.
 func (c *Context) layerForceCPUDraw() bool {
 	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
 		return false
@@ -525,6 +558,10 @@ func (c *Context) layerForceCPUDraw() bool {
 	top := c.layerStack.layers[len(c.layerStack.layers)-1]
 	if top == nil {
 		return true
+	}
+	// F1: Normal/Copy opacity-group draws into the parent surface with alpha mul.
+	if top.opacityGroup {
+		return false
 	}
 	if !top.gpuView.IsNil() {
 		return false
@@ -537,6 +574,8 @@ type opacityMulBrush struct {
 	base Brush
 	mul  float64
 }
+
+func (opacityMulBrush) brushMarker() {}
 
 func (b opacityMulBrush) ColorAt(x, y float64) RGBA {
 	if b.base == nil {

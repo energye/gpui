@@ -4,8 +4,10 @@ package gpu
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"image"
+	"math"
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -26,9 +28,16 @@ struct VSOut {
 
 struct Params {
     mode: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
+    // non-zero => dst_tex is tight damage snap; sample with in.uv (0-1).
+    // zero => sample dst with same UV rect as src (full-texture path).
+    dst_tight: u32,
+    // Sample rect for src (and dst when dst_tight==0) in 0-1 texture space.
+    uv_min: vec2<f32>,
+    uv_max: vec2<f32>,
+    opacity: f32,
+    _pad1: f32,
+    _pad2: f32,
+    _pad3: f32,
 }
 
 @group(0) @binding(0) var dst_tex: texture_2d<f32>;
@@ -198,8 +207,13 @@ fn blend_fn(mode: u32, cb: vec3<f32>, cs: vec3<f32>) -> vec3<f32> {
 // W3C Compositing: backdrop b, source s; advanced color B(Cb,Cs)
 @fragment
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
-    let dp = textureSample(dst_tex, samp, in.uv);
-    let sp = textureSample(src_tex, samp, in.uv);
+    let suv = mix(params.uv_min, params.uv_max, in.uv);
+    var duv = suv;
+    if (params.dst_tight != 0u) {
+        duv = in.uv;
+    }
+    let dp = textureSample(dst_tex, samp, duv);
+    let sp = textureSample(src_tex, samp, suv);
     let d = unpremul(dp);
     let s = unpremul(sp);
     let ab = d.a;
@@ -207,7 +221,8 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let bcol = blend_fn(params.mode, d.rgb, s.rgb);
     let co = (1.0 - ab) * s.rgb + (1.0 - as_) * d.rgb + ab * as_ * bcol;
     let ao = as_ + ab * (1.0 - as_);
-    return vec4<f32>(co * ao, ao);
+    let op = params.opacity;
+    return vec4<f32>(co * ao * op, ao * op);
 }
 `
 
@@ -222,6 +237,32 @@ type dualTexBlendCache struct {
 	pipelineBGRA *webgpu.RenderPipeline // BGRA8 target (layers/swapchain)
 	sampler      *webgpu.Sampler
 	uniform      *webgpu.Buffer
+	// F1: pool bounds-sized BGRA temps (out / dest snaps).
+	outPool map[[2]int][]dualTexPooledTex
+	// cool holds temps for 2 frames before reusing (async GPU safety).
+	cool []dualTexCoolItem
+	// fullSnaps: double-buffered window-sized dest snaps (into-dest path).
+	fullSnaps [2]dualTexFullSnap
+	fullSnapI int
+}
+
+type dualTexPooledTex struct {
+	tex  *webgpu.Texture
+	view *webgpu.TextureView
+}
+
+type dualTexCoolItem struct {
+	tex  *webgpu.Texture
+	view *webgpu.TextureView
+	w, h int
+	age  int
+}
+
+// dualTexFullSnap is a reusable full-surface dest snapshot for into-dest blend.
+type dualTexFullSnap struct {
+	tex  *webgpu.Texture
+	view *webgpu.TextureView
+	w, h int
 }
 
 func (c *dualTexBlendCache) release() {
@@ -254,6 +295,37 @@ func (c *dualTexBlendCache) release() {
 	if c.uniform != nil {
 		c.uniform.Release()
 		c.uniform = nil
+	}
+	for _, bucket := range c.outPool {
+		for _, it := range bucket {
+			if it.view != nil {
+				it.view.Release()
+			}
+			if it.tex != nil {
+				it.tex.Release()
+			}
+		}
+	}
+	c.outPool = nil
+	for _, it := range c.cool {
+		if it.view != nil {
+			it.view.Release()
+		}
+		if it.tex != nil {
+			it.tex.Release()
+		}
+	}
+	c.cool = nil
+	for i := range c.fullSnaps {
+		if c.fullSnaps[i].view != nil {
+			c.fullSnaps[i].view.Release()
+			c.fullSnaps[i].view = nil
+		}
+		if c.fullSnaps[i].tex != nil {
+			c.fullSnaps[i].tex.Release()
+			c.fullSnaps[i].tex = nil
+		}
+		c.fullSnaps[i].w, c.fullSnaps[i].h = 0, 0
 	}
 	c.device = nil
 }
@@ -352,7 +424,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 			{
 				Binding:    3,
 				Visibility: types.ShaderStageFragment,
-				Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: 16},
+				Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: 48},
 			},
 		},
 	})
@@ -452,7 +524,7 @@ func (c *dualTexBlendCache) ensure(device *webgpu.Device) error {
 	}
 	uni, err := device.CreateBuffer(&webgpu.BufferDescriptor{
 		Label: "dual_tex_blend_uniform",
-		Size:  16,
+		Size:  48,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
 	if err != nil {
@@ -532,13 +604,7 @@ func dualTexAdvancedBlend(
 	default:
 		modeU = 1
 	}
-	// Uniform: mode + pad (16 bytes)
-	uniData := make([]byte, 16)
-	uniData[0] = byte(modeU)
-	uniData[1] = byte(modeU >> 8)
-	uniData[2] = byte(modeU >> 16)
-	uniData[3] = byte(modeU >> 24)
-	if err := queue.WriteBuffer(cache.uniform, 0, uniData); err != nil {
+	if err := dualTexWriteParams(queue, cache.uniform, modeU, 0, 0, 1, 1, 1, false); err != nil {
 		return nil, fmt.Errorf("dual-tex uniform write: %w", err)
 	}
 
@@ -638,7 +704,7 @@ func dualTexAdvancedBlend(
 			{Binding: 0, TextureView: dstView},
 			{Binding: 1, TextureView: srcView},
 			{Binding: 2, Sampler: sampler},
-			{Binding: 3, Buffer: uniform, Offset: 0, Size: 16},
+			{Binding: 3, Buffer: uniform, Offset: 0, Size: 48},
 		},
 	})
 	if err != nil {
@@ -829,6 +895,32 @@ func dualTexCreateTexFmt(device *webgpu.Device, queue *webgpu.Queue, label strin
 // dualTexAdvancedBlendNoReadback composites src over dst on GPU and returns the
 // result texture/view WITHOUT CPU map/Poll. Caller must keep tex alive until
 // after the frame Flush (see retainBrushCoverResult).
+
+// dualTexWriteParams writes blend mode + UV sample rect into the dual-tex uniform.
+// uv_min/uv_max are in 0-1 texture space; full texture uses (0,0)-(1,1).
+func dualTexWriteParams(queue *webgpu.Queue, uniform *webgpu.Buffer, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) error {
+	if queue == nil || uniform == nil {
+		return fmt.Errorf("dual-tex params: nil queue/uniform")
+	}
+	if opacity < 0 {
+		opacity = 0
+	}
+	if opacity > 1 {
+		opacity = 1
+	}
+	data := make([]byte, 48)
+	binary.LittleEndian.PutUint32(data[0:4], modeU)
+	if dstTight {
+		binary.LittleEndian.PutUint32(data[4:8], 1)
+	}
+	binary.LittleEndian.PutUint32(data[8:12], math.Float32bits(u0))
+	binary.LittleEndian.PutUint32(data[12:16], math.Float32bits(v0))
+	binary.LittleEndian.PutUint32(data[16:20], math.Float32bits(u1))
+	binary.LittleEndian.PutUint32(data[20:24], math.Float32bits(v1))
+	binary.LittleEndian.PutUint32(data[24:28], math.Float32bits(opacity))
+	return queue.WriteBuffer(uniform, 0, data)
+}
+
 func dualTexAdvancedBlendNoReadback(
 	device *webgpu.Device,
 	queue *webgpu.Queue,
@@ -851,13 +943,8 @@ func dualTexAdvancedBlendNoReadback(
 		return nil, nil, err
 	}
 	modeU := dualTexModeU(mode)
-	uniData := make([]byte, 16)
-	uniData[0] = byte(modeU)
-	uniData[1] = byte(modeU >> 8)
-	uniData[2] = byte(modeU >> 16)
-	uniData[3] = byte(modeU >> 24)
-	if err := queue.WriteBuffer(cache.uniform, 0, uniData); err != nil {
-		return nil, nil, fmt.Errorf("dual-tex uniform: %w", err)
+	if err := dualTexWriteParams(queue, cache.uniform, modeU, 0, 0, 1, 1, 1, false); err != nil {
+		return nil, nil, err
 	}
 
 	dstTex, dstView, err := dualTexCreateTex(device, queue, "dual_tex_dst", bw, bh, dstRGBA,
@@ -896,7 +983,7 @@ func dualTexAdvancedBlendNoReadback(
 			{Binding: 0, TextureView: dstView},
 			{Binding: 1, TextureView: srcView},
 			{Binding: 2, Sampler: sampler},
-			{Binding: 3, Buffer: uniform, Offset: 0, Size: 16},
+			{Binding: 3, Buffer: uniform, Offset: 0, Size: 48},
 		},
 	})
 	if err != nil {
@@ -946,9 +1033,403 @@ func dualTexAdvancedBlendNoReadback(
 	return outTex, outView, nil
 }
 
-// dualTexAdvancedBlendViewsRegion copies bounds from dst/src GPU textures into
-// tight BGRA temps, dual-tex blends with the BGRA pipeline, returns out tex/view.
-// Zero CPU readback / PollWait — this is the present-path advanced blend hot path.
+// dualTexAdvancedBlendViewsRegion dual-tex blends bounds of dst/src GPU textures.
+// Prefer dualTexAdvancedBlendViewsRegionSized when full dimensions are known.
+
+func dualTexQuantizeWH(w, h int) (int, int) {
+	// Bucket sizes to limit pool fragmentation (scattered damage rects).
+	const step = 64
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	w = ((w + step - 1) / step) * step
+	h = ((h + step - 1) / step) * step
+	if w > 4096 {
+		w = 4096
+	}
+	if h > 4096 {
+		h = 4096
+	}
+	return w, h
+}
+
+func (c *dualTexBlendCache) getOutBGRA(device *webgpu.Device, queue *webgpu.Queue, w, h int) (*webgpu.Texture, *webgpu.TextureView, error) {
+	if c == nil || device == nil || w <= 0 || h <= 0 {
+		return nil, nil, fmt.Errorf("dual-tex out pool: bad args")
+	}
+	// Requested (w,h) is the logical damage size; allocate quantized bucket.
+	// Callers that copy/sample only use the top-left w×h of the bucket must
+	// pass exact sizes into copy; into-dest uses exact bw/bh for copy size and
+	// only samples 0-1 of the tight content via viewport-mapped draw — so keep
+	// allocation exact for correctness, but still quantize pool keys by
+	// allocating quantized and requiring callers to use exact copy extents.
+	qw, qh := dualTexQuantizeWH(w, h)
+	key := [2]int{qw, qh}
+	c.mu.Lock()
+	if c.outPool != nil {
+		if b := c.outPool[key]; len(b) > 0 {
+			it := b[len(b)-1]
+			c.outPool[key] = b[:len(b)-1]
+			c.mu.Unlock()
+			return it.tex, it.view, nil
+		}
+	}
+	c.mu.Unlock()
+	// COPY_DST required for into-dest snap path (CopyTextureToTexture from frameScratch).
+	usage := types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
+	return dualTexCreateTexFmt(device, queue, "dual_tex_snap_bgra", qw, qh, nil, usage, types.TextureFormatBGRA8Unorm)
+}
+
+// putOutBGRA returns an out texture to the pool after the frame no longer needs it.
+// Currently retainBrushCoverResult owns lifetime until flush; pooling is hooked via
+// release path when hold list is drained — callers may put after QueueGPUTextureDraw flush.
+func (c *dualTexBlendCache) putOutBGRA(tex *webgpu.Texture, view *webgpu.TextureView, w, h int) {
+	if c == nil || tex == nil || view == nil || w <= 0 || h <= 0 {
+		if view != nil {
+			view.Release()
+		}
+		if tex != nil {
+			tex.Release()
+		}
+		return
+	}
+	w, h = dualTexQuantizeWH(w, h)
+	key := [2]int{w, h}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.outPool == nil {
+		c.outPool = make(map[[2]int][]dualTexPooledTex)
+	}
+	b := c.outPool[key]
+	if len(b) >= 8 {
+		view.Release()
+		tex.Release()
+		return
+	}
+	c.outPool[key] = append(b, dualTexPooledTex{tex: tex, view: view})
+}
+
+// dualTexAgeCool advances cooling temps; items age>=2 return to outPool.
+func (c *dualTexBlendCache) dualTexAgeCool() {
+	if c == nil || len(c.cool) == 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	next := c.cool[:0]
+	for _, it := range c.cool {
+		it.age++
+		if it.age >= 1 {
+			if c.outPool == nil {
+				c.outPool = make(map[[2]int][]dualTexPooledTex)
+			}
+			key := [2]int{it.w, it.h}
+			b := c.outPool[key]
+			if len(b) < 8 {
+				c.outPool[key] = append(b, dualTexPooledTex{tex: it.tex, view: it.view})
+				continue
+			}
+			if it.view != nil {
+				it.view.Release()
+			}
+			if it.tex != nil {
+				it.tex.Release()
+			}
+			continue
+		}
+		next = append(next, it)
+	}
+	c.cool = next
+}
+
+func (c *dualTexBlendCache) coolTex(tex *webgpu.Texture, view *webgpu.TextureView, w, h int) {
+	if c == nil || tex == nil || view == nil {
+		if view != nil {
+			view.Release()
+		}
+		if tex != nil {
+			tex.Release()
+		}
+		return
+	}
+	w, h = dualTexQuantizeWH(w, h)
+	c.mu.Lock()
+	// Hard cap cooling set to avoid VRAM OOM when damage rects thrash.
+	const maxCool = 8
+	for len(c.cool) >= maxCool {
+		old := c.cool[0]
+		c.cool = c.cool[1:]
+		if old.view != nil {
+			old.view.Release()
+		}
+		if old.tex != nil {
+			old.tex.Release()
+		}
+	}
+	c.cool = append(c.cool, dualTexCoolItem{tex: tex, view: view, w: w, h: h, age: 0})
+	c.mu.Unlock()
+}
+
+// dualTexLayerIntoDestOp describes one deferred advanced layer to blend into dst.
+type dualTexLayerIntoDestOp struct {
+	srcTex  *webgpu.Texture
+	bounds  image.Rectangle
+	mode    render.BlendMode
+	opacity float32
+}
+
+// dualTexBlendLayersIntoDest composites advanced layers into dstTex (frameScratch)
+// with a single command buffer: per layer, snap dest region → dual-tex write back
+// with LoadOpLoad + scissor. Eliminates per-layer Submit and out+blit.
+
+func (c *dualTexBlendCache) ensureFullSnap(device *webgpu.Device, queue *webgpu.Queue, w, h int) (*webgpu.Texture, *webgpu.TextureView, error) {
+	if c == nil || device == nil || w <= 0 || h <= 0 {
+		return nil, nil, fmt.Errorf("full snap: bad args")
+	}
+	c.mu.Lock()
+	idx := c.fullSnapI % 2
+	c.fullSnapI++
+	fs := c.fullSnaps[idx]
+	c.mu.Unlock()
+	if fs.tex != nil && fs.w == w && fs.h == h && fs.view != nil {
+		return fs.tex, fs.view, nil
+	}
+	if fs.view != nil {
+		fs.view.Release()
+	}
+	if fs.tex != nil {
+		fs.tex.Release()
+	}
+	usage := types.TextureUsageCopyDst | types.TextureUsageTextureBinding | types.TextureUsageCopySrc
+	tex, view, err := dualTexCreateTexFmt(device, queue, "dual_tex_full_snap", w, h, nil, usage, types.TextureFormatBGRA8Unorm)
+	if err != nil {
+		return nil, nil, err
+	}
+	c.mu.Lock()
+	c.fullSnaps[idx] = dualTexFullSnap{tex: tex, view: view, w: w, h: h}
+	c.mu.Unlock()
+	return tex, view, nil
+}
+
+// externalEnc, when non-nil, records into that encoder and does NOT submit
+// (caller owns Finish/Submit). When nil, creates a private encoder and submits.
+func dualTexBlendLayersIntoDest(
+	device *webgpu.Device,
+	queue *webgpu.Queue,
+	cache *dualTexBlendCache,
+	dstTex *webgpu.Texture,
+	dstW, dstH int,
+	ops []dualTexLayerIntoDestOp,
+	externalEnc *webgpu.CommandEncoder,
+) error {
+	if device == nil || queue == nil || cache == nil || dstTex == nil || len(ops) == 0 {
+		return fmt.Errorf("dual-tex into-dest: bad args")
+	}
+	if err := cache.ensure(device); err != nil {
+		return err
+	}
+	if cache.pipelineBGRA == nil {
+		return fmt.Errorf("dual-tex into-dest: no BGRA pipeline")
+	}
+	cache.dualTexAgeCool()
+
+	dstView, err := device.CreateTextureView(dstTex, &webgpu.TextureViewDescriptor{
+		Label: "dual_tex_into_dst", Format: types.TextureFormatBGRA8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
+	if err != nil {
+		return err
+	}
+	defer dstView.Release()
+
+	// Filter valid ops first.
+	type prepared struct {
+		op     dualTexLayerIntoDestOp
+		bounds image.Rectangle
+		bw, bh int
+	}
+	full := image.Rect(0, 0, dstW, dstH)
+	prep := make([]prepared, 0, len(ops))
+	for i := range ops {
+		op := ops[i]
+		if op.srcTex == nil {
+			continue
+		}
+		b := op.bounds.Intersect(full)
+		bw, bh := b.Dx(), b.Dy()
+		if bw <= 0 || bh <= 0 {
+			continue
+		}
+		prep = append(prep, prepared{op: op, bounds: b, bw: bw, bh: bh})
+	}
+	if len(prep) == 0 {
+		return nil
+	}
+
+	// Uniform slots: 256-byte stride (WebGPU min dynamic/fixed offset alignment).
+	const uniStride = 256
+	uniSize := uint64(uniStride * len(prep))
+	uniBuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "dual_tex_into_uni_slots",
+		Size:  uniSize,
+		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		return err
+	}
+	defer uniBuf.Release()
+
+	ownEnc := false
+	var enc *webgpu.CommandEncoder
+	if externalEnc != nil {
+		enc = externalEnc
+	} else {
+		var err error
+		enc, err = device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "dual_tex_into_dest_enc"})
+		if err != nil {
+			return err
+		}
+		ownEnc = true
+	}
+
+	cache.mu.Lock()
+	bgl := cache.bgl
+	pipeline := cache.pipelineBGRA
+	sampler := cache.sampler
+	cache.mu.Unlock()
+
+	var srcViews []*webgpu.TextureView
+	cleanup := func() {
+		for _, sv := range srcViews {
+			if sv != nil {
+				sv.Release()
+			}
+		}
+	}
+
+	for i := range prep {
+		p := &prep[i]
+		// Full-surface dest snap (double-buffered). Avoids per-damage VRAM explosion.
+		snapTex, snapView, err := cache.ensureFullSnap(device, queue, dstW, dstH)
+		if err != nil {
+			cleanup()
+			return err
+		}
+		// Copy only damage region into the same origin on the snap so UV rects match.
+		enc.CopyTextureToTexture(dstTex, snapTex, []webgpu.TextureCopy{{
+			Source: webgpu.ImageCopyTexture{
+				Texture: dstTex, MipLevel: 0,
+				Origin: webgpu.Origin3D{X: uint32(p.bounds.Min.X), Y: uint32(p.bounds.Min.Y), Z: 0}, //nolint:gosec
+				Aspect: types.TextureAspectAll,
+			},
+			Destination: webgpu.ImageCopyTexture{
+				Texture: snapTex, MipLevel: 0,
+				Origin: webgpu.Origin3D{X: uint32(p.bounds.Min.X), Y: uint32(p.bounds.Min.Y), Z: 0}, //nolint:gosec
+				Aspect: types.TextureAspectAll,
+			},
+			Size: webgpu.Extent3D{Width: uint32(p.bw), Height: uint32(p.bh), DepthOrArrayLayers: 1}, //nolint:gosec
+		}})
+
+		srcView, err := device.CreateTextureView(p.op.srcTex, &webgpu.TextureViewDescriptor{
+			Label: "dual_tex_into_src", Format: types.TextureFormatBGRA8Unorm,
+			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+		})
+		if err != nil {
+			cleanup()
+			return err
+		}
+		srcViews = append(srcViews, srcView)
+
+		u0 := float32(p.bounds.Min.X) / float32(dstW)
+		v0 := float32(p.bounds.Min.Y) / float32(dstH)
+		u1 := float32(p.bounds.Max.X) / float32(dstW)
+		v1 := float32(p.bounds.Max.Y) / float32(dstH)
+		opac := p.op.opacity
+		if opac < 0 {
+			opac = 0
+		}
+		if opac > 1 {
+			opac = 1
+		}
+		modeU := dualTexModeU(p.op.mode)
+		slot := make([]byte, uniStride)
+		binary.LittleEndian.PutUint32(slot[0:4], modeU)
+		binary.LittleEndian.PutUint32(slot[4:8], 0) // full snap: same UV rect for dst+src
+		binary.LittleEndian.PutUint32(slot[8:12], math.Float32bits(u0))
+		binary.LittleEndian.PutUint32(slot[12:16], math.Float32bits(v0))
+		binary.LittleEndian.PutUint32(slot[16:20], math.Float32bits(u1))
+		binary.LittleEndian.PutUint32(slot[20:24], math.Float32bits(v1))
+		binary.LittleEndian.PutUint32(slot[24:28], math.Float32bits(opac))
+		if err := queue.WriteBuffer(uniBuf, uint64(i*uniStride), slot); err != nil { //nolint:gosec
+			cleanup()
+			return err
+		}
+
+		bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+			Label:  "dual_tex_into_bg",
+			Layout: bgl,
+			Entries: []webgpu.BindGroupEntry{
+				{Binding: 0, TextureView: snapView},
+				{Binding: 1, TextureView: srcView},
+				{Binding: 2, Sampler: sampler},
+				{Binding: 3, Buffer: uniBuf, Offset: uint64(i * uniStride), Size: 48}, //nolint:gosec
+			},
+		})
+		if err != nil {
+			cleanup()
+			return err
+		}
+
+		rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+			Label: "dual_tex_into_pass",
+			ColorAttachments: []webgpu.RenderPassColorAttachment{{
+				View:    dstView,
+				LoadOp:  types.LoadOpLoad,
+				StoreOp: types.StoreOpStore,
+			}},
+		})
+		if err != nil {
+			bg.Release()
+			cleanup()
+			return err
+		}
+		rp.SetPipeline(pipeline)
+		rp.SetBindGroup(0, bg, nil)
+		rp.SetViewport(float32(p.bounds.Min.X), float32(p.bounds.Min.Y), float32(p.bw), float32(p.bh), 0, 1)
+		rp.SetScissorRect(uint32(p.bounds.Min.X), uint32(p.bounds.Min.Y), uint32(p.bw), uint32(p.bh)) //nolint:gosec
+		rp.Draw(3, 1, 0, 0)
+		_ = rp.End()
+		bg.Release()
+	}
+
+	if ownEnc {
+		cmd, err := enc.Finish()
+		if err != nil {
+			cleanup()
+			return err
+		}
+		defer cmd.Release()
+		if _, err := queue.Submit(cmd); err != nil {
+			cleanup()
+			return err
+		}
+	}
+	// Full snaps are owned by cache (double-buffer); only free src views.
+	// When externalEnc is used, caller must keep srcViews alive until submit —
+	// we still release views here only after ownEnc submit; for external, hold
+	// views on cache cool list briefly via srcViews release after record is OK
+	// if textures (layer RTs) stay alive via layerReleaseHold until after submit.
+	for _, sv := range srcViews {
+		if sv != nil {
+			sv.Release()
+		}
+	}
+	return nil
+}
+
 func dualTexAdvancedBlendViewsRegion(
 	device *webgpu.Device,
 	queue *webgpu.Queue,
@@ -956,6 +1437,22 @@ func dualTexAdvancedBlendViewsRegion(
 	dstTex, srcTex *webgpu.Texture,
 	bounds image.Rectangle,
 	mode render.BlendMode,
+) (*webgpu.Texture, *webgpu.TextureView, error) {
+	// Infer full size lower-bound from bounds (correct when damage includes bottom-right,
+	// or when bounds is the full surface). Interior-only damage should use Sized.
+	return dualTexAdvancedBlendViewsRegionSized(device, queue, cache, dstTex, srcTex, bounds, mode, bounds.Max.X, bounds.Max.Y)
+}
+
+// dualTexAdvancedBlendViewsRegionSized is the UV-rect dual-tex path with explicit
+// full texture dimensions (required for correct partial-damage UVs).
+func dualTexAdvancedBlendViewsRegionSized(
+	device *webgpu.Device,
+	queue *webgpu.Queue,
+	cache *dualTexBlendCache,
+	dstTex, srcTex *webgpu.Texture,
+	bounds image.Rectangle,
+	mode render.BlendMode,
+	dstW, dstH int,
 ) (*webgpu.Texture, *webgpu.TextureView, error) {
 	if device == nil || queue == nil || cache == nil || dstTex == nil || srcTex == nil {
 		return nil, nil, fmt.Errorf("dual-tex views: nil args")
@@ -970,58 +1467,55 @@ func dualTexAdvancedBlendViewsRegion(
 	if cache.pipelineBGRA == nil {
 		return nil, nil, fmt.Errorf("dual-tex views: no BGRA pipeline")
 	}
+	if dstW <= 0 || dstH <= 0 {
+		// Infer a lower bound; correct for full-surface damage.
+		dstW = bounds.Max.X
+		dstH = bounds.Max.Y
+		if dstW < bw {
+			dstW = bw
+		}
+		if dstH < bh {
+			dstH = bh
+		}
+	}
+	full := image.Rect(0, 0, dstW, dstH)
+	bounds = bounds.Intersect(full)
+	bw, bh = bounds.Dx(), bounds.Dy()
+	if bw <= 0 || bh <= 0 {
+		return nil, nil, fmt.Errorf("dual-tex views: empty bounds after intersect")
+	}
 
-	usageTight := types.TextureUsageTextureBinding | types.TextureUsageCopyDst
-	dstTight, dstTightView, err := dualTexCreateTexFmt(device, queue, "dual_tex_dst_bgra", bw, bh, nil, usageTight, types.TextureFormatBGRA8Unorm)
+	dstView, err := device.CreateTextureView(dstTex, &webgpu.TextureViewDescriptor{
+		Label: "dual_tex_dst_full", Format: types.TextureFormatBGRA8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-	defer dstTightView.Release()
-	defer dstTight.Release()
-	srcTight, srcTightView, err := dualTexCreateTexFmt(device, queue, "dual_tex_src_bgra", bw, bh, nil, usageTight, types.TextureFormatBGRA8Unorm)
+	defer dstView.Release()
+	srcView, err := device.CreateTextureView(srcTex, &webgpu.TextureViewDescriptor{
+		Label: "dual_tex_src_full", Format: types.TextureFormatBGRA8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-	defer srcTightView.Release()
-	defer srcTight.Release()
+	defer srcView.Release()
 
-	outUsage := types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageTextureBinding
-	outTex, outView, err := dualTexCreateTexFmt(device, queue, "dual_tex_out_bgra", bw, bh, nil, outUsage, types.TextureFormatBGRA8Unorm)
+	outTex, outView, err := cache.getOutBGRA(device, queue, bw, bh)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "dual_tex_views_bgra_enc"})
-	if err != nil {
-		outView.Release()
-		outTex.Release()
-		return nil, nil, err
-	}
-	copyRegion := func(src, dst *webgpu.Texture) {
-		enc.CopyTextureToTexture(src, dst, []webgpu.TextureCopy{{
-			Source: webgpu.ImageCopyTexture{
-				Texture: src, MipLevel: 0,
-				Origin: webgpu.Origin3D{X: uint32(bounds.Min.X), Y: uint32(bounds.Min.Y), Z: 0}, //nolint:gosec
-				Aspect: types.TextureAspectAll,
-			},
-			Destination: webgpu.ImageCopyTexture{
-				Texture: dst, MipLevel: 0,
-				Origin: webgpu.Origin3D{},
-				Aspect: types.TextureAspectAll,
-			},
-			Size: webgpu.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
-		}})
-	}
-	copyRegion(dstTex, dstTight)
-	copyRegion(srcTex, srcTight)
-
+	u0 := float32(bounds.Min.X) / float32(dstW)
+	v0 := float32(bounds.Min.Y) / float32(dstH)
+	u1 := float32(bounds.Max.X) / float32(dstW)
+	v1 := float32(bounds.Max.Y) / float32(dstH)
+	// WGSL fullscreen triangle uses v flipped relative to texture origin in some
+	// paths; keep top-left origin matching CopyTextureToTexture previous behavior
+	// (bounds in pixel space, UV y down). textureSample uses top-left 0,0.
 	modeU := dualTexModeU(mode)
-	uniData := make([]byte, 16)
-	uniData[0] = byte(modeU)
-	uniData[1] = byte(modeU >> 8)
-	uniData[2] = byte(modeU >> 16)
-	uniData[3] = byte(modeU >> 24)
-	if err := queue.WriteBuffer(cache.uniform, 0, uniData); err != nil {
+	if err := dualTexWriteParams(queue, cache.uniform, modeU, u0, v0, u1, v1, 1, false); err != nil {
 		outView.Release()
 		outTex.Release()
 		return nil, nil, err
@@ -1038,10 +1532,10 @@ func dualTexAdvancedBlendViewsRegion(
 		Label:  "dual_tex_views_bgra_bg",
 		Layout: bgl,
 		Entries: []webgpu.BindGroupEntry{
-			{Binding: 0, TextureView: dstTightView},
-			{Binding: 1, TextureView: srcTightView},
+			{Binding: 0, TextureView: dstView},
+			{Binding: 1, TextureView: srcView},
 			{Binding: 2, Sampler: sampler},
-			{Binding: 3, Buffer: uniform, Offset: 0, Size: 16},
+			{Binding: 3, Buffer: uniform, Offset: 0, Size: 48},
 		},
 	})
 	if err != nil {
@@ -1051,6 +1545,12 @@ func dualTexAdvancedBlendViewsRegion(
 	}
 	defer bg.Release()
 
+	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "dual_tex_views_bgra_enc"})
+	if err != nil {
+		outView.Release()
+		outTex.Release()
+		return nil, nil, err
+	}
 	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
 		Label: "dual_tex_views_bgra_pass",
 		ColorAttachments: []webgpu.RenderPassColorAttachment{{

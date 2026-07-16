@@ -9,28 +9,33 @@ func TestPushPopLayer(t *testing.T) {
 	dc := NewContext(100, 100)
 	originalPixmap := dc.pixmap
 
-	dc.PushLayer(BlendNormal, 1.0)
-
-	if dc.pixmap == originalPixmap {
-		t.Error("PushLayer should create a new pixmap")
+	// Normal is F1 opacity-group: no isolation pixmap switch.
+	dc.PushLayer(BlendNormal, 0.5)
+	if dc.layerStack == nil || len(dc.layerStack.layers) != 1 {
+		t.Fatalf("Normal PushLayer should push opacity-group, layers=%v", dc.layerStack)
 	}
-	if dc.layerStack == nil {
-		t.Error("PushLayer should initialize layer stack")
+	if !dc.layerStack.layers[0].opacityGroup {
+		t.Error("Normal PushLayer should be opacity-group")
 	}
-	if len(dc.layerStack.layers) != 1 {
-		t.Errorf("Expected 1 layer, got %d", len(dc.layerStack.layers))
-	}
-	if dc.basePixmap == nil {
-		t.Error("PushLayer should save base pixmap")
-	}
-
-	dc.PopLayer()
-
 	if dc.pixmap != originalPixmap {
-		t.Error("PopLayer should restore original pixmap")
+		t.Error("opacity-group should keep parent pixmap")
 	}
+	dc.PopLayer()
 	if len(dc.layerStack.layers) != 0 {
 		t.Errorf("Expected 0 layers after pop, got %d", len(dc.layerStack.layers))
+	}
+
+	// Advanced blend allocates isolation surface.
+	dc.PushLayer(BlendMultiply, 1.0)
+	if dc.pixmap == originalPixmap {
+		t.Error("isolated PushLayer should create a new pixmap")
+	}
+	if dc.basePixmap == nil {
+		t.Error("isolated PushLayer should save base pixmap")
+	}
+	dc.PopLayer()
+	if dc.pixmap != originalPixmap {
+		t.Error("PopLayer should restore original pixmap")
 	}
 	if dc.basePixmap != nil {
 		t.Error("PopLayer should clear base pixmap")
@@ -40,31 +45,25 @@ func TestPushPopLayer(t *testing.T) {
 // TestNestedLayers tests nested push/pop operations.
 func TestNestedLayers(t *testing.T) {
 	dc := NewContext(100, 100)
+	base := dc.pixmap
 
-	dc.PushLayer(BlendNormal, 1.0)
-	layer1Pixmap := dc.pixmap
-
+	// Outer Normal = opacity-group (same pixmap); inner Multiply = isolation.
+	dc.PushLayer(BlendNormal, 0.8)
 	dc.PushLayer(BlendMultiply, 0.5)
-	layer2Pixmap := dc.pixmap
-
-	if layer1Pixmap == layer2Pixmap {
-		t.Error("Nested layers should have different pixmaps")
+	if dc.pixmap == base {
+		t.Error("isolated nested layer should switch pixmap")
 	}
 	if len(dc.layerStack.layers) != 2 {
 		t.Errorf("Expected 2 layers, got %d", len(dc.layerStack.layers))
 	}
-
 	dc.PopLayer()
-
-	if dc.pixmap != layer1Pixmap {
-		t.Error("PopLayer should restore to layer 1 pixmap")
+	if dc.pixmap != base {
+		t.Error("after popping isolation, opacity-group should keep base pixmap")
 	}
 	if len(dc.layerStack.layers) != 1 {
 		t.Errorf("Expected 1 layer after first pop, got %d", len(dc.layerStack.layers))
 	}
-
 	dc.PopLayer()
-
 	if len(dc.layerStack.layers) != 0 {
 		t.Errorf("Expected 0 layers after second pop, got %d", len(dc.layerStack.layers))
 	}
@@ -75,7 +74,8 @@ func TestLayerCompositing(t *testing.T) {
 	dc := NewContext(10, 10)
 	dc.ClearWithColor(White)
 
-	dc.PushLayer(BlendNormal, 1.0)
+	// Use isolation blend so SetPixel writes a true layer surface.
+	dc.PushLayer(BlendMultiply, 1.0)
 	dc.SetPixel(5, 5, RGBA{R: 1, G: 0, B: 0, A: 1})
 
 	layerPixel := dc.pixmap.GetPixel(5, 5)
@@ -127,16 +127,17 @@ func TestLayerOpacityClamping(t *testing.T) {
 	_ = dc.FlushGPU()
 }
 
-// TestLayerClearTransparent tests that new layers start transparent.
+// TestLayerClearTransparent tests that isolated layers start transparent.
+// Normal/Copy use F1 opacity-group (no RT); advanced blend allocates isolation.
 func TestLayerClearTransparent(t *testing.T) {
 	dc := NewContext(10, 10)
 	dc.ClearWithColor(White)
 
-	dc.PushLayer(BlendNormal, 1.0)
+	dc.PushLayer(BlendMultiply, 1.0)
 
 	pixel := dc.pixmap.GetPixel(5, 5)
 	if pixel.A != 0 {
-		t.Errorf("New layer should be transparent, got alpha %f", pixel.A)
+		t.Errorf("New isolated layer should be transparent, got alpha %f", pixel.A)
 	}
 
 	dc.PopLayer()
@@ -147,7 +148,7 @@ func TestMultipleLayerCycles(t *testing.T) {
 	dc := NewContext(50, 50)
 
 	for i := 0; i < 5; i++ {
-		dc.PushLayer(BlendNormal, 1.0)
+		dc.PushLayer(BlendMultiply, 1.0)
 		dc.SetPixel(25, 25, RGBA{R: float64(i) / 5.0, G: 0, B: 0, A: 1})
 		dc.PopLayer()
 	}
