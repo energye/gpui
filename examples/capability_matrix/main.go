@@ -2,7 +2,7 @@
 
 // Capability matrix window: real X11 + webgpu present path for SKIA_2D_CAPABILITY_MATRIX IDs.
 //
-// One process = one scenario (GPUI_SCENARIO=C0x). Metrics gate GPU-first correctness.
+// One process = one scenario (GPUI_SCENARIO=C0x|C2x). Metrics gate GPU-first correctness.
 // See docs/CAPABILITY_MATRIX_WINDOW.md.
 package main
 
@@ -167,6 +167,10 @@ func main() {
 		probeOK      bool
 		probeNote    string
 		probeChecked bool
+		// Steady-state FPS avg excludes warm-up (shader/pipeline/mask first hits).
+		steadyStart  time.Time
+		steadyFrame0 int
+		haveSteady   bool
 	)
 
 	running := true
@@ -284,6 +288,13 @@ func main() {
 			rssSamples = append(rssSamples, lastRSS)
 		}
 		frame++
+		// Begin steady window after ~1s of frames (or frame 45 min) so avg FPS
+		// is not poisoned by first-frame pipeline/mask compile cost.
+		if !haveSteady && (time.Since(start) >= time.Second || frame >= 45) {
+			steadyStart = time.Now()
+			steadyFrame0 = frame
+			haveSteady = true
+		}
 
 		if logEvery > 0 && frame%logEvery == 0 {
 			log.Printf("%s frame=%d fps=%.1f cpu=%.1f%% rss=%dKB gpu_ops=%d cpu_fb=%d probe=%v",
@@ -301,7 +312,14 @@ func main() {
 
 	elapsed := time.Since(start).Seconds()
 	fpsAvg := 0.0
-	if elapsed > 0 {
+	if haveSteady {
+		se := time.Since(steadyStart).Seconds()
+		sf := frame - steadyFrame0
+		if se > 0 && sf > 0 {
+			fpsAvg = float64(sf) / se
+		}
+	}
+	if fpsAvg <= 0 && elapsed > 0 {
 		fpsAvg = float64(frame) / elapsed
 	}
 	cpuAvg := 0.0

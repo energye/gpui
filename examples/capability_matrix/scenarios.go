@@ -130,6 +130,32 @@ func allScenarios() map[string]scenarioSpec {
 			MatrixIDs: "S.03,T.01,P.01,G.01,C.01,D.01,L.03,I.01,X.02,V.01", DrawKind: "composite",
 			Expect: "渐变底+变换块+文本+网格+贴图同屏，稳定 present",
 		},
+		// --- P2 Wave-A: remaining high-value MatrixIDs ---
+		"C21": {
+			ID: "C21", Name: "PorterDuffBoard", NameCN: "PorterDuff 混合板",
+			MatrixIDs: "B.02", DrawKind: "porterduff",
+			Expect: "色带底上 Clear/Copy/Plus/DstOut/Xor/Modulate 等 PD 色块矩阵，模式差异可见",
+		},
+		"C22": {
+			ID: "C22", Name: "ClipPathDiff", NameCN: "路径/Difference 裁剪",
+			MatrixIDs: "C.03,C.06,C.04", DrawKind: "clipdiff",
+			Expect: "条纹底：圆形 path clip 内动画 + 矩形区 Difference 镂空孔洞",
+		},
+		"C23": {
+			ID: "C23", Name: "GradientTileLocal", NameCN: "渐变 tile/局部矩阵",
+			MatrixIDs: "D.04,D.06", DrawKind: "gradtile",
+			Expect: "Repeat/Reflect 线性渐变条 + 旋转缩放 pattern 局部矩阵",
+		},
+		"C24": {
+			ID: "C24", Name: "ImageAdvanced", NameCN: "图高级采样",
+			MatrixIDs: "I.04,I.05,I.06,I.07", DrawKind: "imageadv",
+			Expect: "mip 缩小 / 半透明 / 旋转贴图 / 九宫格拉伸同屏",
+		},
+		"C25": {
+			ID: "C25", Name: "TextShapeEmoji", NameCN: "文本 shaping/混排",
+			MatrixIDs: "X.03,X.09,X.10,X.11", DrawKind: "textadv",
+			Expect: "Latin+CJK MultiFace 混排、重复串 atlas 复用；emoji 若无色字体会 tofu 仍应稳定 present",
+		},
 	}
 }
 
@@ -140,7 +166,7 @@ func applyScenario(id string) (scenarioSpec, bool) {
 	}
 	s, ok := allScenarios()[id]
 	if !ok {
-		log.Printf("unknown GPUI_SCENARIO=%q — use C01..C20", id)
+		log.Printf("unknown GPUI_SCENARIO=%q — use C01..C25", id)
 		return scenarioSpec{}, false
 	}
 	return s, true
@@ -150,5 +176,6 @@ func scenarioListOrdered() []string {
 	return []string{
 		"C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
 		"C11", "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20",
+		"C21", "C22", "C23", "C24", "C25",
 	}
 }

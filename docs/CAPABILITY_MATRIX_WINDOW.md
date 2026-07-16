@@ -1,6 +1,6 @@
 # 能力矩阵窗口验收（examples/capability_matrix）
 
-> 版本：1.2 | 日期：2026-07-16  
+> 版本：1.6 | 日期：2026-07-16  
 > 真源：`docs/SKIA_2D_CAPABILITY_MATRIX.md`（Skia 2D 语义 ID）  
 > 实现：`examples/capability_matrix/`（真实 X11 窗口 + webgpu → render 呈现链）
 
@@ -36,9 +36,9 @@
 
 | 层级 | 含义 | 当前（2026-07-16） |
 |------|------|-------------------|
-| **L0** | 高频窗口基线 C01–C20 | ✅ 20/20 PASS |
+| **L0** | 高频窗口基线 C01–C20 | ✅ 20/20 PASS（final `/tmp/cap_l0_final`） |
 | **L1** | 语义硬缺口关闭（工作项 1） | ✅ P1 B.07/B.06 关闭 |
-| **L2** | 窗口 ID 覆盖扩展 C21+（工作项 3） | ⬜ 待做 |
+| **L2** | 窗口 ID 覆盖扩展 C21+（工作项 3） | ✅ Wave-A C21–C25 PASS |
 | **L3** | 质量全管线（工作项 4） | ⬜ 待做 |
 | **L4** | 像素/性能对标 Skia（工作项 5） | ⬜ 待做 |
 | **L5 画布 100%** | L1+L2+L3 绿 + 范围声明排除 R.02 | ⬜ 目标态 |
@@ -177,6 +177,149 @@ scenario=C20 status=PASS fps_ema=64.2 fps_avg=61.5 cpu=16 cpu_fb=0 gpu_ops=15776
 
 ---
 
+
+## 7.1 L0 回归复跑（GPU_FIRST 后 · 2026-07-16）
+
+环境：Linux X11 `DISPLAY=:1`，`/tmp/cap_l0_bin`，每场景 8s。
+
+### 7.1.1 reg2（较早一轮）
+
+| 结果 | 说明 |
+|------|------|
+| **pass=18 fail=2 total=20** | 证据目录 `/tmp/cap_l0_reg2/` |
+| **cpu_fb** | **全部 0**（无 silent CPU；GPU_FIRST 未回退） |
+| **FAIL** | C07 可分离混合 `fps_ema=52.9`；C17 高级混合 `fps_ema=52.6`（均 `want>=55`，**probe=true / cpu_fb=0**） |
+| **原因归类** | 帧率预算门禁，非正确性/GPU-first 缺口；混合 RT 每帧 `ExportImageBuf`+高级 blend 单核 CPU 偏高 |
+| **PASS 样例** | C01–C06、C08–C16、C18–C20 稳态约 60fps |
+
+### 7.1.2 reg3（再次全量 C01–C20 · 2026-07-16 18:42）
+
+| 结果 | 说明 |
+|------|------|
+| **pass=19 fail=1 total=20** | 证据目录 `/tmp/cap_l0_reg3/` |
+| **cpu_fb** | **全部 0**（GPU_FIRST 正确性无回归） |
+| **probe_ok** | **全部 true** |
+| **FAIL** | 仅 **C07** 可分离混合：`fps_ema=53.3` want≥55；`fps_avg=55.9`；`cpu≈107%`；`gpu_ops=8940`；`probe=true` |
+| **C17** | **PASS**（临界）：`fps_ema=55.1`；`fps_avg=52.3`；`cpu≈97%` — 较 reg2 改善/抖动，仍属高压混合场景 |
+| **结论** | **GPU_FIRST 未破坏调用链/回退门禁**；剩余是 C07 热路径性能（`effectRT.publish` → 每帧 `ExportImageBuf` GPU→CPU readback） |
+
+reg3 单行摘要：
+
+```
+scenario=C01 status=PASS fps_ema=62.4 fps_avg=61.3 cpu=9 cpu_fb=0 gpu_ops=8838 probe=true reason=
+scenario=C02 status=PASS fps_ema=61.2 fps_avg=61.0 cpu=9 cpu_fb=0 gpu_ops=8313 probe=true reason=
+scenario=C03 status=PASS fps_ema=61.3 fps_avg=60.7 cpu=10 cpu_fb=0 gpu_ops=11178 probe=true reason=
+scenario=C04 status=PASS fps_ema=61.2 fps_avg=60.8 cpu=10 cpu_fb=0 gpu_ops=7792 probe=true reason=
+scenario=C05 status=PASS fps_ema=62.0 fps_avg=61.5 cpu=9 cpu_fb=0 gpu_ops=16728 probe=true reason=
+scenario=C06 status=PASS fps_ema=97.8 fps_avg=61.4 cpu=23 cpu_fb=0 gpu_ops=11760 probe=true reason=
+scenario=C07 status=FAIL fps_ema=53.3 fps_avg=55.9 cpu=107 cpu_fb=0 gpu_ops=8940 probe=true reason=fps_low_steady ema=53.3 want>=55
+scenario=C08 status=PASS fps_ema=63.3 fps_avg=61.1 cpu=56 cpu_fb=0 gpu_ops=9272 probe=true reason=
+scenario=C09 status=PASS fps_ema=61.7 fps_avg=60.9 cpu=9 cpu_fb=0 gpu_ops=11712 probe=true reason=
+scenario=C10 status=PASS fps_ema=63.7 fps_avg=61.0 cpu=10 cpu_fb=0 gpu_ops=13636 probe=true reason=
+scenario=C11 status=PASS fps_ema=476.6 fps_avg=59.3 cpu=76 cpu_fb=0 gpu_ops=10810 probe=true reason=
+scenario=C12 status=PASS fps_ema=60.4 fps_avg=61.0 cpu=17 cpu_fb=0 gpu_ops=7808 probe=true reason=
+scenario=C13 status=PASS fps_ema=61.5 fps_avg=61.2 cpu=9 cpu_fb=0 gpu_ops=10290 probe=true reason=
+scenario=C14 status=PASS fps_ema=63.2 fps_avg=61.1 cpu=64 cpu_fb=0 gpu_ops=9272 probe=true reason=
+scenario=C15 status=PASS fps_ema=61.9 fps_avg=61.1 cpu=79 cpu_fb=0 gpu_ops=12200 probe=true reason=
+scenario=C16 status=PASS fps_ema=61.9 fps_avg=61.7 cpu=8 cpu_fb=0 gpu_ops=8892 probe=true reason=
+scenario=C17 status=PASS fps_ema=55.1 fps_avg=52.3 cpu=97 cpu_fb=0 gpu_ops=6225 probe=true reason=
+scenario=C18 status=PASS fps_ema=523.8 fps_avg=57.0 cpu=69 cpu_fb=0 gpu_ops=5863 probe=true reason=
+scenario=C19 status=PASS fps_ema=61.1 fps_avg=60.7 cpu=11 cpu_fb=0 gpu_ops=11664 probe=true reason=
+scenario=C20 status=PASS fps_ema=62.5 fps_avg=61.4 cpu=15 cpu_fb=0 gpu_ops=15744 probe=true reason=
+```
+
+复跑命令：
+
+```bash
+export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH DISPLAY=:1
+go build -o /tmp/cap_l0_bin ./examples/capability_matrix
+for id in C01 C02 C03 C04 C05 C06 C07 C08 C09 C10 C11 C12 C13 C14 C15 C16 C17 C18 C19 C20; do
+  GPUI_SCENARIO=$id GPUI_ANIM_SECONDS=8 GPUI_RESULT_FILE=/tmp/cap_l0_reg3/${id}.json /tmp/cap_l0_bin
+done
+```
+
+
+### 7.1.3 final（视觉修复后 · 2026-07-16 19:00）
+
+| 结果 | 说明 |
+|------|------|
+| **pass=20 fail=0 total=20** | 证据目录 `/tmp/cap_l0_final/` |
+| **cpu_fb** | **全部 0**；**probe_ok 全部 true** |
+| **C07** | PASS `fps_ema≈60.9`：小离屏 RT + `ExportImageBuf→DrawImage`（**禁止**不完整的 `FlushGPUWithView→DrawGPUTexture` RT 合成） |
+| **C17** | PASS `fps_ema≈59.8`：有界 RT + Export 合成 |
+| **教训** | 曾用 `FlushGPUWithView` 直接 `DrawGPUTexture` 做 RT 合成会导致画面缺失/错误（pixmap 侧 advanced blend 等内容未进入 view）；正确热路径在像素正确前提下再谈 GPU-only blit |
+
+final 单行摘要：
+
+```
+scenario=C01 status=PASS fps_ema=62.3 fps_avg=61.8 cpu=9 cpu_fb=0 gpu_ops=8910 probe=true reason=
+scenario=C02 status=PASS fps_ema=61.2 fps_avg=61.0 cpu=9 cpu_fb=0 gpu_ops=8313 probe=true reason=
+scenario=C03 status=PASS fps_ema=61.6 fps_avg=60.8 cpu=10 cpu_fb=0 gpu_ops=11201 probe=true reason=
+scenario=C04 status=PASS fps_ema=60.8 fps_avg=60.9 cpu=10 cpu_fb=0 gpu_ops=7808 probe=true reason=
+scenario=C05 status=PASS fps_ema=63.0 fps_avg=61.6 cpu=8 cpu_fb=0 gpu_ops=16762 probe=true reason=
+scenario=C06 status=PASS fps_ema=135.8 fps_avg=61.5 cpu=25 cpu_fb=0 gpu_ops=11784 probe=true reason=
+scenario=C07 status=PASS fps_ema=60.9 fps_avg=59.8 cpu=100 cpu_fb=0 gpu_ops=10472 probe=true reason=
+scenario=C08 status=PASS fps_ema=61.5 fps_avg=60.9 cpu=53 cpu_fb=0 gpu_ops=9253 probe=true reason=
+scenario=C09 status=PASS fps_ema=62.0 fps_avg=61.1 cpu=9 cpu_fb=0 gpu_ops=11736 probe=true reason=
+scenario=C10 status=PASS fps_ema=61.0 fps_avg=60.8 cpu=11 cpu_fb=0 gpu_ops=13636 probe=true reason=
+scenario=C11 status=PASS fps_ema=396.9 fps_avg=59.9 cpu=74 cpu_fb=0 gpu_ops=10971 probe=true reason=
+scenario=C12 status=PASS fps_ema=61.4 fps_avg=61.0 cpu=17 cpu_fb=0 gpu_ops=7824 probe=true reason=
+scenario=C13 status=PASS fps_ema=61.6 fps_avg=61.3 cpu=9 cpu_fb=0 gpu_ops=10311 probe=true reason=
+scenario=C14 status=PASS fps_ema=62.8 fps_avg=61.0 cpu=63 cpu_fb=0 gpu_ops=9234 probe=true reason=
+scenario=C15 status=PASS fps_ema=62.5 fps_avg=61.1 cpu=80 cpu_fb=0 gpu_ops=12175 probe=true reason=
+scenario=C16 status=PASS fps_ema=61.9 fps_avg=61.8 cpu=8 cpu_fb=0 gpu_ops=8910 probe=true reason=
+scenario=C17 status=PASS fps_ema=59.8 fps_avg=58.4 cpu=96 cpu_fb=0 gpu_ops=7440 probe=true reason=
+scenario=C18 status=PASS fps_ema=692.4 fps_avg=59.9 cpu=72 cpu_fb=0 gpu_ops=6188 probe=true reason=
+scenario=C19 status=PASS fps_ema=61.9 fps_avg=60.6 cpu=11 cpu_fb=0 gpu_ops=11664 probe=true reason=
+scenario=C20 status=PASS fps_ema=62.1 fps_avg=61.7 cpu=16 cpu_fb=0 gpu_ops=15808 probe=true reason=
+```
+
+
+## 7.2 P2 Wave-A 证据（C21–C25 · 2026-07-16）
+
+环境：Linux X11 `DISPLAY=:1`，`/tmp/cap_l0_bin`，每场景 8s。  
+证据目录：`/tmp/cap_p2_final/`（另有 r2 稳定性：`/tmp/cap_p2_r2/`）。
+
+| ID | 名称 | MatrixIDs | 结果 | 备注 |
+|----|------|-----------|------|------|
+| C21 | PorterDuff 板 | B.02 | ✅ PASS | `fps_ema≈71.7` cpu_fb=0 |
+| C22 | Path/Diff 裁剪 | C.03,C.06,C.04 | ✅ PASS | present 路径固定 clip 几何；`fps_ema≈60.3`（曾因每帧 Export+复杂 mask ~30fps） |
+| C23 | 渐变 tile/local | D.04,D.06 | ✅ PASS | `fps_ema≈61.9` |
+| C24 | 图高级采样 | I.04–I.07 | ✅ PASS | `fps_ema≈62.3` |
+| C25 | 文本 shaping/混排 | X.03,X.09–X.11 | ✅ PASS | `fps_ema≈86.2`（含 atlas 复用串） |
+
+汇总：**pass=5 fail=0**；全场景 `cpu_fb=0` / `probe=true`。
+
+L0 冒烟（同批）：C01/C05/C07/C17 均 PASS。
+
+单行摘要：
+
+```
+scenario=C21 status=PASS fps_ema=71.7 fps_avg=61.6 cpu=24 cpu_fb=0 gpu_ops=7856 probe=true reason=
+scenario=C22 status=PASS fps_ema=60.3 fps_avg=59.6 cpu=91 cpu_fb=0 gpu_ops=10428 probe=true reason=
+scenario=C23 status=PASS fps_ema=61.9 fps_avg=60.9 cpu=83 cpu_fb=0 gpu_ops=8730 probe=true reason=
+scenario=C24 status=PASS fps_ema=62.3 fps_avg=61.6 cpu=9 cpu_fb=0 gpu_ops=9860 probe=true reason=
+scenario=C25 status=PASS fps_ema=86.2 fps_avg=61.5 cpu=31 cpu_fb=0 gpu_ops=9780 probe=true reason=
+```
+
+实现要点：
+
+- C21/C23/C25：有界离屏 RT + `ExportImageBuf→DrawImage`（像素正确）。
+- C22：改为 **present 直绘**（固定 path clip / Difference 孔洞，仅 clip 内动画），避免每帧 mask rebuild+Export。
+- C24：present 直绘 mip/opacity/rotate/nine-patch。
+- **禁止**对混合/裁剪 RT 使用不完整的 `FlushGPUWithView→DrawGPUTexture`（会导致画面缺失）。
+
+复跑：
+
+```bash
+export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH DISPLAY=:1
+go build -o /tmp/cap_l0_bin ./examples/capability_matrix
+for id in C21 C22 C23 C24 C25; do
+  GPUI_SCENARIO=$id GPUI_ANIM_SECONDS=8 GPUI_RESULT_FILE=/tmp/cap_p2_final/${id}.json /tmp/cap_l0_bin
+done
+```
+
+
 ## 8. 迈向「2D 画布 100%」的五项工作（主计划）
 
 下列 1–5 为 **画布 100%（排除 document）** 的必做路径；顺序即实现优先级。
@@ -212,11 +355,11 @@ scenario=C20 status=PASS fps_ema=64.2 fps_avg=61.5 cpu=16 cpu_fb=0 gpu_ops=15776
 
 | ID | 名称 | MatrixIDs | 优先级 | 应看到（摘要） |
 |----|------|-----------|--------|----------------|
-| C21 | PorterDuff 板 | B.02 | P0 | Clear/Src/DstOut/Xor 等色块矩阵 |
-| C22 | Path/Diff 裁剪 | C.03,C.06,C.04 | P0 | path clip + Difference 镂空 |
-| C23 | 渐变 tile/local | D.04,D.06 | P0 | repeat/mirror + pattern 局部矩阵 |
-| C24 | 图高级采样 | I.04,I.05,I.06,I.07 | P0 | mip/bicubic、opacity、旋转、九宫格 |
-| C25 | 文本 shaping/emoji | X.03,X.09,X.10,X.11 | P0 | GSUB 混排、variable、emoji、atlas 复用可视 |
+| C21 | PorterDuff 板 | B.02 | ✅ | Clear/Src/DstOut/Xor 等色块矩阵 |
+| C22 | Path/Diff 裁剪 | C.03,C.06,C.04 | ✅ | path clip + Difference 镂空 |
+| C23 | 渐变 tile/local | D.04,D.06 | ✅ | repeat/mirror + pattern 局部矩阵 |
+| C24 | 图高级采样 | I.04,I.05,I.06,I.07 | ✅ | mip/bicubic、opacity、旋转、九宫格 |
+| C25 | 文本 shaping/emoji | X.03,X.09,X.10,X.11 | ✅ | GSUB 混排、variable、emoji、atlas 复用可视 |
 | C26 | 路径进阶 | H.02,G.05,H.04,H.05,E.02,E.03 | P1 | arc、boolean、measure、corner/discrete/trim |
 | C27 | 变换进阶 | T.03,T.04,P.07 | P1 | 非均匀 stroke、图像四边形透视感、miter limit |
 | C28 | 层混合 + Filter 图 | L.04,F.03 | P1 | layer blend + multi-RT filter 链 |
@@ -266,7 +409,7 @@ L0 已完成 (C01–C20)
 P1  语义硬缺口 1.1 B.07 + 1.2 B.06     → 单测绿 + C17/C07/C08 回归
     │
     ▼
-P2  窗口扩展 Wave-A (C21–C25)           → 每场景独立 PASS
+P2  窗口扩展 Wave-A (C21–C25)           → ✅ 每场景独立 PASS（§7.2）
     │
     ▼
 P3  窗口扩展 Wave-B (C26–C29)           → 路径/变换/层滤镜/质量
@@ -292,7 +435,7 @@ L5  宣称「2D 画布 100%（排除 document）」
 |------|------|--------|----------|
 | **P0** | 文档与范围 | 本文件 §0/§8/§9；矩阵 R.02 备注「画布 100% 排除」 | 本文落地 |
 | **P1** | 语义硬缺口 | B.07 Modulate；B.06 premul 精修；更新矩阵脚注 | 单测绿 + C07/C08/C17 回归 PASS |
-| **P2** | C21–C25 | `scenarios`/`probes`/`main` 扩展；证据 JSON | 五场景均 PASS，cpu_fb=0 |
+| **P2** | C21–C25 | `scenarios`/`probes`/`main` 扩展；证据 JSON | ✅ 五场景 PASS，cpu_fb=0（§7.2） |
 | **P3** | C26–C29 | 同上 | 四场景均 PASS |
 | **P4** | 质量管线 | CS/MSAA/Filter/Premul 门禁与窗口挂钩 | §8.4 子项全勾或书面边界 |
 | **P5** | C30–C32 | Atlas/Picture/合成回归 | 三场景 PASS + 全量脚本 |
@@ -340,10 +483,10 @@ L5  宣称「2D 画布 100%（排除 document）」
 
 | 项 | 状态 | 更新日期 |
 |----|------|----------|
-| L0 C01–C20 | ✅ | 2026-07-16 |
+| L0 C01–C20 | ✅ 20/20 final | 2026-07-16 |
 | P0 范围声明 R.02 排除 | ✅（本文 §0） | 2026-07-16 |
 | P1 B.07 / B.06 | ✅ | 2026-07-16 |
-| P2 C21–C25 | ⬜ | — |
+| P2 C21–C25 | ✅ `/tmp/cap_p2_final` | 2026-07-16 |
 | P3 C26–C29 | ⬜ | — |
 | P4 质量管线 | ⬜ | — |
 | P5 C30–C32 | ⬜ | — |
@@ -360,3 +503,7 @@ L5  宣称「2D 画布 100%（排除 document）」
 | 2026-07-16 | 1.0 | C01–C20 基线、门禁、证据 |
 | 2026-07-16 | 1.1 | 写入工作项 1–5、R.02 排除 document 声明、P0–P7 实现计划与 C21+ 表 |
 | 2026-07-16 | 1.2 | P1 关闭：B.07 GPU `BlendModulate` + B.06 multi-path premul 门禁；C17 纳入 Modulate |
+| 2026-07-16 | 1.3 | L0 C01–C20 复跑：18/20 PASS；FAIL 仅 C07/C17 fps 门禁；全场景 cpu_fb=0 |
+| 2026-07-16 | 1.4 | L0 再全量 reg3：19/20 PASS；仅 C07 fps；C17 临界 PASS；全场景 cpu_fb=0 / probe=true（GPU_FIRST 无正确性回归） |
+| 2026-07-16 | 1.5 | 修复错误 RT GPU blit 导致画面异常；C07 小 RT+Export 合成；L0 final 20/20 PASS `/tmp/cap_l0_final` |
+| 2026-07-16 | 1.6 | P2 Wave-A 关闭：C21–C25 全 PASS；C22 present 固定 clip；证据 `/tmp/cap_p2_final`；L2 ✅ |
