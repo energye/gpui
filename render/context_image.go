@@ -776,6 +776,40 @@ func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y fl
 	c.recordGPUOp()
 }
 
+// DrawGPUTextureWithOpacityUV composites a sub-rectangle of a GPU texture with
+// opacity. u0..v1 are normalized source UVs (F1 damage-tight layer composite).
+func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y float64, width, height int, opacity float32, u0, v0, u1, v1 float32) {
+	rc := c.gpuCtxOps()
+	if rc == nil || view.IsNil() {
+		return
+	}
+	defer c.setGPUClipRect()()
+
+	ctm := c.totalMatrix()
+	tl := ctm.TransformPoint(Pt(x, y))
+	br := ctm.TransformPoint(Pt(x+float64(width), y+float64(height)))
+
+	target := c.gpuRenderTarget()
+	vpW := uint32(target.Width)  //nolint:gosec
+	vpH := uint32(target.Height) //nolint:gosec
+
+	type uvDrawer interface {
+		QueueGPUTextureDrawUV(target GPURenderTarget, view gpucontext.TextureView,
+			dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32,
+			u0, v0, u1, v1 float32)
+	}
+	if ud, ok := rc.(uvDrawer); ok {
+		ud.QueueGPUTextureDrawUV(target, view,
+			float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
+			opacity, vpW, vpH, u0, v0, u1, v1)
+	} else {
+		rc.QueueGPUTextureDraw(target, view,
+			float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
+			opacity, vpW, vpH)
+	}
+	c.recordGPUOp()
+}
+
 // DrawGPUTextureBase composites a GPU texture view as the compositor base layer.
 // The base layer is drawn BEFORE all GPU tiers (SDF, convex, stencil, text) in
 // the render pass, making it the background for zero-readback rendering.

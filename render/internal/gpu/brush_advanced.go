@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
@@ -61,14 +62,15 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 		return render.ErrFallbackToCPU
 	}
 
-	// Source-only raster (coverage + brush color).
-	srcPM := render.NewPixmap(tw, th)
+	// Source-only raster into TIGHT bounds (not full surface).
+	srcPM := render.NewPixmap(bw, bh)
 	srcPM.Clear(render.Transparent)
-	sr := render.NewSoftwareRenderer(tw, th)
+	sr := render.NewSoftwareRenderer(bw, bh)
 	sr.SetAntiAlias(rc.antiAlias)
 	srcPaint := paint.Clone()
 	srcPaint.BlendMode = render.BlendNormal
-	if err := sr.Fill(srcPM, path, srcPaint); err != nil {
+	srcPath := path.Clone().Transform(render.Translate(float64(-bounds.Min.X), float64(-bounds.Min.Y)))
+	if err := sr.Fill(srcPM, srcPath, srcPaint); err != nil {
 		return render.ErrFallbackToCPU
 	}
 	srcPM.NotifyPixelsChanged()
@@ -89,7 +91,8 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 
 	dstFull := target.Data
 	srcFull := srcPM.Data()
-	stride := tw * 4
+	dstStride := tw * 4
+	srcStride := bw * 4
 
 	tileSide := int(math.Sqrt(float64(dualTexTileMax)))
 	if tileSide < 64 {
@@ -131,11 +134,14 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 			}
 			dstRegion := make([]byte, tbw*tbh*4)
 			srcRegion := make([]byte, tbw*tbh*4)
+			relX := tb.Min.X - bounds.Min.X
+			relY := tb.Min.Y - bounds.Min.Y
 			for row := 0; row < tbh; row++ {
-				off := (tb.Min.Y+row)*stride + tb.Min.X*4
 				dstOff := row * tbw * 4
-				copy(dstRegion[dstOff:dstOff+tbw*4], dstFull[off:off+tbw*4])
-				copy(srcRegion[dstOff:dstOff+tbw*4], srcFull[off:off+tbw*4])
+				dstRow := (tb.Min.Y+row)*dstStride + tb.Min.X*4
+				srcRow := (relY+row)*srcStride + relX*4
+				copy(dstRegion[dstOff:dstOff+tbw*4], dstFull[dstRow:dstRow+tbw*4])
+				copy(srcRegion[dstOff:dstOff+tbw*4], srcFull[srcRow:srcRow+tbw*4])
 			}
 			any := false
 			for i := 3; i < len(srcRegion); i += 4 {
@@ -148,27 +154,29 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 				continue
 			}
 
-			pixelData, err := dualTexAdvancedBlend(device, queue, cache, dstRegion, srcRegion, tbw, tbh, paint.BlendMode)
+			outTex, outView, err := dualTexAdvancedBlendNoReadback(device, queue, cache, dstRegion, srcRegion, tbw, tbh, paint.BlendMode)
 			if err != nil {
-				return render.ErrFallbackToCPU
+				pixelData, err2 := dualTexAdvancedBlend(device, queue, cache, dstRegion, srcRegion, tbw, tbh, paint.BlendMode)
+				if err2 != nil {
+					return render.ErrFallbackToCPU
+				}
+				for row := 0; row < tbh; row++ {
+					srcOff := row * tbw * 4
+					dstOff := (tb.Min.Y+row)*dstStride + tb.Min.X*4
+					copy(dstFull[dstOff:dstOff+tbw*4], pixelData[srcOff:srcOff+tbw*4])
+				}
+				fx0 := float32(tb.Min.X)
+				fy0 := float32(tb.Min.Y)
+				fx1 := float32(tb.Max.X)
+				fy1 := float32(tb.Max.Y)
+				rc.QueueImageDraw(target, pixelData, genBase+tileIdx, tbw, tbh, tbw*4,
+					fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
+					1.0, vpW, vpH, 0, 0, 1, 1, false)
+			} else {
+				rc.retainBrushCoverResult(outTex, outView)
+				rc.QueueGPUTextureDraw(target, gpucontext.NewTextureView(unsafe.Pointer(outView)), //nolint:gosec
+					float32(tb.Min.X), float32(tb.Min.Y), float32(tbw), float32(tbh), 1.0, vpW, vpH)
 			}
-			// Keep Data in sync for subsequent dual-tex ops.
-			for row := 0; row < tbh; row++ {
-				srcOff := row * tbw * 4
-				dstOff := (tb.Min.Y+row)*stride + tb.Min.X*4
-				copy(dstFull[dstOff:dstOff+tbw*4], pixelData[srcOff:srcOff+tbw*4])
-			}
-
-			fx0 := float32(tb.Min.X)
-			fy0 := float32(tb.Min.Y)
-			fx1 := float32(tb.Max.X)
-			fy1 := float32(tb.Max.Y)
-			rc.QueueImageDraw(target, pixelData, genBase+tileIdx, tbw, tbh, tbw*4,
-				fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
-				1.0, vpW, vpH,
-				0, 0, 1, 1,
-				false,
-			)
 			tileIdx++
 			anyTile = true
 		}
@@ -211,22 +219,16 @@ func (rc *GPURenderContext) syncViewRegionToData(target render.GPURenderTarget, 
 }
 
 // CompositeAdvancedLayer dual-tex composites a GPU layer RT onto parent pixels.
+// Present path defers work to Flush via QueueAdvancedLayerComposite so the
+// surface View exists as dest (draw-time has no present View yet).
 func (rc *GPURenderContext) CompositeAdvancedLayer(
 	parentData []byte, parentW, parentH int,
 	srcView gpucontext.TextureView, srcW, srcH int,
 	damage image.Rectangle,
 	mode render.BlendMode, opacity float64,
 ) error {
-	if rc == nil || parentData == nil || srcView.IsNil() || parentW <= 0 || parentH <= 0 || srcW <= 0 || srcH <= 0 {
+	if rc == nil || srcView.IsNil() || parentW <= 0 || parentH <= 0 || srcW <= 0 || srcH <= 0 {
 		return render.ErrFallbackToCPU
-	}
-	if !rc.shared.gpuReady {
-		rc.shared.mu.Lock()
-		err := rc.shared.ensureGPU()
-		rc.shared.mu.Unlock()
-		if err != nil || !rc.shared.gpuReady {
-			return render.ErrFallbackToCPU
-		}
 	}
 	full := image.Rect(0, 0, parentW, parentH).Intersect(image.Rect(0, 0, srcW, srcH))
 	bounds := damage
@@ -238,78 +240,7 @@ func (rc *GPURenderContext) CompositeAdvancedLayer(
 	if bounds.Empty() {
 		return nil
 	}
-	if opacity < 0 {
-		opacity = 0
-	}
-	if opacity > 1 {
-		opacity = 1
-	}
-
-	rc.shared.mu.Lock()
-	device := rc.shared.device
-	queue := rc.shared.queue
-	cache := &rc.shared.dualTexBlend
-	rc.shared.mu.Unlock()
-	if device == nil || queue == nil {
-		return render.ErrFallbackToCPU
-	}
-
-	srcRGBA, err := readTextureViewRegionRGBA(device, queue, srcView, bounds, srcW, srcH)
-	if err != nil {
-		return err
-	}
-	bw, bh := bounds.Dx(), bounds.Dy()
-	if len(srcRGBA) < bw*bh*4 {
-		return fmt.Errorf("CompositeAdvancedLayer: short src")
-	}
-	if opacity < 1.0-1e-6 {
-		op := opacity
-		for i := 0; i < len(srcRGBA); i += 4 {
-			srcRGBA[i+0] = byte(float64(srcRGBA[i+0]) * op)
-			srcRGBA[i+1] = byte(float64(srcRGBA[i+1]) * op)
-			srcRGBA[i+2] = byte(float64(srcRGBA[i+2]) * op)
-			srcRGBA[i+3] = byte(float64(srcRGBA[i+3]) * op)
-		}
-	}
-
-	tileSide := int(math.Sqrt(float64(dualTexTileMax)))
-	if tileSide < 64 {
-		tileSide = 64
-	}
-	stride := parentW * 4
-	for y0 := bounds.Min.Y; y0 < bounds.Max.Y; y0 += tileSide {
-		for x0 := bounds.Min.X; x0 < bounds.Max.X; x0 += tileSide {
-			x1 := x0 + tileSide
-			if x1 > bounds.Max.X {
-				x1 = bounds.Max.X
-			}
-			y1 := y0 + tileSide
-			if y1 > bounds.Max.Y {
-				y1 = bounds.Max.Y
-			}
-			tb := image.Rect(x0, y0, x1, y1)
-			tbw, tbh := tb.Dx(), tb.Dy()
-			dstRegion := make([]byte, tbw*tbh*4)
-			srcRegion := make([]byte, tbw*tbh*4)
-			for row := 0; row < tbh; row++ {
-				sy := (tb.Min.Y - bounds.Min.Y) + row
-				sx := tb.Min.X - bounds.Min.X
-				srcOff := (sy*bw + sx) * 4
-				dstOff := row * tbw * 4
-				copy(srcRegion[dstOff:dstOff+tbw*4], srcRGBA[srcOff:srcOff+tbw*4])
-				pOff := (tb.Min.Y+row)*stride + tb.Min.X*4
-				copy(dstRegion[dstOff:dstOff+tbw*4], parentData[pOff:pOff+tbw*4])
-			}
-			out, err := dualTexAdvancedBlend(device, queue, cache, dstRegion, srcRegion, tbw, tbh, mode)
-			if err != nil {
-				return err
-			}
-			for row := 0; row < tbh; row++ {
-				srcOff := row * tbw * 4
-				pOff := (tb.Min.Y+row)*stride + tb.Min.X*4
-				copy(parentData[pOff:pOff+tbw*4], out[srcOff:srcOff+tbw*4])
-			}
-		}
-	}
+	// release is attached by queueLayerAdvancedGPU in context_layer.go
+	rc.QueueAdvancedLayerComposite(srcView, srcW, srcH, bounds, mode, opacity, nil)
 	return nil
 }

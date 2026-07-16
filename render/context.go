@@ -1991,6 +1991,9 @@ func (c *Context) doFill() error {
 	c.applyMaskToPaint()
 	defer func() { c.paint.MaskCoverage = nil }()
 
+	// F1 opacity-group: multiply paint alpha by open Normal layer opacities.
+	defer c.applyLayerOpacityMul()()
+
 	// Transform path to device-space for rendering.
 	// At scale=1.0 this is a zero-copy no-op.
 	devicePath := c.deviceSpacePath()
@@ -2080,6 +2083,8 @@ func (c *Context) doStroke() error {
 	defer func() { c.paint.ClipCoverage = nil }()
 	c.applyMaskToPaint()
 	defer func() { c.paint.MaskCoverage = nil }()
+	// F1 opacity-group: match doFill alpha multiply for GPU stroke path.
+	defer c.applyLayerOpacityMul()()
 
 	if rc := c.gpuCtxOps(); rc != nil {
 		rc.SetAntiAlias(c.antiAlias)

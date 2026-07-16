@@ -4,6 +4,7 @@ package gpu
 
 import (
 	"fmt"
+	"image"
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -86,6 +87,40 @@ type GPURenderContext struct {
 	// When set, Flush records render passes into this encoder instead of
 	// creating its own + submitting. The caller owns Finish + Submit.
 	sharedEncoder *webgpu.CommandEncoder
+
+	// Deferred advanced-blend layer pops (Multiply/Screen/…). PopLayer during
+	// draw often has no surface View yet (present View arrives at
+	// PresentFrameFull). We keep the layer RT and dual-tex at Flush time when
+	// dest View exists — zero mid-draw PollWait readback.
+	pendingAdvancedLayers []pendingAdvancedLayer
+
+	// frameScratch is a BGRA offscreen with CopySrc|TextureBinding used when
+	// advanced blends must sample dest. Swapchain textures are RENDER_ATTACHMENT
+	// only and cannot be dual-tex sources.
+	frameScratchTex  *webgpu.Texture
+	frameScratchView *webgpu.TextureView
+	frameScratchW    int
+	frameScratchH    int
+	layerReleaseHold []func()
+
+	// Pool of offscreen layer RTs by size to avoid per-PushLayer alloc/OOM.
+	offscreenPool map[[2]int][]offscreenPooled
+}
+
+type offscreenPooled struct {
+	tex  *webgpu.Texture
+	view *webgpu.TextureView
+}
+
+// pendingAdvancedLayer is a PopLayer advanced blend resolved at Flush.
+type pendingAdvancedLayer struct {
+	srcView gpucontext.TextureView
+	srcW    int
+	srcH    int
+	damage  image.Rectangle
+	mode    render.BlendMode
+	opacity float64
+	release func()
 }
 
 // LastSubmitPathStats returns S6.2 encode/submit counters from the last Flush.
@@ -182,6 +217,21 @@ func (rc *GPURenderContext) BeginFrame() {
 	rc.lastView = nil
 	rc.textBatchSealed = false
 	rc.glyphBatchSealed = false
+	// Drop any advanced layers not resolved last frame (avoid VRAM leak).
+	if len(rc.pendingAdvancedLayers) > 0 {
+		for i := range rc.pendingAdvancedLayers {
+			if rc.pendingAdvancedLayers[i].release != nil {
+				rc.pendingAdvancedLayers[i].release()
+			}
+		}
+		rc.pendingAdvancedLayers = rc.pendingAdvancedLayers[:0]
+	}
+	for _, rel := range rc.layerReleaseHold {
+		if rel != nil {
+			rel()
+		}
+	}
+	rc.layerReleaseHold = rc.layerReleaseHold[:0]
 }
 
 // SetSharedEncoder sets a shared command encoder for single-command-buffer
@@ -665,6 +715,30 @@ func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, v
 	}
 	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
 		View: view, DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		U0: 0, V0: 0, U1: 1, V1: 1,
+		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+	})
+	rc.pendingTarget = target
+	rc.hasPendingTarget = true
+}
+
+// QueueGPUTextureDrawUV is QueueGPUTextureDraw with an explicit source UV rect
+// (normalized 0..1). Empty/invalid UV falls back to the full texture.
+func (rc *GPURenderContext) QueueGPUTextureDrawUV(target render.GPURenderTarget, view gpucontext.TextureView,
+	dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32,
+	u0, v0, u1, v1 float32,
+) {
+	if rc.hasPendingTarget && !sameTarget(&rc.pendingTarget, &target) {
+		if fErr := rc.Flush(rc.pendingTarget); fErr != nil {
+			slogger().Warn("auto-flush failed", "err", fErr)
+		}
+	}
+	if u1 <= u0 || v1 <= v0 {
+		u0, v0, u1, v1 = 0, 0, 1, 1
+	}
+	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
+		View: view, DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		U0: u0, V0: v0, U1: u1, V1: v1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
 	})
 	rc.pendingTarget = target
@@ -1258,6 +1332,9 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
 	pending := rc.PendingCount()
 	if pending == 0 {
+		if len(rc.pendingAdvancedLayers) > 0 && !target.View.IsNil() {
+			return rc.resolvePendingAdvancedLayers(target)
+		}
 		// rasterAtlas: CPU shapes already in pixmap, upload to offscreen texture.
 		if !target.View.IsNil() && rc.shared.strategy == strategyRasterAtlas {
 			return rc.uploadPixmapToView(target)
@@ -1387,6 +1464,33 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		slogger().Warn("prepare frame mask failed", "err", err)
 	}
 
+	// F1: when advanced layer pops are pending, render the frame into frameScratch
+	// (CopySrc|TextureBinding|RenderAttachment) so dual-tex can sample dest.
+	// Swapchain views lack COPY_SRC and cannot be dual-tex destinations.
+	surfaceView := target.View
+	useScratch := len(rc.pendingAdvancedLayers) > 0 && !surfaceView.IsNil()
+	if useScratch {
+		sw, sh := target.Width, target.Height
+		if target.ViewWidth > 0 && target.ViewHeight > 0 {
+			sw, sh = int(target.ViewWidth), int(target.ViewHeight)
+		}
+		if sw > 0 && sh > 0 {
+			if serr := rc.ensureFrameScratch(sw, sh); serr != nil {
+				useScratch = false
+			} else {
+				target.View = gpucontext.NewTextureView(unsafe.Pointer(rc.frameScratchView)) //nolint:gosec
+				// Force LoadOpClear on scratch for this frame.
+				rc.frameRendered = false
+				rc.lastView = nil
+				if rc.session != nil {
+					rc.session.SetFrameState(false, nil)
+				}
+			}
+		} else {
+			useScratch = false
+		}
+	}
+
 	err := rc.session.RenderFrameGrouped(target, groups, baseLayer, rc.sharedEncoder)
 	if err != nil {
 		total := 0
@@ -1396,6 +1500,35 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		}
 		slogger().Warn("render session error",
 			"groups", len(groups), "totalItems", total, "err", err)
+	}
+	// After base shapes hit the (scratch or surface) View, resolve deferred advanced blends
+	// (Screen/Multiply layers) via GPU dual-tex with no CPU PollWait.
+	if err == nil && len(rc.pendingAdvancedLayers) > 0 && !target.View.IsNil() {
+		if aerr := rc.resolvePendingAdvancedLayers(target); aerr != nil {
+			err = aerr
+		}
+	}
+	// Blit scratch → swapchain when advanced path used the intermediate.
+	if err == nil && useScratch && !surfaceView.IsNil() && rc.frameScratchView != nil {
+		vpW := uint32(target.Width)  //nolint:gosec
+		vpH := uint32(target.Height) //nolint:gosec
+		if target.ViewWidth > 0 && target.ViewHeight > 0 {
+			vpW, vpH = target.ViewWidth, target.ViewHeight
+		}
+		blitTarget := target
+		blitTarget.View = surfaceView
+		// Surface present pass must clear/load correctly.
+		rc.frameRendered = false
+		rc.lastView = nil
+		if rc.session != nil {
+			rc.session.SetFrameState(false, nil)
+		}
+		rc.QueueGPUTextureDraw(blitTarget,
+			gpucontext.NewTextureView(unsafe.Pointer(rc.frameScratchView)), //nolint:gosec
+			0, 0, float32(vpW), float32(vpH), 1.0, vpW, vpH)
+		if ferr := rc.Flush(blitTarget); ferr != nil {
+			err = ferr
+		}
 	}
 	// Cover textures must outlive RenderFrameGrouped bind/sample; free after submit.
 	rc.releaseBrushCoverResults()
@@ -1426,10 +1559,198 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	return err
 }
 
-// flushVello flushes Vello compute if it has pending paths and the effective
-// pipeline mode is Compute. In Auto mode with few shapes, SelectPipeline
-// returns RenderPass — Vello paths would be lost. Guard ensures Vello is
-// flushed only when the mode actually routes paths there.
+// QueueAdvancedLayerComposite defers a PopLayer advanced blend until Flush has a
+// live destination View (PresentFrame surface). Keeps src RT alive via release.
+func (rc *GPURenderContext) QueueAdvancedLayerComposite(
+	srcView gpucontext.TextureView, srcW, srcH int,
+	damage image.Rectangle, mode render.BlendMode, opacity float64,
+	release func(),
+) {
+	if rc == nil || srcView.IsNil() {
+		if release != nil {
+			release()
+		}
+		return
+	}
+	rc.pendingAdvancedLayers = append(rc.pendingAdvancedLayers, pendingAdvancedLayer{
+		srcView: srcView,
+		srcW:    srcW,
+		srcH:    srcH,
+		damage:  damage,
+		mode:    mode,
+		opacity: opacity,
+		release: release,
+	})
+}
+
+// ensureFrameScratch allocates/resizes a BGRA intermediate for advanced blend dest sampling.
+func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
+	if rc == nil || w <= 0 || h <= 0 {
+		return render.ErrFallbackToCPU
+	}
+	if rc.frameScratchTex != nil && rc.frameScratchW == w && rc.frameScratchH == h && rc.frameScratchView != nil {
+		return nil
+	}
+	if rc.frameScratchView != nil {
+		rc.frameScratchView.Release()
+		rc.frameScratchView = nil
+	}
+	if rc.frameScratchTex != nil {
+		rc.frameScratchTex.Release()
+		rc.frameScratchTex = nil
+	}
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	rc.shared.mu.Unlock()
+	if device == nil {
+		return render.ErrFallbackToCPU
+	}
+	usage := types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
+	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		Label:         "adv_blend_frame_scratch",
+		Size:          webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatBGRA8Unorm,
+		Usage:         usage,
+	})
+	if err != nil {
+		return err
+	}
+	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		Label:         "adv_blend_frame_scratch_view",
+		Format:        types.TextureFormatBGRA8Unorm,
+		Dimension:     types.TextureViewDimension2D,
+		Aspect:        types.TextureAspectAll,
+		MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Release()
+		return err
+	}
+	rc.frameScratchTex = tex
+	rc.frameScratchView = view
+	rc.frameScratchW, rc.frameScratchH = w, h
+	return nil
+}
+
+// resolvePendingAdvancedLayers composites deferred advanced-blend layers at
+// Present Flush. When the active target is frameScratch (or any texture with
+// CopySrc|TextureBinding), dual-tex samples dest+src without CPU PollWait.
+// Damage-tight UV is used for both dual-tex and the opacity fallback blit.
+func (rc *GPURenderContext) resolvePendingAdvancedLayers(target render.GPURenderTarget) error {
+	if rc == nil || len(rc.pendingAdvancedLayers) == 0 {
+		return nil
+	}
+	layers := rc.pendingAdvancedLayers
+	rc.pendingAdvancedLayers = nil
+	if target.View.IsNil() {
+		for i := range layers {
+			if layers[i].release != nil {
+				layers[i].release()
+			}
+		}
+		return render.ErrFallbackToCPU
+	}
+
+	vpW := uint32(target.Width)  //nolint:gosec
+	vpH := uint32(target.Height) //nolint:gosec
+	if target.ViewWidth > 0 && target.ViewHeight > 0 {
+		vpW, vpH = target.ViewWidth, target.ViewHeight
+	}
+	tw, th := int(vpW), int(vpH)
+	full := image.Rect(0, 0, tw, th)
+
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	queue := rc.shared.queue
+	cache := &rc.shared.dualTexBlend
+	rc.shared.mu.Unlock()
+
+	dstTex := (*webgpu.TextureView)(target.View.Pointer()).Texture()
+	canDual := device != nil && queue != nil && dstTex != nil
+
+	holds := rc.layerReleaseHold[:0]
+	for i := range layers {
+		pl := &layers[i]
+		if pl.srcView.IsNil() {
+			if pl.release != nil {
+				pl.release()
+			}
+			continue
+		}
+		op := float32(pl.opacity)
+		if op < 0 {
+			op = 0
+		}
+		if op > 1 {
+			op = 1
+		}
+		bounds := pl.damage
+		if bounds.Empty() {
+			bounds = image.Rect(0, 0, pl.srcW, pl.srcH)
+		}
+		// AA pad for soft edges.
+		bounds = bounds.Inset(-2).Intersect(full).Intersect(image.Rect(0, 0, pl.srcW, pl.srcH))
+		if bounds.Empty() {
+			if pl.release != nil {
+				holds = append(holds, pl.release)
+			}
+			continue
+		}
+
+		drew := false
+		if canDual {
+			srcWGPU := (*webgpu.TextureView)(pl.srcView.Pointer())
+			if srcWGPU != nil {
+				if srcTex := srcWGPU.Texture(); srcTex != nil {
+					outTex, outView, err := dualTexAdvancedBlendViewsRegion(
+						device, queue, cache, dstTex, srcTex, bounds, pl.mode)
+					if err == nil && outView != nil {
+						rc.retainBrushCoverResult(outTex, outView)
+						// Apply layer opacity on the dual-tex result blit.
+						rc.QueueGPUTextureDraw(target,
+							gpucontext.NewTextureView(unsafe.Pointer(outView)), //nolint:gosec
+							float32(bounds.Min.X), float32(bounds.Min.Y),
+							float32(bounds.Dx()), float32(bounds.Dy()),
+							op, vpW, vpH)
+						drew = true
+					}
+				}
+			}
+		}
+		if !drew {
+			// Fallback: damage-tight opacity blit (still no PollWait).
+			u0 := float32(bounds.Min.X) / float32(pl.srcW)
+			v0 := float32(bounds.Min.Y) / float32(pl.srcH)
+			u1 := float32(bounds.Max.X) / float32(pl.srcW)
+			v1 := float32(bounds.Max.Y) / float32(pl.srcH)
+			rc.QueueGPUTextureDrawUV(target, pl.srcView,
+				float32(bounds.Min.X), float32(bounds.Min.Y),
+				float32(bounds.Dx()), float32(bounds.Dy()),
+				op, vpW, vpH, u0, v0, u1, v1)
+		}
+		if pl.release != nil {
+			holds = append(holds, pl.release)
+		}
+	}
+	rc.layerReleaseHold = holds
+
+	var err error
+	if rc.PendingCount() > 0 {
+		// pendingAdvancedLayers already nil — no recursion into resolve.
+		err = rc.Flush(target)
+	}
+	for _, rel := range rc.layerReleaseHold {
+		if rel != nil {
+			rel()
+		}
+	}
+	rc.layerReleaseHold = rc.layerReleaseHold[:0]
+	return err
+}
+
 func (rc *GPURenderContext) flushVello(target render.GPURenderTarget) error {
 	effectiveMode := rc.effectivePipelineMode()
 	rc.shared.mu.Lock()
@@ -1496,9 +1817,7 @@ func (rc *GPURenderContext) effectivePipelineMode() render.PipelineMode {
 }
 
 // CreateOffscreenTexture allocates a GPU texture for offscreen rendering.
-// Checks deviceReady (not gpuReady): texture allocation needs a live device,
-// not shape pipelines. On rasterAtlas, gpuReady is false but device is alive.
-// Skia Graphite: TextureProxy::Make() works under kRasterAtlas.
+// Reuses pooled textures by (w,h) to avoid VRAM OOM from per-layer alloc.
 func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func()) {
 	if rc.shared == nil {
 		slogger().Warn("CreateOffscreenTexture: shared is nil")
@@ -1521,6 +1840,28 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 	if device == nil {
 		slogger().Warn("CreateOffscreenTexture: device is nil")
 		return gpucontext.TextureView{}, nil
+	}
+	key := [2]int{w, h}
+	if rc.offscreenPool == nil {
+		rc.offscreenPool = make(map[[2]int][]offscreenPooled)
+	}
+	if bucket := rc.offscreenPool[key]; len(bucket) > 0 {
+		item := bucket[len(bucket)-1]
+		rc.offscreenPool[key] = bucket[:len(bucket)-1]
+		release := func() {
+			// return to pool (cap 4 per size)
+			if rc.offscreenPool == nil {
+				rc.offscreenPool = make(map[[2]int][]offscreenPooled)
+			}
+			b := rc.offscreenPool[key]
+			if len(b) < 8 {
+				rc.offscreenPool[key] = append(b, item)
+				return
+			}
+			item.view.Release()
+			item.tex.Release()
+		}
+		return gpucontext.NewTextureView(unsafe.Pointer(item.view)), release //nolint:gosec
 	}
 
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
@@ -1553,7 +1894,16 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		return gpucontext.TextureView{}, nil
 	}
 
+	item := offscreenPooled{tex: tex, view: view}
 	release := func() {
+		if rc.offscreenPool == nil {
+			rc.offscreenPool = make(map[[2]int][]offscreenPooled)
+		}
+		b := rc.offscreenPool[key]
+		if len(b) < 8 {
+			rc.offscreenPool[key] = append(b, item)
+			return
+		}
 		view.Release()
 		tex.Release()
 	}

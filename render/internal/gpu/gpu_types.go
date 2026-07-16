@@ -12,9 +12,12 @@ import (
 // texture view directly — zero CPU readback, zero re-upload.
 // Follows the Skia GrSurfaceProxyView direct-bind pattern.
 type GPUTextureDrawCommand struct {
-	View           gpucontext.TextureView // type-safe, asserted to *wgpu.TextureView internally
-	DstX, DstY     float32
-	DstW, DstH     float32
+	View       gpucontext.TextureView // type-safe, asserted to *wgpu.TextureView internally
+	DstX, DstY float32
+	DstW, DstH float32
+	// Optional source UV rect in normalized texture space. Zero U1/V1 means full
+	// texture (0,0)-(1,1). Used for damage-tight layer composites (F1).
+	U0, V0, U1, V1 float32
 	Opacity        float32
 	ViewportWidth  uint32
 	ViewportHeight uint32

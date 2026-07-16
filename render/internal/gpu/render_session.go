@@ -2605,10 +2605,14 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	allVertData := make([]byte, totalVertBytes)
 	for i := range cmds {
 		cmd := &cmds[i]
+		u0, v0, u1, v1 := cmd.U0, cmd.V0, cmd.U1, cmd.V1
+		if u1 <= u0 || v1 <= v0 {
+			u0, v0, u1, v1 = 0, 0, 1, 1
+		}
 		imgCmd := ImageDrawCommand{
 			DstX: cmd.DstX, DstY: cmd.DstY, DstW: cmd.DstW, DstH: cmd.DstH,
 			Opacity: cmd.Opacity, ViewportWidth: cmd.ViewportWidth, ViewportHeight: cmd.ViewportHeight,
-			U0: 0, V0: 0, U1: 1, V1: 1,
+			U0: u0, V0: v0, U1: u1, V1: v1,
 		}
 		copy(allVertData[i*6*imageVertexStride:], buildImageVertices(&imgCmd))
 	}

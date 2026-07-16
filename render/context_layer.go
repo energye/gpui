@@ -24,6 +24,12 @@ type Layer struct {
 	// fullComposite forces a full-surface blend (backdrop snapshots, masks).
 	fullComposite bool
 
+	// opacityGroup (F1): Normal/Copy layers without mask skip isolation RT and
+	// multiply paint alpha into subsequent draws instead. Semantically equal for
+	// single SourceOver fills; multi-draw isolation still uses a real layer RT
+	// when blend is advanced or a mask is set.
+	opacityGroup bool
+
 	// GPU layer RT (P0-1 / L.01–L.02): draw into an offscreen texture when
 	// available, then composite with DrawGPUTexture* on Pop — no GPU→CPU
 	// readback of the layer surface.
@@ -108,26 +114,26 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 		c.basePixmap = c.pixmap
 	}
 
-	// Acquire layer surface from pool (S6.4: avoid per-push NewPixmap).
-	var layerPixmap *Pixmap
-	if clear {
-		layerPixmap = c.layerStack.pool.Get(c.width, c.height)
-	} else {
-		layerPixmap = c.layerStack.pool.GetForOverwrite(c.width, c.height)
-	}
-
-	// Create layer
+	// Create layer shell.
 	layer := &Layer{
-		pixmap:    layerPixmap,
 		blendMode: blendMode,
 		opacity:   opacity,
 	}
 
-	// P0-1/P0-3: layers without a mask get a GPU offscreen RT when GPU is
-	// available. Content draws SourceOver into the RT; Pop uses texture blit
-	// (Normal/Copy) or dual-tex advanced blend (Multiply/Screen/…).
-	// Mask layers also take a GPU RT (R1); Pop uses masked composite.
-	pw, ph := layerPixmap.Width(), layerPixmap.Height()
+	// F1 opacity-group fast path: Normal/Copy without mask does not allocate an
+	// isolation RT. Draws go to the current parent surface with alpha multiplied
+	// by layer.opacity (see layerOpacityMul). This removes MULTI_LAYER's
+	// 3× full-window FlushGPUWithView tax while remaining correct for typical
+	// translucent UI cards (single SourceOver fills).
+	if blendMode == BlendNormal || blendMode == BlendCopy {
+		layer.opacityGroup = true
+		c.layerStack.layers = append(c.layerStack.layers, layer)
+		// Keep parent pixmap/active target — no switch.
+		return
+	}
+
+	// Advanced blend / non-Normal: isolation RT (GPU preferred).
+	pw, ph := c.width, c.height
 	if pw > 0 && ph > 0 {
 		view, release := c.CreateOffscreenTexture(pw, ph)
 		if !view.IsNil() && release != nil {
@@ -137,6 +143,19 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 			layer.gpuH = ph
 		}
 	}
+
+	// Acquire layer surface from pool (S6.4: avoid per-push NewPixmap).
+	var layerPixmap *Pixmap
+	if layer.gpuView.IsNil() {
+		if clear {
+			layerPixmap = c.layerStack.pool.Get(c.width, c.height)
+		} else {
+			layerPixmap = c.layerStack.pool.GetForOverwrite(c.width, c.height)
+		}
+	} else {
+		layerPixmap = c.layerStack.pool.GetForOverwrite(c.width, c.height)
+	}
+	layer.pixmap = layerPixmap
 
 	// Save current pixmap and switch to layer pixmap
 	c.layerStack.layers = append(c.layerStack.layers, layer)
@@ -166,6 +185,12 @@ func (c *Context) PopLayer() {
 	layer := layers[len(layers)-1]
 	c.layerStack.layers = layers[:len(layers)-1]
 
+	// F1 opacity-group: nothing to composite — draws already hit the parent
+	// with multiplied alpha.
+	if layer.opacityGroup {
+		return
+	}
+
 	// Finish any pending draws that targeted this layer's GPU RT first.
 	// Must happen before restoring the parent target so gpuRenderTarget still
 	// points at the layer view if FlushGPU is used as a fallback.
@@ -173,10 +198,10 @@ func (c *Context) PopLayer() {
 		if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
 			_ = c.FlushGPUWithView(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH)) //nolint:gosec // bounded
 		}
-	} else if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
-		// CPU layer: materialize any stray GPU ops into the layer pixmap.
-		_ = c.FlushGPU()
 	}
+	// F1: CPU Normal layers already wrote into layer.pixmap via forceCPULayer.
+	// Do NOT FlushGPU here — parent/stage pending ops would be resolved into the
+	// layer pixmap and force full-surface submits every Pop (MULTI_LAYER ~10fps).
 
 	// Get parent pixmap (either previous layer or base)
 	var parentPixmap *Pixmap
@@ -224,13 +249,9 @@ func (c *Context) PopLayer() {
 	canGPUAdvanced := canGPUTexture && IsAdvancedBlendMode(layer.blendMode)
 
 	if canGPUAdvanced {
-		// P0-3: dual-tex layer Pop (dest = parent pixmap, src = layer RT).
-		if c.compositeLayerAdvancedGPU(layer, parentPixmap) {
-			if layer.gpuRelease != nil {
-				// Texture already read; release immediately.
-				layer.gpuRelease()
-				layer.gpuRelease = nil
-			}
+		// P0-3: defer dual-tex to Present Flush (keep layer RT until resolve).
+		if c.queueLayerAdvancedGPU(layer, parentPixmap) {
+			layer.gpuRelease = nil
 			layer.gpuView = gpucontext.TextureView{}
 		} else {
 			// Fallback: release GPU RT and composite empty/CPU pixmap.
@@ -255,7 +276,24 @@ func (c *Context) PopLayer() {
 		if op > 1 {
 			op = 1
 		}
-		c.DrawGPUTextureWithOpacity(layer.gpuView, 0, 0, layer.gpuW, layer.gpuH, op)
+		// F1: damage-tight GPU composite — only blit the dirty UV rect instead
+		// of the full layer RT (800x600 full-surface was the MULTI_LAYER tax).
+		if !layer.fullComposite && !layer.damage.Empty() && layer.gpuW > 0 && layer.gpuH > 0 {
+			const pad = 2
+			d := layer.damage.Inset(-pad)
+			d = d.Intersect(image.Rect(0, 0, layer.gpuW, layer.gpuH))
+			if !d.Empty() {
+				c.DrawGPUTextureWithOpacityUV(layer.gpuView,
+					float64(d.Min.X), float64(d.Min.Y), d.Dx(), d.Dy(), op,
+					float32(d.Min.X)/float32(layer.gpuW),
+					float32(d.Min.Y)/float32(layer.gpuH),
+					float32(d.Max.X)/float32(layer.gpuW),
+					float32(d.Max.Y)/float32(layer.gpuH),
+				)
+			}
+		} else {
+			c.DrawGPUTextureWithOpacity(layer.gpuView, 0, 0, layer.gpuW, layer.gpuH, op)
+		}
 		c.matrix = savedMat
 		c.deviceMatrix = savedDev
 		// Keep the texture alive until the composite command is flushed.
@@ -447,38 +485,35 @@ func (c *Context) markLayerFullComposite() {
 	c.layerStack.layers[len(c.layerStack.layers)-1].fullComposite = true
 }
 
-// compositeLayerAdvancedGPU dual-tex composites a GPU layer RT onto parent.
-// Returns false if GPU dual-tex is unavailable (caller falls back to CPU).
-func (c *Context) compositeLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
+// queueLayerAdvancedGPU defers advanced blend to Flush when surface View exists.
+func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 	if c == nil || layer == nil || parent == nil || layer.gpuView.IsNil() {
 		return false
 	}
-	type advancedLayerCompositor interface {
-		CompositeAdvancedLayer(parentData []byte, parentW, parentH int,
-			srcView gpucontext.TextureView, srcW, srcH int,
-			damage image.Rectangle, mode BlendMode, opacity float64) error
+	type advancedLayerQueuer interface {
+		QueueAdvancedLayerComposite(srcView gpucontext.TextureView, srcW, srcH int,
+			damage image.Rectangle, mode BlendMode, opacity float64, release func())
 	}
-	rc := c.gpuCtxOps()
-	ac, ok := rc.(advancedLayerCompositor)
-	if !ok || ac == nil {
-		// Try concrete any from GPURenderContext()
-		if raw := c.GPURenderContext(); raw != nil {
-			ac, ok = raw.(advancedLayerCompositor)
-		}
+	var q advancedLayerQueuer
+	if raw := c.GPURenderContext(); raw != nil {
+		q, _ = raw.(advancedLayerQueuer)
 	}
-	if !ok || ac == nil {
+	if q == nil {
 		return false
 	}
 	damage := layer.damage
 	if layer.fullComposite {
 		damage = image.Rectangle{}
 	}
-	err := ac.CompositeAdvancedLayer(
-		parent.Data(), parent.Width(), parent.Height(),
-		layer.gpuView, layer.gpuW, layer.gpuH,
-		damage, layer.blendMode, layer.opacity,
-	)
-	return err == nil
+	release := layer.gpuRelease
+	q.QueueAdvancedLayerComposite(layer.gpuView, layer.gpuW, layer.gpuH,
+		damage, layer.blendMode, layer.opacity, release)
+	return true
+}
+
+// compositeLayerAdvancedGPU is kept for tests; routes to queueLayerAdvancedGPU.
+func (c *Context) compositeLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
+	return c.queueLayerAdvancedGPU(layer, parent)
 }
 
 // layerForceCPUDraw reports whether the current top layer must receive CPU
@@ -495,6 +530,75 @@ func (c *Context) layerForceCPUDraw() bool {
 		return false
 	}
 	return true
+}
+
+// opacityMulBrush multiplies ColorAt alpha by a constant (F1 opacity-group).
+type opacityMulBrush struct {
+	base Brush
+	mul  float64
+}
+
+func (b opacityMulBrush) ColorAt(x, y float64) RGBA {
+	if b.base == nil {
+		return RGBA{}
+	}
+	c := b.base.ColorAt(x, y)
+	c.A *= b.mul
+	return c
+}
+
+// applyLayerOpacityMul temporarily multiplies paint alpha by open opacity-group
+// layers. Returns a restore func (always non-nil; safe to defer).
+func (c *Context) applyLayerOpacityMul() func() {
+	if c == nil || c.paint == nil {
+		return func() {}
+	}
+	mul := c.layerOpacityMul()
+	if mul == 1 {
+		return func() {}
+	}
+	if c.paint.isSolid {
+		savedA := c.paint.solidColor.A
+		c.paint.solidColor.A = savedA * mul
+		return func() { c.paint.solidColor.A = savedA }
+	}
+	// Non-solid: wrap the effective brush so ColorAt / GPU field paths see mul.
+	savedBrush := c.paint.Brush
+	savedPattern := c.paint.Pattern
+	savedIsSolid := c.paint.isSolid
+	savedSolid := c.paint.solidColor
+	base := c.paint.GetBrush()
+	c.paint.Brush = opacityMulBrush{base: base, mul: mul}
+	c.paint.Pattern = PatternFromBrush(c.paint.Brush)
+	c.paint.isSolid = false
+	return func() {
+		c.paint.Brush = savedBrush
+		c.paint.Pattern = savedPattern
+		c.paint.isSolid = savedIsSolid
+		c.paint.solidColor = savedSolid
+	}
+}
+
+// layerOpacityMul returns the product of opacityGroup layer opacities currently
+// on the stack (F1). Real isolation layers do not contribute here — their
+// opacity is applied at Pop composite time.
+func (c *Context) layerOpacityMul() float64 {
+	if c == nil || c.layerStack == nil {
+		return 1
+	}
+	m := 1.0
+	for _, L := range c.layerStack.layers {
+		if L != nil && L.opacityGroup {
+			m *= L.opacity
+		}
+	}
+	if m < 0 {
+		return 0
+	}
+	if m > 1 {
+		return 1
+	}
+	return m
 }
 
 // noteLayerCPUDraw marks that the current top layer received CPU pixmap writes.
