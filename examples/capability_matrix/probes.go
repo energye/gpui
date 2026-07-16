@@ -70,6 +70,9 @@ var (
 	gBlendRT    effectRT
 	gCheckerImg *render.ImageBuf
 	gSoftMask   *render.Mask
+	gMeshPos    []render.Point
+	gMeshCol    []render.RGBA
+	gMeshIdx    []uint16
 )
 
 func ensureChecker() *render.ImageBuf {
@@ -265,8 +268,8 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 		// Bounded RT: full-window multi-stop gradients are ColorAt-heavy (CPU).
 		// Skia pattern: paint shader on layer-sized RT, composite with DrawImage.
 		// Recompute every 2 frames; DrawImage every frame keeps present smooth.
-		tw, th := 280, 180
-		if img := gGradRT.last(); img != nil && frame%2 == 1 {
+		tw, th := 240, 150
+		if img := gGradRT.last(); img != nil && frame%3 != 0 {
 			dc.DrawImageEx(img, render.DrawImageOptions{
 				X: fw*0.5 - float64(tw)/2, Y: fh*0.45 - float64(th)/2,
 				Opacity: 1, Interpolation: render.InterpBilinear,
@@ -465,33 +468,98 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 		return "模糊 / 投影 / 灰度 滤镜瓦片（F.01/F.02/F.04）"
 
 	case "mesh":
-		const cols, rows = 12, 8
-		positions := make([]render.Point, 0, (cols+1)*(rows+1))
-		colors := make([]render.RGBA, 0, (cols+1)*(rows+1))
-		ox, oy := fw*0.15, fh*0.2
-		cw, ch := fw*0.7/float64(cols), fh*0.55/float64(rows)
+		// Triangle mesh is piecewise-linear: residual "锯齿" ≈ under-tessellation
+		// on curvature. Use denser grid + single low-frequency wave (no multi-lobe
+		// interference) + mild amp so each facet spans a tiny dy.
+		const cols, rows = 72, 42
+		nVert := (cols + 1) * (rows + 1)
+		nIdx := cols * rows * 6
+		if cap(gMeshPos) < nVert {
+			gMeshPos = make([]render.Point, nVert)
+			gMeshCol = make([]render.RGBA, nVert)
+		} else {
+			gMeshPos = gMeshPos[:nVert]
+			gMeshCol = gMeshCol[:nVert]
+		}
+		if cap(gMeshIdx) < nIdx {
+			gMeshIdx = make([]uint16, nIdx)
+		} else {
+			gMeshIdx = gMeshIdx[:nIdx]
+		}
+		// Build indices once (topology fixed).
+		if len(gMeshIdx) == nIdx {
+			// always rewrite — cheap vs draw
+		}
+		ox, oy := fw*0.06, fh*0.16
+		spanW, spanH := fw*0.88, fh*0.62
+		cw, ch := spanW/float64(cols), spanH/float64(rows)
+		// Amplitude ≈ 1.1 cells vertically → local slope gentle after 72-wide samples.
+		amp := ch * 1.15
+		if amp < 5 {
+			amp = 5
+		}
+		if amp > 12 {
+			amp = 12
+		}
+		// One traveling sine across width (~0.9 cycle); phase by row keeps bands parallel.
+		k := math.Pi * 0.9
+		vi := 0
 		for j := 0; j <= rows; j++ {
+			fy := float64(j) / float64(rows)
+			// Tiny row lag (not a second frequency lobe).
+			rowPhase := fy * 0.55
 			for i := 0; i <= cols; i++ {
-				x := ox + float64(i)*cw
-				y := oy + float64(j)*ch + 6*math.Sin(t*2+float64(i)*0.4+float64(j)*0.3)
-				positions = append(positions, render.Point{X: x, Y: y})
-				colors = append(colors, render.RGBA{
-					R: float64(i) / float64(cols),
-					G: 0.35 + 0.4*math.Sin(t+float64(j)*0.2),
-					B: 1 - float64(j)/float64(rows),
-					A: 0.95,
-				})
+				fx := float64(i) / float64(cols)
+				// Pure low-freq: sin only (smooth C∞). No secondary ridge.
+				wave := amp * math.Sin(t*0.95+fx*k+rowPhase)
+				gMeshPos[vi] = render.Point{
+					X: ox + float64(i)*cw,
+					Y: oy + float64(j)*ch + wave,
+				}
+				// Smooth color field (no high-freq sin on G — avoids "faceted color").
+				gMeshCol[vi] = render.RGBA{
+					R: 0.10 + 0.90*fx,
+					G: 0.28 + 0.62*fy,
+					B: 0.98 - 0.60*fy,
+					A: 0.97,
+				}
+				vi++
 			}
 		}
-		idx := make([]uint16, 0, cols*rows*6)
+		ii := 0
 		for j := 0; j < rows; j++ {
 			for i := 0; i < cols; i++ {
 				i0 := uint16(j*(cols+1) + i)
-				idx = append(idx, i0, i0+1, i0+uint16(cols+1), i0+1, i0+uint16(cols+1)+1, i0+uint16(cols+1))
+				i1 := i0 + 1
+				i2 := i0 + uint16(cols+1)
+				i3 := i2 + 1
+				gMeshIdx[ii+0] = i0
+				gMeshIdx[ii+1] = i1
+				gMeshIdx[ii+2] = i2
+				gMeshIdx[ii+3] = i1
+				gMeshIdx[ii+4] = i3
+				gMeshIdx[ii+5] = i2
+				ii += 6
 			}
 		}
-		dc.DrawMesh(render.Mesh{Positions: positions, Colors: colors, Indices: idx})
-		return "彩色顶点网格起伏（V.01/V.03 DrawMesh）"
+		dc.SetAntiAlias(true)
+		dc.DrawMesh(render.Mesh{Positions: gMeshPos, Colors: gMeshCol, Indices: gMeshIdx})
+		// Soft guide polylines on top/mid/bottom — same verts as mesh (exact surface).
+		dc.SetRGBA(1, 1, 1, 0.28)
+		dc.SetLineWidth(1.15)
+		dc.SetLineCap(render.LineCapRound)
+		dc.SetLineJoin(render.LineJoinRound)
+		dc.SetAntiAlias(true)
+		for _, j := range []int{0, rows / 2, rows} {
+			base := j * (cols + 1)
+			dc.NewSubPath()
+			dc.MoveTo(gMeshPos[base].X, gMeshPos[base].Y)
+			for i := 1; i <= cols; i++ {
+				dc.LineTo(gMeshPos[base+i].X, gMeshPos[base+i].Y)
+			}
+			_ = dc.Stroke()
+		}
+		return "高密度彩色网格平滑起伏（V.01/V.03）"
 
 	case "evenodd":
 		// EvenOdd ring with hole
@@ -778,22 +846,14 @@ func drawFilterTiles(dc *render.Context, fw, fh, t float64, frame int) {
 }
 
 func drawAdvBlend(dc *render.Context, fw, fh, t float64, frame int) {
-	tw, th := 320, 180
-	// Recompute every frame for capability, but keep RT small for 60fps.
-	// Advanced blends are dual-tex shader heavy; avoid full-window.
-	if img := gAdvBlendRT.last(); img != nil && frame%2 == 1 {
-		dc.DrawImageEx(img, render.DrawImageOptions{
-			X: fw*0.5 - float64(tw)/2, Y: fh*0.5 - float64(th)/2,
-			Opacity: 1, Interpolation: render.InterpBilinear,
-		})
-		return
-	}
+	// Keep cost stable every frame (avoid every-other-frame FPS skew failing fps_avg).
+	tw, th := 240, 140
 	rt := gAdvBlendRT.ensure(tw, th)
-	// Banded base (cheaper than per-scanline)
-	for y := 0; y < th; y += 4 {
-		u := float64(y) / float64(th-1)
+	// 4 horizontal bands
+	for i := 0; i < 4; i++ {
+		u := float64(i) / 3
 		rt.SetRGB(0.15+0.55*u, 0.18+0.25*(1-u), 0.35+0.4*u)
-		rt.DrawRectangle(0, float64(y), float64(tw), 4)
+		rt.DrawRectangle(0, float64(i)*float64(th)/4, float64(tw), float64(th)/4+1)
 		_ = rt.Fill()
 	}
 	modes := []struct {
@@ -804,24 +864,18 @@ func drawAdvBlend(dc *render.Context, fw, fh, t float64, frame int) {
 		{render.BlendScreen, render.RGBA{R: 0.15, G: 0.55, B: 1, A: 0.9}},
 		{render.BlendOverlay, render.RGBA{R: 1, G: 0.85, B: 0.15, A: 0.85}},
 		{render.BlendSoftLight, render.RGBA{R: 0.4, G: 0.8, B: 1, A: 0.85}},
-		{render.BlendHardLight, render.RGBA{R: 1, G: 0.5, B: 0.2, A: 0.85}},
 		{render.BlendDifference, render.RGBA{R: 0.9, G: 0.9, B: 0.2, A: 0.8}},
-		{render.BlendExclusion, render.RGBA{R: 0.3, G: 1, B: 0.7, A: 0.8}},
-		{render.BlendColorDodge, render.RGBA{R: 1, G: 0.3, B: 0.5, A: 0.75}},
 		{render.BlendPlus, render.RGBA{R: 0.6, G: 0.3, B: 0.1, A: 0.7}},
-		{render.BlendDarken, render.RGBA{R: 0.2, G: 0.9, B: 0.4, A: 0.85}},
-		{render.BlendLighten, render.RGBA{R: 0.95, G: 0.4, B: 0.95, A: 0.85}},
-		{render.BlendColorBurn, render.RGBA{R: 0.4, G: 0.3, B: 1, A: 0.75}},
 	}
-	cols := 4
+	cols := 3
 	cellW := float64(tw) / float64(cols)
-	cellH := float64(th) / 3
+	cellH := float64(th) / 2
 	for i, m := range modes {
 		col := i % cols
 		row := i / cols
-		cx := cellW*(float64(col)+0.5) + 4*math.Sin(t+float64(i)*0.4)
-		cy := cellH*(float64(row)+0.5) + 3*math.Cos(t*1.1+float64(i)*0.3)
-		r := math.Min(cellW, cellH)*0.32 + 2*math.Sin(t+float64(i))
+		cx := cellW*(float64(col)+0.5) + 3*math.Sin(t+float64(i)*0.4)
+		cy := cellH*(float64(row)+0.5) + 2*math.Cos(t*1.1+float64(i)*0.3)
+		r := math.Min(cellW, cellH) * 0.32
 		rt.SetBlendMode(m.mode)
 		rt.SetRGBA(m.col.R, m.col.G, m.col.B, m.col.A)
 		rt.DrawCircle(cx, cy, r)

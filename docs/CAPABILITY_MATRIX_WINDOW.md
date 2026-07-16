@@ -107,5 +107,38 @@ done
 1. **GPU-first**：`cpu_fallback_ops>0` 直接 FAIL。  
 2. **一层一进程**：禁止进程内轮换场景。  
 3. **Layer/Filter/Backdrop**：小离屏 RT → 真 API → `ExportImageBuf` → `DrawImage`（与 Skia saveLayer 有界层一致；避免整窗 Apply 卡顿/闪）。  
-4. **中文 UI**：TrueType CJK（优先 DroidSansFallback），避免 CFF Noto CJK 乱码。  
+4. **中英混排字体**：`MultiFace(DejaVuSans + DroidSansFallback)`。  
+   DroidSansFallback 对 `A-Z/a-z/0-9` 的 `HasGlyph=false`，仅用 CJK 面会只出中文、英文空白（已复现 ink=0）。  
+   必须 Latin 主脸 + CJK fallback（对齐矩阵 X.06）。避免 CFF Noto CJK 作主路径。  
 5. **未全绿前不宣称 Skia 完整**。
+
+## 7. 验收证据（自动）
+
+> 运行目录: `/tmp/capability_matrix_evidence` | 二进制: `/tmp/capability_matrix`  
+> 门禁: `cpu_fallback_ops=0` + `gpu_ops>0` + `probe_ok` + FPS≈60
+
+```
+scenario=C01 status=PASS fps_ema=62.1 fps_avg=61.7 cpu=9 cpu_fb=0 gpu_ops=8892 probe=true reason=
+scenario=C02 status=PASS fps_ema=61.2 fps_avg=61.0 cpu=9 cpu_fb=0 gpu_ops=8296 probe=true reason=
+scenario=C03 status=PASS fps_ema=60.9 fps_avg=60.8 cpu=11 cpu_fb=0 gpu_ops=11201 probe=true reason=
+scenario=C04 status=PASS fps_ema=61.1 fps_avg=60.8 cpu=10 cpu_fb=0 gpu_ops=7792 probe=true reason=
+scenario=C05 status=PASS fps_ema=63.7 fps_avg=61.4 cpu=8 cpu_fb=0 gpu_ops=16728 probe=true reason=
+scenario=C06 status=PASS fps_ema=530.9 fps_avg=58.1 cpu=51 cpu_fb=0 gpu_ops=11160 probe=true reason=
+scenario=C07 status=PASS fps_ema=58.5 fps_avg=56.1 cpu=96 cpu_fb=0 gpu_ops=6735 probe=true reason=
+scenario=C08 status=PASS fps_ema=63.1 fps_avg=60.8 cpu=32 cpu_fb=0 gpu_ops=9253 probe=true reason=
+scenario=C09 status=PASS fps_ema=62.2 fps_avg=60.9 cpu=10 cpu_fb=0 gpu_ops=11712 probe=true reason=
+scenario=C10 status=PASS fps_ema=62.5 fps_avg=60.9 cpu=10 cpu_fb=0 gpu_ops=13664 probe=true reason=
+scenario=C11 status=PASS fps_ema=71.8 fps_avg=60.9 cpu=25 cpu_fb=0 gpu_ops=11224 probe=true reason=
+scenario=C12 status=PASS fps_ema=61.4 fps_avg=60.9 cpu=17 cpu_fb=0 gpu_ops=7808 probe=true reason=
+scenario=C13 status=PASS fps_ema=61.7 fps_avg=61.2 cpu=9 cpu_fb=0 gpu_ops=10290 probe=true reason=
+scenario=C14 status=PASS fps_ema=61.8 fps_avg=61.0 cpu=42 cpu_fb=0 gpu_ops=9272 probe=true reason=
+scenario=C15 status=PASS fps_ema=61.2 fps_avg=60.9 cpu=52 cpu_fb=0 gpu_ops=12200 probe=true reason=
+scenario=C16 status=PASS fps_ema=62.2 fps_avg=61.7 cpu=9 cpu_fb=0 gpu_ops=8892 probe=true reason=
+scenario=C17 status=PASS fps_ema=62.6 fps_avg=60.2 cpu=86 cpu_fb=0 gpu_ops=7230 probe=true reason=
+scenario=C18 status=PASS fps_ema=410.1 fps_avg=60.5 cpu=51 cpu_fb=0 gpu_ops=6292 probe=true reason=
+scenario=C19 status=PASS fps_ema=63.0 fps_avg=60.6 cpu=11 cpu_fb=0 gpu_ops=11664 probe=true reason=
+scenario=C20 status=PASS fps_ema=64.2 fps_avg=61.5 cpu=16 cpu_fb=0 gpu_ops=15776 probe=true reason=
+```
+
+汇总: **pass=20 fail=0**（全部场景 PASS）
+
