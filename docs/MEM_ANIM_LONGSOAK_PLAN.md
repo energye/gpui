@@ -1,7 +1,7 @@
 # mem_anim_window 长时复杂渲染压测计划
 
-> 版本：2.4 | 日期：2026-07-16  
-> 状态：**目标验收完成（v9 全矩阵 + v10 S11/S12 回归）**  
+> 版本：2.5 | 日期：2026-07-16  
+> 状态：**S01–S14 主路径已覆盖**（v9 矩阵 + v11 S12/S13/S14 优先级处理 fail=0）  
 > 权威证据：`/tmp/mem_anim_soak_run/v9/SUMMARY.md` + `/tmp/mem_anim_soak_run/v10_regress/SUMMARY.md`  
 > 程序：`examples/mem_anim_window`  
 > 链路：`render.Context → webgpu → rwgpu → libwgpu_native`（真实窗口 Present，非 mock）  
@@ -339,6 +339,7 @@ scenario=S03 seconds=90 frames=5400 fps_ema=59.2 fps_avg=58.8 cpu_avg=42 rss_sta
 
 - v2.3：S12 保留层交错重算 + retained gen 缓存；固定 RT 尺寸；stickyLite；S07/S12 60fps 预检 PASS；开 v9 全矩阵  
 - v2.4：v9 全矩阵归档；S11 可视（棋盘 blend + 贴合边 mesh 折线）；目标 5 条硬要求验收审计 §9；回退错误贝塞尔线框  
+- v2.5：§10 S12→S13→S14 优先级处理；S13 每帧真实密度；v11 归档 fail=0  
 - v2.2：硬原则「全场景对标 Skia」；滤镜/层/Backdrop/高级混合改为有界离屏真实 API 每帧；ExportImageBuf + MarkEphemeral；禁止假视觉/稀疏真 API 刷分  
 - v2.1：CJK 字体约束、resize debounce、中文画面说明、surface drop on outdated、v3 long-soak  
 - v2.0：从短时 smoke 升级为 ≥10 场景、60s–10min 长时、硬/软双门禁、自动化汇总  
@@ -391,6 +392,7 @@ scenario=S03 seconds=90 frames=5400 fps_ema=59.2 fps_avg=58.8 cpu_avg=42 rss_sta
 | pre_v9c | `/tmp/pre_v9c` | PASS 抽检 | S04/06/07/08/10/12 ≥16s 全绿 |
 | **v9** | `/tmp/mem_anim_soak_run/v9` | **PASS fail=0** | S01–S11 @90s + S12 @120s；cpu_fb=0；真实离屏 API + sticky lite + 保留层交错 |
 | **v10_regress** | `/tmp/mem_anim_soak_run/v10_regress` | **PASS fail=0** | S11 可视修复后 90s：fps 60.0/59.7；S12 120s：58.8/56.9；cpu_fb=0 |
+| **v11 S12–S14** | `/tmp/mem_anim_soak_run/v11_s12_s13_s14` | **PASS fail=0** | S12@180s / S13@90s(真1200密度) / S14@180s |
 | S11 可视修复 | `/tmp/s11_fix2_result.json` | PASS 30s | 原「灰方块无网格」→ 棋盘网格+Multiply/Screen + DrawMesh + CTM 网格；avg FPS 59.4 cpu_fb=0 |
 | S11 线框锯齿（误用贝塞尔） | `/tmp/s11_fix3_result.json` | 已回退 | Catmull-Rom 偏离三角网格边 → 错位更重；**不采用** |
 | S11 线框最终 | `/tmp/mem_anim_soak_run/v10_regress/S11` | PASS 90s | **折线贴合网格真实边**（MoveTo/LineTo）；8×5 轻度波浪；fps_ema=60.0 avg=59.7 cpu_fb=0 |
@@ -453,7 +455,7 @@ scenario=S03 seconds=90 frames=5400 fps_ema=59.2 fps_avg=58.8 cpu_avg=42 rss_sta
 | S11 MeshBlendXform | 90 | 59.9/59.7 | 49 | 24585 | 0 | PASS |
 | S12 FullComposite | 120 | 58.6/57.0 | 64 | 24866 | 0 | PASS |
 
-**fail=0**。可选加深：S12/S14 @300–600s；S13 高密度。
+**fail=0**。S12–S14 已在 v11 处理（180/90/180）。可选再加深：S12/S14 @300–600s；S13 density>1200。
 
 ### 回归（S11 可视修复后，当前二进制）
 
@@ -489,3 +491,40 @@ export GPUI_SOAK_OUT=/tmp/mem_anim_soak_run/v10
 mkdir -p "$GPUI_SOAK_OUT"
 setsid scripts/run_mem_anim_longsoak.sh S01 S02 S03 S04 S05 S06 S07 S08 S09 S10 S11 S12   > "$GPUI_SOAK_OUT/runner.log" 2>&1 &
 ```
+
+
+---
+
+## 10. S12 / S13 / S14 优先级处理
+
+> 启动：2026-07-16。顺序：**S12 → S13 → S14**。
+
+| 优先级 | 场景 | 处理内容 | 目标时长 | 门禁 |
+|--------|------|----------|----------|------|
+| P1 | **S12** FullComposite | 全模块综合；加深 soak（≥180s） | 180s（可选 300s） | 约 60fps（ema≥55） |
+| P2 | **S13** HighDensity | **真实每帧 ≥1200 图元**密度场 + glow/path/poly/text | 90s | AllowLowFPS；无崩溃；cpu_fb=0；稳态 RSS 可接受 |
+| P3 | **S14** StressEveryFrame | 每帧全模块 Stress=true | 180s | AllowLowFPS；无崩溃；cpu_fb=0；稳态 RSS 可接受 |
+
+### S13 密度实现修正
+
+旧实现每帧只画约 1/5 圆，名义 density=1200 偏弱。现改为**每帧绘制全部 n 个图元**（多数 GPU 矩形 + 少量圆/线），仍走真实 render API。
+
+### 执行归档
+
+路径：`/tmp/mem_anim_soak_run/v11_s12_s13_s14`（长时 soak 进行中 / 完成后填表）
+
+| 场景 | 秒 | fps ema/avg | CPU% | steady ΔKB | cpu_fb | 状态 |
+|------|----|--------------|------|------------|--------|------|
+| S12 FullComposite | 180 | 58.3 / 56.4 | 74 | 40605 | 0 | **PASS** |
+| S13 HighDensity | 90 | 60.1 / 59.5 | 52 | 10047 | 0 | **PASS** |
+| S14 StressEveryFrame | 180 | 57.2 / 56.9 | 74 | 32464 | 0 | **PASS** |
+
+权威路径：`/tmp/mem_anim_soak_run/v11_s12_s13_s14`（`DONE fail=0`）
+
+预检（25s）：S13 PASS fps 59.9；S14 PASS fps 59.8（AllowLowFPS 场景）。
+
+### 结论
+
+1. **S12** 加深到 180s 仍过约 60 门禁（ema≥55 / avg≥48），全模块综合稳定。  
+2. **S13** 修正为每帧真实 ~1200 图元后仍 **≈60fps**，非假稀疏。  
+3. **S14** 每帧全开 180s 无崩溃、`cpu_fb=0`，稳态 RSS ~32MB 可接受（AllowLowFPS）。  

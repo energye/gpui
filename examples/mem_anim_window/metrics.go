@@ -170,29 +170,39 @@ func drawDensityField(dc *render.Context, w, h int, t float64, frame, density in
 	if n > 2500 {
 		n = 2500
 	}
+	// S13 must really stress primitive count every frame (plan: ≥800–2000).
+	// Old 1/5 cadence made "1200 density" look sparse and under-tested.
 	cols := int(math.Sqrt(float64(n))) + 1
 	rows := (n + cols - 1) / cols
 	cellW := fw / float64(cols)
 	cellH := fh / float64(rows)
-	r := math.Min(cellW, cellH) * 0.28
-	if r < 1.5 {
-		r = 1.5
+	r := math.Min(cellW, cellH) * 0.32
+	if r < 1.2 {
+		r = 1.2
 	}
+	// Prefer axis-aligned rects (GPU convex fast path) for most cells; sprinkle
+	// circles + short strokes so path/stroke tiers stay exercised under density.
+	dc.SetLineWidth(1)
 	for i := 0; i < n; i++ {
 		cx := (float64(i%cols) + 0.5) * cellW
 		cy := (float64(i/cols) + 0.5) * cellH
 		phase := t*1.7 + float64(i)*0.015
-		ox := cx + math.Sin(phase)*cellW*0.15
-		oy := cy + math.Cos(phase*0.9)*cellH*0.15
+		ox := cx + math.Sin(phase)*cellW*0.12
+		oy := cy + math.Cos(phase*0.9)*cellH*0.12
 		hr, hg, hb := hsv(math.Mod(float64(i)*0.0017+t*0.02, 1), 0.65, 0.95)
 		dc.SetRGBA(hr, hg, hb, 0.55)
-		if i%5 == frame%5 {
+		switch {
+		case i%11 == 0:
 			dc.DrawCircle(ox, oy, r)
 			_ = dc.Fill()
-		} else if i%7 == 0 {
-			dc.SetLineWidth(1)
+		case i%17 == 0:
 			dc.DrawLine(ox-r, oy, ox+r, oy)
 			_ = dc.Stroke()
+		default:
+			// Fast rect fill — majority of the density field.
+			dc.DrawRectangle(ox-r, oy-r, r*2, r*2)
+			_ = dc.Fill()
 		}
 	}
+	_ = frame // keep signature stable for callers
 }

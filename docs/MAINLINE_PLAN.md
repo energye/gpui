@@ -574,7 +574,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 见 `docs/MEM_ANIM_LONGSOAK_PLAN.md`（**v2.4 已验收**）「质量门禁」与 **§0c / §9 目标审计**：
 
-- **权威结果**：`/tmp/mem_anim_soak_run/v9` S01–S12 fail=0（90s/120s）；`/tmp/mem_anim_soak_run/v10_regress` S11/S12 可视修复后回归 PASS
+- **权威结果**：v9 S01–S12 fail=0；v10_regress S11/S12；**v11 S12@180 / S13@90(真密度) / S14@180 fail=0** → `docs/MEM_ANIM_LONGSOAK_PLAN.md` §10
 - **60fps+**（ema≥55 / avg≥48，目标 60）
 - **任何渲染内容都要丝滑**（Q-SILKY：稳态 work ≤16.7ms）
 - **不能出现闪烁**（Q-NOFLICKER：真实效果每帧持续可见，禁止稀疏一帧真 API）
