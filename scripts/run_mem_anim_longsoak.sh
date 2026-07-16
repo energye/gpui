@@ -31,7 +31,7 @@ mkdir -p "$OUT"
 echo "== build $BIN =="
 go build -o "$BIN" ./examples/mem_anim_window
 
-# Default matrix: 12 complex scenarios (not S13/S14 unless requested)
+# Default matrix: S01-S12; pass S15-S21 / S13 / S14 explicitly for gap+stress
 if [[ $# -gt 0 ]]; then
   SCENARIOS=("$@")
 else
@@ -55,7 +55,7 @@ for sc in "${SCENARIOS[@]}"; do
   sc=$(echo "$sc" | tr '[:lower:]' '[:upper:]')
   dur="$SEC"
   case "$sc" in
-    S12|S14) dur="$HEAVY_SEC" ;;
+    S12|S14|S21) dur="$HEAVY_SEC" ;;
   esac
   # timeout slightly above anim seconds for teardown
   kill_after=$((dur + 30))
@@ -64,15 +64,28 @@ for sc in "${SCENARIOS[@]}"; do
   echo "==== RUN $sc duration=${dur}s (single process) ====" | tee "$dir/stdout.log"
 
   # Clean env of FEAT overrides so scenario mapping is pure.
+  # Only inject GPUI_DENSITY for S13 — global density must not pollute S12/S14.
+  dens_args=()
+  case "$sc" in
+    S13)
+      if [[ -n "${GPUI_DENSITY:-}" ]]; then
+        dens_args+=(GPUI_DENSITY="$GPUI_DENSITY")
+      fi
+      ;;
+  esac
   env -u GPUI_FEAT_ALL -u GPUI_FEAT_BG -u GPUI_FEAT_GLOW -u GPUI_FEAT_CARDS \
       -u GPUI_FEAT_PATHS -u GPUI_FEAT_DASH -u GPUI_FEAT_CLIP -u GPUI_FEAT_LAYER \
       -u GPUI_FEAT_BACKDROP -u GPUI_FEAT_MASK -u GPUI_FEAT_IMAGE -u GPUI_FEAT_TEXT \
       -u GPUI_FEAT_FILTER -u GPUI_FEAT_TRANSFORM -u GPUI_FEAT_BLEND -u GPUI_FEAT_VERTICES \
-      -u GPUI_FEAT_PIXELS -u GPUI_FEAT_POLYGON -u GPUI_FEAT_HUD -u GPUI_STRESS -u GPUI_PERF_LITE \
+      -u GPUI_FEAT_PIXELS -u GPUI_FEAT_POLYGON -u GPUI_FEAT_GRADIENT -u GPUI_FEAT_PATTERN \
+      -u GPUI_FEAT_ADVBLEND -u GPUI_FEAT_RRECTCLIP -u GPUI_FEAT_TEXTLCD -u GPUI_FEAT_DAMAGE \
+      -u GPUI_FEAT_SCROLL -u GPUI_FEAT_HUD -u GPUI_STRESS -u GPUI_PERF_LITE \
+      -u GPUI_DENSITY \
     GPUI_SCENARIO="$sc" \
     GPUI_ANIM_SECONDS="$dur" \
     GPUI_METRICS_FILE="$dir/metrics.csv" \
     GPUI_RESULT_FILE="$dir/result.json" \
+    "${dens_args[@]}" \
     /usr/bin/time -f 'elapsed=%e cpu=%P maxrss=%MKB' \
       timeout -s INT "${kill_after}s" "$BIN" >>"$dir/stdout.log" 2>&1 \
     || true

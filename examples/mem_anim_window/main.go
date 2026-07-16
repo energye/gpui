@@ -15,7 +15,7 @@
 //
 //     GPUI_SCENARIO=S03 GPUI_ANIM_SECONDS=90 go run ./examples/mem_anim_window
 //
-// Scenarios S01–S14: docs/MEM_ANIM_LONGSOAK_PLAN.md (never multi-scenario in one process)
+// Scenarios S01–S21: docs/MEM_ANIM_LONGSOAK_PLAN.md (never multi-scenario in one process)
 package main
 
 import (
@@ -93,7 +93,15 @@ type FeatureFlags struct {
 	Vertices   bool
 	Pixels     bool
 	Polygon    bool
-	HUD        bool
+	// Skia-gap modules (S15+)
+	Gradient  bool
+	Pattern   bool
+	AdvBlend  bool
+	RRectClip bool
+	TextLCD   bool
+	Damage    bool
+	ScrollUI  bool
+	HUD       bool
 }
 
 func featureCount(f FeatureFlags) int {
@@ -149,6 +157,27 @@ func featureCount(f FeatureFlags) int {
 	if f.Polygon {
 		n++
 	}
+	if f.Gradient {
+		n++
+	}
+	if f.Pattern {
+		n++
+	}
+	if f.AdvBlend {
+		n++
+	}
+	if f.RRectClip {
+		n++
+	}
+	if f.TextLCD {
+		n++
+	}
+	if f.Damage {
+		n++
+	}
+	if f.ScrollUI {
+		n++
+	}
 	if f.HUD {
 		n++
 	}
@@ -179,6 +208,13 @@ func (f FeatureFlags) Summary() string {
 	add("verts", f.Vertices)
 	add("pixels", f.Pixels)
 	add("poly", f.Polygon)
+	add("grad", f.Gradient)
+	add("pattern", f.Pattern)
+	add("advblend", f.AdvBlend)
+	add("rrectclip", f.RRectClip)
+	add("textlcd", f.TextLCD)
+	add("damage", f.Damage)
+	add("scroll", f.ScrollUI)
 	add("hud", f.HUD)
 	if len(on) == 0 {
 		return "(none)"
@@ -213,6 +249,13 @@ func applyFeatureEnv(f *FeatureFlags) {
 	set("GPUI_FEAT_VERTICES", &f.Vertices)
 	set("GPUI_FEAT_PIXELS", &f.Pixels)
 	set("GPUI_FEAT_POLYGON", &f.Polygon)
+	set("GPUI_FEAT_GRADIENT", &f.Gradient)
+	set("GPUI_FEAT_PATTERN", &f.Pattern)
+	set("GPUI_FEAT_ADVBLEND", &f.AdvBlend)
+	set("GPUI_FEAT_RRECTCLIP", &f.RRectClip)
+	set("GPUI_FEAT_TEXTLCD", &f.TextLCD)
+	set("GPUI_FEAT_DAMAGE", &f.Damage)
+	set("GPUI_FEAT_SCROLL", &f.ScrollUI)
 	set("GPUI_FEAT_HUD", &f.HUD)
 }
 
@@ -234,6 +277,10 @@ func main() {
 		spec = scenarioSpec{ID: "S12", Name: "FullComposite", Flags: Features}
 	}
 	applyFeatureEnv(&Features)
+	damagePresent := spec.DamagePresent || Features.Damage
+	if damagePresent {
+		resetDamageBootstrap()
+	}
 	logEvery := envInt("GPUI_ANIM_LOG_EVERY", 60)
 	targetFPS := envInt("GPUI_TARGET_FPS", defaultTargetFPS)
 	if targetFPS < 15 {
@@ -448,6 +495,9 @@ func main() {
 						pendSizeSince = time.Time{}
 						gGuideCache.key = ""
 						gGuideCache.img = nil
+						if damagePresent {
+							resetDamageBootstrap()
+						}
 						log.Printf("resized → %dx%d (debounced)", winW, winH)
 					}
 				}
@@ -523,6 +573,12 @@ func main() {
 		// Force explicit full present after resize / first frames to avoid flash.
 		if forceFull || resizedThis {
 			dc.MarkFullRedraw()
+			if damagePresent {
+				resetDamageBootstrap()
+			}
+		}
+		if damagePresent {
+			dc.SetDamageTracking(true)
 		}
 		drawFrame(dc, winW, winH, t, frame, scene, fonts, assets, rng, active, adaptiveLite, pixelScratch, hud)
 		if density > 0 {
@@ -540,6 +596,14 @@ func main() {
 		fb, err := sc.BeginFrame()
 		if err != nil {
 			// Common during interactive resize (surface outdated). Recover; skip frame.
+			// Fixed-size soaks (S12/S14 long): do NOT force Resize/Configure every
+			// soft error — thrashing native Surface.Configure aborts after minutes.
+			if fixedSize {
+				log.Printf("BeginFrame: %v — fixed-size skip frame (no reconfigure thrash)", err)
+				forceFull = true
+				time.Sleep(2 * time.Millisecond)
+				continue
+			}
 			log.Printf("BeginFrame: %v — reconfigure %dx%d and skip frame", err, winW, winH)
 			if rerr := sc.Resize(uint32(winW), uint32(winH)); rerr != nil {
 				log.Printf("recover Resize: %v", rerr)
@@ -550,13 +614,38 @@ func main() {
 			continue
 		}
 		present := func() error { return sc.EndFrame(fb) }
-		// Always full present for this animation sample:
-		// Background fills the surface every frame; PresentFrameAuto damage/LoadOpLoad
-		// path produced visible background "flash" on Intel when modules toggled.
-		// Full clear is the correct path for continuous animated content.
-		if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
-			sc.DiscardFrame(fb)
-			log.Fatalf("PresentFrameFull: %v", err)
+		// Default: full present for continuous animation (avoids LoadOpLoad flash on iGPU).
+		// S19 DamagePartialPresent deliberately exercises PresentFrameAuto with dirty rects.
+		if damagePresent && !forceFull && !resizedThis && frame > 2 {
+			dc.SetDamageTracking(true)
+			out, err := dc.PresentFrameAuto(fb.Handle, fb.Width, fb.Height, present)
+			if err != nil {
+				sc.DiscardFrame(fb)
+				log.Fatalf("PresentFrameAuto: %v", err)
+			}
+			if out.Idle {
+				// Never freeze the window: force a tiny present if planner idled.
+				if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
+					sc.DiscardFrame(fb)
+					log.Fatalf("PresentFrameFull(idle-fallback): %v", err)
+				}
+				hud.PresentMode = "full(idle-fallback)"
+			} else {
+				hud.PresentMode = out.Mode.String()
+			}
+		} else {
+			if damagePresent {
+				dc.SetDamageTracking(true)
+			}
+			if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
+				sc.DiscardFrame(fb)
+				log.Fatalf("PresentFrameFull: %v", err)
+			}
+			if !damagePresent {
+				hud.PresentMode = sc.PresentModeName()
+			} else {
+				hud.PresentMode = "full(bootstrap)"
+			}
 		}
 		forceFull = false
 		// XFlush only after resize (map/config); every-frame flush costs CPU for no gain.
@@ -738,7 +827,9 @@ func cadenceFor(frame int, master FeatureFlags, stress, lite bool) FeatureFlags 
 	// After warm-up everything in master stays ON continuously.
 	// Short warm-up only (pipeline compile). Long warm-up looked like modules
 	// "popping in" = flash. After frame 8 everything master-enabled is continuous.
-	if frame < 8 {
+	// Skia-gap / damage scenarios must not strip modules during warm-up (would flash
+	// or miss PresentFrameAuto dirty content).
+	if frame < 8 && !(master.Damage || master.Gradient || master.AdvBlend || master.RRectClip || master.TextLCD || master.ScrollUI) {
 		return FeatureFlags{
 			Background: master.Background,
 			HUD:        master.HUD,
@@ -791,6 +882,13 @@ func cadenceSparse(frame int, master FeatureFlags, lite bool) FeatureFlags {
 	out.Mask = master.Mask && frame%60 == 55
 	out.Backdrop = master.Backdrop && frame%150 == 80
 	out.Filter = master.Filter && frame%240 == 100
+	out.Gradient = master.Gradient && frame%20 == 0
+	out.Pattern = master.Pattern && frame%20 == 0
+	out.AdvBlend = master.AdvBlend && frame%24 == 8
+	out.RRectClip = master.RRectClip && frame%18 == 5
+	out.TextLCD = master.TextLCD && frame%16 == 0
+	out.Damage = master.Damage
+	out.ScrollUI = master.ScrollUI && frame%12 == 0
 	if lite {
 		out.Cards = master.Cards && frame%20 == 0
 		out.Paths = master.Paths && frame%20 == 5
@@ -933,7 +1031,9 @@ func drawFrame(dc *render.Context, w, h int, t float64, frame int, scn *animScen
 
 	{
 		st := time.Now()
-		if feat.Background {
+		if feat.Damage {
+			// Background handled by damage module (bootstrap or dirty band only).
+		} else if feat.Background {
 			drawBackground(dc, fw, fh, scn.bgHue, lite)
 		} else {
 			dc.SetRGB(0.05, 0.05, 0.07)
@@ -1021,6 +1121,38 @@ func drawFrame(dc *render.Context, w, h int, t float64, frame int, scn *animScen
 		st := time.Now()
 		drawTextStyles(dc, fonts, fw, fh, t, frame, feat, lite)
 		tick("text", st)
+	}
+	if feat.Gradient || feat.Pattern {
+		st := time.Now()
+		drawGradientPattern(dc, fw, fh, t, lite, frame)
+		tick("grad", st)
+	}
+	if feat.AdvBlend {
+		st := time.Now()
+		drawAdvancedBlendPanel(dc, fw, fh, t, lite, frame)
+		tick("advblend", st)
+	}
+	if feat.RRectClip {
+		st := time.Now()
+		drawRRectEvenOdd(dc, fw, fh, t, lite)
+		tick("rrectclip", st)
+	}
+	if feat.TextLCD {
+		st := time.Now()
+		drawTextLCDShape(dc, fonts, fw, fh, t, frame, lite)
+		tick("textlcd", st)
+	}
+	if feat.ScrollUI && !feat.Damage {
+		// S20 (and S21): scroll+modal visual; S19 uses damage module instead.
+		st := time.Now()
+		drawScrollModalUI(dc, fonts, fw, fh, t, lite)
+		tick("scroll", st)
+	}
+	if feat.Damage {
+		st := time.Now()
+		// bootstrap flag carried via package state; main sets reset on resize/forceFull
+		drawDamagePartialScene(dc, fonts, fw, fh, t, frame, false)
+		tick("damage", st)
 	}
 	if feat.HUD {
 		st := time.Now()
@@ -1735,6 +1867,12 @@ func buildGuideLines(spec scenarioSpec, master, active FeatureFlags, adaptiveLit
 		{master.Blend, "blend", "右中：棋盘网格方块上 Multiply橙/Screen蓝/Plus光晕"},
 		{master.Vertices, "verts", "左下：彩色顶点网格(8x5)+贴合网格的折线框"},
 		{master.Pixels, "pixels", "小块像素写入"},
+		{master.Gradient || master.Pattern, "grad", "线性/径向/扫描渐变 + 图像图案填充"},
+		{master.AdvBlend, "advblend", "多混合模式面板(Overlay/Darken/…/Plus)"},
+		{master.RRectClip, "rrectclip", "圆角裁剪 + EvenOdd 星形 + 复杂路径"},
+		{master.TextLCD, "textlcd", "LCD布局 + 多TextMode + 换行/装饰"},
+		{master.ScrollUI && !master.Damage, "scroll", "滚动列表 + 模态遮罩卡片"},
+		{master.Damage, "damage", "局部Damage条带 + PresentFrameAuto"},
 		{master.HUD, "hud", "右上角FPS/CPU与底部耗时条"},
 	}
 	n := 0
@@ -1784,6 +1922,20 @@ func scenarioNameCN(id, fallback string) string {
 		return "高密度图元"
 	case "S14":
 		return "每帧全开压力"
+	case "S15":
+		return "渐变 + 图案填充"
+	case "S16":
+		return "高级混合模式"
+	case "S17":
+		return "圆角裁剪 + EvenOdd"
+	case "S18":
+		return "LCD文本/塑形"
+	case "S19":
+		return "局部Damage Present"
+	case "S20":
+		return "滚动列表 + 模态"
+	case "S21":
+		return "Skia缺口全组合"
 	default:
 		return fallback
 	}

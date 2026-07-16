@@ -50,6 +50,10 @@ type Swapchain struct {
 	acquireRetries uint64
 	lastAcquireNs  int64
 	lastPresentNs  int64
+
+	// lastReconfig rate-limits native Surface.Configure. Continuous reconfigure
+	// under long stress (S14) can abort wgpu-native ("failed to initiate panic").
+	lastReconfig time.Time
 }
 
 // Frame is one acquired swapchain image ready for rendering.
@@ -282,7 +286,8 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		return nil, fmt.Errorf("wgpu: swapchain is nil")
 	}
 	if sc.pendingReconfigure || !sc.configured {
-		if err := sc.Configure(); err != nil {
+		if err := sc.reconfigureThrottled(); err != nil {
+			// Keep pending; caller should skip frame rather than thrash native.
 			return nil, err
 		}
 	}
@@ -290,8 +295,8 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	t0 := time.Now()
 	st, suboptimal, err := sc.Surface.GetCurrentTexture()
 	if err != nil {
-		// One-shot recover: reconfigure and retry (outdated/needs-reconfigure).
-		if cfgErr := sc.Configure(); cfgErr != nil {
+		// One-shot recover: reconfigure (throttled) and retry.
+		if cfgErr := sc.reconfigureThrottled(); cfgErr != nil {
 			return nil, err
 		}
 		sc.acquireRetries++
@@ -329,6 +334,28 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		Width:          sc.Width,
 		Height:         sc.Height,
 	}, nil
+}
+
+// reconfigureThrottled runs Configure at most once per 500ms to avoid native
+// Surface.Configure thrash under long multi-module stress (S14 soak crash).
+func (sc *Swapchain) reconfigureThrottled() error {
+	const minInterval = 500 * time.Millisecond
+	if sc == nil {
+		return fmt.Errorf("wgpu: swapchain is nil")
+	}
+	if !sc.lastReconfig.IsZero() && time.Since(sc.lastReconfig) < minInterval {
+		sc.pendingReconfigure = true
+		return fmt.Errorf("wgpu: surface reconfigure rate-limited")
+	}
+	// Best-effort drop of any dangling surface output before reconfigure.
+	if sc.Surface != nil {
+		sc.Surface.DiscardTexture()
+	}
+	if err := sc.Configure(); err != nil {
+		return err
+	}
+	sc.lastReconfig = time.Now()
+	return nil
 }
 
 // EndFrame presents the frame to the platform surface.

@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.65 | 日期：2026-07-15  
+> 版本：1.66 | 日期：2026-07-16  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -29,6 +29,45 @@
 
 ---
 
+## 1b. 硬原则：GPU 优先（能 GPU 就 GPU）
+
+> 详细清单与清缺口序：[`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md)
+
+### 原则正文
+
+1. **有可用 GPU / 加速器时**：绘制、合成、present 主路径 **必须走 GPU**（`render → webgpu → rwgpu → libwgpu_native`）。  
+2. **仅当平台没有可用 GPU**（未加载 native、设备创建失败、或书面登记的 software-adapter 策略）时，才允许 **显式退化 CPU**。  
+3. **禁止**：
+   - silent CPU（有 GPU 路径却不记 `cpu_fallback_ops` / 无 reason）  
+   - 假 `GPUOps`、关 AA / 降语义 / 减场景内容刷性能或刷 PASS  
+   - 把「有 GPU 但实现仍是 CPU」标成能力完成（须进 [`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md) 清单）  
+4. **Fallback 必须可观测**：`GPUOps` / `CPUFallbackOps` / `LastCPUFallbackReason`。  
+5. **有 GPU 的门禁**：宣称 GPU 的路径 **`GPUOps>0` 且 `cpu_fallback_ops=0`**（书面临时例外除外，见清单 C 类）。  
+6. **清缺口方向**：清单 B 类（有 GPU 仍 CPU†）按 P0→P1 改为默认 GPU；过渡期允许 **GPU\***（CPU 栅格 + GPU blit），但不得当作原生 GPU 完成。
+
+### 与阶段的关系
+
+| 阶段 | 要求 |
+|------|------|
+| S1–S3 / 组合 D | 正确性优先；发现 silent CPU → 记 reason 或回补 GPU |
+| S4–S6 | 性能优化 **不得** 引入 silent CPU；回归锁 `cpu_fb=0` |
+| mem_anim / 真窗口 | 硬门禁 `cpu_fb=0`；排障遵循 §0c + 本原则 |
+| 控件层（后置） | 建立在 GPU 优先后端之上，不得另开 CPU 主路径 |
+
+### 「有 GPU 仍 CPU」当前 P0 摘要（完整见清单文档）
+
+| 优先级 | 项 | 状态 |
+|--------|-----|------|
+| P0-1 | Layer 内 Fill/Stroke（`forceCPULayer`）+ Pop 合成 | CPU† → 目标 GPU RT |
+| P0-2 | 梯度 / pattern 大面积填充 | GPU\* ColorAt 栅格 → 原生 GPU brush |
+| P0-3 | Advanced blend 默认路径 | 混合 → 默认 dual-tex/GPU |
+| P0-4 | Blur / filter 大表面 | CPU 热点 → GPU filter pass |
+| P1 | Mask clip 强制 CPU、文本热 reshape、动画 Full present 策略 | 见清单 |
+
+**下一执行刀（建议）**：按 `GPU_FIRST_ROUTING.md` §4，先 **L.01/L.02（layer GPU RT）** 或 **G.02（梯度 GPU brush）**，二选一单独立项，门禁 `cpu_fb=0` + 像素/区域回归。
+
+---
+
 ## 2. 主线顺序（禁止颠倒）
 
 ```text
@@ -43,7 +82,7 @@ S0  冻结 Skia 2D 能力表（全面，只增不删必选项）
   → （推荐 S6 主路径达标后）控件层 / 类 Ant Design 组件
 ```
 
-每个 S3 切片若发现 ABI/facade 缺口：**先回 S1/S2 补齐再继续**，禁止用 CPU silent fallback 冒充 GPU 完成。
+每个 S3 切片若发现 ABI/facade 缺口：**先回 S1/S2 补齐再继续**，禁止用 CPU silent fallback 冒充 GPU 完成（**§1b + [`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md)**）。
 
 ---
 
@@ -262,7 +301,7 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 #### 硬规则（正确性优先于速度）
 
 1. **正确性回归锁（每个 S6.x 切片结束强制）**  
-   - 真 `WGPU_NATIVE_PATH`；声称 GPU 的路径 **`GPUOps>0` 且 `cpu_fallback_ops=0`**（允许书面解释的 CPU 段除外）。  
+   - 真 `WGPU_NATIVE_PATH`；声称 GPU 的路径 **`GPUOps>0` 且 `cpu_fallback_ops=0`**（允许书面解释的 CPU 段除外；对齐 **§1b / GPU_FIRST_ROUTING**）。  
    - 像素/结构门禁不得削弱：至少  
      - `TestS3*`（或 S3a/b/c 门禁集）  
      - `TestP1_Comp_` 抽样 **D01/D06/D08/D36/D63/D152** + 每切片相关 Comp  
@@ -572,7 +611,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 ### mem_anim 质量门禁
 
-见 `docs/MEM_ANIM_LONGSOAK_PLAN.md`（**v2.4 已验收**）「质量门禁」与 **§0c / §9 目标审计**：
+见 `docs/MEM_ANIM_LONGSOAK_PLAN.md`（**v2.6：S01–S21**，S15–S21 为 Skia 缺口扩展）「质量门禁」与 **§0c / §9 目标审计**：
 
 - **权威结果**：v9 S01–S12 fail=0；v10_regress S11/S12；**v11 S12@180 / S13@90(真密度) / S14@180 fail=0** → `docs/MEM_ANIM_LONGSOAK_PLAN.md` §10
 - **60fps+**（ema≥55 / avg≥48，目标 60）

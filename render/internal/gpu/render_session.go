@@ -2885,6 +2885,7 @@ func (s *GPURenderSession) buildGlyphMaskDrawCalls(batches []GlyphMaskBatch, vie
 			indexOffset: indexOffset,
 			indexCount:  indexCount,
 			bindGroup:   s.glyphMaskBindGroups[i],
+			isLCD:       batch.IsLCD,
 		})
 
 		quadOffset += nQuads

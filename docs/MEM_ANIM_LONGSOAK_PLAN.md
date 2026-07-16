@@ -1,7 +1,7 @@
 # mem_anim_window 长时复杂渲染压测计划
 
 > 版本：2.5 | 日期：2026-07-16  
-> 状态：**S01–S14 主路径已覆盖**（v9 矩阵 + v11 S12/S13/S14 优先级处理 fail=0）  
+> 状态：**S01–S14 主路径已覆盖**；**S15–S21 Skia 缺口场景已加入矩阵**；**GPU 优先硬原则**见 MAINLINE §1b + `GPU_FIRST_ROUTING.md`  
 > 权威证据：`/tmp/mem_anim_soak_run/v9/SUMMARY.md` + `/tmp/mem_anim_soak_run/v10_regress/SUMMARY.md`  
 > 程序：`examples/mem_anim_window`  
 > 链路：`render.Context → webgpu → rwgpu → libwgpu_native`（真实窗口 Present，非 mock）  
@@ -11,7 +11,7 @@
 
 ## 0. 强制约束：每次只测一个场景
 
-- **一个进程 = 一个 `GPUI_SCENARIO`**（S01…S14 之一）
+- **一个进程 = 一个 `GPUI_SCENARIO`**（S01…S21 之一）
 - **禁止**在同一进程内切换/轮转场景（避免 RSS/GPU 状态交叉污染）
 - 批量脚本只能 **串行 fork 多个独立进程**，上一场景完全退出后再启动下一场景
 - 交互调试同样只设一个 `GPUI_SCENARIO`
@@ -36,6 +36,9 @@
 ---
 
 ## 0c. 硬原则：全场景对标 Skia（每次排障必读）
+
+> **GPU 优先（主线 §1b）**：有 GPU 必须走 GPU；仅平台无 GPU 才 CPU。详见 [`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md)。有 GPU 时 soak 门禁 **`cpu_fb=0`**。
+
 
 **用户目标**：Skia 能做的 2D/UI 渲染主路径，本引擎也要能做；mem_anim 是真窗口验收场，不是玩具。
 
@@ -205,8 +208,29 @@ export GPUI_TARGET_FPS=60
 | **S12** | FullComposite★ | 全模块持续（lite 交错重算保留层）+ PresentFrameFull | all modules continuous | 120s（可选 300s） | ≈60 |
 | **S13** | HighDensity | **≥800–2000** 图元（圆/线/字） | density mode | 90s | 允许下降 |
 | **S14** | StressEveryFrame★ | 每帧全模块（`GPUI_STRESS=1`） | all every frame | 180s | 可 <60 |
+| **S15** | GradientPattern | 多 stop 线性/径向/扫描渐变 + ImagePattern 填充 | grad,pattern,text,hud | 90s | ≈60 |
+| **S16** | AdvancedBlend | Overlay/Darken/Lighten/Hard|SoftLight/Diff/Exclusion/Dodge/Burn/Plus 等连续 | advblend,text,hud | 90s | ≈60 |
+| **S17** | ClipRRectEvenOdd | ClipRoundRect + nested clip + FillRuleEvenOdd 星形 + dash cubic | rrectclip,paths,dash,text | 90s | ≈60 |
+| **S18** | TextLCDShape | LCD RGB/BGR + TextMode Auto/GlyphMask/Vector/Aliased + wrap/underline | textlcd,text,hud | 90s | ≈60 |
+| **S19** | DamagePartialPresent★ | 静态 chrome + 局部条带 dirty + `PresentFrameAuto` | damage,scroll,text,hud | 90s | ≈60 |
+| **S20** | ScrollModalUI | 列表 clip 滚动 + 遮罩 + 模态卡片（UI 形态，非控件） | scroll,layer,text,cards | 90s | ≈60 |
+| **S21** | SkiaGapComposite★ | S15–S20 缺口能力持续组合（不含 damage present）；`AllowLowFPS` | gap modules lite | 120s | 允许 <60 |
 
 > 场景通过 `GPUI_SCENARIO=S0x` 选择；内部映射到 FeatureFlags + density/stress。
+
+### 3b. S15–S21 与 Skia 覆盖关系
+
+| 已用 S15–S21 补强 | 仍后置 / 不在 mem_anim |
+|-------------------|------------------------|
+| 梯度 + pattern 连续 soak | 完整 PDF/SVG 引擎（R.02） |
+| 更全 advanced blend 连续 | 真 multiplanar YUV |
+| ClipRoundRect / EvenOdd / miter | emoji 全量 shaping 压力 |
+| LCD/TextMode/wrap 文本边角 | 与 Skia 像素 golden / 绝对 FPS 报表 |
+| Damage partial present | |
+| 滚动+模态 UI 形态组合 | |
+
+S01–S21 = **UI 主路径 + Skia 常见缺口 soak**，仍 **不是** Skia 功能穷举表。
+
 
 ---
 
@@ -528,3 +552,22 @@ setsid scripts/run_mem_anim_longsoak.sh S01 S02 S03 S04 S05 S06 S07 S08 S09 S10 
 1. **S12** 加深到 180s 仍过约 60 门禁（ema≥55 / avg≥48），全模块综合稳定。  
 2. **S13** 修正为每帧真实 ~1200 图元后仍 **≈60fps**，非假稀疏。  
 3. **S14** 每帧全开 180s 无崩溃、`cpu_fb=0`，稳态 RSS ~32MB 可接受（AllowLowFPS）。  
+
+
+---
+
+## 11. 加深 soak（v12）
+
+> 用户指令：继续加深。路径：`/tmp/mem_anim_soak_run/v12_deepen`
+
+| 场景 | 加深参数 | 时长 | 状态 |
+|------|----------|------|------|
+| S12 | 综合合成加深 | **300s** | 进行中/见 SUMMARY |
+| S13 | `GPUI_DENSITY=2000`（上沿） | **120s** | 进行中/见 SUMMARY |
+| S14 | 每帧全开应力加深 | **300s** | 进行中/见 SUMMARY |
+
+验收：无崩溃；`cpu_fb=0`；S12 仍过约 60 门禁；S13/S14 允许低 FPS 但需 PASS。
+
+- v2.6：新增 S15–S21（Skia 缺口场景：梯度/pattern、高级混合、rrect+evenodd、LCD 文本、damage present、滚动模态、缺口组合）；默认 longsoak 仍可只跑 S01–S12。
+
+- v2.6.1：S15–S21 预检 PASS（preflight6，20s）；修 glyph-mask **混合 LCD/灰度** 同帧 pipeline 选择（per-drawCall isLCD，避免 80/96 BGL 校验 abort）；重效果走 retained RT 保 ~60。

@@ -361,34 +361,34 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.SetIndexBuffer(resources.idxBuf, types.IndexFormatUint16, 0)
 
-	drawAll := func(pipeline *webgpu.RenderPipeline) {
-		if pipeline == nil {
+	drawOne := func(pipeline *webgpu.RenderPipeline, dc glyphMaskDrawCall) {
+		if pipeline == nil || dc.indexCount == 0 || dc.bindGroup == nil {
 			return
 		}
 		rp.SetPipeline(pipeline)
-		for _, dc := range resources.drawCalls {
-			if dc.indexCount == 0 {
-				continue
-			}
-			rp.SetBindGroup(0, dc.bindGroup, nil)
-			rp.DrawIndexed(dc.indexCount, 1, dc.indexOffset, 0, 0)
-		}
+		rp.SetBindGroup(0, dc.bindGroup, nil)
+		rp.DrawIndexed(dc.indexCount, 1, dc.indexOffset, 0, 0)
 	}
 
-	switch {
-	case useDepthClip:
-		drawAll(p.pipelineWithDepthClip)
-	case resources.isLCD && p.lcdPipelineDarken != nil && p.lcdPipelineAdd != nil:
-		// Two-pass LCD ClearType (no dual-source blend required):
-		// 1) darken: out = dst * (1 - cov_rgb)
-		// 2) add:    out = dst + color * cov_rgb
-		// Works on arbitrary destinations (not just white).
-		drawAll(p.lcdPipelineDarken)
-		drawAll(p.lcdPipelineAdd)
-	case resources.isLCD && p.lcdPipelineWithStencil != nil:
-		drawAll(p.lcdPipelineWithStencil)
-	default:
-		drawAll(p.pipelineWithStencil)
+	// Per-draw pipeline selection. Never force LCD pipeline for grayscale draws
+	// in a mixed frame (bind group layouts differ: 80 vs 96 byte uniforms).
+	for _, dc := range resources.drawCalls {
+		if dc.indexCount == 0 {
+			continue
+		}
+		switch {
+		case useDepthClip:
+			// Depth-clip path currently only has grayscale stencil variant.
+			drawOne(p.pipelineWithDepthClip, dc)
+		case dc.isLCD && p.lcdPipelineDarken != nil && p.lcdPipelineAdd != nil:
+			// Two-pass LCD ClearType (no dual-source blend required).
+			drawOne(p.lcdPipelineDarken, dc)
+			drawOne(p.lcdPipelineAdd, dc)
+		case dc.isLCD && p.lcdPipelineWithStencil != nil:
+			drawOne(p.lcdPipelineWithStencil, dc)
+		default:
+			drawOne(p.pipelineWithStencil, dc)
+		}
 	}
 }
 
@@ -615,6 +615,10 @@ type glyphMaskDrawCall struct {
 	indexOffset uint32 // first index in the shared index buffer
 	indexCount  uint32 // number of indices for this draw
 	bindGroup   *webgpu.BindGroup
+	// isLCD selects LCD vs grayscale pipeline for THIS draw only.
+	// Mixed LCD/grayscale batches in one frame must not share a frame-level pipeline
+	// (LCD BGL minBindingSize=96 vs grayscale=80 → wgpu validation abort).
+	isLCD bool
 }
 
 // glyphMaskFrameResources holds per-frame GPU resources for glyph mask rendering.
@@ -622,7 +626,8 @@ type glyphMaskFrameResources struct {
 	vertBuf   *webgpu.Buffer
 	idxBuf    *webgpu.Buffer
 	drawCalls []glyphMaskDrawCall
-	isLCD     bool // true when LCD pipeline should be used
+	// isLCD is retained for diagnostics; RecordDraws uses per-drawCall isLCD.
+	isLCD bool
 }
 
 // ---- Vertex layout ----
