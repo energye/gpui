@@ -1,6 +1,6 @@
 # GPUI 渲染栈主线计划（精简）
 
-> 版本：1.67 | 日期：2026-07-16  
+> 版本：1.68 | 日期：2026-07-16  
 > 状态：**唯一执行主线**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 能力基准：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)
@@ -67,6 +67,8 @@
 **GPU_FIRST 主线**：[`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md) **v3.9.1 已关闭**（N1/N2 session-inline 完成；N3 fragment / N4 bicubic / N5 极冷门 **书面后置**）。硬原则仍有效，禁止降级已有 GPU 路径。
 
 **下一执行刀（建议）**：[`CAPABILITY_MATRIX_WINDOW.md`](./CAPABILITY_MATRIX_WINDOW.md) L1+（Skia 2D 画布窗口矩阵 / 真 present）；控件层仅在 `S5_WIDGET_ENTRY` 条件满足后。**不要默认**再开 N3/N5 优化。
+
+**GPU_FIRST 回归**：关闭后必跑/选跑命令与证据见 [`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md) **§10**。
 
 ---
 

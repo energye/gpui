@@ -1,8 +1,9 @@
 # GPU 优先路由原则与「有 GPU 仍 CPU」清单
 
-> 版本：3.9.1 | 日期：2026-07-16  
+> 版本：3.9.2 | 日期：2026-07-16  
 > 状态：**主线已关闭（v3.9 可签字；见 §9）**  
 > 状态：**§7 三轮遗漏审计已关闭（证据见 §7.4）**  
+> 状态：**§10 关闭后回归矩阵已补跑并落档（见 §10）**  
 > 状态：**本文保留为活文档 / 硬原则**；禁止降级已有 GPU 路径  
 > 后置（不阻塞主线）：N3 真 fragment ColorAt · N4 Bicubic · N5 极冷门 path effect  
 > 权威：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) §1b  
@@ -266,6 +267,7 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
       `go test ./render -run 'TestP02_LinearGradientNativeGPU|TestP02_ImagePatternNativeGPU|TestR1_PushMaskLayerGPU|TestR3_DashedCircleStrokeGPU|TestP04_ApplyBlurGPU'` → **ok**（2026-07-16）  
       （更全量 S5/S6 / mem_anim 仍按 MAINLINE 回归；本审计关闭不依赖全量重跑）
 - [x] examples 关键路径：`capability_matrix` C01–C20 / mem_anim 门禁要求 **`cpu_fb=0`**（见 CAPABILITY_MATRIX_WINDOW / MEM_ANIM 计划）
+- [x] **关闭后补跑**见 **§10**（扩展单测矩阵 + 2026-07-16 证据）
 
 **§7 正式关闭。** 后续缺口只允许：GPU\*→真原生、或新发现 silent 再开 Round。
 
@@ -301,6 +303,7 @@ N1/N2：**GPU session-inline**（v3.9：`bootstrap_ops=0`，仅 GPU\* 回退记 
 
 | 版本 | 说明 |
 |------|------|
+| 3.9.2 | **§10 关闭后回归矩阵**：扩展必跑/选跑命令；2026-07-16 补跑证据（A/B3/C 绿；S69 性能契约噪声 FAIL 不阻塞 GPU-first；真窗口 X11 不可用） |
 | 3.9.1 | **文档状态收口**：主线标 **已关闭**；页眉与 §9 对齐；N3/N4/N5 仅书面后置不阻塞；本文继续作硬原则活文档，不删清单 |
 | 3.9 | **Bootstrap 语义收口**：session-inline 成功 → `bootstrap_ops=0`（`markBrushSessionInline` / `noteBrushBootstrapIfGPUStar`）；仅 retain/field/ColorAt GPU\* 记 reason；`TestP02_*` nonconvex/evenodd/pattern 零 bootstrap；Custom 仍 `brush:custom`；N1–N2 标 **GPU 完成**；N3–N5 书面后置 |
 | 3.8 | N2：**session-inline pattern cover** — `queueSessionPatternCover` + `cover_textured_pattern.wgsl`（inverse UV + clip/mask 同 solid）；主 pass stencil+sample，无离屏 result；失败回退 v3.6 retain / sample×R8；rect native tile **不降级**；`TestP02_NonRectImagePattern*` PASS |
@@ -359,3 +362,108 @@ N1/N2：**GPU session-inline**（v3.9：`bootstrap_ops=0`，仅 GPU\* 回退记 
 | **N3 / N4 / N5** | **书面后置** — 产品热路径或质量对标需要时再开，不默认排期 |
 | **下一主文档** | [`CAPABILITY_MATRIX_WINDOW.md`](./CAPABILITY_MATRIX_WINDOW.md) / [`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) 控件入口；**不要**为本文件再开 N3/N5 默认优化 |
 | **改代码时** | 先确认路径是否已 GPU；**禁止**把已 GPU 路径退回 CPU / ColorAt for |
+
+
+## 10. 关闭后回归矩阵（必跑 / 选跑 / 证据）
+
+> 目的：GPU_FIRST **主线关闭后**仍可复验「有 GPU 不 silent CPU、N1/N2 session-inline、P0 路径不回退」。  
+> **正确性 / `cpu_fb=0` 是本矩阵主指标**；S6.9 绝对性能契约（对 S6.0 基线 ratio）属性能噪声敏感门禁，**不作为 GPU_FIRST 关闭否决项**。
+
+### 10.1 环境
+
+```bash
+export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+export LD_LIBRARY_PATH=$PWD/lib:${LD_LIBRARY_PATH}
+export GOCACHE=${GOCACHE:-/tmp/gpui-go-cache}
+# Go ≥ go.mod 要求（本机常用 energy go 1.25.x）
+```
+
+### 10.2 必跑（GPU-first 正确性）
+
+| 套件 | 命令 | 期望 |
+|------|------|------|
+| **A 核心** | `go test ./render -count=1 -timeout 600s -run 'TestP02_\|TestP01_\|TestP03_\|TestP04_\|TestR1_\|TestR2_\|TestR3_\|TestP11_\|TestP12_\|TestP13_'` | **ok**；宣称 GPU 的用例 `cpu_fallback_ops=0` |
+| **A′ N1/N2/Custom 细节** | `go test ./render -count=1 -v -timeout 300s -run 'TestP02_NonConvex\|TestP02_EvenOdd\|TestP02_NonRect\|TestP02_Custom\|TestP02_Linear\|TestP02_ImagePattern\|TestR3_Dashed\|TestR1_PushMask\|TestP04_ApplyBlur'` | NonConvex/EvenOdd/NonRect：`bootstrap_ops=0`；Custom：`bootstrap_ops=1 reason=brush:custom` |
+| **§7.4 抽测** | `go test ./render -count=1 -run 'TestP02_LinearGradientNativeGPU\|TestP02_ImagePatternNativeGPU\|TestR1_PushMaskLayerGPU\|TestR3_DashedCircleStrokeGPU\|TestP04_ApplyBlurGPU'` | **ok** |
+
+
+### 10.2.1 复制粘贴命令（推荐）
+
+```bash
+# A 核心（必跑）
+go test ./render -count=1 -timeout 600s \
+  -run 'TestP02_|TestP01_|TestP03_|TestP04_|TestR1_|TestR2_|TestR3_|TestP11_|TestP12_|TestP13_'
+
+# A′ N1/N2/Custom 细节（必跑，建议 -v）
+go test ./render -count=1 -v -timeout 300s \
+  -run 'TestP02_NonConvex|TestP02_EvenOdd|TestP02_NonRect|TestP02_Custom|TestP02_Linear|TestP02_ImagePattern|TestR3_Dashed|TestR1_PushMask|TestP04_ApplyBlur'
+
+# §7.4 抽测
+go test ./render -count=1 -timeout 180s \
+  -run 'TestP02_LinearGradientNativeGPU|TestP02_ImagePatternNativeGPU|TestR1_PushMaskLayerGPU|TestR3_DashedCircleStrokeGPU|TestP04_ApplyBlurGPU'
+
+# B3 S5/S6 正确性（选跑）
+go test ./render -count=1 -timeout 1200s \
+  -run 'TestS5_|TestS61_|TestS62_|TestS63_|TestS64_|TestS65_|TestS66_|TestS67_|TestS69_L0'
+```
+
+### 10.3 选跑（帧模型 / 性能 / 窗口）
+
+| 套件 | 命令 | 期望 / 说明 |
+|------|------|-------------|
+| **B3 S5/S6 正确性** | `go test ./render -count=1 -timeout 1200s -run 'TestS5_\|TestS61_\|TestS62_\|TestS63_\|TestS64_\|TestS65_\|TestS66_\|TestS67_\|TestS69_L0'` | **ok**；不含 S69 重场景 ratio 契约 |
+| **S69 性能契约** | `TestS69_HeavyBudget_TierGates` / `TestS69_Contract_FromJSON` | **选跑**；机器负载抖动可 FAIL，**不否决 GPU-first** |
+| **S68 真窗口** | `TestS68_WindowPresent_*` | 需可用 `DISPLAY` + X11 |
+| **capability 窗口** | `GPUI_SCENARIO=C0x` + `examples/capability_matrix` | 需 X11；要求结果行 `cpu_fb=0` |
+| **mem_anim soak** | 见 `MEM_ANIM_LONGSOAK_PLAN.md` | 长时 `cpu_fb=0`；非每次关闭必跑 |
+
+### 10.4 用例映射（能力 → 测试）
+
+| 能力 / 轮次 | 测试（代表） | 关闭后关注点 |
+|-------------|--------------|--------------|
+| G.02 渐变原生 / session-inline | `TestP02_Linear*` / `NonConvex*` / `EvenOdd*` / Radial/Sweep/Focal | `cpu_fb=0`；非凸 `bootstrap_ops=0` |
+| G.03 pattern | `TestP02_ImagePattern*` / `NonRectImagePattern*` | 矩形 tile + 非矩形 inline；`bootstrap_ops=0` |
+| G.04 Custom | `TestP02_CustomBrushBootstrapReason` | 允许 `bootstrap_ops=1` + `brush:custom` |
+| P0-1 Layer | `TestP01_*` | composite/nested `cpu_fb=0` |
+| P0-3 Advanced blend | `TestP03_*` | dual-tex `cpu_fb=0` |
+| P0-4 Filter | `TestP04_*` | ApplyBlur 等 `cpu_fb=0` |
+| R1 mask/backdrop 残留 | `TestR1_*` | mask layer GPU |
+| R2 非 solid stroke | `TestR2_GradientStrokeGPU` | 非 silent CPU |
+| R3 dash/thin | `TestR3_DashedCircleStrokeGPU` / `ThinStrokeGPU` | 主路径 dash GPU |
+| P1-1 shape cache | `TestP11_*` | CJK warm hit |
+| P1-2 clip mask | `TestP12_Clip*Difference*` | Difference R8 |
+| P1-3 frame flush | `TestP13_*` | layer pop 批 flush |
+| B.02/B.07 blend 像素 | `TestP12GPUFixedPixel_Blend*` | fixed-function 含 Plus/Modulate |
+
+### 10.5 补跑证据（2026-07-16 本机）
+
+| 套件 | 结果 | 备注 |
+|------|------|------|
+| **A 核心** | ✅ `ok` ~6.0s | `TestP02_/P01_/P03_/P04_/R1_/R2_/R3_/P11_/P12_/P13_` |
+| **A′ verbose** | ✅ 全 PASS | 见下表关键行 |
+| **§7.4 抽测** | ✅ `ok` | 与关闭条件一致 |
+| **B3 S5–S67 + S69_L0** | ✅ `ok` ~6.1s | 正确性/无回归辅助 |
+| **S69 HeavyBudget/Contract** | ⚠️ FAIL（性能 ratio） | 对 S6.0 基线超时比；**非 `cpu_fb` 失败**；不阻塞 GPU_FIRST |
+| **capability C01 真窗口** | ⏭️ 跳过 | `XOpenDisplay failed`（本环境无可用 DISPLAY） |
+| **mem_anim 长 soak** | ⏭️ 未本轮重跑 | 历史门禁仍有效；有 DISPLAY 时按 MEM 计划补 |
+
+**A′ 关键日志摘要（均 `cpu_fallback_ops=0`）：**
+
+```text
+linear / pattern / repeat          gpu_ops≥1  bootstrap 未强制
+nonconvex / evenodd / nonrect-*    bootstrap_ops=0
+radial / sweep± / focal            bootstrap_ops=0
+custom                             bootstrap_ops=1 reason="brush:custom"
+ApplyBlur / PushMask / DashedStroke gpu_ops≥1
+```
+
+原始日志目录（本机临时）：`/tmp/gpu_first_reg/`（`A.log` / `A_verbose.log` / `B3.log` / `C.log`）。
+
+### 10.6 维护规则
+
+1. 改 `fillBrushNative` / session-inline cover / blend 路由 / filter graph：**至少跑 §10.2 A + A′**。  
+2. 改 present/damage/layer pool：**加跑 B3**。  
+3. 宣称「窗口矩阵仍绿」：**必须有 DISPLAY 证据**，不得用离屏 PASS 代替。  
+4. S69 FAIL 仅性能 ratio 时：记入性能文档，**不要**把 GPU_FIRST 主线重新打开为「未完成」。  
+5. 新发现 silent CPU：开新 Round 审计行，不删本表历史证据。
+

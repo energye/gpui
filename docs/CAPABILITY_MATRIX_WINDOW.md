@@ -1,6 +1,6 @@
 # 能力矩阵窗口验收（examples/capability_matrix）
 
-> 版本：1.1 | 日期：2026-07-16  
+> 版本：1.2 | 日期：2026-07-16  
 > 真源：`docs/SKIA_2D_CAPABILITY_MATRIX.md`（Skia 2D 语义 ID）  
 > 实现：`examples/capability_matrix/`（真实 X11 窗口 + webgpu → render 呈现链）
 
@@ -37,7 +37,7 @@
 | 层级 | 含义 | 当前（2026-07-16） |
 |------|------|-------------------|
 | **L0** | 高频窗口基线 C01–C20 | ✅ 20/20 PASS |
-| **L1** | 语义硬缺口关闭（工作项 1） | ⬜ 待做 |
+| **L1** | 语义硬缺口关闭（工作项 1） | ✅ P1 B.07/B.06 关闭 |
 | **L2** | 窗口 ID 覆盖扩展 C21+（工作项 3） | ⬜ 待做 |
 | **L3** | 质量全管线（工作项 4） | ⬜ 待做 |
 | **L4** | 像素/性能对标 Skia（工作项 5） | ⬜ 待做 |
@@ -185,8 +185,8 @@ scenario=C20 status=PASS fps_ema=64.2 fps_avg=61.5 cpu=16 cpu_fb=0 gpu_ops=15776
 
 | 子项 | MatrixID | 现状 | 目标 | 验收 |
 |------|----------|------|------|------|
-| 1.1 Modulate 混合 | B.07 | Plus ✅，Modulate 后置 | GPU `BlendModulate` 像素门禁 | `TestP1` + 并入 C17/C21 |
-| 1.2 paint 全局 alpha 预乘 | B.06 | 可用，预乘路径可精修 | solid/image/layer/text 一致 premul | 固定像素 + C07/C08 回归 |
+| 1.1 Modulate 混合 | B.07 | ✅ GPU fixed-function `BlendModulate`（Src×Dst） | GPU 像素 + `cpu_fb=0` | `TestP12GPUFixedPixel_BlendModulate`；C17 探针含 Modulate |
+| 1.2 paint 全局 alpha 预乘 | B.06 | ✅ solid/image/layer/text 多路径门禁 | 预乘 SO 一致 | `TestP1_Capability_B06_PaintAlpha` + `...MultiPath`；C07/C08 回归 |
 | 1.3 multiplanar YUV（可选但列计划） | I.08 | external texture 子集 | 真 multiplanar YUV 采样绘制 | 离屏 + 可选 C 场景；**无视频业务可标 defer 并写进矩阵脚注** |
 | 1.4 其它脚注清零 | V.03 自定义 FS、K.02 scene multi-draw | 子集 | 按需：先文档标注「画布 100% 子集边界」再实现 | 不默认阻塞 L5，除非写入「必选清单」 |
 
@@ -342,7 +342,7 @@ L5  宣称「2D 画布 100%（排除 document）」
 |----|------|----------|
 | L0 C01–C20 | ✅ | 2026-07-16 |
 | P0 范围声明 R.02 排除 | ✅（本文 §0） | 2026-07-16 |
-| P1 B.07 / B.06 | ⬜ | — |
+| P1 B.07 / B.06 | ✅ | 2026-07-16 |
 | P2 C21–C25 | ⬜ | — |
 | P3 C26–C29 | ⬜ | — |
 | P4 质量管线 | ⬜ | — |
@@ -359,3 +359,4 @@ L5  宣称「2D 画布 100%（排除 document）」
 |------|------|------|
 | 2026-07-16 | 1.0 | C01–C20 基线、门禁、证据 |
 | 2026-07-16 | 1.1 | 写入工作项 1–5、R.02 排除 document 声明、P0–P7 实现计划与 C21+ 表 |
+| 2026-07-16 | 1.2 | P1 关闭：B.07 GPU `BlendModulate` + B.06 multi-path premul 门禁；C17 纳入 Modulate |

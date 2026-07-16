@@ -1,6 +1,6 @@
 # Skia 级 2D 渲染能力表（GPUI 主线验收基准）
 
-> 版本：1.3 | 日期：2026-07-15  
+> 版本：1.4 | 日期：2026-07-15  
 > 用途：定义 render 对标 **Skia 2D 渲染能力** 的全面清单，并反推 `rwgpu` / `gpu/webgpu` 必绑 WebGPU 子集。  
 > 范围：**仅渲染栈** `render → gpu/webgpu → gpu/rwgpu → libwgpu_native`。不含控件层、不含过早性能优化。  
 > 维护：能力缺口只允许“新增行”，不允许静默缩小已列必选项。
@@ -88,8 +88,8 @@
 | B.03 | Multiply/Screen/Overlay… | separable modes | shader blend 常见 | ✅ shader | ✅ | ✅ dual-tex Mul/Screen/Overlay + Darken/Lighten/Dodge/Burn/Hard/Soft/Diff/Exclusion `TestP1_Capability_B03_*` | M2 |
 | B.04 | HSL 模式 Hue/… | non-separable | shader | ✅ | ✅ | ✅ dual-tex HSL Hue/Sat/Color/Lum GPU `TestP1_Capability_B04_*` / `TestS3c_M3_Blend*` | M3 |
 | B.05 | Premul 约定贯穿 | premul pipeline | texture/blend 一致 | ✅ | ✅ | ✅ solid+image+layer+text premul `TestP1_Capability_B05_*` | M1 |
-| B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | ✅ SetRGBA alpha GPU `TestP1_Capability_B06_PaintAlpha`（预乘路径仍可精修） | M1 |
-| B.07 | Plus/Modulate 等 | `kPlus`… | blend/shader | ✅ Plus factors | ✅ | ✅ GPU Plus `TestP12GPUFixedPixel_BlendPlus`；Modulate 仍后置 | M2 |
+| B.06 | 全局 alpha | paint alpha | uniform/premul | N/A | N/A | ✅ solid/image/layer/text premul `TestP1_Capability_B06_PaintAlpha` + `...MultiPath` | M1 |
+| B.07 | Plus/Modulate 等 | `kPlus`/`kModulate` | blend factors | ✅ Plus + Modulate | ✅ | ✅ GPU Plus + Modulate `TestP12GPUFixedPixel_BlendPlus` / `...BlendModulate` | M2 |
 
 ### 1.5 Path 构建与填充
 
@@ -397,3 +397,4 @@
 export WGPU_NATIVE_PATH=.../lib/libwgpu_native.so
 go test -count=1 ./render -run 'TestP1_'
 ```
+| 2026-07-16 | 1.4 | B.07 GPU `BlendModulate`；B.06 multi-path premul 门禁 |
