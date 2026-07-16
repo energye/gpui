@@ -5,7 +5,10 @@ package gpu
 import (
 	"context"
 	"fmt"
+	"image"
 	"sync"
+
+	gpucontext "github.com/energye/gpui/gpu/context"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -653,6 +656,129 @@ func dualTexAdvancedBlend(
 	} else {
 		for y := 0; y < bh; y++ {
 			copy(out[y*bw*4:(y+1)*bw*4], src[y*int(alignedRow):y*int(alignedRow)+bw*4])
+		}
+	}
+	mapped.Release()
+	_ = staging.Unmap()
+	return out, nil
+}
+
+// readTextureViewRegionRGBA copies a rectangle from a TextureView into tight
+// premul RGBA8. Handles BGRA8Unorm offscreen RTs (swizzle) and RGBA8 sources.
+// bounds is in texture pixel space; texW/texH are full texture dimensions.
+func readTextureViewRegionRGBA(
+	device *webgpu.Device,
+	queue *webgpu.Queue,
+	view gpucontext.TextureView,
+	bounds image.Rectangle,
+	texW, texH int,
+) ([]byte, error) {
+	if device == nil || queue == nil || view.IsNil() {
+		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil args")
+	}
+	full := image.Rect(0, 0, texW, texH)
+	bounds = bounds.Intersect(full)
+	if bounds.Empty() {
+		return nil, fmt.Errorf("readTextureViewRegionRGBA: empty bounds")
+	}
+	bw, bh := bounds.Dx(), bounds.Dy()
+	wgpuView := (*webgpu.TextureView)(view.Pointer())
+	if wgpuView == nil {
+		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil view ptr")
+	}
+	tex := wgpuView.Texture()
+	if tex == nil {
+		return nil, fmt.Errorf("readTextureViewRegionRGBA: nil texture")
+	}
+
+	tightRow := uint32(bw * 4) //nolint:gosec
+	alignedRow := alignTextureBytesPerRow(tightRow)
+	stagingSize := uint64(alignedRow) * uint64(bh)
+	staging, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "layer_view_readback",
+		Size:  stagingSize,
+		Usage: types.BufferUsageMapRead | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("readback staging: %w", err)
+	}
+	defer staging.Release()
+
+	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "layer_view_read_enc"})
+	if err != nil {
+		return nil, err
+	}
+	enc.CopyTextureToBuffer(tex, staging, []webgpu.BufferTextureCopy{{
+		BufferLayout: webgpu.ImageDataLayout{
+			Offset:       0,
+			BytesPerRow:  alignedRow,
+			RowsPerImage: uint32(bh), //nolint:gosec
+		},
+		TextureBase: webgpu.ImageCopyTexture{
+			Texture:  tex,
+			MipLevel: 0,
+			Origin: webgpu.Origin3D{
+				X: uint32(bounds.Min.X), //nolint:gosec
+				Y: uint32(bounds.Min.Y), //nolint:gosec
+				Z: 0,
+			},
+			Aspect: types.TextureAspectAll,
+		},
+		Size: webgpu.Extent3D{
+			Width:              uint32(bw), //nolint:gosec
+			Height:             uint32(bh), //nolint:gosec
+			DepthOrArrayLayers: 1,
+		},
+	}})
+	cmd, err := enc.Finish()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := queue.Submit(cmd); err != nil {
+		cmd.Release()
+		return nil, err
+	}
+	cmd.Release()
+	device.Poll(webgpu.PollWait)
+
+	if err := staging.Map(context.Background(), webgpu.MapModeRead, 0, stagingSize); err != nil {
+		return nil, fmt.Errorf("readback map: %w", err)
+	}
+	mapped, err := staging.MappedRange(0, stagingSize)
+	if err != nil {
+		_ = staging.Unmap()
+		return nil, err
+	}
+	src := mapped.Bytes()
+	out := make([]byte, bw*bh*4)
+	// Offscreen cache textures are BGRA8Unorm; convert to RGBA for dual-tex/CPU.
+	// If source was already RGBA the swizzle is wrong — CreateOffscreenTexture
+	// documents BGRA; dual-tex temps are separate and not read via this helper.
+	if alignedRow == tightRow {
+		for i := 0; i < bw*bh; i++ {
+			b := src[i*4+0]
+			g := src[i*4+1]
+			r := src[i*4+2]
+			a := src[i*4+3]
+			out[i*4+0] = r
+			out[i*4+1] = g
+			out[i*4+2] = b
+			out[i*4+3] = a
+		}
+	} else {
+		for y := 0; y < bh; y++ {
+			row := src[y*int(alignedRow) : y*int(alignedRow)+bw*4]
+			dst := out[y*bw*4 : (y+1)*bw*4]
+			for i := 0; i < bw; i++ {
+				b := row[i*4+0]
+				g := row[i*4+1]
+				r := row[i*4+2]
+				a := row[i*4+3]
+				dst[i*4+0] = r
+				dst[i*4+1] = g
+				dst[i*4+2] = b
+				dst[i*4+3] = a
+			}
 		}
 	}
 	mapped.Release()

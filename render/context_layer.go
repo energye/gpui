@@ -3,6 +3,7 @@ package render
 import (
 	"image"
 
+	gpucontext "github.com/energye/gpui/gpu/context"
 	intImage "github.com/energye/gpui/render/internal/image"
 )
 
@@ -22,6 +23,16 @@ type Layer struct {
 	damage image.Rectangle
 	// fullComposite forces a full-surface blend (backdrop snapshots, masks).
 	fullComposite bool
+
+	// GPU layer RT (P0-1 / L.01–L.02): draw into an offscreen texture when
+	// available, then composite with DrawGPUTexture* on Pop — no GPU→CPU
+	// readback of the layer surface.
+	gpuView    gpucontext.TextureView
+	gpuRelease func()
+	gpuW, gpuH int
+	// cpuDrew is true when any CPU path wrote into layer.pixmap while the
+	// layer was active (fallback, SetPixel, advanced-blend CPU layers, etc.).
+	cpuDrew bool
 }
 
 // layerStack manages the layer hierarchy for the context.
@@ -112,6 +123,21 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 		opacity:   opacity,
 	}
 
+	// P0-1/P0-3: layers without a mask get a GPU offscreen RT when GPU is
+	// available. Content draws SourceOver into the RT; Pop uses texture blit
+	// (Normal/Copy) or dual-tex advanced blend (Multiply/Screen/…).
+	// Mask layers stay CPU (mask modulation on pixmap).
+	pw, ph := layerPixmap.Width(), layerPixmap.Height()
+	if pw > 0 && ph > 0 {
+		view, release := c.CreateOffscreenTexture(pw, ph)
+		if !view.IsNil() && release != nil {
+			layer.gpuView = view
+			layer.gpuRelease = release
+			layer.gpuW = pw
+			layer.gpuH = ph
+		}
+	}
+
 	// Save current pixmap and switch to layer pixmap
 	c.layerStack.layers = append(c.layerStack.layers, layer)
 	c.pixmap = layerPixmap
@@ -135,17 +161,22 @@ func (c *Context) PopLayer() {
 		return
 	}
 
-	// Prefer CPU draws into layers (see doFill/doStroke) so Pop does not need a
-	// full-surface GPU→CPU readback. If any GPU ops were still queued, flush them
-	// into the layer pixmap before composite.
-	if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
-		_ = c.FlushGPU()
-	}
-
-	// Pop the current layer
+	// Pop the current layer (keep fields for composite/release).
 	layers := c.layerStack.layers
 	layer := layers[len(layers)-1]
 	c.layerStack.layers = layers[:len(layers)-1]
+
+	// Finish any pending draws that targeted this layer's GPU RT first.
+	// Must happen before restoring the parent target so gpuRenderTarget still
+	// points at the layer view if FlushGPU is used as a fallback.
+	if !layer.gpuView.IsNil() {
+		if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
+			_ = c.FlushGPUWithView(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH)) //nolint:gosec // bounded
+		}
+	} else if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
+		// CPU layer: materialize any stray GPU ops into the layer pixmap.
+		_ = c.FlushGPU()
+	}
 
 	// Get parent pixmap (either previous layer or base)
 	var parentPixmap *Pixmap
@@ -157,6 +188,10 @@ func (c *Context) PopLayer() {
 		c.basePixmap = nil
 	}
 
+	// Restore parent as the active drawing target BEFORE compositing so
+	// DrawGPUTexture* / composite write into the parent, not the child.
+	c.pixmap = parentPixmap
+
 	// Apply mask to layer content before compositing (PushMaskLayer).
 	if layer.mask != nil {
 		c.applyMaskToPixmap(layer.pixmap, layer.mask)
@@ -164,8 +199,69 @@ func (c *Context) PopLayer() {
 		layer.fullComposite = true
 	}
 
-	// Composite layer onto parent
-	c.compositeLayer(layer, parentPixmap)
+	// GPU composite path: no mask, no CPU writes into the layer pixmap.
+	// Content lives on layer.gpuView.
+	canGPUTexture := !layer.gpuView.IsNil() && !layer.cpuDrew && layer.mask == nil
+	canGPUComposite := canGPUTexture &&
+		(layer.blendMode == BlendNormal || layer.blendMode == BlendCopy)
+	canGPUAdvanced := canGPUTexture && IsAdvancedBlendMode(layer.blendMode)
+
+	if canGPUAdvanced {
+		// P0-3: dual-tex layer Pop (dest = parent pixmap, src = layer RT).
+		if c.compositeLayerAdvancedGPU(layer, parentPixmap) {
+			if layer.gpuRelease != nil {
+				// Texture already read; release immediately.
+				layer.gpuRelease()
+				layer.gpuRelease = nil
+			}
+			layer.gpuView = gpucontext.TextureView{}
+		} else {
+			// Fallback: release GPU RT and composite empty/CPU pixmap.
+			if layer.gpuRelease != nil {
+				layer.gpuRelease()
+				layer.gpuRelease = nil
+			}
+			layer.gpuView = gpucontext.TextureView{}
+			c.compositeLayer(layer, parentPixmap)
+		}
+	} else if canGPUComposite {
+		// Layer RT is already in device/pixel space. Temporarily clear CTM so
+		// the full-surface blit is not re-transformed by the user matrix.
+		savedMat := c.matrix
+		savedDev := c.deviceMatrix
+		c.matrix = Identity()
+		c.deviceMatrix = Identity()
+		op := float32(layer.opacity)
+		if op < 0 {
+			op = 0
+		}
+		if op > 1 {
+			op = 1
+		}
+		c.DrawGPUTextureWithOpacity(layer.gpuView, 0, 0, layer.gpuW, layer.gpuH, op)
+		c.matrix = savedMat
+		c.deviceMatrix = savedDev
+		// Keep the texture alive until the composite command is flushed.
+		if layer.gpuRelease != nil {
+			c.layerGPUReleases = append(c.layerGPUReleases, layer.gpuRelease)
+			layer.gpuRelease = nil
+		}
+		layer.gpuView = gpucontext.TextureView{}
+
+		// P1-3 / F.03: do NOT mid-frame FlushGPU when compositing onto the base
+		// (or CPU parent). The GPU texture blit stays queued and materializes on
+		// the next FlushGPU / Image / PresentFrame — single submit per frame.
+		// Callers that sample pixmap.GetPixel without Flush must FlushGPU first
+		// (Image() already flushes). Nested GPU parents already batch.
+	} else {
+		// CPU composite (advanced blend, mask, CPU-drawn content, or no GPU).
+		if layer.gpuRelease != nil {
+			layer.gpuRelease()
+			layer.gpuRelease = nil
+		}
+		layer.gpuView = gpucontext.TextureView{}
+		c.compositeLayer(layer, parentPixmap)
+	}
 
 	// Return layer surface to pool (S6.4).
 	if c.layerStack.pool != nil {
@@ -173,9 +269,6 @@ func (c *Context) PopLayer() {
 	}
 	layer.pixmap = nil
 	layer.mask = nil
-
-	// Restore parent pixmap as current drawing target
-	c.pixmap = parentPixmap
 }
 
 // PushMaskLayer creates an isolated layer with an associated alpha mask.
@@ -315,4 +408,80 @@ func (c *Context) markLayerFullComposite() {
 		return
 	}
 	c.layerStack.layers[len(c.layerStack.layers)-1].fullComposite = true
+}
+
+// compositeLayerAdvancedGPU dual-tex composites a GPU layer RT onto parent.
+// Returns false if GPU dual-tex is unavailable (caller falls back to CPU).
+func (c *Context) compositeLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
+	if c == nil || layer == nil || parent == nil || layer.gpuView.IsNil() {
+		return false
+	}
+	type advancedLayerCompositor interface {
+		CompositeAdvancedLayer(parentData []byte, parentW, parentH int,
+			srcView gpucontext.TextureView, srcW, srcH int,
+			damage image.Rectangle, mode BlendMode, opacity float64) error
+	}
+	rc := c.gpuCtxOps()
+	ac, ok := rc.(advancedLayerCompositor)
+	if !ok || ac == nil {
+		// Try concrete any from GPURenderContext()
+		if raw := c.GPURenderContext(); raw != nil {
+			ac, ok = raw.(advancedLayerCompositor)
+		}
+	}
+	if !ok || ac == nil {
+		return false
+	}
+	damage := layer.damage
+	if layer.fullComposite {
+		damage = image.Rectangle{}
+	}
+	err := ac.CompositeAdvancedLayer(
+		parent.Data(), parent.Width(), parent.Height(),
+		layer.gpuView, layer.gpuW, layer.gpuH,
+		damage, layer.blendMode, layer.opacity,
+	)
+	return err == nil
+}
+
+// layerForceCPUDraw reports whether the current top layer must receive CPU
+// draws into its pixmap. False when a GPU layer RT is active (P0-1).
+func (c *Context) layerForceCPUDraw() bool {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return false
+	}
+	top := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if top == nil {
+		return true
+	}
+	if !top.gpuView.IsNil() {
+		return false
+	}
+	return true
+}
+
+// noteLayerCPUDraw marks that the current top layer received CPU pixmap writes.
+// PopLayer then uses CPU composite instead of GPU texture blit.
+func (c *Context) noteLayerCPUDraw() {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return
+	}
+	top := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if top != nil {
+		top.cpuDrew = true
+	}
+}
+
+// drainLayerGPUReleases releases GPU layer textures whose composite draws have
+// already been flushed. Safe to call repeatedly.
+func (c *Context) drainLayerGPUReleases() {
+	if c == nil || len(c.layerGPUReleases) == 0 {
+		return
+	}
+	for _, rel := range c.layerGPUReleases {
+		if rel != nil {
+			rel()
+		}
+	}
+	c.layerGPUReleases = c.layerGPUReleases[:0]
 }

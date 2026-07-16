@@ -107,7 +107,7 @@ type Paint struct {
 
 	// BlendMode controls how source pixels composite with the destination
 	// for fill/stroke. Default BlendNormal (SourceOver). Non-normal modes
-	// currently rasterize on CPU (GPU fixed-function blend is SourceOver).
+	// fixed-function modes use GPU blend state; advanced modes use dual-tex (P0-3).
 	BlendMode BlendMode
 }
 

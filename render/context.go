@@ -46,10 +46,20 @@ type Context struct {
 	// Layer support
 	layerStack *layerStack // Layer stack for compositing
 	basePixmap *Pixmap     // Base pixmap when layers are active
+	// layerGPUReleases holds deferred GPU layer texture releases until after
+	// Flush completes the DrawGPUTexture composite that samples them (P0-1).
+	layerGPUReleases []func()
 
 	// Mask support
 	mask      *Mask   // Current alpha mask
 	maskStack []*Mask // Mask stack for Push/Pop
+
+	// P1-2: cached R8 plane for mask/difference clips (GPU MaskAware path).
+	// Rebuilt when clipMaskGPUGen or user mask pointer changes.
+	clipMaskGPU     *Mask
+	clipMaskGPUGen  int // bumped on every clip stack mutation
+	clipMaskGPUAt   int // gen when cache was built
+	clipMaskGPUUser *Mask
 
 	// Per-frame damage tracking (ADR-021 Level 1).
 	// List of per-operation bounding boxes — NOT a single union rect.
@@ -96,6 +106,13 @@ type RenderPathStats struct {
 	GPUOps                int    // ops successfully queued/executed on GPU path
 	CPUFallbackOps        int    // ops that had a GPU path available but fell back to CPU
 	LastCPUFallbackReason string // diagnostic: most recent fallback reason
+	// FrameFlushes counts FlushGPU / FlushGPUWithView* invocations since the
+	// last ResetRenderPathStats or BeginFrame (P1-3 / F.03 mid-frame metric).
+	FrameFlushes int
+	// BrushBootstrapOps counts ColorAt-stage → GPU blit fills (G.04 / residual).
+	// Not a hard cpu_fb — GPU still owns the composite; reason is explicit.
+	BrushBootstrapOps        int
+	LastBrushBootstrapReason string
 }
 
 // RenderPathStats returns a copy of the current routing counters.
@@ -111,9 +128,9 @@ func (c *Context) ResetRenderPathStats() {
 // LogLine formats counters for visualcmd stdout (parsed by STRICT tests).
 func (s RenderPathStats) LogLine() string {
 	if s.LastCPUFallbackReason == "" {
-		return fmt.Sprintf("gpu_ops=%d cpu_fallback_ops=%d", s.GPUOps, s.CPUFallbackOps)
+		return fmt.Sprintf("gpu_ops=%d cpu_fallback_ops=%d frame_flushes=%d", s.GPUOps, s.CPUFallbackOps, s.FrameFlushes)
 	}
-	return fmt.Sprintf("gpu_ops=%d cpu_fallback_ops=%d last_cpu_fb=%s", s.GPUOps, s.CPUFallbackOps, s.LastCPUFallbackReason)
+	return fmt.Sprintf("gpu_ops=%d cpu_fallback_ops=%d frame_flushes=%d last_cpu_fb=%s", s.GPUOps, s.CPUFallbackOps, s.FrameFlushes, s.LastCPUFallbackReason)
 }
 
 func (c *Context) gpuPathAvailable() bool {
@@ -122,6 +139,21 @@ func (c *Context) gpuPathAvailable() bool {
 
 func (c *Context) recordGPUOp() {
 	c.pathStats.GPUOps++
+}
+
+func (c *Context) recordFrameFlush() {
+	c.pathStats.FrameFlushes++
+}
+
+func (c *Context) takeBrushBootstrapIfAny() {
+	rc := c.gpuCtxOps()
+	if rc == nil {
+		return
+	}
+	if r := rc.TakeBrushBootstrapReason(); r != "" {
+		c.pathStats.BrushBootstrapOps++
+		c.pathStats.LastBrushBootstrapReason = r
+	}
 }
 
 func (c *Context) recordCPUFallbackOp() {
@@ -313,6 +345,7 @@ func (c *Context) Close() error {
 
 	// Flush pending GPU operations so queued shapes are not lost.
 	c.flushGPUAccelerator()
+	c.drainLayerGPUReleases()
 
 	// Close per-context GPU render context if it was created.
 	if c.gpuCtx != nil {
@@ -1015,12 +1048,17 @@ func (c *Context) Pop() {
 
 		// Pop clip stack entries until we reach the target depth
 		if c.clipStack != nil {
+			changed := false
 			for c.clipStack.Depth() > targetDepth {
 				c.clipStack.Pop()
+				changed = true
 			}
 			// Clear GPU clip path if all path clips were popped.
 			if c.gpuClipPath != nil && c.clipStack.IsRRectOnly() {
 				c.gpuClipPath = nil
+			}
+			if changed {
+				c.bumpClipMaskGPUGen()
 			}
 		}
 	}
@@ -1130,6 +1168,7 @@ func (c *Context) deviceSpacePath() *Path {
 // SetPixel sets a single pixel.
 func (c *Context) SetPixel(x, y int, col RGBA) {
 	c.pixmap.SetPixel(x, y, col)
+	c.noteLayerCPUDraw()
 }
 
 // WritePixels writes a tight premul RGBA8 rectangle into the surface (S.07).
@@ -1556,6 +1595,7 @@ func (c *Context) BeginGPUFrame() {
 }
 
 func (c *Context) FlushGPU() error {
+	c.recordFrameFlush()
 	t := c.gpuRenderTarget()
 	var err error
 	if rc := c.gpuCtxOps(); rc != nil {
@@ -1567,6 +1607,8 @@ func (c *Context) FlushGPU() error {
 	if err == nil {
 		c.applyDitherIfEnabled()
 	}
+	// Layer GPU RTs used as DrawGPUTexture sources can be released now.
+	c.drainLayerGPUReleases()
 	return err
 }
 
@@ -1579,21 +1621,27 @@ func (c *Context) FlushGPU() error {
 // This is the per-pass render target path for ggcanvas.RenderDirect.
 // When view is nil/zero, behaves identically to FlushGPU (CPU readback).
 func (c *Context) FlushGPUWithView(view gpucontext.TextureView, width, height uint32) error {
+	c.recordFrameFlush()
 	t := c.gpuRenderTarget()
 	if !view.IsNil() {
 		t.View = view
 		t.ViewWidth = width
 		t.ViewHeight = height
 	}
+	var err error
 	rc := c.gpuCtxOps()
 	if rc != nil {
-		return rc.Flush(t)
-	}
-	if a := Accelerator(); a != nil {
+		err = rc.Flush(t)
+	} else if a := Accelerator(); a != nil {
 		c.warnGPUFallback("FlushGPUWithView")
-		return a.Flush(t)
+		err = a.Flush(t)
+	} else {
+		err = ErrFallbackToCPU
 	}
-	return ErrFallbackToCPU
+	if err == nil {
+		c.drainLayerGPUReleases()
+	}
+	return err
 }
 
 // FlushGPUWithViewDamage flushes pending GPU operations with damage-aware
@@ -1613,6 +1661,7 @@ func (c *Context) FlushGPUWithView(view gpucontext.TextureView, width, height ui
 // This enables sub-region compositing: a 48×48 spinner updates only 9KB
 // instead of the full surface (8MB at 1080p). See ADR-016 Phase 2.
 func (c *Context) FlushGPUWithViewDamage(view gpucontext.TextureView, width, height uint32, damageRect image.Rectangle) error {
+	c.recordFrameFlush()
 	t := c.gpuRenderTarget()
 	if !view.IsNil() {
 		t.View = view
@@ -1622,20 +1671,24 @@ func (c *Context) FlushGPUWithViewDamage(view gpucontext.TextureView, width, hei
 	if !damageRect.Empty() {
 		t.DamageRects = []image.Rectangle{damageRect}
 	}
+	var err error
 	if rc := c.gpuCtxOps(); rc != nil {
-		return rc.Flush(t)
-	}
-	if a := Accelerator(); a != nil {
+		err = rc.Flush(t)
+	} else if a := Accelerator(); a != nil {
 		c.warnGPUFallback("FlushGPUWithViewDamage")
-		return a.Flush(t)
+		err = a.Flush(t)
 	}
-	return nil
+	if err == nil {
+		c.drainLayerGPUReleases()
+	}
+	return err
 }
 
 // FlushGPUWithViewDamageRects renders to a surface view with multiple damage rects
 // (ADR-028). Each overlay gets its own scissor from the closest damage rect,
 // enabling per-draw dynamic scissor for distant dirty regions.
 func (c *Context) FlushGPUWithViewDamageRects(view gpucontext.TextureView, width, height uint32, rects []image.Rectangle) error {
+	c.recordFrameFlush()
 	t := c.gpuRenderTarget()
 	if !view.IsNil() {
 		t.View = view
@@ -1645,14 +1698,17 @@ func (c *Context) FlushGPUWithViewDamageRects(view gpucontext.TextureView, width
 	if len(rects) > 0 {
 		t.DamageRects = rects
 	}
+	var err error
 	if rc := c.gpuCtxOps(); rc != nil {
-		return rc.Flush(t)
-	}
-	if a := Accelerator(); a != nil {
+		err = rc.Flush(t)
+	} else if a := Accelerator(); a != nil {
 		c.warnGPUFallback("FlushGPUWithViewDamageRects")
-		return a.Flush(t)
+		err = a.Flush(t)
 	}
-	return nil
+	if err == nil {
+		c.drainLayerGPUReleases()
+	}
+	return err
 }
 
 // gpuContextOps is the per-context GPU rendering interface.
@@ -1686,6 +1742,8 @@ type gpuContextOps interface {
 	SetPipelineMode(mode PipelineMode)
 	SetAntiAlias(enabled bool)
 	PendingCount() int
+	// TakeBrushBootstrapReason returns G.04 ColorAt→GPU blit diagnostic, if any.
+	TakeBrushBootstrapReason() string
 	Close()
 }
 
@@ -1729,13 +1787,24 @@ func (c *Context) gpuCtxOps() gpuContextOps {
 }
 
 // gpuRenderTarget returns the current context's pixel buffer as a GPU render target.
+// When the top PushLayer has a GPU offscreen RT (P0-1), View is set so queued
+// fills/strokes resolve into the layer texture instead of the CPU pixmap.
 func (c *Context) gpuRenderTarget() GPURenderTarget {
-	return GPURenderTarget{
+	t := GPURenderTarget{
 		Data:   c.pixmap.Data(),
 		Width:  c.pixmap.Width(),
 		Height: c.pixmap.Height(),
 		Stride: c.pixmap.Width() * 4,
 	}
+	if c.layerStack != nil && len(c.layerStack.layers) > 0 {
+		top := c.layerStack.layers[len(c.layerStack.layers)-1]
+		if top != nil && !top.gpuView.IsNil() {
+			t.View = top.gpuView
+			t.ViewWidth = uint32(top.gpuW)  //nolint:gosec // layer dims bounded
+			t.ViewHeight = uint32(top.gpuH) //nolint:gosec // layer dims bounded
+		}
+	}
+	return t
 }
 
 // warnGPUFallback logs a one-time warning when a GPU operation falls back to
@@ -1925,13 +1994,21 @@ func (c *Context) doFill() error {
 		rc.SetAntiAlias(c.antiAlias)
 	}
 
-	// Mask clips without a GPU depth clip path (e.g. ClipOpDifference) are only
-	// honored on the CPU ClipCoverage path — skip GPU to avoid silent wrong results.
+	// Mask/difference clips without gpuClipPath: prefer GPU R8 mask (P1-2)
+	// over full-surface CPU; only fall back if MaskAware install fails.
 	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
-	// Continuous PushLayer/PopLayer at 60fps cannot afford GPU fill into a CPU
-	// layer pixmap + full Flush readback on Pop (~15–50ms). Draw layers on CPU
-	// into the pooled pixmap, then damage-bounded composite (sub-ms for small UI).
-	forceCPULayer := c.layerStack != nil && len(c.layerStack.layers) > 0
+	clipMaskCleanup := func() {}
+	if forceCPUClip {
+		if cleanup, okInstall := c.installGPUClipMask(); okInstall {
+			clipMaskCleanup = cleanup
+			forceCPUClip = false
+		}
+	}
+	defer clipMaskCleanup()
+	// P0-1: layers with a GPU RT draw on GPU into the offscreen view. Layers
+	// without a GPU RT (advanced blend, mask, no GPU) stay on the CPU pixmap
+	// path — Pop uses damage-bounded CPU composite (no full-surface readback).
+	forceCPULayer := c.layerForceCPUDraw()
 
 	// Temporarily swap c.path to device-space for GPU tryGPUOp
 	// (which reads c.path for shape detection and path rendering).
@@ -1945,7 +2022,7 @@ func (c *Context) doFill() error {
 			c.recordCPUFallbackReason("clip-mask")
 		}
 	} else if forceCPULayer {
-		// Intentional CPU layer path (not a GPU capability miss).
+		// Intentional CPU layer path (no GPU RT on this layer).
 		ok, cpuMode = false, mode
 	} else {
 		ok, cpuMode = c.tryGPUFillWithMode(mode)
@@ -1957,8 +2034,8 @@ func (c *Context) doFill() error {
 
 	// CPU path: flush pending GPU, apply mode and AA state to software renderer.
 	// When drawing into a PushLayer surface, do NOT flush GPU here — pending GPU
-	// ops belong to the parent/swapchain path. Flushing would force a costly
-	// full-surface resolve into the layer pixmap (~10–50ms) and break 60fps UI.
+	// ops may target the layer's offscreen view (or parent). Flushing would force
+	// a costly full-surface resolve and break 60fps UI.
 	if !(c.layerStack != nil && len(c.layerStack.layers) > 0) {
 		c.flushGPUAccelerator()
 	}
@@ -1971,6 +2048,8 @@ func (c *Context) doFill() error {
 		}()
 	}
 
+	// CPU wrote into the layer pixmap — Pop must not GPU-blit an empty RT.
+	c.noteLayerCPUDraw()
 	return c.renderer.Fill(c.pixmap, devicePath, c.paint)
 }
 
@@ -2000,11 +2079,19 @@ func (c *Context) doStroke() error {
 		rc.SetAntiAlias(c.antiAlias)
 	}
 
-	// Mask clips without a GPU depth clip path are CPU-only (same as doFill).
+	// Mask/difference clips: GPU R8 mask when possible (P1-2), else CPU reason.
 	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
-	forceCPULayer := c.layerStack != nil && len(c.layerStack.layers) > 0
+	clipMaskCleanup := func() {}
+	if forceCPUClip {
+		if cleanup, okInstall := c.installGPUClipMask(); okInstall {
+			clipMaskCleanup = cleanup
+			forceCPUClip = false
+		}
+	}
+	defer clipMaskCleanup()
+	forceCPULayer := c.layerForceCPUDraw()
 	if forceCPULayer {
-		// Intentional CPU layer path (not a GPU capability miss).
+		// Intentional CPU layer path (no GPU RT on this layer).
 	} else if !forceCPUClip {
 		devicePath := c.deviceSpacePath()
 		origPath := c.path
@@ -2095,9 +2182,14 @@ func (c *Context) setGPUClipRect() func() {
 	rectOnly := c.clipStack.IsRectOnly()
 	rrectOnly := c.clipStack.IsRRectOnly()
 
-	// Arbitrary path clip → GPU depth clipping if available.
+	// Arbitrary path clip → GPU depth clipping when a device path is stored.
+	// Mask/difference clips (HasMaskClip, no gpuClipPath) fall through to
+	// bounds scissor; fine coverage is applied via GPU R8 mask (P1-2).
 	if !rectOnly && !rrectOnly {
-		return c.setGPUClipPath()
+		if c.gpuClipPath != nil {
+			return c.setGPUClipPath()
+		}
+		// Fall through: coarse scissor only.
 	}
 
 	bounds := c.clipStack.Bounds()
@@ -2197,6 +2289,7 @@ func (c *Context) tryGPUFillWithMode(mode RasterizerMode) (bool, RasterizerMode)
 		c.setForceSDF(false)
 		if err == nil {
 			c.recordGPUOp()
+			c.takeBrushBootstrapIfAny()
 			return true, mode
 		}
 		mode = RasterizerAuto // Non-SDF shape → auto CPU fallback.
@@ -2204,6 +2297,7 @@ func (c *Context) tryGPUFillWithMode(mode RasterizerMode) (bool, RasterizerMode)
 	if mode == RasterizerAuto {
 		if err := c.tryGPUFill(); err == nil {
 			c.recordGPUOp()
+			c.takeBrushBootstrapIfAny()
 			return true, mode
 		} else if c.gpuPathAvailable() {
 			reason := "fill"

@@ -58,13 +58,13 @@
 
 | 优先级 | 项 | 状态 |
 |--------|-----|------|
-| P0-1 | Layer 内 Fill/Stroke（`forceCPULayer`）+ Pop 合成 | CPU† → 目标 GPU RT |
-| P0-2 | 梯度 / pattern 大面积填充 | GPU\* ColorAt 栅格 → 原生 GPU brush |
-| P0-3 | Advanced blend 默认路径 | 混合 → 默认 dual-tex/GPU |
-| P0-4 | Blur / filter 大表面 | CPU 热点 → GPU filter pass |
+| P0-1 | Layer 内 Fill/Stroke + Pop 合成（Normal/Copy GPU RT） | **DONE** GPU RT + texture composite；advanced/mask 仍 CPU |
+| P0-2 | 梯度 / pattern 大面积填充 | **DONE** Pad+convex 梯度 VertexColors；AA-rect ImagePattern tile；Repeat/非凸仍 bootstrap |
+| P0-3 | Advanced blend 默认路径 | **DONE** dual-tex tile + layer advanced Pop |
+| P0-4 | Blur / filter 大表面 | **DONE** standalone `Apply*` + graph → GPU multi-RT；Gaussian 对齐 CPU；`TestP04_*` `cpu_fb=0` |
 | P1 | Mask clip 强制 CPU、文本热 reshape、动画 Full present 策略 | 见清单 |
 
-**下一执行刀（建议）**：按 `GPU_FIRST_ROUTING.md` §4，先 **L.01/L.02（layer GPU RT）** 或 **G.02（梯度 GPU brush）**，二选一单独立项，门禁 `cpu_fb=0` + 像素/区域回归。
+**下一执行刀（建议）**：`GPU_FIRST_ROUTING` §4 **P0–P1 + residual 关闭条件已满足**（S5/S6 + mem_anim S12 `cpu_fb=0`）。后续可选：非凸/CustomBrush **升原生 fragment**、P2 冷门 path effect、控件层入口。
 
 ---
 
@@ -546,6 +546,11 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-16 | — | GPU-first §4 关闭：非凸 bootstrap reason + S5/S6/mem_anim S12 cpu_fb=0；可选升原生/控件层 |
+| 2026-07-16 | — | residual G.02 对角/径向 field + G.04 brush:custom reason；下一步 soak cpu_fb=0 / 非凸 |
+| 2026-07-16 | — | P1-3 DONE：layer Pop 少 mid-flush + FrameFlushes + damage 门禁；下一步 residual G.02/G.04 |
+| 2026-07-16 | — | P1-1 CJK shape 缓存门禁；G.02 H/V linear ExtendRepeat 1D ramp；下一步 P1-3 / residual |
+| 2026-07-16 | — | P0-4 L.04 DONE：standalone filter Apply* GPU multi-RT + Gaussian；下一步 residual CPU† / clip |
 | 2026-07-15 | 1.66 | **M 内存泄漏套件**：T0–T4 + `scripts/run_mem_leak_tests.sh`；修 encoder/pass/queue/adapter/cmdbuf 释放与 session pipeline 所有权；lazy Vello；与 S4–S6 正确性门禁进程隔离并存；`docs/MEM_LEAK_TEST_PLAN.md` |
 | 2026-07-15 | 1.65 | **W0 关闭**：`widget` 包 Button/Input/Modal/ListRow/TableCell + Theme；CPU/GPU present 门禁；`docs/W0_WIDGET_LAYER.md`；焦点 → W1 |
 | 2026-07-15 | 1.64 | **S6.9 关闭**：分级预算 P0/P1/P2/P3；`TestS69_*` + `tmp/s6_9_heavy_budget.json`；P2 相对 S6.0 可解释下降；L2 Comp 分片 201 绿；S6 总关闭条件齐；焦点 → 可选 S6.10 / 控件层入口 |

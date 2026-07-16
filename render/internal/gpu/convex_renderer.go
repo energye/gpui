@@ -46,8 +46,15 @@ type ConvexDrawCommand struct {
 
 	// VertexColors are optional per-vertex premultiplied RGBA colors.
 	// When len(VertexColors) == len(Points), Gouraud shading is used;
-	// the fan centroid uses the average of VertexColors.
+	// the fan centroid uses the average of VertexColors unless
+	// HasCentroidColor is set (P0-2 radial/sweep gradients).
 	VertexColors [][4]float32
+
+	// HasCentroidColor / CentroidColor override the fan hub color when
+	// VertexColors is set. Radial and sweep brushes need ColorAt(centroid)
+	// rather than the mean of boundary samples.
+	HasCentroidColor bool
+	CentroidColor    [4]float32
 
 	// BlendMode selects the WebGPU blend state for this draw (B.02).
 	// Zero value is BlendNormal (SourceOver).
@@ -618,15 +625,19 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 		color := cmd.Color
 		var cCentroid [4]float32
 		if useVC {
-			var ar, ag, ab, aa float32
-			for _, vc := range cmd.VertexColors {
-				ar += vc[0]
-				ag += vc[1]
-				ab += vc[2]
-				aa += vc[3]
+			if cmd.HasCentroidColor {
+				cCentroid = cmd.CentroidColor
+			} else {
+				var ar, ag, ab, aa float32
+				for _, vc := range cmd.VertexColors {
+					ar += vc[0]
+					ag += vc[1]
+					ab += vc[2]
+					aa += vc[3]
+				}
+				inv := float32(1) / float32(n)
+				cCentroid = [4]float32{ar * inv, ag * inv, ab * inv, aa * inv}
 			}
-			inv := float32(1) / float32(n)
-			cCentroid = [4]float32{ar * inv, ag * inv, ab * inv, aa * inv}
 		} else {
 			cCentroid = color
 		}

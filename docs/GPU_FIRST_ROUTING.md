@@ -68,36 +68,36 @@
 | ID | 能力 | 状态 | 现状 | 证据 | 目标 |
 |----|------|------|------|------|------|
 | G.01 | Solid fill/stroke（简单几何） | **GPU** | SDF/path 主路径 | `tryGPUFill` / convex / path | 保持 |
-| G.02 | Linear / Radial / Sweep **gradient fill** | **GPU\*** / 大面积易掉帧 | 非 solid 常 `fillBrushAsImage`：CPU `ColorAt` 栅格再上传；或掉回 CPU | `brush_fill.go` `fillBrushAsImage`；`isGPUSolidPaint` 拒非 solid | **原生 GPU brush/shader**，默认不逐像素 ColorAt |
-| G.03 | Image **pattern** fill | **GPU\*** | 同 G.02 过渡路径 | 同上 | GPU texture pattern sampler |
-| G.04 | CustomBrush / 任意 ColorAt brush | **CPU†** | 无 GPU 等价 | `Brush.ColorAt` 软件路径 | GPU 不支持则显式 reason；勿 silent |
+| G.02 | Linear / Radial / Sweep **gradient fill** | **GPU / GPU\*** | H/V 1D + 对角 field + Pad convex；**非凸/EvenOdd** → ColorAt 覆盖 + GPU blit + reason=`brush:nonconvex-path`/`evenodd` | `brush_native.go`；`TestP02_*` | 真 fragment shader / 非凸原生 |
+| G.03 | Image **pattern** fill | **GPU**（AA 矩形） | P0-2：轴对齐矩形路径上 GPU 贴图 tile；旋转/非矩形仍 bootstrap | `brush_native.go` `fillImagePatternNative`；`TestP02_ImagePatternNativeGPU` | 非矩形 coverage + repeat sampler |
+| G.04 | CustomBrush / 任意 ColorAt brush | **GPU\***（显式 bootstrap） | ColorAt 舞台采样 + GPU blit；`BrushBootstrapOps` + reason=`brush:custom`（非 silent） | `brush_native.go`；`TestP02_CustomBrushBootstrapReason` | 真 fragment ColorAt 后置 |
 | G.05 | Blend **SourceOver / Plus** 等 fixed-function | **GPU** | WebGPU blend state | `blend_gpu.go` `gpuBlendStateForPaint` | 保持 |
-| G.06 | Blend **Multiply/Screen/Overlay** 等 advanced | **混合** | dual-tex GPU 路径存在；非 solid / 超大 bounds / 部分组合仍 `ErrFallbackToCPU` | `brush_fill.go`；`dual_tex_blend.go`；`paint.go` 注释 | **默认 dual-tex/GPU**；CPU 仅无 GPU |
-| G.07 | 全屏/大区域 advanced blend on present | **CPU† 风险** | 注释：非 normal 曾走 CPU 合成 | `paint.go` BlendMode 注释；layer Pop 历史 ~50ms | 禁止大屏 CPU 公式；有界 RT + GPU |
+| G.06 | Blend **Multiply/Screen/Overlay** 等 advanced | **GPU** | P0-3：`fillAdvancedBlendTiled` dual-tex 默认；View 目标先 readback dest；layer Pop advanced 走 `CompositeAdvancedLayer` | `brush_advanced.go`；`dual_tex_blend.go`；`TestP03_*` | 保持；非 solid 源仍 SO 栅格覆盖 |
+| G.07 | 全屏/大区域 advanced blend on present | **GPU**（tile） | P0-3：按 `dualTexTileMax` 分块 dual-tex，避免整面 CPU 公式；仍硬顶 `maxBrushFillPixels` | `brush_advanced.go` tile 循环 | 可选更大/异步 tile |
 
 ### 3.2 Layer / Backdrop / Filter（P0）
 
 | ID | 能力 | 状态 | 现状 | 证据 | 目标 |
 |----|------|------|------|------|------|
-| L.01 | `PushLayer` 内 **Fill/Stroke** | **CPU†** | `forceCPULayer`：层内故意 CPU 画进 pixmap，避免每帧 GPU→CPU readback | `context.go` `doFill`/`doStroke` `forceCPULayer` | **GPU layer RT**（纹理目标），Pop 时 GPU composite |
-| L.02 | `PopLayer` 合成 | **混合** | damage 有界 CPU blend 优化过；全屏仍贵 | `context_layer.go` damage 注释 | GPU blend/composite pass |
+| L.01 | `PushLayer` 内 **Fill/Stroke** | **GPU** | P0-1/P0-3：无 mask 层均创建 GPU RT（含 advanced blend 层）；层内 Fill/Stroke 走 GPU；mask/无 GPU 仍 CPU | `context_layer.go` `gpuView`；`layerForceCPUDraw` | mask 层 GPU 后续 |
+| L.02 | `PopLayer` 合成 | **GPU** | Normal/Copy：`DrawGPUTextureWithOpacity`；advanced：`CompositeAdvancedLayer` dual-tex；mask/`cpuDrew` 仍 CPU | `PopLayer`；`TestP03_AdvancedLayerDualTexGPU` | mask dual-tex |
 | L.03 | `PushBackdropLayer` 快照 | **混合** | 有 GPU 门禁与池化；路径仍重 | S6.4 / L05 测试；mem_anim S07 | GPU snapshot + composite 默认 |
-| L.04 | `ApplyBlur` / DropShadow / ColorMatrix 等 | **混合 / CPU† 热点** | 大表面 CPU 不可接受；mem_anim 用小 RT | `m4_extensions` fallback 计数；effects.go | GPU image filter pass；禁止 present 全屏 CPU blur |
+| L.04 | `ApplyBlur` / DropShadow / ColorMatrix 等 | **GPU 优先（P0-4）** | `Apply*`/`ApplyImageFilterGraph` → multi-RT GPU graph（Gaussian σ=radius，half=⌈3σ⌉）；失败/无 GPU 才 CPU；`cpu_fb=0` | `filter_ops.go` `tryApplyFilterGraphGPU`；`filter_gpu_graph.go` | 超大表面 cap / 更强 multi-pass 可选 |
 
 ### 3.3 Clip / Mask（P1）
 
 | ID | 能力 | 状态 | 现状 | 证据 | 目标 |
 |----|------|------|------|------|------|
 | C.01 | Rect / 多数 path clip | **GPU** | scissor / stencil / depth-clip | GPU clip 路径 | 保持 |
-| C.02 | **Mask clip** 且无 `gpuClipPath` | **CPU† (C 类)** | `forceCPUClip` + reason `clip-mask`，防 silent wrong | `context.go` `forceCPUClip` | 补 GPU depth/mask clip 后取消强制 |
-| C.03 | ClipOpDifference 等边角 | **CPU† 风险** | 与 mask 同类正确性强制 | 同上 | GPU 语义对齐后默认 GPU |
+| C.02 | **Mask clip** 且无 `gpuClipPath` | **GPU 优先（P1-2）** | clip 覆盖栅格 → MaskAware R8；Fill/Stroke 走 GPU masked 路径；失败才 `clip-mask` CPU | `context_clip_mask_gpu.go`；`TestP12_*` | 保持 scissor 粗裁；超大表面可分块 |
+| C.03 | ClipOpDifference 等边角 | **GPU 优先（P1-2）** | Difference 建 mask 后同上 R8 路径；`cpu_fb=0` | `ClipRectOp`/`ClipPathOp` + `TestP12_*` / S3c | 路径复杂 mask 成本可缓存（已 gen 缓存） |
 
 ### 3.4 文本（P0/P1）
 
 | ID | 能力 | 状态 | 现状 | 证据 | 目标 |
 |----|------|------|------|------|------|
 | X.01 | GlyphMask / LCD（有加速器） | **GPU** | Tier6 + LCD 双 pass；混批 per-drawCall isLCD | `glyph_mask_pipeline.go` RecordDraws | 保持；禁止再混 BGL |
-| X.02 | 热路径 **CJK reshape** 每帧 | **CPU 热成本** | shape 在 CPU；结果应缓存 | S6.5；mem_anim 闪屏史 | 强缓存；滚动只更新可见 run |
+| X.02 | 热路径 **CJK reshape** 每帧 | **GPU 绘制 + shape 强缓存（P1-1）** | S6.5 `LayoutGlyphs`/`Shape` soft-LRU；CJK DrawString GPU glyph-mask；重复串 hit | `shape_result_cache.go`；`TestP11_*` / `TestS65_*` | 滚动只 shape hit + atlas warm |
 | X.03 | TextModeBitmap / 导出 | **CPU‡ 可接受** | 设计如此 | TextMode 文档 | 仅 export/无 GPU |
 | X.04 | Vector/MSDF 不可用时 | **混合** | 可回退 | accelerator 路由 | fallback 必须 reason |
 
@@ -122,8 +122,8 @@
 | ID | 能力 | 状态 | 现状 | 证据 | 目标 |
 |----|------|------|------|------|------|
 | F.01 | `PresentFrameAuto` damage/idle | **GPU** | S6.1 | frame.go | 应用默认 |
-| F.02 | 动画示例 `PresentFrameFull` 每帧 | **策略偏全量** | mem_anim 连续动画 | mem_anim main | UI 稳态 damage；全屏特效才 Full |
-| F.03 | mid-frame FlushGPU | **混合** | 多 pass / LoadOpLoad | render_session | 单帧尽量单 submit |
+| F.02 | 动画示例 `PresentFrameFull` 每帧 | **策略分型（P1-3）** | 框架默认 `PresentFrameAuto`+damage 策略（S6.1）；全屏连续动画可 Full；小脏区不 promote Full | `frame.go`；`TestP13_PresentFrameAuto_*` | mem_anim 全屏动画保留 Full 合理 |
+| F.03 | mid-frame FlushGPU | **减负（P1-3）** | Layer Pop 不再强制 base `FlushGPU`；`FrameFlushes` 可观测；层 RT finish 仍必要 flush；Present/Image 末次 materialize | `context_layer.go`；`RenderPathStats.FrameFlushes`；`TestP13_*` | filter/CPU fallback 仍可 mid-flush（正确性） |
 
 ### 3.8 平台 / 适配器（A 类，合规）
 
@@ -140,20 +140,21 @@
 
 | 优先级 | 清单 ID | 一句话 |
 |--------|---------|--------|
-| **P0-1** | L.01 / L.02 | Layer 内绘制与 Pop → GPU RT + GPU composite（去掉 forceCPULayer 作为默认） |
-| **P0-2** | G.02 / G.03 | 梯度 / pattern → 原生 GPU brush（消灭大面积 ColorAt） |
-| **P0-3** | G.06 / G.07 | Advanced blend → 默认 dual-tex/GPU |
-| **P0-4** | L.04 | Blur/shadow/filter → GPU pass；禁止 present 全屏 CPU |
-| **P1-1** | X.02 | 文本 shape/atlas 强缓存 |
-| **P1-2** | C.02 / C.03 | Mask/Difference clip → GPU 正确后取消 forceCPUClip |
-| **P1-3** | F.02 / F.03 | 默认 damage + 少 mid-frame flush |
-| **P2** | G.04 / 冷门 path effect | 显式后置或 reason |
+| **P0-1** | L.01 / L.02 | **DONE（Normal/Copy）** Layer 内绘制与 Pop → GPU RT + GPU composite；`forceCPULayer` 仅剩无 GPU RT 情况 |
+| **P0-2** | G.02 / G.03 | **DONE** + field + 非凸/EvenOdd 显式 bootstrap reason（非 silent） |
+| **P0-3** | G.06 / G.07 | **DONE** Advanced blend 默认 dual-tex + tile；layer advanced Pop dual-tex |
+| **P0-4** | L.04 | **DONE** `ApplyBlur`/`ApplyBlurXY`/`ApplyDropShadow`/`ApplyColorMatrix`/`ApplyGrayscale`/`ApplyInvert` → GPU multi-RT graph（Gaussian 对齐 CPU）；`TestP04_*` + S3c filter gates green；CPU 仅 fallback |
+| **P1-1** | X.02 | **DONE** S6.5 shape/layout soft-LRU + atlas warm；`TestP11_CJKDrawString_ShapeCacheWarm` GPU+hit |
+| **P1-2** | C.02 / C.03 | **DONE** Mask/Difference → GPU R8 MaskAware；`forceCPUClip` 仅 MaskAware 失败时；`TestP12_*` `cpu_fb=0` |
+| **P1-3** | F.02 / F.03 | **DONE** damage plan 门禁 + layer Pop 去 base mid-flush + `frame_flushes` 计数 |
+| **P2** | G.04 / 冷门 path effect | **G.04 reason DONE**（`brush:custom` bootstrap）；冷门 path effect 仍后置 |
 
 关闭条件（本清单）：
 
-- [ ] P0 项状态无 **CPU†**（可 **GPU** 或过渡期 **GPU\*** 但须有「升原生」子任务）  
-- [ ] 有 GPU 的 mem_anim / S5/S6 门禁：`cpu_fb=0`  
-- [ ] `forceCPULayer` / `forceCPUClip` 仅剩「无 GPU 等价且 reason 登记」或已删除  
+- [x] P0 项状态无 **CPU†**（均为 **GPU** 或 **GPU\*** 且有升原生子任务 / 书面后置）  
+- [x] 有 GPU 的 mem_anim / S5/S6 门禁：`cpu_fb=0`（S5/S6 baseline 全场景 + mem_anim S12 6s soak PASS）  
+- [x] `forceCPULayer` 已改为 `layerForceCPUDraw`：仅无 GPU RT（advanced/mask/无 GPU）时 CPU
+- [x] `forceCPUClip`：P1-2 后默认走 GPU R8 mask；仅 MaskAware 不可用时 reason=`clip-mask`  
 
 ---
 
@@ -187,4 +188,10 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 
 | 版本 | 说明 |
 |------|------|
+| 1.6 | 非凸/EvenOdd brush 显式 bootstrap；关闭条件：S5/S6 + mem_anim S12 `cpu_fb=0` |
+| 1.5 | residual：对角/径向 field GPU + G.04 CustomBrush 显式 bootstrap reason |
+| 1.4 | P1-3 DONE：layer Pop 延迟 materialize + FrameFlushes；damage idle/full 门禁 |
+| 1.3 | P1-1 DONE（CJK shape 缓存门禁）；G.02 H/V linear ExtendRepeat/Reflect 1D ramp |
+| 1.2 | P1-2 DONE：Mask/Difference clip → GPU R8 MaskAware；forceCPUClip 仅无 MaskAware |
+| 1.1 | P0-4 DONE：standalone Apply* filter → GPU multi-RT + Gaussian 对齐 CPU；P0-1..P0-3 既有 |
 | 1.0 | 初版：硬原则 + B/C 类清单 + 清缺口序；对齐用户目标「能 GPU 就 GPU，平台不能才 CPU」 |

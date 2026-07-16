@@ -40,6 +40,10 @@ func TestS64_FilterPool_ReusesIntermediates(t *testing.T) {
 	if !render.FiltersRegistered() {
 		t.Skip("filters not registered")
 	}
+	// P0-4: ApplyBlur prefers GPU graph; force CPU so S6.4 intermediate pool is exercised.
+	prev := render.SwapGPUFilterGraph(nil)
+	defer render.SwapGPUFilterGraph(prev)
+
 	render.ResetFilterPoolStats()
 	dc := render.NewContext(64, 64)
 	defer dc.Close()

@@ -542,6 +542,8 @@ func TestContextPushPopLayer(t *testing.T) {
 	dc.Fill()
 	dc.PopLayer()
 
+	_ = dc.FlushGPU()
+
 	// After pop, layer should be composited onto canvas
 	center := dc.pixmap.GetPixel(50, 50)
 	if center.R < 0.8 {
@@ -560,6 +562,8 @@ func TestContextPushPopLayerOpacity(t *testing.T) {
 	dc.DrawRectangle(0, 0, 100, 100)
 	dc.Fill()
 	dc.PopLayer()
+
+	_ = dc.FlushGPU()
 
 	// With 50% opacity black over white, should be gray
 	center := dc.pixmap.GetPixel(50, 50)
@@ -589,6 +593,8 @@ func TestContextPushLayerClampOpacity(t *testing.T) {
 	dc.Fill()
 	dc.PopLayer()
 
+	_ = dc.FlushGPU()
+
 	// At 0 opacity, canvas should remain white
 	center := dc.pixmap.GetPixel(50, 50)
 	if center.R < 0.9 || center.G < 0.9 || center.B < 0.9 {
@@ -609,6 +615,8 @@ func TestContextPushLayerClampOpacityAboveOne(t *testing.T) {
 	dc.Fill()
 	dc.PopLayer()
 
+	_ = dc.FlushGPU()
+
 	// Should be fully red
 	center := dc.pixmap.GetPixel(50, 50)
 	if center.R < 0.8 {
@@ -628,7 +636,10 @@ func TestContextNestedLayers(t *testing.T) {
 	dc.DrawRectangle(0, 0, 100, 100)
 	dc.Fill()
 	dc.PopLayer()
+	_ = dc.FlushGPU()
 	dc.PopLayer()
+
+	_ = dc.FlushGPU()
 
 	// Should be blue after two nested layers
 	center := dc.pixmap.GetPixel(50, 50)

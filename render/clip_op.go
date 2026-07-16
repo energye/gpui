@@ -39,11 +39,12 @@ func (c *Context) ClipRectOp(x, y, w, h float64, op ClipOp) {
 		c.gpuClipPath = nil
 	case ClipOpDifference:
 		_ = c.clipStack.PushRectDifference(rect)
-		// GPU path clip difference not fully expressed as scissor; mark complex.
+		// Difference uses mask coverage; GPU via R8 MaskAware (P1-2).
 		c.gpuClipPath = nil
 	default:
 		c.clipStack.PushRect(rect)
 	}
+	c.bumpClipMaskGPUGen()
 }
 
 // ClipPathOp clips using the current path with the given operation, then clears the path.
@@ -69,5 +70,6 @@ func (c *Context) ClipPathOp(op ClipOp) {
 		_ = c.clipStack.PushPath(verbs, coords, c.antiAlias)
 		c.gpuClipPath = dev
 	}
+	c.bumpClipMaskGPUGen()
 	c.path.Clear()
 }

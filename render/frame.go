@@ -78,6 +78,8 @@ func (c *Context) BeginFrame() {
 		return
 	}
 	c.ResetFrameDamage()
+	// P1-3: per-frame flush metric (F.03).
+	c.pathStats.FrameFlushes = 0
 }
 
 // Invalidate marks a logical rectangle dirty (HiDPI-scaled to physical pixels).

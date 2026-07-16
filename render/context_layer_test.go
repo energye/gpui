@@ -85,6 +85,8 @@ func TestLayerCompositing(t *testing.T) {
 
 	dc.PopLayer()
 
+	_ = dc.FlushGPU()
+
 	pixel := dc.pixmap.GetPixel(5, 5)
 	tolerance := 0.1
 	if abs(pixel.R-1.0) > tolerance {
@@ -122,6 +124,7 @@ func TestLayerOpacityClamping(t *testing.T) {
 		t.Errorf("Expected opacity 0.7, got %f", dc.layerStack.layers[0].opacity)
 	}
 	dc.PopLayer()
+	_ = dc.FlushGPU()
 }
 
 // TestLayerClearTransparent tests that new layers start transparent.

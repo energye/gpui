@@ -61,10 +61,14 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 	filterPixmapPool.Put(dst)
 }
 
-// ApplyBlur applies a Gaussian blur to the current surface contents (F.01).
+// ApplyBlur applies a Gaussian blur to the current surface contents (F.01 / L.04).
+// Prefers the GPU multi-RT filter graph when registered (P0-4); otherwise CPU.
 // Requires render/filters registration (blank-import).
 func (c *Context) ApplyBlur(radius float64) {
 	if radius <= 0 || blurApply == nil {
+		return
+	}
+	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterBlur, Radius: radius}) {
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
@@ -72,9 +76,13 @@ func (c *Context) ApplyBlur(radius float64) {
 	})
 }
 
-// ApplyBlurXY applies an anisotropic Gaussian blur.
+// ApplyBlurXY applies an anisotropic Gaussian blur (L.04).
+// Prefers GPU filter graph when registered (P0-4).
 func (c *Context) ApplyBlurXY(radiusX, radiusY float64) {
 	if (radiusX <= 0 && radiusY <= 0) || blurXYApply == nil {
+		return
+	}
+	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterBlurXY, RadiusX: radiusX, RadiusY: radiusY}) {
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
@@ -82,9 +90,16 @@ func (c *Context) ApplyBlurXY(radiusX, radiusY float64) {
 	})
 }
 
-// ApplyDropShadow composites a drop shadow under current surface contents (F.02).
+// ApplyDropShadow composites a drop shadow under current surface contents (F.02 / L.04).
+// Prefers GPU filter graph when registered (P0-4).
 func (c *Context) ApplyDropShadow(offsetX, offsetY, blurRadius float64, color RGBA) {
 	if dropShadowApply == nil {
+		return
+	}
+	if c.tryApplyFilterGraphGPU(ImageFilterNode{
+		Kind: ImageFilterDropShadow, OffsetX: offsetX, OffsetY: offsetY,
+		ShadowBlur: blurRadius, ShadowColor: color,
+	}) {
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
@@ -92,9 +107,13 @@ func (c *Context) ApplyDropShadow(offsetX, offsetY, blurRadius float64, color RG
 	})
 }
 
-// ApplyColorMatrix applies a 4x5 color transformation matrix (F.04).
+// ApplyColorMatrix applies a 4x5 color transformation matrix (F.04 / L.04).
+// Prefers GPU filter graph when registered (P0-4).
 func (c *Context) ApplyColorMatrix(matrix [20]float32) {
 	if colorMatrixApply == nil {
+		return
+	}
+	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterColorMatrix, Matrix: matrix}) {
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
@@ -102,9 +121,13 @@ func (c *Context) ApplyColorMatrix(matrix [20]float32) {
 	})
 }
 
-// ApplyGrayscale converts the surface to grayscale via color matrix (F.04).
+// ApplyGrayscale converts the surface to grayscale via color matrix (F.04 / L.04).
+// Prefers GPU filter graph when registered (P0-4).
 func (c *Context) ApplyGrayscale() {
 	if grayscaleApply == nil {
+		return
+	}
+	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterGrayscale}) {
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
@@ -112,14 +135,56 @@ func (c *Context) ApplyGrayscale() {
 	})
 }
 
-// ApplyInvert inverts RGB channels via color matrix (F.04).
+// ApplyInvert inverts RGB channels via color matrix (F.04 / L.04).
+// Prefers GPU filter graph when registered (P0-4).
 func (c *Context) ApplyInvert() {
 	if invertApply == nil {
+		return
+	}
+	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterInvert}) {
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		invertApply(src, dst)
 	})
+}
+
+// tryApplyFilterGraphGPU runs nodes on the registered GPU multi-RT filter graph.
+// Returns true when the GPU path fully applied the result (P0-4 / L.04).
+func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
+	if c == nil || c.pixmap == nil || gpuFilterGraphApply == nil || len(nodes) == 0 {
+		return false
+	}
+	nodes = coalesceImageFilterNodes(nodes)
+	if len(nodes) == 0 || !imageFilterGraphGPUSupported(nodes) {
+		return false
+	}
+	// Ensure at least one runnable node with registered CPU ops (GPU graph
+	// still requires filters package for support checks / fallback policy).
+	runnable := 0
+	for i := range nodes {
+		if imageFilterNodeRunnable(nodes[i]) {
+			runnable++
+		}
+	}
+	if runnable == 0 {
+		return false
+	}
+
+	_ = c.FlushGPU()
+	src := c.pixmap
+	w, h := src.Width(), src.Height()
+	if w <= 0 || h <= 0 {
+		return false
+	}
+	out, err := gpuFilterGraphApply(append([]byte(nil), src.Data()...), w, h, nodes)
+	if err != nil || len(out) < w*h*4 {
+		return false
+	}
+	copy(src.Data(), out[:w*h*4])
+	src.NotifyPixelsChanged()
+	c.recordGPUOp()
+	return true
 }
 
 // FiltersRegistered reports whether image filter ops were registered.
@@ -136,6 +201,14 @@ func RegisterGPUFilterGraph(fn func(src []byte, w, h int, nodes []ImageFilterNod
 // GPUFilterGraphRegistered reports whether a GPU multi-RT filter graph is wired.
 func GPUFilterGraphRegistered() bool {
 	return gpuFilterGraphApply != nil
+}
+
+// SwapGPUFilterGraph replaces the GPU filter graph and returns the previous one (tests).
+// Pass nil to force the CPU filter path (S6.4 pool / fallback verification).
+func SwapGPUFilterGraph(fn func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)) func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error) {
+	prev := gpuFilterGraphApply
+	gpuFilterGraphApply = fn
+	return prev
 }
 
 // ImageFilterKind identifies a node in an image-filter graph (F.03).
@@ -202,26 +275,19 @@ func (c *Context) ApplyImageFilterGraph(nodes ...ImageFilterNode) {
 	// S6.4: drop no-ops / merge consecutive color matrices before GPU or CPU path.
 	nodes = coalesceImageFilterNodes(nodes)
 
-	_ = c.FlushGPU()
+	// F.03 / P0-4: GPU multi-RT ping-pong when all nodes are GPU-supported.
+	if c.tryApplyFilterGraphGPU(nodes...) {
+		return
+	}
+
 	src := c.pixmap
 	w, h := src.Width(), src.Height()
 	if w <= 0 || h <= 0 {
 		return
 	}
 
-	// F.03 GPU multi-RT ping-pong when all nodes are GPU-supported.
-	if gpuFilterGraphApply != nil && imageFilterGraphGPUSupported(nodes) {
-		out, err := gpuFilterGraphApply(append([]byte(nil), src.Data()...), w, h, nodes)
-		if err == nil && len(out) >= w*h*4 {
-			copy(src.Data(), out[:w*h*4])
-			src.NotifyPixelsChanged()
-			// True GPU texture ping-pong counts as a GPU op for path stats.
-			c.recordGPUOp()
-			return
-		}
-	}
-
 	// CPU fallback: pooled pixmap ping-pong intermediate surfaces (S6.4).
+	_ = c.FlushGPU()
 	bufA := filterPixmapPool.GetForOverwrite(w, h)
 	bufB := filterPixmapPool.GetForOverwrite(w, h)
 	copy(bufA.Data(), src.Data())

@@ -65,8 +65,11 @@ type GPURenderContext struct {
 	lastView      *webgpu.TextureView
 
 	// Per-context scene stats (for Auto pipeline mode).
-	sceneStats   render.SceneStats
-	pipelineMode render.PipelineMode
+	sceneStats render.SceneStats
+
+	// G.04 / residual brush bootstrap diagnostic (ColorAt stage + GPU blit).
+	brushBootstrapReason string
+	pipelineMode         render.PipelineMode
 
 	// Anti-aliasing state for GPU rendering (propagated from Context).
 	antiAlias bool
@@ -226,6 +229,24 @@ func (rc *GPURenderContext) SubmitEncoder(encoder gpucontext.CommandEncoder) err
 // SceneStats returns the accumulated scene statistics for this context.
 func (rc *GPURenderContext) SceneStats() render.SceneStats {
 	return rc.sceneStats
+}
+
+// noteBrushBootstrap records an explicit ColorAt→GPU-blit bootstrap reason (G.04).
+func (rc *GPURenderContext) noteBrushBootstrap(reason string) {
+	if rc == nil || reason == "" {
+		return
+	}
+	rc.brushBootstrapReason = reason
+}
+
+// TakeBrushBootstrapReason returns and clears the last brush bootstrap reason.
+func (rc *GPURenderContext) TakeBrushBootstrapReason() string {
+	if rc == nil {
+		return ""
+	}
+	r := rc.brushBootstrapReason
+	rc.brushBootstrapReason = ""
+	return r
 }
 
 // QueueShape accumulates an SDF shape for batch dispatch.
@@ -682,6 +703,10 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		if paintSupportsGPUAdvancedBlend(paint) {
 			return rc.fillAdvancedBlendAsImage(target, path, paint)
 		}
+		// P0-2: native GPU gradient / image-pattern fill (no large-area ColorAt).
+		if err := rc.fillBrushNative(target, path, paint); err == nil {
+			return nil
+		}
 		return rc.fillBrushAsImage(target, path, paint)
 	}
 	if !paintSupportsGPUFixedBlend(paint) {
@@ -912,6 +937,9 @@ func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape rende
 		p := detectedShapeToPath(shape)
 		if p == nil {
 			return render.ErrFallbackToCPU
+		}
+		if err := rc.fillBrushNative(target, p, paint); err == nil {
+			return nil
 		}
 		return rc.fillBrushAsImage(target, p, paint)
 	}

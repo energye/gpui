@@ -156,6 +156,21 @@ type DrawImageOptions struct {
 	BlendMode BlendMode
 }
 
+// IsAdvancedBlendMode reports whether mode requires destination sampling
+// (separable/non-separable advanced blends) rather than fixed-function factors.
+// Used by layer Pop dual-tex (P0-3 / G.06).
+func IsAdvancedBlendMode(mode BlendMode) bool {
+	switch mode {
+	case BlendMultiply, BlendScreen, BlendOverlay,
+		BlendDarken, BlendLighten, BlendColorDodge, BlendColorBurn,
+		BlendHardLight, BlendSoftLight, BlendDifference, BlendExclusion,
+		BlendHue, BlendSaturation, BlendColor, BlendLuminosity:
+		return true
+	default:
+		return false
+	}
+}
+
 // DrawImage draws an image at the specified position.
 // The current transformation matrix is applied to the position and size.
 //
@@ -472,6 +487,27 @@ func (p *ImagePattern) SetScale(sx, sy float64) {
 // This overrides any anchor/scale settings.
 func (p *ImagePattern) SetTransform(m Matrix) {
 	p.inverse = m.Invert()
+}
+
+// GPUPatternSource exposes image pattern fields for GPU-native fill (G.03).
+// Returns nil image when the pattern is empty/invalid.
+func (p *ImagePattern) GPUPatternSource() (img *ImageBuf, srcX, srcY, srcW, srcH int, inverse Matrix, opacity float64, clamp bool) {
+	if p == nil || p.image == nil {
+		return nil, 0, 0, 0, 0, Identity(), 1, false
+	}
+	imgW, imgH := p.image.Bounds()
+	srcW, srcH = p.w, p.h
+	if srcW <= 0 {
+		srcW = imgW
+	}
+	if srcH <= 0 {
+		srcH = imgH
+	}
+	op := p.opacity
+	if op <= 0 {
+		op = 1
+	}
+	return p.image, p.x, p.y, srcW, srcH, p.inverse, op, p.clamp
 }
 
 // rebuildInverse computes the inverse transform from the legacy anchor+scale fields.

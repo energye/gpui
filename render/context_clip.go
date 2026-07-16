@@ -25,6 +25,7 @@ func (c *Context) Clip() {
 	// Store the device-space path for GPU depth clipping (GPU-CLIP-003a).
 	// The GPU DepthClipPipeline fan-tessellates this path at draw time.
 	c.gpuClipPath = devicePath.Clone()
+	c.bumpClipMaskGPUGen()
 
 	// Clear the path
 	c.path.Clear()
@@ -47,6 +48,7 @@ func (c *Context) ClipPreserve() {
 
 	// Store the device-space path for GPU depth clipping (GPU-CLIP-003a).
 	c.gpuClipPath = devicePath.Clone()
+	c.bumpClipMaskGPUGen()
 	// Path is preserved
 }
 
@@ -72,6 +74,7 @@ func (c *Context) ClipRect(x, y, w, h float64) {
 	)
 
 	c.clipStack.PushRect(rect)
+	c.bumpClipMaskGPUGen()
 }
 
 // ClipRoundRect sets a rounded rectangle clipping region.
@@ -116,6 +119,7 @@ func (c *Context) ClipRoundRect(x, y, w, h, radius float64) {
 
 	rect := clip.NewRect(devX, devY, devW, devH)
 	c.clipStack.PushRRect(rect, scaledRadius)
+	c.bumpClipMaskGPUGen()
 }
 
 // ResetClip removes all clipping regions, restoring the full canvas as drawable.
@@ -128,6 +132,7 @@ func (c *Context) ResetClip() {
 	bounds := clip.NewRect(0, 0, float64(c.pixmap.Width()), float64(c.pixmap.Height()))
 	c.clipStack.Reset(bounds)
 	c.gpuClipPath = nil
+	c.bumpClipMaskGPUGen()
 }
 
 // initClipStack initializes the clip stack with canvas bounds in device-space.

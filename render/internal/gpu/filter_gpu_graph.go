@@ -115,20 +115,25 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         let bb = clamp(nb, 0.0, 1.0);
         return vec4<f32>(rr * aa, gg * aa, bb * aa, aa);
     }
-    // Separable box blur
+    // Separable Gaussian blur (sigma in offset.x; radius = half-kernel).
+    // Matches CPU CachedGaussianKernel: half = ceil(3*sigma), weight = exp(-x^2/(2s^2)).
     let texel = p.direction / max(p.size, vec2<f32>(1.0, 1.0));
     let rad = i32(p.radius);
+    let sigma = max(p.offset.x, 0.01);
+    let two_sigma_sq = 2.0 * sigma * sigma;
     var acc = vec4<f32>(0.0);
     var wsum = 0.0;
-    for (var i = -8; i <= 8; i = i + 1) {
+    for (var i = -24; i <= 24; i = i + 1) {
         if i < -rad || i > rad {
             continue;
         }
-        let uv = in.uv + texel * f32(i);
-        acc = acc + textureSampleLevel(src_tex, samp, uv, 0.0);
-        wsum = wsum + 1.0;
+        let fi = f32(i);
+        let w = exp(-(fi * fi) / two_sigma_sq);
+        let uv = in.uv + texel * fi;
+        acc = acc + textureSampleLevel(src_tex, samp, uv, 0.0) * w;
+        wsum = wsum + w;
     }
-    return acc / max(wsum, 1.0);
+    return acc / max(wsum, 1e-6);
 }
 `
 
@@ -512,26 +517,30 @@ func runGPUFilterGraph(device *webgpu.Device, queue *webgpu.Queue, cache *filter
 			}
 			swap()
 		case render.ImageFilterBlur:
-			r := uint32(math.Max(1, math.Min(8, math.Ceil(n.Radius))))
-			if err := doPass(passArgs{mode: 0, radius: r, dirX: 1, dirY: 0}); err != nil {
+			// sigma=Radius; half-kernel = ceil(3*sigma) like CPU GaussianKernel (cap 24).
+			sigma := math.Max(0.01, n.Radius)
+			r := uint32(math.Max(1, math.Min(24, math.Ceil(sigma*3))))
+			if err := doPass(passArgs{mode: 0, radius: r, dirX: 1, dirY: 0, offX: float32(sigma)}); err != nil {
 				return nil, err
 			}
 			swap()
-			if err := doPass(passArgs{mode: 0, radius: r, dirX: 0, dirY: 1}); err != nil {
+			if err := doPass(passArgs{mode: 0, radius: r, dirX: 0, dirY: 1, offX: float32(sigma)}); err != nil {
 				return nil, err
 			}
 			swap()
 		case render.ImageFilterBlurXY:
-			rx := uint32(math.Max(0, math.Min(8, math.Ceil(n.RadiusX))))
-			ry := uint32(math.Max(0, math.Min(8, math.Ceil(n.RadiusY))))
-			if rx > 0 {
-				if err := doPass(passArgs{mode: 0, radius: rx, dirX: 1, dirY: 0}); err != nil {
+			sx := math.Max(0, n.RadiusX)
+			sy := math.Max(0, n.RadiusY)
+			if sx > 0 {
+				rx := uint32(math.Max(1, math.Min(24, math.Ceil(sx*3))))
+				if err := doPass(passArgs{mode: 0, radius: rx, dirX: 1, dirY: 0, offX: float32(sx)}); err != nil {
 					return nil, err
 				}
 				swap()
 			}
-			if ry > 0 {
-				if err := doPass(passArgs{mode: 0, radius: ry, dirX: 0, dirY: 1}); err != nil {
+			if sy > 0 {
+				ry := uint32(math.Max(1, math.Min(24, math.Ceil(sy*3))))
+				if err := doPass(passArgs{mode: 0, radius: ry, dirX: 0, dirY: 1, offX: float32(sy)}); err != nil {
 					return nil, err
 				}
 				swap()
@@ -561,14 +570,15 @@ func runGPUFilterGraph(device *webgpu.Device, queue *webgpu.Queue, cache *filter
 				return nil, err
 			}
 			swap()
-			// Blur shadow.
+			// Blur shadow (Gaussian, sigma=ShadowBlur).
 			if n.ShadowBlur > 0 {
-				r := uint32(math.Max(1, math.Min(8, math.Ceil(n.ShadowBlur))))
-				if err := doPass(passArgs{mode: 0, radius: r, dirX: 1, dirY: 0}); err != nil {
+				sigma := math.Max(0.01, n.ShadowBlur)
+				r := uint32(math.Max(1, math.Min(24, math.Ceil(sigma*3))))
+				if err := doPass(passArgs{mode: 0, radius: r, dirX: 1, dirY: 0, offX: float32(sigma)}); err != nil {
 					return nil, err
 				}
 				swap()
-				if err := doPass(passArgs{mode: 0, radius: r, dirX: 0, dirY: 1}); err != nil {
+				if err := doPass(passArgs{mode: 0, radius: r, dirX: 0, dirY: 1, offX: float32(sigma)}); err != nil {
 					return nil, err
 				}
 				swap()

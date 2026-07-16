@@ -13,6 +13,9 @@ import (
 // Above this, fall back to pure CPU on the context pixmap.
 const maxBrushFillPixels = 8 * 1024 * 1024
 
+// dualTexTileMax is the max pixels per dual-tex tile (G.07).
+const dualTexTileMax = 512 * 512
+
 // fillBrushAsImage rasterizes a non-solid paint (gradient/pattern) with the
 // software path into a staging pixmap, then queues a GPU textured-quad
 // composite. This matches Skia's "rasterize shader then GPU blit" bootstrap
@@ -147,130 +150,7 @@ func detectedShapeToPath(shape render.DetectedShape) *render.Path {
 // This is dual-texture fragment blend (not CPU composite of dest*src). AA edge
 // pixels may not be bit-exact under the subsequent SO blit; gates sample interiors.
 func (rc *GPURenderContext) fillAdvancedBlendAsImage(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
-	if path == nil || path.NumVerbs() == 0 || paint == nil {
-		return nil
-	}
-	if !rc.shared.gpuReady {
-		rc.shared.mu.Lock()
-		err := rc.shared.ensureGPU()
-		rc.shared.mu.Unlock()
-		if err != nil || !rc.shared.gpuReady {
-			return render.ErrFallbackToCPU
-		}
-	}
-	tw, th := target.Width, target.Height
-	if tw <= 0 || th <= 0 || len(target.Data) < tw*th*4 {
-		return render.ErrFallbackToCPU
-	}
-
-	// Ensure destination is current in target.Data.
-	if rc.PendingCount() > 0 {
-		if err := rc.Flush(target); err != nil {
-			return err
-		}
-	}
-
-	bounds := path.Bounds().Intersect(image.Rect(0, 0, tw, th))
-	if bounds.Empty() {
-		bb := path.BoundingBox()
-		x0 := int(math.Floor(bb.Min.X)) - 1
-		y0 := int(math.Floor(bb.Min.Y)) - 1
-		x1 := int(math.Ceil(bb.Max.X)) + 1
-		y1 := int(math.Ceil(bb.Max.Y)) + 1
-		bounds = image.Rect(x0, y0, x1, y1).Intersect(image.Rect(0, 0, tw, th))
-	}
-	if bounds.Empty() {
-		return nil
-	}
-	bw, bh := bounds.Dx(), bounds.Dy()
-	if bw <= 0 || bh <= 0 {
-		return nil
-	}
-	if bw*bh > maxBrushFillPixels {
-		return render.ErrFallbackToCPU
-	}
-
-	// Source-only raster: transparent dest + SourceOver keeps advanced blend for the GPU pass.
-	srcPM := render.NewPixmap(tw, th)
-	srcPM.Clear(render.Transparent)
-	sr := render.NewSoftwareRenderer(tw, th)
-	sr.SetAntiAlias(rc.antiAlias)
-	srcPaint := paint.Clone()
-	srcPaint.BlendMode = render.BlendNormal
-	if err := sr.Fill(srcPM, path, srcPaint); err != nil {
-		return render.ErrFallbackToCPU
-	}
-	srcPM.NotifyPixelsChanged()
-
-	// Extract dest + src tight regions.
-	dstFull := target.Data
-	srcFull := srcPM.Data()
-	stride := tw * 4
-	dstRegion := make([]byte, bw*bh*4)
-	srcRegion := make([]byte, bw*bh*4)
-	for row := 0; row < bh; row++ {
-		srcOff := (bounds.Min.Y+row)*stride + bounds.Min.X*4
-		dstOff := row * bw * 4
-		copy(dstRegion[dstOff:dstOff+bw*4], dstFull[srcOff:srcOff+bw*4])
-		copy(srcRegion[dstOff:dstOff+bw*4], srcFull[srcOff:srcOff+bw*4])
-	}
-
-	// Skip fully transparent source.
-	any := false
-	for i := 3; i < len(srcRegion); i += 4 {
-		if srcRegion[i] != 0 {
-			any = true
-			break
-		}
-	}
-	if !any {
-		return nil
-	}
-
-	rc.shared.mu.Lock()
-	device := rc.shared.device
-	queue := rc.shared.queue
-	cache := &rc.shared.dualTexBlend
-	rc.shared.mu.Unlock()
-	if device == nil || queue == nil {
-		return render.ErrFallbackToCPU
-	}
-
-	pixelData, err := dualTexAdvancedBlend(device, queue, cache, dstRegion, srcRegion, bw, bh, paint.BlendMode)
-	if err != nil {
-		// Fall back to legacy CPU composite path on dual-tex failure.
-		work := render.NewPixmap(tw, th)
-		copy(work.Data(), target.Data[:tw*th*4])
-		sr2 := render.NewSoftwareRenderer(tw, th)
-		sr2.SetAntiAlias(rc.antiAlias)
-		if err2 := sr2.Fill(work, path, paint); err2 != nil {
-			return render.ErrFallbackToCPU
-		}
-		work.NotifyPixelsChanged()
-		pixelData = make([]byte, bw*bh*4)
-		for row := 0; row < bh; row++ {
-			srcOff := (bounds.Min.Y+row)*stride + bounds.Min.X*4
-			dstOff := row * bw * 4
-			copy(pixelData[dstOff:dstOff+bw*4], work.Data()[srcOff:srcOff+bw*4])
-		}
-	}
-
-	x0 := float32(bounds.Min.X)
-	y0 := float32(bounds.Min.Y)
-	x1 := float32(bounds.Max.X)
-	y1 := float32(bounds.Max.Y)
-	vpW := uint32(tw) //nolint:gosec
-	vpH := uint32(th) //nolint:gosec
-
-	rc.QueueImageDraw(target, pixelData, srcPM.GenerationID(), bw, bh, bw*4,
-		x0, y0, x1, y0, x1, y1, x0, y1,
-		1.0, vpW, vpH,
-		0, 0, 1, 1,
-		false,
-	)
-	rc.sceneStats.PathCount++
-	rc.sceneStats.ShapeCount++
-	return nil
+	return rc.fillAdvancedBlendTiled(target, path, paint)
 }
 
 // fillMaskedAsImage applies an alpha mask via true R8 GPU sampling (L.06):
