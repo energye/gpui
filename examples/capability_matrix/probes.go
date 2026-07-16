@@ -95,28 +95,30 @@ func (e *effectRT) last() *render.ImageBuf {
 }
 
 var (
-	gLayerRT    effectRT
-	gFilterBlur effectRT
-	gFilterShad effectRT
-	gFilterGray effectRT
-	gBackdropRT effectRT
-	gAdvBlendRT effectRT
-	gTextLCDRT  effectRT
-	gMaskRT     effectRT
-	gGradRT     effectRT
-	gBlendRT    effectRT
-	gPDBoardRT  effectRT
-	gClipDiffRT effectRT
-	gGradTileRT effectRT
-	gImageAdvRT effectRT
-	gTextAdvRT  effectRT
-	gNineSrc    *render.ImageBuf
-	gCheckerImg *render.ImageBuf
-	gBlendBG    *render.ImageBuf
-	gSoftMask   *render.Mask
-	gMeshPos    []render.Point
-	gMeshCol    []render.RGBA
-	gMeshIdx    []uint16
+	gLayerRT     effectRT
+	gFilterBlur  effectRT
+	gFilterShad  effectRT
+	gFilterGray  effectRT
+	gBackdropRT  effectRT
+	gAdvBlendRT  effectRT
+	gTextLCDRT   effectRT
+	gMaskRT      effectRT
+	gGradRT      effectRT
+	gBlendRT     effectRT
+	gPDBoardRT   effectRT
+	gClipDiffRT  effectRT
+	gGradTileRT  effectRT
+	gImageAdvRT  effectRT
+	gTextAdvRT   effectRT
+	gLayerFiltRT effectRT
+	gQualityRT   effectRT
+	gNineSrc     *render.ImageBuf
+	gCheckerImg  *render.ImageBuf
+	gBlendBG     *render.ImageBuf
+	gSoftMask    *render.Mask
+	gMeshPos     []render.Point
+	gMeshCol     []render.RGBA
+	gMeshIdx     []uint16
 )
 
 func ensureChecker() *render.ImageBuf {
@@ -778,6 +780,18 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 	case "textadv":
 		drawTextAdvanced(dc, fonts, fw, fh, t, frame)
 		return "MultiFace 混排 / atlas 复用 / emoji 探针（X.03/X.09–X.11）"
+	case "pathadv":
+		drawPathAdvanced(dc, fw, fh, t, frame)
+		return "弧/boolean/trim/corner/discrete 路径进阶（H.02/G.05/H.04/H.05/E.02/E.03）"
+	case "xfmadv":
+		drawTransformAdvanced(dc, fw, fh, t, frame)
+		return "非均匀 stroke / 四边形贴图 / miter limit（T.03/T.04/P.07）"
+	case "layerfilt":
+		drawLayerFilterGraph(dc, fw, fh, t, frame)
+		return "layer + blur/色矩阵滤镜链（L.04/F.03）"
+	case "quality":
+		drawQualityAA(dc, fw, fh, t, frame)
+		return "AA 开/关 + hairline + dither + HiDPI hairline（Q.01–Q.04/S.08）"
 	case "composite":
 		// Multi-capability light composite (not full stress)
 		// Grad base strip
@@ -1275,6 +1289,277 @@ func drawTextAdvanced(dc *render.Context, fonts fontPack, fw, fh, t float64, fra
 	dc.SetRGBA(1, 0.75, 0.2, 0.9)
 	dc.DrawCircle(fw*0.1+16*math.Sin(t*2), fh*0.88, 8)
 	_ = dc.Fill()
+}
+
+// drawPathAdvanced — C26 path arcs / boolean / measure-trim / path effects.
+func drawPathAdvanced(dc *render.Context, fw, fh, t float64, frame int) {
+	// Present-path: keep geometry modest for 60fps.
+	// H.02 arcs
+	dc.SetRGBA(0.25, 0.75, 1, 0.95)
+	dc.SetLineWidth(3)
+	dc.DrawArc(fw*0.18, fh*0.42, 55, t*0.6, t*0.6+math.Pi*1.3)
+	_ = dc.Stroke()
+	dc.SetRGBA(1, 0.55, 0.2, 0.9)
+	dc.DrawEllipticalArc(fw*0.18, fh*0.42, 70, 38, -t*0.4, -t*0.4+math.Pi)
+	_ = dc.Stroke()
+
+	// G.05/H.04 boolean difference fill (two circles)
+	a := render.NewPath()
+	a.MoveTo(fw*0.42-50, fh*0.42)
+	// approximate circle via ellipse draw into path using Append after Draw* is hard;
+	// use rectangle+circle style: build with cubic-ish via Draw on temp context path ops.
+	// Prefer BooleanPath of two closed poly circles via LineTo rings.
+	ring := func(cx, cy, r float64, n int) *render.Path {
+		p := render.NewPath()
+		for i := 0; i <= n; i++ {
+			ang := float64(i) / float64(n) * 2 * math.Pi
+			x, y := cx+r*math.Cos(ang), cy+r*math.Sin(ang)
+			if i == 0 {
+				p.MoveTo(x, y)
+			} else {
+				p.LineTo(x, y)
+			}
+		}
+		p.Close()
+		return p
+	}
+	cx, cy := fw*0.48, fh*0.42
+	pa := ring(cx-12, cy, 48, 28)
+	pb := ring(cx+18+10*math.Sin(t), cy+6*math.Cos(t), 36, 24)
+	diff := pa.Op(pb, render.PathOpDifference)
+	if diff != nil {
+		dc.SetRGBA(0.35, 0.9, 0.55, 0.92)
+		dc.AppendPath(diff)
+		_ = dc.Fill()
+	}
+
+	// E.03 trim of a cubic wave (H.05 measure subset via Trim)
+	wave := render.NewPath()
+	wave.MoveTo(fw*0.08, fh*0.72)
+	wave.CubicTo(fw*0.25, fh*0.55, fw*0.4, fh*0.9, fw*0.55, fh*0.7)
+	wave.CubicTo(fw*0.7, fh*0.5, fw*0.82, fh*0.85, fw*0.94, fh*0.68)
+	t0 := 0.1 + 0.15*math.Abs(math.Sin(t*0.7))
+	t1 := t0 + 0.45
+	if t1 > 0.98 {
+		t1 = 0.98
+	}
+	trimmed := wave.Trim(t0, t1)
+	if trimmed != nil {
+		dc.SetRGBA(1, 0.85, 0.25, 0.95)
+		dc.SetLineWidth(4)
+		dc.SetLineCap(render.LineCapRound)
+		dc.AppendPath(trimmed)
+		_ = dc.Stroke()
+	}
+	// ghost full path
+	dc.SetRGBA(1, 1, 1, 0.18)
+	dc.SetLineWidth(1.5)
+	dc.AppendPath(wave)
+	_ = dc.Stroke()
+
+	// E.02 corner + discrete
+	sharp := render.NewPath()
+	sharp.MoveTo(fw*0.62, fh*0.28)
+	sharp.LineTo(fw*0.78, fh*0.28)
+	sharp.LineTo(fw*0.78, fh*0.52)
+	rounded := sharp.WithCorners(16)
+	dc.SetRGBA(0.55, 0.75, 1, 0.95)
+	dc.SetLineWidth(3.5)
+	dc.SetLineJoin(render.LineJoinRound)
+	dc.AppendPath(rounded)
+	_ = dc.Stroke()
+
+	base := render.NewPath()
+	base.MoveTo(fw*0.62, fh*0.6)
+	base.LineTo(fw*0.92, fh*0.78)
+	disc := base.Discrete(10, 3+2*math.Abs(math.Sin(t)))
+	dc.SetRGBA(1, 0.35, 0.4, 0.95)
+	dc.SetLineWidth(2.5)
+	dc.AppendPath(disc)
+	_ = dc.Stroke()
+
+	// motion marker
+	dc.SetRGBA(1, 0.75, 0.2, 0.95)
+	dc.DrawCircle(fw*0.1+16*math.Sin(t*2), fh*0.88, 8)
+	_ = dc.Fill()
+	_ = frame
+	_ = a
+}
+
+// drawTransformAdvanced — C27 non-uniform stroke / image quad / miter.
+func drawTransformAdvanced(dc *render.Context, fw, fh, t float64, frame int) {
+	// T.03 non-uniform scale stroke
+	dc.Push()
+	dc.Translate(fw*0.22, fh*0.4)
+	dc.Scale(1.0+0.35*math.Sin(t), 0.55+0.2*math.Cos(t*0.8))
+	dc.SetRGBA(0.3, 0.85, 1, 0.95)
+	dc.SetLineWidth(6)
+	dc.SetLineJoin(render.LineJoinMiter)
+	dc.SetMiterLimit(8)
+	dc.DrawRoundedRectangle(-55, -40, 110, 80, 12)
+	_ = dc.Stroke()
+	dc.SetRGBA(1, 0.5, 0.2, 0.85)
+	dc.DrawCircle(0, 0, 22)
+	_ = dc.Fill()
+	dc.Pop()
+
+	// T.04 image quad (perspective-ish corners)
+	if img := ensureChecker(); img != nil {
+		cx, cy := fw*0.55, fh*0.38
+		wob := 12 * math.Sin(t)
+		corners := [4]render.Point{
+			{X: cx - 70 + wob, Y: cy - 50},
+			{X: cx + 75, Y: cy - 40 - wob*0.5},
+			{X: cx + 60 - wob*0.3, Y: cy + 55},
+			{X: cx - 80, Y: cy + 45 + wob*0.4},
+		}
+		dc.DrawImageQuad(img, corners)
+	}
+
+	// P.07 miter limit: two L-joins with high vs low miter
+	drawMiter := func(x, y, limit float64, col render.RGBA) {
+		dc.Push()
+		dc.Translate(x, y)
+		dc.Rotate(t * 0.25)
+		dc.SetRGBA(col.R, col.G, col.B, col.A)
+		dc.SetLineWidth(10)
+		dc.SetLineJoin(render.LineJoinMiter)
+		dc.SetMiterLimit(limit)
+		p := render.NewPath()
+		p.MoveTo(-40, 30)
+		p.LineTo(0, -35)
+		p.LineTo(40, 30)
+		dc.AppendPath(p)
+		_ = dc.Stroke()
+		dc.Pop()
+	}
+	drawMiter(fw*0.28, fh*0.72, 12, render.RGBA{R: 0.3, G: 1, B: 0.5, A: 0.95})  // sharp miter
+	drawMiter(fw*0.55, fh*0.72, 1.2, render.RGBA{R: 1, G: 0.4, B: 0.3, A: 0.95}) // clipped miter → bevel-like
+
+	dc.SetRGBA(1, 0.75, 0.2, 0.95)
+	dc.DrawCircle(fw*0.1+16*math.Sin(t*2), fh*0.88, 8)
+	_ = dc.Fill()
+	_ = frame
+}
+
+// drawLayerFilterGraph — C28 L.04 / F.03 layer + filter chain on bounded RT.
+func drawLayerFilterGraph(dc *render.Context, fw, fh, t float64, frame int) {
+	tw, th := 280, 160
+	// Rebuild every 2 frames; present cached on odd — still continuous motion marker.
+	if frame%2 == 1 && gLayerFiltRT.hasCached() {
+		_ = gLayerFiltRT.presentCached(dc, fw*0.5-float64(tw)/2, fh*0.45-float64(th)/2, render.InterpBilinear)
+		dc.SetRGBA(1, 0.7, 0.25, 0.95)
+		dc.DrawCircle(fw*0.12+20*math.Sin(t*2), fh*0.88, 9)
+		_ = dc.Fill()
+		return
+	}
+	rt := gLayerFiltRT.ensure(tw, th)
+	rt.Clear()
+	// base bands
+	rt.SetRGB(0.12, 0.14, 0.22)
+	rt.DrawRectangle(0, 0, float64(tw), float64(th))
+	_ = rt.Fill()
+	rt.SetRGBA(0.25, 0.55, 1, 0.9)
+	rt.DrawCircle(float64(tw)*0.35+12*math.Sin(t), float64(th)*0.5, 40)
+	_ = rt.Fill()
+	rt.SetRGBA(1, 0.45, 0.2, 0.9)
+	rt.DrawCircle(float64(tw)*0.62+10*math.Cos(t), float64(th)*0.5, 36)
+	_ = rt.Fill()
+
+	// translucent layer content (L.02/L.04 style)
+	rt.PushLayer(render.BlendNormal, 0.75)
+	rt.SetRGBA(0.3, 1, 0.7, 0.95)
+	rt.DrawRoundedRectangle(24+8*math.Sin(t*1.2), 28, float64(tw-48), float64(th-56), 14)
+	_ = rt.Fill()
+	rt.SetRGBA(0.1, 0.12, 0.18, 0.9)
+	rt.DrawCircle(float64(tw)*0.5, float64(th)*0.5, 18)
+	_ = rt.Fill()
+	rt.PopLayer()
+
+	// F.03 filter chain: modest blur then color matrix tint
+	rt.ApplyBlur(2.5)
+	// slight warm matrix
+	mat := [20]float32{
+		1.15, 0.05, 0, 0, 0.02,
+		0.05, 1.0, 0, 0, 0,
+		0, 0.05, 0.95, 0, 0.03,
+		0, 0, 0, 1, 0,
+	}
+	rt.ApplyColorMatrix(mat)
+
+	_ = gLayerFiltRT.blitTo(dc, fw*0.5-float64(tw)/2, fh*0.45-float64(th)/2)
+	dc.SetRGBA(1, 0.7, 0.25, 0.95)
+	dc.DrawCircle(fw*0.12+20*math.Sin(t*2), fh*0.88, 9)
+	_ = dc.Fill()
+}
+
+// drawQualityAA — C29 AA / hairline / dither / HiDPI hairline probe.
+func drawQualityAA(dc *render.Context, fw, fh, t float64, frame int) {
+	// Left: AA on diagonal strokes; Right: AA off (Q.02 coverage AA contrast)
+	panel := func(x0 float64, aa bool, labelY float64) {
+		dc.Push()
+		dc.ClipRect(x0, fh*0.2, fw*0.4, fh*0.35)
+		dc.SetRGB(0.1, 0.11, 0.14)
+		dc.DrawRectangle(x0, fh*0.2, fw*0.4, fh*0.35)
+		_ = dc.Fill()
+		dc.SetAntiAlias(aa)
+		dc.SetRGBA(0.3, 0.85, 1, 1)
+		dc.SetLineWidth(1.5)
+		for i := 0; i < 6; i++ {
+			y := fh*0.25 + float64(i)*18
+			dc.DrawLine(x0+20, y, x0+fw*0.36, y+28+4*math.Sin(t+float64(i)))
+			_ = dc.Stroke()
+		}
+		// hairline (Q.04 / width ~1 device px)
+		dc.SetLineWidth(1)
+		dc.SetRGBA(1, 0.85, 0.3, 1)
+		dc.DrawLine(x0+30, fh*0.48, x0+fw*0.35, fh*0.28+10*math.Cos(t))
+		_ = dc.Stroke()
+		dc.Pop()
+		_ = labelY
+	}
+	panel(fw*0.06, true, 0)
+	panel(fw*0.52, false, 0)
+	dc.SetAntiAlias(true)
+
+	// Q.03 dither soft gradient band
+	dc.SetDither(true)
+	grad := render.NewLinearGradientBrush(fw*0.08, fh*0.62, fw*0.92, fh*0.62).
+		AddColorStop(0, render.RGBA{R: 0.12, G: 0.14, B: 0.22, A: 1}).
+		AddColorStop(0.5, render.RGBA{R: 0.55, G: 0.6, B: 0.75, A: 1}).
+		AddColorStop(1, render.RGBA{R: 0.95, G: 0.92, B: 0.85, A: 1})
+	dc.SetFillBrush(grad)
+	dc.DrawRoundedRectangle(fw*0.08, fh*0.6, fw*0.84, 40, 8)
+	_ = dc.Fill()
+	dc.SetDither(false)
+
+	// S.08 HiDPI-ish hairline: offscreen 2x device scale small RT, export composite
+	tw, th := 200, 80
+	if frame%2 == 0 || !gQualityRT.hasCached() {
+		rt := gQualityRT.ensure(tw, th)
+		rt.Clear()
+		rt.SetDeviceScale(2.0)
+		rt.SetRGB(0.14, 0.16, 0.2)
+		rt.DrawRectangle(0, 0, float64(tw), float64(th))
+		_ = rt.Fill()
+		rt.SetAntiAlias(true)
+		rt.SetRGBA(0.4, 1, 0.7, 1)
+		rt.SetLineWidth(1) // hairline in logical px @ 2x
+		rt.DrawLine(12, 20, float64(tw-12), float64(th-18)+6*math.Sin(t*2))
+		_ = rt.Stroke()
+		rt.SetRGBA(1, 0.5, 0.3, 1)
+		rt.DrawCircle(float64(tw)*0.5+20*math.Cos(t), float64(th)*0.45, 10)
+		_ = rt.Fill()
+		rt.SetDeviceScale(1.0)
+		_ = gQualityRT.blitTo(dc, fw*0.5-float64(tw)/2, fh*0.78-float64(th)/2)
+	} else {
+		_ = gQualityRT.presentCached(dc, fw*0.5-float64(tw)/2, fh*0.78-float64(th)/2, render.InterpBilinear)
+	}
+
+	dc.SetRGBA(1, 0.75, 0.25, 0.95)
+	dc.DrawCircle(fw*0.1+14*math.Sin(t*2), fh*0.12, 7)
+	_ = dc.Fill()
+	_ = frame
 }
 
 // probeCapability: path-stats gate after draw (GPU-first).

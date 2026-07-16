@@ -156,6 +156,27 @@ func allScenarios() map[string]scenarioSpec {
 			MatrixIDs: "X.03,X.09,X.10,X.11", DrawKind: "textadv",
 			Expect: "Latin+CJK MultiFace 混排、重复串 atlas 复用；emoji 若无色字体会 tofu 仍应稳定 present",
 		},
+		// --- P3 Wave-B: path / transform / layer-filter / quality ---
+		"C26": {
+			ID: "C26", Name: "PathAdvanced", NameCN: "路径进阶",
+			MatrixIDs: "H.02,G.05,H.04,H.05,E.02,E.03", DrawKind: "pathadv",
+			Expect: "圆弧/椭圆弧、boolean 差集形、trim 弧长描边、corner/discrete 路径效果",
+		},
+		"C27": {
+			ID: "C27", Name: "TransformAdvanced", NameCN: "变换进阶",
+			MatrixIDs: "T.03,T.04,P.07", DrawKind: "xfmadv",
+			Expect: "非均匀缩放描边、四边形透视贴图、高低 miter limit 尖角对比",
+		},
+		"C28": {
+			ID: "C28", Name: "LayerFilterGraph", NameCN: "层混合+滤镜链",
+			MatrixIDs: "L.04,F.03", DrawKind: "layerfilt",
+			Expect: "半透明 layer 上 blur+色矩阵滤镜链，卡片随动画移动",
+		},
+		"C29": {
+			ID: "C29", Name: "QualityMSAAAA", NameCN: "质量 MSAA/AA",
+			MatrixIDs: "Q.01,Q.02,Q.03,Q.04,S.08", DrawKind: "quality",
+			Expect: "AA 开/关斜边对比、hairline、dither 渐变带、2x 设备尺度 hairline",
+		},
 	}
 }
 
@@ -166,7 +187,7 @@ func applyScenario(id string) (scenarioSpec, bool) {
 	}
 	s, ok := allScenarios()[id]
 	if !ok {
-		log.Printf("unknown GPUI_SCENARIO=%q — use C01..C25", id)
+		log.Printf("unknown GPUI_SCENARIO=%q — use C01..C29", id)
 		return scenarioSpec{}, false
 	}
 	return s, true
@@ -177,5 +198,6 @@ func scenarioListOrdered() []string {
 		"C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10",
 		"C11", "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20",
 		"C21", "C22", "C23", "C24", "C25",
+		"C26", "C27", "C28", "C29",
 	}
 }
