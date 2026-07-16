@@ -59,6 +59,16 @@ type ConvexDrawCommand struct {
 	// BlendMode selects the WebGPU blend state for this draw (B.02).
 	// Zero value is BlendNormal (SourceOver).
 	BlendMode render.BlendMode
+
+	// SkipAA disables centroid-fan AA fringe expansion. Used by DrawMesh /
+	// DrawVertices triangle lists (Skia drawVertices semantics): solid
+	// triangles only — much cheaper for dense meshes.
+	SkipAA bool
+
+	// TriangleList means Points are independent triangles (groups of 3), not
+	// one convex polygon. Used with SkipAA for dense DrawMesh batches so a
+	// whole mesh is one command instead of N tri-commands.
+	TriangleList bool
 }
 
 // ConvexRenderer renders convex polygons in a single draw call with per-edge
@@ -584,11 +594,7 @@ func BuildConvexVertices(commands []ConvexDrawCommand) []byte {
 func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]byte, []byte) { //nolint:funlen // vertex generation loop is a single cohesive unit
 	totalVerts := 0
 	for i := range commands {
-		n := len(commands[i].Points)
-		if n < 3 {
-			continue
-		}
-		totalVerts += n * 9
+		totalVerts += convexCmdVertexCount(&commands[i])
 	}
 	if totalVerts == 0 {
 		return staging, nil
@@ -607,6 +613,60 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 		cmd := &commands[i]
 		n := len(cmd.Points)
 		if n < 3 {
+			continue
+		}
+
+		// Dense mesh / drawVertices: emit solid triangles without AA fringe.
+		if cmd.TriangleList || cmd.SkipAA {
+			useVC := len(cmd.VertexColors) == n
+			color := cmd.Color
+			if cmd.TriangleList {
+				// Independent tris: walk groups of 3 (Skia drawVertices list).
+				for j := 0; j+2 < n; j += 3 {
+					c0, c1, c2 := color, color, color
+					if useVC {
+						c0, c1, c2 = cmd.VertexColors[j], cmd.VertexColors[j+1], cmd.VertexColors[j+2]
+					}
+					writeConvexVertex(buf[offset:], float32(cmd.Points[j].X), float32(cmd.Points[j].Y), 1.0, c0)
+					offset += convexVertexStride
+					writeConvexVertex(buf[offset:], float32(cmd.Points[j+1].X), float32(cmd.Points[j+1].Y), 1.0, c1)
+					offset += convexVertexStride
+					writeConvexVertex(buf[offset:], float32(cmd.Points[j+2].X), float32(cmd.Points[j+2].Y), 1.0, c2)
+					offset += convexVertexStride
+				}
+				continue
+			}
+			if n == 3 {
+				c0, c1, c2 := color, color, color
+				if useVC {
+					c0, c1, c2 = cmd.VertexColors[0], cmd.VertexColors[1], cmd.VertexColors[2]
+				}
+				writeConvexVertex(buf[offset:], float32(cmd.Points[0].X), float32(cmd.Points[0].Y), 1.0, c0)
+				offset += convexVertexStride
+				writeConvexVertex(buf[offset:], float32(cmd.Points[1].X), float32(cmd.Points[1].Y), 1.0, c1)
+				offset += convexVertexStride
+				writeConvexVertex(buf[offset:], float32(cmd.Points[2].X), float32(cmd.Points[2].Y), 1.0, c2)
+				offset += convexVertexStride
+				continue
+			}
+			// Fan without fringe for n>3.
+			c0 := color
+			if useVC {
+				c0 = cmd.VertexColors[0]
+			}
+			for j := 1; j+1 < n; j++ {
+				c1, c2 := color, color
+				if useVC {
+					c1 = cmd.VertexColors[j]
+					c2 = cmd.VertexColors[j+1]
+				}
+				writeConvexVertex(buf[offset:], float32(cmd.Points[0].X), float32(cmd.Points[0].Y), 1.0, c0)
+				offset += convexVertexStride
+				writeConvexVertex(buf[offset:], float32(cmd.Points[j].X), float32(cmd.Points[j].Y), 1.0, c1)
+				offset += convexVertexStride
+				writeConvexVertex(buf[offset:], float32(cmd.Points[j+1].X), float32(cmd.Points[j+1].Y), 1.0, c2)
+				offset += convexVertexStride
+			}
 			continue
 		}
 
@@ -786,14 +846,30 @@ func buildConvexBlendRanges(commands []ConvexDrawCommand, baseFirstVertex uint32
 	return ranges
 }
 
+func convexCmdVertexCount(cmd *ConvexDrawCommand) int {
+	n := len(cmd.Points)
+	if n < 3 {
+		return 0
+	}
+	if cmd.TriangleList {
+		// Independent triangles: floor(n/3)*3 solid verts.
+		return (n / 3) * 3
+	}
+	if cmd.SkipAA {
+		// Single convex solid mesh: one triangle per 3 points, no fringe.
+		// For n>3 solid path still fans without fringe: (n-2) tris * 3 verts.
+		if n == 3 {
+			return 3
+		}
+		return (n - 2) * 3
+	}
+	return n * 9
+}
+
 func convexVertexCount(commands []ConvexDrawCommand) uint32 {
 	var total uint32
 	for i := range commands {
-		n := len(commands[i].Points)
-		if n < 3 {
-			continue
-		}
-		total += uint32(n) * 9 //nolint:gosec // polygon vertex count fits uint32
+		total += uint32(convexCmdVertexCount(&commands[i])) //nolint:gosec
 	}
 	return total
 }

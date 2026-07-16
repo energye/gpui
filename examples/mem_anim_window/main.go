@@ -501,10 +501,6 @@ func main() {
 						pendSizeSince = time.Time{}
 						gGuideCache.key = ""
 						gGuideCache.img = nil
-						gHUDBadge.key = ""
-						gHUDBadge.img = nil
-						gHUDBarLabel.key = ""
-						gHUDBarLabel.img = nil
 						if damagePresent {
 							resetDamageBootstrap()
 						}
@@ -574,10 +570,6 @@ func main() {
 			hud.GuideLines = buildGuideLines(spec, Features, active, adaptiveLite, areaScale)
 			gGuideCache.key = ""
 			gGuideCache.img = nil
-			gHUDBadge.key = ""
-			gHUDBadge.img = nil
-			gHUDBarLabel.key = ""
-			gHUDBarLabel.img = nil
 			lastGuideSizeClass = sizeClass
 		}
 		hud.ResizedThisFrame = resizedThis
@@ -932,6 +924,43 @@ type guideCache struct {
 }
 
 var gGuideCache guideCache
+
+// HUD metrics ImageBuf cache — rebuild ~1Hz with coarse keys (no RSS in key)
+// so GPU image-cache genIDs do not climb with every MB of heap growth.
+type hudImgCache struct {
+	key  string
+	img  *render.ImageBuf
+	w, h int
+	at   time.Time
+}
+
+var gHUDBadge hudImgCache
+var gHUDBarLabel hudImgCache
+
+// vertsMeshPool reuses S11/S12 DrawMesh grid buffers (no per-frame make).
+type vertsMeshPool struct {
+	pos []render.Point
+	col []render.RGBA
+	idx []uint16
+}
+
+var gVertsMesh vertsMeshPool
+
+func (p *vertsMeshPool) ensure(nVert, nIdx int) ([]render.Point, []render.RGBA, []uint16) {
+	if cap(p.pos) < nVert {
+		p.pos = make([]render.Point, nVert)
+		p.col = make([]render.RGBA, nVert)
+	} else {
+		p.pos = p.pos[:nVert]
+		p.col = p.col[:nVert]
+	}
+	if cap(p.idx) < nIdx {
+		p.idx = make([]uint16, nIdx)
+	} else {
+		p.idx = p.idx[:nIdx]
+	}
+	return p.pos, p.col, p.idx
+}
 
 // Avoid LoadFontFace every frame (face switch is costly with CJK TTF).
 var (
@@ -1493,32 +1522,41 @@ func drawVertices(dc *render.Context, fw, fh, t float64) {
 	const colsN, rowsN = 8, 5
 	cellW, cellH := 24.0, 20.0
 	gx, gy := ox+10, oy+42
-	positions := make([]render.Point, 0, (colsN+1)*(rowsN+1))
-	colors := make([]render.RGBA, 0, (colsN+1)*(rowsN+1))
+	nVert := (colsN + 1) * (rowsN + 1)
+	nIdx := colsN * rowsN * 6
+	positions, colors, indices := gVertsMesh.ensure(nVert, nIdx)
+	vi := 0
 	for j := 0; j <= rowsN; j++ {
 		for i := 0; i <= colsN; i++ {
 			// Only vertical displace, continuous in i — each row is a clean polyline.
 			wave := 2.5 * math.Sin(t*1.4+float64(i)*0.5+float64(j)*0.15)
-			positions = append(positions, render.Point{
+			positions[vi] = render.Point{
 				X: gx + float64(i)*cellW,
 				Y: gy + float64(j)*cellH + wave,
-			})
-			colors = append(colors, render.RGBA{
+			}
+			colors[vi] = render.RGBA{
 				R: 0.15 + 0.85*float64(i)/float64(colsN),
 				G: 0.25 + 0.7*float64(j)/float64(rowsN),
 				B: 0.95 - 0.55*float64(i+j)/float64(colsN+rowsN),
 				A: 0.95,
-			})
+			}
+			vi++
 		}
 	}
-	indices := make([]uint16, 0, colsN*rowsN*6)
+	ii := 0
 	for j := 0; j < rowsN; j++ {
 		for i := 0; i < colsN; i++ {
 			i0 := uint16(j*(colsN+1) + i)
 			i1 := i0 + 1
 			i2 := i0 + uint16(colsN+1)
 			i3 := i2 + 1
-			indices = append(indices, i0, i1, i2, i1, i3, i2)
+			indices[ii+0] = i0
+			indices[ii+1] = i1
+			indices[ii+2] = i2
+			indices[ii+3] = i1
+			indices[ii+4] = i3
+			indices[ii+5] = i2
+			ii += 6
 		}
 	}
 	dc.DrawMesh(render.Mesh{
@@ -1673,27 +1711,13 @@ func rasterizeTextPanel(fonts fontPack, panelW, panelH int, t float64, lite bool
 	return img, nil
 }
 
-// HUD text is relatively expensive (glyph-mask path). Cache the badge/bar labels
-// as ImageBuf and only rebuild when quantized metrics change — keeps 60fps while
-// still updating human-readable stats a few times per second.
-type hudImgCache struct {
-	key  string
-	img  *render.ImageBuf
-	w, h int
-	at   time.Time
-}
-
-var gHUDBadge hudImgCache
-var gHUDBarLabel hudImgCache
-
 func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD) {
 	hudFace := fonts.latin
 	if hudFace == "" {
 		hudFace = fonts.sans
 	}
-	// --- top-right metrics badge (cached texture) ---
-	// Offscreen NewContext rebuilds are expensive; keep keys coarse and rate-limit
-	// so S12/S22 stay near 60fps (previous fine quantization thrashed every frame).
+	// Cached ImageBuf badge/bar: rebuild ≤1Hz, coarse keys, **no RSS in key**
+	// (RSS growth used to mint new genIDs → GPU image-cache VRAM slope).
 	badgeW, badgeH := 250, 78
 	bx, by := fw-float64(badgeW)-12, 10.0
 	fps := hud.FPS
@@ -1702,11 +1726,9 @@ func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD
 	}
 	ncpu := hostCPUCount()
 	mach := hud.CPUPct / float64(ncpu)
-	// Coarse quantize: ~1 Hz visual update class, not 60 Hz thrash.
-	fpsQ := int(fps + 0.5)            // 1 FPS
-	cpuQ := int(hud.CPUPct/5+0.5) * 5 // 5% buckets
-	rssMB := hud.RSSKB / 1024
-	workQ := int(hud.FrameMS/2+0.5) * 2 // 2ms buckets
+	fpsQ := int(fps + 0.5)
+	cpuQ := int(hud.CPUPct/10+0.5) * 10 // 10% buckets
+	workQ := int(hud.FrameMS/4+0.5) * 4 // 4ms buckets
 	bucket := 0
 	diff := math.Abs(fps - float64(hud.TargetFPS))
 	if diff <= 4 {
@@ -1716,12 +1738,11 @@ func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD
 	} else {
 		bucket = 2
 	}
-	badgeKey := fmt.Sprintf("%d|%d|%d|%d|%dx%d|%s|%d",
-		fpsQ, cpuQ, rssMB, workQ, hud.W, hud.H, hud.PresentMode, bucket)
-	// Hard rate-limit: rebuild at most ~2 Hz even if keys jitter.
+	badgeKey := fmt.Sprintf("%d|%d|%d|%dx%d|%s|%d",
+		fpsQ, cpuQ, workQ, hud.W, hud.H, hud.PresentMode, bucket)
 	now := time.Now()
 	needBadge := gHUDBadge.img == nil || gHUDBadge.key != badgeKey
-	if needBadge && (gHUDBadge.img == nil || now.Sub(gHUDBadge.at) >= 500*time.Millisecond) {
+	if needBadge && (gHUDBadge.img == nil || now.Sub(gHUDBadge.at) >= time.Second) {
 		img, err := rasterizeHUDBadge(fonts, hudFace, badgeW, badgeH, hud, fps, mach, bucket)
 		if err == nil && img != nil {
 			gHUDBadge.key = badgeKey
@@ -1735,13 +1756,11 @@ func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD
 			X: bx, Y: by, Interpolation: render.InterpNearest, Opacity: 1,
 		})
 	} else {
-		// Fallback: direct (rare)
 		dc.SetRGBA(0.05, 0.07, 0.11, 0.93)
 		dc.DrawRoundedRectangle(bx, by, float64(badgeW), float64(badgeH), 8)
 		_ = dc.Fill()
 	}
 
-	// --- bottom work budget bar: geometry every frame (cheap), label cached ---
 	barH := math.Max(26, fh*0.045)
 	barY := fh - barH - 10
 	budgetMS := 1000.0 / math.Max(float64(hud.TargetFPS), 1)
@@ -1769,8 +1788,8 @@ func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD
 	dc.DrawRoundedRectangle(16, barY+4, (fw-32)*prog, barH-8, (barH-8)*0.4)
 	_ = dc.Fill()
 
-	// Label: update slowly (feats stable; work shown in 2ms buckets).
-	workBucket := int(hud.FrameMS/2+0.5) * 2
+	workBucket := int(hud.FrameMS/4+0.5) * 4
+	// Feats string stable; omit fine work from key thrash.
 	barKey := fmt.Sprintf("%d|%s|%d", workBucket, hud.Active, int(budgetMS))
 	labelH := int(barH)
 	labelW := int(math.Min(fw-40, 520))
@@ -1778,7 +1797,7 @@ func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD
 		labelW = 160
 	}
 	needBar := gHUDBarLabel.img == nil || gHUDBarLabel.key != barKey || gHUDBarLabel.h != labelH
-	if needBar && (gHUDBarLabel.img == nil || now.Sub(gHUDBarLabel.at) >= 500*time.Millisecond) {
+	if needBar && (gHUDBarLabel.img == nil || now.Sub(gHUDBarLabel.at) >= time.Second) {
 		img, err := rasterizeHUDBarLabel(fonts, hudFace, labelW, labelH, hud.FrameMS, budgetMS, hud.Active)
 		if err == nil && img != nil {
 			gHUDBarLabel.key = barKey
@@ -1793,7 +1812,6 @@ func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD
 		})
 	}
 
-	// --- left guide: what SHOULD appear on screen ---
 	drawSceneGuide(dc, fonts, fw, fh, hud)
 	_ = t
 }
@@ -1833,8 +1851,6 @@ func rasterizeHUDBadge(fonts fontPack, face string, w, h int, hud frameHUD, fps,
 func rasterizeHUDBarLabel(fonts fontPack, face string, w, h int, frameMS, budgetMS float64, active string) (*render.ImageBuf, error) {
 	tmp := render.NewContext(w, h)
 	defer tmp.Close()
-	// Transparent background — bar fill is drawn by caller underneath? Actually we
-	// draw label ON TOP of green progress; use transparent clear.
 	tmp.SetRGBA(0, 0, 0, 0)
 	tmp.DrawRectangle(0, 0, float64(w), float64(h))
 	_ = tmp.Fill()
@@ -1842,6 +1858,9 @@ func rasterizeHUDBarLabel(fonts fontPack, face string, w, h int, frameMS, budget
 		_ = tmp.LoadFontFace(face, 12)
 	}
 	tmp.SetRGB(0.88, 0.92, 1)
+	if len(active) > 48 {
+		active = active[:48] + "..."
+	}
 	tmp.DrawString(fmt.Sprintf("work %.1f / %.1f ms  feats[%s]", frameMS, budgetMS, active), 2, float64(h)*0.68)
 	std := tmp.Image()
 	if std == nil {

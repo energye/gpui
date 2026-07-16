@@ -31,8 +31,12 @@ type GPURenderContext struct {
 	session *GPURenderSession
 
 	// Per-context pending command queues.
-	pendingShapes             []SDFRenderShape
-	pendingConvexCommands     []ConvexDrawCommand
+	pendingShapes         []SDFRenderShape
+	pendingConvexCommands []ConvexDrawCommand
+	// Scratch backing for QueueColoredMesh (avoid per-triangle heap allocs).
+	// Slices in pending ConvexDrawCommand point into these until Flush clears.
+	convexMeshPts             []render.Point
+	convexMeshVCs             [][4]float32
 	pendingStencilPaths       []StencilPathCommand
 	pendingImageCommands      []ImageDrawCommand
 	pendingGPUTextureCommands []GPUTextureDrawCommand
@@ -292,24 +296,79 @@ func (rc *GPURenderContext) QueueConvex(target render.GPURenderTarget, cmd Conve
 }
 
 // QueueColoredMesh queues a triangle mesh with optional per-vertex colors
-// via the convex fast-path (each triangle is convex).
+// via the convex fast-path.
 // positions are pixel-space points; colors are straight RGBA (premultiplied here).
-// mode 0 = triangle list (groups of 3).
+// triangleList=true groups positions as independent triangles; false = fan.
+//
+// Hot path (DrawMesh / 3D): ONE TriangleList command for the whole mesh
+// (not N tri-commands), backed by reusable scratch. SkipAA solid verts.
 func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, triangleList bool) {
 	if len(positions) < 3 {
 		return
 	}
-	nTri := len(positions) / 3
-	if !triangleList {
-		// triangle fan: (0,i,i+1)
-		nTri = len(positions) - 2
+	nOut := 0
+	if triangleList {
+		nOut = (len(positions) / 3) * 3
+	} else {
+		// Expand fan to triangle list once: (0,i,i+1)
+		nTri := len(positions) - 2
+		if nTri <= 0 {
+			return
+		}
+		nOut = nTri * 3
 	}
-	_ = nTri
+	if nOut < 3 {
+		return
+	}
 	if rc.hasPendingTarget && !sameTarget(&rc.pendingTarget, &target) {
 		if fErr := rc.Flush(rc.pendingTarget); fErr != nil {
 			slogger().Warn("auto-flush failed", "err", fErr)
 		}
 	}
+
+	useVC := len(colors) == len(positions)
+	need := nOut
+
+	var pts []render.Point
+	var vcs [][4]float32
+	ptsBase := 0
+	vcBase := 0
+	if cap(rc.convexMeshPts)-len(rc.convexMeshPts) >= need {
+		ptsBase = len(rc.convexMeshPts)
+		rc.convexMeshPts = rc.convexMeshPts[:ptsBase+need]
+		pts = rc.convexMeshPts
+		if useVC {
+			if cap(rc.convexMeshVCs)-len(rc.convexMeshVCs) < need {
+				vcs = make([][4]float32, need)
+				vcBase = 0
+			} else {
+				vcBase = len(rc.convexMeshVCs)
+				rc.convexMeshVCs = rc.convexMeshVCs[:vcBase+need]
+				vcs = rc.convexMeshVCs
+			}
+		}
+	} else if len(rc.convexMeshPts) == 0 {
+		capN := need
+		if capN < 512 {
+			capN = 512
+		}
+		rc.convexMeshPts = make([]render.Point, need, capN)
+		pts = rc.convexMeshPts
+		ptsBase = 0
+		if useVC {
+			rc.convexMeshVCs = make([][4]float32, need, capN)
+			vcs = rc.convexMeshVCs
+			vcBase = 0
+		}
+	} else {
+		pts = make([]render.Point, need)
+		ptsBase = 0
+		if useVC {
+			vcs = make([][4]float32, need)
+			vcBase = 0
+		}
+	}
+
 	toPremul := func(c render.RGBA) [4]float32 {
 		return [4]float32{
 			float32(c.R * c.A),
@@ -318,38 +377,56 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 			float32(c.A),
 		}
 	}
-	solid := [4]float32{0, 0, 0, 1}
-	if len(colors) > 0 {
-		solid = toPremul(colors[0])
-	}
-	emitTri := func(i0, i1, i2 int) {
-		pts := []render.Point{positions[i0], positions[i1], positions[i2]}
-		cmd := ConvexDrawCommand{Points: pts, Color: solid}
-		if len(colors) == len(positions) {
-			cmd.VertexColors = [][4]float32{
-				toPremul(colors[i0]),
-				toPremul(colors[i1]),
-				toPremul(colors[i2]),
-			}
-			// solid fallback average
-			cmd.Color = [4]float32{
-				(cmd.VertexColors[0][0] + cmd.VertexColors[1][0] + cmd.VertexColors[2][0]) / 3,
-				(cmd.VertexColors[0][1] + cmd.VertexColors[1][1] + cmd.VertexColors[2][1]) / 3,
-				(cmd.VertexColors[0][2] + cmd.VertexColors[1][2] + cmd.VertexColors[2][2]) / 3,
-				(cmd.VertexColors[0][3] + cmd.VertexColors[1][3] + cmd.VertexColors[2][3]) / 3,
-			}
-		}
-		rc.pendingConvexCommands = append(rc.pendingConvexCommands, cmd)
-	}
+
+	// Pack triangle-list geometry into contiguous scratch.
 	if triangleList {
-		for i := 0; i+2 < len(positions); i += 3 {
-			emitTri(i, i+1, i+2)
+		copy(pts[ptsBase:ptsBase+need], positions[:need])
+		if useVC {
+			for i := 0; i < need; i++ {
+				vcs[vcBase+i] = toPremul(colors[i])
+			}
 		}
 	} else {
+		o := 0
 		for i := 1; i+1 < len(positions); i++ {
-			emitTri(0, i, i+1)
+			pts[ptsBase+o+0] = positions[0]
+			pts[ptsBase+o+1] = positions[i]
+			pts[ptsBase+o+2] = positions[i+1]
+			if useVC {
+				vcs[vcBase+o+0] = toPremul(colors[0])
+				vcs[vcBase+o+1] = toPremul(colors[i])
+				vcs[vcBase+o+2] = toPremul(colors[i+1])
+			}
+			o += 3
 		}
 	}
+
+	solid := [4]float32{0, 0, 0, 1}
+	if useVC {
+		// Average first triangle as solid fallback for pipelines that ignore VC.
+		c0 := vcs[vcBase+0]
+		c1 := vcs[vcBase+1]
+		c2 := vcs[vcBase+2]
+		solid = [4]float32{
+			(c0[0] + c1[0] + c2[0]) / 3,
+			(c0[1] + c1[1] + c2[1]) / 3,
+			(c0[2] + c1[2] + c2[2]) / 3,
+			(c0[3] + c1[3] + c2[3]) / 3,
+		}
+	} else if len(colors) > 0 {
+		solid = toPremul(colors[0])
+	}
+
+	cmd := ConvexDrawCommand{
+		Points:       pts[ptsBase : ptsBase+need : ptsBase+need],
+		Color:        solid,
+		SkipAA:       true,
+		TriangleList: true,
+	}
+	if useVC {
+		cmd.VertexColors = vcs[vcBase : vcBase+need : vcBase+need]
+	}
+	rc.pendingConvexCommands = append(rc.pendingConvexCommands, cmd)
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true
 	rc.sceneStats.ShapeCount++
@@ -1242,6 +1319,8 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	clear(rc.scissorSegments)
 	rc.pendingShapes = rc.pendingShapes[:0]
 	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
+	rc.convexMeshPts = rc.convexMeshPts[:0]
+	rc.convexMeshVCs = rc.convexMeshVCs[:0]
 	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
 	rc.pendingImageCommands = rc.pendingImageCommands[:0]
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]

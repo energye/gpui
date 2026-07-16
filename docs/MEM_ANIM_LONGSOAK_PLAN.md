@@ -216,7 +216,7 @@ export GPUI_TARGET_FPS=60
 | **S20** | ScrollModalUI | 列表 clip 滚动 + 遮罩 + 模态卡片（UI 形态，非控件） | scroll,layer,text,cards | 90s | ≈60 |
 | **S21** | SkiaGapComposite★ | S15–S20 缺口能力持续组合（不含 damage present）；`AllowLowFPS` | gap modules lite | 120s | 允许 <60 |
 | **S22** | Mesh3DGradient | **整窗**伪 3D：渐变立方体/球/变形星/宽地形 + 旋转/变形；GPU DrawMesh 单批 | mesh3d+text | 60–120s | ≥60fps；cpu_fb=0 |
-| **S23** | Mesh3DFullComposite | S12 全模块 + Mesh3D 大舞台压力（非角标） | all+mesh3d | 60–120s | ≥55–60fps 或 AllowLowFPS；cpu_fb=0 |
+| **S23** | Mesh3DFullComposite | S12 全模块 + Mesh3D 大舞台压力（非角标） | all+mesh3d | 60–120s | ≥55fps 严格门禁；cpu_fb=0 |
 
 > 场景通过 `GPUI_SCENARIO=S0x` 选择；内部映射到 FeatureFlags + density/stress。
 
@@ -573,3 +573,74 @@ setsid scripts/run_mem_anim_longsoak.sh S01 S02 S03 S04 S05 S06 S07 S08 S09 S10 
 - v2.6：新增 S15–S21（Skia 缺口场景：梯度/pattern、高级混合、rrect+evenodd、LCD 文本、damage present、滚动模态、缺口组合）；默认 longsoak 仍可只跑 S01–S12。
 
 - v2.6.1：S15–S21 预检 PASS（preflight6，20s）；修 glyph-mask **混合 LCD/灰度** 同帧 pipeline 选择（per-drawCall isLCD，避免 80/96 BGL 校验 abort）；重效果走 retained RT 保 ~60。
+
+## S22 整窗 3D + HUD 限频（2026-07-16）
+
+- **布局**：`mesh3DIsPrimary` 时 3D 舞台 **沾满整窗**（非右上角小板）；S23 全合成用居中 ~80% 大舞台。
+- **HUD**：badge/bar 离屏栅格化 **粗量化 + ≤2Hz 重建**，避免每帧 `NewContext` 拖垮 S12。
+- **实测**：
+  - S22 15s：`/tmp/s22_fullwin2.log` — **PASS** fps≈59.9/59.4，cpu_1core≈13% machine≈3%，`cpu_fb=0`
+  - S12 12s：`/tmp/s12_hudfix.log` — **PASS** fps≈59.6/58.7，`cpu_fb=0`（修复前 ema~52 FAIL）
+
+## S22 mesh3d 矩阵化优化（2026-07-16 续）
+
+目标：GPU-first 3D 动画压测（整窗渐变旋转/变形）对标 Skia 动画门槛。
+
+### 优化点
+- 对象+相机旋转 **融合为 mat3**（每物体一次 sin/cos，非每顶点 rotXYZ）
+- 批缓冲 **直接 alloc 写入**（去掉 scratch 二次拷贝）
+- 顶点色 **sinLUT**；去掉立方体 CPU wire stroke
+- 动态变形：球 wobble / 星 spike / 地形 height 场随时间随机渐变
+
+### 实测
+| Run | Log | 结果 |
+|-----|-----|------|
+| S22 15s + profile | `/tmp/s22_opt_mesh.log` | **PASS** fps 60.0/59.4；mesh3d≈**0.15–0.25ms**/帧；work≈1.3ms；1核≈13% 整机≈3%；cpu_fb=0 |
+| S22 45s soak | `/tmp/s22_soak45.log` | **PASS** fps 59.9/59.8；1核≈13% 整机≈3%；steady_delta≈**8.5MB/45s**（远低于 512MB 硬门禁）；cpu_fb=0 |
+| S12 12s | `/tmp/s12_after_meshopt.log` | **PASS** fps 59.1/58.2；cpu_fb=0 |
+
+### 仍非终态
+- 顶点变换仍在 CPU（GPU DrawMesh 光栅）；真 shader transform 待 render/webgpu 扩展
+- S23 全模块+3D 仍 AllowLowFPS
+- 偶发 work 尖峰（GC/present）需继续观察长 soak
+
+## DrawMesh GPU 路径优化（2026-07-16）
+
+根因：`DrawMesh` → 索引展开 `make` → `DrawVertices` 再 `make` CTM → `QueueColoredMesh` **每三角形** `[]Point`/`[][4]float32` 堆分配，且 convex AA fringe 每 tri 膨胀约 9× 顶点。
+
+### 修复（render 层，全工程受益）
+1. `QueueColoredMesh`：每调用至多一块 point/color 缓冲；`SkipAA` 走 solid triangle（Skia drawVertices 语义）
+2. `DrawVertices`/`DrawMesh`：Context 级 scratch，避免热路径每帧 `make`
+3. `convex_renderer`：`SkipAA` 路径只写 3 顶点/三角形
+
+### 实测
+| 场景 | 日志 | 结果 |
+|------|------|------|
+| S22 15s profile | `/tmp/s22_meshgpu.log` | **PASS** fps 60.0/59.4；mesh3d≈0.1–0.2ms；work≈0.7–0.9ms；1核≈10% 整机≈2%；cpu_fb=0 |
+| S12 12s | `/tmp/s12_meshgpu.log` | **PASS** fps 59.7/58.4；cpu_fb=0 |
+| S23 12s 严格门禁 | `/tmp/s23_strict.log` | **PASS** fps 58.5/58.0（已去掉 AllowLowFPS）；cpu_fb=0 |
+
+## TriangleList 单命令批处理（2026-07-16 续2）
+
+`QueueColoredMesh` 不再为每个三角形挂一条 `ConvexDrawCommand`，改为 **整 mesh 一条** `TriangleList+SkipAA` 命令；顶点写入仍走 convex solid 路径。
+
+### 实测
+| 场景 | 日志 | 结果 |
+|------|------|------|
+| S22 15s profile | `/tmp/s22_trilist.log` | **PASS** fps 60.0/59.4；mesh3d≈**0.09–0.11ms**；work≈0.6–0.9ms；1核≈9% 整机≈2%；cpu_fb=0 |
+| S12 12s | `/tmp/s12_after_trilist.log` | **PASS** fps 59.6/58.6；cpu_fb=0 |
+| S23 12s 严格 | `/tmp/s23_after_trilist.log` | **PASS** fps 59.2/58.2；cpu_fb=0 |
+| S22 **90s soak** | `/tmp/s22_soak90.log` + `/tmp/s22_soak90_result.json` | **PASS** fps_ema=59.9 avg=59.9；cpu_avg≈8.9%(1核)≈2%整机；steady_delta≈**13MB/90s**；cpu_fb=0；frames=5387 |
+
+## HUD 1Hz / no-RSS-key + verts pool（2026-07-16 续3）
+
+- HUD badge/bar：ImageBuf 缓存 **≤1Hz** 重建；key **不含 RSS MB**（避免 RSS 爬升→新 genID→GPU image cache VRAM 斜率）
+- S11/S12 `drawVertices` 网格：`gVertsMesh` 复用缓冲，去掉每帧 `make`
+
+### 实测
+| 场景 | 日志 | 结果 |
+|------|------|------|
+| S22 15s | `/tmp/s22_hud1hz.log` | **PASS** fps 60.2/59.4；1核≈9% 整机≈2%；steady≈**1.7MB/15s**；cpu_fb=0 |
+| S12 12s | `/tmp/s12_hud1hz.log` | **PASS** fps 59.1/57.7；cpu_fb=0 |
+| S22 90s | `/tmp/s22_soak90c.log` + `s22_soak90c_result.json` | **PASS** fps 59.9/59.8；cpu_avg≈8.3%；steady≈13MB/90s（远低于 512MB 门禁；RSS 中段平台化）；cpu_fb=0 |
+

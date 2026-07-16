@@ -96,6 +96,12 @@ type Context struct {
 	// P1.0: per-context GPU vs CPU routing counters for visual/foundation gates.
 	pathStats RenderPathStats
 
+	// Scratch for DrawVertices / DrawMesh (avoid per-call make on hot paths).
+	vertDevScratch    []Point
+	meshExpPosScratch []Point
+	meshExpColScratch []RGBA
+	meshSolidScratch  []RGBA
+
 	// Lifecycle
 	closed bool // Indicates whether Close has been called
 }

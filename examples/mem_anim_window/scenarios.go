@@ -75,7 +75,7 @@ func allScenarios() map[string]scenarioSpec {
 		"S21": {ID: "S21", Name: "SkiaGapComposite", Flags: gapAll, Lite: true, AllowLowFPS: true},
 		// 3D gradient / rotation pressure (Skia-class mesh animation gate)
 		"S22": {ID: "S22", Name: "Mesh3DGradient", Flags: base("mesh3d", "text"), Density: 0},
-		"S23": {ID: "S23", Name: "Mesh3DFullComposite", Flags: allPlus3D, Lite: false, AllowLowFPS: true},
+		"S23": {ID: "S23", Name: "Mesh3DFullComposite", Flags: allPlus3D, Lite: false, AllowLowFPS: false},
 	}
 }
 

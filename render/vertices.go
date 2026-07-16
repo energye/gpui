@@ -35,7 +35,13 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 	}
 
 	ctm := c.totalMatrix()
-	dev := make([]Point, len(positions))
+	n := len(positions)
+	if cap(c.vertDevScratch) < n {
+		c.vertDevScratch = make([]Point, n)
+	} else {
+		c.vertDevScratch = c.vertDevScratch[:n]
+	}
+	dev := c.vertDevScratch
 	for i, p := range positions {
 		dev[i] = ctm.TransformPoint(p)
 	}
@@ -52,7 +58,12 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 		target := c.gpuRenderTarget()
 		triangleList := mode != VertexModeTriangleFan
 		if meshColors == nil {
-			solidColors := make([]RGBA, len(dev))
+			if cap(c.meshSolidScratch) < n {
+				c.meshSolidScratch = make([]RGBA, n)
+			} else {
+				c.meshSolidScratch = c.meshSolidScratch[:n]
+			}
+			solidColors := c.meshSolidScratch
 			for i := range solidColors {
 				solidColors[i] = solid
 			}
@@ -67,7 +78,9 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 	if c.gpuPathAvailable() {
 		c.recordCPUFallbackReason("verts:DrawVertices")
 	}
-	c.drawVerticesCPU(dev, meshColors, solid, mode)
+	// CPU path needs its own copy if scratch will be reused later in the frame.
+	devCopy := append([]Point(nil), dev...)
+	c.drawVerticesCPU(devCopy, meshColors, solid, mode)
 }
 
 func (c *Context) drawVerticesCPU(positions []Point, colors []RGBA, solid RGBA, mode VertexMode) {
@@ -227,27 +240,39 @@ func (c *Context) DrawMesh(mesh Mesh) {
 	colors := mesh.Colors
 	if len(mesh.Indices) >= 3 {
 		n := len(mesh.Indices) / 3 * 3
-		expPos := make([]Point, 0, n)
-		var expCol []RGBA
 		useCol := len(colors) == len(positions)
+		// Expand indices into reusable scratch (no per-call make when capacity ok).
+		if cap(c.meshExpPosScratch) < n {
+			c.meshExpPosScratch = make([]Point, 0, n)
+		} else {
+			c.meshExpPosScratch = c.meshExpPosScratch[:0]
+		}
 		if useCol {
-			expCol = make([]RGBA, 0, n)
+			if cap(c.meshExpColScratch) < n {
+				c.meshExpColScratch = make([]RGBA, 0, n)
+			} else {
+				c.meshExpColScratch = c.meshExpColScratch[:0]
+			}
 		}
 		for i := 0; i+2 < n; i += 3 {
 			i0, i1, i2 := int(mesh.Indices[i]), int(mesh.Indices[i+1]), int(mesh.Indices[i+2])
 			if i0 < 0 || i1 < 0 || i2 < 0 || i0 >= len(positions) || i1 >= len(positions) || i2 >= len(positions) {
 				continue
 			}
-			expPos = append(expPos, positions[i0], positions[i1], positions[i2])
+			c.meshExpPosScratch = append(c.meshExpPosScratch, positions[i0], positions[i1], positions[i2])
 			if useCol {
-				expCol = append(expCol, colors[i0], colors[i1], colors[i2])
+				c.meshExpColScratch = append(c.meshExpColScratch, colors[i0], colors[i1], colors[i2])
 			}
 		}
-		if len(expPos) < 3 {
+		if len(c.meshExpPosScratch) < 3 {
 			return
 		}
-		positions = expPos
-		colors = expCol
+		positions = c.meshExpPosScratch
+		if useCol {
+			colors = c.meshExpColScratch
+		} else {
+			colors = nil
+		}
 	}
 	c.DrawVertices(positions, colors, VertexModeTriangles)
 }
