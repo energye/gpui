@@ -93,8 +93,9 @@ type Context struct {
 // RenderPathStats counts how draw operations were routed for this Context.
 // Used by P1 Foundation Gate visual harness (gpu_ops / cpu_fallback_ops).
 type RenderPathStats struct {
-	GPUOps         int // ops successfully queued/executed on GPU path
-	CPUFallbackOps int // ops that had a GPU path available but fell back to CPU
+	GPUOps                int    // ops successfully queued/executed on GPU path
+	CPUFallbackOps        int    // ops that had a GPU path available but fell back to CPU
+	LastCPUFallbackReason string // diagnostic: most recent fallback reason
 }
 
 // RenderPathStats returns a copy of the current routing counters.
@@ -109,7 +110,10 @@ func (c *Context) ResetRenderPathStats() {
 
 // LogLine formats counters for visualcmd stdout (parsed by STRICT tests).
 func (s RenderPathStats) LogLine() string {
-	return fmt.Sprintf("gpu_ops=%d cpu_fallback_ops=%d", s.GPUOps, s.CPUFallbackOps)
+	if s.LastCPUFallbackReason == "" {
+		return fmt.Sprintf("gpu_ops=%d cpu_fallback_ops=%d", s.GPUOps, s.CPUFallbackOps)
+	}
+	return fmt.Sprintf("gpu_ops=%d cpu_fallback_ops=%d last_cpu_fb=%s", s.GPUOps, s.CPUFallbackOps, s.LastCPUFallbackReason)
 }
 
 func (c *Context) gpuPathAvailable() bool {
@@ -122,6 +126,23 @@ func (c *Context) recordGPUOp() {
 
 func (c *Context) recordCPUFallbackOp() {
 	c.pathStats.CPUFallbackOps++
+}
+
+// recordCPUFallbackReason increments the CPU fallback counter and records a short reason.
+// Reason is best-effort diagnostic for soak/leak tools (last reason wins).
+func (c *Context) recordCPUFallbackReason(reason string) {
+	c.pathStats.CPUFallbackOps++
+	if reason != "" {
+		c.pathStats.LastCPUFallbackReason = reason
+	}
+}
+
+// LastCPUFallbackReason returns the most recent fallback reason, if any.
+func (c *Context) LastCPUFallbackReason() string {
+	if c == nil {
+		return ""
+	}
+	return c.pathStats.LastCPUFallbackReason
 }
 
 // Ensure Context implements io.Closer
@@ -602,6 +623,9 @@ func (c *Context) trackDamage(bounds image.Rectangle) {
 		c.frameDamageRects = c.frameDamageRects[:1]
 		c.frameDamageRects[0] = merged
 	}
+
+	// Layer Pop composites only this union (S6.4+ silky layers).
+	c.noteLayerDamage(bounds)
 }
 
 // FillRectCPU fills a rectangle directly on the CPU pixmap without engaging
@@ -1904,6 +1928,10 @@ func (c *Context) doFill() error {
 	// Mask clips without a GPU depth clip path (e.g. ClipOpDifference) are only
 	// honored on the CPU ClipCoverage path — skip GPU to avoid silent wrong results.
 	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
+	// Continuous PushLayer/PopLayer at 60fps cannot afford GPU fill into a CPU
+	// layer pixmap + full Flush readback on Pop (~15–50ms). Draw layers on CPU
+	// into the pooled pixmap, then damage-bounded composite (sub-ms for small UI).
+	forceCPULayer := c.layerStack != nil && len(c.layerStack.layers) > 0
 
 	// Temporarily swap c.path to device-space for GPU tryGPUOp
 	// (which reads c.path for shape detection and path rendering).
@@ -1914,8 +1942,11 @@ func (c *Context) doFill() error {
 	if forceCPUClip {
 		ok, cpuMode = false, mode
 		if c.gpuPathAvailable() {
-			c.recordCPUFallbackOp()
+			c.recordCPUFallbackReason("clip-mask")
 		}
+	} else if forceCPULayer {
+		// Intentional CPU layer path (not a GPU capability miss).
+		ok, cpuMode = false, mode
 	} else {
 		ok, cpuMode = c.tryGPUFillWithMode(mode)
 	}
@@ -1925,7 +1956,12 @@ func (c *Context) doFill() error {
 	}
 
 	// CPU path: flush pending GPU, apply mode and AA state to software renderer.
-	c.flushGPUAccelerator()
+	// When drawing into a PushLayer surface, do NOT flush GPU here — pending GPU
+	// ops belong to the parent/swapchain path. Flushing would force a costly
+	// full-surface resolve into the layer pixmap (~10–50ms) and break 60fps UI.
+	if !(c.layerStack != nil && len(c.layerStack.layers) > 0) {
+		c.flushGPUAccelerator()
+	}
 	if sr, ok := c.renderer.(*SoftwareRenderer); ok {
 		sr.rasterizerMode = cpuMode
 		sr.antiAlias = c.antiAlias
@@ -1940,10 +1976,56 @@ func (c *Context) doFill() error {
 
 // doStroke performs the stroke operation respecting the current RasterizerMode.
 //
-// T.03: stroke is expanded in pure user space, then the outline is transformed
-// by the CTM and filled (EvenOdd). This matches Skia/Cairo under non-uniform
-// scale (anisotropic thickness) and keeps HiDPI via deviceSpacePath in doFill.
+// Fast path: try native GPU stroke first (SDF shape stroke or path stroke with
+// S4.3/S6.6 dash+stroke geometry caches). GPU strokes batch until PresentFrame /
+// Image / SavePNG — matching doFill. Per-op flush used to force a GPU submit on
+// every Stroke() and locked multi-stroke UI scenes (mem_anim S04 PathDash) to
+// ~20fps.
+//
+// Fallback (T.03): expand stroke in pure user space, transform the outline by
+// the CTM, then fill (EvenOdd). Matches Skia/Cairo under non-uniform scale
+// (anisotropic thickness) and keeps HiDPI via deviceSpacePath in doFill.
+// Pixmap consumers still see correct pixels because Image()/SavePNG() FlushGPU.
 func (c *Context) doStroke() error {
+	mode := c.rasterizerMode
+
+	// Match doFill GPU setup: scissor, clip/mask coverage, AA.
+	defer c.setGPUClipRect()()
+	c.applyClipToPaint()
+	defer func() { c.paint.ClipCoverage = nil }()
+	c.applyMaskToPaint()
+	defer func() { c.paint.MaskCoverage = nil }()
+
+	if rc := c.gpuCtxOps(); rc != nil {
+		rc.SetAntiAlias(c.antiAlias)
+	}
+
+	// Mask clips without a GPU depth clip path are CPU-only (same as doFill).
+	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
+	forceCPULayer := c.layerStack != nil && len(c.layerStack.layers) > 0
+	if forceCPULayer {
+		// Intentional CPU layer path (not a GPU capability miss).
+	} else if !forceCPUClip {
+		devicePath := c.deviceSpacePath()
+		origPath := c.path
+		origScale := c.paint.TransformScale
+		// When TransformScale is unset, propagate HiDPI so GPU stroke width
+		// matches device-space path coordinates.
+		if origScale <= 0 && c.deviceScale > 0 && c.deviceScale != 1 {
+			c.paint.TransformScale = c.deviceScale
+		}
+		c.path = devicePath
+		ok, _ := c.tryGPUStrokeWithMode(mode)
+		c.path = origPath
+		c.paint.TransformScale = origScale
+		if ok {
+			// Batched with fills until PresentFrame / Image / SavePNG.
+			return nil
+		}
+	} else if c.gpuPathAvailable() {
+		c.recordCPUFallbackReason("clip-mask")
+	}
+
 	outline := c.expandStrokeToPathSpace()
 	if outline == nil || outline.NumVerbs() == 0 {
 		return nil
@@ -1960,12 +2042,8 @@ func (c *Context) doStroke() error {
 	c.path = origPath
 	c.paint.FillRule = origRule
 	c.paint.TransformScale = origScale
-	// Stroke is typically an immediate op for Context pixmap consumers
-	// (tests/widgets read pixels without an explicit FlushGPU). Materialize
-	// any GPU-queued outline fill now.
-	if err == nil {
-		c.flushGPUAccelerator()
-	}
+	// Do not flush here. Batching is required for Skia-class multi-stroke frames.
+	// Immediate materialization remains available via FlushGPU / Image / Present.
 	return err
 }
 
@@ -2127,9 +2205,12 @@ func (c *Context) tryGPUFillWithMode(mode RasterizerMode) (bool, RasterizerMode)
 		if err := c.tryGPUFill(); err == nil {
 			c.recordGPUOp()
 			return true, mode
-		}
-		if c.gpuPathAvailable() {
-			c.recordCPUFallbackOp()
+		} else if c.gpuPathAvailable() {
+			reason := "fill"
+			if err != nil {
+				reason = "fill:" + err.Error()
+			}
+			c.recordCPUFallbackReason(reason)
 		}
 	}
 	return false, mode
@@ -2153,9 +2234,12 @@ func (c *Context) tryGPUStrokeWithMode(mode RasterizerMode) (bool, RasterizerMod
 		if err := c.tryGPUStroke(); err == nil {
 			c.recordGPUOp()
 			return true, mode
-		}
-		if c.gpuPathAvailable() {
-			c.recordCPUFallbackOp()
+		} else if c.gpuPathAvailable() {
+			reason := "stroke"
+			if err != nil {
+				reason = "stroke:" + err.Error()
+			}
+			c.recordCPUFallbackReason(reason)
 		}
 	}
 	return false, mode

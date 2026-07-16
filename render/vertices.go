@@ -65,7 +65,7 @@ func (c *Context) DrawVertices(positions []Point, colors []RGBA, mode VertexMode
 	}
 
 	if c.gpuPathAvailable() {
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("verts:DrawVertices")
 	}
 	c.drawVerticesCPU(dev, meshColors, solid, mode)
 }
@@ -128,7 +128,7 @@ func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 		pixelData := img.PremultipliedData()
 		if len(pixelData) == 0 {
 			if c.gpuPathAvailable() {
-				c.recordCPUFallbackOp()
+				c.recordCPUFallbackReason("verts:DrawAtlas")
 			}
 			c.drawAtlasCPU(img, sprites)
 			return
@@ -175,7 +175,7 @@ func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 	}
 
 	if c.gpuPathAvailable() {
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("verts:DrawAtlas")
 	}
 	c.drawAtlasCPU(img, sprites)
 }

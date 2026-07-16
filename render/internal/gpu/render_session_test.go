@@ -1273,3 +1273,63 @@ func TestCopySubmitAndReadback_NilResolveTexReturnsError(t *testing.T) {
 		t.Error("copySubmitAndReadback with nil resolveTex should return error, not crash")
 	}
 }
+
+// TestTextureSet_SurfaceToOffscreenSameSize guards the bug where surface-mode
+// textures (no resolve) at WxH then offscreen ensureTextures(W,H) early-returned
+// with resolveTex still nil, causing encodeSubmitReadback to fail with
+// "offscreen textures destroyed (concurrent resize?)".
+func TestTextureSet_SurfaceToOffscreenSameSize(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+	_ = queue
+
+	var ts textureSet
+	const w, h uint32 = 128, 96
+	if err := ts.ensureSurfaceTextures(device, w, h, "test", 1); err != nil {
+		t.Fatalf("ensureSurfaceTextures: %v", err)
+	}
+	if ts.resolveTex != nil {
+		t.Fatal("surface mode must not allocate resolveTex")
+	}
+	if ts.msaaTex == nil || ts.stencilTex == nil {
+		t.Fatal("surface mode must allocate msaa+stencil")
+	}
+
+	if err := ts.ensureTextures(device, w, h, "test", 1); err != nil {
+		t.Fatalf("ensureTextures after surface: %v", err)
+	}
+	if ts.resolveTex == nil || ts.resolveView == nil {
+		t.Fatal("offscreen mode must recreate resolveTex after surface mode at same size")
+	}
+	if ts.msaaTex == nil || ts.stencilView == nil {
+		t.Fatal("offscreen mode must keep msaa/stencil")
+	}
+	ts.destroyTextures()
+}
+
+// TestTextureSet_OffscreenToSurfaceSameSize drops resolve when switching back
+// to surface mode at the same dimensions.
+func TestTextureSet_OffscreenToSurfaceSameSize(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+	_ = queue
+
+	var ts textureSet
+	const w, h uint32 = 96, 64
+	if err := ts.ensureTextures(device, w, h, "test", 1); err != nil {
+		t.Fatalf("ensureTextures: %v", err)
+	}
+	if ts.resolveTex == nil {
+		t.Fatal("expected resolveTex")
+	}
+	if err := ts.ensureSurfaceTextures(device, w, h, "test", 1); err != nil {
+		t.Fatalf("ensureSurfaceTextures: %v", err)
+	}
+	if ts.resolveTex != nil || ts.resolveView != nil {
+		t.Fatal("surface mode should drop resolve textures at same size")
+	}
+	if ts.msaaTex == nil {
+		t.Fatal("msaa must remain")
+	}
+	ts.destroyTextures()
+}

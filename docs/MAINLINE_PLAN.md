@@ -569,3 +569,14 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 | 2026-07-15 | 1.2 | S1 关闭：A–E `TestS1AE*` 烟测；下一步 S2 |
 | 2026-07-15 | 1.1 | S1 枚举 header-lock（TestS1*）；焦点转到 A–E 深度审计 |
 | 2026-07-15 | 1.0 | 确立 S0–S4；排除控件层与杂项目录；能力表驱动 ABI→facade→render |
+
+### mem_anim 质量门禁
+
+见 `docs/MEM_ANIM_LONGSOAK_PLAN.md`「质量门禁（对标 Skia / 强制达标）」与 **§0c 硬原则（每次排障必读）**：
+
+- **60fps+**（ema≥55 / avg≥48，目标 60）
+- **任何渲染内容都要丝滑**（Q-SILKY：稳态 work ≤16.7ms）
+- **不能出现闪烁**（Q-NOFLICKER：真实效果每帧持续可见，禁止稀疏一帧真 API）
+- **cpu_fb=0**，真 present 链 render→webgpu→rwgpu
+- **对标 Skia**：重效果用有界 offscreen/saveLayer 等价，禁止假视觉刷分
+- 关键：`doStroke` GPU 批处理；滤镜/层/Backdrop/高级混合小离屏真实 API + `ExportImageBuf`/`MarkEphemeral`

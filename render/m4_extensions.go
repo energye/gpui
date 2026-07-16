@@ -167,6 +167,8 @@ func (c *Context) PushBackdropLayer(blendMode BlendMode, opacity float64) {
 		copy(dst[:n], src[:n])
 		c.pixmap.NotifyPixelsChanged()
 	}
+	// Backdrop is a full-surface snapshot; Pop must blend the whole layer.
+	c.markLayerFullComposite()
 }
 
 // Ensure unused import for image package if needed by other files - keep image for Rect types if used.

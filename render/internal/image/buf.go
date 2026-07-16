@@ -173,6 +173,29 @@ func (b *ImageBuf) GenerationID() uint64 {
 	return b.genID
 }
 
+// NotifyPixelsChanged assigns a new generation ID and invalidates the premul
+// cache. Call after mutating pixel data in place (e.g. offscreen effect RT
+// republish). Mirrors Pixmap.NotifyPixelsChanged / Skia SkPixelRef pattern.
+func (b *ImageBuf) NotifyPixelsChanged() {
+	if b == nil {
+		return
+	}
+	b.genID = nextImageBufGenID.Add(1)
+	b.InvalidatePremulCache()
+}
+
+// MarkEphemeral sets GenerationID to 0 so the GPU image cache uploads this
+// buffer for a single frame and releases it via ReleaseEphemeral (S6.7).
+// Use for continuous animated offscreen effect RTs republished every frame —
+// bumping a new genID each frame would grow the long-term cache / VRAM.
+func (b *ImageBuf) MarkEphemeral() {
+	if b == nil {
+		return
+	}
+	b.genID = 0
+	b.InvalidatePremulCache()
+}
+
 // Format returns the pixel format.
 func (b *ImageBuf) Format() Format {
 	return b.format

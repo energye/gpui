@@ -248,7 +248,7 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 					BlendMode:  opts.BlendMode,
 					UseMipmaps: opts.UseMipmaps,
 				})
-				c.recordCPUFallbackOp()
+				c.recordCPUFallbackReason("image:DrawImageEx")
 				return
 			}
 		}
@@ -315,7 +315,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 	rc := c.gpuCtxOps()
 	if rc == nil {
 		if c.gpuPathAvailable() {
-			c.recordCPUFallbackOp()
+			c.recordCPUFallbackReason("image:tryGPUDrawImage")
 		}
 		return false
 	}
@@ -344,7 +344,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 	// Get premultiplied pixel data for GPU upload.
 	pixelData := img.PremultipliedData()
 	if len(pixelData) == 0 {
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("image:tryGPUDrawImage")
 		return false
 	}
 
@@ -607,6 +607,46 @@ func (c *Context) DrawImageCircular(img *ImageBuf, cx, cy, radius float64) {
 	})
 
 	c.Pop()
+}
+
+// ExportImageBuf copies the current surface pixels into dst for DrawImage.
+//
+// Skia-class pattern for continuous effects: render+filter on a small offscreen
+// Context, ExportImageBuf every frame, then DrawImage on the present path.
+// Pixmap storage is premultiplied; dst is created/updated as FormatRGBAPremul
+// so PremultipliedData does not double-multiply.
+//
+// Reuses *dst when size matches; always bumps generation id after copy.
+func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
+	if c == nil || c.pixmap == nil || dst == nil {
+		return false
+	}
+	_ = c.FlushGPU()
+	w, h := c.pixmap.Width(), c.pixmap.Height()
+	if w <= 0 || h <= 0 {
+		return false
+	}
+	needNew := *dst == nil
+	if !needNew {
+		dw, dh := (*dst).Bounds()
+		needNew = dw != w || dh != h || (*dst).Format() != FormatRGBAPremul
+	}
+	if needNew {
+		img, err := NewImageBuf(w, h, FormatRGBAPremul)
+		if err != nil || img == nil {
+			return false
+		}
+		*dst = img
+	}
+	src := c.pixmap.Data()
+	out := (*dst).Data()
+	n := len(out)
+	if len(src) < n {
+		n = len(src)
+	}
+	copy(out[:n], src[:n])
+	(*dst).NotifyPixelsChanged()
+	return true
 }
 
 // pixmapToImageBuf converts a Pixmap to an ImageBuf.

@@ -172,3 +172,10 @@ Env：
 4. **D01–D200 全量**：S6 关闭锁仍在；mem 切片不替代 L2 全量  
 5. **控件层**：仍后置；mem 不覆盖 widget  
 6. **可选加深**：cmd-buffer 池化、共享 pipeline 真正复用统计、host VRAM 硬顶 env  
+
+---
+
+## 相关：窗口长时压测
+
+见 `docs/MEM_ANIM_LONGSOAK_PLAN.md`（真实 X11 窗口，**每进程单场景**，60s–10min）。
+

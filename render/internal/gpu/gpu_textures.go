@@ -41,7 +41,12 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 		sc = samples[0]
 	}
 
-	if ts.width == w && ts.height == h && ts.msaaTex != nil {
+	// Offscreen mode requires a resolve texture for readback. After a surface-mode
+	// pass (ensureSurfaceTextures), msaa/stencil may exist at the same size with
+	// resolveTex == nil. Do not early-return in that state or encodeSubmitReadback
+	// fails with "offscreen textures destroyed (concurrent resize?)".
+	if ts.width == w && ts.height == h && ts.msaaTex != nil && ts.resolveTex != nil && ts.resolveView != nil &&
+		ts.msaaView != nil && ts.stencilView != nil {
 		return nil
 	}
 	ts.destroyTextures()
@@ -152,7 +157,17 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 // If a resolve texture exists from a previous offscreen mode, it is destroyed.
 // If dimensions match and textures exist, this is a no-op.
 func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
-	if ts.width == w && ts.height == h && ts.msaaTex != nil {
+	// Surface mode does not use resolveTex. If we previously ran offscreen at the
+	// same size, drop the unused resolve to free VRAM; keep MSAA/stencil.
+	if ts.width == w && ts.height == h && ts.msaaTex != nil && ts.msaaView != nil && ts.stencilView != nil {
+		if ts.resolveView != nil {
+			ts.resolveView.Release()
+			ts.resolveView = nil
+		}
+		if ts.resolveTex != nil {
+			ts.resolveTex.Release()
+			ts.resolveTex = nil
+		}
 		return nil
 	}
 	ts.destroyTextures()

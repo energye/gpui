@@ -316,7 +316,7 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 			c.recordGPUOp()
 			return true
 		}
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("text:tryGPUText")
 		return false
 	}
 	a := Accelerator()
@@ -325,19 +325,19 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 	}
 	c.warnGPUFallback("tryGPUText")
 	if !a.CanAccelerate(AccelText) {
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("text:tryGPUText")
 		return false
 	}
 	ta, ok := a.(GPUTextAccelerator)
 	if !ok {
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("text:tryGPUText")
 		return false
 	}
 	if ta.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
 		c.recordGPUOp()
 		return true
 	}
-	c.recordCPUFallbackOp()
+	c.recordCPUFallbackReason("text:tryGPUText")
 	return false
 }
 
@@ -370,7 +370,7 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 			c.recordGPUOp()
 			return true
 		}
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("text:tryGPUGlyphMaskText")
 		return false
 	}
 	a := Accelerator()
@@ -380,14 +380,14 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 	c.warnGPUFallback("tryGPUGlyphMaskText")
 	gma, ok := a.(GPUGlyphMaskAccelerator)
 	if !ok {
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("text:tryGPUGlyphMaskText")
 		return false
 	}
 	if gma.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
 		c.recordGPUOp()
 		return true
 	}
-	c.recordCPUFallbackOp()
+	c.recordCPUFallbackReason("text:tryGPUGlyphMaskText")
 	return false
 }
 
@@ -402,7 +402,7 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 			c.recordGPUOp()
 			return true
 		}
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("text:tryGPUGlyphMaskTextAliased")
 		return false
 	}
 	a := Accelerator()
@@ -411,14 +411,14 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 	}
 	ata, ok := a.(GPUAliasedTextAccelerator)
 	if !ok {
-		c.recordCPUFallbackOp()
+		c.recordCPUFallbackReason("text:tryGPUGlyphMaskTextAliased")
 		return false
 	}
 	if ata.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
 		c.recordGPUOp()
 		return true
 	}
-	c.recordCPUFallbackOp()
+	c.recordCPUFallbackReason("text:tryGPUGlyphMaskTextAliased")
 	return false
 }
 

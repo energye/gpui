@@ -1,6 +1,8 @@
 package render
 
 import (
+	"image"
+
 	intImage "github.com/energye/gpui/render/internal/image"
 )
 
@@ -13,6 +15,13 @@ type Layer struct {
 	blendMode BlendMode
 	opacity   float64
 	mask      *Mask // optional alpha mask, applied on PopLayer (nil = no mask)
+	// damage is the union of draw bounds on this layer in pixmap pixel space.
+	// PopLayer composites only this rect (plus AA pad) instead of the full
+	// surface — full 800x600 CPU blend was ~50ms/frame on Intel iGPU.
+	// Empty means "unknown / full surface" (safe fallback).
+	damage image.Rectangle
+	// fullComposite forces a full-surface blend (backdrop snapshots, masks).
+	fullComposite bool
 }
 
 // layerStack manages the layer hierarchy for the context.
@@ -126,6 +135,13 @@ func (c *Context) PopLayer() {
 		return
 	}
 
+	// Prefer CPU draws into layers (see doFill/doStroke) so Pop does not need a
+	// full-surface GPU→CPU readback. If any GPU ops were still queued, flush them
+	// into the layer pixmap before composite.
+	if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
+		_ = c.FlushGPU()
+	}
+
 	// Pop the current layer
 	layers := c.layerStack.layers
 	layer := layers[len(layers)-1]
@@ -144,6 +160,8 @@ func (c *Context) PopLayer() {
 	// Apply mask to layer content before compositing (PushMaskLayer).
 	if layer.mask != nil {
 		c.applyMaskToPixmap(layer.pixmap, layer.mask)
+		// Mask modulation can touch any layer pixel; force full composite.
+		layer.fullComposite = true
 	}
 
 	// Composite layer onto parent
@@ -234,20 +252,36 @@ func (c *Context) SetBlendMode(mode BlendMode) {
 
 // compositeLayer composites a layer onto a parent pixmap using the layer's
 // blend mode and opacity.
+//
+// When layer.damage is known and fullComposite is false, only the damaged
+// rectangle is blended (AA pad). This is required for continuous UI layers at
+// 60fps — full-surface SourceOver of 800x600 was ~50ms on Intel HD.
 func (c *Context) compositeLayer(layer *Layer, parent *Pixmap) {
 	// Convert pixmaps to ImageBuf for blending
 	srcImg := c.pixmapToImageBuf(layer.pixmap)
 	dstImg := c.pixmapToImageBuf(parent)
 
-	// Use DrawImage to composite with blend mode and opacity
 	srcW, srcH := srcImg.Bounds()
+	r := image.Rect(0, 0, srcW, srcH)
+	if !layer.fullComposite && !layer.damage.Empty() {
+		// AA / filter soft edge pad (filters that expand bounds should mark fullComposite).
+		const pad = 2
+		d := layer.damage.Inset(-pad)
+		d = d.Intersect(r)
+		if d.Empty() {
+			return
+		}
+		r = d
+	}
 
+	srcRect := intImage.Rect{X: r.Min.X, Y: r.Min.Y, Width: r.Dx(), Height: r.Dy()}
 	params := intImage.DrawParams{
+		SrcRect: &srcRect,
 		DstRect: intImage.Rect{
-			X:      0,
-			Y:      0,
-			Width:  srcW,
-			Height: srcH,
+			X:      r.Min.X,
+			Y:      r.Min.Y,
+			Width:  r.Dx(),
+			Height: r.Dy(),
 		},
 		Interp:    intImage.InterpNearest, // No scaling, so nearest is fine
 		Opacity:   layer.opacity,
@@ -255,4 +289,30 @@ func (c *Context) compositeLayer(layer *Layer, parent *Pixmap) {
 	}
 
 	intImage.DrawImage(dstImg, srcImg, params)
+}
+
+// noteLayerDamage unions a pixmap-space rectangle into the current top layer.
+// bounds should already be in the same pixel space as the layer pixmap
+// (physical when deviceScale!=1 after trackDamage scaling).
+func (c *Context) noteLayerDamage(bounds image.Rectangle) {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 || bounds.Empty() {
+		return
+	}
+	top := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if top == nil || top.fullComposite {
+		return
+	}
+	if top.damage.Empty() {
+		top.damage = bounds
+		return
+	}
+	top.damage = top.damage.Union(bounds)
+}
+
+// markLayerFullComposite forces the current top layer to full-surface Pop blend.
+func (c *Context) markLayerFullComposite() {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return
+	}
+	c.layerStack.layers[len(c.layerStack.layers)-1].fullComposite = true
 }

@@ -35,6 +35,11 @@ type Swapchain struct {
 
 	configured         bool
 	pendingReconfigure bool
+	// suboptHandledW/H: last extent for which we already acted on a suboptimal
+	// signal. Prevents Configure thrash (and visible flicker) when the
+	// compositor keeps reporting suboptimal for an unchanged size.
+	suboptHandledW uint32
+	suboptHandledH uint32
 
 	// stats
 	acquires       uint64
@@ -183,6 +188,8 @@ func (sc *Swapchain) Configure() error {
 	}
 	sc.configured = true
 	sc.pendingReconfigure = false
+	sc.suboptHandledW = sc.Width
+	sc.suboptHandledH = sc.Height
 	sc.reconfigures++
 	return nil
 }
@@ -250,6 +257,9 @@ func (sc *Swapchain) Resize(width, height uint32) error {
 	}
 	sc.Width = width
 	sc.Height = height
+	// New extent: allow a single post-resize suboptimal recovery if needed.
+	sc.suboptHandledW = 0
+	sc.suboptHandledH = 0
 	return sc.Configure()
 }
 
@@ -295,11 +305,21 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 
 	view, err := st.CreateView(nil)
 	if err != nil {
+		// Drop acquired surface texture or next Configure panics native:
+		// "SurfaceOutput must be dropped before a new Surface is made".
+		if st != nil && st.texture != nil {
+			st.texture.Release()
+			st.texture = nil
+		}
 		return nil, fmt.Errorf("wgpu: surface texture CreateView: %w", err)
 	}
 	if suboptimal {
 		sc.suboptimal++
-		sc.pendingReconfigure = true
+		// Act once per extent. Continuous reconfigure of the same size causes
+		// black flashes and burns CPU without improving the surface.
+		if sc.suboptHandledW != sc.Width || sc.suboptHandledH != sc.Height {
+			sc.pendingReconfigure = true
+		}
 	}
 	return &Frame{
 		SurfaceTexture: st,
@@ -334,7 +354,9 @@ func (sc *Swapchain) endFrame(frame *Frame, rects []image.Rectangle) error {
 		frame.View = nil
 	}
 	if frame.Suboptimal {
-		sc.pendingReconfigure = true
+		if sc.suboptHandledW != sc.Width || sc.suboptHandledH != sc.Height {
+			sc.pendingReconfigure = true
+		}
 	}
 	t0 := time.Now()
 	var err error

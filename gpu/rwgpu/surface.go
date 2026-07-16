@@ -177,6 +177,16 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 		Status:  surfTex.status,
 	}
 
+	// On non-success statuses, wgpu-native may still fill a texture pointer.
+	// That SurfaceOutput MUST be dropped (Release) before Configure/re-acquire,
+	// otherwise: "SurfaceOutput must be dropped before a new Surface is made".
+	dropTex := func() {
+		if result.Texture != nil && result.Texture.handle != 0 {
+			result.Texture.Release()
+			result.Texture = nil
+		}
+	}
+
 	switch surfTex.status {
 	case SurfaceGetCurrentTextureStatusSuccessOptimal:
 		return result, false, nil
@@ -184,18 +194,23 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 		// Surface still usable but caller should reconfigure soon.
 		return result, true, nil
 	case SurfaceGetCurrentTextureStatusOutdated:
-		return result, false, ErrSurfaceNeedsReconfigure
+		dropTex()
+		return nil, false, ErrSurfaceNeedsReconfigure
 	case SurfaceGetCurrentTextureStatusLost:
+		dropTex()
 		return nil, false, ErrSurfaceLost
 	case SurfaceGetCurrentTextureStatusTimeout:
+		dropTex()
 		return nil, false, ErrSurfaceTimeout
 	case NativeSurfaceGetCurrentTextureStatusOccluded:
 		// wgpu-native v29: window is occluded/minimized (Metal backend only).
 		// No texture is returned; caller should skip this frame and try again.
+		dropTex()
 		return nil, false, ErrSurfaceOccluded
 	default:
 		// v29: SurfaceGetCurrentTextureStatusError (0x06) covers all error cases
 		// including former OutOfMemory (0x06) and DeviceLost (0x07).
+		dropTex()
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "failed to get surface texture"}
 	}
 }
