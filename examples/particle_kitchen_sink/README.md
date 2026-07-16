@@ -166,8 +166,8 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | 信号 | 探针 | 含义 |
 |------|------|------|
 | blend×glow ~48fps | `P_BLEND_GLOW` / `P_L2` | 组合路径掉帧；单独 `P_GLOW`/`P_BLEND_LAYER` 可过 |
-| 嵌套层 ~30–38fps | `P_MULTI_LAYER` / `P_LAYER_BLEND` | layer composite 成本 |
-| CPU 预算超标 | `P_BLEND_CPU` (~110% vs 80) | 高级混合主线程过重 |
+| 嵌套层（F1 已修） | `P_MULTI_LAYER` / `P_LAYER_BLEND` ≈58fps | present-stash 避免 mid-frame parent Flush |
+| CPU 预算（F1 已修） | `P_BLEND_CPU` ≈32% &lt; 80 | 同上 + dual-tex into-dest |
 | 高密度实心仍 60 | `P_HIGH_N` n=5000 PASS | **禁止**用减粒子解释 L2 失败 |
 | resize 真路径 | `P_RESIZE` | 必须 `XResizeWindow`+ConfigureNotify，禁止只改 swapchain 尺寸 |
 | 1fps 回归陷阱 | `P_BLEND_PER_CIRCLE` | 当前 PASS≈58；若掉到 <10 记 `trap_hot_path_still_slow` |

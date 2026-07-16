@@ -447,6 +447,8 @@ func TestClipRectTextNoRegression(t *testing.T) {
 
 	dc.SetRGB(0, 0, 0)
 	dc.DrawString("Hello", 10, 30)
+	// GPU text is deferred until flush; materialize for pixmap sampling.
+	_ = dc.FlushGPU()
 
 	// Verify text was drawn.
 	hasNonWhite := false

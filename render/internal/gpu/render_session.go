@@ -3715,9 +3715,18 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 		}
 	}()
 
-	loadOp := types.LoadOpClear
+	// Preserve prior content when this view already has a resolved frame.
+	// Damage rects force LoadOpLoad (partial update). F1 advanced-blend
+	// resolve also needs LoadOpLoad: base+HUD were already painted into
+	// frameScratch via MSAA resolve; overlay-only dual-tex blits must not
+	// clear the whole scratch (was wiping FPS text to black).
+	if view != s.lastView {
+		s.frameRendered = false
+		s.lastView = view
+	}
 	hasDamage := len(damageRects) > 0
-	if hasDamage {
+	loadOp := types.LoadOpClear
+	if s.frameRendered || hasDamage {
 		loadOp = types.LoadOpLoad
 	}
 

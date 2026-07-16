@@ -1738,6 +1738,10 @@ type gpuContextOps interface {
 	QueueBaseLayer(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
 	Flush(target GPURenderTarget) error
+	// PrepareTarget switches the GPU command stream to target (F1 present-stash).
+	// Must run before SetClipRect so scissor segments are not recorded on the
+	// wrong stream and later stashed unpaired into the parent.
+	PrepareTarget(target GPURenderTarget) error
 	SetClipRect(x, y, w, h uint32)
 	ClearClipRect()
 	SetClipRRect(x, y, w, h, radius float32)
@@ -2189,6 +2193,14 @@ func (c *Context) isClipActive() bool {
 func (c *Context) setGPUClipRect() func() {
 	if !c.isClipActive() {
 		return func() {}
+	}
+	// F1: scissor segments belong to the active GPU target stream. doFill /
+	// DrawString historically called setGPUClipRect() before Queue*→prepareTarget.
+	// When the first draw inside a PushLayer ran under an active ClipRect, SetClip
+	// was recorded on the parent stream and then present-stashed without Clear —
+	// later unclipped HUD/FPS text inherited the layer clip and vanished.
+	if rc := c.gpuCtxOps(); rc != nil {
+		_ = rc.PrepareTarget(c.gpuRenderTarget())
 	}
 	rectOnly := c.clipStack.IsRectOnly()
 	rrectOnly := c.clipStack.IsRRectOnly()

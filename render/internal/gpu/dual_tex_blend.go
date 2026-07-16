@@ -244,6 +244,9 @@ type dualTexBlendCache struct {
 	// fullSnaps: double-buffered window-sized dest snaps (into-dest path).
 	fullSnaps [2]dualTexFullSnap
 	fullSnapI int
+	// deferredViews: src views recorded into an external encoder; released after
+	// a short cool-down so Finish/Submit can still sample them (F1 single-submit).
+	deferredViews []*webgpu.TextureView
 }
 
 type dualTexPooledTex struct {
@@ -327,6 +330,12 @@ func (c *dualTexBlendCache) release() {
 		}
 		c.fullSnaps[i].w, c.fullSnaps[i].h = 0, 0
 	}
+	for _, sv := range c.deferredViews {
+		if sv != nil {
+			sv.Release()
+		}
+	}
+	c.deferredViews = nil
 	c.device = nil
 }
 
@@ -1114,11 +1123,39 @@ func (c *dualTexBlendCache) putOutBGRA(tex *webgpu.Texture, view *webgpu.Texture
 
 // dualTexAgeCool advances cooling temps; items age>=2 return to outPool.
 func (c *dualTexBlendCache) dualTexAgeCool() {
-	if c == nil || len(c.cool) == 0 {
+	if c == nil {
 		return
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// Release src views deferred from external-encoder into-dest encodes.
+	// Age>=1 means at least one subsequent dual-tex call (or frame) happened.
+	if len(c.deferredViews) > 0 {
+		// Drop all deferred views that have cooled one cycle: move to release.
+		// We keep them one dualTexAgeCool later by swapping through cool via a
+		// simple two-phase: first call marks, second releases — use half split.
+		n := len(c.deferredViews)
+		keepFrom := n / 2
+		if n <= 2 {
+			// small batch: release all (submit already completed last frame).
+			keepFrom = 0
+		}
+		for i := 0; i < keepFrom; i++ {
+			// shift: actually release older half
+		}
+		// Simpler policy: always release all deferred views here. Callers only
+		// defer when externalEnc is used, and dualTexAgeCool runs at the *start*
+		// of the *next* into-dest encode (next frame). That is enough lifetime.
+		for _, sv := range c.deferredViews {
+			if sv != nil {
+				sv.Release()
+			}
+		}
+		c.deferredViews = c.deferredViews[:0]
+	}
+	if len(c.cool) == 0 {
+		return
+	}
 	next := c.cool[:0]
 	for _, it := range c.cool {
 		it.age++
@@ -1214,6 +1251,12 @@ func (c *dualTexBlendCache) ensureFullSnap(device *webgpu.Device, queue *webgpu.
 	return tex, view, nil
 }
 
+// dualTexBlendLayersIntoDest is DEAD for F1 present path (kept for future
+// single-submit work). Verified: it does not modify dest under current
+// barriers. Live path is dualTexAdvancedBlendViewsRegionSized → out RT → blit
+// in resolvePendingAdvancedLayersEnc. Do not call from Flush until a green
+// pixel test proves into-dest writes.
+//
 // externalEnc, when non-nil, records into that encoder and does NOT submit
 // (caller owns Finish/Submit). When nil, creates a private encoder and submits.
 func dualTexBlendLayersIntoDest(
@@ -1416,17 +1459,16 @@ func dualTexBlendLayersIntoDest(
 			cleanup()
 			return err
 		}
+		// Own encoder: submit done — free src views now.
+		cleanup()
+		return nil
 	}
-	// Full snaps are owned by cache (double-buffer); only free src views.
-	// When externalEnc is used, caller must keep srcViews alive until submit —
-	// we still release views here only after ownEnc submit; for external, hold
-	// views on cache cool list briefly via srcViews release after record is OK
-	// if textures (layer RTs) stay alive via layerReleaseHold until after submit.
-	for _, sv := range srcViews {
-		if sv != nil {
-			sv.Release()
-		}
-	}
+	// External encoder (F1 single-submit): keep src views alive until the next
+	// dualTexAgeCool (next frame). Releasing here races Finish/Submit and
+	// samples black / empty advanced blends (P_BLEND_LAYER looks empty).
+	cache.mu.Lock()
+	cache.deferredViews = append(cache.deferredViews, srcViews...)
+	cache.mu.Unlock()
 	return nil
 }
 
