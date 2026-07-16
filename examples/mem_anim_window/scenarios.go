@@ -30,7 +30,7 @@ func allScenarios() map[string]scenarioSpec {
 			"blend": &f.Blend, "verts": &f.Vertices, "pixels": &f.Pixels, "poly": &f.Polygon,
 			"grad": &f.Gradient, "pattern": &f.Pattern, "advblend": &f.AdvBlend,
 			"rrectclip": &f.RRectClip, "textlcd": &f.TextLCD, "damage": &f.Damage,
-			"scroll": &f.ScrollUI,
+			"scroll": &f.ScrollUI, "mesh3d": &f.Mesh3D,
 		}
 		for _, m := range mods {
 			if p, ok := set[m]; ok {
@@ -44,6 +44,8 @@ func allScenarios() map[string]scenarioSpec {
 		Clip: true, Layer: true, Backdrop: true, Mask: true, Image: true, Text: true,
 		Filter: true, Transform: true, Blend: true, Vertices: true, Pixels: true, Polygon: true, HUD: true,
 	}
+	allPlus3D := all
+	allPlus3D.Mesh3D = true
 	// Gap modules combined (S21). Intentionally excludes Damage present-path so
 	// continuous full present still validates gap APIs without Idle/flash risk.
 	// Keep to gap APIs only (no layer/cards/text already covered by S01–S14).
@@ -71,6 +73,9 @@ func allScenarios() map[string]scenarioSpec {
 		"S19": {ID: "S19", Name: "DamagePartialPresent", Flags: FeatureFlags{HUD: true, Damage: true, Text: true, ScrollUI: true}, DamagePresent: true},
 		"S20": {ID: "S20", Name: "ScrollModalUI", Flags: base("scroll", "layer", "text", "cards")},
 		"S21": {ID: "S21", Name: "SkiaGapComposite", Flags: gapAll, Lite: true, AllowLowFPS: true},
+		// 3D gradient / rotation pressure (Skia-class mesh animation gate)
+		"S22": {ID: "S22", Name: "Mesh3DGradient", Flags: base("mesh3d", "text"), Density: 0},
+		"S23": {ID: "S23", Name: "Mesh3DFullComposite", Flags: allPlus3D, Lite: false, AllowLowFPS: true},
 	}
 }
 
@@ -81,7 +86,7 @@ func applyScenario(id string) (scenarioSpec, bool) {
 	}
 	s, ok := allScenarios()[id]
 	if !ok {
-		log.Printf("unknown GPUI_SCENARIO=%q — use S01..S21", id)
+		log.Printf("unknown GPUI_SCENARIO=%q — use S01..S23", id)
 		return scenarioSpec{}, false
 	}
 	Features = s.Flags
@@ -91,7 +96,7 @@ func applyScenario(id string) (scenarioSpec, bool) {
 func scenarioListOrdered() []scenarioSpec {
 	ids := []string{
 		"S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10",
-		"S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S20", "S21",
+		"S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S20", "S21", "S22", "S23",
 	}
 	m := allScenarios()
 	out := make([]scenarioSpec, 0, len(ids))

@@ -15,7 +15,7 @@
 //
 //     GPUI_SCENARIO=S03 GPUI_ANIM_SECONDS=90 go run ./examples/mem_anim_window
 //
-// Scenarios S01–S21: docs/MEM_ANIM_LONGSOAK_PLAN.md (never multi-scenario in one process)
+// Scenarios S01–S23: docs/MEM_ANIM_LONGSOAK_PLAN.md (never multi-scenario in one process)
 package main
 
 import (
@@ -101,6 +101,7 @@ type FeatureFlags struct {
 	TextLCD   bool
 	Damage    bool
 	ScrollUI  bool
+	Mesh3D    bool
 	HUD       bool
 }
 
@@ -178,6 +179,9 @@ func featureCount(f FeatureFlags) int {
 	if f.ScrollUI {
 		n++
 	}
+	if f.Mesh3D {
+		n++
+	}
 	if f.HUD {
 		n++
 	}
@@ -215,6 +219,7 @@ func (f FeatureFlags) Summary() string {
 	add("textlcd", f.TextLCD)
 	add("damage", f.Damage)
 	add("scroll", f.ScrollUI)
+	add("mesh3d", f.Mesh3D)
 	add("hud", f.HUD)
 	if len(on) == 0 {
 		return "(none)"
@@ -256,6 +261,7 @@ func applyFeatureEnv(f *FeatureFlags) {
 	set("GPUI_FEAT_TEXTLCD", &f.TextLCD)
 	set("GPUI_FEAT_DAMAGE", &f.Damage)
 	set("GPUI_FEAT_SCROLL", &f.ScrollUI)
+	set("GPUI_FEAT_MESH3D", &f.Mesh3D)
 	set("GPUI_FEAT_HUD", &f.HUD)
 }
 
@@ -495,6 +501,10 @@ func main() {
 						pendSizeSince = time.Time{}
 						gGuideCache.key = ""
 						gGuideCache.img = nil
+						gHUDBadge.key = ""
+						gHUDBadge.img = nil
+						gHUDBarLabel.key = ""
+						gHUDBarLabel.img = nil
 						if damagePresent {
 							resetDamageBootstrap()
 						}
@@ -564,6 +574,10 @@ func main() {
 			hud.GuideLines = buildGuideLines(spec, Features, active, adaptiveLite, areaScale)
 			gGuideCache.key = ""
 			gGuideCache.img = nil
+			gHUDBadge.key = ""
+			gHUDBadge.img = nil
+			gHUDBarLabel.key = ""
+			gHUDBarLabel.img = nil
 			lastGuideSizeClass = sizeClass
 		}
 		hud.ResizedThisFrame = resizedThis
@@ -829,7 +843,7 @@ func cadenceFor(frame int, master FeatureFlags, stress, lite bool) FeatureFlags 
 	// "popping in" = flash. After frame 8 everything master-enabled is continuous.
 	// Skia-gap / damage scenarios must not strip modules during warm-up (would flash
 	// or miss PresentFrameAuto dirty content).
-	if frame < 8 && !(master.Damage || master.Gradient || master.AdvBlend || master.RRectClip || master.TextLCD || master.ScrollUI) {
+	if frame < 8 && !(master.Damage || master.Gradient || master.AdvBlend || master.RRectClip || master.TextLCD || master.ScrollUI || master.Mesh3D) {
 		return FeatureFlags{
 			Background: master.Background,
 			HUD:        master.HUD,
@@ -1153,6 +1167,11 @@ func drawFrame(dc *render.Context, w, h int, t float64, frame int, scn *animScen
 		// bootstrap flag carried via package state; main sets reset on resize/forceFull
 		drawDamagePartialScene(dc, fonts, fw, fh, t, frame, false)
 		tick("damage", st)
+	}
+	if feat.Mesh3D {
+		st := time.Now()
+		drawMesh3DScene(dc, fw, fh, t, lite)
+		tick("mesh3d", st)
 	}
 	if feat.HUD {
 		st := time.Now()
@@ -1603,10 +1622,12 @@ func drawTextStyles(dc *render.Context, fonts fontPack, fw, fh, t float64, frame
 	if hudFace == "" {
 		hudFace = fonts.sans
 	}
-	ensureFont(dc, hudFace, 12)
-	dc.SetRGBA(0.45, 1.0, 0.75, 0.95)
-	dc.SetTextDecoration(render.TextDecorationNone)
-	dc.DrawString(fmt.Sprintf("text live f=%d t=%.1f", frame, t), x+10, y+float64(panelH)-10)
+	if frame%6 == 0 || frame < 12 {
+		ensureFont(dc, hudFace, 12)
+		dc.SetRGBA(0.45, 1.0, 0.75, 0.95)
+		dc.SetTextDecoration(render.TextDecorationNone)
+		dc.DrawString(fmt.Sprintf("text live f=%d t=%.1f", frame, t), x+10, y+float64(panelH)-10)
+	}
 	_ = feat
 }
 
@@ -1652,44 +1673,75 @@ func rasterizeTextPanel(fonts fontPack, panelW, panelH int, t float64, lite bool
 	return img, nil
 }
 
+// HUD text is relatively expensive (glyph-mask path). Cache the badge/bar labels
+// as ImageBuf and only rebuild when quantized metrics change — keeps 60fps while
+// still updating human-readable stats a few times per second.
+type hudImgCache struct {
+	key  string
+	img  *render.ImageBuf
+	w, h int
+	at   time.Time
+}
+
+var gHUDBadge hudImgCache
+var gHUDBarLabel hudImgCache
+
 func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD) {
 	hudFace := fonts.latin
 	if hudFace == "" {
 		hudFace = fonts.sans
 	}
-	// --- top-right metrics badge ---
-	badgeW, badgeH := 250.0, 78.0
-	bx, by := fw-badgeW-12, 10.0
-	dc.SetRGBA(0.05, 0.07, 0.11, 0.93)
-	dc.DrawRoundedRectangle(bx, by, badgeW, badgeH, 8)
-	_ = dc.Fill()
-	if fonts.ok {
-		ensureFont(dc, hudFace, 14)
-	}
+	// --- top-right metrics badge (cached texture) ---
+	// Offscreen NewContext rebuilds are expensive; keep keys coarse and rate-limit
+	// so S12/S22 stay near 60fps (previous fine quantization thrashed every frame).
+	badgeW, badgeH := 250, 78
+	bx, by := fw-float64(badgeW)-12, 10.0
 	fps := hud.FPS
 	if fps <= 0 {
 		fps = 0
 	}
-	diff := math.Abs(fps - float64(hud.TargetFPS))
-	if diff <= 4 {
-		dc.SetRGB(0.35, 1.0, 0.55)
-	} else if diff <= 12 {
-		dc.SetRGB(1.0, 0.85, 0.35)
-	} else {
-		dc.SetRGB(1.0, 0.45, 0.35)
-	}
-	dc.DrawString(fmt.Sprintf("FPS  %.1f  /  %d", fps, hud.TargetFPS), bx+12, by+24)
-	if fonts.ok {
-		ensureFont(dc, hudFace, 12)
-	}
-	dc.SetRGB(0.82, 0.88, 0.96)
-	// CPUPct is 1-core relative (top-style). Show also machine-share for GNOME-style monitors.
 	ncpu := hostCPUCount()
 	mach := hud.CPUPct / float64(ncpu)
-	dc.DrawString(fmt.Sprintf("%dx%d  CPU1核 %.0f%%≈整机%.0f%%  RSS %dMB", hud.W, hud.H, hud.CPUPct, mach, hud.RSSKB/1024), bx+12, by+44)
-	dc.DrawString(fmt.Sprintf("f=%d  work=%.1fms  present=%s", hud.Frame, hud.FrameMS, hud.PresentMode), bx+12, by+62)
+	// Coarse quantize: ~1 Hz visual update class, not 60 Hz thrash.
+	fpsQ := int(fps + 0.5)            // 1 FPS
+	cpuQ := int(hud.CPUPct/5+0.5) * 5 // 5% buckets
+	rssMB := hud.RSSKB / 1024
+	workQ := int(hud.FrameMS/2+0.5) * 2 // 2ms buckets
+	bucket := 0
+	diff := math.Abs(fps - float64(hud.TargetFPS))
+	if diff <= 4 {
+		bucket = 0
+	} else if diff <= 12 {
+		bucket = 1
+	} else {
+		bucket = 2
+	}
+	badgeKey := fmt.Sprintf("%d|%d|%d|%d|%dx%d|%s|%d",
+		fpsQ, cpuQ, rssMB, workQ, hud.W, hud.H, hud.PresentMode, bucket)
+	// Hard rate-limit: rebuild at most ~2 Hz even if keys jitter.
+	now := time.Now()
+	needBadge := gHUDBadge.img == nil || gHUDBadge.key != badgeKey
+	if needBadge && (gHUDBadge.img == nil || now.Sub(gHUDBadge.at) >= 500*time.Millisecond) {
+		img, err := rasterizeHUDBadge(fonts, hudFace, badgeW, badgeH, hud, fps, mach, bucket)
+		if err == nil && img != nil {
+			gHUDBadge.key = badgeKey
+			gHUDBadge.img = img
+			gHUDBadge.w, gHUDBadge.h = badgeW, badgeH
+			gHUDBadge.at = now
+		}
+	}
+	if gHUDBadge.img != nil {
+		dc.DrawImageEx(gHUDBadge.img, render.DrawImageOptions{
+			X: bx, Y: by, Interpolation: render.InterpNearest, Opacity: 1,
+		})
+	} else {
+		// Fallback: direct (rare)
+		dc.SetRGBA(0.05, 0.07, 0.11, 0.93)
+		dc.DrawRoundedRectangle(bx, by, float64(badgeW), float64(badgeH), 8)
+		_ = dc.Fill()
+	}
 
-	// --- bottom work budget bar ---
+	// --- bottom work budget bar: geometry every frame (cheap), label cached ---
 	barH := math.Max(26, fh*0.045)
 	barY := fh - barH - 10
 	budgetMS := 1000.0 / math.Max(float64(hud.TargetFPS), 1)
@@ -1716,12 +1768,86 @@ func drawHUD(dc *render.Context, fonts fontPack, fw, fh, t float64, hud frameHUD
 	}
 	dc.DrawRoundedRectangle(16, barY+4, (fw-32)*prog, barH-8, (barH-8)*0.4)
 	_ = dc.Fill()
-	dc.SetRGB(0.88, 0.92, 1)
-	dc.DrawString(fmt.Sprintf("work %.1f / %.1f ms  feats[%s]", hud.FrameMS, budgetMS, hud.Active), 20, barY+barH*0.68)
+
+	// Label: update slowly (feats stable; work shown in 2ms buckets).
+	workBucket := int(hud.FrameMS/2+0.5) * 2
+	barKey := fmt.Sprintf("%d|%s|%d", workBucket, hud.Active, int(budgetMS))
+	labelH := int(barH)
+	labelW := int(math.Min(fw-40, 520))
+	if labelW < 160 {
+		labelW = 160
+	}
+	needBar := gHUDBarLabel.img == nil || gHUDBarLabel.key != barKey || gHUDBarLabel.h != labelH
+	if needBar && (gHUDBarLabel.img == nil || now.Sub(gHUDBarLabel.at) >= 500*time.Millisecond) {
+		img, err := rasterizeHUDBarLabel(fonts, hudFace, labelW, labelH, hud.FrameMS, budgetMS, hud.Active)
+		if err == nil && img != nil {
+			gHUDBarLabel.key = barKey
+			gHUDBarLabel.img = img
+			gHUDBarLabel.w, gHUDBarLabel.h = labelW, labelH
+			gHUDBarLabel.at = now
+		}
+	}
+	if gHUDBarLabel.img != nil {
+		dc.DrawImageEx(gHUDBarLabel.img, render.DrawImageOptions{
+			X: 18, Y: barY, Interpolation: render.InterpNearest, Opacity: 1,
+		})
+	}
 
 	// --- left guide: what SHOULD appear on screen ---
 	drawSceneGuide(dc, fonts, fw, fh, hud)
 	_ = t
+}
+
+func rasterizeHUDBadge(fonts fontPack, face string, w, h int, hud frameHUD, fps, mach float64, bucket int) (*render.ImageBuf, error) {
+	tmp := render.NewContext(w, h)
+	defer tmp.Close()
+	tmp.SetRGBA(0.05, 0.07, 0.11, 0.93)
+	tmp.DrawRoundedRectangle(0, 0, float64(w), float64(h), 8)
+	_ = tmp.Fill()
+	if fonts.ok && face != "" {
+		_ = tmp.LoadFontFace(face, 14)
+	}
+	switch bucket {
+	case 0:
+		tmp.SetRGB(0.35, 1.0, 0.55)
+	case 1:
+		tmp.SetRGB(1.0, 0.85, 0.35)
+	default:
+		tmp.SetRGB(1.0, 0.45, 0.35)
+	}
+	tmp.DrawString(fmt.Sprintf("FPS  %.1f  /  %d", fps, hud.TargetFPS), 12, 24)
+	if fonts.ok && face != "" {
+		_ = tmp.LoadFontFace(face, 12)
+	}
+	tmp.SetRGB(0.82, 0.88, 0.96)
+	tmp.DrawString(fmt.Sprintf("%dx%d  CPU1核 %.0f%%≈整机%.0f%%  RSS %dMB",
+		hud.W, hud.H, hud.CPUPct, mach, hud.RSSKB/1024), 12, 44)
+	tmp.DrawString(fmt.Sprintf("f=%d  work=%.1fms  present=%s", hud.Frame, hud.FrameMS, hud.PresentMode), 12, 62)
+	std := tmp.Image()
+	if std == nil {
+		return nil, fmt.Errorf("hud badge nil")
+	}
+	return render.ImageBufFromImage(std), nil
+}
+
+func rasterizeHUDBarLabel(fonts fontPack, face string, w, h int, frameMS, budgetMS float64, active string) (*render.ImageBuf, error) {
+	tmp := render.NewContext(w, h)
+	defer tmp.Close()
+	// Transparent background — bar fill is drawn by caller underneath? Actually we
+	// draw label ON TOP of green progress; use transparent clear.
+	tmp.SetRGBA(0, 0, 0, 0)
+	tmp.DrawRectangle(0, 0, float64(w), float64(h))
+	_ = tmp.Fill()
+	if fonts.ok && face != "" {
+		_ = tmp.LoadFontFace(face, 12)
+	}
+	tmp.SetRGB(0.88, 0.92, 1)
+	tmp.DrawString(fmt.Sprintf("work %.1f / %.1f ms  feats[%s]", frameMS, budgetMS, active), 2, float64(h)*0.68)
+	std := tmp.Image()
+	if std == nil {
+		return nil, fmt.Errorf("hud bar nil")
+	}
+	return render.ImageBufFromImage(std), nil
 }
 
 // drawSceneGuide 绘制中文画面说明。说明文字栅格化后缓存为贴图，避免每帧 CJK 塑形拖垮 FPS。
@@ -1873,6 +1999,7 @@ func buildGuideLines(spec scenarioSpec, master, active FeatureFlags, adaptiveLit
 		{master.TextLCD, "textlcd", "LCD布局 + 多TextMode + 换行/装饰"},
 		{master.ScrollUI && !master.Damage, "scroll", "滚动列表 + 模态遮罩卡片"},
 		{master.Damage, "damage", "局部Damage条带 + PresentFrameAuto"},
+		{master.Mesh3D, "mesh3d", "整窗3D渐变：立方体/球/变形星/地形旋转（GPU DrawMesh）"},
 		{master.HUD, "hud", "右上角FPS/CPU与底部耗时条"},
 	}
 	n := 0
@@ -1936,6 +2063,10 @@ func scenarioNameCN(id, fallback string) string {
 		return "滚动列表 + 模态"
 	case "S21":
 		return "Skia缺口全组合"
+	case "S22":
+		return "3D渐变旋转（整窗）"
+	case "S23":
+		return "3D+全模块合成"
 	default:
 		return fallback
 	}

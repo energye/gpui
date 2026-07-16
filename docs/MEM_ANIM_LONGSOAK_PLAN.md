@@ -11,7 +11,7 @@
 
 ## 0. 强制约束：每次只测一个场景
 
-- **一个进程 = 一个 `GPUI_SCENARIO`**（S01…S21 之一）
+- **一个进程 = 一个 `GPUI_SCENARIO`**（S01…S23 之一）
 - **禁止**在同一进程内切换/轮转场景（避免 RSS/GPU 状态交叉污染）
 - 批量脚本只能 **串行 fork 多个独立进程**，上一场景完全退出后再启动下一场景
 - 交互调试同样只设一个 `GPUI_SCENARIO`
@@ -215,6 +215,8 @@ export GPUI_TARGET_FPS=60
 | **S19** | DamagePartialPresent★ | 静态 chrome + 局部条带 dirty + `PresentFrameAuto` | damage,scroll,text,hud | 90s | ≈60 |
 | **S20** | ScrollModalUI | 列表 clip 滚动 + 遮罩 + 模态卡片（UI 形态，非控件） | scroll,layer,text,cards | 90s | ≈60 |
 | **S21** | SkiaGapComposite★ | S15–S20 缺口能力持续组合（不含 damage present）；`AllowLowFPS` | gap modules lite | 120s | 允许 <60 |
+| **S22** | Mesh3DGradient | **整窗**伪 3D：渐变立方体/球/变形星/宽地形 + 旋转/变形；GPU DrawMesh 单批 | mesh3d+text | 60–120s | ≥60fps；cpu_fb=0 |
+| **S23** | Mesh3DFullComposite | S12 全模块 + Mesh3D 大舞台压力（非角标） | all+mesh3d | 60–120s | ≥55–60fps 或 AllowLowFPS；cpu_fb=0 |
 
 > 场景通过 `GPUI_SCENARIO=S0x` 选择；内部映射到 FeatureFlags + density/stress。
 
@@ -229,7 +231,7 @@ export GPUI_TARGET_FPS=60
 | Damage partial present | |
 | 滚动+模态 UI 形态组合 | |
 
-S01–S21 = **UI 主路径 + Skia 常见缺口 soak**，仍 **不是** Skia 功能穷举表。
+S01–S23 = **UI 主路径 + Skia 常见缺口 soak**，仍 **不是** Skia 功能穷举表。
 
 
 ---
