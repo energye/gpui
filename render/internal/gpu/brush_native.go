@@ -177,8 +177,14 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		}
 		return render.ErrFallbackToCPU
 	case render.CustomBrush:
-		// G.04 / N3: field×coverage + GPU R8 modulate (same chain as gradients).
-		// True fragment ColorAt shader remains post; reason stays brush:custom.
+		// G.04 / N3: AA-rect ColorAt field GPU blit first (no coverage pass),
+		// then field×coverage + GPU R8 for non-rect. Arbitrary Func cannot be
+		// compiled to WGSL; true fragment ColorAt remains signed-deferred.
+		// Reason stays brush:custom (GPU* bootstrap, not silent CPU).
+		if err := rc.fillColorAtFieldNative(target, path, paint, b.ColorAt, customBrushFieldSeed(b)); err == nil {
+			rc.noteBrushBootstrap("brush:custom")
+			return nil
+		}
 		if err := rc.fillColorAtFieldMaskedGPU(target, path, paint, b.ColorAt, customBrushFieldSeed(b)); err == nil {
 			rc.noteBrushBootstrap("brush:custom")
 			return nil

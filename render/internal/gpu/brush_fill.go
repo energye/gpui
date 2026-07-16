@@ -671,9 +671,11 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	return nil
 }
 
-// fillRadialGradientFieldMasked is N1 textured radial cover (focus==center):
-// O(n) ColorAt 1D ramp + GPU projection t=(dist-startR)/radiusDiff × R8 mask.
-// Focal (focus!=center) falls back to ColorAt field×R8. Native rect/convex first.
+// fillRadialGradientFieldMasked is N1 textured radial cover:
+//   - simple (focus==center): t=(dist-startR)/radiusDiff
+//   - focal (focus!=center): GPU computeTFocal (mode 3)
+//
+// O(n) ColorAt 1D ramp + GPU t×R8 mask. Native rect/convex still first.
 func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	target render.GPURenderTarget,
 	path *render.Path,
@@ -683,12 +685,12 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	if g == nil || path == nil || paint == nil {
 		return render.ErrFallbackToCPU
 	}
-	// Focal gradients keep ColorAt field path (quadratic intersection not here).
-	if g.Focus.X != g.Center.X || g.Focus.Y != g.Center.Y {
+	focal := g.Focus.X != g.Center.X || g.Focus.Y != g.Center.Y
+	radiusDiff := g.EndRadius - g.StartRadius
+	if !focal && math.Abs(radiusDiff) < 1e-12 {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedRadial(g))
 	}
-	radiusDiff := g.EndRadius - g.StartRadius
-	if math.Abs(radiusDiff) < 1e-12 {
+	if focal && g.EndRadius <= 1e-12 {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedRadial(g))
 	}
 	if !rc.shared.gpuReady {
@@ -741,11 +743,53 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 		return render.ErrFallbackToCPU
 	}
 
-	// Distance range of AABB vs center.
-	minD, maxD := distRangeToAABB(g.Center.X, g.Center.Y, bounds)
-	invRD := 1.0 / radiusDiff
-	tMin := (minD - g.StartRadius) * invRD
-	tMax := (maxD - g.StartRadius) * invRD
+	// Parameter range over AABB.
+	var tMin, tMax float64
+	if !focal {
+		minD, maxD := distRangeToAABB(g.Center.X, g.Center.Y, bounds)
+		invRD := 1.0 / radiusDiff
+		tMin = (minD - g.StartRadius) * invRD
+		tMax = (maxD - g.StartRadius) * invRD
+	} else {
+		// Sample computeT via ColorAt-equivalent at corners + focus-in-bounds.
+		corners := [4][2]float64{
+			{float64(bounds.Min.X), float64(bounds.Min.Y)},
+			{float64(bounds.Max.X), float64(bounds.Min.Y)},
+			{float64(bounds.Min.X), float64(bounds.Max.Y)},
+			{float64(bounds.Max.X), float64(bounds.Max.Y)},
+		}
+		for i, c := range corners {
+			tt := radialFocalT(g, c[0], c[1])
+			if i == 0 || tt < tMin {
+				tMin = tt
+			}
+			if i == 0 || tt > tMax {
+				tMax = tt
+			}
+		}
+		if g.Focus.X >= float64(bounds.Min.X) && g.Focus.X <= float64(bounds.Max.X) &&
+			g.Focus.Y >= float64(bounds.Min.Y) && g.Focus.Y <= float64(bounds.Max.Y) {
+			if 0 < tMin {
+				tMin = 0
+			}
+		}
+		// Mid-edge samples reduce under-range for large AABBs.
+		mids := [4][2]float64{
+			{float64(bounds.Min.X+bounds.Max.X) * 0.5, float64(bounds.Min.Y)},
+			{float64(bounds.Min.X+bounds.Max.X) * 0.5, float64(bounds.Max.Y)},
+			{float64(bounds.Min.X), float64(bounds.Min.Y+bounds.Max.Y) * 0.5},
+			{float64(bounds.Max.X), float64(bounds.Min.Y+bounds.Max.Y) * 0.5},
+		}
+		for _, c := range mids {
+			tt := radialFocalT(g, c[0], c[1])
+			if tt < tMin {
+				tMin = tt
+			}
+			if tt > tMax {
+				tMax = tt
+			}
+		}
+	}
 	if tMax < tMin {
 		tMin, tMax = tMax, tMin
 	}
@@ -762,18 +806,39 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	if n > 2048 {
 		n = 2048
 	}
-	// Premul ramp: sample ColorAt along +X ray (encode Extend in ColorAt).
+
+	// Premul ramp via ColorAt at synthetic positions with known-ish t (Extend baked in).
 	ramp := make([]byte, n*4)
-	for i := 0; i < n; i++ {
-		tt := tMin + (float64(i)+0.5)/float64(n)*span
-		dist := g.StartRadius + tt*radiusDiff
-		c := g.ColorAt(g.Center.X+dist, g.Center.Y)
-		a := c.A
-		off := i * 4
-		ramp[off+0] = uint8(clamp255(c.R * a * 255))
-		ramp[off+1] = uint8(clamp255(c.G * a * 255))
-		ramp[off+2] = uint8(clamp255(c.B * a * 255))
-		ramp[off+3] = uint8(clamp255(a * 255))
+	if !focal {
+		for i := 0; i < n; i++ {
+			tt := tMin + (float64(i)+0.5)/float64(n)*span
+			dist := g.StartRadius + tt*radiusDiff
+			c := g.ColorAt(g.Center.X+dist, g.Center.Y)
+			writePremulRGBA(ramp, i*4, c)
+		}
+	} else {
+		// Ray from focus toward center (or +X); place at d = tt * interDist.
+		ux := g.Center.X - g.Focus.X
+		uy := g.Center.Y - g.Focus.Y
+		ulen := math.Hypot(ux, uy)
+		if ulen < 1e-12 {
+			ux, uy, ulen = 1, 0, 1
+		}
+		ux /= ulen
+		uy /= ulen
+		inter := focalRayIntersectDist(g, ux, uy)
+		if inter < 1e-12 {
+			inter = g.EndRadius
+			if inter < 1e-12 {
+				inter = 1
+			}
+		}
+		for i := 0; i < n; i++ {
+			tt := tMin + (float64(i)+0.5)/float64(n)*span
+			d := tt * inter
+			c := g.ColorAt(g.Focus.X+ux*d, g.Focus.Y+uy*d)
+			writePremulRGBA(ramp, i*4, c)
+		}
 	}
 
 	sx := float64(nw) / float64(bw)
@@ -804,19 +869,38 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	if device == nil || queue == nil {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedRadial(g))
 	}
-	params := linearRampMaskParams{
-		boundsMinX: float32(bx),
-		boundsMinY: float32(by),
-		boundsW:    float32(fw),
-		boundsH:    float32(fh),
-		startX:     float32(g.Center.X),
-		startY:     float32(g.Center.Y),
-		dX:         float32(g.StartRadius),
-		dY:         float32(invRD),
-		invLen2:    0,
-		tMin:       float32(tMin),
-		invSpan:    float32(invSpan),
-		mode:       1, // radial simple
+
+	var params linearRampMaskParams
+	if !focal {
+		params = linearRampMaskParams{
+			boundsMinX: float32(bx),
+			boundsMinY: float32(by),
+			boundsW:    float32(fw),
+			boundsH:    float32(fh),
+			startX:     float32(g.Center.X),
+			startY:     float32(g.Center.Y),
+			dX:         float32(g.StartRadius),
+			dY:         float32(1.0 / radiusDiff),
+			invLen2:    0,
+			tMin:       float32(tMin),
+			invSpan:    float32(invSpan),
+			mode:       1,
+		}
+	} else {
+		params = linearRampMaskParams{
+			boundsMinX: float32(bx),
+			boundsMinY: float32(by),
+			boundsW:    float32(fw),
+			boundsH:    float32(fh),
+			startX:     float32(g.Focus.X),
+			startY:     float32(g.Focus.Y),
+			dX:         float32(g.Center.X),
+			dY:         float32(g.Center.Y),
+			invLen2:    float32(g.EndRadius),
+			tMin:       float32(tMin),
+			invSpan:    float32(invSpan),
+			mode:       3, // focal
+		}
 	}
 	out, gerr := linearRampMaskExpand(device, queue, rampCache, ramp, n, mask, nw, nh, params)
 	if gerr != nil || len(out) != nw*nh*4 {
@@ -829,6 +913,9 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 		vpW, vpH = target.ViewWidth, target.ViewHeight
 	}
 	genID := brushFieldSeedRadial(g) ^ fieldGeomGenID(bx, by, fw, fh, nw, nh) ^ 0x11AEA8A5AAD0001
+	if focal {
+		genID ^= 0x00000000F0CA1001
+	}
 	if covGPU {
 		genID ^= 0x0000000057EAC001
 	}
@@ -845,6 +932,84 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
+}
+
+// writePremulRGBA stores premul RGBA8 at off.
+func writePremulRGBA(dst []byte, off int, c render.RGBA) {
+	a := c.A
+	dst[off+0] = uint8(clamp255(c.R * a * 255))
+	dst[off+1] = uint8(clamp255(c.G * a * 255))
+	dst[off+2] = uint8(clamp255(c.B * a * 255))
+	dst[off+3] = uint8(clamp255(a * 255))
+}
+
+// radialFocalT mirrors RadialGradientBrush.computeTFocal for range estimation.
+func radialFocalT(g *render.RadialGradientBrush, x, y float64) float64 {
+	dx := x - g.Focus.X
+	dy := y - g.Focus.Y
+	fx := g.Center.X - g.Focus.X
+	fy := g.Center.Y - g.Focus.Y
+	a := dx*dx + dy*dy
+	if a == 0 {
+		return 0
+	}
+	b := -2 * (dx*fx + dy*fy)
+	c := fx*fx + fy*fy - g.EndRadius*g.EndRadius
+	disc := b*b - 4*a*c
+	if disc < 0 {
+		return 1
+	}
+	sqrtD := math.Sqrt(disc)
+	t1 := (-b - sqrtD) / (2 * a)
+	t2 := (-b + sqrtD) / (2 * a)
+	var t float64
+	switch {
+	case t1 > 0 && t2 > 0:
+		t = math.Min(t1, t2)
+	case t1 > 0:
+		t = t1
+	case t2 > 0:
+		t = t2
+	default:
+		return 0
+	}
+	pointDist := math.Sqrt(a)
+	intersectDist := t * pointDist
+	if intersectDist == 0 {
+		return 0
+	}
+	return pointDist / intersectDist
+}
+
+// focalRayIntersectDist is the distance from focus along unit (ux,uy) to the
+// end-radius circle (positive root), matching computeTFocal geometry.
+func focalRayIntersectDist(g *render.RadialGradientBrush, ux, uy float64) float64 {
+	fx := g.Center.X - g.Focus.X
+	fy := g.Center.Y - g.Focus.Y
+	// Point = focus + 1*(ux,uy) ⇒ d=(ux,uy), a=1
+	a := ux*ux + uy*uy
+	if a < 1e-18 {
+		return g.EndRadius
+	}
+	b := -2 * (ux*fx + uy*fy)
+	c := fx*fx + fy*fy - g.EndRadius*g.EndRadius
+	disc := b*b - 4*a*c
+	if disc < 0 {
+		return g.EndRadius
+	}
+	sqrtD := math.Sqrt(disc)
+	t1 := (-b - sqrtD) / (2 * a)
+	t2 := (-b + sqrtD) / (2 * a)
+	switch {
+	case t1 > 0 && t2 > 0:
+		return math.Min(t1, t2) // a≈1 so t≈distance
+	case t1 > 0:
+		return t1
+	case t2 > 0:
+		return t2
+	default:
+		return g.EndRadius
+	}
 }
 
 // fillSweepGradientFieldMasked is N1 textured sweep cover for positive sweep ranges:
@@ -864,6 +1029,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		// Zero/negative: keep ColorAt field (shader assumes positive wrap).
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedSweep(g))
 	}
+	sweepStart := g.StartAngle
 	if !rc.shared.gpuReady {
 		rc.shared.mu.Lock()
 		err := rc.shared.ensureGPU()
@@ -929,7 +1095,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		invSR := 1.0 / sweepRange
 		for i, c := range corners {
 			ang := math.Atan2(c[1]-cy, c[0]-cx)
-			rel := ang - g.StartAngle
+			rel := ang - sweepStart
 			twoPi := 2 * math.Pi
 			rel = rel - math.Floor(rel/twoPi)*twoPi
 			tt := rel * invSR
@@ -961,7 +1127,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 	ramp := make([]byte, n*4)
 	for i := 0; i < n; i++ {
 		tt := tMin + (float64(i)+0.5)/float64(n)*span
-		ang := g.StartAngle + tt*sweepRange
+		ang := sweepStart + tt*sweepRange
 		c := g.ColorAt(cx+math.Cos(ang), cy+math.Sin(ang))
 		a := c.A
 		off := i * 4
@@ -1007,7 +1173,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		boundsH:    float32(fh),
 		startX:     float32(cx),
 		startY:     float32(cy),
-		dX:         float32(g.StartAngle),
+		dX:         float32(sweepStart),
 		dY:         float32(invSR),
 		invLen2:    0,
 		tMin:       float32(tMin),
