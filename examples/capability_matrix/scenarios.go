@@ -177,6 +177,22 @@ func allScenarios() map[string]scenarioSpec {
 			MatrixIDs: "Q.01,Q.02,Q.03,Q.04,S.08", DrawKind: "quality",
 			Expect: "AA 开/关斜边对比、hairline、dither 渐变带、2x 设备尺度 hairline",
 		},
+		// --- P5 Wave-C: atlas/picture / path fast-path / composite regression ---
+		"C30": {
+			ID: "C30", Name: "AtlasPicture", NameCN: "Atlas+Picture 录制",
+			MatrixIDs: "V.02,R.01,S.01,S.02,S.06", DrawKind: "atlaspic",
+			Expect: "DrawAtlas 多精灵 + Picture 录制回放位图合成；HUD 标注录制命令数",
+		},
+		"C31": {
+			ID: "C31", Name: "PathRasterFast", NameCN: "路径光栅快径",
+			MatrixIDs: "H.06,H.07,P.09", DrawKind: "pathfast",
+			Expect: "凸多边形快径 + 非凸星形 + dither 渐变对比条",
+		},
+		"C32": {
+			ID: "C32", Name: "CompositeRegression", NameCN: "合成压力回归",
+			MatrixIDs: "S.03,T.01,P.01,G.01,C.01,D.01,B.01,L.03,I.01,X.02,V.01", DrawKind: "compreg",
+			Expect: "轻量同屏：渐变底+变换+路径+裁剪+混合+贴图+文本+网格，稳定 present",
+		},
 	}
 }
 
@@ -187,7 +203,7 @@ func applyScenario(id string) (scenarioSpec, bool) {
 	}
 	s, ok := allScenarios()[id]
 	if !ok {
-		log.Printf("unknown GPUI_SCENARIO=%q — use C01..C29", id)
+		log.Printf("unknown GPUI_SCENARIO=%q — use C01..C32", id)
 		return scenarioSpec{}, false
 	}
 	return s, true
@@ -199,5 +215,6 @@ func scenarioListOrdered() []string {
 		"C11", "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20",
 		"C21", "C22", "C23", "C24", "C25",
 		"C26", "C27", "C28", "C29",
+		"C30", "C31", "C32",
 	}
 }

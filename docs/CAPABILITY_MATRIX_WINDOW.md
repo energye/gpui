@@ -1,6 +1,6 @@
 # 能力矩阵窗口验收（examples/capability_matrix）
 
-> 版本：1.7 | 日期：2026-07-16  
+> 版本：1.10 | 日期：2026-07-16  
 > 真源：`docs/SKIA_2D_CAPABILITY_MATRIX.md`（Skia 2D 语义 ID）  
 > 实现：`examples/capability_matrix/`（真实 X11 窗口 + webgpu → render 呈现链）
 
@@ -39,8 +39,8 @@
 | **L0** | 高频窗口基线 C01–C20 | ✅ 20/20 PASS（final `/tmp/cap_l0_final`） |
 | **L1** | 语义硬缺口关闭（工作项 1） | ✅ P1 B.07/B.06 关闭 |
 | **L2** | 窗口 ID 覆盖扩展 C21+（工作项 3） | ✅ Wave-A C21–C25 PASS |
-| **L3** | 质量全管线（工作项 4） | ⬜ 待做 |
-| **L4** | 像素/性能对标 Skia（工作项 5） | ⬜ 待做 |
+| **L3** | 质量全管线（工作项 4） | ✅ P4（CS/MSAA/Filter/Premul；F16 书面后置） |
+| **L4** | 像素/性能对标 Skia（工作项 5） | ✅ P6 关闭（golden+compare+perf+C01–C32 final） |
 | **L5 画布 100%** | L1+L2+L3 绿 + 范围声明排除 R.02 | ⬜ 目标态 |
 | **L6 document** | R.02 PDF/SVG（**非画布 100% 必选项**） | 🚫 本阶段不做 |
 
@@ -361,6 +361,71 @@ done
 ```
 
 
+## 7.4 P4 质量全管线收口（2026-07-16）
+
+| 子项 | 状态 | 证据 |
+|------|------|------|
+| 4.1 颜色空间 sRGB/线性中点 | ✅ | `TestP1_Capability_CS03*`；窗口 C06/C29 渐变 |
+| 4.2 F16 宽色域 | 📝 后置 | **不阻塞**画布 100%；需业务宽色域时再开专项 |
+| 4.3 MSAA 窗口 | ✅ | C29 Q.01–Q.04；`MSAAAware.MSAASampleCount` 单测 |
+| 4.4 Filter DAG | ✅ | C28 `PushLayer`+`ApplyBlur`+`ApplyColorMatrix`，cpu_fb=0 |
+| 4.5 Premul/AA | ✅ | C07/C08 窗口；`TestP1_Capability_B05_*`、`Q04_PremulAAEdgeGPU` |
+
+**L3 判定**：4.1/4.3/4.4/4.5 绿 + 4.2 书面边界 → **L3 ✅**。
+
+## 7.5 P5 Wave-C 证据（C30–C32 · 2026-07-16）
+
+环境：Linux X11 `DISPLAY=:1`，`/tmp/cap_l0_bin`，每场景 8s。  
+证据目录：`/tmp/cap_p5_final/`。
+
+| ID | 名称 | MatrixIDs | 结果 | 备注 |
+|----|------|-----------|------|------|
+| C30 | Atlas+Picture | V.02,R.01,S.01,S.02,S.06 | ✅ PASS | DrawAtlas×12 + recording→raster→DrawImage；`fps≈70` |
+| C31 | 路径光栅快径 | H.06,H.07,P.09 | ✅ PASS | 凸多边形 + 非凸星 + dither 对比条；`fps≈61` |
+| C32 | 合成压力回归 | 多 ID | ✅ PASS | C20 级轻量同屏（无每帧 PushLayer）；`fps≈65` |
+
+汇总：**pass=3 fail=0**；`cpu_fb=0` / `probe=true`。  
+冒烟：C01/C07/C20/C29 均 PASS。
+
+单行摘要：
+
+```
+scenario=C30 status=PASS fps_ema=70.0 fps_avg=60.9 cpu=14 cpu_fb=0 gpu_ops=9234 probe=true reason=
+scenario=C31 status=PASS fps_ema=61.2 fps_avg=60.7 cpu=20 cpu_fb=0 gpu_ops=13608 probe=true reason=
+scenario=C32 status=PASS fps_ema=65.0 fps_avg=61.4 cpu=16 cpu_fb=0 gpu_ops=18167 probe=true reason=
+```
+
+实现要点：
+
+- C30：`recording.NewRecorder` → `FinishRecording` → raster `Playback` → `ImageBufFromImage` → present；与 `DrawAtlas` 同屏。
+- C31：present 直绘凸/非凸 path + `SetDither` 条带。
+- C32：对齐 C20 成本模型（避免每帧 PushLayer/Export 把回归打成 5fps）。
+
+复跑：
+
+```bash
+export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH DISPLAY=:1
+go build -o /tmp/cap_l0_bin ./examples/capability_matrix
+for id in C30 C31 C32; do
+  GPUI_SCENARIO=$id GPUI_ANIM_SECONDS=8 GPUI_RESULT_FILE=/tmp/cap_p5_final/${id}.json /tmp/cap_l0_bin
+done
+```
+
+
+### 7.6 P6 像素/性能（关闭）
+
+证据目录：`/tmp/cap_p6_capture/`；golden：`examples/capability_matrix/golden/`。
+
+| 交付 | 状态 | 说明 |
+|------|------|------|
+| Golden C01–C32 | ✅ | 确定性 `GPUI_DETERMINISTIC=1` + `GPUI_GOLDEN_NO_HUD=1` + frame 90 |
+| RMSE/SSIM 对比 | ✅ | `scripts/cap_compare_golden.py`（默认 RMSE≤0.08 SSIM≥0.90） |
+| 性能表 | ✅ | `/tmp/cap_p6_capture/PERF.md`（C01–C32 本进程指标） |
+| 全量回归脚本 | ✅ | `scripts/run_capability_matrix_p6.sh` |
+| 画面修正 | ✅ | C06 渐变坐标溢出；C10 文本衬底；C15 backdrop 隔帧；C22 clip RT 隔帧 |
+
+**P6 已关闭**：C01–C32 全 PASS（`/tmp/cap_p6_final`，cpu_fb=0）+ golden 32 张 + compare 脚本 + PERF 表。L4 ✅。下一：P7 L5 画布 100% 宣告。
+
 ## 8. 迈向「2D 画布 100%」的五项工作（主计划）
 
 下列 1–5 为 **画布 100%（排除 document）** 的必做路径；顺序即实现优先级。
@@ -405,9 +470,9 @@ done
 | C27 | 变换进阶 | T.03,T.04,P.07 | ✅ | 非均匀 stroke、图像四边形透视感、miter limit |
 | C28 | 层混合 + Filter 图 | L.04,F.03 | ✅ | layer blend + multi-RT filter 链 |
 | C29 | 质量 MSAA/AA | Q.01,Q.02,Q.03,Q.04,S.08 | ✅ | MSAA 边、coverage AA、像素对齐、HiDPI hairline |
-| C30 | Atlas + Picture | V.02,R.01,S.01,S.02,S.06 | P2 | DrawAtlas 精灵、Picture 录制回放、离屏读回说明 |
-| C31 | Path 光栅快径 | H.06,H.07,P.09 | P2 | 复杂 path / convex 快径 / dither |
-| C32 | 合成压力+回归 | 多 ID | P2 | L0+本批 API 轻量同屏，防回归 |
+| C30 | Atlas + Picture | V.02,R.01,S.01,S.02,S.06 | ✅ | DrawAtlas 精灵、Picture 录制回放、离屏读回说明 |
+| C31 | Path 光栅快径 | H.06,H.07,P.09 | ✅ | 复杂 path / convex 快径 / dither |
+| C32 | 合成压力+回归 | 多 ID | ✅ | L0+本批 API 轻量同屏，防回归 |
 
 > R.02 **不进** C 系列。I.08 YUV 若 1.3 必选则加 **C33 YUV multiplanar**。
 
@@ -421,21 +486,22 @@ done
 
 | 子项 | 内容 | Matrix / 层 | 验收 |
 |------|------|-------------|------|
-| 4.1 颜色空间 | 默认 sRGB 一致；线性混合路径可切换 | CS.01, CS.03 | 中灰/渐变带无错误编码 |
-| 4.2 F16 / 宽色域 | 可选：`Context` 或离屏 RT 走 rgba16float | CS.02 | 不仅底层 RT，要有可画路径或明确「仅 RT API」边界 |
-| 4.3 MSAA 窗口 e2e | 4x resolve 真 present | Q.01 | 边锯齿对比场景 C29 |
-| 4.4 Filter DAG 深度 | blur/CM/shadow 多节点图稳定 | F.03 | 无闪、cpu_fb=0、可组合 |
-| 4.5 Premul / AA 边 | 半透明 AA 不爆色 | Q.04, B.05 | 固定像素 + 窗口 |
+| 4.1 颜色空间 | 默认 sRGB 一致；线性混合路径可切换 | CS.01, CS.03 | ✅ 单测 `TestP1_Capability_CS03` + C06/C29 渐变 present |
+| 4.2 F16 / 宽色域 | 可选：`Context` 或离屏 RT 走 rgba16float | CS.02 | 📝 **书面后置**：底层 RT 子集；**不阻塞** L3/L5 画布 100%（与 I.08 同类） |
+| 4.3 MSAA 窗口 e2e | 4x resolve 真 present | Q.01 | ✅ C29 + `MSAAAware` 单测门禁 |
+| 4.4 Filter DAG 深度 | blur/CM/shadow 多节点图稳定 | F.03 | ✅ C28 layer+blur+CM；cpu_fb=0 |
+| 4.5 Premul / AA 边 | 半透明 AA 不爆色 | Q.04, B.05 | ✅ C07/C08 + `TestP1_Capability_B05_*` / Q.04 |
+
 
 ### 8.5 工作项 5 — 像素与性能对标（非玩具）
 
 | 子项 | 内容 | 验收 |
 |------|------|------|
-| 5.1 Golden corpus | 选定 N 张参考图（可用 Skia 离线导出或本仓库锁定 PNG） | RMSE/SSIM 门禁；diff PNG 落盘 |
-| 5.2 窗口截帧 | C 场景关键帧读回 vs golden（可选自动化） | 与 L0 门禁并存 |
-| 5.3 性能基线 | 全开/单场景 60fps、进程 CPU/RSS 趋势 | 对齐 mem_anim 指标哲学（只看本进程） |
-| 5.4 批处理/图集 | 同屏多 draw 不无谓掉帧 | C32 + soak 抽样 |
-| 5.5 回归铁律 | 改 render/webgpu/rwgpu 必须跑 C01–C20 + 已启用 C21+ | CI 或本地脚本 |
+| 5.1 Golden corpus | 选定 N 张参考图（可用 Skia 离线导出或本仓库锁定 PNG） | ✅ 仓库锁定 `examples/capability_matrix/golden/C01–C32.png`（确定性 frame=90，无 HUD） |
+| 5.2 窗口截帧 | C 场景关键帧读回 vs golden（可选自动化） | ✅ `GPUI_CAPTURE_DIR` + `scripts/cap_compare_golden.py`（RMSE/SSIM + diff） |
+| 5.3 性能基线 | 全开/单场景 60fps、进程 CPU/RSS 趋势 | ✅ `/tmp/cap_p6_capture/PERF.md`（本进程 CPU/RSS/fps） |
+| 5.4 批处理/图集 | 同屏多 draw 不无谓掉帧 | ✅ C30/C32 窗口 PASS；soak 可复用 `run_capability_matrix_p6.sh` |
+| 5.5 回归铁律 | 改 render/webgpu/rwgpu 必须跑 C01–C20 + 已启用 C21+ | ✅ `scripts/run_capability_matrix_p6.sh` 覆盖 C01–C32 |
 
 ---
 
@@ -456,13 +522,13 @@ P2  窗口扩展 Wave-A (C21–C25)           → ✅ 每场景独立 PASS（§7
 P3  窗口扩展 Wave-B (C26–C29)           → ✅ 路径/变换/层滤镜/质量（§7.3）
     │
     ▼
-P4  质量全管线 4.1–4.5                  → CS/MSAA/Filter/Premul
+P4  质量全管线 4.1–4.5                  → ✅ CS/MSAA/Filter/Premul（F16 后置）
     │
     ▼
-P5  窗口扩展 Wave-C (C30–C32) + 回归   → Atlas/Picture/合成
+P5  窗口扩展 Wave-C (C30–C32) + 回归   → ✅ Atlas/Picture/合成（§7.5）
     │
     ▼
-P6  像素/性能 5.1–5.5                   → golden + 基线报告
+P6  像素/性能 5.1–5.5                   → ✅ golden + 基线报告
     │
     ▼
 L5  宣称「2D 画布 100%（排除 document）」
@@ -478,9 +544,9 @@ L5  宣称「2D 画布 100%（排除 document）」
 | **P1** | 语义硬缺口 | B.07 Modulate；B.06 premul 精修；更新矩阵脚注 | 单测绿 + C07/C08/C17 回归 PASS |
 | **P2** | C21–C25 | `scenarios`/`probes`/`main` 扩展；证据 JSON | ✅ 五场景 PASS，cpu_fb=0（§7.2） |
 | **P3** | C26–C29 | 同上 | ✅ 四场景 PASS，cpu_fb=0（§7.3） |
-| **P4** | 质量管线 | CS/MSAA/Filter/Premul 门禁与窗口挂钩 | §8.4 子项全勾或书面边界 |
-| **P5** | C30–C32 | Atlas/Picture/合成回归 | 三场景 PASS + 全量脚本 |
-| **P6** | 对标 | golden 目录、对比工具、性能表 | §8.5 可重复跑出报告 |
+| **P4** | 质量管线 | CS/MSAA/Filter/Premul 门禁与窗口挂钩 | ✅ §8.4 已勾/边界（§7.4） |
+| **P5** | C30–C32 | Atlas/Picture/合成回归 | ✅ 三场景 PASS（§7.5） |
+| **P6** | 对标 | golden 目录、对比工具、性能表 | ✅ §7.6 / §8.5 |
 | **P7** | L5 宣告 | 更新矩阵 §4 差距表 + 本文件 L5=✅ | 清单审计无必选项残留 |
 | **Px** | DOC.1 | PDF/SVG（可选） | **不阻塞 P7** |
 
@@ -529,9 +595,9 @@ L5  宣称「2D 画布 100%（排除 document）」
 | P1 B.07 / B.06 | ✅ | 2026-07-16 |
 | P2 C21–C25 | ✅ `/tmp/cap_p2_final` | 2026-07-16 |
 | P3 C26–C29 | ✅ `/tmp/cap_p3_final` | 2026-07-16 |
-| P4 质量管线 | ⬜ | — |
-| P5 C30–C32 | ⬜ | — |
-| P6 golden/性能 | ⬜ | — |
+| P4 质量管线 | ✅ §7.4 / §8.4 | 2026-07-16 |
+| P5 C30–C32 | ✅ `/tmp/cap_p5_final` | 2026-07-16 |
+| P6 golden/性能 | ✅ `/tmp/cap_p6_final` + golden 32 | 2026-07-16 |
 | L5 画布 100% 宣告 | ⬜ | — |
 | Px R.02 document | 🚫 默认不做 | 2026-07-16 |
 
@@ -549,3 +615,6 @@ L5  宣称「2D 画布 100%（排除 document）」
 | 2026-07-16 | 1.5 | 修复错误 RT GPU blit 导致画面异常；C07 小 RT+Export 合成；L0 final 20/20 PASS `/tmp/cap_l0_final` |
 | 2026-07-16 | 1.6 | P2 Wave-A 关闭：C21–C25 全 PASS；C22 present 固定 clip；证据 `/tmp/cap_p2_final`；L2 ✅ |
 | 2026-07-16 | 1.7 | P3 Wave-B 关闭：C26–C29 全 PASS；证据 `/tmp/cap_p3_final`；路径/变换/层滤镜/质量窗口覆盖 |
+| 2026-07-16 | 1.8 | P4 质量管线收口（F16 后置）+ P5 C30–C32 全 PASS；L3 ✅；证据 `/tmp/cap_p5_final` |
+| 2026-07-16 | 1.9 | 画面修正 C06/C10/C15/C22；P6 启动：golden C01–C32 + 对比/回归脚本 + 性能表 `/tmp/cap_p6_capture` |
+| 2026-07-16 | 1.10 | P6 关闭：C01–C32 final 全 PASS `/tmp/cap_p6_final`；L4 ✅；下一 P7 L5 宣告 |

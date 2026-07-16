@@ -9,6 +9,8 @@ import (
 
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
+	"github.com/energye/gpui/render/recording"
+	_ "github.com/energye/gpui/render/recording/backends/raster"
 )
 
 // Small reusable offscreen RT (Skia saveLayer / filter bounded layer pattern).
@@ -95,30 +97,33 @@ func (e *effectRT) last() *render.ImageBuf {
 }
 
 var (
-	gLayerRT     effectRT
-	gFilterBlur  effectRT
-	gFilterShad  effectRT
-	gFilterGray  effectRT
-	gBackdropRT  effectRT
-	gAdvBlendRT  effectRT
-	gTextLCDRT   effectRT
-	gMaskRT      effectRT
-	gGradRT      effectRT
-	gBlendRT     effectRT
-	gPDBoardRT   effectRT
-	gClipDiffRT  effectRT
-	gGradTileRT  effectRT
-	gImageAdvRT  effectRT
-	gTextAdvRT   effectRT
-	gLayerFiltRT effectRT
-	gQualityRT   effectRT
-	gNineSrc     *render.ImageBuf
-	gCheckerImg  *render.ImageBuf
-	gBlendBG     *render.ImageBuf
-	gSoftMask    *render.Mask
-	gMeshPos     []render.Point
-	gMeshCol     []render.RGBA
-	gMeshIdx     []uint16
+	gLayerRT      effectRT
+	gFilterBlur   effectRT
+	gFilterShad   effectRT
+	gFilterGray   effectRT
+	gBackdropRT   effectRT
+	gAdvBlendRT   effectRT
+	gTextLCDRT    effectRT
+	gMaskRT       effectRT
+	gGradRT       effectRT
+	gBlendRT      effectRT
+	gPDBoardRT    effectRT
+	gClipDiffRT   effectRT
+	gGradTileRT   effectRT
+	gImageAdvRT   effectRT
+	gTextAdvRT    effectRT
+	gLayerFiltRT  effectRT
+	gQualityRT    effectRT
+	gNineSrc      *render.ImageBuf
+	gCheckerImg   *render.ImageBuf
+	gBlendBG      *render.ImageBuf
+	gSoftMask     *render.Mask
+	gMeshPos      []render.Point
+	gMeshCol      []render.RGBA
+	gMeshIdx      []uint16
+	gPictureImg   *render.ImageBuf
+	gPictureCmds  int
+	gPictureFrame int
 )
 
 func ensureChecker() *render.ImageBuf {
@@ -337,13 +342,13 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 
 	case "grad":
 		// Bounded RT: full-window multi-stop gradients are ColorAt-heavy (CPU).
-		// Skia pattern: paint shader on layer-sized RT, composite with DrawImage.
-		// Recompute every 2 frames; DrawImage every frame keeps present smooth.
-		tw, th := 240, 150
+		// Layout fits entirely inside tw×th (previous sweep/radial coords overflowed).
+		// Recompute every 3 frames; DrawImage every frame keeps present smooth.
+		tw, th := 420, 220
 		if frame%3 != 0 && gGradRT.hasCached() {
-			_ = gGradRT.presentCached(dc, fw*0.5-float64(tw)/2, fh*0.45-float64(th)/2, render.InterpBilinear)
+			_ = gGradRT.presentCached(dc, fw*0.5-float64(tw)/2, fh*0.48-float64(th)/2, render.InterpBilinear)
 			dc.SetRGBA(1, 0.7, 0.2, 0.9)
-			dc.DrawCircle(fw*0.12+30*math.Sin(t*2), fh*0.85, 10)
+			dc.DrawCircle(fw*0.12+30*math.Sin(t*2), fh*0.88, 10)
 			_ = dc.Fill()
 			return "线性/径向/扫描渐变 + 图像 pattern（D.01–D.03/D.05）"
 		}
@@ -352,14 +357,16 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 		rt.SetRGB(0.08, 0.09, 0.12)
 		rt.DrawRectangle(0, 0, float64(tw), float64(th))
 		_ = rt.Fill()
-		lin := render.NewLinearGradientBrush(12, 12, float64(tw)-12, 56).
+		// Linear strip (top)
+		lin := render.NewLinearGradientBrush(16, 16, float64(tw)-16, 64).
 			AddColorStop(0, render.RGBA{R: 1, G: 0.3, B: 0.2, A: 1}).
 			AddColorStop(0.5, render.RGBA{R: 1, G: 0.9, B: 0.2, A: 1}).
 			AddColorStop(1, render.RGBA{R: 0.2, G: 0.8, B: 1, A: 1})
 		rt.SetFillBrush(lin)
-		rt.DrawRoundedRectangle(12, 12, float64(tw-24), 48, 10)
+		rt.DrawRoundedRectangle(16, 12, float64(tw-32), 52, 10)
 		_ = rt.Fill()
-		rcx, rcy, rr := 90.0, 140.0, 52.0
+		// Radial (left mid) — fully inside RT
+		rcx, rcy, rr := 110.0, 130.0, 48.0
 		rad := render.NewRadialGradientBrush(rcx, rcy, 0, rr).
 			AddColorStop(0, render.RGBA{R: 1, G: 1, B: 1, A: 1}).
 			AddColorStop(0.5, render.RGBA{R: 0.4, G: 0.7, B: 1, A: 1}).
@@ -367,7 +374,8 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 		rt.SetFillBrush(rad)
 		rt.DrawCircle(rcx, rcy, rr)
 		_ = rt.Fill()
-		scx, scy := 250.0, 140.0
+		// Sweep (right mid) — fully inside RT
+		scx, scy := 300.0, 130.0
 		sw := render.NewSweepGradientBrush(scx, scy, t*0.7).
 			AddColorStop(0, render.RGBA{R: 1, G: 0.2, B: 0.3, A: 1}).
 			AddColorStop(0.33, render.RGBA{R: 0.2, G: 1, B: 0.4, A: 1}).
@@ -376,18 +384,18 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 		rt.SetFillBrush(sw)
 		rt.DrawCircle(scx, scy, 48)
 		_ = rt.Fill()
+		// Image pattern strip (bottom)
 		if tile := ensureChecker(); tile != nil {
 			pat := rt.CreateImagePattern(tile, 0, 0, tile.Width(), tile.Height())
 			if pat != nil {
 				rt.SetFillPattern(pat)
-				rt.DrawRoundedRectangle(12, float64(th)-44, float64(tw-24), 32, 6)
+				rt.DrawRoundedRectangle(16, float64(th)-46, float64(tw-32), 34, 6)
 				_ = rt.Fill()
 			}
 		}
-		rt.SetRGB(1, 1, 1)
-		_ = gGradRT.blitTo(dc, fw*0.5-float64(tw)/2, fh*0.45-float64(th)/2)
+		_ = gGradRT.blitTo(dc, fw*0.5-float64(tw)/2, fh*0.48-float64(th)/2)
 		dc.SetRGBA(1, 0.7, 0.2, 0.9)
-		dc.DrawCircle(fw*0.12+30*math.Sin(t*2), fh*0.85, 10)
+		dc.DrawCircle(fw*0.12+30*math.Sin(t*2), fh*0.88, 10)
 		_ = dc.Fill()
 		return "线性/径向/扫描渐变 + 图像 pattern（D.01–D.03/D.05）"
 
@@ -502,6 +510,14 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 		return "棋盘贴图/缩放/旋转 + WritePixels（I.01/S.07）"
 
 	case "text":
+		// Light card so CJK/Latin contrast is obvious on dark stage.
+		dc.SetRGBA(0.12, 0.14, 0.2, 0.92)
+		dc.DrawRoundedRectangle(fw*0.06, fh*0.2, fw*0.88, fh*0.42, 12)
+		_ = dc.Fill()
+		dc.SetRGBA(0.35, 0.55, 0.85, 0.9)
+		dc.SetLineWidth(1.5)
+		dc.DrawRoundedRectangle(fw*0.06, fh*0.2, fw*0.88, fh*0.42, 12)
+		_ = dc.Stroke()
 		ensureFontPack(dc, fonts, 22)
 		dc.SetRGBA(0.95, 0.96, 1, 1)
 		dc.DrawString("中英文混排 Text · CJK Fallback", fw*0.08, fh*0.28)
@@ -677,31 +693,35 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 		return "圆形 alpha PushMaskLayer 蒙版内容（L.06）"
 
 	case "backdrop":
-		// Animated base on present surface
+		// Animated base on present surface (always live)
 		for i := 0; i < 10; i++ {
 			r, g, b := hsv(float64(i)/10+t*0.03, 0.65, 0.9)
 			dc.SetRGB(r, g, b)
 			dc.DrawCircle(fw*0.15+float64(i)*fw*0.08, fh*0.5+30*math.Sin(t+float64(i)), 36)
 			_ = dc.Fill()
 		}
-		// Backdrop card on bounded RT: snapshot-style frosted panel
-		tw, th := 360, 200
+		// Backdrop card: rebuild every 2 frames (export-bound); present cached otherwise.
+		tw, th := 320, 180
+		if frame%2 == 1 && gBackdropRT.hasCached() {
+			_ = gBackdropRT.presentCached(dc, fw*0.5-float64(tw)/2, fh*0.5-float64(th)/2, render.InterpBilinear)
+			return "动态底 + Backdrop 半透明卡片（L.05）"
+		}
 		rt := gBackdropRT.ensure(tw, th)
 		rt.Clear()
 		// Fake parent content stripes so backdrop sample is visible
-		for i := 0; i < 12; i++ {
-			r, g, b := hsv(float64(i)/12+t*0.04, 0.6, 0.85)
+		for i := 0; i < 10; i++ {
+			r, g, b := hsv(float64(i)/10+t*0.04, 0.6, 0.85)
 			rt.SetRGB(r, g, b)
-			rt.DrawRectangle(float64(i)*float64(tw)/12, 0, float64(tw)/12+1, float64(th))
+			rt.DrawRectangle(float64(i)*float64(tw)/10, 0, float64(tw)/10+1, float64(th))
 			_ = rt.Fill()
 		}
 		rt.PushBackdropLayer(render.BlendNormal, 0.75)
 		rt.SetRGBA(0.95, 0.97, 1, 0.35)
-		rt.DrawRoundedRectangle(20, 20, float64(tw-40), float64(th-40), 18)
+		rt.DrawRoundedRectangle(16, 16, float64(tw-32), float64(th-32), 16)
 		_ = rt.Fill()
 		rt.SetRGBA(1, 1, 1, 0.9)
 		rt.SetLineWidth(1.5)
-		rt.DrawRoundedRectangle(20, 20, float64(tw-40), float64(th-40), 18)
+		rt.DrawRoundedRectangle(16, 16, float64(tw-32), float64(th-32), 16)
 		_ = rt.Stroke()
 		rt.PopLayer()
 		_ = gBackdropRT.blitTo(dc, fw*0.5-float64(tw)/2, fh*0.5-float64(th)/2)
@@ -792,6 +812,14 @@ func drawCapability(dc *render.Context, fonts fontPack, kind string, fw, fh, t f
 	case "quality":
 		drawQualityAA(dc, fw, fh, t, frame)
 		return "AA 开/关 + hairline + dither + HiDPI hairline（Q.01–Q.04/S.08）"
+	case "atlaspic":
+		return drawAtlasPicture(dc, fw, fh, t, frame)
+	case "pathfast":
+		drawPathRasterFast(dc, fw, fh, t, frame)
+		return "凸快径多边形 + 非凸星 + dither 渐变（H.06/H.07/P.09）"
+	case "compreg":
+		drawCompositeRegression(dc, fonts, fw, fh, t, frame)
+		return "轻量多能力同屏回归（防 P2/P3 API 回退）"
 	case "composite":
 		// Multi-capability light composite (not full stress)
 		// Grad base strip
@@ -996,7 +1024,7 @@ func drawTextLCD(dc *render.Context, fonts fontPack, fw, fh, t float64, frame in
 	rt.SetTextMode(render.TextModeAuto)
 	rt.SetRGB(0.2, 0.25, 0.35)
 	ensureFontPack(rt, fonts, 14)
-	rt.DrawString("对标 Skia edging / subpixel / LCD layout（X.04/X.05）", 16, 190)
+	rt.DrawString("对标 Skia edging / subpixel / LCD layout（X.04/X.05）", 16, 168)
 	_ = gTextLCDRT.blitToInterp(dc, fw*0.5-float64(tw)/2, fh*0.5-float64(th)/2, render.InterpNearest)
 	_ = frame
 }
@@ -1092,60 +1120,67 @@ func drawPorterDuffBoard(dc *render.Context, fw, fh, t float64, frame int) {
 }
 
 func drawClipPathDiff(dc *render.Context, fw, fh, t float64, frame int) {
-	// C22: draw on present path (no ExportImageBuf). Fixed clip geometry;
-	// only content inside clips animates — smooth, no alternate-frame jump.
+	// C22: path clip + Difference. Heavy clip ops live on a modest RT;
+	// alternate-frame rebuild + present-path live markers keep 60fps.
 	// Matrix: C.03 path clip, C.06 Difference, C.04 stack via Push/Pop.
-	tw, th := 380.0, 200.0
-	ox := fw*0.5 - tw/2
-	oy := fh*0.48 - th/2
+	tw, th := 320, 170
+	ox := fw*0.5 - float64(tw)/2
+	oy := fh*0.48 - float64(th)/2
 
-	// cheap panel base (2 fills, not 10 stripes)
-	dc.SetRGB(0.12, 0.16, 0.28)
-	dc.DrawRectangle(ox, oy, tw, th)
-	_ = dc.Fill()
-	dc.SetRGB(0.18, 0.22, 0.34)
-	dc.DrawRectangle(ox, oy, tw/2, th)
-	_ = dc.Fill()
+	if frame%2 == 1 && gClipDiffRT.hasCached() {
+		_ = gClipDiffRT.presentCached(dc, ox, oy, render.InterpBilinear)
+		// live markers outside clip RT
+		dc.SetRGBA(1, 0.85, 0.25, 0.95)
+		dc.DrawCircle(fw*0.1+18*math.Sin(t*2), fh*0.88, 8)
+		_ = dc.Fill()
+		return
+	}
+
+	rt := gClipDiffRT.ensure(tw, th)
+	rt.Clear()
+	// panel base
+	rt.SetRGB(0.12, 0.16, 0.28)
+	rt.DrawRectangle(0, 0, float64(tw), float64(th))
+	_ = rt.Fill()
+	rt.SetRGB(0.18, 0.22, 0.34)
+	rt.DrawRectangle(0, 0, float64(tw)/2, float64(th))
+	_ = rt.Fill()
 
 	// Left: fixed circle path clip (C.03)
-	dc.Push()
-	dc.DrawCircle(ox+100, oy+th*0.52, 68)
-	dc.Clip()
-	dc.SetRGB(0.15, 0.45, 0.75)
-	dc.DrawRectangle(ox+20, oy+24, 170, 150)
-	_ = dc.Fill()
-	dc.SetRGBA(1, 0.55, 0.15, 0.95)
-	dc.DrawCircle(ox+100+18*math.Sin(t*1.8), oy+th*0.52+12*math.Cos(t*1.5), 16)
-	_ = dc.Fill()
-	dc.SetRGBA(0.3, 1, 0.55, 0.9)
-	dc.DrawRoundedRectangle(ox+58+10*math.Cos(t*1.2), oy+58, 55, 32, 8)
-	_ = dc.Fill()
-	dc.Pop()
+	rt.Push()
+	rt.DrawCircle(90, float64(th)*0.52, 58)
+	rt.Clip()
+	rt.SetRGB(0.15, 0.45, 0.75)
+	rt.DrawRectangle(12, 18, 150, 130)
+	_ = rt.Fill()
+	rt.SetRGBA(1, 0.55, 0.15, 0.95)
+	rt.DrawCircle(90+16*math.Sin(t*1.8), float64(th)*0.52+10*math.Cos(t*1.5), 14)
+	_ = rt.Fill()
+	rt.SetRGBA(0.3, 1, 0.55, 0.9)
+	rt.DrawRoundedRectangle(48+8*math.Cos(t*1.2), 48, 48, 28, 8)
+	_ = rt.Fill()
+	rt.Pop()
 
 	// Right: fixed rect clip + fixed Difference hole (C.06)
-	dc.Push()
-	dc.ClipRect(ox+210, oy+22, 150, 156)
-	dc.DrawCircle(ox+285, oy+th*0.52, 34)
-	dc.ClipPathOp(render.ClipOpDifference)
-	// solid animated color (cheaper than multi-stop gradient each frame)
+	rt.Push()
+	rt.ClipRect(170, 16, 140, 138)
+	rt.DrawCircle(240, float64(th)*0.52, 30)
+	rt.ClipPathOp(render.ClipOpDifference)
 	u := 0.5 + 0.5*math.Sin(t*0.9)
-	dc.SetRGB(0.85+0.1*u, 0.35+0.25*(1-u), 0.25+0.45*u)
-	dc.DrawRectangle(ox+210, oy+22, 150, 156)
-	_ = dc.Fill()
-	dc.SetRGBA(1, 1, 1, 0.92)
-	dc.DrawCircle(ox+240+12*math.Cos(t*1.6), oy+52+6*math.Sin(t*1.3), 10)
-	_ = dc.Fill()
-	dc.Pop()
+	rt.SetRGB(0.85+0.1*u, 0.35+0.25*(1-u), 0.25+0.45*u)
+	rt.DrawRectangle(170, 16, 140, 138)
+	_ = rt.Fill()
+	rt.SetRGBA(1, 1, 1, 0.92)
+	rt.DrawCircle(200+10*math.Cos(t*1.6), 42+5*math.Sin(t*1.3), 9)
+	_ = rt.Fill()
+	rt.Pop()
 
-	// continuous marker
-	dc.SetRGBA(1, 0.75, 0.25, 0.95)
-	dc.DrawCircle(fw*0.1+18*math.Sin(t*2), fh*0.88, 9)
+	_ = gClipDiffRT.blitTo(dc, ox, oy)
+	dc.SetRGBA(1, 0.85, 0.25, 0.95)
+	dc.DrawCircle(fw*0.1+18*math.Sin(t*2), fh*0.88, 8)
 	_ = dc.Fill()
-	_ = frame
-	_ = gClipDiffRT
 }
 
-// drawGradientTileLocal — C23 D.04 extend + D.06 local matrix pattern.
 func drawGradientTileLocal(dc *render.Context, fw, fh, t float64, frame int) {
 	tw, th := 460, 200
 	rt := gGradTileRT.ensure(tw, th)
@@ -1558,6 +1593,200 @@ func drawQualityAA(dc *render.Context, fw, fh, t float64, frame int) {
 
 	dc.SetRGBA(1, 0.75, 0.25, 0.95)
 	dc.DrawCircle(fw*0.1+14*math.Sin(t*2), fh*0.12, 7)
+	_ = dc.Fill()
+	_ = frame
+}
+
+// drawAtlasPicture — C30 V.02 DrawAtlas + R.01/S.* picture record→raster→DrawImage.
+func drawAtlasPicture(dc *render.Context, fw, fh, t float64, frame int) string {
+	// Rebuild picture every 20 frames (recording is not free; present stays smooth).
+	const picW, picH = 260, 150
+	if gPictureImg == nil || frame-gPictureFrame >= 20 || frame == 0 {
+		rec := recording.NewRecorder(picW, picH)
+		// R.01 record commands: clear-ish bg + shapes
+		rec.SetFillRGBA(0.12, 0.14, 0.2, 1)
+		rec.DrawRectangle(0, 0, picW, picH)
+		rec.Fill()
+		rec.SetFillRGBA(0.25, 0.55, 1, 0.95)
+		rec.DrawCircle(80, 75, 40)
+		rec.Fill()
+		rec.SetStrokeRGBA(1, 0.75, 0.25, 1)
+		rec.SetLineWidth(3)
+		rec.DrawRoundedRectangle(130, 30, 100, 90, 12)
+		rec.Stroke()
+		rec.SetFillRGBA(0.3, 1, 0.55, 0.85)
+		rec.DrawCircle(180+8*math.Sin(t), 75, 22)
+		r := rec.FinishRecording()
+		if r != nil {
+			gPictureCmds = len(r.Commands())
+			be, err := recording.NewBackend("raster")
+			if err == nil && be != nil {
+				if err := r.Playback(be); err == nil {
+					if rb, ok := be.(interface{ Image() image.Image }); ok {
+						if img := rb.Image(); img != nil {
+							gPictureImg = render.ImageBufFromImage(img)
+						}
+					}
+				}
+			}
+		}
+		gPictureFrame = frame
+	}
+	// Present picture bitmap (S.06 offscreen readback→present path, intentional for R.01 e2e)
+	if gPictureImg != nil {
+		dc.DrawImageEx(gPictureImg, render.DrawImageOptions{
+			X: fw * 0.08, Y: fh * 0.28,
+			Opacity: 1, Interpolation: render.InterpBilinear,
+		})
+	}
+
+	// V.02 DrawAtlas multi-sprite from checker atlas
+	atlas := ensureChecker()
+	if atlas != nil {
+		sprites := make([]render.AtlasSprite, 0, 12)
+		for i := 0; i < 12; i++ {
+			row := i / 4
+			col := i % 4
+			phase := t*1.5 + float64(i)*0.4
+			sprites = append(sprites, render.AtlasSprite{
+				SrcX: 0, SrcY: 0, SrcW: 24, SrcH: 24,
+				DstX: fw*0.48 + float64(col)*52 + 4*math.Sin(phase),
+				DstY: fh*0.32 + float64(row)*52 + 3*math.Cos(phase*0.9),
+				DstW: 40, DstH: 40,
+				Opacity: 0.75 + 0.25*math.Abs(math.Sin(phase)),
+			})
+		}
+		dc.DrawAtlas(atlas, sprites)
+	}
+
+	// live marker
+	dc.SetRGBA(1, 0.7, 0.25, 0.95)
+	dc.DrawCircle(fw*0.1+16*math.Sin(t*2), fh*0.88, 8)
+	_ = dc.Fill()
+	return fmt.Sprintf("Picture 录制 cmds≈%d → raster 合成 + DrawAtlas×12 精灵（V.02/R.01）", gPictureCmds)
+}
+
+// drawPathRasterFast — C31 H.06/H.07/P.09
+func drawPathRasterFast(dc *render.Context, fw, fh, t float64, frame int) {
+	// Convex regular polygons (fast path candidates)
+	for i := 0; i < 4; i++ {
+		n := 3 + i // 3..6
+		cx := fw*0.18 + float64(i)*fw*0.16
+		cy := fh * 0.38
+		dc.SetRGBA(0.25+0.15*float64(i), 0.7, 1-0.1*float64(i), 0.92)
+		dc.DrawRegularPolygon(n, cx, cy, 42+6*math.Sin(t+float64(i)), t*0.3+float64(i)*0.2)
+		_ = dc.Fill()
+		dc.SetRGBA(1, 1, 1, 0.55)
+		dc.SetLineWidth(1.5)
+		dc.DrawRegularPolygon(n, cx, cy, 42+6*math.Sin(t+float64(i)), t*0.3+float64(i)*0.2)
+		_ = dc.Stroke()
+	}
+
+	// Non-convex star path (H.07 complex / nonconvex)
+	star := render.NewPath()
+	cx, cy, R, r := fw*0.72, fh*0.4, 70.0, 28.0
+	for i := 0; i < 10; i++ {
+		ang := -math.Pi/2 + float64(i)*math.Pi/5 + t*0.2
+		rad := R
+		if i%2 == 1 {
+			rad = r
+		}
+		x, y := cx+rad*math.Cos(ang), cy+rad*math.Sin(ang)
+		if i == 0 {
+			star.MoveTo(x, y)
+		} else {
+			star.LineTo(x, y)
+		}
+	}
+	star.Close()
+	dc.SetRGBA(1, 0.45, 0.25, 0.92)
+	dc.AppendPath(star)
+	_ = dc.Fill()
+
+	// P.09 dither vs non-dither soft gradient strips
+	dc.SetDither(false)
+	g1 := render.NewLinearGradientBrush(fw*0.08, fh*0.7, fw*0.92, fh*0.7).
+		AddColorStop(0, render.RGBA{R: 0.1, G: 0.12, B: 0.18, A: 1}).
+		AddColorStop(1, render.RGBA{R: 0.9, G: 0.9, B: 0.95, A: 1})
+	dc.SetFillBrush(g1)
+	dc.DrawRoundedRectangle(fw*0.08, fh*0.64, fw*0.84, 28, 6)
+	_ = dc.Fill()
+	dc.SetDither(true)
+	g2 := render.NewLinearGradientBrush(fw*0.08, fh*0.78, fw*0.92, fh*0.78).
+		AddColorStop(0, render.RGBA{R: 0.1, G: 0.12, B: 0.18, A: 1}).
+		AddColorStop(1, render.RGBA{R: 0.9, G: 0.9, B: 0.95, A: 1})
+	dc.SetFillBrush(g2)
+	dc.DrawRoundedRectangle(fw*0.08, fh*0.74, fw*0.84, 28, 6)
+	_ = dc.Fill()
+	dc.SetDither(false)
+
+	dc.SetRGBA(1, 0.75, 0.25, 0.95)
+	dc.DrawCircle(fw*0.1+14*math.Sin(t*2), fh*0.9, 7)
+	_ = dc.Fill()
+	_ = frame
+}
+
+// drawCompositeRegression — C32 light multi-capability same-frame regression.
+// Modeled after C20 composite (known ~60fps): no PushLayer/Export every frame.
+
+// drawCompositeRegression — C32 light multi-capability same-frame regression.
+// Modeled after C20 composite (known ~60fps): no PushLayer/Export every frame.
+func drawCompositeRegression(dc *render.Context, fonts fontPack, fw, fh, t float64, frame int) {
+	lin := render.NewLinearGradientBrush(0, 0, fw, 0).
+		AddColorStop(0, render.RGBA{R: 0.12, G: 0.15, B: 0.28, A: 1}).
+		AddColorStop(0.5, render.RGBA{R: 0.18, G: 0.22, B: 0.35, A: 1}).
+		AddColorStop(1, render.RGBA{R: 0.1, G: 0.12, B: 0.2, A: 1})
+	dc.SetFillBrush(lin)
+	dc.DrawRectangle(0, 0, fw, fh)
+	_ = dc.Fill()
+
+	dc.Push()
+	dc.Translate(fw*0.25, fh*0.4)
+	dc.Rotate(t * 0.5)
+	dc.SetRGBA(1, 0.5, 0.2, 0.9)
+	dc.DrawRoundedRectangle(-50, -30, 100, 60, 10)
+	_ = dc.Fill()
+	dc.Pop()
+
+	dc.SetRGBA(0.4, 0.85, 1, 0.95)
+	dc.SetLineWidth(3)
+	dc.DrawArc(fw*0.5, fh*0.42, 44, t, t+math.Pi*1.15)
+	_ = dc.Stroke()
+
+	dc.Push()
+	dc.ClipRect(fw*0.45, fh*0.25, fw*0.25, fh*0.35)
+	dc.SetRGBA(0.3, 0.8, 1, 0.85)
+	dc.DrawCircle(fw*0.57+15*math.Sin(t), fh*0.42, 40)
+	_ = dc.Fill()
+	dc.Pop()
+
+	dc.SetRGBA(0.25, 0.55, 1, 0.55)
+	dc.DrawCircle(fw*0.7+10*math.Cos(t), fh*0.55, 36)
+	_ = dc.Fill()
+
+	if img := ensureChecker(); img != nil {
+		dc.DrawImageEx(img, render.DrawImageOptions{
+			X: fw * 0.75, Y: fh * 0.28, DstWidth: 64, DstHeight: 64,
+			Opacity: 0.95, Interpolation: render.InterpBilinear,
+		})
+	}
+
+	positions := []render.Point{
+		{X: fw * 0.12, Y: fh * 0.7}, {X: fw * 0.22, Y: fh * 0.62}, {X: fw * 0.32, Y: fh * 0.72},
+		{X: fw * 0.14, Y: fh * 0.82}, {X: fw * 0.24, Y: fh * 0.78}, {X: fw * 0.34, Y: fh * 0.85},
+	}
+	colors := []render.RGBA{
+		{R: 1, G: 0.3, B: 0.3, A: 0.9}, {R: 0.3, G: 1, B: 0.4, A: 0.9}, {R: 0.3, G: 0.5, B: 1, A: 0.9},
+		{R: 1, G: 0.8, B: 0.2, A: 0.9}, {R: 0.8, G: 0.3, B: 1, A: 0.9}, {R: 0.2, G: 0.9, B: 0.9, A: 0.9},
+	}
+	dc.DrawMesh(render.Mesh{Positions: positions, Colors: colors})
+
+	ensureFontPack(dc, fonts, 16)
+	dc.SetRGBA(0.95, 0.96, 1, 1)
+	dc.DrawString(fmt.Sprintf("C32 合成回归 · 渐变/变换/路径/裁剪/贴图/网格/文本  t=%.1f", t), fw*0.08, fh*0.18)
+
+	dc.SetRGBA(1, 0.75, 0.25, 0.95)
+	dc.DrawCircle(fw*0.9, fh*0.88+6*math.Sin(t*2), 8)
 	_ = dc.Fill()
 	_ = frame
 }

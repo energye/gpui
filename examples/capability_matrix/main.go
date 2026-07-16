@@ -12,6 +12,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -204,11 +206,36 @@ func main() {
 		}
 
 		t := time.Since(start).Seconds()
+		if envBool("GPUI_DETERMINISTIC", false) {
+			// Fixed 60Hz timeline for golden/regression pixel captures.
+			t = float64(frame) / 60.0
+		}
+		if ft := os.Getenv("GPUI_FIXED_T"); ft != "" {
+			if v, err := strconv.ParseFloat(ft, 64); err == nil {
+				t = v
+			}
+		}
 		fw, fh := float64(winW), float64(winH)
 
 		dc.BeginFrame()
 		note := drawCapability(dc, fonts, spec.DrawKind, fw, fh, t, frame, pixelScratch)
-		drawOverlayHUD(dc, fonts, fw, fh, spec, note, fpsEMA, cpuPctEMA, lastRSS, frame)
+		skipHUD := envBool("GPUI_GOLDEN_NO_HUD", false)
+		if !skipHUD {
+			drawOverlayHUD(dc, fonts, fw, fh, spec, note, fpsEMA, cpuPctEMA, lastRSS, frame)
+		}
+		// Optional golden/capture dump (content surface after draw).
+		if capDir := os.Getenv("GPUI_CAPTURE_DIR"); capDir != "" {
+			capFrame := envInt("GPUI_CAPTURE_FRAME", 90)
+			if frame == capFrame {
+				_ = os.MkdirAll(capDir, 0o755)
+				out := filepath.Join(capDir, spec.ID+".png")
+				if err := dc.SavePNG(out); err != nil {
+					log.Printf("capture %s: %v", out, err)
+				} else {
+					log.Printf("captured %s frame=%d t=%.3f", out, frame, t)
+				}
+			}
+		}
 
 		// Present via swapchain BeginFrame/EndFrame
 		fb, err := sc.BeginFrame()
