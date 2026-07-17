@@ -1,0 +1,79 @@
+{
+  "id": "D04_HiDPIHairlineText",
+  "size": [
+    320,
+    160
+  ],
+  "scale": 1,
+  "font": {
+    "path": "testdata/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "note": "hairline + text (scale=1 stable; HiDPI can re-enable later)",
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "stroke_line",
+      "x": 8,
+      "y": 40,
+      "x2": 304,
+      "y2": 40,
+      "width": 1,
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "stroke_line",
+      "x": 8,
+      "y": 80,
+      "x2": 304,
+      "y2": 80,
+      "width": 1,
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "x": 12,
+      "y": 120,
+      "text": "HiDPI hairline×text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ]
+    }
+  ]
+}

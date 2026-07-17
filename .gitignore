@@ -1,4 +1,3 @@
-tmp
-lib
-
-*.png
+tmp/
+lib/
+testdata/oraclejs/node_modules/

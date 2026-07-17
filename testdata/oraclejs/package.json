@@ -1,0 +1,14 @@
+{
+  "name": "gpui-testdata-oraclejs",
+  "private": true,
+  "version": "0.1.0",
+  "description": "External CanvasKit oracle for gpui composition refs (no gpui dependency)",
+  "type": "module",
+  "scripts": {
+    "gen": "node gen.mjs"
+  },
+  "dependencies": {
+    "canvaskit-wasm": "0.39.1",
+    "pngjs": "^7.0.0"
+  }
+}

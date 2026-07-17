@@ -1,0 +1,107 @@
+{
+  "id": "D01_ClipLayerText",
+  "size": [
+    320,
+    200
+  ],
+  "font": {
+    "path": "testdata/fonts/DejaVuSans.ttf",
+    "size": 16
+  },
+  "note": "nested ClipRect × semi-transparent layer × text",
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        200
+      ],
+      "rgba": [
+        0.93,
+        0.94,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        24,
+        24,
+        272,
+        152
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        200
+      ],
+      "rgba": [
+        0.2,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        48,
+        48,
+        224,
+        104
+      ]
+    },
+    {
+      "op": "layer_begin",
+      "opacity": 0.55,
+      "blend": "normal"
+    },
+    {
+      "op": "fill_rrect",
+      "rect": [
+        48,
+        48,
+        224,
+        104
+      ],
+      "radius": 10,
+      "rgba": [
+        1,
+        0.85,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "x": 64,
+      "y": 108,
+      "text": "clip×layer×text",
+      "rgba": [
+        0.1,
+        0.12,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    }
+  ]
+}
