@@ -10,13 +10,14 @@ import (
 
 // fanFlattenTolerance is the maximum allowed deviation between a curve and its
 // linear approximation, in pixels. Smaller values produce more triangles but
-// smoother curves. 0.25 provides sub-pixel accuracy suitable for GPU rendering.
-const fanFlattenTolerance = 0.25
+// smoother curves. 0.1 keeps sub-pixel fidelity closer to Skia/kurbo defaults
+// (was 0.25 — visible faceting on large circles and diagonal strokes).
+const fanFlattenTolerance = 0.1
 
 // fanCoverPadding is the number of pixels added around the AABB when
 // generating the cover quad. This padding ensures that anti-aliased edges
 // at the path boundary are fully covered during the cover pass.
-const fanCoverPadding = 1.0
+const fanCoverPadding = 1.75
 
 // fanInitialVertexCapacity is the initial capacity of the vertex slice,
 // measured in float32 values (not triangles). 6 floats = 1 triangle.

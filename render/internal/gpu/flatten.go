@@ -10,7 +10,8 @@ import (
 
 // FlattenTolerance is the default tolerance for curve flattening.
 // Smaller values produce more accurate curves but more segments.
-const FlattenTolerance = 0.25
+// 0.1 matches fanFlattenTolerance / stroke expander (was 0.25 — visible faceting).
+const FlattenTolerance = 0.1
 
 // FlattenPath flattens a path to monotonic line segments.
 // It converts Bezier curves to line segments and ensures all segments

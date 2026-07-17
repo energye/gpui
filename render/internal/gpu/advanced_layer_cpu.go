@@ -4,7 +4,7 @@ import (
 	"image"
 
 	"github.com/energye/gpui/render"
-	
+	intImage "github.com/energye/gpui/render/internal/image"
 )
 
 // cpuCompositeAdvancedLayer blends a premul RGBA layer (from GPU readback)

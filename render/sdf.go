@@ -4,7 +4,7 @@ import "math"
 
 // sdfAntialiasWidth controls the smoothstep transition width in pixels.
 // A value of 0.7 produces smooth anti-aliasing at standard DPI.
-const sdfAntialiasWidth = 0.7
+const sdfAntialiasWidth = 0.75 // match GPU sdf_render.wgsl aa_hw
 
 // SDFFilledCircleCoverage computes anti-aliased coverage for a filled circle
 // using a signed distance field approach.

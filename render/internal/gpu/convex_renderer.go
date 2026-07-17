@@ -27,9 +27,9 @@ var convexShaderSource string
 const convexVertexStride = 28
 
 // convexAAExpand is the outward expansion distance in pixels for the
-// anti-aliasing fringe around convex polygon edges. 0.5px provides a
-// smooth one-pixel transition zone.
-const convexAAExpand = 0.5
+// anti-aliasing fringe around convex polygon edges. 0.75px gives a fuller
+// one-pixel AA ramp (was 0.5) for diagonals/curves without bloating fills.
+const convexAAExpand = 0.75
 
 // ConvexDrawCommand holds the geometry and paint for a single convex polygon
 // to be rendered via the convex fast-path renderer. Points must form a convex

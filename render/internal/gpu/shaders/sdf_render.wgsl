@@ -93,7 +93,8 @@ fn rrect_clip_coverage(frag_pos: vec2<f32>) -> f32 {
     let max_qxy = (qx + qy + sqrt(qdiff * qdiff)) * 0.5;
     let inside = (max_qxy - sqrt(max_qxy * max_qxy)) * 0.5;
     let d = outside + inside - r;
-    let t_raw = d + 0.5;
+    let aa_hw = 0.75;
+    let t_raw = d / (2.0 * aa_hw) + 0.5;
     let t_pos = (t_raw + sqrt(t_raw * t_raw)) * 0.5;
     let t_diff = t_pos - 1.0;
     let t = (t_pos + 1.0 - sqrt(t_diff * t_diff)) * 0.5;
@@ -168,8 +169,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let effective_dist = d + in.is_stroked * (abs_d - in.half_stroke - d);
 
     // --- Coverage computation ---
-    // AA path: smoothstep (arithmetic implementation, 1px transition zone).
-    let t_raw = effective_dist + 0.5;
+    // AA path: smoothstep over ~1.5px (half-width 0.75, matches CPU sdfAntialiasWidth).
+    // Wider than the old fixed 1px zone so diagonals/circles are less stair-stepped.
+    let aa_hw = 0.75;
+    let t_raw = effective_dist / (2.0 * aa_hw) + 0.5;
     // clamp(t_raw, 0, 1) via arithmetic
     let t_pos = (t_raw + sqrt(t_raw * t_raw)) * 0.5;
     let t_diff = t_pos - 1.0;

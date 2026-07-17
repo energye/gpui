@@ -16,6 +16,9 @@ func TestStrokeExpander_SineWaveGolden(t *testing.T) {
 	path := buildSineWavePath(100)
 	style := Stroke{Width: 2.0, Cap: LineCapButt, Join: LineJoinMiter, MiterLimit: 10.0}
 	expander := NewStrokeExpander(style)
+	// Kurbo stroke_debug golden was captured at 0.25px flatten. Production default
+	// is tighter (0.1) for visual quality; lock golden at 0.25 for element count.
+	expander.SetTolerance(0.25)
 	outVerbs, outCoords := expander.Expand(path.verbs, path.coords)
 
 	// Golden: Rust kurbo produces 201 elements (1 MoveTo + 199 LineTo + 1 Close)

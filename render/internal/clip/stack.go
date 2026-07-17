@@ -230,10 +230,10 @@ func rrectSDF(px, py float64, rr *RRectClip) float64 {
 }
 
 // rrectCoverage computes anti-aliased coverage (0-255) for a point against
-// a rounded rectangle clip. Uses a smoothstep transition over 0.7 pixels
-// matching the SDF anti-alias width in gg.sdf.go.
+// a rounded rectangle clip. Uses a smoothstep transition over 0.75 pixels
+// matching the SDF anti-alias width in sdf.go / sdf_render.wgsl.
 func rrectCoverage(px, py float64, rr *RRectClip) byte {
-	const aaWidth = 0.7
+	const aaWidth = 0.75
 	d := rrectSDF(px, py, rr)
 	if d >= aaWidth {
 		return 0

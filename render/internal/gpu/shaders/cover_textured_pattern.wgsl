@@ -50,7 +50,9 @@ fn rrect_clip_coverage(frag_pos: vec2<f32>) -> f32 {
     let max_qxy = (qx + qy + sqrt(qdiff * qdiff)) * 0.5;
     let inside = (max_qxy - sqrt(max_qxy * max_qxy)) * 0.5;
     let d = outside + inside - r;
-    let t_raw = d + 0.5;
+    // Match sdf_render.wgsl aa_hw=0.75 (was d+0.5 → 0.5px half-width, harder clip edges).
+    let aa_hw = 0.75;
+    let t_raw = d / (2.0 * aa_hw) + 0.5;
     let t_pos = (t_raw + sqrt(t_raw * t_raw)) * 0.5;
     let t_diff = t_pos - 1.0;
     let t = (t_pos + 1.0 - sqrt(t_diff * t_diff)) * 0.5;

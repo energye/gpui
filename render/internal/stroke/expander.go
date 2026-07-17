@@ -232,7 +232,7 @@ type StrokeExpander struct {
 func NewStrokeExpander(style Stroke) *StrokeExpander {
 	return &StrokeExpander{
 		style:     style,
-		tolerance: 0.25, // Default tolerance
+		tolerance: 0.25, // Default: kurbo-stable outline (tighter 0.1 self-intersects sine; fill fanFlatten=0.1)
 	}
 }
 
