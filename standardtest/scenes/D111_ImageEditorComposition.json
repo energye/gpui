@@ -1,0 +1,330 @@
+{
+  "id": "D111_ImageEditorComposition",
+  "size": [
+    520,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 10
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        40
+      ],
+      "rgba": [
+        0.16,
+        0.17,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        12,
+        8,
+        60,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.3,
+        0.36,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "Move",
+      "x": 20,
+      "y": 24
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        82,
+        8,
+        60,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.3,
+        0.36,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "Crop",
+      "x": 90,
+      "y": 24
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        152,
+        8,
+        60,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.3,
+        0.36,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "Brush",
+      "x": 160,
+      "y": 24
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        222,
+        8,
+        60,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.3,
+        0.36,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "Text",
+      "x": 230,
+      "y": 24
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        292,
+        8,
+        60,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.3,
+        0.36,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "Filter",
+      "x": 300,
+      "y": 24
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        0,
+        40,
+        380,
+        300
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        40,
+        380,
+        300
+      ],
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ]
+    },
+    {
+      "dash": [
+        4,
+        3
+      ],
+      "op": "stroke_rect",
+      "rect": [
+        100,
+        100,
+        140,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.95,
+        0.2,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        380,
+        40,
+        140,
+        300
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Layer 1",
+      "x": 400,
+      "y": 68
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        380,
+        86,
+        140,
+        32
+      ],
+      "rgba": [
+        0.85,
+        0.91,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Layer 2",
+      "x": 400,
+      "y": 104
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Layer 3",
+      "x": 400,
+      "y": 140
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Layer 4",
+      "x": 400,
+      "y": 176
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Layer 5",
+      "x": 400,
+      "y": 212
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

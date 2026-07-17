@@ -18,6 +18,11 @@ import (
 // D121: modal stack — scrim × stacked dialogs × focus ring × action bar.
 func TestP1_Comp_D121_ModalStackComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D121_ModalStackComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D121_ModalStackComposition")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -77,6 +82,11 @@ func TestP1_Comp_D121_ModalStackComposition(t *testing.T) {
 // D122: multi-column article — columns × pull-quote × drop-cap × caption.
 func TestP1_Comp_D122_MultiColumnArticleComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D122_MultiColumnArticleComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D122_MultiColumnArticleComposition")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -133,6 +143,11 @@ func TestP1_Comp_D122_MultiColumnArticleComposition(t *testing.T) {
 // D123: CAD blueprint — grid × dashed dims × annotations × selection.
 func TestP1_Comp_D123_CADBlueprintComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D123_CADBlueprintComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D123_CADBlueprintComposition")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -198,6 +213,11 @@ func TestP1_Comp_D123_CADBlueprintComposition(t *testing.T) {
 // D124: video call mosaic — tiles × speaking border × nameplates × controls.
 func TestP1_Comp_D124_VideoCallMosaicComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D124_VideoCallMosaicComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D124_VideoCallMosaicComposition")
+		return
+	}
 	const w, h = 520, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -259,6 +279,11 @@ func TestP1_Comp_D124_VideoCallMosaicComposition(t *testing.T) {
 // D125: spreadsheet — formula bar × frozen panes × multi-range selection.
 func TestP1_Comp_D125_SpreadsheetFrozenMultiRange(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D125_SpreadsheetFrozenMultiRange"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D125_SpreadsheetFrozenMultiRange")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -324,6 +349,11 @@ func TestP1_Comp_D125_SpreadsheetFrozenMultiRange(t *testing.T) {
 // D126: timeline scrubber — tracks × keyframes × playhead × waveform.
 func TestP1_Comp_D126_TimelineScrubberComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D126_TimelineScrubberComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D126_TimelineScrubberComposition")
+		return
+	}
 	const w, h = 520, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -390,6 +420,11 @@ func TestP1_Comp_D126_TimelineScrubberComposition(t *testing.T) {
 // D127: nested scrollports — sticky header × sticky col × floating selection.
 func TestP1_Comp_D127_NestedScrollStickySelection(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D127_NestedScrollStickySelection"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D127_NestedScrollStickySelection")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -447,6 +482,11 @@ func TestP1_Comp_D127_NestedScrollStickySelection(t *testing.T) {
 // D128: color picker panel — hue strip × SV plane × swatches × alpha.
 func TestP1_Comp_D128_ColorPickerPanelComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D128_ColorPickerPanelComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D128_ColorPickerPanelComposition")
+		return
+	}
 	const w, h = 360, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -508,6 +548,11 @@ func TestP1_Comp_D128_ColorPickerPanelComposition(t *testing.T) {
 // D129: isometric board — depth layers × cards × connectors.
 func TestP1_Comp_D129_IsometricBoardComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D129_IsometricBoardComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D129_IsometricBoardComposition")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -575,6 +620,11 @@ func TestP1_Comp_D129_IsometricBoardComposition(t *testing.T) {
 // D130: multi-doc IDE — tabs × split editors × minimap × problems.
 func TestP1_Comp_D130_MultiDocIDEComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D130_MultiDocIDEComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D130_MultiDocIDEComposition")
+		return
+	}
 	const w, h = 560, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -655,6 +705,11 @@ func TestP1_Comp_D130_MultiDocIDEComposition(t *testing.T) {
 // D131: deep transform chain — rotate×scale×translate under nested clip + text.
 func TestP1_Comp_D131_DeepTransformChainClipText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D131_DeepTransformChainClipText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D131_DeepTransformChainClipText")
+		return
+	}
 	const w, h = 360, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -722,6 +777,11 @@ func TestP1_Comp_D131_DeepTransformChainClipText(t *testing.T) {
 // D132: advanced blend cascade strip over textured base.
 func TestP1_Comp_D132_AdvancedBlendCascadeStrip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D132_AdvancedBlendCascadeStrip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D132_AdvancedBlendCascadeStrip")
+		return
+	}
 	const w, h = 520, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -786,6 +846,11 @@ func TestP1_Comp_D132_AdvancedBlendCascadeStrip(t *testing.T) {
 // D133: filter graph chain — blur × grayscale × color matrix over scene.
 func TestP1_Comp_D133_FilterGraphChainComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D133_FilterGraphChainComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D133_FilterGraphChainComposition")
+		return
+	}
 	const w, h = 360, 260
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -846,6 +911,11 @@ func TestP1_Comp_D133_FilterGraphChainComposition(t *testing.T) {
 // D134: masked gradient plate × particles × label.
 func TestP1_Comp_D134_MaskedGradientParticlesLabel(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D134_MaskedGradientParticlesLabel"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D134_MaskedGradientParticlesLabel")
+		return
+	}
 	const w, h = 400, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -892,6 +962,11 @@ func TestP1_Comp_D134_MaskedGradientParticlesLabel(t *testing.T) {
 // D135: infinite canvas frames — multi-frame × connectors × selection.
 func TestP1_Comp_D135_InfiniteCanvasFramesComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D135_InfiniteCanvasFramesComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D135_InfiniteCanvasFramesComposition")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -968,6 +1043,11 @@ func TestP1_Comp_D135_InfiniteCanvasFramesComposition(t *testing.T) {
 // D136: HiDPI switch mid composition — dpr change × redraw × badge.
 func TestP1_Comp_D136_HiDPISwitchMidComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D136_HiDPISwitchMidComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D136_HiDPISwitchMidComposition")
+		return
+	}
 	const w, h = 240, 180
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1028,6 +1108,11 @@ func TestP1_Comp_D136_HiDPISwitchMidComposition(t *testing.T) {
 // D137: multi-pass damage — WritePixels stamps + partial region redraw + overlay.
 func TestP1_Comp_D137_MultiPassDamageStampComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D137_MultiPassDamageStampComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D137_MultiPassDamageStampComposition")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1076,6 +1161,11 @@ func TestP1_Comp_D137_MultiPassDamageStampComposition(t *testing.T) {
 // D138: mixed text modes under layer opacity + path clip.
 func TestP1_Comp_D138_MixedTextModesLayerClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D138_MixedTextModesLayerClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D138_MixedTextModesLayerClip")
+		return
+	}
 	const w, h = 420, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1141,6 +1231,11 @@ func TestP1_Comp_D138_MixedTextModesLayerClip(t *testing.T) {
 // D139: pattern fill × dash stroke × image clip × text plate.
 func TestP1_Comp_D139_PatternDashImageClipText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D139_PatternDashImageClipText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D139_PatternDashImageClipText")
+		return
+	}
 	const w, h = 400, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1193,6 +1288,11 @@ func TestP1_Comp_D139_PatternDashImageClipText(t *testing.T) {
 // D140: kitchen-sink v4 — multi-axis stress lattice + overlays + filters accent.
 func TestP1_Comp_D140_KitchenSinkV4Stress(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D140_KitchenSinkV4Stress"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D140_KitchenSinkV4Stress")
+		return
+	}
 	const w, h = 560, 400
 	dc := render.NewContext(w, h)
 	defer dc.Close()

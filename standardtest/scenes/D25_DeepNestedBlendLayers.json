@@ -1,0 +1,155 @@
+{
+  "id": "D25_DeepNestedBlendLayers",
+  "size": [
+    240,
+    200
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        240,
+        200
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        240,
+        200
+      ],
+      "rgba": [
+        0.7,
+        0.75,
+        0.85,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "cx": 90,
+      "cy": 100,
+      "op": "fill_circle",
+      "radius": 55,
+      "rgba": [
+        1,
+        0.35,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 145,
+      "cy": 105,
+      "op": "fill_circle",
+      "radius": 55,
+      "rgba": [
+        0.45,
+        1,
+        0.45,
+        1
+      ]
+    },
+    {
+      "blend": "screen",
+      "op": "set_blend"
+    },
+    {
+      "cx": 115,
+      "cy": 70,
+      "op": "fill_circle",
+      "radius": 48,
+      "rgba": [
+        0.25,
+        0.35,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.65
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        70,
+        85,
+        100,
+        36
+      ],
+      "rgba": [
+        0.15,
+        0.2,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.8
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 10,
+      "rect": [
+        24,
+        24,
+        192,
+        152
+      ],
+      "rgba": [
+        0.1,
+        0.1,
+        0.12,
+        1
+      ],
+      "width": 3
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

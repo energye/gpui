@@ -1,0 +1,177 @@
+{
+  "id": "D117_FloatingToolbarSelection",
+  "size": [
+    400,
+    240
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 13
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        24,
+        40,
+        350,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Select this sentence to show a floating ",
+      "x": 36,
+      "y": 69.876953125
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "formatting toolbar above the selection range.",
+      "x": 36,
+      "y": 90.16025390625
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        36,
+        80,
+        220,
+        18
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        0.25
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.96
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        60,
+        48,
+        180,
+        32
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "B",
+      "x": 76,
+      "y": 68
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "I",
+      "x": 108,
+      "y": 68
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "U",
+      "x": 140,
+      "y": 68
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "H",
+      "x": 172,
+      "y": 68
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "•",
+      "x": 204,
+      "y": 68
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -1,0 +1,194 @@
+{
+  "id": "D198_OnboardingCoachmarksOverlay",
+  "size": [
+    420,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        20,
+        380,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        70,
+        380,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        120,
+        380,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        170,
+        380,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.08,
+        0.55
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        70,
+        180,
+        40
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 8,
+      "rect": [
+        38,
+        68,
+        184,
+        44
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ],
+      "width": 3
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        240,
+        60,
+        150,
+        80
+      ],
+      "rgba": [
+        0.16,
+        0.18,
+        0.22,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Click here next",
+      "x": 252,
+      "y": 95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        252,
+        110,
+        70,
+        22
+      ],
+      "rgba": [
+        0.3,
+        0.75,
+        0.45,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

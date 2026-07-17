@@ -1,0 +1,291 @@
+{
+  "id": "D142_NestedPopoverCascade",
+  "size": [
+    480,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        320
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        36
+      ],
+      "rgba": [
+        0.2,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "File  Edit  View  Help",
+      "x": 16,
+      "y": 24
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        40,
+        40,
+        140,
+        180
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 8,
+      "rect": [
+        40,
+        40,
+        140,
+        180
+      ],
+      "rgba": [
+        0.85,
+        0.87,
+        0.9,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "New",
+      "x": 56,
+      "y": 60
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Open",
+      "x": 56,
+      "y": 90
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        44,
+        108,
+        132,
+        26
+      ],
+      "rgba": [
+        0.25,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Share ▸",
+      "x": 56,
+      "y": 120
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Export",
+      "x": 56,
+      "y": 150
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Quit",
+      "x": 56,
+      "y": 180
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        176,
+        100,
+        150,
+        120
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        180,
+        128,
+        142,
+        26
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Copy link",
+      "x": 192,
+      "y": 146
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Email",
+      "x": 192,
+      "y": 176
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Embed",
+      "x": 192,
+      "y": 206
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        330,
+        120,
+        120,
+        40
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "permalink",
+      "x": 342,
+      "y": 144
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

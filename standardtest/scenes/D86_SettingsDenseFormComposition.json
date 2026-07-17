@@ -1,0 +1,548 @@
+{
+  "id": "D86_SettingsDenseFormComposition",
+  "size": [
+    440,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        440,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        440,
+        340
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.5,
+        0.52,
+        0.58,
+        1
+      ],
+      "text": "General",
+      "x": 26,
+      "y": 36
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        116,
+        44,
+        90,
+        3
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "GPU",
+      "x": 126,
+      "y": 36
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.5,
+        0.52,
+        0.58,
+        1
+      ],
+      "text": "Keys",
+      "x": 226,
+      "y": 36
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.5,
+        0.52,
+        0.58,
+        1
+      ],
+      "text": "About",
+      "x": 326,
+      "y": 36
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        16,
+        56,
+        408,
+        268
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        64,
+        408,
+        34
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "VSync",
+      "x": 28,
+      "y": 84
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        350,
+        72,
+        44,
+        20
+      ],
+      "rgba": [
+        0.2,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "cx": 384,
+      "cy": 82,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        104,
+        408,
+        34
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "MSAA 4x",
+      "x": 28,
+      "y": 124
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        350,
+        112,
+        44,
+        20
+      ],
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ]
+    },
+    {
+      "cx": 362,
+      "cy": 122,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        144,
+        408,
+        34
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Glyph atlas",
+      "x": 28,
+      "y": 164
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        350,
+        152,
+        44,
+        20
+      ],
+      "rgba": [
+        0.2,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "cx": 384,
+      "cy": 162,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        180,
+        158,
+        120,
+        4
+      ],
+      "rgba": [
+        0.85,
+        0.87,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        180,
+        158,
+        70,
+        4
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "cx": 250,
+      "cy": 160,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        184,
+        408,
+        34
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Damage track",
+      "x": 28,
+      "y": 204
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        350,
+        192,
+        44,
+        20
+      ],
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ]
+    },
+    {
+      "cx": 362,
+      "cy": 202,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        224,
+        408,
+        34
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Debug overlay",
+      "x": 28,
+      "y": 244
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        350,
+        232,
+        44,
+        20
+      ],
+      "rgba": [
+        0.2,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "cx": 384,
+      "cy": 242,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        180,
+        238,
+        120,
+        4
+      ],
+      "rgba": [
+        0.85,
+        0.87,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        180,
+        238,
+        70,
+        4
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "cx": 250,
+      "cy": 240,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        264,
+        408,
+        34
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "HiDPI aware",
+      "x": 28,
+      "y": 284
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        350,
+        272,
+        44,
+        20
+      ],
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ]
+    },
+    {
+      "cx": 362,
+      "cy": 282,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

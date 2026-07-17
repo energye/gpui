@@ -1,0 +1,261 @@
+{
+  "id": "D176_DeepClipLayerBlendRecursion",
+  "size": [
+    360,
+    280
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        0.2,
+        0.25,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        20,
+        20,
+        320,
+        240
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        0.3,
+        0.5,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        38,
+        38,
+        284,
+        204
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "layer_begin",
+      "opacity": 0.75
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        0.4,
+        0.5,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        56,
+        56,
+        248,
+        168
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        0.5,
+        0.5,
+        0.6499999999999999,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        74,
+        74,
+        212,
+        132
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "layer_begin",
+      "opacity": 0.75
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.5499999999999999,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        92,
+        92,
+        176,
+        96
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        0.7,
+        0.5,
+        0.44999999999999996,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        130,
+        110,
+        100,
+        40
+      ],
+      "rgba": [
+        0.95,
+        0.35,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "deep 5",
+      "x": 150,
+      "y": 134
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

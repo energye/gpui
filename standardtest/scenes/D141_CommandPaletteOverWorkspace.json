@@ -1,0 +1,480 @@
+{
+  "id": "D141_CommandPaletteOverWorkspace",
+  "size": [
+    520,
+    360
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        360
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        360
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        12,
+        496,
+        34
+      ],
+      "rgba": [
+        0.18,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "workspace row content 00",
+      "x": 24,
+      "y": 34
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        52,
+        496,
+        34
+      ],
+      "rgba": [
+        0.18,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "workspace row content 01",
+      "x": 24,
+      "y": 74
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        92,
+        496,
+        34
+      ],
+      "rgba": [
+        0.18,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "workspace row content 02",
+      "x": 24,
+      "y": 114
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        132,
+        496,
+        34
+      ],
+      "rgba": [
+        0.18,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "workspace row content 03",
+      "x": 24,
+      "y": 154
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        172,
+        496,
+        34
+      ],
+      "rgba": [
+        0.18,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "workspace row content 04",
+      "x": 24,
+      "y": 194
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        212,
+        496,
+        34
+      ],
+      "rgba": [
+        0.18,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "workspace row content 05",
+      "x": 24,
+      "y": 234
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        252,
+        496,
+        34
+      ],
+      "rgba": [
+        0.18,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "workspace row content 06",
+      "x": 24,
+      "y": 274
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        292,
+        496,
+        34
+      ],
+      "rgba": [
+        0.18,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "workspace row content 07",
+      "x": 24,
+      "y": 314
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        360
+      ],
+      "rgba": [
+        0.02,
+        0.03,
+        0.05,
+        0.55
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        80,
+        48,
+        360,
+        260
+      ],
+      "rgba": [
+        0.16,
+        0.18,
+        0.22,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        96,
+        64,
+        328,
+        36
+      ],
+      "rgba": [
+        0.22,
+        0.24,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "\u003e open file, run test, toggle...",
+      "x": 108,
+      "y": 86
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.92,
+        0.94,
+        0.97,
+        1
+      ],
+      "text": "Open File",
+      "x": 112,
+      "y": 126
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "Ctrl+1",
+      "x": 360,
+      "y": 126
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        96,
+        142,
+        328,
+        30
+      ],
+      "rgba": [
+        0.25,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.92,
+        0.94,
+        0.97,
+        1
+      ],
+      "text": "Run Comp Suite",
+      "x": 112,
+      "y": 160
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "Ctrl+2",
+      "x": 360,
+      "y": 160
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.92,
+        0.94,
+        0.97,
+        1
+      ],
+      "text": "Toggle GPU Path",
+      "x": 112,
+      "y": 194
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "Ctrl+3",
+      "x": 360,
+      "y": 194
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.92,
+        0.94,
+        0.97,
+        1
+      ],
+      "text": "Show Path Stats",
+      "x": 112,
+      "y": 228
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "Ctrl+4",
+      "x": 360,
+      "y": 228
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.92,
+        0.94,
+        0.97,
+        1
+      ],
+      "text": "Reload Fonts",
+      "x": 112,
+      "y": 262
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "Ctrl+5",
+      "x": 360,
+      "y": 262
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -288,7 +288,7 @@ func NewContext(width, height int, opts ...ContextOption) *Context {
 		)
 	}
 
-	return &Context{
+	c := &Context{
 		width:                 width,
 		height:                height,
 		deviceScale:           scale,
@@ -304,6 +304,7 @@ func NewContext(width, height int, opts ...ContextOption) *Context {
 		damageTrackingEnabled: true,
 		antiAlias:             true,
 	}
+	return c
 }
 
 // NewContextForImage creates a context for drawing on an existing image.
@@ -997,6 +998,7 @@ func (c *Context) CubicTo(c1x, c1y, c2x, c2y, x, y float64) {
 
 // ClosePath closes the current subpath.
 func (c *Context) ClosePath() {
+
 	c.path.Close()
 }
 
@@ -1091,6 +1093,7 @@ func (c *Context) NewSubPath() {
 // The RasterizerMode set via SetRasterizerMode controls algorithm selection.
 // Returns an error if the rendering operation fails.
 func (c *Context) Fill() error {
+
 	c.trackDamage(c.path.Bounds())
 	err := c.doFill()
 	c.path.Clear()
@@ -1103,6 +1106,7 @@ func (c *Context) Fill() error {
 // The RasterizerMode set via SetRasterizerMode controls algorithm selection.
 // Returns an error if the rendering operation fails.
 func (c *Context) Stroke() error {
+
 	c.trackDamage(c.path.Bounds())
 	err := c.doStroke()
 	c.path.Clear()
@@ -1127,6 +1131,7 @@ func (c *Context) StrokePreserve() error {
 
 // Push saves the current state (transform, paint, clip, and mask).
 func (c *Context) Push() {
+
 	c.stack = append(c.stack, c.matrix)
 
 	// Save current clip stack depth
@@ -1149,6 +1154,7 @@ func (c *Context) Push() {
 
 // Pop restores the last saved state.
 func (c *Context) Pop() {
+
 	if len(c.stack) == 0 {
 		return
 	}
@@ -1201,16 +1207,19 @@ func (c *Context) Identity() {
 
 // Translate applies a translation to the transformation matrix.
 func (c *Context) Translate(x, y float64) {
+
 	c.matrix = c.matrix.Multiply(Translate(x, y))
 }
 
 // Scale applies a scaling transformation.
 func (c *Context) Scale(x, y float64) {
+
 	c.matrix = c.matrix.Multiply(Scale(x, y))
 }
 
 // Rotate applies a rotation (angle in radians).
 func (c *Context) Rotate(angle float64) {
+
 	c.matrix = c.matrix.Multiply(Rotate(angle))
 }
 
@@ -1390,12 +1399,14 @@ func (c *Context) DrawPoint(x, y, r float64) {
 
 // DrawLine draws a line between two points.
 func (c *Context) DrawLine(x1, y1, x2, y2 float64) {
+
 	c.MoveTo(x1, y1)
 	c.LineTo(x2, y2)
 }
 
 // DrawRectangle draws a rectangle.
 func (c *Context) DrawRectangle(x, y, w, h float64) {
+
 	c.MoveTo(x, y)
 	c.LineTo(x+w, y)
 	c.LineTo(x+w, y+h)
@@ -1409,6 +1420,7 @@ func (c *Context) DrawRectangle(x, y, w, h float64) {
 // All coordinates are transformed through the current matrix,
 // ensuring correct rendering on HiDPI/Retina displays.
 func (c *Context) DrawRoundedRectangle(x, y, w, h, r float64) {
+
 	c.DrawRoundedRectangleXY(x, y, w, h, r, r)
 }
 
@@ -1461,6 +1473,7 @@ func (c *Context) DrawRoundedRectangleXY(x, y, w, h, rx, ry float64) {
 
 // DrawCircle draws a circle.
 func (c *Context) DrawCircle(x, y, r float64) {
+
 	const k = 0.5522847498307936
 	offset := r * k
 

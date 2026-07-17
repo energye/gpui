@@ -1,0 +1,348 @@
+{
+  "id": "D97_EmailComposeComposition",
+  "size": [
+    460,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        460,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        460,
+        340
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        16,
+        16,
+        428,
+        308
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        28,
+        32,
+        110,
+        24
+      ],
+      "rgba": [
+        0.88,
+        0.93,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.35,
+        0.75,
+        1
+      ],
+      "text": "alice@x.io",
+      "x": 36,
+      "y": 48
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        148,
+        32,
+        110,
+        24
+      ],
+      "rgba": [
+        0.88,
+        0.93,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.35,
+        0.75,
+        1
+      ],
+      "text": "bob@y.io",
+      "x": 156,
+      "y": 48
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        268,
+        32,
+        110,
+        24
+      ],
+      "rgba": [
+        0.88,
+        0.93,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.35,
+        0.75,
+        1
+      ],
+      "text": "team@z.io",
+      "x": 276,
+      "y": 48
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Subject: composition probes D97",
+      "x": 28,
+      "y": 80
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        28,
+        100,
+        404,
+        160
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        100,
+        404,
+        160
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        0.99,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Please review the multi-axis composition coverage. Nested clips, ",
+      "x": 36,
+      "y": 118.357421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "layers, wrap text, and attachment chips should remain correct ",
+      "x": 36,
+      "y": 134.860107421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "under GPU.",
+      "x": 36,
+      "y": 151.36279296875
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        28,
+        270,
+        90,
+        28
+      ],
+      "rgba": [
+        0.93,
+        0.94,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.3,
+        0.32,
+        0.38,
+        1
+      ],
+      "text": "file-1.pdf",
+      "x": 36,
+      "y": 288
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        128,
+        270,
+        90,
+        28
+      ],
+      "rgba": [
+        0.93,
+        0.94,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.3,
+        0.32,
+        0.38,
+        1
+      ],
+      "text": "file-2.pdf",
+      "x": 136,
+      "y": 288
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        228,
+        270,
+        90,
+        28
+      ],
+      "rgba": [
+        0.93,
+        0.94,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.3,
+        0.32,
+        0.38,
+        1
+      ],
+      "text": "file-3.pdf",
+      "x": 236,
+      "y": 288
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        350,
+        270,
+        70,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Send",
+      "x": 370,
+      "y": 288
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

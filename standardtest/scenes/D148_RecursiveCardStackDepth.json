@@ -1,0 +1,302 @@
+{
+  "id": "D148_RecursiveCardStackDepth",
+  "size": [
+    400,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        300
+      ],
+      "rgba": [
+        0.92,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        60,
+        40,
+        220,
+        140
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card 0",
+      "x": 80,
+      "y": 120
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.87
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        74,
+        54,
+        220,
+        140
+      ],
+      "rgba": [
+        0.95,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card 1",
+      "x": 94,
+      "y": 134
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.89
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        88,
+        68,
+        220,
+        140
+      ],
+      "rgba": [
+        0.9199999999999999,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card 2",
+      "x": 108,
+      "y": 148
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.9099999999999999
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        102,
+        82,
+        220,
+        140
+      ],
+      "rgba": [
+        0.89,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card 3",
+      "x": 122,
+      "y": 162
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.9299999999999999
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        116,
+        96,
+        220,
+        140
+      ],
+      "rgba": [
+        0.86,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card 4",
+      "x": 136,
+      "y": 176
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        130,
+        110,
+        220,
+        140
+      ],
+      "rgba": [
+        0.83,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 12,
+      "rect": [
+        130,
+        110,
+        220,
+        140
+      ],
+      "rgba": [
+        0.25,
+        0.5,
+        0.95,
+        1
+      ],
+      "width": 3
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        150,
+        140,
+        80,
+        28
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card 5",
+      "x": 150,
+      "y": 190
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

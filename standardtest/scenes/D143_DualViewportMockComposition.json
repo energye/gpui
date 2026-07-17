@@ -1,0 +1,186 @@
+{
+  "id": "D143_DualViewportMockComposition",
+  "size": [
+    560,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        32
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "dual viewport mock",
+      "x": 12,
+      "y": 22
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        8,
+        40,
+        260,
+        240
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        300
+      ],
+      "rgba": [
+        0.2,
+        0.35,
+        0.7,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        30,
+        70,
+        160,
+        80
+      ],
+      "rgba": [
+        0.95,
+        0.75,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.1,
+        0.1,
+        0.12,
+        1
+      ],
+      "text": "LEFT VP",
+      "x": 70,
+      "y": 115
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        292,
+        40,
+        260,
+        240
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        300
+      ],
+      "rgba": [
+        0.2,
+        0.55,
+        0.4,
+        1
+      ]
+    },
+    {
+      "cx": 420,
+      "cy": 140,
+      "op": "fill_circle",
+      "radius": 50,
+      "rgba": [
+        0.95,
+        0.35,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "RIGHT VP",
+      "x": 390,
+      "y": 145
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        272,
+        40,
+        16,
+        240
+      ],
+      "rgba": [
+        0.85,
+        0.3,
+        0.35,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

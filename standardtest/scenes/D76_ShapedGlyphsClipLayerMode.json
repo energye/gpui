@@ -1,0 +1,101 @@
+{
+  "id": "D76_ShapedGlyphsClipLayerMode",
+  "size": [
+    360,
+    160
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 22
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        160
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        20,
+        20,
+        320,
+        120
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        20,
+        20,
+        320,
+        120
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ],
+      "text": "glyphmask×clip×layer",
+      "x": 36,
+      "y": 110
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -1,0 +1,282 @@
+{
+  "id": "D153_NestedBackdropTranslucentPanels",
+  "size": [
+    420,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        20,
+        20,
+        90,
+        50
+      ],
+      "rgba": [
+        0.3,
+        0.4,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        38,
+        50,
+        90,
+        50
+      ],
+      "rgba": [
+        0.35,
+        0.4,
+        0.71,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        56,
+        80,
+        90,
+        50
+      ],
+      "rgba": [
+        0.4,
+        0.4,
+        0.67,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        74,
+        20,
+        90,
+        50
+      ],
+      "rgba": [
+        0.45,
+        0.4,
+        0.63,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        92,
+        50,
+        90,
+        50
+      ],
+      "rgba": [
+        0.5,
+        0.4,
+        0.59,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        110,
+        80,
+        90,
+        50
+      ],
+      "rgba": [
+        0.55,
+        0.4,
+        0.55,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        128,
+        20,
+        90,
+        50
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.4,
+        0.51,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        146,
+        50,
+        90,
+        50
+      ],
+      "rgba": [
+        0.65,
+        0.4,
+        0.47,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        164,
+        80,
+        90,
+        50
+      ],
+      "rgba": [
+        0.7,
+        0.4,
+        0.43,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        182,
+        20,
+        90,
+        50
+      ],
+      "rgba": [
+        0.75,
+        0.4,
+        0.39,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        80,
+        60,
+        200,
+        120
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        0.9
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "backdrop panel A",
+      "x": 100,
+      "y": 120
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.75
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        180,
+        140,
+        180,
+        100
+      ],
+      "rgba": [
+        0.2,
+        0.25,
+        0.35,
+        0.9
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "backdrop panel B",
+      "x": 200,
+      "y": 190
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "cx": 360,
+      "cy": 60,
+      "op": "fill_circle",
+      "radius": 16,
+      "rgba": [
+        0.95,
+        0.35,
+        0.3,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

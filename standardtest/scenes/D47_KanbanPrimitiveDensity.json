@@ -1,0 +1,1209 @@
+{
+  "id": "D47_KanbanPrimitiveDensity",
+  "size": [
+    560,
+    360
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        360
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        360
+      ],
+      "rgba": [
+        0.93,
+        0.94,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "kanban composition",
+      "x": 16,
+      "y": 24
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        16,
+        40,
+        128,
+        304
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        40,
+        124,
+        300
+      ],
+      "rgba": [
+        0.88,
+        0.89,
+        0.92,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Backlog",
+      "x": 28,
+      "y": 62
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        80,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "B-1",
+      "x": 32,
+      "y": 98
+    },
+    {
+      "cx": 116,
+      "cy": 94,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.35,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        130,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "B-2",
+      "x": 32,
+      "y": 148
+    },
+    {
+      "cx": 116,
+      "cy": 144,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.35,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        180,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "B-3",
+      "x": 32,
+      "y": 198
+    },
+    {
+      "cx": 116,
+      "cy": 194,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.35,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        230,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "B-4",
+      "x": 32,
+      "y": 248
+    },
+    {
+      "cx": 116,
+      "cy": 244,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.35,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        280,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "B-5",
+      "x": 32,
+      "y": 298
+    },
+    {
+      "cx": 116,
+      "cy": 294,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.35,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        151,
+        40,
+        128,
+        304
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        151,
+        40,
+        124,
+        300
+      ],
+      "rgba": [
+        0.88,
+        0.89,
+        0.92,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Doing",
+      "x": 163,
+      "y": 62
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        159,
+        80,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-1",
+      "x": 167,
+      "y": 98
+    },
+    {
+      "cx": 251,
+      "cy": 94,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.44999999999999996,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        159,
+        130,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-2",
+      "x": 167,
+      "y": 148
+    },
+    {
+      "cx": 251,
+      "cy": 144,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.44999999999999996,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        159,
+        180,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-3",
+      "x": 167,
+      "y": 198
+    },
+    {
+      "cx": 251,
+      "cy": 194,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.44999999999999996,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        159,
+        230,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-4",
+      "x": 167,
+      "y": 248
+    },
+    {
+      "cx": 251,
+      "cy": 244,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.44999999999999996,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        159,
+        280,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-5",
+      "x": 167,
+      "y": 298
+    },
+    {
+      "cx": 251,
+      "cy": 294,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.44999999999999996,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        286,
+        40,
+        128,
+        304
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        286,
+        40,
+        124,
+        300
+      ],
+      "rgba": [
+        0.88,
+        0.89,
+        0.92,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Review",
+      "x": 298,
+      "y": 62
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        294,
+        80,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "R-1",
+      "x": 302,
+      "y": 98
+    },
+    {
+      "cx": 386,
+      "cy": 94,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.55,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        294,
+        130,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "R-2",
+      "x": 302,
+      "y": 148
+    },
+    {
+      "cx": 386,
+      "cy": 144,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.55,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        294,
+        180,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "R-3",
+      "x": 302,
+      "y": 198
+    },
+    {
+      "cx": 386,
+      "cy": 194,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.55,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        294,
+        230,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "R-4",
+      "x": 302,
+      "y": 248
+    },
+    {
+      "cx": 386,
+      "cy": 244,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.55,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        294,
+        280,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "R-5",
+      "x": 302,
+      "y": 298
+    },
+    {
+      "cx": 386,
+      "cy": 294,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.55,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        421,
+        40,
+        128,
+        304
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        421,
+        40,
+        124,
+        300
+      ],
+      "rgba": [
+        0.88,
+        0.89,
+        0.92,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Done",
+      "x": 433,
+      "y": 62
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        429,
+        80,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-1",
+      "x": 437,
+      "y": 98
+    },
+    {
+      "cx": 521,
+      "cy": 94,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.65,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        429,
+        130,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-2",
+      "x": 437,
+      "y": 148
+    },
+    {
+      "cx": 521,
+      "cy": 144,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.65,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        429,
+        180,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-3",
+      "x": 437,
+      "y": 198
+    },
+    {
+      "cx": 521,
+      "cy": 194,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.65,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        429,
+        230,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-4",
+      "x": 437,
+      "y": 248
+    },
+    {
+      "cx": 521,
+      "cy": 244,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.65,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        429,
+        280,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "D-5",
+      "x": 437,
+      "y": 298
+    },
+    {
+      "cx": 521,
+      "cy": 294,
+      "op": "fill_circle",
+      "radius": 6,
+      "rgba": [
+        0.9,
+        0.65,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.55
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        180,
+        160,
+        108,
+        42
+      ],
+      "rgba": [
+        1,
+        1,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

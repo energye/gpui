@@ -1,0 +1,269 @@
+{
+  "id": "D181_ChatThreadReactionsComposer",
+  "size": [
+    420,
+    360
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        360
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        360
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        140,
+        16,
+        240,
+        36
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "message body 0",
+      "x": 152,
+      "y": 38
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        16,
+        60,
+        240,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "message body 1",
+      "x": 28,
+      "y": 82
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        140,
+        104,
+        240,
+        36
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "message body 2",
+      "x": 152,
+      "y": 126
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        148,
+        132,
+        36,
+        16
+      ],
+      "rgba": [
+        0.95,
+        0.4,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        16,
+        148,
+        240,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "message body 3",
+      "x": 28,
+      "y": 170
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        140,
+        192,
+        240,
+        36
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "message body 4",
+      "x": 152,
+      "y": 214
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        16,
+        236,
+        240,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "message body 5",
+      "x": 28,
+      "y": 258
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        12,
+        304,
+        396,
+        44
+      ],
+      "rgba": [
+        0.16,
+        0.18,
+        0.22,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        330,
+        312,
+        64,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.75,
+        0.45,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

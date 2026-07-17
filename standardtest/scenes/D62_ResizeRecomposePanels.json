@@ -1,0 +1,249 @@
+{
+  "id": "D62_ResizeRecomposePanels",
+  "size": [
+    200,
+    160
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        200,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        10,
+        10,
+        80,
+        60
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        20,
+        150,
+        85
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        16,
+        20,
+        150,
+        24
+      ],
+      "rgba": [
+        0.15,
+        0.35,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "panel 1 after resize",
+      "x": 26,
+      "y": 36
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        186,
+        20,
+        150,
+        85
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        186,
+        20,
+        150,
+        24
+      ],
+      "rgba": [
+        0.25,
+        0.35,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "panel 2 after resize",
+      "x": 196,
+      "y": 36
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        120,
+        150,
+        85
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        16,
+        120,
+        150,
+        24
+      ],
+      "rgba": [
+        0.35,
+        0.35,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "panel 3 after resize",
+      "x": 26,
+      "y": 136
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        186,
+        120,
+        150,
+        85
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        186,
+        120,
+        150,
+        24
+      ],
+      "rgba": [
+        0.45000000000000007,
+        0.35,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "panel 4 after resize",
+      "x": 196,
+      "y": 136
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -18,6 +18,11 @@ import (
 // D59: wrapped/anchored/stroked text × clip × layer card stack.
 func TestP1_Comp_D59_RichTextClipLayerStack(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D59_RichTextClipLayerStack"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D59_RichTextClipLayerStack")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -76,6 +81,11 @@ func TestP1_Comp_D59_RichTextClipLayerStack(t *testing.T) {
 // D60: Difference/ColorBurn/Exclusion blend stack × image × clip.
 func TestP1_Comp_D60_DiffBurnExclusionBlendStack(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D60_DiffBurnExclusionBlendStack"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D60_DiffBurnExclusionBlendStack")
+		return
+	}
 	const w, h = 300, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -114,6 +124,11 @@ func TestP1_Comp_D60_DiffBurnExclusionBlendStack(t *testing.T) {
 // D61: AA on/off geometry × dash offset × miter joins × clip.
 func TestP1_Comp_D61_AADashOffsetMiterClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D61_AADashOffsetMiterClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D61_AADashOffsetMiterClip")
+		return
+	}
 	const w, h = 340, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -167,6 +182,11 @@ func TestP1_Comp_D61_AADashOffsetMiterClip(t *testing.T) {
 // D62: Resize mid-frame then recompose multi-panel scene.
 func TestP1_Comp_D62_ResizeRecomposePanels(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D62_ResizeRecomposePanels"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D62_ResizeRecomposePanels")
+		return
+	}
 	dc := render.NewContext(200, 160)
 	defer dc.Close()
 	font := p1FindFont(t)
@@ -212,6 +232,11 @@ func TestP1_Comp_D62_ResizeRecomposePanels(t *testing.T) {
 // D63: FrameDamage tracking + single-rect damage present path.
 func TestP1_Comp_D63_FrameDamageSingleRectPresent(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D63_FrameDamageSingleRectPresent"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D63_FrameDamageSingleRectPresent")
+		return
+	}
 	const w, h = 320, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -268,6 +293,11 @@ func TestP1_Comp_D63_FrameDamageSingleRectPresent(t *testing.T) {
 // D64: mask-from-alpha snapshot × PushMaskLayer × image × text.
 func TestP1_Comp_D64_MaskFromAlphaLayerImageText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D64_MaskFromAlphaLayerImageText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D64_MaskFromAlphaLayerImageText")
+		return
+	}
 	const w, h = 280, 200
 	// Build alpha source: transparent outside, opaque circle (true A8 mask).
 	// Opaque black/white RGB fills both have A=255 and would yield a full mask.
@@ -345,6 +375,11 @@ func TestP1_Comp_D64_MaskFromAlphaLayerImageText(t *testing.T) {
 // D65: infinite-canvas pan/zoom — CTM stack × grid × nodes × connectors.
 func TestP1_Comp_D65_InfiniteCanvasPanZoom(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D65_InfiniteCanvasPanZoom"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D65_InfiniteCanvasPanZoom")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -418,6 +453,11 @@ func TestP1_Comp_D65_InfiniteCanvasPanZoom(t *testing.T) {
 // D66: chat density — bubbles × avatars × clip list × composer layer.
 func TestP1_Comp_D66_ChatBubbleComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D66_ChatBubbleComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D66_ChatBubbleComposition")
+		return
+	}
 	const w, h = 400, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -508,6 +548,11 @@ func TestP1_Comp_D66_ChatBubbleComposition(t *testing.T) {
 // D67: gantt chart — rows × bars × today line × clip header.
 func TestP1_Comp_D67_GanttChartComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D67_GanttChartComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D67_GanttChartComposition")
+		return
+	}
 	const w, h = 520, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -577,6 +622,11 @@ func TestP1_Comp_D67_GanttChartComposition(t *testing.T) {
 // D68: heatmap grid × color scale × tooltip layer × clip.
 func TestP1_Comp_D68_HeatmapTooltipComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D68_HeatmapTooltipComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D68_HeatmapTooltipComposition")
+		return
+	}
 	const w, h = 360, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -628,6 +678,11 @@ func TestP1_Comp_D68_HeatmapTooltipComposition(t *testing.T) {
 // D69: multi-modal stack — 2 backdrops + nested cards + focus ring.
 func TestP1_Comp_D69_MultiModalStackComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D69_MultiModalStackComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D69_MultiModalStackComposition")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -694,6 +749,11 @@ func TestP1_Comp_D69_MultiModalStackComposition(t *testing.T) {
 // D70: map-like tile grid × markers × path route × popup.
 func TestP1_Comp_D70_MapTilesRoutePopup(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D70_MapTilesRoutePopup"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D70_MapTilesRoutePopup")
+		return
+	}
 	const w, h = 400, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -759,6 +819,11 @@ func TestP1_Comp_D70_MapTilesRoutePopup(t *testing.T) {
 // D71: code diff view — line gutters × add/del layers × clip × text.
 func TestP1_Comp_D71_CodeDiffComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D71_CodeDiffComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D71_CodeDiffComposition")
+		return
+	}
 	const w, h = 480, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -838,6 +903,11 @@ func TestP1_Comp_D71_CodeDiffComposition(t *testing.T) {
 // D72: bicubic image scale × clip path × stroke pattern border.
 func TestP1_Comp_D72_BicubicImagePathClipPattern(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D72_BicubicImagePathClipPattern"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D72_BicubicImagePathClipPattern")
+		return
+	}
 	const w, h = 300, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -890,6 +960,11 @@ func TestP1_Comp_D72_BicubicImagePathClipPattern(t *testing.T) {
 // D73: dock layout — activity bar × side × editor × panel × status.
 func TestP1_Comp_D73_IDEDockLayoutComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D73_IDEDockLayoutComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D73_IDEDockLayoutComposition")
+		return
+	}
 	const w, h = 560, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -961,6 +1036,11 @@ func TestP1_Comp_D73_IDEDockLayoutComposition(t *testing.T) {
 // D74: filter+mask+blend+text mega — many axes in one correctness scene.
 func TestP1_Comp_D74_FilterMaskBlendTextMega(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D74_FilterMaskBlendTextMega"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D74_FilterMaskBlendTextMega")
+		return
+	}
 	if !render.FiltersRegistered() {
 		t.Fatal("filters not registered")
 	}
@@ -1016,6 +1096,11 @@ func TestP1_Comp_D74_FilterMaskBlendTextMega(t *testing.T) {
 // D75: stress dashboard — KPI cards × sparkline paths × table × live badge damage.
 func TestP1_Comp_D75_DashboardKPISparklineTable(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D75_DashboardKPISparklineTable"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D75_DashboardKPISparklineTable")
+		return
+	}
 	const w, h = 560, 380
 	dc := render.NewContext(w, h)
 	defer dc.Close()

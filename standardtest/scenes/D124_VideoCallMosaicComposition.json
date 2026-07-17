@@ -1,0 +1,426 @@
+{
+  "id": "D124_VideoCallMosaicComposition",
+  "size": [
+    520,
+    360
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        360
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        360
+      ],
+      "rgba": [
+        0.1,
+        0.11,
+        0.14,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        16,
+        16,
+        156,
+        128
+      ],
+      "rgba": [
+        0.2,
+        0.25,
+        0.4,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        112,
+        80,
+        22
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.08,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Ada",
+      "x": 32,
+      "y": 127
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        184,
+        16,
+        156,
+        128
+      ],
+      "rgba": [
+        0.25,
+        0.25,
+        0.37,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 8,
+      "rect": [
+        186,
+        18,
+        152,
+        124
+      ],
+      "rgba": [
+        0.2,
+        0.9,
+        0.45,
+        1
+      ],
+      "width": 4
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        196,
+        28,
+        36,
+        12
+      ],
+      "rgba": [
+        0.2,
+        0.9,
+        0.45,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        192,
+        112,
+        80,
+        22
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.08,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Bob",
+      "x": 200,
+      "y": 127
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        352,
+        16,
+        156,
+        128
+      ],
+      "rgba": [
+        0.30000000000000004,
+        0.25,
+        0.34,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        360,
+        112,
+        80,
+        22
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.08,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Cara",
+      "x": 368,
+      "y": 127
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        16,
+        156,
+        156,
+        128
+      ],
+      "rgba": [
+        0.35000000000000003,
+        0.25,
+        0.31000000000000005,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        252,
+        80,
+        22
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.08,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Dan",
+      "x": 32,
+      "y": 267
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        184,
+        156,
+        156,
+        128
+      ],
+      "rgba": [
+        0.4,
+        0.25,
+        0.28,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        192,
+        252,
+        80,
+        22
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.08,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Eve",
+      "x": 200,
+      "y": 267
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        352,
+        156,
+        156,
+        128
+      ],
+      "rgba": [
+        0.45,
+        0.25,
+        0.25,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.85
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        360,
+        252,
+        80,
+        22
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.08,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Fay",
+      "x": 368,
+      "y": 267
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 20,
+      "rect": [
+        140,
+        310,
+        240,
+        40
+      ],
+      "rgba": [
+        0.16,
+        0.18,
+        0.22,
+        1
+      ]
+    },
+    {
+      "cx": 260,
+      "cy": 330,
+      "op": "fill_circle",
+      "radius": 12,
+      "rgba": [
+        0.9,
+        0.25,
+        0.3,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

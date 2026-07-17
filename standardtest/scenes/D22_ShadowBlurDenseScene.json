@@ -1,0 +1,145 @@
+{
+  "id": "D22_ShadowBlurDenseScene",
+  "size": [
+    320,
+    220
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        220
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        220
+      ],
+      "rgba": [
+        0.93,
+        0.94,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        48,
+        40,
+        220,
+        140
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        48,
+        40,
+        220,
+        36
+      ],
+      "rgba": [
+        0.15,
+        0.45,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "card title",
+      "x": 64,
+      "y": 64
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ],
+      "text": "row content 1",
+      "x": 64,
+      "y": 100
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ],
+      "text": "row content 2",
+      "x": 64,
+      "y": 118
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ],
+      "text": "row content 3",
+      "x": 64,
+      "y": 136
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ],
+      "text": "row content 4",
+      "x": 64,
+      "y": 154
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -1,0 +1,103 @@
+{
+  "id": "D26_CapsJoinsDashPathClip",
+  "size": [
+    300,
+    200
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        200
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          30,
+          20
+        ],
+        [
+          270,
+          20
+        ],
+        [
+          280,
+          170
+        ],
+        [
+          30,
+          180
+        ],
+        [
+          20,
+          30
+        ]
+      ]
+    },
+    {
+      "dash": [
+        14,
+        8
+      ],
+      "op": "stroke_rrect",
+      "radius": 10,
+      "rect": [
+        20,
+        20,
+        260,
+        160
+      ],
+      "rgba": [
+        0.15,
+        0.2,
+        0.85,
+        1
+      ],
+      "width": 8
+    },
+    {
+      "close": false,
+      "op": "stroke_path",
+      "points": [
+        [
+          50,
+          160
+        ],
+        [
+          240,
+          50
+        ]
+      ],
+      "rgba": [
+        0.85,
+        0.25,
+        0.2,
+        1
+      ],
+      "width": 5
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

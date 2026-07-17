@@ -1,0 +1,88 @@
+{
+  "id": "D72_BicubicImagePathClipPattern",
+  "size": [
+    300,
+    220
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        220
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          40,
+          30
+        ],
+        [
+          250,
+          40
+        ],
+        [
+          240,
+          180
+        ],
+        [
+          50,
+          170
+        ]
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        40,
+        30,
+        210,
+        150
+      ],
+      "rgba": [
+        0.15,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rect",
+      "rect": [
+        50,
+        40,
+        180,
+        130
+      ],
+      "rgba": [
+        0.15,
+        0.45,
+        0.85,
+        1
+      ],
+      "width": 5
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

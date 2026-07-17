@@ -1,0 +1,97 @@
+{
+  "id": "D156_RadialSweepGradientLayerStack",
+  "size": [
+    400,
+    260
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        260
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        260
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "cx": 120,
+      "cy": 120,
+      "op": "fill_circle",
+      "radius": 70,
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.9
+    },
+    {
+      "cx": 280,
+      "cy": 130,
+      "op": "fill_circle",
+      "radius": 60,
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "radial × sweep",
+      "x": 130,
+      "y": 230
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

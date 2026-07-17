@@ -1,0 +1,247 @@
+{
+  "id": "D194_NotebookCellsOutputFold",
+  "size": [
+    480,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        340
+      ],
+      "rgba": [
+        0.97,
+        0.97,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.55,
+        0.35,
+        1
+      ],
+      "text": "In [1]:",
+      "x": 12,
+      "y": 32
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        70,
+        16,
+        390,
+        48
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.85,
+        0.55,
+        1
+      ],
+      "text": "print(result)",
+      "x": 84,
+      "y": 44
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        70,
+        72,
+        390,
+        40
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        70,
+        72,
+        4,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.35,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.55,
+        0.35,
+        1
+      ],
+      "text": "In [2]:",
+      "x": 12,
+      "y": 140
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        70,
+        124,
+        390,
+        48
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.85,
+        0.55,
+        1
+      ],
+      "text": "print(result)",
+      "x": 84,
+      "y": 152
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.72,
+        0.78,
+        1
+      ],
+      "text": "▾ output folded",
+      "x": 70,
+      "y": 194
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.55,
+        0.35,
+        1
+      ],
+      "text": "In [3]:",
+      "x": 12,
+      "y": 226
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        70,
+        210,
+        390,
+        48
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.85,
+        0.55,
+        1
+      ],
+      "text": "print(result)",
+      "x": 84,
+      "y": 238
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        70,
+        266,
+        390,
+        40
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        70,
+        266,
+        4,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.35,
+        0.3,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

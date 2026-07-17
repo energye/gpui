@@ -1,0 +1,79 @@
+{
+  "id": "D14_VerticesClipBlend",
+  "size": [
+    240,
+    200
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        240,
+        200
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        240,
+        200
+      ],
+      "rgba": [
+        0.15,
+        0.15,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        30,
+        30,
+        180,
+        140
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 120,
+      "cy": 100,
+      "op": "fill_circle",
+      "radius": 40,
+      "rgba": [
+        0.25,
+        0.25,
+        0.25,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

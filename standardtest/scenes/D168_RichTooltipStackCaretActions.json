@@ -1,0 +1,173 @@
+{
+  "id": "D168_RichTooltipStackCaretActions",
+  "size": [
+    360,
+    240
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        240
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        160,
+        80,
+        32
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        60,
+        40,
+        220,
+        110
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "close": true,
+      "op": "fill_path",
+      "points": [
+        [
+          90,
+          150
+        ],
+        [
+          110,
+          150
+        ],
+        [
+          100,
+          165
+        ]
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Rich tooltip title",
+      "x": 76,
+      "y": 70
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.75,
+        0.82,
+        1
+      ],
+      "text": "multi-line detail body",
+      "x": 76,
+      "y": 92
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        76,
+        110,
+        60,
+        22
+      ],
+      "rgba": [
+        0.9,
+        0.35,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        150,
+        110,
+        60,
+        22
+      ],
+      "rgba": [
+        0.3,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

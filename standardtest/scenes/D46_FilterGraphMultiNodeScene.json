@@ -1,0 +1,76 @@
+{
+  "id": "D46_FilterGraphMultiNodeScene",
+  "size": [
+    300,
+    200
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        200
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        40,
+        30,
+        140,
+        100
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "cx": 210,
+      "cy": 100,
+      "op": "fill_circle",
+      "radius": 50,
+      "rgba": [
+        0.95,
+        0.4,
+        0.2,
+        1
+      ]
+    },
+    {
+      "img_h": 32,
+      "img_w": 32,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.1568627450980392,
+        0.7058823529411765,
+        0.23529411764705882,
+        1
+      ],
+      "x": 50,
+      "y": 140
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -18,6 +18,11 @@ import (
 // D106: music player — art × spectrum bars × transport × queue list.
 func TestP1_Comp_D106_MusicPlayerComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D106_MusicPlayerComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D106_MusicPlayerComposition")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -78,6 +83,11 @@ func TestP1_Comp_D106_MusicPlayerComposition(t *testing.T) {
 // D107: 3-pane resizable app shell (nav / list / detail).
 func TestP1_Comp_D107_ThreePaneShellComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D107_ThreePaneShellComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D107_ThreePaneShellComposition")
+		return
+	}
 	const w, h = 560, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -143,6 +153,11 @@ func TestP1_Comp_D107_ThreePaneShellComposition(t *testing.T) {
 // D108: PR review — diff hunks × inline comments × approve bar.
 func TestP1_Comp_D108_PRReviewComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D108_PRReviewComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D108_PRReviewComposition")
+		return
+	}
 	const w, h = 500, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -224,6 +239,11 @@ func TestP1_Comp_D108_PRReviewComposition(t *testing.T) {
 // D109: week calendar — columns × events × now line × popup.
 func TestP1_Comp_D109_WeekCalendarComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D109_WeekCalendarComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D109_WeekCalendarComposition")
+		return
+	}
 	const w, h = 520, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -304,6 +324,11 @@ func TestP1_Comp_D109_WeekCalendarComposition(t *testing.T) {
 // D110: network graph — nodes × edges × selected cluster × minimap.
 func TestP1_Comp_D110_NetworkGraphComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D110_NetworkGraphComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D110_NetworkGraphComposition")
+		return
+	}
 	const w, h = 440, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -361,6 +386,11 @@ func TestP1_Comp_D110_NetworkGraphComposition(t *testing.T) {
 // D111: image editor chrome — tools × canvas × hist × layers panel.
 func TestP1_Comp_D111_ImageEditorComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D111_ImageEditorComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D111_ImageEditorComposition")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -424,6 +454,11 @@ func TestP1_Comp_D111_ImageEditorComposition(t *testing.T) {
 // D112: checkout density — cart lines × promo × totals × pay CTA.
 func TestP1_Comp_D112_CheckoutDensityComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D112_CheckoutDensityComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D112_CheckoutDensityComposition")
+		return
+	}
 	const w, h = 420, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -482,6 +517,11 @@ func TestP1_Comp_D112_CheckoutDensityComposition(t *testing.T) {
 // D113: notification drawer — slide panel × list × unread dots × mask dim.
 func TestP1_Comp_D113_NotificationDrawerComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D113_NotificationDrawerComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D113_NotificationDrawerComposition")
+		return
+	}
 	const w, h = 400, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -553,6 +593,11 @@ func TestP1_Comp_D113_NotificationDrawerComposition(t *testing.T) {
 // D114: multi-tab terminal — tabs × buffers × prompt × selection.
 func TestP1_Comp_D114_MultiTabTerminalComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D114_MultiTabTerminalComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D114_MultiTabTerminalComposition")
+		return
+	}
 	const w, h = 480, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -615,6 +660,11 @@ func TestP1_Comp_D114_MultiTabTerminalComposition(t *testing.T) {
 // D115: markdown split preview — editor × preview × code fence × quote.
 func TestP1_Comp_D115_MarkdownSplitPreviewComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D115_MarkdownSplitPreviewComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D115_MarkdownSplitPreviewComposition")
+		return
+	}
 	const w, h = 520, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -682,6 +732,11 @@ func TestP1_Comp_D115_MarkdownSplitPreviewComposition(t *testing.T) {
 // D116: data grid frozen header+col × multi-select × sort carets.
 func TestP1_Comp_D116_DataGridFrozenMultiSelect(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D116_DataGridFrozenMultiSelect"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D116_DataGridFrozenMultiSelect")
+		return
+	}
 	const w, h = 500, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -734,6 +789,11 @@ func TestP1_Comp_D116_DataGridFrozenMultiSelect(t *testing.T) {
 // D117: floating format toolbar over text selection.
 func TestP1_Comp_D117_FloatingToolbarSelection(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D117_FloatingToolbarSelection"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D117_FloatingToolbarSelection")
+		return
+	}
 	const w, h = 400, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -772,6 +832,11 @@ func TestP1_Comp_D117_FloatingToolbarSelection(t *testing.T) {
 // D118: rotate+mask+blurXY+shadow card stack.
 func TestP1_Comp_D118_RotateMaskBlurShadowStack(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D118_RotateMaskBlurShadowStack"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D118_RotateMaskBlurShadowStack")
+		return
+	}
 	if !render.FiltersRegistered() {
 		t.Fatal("filters not registered")
 	}
@@ -817,6 +882,11 @@ func TestP1_Comp_D118_RotateMaskBlurShadowStack(t *testing.T) {
 // D119: triangle fan mesh × Overlay blend × circular images × stroke pattern.
 func TestP1_Comp_D119_FanMeshOverlayCircularPattern(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D119_FanMeshOverlayCircularPattern"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D119_FanMeshOverlayCircularPattern")
+		return
+	}
 	const w, h = 340, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -859,6 +929,11 @@ func TestP1_Comp_D119_FanMeshOverlayCircularPattern(t *testing.T) {
 // D120: stress lattice 12×16 with nested clip/layer/blend/text (correctness under load).
 func TestP1_Comp_D120_StressLatticeNestedAxes(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D120_StressLatticeNestedAxes"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D120_StressLatticeNestedAxes")
+		return
+	}
 	const w, h = 480, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()

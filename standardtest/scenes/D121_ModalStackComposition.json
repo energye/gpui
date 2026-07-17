@@ -1,0 +1,330 @@
+{
+  "id": "D121_ModalStackComposition",
+  "size": [
+    480,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        20,
+        440,
+        36
+      ],
+      "rgba": [
+        0.92,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "page row 0",
+      "x": 32,
+      "y": 42
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        62,
+        440,
+        36
+      ],
+      "rgba": [
+        0.88,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "page row 1",
+      "x": 32,
+      "y": 84
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        104,
+        440,
+        36
+      ],
+      "rgba": [
+        0.8400000000000001,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "page row 2",
+      "x": 32,
+      "y": 126
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        146,
+        440,
+        36
+      ],
+      "rgba": [
+        0.8,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "page row 3",
+      "x": 32,
+      "y": 168
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        188,
+        440,
+        36
+      ],
+      "rgba": [
+        0.76,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "page row 4",
+      "x": 32,
+      "y": 210
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        20,
+        230,
+        440,
+        36
+      ],
+      "rgba": [
+        0.72,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "page row 5",
+      "x": 32,
+      "y": 252
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        320
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.08,
+        0.55
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        70,
+        40,
+        300,
+        200
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Settings",
+      "x": 90,
+      "y": 68
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 12,
+      "rect": [
+        118,
+        88,
+        244,
+        164
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ],
+      "width": 3
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        120,
+        90,
+        240,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        140,
+        200,
+        90,
+        32
+      ],
+      "rgba": [
+        0.9,
+        0.25,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Confirm",
+      "x": 155,
+      "y": 220
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "text": "Overwrite file?",
+      "x": 140,
+      "y": 130
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

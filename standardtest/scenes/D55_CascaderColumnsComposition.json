@@ -1,0 +1,496 @@
+{
+  "id": "D55_CascaderColumnsComposition",
+  "size": [
+    420,
+    260
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        260
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "region selector",
+      "x": 16,
+      "y": 24
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        16,
+        40,
+        124,
+        200
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        40,
+        120,
+        196
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 8,
+      "rect": [
+        16.5,
+        40.5,
+        119,
+        195
+      ],
+      "rgba": [
+        0.85,
+        0.86,
+        0.88,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L1-item-0",
+      "x": 28,
+      "y": 62
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L1-item-1",
+      "x": 28,
+      "y": 84
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L1-item-2",
+      "x": 28,
+      "y": 106
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L1-item-3",
+      "x": 28,
+      "y": 128
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L1-item-4",
+      "x": 28,
+      "y": 150
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L1-item-5",
+      "x": 28,
+      "y": 172
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L1-item-6",
+      "x": 28,
+      "y": 194
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L1-item-7",
+      "x": 28,
+      "y": 216
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        146,
+        40,
+        124,
+        200
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        146,
+        40,
+        120,
+        196
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 8,
+      "rect": [
+        146.5,
+        40.5,
+        119,
+        195
+      ],
+      "rgba": [
+        0.85,
+        0.86,
+        0.88,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L2-item-0",
+      "x": 158,
+      "y": 62
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L2-item-1",
+      "x": 158,
+      "y": 84
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 1
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        150,
+        92,
+        112,
+        22
+      ],
+      "rgba": [
+        0.9,
+        0.94,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L2-item-2",
+      "x": 158,
+      "y": 106
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L2-item-3",
+      "x": 158,
+      "y": 128
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L2-item-4",
+      "x": 158,
+      "y": 150
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L2-item-5",
+      "x": 158,
+      "y": 172
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L2-item-6",
+      "x": 158,
+      "y": 194
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L2-item-7",
+      "x": 158,
+      "y": 216
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        276,
+        40,
+        124,
+        200
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        276,
+        40,
+        120,
+        196
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 8,
+      "rect": [
+        276.5,
+        40.5,
+        119,
+        195
+      ],
+      "rgba": [
+        0.85,
+        0.86,
+        0.88,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L3-item-0",
+      "x": 288,
+      "y": 62
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L3-item-1",
+      "x": 288,
+      "y": 84
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L3-item-2",
+      "x": 288,
+      "y": 106
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L3-item-3",
+      "x": 288,
+      "y": 128
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L3-item-4",
+      "x": 288,
+      "y": 150
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L3-item-5",
+      "x": 288,
+      "y": 172
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L3-item-6",
+      "x": 288,
+      "y": 194
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "L3-item-7",
+      "x": 288,
+      "y": 216
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

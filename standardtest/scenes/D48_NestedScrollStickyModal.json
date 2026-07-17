@@ -1,0 +1,536 @@
+{
+  "id": "D48_NestedScrollStickyModal",
+  "size": [
+    480,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        64,
+        340
+      ],
+      "rgba": [
+        0.14,
+        0.15,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        0,
+        416,
+        44
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "shell · sticky × scroll × modal",
+      "x": 80,
+      "y": 28
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        64,
+        44,
+        416,
+        296
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        44,
+        416,
+        296
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 0,
+      "y": -30
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        60,
+        416,
+        36
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 00 with nested details",
+      "x": 80,
+      "y": 82
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        96,
+        416,
+        36
+      ],
+      "rgba": [
+        0.97,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 01 with nested details",
+      "x": 80,
+      "y": 118
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        132,
+        416,
+        36
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 02 with nested details",
+      "x": 80,
+      "y": 154
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        168,
+        416,
+        36
+      ],
+      "rgba": [
+        0.97,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 03 with nested details",
+      "x": 80,
+      "y": 190
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        204,
+        416,
+        36
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 04 with nested details",
+      "x": 80,
+      "y": 226
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        240,
+        416,
+        36
+      ],
+      "rgba": [
+        0.97,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 05 with nested details",
+      "x": 80,
+      "y": 262
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        276,
+        416,
+        36
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 06 with nested details",
+      "x": 80,
+      "y": 298
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        312,
+        416,
+        36
+      ],
+      "rgba": [
+        0.97,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 07 with nested details",
+      "x": 80,
+      "y": 334
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        348,
+        416,
+        36
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 08 with nested details",
+      "x": 80,
+      "y": 370
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        384,
+        416,
+        36
+      ],
+      "rgba": [
+        0.97,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 09 with nested details",
+      "x": 80,
+      "y": 406
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        420,
+        416,
+        36
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 10 with nested details",
+      "x": 80,
+      "y": 442
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        456,
+        416,
+        36
+      ],
+      "rgba": [
+        0.97,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "row item 11 with nested details",
+      "x": 80,
+      "y": 478
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        64,
+        44,
+        416,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.45,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "STICKY FILTERS",
+      "x": 80,
+      "y": 62
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 1
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        340
+      ],
+      "rgba": [
+        0,
+        0,
+        0,
+        0.4
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        120,
+        80,
+        260,
+        180
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Confirm nested action",
+      "x": 150,
+      "y": 130
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        150,
+        190,
+        90,
+        32
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

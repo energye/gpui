@@ -1,0 +1,269 @@
+{
+  "id": "D69_MultiModalStackComposition",
+  "size": [
+    420,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        24,
+        372,
+        32
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        64,
+        372,
+        32
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        104,
+        372,
+        32
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        144,
+        372,
+        32
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        184,
+        372,
+        32
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        24,
+        224,
+        372,
+        32
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 1
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        0,
+        0,
+        0,
+        0.35
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        60,
+        50,
+        300,
+        200
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "First modal",
+      "x": 80,
+      "y": 90
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 1
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        0,
+        0,
+        0,
+        0.25
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        100,
+        90,
+        220,
+        140
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 10,
+      "rect": [
+        100,
+        90,
+        220,
+        140
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ],
+      "width": 3
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Nested confirm",
+      "x": 130,
+      "y": 150
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        140,
+        180,
+        80,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

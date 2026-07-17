@@ -19,8 +19,8 @@ import (
 
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/gpu"
-	"github.com/energye/gpui/stdgate/compare"
-	"github.com/energye/gpui/stdgate/scene"
+	"github.com/energye/gpui/standardtest/compare"
+	"github.com/energye/gpui/standardtest/scene"
 )
 
 func compMakeImage(t *testing.T, w, h int, r, g, b uint8) *render.ImageBuf {
@@ -67,7 +67,7 @@ func compRepoTmpCompDir(t *testing.T) string {
 }
 
 // compSavePNG writes GPU-flushed context pixels to gpui/tmp/comp/<name>.png
-// and compares against frozen refs in testdata/refs/standard.json + standard/ when present.
+// and compares against frozen refs in standardtest/catalog.json + standard/ when present.
 //
 // Env:
 //
@@ -105,19 +105,19 @@ func compRepoRoot(t *testing.T) string {
 	return wd
 }
 
-// compRefsCatalogPath is testdata/refs/standard.json (all case meta).
+// compRefsCatalogPath is standardtest/catalog.json (all case meta).
 func compRefsCatalogPath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(compRepoRoot(t), "testdata", "refs", "standard.json")
+	return filepath.Join(compRepoRoot(t), "standardtest", "catalog.json")
 }
 
-// compRefsImageDir is testdata/refs/standard/ (PNG only).
+// compRefsImageDir is standardtest/diff/standard/ (PNG only).
 func compRefsImageDir(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(compRepoRoot(t), "testdata", "refs", "standard")
+	return filepath.Join(compRepoRoot(t), "standardtest", "diff", "standard")
 }
 
-// compCompareRef diffs actual PNG against testdata/refs/standard.json + standard/<id>.png.
+// compCompareRef diffs actual PNG against standardtest/catalog.json + standard/<id>.png.
 func compCompareRef(t *testing.T, name, actualPath string) {
 	t.Helper()
 	if os.Getenv("GPUI_SKIP_COMP_REFS") == "1" {
@@ -147,7 +147,7 @@ func compCompareRef(t *testing.T, name, actualPath string) {
 		} else {
 			cat = &compare.Catalog{
 				Name:        "standard",
-				Oracle:      "gpui-capture",
+				Oracle:      "canvaskit",
 				ImagesDir:   "standard",
 				DefaultDiff: compare.DefaultPolicy(),
 				Cases:       map[string]compare.CaseMeta{},
@@ -234,12 +234,12 @@ func compAutoSavePNG(t *testing.T, dc *render.Context) {
 	compSavePNG(t, dc, name)
 }
 
-// compRunScene loads testdata/scenes/<id>.json and renders with gpui.
+// compRunScene loads standardtest/scenes/<id>.json and renders with gpui.
 // Caller must Close the context.
 func compRunScene(t *testing.T, id string) *render.Context {
 	t.Helper()
 	root := compRepoRoot(t)
-	path := filepath.Join(root, "testdata", "scenes", id+".json")
+	path := filepath.Join(root, "standardtest", "scenes", id+".json")
 	s, err := scene.Load(path)
 	if err != nil {
 		t.Fatalf("load scene %s: %v", id, err)
@@ -248,6 +248,38 @@ func compRunScene(t *testing.T, id string) *render.Context {
 	if err != nil {
 		t.Fatalf("run scene %s: %v", id, err)
 	}
+	return dc
+}
+
+// compDrawSource forces the original Go drawing body (for re-record / debug).
+// Default is scene-script playback via compRunScene when a scene JSON exists.
+func compDrawSource() bool {
+	// When set, run the original Go drawing body instead of scene JSON playback.
+	// Useful for debugging structural assertions; not used for engine recording.
+	return os.Getenv("GPUI_DRAW_SOURCE") == "1"
+}
+
+// compTryScene loads standardtest/scenes/<id>.json when scene-drive is enabled.
+// Returns (nil, false) if caller should use the hand-written Go draw path.
+func compTryScene(t *testing.T, id string) (*render.Context, bool) {
+	t.Helper()
+	if compDrawSource() {
+		return nil, false
+	}
+	root := compRepoRoot(t)
+	path := filepath.Join(root, "standardtest", "scenes", id+".json")
+	if _, err := os.Stat(path); err != nil {
+		t.Logf("scene missing %s — fall back to Go draw", path)
+		return nil, false
+	}
+	return compRunScene(t, id), true
+}
+
+// compRunSceneSave is the common scene-driven path: run script + dump PNG/ref compare.
+func compRunSceneSave(t *testing.T, id string) *render.Context {
+	t.Helper()
+	dc := compRunScene(t, id)
+	compSavePNG(t, dc, id)
 	return dc
 }
 
@@ -359,6 +391,11 @@ func TestP1_Comp_D05_LayerBlendClip(t *testing.T) {
 // D06: image × text × clip × backdrop.
 func TestP1_Comp_D06_ImageTextClipBackdrop(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D06_ImageTextClipBackdrop"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D06_ImageTextClipBackdrop")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -441,6 +478,11 @@ func TestP1_Comp_D07_TransformClipFill(t *testing.T) {
 // D08: multi-region redraw — full base then two dirty regions re-inked correctly.
 func TestP1_Comp_D08_MultiRegionRedraw(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D08_MultiRegionRedraw"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D08_MultiRegionRedraw")
+		return
+	}
 	const w, h = 320, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()

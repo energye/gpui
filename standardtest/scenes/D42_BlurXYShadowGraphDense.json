@@ -1,0 +1,225 @@
+{
+  "id": "D42_BlurXYShadowGraphDense",
+  "size": [
+    360,
+    260
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        260
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        260
+      ],
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        30,
+        30,
+        220,
+        120
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        30,
+        30,
+        220,
+        28
+      ],
+      "rgba": [
+        0.15,
+        0.45,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "stack card 0",
+      "x": 42,
+      "y": 50
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        50,
+        48,
+        220,
+        120
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        50,
+        48,
+        220,
+        28
+      ],
+      "rgba": [
+        0.15,
+        0.45,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "stack card 1",
+      "x": 62,
+      "y": 68
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        70,
+        66,
+        220,
+        120
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        70,
+        66,
+        220,
+        28
+      ],
+      "rgba": [
+        0.15,
+        0.45,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "stack card 2",
+      "x": 82,
+      "y": 86
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        90,
+        84,
+        220,
+        120
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        90,
+        84,
+        220,
+        28
+      ],
+      "rgba": [
+        0.15,
+        0.45,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "stack card 3",
+      "x": 102,
+      "y": 104
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -20,6 +20,11 @@ import (
 // D37: colorful scene × grayscale/invert filters × clip residual check.
 func TestP1_Comp_D37_FilterGraphColorOpsClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D37_FilterGraphColorOpsClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D37_FilterGraphColorOpsClip")
+		return
+	}
 	if !render.FiltersRegistered() {
 		t.Fatal("filters not registered")
 	}
@@ -71,6 +76,11 @@ func TestP1_Comp_D37_FilterGraphColorOpsClip(t *testing.T) {
 // D38: DrawImageEx (src rect, opacity, blend, scale) × nested clip × text.
 func TestP1_Comp_D38_DrawImageExClipText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D38_DrawImageExClipText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D38_DrawImageExClipText")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -122,6 +132,11 @@ func TestP1_Comp_D38_DrawImageExClipText(t *testing.T) {
 // D39: radial + sweep gradients × layer × clip panels.
 func TestP1_Comp_D39_RadialSweepGradientPanels(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D39_RadialSweepGradientPanels"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D39_RadialSweepGradientPanels")
+		return
+	}
 	const w, h = 400, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -167,6 +182,11 @@ func TestP1_Comp_D39_RadialSweepGradientPanels(t *testing.T) {
 // D40: advanced blend stack Hue/Overlay/SoftLight × image × text.
 func TestP1_Comp_D40_AdvancedBlendImageText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D40_AdvancedBlendImageText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D40_AdvancedBlendImageText")
+		return
+	}
 	const w, h = 320, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -215,6 +235,11 @@ func TestP1_Comp_D40_AdvancedBlendImageText(t *testing.T) {
 // D41: fill pattern + stroke pattern × transform × clip.
 func TestP1_Comp_D41_FillStrokePatternTransform(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D41_FillStrokePatternTransform"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D41_FillStrokePatternTransform")
+		return
+	}
 	const w, h = 300, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -251,6 +276,11 @@ func TestP1_Comp_D41_FillStrokePatternTransform(t *testing.T) {
 // D42: anisotropic blur + drop shadow filter graph on dense card stack.
 func TestP1_Comp_D42_BlurXYShadowGraphDense(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D42_BlurXYShadowGraphDense"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D42_BlurXYShadowGraphDense")
+		return
+	}
 	if !render.FiltersRegistered() {
 		t.Fatal("filters not registered")
 	}
@@ -301,6 +331,11 @@ func TestP1_Comp_D42_BlurXYShadowGraphDense(t *testing.T) {
 // D43: InvertMask × fill × nested layer × text.
 func TestP1_Comp_D43_InvertMaskLayerText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D43_InvertMaskLayerText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D43_InvertMaskLayerText")
+		return
+	}
 	const w, h = 260, 180
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -343,6 +378,11 @@ func TestP1_Comp_D43_InvertMaskLayerText(t *testing.T) {
 // D44: multi offscreen GPU textures + opacity + multi-rect damage flush.
 func TestP1_Comp_D44_ExternalOpacityDamageRects(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D44_ExternalOpacityDamageRects"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D44_ExternalOpacityDamageRects")
+		return
+	}
 	const w, h = 420, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -431,6 +471,11 @@ func TestP1_Comp_D44_ExternalOpacityDamageRects(t *testing.T) {
 // D45: WritePixels badges + retained panels + clip text.
 func TestP1_Comp_D45_WritePixelsRetainedPanels(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D45_WritePixelsRetainedPanels"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D45_WritePixelsRetainedPanels")
+		return
+	}
 	const w, h = 400, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -492,6 +537,11 @@ func TestP1_Comp_D45_WritePixelsRetainedPanels(t *testing.T) {
 // D46: filter graph chain blur→shadow→matrix on multi-primitive scene.
 func TestP1_Comp_D46_FilterGraphMultiNodeScene(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D46_FilterGraphMultiNodeScene"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D46_FilterGraphMultiNodeScene")
+		return
+	}
 	if !render.FiltersRegistered() {
 		t.Fatal("filters not registered")
 	}
@@ -535,6 +585,11 @@ func TestP1_Comp_D46_FilterGraphMultiNodeScene(t *testing.T) {
 // D47: kanban board density — columns × cards × badges × clips × layers.
 func TestP1_Comp_D47_KanbanPrimitiveDensity(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D47_KanbanPrimitiveDensity"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D47_KanbanPrimitiveDensity")
+		return
+	}
 	const w, h = 560, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -593,6 +648,11 @@ func TestP1_Comp_D47_KanbanPrimitiveDensity(t *testing.T) {
 // D48: nested scroll + sticky header + modal backdrop (app shell).
 func TestP1_Comp_D48_NestedScrollStickyModal(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D48_NestedScrollStickyModal"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D48_NestedScrollStickyModal")
+		return
+	}
 	const w, h = 480, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -671,6 +731,11 @@ func TestP1_Comp_D48_NestedScrollStickyModal(t *testing.T) {
 // D49: HiDPI complex chrome — scale 2 app with hairline, text, images, clips.
 func TestP1_Comp_D49_HiDPIAppChromeDensity(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D49_HiDPIAppChromeDensity"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D49_HiDPIAppChromeDensity")
+		return
+	}
 	// physical 640x400, logical 320x200
 	dc := render.NewContext(640, 400, render.WithDeviceScale(2.0))
 	defer dc.Close()
@@ -735,6 +800,11 @@ func TestP1_Comp_D49_HiDPIAppChromeDensity(t *testing.T) {
 // D50: multi CTM stack rotate+scale+translate × mesh × text × path clip.
 func TestP1_Comp_D50_MultiCTMMeshTextClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D50_MultiCTMMeshTextClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D50_MultiCTMMeshTextClip")
+		return
+	}
 	const w, h = 360, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -787,6 +857,11 @@ func TestP1_Comp_D50_MultiCTMMeshTextClip(t *testing.T) {
 // D51: spreadsheet density — grid lines × cells × selection layer × freeze clip.
 func TestP1_Comp_D51_SpreadsheetGridComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D51_SpreadsheetGridComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D51_SpreadsheetGridComposition")
+		return
+	}
 	const w, h = 500, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -859,6 +934,11 @@ func TestP1_Comp_D51_SpreadsheetGridComposition(t *testing.T) {
 // D52: media timeline — filmstrip quads + playhead + waveform path + backdrop scrubber.
 func TestP1_Comp_D52_MediaTimelineComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D52_MediaTimelineComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D52_MediaTimelineComposition")
+		return
+	}
 	const w, h = 520, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -927,6 +1007,11 @@ func TestP1_Comp_D52_MediaTimelineComposition(t *testing.T) {
 // D53: form/wizard multi-step — sections × validation marks × clip × layer overlay.
 func TestP1_Comp_D53_FormWizardComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D53_FormWizardComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D53_FormWizardComposition")
+		return
+	}
 	const w, h = 440, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1004,6 +1089,11 @@ func TestP1_Comp_D53_FormWizardComposition(t *testing.T) {
 // D54: tree + breadcrumb + split view density.
 func TestP1_Comp_D54_TreeSplitViewComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D54_TreeSplitViewComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D54_TreeSplitViewComposition")
+		return
+	}
 	const w, h = 500, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1084,6 +1174,11 @@ func TestP1_Comp_D54_TreeSplitViewComposition(t *testing.T) {
 // D55: cascader multi-column panels with hover layer + clip.
 func TestP1_Comp_D55_CascaderColumnsComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D55_CascaderColumnsComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D55_CascaderColumnsComposition")
+		return
+	}
 	const w, h = 420, 260
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1128,6 +1223,11 @@ func TestP1_Comp_D55_CascaderColumnsComposition(t *testing.T) {
 // D56: notification stack + toast layers + badge mesh accents.
 func TestP1_Comp_D56_NotificationStackComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D56_NotificationStackComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D56_NotificationStackComposition")
+		return
+	}
 	const w, h = 360, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1177,6 +1277,11 @@ func TestP1_Comp_D56_NotificationStackComposition(t *testing.T) {
 // D57: dual scroll transfer lists with move button and selection.
 func TestP1_Comp_D57_TransferDualListComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D57_TransferDualListComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D57_TransferDualListComposition")
+		return
+	}
 	const w, h = 480, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1228,6 +1333,11 @@ func TestP1_Comp_D57_TransferDualListComposition(t *testing.T) {
 // D58: color picker morph — hue sweep + SV square + alpha bar + preview.
 func TestP1_Comp_D58_ColorPickerComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D58_ColorPickerComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D58_ColorPickerComposition")
+		return
+	}
 	const w, h = 320, 260
 	dc := render.NewContext(w, h)
 	defer dc.Close()

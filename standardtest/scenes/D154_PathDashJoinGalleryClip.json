@@ -1,0 +1,204 @@
+{
+  "id": "D154_PathDashJoinGalleryClip",
+  "size": [
+    420,
+    280
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 14,
+      "rect": [
+        16,
+        16,
+        388,
+        248
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        280
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "dash": [
+        12,
+        6
+      ],
+      "op": "stroke_line",
+      "rgba": [
+        0.3,
+        0.7,
+        0.95,
+        1
+      ],
+      "width": 4,
+      "x": 40,
+      "x2": 360,
+      "y": 60,
+      "y2": 60
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.3,
+        0.7,
+        0.95,
+        1
+      ],
+      "text": "dash [12 6]",
+      "x": 50,
+      "y": 48
+    },
+    {
+      "dash": [
+        4,
+        4
+      ],
+      "op": "stroke_line",
+      "rgba": [
+        0.95,
+        0.5,
+        0.3,
+        1
+      ],
+      "width": 4,
+      "x": 40,
+      "x2": 360,
+      "y": 110,
+      "y2": 110
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.5,
+        0.3,
+        1
+      ],
+      "text": "dash [4 4]",
+      "x": 50,
+      "y": 98
+    },
+    {
+      "dash": [
+        16,
+        4,
+        4,
+        4
+      ],
+      "op": "stroke_line",
+      "rgba": [
+        0.4,
+        0.9,
+        0.5,
+        1
+      ],
+      "width": 4,
+      "x": 40,
+      "x2": 360,
+      "y": 160,
+      "y2": 160
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.9,
+        0.5,
+        1
+      ],
+      "text": "dash [16 4 4 4]",
+      "x": 50,
+      "y": 148
+    },
+    {
+      "dash": [
+        2,
+        6
+      ],
+      "op": "stroke_line",
+      "rgba": [
+        0.95,
+        0.85,
+        0.3,
+        1
+      ],
+      "width": 4,
+      "x": 40,
+      "x2": 360,
+      "y": 210,
+      "y2": 210
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.85,
+        0.3,
+        1
+      ],
+      "text": "dash [2 6]",
+      "x": 50,
+      "y": 198
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        330,
+        20,
+        70,
+        24
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

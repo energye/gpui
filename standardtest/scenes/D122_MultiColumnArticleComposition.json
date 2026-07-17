@@ -1,0 +1,524 @@
+{
+  "id": "D122_MultiColumnArticleComposition",
+  "size": [
+    520,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        340
+      ],
+      "rgba": [
+        0.97,
+        0.97,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.85,
+        0.2,
+        0.25,
+        1
+      ],
+      "text": "A",
+      "x": 24,
+      "y": 70
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        70,
+        24,
+        130,
+        220
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 0 text body",
+      "x": 74,
+      "y": 40
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 1 text body",
+      "x": 74,
+      "y": 60
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 2 text body",
+      "x": 74,
+      "y": 80
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 3 text body",
+      "x": 74,
+      "y": 100
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 4 text body",
+      "x": 74,
+      "y": 120
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 5 text body",
+      "x": 74,
+      "y": 140
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 6 text body",
+      "x": 74,
+      "y": 160
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 7 text body",
+      "x": 74,
+      "y": 180
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 8 text body",
+      "x": 74,
+      "y": 200
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col0 line 9 text body",
+      "x": 74,
+      "y": 220
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        210,
+        24,
+        130,
+        220
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 0 text body",
+      "x": 214,
+      "y": 40
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 1 text body",
+      "x": 214,
+      "y": 60
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 2 text body",
+      "x": 214,
+      "y": 80
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 3 text body",
+      "x": 214,
+      "y": 100
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 4 text body",
+      "x": 214,
+      "y": 120
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 5 text body",
+      "x": 214,
+      "y": 140
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 6 text body",
+      "x": 214,
+      "y": 160
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 7 text body",
+      "x": 214,
+      "y": 180
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 8 text body",
+      "x": 214,
+      "y": 200
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col1 line 9 text body",
+      "x": 214,
+      "y": 220
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        350,
+        24,
+        130,
+        220
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 0 text body",
+      "x": 354,
+      "y": 40
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 1 text body",
+      "x": 354,
+      "y": 60
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 2 text body",
+      "x": 354,
+      "y": 80
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 3 text body",
+      "x": 354,
+      "y": 100
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 4 text body",
+      "x": 354,
+      "y": 120
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 5 text body",
+      "x": 354,
+      "y": 140
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 6 text body",
+      "x": 354,
+      "y": 160
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 7 text body",
+      "x": 354,
+      "y": 180
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 8 text body",
+      "x": 354,
+      "y": 200
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.18,
+        1
+      ],
+      "text": "col2 line 9 text body",
+      "x": 354,
+      "y": 220
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        24,
+        260,
+        6,
+        60
+      ],
+      "rgba": [
+        0.2,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.28,
+        0.35,
+        1
+      ],
+      "text": "Pull quote — composition not widgets.",
+      "x": 40,
+      "y": 290
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        360,
+        270,
+        140,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.55,
+        0.15,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Fig. caption",
+      "x": 375,
+      "y": 294
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

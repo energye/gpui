@@ -1,0 +1,291 @@
+{
+  "id": "D193_SitemapHierarchyConnectors",
+  "size": [
+    460,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 10
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        460,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        460,
+        300
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        180,
+        16,
+        100,
+        36
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        100,
+        100,
+        32
+      ],
+      "rgba": [
+        0.9,
+        0.4,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Products",
+      "x": 64,
+      "y": 120
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.6,
+        0.65,
+        0.75,
+        1
+      ],
+      "width": 1,
+      "x": 230,
+      "x2": 90,
+      "y": 52,
+      "y2": 100
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        180,
+        100,
+        100,
+        32
+      ],
+      "rgba": [
+        0.9,
+        0.4,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Blog",
+      "x": 204,
+      "y": 120
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.6,
+        0.65,
+        0.75,
+        1
+      ],
+      "width": 1,
+      "x": 230,
+      "x2": 230,
+      "y": 52,
+      "y2": 100
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        320,
+        100,
+        100,
+        32
+      ],
+      "rgba": [
+        0.9,
+        0.4,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "About",
+      "x": 344,
+      "y": 120
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.6,
+        0.65,
+        0.75,
+        1
+      ],
+      "width": 1,
+      "x": 230,
+      "x2": 370,
+      "y": 52,
+      "y2": 100
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        20,
+        200,
+        60,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        90,
+        200,
+        60,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        160,
+        200,
+        60,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        230,
+        200,
+        60,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        300,
+        200,
+        60,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        370,
+        200,
+        60,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.7,
+        0.5,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

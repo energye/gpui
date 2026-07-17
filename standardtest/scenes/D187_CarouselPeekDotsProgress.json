@@ -1,0 +1,241 @@
+{
+  "id": "D187_CarouselPeekDotsProgress",
+  "size": [
+    420,
+    240
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        240
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        -40,
+        30,
+        120,
+        140
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        340,
+        30,
+        120,
+        140
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 14,
+      "rect": [
+        80,
+        24,
+        260,
+        152
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Slide 3 / 8",
+      "x": 160,
+      "y": 100
+    },
+    {
+      "cx": 140,
+      "cy": 200,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.5,
+        0.55,
+        0.65,
+        1
+      ]
+    },
+    {
+      "cx": 158,
+      "cy": 200,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.5,
+        0.55,
+        0.65,
+        1
+      ]
+    },
+    {
+      "cx": 176,
+      "cy": 200,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.95,
+        0.4,
+        0.35,
+        1
+      ]
+    },
+    {
+      "cx": 194,
+      "cy": 200,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.5,
+        0.55,
+        0.65,
+        1
+      ]
+    },
+    {
+      "cx": 212,
+      "cy": 200,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.5,
+        0.55,
+        0.65,
+        1
+      ]
+    },
+    {
+      "cx": 230,
+      "cy": 200,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.5,
+        0.55,
+        0.65,
+        1
+      ]
+    },
+    {
+      "cx": 248,
+      "cy": 200,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.5,
+        0.55,
+        0.65,
+        1
+      ]
+    },
+    {
+      "cx": 266,
+      "cy": 200,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.5,
+        0.55,
+        0.65,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 3,
+      "rect": [
+        40,
+        220,
+        340,
+        6
+      ],
+      "rgba": [
+        0.3,
+        0.32,
+        0.38,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 3,
+      "rect": [
+        40,
+        220,
+        160,
+        6
+      ],
+      "rgba": [
+        0.3,
+        0.8,
+        0.5,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

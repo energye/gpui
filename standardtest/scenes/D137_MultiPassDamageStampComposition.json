@@ -1,0 +1,158 @@
+{
+  "id": "D137_MultiPassDamageStampComposition",
+  "size": [
+    360,
+    240
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        16,
+        24,
+        100,
+        160
+      ],
+      "rgba": [
+        0.92,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "P1",
+      "x": 40,
+      "y": 50
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        128,
+        24,
+        100,
+        160
+      ],
+      "rgba": [
+        0.92,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "P2",
+      "x": 152,
+      "y": 50
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        240,
+        24,
+        100,
+        160
+      ],
+      "rgba": [
+        0.92,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "P3",
+      "x": 264,
+      "y": 50
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        270,
+        16,
+        70,
+        24
+      ],
+      "rgba": [
+        0.9,
+        0.25,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "DMG",
+      "x": 285,
+      "y": 32
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

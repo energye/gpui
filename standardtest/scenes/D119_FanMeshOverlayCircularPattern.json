@@ -1,0 +1,103 @@
+{
+  "id": "D119_FanMeshOverlayCircularPattern",
+  "size": [
+    340,
+    240
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        340,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        340,
+        240
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "push"
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          128,
+          180
+        ]
+      ]
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "push"
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          248,
+          180
+        ]
+      ]
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 160,
+      "cy": 110,
+      "op": "stroke_circle",
+      "radius": 78,
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "width": 4
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

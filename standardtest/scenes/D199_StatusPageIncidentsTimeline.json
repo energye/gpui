@@ -1,0 +1,269 @@
+{
+  "id": "D199_StatusPageIncidentsTimeline",
+  "size": [
+    480,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        320
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        16,
+        16,
+        448,
+        48
+      ],
+      "rgba": [
+        0.3,
+        0.75,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "All Systems Operational",
+      "x": 40,
+      "y": 44
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        16,
+        84,
+        448,
+        32
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "API",
+      "x": 28,
+      "y": 104
+    },
+    {
+      "cx": 440,
+      "cy": 100,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        0.3,
+        0.8,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        16,
+        120,
+        448,
+        32
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Web",
+      "x": 28,
+      "y": 140
+    },
+    {
+      "cx": 440,
+      "cy": 136,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        0.3,
+        0.8,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        16,
+        156,
+        448,
+        32
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "DB",
+      "x": 28,
+      "y": 176
+    },
+    {
+      "cx": 440,
+      "cy": 172,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        0.95,
+        0.7,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        16,
+        192,
+        448,
+        32
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "CDN",
+      "x": 28,
+      "y": 212
+    },
+    {
+      "cx": 440,
+      "cy": 208,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        0.3,
+        0.8,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        240,
+        448,
+        60
+      ],
+      "rgba": [
+        0.9,
+        0.35,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Incident: DB elevated latency",
+      "x": 32,
+      "y": 272
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

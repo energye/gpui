@@ -1,0 +1,122 @@
+{
+  "id": "D133_FilterGraphChainComposition",
+  "size": [
+    360,
+    260
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        260
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        30,
+        30,
+        120,
+        90
+      ],
+      "rgba": [
+        0.9,
+        0.25,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        120,
+        70,
+        140,
+        100
+      ],
+      "rgba": [
+        0.2,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "cx": 260,
+      "cy": 80,
+      "op": "fill_circle",
+      "radius": 40,
+      "rgba": [
+        0.3,
+        0.8,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.1,
+        0.12,
+        0.16,
+        1
+      ],
+      "text": "pre-filter",
+      "x": 40,
+      "y": 200
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        240,
+        200,
+        100,
+        36
+      ],
+      "rgba": [
+        0.98,
+        0.8,
+        0.1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.1,
+        0.1,
+        0.12,
+        1
+      ],
+      "text": "after",
+      "x": 260,
+      "y": 222
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

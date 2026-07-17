@@ -1,0 +1,728 @@
+{
+  "id": "D24_ScrollClipTranslateText",
+  "size": [
+    320,
+    280
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        20,
+        20,
+        280,
+        240
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        28,
+        28,
+        264,
+        224
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        28,
+        264,
+        224
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        0.99,
+        1
+      ]
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 0,
+      "y": -40
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        36,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-00 content line",
+      "x": 40,
+      "y": 54
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        42,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-01 content line",
+      "x": 40,
+      "y": 82
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        70,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        92,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-02 content line",
+      "x": 40,
+      "y": 110
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        98,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-03 content line",
+      "x": 40,
+      "y": 138
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        126,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        148,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-04 content line",
+      "x": 40,
+      "y": 166
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        154,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-05 content line",
+      "x": 40,
+      "y": 194
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        182,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        204,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-06 content line",
+      "x": 40,
+      "y": 222
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        210,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-07 content line",
+      "x": 40,
+      "y": 250
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        238,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        260,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-08 content line",
+      "x": 40,
+      "y": 278
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        266,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-09 content line",
+      "x": 40,
+      "y": 306
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        294,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        316,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-10 content line",
+      "x": 40,
+      "y": 334
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        322,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-11 content line",
+      "x": 40,
+      "y": 362
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        350,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        372,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-12 content line",
+      "x": 40,
+      "y": 390
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        378,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-13 content line",
+      "x": 40,
+      "y": 418
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        406,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        428,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-14 content line",
+      "x": 40,
+      "y": 446
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        434,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-15 content line",
+      "x": 40,
+      "y": 474
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        462,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        28,
+        484,
+        264,
+        28
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-16 content line",
+      "x": 40,
+      "y": 502
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        490,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "scroll-row-17 content line",
+      "x": 40,
+      "y": 530
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        250,
+        518,
+        30,
+        16
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "pop"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -1,0 +1,149 @@
+{
+  "id": "D95_TextModeMixClipLayer",
+  "size": [
+    380,
+    200
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 16
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        380,
+        200
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        16,
+        16,
+        348,
+        168
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        16,
+        16,
+        348,
+        168
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        28,
+        28,
+        320,
+        140
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "GlyphMask mode line",
+      "x": 44,
+      "y": 60
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Vector mode line",
+      "x": 44,
+      "y": 95
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Auto mode line",
+      "x": 44,
+      "y": 130
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "MSDF try",
+      "x": 44,
+      "y": 155
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Bitmap try",
+      "x": 180,
+      "y": 155
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

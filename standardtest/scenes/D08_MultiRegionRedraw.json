@@ -1,0 +1,199 @@
+{
+  "id": "D08_MultiRegionRedraw",
+  "size": [
+    320,
+    200
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        200
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        36
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "multi-region redraw",
+      "x": 12,
+      "y": 24
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        52,
+        130,
+        120
+      ],
+      "rgba": [
+        0.88,
+        0.9,
+        0.93,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        174,
+        52,
+        130,
+        120
+      ],
+      "rgba": [
+        0.88,
+        0.9,
+        0.93,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "A",
+      "x": 70,
+      "y": 120
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "B",
+      "x": 230,
+      "y": 120
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        16,
+        52,
+        130,
+        120
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        16,
+        52,
+        130,
+        120
+      ],
+      "rgba": [
+        0.2,
+        0.45,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "A*",
+      "x": 66,
+      "y": 120
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        174,
+        52,
+        130,
+        120
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        174,
+        52,
+        130,
+        120
+      ],
+      "rgba": [
+        0.15,
+        0.65,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "B*",
+      "x": 226,
+      "y": 120
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

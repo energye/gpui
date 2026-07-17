@@ -1,0 +1,274 @@
+{
+  "id": "D169_CSSGridDenseCardsHeroSpan",
+  "size": [
+    520,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        340
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        16,
+        16,
+        320,
+        140
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Hero span 2×1",
+      "x": 32,
+      "y": 80
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        352,
+        16,
+        150,
+        140
+      ],
+      "rgba": [
+        0.2,
+        0.75,
+        0.5,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        16,
+        172,
+        156,
+        140
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        28,
+        188,
+        48,
+        20
+      ],
+      "rgba": [
+        0.95,
+        0.4,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Card 1",
+      "x": 28,
+      "y": 240
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        16,
+        284,
+        156,
+        28
+      ],
+      "rgba": [
+        0.85,
+        0.87,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        184,
+        172,
+        156,
+        140
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        196,
+        188,
+        48,
+        20
+      ],
+      "rgba": [
+        0.95,
+        0.4,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Card 2",
+      "x": 196,
+      "y": 240
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        184,
+        284,
+        156,
+        28
+      ],
+      "rgba": [
+        0.85,
+        0.87,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        352,
+        172,
+        156,
+        140
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        364,
+        188,
+        48,
+        20
+      ],
+      "rgba": [
+        0.95,
+        0.4,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Card 3",
+      "x": 364,
+      "y": 240
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        352,
+        284,
+        156,
+        28
+      ],
+      "rgba": [
+        0.85,
+        0.87,
+        0.9,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

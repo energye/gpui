@@ -1,0 +1,128 @@
+{
+  "id": "D85_MultiContextTextureComposite",
+  "size": [
+    400,
+    280
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        36
+      ],
+      "rgba": [
+        0.14,
+        0.15,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "multi-context composite",
+      "x": 12,
+      "y": 24
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "scene-A host",
+      "x": 20,
+      "y": 150
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "scene-B host",
+      "x": 180,
+      "y": 150
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "scene-C host",
+      "x": 100,
+      "y": 260
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        0,
+        150,
+        400,
+        40
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        150,
+        400,
+        40
+      ],
+      "rgba": [
+        0,
+        0,
+        0,
+        0.35
+      ]
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

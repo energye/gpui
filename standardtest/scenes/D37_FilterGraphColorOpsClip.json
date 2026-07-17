@@ -1,0 +1,77 @@
+{
+  "id": "D37_FilterGraphColorOpsClip",
+  "size": [
+    320,
+    220
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        220
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        20,
+        20,
+        120,
+        80
+      ],
+      "rgba": [
+        0.9,
+        0.2,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        160,
+        30,
+        120,
+        90
+      ],
+      "rgba": [
+        0.2,
+        0.8,
+        0.3,
+        1
+      ]
+    },
+    {
+      "cx": 120,
+      "cy": 150,
+      "op": "fill_circle",
+      "radius": 45,
+      "rgba": [
+        0.2,
+        0.35,
+        0.95,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

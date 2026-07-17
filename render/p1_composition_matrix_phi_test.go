@@ -18,6 +18,11 @@ import (
 // D161: kanban × WIP limits × swim badges × drag ghost layer.
 func TestP1_Comp_D161_KanbanWIPGhostComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D161_KanbanWIPGhostComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D161_KanbanWIPGhostComposition")
+		return
+	}
 	const w, h = 560, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -74,6 +79,11 @@ func TestP1_Comp_D161_KanbanWIPGhostComposition(t *testing.T) {
 // D162: tree + property inspector + breadcrumb + multi-select highlights.
 func TestP1_Comp_D162_TreeInspectorBreadcrumbMultiSelect(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D162_TreeInspectorBreadcrumbMultiSelect"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D162_TreeInspectorBreadcrumbMultiSelect")
+		return
+	}
 	const w, h = 520, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -133,6 +143,11 @@ func TestP1_Comp_D162_TreeInspectorBreadcrumbMultiSelect(t *testing.T) {
 // D163: split diff 3-way × gutter marks × hunk headers × unify toggle.
 func TestP1_Comp_D163_ThreeWayDiffGutterComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D163_ThreeWayDiffGutterComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D163_ThreeWayDiffGutterComposition")
+		return
+	}
 	const w, h = 540, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -196,6 +211,11 @@ func TestP1_Comp_D163_ThreeWayDiffGutterComposition(t *testing.T) {
 // D164: layered chart — candles × volume × MA overlay × crosshair × tooltip.
 func TestP1_Comp_D164_CandlesVolumeMACrosshairTooltip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D164_CandlesVolumeMACrosshairTooltip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D164_CandlesVolumeMACrosshairTooltip")
+		return
+	}
 	const w, h = 520, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -273,6 +293,11 @@ func TestP1_Comp_D164_CandlesVolumeMACrosshairTooltip(t *testing.T) {
 // D165: nested form wizard steps × validation × sticky footer actions.
 func TestP1_Comp_D165_WizardFormValidationStickyFooter(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D165_WizardFormValidationStickyFooter"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D165_WizardFormValidationStickyFooter")
+		return
+	}
 	const w, h = 480, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -339,6 +364,11 @@ func TestP1_Comp_D165_WizardFormValidationStickyFooter(t *testing.T) {
 // D166: particle field under mask × additive blend sparkles × HUD.
 func TestP1_Comp_D166_ParticleFieldMaskAdditiveHUD(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D166_ParticleFieldMaskAdditiveHUD"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D166_ParticleFieldMaskAdditiveHUD")
+		return
+	}
 	const w, h = 420, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -385,6 +415,11 @@ func TestP1_Comp_D166_ParticleFieldMaskAdditiveHUD(t *testing.T) {
 // D167: multi-layer z-index mock with reorder handles × occlusion.
 func TestP1_Comp_D167_ZIndexLayersReorderOcclusion(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D167_ZIndexLayersReorderOcclusion"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D167_ZIndexLayersReorderOcclusion")
+		return
+	}
 	const w, h = 400, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -435,6 +470,11 @@ func TestP1_Comp_D167_ZIndexLayersReorderOcclusion(t *testing.T) {
 // D168: rich tooltip stack + caret + multi-line + action chips.
 func TestP1_Comp_D168_RichTooltipStackCaretActions(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D168_RichTooltipStackCaretActions"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D168_RichTooltipStackCaretActions")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -487,6 +527,11 @@ func TestP1_Comp_D168_RichTooltipStackCaretActions(t *testing.T) {
 // D169: CSS-grid-like dense cards with spanning hero × badges × footer.
 func TestP1_Comp_D169_CSSGridDenseCardsHeroSpan(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D169_CSSGridDenseCardsHeroSpan"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D169_CSSGridDenseCardsHeroSpan")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -545,6 +590,11 @@ func TestP1_Comp_D169_CSSGridDenseCardsHeroSpan(t *testing.T) {
 // D170: responsive breakpoint mock — reflow columns under resize states.
 func TestP1_Comp_D170_ResponsiveBreakpointReflowMock(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D170_ResponsiveBreakpointReflowMock"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D170_ResponsiveBreakpointReflowMock")
+		return
+	}
 	font := p1FindFont(t)
 	sizes := [][2]int{{480, 240}, {320, 240}, {240, 240}}
 	var last *render.Context
@@ -593,6 +643,11 @@ func TestP1_Comp_D170_ResponsiveBreakpointReflowMock(t *testing.T) {
 // D171: annotation layer on image — arrows × boxes × freehand × labels.
 func TestP1_Comp_D171_ImageAnnotationArrowsBoxesFreehand(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D171_ImageAnnotationArrowsBoxesFreehand"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D171_ImageAnnotationArrowsBoxesFreehand")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -650,6 +705,11 @@ func TestP1_Comp_D171_ImageAnnotationArrowsBoxesFreehand(t *testing.T) {
 // D172: sidebar rail icons + flyout + active route indicator.
 func TestP1_Comp_D172_SidebarRailFlyoutActiveRoute(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D172_SidebarRailFlyoutActiveRoute"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D172_SidebarRailFlyoutActiveRoute")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -710,6 +770,11 @@ func TestP1_Comp_D172_SidebarRailFlyoutActiveRoute(t *testing.T) {
 // D173: nested clip damage islands with independent redraw stamps.
 func TestP1_Comp_D173_NestedClipDamageIslands(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D173_NestedClipDamageIslands"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D173_NestedClipDamageIslands")
+		return
+	}
 	const w, h = 400, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -765,6 +830,11 @@ func TestP1_Comp_D173_NestedClipDamageIslands(t *testing.T) {
 // D174: perspective-ish fan cards with rotate × scale stack.
 func TestP1_Comp_D174_PerspectiveFanCardRotateScale(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D174_PerspectiveFanCardRotateScale"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D174_PerspectiveFanCardRotateScale")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -818,6 +888,11 @@ func TestP1_Comp_D174_PerspectiveFanCardRotateScale(t *testing.T) {
 // D175: audio mixer strip — faders × meters × mute × pan knobs.
 func TestP1_Comp_D175_AudioMixerFadersMeters(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D175_AudioMixerFadersMeters"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D175_AudioMixerFadersMeters")
+		return
+	}
 	const w, h = 520, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -878,6 +953,11 @@ func TestP1_Comp_D175_AudioMixerFadersMeters(t *testing.T) {
 // D176: recursive clip-layer stress (5 deep) with alternating blend.
 func TestP1_Comp_D176_DeepClipLayerBlendRecursion(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D176_DeepClipLayerBlendRecursion"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D176_DeepClipLayerBlendRecursion")
+		return
+	}
 	const w, h = 360, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -921,6 +1001,11 @@ func TestP1_Comp_D176_DeepClipLayerBlendRecursion(t *testing.T) {
 // D177: multi-font size hierarchy article with drop shadows on cards.
 func TestP1_Comp_D177_TypeHierarchyShadowCards(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D177_TypeHierarchyShadowCards"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D177_TypeHierarchyShadowCards")
+		return
+	}
 	const w, h = 440, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -970,6 +1055,11 @@ func TestP1_Comp_D177_TypeHierarchyShadowCards(t *testing.T) {
 // D178: constellation graph with force clusters × hull × labels.
 func TestP1_Comp_D178_ConstellationClustersHullLabels(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D178_ConstellationClustersHullLabels"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D178_ConstellationClustersHullLabels")
+		return
+	}
 	const w, h = 460, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1030,6 +1120,11 @@ func TestP1_Comp_D178_ConstellationClustersHullLabels(t *testing.T) {
 // D179: printer-like multipage preview strip with page shadows × active.
 func TestP1_Comp_D179_MultipagePreviewStripActive(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D179_MultipagePreviewStripActive"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D179_MultipagePreviewStripActive")
+		return
+	}
 	const w, h = 520, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1093,6 +1188,11 @@ func TestP1_Comp_D179_MultipagePreviewStripActive(t *testing.T) {
 // D180: kitchen-sink v6 mega — combines atlas, mesh, filter, damage, layers.
 func TestP1_Comp_D180_KitchenSinkV6MegaStress(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D180_KitchenSinkV6MegaStress"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D180_KitchenSinkV6MegaStress")
+		return
+	}
 	const w, h = 620, 440
 	dc := render.NewContext(w, h)
 	defer dc.Close()

@@ -1,0 +1,252 @@
+{
+  "id": "D06_ImageTextClipBackdrop",
+  "size": [
+    360,
+    240
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 13
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        240
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        24,
+        40,
+        64,
+        64
+      ]
+    },
+    {
+      "img_h": 48,
+      "img_w": 48,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.1568627450980392,
+        0.5490196078431373,
+        0.8627450980392157,
+        1
+      ],
+      "x": 32,
+      "y": 48
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "tile-0",
+      "x": 32,
+      "y": 128
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        104,
+        40,
+        64,
+        64
+      ]
+    },
+    {
+      "img_h": 48,
+      "img_w": 48,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.1568627450980392,
+        0.5490196078431373,
+        0.8627450980392157,
+        1
+      ],
+      "x": 112,
+      "y": 48
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "tile-1",
+      "x": 112,
+      "y": 128
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        184,
+        40,
+        64,
+        64
+      ]
+    },
+    {
+      "img_h": 48,
+      "img_w": 48,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.1568627450980392,
+        0.5490196078431373,
+        0.8627450980392157,
+        1
+      ],
+      "x": 192,
+      "y": 48
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "tile-2",
+      "x": 192,
+      "y": 128
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        264,
+        40,
+        64,
+        64
+      ]
+    },
+    {
+      "img_h": 48,
+      "img_w": 48,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.1568627450980392,
+        0.5490196078431373,
+        0.8627450980392157,
+        1
+      ],
+      "x": 272,
+      "y": 48
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "tile-3",
+      "x": 272,
+      "y": 128
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 1
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        240
+      ],
+      "rgba": [
+        0,
+        0,
+        0,
+        0.4
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        80,
+        50,
+        200,
+        140
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.12,
+        0.15,
+        1
+      ],
+      "text": "backdrop×image×text",
+      "x": 100,
+      "y": 120
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

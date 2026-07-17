@@ -1,0 +1,136 @@
+{
+  "id": "D50_MultiCTMMeshTextClip",
+  "size": [
+    360,
+    280
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        280
+      ],
+      "rgba": [
+        0.1,
+        0.12,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 180,
+      "y": 140
+    },
+    {
+      "angle": 0.4487989505128276,
+      "op": "rotate"
+    },
+    {
+      "op": "scale",
+      "x": 1.15,
+      "y": 0.95
+    },
+    {
+      "op": "translate",
+      "x": -80,
+      "y": -60
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          12,
+          0
+        ],
+        [
+          148,
+          0
+        ],
+        [
+          160,
+          108
+        ],
+        [
+          12,
+          120
+        ],
+        [
+          0,
+          12
+        ]
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "CTM×mesh×clip",
+      "x": 30,
+      "y": 70
+    },
+    {
+      "dash": [
+        5,
+        3
+      ],
+      "op": "stroke_rect",
+      "rect": [
+        8,
+        8,
+        144,
+        104
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "width": 2
+    },
+    {
+      "op": "pop"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

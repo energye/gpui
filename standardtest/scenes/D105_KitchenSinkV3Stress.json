@@ -1,0 +1,413 @@
+{
+  "id": "D105_KitchenSinkV3Stress",
+  "size": [
+    560,
+    400
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        400
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        56,
+        400
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        56,
+        0,
+        504,
+        40
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "kitchen-sink v3 stress",
+      "x": 68,
+      "y": 26
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        56,
+        40,
+        504,
+        360
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        68,
+        56,
+        148,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        68,
+        56,
+        148,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "col-1",
+      "x": 80,
+      "y": 74
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Axis mix stress: clip ",
+      "x": 78,
+      "y": 108.357421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "layer blend text ",
+      "x": 78,
+      "y": 124.2
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "image transform ",
+      "x": 78,
+      "y": 140.042578125
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "mask filter damage.",
+      "x": 78,
+      "y": 155.88515625
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        228,
+        56,
+        148,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        228,
+        56,
+        148,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "col-2",
+      "x": 240,
+      "y": 74
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Axis mix stress: clip ",
+      "x": 238,
+      "y": 108.357421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "layer blend text ",
+      "x": 238,
+      "y": 124.2
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "image transform ",
+      "x": 238,
+      "y": 140.042578125
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "mask filter damage.",
+      "x": 238,
+      "y": 155.88515625
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 302,
+      "cy": 220,
+      "op": "fill_circle",
+      "radius": 36,
+      "rgba": [
+        1,
+        0.6,
+        0.4,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        388,
+        56,
+        148,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        388,
+        56,
+        148,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "col-3",
+      "x": 400,
+      "y": 74
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Axis mix stress: clip ",
+      "x": 398,
+      "y": 108.357421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "layer blend text ",
+      "x": 398,
+      "y": 124.2
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "image transform ",
+      "x": 398,
+      "y": 140.042578125
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "mask filter damage.",
+      "x": 398,
+      "y": 155.88515625
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        490,
+        8,
+        50,
+        24
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        490,
+        8,
+        50,
+        24
+      ],
+      "rgba": [
+        0.9,
+        0.25,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

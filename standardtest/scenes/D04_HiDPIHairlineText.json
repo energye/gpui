@@ -1,0 +1,235 @@
+{
+  "id": "D04_HiDPIHairlineText",
+  "size": [
+    320,
+    160
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        160
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "close": true,
+      "op": "fill_path",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          320,
+          0
+        ],
+        [
+          320,
+          160
+        ],
+        [
+          0,
+          160
+        ]
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "close": true,
+      "op": "fill_path",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          320,
+          0
+        ],
+        [
+          320,
+          160
+        ],
+        [
+          0,
+          160
+        ]
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "close": false,
+      "op": "stroke_path",
+      "points": [
+        [
+          8,
+          40
+        ],
+        [
+          304,
+          40
+        ]
+      ],
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "close": false,
+      "op": "stroke_path",
+      "points": [
+        [
+          8,
+          80
+        ],
+        [
+          304,
+          80
+        ]
+      ],
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "text": "HiDPI hairline×text",
+      "x": 12,
+      "y": 120
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

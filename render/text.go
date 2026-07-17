@@ -73,6 +73,7 @@ func (c *Context) Font() text.Face {
 // The baseline is the line on which most letters sit. Characters with
 // descenders (like 'g', 'j', 'p', 'q', 'y') extend below the baseline.
 func (c *Context) DrawString(s string, x, y float64) {
+
 	if c.face == nil {
 		return
 	}
@@ -567,6 +568,7 @@ func (c *Context) MeasureString(s string) (w, h float64) {
 //	face := source.Face(12.0)
 //	ctx.SetFont(face)
 func (c *Context) LoadFontFace(path string, points float64) error {
+
 	source, err := text.NewFontSourceFromFile(path)
 	if err != nil {
 		return err

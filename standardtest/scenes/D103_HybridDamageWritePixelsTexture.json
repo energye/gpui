@@ -1,0 +1,140 @@
+{
+  "id": "D103_HybridDamageWritePixelsTexture",
+  "size": [
+    400,
+    260
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        260
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        40
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "hybrid damage update",
+      "x": 12,
+      "y": 26
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        16,
+        56,
+        116,
+        160
+      ],
+      "rgba": [
+        0.92,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        144,
+        56,
+        116,
+        160
+      ],
+      "rgba": [
+        0.92,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        272,
+        56,
+        116,
+        160
+      ],
+      "rgba": [
+        0.92,
+        0.93,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        144,
+        56,
+        116,
+        160
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        144,
+        56,
+        116,
+        160
+      ],
+      "rgba": [
+        0.2,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -1,0 +1,282 @@
+{
+  "id": "D115_MarkdownSplitPreviewComposition",
+  "size": [
+    520,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        0,
+        0,
+        260,
+        300
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        260,
+        300
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.88,
+        1
+      ],
+      "text": "# Title",
+      "x": 12,
+      "y": 28
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.88,
+        1
+      ],
+      "text": "",
+      "x": 12,
+      "y": 52
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.88,
+        1
+      ],
+      "text": "Paragraph with **bold**",
+      "x": 12,
+      "y": 76
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.88,
+        1
+      ],
+      "text": "\u003e quote block",
+      "x": 12,
+      "y": 100
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.88,
+        1
+      ],
+      "text": "```go",
+      "x": 12,
+      "y": 124
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.88,
+        1
+      ],
+      "text": "dc.ClipRect(...)",
+      "x": 12,
+      "y": 148
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.88,
+        1
+      ],
+      "text": "```",
+      "x": 12,
+      "y": 172
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        260,
+        0,
+        260,
+        300
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        260,
+        0,
+        260,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Title",
+      "x": 276,
+      "y": 36
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Paragraph with emphasis rendered in ",
+      "x": 276,
+      "y": 64.357421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "preview pane under clip.",
+      "x": 276,
+      "y": 80.2
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        276,
+        120,
+        220,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        276,
+        120,
+        4,
+        40
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.3,
+        0.32,
+        0.38,
+        1
+      ],
+      "text": "quote block",
+      "x": 288,
+      "y": 144
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        276,
+        180,
+        220,
+        60
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.7,
+        0.85,
+        0.6,
+        1
+      ],
+      "text": "dc.ClipRect(...)",
+      "x": 288,
+      "y": 214
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

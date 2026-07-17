@@ -1,0 +1,131 @@
+{
+  "id": "D60_DiffBurnExclusionBlendStack",
+  "size": [
+    300,
+    220
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        220
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        220
+      ],
+      "rgba": [
+        0.75,
+        0.35,
+        0.3,
+        1
+      ]
+    },
+    {
+      "img_h": 64,
+      "img_w": 64,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.1568627450980392,
+        0.6274509803921569,
+        0.8627450980392157,
+        1
+      ],
+      "x": 30,
+      "y": 30
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        20,
+        20,
+        260,
+        180
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 100,
+      "cy": 100,
+      "op": "fill_circle",
+      "radius": 55,
+      "rgba": [
+        0.3,
+        0.8,
+        0.4,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 180,
+      "cy": 110,
+      "op": "fill_circle",
+      "radius": 50,
+      "rgba": [
+        0.9,
+        0.7,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        60,
+        140,
+        180,
+        40
+      ],
+      "rgba": [
+        0.2,
+        0.3,
+        0.9,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

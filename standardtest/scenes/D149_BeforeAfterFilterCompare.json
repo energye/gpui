@@ -1,0 +1,173 @@
+{
+  "id": "D149_BeforeAfterFilterCompare",
+  "size": [
+    420,
+    240
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        0,
+        0,
+        210,
+        240
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        30,
+        40,
+        140,
+        120
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ]
+    },
+    {
+      "cx": 160,
+      "cy": 120,
+      "op": "fill_circle",
+      "radius": 40,
+      "rgba": [
+        0.25,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "BEFORE",
+      "x": 50,
+      "y": 200
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        210,
+        0,
+        210,
+        240
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        30,
+        40,
+        140,
+        120
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ]
+    },
+    {
+      "cx": 160,
+      "cy": 120,
+      "op": "fill_circle",
+      "radius": 40,
+      "rgba": [
+        0.25,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        208,
+        0,
+        4,
+        240
+      ],
+      "rgba": [
+        0.95,
+        0.85,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "AFTER",
+      "x": 250,
+      "y": 200
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        330,
+        12,
+        70,
+        24
+      ],
+      "rgba": [
+        0.95,
+        0.4,
+        0.2,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

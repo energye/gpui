@@ -1,0 +1,1368 @@
+{
+  "id": "D166_ParticleFieldMaskAdditiveHUD",
+  "size": [
+    420,
+    280
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        280
+      ],
+      "rgba": [
+        0.05,
+        0.06,
+        0.1,
+        1
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 50,
+      "cy": 50,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 67,
+      "cy": 63,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 84,
+      "cy": 76,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 101,
+      "cy": 89,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 118,
+      "cy": 102,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 135,
+      "cy": 115,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 152,
+      "cy": 128,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 169,
+      "cy": 141,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 186,
+      "cy": 154,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 203,
+      "cy": 167,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 220,
+      "cy": 180,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 237,
+      "cy": 193,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 254,
+      "cy": 206,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 271,
+      "cy": 59,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 288,
+      "cy": 72,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 305,
+      "cy": 85,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 322,
+      "cy": 98,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 339,
+      "cy": 111,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 356,
+      "cy": 124,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 53,
+      "cy": 137,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 70,
+      "cy": 150,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 87,
+      "cy": 163,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 104,
+      "cy": 176,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 121,
+      "cy": 189,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 138,
+      "cy": 202,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 155,
+      "cy": 55,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 172,
+      "cy": 68,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 189,
+      "cy": 81,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 206,
+      "cy": 94,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 223,
+      "cy": 107,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 240,
+      "cy": 120,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 257,
+      "cy": 133,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 274,
+      "cy": 146,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 291,
+      "cy": 159,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 308,
+      "cy": 172,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 325,
+      "cy": 185,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 342,
+      "cy": 198,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 359,
+      "cy": 51,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 56,
+      "cy": 64,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 73,
+      "cy": 77,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 90,
+      "cy": 90,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 107,
+      "cy": 103,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 124,
+      "cy": 116,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 141,
+      "cy": 129,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 158,
+      "cy": 142,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 175,
+      "cy": 155,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 192,
+      "cy": 168,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 209,
+      "cy": 181,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 226,
+      "cy": 194,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 243,
+      "cy": 207,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 260,
+      "cy": 60,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 277,
+      "cy": 73,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 294,
+      "cy": 86,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 311,
+      "cy": 99,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 328,
+      "cy": 112,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 345,
+      "cy": 125,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 362,
+      "cy": 138,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 59,
+      "cy": 151,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 76,
+      "cy": 164,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 93,
+      "cy": 177,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 110,
+      "cy": 190,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 127,
+      "cy": 203,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 144,
+      "cy": 56,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 161,
+      "cy": 69,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 178,
+      "cy": 82,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 195,
+      "cy": 95,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 212,
+      "cy": 108,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 229,
+      "cy": 121,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 246,
+      "cy": 134,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 263,
+      "cy": 147,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 280,
+      "cy": 160,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 297,
+      "cy": 173,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 314,
+      "cy": 186,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 331,
+      "cy": 199,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 348,
+      "cy": 52,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 365,
+      "cy": 65,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 62,
+      "cy": 78,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 79,
+      "cy": 91,
+      "op": "fill_circle",
+      "radius": 4,
+      "rgba": [
+        0.8,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 96,
+      "cy": 104,
+      "op": "fill_circle",
+      "radius": 2,
+      "rgba": [
+        0.4,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 113,
+      "cy": 117,
+      "op": "fill_circle",
+      "radius": 3,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.95,
+        0.8
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        16,
+        16,
+        100,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.85,
+        0.55,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.08,
+        0.1,
+        1
+      ],
+      "text": "particles",
+      "x": 28,
+      "y": 34
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

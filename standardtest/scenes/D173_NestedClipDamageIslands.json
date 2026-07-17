@@ -1,0 +1,221 @@
+{
+  "id": "D173_NestedClipDamageIslands",
+  "size": [
+    400,
+    280
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        280
+      ],
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 10,
+      "rect": [
+        20,
+        20,
+        160,
+        100
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        32,
+        32,
+        60,
+        28
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "isle0",
+      "x": 36,
+      "y": 100
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 10,
+      "rect": [
+        220,
+        30,
+        150,
+        120
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        232,
+        42,
+        60,
+        28
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "isle1",
+      "x": 236,
+      "y": 110
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 10,
+      "rect": [
+        60,
+        150,
+        280,
+        100
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        72,
+        162,
+        60,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.75,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "isle2",
+      "x": 76,
+      "y": 230
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

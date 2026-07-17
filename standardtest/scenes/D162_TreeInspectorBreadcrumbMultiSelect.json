@@ -1,0 +1,317 @@
+{
+  "id": "D162_TreeInspectorBreadcrumbMultiSelect",
+  "size": [
+    520,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        32
+      ],
+      "rgba": [
+        0.2,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Root / Project / src / render",
+      "x": 12,
+      "y": 22
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        32,
+        200,
+        288
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "▸ pkg",
+      "x": 16,
+      "y": 56
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "  ▸ gpu",
+      "x": 16,
+      "y": 84
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        8,
+        98,
+        184,
+        24
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "    webgpu.go",
+      "x": 16,
+      "y": 112
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "    rwgpu.go",
+      "x": 16,
+      "y": 140
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "  ▸ render",
+      "x": 16,
+      "y": 168
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        8,
+        182,
+        184,
+        24
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "    context.go",
+      "x": 16,
+      "y": 196
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "    path.go",
+      "x": 16,
+      "y": 224
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        200,
+        32,
+        320,
+        288
+      ],
+      "rgba": [
+        0.14,
+        0.15,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        220,
+        56,
+        90,
+        28
+      ],
+      "rgba": [
+        0.9,
+        0.35,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "props: 2 selected",
+      "x": 220,
+      "y": 110
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        220,
+        130,
+        260,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        220,
+        160,
+        260,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        220,
+        190,
+        260,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        220,
+        220,
+        260,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        220,
+        250,
+        260,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

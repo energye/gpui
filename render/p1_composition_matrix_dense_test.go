@@ -46,6 +46,11 @@ func compFillMaskRect(mask *render.Mask, x0, y0, x1, y1 int, v uint8) {
 // D09: dash stroke × nested clip × text label.
 func TestP1_Comp_D09_DashStrokeClipText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D09_DashStrokeClipText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D09_DashStrokeClipText")
+		return
+	}
 	const w, h = 360, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -89,6 +94,11 @@ func TestP1_Comp_D09_DashStrokeClipText(t *testing.T) {
 // D10: multi-stop gradient × ClipRoundRect × translucent layer.
 func TestP1_Comp_D10_GradientClipLayer(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D10_GradientClipLayer"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D10_GradientClipLayer")
+		return
+	}
 	const w, h = 280, 180
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -133,6 +143,11 @@ func TestP1_Comp_D10_GradientClipLayer(t *testing.T) {
 // D11: EvenOdd hole path × layer × blend multiply accent.
 func TestP1_Comp_D11_EvenOddLayerBlend(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D11_EvenOddLayerBlend"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D11_EvenOddLayerBlend")
+		return
+	}
 	const w, h = 240, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -175,6 +190,11 @@ func TestP1_Comp_D11_EvenOddLayerBlend(t *testing.T) {
 // D12: alpha mask × solid fill × image composite.
 func TestP1_Comp_D12_MaskFillImage(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D12_MaskFillImage"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D12_MaskFillImage")
+		return
+	}
 	const w, h = 200, 160
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -218,6 +238,11 @@ func TestP1_Comp_D12_MaskFillImage(t *testing.T) {
 // D13: PushMaskLayer × text × nested clip.
 func TestP1_Comp_D13_MaskLayerTextClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D13_MaskLayerTextClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D13_MaskLayerTextClip")
+		return
+	}
 	const w, h = 280, 180
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -258,6 +283,11 @@ func TestP1_Comp_D13_MaskLayerTextClip(t *testing.T) {
 // D14: DrawVertices mesh × clip × Plus blend overlay.
 func TestP1_Comp_D14_VerticesClipBlend(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D14_VerticesClipBlend"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D14_VerticesClipBlend")
+		return
+	}
 	const w, h = 240, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -302,6 +332,11 @@ func TestP1_Comp_D14_VerticesClipBlend(t *testing.T) {
 // D15: DrawAtlas × HiDPI × clip window.
 func TestP1_Comp_D15_AtlasHiDPIClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D15_AtlasHiDPIClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D15_AtlasHiDPIClip")
+		return
+	}
 	dc := render.NewContext(320, 200, render.WithDeviceScale(2.0))
 	defer dc.Close()
 
@@ -339,6 +374,11 @@ func TestP1_Comp_D15_AtlasHiDPIClip(t *testing.T) {
 // D16: indexed DrawMesh × transform × layer opacity.
 func TestP1_Comp_D16_MeshTransformLayer(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D16_MeshTransformLayer"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D16_MeshTransformLayer")
+		return
+	}
 	const w, h = 260, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -380,6 +420,11 @@ func TestP1_Comp_D16_MeshTransformLayer(t *testing.T) {
 // D17: DrawImageQuad × clip path × text.
 func TestP1_Comp_D17_ImageQuadClipText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D17_ImageQuadClipText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D17_ImageQuadClipText")
+		return
+	}
 	const w, h = 300, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -415,6 +460,11 @@ func TestP1_Comp_D17_ImageQuadClipText(t *testing.T) {
 // D18: path effects (corners/discrete/trim) × stroke × clip.
 func TestP1_Comp_D18_PathEffectsClipStroke(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D18_PathEffectsClipStroke"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D18_PathEffectsClipStroke")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -472,6 +522,11 @@ func TestP1_Comp_D18_PathEffectsClipStroke(t *testing.T) {
 // D19: 3-level nested clip × nested layers × image × text (complex chrome).
 func TestP1_Comp_D19_DeepNestClipLayerImageText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D19_DeepNestClipLayerImageText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D19_DeepNestClipLayerImageText")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -538,6 +593,11 @@ func TestP1_Comp_D19_DeepNestClipLayerImageText(t *testing.T) {
 // D20: multi-blend stack (Multiply/Screen/Plus) × clip × image.
 func TestP1_Comp_D20_MultiBlendClipImage(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D20_MultiBlendClipImage"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D20_MultiBlendClipImage")
+		return
+	}
 	const w, h = 300, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -580,6 +640,11 @@ func TestP1_Comp_D20_MultiBlendClipImage(t *testing.T) {
 // D21: external GPU texture tiles × clip × backdrop × text.
 func TestP1_Comp_D21_ExternalTexClipBackdropText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D21_ExternalTexClipBackdropText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D21_ExternalTexClipBackdropText")
+		return
+	}
 	const w, h = 400, 260
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -657,6 +722,11 @@ func TestP1_Comp_D21_ExternalTexClipBackdropText(t *testing.T) {
 // D22: dense scene + ApplyDropShadow + ApplyBlur composition.
 func TestP1_Comp_D22_ShadowBlurDenseScene(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D22_ShadowBlurDenseScene"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D22_ShadowBlurDenseScene")
+		return
+	}
 	const w, h = 320, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -708,6 +778,11 @@ func TestP1_Comp_D22_ShadowBlurDenseScene(t *testing.T) {
 // D23: SetDither × gradient band × HiDPI.
 func TestP1_Comp_D23_DitherGradientHiDPI(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D23_DitherGradientHiDPI"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D23_DitherGradientHiDPI")
+		return
+	}
 	dc := render.NewContext(256, 128, render.WithDeviceScale(2.0))
 	defer dc.Close()
 
@@ -741,6 +816,11 @@ func TestP1_Comp_D23_DitherGradientHiDPI(t *testing.T) {
 // D24: scroll-like nested clip + translate pan + dense text rows.
 func TestP1_Comp_D24_ScrollClipTranslateText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D24_ScrollClipTranslateText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D24_ScrollClipTranslateText")
+		return
+	}
 	const w, h = 320, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -793,6 +873,11 @@ func TestP1_Comp_D24_ScrollClipTranslateText(t *testing.T) {
 // D25: nested layers + sequential blend stack (avoid Multiply onto empty layer).
 func TestP1_Comp_D25_DeepNestedBlendLayers(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D25_DeepNestedBlendLayers"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D25_DeepNestedBlendLayers")
+		return
+	}
 	const w, h = 240, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -849,6 +934,11 @@ func TestP1_Comp_D25_DeepNestedBlendLayers(t *testing.T) {
 // D26: stroke caps/joins × dashed polyline × path clip.
 func TestP1_Comp_D26_CapsJoinsDashPathClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D26_CapsJoinsDashPathClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D26_CapsJoinsDashPathClip")
+		return
+	}
 	const w, h = 300, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -898,6 +988,11 @@ func TestP1_Comp_D26_CapsJoinsDashPathClip(t *testing.T) {
 // D27: rounded/circular image × mask × layer.
 func TestP1_Comp_D27_ImageRoundedMaskLayer(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D27_ImageRoundedMaskLayer"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D27_ImageRoundedMaskLayer")
+		return
+	}
 	const w, h = 280, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -940,6 +1035,11 @@ func TestP1_Comp_D27_ImageRoundedMaskLayer(t *testing.T) {
 // D28: multi-region dirty redraw with gradient + text + image.
 func TestP1_Comp_D28_DamageGradientTextImage(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D28_DamageGradientTextImage"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D28_DamageGradientTextImage")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1027,6 +1127,11 @@ func TestP1_Comp_D28_DamageGradientTextImage(t *testing.T) {
 // D29: rotate transform × path clip × image × stroke.
 func TestP1_Comp_D29_RotateClipImageStroke(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D29_RotateClipImageStroke"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D29_RotateClipImageStroke")
+		return
+	}
 	const w, h = 300, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1064,6 +1169,11 @@ func TestP1_Comp_D29_RotateClipImageStroke(t *testing.T) {
 // D30: virtual-list density via primitives (clip×image×text×badge×layer×scroll).
 func TestP1_Comp_D30_VirtualListPrimitiveDensity(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D30_VirtualListPrimitiveDensity"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D30_VirtualListPrimitiveDensity")
+		return
+	}
 	const w, h = 480, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1149,6 +1259,11 @@ func TestP1_Comp_D30_VirtualListPrimitiveDensity(t *testing.T) {
 // D31: stress lattice — many rrects + text + clip + alternating blends (correctness under density).
 func TestP1_Comp_D31_LatticeStressBlendClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D31_LatticeStressBlendClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D31_LatticeStressBlendClip")
+		return
+	}
 	const w, h = 400, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1191,6 +1306,11 @@ func TestP1_Comp_D31_LatticeStressBlendClip(t *testing.T) {
 // D32: pattern fill × transform × clip × stroke border.
 func TestP1_Comp_D32_PatternTransformClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D32_PatternTransformClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D32_PatternTransformClip")
+		return
+	}
 	const w, h = 260, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1231,6 +1351,11 @@ func TestP1_Comp_D32_PatternTransformClip(t *testing.T) {
 // D33: editor-like multi-pane — nested clip + text columns + selection layer + gutter.
 func TestP1_Comp_D33_EditorMultiPaneComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D33_EditorMultiPaneComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D33_EditorMultiPaneComposition")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1308,6 +1433,11 @@ func TestP1_Comp_D33_EditorMultiPaneComposition(t *testing.T) {
 // D34: chart morph — grid + path stroke + gradient bars + labels + clip legend.
 func TestP1_Comp_D34_ChartPrimitiveComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D34_ChartPrimitiveComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D34_ChartPrimitiveComposition")
+		return
+	}
 	const w, h = 440, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1387,6 +1517,11 @@ func TestP1_Comp_D34_ChartPrimitiveComposition(t *testing.T) {
 // D35: calendar density — many cells + today highlight layer + header + overflow clip.
 func TestP1_Comp_D35_CalendarGridComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D35_CalendarGridComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D35_CalendarGridComposition")
+		return
+	}
 	const w, h = 420, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1444,6 +1579,11 @@ func TestP1_Comp_D35_CalendarGridComposition(t *testing.T) {
 // D36: kitchen-sink composition — most axes in one scene (correctness under maximal mix).
 func TestP1_Comp_D36_KitchenSinkMaxMix(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D36_KitchenSinkMaxMix"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D36_KitchenSinkMaxMix")
+		return
+	}
 	const w, h = 560, 400
 	dc := render.NewContext(w, h)
 	defer dc.Close()

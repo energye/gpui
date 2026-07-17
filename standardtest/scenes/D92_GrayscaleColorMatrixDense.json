@@ -1,0 +1,94 @@
+{
+  "id": "D92_GrayscaleColorMatrixDense",
+  "size": [
+    340,
+    240
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        340,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        20,
+        20,
+        140,
+        90
+      ],
+      "rgba": [
+        0.9,
+        0.25,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        180,
+        30,
+        140,
+        90
+      ],
+      "rgba": [
+        0.2,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "cx": 160,
+      "cy": 170,
+      "op": "fill_circle",
+      "radius": 45,
+      "rgba": [
+        0.25,
+        0.75,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "pre-filter chrome",
+      "x": 30,
+      "y": 150
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

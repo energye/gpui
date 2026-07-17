@@ -1,0 +1,318 @@
+{
+  "id": "D108_PRReviewComposition",
+  "size": [
+    500,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        500,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        500,
+        340
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "PR #42 · composition coverage",
+      "x": 12,
+      "y": 24
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        0,
+        40,
+        500,
+        250
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        46,
+        500,
+        24
+      ],
+      "rgba": [
+        0.14,
+        0.15,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "   func Render() {",
+      "x": 16,
+      "y": 60
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        70,
+        500,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.14,
+        0.14,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.55,
+        0.55,
+        1
+      ],
+      "text": "-   oldClip()",
+      "x": 16,
+      "y": 84
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        94,
+        500,
+        24
+      ],
+      "rgba": [
+        0.12,
+        0.28,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.5,
+        0.9,
+        0.6,
+        1
+      ],
+      "text": "+   clip.Preserve()",
+      "x": 16,
+      "y": 108
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        118,
+        500,
+        24
+      ],
+      "rgba": [
+        0.12,
+        0.28,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.5,
+        0.9,
+        0.6,
+        1
+      ],
+      "text": "+   layer.Push(0.9)",
+      "x": 16,
+      "y": 132
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        142,
+        500,
+        24
+      ],
+      "rgba": [
+        0.14,
+        0.15,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "    draw()",
+      "x": 16,
+      "y": 156
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        166,
+        500,
+        24
+      ],
+      "rgba": [
+        0.14,
+        0.15,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "   }",
+      "x": 16,
+      "y": 180
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        80,
+        170,
+        280,
+        56
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Reviewer: LGTM after ClipPreserve gate",
+      "x": 92,
+      "y": 200
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        290,
+        500,
+        50
+      ],
+      "rgba": [
+        0.16,
+        0.18,
+        0.22,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        380,
+        302,
+        100,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.65,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Approve",
+      "x": 400,
+      "y": 320
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

@@ -1,0 +1,117 @@
+{
+  "id": "D91_ClipPreserveFillStrokeText",
+  "size": [
+    320,
+    220
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 13
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        220
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        220
+      ],
+      "rgba": [
+        0.93,
+        0.94,
+        0.96,
+        1
+      ]
+    },
+    {
+      "close": true,
+      "op": "fill_path",
+      "points": [
+        [
+          40,
+          40
+        ],
+        [
+          260,
+          50
+        ],
+        [
+          240,
+          180
+        ],
+        [
+          50,
+          170
+        ]
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.9,
+        0.35
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.9
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        90,
+        90,
+        140,
+        50
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "ClipPreserve",
+      "x": 105,
+      "y": 120
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

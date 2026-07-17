@@ -1,0 +1,267 @@
+{
+  "id": "D172_SidebarRailFlyoutActiveRoute",
+  "size": [
+    420,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        56,
+        300
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        20,
+        28,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.55,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        64,
+        28,
+        28
+      ],
+      "rgba": [
+        0.35,
+        0.55,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        100,
+        4,
+        36
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        10,
+        102,
+        36,
+        32
+      ],
+      "rgba": [
+        0.2,
+        0.25,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        152,
+        28,
+        28
+      ],
+      "rgba": [
+        0.45,
+        0.55,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        196,
+        28,
+        28
+      ],
+      "rgba": [
+        0.5,
+        0.55,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        12,
+        240,
+        28,
+        28
+      ],
+      "rgba": [
+        0.55,
+        0.55,
+        0.85,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.97
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        60,
+        80,
+        160,
+        160
+      ],
+      "rgba": [
+        0.16,
+        0.18,
+        0.22,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        72,
+        100,
+        130,
+        28
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "Dashboard",
+      "x": 84,
+      "y": 118
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "Reports",
+      "x": 84,
+      "y": 150
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "Settings",
+      "x": 84,
+      "y": 182
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        56,
+        0,
+        364,
+        300
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "main content",
+      "x": 240,
+      "y": 40
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

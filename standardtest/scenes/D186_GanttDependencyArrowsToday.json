@@ -1,0 +1,207 @@
+{
+  "id": "D186_GanttDependencyArrowsToday",
+  "size": [
+    520,
+    280
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 10
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        280
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        280
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ],
+      "width": 2,
+      "x": 280,
+      "x2": 280,
+      "y": 20,
+      "y2": 260
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        50,
+        120,
+        28
+      ],
+      "rgba": [
+        0.25,
+        0.5,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Task 1",
+      "x": 8,
+      "y": 68
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        140,
+        100,
+        160,
+        28
+      ],
+      "rgba": [
+        0.35,
+        0.5,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Task 2",
+      "x": 8,
+      "y": 118
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        200,
+        150,
+        100,
+        28
+      ],
+      "rgba": [
+        0.45,
+        0.5,
+        0.6499999999999999,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Task 3",
+      "x": 8,
+      "y": 168
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        260,
+        200,
+        140,
+        28
+      ],
+      "rgba": [
+        0.55,
+        0.5,
+        0.5499999999999999,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Task 4",
+      "x": 8,
+      "y": 218
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.4,
+        0.45,
+        0.55,
+        1
+      ],
+      "width": 1.5,
+      "x": 160,
+      "x2": 160,
+      "y": 78,
+      "y2": 100
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.4,
+        0.45,
+        0.55,
+        1
+      ],
+      "width": 1.5,
+      "x": 160,
+      "x2": 140,
+      "y": 100,
+      "y2": 100
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

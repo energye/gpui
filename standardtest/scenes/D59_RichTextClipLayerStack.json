@@ -1,0 +1,261 @@
+{
+  "id": "D59_RichTextClipLayerStack",
+  "size": [
+    420,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 13
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        0.93,
+        0.94,
+        0.96,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        20,
+        20,
+        240,
+        260
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        20,
+        20,
+        240,
+        260
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "text": "Composition probes validate ",
+      "x": 32,
+      "y": 45.876953125
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "text": "arbitrary axis crossings: clip, ",
+      "x": 32,
+      "y": 65.380126953125
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "text": "layer, blend, text wrapping, ",
+      "x": 32,
+      "y": 84.88330078125
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "text": "and stroke outlines under real ",
+      "x": 32,
+      "y": 104.386474609375
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "text": "GPU paths.",
+      "x": 32,
+      "y": 123.8896484375
+    },
+    {
+      "op": "stroke_text",
+      "rgba": [
+        0.15,
+        0.45,
+        0.9,
+        1
+      ],
+      "text": "Outlined title",
+      "width": 1.2,
+      "x": 32,
+      "y": 200
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.92
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        280,
+        30,
+        120,
+        70
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card-1",
+      "x": 319.163818359375,
+      "y": 68.376953125
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.92
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        280,
+        115,
+        120,
+        70
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card-2",
+      "x": 319.163818359375,
+      "y": 153.376953125
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.92
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        280,
+        200,
+        120,
+        70
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "card-3",
+      "x": 319.163818359375,
+      "y": 238.376953125
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

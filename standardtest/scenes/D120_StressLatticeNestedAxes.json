@@ -1,0 +1,6402 @@
+{
+  "id": "D120_StressLatticeNestedAxes",
+  "size": [
+    480,
+    360
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 9
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        360
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        8,
+        8,
+        464,
+        344
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        360
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 28,
+      "cy": 28,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        18,
+        18,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "0",
+      "x": 19,
+      "y": 31
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        130,
+        18,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "4",
+      "x": 131,
+      "y": 31
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 168,
+      "cy": 28,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        242,
+        18,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "8",
+      "x": 243,
+      "y": 31
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 308,
+      "cy": 28,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        354,
+        18,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "12",
+      "x": 355,
+      "y": 31
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        16,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.3,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 448,
+      "cy": 28,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "16",
+      "x": 19,
+      "y": 59
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        102,
+        46,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 140,
+      "cy": 56,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "20",
+      "x": 131,
+      "y": 59
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        214,
+        46,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "24",
+      "x": 243,
+      "y": 59
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 280,
+      "cy": 56,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        326,
+        46,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "28",
+      "x": 355,
+      "y": 59
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 420,
+      "cy": 56,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        44,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.32999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        438,
+        46,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "32",
+      "x": 19,
+      "y": 87
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        74,
+        74,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 112,
+      "cy": 84,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "36",
+      "x": 131,
+      "y": 87
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        186,
+        74,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 252,
+      "cy": 84,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "40",
+      "x": 243,
+      "y": 87
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        298,
+        74,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "44",
+      "x": 355,
+      "y": 87
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 392,
+      "cy": 84,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        410,
+        74,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        72,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.36,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "48",
+      "x": 19,
+      "y": 115
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        46,
+        102,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 84,
+      "cy": 112,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "52",
+      "x": 131,
+      "y": 115
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        158,
+        102,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 224,
+      "cy": 112,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "56",
+      "x": 243,
+      "y": 115
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        270,
+        102,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 364,
+      "cy": 112,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "60",
+      "x": 355,
+      "y": 115
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        382,
+        102,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        100,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.39,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        18,
+        130,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "64",
+      "x": 19,
+      "y": 143
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 56,
+      "cy": 140,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        130,
+        130,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "68",
+      "x": 131,
+      "y": 143
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 196,
+      "cy": 140,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        242,
+        130,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "72",
+      "x": 243,
+      "y": 143
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 336,
+      "cy": 140,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        354,
+        130,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "76",
+      "x": 355,
+      "y": 143
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        128,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.42,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 28,
+      "cy": 168,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "80",
+      "x": 19,
+      "y": 171
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        102,
+        158,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "84",
+      "x": 131,
+      "y": 171
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 168,
+      "cy": 168,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        214,
+        158,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "88",
+      "x": 243,
+      "y": 171
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 308,
+      "cy": 168,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        326,
+        158,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "92",
+      "x": 355,
+      "y": 171
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        156,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.44999999999999996,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 448,
+      "cy": 168,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        438,
+        158,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "96",
+      "x": 19,
+      "y": 199
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        74,
+        186,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 140,
+      "cy": 196,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "0",
+      "x": 131,
+      "y": 199
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        186,
+        186,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "4",
+      "x": 243,
+      "y": 199
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 280,
+      "cy": 196,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        298,
+        186,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "8",
+      "x": 355,
+      "y": 199
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 420,
+      "cy": 196,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        410,
+        186,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        184,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.48,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "12",
+      "x": 19,
+      "y": 227
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        46,
+        214,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 112,
+      "cy": 224,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "16",
+      "x": 131,
+      "y": 227
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        158,
+        214,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 252,
+      "cy": 224,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "20",
+      "x": 243,
+      "y": 227
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        270,
+        214,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "24",
+      "x": 355,
+      "y": 227
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 392,
+      "cy": 224,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        382,
+        214,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        212,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.51,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        18,
+        242,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "28",
+      "x": 19,
+      "y": 255
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 84,
+      "cy": 252,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        130,
+        242,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "32",
+      "x": 131,
+      "y": 255
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 224,
+      "cy": 252,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        242,
+        242,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "36",
+      "x": 243,
+      "y": 255
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 364,
+      "cy": 252,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        354,
+        242,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "40",
+      "x": 355,
+      "y": 255
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        240,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.54,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "44",
+      "x": 19,
+      "y": 283
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 56,
+      "cy": 280,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        102,
+        270,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "48",
+      "x": 131,
+      "y": 283
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 196,
+      "cy": 280,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        214,
+        270,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "52",
+      "x": 243,
+      "y": 283
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 336,
+      "cy": 280,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        326,
+        270,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "56",
+      "x": 355,
+      "y": 283
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        268,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.5700000000000001,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        438,
+        270,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 28,
+      "cy": 308,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "60",
+      "x": 19,
+      "y": 311
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        74,
+        298,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "64",
+      "x": 131,
+      "y": 311
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 168,
+      "cy": 308,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        186,
+        298,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "68",
+      "x": 243,
+      "y": 311
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 308,
+      "cy": 308,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        298,
+        298,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "72",
+      "x": 355,
+      "y": 311
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        410,
+        298,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        296,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.6,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 448,
+      "cy": 308,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        16,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.2,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "76",
+      "x": 19,
+      "y": 339
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        44,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.24000000000000002,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        46,
+        326,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        72,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.28,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        100,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.32,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        128,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.36,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 140,
+      "cy": 336,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "80",
+      "x": 131,
+      "y": 339
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        156,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.4,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        158,
+        326,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        184,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.44,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        212,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.48000000000000004,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        240,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.52,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "84",
+      "x": 243,
+      "y": 339
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        268,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.56,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 280,
+      "cy": 336,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        270,
+        326,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        296,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        324,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.64,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        352,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.6799999999999999,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "88",
+      "x": 355,
+      "y": 339
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        380,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.72,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        382,
+        326,
+        10,
+        10
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        408,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.76,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 420,
+      "cy": 336,
+      "op": "fill_circle",
+      "radius": 8,
+      "rgba": [
+        1,
+        0.7,
+        0.5,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        436,
+        324,
+        24,
+        24
+      ],
+      "rgba": [
+        0.8,
+        0.6299999999999999,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.9
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        390,
+        16,
+        70,
+        24
+      ],
+      "rgba": [
+        0.9,
+        0.25,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "STRESS",
+      "x": 400,
+      "y": 32
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

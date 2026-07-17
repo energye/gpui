@@ -1,0 +1,505 @@
+{
+  "id": "D73_IDEDockLayoutComposition",
+  "size": [
+    560,
+    360
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 10
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        360
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        48,
+        336
+      ],
+      "rgba": [
+        0.14,
+        0.15,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        10,
+        16,
+        28,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        10,
+        64,
+        28,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        10,
+        112,
+        28,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        10,
+        160,
+        28,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        10,
+        208,
+        28,
+        28
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        48,
+        0,
+        160,
+        336
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        48,
+        0,
+        160,
+        336
+      ],
+      "rgba": [
+        0.18,
+        0.19,
+        0.22,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 0",
+      "x": 60,
+      "y": 28
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 1",
+      "x": 60,
+      "y": 56
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 2",
+      "x": 60,
+      "y": 84
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 3",
+      "x": 60,
+      "y": 112
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 4",
+      "x": 60,
+      "y": 140
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 5",
+      "x": 60,
+      "y": 168
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 6",
+      "x": 60,
+      "y": 196
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 7",
+      "x": 60,
+      "y": 224
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 8",
+      "x": 60,
+      "y": 252
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ],
+      "text": "explorer 9",
+      "x": 60,
+      "y": 280
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        208,
+        0,
+        352,
+        240
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        208,
+        0,
+        352,
+        240
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 1  render.Compose(axis_0)",
+      "x": 220,
+      "y": 24
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 2  render.Compose(axis_1)",
+      "x": 220,
+      "y": 42
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 3  render.Compose(axis_2)",
+      "x": 220,
+      "y": 60
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 4  render.Compose(axis_3)",
+      "x": 220,
+      "y": 78
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 5  render.Compose(axis_4)",
+      "x": 220,
+      "y": 96
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 6  render.Compose(axis_5)",
+      "x": 220,
+      "y": 114
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 7  render.Compose(axis_6)",
+      "x": 220,
+      "y": 132
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 8  render.Compose(axis_7)",
+      "x": 220,
+      "y": 150
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 9  render.Compose(axis_8)",
+      "x": 220,
+      "y": 168
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "10  render.Compose(axis_9)",
+      "x": 220,
+      "y": 186
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "11  render.Compose(axis_10)",
+      "x": 220,
+      "y": 204
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "12  render.Compose(axis_11)",
+      "x": 220,
+      "y": 222
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        208,
+        240,
+        352,
+        96
+      ],
+      "rgba": [
+        0.16,
+        0.17,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.8,
+        0.5,
+        1
+      ],
+      "text": "terminal $ go test ./render -run Comp",
+      "x": 220,
+      "y": 280
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        336,
+        560,
+        24
+      ],
+      "rgba": [
+        0.15,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Ln 12, Col 4  |  GPU ops composition",
+      "x": 12,
+      "y": 352
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

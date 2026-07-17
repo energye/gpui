@@ -1,0 +1,492 @@
+{
+  "id": "D132_AdvancedBlendCascadeStrip",
+  "size": [
+    520,
+    220
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 10
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        220
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.3,
+        0.4,
+        0.7,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        52,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.35,
+        0.4,
+        0.6599999999999999,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        104,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.4,
+        0.4,
+        0.62,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        156,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.45,
+        0.4,
+        0.58,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        208,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.5,
+        0.4,
+        0.5399999999999999,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        260,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.55,
+        0.4,
+        0.49999999999999994,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        312,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.4,
+        0.45999999999999996,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        364,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.65,
+        0.4,
+        0.41999999999999993,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        416,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.7,
+        0.4,
+        0.37999999999999995,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        468,
+        0,
+        52,
+        220
+      ],
+      "rgba": [
+        0.75,
+        0.4,
+        0.33999999999999997,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        20,
+        40,
+        50,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "Mul",
+      "x": 28,
+      "y": 170
+    },
+    {
+      "blend": "screen",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        80,
+        40,
+        50,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "Scr",
+      "x": 88,
+      "y": 170
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        140,
+        40,
+        50,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "Ovl",
+      "x": 148,
+      "y": 170
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        200,
+        40,
+        50,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "Plus",
+      "x": 208,
+      "y": 170
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        260,
+        40,
+        50,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "Drk",
+      "x": 268,
+      "y": 170
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        320,
+        40,
+        50,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "Ltn",
+      "x": 328,
+      "y": 170
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        380,
+        40,
+        50,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "Dif",
+      "x": 388,
+      "y": 170
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        440,
+        40,
+        50,
+        100
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.2,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.05,
+        0.05,
+        0.08,
+        1
+      ],
+      "text": "Exc",
+      "x": 448,
+      "y": 170
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        430,
+        12,
+        70,
+        24
+      ],
+      "rgba": [
+        0.95,
+        0.2,
+        0.3,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

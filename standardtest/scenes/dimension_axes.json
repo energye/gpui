@@ -1,0 +1,656 @@
+{
+  "id": "dimension_axes",
+  "size": [
+    720,
+    420
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        720,
+        420
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        720,
+        44
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "Phase A dimension axes — composition matrix",
+      "x": 16,
+      "y": 28
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        20,
+        60,
+        160,
+        150
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "clip",
+      "x": 32,
+      "y": 82
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 30,
+      "y": 96
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        0,
+        0,
+        140,
+        90
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        200,
+        120
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        195,
+        60,
+        160,
+        150
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "layer",
+      "x": 207,
+      "y": 82
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 205,
+      "y": 96
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        10,
+        10,
+        100,
+        60
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.55
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        30,
+        25,
+        100,
+        55
+      ],
+      "rgba": [
+        0.95,
+        0.75,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        370,
+        60,
+        160,
+        150
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "blend",
+      "x": 382,
+      "y": 82
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 380,
+      "y": 96
+    },
+    {
+      "cx": 50,
+      "cy": 45,
+      "op": "fill_circle",
+      "radius": 30,
+      "rgba": [
+        0.2,
+        0.6,
+        0.9,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 75,
+      "cy": 45,
+      "op": "fill_circle",
+      "radius": 30,
+      "rgba": [
+        0.95,
+        0.4,
+        0.3,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        545,
+        60,
+        160,
+        150
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "text",
+      "x": 557,
+      "y": 82
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 555,
+      "y": 96
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Aa 文字",
+      "x": 16,
+      "y": 50
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        20,
+        230,
+        160,
+        150
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "image",
+      "x": 32,
+      "y": 252
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 30,
+      "y": 266
+    },
+    {
+      "img_h": 48,
+      "img_w": 48,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.1568627450980392,
+        0.6274509803921569,
+        0.8627450980392157,
+        1
+      ],
+      "x": 20,
+      "y": 20
+    },
+    {
+      "img_h": 48,
+      "img_w": 48,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.1568627450980392,
+        0.6274509803921569,
+        0.8627450980392157,
+        1
+      ],
+      "x": 55,
+      "y": 35
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        195,
+        230,
+        160,
+        150
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "transform",
+      "x": 207,
+      "y": 252
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 205,
+      "y": 266
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 70,
+      "y": 50
+    },
+    {
+      "angle": 0.35,
+      "op": "rotate"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        -40,
+        -20,
+        80,
+        40
+      ],
+      "rgba": [
+        0.9,
+        0.35,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        370,
+        230,
+        160,
+        150
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "HiDPI",
+      "x": 382,
+      "y": 252
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 380,
+      "y": 266
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.2,
+        0.25,
+        0.35,
+        1
+      ],
+      "width": 0,
+      "x": 10,
+      "x2": 130,
+      "y": 20,
+      "y2": 20
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.2,
+        0.25,
+        0.35,
+        1
+      ],
+      "width": 0,
+      "x": 10,
+      "x2": 130,
+      "y": 40,
+      "y2": 40
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "scale/hairline",
+      "x": 16,
+      "y": 70
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        545,
+        230,
+        160,
+        150
+      ],
+      "rgba": [
+        0.98,
+        0.98,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "damage",
+      "x": 557,
+      "y": 252
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 555,
+      "y": 266
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        8,
+        8,
+        124,
+        74
+      ],
+      "rgba": [
+        0.85,
+        0.87,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        20,
+        20,
+        50,
+        40
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        200,
+        120
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        70,
+        35,
+        50,
+        40
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        200,
+        120
+      ],
+      "rgba": [
+        0.3,
+        0.75,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "pop"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

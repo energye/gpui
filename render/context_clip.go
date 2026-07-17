@@ -56,6 +56,7 @@ func (c *Context) ClipPreserve() {
 // This is a faster alternative to creating a rectangular path and calling Clip().
 // The clip region is intersected with any existing clip regions.
 func (c *Context) ClipRect(x, y, w, h float64) {
+
 	if c.clipStack == nil {
 		c.initClipStack()
 	}
@@ -88,6 +89,7 @@ func (c *Context) ClipRect(x, y, w, h float64) {
 //
 // On CPU, the SDF is evaluated per-pixel during coverage computation.
 func (c *Context) ClipRoundRect(x, y, w, h, radius float64) {
+
 	if radius <= 0 {
 		c.ClipRect(x, y, w, h)
 		return
@@ -124,6 +126,7 @@ func (c *Context) ClipRoundRect(x, y, w, h, radius float64) {
 
 // ResetClip removes all clipping regions, restoring the full canvas as drawable.
 func (c *Context) ResetClip() {
+
 	if c.clipStack == nil {
 		return
 	}

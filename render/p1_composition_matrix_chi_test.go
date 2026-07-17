@@ -17,6 +17,11 @@ import (
 
 func TestP1_Comp_D181_ChatThreadReactionsComposer(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D181_ChatThreadReactionsComposer"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D181_ChatThreadReactionsComposer")
+		return
+	}
 	const w, h = 420, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -70,6 +75,11 @@ func TestP1_Comp_D181_ChatThreadReactionsComposer(t *testing.T) {
 
 func TestP1_Comp_D182_InboxFiltersBulkActions(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D182_InboxFiltersBulkActions"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D182_InboxFiltersBulkActions")
+		return
+	}
 	const w, h = 520, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -121,6 +131,11 @@ func TestP1_Comp_D182_InboxFiltersBulkActions(t *testing.T) {
 
 func TestP1_Comp_D183_SettingsSearchAnchoredSections(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D183_SettingsSearchAnchoredSections"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D183_SettingsSearchAnchoredSections")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -158,6 +173,11 @@ func TestP1_Comp_D183_SettingsSearchAnchoredSections(t *testing.T) {
 
 func TestP1_Comp_D184_BoardFiltersSwimLanesCollapsed(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D184_BoardFiltersSwimLanesCollapsed"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D184_BoardFiltersSwimLanesCollapsed")
+		return
+	}
 	const w, h = 520, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -213,6 +233,11 @@ func TestP1_Comp_D184_BoardFiltersSwimLanesCollapsed(t *testing.T) {
 
 func TestP1_Comp_D185_PivotTableHeatCells(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D185_PivotTableHeatCells"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D185_PivotTableHeatCells")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -262,6 +287,11 @@ func TestP1_Comp_D185_PivotTableHeatCells(t *testing.T) {
 
 func TestP1_Comp_D186_GanttDependencyArrowsToday(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D186_GanttDependencyArrowsToday"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D186_GanttDependencyArrowsToday")
+		return
+	}
 	const w, h = 520, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -303,6 +333,11 @@ func TestP1_Comp_D186_GanttDependencyArrowsToday(t *testing.T) {
 
 func TestP1_Comp_D187_CarouselPeekDotsProgress(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D187_CarouselPeekDotsProgress"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D187_CarouselPeekDotsProgress")
+		return
+	}
 	const w, h = 420, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -356,6 +391,11 @@ func TestP1_Comp_D187_CarouselPeekDotsProgress(t *testing.T) {
 
 func TestP1_Comp_D188_OrgChartConnectorsCollapse(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D188_OrgChartConnectorsCollapse"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D188_OrgChartConnectorsCollapse")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -411,6 +451,11 @@ func TestP1_Comp_D188_OrgChartConnectorsCollapse(t *testing.T) {
 
 func TestP1_Comp_D189_MindmapRadialBranches(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D189_MindmapRadialBranches"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D189_MindmapRadialBranches")
+		return
+	}
 	const w, h = 420, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -446,6 +491,11 @@ func TestP1_Comp_D189_MindmapRadialBranches(t *testing.T) {
 
 func TestP1_Comp_D190_VideoEditorTimelineTracks(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D190_VideoEditorTimelineTracks"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D190_VideoEditorTimelineTracks")
+		return
+	}
 	const w, h = 560, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -491,6 +541,11 @@ func TestP1_Comp_D190_VideoEditorTimelineTracks(t *testing.T) {
 
 func TestP1_Comp_D191_SchemaERDiagramCrowFoot(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D191_SchemaERDiagramCrowFoot"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D191_SchemaERDiagramCrowFoot")
+		return
+	}
 	const w, h = 480, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -533,6 +588,11 @@ func TestP1_Comp_D191_SchemaERDiagramCrowFoot(t *testing.T) {
 
 func TestP1_Comp_D192_LogStreamSeverityFilters(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D192_LogStreamSeverityFilters"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D192_LogStreamSeverityFilters")
+		return
+	}
 	const w, h = 500, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -569,6 +629,11 @@ func TestP1_Comp_D192_LogStreamSeverityFilters(t *testing.T) {
 
 func TestP1_Comp_D193_SitemapHierarchyConnectors(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D193_SitemapHierarchyConnectors"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D193_SitemapHierarchyConnectors")
+		return
+	}
 	const w, h = 460, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -616,6 +681,11 @@ func TestP1_Comp_D193_SitemapHierarchyConnectors(t *testing.T) {
 
 func TestP1_Comp_D194_NotebookCellsOutputFold(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D194_NotebookCellsOutputFold"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D194_NotebookCellsOutputFold")
+		return
+	}
 	const w, h = 480, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -683,6 +753,11 @@ func TestP1_Comp_D194_NotebookCellsOutputFold(t *testing.T) {
 
 func TestP1_Comp_D195_CMSBlockEditorNest(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D195_CMSBlockEditorNest"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D195_CMSBlockEditorNest")
+		return
+	}
 	const w, h = 440, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -726,6 +801,11 @@ func TestP1_Comp_D195_CMSBlockEditorNest(t *testing.T) {
 
 func TestP1_Comp_D196_ShopProductGalleryVariant(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D196_ShopProductGalleryVariant"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D196_ShopProductGalleryVariant")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -779,6 +859,11 @@ func TestP1_Comp_D196_ShopProductGalleryVariant(t *testing.T) {
 
 func TestP1_Comp_D197_AdminCRUDTableRowActions(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D197_AdminCRUDTableRowActions"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D197_AdminCRUDTableRowActions")
+		return
+	}
 	const w, h = 520, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -830,6 +915,11 @@ func TestP1_Comp_D197_AdminCRUDTableRowActions(t *testing.T) {
 
 func TestP1_Comp_D198_OnboardingCoachmarksOverlay(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D198_OnboardingCoachmarksOverlay"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D198_OnboardingCoachmarksOverlay")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -883,6 +973,11 @@ func TestP1_Comp_D198_OnboardingCoachmarksOverlay(t *testing.T) {
 
 func TestP1_Comp_D199_StatusPageIncidentsTimeline(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D199_StatusPageIncidentsTimeline"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D199_StatusPageIncidentsTimeline")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -934,6 +1029,11 @@ func TestP1_Comp_D199_StatusPageIncidentsTimeline(t *testing.T) {
 
 func TestP1_Comp_D200_KitchenSinkV7CompositionBlast(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D200_KitchenSinkV7CompositionBlast"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D200_KitchenSinkV7CompositionBlast")
+		return
+	}
 	const w, h = 640, 440
 	dc := render.NewContext(w, h)
 	defer dc.Close()

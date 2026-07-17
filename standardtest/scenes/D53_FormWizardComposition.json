@@ -1,0 +1,358 @@
+{
+  "id": "D53_FormWizardComposition",
+  "size": [
+    440,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        440,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        440,
+        320
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "cx": 40,
+      "cy": 36,
+      "op": "fill_circle",
+      "radius": 14,
+      "rgba": [
+        0.75,
+        0.78,
+        0.82,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Account",
+      "x": 20,
+      "y": 64
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.8,
+        0.82,
+        0.85,
+        1
+      ],
+      "width": 2,
+      "x": 56,
+      "x2": 140,
+      "y": 36,
+      "y2": 36
+    },
+    {
+      "cx": 160,
+      "cy": 36,
+      "op": "fill_circle",
+      "radius": 14,
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Profile",
+      "x": 140,
+      "y": 64
+    },
+    {
+      "op": "stroke_line",
+      "rgba": [
+        0.8,
+        0.82,
+        0.85,
+        1
+      ],
+      "width": 2,
+      "x": 176,
+      "x2": 260,
+      "y": 36,
+      "y2": 36
+    },
+    {
+      "cx": 280,
+      "cy": 36,
+      "op": "fill_circle",
+      "radius": 14,
+      "rgba": [
+        0.75,
+        0.78,
+        0.82,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Review",
+      "x": 260,
+      "y": 64
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        40,
+        90,
+        360,
+        190
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        40,
+        90,
+        360,
+        190
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ],
+      "text": "Display name",
+      "x": 56,
+      "y": 110
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        56,
+        116,
+        300,
+        26
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ],
+      "text": "Email",
+      "x": 56,
+      "y": 150
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        56,
+        156,
+        300,
+        26
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 4,
+      "rect": [
+        56.5,
+        156.5,
+        299,
+        25
+      ],
+      "rgba": [
+        0.9,
+        0.25,
+        0.25,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.25,
+        0.25,
+        1
+      ],
+      "text": "invalid email",
+      "x": 56,
+      "y": 190
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ],
+      "text": "Timezone",
+      "x": 56,
+      "y": 190
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        56,
+        196,
+        300,
+        26
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ],
+      "text": "Bio",
+      "x": 56,
+      "y": 230
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 4,
+      "rect": [
+        56,
+        236,
+        300,
+        26
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        280,
+        70,
+        140,
+        70
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "field help tip",
+      "x": 292,
+      "y": 110
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

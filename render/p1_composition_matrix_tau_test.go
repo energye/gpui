@@ -19,6 +19,11 @@ import (
 // D141: command palette over dense workspace — scrim × list × shortcuts × selection.
 func TestP1_Comp_D141_CommandPaletteOverWorkspace(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D141_CommandPaletteOverWorkspace"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D141_CommandPaletteOverWorkspace")
+		return
+	}
 	const w, h = 520, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -81,6 +86,11 @@ func TestP1_Comp_D141_CommandPaletteOverWorkspace(t *testing.T) {
 // D142: nested popover cascade — menu × submenu × tip × outside dismiss dim.
 func TestP1_Comp_D142_NestedPopoverCascade(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D142_NestedPopoverCascade"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D142_NestedPopoverCascade")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -157,6 +167,11 @@ func TestP1_Comp_D142_NestedPopoverCascade(t *testing.T) {
 // D143: dual-viewport mock — two compose regions × independent clips × shared chrome.
 func TestP1_Comp_D143_DualViewportMockComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D143_DualViewportMockComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D143_DualViewportMockComposition")
+		return
+	}
 	const w, h = 560, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -218,6 +233,11 @@ func TestP1_Comp_D143_DualViewportMockComposition(t *testing.T) {
 // D144: sankey flow density — bands × nodes × labels × clip legend.
 func TestP1_Comp_D144_SankeyFlowDensityComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D144_SankeyFlowDensityComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D144_SankeyFlowDensityComposition")
+		return
+	}
 	const w, h = 520, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -282,6 +302,11 @@ func TestP1_Comp_D144_SankeyFlowDensityComposition(t *testing.T) {
 // D145: map composition — tiles × route × markers × legend × compass.
 func TestP1_Comp_D145_MapTilesRouteMarkersComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D145_MapTilesRouteMarkersComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D145_MapTilesRouteMarkersComposition")
+		return
+	}
 	const w, h = 480, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -363,6 +388,11 @@ func TestP1_Comp_D145_MapTilesRouteMarkersComposition(t *testing.T) {
 // D146: trading terminal — order book × spark chart × trades tape × badge.
 func TestP1_Comp_D146_TradingTerminalComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D146_TradingTerminalComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D146_TradingTerminalComposition")
+		return
+	}
 	const w, h = 560, 360
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -436,6 +466,11 @@ func TestP1_Comp_D146_TradingTerminalComposition(t *testing.T) {
 // D147: coverage heatmap overlay on code surface.
 func TestP1_Comp_D147_CoverageHeatmapCodeOverlay(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D147_CoverageHeatmapCodeOverlay"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D147_CoverageHeatmapCodeOverlay")
+		return
+	}
 	const w, h = 480, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -490,6 +525,11 @@ func TestP1_Comp_D147_CoverageHeatmapCodeOverlay(t *testing.T) {
 // D148: recursive card stack with offset depth + selected top.
 func TestP1_Comp_D148_RecursiveCardStackDepth(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D148_RecursiveCardStackDepth"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D148_RecursiveCardStackDepth")
+		return
+	}
 	const w, h = 400, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -531,6 +571,11 @@ func TestP1_Comp_D148_RecursiveCardStackDepth(t *testing.T) {
 // D149: before/after filter compare strip with divider.
 func TestP1_Comp_D149_BeforeAfterFilterCompare(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D149_BeforeAfterFilterCompare"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D149_BeforeAfterFilterCompare")
+		return
+	}
 	const w, h = 420, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -585,6 +630,11 @@ func TestP1_Comp_D149_BeforeAfterFilterCompare(t *testing.T) {
 // D150: dense atlas toolbar icons × overflow menu × badge.
 func TestP1_Comp_D150_DenseAtlasToolbarOverflow(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D150_DenseAtlasToolbarOverflow"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D150_DenseAtlasToolbarOverflow")
+		return
+	}
 	const w, h = 480, 160
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -640,6 +690,11 @@ func TestP1_Comp_D150_DenseAtlasToolbarOverflow(t *testing.T) {
 // D151: mesh terrain fan + contour labels + clip legend.
 func TestP1_Comp_D151_MeshTerrainContourLabels(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D151_MeshTerrainContourLabels"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D151_MeshTerrainContourLabels")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -695,6 +750,11 @@ func TestP1_Comp_D151_MeshTerrainContourLabels(t *testing.T) {
 // D152: PresentFrameDamage multi-rect after partial panel updates.
 func TestP1_Comp_D152_PresentFrameDamageMultiRect(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D152_PresentFrameDamageMultiRect"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D152_PresentFrameDamageMultiRect")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -762,6 +822,11 @@ func TestP1_Comp_D152_PresentFrameDamageMultiRect(t *testing.T) {
 // D153: nested backdrop translucent panels over busy scene.
 func TestP1_Comp_D153_NestedBackdropTranslucentPanels(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D153_NestedBackdropTranslucentPanels"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D153_NestedBackdropTranslucentPanels")
+		return
+	}
 	const w, h = 420, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -807,6 +872,11 @@ func TestP1_Comp_D153_NestedBackdropTranslucentPanels(t *testing.T) {
 // D154: path art dash/join gallery under nested clip + labels.
 func TestP1_Comp_D154_PathDashJoinGalleryClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D154_PathDashJoinGalleryClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D154_PathDashJoinGalleryClip")
+		return
+	}
 	const w, h = 420, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -870,6 +940,11 @@ func TestP1_Comp_D154_PathDashJoinGalleryClip(t *testing.T) {
 // D155: image quad warp under path clip + stroke text plate.
 func TestP1_Comp_D155_ImageQuadWarpClipStrokeText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D155_ImageQuadWarpClipStrokeText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D155_ImageQuadWarpClipStrokeText")
+		return
+	}
 	const w, h = 400, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -918,6 +993,11 @@ func TestP1_Comp_D155_ImageQuadWarpClipStrokeText(t *testing.T) {
 // D156: radial + sweep gradient badges under layer opacity.
 func TestP1_Comp_D156_RadialSweepGradientLayerStack(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D156_RadialSweepGradientLayerStack"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D156_RadialSweepGradientLayerStack")
+		return
+	}
 	const w, h = 400, 260
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -960,6 +1040,11 @@ func TestP1_Comp_D156_RadialSweepGradientLayerStack(t *testing.T) {
 // D157: window tiling manager mock — many panes × splitters × active.
 func TestP1_Comp_D157_WindowTilingManagerMock(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D157_WindowTilingManagerMock"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D157_WindowTilingManagerMock")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1018,6 +1103,11 @@ func TestP1_Comp_D157_WindowTilingManagerMock(t *testing.T) {
 // D158: circular progress rings dashboard tiles.
 func TestP1_Comp_D158_CircularProgressDashboard(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D158_CircularProgressDashboard"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D158_CircularProgressDashboard")
+		return
+	}
 	const w, h = 480, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -1083,6 +1173,11 @@ func TestP1_Comp_D158_CircularProgressDashboard(t *testing.T) {
 // D159: multi-context parallel composition snapshot merge mock.
 func TestP1_Comp_D159_MultiContextSnapshotMerge(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D159_MultiContextSnapshotMerge"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D159_MultiContextSnapshotMerge")
+		return
+	}
 	const w, h = 400, 260
 	main := render.NewContext(w, h)
 	defer main.Close()
@@ -1142,6 +1237,11 @@ func TestP1_Comp_D159_MultiContextSnapshotMerge(t *testing.T) {
 // D160: kitchen-sink v5 — ultimate multi-axis stress (clip/layer/blend/text/image/mesh/filter).
 func TestP1_Comp_D160_KitchenSinkV5UltimateStress(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D160_KitchenSinkV5UltimateStress"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D160_KitchenSinkV5UltimateStress")
+		return
+	}
 	const w, h = 600, 420
 	dc := render.NewContext(w, h)
 	defer dc.Close()

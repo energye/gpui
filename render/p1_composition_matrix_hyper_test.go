@@ -19,6 +19,11 @@ import (
 // D91: ClipPreserve fill+stroke same path × layer × text.
 func TestP1_Comp_D91_ClipPreserveFillStrokeText(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D91_ClipPreserveFillStrokeText"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D91_ClipPreserveFillStrokeText")
+		return
+	}
 	const w, h = 320, 220
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -78,6 +83,11 @@ func TestP1_Comp_D91_ClipPreserveFillStrokeText(t *testing.T) {
 // D92: grayscale + color matrix sequential filters on dense UI.
 func TestP1_Comp_D92_GrayscaleColorMatrixDense(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D92_GrayscaleColorMatrixDense"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D92_GrayscaleColorMatrixDense")
+		return
+	}
 	if !render.FiltersRegistered() {
 		t.Fatal("filters not registered")
 	}
@@ -127,6 +137,11 @@ func TestP1_Comp_D92_GrayscaleColorMatrixDense(t *testing.T) {
 // D93: DrawGPUTextureBase underlay + opacity overlay + clip text.
 func TestP1_Comp_D93_GPUTextureBaseOpacityClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D93_GPUTextureBaseOpacityClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D93_GPUTextureBaseOpacityClip")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -200,6 +215,11 @@ func TestP1_Comp_D93_GPUTextureBaseOpacityClip(t *testing.T) {
 // D94: full PresentFrame offscreen e2e after complex draw.
 func TestP1_Comp_D94_PresentFrameComplexScene(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D94_PresentFrameComplexScene"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D94_PresentFrameComplexScene")
+		return
+	}
 	const w, h = 320, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -249,6 +269,11 @@ func TestP1_Comp_D94_PresentFrameComplexScene(t *testing.T) {
 // D95: TextModeMSDF/Bitmap fallback mix × clip × layer (best-effort modes).
 func TestP1_Comp_D95_TextModeMixClipLayer(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D95_TextModeMixClipLayer"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D95_TextModeMixClipLayer")
+		return
+	}
 	const w, h = 380, 200
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -301,6 +326,11 @@ func TestP1_Comp_D95_TextModeMixClipLayer(t *testing.T) {
 // D96: file manager density — tree + icon grid + path bar + selection.
 func TestP1_Comp_D96_FileManagerDensityComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D96_FileManagerDensityComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D96_FileManagerDensityComposition")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -365,6 +395,11 @@ func TestP1_Comp_D96_FileManagerDensityComposition(t *testing.T) {
 // D97: email compose — to/cc chips × body wrap × attach strip × send layer.
 func TestP1_Comp_D97_EmailComposeComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D97_EmailComposeComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D97_EmailComposeComposition")
+		return
+	}
 	const w, h = 460, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -428,6 +463,11 @@ func TestP1_Comp_D97_EmailComposeComposition(t *testing.T) {
 // D98: board swimlanes — lanes × cards × WIP limit × drag ghost.
 func TestP1_Comp_D98_SwimlaneBoardComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D98_SwimlaneBoardComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D98_SwimlaneBoardComposition")
+		return
+	}
 	const w, h = 540, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -490,6 +530,11 @@ func TestP1_Comp_D98_SwimlaneBoardComposition(t *testing.T) {
 // D99: polar chart / radar — path stroke × fill × labels × clip legend.
 func TestP1_Comp_D99_RadarChartComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D99_RadarChartComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D99_RadarChartComposition")
+		return
+	}
 	const w, h = 360, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -556,6 +601,11 @@ func TestP1_Comp_D99_RadarChartComposition(t *testing.T) {
 // D100: pip / picture-in-picture — main stage × floating window × resize handle.
 func TestP1_Comp_D100_PictureInPictureComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D100_PictureInPictureComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D100_PictureInPictureComposition")
+		return
+	}
 	const w, h = 420, 280
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -599,6 +649,11 @@ func TestP1_Comp_D100_PictureInPictureComposition(t *testing.T) {
 // D101: nested scrollport x2 + sticky + horizontal chips + FAB.
 func TestP1_Comp_D101_DoubleScrollStickyChipsFAB(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D101_DoubleScrollStickyChipsFAB"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D101_DoubleScrollStickyChipsFAB")
+		return
+	}
 	const w, h = 400, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -671,6 +726,11 @@ func TestP1_Comp_D101_DoubleScrollStickyChipsFAB(t *testing.T) {
 // D102: multi-resize thrash then complex recompose.
 func TestP1_Comp_D102_MultiResizeRecomposeStress(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D102_MultiResizeRecomposeStress"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D102_MultiResizeRecomposeStress")
+		return
+	}
 	dc := render.NewContext(160, 120)
 	defer dc.Close()
 	font := p1FindFont(t)
@@ -715,6 +775,11 @@ func TestP1_Comp_D102_MultiResizeRecomposeStress(t *testing.T) {
 // D103: damage multi-rect + WritePixels + external tile hybrid update.
 func TestP1_Comp_D103_HybridDamageWritePixelsTexture(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D103_HybridDamageWritePixelsTexture"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D103_HybridDamageWritePixelsTexture")
+		return
+	}
 	const w, h = 400, 260
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -799,6 +864,11 @@ func TestP1_Comp_D103_HybridDamageWritePixelsTexture(t *testing.T) {
 // D104: annotated design canvas — guides × selection handles × multi-select layer.
 func TestP1_Comp_D104_DesignCanvasAnnotations(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D104_DesignCanvasAnnotations"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D104_DesignCanvasAnnotations")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -859,6 +929,11 @@ func TestP1_Comp_D104_DesignCanvasAnnotations(t *testing.T) {
 // D105: kitchen-sink v3 stress — combine rich text, filters, textures, damage, blends.
 func TestP1_Comp_D105_KitchenSinkV3Stress(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D105_KitchenSinkV3Stress"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D105_KitchenSinkV3Stress")
+		return
+	}
 	if !render.FiltersRegistered() {
 		t.Fatal("filters not registered")
 	}

@@ -1,0 +1,1972 @@
+{
+  "id": "D87_ParticleFieldHiDPIComposition",
+  "size": [
+    400,
+    300
+  ],
+  "scale": 2,
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        200,
+        150
+      ],
+      "rgba": [
+        0.06,
+        0.07,
+        0.1,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        10,
+        10,
+        180,
+        130
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 15,
+      "cy": 15,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 62,
+      "cy": 46,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 109,
+      "cy": 77,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 156,
+      "cy": 108,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 43,
+      "cy": 29,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 90,
+      "cy": 60,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 137,
+      "cy": 91,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 24,
+      "cy": 122,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 71,
+      "cy": 43,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 118,
+      "cy": 74,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 165,
+      "cy": 105,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 52,
+      "cy": 26,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 99,
+      "cy": 57,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 146,
+      "cy": 88,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 33,
+      "cy": 119,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 80,
+      "cy": 40,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 127,
+      "cy": 71,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 174,
+      "cy": 102,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 61,
+      "cy": 23,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 108,
+      "cy": 54,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 155,
+      "cy": 85,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 42,
+      "cy": 116,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 89,
+      "cy": 37,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 136,
+      "cy": 68,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 23,
+      "cy": 99,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 70,
+      "cy": 20,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 117,
+      "cy": 51,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 164,
+      "cy": 82,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 51,
+      "cy": 113,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 98,
+      "cy": 34,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 145,
+      "cy": 65,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 32,
+      "cy": 96,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 79,
+      "cy": 17,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 126,
+      "cy": 48,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 173,
+      "cy": 79,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 60,
+      "cy": 110,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 107,
+      "cy": 31,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 154,
+      "cy": 62,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 41,
+      "cy": 93,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 88,
+      "cy": 124,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 135,
+      "cy": 45,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 22,
+      "cy": 76,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 69,
+      "cy": 107,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 116,
+      "cy": 28,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 163,
+      "cy": 59,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 50,
+      "cy": 90,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 97,
+      "cy": 121,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 144,
+      "cy": 42,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 31,
+      "cy": 73,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 78,
+      "cy": 104,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 125,
+      "cy": 25,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 172,
+      "cy": 56,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 59,
+      "cy": 87,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 106,
+      "cy": 118,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 153,
+      "cy": 39,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 40,
+      "cy": 70,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 87,
+      "cy": 101,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 134,
+      "cy": 22,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 21,
+      "cy": 53,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 68,
+      "cy": 84,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 115,
+      "cy": 115,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 162,
+      "cy": 36,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 49,
+      "cy": 67,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 96,
+      "cy": 98,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 143,
+      "cy": 19,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 30,
+      "cy": 50,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 77,
+      "cy": 81,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 124,
+      "cy": 112,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 171,
+      "cy": 33,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 58,
+      "cy": 64,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 105,
+      "cy": 95,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 152,
+      "cy": 16,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 39,
+      "cy": 47,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 86,
+      "cy": 78,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 133,
+      "cy": 109,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 20,
+      "cy": 30,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 67,
+      "cy": 61,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 114,
+      "cy": 92,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 161,
+      "cy": 123,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 48,
+      "cy": 44,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 95,
+      "cy": 75,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 142,
+      "cy": 106,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 29,
+      "cy": 27,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 76,
+      "cy": 58,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 123,
+      "cy": 89,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 170,
+      "cy": 120,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 57,
+      "cy": 41,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 104,
+      "cy": 72,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 151,
+      "cy": 103,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 38,
+      "cy": 24,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 85,
+      "cy": 55,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 132,
+      "cy": 86,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 19,
+      "cy": 117,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 66,
+      "cy": 38,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 113,
+      "cy": 69,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 160,
+      "cy": 100,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 47,
+      "cy": 21,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 94,
+      "cy": 52,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 141,
+      "cy": 83,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 28,
+      "cy": 114,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 75,
+      "cy": 35,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 122,
+      "cy": 66,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 169,
+      "cy": 97,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 56,
+      "cy": 18,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 103,
+      "cy": 49,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 150,
+      "cy": 80,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 37,
+      "cy": 111,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 84,
+      "cy": 32,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 131,
+      "cy": 63,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 18,
+      "cy": 94,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 65,
+      "cy": 15,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 112,
+      "cy": 46,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 159,
+      "cy": 77,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 46,
+      "cy": 108,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 93,
+      "cy": 29,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "plus",
+      "op": "set_blend"
+    },
+    {
+      "cx": 140,
+      "cy": 60,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.4,
+        0.7,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 27,
+      "cy": 91,
+      "op": "fill_circle",
+      "radius": 1.5,
+      "rgba": [
+        0.4,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 74,
+      "cy": 122,
+      "op": "fill_circle",
+      "radius": 2.5,
+      "rgba": [
+        0.5,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 121,
+      "cy": 43,
+      "op": "fill_circle",
+      "radius": 3.5,
+      "rgba": [
+        0.6000000000000001,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "cx": 168,
+      "cy": 74,
+      "op": "fill_circle",
+      "radius": 4.5,
+      "rgba": [
+        0.7,
+        0.5,
+        0.9,
+        0.85
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

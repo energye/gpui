@@ -1,3 +1,10 @@
 tmp/
 lib/
 node_modules
+
+# standardtest generated images (keep directory via .gitkeep)
+standardtest/diff/standard/*
+standardtest/diff/test/*
+standardtest/diff/merge/*
+!standardtest/diff/**/.gitkeep
+standardtest/canvaskit/node_modules/

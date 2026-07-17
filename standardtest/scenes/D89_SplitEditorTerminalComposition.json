@@ -1,0 +1,327 @@
+{
+  "id": "D89_SplitEditorTerminalComposition",
+  "size": [
+    520,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        340
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        340
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 1  split.Compose(0)",
+      "x": 12,
+      "y": 24
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 2  split.Compose(1)",
+      "x": 12,
+      "y": 44
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 3  split.Compose(2)",
+      "x": 12,
+      "y": 64
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 4  split.Compose(3)",
+      "x": 12,
+      "y": 84
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 5  split.Compose(4)",
+      "x": 12,
+      "y": 104
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 6  split.Compose(5)",
+      "x": 12,
+      "y": 124
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 7  split.Compose(6)",
+      "x": 12,
+      "y": 144
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 8  split.Compose(7)",
+      "x": 12,
+      "y": 164
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": " 9  split.Compose(8)",
+      "x": 12,
+      "y": 184
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "10  split.Compose(9)",
+      "x": 12,
+      "y": 204
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "11  split.Compose(10)",
+      "x": 12,
+      "y": 224
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "12  split.Compose(11)",
+      "x": 12,
+      "y": 244
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "13  split.Compose(12)",
+      "x": 12,
+      "y": 264
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.55,
+        0.6,
+        0.7,
+        1
+      ],
+      "text": "14  split.Compose(13)",
+      "x": 12,
+      "y": 284
+    },
+    {
+      "op": "stroke_rect",
+      "rect": [
+        1,
+        1,
+        298,
+        338
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ],
+      "width": 2
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        300,
+        0,
+        6,
+        340
+      ],
+      "rgba": [
+        0.25,
+        0.27,
+        0.32,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        306,
+        0,
+        214,
+        340
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        306,
+        0,
+        214,
+        340
+      ],
+      "rgba": [
+        0.08,
+        0.09,
+        0.1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.85,
+        0.5,
+        1
+      ],
+      "text": "$ go test ./render -run Comp",
+      "x": 316,
+      "y": 30
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.85,
+        0.5,
+        1
+      ],
+      "text": "ok  github.com/energye/gpui/render",
+      "x": 316,
+      "y": 52
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.85,
+        0.5,
+        1
+      ],
+      "text": "$",
+      "x": 316,
+      "y": 74
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

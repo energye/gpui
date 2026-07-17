@@ -1,0 +1,329 @@
+{
+  "id": "D165_WizardFormValidationStickyFooter",
+  "size": [
+    480,
+    340
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        340
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        340
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 16,
+      "rect": [
+        30,
+        20,
+        120,
+        32
+      ],
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "1 Account",
+      "x": 50,
+      "y": 40
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 16,
+      "rect": [
+        170,
+        20,
+        120,
+        32
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "2 Profile",
+      "x": 190,
+      "y": 40
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 16,
+      "rect": [
+        310,
+        20,
+        120,
+        32
+      ],
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "3 Review",
+      "x": 330,
+      "y": 40
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        80,
+        400,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.45,
+        0.55,
+        1
+      ],
+      "text": "Field 1",
+      "x": 52,
+      "y": 102
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        128,
+        400,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.45,
+        0.55,
+        1
+      ],
+      "text": "Field 2",
+      "x": 52,
+      "y": 150
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        176,
+        400,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "stroke_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        176,
+        400,
+        36
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.3,
+        1
+      ],
+      "width": 2
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.3,
+        0.3,
+        1
+      ],
+      "text": "invalid email",
+      "x": 50,
+      "y": 226
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.45,
+        0.55,
+        1
+      ],
+      "text": "Field 3",
+      "x": 52,
+      "y": 198
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        40,
+        224,
+        400,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.4,
+        0.45,
+        0.55,
+        1
+      ],
+      "text": "Field 4",
+      "x": 52,
+      "y": 246
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.97
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        284,
+        480,
+        56
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        340,
+        296,
+        110,
+        32
+      ],
+      "rgba": [
+        0.25,
+        0.7,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Continue",
+      "x": 360,
+      "y": 316
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

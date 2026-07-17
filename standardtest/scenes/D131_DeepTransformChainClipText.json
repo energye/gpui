@@ -1,0 +1,165 @@
+{
+  "id": "D131_DeepTransformChainClipText",
+  "size": [
+    360,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        300
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 16,
+      "rect": [
+        40,
+        40,
+        280,
+        220
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        300
+      ],
+      "rgba": [
+        0.2,
+        0.35,
+        0.7,
+        1
+      ]
+    },
+    {
+      "op": "push"
+    },
+    {
+      "op": "translate",
+      "x": 180,
+      "y": 150
+    },
+    {
+      "angle": 0.35,
+      "op": "rotate"
+    },
+    {
+      "op": "scale",
+      "x": 1.05,
+      "y": 0.95
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.95
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 10,
+      "rect": [
+        -70,
+        -45,
+        140,
+        90
+      ],
+      "rgba": [
+        0.95,
+        0.75,
+        0.15,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.1,
+        0.12,
+        0.16,
+        1
+      ],
+      "text": "xform",
+      "x": -30,
+      "y": 5
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "cx": 50,
+      "cy": -30,
+      "op": "fill_circle",
+      "radius": 14,
+      "rgba": [
+        0.95,
+        0.25,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        250,
+        200,
+        50,
+        30
+      ],
+      "rgba": [
+        0.95,
+        0.45,
+        0.15,
+        1
+      ]
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

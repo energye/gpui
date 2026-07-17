@@ -1,0 +1,3250 @@
+{
+  "name": "standard",
+  "oracle": "canvaskit",
+  "oracle_note": "Pixel standards from CanvasKit (standardtest/canvaskit) using standardtest/scenes. gpui actuals compared via tests or standardtest CLI.",
+  "case_count": 202,
+  "default_diff": {
+    "max_mean_abs": 2.5,
+    "max_rmse": 12,
+    "max_delta": 96,
+    "changed_ratio_max": 0.08,
+    "per_channel_tol": 2,
+    "ignore_alpha": false
+  },
+  "generated_at": "2026-07-17T21:58:05.235Z",
+  "images_dir": "diff/standard",
+  "cases": {
+    "D01_ClipLayerText": {
+      "id": "D01_ClipLayerText",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 200,
+      "file": "D01_ClipLayerText.png",
+      "note": "CanvasKit from standardtest/scenes/D01_ClipLayerText.json",
+      "diff": {
+        "max_mean_abs": 6,
+        "max_rmse": 20,
+        "max_delta": 128,
+        "changed_ratio_max": 0.15,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D02_ClipImageBlend": {
+      "id": "D02_ClipImageBlend",
+      "oracle": "canvaskit",
+      "width": 240,
+      "height": 180,
+      "file": "D02_ClipImageBlend.png",
+      "note": "CanvasKit from standardtest/scenes/D02_ClipImageBlend.json",
+      "diff": {
+        "max_mean_abs": 4,
+        "max_rmse": 16,
+        "max_delta": 96,
+        "changed_ratio_max": 0.12,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D03_ClipPathLayerFill": {
+      "id": "D03_ClipPathLayerFill",
+      "oracle": "canvaskit",
+      "width": 260,
+      "height": 220,
+      "file": "D03_ClipPathLayerFill.png",
+      "note": "CanvasKit from standardtest/scenes/D03_ClipPathLayerFill.json",
+      "diff": {
+        "max_mean_abs": 4,
+        "max_rmse": 16,
+        "max_delta": 96,
+        "changed_ratio_max": 0.12,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D04_HiDPIHairlineText": {
+      "id": "D04_HiDPIHairlineText",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 160,
+      "file": "D04_HiDPIHairlineText.png",
+      "note": "CanvasKit from standardtest/scenes/D04_HiDPIHairlineText.json",
+      "diff": {
+        "max_mean_abs": 6,
+        "max_rmse": 20,
+        "max_delta": 128,
+        "changed_ratio_max": 0.15,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D05_LayerBlendClip": {
+      "id": "D05_LayerBlendClip",
+      "oracle": "canvaskit",
+      "width": 280,
+      "height": 200,
+      "file": "D05_LayerBlendClip.png",
+      "note": "CanvasKit from standardtest/scenes/D05_LayerBlendClip.json",
+      "diff": {
+        "max_mean_abs": 4,
+        "max_rmse": 16,
+        "max_delta": 96,
+        "changed_ratio_max": 0.12,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D06_ImageTextClipBackdrop": {
+      "id": "D06_ImageTextClipBackdrop",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D06_ImageTextClipBackdrop.png",
+      "note": "CanvasKit from standardtest/scenes/D06_ImageTextClipBackdrop.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D07_TransformClipFill": {
+      "id": "D07_TransformClipFill",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 220,
+      "file": "D07_TransformClipFill.png",
+      "note": "CanvasKit from standardtest/scenes/D07_TransformClipFill.json",
+      "diff": {
+        "max_mean_abs": 4,
+        "max_rmse": 16,
+        "max_delta": 96,
+        "changed_ratio_max": 0.12,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D08_MultiRegionRedraw": {
+      "id": "D08_MultiRegionRedraw",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 200,
+      "file": "D08_MultiRegionRedraw.png",
+      "note": "CanvasKit from standardtest/scenes/D08_MultiRegionRedraw.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D09_DashStrokeClipText": {
+      "id": "D09_DashStrokeClipText",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 220,
+      "file": "D09_DashStrokeClipText.png",
+      "note": "CanvasKit from standardtest/scenes/D09_DashStrokeClipText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D100_PictureInPictureComposition": {
+      "id": "D100_PictureInPictureComposition",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 280,
+      "file": "D100_PictureInPictureComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D100_PictureInPictureComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D101_DoubleScrollStickyChipsFAB": {
+      "id": "D101_DoubleScrollStickyChipsFAB",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 340,
+      "file": "D101_DoubleScrollStickyChipsFAB.png",
+      "note": "CanvasKit from standardtest/scenes/D101_DoubleScrollStickyChipsFAB.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D102_MultiResizeRecomposeStress": {
+      "id": "D102_MultiResizeRecomposeStress",
+      "oracle": "canvaskit",
+      "width": 160,
+      "height": 120,
+      "file": "D102_MultiResizeRecomposeStress.png",
+      "note": "CanvasKit from standardtest/scenes/D102_MultiResizeRecomposeStress.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D103_HybridDamageWritePixelsTexture": {
+      "id": "D103_HybridDamageWritePixelsTexture",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 260,
+      "file": "D103_HybridDamageWritePixelsTexture.png",
+      "note": "CanvasKit from standardtest/scenes/D103_HybridDamageWritePixelsTexture.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D104_DesignCanvasAnnotations": {
+      "id": "D104_DesignCanvasAnnotations",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D104_DesignCanvasAnnotations.png",
+      "note": "CanvasKit from standardtest/scenes/D104_DesignCanvasAnnotations.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D105_KitchenSinkV3Stress": {
+      "id": "D105_KitchenSinkV3Stress",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 400,
+      "file": "D105_KitchenSinkV3Stress.png",
+      "note": "CanvasKit from standardtest/scenes/D105_KitchenSinkV3Stress.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D106_MusicPlayerComposition": {
+      "id": "D106_MusicPlayerComposition",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D106_MusicPlayerComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D106_MusicPlayerComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D107_ThreePaneShellComposition": {
+      "id": "D107_ThreePaneShellComposition",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 320,
+      "file": "D107_ThreePaneShellComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D107_ThreePaneShellComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D108_PRReviewComposition": {
+      "id": "D108_PRReviewComposition",
+      "oracle": "canvaskit",
+      "width": 500,
+      "height": 340,
+      "file": "D108_PRReviewComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D108_PRReviewComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D109_WeekCalendarComposition": {
+      "id": "D109_WeekCalendarComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 320,
+      "file": "D109_WeekCalendarComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D109_WeekCalendarComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D10_GradientClipLayer": {
+      "id": "D10_GradientClipLayer",
+      "oracle": "canvaskit",
+      "width": 280,
+      "height": 180,
+      "file": "D10_GradientClipLayer.png",
+      "note": "CanvasKit from standardtest/scenes/D10_GradientClipLayer.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D110_NetworkGraphComposition": {
+      "id": "D110_NetworkGraphComposition",
+      "oracle": "canvaskit",
+      "width": 440,
+      "height": 300,
+      "file": "D110_NetworkGraphComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D110_NetworkGraphComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D111_ImageEditorComposition": {
+      "id": "D111_ImageEditorComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D111_ImageEditorComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D111_ImageEditorComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D112_CheckoutDensityComposition": {
+      "id": "D112_CheckoutDensityComposition",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 340,
+      "file": "D112_CheckoutDensityComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D112_CheckoutDensityComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D113_NotificationDrawerComposition": {
+      "id": "D113_NotificationDrawerComposition",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 300,
+      "file": "D113_NotificationDrawerComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D113_NotificationDrawerComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D114_MultiTabTerminalComposition": {
+      "id": "D114_MultiTabTerminalComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 280,
+      "file": "D114_MultiTabTerminalComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D114_MultiTabTerminalComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D115_MarkdownSplitPreviewComposition": {
+      "id": "D115_MarkdownSplitPreviewComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 300,
+      "file": "D115_MarkdownSplitPreviewComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D115_MarkdownSplitPreviewComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D116_DataGridFrozenMultiSelect": {
+      "id": "D116_DataGridFrozenMultiSelect",
+      "oracle": "canvaskit",
+      "width": 500,
+      "height": 300,
+      "file": "D116_DataGridFrozenMultiSelect.png",
+      "note": "CanvasKit from standardtest/scenes/D116_DataGridFrozenMultiSelect.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D117_FloatingToolbarSelection": {
+      "id": "D117_FloatingToolbarSelection",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 240,
+      "file": "D117_FloatingToolbarSelection.png",
+      "note": "CanvasKit from standardtest/scenes/D117_FloatingToolbarSelection.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D118_RotateMaskBlurShadowStack": {
+      "id": "D118_RotateMaskBlurShadowStack",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 260,
+      "file": "D118_RotateMaskBlurShadowStack.png",
+      "note": "CanvasKit from standardtest/scenes/D118_RotateMaskBlurShadowStack.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D119_FanMeshOverlayCircularPattern": {
+      "id": "D119_FanMeshOverlayCircularPattern",
+      "oracle": "canvaskit",
+      "width": 340,
+      "height": 240,
+      "file": "D119_FanMeshOverlayCircularPattern.png",
+      "note": "CanvasKit from standardtest/scenes/D119_FanMeshOverlayCircularPattern.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D11_EvenOddLayerBlend": {
+      "id": "D11_EvenOddLayerBlend",
+      "oracle": "canvaskit",
+      "width": 240,
+      "height": 200,
+      "file": "D11_EvenOddLayerBlend.png",
+      "note": "CanvasKit from standardtest/scenes/D11_EvenOddLayerBlend.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D120_StressLatticeNestedAxes": {
+      "id": "D120_StressLatticeNestedAxes",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 360,
+      "file": "D120_StressLatticeNestedAxes.png",
+      "note": "CanvasKit from standardtest/scenes/D120_StressLatticeNestedAxes.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D121_ModalStackComposition": {
+      "id": "D121_ModalStackComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D121_ModalStackComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D121_ModalStackComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D122_MultiColumnArticleComposition": {
+      "id": "D122_MultiColumnArticleComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D122_MultiColumnArticleComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D122_MultiColumnArticleComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D123_CADBlueprintComposition": {
+      "id": "D123_CADBlueprintComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D123_CADBlueprintComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D123_CADBlueprintComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D124_VideoCallMosaicComposition": {
+      "id": "D124_VideoCallMosaicComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 360,
+      "file": "D124_VideoCallMosaicComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D124_VideoCallMosaicComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D125_SpreadsheetFrozenMultiRange": {
+      "id": "D125_SpreadsheetFrozenMultiRange",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D125_SpreadsheetFrozenMultiRange.png",
+      "note": "CanvasKit from standardtest/scenes/D125_SpreadsheetFrozenMultiRange.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D126_TimelineScrubberComposition": {
+      "id": "D126_TimelineScrubberComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 280,
+      "file": "D126_TimelineScrubberComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D126_TimelineScrubberComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D127_NestedScrollStickySelection": {
+      "id": "D127_NestedScrollStickySelection",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D127_NestedScrollStickySelection.png",
+      "note": "CanvasKit from standardtest/scenes/D127_NestedScrollStickySelection.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D128_ColorPickerPanelComposition": {
+      "id": "D128_ColorPickerPanelComposition",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 300,
+      "file": "D128_ColorPickerPanelComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D128_ColorPickerPanelComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D129_IsometricBoardComposition": {
+      "id": "D129_IsometricBoardComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D129_IsometricBoardComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D129_IsometricBoardComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D12_MaskFillImage": {
+      "id": "D12_MaskFillImage",
+      "oracle": "canvaskit",
+      "width": 200,
+      "height": 160,
+      "file": "D12_MaskFillImage.png",
+      "note": "CanvasKit from standardtest/scenes/D12_MaskFillImage.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D130_MultiDocIDEComposition": {
+      "id": "D130_MultiDocIDEComposition",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 360,
+      "file": "D130_MultiDocIDEComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D130_MultiDocIDEComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D131_DeepTransformChainClipText": {
+      "id": "D131_DeepTransformChainClipText",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 300,
+      "file": "D131_DeepTransformChainClipText.png",
+      "note": "CanvasKit from standardtest/scenes/D131_DeepTransformChainClipText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D132_AdvancedBlendCascadeStrip": {
+      "id": "D132_AdvancedBlendCascadeStrip",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 220,
+      "file": "D132_AdvancedBlendCascadeStrip.png",
+      "note": "CanvasKit from standardtest/scenes/D132_AdvancedBlendCascadeStrip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D133_FilterGraphChainComposition": {
+      "id": "D133_FilterGraphChainComposition",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 260,
+      "file": "D133_FilterGraphChainComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D133_FilterGraphChainComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D134_MaskedGradientParticlesLabel": {
+      "id": "D134_MaskedGradientParticlesLabel",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 280,
+      "file": "D134_MaskedGradientParticlesLabel.png",
+      "note": "CanvasKit from standardtest/scenes/D134_MaskedGradientParticlesLabel.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D135_InfiniteCanvasFramesComposition": {
+      "id": "D135_InfiniteCanvasFramesComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D135_InfiniteCanvasFramesComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D135_InfiniteCanvasFramesComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D136_HiDPISwitchMidComposition": {
+      "id": "D136_HiDPISwitchMidComposition",
+      "oracle": "canvaskit",
+      "width": 240,
+      "height": 180,
+      "file": "D136_HiDPISwitchMidComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D136_HiDPISwitchMidComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D137_MultiPassDamageStampComposition": {
+      "id": "D137_MultiPassDamageStampComposition",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D137_MultiPassDamageStampComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D137_MultiPassDamageStampComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D138_MixedTextModesLayerClip": {
+      "id": "D138_MixedTextModesLayerClip",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 240,
+      "file": "D138_MixedTextModesLayerClip.png",
+      "note": "CanvasKit from standardtest/scenes/D138_MixedTextModesLayerClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D139_PatternDashImageClipText": {
+      "id": "D139_PatternDashImageClipText",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 280,
+      "file": "D139_PatternDashImageClipText.png",
+      "note": "CanvasKit from standardtest/scenes/D139_PatternDashImageClipText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D13_MaskLayerTextClip": {
+      "id": "D13_MaskLayerTextClip",
+      "oracle": "canvaskit",
+      "width": 280,
+      "height": 180,
+      "file": "D13_MaskLayerTextClip.png",
+      "note": "CanvasKit from standardtest/scenes/D13_MaskLayerTextClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D140_KitchenSinkV4Stress": {
+      "id": "D140_KitchenSinkV4Stress",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 400,
+      "file": "D140_KitchenSinkV4Stress.png",
+      "note": "CanvasKit from standardtest/scenes/D140_KitchenSinkV4Stress.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D141_CommandPaletteOverWorkspace": {
+      "id": "D141_CommandPaletteOverWorkspace",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 360,
+      "file": "D141_CommandPaletteOverWorkspace.png",
+      "note": "CanvasKit from standardtest/scenes/D141_CommandPaletteOverWorkspace.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D142_NestedPopoverCascade": {
+      "id": "D142_NestedPopoverCascade",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D142_NestedPopoverCascade.png",
+      "note": "CanvasKit from standardtest/scenes/D142_NestedPopoverCascade.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D143_DualViewportMockComposition": {
+      "id": "D143_DualViewportMockComposition",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 300,
+      "file": "D143_DualViewportMockComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D143_DualViewportMockComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D144_SankeyFlowDensityComposition": {
+      "id": "D144_SankeyFlowDensityComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 320,
+      "file": "D144_SankeyFlowDensityComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D144_SankeyFlowDensityComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D145_MapTilesRouteMarkersComposition": {
+      "id": "D145_MapTilesRouteMarkersComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 340,
+      "file": "D145_MapTilesRouteMarkersComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D145_MapTilesRouteMarkersComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D146_TradingTerminalComposition": {
+      "id": "D146_TradingTerminalComposition",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 360,
+      "file": "D146_TradingTerminalComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D146_TradingTerminalComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D147_CoverageHeatmapCodeOverlay": {
+      "id": "D147_CoverageHeatmapCodeOverlay",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 300,
+      "file": "D147_CoverageHeatmapCodeOverlay.png",
+      "note": "CanvasKit from standardtest/scenes/D147_CoverageHeatmapCodeOverlay.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D148_RecursiveCardStackDepth": {
+      "id": "D148_RecursiveCardStackDepth",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 300,
+      "file": "D148_RecursiveCardStackDepth.png",
+      "note": "CanvasKit from standardtest/scenes/D148_RecursiveCardStackDepth.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D149_BeforeAfterFilterCompare": {
+      "id": "D149_BeforeAfterFilterCompare",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 240,
+      "file": "D149_BeforeAfterFilterCompare.png",
+      "note": "CanvasKit from standardtest/scenes/D149_BeforeAfterFilterCompare.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D14_VerticesClipBlend": {
+      "id": "D14_VerticesClipBlend",
+      "oracle": "canvaskit",
+      "width": 240,
+      "height": 200,
+      "file": "D14_VerticesClipBlend.png",
+      "note": "CanvasKit from standardtest/scenes/D14_VerticesClipBlend.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D150_DenseAtlasToolbarOverflow": {
+      "id": "D150_DenseAtlasToolbarOverflow",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 160,
+      "file": "D150_DenseAtlasToolbarOverflow.png",
+      "note": "CanvasKit from standardtest/scenes/D150_DenseAtlasToolbarOverflow.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D151_MeshTerrainContourLabels": {
+      "id": "D151_MeshTerrainContourLabels",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D151_MeshTerrainContourLabels.png",
+      "note": "CanvasKit from standardtest/scenes/D151_MeshTerrainContourLabels.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D152_PresentFrameDamageMultiRect": {
+      "id": "D152_PresentFrameDamageMultiRect",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D152_PresentFrameDamageMultiRect.png",
+      "note": "CanvasKit from standardtest/scenes/D152_PresentFrameDamageMultiRect.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D153_NestedBackdropTranslucentPanels": {
+      "id": "D153_NestedBackdropTranslucentPanels",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D153_NestedBackdropTranslucentPanels.png",
+      "note": "CanvasKit from standardtest/scenes/D153_NestedBackdropTranslucentPanels.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D154_PathDashJoinGalleryClip": {
+      "id": "D154_PathDashJoinGalleryClip",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 280,
+      "file": "D154_PathDashJoinGalleryClip.png",
+      "note": "CanvasKit from standardtest/scenes/D154_PathDashJoinGalleryClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D155_ImageQuadWarpClipStrokeText": {
+      "id": "D155_ImageQuadWarpClipStrokeText",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 280,
+      "file": "D155_ImageQuadWarpClipStrokeText.png",
+      "note": "CanvasKit from standardtest/scenes/D155_ImageQuadWarpClipStrokeText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D156_RadialSweepGradientLayerStack": {
+      "id": "D156_RadialSweepGradientLayerStack",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 260,
+      "file": "D156_RadialSweepGradientLayerStack.png",
+      "note": "CanvasKit from standardtest/scenes/D156_RadialSweepGradientLayerStack.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D157_WindowTilingManagerMock": {
+      "id": "D157_WindowTilingManagerMock",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D157_WindowTilingManagerMock.png",
+      "note": "CanvasKit from standardtest/scenes/D157_WindowTilingManagerMock.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D158_CircularProgressDashboard": {
+      "id": "D158_CircularProgressDashboard",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 300,
+      "file": "D158_CircularProgressDashboard.png",
+      "note": "CanvasKit from standardtest/scenes/D158_CircularProgressDashboard.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D159_MultiContextSnapshotMerge": {
+      "id": "D159_MultiContextSnapshotMerge",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 260,
+      "file": "D159_MultiContextSnapshotMerge.png",
+      "note": "CanvasKit from standardtest/scenes/D159_MultiContextSnapshotMerge.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D15_AtlasHiDPIClip": {
+      "id": "D15_AtlasHiDPIClip",
+      "oracle": "canvaskit",
+      "width": 640,
+      "height": 400,
+      "file": "D15_AtlasHiDPIClip.png",
+      "note": "CanvasKit from standardtest/scenes/D15_AtlasHiDPIClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D160_KitchenSinkV5UltimateStress": {
+      "id": "D160_KitchenSinkV5UltimateStress",
+      "oracle": "canvaskit",
+      "width": 600,
+      "height": 420,
+      "file": "D160_KitchenSinkV5UltimateStress.png",
+      "note": "CanvasKit from standardtest/scenes/D160_KitchenSinkV5UltimateStress.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D161_KanbanWIPGhostComposition": {
+      "id": "D161_KanbanWIPGhostComposition",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 340,
+      "file": "D161_KanbanWIPGhostComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D161_KanbanWIPGhostComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D162_TreeInspectorBreadcrumbMultiSelect": {
+      "id": "D162_TreeInspectorBreadcrumbMultiSelect",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 320,
+      "file": "D162_TreeInspectorBreadcrumbMultiSelect.png",
+      "note": "CanvasKit from standardtest/scenes/D162_TreeInspectorBreadcrumbMultiSelect.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D163_ThreeWayDiffGutterComposition": {
+      "id": "D163_ThreeWayDiffGutterComposition",
+      "oracle": "canvaskit",
+      "width": 540,
+      "height": 300,
+      "file": "D163_ThreeWayDiffGutterComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D163_ThreeWayDiffGutterComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D164_CandlesVolumeMACrosshairTooltip": {
+      "id": "D164_CandlesVolumeMACrosshairTooltip",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 320,
+      "file": "D164_CandlesVolumeMACrosshairTooltip.png",
+      "note": "CanvasKit from standardtest/scenes/D164_CandlesVolumeMACrosshairTooltip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D165_WizardFormValidationStickyFooter": {
+      "id": "D165_WizardFormValidationStickyFooter",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 340,
+      "file": "D165_WizardFormValidationStickyFooter.png",
+      "note": "CanvasKit from standardtest/scenes/D165_WizardFormValidationStickyFooter.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D166_ParticleFieldMaskAdditiveHUD": {
+      "id": "D166_ParticleFieldMaskAdditiveHUD",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 280,
+      "file": "D166_ParticleFieldMaskAdditiveHUD.png",
+      "note": "CanvasKit from standardtest/scenes/D166_ParticleFieldMaskAdditiveHUD.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D167_ZIndexLayersReorderOcclusion": {
+      "id": "D167_ZIndexLayersReorderOcclusion",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 300,
+      "file": "D167_ZIndexLayersReorderOcclusion.png",
+      "note": "CanvasKit from standardtest/scenes/D167_ZIndexLayersReorderOcclusion.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D168_RichTooltipStackCaretActions": {
+      "id": "D168_RichTooltipStackCaretActions",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D168_RichTooltipStackCaretActions.png",
+      "note": "CanvasKit from standardtest/scenes/D168_RichTooltipStackCaretActions.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D169_CSSGridDenseCardsHeroSpan": {
+      "id": "D169_CSSGridDenseCardsHeroSpan",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D169_CSSGridDenseCardsHeroSpan.png",
+      "note": "CanvasKit from standardtest/scenes/D169_CSSGridDenseCardsHeroSpan.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D16_MeshTransformLayer": {
+      "id": "D16_MeshTransformLayer",
+      "oracle": "canvaskit",
+      "width": 260,
+      "height": 200,
+      "file": "D16_MeshTransformLayer.png",
+      "note": "CanvasKit from standardtest/scenes/D16_MeshTransformLayer.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D170_ResponsiveBreakpointReflowMock": {
+      "id": "D170_ResponsiveBreakpointReflowMock",
+      "oracle": "canvaskit",
+      "width": 240,
+      "height": 240,
+      "file": "D170_ResponsiveBreakpointReflowMock.png",
+      "note": "CanvasKit from standardtest/scenes/D170_ResponsiveBreakpointReflowMock.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D171_ImageAnnotationArrowsBoxesFreehand": {
+      "id": "D171_ImageAnnotationArrowsBoxesFreehand",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D171_ImageAnnotationArrowsBoxesFreehand.png",
+      "note": "CanvasKit from standardtest/scenes/D171_ImageAnnotationArrowsBoxesFreehand.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D172_SidebarRailFlyoutActiveRoute": {
+      "id": "D172_SidebarRailFlyoutActiveRoute",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D172_SidebarRailFlyoutActiveRoute.png",
+      "note": "CanvasKit from standardtest/scenes/D172_SidebarRailFlyoutActiveRoute.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D173_NestedClipDamageIslands": {
+      "id": "D173_NestedClipDamageIslands",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 280,
+      "file": "D173_NestedClipDamageIslands.png",
+      "note": "CanvasKit from standardtest/scenes/D173_NestedClipDamageIslands.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D174_PerspectiveFanCardRotateScale": {
+      "id": "D174_PerspectiveFanCardRotateScale",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D174_PerspectiveFanCardRotateScale.png",
+      "note": "CanvasKit from standardtest/scenes/D174_PerspectiveFanCardRotateScale.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D175_AudioMixerFadersMeters": {
+      "id": "D175_AudioMixerFadersMeters",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 300,
+      "file": "D175_AudioMixerFadersMeters.png",
+      "note": "CanvasKit from standardtest/scenes/D175_AudioMixerFadersMeters.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D176_DeepClipLayerBlendRecursion": {
+      "id": "D176_DeepClipLayerBlendRecursion",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 280,
+      "file": "D176_DeepClipLayerBlendRecursion.png",
+      "note": "CanvasKit from standardtest/scenes/D176_DeepClipLayerBlendRecursion.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D177_TypeHierarchyShadowCards": {
+      "id": "D177_TypeHierarchyShadowCards",
+      "oracle": "canvaskit",
+      "width": 440,
+      "height": 320,
+      "file": "D177_TypeHierarchyShadowCards.png",
+      "note": "CanvasKit from standardtest/scenes/D177_TypeHierarchyShadowCards.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D178_ConstellationClustersHullLabels": {
+      "id": "D178_ConstellationClustersHullLabels",
+      "oracle": "canvaskit",
+      "width": 460,
+      "height": 320,
+      "file": "D178_ConstellationClustersHullLabels.png",
+      "note": "CanvasKit from standardtest/scenes/D178_ConstellationClustersHullLabels.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D179_MultipagePreviewStripActive": {
+      "id": "D179_MultipagePreviewStripActive",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 280,
+      "file": "D179_MultipagePreviewStripActive.png",
+      "note": "CanvasKit from standardtest/scenes/D179_MultipagePreviewStripActive.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D17_ImageQuadClipText": {
+      "id": "D17_ImageQuadClipText",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 220,
+      "file": "D17_ImageQuadClipText.png",
+      "note": "CanvasKit from standardtest/scenes/D17_ImageQuadClipText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D180_KitchenSinkV6MegaStress": {
+      "id": "D180_KitchenSinkV6MegaStress",
+      "oracle": "canvaskit",
+      "width": 620,
+      "height": 440,
+      "file": "D180_KitchenSinkV6MegaStress.png",
+      "note": "CanvasKit from standardtest/scenes/D180_KitchenSinkV6MegaStress.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D181_ChatThreadReactionsComposer": {
+      "id": "D181_ChatThreadReactionsComposer",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 360,
+      "file": "D181_ChatThreadReactionsComposer.png",
+      "note": "CanvasKit from standardtest/scenes/D181_ChatThreadReactionsComposer.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D182_InboxFiltersBulkActions": {
+      "id": "D182_InboxFiltersBulkActions",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 320,
+      "file": "D182_InboxFiltersBulkActions.png",
+      "note": "CanvasKit from standardtest/scenes/D182_InboxFiltersBulkActions.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D183_SettingsSearchAnchoredSections": {
+      "id": "D183_SettingsSearchAnchoredSections",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D183_SettingsSearchAnchoredSections.png",
+      "note": "CanvasKit from standardtest/scenes/D183_SettingsSearchAnchoredSections.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D184_BoardFiltersSwimLanesCollapsed": {
+      "id": "D184_BoardFiltersSwimLanesCollapsed",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 300,
+      "file": "D184_BoardFiltersSwimLanesCollapsed.png",
+      "note": "CanvasKit from standardtest/scenes/D184_BoardFiltersSwimLanesCollapsed.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D185_PivotTableHeatCells": {
+      "id": "D185_PivotTableHeatCells",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D185_PivotTableHeatCells.png",
+      "note": "CanvasKit from standardtest/scenes/D185_PivotTableHeatCells.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D186_GanttDependencyArrowsToday": {
+      "id": "D186_GanttDependencyArrowsToday",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 280,
+      "file": "D186_GanttDependencyArrowsToday.png",
+      "note": "CanvasKit from standardtest/scenes/D186_GanttDependencyArrowsToday.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D187_CarouselPeekDotsProgress": {
+      "id": "D187_CarouselPeekDotsProgress",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 240,
+      "file": "D187_CarouselPeekDotsProgress.png",
+      "note": "CanvasKit from standardtest/scenes/D187_CarouselPeekDotsProgress.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D188_OrgChartConnectorsCollapse": {
+      "id": "D188_OrgChartConnectorsCollapse",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D188_OrgChartConnectorsCollapse.png",
+      "note": "CanvasKit from standardtest/scenes/D188_OrgChartConnectorsCollapse.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D189_MindmapRadialBranches": {
+      "id": "D189_MindmapRadialBranches",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 320,
+      "file": "D189_MindmapRadialBranches.png",
+      "note": "CanvasKit from standardtest/scenes/D189_MindmapRadialBranches.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D18_PathEffectsClipStroke": {
+      "id": "D18_PathEffectsClipStroke",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D18_PathEffectsClipStroke.png",
+      "note": "CanvasKit from standardtest/scenes/D18_PathEffectsClipStroke.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D190_VideoEditorTimelineTracks": {
+      "id": "D190_VideoEditorTimelineTracks",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 300,
+      "file": "D190_VideoEditorTimelineTracks.png",
+      "note": "CanvasKit from standardtest/scenes/D190_VideoEditorTimelineTracks.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D191_SchemaERDiagramCrowFoot": {
+      "id": "D191_SchemaERDiagramCrowFoot",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 300,
+      "file": "D191_SchemaERDiagramCrowFoot.png",
+      "note": "CanvasKit from standardtest/scenes/D191_SchemaERDiagramCrowFoot.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D192_LogStreamSeverityFilters": {
+      "id": "D192_LogStreamSeverityFilters",
+      "oracle": "canvaskit",
+      "width": 500,
+      "height": 300,
+      "file": "D192_LogStreamSeverityFilters.png",
+      "note": "CanvasKit from standardtest/scenes/D192_LogStreamSeverityFilters.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D193_SitemapHierarchyConnectors": {
+      "id": "D193_SitemapHierarchyConnectors",
+      "oracle": "canvaskit",
+      "width": 460,
+      "height": 300,
+      "file": "D193_SitemapHierarchyConnectors.png",
+      "note": "CanvasKit from standardtest/scenes/D193_SitemapHierarchyConnectors.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D194_NotebookCellsOutputFold": {
+      "id": "D194_NotebookCellsOutputFold",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 340,
+      "file": "D194_NotebookCellsOutputFold.png",
+      "note": "CanvasKit from standardtest/scenes/D194_NotebookCellsOutputFold.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D195_CMSBlockEditorNest": {
+      "id": "D195_CMSBlockEditorNest",
+      "oracle": "canvaskit",
+      "width": 440,
+      "height": 320,
+      "file": "D195_CMSBlockEditorNest.png",
+      "note": "CanvasKit from standardtest/scenes/D195_CMSBlockEditorNest.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D196_ShopProductGalleryVariant": {
+      "id": "D196_ShopProductGalleryVariant",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D196_ShopProductGalleryVariant.png",
+      "note": "CanvasKit from standardtest/scenes/D196_ShopProductGalleryVariant.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D197_AdminCRUDTableRowActions": {
+      "id": "D197_AdminCRUDTableRowActions",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 300,
+      "file": "D197_AdminCRUDTableRowActions.png",
+      "note": "CanvasKit from standardtest/scenes/D197_AdminCRUDTableRowActions.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D198_OnboardingCoachmarksOverlay": {
+      "id": "D198_OnboardingCoachmarksOverlay",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D198_OnboardingCoachmarksOverlay.png",
+      "note": "CanvasKit from standardtest/scenes/D198_OnboardingCoachmarksOverlay.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D199_StatusPageIncidentsTimeline": {
+      "id": "D199_StatusPageIncidentsTimeline",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D199_StatusPageIncidentsTimeline.png",
+      "note": "CanvasKit from standardtest/scenes/D199_StatusPageIncidentsTimeline.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D19_DeepNestClipLayerImageText": {
+      "id": "D19_DeepNestClipLayerImageText",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D19_DeepNestClipLayerImageText.png",
+      "note": "CanvasKit from standardtest/scenes/D19_DeepNestClipLayerImageText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D200_KitchenSinkV7CompositionBlast": {
+      "id": "D200_KitchenSinkV7CompositionBlast",
+      "oracle": "canvaskit",
+      "width": 640,
+      "height": 440,
+      "file": "D200_KitchenSinkV7CompositionBlast.png",
+      "note": "CanvasKit from standardtest/scenes/D200_KitchenSinkV7CompositionBlast.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D20_MultiBlendClipImage": {
+      "id": "D20_MultiBlendClipImage",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 220,
+      "file": "D20_MultiBlendClipImage.png",
+      "note": "CanvasKit from standardtest/scenes/D20_MultiBlendClipImage.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D21_ExternalTexClipBackdropText": {
+      "id": "D21_ExternalTexClipBackdropText",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 260,
+      "file": "D21_ExternalTexClipBackdropText.png",
+      "note": "CanvasKit from standardtest/scenes/D21_ExternalTexClipBackdropText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D22_ShadowBlurDenseScene": {
+      "id": "D22_ShadowBlurDenseScene",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 220,
+      "file": "D22_ShadowBlurDenseScene.png",
+      "note": "CanvasKit from standardtest/scenes/D22_ShadowBlurDenseScene.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D23_DitherGradientHiDPI": {
+      "id": "D23_DitherGradientHiDPI",
+      "oracle": "canvaskit",
+      "width": 512,
+      "height": 256,
+      "file": "D23_DitherGradientHiDPI.png",
+      "note": "CanvasKit from standardtest/scenes/D23_DitherGradientHiDPI.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D24_ScrollClipTranslateText": {
+      "id": "D24_ScrollClipTranslateText",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 280,
+      "file": "D24_ScrollClipTranslateText.png",
+      "note": "CanvasKit from standardtest/scenes/D24_ScrollClipTranslateText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D25_DeepNestedBlendLayers": {
+      "id": "D25_DeepNestedBlendLayers",
+      "oracle": "canvaskit",
+      "width": 240,
+      "height": 200,
+      "file": "D25_DeepNestedBlendLayers.png",
+      "note": "CanvasKit from standardtest/scenes/D25_DeepNestedBlendLayers.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D26_CapsJoinsDashPathClip": {
+      "id": "D26_CapsJoinsDashPathClip",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 200,
+      "file": "D26_CapsJoinsDashPathClip.png",
+      "note": "CanvasKit from standardtest/scenes/D26_CapsJoinsDashPathClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D27_ImageRoundedMaskLayer": {
+      "id": "D27_ImageRoundedMaskLayer",
+      "oracle": "canvaskit",
+      "width": 280,
+      "height": 200,
+      "file": "D27_ImageRoundedMaskLayer.png",
+      "note": "CanvasKit from standardtest/scenes/D27_ImageRoundedMaskLayer.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D28_DamageGradientTextImage": {
+      "id": "D28_DamageGradientTextImage",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D28_DamageGradientTextImage.png",
+      "note": "CanvasKit from standardtest/scenes/D28_DamageGradientTextImage.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D29_RotateClipImageStroke": {
+      "id": "D29_RotateClipImageStroke",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 240,
+      "file": "D29_RotateClipImageStroke.png",
+      "note": "CanvasKit from standardtest/scenes/D29_RotateClipImageStroke.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D30_VirtualListPrimitiveDensity": {
+      "id": "D30_VirtualListPrimitiveDensity",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 360,
+      "file": "D30_VirtualListPrimitiveDensity.png",
+      "note": "CanvasKit from standardtest/scenes/D30_VirtualListPrimitiveDensity.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D31_LatticeStressBlendClip": {
+      "id": "D31_LatticeStressBlendClip",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 300,
+      "file": "D31_LatticeStressBlendClip.png",
+      "note": "CanvasKit from standardtest/scenes/D31_LatticeStressBlendClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D32_PatternTransformClip": {
+      "id": "D32_PatternTransformClip",
+      "oracle": "canvaskit",
+      "width": 260,
+      "height": 200,
+      "file": "D32_PatternTransformClip.png",
+      "note": "CanvasKit from standardtest/scenes/D32_PatternTransformClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D33_EditorMultiPaneComposition": {
+      "id": "D33_EditorMultiPaneComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D33_EditorMultiPaneComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D33_EditorMultiPaneComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D34_ChartPrimitiveComposition": {
+      "id": "D34_ChartPrimitiveComposition",
+      "oracle": "canvaskit",
+      "width": 440,
+      "height": 280,
+      "file": "D34_ChartPrimitiveComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D34_ChartPrimitiveComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D35_CalendarGridComposition": {
+      "id": "D35_CalendarGridComposition",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 360,
+      "file": "D35_CalendarGridComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D35_CalendarGridComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D36_KitchenSinkMaxMix": {
+      "id": "D36_KitchenSinkMaxMix",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 400,
+      "file": "D36_KitchenSinkMaxMix.png",
+      "note": "CanvasKit from standardtest/scenes/D36_KitchenSinkMaxMix.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D37_FilterGraphColorOpsClip": {
+      "id": "D37_FilterGraphColorOpsClip",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 220,
+      "file": "D37_FilterGraphColorOpsClip.png",
+      "note": "CanvasKit from standardtest/scenes/D37_FilterGraphColorOpsClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D38_DrawImageExClipText": {
+      "id": "D38_DrawImageExClipText",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D38_DrawImageExClipText.png",
+      "note": "CanvasKit from standardtest/scenes/D38_DrawImageExClipText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D39_RadialSweepGradientPanels": {
+      "id": "D39_RadialSweepGradientPanels",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 240,
+      "file": "D39_RadialSweepGradientPanels.png",
+      "note": "CanvasKit from standardtest/scenes/D39_RadialSweepGradientPanels.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D40_AdvancedBlendImageText": {
+      "id": "D40_AdvancedBlendImageText",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 220,
+      "file": "D40_AdvancedBlendImageText.png",
+      "note": "CanvasKit from standardtest/scenes/D40_AdvancedBlendImageText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D41_FillStrokePatternTransform": {
+      "id": "D41_FillStrokePatternTransform",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 220,
+      "file": "D41_FillStrokePatternTransform.png",
+      "note": "CanvasKit from standardtest/scenes/D41_FillStrokePatternTransform.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D42_BlurXYShadowGraphDense": {
+      "id": "D42_BlurXYShadowGraphDense",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 260,
+      "file": "D42_BlurXYShadowGraphDense.png",
+      "note": "CanvasKit from standardtest/scenes/D42_BlurXYShadowGraphDense.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D43_InvertMaskLayerText": {
+      "id": "D43_InvertMaskLayerText",
+      "oracle": "canvaskit",
+      "width": 260,
+      "height": 180,
+      "file": "D43_InvertMaskLayerText.png",
+      "note": "CanvasKit from standardtest/scenes/D43_InvertMaskLayerText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D44_ExternalOpacityDamageRects": {
+      "id": "D44_ExternalOpacityDamageRects",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 280,
+      "file": "D44_ExternalOpacityDamageRects.png",
+      "note": "CanvasKit from standardtest/scenes/D44_ExternalOpacityDamageRects.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D45_WritePixelsRetainedPanels": {
+      "id": "D45_WritePixelsRetainedPanels",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 240,
+      "file": "D45_WritePixelsRetainedPanels.png",
+      "note": "CanvasKit from standardtest/scenes/D45_WritePixelsRetainedPanels.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D46_FilterGraphMultiNodeScene": {
+      "id": "D46_FilterGraphMultiNodeScene",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 200,
+      "file": "D46_FilterGraphMultiNodeScene.png",
+      "note": "CanvasKit from standardtest/scenes/D46_FilterGraphMultiNodeScene.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D47_KanbanPrimitiveDensity": {
+      "id": "D47_KanbanPrimitiveDensity",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 360,
+      "file": "D47_KanbanPrimitiveDensity.png",
+      "note": "CanvasKit from standardtest/scenes/D47_KanbanPrimitiveDensity.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D48_NestedScrollStickyModal": {
+      "id": "D48_NestedScrollStickyModal",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 340,
+      "file": "D48_NestedScrollStickyModal.png",
+      "note": "CanvasKit from standardtest/scenes/D48_NestedScrollStickyModal.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D49_HiDPIAppChromeDensity": {
+      "id": "D49_HiDPIAppChromeDensity",
+      "oracle": "canvaskit",
+      "width": 1280,
+      "height": 800,
+      "file": "D49_HiDPIAppChromeDensity.png",
+      "note": "CanvasKit from standardtest/scenes/D49_HiDPIAppChromeDensity.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D50_MultiCTMMeshTextClip": {
+      "id": "D50_MultiCTMMeshTextClip",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 280,
+      "file": "D50_MultiCTMMeshTextClip.png",
+      "note": "CanvasKit from standardtest/scenes/D50_MultiCTMMeshTextClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D51_SpreadsheetGridComposition": {
+      "id": "D51_SpreadsheetGridComposition",
+      "oracle": "canvaskit",
+      "width": 500,
+      "height": 320,
+      "file": "D51_SpreadsheetGridComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D51_SpreadsheetGridComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D52_MediaTimelineComposition": {
+      "id": "D52_MediaTimelineComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 300,
+      "file": "D52_MediaTimelineComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D52_MediaTimelineComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D53_FormWizardComposition": {
+      "id": "D53_FormWizardComposition",
+      "oracle": "canvaskit",
+      "width": 440,
+      "height": 320,
+      "file": "D53_FormWizardComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D53_FormWizardComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D54_TreeSplitViewComposition": {
+      "id": "D54_TreeSplitViewComposition",
+      "oracle": "canvaskit",
+      "width": 500,
+      "height": 320,
+      "file": "D54_TreeSplitViewComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D54_TreeSplitViewComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D55_CascaderColumnsComposition": {
+      "id": "D55_CascaderColumnsComposition",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 260,
+      "file": "D55_CascaderColumnsComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D55_CascaderColumnsComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D56_NotificationStackComposition": {
+      "id": "D56_NotificationStackComposition",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 300,
+      "file": "D56_NotificationStackComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D56_NotificationStackComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D57_TransferDualListComposition": {
+      "id": "D57_TransferDualListComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 300,
+      "file": "D57_TransferDualListComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D57_TransferDualListComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D58_ColorPickerComposition": {
+      "id": "D58_ColorPickerComposition",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 260,
+      "file": "D58_ColorPickerComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D58_ColorPickerComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D59_RichTextClipLayerStack": {
+      "id": "D59_RichTextClipLayerStack",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D59_RichTextClipLayerStack.png",
+      "note": "CanvasKit from standardtest/scenes/D59_RichTextClipLayerStack.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D60_DiffBurnExclusionBlendStack": {
+      "id": "D60_DiffBurnExclusionBlendStack",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 220,
+      "file": "D60_DiffBurnExclusionBlendStack.png",
+      "note": "CanvasKit from standardtest/scenes/D60_DiffBurnExclusionBlendStack.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D61_AADashOffsetMiterClip": {
+      "id": "D61_AADashOffsetMiterClip",
+      "oracle": "canvaskit",
+      "width": 340,
+      "height": 220,
+      "file": "D61_AADashOffsetMiterClip.png",
+      "note": "CanvasKit from standardtest/scenes/D61_AADashOffsetMiterClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D62_ResizeRecomposePanels": {
+      "id": "D62_ResizeRecomposePanels",
+      "oracle": "canvaskit",
+      "width": 200,
+      "height": 160,
+      "file": "D62_ResizeRecomposePanels.png",
+      "note": "CanvasKit from standardtest/scenes/D62_ResizeRecomposePanels.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D63_FrameDamageSingleRectPresent": {
+      "id": "D63_FrameDamageSingleRectPresent",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 200,
+      "file": "D63_FrameDamageSingleRectPresent.png",
+      "note": "CanvasKit from standardtest/scenes/D63_FrameDamageSingleRectPresent.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D64_MaskFromAlphaLayerImageText": {
+      "id": "D64_MaskFromAlphaLayerImageText",
+      "oracle": "canvaskit",
+      "width": 280,
+      "height": 200,
+      "file": "D64_MaskFromAlphaLayerImageText.png",
+      "note": "CanvasKit from standardtest/scenes/D64_MaskFromAlphaLayerImageText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D65_InfiniteCanvasPanZoom": {
+      "id": "D65_InfiniteCanvasPanZoom",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D65_InfiniteCanvasPanZoom.png",
+      "note": "CanvasKit from standardtest/scenes/D65_InfiniteCanvasPanZoom.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D66_ChatBubbleComposition": {
+      "id": "D66_ChatBubbleComposition",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 360,
+      "file": "D66_ChatBubbleComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D66_ChatBubbleComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D67_GanttChartComposition": {
+      "id": "D67_GanttChartComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 300,
+      "file": "D67_GanttChartComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D67_GanttChartComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D68_HeatmapTooltipComposition": {
+      "id": "D68_HeatmapTooltipComposition",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 280,
+      "file": "D68_HeatmapTooltipComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D68_HeatmapTooltipComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D69_MultiModalStackComposition": {
+      "id": "D69_MultiModalStackComposition",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 300,
+      "file": "D69_MultiModalStackComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D69_MultiModalStackComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D70_MapTilesRoutePopup": {
+      "id": "D70_MapTilesRoutePopup",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 300,
+      "file": "D70_MapTilesRoutePopup.png",
+      "note": "CanvasKit from standardtest/scenes/D70_MapTilesRoutePopup.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D71_CodeDiffComposition": {
+      "id": "D71_CodeDiffComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 300,
+      "file": "D71_CodeDiffComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D71_CodeDiffComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D72_BicubicImagePathClipPattern": {
+      "id": "D72_BicubicImagePathClipPattern",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 220,
+      "file": "D72_BicubicImagePathClipPattern.png",
+      "note": "CanvasKit from standardtest/scenes/D72_BicubicImagePathClipPattern.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D73_IDEDockLayoutComposition": {
+      "id": "D73_IDEDockLayoutComposition",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 360,
+      "file": "D73_IDEDockLayoutComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D73_IDEDockLayoutComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D74_FilterMaskBlendTextMega": {
+      "id": "D74_FilterMaskBlendTextMega",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 260,
+      "file": "D74_FilterMaskBlendTextMega.png",
+      "note": "CanvasKit from standardtest/scenes/D74_FilterMaskBlendTextMega.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D75_DashboardKPISparklineTable": {
+      "id": "D75_DashboardKPISparklineTable",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 380,
+      "file": "D75_DashboardKPISparklineTable.png",
+      "note": "CanvasKit from standardtest/scenes/D75_DashboardKPISparklineTable.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D76_ShapedGlyphsClipLayerMode": {
+      "id": "D76_ShapedGlyphsClipLayerMode",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 160,
+      "file": "D76_ShapedGlyphsClipLayerMode.png",
+      "note": "CanvasKit from standardtest/scenes/D76_ShapedGlyphsClipLayerMode.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D77_VectorTextStrokeGradientClip": {
+      "id": "D77_VectorTextStrokeGradientClip",
+      "oracle": "canvaskit",
+      "width": 340,
+      "height": 180,
+      "file": "D77_VectorTextStrokeGradientClip.png",
+      "note": "CanvasKit from standardtest/scenes/D77_VectorTextStrokeGradientClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D78_CarouselStageComposition": {
+      "id": "D78_CarouselStageComposition",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 260,
+      "file": "D78_CarouselStageComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D78_CarouselStageComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D79_VideoPlayerChromeComposition": {
+      "id": "D79_VideoPlayerChromeComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 300,
+      "file": "D79_VideoPlayerChromeComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D79_VideoPlayerChromeComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D80_OrgChartComposition": {
+      "id": "D80_OrgChartComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 320,
+      "file": "D80_OrgChartComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D80_OrgChartComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D81_MindmapRadialComposition": {
+      "id": "D81_MindmapRadialComposition",
+      "oracle": "canvaskit",
+      "width": 420,
+      "height": 320,
+      "file": "D81_MindmapRadialComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D81_MindmapRadialComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D82_CandlestickChartComposition": {
+      "id": "D82_CandlestickChartComposition",
+      "oracle": "canvaskit",
+      "width": 480,
+      "height": 300,
+      "file": "D82_CandlestickChartComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D82_CandlestickChartComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D83_IsometricTileComposition": {
+      "id": "D83_IsometricTileComposition",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 300,
+      "file": "D83_IsometricTileComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D83_IsometricTileComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D84_WatermarkMaskBadgeComposition": {
+      "id": "D84_WatermarkMaskBadgeComposition",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D84_WatermarkMaskBadgeComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D84_WatermarkMaskBadgeComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D85_MultiContextTextureComposite": {
+      "id": "D85_MultiContextTextureComposite",
+      "oracle": "canvaskit",
+      "width": 400,
+      "height": 280,
+      "file": "D85_MultiContextTextureComposite.png",
+      "note": "CanvasKit from standardtest/scenes/D85_MultiContextTextureComposite.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D86_SettingsDenseFormComposition": {
+      "id": "D86_SettingsDenseFormComposition",
+      "oracle": "canvaskit",
+      "width": 440,
+      "height": 340,
+      "file": "D86_SettingsDenseFormComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D86_SettingsDenseFormComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D87_ParticleFieldHiDPIComposition": {
+      "id": "D87_ParticleFieldHiDPIComposition",
+      "oracle": "canvaskit",
+      "width": 800,
+      "height": 600,
+      "file": "D87_ParticleFieldHiDPIComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D87_ParticleFieldHiDPIComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D88_NestedEvenOddPatternStroke": {
+      "id": "D88_NestedEvenOddPatternStroke",
+      "oracle": "canvaskit",
+      "width": 300,
+      "height": 240,
+      "file": "D88_NestedEvenOddPatternStroke.png",
+      "note": "CanvasKit from standardtest/scenes/D88_NestedEvenOddPatternStroke.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D89_SplitEditorTerminalComposition": {
+      "id": "D89_SplitEditorTerminalComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D89_SplitEditorTerminalComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D89_SplitEditorTerminalComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D90_KitchenSinkV2MaxMix": {
+      "id": "D90_KitchenSinkV2MaxMix",
+      "oracle": "canvaskit",
+      "width": 560,
+      "height": 400,
+      "file": "D90_KitchenSinkV2MaxMix.png",
+      "note": "CanvasKit from standardtest/scenes/D90_KitchenSinkV2MaxMix.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D91_ClipPreserveFillStrokeText": {
+      "id": "D91_ClipPreserveFillStrokeText",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 220,
+      "file": "D91_ClipPreserveFillStrokeText.png",
+      "note": "CanvasKit from standardtest/scenes/D91_ClipPreserveFillStrokeText.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D92_GrayscaleColorMatrixDense": {
+      "id": "D92_GrayscaleColorMatrixDense",
+      "oracle": "canvaskit",
+      "width": 340,
+      "height": 240,
+      "file": "D92_GrayscaleColorMatrixDense.png",
+      "note": "CanvasKit from standardtest/scenes/D92_GrayscaleColorMatrixDense.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D93_GPUTextureBaseOpacityClip": {
+      "id": "D93_GPUTextureBaseOpacityClip",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 240,
+      "file": "D93_GPUTextureBaseOpacityClip.png",
+      "note": "CanvasKit from standardtest/scenes/D93_GPUTextureBaseOpacityClip.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D94_PresentFrameComplexScene": {
+      "id": "D94_PresentFrameComplexScene",
+      "oracle": "canvaskit",
+      "width": 320,
+      "height": 200,
+      "file": "D94_PresentFrameComplexScene.png",
+      "note": "CanvasKit from standardtest/scenes/D94_PresentFrameComplexScene.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D95_TextModeMixClipLayer": {
+      "id": "D95_TextModeMixClipLayer",
+      "oracle": "canvaskit",
+      "width": 380,
+      "height": 200,
+      "file": "D95_TextModeMixClipLayer.png",
+      "note": "CanvasKit from standardtest/scenes/D95_TextModeMixClipLayer.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D96_FileManagerDensityComposition": {
+      "id": "D96_FileManagerDensityComposition",
+      "oracle": "canvaskit",
+      "width": 520,
+      "height": 340,
+      "file": "D96_FileManagerDensityComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D96_FileManagerDensityComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D97_EmailComposeComposition": {
+      "id": "D97_EmailComposeComposition",
+      "oracle": "canvaskit",
+      "width": 460,
+      "height": 340,
+      "file": "D97_EmailComposeComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D97_EmailComposeComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D98_SwimlaneBoardComposition": {
+      "id": "D98_SwimlaneBoardComposition",
+      "oracle": "canvaskit",
+      "width": 540,
+      "height": 320,
+      "file": "D98_SwimlaneBoardComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D98_SwimlaneBoardComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "D99_RadarChartComposition": {
+      "id": "D99_RadarChartComposition",
+      "oracle": "canvaskit",
+      "width": 360,
+      "height": 300,
+      "file": "D99_RadarChartComposition.png",
+      "note": "CanvasKit from standardtest/scenes/D99_RadarChartComposition.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "S01_SolidRects": {
+      "id": "S01_SolidRects",
+      "oracle": "canvaskit",
+      "width": 200,
+      "height": 120,
+      "file": "S01_SolidRects.png",
+      "note": "CanvasKit from standardtest/scenes/S01_SolidRects.json",
+      "diff": {
+        "max_mean_abs": 4,
+        "max_rmse": 16,
+        "max_delta": 96,
+        "changed_ratio_max": 0.12,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    },
+    "dimension_axes": {
+      "id": "dimension_axes",
+      "oracle": "canvaskit",
+      "width": 720,
+      "height": 420,
+      "file": "dimension_axes.png",
+      "note": "CanvasKit from standardtest/scenes/dimension_axes.json",
+      "diff": {
+        "max_mean_abs": 2.5,
+        "max_rmse": 12,
+        "max_delta": 96,
+        "changed_ratio_max": 0.08,
+        "per_channel_tol": 2,
+        "ignore_alpha": false
+      }
+    }
+  }
+}

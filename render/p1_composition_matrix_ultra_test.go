@@ -19,6 +19,11 @@ import (
 // D76: shaped glyphs × clip × layer × TextModeGlyphMask.
 func TestP1_Comp_D76_ShapedGlyphsClipLayerMode(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D76_ShapedGlyphsClipLayerMode"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D76_ShapedGlyphsClipLayerMode")
+		return
+	}
 	const w, h = 360, 160
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -73,6 +78,11 @@ func TestP1_Comp_D76_ShapedGlyphsClipLayerMode(t *testing.T) {
 // D77: vector text mode × stroke string × gradient fill × clip.
 func TestP1_Comp_D77_VectorTextStrokeGradientClip(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D77_VectorTextStrokeGradientClip"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D77_VectorTextStrokeGradientClip")
+		return
+	}
 	const w, h = 340, 180
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -114,6 +124,11 @@ func TestP1_Comp_D77_VectorTextStrokeGradientClip(t *testing.T) {
 // D78: carousel stage — slides × clip × ImageQuad × dots × layer.
 func TestP1_Comp_D78_CarouselStageComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D78_CarouselStageComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D78_CarouselStageComposition")
+		return
+	}
 	const w, h = 420, 260
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -164,6 +179,11 @@ func TestP1_Comp_D78_CarouselStageComposition(t *testing.T) {
 // D79: video player chrome — stage × timeline × controls × volume × backdrop scrub.
 func TestP1_Comp_D79_VideoPlayerChromeComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D79_VideoPlayerChromeComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D79_VideoPlayerChromeComposition")
+		return
+	}
 	const w, h = 480, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -231,6 +251,11 @@ func TestP1_Comp_D79_VideoPlayerChromeComposition(t *testing.T) {
 // D80: org chart — nodes × connectors × clip × selection layer.
 func TestP1_Comp_D80_OrgChartComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D80_OrgChartComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D80_OrgChartComposition")
+		return
+	}
 	const w, h = 480, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -297,6 +322,11 @@ func TestP1_Comp_D80_OrgChartComposition(t *testing.T) {
 // D81: mindmap — radial branches × path effects × labels × clip.
 func TestP1_Comp_D81_MindmapRadialComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D81_MindmapRadialComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D81_MindmapRadialComposition")
+		return
+	}
 	const w, h = 420, 320
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -344,6 +374,11 @@ func TestP1_Comp_D81_MindmapRadialComposition(t *testing.T) {
 // D82: stock candlestick chart × volume × MA line × crosshair layer.
 func TestP1_Comp_D82_CandlestickChartComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D82_CandlestickChartComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D82_CandlestickChartComposition")
+		return
+	}
 	const w, h = 480, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -418,6 +453,11 @@ func TestP1_Comp_D82_CandlestickChartComposition(t *testing.T) {
 // D83: isometric tiles — transform stack × pattern × depth layers.
 func TestP1_Comp_D83_IsometricTileComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D83_IsometricTileComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D83_IsometricTileComposition")
+		return
+	}
 	const w, h = 400, 300
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -474,6 +514,11 @@ func TestP1_Comp_D83_IsometricTileComposition(t *testing.T) {
 // D84: watermark layer × content × invert mask badge × text.
 func TestP1_Comp_D84_WatermarkMaskBadgeComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D84_WatermarkMaskBadgeComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D84_WatermarkMaskBadgeComposition")
+		return
+	}
 	const w, h = 360, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -523,6 +568,11 @@ func TestP1_Comp_D84_WatermarkMaskBadgeComposition(t *testing.T) {
 // D85: multi-context composite — offscreen scenes drawn into host via textures.
 func TestP1_Comp_D85_MultiContextTextureComposite(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D85_MultiContextTextureComposite"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D85_MultiContextTextureComposite")
+		return
+	}
 	const w, h = 400, 280
 	host := render.NewContext(w, h)
 	defer host.Close()
@@ -627,6 +677,11 @@ func TestP1_Comp_D85_MultiContextTextureComposite(t *testing.T) {
 // D86: settings dense form — sections × switches × sliders × tabs × clip.
 func TestP1_Comp_D86_SettingsDenseFormComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D86_SettingsDenseFormComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D86_SettingsDenseFormComposition")
+		return
+	}
 	const w, h = 440, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -701,6 +756,11 @@ func TestP1_Comp_D86_SettingsDenseFormComposition(t *testing.T) {
 // D87: particle-field density — many circles/points × blend × clip × HiDPI.
 func TestP1_Comp_D87_ParticleFieldHiDPIComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D87_ParticleFieldHiDPIComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D87_ParticleFieldHiDPIComposition")
+		return
+	}
 	dc := render.NewContext(400, 300, render.WithDeviceScale(2.0))
 	defer dc.Close()
 
@@ -748,6 +808,11 @@ func TestP1_Comp_D87_ParticleFieldHiDPIComposition(t *testing.T) {
 // D88: nested EvenOdd holes × layers × pattern fill × stroke.
 func TestP1_Comp_D88_NestedEvenOddPatternStroke(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D88_NestedEvenOddPatternStroke"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D88_NestedEvenOddPatternStroke")
+		return
+	}
 	const w, h = 300, 240
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -795,6 +860,11 @@ func TestP1_Comp_D88_NestedEvenOddPatternStroke(t *testing.T) {
 // D89: split-view editor + terminal + drag sash + focus rings.
 func TestP1_Comp_D89_SplitEditorTerminalComposition(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D89_SplitEditorTerminalComposition"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D89_SplitEditorTerminalComposition")
+		return
+	}
 	const w, h = 520, 340
 	dc := render.NewContext(w, h)
 	defer dc.Close()
@@ -862,6 +932,11 @@ func TestP1_Comp_D89_SplitEditorTerminalComposition(t *testing.T) {
 // D90: kitchen-sink v2 — max remaining axis mix in one scene.
 func TestP1_Comp_D90_KitchenSinkV2MaxMix(t *testing.T) {
 	p1RequireGPU(t)
+	if dc, ok := compTryScene(t, "D90_KitchenSinkV2MaxMix"); ok {
+		defer dc.Close()
+		compSavePNG(t, dc, "D90_KitchenSinkV2MaxMix")
+		return
+	}
 	if !render.FiltersRegistered() {
 		t.Fatal("filters not registered")
 	}

@@ -1,0 +1,127 @@
+{
+  "id": "D151_MeshTerrainContourLabels",
+  "size": [
+    420,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        300
+      ],
+      "rgba": [
+        0.1,
+        0.14,
+        0.2,
+        1
+      ]
+    },
+    {
+      "cx": 200,
+      "cy": 150,
+      "dash": [
+        3,
+        3
+      ],
+      "op": "stroke_circle",
+      "radius": 50,
+      "rgba": [
+        0.95,
+        0.95,
+        0.9,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "cx": 200,
+      "cy": 150,
+      "dash": [
+        3,
+        3
+      ],
+      "op": "stroke_circle",
+      "radius": 80,
+      "rgba": [
+        0.95,
+        0.95,
+        0.9,
+        1
+      ],
+      "width": 1
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.8,
+        0.3,
+        1
+      ],
+      "text": "120m",
+      "x": 250,
+      "y": 100
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.8,
+        0.3,
+        1
+      ],
+      "text": "80m",
+      "x": 270,
+      "y": 150
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        16,
+        16,
+        70,
+        24
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.35,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

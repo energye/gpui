@@ -1,0 +1,428 @@
+{
+  "id": "D147_CoverageHeatmapCodeOverlay",
+  "size": [
+    480,
+    300
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        300
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        300
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        10,
+        8,
+        20
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 1  fn cover line sample content",
+      "x": 20,
+      "y": 20
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        32,
+        8,
+        20
+      ],
+      "rgba": [
+        0.25,
+        0.75,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 2  fn cover line sample content",
+      "x": 20,
+      "y": 42
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        54,
+        8,
+        20
+      ],
+      "rgba": [
+        0.25,
+        0.75,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 3  fn cover line sample content",
+      "x": 20,
+      "y": 64
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        76,
+        8,
+        20
+      ],
+      "rgba": [
+        0.95,
+        0.75,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 4  fn cover line sample content",
+      "x": 20,
+      "y": 86
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        98,
+        8,
+        20
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 5  fn cover line sample content",
+      "x": 20,
+      "y": 108
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        120,
+        8,
+        20
+      ],
+      "rgba": [
+        0.25,
+        0.75,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 6  fn cover line sample content",
+      "x": 20,
+      "y": 130
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        142,
+        8,
+        20
+      ],
+      "rgba": [
+        0.95,
+        0.75,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 7  fn cover line sample content",
+      "x": 20,
+      "y": 152
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        164,
+        8,
+        20
+      ],
+      "rgba": [
+        0.25,
+        0.75,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 8  fn cover line sample content",
+      "x": 20,
+      "y": 174
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        186,
+        8,
+        20
+      ],
+      "rgba": [
+        0.9,
+        0.3,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 9  fn cover line sample content",
+      "x": 20,
+      "y": 196
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        208,
+        8,
+        20
+      ],
+      "rgba": [
+        0.95,
+        0.75,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "10  fn cover line sample content",
+      "x": 20,
+      "y": 218
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        230,
+        8,
+        20
+      ],
+      "rgba": [
+        0.25,
+        0.75,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "11  fn cover line sample content",
+      "x": 20,
+      "y": 240
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        252,
+        8,
+        20
+      ],
+      "rgba": [
+        0.25,
+        0.75,
+        0.4,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "12  fn cover line sample content",
+      "x": 20,
+      "y": 262
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.25
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        84,
+        480,
+        44
+      ],
+      "rgba": [
+        0.95,
+        0.2,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        360,
+        12,
+        100,
+        26
+      ],
+      "rgba": [
+        0.25,
+        0.75,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "92% cov",
+      "x": 380,
+      "y": 30
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

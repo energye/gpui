@@ -1,0 +1,137 @@
+{
+  "id": "D78_CarouselStageComposition",
+  "size": [
+    420,
+    260
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        260
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        420,
+        260
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "clip_rrect",
+      "radius": 12,
+      "rect": [
+        30,
+        24,
+        360,
+        180
+      ]
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "cx": 180,
+      "cy": 230,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.4,
+        0.42,
+        0.48,
+        1
+      ]
+    },
+    {
+      "cx": 204,
+      "cy": 230,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.95,
+        0.95,
+        0.98,
+        1
+      ]
+    },
+    {
+      "cx": 228,
+      "cy": 230,
+      "op": "fill_circle",
+      "radius": 5,
+      "rgba": [
+        0.4,
+        0.42,
+        0.48,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.9
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        30,
+        160,
+        360,
+        44
+      ],
+      "rgba": [
+        0,
+        0,
+        0,
+        0.35
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "carousel caption · clip×quad×layer",
+      "x": 48,
+      "y": 186
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

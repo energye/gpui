@@ -1,0 +1,62 @@
+{
+  "id": "D38_DrawImageExClipText",
+  "size": [
+    360,
+    240
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        360,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        24,
+        24,
+        312,
+        192
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.12,
+        0.14,
+        0.18,
+        1
+      ],
+      "text": "DrawImageEx×clip×text",
+      "x": 50,
+      "y": 180
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

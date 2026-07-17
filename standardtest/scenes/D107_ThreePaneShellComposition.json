@@ -1,0 +1,398 @@
+{
+  "id": "D107_ThreePaneShellComposition",
+  "size": [
+    560,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        560,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        72,
+        320
+      ],
+      "rgba": [
+        0.14,
+        0.15,
+        0.18,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        20,
+        40,
+        32
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        68,
+        40,
+        32
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        116,
+        40,
+        32
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        164,
+        40,
+        32
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        16,
+        212,
+        40,
+        32
+      ],
+      "rgba": [
+        0.3,
+        0.35,
+        0.45,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        72,
+        0,
+        180,
+        320
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        72,
+        0,
+        180,
+        320
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 01",
+      "x": 84,
+      "y": 24
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 02",
+      "x": 84,
+      "y": 54
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 03",
+      "x": 84,
+      "y": 84
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        72,
+        98,
+        180,
+        28
+      ],
+      "rgba": [
+        0.85,
+        0.91,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 04",
+      "x": 84,
+      "y": 114
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 05",
+      "x": 84,
+      "y": 144
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 06",
+      "x": 84,
+      "y": 174
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 07",
+      "x": 84,
+      "y": 204
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 08",
+      "x": 84,
+      "y": 234
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 09",
+      "x": 84,
+      "y": 264
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "Item 10",
+      "x": 84,
+      "y": 294
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        252,
+        0,
+        4,
+        320
+      ],
+      "rgba": [
+        0.8,
+        0.82,
+        0.86,
+        1
+      ]
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        256,
+        0,
+        304,
+        320
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        256,
+        0,
+        304,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Detail title",
+      "x": 272,
+      "y": 36
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Three-pane composition: nav icons, ",
+      "x": 272,
+      "y": 68.357421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "selectable list with clip, and detail body with ",
+      "x": 272,
+      "y": 84.860107421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "wrapped text under GPU.",
+      "x": 272,
+      "y": 101.36279296875
+    },
+    {
+      "img_h": 40,
+      "img_w": 64,
+      "op": "draw_image_solid",
+      "rgba": [
+        0.19607843137254902,
+        0.47058823529411764,
+        0.7843137254901961,
+        1
+      ],
+      "x": 272,
+      "y": 160
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

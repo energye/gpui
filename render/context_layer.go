@@ -90,6 +90,7 @@ func (c *Context) ResetLayerPoolStats() {
 //	dc.Fill()
 //	dc.PopLayer() // Composite circle onto canvas with multiply blend at 50% opacity
 func (c *Context) PushLayer(blendMode BlendMode, opacity float64) {
+
 	c.pushLayerSurface(blendMode, opacity, true)
 }
 
@@ -179,6 +180,7 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 //	// ... draw operations ...
 //	dc.PopLayer() // Composite layer onto parent
 func (c *Context) PopLayer() {
+
 	if c.layerStack == nil || len(c.layerStack.layers) == 0 {
 		return
 	}
@@ -482,6 +484,7 @@ func (c *Context) applyMaskToPixmap(pm *Pixmap, mask *Mask) {
 //	dc.SetBlendMode(gg.BlendMultiply)
 //	dc.Fill() // Future: will use multiply blend mode
 func (c *Context) SetBlendMode(mode BlendMode) {
+
 	c.paint.BlendMode = mode
 }
 

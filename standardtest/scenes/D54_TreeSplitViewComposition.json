@@ -1,0 +1,482 @@
+{
+  "id": "D54_TreeSplitViewComposition",
+  "size": [
+    500,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        500,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        500,
+        32
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.45,
+        0.9,
+        1
+      ],
+      "text": "root / projects / gpui / render",
+      "x": 12,
+      "y": 22
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        0,
+        32,
+        180,
+        288
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        32,
+        180,
+        288
+      ],
+      "rgba": [
+        0.97,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "node-00",
+      "x": 8,
+      "y": 56
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "  node-01",
+      "x": 18,
+      "y": 78
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "  node-02",
+      "x": 18,
+      "y": 100
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        108,
+        180,
+        22
+      ],
+      "rgba": [
+        0.85,
+        0.91,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "    node-03",
+      "x": 28,
+      "y": 122
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "    node-04",
+      "x": 28,
+      "y": 144
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "  node-05",
+      "x": 18,
+      "y": 166
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "node-06",
+      "x": 8,
+      "y": 188
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "  node-07",
+      "x": 18,
+      "y": 210
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "    node-08",
+      "x": 28,
+      "y": 232
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "    node-09",
+      "x": 28,
+      "y": 254
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "    node-10",
+      "x": 28,
+      "y": 276
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.26,
+        1
+      ],
+      "text": "  node-11",
+      "x": 18,
+      "y": 298
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        180,
+        32,
+        320,
+        288
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        180,
+        32,
+        320,
+        288
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  1  | preview line content 0",
+      "x": 196,
+      "y": 56
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  2  | preview line content 1",
+      "x": 196,
+      "y": 74
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  3  | preview line content 2",
+      "x": 196,
+      "y": 92
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  4  | preview line content 3",
+      "x": 196,
+      "y": 110
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  5  | preview line content 4",
+      "x": 196,
+      "y": 128
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  6  | preview line content 5",
+      "x": 196,
+      "y": 146
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  7  | preview line content 6",
+      "x": 196,
+      "y": 164
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  8  | preview line content 7",
+      "x": 196,
+      "y": 182
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": "  9  | preview line content 8",
+      "x": 196,
+      "y": 200
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 10  | preview line content 9",
+      "x": 196,
+      "y": 218
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 11  | preview line content 10",
+      "x": 196,
+      "y": 236
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 12  | preview line content 11",
+      "x": 196,
+      "y": 254
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 13  | preview line content 12",
+      "x": 196,
+      "y": 272
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.75,
+        0.78,
+        0.85,
+        1
+      ],
+      "text": " 14  | preview line content 13",
+      "x": 196,
+      "y": 290
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.92
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        200,
+        40,
+        240,
+        28
+      ],
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.91,
+        0.93,
+        1
+      ],
+      "text": "Find in file…",
+      "x": 212,
+      "y": 58
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "reset_clip"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

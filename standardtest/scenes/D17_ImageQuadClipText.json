@@ -1,0 +1,72 @@
+{
+  "id": "D17_ImageQuadClipText",
+  "size": [
+    300,
+    220
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        220
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          40,
+          30
+        ],
+        [
+          260,
+          40
+        ],
+        [
+          250,
+          190
+        ],
+        [
+          30,
+          170
+        ]
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.1,
+        0.1,
+        0.12,
+        1
+      ],
+      "text": "quad×clip×text",
+      "x": 90,
+      "y": 100
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

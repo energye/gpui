@@ -1,0 +1,333 @@
+{
+  "id": "D182_InboxFiltersBulkActions",
+  "size": [
+    520,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        520,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        140,
+        320
+      ],
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        8,
+        16,
+        124,
+        28
+      ],
+      "rgba": [
+        0.25,
+        0.5,
+        0.9,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "Inbox",
+      "x": 20,
+      "y": 32
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "Starred",
+      "x": 20,
+      "y": 68
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "Sent",
+      "x": 20,
+      "y": 104
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.9,
+        0.92,
+        0.95,
+        1
+      ],
+      "text": "Spam",
+      "x": 20,
+      "y": 140
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        140,
+        0,
+        380,
+        320
+      ],
+      "rgba": [
+        0.96,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        140,
+        0,
+        380,
+        36
+      ],
+      "rgba": [
+        0.2,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "3 selected  Archive  Delete",
+      "x": 160,
+      "y": 24
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        140,
+        48,
+        380,
+        36
+      ],
+      "rgba": [
+        0.85,
+        0.92,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        148,
+        58,
+        14,
+        14
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "mail subject line 0",
+      "x": 180,
+      "y": 70
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        140,
+        84,
+        380,
+        36
+      ],
+      "rgba": [
+        0.85,
+        0.92,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        148,
+        94,
+        14,
+        14
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "mail subject line 1",
+      "x": 180,
+      "y": 106
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        140,
+        120,
+        380,
+        36
+      ],
+      "rgba": [
+        0.85,
+        0.92,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        148,
+        130,
+        14,
+        14
+      ],
+      "rgba": [
+        0.25,
+        0.55,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "mail subject line 2",
+      "x": 180,
+      "y": 142
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "mail subject line 3",
+      "x": 180,
+      "y": 178
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "mail subject line 4",
+      "x": 180,
+      "y": 214
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "mail subject line 5",
+      "x": 180,
+      "y": 250
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "mail subject line 6",
+      "x": 180,
+      "y": 286
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

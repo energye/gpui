@@ -1,0 +1,209 @@
+{
+  "id": "D183_SettingsSearchAnchoredSections",
+  "size": [
+    480,
+    320
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        320
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        480,
+        320
+      ],
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        20,
+        16,
+        440,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.5,
+        0.55,
+        0.65,
+        1
+      ],
+      "text": "Search settings...",
+      "x": 32,
+      "y": 38
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "General",
+      "x": 28,
+      "y": 70
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        28,
+        78,
+        424,
+        28
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "Privacy",
+      "x": 28,
+      "y": 126
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        28,
+        134,
+        424,
+        28
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        380,
+        138,
+        50,
+        20
+      ],
+      "rgba": [
+        0.9,
+        0.35,
+        0.3,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "Network",
+      "x": 28,
+      "y": 182
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        28,
+        190,
+        424,
+        28
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.2,
+        0.22,
+        0.28,
+        1
+      ],
+      "text": "Advanced",
+      "x": 28,
+      "y": 238
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 6,
+      "rect": [
+        28,
+        246,
+        424,
+        28
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

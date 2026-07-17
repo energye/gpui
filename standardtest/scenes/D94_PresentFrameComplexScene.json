@@ -1,0 +1,165 @@
+{
+  "id": "D94_PresentFrameComplexScene",
+  "size": [
+    320,
+    200
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 12
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        200
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        320,
+        40
+      ],
+      "rgba": [
+        0.15,
+        0.18,
+        0.25,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "PresentFrame complex",
+      "x": 12,
+      "y": 26
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        20,
+        60,
+        48,
+        100
+      ],
+      "rgba": [
+        0.2,
+        0.45,
+        0.85,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        75,
+        60,
+        48,
+        100
+      ],
+      "rgba": [
+        0.30000000000000004,
+        0.45,
+        0.7999999999999999,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        130,
+        60,
+        48,
+        100
+      ],
+      "rgba": [
+        0.4,
+        0.45,
+        0.75,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        185,
+        60,
+        48,
+        100
+      ],
+      "rgba": [
+        0.5,
+        0.45,
+        0.7,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        240,
+        60,
+        48,
+        100
+      ],
+      "rgba": [
+        0.6000000000000001,
+        0.45,
+        0.6499999999999999,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "set_blend"
+    },
+    {
+      "cx": 160,
+      "cy": 110,
+      "op": "fill_circle",
+      "radius": 40,
+      "rgba": [
+        1,
+        0.6,
+        0.4,
+        1
+      ]
+    },
+    {
+      "blend": "normal",
+      "op": "set_blend"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

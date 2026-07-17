@@ -1,0 +1,90 @@
+{
+  "id": "D88_NestedEvenOddPatternStroke",
+  "size": [
+    300,
+    240
+  ],
+  "font": null,
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        300,
+        240
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        170,
+        80,
+        70,
+        80
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "blend": "multiply",
+      "op": "layer_begin",
+      "opacity": 0.5
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        40,
+        40,
+        220,
+        160
+      ],
+      "rgba": [
+        0.3,
+        0.9,
+        0.5,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    },
+    {
+      "op": "stroke_rect",
+      "rect": [
+        30,
+        30,
+        240,
+        180
+      ],
+      "rgba": [
+        0.15,
+        0.2,
+        0.85,
+        1
+      ],
+      "width": 3
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}

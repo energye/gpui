@@ -1,0 +1,347 @@
+{
+  "id": "D66_ChatBubbleComposition",
+  "size": [
+    400,
+    360
+  ],
+  "font": {
+    "path": "standardtest/fonts/DejaVuSans.ttf",
+    "size": 11
+  },
+  "ops": [
+    {
+      "op": "clear",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        360
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        0,
+        400,
+        40
+      ],
+      "rgba": [
+        0.12,
+        0.13,
+        0.16,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.95,
+        0.96,
+        0.98,
+        1
+      ],
+      "text": "chat composition",
+      "x": 12,
+      "y": 26
+    },
+    {
+      "op": "clip_rect",
+      "rect": [
+        0,
+        40,
+        400,
+        260
+      ]
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        40,
+        400,
+        260
+      ],
+      "rgba": [
+        0.97,
+        0.97,
+        0.98,
+        1
+      ]
+    },
+    {
+      "op": "push"
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          42,
+          76
+        ]
+      ]
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        50,
+        56,
+        250,
+        44
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Hey, can we compose clip×layer×text?",
+      "x": 62,
+      "y": 72.357421875
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        120,
+        112,
+        250,
+        44
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "Yes — bubbles are just rrects + wrap.",
+      "x": 132,
+      "y": 128.357421875
+    },
+    {
+      "op": "push"
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          42,
+          188
+        ]
+      ]
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        50,
+        168,
+        250,
+        44
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Add avatar images and timestamps ",
+      "x": 62,
+      "y": 184.357421875
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "too.",
+      "x": 62,
+      "y": 198.87978515625
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        120,
+        224,
+        250,
+        44
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "text": "And a sticky composer bar at bottom.",
+      "x": 132,
+      "y": 240.357421875
+    },
+    {
+      "op": "push"
+    },
+    {
+      "close": true,
+      "op": "clip_path",
+      "points": [
+        [
+          42,
+          300
+        ]
+      ]
+    },
+    {
+      "op": "pop"
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 12,
+      "rect": [
+        50,
+        280,
+        250,
+        44
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_text",
+      "rgba": [
+        0.15,
+        0.16,
+        0.2,
+        1
+      ],
+      "text": "Perfect for arbitrary UI density.",
+      "x": 62,
+      "y": 296.357421875
+    },
+    {
+      "op": "reset_clip"
+    },
+    {
+      "blend": "normal",
+      "op": "layer_begin",
+      "opacity": 0.98
+    },
+    {
+      "op": "fill_rect",
+      "rect": [
+        0,
+        300,
+        400,
+        60
+      ],
+      "rgba": [
+        0.94,
+        0.95,
+        0.97,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 18,
+      "rect": [
+        12,
+        312,
+        300,
+        36
+      ],
+      "rgba": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "op": "fill_rrect",
+      "radius": 8,
+      "rect": [
+        324,
+        312,
+        64,
+        36
+      ],
+      "rgba": [
+        0.2,
+        0.5,
+        0.95,
+        1
+      ]
+    },
+    {
+      "op": "layer_end"
+    }
+  ],
+  "note": "auto-recorded from Go composition test (GPUI_RECORD_SCENES=1)"
+}
