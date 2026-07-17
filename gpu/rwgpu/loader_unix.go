@@ -82,10 +82,8 @@ func (u *unixProc) Call(args ...uintptr) (uintptr, uintptr, error) {
 	// previously forced a fmt.Errorf allocation on nearly every present-path FFI
 	// call. Real device errors are delivered through uncaptured-error callbacks.
 	//
-	// SyscallNNoEscape avoids //go:uintptrescapes so the variadic args slice can
-	// stay stack-allocated on the hot path. Callers that pass Go pointers as
-	// uintptr MUST runtime.KeepAlive the pointed-to objects across the call.
-	result, result2, _ := purego.SyscallNNoEscape(u.fnPtr, args...)
+	// Use stock purego.SyscallN (no local purego forks / extra APIs).
+	result, result2, _ := purego.SyscallN(u.fnPtr, args...)
 	return result, result2, nil
 }
 
@@ -99,7 +97,7 @@ func asUnixProc(p Proc) *unixProc {
 
 func call1(p Proc, a0 uintptr) (uintptr, uintptr) {
 	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
-		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0)
+		r1, r2, _ := purego.SyscallN(u.fnPtr, a0)
 		return r1, r2
 	}
 	r1, r2, _ := p.Call(a0)
@@ -108,7 +106,7 @@ func call1(p Proc, a0 uintptr) (uintptr, uintptr) {
 
 func call2(p Proc, a0, a1 uintptr) (uintptr, uintptr) {
 	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
-		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1)
+		r1, r2, _ := purego.SyscallN(u.fnPtr, a0, a1)
 		return r1, r2
 	}
 	r1, r2, _ := p.Call(a0, a1)
@@ -117,7 +115,7 @@ func call2(p Proc, a0, a1 uintptr) (uintptr, uintptr) {
 
 func call3(p Proc, a0, a1, a2 uintptr) (uintptr, uintptr) {
 	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
-		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1, a2)
+		r1, r2, _ := purego.SyscallN(u.fnPtr, a0, a1, a2)
 		return r1, r2
 	}
 	r1, r2, _ := p.Call(a0, a1, a2)
@@ -126,7 +124,7 @@ func call3(p Proc, a0, a1, a2 uintptr) (uintptr, uintptr) {
 
 func call4(p Proc, a0, a1, a2, a3 uintptr) (uintptr, uintptr) {
 	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
-		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1, a2, a3)
+		r1, r2, _ := purego.SyscallN(u.fnPtr, a0, a1, a2, a3)
 		return r1, r2
 	}
 	r1, r2, _ := p.Call(a0, a1, a2, a3)
@@ -135,7 +133,7 @@ func call4(p Proc, a0, a1, a2, a3 uintptr) (uintptr, uintptr) {
 
 func call5(p Proc, a0, a1, a2, a3, a4 uintptr) (uintptr, uintptr) {
 	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
-		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1, a2, a3, a4)
+		r1, r2, _ := purego.SyscallN(u.fnPtr, a0, a1, a2, a3, a4)
 		return r1, r2
 	}
 	r1, r2, _ := p.Call(a0, a1, a2, a3, a4)
@@ -144,7 +142,7 @@ func call5(p Proc, a0, a1, a2, a3, a4 uintptr) (uintptr, uintptr) {
 
 func call6(p Proc, a0, a1, a2, a3, a4, a5 uintptr) (uintptr, uintptr) {
 	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
-		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1, a2, a3, a4, a5)
+		r1, r2, _ := purego.SyscallN(u.fnPtr, a0, a1, a2, a3, a4, a5)
 		return r1, r2
 	}
 	r1, r2, _ := p.Call(a0, a1, a2, a3, a4, a5)

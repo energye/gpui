@@ -541,3 +541,31 @@ All PASS; fps≈57–58; `cpu_fb=0`.
 
 ### Evidence
 - `tmp/pks/cpu_opt/opt16d_*.json`, `mem_opt16d.pprof`
+
+## opt17 BeginRenderPass pool (2026-07-17)
+
+### Kept (engine, no content cut)
+1. **`rwgpu.BeginRenderPass` single-attachment pool** — reuse native color-attachment slice for the common 1-RT path (`gpu/rwgpu/render.go`).
+
+### Attempted then **reverted** (text correctness)
+1. **HUD digit/mixed compose in `GlyphMaskEngine.LayoutText`** — char-by-char ASCII + CJK run stitch was tried to cut FPS/frame string shape thrash.
+   - Broke real text: wrong advances / large or garbled glyphs on mixed HUD and digit pure-translate strings.
+   - Root: compose is not equivalent to full `text.LayoutGlyphs` (face cmap, MultiFace runs, .notdef advance, kerning).
+   - **Fully reverted** to opt13 path: always `text.LayoutGlyphs` + layout batch cache.
+2. **Convex vertex FNV skip-if-same WriteBuffer** — extra full-buffer hash every animated mesh frame; net CPU regression on P_L3. **Reverted**.
+
+### Gate evidence (post-revert)
+- `TestGlyphMask*` / `TestS42*` / `TestGlyphMaskSkipsNotdef` PASS
+- `TestF1_*` / `TestP04_ApplyBlurGPU` PASS
+- Mem leak suite earlier this turn: `tmp/gpui_mem_leak_tests.log` **DONE fail=0** (count=2)
+- Full unit (pre-opt17 morning): effective green (`tmp/full_unit/STATUS.md`)
+
+### Still open
+1. Heavy CPU ~2× solid (mesh WriteBuffer + multi-submit glow/layer stack)
+2. RSS slope ~15–30MB / 30–45s native-heavy
+3. HUD digit amortize needs a **correct** design (digit atlas / sticky template), not full-string compose
+4. Optional: encoder reuse / effect light Flush / fewer PopLayer submits
+
+### Evidence
+- `tmp/pks/cpu_opt/opt17b_*.json` (pre-revert, do not treat as green text)
+- Post-revert smoke: rebuild `pks_bin_opt17c` + glyph/F1 tests
