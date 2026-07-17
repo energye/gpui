@@ -315,11 +315,14 @@ func (e *OutlineExtractor) ExtractOutline(parsedFont ParsedFont, gid GlyphID, si
 // doesn't apply (the pixel grid is no longer axis-aligned).
 func (e *OutlineExtractor) ExtractOutlineHinted(parsedFont ParsedFont, gid GlyphID, size float64, hinting Hinting) (*GlyphOutline, error) {
 	var outline *GlyphOutline
+	var contours *GlyfContours
 	var err error
 
 	switch f := parsedFont.(type) {
 	case *ownParsedFont:
-		outline, err = e.extractFromOwn(f, gid, size)
+		// Contours extracted once: outline build + auto-hint share them
+		// (avoids second ParseGlyfContours / parseFontTables on HUD path).
+		outline, contours, err = e.extractFromOwnWithContours(f, gid, size)
 	default:
 		return nil, ErrUnsupportedFontType
 	}
@@ -340,12 +343,12 @@ func (e *OutlineExtractor) ExtractOutlineHinted(parsedFont ParsedFont, gid Glyph
 	}
 
 	// Priority 2: Auto-hinter (contour-based, Y-UP convention).
-	// Falls back to simple grid-fitting if contour data is unavailable
-	// (TTC fonts, CFF fonts). Composite glyphs are handled transparently
-	// by ParseGlyfContours (recursive flattening). The legacy outline-based
-	// auto-hinter is not used because sfnt outlines are Y-DOWN while the
-	// hinting pipeline operates in Y-UP — a convention mismatch that
-	// collapses all Y coordinates to the baseline.
+	// Prefer preloaded contours from extract (ownParsedFont path).
+	if contours != nil && len(contours.Points) > 0 {
+		if autoHintViaContoursPreloaded(outline, contours, parsedFont, size, hinting) {
+			return outline, nil
+		}
+	}
 	if !autoHintOutline(outline, parsedFont, size, hinting) {
 		gridFitOutline(outline, hinting)
 	}
@@ -624,23 +627,28 @@ func abs32f(x float32) float32 {
 // This matches the sfnt.LoadGlyph output format so the rest of the
 // pipeline (hinting, rendering) works identically.
 func (e *OutlineExtractor) extractFromOwn(f *ownParsedFont, gid GlyphID, size float64) (*GlyphOutline, error) {
-	rawData := f.RawFontData()
-	if rawData == nil {
-		return nil, &FontError{Reason: "own parser: no raw font data"}
-	}
+	outline, _, err := e.extractFromOwnWithContours(f, gid, size)
+	return outline, err
+}
 
+// extractFromOwnWithContours builds a scaled outline and returns the raw
+// font-unit contours used so auto-hinting can reuse them (no second glyf parse).
+func (e *OutlineExtractor) extractFromOwnWithContours(f *ownParsedFont, gid GlyphID, size float64) (*GlyphOutline, *GlyfContours, error) {
+	if f == nil {
+		return nil, nil, &FontError{Reason: "own parser: nil font"}
+	}
 	upem := f.UnitsPerEm()
 	if upem == 0 {
-		return nil, &FontError{Reason: "own parser: zero unitsPerEm"}
+		return nil, nil, &FontError{Reason: "own parser: zero unitsPerEm"}
 	}
 
 	// Get advance width.
 	advance := f.GlyphAdvance(uint16(gid), size)
 
-	// Parse raw contour points from glyf table.
-	contours, err := ParseGlyfContours(rawData, gid)
+	// Cached table directory + glyf/loca view (no per-glyph sfnt walk).
+	contours, err := f.GlyfContours(gid)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if contours == nil || len(contours.Points) == 0 {
 		// Empty glyph (space, etc.) — return outline with advance only.
@@ -648,7 +656,7 @@ func (e *OutlineExtractor) extractFromOwn(f *ownParsedFont, gid GlyphID, size fl
 			GID:     gid,
 			Type:    GlyphTypeOutline,
 			Advance: float32(advance),
-		}, nil
+		}, contours, nil
 	}
 
 	// Scale factor: ppem / unitsPerEm.
@@ -665,7 +673,7 @@ func (e *OutlineExtractor) extractFromOwn(f *ownParsedFont, gid GlyphID, size fl
 			GID:     gid,
 			Type:    GlyphTypeOutline,
 			Advance: float32(advance),
-		}, nil
+		}, contours, nil
 	}
 
 	// Compute bounds from segments.
@@ -685,7 +693,7 @@ func (e *OutlineExtractor) extractFromOwn(f *ownParsedFont, gid GlyphID, size fl
 	}
 	outline.Bounds = Rect{MinX: minX, MinY: minY, MaxX: maxX, MaxY: maxY}
 
-	return outline, nil
+	return outline, contours, nil
 }
 
 // extractFromOwnVariableWithContours extracts a glyph outline with font

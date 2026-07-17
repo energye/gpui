@@ -19,6 +19,8 @@ type unixProc struct {
 	lib   *unixLibrary
 	name  string
 	fnPtr uintptr
+	// missingErr is cached so a missing symbol does not re-allocate on every Call.
+	missingErr error
 }
 
 // loadLibrary loads a shared library using purego.
@@ -66,12 +68,85 @@ func (u *unixLibrary) NewProc(name string) Proc {
 // Calls with float parameters or by-value structs use typed purego.RegisterFunc wrappers.
 func (u *unixProc) Call(args ...uintptr) (uintptr, uintptr, error) {
 	if u.fnPtr == 0 {
-		return 0, 0, fmt.Errorf("wgpu: failed to get symbol %s from %s", u.name, u.lib.name)
+		if u.missingErr == nil {
+			libName := ""
+			if u.lib != nil {
+				libName = u.lib.name
+			}
+			u.missingErr = fmt.Errorf("wgpu: failed to get symbol %s from %s", u.name, libName)
+		}
+		return 0, 0, u.missingErr
 	}
-
-	result, result2, errno := purego.SyscallN(u.fnPtr, args...)
-	if errno != 0 {
-		return result, result2, fmt.Errorf("wgpu: call to %s failed: errno %d", u.name, errno)
-	}
+	// wgpu C entry points do not report failure via errno. purego.SyscallN still
+	// surfaces residual thread-local errno from unrelated libc activity, which
+	// previously forced a fmt.Errorf allocation on nearly every present-path FFI
+	// call. Real device errors are delivered through uncaptured-error callbacks.
+	//
+	// SyscallNNoEscape avoids //go:uintptrescapes so the variadic args slice can
+	// stay stack-allocated on the hot path. Callers that pass Go pointers as
+	// uintptr MUST runtime.KeepAlive the pointed-to objects across the call.
+	result, result2, _ := purego.SyscallNNoEscape(u.fnPtr, args...)
 	return result, result2, nil
+}
+
+// Fixed-arity call helpers avoid the variadic []uintptr allocation of Proc.Call
+// on the present hot path. Only valid for unixProc with a resolved symbol.
+
+func asUnixProc(p Proc) *unixProc {
+	u, _ := p.(*unixProc)
+	return u
+}
+
+func call1(p Proc, a0 uintptr) (uintptr, uintptr) {
+	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
+		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0)
+		return r1, r2
+	}
+	r1, r2, _ := p.Call(a0)
+	return r1, r2
+}
+
+func call2(p Proc, a0, a1 uintptr) (uintptr, uintptr) {
+	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
+		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1)
+		return r1, r2
+	}
+	r1, r2, _ := p.Call(a0, a1)
+	return r1, r2
+}
+
+func call3(p Proc, a0, a1, a2 uintptr) (uintptr, uintptr) {
+	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
+		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1, a2)
+		return r1, r2
+	}
+	r1, r2, _ := p.Call(a0, a1, a2)
+	return r1, r2
+}
+
+func call4(p Proc, a0, a1, a2, a3 uintptr) (uintptr, uintptr) {
+	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
+		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1, a2, a3)
+		return r1, r2
+	}
+	r1, r2, _ := p.Call(a0, a1, a2, a3)
+	return r1, r2
+}
+
+func call5(p Proc, a0, a1, a2, a3, a4 uintptr) (uintptr, uintptr) {
+	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
+		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1, a2, a3, a4)
+		return r1, r2
+	}
+	r1, r2, _ := p.Call(a0, a1, a2, a3, a4)
+	return r1, r2
+}
+
+func call6(p Proc, a0, a1, a2, a3, a4, a5 uintptr) (uintptr, uintptr) {
+	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
+		r1, r2, _ := purego.SyscallNNoEscape(u.fnPtr, a0, a1, a2, a3, a4, a5)
+		return r1, r2
+	}
+	r1, r2, _ := p.Call(a0, a1, a2, a3, a4, a5)
+	return r1, r2
 }

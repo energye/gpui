@@ -120,8 +120,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point) {
 			float32(dev[3].X), float32(dev[3].Y),
 			1.0, vpW, vpH,
 			0, 0, 1, 1,
-			false,
-		)
+			false, false)
 		c.recordGPUOp()
 		return
 	}

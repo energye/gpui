@@ -16,6 +16,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -36,6 +38,33 @@ func main() {
 	if envBool("GPUI_LIST_PROBES", false) {
 		printProbeCatalog()
 		return
+	}
+	if path := os.Getenv("GPUI_CPUPROFILE"); path != "" {
+		f, err := os.Create(path)
+		if err != nil {
+			log.Fatalf("cpuprofile: %v", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatalf("cpuprofile start: %v", err)
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			_ = f.Close()
+		}()
+	}
+	if path := os.Getenv("GPUI_MEMPROFILE"); path != "" {
+		defer func() {
+			f, err := os.Create(path)
+			if err != nil {
+				log.Printf("memprofile create: %v", err)
+				return
+			}
+			runtime.GC()
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				log.Printf("memprofile write: %v", err)
+			}
+			_ = f.Close()
+		}()
 	}
 
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {

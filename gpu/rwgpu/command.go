@@ -1,6 +1,7 @@
 package rwgpu
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
@@ -307,10 +308,10 @@ func (enc *CommandEncoder) Finish(desc ...*CommandBufferDescriptor) (*CommandBuf
 	if len(desc) > 0 && desc[0] != nil {
 		descPtr = uintptr(unsafe.Pointer(desc[0]))
 	}
-	handle, _, _ := procCommandEncoderFinish.Call(
-		enc.handle,
-		descPtr,
-	)
+	handle, _ := call2(procCommandEncoderFinish, enc.handle, descPtr)
+	if len(desc) > 0 {
+		runtime.KeepAlive(desc[0])
+	}
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CommandEncoder.Finish", Message: "wgpu returned null handle"}
 	}
@@ -322,7 +323,7 @@ func (enc *CommandEncoder) Finish(desc ...*CommandBufferDescriptor) (*CommandBuf
 func (enc *CommandEncoder) Release() {
 	if enc.handle != 0 {
 		untrackResource(enc.handle)
-		procCommandEncoderRelease.Call(enc.handle) //nolint:errcheck
+		call1(procCommandEncoderRelease, enc.handle)
 		enc.handle = 0
 	}
 }
@@ -432,7 +433,7 @@ func (cpe *ComputePassEncoder) End() {
 	if cpe == nil || cpe.handle == 0 {
 		return
 	}
-	procComputePassEncoderEnd.Call(cpe.handle) //nolint:errcheck
+	call1(procComputePassEncoderEnd, cpe.handle)
 }
 
 // Release releases the compute pass encoder.
@@ -456,19 +457,24 @@ func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
 	if q == nil || q.handle == 0 || len(commands) == 0 {
 		return 0, nil
 	}
-	handles := make([]uintptr, len(commands))
+	if cap(q.submitHandles) < len(commands) {
+		q.submitHandles = make([]uintptr, len(commands))
+	} else {
+		q.submitHandles = q.submitHandles[:len(commands)]
+	}
+	handles := q.submitHandles
 	for i, cmd := range commands {
 		if cmd != nil {
 			handles[i] = cmd.handle
+		} else {
+			handles[i] = 0
 		}
 	}
 	// wgpuQueueSubmitForIndex is a wgpu-native extension that returns WGPUSubmissionIndex (uint64).
 	// This enables callers to poll for GPU completion of a specific submission.
-	submissionIndex, _, _ := procQueueSubmitForIndex.Call(
-		q.handle,
-		uintptr(len(handles)),
-		uintptr(unsafe.Pointer(&handles[0])),
-	)
+	submissionIndex, _ := call3(procQueueSubmitForIndex, q.handle, uintptr(len(handles)), uintptr(unsafe.Pointer(&handles[0])))
+	runtime.KeepAlive(handles)
+	runtime.KeepAlive(commands)
 	return uint64(submissionIndex), nil
 }
 
@@ -476,7 +482,7 @@ func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
 func (cb *CommandBuffer) Release() {
 	if cb.handle != 0 {
 		untrackResource(cb.handle)
-		procCommandBufferRelease.Call(cb.handle) //nolint:errcheck
+		call1(procCommandBufferRelease, cb.handle)
 		cb.handle = 0
 	}
 }

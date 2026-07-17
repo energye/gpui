@@ -1,6 +1,7 @@
 package rwgpu
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
@@ -250,10 +251,10 @@ func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGr
 		wireDesc.Entries = uintptr(unsafe.Pointer(&wireEntries[0]))
 	}
 
-	handle, _, _ := procDeviceCreateBindGroupLayout.Call(
-		d.handle,
-		uintptr(unsafe.Pointer(&wireDesc)),
-	)
+	handle, _ := call2(procDeviceCreateBindGroupLayout, d.handle, uintptr(unsafe.Pointer(&wireDesc)))
+	runtime.KeepAlive(wireEntries)
+	runtime.KeepAlive(wireDesc)
+	runtime.KeepAlive(desc)
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateBindGroupLayout", Message: "wgpu returned null handle"}
 	}
@@ -315,10 +316,10 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 		Entries:    wireEntriesPtr,
 	}
 
-	handle, _, _ := procDeviceCreateBindGroup.Call(
-		d.handle,
-		uintptr(unsafe.Pointer(&wire)),
-	)
+	handle, _ := call2(procDeviceCreateBindGroup, d.handle, uintptr(unsafe.Pointer(&wire)))
+	runtime.KeepAlive(wireEntries)
+	runtime.KeepAlive(wire)
+	runtime.KeepAlive(desc)
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateBindGroup", Message: "wgpu returned null handle"}
 	}

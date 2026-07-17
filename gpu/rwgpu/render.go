@@ -1,6 +1,7 @@
 package rwgpu
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
@@ -201,10 +202,11 @@ func (enc *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderP
 		timestampWrites:        timestampWritesPtr,
 	}
 
-	handle, _, _ := procCommandEncoderBeginRenderPass.Call(
-		enc.handle,
-		uintptr(unsafe.Pointer(&nativeDesc)),
-	)
+	handle, _ := call2(procCommandEncoderBeginRenderPass, enc.handle, uintptr(unsafe.Pointer(&nativeDesc)))
+	runtime.KeepAlive(nativeColorAttachments)
+	runtime.KeepAlive(nativeDesc)
+	runtime.KeepAlive(nativeTimestampWrites)
+	runtime.KeepAlive(desc)
 	if handle == 0 {
 		return nil, &WGPUError{Op: "BeginRenderPass", Message: "wgpu returned null handle"}
 	}
@@ -218,7 +220,7 @@ func (rpe *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
 	if rpe == nil || rpe.handle == 0 || pipeline == nil || pipeline.handle == 0 {
 		return
 	}
-	procRenderPassEncoderSetPipeline.Call(rpe.handle, pipeline.handle) //nolint:errcheck
+	call2(procRenderPassEncoderSetPipeline, rpe.handle, pipeline.handle)
 }
 
 // SetBindGroup sets a bind group for this pass.
@@ -235,13 +237,9 @@ func (rpe *RenderPassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, 
 		offsetCount = uintptr(len(dynamicOffsets))
 	}
 
-	procRenderPassEncoderSetBindGroup.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(groupIndex),
-		group.handle,
-		offsetCount,
-		offsetsPtr,
-	)
+	call5(procRenderPassEncoderSetBindGroup, rpe.handle, uintptr(groupIndex), group.handle, offsetCount, offsetsPtr)
+	runtime.KeepAlive(dynamicOffsets)
+	runtime.KeepAlive(group)
 }
 
 // SetVertexBuffer sets a vertex buffer for this pass.
@@ -250,13 +248,8 @@ func (rpe *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, offse
 	if rpe == nil || rpe.handle == 0 || buffer == nil || buffer.handle == 0 {
 		return
 	}
-	procRenderPassEncoderSetVertexBuffer.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(slot),
-		buffer.handle,
-		uintptr(offset),
-		uintptr(size),
-	)
+	call5(procRenderPassEncoderSetVertexBuffer, rpe.handle, uintptr(slot), buffer.handle, uintptr(offset), uintptr(size))
+	runtime.KeepAlive(buffer)
 }
 
 // SetIndexBuffer sets the index buffer for this pass.
@@ -265,13 +258,8 @@ func (rpe *RenderPassEncoder) SetIndexBuffer(buffer *Buffer, format types.IndexF
 	if rpe == nil || rpe.handle == 0 || buffer == nil || buffer.handle == 0 {
 		return
 	}
-	procRenderPassEncoderSetIndexBuffer.Call( //nolint:errcheck
-		rpe.handle,
-		buffer.handle,
-		uintptr(format),
-		uintptr(offset),
-		uintptr(size),
-	)
+	call5(procRenderPassEncoderSetIndexBuffer, rpe.handle, buffer.handle, uintptr(format), uintptr(offset), uintptr(size))
+	runtime.KeepAlive(buffer)
 }
 
 // Draw draws primitives.
@@ -280,13 +268,7 @@ func (rpe *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firs
 	if rpe == nil || rpe.handle == 0 {
 		return
 	}
-	procRenderPassEncoderDraw.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(vertexCount),
-		uintptr(instanceCount),
-		uintptr(firstVertex),
-		uintptr(firstInstance),
-	)
+	call5(procRenderPassEncoderDraw, rpe.handle, uintptr(vertexCount), uintptr(instanceCount), uintptr(firstVertex), uintptr(firstInstance))
 }
 
 // DrawIndexed draws indexed primitives.
@@ -295,14 +277,7 @@ func (rpe *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex 
 	if rpe == nil || rpe.handle == 0 {
 		return
 	}
-	procRenderPassEncoderDrawIndexed.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(indexCount),
-		uintptr(instanceCount),
-		uintptr(firstIndex),
-		uintptr(baseVertex),
-		uintptr(firstInstance),
-	)
+	call6(procRenderPassEncoderDrawIndexed, rpe.handle, uintptr(indexCount), uintptr(instanceCount), uintptr(firstIndex), uintptr(baseVertex), uintptr(firstInstance))
 }
 
 // DrawIndirect draws primitives using parameters from a GPU buffer.
@@ -351,7 +326,15 @@ func (rpe *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDept
 	if rpe == nil || rpe.handle == 0 {
 		return
 	}
+	if rpe.vpValid &&
+		rpe.vpX == x && rpe.vpY == y && rpe.vpW == width && rpe.vpH == height &&
+		rpe.vpMinZ == minDepth && rpe.vpMaxZ == maxDepth {
+		return
+	}
 	callRenderPassEncoderSetViewport(rpe.handle, x, y, width, height, minDepth, maxDepth)
+	rpe.vpValid = true
+	rpe.vpX, rpe.vpY, rpe.vpW, rpe.vpH = x, y, width, height
+	rpe.vpMinZ, rpe.vpMaxZ = minDepth, maxDepth
 }
 
 // SetScissorRect sets the scissor rectangle used during the rasterization stage.
@@ -363,13 +346,7 @@ func (rpe *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
 	if rpe == nil || rpe.handle == 0 {
 		return
 	}
-	procRenderPassEncoderSetScissorRect.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(x),
-		uintptr(y),
-		uintptr(width),
-		uintptr(height),
-	)
+	call5(procRenderPassEncoderSetScissorRect, rpe.handle, uintptr(x), uintptr(y), uintptr(width), uintptr(height))
 }
 
 // SetBlendConstant sets the blend constant color used by blend operations.
@@ -379,10 +356,8 @@ func (rpe *RenderPassEncoder) SetBlendConstant(color *Color) {
 	if rpe == nil || rpe.handle == 0 || color == nil {
 		return
 	}
-	procRenderPassEncoderSetBlendConstant.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(unsafe.Pointer(color)),
-	)
+	call2(procRenderPassEncoderSetBlendConstant, rpe.handle, uintptr(unsafe.Pointer(color)))
+	runtime.KeepAlive(color)
 }
 
 // SetStencilReference sets the stencil reference value used by stencil operations.
@@ -391,10 +366,7 @@ func (rpe *RenderPassEncoder) SetStencilReference(reference uint32) {
 	if rpe == nil || rpe.handle == 0 {
 		return
 	}
-	procRenderPassEncoderSetStencilReference.Call( //nolint:errcheck
-		rpe.handle,
-		uintptr(reference),
-	)
+	call2(procRenderPassEncoderSetStencilReference, rpe.handle, uintptr(reference))
 }
 
 // InsertDebugMarker inserts a single debug marker label into the render pass.
@@ -449,15 +421,17 @@ func (rpe *RenderPassEncoder) End() {
 	if rpe == nil || rpe.handle == 0 {
 		return
 	}
-	procRenderPassEncoderEnd.Call(rpe.handle) //nolint:errcheck
+	call1(procRenderPassEncoderEnd, rpe.handle)
+	rpe.vpValid = false
 }
 
 // Release releases the render pass encoder.
 func (rpe *RenderPassEncoder) Release() {
 	if rpe.handle != 0 {
 		untrackResource(rpe.handle)
-		procRenderPassEncoderRelease.Call(rpe.handle) //nolint:errcheck
+		call1(procRenderPassEncoderRelease, rpe.handle)
 		rpe.handle = 0
+		rpe.vpValid = false
 	}
 }
 

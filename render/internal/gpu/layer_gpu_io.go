@@ -37,6 +37,30 @@ func (rc *GPURenderContext) ReadbackViewRGBA(view gpucontext.TextureView, w, h i
 
 // UploadRGBAToView writes tight RGBA8 into a BGRA8 offscreen texture view (seed layer RT).
 // Used by PushBackdropLayer / post-filter to keep GPU RT coherent with pixmap.
+// ReadbackViewStraightRGBA copies an RGBA8Unorm texture view into tight RGBA8
+// without BGRA channel swizzle. Used for F.03 filter publish textures.
+func (rc *GPURenderContext) ReadbackViewStraightRGBA(view gpucontext.TextureView, w, h int) ([]byte, error) {
+	if rc == nil || view.IsNil() || w <= 0 || h <= 0 {
+		return nil, fmt.Errorf("ReadbackViewStraightRGBA: bad args")
+	}
+	if !rc.shared.gpuReady {
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return nil, fmt.Errorf("ReadbackViewStraightRGBA: GPU not ready")
+		}
+	}
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	queue := rc.shared.queue
+	rc.shared.mu.Unlock()
+	if device == nil || queue == nil {
+		return nil, fmt.Errorf("ReadbackViewStraightRGBA: nil device/queue")
+	}
+	return readTextureViewRegionStraightRGBA(device, queue, view, image.Rect(0, 0, w, h), w, h)
+}
+
 func (rc *GPURenderContext) UploadRGBAToView(view gpucontext.TextureView, data []byte, w, h int) error {
 	if rc == nil || view.IsNil() || w <= 0 || h <= 0 {
 		return fmt.Errorf("UploadRGBAToView: bad args")

@@ -2,6 +2,7 @@ package rwgpu
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"unsafe"
 
@@ -138,6 +139,8 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
 	)
+	runtime.KeepAlive(wire)
+	runtime.KeepAlive(desc)
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateBuffer", Message: "wgpu returned null handle"}
 	}
@@ -230,13 +233,9 @@ func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
 	if q == nil || q.handle == 0 || buffer == nil || buffer.handle == 0 || len(data) == 0 {
 		return nil
 	}
-	procQueueWriteBuffer.Call( //nolint:errcheck
-		q.handle,
-		buffer.handle,
-		uintptr(offset),
-		uintptr(unsafe.Pointer(&data[0])),
-		uintptr(len(data)),
-	)
+	call5(procQueueWriteBuffer, q.handle, buffer.handle, uintptr(offset), uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)))
+	runtime.KeepAlive(data)
+	runtime.KeepAlive(buffer)
 	return nil
 }
 
@@ -247,13 +246,10 @@ func (q *Queue) WriteBufferRaw(buffer *Buffer, offset uint64, data unsafe.Pointe
 	if q == nil || q.handle == 0 || buffer == nil || buffer.handle == 0 || size == 0 {
 		return
 	}
-	procQueueWriteBuffer.Call( //nolint:errcheck
-		q.handle,
-		buffer.handle,
-		uintptr(offset),
-		uintptr(data),
-		uintptr(size),
-	)
+	call5(procQueueWriteBuffer, q.handle, buffer.handle, uintptr(offset), uintptr(data), uintptr(size))
+	// Caller retains data; keep buffer object live across the FFI boundary.
+	runtime.KeepAlive(buffer)
+	runtime.KeepAlive(data)
 }
 
 // Usage returns the usage flags of this buffer.

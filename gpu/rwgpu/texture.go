@@ -1,6 +1,7 @@
 package rwgpu
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
@@ -328,6 +329,11 @@ func (q *Queue) WriteTexture(dest *ImageCopyTexture, data []byte, layout *ImageD
 		uintptr(unsafe.Pointer(&wireLayout)),
 		uintptr(unsafe.Pointer(size)),
 	)
+	runtime.KeepAlive(data)
+	runtime.KeepAlive(wire)
+	runtime.KeepAlive(wireLayout)
+	runtime.KeepAlive(size)
+	runtime.KeepAlive(dest)
 	return nil
 }
 
@@ -346,6 +352,10 @@ func (q *Queue) WriteTextureRaw(dest *TexelCopyTextureInfo, data []byte, layout 
 		uintptr(unsafe.Pointer(layout)),
 		uintptr(unsafe.Pointer(size)),
 	)
+	runtime.KeepAlive(data)
+	runtime.KeepAlive(dest)
+	runtime.KeepAlive(layout)
+	runtime.KeepAlive(size)
 	return nil
 }
 

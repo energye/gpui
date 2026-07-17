@@ -140,6 +140,13 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (*webgpu.TextureView, er
 	if entry, ok := c.entries[key]; ok {
 		// Size mismatch with same gen should not happen; re-upload defensively.
 		if entry.width == cmd.ImgWidth && entry.height == cmd.ImgHeight {
+			if cmd.ContentDirty {
+				// Stable GenerationID with rewritten pixels (ExportImageBuf reuse).
+				if err := c.rewriteImage(entry, cmd); err != nil {
+					return nil, err
+				}
+				c.uploads++
+			}
 			c.gen++
 			entry.gen = c.gen
 			c.hits++
@@ -181,6 +188,53 @@ func (c *ImageCache) ReleaseEphemeral() {
 		}
 	}
 	c.ephemeral = c.ephemeral[:0]
+}
+
+// rewriteImage uploads new pixels into an existing cache entry texture (in-place).
+// Used when ImageBuf.MarkPixelsDirty kept GenerationID stable across ExportImageBuf.
+func (c *ImageCache) rewriteImage(entry *imageCacheEntry, cmd *ImageDrawCommand) error {
+	if entry == nil || entry.texture == nil {
+		return fmt.Errorf("rewriteImage: nil entry")
+	}
+	w, h := cmd.ImgWidth, cmd.ImgHeight
+	bytesPerRow := uint32(w * 4) //nolint:gosec
+	stride := cmd.ImgStride
+	if stride == 0 {
+		stride = w * 4
+	}
+	need := w * h * 4
+	var pixelData []byte
+	var staging *[]byte
+	if stride == w*4 {
+		pixelData = cmd.PixelData[:need]
+	} else {
+		staging = acquireImageStaging(need)
+		pixelData = *staging
+		for row := 0; row < h; row++ {
+			srcOff := row * stride
+			dstOff := row * w * 4
+			copy(pixelData[dstOff:dstOff+w*4], cmd.PixelData[srcOff:srcOff+w*4])
+		}
+	}
+	if err := c.queue.WriteTexture(
+		&webgpu.ImageCopyTexture{Texture: entry.texture, MipLevel: 0},
+		pixelData,
+		&webgpu.ImageDataLayout{
+			Offset: 0, BytesPerRow: bytesPerRow, RowsPerImage: uint32(h), //nolint:gosec
+		},
+		&webgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+	); err != nil {
+		if staging != nil {
+			releaseImageStaging(staging)
+		}
+		return fmt.Errorf("rewrite image pixels: %w", err)
+	}
+	if staging != nil {
+		releaseImageStaging(staging)
+	}
+	c.lastUploadBytes = int64(need)
+	c.uploadBytes += uint64(need) //nolint:gosec
+	return nil
 }
 
 // Destroy releases all cached GPU textures and views.

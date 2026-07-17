@@ -853,9 +853,6 @@ func makeSDFRenderUniformInto(buf []byte, w, h uint32, antiAlias bool) []byte {
 		buf = make([]byte, sdfRenderUniformSize)
 	} else {
 		buf = buf[:sdfRenderUniformSize]
-		for i := range buf {
-			buf[i] = 0
-		}
 	}
 	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(float32(w)))
 	binary.LittleEndian.PutUint32(buf[4:8], math.Float32bits(float32(h)))
@@ -864,6 +861,10 @@ func makeSDFRenderUniformInto(buf []byte, w, h uint32, antiAlias bool) []byte {
 		aa = 0
 	}
 	binary.LittleEndian.PutUint32(buf[8:12], aa)
+	// Pad remainder of fixed uniform size without a full-buffer clear loop.
+	for i := 12; i < len(buf); i++ {
+		buf[i] = 0
+	}
 	// Intentionally no slogger here: Into is a hot path (S6.2 zero-alloc).
 	return buf
 }

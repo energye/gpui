@@ -48,16 +48,44 @@ type GlyphMaskEngine struct {
 	lastPartialUploads int
 	lastFullUploads    int
 	totalUploadBytes   int64
+
+	// opt13: reuse quad slice inside layoutGlyphs (callers must own a copy
+	// before the next LayoutText — QueueGlyphMask copies into context store).
+	quadScratch []GlyphMaskQuad
+
+	// opt13: LayoutText batch cache for repeated HUD/static strings.
+	layoutCache     map[glyphLayoutCacheKey]*glyphLayoutCacheEntry
+	layoutCacheTick uint64
+	layoutCacheSoft int
+}
+
+// glyphLayoutCacheKey identifies a LayoutText result for HUD/static reuse.
+// Positions are quantized to 1/64 px; matrix must be pure translate (else no key).
+type glyphLayoutCacheKey struct {
+	textHash       uint64
+	fontID         uint64
+	sizeBits       uint32
+	xQ             int32
+	yQ             int32
+	cr, cg, cb, ca uint32
+	flags          uint16 // lcd/aliased/hint bits
+}
+
+type glyphLayoutCacheEntry struct {
+	batch GlyphMaskBatch // Quads owned by entry (deep copy)
+	atime uint64
 }
 
 // NewGlyphMaskEngine creates a new glyph mask engine with the default atlas
 // configuration. LCD subpixel rendering is disabled by default (LCDLayoutNone).
 func NewGlyphMaskEngine() *GlyphMaskEngine {
 	return &GlyphMaskEngine{
-		atlas:      text.NewGlyphMaskAtlasDefault(),
-		rasterizer: text.NewGlyphMaskRasterizer(),
-		lcdLayout:  text.LCDLayoutNone,
-		lcdFilter:  text.DefaultLCDFilter(),
+		atlas:           text.NewGlyphMaskAtlasDefault(),
+		rasterizer:      text.NewGlyphMaskRasterizer(),
+		lcdLayout:       text.LCDLayoutNone,
+		lcdFilter:       text.DefaultLCDFilter(),
+		layoutCache:     make(map[glyphLayoutCacheKey]*glyphLayoutCacheEntry),
+		layoutCacheSoft: 256,
 	}
 }
 
@@ -151,8 +179,17 @@ func (e *GlyphMaskEngine) LayoutText(
 
 	// S6.5: LayoutGlyphs caches Face.Glyphs results for repeated DrawString
 	// (list scroll / static labels). Same cmap+advance semantics as before.
+	// opt13: full batch cache for static/HUD strings (FPS line hits when value sticky).
+	if key, ok := makeGlyphLayoutCacheKey(s, fontID, fontSize, batchColor, x, y, matrix, useLCD, false, hinting); ok {
+		if batch, hit := e.layoutCacheGet(key); hit {
+			return batch, nil
+		}
+		shaped := text.LayoutGlyphs(face, s)
+		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false)
+		e.layoutCachePut(key, batch)
+		return batch, nil
+	}
 	shaped := text.LayoutGlyphs(face, s)
-
 	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
 }
 
@@ -337,7 +374,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	isCJK bool,
 	aliased bool,
 ) GlyphMaskBatch {
-	var quads []GlyphMaskQuad
+	quads := e.quadScratch[:0]
 	var batchIsLCD bool
 
 	// Full hinting grid-fits stems to the integer pixel grid, so fully hinted
@@ -440,6 +477,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 			U1: region.U1, V1: region.V1,
 		})
 	}
+	e.quadScratch = quads
 
 	if len(quads) == 0 {
 		return GlyphMaskBatch{}
@@ -824,4 +862,89 @@ func computeGlyphMaskFontID(source *text.FontSource) uint64 {
 	}
 	_, _ = fmt.Fprintf(h, "%s:%d", fullName, parsed.NumGlyphs())
 	return h.Sum64()
+}
+
+func makeGlyphLayoutCacheKey(
+	s string,
+	fontID uint64,
+	fontSize float64,
+	color [4]float32,
+	x, y float64,
+	matrix render.Matrix,
+	useLCD, aliased bool,
+	hinting text.Hinting,
+) (glyphLayoutCacheKey, bool) {
+	// Only pure translate (HUD-style). Rotation/scale invalidates simple key.
+	if matrix.A != 1 || matrix.E != 1 || matrix.B != 0 || matrix.D != 0 {
+		return glyphLayoutCacheKey{}, false
+	}
+	// Bake translate into position.
+	x += matrix.C
+	y += matrix.F
+	var flags uint16
+	if useLCD {
+		flags |= 1
+	}
+	if aliased {
+		flags |= 2
+	}
+	flags |= uint16(hinting&0xFF) << 2
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(s))
+	return glyphLayoutCacheKey{
+		textHash: h.Sum64(),
+		fontID:   fontID,
+		sizeBits: math.Float32bits(float32(fontSize)),
+		xQ:       int32(math.Round(x * 64)),
+		yQ:       int32(math.Round(y * 64)),
+		cr:       math.Float32bits(color[0]),
+		cg:       math.Float32bits(color[1]),
+		cb:       math.Float32bits(color[2]),
+		ca:       math.Float32bits(color[3]),
+		flags:    flags,
+	}, true
+}
+
+func (e *GlyphMaskEngine) layoutCacheGet(key glyphLayoutCacheKey) (GlyphMaskBatch, bool) {
+	if e.layoutCache == nil {
+		return GlyphMaskBatch{}, false
+	}
+	ent := e.layoutCache[key]
+	if ent == nil {
+		return GlyphMaskBatch{}, false
+	}
+	e.layoutCacheTick++
+	ent.atime = e.layoutCacheTick
+	// Return batch with Quads aliasing cache storage — QueueGlyphMask must copy.
+	return ent.batch, true
+}
+
+func (e *GlyphMaskEngine) layoutCachePut(key glyphLayoutCacheKey, batch GlyphMaskBatch) {
+	if e.layoutCache == nil {
+		e.layoutCache = make(map[glyphLayoutCacheKey]*glyphLayoutCacheEntry)
+	}
+	// Deep-copy quads into entry storage.
+	cp := make([]GlyphMaskQuad, len(batch.Quads))
+	copy(cp, batch.Quads)
+	stored := batch
+	stored.Quads = cp
+	e.layoutCacheTick++
+	e.layoutCache[key] = &glyphLayoutCacheEntry{batch: stored, atime: e.layoutCacheTick}
+	if e.layoutCacheSoft <= 0 {
+		e.layoutCacheSoft = 256
+	}
+	for len(e.layoutCache) > e.layoutCacheSoft {
+		// Evict oldest.
+		var oldestKey glyphLayoutCacheKey
+		var oldestTick uint64 = ^uint64(0)
+		first := true
+		for k, ent := range e.layoutCache {
+			if first || ent.atime < oldestTick {
+				oldestKey = k
+				oldestTick = ent.atime
+				first = false
+			}
+		}
+		delete(e.layoutCache, oldestKey)
+	}
 }

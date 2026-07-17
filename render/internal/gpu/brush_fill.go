@@ -125,8 +125,7 @@ func (rc *GPURenderContext) fillBrushCoverageColorAt(target render.GPURenderTarg
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
@@ -310,8 +309,7 @@ func (rc *GPURenderContext) fillColorAtFieldMaskedGPU(
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
@@ -738,8 +736,7 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
@@ -1078,8 +1075,7 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
@@ -1425,8 +1421,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
@@ -1719,8 +1714,7 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
@@ -1821,8 +1815,7 @@ func (rc *GPURenderContext) fillBrushAsImage(target render.GPURenderTarget, path
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
@@ -2011,8 +2004,7 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil

@@ -171,7 +171,7 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 				fy1 := float32(tb.Max.Y)
 				rc.QueueImageDraw(target, pixelData, genBase+tileIdx, tbw, tbh, tbw*4,
 					fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
-					1.0, vpW, vpH, 0, 0, 1, 1, false)
+					1.0, vpW, vpH, 0, 0, 1, 1, false, false)
 			} else {
 				rc.retainBrushCoverResult(outTex, outView)
 				rc.QueueGPUTextureDraw(target, gpucontext.NewTextureView(unsafe.Pointer(outView)), //nolint:gosec

@@ -97,7 +97,16 @@ func ParseGlyfContours(fontData []byte, gid GlyphID) (*GlyfContours, error) {
 	if err != nil {
 		return nil, fmt.Errorf("text: glyf parser: failed to load font: %w", err)
 	}
+	return ParseGlyfContoursFromTables(tables, gid)
+}
 
+// ParseGlyfContoursFromTables extracts contours using an already-parsed table
+// directory (ownParsedFont.tables). Avoids re-walking the sfnt table index on
+// every glyph raster — critical for glyph-mask warm-up / HUD text CPU.
+func ParseGlyfContoursFromTables(tables map[string][]byte, gid GlyphID) (*GlyfContours, error) {
+	if tables == nil {
+		return nil, fmt.Errorf("text: glyf parser: nil tables")
+	}
 	headData, ok := tables["head"]
 	if !ok || len(headData) < 54 {
 		return nil, fmt.Errorf("text: glyf parser: missing or invalid head table")
@@ -589,7 +598,15 @@ func newCachedGlyfParser(fontData []byte) (*cachedGlyfParser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("text: glyf parser: failed to load font: %w", err)
 	}
+	return newCachedGlyfParserFromTables(tables)
+}
 
+// newCachedGlyfParserFromTables builds a cached glyf parser from an already
+// parsed table map (ownParsedFont.tables) — no second directory walk.
+func newCachedGlyfParserFromTables(tables map[string][]byte) (*cachedGlyfParser, error) {
+	if tables == nil {
+		return nil, fmt.Errorf("text: glyf parser: nil tables")
+	}
 	headData, ok := tables["head"]
 	if !ok || len(headData) < 54 {
 		return nil, fmt.Errorf("text: glyf parser: missing or invalid head table")

@@ -69,6 +69,10 @@ type ImageDrawCommand struct {
 
 	// Filter selects texture sampling (I.03). false = Linear (default), true = Nearest.
 	Nearest bool
+
+	// ContentDirty: GenerationID is stable but pixel bytes changed (ExportImageBuf
+	// reuse). ImageCache re-uploads into the existing GPU texture in place.
+	ContentDirty bool
 }
 
 // TexturedQuadPipeline manages GPU resources for image rendering (Tier 3).
@@ -550,6 +554,18 @@ func imageVertexLayout() []types.VertexBufferLayout {
 func buildImageVertices(cmd *ImageDrawCommand) []byte {
 	const vertsPerQuad = 6
 	buf := make([]byte, vertsPerQuad*imageVertexStride)
+	buildImageVerticesInto(buf, cmd)
+	return buf
+}
+
+// buildImageVerticesInto writes one image quad (6 verts) into dst.
+// dst must have length >= 6*imageVertexStride.
+func buildImageVerticesInto(dst []byte, cmd *ImageDrawCommand) {
+	const vertsPerQuad = 6
+	need := vertsPerQuad * imageVertexStride
+	if len(dst) < need {
+		panic("buildImageVerticesInto: dst too small")
+	}
 
 	// Prefer explicit CTM-transformed corners. Fall back to axis-aligned
 	// DstX/Y/W/H when corners were not populated (legacy callers / texture overlays).
@@ -570,11 +586,7 @@ func buildImageVertices(cmd *ImageDrawCommand) []byte {
 
 	// Triangle 1: TL, TR, BL
 	// Triangle 2: TR, BR, BL
-	type vertex struct {
-		px, py float32
-		u, v   float32
-	}
-	verts := [6]vertex{
+	verts := [6][4]float32{
 		{x0, y0, u0, v0}, // TL
 		{x1, y1, u1, v0}, // TR
 		{x3, y3, u0, v1}, // BL
@@ -585,20 +597,30 @@ func buildImageVertices(cmd *ImageDrawCommand) []byte {
 
 	offset := 0
 	for _, v := range verts {
-		binary.LittleEndian.PutUint32(buf[offset:], math.Float32bits(v.px))
-		binary.LittleEndian.PutUint32(buf[offset+4:], math.Float32bits(v.py))
-		binary.LittleEndian.PutUint32(buf[offset+8:], math.Float32bits(v.u))
-		binary.LittleEndian.PutUint32(buf[offset+12:], math.Float32bits(v.v))
+		binary.LittleEndian.PutUint32(dst[offset:], math.Float32bits(v[0]))
+		binary.LittleEndian.PutUint32(dst[offset+4:], math.Float32bits(v[1]))
+		binary.LittleEndian.PutUint32(dst[offset+8:], math.Float32bits(v[2]))
+		binary.LittleEndian.PutUint32(dst[offset+12:], math.Float32bits(v[3]))
 		offset += imageVertexStride
 	}
-
-	return buf
 }
 
 // makeImageUniform creates the uniform buffer data for an image draw.
 // Contains an orthographic projection matrix and opacity.
 func makeImageUniform(viewportW, viewportH uint32, opacity float32) []byte {
-	buf := make([]byte, imageUniformSize)
+	return makeImageUniformInto(nil, viewportW, viewportH, opacity)
+}
+
+// makeImageUniformInto writes image uniforms into buf (reused when cap >= imageUniformSize).
+func makeImageUniformInto(buf []byte, viewportW, viewportH uint32, opacity float32) []byte {
+	if cap(buf) < int(imageUniformSize) {
+		buf = make([]byte, imageUniformSize)
+	} else {
+		buf = buf[:imageUniformSize]
+		for i := range buf {
+			buf[i] = 0
+		}
+	}
 
 	// Orthographic projection: pixel coords → NDC.
 	// Same as glyph_mask/msdf_text: column-major mat4x4.

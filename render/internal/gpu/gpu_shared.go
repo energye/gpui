@@ -300,6 +300,9 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 
 	s.gpuReady = true
 	// Vello compute: lazy on first CanCompute (see initVelloAccelerator).
+	// Window path never hits ensureGPU() (device already set) — register filter
+	// graph here so ApplyBlur/ApplyDropShadow use GPU from-view path (glow RT).
+	s.registerFilterGraphIfNeeded()
 
 	slogger().Info("gpu-shared: switched to shared GPU device",
 		"strategy", s.strategy.String(),
@@ -590,6 +593,10 @@ func (s *GPUShared) initGPU() error {
 	// (initVelloAccelerator). Eager init of 8 compute stages is costly on
 	// low-VRAM hosts and is not needed for the default render-pass UI path.
 
+	// Standalone init: ensure filter graph is available even if callers
+	// never re-enter ensureGPU after device assignment.
+	s.registerFilterGraphIfNeeded()
+
 	slogger().Info("gpu-shared: GPU initialized",
 		"strategy", s.strategy.String(),
 		"adapter", adapterInfo.Name,
@@ -805,6 +812,28 @@ func (s *GPUShared) registerFilterGraphIfNeeded() {
 		cache := &s.filterGPU
 		s.mu.Unlock()
 		return runGPUFilterGraph(device, queue, cache, src, w, h, nodes)
+	})
+	render.RegisterGPUFilterGraphTexture(func(src []byte, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
+		s.mu.Lock()
+		if err := s.ensureGPU(); err != nil {
+			s.mu.Unlock()
+			return gpucontext.TextureView{}, nil, err
+		}
+		device, queue := s.device, s.queue
+		cache := &s.filterGPU
+		s.mu.Unlock()
+		return runGPUFilterGraphGPUOnly(device, queue, cache, src, w, h, nodes)
+	})
+	render.RegisterGPUFilterGraphFromView(func(srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
+		s.mu.Lock()
+		if err := s.ensureGPU(); err != nil {
+			s.mu.Unlock()
+			return gpucontext.TextureView{}, nil, err
+		}
+		device, queue := s.device, s.queue
+		cache := &s.filterGPU
+		s.mu.Unlock()
+		return runGPUFilterGraphFromView(device, queue, cache, srcView, w, h, nodes)
 	})
 	gpuFilterGraphRegistered = true
 }

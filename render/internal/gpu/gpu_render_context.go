@@ -45,9 +45,11 @@ type GPURenderContext struct {
 	pendingBrushCoverResults []brushCoverResult
 	pendingTextBatches       []TextBatch
 	pendingGlyphMaskBatches  []GlyphMaskBatch
-	baseLayer                *GPUTextureDrawCommand
-	pendingTarget            render.GPURenderTarget
-	hasPendingTarget         bool
+	// Owned backing store for glyph mask quads (LayoutText may reuse scratch).
+	glyphMaskQuadStore []GlyphMaskQuad
+	baseLayer          *GPUTextureDrawCommand
+	pendingTarget      render.GPURenderTarget
+	hasPendingTarget   bool
 	// presentStash holds View-nil parent draws deferred across layer RT work (F1).
 	// Avoids mid-frame offscreen Flush of the whole base scene when entering a layer.
 	presentStash presentPendingStash
@@ -85,6 +87,9 @@ type GPURenderContext struct {
 
 	// Anti-aliasing state for GPU rendering (propagated from Context).
 	antiAlias bool
+	// preferSampleCount1 forces the per-context session to use 1x samples.
+	// Effect RTs (glow/filter offscreens) do not need 4x MSAA resolve every frame.
+	preferSampleCount1 bool
 
 	// Shared command encoder for single-command-buffer frames (ADR-017).
 	// When set, Flush records render passes into this encoder instead of
@@ -162,6 +167,23 @@ func (rc *GPURenderContext) SetPipelineMode(mode render.PipelineMode) {
 // When false, SDF shapes use binary step coverage instead of smoothstep.
 func (rc *GPURenderContext) SetAntiAlias(enabled bool) {
 	rc.antiAlias = enabled
+}
+
+// SetPreferSampleCount1 forces 1x MSAA for this context's GPU session.
+// Used by continuous effect offscreens (glow/blur) where 4x resolve dominates cost.
+func (rc *GPURenderContext) SetPreferSampleCount1(enabled bool) {
+	if rc == nil {
+		return
+	}
+	if rc.preferSampleCount1 == enabled {
+		return
+	}
+	rc.preferSampleCount1 = enabled
+	// Recreate session on next flush with the new sample count.
+	if rc.session != nil {
+		rc.session.Destroy()
+		rc.session = nil
+	}
 }
 
 // SetClipRect records a scissor rect change for this context.
@@ -443,11 +465,37 @@ func (rc *GPURenderContext) stashPresentPending() {
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
 	rc.pendingTextBatches = rc.pendingTextBatches[:0]
 	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+	rc.glyphMaskQuadStore = rc.glyphMaskQuadStore[:0]
 	rc.scissorSegments = rc.scissorSegments[:0]
 	rc.baseLayer = nil
 	rc.hasPendingTarget = false
 	rc.textBatchSealed = true
 	rc.glyphBatchSealed = true
+}
+
+// prependSlice puts prefix before dst without the double-alloc
+// append(append([]T{}, prefix...), dst...) pattern. Reuses dst capacity when
+// possible (in-place shift) so present-stash unstash does not thrash the heap
+// every frame with full-scene particle/mesh command lists.
+func prependSlice[T any](dst, prefix []T) []T {
+	if len(prefix) == 0 {
+		return dst
+	}
+	if len(dst) == 0 {
+		return append(dst[:0], prefix...)
+	}
+	need := len(prefix) + len(dst)
+	if cap(dst) >= need {
+		old := len(dst)
+		dst = dst[:need]
+		copy(dst[len(prefix):], dst[:old])
+		copy(dst[:len(prefix)], prefix)
+		return dst
+	}
+	out := make([]T, need)
+	copy(out, prefix)
+	copy(out[len(prefix):], dst)
+	return out
 }
 
 func (rc *GPURenderContext) unstashPresentPending() {
@@ -477,20 +525,20 @@ func (rc *GPURenderContext) unstashPresentPending() {
 		}
 	}
 
-	rc.pendingShapes = append(append([]SDFRenderShape{}, s.shapes...), rc.pendingShapes...)
-	rc.pendingConvexCommands = append(append([]ConvexDrawCommand{}, s.convex...), rc.pendingConvexCommands...)
-	rc.convexMeshPts = append(append([]render.Point{}, s.convexMeshPts...), rc.convexMeshPts...)
-	rc.convexMeshVCs = append(append([][4]float32{}, s.convexMeshVCs...), rc.convexMeshVCs...)
-	rc.pendingStencilPaths = append(append([]StencilPathCommand{}, s.stencil...), rc.pendingStencilPaths...)
-	rc.pendingImageCommands = append(append([]ImageDrawCommand{}, s.images...), rc.pendingImageCommands...)
-	rc.pendingGPUTextureCommands = append(append([]GPUTextureDrawCommand{}, s.gpuTex...), rc.pendingGPUTextureCommands...)
-	rc.pendingTextBatches = append(append([]TextBatch{}, s.text...), rc.pendingTextBatches...)
-	rc.pendingGlyphMaskBatches = append(append([]GlyphMaskBatch{}, s.glyph...), rc.pendingGlyphMaskBatches...)
-	rc.scissorSegments = append(append([]scissorSegment{}, s.scissorSegments...), rc.scissorSegments...)
+	rc.pendingShapes = prependSlice(rc.pendingShapes, s.shapes)
+	rc.pendingConvexCommands = prependSlice(rc.pendingConvexCommands, s.convex)
+	rc.convexMeshPts = prependSlice(rc.convexMeshPts, s.convexMeshPts)
+	rc.convexMeshVCs = prependSlice(rc.convexMeshVCs, s.convexMeshVCs)
+	rc.pendingStencilPaths = prependSlice(rc.pendingStencilPaths, s.stencil)
+	rc.pendingImageCommands = prependSlice(rc.pendingImageCommands, s.images)
+	rc.pendingGPUTextureCommands = prependSlice(rc.pendingGPUTextureCommands, s.gpuTex)
+	rc.pendingTextBatches = prependSlice(rc.pendingTextBatches, s.text)
+	rc.pendingGlyphMaskBatches = prependSlice(rc.pendingGlyphMaskBatches, s.glyph)
+	rc.scissorSegments = prependSlice(rc.scissorSegments, s.scissorSegments)
 	if rc.baseLayer == nil {
 		rc.baseLayer = s.baseLayer
 	}
-	// Reset stash.
+	// Reset stash (keep capacity for next frame).
 	s.active = false
 	s.shapes = s.shapes[:0]
 	s.convex = s.convex[:0]
@@ -595,44 +643,36 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 	useVC := len(colors) == len(positions)
 	need := nOut
 
-	var pts []render.Point
-	var vcs [][4]float32
-	ptsBase := 0
-	vcBase := 0
-	if cap(rc.convexMeshPts)-len(rc.convexMeshPts) >= need {
-		ptsBase = len(rc.convexMeshPts)
-		rc.convexMeshPts = rc.convexMeshPts[:ptsBase+need]
-		pts = rc.convexMeshPts
-		if useVC {
-			if cap(rc.convexMeshVCs)-len(rc.convexMeshVCs) < need {
-				vcs = make([][4]float32, need)
-				vcBase = 0
-			} else {
-				vcBase = len(rc.convexMeshVCs)
-				rc.convexMeshVCs = rc.convexMeshVCs[:vcBase+need]
-				vcs = rc.convexMeshVCs
-			}
-		}
-	} else if len(rc.convexMeshPts) == 0 {
-		capN := need
+	// Always pack into grow-only context scratch so mesh draws never allocate a
+	// throwaway per-call []Point (alloc profile: QueueColoredMesh was #2).
+	ptsBase := len(rc.convexMeshPts)
+	if cap(rc.convexMeshPts) < ptsBase+need {
+		capN := (ptsBase + need) * 2
 		if capN < 512 {
 			capN = 512
 		}
-		rc.convexMeshPts = make([]render.Point, need, capN)
-		pts = rc.convexMeshPts
-		ptsBase = 0
-		if useVC {
-			rc.convexMeshVCs = make([][4]float32, need, capN)
-			vcs = rc.convexMeshVCs
-			vcBase = 0
+		np := make([]render.Point, ptsBase, capN)
+		copy(np, rc.convexMeshPts)
+		rc.convexMeshPts = np
+	}
+	rc.convexMeshPts = rc.convexMeshPts[:ptsBase+need]
+	pts := rc.convexMeshPts
+
+	vcBase := 0
+	var vcs [][4]float32
+	if useVC {
+		vcBase = len(rc.convexMeshVCs)
+		if cap(rc.convexMeshVCs) < vcBase+need {
+			capN := (vcBase + need) * 2
+			if capN < 512 {
+				capN = 512
+			}
+			nv := make([][4]float32, vcBase, capN)
+			copy(nv, rc.convexMeshVCs)
+			rc.convexMeshVCs = nv
 		}
-	} else {
-		pts = make([]render.Point, need)
-		ptsBase = 0
-		if useVC {
-			vcs = make([][4]float32, need)
-			vcBase = 0
-		}
+		rc.convexMeshVCs = rc.convexMeshVCs[:vcBase+need]
+		vcs = rc.convexMeshVCs
 	}
 
 	toPremul := func(c render.RGBA) [4]float32 {
@@ -741,6 +781,7 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
 	nearest bool,
+	contentDirty bool,
 ) {
 	rc.ensureDrawOrder(drawTierImage)
 	minX := min4f(tlX, trX, brX, blX)
@@ -773,6 +814,7 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 		U1:             u1,
 		V1:             v1,
 		Nearest:        nearest,
+		ContentDirty:   contentDirty,
 	}
 	rc.queueImageCmd(target, cmd)
 }
@@ -933,6 +975,12 @@ func (rc *GPURenderContext) QueueGlyphMask(target render.GPURenderTarget, batch 
 		slogger().Warn("auto-flush failed", "err", err)
 	}
 	rc.ensureDrawOrder(drawTierGlyph)
+	// Own a copy of quads so GlyphMaskEngine layout scratch / cache aliases stay safe.
+	if n := len(batch.Quads); n > 0 {
+		start := len(rc.glyphMaskQuadStore)
+		rc.glyphMaskQuadStore = append(rc.glyphMaskQuadStore, batch.Quads...)
+		batch.Quads = rc.glyphMaskQuadStore[start:]
+	}
 	// Coalesce with last pending batch if same visual properties (ADR-031).
 	// Skip merging if a scissor boundary was crossed since the last batch was
 	// queued (glyphBatchSealed=true); this keeps glyph batches within the
@@ -940,6 +988,7 @@ func (rc *GPURenderContext) QueueGlyphMask(target render.GPURenderTarget, batch 
 	if n := len(rc.pendingGlyphMaskBatches); n > 0 && !rc.glyphBatchSealed {
 		last := &rc.pendingGlyphMaskBatches[n-1]
 		if last.CanMerge(batch) {
+			// batch.Quads already in store; just extend last range if contiguous.
 			last.Quads = append(last.Quads, batch.Quads...)
 			rc.pendingTarget = target
 			rc.hasPendingTarget = true
@@ -1549,6 +1598,10 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			slogger().Warn("GPU init failed, using CPU fallback", "err", err)
 			return render.ErrFallbackToCPU
 		}
+	} else {
+		// Device may have been injected via SetDeviceProvider without ensureGPU.
+		// ensureGPU is cheap when device is set and registers the filter graph once.
+		_ = rc.shared.ensureGPU()
 	}
 	rc.shared.ensurePipelines()
 
@@ -1563,10 +1616,24 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 
 	// Ensure session exists with all renderers.
 	if rc.session == nil {
-		rc.session = NewGPURenderSession(device, queue, rc.shared.SampleCount())
-		rc.session.SetSDFPipeline(sdfPipeline)
-		rc.session.SetConvexRenderer(convexRend)
-		rc.session.SetStencilRenderer(stencilRend)
+		sc := rc.shared.SampleCount()
+		if rc.preferSampleCount1 {
+			sc = 1
+		}
+		rc.session = NewGPURenderSession(device, queue, sc)
+		// Effect/offscreen surfaces (preferSampleCount1) MUST own sampleCount-matched
+		// shape pipelines. Injecting the shared stencil/sdf/convex renderers thrashes
+		// createPipelines every alternating main↔effect flush: each session has its
+		// own mask/clip BGL objects, so coverPipeMaskLayout mismatches and rebuilds
+		// WGSL+pipelines (~40% CPU on continuous glow). Also sampleCount may differ
+		// (shared=4 vs effect=1). Main/window contexts keep shared pipelines.
+		if rc.preferSampleCount1 {
+			rc.session.MarkOwnsShapePipelines()
+		} else {
+			rc.session.SetSDFPipeline(sdfPipeline)
+			rc.session.SetConvexRenderer(convexRend)
+			rc.session.SetStencilRenderer(stencilRend)
+		}
 	}
 
 	// Propagate per-frame anti-aliasing state to session.
@@ -1764,6 +1831,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
 		rc.pendingTextBatches = rc.pendingTextBatches[:0]
 		rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+		rc.glyphMaskQuadStore = rc.glyphMaskQuadStore[:0]
 		rc.scissorSegments = rc.scissorSegments[:0]
 		rc.hasPendingTarget = false
 
@@ -1856,6 +1924,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
 	rc.pendingTextBatches = rc.pendingTextBatches[:0]
 	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+	rc.glyphMaskQuadStore = rc.glyphMaskQuadStore[:0]
 	rc.scissorSegments = rc.scissorSegments[:0]
 
 	// Read back frame tracking from session.
@@ -1888,6 +1957,7 @@ func (rc *GPURenderContext) dropEncodedPendingCommands() {
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
 	rc.pendingTextBatches = rc.pendingTextBatches[:0]
 	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+	rc.glyphMaskQuadStore = rc.glyphMaskQuadStore[:0]
 	rc.scissorSegments = rc.scissorSegments[:0]
 	rc.baseLayer = nil
 	rc.hasPendingTarget = false
@@ -2110,9 +2180,10 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 		if srcWGPU != nil {
 			srcTex = srcWGPU.Texture()
 		}
-		if canDual && srcTex != nil {
+		if canDual && srcTex != nil && srcWGPU != nil {
 			ops = append(ops, dualTexLayerIntoDestOp{
 				srcTex:  srcTex,
+				srcView: srcWGPU,
 				bounds:  bounds,
 				mode:    pl.mode,
 				opacity: op,
@@ -2129,6 +2200,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	// F1 correctness: dualTexBlendLayersIntoDest currently does not modify dest
 	// (verified: layer src red, dest stays base-only). Use the proven
 	// dualTexAdvancedBlendViewsRegionSized → out RT → blit path instead.
+	// opt12: batch all layers into one dual-tex Submit when possible.
 	type outBlit struct {
 		view    *webgpu.TextureView
 		tex     *webgpu.Texture
@@ -2136,17 +2208,42 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 		opacity float32
 	}
 	var outs []outBlit
-	for i := range ops {
-		op := ops[i]
-		outTex, outView, derr := dualTexAdvancedBlendViewsRegionSized(
-			device, queue, cache, dstTex, op.srcTex, op.bounds, op.mode, tw, th)
-		if derr != nil {
-			err = derr
-			// Fall back to opacity blit of original layer for this op.
-			// Find matching pending layer by bounds is hard; demote all remaining via fallbacks.
-			continue
+	if len(ops) > 0 {
+		dstView := (*webgpu.TextureView)(target.View.Pointer())
+		viewOps := make([]dualTexViewBlendOp, 0, len(ops))
+		for i := range ops {
+			op := ops[i]
+			if op.srcView == nil {
+				continue
+			}
+			viewOps = append(viewOps, dualTexViewBlendOp{
+				srcView: op.srcView,
+				bounds:  op.bounds,
+				mode:    op.mode,
+				opacity: op.opacity,
+			})
 		}
-		outs = append(outs, outBlit{view: outView, tex: outTex, bounds: op.bounds, opacity: op.opacity})
+		if len(viewOps) > 0 {
+			multiOuts, derr := dualTexAdvancedBlendViewsMulti(device, queue, cache, dstView, viewOps, tw, th)
+			if derr != nil {
+				err = derr
+				// Fallback: per-op path (still correct, more submits).
+				for i := range ops {
+					op := ops[i]
+					outTex, outView, oerr := dualTexAdvancedBlendViewsRegionSized(
+						device, queue, cache, dstView, op.srcView, op.bounds, op.mode, tw, th)
+					if oerr != nil {
+						err = oerr
+						continue
+					}
+					outs = append(outs, outBlit{view: outView, tex: outTex, bounds: op.bounds, opacity: op.opacity})
+				}
+			} else {
+				for _, mo := range multiOuts {
+					outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
+				}
+			}
+		}
 	}
 
 	// If viewsRegion produced nothing and dual-tex path failed, demote to opacity blits.
@@ -2414,6 +2511,7 @@ func (rc *GPURenderContext) Close() {
 	rc.baseLayer = nil
 	rc.pendingTextBatches = nil
 	rc.pendingGlyphMaskBatches = nil
+	rc.glyphMaskQuadStore = nil
 	rc.hasPendingTarget = false
 	rc.clipRect = nil
 	rc.clipRRect = nil

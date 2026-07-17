@@ -29,6 +29,9 @@ type glowRT struct {
 	dc   *render.Context
 	img  *render.ImageBuf
 	w, h int
+	// presentW/H: on-screen footprint (may be larger than offscreen RT for
+	// downsample-blur quality pattern used by games/Skia blur approximations).
+	presentW, presentH int
 }
 
 func (g *glowRT) ensure(w, h int) *render.Context {
@@ -46,6 +49,8 @@ func (g *glowRT) ensure(w, h int) *render.Context {
 		g.dc = nil
 	}
 	g.dc = render.NewContext(w, h)
+	// Continuous filtered offscreen: skip 4x MSAA resolve every recompute.
+	g.dc.SetEffectSurface(true)
 	g.w, g.h = w, h
 	g.img = nil
 	return g.dc
@@ -55,25 +60,73 @@ func (g *glowRT) publish() *render.ImageBuf {
 	if g == nil || g.dc == nil {
 		return nil
 	}
+	// Prefer GPU-resident filter result — zero Export/readback present path.
+	if _, _, _, ok := g.dc.GPUFilterTexture(); ok {
+		return nil
+	}
 	if !g.dc.ExportImageBuf(&g.img) {
 		return nil
 	}
+	// Retained-layer cache: keep GenerationID stable across non-recompute
+	// frames so DrawImage hits GPU image cache (mem_anim effectRT pattern).
+	// Export already NotifyPixelsChanged; do NOT MarkEphemeral here.
 	return g.img
 }
 
 func (g *glowRT) hasCached() bool {
-	return g != nil && g.img != nil && g.w > 0 && g.h > 0
+	if g == nil {
+		return false
+	}
+	if g.dc != nil {
+		if _, _, _, ok := g.dc.GPUFilterTexture(); ok {
+			return true
+		}
+	}
+	return g.img != nil && g.w > 0 && g.h > 0
 }
 
 func (g *glowRT) presentCached(dc *render.Context, x, y float64) bool {
-	if g == nil || g.img == nil || dc == nil {
+	return g.presentCachedOpacity(dc, x, y, 1)
+}
+
+func (g *glowRT) presentCachedOpacity(dc *render.Context, x, y float64, opacity float64) bool {
+	if g == nil || dc == nil {
+		return false
+	}
+	if opacity <= 0 {
+		opacity = 1
+	}
+	dw, dh := g.w, g.h
+	if g.presentW > 0 && g.presentH > 0 {
+		dw, dh = g.presentW, g.presentH
+	}
+	// Engine GPU filter publish: composite texture directly (no ImageBuf upload).
+	if g.dc != nil {
+		if view, _, _, ok := g.dc.GPUFilterTexture(); ok {
+			dc.DrawGPUTextureWithOpacity(view, x, y, dw, dh, float32(opacity))
+			return true
+		}
+	}
+	if g.img == nil {
 		return false
 	}
 	dc.DrawImageEx(g.img, render.DrawImageOptions{
-		X: x, Y: y, DstWidth: float64(g.w), DstHeight: float64(g.h),
-		Opacity: 1, Interpolation: render.InterpBilinear,
+		X: x, Y: y, DstWidth: float64(dw), DstHeight: float64(dh),
+		Opacity: opacity, Interpolation: render.InterpBilinear,
 	})
 	return true
+}
+
+func (g *glowRT) close() {
+	if g == nil {
+		return
+	}
+	if g.dc != nil {
+		_ = g.dc.Close()
+		g.dc = nil
+	}
+	g.img = nil
+	g.w, g.h = 0, 0
 }
 
 var (
@@ -89,6 +142,12 @@ var (
 	gMeshP     []render.Point
 	gMeshC     []render.RGBA
 	gMeshI     []uint16
+	gGlowP     []render.Point
+	gGlowC     []render.RGBA
+	gGlowI     []uint16
+	gDiscP     []render.Point
+	gDiscC     []render.RGBA
+	gDiscI     []uint16
 	gWaveP     []render.Point
 	gWaveC     []render.RGBA
 	gWaveI     []uint16
@@ -121,6 +180,7 @@ func ensureAtlas() *render.ImageBuf {
 
 // ensureChecker builds a static light checkerboard once per stage size.
 // Per-frame hundreds of DrawRectangle were pure submit noise.
+// Memory of this host ImageBuf is secondary; engine VRAM/pools are the real target.
 func ensureChecker(w, h int) *render.ImageBuf {
 	if w < 8 {
 		w = 8
@@ -178,6 +238,119 @@ func fillMeshTris(start, count int, sim *simWorld, sx, sy float64, aScale float6
 		gMeshI[i0] = uint16(i0)
 		gMeshI[i0+1] = uint16(i0 + 1)
 		gMeshI[i0+2] = uint16(i0 + 2)
+	}
+}
+
+// fillStageDiscs builds disc meshes in stage/world coordinates (solid path batch).
+func fillStageDiscs(sim *simWorld, count int, sx, sy, t, rScale, alpha float64) {
+	// Match former path-disc coloring: hsv(hue+t*0.02, 0.85, 0.98).
+	fillStageDiscsStride(sim, count, 0, 1, sx, sy, t, rScale, alpha, t*0.02, 0.85, 0.98)
+}
+
+// fillStageDiscsStride fills discs for indices start,start+step,... < count.
+func fillStageDiscsStride(sim *simWorld, count, start, step int, sx, sy, t, rScale, alpha, hueOff, sat, val float64) {
+	const segs = 10
+	if count <= 0 || step <= 0 {
+		gDiscP = gDiscP[:0]
+		gDiscC = gDiscC[:0]
+		gDiscI = gDiscI[:0]
+		return
+	}
+	n := 0
+	for i := start; i < count; i += step {
+		n++
+	}
+	needV := n * (segs + 1)
+	needI := n * segs * 3
+	if cap(gDiscP) < needV {
+		gDiscP = make([]render.Point, needV)
+		gDiscC = make([]render.RGBA, needV)
+	} else {
+		gDiscP = gDiscP[:needV]
+		gDiscC = gDiscC[:needV]
+	}
+	if cap(gDiscI) < needI {
+		gDiscI = make([]uint16, needI)
+	} else {
+		gDiscI = gDiscI[:needI]
+	}
+	j := 0
+	for i := start; i < count; i += step {
+		p := sim.ps[i]
+		cx, cy := sx+p.x, sy+p.y
+		rr := p.r * rScale
+		cr, cg, cb := hsvRGB(p.hue+hueOff, sat, val)
+		col := render.RGBA{R: cr, G: cg, B: cb, A: alpha}
+		base := j * (segs + 1)
+		gDiscP[base] = render.Point{X: cx, Y: cy}
+		gDiscC[base] = col
+		for s := 0; s < segs; s++ {
+			ang := float64(s) * (2 * math.Pi / float64(segs))
+			gDiscP[base+1+s] = render.Point{X: cx + rr*math.Cos(ang), Y: cy + rr*math.Sin(ang)}
+			gDiscC[base+1+s] = col
+			i0 := j*segs*3 + s*3
+			gDiscI[i0] = uint16(base)
+			gDiscI[i0+1] = uint16(base + 1 + s)
+			next := s + 1
+			if next == segs {
+				next = 0
+			}
+			gDiscI[i0+2] = uint16(base + 1 + next)
+		}
+		j++
+	}
+}
+
+// fillGlowDiscs builds a single colored mesh of N disc approximations (segs
+// triangles each) for the glow offscreen RT — same sample count/colors as the
+// former per-circle Fill path, one DrawMesh instead of N path submits.
+func fillGlowDiscs(sim *simWorld, samples int, gw, gh int, sw, sh float64) {
+	const segs = 10
+	if samples <= 0 {
+		gGlowP = gGlowP[:0]
+		gGlowC = gGlowC[:0]
+		gGlowI = gGlowI[:0]
+		return
+	}
+	needV := samples * (segs + 1)
+	needI := samples * segs * 3
+	if cap(gGlowP) < needV {
+		gGlowP = make([]render.Point, needV)
+		gGlowC = make([]render.RGBA, needV)
+	} else {
+		gGlowP = gGlowP[:needV]
+		gGlowC = gGlowC[:needV]
+	}
+	if cap(gGlowI) < needI {
+		gGlowI = make([]uint16, needI)
+	} else {
+		gGlowI = gGlowI[:needI]
+	}
+	for j := 0; j < samples; j++ {
+		p := sim.ps[j]
+		u := p.x / sw
+		v := p.y / sh
+		cx := u * float64(gw)
+		cy := v * float64(gh)
+		rr := 6 + p.r*0.3
+		cr, cg, cb := hsvRGB(p.hue, 0.35, 1)
+		col := render.RGBA{R: cr, G: cg, B: cb, A: 0.9}
+		base := j * (segs + 1)
+		gGlowP[base] = render.Point{X: cx, Y: cy}
+		gGlowC[base] = col
+		for s := 0; s < segs; s++ {
+			ang := float64(s) * (2 * math.Pi / float64(segs))
+			gGlowP[base+1+s] = render.Point{X: cx + rr*math.Cos(ang), Y: cy + rr*math.Sin(ang)}
+			gGlowC[base+1+s] = col
+			i0 := j*segs*3 + s*3
+			gGlowI[i0] = uint16(base)
+			gGlowI[i0+1] = uint16(base + 1 + s)
+			next := s + 1
+			if next == segs {
+				next = 0
+			}
+			gGlowI[i0+2] = uint16(base + 1 + next)
+		}
 	}
 }
 
@@ -263,7 +436,7 @@ func drawFrame(dc *render.Context, fonts fontPack, cfg featureConfig, sim *simWo
 		dc.DrawMesh(render.Mesh{Positions: gMeshP, Colors: gMeshC, Indices: gMeshI})
 	}
 
-	// Solid Normal circles (AA discs) / path-submit storm
+	// Solid discs / path-submit storm
 	if cfg.Solid || cfg.PathSubmitHeavy {
 		nCirc := n
 		capC := 200
@@ -278,12 +451,19 @@ func drawFrame(dc *render.Context, fonts fontPack, cfg featureConfig, sim *simWo
 		}
 		dc.SetBlendMode(render.BlendNormal)
 		dc.SetAntiAlias(true)
-		for i := 0; i < nCirc; i++ {
-			p := sim.ps[i]
-			cr, cg, cb := hsvRGB(p.hue+t*0.02, 0.85, 0.98)
-			dc.SetRGBA(cr, cg, cb, 0.92)
-			dc.DrawCircle(sx+p.x, sy+p.y, p.r*1.4)
-			_ = dc.Fill()
+		if cfg.PathSubmitHeavy {
+			for i := 0; i < nCirc; i++ {
+				p := sim.ps[i]
+				cr, cg, cb := hsvRGB(p.hue+t*0.02, 0.85, 0.98)
+				dc.SetRGBA(cr, cg, cb, 0.92)
+				dc.DrawCircle(sx+p.x, sy+p.y, p.r*1.4)
+				_ = dc.Fill()
+			}
+		} else {
+			// Same sample count/colors/radii as path discs, one DrawMesh (Skia-class
+			// batching). PathSubmitHeavy keeps the slow per-path path for diagnosis.
+			fillStageDiscs(sim, nCirc, sx, sy, t, 1.4, 0.92)
+			dc.DrawMesh(render.Mesh{Positions: gDiscP, Colors: gDiscC, Indices: gDiscI})
 		}
 	}
 
@@ -340,27 +520,17 @@ func drawFrame(dc *render.Context, fonts fontPack, cfg featureConfig, sim *simWo
 			}
 			dc.SetBlendMode(render.BlendNormal)
 		} else {
-			// Screen group — one advanced composite for all Screen circles
+			// Screen / Multiply groups — same sample counts, mesh-batched discs
+			// inside one advanced layer each (not per-circle path submits).
 			dc.PushLayer(render.BlendScreen, 1.0)
 			dc.SetBlendMode(render.BlendNormal)
-			for i := 0; i < bc; i += 2 {
-				p := sim.ps[i]
-				cr, cg, cb := hsvRGB(p.hue+0.15, 0.9, 1)
-				dc.SetRGBA(cr, cg, cb, 0.85)
-				dc.DrawCircle(sx+p.x, sy+p.y, p.r*1.6)
-				_ = dc.Fill()
-			}
+			fillStageDiscsStride(sim, bc, 0, 2, sx, sy, t, 1.6, 0.85, 0.15, 0.9, 1)
+			dc.DrawMesh(render.Mesh{Positions: gDiscP, Colors: gDiscC, Indices: gDiscI})
 			dc.PopLayer()
-			// Multiply group
 			dc.PushLayer(render.BlendMultiply, 1.0)
 			dc.SetBlendMode(render.BlendNormal)
-			for i := 1; i < bc; i += 2 {
-				p := sim.ps[i]
-				cr, cg, cb := hsvRGB(p.hue+0.35, 0.85, 0.9)
-				dc.SetRGBA(cr, cg, cb, 0.8)
-				dc.DrawCircle(sx+p.x, sy+p.y, p.r*1.5)
-				_ = dc.Fill()
-			}
+			fillStageDiscsStride(sim, bc, 1, 2, sx, sy, t, 1.5, 0.8, 0.35, 0.85, 0.9)
+			dc.DrawMesh(render.Mesh{Positions: gDiscP, Colors: gDiscC, Indices: gDiscI})
 			dc.PopLayer()
 			dc.SetBlendMode(render.BlendNormal)
 		}
@@ -399,41 +569,39 @@ func drawFrame(dc *render.Context, fonts fontPack, cfg featureConfig, sim *simWo
 		}
 	}
 
-	// Glow RT overlay (smaller RT, fewer samples, alt-frame cache)
+	// Glow RT overlay (bounded offscreen + real ApplyBlur + retained present).
+	// Content density unchanged: stage-relative RT size, 24 samples, blur=2.
+	// Hitch/memory are engine concerns (Flush/Export/image cache/filter pool).
 	if cfg.Glow {
-		gw, gh := int(sw*0.28), int(sh*0.22)
-		if gw < 64 {
-			gw = 64
+		// On-screen footprint (unchanged visual size).
+		visW, visH := int(sw*0.28), int(sh*0.22)
+		if visW < 64 {
+			visW = 64
 		}
-		if gh < 48 {
-			gh = 48
+		if visH < 48 {
+			visH = 48
 		}
-		if frame%3 == 0 || gGlow.img == nil {
-			rt := gGlow.ensure(gw, gh)
-			rt.Clear()
-			rt.SetRGBA(0, 0, 0, 0)
-			rt.DrawRectangle(0, 0, float64(gw), float64(gh))
-			_ = rt.Fill()
-			samples := minInt(n, 24)
-			for i := 0; i < samples; i++ {
-				p := sim.ps[i]
-				u := p.x / sw
-				v := p.y / sh
-				cr, cg, cb := hsvRGB(p.hue, 0.35, 1)
-				rt.SetRGBA(cr, cg, cb, 0.9)
-				rt.DrawCircle(u*float64(gw), v*float64(gh), 6+p.r*0.3)
-				_ = rt.Fill()
-			}
-			rt.ApplyBlur(2)
-			_ = gGlow.publish()
+		// Downsample-blur pattern (Skia/game common): process at ~0.5x, upsample
+		// on present. Sample count and visual coverage unchanged; pixels in blur
+		// drop ~4x → less CPU/GPU without gutting content.
+		gw, gh := visW/2, visH/2
+		if gw < 32 {
+			gw = 32
 		}
-		if gGlow.img != nil {
-			dc.DrawImageEx(gGlow.img, render.DrawImageOptions{
-				X: sx + sw*0.36, Y: sy + sh*0.38,
-				DstWidth: float64(gGlow.w), DstHeight: float64(gGlow.h),
-				Opacity: 0.62, Interpolation: render.InterpBilinear,
-			})
+		if gh < 24 {
+			gh = 24
 		}
+		gGlow.presentW, gGlow.presentH = visW, visH
+		rt := gGlow.ensure(gw, gh)
+		rt.ClearWithColor(render.Transparent)
+		samples := minInt(n, 24)
+		fillGlowDiscs(sim, samples, gw, gh, sw, sh)
+		rt.SetBlendMode(render.BlendNormal)
+		rt.SetAntiAlias(true)
+		rt.DrawMesh(render.Mesh{Positions: gGlowP, Colors: gGlowC, Indices: gGlowI})
+		rt.ApplyBlur(2)
+		_ = gGlow.publish()
+		_ = gGlow.presentCachedOpacity(dc, sx+sw*0.36, sy+sh*0.38, 0.62)
 	}
 
 	dc.Pop() // clip
@@ -624,10 +792,7 @@ func drawDigFeatures(dc *render.Context, fonts fontPack, cfg featureConfig, sx, 
 			_ = gDigGrad.presentCached(dc, sx+12, sy+sh*0.55)
 		} else {
 			rt := gDigGrad.ensure(tw, th)
-			rt.Clear()
-			rt.SetRGB(0.08, 0.09, 0.12)
-			rt.DrawRectangle(0, 0, float64(tw), float64(th))
-			_ = rt.Fill()
+			rt.ClearWithColor(render.RGBA{R: 0.08, G: 0.09, B: 0.12, A: 1})
 			lin := render.NewLinearGradientBrush(8, 8, float64(tw)-8, 40).
 				AddColorStop(0, render.RGBA{R: 1, G: 0.3, B: 0.2, A: 1}).
 				AddColorStop(0.5, render.RGBA{R: 1, G: 0.9, B: 0.2, A: 1}).
@@ -668,10 +833,7 @@ func drawDigFeatures(dc *render.Context, fonts fontPack, cfg featureConfig, sx, 
 			_ = gDigFilter.presentCached(dc, sx+sw*0.55, sy+12)
 		} else {
 			rt := gDigFilter.ensure(tw, th)
-			rt.Clear()
-			rt.SetRGB(0.12, 0.14, 0.2)
-			rt.DrawRectangle(0, 0, float64(tw), float64(th))
-			_ = rt.Fill()
+			rt.ClearWithColor(render.RGBA{R: 0.12, G: 0.14, B: 0.2, A: 1})
 			rt.SetRGBA(1, 0.55, 0.2, 0.95)
 			rt.DrawCircle(float64(tw)*0.35+8*math.Sin(t), float64(th)*0.5, 22)
 			_ = rt.Fill()
@@ -679,13 +841,8 @@ func drawDigFeatures(dc *render.Context, fonts fontPack, cfg featureConfig, sx, 
 			rt.DrawRoundedRectangle(float64(tw)*0.45, float64(th)*0.28, 48, 36, 8)
 			_ = rt.Fill()
 			rt.ApplyBlur(3)
-			if img := gDigFilter.publish(); img != nil {
-				dc.DrawImageEx(img, render.DrawImageOptions{
-					X: sx + sw*0.55, Y: sy + 12,
-					DstWidth: float64(tw), DstHeight: float64(th),
-					Opacity: 0.92, Interpolation: render.InterpBilinear,
-				})
-			}
+			_ = gDigFilter.publish()
+			_ = gDigFilter.presentCachedOpacity(dc, sx+sw*0.55, sy+12, 0.92)
 		}
 		dc.SetRGBA(1, 0.4, 0.85, 1)
 		dc.DrawRectangle(sx+sw-128, sy+sh-28, 16, 16)
@@ -695,12 +852,9 @@ func drawDigFeatures(dc *render.Context, fonts fontPack, cfg featureConfig, sx, 
 
 	if cfg.BlendSep {
 		tw, th := 200, 110
-		if frame%2 == 0 || !gDigBlend.hasCached() {
+		if frame%3 == 0 || !gDigBlend.hasCached() {
 			rt := gDigBlend.ensure(tw, th)
-			rt.Clear()
-			rt.SetRGB(0.28, 0.36, 0.52)
-			rt.DrawRectangle(0, 0, float64(tw), float64(th))
-			_ = rt.Fill()
+			rt.ClearWithColor(render.RGBA{R: 0.28, G: 0.36, B: 0.52, A: 1})
 			rt.SetRGBA(0.92, 0.92, 0.96, 0.35)
 			rt.DrawRectangle(0, 0, float64(tw)/2, float64(th)/2)
 			_ = rt.Fill()

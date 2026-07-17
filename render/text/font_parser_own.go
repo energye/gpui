@@ -116,6 +116,11 @@ type ownParsedFont struct {
 	gvar     *gvarTable // nil if gvar not present or failed to parse
 	avarOnce sync.Once
 	avar     *avarTable // nil if avar not present
+
+	// glyf contour parser — reuses tables already loaded at ParseIndex so
+	// each glyph raster does not re-walk the sfnt directory (HUD/mask path).
+	glyfOnce  sync.Once
+	glyfCache *cachedGlyfParser
 }
 
 // --- ParsedFont interface ---
@@ -234,6 +239,37 @@ func (f *ownParsedFont) Metrics(ppem float64) FontMetrics {
 // interpreter paths.
 func (f *ownParsedFont) RawFontData() []byte {
 	return f.rawData
+}
+
+// FontTables returns the parsed sfnt table map (shared, read-only).
+// Used by glyf contour extraction to avoid re-parsing the directory.
+func (f *ownParsedFont) FontTables() map[string][]byte {
+	if f == nil {
+		return nil
+	}
+	return f.tables
+}
+
+// GlyfContours extracts TrueType contours for gid using a cached glyf/loca view.
+func (f *ownParsedFont) GlyfContours(gid GlyphID) (*GlyfContours, error) {
+	if f == nil {
+		return nil, fmt.Errorf("text: own parser: nil font")
+	}
+	f.glyfOnce.Do(func() {
+		cache, err := newCachedGlyfParserFromTables(f.tables)
+		if err != nil {
+			// Leave nil; GlyfContours falls back to FromTables.
+			return
+		}
+		f.glyfCache = cache
+	})
+	if f.glyfCache != nil {
+		if int(gid) >= f.glyfCache.NumGlyphs() {
+			return nil, fmt.Errorf("text: glyf parser: glyph ID %d out of range (font has %d glyphs)", gid, f.glyfCache.NumGlyphs())
+		}
+		return f.glyfCache.Contours(gid)
+	}
+	return ParseGlyfContoursFromTables(f.tables, gid)
 }
 
 // --- VariableAdvanceProvider ---

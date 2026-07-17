@@ -102,6 +102,22 @@ type Context struct {
 	meshExpColScratch []RGBA
 	meshSolidScratch  []RGBA
 
+	// GPU filter publish (F.03 zero-readback effect RT).
+	// After ApplyBlur/ApplyImageFilterGraph on the GPU texture path, result
+	// lives here for DrawGPUTexture compositing; pixmap is lazily materialised.
+	filterGPUView        gpucontext.TextureView
+	filterGPUW           int
+	filterGPUH           int
+	filterGPURelease     func()
+	filterGPUReleasePrev func() // one-frame delayed free (present sampling)
+	pixmapFilterStale    bool
+	filterSrcScratch     []byte
+	// Retained offscreen used as ApplyBlur GPU seed (no per-call CreateOffscreen).
+	filterSrcView    gpucontext.TextureView
+	filterSrcW       int
+	filterSrcH       int
+	filterSrcRelease func()
+
 	// Lifecycle
 	closed bool // Indicates whether Close has been called
 }
@@ -353,6 +369,11 @@ func (c *Context) Close() error {
 	c.flushGPUAccelerator()
 	c.drainLayerGPUReleases()
 
+	// Drop published filter texture before GPU ctx teardown.
+	c.releaseFilterGPUResult()
+	c.releaseFilterSrcRT()
+	c.pixmapFilterStale = false
+
 	// Close per-context GPU render context if it was created.
 	if c.gpuCtx != nil {
 		type gpuCtxCloser interface {
@@ -441,6 +462,23 @@ func (c *Context) AntiAlias() bool {
 // See TextMode constants for available strategies.
 //
 // The mode is per-Context — different contexts can use different strategies.
+// SetEffectSurface marks this Context as a continuous effect offscreen (glow,
+// blur tile, saveLayer-like RT). Forces 1x GPU samples so every-frame flushes
+// skip 4x MSAA allocate/resolve — Skia-class for small filtered RTs.
+// Main/window contexts should leave this false for geometry AA quality.
+func (c *Context) SetEffectSurface(enabled bool) {
+	if c == nil {
+		return
+	}
+	c.ensureGPUCtx()
+	if rc := c.gpuCtxOps(); rc != nil {
+		type sc1 interface{ SetPreferSampleCount1(bool) }
+		if s, ok := rc.(sc1); ok {
+			s.SetPreferSampleCount1(enabled)
+		}
+	}
+}
+
 func (c *Context) SetTextMode(mode TextMode) {
 	c.textMode = mode
 }
@@ -556,24 +594,30 @@ func (c *Context) SetDeviceScale(scale float64) {
 // (CPU pixmap must include GPU-rendered content).
 func (c *Context) Image() image.Image {
 	_ = c.FlushGPU() // also applies dither when enabled
+	_ = c.materializeFilterGPU()
 	return c.pixmap.ToImage()
 }
 
 // SavePNG saves the context to a PNG file.
 func (c *Context) SavePNG(path string) error {
 	_ = c.FlushGPU() // Flush pending GPU shapes before reading pixels.
+	_ = c.materializeFilterGPU()
 	return c.pixmap.SavePNG(path)
 }
 
 // Clear resets the entire context to transparent (zero alpha).
 // To fill with a specific background color, use [ClearWithColor].
 func (c *Context) Clear() {
+	c.releaseFilterGPUResult()
+	c.pixmapFilterStale = false
 	c.pixmap.Clear(Transparent)
 }
 
 // ClearWithColor fills the entire context with the specified color.
 // This is the recommended way to set a background color before drawing.
 func (c *Context) ClearWithColor(col RGBA) {
+	c.releaseFilterGPUResult()
+	c.pixmapFilterStale = false
 	c.pixmap.Clear(col)
 }
 
@@ -630,6 +674,61 @@ func (c *Context) SetDamageTracking(enabled bool) {
 // scales them to physical pixels via deviceScale for the OS compositor.
 func (c *Context) TrackDamageRect(bounds image.Rectangle) {
 	c.trackDamage(bounds)
+}
+
+// trackDamageDevicePoints unions a device/pixmap-space AABB of points into
+// frame + layer damage. Points are already in physical pixels (post-CTM);
+// do not apply deviceScale again.
+//
+// Fast-path: skip O(n) AABB scan when no isolation layer needs Pop damage
+// (base canvas / opacity-group / fullComposite). Large DrawMesh batches
+// (particle kitchen-sink) would otherwise pay a full vertex scan every frame.
+func (c *Context) trackDamageDevicePoints(pts []Point) {
+	if c == nil || !c.damageTrackingEnabled || len(pts) == 0 {
+		return
+	}
+	if c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return
+	}
+	top := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if top == nil || top.opacityGroup || top.fullComposite {
+		return
+	}
+	minX, minY := pts[0].X, pts[0].Y
+	maxX, maxY := minX, minY
+	for i := 1; i < len(pts); i++ {
+		p := pts[i]
+		if p.X < minX {
+			minX = p.X
+		} else if p.X > maxX {
+			maxX = p.X
+		}
+		if p.Y < minY {
+			minY = p.Y
+		} else if p.Y > maxY {
+			maxY = p.Y
+		}
+	}
+	// AA pad
+	bounds := image.Rect(
+		int(math.Floor(minX))-1,
+		int(math.Floor(minY))-1,
+		int(math.Ceil(maxX))+1,
+		int(math.Ceil(maxY))+1,
+	)
+	if bounds.Empty() {
+		return
+	}
+	c.frameDamageRects = append(c.frameDamageRects, bounds)
+	if len(c.frameDamageRects) > maxDamageRects {
+		merged := c.frameDamageRects[0]
+		for _, r := range c.frameDamageRects[1:] {
+			merged = merged.Union(r)
+		}
+		c.frameDamageRects = c.frameDamageRects[:1]
+		c.frameDamageRects[0] = merged
+	}
+	c.noteLayerDamage(bounds)
 }
 
 // trackDamage adds a damage rectangle for the current draw operation.
@@ -1269,8 +1368,7 @@ func (c *Context) tryGPUWritePixels(dstX, dstY, width, height int, pixels []byte
 		fx, fy+fh,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
-		true, // nearest — pixel-exact write
-	)
+		true /* nearest — pixel-exact write */, false)
 	return true
 }
 
@@ -1730,7 +1828,7 @@ type gpuContextOps interface {
 	DrawGlyphMaskTextAliased(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 	QueueImageDraw(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
-		u0, v0, u1, v1 float32, nearest bool)
+		u0, v0, u1, v1 float32, nearest bool, contentDirty bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
 	QueueGPUTextureDraw(target GPURenderTarget, view gpucontext.TextureView,
@@ -1751,6 +1849,7 @@ type gpuContextOps interface {
 	BeginFrame()
 	SetPipelineMode(mode PipelineMode)
 	SetAntiAlias(enabled bool)
+	SetPreferSampleCount1(enabled bool)
 	PendingCount() int
 	// TakeBrushBootstrapReason returns G.04 ColorAt→GPU blit diagnostic, if any.
 	TakeBrushBootstrapReason() string

@@ -366,12 +366,13 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 	}
 
 	nearest := opts.Interpolation == InterpNearest
+	contentDirty := img.TakeGPUDirty()
 	rc.QueueImageDraw(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
 		float32(tl.X), float32(tl.Y),
 		float32(tr.X), float32(tr.Y),
 		float32(br.X), float32(br.Y),
 		float32(bl.X), float32(bl.Y),
-		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1, nearest)
+		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1, nearest, contentDirty)
 	c.recordGPUOp()
 	return true
 }
@@ -660,6 +661,7 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 		return false
 	}
 	_ = c.FlushGPU()
+	_ = c.materializeFilterGPU()
 	w, h := c.pixmap.Width(), c.pixmap.Height()
 	if w <= 0 || h <= 0 {
 		return false
@@ -683,7 +685,12 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 		n = len(src)
 	}
 	copy(out[:n], src[:n])
-	(*dst).NotifyPixelsChanged()
+	// Reused ImageBuf: keep GenerationID and mark GPU dirty for in-place
+	// reupload (continuous effect RT). Fresh buffers already have a gen from
+	// NewImageBuf; MarkPixelsDirty still sets dirty so first Draw uploads.
+	// NotifyPixelsChanged would allocate a new cache entry every export and
+	// grow VRAM under particle/glow long soak.
+	(*dst).MarkPixelsDirty()
 	return true
 }
 

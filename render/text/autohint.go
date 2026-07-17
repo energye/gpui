@@ -166,6 +166,13 @@ func autoHintOutline(outline *GlyphOutline, font ParsedFont, ppem float64, hinti
 	// This produces FreeType/skrifa coordinate parity by operating on
 	// the exact raw N contour points (Y-UP) instead of the M pen-derived
 	// points from sfnt extraction (Y-DOWN).
+	// Prefer ownParsedFont.GlyfContours (cached tables) over re-parsing sfnt.
+	if own, ok := font.(*ownParsedFont); ok {
+		contours, err := own.GlyfContours(outline.GID)
+		if err == nil && contours != nil && autoHintViaContoursPreloaded(outline, contours, font, ppem, hinting) {
+			return true
+		}
+	}
 	if provider, ok := font.(RawFontDataProvider); ok {
 		if rawData := provider.RawFontData(); rawData != nil {
 			if autoHintViaContours(outline, rawData, font, ppem, hinting) {

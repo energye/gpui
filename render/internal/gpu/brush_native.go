@@ -436,16 +436,14 @@ func (rc *GPURenderContext) fillLinearGradientSpanNative(
 			fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 			1, vpW, vpH,
 			0, 0, 1, 1,
-			false,
-		)
+			false, false)
 	} else {
 		// 1 x n ramp.
 		rc.QueueImageDraw(target, ramp, genID, 1, n, 4,
 			fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 			1, vpW, vpH,
 			0, 0, 1, 1,
-			false,
-		)
+			false, false)
 	}
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
@@ -667,8 +665,7 @@ func (rc *GPURenderContext) fillColorAtFieldNative(
 		fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 		1, vpW, vpH,
 		0, 0, 1, 1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil
@@ -873,8 +870,7 @@ func (rc *GPURenderContext) fillImagePatternNative(
 				float32(cx1), float32(cy1), float32(cx0), float32(cy1),
 				op, vpW, vpH,
 				u0, v0, u1, v1,
-				false,
-			)
+				false, false)
 		}
 	}
 	rc.sceneStats.PathCount++
@@ -901,8 +897,7 @@ func (rc *GPURenderContext) queuePatternQuad(
 		float32(brX), float32(brY), float32(blX), float32(blY),
 		op, vpW, vpH,
 		u0, v0, u1, v1,
-		false,
-	)
+		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
 	return nil

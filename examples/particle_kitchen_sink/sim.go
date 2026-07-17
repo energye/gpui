@@ -61,9 +61,20 @@ func (s *simWorld) resize(n int, w, h float64) {
 	if n == len(s.ps) {
 		return
 	}
-	s.ps = make([]particle, n)
-	s.trailX = make([]float64, n*s.trailN)
-	s.trailY = make([]float64, n*s.trailN)
+	if n < 1 {
+		n = 1
+	}
+	// Reuse backing arrays when growing/shrinking within capacity (GrowN soak).
+	needTrail := n * s.trailN
+	if cap(s.ps) >= n && cap(s.trailX) >= needTrail && cap(s.trailY) >= needTrail {
+		s.ps = s.ps[:n]
+		s.trailX = s.trailX[:needTrail]
+		s.trailY = s.trailY[:needTrail]
+	} else {
+		s.ps = make([]particle, n)
+		s.trailX = make([]float64, needTrail)
+		s.trailY = make([]float64, needTrail)
+	}
 	s.reset(w, h)
 }
 

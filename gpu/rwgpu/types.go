@@ -38,7 +38,11 @@ type Device struct {
 
 // Queue is used to submit command buffers and write data to buffers/textures.
 // Obtained via [Device.Queue], release with [Queue.Release].
-type Queue struct{ handle uintptr }
+type Queue struct {
+	handle uintptr
+	// submitHandles is grow-only scratch for Queue.Submit (avoids per-frame make).
+	submitHandles []uintptr
+}
 
 // Buffer represents a block of GPU-accessible memory.
 // Create with [Device.CreateBuffer], release with [Buffer.Release].
@@ -94,7 +98,12 @@ type CommandBuffer struct{ handle uintptr }
 
 // RenderPassEncoder records draw commands within a render pass.
 // Begin with [CommandEncoder.BeginRenderPass], end with [RenderPassEncoder.End].
-type RenderPassEncoder struct{ handle uintptr }
+type RenderPassEncoder struct {
+	handle uintptr
+	// last viewport; skip redundant SetViewport (RegisterFunc hot path).
+	vpValid                            bool
+	vpX, vpY, vpW, vpH, vpMinZ, vpMaxZ float32
+}
 
 // ComputePassEncoder records dispatch commands within a compute pass.
 // Begin with [CommandEncoder.BeginComputePass], end with [ComputePassEncoder.End].

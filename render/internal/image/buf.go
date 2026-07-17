@@ -49,6 +49,11 @@ type ImageBuf struct {
 	format Format
 	genID  uint64 // Unique generation ID for GPU texture cache keying
 
+	// gpuDirty: pixels changed but genID kept (ExportImageBuf reuse / effect RT).
+	// ImageCache re-uploads into the existing GPU texture instead of allocating a
+	// new cache entry (prevents VRAM growth on continuous offscreen export).
+	gpuDirty bool
+
 	// Lazy premultiplication cache
 	premulMu    sync.RWMutex
 	premulReady bool
@@ -193,7 +198,41 @@ func (b *ImageBuf) MarkEphemeral() {
 		return
 	}
 	b.genID = 0
+	b.gpuDirty = false
 	b.InvalidatePremulCache()
+}
+
+// MarkPixelsDirty keeps GenerationID stable and flags GPU cache for in-place
+// reupload. Use for continuous effect RTs that rewrite the same ImageBuf
+// (ExportImageBuf reuse) — avoids ImageCache entry explosion from NotifyPixelsChanged.
+func (b *ImageBuf) MarkPixelsDirty() {
+	if b == nil {
+		return
+	}
+	if b.genID == 0 {
+		b.genID = nextImageBufGenID.Add(1)
+	}
+	b.gpuDirty = true
+	b.InvalidatePremulCache()
+}
+
+// TakeGPUDirty returns whether GPU texture content is stale and clears the flag.
+// Called by the GPU DrawImage path when queuing an upload.
+func (b *ImageBuf) TakeGPUDirty() bool {
+	if b == nil {
+		return false
+	}
+	d := b.gpuDirty
+	b.gpuDirty = false
+	return d
+}
+
+// IsGPUDirty reports whether MarkPixelsDirty is pending (tests/diagnostics).
+func (b *ImageBuf) IsGPUDirty() bool {
+	if b == nil {
+		return false
+	}
+	return b.gpuDirty
 }
 
 // Format returns the pixel format.

@@ -713,10 +713,19 @@ func (b *GlyphMaskBatch) CanMerge(other GlyphMaskBatch) bool {
 // buildGlyphMaskVertexData serializes GlyphMaskQuad slices into raw vertex
 // bytes suitable for GPU upload. Each quad produces 4 vertices x 16 bytes = 64 bytes.
 func buildGlyphMaskVertexData(quads []GlyphMaskQuad) []byte {
+	return buildGlyphMaskVertexDataInto(nil, quads)
+}
+
+func buildGlyphMaskVertexDataInto(data []byte, quads []GlyphMaskQuad) []byte {
 	if len(quads) == 0 {
 		return nil
 	}
-	data := make([]byte, len(quads)*4*glyphMaskVertexStride)
+	need := len(quads) * 4 * glyphMaskVertexStride
+	if cap(data) < need {
+		data = make([]byte, need)
+	} else {
+		data = data[:need]
+	}
 	off := 0
 	for _, q := range quads {
 		// Vertex 0: top-left
@@ -747,10 +756,28 @@ func writeGlyphMaskVertex(buf []byte, x, y, u, v float32) {
 // buildGlyphMaskIndexData serializes quad indices into raw bytes for GPU upload.
 // Uses the same index pattern as MSDF text: 0,1,2, 2,3,0 per quad.
 func buildGlyphMaskIndexData(numQuads int) []byte {
-	indices := generateQuadIndices(numQuads) // reuse from text_pipeline.go
-	data := make([]byte, len(indices)*2)
-	for i, idx := range indices {
-		binary.LittleEndian.PutUint16(data[i*2:], idx)
+	return buildGlyphMaskIndexDataInto(nil, numQuads)
+}
+
+func buildGlyphMaskIndexDataInto(data []byte, numQuads int) []byte {
+	if numQuads <= 0 {
+		return nil
+	}
+	need := numQuads * 6 * 2
+	if cap(data) < need {
+		data = make([]byte, need)
+	} else {
+		data = data[:need]
+	}
+	for i := 0; i < numQuads; i++ {
+		base := i * 12          // 6 indices * 2 bytes
+		vertex := uint16(i * 4) //nolint:gosec // bounded by MaxQuadCapacity
+		binary.LittleEndian.PutUint16(data[base+0:], vertex+0)
+		binary.LittleEndian.PutUint16(data[base+2:], vertex+1)
+		binary.LittleEndian.PutUint16(data[base+4:], vertex+2)
+		binary.LittleEndian.PutUint16(data[base+6:], vertex+2)
+		binary.LittleEndian.PutUint16(data[base+8:], vertex+3)
+		binary.LittleEndian.PutUint16(data[base+10:], vertex+0)
 	}
 	return data
 }
@@ -758,7 +785,18 @@ func buildGlyphMaskIndexData(numQuads int) []byte {
 // makeGlyphMaskUniform creates the 80-byte uniform buffer for a glyph mask batch.
 // The uniform contains the transform matrix and text color.
 func makeGlyphMaskUniform(transform render.Matrix, color [4]float32) []byte {
-	buf := make([]byte, glyphMaskUniformSize)
+	return makeGlyphMaskUniformInto(nil, transform, color)
+}
+
+func makeGlyphMaskUniformInto(buf []byte, transform render.Matrix, color [4]float32) []byte {
+	if cap(buf) < int(glyphMaskUniformSize) {
+		buf = make([]byte, glyphMaskUniformSize)
+	} else {
+		buf = buf[:glyphMaskUniformSize]
+		for i := range buf {
+			buf[i] = 0
+		}
+	}
 	off := 0
 
 	// Transform: WGSL mat4x4<f32> is stored COLUMN-MAJOR in memory.

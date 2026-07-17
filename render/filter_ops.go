@@ -1,5 +1,9 @@
 package render
 
+import (
+	gpucontext "github.com/energye/gpui/gpu/context"
+)
+
 // filterApplyFunc applies a filter from src into dst over the full pixmap.
 type filterApplyFunc func(src, dst *Pixmap)
 
@@ -13,6 +17,11 @@ var (
 	// gpuFilterGraphApply runs F.03 multi-RT GPU ping-pong (optional).
 	// src is tight RGBA8 w*h*4; returns same layout result.
 	gpuFilterGraphApply func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)
+	// gpuFilterGraphApplyTexture publishes a GPU texture without CPU Map/readback.
+	// Preferred for continuous effect RTs (glow/blur present path).
+	gpuFilterGraphApplyTexture func(src []byte, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)
+	// gpuFilterGraphApplyFromView seeds from a GPU texture (no CPU upload/readback).
+	gpuFilterGraphApplyFromView func(srcView gpucontext.TextureView, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)
 
 	// S6.4: shared intermediate pool for CPU filter ping-pong (blur/shadow/graph).
 	filterPixmapPool = newPixmapPool(8)
@@ -159,8 +168,16 @@ func (c *Context) ApplyInvert() {
 
 // tryApplyFilterGraphGPU runs nodes on the registered GPU multi-RT filter graph.
 // Returns true when the GPU path fully applied the result (P0-4 / L.04).
+//
+// Prefer the texture-publish path (no Map/readback) so continuous effect RTs can
+// composite via DrawGPUTexture. Pixmap is marked stale and materialised lazily on
+// Image/Export/SavePNG. When a layer stack is active, pixels are materialised
+// immediately so PopLayer seed/composite stay coherent.
 func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
-	if c == nil || c.pixmap == nil || gpuFilterGraphApply == nil || len(nodes) == 0 {
+	if c == nil || c.pixmap == nil || len(nodes) == 0 {
+		return false
+	}
+	if gpuFilterGraphApplyTexture == nil && gpuFilterGraphApply == nil {
 		return false
 	}
 	nodes = coalesceImageFilterNodes(nodes)
@@ -179,19 +196,90 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 		return false
 	}
 
-	_ = c.FlushGPU()
 	src := c.pixmap
 	w, h := src.Width(), src.Height()
 	if w <= 0 || h <= 0 {
 		return false
 	}
-	out, err := gpuFilterGraphApply(append([]byte(nil), src.Data()...), w, h, nodes)
-	if err != nil || len(out) < w*h*4 {
+
+	finish := func(view gpucontext.TextureView, release func()) bool {
+		if view.IsNil() {
+			if release != nil {
+				release()
+			}
+			return false
+		}
+		c.attachFilterGPUResult(view, w, h, release)
+		c.pixmapFilterStale = true
+		hasLayer := c.layerStack != nil && len(c.layerStack.layers) > 0
+		if hasLayer {
+			if c.materializeFilterGPU() {
+				if !c.seedTopLayerGPUFromPixmap() {
+					c.noteLayerCPUDraw()
+				}
+			} else {
+				c.noteLayerCPUDraw()
+			}
+		}
+		c.recordGPUOp()
+		return true
+	}
+
+	// 1) Zero-readback: flush pending draws into offscreen view, filter on GPU.
+	// Glow/effect RTs hit this every recompute (pending shapes > 0).
+	pending := 0
+	if rc := c.gpuCtxOps(); rc != nil {
+		type pcounter interface{ PendingCount() int }
+		if pc, ok := rc.(pcounter); ok {
+			pending = pc.PendingCount()
+		}
+	}
+	if pending > 0 && gpuFilterGraphApplyFromView != nil {
+		if srcView, ok := c.ensureFilterSrcRT(w, h); ok {
+			if err := c.FlushGPUWithView(srcView, uint32(w), uint32(h)); err == nil { //nolint:gosec
+				view, release, err := gpuFilterGraphApplyFromView(srcView, w, h, nodes)
+				if err == nil && finish(view, release) {
+					return true
+				}
+				if release != nil {
+					release()
+				}
+			}
+		}
+	}
+
+	// 2) Ensure pixmap has GPU content, then texture-publish from CPU bytes
+	// (still avoids post-filter Map when texture path is used).
+	_ = c.FlushGPU()
+	need := w * h * 4
+	if cap(c.filterSrcScratch) < need {
+		c.filterSrcScratch = make([]byte, need)
+	}
+	c.filterSrcScratch = c.filterSrcScratch[:need]
+	copy(c.filterSrcScratch, src.Data()[:need])
+
+	if gpuFilterGraphApplyTexture != nil {
+		view, release, err := gpuFilterGraphApplyTexture(c.filterSrcScratch, w, h, nodes)
+		if err == nil && finish(view, release) {
+			return true
+		}
+		if release != nil {
+			release()
+		}
+	}
+
+	// 3) Pixel readback path (tests / environments without texture publish).
+	if gpuFilterGraphApply == nil {
 		return false
 	}
-	copy(src.Data(), out[:w*h*4])
+	out, err := gpuFilterGraphApply(c.filterSrcScratch, w, h, nodes)
+	if err != nil || len(out) < need {
+		return false
+	}
+	copy(src.Data(), out[:need])
 	src.NotifyPixelsChanged()
-	// Keep layer GPU RT coherent after filter writes pixmap (R1).
+	c.pixmapFilterStale = false
+	c.releaseFilterGPUResult()
 	if !c.seedTopLayerGPUFromPixmap() {
 		c.noteLayerCPUDraw()
 	}
@@ -210,9 +298,20 @@ func RegisterGPUFilterGraph(fn func(src []byte, w, h int, nodes []ImageFilterNod
 	gpuFilterGraphApply = fn
 }
 
+// RegisterGPUFilterGraphTexture wires a zero-readback GPU filter publisher.
+// Result textures are composited with DrawGPUTexture; CPU pixels materialise lazily.
+func RegisterGPUFilterGraphTexture(fn func(src []byte, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)) {
+	gpuFilterGraphApplyTexture = fn
+}
+
+// RegisterGPUFilterGraphFromView wires a GPU→GPU filter path seeded from a texture view.
+func RegisterGPUFilterGraphFromView(fn func(srcView gpucontext.TextureView, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)) {
+	gpuFilterGraphApplyFromView = fn
+}
+
 // GPUFilterGraphRegistered reports whether a GPU multi-RT filter graph is wired.
 func GPUFilterGraphRegistered() bool {
-	return gpuFilterGraphApply != nil
+	return gpuFilterGraphApply != nil || gpuFilterGraphApplyTexture != nil || gpuFilterGraphApplyFromView != nil
 }
 
 // SwapGPUFilterGraph replaces the GPU filter graph and returns the previous one (tests).
@@ -419,4 +518,128 @@ func applyImageFilterNode(n ImageFilterNode, src, dst *Pixmap) {
 	case ImageFilterInvert:
 		invertApply(src, dst)
 	}
+}
+
+// attachFilterGPUResult stores a published filter texture for GPU compositing.
+// Double-buffered: the previous publish is released only when replaced again, so
+// the present path can still sample last frame's view during the current encode.
+func (c *Context) attachFilterGPUResult(view gpucontext.TextureView, w, h int, release func()) {
+	if c == nil {
+		if release != nil {
+			release()
+		}
+		return
+	}
+	// Drop the slot older than "previous" (two-frame latency free).
+	if c.filterGPUReleasePrev != nil {
+		c.filterGPUReleasePrev()
+		c.filterGPUReleasePrev = nil
+	}
+	// Demote current → previous (still sampleable until next attach).
+	c.filterGPUReleasePrev = c.filterGPURelease
+	c.filterGPUView = view
+	c.filterGPUW = w
+	c.filterGPUH = h
+	c.filterGPURelease = release
+}
+
+// releaseFilterGPUResult drops any published filter texture (and the prev slot).
+func (c *Context) releaseFilterGPUResult() {
+	if c == nil {
+		return
+	}
+	if c.filterGPUReleasePrev != nil {
+		c.filterGPUReleasePrev()
+		c.filterGPUReleasePrev = nil
+	}
+	if c.filterGPURelease != nil {
+		c.filterGPURelease()
+	}
+	c.filterGPURelease = nil
+	c.filterGPUView = gpucontext.TextureView{}
+	c.filterGPUW, c.filterGPUH = 0, 0
+}
+
+// GPUFilterTexture returns the latest GPU filter result for zero-copy present
+// (DrawGPUTexture). ok=false when no published filter texture is available.
+func (c *Context) GPUFilterTexture() (view gpucontext.TextureView, w, h int, ok bool) {
+	if c == nil || c.filterGPUView.IsNil() || c.filterGPUW <= 0 || c.filterGPUH <= 0 {
+		return gpucontext.TextureView{}, 0, 0, false
+	}
+	return c.filterGPUView, c.filterGPUW, c.filterGPUH, true
+}
+
+// materializeFilterGPU readbacks a published filter texture into the pixmap when
+// pixmapFilterStale. Used by Image/Export/SavePNG and layer-coherent filter paths.
+func (c *Context) materializeFilterGPU() bool {
+	if c == nil || c.pixmap == nil {
+		return false
+	}
+	if !c.pixmapFilterStale {
+		return true
+	}
+	if c.filterGPUView.IsNil() || c.filterGPUW <= 0 || c.filterGPUH <= 0 {
+		c.pixmapFilterStale = false
+		return false
+	}
+	type viewReader interface {
+		ReadbackViewStraightRGBA(view gpucontext.TextureView, w, h int) ([]byte, error)
+	}
+	raw := c.GPURenderContext()
+	vr, ok := raw.(viewReader)
+	if !ok || vr == nil {
+		return false
+	}
+	rgba, err := vr.ReadbackViewStraightRGBA(c.filterGPUView, c.filterGPUW, c.filterGPUH)
+	if err != nil || len(rgba) < c.filterGPUW*c.filterGPUH*4 {
+		return false
+	}
+	dst := c.pixmap.Data()
+	n := c.filterGPUW * c.filterGPUH * 4
+	if len(dst) < n {
+		n = len(dst)
+	}
+	copy(dst[:n], rgba[:n])
+	// Keep gen stable when possible; Notify for consumers keyed on pixmap gen.
+	c.pixmap.NotifyPixelsChanged()
+	c.pixmapFilterStale = false
+	return true
+}
+
+func (c *Context) releaseFilterSrcRT() {
+	if c == nil {
+		return
+	}
+	if c.filterSrcRelease != nil {
+		c.filterSrcRelease()
+	}
+	c.filterSrcRelease = nil
+	c.filterSrcView = gpucontext.TextureView{}
+	c.filterSrcW, c.filterSrcH = 0, 0
+}
+
+func (c *Context) ensureFilterSrcRT(w, h int) (gpucontext.TextureView, bool) {
+	if c == nil || w <= 0 || h <= 0 {
+		return gpucontext.TextureView{}, false
+	}
+	if !c.filterSrcView.IsNil() && c.filterSrcW == w && c.filterSrcH == h {
+		return c.filterSrcView, true
+	}
+	c.releaseFilterSrcRT()
+	type offscreenCreator interface {
+		CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func())
+	}
+	rc := c.gpuCtxOps()
+	oc, ok := rc.(offscreenCreator)
+	if !ok || oc == nil {
+		return gpucontext.TextureView{}, false
+	}
+	view, rel := oc.CreateOffscreenTexture(w, h)
+	if view.IsNil() {
+		return gpucontext.TextureView{}, false
+	}
+	c.filterSrcView = view
+	c.filterSrcW, c.filterSrcH = w, h
+	c.filterSrcRelease = rel
+	return view, true
 }

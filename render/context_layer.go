@@ -202,11 +202,22 @@ func (c *Context) PopLayer() {
 	// points at the layer view if FlushGPU is used as a fallback.
 	if !layer.gpuView.IsNil() {
 		if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
-			// F1: damage-aware flush when we know the dirty rect (scissor on MSAA path).
+			// F1: damage-aware flush when dirty rect is a real subset of the layer.
+			// Near-full damage (e.g. particle mesh covering the stage) falls back to
+			// full flush — damage path has setup cost without reducing encode work.
 			if !layer.fullComposite && !layer.damage.Empty() && layer.gpuW > 0 && layer.gpuH > 0 {
 				const pad = 2
-				d := layer.damage.Inset(-pad).Intersect(image.Rect(0, 0, layer.gpuW, layer.gpuH))
-				if !d.Empty() {
+				full := image.Rect(0, 0, layer.gpuW, layer.gpuH)
+				d := layer.damage.Inset(-pad).Intersect(full)
+				useDamage := !d.Empty()
+				if useDamage {
+					// area ratio; int math avoids float on hot path
+					fullA := layer.gpuW * layer.gpuH
+					if fullA > 0 && d.Dx()*d.Dy()*10 >= fullA*7 { // ≥70%
+						useDamage = false
+					}
+				}
+				if useDamage {
 					_ = c.FlushGPUWithViewDamage(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), d) //nolint:gosec
 				} else {
 					_ = c.FlushGPUWithView(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH)) //nolint:gosec
