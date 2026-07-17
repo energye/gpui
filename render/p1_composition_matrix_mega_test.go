@@ -269,12 +269,11 @@ func TestP1_Comp_D63_FrameDamageSingleRectPresent(t *testing.T) {
 func TestP1_Comp_D64_MaskFromAlphaLayerImageText(t *testing.T) {
 	p1RequireGPU(t)
 	const w, h = 280, 200
-	// Build alpha source
+	// Build alpha source: transparent outside, opaque circle (true A8 mask).
+	// Opaque black/white RGB fills both have A=255 and would yield a full mask.
 	src := render.NewContext(w, h)
-	src.SetRGB(0, 0, 0)
-	src.DrawRectangle(0, 0, w, h)
-	_ = src.Fill()
-	src.SetRGB(1, 1, 1)
+	src.Clear()
+	src.SetRGBA(1, 1, 1, 1)
 	src.DrawCircle(140, 100, 70)
 	_ = src.Fill()
 	if err := src.FlushGPU(); err != nil {
@@ -282,6 +281,10 @@ func TestP1_Comp_D64_MaskFromAlphaLayerImageText(t *testing.T) {
 		t.Fatalf("mask src: %v", err)
 	}
 	mask := render.NewMaskFromAlpha(src.Image())
+	if mask.At(140, 100) < 200 || mask.At(10, 10) > 20 {
+		src.Close()
+		t.Fatalf("D64 mask not circular alpha center=%d corner=%d", mask.At(140, 100), mask.At(10, 10))
+	}
 	src.Close()
 
 	dc := render.NewContext(w, h)
@@ -313,15 +316,29 @@ func TestP1_Comp_D64_MaskFromAlphaLayerImageText(t *testing.T) {
 	dc.PopLayer()
 
 	compMinGPU(t, dc, 3)
-	// Center (inside circle mask) should be dark overlay
+	// Center (inside circle mask) should be dark overlay (~25,25,31)
 	r, g, b, _ := p1Sample(dc, 140, 100)
-	if r > 100 && g > 100 {
+	if r > 60 || g > 60 || b > 60 {
 		t.Fatalf("D64 masked center expected dark rgba=%d,%d,%d", r, g, b)
 	}
-	// Corner outside circle: colorful stripes remain lighter/not pure dark
+	// Corner outside circle: first stripe remains (not full-frame dark layer)
 	r2, g2, b2, _ := p1Sample(dc, 10, 10)
-	if r2 < 30 && g2 < 30 && b2 < 30 {
+	if r2 < 40 && g2 < 40 && b2 < 45 {
 		t.Fatalf("D64 corner should not be fully masked dark rgba=%d,%d,%d", r2, g2, b2)
+	}
+	// Sanity: corner must differ from the dark overlay so full-surface mask fails.
+	dr, dg, db := int(r2)-int(r), int(g2)-int(g), int(b2)-int(b)
+	if dr < 0 {
+		dr = -dr
+	}
+	if dg < 0 {
+		dg = -dg
+	}
+	if db < 0 {
+		db = -db
+	}
+	if dr < 8 && dg < 8 && db < 8 {
+		t.Fatalf("D64 corner matches center dark — mask likely full-surface rgba=%d,%d,%d", r2, g2, b2)
 	}
 }
 

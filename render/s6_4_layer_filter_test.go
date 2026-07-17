@@ -16,8 +16,9 @@ func TestS64_LayerPool_ReusesSurfaces(t *testing.T) {
 	defer dc.Close()
 	dc.ResetLayerPoolStats()
 
+	// BlendMultiply forces isolation RT (Normal is F1 opacity-group without pixmap pool).
 	for i := 0; i < 6; i++ {
-		dc.PushLayer(render.BlendNormal, 0.9)
+		dc.PushLayer(render.BlendMultiply, 0.9)
 		dc.SetRGB(0.2, 0.4, 0.8)
 		dc.DrawRectangle(10, 10, 40, 30)
 		_ = dc.Fill()

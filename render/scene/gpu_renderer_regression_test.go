@@ -51,9 +51,17 @@ func TestGPUSceneRenderer_StrokeAppliesCTM(t *testing.T) {
 	}
 
 	pm := dc.ResizeTarget()
-	px := pm.GetPixel(100, 100) // top-left corner of stroked rect
+	// Sample stroke ring mid-edges (not the geometric corner: expanded stroke
+	// outlines can leave the exact vertex pixel uncovered under EvenOdd).
+	// With Translate(100,100) + rect(0,0,20,20), top edge mid ≈ (110,100).
+	px := pm.GetPixel(110, 100)
 	if px.A == 0 {
-		t.Error("REGRESSION: pixel at (100,100) transparent — CTM not applied to stroke")
+		t.Error("REGRESSION: pixel at (110,100) transparent — CTM not applied to stroke")
+	}
+	// Without CTM the stroke would sit near origin; origin area must stay empty.
+	px0 := pm.GetPixel(10, 10)
+	if px0.A > 0 {
+		t.Error("pixel at (10,10) should be transparent (stroke translated to 100,100)")
 	}
 }
 

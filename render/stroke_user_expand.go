@@ -87,3 +87,29 @@ func expandStrokePath(p *Path, width float64, paint *Paint) *Path {
 	strokeResultToPath(dst, outVerbs, outCoords)
 	return dst
 }
+
+// matrixRequiresUserSpaceStroke reports whether the current CTM needs stroke
+// expansion in pure user space (then transform the outline). True for
+// non-uniform scale or skew — direct device-space expand cannot produce
+// anisotropic thickness (T.03 / Skia).
+func (c *Context) matrixRequiresUserSpaceStroke() bool {
+	if c == nil {
+		return false
+	}
+	m := c.matrix
+	// Basis vectors of the linear part: X→(A,D), Y→(B,E).
+	sx := math.Hypot(m.A, m.D)
+	sy := math.Hypot(m.B, m.E)
+	if sx < 1e-12 || sy < 1e-12 {
+		return true
+	}
+	if math.Abs(sx-sy) > 1e-5*math.Max(sx, sy) {
+		return true
+	}
+	// Non-orthogonal axes ⇒ skew (or non-similarity).
+	dot := m.A*m.B + m.D*m.E
+	if math.Abs(dot) > 1e-5*sx*sy {
+		return true
+	}
+	return false
+}

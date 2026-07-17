@@ -60,6 +60,9 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 
 // CreateTexture creates a GPU texture.
 func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
+	if d == nil {
+		return nil, fmt.Errorf("wgpu: device is nil")
+	}
 	if d.released {
 		return nil, ErrReleased
 	}

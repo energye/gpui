@@ -1249,8 +1249,9 @@ func (s *GPURenderSession) Destroy() {
 	s.surfaceWidth = 0
 	s.surfaceHeight = 0
 	s.lastView = nil
-	s.device = nil
-	s.queue = nil
+	// Keep device/queue so Destroy+EnsureTextures can re-create session resources
+	// (TestRenderSessionDestroyAndRecreate; Context may rebuild targets on same device).
+	// Callers that fully release the Device must still Release the Device separately.
 }
 
 // drainQueue waits for all prior GPU submissions to complete.

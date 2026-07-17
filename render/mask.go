@@ -20,7 +20,10 @@ func NewMask(width, height int) *Mask {
 	}
 }
 
-// NewMaskFromAlpha creates a mask from an image's alpha channel.
+// NewMaskFromAlpha creates a mask from an image's alpha channel only.
+// Opaque RGB black/white fills both have A=255 and yield a full mask; for a
+// circular/coverage mask clear to transparent then draw with non-zero alpha,
+// or fill Mask data directly via NewMask/Set.
 func NewMaskFromAlpha(img image.Image) *Mask {
 	bounds := img.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()

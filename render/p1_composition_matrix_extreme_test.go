@@ -157,8 +157,9 @@ func TestP1_Comp_D39_RadialSweepGradientPanels(t *testing.T) {
 	dc.ResetClip()
 
 	compMinGPU(t, dc, 3)
-	r, g, b, _ := p1Sample(dc, 100, 120)
-	p1NotNearWhite(t, "D39 radial center-ish", r, g, b)
+	// Radial stop0 is white at the focus; sample mid-ring (not center, not black bar).
+	r, g, b, _ := p1Sample(dc, 100, 60)
+	p1NotNearWhite(t, "D39 radial mid-ring", r, g, b)
 	r2, g2, b2, _ := p1Sample(dc, 295, 80)
 	p1NotNearWhite(t, "D39 sweep", r2, g2, b2)
 }
@@ -582,8 +583,11 @@ func TestP1_Comp_D47_KanbanPrimitiveDensity(t *testing.T) {
 	dc.PopLayer()
 
 	compMinGPU(t, dc, 40)
-	r, g, b, _ := p1Sample(dc, 40, 100)
-	p1NotNearWhite(t, "D47 card", r, g, b)
+	// Cards are intentionally near-white; sample column chrome + priority badge.
+	r, g, b, _ := p1Sample(dc, 30, 50)
+	p1NotNearWhite(t, "D47 column chrome", r, g, b)
+	r2, g2, b2, _ := p1Sample(dc, 116, 94)
+	p1NotNearWhite(t, "D47 priority badge", r2, g2, b2)
 }
 
 // D48: nested scroll + sticky header + modal backdrop (app shell).
@@ -1165,8 +1169,9 @@ func TestP1_Comp_D56_NotificationStackComposition(t *testing.T) {
 	}, render.VertexModeTriangles)
 
 	compMinGPU(t, dc, 10)
-	r, g, b, _ := p1Sample(dc, 120, 60)
-	p1NotNearWhite(t, "D56 toast", r, g, b)
+	// Toast faces are white; sample the colored accent strip on toast #0.
+	r, g, b, _ := p1Sample(dc, 83, 60)
+	p1NotNearWhite(t, "D56 toast accent", r, g, b)
 }
 
 // D57: dual scroll transfer lists with move button and selection.

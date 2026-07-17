@@ -20,6 +20,8 @@ func noaaPixelAlpha(pm *Pixmap, x, y int) uint8 {
 func TestSetAntiAlias_BinaryPixelsOnly(t *testing.T) {
 	dc := NewContext(64, 64)
 	defer dc.Close()
+	// Force CPU analytic/no-AA path: GPU hard edges with sampleCount=1 are not binary-AA-equivalent.
+	dc.SetRasterizerMode(RasterizerAnalytic)
 
 	dc.SetAntiAlias(false)
 	dc.SetRGB(1, 0, 0)
@@ -32,6 +34,7 @@ func TestSetAntiAlias_BinaryPixelsOnly(t *testing.T) {
 	// Draw a circle (would produce smooth edges with AA)
 	dc.DrawCircle(32, 32, 20)
 	dc.Fill()
+	_ = dc.FlushGPU()
 
 	pm := dc.pixmap
 	w, h := pm.Width(), pm.Height()
@@ -49,12 +52,15 @@ func TestSetAntiAlias_BinaryPixelsOnly(t *testing.T) {
 func TestSetAntiAlias_AAHasGrayPixels(t *testing.T) {
 	dc := NewContext(64, 64)
 	defer dc.Close()
+	// Software analytic AA (GPU path without MSAA produces binary coverage only).
+	dc.SetRasterizerMode(RasterizerAnalytic)
 
 	// AA enabled (default) — diagonal line MUST produce gray pixels
 	dc.SetRGB(1, 0, 0)
 	dc.SetLineWidth(2)
 	dc.DrawLine(5, 5, 58, 58)
 	dc.Stroke()
+	_ = dc.FlushGPU()
 
 	pm := dc.pixmap
 	w, h := pm.Width(), pm.Height()
@@ -104,6 +110,7 @@ func TestSetAntiAlias_PushPop(t *testing.T) {
 func TestSetAntiAlias_RectNoCoverage(t *testing.T) {
 	dc := NewContext(32, 32)
 	defer dc.Close()
+	dc.SetRasterizerMode(RasterizerAnalytic)
 
 	dc.SetAntiAlias(false)
 	dc.SetRGB(0, 0, 1)
@@ -111,6 +118,7 @@ func TestSetAntiAlias_RectNoCoverage(t *testing.T) {
 	// Axis-aligned rect at integer coords — all interior pixels fully opaque
 	dc.DrawRectangle(4, 4, 16, 16)
 	dc.Fill()
+	_ = dc.FlushGPU()
 
 	pm := dc.pixmap
 

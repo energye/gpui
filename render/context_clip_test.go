@@ -745,6 +745,7 @@ func TestClipRoundRectFillPath(t *testing.T) {
 	dc.Fill()
 
 	dc.Pop()
+	_ = dc.FlushGPU()
 
 	// Inside clip (100, 100) should be blue.
 	inside := dc.pixmap.GetPixel(100, 100)

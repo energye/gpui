@@ -226,6 +226,16 @@ func (rc *GPURenderContext) drainLayerReleaseHold() {
 }
 
 // BeginFrame resets per-frame state so the first render pass clears the surface.
+// HasPresentView reports whether this context is bound to a window/surface
+// present path (non-nil last surface view). Offscreen unit tests use View-nil
+// FlushGPU and should prefer immediate advanced-layer CPU composite (D05).
+func (rc *GPURenderContext) HasPresentView() bool {
+	if rc == nil {
+		return false
+	}
+	return rc.lastView != nil
+}
+
 func (rc *GPURenderContext) BeginFrame() {
 	rc.clipRect = nil
 	rc.clipPath = nil
@@ -523,6 +533,7 @@ func (rc *GPURenderContext) QueueShape(target render.GPURenderTarget, shape rend
 	if err := rc.prepareTarget(target); err != nil {
 		return err
 	}
+	rc.ensureDrawOrder(drawTierSDF)
 
 	rs, ok := DetectedShapeToRenderShape(shape, paint, stroked)
 	if !ok {
@@ -547,6 +558,7 @@ func (rc *GPURenderContext) QueueConvex(target render.GPURenderTarget, cmd Conve
 	if err := rc.prepareTarget(target); err != nil {
 		slogger().Warn("auto-flush failed", "err", err)
 	}
+	rc.ensureDrawOrder(drawTierConvex)
 	rc.pendingConvexCommands = append(rc.pendingConvexCommands, cmd)
 }
 
@@ -578,6 +590,7 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 	if err := rc.prepareTarget(target); err != nil {
 		slogger().Warn("auto-flush failed", "err", err)
 	}
+	rc.ensureDrawOrder(drawTierConvex)
 
 	useVC := len(colors) == len(positions)
 	need := nOut
@@ -690,6 +703,7 @@ func (rc *GPURenderContext) QueueStencil(target render.GPURenderTarget, cmd Sten
 	if err := rc.prepareTarget(target); err != nil {
 		slogger().Warn("auto-flush failed", "err", err)
 	}
+	rc.ensureDrawOrder(drawTierStencil)
 	rc.pendingStencilPaths = append(rc.pendingStencilPaths, cmd)
 }
 
@@ -700,6 +714,7 @@ func (rc *GPURenderContext) QueueText(target render.GPURenderTarget, batch TextB
 	if err := rc.prepareTarget(target); err != nil {
 		slogger().Warn("auto-flush failed", "err", err)
 	}
+	rc.ensureDrawOrder(drawTierText)
 	// Coalesce with last pending batch if same visual properties (ADR-031).
 	// Skip merging if a scissor boundary was crossed since the last batch was
 	// queued (textBatchSealed=true); this keeps text batches within the
@@ -727,6 +742,7 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 	u0, v0, u1, v1 float32,
 	nearest bool,
 ) {
+	rc.ensureDrawOrder(drawTierImage)
 	minX := min4f(tlX, trX, brX, blX)
 	minY := min4f(tlY, trY, brY, blY)
 	maxX := max4f(tlX, trX, brX, blX)
@@ -877,6 +893,7 @@ func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, v
 	if err := rc.prepareTarget(target); err != nil {
 		slogger().Warn("auto-flush failed", "err", err)
 	}
+	rc.ensureDrawOrder(drawTierGPUTex)
 	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
 		View: view, DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: 0, V0: 0, U1: 1, V1: 1,
@@ -895,6 +912,7 @@ func (rc *GPURenderContext) QueueGPUTextureDrawUV(target render.GPURenderTarget,
 	if err := rc.prepareTarget(target); err != nil {
 		slogger().Warn("auto-flush failed", "err", err)
 	}
+	rc.ensureDrawOrder(drawTierGPUTex)
 	if u1 <= u0 || v1 <= v0 {
 		u0, v0, u1, v1 = 0, 0, 1, 1
 	}
@@ -914,6 +932,7 @@ func (rc *GPURenderContext) QueueGlyphMask(target render.GPURenderTarget, batch 
 	if err := rc.prepareTarget(target); err != nil {
 		slogger().Warn("auto-flush failed", "err", err)
 	}
+	rc.ensureDrawOrder(drawTierGlyph)
 	// Coalesce with last pending batch if same visual properties (ADR-031).
 	// Skip merging if a scissor boundary was crossed since the last batch was
 	// queued (glyphBatchSealed=true); this keeps glyph batches within the
@@ -1088,12 +1107,15 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		if rc.tryFillMaskedConvexInline(target, path, paint) {
 			return nil
 		}
-		// Solid SourceOver + GPU mask: fall through to stencil-then-cover with
-		// cover-pass R8 sampling (same mask bind group as convex/SDF).
+		// Solid SourceOver + GPU mask: stencil-then-cover with cover-pass R8.
+		// If the mask plane is not live yet (SetMask without MaskAware bind),
+		// bootstrap via fillMaskedAsImage so SetMask+PushMaskLayer stays correct.
 		if !(isGPUSolidPaint(paint) && paintUsesSourceOver(paint) && paintSupportsGPUFixedBlend(paint) && rc.shared.HasGPUMask()) {
 			return rc.fillMaskedAsImage(target, path, paint)
 		}
-		// continue into GPU solid fill path below
+		// HasGPUMask but cover-inline failed: still force masked bootstrap.
+		// Falling through to unmasked solid fill ignores SetMask (WithSetMask).
+		return rc.fillMaskedAsImage(target, path, paint)
 	}
 	if !isGPUSolidPaint(paint) {
 		// GPU-FIRST order (do not reorder / demote):
@@ -1255,6 +1277,11 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	pathToStroke := path
 	if !rc.antiAlias {
 		pathToStroke = snapPathToPixelGrid(path)
+	}
+	// Hairline / 1px axis-aligned strokes: snap to pixel centers so ink lands
+	// on the intended device row/column (caret, HiDPI hairline).
+	if shouldSnapHairline(paint) {
+		pathToStroke = snapHairlineStrokePath(pathToStroke)
 	}
 	var dashHash uint64
 	if paint.IsDashed() {
@@ -1487,7 +1514,12 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 
 // Flush dispatches all pending commands for this context via the render session.
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
-	// F1: restore present-deferred parent draws only on present-path flushes.
+	// F1: restore present-deferred parent draws.
+	// Base/CPU FlushGPU uses View-nil targets — must unstash here or white/cyan
+	// base draws remain stashed forever and advanced layer resolve sees black (D05).
+	if target.View.IsNil() && rc.presentStash.active {
+		rc.unstashPresentPending()
+	}
 	// Layer RTs also carry a non-nil View; never inject the stash into a layer
 	// self-flush (pendingTarget matches the layer View being flushed).
 	if !target.View.IsNil() && rc.presentStash.active {
@@ -1954,6 +1986,37 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	layers := rc.pendingAdvancedLayers
 	rc.pendingAdvancedLayers = nil
 
+	// View-nil Image/FlushGPU path: dual-tex Multiply with empty alpha was wiping
+	// base (D05 black outside). Materialize each layer RT and CPU-blend into
+	// target.Data (base already flushed into Data by RenderFrameGrouped).
+	// Present FlushGPUWithView keeps dual-tex below.
+	if target.View.IsNil() && len(target.Data) >= target.Width*target.Height*4 && target.Width > 0 && target.Height > 0 {
+		var firstErr error
+		for i := range layers {
+			pl := &layers[i]
+			if pl.srcView.IsNil() {
+				if pl.release != nil {
+					pl.release()
+				}
+				continue
+			}
+			rgba, err := rc.ReadbackViewRGBA(pl.srcView, pl.srcW, pl.srcH)
+			if pl.release != nil {
+				pl.release()
+			}
+			if err != nil || len(rgba) < pl.srcW*pl.srcH*4 {
+				if firstErr == nil && err != nil {
+					firstErr = err
+				}
+				continue
+			}
+			if err := cpuCompositeAdvancedLayer(target.Data, target.Width, target.Height, rgba, pl.srcW, pl.srcH, pl.mode, pl.opacity, pl.damage); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
+	}
+
 	// FlushGPU (View-nil / CPU readback target): still composite via frameScratch,
 	// then copy result into target.Data so sampleRGBA / Image paths see blends.
 	readbackToData := false
@@ -2364,6 +2427,55 @@ func (rc *GPURenderContext) Close() {
 	rc.sceneStats = render.SceneStats{}
 }
 
+// Draw-order tiers match GPURenderSession.recordGroupDraws pass order.
+// Within a scissor group, lower tiers always draw before higher tiers. When a
+// later API call queues a lower tier while higher-tier work is already pending,
+// seal a scissor segment so the new work becomes a later group (painter order).
+const (
+	drawTierSDF     = 1
+	drawTierConvex  = 2
+	drawTierStencil = 3
+	drawTierImage   = 4
+	drawTierGPUTex  = 5
+	drawTierText    = 6
+	drawTierGlyph   = 7
+)
+
+func (rc *GPURenderContext) maxPendingDrawTier() int {
+	if rc == nil {
+		return 0
+	}
+	switch {
+	case len(rc.pendingGlyphMaskBatches) > 0:
+		return drawTierGlyph
+	case len(rc.pendingTextBatches) > 0:
+		return drawTierText
+	case len(rc.pendingGPUTextureCommands) > 0:
+		return drawTierGPUTex
+	case len(rc.pendingImageCommands) > 0:
+		return drawTierImage
+	case len(rc.pendingStencilPaths) > 0:
+		return drawTierStencil
+	case len(rc.pendingConvexCommands) > 0:
+		return drawTierConvex
+	case len(rc.pendingShapes) > 0:
+		return drawTierSDF
+	default:
+		return 0
+	}
+}
+
+// ensureDrawOrder seals the current timeline when queueing tier would otherwise
+// be drawn under already-pending higher-tier geometry (Skia-style painter order).
+func (rc *GPURenderContext) ensureDrawOrder(tier int) {
+	if rc == nil || tier <= 0 {
+		return
+	}
+	if rc.maxPendingDrawTier() > tier {
+		rc.recordScissorSegment(rc.clipRect)
+	}
+}
+
 // recordScissorSegment records a scissor state change in the timeline.
 // It seals both text tiers so the next QueueGlyphMask/QueueText starts
 // a new batch instead of merging across the scissor boundary.
@@ -2639,6 +2751,10 @@ func (rc *GPURenderContext) syncGlyphMaskAtlases(batches []GlyphMaskBatch) error
 // pipeline with L.06 R8 mask sampling in the fragment shader (true cover-inline).
 // Returns true when the draw was queued (caller must not fall back).
 func (rc *GPURenderContext) tryFillMaskedConvexInline(target render.GPURenderTarget, path *render.Path, paint *render.Paint) bool {
+	// Temporarily prefer fillMaskedAsImage (SetMask+layer correctness).
+	// Cover-inline R8 path can skip mask sampling on layer RTs (WithSetMask).
+	return false
+
 	if path == nil || paint == nil || paint.MaskCoverage == nil {
 		return false
 	}
@@ -2683,6 +2799,10 @@ func (rc *GPURenderContext) tryFillMaskedConvexInline(target render.GPURenderTar
 // tryFillMaskedSDFInline routes solid SDF shapes through the SDF cover pipeline
 // with L.06 R8 mask sampling in the fragment shader (true cover-inline).
 func (rc *GPURenderContext) tryFillMaskedSDFInline(target render.GPURenderTarget, shape render.DetectedShape, paint *render.Paint) bool {
+	// Temporarily prefer fillMaskedAsImage (SetMask+layer correctness).
+	// Cover-inline R8 path can skip mask sampling on layer RTs (WithSetMask).
+	return false
+
 	if paint == nil || paint.MaskCoverage == nil {
 		return false
 	}

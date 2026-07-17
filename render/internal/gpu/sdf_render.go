@@ -575,17 +575,26 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}
-	// Render pass with MSAA resolve.
+	// Render pass with MSAA resolve (only when sampleCount>1).
+	colorAtt := webgpu.RenderPassColorAttachment{
+		View:       p.resolveView,
+		LoadOp:     types.LoadOpClear,
+		StoreOp:    types.StoreOpStore,
+		ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
+	}
+	if p.sampleCount > 1 && p.msaaView != nil {
+		colorAtt = webgpu.RenderPassColorAttachment{
+			View:          p.msaaView,
+			ResolveTarget: p.resolveView,
+			LoadOp:        types.LoadOpClear,
+			StoreOp:       types.StoreOpStore,
+			ClearValue:    types.Color{R: 0, G: 0, B: 0, A: 0},
+		}
+	}
 	rpDesc := &webgpu.RenderPassDescriptor{
 		Label: "sdf_render_pass",
 		ColorAttachments: []webgpu.RenderPassColorAttachment{
-			{
-				View:          p.msaaView,
-				ResolveTarget: p.resolveView,
-				LoadOp:        types.LoadOpClear,
-				StoreOp:       types.StoreOpStore,
-				ClearValue:    types.Color{R: 0, G: 0, B: 0, A: 0},
-			},
+			colorAtt,
 		},
 	}
 	rp, rpErr := encoder.BeginRenderPass(rpDesc)

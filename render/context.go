@@ -2037,6 +2037,9 @@ func (c *Context) doFill() error {
 	} else if forceCPULayer {
 		// Intentional CPU layer path (no GPU RT on this layer).
 		ok, cpuMode = false, mode
+	} else if _, isSW := c.renderer.(*SoftwareRenderer); !isSW {
+		// Custom Renderer DI: never intercept with the global GPU accelerator.
+		ok, cpuMode = false, mode
 	} else {
 		ok, cpuMode = c.tryGPUFillWithMode(mode)
 	}
@@ -2105,9 +2108,15 @@ func (c *Context) doStroke() error {
 	}
 	defer clipMaskCleanup()
 	forceCPULayer := c.layerForceCPUDraw()
+	_, isSoftwareRenderer := c.renderer.(*SoftwareRenderer)
+	// T.03: non-uniform / skewed CTM needs user-space stroke expand then transform
+	// (Skia/Cairo). Direct GPU StrokePath expands with a uniform device width.
+	userSpaceStroke := c.matrixRequiresUserSpaceStroke()
 	if forceCPULayer {
 		// Intentional CPU layer path (no GPU RT on this layer).
-	} else if !forceCPUClip {
+	} else if !isSoftwareRenderer {
+		// Custom Renderer DI: never intercept with the global GPU accelerator.
+	} else if !forceCPUClip && !userSpaceStroke {
 		devicePath := c.deviceSpacePath()
 		origPath := c.path
 		origScale := c.paint.TransformScale
@@ -2124,8 +2133,12 @@ func (c *Context) doStroke() error {
 			// Batched with fills until PresentFrame / Image / SavePNG.
 			return nil
 		}
-	} else if c.gpuPathAvailable() {
-		c.recordCPUFallbackReason("clip-mask")
+	} else if c.gpuPathAvailable() && (forceCPUClip || userSpaceStroke) {
+		reason := "clip-mask"
+		if userSpaceStroke && !forceCPUClip {
+			reason = "stroke-user-space"
+		}
+		c.recordCPUFallbackReason(reason)
 	}
 
 	outline := c.expandStrokeToPathSpace()

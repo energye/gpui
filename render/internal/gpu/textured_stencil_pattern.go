@@ -676,13 +676,22 @@ func texturedStencilCoverPatternEx(
 		releaseOut()
 		return nil, nil, nil, err
 	}
-	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
-		Label: "tex_stencil_pat_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+	// sampleCount==1: ResolveTarget is WebGPU-invalid (both views 1-sample).
+	colorAtt := webgpu.RenderPassColorAttachment{
+		View:   outView,
+		LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
+		ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
+	}
+	if cache.sampleCount > 1 && msaaView != nil {
+		colorAtt = webgpu.RenderPassColorAttachment{
 			View: msaaView, ResolveTarget: outView,
 			LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
 			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
-		}},
+		}
+	}
+	rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
+		Label:            "tex_stencil_pat_pass",
+		ColorAttachments: []webgpu.RenderPassColorAttachment{colorAtt},
 		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
 			View:        stencilView,
 			DepthLoadOp: types.LoadOpClear, DepthStoreOp: types.StoreOpDiscard, DepthClearValue: 1,

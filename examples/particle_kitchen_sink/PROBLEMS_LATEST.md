@@ -96,3 +96,14 @@ Present-deferred parent stash（`prepareTarget` + scissor re-base）落地后：
 4. 像素门：`TestF1_AdvancedLayerPresentView_HUDText`  
 
 **非 F1 阻塞（下一挖）**：glow 滤镜 export 尖刺（`ApplyBlur`+`ExportImageBuf` 隔帧）— 修 GPU 常驻 glow RT / 减 readback，**不得**靠降内容刷 PASS。
+
+### 门禁顺序（2026-07-16 夜，F1 后）
+
+底层改动后：
+
+1. **全量单元** `./scripts/run_full_unit_tests.sh` → `tmp/full_unit/summary.txt`  
+2. **内存泄漏** `./scripts/run_mem_leak_tests.sh` → `tmp/gpui_mem_leak_tests.log`（process-local RSS + OOM 硬门）  
+3. 再 dig glow hitch / 性能（不得砍内容刷分）
+
+文档：`docs/MEM_LEAK_TEST_PLAN.md` §11、`docs/MAINLINE_PLAN.md` M 节。
+

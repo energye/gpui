@@ -136,6 +136,9 @@ func (a *VelloAccelerator) CanCompute() bool {
 // from an external provider (e.g., gogpu). The provider's Device() must
 // return a *wgpu.Device (as gpucontext.Device).
 func (a *VelloAccelerator) SetDeviceProvider(provider gpucontext.DeviceProvider) error {
+	if provider == nil {
+		return nil
+	}
 	dev := provider.Device()
 	if dev.IsNil() {
 		return fmt.Errorf("vello-compute: provider Device is nil")

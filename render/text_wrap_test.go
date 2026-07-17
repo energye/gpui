@@ -8,6 +8,13 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
+func wrapSync(dc *Context) { _ = dc.FlushGPU() }
+
+func wrapPixel(dc *Context, x, y int) RGBA {
+	_ = dc.FlushGPU()
+	return dc.pixmap.GetPixel(x, y)
+}
+
 // findTestFont returns a path to a system font suitable for testing.
 // Returns empty string if no font is found.
 func findTestFont() string {
@@ -293,12 +300,13 @@ func TestDrawStringWrapped_DrawsPixels(t *testing.T) {
 
 	longText := "The quick brown fox jumps over the lazy dog"
 	dc.DrawStringWrapped(longText, 10, 30, 0, 0, 380, 1.5, AlignLeft)
+	_ = dc.FlushGPU()
 
 	// Verify pixels were modified
 	nonWhiteCount := 0
 	for y := 0; y < 400; y++ {
 		for x := 0; x < 400; x++ {
-			pixel := dc.pixmap.GetPixel(x, y)
+			pixel := wrapPixel(dc, x, y)
 			if pixel.R < 0.99 || pixel.G < 0.99 || pixel.B < 0.99 {
 				nonWhiteCount++
 			}
@@ -343,7 +351,7 @@ func TestDrawStringWrapped_Alignment(t *testing.T) {
 	leftInk := false
 	for y := 40; y < 80; y++ {
 		for x := 40; x < 100; x++ {
-			p := dc.pixmap.GetPixel(x, y)
+			p := wrapPixel(dc, x, y)
 			if p.R < 0.99 {
 				leftInk = true
 				break
@@ -358,7 +366,7 @@ func TestDrawStringWrapped_Alignment(t *testing.T) {
 	rightInk := false
 	for y := 140; y < 180; y++ {
 		for x := 300; x < 360; x++ {
-			p := dc.pixmap.GetPixel(x, y)
+			p := wrapPixel(dc, x, y)
 			if p.R < 0.99 {
 				rightInk = true
 				break
@@ -519,7 +527,7 @@ func TestDrawStringAnchored_AnchorSemantics(t *testing.T) {
 	hasInkAbove := false
 	for y := 0; y < 48; y++ {
 		for x := 40; x < 200; x++ {
-			p := dc.pixmap.GetPixel(x, y)
+			p := wrapPixel(dc, x, y)
 			if p.R < 0.95 {
 				hasInkAbove = true
 			}
@@ -532,7 +540,7 @@ func TestDrawStringAnchored_AnchorSemantics(t *testing.T) {
 	hasInkInRange := false
 	for y := 50; y < 50+int(h)+2; y++ {
 		for x := 40; x < 200; x++ {
-			p := dc.pixmap.GetPixel(x, y)
+			p := wrapPixel(dc, x, y)
 			if p.R < 0.95 {
 				hasInkInRange = true
 			}
@@ -553,7 +561,7 @@ func TestDrawStringAnchored_AnchorSemantics(t *testing.T) {
 			continue
 		}
 		for x := 40; x < 200; x++ {
-			p := dc.pixmap.GetPixel(x, y)
+			p := wrapPixel(dc, x, y)
 			if p.R < 0.95 {
 				hasInkAboveCenter = true
 			}
@@ -565,7 +573,7 @@ func TestDrawStringAnchored_AnchorSemantics(t *testing.T) {
 			break
 		}
 		for x := 40; x < 200; x++ {
-			p := dc.pixmap.GetPixel(x, y)
+			p := wrapPixel(dc, x, y)
 			if p.R < 0.95 {
 				hasInkBelowCenter = true
 			}
@@ -585,7 +593,7 @@ func TestDrawStringAnchored_AnchorSemantics(t *testing.T) {
 	hasInkBelow := false
 	for y := 352; y < 400; y++ {
 		for x := 40; x < 200; x++ {
-			p := dc.pixmap.GetPixel(x, y)
+			p := wrapPixel(dc, x, y)
 			if p.R < 0.95 {
 				hasInkBelow = true
 			}
@@ -601,7 +609,7 @@ func TestDrawStringAnchored_AnchorSemantics(t *testing.T) {
 			continue
 		}
 		for x := 40; x < 200; x++ {
-			p := dc.pixmap.GetPixel(x, y)
+			p := wrapPixel(dc, x, y)
 			if p.R < 0.95 {
 				hasInkAboveBottom = true
 			}

@@ -217,6 +217,10 @@ func (s *GPUShared) SetForceSDF(force bool) {
 // SwiftShader for testing. Capability differences are handled via probing
 // (e.g., MSAA fallback to 1x), not blanket disabling.
 func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error {
+	if provider == nil {
+		// Clearing the external provider is a no-op: keep current device binding.
+		return nil
+	}
 	if adapter := provider.Adapter(); !adapter.IsNil() {
 		wgpuAdapter := webgpu.AdapterFromHandle(adapter)
 		if wgpuAdapter != nil && wgpuAdapter.Info().DeviceType == types.DeviceTypeCPU {

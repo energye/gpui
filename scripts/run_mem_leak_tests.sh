@@ -3,14 +3,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 export WGPU_NATIVE_PATH="${WGPU_NATIVE_PATH:-$ROOT/lib/libwgpu_native.so}"
-export GOCACHE="${GOCACHE:-/tmp/gpui-go-cache}"
+export GOCACHE="${GOCACHE:-$ROOT/tmp/go-cache}"
 export LD_LIBRARY_PATH="$ROOT/lib:${LD_LIBRARY_PATH:-}"
 export DISPLAY="${DISPLAY:-:1}"
 export XAUTHORITY="${XAUTHORITY:-/run/user/$(id -u)/gdm/Xauthority}"
 export GPUI_SURFACE_SAMPLE_COUNT="${GPUI_SURFACE_SAMPLE_COUNT:-1}"
 COUNT="${GPUI_MEM_COUNT:-3}"
 TIMEOUT="${GPUI_MEM_TIMEOUT:-180s}"
-LOG=/tmp/gpui_mem_leak_tests.log
+LOG="${GPUI_MEM_LOG:-$ROOT/tmp/gpui_mem_leak_tests.log}"
 : > "$LOG"
 
 echo "== MEM leak suite count=$COUNT (process-isolated tiers) ==" | tee -a "$LOG"

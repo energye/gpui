@@ -7,6 +7,12 @@ import (
 	"testing"
 )
 
+// imagePixel flushes deferred GPU draws then samples the CPU pixmap.
+func imagePixel(dc *Context, x, y int) RGBA {
+	_ = dc.FlushGPU()
+	return dc.pixmap.GetPixel(x, y)
+}
+
 func TestDrawImage(t *testing.T) {
 	// Create a context
 	dc := NewContext(200, 200)
@@ -29,7 +35,7 @@ func TestDrawImage(t *testing.T) {
 	dc.DrawImage(img, 10, 10)
 
 	// Verify pixel at (10, 10) is red
-	result := dc.pixmap.GetPixel(10, 10)
+	result := imagePixel(dc, 10, 10)
 	if result.R < 0.9 || result.G > 0.1 || result.B > 0.1 {
 		t.Errorf("Expected red pixel at (10, 10), got R=%.2f G=%.2f B=%.2f", result.R, result.G, result.B)
 	}
@@ -99,7 +105,7 @@ func TestDrawImageEx(t *testing.T) {
 			x := int(tt.opts.X)
 			y := int(tt.opts.Y)
 			if x >= 0 && x < 200 && y >= 0 && y < 200 {
-				result := dc.pixmap.GetPixel(x, y)
+				result := imagePixel(dc, x, y)
 				if result.A == 0 {
 					t.Errorf("Expected non-transparent pixel at (%d, %d)", x, y)
 				}
@@ -134,7 +140,7 @@ func TestDrawImageWithTransform(t *testing.T) {
 
 	// The image should be drawn at transformed position (100, 100) with 0.5 scale
 	// Check pixel near the center of the transformed image
-	result := dc.pixmap.GetPixel(100, 100)
+	result := imagePixel(dc, 100, 100)
 	if result.G < 0.9 {
 		t.Errorf("Expected green pixel at transformed position, got G=%.2f", result.G)
 	}
@@ -176,7 +182,7 @@ func TestDrawImageSrcRect(t *testing.T) {
 	})
 
 	// Verify we got red (top-left quadrant)
-	result := dc.pixmap.GetPixel(10, 10)
+	result := imagePixel(dc, 10, 10)
 	if result.R < 0.9 || result.G > 0.1 {
 		t.Errorf("Expected red from top-left quadrant, got R=%.2f G=%.2f", result.R, result.G)
 	}
@@ -386,7 +392,7 @@ func TestInterpolationModes(t *testing.T) {
 			})
 
 			// Check pixel at the start of the drawn image (should definitely be there)
-			result := dc.pixmap.GetPixel(15, 15)
+			result := imagePixel(dc, 15, 15)
 			if result.A < 0.9 {
 				t.Errorf("Expected opaque pixel with %s interpolation, got A=%.2f", mode.String(), result.A)
 			}
@@ -439,7 +445,7 @@ func TestBlendModes(t *testing.T) {
 			})
 
 			// Just verify something was drawn
-			result := dc.pixmap.GetPixel(30, 30)
+			result := imagePixel(dc, 30, 30)
 			if result.A == 0 {
 				t.Errorf("Expected non-transparent pixel with %s blend mode", m.name)
 			}
@@ -468,20 +474,20 @@ func TestDrawImageClipped_RoundedRect(t *testing.T) {
 	dc.Pop()
 
 	// Pixel inside the clip (center of the rounded rect) should be red.
-	inside := dc.pixmap.GetPixel(100, 100)
+	inside := imagePixel(dc, 100, 100)
 	if inside.R < 0.8 {
 		t.Errorf("Expected red inside clip, got R=%.2f G=%.2f B=%.2f", inside.R, inside.G, inside.B)
 	}
 
 	// Pixel at the corner (50, 50) should be clipped away by the rounded corner.
 	// The corner radius is 15px, so (50, 50) is in the clipped corner area.
-	corner := dc.pixmap.GetPixel(51, 51)
+	corner := imagePixel(dc, 51, 51)
 	if corner.R > 0.5 {
 		t.Errorf("Expected clipped corner at (51, 51), got R=%.2f (should be low due to rounded clip)", corner.R)
 	}
 
 	// Pixel outside the clip entirely should be transparent/background.
-	outside := dc.pixmap.GetPixel(10, 10)
+	outside := imagePixel(dc, 10, 10)
 	if outside.R > 0.1 {
 		t.Errorf("Expected no image outside clip, got R=%.2f", outside.R)
 	}
@@ -508,13 +514,13 @@ func TestDrawImageClipped_Circle(t *testing.T) {
 	dc.Pop()
 
 	// Pixel at the center of the circle should be green.
-	center := dc.pixmap.GetPixel(100, 100)
+	center := imagePixel(dc, 100, 100)
 	if center.G < 0.8 {
 		t.Errorf("Expected green at circle center, got G=%.2f", center.G)
 	}
 
 	// Pixel well outside the circle should be background (not green).
-	outside := dc.pixmap.GetPixel(5, 5)
+	outside := imagePixel(dc, 5, 5)
 	if outside.G > 0.1 {
 		t.Errorf("Expected no green outside circle clip, got G=%.2f", outside.G)
 	}
@@ -547,19 +553,19 @@ func TestDrawImageClipped_NestedClips(t *testing.T) {
 	dc.Pop() // Restore to no clip.
 
 	// Pixel at center (inside both clips) should be blue.
-	center := dc.pixmap.GetPixel(100, 100)
+	center := imagePixel(dc, 100, 100)
 	if center.B < 0.8 {
 		t.Errorf("Expected blue at center (inside both clips), got B=%.2f", center.B)
 	}
 
 	// Pixel inside the rectangle but outside the circle should NOT be blue.
-	rectOnly := dc.pixmap.GetPixel(25, 25)
+	rectOnly := imagePixel(dc, 25, 25)
 	if rectOnly.B > 0.1 {
 		t.Errorf("Expected no blue at (25,25) — inside rect but outside circle, got B=%.2f", rectOnly.B)
 	}
 
 	// Pixel completely outside both clips should be background.
-	outside := dc.pixmap.GetPixel(5, 5)
+	outside := imagePixel(dc, 5, 5)
 	if outside.B > 0.1 {
 		t.Errorf("Expected no blue at (5,5), got B=%.2f", outside.B)
 	}
@@ -578,19 +584,19 @@ func TestDrawImageClipped_NoClip(t *testing.T) {
 	dc.DrawImage(img, 10, 10)
 
 	// Verify pixel at (10, 10) is red.
-	result := dc.pixmap.GetPixel(10, 10)
+	result := imagePixel(dc, 10, 10)
 	if result.R < 0.9 || result.G > 0.1 || result.B > 0.1 {
 		t.Errorf("Expected red at (10, 10), got R=%.2f G=%.2f B=%.2f", result.R, result.G, result.B)
 	}
 
 	// Verify pixel just inside at (59, 59) is red (10+50-1=59).
-	inside := dc.pixmap.GetPixel(59, 59)
+	inside := imagePixel(dc, 59, 59)
 	if inside.R < 0.9 {
 		t.Errorf("Expected red at (59, 59), got R=%.2f", inside.R)
 	}
 
 	// Verify pixel just outside at (60, 60) is NOT red.
-	outsideR := dc.pixmap.GetPixel(60, 10)
+	outsideR := imagePixel(dc, 60, 10)
 	if outsideR.R > 0.1 {
 		t.Errorf("Expected no red at (60, 10), got R=%.2f", outsideR.R)
 	}
@@ -708,13 +714,13 @@ func TestDrawImageClipped_WithTransform(t *testing.T) {
 	dc.Pop()
 
 	// Center of the clip should have red pixels.
-	center := dc.pixmap.GetPixel(100, 100)
+	center := imagePixel(dc, 100, 100)
 	if center.R < 0.8 {
 		t.Errorf("Expected red at center with transform+clip, got R=%.2f", center.R)
 	}
 
 	// Outside the clip should be background.
-	outside := dc.pixmap.GetPixel(10, 10)
+	outside := imagePixel(dc, 10, 10)
 	if outside.R > 0.1 {
 		t.Errorf("Expected no red outside clip with transform, got R=%.2f", outside.R)
 	}
@@ -730,13 +736,13 @@ func TestDrawImageRounded(t *testing.T) {
 	dc.DrawImageRounded(img, 60, 60, 10)
 
 	// Center of the image should be red.
-	center := dc.pixmap.GetPixel(100, 100)
+	center := imagePixel(dc, 100, 100)
 	if center.R < 0.8 {
 		t.Errorf("Expected red at center of rounded image, got R=%.2f", center.R)
 	}
 
 	// Corner should be clipped (radius=10, so the pixel at (60, 60) is in the rounded corner).
-	corner := dc.pixmap.GetPixel(61, 61)
+	corner := imagePixel(dc, 61, 61)
 	if corner.R > 0.5 {
 		t.Errorf("Expected clipped corner at (61, 61), got R=%.2f", corner.R)
 	}
@@ -752,7 +758,7 @@ func TestDrawImageCircular(t *testing.T) {
 	dc.DrawImageCircular(img, 100, 100, 40)
 
 	// Center should be blue (inside the circle).
-	center := dc.pixmap.GetPixel(100, 100)
+	center := imagePixel(dc, 100, 100)
 	if center.B < 0.8 {
 		t.Errorf("Expected blue at center of circular image, got B=%.2f", center.B)
 	}
@@ -760,7 +766,7 @@ func TestDrawImageCircular(t *testing.T) {
 	// Pixel at the edge of the bounding box but outside the circle.
 	// At 45 degrees from center at distance 40 = (100+28, 100+28) roughly.
 	// At the actual corner (60, 60) which is outside the circle.
-	corner := dc.pixmap.GetPixel(62, 62)
+	corner := imagePixel(dc, 62, 62)
 	if corner.B > 0.3 {
 		t.Errorf("Expected no blue at corner outside circle, got B=%.2f", corner.B)
 	}
@@ -786,13 +792,13 @@ func TestFillClippedSolid(t *testing.T) {
 	dc.Pop()
 
 	// Center of the circle should be red.
-	center := dc.pixmap.GetPixel(100, 100)
+	center := imagePixel(dc, 100, 100)
 	if center.R < 0.8 {
 		t.Errorf("Expected red at circle center, got R=%.2f", center.R)
 	}
 
 	// Outside the circle should be background (black from Clear).
-	outside := dc.pixmap.GetPixel(5, 5)
+	outside := imagePixel(dc, 5, 5)
 	if outside.R > 0.1 {
 		t.Errorf("Expected no red outside circle clip, got R=%.2f", outside.R)
 	}
@@ -817,13 +823,13 @@ func TestStrokeClipped(t *testing.T) {
 	dc.Pop()
 
 	// Inside the clip, the line should be visible.
-	inside := dc.pixmap.GetPixel(100, 100)
+	inside := imagePixel(dc, 100, 100)
 	if inside.R < 0.5 {
 		t.Errorf("Expected red stroke inside clip, got R=%.2f", inside.R)
 	}
 
 	// Outside the clip, the line should NOT be visible.
-	outside := dc.pixmap.GetPixel(10, 100)
+	outside := imagePixel(dc, 10, 100)
 	if outside.R > 0.1 {
 		t.Errorf("Expected no stroke outside clip, got R=%.2f", outside.R)
 	}
@@ -931,19 +937,19 @@ func TestDrawImage_NoTransformRegression(t *testing.T) {
 	dc.DrawImage(srcImg, 10, 10)
 
 	// Pixel at (10, 10) should be red.
-	pixel := dc.pixmap.GetPixel(10, 10)
+	pixel := imagePixel(dc, 10, 10)
 	if pixel.R < 0.9 {
 		t.Errorf("expected red at (10,10), got R=%.2f", pixel.R)
 	}
 
 	// Pixel at (59, 59) should be red (10+50-1).
-	pixel2 := dc.pixmap.GetPixel(59, 59)
+	pixel2 := imagePixel(dc, 59, 59)
 	if pixel2.R < 0.9 {
 		t.Errorf("expected red at (59,59), got R=%.2f", pixel2.R)
 	}
 
 	// Pixel outside at (60, 10) should NOT be red.
-	pixel3 := dc.pixmap.GetPixel(60, 10)
+	pixel3 := imagePixel(dc, 60, 10)
 	if pixel3.R > 0.1 {
 		t.Errorf("expected no red at (60,10), got R=%.2f", pixel3.R)
 	}
@@ -1007,18 +1013,18 @@ func TestDrawImage_DeviceScale(t *testing.T) {
 	// Physical pixmap is 400x400. Image at logical (10,10) should map to
 	// device (20,20) with 2x scale. Each source pixel covers 2x2 device pixels
 	// via the deviceMatrix, so the image covers device (20,20) to (119,119).
-	pixel := dc.pixmap.GetPixel(20, 20)
+	pixel := imagePixel(dc, 20, 20)
 	if pixel.B < 0.8 {
 		t.Errorf("expected blue at device (20,20) with DeviceScale=2, got B=%.2f", pixel.B)
 	}
 
-	pixel2 := dc.pixmap.GetPixel(60, 60)
+	pixel2 := imagePixel(dc, 60, 60)
 	if pixel2.B < 0.8 {
 		t.Errorf("expected blue at device (60,60) with DeviceScale=2, got B=%.2f", pixel2.B)
 	}
 
 	// Well outside the image region should not be blue.
-	pixel3 := dc.pixmap.GetPixel(200, 20)
+	pixel3 := imagePixel(dc, 200, 20)
 	if pixel3.B > 0.1 {
 		t.Errorf("expected no blue at device (200,20) with DeviceScale=2, got B=%.2f", pixel3.B)
 	}
@@ -1096,7 +1102,7 @@ func TestCreateImagePattern_Compat(t *testing.T) {
 	_ = dc.Fill()
 
 	// Check some pixels are red.
-	pixel := dc.pixmap.GetPixel(10, 10)
+	pixel := imagePixel(dc, 10, 10)
 	if pixel.R < 0.8 {
 		t.Errorf("expected red fill from pattern at (10,10), got R=%.2f", pixel.R)
 	}

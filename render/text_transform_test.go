@@ -60,6 +60,8 @@ func setupTextContext(t *testing.T, w, h int, fontSize float64) (*Context, *text
 
 // countNonWhitePixels counts pixels that are not pure white in the given region.
 func countNonWhitePixels(dc *Context, x0, y0, x1, y1 int) int {
+	// GPU ops are deferred; sync before reading the CPU pixmap.
+	_ = dc.FlushGPU()
 	count := 0
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {

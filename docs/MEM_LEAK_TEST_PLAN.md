@@ -1,6 +1,6 @@
 # 内存 / VRAM 泄漏测试方案
 
-> 版本：1.0 | 日期：2026-07-15  
+> 版本：1.1 | 日期：2026-07-16  
 > 状态：**执行中**  
 > 范围：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`（经 render 真链路）  
 > 非目标：游戏引擎、控件层、完整 ASAN/Valgrind 替代
@@ -178,4 +178,71 @@ Env：
 ## 相关：窗口长时压测
 
 见 `docs/MEM_ANIM_LONGSOAK_PLAN.md`（真实 X11 窗口，**每进程单场景**，60s–10min）。
+
+---
+
+## 11. 底层改动后的强制门禁（F1 后现行）
+
+任意改动 **render / webgpu / rwgpu 释放链、present-stash、LoadOp、clip/scissor、session** 后，顺序固定：
+
+| 顺序 | 门禁 | 命令 / 证据 | 目的 |
+|------|------|-------------|------|
+| **1** | **全量单元测试绿** | `./scripts/run_full_unit_tests.sh` → `tmp/full_unit/summary.txt` | 语义/编译/绑定回归先过 |
+| **2** | **内存泄漏观测档** | `./scripts/run_mem_leak_tests.sh`（`GPUI_MEM_COUNT=3`）→ `tmp/gpui_mem_leak_tests.log` | 进程 RSS + OOM 硬门 + 释放链 |
+| **3** | 正确性抽样（若动到 present/layer） | L0 `TestS54_|TestS52_|TestS53_` + Comp 抽样 + 相关 F1/P1 像素门 | 防「测绿但画面错」 |
+| **4** | 可选长时 | `docs/MEM_ANIM_LONGSOAK_PLAN.md` / `P_MEM_SOAK` / particle kitchen | 稳态斜率 |
+
+**不得**在单元未绿时 dig 性能或「砍内容」过 mem 门。
+
+### 11.1 全量单元范围
+
+`scripts/run_full_unit_tests.sh` 覆盖（**每包独立进程**，包内 `-parallel 1`）：
+
+- `./gpu/context` `./gpu/types` `./gpu/rwgpu` `./gpu/webgpu` (+ thread)
+- `./render/internal/{color,blend,clip,cache,stroke,filter,parallel,raster,wide,gpu,gpu/tilecompute}`
+- `./render/text` `./render/text/cache` `./render/filters` `./render/gpu`
+- `./render/recording` `./render/scene` `./render/surface` `./render/raster` `./render`
+
+默认 env：`WGPU_NATIVE_PATH`、`GPUI_SURFACE_SAMPLE_COUNT=1`、`DISPLAY=:1`、`GOCACHE=$PWD/tmp/go-cache`。
+
+本机 iGPU / 共享内存紧时：
+
+- **同进程串跑全包** 可能中后段 `RequestDevice: Not enough memory` — **不等于**功能回退；以 **进程隔离脚本** 为准  
+- 单包仍 OOM → 查该包 Device/Close 泄漏或拆 `-run` 子进程  
+- 证据目录：`tmp/full_unit/`（`summary.txt` / 每包 `.log` / `exit_code.txt`）
+
+### 11.2 内存泄漏观测要求（process-local）
+
+| 项 | 要求 |
+|----|------|
+| RSS 源 | **仅当前测试进程** `/proc/self/status` VmRSS（或脚本对子进程采样）；**禁止**把整机 CPU/内存当门禁 |
+| Warmup | 前 ~10% 迭代允许冷启动上涨 |
+| Steady Δ | 后 1/3 均值 − 前 1/3 均值 ≤ `GPUI_MEM_RSS_DELTA_KB`（分档默认见 §4） |
+| Hard cap | 可选 `GPUI_MEM_RSS_HARD_KB`；OOM / CreateTexture / Present error **硬 Fail** |
+| GPU 有效 | `GPUOps>0`、`cpu_fallback_ops=0`（或场景声明的 GPU 路径） |
+| Teardown | Close / release / Reset 后仍能中等 Present |
+| 隔离 | T0–T4 **每档独立进程**；COUNT≥3 反复 |
+| 内容 | **不得**为过 RSS/FPS 门砍粒子/层/滤镜内容 |
+
+观测记录建议写入：`tmp/gpui_mem_leak_tests.log` +（可选）场景 JSON 的 `rss_kb` / `steady_delta_kb`。
+
+### 11.3 释放链优先排查顺序（单测绿后）
+
+1. `Context.Close` → `session.Destroy` + `WaitIdle`  
+2. encoder `Finish` / pass `End` / `CommandBuffer.Release` / Queue on Device  
+3. ImageCache / ephemeral / layer RT pool / glow `ExportImageBuf`  
+4. Swapchain reconfigure 旧 MSAA/depth  
+5. 同进程多代 Device（ResetAccelerator）  
+
+F1 相关证据：`/tmp/f1_closeout`、`TestF1_AdvancedLayerPresentView*`（present-stash / LoadOpLoad / PrepareTarget）。
+
+### 11.4 与当前主线顺序
+
+```
+底层改动（含 F1 present-stash 等）
+  → ① 全量单元 ./scripts/run_full_unit_tests.sh 绿
+  → ② 内存泄漏 ./scripts/run_mem_leak_tests.sh 绿
+  → ③ 再 dig glow hitch / 性能 / 新场景
+```
+
 

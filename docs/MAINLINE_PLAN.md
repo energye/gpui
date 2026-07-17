@@ -416,12 +416,17 @@ go test -count=1 ./render -run 'TestS68_WindowPresent_MultiFrameDraw$' -timeout 
 
 **硬规则**：
 
-1. mem 修复若触及 encoder/queue/device/session/Close，必须重跑上表 L0 + Comp 抽样 + 相关 S6x。  
-2. 本机 iGPU 共享内存紧时：**单进程串跑全 S6x+窗口可能 OOM abort**；门禁以进程隔离为准，不把「同进程全绿」当唯一标准。  
-3. 控件层（W）后置不阻塞 M；M 也不替代 L2 Comp 全量。
+1. **任意底层改动后顺序**：先 **全量单元** `./scripts/run_full_unit_tests.sh`（证据 `tmp/full_unit/`）→ 再 **mem 泄漏档** `./scripts/run_mem_leak_tests.sh` → 再 dig 性能/场景。详案 `docs/MEM_LEAK_TEST_PLAN.md` §11。  
+2. mem 修复若触及 encoder/queue/device/session/Close/present-stash，必须重跑全量单元 + 上表 L0 + Comp 抽样 + 相关 S6x/F1 像素门。  
+3. 本机 iGPU 共享内存紧时：**单进程串跑全包/S6x+窗口可能 OOM abort**；门禁以 **进程隔离** 为准，不把「同进程全绿」当唯一标准。  
+4. 内存观测 **仅当前测试进程** RSS（`/proc/self/status` VmRSS）+ steady_delta + 可选 hard cap；禁止整机指标当门禁。  
+5. 控件层（W）后置不阻塞 M；M 也不替代 L2 Comp 全量。  
+6. **不得**为过 RSS/FPS 门砍场景内容。
 
 - [x] T0–T4 + 脚本 + 释放链修复（2026-07-15）  
 - [x] S4–S6 抽样在隔离下可复跑  
+- [x] §11 底层改动后强制门禁 + `scripts/run_full_unit_tests.sh`（2026-07-16）  
+- [ ] **当前焦点**：全量单元绿 → mem 泄漏观测/修复  
 
 
 ### W — 控件层（类设计系统组件；走 render）
@@ -486,7 +491,7 @@ go test -count=1 ./widget -timeout 120s
 **A 已关闭**。**S4.0–S4.4 已关闭**。  
 **A / S4 / S5 已关闭。**  
 **S6.0–S6.9 已关闭**（深基线 + 帧/提交/batch/layer/text/path/资源/窗口 + 重场景分级预算）。  
-**S6.0–S6.9 已关闭**。**M 内存生命周期档已落地**（`docs/MEM_LEAK_TEST_PLAN.md`）。用户当前侧重 **内存/VRAM 泄漏验证与释放链**；控件层 W 仍后置。可选 S6.10 Skia FPS 附录仍不阻塞。
+**S6.0–S6.9 已关闭**。**M 内存生命周期档已落地**（`docs/MEM_LEAK_TEST_PLAN.md` §11 更新）。**F1 核心已收口**。**当前主线**：① 全量单元 `./scripts/run_full_unit_tests.sh` 绿 → ② mem 泄漏 `./scripts/run_mem_leak_tests.sh` → ③ 再 dig glow hitch。控件层 W 仍后置。可选 S6.10 不阻塞。
 
 ```bash
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so

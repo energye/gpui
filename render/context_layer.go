@@ -125,7 +125,11 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 	// SourceOver UI cards (PKS MULTI_LAYER). Overlapping multi-draw groups that
 	// need Skia SaveLayer isolation should use an advanced blend mode or a future
 	// PushLayerIsolated API — full-window RT×N was ~30fps on this path.
-	if blendMode == BlendNormal || blendMode == BlendCopy {
+	//
+	// Backdrop layers (clear=false) always need an isolation surface so the
+	// parent snapshot can be copied; opacity-group would skip the pool and break
+	// PushBackdropLayer.
+	if clear && (blendMode == BlendNormal || blendMode == BlendCopy) {
 		layer.opacityGroup = true
 		c.layerStack.layers = append(c.layerStack.layers, layer)
 		return
@@ -253,9 +257,30 @@ func (c *Context) PopLayer() {
 	maskedGPUDone := false
 	if layer.mask != nil {
 		layer.fullComposite = true
+		// Parent draws may still be present-stashed (queued before PushMaskLayer).
+		// CompositeMaskedLayer / applyMask write into parent.Data — materialize the
+		// stashed base first so final Image/Flush does not paint base over the mask.
+		if parentPixmap != nil {
+			_ = c.FlushGPU()
+		}
 		if !layer.gpuView.IsNil() && !layer.cpuDrew && parentPixmap != nil {
 			if c.compositeLayerMaskedGPU(layer, parentPixmap) {
 				maskedGPUDone = true
+				// CompositeMaskedLayer writes parent.Data (CPU pixmap), not a parent
+				// GPU RT. Nested PushMaskLayer parents still hold an empty gpuView —
+				// mark them cpuDrew so the next Pop uses pixmap + mask path.
+				if c.layerStack != nil {
+					for i := len(c.layerStack.layers) - 1; i >= 0; i-- {
+						L := c.layerStack.layers[i]
+						if L == nil || L.opacityGroup {
+							continue
+						}
+						if L.pixmap == parentPixmap {
+							L.cpuDrew = true
+							break
+						}
+					}
+				}
 				if layer.gpuRelease != nil {
 					layer.gpuRelease()
 					layer.gpuRelease = nil
@@ -516,9 +541,24 @@ func (c *Context) markLayerFullComposite() {
 	c.layerStack.layers[len(c.layerStack.layers)-1].fullComposite = true
 }
 
-// queueLayerAdvancedGPU defers advanced blend to Flush when surface View exists.
+// queueLayerAdvancedGPU defers advanced blend to Flush when a present View exists.
+// Offscreen unit-test / Image() path has View-nil targets; deferred dual-tex
+// resolve seeds from CPU and historically wiped outside-clip base (D05 black).
+// For pure-CPU parents, materialize the layer RT and composite immediately.
 func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 	if c == nil || layer == nil || parent == nil || layer.gpuView.IsNil() {
+		return false
+	}
+	// Prefer immediate CPU advanced composite when the active target stream is
+	// pixmap-backed (no live present View). Correct for FlushGPU/Image.
+	if c.preferImmediateAdvancedLayerComposite() {
+		// Parent base draws may still be stashed/pending on GPU — compositeLayer
+		// blends against parent.Data, so materialize the parent stream first.
+		_ = c.FlushGPU()
+		if !layer.cpuDrew {
+			_ = c.materializeLayerGPUToPixmap(layer)
+		}
+		// Fall through to PopLayer CPU compositeLayer path.
 		return false
 	}
 	type advancedLayerQueuer interface {
@@ -540,6 +580,14 @@ func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 	q.QueueAdvancedLayerComposite(layer.gpuView, layer.gpuW, layer.gpuH,
 		damage, layer.blendMode, layer.opacity, release)
 	return true
+}
+
+// preferImmediateAdvancedLayerComposite: keep deferred dual-tex queue for
+// present FlushGPUWithView (F1). View-nil Image/FlushGPU advanced resolve is
+// handled in GPURenderContext.resolvePendingAdvancedLayersEnc (CPU blend into
+// pixmap Data when the original target has no View).
+func (c *Context) preferImmediateAdvancedLayerComposite() bool {
+	return false
 }
 
 // compositeLayerAdvancedGPU is kept for tests; routes to queueLayerAdvancedGPU.

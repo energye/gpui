@@ -180,6 +180,7 @@ func TestContext_StrokeWithDash_PixelVerification(t *testing.T) {
 
 	dc.DrawLine(10, 50, 90, 50) // 80 pixels long horizontal line
 	dc.Stroke()
+	_ = dc.FlushGPU()
 
 	pixmap := dc.pixmap
 
@@ -226,6 +227,7 @@ func TestContext_StrokeWithDash_Rectangle(t *testing.T) {
 
 	dc.DrawRectangle(20, 20, 60, 60)
 	dc.Stroke()
+	_ = dc.FlushGPU()
 
 	pixmap := dc.pixmap
 
@@ -275,6 +277,8 @@ func TestContext_StrokeWithDash_Offset(t *testing.T) {
 	dc2.SetDashOffset(5) // Offset by 5 pixels
 	dc2.DrawLine(10, 50, 90, 50)
 	dc2.Stroke()
+	_ = dc1.FlushGPU()
+	_ = dc2.FlushGPU()
 
 	// The two images should be different (offset shifts the pattern)
 	p1 := dc1.pixmap
@@ -495,6 +499,7 @@ func TestStroke_NearHorizontalBleed(t *testing.T) {
 	dc.MoveTo(10, 50)
 	dc.LineTo(90, 50.3) // dy=0.3 over 80px — near-horizontal
 	dc.Stroke()
+	_ = dc.FlushGPU()
 
 	// The 1px stroke should be confined to ~y=49..51.
 	// Check that rows far from the stroke (y <= 45, y >= 55) are pure white.

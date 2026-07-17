@@ -222,6 +222,22 @@ func (ft *FanTessellator) updateBounds(x, y float32) {
 func (ft *FanTessellator) flattenQuadFan(
 	fanX, fanY, x0, y0, cx, cy, x1, y1, tol float64,
 ) {
+	ft.flattenQuadFanDepth(fanX, fanY, x0, y0, cx, cy, x1, y1, tol, 0)
+}
+
+func (ft *FanTessellator) flattenQuadFanDepth(
+	fanX, fanY, x0, y0, cx, cy, x1, y1, tol float64, depth int,
+) {
+	// NaN/Inf or runaway subdivision: terminate (matches CPU edge_builder guards).
+	if depth > 32 || !isFinite6(x0, y0, cx, cy, x1, y1) {
+		if isFinite2(x1, y1) {
+			ft.updateBounds(float32(x1), float32(y1))
+			if isFinite2(x0, y0) {
+				ft.emitFanTriangle(fanX, fanY, x0, y0, x1, y1)
+			}
+		}
+		return
+	}
 	// Check flatness: deviation of control point from chord midpoint
 	midX := 0.25*x0 + 0.5*cx + 0.25*x1
 	midY := 0.25*y0 + 0.5*cy + 0.25*y1
@@ -247,8 +263,8 @@ func (ft *FanTessellator) flattenQuadFan(
 	mx := 0.5 * (ax + bx)
 	my := 0.5 * (ay + by)
 
-	ft.flattenQuadFan(fanX, fanY, x0, y0, ax, ay, mx, my, tol)
-	ft.flattenQuadFan(fanX, fanY, mx, my, bx, by, x1, y1, tol)
+	ft.flattenQuadFanDepth(fanX, fanY, x0, y0, ax, ay, mx, my, tol, depth+1)
+	ft.flattenQuadFanDepth(fanX, fanY, mx, my, bx, by, x1, y1, tol, depth+1)
 }
 
 // flattenCubicFan flattens a cubic Bezier curve and emits fan triangles.
@@ -258,6 +274,22 @@ func (ft *FanTessellator) flattenQuadFan(
 func (ft *FanTessellator) flattenCubicFan(
 	fanX, fanY, x0, y0, c1x, c1y, c2x, c2y, x1, y1, tol float64,
 ) {
+	ft.flattenCubicFanDepth(fanX, fanY, x0, y0, c1x, c1y, c2x, c2y, x1, y1, tol, 0)
+}
+
+func (ft *FanTessellator) flattenCubicFanDepth(
+	fanX, fanY, x0, y0, c1x, c1y, c2x, c2y, x1, y1, tol float64, depth int,
+) {
+	// NaN/Inf or runaway subdivision: terminate (matches CPU edge_builder guards).
+	if depth > 32 || !isFinite8(x0, y0, c1x, c1y, c2x, c2y, x1, y1) {
+		if isFinite2(x1, y1) {
+			ft.updateBounds(float32(x1), float32(y1))
+			if isFinite2(x0, y0) {
+				ft.emitFanTriangle(fanX, fanY, x0, y0, x1, y1)
+			}
+		}
+		return
+	}
 	// Cubic flatness test: check control point deviation from chord
 	ux := 3*c1x - 2*x0 - x1
 	uy := 3*c1y - 2*y0 - y1
@@ -290,6 +322,18 @@ func (ft *FanTessellator) flattenCubicFan(
 	mx := 0.5 * (bc1x + bc2x)
 	my := 0.5 * (bc1y + bc2y)
 
-	ft.flattenCubicFan(fanX, fanY, x0, y0, ab1x, ab1y, bc1x, bc1y, mx, my, tol)
-	ft.flattenCubicFan(fanX, fanY, mx, my, bc2x, bc2y, ab3x, ab3y, x1, y1, tol)
+	ft.flattenCubicFanDepth(fanX, fanY, x0, y0, ab1x, ab1y, bc1x, bc1y, mx, my, tol, depth+1)
+	ft.flattenCubicFanDepth(fanX, fanY, mx, my, bc2x, bc2y, ab3x, ab3y, x1, y1, tol, depth+1)
+}
+
+func isFinite2(a, b float64) bool {
+	return !math.IsNaN(a) && !math.IsInf(a, 0) && !math.IsNaN(b) && !math.IsInf(b, 0)
+}
+
+func isFinite6(a, b, c, d, e, f float64) bool {
+	return isFinite2(a, b) && isFinite2(c, d) && isFinite2(e, f)
+}
+
+func isFinite8(a, b, c, d, e, f, g, h float64) bool {
+	return isFinite6(a, b, c, d, e, f) && isFinite2(g, h)
 }

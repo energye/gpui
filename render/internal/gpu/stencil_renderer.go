@@ -200,16 +200,26 @@ func (sr *StencilRenderer) RenderPassDescriptor() *webgpu.RenderPassDescriptor {
 	if sr.textures.msaaView == nil || sr.textures.stencilView == nil || sr.textures.resolveView == nil {
 		return nil
 	}
+	// sampleCount==1: ResolveTarget is invalid (source and dest both 1-sample).
+	colorAtt := webgpu.RenderPassColorAttachment{
+		View:       sr.textures.resolveView,
+		LoadOp:     types.LoadOpClear,
+		StoreOp:    types.StoreOpStore,
+		ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
+	}
+	if sr.sampleCount > 1 {
+		colorAtt = webgpu.RenderPassColorAttachment{
+			View:          sr.textures.msaaView,
+			ResolveTarget: sr.textures.resolveView,
+			LoadOp:        types.LoadOpClear,
+			StoreOp:       types.StoreOpStore,
+			ClearValue:    types.Color{R: 0, G: 0, B: 0, A: 0},
+		}
+	}
 	return &webgpu.RenderPassDescriptor{
 		Label: "stencil_cover_pass",
 		ColorAttachments: []webgpu.RenderPassColorAttachment{
-			{
-				View:          sr.textures.msaaView,
-				ResolveTarget: sr.textures.resolveView,
-				LoadOp:        types.LoadOpClear,
-				StoreOp:       types.StoreOpStore,
-				ClearValue:    types.Color{R: 0, G: 0, B: 0, A: 0},
-			},
+			colorAtt,
 		},
 		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
 			View:              sr.textures.stencilView,

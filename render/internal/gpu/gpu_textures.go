@@ -36,6 +36,9 @@ type textureSet struct {
 // The samples parameter sets the MSAA sample count for color and depth/stencil
 // textures (typically 4 for MSAA, 1 for non-MSAA fallback).
 func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
+	if device == nil {
+		return fmt.Errorf("ensureTextures: device is nil")
+	}
 	sc := uint32(4) // default MSAA sample count
 	if len(samples) > 0 && samples[0] > 0 {
 		sc = samples[0]

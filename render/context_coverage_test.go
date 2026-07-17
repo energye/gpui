@@ -155,6 +155,7 @@ func TestContextSetRGB(t *testing.T) {
 	dc.SetRGB(0.5, 0.6, 0.7)
 	dc.DrawRectangle(0, 0, 10, 10)
 	dc.Fill()
+	_ = dc.FlushGPU()
 
 	p := dc.pixmap.GetPixel(5, 5)
 	if abs(p.R-0.5) > 0.05 || abs(p.G-0.6) > 0.05 || abs(p.B-0.7) > 0.05 {
@@ -170,6 +171,7 @@ func TestContextSetRGBA(t *testing.T) {
 	dc.SetRGBA(1, 0, 0, 0.5)
 	dc.DrawRectangle(0, 0, 10, 10)
 	dc.Fill()
+	_ = dc.FlushGPU()
 
 	p := dc.pixmap.GetPixel(5, 5)
 	// Semi-transparent red over white
@@ -185,6 +187,7 @@ func TestContextSetHexColor(t *testing.T) {
 	dc.SetHexColor("#FF0000")
 	dc.DrawRectangle(0, 0, 10, 10)
 	dc.Fill()
+	_ = dc.FlushGPU()
 
 	p := dc.pixmap.GetPixel(5, 5)
 	if p.R < 0.9 || p.G > 0.1 || p.B > 0.1 {

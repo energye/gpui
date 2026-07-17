@@ -178,6 +178,7 @@ func TestTextDrawsPixels(t *testing.T) {
 	dc.SetFont(source.Face(48)) // Large font for easy detection
 	dc.SetRGB(0, 0, 0)          // Black text
 	dc.DrawString("X", 80, 70)  // Draw near center
+	_ = dc.FlushGPU()
 
 	// Count non-white pixels in the area where text should be
 	nonWhiteCount := 0
