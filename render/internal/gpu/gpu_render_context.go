@@ -36,8 +36,10 @@ type GPURenderContext struct {
 	pendingConvexCommands []ConvexDrawCommand
 	// Scratch backing for QueueColoredMesh (avoid per-triangle heap allocs).
 	// Slices in pending ConvexDrawCommand point into these until Flush clears.
-	convexMeshPts             []render.Point
-	convexMeshVCs             [][4]float32
+	convexMeshPts []render.Point
+	convexMeshVCs [][4]float32
+	// Pre-packed GPU verts (opt19): TriangleList mesh packs once at Queue.
+	convexMeshPacked          []byte
 	pendingStencilPaths       []StencilPathCommand
 	pendingImageCommands      []ImageDrawCommand
 	pendingGPUTextureCommands []GPUTextureDrawCommand
@@ -460,6 +462,7 @@ func (rc *GPURenderContext) stashPresentPending() {
 	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
 	rc.convexMeshPts = rc.convexMeshPts[:0]
 	rc.convexMeshVCs = rc.convexMeshVCs[:0]
+	rc.convexMeshPacked = rc.convexMeshPacked[:0]
 	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
 	rc.pendingImageCommands = rc.pendingImageCommands[:0]
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
@@ -617,6 +620,9 @@ func (rc *GPURenderContext) QueueConvex(target render.GPURenderTarget, cmd Conve
 //
 // Hot path (DrawMesh / 3D): ONE TriangleList command for the whole mesh
 // (not N tri-commands), backed by reusable scratch. SkipAA solid verts.
+//
+// opt19: pack GPU vertex bytes once here (PackedVerts). Flush only WriteBuffers
+// the pre-packed blob — no second Points/VertexColors → stride walk.
 func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, triangleList bool) {
 	if len(positions) < 3 {
 		return
@@ -642,38 +648,21 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 
 	useVC := len(colors) == len(positions)
 	need := nOut
+	nBytes := need * convexVertexStride
 
-	// Always pack into grow-only context scratch so mesh draws never allocate a
-	// throwaway per-call []Point (alloc profile: QueueColoredMesh was #2).
-	ptsBase := len(rc.convexMeshPts)
-	if cap(rc.convexMeshPts) < ptsBase+need {
-		capN := (ptsBase + need) * 2
-		if capN < 512 {
-			capN = 512
+	// Grow-only packed vertex scratch (primary mesh payload).
+	pkBase := len(rc.convexMeshPacked)
+	if cap(rc.convexMeshPacked) < pkBase+nBytes {
+		capN := (pkBase + nBytes) * 2
+		if capN < 512*convexVertexStride {
+			capN = 512 * convexVertexStride
 		}
-		np := make([]render.Point, ptsBase, capN)
-		copy(np, rc.convexMeshPts)
-		rc.convexMeshPts = np
+		np := make([]byte, pkBase, capN)
+		copy(np, rc.convexMeshPacked)
+		rc.convexMeshPacked = np
 	}
-	rc.convexMeshPts = rc.convexMeshPts[:ptsBase+need]
-	pts := rc.convexMeshPts
-
-	vcBase := 0
-	var vcs [][4]float32
-	if useVC {
-		vcBase = len(rc.convexMeshVCs)
-		if cap(rc.convexMeshVCs) < vcBase+need {
-			capN := (vcBase + need) * 2
-			if capN < 512 {
-				capN = 512
-			}
-			nv := make([][4]float32, vcBase, capN)
-			copy(nv, rc.convexMeshVCs)
-			rc.convexMeshVCs = nv
-		}
-		rc.convexMeshVCs = rc.convexMeshVCs[:vcBase+need]
-		vcs = rc.convexMeshVCs
-	}
+	rc.convexMeshPacked = rc.convexMeshPacked[:pkBase+nBytes]
+	pk := rc.convexMeshPacked
 
 	toPremul := func(c render.RGBA) [4]float32 {
 		return [4]float32{
@@ -683,54 +672,71 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 			float32(c.A),
 		}
 	}
+	solidColor := [4]float32{0, 0, 0, 1}
+	if !useVC && len(colors) > 0 {
+		solidColor = toPremul(colors[0])
+	} else if !useVC {
+		solidColor = [4]float32{0, 0, 0, 1}
+	}
 
-	// Pack triangle-list geometry into contiguous scratch.
+	writeAt := func(vi int, p render.Point, col [4]float32) {
+		off := pkBase + vi*convexVertexStride
+		writeConvexVertex(pk[off:], float32(p.X), float32(p.Y), 1.0, col)
+	}
+
 	if triangleList {
-		copy(pts[ptsBase:ptsBase+need], positions[:need])
 		if useVC {
 			for i := 0; i < need; i++ {
-				vcs[vcBase+i] = toPremul(colors[i])
+				writeAt(i, positions[i], toPremul(colors[i]))
+			}
+			// Solid fallback = mean of first triangle.
+			c0 := toPremul(colors[0])
+			c1 := toPremul(colors[1])
+			c2 := toPremul(colors[2])
+			solidColor = [4]float32{
+				(c0[0] + c1[0] + c2[0]) / 3,
+				(c0[1] + c1[1] + c2[1]) / 3,
+				(c0[2] + c1[2] + c2[2]) / 3,
+				(c0[3] + c1[3] + c2[3]) / 3,
+			}
+		} else {
+			for i := 0; i < need; i++ {
+				writeAt(i, positions[i], solidColor)
 			}
 		}
 	} else {
+		// Fan → triangle list, pack directly.
 		o := 0
 		for i := 1; i+1 < len(positions); i++ {
-			pts[ptsBase+o+0] = positions[0]
-			pts[ptsBase+o+1] = positions[i]
-			pts[ptsBase+o+2] = positions[i+1]
+			var c0, c1, c2 [4]float32
 			if useVC {
-				vcs[vcBase+o+0] = toPremul(colors[0])
-				vcs[vcBase+o+1] = toPremul(colors[i])
-				vcs[vcBase+o+2] = toPremul(colors[i+1])
+				c0, c1, c2 = toPremul(colors[0]), toPremul(colors[i]), toPremul(colors[i+1])
+			} else {
+				c0, c1, c2 = solidColor, solidColor, solidColor
 			}
+			writeAt(o+0, positions[0], c0)
+			writeAt(o+1, positions[i], c1)
+			writeAt(o+2, positions[i+1], c2)
 			o += 3
 		}
-	}
-
-	solid := [4]float32{0, 0, 0, 1}
-	if useVC {
-		// Average first triangle as solid fallback for pipelines that ignore VC.
-		c0 := vcs[vcBase+0]
-		c1 := vcs[vcBase+1]
-		c2 := vcs[vcBase+2]
-		solid = [4]float32{
-			(c0[0] + c1[0] + c2[0]) / 3,
-			(c0[1] + c1[1] + c2[1]) / 3,
-			(c0[2] + c1[2] + c2[2]) / 3,
-			(c0[3] + c1[3] + c2[3]) / 3,
+		if useVC {
+			c0 := toPremul(colors[0])
+			c1 := toPremul(colors[1])
+			c2 := toPremul(colors[2])
+			solidColor = [4]float32{
+				(c0[0] + c1[0] + c2[0]) / 3,
+				(c0[1] + c1[1] + c2[1]) / 3,
+				(c0[2] + c1[2] + c2[2]) / 3,
+				(c0[3] + c1[3] + c2[3]) / 3,
+			}
 		}
-	} else if len(colors) > 0 {
-		solid = toPremul(colors[0])
 	}
 
 	cmd := ConvexDrawCommand{
-		Points:       pts[ptsBase : ptsBase+need : ptsBase+need],
-		Color:        solid,
+		Color:        solidColor,
 		SkipAA:       true,
 		TriangleList: true,
-	}
-	if useVC {
-		cmd.VertexColors = vcs[vcBase : vcBase+need : vcBase+need]
+		PackedVerts:  pk[pkBase : pkBase+nBytes : pkBase+nBytes],
 	}
 	rc.pendingConvexCommands = append(rc.pendingConvexCommands, cmd)
 	rc.pendingTarget = target
@@ -1571,9 +1577,15 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	}
 	// Layer RTs also carry a non-nil View; never inject the stash into a layer
 	// self-flush (pendingTarget matches the layer View being flushed).
+	// opt21: layer self-flush while parent is present-stashed can encode+enqueue
+	// and coalesce with Present (or the next surface Submit) instead of a mid-frame
+	// Queue.Submit per PopLayer (PKS Screen+Multiply ~2 extra submits/frame).
+	opt21DeferLayerSubmit := false
 	if !target.View.IsNil() && rc.presentStash.active {
 		layerSelfFlush := rc.hasPendingTarget && !rc.pendingTarget.View.IsNil() && sameTarget(&rc.pendingTarget, &target)
-		if !layerSelfFlush && (!rc.hasPendingTarget || rc.pendingTarget.View.IsNil()) {
+		if layerSelfFlush {
+			opt21DeferLayerSubmit = true
+		} else if !rc.hasPendingTarget || rc.pendingTarget.View.IsNil() {
 			rc.unstashPresentPending()
 		}
 	}
@@ -1773,7 +1785,15 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		}
 	}
 
+	// opt21: defer mid-frame layer RT Submit into lead queue (no sharedEncoder).
+	// Clear immediately after encode so nested resolve/blit paths still submit.
+	if opt21DeferLayerSubmit && rc.session != nil && rc.sharedEncoder == nil {
+		rc.session.SetDeferSurfaceSubmit(true)
+	}
 	err := rc.session.RenderFrameGrouped(target, groups, baseLayer, rc.sharedEncoder)
+	if opt21DeferLayerSubmit && rc.session != nil {
+		rc.session.SetDeferSurfaceSubmit(false)
+	}
 	if err != nil {
 		total := 0
 		for i := range groups {
@@ -1919,6 +1939,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
 	rc.convexMeshPts = rc.convexMeshPts[:0]
 	rc.convexMeshVCs = rc.convexMeshVCs[:0]
+	rc.convexMeshPacked = rc.convexMeshPacked[:0]
 	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
 	rc.pendingImageCommands = rc.pendingImageCommands[:0]
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
@@ -1952,6 +1973,7 @@ func (rc *GPURenderContext) dropEncodedPendingCommands() {
 	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
 	rc.convexMeshPts = rc.convexMeshPts[:0]
 	rc.convexMeshVCs = rc.convexMeshVCs[:0]
+	rc.convexMeshPacked = rc.convexMeshPacked[:0]
 	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
 	rc.pendingImageCommands = rc.pendingImageCommands[:0]
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]

@@ -569,3 +569,172 @@ All PASS; fps≈57–58; `cpu_fb=0`.
 ### Evidence
 - `tmp/pks/cpu_opt/opt17b_*.json` (pre-revert, do not treat as green text)
 - Post-revert smoke: rebuild `pks_bin_opt17c` + glyph/F1 tests
+
+## opt18 mesh+filter single Queue.Submit (2026-07-17)
+
+### Goal
+Cut glow multi-submit (mesh seed Flush + filter graph Submit) to **one** `Queue.Submit` without changing content density or pixel path.
+
+### Engine fixes (pure equivalence / R8-class)
+1. `runGPUFilterGraphFromViewWithLeading` — filter CB + optional leading seed CBs in one `Queue.Submit` (`filter_gpu_graph.go`)
+2. `GPURenderContext.FlushAndFilterFromView` — ADR-017 shared-encoder mesh encode → Finish mesh CB → leading+filter submit (`filter_flush_coalesce.go`)
+3. `tryApplyFilterGraphGPU` prefers combined path when pending draws + FromView available; recovery still submits mesh alone then FromView/readback
+4. `FrameFlushes` still counted on successful combined path
+
+### Gates (sandbox / offscreen; no X11 in agent bwrap)
+| test | result |
+|------|--------|
+| `TestOpt18_ApplyBlur_MeshSeedGPUFilter` | PASS `cpu_fb=0` GPUFilterTexture |
+| `TestP04_ApplyBlurGPU` | PASS |
+| `TestR72_ApplyBlur_GPUFilterTextureNoExportPrefer` | PASS |
+| `TestF1_AdvancedLayerPresentView_HUDText` | PASS |
+
+### Host PKS verification (required — X11 present path)
+Agent sandbox cannot `connect(/tmp/.X11-unix/X1)` (EPERM). On the host desktop:
+
+```bash
+cd examples/particle_kitchen_sink
+export WGPU_NATIVE_PATH=$PWD/../../lib/libwgpu_native.so
+export LD_LIBRARY_PATH=$PWD/../../lib:$LD_LIBRARY_PATH
+export DISPLAY=:1
+export GPUI_SURFACE_SAMPLE_COUNT=1
+export GOCACHE=/tmp/gpui-go-cache
+
+mkdir -p ../../tmp/pks/cpu_opt
+for p in P_SOLID P_GLOW P_BLEND_GLOW P_L3 P_MEM_SOAK; do
+  sec=8; [ "$p" = P_MEM_SOAK ] && sec=30
+  GPUI_PROBE=$p GPUI_ANIM_SECONDS=$sec     GPUI_RESULT_FILE=../../tmp/pks/cpu_opt/opt18_${p}.json     go run . | tee ../../tmp/pks/cpu_opt/opt18_${p}.log
+done
+```
+
+Compare cpu/hitch vs opt17b in `tmp/pks/cpu_opt/opt17b_*.json`. Expect glow/L3 process CPU ≤ prior; hitch_ratio not worse; `cpu_fallback_ops=0`.
+
+### Still open
+1. Heavy CPU ~2× solid residual (mesh WriteBuffer volume remains; only Submit coalesced)
+2. RSS slope ~15–30MB / 30–45s
+3. HUD digit amortize (correct design only)
+4. Optional: true single-CB mesh+filter encode (harder barrier/lifecycle); encoder reuse
+
+### Policy
+- No content gutting
+- Prefer GPU; no silent CPU
+- Revert if PKS correctness/hitch regresses
+
+## opt18+opt19 measured on host X11 (2026-07-17)
+
+### Scope
+- **opt18**: mesh seed + filter `Queue.Submit` coalesce (`FlushAndFilterFromView`)
+- **opt19**: `QueueColoredMesh` pre-packs `PackedVerts`; flush memcpy only (no second Points→stride walk)
+
+### PKS present matrix (`tmp/pks/cpu_opt/opt19_*.json`, 8s, DISPLAY=:1)
+
+| probe | status | fps_ema | cpu_avg | low_fps_ratio | cpu_fb | vs opt17b cpu |
+|-------|--------|---------|---------|---------------|--------|---------------|
+| P_SOLID | PASS | 62.6 | 12.9 | 0.033 | 0 | +0.5pp (noise) |
+| P_GLOW | PASS | 58.7 | 15.9 | 0.028 | 0 | +0.2pp |
+| P_BLEND_GLOW | PASS | 58.5 | 24.3 | 0.062 | 0 | +0.1pp |
+| P_L3 | PASS | 59.4 | 27.7 | 0.025 | 0 | **−1.0pp** |
+
+All PASS, `cpu_fallback_ops=0`, no content gutting. L3 modest CPU win; glow path within noise of opt17b (submit already cheap after earlier knives).
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt18_ApplyBlur_MeshSeedGPUFilter` | PASS |
+| `TestOpt19_PackedVerts_MatchesTriangleListPack` | PASS |
+| `TestP04_ApplyBlurGPU` / `TestR72_*` | PASS |
+
+### Still open (next knives)
+1. Mesh **WriteBuffer volume** still dominates cgocall on dense animated meshes (pack helps CPU pack, not PCIe/upload bytes)
+2. RSS steady slope on long soak
+3. HUD digit amortize (correct design only)
+4. Optional: true single-CB mesh+filter encode; encoder reuse
+
+### Policy
+- Equivalence-only (class A); no AA/content cuts
+- Prefer GPU; no silent CPU
+- Keep if PKS green; revert pack path if pixel/mesh tests regress
+
+## opt20 zero-copy packed mesh upload + dual convex VB (2026-07-17)
+
+### pprof (P_L3 present, pre-opt20 `pl3_opt20base.pprof`)
+- `cgocall` ~65%; `WriteBuffer` ~16% cum; `Finish`/`Submit` ~13–14%
+- `buildConvexResources`: WriteBuffer 83% / `buildConvexVerticesReuse` 17% (pack already cheap after opt19)
+- `memmove` still visible from staging copy of full mesh
+
+### Engine fixes (class A equivalence)
+1. **Zero-copy WriteBuffer** when a flush has a single `PackedVerts` TriangleList mesh — skip `convexVertexStaging` memcpy (`buildConvexResources`)
+2. **Dual convex vertex buffers** (ping-pong) — avoid WriteBuffer competing with previous frame still sampling the same VB
+
+### PKS present (8s, DISPLAY=:1, `tmp/pks/cpu_opt/opt20_*.json`)
+
+| probe | opt17b cpu | opt19 cpu | **opt20 cpu** | opt20 status | notes |
+|-------|------------|-----------|---------------|--------------|-------|
+| P_SOLID | 12.4 | 12.9 | **12.2** | PASS | fb=0 |
+| P_GLOW | 15.7 | 15.9 | **15.8** | PASS | fb=0 |
+| P_BLEND_GLOW | 24.2 | 24.3 | **23.1** | PASS | low_fps 0.062→0.020 |
+| P_L3 | 28.8 | 27.8 | **28.7** | PASS | within noise of baselines |
+
+Post-opt20 pprof: `buildConvexVerticesReuse` **0.06s→0.02s** inside buildConvex; WriteBuffer volume remains (expected — particles animate).
+
+### Unit gates
+- `TestOpt19_PackedVerts_*` / `TestOpt18_*` / `TestP04_*` / `./render` targeted — PASS
+
+### Still open
+1. **WriteBuffer byte volume** for animated mesh (needs smaller format / GPU particle update — larger design)
+2. PopLayer multi-flush stack (~23% cum) — frame-model coalesce
+3. RSS long-soak slope
+4. HUD digit amortize (correct design)
+
+### Policy
+- No content gutting; `cpu_fb=0` locked
+- Keep zero-copy + dual VB (low risk); next knife elsewhere if L3 cpu plateaus
+
+
+## opt21 PopLayer layer-RT defer-submit coalesce (2026-07-17)
+
+### pprof (P_L3 present, pre=opt20 `pl3_opt20.pprof` → post=`pl3_opt21.pprof`)
+- PopLayer cum **23.4% → 12.6%** (FlushGPUWithViewDamage branch)
+- Queue.Submit still ~12% (expected — present + dual-tex remain; layers share one leading Submit)
+- New path visible: `FlushLeadingSubmitsOnly` / `finishSurfaceSubmit` (~5%)
+
+### Engine fix (class A equivalence)
+**Problem:** Advanced `PushLayer(Screen|Multiply)` still mid-flushes layer RT content on every `PopLayer` (2× Finish+Submit/frame on P_L3 blend). Parent draws are already present-stashed (F1); only the layer fill paid an immediate `Queue.Submit`.
+
+**opt21:**
+1. When flushing a **layer self-target while `presentStash.active`**, encode the surface pass but **`EnqueueLeadingSubmit`** instead of immediate Submit (`SetDeferSurfaceSubmit`).
+2. Before the next non-deferred `RenderFrameGrouped` (usually Present base / advanced path), **`FlushLeadingSubmitsOnly`** drains all deferred layer CBs in **one** `Queue.Submit` — avoids sharing MSAA attachments across unsubmitted CBs while still coalescing multi-layer fills.
+3. Convex VB ring **2 → 4** so deferred layer fills do not `WriteBuffer` over an unsubmitted draw's vertex buffer; drain if ring exhausted.
+4. `BeginFrame` also drains stranded lead CBs.
+
+Pure equivalence: same encode, same draw order, only submit batching changes (same pattern as R7.3 / opt18 leading CBs).
+
+### PKS present matrix (`tmp/pks/cpu_opt/opt21_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt20 cpu | **opt21 cpu** | opt21 fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------------|--------|--------|
+| P_SOLID | 12.2 | 12.8 | 62.5 | PASS | 0 |
+| P_GLOW | 15.8 | 15.1 | 59.6 | PASS | 0 |
+| P_BLEND_GLOW | 23.1 | 23.4 | 58.3 | PASS | 0 |
+| P_L3 | 28.7 | **27.3** | 58.6 | PASS | 0 |
+| P_LAYER | — | 12.6 | 59.0 | PASS | 0 |
+
+L3 ~**−1.4pp CPU** (noisy host; pprof structure is the stronger signal). No content gutting; `cpu_fallback_ops=0`.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills` | PASS |
+| `TestF1_AdvancedLayerPresentViewMultiply/Screen/HUDText` | PASS |
+| `TestOpt18_*` / `TestP04_ApplyBlurGPU` / `TestP03_Advanced*` / `TestS3b_M2_Layer*` | PASS |
+
+### Still open
+1. Animated mesh **WriteBuffer byte volume** (still ~18% WriteBuffer on L3)
+2. True single-CB frame (base+layer+dual-tex) still disabled (`singleSubmit:=false` — pixel incorrect previously)
+3. RSS long-soak slope
+4. HUD digit amortize (correct design only)
+
+### Policy
+- Class A only; F1 present-path advanced blend must stay green
+- Keep if PKS PASS + no F1 regression; revert defer path if hitch/pixel regresses
+- Next knife: upload volume / GPU particle update — not more submit micro-batching unless pprof shows Submit >> WriteBuffer

@@ -245,6 +245,58 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	flushedToSrc := false
 	if pending > 0 && gpuFilterGraphApplyFromView != nil {
 		if srcView, ok := c.ensureFilterSrcRT(w, h); ok {
+			// opt18: single Queue.Submit for mesh seed + filter (when GPU context
+			// supports FlushAndFilterFromView). Pure submit coalesce; pixels same.
+			type flushFilterer interface {
+				FlushAndFilterFromView(srcView gpucontext.TextureView, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)
+			}
+			if raw := c.GPURenderContext(); raw != nil {
+				if ff, ok := raw.(flushFilterer); ok {
+					view, release, err := ff.FlushAndFilterFromView(srcView, w, h, nodes)
+					if err == nil && finish(view, release) {
+						// Mesh seed flush is internal to FlushAndFilterFromView (bypasses
+						// FlushGPUWithView); count it for FrameFlushes observability.
+						c.recordFrameFlush()
+						return true
+					}
+					if release != nil {
+						release()
+					}
+					// Pending consumed by combined path: do not re-Flush empty queues.
+					// Mesh was submitted on recovery inside FlushAndFilterFromView when
+					// possible; try FromView/readback only.
+					pendingLeft := 0
+					if rc2 := c.gpuCtxOps(); rc2 != nil {
+						type pcounter interface{ PendingCount() int }
+						if pc, ok := rc2.(pcounter); ok {
+							pendingLeft = pc.PendingCount()
+						}
+					}
+					if pendingLeft == 0 {
+						flushedToSrc = true
+						view2, rel2, err2 := gpuFilterGraphApplyFromView(srcView, w, h, nodes)
+						if err2 == nil && finish(view2, rel2) {
+							return true
+						}
+						if rel2 != nil {
+							rel2()
+						}
+						if c.readbackFilterSrcIntoScratch(srcView, w, h, need) {
+							if gpuFilterGraphApplyTexture != nil {
+								view3, rel3, err3 := gpuFilterGraphApplyTexture(c.filterSrcScratch, w, h, nodes)
+								if err3 == nil && finish(view3, rel3) {
+									return true
+								}
+								if rel3 != nil {
+									rel3()
+								}
+							}
+						}
+						return false
+					}
+					// pending still present — fall through to classic two-submit path
+				}
+			}
 			if err := c.FlushGPUWithView(srcView, uint32(w), uint32(h)); err == nil { //nolint:gosec
 				flushedToSrc = true
 				view, release, err := gpuFilterGraphApplyFromView(srcView, w, h, nodes)

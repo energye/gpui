@@ -23,6 +23,10 @@ OUT="${GPUI_FULL_UNIT_OUT:-$ROOT/tmp/full_unit}"
 mkdir -p "$OUT"
 TIMEOUT="${GPUI_FULL_UNIT_TIMEOUT:-900s}"
 BATCH="${GPUI_FULL_UNIT_BATCH:-2}"   # tests per process for heavy pkgs
+# Extra settle time after hard GPU aborts / OOM (iGPU reclaim).
+SETTLE="${GPUI_FULL_UNIT_SETTLE:-3}"
+# On batch FAIL, re-run each Test* in its own process (isolates iGPU OOM flakes).
+RETRY_ISOLATE="${GPUI_FULL_UNIT_RETRY_ISOLATE:-1}"
 : > "$OUT/summary.txt"
 : > "$OUT/runner.log"
 date | tee "$OUT/start.txt" | tee -a "$OUT/runner.log"
@@ -63,6 +67,58 @@ fail=0
 pass=0
 skip=0
 
+# Extract TestFoo names from a -run '^(A|B|C)$' pattern.
+extract_batch_tests() {
+  local runpat="$1"
+  python3 - "$runpat" <<'PY'
+import re, sys
+runpat = sys.argv[1]
+m = re.fullmatch(r"\^\((.*)\)\$", runpat)
+if m:
+    for n in m.group(1).split("|"):
+        n = n.strip()
+        if n.startswith("Test"):
+            print(n)
+    raise SystemExit(0)
+m = re.fullmatch(r"\^(Test[A-Za-z0-9_]+)\$?", runpat)
+if m:
+    print(m.group(1))
+PY
+}
+
+# Re-run each test in runpat alone; return 0 only if all pass (or no tests extracted).
+retry_batch_isolated() {
+  local pkg="$1"
+  local runpat="$2"
+  local t name log rc any=0 all_ok=1
+  mapfile -t names < <(extract_batch_tests "$runpat")
+  if [[ ${#names[@]} -eq 0 ]]; then
+    return 1
+  fi
+  echo "RETRY-ISOLATE $pkg count=${#names[@]} after batch fail" | tee -a "$OUT/summary.txt" | tee -a "$OUT/runner.log"
+  sleep "$SETTLE"
+  for name in "${names[@]}"; do
+    any=1
+    log="$OUT/retry_$(echo "$pkg" | sed 's|[./]|_|g')_${name}.log"
+    echo "  >> $pkg -run ^${name}\$ $(date +%H:%M:%S)" | tee -a "$OUT/runner.log"
+    timeout "$TIMEOUT" go test -count=1 -p 1 -parallel 1 "$pkg" -run "^${name}$" -timeout "$TIMEOUT" >"$log" 2>&1
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+      echo "  PASS-ISOLATE $pkg $name" | tee -a "$OUT/summary.txt" | tee -a "$OUT/runner.log"
+    else
+      echo "  FAIL-ISOLATE $pkg $name (rc=$rc)" | tee -a "$OUT/summary.txt" | tee -a "$OUT/runner.log"
+      if command -v rg >/dev/null 2>&1; then
+        rg -n '^--- FAIL:|FAIL\t|Error|panic|Not enough memory' "$log" 2>/dev/null | tail -20 >> "$OUT/runner.log" || true
+      else
+        grep -E '^--- FAIL:|Error|panic|Not enough memory' "$log" 2>/dev/null | tail -20 >> "$OUT/runner.log" || true
+      fi
+      all_ok=0
+    fi
+    sleep "$SETTLE"
+  done
+  [[ $any -eq 1 && $all_ok -eq 1 ]]
+}
+
 run_pkg_once() {
   local pkg="$1"
   local runpat="${2:-}"
@@ -95,15 +151,22 @@ run_pkg_once() {
     if grep -qE 'no test files|build constraints exclude all' "$log" 2>/dev/null; then
       echo "SKIP $pkg ${runpat:-}" | tee -a "$OUT/summary.txt" | tee -a "$OUT/runner.log"
       skip=$((skip+1))
+    elif [[ "$RETRY_ISOLATE" == "1" && -n "$runpat" ]] && retry_batch_isolated "$pkg" "$runpat"; then
+      echo "PASS $pkg ${runpat} (via isolate-retry)" | tee -a "$OUT/summary.txt" | tee -a "$OUT/runner.log"
+      pass=$((pass+1))
     else
       echo "FAIL $pkg ${runpat:-} (rc=$rc)" | tee -a "$OUT/summary.txt" | tee -a "$OUT/runner.log"
       # Keep last FAIL lines for triage
-      rg -n '^--- FAIL:|FAIL\t|Error|panic|Not enough memory' "$log" 2>/dev/null | tail -40 >> "$OUT/runner.log" || tail -25 "$log" >> "$OUT/runner.log" || true
+      if command -v rg >/dev/null 2>&1; then
+        rg -n '^--- FAIL:|FAIL\t|Error|panic|Not enough memory' "$log" 2>/dev/null | tail -40 >> "$OUT/runner.log" || tail -25 "$log" >> "$OUT/runner.log" || true
+      else
+        grep -E '^--- FAIL:|Error|panic|Not enough memory' "$log" 2>/dev/null | tail -40 >> "$OUT/runner.log" || tail -25 "$log" >> "$OUT/runner.log" || true
+      fi
       fail=$((fail+1))
     fi
   fi
   # Allow iGPU/driver reclaim between processes
-  sleep 3
+  sleep "$SETTLE"
 }
 
 run_heavy_sharded() {

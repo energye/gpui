@@ -69,6 +69,12 @@ type ConvexDrawCommand struct {
 	// one convex polygon. Used with SkipAA for dense DrawMesh batches so a
 	// whole mesh is one command instead of N tri-commands.
 	TriangleList bool
+
+	// PackedVerts is optional pre-built GPU vertex bytes (convexVertexStride
+	// each). When set for TriangleList+SkipAA mesh path, buildConvexVerticesReuse
+	// memcpy's instead of re-packing Points/VertexColors (opt19).
+	// Lifetime: points into GPURenderContext.convexMeshPacked until Flush.
+	PackedVerts []byte
 }
 
 // ConvexRenderer renders convex polygons in a single draw call with per-edge
@@ -611,6 +617,16 @@ func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]b
 
 	for i := range commands {
 		cmd := &commands[i]
+		// opt19: pre-packed TriangleList mesh verts — pure memcpy.
+		if len(cmd.PackedVerts) >= convexVertexStride && cmd.TriangleList && cmd.SkipAA {
+			nb := len(cmd.PackedVerts)
+			nb = nb - (nb % convexVertexStride)
+			if nb > 0 {
+				copy(buf[offset:offset+nb], cmd.PackedVerts[:nb])
+				offset += nb
+			}
+			continue
+		}
 		n := len(cmd.Points)
 		if n < 3 {
 			continue
@@ -847,6 +863,9 @@ func buildConvexBlendRanges(commands []ConvexDrawCommand, baseFirstVertex uint32
 }
 
 func convexCmdVertexCount(cmd *ConvexDrawCommand) int {
+	if len(cmd.PackedVerts) >= convexVertexStride && cmd.TriangleList && cmd.SkipAA {
+		return len(cmd.PackedVerts) / convexVertexStride
+	}
 	n := len(cmd.Points)
 	if n < 3 {
 		return 0

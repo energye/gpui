@@ -1,9 +1,10 @@
 # 内存 / VRAM 泄漏测试方案
 
-> 版本：1.1 | 日期：2026-07-16  
+> 版本：1.2 | 日期：2026-07-17  
 > 状态：**执行中**  
 > 范围：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`（经 render 真链路）  
-> 非目标：游戏引擎、控件层、完整 ASAN/Valgrind 替代
+> 非目标：游戏引擎、控件层、完整 ASAN/Valgrind 替代  
+> 独立窗口压测程序：`examples/particle_kitchen_sink`（取代旧 `mem_window_stress`）
 
 ---
 
@@ -12,7 +13,7 @@
 1. **防死机**：硬门禁捕获 `Not enough memory` / CreateTexture 失败，避免无界吃光显存/系统内存  
 2. **分场景观测**：简单→复杂组合，固定迭代与时间窗，看 **稳态斜率** 与 **Teardown 后能否再分配**  
 3. **释放链回归**：`Context.Close` / offscreen `release` / `session.Destroy(WaitIdle)` / `ResetAccelerator`  
-4. **自动反复验证**：`go test -count=N` 与脚本一键跑；可选独立窗口压测程序  
+4. **自动反复验证**：`go test -count=N` 与脚本一键跑；可选独立窗口压测用 `examples/particle_kitchen_sink`
 
 ---
 
@@ -86,11 +87,25 @@ go test -count=3 ./render -run 'TestMem_' -timeout 600s
 # 长压
 GPUI_MEM_STRESS=1 GPUI_MEM_ITERS=120 go test -count=1 ./render -run 'TestMem_' -timeout 900s
 
-# 独立窗口示例（可选）
-go run ./examples/mem_window_stress
+# 独立窗口示例（可选）：particle_kitchen_sink 内存探针 / 矩阵
+export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+export LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH
+export DISPLAY=:1
+
+# 短/长内存浸泡 + resize/grow（本进程 RSS；JSON 证据）
+GPUI_PROBE=P_MEM_SOAK GPUI_ANIM_SECONDS=12 GPUI_RESULT_FILE=/tmp/pks_mem_soak.json \
+  go run ./examples/particle_kitchen_sink
+GPUI_PROBE=P_MEM_LONG GPUI_ANIM_SECONDS=25 GPUI_RESULT_FILE=/tmp/pks_mem_long.json \
+  go run ./examples/particle_kitchen_sink
+
+# 批量 mem 过滤（P_MEM_SOAK / P_MEM_LONG / P_GROW_N / P_RESIZE / P_MULTI_LAYER）
+GPUI_PKS_FILTER=mem ./scripts/run_pks_matrix.sh
+
+# 档位 L0–L4 一键（非 mem 专用，可作综合压力）
+./scripts/run_particle_kitchen_sink.sh
 ```
 
-Env：
+Env（`TestMem_*`）：
 
 | 变量 | 含义 | 默认 |
 |------|------|------|
@@ -100,6 +115,16 @@ Env：
 | `GPUI_MEM_RSS_HARD_KB` | RSS 硬顶（0=关） | 0 |
 | `GPUI_MEM_SEED` | 随机种子 | 42 |
 | `GPUI_FORCE_NO_X11` | 跳过窗口档 | 关 |
+
+Env（`particle_kitchen_sink` 窗口压测，详见 `examples/particle_kitchen_sink/README.md`）：
+
+| 变量 | 含义 | 默认 |
+|------|------|------|
+| `GPUI_PROBE` | 隔离探针（`P_MEM_SOAK` / `P_MEM_LONG` / `P_RESIZE` 等） | 空=档位模式 |
+| `GPUI_TIER` | L0–L4 档位 | L0 |
+| `GPUI_ANIM_SECONDS` | 运行秒数 | 探针/档位默认 |
+| `GPUI_RESULT_FILE` | JSON 证据路径（含 `rss_*` / status） | 空 |
+| `GPUI_PKS_FILTER` | `run_pks_matrix.sh` 过滤（`mem` / `gate` / …） | 全矩阵 |
 
 ---
 
@@ -113,6 +138,7 @@ Env：
 | ResetAccelerator / GPUShared.Close | T2 |
 | Swapchain.Resize + reconfigure | T4 |
 | Image/text/layer 长跑有界 | T3/T4 软 RSS |
+| 真窗口综合 / RSS 浸泡 | `particle_kitchen_sink`：`P_MEM_SOAK` / `P_MEM_LONG` / `P_RESIZE` / `GPUI_PKS_FILTER=mem` |
 
 ---
 
@@ -177,7 +203,11 @@ Env：
 
 ## 相关：窗口长时压测
 
-见 `docs/MEM_ANIM_LONGSOAK_PLAN.md`（真实 X11 窗口，**每进程单场景**，60s–10min）。
+- **现行窗口/内存浸泡程序**：`examples/particle_kitchen_sink`  
+  - 探针：`P_MEM_SOAK` / `P_MEM_LONG` / `P_GROW_N` / `P_RESIZE`  
+  - 批量：`GPUI_PKS_FILTER=mem ./scripts/run_pks_matrix.sh`  
+  - 说明：`examples/particle_kitchen_sink/README.md` · `COVERAGE.md`  
+- **历史/并存**：`docs/MEM_ANIM_LONGSOAK_PLAN.md`（`mem_anim_window` S01–S23，**每进程单场景**，60s–10min）；新工作默认优先 PKS，不再推荐 `mem_window_stress`。
 
 ---
 
@@ -190,7 +220,7 @@ Env：
 | **1** | **全量单元测试绿** | `./scripts/run_full_unit_tests.sh` → `tmp/full_unit/summary.txt` | 语义/编译/绑定回归先过 |
 | **2** | **内存泄漏观测档** | `./scripts/run_mem_leak_tests.sh`（`GPUI_MEM_COUNT=3`）→ `tmp/gpui_mem_leak_tests.log` | 进程 RSS + OOM 硬门 + 释放链 |
 | **3** | 正确性抽样（若动到 present/layer） | L0 `TestS54_|TestS52_|TestS53_` + Comp 抽样 + 相关 F1/P1 像素门 | 防「测绿但画面错」 |
-| **4** | 可选长时 | `docs/MEM_ANIM_LONGSOAK_PLAN.md` / `P_MEM_SOAK` / particle kitchen | 稳态斜率 |
+| **4** | 可选长时 / 真窗口 | `examples/particle_kitchen_sink`：`P_MEM_SOAK` / `P_MEM_LONG` 或 `GPUI_PKS_FILTER=mem ./scripts/run_pks_matrix.sh` | 稳态斜率 + present 综合 |
 
 **不得**在单元未绿时 dig 性能或「砍内容」过 mem 门。
 

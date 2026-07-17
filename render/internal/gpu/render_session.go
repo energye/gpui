@@ -236,14 +236,21 @@ type GPURenderSession struct {
 
 	// Persistent per-frame GPU buffers (survive across frames).
 	// Grow-only: reallocated only when data exceeds current capacity.
-	sdfVertBuf       *webgpu.Buffer
-	sdfVertBufCap    uint64
-	sdfUniformBuf    *webgpu.Buffer
-	sdfBindGroup     *webgpu.BindGroup
-	convexVertBuf    *webgpu.Buffer
-	convexVertBufCap uint64
-	convexUniformBuf *webgpu.Buffer
-	convexBindGroup  *webgpu.BindGroup
+	sdfVertBuf    *webgpu.Buffer
+	sdfVertBufCap uint64
+	sdfUniformBuf *webgpu.Buffer
+	sdfBindGroup  *webgpu.BindGroup
+	// Convex vertex buffer ring (opt20 dual + opt21 defer-submit):
+	// WriteBuffer must not overwrite a buffer still referenced by an
+	// unsubmitted leading CB (mid-frame layer RT fills). Ring size covers
+	// several deferred layer flushes + present before a coalesced Submit.
+	convexVertBufs     [4]*webgpu.Buffer
+	convexVertBufCaps  [4]uint64
+	convexVertSlot     int
+	deferredConvexUses int  // builds encoded into leadSubmitCBs since last Submit
+	deferSurfaceSubmit bool // encode+enqueue instead of Queue.Submit
+	convexUniformBuf   *webgpu.Buffer
+	convexBindGroup    *webgpu.BindGroup
 
 	// Tier 3: Image textured quad persistent buffers.
 	imageVertBuf    *webgpu.Buffer
@@ -508,6 +515,10 @@ func (s *GPURenderSession) BeginFrame() {
 	// when buffers remain to avoid holding MSAA memory across many sizes.
 	// Offscreen mode: there is no vsync/present barrier — always WaitIdle
 	// before FreeCommandBuffer so session textures can be recreated safely.
+	// opt21: never leave deferred leading CBs stranded across frames.
+	if len(s.leadSubmitCBs) > 0 {
+		_ = s.FlushLeadingSubmitsOnly()
+	}
 	if len(s.prevCmdBufs) > 0 && s.surfaceView == nil {
 		// Offscreen present has no swapchain barrier.
 		s.drainQueue()
@@ -814,6 +825,16 @@ type groupResources struct {
 // For frames with no scissor changes (single group with nil rect), this
 // behaves identically to the original RenderFrame.
 func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, groups []ScissorGroup, baseLayer *GPUTextureDrawCommand, sharedEncoder *webgpu.CommandEncoder) error { //nolint:gocognit,gocyclo,cyclop,funlen,maintidx // sequential resource setup + group dispatch
+	// opt21: deferred layer RT CBs share this session's MSAA/depth textures.
+	// Drain them before encoding a new pass that reuses those attachments
+	// (and before empty early-return) so advanced-blend Present never samples
+	// an unsubmitted layer RT. Multiple layer fills still coalesce into one
+	// Submit via leadSubmitCBs.
+	if !s.deferSurfaceSubmit && len(s.leadSubmitCBs) > 0 {
+		if err := s.FlushLeadingSubmitsOnly(); err != nil {
+			return err
+		}
+	}
 	if len(groups) == 0 && baseLayer == nil {
 		return nil
 	}
@@ -1325,11 +1346,16 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.convexUniformBuf.Release()
 		s.convexUniformBuf = nil
 	}
-	if s.convexVertBuf != nil {
-		s.convexVertBuf.Release()
-		s.convexVertBuf = nil
-		s.convexVertBufCap = 0
+	for i := range s.convexVertBufs {
+		if s.convexVertBufs[i] != nil {
+			s.convexVertBufs[i].Release()
+			s.convexVertBufs[i] = nil
+			s.convexVertBufCaps[i] = 0
+		}
 	}
+	s.convexVertSlot = 0
+	s.deferredConvexUses = 0
+	s.deferSurfaceSubmit = false
 	// Tier 3: Image per-draw pools.
 	for i, bg := range s.imageBindGroups {
 		if bg != nil {
@@ -2041,20 +2067,34 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 // the data exceeds current capacity.
 func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w, h uint32) (*convexFrameResources, error) {
 	var vertexData []byte
-	s.convexVertexStaging, vertexData = buildConvexVerticesReuse(commands, s.convexVertexStaging)
+	// opt20: dominant DrawMesh path is a single pre-packed TriangleList command.
+	// WriteBuffer directly from PackedVerts — skip staging memcpy (pprof memmove).
+	if len(commands) == 1 {
+		cmd := &commands[0]
+		if len(cmd.PackedVerts) >= convexVertexStride && cmd.TriangleList && cmd.SkipAA {
+			nb := len(cmd.PackedVerts)
+			nb = nb - (nb % convexVertexStride)
+			if nb > 0 {
+				vertexData = cmd.PackedVerts[:nb]
+			}
+		}
+	}
+	if vertexData == nil {
+		s.convexVertexStaging, vertexData = buildConvexVerticesReuse(commands, s.convexVertexStaging)
+	}
 	if len(vertexData) == 0 {
 		return nil, nil //nolint:nilnil // empty vertex data is a valid no-op, not an error
 	}
 	vertexCount := convexVertexCount(commands)
 	vertSize := uint64(len(vertexData))
 
-	if s.convexVertBuf == nil || s.convexVertBufCap < vertSize {
-		if s.convexBindGroup != nil {
-			s.convexBindGroup.Release()
-			s.convexBindGroup = nil
-		}
-		if s.convexVertBuf != nil {
-			s.convexVertBuf.Release()
+	// Ring slot: avoid WriteBuffer onto a buffer still used by deferred CBs.
+	slot := s.allocConvexVertSlot()
+	if s.convexVertBufs[slot] == nil || s.convexVertBufCaps[slot] < vertSize {
+		if s.convexVertBufs[slot] != nil {
+			s.convexVertBufs[slot].Release()
+			s.convexVertBufs[slot] = nil
+			s.convexVertBufCaps[slot] = 0
 		}
 		allocSize := vertSize * 2
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
@@ -2063,14 +2103,13 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
 		})
 		if err != nil {
-			s.convexVertBuf = nil
-			s.convexVertBufCap = 0
 			return nil, fmt.Errorf("create convex vertex buffer: %w", err)
 		}
-		s.convexVertBuf = buf
-		s.convexVertBufCap = allocSize
+		s.convexVertBufs[slot] = buf
+		s.convexVertBufCaps[slot] = allocSize
 	}
-	if err := s.queueWriteBuffer(s.convexVertBuf, 0, vertexData); err != nil {
+	vertBuf := s.convexVertBufs[slot]
+	if err := s.queueWriteBuffer(vertBuf, 0, vertexData); err != nil {
 		return nil, fmt.Errorf("write convex vertex buffer: %w", err)
 	}
 
@@ -2120,7 +2159,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 	}
 
 	return &convexFrameResources{
-		vertBuf:    s.convexVertBuf,
+		vertBuf:    vertBuf,
 		uniformBuf: s.convexUniformBuf,
 		bindGroup:  s.convexBindGroup,
 		vertCount:  vertexCount,
@@ -2596,6 +2635,46 @@ func (s *GPURenderSession) LastSubmitPathStats() SubmitPathStats {
 	return s.lastSubmitStats
 }
 
+// allocConvexVertSlot picks a ring slot that is not still referenced by a
+// deferred (leading) command buffer. If the ring is exhausted, drains lead
+// submits first so WriteBuffer cannot race an unsubmitted draw.
+func (s *GPURenderSession) allocConvexVertSlot() int {
+	n := len(s.convexVertBufs)
+	if n == 0 {
+		return 0
+	}
+	if s.deferredConvexUses >= n && len(s.leadSubmitCBs) > 0 {
+		_ = s.FlushLeadingSubmitsOnly()
+	}
+	s.convexVertSlot = (s.convexVertSlot + 1) % n
+	return s.convexVertSlot
+}
+
+// SetDeferSurfaceSubmit toggles encode-only surface finishes (opt21).
+// When true, encodeSubmitSurface* / encodeBlitOnlyPass enqueue the CB via
+// EnqueueLeadingSubmit instead of Queue.Submit — caller must later
+// submitWithLeading / FlushLeadingSubmitsOnly (usually Present).
+func (s *GPURenderSession) SetDeferSurfaceSubmit(v bool) {
+	if s == nil {
+		return
+	}
+	s.deferSurfaceSubmit = v
+}
+
+// finishSurfaceSubmit either defers the finished surface CB (leading queue)
+// or submits it with any pending leadings. Used by encodeSubmitSurface*.
+func (s *GPURenderSession) finishSurfaceSubmit(cmd *webgpu.CommandBuffer) error {
+	if s == nil {
+		return fmt.Errorf("finishSurfaceSubmit: nil session")
+	}
+	if s.deferSurfaceSubmit {
+		s.EnqueueLeadingSubmit(cmd, nil)
+		s.deferredConvexUses++
+		return nil
+	}
+	return s.submitWithLeading(cmd)
+}
+
 // EnqueueLeadingSubmit holds a finished command buffer to be submitted together
 // with the next surface/blit Submit (R7.3 dual-tex multi + composite).
 // cleanup runs after a successful or failed submit attempt (bind-group free).
@@ -2623,6 +2702,7 @@ func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
 	s.leadSubmitCBs = nil
 	cleans := s.leadSubmitClean
 	s.leadSubmitClean = nil
+	s.deferredConvexUses = 0
 	runClean := func() {
 		for _, c := range cleans {
 			if c != nil {
@@ -3634,7 +3714,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// All command buffers are freed at the start of the NEXT frame
 	// (BeginFrame) when VSync guarantees the GPU is done.
 	// R7.3: coalesce deferred dual-tex multi CB when present.
-	if err := s.submitWithLeading(cmdBuf); err != nil {
+	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
 
@@ -4037,7 +4117,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 
 	// R7.3: coalesce deferred dual-tex multi CB with blit CB.
 	// Do NOT free previous command buffers mid-frame — see encodeSubmitSurface.
-	if err := s.submitWithLeading(cmdBuf); err != nil {
+	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
 		return fmt.Errorf("submit blit: %w", err)
 	}
 	s.frameRendered = true
@@ -4141,7 +4221,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 
 	// R7.3: coalesce deferred dual-tex multi CB with this blit/surface CB.
 	// Do NOT free previous command buffers mid-frame — see encodeSubmitSurface.
-	if err := s.submitWithLeading(cmdBuf); err != nil {
+	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
 

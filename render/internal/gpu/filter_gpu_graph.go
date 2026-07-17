@@ -681,7 +681,7 @@ func (c *filterGPUCache) releasePublish(slot filterPublishSlot) {
 
 // runGPUFilterGraph executes multi-RT ping-pong filter nodes on GPU and readbacks.
 func runGPUFilterGraph(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) ([]byte, error) {
-	out, _, _, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, true)
+	out, _, _, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, true, nil)
 	return out, err
 }
 
@@ -689,7 +689,7 @@ func runGPUFilterGraph(device *webgpu.Device, queue *webgpu.Queue, cache *filter
 // for zero-copy compositing (DrawGPUTexture). No CPU Map/readback.
 // Caller must invoke release when the view is no longer sampled.
 func runGPUFilterGraphGPUOnly(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, false)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, false, nil)
 	return view, release, err
 }
 
@@ -697,17 +697,27 @@ func runGPUFilterGraphGPUOnly(device *webgpu.Device, queue *webgpu.Queue, cache 
 // (no CPU upload). Source may be BGRA offscreen; first copy pass samples into
 // the RGBA pool (WebGPU returns BGRA samples in RGBA order).
 func runGPUFilterGraphFromView(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
+	return runGPUFilterGraphFromViewWithLeading(device, queue, cache, srcView, w, h, nodes, nil)
+}
+
+// runGPUFilterGraphFromViewWithLeading is FromView with optional leading command
+// buffers submitted in the same Queue.Submit (mesh seed + filter = one submit).
+// Leading CBs are Released after submit (success or failure). On filter encode
+// failure before Submit, leading CBs are NOT released — caller may submit them
+// alone for recovery.
+func runGPUFilterGraphFromViewWithLeading(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, leading []*webgpu.CommandBuffer) (gpucontext.TextureView, func(), error) {
 	if srcView.IsNil() {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
 	wgpuView := (*webgpu.TextureView)(srcView.Pointer())
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, wgpuView, w, h, nodes, false)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, wgpuView, w, h, nodes, false, leading)
 	return view, release, err
 }
 
 func runGPUFilterGraphEx(
 	device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache,
 	src []byte, srcView *webgpu.TextureView, w, h int, nodes []render.ImageFilterNode, wantPixels bool,
+	leading []*webgpu.CommandBuffer,
 ) (out []byte, pubView gpucontext.TextureView, pubRelease func(), err error) {
 	if device == nil || queue == nil || cache == nil || w <= 0 || h <= 0 {
 		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: invalid args")
@@ -1062,13 +1072,34 @@ func runGPUFilterGraphEx(
 		cleanupPasses()
 		return nil, gpucontext.TextureView{}, nil, err
 	}
-	if _, err := queue.Submit(cmd); err != nil {
+	// Single Queue.Submit for optional leading seed CBs + filter CB (opt18).
+	// Leading must run first so FromView samples a populated seed RT.
+	nLead := len(leading)
+	var all []*webgpu.CommandBuffer
+	if nLead == 0 {
+		all = []*webgpu.CommandBuffer{cmd}
+	} else {
+		all = make([]*webgpu.CommandBuffer, 0, nLead+1)
+		all = append(all, leading...)
+		all = append(all, cmd)
+	}
+	if _, err := queue.Submit(all...); err != nil {
+		for _, c := range leading {
+			if c != nil {
+				c.Release()
+			}
+		}
 		cmd.Release()
 		if slot.tex != nil {
 			cache.releasePublish(slot)
 		}
 		cleanupPasses()
 		return nil, gpucontext.TextureView{}, nil, err
+	}
+	for _, c := range leading {
+		if c != nil {
+			c.Release()
+		}
 	}
 	cmd.Release()
 	cleanupPasses()
