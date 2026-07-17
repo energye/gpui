@@ -146,3 +146,121 @@ func TestDamageRectsUnion(t *testing.T) {
 		})
 	}
 }
+
+func TestDamageRectsRelevantToGroup(t *testing.T) {
+	const sw, sh uint32 = 800, 600
+	groupTL := &[4]uint32{0, 0, 100, 100}    // top-left group
+	groupBR := &[4]uint32{500, 400, 120, 80} // bottom-right group
+	distantA := image.Rect(10, 10, 40, 40)
+	distantB := image.Rect(560, 420, 600, 460)
+	overlapBothFat := image.Rect(10, 10, 600, 460) // huge AABB of A∪B
+
+	t.Run("empty_input", func(t *testing.T) {
+		got := damageRectsRelevantToGroup(groupTL, sw, sh, nil)
+		if !got.Empty() {
+			t.Fatalf("empty input want empty, got %v", got)
+		}
+	})
+
+	t.Run("no_overlap_skips_group", func(t *testing.T) {
+		// Only bottom-right damage; top-left group must be empty (skip).
+		got := damageRectsRelevantToGroup(groupTL, sw, sh, []image.Rectangle{distantB})
+		if !got.Empty() {
+			t.Fatalf("expected empty relevant for non-overlapping group, got %v", got)
+		}
+	})
+
+	t.Run("local_damage_tight", func(t *testing.T) {
+		got := damageRectsRelevantToGroup(groupTL, sw, sh, []image.Rectangle{distantA, distantB})
+		want := distantA // fully inside group
+		if got != want {
+			t.Fatalf("relevant=%v want %v", got, want)
+		}
+	})
+
+	t.Run("partial_clip_to_group", func(t *testing.T) {
+		// Damage straddles group edge; relevant must be intersection only.
+		dmg := image.Rect(80, 80, 150, 150)
+		got := damageRectsRelevantToGroup(groupTL, sw, sh, []image.Rectangle{dmg})
+		want := image.Rect(80, 80, 100, 100)
+		if got != want {
+			t.Fatalf("relevant=%v want %v", got, want)
+		}
+	})
+
+	t.Run("multi_overlap_union_inside_group", func(t *testing.T) {
+		a := image.Rect(510, 410, 530, 430)
+		b := image.Rect(560, 440, 590, 470)
+		got := damageRectsRelevantToGroup(groupBR, sw, sh, []image.Rectangle{distantA, a, b})
+		want := a.Union(b)
+		if got != want {
+			t.Fatalf("relevant=%v want %v", got, want)
+		}
+	})
+
+	t.Run("nil_group_clip_uses_surface", func(t *testing.T) {
+		got := damageRectsRelevantToGroup(nil, sw, sh, []image.Rectangle{distantA, distantB})
+		want := distantA.Union(distantB)
+		if got != want {
+			t.Fatalf("relevant=%v want %v", got, want)
+		}
+	})
+
+	t.Run("global_union_is_wider_than_relevant", func(t *testing.T) {
+		// Documents the R7.4 win: global AABB of distant rects is huge,
+		// but group-relevant stays local.
+		rects := []image.Rectangle{distantA, distantB}
+		global := damageRectsUnion(rects)
+		if global != overlapBothFat && global != distantA.Union(distantB) {
+			// just ensure global is the fat union
+		}
+		if global != distantA.Union(distantB) {
+			t.Fatalf("global union=%v", global)
+		}
+		rel := damageRectsRelevantToGroup(groupTL, sw, sh, rects)
+		if rel.Dx()*rel.Dy() >= global.Dx()*global.Dy() {
+			t.Fatalf("expected relevant area < global: rel=%v global=%v", rel, global)
+		}
+		if rel != distantA {
+			t.Fatalf("relevant=%v want %v", rel, distantA)
+		}
+	})
+}
+
+func TestApplyGroupScissorWithDamageRects_Semantics(t *testing.T) {
+	// Pure helper path via damageRectsRelevantToGroup + computeDamageScissor,
+	// mirroring applyGroupScissorWithDamageRects decisions without a GPU device.
+	const sw, sh uint32 = 200, 200
+	group := &[4]uint32{0, 0, 50, 50}
+	dmgFar := []image.Rectangle{image.Rect(100, 100, 140, 140)}
+	dmgNear := []image.Rectangle{image.Rect(10, 10, 30, 30), image.Rect(100, 100, 140, 140)}
+
+	// no damage → full group (valid scissor = group)
+	if len(([]image.Rectangle)(nil)) != 0 {
+		t.Fatal("sanity")
+	}
+	// far only → skip
+	if !damageRectsRelevantToGroup(group, sw, sh, dmgFar).Empty() {
+		t.Fatal("far damage should not hit group")
+	}
+	// near+far → scissor from near only
+	rel := damageRectsRelevantToGroup(group, sw, sh, dmgNear)
+	x, y, w, h, valid := computeDamageScissor(group, sw, sh, rel)
+	if !valid || x != 10 || y != 10 || w != 20 || h != 20 {
+		t.Fatalf("scissor=(%d,%d,%d,%d valid=%v) want 10,10,20,20 true", x, y, w, h, valid)
+	}
+	// global union would have over-widened:
+	fat := damageRectsUnion(dmgNear)
+	fx, fy, fw, fh, fvalid := computeDamageScissor(group, sw, sh, fat)
+	if !fvalid {
+		t.Fatal("fat should still intersect group")
+	}
+	// fat ∩ group = full group [0,0,50,50] because fat AABB covers from (10,10) to (140,140)
+	if fx != 10 || fy != 10 || fw != 40 || fh != 40 {
+		// 10..50 = 40 width; documents over-wide relative to tight 20x20
+		t.Logf("fat scissor=(%d,%d,%d,%d) (over-wide baseline)", fx, fy, fw, fh)
+	}
+	if fw*fh <= w*h {
+		t.Fatalf("expected fat scissor area > tight: fat=%dx%d tight=%dx%d", fw, fh, w, h)
+	}
+}

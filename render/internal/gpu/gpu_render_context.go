@@ -2224,7 +2224,9 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			})
 		}
 		if len(viewOps) > 0 {
-			multiOuts, derr := dualTexAdvancedBlendViewsMulti(device, queue, cache, dstView, viewOps, tw, th)
+			// R7.3: finish dual-tex multi without Submit; coalesce with following
+			// blit Flush into one Queue.Submit (multi CB, ordered).
+			bundle, derr := dualTexAdvancedBlendViewsMultiBundle(device, queue, cache, dstView, viewOps, tw, th, false)
 			if derr != nil {
 				err = derr
 				// Fallback: per-op path (still correct, more submits).
@@ -2239,8 +2241,13 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 					outs = append(outs, outBlit{view: outView, tex: outTex, bounds: op.bounds, opacity: op.opacity})
 				}
 			} else {
-				for _, mo := range multiOuts {
+				for _, mo := range bundle.Outs {
 					outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
+				}
+				if bundle.Cmd != nil && rc.session != nil {
+					rc.session.EnqueueLeadingSubmit(bundle.Cmd, bundle.Cleanup)
+				} else if bundle.Cleanup != nil {
+					bundle.Cleanup()
 				}
 			}
 		}
@@ -2312,7 +2319,13 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 
 	if rc.PendingCount() > 0 {
 		// pendingAdvancedLayers already nil — no recursion into resolve.
+		// Flush surface/blit CB; session coalesces deferred dual-tex multi (R7.3).
 		if ferr := rc.Flush(target); ferr != nil && err == nil {
+			err = ferr
+		}
+	} else if rc.session != nil {
+		// Dual-tex multi finished but no composite blit queued — still submit.
+		if ferr := rc.session.FlushLeadingSubmitsOnly(); ferr != nil && err == nil {
 			err = ferr
 		}
 	}

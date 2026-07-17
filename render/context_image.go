@@ -660,8 +660,20 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 	if c == nil || c.pixmap == nil || dst == nil {
 		return false
 	}
-	_ = c.FlushGPU()
-	_ = c.materializeFilterGPU()
+	// R7.2: only FlushGPU when there are pending GPU draws. When the surface
+	// is already GPU-filter-published (pixmapFilterStale), FlushGPU is a no-op
+	// for content and only adds queue overhead.
+	pending := 0
+	if rc := c.gpuCtxOps(); rc != nil {
+		type pcounter interface{ PendingCount() int }
+		if pc, ok := rc.(pcounter); ok {
+			pending = pc.PendingCount()
+		}
+	}
+	if pending > 0 {
+		_ = c.FlushGPU()
+	}
+
 	w, h := c.pixmap.Width(), c.pixmap.Height()
 	if w <= 0 || h <= 0 {
 		return false
@@ -678,9 +690,21 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 		}
 		*dst = img
 	}
-	src := c.pixmap.Data()
 	out := (*dst).Data()
 	n := len(out)
+
+	// R7.2: when filter result lives only on GPU, readback once into ImageBuf
+	// and refresh pixmap in the same pass (avoid Flush+materialize+copy triple).
+	if c.pixmapFilterStale && !c.filterGPUView.IsNil() && c.filterGPUW == w && c.filterGPUH == h {
+		if c.materializeFilterGPUTo(out, c.pixmap.Data()) {
+			(*dst).MarkPixelsDirty()
+			return true
+		}
+	} else {
+		_ = c.materializeFilterGPU()
+	}
+
+	src := c.pixmap.Data()
 	if len(src) < n {
 		n = len(src)
 	}

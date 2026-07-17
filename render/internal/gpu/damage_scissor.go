@@ -44,3 +44,53 @@ func damageRectsUnion(rects []image.Rectangle) image.Rectangle {
 	}
 	return u
 }
+
+// damageRectsRelevantToGroup returns the union of damage rects that intersect
+// the group clip region (clamped to the surface). Distant multi-rect damage
+// that does not touch this group is excluded, so group scissor stays tight.
+//
+// Returns an empty rect when rects is empty, or when no damage rect overlaps
+// the group. Callers must distinguish:
+//   - empty input  → no damage tracking → full group scissor
+//   - non-empty in, empty out → damage present but group clean → skip group
+func damageRectsRelevantToGroup(groupClip *[4]uint32, surfaceW, surfaceH uint32, rects []image.Rectangle) image.Rectangle {
+	if len(rects) == 0 {
+		return image.Rectangle{}
+	}
+
+	gx, gy := 0, 0
+	gx2, gy2 := int(surfaceW), int(surfaceH)
+	if groupClip != nil {
+		gx = int(groupClip[0])
+		gy = int(groupClip[1])
+		gx2 = gx + int(groupClip[2])
+		gy2 = gy + int(groupClip[3])
+	}
+	gx = max(gx, 0)
+	gy = max(gy, 0)
+	gx2 = min(gx2, int(surfaceW))
+	gy2 = min(gy2, int(surfaceH))
+	if gx2 <= gx || gy2 <= gy {
+		return image.Rectangle{}
+	}
+	group := image.Rect(gx, gy, gx2, gy2)
+
+	var u image.Rectangle
+	any := false
+	for _, r := range rects {
+		if r.Empty() {
+			continue
+		}
+		inter := r.Intersect(group)
+		if inter.Empty() {
+			continue
+		}
+		if !any {
+			u = inter
+			any = true
+			continue
+		}
+		u = u.Union(inter)
+	}
+	return u
+}

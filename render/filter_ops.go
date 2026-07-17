@@ -225,8 +225,16 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 		return true
 	}
 
-	// 1) Zero-readback: flush pending draws into offscreen view, filter on GPU.
-	// Glow/effect RTs hit this every recompute (pending shapes > 0).
+	need := w * h * 4
+	if cap(c.filterSrcScratch) < need {
+		c.filterSrcScratch = make([]byte, need)
+	}
+	c.filterSrcScratch = c.filterSrcScratch[:need]
+
+	// 1) Zero-readback (R7.2): flush pending draws into retained filterSrcRT, then
+	// GPU→GPU filter. Glow/effect RTs hit this every recompute (pending > 0).
+	// If we already flushed to filterSrcRT, never seed path 2/3 from the stale
+	// CPU pixmap (draws never reached pixmap) — recover via src RT readback only.
 	pending := 0
 	if rc := c.gpuCtxOps(); rc != nil {
 		type pcounter interface{ PendingCount() int }
@@ -234,9 +242,11 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 			pending = pc.PendingCount()
 		}
 	}
+	flushedToSrc := false
 	if pending > 0 && gpuFilterGraphApplyFromView != nil {
 		if srcView, ok := c.ensureFilterSrcRT(w, h); ok {
 			if err := c.FlushGPUWithView(srcView, uint32(w), uint32(h)); err == nil { //nolint:gosec
+				flushedToSrc = true
 				view, release, err := gpuFilterGraphApplyFromView(srcView, w, h, nodes)
 				if err == nil && finish(view, release) {
 					return true
@@ -244,46 +254,96 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 				if release != nil {
 					release()
 				}
+				// FromView failed after a successful seed flush: seed texture/pixel
+				// paths from filterSrcRT (correct content), not from stale pixmap.
+				if c.readbackFilterSrcIntoScratch(srcView, w, h, need) {
+					if gpuFilterGraphApplyTexture != nil {
+						view, release, err := gpuFilterGraphApplyTexture(c.filterSrcScratch, w, h, nodes)
+						if err == nil && finish(view, release) {
+							return true
+						}
+						if release != nil {
+							release()
+						}
+					}
+					if gpuFilterGraphApply != nil {
+						out, err := gpuFilterGraphApply(c.filterSrcScratch, w, h, nodes)
+						if err == nil && len(out) >= need {
+							copy(src.Data(), out[:need])
+							src.NotifyPixelsChanged()
+							c.pixmapFilterStale = false
+							c.releaseFilterGPUResult()
+							if !c.seedTopLayerGPUFromPixmap() {
+								c.noteLayerCPUDraw()
+							}
+							c.recordGPUOp()
+							return true
+						}
+					}
+				}
+				// Recovery failed — do not fall through to pixmap seed.
+				return false
 			}
 		}
 	}
 
-	// 2) Ensure pixmap has GPU content, then texture-publish from CPU bytes
-	// (still avoids post-filter Map when texture path is used).
-	_ = c.FlushGPU()
-	need := w * h * 4
-	if cap(c.filterSrcScratch) < need {
-		c.filterSrcScratch = make([]byte, need)
-	}
-	c.filterSrcScratch = c.filterSrcScratch[:need]
-	copy(c.filterSrcScratch, src.Data()[:need])
+	// 2) Pixmap-coherent path: only when we did NOT already flush draws solely
+	// to filterSrcRT. FlushGPU may readback pending GPU draws into the pixmap.
+	if !flushedToSrc {
+		_ = c.FlushGPU()
+		copy(c.filterSrcScratch, src.Data()[:need])
 
-	if gpuFilterGraphApplyTexture != nil {
-		view, release, err := gpuFilterGraphApplyTexture(c.filterSrcScratch, w, h, nodes)
-		if err == nil && finish(view, release) {
-			return true
+		if gpuFilterGraphApplyTexture != nil {
+			view, release, err := gpuFilterGraphApplyTexture(c.filterSrcScratch, w, h, nodes)
+			if err == nil && finish(view, release) {
+				return true
+			}
+			if release != nil {
+				release()
+			}
 		}
-		if release != nil {
-			release()
-		}
-	}
 
-	// 3) Pixel readback path (tests / environments without texture publish).
-	if gpuFilterGraphApply == nil {
+		// 3) Pixel readback path (tests / environments without texture publish).
+		if gpuFilterGraphApply == nil {
+			return false
+		}
+		out, err := gpuFilterGraphApply(c.filterSrcScratch, w, h, nodes)
+		if err != nil || len(out) < need {
+			return false
+		}
+		copy(src.Data(), out[:need])
+		src.NotifyPixelsChanged()
+		c.pixmapFilterStale = false
+		c.releaseFilterGPUResult()
+		if !c.seedTopLayerGPUFromPixmap() {
+			c.noteLayerCPUDraw()
+		}
+		c.recordGPUOp()
+		return true
+	}
+	return false
+}
+
+// readbackFilterSrcIntoScratch copies a filter seed RT into filterSrcScratch.
+// Used only as R7.2 recovery when FromView fails after FlushGPUWithView.
+func (c *Context) readbackFilterSrcIntoScratch(srcView gpucontext.TextureView, w, h, need int) bool {
+	if c == nil || srcView.IsNil() || need <= 0 {
 		return false
 	}
-	out, err := gpuFilterGraphApply(c.filterSrcScratch, w, h, nodes)
-	if err != nil || len(out) < need {
+	type viewReader interface {
+		ReadbackViewRGBA(view gpucontext.TextureView, w, h int) ([]byte, error)
+	}
+	raw := c.GPURenderContext()
+	vr, ok := raw.(viewReader)
+	if !ok || vr == nil {
 		return false
 	}
-	copy(src.Data(), out[:need])
-	src.NotifyPixelsChanged()
-	c.pixmapFilterStale = false
-	c.releaseFilterGPUResult()
-	if !c.seedTopLayerGPUFromPixmap() {
-		c.noteLayerCPUDraw()
+	// filterSrcRT is BGRA offscreen — use swizzling readback.
+	rgba, err := vr.ReadbackViewRGBA(srcView, w, h)
+	if err != nil || len(rgba) < need {
+		return false
 	}
-	c.recordGPUOp()
+	copy(c.filterSrcScratch[:need], rgba[:need])
 	return true
 }
 
@@ -314,12 +374,30 @@ func GPUFilterGraphRegistered() bool {
 	return gpuFilterGraphApply != nil || gpuFilterGraphApplyTexture != nil || gpuFilterGraphApplyFromView != nil
 }
 
-// SwapGPUFilterGraph replaces the GPU filter graph and returns the previous one (tests).
-// Pass nil to force the CPU filter path (S6.4 pool / fallback verification).
+// SwapGPUFilterGraph replaces the pixel-readback GPU filter graph and returns the previous one (tests).
+// Note: alone this does NOT disable texture/from-view publishers — use
+// DisableGPUFilterGraphForTest to force the pure CPU filter path.
 func SwapGPUFilterGraph(fn func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)) func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error) {
 	prev := gpuFilterGraphApply
 	gpuFilterGraphApply = fn
 	return prev
+}
+
+// DisableGPUFilterGraphForTest clears pixel/texture/from-view GPU filter hooks so
+// ApplyBlur/ApplyImageFilterGraph exercise the CPU intermediate pool (S6.4).
+// Returns a restore function that reinstalls the previous hooks.
+func DisableGPUFilterGraphForTest() (restore func()) {
+	prevApply := gpuFilterGraphApply
+	prevTex := gpuFilterGraphApplyTexture
+	prevView := gpuFilterGraphApplyFromView
+	gpuFilterGraphApply = nil
+	gpuFilterGraphApplyTexture = nil
+	gpuFilterGraphApplyFromView = nil
+	return func() {
+		gpuFilterGraphApply = prevApply
+		gpuFilterGraphApplyTexture = prevTex
+		gpuFilterGraphApplyFromView = prevView
+	}
 }
 
 // ImageFilterKind identifies a node in an image-filter graph (F.03).
@@ -578,6 +656,19 @@ func (c *Context) materializeFilterGPU() bool {
 	if !c.pixmapFilterStale {
 		return true
 	}
+	return c.materializeFilterGPUTo(c.pixmap.Data(), nil)
+}
+
+// materializeFilterGPUTo readbacks the published filter texture into primary
+// (required) and optional secondary buffers in one Map (R7.2 Export path).
+// secondary may be the pixmap when primary is an ImageBuf destination.
+func (c *Context) materializeFilterGPUTo(primary, secondary []byte) bool {
+	if c == nil {
+		return false
+	}
+	if !c.pixmapFilterStale {
+		return true
+	}
 	if c.filterGPUView.IsNil() || c.filterGPUW <= 0 || c.filterGPUH <= 0 {
 		c.pixmapFilterStale = false
 		return false
@@ -594,14 +685,25 @@ func (c *Context) materializeFilterGPU() bool {
 	if err != nil || len(rgba) < c.filterGPUW*c.filterGPUH*4 {
 		return false
 	}
-	dst := c.pixmap.Data()
 	n := c.filterGPUW * c.filterGPUH * 4
-	if len(dst) < n {
-		n = len(dst)
+	if primary != nil {
+		pn := n
+		if len(primary) < pn {
+			pn = len(primary)
+		}
+		copy(primary[:pn], rgba[:pn])
 	}
-	copy(dst[:n], rgba[:n])
-	// Keep gen stable when possible; Notify for consumers keyed on pixmap gen.
-	c.pixmap.NotifyPixelsChanged()
+	if secondary != nil {
+		sn := n
+		if len(secondary) < sn {
+			sn = len(secondary)
+		}
+		copy(secondary[:sn], rgba[:sn])
+	}
+	if c.pixmap != nil {
+		// Keep gen stable when possible; Notify for consumers keyed on pixmap gen.
+		c.pixmap.NotifyPixelsChanged()
+	}
 	c.pixmapFilterStale = false
 	return true
 }

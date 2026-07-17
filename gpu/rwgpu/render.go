@@ -127,8 +127,16 @@ func (enc *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderP
 		return nil, &WGPUError{Op: "BeginRenderPass", Message: "no color attachments"}
 	}
 
-	// Build native color attachments
-	nativeColorAttachments := make([]renderPassColorAttachment, len(desc.ColorAttachments))
+	// Build native color attachments.
+	// R7.0: stack for the common 1–4 color target case (UI render almost always 1).
+	nCA := len(desc.ColorAttachments)
+	var caStack [4]renderPassColorAttachment
+	var nativeColorAttachments []renderPassColorAttachment
+	if nCA <= len(caStack) {
+		nativeColorAttachments = caStack[:nCA]
+	} else {
+		nativeColorAttachments = make([]renderPassColorAttachment, nCA)
+	}
 	for i, ca := range desc.ColorAttachments {
 		var viewHandle uintptr
 		if ca.View != nil {

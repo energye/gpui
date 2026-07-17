@@ -72,6 +72,8 @@
 
 **GPU_FIRST 主线**：[`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md) **v3.9.1 已关闭**（N1/N2 session-inline 完成；N3 fragment / N4 bicubic / N5 极冷门 **书面后置**）。硬原则仍有效，禁止降级已有 GPU 路径。
 
+**Render 优化收敛（post-S6）**：见 [`RENDER_OPT_CONVERGENCE.md`](./RENDER_OPT_CONVERGENCE.md)（R7.x；功能不变硬门禁）。
+
 **下一执行刀（建议）**：画布矩阵 **L5 已宣告**（`CAPABILITY_MATRIX_WINDOW.md` v1.11）。下一产品刀：**控件层入口**仅在 `S5_WIDGET_ENTRY` 条件满足后；或可选 DOC.1 / 真 multiplanar YUV。**不要默认**再开 N3/N5 优化。
 
 **GPU_FIRST 回归**：关闭后必跑/选跑命令与证据见 [`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md) **§10**。

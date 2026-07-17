@@ -53,27 +53,36 @@ type GlyphMaskEngine struct {
 	// before the next LayoutText — QueueGlyphMask copies into context store).
 	quadScratch []GlyphMaskQuad
 
-	// opt13: LayoutText batch cache for repeated HUD/static strings.
-	layoutCache     map[glyphLayoutCacheKey]*glyphLayoutCacheEntry
+	// R7.5: origin-free layout template cache for scroll/HUD reuse.
+	// Geometry is cached without absolute x/y/color; safe rebase translates quads.
+	layoutCache     map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry
 	layoutCacheTick uint64
 	layoutCacheSoft int
+	layoutCacheHits uint64
+	layoutCacheMiss uint64
 }
 
-// glyphLayoutCacheKey identifies a LayoutText result for HUD/static reuse.
-// Positions are quantized to 1/64 px; matrix must be pure translate (else no key).
-type glyphLayoutCacheKey struct {
-	textHash       uint64
-	fontID         uint64
-	sizeBits       uint32
-	xQ             int32
-	yQ             int32
-	cr, cg, cb, ca uint32
-	flags          uint16 // lcd/aliased/hint bits
+// glyphLayoutTemplateKey identifies shaped+rasterized glyph geometry independent
+// of draw origin and color (R7.5). Matrix must be pure translate to participate.
+type glyphLayoutTemplateKey struct {
+	textHash uint64
+	fontID   uint64
+	sizeBits uint32
+	dsBits   uint32 // deviceScale
+	flags    uint16 // lcd/aliased/hint bits
 }
 
-type glyphLayoutCacheEntry struct {
-	batch GlyphMaskBatch // Quads owned by entry (deep copy)
-	atime uint64
+type glyphLayoutTemplateEntry struct {
+	baseX, baseY   float64
+	deviceScale    float64
+	g0X, g0Y       float64 // shaped offset of first non-.notdef glyph (snap origin)
+	canSnapRebase  bool    // full-hint !LCD with uniform shaped Y
+	uniformShapedY bool
+	quads          []GlyphMaskQuad
+	isLCD          bool
+	atlasW, atlasH float32
+	page           int
+	atime          uint64
 }
 
 // NewGlyphMaskEngine creates a new glyph mask engine with the default atlas
@@ -84,8 +93,8 @@ func NewGlyphMaskEngine() *GlyphMaskEngine {
 		rasterizer:      text.NewGlyphMaskRasterizer(),
 		lcdLayout:       text.LCDLayoutNone,
 		lcdFilter:       text.DefaultLCDFilter(),
-		layoutCache:     make(map[glyphLayoutCacheKey]*glyphLayoutCacheEntry),
-		layoutCacheSoft: 256,
+		layoutCache:     make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry),
+		layoutCacheSoft: 512,
 	}
 }
 
@@ -99,6 +108,8 @@ func (e *GlyphMaskEngine) SetLCDLayout(layout text.LCDLayout) {
 		e.lcdLayout = layout
 		// Clear atlas: existing masks were rasterized for different layout.
 		e.atlas.Clear()
+		// R7.5: templates reference atlas UVs — drop them with the atlas.
+		e.layoutCache = make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry)
 	}
 }
 
@@ -177,19 +188,17 @@ func (e *GlyphMaskEngine) LayoutText(
 		float32(premul.B), float32(premul.A),
 	}
 
-	// S6.5: LayoutGlyphs caches Face.Glyphs results for repeated DrawString
-	// (list scroll / static labels). Same cmap+advance semantics as before.
-	// opt13: full batch cache for static/HUD strings (FPS line hits when value sticky).
-	if key, ok := makeGlyphLayoutCacheKey(s, fontID, fontSize, batchColor, x, y, matrix, useLCD, false, hinting); ok {
-		if batch, hit := e.layoutCacheGet(key); hit {
+	// S6.5: LayoutGlyphs caches Face.Glyphs (shape-level).
+	// R7.5: origin-free layout template + safe quad rebase for scroll/HUD.
+	shaped := text.LayoutGlyphs(face, s)
+	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, false, hinting, matrix); ok {
+		if batch, hit := e.layoutTemplateGet(key, shaped, x, y, batchColor, matrix); hit {
 			return batch, nil
 		}
-		shaped := text.LayoutGlyphs(face, s)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false)
-		e.layoutCachePut(key, batch)
+		e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		return batch, nil
 	}
-	shaped := text.LayoutGlyphs(face, s)
 	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
 }
 
@@ -235,11 +244,18 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 		float32(premul.B), float32(premul.A),
 	}
 
-	// S6.5: shared layout-glyph cache (distinct from OT Shape cache by mode).
+	// S6.5 shape cache + R7.5 layout template (aliased flag in key).
 	shaped := text.LayoutGlyphs(face, s)
-
 	lcdLayout := text.LCDLayoutNone
 	var lcdFilter text.LCDFilter
+	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, true, hinting, matrix); ok {
+		if batch, hit := e.layoutTemplateGet(key, shaped, x, y, batchColor, matrix); hit {
+			return batch, nil
+		}
+		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true)
+		e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
+		return batch, nil
+	}
 	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true), nil
 }
 
@@ -864,23 +880,19 @@ func computeGlyphMaskFontID(source *text.FontSource) uint64 {
 	return h.Sum64()
 }
 
-func makeGlyphLayoutCacheKey(
+func makeGlyphLayoutTemplateKey(
 	s string,
 	fontID uint64,
 	fontSize float64,
-	color [4]float32,
-	x, y float64,
-	matrix render.Matrix,
+	deviceScale float64,
 	useLCD, aliased bool,
 	hinting text.Hinting,
-) (glyphLayoutCacheKey, bool) {
-	// Only pure translate (HUD-style). Rotation/scale invalidates simple key.
+	matrix render.Matrix,
+) (glyphLayoutTemplateKey, bool) {
+	// Only pure translate (HUD/list scroll). Rotation/scale need full layout.
 	if matrix.A != 1 || matrix.E != 1 || matrix.B != 0 || matrix.D != 0 {
-		return glyphLayoutCacheKey{}, false
+		return glyphLayoutTemplateKey{}, false
 	}
-	// Bake translate into position.
-	x += matrix.C
-	y += matrix.F
 	var flags uint16
 	if useLCD {
 		flags |= 1
@@ -891,51 +903,176 @@ func makeGlyphLayoutCacheKey(
 	flags |= uint16(hinting&0xFF) << 2
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(s))
-	return glyphLayoutCacheKey{
+	return glyphLayoutTemplateKey{
 		textHash: h.Sum64(),
 		fontID:   fontID,
 		sizeBits: math.Float32bits(float32(fontSize)),
-		xQ:       int32(math.Round(x * 64)),
-		yQ:       int32(math.Round(y * 64)),
-		cr:       math.Float32bits(color[0]),
-		cg:       math.Float32bits(color[1]),
-		cb:       math.Float32bits(color[2]),
-		ca:       math.Float32bits(color[3]),
+		dsBits:   math.Float32bits(float32(deviceScale)),
 		flags:    flags,
 	}, true
 }
 
-func (e *GlyphMaskEngine) layoutCacheGet(key glyphLayoutCacheKey) (GlyphMaskBatch, bool) {
+// layoutTemplateOriginOffsets extracts shaped offsets used as snap anchors.
+func layoutTemplateOriginOffsets(shaped []text.ShapedGlyph) (g0X, g0Y float64, uniformY bool) {
+	uniformY = true
+	found := false
+	var firstY float64
+	for i := range shaped {
+		if shaped[i].GID == 0 {
+			continue
+		}
+		if !found {
+			g0X = shaped[i].X
+			g0Y = shaped[i].Y
+			firstY = shaped[i].Y
+			found = true
+			continue
+		}
+		if shaped[i].Y != firstY {
+			uniformY = false
+		}
+	}
+	return g0X, g0Y, uniformY
+}
+
+// layoutRebaseDelta returns a uniform quad translation that preserves glyph
+// masks (pixel-safe). Allowed when:
+//  1. delta is an integer number of device pixels (any hint/LCD mode), or
+//  2. full-hint !LCD snap path with uniform shaped Y (list scroll arbitrary dy).
+func layoutRebaseDelta(ent *glyphLayoutTemplateEntry, x, y float64) (dx, dy float64, ok bool) {
+	if ent == nil || len(ent.quads) == 0 {
+		return 0, 0, false
+	}
+	ds := ent.deviceScale
+	if ds <= 0 {
+		ds = 1
+	}
+
+	// Fast path: whole device-pixel move preserves subpixel phase for every glyph.
+	if ddx, okX := integerDeviceDelta(ent.baseX, x, ds); okX {
+		if ddy, okY := integerDeviceDelta(ent.baseY, y, ds); okY {
+			return ddx, ddy, true
+		}
+	}
+
+	// Full-hint snap path: positions are grid-fitted; X shift is always uniform.
+	// Y shift is uniform when all shaped Y offsets match (typical LTR runs).
+	if ent.canSnapRebase {
+		dx = (math.Round((x+ent.g0X)*ds) - math.Round((ent.baseX+ent.g0X)*ds)) / ds
+		if ent.uniformShapedY {
+			dy = (math.Round((y+ent.g0Y)*ds) - math.Round((ent.baseY+ent.g0Y)*ds)) / ds
+			return dx, dy, true
+		}
+		// Non-uniform Y: only accept integer device Y (already failed above) or exact baseY.
+		if y == ent.baseY {
+			return dx, 0, true
+		}
+	}
+
+	// Exact origin match (HUD sticky) — color-only reuse still pays off.
+	if x == ent.baseX && y == ent.baseY {
+		return 0, 0, true
+	}
+	return 0, 0, false
+}
+
+func integerDeviceDelta(base, next, ds float64) (delta float64, ok bool) {
+	d := (next - base) * ds
+	r := math.Round(d)
+	if math.Abs(d-r) > 1e-6 {
+		return 0, false
+	}
+	return r / ds, true
+}
+
+func (e *GlyphMaskEngine) layoutTemplateGet(
+	key glyphLayoutTemplateKey,
+	_ []text.ShapedGlyph,
+	x, y float64,
+	color [4]float32,
+	matrix render.Matrix,
+) (GlyphMaskBatch, bool) {
 	if e.layoutCache == nil {
 		return GlyphMaskBatch{}, false
 	}
 	ent := e.layoutCache[key]
 	if ent == nil {
+		e.layoutCacheMiss++
+		return GlyphMaskBatch{}, false
+	}
+	dx, dy, ok := layoutRebaseDelta(ent, x, y)
+	if !ok {
+		e.layoutCacheMiss++
 		return GlyphMaskBatch{}, false
 	}
 	e.layoutCacheTick++
 	ent.atime = e.layoutCacheTick
-	// Return batch with Quads aliasing cache storage — QueueGlyphMask must copy.
-	return ent.batch, true
+	e.layoutCacheHits++
+
+	quads := make([]GlyphMaskQuad, len(ent.quads))
+	if dx == 0 && dy == 0 {
+		copy(quads, ent.quads)
+	} else {
+		fdx, fdy := float32(dx), float32(dy)
+		for i, q := range ent.quads {
+			q.X0 += fdx
+			q.X1 += fdx
+			q.Y0 += fdy
+			q.Y1 += fdy
+			quads[i] = q
+		}
+	}
+	return GlyphMaskBatch{
+		Quads:          quads,
+		Transform:      matrix,
+		Color:          color,
+		IsLCD:          ent.isLCD,
+		AtlasWidth:     ent.atlasW,
+		AtlasHeight:    ent.atlasH,
+		AtlasPageIndex: ent.page,
+	}, true
 }
 
-func (e *GlyphMaskEngine) layoutCachePut(key glyphLayoutCacheKey, batch GlyphMaskBatch) {
+func (e *GlyphMaskEngine) layoutTemplatePut(
+	key glyphLayoutTemplateKey,
+	shaped []text.ShapedGlyph,
+	x, y float64,
+	deviceScale float64,
+	hinting text.Hinting,
+	useLCD bool,
+	batch GlyphMaskBatch,
+) {
 	if e.layoutCache == nil {
-		e.layoutCache = make(map[glyphLayoutCacheKey]*glyphLayoutCacheEntry)
+		e.layoutCache = make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry)
 	}
-	// Deep-copy quads into entry storage.
+	if len(batch.Quads) == 0 {
+		return
+	}
 	cp := make([]GlyphMaskQuad, len(batch.Quads))
 	copy(cp, batch.Quads)
-	stored := batch
-	stored.Quads = cp
+	g0X, g0Y, uniformY := layoutTemplateOriginOffsets(shaped)
+	canSnap := hinting == text.HintingFull && !useLCD
 	e.layoutCacheTick++
-	e.layoutCache[key] = &glyphLayoutCacheEntry{batch: stored, atime: e.layoutCacheTick}
+	e.layoutCache[key] = &glyphLayoutTemplateEntry{
+		baseX:          x,
+		baseY:          y,
+		deviceScale:    deviceScale,
+		g0X:            g0X,
+		g0Y:            g0Y,
+		canSnapRebase:  canSnap,
+		uniformShapedY: uniformY,
+		quads:          cp,
+		isLCD:          batch.IsLCD,
+		atlasW:         batch.AtlasWidth,
+		atlasH:         batch.AtlasHeight,
+		page:           batch.AtlasPageIndex,
+		atime:          e.layoutCacheTick,
+	}
 	if e.layoutCacheSoft <= 0 {
-		e.layoutCacheSoft = 256
+		e.layoutCacheSoft = 512
 	}
 	for len(e.layoutCache) > e.layoutCacheSoft {
-		// Evict oldest.
-		var oldestKey glyphLayoutCacheKey
+		var oldestKey glyphLayoutTemplateKey
 		var oldestTick uint64 = ^uint64(0)
 		first := true
 		for k, ent := range e.layoutCache {
@@ -947,4 +1084,19 @@ func (e *GlyphMaskEngine) layoutCachePut(key glyphLayoutCacheKey, batch GlyphMas
 		}
 		delete(e.layoutCache, oldestKey)
 	}
+}
+
+// LayoutTemplateCacheStats returns R7.5 layout template hit/miss counters.
+func (e *GlyphMaskEngine) LayoutTemplateCacheStats() (hits, misses uint64, entries int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.layoutCacheHits, e.layoutCacheMiss, len(e.layoutCache)
+}
+
+// ResetLayoutTemplateCacheStats clears hit/miss counters (entries retained).
+func (e *GlyphMaskEngine) ResetLayoutTemplateCacheStats() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.layoutCacheHits = 0
+	e.layoutCacheMiss = 0
 }

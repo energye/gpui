@@ -621,9 +621,9 @@ func (c *Context) ClearWithColor(col RGBA) {
 	c.pixmap.Clear(col)
 }
 
-// maxDamageRects is the threshold above which individual rects are merged
-// into a single bounding box. Too many small rects = too many OS blit calls.
-// Wayland/Android compositors use similar thresholds.
+// maxDamageRects is the threshold above which individual rects are coalesced
+// (touch/overlap merge, then full union only if still over the cap) to avoid
+// O(n²) OS damage region submission. Wayland/Android use similar thresholds.
 const maxDamageRects = 16
 
 // FrameDamage returns the list of damage rectangles from draw operations
@@ -720,20 +720,17 @@ func (c *Context) trackDamageDevicePoints(pts []Point) {
 		return
 	}
 	c.frameDamageRects = append(c.frameDamageRects, bounds)
+	// R7.4: touch-merge first (CoalesceDamageRects); only full-union if still over cap.
 	if len(c.frameDamageRects) > maxDamageRects {
-		merged := c.frameDamageRects[0]
-		for _, r := range c.frameDamageRects[1:] {
-			merged = merged.Union(r)
-		}
-		c.frameDamageRects = c.frameDamageRects[:1]
-		c.frameDamageRects[0] = merged
+		c.frameDamageRects = CoalesceDamageRects(c.frameDamageRects, maxDamageRects)
 	}
 	c.noteLayerDamage(bounds)
 }
 
 // trackDamage adds a damage rectangle for the current draw operation.
 // No-op when damage tracking is disabled (cached scene replay).
-// If rect count exceeds maxDamageRects, merges all into bounding box.
+// If rect count exceeds maxDamageRects, coalesces via CoalesceDamageRects
+// (touch/overlap merge, then full-union only if still over the cap).
 func (c *Context) trackDamage(bounds image.Rectangle) {
 	if !c.damageTrackingEnabled || bounds.Empty() {
 		return
@@ -753,13 +750,9 @@ func (c *Context) trackDamage(bounds image.Rectangle) {
 	}
 
 	c.frameDamageRects = append(c.frameDamageRects, bounds)
+	// R7.4: prefer pairwise touch-merge over immediate full AABB collapse.
 	if len(c.frameDamageRects) > maxDamageRects {
-		merged := c.frameDamageRects[0]
-		for _, r := range c.frameDamageRects[1:] {
-			merged = merged.Union(r)
-		}
-		c.frameDamageRects = c.frameDamageRects[:1]
-		c.frameDamageRects[0] = merged
+		c.frameDamageRects = CoalesceDamageRects(c.frameDamageRects, maxDamageRects)
 	}
 
 	// Layer Pop composites only this union (S6.4+ silky layers).

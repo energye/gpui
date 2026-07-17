@@ -298,11 +298,17 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 		return nil, &WGPUError{Op: "CreateBindGroup", Message: "layout is nil"}
 	}
 
-	// Convert Go-idiomatic entries to FFI wire entries
+	// Convert Go-idiomatic entries to FFI wire entries.
+	// R7.0: stack-allocate wire entries for the common small bind group (≤8).
 	var wireEntries []bindGroupEntryWire
+	var wireStack [8]bindGroupEntryWire
 	var wireEntriesPtr uintptr
-	if len(desc.Entries) > 0 {
-		wireEntries = make([]bindGroupEntryWire, len(desc.Entries))
+	if n := len(desc.Entries); n > 0 {
+		if n <= len(wireStack) {
+			wireEntries = wireStack[:n]
+		} else {
+			wireEntries = make([]bindGroupEntryWire, n)
+		}
 		for i := range desc.Entries {
 			wireEntries[i] = desc.Entries[i].toWire()
 		}

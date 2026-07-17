@@ -827,7 +827,17 @@ func makeGlyphMaskUniformInto(buf []byte, transform render.Matrix, color [4]floa
 // (needed by the LCD fragment shader to compute the texel step for sampling
 // adjacent R, G, B coverage texels).
 func makeGlyphMaskLCDUniform(transform render.Matrix, color [4]float32, atlasW, atlasH float32) []byte {
-	buf := make([]byte, glyphMaskLCDUniformSize)
+	return makeGlyphMaskLCDUniformInto(nil, transform, color, atlasW, atlasH)
+}
+
+// makeGlyphMaskLCDUniformInto is the R7.1 zero-realloc form of makeGlyphMaskLCDUniform.
+func makeGlyphMaskLCDUniformInto(buf []byte, transform render.Matrix, color [4]float32, atlasW, atlasH float32) []byte {
+	if cap(buf) < int(glyphMaskLCDUniformSize) {
+		buf = make([]byte, glyphMaskLCDUniformSize)
+	} else {
+		buf = buf[:glyphMaskLCDUniformSize]
+		clear(buf)
+	}
 	off := 0
 
 	// Transform (mat4x4<f32>, column-major).
@@ -848,7 +858,7 @@ func makeGlyphMaskLCDUniform(transform render.Matrix, color [4]float32, atlasW, 
 		off += 4
 	}
 
-	// Atlas size (vec2<f32>): width and height of the R8 atlas texture.
+	// Atlas size (vec2<f32>).
 	binary.LittleEndian.PutUint32(buf[off:], math.Float32bits(atlasW))
 	off += 4
 	binary.LittleEndian.PutUint32(buf[off:], math.Float32bits(atlasH))

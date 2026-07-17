@@ -17,11 +17,54 @@ type Queue struct {
 
 // Submit submits command buffers for execution.
 // Returns a submission index that can be used to track completion.
+//
+// R7.0: avoid per-submit heap allocation on the dominant 1-CB path and for
+// small multi-CB submits (≤8). Semantics unchanged: non-nil CBs are marked
+// submitted; only CBs with a live native handle are passed to rwgpu.
 func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
 	if q.released {
 		return 0, ErrReleased
 	}
-	rBuffers := make([]*rwgpu.CommandBuffer, 0, len(commandBuffers))
+	n := len(commandBuffers)
+	if n == 0 {
+		idx, err := q.r.Submit()
+		if err != nil {
+			return 0, fmt.Errorf("wgpu: submit failed: %w", err)
+		}
+		return idx, nil
+	}
+	// Dominant present/flush path: a single command buffer.
+	if n == 1 {
+		cb := commandBuffers[0]
+		if cb == nil {
+			idx, err := q.r.Submit()
+			if err != nil {
+				return 0, fmt.Errorf("wgpu: submit failed: %w", err)
+			}
+			return idx, nil
+		}
+		cb.submitted = true
+		if cb.r == nil {
+			idx, err := q.r.Submit()
+			if err != nil {
+				return 0, fmt.Errorf("wgpu: submit failed: %w", err)
+			}
+			return idx, nil
+		}
+		idx, err := q.r.Submit(cb.r)
+		if err != nil {
+			return 0, fmt.Errorf("wgpu: submit failed: %w", err)
+		}
+		return idx, nil
+	}
+
+	var stack [8]*rwgpu.CommandBuffer
+	var rBuffers []*rwgpu.CommandBuffer
+	if n <= len(stack) {
+		rBuffers = stack[:0]
+	} else {
+		rBuffers = make([]*rwgpu.CommandBuffer, 0, n)
+	}
 	for _, cb := range commandBuffers {
 		if cb == nil {
 			continue
@@ -60,6 +103,7 @@ func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
 }
 
 // WriteTexture writes data to a texture.
+// R7.0: stack-allocate destination/layout/size descriptors (no per-call heap).
 func (q *Queue) WriteTexture(dst *ImageCopyTexture, data []byte, layout *ImageDataLayout, size *Extent3D) error {
 	if q.released {
 		return ErrReleased
@@ -68,32 +112,36 @@ func (q *Queue) WriteTexture(dst *ImageCopyTexture, data []byte, layout *ImageDa
 		return fmt.Errorf("wgpu: WriteTexture: destination is nil")
 	}
 
-	rDst := &rwgpu.ImageCopyTexture{
+	rDst := rwgpu.ImageCopyTexture{
 		Texture:  dst.Texture.r,
 		MipLevel: dst.MipLevel,
 		Origin:   rwgpu.Origin3D(dst.Origin),
 		Aspect:   rwgpu.TextureAspect(dst.Aspect),
 	}
 
-	var rLayout *rwgpu.ImageDataLayout
+	var rLayout rwgpu.ImageDataLayout
+	var rLayoutPtr *rwgpu.ImageDataLayout
 	if layout != nil {
-		rLayout = &rwgpu.ImageDataLayout{
+		rLayout = rwgpu.ImageDataLayout{
 			Offset:       layout.Offset,
 			BytesPerRow:  layout.BytesPerRow,
 			RowsPerImage: layout.RowsPerImage,
 		}
+		rLayoutPtr = &rLayout
 	}
 
-	var rSize *rwgpu.Extent3D
+	var rSize rwgpu.Extent3D
+	var rSizePtr *rwgpu.Extent3D
 	if size != nil {
-		rSize = &rwgpu.Extent3D{
+		rSize = rwgpu.Extent3D{
 			Width:              size.Width,
 			Height:             size.Height,
 			DepthOrArrayLayers: size.DepthOrArrayLayers,
 		}
+		rSizePtr = &rSize
 	}
 
-	return q.r.WriteTexture(rDst, data, rLayout, rSize)
+	return q.r.WriteTexture(&rDst, data, rLayoutPtr, rSizePtr)
 }
 
 // SetSwapchainSuppressed is a no-op on the wgpu-native backend.

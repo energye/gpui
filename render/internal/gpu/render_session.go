@@ -89,6 +89,9 @@ type SubmitPathStats struct {
 	WriteBuffers    int
 	WriteBytes      int64
 	SingleGroupFast bool
+	// CoalescedCBs is the number of command buffers in the last Submit call
+	// (R7.3: dual-tex multi + blit may share one Queue.Submit).
+	CoalescedCBs int
 }
 
 // BatchDrawStats records per-tier draw/quad counts after coalescing (S6.3).
@@ -269,6 +272,9 @@ type GPURenderSession struct {
 
 	// S6.2 submit/record path diagnostics (most recent frame).
 	lastSubmitStats SubmitPathStats
+	// R7.3: command buffers to prepend on next surface Submit (dual-tex multi).
+	leadSubmitCBs   []*webgpu.CommandBuffer
+	leadSubmitClean []func()
 
 	// S6.2 reusable scratch (avoid per-frame concat/uniform allocs).
 	clipBytesScratch    []byte
@@ -2590,6 +2596,84 @@ func (s *GPURenderSession) LastSubmitPathStats() SubmitPathStats {
 	return s.lastSubmitStats
 }
 
+// EnqueueLeadingSubmit holds a finished command buffer to be submitted together
+// with the next surface/blit Submit (R7.3 dual-tex multi + composite).
+// cleanup runs after a successful or failed submit attempt (bind-group free).
+func (s *GPURenderSession) EnqueueLeadingSubmit(cmd *webgpu.CommandBuffer, cleanup func()) {
+	if s == nil || cmd == nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		return
+	}
+	s.leadSubmitCBs = append(s.leadSubmitCBs, cmd)
+	if cleanup != nil {
+		s.leadSubmitClean = append(s.leadSubmitClean, cleanup)
+	}
+}
+
+// submitWithLeading submits optional leading CBs then cmd in one Queue.Submit.
+// Leading CBs are Released after submit; cmd is retained in prevCmdBufs on success
+// (same as encodeSubmitSurface). On failure cmd is FreeCommandBuffer'd.
+func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
+	if s == nil || s.queue == nil {
+		return fmt.Errorf("submitWithLeading: nil session/queue")
+	}
+	leads := s.leadSubmitCBs
+	s.leadSubmitCBs = nil
+	cleans := s.leadSubmitClean
+	s.leadSubmitClean = nil
+	runClean := func() {
+		for _, c := range cleans {
+			if c != nil {
+				c()
+			}
+		}
+	}
+	var all []*webgpu.CommandBuffer
+	if len(leads) == 0 {
+		if cmd == nil {
+			runClean()
+			return nil
+		}
+		all = []*webgpu.CommandBuffer{cmd}
+	} else {
+		all = make([]*webgpu.CommandBuffer, 0, len(leads)+1)
+		all = append(all, leads...)
+		if cmd != nil {
+			all = append(all, cmd)
+		}
+	}
+	s.lastSubmitStats.Submits++
+	s.lastSubmitStats.CoalescedCBs = len(all)
+	_, err := s.queue.Submit(all...)
+	// Free leading CBs immediately (not tracked in prevCmdBufs).
+	for _, c := range leads {
+		if c != nil {
+			c.Release()
+		}
+	}
+	runClean()
+	if err != nil {
+		if cmd != nil {
+			s.device.FreeCommandBuffer(cmd)
+		}
+		return err
+	}
+	if cmd != nil {
+		s.prevCmdBufs = append(s.prevCmdBufs, cmd)
+	}
+	return nil
+}
+
+// FlushLeadingSubmitsOnly submits any deferred leading CBs without a trailer.
+func (s *GPURenderSession) FlushLeadingSubmitsOnly() error {
+	if s == nil || len(s.leadSubmitCBs) == 0 {
+		return nil
+	}
+	return s.submitWithLeading(nil)
+}
+
 // LastBatchDrawStats returns S6.3 post-coalesce draw/quad counters from the last frame.
 func (s *GPURenderSession) LastBatchDrawStats() BatchDrawStats {
 	return s.lastBatchStats
@@ -3062,7 +3146,9 @@ func (s *GPURenderSession) buildGlyphMaskDrawCalls(batches []GlyphMaskBatch, vie
 		// Write uniform data for this batch.
 		var uniformData []byte
 		if batch.IsLCD {
-			uniformData = makeGlyphMaskLCDUniform(finalTransform, batch.Color, batch.AtlasWidth, batch.AtlasHeight)
+			// R7.1: share session scratch (LCD 96B ≥ grayscale 80B).
+			uniformData = makeGlyphMaskLCDUniformInto(s.glyphMaskUniformScratch, finalTransform, batch.Color, batch.AtlasWidth, batch.AtlasHeight)
+			s.glyphMaskUniformScratch = uniformData
 		} else {
 			uniformData = makeGlyphMaskUniformInto(s.glyphMaskUniformScratch, finalTransform, batch.Color)
 			s.glyphMaskUniformScratch = uniformData
@@ -3547,16 +3633,10 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// manifests as trail artifacts from incomplete MSAA resolve).
 	// All command buffers are freed at the start of the NEXT frame
 	// (BeginFrame) when VSync guarantees the GPU is done.
-	s.lastSubmitStats.Submits++
-	if _, err := s.queue.Submit(cmdBuf); err != nil {
-		// BUG-GG-ENCODER-LIFECYCLE-001: free the command buffer that was not
-		// submitted. Without this, the Vulkan command pool entry leaks.
-		s.device.FreeCommandBuffer(cmdBuf)
+	// R7.3: coalesce deferred dual-tex multi CB when present.
+	if err := s.submitWithLeading(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
-
-	// Keep reference so next frame can free it after GPU is done.
-	s.prevCmdBufs = append(s.prevCmdBufs, cmdBuf)
 
 	// Mark that at least one render pass has been submitted this frame.
 	// Subsequent mid-frame flushes will use LoadOpLoad to preserve content.
@@ -3647,6 +3727,27 @@ func (s *GPURenderSession) applyGroupScissorWithDamage(rp *webgpu.RenderPassEnco
 	}
 	rp.SetScissorRect(x, y, dw, dh)
 	return true
+}
+
+// applyGroupScissorWithDamageRects is the multi-rect form of
+// applyGroupScissorWithDamage. Instead of using a global damage union (which
+// over-widens scissor when distant rects exist), it unions only those damage
+// rects that overlap this group (R7.4).
+//
+// Semantics:
+//   - no damage rects → full group scissor (same as empty single damage)
+//   - damage present but none overlaps group → skip draw (return false)
+//   - otherwise → scissor = group ∩ relevant damage union
+func (s *GPURenderSession) applyGroupScissorWithDamageRects(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32, damageRects []image.Rectangle) bool {
+	if len(damageRects) == 0 {
+		s.applyGroupScissor(rp, rect, w, h)
+		return true
+	}
+	relevant := damageRectsRelevantToGroup(rect, w, h, damageRects)
+	if relevant.Empty() {
+		return false
+	}
+	return s.applyGroupScissorWithDamage(rp, rect, w, h, relevant)
 }
 
 // sliceConvexResources creates a convexFrameResources referencing a sub-range
@@ -3913,13 +4014,12 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	}
 
 	// Draw GPU texture overlays (e.g., RepaintBoundary cached textures).
-	// ADR-028: per-overlay scissor from best-matching damage rect.
-	// Each overlay intersects with the tightest enclosing damage rect.
-	damageUnion := damageRectsUnion(damageRects)
+	// R7.4/ADR-028: per-overlay scissor from group-relevant damage only.
+	// Distant multi-rect damage no longer inflates one global AABB.
 	for i := range grpRes {
 		gr := &grpRes[i]
 		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
-			if s.applyGroupScissorWithDamage(rp, gr.scissorRect, w, h, damageUnion) {
+			if s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
 				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes)
 			}
 		}
@@ -3935,12 +4035,11 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	}
 	encoderConsumed = true
 
+	// R7.3: coalesce deferred dual-tex multi CB with blit CB.
 	// Do NOT free previous command buffers mid-frame — see encodeSubmitSurface.
-	if _, submitErr := s.queue.Submit(cmdBuf); submitErr != nil {
-		s.device.FreeCommandBuffer(cmdBuf)
-		return fmt.Errorf("submit blit: %w", submitErr)
+	if err := s.submitWithLeading(cmdBuf); err != nil {
+		return fmt.Errorf("submit blit: %w", err)
 	}
-	s.prevCmdBufs = append(s.prevCmdBufs, cmdBuf)
 	s.frameRendered = true
 	s.lastView = view
 
@@ -4022,10 +4121,9 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	}
 
 	// Render each group with its scissor rect applied.
-	// S4.4: damage scissor intersection on MSAA surface path.
-	damageUnion := damageRectsUnion(damageRects)
+	// S4.4 + R7.4: per-group relevant damage (not global multi-rect AABB).
 	for i := range grpRes {
-		if s.applyGroupScissorWithDamage(rp, grpRes[i].scissorRect, w, h, damageUnion) {
+		if s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects) {
 			s.recordGroupDraws(rp, &grpRes[i])
 		}
 	}
@@ -4041,16 +4139,11 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	}
 	encoderConsumed = true
 
+	// R7.3: coalesce deferred dual-tex multi CB with this blit/surface CB.
 	// Do NOT free previous command buffers mid-frame — see encodeSubmitSurface.
-	if _, err := s.queue.Submit(cmdBuf); err != nil {
-		// BUG-GG-ENCODER-LIFECYCLE-001: free the command buffer that was not
-		// submitted. Without this, the Vulkan command pool entry leaks.
-		s.device.FreeCommandBuffer(cmdBuf)
+	if err := s.submitWithLeading(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
-
-	// Keep reference so next frame can free it after GPU is done.
-	s.prevCmdBufs = append(s.prevCmdBufs, cmdBuf)
 
 	// Mark that at least one render pass has been submitted this frame.
 	s.frameRendered = true
@@ -4107,9 +4200,9 @@ func (s *GPURenderSession) encodeToEncoder(
 		s.imagePipeline.RecordDraws(rp, baseLayerRes, s.noClipBindGroup)
 	}
 
-	damageUnion := damageRectsUnion(damageRects)
+	// R7.4: per-group relevant damage scissor (not global multi-rect AABB).
 	for i := range grpRes {
-		if s.applyGroupScissorWithDamage(rp, grpRes[i].scissorRect, w, h, damageUnion) {
+		if s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects) {
 			s.recordGroupDraws(rp, &grpRes[i])
 		}
 	}
@@ -4169,12 +4262,11 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 		s.imagePipeline.RecordBlitDraws(rp, baseLayerRes)
 	}
 
-	// Overlay scissor intersected with damage union (same as encodeBlitOnlyPass).
-	damageUnion := damageRectsUnion(damageRects)
+	// R7.4: overlay scissor uses group-relevant damage (same as encodeBlitOnlyPass).
 	for i := range grpRes {
 		gr := &grpRes[i]
 		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
-			if s.applyGroupScissorWithDamage(rp, gr.scissorRect, w, h, damageUnion) {
+			if s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
 				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes)
 			}
 		}

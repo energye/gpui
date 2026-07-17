@@ -17,12 +17,64 @@ type CommandEncoder struct {
 }
 
 // BeginRenderPass begins a render pass.
+// R7.0: convert attachments on the caller's stack so the common 1-color-target
+// path does not allocate. Descriptors are only live for the duration of the
+// rwgpu BeginRenderPass call (native copies immediately).
 func (e *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPassEncoder, error) {
 	if e.released {
 		return nil, ErrReleased
 	}
-	rDesc := convertRenderPassDescriptorRust(desc)
-	rp, err := e.r.BeginRenderPass(rDesc)
+	var rDesc rwgpu.RenderPassDescriptor
+	var stackCA [4]rwgpu.RenderPassColorAttachment
+	var depthStack rwgpu.RenderPassDepthStencilAttachment
+	if desc != nil {
+		rDesc.Label = desc.Label
+		n := len(desc.ColorAttachments)
+		var cas []rwgpu.RenderPassColorAttachment
+		if n <= len(stackCA) {
+			cas = stackCA[:n]
+		} else {
+			cas = make([]rwgpu.RenderPassColorAttachment, n)
+		}
+		for i, ca := range desc.ColorAttachments {
+			att := rwgpu.RenderPassColorAttachment{
+				LoadOp:  ca.LoadOp,
+				StoreOp: ca.StoreOp,
+				ClearValue: rwgpu.Color{
+					R: ca.ClearValue.R,
+					G: ca.ClearValue.G,
+					B: ca.ClearValue.B,
+					A: ca.ClearValue.A,
+				},
+			}
+			if ca.View != nil {
+				att.View = ca.View.r
+			}
+			if ca.ResolveTarget != nil {
+				att.ResolveTarget = ca.ResolveTarget.r
+			}
+			cas[i] = att
+		}
+		rDesc.ColorAttachments = cas
+		if desc.DepthStencilAttachment != nil {
+			dsa := desc.DepthStencilAttachment
+			depthStack = rwgpu.RenderPassDepthStencilAttachment{
+				DepthLoadOp:       dsa.DepthLoadOp,
+				DepthStoreOp:      dsa.DepthStoreOp,
+				DepthClearValue:   dsa.DepthClearValue,
+				DepthReadOnly:     dsa.DepthReadOnly,
+				StencilLoadOp:     dsa.StencilLoadOp,
+				StencilStoreOp:    dsa.StencilStoreOp,
+				StencilClearValue: dsa.StencilClearValue,
+				StencilReadOnly:   dsa.StencilReadOnly,
+			}
+			if dsa.View != nil {
+				depthStack.View = dsa.View.r
+			}
+			rDesc.DepthStencilAttachment = &depthStack
+		}
+	}
+	rp, err := e.r.BeginRenderPass(&rDesc)
 	if err != nil {
 		return nil, fmt.Errorf("wgpu: failed to begin render pass: %w", err)
 	}

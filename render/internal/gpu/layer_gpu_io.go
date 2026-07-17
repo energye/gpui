@@ -92,7 +92,9 @@ func (rc *GPURenderContext) UploadRGBAToView(view gpucontext.TextureView, data [
 		return fmt.Errorf("UploadRGBAToView: nil texture")
 	}
 	// Pixmap is RGBA, offscreen texture is BGRA8Unorm — swizzle R↔B.
-	bgra := make([]byte, need)
+	// R7.1: stage via imageStagingPool (WriteTexture copies before return).
+	bgraScratch := acquireImageStaging(need)
+	bgra := *bgraScratch
 	for i := 0; i < need; i += 4 {
 		bgra[i+0] = data[i+2]
 		bgra[i+1] = data[i+1]
@@ -103,19 +105,25 @@ func (rc *GPURenderContext) UploadRGBAToView(view gpucontext.TextureView, data [
 	tight := uw * 4
 	aligned := alignTextureBytesPerRow(tight)
 	upload := bgra
+	var padScratch *[]byte
 	if aligned != tight && h > 1 {
-		padded := make([]byte, int(aligned)*h)
+		padNeed := int(aligned) * h
+		padScratch = acquireImageStaging(padNeed)
+		padded := *padScratch
 		for y := 0; y < h; y++ {
 			copy(padded[y*int(aligned):y*int(aligned)+w*4], bgra[y*w*4:(y+1)*w*4])
 		}
 		upload = padded
 	}
-	return queue.WriteTexture(
+	err := queue.WriteTexture(
 		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		upload,
 		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uh},
 		&webgpu.Extent3D{Width: uw, Height: uh, DepthOrArrayLayers: 1},
 	)
+	releaseImageStaging(padScratch)
+	releaseImageStaging(bgraScratch)
+	return err
 }
 
 // CompositeMaskedLayer materializes a GPU layer RT, modulates by R8 mask on GPU,
