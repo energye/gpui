@@ -1,6 +1,6 @@
 /**
  * Render one scene JSON with CanvasKit and write PNG.
- * Shared op set with stdgate/scene (Go).
+ * Shared op set with standardtest/scene (Go).
  * Pixel standards for D cases are produced only by this oracle.
  */
 import fs from 'fs';
@@ -116,9 +116,36 @@ export async function renderSceneToPNG(scenePath, outPath, { fontRoot = repoRoot
   let maskImage = null;
   let maskLayerOpen = false;
 
+  // Unified canvas save stack: 'clip' | 'push' | 'layer' | 'mask'
+  // Skia cannot hard-reset clips; we emulate gpui's independent clip stack with save/restore.
+  // reset_clip pops trailing clip saves only (keeps push/layer). Scenes that fully clear clips
+  // either reset at top-level or do reset after each layer_end (see D176).
+  const saveStack = [];
+  const canvasSave = (kind) => {
+    if (kind === 'layer' || kind === 'mask') {
+      // caller performs saveLayer
+      saveStack.push(kind);
+      return;
+    }
+    canvas.save();
+    saveStack.push(kind);
+  };
+  const pushClip = (apply) => {
+    canvasSave('clip');
+    apply();
+  };
+  const resetClipStack = () => {
+    // Pop only trailing clip frames (gpui ResetClip clears clips; keep CTM/layer frames).
+    while (saveStack.length && saveStack[saveStack.length - 1] === 'clip') {
+      saveStack.pop();
+      canvas.restore();
+    }
+  };
+
   const openMaskLayer = () => {
     if (maskLayerOpen) return;
     canvas.saveLayer();
+    saveStack.push('mask');
     maskLayerOpen = true;
   };
   const closeMaskLayer = () => {
@@ -127,10 +154,29 @@ export async function renderSceneToPNG(scenePath, outPath, { fontRoot = repoRoot
       const mp = new CK.Paint();
       mp.setBlendMode(CK.BlendMode.DstIn);
       mp.setAntiAlias(true);
+      // Mask is device/logical canvas space (same as gpui Mask), NOT under CTM.
+      // Invert total matrix so drawImage maps mask pixels 1:1 to surface pixels
+      // (re-apply scene scale if HiDPI).
+      canvas.save();
+      const total = canvas.getTotalMatrix();
+      const inv = CK.Matrix.invert(total);
+      if (inv) canvas.concat(inv);
+      if (scale !== 1) canvas.scale(scale, scale);
       canvas.drawImage(maskImage, 0, 0, mp);
+      canvas.restore();
       mp.delete();
     }
-    canvas.restore();
+    // unwind clips above mask then mask itself
+    while (saveStack.length && saveStack[saveStack.length - 1] === 'clip') {
+      saveStack.pop();
+      canvas.restore();
+    }
+    if (saveStack.length && saveStack[saveStack.length - 1] === 'mask') {
+      saveStack.pop();
+      canvas.restore();
+    } else {
+      canvas.restore();
+    }
     maskLayerOpen = false;
   };
 
@@ -240,24 +286,30 @@ export async function renderSceneToPNG(scenePath, outPath, { fontRoot = repoRoot
       }
       case 'clip_rect': {
         const [x, y, rw, rh] = op.rect;
-        canvas.clipRect([x, y, x + rw, y + rh], CK.ClipOp.Intersect, true);
+        pushClip(() => {
+          canvas.clipRect([x, y, x + rw, y + rh], CK.ClipOp.Intersect, true);
+        });
         break;
       }
       case 'clip_rrect': {
         const [x, y, rw, rh] = op.rect;
-        const rr = CK.RRectXY([x, y, x + rw, y + rh], op.radius || 0, op.radius || 0);
-        canvas.clipRRect(rr, CK.ClipOp.Intersect, true);
+        pushClip(() => {
+          const rr = CK.RRectXY([x, y, x + rw, y + rh], op.radius || 0, op.radius || 0);
+          canvas.clipRRect(rr, CK.ClipOp.Intersect, true);
+        });
         break;
       }
       case 'clip_path': {
-        const p = makePath(CK, op);
-        canvas.clipPath(p, CK.ClipOp.Intersect, true);
-        p.delete();
+        pushClip(() => {
+          const p = makePath(CK, op);
+          canvas.clipPath(p, CK.ClipOp.Intersect, true);
+          p.delete();
+        });
         break;
       }
       case 'reset_clip': {
-        // Approximate full reset: intersect with full logical canvas (CanvasKit has no clip reset).
-        canvas.clipRect([0, 0, lw, lh], CK.ClipOp.Intersect, false);
+        // Real clip reset: restore all clip-induced canvas.save() levels.
+        resetClipStack();
         break;
       }
       case 'layer_begin': {
@@ -268,10 +320,21 @@ export async function renderSceneToPNG(scenePath, outPath, { fontRoot = repoRoot
         paintLayer.setAntiAlias(true);
         canvas.saveLayer(paintLayer);
         paintLayer.delete();
+        saveStack.push('layer');
         break;
       }
       case 'layer_end': {
-        canvas.restore();
+        // Drop clips opened inside this layer, then the layer itself.
+        while (saveStack.length && saveStack[saveStack.length - 1] === 'clip') {
+          saveStack.pop();
+          canvas.restore();
+        }
+        if (saveStack.length && saveStack[saveStack.length - 1] === 'layer') {
+          saveStack.pop();
+          canvas.restore();
+        } else {
+          canvas.restore();
+        }
         break;
       }
       case 'set_blend': {
@@ -306,10 +369,22 @@ export async function renderSceneToPNG(scenePath, outPath, { fontRoot = repoRoot
       }
       case 'push':
         canvas.save();
+        saveStack.push('push');
         break;
-      case 'pop':
-        canvas.restore();
+      case 'pop': {
+        // Restore clips opened after this push, then the push frame (matrix+clip).
+        while (saveStack.length && saveStack[saveStack.length - 1] === 'clip') {
+          saveStack.pop();
+          canvas.restore();
+        }
+        if (saveStack.length && saveStack[saveStack.length - 1] === 'push') {
+          saveStack.pop();
+          canvas.restore();
+        } else {
+          canvas.restore();
+        }
         break;
+      }
       case 'translate':
         canvas.translate(op.x || 0, op.y || 0);
         break;

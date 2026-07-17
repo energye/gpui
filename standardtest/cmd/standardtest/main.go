@@ -1,9 +1,9 @@
 // Command standardtest generates CanvasKit standards, gpui test images,
-// and side-by-side merge comparisons under standardtest/diff/.
+// side-by-side merge comparisons, and pixel compare reports under standardtest/diff/.
 //
 //	go run ./standardtest/cmd/standardtest all
 //	go run ./standardtest/cmd/standardtest all -id D01_ClipLayerText
-//	go run ./standardtest/cmd/standardtest standard|test|merge
+//	go run ./standardtest/cmd/standardtest standard|test|merge|compare
 package main
 
 import (
@@ -44,6 +44,8 @@ func main() {
 		err = standardtest.GenTest(p, *id)
 	case "merge":
 		err = standardtest.GenMerge(p, *id)
+	case "compare":
+		err = standardtest.GenCompare(p, *id)
 	case "help", "-h", "--help":
 		usage()
 		return
@@ -58,18 +60,22 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `standardtest — 标准图 / 测试图 / 合并对比
+	fmt.Fprintf(os.Stderr, `standardtest — 标准图 / 测试图 / 合并对比 / 像素比较
 
 流程:
   1) CanvasKit → standardtest/diff/standard/
   2) gpui      → standardtest/diff/test/
-  3) 合并      → standardtest/diff/merge/  (左标准 右待测 底栏预期说明)
+  3) 合并      → standardtest/diff/merge/   (左标准 右待测 底栏说明)
+  4) 比较      → standardtest/diff/report.json
+                 + standardtest/diff/pixel/*_diff.png (失败红图)
+                 + standardtest/diff/report.txt
 
 用法:
   go run ./standardtest/cmd/standardtest all [-id D01_ClipLayerText]
   go run ./standardtest/cmd/standardtest standard [-id ...]
   go run ./standardtest/cmd/standardtest test [-id ...]
   go run ./standardtest/cmd/standardtest merge [-id ...]
+  go run ./standardtest/cmd/standardtest compare [-id ...]
 
 环境 (gpui 出图):
   export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so

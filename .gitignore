@@ -6,5 +6,8 @@ node_modules
 standardtest/diff/standard/*
 standardtest/diff/test/*
 standardtest/diff/merge/*
+standardtest/diff/pixel/*
+standardtest/diff/report.json
+standardtest/diff/report.txt
 !standardtest/diff/**/.gitkeep
 standardtest/canvaskit/node_modules/
