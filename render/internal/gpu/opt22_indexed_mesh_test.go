@@ -40,13 +40,13 @@ func TestOpt22_IndexedMesh_FewerUploadBytes(t *testing.T) {
 		t.Fatalf("cmds=%d", len(rc.pendingConvexCommands))
 	}
 	cmd := rc.pendingConvexCommands[0]
-	if len(cmd.PackedVerts) != 5*convexVertexStride {
-		t.Fatalf("packed verts bytes=%d want %d", len(cmd.PackedVerts), 5*convexVertexStride)
+	if len(cmd.PackedVerts) != 5*convexMeshVertexStride {
+		t.Fatalf("packed verts bytes=%d want %d", len(cmd.PackedVerts), 5*convexMeshVertexStride)
 	}
 	if len(cmd.Indices) != 12 {
 		t.Fatalf("indices=%d want 12", len(cmd.Indices))
 	}
-	expandedBytes := 12 * convexVertexStride
+	expandedBytes := 12 * convexMeshVertexStride
 	if len(cmd.PackedVerts) >= expandedBytes {
 		t.Fatalf("indexed pack not smaller than expanded: %d >= %d", len(cmd.PackedVerts), expandedBytes)
 	}

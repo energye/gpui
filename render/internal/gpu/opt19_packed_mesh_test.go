@@ -27,9 +27,9 @@ func TestOpt19_PackedVerts_MatchesTriangleListPack(t *testing.T) {
 		TriangleList: true,
 	}}
 	// Build packed blob the same way writeConvexVertex would.
-	packed := make([]byte, len(pts)*convexVertexStride)
+	packed := make([]byte, len(pts)*convexMeshVertexStride)
 	for i := range pts {
-		writeConvexVertex(packed[i*convexVertexStride:], float32(pts[i].X), float32(pts[i].Y), 1.0, cols[i])
+		writeConvexMeshVertex(packed[i*convexMeshVertexStride:], float32(pts[i].X), float32(pts[i].Y), cols[i])
 	}
 	pre := []ConvexDrawCommand{{
 		SkipAA:       true,

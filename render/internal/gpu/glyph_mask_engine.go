@@ -504,6 +504,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 			X1: qx1, Y1: qy1,
 			U0: region.U0, V0: region.V0,
 			U1: region.U1, V1: region.V1,
+			Page: region.AtlasIndex,
 		})
 	}
 	e.quadScratch = quads
@@ -520,6 +521,16 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	atlasConfig := e.atlas.Config()
 	atlasSize := float32(atlasConfig.Size)
 
+	// Primary page for single-page batches; multi-page batches must be expanded
+	// via SplitGlyphMaskBatchByPage before Queue (DrawGlyphMaskText does this).
+	page := quads[0].Page
+	for i := 1; i < len(quads); i++ {
+		if quads[i].Page != page {
+			// Mixed pages — leave AtlasPageIndex as first page; callers split.
+			break
+		}
+	}
+
 	return GlyphMaskBatch{
 		Quads:          quads,
 		Transform:      matrix,
@@ -527,7 +538,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		IsLCD:          batchIsLCD,
 		AtlasWidth:     atlasSize,
 		AtlasHeight:    atlasSize,
-		AtlasPageIndex: 0, // Currently single page support (first page).
+		AtlasPageIndex: page,
 	}
 }
 
@@ -1056,10 +1067,19 @@ func (e *GlyphMaskEngine) layoutTemplateGet(
 	e.layoutCacheTick++
 	ent.atime = e.layoutCacheTick
 	e.layoutCacheHits++
-	// Keep the atlas page warm so compact() does not zero masks that this
-	// template still references (templates do not call atlas.Get).
+	// Keep every atlas page warm so compact() does not zero masks that this
+	// template still references (templates do not call atlas.Get per glyph).
 	if e.atlas != nil {
 		e.atlas.TouchPage(ent.page)
+		seen := map[int]struct{}{ent.page: {}}
+		for i := range ent.quads {
+			p := ent.quads[i].Page
+			if _, ok := seen[p]; ok {
+				continue
+			}
+			seen[p] = struct{}{}
+			e.atlas.TouchPage(p)
+		}
 	}
 
 	// Caller-owned copy: tests and multi-batch HUD may hold two LayoutText

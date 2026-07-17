@@ -11,7 +11,7 @@ import (
 
 func TestOpt25_PackedMeshVertsContiguous_MultiCmd(t *testing.T) {
 	// Simulate Queue grow-only packing into one backing array.
-	backing := make([]byte, 0, 12*convexVertexStride)
+	backing := make([]byte, 0, 12*convexMeshVertexStride)
 	mk := func(n int, x0 float32) (pk []byte, positions []render.Point, colors []render.RGBA) {
 		positions = make([]render.Point, n)
 		colors = make([]render.RGBA, n)
@@ -20,7 +20,7 @@ func TestOpt25_PackedMeshVertsContiguous_MultiCmd(t *testing.T) {
 			colors[i] = render.RGBA{R: 1, A: 1}
 		}
 		base := len(backing)
-		need := n * convexVertexStride
+		need := n * convexMeshVertexStride
 		backing = backing[:base+need]
 		pk = backing[base : base+need : base+need]
 		_ = packMeshVertsCoverage1(pk, positions, colors, true)
@@ -38,7 +38,7 @@ func TestOpt25_PackedMeshVertsContiguous_MultiCmd(t *testing.T) {
 	if !ok {
 		t.Fatal("expected contiguous multi-cmd packed verts")
 	}
-	want := 12 * convexVertexStride
+	want := 12 * convexMeshVertexStride
 	if len(data) != want {
 		t.Fatalf("len=%d want %d", len(data), want)
 	}
@@ -47,7 +47,7 @@ func TestOpt25_PackedMeshVertsContiguous_MultiCmd(t *testing.T) {
 		t.Fatal("expected zero-copy view into backing")
 	}
 	// Non-contiguous: separate allocs.
-	sep := make([]byte, 3*convexVertexStride)
+	sep := make([]byte, 3*convexMeshVertexStride)
 	copy(sep, pk0)
 	cmds2 := []ConvexDrawCommand{
 		{TriangleList: true, SkipAA: true, PackedVerts: sep},
@@ -70,7 +70,7 @@ func TestOpt25_PackedMeshIndicesContiguous_MultiCmd(t *testing.T) {
 		return s
 	}
 	// Dummy packed verts so convexCmdIndexCount accepts cmds.
-	pv := make([]byte, 3*convexVertexStride)
+	pv := make([]byte, 3*convexMeshVertexStride)
 	i0 := mkIdx(6, 0)
 	i1 := mkIdx(12, 0)
 	cmds := []ConvexDrawCommand{
@@ -116,7 +116,7 @@ func TestOpt25_BuildConvexResources_MultiCmdZeroCopy(t *testing.T) {
 	// Two indexed meshes packed contiguously like QueueColoredMeshIndexed.
 	// Pre-size capacity so grow does not reallocate (real Queue path is
 	// contiguous only when convexMeshPacked already has capacity — warm frames).
-	packed := make([]byte, 0, 64*convexVertexStride)
+	packed := make([]byte, 0, 64*convexMeshVertexStride)
 	indices := make([]uint16, 0, 64)
 	mk := func(nV int, nI int) ConvexDrawCommand {
 		positions := make([]render.Point, nV)
@@ -126,7 +126,7 @@ func TestOpt25_BuildConvexResources_MultiCmdZeroCopy(t *testing.T) {
 			colors[i] = render.RGBA{R: 0.5, G: 0.5, B: 1, A: 1}
 		}
 		pb := len(packed)
-		need := nV * convexVertexStride
+		need := nV * convexMeshVertexStride
 		if cap(packed) < pb+need {
 			np := make([]byte, pb, (pb+need)*2)
 			copy(np, packed)

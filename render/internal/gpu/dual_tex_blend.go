@@ -229,9 +229,16 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 
 // R7.3: static encoder descriptors (no per-call heap for Label string header).
 var (
-	dualTexMultiEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "dual_tex_multi_enc"}
-	dualTexViewsEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "dual_tex_views_bgra_enc"}
+	dualTexMultiEncoderDesc     = &webgpu.CommandEncoderDescriptor{Label: "dual_tex_multi_enc"}
+	dualTexCompositeEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "dual_tex_composite_enc"}
+	dualTexViewsEncoderDesc     = &webgpu.CommandEncoderDescriptor{Label: "dual_tex_views_bgra_enc"}
 )
+
+// opt37: multi-op dual-tex uniforms share one slab. Payload is 48B; stride must
+// be a multiple of minUniformBufferOffsetAlignment (default 256).
+const dualTexUniformSlotStride = 256
+const dualTexUniformPayloadSize = 48
+const dualTexUniformSlabMinSlots = 8
 
 // dualTexBlendCache holds reusable GPU objects for dual-texture advanced blend.
 type dualTexBlendCache struct {
@@ -244,8 +251,12 @@ type dualTexBlendCache struct {
 	pipelineBGRA *webgpu.RenderPipeline // BGRA8 target (layers/swapchain)
 	sampler      *webgpu.Sampler
 	uniform      *webgpu.Buffer
-	// Multi-layer single-submit uniform ring (WriteBuffer before Submit).
-	uniformRing []*webgpu.Buffer
+	// opt37: multi-op uniform slab (stride dualTexUniformSlotStride); one WriteBuffer.
+	uniformSlab    *webgpu.Buffer
+	uniformSlabCap uint64
+	// Diagnostics for unit tests (last multi IntoEncoder run).
+	lastMultiUniformSlots int
+	lastMultiUniformWB    int
 	// F1: pool bounds-sized BGRA temps (out / dest snaps).
 	outPool map[[2]int][]dualTexPooledTex
 	// cool holds temps for 2 frames before reusing (async GPU safety).
@@ -268,6 +279,7 @@ type dualTexBlendCache struct {
 
 type dualTexBGKey struct {
 	dst, src, ubuf uintptr
+	offset         uint64
 }
 
 type dualTexMultiBGSlot struct {
@@ -325,12 +337,13 @@ func (c *dualTexBlendCache) release() {
 		c.uniform.Release()
 		c.uniform = nil
 	}
-	for _, u := range c.uniformRing {
-		if u != nil {
-			u.Release()
-		}
+	if c.uniformSlab != nil {
+		c.uniformSlab.Release()
+		c.uniformSlab = nil
+		c.uniformSlabCap = 0
 	}
-	c.uniformRing = nil
+	c.lastMultiUniformSlots = 0
+	c.lastMultiUniformWB = 0
 	for _, bucket := range c.outPool {
 		for _, it := range bucket {
 			if it.view != nil {
@@ -978,27 +991,35 @@ func dualTexWriteParams(queue *webgpu.Queue, uniform *webgpu.Buffer, modeU uint3
 	if queue == nil || uniform == nil {
 		return fmt.Errorf("dual-tex params: nil queue/uniform")
 	}
+	p := dualTexParamsPool.Get().(*[]byte)
+	data := (*p)[:dualTexUniformPayloadSize]
+	packDualTexParams(data, modeU, u0, v0, u1, v1, opacity, dstTight)
+	err := queue.WriteBuffer(uniform, 0, data)
+	dualTexParamsPool.Put(p)
+	return err
+}
+
+// packDualTexParams writes the 48-byte dual-tex Params payload into dst (opt37).
+func packDualTexParams(dst []byte, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) {
+	if len(dst) < dualTexUniformPayloadSize {
+		return
+	}
 	if opacity < 0 {
 		opacity = 0
 	}
 	if opacity > 1 {
 		opacity = 1
 	}
-	p := dualTexParamsPool.Get().(*[]byte)
-	data := (*p)[:48]
-	clear(data)
-	binary.LittleEndian.PutUint32(data[0:4], modeU)
+	clear(dst[:dualTexUniformPayloadSize])
+	binary.LittleEndian.PutUint32(dst[0:4], modeU)
 	if dstTight {
-		binary.LittleEndian.PutUint32(data[4:8], 1)
+		binary.LittleEndian.PutUint32(dst[4:8], 1)
 	}
-	binary.LittleEndian.PutUint32(data[8:12], math.Float32bits(u0))
-	binary.LittleEndian.PutUint32(data[12:16], math.Float32bits(v0))
-	binary.LittleEndian.PutUint32(data[16:20], math.Float32bits(u1))
-	binary.LittleEndian.PutUint32(data[20:24], math.Float32bits(v1))
-	binary.LittleEndian.PutUint32(data[24:28], math.Float32bits(opacity))
-	err := queue.WriteBuffer(uniform, 0, data)
-	dualTexParamsPool.Put(p)
-	return err
+	binary.LittleEndian.PutUint32(dst[8:12], math.Float32bits(u0))
+	binary.LittleEndian.PutUint32(dst[12:16], math.Float32bits(v0))
+	binary.LittleEndian.PutUint32(dst[16:20], math.Float32bits(u1))
+	binary.LittleEndian.PutUint32(dst[20:24], math.Float32bits(v1))
+	binary.LittleEndian.PutUint32(dst[24:28], math.Float32bits(opacity))
 }
 
 func dualTexAdvancedBlendNoReadback(
@@ -1606,24 +1627,53 @@ type dualTexViewBlendOut struct {
 	opacity float32
 }
 
-func (c *dualTexBlendCache) acquireUniformRing(device *webgpu.Device, n int) error {
+// ensureUniformSlab grows/creates the opt37 multi-op uniform slab for n slots.
+// Recreating the slab clears multiBG (entries pin the old buffer+offset).
+func (c *dualTexBlendCache) ensureUniformSlab(device *webgpu.Device, n int) (*webgpu.Buffer, error) {
 	if c == nil || device == nil || n <= 0 {
-		return fmt.Errorf("dual-tex uniform ring: bad args")
+		return nil, fmt.Errorf("dual-tex uniform slab: bad args")
 	}
+	need := uint64(n) * dualTexUniformSlotStride
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for len(c.uniformRing) < n {
-		b, err := device.CreateBuffer(&webgpu.BufferDescriptor{
-			Label: fmt.Sprintf("dual_tex_uniform_ring_%d", len(c.uniformRing)),
-			Size:  48,
-			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
-		})
-		if err != nil {
-			return err
-		}
-		c.uniformRing = append(c.uniformRing, b)
+	if c.uniformSlab != nil && c.device == device && c.uniformSlabCap >= need {
+		return c.uniformSlab, nil
 	}
-	return nil
+	alloc := need
+	minBytes := uint64(dualTexUniformSlabMinSlots) * dualTexUniformSlotStride
+	if alloc < minBytes {
+		alloc = minBytes
+	}
+	if c.uniformSlabCap > 0 && alloc < c.uniformSlabCap*2 {
+		alloc = c.uniformSlabCap * 2
+	}
+	b, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "dual_tex_uniform_slab", Size: alloc,
+		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if c.uniformSlab != nil {
+		c.uniformSlab.Release()
+	}
+	c.uniformSlab = b
+	c.uniformSlabCap = alloc
+	// Invalidate slot BGs that referenced the previous slab.
+	for i := range c.multiBG {
+		if c.multiBG[i].bg != nil {
+			c.multiBG[i].bg.Release()
+			c.multiBG[i].bg = nil
+			c.multiBG[i].key = dualTexBGKey{}
+		}
+	}
+	return b, nil
+}
+
+// acquireUniformRing is kept as a thin alias for older tests (opt26); ensures slab.
+func (c *dualTexBlendCache) acquireUniformRing(device *webgpu.Device, n int) error {
+	_, err := c.ensureUniformSlab(device, n)
+	return err
 }
 
 // dualTexMultiBundle is a finished dual-tex multi pass ready for submit (R7.3).
@@ -1663,15 +1713,17 @@ func (c *dualTexBlendCache) multiBindGroup(
 	sampler *webgpu.Sampler,
 	dst, src *webgpu.TextureView,
 	ubuf *webgpu.Buffer,
+	offset uint64,
 	slot int,
 ) (*webgpu.BindGroup, error) {
 	if device == nil || bgl == nil || sampler == nil || dst == nil || src == nil || ubuf == nil {
 		return nil, fmt.Errorf("dual-tex multi bg: nil arg")
 	}
 	key := dualTexBGKey{
-		dst:  uintptr(unsafe.Pointer(dst)),
-		src:  uintptr(unsafe.Pointer(src)),
-		ubuf: uintptr(unsafe.Pointer(ubuf)),
+		dst:    uintptr(unsafe.Pointer(dst)),
+		src:    uintptr(unsafe.Pointer(src)),
+		ubuf:   uintptr(unsafe.Pointer(ubuf)),
+		offset: offset,
 	}
 	c.mu.Lock()
 	if slot >= 0 && slot < len(c.multiBG) && c.multiBG[slot].bg != nil && c.multiBG[slot].key == key {
@@ -1688,7 +1740,7 @@ func (c *dualTexBlendCache) multiBindGroup(
 			{Binding: 0, TextureView: dst},
 			{Binding: 1, TextureView: src},
 			{Binding: 2, Sampler: sampler},
-			{Binding: 3, Buffer: ubuf, Offset: 0, Size: 48},
+			{Binding: 3, Buffer: ubuf, Offset: offset, Size: dualTexUniformPayloadSize},
 		},
 	})
 	if err != nil {
@@ -1715,59 +1767,54 @@ func (c *dualTexBlendCache) multiBindGroup(
 	return bg, nil
 }
 
-// dualTexAdvancedBlendViewsMultiBundle encodes multi dual-tex advanced blends.
-// submitNow=true: Submit immediately (legacy). submitNow=false: return Cmd for
-// coalesced Queue.Submit with a following blit CB (R7.3).
-func dualTexAdvancedBlendViewsMultiBundle(
+// dualTexAdvancedBlendViewsMultiIntoEncoder records multi dual-tex advanced
+// blend passes into enc without Finish/Submit (opt32). Caller owns encoder
+// lifecycle. Out textures must stay alive until Submit samples them.
+func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	device *webgpu.Device,
 	queue *webgpu.Queue,
 	cache *dualTexBlendCache,
 	dstView *webgpu.TextureView,
 	ops []dualTexViewBlendOp,
 	dstW, dstH int,
-	submitNow bool,
-) (dualTexMultiBundle, error) {
-	if device == nil || queue == nil || cache == nil || dstView == nil || len(ops) == 0 {
-		return dualTexMultiBundle{}, fmt.Errorf("dual-tex multi: bad args")
+	enc *webgpu.CommandEncoder,
+) ([]dualTexViewBlendOut, error) {
+	if device == nil || queue == nil || cache == nil || dstView == nil || enc == nil || len(ops) == 0 {
+		return nil, fmt.Errorf("dual-tex multi into: bad args")
 	}
 	if err := cache.ensure(device); err != nil {
-		return dualTexMultiBundle{}, err
+		return nil, err
 	}
 	if cache.pipelineBGRA == nil {
-		return dualTexMultiBundle{}, fmt.Errorf("dual-tex multi: no BGRA pipeline")
+		return nil, fmt.Errorf("dual-tex multi into: no BGRA pipeline")
 	}
-	if err := cache.acquireUniformRing(device, len(ops)); err != nil {
-		return dualTexMultiBundle{}, err
+	slab, err := cache.ensureUniformSlab(device, len(ops))
+	if err != nil {
+		return nil, err
 	}
 
 	cache.mu.Lock()
 	bgl := cache.bgl
 	pipeline := cache.pipelineBGRA
 	sampler := cache.sampler
-	uniforms := append([]*webgpu.Buffer(nil), cache.uniformRing...)
+	needScratch := len(ops) * dualTexUniformSlotStride
+	if cap(cache.paramsScratch) < needScratch {
+		cache.paramsScratch = make([]byte, needScratch)
+	} else {
+		cache.paramsScratch = cache.paramsScratch[:needScratch]
+	}
+	paramsScratch := cache.paramsScratch
 	cache.mu.Unlock()
 
-	enc, err := device.CreateCommandEncoder(dualTexMultiEncoderDesc)
-	if err != nil {
-		return dualTexMultiBundle{}, err
+	type preparedOp struct {
+		op      dualTexViewBlendOp
+		bounds  image.Rectangle
+		outTex  *webgpu.Texture
+		outView *webgpu.TextureView
+		slot    int
+		offset  uint64
 	}
-	outs := make([]dualTexViewBlendOut, 0, len(ops))
-	cleanupOuts := func() {
-		for _, o := range outs {
-			if o.view != nil {
-				o.view.Release()
-			}
-			if o.tex != nil {
-				o.tex.Release()
-			}
-		}
-	}
-	fail := func(err error) (dualTexMultiBundle, error) {
-		enc.DiscardEncoding()
-		cleanupOuts()
-		return dualTexMultiBundle{}, err
-	}
-
+	prepared := make([]preparedOp, 0, len(ops))
 	full := image.Rect(0, 0, dstW, dstH)
 	for i := range ops {
 		op := ops[i]
@@ -1781,61 +1828,132 @@ func dualTexAdvancedBlendViewsMultiBundle(
 		}
 		outTex, outView, oerr := cache.getOutBGRA(device, queue, bw, bh)
 		if oerr != nil {
-			return fail(oerr)
+			for _, p := range prepared {
+				p.outView.Release()
+				p.outTex.Release()
+			}
+			return nil, oerr
 		}
+		slot := len(prepared)
+		offset := uint64(slot * dualTexUniformSlotStride) //nolint:gosec
 		u0 := float32(bounds.Min.X) / float32(dstW)
 		v0 := float32(bounds.Min.Y) / float32(dstH)
 		u1 := float32(bounds.Max.X) / float32(dstW)
 		v1 := float32(bounds.Max.Y) / float32(dstH)
 		modeU := dualTexModeU(op.mode)
-		if err := dualTexWriteParams(queue, uniforms[i], modeU, u0, v0, u1, v1, 1, false); err != nil {
-			outView.Release()
-			outTex.Release()
-			return fail(err)
+		packDualTexParams(paramsScratch[offset:offset+dualTexUniformPayloadSize], modeU, u0, v0, u1, v1, 1, false)
+		prepared = append(prepared, preparedOp{
+			op: op, bounds: bounds, outTex: outTex, outView: outView, slot: slot, offset: offset,
+		})
+	}
+	if len(prepared) == 0 {
+		return nil, fmt.Errorf("dual-tex multi into: no valid ops")
+	}
+	// opt37: one WriteBuffer for all multi-op uniforms.
+	packBytes := len(prepared) * dualTexUniformSlotStride
+	if err := queue.WriteBuffer(slab, 0, paramsScratch[:packBytes]); err != nil {
+		for _, p := range prepared {
+			p.outView.Release()
+			p.outTex.Release()
 		}
-		// opt26: slot-cached BG (dst/src/uniform). Do not Release after Submit —
-		// multiBindGroup owns the handle for reuse on warm frames.
-		bg, berr := cache.multiBindGroup(device, bgl, sampler, dstView, op.srcView, uniforms[i], len(outs))
+		return nil, err
+	}
+	cache.mu.Lock()
+	cache.lastMultiUniformSlots = len(prepared)
+	cache.lastMultiUniformWB = 1
+	cache.mu.Unlock()
+
+	outs := make([]dualTexViewBlendOut, 0, len(prepared))
+	for _, p := range prepared {
+		bg, berr := cache.multiBindGroup(device, bgl, sampler, dstView, p.op.srcView, slab, p.offset, p.slot)
 		if berr != nil {
-			outView.Release()
-			outTex.Release()
-			return fail(berr)
+			p.outView.Release()
+			p.outTex.Release()
+			for _, o := range outs {
+				o.view.Release()
+				o.tex.Release()
+			}
+			return nil, berr
 		}
 		rp, rerr := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
-			Label: fmt.Sprintf("dual_tex_multi_pass_%d", i),
+			Label: fmt.Sprintf("dual_tex_multi_pass_%d", p.slot),
 			ColorAttachments: []webgpu.RenderPassColorAttachment{{
-				View:       outView,
+				View:       p.outView,
 				LoadOp:     types.LoadOpClear,
 				StoreOp:    types.StoreOpStore,
 				ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 			}},
 		})
 		if rerr != nil {
-			outView.Release()
-			outTex.Release()
-			return fail(rerr)
+			p.outView.Release()
+			p.outTex.Release()
+			for _, o := range outs {
+				o.view.Release()
+				o.tex.Release()
+			}
+			return nil, rerr
 		}
 		rp.SetPipeline(pipeline)
 		rp.SetBindGroup(0, bg, nil)
 		rp.Draw(3, 1, 0, 0)
 		rp.End()
-		outs = append(outs, dualTexViewBlendOut{tex: outTex, view: outView, bounds: bounds, opacity: op.opacity})
+		outs = append(outs, dualTexViewBlendOut{
+			tex: p.outTex, view: p.outView, bounds: p.bounds, opacity: p.op.opacity,
+		})
 	}
+	return outs, nil
+}
 
-	if len(outs) == 0 {
+// dualTexAdvancedBlendViewsMultiBundle encodes multi dual-tex advanced blends.
+// submitNow=true: Submit immediately (legacy). submitNow=false: return Cmd for
+// coalesced Queue.Submit with a following blit CB (R7.3).
+// opt32: prefer dualTexAdvancedBlendViewsMultiIntoEncoder when the next blit
+// can share the same CommandEncoder (one Finish for multi+composite).
+func dualTexAdvancedBlendViewsMultiBundle(
+	device *webgpu.Device,
+	queue *webgpu.Queue,
+	cache *dualTexBlendCache,
+	dstView *webgpu.TextureView,
+	ops []dualTexViewBlendOp,
+	dstW, dstH int,
+	submitNow bool,
+) (dualTexMultiBundle, error) {
+	if device == nil || queue == nil || cache == nil || dstView == nil || len(ops) == 0 {
+		return dualTexMultiBundle{}, fmt.Errorf("dual-tex multi: bad args")
+	}
+	enc, err := device.CreateCommandEncoder(dualTexMultiEncoderDesc)
+	if err != nil {
+		return dualTexMultiBundle{}, err
+	}
+	outs, err := dualTexAdvancedBlendViewsMultiIntoEncoder(device, queue, cache, dstView, ops, dstW, dstH, enc)
+	if err != nil {
 		enc.DiscardEncoding()
-		return dualTexMultiBundle{}, fmt.Errorf("dual-tex multi: no valid ops")
+		return dualTexMultiBundle{}, err
 	}
 	cmd, err := enc.Finish()
 	if err != nil {
-		cleanupOuts()
+		for _, o := range outs {
+			if o.view != nil {
+				o.view.Release()
+			}
+			if o.tex != nil {
+				o.tex.Release()
+			}
+		}
 		return dualTexMultiBundle{}, err
 	}
 
 	if submitNow {
 		defer cmd.Release()
 		if _, err := queue.Submit(cmd); err != nil {
-			cleanupOuts()
+			for _, o := range outs {
+				if o.view != nil {
+					o.view.Release()
+				}
+				if o.tex != nil {
+					o.tex.Release()
+				}
+			}
 			return dualTexMultiBundle{}, err
 		}
 		// BGs owned by cache (opt26); outs released by caller via putOutBGRA/cool.

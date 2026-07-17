@@ -1012,4 +1012,795 @@ R7.5 layout templates cache atlas UVs. Template hits **do not** call `atlas.Get`
 ### Policy
 - Keep generation + TouchPage (correctness)
 - Do not return `quadScratch` from template get without deep copy
-- Resume opt27 only after this stays green on soak
+- opt27/opt28 landed after HUD UV fix (see below)
+
+
+## opt27 gpu-tex multi-view BG slot cache (2026-07-17)
+
+### pprof / diagnosis (post-opt26 + HUD UV fix)
+- Glow / filter publish **ping-pongs** `TextureView`s from a free-list (cap 4)
+- Single last-view BG cache was a **guaranteed miss** every alternate frame → `CreateBindGroup` on GPU-tex path
+- Dual-tex already had multi-slot cache (opt26); gpu-tex path lagged
+
+### Engine fixes (class A equivalence)
+1. **`gpuTexBGSlotCache`** — 4-slot view→BG ring per uniform `poolIdx` (matches publish free-list cadence)
+2. Miss: create BG, retire displaced BG into `pendingBindGroupRelease` (post-Submit)
+3. Hit: reuse native BG; no semantic/draw change
+4. `Stats().GPUTexBindGroups` counts live cached BGs
+
+Same pixels/draws/bind content; only BG handle reuse across publish view swap.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt27_GPUTexBGSlotCache_ReusesView` | PASS |
+| `TestOpt27_BuildGPUTextureResources_MultiViewBGCache` | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| `TestOpt26_DualTex*` / `TestR75_*` (sample) | PASS |
+
+### PKS present (`tmp/pks/cpu_opt/opt27_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt26 cpu | **opt27 cpu** | fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------|--------|--------|
+| P_SOLID | 10 | **9** | 58.4 | PASS | 0 |
+| P_GLOW | 14 | **13** | 57.8 | PASS | 0 |
+| P_BLEND_GLOW | 20 | **19** | 59.1 | PASS | 0 |
+| P_L3 | 24 | 25 | 60.3 | PASS | 0 |
+| P_LAYER | 10 | 11 | 58.5 | PASS | 0 |
+
+Glow/solid **−1pp CPU**; L3/LAYER within noise. Correctness: all PASS, `cpu_fb=0`, content/pixel true.
+
+### Policy
+- **Keep** multi-view gpu-tex BG ring (measured + unit-proven; no content cut)
+- Revert if F1/glow pixels regress (stale BG / early Release)
+- HUD UV gen+TouchPage (prior fix) remains required with templates
+
+### Still open
+1. Animated mesh **vertex WriteBuffer volume** (compact format / GPU particle — class B if format changes)
+2. single-CB frame still disabled for pixel correctness
+3. HUD digit amortize for changing FPS strings
+4. RSS long-soak
+5. Image atlas vertex WriteBuffer still material
+
+### Next knife (class A preferred)
+- pprof dig: WriteBuffer / mesh pack / image upload volume without pixel downgrade
+- Or class-B compact mesh verts **only with** pixel gates
+
+### Evidence
+- `tmp/pks/cpu_opt/opt27_*.json`, `pl3_opt27.pprof` (if present)
+- Tests: `render/internal/gpu/opt27_gputex_bg_cache_test.go`
+
+
+## opt28 sticky image/gpu-tex vertex WriteBuffer (2026-07-17)
+
+### pprof / diagnosis (post-opt27)
+- `queueWriteBuffer` ~23% cum on P_L3: **buildImageResources ~47%**, buildConvex ~40%, gpu-tex small
+- Atlas sprites move every frame, but **mid-frame flushes** and glow present rects often re-upload identical packed quads
+- Uniforms already sticky (opt24); vertex path always `WriteBuffer`
+
+### Engine fixes (class A equivalence)
+1. **Image verts**: fingerprint packed staging (`indexBytesFingerprint`); skip WriteBuffer when hash+len match live buffer
+2. **GPU-tex verts**: same for overlay + base buffers separately
+3. Invalidate sticky on buffer recreate / Destroy
+
+Same GPU buffer contents on hit; miss path identical upload.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt28_ImageVertSticky_SkipsRepeatWrite` | PASS |
+| `TestOpt28_GPUTexVertSticky_SkipsRepeatWrite` | PASS |
+| `TestOpt27_*` / `TestOpt24_ImageUniform*` | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+
+### PKS present (`tmp/pks/cpu_opt/opt28_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt27 cpu | **opt28 cpu** | fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------|--------|--------|
+| P_SOLID | 9 | 10 | 58.3 | PASS | 0 |
+| P_GLOW | 13 | **12** | 58.2 | PASS | 0 |
+| P_BLEND_GLOW | 19 | 19 | 59.4 | PASS | 0 |
+| P_L3 | 25 | **22** | 58.4 | PASS | 0 |
+| P_LAYER | 11 | **9** | 58.1 | PASS | 0 |
+
+L3 **−3pp CPU**; LAYER/GLOW improved; SOLID noise. All PASS, `cpu_fb=0`.
+
+### Policy
+- **Keep** sticky image/gpu-tex verts (measured + unit-proven)
+- Revert if pixel/F1 regress (false sticky hit) — fingerprint covers full packed bytes
+- Fingerprint cost acceptable vs avoided cgocall WriteBuffer
+
+### Still open
+1. Animated mesh **vertex WriteBuffer volume** (particles always change — needs compact format / GPU update, class B)
+2. single-CB frame still disabled for pixel correctness
+3. HUD digit amortize for changing FPS strings
+4. RSS long-soak
+5. CommandEncoder.Finish multi-encode cost
+
+### Next knife
+- Mesh compact verts with pixel gates (class B), or Finish/submit structure only if pixel-safe
+- Do not full-hash every animated convex mesh (would pay cost with low hit rate)
+
+### Evidence
+- `tmp/pks/cpu_opt/opt28_*.json`
+- Tests: `render/internal/gpu/opt28_sticky_image_gputex_verts_test.go`
+
+
+## opt29 image uniform slab — one WriteBuffer for N opacities (2026-07-17)
+
+### pprof / diagnosis (post-opt28)
+- `buildImageResources` ~9.6% cum; **160ms of that was per-slot uniform `WriteBuffer`**
+- Atlas sprites use **unique animated opacities** → `canMergeImageDraw` fails → N pool slots
+- opt24 sticky only helps when opacity/viewport stable; PKS atlas invalidates every frame
+- Each slot was an 80B WriteBuffer → **cgo call tax**, not bandwidth
+
+### Engine fixes (class A equivalence)
+1. **`imageUniformSlab`**: single buffer, `imageUniformSlotStride=256` (minUniformBufferOffsetAlignment)
+2. Pack all slot uniforms → **one** `queueWriteBuffer` when any slot dirty / slab recreated
+3. BindGroup entries use `Offset: slot*256, Size: 80`
+4. Sticky skip when all slot opacity/viewport keys match (no pack/write)
+5. `putImageUniform` helper (payload-only clear for slab slots)
+
+Same projection/opacity/bind semantics; fewer Queue.WriteBuffer calls.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt29_ImageUniformSlab_OneWriteForManyOpacities` | PASS |
+| `TestOpt29_ImageUniformSlotStride_Aligned` | PASS |
+| `TestOpt24_ImageUniform*` / `TestOpt28_*` | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+
+### PKS present (`tmp/pks/cpu_opt/opt29_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt28 cpu | **opt29 cpu** | fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------|--------|--------|
+| P_SOLID | 10 | **9** | 58.1 | PASS | 0 |
+| P_GLOW | 12 | 12 | 58.0 | PASS | 0 |
+| P_BLEND_GLOW | 19 | 19 | 59.6 | PASS | 0 |
+| P_L3 | 22 | **21** | 58.8 | PASS | 0 |
+| P_LAYER | 9 | 10 | 58.2 | PASS | 0 |
+
+### pprof structure (P_L3 8s)
+| metric | opt28 | **opt29** |
+|--------|-------|-----------|
+| buildImageResources cum | 200ms (9.6%) | **40ms (2.1%)** |
+| queueWriteBuffer total | 0.42s (20%) | **0.27s (14%)** |
+| WriteBuffer from image | 0.19s | **0.04s** |
+| WriteBuffer from convex | 0.17s | 0.20s (now dominant) |
+
+### Policy
+- **Keep** image uniform slab (large structural win, unit+matrix green)
+- Revert if bind offset/pixel issues on multi-opacity atlas
+- Next hotspot: **convex mesh vertex WriteBuffer** (~0.20s) — class B compact format with pixel gates, or GPU particle update
+
+### Evidence
+- `tmp/pks/cpu_opt/opt29_*.json`, `pl3_opt29.pprof`
+- Tests: `render/internal/gpu/opt29_image_uniform_slab_test.go`
+
+
+## opt30 compact convex color unorm8x4 (class B, 2026-07-17)
+
+### pprof / diagnosis (post-opt29)
+- `buildConvexResources` WriteBuffer ~0.20s (74% of remaining WriteBuffer)
+- Animated mesh verts change every frame → sticky useless
+- Vertex was **28B**: pos2(8)+cov(4)+color f32x4(16); mesh coverage always 1.0 but cov kept for shared AA pipeline
+
+### Engine change (class B — color quantize)
+1. `convexVertexStride` **28 → 16**: color `float32x4` → **`unorm8x4`** (GPU expands to vec4 in same shader)
+2. `writeConvexVertex` / `packMeshVertsCoverage1` pack LE unorm8
+3. Vertex layout attribute format `VertexFormatUnorm8x4` at offset 12
+4. Same WGSL `VertexInput` (coverage + color as f32)
+
+**Semantic:** solid colors that are k/255 exact are unchanged; continuous gradients may differ ≤1/255.
+
+### Unit / pixel gates
+| test | result |
+|------|--------|
+| `TestOpt30_*` | PASS |
+| `TestWriteConvexVertex` / `TestBuildConvex*` | PASS |
+| `TestOpt19/22/23/25` mesh pack | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| PKS content/pixel | true |
+
+### PKS present (`tmp/pks/cpu_opt/opt30_*.json`, 8s)
+
+| probe | opt29 cpu | **opt30 cpu** | status | cpu_fb |
+|-------|-----------|---------------|--------|--------|
+| P_SOLID | 9 | 9 | PASS | 0 |
+| P_GLOW | 12 | 13 | PASS | 0 |
+| P_BLEND_GLOW | 19 | **18** | PASS | 0 |
+| P_L3 | 21 | **20** | PASS | 0 |
+| P_LAYER | 10 | **9** | PASS | 0 |
+
+### Policy
+- **Keep** (measured L3 −1pp; mesh bandwidth −43% bytes; F1/PKS pixel gates green)
+- Revert if gradient banding visible in product UI
+- Next: Finish/submit multi-encode (dual-tex / surface), or further mesh (drop coverage attribute for SkipAA-only pipeline)
+
+### Evidence
+- `tmp/pks/cpu_opt/opt30_*.json`, `pl3_opt30.pprof`
+- Tests: `render/internal/gpu/opt30_compact_convex_color_test.go`
+
+## opt31 fast mesh unorm pack + stencil create audit (2026-07-17)
+
+### Diagnosis (post-opt30 pprof `pl3_opt30b.pprof`)
+1. **`packMeshVertsCoverage1` / `packColorUnorm8x4` / `clampUnorm8` ~70ms cum (3.7%)** on VC mesh path — per-vertex `[4]float32` temp + helper calls after opt30 color quantize.
+2. **`ensurePipelines` / `StencilRenderer.createPipelines` ~70–120ms** — profiled as **one-shot cold/probe**, not every-frame thrash. Main↔effect sampleCount ownership already prevents BGL mismatch rebuild (see `preferSampleCount1` comment in `gpu_render_context.go`). No class-A free win from "stop warm recreate".
+
+### Engine change (class A pure-equivalent)
+1. `packColorUnorm8x4` → `packColorUnorm8x4RGBA` + `quantUnorm8` (scalar, same clamp/round bits).
+2. `packMeshVertsCoverage1` VC loop: **fully inline** channel quantize (no helper call, no temp array); solid path uses scalar pack once.
+3. `clampUnorm8` retained as thin wrapper over `quantUnorm8` for existing call sites/tests.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt31_*` | PASS |
+| `TestOpt30_*` / mesh pack / `TestWriteConvexVertex` | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+
+### PKS present (`tmp/pks/cpu_opt/opt31_*.json` = opt31b inline, 8s)
+
+| probe | opt30 cpu | **opt31 cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|-----------|---------------|---------|--------|--------|-------|
+| P_SOLID | 9.3 | **9.2** | 58+ | PASS | 0 | true |
+| P_GLOW | 12.9 | 13.2 | 57+ | PASS | 0 | true |
+| P_BLEND_GLOW | 18.3 | 18.4 | 59+ | PASS | 0 | true |
+| P_L3 | 20.4 | **20.8** | 59.0 | PASS | 0 | true |
+| P_LAYER | 9.1 | 9.3 | 58+ | PASS | 0 | true |
+
+L3 repeats: opt30 20.3–20.4; opt31a/b 20.7–20.9 → **wall CPU within noise**.
+
+### pprof structure (P_L3 8s)
+| metric | opt30b | **opt31b** |
+|--------|--------|------------|
+| packMeshVertsCoverage1 cum | 70ms (3.7%) | **10ms (0.5%)** |
+| packColorUnorm8x4 / clamp chain | 50ms | **gone from top (inlined)** |
+| Stencil createPipelines | ~70ms one-shot | ~60ms one-shot (still cold only) |
+
+### Policy
+- **Keep** opt31 as class-A cleanup (bit-identical quantize; pprof pack tax collapsed).
+- Wall L3 not improved beyond noise; do **not** chase further micro-pack without higher mesh pressure.
+- Stencil warm recreate was a **false lead** on this build — do not spend next knife there without a new thrash repro.
+- Next knife: **Finish/submit multi-encode** (`encodeSubmitSurfaceGrouped` / mid-frame encode count) with F1+PKS pixel gates, or class-B SkipAA mesh pipeline (drop coverage attr) only with pixel gates.
+
+### Evidence
+- `tmp/pks/cpu_opt/opt31_*.json`, `opt31a/b_P_L3.json`, `pl3_opt31.pprof`, `pl3_opt31b.pprof`
+- Tests: `render/internal/gpu/opt31_fast_unorm_pack_test.go`
+
+## opt32 dual-tex multi + composite blit one Finish (2026-07-17)
+
+### Diagnosis (post-opt31 `pl3_opt31b.pprof`)
+- `CommandEncoder.Finish` **~380ms (20%)** of L3 samples
+- Present advanced-blend path did **two Finishes**: dual-tex multi CB + blit CB (R7.3 only coalesced **Submit**)
+- `encodeBlitToEncoder` LoadOp ignored `frameRendered` (Clear risk on shared-encoder composite onto scratch/HUD)
+
+### Engine change (class A)
+1. **`dualTexAdvancedBlendViewsMultiIntoEncoder`**: record multi dual-tex passes into caller encoder (no Finish/Submit)
+2. **`resolvePendingAdvancedLayersEnc`**: one `dual_tex_composite_enc` → dual-tex multi + `sharedEncoder` blit Flush → **one Finish** + `submitWithLeading` (layers still lead CBs)
+3. **`encodeBlitToEncoder` LoadOp** matches `encodeBlitOnlyPass` (`frameRendered || damage` → Load) so base+HUD survive composite
+4. Fallback: R7.3 multiBundle lead CB, then per-op region path
+
+Semantics unchanged: same passes, same order in one Submit; fewer Finish cgo calls.
+
+### Unit / pixel gates
+| test | result |
+|------|--------|
+| `TestOpt32_*` | PASS |
+| `TestR73_*` | PASS |
+| `TestOpt21_*` / `TestP03_*` | PASS |
+| `TestF1_AdvancedLayerPresentView*` (`./render`) | PASS |
+| PKS content/pixel | true |
+
+### PKS present (`tmp/pks/cpu_opt/opt32_*.json`, 8s)
+
+| probe | opt31 cpu | **opt32 cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|-----------|---------------|---------|--------|--------|-------|
+| P_SOLID | 9.2 | 10.0 | 58.8 | PASS | 0 | true |
+| P_GLOW | 13.2 | **11.9** | 57.5 | PASS | 0 | true |
+| P_BLEND_GLOW | 18.4 | **17.4** | 59.2 | PASS | 0 | true |
+| P_L3 | 20.8 | **19.6** | 59.0 | PASS | 0 | true |
+| P_LAYER | 9.3 | 10.2 | 58.3 | PASS | 0 | true |
+| P_BLEND_LAYER | — | 15.7 | 58.6 | PASS | 0 | true |
+
+### pprof structure (P_L3 8s)
+| metric | opt31b | **opt32** |
+|--------|--------|-----------|
+| CommandEncoder.Finish cum | **380ms (20%)** | **180ms (9.4%)** |
+| dual/blit-focused slice | 0.62s | 0.55s |
+
+### Policy
+- **Keep** (measured L3 −1.2pp; Finish tax ~half; F1/PKS pixel green)
+- Revert if dual-tex composite ordering/HUD LoadOp regresses
+- SOLID/LAYER ±1pp noise (no dual-tex composite benefit)
+- Next: filter/glow encode coalesce, or class-B SkipAA mesh drop coverage attr with pixel gates; avoid re-opening single full-frame CB without dest-correct dual-tex proof
+
+### Evidence
+- `tmp/pks/cpu_opt/opt32_*.json`, `pl3_opt32.pprof`
+- Tests: `render/internal/gpu/opt32_dual_tex_composite_encoder_test.go`
+
+## opt33 SkipAA mesh 12B verts (drop constant coverage) (2026-07-17)
+
+### Diagnosis (post-opt32 `pl3_opt32.pprof`)
+- `buildConvexResources` / vertex `queueWriteBuffer` **~120ms** still largest WriteBuffer slice
+- SkipAA mesh coverage is always **1.0** after opt30 color compact — paying 4B/vert for a constant
+- Pure mesh batches dominate PKS particle/mesh flushes
+
+### Engine change (class B — layout + shader)
+1. **`convexMeshVertexStride=12`**: `pos2 + unorm8x4 color` (no coverage channel)
+2. **`packMeshVertsCoverage1` / `writeConvexMeshVertex`** pack 12B; `vs_mesh` hardcodes coverage=1
+3. **`meshPipelineWithStencil` / depth-clip mesh** via `vs_mesh` + mesh vertex layout
+4. **`allConvexCommandsMeshCompact`**: pure mesh + BlendNormal → 12B WriteBuffer + mesh pipeline
+5. Mixed frames: expand 12B→16B into AA layout (coverage=1) so existing convex pipeline still works
+
+Semantic: SkipAA mesh coverage was already constant 1.0; solid k/255 colors unchanged; mixed AA path unchanged.
+
+### Unit / pixel gates
+| test | result |
+|------|--------|
+| `TestOpt33_*` | PASS |
+| `TestOpt19/22/23/25/30/31` mesh pack | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| PKS content/pixel | true |
+
+### PKS present (`tmp/pks/cpu_opt/opt33_*.json`, 8s)
+
+| probe | opt32 cpu | **opt33 cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|-----------|---------------|---------|--------|--------|-------|
+| P_SOLID | 10.0 | **9.1** | 58.6 | PASS | 0 | true |
+| P_GLOW | 11.9 | 11.6 | 58.1 | PASS | 0 | true |
+| P_BLEND_GLOW | 17.4 | 17.3 | 58.5 | PASS | 0 | true |
+| P_L3 | 19.6 | **19.6** | 58.7 | PASS | 0 | true |
+| P_LAYER | 10.2 | 10.2 | 58.2 | PASS | 0 | true |
+
+### pprof structure (P_L3 8s)
+| metric | opt32 | **opt33** |
+|--------|-------|-----------|
+| buildConvexResources cum | 130ms (6.8%) | **70ms (3.8%)** |
+| convex vertex WriteBuffer | ~120ms | **~70ms** |
+| mesh vert bytes | 16B | **12B (−25%)** |
+
+### Policy
+- **Keep** (structure win on WriteBuffer; SOLID −0.9pp; F1/PKS pixel green)
+- L3 wall CPU flat vs opt32 (other costs dominate); still worth Keep as mesh bandwidth cut
+- Revert if AA/mesh mixed frames pixel-regress (expand path)
+- Next: filter pass-uniform slab / remaining Submit tax; avoid further mesh micro without new pressure
+
+### Evidence
+- `tmp/pks/cpu_opt/opt33_*.json`, `pl3_opt33.pprof`
+- Tests: `render/internal/gpu/opt33_mesh_compact_stride_test.go`
+- Shader: `render/internal/gpu/shaders/convex.wgsl` `vs_mesh`
+
+## opt34 Skip FlushLeading under sharedEncoder (2026-07-17)
+
+### Diagnosis (post-opt33 `pl3_opt33.pprof`)
+- `FlushLeadingSubmitsOnly` ~8% / `Queue.Submit` ~13.5% still high on L3
+- Root cause: opt32 composite sets `sharedEncoder` but `RenderFrameGrouped` drained
+  `leadSubmitCBs` whenever `!deferSurfaceSubmit`, forcing a mid-frame Submit of
+  layer fills alone; dual-tex + blit then submitted separately
+- Intended ADR-017 / opt32 path: layers + dual + blit = **one** `submitWithLeading`
+
+### Engine change (class A — pure submit ordering)
+1. `RenderFrameGrouped`: FlushLeading only when `sharedEncoder == nil`
+   (`!defer && sharedEncoder == nil && leads > 0`)
+2. Shared-encoder path leaves leads queued; caller Finish + `submitWithLeading`
+3. No sharedEncoder present path still drains (opt21 MSAA attachment safety)
+4. `encodeSubmitSurfaceGrouped` uses static `sessionSurfaceEncoderDesc` +
+   `EncodersCreated++` after successful create
+
+Semantic: same command buffers / same content; fewer mid-frame Queue.Submit only.
+
+### Unit / pixel gates
+| test | result |
+|------|--------|
+| `TestOpt34_SharedEncoder_DoesNotFlushLeading` | PASS (leads kept; CoalescedCBs=3) |
+| `TestOpt34_NoSharedEncoder_StillFlushesLeading` | PASS (leads drained; surface CoalescedCBs=1) |
+| `TestOpt21_*` / `TestOpt32_*` / `TestR73_*` | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| PKS content/pixel | true |
+
+### PKS present (`tmp/pks/cpu_opt/opt34_*.json`, 8s)
+
+| probe | opt33 cpu | **opt34 cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|-----------|---------------|---------|--------|--------|-------|
+| P_SOLID | 9.1 | 10.2 | 58.7 | PASS | 0 | true |
+| P_GLOW | 11.6 | 12.1 | 58.8 | PASS | 0 | true |
+| P_BLEND_GLOW | 17.3 | 17.5 | 58.7 | PASS | 0 | true |
+| P_L3 | 19.6 | **19.8** | 59.3 | PASS | 0 | true |
+| P_LAYER | 10.2 | **9.4** | 59.0 | PASS | 0 | true |
+
+### pprof structure (P_L3 8s)
+| metric | opt33 | **opt34** |
+|--------|-------|-----------|
+| FlushLeadingSubmitsOnly cum | **150ms (8.1%)** | **~0 (gone from top)** |
+| Queue.Submit cum | 250ms (13.5%) | **140ms (7.7%)** |
+| submitWithLeading cum | 230ms (12.4%) | **140ms (7.7%)** |
+| RenderFrameGrouped cum | 810ms (43.8%) | **650ms (35.9%)** |
+| wall samples | 1.85s | 1.81s |
+
+### Policy
+- **Keep** (structure: mid-frame FlushLeading on composite path removed; Submit tax cut; F1/PKS pixel green)
+- Wall CPU flat/noise vs opt33 (±1pp) — same class as opt33 Keep-as-structure
+- Revert if advanced-layer composite ordering / present content regresses
+- Next: filter pass-uniform **slab** (2–4 WriteBuffers/blur → one); enlarge convex ring only if `allocConvexVertSlot` still forces FlushLeading; avoid mesh micro without new pressure
+
+### Evidence
+- `tmp/pks/cpu_opt/opt34_*.json`, `pl3_opt34.pprof`
+- Tests: `render/internal/gpu/opt34_shared_encoder_no_flush_leading_test.go`
+- Code: `render/internal/gpu/render_session.go` (`RenderFrameGrouped` opt34 gate)
+
+## opt35 filter pass-uniform slab (2026-07-17)
+
+### Diagnosis (post-opt34)
+- Blur/glow multi-pass wrote **one uniform buffer per pass** (`queue.WriteBuffer` × 2–4+)
+- Same cgo tax pattern as pre-opt29 image uniforms; payload is only 128B/pass
+- L3 `ApplyBlur` ~6% / total WriteBuffer ~10%; filter graph itself small but every glow frame pays N uniform uploads
+
+### Engine change (class A — pure upload coalesce)
+1. **`filterPassUniformSlotStride=256`** (WebGPU minUniformBufferOffsetAlignment)
+2. Single **`passUniformSlab`** on `filterGPUCache`; pack all pass `Params` into CPU scratch
+3. Bind groups use **fixed Offset** into the slab (opt29 style; no dynamic-offset BGL change)
+4. **One** `WriteBuffer` for used slots after encode, before `Finish`/`Submit`
+5. `filterBGKey` includes slab offset; slab recreate clears BG cache
+6. Pre-size estimate `len(nodes)*4+2` (min 16 slots) so steady-state glow does not reallocate mid-run
+
+Semantic: same Params layout/shader; same per-pass bind content; fewer Queue.WriteBuffer calls only.
+
+### Unit / pixel gates
+| test | result |
+|------|--------|
+| `TestOpt35_FilterPassUniformSlotStride_Aligned` | PASS |
+| `TestOpt35_FilterPassUniformSlab_OneWriteForMultiPassBlur` | PASS (slots≥2, WB=1) |
+| `TestOpt35_FilterPassUniformSlab_ShadowMultiPass` | PASS |
+| `TestP04_ApplyBlurGPU` / `TestP04_ApplyDropShadowGPU` | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| PKS content/pixel | true |
+
+### PKS present (`tmp/pks/cpu_opt/opt35_*.json`, 8s)
+
+| probe | opt34 cpu | **opt35 cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|-----------|---------------|---------|--------|--------|-------|
+| P_SOLID | 10.2 | 10.2 | 58.0 | PASS | 0 | true |
+| P_GLOW | 12.1 | **12.0** | 58.7 | PASS | 0 | true |
+| P_BLEND_GLOW | 17.5 | 17.7 | 57.8 | PASS | 0 | true |
+| P_L3 | 19.8 | **19.6** | 58.8 | PASS | 0 | true |
+| P_LAYER | 9.4 | **9.0** | 58.5 | PASS | 0 | true |
+
+### pprof structure (P_L3 8s)
+| metric | opt34 | **opt35** |
+|--------|-------|-----------|
+| ApplyBlur cum | 110ms (6.1%) | **80ms (4.2%)** |
+| Queue.WriteBuffer cum | 180ms (9.9%) | **140–150ms (~7.9%)** |
+| runGPUFilterGraphEx cum | 40ms | 50ms (noise) |
+| pass uniform WB / blur | N (H+V+…) | **1** (unit-gated) |
+
+### Policy
+- **Keep** (class A structure: N filter uniform WriteBuffers → 1; F1/P04/PKS pixel green)
+- Wall CPU flat/noise vs opt34 — expected for small payload; still worth Keep as glow-path cgo cut
+- Revert if multi-pass filter pixel/content regresses (wrong slot offset / mid-run slab grow)
+- Next: remaining WriteBuffer (convex/mesh already opt33); Submit/encode still dominate L3 — avoid mesh micro; only enlarge convex ring if `allocConvexVertSlot` forces FlushLeading again
+
+### Evidence
+- `tmp/pks/cpu_opt/opt35_*.json`, `pl3_opt35.pprof`
+- Tests: `render/internal/gpu/opt35_filter_pass_uniform_slab_test.go`
+- Code: `render/internal/gpu/filter_gpu_graph.go` (opt35 slab)
+
+## opt36 mesh-seed + filter one encoder Finish (2026-07-17)
+
+### Diagnosis (post-opt35 `pl3_opt35.pprof`)
+- `CommandEncoder.Finish` still **~250ms (13–14%)** on L3
+- Glow path (`FlushAndFilterFromView` / opt18): mesh seed **Finish** + filter graph **Finish**, then one `Queue.Submit([mesh, filter])`
+- Same GPU work; the second Finish is pure encode tax (class A target)
+
+### Engine change (class A — pure encoder coalesce)
+1. `runGPUFilterGraphEx(..., sharedEnc)` continues filter passes on an open encoder
+2. `runGPUFilterGraphFromViewIntoEncoder` — mesh seed already recorded on `sharedEnc`
+3. `FlushAndFilterFromView`: encode mesh via `sharedEncoder`, **do not Finish**, continue filter on same encoder → **one Finish** + one Submit
+4. Failure recovery: Finish+Submit open encoder (applies mesh seed), then standalone `FromView`
+5. Static encoder descriptors: `filterSeedMeshEncoderDesc` / `filterGPUBatchEncoderDesc` / `filterGPUReadEncoderDesc`
+6. Diagnostics: `lastGraphFinishes`, `lastUsedSharedEnc` (unit-gated)
+
+Semantic: same mesh seed draws + same filter graph; fewer Finish only (opt18 already single Submit).
+
+### Unit / pixel gates
+| test | result |
+|------|--------|
+| `TestOpt36_FilterSeedSharedEncoder_OneFinish` | PASS (sharedEnc, Finishes=1, slots≥2) |
+| `TestOpt36_FilterFromView_StillOneFinish` | PASS |
+| `TestOpt36_FilterSeedSharedEncoder_StaticDescs` | PASS |
+| `TestOpt35_*` (slab still 1 WB) | PASS |
+| `TestOpt18_ApplyBlur_MeshSeedGPUFilter` | PASS |
+| `TestP04_ApplyBlurGPU` / DropShadow | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| PKS content/pixel | true |
+
+### PKS present (`tmp/pks/cpu_opt/opt36_*.json`, 8s)
+
+| probe | opt35 cpu | **opt36 cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|-----------|---------------|---------|--------|--------|-------|
+| P_SOLID | 10.2 | **9.1** | 58.3 | PASS | 0 | true |
+| P_GLOW | 12.0 | **11.4** | 58.3 | PASS | 0 | true |
+| P_BLEND_GLOW | 17.7 | **17.3** | 59.7 | PASS | 0 | true |
+| P_L3 | 19.6 | 19.9 | 58.4 | PASS | 0 | true |
+| P_LAYER | 9.0 | 9.9 | 58.1 | PASS | 0 | true |
+
+### pprof structure (P_L3 8s)
+| metric | opt35 | **opt36** |
+|--------|-------|-----------|
+| CommandEncoder.Finish cum | **250–260ms (~13.5%)** | **180–190ms (~10.3%)** |
+| ApplyBlur / FlushAndFilter | 80ms | 80ms |
+| filter path symbol | `FromViewWithLeading` | **`FromViewIntoEncoder`** (shared path live) |
+| wall samples | 1.90s | 1.85s |
+
+### Policy
+- **Keep** (class A: glow mesh+filter Finish count 2→1; Finish tax −~3pp; F1/P04/PKS pixel green)
+- L3 wall CPU flat/noise; GLOW/BLEND_GLOW modest drop
+- Revert if ApplyBlur content wrong / recovery path leaves empty seed RT
+- Next: encode/Submit still dominate non-glow; avoid mesh micro; do not re-open full-frame singleSubmit without dest-correct dual-tex proof; convex ring 4→8 only if `allocConvexVertSlot` FlushLeading returns as material tax
+
+### Evidence
+- `tmp/pks/cpu_opt/opt36_*.json`, `pl3_opt36.pprof`
+- Tests: `render/internal/gpu/opt36_filter_seed_shared_encoder_test.go`
+- Code: `filter_flush_coalesce.go`, `filter_gpu_graph.go` (opt36 sharedEnc)
+
+## opt37 dual-tex multi uniform slab (2026-07-17)
+
+### Diagnosis (post-opt36 `pl3_opt36.pprof`)
+- Advanced-blend multi path (`dualTexAdvancedBlendViewsMultiIntoEncoder`) used **per-op uniform buffers** (`uniformRing`) + `dualTexWriteParams` each → **N WriteBuffers** for N layers
+- L3 has Screen+Multiply (2 ops); same cgo tax pattern as pre-opt35 filter uniforms
+- `dualTexWriteParams` ~1% + MultiInto ~2.7%; total WriteBuffer ~11%
+
+### Engine change (class A — pure upload coalesce)
+1. Replace `uniformRing []*Buffer` with **`uniformSlab`** (stride `dualTexUniformSlotStride=256`)
+2. `packDualTexParams` into CPU scratch for all ops → **one** `queue.WriteBuffer`
+3. `multiBindGroup` takes **offset** into slab; `dualTexBGKey` includes offset
+4. Slab recreate invalidates multiBG slots
+5. Single-op paths still use `cache.uniform` + `dualTexWriteParams`
+6. Diagnostics: `lastMultiUniformSlots` / `lastMultiUniformWB`
+
+Semantic: same Params layout / same dual-tex passes; fewer WriteBuffer calls only.
+
+### Unit / pixel gates
+| test | result |
+|------|--------|
+| `TestOpt37_DualTexUniformSlotStride_Aligned` | PASS |
+| `TestOpt37_DualTexMultiUniformSlab_OneWrite` | PASS (slots=2, WB=1) |
+| `TestOpt26_*` multiBindGroup reuse | PASS |
+| `TestOpt32_*` / `TestR73_*` / `TestOpt34_*` | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| PKS content/pixel | true |
+
+### PKS present (`tmp/pks/cpu_opt/opt37_*.json`, 8s)
+
+| probe | opt36 cpu | **opt37 cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|-----------|---------------|---------|--------|--------|-------|
+| P_SOLID | 9.1 | 9.0 | 58.3 | PASS | 0 | true |
+| P_GLOW | 11.4 | 12.3 | 57.8 | PASS | 0 | true |
+| P_BLEND_GLOW | 17.3 | **16.8** | 58.8 | PASS | 0 | true |
+| P_L3 | 19.9 | **19.1** | 58.6 | PASS | 0 | true |
+| P_LAYER | 9.9 | **9.3** | 58.1 | PASS | 0 | true |
+| P_BLEND_LAYER | — | **14.5** | 59.3 | PASS | 0 | true |
+
+### pprof structure (P_L3 8s)
+| metric | opt36 | **opt37** |
+|--------|-------|-----------|
+| Queue.WriteBuffer cum | 210ms (11.4%) | **170ms (9.1%)** |
+| dualTexWriteParams | 20ms (1.1%) | **gone from top** |
+| MultiIntoEncoder cum | 50ms (2.7%) | **30ms (1.6%)** |
+| resolvePendingAdvancedLayersEnc | 270ms (14.6%) | **190ms (10.2%)** |
+
+### Policy
+- **Keep** (class A structure: N dual-tex uniform WB → 1; L3 −0.8pp; blend probes green)
+- GLOW ±1pp noise (no dual-tex multi benefit)
+- Revert if advanced-blend pixel/content wrong (bad slab offset / BG cache key)
+- Next: remaining WriteBuffer is mostly **animated mesh verts** (opt33 already compact); encode/Submit/Finish still dominate — avoid mesh micro; no full-frame singleSubmit without dest-correct dual-tex proof; convex ring only if ring FlushLeading material again
+
+### Evidence
+- `tmp/pks/cpu_opt/opt37_*.json`, `pl3_opt37.pprof`
+- Tests: `render/internal/gpu/opt37_dualtex_uniform_slab_test.go`
+- Code: `render/internal/gpu/dual_tex_blend.go` (opt37 slab)
+
+## opt38 ensurePipelines warm fast-path (2026-07-17)
+
+### Intent (class A)
+`ensurePipelines` runs every `RenderFrameGrouped` (often multi-session/frame on L3 glow).
+Add a warm fast-path when clip/mask layouts are stable and core pipelines already exist.
+
+### Engine change
+| item | detail |
+|------|--------|
+| `pipelinesReady` + clip/mask identity | skip body when ready |
+| Invalidate | `Destroy`, `SetSDF/Convex/Stencil`, `MarkOwnsShapePipelines` |
+| Counters | `ensurePipelinesFastN` / `ensurePipelinesFullN` + `lastEnsurePipelines` |
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt38_EnsurePipelines_ReadyFastPath` | PASS (warm last=0, FastN≥1) |
+| `TestOpt38_EnsurePipelines_WarmRenderFrame` | PASS |
+| `TestOpt37_*` / `TestOpt34_*` / `TestOpt21_*` | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| `TestP04_ApplyBlurGPU` | PASS |
+
+### PKS present (`tmp/pks/cpu_opt/opt38c_*.json`, 8s)
+
+| probe | opt37 cpu | **opt38c cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|-----------|----------------|---------|--------|--------|-------|
+| P_SOLID | 9.0 | **8.6** | 58.6 | PASS | 0 | true |
+| P_GLOW | 12.3 | **11.2** | 62.1 | PASS | 0 | true |
+| P_BLEND_GLOW | 16.8 | **18.1** | 57.7 | PASS | 0 | true |
+| P_L3 | 19.1 | **19.3** | 60.2 | PASS | 0 | true |
+| P_LAYER | 9.3 | **8.7** | 59.2 | PASS | 0 | true |
+
+### pprof structure (P_L3 8s, `pl3_opt38c.pprof`)
+| metric | notes |
+|--------|-------|
+| `ensurePipelines` cum | ~60ms / ~3.3% — **cold multi-session create** (effect `preferSampleCount1` owns pipelines; stencil/convex first create samples) |
+| Fast path | unit-proven sticky; no per-frame WGSL thrash (opt6 thrash already fixed by own pipelines) |
+| L3 wall CPU | flat vs opt37 (noise) |
+
+### Policy
+- **Keep** (class A cheap guard; unit-gated; no pixel/content regression)
+- Honest: **no L3 wall-CPU structure win** beyond noise; residual samples are cold full ensures, not warm-path miss thrash
+- Revert only if clip/mask mismatch leaves stale pipelines (would break stencil/mask draws)
+- Next knife: Finish/Submit still dominate L3 — avoid mesh micro; dual-tex into-dest WB cleanup optional (dead on MultiInto)
+
+### Evidence
+- `tmp/pks/cpu_opt/opt38c_*.json`, `pl3_opt38c.pprof`
+- Tests: `render/internal/gpu/opt38_ensure_pipelines_ready_test.go`
+- Code: `render/internal/gpu/render_session.go` (opt38 ensurePipelines)
+
+
+## HUD text multi-page atlas fix (2026-07-17)
+
+### Symptom
+Top/bottom window HUD text correct at start, later garbled / not real glyphs.
+(Prior layout-template × compact UV fix remains required; this is residual after page0 fills.)
+
+### Root cause
+`layoutGlyphs` hardcoded `AtlasPageIndex: 0` while the R8 atlas allows `MaxAtlases=4`.
+After page 0 shelf fills (CJK + Latin + subpixel variants under particle/HUD load), new glyphs land on page ≥1 with **page-local UVs**, but the GPU bind group still sampled **page 0** → wrong masks.
+
+### Fix (class A correctness)
+| file | change |
+|------|--------|
+| `glyph_mask_pipeline.go` | `GlyphMaskQuad.Page`; `SplitGlyphMaskBatchByPage` (consecutive page runs) |
+| `glyph_mask_engine.go` | set `Page`/`AtlasPageIndex` from `region.AtlasIndex`; template hit touches **all** pages |
+| `gpu_render_context.go` | `queueGlyphMaskSplit` on DrawGlyphMask* paths |
+
+### Gates
+| test | result |
+|------|--------|
+| `TestSplitGlyphMaskBatchByPage_SingleAndMulti` | PASS |
+| `TestLayoutText_SetsAtlasPageFromRegion` (64px atlas spill) | PASS |
+| `TestR75_LayoutTemplate_*` / compact+Touch | PASS |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+| PKS `P_L3` 8s | PASS content/pixel `cpu_fb=0` |
+
+### Policy
+- Keep multi-page Page metadata + split-before-queue
+- Keep generation + TouchPage (prior HUD UV fix)
+- Do not hardcode page 0 again
+
+### Evidence
+- Tests: `render/internal/gpu/glyph_mask_multipage_test.go`
+- Code: `glyph_mask_pipeline.go`, `glyph_mask_engine.go`, `gpu_render_context.go`
+
+## opt39 classic convex vert sticky + singleSubmit note (2026-07-17)
+
+### Intent
+Post-opt38 L3 hotspots: Finish/Submit/WriteBuffer. Tried two class-A directions:
+
+1. **Full-frame singleSubmit** (base + dual-tex MultiInto + blit, one Finish)
+2. **Convex vertex sticky WriteBuffer** (opt28-style)
+
+### 1) Full-frame singleSubmit — NOT enabled
+- Code path exists (`f1_frame_enc` + `sharedEncoder`) but enabling regressed `TestF1_AdvancedLayerPresentView*`:
+  - Multiply → white center
+  - Screen → black
+- Kept `singleSubmit := false`
+- **Kept** resolve fix: when external `enc != nil`, composite out→scratch blit encodes into `enc` without nested Finish (needed if singleSubmit ever re-enabled with dest-correct proof)
+- Finish/Submit end paths use `submitWithLeading` (coalesce opt21 layer leads) when singleSubmit is used later
+
+### 2) Convex vertex sticky — Keep (narrow)
+| change | detail |
+|--------|--------|
+| `allocConvexVertSlot` | when `deferredConvexUses==0` and no lead CBs → stay on **slot 0** |
+| sticky WriteBuffer | **classic (non-meshCompact) only** — fingerprint skip when slot payload matches |
+| meshCompact | always WriteBuffer (animated mesh always-miss; fingerprint would be O(n) tax on L3) |
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt39_ConvexVertSticky_SkipsRepeatWrite` | PASS |
+| `TestOpt39_ConvexVertSticky_Slot0WhenNoDeferred` | PASS |
+| `TestOpt24_*` / `TestOpt28_*` / `TestOpt34_*` / `TestOpt37_*` | PASS |
+| `TestF1_*` | PASS (singleSubmit still off) |
+
+### PKS present (`tmp/pks/cpu_opt/opt39b_*.json`, 8s)
+
+| probe | opt38c cpu | **opt39b cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|------------|----------------|---------|--------|--------|-------|
+| P_SOLID | 8.6 | **9.5** | 58.5 | PASS | 0 | true |
+| P_L3 | 19.3 | **19.6** / 19.3 prof | 58.3 | PASS | 0 | true |
+| P_LAYER | 8.7 | **9.2** | 58.2 | PASS | 0 | true |
+| P_BLEND_LAYER | — | **13.9** | 59.2 | PASS | 0 | true |
+
+### pprof structure (P_L3)
+| metric | opt38c | **opt39b** |
+|--------|--------|------------|
+| Queue.WriteBuffer cum | 160ms (8.9%) | **120ms (6.7%)** |
+| buildConvexResources | 80ms (4.5%) | 80ms (4.4%) |
+
+### Policy
+- **Keep** slot0 + classic convex sticky (class A; unit-proven; no F1 regress)
+- **Do not** fingerprint sticky meshCompact (L3 pure tax)
+- **Do not** re-enable full-frame singleSubmit without dest-correct dual-tex proof + F1 green
+- Wall L3 CPU noise; structure WB slightly down
+- Next: Finish/Submit still dominate — only re-open singleSubmit with pixel proof; avoid mesh micro
+
+### Evidence
+- `tmp/pks/cpu_opt/opt39b_*.json`, `pl3_opt39b.pprof`
+- Tests: `render/internal/gpu/opt39_convex_vert_sticky_test.go`
+- Code: `render_session.go` (slot0 + sticky), `gpu_render_context.go` (external-enc resolve)
+
+## opt40 gpu-tex uniform slab + drawCall scratch (2026-07-17)
+
+### Intent
+Mirror **opt29 image uniform slab** onto the GPU-texture (glow/filter publish) path:
+1. Pack all coalesced gpu-tex opacity/viewport uniforms into **one grow-only slab** → single `Queue.WriteBuffer` per flush when any slot dirty
+2. Reuse `gpuTexDrawCallScratch` for coalesced draw records (cut per-flush alloc)
+
+Class A structure: same bind groups/draws/pixels; only upload/alloc path.
+
+### Code
+| change | detail |
+|--------|--------|
+| `render_session.go` | `gpuTexUniformSlab` / `gpuTexUniformSlabCap` / scratch; pack N slots → 1 WB |
+| `getOrCreate(..., uniformOffset, ...)` | bind group uses slab + dynamic offset (or fixed offset layout) |
+| `gpu_render_context.go` | packMesh uses `packColorUnorm8x4RGBA` (shared pack helper) |
+| Legacy per-slot uniform buffers | remain nil after opt40; Destroy nils slice |
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt40_GPUTexUniformSlab_*` | PASS — N slots → 1 slab WB; identical rebuild 0 WB; opacity change 1 slab WB |
+| `TestOpt27_*` | PASS (updated for new `getOrCreate` signature) |
+| `TestF1_AdvancedLayerPresentView*` | PASS |
+
+### PKS present (`tmp/pks/cpu_opt/opt40_*.json`, 8s)
+
+| probe | prior cpu (opt39b where avail) | **opt40 cpu** | fps_ema | status | cpu_fb | pixel |
+|-------|--------------------------------|---------------|---------|--------|--------|-------|
+| P_SOLID | 9.5 | **8.3** | 58.2 | PASS | 0 | true |
+| P_GLOW | 11.8† | **11.9** | 57.7 | PASS | 0 | true |
+| P_BLEND_GLOW | 17.1† | **17.0** | 59.1 | PASS | 0 | true |
+| P_L3 | 19.6 | **19.3** / **18.8** prof | 60.6 / 58.9 | PASS | 0 | true |
+| P_LAYER | 9.2 | **10.3** | 58.2 | PASS | 0 | true |
+| P_BLEND_LAYER | 13.9 | **13.7** | 58.8 | PASS | 0 | true |
+
+† prior from handoff when opt39b artifact missing for that probe.
+
+### pprof structure (P_L3) — noisy vs opt39b
+| metric | opt39b | **opt40** |
+|--------|--------|-----------|
+| WriteBuffer cum | 120ms (6.7%) | 210ms (11.9%) — sample noise / mix |
+| buildGPUTextureResources | 30ms (1.7%) | 60ms (3.4%) |
+| Finish | 270–290ms | **230ms (13%)** |
+| packMeshVertsCoverage1 | 90ms (5%) | **60ms (3.4%)** |
+
+Unit gate is the structure proof (N→1 slab WB). Wall L3 flat/slightly better; WriteBuffer % noisy.
+
+### Policy
+- **Keep** as class A structure (unit-proven; F1 green; PKS green; L3 wall flat/slightly better)
+- Honest: L3 wall not a large structure win; pprof WriteBuffer % noisy
+- **Revert** if gpu-tex pixels wrong (slab offset / BG cache)
+- Do **not** open full-frame singleSubmit without dest-correct dual-tex + F1 green
+- Next: Finish/Submit still dominate; remaining WB is animated mesh verts (avoid micro/fingerprint); optional dual-tex into-dest dead path cleanup
+
+### Evidence
+- `tmp/pks/cpu_opt/opt40_*.json`, `pl3_opt40.pprof`
+- Tests: `render/internal/gpu/opt40_gputex_uniform_slab_test.go`
+- Code: `render_session.go` (gpu-tex slab), `gpu_render_context.go` (pack helper)
+

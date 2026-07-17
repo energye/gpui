@@ -695,14 +695,14 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 
 	useVC := len(colors) == len(positions)
 	need := nOut
-	nBytes := need * convexVertexStride
+	nBytes := need * convexMeshVertexStride
 
-	// Grow-only packed vertex scratch (primary mesh payload).
+	// Grow-only packed vertex scratch (primary mesh payload, opt33 12B).
 	pkBase := len(rc.convexMeshPacked)
 	if cap(rc.convexMeshPacked) < pkBase+nBytes {
 		capN := (pkBase + nBytes) * 2
-		if capN < 512*convexVertexStride {
-			capN = 512 * convexVertexStride
+		if capN < 512*convexMeshVertexStride {
+			capN = 512 * convexMeshVertexStride
 		}
 		np := make([]byte, pkBase, capN)
 		copy(np, rc.convexMeshPacked)
@@ -727,8 +727,8 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 	}
 
 	writeAt := func(vi int, p render.Point, col [4]float32) {
-		off := pkBase + vi*convexVertexStride
-		writeConvexVertex(pk[off:], float32(p.X), float32(p.Y), 1.0, col)
+		off := pkBase + vi*convexMeshVertexStride
+		writeConvexMeshVertex(pk[off:], float32(p.X), float32(p.Y), col)
 	}
 
 	if triangleList {
@@ -811,12 +811,12 @@ func (rc *GPURenderContext) QueueColoredMeshIndexed(target render.GPURenderTarge
 	rc.ensureDrawOrder(drawTierConvex)
 
 	nVerts := len(positions)
-	nBytes := nVerts * convexVertexStride
+	nBytes := nVerts * convexMeshVertexStride
 	pkBase := len(rc.convexMeshPacked)
 	if cap(rc.convexMeshPacked) < pkBase+nBytes {
 		capN := (pkBase + nBytes) * 2
-		if capN < 512*convexVertexStride {
-			capN = 512 * convexVertexStride
+		if capN < 512*convexMeshVertexStride {
+			capN = 512 * convexMeshVertexStride
 		}
 		np := make([]byte, pkBase, capN)
 		copy(np, rc.convexMeshPacked)
@@ -855,11 +855,10 @@ func (rc *GPURenderContext) QueueColoredMeshIndexed(target render.GPURenderTarge
 	rc.sceneStats.ShapeCount++
 }
 
-// packMeshVertsCoverage1 writes SkipAA mesh verts (coverage=1) into dst.
-// dst must be len(positions)*convexVertexStride. Returns a solid fallback color
-// (mean of first triangle when useVC, else first/solid color).
+// packMeshVertsCoverage1 writes SkipAA mesh verts into dst (opt33: 12B layout).
+// dst must be len(positions)*convexMeshVertexStride. Coverage is implicit 1.0
+// in vs_mesh. Returns a solid fallback color (mean of first triangle when useVC).
 func packMeshVertsCoverage1(dst []byte, positions []render.Point, colors []render.RGBA, useVC bool) [4]float32 {
-	const covBits = uint32(0x3f800000) // 1.0f
 	n := len(positions)
 	solid := [4]float32{0, 0, 0, 1}
 	if !useVC {
@@ -868,22 +867,16 @@ func packMeshVertsCoverage1(dst []byte, positions []render.Point, colors []rende
 			a := float32(c.A)
 			solid = [4]float32{float32(c.R) * a, float32(c.G) * a, float32(c.B) * a, a}
 		}
-		cr := math.Float32bits(solid[0])
-		cg := math.Float32bits(solid[1])
-		cb := math.Float32bits(solid[2])
-		ca := math.Float32bits(solid[3])
+		colBits := packColorUnorm8x4RGBA(solid[0], solid[1], solid[2], solid[3])
 		for i := 0; i < n; i++ {
-			off := i * convexVertexStride
+			off := i * convexMeshVertexStride
 			*(*uint32)(unsafe.Pointer(&dst[off+0])) = math.Float32bits(float32(positions[i].X)) //nolint:gosec
 			*(*uint32)(unsafe.Pointer(&dst[off+4])) = math.Float32bits(float32(positions[i].Y)) //nolint:gosec
-			*(*uint32)(unsafe.Pointer(&dst[off+8])) = covBits                                   //nolint:gosec
-			*(*uint32)(unsafe.Pointer(&dst[off+12])) = cr                                       //nolint:gosec
-			*(*uint32)(unsafe.Pointer(&dst[off+16])) = cg                                       //nolint:gosec
-			*(*uint32)(unsafe.Pointer(&dst[off+20])) = cb                                       //nolint:gosec
-			*(*uint32)(unsafe.Pointer(&dst[off+24])) = ca                                       //nolint:gosec
+			*(*uint32)(unsafe.Pointer(&dst[off+8])) = colBits                                   //nolint:gosec
 		}
 		return solid
 	}
+	// opt31+opt33+opt40: quant via packColorUnorm8x4RGBA (same bits as inline).
 	var s0, s1, s2, s3 float32
 	for i := 0; i < n; i++ {
 		c := colors[i]
@@ -897,14 +890,10 @@ func packMeshVertsCoverage1(dst []byte, positions []render.Point, colors []rende
 			s2 += b
 			s3 += a
 		}
-		off := i * convexVertexStride
+		off := i * convexMeshVertexStride
 		*(*uint32)(unsafe.Pointer(&dst[off+0])) = math.Float32bits(float32(positions[i].X)) //nolint:gosec
 		*(*uint32)(unsafe.Pointer(&dst[off+4])) = math.Float32bits(float32(positions[i].Y)) //nolint:gosec
-		*(*uint32)(unsafe.Pointer(&dst[off+8])) = covBits                                   //nolint:gosec
-		*(*uint32)(unsafe.Pointer(&dst[off+12])) = math.Float32bits(r)                      //nolint:gosec
-		*(*uint32)(unsafe.Pointer(&dst[off+16])) = math.Float32bits(g)                      //nolint:gosec
-		*(*uint32)(unsafe.Pointer(&dst[off+20])) = math.Float32bits(b)                      //nolint:gosec
-		*(*uint32)(unsafe.Pointer(&dst[off+24])) = math.Float32bits(a)                      //nolint:gosec
+		*(*uint32)(unsafe.Pointer(&dst[off+8])) = packColorUnorm8x4RGBA(r, g, b, a)         //nolint:gosec
 	}
 	if n >= 3 {
 		return [4]float32{s0 / 3, s1 / 3, s2 / 3, s3 / 3}
@@ -1175,6 +1164,18 @@ func (rc *GPURenderContext) QueueGlyphMask(target render.GPURenderTarget, batch 
 	rc.hasPendingTarget = true
 }
 
+// queueGlyphMaskSplit expands multi-page glyph batches then queues each page.
+// Required once the atlas grows past page 0: UVs are page-local and the GPU
+// bind group samples one R8 page texture per batch.
+func (rc *GPURenderContext) queueGlyphMaskSplit(target render.GPURenderTarget, batch GlyphMaskBatch) {
+	for _, b := range SplitGlyphMaskBatchByPage(batch) {
+		if len(b.Quads) == 0 {
+			continue
+		}
+		rc.QueueGlyphMask(target, b)
+	}
+}
+
 // DrawText shapes and queues text for MSDF rendering (Tier 4).
 func (rc *GPURenderContext) DrawText(target render.GPURenderTarget, face any, s string, x, y float64, color render.RGBA, matrix render.Matrix, deviceScale float64) error {
 	textFace, ok := face.(text.Face)
@@ -1243,7 +1244,7 @@ func (rc *GPURenderContext) DrawGlyphMaskText(target render.GPURenderTarget, fac
 		return nil
 	}
 
-	rc.QueueGlyphMask(target, batch)
+	rc.queueGlyphMaskSplit(target, batch)
 	return nil
 }
 
@@ -1281,7 +1282,7 @@ func (rc *GPURenderContext) DrawGlyphMaskTextAliased(target render.GPURenderTarg
 		return nil
 	}
 
-	rc.QueueGlyphMask(target, batch)
+	rc.queueGlyphMaskSplit(target, batch)
 	return nil
 }
 
@@ -1318,7 +1319,7 @@ func (rc *GPURenderContext) DrawShapedGlyphMaskText(target render.GPURenderTarge
 		return nil
 	}
 
-	rc.QueueGlyphMask(target, batch)
+	rc.queueGlyphMaskSplit(target, batch)
 	return nil
 }
 
@@ -1937,9 +1938,11 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		}
 	}
 
-	// F1: single-submit (shared encoder: base+dual-tex+blit) is intentionally
-	// disabled — dualTexBlendLayersIntoDest is not dest-correct; live path is
-	// multi-submit viewsRegion out-RT + blit. Re-enable only with pixel proof.
+	// F1: full-frame single-submit (base+dual-tex+surface blit one encoder) is
+	// still disabled — enabling regressed TestF1_AdvancedLayerPresentView* pixels
+	// (Multiply white / Screen black). Live path remains multi-submit MultiInto
+	// out-RT + blit (opt32). Re-enable only with dest-correct proof + F1 green.
+	// opt39 instead applies convex vertex sticky (see buildConvexResources).
 	singleSubmit := false && useScratch && rc.sharedEncoder == nil && len(rc.pendingAdvancedLayers) > 0 &&
 		rc.session != nil && rc.session.device != nil && rc.session.queue != nil
 	var frameEnc *webgpu.CommandEncoder
@@ -2028,7 +2031,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			0, 0, float32(vpW), float32(vpH), 1.0, vpW, vpH)
 
 		if singleSubmit && frameEnc != nil {
-			// Encode blit into frameEnc without nested Flush singleSubmit.
+			// Encode surface blit into frameEnc without nested Flush singleSubmit.
 			rc.sharedEncoder = frameEnc
 			groups2 := rc.buildScissorGroups()
 			base2 := rc.baseLayer
@@ -2044,8 +2047,9 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			if ferr != nil {
 				err = ferr
 			} else if cmd != nil {
-				defer cmd.Release()
-				if _, serr := rc.session.queue.Submit(cmd); serr != nil && err == nil {
+				// opt39: coalesce opt21 deferred layer CBs + frame CB (leads first).
+				// submitWithLeading retains cmd in prevCmdBufs on success.
+				if serr := rc.session.submitWithLeading(cmd); serr != nil && err == nil {
 					err = serr
 				}
 			}
@@ -2057,8 +2061,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 				// Abandon single-submit encoder; submit whatever was recorded first.
 				rc.sharedEncoder = nil
 				if cmd, ferr := frameEnc.Finish(); ferr == nil && cmd != nil {
-					_, _ = rc.session.queue.Submit(cmd)
-					cmd.Release()
+					_ = rc.session.submitWithLeading(cmd)
 				}
 				frameEnc = nil
 			}
@@ -2076,8 +2079,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		if ferr != nil && err == nil {
 			err = ferr
 		} else if cmd != nil {
-			defer cmd.Release()
-			if _, serr := rc.session.queue.Submit(cmd); serr != nil && err == nil {
+			if serr := rc.session.submitWithLeading(cmd); serr != nil && err == nil {
 				err = serr
 			}
 		}
@@ -2400,6 +2402,8 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 		opacity float32
 	}
 	var outs []outBlit
+	// opt32: optional shared encoder for dual-tex multi + composite blit (one Finish).
+	var compositeEnc *webgpu.CommandEncoder
 	if len(ops) > 0 {
 		dstView := (*webgpu.TextureView)(target.View.Pointer())
 		viewOps := make([]dualTexViewBlendOp, 0, len(ops))
@@ -2416,31 +2420,59 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			})
 		}
 		if len(viewOps) > 0 {
-			// R7.3: finish dual-tex multi without Submit; coalesce with following
-			// blit Flush into one Queue.Submit (multi CB, ordered).
-			bundle, derr := dualTexAdvancedBlendViewsMultiBundle(device, queue, cache, dstView, viewOps, tw, th, false)
+			recordEnc := enc
+			if recordEnc == nil && device != nil {
+				if ce, eerr := device.CreateCommandEncoder(dualTexCompositeEncoderDesc); eerr == nil {
+					compositeEnc = ce
+					recordEnc = ce
+				}
+			}
+			// Prefer IntoEncoder (opt32 / shared frame enc). Fall back to R7.3
+			// separate dual-tex CB + leading coalesce, then per-op path.
+			var mout []dualTexViewBlendOut
+			var derr error
+			if recordEnc != nil {
+				mout, derr = dualTexAdvancedBlendViewsMultiIntoEncoder(
+					device, queue, cache, dstView, viewOps, tw, th, recordEnc)
+			} else {
+				derr = fmt.Errorf("dual-tex multi: no encoder")
+			}
 			if derr != nil {
-				err = derr
-				// Fallback: per-op path (still correct, more submits).
-				for i := range ops {
-					op := ops[i]
-					outTex, outView, oerr := dualTexAdvancedBlendViewsRegionSized(
-						device, queue, cache, dstView, op.srcView, op.bounds, op.mode, tw, th)
-					if oerr != nil {
-						err = oerr
-						continue
+				if compositeEnc != nil {
+					compositeEnc.DiscardEncoding()
+					compositeEnc = nil
+				}
+				// R7.3: finish dual-tex multi without Submit; coalesce with following
+				// blit Flush into one Queue.Submit (multi CB, ordered).
+				bundle, berr := dualTexAdvancedBlendViewsMultiBundle(device, queue, cache, dstView, viewOps, tw, th, false)
+				if berr != nil {
+					err = berr
+					// Fallback: per-op path (still correct, more submits).
+					for i := range ops {
+						op := ops[i]
+						outTex, outView, oerr := dualTexAdvancedBlendViewsRegionSized(
+							device, queue, cache, dstView, op.srcView, op.bounds, op.mode, tw, th)
+						if oerr != nil {
+							err = oerr
+							continue
+						}
+						outs = append(outs, outBlit{view: outView, tex: outTex, bounds: op.bounds, opacity: op.opacity})
 					}
-					outs = append(outs, outBlit{view: outView, tex: outTex, bounds: op.bounds, opacity: op.opacity})
+				} else {
+					for _, mo := range bundle.Outs {
+						outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
+					}
+					if bundle.Cmd != nil && rc.session != nil {
+						rc.session.EnqueueLeadingSubmit(bundle.Cmd, bundle.Cleanup)
+					} else if bundle.Cleanup != nil {
+						bundle.Cleanup()
+					}
 				}
 			} else {
-				for _, mo := range bundle.Outs {
+				for _, mo := range mout {
 					outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
 				}
-				if bundle.Cmd != nil && rc.session != nil {
-					rc.session.EnqueueLeadingSubmit(bundle.Cmd, bundle.Cleanup)
-				} else if bundle.Cleanup != nil {
-					bundle.Cleanup()
-				}
+				// Dual-tex passes live on compositeEnc/enc — no separate lead CB.
 			}
 		}
 	}
@@ -2511,15 +2543,64 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 
 	if rc.PendingCount() > 0 {
 		// pendingAdvancedLayers already nil — no recursion into resolve.
-		// Flush surface/blit CB; session coalesces deferred dual-tex multi (R7.3).
-		if ferr := rc.Flush(target); ferr != nil && err == nil {
-			err = ferr
+		if compositeEnc != nil && rc.session != nil {
+			// opt32: encode composite blit into the same encoder as dual-tex multi,
+			// one Finish + submitWithLeading (layers + dual+blit).
+			rc.sharedEncoder = compositeEnc
+			ferr := rc.Flush(target)
+			rc.sharedEncoder = nil
+			if ferr != nil {
+				compositeEnc.DiscardEncoding()
+				compositeEnc = nil
+				if err == nil {
+					err = ferr
+				}
+			} else {
+				cmd, ferr := compositeEnc.Finish()
+				compositeEnc = nil
+				if ferr != nil {
+					if err == nil {
+						err = ferr
+					}
+				} else if serr := rc.session.submitWithLeading(cmd); serr != nil && err == nil {
+					err = serr
+				}
+			}
+		} else if enc != nil && rc.session != nil {
+			// opt39: external single-submit encoder owns Finish/Submit.
+			// Encode dual-tex out→scratch blits into enc; do not Finish here.
+			rc.sharedEncoder = enc
+			ferr := rc.Flush(target)
+			rc.sharedEncoder = nil
+			if ferr != nil && err == nil {
+				err = ferr
+			}
+		} else {
+			// R7.3 path: Flush surface/blit CB; session coalesces deferred dual-tex multi.
+			if ferr := rc.Flush(target); ferr != nil && err == nil {
+				err = ferr
+			}
+		}
+	} else if compositeEnc != nil && rc.session != nil {
+		// Dual-tex multi encoded but no blit queued — still Finish+submit.
+		cmd, ferr := compositeEnc.Finish()
+		compositeEnc = nil
+		if ferr != nil {
+			if err == nil {
+				err = ferr
+			}
+		} else if serr := rc.session.submitWithLeading(cmd); serr != nil && err == nil {
+			err = serr
 		}
 	} else if rc.session != nil {
 		// Dual-tex multi finished but no composite blit queued — still submit.
 		if ferr := rc.session.FlushLeadingSubmitsOnly(); ferr != nil && err == nil {
 			err = ferr
 		}
+	}
+	if compositeEnc != nil {
+		compositeEnc.DiscardEncoding()
+		compositeEnc = nil
 	}
 	// When encoding into an external single-submit encoder, layer RT textures
 	// must stay alive until Finish/Submit. Caller drains layerReleaseHold after.

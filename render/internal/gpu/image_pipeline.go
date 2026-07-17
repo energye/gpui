@@ -34,6 +34,11 @@ const imageVertexStride = 16
 // Total = 80 bytes.
 const imageUniformSize = 80
 
+// imageUniformSlotStride is the bytes reserved per draw uniform in a shared
+// slab buffer (opt29). Must be a multiple of minUniformBufferOffsetAlignment
+// (default 256) so BindGroup entries may use non-zero Offset.
+const imageUniformSlotStride = 256
+
 // ImageDrawCommand holds everything needed to render one image as a textured
 // quad on the GPU. Populated by context_image.go and consumed by the render
 // session. All coordinates are in device pixels (post-CTM).
@@ -617,40 +622,32 @@ func makeImageUniformInto(buf []byte, viewportW, viewportH uint32, opacity float
 		buf = make([]byte, imageUniformSize)
 	} else {
 		buf = buf[:imageUniformSize]
-		for i := range buf {
-			buf[i] = 0
-		}
+		clear(buf)
 	}
+	putImageUniform(buf, viewportW, viewportH, opacity)
+	return buf
+}
 
-	// Orthographic projection: pixel coords → NDC.
-	// Same as glyph_mask/msdf_text: column-major mat4x4.
+// putImageUniform writes one image uniform block at the start of dst.
+// dst must have length >= imageUniformSize. Bytes beyond the 80-byte payload
+// are left untouched (important for 256-byte slab slots).
+func putImageUniform(dst []byte, viewportW, viewportH uint32, opacity float32) {
+	if len(dst) < int(imageUniformSize) {
+		panic("putImageUniform: dst too small")
+	}
+	// Clear only the payload (slot padding may already be zero from slab alloc).
+	for i := 0; i < int(imageUniformSize); i++ {
+		dst[i] = 0
+	}
 	w := float32(viewportW)
 	h := float32(viewportH)
-
-	// Column 0: [2/w, 0, 0, 0]
-	binary.LittleEndian.PutUint32(buf[0:], math.Float32bits(2.0/w))
-	// buf[4..12] = 0 (zero-initialized)
-
-	// Column 1: [0, -2/h, 0, 0]
-	// buf[16] = 0
-	binary.LittleEndian.PutUint32(buf[20:], math.Float32bits(-2.0/h))
-	// buf[24..28] = 0
-
-	// Column 2: [0, 0, 1, 0] (identity z)
-	binary.LittleEndian.PutUint32(buf[40:], math.Float32bits(1.0))
-	// buf[32..36, 44] = 0
-
-	// Column 3: [-1, 1, 0, 1]
-	binary.LittleEndian.PutUint32(buf[48:], math.Float32bits(-1.0))
-	binary.LittleEndian.PutUint32(buf[52:], math.Float32bits(1.0))
-	// buf[56] = 0
-	binary.LittleEndian.PutUint32(buf[60:], math.Float32bits(1.0))
-
-	// Opacity (offset 64).
-	binary.LittleEndian.PutUint32(buf[64:], math.Float32bits(opacity))
-	// Padding bytes 68..79 remain zero.
-
-	return buf
+	binary.LittleEndian.PutUint32(dst[0:], math.Float32bits(2.0/w))
+	binary.LittleEndian.PutUint32(dst[20:], math.Float32bits(-2.0/h))
+	binary.LittleEndian.PutUint32(dst[40:], math.Float32bits(1.0))
+	binary.LittleEndian.PutUint32(dst[48:], math.Float32bits(-1.0))
+	binary.LittleEndian.PutUint32(dst[52:], math.Float32bits(1.0))
+	binary.LittleEndian.PutUint32(dst[60:], math.Float32bits(1.0))
+	binary.LittleEndian.PutUint32(dst[64:], math.Float32bits(opacity))
 }
 
 // SamplerFor returns the sampler for the command filter mode (I.03).

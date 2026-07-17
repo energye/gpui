@@ -238,9 +238,16 @@ type GPURenderSession struct {
 	convexRenderer     *ConvexRenderer
 	stencilRenderer    *StencilRenderer
 	ownsShapePipelines bool
-	imagePipeline      *TexturedQuadPipeline
-	imageCache         *ImageCache
-	textPipeline       *MSDFTextPipeline
+	// opt38: skip ensurePipelines body when pipelines already match clip/mask layouts.
+	pipelinesReady       bool
+	pipelinesReadyClip   *webgpu.BindGroupLayout
+	pipelinesReadyMask   *webgpu.BindGroupLayout
+	lastEnsurePipelines  int // diagnostic: 0=skipped fast, 1=full ensure (last call)
+	ensurePipelinesFastN uint64
+	ensurePipelinesFullN uint64
+	imagePipeline        *TexturedQuadPipeline
+	imageCache           *ImageCache
+	textPipeline         *MSDFTextPipeline
 
 	// Surface rendering mode fields. When surfaceView is non-nil, the session
 	// renders directly to the surface instead of reading back to CPU.
@@ -263,9 +270,14 @@ type GPURenderSession struct {
 	// WriteBuffer must not overwrite a buffer still referenced by an
 	// unsubmitted leading CB (mid-frame layer RT fills). Ring size covers
 	// several deferred layer flushes + present before a coalesced Submit.
-	convexVertBufs     [4]*webgpu.Buffer
-	convexVertBufCaps  [4]uint64
-	convexVertSlot     int
+	convexVertBufs    [4]*webgpu.Buffer
+	convexVertBufCaps [4]uint64
+	convexVertSlot    int
+	// opt39: per-ring-slot vertex content fingerprint (same idea as opt24 indices /
+	// opt28 image verts). Mid-frame layer/base flushes often re-upload identical
+	// packed mesh/convex bytes into the next ring slot — skip WriteBuffer on hit.
+	convexVertSlotHash [4]uint64
+	convexVertSlotLen  [4]int
 	deferredConvexUses int  // builds encoded into leadSubmitCBs since last Submit
 	deferSurfaceSubmit bool // encode+enqueue instead of Queue.Submit
 	// opt22: index buffer ring for DrawIndexed mesh path.
@@ -284,9 +296,13 @@ type GPURenderSession struct {
 	// Tier 3: Image textured quad persistent buffers.
 	imageVertBuf    *webgpu.Buffer
 	imageVertBufCap uint64
-	// Per-draw uniform buffers and bind groups (pool, grows as needed).
-	imageUniformBufs []*webgpu.Buffer
-	imageBindGroups  []*webgpu.BindGroup
+	// opt29: single slab for all image uniforms (stride imageUniformSlotStride).
+	// One WriteBuffer uploads every slot instead of N×80B cgocalls (atlas opacity).
+	imageUniformSlab    *webgpu.Buffer
+	imageUniformSlabCap uint64 // bytes
+	imageUniformSlots   int    // slots currently addressed in slab
+	// Per-draw bind groups (pool, grows as needed); uniforms live in the slab.
+	imageBindGroups []*webgpu.BindGroup
 	// Stable-key reuse: recreate bind groups only when texture/sampler changes.
 	imageBGViews          []*webgpu.TextureView
 	imageBGNearest        []bool
@@ -296,6 +312,10 @@ type GPURenderSession struct {
 	imageSliceDrawScratch []imageDrawCall
 	// opt24: skip image uniform WriteBuffer when viewport/opacity unchanged.
 	imageUniformLast []imageUniformLastKey
+	// opt28: skip image vertex WriteBuffer when packed quads match last upload.
+	imageVertLastHash  uint64
+	imageVertLastLen   int
+	imageVertLastValid bool
 	// S6.3 coalesce scratch (grow-only; present path reuses across frames).
 	coalesceTextOut    []TextBatch
 	coalesceTextQuads  []TextQuad
@@ -366,14 +386,30 @@ type GPURenderSession struct {
 	gpuTexVertBufCap     uint64
 	gpuTexBaseVertBuf    *webgpu.Buffer // base layer only (1 quad, never shares with overlays)
 	gpuTexBaseVertBufCap uint64
-	gpuTexUniformBufs    []*webgpu.Buffer
+	// opt40: single slab for all gpu-tex uniforms (stride imageUniformSlotStride).
+	// Mirrors opt29 image path — one WriteBuffer instead of N×80B cgocalls when
+	// multi-quad glow/layer blits share a frame.
+	gpuTexUniformSlab    *webgpu.Buffer
+	gpuTexUniformSlabCap uint64
+	gpuTexUniformSlots   int
+	// Legacy per-slot buffers kept nil after opt40; Destroy still nils the slice.
+	gpuTexUniformBufs []*webgpu.Buffer
 	// opt27: per-poolIdx small view→BG ring. Filter promote ping-pongs publish
 	// TextureViews; single last-view cache was a guaranteed miss every frame.
-	gpuTexBGCaches       []gpuTexBGSlotCache
-	gpuTexVertexStaging  []byte
-	gpuTexUniformScratch []byte
+	gpuTexBGCaches        []gpuTexBGSlotCache
+	gpuTexVertexStaging   []byte
+	gpuTexUniformScratch  []byte
+	gpuTexDrawCallScratch []imageDrawCall
 	// opt24: skip gpu-tex uniform WriteBuffer when viewport/opacity unchanged.
 	gpuTexUniformLast []imageUniformLastKey
+	// opt28: skip gpu-tex vertex WriteBuffer when packed quads match last upload
+	// (base and overlay tracked separately).
+	gpuTexVertLastHash      uint64
+	gpuTexVertLastLen       int
+	gpuTexVertLastValid     bool
+	gpuTexBaseVertLastHash  uint64
+	gpuTexBaseVertLastLen   int
+	gpuTexBaseVertLastValid bool
 
 	// Bind groups pending release — deferred until after command buffer submit.
 	// WebGPU requires bind groups to be alive at submit time (wgpu-core track/mod.rs:631).
@@ -863,7 +899,12 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	// (and before empty early-return) so advanced-blend Present never samples
 	// an unsubmitted layer RT. Multiple layer fills still coalesce into one
 	// Submit via leadSubmitCBs.
-	if !s.deferSurfaceSubmit && len(s.leadSubmitCBs) > 0 {
+	//
+	// opt34: do NOT drain when recording into sharedEncoder (opt32 dual-tex
+	// composite / ADR-017). Caller Finishes then submitWithLeading so layers +
+	// dual-tex + blit stay one Queue.Submit. Draining here forced a mid-frame
+	// Submit and left the composite CB alone (extra Finish/Submit tax on L3).
+	if !s.deferSurfaceSubmit && sharedEncoder == nil && len(s.leadSubmitCBs) > 0 {
 		if err := s.FlushLeadingSubmitsOnly(); err != nil {
 			return err
 		}
@@ -1334,6 +1375,9 @@ func (s *GPURenderSession) Destroy() {
 	s.convexRenderer = nil
 	s.stencilRenderer = nil
 	s.ownsShapePipelines = false
+	s.pipelinesReady = false
+	s.pipelinesReadyClip = nil
+	s.pipelinesReadyMask = nil
 	// Text pipeline is always session-owned (ensureTextPipeline).
 	if s.textPipeline != nil {
 		s.textPipeline.Destroy()
@@ -1385,6 +1429,8 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 			s.convexVertBufs[i] = nil
 			s.convexVertBufCaps[i] = 0
 		}
+		s.convexVertSlotHash[i] = 0
+		s.convexVertSlotLen[i] = 0
 	}
 	s.convexVertSlot = 0
 	for i := range s.convexIndexBufs {
@@ -1411,13 +1457,16 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.imageBGNearest = nil
 	s.imageVertexStaging = nil
 	s.imageUniformScratch = nil
-	for _, buf := range s.imageUniformBufs {
-		if buf != nil {
-			buf.Release()
-		}
+	if s.imageUniformSlab != nil {
+		s.imageUniformSlab.Release()
+		s.imageUniformSlab = nil
+		s.imageUniformSlabCap = 0
 	}
-	s.imageUniformBufs = nil
+	s.imageUniformSlots = 0
 	s.imageUniformLast = nil
+	s.imageVertLastHash = 0
+	s.imageVertLastLen = 0
+	s.imageVertLastValid = false
 	if s.imageVertBuf != nil {
 		s.imageVertBuf.Release()
 		s.imageVertBuf = nil
@@ -1440,6 +1489,12 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.gpuTexUniformScratch = nil
 	s.releasePendingBindGroups()
 	s.pendingBindGroupRelease = nil
+	if s.gpuTexUniformSlab != nil {
+		s.gpuTexUniformSlab.Release()
+		s.gpuTexUniformSlab = nil
+		s.gpuTexUniformSlabCap = 0
+		s.gpuTexUniformSlots = 0
+	}
 	for _, buf := range s.gpuTexUniformBufs {
 		if buf != nil {
 			buf.Release()
@@ -1447,6 +1502,14 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	}
 	s.gpuTexUniformBufs = nil
 	s.gpuTexUniformLast = nil
+	s.gpuTexDrawCallScratch = nil
+	s.gpuTexUniformScratch = nil
+	s.gpuTexVertLastHash = 0
+	s.gpuTexVertLastLen = 0
+	s.gpuTexVertLastValid = false
+	s.gpuTexBaseVertLastHash = 0
+	s.gpuTexBaseVertLastLen = 0
+	s.gpuTexBaseVertLastValid = false
 	if s.gpuTexVertBuf != nil {
 		s.gpuTexVertBuf.Release()
 		s.gpuTexVertBuf = nil
@@ -1566,6 +1629,19 @@ type sdfFrameResources struct {
 // is NOT created here — it is created on demand when text batches are present
 // (see ensureTextPipeline).
 func (s *GPURenderSession) ensurePipelines() error {
+	// opt38: warm path — clip/mask layouts stable and core pipelines present.
+	if s.pipelinesReady &&
+		s.pipelinesReadyClip == s.clipBindLayout &&
+		s.pipelinesReadyMask == s.maskBindLayout &&
+		s.sdfPipeline != nil && s.convexRenderer != nil && s.stencilRenderer != nil &&
+		s.imagePipeline != nil && s.depthClipPipeline != nil {
+		s.lastEnsurePipelines = 0
+		s.ensurePipelinesFastN++
+		return nil
+	}
+	s.lastEnsurePipelines = 1
+	s.ensurePipelinesFullN++
+
 	if err := s.ensureMaskBindLayout(); err != nil {
 		return fmt.Errorf("mask bind layout: %w", err)
 	}
@@ -1632,6 +1708,9 @@ func (s *GPURenderSession) ensurePipelines() error {
 		return fmt.Errorf("depth clip pipeline: %w", err)
 	}
 
+	s.pipelinesReady = true
+	s.pipelinesReadyClip = s.clipBindLayout
+	s.pipelinesReadyMask = s.maskBindLayout
 	return nil
 }
 
@@ -2108,11 +2187,32 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 // the data exceeds current capacity.
 func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w, h uint32) (*convexFrameResources, error) {
 	var vertexData []byte
-	// opt20/opt25: pre-packed TriangleList mesh — WriteBuffer directly from
-	// PackedVerts when single-cmd OR multi-cmd slices are memory-contiguous
-	// (Queue grow-only packing). Skips staging memcpy (pprof memmove).
-	if data, ok := packedMeshVertsContiguous(commands); ok {
-		vertexData = data
+	meshCompact := allConvexCommandsMeshCompact(commands)
+	// opt20/opt25/opt33: pure packed mesh WriteBuffer from PackedVerts (12B when
+	// meshCompact). Mixed frames expand mesh→16B AA layout via buildConvexVerticesReuse.
+	if meshCompact {
+		if data, ok := packedMeshVertsContiguous(commands); ok {
+			vertexData = data
+		} else {
+			total := 0
+			for i := range commands {
+				nb := len(commands[i].PackedVerts)
+				total += nb - (nb % convexMeshVertexStride)
+			}
+			if cap(s.convexVertexStaging) < total {
+				s.convexVertexStaging = make([]byte, total)
+			} else {
+				s.convexVertexStaging = s.convexVertexStaging[:total]
+			}
+			off := 0
+			for i := range commands {
+				nb := len(commands[i].PackedVerts)
+				nb = nb - (nb % convexMeshVertexStride)
+				copy(s.convexVertexStaging[off:off+nb], commands[i].PackedVerts[:nb])
+				off += nb
+			}
+			vertexData = s.convexVertexStaging[:off]
+		}
 	} else {
 		s.convexVertexStaging, vertexData = buildConvexVerticesReuse(commands, s.convexVertexStaging)
 	}
@@ -2141,10 +2241,29 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		}
 		s.convexVertBufs[slot] = buf
 		s.convexVertBufCaps[slot] = allocSize
+		s.convexVertSlotHash[slot] = 0
+		s.convexVertSlotLen[slot] = 0
 	}
 	vertBuf := s.convexVertBufs[slot]
-	if err := s.queueWriteBuffer(vertBuf, 0, vertexData); err != nil {
-		return nil, fmt.Errorf("write convex vertex buffer: %w", err)
+	// opt39: sticky WriteBuffer for classic (non-meshCompact) convex only.
+	// Animated packed mesh (meshCompact) almost always misses; fingerprint would
+	// be pure O(n) tax on L3 before the unavoidable WriteBuffer.
+	if meshCompact {
+		if err := s.queueWriteBuffer(vertBuf, 0, vertexData); err != nil {
+			return nil, fmt.Errorf("write convex vertex buffer: %w", err)
+		}
+		s.convexVertSlotHash[slot] = 0
+		s.convexVertSlotLen[slot] = 0
+	} else {
+		vertHash := indexBytesFingerprint(vertexData)
+		vertLen := len(vertexData)
+		if s.convexVertSlotLen[slot] != vertLen || s.convexVertSlotHash[slot] != vertHash {
+			if err := s.queueWriteBuffer(vertBuf, 0, vertexData); err != nil {
+				return nil, fmt.Errorf("write convex vertex buffer: %w", err)
+			}
+			s.convexVertSlotHash[slot] = vertHash
+			s.convexVertSlotLen[slot] = vertLen
+		}
 	}
 
 	const convexAA = true // Same 16-byte viewport layout; convex AA is per-vertex.
@@ -2278,14 +2397,20 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		}
 	}
 
+	if meshCompact {
+		if err := s.convexRenderer.ensureMeshPipelineWithStencil(); err != nil {
+			return nil, fmt.Errorf("convex mesh pipeline: %w", err)
+		}
+	}
 	return &convexFrameResources{
-		vertBuf:    vertBuf,
-		indexBuf:   indexBuf,
-		uniformBuf: s.convexUniformBuf,
-		bindGroup:  s.convexBindGroup,
-		vertCount:  vertexCount,
-		indexCount: indexCount,
-		ranges:     buildConvexBlendRangesIndexed(commands, 0, 0),
+		vertBuf:     vertBuf,
+		indexBuf:    indexBuf,
+		uniformBuf:  s.convexUniformBuf,
+		bindGroup:   s.convexBindGroup,
+		vertCount:   vertexCount,
+		indexCount:  indexCount,
+		ranges:      buildConvexBlendRangesIndexed(commands, 0, 0),
+		meshCompact: meshCompact,
 	}, nil
 }
 
@@ -2647,9 +2772,18 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		}
 		s.imageVertBuf = buf
 		s.imageVertBufCap = needed
+		s.imageVertLastValid = false
 	}
-	if err := s.queueWriteBuffer(s.imageVertBuf, 0, allVertData); err != nil {
-		return nil, fmt.Errorf("upload image vertices: %w", err)
+	// opt28: atlas/marker quads often stable across mid-frame flushes; skip
+	// WriteBuffer when packed vertex bytes match the live GPU buffer contents.
+	vertHash := indexBytesFingerprint(allVertData)
+	if !s.imageVertLastValid || s.imageVertLastLen != len(allVertData) || s.imageVertLastHash != vertHash {
+		if err := s.queueWriteBuffer(s.imageVertBuf, 0, allVertData); err != nil {
+			return nil, fmt.Errorf("upload image vertices: %w", err)
+		}
+		s.imageVertLastHash = vertHash
+		s.imageVertLastLen = len(allVertData)
+		s.imageVertLastValid = true
 	}
 
 	if cap(s.imageDrawCallScratch) < len(cmds) {
@@ -2658,9 +2792,16 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		s.imageDrawCallScratch = s.imageDrawCallScratch[:0]
 	}
 	drawCalls := s.imageDrawCallScratch
-	poolIdx := 0
+	// opt29: first collect coalesced slots, pack uniforms into one slab, one WriteBuffer.
+	type imageSlot struct {
+		opacity              float32
+		texView              *webgpu.TextureView
+		nearest              bool
+		firstVertex, vertCnt uint32
+	}
+	// Reuse imageUniformScratch as slot meta is small; pack into grow-only staging.
+	slots := make([]imageSlot, 0, len(cmds))
 	for i := 0; i < len(cmds); {
-		// Extend coalesced run while mergeable and not sealed.
 		j := i + 1
 		for j < len(cmds) {
 			if len(batchSeal) > j && batchSeal[j] {
@@ -2671,80 +2812,139 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			}
 			j++
 		}
-
 		cmd := &cmds[i]
-
-		// Grow uniform buffer pool to poolIdx+1.
-		for len(s.imageUniformBufs) <= poolIdx {
-			buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
-				Label: fmt.Sprintf("image_uniform_%d", len(s.imageUniformBufs)),
-				Size:  imageUniformSize,
-				Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("create image uniform buffer: %w", err)
-			}
-			s.imageUniformBufs = append(s.imageUniformBufs, buf)
-			// New buffer has undefined contents — force WriteBuffer.
-			s.imageUniformLast = append(s.imageUniformLast, imageUniformLastKey{})
-		}
-
-		// opt24: skip uniform WriteBuffer when viewport/opacity unchanged.
-		for len(s.imageUniformLast) <= poolIdx {
-			s.imageUniformLast = append(s.imageUniformLast, imageUniformLastKey{})
-		}
-		lastU := &s.imageUniformLast[poolIdx]
-		if !lastU.valid || lastU.w != w || lastU.h != h || lastU.opacity != cmd.Opacity {
-			uniformData := makeImageUniformInto(s.imageUniformScratch, w, h, cmd.Opacity)
-			s.imageUniformScratch = uniformData
-			if err := s.queueWriteBuffer(s.imageUniformBufs[poolIdx], 0, uniformData); err != nil {
-				return nil, fmt.Errorf("upload image uniform %d: %w", poolIdx, err)
-			}
-			lastU.w, lastU.h, lastU.opacity, lastU.valid = w, h, cmd.Opacity, true
-		}
-
 		texView, err := s.imageCache.GetOrUpload(cmd)
 		if err != nil {
 			slogger().Warn("image cache upload failed, skipping batch", "err", err, "start", i, "end", j)
 			i = j
 			continue
 		}
+		slots = append(slots, imageSlot{
+			opacity:     cmd.Opacity,
+			texView:     texView,
+			nearest:     cmd.Nearest,
+			firstVertex: uint32(i * 6),       //nolint:gosec
+			vertCnt:     uint32((j - i) * 6), //nolint:gosec
+		})
+		i = j
+	}
 
+	nSlot := len(slots)
+	needSlab := uint64(nSlot) * imageUniformSlotStride
+	slabRecreated := false
+	if nSlot > 0 && (s.imageUniformSlab == nil || s.imageUniformSlabCap < needSlab) {
+		if s.imageUniformSlab != nil {
+			s.imageUniformSlab.Release()
+			s.imageUniformSlab = nil
+		}
+		// Grow with headroom so opacity-unique atlas runs do not realloc every frame.
+		alloc := needSlab * 2
+		if alloc < imageUniformSlotStride*16 {
+			alloc = imageUniformSlotStride * 16
+		}
+		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+			Label: "image_uniform_slab",
+			Size:  alloc,
+			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create image uniform slab: %w", err)
+		}
+		s.imageUniformSlab = buf
+		s.imageUniformSlabCap = alloc
+		slabRecreated = true
+		// Bind groups hold offsets into the old slab — drop them.
+		for i, bg := range s.imageBindGroups {
+			if bg != nil {
+				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
+				s.imageBindGroups[i] = nil
+			}
+		}
+		for i := range s.imageBGViews {
+			s.imageBGViews[i] = nil
+		}
+		for i := range s.imageUniformLast {
+			s.imageUniformLast[i].valid = false
+		}
+	}
+
+	// Pack + optionally upload uniforms for all slots in one WriteBuffer.
+	if nSlot > 0 {
+		for len(s.imageUniformLast) < nSlot {
+			s.imageUniformLast = append(s.imageUniformLast, imageUniformLastKey{})
+		}
+		needUpload := slabRecreated || s.imageUniformSlots != nSlot
+		if !needUpload {
+			for i := range slots {
+				lastU := &s.imageUniformLast[i]
+				if !lastU.valid || lastU.w != w || lastU.h != h || lastU.opacity != slots[i].opacity {
+					needUpload = true
+					break
+				}
+			}
+		}
+		// Invalidate trailing last-keys beyond current slot count.
+		for i := nSlot; i < len(s.imageUniformLast); i++ {
+			s.imageUniformLast[i].valid = false
+		}
+		s.imageUniformSlots = nSlot
+		if needUpload {
+			packBytes := nSlot * imageUniformSlotStride
+			if cap(s.imageUniformScratch) < packBytes {
+				s.imageUniformScratch = make([]byte, packBytes)
+			} else {
+				s.imageUniformScratch = s.imageUniformScratch[:packBytes]
+			}
+			for i := range slots {
+				off := i * imageUniformSlotStride
+				putImageUniform(s.imageUniformScratch[off:off+imageUniformSlotStride], w, h, slots[i].opacity)
+				s.imageUniformLast[i].w, s.imageUniformLast[i].h = w, h
+				s.imageUniformLast[i].opacity = slots[i].opacity
+				s.imageUniformLast[i].valid = true
+			}
+			if err := s.queueWriteBuffer(s.imageUniformSlab, 0, s.imageUniformScratch[:packBytes]); err != nil {
+				return nil, fmt.Errorf("upload image uniform slab: %w", err)
+			}
+		}
+	} else {
+		s.imageUniformSlots = 0
+	}
+
+	for poolIdx := range slots {
+		slot := &slots[poolIdx]
 		for len(s.imageBindGroups) <= poolIdx {
 			s.imageBindGroups = append(s.imageBindGroups, nil)
 			s.imageBGViews = append(s.imageBGViews, nil)
 			s.imageBGNearest = append(s.imageBGNearest, false)
 		}
 		bg := s.imageBindGroups[poolIdx]
-		if bg == nil || s.imageBGViews[poolIdx] != texView || s.imageBGNearest[poolIdx] != cmd.Nearest {
+		if bg == nil || s.imageBGViews[poolIdx] != slot.texView || s.imageBGNearest[poolIdx] != slot.nearest {
 			if bg != nil {
 				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
 			}
+			off := uint64(poolIdx) * imageUniformSlotStride
+			var err error
 			bg, err = s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
 				Label:  fmt.Sprintf("image_bind_%d", poolIdx),
 				Layout: s.imagePipeline.uniformLayout,
 				Entries: []webgpu.BindGroupEntry{
-					{Binding: 0, Buffer: s.imageUniformBufs[poolIdx], Offset: 0, Size: imageUniformSize},
-					{Binding: 1, TextureView: texView},
-					{Binding: 2, Sampler: s.imagePipeline.SamplerFor(cmd.Nearest)},
+					{Binding: 0, Buffer: s.imageUniformSlab, Offset: off, Size: imageUniformSize},
+					{Binding: 1, TextureView: slot.texView},
+					{Binding: 2, Sampler: s.imagePipeline.SamplerFor(slot.nearest)},
 				},
 			})
 			if err != nil {
 				return nil, fmt.Errorf("create image bind group %d: %w", poolIdx, err)
 			}
 			s.imageBindGroups[poolIdx] = bg
-			s.imageBGViews[poolIdx] = texView
-			s.imageBGNearest[poolIdx] = cmd.Nearest
+			s.imageBGViews[poolIdx] = slot.texView
+			s.imageBGNearest[poolIdx] = slot.nearest
 		}
-
-		quads := j - i
 		drawCalls = append(drawCalls, imageDrawCall{
 			bindGroup:   bg,
-			firstVertex: uint32(i * 6),     //nolint:gosec // bounded by command count
-			vertexCount: uint32(quads * 6), //nolint:gosec // bounded by command count
+			firstVertex: slot.firstVertex,
+			vertexCount: slot.vertCnt,
 		})
-		poolIdx++
-		i = j
 	}
 
 	quads := len(cmds)
@@ -2773,6 +2973,12 @@ func (s *GPURenderSession) LastSubmitPathStats() SubmitPathStats {
 func (s *GPURenderSession) allocConvexVertSlot() int {
 	n := len(s.convexVertBufs)
 	if n == 0 {
+		return 0
+	}
+	// opt39: when nothing deferred holds convex verts, stay on slot 0 so sticky
+	// vertex fingerprints can hit across consecutive builds (static mesh/UI).
+	if s.deferredConvexUses == 0 && len(s.leadSubmitCBs) == 0 {
+		s.convexVertSlot = 0
 		return 0
 	}
 	if s.deferredConvexUses >= n && len(s.leadSubmitCBs) > 0 {
@@ -2921,6 +3127,7 @@ func (c *gpuTexBGSlotCache) getOrCreate(
 	device *webgpu.Device,
 	layout *webgpu.BindGroupLayout,
 	uniform *webgpu.Buffer,
+	uniformOffset uint64,
 	texView *webgpu.TextureView,
 	sampler *webgpu.Sampler,
 	pendingRelease *[]*webgpu.BindGroup,
@@ -2937,7 +3144,7 @@ func (c *gpuTexBGSlotCache) getOrCreate(
 		Label:  "gpu_tex_bind_cached",
 		Layout: layout,
 		Entries: []webgpu.BindGroupEntry{
-			{Binding: 0, Buffer: uniform, Offset: 0, Size: imageUniformSize},
+			{Binding: 0, Buffer: uniform, Offset: uniformOffset, Size: imageUniformSize},
 			{Binding: 1, TextureView: texView},
 			{Binding: 2, Sampler: sampler},
 		},
@@ -3130,6 +3337,14 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	}
 
 	needed := uint64(totalVertBytes) //nolint:gosec // bounded
+	hashPtr := &s.gpuTexVertLastHash
+	lenPtr := &s.gpuTexVertLastLen
+	validPtr := &s.gpuTexVertLastValid
+	if isBaseLayer {
+		hashPtr = &s.gpuTexBaseVertLastHash
+		lenPtr = &s.gpuTexBaseVertLastLen
+		validPtr = &s.gpuTexBaseVertLastValid
+	}
 	if *vertBufPtr == nil || *vertCapPtr < needed {
 		if *vertBufPtr != nil {
 			(*vertBufPtr).Release()
@@ -3144,20 +3359,32 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		}
 		*vertBufPtr = buf
 		*vertCapPtr = needed
+		*validPtr = false
 	}
-	if err := s.queueWriteBuffer(*vertBufPtr, 0, allVertData); err != nil {
-		return nil, fmt.Errorf("upload gpu texture vertices: %w", err)
+	// opt28: glow/filter publish often reuses the same present rect; skip
+	// vertex WriteBuffer when packed quads are unchanged.
+	vertHash := indexBytesFingerprint(allVertData)
+	if !*validPtr || *lenPtr != len(allVertData) || *hashPtr != vertHash {
+		if err := s.queueWriteBuffer(*vertBufPtr, 0, allVertData); err != nil {
+			return nil, fmt.Errorf("upload gpu texture vertices: %w", err)
+		}
+		*hashPtr = vertHash
+		*lenPtr = len(allVertData)
+		*validPtr = true
 	}
 
-	drawCalls := make([]imageDrawCall, 0, len(cmds))
-	poolIdx := 0
-	quadsTotal := 0
+	// opt40: collect coalesced slots first, pack uniforms into one slab WriteBuffer.
+	type gpuTexSlot struct {
+		opacity              float32
+		texView              *webgpu.TextureView
+		firstVertex, vertCnt uint32
+	}
+	slots := make([]gpuTexSlot, 0, len(cmds))
 	for i := 0; i < len(cmds); {
 		if cmds[i].View.IsNil() {
 			i++
 			continue
 		}
-		// Extend coalesced run while mergeable and not sealed.
 		j := i + 1
 		for j < len(cmds) {
 			if len(batchSeal) > j && batchSeal[j] {
@@ -3168,61 +3395,123 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			}
 			j++
 		}
-
 		cmd := &cmds[i]
-		texView := (*webgpu.TextureView)(cmd.View.Pointer())
+		slots = append(slots, gpuTexSlot{
+			opacity:     cmd.Opacity,
+			texView:     (*webgpu.TextureView)(cmd.View.Pointer()),
+			firstVertex: uint32(i * 6),       //nolint:gosec
+			vertCnt:     uint32((j - i) * 6), //nolint:gosec
+		})
+		i = j
+	}
 
-		for len(s.gpuTexUniformBufs) <= poolIdx {
-			buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
-				Label: fmt.Sprintf("gpu_tex_uniform_%d", len(s.gpuTexUniformBufs)),
-				Size:  imageUniformSize,
-				Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("create gpu texture uniform buffer: %w", err)
+	nSlot := len(slots)
+	needSlab := uint64(nSlot) * imageUniformSlotStride
+	slabRecreated := false
+	if nSlot > 0 && (s.gpuTexUniformSlab == nil || s.gpuTexUniformSlabCap < needSlab) {
+		if s.gpuTexUniformSlab != nil {
+			s.gpuTexUniformSlab.Release()
+			s.gpuTexUniformSlab = nil
+		}
+		alloc := needSlab * 2
+		if alloc < imageUniformSlotStride*8 {
+			alloc = imageUniformSlotStride * 8
+		}
+		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+			Label: "gpu_tex_uniform_slab",
+			Size:  alloc,
+			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create gpu-tex uniform slab: %w", err)
+		}
+		s.gpuTexUniformSlab = buf
+		s.gpuTexUniformSlabCap = alloc
+		slabRecreated = true
+		// BGs hold offsets into old slab — drop all rings.
+		for i := range s.gpuTexBGCaches {
+			for j := range s.gpuTexBGCaches[i].entries {
+				if bg := s.gpuTexBGCaches[i].entries[j].bg; bg != nil {
+					s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
+				}
+				s.gpuTexBGCaches[i].entries[j].view = nil
+				s.gpuTexBGCaches[i].entries[j].bg = nil
 			}
-			s.gpuTexUniformBufs = append(s.gpuTexUniformBufs, buf)
-			s.gpuTexUniformLast = append(s.gpuTexUniformLast, imageUniformLastKey{})
-			// New uniform invalidates BGs that referenced the old buffer at this index.
-			s.gpuTexBGCaches = append(s.gpuTexBGCaches, gpuTexBGSlotCache{})
+			s.gpuTexBGCaches[i].next = 0
 		}
+		for i := range s.gpuTexUniformLast {
+			s.gpuTexUniformLast[i].valid = false
+		}
+	}
 
-		for len(s.gpuTexUniformLast) <= poolIdx {
+	if nSlot > 0 {
+		for len(s.gpuTexUniformLast) < nSlot {
 			s.gpuTexUniformLast = append(s.gpuTexUniformLast, imageUniformLastKey{})
 		}
-		lastGU := &s.gpuTexUniformLast[poolIdx]
-		if !lastGU.valid || lastGU.w != w || lastGU.h != h || lastGU.opacity != cmd.Opacity {
-			uniformData := makeImageUniformInto(s.gpuTexUniformScratch, w, h, cmd.Opacity)
-			s.gpuTexUniformScratch = uniformData
-			if err := s.queueWriteBuffer(s.gpuTexUniformBufs[poolIdx], 0, uniformData); err != nil {
-				i = j
-				continue
+		needUpload := slabRecreated || s.gpuTexUniformSlots != nSlot
+		if !needUpload {
+			for i := range slots {
+				lastU := &s.gpuTexUniformLast[i]
+				if !lastU.valid || lastU.w != w || lastU.h != h || lastU.opacity != slots[i].opacity {
+					needUpload = true
+					break
+				}
 			}
-			lastGU.w, lastGU.h, lastGU.opacity, lastGU.valid = w, h, cmd.Opacity, true
 		}
+		for i := nSlot; i < len(s.gpuTexUniformLast); i++ {
+			s.gpuTexUniformLast[i].valid = false
+		}
+		s.gpuTexUniformSlots = nSlot
+		if needUpload {
+			packBytes := nSlot * imageUniformSlotStride
+			if cap(s.gpuTexUniformScratch) < packBytes {
+				s.gpuTexUniformScratch = make([]byte, packBytes)
+			} else {
+				s.gpuTexUniformScratch = s.gpuTexUniformScratch[:packBytes]
+			}
+			for i := range slots {
+				off := i * imageUniformSlotStride
+				putImageUniform(s.gpuTexUniformScratch[off:off+imageUniformSlotStride], w, h, slots[i].opacity)
+				s.gpuTexUniformLast[i].w, s.gpuTexUniformLast[i].h = w, h
+				s.gpuTexUniformLast[i].opacity = slots[i].opacity
+				s.gpuTexUniformLast[i].valid = true
+			}
+			if err := s.queueWriteBuffer(s.gpuTexUniformSlab, 0, s.gpuTexUniformScratch[:packBytes]); err != nil {
+				return nil, fmt.Errorf("upload gpu-tex uniform slab: %w", err)
+			}
+		}
+	} else {
+		s.gpuTexUniformSlots = 0
+	}
 
+	if cap(s.gpuTexDrawCallScratch) < nSlot {
+		s.gpuTexDrawCallScratch = make([]imageDrawCall, 0, nSlot)
+	} else {
+		s.gpuTexDrawCallScratch = s.gpuTexDrawCallScratch[:0]
+	}
+	drawCalls := s.gpuTexDrawCallScratch
+	quadsTotal := 0
+	for poolIdx := range slots {
+		slot := &slots[poolIdx]
 		for len(s.gpuTexBGCaches) <= poolIdx {
 			s.gpuTexBGCaches = append(s.gpuTexBGCaches, gpuTexBGSlotCache{})
 		}
+		off := uint64(poolIdx) * imageUniformSlotStride //nolint:gosec
 		bg, err := s.gpuTexBGCaches[poolIdx].getOrCreate(
-			s.device, s.imagePipeline.uniformLayout, s.gpuTexUniformBufs[poolIdx],
-			texView, s.imagePipeline.SamplerFor(false), &s.pendingBindGroupRelease,
+			s.device, s.imagePipeline.uniformLayout, s.gpuTexUniformSlab, off,
+			slot.texView, s.imagePipeline.SamplerFor(false), &s.pendingBindGroupRelease,
 		)
 		if err != nil || bg == nil {
-			i = j
 			continue
 		}
-
-		quads := j - i
-		quadsTotal += quads
+		quadsTotal += int(slot.vertCnt / 6)
 		drawCalls = append(drawCalls, imageDrawCall{
 			bindGroup:   bg,
-			firstVertex: uint32(i * 6),     //nolint:gosec // bounded
-			vertexCount: uint32(quads * 6), //nolint:gosec // multi-quad
+			firstVertex: slot.firstVertex,
+			vertexCount: slot.vertCnt,
 		})
-		poolIdx++
-		i = j
 	}
+	s.gpuTexDrawCallScratch = drawCalls
 
 	if !isBaseLayer {
 		s.lastBatchStats.GPUTexDraws = len(drawCalls)
@@ -4081,6 +4370,7 @@ func (s *GPURenderSession) sliceConvexResources(
 		vertCount:   vertCount,
 		indexCount:  uint32(sliceIdx), //nolint:gosec
 		ranges:      buildConvexBlendRangesIndexed(allCommands[cmdStart:cmdStart+cmdCount], firstVertex, firstIndex),
+		meshCompact: combined.meshCompact,
 	}
 }
 
@@ -4367,12 +4657,11 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	baseLayerRes *imageFrameResources,
 	damageRects []image.Rectangle,
 ) error {
-	encoder, err := s.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
-		Label: "session_surface_encoder",
-	})
+	encoder, err := s.device.CreateCommandEncoder(sessionSurfaceEncoderDesc)
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
 	}
+	s.lastSubmitStats.EncodersCreated++
 	// BUG-GG-ENCODER-LIFECYCLE-001: defer-based safety net ensures the encoder
 	// is always finalized even if a panic or unexpected error path is hit.
 	// DiscardEncoding is idempotent (no-op if already released by Finish).
@@ -4540,9 +4829,15 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 		return fmt.Errorf("ensure blit pipeline: %w", err)
 	}
 
+	// opt32/F1: match encodeBlitOnlyPass LoadOp. Shared-encoder composite
+	// onto frameScratch must LoadOpLoad so base+HUD survive dual-tex overlays.
+	if view != s.lastView {
+		s.frameRendered = false
+		s.lastView = view
+	}
 	hasDamage := len(damageRects) > 0
 	loadOp := types.LoadOpClear
-	if hasDamage {
+	if s.frameRendered || hasDamage {
 		loadOp = types.LoadOpLoad
 	}
 
@@ -4606,6 +4901,7 @@ func (s *GPURenderSession) StencilRendererRef() *StencilRenderer {
 func (s *GPURenderSession) SetSDFPipeline(p *SDFRenderPipeline) {
 	s.sdfPipeline = p
 	s.ownsShapePipelines = false
+	s.pipelinesReady = false
 }
 
 // ConvexRendererRef returns the convex renderer.
@@ -4618,6 +4914,7 @@ func (s *GPURenderSession) ConvexRendererRef() *ConvexRenderer {
 func (s *GPURenderSession) SetConvexRenderer(r *ConvexRenderer) {
 	s.convexRenderer = r
 	s.ownsShapePipelines = false
+	s.pipelinesReady = false
 }
 
 // SetStencilRenderer sets an external stencil renderer for the session to use.
@@ -4625,6 +4922,7 @@ func (s *GPURenderSession) SetConvexRenderer(r *ConvexRenderer) {
 func (s *GPURenderSession) SetStencilRenderer(r *StencilRenderer) {
 	s.stencilRenderer = r
 	s.ownsShapePipelines = false
+	s.pipelinesReady = false
 }
 
 // MarkOwnsShapePipelines forces this session to create and retain its own
@@ -4632,6 +4930,7 @@ func (s *GPURenderSession) SetStencilRenderer(r *StencilRenderer) {
 func (s *GPURenderSession) MarkOwnsShapePipelines() {
 	if s != nil {
 		s.ownsShapePipelines = true
+		s.pipelinesReady = false
 	}
 }
 

@@ -665,6 +665,11 @@ type GlyphMaskQuad struct {
 	// UV coordinates in R8 atlas [0, 1].
 	// For LCD glyphs, UVs span the 3x-wide region in the atlas.
 	U0, V0, U1, V1 float32
+
+	// Page is the glyph-mask atlas page index for these UVs (CPU metadata only;
+	// not uploaded as a vertex attribute). Required when MaxAtlases > 1 —
+	// hardcoding AtlasPageIndex=0 samples the wrong R8 texture after page0 fills.
+	Page int
 }
 
 // GlyphMaskBatch represents a batch of glyph mask quads with shared
@@ -706,6 +711,54 @@ func (b *GlyphMaskBatch) CanMerge(other GlyphMaskBatch) bool {
 		b.Color == other.Color &&
 		b.IsLCD == other.IsLCD &&
 		b.AtlasPageIndex == other.AtlasPageIndex
+}
+
+// SplitGlyphMaskBatchByPage expands a batch whose quads may reference multiple
+// atlas pages into one batch per consecutive page run. Draw order is preserved.
+// Single-page batches (the common case) return a one-element slice with
+// AtlasPageIndex set from the quads.
+func SplitGlyphMaskBatchByPage(batch GlyphMaskBatch) []GlyphMaskBatch {
+	if len(batch.Quads) == 0 {
+		return nil
+	}
+	// Legacy path: Page unset on all quads → trust batch.AtlasPageIndex.
+	allZeroPage := true
+	for i := range batch.Quads {
+		if batch.Quads[i].Page != 0 {
+			allZeroPage = false
+			break
+		}
+	}
+	if allZeroPage {
+		out := batch
+		if out.AtlasPageIndex < 0 {
+			out.AtlasPageIndex = 0
+		}
+		return []GlyphMaskBatch{out}
+	}
+
+	out := make([]GlyphMaskBatch, 0, 2)
+	start := 0
+	page := batch.Quads[0].Page
+	for i := 1; i <= len(batch.Quads); i++ {
+		if i < len(batch.Quads) && batch.Quads[i].Page == page {
+			continue
+		}
+		out = append(out, GlyphMaskBatch{
+			Quads:          batch.Quads[start:i],
+			Transform:      batch.Transform,
+			Color:          batch.Color,
+			IsLCD:          batch.IsLCD,
+			AtlasWidth:     batch.AtlasWidth,
+			AtlasHeight:    batch.AtlasHeight,
+			AtlasPageIndex: page,
+		})
+		if i < len(batch.Quads) {
+			start = i
+			page = batch.Quads[i].Page
+		}
+	}
+	return out
 }
 
 // ---- Vertex/index/uniform data builders ----

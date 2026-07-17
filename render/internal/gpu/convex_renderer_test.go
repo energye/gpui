@@ -233,7 +233,7 @@ func TestBuildConvexVerticesTriangle(t *testing.T) {
 
 	data := BuildConvexVertices(commands)
 
-	// 3 edges * 9 vertices = 27 vertices * 28 bytes = 756 bytes.
+	// 3 edges * 9 vertices = 27 vertices * stride
 	expectedVerts := 3 * 9
 	expectedLen := expectedVerts * convexVertexStride
 	if len(data) != expectedLen {
@@ -258,14 +258,13 @@ func TestBuildConvexVerticesTriangle(t *testing.T) {
 		t.Errorf("centroid coverage = %f, expected 1.0", cov)
 	}
 
-	// Check color on first vertex.
-	colorR := math.Float32frombits(binary.LittleEndian.Uint32(data[12:16]))
-	colorA := math.Float32frombits(binary.LittleEndian.Uint32(data[24:28]))
-	if colorR != 1.0 {
-		t.Errorf("first vertex colorR = %f, expected 1.0", colorR)
+	// Check color on first vertex (unorm8x4).
+	col0 := unpackColorUnorm8x4(binary.LittleEndian.Uint32(data[12:16]))
+	if col0[0] != 1.0 {
+		t.Errorf("first vertex colorR = %f, expected 1.0", col0[0])
 	}
-	if colorA != 1.0 {
-		t.Errorf("first vertex colorA = %f, expected 1.0", colorA)
+	if col0[3] != 1.0 {
+		t.Errorf("first vertex colorA = %f, expected 1.0", col0[3])
 	}
 }
 
@@ -284,7 +283,7 @@ func TestBuildConvexVerticesSquare(t *testing.T) {
 
 	data := BuildConvexVertices(commands)
 
-	// 4 edges * 9 vertices = 36 vertices * 28 bytes = 1008 bytes.
+	// 4 edges * 9 vertices = 36 vertices * stride
 	expectedVerts := 4 * 9
 	expectedLen := expectedVerts * convexVertexStride
 	if len(data) != expectedLen {
@@ -417,9 +416,9 @@ func TestBuildConvexVerticesMultipleCommands(t *testing.T) {
 	// Verify the second command's color appears in the second polygon's vertices.
 	// First polygon ends at vertex 27. Second polygon starts at vertex 27.
 	secondStart := 27 * convexVertexStride
-	colorG := math.Float32frombits(binary.LittleEndian.Uint32(data[secondStart+16 : secondStart+20]))
-	if colorG != 1.0 {
-		t.Errorf("second polygon colorG = %f, expected 1.0", colorG)
+	col := unpackColorUnorm8x4(binary.LittleEndian.Uint32(data[secondStart+12 : secondStart+16]))
+	if col[1] != 1.0 {
+		t.Errorf("second polygon colorG = %f, expected 1.0", col[1])
 	}
 }
 
@@ -522,13 +521,13 @@ func TestWriteConvexVertex(t *testing.T) {
 		t.Errorf("coverage = %f, expected 0.8", cov)
 	}
 
-	// Verify color.
-	cr := math.Float32frombits(binary.LittleEndian.Uint32(buf[12:16]))
-	cg := math.Float32frombits(binary.LittleEndian.Uint32(buf[16:20]))
-	cb := math.Float32frombits(binary.LittleEndian.Uint32(buf[20:24]))
-	ca := math.Float32frombits(binary.LittleEndian.Uint32(buf[24:28]))
-	if cr != 0.5 || cg != 0.25 || cb != 0.125 || ca != 0.75 {
-		t.Errorf("color = (%f, %f, %f, %f), expected (0.5, 0.25, 0.125, 0.75)", cr, cg, cb, ca)
+	// Verify color (unorm8x4 → float).
+	col := unpackColorUnorm8x4(binary.LittleEndian.Uint32(buf[12:16]))
+	// Unorm8 round-trip: tolerate ≤1/255.
+	tol := 1.0/255 + 1e-6
+	if math.Abs(float64(col[0]-0.5)) > tol || math.Abs(float64(col[1]-0.25)) > tol ||
+		math.Abs(float64(col[2]-0.125)) > tol || math.Abs(float64(col[3]-0.75)) > tol {
+		t.Errorf("color = (%f, %f, %f, %f), expected ~ (0.5, 0.25, 0.125, 0.75)", col[0], col[1], col[2], col[3])
 	}
 }
 
@@ -915,26 +914,21 @@ func TestBuildConvexVertices_VertexColors(t *testing.T) {
 	if len(data) == 0 {
 		t.Fatal("expected vertices")
 	}
-	// First vertex is centroid of first edge fan with coverage 1 and avg color
-	// Layout: pos.xy, coverage, color.rgba  (7 floats = 28 bytes)
-	// Read first color components
-	cr := math.Float32frombits(binary.LittleEndian.Uint32(data[12:16]))
-	cg := math.Float32frombits(binary.LittleEndian.Uint32(data[16:20]))
-	cb := math.Float32frombits(binary.LittleEndian.Uint32(data[20:24]))
-	ca := math.Float32frombits(binary.LittleEndian.Uint32(data[24:28]))
-	// Average of RGB should be ~1/3 each
-	if math.Abs(float64(cr-1.0/3)) > 1e-4 || math.Abs(float64(cg-1.0/3)) > 1e-4 || math.Abs(float64(cb-1.0/3)) > 1e-4 {
-		t.Fatalf("centroid color got %v,%v,%v want ~1/3 each", cr, cg, cb)
+	// First vertex is centroid of first edge fan with coverage 1 and avg color.
+	// Layout: pos.xy, coverage, color unorm8x4 (16 bytes).
+	c0 := unpackColorUnorm8x4(binary.LittleEndian.Uint32(data[12:16]))
+	// Average of RGB ~1/3 each (8-bit quantize of 1/3 ≈ 85/255).
+	want := 85.0 / 255.0
+	if math.Abs(float64(c0[0])-want) > 2.0/255 || math.Abs(float64(c0[1])-want) > 2.0/255 || math.Abs(float64(c0[2])-want) > 2.0/255 {
+		t.Fatalf("centroid color got %v,%v,%v want ~1/3 each", c0[0], c0[1], c0[2])
 	}
-	if ca != 1 {
-		t.Fatalf("centroid alpha=%v want 1", ca)
+	if c0[3] != 1 {
+		t.Fatalf("centroid alpha=%v want 1", c0[3])
 	}
-	// A later corner vertex of interior tri should be pure red (v0)
-	// verts: centroid, v0, v1 for edge0 → bytes 28..56 is v0
-	r0 := math.Float32frombits(binary.LittleEndian.Uint32(data[28+12 : 28+16]))
-	g0 := math.Float32frombits(binary.LittleEndian.Uint32(data[28+16 : 28+20]))
-	b0 := math.Float32frombits(binary.LittleEndian.Uint32(data[28+20 : 28+24]))
-	if r0 != 1 || g0 != 0 || b0 != 0 {
-		t.Fatalf("v0 color got %v,%v,%v want 1,0,0", r0, g0, b0)
+	// Corner vertex v0 of first interior tri: pure red.
+	// verts: centroid, v0, v1 → second vertex at stride 16.
+	v0 := unpackColorUnorm8x4(binary.LittleEndian.Uint32(data[16+12 : 16+16]))
+	if v0[0] != 1 || v0[1] != 0 || v0[2] != 0 {
+		t.Fatalf("v0 color got %v,%v,%v want 1,0,0", v0[0], v0[1], v0[2])
 	}
 }

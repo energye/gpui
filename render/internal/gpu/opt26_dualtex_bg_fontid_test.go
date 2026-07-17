@@ -86,18 +86,18 @@ func TestOpt26_DualTexMultiBindGroup_ReusesSlot(t *testing.T) {
 		srcView.Release()
 		srcTex.Release()
 	})
-	if err := cache.acquireUniformRing(device, 1); err != nil {
+	slab, err := cache.ensureUniformSlab(device, 1)
+	if err != nil {
 		t.Fatal(err)
 	}
-	ubuf := cache.uniformRing[0]
-	if err := dualTexWriteParams(queue, ubuf, 1, 0, 0, 1, 1, 1, false); err != nil {
+	if err := dualTexWriteParams(queue, slab, 1, 0, 0, 1, 1, 1, false); err != nil {
 		t.Fatal(err)
 	}
-	bg1, err := cache.multiBindGroup(device, cache.bgl, cache.sampler, dstView, srcView, ubuf, 0)
+	bg1, err := cache.multiBindGroup(device, cache.bgl, cache.sampler, dstView, srcView, slab, 0, 0)
 	if err != nil || bg1 == nil {
 		t.Fatalf("bg1: %v", err)
 	}
-	bg2, err := cache.multiBindGroup(device, cache.bgl, cache.sampler, dstView, srcView, ubuf, 0)
+	bg2, err := cache.multiBindGroup(device, cache.bgl, cache.sampler, dstView, srcView, slab, 0, 0)
 	if err != nil || bg2 != bg1 {
 		t.Fatalf("expected slot reuse, bg2=%v err=%v", bg2, err)
 	}

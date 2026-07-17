@@ -6,17 +6,18 @@ import (
 	"fmt"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
-	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 )
 
-// FlushAndFilterFromView encodes pending draws into srcView, then runs a GPU
-// filter graph seeded from that view, submitting mesh+filter command buffers
-// in a single Queue.Submit (opt18 / PKS glow multi-submit coalesce).
+// FlushAndFilterFromView encodes pending draws into srcView, then continues the
+// GPU filter graph on the same command encoder (opt36), finishing once and
+// submitting mesh+filter together.
 //
-// Pure equivalence: same mesh seed + same filter graph; only submit batching
-// changes. On filter failure after mesh is finished, mesh is submitted alone
-// so recovery via FromView/readback remains correct.
+// Pure equivalence: same mesh seed + same filter graph; fewer CommandEncoder.Finish
+// calls than opt18 (which used one Finish for mesh seed CB + one for filter CB in
+// a single Queue.Submit). On filter failure after mesh is encoded, the open
+// encoder is Finished and submitted so srcView is populated, then FromView
+// recovery re-runs the filter graph.
 //
 // Returns error when the combined path cannot run; caller should fall back to
 // FlushGPUWithView + FromView.
@@ -68,9 +69,7 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 		}
 	}
 
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
-		Label: "filter_seed_mesh_enc",
-	})
+	enc, err := device.CreateCommandEncoder(filterSeedMeshEncoderDesc)
 	if err != nil || enc == nil {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("flush+filter: create encoder: %w", err)
 	}
@@ -91,29 +90,28 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 		return gpucontext.TextureView{}, nil, ferr
 	}
 
-	cmdMesh, err := enc.Finish()
-	if err != nil || cmdMesh == nil {
-		return gpucontext.TextureView{}, nil, fmt.Errorf("flush+filter: finish mesh: %w", err)
-	}
-
-	// Filter graph + mesh seed in one Queue.Submit.
-	view, release, err := runGPUFilterGraphFromViewWithLeading(
-		device, queue, cache, srcView, w, h, nodes, []*webgpu.CommandBuffer{cmdMesh},
+	// opt36: continue filter graph on the same encoder → one Finish for seed+filter.
+	view, release, err := runGPUFilterGraphFromViewIntoEncoder(
+		device, queue, cache, srcView, w, h, nodes, enc,
 	)
 	if err != nil {
-		// Mesh CB was not released (encode failed before Submit). Submit mesh
-		// alone so filterSrcRT is populated for recovery FromView/readback.
-		if _, serr := queue.Submit(cmdMesh); serr != nil {
-			cmdMesh.Release()
-			return gpucontext.TextureView{}, nil, err
+		// Mesh seed is only applied if the CB is submitted. Finish the open encoder
+		// (mesh ± partial filter) and submit, then re-run FromView for a clean graph.
+		if cmd, ferr := enc.Finish(); ferr == nil && cmd != nil {
+			if _, serr := queue.Submit(cmd); serr != nil {
+				cmd.Release()
+				return gpucontext.TextureView{}, nil, err
+			}
+			cmd.Release()
+			view2, rel2, err2 := runGPUFilterGraphFromView(device, queue, cache, srcView, w, h, nodes)
+			if err2 != nil {
+				return gpucontext.TextureView{}, nil, err2
+			}
+			return view2, rel2, nil
 		}
-		cmdMesh.Release()
-		// Second submit: normal FromView (src now has mesh content).
-		view2, rel2, err2 := runGPUFilterGraphFromView(device, queue, cache, srcView, w, h, nodes)
-		if err2 != nil {
-			return gpucontext.TextureView{}, nil, err2
-		}
-		return view2, rel2, nil
+		// Finish failed (encoder already closed/discarded) — last resort.
+		enc.DiscardEncoding()
+		return gpucontext.TextureView{}, nil, err
 	}
 	return view, release, nil
 }

@@ -23,6 +23,18 @@ import (
 const filterGPUMaxPixels = 4 * 1024 * 1024
 const filterGPUUniformSize = 128
 
+// opt35: per-pass Params live in one slab buffer. Slot stride must be a multiple
+// of WebGPU minUniformBufferOffsetAlignment (default 256); payload is 128B.
+const filterPassUniformSlotStride = 256
+const filterPassUniformSlabMinSlots = 16
+
+// Static encoder descriptors (opt36 / R7.0 style — avoid per-call heap labels).
+var (
+	filterGPUBatchEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "filter_gpu_batch_enc"}
+	filterGPUReadEncoderDesc  = &webgpu.CommandEncoderDescriptor{Label: "filter_gpu_read_enc"}
+	filterSeedMeshEncoderDesc = &webgpu.CommandEncoderDescriptor{Label: "filter_seed_mesh_enc"}
+)
+
 const filterGPUGraphWGSL = `
 struct Params {
     size: vec2<f32>,
@@ -173,20 +185,30 @@ type filterGPUCache struct {
 	// Published result textures (owned until caller Release).
 	publishFree []filterPublishSlot
 
-	// Reused per-pass uniform buffers (written via WriteBuffer before encode).
-	passUniforms []*webgpu.Buffer
+	// opt35: single slab for all pass uniforms (stride filterPassUniformSlotStride).
+	// Each pass bind group uses a fixed Offset into the slab; one WriteBuffer
+	// covers all packed slots after encode, before Submit.
+	passUniformSlab    *webgpu.Buffer
+	passUniformSlabCap uint64
+	passUniformScratch []byte
+	// lastPassUniform* — test/pprof diagnostics (updated each graph run).
+	lastPassUniformSlots int
+	lastPassUniformWB    int // WriteBuffer calls for pass uniforms this run (0 or 1)
+	// opt36 diagnostics: encoder Finishes in last graph run (shared mesh+filter = 1).
+	lastGraphFinishes int
+	lastUsedSharedEnc bool
 
 	// Per-run scratch (no per-frame make).
-	passBGScratch   []*webgpu.BindGroup
-	passURefScratch []*webgpu.Buffer
+	passBGScratch []*webgpu.BindGroup
 
 	// Stable bind-group cache for continuous effect frames (glow).
-	// Keyed by view/uniform pointers; cleared when pool RTs are rebuilt.
+	// Keyed by view/uniform pointer + slab offset; cleared when pool/slab rebuilds.
 	bgCache map[filterBGKey]*webgpu.BindGroup
 }
 
 type filterBGKey struct {
 	src, dst, aux, ubuf uintptr
+	offset              uint64
 }
 
 func (c *filterGPUCache) release() {
@@ -244,12 +266,16 @@ func (c *filterGPUCache) releaseUnlocked() {
 		}
 	}
 	c.publishFree = nil
-	for _, b := range c.passUniforms {
-		if b != nil {
-			b.Release()
-		}
+	if c.passUniformSlab != nil {
+		c.passUniformSlab.Release()
+		c.passUniformSlab = nil
+		c.passUniformSlabCap = 0
 	}
-	c.passUniforms = nil
+	c.passUniformScratch = nil
+	c.lastPassUniformSlots = 0
+	c.lastPassUniformWB = 0
+	c.lastGraphFinishes = 0
+	c.lastUsedSharedEnc = false
 	if c.pipeline != nil {
 		c.pipeline.Release()
 		c.pipeline = nil
@@ -493,19 +519,18 @@ func (c *filterGPUCache) clearBGCacheUnlocked() {
 }
 
 func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupLayout, samp *webgpu.Sampler,
-	src, dst, aux *webgpu.TextureView, ubuf *webgpu.Buffer,
+	src, dst, aux *webgpu.TextureView, ubuf *webgpu.Buffer, offset uint64,
 ) (*webgpu.BindGroup, error) {
 	if device == nil || bgl == nil || samp == nil || src == nil || dst == nil || aux == nil || ubuf == nil {
 		return nil, fmt.Errorf("filter bg: nil arg")
 	}
 	key := filterBGKey{
-		src:  uintptr(unsafe.Pointer(src)),
-		dst:  uintptr(unsafe.Pointer(dst)), // dst not in BG, but partition cache by dest intent
-		aux:  uintptr(unsafe.Pointer(aux)),
-		ubuf: uintptr(unsafe.Pointer(ubuf)),
+		src:    uintptr(unsafe.Pointer(src)),
+		aux:    uintptr(unsafe.Pointer(aux)),
+		ubuf:   uintptr(unsafe.Pointer(ubuf)),
+		offset: offset,
 	}
-	// dst is render attachment, not bind-group entry — key should be src/aux/ubuf only.
-	key.dst = 0
+	// dst is render attachment, not bind-group entry — key is src/aux/ubuf/offset.
 	c.mu.Lock()
 	if c.bgCache == nil {
 		c.bgCache = make(map[filterBGKey]*webgpu.BindGroup)
@@ -522,7 +547,7 @@ func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupL
 		Entries: []webgpu.BindGroupEntry{
 			{Binding: 0, TextureView: src},
 			{Binding: 1, Sampler: samp},
-			{Binding: 2, Buffer: ubuf, Offset: 0, Size: filterGPUUniformSize},
+			{Binding: 2, Buffer: ubuf, Offset: offset, Size: filterGPUUniformSize},
 			{Binding: 3, TextureView: aux},
 		},
 	})
@@ -541,27 +566,44 @@ func (c *filterGPUCache) bindGroup(device *webgpu.Device, bgl *webgpu.BindGroupL
 	return bg, nil
 }
 
-func (c *filterGPUCache) acquirePassUniform(device *webgpu.Device, idx int) (*webgpu.Buffer, error) {
+// ensurePassUniformSlab grows/creates the opt35 pass-uniform slab for nSlots.
+// Recreating the slab clears the bind-group cache (entries pin the old buffer).
+func (c *filterGPUCache) ensurePassUniformSlab(device *webgpu.Device, nSlots int) (*webgpu.Buffer, error) {
+	if device == nil {
+		return nil, fmt.Errorf("filter pass uniform slab: nil device")
+	}
+	if nSlots < 1 {
+		nSlots = 1
+	}
+	need := uint64(nSlots) * filterPassUniformSlotStride
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if idx < len(c.passUniforms) && c.passUniforms[idx] != nil && c.device == device {
-		return c.passUniforms[idx], nil
+	if c.passUniformSlab != nil && c.device == device && c.passUniformSlabCap >= need {
+		return c.passUniformSlab, nil
 	}
-	for len(c.passUniforms) <= idx {
-		c.passUniforms = append(c.passUniforms, nil)
+	alloc := need
+	minBytes := uint64(filterPassUniformSlabMinSlots) * filterPassUniformSlotStride
+	if alloc < minBytes {
+		alloc = minBytes
 	}
-	if c.passUniforms[idx] != nil {
-		c.passUniforms[idx].Release()
-		c.passUniforms[idx] = nil
+	// Grow with headroom so continuous glow frames rarely reallocate.
+	if alloc < c.passUniformSlabCap*2 && c.passUniformSlabCap*2 > alloc {
+		alloc = c.passUniformSlabCap * 2
 	}
 	b, err := device.CreateBuffer(&webgpu.BufferDescriptor{
-		Label: "filter_params_pass_pooled", Size: filterGPUUniformSize,
+		Label: "filter_params_pass_slab", Size: alloc,
 		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
 	})
 	if err != nil {
 		return nil, err
 	}
-	c.passUniforms[idx] = b
+	if c.passUniformSlab != nil {
+		c.passUniformSlab.Release()
+		c.passUniformSlab = nil
+	}
+	c.passUniformSlab = b
+	c.passUniformSlabCap = alloc
+	c.clearBGCacheUnlocked()
 	return b, nil
 }
 
@@ -681,7 +723,7 @@ func (c *filterGPUCache) releasePublish(slot filterPublishSlot) {
 
 // runGPUFilterGraph executes multi-RT ping-pong filter nodes on GPU and readbacks.
 func runGPUFilterGraph(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) ([]byte, error) {
-	out, _, _, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, true, nil)
+	out, _, _, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, true, nil, nil)
 	return out, err
 }
 
@@ -689,7 +731,7 @@ func runGPUFilterGraph(device *webgpu.Device, queue *webgpu.Queue, cache *filter
 // for zero-copy compositing (DrawGPUTexture). No CPU Map/readback.
 // Caller must invoke release when the view is no longer sampled.
 func runGPUFilterGraphGPUOnly(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, false, nil)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, false, nil, nil)
 	return view, release, err
 }
 
@@ -710,14 +752,30 @@ func runGPUFilterGraphFromViewWithLeading(device *webgpu.Device, queue *webgpu.Q
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
 	wgpuView := (*webgpu.TextureView)(srcView.Pointer())
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, wgpuView, w, h, nodes, false, leading)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, wgpuView, w, h, nodes, false, leading, nil)
+	return view, release, err
+}
+
+// runGPUFilterGraphFromViewIntoEncoder continues the filter graph on an open
+// encoder that already contains the mesh-seed render passes (opt36). One Finish
+// covers seed+filter. On failure the encoder is left open so the caller can
+// Finish+Submit seed-only recovery (mesh draws are only applied if submitted).
+func runGPUFilterGraphFromViewIntoEncoder(device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, sharedEnc *webgpu.CommandEncoder) (gpucontext.TextureView, func(), error) {
+	if srcView.IsNil() {
+		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
+	}
+	if sharedEnc == nil {
+		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil shared encoder")
+	}
+	wgpuView := (*webgpu.TextureView)(srcView.Pointer())
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, wgpuView, w, h, nodes, false, nil, sharedEnc)
 	return view, release, err
 }
 
 func runGPUFilterGraphEx(
 	device *webgpu.Device, queue *webgpu.Queue, cache *filterGPUCache,
 	src []byte, srcView *webgpu.TextureView, w, h int, nodes []render.ImageFilterNode, wantPixels bool,
-	leading []*webgpu.CommandBuffer,
+	leading []*webgpu.CommandBuffer, sharedEnc *webgpu.CommandEncoder,
 ) (out []byte, pubView gpucontext.TextureView, pubRelease func(), err error) {
 	if device == nil || queue == nil || cache == nil || w <= 0 || h <= 0 {
 		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: invalid args")
@@ -798,39 +856,124 @@ func runGPUFilterGraphEx(
 	}
 
 	// One command encoder for all passes + publish copy (single queue submit).
-	// Uniforms cannot be rewritten mid-encoder safely for concurrent binds, so
-	// each pass gets a pooled uniform buffer written before encode.
-	cache.mu.Lock()
-	if cap(cache.passURefScratch) < 8 {
-		cache.passURefScratch = make([]*webgpu.Buffer, 0, 8)
+	// opt35: pass uniforms share one slab (distinct offsets). Pack into CPU
+	// scratch during encode; single WriteBuffer before Finish/Submit so each
+	// bind range has distinct live content (cannot rewrite one uniform mid-CB).
+	estSlots := len(nodes)*4 + 2
+	if estSlots < filterPassUniformSlabMinSlots {
+		estSlots = filterPassUniformSlabMinSlots
 	}
-	passUBufs := cache.passURefScratch[:0]
-	cache.mu.Unlock()
-	enc, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "filter_gpu_batch_enc"})
+	slab, err := cache.ensurePassUniformSlab(device, estSlots)
 	if err != nil {
 		return nil, gpucontext.TextureView{}, nil, err
 	}
+	cache.mu.Lock()
+	if cap(cache.passUniformScratch) < estSlots*filterPassUniformSlotStride {
+		cache.passUniformScratch = make([]byte, estSlots*filterPassUniformSlotStride)
+	}
+	passScratch := cache.passUniformScratch
+	cache.lastGraphFinishes = 0
+	cache.lastUsedSharedEnc = sharedEnc != nil
+	cache.mu.Unlock()
+	nPassSlots := 0
+	var enc *webgpu.CommandEncoder
+	ownsEncoder := false
+	if sharedEnc != nil {
+		enc = sharedEnc
+	} else {
+		enc, err = device.CreateCommandEncoder(filterGPUBatchEncoderDesc)
+		if err != nil {
+			return nil, gpucontext.TextureView{}, nil, err
+		}
+		ownsEncoder = true
+	}
+	// discardOnErr only owns the encoder we created; sharedEnc is left open on
+	// failure so FlushAndFilter can Finish+Submit mesh seed for recovery.
+	discardOnErr := func() {
+		if ownsEncoder && enc != nil {
+			enc.DiscardEncoding()
+		}
+	}
 	cleanupPasses := func() {
-		// uniforms pooled; bind groups cached on filterGPUCache
+		// slab + bind groups owned by filterGPUCache
+	}
+
+	flushPassUniforms := func() error {
+		if nPassSlots == 0 {
+			cache.mu.Lock()
+			cache.lastPassUniformSlots = 0
+			cache.lastPassUniformWB = 0
+			cache.mu.Unlock()
+			return nil
+		}
+		needBytes := nPassSlots * filterPassUniformSlotStride
+		if cap(passScratch) < needBytes {
+			return fmt.Errorf("filter pass uniform scratch short: cap=%d need=%d", cap(passScratch), needBytes)
+		}
+		// Ensure slab covers packed slots (rare growth if estimate was low).
+		if uint64(needBytes) > 0 {
+			s2, e2 := cache.ensurePassUniformSlab(device, nPassSlots)
+			if e2 != nil {
+				return e2
+			}
+			if s2 != slab {
+				// Slab reallocated after bind groups were built — not recoverable
+				// in this run (BGs pin old buffer). Estimate should prevent this.
+				return fmt.Errorf("filter pass uniform slab grew mid-run (slots=%d)", nPassSlots)
+			}
+		}
+		if err := queue.WriteBuffer(slab, 0, passScratch[:needBytes]); err != nil {
+			return err
+		}
 		cache.mu.Lock()
-		cache.passURefScratch = passUBufs[:0]
+		cache.lastPassUniformSlots = nPassSlots
+		cache.lastPassUniformWB = 1
 		cache.mu.Unlock()
+		return nil
 	}
 
 	doPass := func(a passArgs) error {
-		clear(ubuf)
-		putF32 := func(off int, v float32) {
-			u := math.Float32bits(v)
-			ubuf[off] = byte(u)
-			ubuf[off+1] = byte(u >> 8)
-			ubuf[off+2] = byte(u >> 16)
-			ubuf[off+3] = byte(u >> 24)
+		slot := nPassSlots
+		nPassSlots++
+		if slot >= estSlots {
+			// Grow scratch; slab was pre-sized with headroom via ensure min/growth.
+			needSlots := slot + 1
+			if needSlots < filterPassUniformSlabMinSlots {
+				needSlots = filterPassUniformSlabMinSlots
+			}
+			s2, e2 := cache.ensurePassUniformSlab(device, needSlots)
+			if e2 != nil {
+				return e2
+			}
+			if s2 != slab {
+				return fmt.Errorf("filter pass uniform slab grew after bind groups (slot=%d)", slot)
+			}
+			needBytes := needSlots * filterPassUniformSlotStride
+			if cap(passScratch) < needBytes {
+				n := make([]byte, needBytes)
+				copy(n, passScratch[:slot*filterPassUniformSlotStride])
+				passScratch = n
+				cache.mu.Lock()
+				cache.passUniformScratch = n
+				cache.mu.Unlock()
+			}
+			estSlots = needSlots
 		}
-		putU32 := func(off int, v uint32) {
-			ubuf[off] = byte(v)
-			ubuf[off+1] = byte(v >> 8)
-			ubuf[off+2] = byte(v >> 16)
-			ubuf[off+3] = byte(v >> 24)
+		off := slot * filterPassUniformSlotStride
+		slotBuf := passScratch[off : off+filterGPUUniformSize]
+		clear(slotBuf)
+		putF32 := func(o int, v float32) {
+			u := math.Float32bits(v)
+			slotBuf[o] = byte(u)
+			slotBuf[o+1] = byte(u >> 8)
+			slotBuf[o+2] = byte(u >> 16)
+			slotBuf[o+3] = byte(u >> 24)
+		}
+		putU32 := func(o int, v uint32) {
+			slotBuf[o] = byte(v)
+			slotBuf[o+1] = byte(v >> 8)
+			slotBuf[o+2] = byte(v >> 16)
+			slotBuf[o+3] = byte(v >> 24)
 		}
 		putF32(0, float32(w))
 		putF32(4, float32(h))
@@ -851,15 +994,6 @@ func runGPUFilterGraphEx(
 			}
 			putF32(48+i*4, v)
 		}
-		// Per-pass uniform from pool (alive until Submit via passUBufs hold).
-		uPass, err := cache.acquirePassUniform(device, len(passUBufs))
-		if err != nil {
-			return err
-		}
-		passUBufs = append(passUBufs, uPass)
-		if err := queue.WriteBuffer(uPass, 0, ubuf); err != nil {
-			return err
-		}
 
 		srcV := a.srcView
 		if srcV == nil {
@@ -874,7 +1008,7 @@ func runGPUFilterGraphEx(
 			auxV = dummy
 		}
 
-		bg, err := cache.bindGroup(device, bgl, samp, srcV, dstV, auxV, uPass)
+		bg, err := cache.bindGroup(device, bgl, samp, srcV, dstV, auxV, slab, uint64(off))
 		if err != nil {
 			return err
 		}
@@ -922,14 +1056,14 @@ func runGPUFilterGraphEx(
 		switch n.Kind {
 		case render.ImageFilterGrayscale:
 			if err := doPass(passArgs{mode: 1}); err != nil {
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
 			swap()
 		case render.ImageFilterInvert:
 			if err := doPass(passArgs{mode: 2}); err != nil {
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
@@ -938,13 +1072,13 @@ func runGPUFilterGraphEx(
 			sigma := math.Max(0.01, n.Radius)
 			r := uint32(math.Max(1, math.Min(24, math.Ceil(sigma*3))))
 			if err := doPass(passArgs{mode: 0, radius: r, dirX: 1, dirY: 0, offX: float32(sigma)}); err != nil {
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
 			swap()
 			if err := doPass(passArgs{mode: 0, radius: r, dirX: 0, dirY: 1, offX: float32(sigma)}); err != nil {
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
@@ -968,7 +1102,7 @@ func runGPUFilterGraphEx(
 			}
 		case render.ImageFilterColorMatrix:
 			if err := doPass(passArgs{mode: 3, matrix: n.Matrix}); err != nil {
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
@@ -988,7 +1122,7 @@ func runGPUFilterGraphEx(
 				colB:    float32(n.ShadowColor.B),
 				colA:    float32(n.ShadowColor.A),
 			}); err != nil {
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
@@ -1006,13 +1140,13 @@ func runGPUFilterGraphEx(
 				swap()
 			}
 			if err := doPass(passArgs{mode: 5, srcView: curView, auxView: viewH, dstView: nxtView}); err != nil {
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
 			swap()
 		default:
-			enc.DiscardEncoding()
+			discardOnErr()
 			cleanupPasses()
 			return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu unsupported node %v", n.Kind)
 		}
@@ -1032,7 +1166,7 @@ func runGPUFilterGraphEx(
 			// Fallback: acquire publish RT + GPU copy (keeps correctness).
 			slot, err = cache.acquirePublish(device, w, h)
 			if err != nil {
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
 			}
@@ -1052,17 +1186,30 @@ func runGPUFilterGraphEx(
 				// External-only: sample-copy into publish via mode-6 pass.
 				if err := doPass(passArgs{mode: 6, srcView: curView, dstView: slot.view}); err != nil {
 					cache.releasePublish(slot)
-					enc.DiscardEncoding()
+					discardOnErr()
 					cleanupPasses()
 					return nil, gpucontext.TextureView{}, nil, err
 				}
 			} else {
 				cache.releasePublish(slot)
-				enc.DiscardEncoding()
+				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu publish: no source")
 			}
 		}
+	}
+	// opt35: one WriteBuffer for all pass uniforms before Finish/Submit.
+	if err := flushPassUniforms(); err != nil {
+		if slot.tex != nil {
+			cache.releasePublish(slot)
+		}
+		discardOnErr()
+		cleanupPasses()
+		return nil, gpucontext.TextureView{}, nil, err
+	}
+	if sharedEnc != nil && len(leading) > 0 {
+		// Mesh seed should already live on sharedEnc (opt36); leading is unused.
+		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: sharedEnc with leading CBs")
 	}
 	cmd, err := enc.Finish()
 	if err != nil {
@@ -1072,6 +1219,9 @@ func runGPUFilterGraphEx(
 		cleanupPasses()
 		return nil, gpucontext.TextureView{}, nil, err
 	}
+	cache.mu.Lock()
+	cache.lastGraphFinishes = 1
+	cache.mu.Unlock()
 	// Single Queue.Submit for optional leading seed CBs + filter CB (opt18).
 	// Leading must run first so FromView samples a populated seed RT.
 	nLead := len(leading)
@@ -1122,7 +1272,7 @@ func runGPUFilterGraphEx(
 	staging := cache.staging
 	cache.mu.Unlock()
 
-	enc2, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "filter_gpu_read_enc"})
+	enc2, err := device.CreateCommandEncoder(filterGPUReadEncoderDesc)
 	if err != nil {
 		return nil, gpucontext.TextureView{}, nil, err
 	}

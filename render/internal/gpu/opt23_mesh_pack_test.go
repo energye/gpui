@@ -9,7 +9,7 @@ import (
 )
 
 // TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex ensures the opt23
-// tight pack path produces identical 28-byte verts to writeConvexVertex.
+// tight pack path produces identical packed verts to writeConvexVertex.
 func TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex(t *testing.T) {
 	positions := []render.Point{{X: 1.5, Y: 2.25}, {X: 10, Y: 0}, {X: 0, Y: 10}, {X: 4, Y: 8}}
 	colors := []render.RGBA{
@@ -18,10 +18,10 @@ func TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex(t *testing.T) {
 		{R: 0, G: 0, B: 1, A: 0.25},
 		{R: 1, G: 1, B: 0, A: 0.8},
 	}
-	dst := make([]byte, len(positions)*convexVertexStride)
+	dst := make([]byte, len(positions)*convexMeshVertexStride)
 	gotSolid := packMeshVertsCoverage1(dst, positions, colors, true)
 
-	ref := make([]byte, len(positions)*convexVertexStride)
+	ref := make([]byte, len(positions)*convexMeshVertexStride)
 	var refSolid [4]float32
 	for i := range positions {
 		c := colors[i]
@@ -33,7 +33,7 @@ func TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex(t *testing.T) {
 			refSolid[2] += col[2]
 			refSolid[3] += col[3]
 		}
-		writeConvexVertex(ref[i*convexVertexStride:], float32(positions[i].X), float32(positions[i].Y), 1.0, col)
+		writeConvexMeshVertex(ref[i*convexMeshVertexStride:], float32(positions[i].X), float32(positions[i].Y), col)
 	}
 	refSolid[0] /= 3
 	refSolid[1] /= 3
@@ -51,13 +51,13 @@ func TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex(t *testing.T) {
 	}
 
 	// Solid-color path
-	dst2 := make([]byte, len(positions)*convexVertexStride)
+	dst2 := make([]byte, len(positions)*convexMeshVertexStride)
 	solid := packMeshVertsCoverage1(dst2, positions, []render.RGBA{{R: 0.2, G: 0.4, B: 0.6, A: 0.5}}, false)
-	ref2 := make([]byte, len(positions)*convexVertexStride)
+	ref2 := make([]byte, len(positions)*convexMeshVertexStride)
 	a := float32(0.5)
 	col := [4]float32{0.2 * a, 0.4 * a, 0.6 * a, a}
 	for i := range positions {
-		writeConvexVertex(ref2[i*convexVertexStride:], float32(positions[i].X), float32(positions[i].Y), 1.0, col)
+		writeConvexMeshVertex(ref2[i*convexMeshVertexStride:], float32(positions[i].X), float32(positions[i].Y), col)
 	}
 	for i := range dst2 {
 		if dst2[i] != ref2[i] {

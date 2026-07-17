@@ -34,7 +34,7 @@ func TestOpt24_StickyIndex_ReusesRingSlotOnSameTopology(t *testing.T) {
 		{R: 1, G: 1, B: 0, A: 1},
 	}
 	indicesA := []uint16{0, 1, 2, 1, 3, 2}
-	pk := make([]byte, len(positions)*convexVertexStride)
+	pk := make([]byte, len(positions)*convexMeshVertexStride)
 	_ = packMeshVertsCoverage1(pk, positions, colors, true)
 
 	cmdA := ConvexDrawCommand{TriangleList: true, SkipAA: true, PackedVerts: pk, Indices: indicesA}
@@ -46,7 +46,7 @@ func TestOpt24_StickyIndex_ReusesRingSlotOnSameTopology(t *testing.T) {
 
 	// Animate verts, same topology → reuse bufA.
 	positions2 := []render.Point{{X: 1, Y: 1}, {X: 11, Y: 1}, {X: 1, Y: 11}, {X: 11, Y: 11}}
-	pk2 := make([]byte, len(positions2)*convexVertexStride)
+	pk2 := make([]byte, len(positions2)*convexMeshVertexStride)
 	_ = packMeshVertsCoverage1(pk2, positions2, colors, true)
 	cmdA2 := ConvexDrawCommand{TriangleList: true, SkipAA: true, PackedVerts: pk2, Indices: indicesA}
 	res2, err := s.buildConvexResources([]ConvexDrawCommand{cmdA2}, 100, 100)
