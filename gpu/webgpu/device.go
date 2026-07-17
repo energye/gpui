@@ -303,8 +303,6 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 	runtime.KeepAlive(sc)
 	releaseRPLConvertScratch(sc)
 	if err != nil {
-		return nil, fmt.Erro
-	if err != nil {
 		return nil, fmt.Errorf("wgpu: failed to create render pipeline: %w", err)
 	}
 
@@ -550,8 +548,10 @@ func convertBindGroupEntry(e BindGroupEntry) rwgpu.BindGroupEntry {
 		re.TextureView = e.TextureView.r
 	}
 	return re
-derPipeline descriptor conversion.
-// Covers the common render shapes (≤4 vertex buffers, ≤16 attrs each, ≤4 color targets).
+}
+
+// R7.6: pooled scratch for CreateRenderPipeline descriptor conversion.
+// Covers common render shapes (≤4 vertex buffers, ≤16 attrs each, ≤4 color targets).
 type rplConvertScratch struct {
 	layouts   [4]rwgpu.VertexBufferLayout
 	attrStore [4][16]rwgpu.VertexAttribute
@@ -573,7 +573,6 @@ func releaseRPLConvertScratch(sc *rplConvertScratch) {
 	if sc == nil {
 		return
 	}
-	// Drop pointers into heap keepAlive / modules so pooled slots don't pin GPU objects.
 	sc.rDesc = rwgpu.RenderPipelineDescriptor{}
 	sc.fragment = rwgpu.FragmentState{}
 	sc.depth = rwgpu.DepthStencilState{}
@@ -583,14 +582,11 @@ func releaseRPLConvertScratch(sc *rplConvertScratch) {
 	rplConvertPool.Put(sc)
 }
 
-// convertRenderPipelineDesc converts ou
- 
-}
+// convertRenderPipelineDesc converts our RenderPipelineDescriptor to rwgpu.
+// Heap-owning fallback for callers outside CreateRenderPipeline.
+func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) (*rwgpu.RenderPipelineDescriptor, [][]rwgpu.VertexAttribute) {
 	sc := acquireRPLConvertScratch()
-	// NOTE: caller must KeepAlive the returned keepAlive; scratch is NOT returned
-	// here for API compatibility — heap-copy keepAlive attrs only.
 	rDesc, keep := convertRenderPipelineDescInto(sc, desc)
-	// Detach attr slices from scratch storage into owned heap so sc can be released.
 	owned := make([][]rwgpu.VertexAttribute, len(keep))
 	for i, a := range keep {
 		if len(a) == 0 {
@@ -599,23 +595,22 @@ func releaseRPLConvertScratch(sc *rplConvertScratch) {
 		cp := make([]rwgpu.VertexAttribute, len(a))
 		copy(cp, a)
 		owned[i] = cp
-		if len(cp) > 0 {
-			rDesc.Vertex.Buffers[i].Attributes = (*rwgpu.VertexAttribute)(unsafe.Pointer(&cp[0])) //nolint:gosec
-			rDesc.Vertex.Buffers[i].AttributeCount = uintptr(len(cp))
+	}
+	outBufs := make([]rwgpu.VertexBufferLayout, len(rDesc.Vertex.Buffers))
+	copy(outBufs, rDesc.Vertex.Buffers)
+	for i := range outBufs {
+		if len(owned[i]) > 0 {
+			outBufs[i].Attributes = (*rwgpu.VertexAttribute)(unsafe.Pointer(&owned[i][0])) //nolint:gosec
+			outBufs[i].AttributeCount = uintptr(len(owned[i]))
 		}
 	}
-	// Deep-copy buffers slice if it aliases scratch.
-	if len(rDesc.Vertex.Buffers) > 0 {
-		bufs := make([]rwgpu.VertexBufferLayout, len(rDesc.Vertex.Buffers))
-		copy(bufs, rDesc.Vertex.Buffers)
-		rDesc.Vertex.Buffers = bufs
-	}
+	out := *rDesc
+	out.Vertex.Buffers = outBufs
 	if rDesc.Fragment != nil {
 		frag := *rDesc.Fragment
 		if len(frag.Targets) > 0 {
 			ts := make([]rwgpu.ColorTargetState, len(frag.Targets))
 			copy(ts, frag.Targets)
-			// re-point blends if they alias scratch blends
 			for i := range ts {
 				if ts[i].Blend != nil {
 					b := *ts[i].Blend
@@ -624,71 +619,63 @@ func releaseRPLConvertScratch(sc *rplConvertScratch) {
 			}
 			frag.Targets = ts
 		}
-		rDesc.Fragment = &frag
+		out.Fragment = &frag
 	}
 	if rDesc.DepthStencil != nil {
 		ds := *rDesc.DepthStencil
-		rDesc.DepthStencil = &ds
+		out.DepthStencil = &ds
 	}
-	// rDesc itself may alias sc.rDesc
-	out := *rDesc
 	releaseRPLConvertScratch(sc)
 	return &out, owned
 }
 
 // convertRenderPipelineDescInto fills sc and returns pointers into it.
-// Caller must runtime.KeepAlive(sc) until after the native CreateRenderPipeline returns.
+// Caller must runtime.KeepAlive(sc) until after native CreateRenderPipeline returns.
 func convertRenderPipelineDescInto(sc *rplConvertScratch, desc *RenderPipelineDescriptor) (*rwgpu.RenderPipelineDescriptor, [][]rwgpu.VertexAttribute) {
-	sc.rDesc = rwgpu.RenderPipelineDescriptor{
-// convertRenderPipelineDesc converts our RenderPipelineDescriptor to rwgpu.
-func convertRenderPipelineDesc(desc *RenderPipelineDescriptor) (*rwgpu.RenderPipelineDescriptor, [][]rwgpu.VertexAttribute) {
-	}
-		sc.rDesc.Layout = desc.Layout.r
-
+	sc.rDesc = rwgpu.RenderPipelineDescriptor{Label: desc.Label}
 	if desc.Layout != nil {
-	sc.rDesc.Vertex = rwgpu.VertexState{
+		sc.rDesc.Layout = desc.Layout.r
+	}
 
-	// Vertex state.
-	rDesc.Vertex = rwgpu.VertexState{
+	sc.rDesc.Vertex = rwgpu.VertexState{EntryPoint: desc.Vertex.EntryPoint}
+	if desc.Vertex.Module != nil {
 		sc.rDesc.Vertex.Module = desc.Vertex.Module.r
 	}
 	bufs, keepAlive := convertVertexBufferLayoutsInto(sc, desc.Vertex.Buffers)
 	sc.rDesc.Vertex.Buffers = bufs
-		rDesc.Vertex.Module = desc.Vertex.Module.r
-	sc.rDesc.Primitive = rwgpu.PrimitiveState{
 
-	// Primitive state (topology/front/cull converted to native wire inside rwgpu).
-	rDesc.Primitive = rwgpu.PrimitiveState{
+	sc.rDesc.Primitive = rwgpu.PrimitiveState{
 		Topology:       desc.Primitive.Topology,
 		FrontFace:      desc.Primitive.FrontFace,
 		CullMode:       desc.Primitive.CullMode,
-		sc.rDesc.Primitive.StripIndexFormat = *desc.Primitive.StripIndexFormat
+		UnclippedDepth: desc.Primitive.UnclippedDepth,
 	}
 	if desc.Primitive.StripIndexFormat != nil {
+		sc.rDesc.Primitive.StripIndexFormat = *desc.Primitive.StripIndexFormat
 	}
+
+	if desc.DepthStencil != nil {
 		convertDepthStencilStateInto(&sc.depth, desc.DepthStencil)
 		sc.rDesc.DepthStencil = &sc.depth
-	// Depth-stencil state.
-	if desc.DepthStencil != nil {
-	sc.rDesc.Multisample = rwgpu.MultisampleState{
-
-		Mask:                   uint32(desc.Multisample.Mask), //nolint:gosec
-	rDesc.Multisample = rwgpu.MultisampleState{
-		Count:                  desc.Multisample.Count,
-		Mask:                   uint32(desc.Multisample.Mask), //nolint:gosec // mask truncation is intentional (WebGPU spec: 32-bit)
 	}
+
+	sc.rDesc.Multisample = rwgpu.MultisampleState{
+		Count:                  desc.Multisample.Count,
+		Mask:                   uint32(desc.Multisample.Mask), //nolint:gosec
+		AlphaToCoverageEnabled: desc.Multisample.AlphaToCoverageEnabled,
+	}
+
+	if desc.Fragment != nil {
 		convertFragmentStateInto(sc, desc.Fragment)
 		sc.rDesc.Fragment = &sc.fragment
-	// Fragment state.
-	if desc.Fragment != nil {
-	return &sc.rDesc, keepAlive
 	}
+	return &sc.rDesc, keepAlive
+}
 
-// convertVertexBufferLayouts converts vertex buffer layouts (heap fallback).
-
+// convertVertexBufferLayouts converts vertex buffer layouts (heap-owning).
+func convertVertexBufferLayouts(layouts []VertexBufferLayout) ([]rwgpu.VertexBufferLayout, [][]rwgpu.VertexAttribute) {
 	sc := acquireRPLConvertScratch()
 	bufs, keep := convertVertexBufferLayoutsInto(sc, layouts)
-	// Own the result so scratch can be released.
 	outBufs := make([]rwgpu.VertexBufferLayout, len(bufs))
 	copy(outBufs, bufs)
 	owned := make([][]rwgpu.VertexAttribute, len(keep))
@@ -722,7 +709,6 @@ func convertVertexBufferLayoutsInto(sc *rplConvertScratch, layouts []VertexBuffe
 			}
 		}
 	}
-
 	var result []rwgpu.VertexBufferLayout
 	var keepAlive [][]rwgpu.VertexAttribute
 	if useStack {
@@ -732,18 +718,14 @@ func convertVertexBufferLayoutsInto(sc *rplConvertScratch, layouts []VertexBuffe
 		result = make([]rwgpu.VertexBufferLayout, n)
 		keepAlive = make([][]rwgpu.VertexAttribute, n)
 	}
-
-func convertVertexBufferLayouts(layouts []VertexBufferLayout) ([]rwgpu.VertexBufferLayout, [][]rwgpu.VertexAttribute) {
-		var attrs []rwgpu.VertexAttribute
+	for i, l := range layouts {
 		na := len(l.Attributes)
+		var attrs []rwgpu.VertexAttribute
 		if useStack {
 			attrs = sc.attrStore[i][:na]
 		} else {
 			attrs = make([]rwgpu.VertexAttribute, na)
 		}
-	keepAlive := make([][]rwgpu.VertexAttribute, len(layouts))
-	for i, l := range layouts {
-		attrs := make([]rwgpu.VertexAttribute, len(l.Attributes))
 		for j, a := range l.Attributes {
 			attrs[j] = rwgpu.VertexAttribute{
 				Format:         a.Format,
@@ -752,17 +734,20 @@ func convertVertexBufferLayouts(layouts []VertexBufferLayout) ([]rwgpu.VertexBuf
 			}
 		}
 		keepAlive[i] = attrs
-			AttributeCount: uintptr(na),
+		result[i] = rwgpu.VertexBufferLayout{
 			ArrayStride:    l.ArrayStride,
+			StepMode:       l.StepMode,
+			AttributeCount: uintptr(na),
+		}
 		if na > 0 {
 			result[i].Attributes = (*rwgpu.VertexAttribute)(unsafe.Pointer(&attrs[0])) //nolint:gosec
 		}
-		if len(attrs) > 0 {
-			result[i].Attributes = (*rwgpu.VertexAttribute)(unsafe.Pointer(&attrs[0])) //nolint:gosec // G103: FFI interop requires unsafe pointer to C-style attribute array
-		}
 	}
-// convertDepthStencilState converts depth-stencil state (heap).
+	return result, keepAlive
 }
+
+// convertDepthStencilState converts depth-stencil state (heap).
+func convertDepthStencilState(ds *DepthStencilState) *rwgpu.DepthStencilState {
 	out := &rwgpu.DepthStencilState{}
 	convertDepthStencilStateInto(out, ds)
 	return out
@@ -770,9 +755,6 @@ func convertVertexBufferLayouts(layouts []VertexBufferLayout) ([]rwgpu.VertexBuf
 
 func convertDepthStencilStateInto(out *rwgpu.DepthStencilState, ds *DepthStencilState) {
 	*out = rwgpu.DepthStencilState{
-// convertDepthStencilState converts depth-stencil state.
-func convertDepthStencilState(ds *DepthStencilState) *rwgpu.DepthStencilState {
-	return &rwgpu.DepthStencilState{
 		Format:              ds.Format,
 		DepthWriteEnabled:   ds.DepthWriteEnabled,
 		DepthCompare:        ds.DepthCompare,
@@ -793,11 +775,13 @@ func convertDepthStencilState(ds *DepthStencilState) *rwgpu.DepthStencilState {
 			DepthFailOp: rwgpu.StencilOperation(ds.StencilBack.DepthFailOp),
 			PassOp:      rwgpu.StencilOperation(ds.StencilBack.PassOp),
 		},
-// convertFragmentState converts fragment state (heap fallback).
+	}
 }
+
+// convertFragmentState converts fragment state (heap-owning).
+func convertFragmentState(fs *FragmentState) *rwgpu.FragmentState {
 	sc := acquireRPLConvertScratch()
 	convertFragmentStateInto(sc, fs)
-	// Own copy
 	out := sc.fragment
 	if len(out.Targets) > 0 {
 		ts := make([]rwgpu.ColorTargetState, len(out.Targets))
@@ -815,10 +799,8 @@ func convertDepthStencilState(ds *DepthStencilState) *rwgpu.DepthStencilState {
 }
 
 func convertFragmentStateInto(sc *rplConvertScratch, fs *FragmentState) {
-	sc.fragment = rwgpu.FragmentState{
-// convertFragmentState converts fragment state.
-func convertFragmentState(fs *FragmentState) *rwgpu.FragmentState {
-	result := &rwgpu.FragmentState{
+	sc.fragment = rwgpu.FragmentState{EntryPoint: fs.EntryPoint}
+	if fs.Module != nil {
 		sc.fragment.Module = fs.Module.r
 	}
 	n := len(fs.Targets)
@@ -826,54 +808,42 @@ func convertFragmentState(fs *FragmentState) *rwgpu.FragmentState {
 		sc.fragment.Targets = nil
 		return
 	}
-	var targets []rwgpu.ColorTargetState
 	useStack := n <= len(sc.targets)
+	var targets []rwgpu.ColorTargetState
 	if useStack {
 		targets = sc.targets[:n]
 	} else {
 		targets = make([]rwgpu.ColorTargetState, n)
 	}
-	}
-
-	result.Targets = make([]rwgpu.ColorTargetState, len(fs.Targets))
 	for i, t := range fs.Targets {
 		ct := rwgpu.ColorTargetState{
 			Format:    t.Format,
+			WriteMask: t.WriteMask,
+		}
+		if t.Blend != nil {
+			bl := rwgpu.BlendState{
+				Color: rwgpu.BlendComponent{
+					SrcFactor: t.Blend.Color.SrcFactor,
+					DstFactor: t.Blend.Color.DstFactor,
+					Operation: t.Blend.Color.Operation,
+				},
+				Alpha: rwgpu.BlendComponent{
+					SrcFactor: t.Blend.Alpha.SrcFactor,
+					DstFactor: t.Blend.Alpha.DstFactor,
+					Operation: t.Blend.Alpha.Operation,
+				},
+			}
 			if useStack {
-				sc.blends[i] = rwgpu.BlendState{
-					Color: rwgpu.BlendComponent{
-						SrcFactor: t.Blend.Color.SrcFactor,
-						DstFactor: t.Blend.Color.DstFactor,
-						Operation: t.Blend.Color.Operation,
-					},
-					Alpha: rwgpu.BlendComponent{
-						SrcFactor: t.Blend.Alpha.SrcFactor,
-						DstFactor: t.Blend.Alpha.DstFactor,
-						Operation: t.Blend.Alpha.Operation,
-					},
-				}
+				sc.blends[i] = bl
 				ct.Blend = &sc.blends[i]
 			} else {
-				ct.Blend = &rwgpu.BlendState{
-					Color: rwgpu.BlendComponent{
-						SrcFactor: t.Blend.Color.SrcFactor,
-						DstFactor: t.Blend.Color.DstFactor,
-						Operation: t.Blend.Color.Operation,
-					},
-					Alpha: rwgpu.BlendComponent{
-						SrcFactor: t.Blend.Alpha.SrcFactor,
-						DstFactor: t.Blend.Alpha.DstFactor,
-						Operation: t.Blend.Alpha.Operation,
-					},
-				}
+				b := bl
+				ct.Blend = &b
 			}
 		}
 		targets[i] = ct
 	}
 	sc.fragment.Targets = targets
-		result.Targets[i] = ct
-	}
-	return result
 }
 
 // convertErrorType maps rwgpu ErrorType to our ErrorFilter.

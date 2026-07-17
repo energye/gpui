@@ -151,7 +151,15 @@ func (e *CommandEncoder) CopyTextureToBuffer(src *Texture, dst *Buffer, regions 
 	if e.released || src == nil || dst == nil {
 		return
 	}
-	rRegions := make([]rwgpu.BufferTextureCopy, len(regions))
+	// R7.6: ≤4 regions on stack (glyph atlas / readback common case is 1).
+	n := len(regions)
+	var stack [4]rwgpu.BufferTextureCopy
+	var rRegions []rwgpu.BufferTextureCopy
+	if n <= len(stack) {
+		rRegions = stack[:n]
+	} else {
+		rRegions = make([]rwgpu.BufferTextureCopy, n)
+	}
 	for i, r := range regions {
 		rRegions[i] = rwgpu.BufferTextureCopy{
 			BufferLayout: rwgpu.ImageDataLayout(r.BufferLayout),
@@ -172,7 +180,15 @@ func (e *CommandEncoder) CopyTextureToTexture(src, dst *Texture, regions []Textu
 	if e.released || src == nil || dst == nil {
 		return
 	}
-	rRegions := make([]rwgpu.TextureCopy, len(regions))
+	// R7.6: ≤4 regions on stack.
+	n := len(regions)
+	var stack [4]rwgpu.TextureCopy
+	var rRegions []rwgpu.TextureCopy
+	if n <= len(stack) {
+		rRegions = stack[:n]
+	} else {
+		rRegions = make([]rwgpu.TextureCopy, n)
+	}
 	for i, r := range regions {
 		rRegions[i] = rwgpu.TextureCopy{
 			Source: rwgpu.ImageCopyTexture{

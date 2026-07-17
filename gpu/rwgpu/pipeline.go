@@ -1,6 +1,7 @@
 package rwgpu
 
 import (
+	"runtime"
 	"unsafe"
 )
 
@@ -84,11 +85,16 @@ func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*Pipeline
 		return nil, &WGPUError{Op: "CreatePipelineLayout", Message: "descriptor is nil"}
 	}
 
-	// Convert []*BindGroupLayout → []uintptr handles
+	// R7.6: stack-allocate layout handles for common small pipeline layouts (≤8).
 	var layoutsPtr uintptr
 	var handles []uintptr
-	if len(desc.BindGroupLayouts) > 0 {
-		handles = make([]uintptr, len(desc.BindGroupLayouts))
+	var handleStack [8]uintptr
+	if n := len(desc.BindGroupLayouts); n > 0 {
+		if n <= len(handleStack) {
+			handles = handleStack[:n]
+		} else {
+			handles = make([]uintptr, n)
+		}
 		for i, l := range desc.BindGroupLayouts {
 			if l != nil {
 				handles[i] = l.handle
@@ -107,6 +113,9 @@ func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*Pipeline
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
 	)
+	runtime.KeepAlive(handles)
+	runtime.KeepAlive(wire)
+	runtime.KeepAlive(desc)
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreatePipelineLayout", Message: "wgpu returned null handle"}
 	}

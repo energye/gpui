@@ -1,6 +1,7 @@
 package rwgpu
 
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
@@ -246,27 +247,49 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 		nativeVertex.entryPoint = EmptyStringView()
 	}
 
-	// Convert vertex buffer layouts with StepMode and VertexFormat conversion
+	// R7.6: stack-convert common vertex layouts (≤4 buffers, ≤16 attrs each).
 	var nativeBuffers []vertexBufferLayoutWire
 	var allNativeAttrs [][]vertexAttributeWire // keep alive during FFI call
-	if len(desc.Vertex.Buffers) > 0 {
-		nativeBuffers = make([]vertexBufferLayoutWire, len(desc.Vertex.Buffers))
-		allNativeAttrs = make([][]vertexAttributeWire, len(desc.Vertex.Buffers))
+	var bufStack [4]vertexBufferLayoutWire
+	var attrStore [4][16]vertexAttributeWire
+	var attrKeep [4][]vertexAttributeWire
+	if nBuf := len(desc.Vertex.Buffers); nBuf > 0 {
+		useStack := nBuf <= len(bufStack)
+		if useStack {
+			for _, buf := range desc.Vertex.Buffers {
+				if buf.Attributes != nil && buf.AttributeCount > uintptr(len(attrStore[0])) {
+					useStack = false
+					break
+				}
+			}
+		}
+		if useStack {
+			nativeBuffers = bufStack[:nBuf]
+			allNativeAttrs = attrKeep[:nBuf]
+		} else {
+			nativeBuffers = make([]vertexBufferLayoutWire, nBuf)
+			allNativeAttrs = make([][]vertexAttributeWire, nBuf)
+		}
 		for i, buf := range desc.Vertex.Buffers {
 			var attrsPtr uintptr
 			if buf.Attributes != nil && buf.AttributeCount > 0 {
-				// Convert attributes with format conversion
 				attrs := unsafe.Slice(buf.Attributes, buf.AttributeCount)
-				allNativeAttrs[i] = make([]vertexAttributeWire, len(attrs))
+				var wireAttrs []vertexAttributeWire
+				if useStack {
+					wireAttrs = attrStore[i][:len(attrs)]
+				} else {
+					wireAttrs = make([]vertexAttributeWire, len(attrs))
+				}
 				for j, attr := range attrs {
-					allNativeAttrs[i][j] = vertexAttributeWire{
+					wireAttrs[j] = vertexAttributeWire{
 						NextInChain:    0,
 						Format:         toWGPUVertexFormat(attr.Format),
 						Offset:         attr.Offset,
 						ShaderLocation: attr.ShaderLocation,
 					}
 				}
-				attrsPtr = uintptr(unsafe.Pointer(&allNativeAttrs[i][0]))
+				allNativeAttrs[i] = wireAttrs
+				attrsPtr = uintptr(unsafe.Pointer(&wireAttrs[0]))
 			}
 			nativeBuffers[i] = vertexBufferLayoutWire{
 				NextInChain:    0, // v29: required first field
@@ -367,8 +390,14 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 			nativeFragment.entryPoint = EmptyStringView()
 		}
 
-		// Build color targets with wire format (uint64 writeMask!)
-		nativeTargets = make([]colorTargetStateWire, len(desc.Fragment.Targets))
+		// R7.6: stack color targets for common single/MRT (≤4).
+		var targetStack [4]colorTargetStateWire
+		nT := len(desc.Fragment.Targets)
+		if nT <= len(targetStack) {
+			nativeTargets = targetStack[:nT]
+		} else {
+			nativeTargets = make([]colorTargetStateWire, nT)
+		}
 		for i, target := range desc.Fragment.Targets {
 			nativeTargets[i] = colorTargetStateWire{
 				nextInChain: 0,
@@ -409,6 +438,13 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 		d.handle,
 		uintptr(unsafe.Pointer(&nativeDesc)),
 	)
+	// Keep stack-converted vertex/fragment wire data live across the FFI call.
+	runtime.KeepAlive(nativeBuffers)
+	runtime.KeepAlive(allNativeAttrs)
+	runtime.KeepAlive(nativeTargets)
+	runtime.KeepAlive(entryPointBytes)
+	runtime.KeepAlive(fragEntryPointBytes)
+	runtime.KeepAlive(desc)
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateRenderPipeline", Message: "wgpu returned null handle"}
 	}

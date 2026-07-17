@@ -242,9 +242,15 @@ func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGr
 	wireDesc.Label = stringToStringView(desc.Label)
 	wireDesc.EntryCount = uintptr(len(desc.Entries))
 
+	// R7.6: stack-allocate layout entries for common small layouts (≤8).
 	var wireEntries []bindGroupLayoutEntryWire
-	if len(desc.Entries) > 0 {
-		wireEntries = make([]bindGroupLayoutEntryWire, len(desc.Entries))
+	var wireStack [8]bindGroupLayoutEntryWire
+	if n := len(desc.Entries); n > 0 {
+		if n <= len(wireStack) {
+			wireEntries = wireStack[:n]
+		} else {
+			wireEntries = make([]bindGroupLayoutEntryWire, n)
+		}
 		for i := range desc.Entries {
 			wireEntries[i] = desc.Entries[i].toWire()
 		}

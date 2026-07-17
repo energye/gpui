@@ -1,7 +1,7 @@
 # Render 层代码优化收敛计划（功能不变）
 
-> 版本：1.6 | 日期：2026-07-17  
-> 状态：**执行中** — R7.0–R7.5 ✅ 关闭；下一可选 R7.6+  
+> 版本：1.7 | 日期：2026-07-17  
+> 状态：**R7.0–R7.6 计划表已收口**；后续按新热点开 R8 / PKS 实测  
 > 范围：`render` 主路径 + 为 render 服务的 `gpu/webgpu` / `gpu/rwgpu` 热路径  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 上位主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) · 路由铁律：[`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md)
@@ -272,7 +272,20 @@ go test -count=1 ./render -run 'TestS6_L0_|TestS52_|TestS53_|TestS61_|TestS62_Pr
 
 **R7.5 关闭。** 下一可选：R7.6 webgpu 小对象池 / PKS glow 实测。
 
-### R7.5+ — 按 §4.2 排队，一刀一开
+### R7.6 — webgpu/rwgpu 描述转换池与小 N 栈 ✅
+
+| 位置 | 改动 |
+|------|------|
+| `gpu/webgpu/device.go` | pipeline convert `sync.Pool` scratch；CreateRenderPipeline 走 Into |
+| `gpu/webgpu/encoder.go` | CopyTexture* ≤4 region 栈 |
+| `gpu/rwgpu/*` | BindGroupLayout / PipelineLayout / RenderPipeline wire 小 N 栈 |
+| `r7_6_pipeline_convert_test.go` | convert 门禁 |
+
+**验收（2026-07-17）：** TestR76_*、R70、rwgpu S1、render L0/F1/P03/D01 等绿。证据：`tmp/r7_6_STATUS.md`。
+
+**R7.6 关闭。** **§4.2 R7.0–R7.6 全部关闭。**
+
+### R7 之后 — 新热点再开 R8 / PKS 实测
 
 ---
 
@@ -286,7 +299,8 @@ go test -count=1 ./render -run 'TestS6_L0_|TestS52_|TestS53_|TestS61_|TestS62_Pr
 | R7.3 同帧 submit 合并 | **✅ 关闭** | `tmp/r7_3_STATUS.md` | dual-tex multi + blit 一次 Queue.Submit |
 | R7.4 damage 过宽 | **✅ 关闭** | `tmp/r7_4_STATUS.md` | group-relevant scissor + trackDamage coalesce |
 | R7.5 文本 layout template | **✅ 关闭** | `tmp/r7_5_STATUS.md` | scroll rebase + color-independent |
-| R7.6+ | 排队 | webgpu 小对象池 / PKS glow 等 | — |
+| R7.6 webgpu 描述转换池 | **✅ 关闭** | `tmp/r7_6_STATUS.md` | pipeline pool + 小 N 栈 |
+| R8 / PKS | 可选 | 新热点或 glow hitch 实测 | — |
 
 ---
 
@@ -328,3 +342,4 @@ go test -count=1 ./render -run 'TestS6_L0_|TestS52_|TestS53_|TestS61_|TestS62_Pr
 | 1.4 | 2026-07-17 | R7.3 关闭：dual-tex multi + blit 同次 Queue.Submit；见 `tmp/r7_3_STATUS.md` |
 | 1.5 | 2026-07-17 | R7.4 关闭：group-relevant multi-rect damage scissor + trackDamage CoalesceDamageRects；见 `tmp/r7_4_STATUS.md` |
 | 1.6 | 2026-07-17 | R7.5 关闭：glyph layout template + scroll-safe rebase；见 `tmp/r7_5_STATUS.md` |
+| 1.7 | 2026-07-17 | R7.6 关闭：pipeline convert pool + rwgpu/webgpu 小 N 栈；R7 计划表收口；见 `tmp/r7_6_STATUS.md` |
