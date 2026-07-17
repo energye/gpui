@@ -781,3 +781,235 @@ WriteBuffer **share** still ~18% (base 1600-tri mesh still unique verts — inde
 - Keep indexed path + stash deep-copy (correctness + disc upload)
 - Do not gut particle N / AA / disc segs to green metrics
 - Next: format/GPU sim only with pixel gates if tackling WriteBuffer further
+
+## opt23 mesh pack hot-path + LE index zero-copy (2026-07-17)
+
+### pprof (P_L3, opt22 → opt23)
+| symbol | opt22 cum | opt23 cum |
+|--------|-----------|-----------|
+| DrawMesh | 5.83% | **2.62%** |
+| QueueColoredMeshIndexed | 4.17% | **1.31%** |
+| WriteBuffer | 18.33% | **14.85%** |
+| buildConvexResources | 11.67% | **8.30%** |
+
+### Engine fixes (class A equivalence)
+1. **`packMeshVertsCoverage1`** — tight SkipAA mesh pack (coverage=1 fixed, direct f32 bit stores, no per-vert `writeConvexVertex`/`binary.LittleEndian` calls)
+2. **Drop O(n) index pre-validation** on indexed queue (DrawMesh supplies in-range indices; expands only on CPU fallback path)
+3. **Identity CTM fast path** in `DrawMesh` — queue user-space positions without transform copy
+4. **LE index WriteBuffer zero-copy** — single indexed command uploads `[]uint16` as bytes via `unsafe.Slice` (no per-index LE encode loop)
+
+Same verts/indices/pixels; only CPU pack/upload path.
+
+### PKS present (`tmp/pks/cpu_opt/opt23_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt22 cpu | **opt23 cpu** | fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------|--------|--------|
+| P_SOLID | 12.2 | **11.6** | 58.6 | PASS | 0 |
+| P_GLOW | 14.8 | **13.3** | 58.4 | PASS | 0 |
+| P_BLEND_GLOW | 22.2 | **20.9** | 59.0 | PASS | 0 |
+| P_L3 | 26.6 | **24.6** | 58.6 | PASS | 0 |
+| P_LAYER | 11.4 | 11.4 | 58.1 | PASS | 0 |
+
+L3 **−2.0pp CPU**; no content gutting.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex` | PASS |
+| `TestOpt22_*` | PASS |
+| `TestF1_AdvancedLayerPresent*` | PASS |
+
+### Still open
+1. Remaining WriteBuffer volume on dense base mesh (compact format / GPU particle update)
+2. single-CB frame (disabled for pixel correctness)
+3. RSS long-soak
+4. HUD digit amortize (correct design)
+
+### Policy
+- Keep pack/index zero-copy (measured win + byte-identical pack test)
+- Revert if pack golden or F1 advanced layer regresses
+
+## opt24 sticky index ring + layout/uniform skip (2026-07-17)
+
+### pprof / diagnosis (post-opt23)
+- `WriteBuffer` still ~15% on P_L3; index topology re-uploaded every flush even when verts-only animate
+- Multi-topology thrash (base/layer/glow) made single sticky-snap a net loss → multi-slot hash reuse
+- Static HUD strings still re-`LayoutGlyphs` before template hit (shaped unused on hit path)
+- Image/gpu-tex uniforms rewritten every frame for fixed viewport/opacity
+
+### Engine fixes (class A equivalence)
+1. **Convex index multi-slot sticky** — FNV64 + len fingerprint per index ring slot; identical topology reuses buffer (no WriteBuffer)
+2. **`LayoutText` / `LayoutTextAliased` template-before-shape** — try layout template first; only shape on miss
+3. **Image + GPU-texture uniform skip** — skip WriteBuffer when viewport W/H + opacity unchanged for pool slot
+
+Same triangles/pixels/text; only CPU pack/upload path.
+
+### PKS present (`tmp/pks/cpu_opt/opt24_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt23 cpu | **opt24 cpu** | fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------|--------|--------|
+| P_SOLID | 11.6 | **10.8** | 58.6 | PASS | 0 |
+| P_GLOW | 13.3 | 14.1 | 58.5 | PASS | 0 |
+| P_BLEND_GLOW | 20.9 | **19.7** | 59.6 | PASS | 0 |
+| P_L3 | 24.6 | **23.8** | 58.9 | PASS | 0 |
+| P_LAYER | 11.4 | **10.9** | 58.5 | PASS | 0 |
+
+L3 **−0.9pp CPU** (host-noisy; structure: index reuse + static text skip). No content gutting.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt24_StickyIndex_ReusesRingSlotOnSameTopology` | PASS |
+| `TestOpt24_LayoutTemplate_HitBeforeShape` | PASS |
+| `TestOpt24_ImageUniformSkip_SameViewportOpacity` | PASS |
+| `TestOpt22_*` / `TestOpt23_*` / `TestR75_LayoutTemplate*` | PASS |
+| `TestF1_AdvancedLayerPresent*` | PASS |
+
+### Still open
+1. Animated mesh **vertex WriteBuffer volume** (compact format / GPU particle update — class B territory)
+2. single-CB frame (`singleSubmit` still false for pixel correctness)
+3. RSS long-soak
+4. HUD digit amortize for *changing* FPS strings (template misses every frame; needs correct digit design)
+
+### Policy
+- Keep multi-slot index sticky + template-before-shape + uniform skip
+- Revert sticky if index hash collision ever observed (theoretical; FNV64+len)
+- Next knife: filter/submit structure or compact verts with pixel gates — not more micro-batching unless Submit >> WriteBuffer
+
+### Evidence
+- `tmp/pks/cpu_opt/opt24_*.json`, `pl3_opt24.pprof`
+- Tests: `render/internal/gpu/opt24_sticky_index_uniform_test.go`
+
+## opt25 multi-cmd contiguous packed zero-copy (2026-07-17)
+
+### pprof / diagnosis (post-opt24)
+- `buildConvexResources` still ~10.5%; multi-DrawMesh flushes fell into `buildConvexVerticesReuse` staging `memmove` even though Queue packing already laid verts/indices contiguously in `convexMeshPacked` / `convexMeshIdx`
+- Single-cmd opt20 zero-copy missed the common multi-mesh group case (base + discs + alpha)
+
+### Engine fixes (class A equivalence)
+1. **`packedMeshVertsContiguous`** — if all cmds are TriangleList+SkipAA+PackedVerts and slices are adjacent in one backing array, WriteBuffer the combined range (no staging memcpy)
+2. **`packedMeshIndicesContiguous`** — same for `[]uint16` index payloads → LE byte view without `convexIndexStaging` concat
+3. Warm frames (grow-only capacity) hit zero-copy; realloc mid-frame still falls back to copy (correct)
+
+Same verts/indices/pixels/draws; only CPU packing path.
+
+### PKS present (`tmp/pks/cpu_opt/opt25_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt24 cpu | **opt25 cpu** | fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------|--------|--------|
+| P_SOLID | 10.8 | **10.4** | 58.5 | PASS | 0 |
+| P_GLOW | 14.1 | **13.6** | 58.3 | PASS | 0 |
+| P_BLEND_GLOW | 19.7 | 20.1 | 59.9 | PASS | 0 |
+| P_L3 | 23.8 | **23.4** | 58.7 | PASS | 0 |
+| P_LAYER | 10.9 | **10.7** | 58.3 | PASS | 0 |
+
+L3 **−0.3pp CPU**; pprof: `buildConvexResources` **0.23s→0.15s**, `buildConvexVerticesReuse` off hot path.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt25_PackedMeshVertsContiguous_MultiCmd` | PASS |
+| `TestOpt25_PackedMeshIndicesContiguous_MultiCmd` | PASS |
+| `TestOpt25_BuildConvexResources_MultiCmdZeroCopy` | PASS |
+| `TestOpt24_*` / `TestOpt22_*` / `TestOpt23_*` | PASS |
+| `TestF1_AdvancedLayerPresent*` | PASS |
+
+### Still open
+1. Animated mesh **vertex WriteBuffer volume** (compact format / GPU particle update)
+2. Image atlas vertex WriteBuffer still material
+3. single-CB frame disabled for pixel correctness
+4. HUD digit amortize for changing FPS strings
+5. RSS long-soak
+
+### Policy
+- Keep contiguous zero-copy (measured + unit-proven)
+- Revert if multi-mesh pixels/ranges regress
+- Next: image upload volume / filter-Finish structure / class-B compact verts with pixel gates
+
+### Evidence
+- `tmp/pks/cpu_opt/opt25_*.json`, `pl3_opt25.pprof`
+- Tests: `render/internal/gpu/opt25_contiguous_pack_test.go`
+
+## opt26 dual-tex BG slot cache + fontID/index fingerprint (2026-07-17)
+
+### pprof / diagnosis (post-opt25)
+- `CreateBindGroup` ~4.2%: dual-tex multi-bundle recreated BGs every advanced-layer resolve (and released after Submit) despite `dualTexBlendCache.bgCache` field existing unused
+- `hash/fnv.(*sum64a).Write` ~0.9% on convex sticky index path (opt24)
+- `computeGlyphMaskFontID` used `fmt.Fprintf` every `LayoutText` (incl. template-hit path)
+
+### Engine fixes (class A equivalence)
+1. **`dualTexBlendCache.multiBindGroup`** — per-op slot cache keyed by (dstView, srcView, uniformBuf); warm frames reuse native BG; ownership stays on cache (Cleanup no longer Releases)
+2. **`GlyphMaskEngine.fontID`** — pointer-cached font identity; `computeGlyphMaskFontID` matches legacy `fmt.Fprintf("%s:%d")` FNV without fmt
+3. **`indexBytesFingerprint`** — word-mix sticky index key (no `hash.Hash` interface)
+
+Same pixels/bind content; only BG/handle reuse + CPU hash path.
+
+### PKS present (`tmp/pks/cpu_opt/opt26_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt25 cpu | **opt26 cpu** | fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------|--------|--------|
+| P_SOLID | 10.4 | **9.7** | 58.4 | PASS | 0 |
+| P_GLOW | 13.6 | 13.6 | 59.7 | PASS | 0 |
+| P_BLEND_GLOW | 20.1 | **19.7** | 58.8 | PASS | 0 |
+| P_L3 | 23.4 | 23.6 | 59.3 | PASS | 0 |
+| P_LAYER | 10.7 | **10.2** | 57.9 | PASS | 0 |
+
+L3 CPU flat/noise; pprof structure: dual-tex `CreateBindGroup` **0.06s→0.01s**, total CreateBindGroup **0.09s→0.06s**, sticky `fnv.Write` off hot path.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt26_DualTexMultiBindGroup_ReusesSlot` | PASS |
+| `TestOpt26_ComputeGlyphMaskFontID_MatchesLegacyFmt` | PASS |
+| `TestOpt26_IndexBytesFingerprint_Stable` | PASS |
+| `TestR75_LayoutTemplate*` / `TestOpt24_*` / `TestOpt25_*` | PASS |
+| `TestF1_AdvancedLayerPresent*` | PASS |
+
+### Still open
+1. Animated mesh **vertex WriteBuffer volume**
+2. Image/atlas + GPU-texture BG recreate when filter publish swaps views (glow)
+3. single-CB frame still disabled
+4. HUD digit amortize for changing FPS strings
+5. RSS long-soak
+
+### Policy
+- Keep multiBindGroup slot cache + fontID/index fingerprint
+- Revert dual-tex BG cache if advanced blend pixels/F1 regress (stale BG / early Release)
+- Next: glow GPU-tex BG stability across filter publish, or compact mesh verts with pixel gates
+
+### Evidence
+- `tmp/pks/cpu_opt/opt26_*.json`, `pl3_opt26.pprof`
+- Tests: `render/internal/gpu/opt26_dualtex_bg_fontid_test.go`
+
+
+## HUD text corruption fix — layout template × atlas compact (2026-07-17)
+
+### Symptom
+Top/bottom window HUD text correct at start, later garbled / not real glyphs.
+
+### Root cause
+R7.5 layout templates cache atlas UVs. Template hits **do not** call `atlas.Get`, so:
+1. Page `lastUsedFrame` was only updated on **Put** (write), not read/template reuse
+2. After ~32 frames, `AdvanceFrame` → `compact` **reset** pages still referenced by templates
+3. Templates kept stale UVs into zeroed/recycled atlas → corrupted HUD
+
+### Fix (class A correctness)
+| file | change |
+|------|--------|
+| `render/text/glyph_mask_atlas.go` | `generation` bump on `resetPage`/`Clear`; `Generation()`; `TouchPage`; `Get` updates `lastUsedFrame` |
+| `render/internal/gpu/glyph_mask_engine.go` | drop layout template cache when atlas generation advances; `TouchPage` on template hit |
+
+### Gates
+| test | result |
+|------|--------|
+| `TestR75_LayoutTemplate_AtlasCompactInvalidatesUVs` | PASS |
+| `TestR75_LayoutTemplate_TouchKeepsPageAlive` | PASS |
+| `TestGlyphMaskAtlas_Get_KeepsPageAlive` | PASS |
+| `TestGlyphMaskAtlas_Generation_*` | PASS |
+| `TestR75_*` / `TestOpt24_LayoutTemplate*` | PASS |
+| PKS `P_L3` 8s present | PASS `cpu_fb=0` |
+
+### Policy
+- Keep generation + TouchPage (correctness)
+- Do not return `quadScratch` from template get without deep copy
+- Resume opt27 only after this stays green on soak

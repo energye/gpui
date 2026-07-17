@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -619,6 +620,77 @@ func BuildConvexVertices(commands []ConvexDrawCommand) []byte {
 // buildConvexVerticesReuse generates vertex data into the provided staging
 // buffer, growing it if necessary. Returns the (possibly reallocated) staging
 // buffer and the slice of valid vertex data.
+
+// packedMeshVertsContiguous returns a zero-copy view over all TriangleList+SkipAA
+// PackedVerts when every command is packed mesh and the byte slices are adjacent
+// in one underlying array (QueueColoredMesh* grow-only packing). opt25: avoids
+// staging memcpy in buildConvexVerticesReuse for multi-DrawMesh flushes.
+func packedMeshVertsContiguous(commands []ConvexDrawCommand) ([]byte, bool) {
+	if len(commands) == 0 {
+		return nil, false
+	}
+	var base unsafe.Pointer
+	total := 0
+	for i := range commands {
+		cmd := &commands[i]
+		if !(len(cmd.PackedVerts) >= convexVertexStride && cmd.TriangleList && cmd.SkipAA) {
+			return nil, false
+		}
+		nb := len(cmd.PackedVerts)
+		nb = nb - (nb % convexVertexStride)
+		if nb == 0 {
+			continue
+		}
+		pk := cmd.PackedVerts[:nb]
+		p0 := unsafe.Pointer(&pk[0])
+		if base == nil {
+			base = p0
+			total = nb
+			continue
+		}
+		// Next slice must start exactly where the previous range ended.
+		if uintptr(p0) != uintptr(base)+uintptr(total) {
+			return nil, false
+		}
+		total += nb
+	}
+	if base == nil || total == 0 {
+		return nil, false
+	}
+	return unsafe.Slice((*byte)(base), total), true //nolint:gosec
+}
+
+// packedMeshIndicesContiguous returns LE bytes over concatenated uint16 indices
+// when all cmds are indexed mesh and Indices slices are adjacent (opt25).
+func packedMeshIndicesContiguous(commands []ConvexDrawCommand) (data []byte, count int, ok bool) {
+	if len(commands) == 0 {
+		return nil, 0, false
+	}
+	var base unsafe.Pointer
+	total := 0 // index count
+	for i := range commands {
+		n := convexCmdIndexCount(&commands[i])
+		if n == 0 {
+			continue
+		}
+		src := commands[i].Indices[:n]
+		p0 := unsafe.Pointer(&src[0])
+		if base == nil {
+			base = p0
+			total = n
+			continue
+		}
+		if uintptr(p0) != uintptr(base)+uintptr(total)*2 {
+			return nil, 0, false
+		}
+		total += n
+	}
+	if base == nil || total == 0 {
+		return nil, 0, false
+	}
+	return unsafe.Slice((*byte)(base), total*2), total, true //nolint:gosec
+}
+
 func buildConvexVerticesReuse(commands []ConvexDrawCommand, staging []byte) ([]byte, []byte) { //nolint:funlen // vertex generation loop is a single cohesive unit
 	totalVerts := 0
 	for i := range commands {

@@ -468,6 +468,10 @@ type GlyphMaskAtlas struct {
 	// Current frame counter for frame-based access tracking
 	currentFrame atomic.Uint64
 
+	// generation bumps whenever page pixel/UV stability is broken
+	// (resetPage / Clear). Layout templates must drop cached UVs on change.
+	generation atomic.Uint64
+
 	// bucketedMode is a sticky flag for size bucket quantization.
 	// Enter at 50% capacity, exit at 25% — hysteresis prevents oscillation
 	// between bucketed and fine-grained modes during smooth zoom.
@@ -509,12 +513,37 @@ func (a *GlyphMaskAtlas) Get(key GlyphMaskKey) (GlyphMaskRegion, bool) {
 		return GlyphMaskRegion{}, false
 	}
 
-	// Update LRU position
-	entry.lastAccessFrame = a.currentFrame.Load()
+	// Update LRU position and page activity so compact() does not reclaim
+	// actively-read glyphs (lastUsedFrame used to update only on Put/write).
+	frame := a.currentFrame.Load()
+	entry.lastAccessFrame = frame
+	if idx := entry.region.AtlasIndex; idx >= 0 && idx < len(a.pages) {
+		a.pages[idx].lastUsedFrame = frame
+	}
 	a.moveToFront(entry)
 
 	a.hits.Add(1)
 	return entry.region, true
+}
+
+// Generation returns a monotonic counter bumped when atlas page contents are
+// discarded or reset (Clear / resetPage). Cached UV coordinates from before
+// the bump are unsafe to reuse.
+func (a *GlyphMaskAtlas) Generation() uint64 {
+	return a.generation.Load()
+}
+
+// TouchPage marks an atlas page as recently used without a glyph lookup.
+// Used by layout templates that reuse UVs without calling Get each frame.
+func (a *GlyphMaskAtlas) TouchPage(index int) {
+	if index < 0 {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if index < len(a.pages) {
+		a.pages[index].lastUsedFrame = a.currentFrame.Load()
+	}
 }
 
 // Put stores a rasterized glyph mask in the atlas.
@@ -750,6 +779,8 @@ func (a *GlyphMaskAtlas) resetPage(page *glyphMaskPage) {
 	page.dirtyMinX, page.dirtyMinY = 0, 0
 	page.dirtyMaxX, page.dirtyMaxY = page.Size, page.Size
 	page.entryCount = 0
+	// UV identity for any external caches (layout templates) is now invalid.
+	a.generation.Add(1)
 }
 
 // LRU list operations. Must be called with a.mu held.
@@ -924,6 +955,8 @@ func (a *GlyphMaskAtlas) Clear() {
 	a.tail = nil
 	a.hits.Store(0)
 	a.misses.Store(0)
+	// Drop UV stability for layout templates / external caches.
+	a.generation.Add(1)
 }
 
 // Stats returns cache statistics.

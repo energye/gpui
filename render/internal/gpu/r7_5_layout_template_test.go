@@ -163,3 +163,120 @@ func TestR75_LayoutTextAliased_UsesTemplate(t *testing.T) {
 		t.Fatalf("aliased scroll should hit template, hits=%d", hits)
 	}
 }
+
+// TestR75_LayoutTemplate_AtlasCompactInvalidatesUVs ensures layout templates
+// do not keep atlas UVs after page compact/reset. Without generation-coherent
+// invalidation, HUD text looks correct initially then garbles once compact
+// reclaims pages that template hits never re-touch via atlas.Get.
+func TestR75_LayoutTemplate_AtlasCompactInvalidatesUVs(t *testing.T) {
+	face := r75Face(t, 14)
+	eng := NewGlyphMaskEngine()
+	eng.ResetLayoutTemplateCacheStats()
+	color := render.RGBA{R: 0, G: 0, B: 0, A: 1}
+	mat := render.Identity()
+	const s = "Static HUD line ABC"
+	const x, y = 10.0, 20.0
+
+	warm, err := eng.LayoutText(face, s, x, y, color, mat, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warm.Quads) == 0 {
+		t.Fatal("no quads")
+	}
+	// Template path should hit while atlas is stable.
+	if _, err := eng.LayoutText(face, s, x, y, color, mat, 1); err != nil {
+		t.Fatal(err)
+	}
+	hits, _, _ := eng.LayoutTemplateCacheStats()
+	if hits < 1 {
+		t.Fatalf("expected template hit before compact, hits=%d", hits)
+	}
+
+	// Simulate post-Sync AdvanceFrame compact after the page went untouched by
+	// Get (only templates). Force stale by not TouchPage: advance far enough
+	// without further template hits after clearing activity via Clear-like reset.
+	// Directly Clear the atlas to bump generation (same UV invalidation as resetPage).
+	genBefore := eng.Atlas().Generation()
+	eng.Atlas().Clear()
+	genAfter := eng.Atlas().Generation()
+	if genAfter == genBefore {
+		t.Fatal("atlas Clear must bump Generation")
+	}
+
+	// Next layout must miss the template (stale UVs dropped) and rebuild.
+	eng.ResetLayoutTemplateCacheStats()
+	rebuilt, err := eng.LayoutText(face, s, x, y, color, mat, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits, misses, _ := eng.LayoutTemplateCacheStats()
+	if hits != 0 {
+		t.Fatalf("stale template must not hit after atlas Clear, hits=%d", hits)
+	}
+	if misses < 1 {
+		t.Fatalf("expected template miss after atlas Clear, misses=%d", misses)
+	}
+	if len(rebuilt.Quads) == 0 {
+		t.Fatal("rebuilt layout produced no quads")
+	}
+
+	// Cold engine at same origin must match rebuilt geometry (UVs may differ
+	// by atlas packing, but positions must agree).
+	cold := NewGlyphMaskEngine()
+	want, err := cold.LayoutText(face, s, x, y, color, mat, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rebuilt.Quads) != len(want.Quads) {
+		t.Fatalf("quads %d vs %d", len(rebuilt.Quads), len(want.Quads))
+	}
+	for i := range want.Quads {
+		gq, wq := rebuilt.Quads[i], want.Quads[i]
+		if math.Abs(float64(gq.X0-wq.X0)) > 1e-3 || math.Abs(float64(gq.Y0-wq.Y0)) > 1e-3 ||
+			math.Abs(float64(gq.X1-wq.X1)) > 1e-3 || math.Abs(float64(gq.Y1-wq.Y1)) > 1e-3 {
+			t.Fatalf("pos mismatch i=%d got=(%v,%v)-(%v,%v) want=(%v,%v)-(%v,%v)",
+				i, gq.X0, gq.Y0, gq.X1, gq.Y1, wq.X0, wq.Y0, wq.X1, wq.Y1)
+		}
+	}
+}
+
+// TestR75_LayoutTemplate_TouchKeepsPageAlive ensures repeated template hits
+// keep the atlas page warm so compact does not zero masks mid-session.
+func TestR75_LayoutTemplate_TouchKeepsPageAlive(t *testing.T) {
+	face := r75Face(t, 14)
+	eng := NewGlyphMaskEngine()
+	color := render.RGBA{R: 0, G: 0, B: 0, A: 1}
+	mat := render.Identity()
+	const s = "Pinned by template"
+	if _, err := eng.LayoutText(face, s, 4, 16, color, mat, 1); err != nil {
+		t.Fatal(err)
+	}
+	atlas := eng.Atlas()
+	if atlas.EntryCount() == 0 {
+		t.Fatal("expected atlas entries after layout")
+	}
+	// Template-only frames: LayoutText hits template (TouchPage), no new Puts.
+	for i := 0; i < 40; i++ {
+		if _, err := eng.LayoutText(face, s, 4, 16, color, mat, 1); err != nil {
+			t.Fatalf("layout frame %d: %v", i, err)
+		}
+		atlas.AdvanceFrame()
+	}
+	if atlas.EntryCount() == 0 {
+		t.Fatal("template hits must keep atlas page alive across compact window")
+	}
+	// Still template-hot and UVs usable.
+	eng.ResetLayoutTemplateCacheStats()
+	b, err := eng.LayoutText(face, s, 4, 16, color, mat, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits, _, _ := eng.LayoutTemplateCacheStats()
+	if hits < 1 {
+		t.Fatalf("expected continued template hit, hits=%d", hits)
+	}
+	if len(b.Quads) == 0 {
+		t.Fatal("empty quads after warm compact window")
+	}
+}

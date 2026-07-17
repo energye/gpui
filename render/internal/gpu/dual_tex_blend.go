@@ -258,13 +258,21 @@ type dualTexBlendCache struct {
 	deferredViews []*webgpu.TextureView
 	// Full BGRA texture views cached by texture pointer (stable layer RTs).
 	fullViewCache map[uintptr]*webgpu.TextureView
-	// Bind groups keyed by dst/src view pointers (uniform buffer is rewritten in place).
-	bgCache       map[dualTexBGKey]*webgpu.BindGroup
+	// Bind groups keyed by dst/src/uniform view pointers (opt26 multi-slot reuse).
+	bgCache map[dualTexBGKey]*webgpu.BindGroup
+	// multiBG: per-op slot reuse for dualTexAdvancedBlendViewsMultiBundle.
+	// After Queue.Submit of the previous frame, slot BGs are safe to replace.
+	multiBG       []dualTexMultiBGSlot
 	paramsScratch []byte
 }
 
 type dualTexBGKey struct {
-	dst, src uintptr
+	dst, src, ubuf uintptr
+}
+
+type dualTexMultiBGSlot struct {
+	key dualTexBGKey
+	bg  *webgpu.BindGroup
 }
 
 type dualTexPooledTex struct {
@@ -372,6 +380,13 @@ func (c *dualTexBlendCache) release() {
 		}
 	}
 	c.bgCache = nil
+	for i := range c.multiBG {
+		if c.multiBG[i].bg != nil {
+			c.multiBG[i].bg.Release()
+			c.multiBG[i].bg = nil
+		}
+	}
+	c.multiBG = nil
 	c.paramsScratch = nil
 	c.device = nil
 }
@@ -1638,6 +1653,68 @@ func dualTexAdvancedBlendViewsMulti(
 	return b.Outs, nil
 }
 
+// multiBindGroup returns a cached bind group for multi-bundle op slot i (opt26).
+// Same dst/src/uniform pointers reuse the native BG — avoids per-frame CreateBindGroup.
+// Safe to replace a slot after the previous frame's dual-tex CB has been Submitted
+// (Cleanup no longer Releases BGs; ownership stays on the cache).
+func (c *dualTexBlendCache) multiBindGroup(
+	device *webgpu.Device,
+	bgl *webgpu.BindGroupLayout,
+	sampler *webgpu.Sampler,
+	dst, src *webgpu.TextureView,
+	ubuf *webgpu.Buffer,
+	slot int,
+) (*webgpu.BindGroup, error) {
+	if device == nil || bgl == nil || sampler == nil || dst == nil || src == nil || ubuf == nil {
+		return nil, fmt.Errorf("dual-tex multi bg: nil arg")
+	}
+	key := dualTexBGKey{
+		dst:  uintptr(unsafe.Pointer(dst)),
+		src:  uintptr(unsafe.Pointer(src)),
+		ubuf: uintptr(unsafe.Pointer(ubuf)),
+	}
+	c.mu.Lock()
+	if slot >= 0 && slot < len(c.multiBG) && c.multiBG[slot].bg != nil && c.multiBG[slot].key == key {
+		bg := c.multiBG[slot].bg
+		c.mu.Unlock()
+		return bg, nil
+	}
+	c.mu.Unlock()
+
+	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		Label:  "dual_tex_multi_bg_cached",
+		Layout: bgl,
+		Entries: []webgpu.BindGroupEntry{
+			{Binding: 0, TextureView: dst},
+			{Binding: 1, TextureView: src},
+			{Binding: 2, Sampler: sampler},
+			{Binding: 3, Buffer: ubuf, Offset: 0, Size: 48},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	c.mu.Lock()
+	for len(c.multiBG) <= slot {
+		c.multiBG = append(c.multiBG, dualTexMultiBGSlot{})
+	}
+	// Another caller may have filled the slot; keep existing if key matches.
+	if c.multiBG[slot].bg != nil && c.multiBG[slot].key == key {
+		prev := c.multiBG[slot].bg
+		c.mu.Unlock()
+		bg.Release()
+		return prev, nil
+	}
+	if c.multiBG[slot].bg != nil {
+		// Previous frame already submitted — safe to release replaced BG.
+		c.multiBG[slot].bg.Release()
+	}
+	c.multiBG[slot] = dualTexMultiBGSlot{key: key, bg: bg}
+	c.mu.Unlock()
+	return bg, nil
+}
+
 // dualTexAdvancedBlendViewsMultiBundle encodes multi dual-tex advanced blends.
 // submitNow=true: Submit immediately (legacy). submitNow=false: return Cmd for
 // coalesced Queue.Submit with a following blit CB (R7.3).
@@ -1675,7 +1752,6 @@ func dualTexAdvancedBlendViewsMultiBundle(
 		return dualTexMultiBundle{}, err
 	}
 	outs := make([]dualTexViewBlendOut, 0, len(ops))
-	bgs := make([]*webgpu.BindGroup, 0, len(ops))
 	cleanupOuts := func() {
 		for _, o := range outs {
 			if o.view != nil {
@@ -1686,16 +1762,8 @@ func dualTexAdvancedBlendViewsMultiBundle(
 			}
 		}
 	}
-	cleanupBGs := func() {
-		for _, bg := range bgs {
-			if bg != nil {
-				bg.Release()
-			}
-		}
-	}
 	fail := func(err error) (dualTexMultiBundle, error) {
 		enc.DiscardEncoding()
-		cleanupBGs()
 		cleanupOuts()
 		return dualTexMultiBundle{}, err
 	}
@@ -1725,22 +1793,14 @@ func dualTexAdvancedBlendViewsMultiBundle(
 			outTex.Release()
 			return fail(err)
 		}
-		bg, berr := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
-			Label:  fmt.Sprintf("dual_tex_multi_bg_%d", i),
-			Layout: bgl,
-			Entries: []webgpu.BindGroupEntry{
-				{Binding: 0, TextureView: dstView},
-				{Binding: 1, TextureView: op.srcView},
-				{Binding: 2, Sampler: sampler},
-				{Binding: 3, Buffer: uniforms[i], Offset: 0, Size: 48},
-			},
-		})
+		// opt26: slot-cached BG (dst/src/uniform). Do not Release after Submit —
+		// multiBindGroup owns the handle for reuse on warm frames.
+		bg, berr := cache.multiBindGroup(device, bgl, sampler, dstView, op.srcView, uniforms[i], len(outs))
 		if berr != nil {
 			outView.Release()
 			outTex.Release()
 			return fail(berr)
 		}
-		bgs = append(bgs, bg)
 		rp, rerr := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
 			Label: fmt.Sprintf("dual_tex_multi_pass_%d", i),
 			ColorAttachments: []webgpu.RenderPassColorAttachment{{
@@ -1764,12 +1824,10 @@ func dualTexAdvancedBlendViewsMultiBundle(
 
 	if len(outs) == 0 {
 		enc.DiscardEncoding()
-		cleanupBGs()
 		return dualTexMultiBundle{}, fmt.Errorf("dual-tex multi: no valid ops")
 	}
 	cmd, err := enc.Finish()
 	if err != nil {
-		cleanupBGs()
 		cleanupOuts()
 		return dualTexMultiBundle{}, err
 	}
@@ -1777,21 +1835,18 @@ func dualTexAdvancedBlendViewsMultiBundle(
 	if submitNow {
 		defer cmd.Release()
 		if _, err := queue.Submit(cmd); err != nil {
-			cleanupBGs()
 			cleanupOuts()
 			return dualTexMultiBundle{}, err
 		}
-		cleanupBGs()
+		// BGs owned by cache (opt26); outs released by caller via putOutBGRA/cool.
 		return dualTexMultiBundle{Outs: outs, Cleanup: func() {}}, nil
 	}
 
-	// Deferred submit: keep BGs alive until Cleanup after Submit.
+	// Deferred submit: BGs stay on dualTexBlendCache.multiBG for reuse (opt26).
 	return dualTexMultiBundle{
-		Outs: outs,
-		Cmd:  cmd,
-		Cleanup: func() {
-			cleanupBGs()
-		},
+		Outs:    outs,
+		Cmd:     cmd,
+		Cleanup: func() {},
 	}, nil
 }
 

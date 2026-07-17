@@ -5,13 +5,14 @@ package gpu
 import (
 	"context"
 	"fmt"
+	"image"
+	"os"
+	"unsafe"
+
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
-	"image"
-	"os"
-	"unsafe"
 )
 
 // glyphMaskDebugCount caps the GOGPU_TEXT_DEBUG dump to the first handful of
@@ -97,6 +98,23 @@ type SubmitPathStats struct {
 
 // BatchDrawStats records per-tier draw/quad counts after coalescing (S6.3).
 // Draw counts are post-merge GPU draw calls; quad/shape counts are geometry units.
+// imageUniformLastKey tracks last uploaded image/gpu-tex uniform (opt24).
+type imageUniformLastKey struct {
+	w, h    uint32
+	opacity float32
+	valid   bool
+}
+
+// gpuTexBGSlotCache holds up to 4 view→bind-group pairs for one uniform slot
+// (opt27). Size matches filter publish free-list cadence.
+type gpuTexBGSlotCache struct {
+	entries [4]struct {
+		view *webgpu.TextureView
+		bg   *webgpu.BindGroup
+	}
+	next int // round-robin insert
+}
+
 type BatchDrawStats struct {
 	ImageDraws  int
 	ImageQuads  int
@@ -255,8 +273,13 @@ type GPURenderSession struct {
 	convexIndexBufCaps [4]uint64
 	convexIndexSlot    int
 	convexIndexStaging []byte
-	convexUniformBuf   *webgpu.Buffer
-	convexBindGroup    *webgpu.BindGroup
+	// opt24: per-ring-slot index content fingerprint. Topology often recurs
+	// across layer/base/glow flushes; reuse a ring buffer whose payload hash
+	// matches instead of thrashing WriteBuffer (and avoid full snap memcpy).
+	convexIndexSlotHash [4]uint64
+	convexIndexSlotLen  [4]int
+	convexUniformBuf    *webgpu.Buffer
+	convexBindGroup     *webgpu.BindGroup
 
 	// Tier 3: Image textured quad persistent buffers.
 	imageVertBuf    *webgpu.Buffer
@@ -271,6 +294,8 @@ type GPURenderSession struct {
 	imageUniformScratch   []byte
 	imageDrawCallScratch  []imageDrawCall
 	imageSliceDrawScratch []imageDrawCall
+	// opt24: skip image uniform WriteBuffer when viewport/opacity unchanged.
+	imageUniformLast []imageUniformLastKey
 	// S6.3 coalesce scratch (grow-only; present path reuses across frames).
 	coalesceTextOut    []TextBatch
 	coalesceTextQuads  []TextQuad
@@ -342,11 +367,13 @@ type GPURenderSession struct {
 	gpuTexBaseVertBuf    *webgpu.Buffer // base layer only (1 quad, never shares with overlays)
 	gpuTexBaseVertBufCap uint64
 	gpuTexUniformBufs    []*webgpu.Buffer
-	gpuTexBindGroups     []*webgpu.BindGroup
-	// Stable-key reuse for GPU texture draws (glow/filter present path).
-	gpuTexBGViews        []*webgpu.TextureView
+	// opt27: per-poolIdx small view→BG ring. Filter promote ping-pongs publish
+	// TextureViews; single last-view cache was a guaranteed miss every frame.
+	gpuTexBGCaches       []gpuTexBGSlotCache
 	gpuTexVertexStaging  []byte
 	gpuTexUniformScratch []byte
+	// opt24: skip gpu-tex uniform WriteBuffer when viewport/opacity unchanged.
+	gpuTexUniformLast []imageUniformLastKey
 
 	// Bind groups pending release — deferred until after command buffer submit.
 	// WebGPU requires bind groups to be alive at submit time (wgpu-core track/mod.rs:631).
@@ -1368,6 +1395,8 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		}
 	}
 	s.convexIndexSlot = 0
+	s.convexIndexSlotHash = [4]uint64{}
+	s.convexIndexSlotLen = [4]int{}
 	s.deferredConvexUses = 0
 	s.deferSurfaceSubmit = false
 	// Tier 3: Image per-draw pools.
@@ -1388,6 +1417,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		}
 	}
 	s.imageUniformBufs = nil
+	s.imageUniformLast = nil
 	if s.imageVertBuf != nil {
 		s.imageVertBuf.Release()
 		s.imageVertBuf = nil
@@ -1402,14 +1432,10 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.imagePipeline = nil
 	}
 	// Tier 3b: GPU texture compositing per-draw pools.
-	for i, bg := range s.gpuTexBindGroups {
-		if bg != nil {
-			bg.Release()
-			s.gpuTexBindGroups[i] = nil
-		}
+	for i := range s.gpuTexBGCaches {
+		s.gpuTexBGCaches[i].releaseAll()
 	}
-	s.gpuTexBindGroups = nil
-	s.gpuTexBGViews = nil
+	s.gpuTexBGCaches = nil
 	s.gpuTexVertexStaging = nil
 	s.gpuTexUniformScratch = nil
 	s.releasePendingBindGroups()
@@ -1420,6 +1446,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		}
 	}
 	s.gpuTexUniformBufs = nil
+	s.gpuTexUniformLast = nil
 	if s.gpuTexVertBuf != nil {
 		s.gpuTexVertBuf.Release()
 		s.gpuTexVertBuf = nil
@@ -2081,19 +2108,12 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 // the data exceeds current capacity.
 func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w, h uint32) (*convexFrameResources, error) {
 	var vertexData []byte
-	// opt20: dominant DrawMesh path is a single pre-packed TriangleList command.
-	// WriteBuffer directly from PackedVerts — skip staging memcpy (pprof memmove).
-	if len(commands) == 1 {
-		cmd := &commands[0]
-		if len(cmd.PackedVerts) >= convexVertexStride && cmd.TriangleList && cmd.SkipAA {
-			nb := len(cmd.PackedVerts)
-			nb = nb - (nb % convexVertexStride)
-			if nb > 0 {
-				vertexData = cmd.PackedVerts[:nb]
-			}
-		}
-	}
-	if vertexData == nil {
+	// opt20/opt25: pre-packed TriangleList mesh — WriteBuffer directly from
+	// PackedVerts when single-cmd OR multi-cmd slices are memory-contiguous
+	// (Queue grow-only packing). Skips staging memcpy (pprof memmove).
+	if data, ok := packedMeshVertsContiguous(commands); ok {
+		vertexData = data
+	} else {
 		s.convexVertexStaging, vertexData = buildConvexVerticesReuse(commands, s.convexVertexStaging)
 	}
 	if len(vertexData) == 0 {
@@ -2184,8 +2204,11 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 	if totalIdx > 0 {
 		need := totalIdx * 2
 		var indexBytes []byte
-		// Fast path: single fully-indexed command — map []uint16 as LE bytes.
-		if len(commands) == 1 && convexCmdIndexCount(&commands[0]) == totalIdx && totalIdx > 0 {
+		// opt23/opt25: map []uint16 as LE bytes when single-cmd or multi-cmd
+		// Indices slices are contiguous in convexMeshIdx (no staging concat).
+		if data, n, ok := packedMeshIndicesContiguous(commands); ok && n == totalIdx {
+			indexBytes = data
+		} else if len(commands) == 1 && convexCmdIndexCount(&commands[0]) == totalIdx && totalIdx > 0 {
 			idx := commands[0].Indices[:totalIdx]
 			indexBytes = unsafe.Slice((*byte)(unsafe.Pointer(&idx[0])), need) //nolint:gosec
 		} else {
@@ -2207,35 +2230,52 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 			}
 			indexBytes = s.convexIndexStaging
 		}
-		s.convexIndexSlot = (s.convexIndexSlot + 1) % len(s.convexIndexBufs)
-		slotI := s.convexIndexSlot
-		idxSize := uint64(need)
-		if s.convexIndexBufs[slotI] == nil || s.convexIndexBufCaps[slotI] < idxSize {
-			if s.convexIndexBufs[slotI] != nil {
-				s.convexIndexBufs[slotI].Release()
-				s.convexIndexBufs[slotI] = nil
-				s.convexIndexBufCaps[slotI] = 0
+		// opt24/opt26: reuse any ring slot that already holds this topology (hash+len).
+		// Word-mix fingerprint avoids hash.Hash heap/interface overhead (pprof fnv.Write).
+		sum := indexBytesFingerprint(indexBytes)
+		reused := false
+		for i := 0; i < len(s.convexIndexBufs); i++ {
+			if s.convexIndexBufs[i] != nil && s.convexIndexSlotLen[i] == totalIdx &&
+				s.convexIndexSlotHash[i] == sum && s.convexIndexBufCaps[i] >= uint64(need) {
+				indexBuf = s.convexIndexBufs[i]
+				indexCount = uint32(totalIdx) //nolint:gosec
+				reused = true
+				break
 			}
-			alloc := idxSize * 2
-			if alloc < 4096 {
-				alloc = 4096
-			}
-			buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
-				Label: "session_convex_indices",
-				Size:  alloc,
-				Usage: types.BufferUsageIndex | types.BufferUsageCopyDst,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("create convex index buffer: %w", err)
-			}
-			s.convexIndexBufs[slotI] = buf
-			s.convexIndexBufCaps[slotI] = alloc
 		}
-		indexBuf = s.convexIndexBufs[slotI]
-		if err := s.queueWriteBuffer(indexBuf, 0, indexBytes); err != nil {
-			return nil, fmt.Errorf("write convex index buffer: %w", err)
+		if !reused {
+			s.convexIndexSlot = (s.convexIndexSlot + 1) % len(s.convexIndexBufs)
+			slotI := s.convexIndexSlot
+			idxSize := uint64(need)
+			if s.convexIndexBufs[slotI] == nil || s.convexIndexBufCaps[slotI] < idxSize {
+				if s.convexIndexBufs[slotI] != nil {
+					s.convexIndexBufs[slotI].Release()
+					s.convexIndexBufs[slotI] = nil
+					s.convexIndexBufCaps[slotI] = 0
+				}
+				alloc := idxSize * 2
+				if alloc < 4096 {
+					alloc = 4096
+				}
+				buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+					Label: "session_convex_indices",
+					Size:  alloc,
+					Usage: types.BufferUsageIndex | types.BufferUsageCopyDst,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("create convex index buffer: %w", err)
+				}
+				s.convexIndexBufs[slotI] = buf
+				s.convexIndexBufCaps[slotI] = alloc
+			}
+			indexBuf = s.convexIndexBufs[slotI]
+			if err := s.queueWriteBuffer(indexBuf, 0, indexBytes); err != nil {
+				return nil, fmt.Errorf("write convex index buffer: %w", err)
+			}
+			s.convexIndexSlotHash[slotI] = sum
+			s.convexIndexSlotLen[slotI] = totalIdx
+			indexCount = uint32(totalIdx) //nolint:gosec
 		}
-		indexCount = uint32(totalIdx) //nolint:gosec
 	}
 
 	return &convexFrameResources{
@@ -2645,12 +2685,22 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				return nil, fmt.Errorf("create image uniform buffer: %w", err)
 			}
 			s.imageUniformBufs = append(s.imageUniformBufs, buf)
+			// New buffer has undefined contents — force WriteBuffer.
+			s.imageUniformLast = append(s.imageUniformLast, imageUniformLastKey{})
 		}
 
-		uniformData := makeImageUniformInto(s.imageUniformScratch, w, h, cmd.Opacity)
-		s.imageUniformScratch = uniformData
-		if err := s.queueWriteBuffer(s.imageUniformBufs[poolIdx], 0, uniformData); err != nil {
-			return nil, fmt.Errorf("upload image uniform %d: %w", poolIdx, err)
+		// opt24: skip uniform WriteBuffer when viewport/opacity unchanged.
+		for len(s.imageUniformLast) <= poolIdx {
+			s.imageUniformLast = append(s.imageUniformLast, imageUniformLastKey{})
+		}
+		lastU := &s.imageUniformLast[poolIdx]
+		if !lastU.valid || lastU.w != w || lastU.h != h || lastU.opacity != cmd.Opacity {
+			uniformData := makeImageUniformInto(s.imageUniformScratch, w, h, cmd.Opacity)
+			s.imageUniformScratch = uniformData
+			if err := s.queueWriteBuffer(s.imageUniformBufs[poolIdx], 0, uniformData); err != nil {
+				return nil, fmt.Errorf("upload image uniform %d: %w", poolIdx, err)
+			}
+			lastU.w, lastU.h, lastU.opacity, lastU.valid = w, h, cmd.Opacity, true
 		}
 
 		texView, err := s.imageCache.GetOrUpload(cmd)
@@ -2839,6 +2889,100 @@ func (s *GPURenderSession) FlushLeadingSubmitsOnly() error {
 // LastBatchDrawStats returns S6.3 post-coalesce draw/quad counters from the last frame.
 func (s *GPURenderSession) LastBatchDrawStats() BatchDrawStats {
 	return s.lastBatchStats
+}
+
+// indexBytesFingerprint is a non-cryptographic 64-bit mix of index upload bytes
+// (opt26). Cheaper than hash/fnv.New64a on the convex sticky path.
+func indexBytesFingerprint(b []byte) uint64 {
+	const (
+		offset = 14695981039346656037
+		prime  = 1099511628211
+	)
+	h := uint64(offset)
+	i := 0
+	n := len(b)
+	for ; i+8 <= n; i += 8 {
+		v := uint64(b[i]) | uint64(b[i+1])<<8 | uint64(b[i+2])<<16 | uint64(b[i+3])<<24 |
+			uint64(b[i+4])<<32 | uint64(b[i+5])<<40 | uint64(b[i+6])<<48 | uint64(b[i+7])<<56
+		h ^= v
+		h *= prime
+	}
+	for ; i < n; i++ {
+		h ^= uint64(b[i])
+		h *= prime
+	}
+	// Mix length so equal prefixes with different lens differ.
+	h ^= uint64(n)
+	h *= prime
+	return h
+}
+
+func (c *gpuTexBGSlotCache) getOrCreate(
+	device *webgpu.Device,
+	layout *webgpu.BindGroupLayout,
+	uniform *webgpu.Buffer,
+	texView *webgpu.TextureView,
+	sampler *webgpu.Sampler,
+	pendingRelease *[]*webgpu.BindGroup,
+) (*webgpu.BindGroup, error) {
+	if c == nil || device == nil || layout == nil || uniform == nil || texView == nil || sampler == nil {
+		return nil, fmt.Errorf("gpu tex bg: nil arg")
+	}
+	for i := range c.entries {
+		if c.entries[i].view == texView && c.entries[i].bg != nil {
+			return c.entries[i].bg, nil
+		}
+	}
+	bg, err := device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		Label:  "gpu_tex_bind_cached",
+		Layout: layout,
+		Entries: []webgpu.BindGroupEntry{
+			{Binding: 0, Buffer: uniform, Offset: 0, Size: imageUniformSize},
+			{Binding: 1, TextureView: texView},
+			{Binding: 2, Sampler: sampler},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	slot := c.next % len(c.entries)
+	c.next++
+	if old := c.entries[slot].bg; old != nil && pendingRelease != nil {
+		// Defer release until after Submit (BG may still be referenced by in-flight CB).
+		*pendingRelease = append(*pendingRelease, old)
+	}
+	c.entries[slot].view = texView
+	c.entries[slot].bg = bg
+	return bg, nil
+}
+
+func (c *gpuTexBGSlotCache) releaseAll() {
+	if c == nil {
+		return
+	}
+	for i := range c.entries {
+		if c.entries[i].bg != nil {
+			c.entries[i].bg.Release()
+			c.entries[i].bg = nil
+		}
+		c.entries[i].view = nil
+	}
+	c.next = 0
+}
+
+func (s *GPURenderSession) gpuTexBGCacheCount() int {
+	if s == nil {
+		return 0
+	}
+	n := 0
+	for i := range s.gpuTexBGCaches {
+		for j := range s.gpuTexBGCaches[i].entries {
+			if s.gpuTexBGCaches[i].entries[j].bg != nil {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // queueWriteBuffer wraps Queue.WriteBuffer and accounts S6.2 diagnostics.
@@ -3038,40 +3182,35 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 				return nil, fmt.Errorf("create gpu texture uniform buffer: %w", err)
 			}
 			s.gpuTexUniformBufs = append(s.gpuTexUniformBufs, buf)
-			s.gpuTexBindGroups = append(s.gpuTexBindGroups, nil)
+			s.gpuTexUniformLast = append(s.gpuTexUniformLast, imageUniformLastKey{})
+			// New uniform invalidates BGs that referenced the old buffer at this index.
+			s.gpuTexBGCaches = append(s.gpuTexBGCaches, gpuTexBGSlotCache{})
 		}
 
-		uniformData := makeImageUniformInto(s.gpuTexUniformScratch, w, h, cmd.Opacity)
-		s.gpuTexUniformScratch = uniformData
-		if err := s.queueWriteBuffer(s.gpuTexUniformBufs[poolIdx], 0, uniformData); err != nil {
-			i = j
-			continue
+		for len(s.gpuTexUniformLast) <= poolIdx {
+			s.gpuTexUniformLast = append(s.gpuTexUniformLast, imageUniformLastKey{})
 		}
-
-		for len(s.gpuTexBGViews) <= poolIdx {
-			s.gpuTexBGViews = append(s.gpuTexBGViews, nil)
-		}
-		bg := s.gpuTexBindGroups[poolIdx]
-		if bg == nil || s.gpuTexBGViews[poolIdx] != texView {
-			if bg != nil {
-				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
-			}
-			var err error
-			bg, err = s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
-				Label:  fmt.Sprintf("gpu_tex_bind_%d", poolIdx),
-				Layout: s.imagePipeline.uniformLayout,
-				Entries: []webgpu.BindGroupEntry{
-					{Binding: 0, Buffer: s.gpuTexUniformBufs[poolIdx], Offset: 0, Size: imageUniformSize},
-					{Binding: 1, TextureView: texView},
-					{Binding: 2, Sampler: s.imagePipeline.SamplerFor(false)},
-				},
-			})
-			if err != nil {
+		lastGU := &s.gpuTexUniformLast[poolIdx]
+		if !lastGU.valid || lastGU.w != w || lastGU.h != h || lastGU.opacity != cmd.Opacity {
+			uniformData := makeImageUniformInto(s.gpuTexUniformScratch, w, h, cmd.Opacity)
+			s.gpuTexUniformScratch = uniformData
+			if err := s.queueWriteBuffer(s.gpuTexUniformBufs[poolIdx], 0, uniformData); err != nil {
 				i = j
 				continue
 			}
-			s.gpuTexBindGroups[poolIdx] = bg
-			s.gpuTexBGViews[poolIdx] = texView
+			lastGU.w, lastGU.h, lastGU.opacity, lastGU.valid = w, h, cmd.Opacity, true
+		}
+
+		for len(s.gpuTexBGCaches) <= poolIdx {
+			s.gpuTexBGCaches = append(s.gpuTexBGCaches, gpuTexBGSlotCache{})
+		}
+		bg, err := s.gpuTexBGCaches[poolIdx].getOrCreate(
+			s.device, s.imagePipeline.uniformLayout, s.gpuTexUniformBufs[poolIdx],
+			texView, s.imagePipeline.SamplerFor(false), &s.pendingBindGroupRelease,
+		)
+		if err != nil || bg == nil {
+			i = j
+			continue
 		}
 
 		quads := j - i
@@ -4516,7 +4655,7 @@ func (s *GPURenderSession) Stats() RenderSessionStats {
 		ImageBindGroups:  len(s.imageBindGroups),
 		TextBindGroups:   len(s.textBindGroups),
 		GlyphBindGroups:  len(s.glyphMaskBindGroups),
-		GPUTexBindGroups: len(s.gpuTexBindGroups),
+		GPUTexBindGroups: s.gpuTexBGCacheCount(),
 		PendingRelease:   len(s.pendingBindGroupRelease),
 		StencilPoolSize:  len(s.stencilBufPool),
 	}

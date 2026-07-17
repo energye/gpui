@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -55,11 +56,17 @@ type GlyphMaskEngine struct {
 
 	// R7.5: origin-free layout template cache for scroll/HUD reuse.
 	// Geometry is cached without absolute x/y/color; safe rebase translates quads.
-	layoutCache     map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry
-	layoutCacheTick uint64
-	layoutCacheSoft int
-	layoutCacheHits uint64
-	layoutCacheMiss uint64
+	// Templates hold atlas UVs — layoutCacheAtlasGen tracks atlas.Generation() and
+	// drops the cache when pages are reset/cleared (compact / LRU page reclaim).
+	layoutCache         map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry
+	layoutCacheTick     uint64
+	layoutCacheSoft     int
+	layoutCacheHits     uint64
+	layoutCacheMiss     uint64
+	layoutCacheAtlasGen uint64
+
+	// opt26: cache computeGlyphMaskFontID by FontSource pointer (name+glyphCount hash).
+	fontIDCache map[uintptr]uint64
 }
 
 // glyphLayoutTemplateKey identifies shaped+rasterized glyph geometry independent
@@ -109,7 +116,7 @@ func (e *GlyphMaskEngine) SetLCDLayout(layout text.LCDLayout) {
 		// Clear atlas: existing masks were rasterized for different layout.
 		e.atlas.Clear()
 		// R7.5: templates reference atlas UVs — drop them with the atlas.
-		e.layoutCache = make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry)
+		e.dropLayoutTemplateCache()
 	}
 }
 
@@ -166,7 +173,7 @@ func (e *GlyphMaskEngine) LayoutText(
 		// MultiFace and other composites: caller should split runs (X.06).
 		return GlyphMaskBatch{}, fmt.Errorf("glyph mask: face has no FontSource")
 	}
-	fontID := computeGlyphMaskFontID(fontSource)
+	fontID := e.fontID(fontSource)
 	parsed := fontSource.Parsed()
 	if parsed == nil {
 		return GlyphMaskBatch{}, fmt.Errorf("glyph mask: parsed font unavailable")
@@ -188,17 +195,21 @@ func (e *GlyphMaskEngine) LayoutText(
 		float32(premul.B), float32(premul.A),
 	}
 
-	// S6.5: LayoutGlyphs caches Face.Glyphs (shape-level).
-	// R7.5: origin-free layout template + safe quad rebase for scroll/HUD.
-	shaped := text.LayoutGlyphs(face, s)
+	// opt24: try layout template BEFORE LayoutGlyphs — shaped is unused on hit
+	// (layoutTemplateGet only needs key+origin). Static HUD/list strings skip
+	// shape entirely; dynamic strings still shape on miss.
 	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, false, hinting, matrix); ok {
-		if batch, hit := e.layoutTemplateGet(key, shaped, x, y, batchColor, matrix); hit {
+		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
 			return batch, nil
 		}
+		// S6.5: LayoutGlyphs caches Face.Glyphs (shape-level).
+		// R7.5: origin-free layout template + safe quad rebase for scroll/HUD.
+		shaped := text.LayoutGlyphs(face, s)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false)
 		e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		return batch, nil
 	}
+	shaped := text.LayoutGlyphs(face, s)
 	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
 }
 
@@ -228,7 +239,7 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
 	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
 	fontSource := face.Source()
-	fontID := computeGlyphMaskFontID(fontSource)
+	fontID := e.fontID(fontSource)
 	parsed := fontSource.Parsed()
 
 	isCJK := stringContainsCJK(s)
@@ -244,18 +255,20 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 		float32(premul.B), float32(premul.A),
 	}
 
-	// S6.5 shape cache + R7.5 layout template (aliased flag in key).
-	shaped := text.LayoutGlyphs(face, s)
+	// opt24: template hit before shape (same as LayoutText).
 	lcdLayout := text.LCDLayoutNone
 	var lcdFilter text.LCDFilter
 	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, true, hinting, matrix); ok {
-		if batch, hit := e.layoutTemplateGet(key, shaped, x, y, batchColor, matrix); hit {
+		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
 			return batch, nil
 		}
+		// S6.5 shape cache + R7.5 layout template (aliased flag in key).
+		shaped := text.LayoutGlyphs(face, s)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true)
 		e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		return batch, nil
 	}
+	shaped := text.LayoutGlyphs(face, s)
 	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true), nil
 }
 
@@ -282,7 +295,7 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
 	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
 	fontSource := face.Source()
-	fontID := computeGlyphMaskFontID(fontSource)
+	fontID := e.fontID(fontSource)
 	parsed := fontSource.Parsed()
 	hinting := selectGlyphMaskHinting(fontSize, matrix, isCJK, deviceScale)
 	useLCD := e.lcdLayout != text.LCDLayoutNone && selectGlyphMaskLCD(fontSize, matrix)
@@ -761,6 +774,7 @@ func (e *GlyphMaskEngine) Destroy(device *webgpu.Device) {
 	e.pageTextures = nil
 
 	e.atlas.Clear()
+	e.dropLayoutTemplateCache()
 }
 
 // Atlas returns the underlying glyph mask atlas (for testing/introspection).
@@ -865,19 +879,52 @@ func selectGlyphMaskLCD(fontSize float64, matrix render.Matrix) bool {
 }
 
 // computeGlyphMaskFontID generates a stable hash identifier for a font source.
-// Uses the same approach as computeFontID in gpu_text.go.
+// Same identity as historical fmt.Fprintf("%s:%d", name, numGlyphs) FNV64a.
 func computeGlyphMaskFontID(source *text.FontSource) uint64 {
 	if source == nil {
 		return 0
 	}
-	h := fnv.New64a()
 	parsed := source.Parsed()
 	fullName := parsed.FullName()
 	if fullName == "" {
 		fullName = source.Name()
 	}
-	_, _ = fmt.Fprintf(h, "%s:%d", fullName, parsed.NumGlyphs())
+	// Avoid fmt.Fprintf on the hot path (opt26): Write name + ':' + decimal digits.
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(fullName))
+	_, _ = h.Write([]byte{':'})
+	n := parsed.NumGlyphs()
+	if n == 0 {
+		_, _ = h.Write([]byte{'0'})
+	} else {
+		var dec [20]byte
+		i := len(dec)
+		for n > 0 {
+			i--
+			dec[i] = byte('0' + n%10)
+			n /= 10
+		}
+		_, _ = h.Write(dec[i:])
+	}
 	return h.Sum64()
+}
+
+// fontID returns computeGlyphMaskFontID with per-engine pointer cache (opt26).
+func (e *GlyphMaskEngine) fontID(source *text.FontSource) uint64 {
+	if source == nil {
+		return 0
+	}
+	p := uintptr(unsafe.Pointer(source))
+	if e.fontIDCache != nil {
+		if id, ok := e.fontIDCache[p]; ok {
+			return id
+		}
+	} else {
+		e.fontIDCache = make(map[uintptr]uint64, 4)
+	}
+	id := computeGlyphMaskFontID(source)
+	e.fontIDCache[p] = id
+	return id
 }
 
 func makeGlyphLayoutTemplateKey(
@@ -992,6 +1039,7 @@ func (e *GlyphMaskEngine) layoutTemplateGet(
 	color [4]float32,
 	matrix render.Matrix,
 ) (GlyphMaskBatch, bool) {
+	e.syncLayoutTemplateCacheWithAtlas()
 	if e.layoutCache == nil {
 		return GlyphMaskBatch{}, false
 	}
@@ -1008,7 +1056,14 @@ func (e *GlyphMaskEngine) layoutTemplateGet(
 	e.layoutCacheTick++
 	ent.atime = e.layoutCacheTick
 	e.layoutCacheHits++
+	// Keep the atlas page warm so compact() does not zero masks that this
+	// template still references (templates do not call atlas.Get).
+	if e.atlas != nil {
+		e.atlas.TouchPage(ent.page)
+	}
 
+	// Caller-owned copy: tests and multi-batch HUD may hold two LayoutText
+	// results; do not return engine.quadScratch (would alias/clobber).
 	quads := make([]GlyphMaskQuad, len(ent.quads))
 	if dx == 0 && dy == 0 {
 		copy(quads, ent.quads)
@@ -1042,6 +1097,7 @@ func (e *GlyphMaskEngine) layoutTemplatePut(
 	useLCD bool,
 	batch GlyphMaskBatch,
 ) {
+	e.syncLayoutTemplateCacheWithAtlas()
 	if e.layoutCache == nil {
 		e.layoutCache = make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry)
 	}
@@ -1084,6 +1140,30 @@ func (e *GlyphMaskEngine) layoutTemplatePut(
 		}
 		delete(e.layoutCache, oldestKey)
 	}
+}
+
+// syncLayoutTemplateCacheWithAtlas drops layout templates when the glyph atlas
+// generation advances (page reset / Clear). Stale entries would keep UVs into
+// recycled or zeroed atlas regions and corrupt HUD/static text after compact.
+func (e *GlyphMaskEngine) syncLayoutTemplateCacheWithAtlas() {
+	if e.atlas == nil {
+		return
+	}
+	gen := e.atlas.Generation()
+	if e.layoutCacheAtlasGen == gen {
+		return
+	}
+	e.dropLayoutTemplateCache()
+	e.layoutCacheAtlasGen = gen
+}
+
+func (e *GlyphMaskEngine) dropLayoutTemplateCache() {
+	if len(e.layoutCache) > 0 {
+		e.layoutCache = make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry)
+	} else if e.layoutCache == nil {
+		e.layoutCache = make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry)
+	}
+	// Keep soft limit / tick counters; only UV-bearing entries are invalid.
 }
 
 // LayoutTemplateCacheStats returns R7.5 layout template hit/miss counters.

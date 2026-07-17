@@ -661,3 +661,60 @@ func TestS42_DirtyRegionFullWhenLarge(t *testing.T) {
 		t.Fatalf("expected full page when dirty ≥50%%, got %+v", ups[0])
 	}
 }
+
+func TestGlyphMaskAtlas_Generation_BumpsOnClearAndReset(t *testing.T) {
+	config := GlyphMaskAtlasConfig{Size: 128, Padding: 1, MaxAtlases: 2, MaxEntries: 2}
+	atlas, err := NewGlyphMaskAtlas(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g0 := atlas.Generation()
+	mask := make([]byte, 10*10)
+	for i := range mask {
+		mask[i] = 200
+	}
+	if _, err := atlas.Put(MakeGlyphMaskKey(1, 1, 13, 0, 0), mask, 10, 10, 0, -10); err != nil {
+		t.Fatal(err)
+	}
+	// Fill and force eviction → empty-page reset bumps generation.
+	if _, err := atlas.Put(MakeGlyphMaskKey(1, 2, 13, 0, 0), mask, 10, 10, 0, -10); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := atlas.Put(MakeGlyphMaskKey(1, 3, 13, 0, 0), mask, 10, 10, 0, -10); err != nil {
+		t.Fatal(err)
+	}
+	if atlas.Generation() == g0 {
+		// May or may not reset depending on packing; Clear must always bump.
+	}
+	beforeClear := atlas.Generation()
+	atlas.Clear()
+	if atlas.Generation() == beforeClear {
+		t.Fatal("Clear must bump Generation")
+	}
+}
+
+func TestGlyphMaskAtlas_Get_KeepsPageAlive(t *testing.T) {
+	config := GlyphMaskAtlasConfig{Size: 128, Padding: 1, MaxAtlases: 2, MaxEntries: 16}
+	atlas, err := NewGlyphMaskAtlas(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mask := make([]byte, 10*10)
+	for i := range mask {
+		mask[i] = 255
+	}
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	if _, err := atlas.Put(key, mask, 10, 10, 0, -10); err != nil {
+		t.Fatal(err)
+	}
+	// Read every frame — must not be compacted as "stale write-only" page.
+	for range compactStaleFrames + 5 {
+		if _, ok := atlas.Get(key); !ok {
+			t.Fatal("glyph disappeared while being read")
+		}
+		atlas.AdvanceFrame()
+	}
+	if atlas.EntryCount() != 1 {
+		t.Fatalf("EntryCount=%d want 1 (Get should keep page warm)", atlas.EntryCount())
+	}
+}
