@@ -743,11 +743,18 @@ func TestP1_Comp_D152_PresentFrameDamageMultiRect(t *testing.T) {
 	p1Flush(t, dc)
 	compAutoSavePNG(t, dc)
 	r, g, b, _ := p1Sample(dc, 50, 60)
-	if r < 100 {
+	// Reject pure white false-green (present-only view without pixmap coherence).
+	if r > 240 && g > 240 && b > 240 {
+		t.Fatalf("D152 Image() still white after present rgba=%d,%d,%d", r, g, b)
+	}
+	if r < 100 || g > 200 {
 		t.Fatalf("D152 red damage missing rgba=%d,%d,%d", r, g, b)
 	}
 	r2, g2, b2, _ := p1Sample(dc, 170, 120)
-	if b2 < 80 {
+	if r2 > 240 && g2 > 240 && b2 > 240 {
+		t.Fatalf("D152 Image() still white at blue damage rgba=%d,%d,%d", r2, g2, b2)
+	}
+	if b2 < 80 || r2 > 200 {
 		t.Fatalf("D152 blue damage missing rgba=%d,%d,%d", r2, g2, b2)
 	}
 }

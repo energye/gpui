@@ -166,6 +166,113 @@ func (c *Context) ApplyInvert() {
 	})
 }
 
+// syncPublishedFilterBeforeDraw materializes a GPU-published filter result into
+// the CPU pixmap before subsequent draws so post-filter geometry participates in
+// Image/SavePNG and later GPU flushes (D133 class).
+func (c *Context) syncPublishedFilterBeforeDraw() {
+	if c == nil || !c.pixmapFilterStale {
+		return
+	}
+	if c.materializeFilterGPU() {
+		c.clearViewFlushTracking()
+	}
+}
+
+func (c *Context) clearViewFlushTracking() {
+	if c == nil {
+		return
+	}
+	c.viewContentAheadOfPixmap = false
+	c.lastFlushedView = gpucontext.TextureView{}
+	c.lastFlushedViewW, c.lastFlushedViewH = 0, 0
+}
+
+func (c *Context) markViewFlush(view gpucontext.TextureView, w, h int) {
+	if c == nil || view.IsNil() || w <= 0 || h <= 0 {
+		return
+	}
+	c.viewContentAheadOfPixmap = true
+	c.lastFlushedView = view
+	c.lastFlushedViewW, c.lastFlushedViewH = w, h
+	// Published filter is no longer the sole surface truth after a view flush.
+	// Keep pixmapFilterStale only if we did not just present over it; view flush
+	// supersedes for Image() via syncViewFlushIntoPixmap.
+}
+
+// syncViewFlushIntoPixmap readbacks the last FlushGPUWithView* target into the
+// CPU pixmap so Image/SavePNG match present/offscreen content (D152 class).
+// Offscreen present targets are BGRA8; use the swizzling reader first.
+func (c *Context) syncViewFlushIntoPixmap() bool {
+	if c == nil || !c.viewContentAheadOfPixmap || c.pixmap == nil {
+		return true
+	}
+	if c.lastFlushedView.IsNil() || c.lastFlushedViewW <= 0 || c.lastFlushedViewH <= 0 {
+		c.clearViewFlushTracking()
+		return false
+	}
+	w, h := c.lastFlushedViewW, c.lastFlushedViewH
+	if c.pixmap.Width() != w || c.pixmap.Height() != h {
+		return false
+	}
+	need := w * h * 4
+	type viewReaderBGRA interface {
+		ReadbackViewRGBA(view gpucontext.TextureView, w, h int) ([]byte, error)
+	}
+	type viewReaderStraight interface {
+		ReadbackViewStraightRGBA(view gpucontext.TextureView, w, h int) ([]byte, error)
+	}
+	raw := c.GPURenderContext()
+	var rgba []byte
+	var err error
+	if br, ok := raw.(viewReaderBGRA); ok && br != nil {
+		rgba, err = br.ReadbackViewRGBA(c.lastFlushedView, w, h)
+	}
+	if err != nil || len(rgba) < need {
+		if sr, ok := raw.(viewReaderStraight); ok && sr != nil {
+			rgba, err = sr.ReadbackViewStraightRGBA(c.lastFlushedView, w, h)
+		}
+	}
+	if err != nil || len(rgba) < need {
+		return false
+	}
+	copy(c.pixmap.Data()[:need], rgba[:need])
+	c.pixmap.NotifyPixelsChanged()
+	c.clearViewFlushTracking()
+	c.pixmapFilterStale = false
+	return true
+}
+
+// seedFilterSrcFromPixmap uploads the current pixmap into filterSrcRT and marks
+// the view as having content (LoadOpLoad for subsequent pending flushes).
+func (c *Context) seedFilterSrcFromPixmap(srcView gpucontext.TextureView, w, h int) bool {
+	if c == nil || c.pixmap == nil || srcView.IsNil() || w <= 0 || h <= 0 {
+		return false
+	}
+	need := w * h * 4
+	data := c.pixmap.Data()
+	if len(data) < need {
+		return false
+	}
+	type uploader interface {
+		UploadRGBAToView(view gpucontext.TextureView, data []byte, w, h int) error
+	}
+	type frameMarker interface {
+		MarkViewHasContent(view gpucontext.TextureView)
+	}
+	raw := c.GPURenderContext()
+	up, ok := raw.(uploader)
+	if !ok || up == nil {
+		return false
+	}
+	if err := up.UploadRGBAToView(srcView, data[:need], w, h); err != nil {
+		return false
+	}
+	if fm, ok := raw.(frameMarker); ok && fm != nil {
+		fm.MarkViewHasContent(srcView)
+	}
+	return true
+}
+
 // tryApplyFilterGraphGPU runs nodes on the registered GPU multi-RT filter graph.
 // Returns true when the GPU path fully applied the result (P0-4 / L.04).
 //
@@ -235,6 +342,13 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	// GPU→GPU filter. Glow/effect RTs hit this every recompute (pending > 0).
 	// If we already flushed to filterSrcRT, never seed path 2/3 from the stale
 	// CPU pixmap (draws never reached pixmap) — recover via src RT readback only.
+	//
+	// Before seeding, materialize any prior published filter and sync view-flush
+	// content into the pixmap so intermediate FlushGPU/Present content is not
+	// dropped when only new ops remain pending (D105/D140 kitchen-sink pattern).
+	_ = c.syncViewFlushIntoPixmap()
+	_ = c.materializeFilterGPU()
+
 	pending := 0
 	if rc := c.gpuCtxOps(); rc != nil {
 		type pcounter interface{ PendingCount() int }
@@ -242,9 +356,36 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 			pending = pc.PendingCount()
 		}
 	}
+	// Mid-frame surface materialization (nil-view FlushGPU *or* advanced-blend
+	// internal Flush into pixmap Data) leaves prior content only in the pixmap
+	// while new ops remain pending. Fold pending into pixmap and take path-2 so
+	// we never filter a Clear / badge-only / post-Multiply fragment surface
+	// (D105/D140). Pure pending frames (typical glow) keep zero-copy path-1
+	// without a full-surface WriteTexture seed.
+	gpuMid := false
+	if raw := c.GPURenderContext(); raw != nil {
+		type mid interface {
+			MidFrameDataFlush() bool
+			ClearMidFrameDataFlush()
+		}
+		if m, ok := raw.(mid); ok && m != nil && m.MidFrameDataFlush() {
+			gpuMid = true
+			m.ClearMidFrameDataFlush()
+		}
+	}
+	if c.midFrameNilFlush || gpuMid {
+		if pending > 0 {
+			_ = c.FlushGPU()
+			pending = 0
+		}
+		c.midFrameNilFlush = false
+	}
 	flushedToSrc := false
 	if pending > 0 && gpuFilterGraphApplyFromView != nil {
 		if srcView, ok := c.ensureFilterSrcRT(w, h); ok {
+			// Do NOT unconditional seed from pixmap here: that uploads a full
+			// surface every glow/filter frame. Path-1 assumes pending encodes
+			// the complete surface when no mid-frame materialize occurred.
 			// opt18: single Queue.Submit for mesh seed + filter (when GPU context
 			// supports FlushAndFilterFromView). Pure submit coalesce; pixels same.
 			type flushFilterer interface {

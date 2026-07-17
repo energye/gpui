@@ -181,6 +181,7 @@ func IsAdvancedBlendMode(mode BlendMode) bool {
 //	img, _ := gg.LoadImage("photo.png")
 //	dc.DrawImage(img, 100, 100)
 func (c *Context) DrawImage(img *ImageBuf, x, y float64) {
+	c.syncPublishedFilterBeforeDraw()
 	c.DrawImageEx(img, DrawImageOptions{
 		X:             x,
 		Y:             y,
@@ -208,6 +209,7 @@ func (c *Context) DrawImage(img *ImageBuf, x, y float64) {
 //	    BlendMode:     gg.BlendNormal,
 //	})
 func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
+	c.syncPublishedFilterBeforeDraw()
 	// Default values. InterpNearest starts at 1 so zero means unspecified, not nearest.
 	if opts.Interpolation == 0 {
 		opts.Interpolation = InterpBilinear
@@ -673,6 +675,7 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 	if pending > 0 {
 		_ = c.FlushGPU()
 	}
+	_ = c.syncViewFlushIntoPixmap()
 
 	w, h := c.pixmap.Width(), c.pixmap.Height()
 	if w <= 0 || h <= 0 {
@@ -762,6 +765,7 @@ func ImageBufFromImage(img image.Image) *ImageBuf {
 // This is the Skia GrSurfaceProxyView direct-bind pattern for cached
 // offscreen rendering (RepaintBoundary, layer compositing).
 func (c *Context) DrawGPUTexture(view gpucontext.TextureView, x, y float64, width, height int) {
+	c.syncPublishedFilterBeforeDraw()
 	rc := c.gpuCtxOps()
 	if rc == nil || view.IsNil() {
 		return
@@ -787,6 +791,7 @@ func (c *Context) DrawGPUTexture(view gpucontext.TextureView, x, y float64, widt
 // Same as DrawGPUTexture but with alpha blending for fade transitions
 // and OpacityLayer compositing (Flutter pattern).
 func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y float64, width, height int, opacity float32) {
+	c.syncPublishedFilterBeforeDraw()
 	rc := c.gpuCtxOps()
 	if rc == nil || view.IsNil() {
 		return
@@ -810,6 +815,7 @@ func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y fl
 // DrawGPUTextureWithOpacityUV composites a sub-rectangle of a GPU texture with
 // opacity. u0..v1 are normalized source UVs (F1 damage-tight layer composite).
 func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y float64, width, height int, opacity float32, u0, v0, u1, v1 float32) {
+	c.syncPublishedFilterBeforeDraw()
 	rc := c.gpuCtxOps()
 	if rc == nil || view.IsNil() {
 		return
@@ -850,6 +856,7 @@ func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y 
 //
 // See ADR-015 (Compositor Base Layer), Flutter OffsetLayer pattern.
 func (c *Context) DrawGPUTextureBase(view gpucontext.TextureView, x, y float64, width, height int) {
+	c.syncPublishedFilterBeforeDraw()
 	rc := c.gpuCtxOps()
 	if rc == nil || view.IsNil() {
 		return

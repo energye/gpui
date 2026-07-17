@@ -126,6 +126,21 @@ func (rc *GPURenderContext) UploadRGBAToView(view gpucontext.TextureView, data [
 	return err
 }
 
+// MarkViewHasContent sets LoadOpLoad for subsequent Flushes into view so an
+// UploadRGBAToView seed is preserved when pending draws flush on top (filter seed).
+func (rc *GPURenderContext) MarkViewHasContent(view gpucontext.TextureView) {
+	if rc == nil || view.IsNil() {
+		return
+	}
+	rc.frameRendered = true
+	if ptr := view.Pointer(); ptr != nil {
+		rc.lastView = (*webgpu.TextureView)(ptr)
+	}
+	if rc.session != nil {
+		rc.session.SetFrameState(rc.frameRendered, rc.lastView)
+	}
+}
+
 // CompositeMaskedLayer materializes a GPU layer RT, modulates by R8 mask on GPU,
 // and SourceOver-composites onto parent RGBA (PushMaskLayer Pop path, R1).
 func (rc *GPURenderContext) CompositeMaskedLayer(

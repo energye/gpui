@@ -76,6 +76,7 @@ func (c *Context) DrawString(s string, x, y float64) {
 	if c.face == nil {
 		return
 	}
+	c.syncPublishedFilterBeforeDraw()
 
 	// X.06: MultiFace → per-face runs so each FontSource can use GPU glyph masks.
 	if mf, ok := c.face.(*text.MultiFace); ok {

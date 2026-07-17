@@ -118,6 +118,18 @@ type Context struct {
 	filterSrcH       int
 	filterSrcRelease func()
 
+	// After FlushGPUWithView* the latest pixels live on lastFlushedView; pixmap
+	// may lag until Image/SavePNG/readback. viewContentAheadOfPixmap tracks that.
+	viewContentAheadOfPixmap bool
+	lastFlushedView          gpucontext.TextureView
+	lastFlushedViewW         int
+	lastFlushedViewH         int
+
+	// midFrameNilFlush is set when FlushGPU (nil view) absorbed pending draws
+	// into the pixmap. ApplyImageFilterGraph must seed from pixmap afterward
+	// (D105/D140), not treat remaining pending as the full surface.
+	midFrameNilFlush bool
+
 	// Lifecycle
 	closed bool // Indicates whether Close has been called
 }
@@ -594,6 +606,7 @@ func (c *Context) SetDeviceScale(scale float64) {
 // (CPU pixmap must include GPU-rendered content).
 func (c *Context) Image() image.Image {
 	_ = c.FlushGPU() // also applies dither when enabled
+	_ = c.syncViewFlushIntoPixmap()
 	_ = c.materializeFilterGPU()
 	return c.pixmap.ToImage()
 }
@@ -601,6 +614,7 @@ func (c *Context) Image() image.Image {
 // SavePNG saves the context to a PNG file.
 func (c *Context) SavePNG(path string) error {
 	_ = c.FlushGPU() // Flush pending GPU shapes before reading pixels.
+	_ = c.syncViewFlushIntoPixmap()
 	_ = c.materializeFilterGPU()
 	return c.pixmap.SavePNG(path)
 }
@@ -610,6 +624,8 @@ func (c *Context) SavePNG(path string) error {
 func (c *Context) Clear() {
 	c.releaseFilterGPUResult()
 	c.pixmapFilterStale = false
+	c.clearViewFlushTracking()
+	c.midFrameNilFlush = false
 	c.pixmap.Clear(Transparent)
 }
 
@@ -618,6 +634,8 @@ func (c *Context) Clear() {
 func (c *Context) ClearWithColor(col RGBA) {
 	c.releaseFilterGPUResult()
 	c.pixmapFilterStale = false
+	c.clearViewFlushTracking()
+	c.midFrameNilFlush = false
 	c.pixmap.Clear(col)
 }
 
@@ -1693,6 +1711,13 @@ func (c *Context) BeginGPUFrame() {
 
 func (c *Context) FlushGPU() error {
 	c.recordFrameFlush()
+	pending := 0
+	if rc := c.gpuCtxOps(); rc != nil {
+		type pcounter interface{ PendingCount() int }
+		if pc, ok := rc.(pcounter); ok {
+			pending = pc.PendingCount()
+		}
+	}
 	t := c.gpuRenderTarget()
 	var err error
 	if rc := c.gpuCtxOps(); rc != nil {
@@ -1703,6 +1728,13 @@ func (c *Context) FlushGPU() error {
 	}
 	if err == nil {
 		c.applyDitherIfEnabled()
+		// Nil-view flush with work readbacks into pixmap Data — pixmap is
+		// authoritative for that content. Empty flushes must NOT drop a prior
+		// view-present coherence flag (Image after PresentFrame*).
+		if pending > 0 {
+			c.clearViewFlushTracking()
+			c.midFrameNilFlush = true
+		}
 	}
 	// Layer GPU RTs used as DrawGPUTexture sources can be released now.
 	c.drainLayerGPUReleases()
@@ -2074,6 +2106,7 @@ func sdfAccelForShape(kind ShapeKind) AcceleratedOp {
 
 // doFill performs the fill operation respecting the current RasterizerMode.
 func (c *Context) doFill() error {
+	c.syncPublishedFilterBeforeDraw()
 	mode := c.rasterizerMode
 
 	// Set GPU scissor rect for rectangular clips.
@@ -2176,6 +2209,7 @@ func (c *Context) doFill() error {
 // (anisotropic thickness) and keeps HiDPI via deviceSpacePath in doFill.
 // Pixmap consumers still see correct pixels because Image()/SavePNG() FlushGPU.
 func (c *Context) doStroke() error {
+	c.syncPublishedFilterBeforeDraw()
 	mode := c.rasterizerMode
 
 	// Match doFill GPU setup: scissor, clip/mask coverage, AA.

@@ -1804,3 +1804,48 @@ Unit gate is the structure proof (N→1 slab WB). Wall L3 flat/slightly better; 
 - Tests: `render/internal/gpu/opt40_gputex_uniform_slab_test.go`
 - Code: `render_session.go` (gpu-tex slab), `gpu_render_context.go` (pack helper)
 
+
+## Filter/Present coherence (D105/D133/D140/D152) — 2026-07-17
+
+### Symptom
+D01–D200 static composition had 3 FAIL after opt40 Keep:
+- `TestP1_Comp_D105_KitchenSinkV3Stress` — mid-frame content wiped by filter seed
+- `TestP1_Comp_D133_FilterGraphChainComposition` — post-filter draws missing from Image
+- `TestP1_Comp_D140_KitchenSinkV4Stress` — Multiply + filter blanked pre-blend surface
+- `TestP1_Comp_D152_PresentFrameDamageMultiRect` — Present vs Image white false-green (asserts tightened)
+
+### Root cause (render library, not PKS examples)
+| case | cause |
+|------|--------|
+| D105 | Mid-frame `FlushGPU` then more draws then filter → path-1 Clear+pending-only seed |
+| D133 | GPU filter publish left `pixmapFilterStale`; later draws never materialised into `Image()` |
+| D140 | Advanced Multiply calls `rc.Flush(target)` (not Context.FlushGPU) → pixmap has pre-blend; remaining pending only |
+| D152 | Present wrote view; `Image()/SavePNG` read white pixmap; weak asserts (`r>=100`) green on white |
+
+### Fix (class A correctness)
+| change | detail |
+|--------|--------|
+| B post-filter draws | `syncPublishedFilterBeforeDraw()` before fill/stroke/text/image/gpu-tex |
+| A mid-frame seed | `midFrameNilFlush` + `GPURenderContext.flushedPendingToData`; mid-frame → fold pending + path-2 pixmap seed |
+| hot path | **Removed** unconditional path-1 `seedFilterSrcFromPixmap` (avoids full-surface WriteTexture every glow frame) |
+| C Present/Image | `markViewFlush` only from `PresentFrame*`; `syncViewFlushIntoPixmap` on Image/SavePNG/Export |
+| D152 asserts | reject pure white |
+
+### Gates
+| gate | result |
+|------|--------|
+| `TestFilterGraph_*` / `TestPresentDamage_ImageMatchesView` | PASS |
+| D105 / D133 / D140 / D152 | PASS |
+| Full `TestP1_Comp_` (201) | **0 FAIL** (`tmp/pks/cpu_opt/d01_d200_verify_now.json`) |
+| PKS after_fix P_SOLID/P_GLOW/P_L3 8s | PASS, `cpu_fb=0`; FPS/CPU within opt40 noise |
+
+### Policy
+- **Keep** correctness fix on top of opt40
+- Do **not** re-enable always-on path-1 full-surface pixmap seed (perf regress on glow)
+- Mid-frame / post-filter / Image readback costs only on rare correctness paths
+- Optional later: delete unused `seedFilterSrcFromPixmap` helper
+
+### Evidence
+- Code: `render/filter_ops.go`, `render/context.go`, `render/present.go`, `render/internal/gpu/gpu_render_context.go`
+- Tests: `render/filter_present_coherence_test.go`
+- Logs: `tmp/pks/cpu_opt/fix_final.log`, `d01_d200_verify_now.json`, `after_fix_P_{SOLID,GLOW,L3}.json`

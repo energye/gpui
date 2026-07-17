@@ -79,7 +79,11 @@ type GPURenderContext struct {
 	// When frameRendered is true, subsequent render passes use LoadOpLoad.
 	// Reset by BeginFrame() at the start of each frame.
 	frameRendered bool
-	lastView      *webgpu.TextureView
+
+	// Set when Flush absorbed pending into target.Data (View-nil). Context
+	// ApplyImageFilterGraph must re-seed from pixmap afterward (Multiply+filter).
+	flushedPendingToData bool
+	lastView             *webgpu.TextureView
 
 	// Per-context scene stats (for Auto pipeline mode).
 	sceneStats render.SceneStats
@@ -261,6 +265,16 @@ func (rc *GPURenderContext) HasPresentView() bool {
 		return false
 	}
 	return rc.lastView != nil
+}
+
+func (rc *GPURenderContext) MidFrameDataFlush() bool {
+	return rc != nil && rc.flushedPendingToData
+}
+
+func (rc *GPURenderContext) ClearMidFrameDataFlush() {
+	if rc != nil {
+		rc.flushedPendingToData = false
+	}
 }
 
 func (rc *GPURenderContext) BeginFrame() {
@@ -1738,6 +1752,17 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 
 // Flush dispatches all pending commands for this context via the render session.
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
+	// Track View-nil flushes that consume pending into pixmap Data so filter
+	// graphs can seed from the full surface (advanced blend mid-flush / D140).
+	hadPending := rc.PendingCount() > 0
+	viewNil := target.View.IsNil()
+	defer func() {
+		// After a successful encode path, pending queues are cleared. If we had
+		// work and targeted the CPU-backed surface, pixmap Data is authoritative.
+		if hadPending && viewNil && rc.PendingCount() == 0 {
+			rc.flushedPendingToData = true
+		}
+	}()
 	// F1: restore present-deferred parent draws.
 	// Base/CPU FlushGPU uses View-nil targets — must unstash here or white/cyan
 	// base draws remain stashed forever and advanced layer resolve sees black (D05).

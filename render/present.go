@@ -39,6 +39,7 @@ func (c *Context) PresentFrame(view gpucontext.TextureView, width, height uint32
 	if err := c.FlushGPUWithView(view, width, height); err != nil {
 		return fmt.Errorf("render: FlushGPUWithView: %w", err)
 	}
+	c.markViewFlush(view, int(width), int(height)) //nolint:gosec
 	if present != nil {
 		if err := present(); err != nil {
 			return fmt.Errorf("render: present: %w", err)
@@ -61,6 +62,7 @@ func (c *Context) PresentFrameDamage(view gpucontext.TextureView, width, height 
 	if err := c.FlushGPUWithViewDamage(view, width, height, damage); err != nil {
 		return fmt.Errorf("render: FlushGPUWithViewDamage: %w", err)
 	}
+	c.markViewFlush(view, int(width), int(height)) //nolint:gosec
 	if present != nil {
 		if err := present(); err != nil {
 			return fmt.Errorf("render: present: %w", err)
@@ -84,6 +86,7 @@ func (c *Context) PresentFrameDamageRects(view gpucontext.TextureView, width, he
 	if err := c.FlushGPUWithViewDamageRects(view, width, height, rects); err != nil {
 		return fmt.Errorf("render: FlushGPUWithViewDamageRects: %w", err)
 	}
+	c.markViewFlush(view, int(width), int(height)) //nolint:gosec
 	if present != nil {
 		if err := present(); err != nil {
 			return fmt.Errorf("render: present: %w", err)
