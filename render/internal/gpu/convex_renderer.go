@@ -73,8 +73,15 @@ type ConvexDrawCommand struct {
 	// PackedVerts is optional pre-built GPU vertex bytes (convexVertexStride
 	// each). When set for TriangleList+SkipAA mesh path, buildConvexVerticesReuse
 	// memcpy's instead of re-packing Points/VertexColors (opt19).
-	// Lifetime: points into GPURenderContext.convexMeshPacked until Flush.
+	// Lifetime: points into GPURenderContext.convexMeshPacked until Flush
+	// (or present-stash owned copy after opt22 relocate).
 	PackedVerts []byte
+
+	// Indices is optional uint16 triangle indices for PackedVerts (opt22).
+	// When len>=3 with TriangleList+SkipAA+PackedVerts, RecordDraws uses
+	// DrawIndexed — unique verts only (no CPU expand of indexed meshes).
+	// Lifetime: GPURenderContext.convexMeshIdx (or stash-owned copy).
+	Indices []uint16
 }
 
 // ConvexRenderer renders convex polygons in a single draw call with per-edge
@@ -302,6 +309,9 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 		rp.SetBindGroup(2, maskBG, nil)
 	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
+	if resources.indexBuf != nil && resources.indexCount > 0 {
+		rp.SetIndexBuffer(resources.indexBuf, types.IndexFormatUint16, 0)
+	}
 
 	ranges := resources.ranges
 	if len(ranges) == 0 {
@@ -312,14 +322,21 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 		}}
 	}
 	for _, rg := range ranges {
-		if rg.vertCount == 0 {
-			continue
-		}
 		pipe := cr.pipelineForBlend(rg.blendMode, useDepthClip)
 		if pipe == nil {
 			continue
 		}
 		rp.SetPipeline(pipe)
+		if rg.indexed {
+			if rg.indexCount == 0 {
+				continue
+			}
+			rp.DrawIndexed(rg.indexCount, 1, rg.firstIndex, int32(rg.firstVertex), 0) //nolint:gosec
+			continue
+		}
+		if rg.vertCount == 0 {
+			continue
+		}
 		rp.Draw(rg.vertCount, 1, rg.firstVertex, 0)
 	}
 }
@@ -535,18 +552,23 @@ func (cr *ConvexRenderer) destroyPipeline() {
 }
 
 // convexFrameResources holds per-frame GPU resources for convex rendering.
-// convexDrawRange is a contiguous vertex sub-range sharing one blend mode.
+// convexDrawRange is a contiguous vertex (or indexed) sub-range sharing one blend mode.
 type convexDrawRange struct {
-	firstVertex uint32
-	vertCount   uint32
+	firstVertex uint32 // also baseVertex for indexed draws
+	vertCount   uint32 // non-indexed only
+	firstIndex  uint32
+	indexCount  uint32
+	indexed     bool
 	blendMode   render.BlendMode
 }
 
 type convexFrameResources struct {
 	vertBuf     *webgpu.Buffer
+	indexBuf    *webgpu.Buffer // optional; uint16 indices for DrawIndexed ranges
 	uniformBuf  *webgpu.Buffer
 	bindGroup   *webgpu.BindGroup
 	vertCount   uint32
+	indexCount  uint32
 	firstVertex uint32 // offset into shared vertex buffer (for scissor group sub-ranges)
 	// ranges groups consecutive vertices by blend mode. When empty, a single
 	// SourceOver draw of [firstVertex, vertCount) is used (legacy path).
@@ -835,31 +857,60 @@ func writeConvexVertex(buf []byte, px, py, coverage float32, color [4]float32) {
 // mode into vertex ranges suitable for multi-draw with pipeline switches.
 // baseFirstVertex is the absolute firstVertex of the first command in commands.
 func buildConvexBlendRanges(commands []ConvexDrawCommand, baseFirstVertex uint32) []convexDrawRange {
+	return buildConvexBlendRangesIndexed(commands, baseFirstVertex, 0)
+}
+
+// buildConvexBlendRangesIndexed builds draw ranges; baseFirstIndex is the starting
+// offset into the combined index buffer for this command slice.
+func buildConvexBlendRangesIndexed(commands []ConvexDrawCommand, baseFirstVertex, baseFirstIndex uint32) []convexDrawRange {
 	if len(commands) == 0 {
 		return nil
 	}
 	var ranges []convexDrawRange
 	var cur *convexDrawRange
-	first := baseFirstVertex
+	firstV := baseFirstVertex
+	firstI := baseFirstIndex
 	for i := range commands {
-		n := convexVertexCount(commands[i : i+1])
-		if n == 0 {
+		cmd := &commands[i]
+		nV := uint32(convexCmdVertexCount(cmd)) //nolint:gosec
+		if nV == 0 {
 			continue
 		}
-		mode := commands[i].BlendMode
-		if cur == nil || cur.blendMode != mode {
+		mode := cmd.BlendMode
+		indexed := len(cmd.Indices) >= 3 && len(cmd.PackedVerts) >= convexVertexStride && cmd.TriangleList && cmd.SkipAA
+		nI := uint32(0)
+		if indexed {
+			nI = uint32(len(cmd.Indices) / 3 * 3) //nolint:gosec
+		}
+		// Indexed draws each need their own baseVertex — never merge indexed
+		// ranges (indices are 0-based per mesh). Non-indexed can merge by blend.
+		if indexed || cur == nil || cur.blendMode != mode || cur.indexed {
 			ranges = append(ranges, convexDrawRange{
-				firstVertex: first,
-				vertCount:   n,
+				firstVertex: firstV,
+				vertCount:   nV,
+				firstIndex:  firstI,
+				indexCount:  nI,
+				indexed:     indexed,
 				blendMode:   mode,
 			})
 			cur = &ranges[len(ranges)-1]
 		} else {
-			cur.vertCount += n
+			cur.vertCount += nV
 		}
-		first += n
+		firstV += nV
+		firstI += nI
 	}
 	return ranges
+}
+
+func convexCmdIndexCount(cmd *ConvexDrawCommand) int {
+	if cmd == nil {
+		return 0
+	}
+	if len(cmd.Indices) >= 3 && len(cmd.PackedVerts) >= convexVertexStride && cmd.TriangleList && cmd.SkipAA {
+		return len(cmd.Indices) / 3 * 3
+	}
+	return 0
 }
 
 func convexCmdVertexCount(cmd *ConvexDrawCommand) int {

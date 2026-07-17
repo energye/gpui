@@ -1824,6 +1824,8 @@ type gpuContextOps interface {
 		u0, v0, u1, v1 float32, nearest bool, contentDirty bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
+	// QueueColoredMeshIndexed draws unique verts + uint16 indices (opt22 DrawMesh).
+	QueueColoredMeshIndexed(target GPURenderTarget, positions []Point, colors []RGBA, indices []uint16)
 	QueueGPUTextureDraw(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
 	QueueBaseLayer(target GPURenderTarget, view gpucontext.TextureView,

@@ -235,16 +235,61 @@ type Mesh struct {
 // DrawMesh draws an indexed (or triangle-list) colored mesh on the GPU path when available.
 // This is the V.03 subset: positions + optional vertex colors + optional indices.
 // Full custom fragment shaders / cubics are deferred.
+//
+// opt22: when Indices is set, the GPU path keeps unique verts + DrawIndexed
+// (no CPU expand). CPU fallback still expands to triangle lists.
 func (c *Context) DrawMesh(mesh Mesh) {
 	if c == nil || len(mesh.Positions) < 3 {
 		return
 	}
 	positions := mesh.Positions
 	colors := mesh.Colors
-	if len(mesh.Indices) >= 3 {
+	hasIdx := len(mesh.Indices) >= 3
+
+	// GPU indexed path: CTM → unique device verts + indices (opt22).
+	if hasIdx {
+		if rc := c.gpuCtxOps(); rc != nil {
+			n := len(positions)
+			ctm := c.totalMatrix()
+			var dev []Point
+			// opt23: identity CTM — queue user-space points without a full copy/transform.
+			if ctm.IsIdentity() {
+				dev = positions
+			} else {
+				if cap(c.vertDevScratch) < n {
+					c.vertDevScratch = make([]Point, n)
+				} else {
+					c.vertDevScratch = c.vertDevScratch[:n]
+				}
+				dev = c.vertDevScratch
+				for i, p := range positions {
+					dev[i] = ctm.TransformPoint(p)
+				}
+			}
+			useVC := len(colors) == len(positions)
+			meshColors := colors
+			if !useVC {
+				solid, _ := solidColorFromPaint(c.paint)
+				if cap(c.meshSolidScratch) < n {
+					c.meshSolidScratch = make([]RGBA, n)
+				} else {
+					c.meshSolidScratch = c.meshSolidScratch[:n]
+				}
+				for i := range c.meshSolidScratch {
+					c.meshSolidScratch[i] = solid
+				}
+				meshColors = c.meshSolidScratch
+			}
+			defer c.setGPUClipRect()()
+			target := c.gpuRenderTarget()
+			rc.QueueColoredMeshIndexed(target, dev, meshColors, mesh.Indices)
+			c.recordGPUOp()
+			c.trackDamageDevicePoints(dev)
+			return
+		}
+		// CPU / no-GPU: expand indices then triangle list.
 		n := len(mesh.Indices) / 3 * 3
 		useCol := len(colors) == len(positions)
-		// Expand indices into reusable scratch (no per-call make when capacity ok).
 		if cap(c.meshExpPosScratch) < n {
 			c.meshExpPosScratch = make([]Point, 0, n)
 		} else {

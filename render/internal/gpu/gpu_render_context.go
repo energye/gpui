@@ -5,6 +5,7 @@ package gpu
 import (
 	"fmt"
 	"image"
+	"math"
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -39,7 +40,9 @@ type GPURenderContext struct {
 	convexMeshPts []render.Point
 	convexMeshVCs [][4]float32
 	// Pre-packed GPU verts (opt19): TriangleList mesh packs once at Queue.
-	convexMeshPacked          []byte
+	convexMeshPacked []byte
+	// opt22: uint16 index scratch for indexed mesh commands (DrawIndexed).
+	convexMeshIdx             []uint16
 	pendingStencilPaths       []StencilPathCommand
 	pendingImageCommands      []ImageDrawCommand
 	pendingGPUTextureCommands []GPUTextureDrawCommand
@@ -396,18 +399,40 @@ func (rc *GPURenderContext) TakeBrushBootstrapReason() string {
 
 // presentPendingStash stores present-deferred GPU commands (no surface View yet).
 type presentPendingStash struct {
-	active          bool
-	shapes          []SDFRenderShape
-	convex          []ConvexDrawCommand
-	convexMeshPts   []render.Point
-	convexMeshVCs   [][4]float32
-	stencil         []StencilPathCommand
-	images          []ImageDrawCommand
-	gpuTex          []GPUTextureDrawCommand
-	text            []TextBatch
-	glyph           []GlyphMaskBatch
-	scissorSegments []scissorSegment
-	baseLayer       *GPUTextureDrawCommand
+	active        bool
+	shapes        []SDFRenderShape
+	convex        []ConvexDrawCommand
+	convexMeshPts []render.Point
+	convexMeshVCs [][4]float32
+	// opt22: owned copies of PackedVerts / Indices so parent mesh survives
+	// layer Queue overwriting rc.convexMeshPacked.
+	convexMeshPacked []byte
+	convexMeshIdx    []uint16
+	stencil          []StencilPathCommand
+	images           []ImageDrawCommand
+	gpuTex           []GPUTextureDrawCommand
+	text             []TextBatch
+	glyph            []GlyphMaskBatch
+	scissorSegments  []scissorSegment
+	baseLayer        *GPUTextureDrawCommand
+}
+
+// relocateConvexMeshData copies PackedVerts/Indices into dstPacked/dstIdx and
+// rewrites command slice headers to point at the destination (stash or rc).
+func relocateConvexMeshData(cmds []ConvexDrawCommand, from int, dstPacked *[]byte, dstIdx *[]uint16) {
+	for i := from; i < len(cmds); i++ {
+		cmd := &cmds[i]
+		if n := len(cmd.PackedVerts); n > 0 {
+			off := len(*dstPacked)
+			*dstPacked = append(*dstPacked, cmd.PackedVerts...)
+			cmd.PackedVerts = (*dstPacked)[off : off+n : off+n]
+		}
+		if n := len(cmd.Indices); n > 0 {
+			off := len(*dstIdx)
+			*dstIdx = append(*dstIdx, cmd.Indices...)
+			cmd.Indices = (*dstIdx)[off : off+n : off+n]
+		}
+	}
 }
 
 func (rc *GPURenderContext) stashPresentPending() {
@@ -429,6 +454,10 @@ func (rc *GPURenderContext) stashPresentPending() {
 
 	s.shapes = append(s.shapes, rc.pendingShapes...)
 	s.convex = append(s.convex, rc.pendingConvexCommands...)
+	// opt22: deep-copy packed mesh bytes/indices into stash-owned storage so
+	// subsequent layer QueueColoredMesh* cannot overwrite parent PackedVerts.
+	// baseConvex is the pre-append length (declared above with scissor bases).
+	relocateConvexMeshData(s.convex, baseConvex, &s.convexMeshPacked, &s.convexMeshIdx)
 	s.convexMeshPts = append(s.convexMeshPts, rc.convexMeshPts...)
 	s.convexMeshVCs = append(s.convexMeshVCs, rc.convexMeshVCs...)
 	s.stencil = append(s.stencil, rc.pendingStencilPaths...)
@@ -463,6 +492,7 @@ func (rc *GPURenderContext) stashPresentPending() {
 	rc.convexMeshPts = rc.convexMeshPts[:0]
 	rc.convexMeshVCs = rc.convexMeshVCs[:0]
 	rc.convexMeshPacked = rc.convexMeshPacked[:0]
+	rc.convexMeshIdx = rc.convexMeshIdx[:0]
 	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
 	rc.pendingImageCommands = rc.pendingImageCommands[:0]
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
@@ -530,6 +560,21 @@ func (rc *GPURenderContext) unstashPresentPending() {
 
 	rc.pendingShapes = prependSlice(rc.pendingShapes, s.shapes)
 	rc.pendingConvexCommands = prependSlice(rc.pendingConvexCommands, s.convex)
+	// Move stash-owned packed mesh into rc scratch and re-point (opt22).
+	// Prefix (stashed) commands need relocate from 0..len(s.convex); any
+	// already-pending cmds after the prefix keep their own rc packing.
+	if len(s.convex) > 0 {
+		// First copy all current pending packed after stash prefix into a temp
+		// path: relocate entire pending set into a fresh rc buffer.
+		newPacked := rc.convexMeshPacked[:0]
+		if cap(newPacked) < 1 {
+			newPacked = make([]byte, 0, len(s.convexMeshPacked)+256)
+		}
+		newIdx := rc.convexMeshIdx[:0]
+		relocateConvexMeshData(rc.pendingConvexCommands, 0, &newPacked, &newIdx)
+		rc.convexMeshPacked = newPacked
+		rc.convexMeshIdx = newIdx
+	}
 	rc.convexMeshPts = prependSlice(rc.convexMeshPts, s.convexMeshPts)
 	rc.convexMeshVCs = prependSlice(rc.convexMeshVCs, s.convexMeshVCs)
 	rc.pendingStencilPaths = prependSlice(rc.pendingStencilPaths, s.stencil)
@@ -547,6 +592,8 @@ func (rc *GPURenderContext) unstashPresentPending() {
 	s.convex = s.convex[:0]
 	s.convexMeshPts = s.convexMeshPts[:0]
 	s.convexMeshVCs = s.convexMeshVCs[:0]
+	s.convexMeshPacked = s.convexMeshPacked[:0]
+	s.convexMeshIdx = s.convexMeshIdx[:0]
 	s.stencil = s.stencil[:0]
 	s.images = s.images[:0]
 	s.gpuTex = s.gpuTex[:0]
@@ -742,6 +789,127 @@ func (rc *GPURenderContext) QueueColoredMesh(target render.GPURenderTarget, posi
 	rc.pendingTarget = target
 	rc.hasPendingTarget = true
 	rc.sceneStats.ShapeCount++
+}
+
+// QueueColoredMeshIndexed queues a mesh with unique vertices + uint16 indices
+// (opt22). Avoids CPU expand of indexed DrawMesh (disc fans etc.) so WriteBuffer
+// uploads only unique verts. Indices are copied into convexMeshIdx scratch.
+//
+// opt23: hot path drops O(n) pre-validation (DrawMesh supplies in-range indices),
+// uses a tight pack loop (coverage=1 fixed), and keeps grow-only scratch.
+func (rc *GPURenderContext) QueueColoredMeshIndexed(target render.GPURenderTarget, positions []render.Point, colors []render.RGBA, indices []uint16) {
+	if len(positions) < 3 || len(indices) < 3 {
+		return
+	}
+	nIdx := len(indices) / 3 * 3
+	if nIdx < 3 {
+		return
+	}
+	if err := rc.prepareTarget(target); err != nil {
+		slogger().Warn("auto-flush failed", "err", err)
+	}
+	rc.ensureDrawOrder(drawTierConvex)
+
+	nVerts := len(positions)
+	nBytes := nVerts * convexVertexStride
+	pkBase := len(rc.convexMeshPacked)
+	if cap(rc.convexMeshPacked) < pkBase+nBytes {
+		capN := (pkBase + nBytes) * 2
+		if capN < 512*convexVertexStride {
+			capN = 512 * convexVertexStride
+		}
+		np := make([]byte, pkBase, capN)
+		copy(np, rc.convexMeshPacked)
+		rc.convexMeshPacked = np
+	}
+	rc.convexMeshPacked = rc.convexMeshPacked[:pkBase+nBytes]
+	pk := rc.convexMeshPacked[pkBase : pkBase+nBytes]
+
+	useVC := len(colors) == len(positions)
+	solidColor := packMeshVertsCoverage1(pk, positions, colors, useVC)
+
+	// Copy indices into grow-only scratch (owned until Flush / stash relocate).
+	idxBase := len(rc.convexMeshIdx)
+	if cap(rc.convexMeshIdx) < idxBase+nIdx {
+		capN := (idxBase + nIdx) * 2
+		if capN < 512 {
+			capN = 512
+		}
+		ni := make([]uint16, idxBase, capN)
+		copy(ni, rc.convexMeshIdx)
+		rc.convexMeshIdx = ni
+	}
+	rc.convexMeshIdx = rc.convexMeshIdx[:idxBase+nIdx]
+	copy(rc.convexMeshIdx[idxBase:], indices[:nIdx])
+
+	cmd := ConvexDrawCommand{
+		Color:        solidColor,
+		SkipAA:       true,
+		TriangleList: true,
+		PackedVerts:  rc.convexMeshPacked[pkBase : pkBase+nBytes : pkBase+nBytes],
+		Indices:      rc.convexMeshIdx[idxBase : idxBase+nIdx : idxBase+nIdx],
+	}
+	rc.pendingConvexCommands = append(rc.pendingConvexCommands, cmd)
+	rc.pendingTarget = target
+	rc.hasPendingTarget = true
+	rc.sceneStats.ShapeCount++
+}
+
+// packMeshVertsCoverage1 writes SkipAA mesh verts (coverage=1) into dst.
+// dst must be len(positions)*convexVertexStride. Returns a solid fallback color
+// (mean of first triangle when useVC, else first/solid color).
+func packMeshVertsCoverage1(dst []byte, positions []render.Point, colors []render.RGBA, useVC bool) [4]float32 {
+	const covBits = uint32(0x3f800000) // 1.0f
+	n := len(positions)
+	solid := [4]float32{0, 0, 0, 1}
+	if !useVC {
+		if len(colors) > 0 {
+			c := colors[0]
+			a := float32(c.A)
+			solid = [4]float32{float32(c.R) * a, float32(c.G) * a, float32(c.B) * a, a}
+		}
+		cr := math.Float32bits(solid[0])
+		cg := math.Float32bits(solid[1])
+		cb := math.Float32bits(solid[2])
+		ca := math.Float32bits(solid[3])
+		for i := 0; i < n; i++ {
+			off := i * convexVertexStride
+			*(*uint32)(unsafe.Pointer(&dst[off+0])) = math.Float32bits(float32(positions[i].X)) //nolint:gosec
+			*(*uint32)(unsafe.Pointer(&dst[off+4])) = math.Float32bits(float32(positions[i].Y)) //nolint:gosec
+			*(*uint32)(unsafe.Pointer(&dst[off+8])) = covBits                                   //nolint:gosec
+			*(*uint32)(unsafe.Pointer(&dst[off+12])) = cr                                       //nolint:gosec
+			*(*uint32)(unsafe.Pointer(&dst[off+16])) = cg                                       //nolint:gosec
+			*(*uint32)(unsafe.Pointer(&dst[off+20])) = cb                                       //nolint:gosec
+			*(*uint32)(unsafe.Pointer(&dst[off+24])) = ca                                       //nolint:gosec
+		}
+		return solid
+	}
+	var s0, s1, s2, s3 float32
+	for i := 0; i < n; i++ {
+		c := colors[i]
+		a := float32(c.A)
+		r := float32(c.R) * a
+		g := float32(c.G) * a
+		b := float32(c.B) * a
+		if i < 3 {
+			s0 += r
+			s1 += g
+			s2 += b
+			s3 += a
+		}
+		off := i * convexVertexStride
+		*(*uint32)(unsafe.Pointer(&dst[off+0])) = math.Float32bits(float32(positions[i].X)) //nolint:gosec
+		*(*uint32)(unsafe.Pointer(&dst[off+4])) = math.Float32bits(float32(positions[i].Y)) //nolint:gosec
+		*(*uint32)(unsafe.Pointer(&dst[off+8])) = covBits                                   //nolint:gosec
+		*(*uint32)(unsafe.Pointer(&dst[off+12])) = math.Float32bits(r)                      //nolint:gosec
+		*(*uint32)(unsafe.Pointer(&dst[off+16])) = math.Float32bits(g)                      //nolint:gosec
+		*(*uint32)(unsafe.Pointer(&dst[off+20])) = math.Float32bits(b)                      //nolint:gosec
+		*(*uint32)(unsafe.Pointer(&dst[off+24])) = math.Float32bits(a)                      //nolint:gosec
+	}
+	if n >= 3 {
+		return [4]float32{s0 / 3, s1 / 3, s2 / 3, s3 / 3}
+	}
+	return solid
 }
 
 // QueueStencil accumulates a stencil path for batch dispatch.
@@ -1940,6 +2108,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	rc.convexMeshPts = rc.convexMeshPts[:0]
 	rc.convexMeshVCs = rc.convexMeshVCs[:0]
 	rc.convexMeshPacked = rc.convexMeshPacked[:0]
+	rc.convexMeshIdx = rc.convexMeshIdx[:0]
 	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
 	rc.pendingImageCommands = rc.pendingImageCommands[:0]
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
@@ -1974,6 +2143,7 @@ func (rc *GPURenderContext) dropEncodedPendingCommands() {
 	rc.convexMeshPts = rc.convexMeshPts[:0]
 	rc.convexMeshVCs = rc.convexMeshVCs[:0]
 	rc.convexMeshPacked = rc.convexMeshPacked[:0]
+	rc.convexMeshIdx = rc.convexMeshIdx[:0]
 	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
 	rc.pendingImageCommands = rc.pendingImageCommands[:0]
 	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]

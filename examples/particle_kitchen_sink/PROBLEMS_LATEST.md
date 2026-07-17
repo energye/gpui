@@ -738,3 +738,46 @@ L3 ~**−1.4pp CPU** (noisy host; pprof structure is the stronger signal). No co
 - Class A only; F1 present-path advanced blend must stay green
 - Keep if PKS PASS + no F1 regression; revert defer path if hitch/pixel regresses
 - Next knife: upload volume / GPU particle update — not more submit micro-batching unless pprof shows Submit >> WriteBuffer
+
+## opt22 indexed DrawMesh + present-stash packed ownership (2026-07-17)
+
+### pprof / diagnosis (post-opt21)
+- `WriteBuffer` still ~18% on P_L3; `buildConvexResources` hot
+- Root cause for disc meshes: `DrawMesh` **CPU-expanded** indices → triangle list (~2.7× verts for 10-seg discs)
+- Secondary correctness: present-stash only shallow-copied `ConvexDrawCommand`; layer `QueueColoredMesh` could overwrite `rc.convexMeshPacked` under parent `PackedVerts` slices
+
+### Engine fixes (class A equivalence)
+1. **`QueueColoredMeshIndexed` + `DrawMesh` indexed GPU path** — unique verts + `uint16` indices → `DrawIndexed` (convex pipeline). Same triangles/pixels; less WriteBuffer for indexed meshes (discs, fans).
+2. **Convex index buffer ring** + blend ranges with `baseVertex` (indexed ranges never merged).
+3. **present-stash deep-copy** of `PackedVerts`/`Indices` into stash-owned storage; unstash relocates into rc scratch (opt22 correctness).
+
+### PKS present (`tmp/pks/cpu_opt/opt22_*.json`, 8s, DISPLAY=:1)
+
+| probe | opt21 cpu | **opt22 cpu** | fps_ema | status | cpu_fb |
+|-------|-----------|---------------|---------|--------|--------|
+| P_SOLID | 12.8 | **12.2** | 56.9 | PASS | 0 |
+| P_GLOW | 15.1 | **14.8** | 58.2 | PASS | 0 |
+| P_BLEND_GLOW | 23.4 | **22.2** | 59.2 | PASS | 0 |
+| P_L3 | 27.3 | **26.6** | 58.6 | PASS | 0 |
+| P_LAYER | 12.6 | **11.4** | 58.1 | PASS | 0 |
+
+WriteBuffer **share** still ~18% (base 1600-tri mesh still unique verts — index path saves disc/layer fans more than base). Absolute PKS CPU improved; structure fix + disc upload cut are the main wins.
+
+### Unit gates
+| test | result |
+|------|--------|
+| `TestOpt22_IndexedMesh_FewerUploadBytes` | PASS |
+| `TestOpt22_StashPreservesPackedVerts` | PASS |
+| `TestF1_AdvancedLayerPresent*` | PASS |
+| `TestOpt21_*` / `TestOpt19_*` | PASS |
+
+### Still open
+1. Base animated mesh **upload volume** (needs compact vertex format or GPU particle update — larger than class A)
+2. True single-CB frame (`singleSubmit` still false)
+3. RSS long-soak
+4. HUD digit amortize (correct design)
+
+### Policy
+- Keep indexed path + stash deep-copy (correctness + disc upload)
+- Do not gut particle N / AA / disc segs to green metrics
+- Next: format/GPU sim only with pixel gates if tackling WriteBuffer further

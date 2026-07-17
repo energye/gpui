@@ -11,6 +11,7 @@ import (
 	"github.com/energye/gpui/render"
 	"image"
 	"os"
+	"unsafe"
 )
 
 // glyphMaskDebugCount caps the GOGPU_TEXT_DEBUG dump to the first handful of
@@ -249,6 +250,11 @@ type GPURenderSession struct {
 	convexVertSlot     int
 	deferredConvexUses int  // builds encoded into leadSubmitCBs since last Submit
 	deferSurfaceSubmit bool // encode+enqueue instead of Queue.Submit
+	// opt22: index buffer ring for DrawIndexed mesh path.
+	convexIndexBufs    [4]*webgpu.Buffer
+	convexIndexBufCaps [4]uint64
+	convexIndexSlot    int
+	convexIndexStaging []byte
 	convexUniformBuf   *webgpu.Buffer
 	convexBindGroup    *webgpu.BindGroup
 
@@ -1354,6 +1360,14 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		}
 	}
 	s.convexVertSlot = 0
+	for i := range s.convexIndexBufs {
+		if s.convexIndexBufs[i] != nil {
+			s.convexIndexBufs[i].Release()
+			s.convexIndexBufs[i] = nil
+			s.convexIndexBufCaps[i] = 0
+		}
+	}
+	s.convexIndexSlot = 0
 	s.deferredConvexUses = 0
 	s.deferSurfaceSubmit = false
 	// Tier 3: Image per-draw pools.
@@ -2158,12 +2172,80 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		s.convexBindGroup = bg
 	}
 
+	// opt22/opt23: upload uint16 indices for indexed mesh commands.
+	// LE hosts: WriteBuffer directly from []uint16 (zero-copy). Multi-cmd
+	// still concatenates into convexIndexStaging.
+	var indexBuf *webgpu.Buffer
+	var indexCount uint32
+	totalIdx := 0
+	for i := range commands {
+		totalIdx += convexCmdIndexCount(&commands[i])
+	}
+	if totalIdx > 0 {
+		need := totalIdx * 2
+		var indexBytes []byte
+		// Fast path: single fully-indexed command — map []uint16 as LE bytes.
+		if len(commands) == 1 && convexCmdIndexCount(&commands[0]) == totalIdx && totalIdx > 0 {
+			idx := commands[0].Indices[:totalIdx]
+			indexBytes = unsafe.Slice((*byte)(unsafe.Pointer(&idx[0])), need) //nolint:gosec
+		} else {
+			if cap(s.convexIndexStaging) < need {
+				s.convexIndexStaging = make([]byte, need)
+			} else {
+				s.convexIndexStaging = s.convexIndexStaging[:need]
+			}
+			off := 0
+			for i := range commands {
+				n := convexCmdIndexCount(&commands[i])
+				if n == 0 {
+					continue
+				}
+				src := commands[i].Indices[:n]
+				// LE: memcpy uint16 payload as bytes.
+				copy(s.convexIndexStaging[off:off+n*2], unsafe.Slice((*byte)(unsafe.Pointer(&src[0])), n*2)) //nolint:gosec
+				off += n * 2
+			}
+			indexBytes = s.convexIndexStaging
+		}
+		s.convexIndexSlot = (s.convexIndexSlot + 1) % len(s.convexIndexBufs)
+		slotI := s.convexIndexSlot
+		idxSize := uint64(need)
+		if s.convexIndexBufs[slotI] == nil || s.convexIndexBufCaps[slotI] < idxSize {
+			if s.convexIndexBufs[slotI] != nil {
+				s.convexIndexBufs[slotI].Release()
+				s.convexIndexBufs[slotI] = nil
+				s.convexIndexBufCaps[slotI] = 0
+			}
+			alloc := idxSize * 2
+			if alloc < 4096 {
+				alloc = 4096
+			}
+			buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
+				Label: "session_convex_indices",
+				Size:  alloc,
+				Usage: types.BufferUsageIndex | types.BufferUsageCopyDst,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("create convex index buffer: %w", err)
+			}
+			s.convexIndexBufs[slotI] = buf
+			s.convexIndexBufCaps[slotI] = alloc
+		}
+		indexBuf = s.convexIndexBufs[slotI]
+		if err := s.queueWriteBuffer(indexBuf, 0, indexBytes); err != nil {
+			return nil, fmt.Errorf("write convex index buffer: %w", err)
+		}
+		indexCount = uint32(totalIdx) //nolint:gosec
+	}
+
 	return &convexFrameResources{
 		vertBuf:    vertBuf,
+		indexBuf:   indexBuf,
 		uniformBuf: s.convexUniformBuf,
 		bindGroup:  s.convexBindGroup,
 		vertCount:  vertexCount,
-		ranges:     buildConvexBlendRanges(commands, 0),
+		indexCount: indexCount,
+		ranges:     buildConvexBlendRangesIndexed(commands, 0, 0),
 	}, nil
 }
 
@@ -3843,13 +3925,23 @@ func (s *GPURenderSession) sliceConvexResources(
 	if vertCount == 0 {
 		return nil
 	}
+	firstIndex := uint32(0)
+	for i := 0; i < cmdStart; i++ {
+		firstIndex += uint32(convexCmdIndexCount(&allCommands[i])) //nolint:gosec
+	}
+	sliceIdx := 0
+	for i := cmdStart; i < cmdStart+cmdCount; i++ {
+		sliceIdx += convexCmdIndexCount(&allCommands[i])
+	}
 	return &convexFrameResources{
 		vertBuf:     combined.vertBuf,
+		indexBuf:    combined.indexBuf,
 		uniformBuf:  combined.uniformBuf,
 		bindGroup:   combined.bindGroup,
 		firstVertex: firstVertex,
 		vertCount:   vertCount,
-		ranges:      buildConvexBlendRanges(allCommands[cmdStart:cmdStart+cmdCount], firstVertex),
+		indexCount:  uint32(sliceIdx), //nolint:gosec
+		ranges:      buildConvexBlendRangesIndexed(allCommands[cmdStart:cmdStart+cmdCount], firstVertex, firstIndex),
 	}
 }
 
