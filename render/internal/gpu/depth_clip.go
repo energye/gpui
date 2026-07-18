@@ -540,6 +540,7 @@ func (p *DepthClipPipeline) RecordDraw(rp *webgpu.RenderPassEncoder, res *DepthC
 
 	// Phase 1: Stencil fill — fan triangles determine winding inside clip path.
 	// Front faces IncrementWrap, back faces DecrementWrap. No depth write, no color.
+	clearPassBindGroups(rp)
 	rp.SetPipeline(p.stencilFillPipeline)
 	rp.SetBindGroup(0, res.bindGroup, nil)
 	rp.SetVertexBuffer(0, res.vertBuf, 0)
@@ -549,6 +550,8 @@ func (p *DepthClipPipeline) RecordDraw(rp *webgpu.RenderPassEncoder, res *DepthC
 	// Phase 2: Cover quad — write depth where stencil != 0, reset stencil to 0.
 	// Only pixels inside the clip path (stencil != 0) receive depth Z=0.0.
 	// StencilPassOp=Zero cleans up stencil for subsequent Tier 2b rendering.
+	// Fill/cover share the same group-0 layout; clear is cheap insurance.
+	clearPassBindGroups(rp)
 	rp.SetPipeline(p.depthCoverPipeline)
 	rp.SetBindGroup(0, res.bindGroup, nil)
 	rp.SetVertexBuffer(0, res.coverBuf, 0)

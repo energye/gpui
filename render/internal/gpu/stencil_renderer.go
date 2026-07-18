@@ -45,6 +45,10 @@ type StencilRenderer struct {
 	uniformLayout     *webgpu.BindGroupLayout
 	stencilPipeLayout *webgpu.PipelineLayout
 	coverPipeLayout   *webgpu.PipelineLayout
+	// pipelineEpoch increments on every destroyPipelines. Pooled bind groups
+	// that reference a released uniformLayout must be recreated when epochs differ
+	// (shared StencilRenderer can be torn down by another session's DetachExternalLayouts).
+	pipelineEpoch uint64
 
 	// maskBindLayout is @group(2) for L.06 R8 mask on the cover pass.
 	// Session-owned when set via SetMaskBindLayout.
@@ -145,6 +149,11 @@ func (sr *StencilRenderer) SetMaskBindLayout(layout *webgpu.BindGroupLayout) {
 // destroys pipelines so the next ensureReady rebuilds with owned layouts.
 // Must be called before a session releases its BindGroupLayouts while this
 // StencilRenderer is shared via GPUShared (Context.Close path).
+//
+// Note: destroying shared pipelines is intentional (coverPipeLayout embeds the
+// session's BGL handles). Other sessions that still hold this StencilRenderer
+// must re-run ensurePipelines (fast path checks nonZeroStencilPipeline) and
+// recreate pooled bind groups via pipelineEpoch.
 func (sr *StencilRenderer) DetachExternalLayouts() {
 	sr.releaseNoMask()
 	hadExternal := sr.clipBindLayout != nil || !sr.maskLayoutOwned
@@ -260,6 +269,8 @@ type stencilCoverBuffers struct {
 	stencilBindGroup *webgpu.BindGroup
 	coverBindGroup   *webgpu.BindGroup
 	fanVertexCount   uint32
+	// layoutEpoch matches StencilRenderer.pipelineEpoch when bind groups were built.
+	layoutEpoch uint64
 
 	// Textured cover extras (session-inline gradient or pattern).
 	isTextured      bool
@@ -381,6 +392,31 @@ func (sr *StencilRenderer) updateRenderBuffers(
 		b = &stencilCoverBuffers{}
 	}
 	b.fanVertexCount = uint32(len(fanVerts) / 2) //nolint:gosec // len/2 fits uint32
+
+	// Shared StencilRenderer pipelines may have been destroyed/recreated by
+	// another session (DetachExternalLayouts on Context.Close). Drop bind groups
+	// that still point at the old uniformLayout before creating new ones.
+	if b.layoutEpoch != sr.pipelineEpoch {
+		if b.stencilBindGroup != nil {
+			b.stencilBindGroup.Release()
+			b.stencilBindGroup = nil
+		}
+		if b.coverBindGroup != nil {
+			b.coverBindGroup.Release()
+			b.coverBindGroup = nil
+		}
+		if b.texturedCoverBG != nil {
+			b.texturedCoverBG.Release()
+			b.texturedCoverBG = nil
+		}
+		b.layoutEpoch = sr.pipelineEpoch
+	}
+
+	if sr.uniformLayout == nil {
+		if err := sr.createPipelines(); err != nil {
+			return nil, fmt.Errorf("ensure stencil pipelines for bind groups: %w", err)
+		}
+	}
 
 	// Vertex buffers.
 	if err := sr.updateVertexBuffer(&b.fanVertBuf, &b.fanVertBufCap, "stencil_fan_verts", float32SliceToBytes(fanVerts)); err != nil {
@@ -835,6 +871,9 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	}
 
 	// Pass 1: Stencil fill (clip not needed — only writes stencil buffer).
+	if stencilPipeline == nil || bufs.stencilBindGroup == nil || bufs.fanVertexCount == 0 {
+		return
+	}
 	rp.SetPipeline(stencilPipeline)
 	rp.SetBindGroup(0, bufs.stencilBindGroup, nil)
 	rp.SetVertexBuffer(0, bufs.fanVertBuf, 0)
@@ -848,6 +887,9 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 		rp.SetPipeline(sr.texturedCoverPipeline)
 		rp.SetBindGroup(0, bufs.texturedCoverBG, nil)
 	} else {
+		if coverPipeline == nil || bufs.coverBindGroup == nil {
+			return
+		}
 		rp.SetPipeline(coverPipeline)
 		rp.SetBindGroup(0, bufs.coverBindGroup, nil)
 	}

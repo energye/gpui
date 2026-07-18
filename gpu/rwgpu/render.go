@@ -232,20 +232,29 @@ func (rpe *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
 }
 
 // SetBindGroup sets a bind group for this pass.
+// Passing group == nil (or a zero handle) unsets the bind group at groupIndex.
+// Unsetting is required before SetPipeline when switching to a pipeline whose
+// bind-group layouts are incompatible with the previously bound groups
+// (wgpu validates currently-set bind groups against the new pipeline layout).
 func (rpe *RenderPassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, dynamicOffsets []uint32) {
 	mustInit()
-	if rpe == nil || rpe.handle == 0 || group == nil || group.handle == 0 {
+	if rpe == nil || rpe.handle == 0 {
 		return
+	}
+
+	var groupHandle uintptr
+	if group != nil {
+		groupHandle = group.handle
 	}
 
 	var offsetsPtr uintptr
 	offsetCount := uintptr(0)
-	if len(dynamicOffsets) > 0 {
+	if groupHandle != 0 && len(dynamicOffsets) > 0 {
 		offsetsPtr = uintptr(unsafe.Pointer(&dynamicOffsets[0]))
 		offsetCount = uintptr(len(dynamicOffsets))
 	}
 
-	call5(procRenderPassEncoderSetBindGroup, rpe.handle, uintptr(groupIndex), group.handle, offsetCount, offsetsPtr)
+	call5(procRenderPassEncoderSetBindGroup, rpe.handle, uintptr(groupIndex), groupHandle, offsetCount, offsetsPtr)
 	runtime.KeepAlive(dynamicOffsets)
 	runtime.KeepAlive(group)
 }

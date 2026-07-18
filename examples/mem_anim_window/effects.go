@@ -87,16 +87,25 @@ func (e *effectRT) close() {
 	e.closed = true
 }
 
-// shouldRecompute: always when no cache; every frame when !lite; interleaved when lite.
+// shouldRecompute decides whether an effect RT should rebuild this frame.
+//
+//	no cache          → always rebuild
+//	period > 1        → throttle to frame%period == slot (caller opted into cadence;
+//	                    used by S15/S16 gradient/advblend so non-lite still stays ≥55fps)
+//	period ≤ 1, !lite → every frame (S10 filter stress)
+//	period ≤ 1, lite  → same as period=1 (always); lite callers pass period≥3
 func shouldRecompute(hasCache bool, lite bool, frame, slot, period int) bool {
 	if !hasCache {
 		return true
 	}
-	if !lite {
-		return true
-	}
 	if period < 1 {
 		period = 1
+	}
+	if period > 1 {
+		return frame%period == slot%period
+	}
+	if !lite {
+		return true
 	}
 	return frame%period == slot%period
 }

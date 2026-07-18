@@ -505,12 +505,25 @@ func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
 // The resources parameter holds pre-built vertex buffer, uniform buffer,
 // and bind group for the current frame.
 func (p *SDFRenderPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *sdfFrameResources, clipBG *webgpu.BindGroup, maskBG *webgpu.BindGroup, depthClipped ...bool) {
-	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
-	if useDepthClip {
-		rp.SetPipeline(p.pipelineWithDepthClip)
-	} else {
-		rp.SetPipeline(p.pipelineWithStencil)
+	if resources == nil || resources.vertCount == 0 {
+		return
 	}
+	if resources.bindGroup == nil {
+		// Avoid Draw with a stale group-0 bind group from a prior pipeline
+		// (e.g. stencil_fill_bind) — that panics wgpu validation on submit.
+		return
+	}
+	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
+	pipe := p.pipelineWithStencil
+	if useDepthClip {
+		pipe = p.pipelineWithDepthClip
+	}
+	if pipe == nil {
+		return
+	}
+	// Order: SetPipeline then bind groups. Always rebind group 0 after any
+	// prior stencil/image/text draw in the same pass.
+	rp.SetPipeline(pipe)
 	rp.SetBindGroup(0, resources.bindGroup, nil)
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)

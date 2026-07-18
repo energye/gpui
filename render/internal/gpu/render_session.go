@@ -1691,10 +1691,16 @@ type sdfFrameResources struct {
 // (see ensureTextPipeline).
 func (s *GPURenderSession) ensurePipelines() error {
 	// opt38: warm path — clip/mask layouts stable and core pipelines present.
+	// Must also verify GPU objects still exist: a shared StencilRenderer can be
+	// destroyed by another session's DetachExternalLayouts (short-lived Context
+	// from Image()/HUD rasterize) while this session still has pipelinesReady=true.
 	if s.pipelinesReady &&
 		s.pipelinesReadyClip == s.clipBindLayout &&
 		s.pipelinesReadyMask == s.maskBindLayout &&
-		s.sdfPipeline != nil && s.convexRenderer != nil && s.stencilRenderer != nil &&
+		s.sdfPipeline != nil && s.sdfPipeline.pipelineWithStencil != nil &&
+		s.convexRenderer != nil && s.convexRenderer.pipelineWithStencil != nil &&
+		s.stencilRenderer != nil && s.stencilRenderer.nonZeroStencilPipeline != nil &&
+		s.stencilRenderer.uniformLayout != nil &&
 		s.imagePipeline != nil && s.depthClipPipeline != nil {
 		s.lastEnsurePipelines = 0
 		s.ensurePipelinesFastN++
@@ -1738,9 +1744,11 @@ func (s *GPURenderSession) ensurePipelines() error {
 	stencilMaskMismatch := s.maskBindLayout != nil &&
 		s.stencilRenderer.coverPipeMaskLayout != s.maskBindLayout
 	stencilClipMismatch := s.clipBindLayout != nil && !s.stencilRenderer.coverPipeLayoutHasClip
+	// Also treat a destroyed shared renderer (DetachExternalLayouts) as mismatch.
+	stencilMissing := s.stencilRenderer.nonZeroStencilPipeline == nil || s.stencilRenderer.uniformLayout == nil
 	s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
 	s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
-	if s.stencilRenderer.nonZeroStencilPipeline == nil || stencilClipMismatch || stencilMaskMismatch {
+	if stencilMissing || stencilClipMismatch || stencilMaskMismatch {
 		s.stencilRenderer.destroyPipelines()
 		s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
 		s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
@@ -4761,6 +4769,13 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	// always the correct initial state.
 	depthLoadOp := types.LoadOpClear
 
+	// Encode content. Bind-group layouts differ across tiers (stencil fill
+	// min_binding_size=None vs SDF Some(16) vs textured_quad Some(80)+tex).
+	// wgpu validates the currently set bind groups against each new pipeline;
+	// a single long pass that switches stencil→SDF/image can therefore
+	// validation-panic on submit (mem_anim S04/S11/S12/S16). We still use one
+	// pass for throughput, but each Record* rebinds group 0 after SetPipeline.
+	// If a group's draw list is empty after damage scissor, it is skipped.
 	rpDesc := s.surfaceRenderPassDesc("session_surface_pass", view, colorLoadOp, stencilLoadOp, depthLoadOp)
 
 	rp, rpErr := encoder.BeginRenderPass(rpDesc)

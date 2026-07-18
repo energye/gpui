@@ -399,13 +399,9 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 		return
 	}
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && cr.pipelineWithDepthClip != nil
-	rp.SetBindGroup(0, resources.bindGroup, nil)
-	if clipBG != nil {
-		rp.SetBindGroup(1, clipBG, nil)
-	}
-	if maskBG != nil {
-		rp.SetBindGroup(2, maskBG, nil)
-	}
+	// Clear prior bind groups before pipeline switch (incompatible group-0 layouts).
+	// Bind groups must be set AFTER SetPipeline (Vulkan pipeline-layout requirement).
+	clearPassBindGroups(rp)
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	if resources.indexBuf != nil && resources.indexCount > 0 {
 		rp.SetIndexBuffer(resources.indexBuf, types.IndexFormatUint16, 0)
@@ -439,7 +435,16 @@ func (cr *ConvexRenderer) RecordDraws(rp *webgpu.RenderPassEncoder, resources *c
 		if pipe == nil {
 			continue
 		}
+		// SetPipeline then bind groups (Vulkan requires a pipeline layout for
+		// vkCmdBindDescriptorSets). Re-bind after every pipeline switch.
 		rp.SetPipeline(pipe)
+		rp.SetBindGroup(0, resources.bindGroup, nil)
+		if clipBG != nil {
+			rp.SetBindGroup(1, clipBG, nil)
+		}
+		if maskBG != nil {
+			rp.SetBindGroup(2, maskBG, nil)
+		}
 		if rg.indexed {
 			if rg.indexCount == 0 {
 				continue

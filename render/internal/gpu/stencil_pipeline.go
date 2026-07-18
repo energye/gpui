@@ -65,6 +65,9 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 
 	// Create bind group layout shared by both pipelines.
 	// One uniform buffer at group(0) binding(0), visible to vertex + fragment stages.
+	// MinBindingSize left as 0 (None): fill is 16 bytes, cover is 32; a non-zero
+	// min that matches only one of them forces late-size mismatches. Pipeline
+	// switches after stencil re-bind group 0 explicitly in each Record* method.
 	uniformLayout, err := sr.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
 		Label: "stencil_cover_uniform_layout",
 		Entries: []types.BindGroupLayoutEntry{
@@ -481,6 +484,9 @@ func (sr *StencilRenderer) destroyPipelines() {
 	if sr.device == nil {
 		return
 	}
+	// Bump epoch first so any pooled bind groups are treated as stale even if
+	// a concurrent path observes a half-destroyed renderer.
+	sr.pipelineEpoch++
 	sr.releaseNoMask()
 	sr.coverPipeMaskLayout = nil
 	if sr.texturedCoverPipeline != nil {

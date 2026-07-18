@@ -24,8 +24,14 @@ func (p *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
 }
 
 // SetBindGroup sets a bind group for the given index.
+// Passing group == nil unsets the bind group (required before switching to a
+// pipeline with an incompatible bind-group layout in the same render pass).
 func (p *RenderPassEncoder) SetBindGroup(index uint32, group *BindGroup, offsets []uint32) {
+	if p == nil || p.r == nil {
+		return
+	}
 	if group == nil || group.r == nil {
+		p.r.SetBindGroup(index, nil, nil)
 		return
 	}
 	p.r.SetBindGroup(index, group.r, offsets)

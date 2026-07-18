@@ -12,6 +12,16 @@ const (
 	shaderEntryFS = "fs_main"
 )
 
+// clearPassBindGroups is a no-op placeholder kept so call sites compile while
+// we rely on bind-group rebind-after-SetPipeline plus compatible MinBindingSize
+// on stencil_cover_uniform_layout. Unsetting via SetBindGroup(nil) is supported
+// by the WebGPU C API but was observed to leave pipelines invalid on this
+// wgpu-native build when used mid-pass; do not reintroduce without a focused
+// native repro.
+func clearPassBindGroups(rp *webgpu.RenderPassEncoder) {
+	_ = rp
+}
+
 // stencilPassthroughDepthStencil returns a DepthStencilState that passes through
 // all stencil operations (no write, no test). Used by pipelines that render
 // alongside the stencil-then-cover renderer but don't interact with stencil.

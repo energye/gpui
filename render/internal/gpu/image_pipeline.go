@@ -412,6 +412,8 @@ func (p *TexturedQuadPipeline) ensureBase() error {
 // variant is used to test fragments against the depth clip buffer.
 func (p *TexturedQuadPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources, clipBG *webgpu.BindGroup, depthClipped ...bool) {
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
+	// Clear prior bind groups before pipeline switch (incompatible group-0 layouts).
+	clearPassBindGroups(rp)
 	if useDepthClip {
 		rp.SetPipeline(p.pipelineWithDepthClip)
 	} else {

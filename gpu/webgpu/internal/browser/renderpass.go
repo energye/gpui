@@ -74,6 +74,12 @@ func (p *RenderPassEncoder) SetBindGroup(index uint32, group js.Value, dynamicOf
 	p.fnSetBindGroup.Invoke(index, group, jsArray, 0, len(dynamicOffsets))
 }
 
+// SetBindGroupNull unsets the bind group at the given index (GPUBindGroup? = null).
+// Required before SetPipeline when switching to an incompatible bind-group layout.
+func (p *RenderPassEncoder) SetBindGroupNull(index uint32) {
+	p.fnSetBindGroup.Invoke(index, js.Null())
+}
+
 // SetVertexBuffer sets a vertex buffer for the given slot.
 //
 // If size is 0, the size parameter is omitted (meaning "rest of buffer"),

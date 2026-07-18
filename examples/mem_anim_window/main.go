@@ -1445,10 +1445,14 @@ func drawPolygons(dc *render.Context, fw, fh, t float64, lite bool) {
 
 func drawTransformed(dc *render.Context, fw, fh, t float64) {
 	// CTM group: rotating/scaled mini-grid + solid shapes (S11 变换 must be obvious).
+	// Uniform scale only: non-uniform Scale(sx,sy) forces T.03 user-space stroke
+	// expand (matrixRequiresUserSpaceStroke) and trips mem_anim cpu_fallback_ops=0
+	// gate even though the expanded outline may still fill on GPU.
 	dc.Push()
 	dc.Translate(fw*0.52, fh*0.28)
 	dc.Rotate(t * 0.55)
-	dc.Scale(1+0.12*math.Sin(t), 1+0.12*math.Cos(t*0.9))
+	s := 1 + 0.12*math.Sin(t)
+	dc.Scale(s, s)
 
 	// Back plate
 	dc.SetRGBA(0.12, 0.14, 0.22, 0.75)

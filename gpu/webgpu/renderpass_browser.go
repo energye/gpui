@@ -20,8 +20,14 @@ func (p *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
 }
 
 // SetBindGroup sets a bind group for the given index.
+// Passing group == nil unsets the bind group (WebGPU allows null GPUBindGroup).
 func (p *RenderPassEncoder) SetBindGroup(index uint32, group *BindGroup, offsets []uint32) {
+	if p == nil || p.browser == nil {
+		return
+	}
 	if group == nil || group.browser == nil {
+		// Unset: pass JS null so the browser encoder clears the slot.
+		p.browser.SetBindGroupNull(index)
 		return
 	}
 	p.browser.SetBindGroup(index, group.browser.Ref(), offsets)

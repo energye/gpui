@@ -122,9 +122,9 @@ func drawGradientPattern(dc *render.Context, fw, fh, t float64, lite bool, frame
 // drawAdvancedBlendPanel: broader blend-mode set on a retained offscreen RT.
 func drawAdvancedBlendPanel(dc *render.Context, fw, fh, t float64, lite bool, frame int) {
 	tw, th := 240, 128
-	period := 2
+	period := 3
 	if lite {
-		period = 4
+		period = 6
 	}
 	modes := []struct {
 		mode render.BlendMode
@@ -146,11 +146,14 @@ func drawAdvancedBlendPanel(dc *render.Context, fw, fh, t float64, lite bool, fr
 	}
 	if shouldRecompute(gAdvBlendRT.last() != nil, lite, frame, 0, period) {
 		rt := gAdvBlendRT.ensure(tw, th)
-		// Gradient-like base bands so blend differences are obvious.
-		for y := 0; y < th; y++ {
-			u := float64(y) / float64(th-1)
+		// Coarse vertical bands (not 1px rows): same visual intent, far fewer draws.
+		// Per-row Fill previously issued ~128 GPU ops every recompute and tanked S16 FPS.
+		const bands = 16
+		bandH := float64(th) / float64(bands)
+		for y := 0; y < bands; y++ {
+			u := float64(y) / float64(bands-1)
 			rt.SetRGB(0.15+0.55*u, 0.18+0.25*(1-u), 0.35+0.4*u)
-			rt.DrawRectangle(0, float64(y), float64(tw), 1)
+			rt.DrawRectangle(0, float64(y)*bandH, float64(tw), bandH+0.5)
 			_ = rt.Fill()
 		}
 		// Vertical stripes

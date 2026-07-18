@@ -345,6 +345,8 @@ func (p *MSDFTextPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources *
 		return
 	}
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
+	// Clear prior bind groups before pipeline switch (incompatible group-0 layouts).
+	clearPassBindGroups(rp)
 	if useDepthClip {
 		rp.SetPipeline(p.pipelineWithDepthClip)
 	} else {

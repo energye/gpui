@@ -354,10 +354,6 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
 
-	// Select pipeline: depth-clipped variant takes priority, then LCD two-pass, then grayscale.
-	if clipBG != nil {
-		rp.SetBindGroup(1, clipBG, nil)
-	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.SetIndexBuffer(resources.idxBuf, types.IndexFormatUint16, 0)
 
@@ -365,7 +361,13 @@ func (p *GlyphMaskPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, resources 
 		if pipeline == nil || dc.indexCount == 0 || dc.bindGroup == nil {
 			return
 		}
+		// Clear prior bind groups before pipeline switch (LCD two-pass and
+		// grayscale share different uniform min_binding_size layouts).
+		clearPassBindGroups(rp)
 		rp.SetPipeline(pipeline)
+		if clipBG != nil {
+			rp.SetBindGroup(1, clipBG, nil)
+		}
 		rp.SetBindGroup(0, dc.bindGroup, nil)
 		rp.DrawIndexed(dc.indexCount, 1, dc.indexOffset, 0, 0)
 	}
