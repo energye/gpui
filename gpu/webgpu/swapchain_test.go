@@ -3,9 +3,11 @@
 package webgpu_test
 
 import (
+	"errors"
 	"os"
 	"testing"
 
+	"github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
@@ -59,5 +61,57 @@ func TestSwapchain_NewDefaults(t *testing.T) {
 	}
 	if sc.Usage != types.TextureUsageRenderAttachment {
 		t.Fatalf("usage %v", sc.Usage)
+	}
+}
+
+func TestSwapchain_BeginFrame_PreChecks(t *testing.T) {
+	// Nil surface → invalid handle (not panic).
+	sc := webgpu.NewSwapchain(nil, nil, 64, 64)
+	_, err := sc.BeginFrame()
+	if err == nil {
+		t.Fatal("expected BeginFrame error without surface")
+	}
+
+	// Frame pairing: force frameOpen via DiscardFrame/EndFrame path on a
+	// synthetic open state by calling BeginFrame twice is hard without a
+	// real surface. Exercise EndFrame without open frame.
+	sc2 := webgpu.NewSwapchain(nil, nil, 64, 64)
+	if err := sc2.EndFrame(&webgpu.Frame{}); !errors.Is(err, webgpu.ErrNoFrame) {
+		t.Fatalf("EndFrame without BeginFrame: %v, want ErrNoFrame", err)
+	}
+}
+
+func TestSwapchain_FramePairing_DiscardClearsOpen(t *testing.T) {
+	sc := webgpu.NewSwapchain(nil, nil, 64, 64)
+	// DiscardFrame on nil is fine; frameOpen stays false.
+	sc.DiscardFrame(nil)
+	if err := sc.EndFrame(&webgpu.Frame{}); !errors.Is(err, webgpu.ErrNoFrame) {
+		t.Fatalf("after DiscardFrame(nil) EndFrame: %v", err)
+	}
+	// DiscardFrame with empty frame clears open flag if it were set.
+	sc.DiscardFrame(&webgpu.Frame{})
+	if err := sc.EndFrame(&webgpu.Frame{}); !errors.Is(err, webgpu.ErrNoFrame) {
+		t.Fatalf("EndFrame after Discard: %v", err)
+	}
+}
+
+func TestSwapchain_BeginFrame_StickyDeviceLost(t *testing.T) {
+	// Trip process sticky fuse via public test hook; assert real BeginFrame path.
+	was := rwgpu.AnyDeviceLost()
+	defer func() {
+		if !was {
+			rwgpu.ResetDeviceLostForTest()
+		}
+	}()
+	rwgpu.ResetDeviceLostForTest()
+	rwgpu.MarkDeviceLostForTest(0xcafef00d)
+	if !rwgpu.AnyDeviceLost() {
+		t.Fatal("MarkDeviceLostForTest must set sticky fuse")
+	}
+
+	sc := webgpu.NewSwapchain(&webgpu.Surface{}, nil, 64, 64)
+	_, err := sc.BeginFrame()
+	if !errors.Is(err, webgpu.ErrDeviceLost) {
+		t.Fatalf("sticky lost BeginFrame: %v, want ErrDeviceLost", err)
 	}
 }

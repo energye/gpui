@@ -19,11 +19,8 @@ type QuerySetDescriptor struct {
 
 // CreateQuerySet creates a new QuerySet for GPU profiling/timestamps.
 func (d *Device) CreateQuerySet(desc *QuerySetDescriptor) (*QuerySet, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateQuerySet", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateQuerySet", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateQuerySet", Message: "descriptor is nil"}
@@ -36,6 +33,8 @@ func (d *Device) CreateQuerySet(desc *QuerySetDescriptor) (*QuerySet, error) {
 		count:       desc.Count,
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateQuerySet.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&nativeDesc)),
@@ -48,12 +47,18 @@ func (d *Device) CreateQuerySet(desc *QuerySetDescriptor) (*QuerySet, error) {
 }
 
 // Destroy destroys the QuerySet, making it invalid.
+// After Destroy the handle is nulled so subsequent ops cannot call native with
+// a wild pointer. Idempotent; a following Release is a no-op.
 func (qs *QuerySet) Destroy() {
-	mustInit()
 	if qs == nil || qs.handle == 0 {
 		return
 	}
-	procQuerySetDestroy.Call(qs.handle) //nolint:errcheck
+	mustInit()
+	h := qs.handle
+	procQuerySetDestroy.Call(h) //nolint:errcheck
+	untrackResource(h)
+	procQuerySetRelease.Call(h) //nolint:errcheck
+	qs.handle = 0
 }
 
 // Release releases the QuerySet reference.

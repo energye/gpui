@@ -105,9 +105,6 @@ var (
 // This replaces the deprecated SwapChain API.
 // Enum values are converted from gputypes to wgpu-native values before FFI call.
 func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error {
-	if err := checkInit(); err != nil {
-		return err
-	}
 	if s == nil || s.handle == 0 {
 		return &WGPUError{Op: "Surface.Configure", Message: "surface is nil or released"}
 	}
@@ -128,9 +125,16 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	}
 
 	// Refuse Configure after device-lost: native panics with "Parent device is lost".
-	if IsDeviceHandleLost(dev.handle) || AnyDeviceLost() {
-		return ErrDeviceLost
+	// Sticky fuse first — no native load required to refuse.
+	if err := refuseIfLost("Surface.Configure", dev.handle); err != nil {
+		return err
 	}
+	if err := checkInit(); err != nil {
+		return err
+	}
+
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 
 	nativeConfig := surfaceConfigurationWire{
 		nextInChain:     0,
@@ -182,21 +186,25 @@ func (s *Surface) Unconfigure() {
 // Returns the texture, a suboptimal flag (true if the surface needs reconfiguration
 // but is still usable this frame), and any error. This matches the gogpu/wgpu API.
 func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
-	if err := checkInit(); err != nil {
-		return nil, false, err
-	}
 	if s == nil || s.handle == 0 {
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface is nil or released"}
 	}
 	// wgpu-native panics (SIGABRT) on GetCurrentTexture when the parent device
 	// is already lost ("Parent device is lost"). Return a Go error instead.
-	if AnyDeviceLost() || (s.device != 0 && IsDeviceHandleLost(s.device)) {
+	// Sticky fuse first — no native load required to refuse.
+	if err := refuseIfLost("Surface.GetCurrentTexture", s.device); err != nil {
 		return nil, false, ErrSurfaceDeviceLost
+	}
+	if err := checkInit(); err != nil {
+		return nil, false, err
 	}
 	if _, msg := PeekUncapturedError(); looksLikeDeviceLost(msg) {
 		markDeviceLost(s.device)
 		return nil, false, ErrSurfaceDeviceLost
 	}
+
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 
 	var surfTex surfaceTexture
 
@@ -263,15 +271,18 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 // is unused in the FFI implementation (wgpuSurfacePresent takes no texture arg).
 // Returns nil on success.
 func (s *Surface) Present(texture ...*SurfaceTexture) error {
-	if err := checkInit(); err != nil {
-		return err
-	}
 	if s == nil || s.handle == 0 {
 		return &WGPUError{Op: "Surface.Present", Message: "surface is nil or released"}
 	}
-	if s.device != 0 && (IsDeviceHandleLost(s.device) || AnyDeviceLost()) {
-		return ErrDeviceLost
+	// Sticky fuse first — no native load required to refuse.
+	if err := refuseIfLost("Surface.Present", s.device); err != nil {
+		return err
 	}
+	if err := checkInit(); err != nil {
+		return err
+	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	_, _ = LastUncapturedError()      // attribute post-call errors to this op
 	procSurfacePresent.Call(s.handle) //nolint:errcheck
 	if typ, msg := LastUncapturedError(); msg != "" {

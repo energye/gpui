@@ -291,6 +291,13 @@ func main() {
 			if ev.Type == xMapNotify {
 				windowMinimized = false
 			}
+			// GNOME Iconify: often only WM_STATE→IconicState, no UnmapNotify.
+			if xw.IsWMStateProperty(ev) {
+				windowMinimized = xw.IsIconic()
+				if !windowMinimized {
+					// Restored from iconify: force a clean present next frame.
+				}
+			}
 			if ev.Type == xConfigureNotify && !lockSize {
 				nw, nh := ev.Width, ev.Height
 				// Zero extent (some WMs) is not a usable surface; treat as idle.

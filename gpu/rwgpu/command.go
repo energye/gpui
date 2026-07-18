@@ -46,23 +46,24 @@ type ComputePassDescriptor struct {
 // CreateCommandEncoder creates a command encoder.
 // Returns an error if the FFI call fails or the device is nil.
 func (d *Device) CreateCommandEncoder(desc *CommandEncoderDescriptor) (*CommandEncoder, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateCommandEncoder", d); err != nil {
 		return nil, err
 	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateCommandEncoder", Message: "device is nil or released"}
-	}
 	var descPtr uintptr
+	var wire commandEncoderDescriptorWire
 	if desc != nil {
-		wire := commandEncoderDescriptorWire{
+		wire = commandEncoderDescriptorWire{
 			Label: stringToStringView(desc.Label),
 		}
 		descPtr = uintptr(unsafe.Pointer(&wire))
 	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateCommandEncoder.Call(
 		d.handle,
 		descPtr,
 	)
+	runtime.KeepAlive(wire)
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateCommandEncoder", Message: "wgpu returned null handle"}
 	}
@@ -453,9 +454,14 @@ func (cpe *ComputePassEncoder) Handle() uintptr { return cpe.handle }
 // index can be used with Device.Poll to track when work completes.
 // Matches gogpu/wgpu Queue.Submit(commands ...*CommandBuffer) (uint64, error).
 func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
-	mustInit()
-	if q == nil || q.handle == 0 || len(commands) == 0 {
+	if err := gateQueue("Queue.Submit", q); err != nil {
+		return 0, err
+	}
+	if len(commands) == 0 {
 		return 0, nil
+	}
+	if err := checkInit(); err != nil {
+		return 0, err
 	}
 	if cap(q.submitHandles) < len(commands) {
 		q.submitHandles = make([]uintptr, len(commands))
@@ -472,6 +478,8 @@ func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
 	}
 	// wgpuQueueSubmitForIndex is a wgpu-native extension that returns WGPUSubmissionIndex (uint64).
 	// This enables callers to poll for GPU completion of a specific submission.
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	submissionIndex, _ := call3(procQueueSubmitForIndex, q.handle, uintptr(len(handles)), uintptr(unsafe.Pointer(&handles[0])))
 	runtime.KeepAlive(handles)
 	runtime.KeepAlive(commands)

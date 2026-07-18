@@ -17,31 +17,49 @@ const (
 	xUnmapNotify     = 18
 	xMapNotify       = 19
 	xConfigureNotify = 22
+	xPropertyNotify  = 28
 	xClientMessage   = 33
 	xStructureNotify = int64(1 << 17)
 	xExposureMask    = int64(1 << 15)
+	// PropertyChangeMask: GNOME Iconify often sets WM_STATE without UnmapNotify.
+	xPropertyChangeMask = int64(1 << 22)
+
+	// ICCCM WM_STATE values.
+	xWMStateWithdrawn = 0
+	xWMStateNormal    = 1
+	xWMStateIconic    = 3
 )
 
 type x11Event struct {
 	Type          int
 	Width, Height int
-	raw           [192]byte
+	// Atom is set for PropertyNotify (property atom).
+	Atom uintptr
+	raw  [192]byte
 }
 
 type x11Win struct {
-	lib               uintptr
-	Display           uintptr
-	Window            uintptr
-	wmDeleteAtom      uintptr
-	xPending          func(dpy uintptr) int
-	xNextEvent        func(dpy uintptr, ev *byte) int
-	xFlush            func(dpy uintptr) int
-	xDestroyWindow    func(dpy uintptr, win uintptr) int
-	xCloseDisplay     func(dpy uintptr) int
-	xInternAtom       func(dpy uintptr, name *byte, onlyIfExists int) uintptr
-	xSetWMProtocols   func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
-	xSetWMNormalHints func(dpy uintptr, win uintptr, hints *byte) int
-	xResizeWindow     func(dpy uintptr, win uintptr, w, h uint32) int
+	lib                uintptr
+	Display            uintptr
+	Window             uintptr
+	wmDeleteAtom       uintptr
+	wmStateAtom        uintptr
+	xPending           func(dpy uintptr) int
+	xNextEvent         func(dpy uintptr, ev *byte) int
+	xFlush             func(dpy uintptr) int
+	xDestroyWindow     func(dpy uintptr, win uintptr) int
+	xCloseDisplay      func(dpy uintptr) int
+	xInternAtom        func(dpy uintptr, name *byte, onlyIfExists int) uintptr
+	xSetWMProtocols    func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+	xSetWMNormalHints  func(dpy uintptr, win uintptr, hints *byte) int
+	xResizeWindow      func(dpy uintptr, win uintptr, w, h uint32) int
+	xGetWindowProperty func(
+		dpy uintptr, win uintptr, property uintptr,
+		offset, length int64, delete int, reqType uintptr,
+		actualType *uintptr, actualFormat *int32,
+		nitems *uint64, bytesAfter *uint64, prop **byte,
+	) int
+	xFree func(ptr uintptr) int
 }
 
 // Resize asks the X server to change the window size (real present-path resize).
@@ -124,7 +142,47 @@ func (w *x11Win) NextEvent() x11Event {
 		ev.Width = int(*(*int32)(unsafe.Pointer(&ev.raw[56])))
 		ev.Height = int(*(*int32)(unsafe.Pointer(&ev.raw[60])))
 	}
+	if ev.Type == xPropertyNotify {
+		// LP64 XPropertyEvent: atom@40
+		ev.Atom = *(*uintptr)(unsafe.Pointer(&ev.raw[40]))
+	}
 	return ev
+}
+
+// IsWMStateProperty reports whether ev is a PropertyNotify for WM_STATE
+// (GNOME Iconify path without UnmapNotify).
+func (w *x11Win) IsWMStateProperty(ev x11Event) bool {
+	return w != nil && ev.Type == xPropertyNotify && w.wmStateAtom != 0 && ev.Atom == w.wmStateAtom
+}
+
+// IsIconic queries ICCCM WM_STATE. Returns true when IconicState (minimized).
+// Used for GNOME Iconify where UnmapNotify may not fire.
+func (w *x11Win) IsIconic() bool {
+	if w == nil || w.xGetWindowProperty == nil || w.wmStateAtom == 0 || w.Display == 0 || w.Window == 0 {
+		return false
+	}
+	var actualType uintptr
+	var actualFormat int32
+	var nitems, bytesAfter uint64
+	var prop *byte
+	// long_length=2: state + icon window
+	status := w.xGetWindowProperty(
+		w.Display, w.Window, w.wmStateAtom,
+		0, 2, 0, 0, // AnyPropertyType = 0
+		&actualType, &actualFormat, &nitems, &bytesAfter, &prop,
+	)
+	if status != 0 /* Success */ || prop == nil || nitems < 1 {
+		if prop != nil && w.xFree != nil {
+			w.xFree(uintptr(unsafe.Pointer(prop)))
+		}
+		return false
+	}
+	// First CARDINAL is state (32-bit).
+	state := *(*uint32)(unsafe.Pointer(prop))
+	if w.xFree != nil {
+		w.xFree(uintptr(unsafe.Pointer(prop)))
+	}
+	return state == xWMStateIconic || state == xWMStateWithdrawn
 }
 func (w *x11Win) IsDelete(ev x11Event) bool {
 	if w == nil || ev.Type != xClientMessage || w.wmDeleteAtom == 0 {
@@ -191,7 +249,8 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	}
 	name := append([]byte(title), 0)
 	xStoreName(dpy, win, &name[0])
-	xSelectInput(dpy, win, xStructureNotify|xExposureMask)
+	// PropertyChangeMask: GNOME Iconify updates WM_STATE without UnmapNotify.
+	xSelectInput(dpy, win, xStructureNotify|xExposureMask|xPropertyChangeMask)
 
 	atomName := append([]byte("WM_DELETE_WINDOW"), 0)
 	delAtom := xInternAtom(dpy, &atomName[0], 0)
@@ -199,9 +258,33 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 		prot := delAtom
 		xSetWMProtocols(dpy, win, &prot, 1)
 	}
+	wmStateName := append([]byte("WM_STATE"), 0)
+	wmStateAtom := xInternAtom(dpy, &wmStateName[0], 0)
+
 	// Register size-hint setter for LockSize (timed soaks keep 800x600).
 	var xSetWMNormalHints func(dpy uintptr, win uintptr, hints *byte) int
 	purego.RegisterLibFunc(&xSetWMNormalHints, lib, "XSetWMNormalHints")
+	var xGetWindowProperty func(
+		dpy uintptr, win uintptr, property uintptr,
+		offset, length int64, delete int, reqType uintptr,
+		actualType *uintptr, actualFormat *int32,
+		nitems *uint64, bytesAfter *uint64, prop **byte,
+	) int
+	purego.RegisterLibFunc(&xGetWindowProperty, lib, "XGetWindowProperty")
+	var xFree func(ptr uintptr) int
+	purego.RegisterLibFunc(&xFree, lib, "XFree")
+	// _NET_WM_PID so external soak drivers can find this window by process id.
+	var xChangeProperty func(dpy, w, prop, typ uintptr, format, mode int, data *byte, nelements int) int
+	purego.RegisterLibFunc(&xChangeProperty, lib, "XChangeProperty")
+	pidAtomName := append([]byte("_NET_WM_PID"), 0)
+	pidAtom := xInternAtom(dpy, &pidAtomName[0], 0)
+	cardAtomName := append([]byte("CARDINAL"), 0)
+	cardAtom := xInternAtom(dpy, &cardAtomName[0], 0)
+	if pidAtom != 0 && cardAtom != 0 && xChangeProperty != nil {
+		pid := uint32(os.Getpid())
+		// PropModeReplace = 0
+		xChangeProperty(dpy, win, pidAtom, cardAtom, 32, 0, (*byte)(unsafe.Pointer(&pid)), 1)
+	}
 
 	xMapWindow(dpy, win)
 	xFlush(dpy)
@@ -209,11 +292,14 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 
 	xw := &x11Win{
 		lib: lib, Display: dpy, Window: win, wmDeleteAtom: delAtom,
-		xPending: xPending, xNextEvent: xNextEvent, xFlush: xFlush,
+		wmStateAtom: wmStateAtom,
+		xPending:    xPending, xNextEvent: xNextEvent, xFlush: xFlush,
 		xDestroyWindow: xDestroyWindow, xCloseDisplay: xCloseDisplay,
 		xInternAtom: xInternAtom, xSetWMProtocols: xSetWMProtocols,
-		xSetWMNormalHints: xSetWMNormalHints,
-		xResizeWindow:     xResizeWindow,
+		xSetWMNormalHints:  xSetWMNormalHints,
+		xResizeWindow:      xResizeWindow,
+		xGetWindowProperty: xGetWindowProperty,
+		xFree:              xFree,
 	}
 	return xw, nil
 }

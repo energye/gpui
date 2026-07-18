@@ -47,6 +47,8 @@ func (e *WGPUError) Error() string {
 
 // Is supports errors.Is() matching by error Type.
 // This allows: errors.Is(err, wgpu.ErrValidation)
+// Message-only sentinels (ErrDeviceLost, ErrInvalidHandle) match any Op
+// whose Message equals the sentinel Message.
 func (e *WGPUError) Is(target error) bool {
 	t, ok := target.(*WGPUError)
 	if !ok {
@@ -55,6 +57,10 @@ func (e *WGPUError) Is(target error) bool {
 	// Match by Type if target has no specific Op/Message
 	if t.Op == "" && t.Message == "" {
 		return e.Type == t.Type
+	}
+	// Message-only sentinel (Op empty): match Message regardless of Op.
+	if t.Op == "" && t.Message != "" {
+		return e.Message == t.Message
 	}
 	return e.Op == t.Op && e.Type == t.Type && e.Message == t.Message
 }

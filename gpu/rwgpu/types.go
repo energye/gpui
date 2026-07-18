@@ -40,6 +40,8 @@ type Device struct {
 // Obtained via [Device.Queue], release with [Queue.Release].
 type Queue struct {
 	handle uintptr
+	// device is the parent Device handle for sticky-lost / refuseIfLost checks.
+	device uintptr
 	// submitHandles is grow-only scratch for Queue.Submit (avoids per-frame make).
 	submitHandles []uintptr
 }

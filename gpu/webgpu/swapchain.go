@@ -5,9 +5,11 @@ package webgpu
 import (
 	"fmt"
 	"image"
+	"sync"
 	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -54,6 +56,12 @@ type Swapchain struct {
 	// lastReconfig rate-limits native Surface.Configure. Continuous reconfigure
 	// under long stress (S14) can abort wgpu-native ("failed to initiate panic").
 	lastReconfig time.Time
+
+	// frameOpen is true between a successful BeginFrame and EndFrame/DiscardFrame.
+	// Enforces one-in-flight pairing: BeginFrame while open is an error.
+	// Protected by frameMu for concurrent BeginFrame/EndFrame/DiscardFrame.
+	frameMu   sync.Mutex
+	frameOpen bool
 }
 
 // Frame is one acquired swapchain image ready for rendering.
@@ -278,6 +286,12 @@ func (sc *Swapchain) MarkNeedsReconfigure() {
 // BeginFrame acquires the next surface texture and creates a render view.
 // Caller must EndFrame (or DiscardFrame) exactly once per successful BeginFrame.
 //
+// Pre-checks (all refuse before native acquire):
+//   - sticky/process device-lost fuse
+//   - device IsLost
+//   - surface non-nil / not released
+//   - no frame already open (pairing)
+//
 // Error policy (library-generic; window policy is downstream):
 //   - DeviceLost: return ErrDeviceLost; never reconfigure (native may abort)
 //   - Occluded / Timeout: return as-is; skip frame, do not reconfigure
@@ -287,8 +301,20 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if sc == nil {
 		return nil, fmt.Errorf("wgpu: swapchain is nil")
 	}
-	if sc.Device != nil && sc.Device.IsLost() {
+	sc.frameMu.Lock()
+	defer sc.frameMu.Unlock()
+	// Triple pre-check: fuse / device / surface.
+	if rwgpu.AnyDeviceLost() || (sc.Device != nil && sc.Device.IsLost()) {
 		return nil, ErrDeviceLost
+	}
+	if sc.Surface == nil {
+		return nil, ErrInvalidHandle
+	}
+	if sc.Surface.released {
+		return nil, ErrReleased
+	}
+	if sc.frameOpen {
+		return nil, ErrFrameInFlight
 	}
 	if sc.Width == 0 || sc.Height == 0 {
 		return nil, fmt.Errorf("wgpu: swapchain extent must be non-zero")
@@ -355,6 +381,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 			sc.pendingReconfigure = true
 		}
 	}
+	sc.frameOpen = true
 	return &Frame{
 		SurfaceTexture: st,
 		View:           view,
@@ -408,6 +435,11 @@ func (sc *Swapchain) endFrame(frame *Frame, rects []image.Rectangle) error {
 	if frame == nil {
 		return fmt.Errorf("wgpu: frame is nil")
 	}
+	sc.frameMu.Lock()
+	defer sc.frameMu.Unlock()
+	if !sc.frameOpen {
+		return ErrNoFrame
+	}
 	if frame.View != nil {
 		frame.View.Release()
 		frame.View = nil
@@ -419,7 +451,9 @@ func (sc *Swapchain) endFrame(frame *Frame, rects []image.Rectangle) error {
 	}
 	t0 := time.Now()
 	var err error
-	if len(rects) > 0 {
+	if sc.Surface == nil {
+		err = ErrInvalidHandle
+	} else if len(rects) > 0 {
 		err = sc.Surface.PresentWithDamage(frame.SurfaceTexture, rects)
 	} else if len(frame.DamageRects) > 0 {
 		err = sc.Surface.PresentWithDamage(frame.SurfaceTexture, frame.DamageRects)
@@ -434,6 +468,7 @@ func (sc *Swapchain) endFrame(frame *Frame, rects []image.Rectangle) error {
 		frame.SurfaceTexture.Release()
 		frame.SurfaceTexture = nil
 	}
+	sc.frameOpen = false
 	return err
 }
 
@@ -452,7 +487,10 @@ func (sc *Swapchain) DiscardFrame(frame *Frame) {
 		frame.SurfaceTexture = nil
 	}
 	if sc != nil {
+		sc.frameMu.Lock()
 		sc.discards++
+		sc.frameOpen = false
+		sc.frameMu.Unlock()
 	}
 }
 

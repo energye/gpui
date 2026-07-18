@@ -40,11 +40,8 @@ type renderBundleEncoderDescriptorWire struct {
 // Render bundles allow you to pre-record a sequence of render commands that can be replayed
 // multiple times, which is useful for static geometry.
 func (d *Device) CreateRenderBundleEncoder(desc *RenderBundleEncoderDescriptor) (*RenderBundleEncoder, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateRenderBundleEncoder", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateRenderBundleEncoder", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateRenderBundleEncoder", Message: "descriptor is nil"}
@@ -69,6 +66,8 @@ func (d *Device) CreateRenderBundleEncoder(desc *RenderBundleEncoderDescriptor) 
 		wire.colorFormats = uintptr(unsafe.Pointer(&convertedFormats[0]))
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateRenderBundleEncoder.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),

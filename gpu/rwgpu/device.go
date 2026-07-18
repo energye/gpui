@@ -356,32 +356,49 @@ func fetchDeviceLimits(handle uintptr) Limits {
 }
 
 // Queue returns the default queue for the device.
+// Returns nil when the device is nil/released or the sticky device-lost fuse is set
+// (avoids purego Call on a lost device handle).
 func (d *Device) Queue() *Queue {
-	mustInit()
 	if d == nil || d.handle == 0 {
 		return nil
 	}
+	if refuseIfLost("Device.Queue", d.handle) != nil {
+		return nil
+	}
+	if checkInit() != nil {
+		return nil
+	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceGetQueue.Call(d.handle)
 	if handle == 0 {
 		return nil
 	}
 	trackResource(handle, "Queue")
-	return &Queue{handle: handle}
+	return &Queue{handle: handle, device: d.handle}
 }
 
 // Poll polls the device for completed work.
 // If wait is true, blocks until there is work to process.
 // Returns true if the queue is empty.
 // This is a wgpu-native extension.
+// After device-lost, returns true without calling native (queue treated as empty).
 func (d *Device) Poll(wait bool) bool {
-	mustInit()
 	if d == nil || d.handle == 0 {
+		return true
+	}
+	if refuseIfLost("Device.Poll", d.handle) != nil {
+		return true
+	}
+	if checkInit() != nil {
 		return true
 	}
 	var waitArg uintptr
 	if wait {
 		waitArg = 1
 	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	result, _, _ := procDevicePoll.Call(d.handle, waitArg, 0)
 	return result != 0
 }

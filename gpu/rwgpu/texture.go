@@ -112,11 +112,18 @@ func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) 
 }
 
 // Destroy destroys the texture.
+// After Destroy the handle is nulled so subsequent ops cannot call native with
+// a wild pointer. Idempotent; a following Release is a no-op.
 func (t *Texture) Destroy() {
-	mustInit()
-	if t.handle != 0 {
-		procTextureDestroy.Call(t.handle) //nolint:errcheck
+	if t == nil || t.handle == 0 {
+		return
 	}
+	mustInit()
+	h := t.handle
+	procTextureDestroy.Call(h) //nolint:errcheck
+	untrackResource(h)
+	procTextureRelease.Call(h) //nolint:errcheck
+	t.handle = 0
 }
 
 // Release releases the texture reference.
@@ -198,11 +205,8 @@ func (tv *TextureView) Handle() uintptr { return tv.handle }
 // Enum values are converted from gputypes to wgpu-native values before FFI call.
 // Returns an error if the FFI call fails or the device/descriptor is nil.
 func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateTexture", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateTexture", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateTexture", Message: "descriptor is nil"}
@@ -245,6 +249,8 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 	}
 
 	// Clear sticky uncaptured state so we can attribute post-call errors to this op.
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	_, _ = LastUncapturedError()
 	handle, _, _ := procDeviceCreateTexture.Call(
 		d.handle,
@@ -331,9 +337,14 @@ type ImageDataLayout struct {
 // Accepts either [ImageCopyTexture] or [TexelCopyTextureInfo] as dest (via overloads below).
 // This overload takes the high-level [ImageCopyTexture] type.
 func (q *Queue) WriteTexture(dest *ImageCopyTexture, data []byte, layout *ImageDataLayout, size *types.Extent3D) error {
-	mustInit()
-	if q == nil || q.handle == 0 || dest == nil || layout == nil || size == nil || len(data) == 0 {
+	if err := gateQueue("Queue.WriteTexture", q); err != nil {
+		return err
+	}
+	if dest == nil || layout == nil || size == nil || len(data) == 0 {
 		return nil
+	}
+	if err := checkInit(); err != nil {
+		return err
 	}
 	wire := dest.toWire()
 	wireLayout := TexelCopyBufferLayout{
@@ -341,6 +352,8 @@ func (q *Queue) WriteTexture(dest *ImageCopyTexture, data []byte, layout *ImageD
 		BytesPerRow:  layout.BytesPerRow,
 		RowsPerImage: layout.RowsPerImage,
 	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	procQueueWriteTexture.Call( //nolint:errcheck
 		q.handle,
 		uintptr(unsafe.Pointer(&wire)),
@@ -360,10 +373,17 @@ func (q *Queue) WriteTexture(dest *ImageCopyTexture, data []byte, layout *ImageD
 // WriteTextureRaw writes data to a texture using the low-level wire types.
 // Prefer [WriteTexture] for new code.
 func (q *Queue) WriteTextureRaw(dest *TexelCopyTextureInfo, data []byte, layout *TexelCopyBufferLayout, size *types.Extent3D) error {
-	mustInit()
-	if q == nil || q.handle == 0 || dest == nil || layout == nil || size == nil || len(data) == 0 {
+	if err := gateQueue("Queue.WriteTextureRaw", q); err != nil {
+		return err
+	}
+	if dest == nil || layout == nil || size == nil || len(data) == 0 {
 		return nil
 	}
+	if err := checkInit(); err != nil {
+		return err
+	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	procQueueWriteTexture.Call( //nolint:errcheck
 		q.handle,
 		uintptr(unsafe.Pointer(dest)),

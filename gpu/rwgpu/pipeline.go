@@ -75,11 +75,8 @@ type computePipelineDescriptorWire struct {
 // CreatePipelineLayout creates a pipeline layout.
 // Returns an error if the FFI call fails or the device/descriptor is nil.
 func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*PipelineLayout, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreatePipelineLayout", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreatePipelineLayout", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreatePipelineLayout", Message: "descriptor is nil"}
@@ -109,6 +106,8 @@ func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*Pipeline
 		BindGroupLayouts:     layoutsPtr,
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreatePipelineLayout.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
@@ -146,11 +145,8 @@ func (pl *PipelineLayout) Handle() uintptr { return pl.handle }
 // CreateComputePipeline creates a compute pipeline.
 // Returns an error if the FFI call fails or the device/descriptor is nil.
 func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*ComputePipeline, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateComputePipeline", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateComputePipeline", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateComputePipeline", Message: "descriptor is nil"}
@@ -184,6 +180,8 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*Comput
 		Compute: compute,
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateComputePipeline.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),

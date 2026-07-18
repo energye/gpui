@@ -24,6 +24,16 @@ var (
 	// ErrOutOfMemory is returned when the GPU is out of memory.
 	ErrOutOfMemory = errors.New("wgpu: out of memory")
 
+	// ErrInvalidHandle is returned when operating on a nil/released/zero handle.
+	ErrInvalidHandle = errors.New("wgpu: invalid handle")
+
+	// ErrFrameInFlight is returned when BeginFrame is called while a prior
+	// frame has not been EndFrame/DiscardFrame'd (pairing violation).
+	ErrFrameInFlight = errors.New("wgpu: frame already in flight (BeginFrame/Present unpaired)")
+
+	// ErrNoFrame is returned when EndFrame/Present is called without a live frame.
+	ErrNoFrame = errors.New("wgpu: no frame in flight")
+
 	// ErrSurfaceLost is returned when the surface is lost.
 	ErrSurfaceLost = errors.New("wgpu: surface lost")
 

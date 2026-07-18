@@ -120,11 +120,8 @@ type bufferDescriptorWire struct {
 // CreateBuffer creates a new GPU buffer.
 // Returns an error if the FFI call fails or the device/descriptor is nil.
 func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateBuffer", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateBuffer", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateBuffer", Message: "descriptor is nil"}
@@ -135,6 +132,8 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 		Size:             desc.Size,
 		MappedAtCreation: boolToWGPU(desc.MappedAtCreation),
 	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateBuffer.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
@@ -207,11 +206,18 @@ func (b *Buffer) MapAsyncBlocking(device *Device, mode MapMode, offset, size uin
 }
 
 // Destroy destroys the buffer, making it invalid.
+// After Destroy the handle is nulled so subsequent ops cannot call native with
+// a wild pointer. Idempotent; a following Release is a no-op.
 func (b *Buffer) Destroy() {
-	mustInit()
-	if b.handle != 0 {
-		procBufferDestroy.Call(b.handle) //nolint:errcheck
+	if b == nil || b.handle == 0 {
+		return
 	}
+	mustInit()
+	h := b.handle
+	procBufferDestroy.Call(h) //nolint:errcheck
+	untrackResource(h)
+	procBufferRelease.Call(h) //nolint:errcheck
+	b.handle = 0
 	b.mapState = BufferMapStateUnmapped
 }
 
@@ -229,10 +235,17 @@ func (b *Buffer) Release() {
 // Returns nil on success. In this FFI implementation errors are surfaced through
 // the Device uncaptured-error callback; the signature matches gogpu/wgpu for API compatibility.
 func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
-	mustInit()
-	if q == nil || q.handle == 0 || buffer == nil || buffer.handle == 0 || len(data) == 0 {
+	if err := gateQueue("Queue.WriteBuffer", q); err != nil {
+		return err
+	}
+	if buffer == nil || buffer.handle == 0 || len(data) == 0 {
 		return nil
 	}
+	if err := checkInit(); err != nil {
+		return err
+	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	call5(procQueueWriteBuffer, q.handle, buffer.handle, uintptr(offset), uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)))
 	runtime.KeepAlive(data)
 	runtime.KeepAlive(buffer)
@@ -242,10 +255,17 @@ func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
 // WriteBufferTyped writes typed data to a buffer.
 // The data pointer should point to the first element, size is total byte size.
 func (q *Queue) WriteBufferRaw(buffer *Buffer, offset uint64, data unsafe.Pointer, size uint64) {
-	mustInit()
-	if q == nil || q.handle == 0 || buffer == nil || buffer.handle == 0 || size == 0 {
+	if gateQueue("Queue.WriteBufferRaw", q) != nil {
 		return
 	}
+	if buffer == nil || buffer.handle == 0 || size == 0 {
+		return
+	}
+	if checkInit() != nil {
+		return
+	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	call5(procQueueWriteBuffer, q.handle, buffer.handle, uintptr(offset), uintptr(data), uintptr(size))
 	// Caller retains data; keep buffer object live across the FFI boundary.
 	runtime.KeepAlive(buffer)

@@ -19,11 +19,8 @@ type ShaderSourceWGSL struct {
 // CreateShaderModuleWGSL creates a shader module from WGSL source code.
 // Returns an error if the FFI call fails or the device is nil.
 func (d *Device) CreateShaderModuleWGSL(code string) (*ShaderModule, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateShaderModuleWGSL", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateShaderModuleWGSL", Message: "device is nil or released"}
 	}
 	if code == "" {
 		return nil, &WGPUError{Op: "CreateShaderModuleWGSL", Message: "shader source is empty"}
@@ -48,6 +45,8 @@ func (d *Device) CreateShaderModuleWGSL(code string) (*ShaderModule, error) {
 		Label:       EmptyStringView(),
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateShaderModule.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&desc)),
@@ -63,15 +62,14 @@ func (d *Device) CreateShaderModuleWGSL(code string) (*ShaderModule, error) {
 // For WGSL shaders, prefer CreateShaderModuleWGSL or use ShaderDescriptor.
 // Returns an error if the FFI call fails or the device/descriptor is nil.
 func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (*ShaderModule, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateShaderModule", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateShaderModule", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateShaderModule", Message: "descriptor is nil"}
 	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateShaderModule.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(desc)),
@@ -119,11 +117,8 @@ func (d *Device) createShaderModuleFromDesc(desc *ShaderDescriptor) (*ShaderModu
 // CreateShaderModuleSPIRV creates a shader module from SPIR-V bytecode.
 // Returns an error if the FFI call fails, the device is nil, or the bytecode is empty.
 func (d *Device) CreateShaderModuleSPIRV(label string, spirv []uint32) (*ShaderModule, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateShaderModuleSPIRV", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateShaderModuleSPIRV", Message: "device is nil or released"}
 	}
 	if len(spirv) == 0 {
 		return nil, &WGPUError{Op: "CreateShaderModuleSPIRV", Message: "SPIR-V bytecode is empty"}
@@ -148,6 +143,8 @@ func (d *Device) CreateShaderModuleSPIRV(label string, spirv []uint32) (*ShaderM
 		Label:       stringToStringView(label),
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateShaderModule.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&desc)),

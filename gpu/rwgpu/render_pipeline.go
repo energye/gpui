@@ -214,11 +214,8 @@ type RenderPipelineDescriptor struct {
 // CreateRenderPipeline creates a render pipeline.
 // Returns an error if the FFI call fails or the device/descriptor is nil.
 func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPipeline, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateRenderPipeline", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateRenderPipeline", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateRenderPipeline", Message: "descriptor is nil"}
@@ -434,6 +431,8 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 		fragment:     fragmentPtr,
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateRenderPipeline.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&nativeDesc)),

@@ -228,11 +228,8 @@ type bindGroupDescriptorWire struct {
 // Entries are converted from gputypes to wgpu-native enum values before FFI call.
 // Returns an error if the FFI call fails or the device/descriptor is nil.
 func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGroupLayout, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateBindGroupLayout", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateBindGroupLayout", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateBindGroupLayout", Message: "descriptor is nil"}
@@ -257,6 +254,8 @@ func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGr
 		wireDesc.Entries = uintptr(unsafe.Pointer(&wireEntries[0]))
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _ := call2(procDeviceCreateBindGroupLayout, d.handle, uintptr(unsafe.Pointer(&wireDesc)))
 	runtime.KeepAlive(wireEntries)
 	runtime.KeepAlive(wireDesc)
@@ -291,11 +290,8 @@ func (bgl *BindGroupLayout) Handle() uintptr { return bgl.handle }
 // CreateBindGroup creates a bind group.
 // Returns an error if the FFI call fails or the device/descriptor is nil.
 func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateBindGroup", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateBindGroup", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateBindGroup", Message: "descriptor is nil"}
@@ -328,6 +324,8 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 		Entries:    wireEntriesPtr,
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _ := call2(procDeviceCreateBindGroup, d.handle, uintptr(unsafe.Pointer(&wire)))
 	runtime.KeepAlive(wireEntries)
 	runtime.KeepAlive(wire)

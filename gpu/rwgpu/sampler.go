@@ -48,11 +48,8 @@ type samplerDescriptorWire struct {
 
 // CreateSampler creates a sampler with the specified descriptor.
 func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
-	if err := checkInit(); err != nil {
+	if err := prepareDeviceCall("CreateSampler", d); err != nil {
 		return nil, err
-	}
-	if d == nil || d.handle == 0 {
-		return nil, &WGPUError{Op: "CreateSampler", Message: "device is nil or released"}
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "CreateSampler", Message: "descriptor is nil"}
@@ -78,6 +75,8 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 		MaxAnisotropy: anisotropy,
 	}
 
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
 	handle, _, _ := procDeviceCreateSampler.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
