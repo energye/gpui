@@ -12,6 +12,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -253,6 +254,8 @@ func main() {
 		skipFPSSample     bool // true after harness dig: next present interval includes dig wall time
 		instFPSSamples    []float64
 		nextFrameDeadline time.Time
+		windowMinimized   bool
+		deviceLostFrames  int
 	)
 	rssSamples = make([]int64, 0, 256)
 	instFPSSamples = make([]float64, 0, 4096)
@@ -280,8 +283,21 @@ func main() {
 				exitReason = "window_close"
 				break
 			}
+			if ev.Type == xUnmapNotify {
+				// Minimize / unmap: stop GetCurrentTexture — continuous acquire
+				// on an unmapped surface can lose the device (native SIGABRT).
+				windowMinimized = true
+			}
+			if ev.Type == xMapNotify {
+				windowMinimized = false
+			}
 			if ev.Type == xConfigureNotify && !lockSize {
 				nw, nh := ev.Width, ev.Height
+				// Zero extent (some WMs) is not a usable surface; treat as idle.
+				if nw <= 0 || nh <= 0 {
+					windowMinimized = true
+					continue
+				}
 				if nw < 64 {
 					nw = 64
 				}
@@ -312,6 +328,11 @@ func main() {
 		}
 		if !running {
 			break
+		}
+		// Idle while minimized/unmapped: do not touch the swapchain.
+		if windowMinimized {
+			time.Sleep(16 * time.Millisecond)
+			continue
 		}
 
 		// Real X11 resize oscillate (diagnostic): resize window; ConfigureNotify
@@ -370,6 +391,18 @@ func main() {
 			log.Printf("BeginFrame: %v — skip", err)
 			presentErrors++
 			lastPresentErr = err.Error()
+			if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() {
+				deviceLostFrames++
+				if deviceLostFrames >= 3 {
+					log.Printf("GPU device lost — exiting cleanly (avoid native abort)")
+					exitReason = "device_lost"
+					running = false
+					continue
+				}
+				time.Sleep(50 * time.Millisecond)
+				continue
+			}
+			deviceLostFrames = 0
 			if resizeGrace > 0 {
 				presentErrResize++
 				resizeGrace--
@@ -379,6 +412,7 @@ func main() {
 			time.Sleep(2 * time.Millisecond)
 			continue
 		}
+		deviceLostFrames = 0
 		present := func() error { return sc.EndFrame(fb) }
 		if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
 			sc.DiscardFrame(fb)

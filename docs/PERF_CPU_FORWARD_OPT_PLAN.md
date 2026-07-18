@@ -1,7 +1,7 @@
 # 性能 / CPU 正向优化计划（稳 60 + 降主线程）
 
 > 版本：1.0 | 日期：2026-07-18  
-> 状态：**opt43 稳 60+ 达成**（R8；opt41+opt42+opt43 Keep；可选下一刀 R8.3 降主线程 CPU）  
+> 状态：**执行中**（R8；opt41–**opt44 Keep**；稳 60+ 维持；下一刀 R8.4/R8.5 pprof）  
 > 上位：[`RENDER_OPT_CONVERGENCE.md`](./RENDER_OPT_CONVERGENCE.md) · [`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) · [`MEM_LEAK_PERF_GUARD_PLAN.md`](./MEM_LEAK_PERF_GUARD_PLAN.md)  
 > 问题墙 / 实测：`examples/particle_kitchen_sink/PROBLEMS_LATEST.md` · 证据目录 `tmp/perf_fwd_opt41/`
 
@@ -188,7 +188,7 @@ export GPUI_SURFACE_SAMPLE_COUNT=1
 | 0 | **R8.0** | 冻结 baseline + 诚实 jitter 计量确认 | 可比数据 | 无 | **✅** |
 | 1 | **R8.1** | L3 pprof 标注可动 vs cgo 墙 | 选刀依据 | 无 | **✅** |
 | 2 | **R8.2 / opt41** | surface RP desc 复用 + Flush/filter warm ensure 去冗余 | 减 per-encode alloc + warm ensure | 低 | **✅ Keep** |
-| 3 | **R8.3** | glow/filter：`FlushAndFilterFromView` ensure/锁与 RT 复用 | 降 GLOW/BLEND_GLOW CPU | 中 | 待 |
+| 3 | **R8.3 / opt44** | glow/filter pass RP desc 复用 + LE uniform pack | 0-alloc filter pass；墙钟中性 | 低 | **✅ Keep** |
 | 4 | **R8.4** | 提交合并延伸：leading/encoder（**不开** full-frame singleSubmit） | 降 Finish/Submit 次数 | 高，需 F1 绿 | 待 |
 | 5 | **R8.5** | Go 打包微优（mesh/convex）bit-identical | 小幅 CPU | 低 | 待 |
 | 6 | **R8.6** | 文本/HUD 热路径残余（仅结构热点仍在时） | 稳 60 尖刺 | 低 | 待 |
@@ -219,7 +219,8 @@ export GPUI_SURFACE_SAMPLE_COUNT=1
 | opt41 | 2026-07-18 | **Keep** | 57.9 | 18.0% | 9.0% | 0.0009 | `tmp/perf_fwd_opt41/opt41/` | RP reuse + warm ensure; L3 +0.7fps −0.5pp CPU |
 | opt42 | 2026-07-18 | **Keep** | 57.9 | 18.3% | 7.9% | 0 | `tmp/perf_fwd_opt41/opt42/` | StringView 0-alloc + dual-tex scratch; SOLID −0.8pp |
 | opt43 | 2026-07-18 | **Keep** | 60.91 | 19.6%* | 9.5%* | 0 | `tmp/perf_fwd_opt41/opt43/` | step=budget-200µs + busy-spin；核心探针 ema/avg **≥60.7** hitch=0；uncapped L3≈146 headroom；*CPU 含 spin |
-| next | | | | | | | | R8.3 glow/filter ensure 或 pprof WriteBuffer |
+| opt44 | 2026-07-18 | **Keep** | 60.92 | 20.2%* | 9.5%* | ~0 | `tmp/perf_fwd_opt41/opt44/` | filter pass RP 0-alloc + LE pack；vs opt43 CPU 噪声带内；GLOW −0.2pp |
+| next | | | | | | | | R8.5 mesh/convex 或 WriteBuffer residual |
 
 ---
 
@@ -243,3 +244,4 @@ export GPUI_SURFACE_SAMPLE_COUNT=1
 | 1.2 | 2026-07-18 | opt42 Keep：stringToStringView 0-alloc + dual-tex scratch |
 | 1.3 | 2026-07-18 | opt43 Keep：hybrid software pace 默认开，核心探针锁 ~60；fifo Present 不真正等 vblank |
 | 1.4 | 2026-07-18 | opt43d：step-budget(−200µs)+busy-spin，核心探针稳定 **60+** 验证通过 |
+| 1.5 | 2026-07-18 | opt44 Keep：filter pass RP reuse（R8.3）+ LE uniform pack |

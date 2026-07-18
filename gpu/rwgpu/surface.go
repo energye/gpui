@@ -119,6 +119,11 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		return nil
 	}
 
+	// Refuse Configure after device-lost: native panics with "Parent device is lost".
+	if IsDeviceHandleLost(dev.handle) {
+		return ErrDeviceLost
+	}
+
 	nativeConfig := surfaceConfigurationWire{
 		nextInChain:     0,
 		device:          dev.handle,
@@ -136,6 +141,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		s.handle,
 		uintptr(unsafe.Pointer(&nativeConfig)),
 	)
+	s.device = dev.handle
 	return nil
 }
 
@@ -152,6 +158,7 @@ func (s *Surface) Unconfigure() {
 		return
 	}
 	procSurfaceUnconfigure.Call(s.handle) //nolint:errcheck
+	s.device = 0
 }
 
 // GetCurrentTexture gets the current texture to render to.
@@ -163,6 +170,15 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	}
 	if s == nil || s.handle == 0 {
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface is nil or released"}
+	}
+	// wgpu-native panics (SIGABRT) on GetCurrentTexture when the parent device
+	// is already lost ("Parent device is lost"). Return a Go error instead.
+	if AnyDeviceLost() || (s.device != 0 && IsDeviceHandleLost(s.device)) {
+		return nil, false, ErrSurfaceDeviceLost
+	}
+	if _, msg := PeekUncapturedError(); looksLikeDeviceLost(msg) {
+		markDeviceLost(s.device)
+		return nil, false, ErrSurfaceDeviceLost
 	}
 
 	var surfTex surfaceTexture
@@ -211,6 +227,16 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 		// v29: SurfaceGetCurrentTextureStatusError (0x06) covers all error cases
 		// including former OutOfMemory (0x06) and DeviceLost (0x07).
 		dropTex()
+		// If uncaptured/device-lost fired during the call, surface that clearly.
+		if s.device != 0 && IsDeviceHandleLost(s.device) {
+			return nil, false, ErrSurfaceDeviceLost
+		}
+		if _, msg := PeekUncapturedError(); looksLikeDeviceLost(msg) {
+			if s.device != 0 {
+				markDeviceLost(s.device)
+			}
+			return nil, false, ErrSurfaceDeviceLost
+		}
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "failed to get surface texture"}
 	}
 }

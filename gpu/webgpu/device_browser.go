@@ -303,6 +303,10 @@ func (d *Device) WaitIdle() error {
 // Poll drives the per-device pending-map triage loop.
 // On browser, the GPU is polled automatically by the browser event loop.
 // Returns true (devices are always considered polled in browser).
+// IsLost always returns false on the browser backend (device loss is not
+// tracked the same way as wgpu-native).
+func (d *Device) IsLost() bool { return false }
+
 func (d *Device) Poll(pollType PollType) bool {
 	return true
 }

@@ -111,7 +111,12 @@ type ComputePassEncoder struct{ handle uintptr }
 
 // Surface represents a platform window surface for presenting rendered frames.
 // Create with platform-specific CreateSurface, release with [Surface.Release].
-type Surface struct{ handle uintptr }
+// device is the last configured Device handle (0 if unconfigured); used to
+// refuse GetCurrentTexture after device-lost without calling into native.
+type Surface struct {
+	handle uintptr
+	device uintptr
+}
 
 // QuerySet holds a set of GPU queries (occlusion or timestamp).
 // Create with [Device.CreateQuerySet], release with [QuerySet.Release].

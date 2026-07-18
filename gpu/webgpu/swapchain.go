@@ -279,11 +279,14 @@ func (sc *Swapchain) MarkNeedsReconfigure() {
 // Caller must EndFrame (or DiscardFrame) exactly once per successful BeginFrame.
 //
 // S6.8: if the previous frame was suboptimal or MarkNeedsReconfigure was called,
-// reconfigures before acquire. On outdated/lost acquire errors, reconfigures once
-// and retries.
+// reconfigures before acquire. On outdated/timeout acquire errors, reconfigures
+// once and retries. Device-lost is terminal: reconfigure would panic native.
 func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if sc == nil {
 		return nil, fmt.Errorf("wgpu: swapchain is nil")
+	}
+	if sc.Device != nil && sc.Device.IsLost() {
+		return nil, ErrDeviceLost
 	}
 	if sc.pendingReconfigure || !sc.configured {
 		if err := sc.reconfigureThrottled(); err != nil {
@@ -295,7 +298,11 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	t0 := time.Now()
 	st, suboptimal, err := sc.Surface.GetCurrentTexture()
 	if err != nil {
-		// Hard acquire failure (outdated / needs reconfigure / lost): always
+		// Device lost: never reconfigure — native panics on lost parent device.
+		if isDeviceLostErr(err) || (sc.Device != nil && sc.Device.IsLost()) {
+			return nil, ErrDeviceLost
+		}
+		// Hard acquire failure (outdated / needs reconfigure / timeout): always
 		// reconfigure once and retry. Do NOT use reconfigureThrottled here —
 		// Resize/Configure may have just set lastReconfig, and rate-limiting
 		// would drop the frame with "surface needs reconfigure" under churn.
@@ -303,12 +310,18 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 			sc.Surface.DiscardTexture()
 		}
 		if cfgErr := sc.Configure(); cfgErr != nil {
+			if isDeviceLostErr(cfgErr) {
+				return nil, ErrDeviceLost
+			}
 			return nil, fmt.Errorf("%w (reconfigure: %v)", err, cfgErr)
 		}
 		sc.lastReconfig = time.Now()
 		sc.acquireRetries++
 		st, suboptimal, err = sc.Surface.GetCurrentTexture()
 		if err != nil {
+			if isDeviceLostErr(err) {
+				return nil, ErrDeviceLost
+			}
 			return nil, err
 		}
 	}
@@ -348,6 +361,9 @@ func (sc *Swapchain) reconfigureThrottled() error {
 	const minInterval = 500 * time.Millisecond
 	if sc == nil {
 		return fmt.Errorf("wgpu: swapchain is nil")
+	}
+	if sc.Device != nil && sc.Device.IsLost() {
+		return ErrDeviceLost
 	}
 	if !sc.lastReconfig.IsZero() && time.Since(sc.lastReconfig) < minInterval {
 		sc.pendingReconfigure = true

@@ -19,6 +19,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"log"
@@ -428,6 +429,7 @@ func main() {
 		pendSizeSince      time.Time
 		nextFrameAt        time.Time // fixed-rate schedule (includes post-work)
 		fixedSize          = animSeconds > 0 || envBool("GPUI_FIXED_SIZE", false)
+		windowMinimized    bool
 	)
 	if fixedSize {
 		xw.LockSize(winW, winH)
@@ -454,8 +456,22 @@ func main() {
 		// Drain X events; debounce resize until ConfigureNotify is quiet.
 		for xw.Pending() {
 			ev := xw.NextEvent()
+			if ev.Type == xUnmapNotify {
+				// Minimize / unmap: stop GetCurrentTexture — continuous acquire on
+				// an unmapped surface can lose the device (native SIGABRT).
+				windowMinimized = true
+			}
+			if ev.Type == xMapNotify {
+				windowMinimized = false
+				forceFull = true
+			}
 			if ev.Type == xConfigureNotify {
 				nw, nh := ev.Width, ev.Height
+				// Zero extent (some WMs iconify without UnmapNotify).
+				if nw <= 0 || nh <= 0 {
+					windowMinimized = true
+					continue
+				}
 				if nw < 64 {
 					nw = 64
 				}
@@ -476,6 +492,28 @@ func main() {
 				exitReason = "window_close"
 				goto done
 			}
+		}
+		// Idle while minimized/unmapped: do not touch the swapchain.
+		if windowMinimized {
+			now := time.Now()
+			if nextFrameAt.IsZero() {
+				nextFrameAt = now
+			}
+			deadline := nextFrameAt.Add(frameBudget)
+			if d := deadline.Sub(now); d > 200*time.Microsecond {
+				pad := 900 * time.Microsecond
+				if d > pad+200*time.Microsecond {
+					time.Sleep(d - pad)
+				}
+			}
+			nextFrameAt = deadline
+			frame++
+			continue
+		}
+		if device.IsLost() {
+			log.Printf("GPU device lost — exiting cleanly (avoid native abort)")
+			exitReason = "device_lost"
+			goto done
 		}
 		if havePendSize && (pendW != winW || pendH != winH) {
 			if fixedSize {
@@ -604,6 +642,12 @@ func main() {
 			// Common during interactive resize (surface outdated). Recover; skip frame.
 			// Fixed-size soaks (S12/S14 long): do NOT force Resize/Configure every
 			// soft error — thrashing native Surface.Configure aborts after minutes.
+			// Device-lost is terminal: reconfigure panics native ("Parent device is lost").
+			if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() {
+				log.Printf("BeginFrame: %v — GPU device lost, exiting cleanly", err)
+				exitReason = "device_lost"
+				goto done
+			}
 			if fixedSize {
 				log.Printf("BeginFrame: %v — fixed-size skip frame (no reconfigure thrash)", err)
 				forceFull = true
@@ -2402,6 +2446,8 @@ func max(a, b int) int {
 // ---------- X11 ----------
 
 const (
+	xUnmapNotify     = 18
+	xMapNotify       = 19
 	xConfigureNotify = 22
 	xClientMessage   = 33
 	xStructureNotify = int64(1 << 17)

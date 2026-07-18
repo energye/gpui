@@ -3,11 +3,29 @@
 package webgpu
 
 import (
+	"errors"
 	"fmt"
 	"image"
+	"strings"
 
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
+
+// isDeviceLostErr reports whether err indicates a permanently lost GPU device.
+func isDeviceLostErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrDeviceLost) {
+		return true
+	}
+	if errors.Is(err, rwgpu.ErrDeviceLost) || errors.Is(err, rwgpu.ErrSurfaceDeviceLost) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "device lost") || strings.Contains(msg, "Device lost") ||
+		strings.Contains(msg, "Parent device is lost")
+}
 
 // Surface represents a platform rendering surface.
 // On the wgpu-native backend, this wraps rwgpu Surface.
@@ -64,6 +82,9 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	if device == nil {
 		return fmt.Errorf("wgpu: device is nil")
 	}
+	if device.IsLost() {
+		return ErrDeviceLost
+	}
 
 	rConfig := &rwgpu.SurfaceConfiguration{
 		Format:      config.Format,
@@ -75,6 +96,9 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	}
 
 	if err := s.r.Configure(device.r, rConfig); err != nil {
+		if isDeviceLostErr(err) {
+			return ErrDeviceLost
+		}
 		return fmt.Errorf("wgpu: failed to configure surface: %w", err)
 	}
 
@@ -103,9 +127,16 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s.device == nil {
 		return nil, false, fmt.Errorf("wgpu: surface not configured")
 	}
+	// Avoid native panic: wgpuSurfaceGetCurrentTexture aborts when parent device is lost.
+	if s.device.IsLost() {
+		return nil, false, ErrDeviceLost
+	}
 
 	rst, suboptimal, err := s.r.GetCurrentTexture()
 	if err != nil {
+		if isDeviceLostErr(err) {
+			return nil, false, ErrDeviceLost
+		}
 		return nil, false, fmt.Errorf("wgpu: %w", err)
 	}
 

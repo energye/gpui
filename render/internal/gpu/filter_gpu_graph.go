@@ -204,6 +204,11 @@ type filterGPUCache struct {
 	// Stable bind-group cache for continuous effect frames (glow).
 	// Keyed by view/uniform pointer + slab offset; cleared when pool/slab rebuilds.
 	bgCache map[filterBGKey]*webgpu.BindGroup
+
+	// opt44: reuse filter-pass RP descriptor (no per-pass ColorAttachments alloc).
+	filterPassRPDesc   webgpu.RenderPassDescriptor
+	filterPassColorAtt [1]webgpu.RenderPassColorAttachment
+	filterPassRPInited bool
 }
 
 type filterBGKey struct {
@@ -300,6 +305,26 @@ func (c *filterGPUCache) releaseUnlocked() {
 	c.outScratch = nil
 	c.uploadPad = nil
 	c.uniformCPU = nil
+}
+
+// filterPassRenderPassDesc fills a reused RenderPassDescriptor for one filter
+// full-screen pass (opt44). Warm path is 0-alloc.
+func (c *filterGPUCache) filterPassRenderPassDesc(dst *webgpu.TextureView) *webgpu.RenderPassDescriptor {
+	if c == nil {
+		return nil
+	}
+	if !c.filterPassRPInited {
+		c.filterPassRPDesc.Label = "filter_gpu_pass"
+		c.filterPassRPDesc.ColorAttachments = c.filterPassColorAtt[:]
+		c.filterPassRPInited = true
+	}
+	c.filterPassColorAtt[0] = webgpu.RenderPassColorAttachment{
+		View:       dst,
+		LoadOp:     types.LoadOpClear,
+		StoreOp:    types.StoreOpStore,
+		ClearValue: types.Color{},
+	}
+	return &c.filterPassRPDesc
 }
 
 func (c *filterGPUCache) ensure(device *webgpu.Device) error {
@@ -961,19 +986,13 @@ func runGPUFilterGraphEx(
 		}
 		off := slot * filterPassUniformSlotStride
 		slotBuf := passScratch[off : off+filterGPUUniformSize]
-		clear(slotBuf)
+		// opt44: all 128B Params fields written below (no clear needed).
+		// Direct LE store (same bits as prior byte-wise pack).
 		putF32 := func(o int, v float32) {
-			u := math.Float32bits(v)
-			slotBuf[o] = byte(u)
-			slotBuf[o+1] = byte(u >> 8)
-			slotBuf[o+2] = byte(u >> 16)
-			slotBuf[o+3] = byte(u >> 24)
+			*(*uint32)(unsafe.Pointer(&slotBuf[o])) = math.Float32bits(v) //nolint:gosec
 		}
 		putU32 := func(o int, v uint32) {
-			slotBuf[o] = byte(v)
-			slotBuf[o+1] = byte(v >> 8)
-			slotBuf[o+2] = byte(v >> 16)
-			slotBuf[o+3] = byte(v >> 24)
+			*(*uint32)(unsafe.Pointer(&slotBuf[o])) = v //nolint:gosec
 		}
 		putF32(0, float32(w))
 		putF32(4, float32(h))
@@ -1014,13 +1033,7 @@ func runGPUFilterGraphEx(
 		}
 		// Cached bind groups are owned by filterGPUCache — do not Release in cleanup.
 
-		rp, err := enc.BeginRenderPass(&webgpu.RenderPassDescriptor{
-			Label: "filter_gpu_pass",
-			ColorAttachments: []webgpu.RenderPassColorAttachment{{
-				View: dstV, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
-				ClearValue: types.Color{},
-			}},
-		})
+		rp, err := enc.BeginRenderPass(cache.filterPassRenderPassDesc(dstV))
 		if err != nil {
 			return err
 		}

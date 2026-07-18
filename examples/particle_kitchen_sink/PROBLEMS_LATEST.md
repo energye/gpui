@@ -2039,3 +2039,31 @@ Lock present rate at **≥60** on this X11/wgpu stack where fifo Present does no
 
 ### Evidence
 - `tmp/perf_fwd_opt41/opt43/` (+ `SUMMARY.md`)
+
+## opt44 filter pass RP reuse + LE uniform pack (2026-07-18)
+
+### Intent (class A — R8.3)
+1. Reuse `filterGPUCache` render-pass descriptor / color attachment for every filter full-screen pass (no per-pass `[]ColorAttachment` alloc)
+2. Pack pass uniforms with direct little-endian `uint32` stores (same bits as prior byte-wise pack)
+
+### Code
+- `render/internal/gpu/filter_gpu_graph.go` — `filterPassRenderPassDesc`, `putF32`/`putU32` unsafe LE
+- `render/internal/gpu/opt44_filter_pass_rp_reuse_test.go` — warm allocs=0
+
+### PKS 20s vs opt43 same pace (`tmp/perf_fwd_opt41/opt44/`, remeasure opt44b)
+
+| probe | opt43 fps/cpu/hitch | **opt44** fps/cpu/hitch | d_cpu | status |
+|-------|---------------------|------------------------|-------|--------|
+| P_SOLID | 60.70 / 9.5 / 0 | **60.74 / 9.5 / 0** | +0.0 | PASS |
+| P_GLOW | 61.16 / 12.1 / 0 | **60.93 / 11.9 / 0.003** | −0.2 | PASS |
+| P_BLEND_GLOW | 60.74 / 16.8 / 0 | **60.89 / 17.1 / 0.001** | +0.4 | PASS |
+| P_L3 | 60.91 / 19.6 / 0 | **60.92 / 20.2 / 0.002** | +0.6 | PASS |
+
+`cpu_fb=0`; fps still **≥60**. First noisy run discarded (system load).
+
+### Policy
+- **Keep** — structure proof (0-alloc warm RP); wall CPU in noise band; 60+ maintained
+- Residual still cgo Finish/Submit/WriteBuffer
+
+### Evidence
+- `tmp/perf_fwd_opt41/opt44/` (+ `SUMMARY.md`)

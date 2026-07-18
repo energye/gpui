@@ -461,6 +461,15 @@ func (d *Device) Poll(pollType PollType) bool {
 	return d.r.Poll(pollType == PollWait)
 }
 
+// IsLost reports whether the underlying GPU device has been lost.
+// Sticky for the lifetime of this Device; recreate via RequestDevice to recover.
+func (d *Device) IsLost() bool {
+	if d == nil || d.r == nil {
+		return false
+	}
+	return d.r.IsLost()
+}
+
 // FreeCommandBuffer releases a command buffer after GPU work that used it has
 // completed (or after WaitIdle). wgpu-native command buffers hold device
 // resources; leaving them unreleased prevents Device.Release from reclaiming

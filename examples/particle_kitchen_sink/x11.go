@@ -14,6 +14,8 @@ import (
 // ---------- X11 ----------
 
 const (
+	xUnmapNotify     = 18
+	xMapNotify       = 19
 	xConfigureNotify = 22
 	xClientMessage   = 33
 	xStructureNotify = int64(1 << 17)
