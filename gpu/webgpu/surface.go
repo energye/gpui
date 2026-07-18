@@ -27,12 +27,72 @@ func isDeviceLostErr(err error) bool {
 		strings.Contains(msg, "Parent device is lost")
 }
 
+// mapSurfaceAcquireErr maps rwgpu surface acquire failures to public webgpu
+// sentinels so callers can errors.Is against ErrDeviceLost / ErrTimeout / etc.
+func mapSurfaceAcquireErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if isDeviceLostErr(err) {
+		return ErrDeviceLost
+	}
+	switch {
+	case errors.Is(err, rwgpu.ErrSurfaceOccluded):
+		return ErrSurfaceOccluded
+	case errors.Is(err, rwgpu.ErrSurfaceTimeout):
+		return ErrTimeout
+	case errors.Is(err, rwgpu.ErrSurfaceNeedsReconfigure):
+		return ErrSurfaceOutdated
+	case errors.Is(err, rwgpu.ErrSurfaceLost):
+		return ErrSurfaceLost
+	case errors.Is(err, rwgpu.ErrSurfaceOutOfMemory):
+		return ErrOutOfMemory
+	}
+	// Message fallback for wrapped/opaque paths.
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "occluded"):
+		return ErrSurfaceOccluded
+	case strings.Contains(msg, "timeout"):
+		return ErrTimeout
+	case strings.Contains(msg, "needs reconfigure") || strings.Contains(msg, "outdated"):
+		return ErrSurfaceOutdated
+	case strings.Contains(msg, "surface lost"):
+		return ErrSurfaceLost
+	}
+	return fmt.Errorf("wgpu: %w", err)
+}
+
+// isSkipFrameSurfaceErr is true when the surface is temporarily unavailable
+// and the caller should skip the frame without reconfiguring.
+func isSkipFrameSurfaceErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, ErrSurfaceOccluded) || errors.Is(err, ErrTimeout) ||
+		errors.Is(err, rwgpu.ErrSurfaceOccluded) || errors.Is(err, rwgpu.ErrSurfaceTimeout)
+}
+
+// isOutdatedSurfaceErr is true when the surface needs reconfiguration.
+func isOutdatedSurfaceErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, ErrSurfaceOutdated) || errors.Is(err, ErrSurfaceLost) ||
+		errors.Is(err, rwgpu.ErrSurfaceNeedsReconfigure) || errors.Is(err, rwgpu.ErrSurfaceLost)
+}
+
 // Surface represents a platform rendering surface.
 // On the wgpu-native backend, this wraps rwgpu Surface.
 type Surface struct {
 	r        *rwgpu.Surface
 	device   *Device
 	released bool
+
+	// current is the last acquired surface texture not yet Released/Presented.
+	// Used by DiscardTexture so Configure never runs with a live SurfaceOutput
+	// (native: "SurfaceOutput must be dropped before a new Surface is made").
+	current *SurfaceTexture
 
 	// Cached configuration for texture creation.
 	configFormat TextureFormat
@@ -85,6 +145,11 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	if device.IsLost() {
 		return ErrDeviceLost
 	}
+	if config.Width == 0 || config.Height == 0 {
+		return fmt.Errorf("wgpu: surface extent must be non-zero (got %dx%d)", config.Width, config.Height)
+	}
+	// Drop any in-flight surface output before reconfigure (native contract).
+	s.DiscardTexture()
 
 	rConfig := &rwgpu.SurfaceConfiguration{
 		Format:      config.Format,
@@ -114,6 +179,7 @@ func (s *Surface) Unconfigure() {
 	if s.released {
 		return
 	}
+	s.DiscardTexture()
 	s.r.Unconfigure()
 	s.device = nil
 }
@@ -131,16 +197,15 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s.device.IsLost() {
 		return nil, false, ErrDeviceLost
 	}
+	// One in-flight surface texture at a time.
+	s.DiscardTexture()
 
 	rst, suboptimal, err := s.r.GetCurrentTexture()
 	if err != nil {
-		if isDeviceLostErr(err) {
-			return nil, false, ErrDeviceLost
-		}
-		return nil, false, fmt.Errorf("wgpu: %w", err)
+		return nil, false, mapSurfaceAcquireErr(err)
 	}
 
-	return &SurfaceTexture{
+	st := &SurfaceTexture{
 		r: rst,
 		texture: &Texture{
 			r:      rst.Texture,
@@ -148,7 +213,9 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 			format: s.configFormat,
 		},
 		surface: s,
-	}, suboptimal, nil
+	}
+	s.current = st
+	return st, suboptimal, nil
 }
 
 // Present presents a surface texture to the screen.
@@ -159,8 +226,22 @@ func (s *Surface) Present(texture *SurfaceTexture) error {
 	if texture == nil {
 		return fmt.Errorf("wgpu: surface texture is nil")
 	}
+	if s.device != nil && s.device.IsLost() {
+		return ErrDeviceLost
+	}
 	// rwgpu Present takes variadic *SurfaceTexture.
-	return s.r.Present(texture.r)
+	if err := s.r.Present(texture.r); err != nil {
+		if isDeviceLostErr(err) {
+			return ErrDeviceLost
+		}
+		return err
+	}
+	// Present does not release ownership; caller still must Release after Present.
+	// Clear current tracking only if this was the tracked texture — Release owns free.
+	if s.current == texture {
+		s.current = nil
+	}
+	return nil
 }
 
 // PresentWithDamage presents a surface texture, optionally with damage rects.
@@ -182,10 +263,16 @@ func (s *Surface) ActualExtent() (width, height uint32) {
 // The function signature uses any to avoid importing core in the native build path.
 func (s *Surface) SetPrepareFrame(_ any) {}
 
-// DiscardTexture discards the acquired surface texture without presenting it.
-// This is a no-op for wgpu-native.
+// DiscardTexture drops the last acquired surface texture without presenting it.
+// Safe to call when no texture is held. Must run before Configure if a previous
+// GetCurrentTexture succeeded and the texture was not Released.
 func (s *Surface) DiscardTexture() {
-	// No-op: wgpu-native does not support texture discard.
+	if s == nil || s.current == nil {
+		return
+	}
+	st := s.current
+	s.current = nil
+	st.Release()
 }
 
 // Release releases the surface.
@@ -193,6 +280,7 @@ func (s *Surface) Release() {
 	if s.released {
 		return
 	}
+	s.DiscardTexture()
 	s.released = true
 	if s.r != nil {
 		s.r.Release()
@@ -248,6 +336,9 @@ func (st *SurfaceTexture) Texture() *Texture {
 func (st *SurfaceTexture) Release() {
 	if st == nil {
 		return
+	}
+	if st.surface != nil && st.surface.current == st {
+		st.surface.current = nil
 	}
 	if st.texture != nil {
 		st.texture.Release()

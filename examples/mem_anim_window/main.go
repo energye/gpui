@@ -639,14 +639,22 @@ func main() {
 
 		fb, err := sc.BeginFrame()
 		if err != nil {
-			// Common during interactive resize (surface outdated). Recover; skip frame.
-			// Fixed-size soaks (S12/S14 long): do NOT force Resize/Configure every
-			// soft error — thrashing native Surface.Configure aborts after minutes.
-			// Device-lost is terminal: reconfigure panics native ("Parent device is lost").
+			// Library error policy (do not thrash native Configure):
+			//   DeviceLost  → exit cleanly (reconfigure panics "Parent device is lost")
+			//   Occluded/Timeout → skip frame only
+			//   Outdated/Lost → reconfigure once (unless fixed-size soak)
+			//   Other soft → skip on fixedSize; reconfigure once otherwise
 			if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() {
 				log.Printf("BeginFrame: %v — GPU device lost, exiting cleanly", err)
 				exitReason = "device_lost"
 				goto done
+			}
+			if errors.Is(err, webgpu.ErrSurfaceOccluded) || errors.Is(err, webgpu.ErrTimeout) {
+				// Minimized/covered or present timeout: idle without Resize.
+				windowMinimized = errors.Is(err, webgpu.ErrSurfaceOccluded)
+				forceFull = true
+				time.Sleep(8 * time.Millisecond)
+				continue
 			}
 			if fixedSize {
 				log.Printf("BeginFrame: %v — fixed-size skip frame (no reconfigure thrash)", err)
@@ -654,9 +662,14 @@ func main() {
 				time.Sleep(2 * time.Millisecond)
 				continue
 			}
+			// Outdated / surface lost / other: one Resize recovery attempt.
 			log.Printf("BeginFrame: %v — reconfigure %dx%d and skip frame", err, winW, winH)
 			if rerr := sc.Resize(uint32(winW), uint32(winH)); rerr != nil {
 				log.Printf("recover Resize: %v", rerr)
+				if errors.Is(rerr, webgpu.ErrDeviceLost) || device.IsLost() {
+					exitReason = "device_lost"
+					goto done
+				}
 			}
 			_ = dc.Resize(winW, winH)
 			forceFull = true

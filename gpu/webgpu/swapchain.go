@@ -278,15 +278,20 @@ func (sc *Swapchain) MarkNeedsReconfigure() {
 // BeginFrame acquires the next surface texture and creates a render view.
 // Caller must EndFrame (or DiscardFrame) exactly once per successful BeginFrame.
 //
-// S6.8: if the previous frame was suboptimal or MarkNeedsReconfigure was called,
-// reconfigures before acquire. On outdated/timeout acquire errors, reconfigures
-// once and retries. Device-lost is terminal: reconfigure would panic native.
+// Error policy (library-generic; window policy is downstream):
+//   - DeviceLost: return ErrDeviceLost; never reconfigure (native may abort)
+//   - Occluded / Timeout: return as-is; skip frame, do not reconfigure
+//   - Outdated / SurfaceLost: reconfigure once and retry acquire
+//   - Other: reconfigure once and retry (best-effort recovery)
 func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if sc == nil {
 		return nil, fmt.Errorf("wgpu: swapchain is nil")
 	}
 	if sc.Device != nil && sc.Device.IsLost() {
 		return nil, ErrDeviceLost
+	}
+	if sc.Width == 0 || sc.Height == 0 {
+		return nil, fmt.Errorf("wgpu: swapchain extent must be non-zero")
 	}
 	if sc.pendingReconfigure || !sc.configured {
 		if err := sc.reconfigureThrottled(); err != nil {
@@ -298,16 +303,20 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	t0 := time.Now()
 	st, suboptimal, err := sc.Surface.GetCurrentTexture()
 	if err != nil {
-		// Device lost: never reconfigure — native panics on lost parent device.
+		// Terminal / skip paths: do not thrash Configure.
 		if isDeviceLostErr(err) || (sc.Device != nil && sc.Device.IsLost()) {
 			return nil, ErrDeviceLost
 		}
-		// Hard acquire failure (outdated / needs reconfigure / timeout): always
-		// reconfigure once and retry. Do NOT use reconfigureThrottled here —
-		// Resize/Configure may have just set lastReconfig, and rate-limiting
-		// would drop the frame with "surface needs reconfigure" under churn.
+		if isSkipFrameSurfaceErr(err) {
+			return nil, err
+		}
+		// Outdated / lost surface / other hard acquire failure: reconfigure once.
 		if sc.Surface != nil {
 			sc.Surface.DiscardTexture()
+		}
+		if !isOutdatedSurfaceErr(err) {
+			// Unknown error: still try one reconfigure (historical recovery),
+			// but never on skip/device-lost (handled above).
 		}
 		if cfgErr := sc.Configure(); cfgErr != nil {
 			if isDeviceLostErr(cfgErr) {
@@ -322,6 +331,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 			if isDeviceLostErr(err) {
 				return nil, ErrDeviceLost
 			}
+			// Second failure: propagate mapped sentinel; do not loop.
 			return nil, err
 		}
 	}

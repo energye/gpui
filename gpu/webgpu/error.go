@@ -27,10 +27,15 @@ var (
 	// ErrSurfaceLost is returned when the surface is lost.
 	ErrSurfaceLost = errors.New("wgpu: surface lost")
 
-	// ErrSurfaceOutdated is returned when the surface is outdated.
+	// ErrSurfaceOutdated is returned when the surface is outdated and needs reconfigure.
 	ErrSurfaceOutdated = errors.New("wgpu: surface outdated")
 
+	// ErrSurfaceOccluded is returned when the window is minimized/covered and
+	// no surface texture is available. Callers should skip the frame (do not reconfigure).
+	ErrSurfaceOccluded = errors.New("wgpu: surface occluded")
+
 	// ErrTimeout is returned when an operation times out.
+	// For surface acquire, callers should skip the frame rather than thrash Configure.
 	ErrTimeout = errors.New("wgpu: timeout")
 
 	// ErrSubmitCommandBufferInvalid is returned when a command buffer is submitted twice.

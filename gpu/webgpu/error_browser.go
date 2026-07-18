@@ -27,6 +27,9 @@ var (
 	// ErrSurfaceOutdated is returned when the surface is outdated.
 	ErrSurfaceOutdated = errors.New("wgpu: surface outdated")
 
+	// ErrSurfaceOccluded is returned when the window is minimized/covered.
+	ErrSurfaceOccluded = errors.New("wgpu: surface occluded")
+
 	// ErrTimeout is returned when an operation times out.
 	ErrTimeout = errors.New("wgpu: timeout")
 )

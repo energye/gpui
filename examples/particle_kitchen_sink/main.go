@@ -330,7 +330,9 @@ func main() {
 			break
 		}
 		// Idle while minimized/unmapped: do not touch the swapchain.
-		if windowMinimized {
+		// GPUI_FORCE_RENDER_WHEN_UNMAPPED=1 keeps BeginFrame (library must return
+		// Go errors, never native abort) — for soak verification only.
+		if windowMinimized && !envBool("GPUI_FORCE_RENDER_WHEN_UNMAPPED", false) {
 			time.Sleep(16 * time.Millisecond)
 			continue
 		}
@@ -400,6 +402,19 @@ func main() {
 					continue
 				}
 				time.Sleep(50 * time.Millisecond)
+				continue
+			}
+			// Occluded / Timeout: library already refuses reconfigure; idle.
+			// Some WMs minimize without UnmapNotify — treat Occluded as minimized.
+			if errors.Is(err, webgpu.ErrSurfaceOccluded) {
+				windowMinimized = true
+				deviceLostFrames = 0
+				time.Sleep(8 * time.Millisecond)
+				continue
+			}
+			if errors.Is(err, webgpu.ErrTimeout) {
+				deviceLostFrames = 0
+				time.Sleep(2 * time.Millisecond)
 				continue
 			}
 			deviceLostFrames = 0

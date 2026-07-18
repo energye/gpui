@@ -105,9 +105,17 @@ var (
 // This replaces the deprecated SwapChain API.
 // Enum values are converted from gputypes to wgpu-native values before FFI call.
 func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error {
-	mustInit()
-	if s == nil || s.handle == 0 || config == nil {
-		return nil
+	if err := checkInit(); err != nil {
+		return err
+	}
+	if s == nil || s.handle == 0 {
+		return &WGPUError{Op: "Surface.Configure", Message: "surface is nil or released"}
+	}
+	if config == nil {
+		return &WGPUError{Op: "Surface.Configure", Message: "configuration is nil"}
+	}
+	if config.Width == 0 || config.Height == 0 {
+		return &WGPUError{Op: "Surface.Configure", Message: "extent must be non-zero"}
 	}
 
 	// config.Device takes precedence (backward compat) over the device argument.
@@ -116,11 +124,11 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		dev = config.Device
 	}
 	if dev == nil || dev.handle == 0 {
-		return nil
+		return &WGPUError{Op: "Surface.Configure", Message: "device is nil or released"}
 	}
 
 	// Refuse Configure after device-lost: native panics with "Parent device is lost".
-	if IsDeviceHandleLost(dev.handle) {
+	if IsDeviceHandleLost(dev.handle) || AnyDeviceLost() {
 		return ErrDeviceLost
 	}
 
@@ -137,10 +145,19 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		presentMode:     uint32(config.PresentMode),
 	}
 
-	procSurfaceConfigure.Call( //nolint:errcheck
+	_, _ = LastUncapturedError() // attribute post-call errors to this op
+	procSurfaceConfigure.Call(   //nolint:errcheck
 		s.handle,
 		uintptr(unsafe.Pointer(&nativeConfig)),
 	)
+	// Surface configure errors surface via device uncaptured callback.
+	if typ, msg := LastUncapturedError(); msg != "" {
+		if looksLikeDeviceLost(msg) {
+			markDeviceLost(dev.handle)
+			return ErrDeviceLost
+		}
+		return &WGPUError{Op: "Surface.Configure", Type: typ, Message: msg}
+	}
 	s.device = dev.handle
 	return nil
 }
@@ -246,11 +263,27 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 // is unused in the FFI implementation (wgpuSurfacePresent takes no texture arg).
 // Returns nil on success.
 func (s *Surface) Present(texture ...*SurfaceTexture) error {
-	mustInit()
-	if s == nil || s.handle == 0 {
-		return nil
+	if err := checkInit(); err != nil {
+		return err
 	}
+	if s == nil || s.handle == 0 {
+		return &WGPUError{Op: "Surface.Present", Message: "surface is nil or released"}
+	}
+	if s.device != 0 && (IsDeviceHandleLost(s.device) || AnyDeviceLost()) {
+		return ErrDeviceLost
+	}
+	_, _ = LastUncapturedError()      // attribute post-call errors to this op
 	procSurfacePresent.Call(s.handle) //nolint:errcheck
+	if typ, msg := LastUncapturedError(); msg != "" {
+		if looksLikeDeviceLost(msg) {
+			if s.device != 0 {
+				markDeviceLost(s.device)
+			}
+			return ErrDeviceLost
+		}
+		return &WGPUError{Op: "Surface.Present", Type: typ, Message: msg}
+	}
+	_ = texture
 	return nil
 }
 
