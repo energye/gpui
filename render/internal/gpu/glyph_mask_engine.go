@@ -204,9 +204,12 @@ func (e *GlyphMaskEngine) LayoutText(
 		}
 		// S6.5: LayoutGlyphs caches Face.Glyphs (shape-level).
 		// R7.5: origin-free layout template + safe quad rebase for scroll/HUD.
+		// Skip template put for high-churn telemetry strings (unique every frame).
 		shaped := text.LayoutGlyphs(face, s)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false)
-		e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
+		if !text.IsHighChurnLabel(s) {
+			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
+		}
 		return batch, nil
 	}
 	shaped := text.LayoutGlyphs(face, s)
@@ -265,7 +268,9 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 		// S6.5 shape cache + R7.5 layout template (aliased flag in key).
 		shaped := text.LayoutGlyphs(face, s)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true)
-		e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
+		if !text.IsHighChurnLabel(s) {
+			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
+		}
 		return batch, nil
 	}
 	shaped := text.LayoutGlyphs(face, s)

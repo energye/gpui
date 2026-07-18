@@ -84,7 +84,9 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | **P_EMPTY_TRAP** | trap | 空内容陷阱 | 装空绿必 FAIL |
 | **P_FLICKER** | gate | 交替清屏闪烁 | intermittent_content |
 | **P_FLICKER_BLEND** | stress | 混合+交替清屏 | hitch+闪烁 |
-| **P_MEM_LONG** | stress | 加长浸泡（默认 **180s**） | RSS 硬顶；`GPUI_ANIM_SECONDS` 可加到 10–30min |
+| **P_MEM_LONG** | stress | 加长浸泡（默认 **180s**，固定 N） | 稳态斜率≈0 |
+| 时长分层 | — | `P_MEM_SOAK` **60s** 快筛 · `P_MEM_LONG` **180s** 日常 · `GPUI_ANIM_SECONDS=600` **10min** 中泡 · `900/1800` 发版长泡 | 抓慢爬/延迟释放 |
+| FPS jitter | — | present→present；dig 后一帧不计；`fps_jitter`=p95−p5 | 避免 harness 假 hitch |
 | **P_L0…P_L4** | gate/stress | 档位别名 | 与 L0–L4 对齐 |
 
 `scripts/run_pks_matrix.sh`：
@@ -119,7 +121,7 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 - `present_errors == 0`
 - 默认 gate：`fps_ema ≥ 55`、`fps_avg ≥ 48`；过大 jitter + 低 min 记 hitch
 - **trap** `P_BLEND_PER_CIRCLE`：若仍 `fps_ema < 10` → `trap_hot_path_still_slow`
-- 稳态 RSS 斜率硬顶；`P_MEM_SOAK` 更紧
+- mem 探针：泄漏判定**只看运行期内平台化** rate≈0（`GPUI_MEM_PLATEAU_RATE_KB_S`）；`GPUI_MEM_RSS_HARD_KB` 仅防 OOM，**无绝对 MiB 爬升门**
 - `particle_n >= min_particle_n`（禁止砍内容过门）
 - CPU / RSS 仅统计 **本进程**
 

@@ -28,6 +28,18 @@ func envInt(key string, def int) int {
 	return n
 }
 
+func envInt64(key string, def int64) int64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
 func envFloat(key string, def float64) float64 {
 	v := os.Getenv(key)
 	if v == "" {

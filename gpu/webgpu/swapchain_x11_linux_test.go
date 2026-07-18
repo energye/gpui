@@ -77,8 +77,10 @@ func tryOpenX11Window(t *testing.T, w, h int) *x11Win {
 		display: dpy,
 		window:  win,
 		close: func() {
+			// Destroy window only. After correct surface-texture Release,
+			// XCloseDisplay can SIGSEGV on this host/driver combo during
+			// process teardown of short e2e tests; process exit reclaims X.
 			xDestroyWindow(dpy, win)
-			xCloseDisplay(dpy)
 			_ = purego.Dlclose(lib)
 		},
 	}

@@ -1722,6 +1722,23 @@ func (c *Context) BeginGPUFrame() {
 	}
 }
 
+// MemDigCmdBufs returns retained GPU command buffer count after last submit.
+// prev=-1 means no GPU session yet. usedSurface indicates surface present path.
+func (c *Context) MemDigCmdBufs() (prev int, usedSurface bool) {
+	if c == nil {
+		return -1, false
+	}
+	type dig interface {
+		DigCmdBufStats() (int, bool)
+	}
+	if rc := c.gpuCtxOps(); rc != nil {
+		if d, ok := rc.(dig); ok {
+			return d.DigCmdBufStats()
+		}
+	}
+	return -1, false
+}
+
 func (c *Context) FlushGPU() error {
 	c.recordFrameFlush()
 	pending := 0

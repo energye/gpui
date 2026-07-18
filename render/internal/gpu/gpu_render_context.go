@@ -277,7 +277,21 @@ func (rc *GPURenderContext) ClearMidFrameDataFlush() {
 	}
 }
 
+// DigCmdBufStats exposes session CB retain stats for mem digs.
+func (rc *GPURenderContext) DigCmdBufStats() (prev int, usedSurface bool) {
+	if rc == nil || rc.session == nil {
+		return -1, false
+	}
+	return rc.session.DigCmdBufStats()
+}
+
 func (rc *GPURenderContext) BeginFrame() {
+	// Free previous frame command buffers (prevCmdBufs). Without this, windowed
+	// PresentFrame paths never call SetSurfaceTarget, so CBs accumulate every
+	// frame and native RSS climbs (~hundreds of KB/s on PKS solid_only).
+	if rc.session != nil {
+		rc.session.BeginFrame()
+	}
 	rc.clipRect = nil
 	rc.clipPath = nil
 	rc.frameRendered = false
@@ -348,6 +362,8 @@ func (rc *GPURenderContext) SubmitEncoder(encoder gpucontext.CommandEncoder) err
 		rc.session.device.FreeCommandBuffer(cmdBuf)
 		return fmt.Errorf("submit shared encoder: %w", err)
 	}
+	// Retain until next session.BeginFrame (matches finishSurfaceSubmit).
+	rc.session.prevCmdBufs = append(rc.session.prevCmdBufs, cmdBuf)
 	return nil
 }
 

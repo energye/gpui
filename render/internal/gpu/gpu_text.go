@@ -37,6 +37,26 @@ type GPUTextEngine struct {
 
 	// pxRange is the MSDF distance range in pixels (typically 4.0).
 	pxRange float32
+
+	// Grow-only quad scratch (avoids per-DrawString alloc on dynamic HUD).
+	quadScratch []TextQuad
+
+	// R7.5-style layout templates: stable strings skip reshape; high-churn labels
+	// never populate the cache (see text.IsHighChurnLabel).
+	layoutCache     map[glyphLayoutTemplateKey]*msdfLayoutTemplateEntry
+	layoutCacheTick uint64
+	layoutCacheSoft int
+	layoutCacheHits uint64
+	layoutCacheMiss uint64
+}
+
+// msdfLayoutTemplateEntry caches MSDF quads at a base origin for rebase.
+type msdfLayoutTemplateEntry struct {
+	baseX, baseY float64
+	quads        []TextQuad
+	atlasIndex   int
+	atlasSize    float32
+	atime        uint64
 }
 
 // NewGPUTextEngine creates a new GPU text engine with default configuration.
@@ -71,6 +91,8 @@ func NewGPUTextEngine() *GPUTextEngine {
 		msdfSize:        glyphSize,
 		msdfSizeCJK:     glyphSizeCJK,
 		pxRange:         pxRange,
+		layoutCache:     make(map[glyphLayoutTemplateKey]*msdfLayoutTemplateEntry),
+		layoutCacheSoft: 256,
 	}
 }
 
@@ -137,14 +159,19 @@ func (e *GPUTextEngine) LayoutText(
 	}
 	atlasConfig := activeAtlas.Config()
 
-	var quads []TextQuad
+	// Layout template (pure translate): static HUD/list labels hit without reshape.
+	// High-churn telemetry bypasses put (unique keys every frame).
+	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, logicalSize, deviceScale, false, false, text.HintingNone, matrix); ok {
+		if batch, hit := e.msdfLayoutTemplateGet(key, x, y, color, matrix, atlasIndex, float32(atlasConfig.Size)); hit {
+			return batch, nil
+		}
+	}
+
+	quads := e.quadScratch[:0]
 	var glyphCount, outlineSkip, atlasSkip, boundsSkip int
 
 	// Scale ratio: outline is extracted at msdfSize, quad positions are in user space.
-	// All outline-space values are multiplied by ratio to get user-space coordinates.
-	// Use logicalSize (not fontSize which includes deviceScale) because the CTM
-	// already handles device scaling — quads must be in logical user-space coords.
-	// (BUG-MSDF-RETINA-001: was fontSize/refSize which doubled positions on Retina)
+	// Use logicalSize because the CTM already handles device scaling.
 	refSize := float64(e.msdfSize)
 	refSizeCJK := float64(e.msdfSizeCJK)
 	var ratio float64
@@ -153,8 +180,6 @@ func (e *GPUTextEngine) LayoutText(
 		glyphCount++
 
 		// Match CPU text.Draw: GID 0 is .notdef — advance-only, no ink.
-		// Drawing the .notdef tofu box inflates coverage for fonts that lack
-		// Latin glyphs (common with CJK fallback fonts).
 		if glyph.GID == 0 {
 			continue
 		}
@@ -172,22 +197,28 @@ func (e *GPUTextEngine) LayoutText(
 			ratio = logicalSize / refSize
 		}
 
-		outline, err := e.extractor.ExtractOutline(fontSource.Parsed(), glyph.GID, glyphRefSize)
-		if err != nil || outline == nil || outline.IsEmpty() {
-			outlineSkip++
-			continue
-		}
-
 		key := msdf.GlyphKey{
 			FontID:  fontID,
 			GlyphID: uint16(glyph.GID),    //nolint:gosec // GlyphID is uint16
 			Size:    int16(glyphMsdfSize), //nolint:gosec // msdfSize fits int16
 		}
-		region, err := glyphAtlas.Get(key, outline)
-		if err != nil {
-			slogger().Warn("MSDF atlas get failed", "gid", glyph.GID, "err", err)
-			atlasSkip++
-			continue
+
+		// Hot path: reuse atlas cell without re-extracting outlines every frame
+		// (dynamic HUD re-layouts unique strings but reuses digit/letter cells).
+		region, ok := glyphAtlas.Lookup(key)
+		if !ok {
+			outline, err := e.extractor.ExtractOutline(fontSource.Parsed(), glyph.GID, glyphRefSize)
+			if err != nil || outline == nil || outline.IsEmpty() {
+				outlineSkip++
+				continue
+			}
+			var gerr error
+			region, gerr = glyphAtlas.Get(key, outline)
+			if gerr != nil {
+				slogger().Warn("MSDF atlas get failed", "gid", glyph.GID, "err", gerr)
+				atlasSkip++
+				continue
+			}
 		}
 
 		// Skip empty/degenerate regions (e.g. space characters).
@@ -196,11 +227,6 @@ func (e *GPUTextEngine) LayoutText(
 			continue
 		}
 
-		// Position quad using pre-computed planeBounds from the atlas.
-		// PlaneBounds are in refSize outline coordinates; multiply by ratio
-		// to convert to screen pixels. This replaces the 15-line
-		// scale/padding recomputation that previously duplicated the
-		// generator's math.
 		qx0 := float32(x + glyph.X + float64(region.PlaneMinX)*ratio)
 		qx1 := float32(x + glyph.X + float64(region.PlaneMaxX)*ratio)
 		qy0 := float32(y + float64(region.PlaneMinY)*ratio)
@@ -213,8 +239,9 @@ func (e *GPUTextEngine) LayoutText(
 			U1: region.U1, V1: region.V1,
 		})
 	}
+	e.quadScratch = quads
 
-	slogger().Info("LayoutText result",
+	slogger().Debug("LayoutText result",
 		"text", s, "glyphs", glyphCount,
 		"quads", len(quads),
 		"outlineSkip", outlineSkip, "atlasSkip", atlasSkip, "boundsSkip", boundsSkip)
@@ -223,34 +250,113 @@ func (e *GPUTextEngine) LayoutText(
 		return TextBatch{}, nil
 	}
 
-	// Build the composed transform: CTM x ortho_projection.
-	//
-	// The ortho projection maps pixel coordinates to NDC [-1, 1]:
-	//   ndc_x = x / w * 2 - 1
-	//   ndc_y = 1 - y / h * 2
-	// As a 2D affine matrix:
-	//   A = 2/w, B = 0,    C = -1
-	//   D = 0,   E = -2/h, F = 1
-	//
-	// The CTM (context's current transformation matrix) is applied first
-	// to transform user-space positions to device pixels, then the ortho
-	// projection maps to NDC. The composition is: ortho x CTM.
-	//
-	// This enables Scale, Rotate, and Skew to affect text rendering.
-	// The fragment shader's fwidth() automatically adapts to the composed
-	// transform, producing correct screenPxRange for anti-aliasing at any
-	// scale/rotation.
-	// Store device-space CTM only — ortho projection deferred to flush time
-	// when actual render target dimensions are known (ADR-025).
+	// Caller-owned copy: template cache and multi-batch HUD must not alias scratch.
+	out := make([]TextQuad, len(quads))
+	copy(out, quads)
 
+	batch := TextBatch{
+		Quads:      out,
+		Color:      color,
+		Transform:  matrix,
+		AtlasIndex: atlasIndex,
+		PxRange:    e.pxRange,
+		AtlasSize:  float32(atlasConfig.Size),
+	}
+
+	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, logicalSize, deviceScale, false, false, text.HintingNone, matrix); ok {
+		if !text.IsHighChurnLabel(s) {
+			e.msdfLayoutTemplatePut(key, x, y, batch)
+		}
+	}
+	return batch, nil
+}
+
+func (e *GPUTextEngine) msdfLayoutTemplateGet(
+	key glyphLayoutTemplateKey,
+	x, y float64,
+	color render.RGBA,
+	matrix render.Matrix,
+	atlasIndex int,
+	atlasSize float32,
+) (TextBatch, bool) {
+	if e.layoutCache == nil {
+		return TextBatch{}, false
+	}
+	ent := e.layoutCache[key]
+	if ent == nil {
+		e.layoutCacheMiss++
+		return TextBatch{}, false
+	}
+	dx := x - ent.baseX
+	dy := y - ent.baseY
+	// Pixel-safe rebase only for integer device deltas (deviceScale baked into positions).
+	if dx != 0 || dy != 0 {
+		// MSDF quads are in logical user space; require integer-pixel translation.
+		if dx != float64(int64(dx)) || dy != float64(int64(dy)) {
+			e.layoutCacheMiss++
+			return TextBatch{}, false
+		}
+	}
+	e.layoutCacheTick++
+	ent.atime = e.layoutCacheTick
+	e.layoutCacheHits++
+	quads := make([]TextQuad, len(ent.quads))
+	if dx == 0 && dy == 0 {
+		copy(quads, ent.quads)
+	} else {
+		fdx, fdy := float32(dx), float32(dy)
+		for i, q := range ent.quads {
+			q.X0 += fdx
+			q.X1 += fdx
+			q.Y0 += fdy
+			q.Y1 += fdy
+			quads[i] = q
+		}
+	}
 	return TextBatch{
 		Quads:      quads,
 		Color:      color,
 		Transform:  matrix,
 		AtlasIndex: atlasIndex,
 		PxRange:    e.pxRange,
-		AtlasSize:  float32(atlasConfig.Size),
-	}, nil
+		AtlasSize:  atlasSize,
+	}, true
+}
+
+func (e *GPUTextEngine) msdfLayoutTemplatePut(key glyphLayoutTemplateKey, x, y float64, batch TextBatch) {
+	if e.layoutCache == nil {
+		e.layoutCache = make(map[glyphLayoutTemplateKey]*msdfLayoutTemplateEntry)
+	}
+	if len(batch.Quads) == 0 {
+		return
+	}
+	cp := make([]TextQuad, len(batch.Quads))
+	copy(cp, batch.Quads)
+	e.layoutCacheTick++
+	e.layoutCache[key] = &msdfLayoutTemplateEntry{
+		baseX:      x,
+		baseY:      y,
+		quads:      cp,
+		atlasIndex: batch.AtlasIndex,
+		atlasSize:  batch.AtlasSize,
+		atime:      e.layoutCacheTick,
+	}
+	if e.layoutCacheSoft <= 0 {
+		e.layoutCacheSoft = 256
+	}
+	for len(e.layoutCache) > e.layoutCacheSoft {
+		var oldestKey glyphLayoutTemplateKey
+		var oldestTick uint64 = ^uint64(0)
+		first := true
+		for k, ent := range e.layoutCache {
+			if first || ent.atime < oldestTick {
+				oldestKey = k
+				oldestTick = ent.atime
+				first = false
+			}
+		}
+		delete(e.layoutCache, oldestKey)
+	}
 }
 
 // cjkAtlasOffset is the index offset for CJK atlas pages.

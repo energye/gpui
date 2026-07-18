@@ -1,6 +1,8 @@
 # 内存 / VRAM 泄漏测试方案
 
-> 版本：1.4 | 日期：2026-07-18  
+
+> **时长分层说明**：60s 只用于抓快泄漏（每秒百 KB 级）；平台化置信靠 180s+；慢爬/延迟释放用 600–1800s。rate 门限是噪声带，目标仍是 ≈0。
+> 版本：1.6 | 日期：2026-07-18  
 > 状态：**执行中**（**日常权威入口见 `docs/MEM_LEAK_PERF_GUARD_PLAN.md` + `scripts/run_mem_guard.sh`）  
 > 范围：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`（经 render 真链路）  
 > 非目标：游戏引擎、控件层、完整 ASAN/Valgrind 替代；**不**宣称覆盖全部 API  
@@ -23,7 +25,7 @@
 | 轨 | 指标 | 硬门禁 | 软门禁 |
 |----|------|--------|--------|
 | **功能/GPU** | present 成功、`GPUOps>0`、`cpu_fallback_ops=0`、无 native abort | ✅ Fail | — |
-| **进程 RSS** | `/proc/self/status` VmRSS（Linux） | 可选超大顶 | 稳态增量上限 |
+| **进程 RSS** | `/proc/self/status` VmRSS（Linux） | 硬顶仅防 OOM | **平台化** rate≈0（窗口）；短测用 Δ |
 | **生命周期** | Close/Reset 后仍能 Present 大尺寸 | ✅ Fail | — |
 
 说明：RSS **不能**精确等于 VRAM，但与 OOM 硬失败组合足够做 CI 护栏。
@@ -54,6 +56,19 @@
 
 ---
 
+### 4.0 窗口浸泡时长分层
+
+| 层级 | 时长 | 入口 | 用途 |
+|------|------|------|------|
+| 快筛 | **60s** | `P_MEM_SOAK` / `run_mem_guard.sh quick` | 抓 ≥~100–256 KB/s 快泄漏；每次改引擎 |
+| 日常 | **180s** | `P_MEM_LONG` / `run_mem_guard.sh daily` | 中等置信平台化；日常门禁 |
+| 中泡 | **600s (10min)** | `GPUI_PROBE=P_MEM_LONG GPUI_ANIM_SECONDS=600` | 慢爬 / 延迟释放；改释放链后必跑 |
+| 长泡 | **900–1800s** | `GPUI_ANIM_SECONDS=900\|1800` / `run_mem_guard.sh deep` | 发版前；极慢泄漏与阶梯抬升 |
+
+**判定一律：steady 段平台化（斜率≈0）**，不用绝对 MiB 爬升门。  
+`P_MEM_LONG` 使用 **固定粒子 N**（增长压力见独立探针 `P_GROW_N`）。  
+分段看斜率时建议：预热丢前 20%，再比 前/中/后 各 1/3 的 RSS 均值。
+
 ## 4. 时间窗判定
 
 每档：
@@ -67,7 +82,9 @@
 
 - wgpu uncaptured OOM / CreateTexture 失败 / Present error  
 - `GPUOps==0` 或 `cpu_fallback_ops!=0`  
-- RSS 超 `GPUI_MEM_RSS_HARD_KB`（默认 0=关闭；可设如 4GB）  
+- 窗口 mem：**唯一泄漏门** = 运行期内平台化；`rate > GPUI_MEM_PLATEAU_RATE_KB_S` → FAIL
+- RSS 超 `GPUI_MEM_RSS_HARD_KB`（仅防 OOM；PKS mem 默认 4GiB；TestMem 默认 0=关）
+- **不用**绝对 MiB 爬升（如 128MiB/180s）判定泄漏  
 
 ---
 
@@ -116,7 +133,8 @@ Env（`TestMem_*`）：
 | `GPUI_MEM_ITERS` | 覆盖默认迭代 | 分档默认 |
 | `GPUI_MEM_STRESS` | 启用 T5 | 关 |
 | `GPUI_MEM_RSS_DELTA_KB` | 稳态 RSS 软增量上限 | 分档 |
-| `GPUI_MEM_RSS_HARD_KB` | RSS 硬顶（0=关） | 0 |
+| `GPUI_MEM_RSS_HARD_KB` | RSS 硬顶（0=关；PKS mem 默认 4GiB） | TestMem:0 / PKS mem:4GiB |
+| `GPUI_MEM_PLATEAU_RATE_KB_S` | 窗口 mem 平台化噪声带（KB/s）；目标≈0 | 256 |
 | `GPUI_MEM_SEED` | 随机种子 | 42 |
 | `GPUI_FORCE_NO_X11` | 跳过窗口档 | 关 |
 
@@ -260,7 +278,9 @@ Env（`particle_kitchen_sink` 窗口压测，详见 `examples/particle_kitchen_s
 | RSS 源 | **仅当前测试进程** `/proc/self/status` VmRSS（或脚本对子进程采样）；**禁止**把整机 CPU/内存当门禁 |
 | Warmup | 前 ~10% 迭代允许冷启动上涨 |
 | Steady Δ | 后 1/3 均值 − 前 1/3 均值 ≤ `GPUI_MEM_RSS_DELTA_KB`（分档默认见 §4） |
-| Hard cap | 可选 `GPUI_MEM_RSS_HARD_KB`；OOM / CreateTexture / Present error **硬 Fail** |
+| **泄漏门（窗口）** | 仅平台化：`rate = Δ/(sec×0.8) ≤ GPUI_MEM_PLATEAU_RATE_KB_S`；目标 **≈0** |
+| Hard cap | `GPUI_MEM_RSS_HARD_KB` 仅防 OOM；CreateTexture / Present error **硬 Fail** |
+| 禁止 | 绝对 MiB 爬升阈值当“无泄漏” |
 | GPU 有效 | `GPUOps>0`、`cpu_fallback_ops=0`（或场景声明的 GPU 路径） |
 | Teardown | Close / release / Reset 后仍能中等 Present |
 | 隔离 | T0–T4 **每档独立进程**；COUNT≥3 反复 |
@@ -288,3 +308,5 @@ F1 相关证据：`/tmp/f1_closeout`、`TestF1_AdvancedLayerPresentView*`（pres
 ```
 
 
+
+- Evidence 2026-07-18: P_MEM_LONG **900s PASS** rate=2.13 KB/s early/mid/late=3.69/1.36/1.38 (`tmp/mem_release_900/`).

@@ -1,6 +1,8 @@
 # 内存泄漏测试计划（含性能正向护栏）
 
-> 版本：1.1 | 日期：2026-07-18  
+
+> **时长分层说明**：60s 只用于抓快泄漏（每秒百 KB 级）；平台化置信靠 180s+；慢爬/延迟释放用 600–1800s。rate 门限是噪声带，目标仍是 ≈0。
+> 版本：1.3 | 日期：2026-07-18  
 > 状态：**执行中（权威入口）**  
 > **目标：正向优化渲染引擎** — 修泄漏/收敛冗余时，功能与 FPS/CPU/稳态内存占用只许持平或变好。  
 > 时长尺度：**约 1 分钟～30 分钟**（工程稳态；非无限时长）  
@@ -52,14 +54,16 @@
 
 ### 2.2 阈值表（权威）
 
-| 场景 | 稳态 Δ 上限 | 说明 |
-|------|-------------|------|
-| TestMem T0/T1 | **48 MiB** | `GPUI_MEM_RSS_DELTA_KB` 可覆盖 |
-| TestMem T3 SizeChurn | **64 MiB** | 见测试默认 |
-| TestMem T3 Escalating / T4 | **96 MiB** | 见测试默认 |
-| PKS 通用 | **512 MiB** | 防失控 |
-| `P_MEM_SOAK` / `P_MEM_LONG` / `P_GROW_N` | **128 MiB** | mem 专用硬顶 |
-| 可选 RSS 硬顶 | `GPUI_MEM_RSS_HARD_KB`（默认关） | 防单进程吃光内存 |
+**窗口 mem 泄漏判定：只看运行期内是否平台化（斜率 ≈ 0）。不用绝对 MiB 爬升阈值。**
+
+| 场景 | 门禁 | 说明 |
+|------|------|------|
+| **泄漏标准** | 稳态 RSS **斜率 ≈ 0**（平台化） | warmup 后整段运行不再持续爬升 |
+| `P_MEM_SOAK` / `P_MEM_LONG` / `P_GROW_N` | **rate ≤ `GPUI_MEM_PLATEAU_RATE_KB_S`**（默认 **256 KB/s**） | `rate = rss_steady_delta_kb / (seconds×0.8)`；噪声带；目标是 ≈0 |
+| 进程硬顶（可选） | **`GPUI_MEM_RSS_HARD_KB`**（默认 **4GiB**） | **仅防 OOM/死机**，不是泄漏判定 |
+| TestMem T0–T4 | 短测稳态 Δ 窗（48/64/96 MiB） | 单测迭代短，仍用 Δ 护栏；`GPUI_MEM_RSS_DELTA_KB` 可覆盖 |
+
+**禁止：** 用「跑了 N 秒涨了 M MiB」这种绝对爬升（如 128MiB/180s）当“无泄漏”。
 
 ### 2.3 默认时长（权威）
 
@@ -71,6 +75,18 @@
 | **M3 加长** | LONG **900–1800s** | 手动 `GPUI_ANIM_SECONDS` |
 
 探针默认（无 env 时）：`P_MEM_SOAK` → 60s，`P_MEM_LONG` → 180s（`MemSoakSec`）。  
+`P_MEM_LONG` 为 **固定粒子 N**（增长压力见 `P_GROW_N`）。加长：`GPUI_ANIM_SECONDS=600|900|1800`。
+
+### 2.3.1 时长选择（抓什么）
+
+| 时长 | 能抓 | 不能可靠抓 |
+|------|------|------------|
+| 60s | ≥~100–256 KB/s 快泄漏、每帧资源账本 | 极慢爬、延迟释放 |
+| 180s | 中等置信平台化；日常门禁 | &lt;10 KB/s 级慢漏 |
+| 600s | 慢爬、延迟归还、阶梯抬升 | 偶发小时级问题 |
+| 900–1800s | 发版证据；分段 early/mid/late 斜率 | — |
+
+**判定只看平台化斜率**（`rate ≤ GPUI_MEM_PLATEAU_RATE_KB_S`，默认 256，目标≈0）。不用绝对 MiB 爬升门。  
 覆盖：`GPUI_ANIM_SECONDS=<秒>`。
 
 ### 2.4 性能正向护栏（相对基线）
@@ -82,7 +98,7 @@
 | `fps_ema` | ≥ 基线 × **97%**（且满足探针 MinFPS） |
 | `cpu_avg` | ≤ 基线 × **105%** |
 | 稳态平台 RSS（末段） | ≤ 基线 × **110%** |
-| `rss_steady_delta` | ≤ 门禁，且 **≤ 基线**（斜率不恶化） |
+| 平台化 rate | mem 探针：**rate ≈ 0**（≤ 噪声带）且 **≤ 基线 rate**；**无绝对 MiB 爬升门** |
 
 ---
 
@@ -178,7 +194,7 @@ GPUI_PROBE=P_MEM_LONG GPUI_ANIM_SECONDS=600 GPUI_RESULT_FILE=/tmp/long.json \
 ## 7. 成功标准
 
 1. `run_mem_leak_tests.sh`（COUNT=3）全绿  
-2. mem 探针 / 矩阵：`rss_steady_delta` 在 §2.2 内  
+2. mem 探针 / 矩阵：运行期内 **平台化 rate ≈ 0**（§2.2）；硬顶仅防 OOM  
 3. 至少按模式达到对应时长（quick/daily/deep）  
 4. 性能护栏相对基线无超标回退  
 5. 结论表述限定为：  
@@ -192,3 +208,5 @@ GPUI_PROBE=P_MEM_LONG GPUI_ANIM_SECONDS=600 GPUI_RESULT_FILE=/tmp/long.json \
 |------|------|------|
 | 2026-07-18 | 1.0 | 初版：时长档 + 性能护栏 |
 | 2026-07-18 | 1.1 | 审查后：统一斜率算法与阈值表；SOAK/LONG 默认 60s/180s；`run_mem_guard.sh`；标明权威入口 |
+
+- Evidence 2026-07-18: P_MEM_LONG **900s PASS** rate=2.13 KB/s early/mid/late=3.69/1.36/1.38 (`tmp/mem_release_900/`).

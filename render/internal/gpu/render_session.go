@@ -359,6 +359,12 @@ type GPURenderSession struct {
 	// Atlas texture and view for current frame's text rendering.
 	textAtlasTex  *webgpu.Texture
 	textAtlasView *webgpu.TextureView
+	// CPU staging reuse (dynamic HUD rewrites verts every frame).
+	textQuadScratch      []TextQuad
+	textVertStaging      []byte
+	textIdxStaging       []byte
+	textUniformScratch   []byte
+	textIdxUploadedQuads int
 
 	// Tier 6: Glyph mask text persistent buffers.
 	glyphMaskPipeline     *GlyphMaskPipeline
@@ -444,6 +450,10 @@ type GPURenderSession struct {
 	// vkResetCommandPool on an in-flight pool — undefined behavior that
 	// manifests as trail artifacts (stale MSAA resolve content).
 	prevCmdBufs []*webgpu.CommandBuffer
+	// lastSubmitUsedSurface is true when the last retained CB targeted a
+	// surface/swapchain view (present/vsync is the completion barrier).
+	// When false (offscreen readback), BeginFrame must drainQueue before free.
+	lastSubmitUsedSurface bool
 
 	// frameRendered tracks whether at least one render pass has been
 	// submitted to the surface in the current frame. When true, subsequent
@@ -588,8 +598,15 @@ func (s *GPURenderSession) BeginFrame() {
 	if len(s.leadSubmitCBs) > 0 {
 		_ = s.FlushLeadingSubmitsOnly()
 	}
-	if len(s.prevCmdBufs) > 0 && s.surfaceView == nil {
-		// Offscreen present has no swapchain barrier.
+	// Free previous-frame CBs. Drain only when the last submit was offscreen
+	// (no present/vsync barrier). Window path uses per-pass target.View without
+	// SetSurfaceTarget; present already completed before the next BeginFrame.
+	// GPUI_MEM_DRAIN=1 forces WaitIdle every frame (reclaim dig; costs FPS).
+	forceDrain := false
+	if v := os.Getenv("GPUI_MEM_DRAIN"); v == "1" || v == "true" {
+		forceDrain = true
+	}
+	if len(s.prevCmdBufs) > 0 && (forceDrain || !s.lastSubmitUsedSurface) {
 		s.drainQueue()
 	}
 	for _, cb := range s.prevCmdBufs {
@@ -598,9 +615,18 @@ func (s *GPURenderSession) BeginFrame() {
 		}
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
+	s.lastSubmitUsedSurface = false
 
 	s.frameRendered = false
 	s.lastView = nil
+}
+
+// DigCmdBufStats returns retained command-buffer count for mem digs.
+func (s *GPURenderSession) DigCmdBufStats() (prev int, usedSurface bool) {
+	if s == nil {
+		return 0, false
+	}
+	return len(s.prevCmdBufs), s.lastSubmitUsedSurface
 }
 
 // SetFrameState sets the per-context frame tracking state before a render pass.
@@ -2508,13 +2534,19 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 		return nil, nil //nolint:nilnil // no quads to render
 	}
 
-	allQuads := make([]TextQuad, 0, totalQuads)
-	for i := range batches {
-		allQuads = append(allQuads, batches[i].Quads...)
+	if cap(s.textQuadScratch) < totalQuads {
+		s.textQuadScratch = make([]TextQuad, 0, totalQuads)
+	} else {
+		s.textQuadScratch = s.textQuadScratch[:0]
 	}
+	for i := range batches {
+		s.textQuadScratch = append(s.textQuadScratch, batches[i].Quads...)
+	}
+	allQuads := s.textQuadScratch
 
 	// Build and upload shared vertex data (4 vertices per quad, 16 bytes per vertex).
-	vertexData := buildTextVertexData(allQuads)
+	vertexData := buildTextVertexDataInto(s.textVertStaging, allQuads)
+	s.textVertStaging = vertexData
 	vertSize := uint64(len(vertexData))
 
 	if s.textVertBuf == nil || s.textVertBufCap < vertSize {
@@ -2540,16 +2572,17 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 		return nil, fmt.Errorf("write text vertex buffer: %w", err)
 	}
 
-	// Build and upload shared index data (6 indices per quad, 2 bytes per index).
-	indexData := buildTextIndexData(totalQuads)
-	idxSize := uint64(len(indexData))
-
+	// Index pattern is pure function of quad count — grow-only upload.
+	idxSize := uint64(totalQuads * 6 * 2) //nolint:gosec // bounded
 	if s.textIdxBuf == nil || s.textIdxBufCap < idxSize {
 		s.invalidateTextBindGroups()
 		if s.textIdxBuf != nil {
 			s.textIdxBuf.Release()
 		}
 		allocSize := idxSize * 2
+		if allocSize < 256 {
+			allocSize = 256
+		}
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
 			Label: "session_text_indices",
 			Size:  allocSize,
@@ -2558,13 +2591,20 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 		if err != nil {
 			s.textIdxBuf = nil
 			s.textIdxBufCap = 0
+			s.textIdxUploadedQuads = 0
 			return nil, fmt.Errorf("create text index buffer: %w", err)
 		}
 		s.textIdxBuf = buf
 		s.textIdxBufCap = allocSize
+		s.textIdxUploadedQuads = 0
 	}
-	if err := s.queue.WriteBuffer(s.textIdxBuf, 0, indexData); err != nil {
-		return nil, fmt.Errorf("write text index buffer: %w", err)
+	if totalQuads > s.textIdxUploadedQuads {
+		indexData := buildTextIndexDataInto(s.textIdxStaging, totalQuads)
+		s.textIdxStaging = indexData
+		if err := s.queue.WriteBuffer(s.textIdxBuf, 0, indexData); err != nil {
+			return nil, fmt.Errorf("write text index buffer: %w", err)
+		}
+		s.textIdxUploadedQuads = totalQuads
 	}
 
 	// Grow uniform buffer and bind group pools to match batch count.
@@ -2586,7 +2626,8 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 			D: 0, E: -2.0 / float64(s.frameH), F: 1.0,
 		}
 		finalTransform := ortho.Multiply(batch.Transform)
-		uniformData := makeTextUniform(batch.Color, finalTransform, batch.PxRange, batch.AtlasSize)
+		uniformData := makeTextUniformInto(s.textUniformScratch, batch.Color, finalTransform, batch.PxRange, batch.AtlasSize)
+		s.textUniformScratch = uniformData
 		if err := s.queue.WriteBuffer(s.textUniformBufs[i], 0, uniformData); err != nil {
 			return nil, fmt.Errorf("write text uniform[%d]: %w", i, err)
 		}
@@ -3008,6 +3049,7 @@ func (s *GPURenderSession) finishSurfaceSubmit(cmd *webgpu.CommandBuffer) error 
 	if s == nil {
 		return fmt.Errorf("finishSurfaceSubmit: nil session")
 	}
+	s.lastSubmitUsedSurface = true
 	if s.deferSurfaceSubmit {
 		s.EnqueueLeadingSubmit(cmd, nil)
 		s.deferredConvexUses++

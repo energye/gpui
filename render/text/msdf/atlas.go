@@ -573,10 +573,20 @@ func (m *AtlasManager) SetGenerator(g *Generator) {
 
 // HasGlyph returns true if the glyph is already cached.
 func (m *AtlasManager) HasGlyph(key GlyphKey) bool {
+	_, ok := m.Lookup(key)
+	return ok
+}
+
+// Lookup returns a cached glyph region without generating MSDF.
+// ok=false when the glyph is not in the atlas (caller should ExtractOutline + Get).
+func (m *AtlasManager) Lookup(key GlyphKey) (Region, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	_, ok := m.lookup[key]
-	return ok
+	region, ok := m.lookup[key]
+	if ok {
+		m.hits.Add(1)
+	}
+	return region, ok
 }
 
 // Remove removes a specific glyph from the cache.

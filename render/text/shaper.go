@@ -57,6 +57,9 @@ func Shape(textStr string, face Face) []ShapedGlyph {
 	if textStr == "" || face == nil {
 		return nil
 	}
+	if IsHighChurnLabel(textStr) {
+		return GetShaper().Shape(textStr, face)
+	}
 	key, ok := faceShapeKey(face, textStr, shapeModeOT)
 	if !ok {
 		return GetShaper().Shape(textStr, face)

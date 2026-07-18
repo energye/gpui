@@ -1849,3 +1849,65 @@ D01–D200 static composition had 3 FAIL after opt40 Keep:
 - Code: `render/filter_ops.go`, `render/context.go`, `render/present.go`, `render/internal/gpu/gpu_render_context.go`
 - Tests: `render/filter_present_coherence_test.go`
 - Logs: `tmp/pks/cpu_opt/fix_final.log`, `d01_d200_verify_now.json`, `after_fix_P_{SOLID,GLOW,L3}.json`
+
+## Mem platformization (2026-07-18) — residual closed
+
+### Fixes landed (engine)
+
+1. **Swapchain surface texture**: `WGPUSurfaceTexture` is ReturnedWithOwnership — `Present`/`DiscardFrame` release texture (was leaking).
+2. **Command buffer retain**: window path now calls `session.BeginFrame()` so `prevCmdBufs` drain; dig shows `prev_cb=1` stable.
+3. **Dynamic HUD text residual** (after surface/CB fixed, solid+dynamic HUD still ~300 KB/s):
+   - `text.IsHighChurnLabel` — skip shape/layout caches for FPS/RSS/frame telemetry strings
+   - MSDF: atlas `Lookup` before `ExtractOutline`; layout template for stable strings; grow-only text staging
+   - Glyph-mask: skip layoutTemplatePut for high-churn labels
+
+### Gate
+
+- Leak = **platformization only**: `rate = rss_steady_delta_kb / (seconds×0.8) ≤ GPUI_MEM_PLATEAU_RATE_KB_S` (default 256 KB/s; target ≈0)
+- No absolute MiB climb gate (optional `GPUI_MEM_RSS_HARD_KB` OOM safety only)
+
+### Tier soak evidence (`tmp/mem_tier_soak/`)
+
+| Tier | Duration | Status | rate KB/s | FPS | CPU |
+|------|----------|--------|-----------|-----|-----|
+| P_MEM_SOAK | 60s | PASS | 41.6 | 58.4 | 18 |
+| P_MEM_LONG | 180s | PASS | 6.4 | 57.4 | 18 |
+| P_MEM_LONG | 600s | PASS | 3.5 | 57.2 | 18 |
+| P_MEM_LONG | 900s | PASS | **2.13** | 58.6 | 18 |
+
+600s offline segments early/mid/late ≈ 7.5 / 6.2 / 2.5 KB/s (late lowest → no delayed-release signature).
+
+### Related digs
+
+- solid + `GPUI_NO_HUD` / `GPUI_STATIC_HUD`: flat before text fix
+- solid + dynamic HUD after fix: PASS
+- baseline full L3 60s / blend 60s: PASS (`tmp/mem_hud_text_fix/`)
+
+### Still out of scope / optional
+
+- 15–30 min release soak (`GPUI_ANIM_SECONDS=900|1800`) for ultra-slow climb
+- Duration honesty: **60s diagnoses fast leaks (≥~100–256 KB/s)**; does **not** alone prove no slow climb. Layer: 60 → 180 → 600 → 900+.
+- Harness FPS honesty (2026-07-18): present-to-present only; skip interval after intermittent `stageContentSignature` dig; `fps_jitter` = **p95−p5** (raw min/max kept).
+
+### 900s release soak (`tmp/mem_release_900/`) — 2026-07-18
+- **PASS** rate=**2.13** KB/s delta=1534KB / 900s; early/mid/late=**3.69 / 1.36 / 1.38** (late≈mid → platform, no delayed-release)
+- fps_ema≈58.6 cpu≈18.2; note: this binary predated harness jitter fix so `fps_jitter` whole-run max−min inflated (warn only)
+- Release-tier mem platformization **complete** (optional 1800s only if ultra-slow still suspected)
+
+### Harness FPS honesty verify (`tmp/jitter_honesty/`)
+- present→present; skip dig-following interval; `fps_jitter`=p95−p5
+- P_L3 20s: PASS jit=**6.2** min=46 max=80 low=0 warn=none cpu≈18
+- P_SOLID 15s: PASS jit=**2.1** min=49 max=71 low=0 warn=none cpu≈8.6
+
+- Precise VRAM accounting
+- Glow/L3 hitch (perf, not leak) remains separate track
+
+
+### Daily guard + glow baseline (same day)
+
+- `run_mem_guard.sh daily` (SKIP_UNIT=1, COUNT=1): **DONE fail=0**
+  - mem matrix pass=5; P_MEM_LONG 180s rate≈8.4 KB/s; P_SOLID/P_BLEND_LAYER 60s PASS
+  - evidence: `tmp/mem_guard_daily_now/`
+- Glow/L3 20s baseline (`tmp/perf_glow_next/`): all PASS, hitch low, CPU 8–18%
+  - Next perf knife (optional): L3 jitter / filter bind reuse — not blocking mem track
+

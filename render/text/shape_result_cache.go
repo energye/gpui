@@ -310,12 +310,42 @@ func faceShapeKey(face Face, s string, mode shapeResultMode) (shapeResultKey, bo
 	}, true
 }
 
+// IsHighChurnLabel reports live telemetry-style strings (FPS / RSS / frame
+// counters) that typically change every frame. Skipping soft-LRU result caches
+// for these keeps capacity for stable UI labels and avoids multi-MB RSS growth
+// under dynamic HUD load (unique full-string keys never hit).
+//
+// Heuristic: moderately long strings with a high digit ratio.
+func IsHighChurnLabel(s string) bool {
+	n := len(s)
+	if n < 12 {
+		return false
+	}
+	digits := 0
+	for i := 0; i < n; i++ {
+		c := s[i]
+		if c >= '0' && c <= '9' {
+			digits++
+		}
+	}
+	// ≥20% digits with a meaningful digit count → ephemeral telemetry.
+	// (dynamic HUD: "FPS … RSS … frame N"; static labels rarely hit this.)
+	if digits < 6 {
+		return false
+	}
+	return digits*5 >= n
+}
+
 // LayoutGlyphs converts text into positioned glyphs using Face.Glyphs
 // (cmap + advance; no GSUB/GPOS). Results are cached for the GPU LayoutText
 // hot path (S6.5). The returned slice must not be modified by callers.
+// High-churn telemetry labels bypass the cache (see IsHighChurnLabel).
 func LayoutGlyphs(face Face, s string) []ShapedGlyph {
 	if face == nil || s == "" {
 		return nil
+	}
+	if IsHighChurnLabel(s) {
+		return layoutGlyphsUncached(face, s)
 	}
 	key, ok := faceShapeKey(face, s, shapeModeLayout)
 	if !ok {

@@ -47,13 +47,8 @@ run_pks() {
     go run ./examples/particle_kitchen_sink >"$plog" 2>&1
   local rc=$?
   set -e
-  if [[ $rc -ne 0 ]]; then
-    log "FAIL $probe process_exit=$rc (see $plog)"
-    fail=1
-    return 0
-  fi
   if [[ ! -f "$json" ]]; then
-    log "FAIL $probe missing json"
+    log "FAIL $probe missing json process_exit=$rc (see $plog)"
     fail=1
     return 0
   fi
@@ -61,11 +56,11 @@ run_pks() {
   line="$(python3 -c "
 import json
 r=json.load(open('${json}'))
-print('status=%s fps_ema=%s cpu_avg=%s rss_steady_delta_kb=%s reason=%s' % (
-  r.get('status'), r.get('fps_ema'), r.get('cpu_avg'), r.get('rss_steady_delta_kb'), r.get('fail_reason') or r.get('reason','')))
+print('status=%s fps_ema=%s cpu_avg=%s rss_steady_delta_kb=%s rate_kb_s=%s reason=%s' % (
+  r.get('status'), r.get('fps_ema'), r.get('cpu_avg'), r.get('rss_steady_delta_kb'), r.get('rss_plateau_rate_kb_s'), r.get('fail_reason') or r.get('reason','')))
 " 2>/dev/null || echo "json_parse_error")"
-  log "   $line"
-  if echo "$line" | grep -qi 'status=FAIL'; then
+  log "   $line process_exit=$rc"
+  if [[ $rc -ne 0 ]] || echo "$line" | grep -qi 'status=FAIL'; then
     fail=1
   fi
 }

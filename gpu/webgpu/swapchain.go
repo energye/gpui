@@ -319,9 +319,8 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if err != nil {
 		// Drop acquired surface texture or next Configure panics native:
 		// "SurfaceOutput must be dropped before a new Surface is made".
-		if st != nil && st.texture != nil {
-			st.texture.Release()
-			st.texture = nil
+		if st != nil {
+			st.Release()
 		}
 		return nil, fmt.Errorf("wgpu: surface texture CreateView: %w", err)
 	}
@@ -403,11 +402,17 @@ func (sc *Swapchain) endFrame(frame *Frame, rects []image.Rectangle) error {
 	}
 	sc.lastPresentNs = time.Since(t0).Nanoseconds()
 	sc.presents++
-	frame.SurfaceTexture = nil
+	// After Present, drop ReturnedWithOwnership surface texture.
+	// Must happen after Present so surface no longer holds "current" image.
+	if frame.SurfaceTexture != nil {
+		frame.SurfaceTexture.Release()
+		frame.SurfaceTexture = nil
+	}
 	return err
 }
 
-// DiscardFrame drops an acquired frame without presenting (best-effort).
+// DiscardFrame drops an acquired frame without presenting.
+// Releases the surface texture immediately (ReturnedWithOwnership).
 func (sc *Swapchain) DiscardFrame(frame *Frame) {
 	if frame == nil {
 		return
@@ -416,11 +421,13 @@ func (sc *Swapchain) DiscardFrame(frame *Frame) {
 		frame.View.Release()
 		frame.View = nil
 	}
-	if sc != nil && sc.Surface != nil {
-		sc.Surface.DiscardTexture()
+	if frame.SurfaceTexture != nil {
+		frame.SurfaceTexture.Release()
+		frame.SurfaceTexture = nil
+	}
+	if sc != nil {
 		sc.discards++
 	}
-	frame.SurfaceTexture = nil
 }
 
 // PresentModeName returns a short label for the active present mode.

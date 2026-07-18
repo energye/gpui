@@ -210,3 +210,17 @@ func (st *SurfaceTexture) CreateView(desc *TextureViewDescriptor) (*TextureView,
 func (st *SurfaceTexture) Texture() *Texture {
 	return st.texture
 }
+
+// Release drops ownership of the surface texture returned by GetCurrentTexture.
+// webgpu.h marks WGPUSurfaceTexture.texture as ReturnedWithOwnership — callers
+// must release exactly once after Present or discard.
+func (st *SurfaceTexture) Release() {
+	if st == nil {
+		return
+	}
+	if st.texture != nil {
+		st.texture.Release()
+		st.texture = nil
+	}
+	st.r = nil
+}

@@ -233,7 +233,7 @@ func isolationProbes() []probeDef {
 			Solid:            true, Blend: true, Glow: true, Mesh: true, Atlas: true, Text: true, Layer: true,
 			ParticleN: 1600, Region: 0.68, BlendCircles: 80, MinN: 1200,
 			MemSoakSec: 60, AllowLowFPS: true,
-			Expect:     "L3 特征 ~60s 浸泡：RSS 稳态斜率不得暴涨（可用 GPUI_ANIM_SECONDS 覆盖）",
+			Expect:     "L3 ~60s：运行期内 RSS 平台化（斜率≈0）；无绝对 MiB 爬升门；OOM 硬顶可选",
 			BisectHint: "RSS steady delta；layer RT 池；glow export",
 		},
 
@@ -277,11 +277,12 @@ func isolationProbes() []probeDef {
 		{
 			ID: "P_MEM_LONG", NameCN: "加长内存浸泡", Class: classStress, BaseTier: "L3",
 			OverrideFeatures: true,
-			Solid:            true, Blend: true, Glow: true, Mesh: true, Atlas: true, Layer: true,
-			ParticleN: 1400, Region: 0.68, BlendCircles: 64, MinN: 1200,
-			MemSoakSec: 180, AllowLowFPS: true, GrowN: true,
-			Expect:     "默认 ~180s L3+grow：RSS 稳态斜率硬顶；加深用 GPUI_ANIM_SECONDS=600/900/1800",
-			BisectHint: "rss / layer RT 池 / glow export",
+			// Fixed N (no GrowN): pure platformization. Particle growth is P_GROW_N.
+			Solid: true, Blend: true, Glow: true, Mesh: true, Atlas: true, Text: true, Layer: true,
+			ParticleN: 1600, Region: 0.68, BlendCircles: 80, MinN: 1200,
+			MemSoakSec: 180, AllowLowFPS: true,
+			Expect:     "默认 ~180s 全 L3 固定 N：稳态斜率≈0；中泡 GPUI_ANIM_SECONDS=600；长泡 900/1800",
+			BisectHint: "rss / layer RT 池 / glow export；动态 HUD 文本路径",
 		},
 
 		// ---- dig axes: Skia-facing paths that surface real bugs ----

@@ -575,22 +575,28 @@ func generateQuadIndices(numQuads int) []uint16 {
 // buildTextVertexData serializes TextQuad slices into raw vertex bytes
 // suitable for GPU upload. Each quad produces 4 vertices x 16 bytes = 64 bytes.
 func buildTextVertexData(quads []TextQuad) []byte {
+	return buildTextVertexDataInto(nil, quads)
+}
+
+// buildTextVertexDataInto reuses data capacity when large enough (grow-only scratch).
+func buildTextVertexDataInto(data []byte, quads []TextQuad) []byte {
 	if len(quads) == 0 {
-		return nil
+		return data[:0]
 	}
-	data := make([]byte, len(quads)*4*textVertexStride)
+	need := len(quads) * 4 * textVertexStride
+	if cap(data) < need {
+		data = make([]byte, need)
+	} else {
+		data = data[:need]
+	}
 	off := 0
 	for _, q := range quads {
-		// Vertex 0: top-left
 		writeTextVertex(data[off:], q.X0, q.Y0, q.U0, q.V0)
 		off += textVertexStride
-		// Vertex 1: top-right
 		writeTextVertex(data[off:], q.X1, q.Y0, q.U1, q.V0)
 		off += textVertexStride
-		// Vertex 2: bottom-right
 		writeTextVertex(data[off:], q.X1, q.Y1, q.U1, q.V1)
 		off += textVertexStride
-		// Vertex 3: bottom-left
 		writeTextVertex(data[off:], q.X0, q.Y1, q.U0, q.V1)
 		off += textVertexStride
 	}
@@ -607,8 +613,20 @@ func writeTextVertex(buf []byte, x, y, u, v float32) {
 
 // buildTextIndexData serializes quad indices into raw bytes for GPU upload.
 func buildTextIndexData(numQuads int) []byte {
+	return buildTextIndexDataInto(nil, numQuads)
+}
+
+func buildTextIndexDataInto(data []byte, numQuads int) []byte {
+	if numQuads <= 0 {
+		return data[:0]
+	}
+	need := numQuads * 6 * 2
+	if cap(data) < need {
+		data = make([]byte, need)
+	} else {
+		data = data[:need]
+	}
 	indices := generateQuadIndices(numQuads)
-	data := make([]byte, len(indices)*2)
 	for i, idx := range indices {
 		binary.LittleEndian.PutUint16(data[i*2:], idx)
 	}
@@ -617,7 +635,15 @@ func buildTextIndexData(numQuads int) []byte {
 
 // makeTextUniform creates the 96-byte uniform buffer for a text batch.
 func makeTextUniform(color render.RGBA, transform render.Matrix, pxRange, atlasSize float32) []byte {
-	buf := make([]byte, textUniformSize)
+	return makeTextUniformInto(nil, color, transform, pxRange, atlasSize)
+}
+
+func makeTextUniformInto(buf []byte, color render.RGBA, transform render.Matrix, pxRange, atlasSize float32) []byte {
+	if cap(buf) < int(textUniformSize) {
+		buf = make([]byte, textUniformSize)
+	} else {
+		buf = buf[:textUniformSize]
+	}
 	off := 0
 
 	// Transform: WGSL mat4x4<f32> is stored COLUMN-MAJOR in memory.

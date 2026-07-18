@@ -245,7 +245,11 @@ func main() {
 		resizePhase      int
 		lowFPSCount      int
 		instFPSCount     int
+		skipFPSSample    bool // true after harness dig: next present interval includes dig wall time
+		instFPSSamples   []float64
 	)
+	rssSamples = make([]int64, 0, 256)
+	instFPSSamples = make([]float64, 0, 4096)
 
 	running := true
 	for running {
@@ -351,7 +355,9 @@ func main() {
 		dc.BeginFrame()
 		note, markers := drawFrame(dc, fonts, cfg, sim, fw, fh, t, frame)
 		markersLast = markers
-		drawHUD(dc, fonts, cfg, fw, fh, note, fpsEMA, cpuPctEMA, lastRSS, frame)
+		if !envBool("GPUI_NO_HUD", false) {
+			drawHUD(dc, fonts, cfg, fw, fh, note, fpsEMA, cpuPctEMA, lastRSS, frame)
+		}
 
 		fb, err := sc.BeginFrame()
 		if err != nil {
@@ -415,6 +421,38 @@ func main() {
 				contentOKFlag, contentNote = cok, cn
 			}
 		}
+		// Present-to-present FPS only. Harness digs (pixelFingerprint / stageContentSignature)
+		// run after timing; the following interval includes dig wall time so it is skipped.
+		now := time.Now()
+		if !lastFrameEnd.IsZero() && !skipFPSSample {
+			dt := now.Sub(lastFrameEnd).Seconds()
+			if dt > 1e-6 {
+				instFPS := 1.0 / dt
+				if fpsEMA <= 0 {
+					fpsEMA = instFPS
+				} else {
+					fpsEMA = fpsEMA*0.9 + instFPS*0.1
+				}
+				// Track span after warm-up.
+				// Ignore first ~1s scheduling noise; track steady hitch ratio.
+				if frame >= 60 {
+					instFPSCount++
+					instFPSSamples = append(instFPSSamples, instFPS)
+					if fpsMin <= 0 || instFPS < fpsMin {
+						fpsMin = instFPS
+					}
+					if instFPS > fpsMax {
+						fpsMax = instFPS
+					}
+					if instFPS < float64(targetFPS)-15 {
+						lowFPSCount++
+					}
+				}
+			}
+		}
+		lastFrameEnd = now
+		skipFPSSample = false
+
 		// Pixel evidence once after warm-up (expensive-ish export; not every frame).
 		if !pixelChecked && frame >= 45 {
 			pixelOKFlag, pixelNote, pixelSamples = pixelFingerprint()
@@ -436,8 +474,10 @@ func main() {
 			}
 			log.Printf("pixel_probe ok=%v note=%s | stage_sig ok=%v note=%s",
 				pixelOKFlag, pixelNote, stageSigOK, stageSigNote)
-		} else if frame >= 45 && frame%30 == 0 {
+			skipFPSSample = true // next present interval includes this dig
+		} else if frame >= 45 && frame%30 == 0 && envBool("GPUI_INTERMITTENT_SIG", true) {
 			// Intermittent content sampling — catches flicker/dropouts without full-frame readback.
+			// Set GPUI_INTERMITTENT_SIG=0 during mem dig to isolate harness vs engine climb.
 			okSig, noteSig := stageContentSignature()
 			sigSamples++
 			if !okSig {
@@ -445,35 +485,8 @@ func main() {
 				stageSigOK = false
 				stageSigNote = noteSig
 			}
+			skipFPSSample = true // next present interval includes this dig
 		}
-
-		now := time.Now()
-		if !lastFrameEnd.IsZero() {
-			dt := now.Sub(lastFrameEnd).Seconds()
-			if dt > 1e-6 {
-				instFPS := 1.0 / dt
-				if fpsEMA <= 0 {
-					fpsEMA = instFPS
-				} else {
-					fpsEMA = fpsEMA*0.9 + instFPS*0.1
-				}
-				// Track span after warm-up.
-				// Ignore first ~1s scheduling noise; track steady hitch ratio.
-				if frame >= 60 {
-					instFPSCount++
-					if fpsMin <= 0 || instFPS < fpsMin {
-						fpsMin = instFPS
-					}
-					if instFPS > fpsMax {
-						fpsMax = instFPS
-					}
-					if instFPS < float64(targetFPS)-15 {
-						lowFPSCount++
-					}
-				}
-			}
-		}
-		lastFrameEnd = now
 
 		if cur, ok := readCPUSample(); ok {
 			if havePrevCPU {
@@ -501,8 +514,13 @@ func main() {
 			steadyFrame0 = frame
 		}
 		if logEvery > 0 && frame%logEvery == 0 {
-			log.Printf("%s frame=%d fps=%.1f cpu=%.1f%% rss=%dKB gpu_ops=%d cpu_fb=%d n=%d feats=%s probe=%v content=%v markers=%d",
+			msg := fmt.Sprintf("%s frame=%d fps=%.1f cpu=%.1f%% rss=%dKB gpu_ops=%d cpu_fb=%d n=%d feats=%s probe=%v content=%v markers=%d",
 				cfg.ProbeID, frame, fpsEMA, cpuPctEMA, lastRSS, gpuOpsLast, cpuFBLast, cfg.ParticleN, cfg.featuresSummary(), probeOKFlag, contentOKFlag, markersLast)
+			if envBool("GPUI_MEM_DIG", false) {
+				prevCB, surfCB := dc.MemDigCmdBufs()
+				msg += fmt.Sprintf(" prev_cb=%d surf=%v", prevCB, surfCB)
+			}
+			log.Print(msg)
 		}
 
 		if sleep := time.Until(deadline); sleep > 0 {
@@ -550,10 +568,12 @@ func main() {
 	if probeID == "" {
 		probeID = cfg.Tier
 	}
+	steadyDelta := rssSteadyDelta(rssSamples)
+	rateEarly, rateMid, rateLate := rssSegmentRatesKB(rssSamples, elapsed)
 	res := runResult{
 		Tier: cfg.Tier, ProbeID: probeID, ProbeClass: cfg.ProbeClass, Name: cfg.NameCN,
 		Seconds: elapsed, Frames: frame,
-		FPSEma: fpsEMA, FPSAvg: fpsAvg, FPSMin: fpsMin, FPSMax: fpsMax, FPSJitter: fpsSpan(fpsMin, fpsMax),
+		FPSEma: fpsEMA, FPSAvg: fpsAvg, FPSMin: fpsMin, FPSMax: fpsMax, FPSJitter: fpsPercentileSpan(instFPSSamples),
 		LowFPSRatio: func() float64 {
 			if instFPSCount <= 0 {
 				return 0
@@ -562,8 +582,12 @@ func main() {
 		}(),
 		CPUAvg:     cpuAvg,
 		RSSStartKB: rssStart, RSSEndKB: lastRSS,
-		RSSSteadyDeltaKB: rssSteadyDelta(rssSamples),
-		GPUOps:           gpuOpsLast, CPUFallback: cpuFBLast, LastFB: lastFB,
+		RSSSteadyDeltaKB:  steadyDelta,
+		RSSPlateauRateKBs: memPlateauRateKB(steadyDelta, elapsed),
+		RSSRateEarlyKBs:   rateEarly,
+		RSSRateMidKBs:     rateMid,
+		RSSRateLateKBs:    rateLate,
+		GPUOps:            gpuOpsLast, CPUFallback: cpuFBLast, LastFB: lastFB,
 		Presents: presents, PresentErrors: presentErrors,
 		PresentErrResize: presentErrResize, PresentErrSteady: presentErrSteady,
 		LastPresentErr: lastPresentErr, ResizeEvents: resizeEvents, RecoverFails: recoverFails,
@@ -596,8 +620,18 @@ func main() {
 	res.Status, res.FailReason = judgeResult(res, targetFPS)
 	collectWarnings(&res, targetFPS)
 	writeResult(resultPath, res)
+	if envBool("GPUI_MEMSTATS", false) {
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		log.Printf("memstats heap_alloc=%d heap_inuse=%d heap_sys=%d stack_inuse=%d gc=%d next_gc=%d num_gc=%d",
+			ms.HeapAlloc, ms.HeapInuse, ms.HeapSys, ms.StackInuse, ms.GCCPUFraction, ms.NextGC, ms.NumGC)
+	}
 	log.Printf("DONE probe=%s status=%s fps_ema=%.1f fps_avg=%.1f jit=%.1f cpu=%.1f cpu_fb=%d n=%d present_err=%d/%d feats=%s reason=%s warn=%s exit=%s",
 		probeID, res.Status, res.FPSEma, res.FPSAvg, res.FPSJitter, res.CPUAvg, res.CPUFallback, res.ParticleN, res.PresentErrSteady, res.PresentErrResize, res.Features, res.FailReason, joinWarn(res.Warnings), res.ExitReason)
+	if probeID == "P_MEM_SOAK" || probeID == "P_MEM_LONG" || cfg.GrowN {
+		log.Printf("MEM_PLATEAU rate_kb_s=%.2f delta_kb=%d sec=%.1f early=%.2f mid=%.2f late=%.2f rss_end_kb=%d",
+			res.RSSPlateauRateKBs, res.RSSSteadyDeltaKB, res.Seconds, res.RSSRateEarlyKBs, res.RSSRateMidKBs, res.RSSRateLateKBs, res.RSSEndKB)
+	}
 	if res.Status != "PASS" {
 		os.Exit(1)
 	}
@@ -613,10 +647,19 @@ func drawHUD(dc *render.Context, fonts fontPack, cfg featureConfig, fw, fh float
 	if id == "" {
 		id = cfg.Tier
 	}
-	dc.DrawString(fmt.Sprintf("%s  %s  n=%d  region=%.0f%%  feats[%s]  class=%s",
-		id, cfg.NameCN, cfg.ParticleN, cfg.Region*100, cfg.featuresSummary(), cfg.ProbeClass), 10, 18)
+	// GPUI_STATIC_HUD=1: freeze HUD text for mem dig (isolates layout-cache thrash
+	// from unique FPS/RSS strings every frame vs stable glyph path).
+	staticHUD := envBool("GPUI_STATIC_HUD", false)
+	line1 := fmt.Sprintf("%s  %s  n=%d  region=%.0f%%  feats[%s]  class=%s",
+		id, cfg.NameCN, cfg.ParticleN, cfg.Region*100, cfg.featuresSummary(), cfg.ProbeClass)
+	line2 := fmt.Sprintf("FPS %.1f  CPU %.0f%%  RSS %dKB  frame %d  (本进程)", fps, cpu, rss, frame)
+	if staticHUD {
+		line1 = fmt.Sprintf("%s  static-hud  n=%d  feats[%s]", id, cfg.ParticleN, cfg.featuresSummary())
+		line2 = "FPS 60.0  CPU 10%  RSS 200000KB  frame 0  (static)"
+	}
+	dc.DrawString(line1, 10, 18)
 	dc.SetRGBA(0.55, 0.9, 0.7, 1)
-	dc.DrawString(fmt.Sprintf("FPS %.1f  CPU %.0f%%  RSS %dKB  frame %d  (本进程)", fps, cpu, rss, frame), 10, 40)
+	dc.DrawString(line2, 10, 40)
 
 	dc.SetRGBA(0.08, 0.1, 0.14, 0.78)
 	dc.DrawRectangle(0, fh-44, fw, 44)

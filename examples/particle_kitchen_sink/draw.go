@@ -139,19 +139,22 @@ var (
 	gChecker   *render.ImageBuf
 	gCheckW    int
 	gCheckH    int
-	gMeshP     []render.Point
-	gMeshC     []render.RGBA
-	gMeshI     []uint16
-	gGlowP     []render.Point
-	gGlowC     []render.RGBA
-	gGlowI     []uint16
-	gDiscP     []render.Point
-	gDiscC     []render.RGBA
-	gDiscI     []uint16
-	gWaveP     []render.Point
-	gWaveC     []render.RGBA
-	gWaveI     []uint16
-	gSprites   []render.AtlasSprite
+	// Retained offscreen for stageContentSignature — avoid NewContext every sample.
+	gSigRT   *render.Context
+	gSigImg  *render.ImageBuf
+	gMeshP   []render.Point
+	gMeshC   []render.RGBA
+	gMeshI   []uint16
+	gGlowP   []render.Point
+	gGlowC   []render.RGBA
+	gGlowI   []uint16
+	gDiscP   []render.Point
+	gDiscC   []render.RGBA
+	gDiscI   []uint16
+	gWaveP   []render.Point
+	gWaveC   []render.RGBA
+	gWaveI   []uint16
+	gSprites []render.AtlasSprite
 )
 
 func ensureAtlas() *render.ImageBuf {
@@ -1124,12 +1127,16 @@ func pixelFingerprint() (ok bool, note string, samples string) {
 // stageContentSignature samples a tiny offline reconstruction of stage markers
 // (not present surface) to ensure marker colors are drawable through the same
 // render.Context API used by the window path.
+// Reuses a retained 48×48 context so intermittent sampling cannot accumulate
+// NewContext/session churn (mem soak false climb).
 func stageContentSignature() (ok bool, note string) {
-	rt := render.NewContext(48, 48)
-	if rt == nil {
-		return false, "nil_rt"
+	if gSigRT == nil {
+		gSigRT = render.NewContext(48, 48)
+		if gSigRT == nil {
+			return false, "nil_rt"
+		}
 	}
-	defer rt.Close()
+	rt := gSigRT
 	rt.BeginFrame()
 	rt.SetRGB(0.82, 0.84, 0.88)
 	rt.DrawRectangle(0, 0, 48, 48)
@@ -1141,10 +1148,10 @@ func stageContentSignature() (ok bool, note string) {
 	rt.SetRGBA(0.9, 0.25, 0.2, 0.95)
 	rt.DrawCircle(36, 12, 6)
 	_ = rt.Fill()
-	var img *render.ImageBuf
-	if !rt.ExportImageBuf(&img) || img == nil {
+	if !rt.ExportImageBuf(&gSigImg) || gSigImg == nil {
 		return false, "export_fail"
 	}
+	img := gSigImg
 	w, h := img.Bounds()
 	data := img.Data()
 	if len(data) < w*h*4 {

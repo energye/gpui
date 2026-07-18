@@ -80,6 +80,12 @@ func (c *Context) BeginFrame() {
 	c.ResetFrameDamage()
 	// P1-3: per-frame flush metric (F.03).
 	c.pathStats.FrameFlushes = 0
+	// Frame boundary: free previous GPU command buffers + reset LoadOp state.
+	// Apps (e.g. particle_kitchen_sink) call BeginFrame each tick; without this
+	// session.prevCmdBufs never drain on the window present path.
+	if rc := c.gpuCtxOps(); rc != nil {
+		rc.BeginFrame()
+	}
 }
 
 // Invalidate marks a logical rectangle dirty (HiDPI-scaled to physical pixels).

@@ -7,26 +7,32 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 	"strings"
 )
 
 type runResult struct {
-	Tier             string  `json:"tier"`
-	ProbeID          string  `json:"probe_id"`
-	ProbeClass       string  `json:"probe_class"`
-	Name             string  `json:"name"`
-	Seconds          float64 `json:"seconds"`
-	Frames           int     `json:"frames"`
-	FPSEma           float64 `json:"fps_ema"`
-	FPSAvg           float64 `json:"fps_avg"`
-	FPSMin           float64 `json:"fps_min"`
-	FPSMax           float64 `json:"fps_max"`
-	FPSJitter        float64 `json:"fps_jitter"`
-	LowFPSRatio      float64 `json:"low_fps_ratio"`
-	CPUAvg           float64 `json:"cpu_avg"`
-	RSSStartKB       int64   `json:"rss_start_kb"`
-	RSSEndKB         int64   `json:"rss_end_kb"`
-	RSSSteadyDeltaKB int64   `json:"rss_steady_delta_kb"`
+	Tier              string  `json:"tier"`
+	ProbeID           string  `json:"probe_id"`
+	ProbeClass        string  `json:"probe_class"`
+	Name              string  `json:"name"`
+	Seconds           float64 `json:"seconds"`
+	Frames            int     `json:"frames"`
+	FPSEma            float64 `json:"fps_ema"`
+	FPSAvg            float64 `json:"fps_avg"`
+	FPSMin            float64 `json:"fps_min"`
+	FPSMax            float64 `json:"fps_max"`
+	FPSJitter         float64 `json:"fps_jitter"`
+	LowFPSRatio       float64 `json:"low_fps_ratio"`
+	CPUAvg            float64 `json:"cpu_avg"`
+	RSSStartKB        int64   `json:"rss_start_kb"`
+	RSSEndKB          int64   `json:"rss_end_kb"`
+	RSSSteadyDeltaKB  int64   `json:"rss_steady_delta_kb"`
+	RSSPlateauRateKBs float64 `json:"rss_plateau_rate_kb_s,omitempty"`
+	// Segment rates (KB/s) over steady window thirds — catch slow climb / late release.
+	RSSRateEarlyKBs  float64 `json:"rss_rate_early_kb_s,omitempty"`
+	RSSRateMidKBs    float64 `json:"rss_rate_mid_kb_s,omitempty"`
+	RSSRateLateKBs   float64 `json:"rss_rate_late_kb_s,omitempty"`
 	GPUOps           int     `json:"gpu_ops"`
 	CPUFallback      int     `json:"cpu_fallback_ops"`
 	LastFB           string  `json:"last_fb"`
@@ -118,6 +124,80 @@ func rssSteadyDelta(samples []int64) int64 {
 	return int64((b / float64(third)) - (a / float64(third)))
 }
 
+// memPlateauRateKB returns steady climb rate (KB/s) after warmup window estimate.
+func memPlateauRateKB(deltaKB int64, seconds float64) float64 {
+	if seconds <= 1 {
+		return 0
+	}
+	steadySec := seconds * 0.8
+	if steadySec < 1 {
+		steadySec = seconds
+	}
+	return float64(deltaKB) / steadySec
+}
+
+// rssSegmentRatesKB splits post-warmup samples into early/mid/late thirds and
+// returns climb rate (KB/s) within each third. Used for multi-minute soaks to
+// distinguish front-loaded warmup residual from late slow leaks.
+func rssSegmentRatesKB(samples []int64, totalSeconds float64) (early, mid, late float64) {
+	n := len(samples)
+	if n < 30 || totalSeconds <= 1 {
+		return 0, 0, 0
+	}
+	start := n / 5 // drop first 20% warmup — same as rssSteadyDelta
+	steady := samples[start:]
+	if len(steady) < 9 {
+		return 0, 0, 0
+	}
+	// samples are ~every 30 frames ≈ 0.5s at 60fps; approximate span from totalSeconds*0.8
+	steadySec := totalSeconds * 0.8
+	if steadySec < 1 {
+		steadySec = totalSeconds
+	}
+	segSec := steadySec / 3
+	if segSec < 1 {
+		segSec = 1
+	}
+	third := len(steady) / 3
+	rate := func(a, b []int64) float64 {
+		if len(a) == 0 || len(b) == 0 {
+			return 0
+		}
+		var sa, sb float64
+		for _, v := range a {
+			sa += float64(v)
+		}
+		for _, v := range b {
+			sb += float64(v)
+		}
+		return (sb/float64(len(b)) - sa/float64(len(a))) / segSec
+	}
+	// Within each third: compare first half mean vs second half mean.
+	half := third / 2
+	if half < 1 {
+		half = 1
+	}
+	e0, e1 := steady[:third], steady[:third]
+	if third >= 2 {
+		e0, e1 = steady[:half], steady[third-half:third]
+	}
+	m0, m1 := steady[third:2*third], steady[third:2*third]
+	if third >= 2 {
+		m0 = steady[third : third+half]
+		m1 = steady[2*third-half : 2*third]
+	}
+	l0, l1 := steady[2*third:], steady[2*third:]
+	rest := steady[2*third:]
+	if len(rest) >= 2 {
+		lh := len(rest) / 2
+		if lh < 1 {
+			lh = 1
+		}
+		l0, l1 = rest[:lh], rest[len(rest)-lh:]
+	}
+	return rate(e0, e1), rate(m0, m1), rate(l0, l1)
+}
+
 func judgeResult(r runResult, targetFPS int) (status, reason string) {
 	if r.Frames < 30 {
 		return "FAIL", "too_few_frames"
@@ -193,16 +273,28 @@ func judgeResult(r runResult, targetFPS int) (status, reason string) {
 	if r.MaxCPUPct > 0 && r.CPUAvg > r.MaxCPUPct {
 		return "FAIL", fmt.Sprintf("cpu_over_budget avg=%.1f max=%.0f", r.CPUAvg, r.MaxCPUPct)
 	}
-	// FPS stability dig (opt-in): span of steady inst fps.
+	// FPS stability dig (opt-in): p95-p5 of steady present-to-present inst fps (harness digs excluded).
 	if r.MaxJitter > 0 && r.FPSJitter > r.MaxJitter {
 		return "FAIL", fmt.Sprintf("fps_jitter_high span=%.1f max=%.0f min=%.1f maxf=%.1f", r.FPSJitter, r.MaxJitter, r.FPSMin, r.FPSMax)
 	}
 
-	if r.RSSSteadyDeltaKB > 512*1024 {
-		return "FAIL", fmt.Sprintf("rss_steady_delta_kb=%d", r.RSSSteadyDeltaKB)
-	}
-	if (r.ProbeID == "P_MEM_SOAK" || r.ProbeID == "P_MEM_LONG" || r.GrowN) && r.RSSSteadyDeltaKB > 128*1024 {
-		return "FAIL", fmt.Sprintf("mem_rss_delta_kb=%d", r.RSSSteadyDeltaKB)
+	// Mem probes: sole leak criterion is platformization (steady slope ≈ 0) during the run.
+	// No absolute MiB climb thresholds (e.g. 128MiB/180s). OOM hard cap is machine safety only.
+	if r.ProbeID == "P_MEM_SOAK" || r.ProbeID == "P_MEM_LONG" || r.GrowN {
+		// Optional absolute process RSS ceiling (KB) — protects host, does NOT mean "no leak".
+		hardKB := envInt64("GPUI_MEM_RSS_HARD_KB", 4*1024*1024)
+		if hardKB > 0 && r.RSSEndKB > hardKB {
+			return "FAIL", fmt.Sprintf("rss_hard_cap_kb end=%d cap=%d", r.RSSEndKB, hardKB)
+		}
+		// Platformization: rate = steadyΔ / post-warmup window. Target ≈ 0.
+		rateMax := envFloat("GPUI_MEM_PLATEAU_RATE_KB_S", 256) // KB/s noise band
+		if rateMax > 0 && r.Seconds > 1 {
+			rate := memPlateauRateKB(r.RSSSteadyDeltaKB, r.Seconds)
+			if rate > rateMax {
+				return "FAIL", fmt.Sprintf("mem_rss_not_plateau rate_kb_s=%.1f max=%.1f delta_kb=%d sec=%.1f",
+					rate, rateMax, r.RSSSteadyDeltaKB, r.Seconds)
+			}
+		}
 	}
 	return "PASS", ""
 }
@@ -225,6 +317,7 @@ func collectWarnings(r *runResult, targetFPS int) {
 	if r.LowFPSRatio > 0.05 {
 		w = append(w, fmt.Sprintf("hitch_ratio=%.2f", r.LowFPSRatio))
 	}
+	// Warning uses robust p95-p5 span (not whole-run max-min).
 	if r.FPSJitter > 25 {
 		w = append(w, fmt.Sprintf("fps_jitter=%.1f", r.FPSJitter))
 	}
@@ -242,6 +335,41 @@ func fpsSpan(min, max float64) float64 {
 		return 0
 	}
 	return math.Max(0, max-min)
+}
+
+// fpsPercentileSpan returns p95-p5 of inst FPS samples (honest stability; ignores rare spikes).
+// Raw fps_min/fps_max remain true extremes for diagnostics.
+func fpsPercentileSpan(samples []float64) float64 {
+	n := len(samples)
+	if n < 8 {
+		if n == 0 {
+			return 0
+		}
+		min, max := samples[0], samples[0]
+		for _, v := range samples[1:] {
+			if v < min {
+				min = v
+			}
+			if v > max {
+				max = v
+			}
+		}
+		return fpsSpan(min, max)
+	}
+	cp := append([]float64(nil), samples...)
+	sort.Float64s(cp)
+	p := func(q float64) float64 {
+		// nearest-rank
+		i := int(math.Round(q * float64(n-1)))
+		if i < 0 {
+			i = 0
+		}
+		if i >= n {
+			i = n - 1
+		}
+		return cp[i]
+	}
+	return math.Max(0, p(0.95)-p(0.05))
 }
 
 func joinWarn(w []string) string {

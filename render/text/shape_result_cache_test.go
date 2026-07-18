@@ -112,3 +112,42 @@ func TestS65_MultiFaceRuns_CacheAndMerge(t *testing.T) {
 		t.Fatal("face pointer changed across cache hit")
 	}
 }
+
+func TestIsHighChurnLabel(t *testing.T) {
+	cases := []struct {
+		s    string
+		want bool
+	}{
+		{"short", false},
+		{"scroll-row-label Hello", false},
+		{"FPS 57.4  CPU 10%  RSS 200000KB  frame 1234  (本进程)", true},
+		{"FPS 60.0  CPU 10%  RSS 200000KB  frame 0  (static)", true},
+		{"ABCDEFGHIJKL", false}, // long, no digits
+		{"12", false},           // short
+	}
+	for _, tc := range cases {
+		if got := IsHighChurnLabel(tc.s); got != tc.want {
+			t.Errorf("IsHighChurnLabel(%q)=%v want %v", tc.s, got, tc.want)
+		}
+	}
+}
+
+func TestLayoutGlyphs_SkipsHighChurnCache(t *testing.T) {
+	ClearShapeResultCache()
+	face := testFaceForShapeCache(t, 14)
+	s := "FPS 57.4  CPU 10%  RSS 200000KB  frame 99"
+	_ = LayoutGlyphs(face, s)
+	_ = LayoutGlyphs(face, s)
+	st := ShapeResultCacheStats()
+	if st.Entries != 0 {
+		t.Fatalf("high-churn label should not populate cache, stats=%+v", st)
+	}
+	// stable label still caches
+	stable := "scroll-row-label Hello"
+	_ = LayoutGlyphs(face, stable)
+	_ = LayoutGlyphs(face, stable)
+	st2 := ShapeResultCacheStats()
+	if st2.Hits < 1 || st2.Entries < 1 {
+		t.Fatalf("stable label should cache, stats=%+v", st2)
+	}
+}
