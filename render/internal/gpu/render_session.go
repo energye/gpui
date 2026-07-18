@@ -706,20 +706,23 @@ func (s *GPURenderSession) effectiveDimensions(target render.GPURenderTarget, ac
 // the same frame, we must drain the GPU first — otherwise destroying MSAA
 // textures referenced by in-flight render passes is undefined behavior.
 func (s *GPURenderSession) ensureTexturesForView(activeView *webgpu.TextureView, w, h uint32) error {
-	// If dimensions are changing and there are in-flight command buffers
-	// from earlier flushes in this frame, drain the GPU before destroying
-	// the old textures. Without this, the earlier flush's render pass
-	// would reference destroyed MSAA textures.
-	if s.textures.msaaTex != nil && (s.textures.width != w || s.textures.height != h) {
-		if len(s.prevCmdBufs) > 0 {
-			s.drainQueue()
-			for _, cb := range s.prevCmdBufs {
-				if cb != nil {
-					s.device.FreeCommandBuffer(cb)
-				}
+	// Drain before destroying session textures when size OR mode changes.
+	// Surface mode drops resolve; offscreen mode recreates it. Destroying
+	// textures still referenced by in-flight surface CBs is undefined and
+	// surfaces as invalid session_resolve_view on the next Submit under VRAM pressure.
+	hasSessionTex := s.textures.msaaTex != nil || s.textures.stencilTex != nil || s.textures.resolveTex != nil
+	sizeChanged := hasSessionTex && (s.textures.width != w || s.textures.height != h)
+	modeNeedsResolve := activeView == nil
+	hasResolve := s.textures.resolveTex != nil
+	modeChanged := hasSessionTex && (modeNeedsResolve != hasResolve)
+	if (sizeChanged || modeChanged) && (len(s.prevCmdBufs) > 0 || hasSessionTex) {
+		s.drainQueue()
+		for _, cb := range s.prevCmdBufs {
+			if cb != nil {
+				s.device.FreeCommandBuffer(cb)
 			}
-			s.prevCmdBufs = s.prevCmdBufs[:0]
 		}
+		s.prevCmdBufs = s.prevCmdBufs[:0]
 	}
 
 	if activeView != nil {
@@ -3896,7 +3899,8 @@ func (s *GPURenderSession) encodeSubmitReadback(
 	target render.GPURenderTarget,
 ) error {
 	if s.textures.resolveTex == nil || s.textures.resolveView == nil ||
-		s.textures.msaaView == nil || s.textures.stencilView == nil {
+		s.textures.stencilView == nil ||
+		(s.sampleCount > 1 && s.textures.msaaView == nil) {
 		return fmt.Errorf("offscreen textures destroyed (concurrent resize?)")
 	}
 
@@ -4444,7 +4448,8 @@ func (s *GPURenderSession) encodeSubmitReadbackGrouped(
 	baseLayerRes *imageFrameResources,
 ) error {
 	if s.textures.resolveTex == nil || s.textures.resolveView == nil ||
-		s.textures.msaaView == nil || s.textures.stencilView == nil {
+		s.textures.stencilView == nil ||
+		(s.sampleCount > 1 && s.textures.msaaView == nil) {
 		return fmt.Errorf("offscreen textures destroyed (concurrent resize?)")
 	}
 

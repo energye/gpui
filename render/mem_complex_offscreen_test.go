@@ -8,10 +8,12 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
+	rendgpu "github.com/energye/gpui/render/gpu"
 )
 
 func TestMem_T3_ComplexOffscreen_SizeChurn(t *testing.T) {
 	memRequireGPU(t)
+	t.Cleanup(func() { _ = rendgpu.ResetAccelerator() })
 	n := memEnvIters(36)
 	rng := newMemRNG(memSeed())
 	font := memFindFont(t)
@@ -84,6 +86,7 @@ func TestMem_T3_ComplexOffscreen_SizeChurn(t *testing.T) {
 
 func TestMem_T3_ComplexOffscreen_EscalatingLevels(t *testing.T) {
 	memRequireGPU(t)
+	t.Cleanup(func() { _ = rendgpu.ResetAccelerator() })
 	// fixed size, escalate simple→medium→complex repeatedly
 	const w, h = 480, 320
 	n := memEnvIters(24)

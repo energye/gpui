@@ -46,9 +46,12 @@ func TestS65_LayoutText_UsesShapeCache(t *testing.T) {
 	if len(b2.Quads) != len(b1.Quads) {
 		t.Fatalf("quads %d vs %d", len(b2.Quads), len(b1.Quads))
 	}
+	// opt24: 2nd LayoutText should hit R7.5 layout template (skips reshape).
+	// Shape-result cache may not see a hit when the template short-circuits.
+	tHits, tMisses, _ := eng.LayoutTemplateCacheStats()
 	st2 := text.ShapeResultCacheStats()
-	if st2.Hits < 1 {
-		t.Fatalf("expected shape/layout cache hit on 2nd LayoutText, %+v", st2)
+	if tHits < 1 && st2.Hits < 1 {
+		t.Fatalf("expected layout template or shape cache hit on 2nd LayoutText; template hits=%d misses=%d shape=%+v", tHits, tMisses, st2)
 	}
 }
 
@@ -121,10 +124,11 @@ func TestS65_ScrollReuse_AtlasUploadConverges(t *testing.T) {
 	if warm2Bytes > coldBytes/4 {
 		t.Fatalf("scroll reuse should converge uploads: cold=%d warm2=%d", coldBytes, warm2Bytes)
 	}
-	// Shape/layout cache should also be hot.
+	// Layout reuse: template and/or shape cache should be hot on scroll.
+	tHits, _, _ := eng.LayoutTemplateCacheStats()
 	st := text.ShapeResultCacheStats()
-	if st.Hits < 1 {
-		t.Fatalf("expected layout shape cache hits during scroll, %+v", st)
+	if tHits < 1 && st.Hits < 1 {
+		t.Fatalf("expected layout template or shape cache hits during scroll; templateHits=%d shape=%+v", tHits, st)
 	}
 }
 
@@ -155,10 +159,11 @@ func TestS65_LCD_LayoutCacheSmoke(t *testing.T) {
 		t.Fatalf("sync2: %v", err)
 	}
 	b2, r2, _, _ := eng.LastUploadStats()
+	tHits, _, _ := eng.LayoutTemplateCacheStats()
 	st := text.ShapeResultCacheStats()
-	t.Logf("lcd upload cold=%d warm=%d regions=%d shapeHits=%d", b1, b2, r2, st.Hits)
-	if st.Hits < 1 {
-		t.Fatalf("lcd second layout should hit shape cache, %+v", st)
+	t.Logf("lcd upload cold=%d warm=%d regions=%d shapeHits=%d templateHits=%d", b1, b2, r2, st.Hits, tHits)
+	if tHits < 1 && st.Hits < 1 {
+		t.Fatalf("lcd second layout should hit template or shape cache; templateHits=%d shape=%+v", tHits, st)
 	}
 	if b2 != 0 || r2 != 0 {
 		// Glyph masks already in atlas → hit-only frame.

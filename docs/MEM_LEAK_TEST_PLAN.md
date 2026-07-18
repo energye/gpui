@@ -1,10 +1,11 @@
 # 内存 / VRAM 泄漏测试方案
 
-> 版本：1.2 | 日期：2026-07-17  
-> 状态：**执行中**  
+> 版本：1.4 | 日期：2026-07-18  
+> 状态：**执行中**（**日常权威入口见 `docs/MEM_LEAK_PERF_GUARD_PLAN.md` + `scripts/run_mem_guard.sh`）  
 > 范围：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`（经 render 真链路）  
-> 非目标：游戏引擎、控件层、完整 ASAN/Valgrind 替代  
-> 独立窗口压测程序：`examples/particle_kitchen_sink`（取代旧 `mem_window_stress`）
+> 非目标：游戏引擎、控件层、完整 ASAN/Valgrind 替代；**不**宣称覆盖全部 API  
+> 独立窗口压测程序：`examples/particle_kitchen_sink`（取代旧 `mem_window_stress`）  
+> **正向优化：** 修泄漏不得拖垮 FPS/CPU/稳态占用 — 见 PERF_GUARD 护栏
 
 ---
 
@@ -58,7 +59,8 @@
 每档：
 
 1. **Warmup** 前 10% 迭代（pipeline/atlas 冷启动，允许 RSS 上升）  
-2. **Steady** 中间段：采样 RSS；后 1/3 均值 − 前 1/3 均值 ≤ `GPUI_MEM_RSS_DELTA_KB`（默认 T0/T1: 48MB，T3/T4: 96MB）  
+2. **Steady** 中间段：采样 RSS；算法与 PKS 对齐 — **先丢前 20% warmup**，再对剩余做 后 1/3 均值 − 前 1/3 均值 ≤ `GPUI_MEM_RSS_DELTA_KB`  
+   （默认 T0/T1: 48MB，T3 SizeChurn: 64MB，T3 Escalating/T4: 96MB；权威表见 PERF_GUARD §2.2）  
 3. **Teardown**：`Close` / `release` / `ResetAccelerator` 后仍能完成一次中等 Present  
 
 硬失败（任一）：
@@ -93,10 +95,12 @@ export LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH
 export DISPLAY=:1
 
 # 短/长内存浸泡 + resize/grow（本进程 RSS；JSON 证据）
-GPUI_PROBE=P_MEM_SOAK GPUI_ANIM_SECONDS=12 GPUI_RESULT_FILE=/tmp/pks_mem_soak.json \
+# 默认 SOAK=60s / LONG=180s（探针 MemSoakSec）；可用 GPUI_ANIM_SECONDS 覆盖
+GPUI_PROBE=P_MEM_SOAK GPUI_RESULT_FILE=/tmp/pks_mem_soak.json \
   go run ./examples/particle_kitchen_sink
-GPUI_PROBE=P_MEM_LONG GPUI_ANIM_SECONDS=25 GPUI_RESULT_FILE=/tmp/pks_mem_long.json \
+GPUI_PROBE=P_MEM_LONG GPUI_RESULT_FILE=/tmp/pks_mem_long.json \
   go run ./examples/particle_kitchen_sink
+# 加深示例：GPUI_ANIM_SECONDS=600|900|1800
 
 # 批量 mem 过滤（P_MEM_SOAK / P_MEM_LONG / P_GROW_N / P_RESIZE / P_MULTI_LAYER）
 GPUI_PKS_FILTER=mem ./scripts/run_pks_matrix.sh
@@ -145,7 +149,8 @@ Env（`particle_kitchen_sink` 窗口压测，详见 `examples/particle_kitchen_s
 ## 7. 退出条件
 
 - [x] 方案文档  
-- [x] T0–T4 测试实现；`./scripts/run_mem_leak_tests.sh`（`GPUI_MEM_COUNT=2`）绿  
+- [x] T0–T4 测试实现；`./scripts/run_mem_leak_tests.sh`（默认 `GPUI_MEM_COUNT=3`）  
+- [x] 稳态斜率算法与 PKS 对齐；一键 `./scripts/run_mem_guard.sh`  
 - [x] 窗口复杂动态场景可自动跑（T4 X11）  
 - [x] 脚本 `scripts/run_mem_leak_tests.sh`（进程隔离 + `GPUI_SURFACE_SAMPLE_COUNT=1`）  
 - [x] 主线计划记录  
@@ -207,9 +212,16 @@ Env（`particle_kitchen_sink` 窗口压测，详见 `examples/particle_kitchen_s
   - 探针：`P_MEM_SOAK` / `P_MEM_LONG` / `P_GROW_N` / `P_RESIZE`  
   - 批量：`GPUI_PKS_FILTER=mem ./scripts/run_pks_matrix.sh`  
   - 说明：`examples/particle_kitchen_sink/README.md` · `COVERAGE.md`  
-- **历史/并存**：`docs/MEM_ANIM_LONGSOAK_PLAN.md`（`mem_anim_window` S01–S23，**每进程单场景**，60s–10min）；新工作默认优先 PKS，不再推荐 `mem_window_stress`。
+- **历史（默认不跑）**：`docs/MEM_ANIM_LONGSOAK_PLAN.md`（`mem_anim_window` S01–S23）。**新工作默认只用 PKS**；不再推荐 `mem_window_stress`。
+- **权威日常流程**：`docs/MEM_LEAK_PERF_GUARD_PLAN.md` · `./scripts/run_mem_guard.sh`
 
 ---
+
+## 10.1 性能正向护栏与加长浸泡计划
+
+数分钟～数十分钟尺度、**修泄漏不得拖垮 FPS/CPU/占用** 的执行清单见：
+
+→ **`docs/MEM_LEAK_PERF_GUARD_PLAN.md`**
 
 ## 11. 底层改动后的强制门禁（F1 后现行）
 

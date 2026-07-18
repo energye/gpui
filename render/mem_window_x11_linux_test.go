@@ -28,7 +28,6 @@ func TestMem_T4_WindowComplex_ResizeChurn(t *testing.T) {
 
 	_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
 	_ = rendgpu.ResetAccelerator()
-	t.Cleanup(func() { _ = rendgpu.ResetAccelerator() })
 
 	frames := memEnvIters(48)
 	rng := newMemRNG(memSeed() + 99)
@@ -37,51 +36,84 @@ func TestMem_T4_WindowComplex_ResizeChurn(t *testing.T) {
 
 	winW, winH := 320, 240
 	xw := memOpenX11(t, winW, winH)
-	defer xw.close()
 
 	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
 	if err != nil {
+		xw.close()
 		t.Skipf("CreateInstance: %v", err)
 	}
-	defer inst.Release()
 
 	surf, err := inst.CreateSurface(xw.display, xw.window)
 	if err != nil {
+		inst.Release()
+		xw.close()
 		t.Fatalf("CreateSurface: %v", err)
 	}
-	defer surf.Release()
 
 	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
 		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
 		CompatibleSurface: surf,
 	})
 	if err != nil {
+		surf.Release()
+		inst.Release()
+		xw.close()
 		t.Fatalf("RequestAdapter: %v", err)
 	}
-	defer adapter.Release()
 
 	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("mem-t4-x11"))
 	if err != nil {
+		adapter.Release()
+		surf.Release()
+		inst.Release()
+		xw.close()
 		t.Skipf("RequestDevice: %v", err)
 	}
-	defer device.Release()
 
 	sc := webgpu.NewSwapchain(surf, device, uint32(winW), uint32(winH))
 	sc.Usage = types.TextureUsageRenderAttachment
 	sc.SetPreferVSync()
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
+		device.Release()
+		adapter.Release()
+		surf.Release()
+		inst.Release()
+		xw.close()
 		t.Fatalf("Configure: %v", err)
 	}
-	defer sc.Release()
 
 	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
 		Dev: device, Adpt: adapter, Format: sc.Format,
 	}); err != nil {
+		sc.Release()
+		device.Release()
+		adapter.Release()
+		surf.Release()
+		inst.Release()
+		xw.close()
 		t.Fatalf("SetDeviceProvider: %v", err)
 	}
 
 	dc := render.NewContext(winW, winH)
-	defer dc.Close()
+	// Cleanup order (LIFO registration → reverse run):
+	// 1) close draw context + reset accelerator (may still touch device)
+	// 2) unconfigure swapchain, wait idle, drop device/adapter
+	// 3) release surface while X11 window still alive
+	// 4) close X11 last
+	// Defers must NOT close X11 before surface: that SIGSEGVs wgpuSurfaceRelease.
+	t.Cleanup(func() { xw.close() })
+	t.Cleanup(func() {
+		sc.Release()
+		_ = device.WaitIdle()
+		device.Release()
+		adapter.Release()
+		surf.Release()
+		inst.Release()
+	})
+	t.Cleanup(func() {
+		_ = dc.Close()
+		_ = rendgpu.ResetAccelerator()
+	})
 	if err := dc.LoadFontFace(font, 13); err != nil {
 		t.Fatalf("font: %v", err)
 	}

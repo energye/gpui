@@ -1,13 +1,14 @@
 # mem_anim_window 长时复杂渲染压测计划
 
-> 版本：2.5 | 日期：2026-07-16  
-> 状态：**S01–S14 主路径已覆盖**；**S15–S21 Skia 缺口场景已加入矩阵**；**GPU 优先硬原则**见 MAINLINE §1b + `GPU_FIRST_ROUTING.md`  
-> 权威证据：`/tmp/mem_anim_soak_run/v9/SUMMARY.md` + `/tmp/mem_anim_soak_run/v10_regress/SUMMARY.md`  
-> 程序：`examples/mem_anim_window`  
-> 链路：`render.Context → webgpu → rwgpu → libwgpu_native`（真实窗口 Present，非 mock）  
-> 非目标：控件层 / Ant Design 业务控件实现
+> ⚠️ **降级声明（2026-07-18）**  
+> 本文为 **历史长 soak 档案**（`examples/mem_anim_window`）。  
+> **日常 / 提交门禁 / 内存泄漏权威流程请改用：**  
+> - `docs/MEM_LEAK_PERF_GUARD_PLAN.md`  
+> - `docs/MEM_LEAK_TEST_PLAN.md`  
+> - `examples/particle_kitchen_sink` + `./scripts/run_mem_guard.sh`  
+> 除非明确复现 v9/v10 旧证据，**默认不要跑** 本文批量脚本。
 
----
+> 版本：2.5 | 日期：2026-07-16  
 
 ## 0. 强制约束：每次只测一个场景
 

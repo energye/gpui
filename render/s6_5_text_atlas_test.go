@@ -84,8 +84,10 @@ func TestS65_PresentListScroll_NoRegress(t *testing.T) {
 	st := text.ShapeResultCacheStats()
 	t.Logf("S6.5 list-scroll present p50=%.2fms budget=%.2f shapeHits=%d misses=%d entries=%d",
 		p50, budget, st.Hits, st.Misses, st.Entries)
-	if st.Hits < 1 {
-		t.Fatalf("expected shape/layout cache hits after scroll frames, %+v", st)
+	// opt24/R7.5 layout template short-circuits reshape: shape Hits may stay 0
+	// while Misses remains near unique-row count (not frame_count*rows).
+	if st.Hits < 1 && st.Misses > uint64(len(rows)) {
+		t.Fatalf("expected shape/layout reuse after scroll frames, %+v", st)
 	}
 	if p50 > budget && os.Getenv("S6_ALLOW_SLOW") != "1" {
 		t.Fatalf("p50 %.2f exceeds budget %.2f", p50, budget)

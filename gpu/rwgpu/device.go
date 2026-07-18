@@ -71,6 +71,74 @@ func initDeviceCallback() {
 	deviceCallbackPtr = purego.NewCallback(deviceCallbackHandler)
 }
 
+// Non-panicking device lifecycle callbacks. wgpu-native's default uncaptured
+// handler aborts the process on Validation/OOM ("Not enough memory left"),
+// which turns transient VRAM pressure into hard SIGABRT. We record the last
+// error so CreateTexture/etc. can return a Go error (null handle path).
+
+var (
+	uncapturedErrorCallbackPtr  uintptr
+	uncapturedErrorCallbackOnce sync.Once
+	deviceLostCallbackPtr       uintptr
+	deviceLostCallbackOnce      sync.Once
+
+	lastUncapturedMu  sync.Mutex
+	lastUncapturedMsg string
+	lastUncapturedTyp ErrorType
+)
+
+// LastUncapturedError returns and clears the most recent uncaptured device error.
+func LastUncapturedError() (ErrorType, string) {
+	lastUncapturedMu.Lock()
+	defer lastUncapturedMu.Unlock()
+	t, m := lastUncapturedTyp, lastUncapturedMsg
+	lastUncapturedTyp = 0
+	lastUncapturedMsg = ""
+	return t, m
+}
+
+// uncapturedErrorHandler matches WGPUUncapturedErrorCallback:
+// void(WGPUDevice const* device, WGPUErrorType type, WGPUStringView message, void* ud1, void* ud2)
+func uncapturedErrorHandler(devicePtr, errType, messageData, messageLength, _, _ uintptr) uintptr {
+	var msg string
+	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
+		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
+	}
+	lastUncapturedMu.Lock()
+	lastUncapturedTyp = ErrorType(errType)
+	lastUncapturedMsg = msg
+	lastUncapturedMu.Unlock()
+	return 0
+}
+
+func initUncapturedErrorCallback() {
+	uncapturedErrorCallbackPtr = purego.NewCallback(uncapturedErrorHandler)
+}
+
+// deviceLostHandler matches WGPUDeviceLostCallback:
+// void(WGPUDevice const* device, WGPUDeviceLostReason reason, WGPUStringView message, void* ud1, void* ud2)
+func deviceLostHandler(devicePtr, reason, messageData, messageLength, _, _ uintptr) uintptr {
+	var msg string
+	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
+		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
+	}
+	lastUncapturedMu.Lock()
+	lastUncapturedTyp = ErrorTypeUnknown
+	if msg == "" {
+		lastUncapturedMsg = "device lost"
+	} else {
+		lastUncapturedMsg = "device lost: " + msg
+	}
+	_ = reason
+	_ = devicePtr
+	lastUncapturedMu.Unlock()
+	return 0
+}
+
+func initDeviceLostCallback() {
+	deviceLostCallbackPtr = purego.NewCallback(deviceLostHandler)
+}
+
 // RequestDevice requests a GPU device from the adapter.
 // This is a synchronous wrapper that blocks until the device is available.
 func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
@@ -96,13 +164,22 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 	deviceRequests[reqID] = req
 	deviceRequestsMu.Unlock()
 
-	// Convert Go-idiomatic descriptor to wire format.
-	var optionsPtr uintptr
+	// Convert Go-idiomatic descriptor to wire format. Always attach non-panicking
+	// uncaptured/device-lost callbacks so VRAM pressure returns Go errors.
+	uncapturedErrorCallbackOnce.Do(initUncapturedErrorCallback)
+	deviceLostCallbackOnce.Do(initDeviceLostCallback)
 	var reqLimitsWire limitsWire // kept alive for the duration of the FFI call
+	wire := deviceDescriptorWire{
+		DeviceLostCallbackInfo: DeviceLostCallbackInfo{
+			Mode:     CallbackModeAllowSpontaneous,
+			Callback: deviceLostCallbackPtr,
+		},
+		UncapturedErrorCallbackInfo: UncapturedErrorCallbackInfo{
+			Callback: uncapturedErrorCallbackPtr,
+		},
+	}
 	if options != nil {
-		wire := deviceDescriptorWire{
-			Label: stringToStringView(options.Label),
-		}
+		wire.Label = stringToStringView(options.Label)
 		if len(options.RequiredFeatures) > 0 {
 			wire.RequiredFeatureCount = uintptr(len(options.RequiredFeatures))
 			wire.RequiredFeatures = uintptr(unsafe.Pointer(&options.RequiredFeatures[0]))
@@ -111,8 +188,8 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 			reqLimitsWire = limitsToWire(options.RequiredLimits)
 			wire.RequiredLimits = uintptr(unsafe.Pointer(&reqLimitsWire))
 		}
-		optionsPtr = uintptr(unsafe.Pointer(&wire))
 	}
+	optionsPtr := uintptr(unsafe.Pointer(&wire))
 	_ = reqLimitsWire // ensure not optimised away before the call below
 
 	// Prepare callback info

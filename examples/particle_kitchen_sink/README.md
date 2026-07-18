@@ -68,7 +68,7 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | **P_ALPHA_MESH** | gate | alpha mesh+混合 | 密度叠压 |
 | **P_RESIZE** | stress | 尺寸振荡 | swapchain/context 重建泄漏 |
 | **P_DARK_STAGE** | gate | 暗场少粒子 | 非空内容 + GPU 路径 |
-| **P_MEM_SOAK** | stress | 短浸泡 | RSS 稳态斜率 |
+| **P_MEM_SOAK** | stress | 短浸泡（默认 **60s**） | RSS 稳态斜率 |
 | **P_BLEND_GLOW** | stress | 混合×光晕 | L2 组合分解 |
 | **P_LAYER_BLEND** | stress | 层×混合 | 嵌套 composite |
 | **P_MULTI_LAYER** | stress | 多层嵌套 | RT 池/闪烁 |
@@ -84,7 +84,7 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | **P_EMPTY_TRAP** | trap | 空内容陷阱 | 装空绿必 FAIL |
 | **P_FLICKER** | gate | 交替清屏闪烁 | intermittent_content |
 | **P_FLICKER_BLEND** | stress | 混合+交替清屏 | hitch+闪烁 |
-| **P_MEM_LONG** | stress | 加长内存浸泡 | RSS 硬顶 |
+| **P_MEM_LONG** | stress | 加长浸泡（默认 **180s**） | RSS 硬顶；`GPUI_ANIM_SECONDS` 可加到 10–30min |
 | **P_L0…P_L4** | gate/stress | 档位别名 | 与 L0–L4 对齐 |
 
 `scripts/run_pks_matrix.sh`：
@@ -173,3 +173,13 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | 1fps 回归陷阱 | `P_BLEND_PER_CIRCLE` | 当前 PASS≈58；若掉到 <10 记 `trap_hot_path_still_slow` |
 
 过滤器：`all` / `gate` / `stress` / `trap` / `axes` / `combo` / `core`。
+
+## 内存门禁（引擎正向优化）
+
+权威流程：`docs/MEM_LEAK_PERF_GUARD_PLAN.md`
+
+```bash
+../../scripts/run_mem_guard.sh quick   # TestMem + SOAK 60s + P_SOLID
+../../scripts/run_mem_guard.sh daily   # + unit + mem 矩阵 + LONG 180s + 性能抽样
+../../scripts/run_mem_guard.sh deep    # LONG 600s
+```

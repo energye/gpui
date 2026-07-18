@@ -12,6 +12,33 @@ import (
 	"github.com/energye/gpui/render"
 )
 
+// assertSessionTextureSet checks MSAA/stencil/resolve against sampleCount.
+// sc==1 intentionally skips MSAA color (draw direct to resolve/surface) to cut VRAM.
+func assertSessionTextureSet(t *testing.T, s *GPURenderSession, wantResolve bool) {
+	t.Helper()
+	if s.textures.stencilTex == nil || s.textures.stencilView == nil {
+		t.Error("expected non-nil stencil textures")
+	}
+	if s.sampleCount > 1 {
+		if s.textures.msaaTex == nil || s.textures.msaaView == nil {
+			t.Errorf("expected non-nil msaa textures when sampleCount=%d", s.sampleCount)
+		}
+	} else {
+		if s.textures.msaaTex != nil || s.textures.msaaView != nil {
+			t.Error("expected nil msaa textures when sampleCount==1 (direct-to-resolve path)")
+		}
+	}
+	if wantResolve {
+		if s.textures.resolveTex == nil || s.textures.resolveView == nil {
+			t.Error("expected non-nil resolve textures")
+		}
+	} else {
+		if s.textures.resolveTex != nil || s.textures.resolveView != nil {
+			t.Error("expected nil resolve textures (surface is resolve target)")
+		}
+	}
+}
+
 func TestRenderSessionCreation(t *testing.T) {
 	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
@@ -49,25 +76,8 @@ func TestRenderSessionTextures(t *testing.T) {
 		t.Errorf("expected size (800, 600), got (%d, %d)", w, h)
 	}
 
-	// Verify all textures exist.
-	if s.textures.msaaTex == nil {
-		t.Error("expected non-nil msaaTex")
-	}
-	if s.textures.msaaView == nil {
-		t.Error("expected non-nil msaaView")
-	}
-	if s.textures.stencilTex == nil {
-		t.Error("expected non-nil stencilTex")
-	}
-	if s.textures.stencilView == nil {
-		t.Error("expected non-nil stencilView")
-	}
-	if s.textures.resolveTex == nil {
-		t.Error("expected non-nil resolveTex")
-	}
-	if s.textures.resolveView == nil {
-		t.Error("expected non-nil resolveView")
-	}
+	// Verify texture set for current sampleCount (sc==1 skips MSAA color).
+	assertSessionTextureSet(t, s, true)
 }
 
 func TestRenderSessionTexturesIdempotent(t *testing.T) {
@@ -125,9 +135,7 @@ func TestRenderSessionTexturesResize(t *testing.T) {
 		t.Errorf("expected (1920, 1080), got (%d, %d)", w, h)
 	}
 
-	if s.textures.msaaTex == nil || s.textures.stencilTex == nil || s.textures.resolveTex == nil {
-		t.Error("expected non-nil textures after resize")
-	}
+	assertSessionTextureSet(t, s, true)
 }
 
 func TestRenderSessionDestroyAndRecreate(t *testing.T) {
@@ -547,17 +555,8 @@ func TestRenderSessionSurfaceMode(t *testing.T) {
 		t.Fatalf("surface mode RenderFrame failed: %v", err)
 	}
 
-	// Verify textures were created (MSAA + stencil but NOT resolve).
-	if s.textures.msaaTex == nil {
-		t.Error("expected non-nil msaaTex in surface mode")
-	}
-	if s.textures.stencilTex == nil {
-		t.Error("expected non-nil stencilTex in surface mode")
-	}
-	// Resolve texture should be nil -- surface view is the resolve target.
-	if s.textures.resolveTex != nil {
-		t.Error("expected nil resolveTex in surface mode (surface is resolve target)")
-	}
+	// MSAA only when sc>1; stencil always; resolve never in surface mode.
+	assertSessionTextureSet(t, s, false)
 }
 
 func TestRenderSessionSurfaceModeReset(t *testing.T) {
@@ -628,27 +627,7 @@ func TestRenderSessionSurfaceModeTextures(t *testing.T) {
 		t.Fatalf("EnsureTextures failed: %v", err)
 	}
 
-	// MSAA and stencil must exist.
-	if s.textures.msaaTex == nil {
-		t.Error("expected non-nil msaaTex")
-	}
-	if s.textures.msaaView == nil {
-		t.Error("expected non-nil msaaView")
-	}
-	if s.textures.stencilTex == nil {
-		t.Error("expected non-nil stencilTex")
-	}
-	if s.textures.stencilView == nil {
-		t.Error("expected non-nil stencilView")
-	}
-
-	// Resolve texture must NOT exist (surface is the resolve target).
-	if s.textures.resolveTex != nil {
-		t.Error("expected nil resolveTex in surface mode")
-	}
-	if s.textures.resolveView != nil {
-		t.Error("expected nil resolveView in surface mode")
-	}
+	assertSessionTextureSet(t, s, false)
 
 	// Dimensions should be set correctly.
 	w, h := s.Size()
@@ -699,19 +678,11 @@ func TestRenderSessionSurfaceModeResize(t *testing.T) {
 		t.Fatalf("resize EnsureTextures failed: %v", err)
 	}
 
-	// MSAA texture should exist at the new dimensions.
-	if s.textures.msaaTex == nil {
-		t.Error("expected non-nil msaaTex after resize")
-	}
+	assertSessionTextureSet(t, s, false)
 
 	w, h = s.Size()
 	if w != 1920 || h != 1080 {
 		t.Errorf("expected (1920, 1080), got (%d, %d)", w, h)
-	}
-
-	// Resolve should still be nil in surface mode.
-	if s.textures.resolveTex != nil {
-		t.Error("expected nil resolveTex in surface mode after resize")
 	}
 }
 
@@ -1291,8 +1262,11 @@ func TestTextureSet_SurfaceToOffscreenSameSize(t *testing.T) {
 	if ts.resolveTex != nil {
 		t.Fatal("surface mode must not allocate resolveTex")
 	}
-	if ts.msaaTex == nil || ts.stencilTex == nil {
-		t.Fatal("surface mode must allocate msaa+stencil")
+	if ts.msaaTex != nil {
+		t.Fatal("sc==1 surface mode must not allocate msaa color")
+	}
+	if ts.stencilTex == nil {
+		t.Fatal("surface mode must allocate stencil")
 	}
 
 	if err := ts.ensureTextures(device, w, h, "test", 1); err != nil {
@@ -1301,8 +1275,11 @@ func TestTextureSet_SurfaceToOffscreenSameSize(t *testing.T) {
 	if ts.resolveTex == nil || ts.resolveView == nil {
 		t.Fatal("offscreen mode must recreate resolveTex after surface mode at same size")
 	}
-	if ts.msaaTex == nil || ts.stencilView == nil {
-		t.Fatal("offscreen mode must keep msaa/stencil")
+	if ts.msaaTex != nil {
+		t.Fatal("sc==1 offscreen mode must not allocate msaa color")
+	}
+	if ts.stencilView == nil {
+		t.Fatal("offscreen mode must keep stencil")
 	}
 	ts.destroyTextures()
 }
@@ -1322,14 +1299,20 @@ func TestTextureSet_OffscreenToSurfaceSameSize(t *testing.T) {
 	if ts.resolveTex == nil {
 		t.Fatal("expected resolveTex")
 	}
+	if ts.msaaTex != nil {
+		t.Fatal("sc==1 offscreen must not allocate msaa color")
+	}
 	if err := ts.ensureSurfaceTextures(device, w, h, "test", 1); err != nil {
 		t.Fatalf("ensureSurfaceTextures: %v", err)
 	}
 	if ts.resolveTex != nil || ts.resolveView != nil {
 		t.Fatal("surface mode should drop resolve textures at same size")
 	}
-	if ts.msaaTex == nil {
-		t.Fatal("msaa must remain")
+	if ts.msaaTex != nil {
+		t.Fatal("sc==1 surface must not allocate msaa color")
+	}
+	if ts.stencilTex == nil {
+		t.Fatal("stencil must remain")
 	}
 	ts.destroyTextures()
 }

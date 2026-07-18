@@ -13,6 +13,7 @@ package render_test
 //   S6_PERF_WARMUP       default 3 (locked in docs/S6_PERF_BASELINE.md)
 //   S6_PERF_ITERS        default 10
 //   S6_PERF_JSON         default <repo>/tmp/s6_present_baseline.json
+//   S6_WRITE_BASELINE=1  overwrite frozen baseline JSON (default: keep freeze; always write s6_present_latest.json)
 //   S6_MAIN_PATH_BUDGET  default 16.7 (p50 ms)
 //   S6_REGRESS_PCT       default 10 (main-path allowed regression vs budget floor)
 
@@ -365,10 +366,30 @@ func TestS6_PresentBaseline_Scenes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json: %v", err)
 	}
-	if err := os.WriteFile(path, raw, 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
+	// Always write a non-authoritative latest measure for diagnostics.
+	latest := filepath.Join(filepath.Dir(path), "s6_present_latest.json")
+	if err := os.WriteFile(latest, raw, 0o644); err != nil {
+		t.Fatalf("write %s: %v", latest, err)
 	}
-	t.Logf("wrote %s (%d scenes)", path, len(out.Scenes))
+	// Frozen S6.0 baseline is authoritative for S6.9 relative gates. Only refresh
+	// when missing or S6_WRITE_BASELINE=1 (explicit re-freeze). Full unit suites must
+	// not clobber the freeze with same-day noise and then require "must improve" vs self.
+	writeFreeze := os.Getenv("S6_WRITE_BASELINE") == "1"
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			writeFreeze = true
+		} else {
+			t.Fatalf("stat %s: %v", path, err)
+		}
+	}
+	if writeFreeze {
+		if err := os.WriteFile(path, raw, 0o644); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+		t.Logf("wrote frozen baseline %s (%d scenes) latest=%s", path, len(out.Scenes), latest)
+	} else {
+		t.Logf("kept frozen baseline %s; wrote measure-only %s (%d scenes). Set S6_WRITE_BASELINE=1 to refresh freeze.", path, latest, len(out.Scenes))
+	}
 }
 
 func s6MeasureReadbackContrast(t *testing.T, warmup, iters int) *s6ReadbackNote {

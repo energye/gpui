@@ -3129,7 +3129,15 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 func (rc *GPURenderContext) syncGlyphMaskAtlases(batches []GlyphMaskBatch) error {
 	s := rc.shared
 	if err := s.glyphMaskEngine.SyncAtlasTextures(s.device, s.queue); err != nil {
-		return err
+		// Positive reclaim: free dual-tex snap pools then retry once. Under resize
+		// churn those pools can hold tens of MB and starve glyph_mask_atlas_0.
+		s.dualTexBlend.releasePooledVRAM()
+		if s.device != nil {
+			_ = s.device.WaitIdle()
+		}
+		if err2 := s.glyphMaskEngine.SyncAtlasTextures(s.device, s.queue); err2 != nil {
+			return err2
+		}
 	}
 
 	hasLCD := false

@@ -2,6 +2,15 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+# Match run_full_unit_tests.sh toolchain (go.mod requires >=1.25)
+export GOROOT="${GOROOT:-/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64}"
+if [[ -x "$GOROOT/bin/go" ]]; then
+  export PATH="$GOROOT/bin:$PATH"
+fi
+export GOTOOLCHAIN="${GOTOOLCHAIN:-local}"
+export GOWORK="${GOWORK:-off}"
+
 export WGPU_NATIVE_PATH="${WGPU_NATIVE_PATH:-$ROOT/lib/libwgpu_native.so}"
 export GOCACHE="${GOCACHE:-$ROOT/tmp/go-cache}"
 export LD_LIBRARY_PATH="$ROOT/lib:${LD_LIBRARY_PATH:-}"
@@ -29,10 +38,18 @@ for run in $(seq 1 "$COUNT"); do
     if ! timeout "$TIMEOUT" go test -count=1 ./render -run "$pat" -timeout "$TIMEOUT" >>"$LOG" 2>&1; then
       echo "FAIL $pat pass=$run" | tee -a "$LOG"
       fail=1
+      # Give driver time to reclaim after hard OOM/abort.
+      sleep 3.0
     else
       echo "OK $pat" | tee -a "$LOG"
     fi
-    sleep 1.0
+    # Extra settle after heavy VRAM tiers so the next process is not starved.
+    case "$pat" in
+      *SizeChurn*) sleep 5.0 ;;
+      *T3*) sleep 2.0 ;;
+      *T4*) sleep 2.0 ;;
+      *) sleep 1.0 ;;
+    esac
   done
 done
 echo "DONE fail=$fail" | tee -a "$LOG"

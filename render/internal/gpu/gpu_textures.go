@@ -48,41 +48,45 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	// pass (ensureSurfaceTextures), msaa/stencil may exist at the same size with
 	// resolveTex == nil. Do not early-return in that state or encodeSubmitReadback
 	// fails with "offscreen textures destroyed (concurrent resize?)".
-	if ts.width == w && ts.height == h && ts.msaaTex != nil && ts.resolveTex != nil && ts.resolveView != nil &&
-		ts.msaaView != nil && ts.stencilView != nil {
+	// sc==1 does not allocate msaa color (colorAttachment draws to resolve directly).
+	needMSAA := sc > 1
+	haveMSAA := ts.msaaTex != nil && ts.msaaView != nil
+	if ts.width == w && ts.height == h && ts.resolveTex != nil && ts.resolveView != nil &&
+		ts.stencilView != nil && (!needMSAA || haveMSAA) {
 		return nil
 	}
 	ts.destroyTextures()
 
 	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
-	// MSAA color texture (sc samples, BGRA8Unorm).
-	msaaTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-		Label:         labelPrefix + "_msaa_color",
-		Size:          size,
-		MipLevelCount: 1,
-		SampleCount:   sc,
-		Dimension:     types.TextureDimension2D,
-		Format:        types.TextureFormatBGRA8Unorm,
-		Usage:         types.TextureUsageRenderAttachment,
-	})
-	if err != nil {
-		return fmt.Errorf("create MSAA color texture: %w", err)
-	}
-	ts.msaaTex = msaaTex
+	if needMSAA {
+		msaaTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+			Label:         labelPrefix + "_msaa_color",
+			Size:          size,
+			MipLevelCount: 1,
+			SampleCount:   sc,
+			Dimension:     types.TextureDimension2D,
+			Format:        types.TextureFormatBGRA8Unorm,
+			Usage:         types.TextureUsageRenderAttachment,
+		})
+		if err != nil {
+			return fmt.Errorf("create MSAA color texture: %w", err)
+		}
+		ts.msaaTex = msaaTex
 
-	msaaView, err := device.CreateTextureView(msaaTex, &webgpu.TextureViewDescriptor{
-		Label:         labelPrefix + "_msaa_color_view",
-		Format:        types.TextureFormatBGRA8Unorm,
-		Dimension:     types.TextureViewDimension2D,
-		Aspect:        types.TextureAspectAll,
-		MipLevelCount: 1,
-	})
-	if err != nil {
-		ts.destroyTextures()
-		return fmt.Errorf("create MSAA color view: %w", err)
+		msaaView, err := device.CreateTextureView(msaaTex, &webgpu.TextureViewDescriptor{
+			Label:         labelPrefix + "_msaa_color_view",
+			Format:        types.TextureFormatBGRA8Unorm,
+			Dimension:     types.TextureViewDimension2D,
+			Aspect:        types.TextureAspectAll,
+			MipLevelCount: 1,
+		})
+		if err != nil {
+			ts.destroyTextures()
+			return fmt.Errorf("create MSAA color view: %w", err)
+		}
+		ts.msaaView = msaaView
 	}
-	ts.msaaView = msaaView
 
 	// Depth/stencil texture (sc samples, Depth24PlusStencil8).
 	stencilTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
@@ -113,7 +117,8 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	}
 	ts.stencilView = stencilView
 
-	// Single-sample resolve target (CopySrc for readback).
+	// Single-sample resolve target (CopySrc for readback). For sc==1 this is
+	// also the color attachment (no MSAA resolve).
 	resolveTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         labelPrefix + "_resolve",
 		Size:          size,
@@ -148,21 +153,22 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 		"label", labelPrefix,
 		"width", w, "height", h,
 		"msaa_samples", sc,
+		"msaa_color", needMSAA,
 	)
 	return nil
 }
 
-// ensureSurfaceTextures creates or recreates only the MSAA color and
-// depth/stencil textures for surface rendering mode. The resolve texture
-// is NOT created because the caller-provided surface view serves as the
-// MSAA resolve target.
-//
-// If a resolve texture exists from a previous offscreen mode, it is destroyed.
-// If dimensions match and textures exist, this is a no-op.
 func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
-	// Surface mode does not use resolveTex. If we previously ran offscreen at the
-	// same size, drop the unused resolve to free VRAM; keep MSAA/stencil.
-	if ts.width == w && ts.height == h && ts.msaaTex != nil && ts.msaaView != nil && ts.stencilView != nil {
+	sc := uint32(4) // default MSAA sample count
+	if len(samples) > 0 && samples[0] > 0 {
+		sc = samples[0]
+	}
+	needMSAA := sc > 1
+	haveMSAA := ts.msaaTex != nil && ts.msaaView != nil
+
+	// Surface mode does not use resolveTex. sc==1 draws directly to the surface
+	// view, so only depth/stencil is required (positive VRAM save on low-GPU hosts).
+	if ts.width == w && ts.height == h && ts.stencilView != nil && (!needMSAA || haveMSAA) {
 		if ts.resolveView != nil {
 			ts.resolveView.Release()
 			ts.resolveView = nil
@@ -171,46 +177,52 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 			ts.resolveTex.Release()
 			ts.resolveTex = nil
 		}
+		// Drop leftover MSAA when switching into sc==1.
+		if !needMSAA && haveMSAA {
+			if ts.msaaView != nil {
+				ts.msaaView.Release()
+				ts.msaaView = nil
+			}
+			if ts.msaaTex != nil {
+				ts.msaaTex.Release()
+				ts.msaaTex = nil
+			}
+		}
 		return nil
 	}
 	ts.destroyTextures()
 
-	sc := uint32(4) // default MSAA sample count
-	if len(samples) > 0 && samples[0] > 0 {
-		sc = samples[0]
-	}
-
 	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
-	// MSAA color texture (BGRA8Unorm, sample count from GPUShared).
-	msaaTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-		Label:         labelPrefix + "_msaa_color",
-		Size:          size,
-		MipLevelCount: 1,
-		SampleCount:   sc,
-		Dimension:     types.TextureDimension2D,
-		Format:        types.TextureFormatBGRA8Unorm,
-		Usage:         types.TextureUsageRenderAttachment,
-	})
-	if err != nil {
-		return fmt.Errorf("create MSAA color texture: %w", err)
-	}
-	ts.msaaTex = msaaTex
+	if needMSAA {
+		msaaTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+			Label:         labelPrefix + "_msaa_color",
+			Size:          size,
+			MipLevelCount: 1,
+			SampleCount:   sc,
+			Dimension:     types.TextureDimension2D,
+			Format:        types.TextureFormatBGRA8Unorm,
+			Usage:         types.TextureUsageRenderAttachment,
+		})
+		if err != nil {
+			return fmt.Errorf("create MSAA color texture: %w", err)
+		}
+		ts.msaaTex = msaaTex
 
-	msaaView, err := device.CreateTextureView(msaaTex, &webgpu.TextureViewDescriptor{
-		Label:         labelPrefix + "_msaa_color_view",
-		Format:        types.TextureFormatBGRA8Unorm,
-		Dimension:     types.TextureViewDimension2D,
-		Aspect:        types.TextureAspectAll,
-		MipLevelCount: 1,
-	})
-	if err != nil {
-		ts.destroyTextures()
-		return fmt.Errorf("create MSAA color view: %w", err)
+		msaaView, err := device.CreateTextureView(msaaTex, &webgpu.TextureViewDescriptor{
+			Label:         labelPrefix + "_msaa_color_view",
+			Format:        types.TextureFormatBGRA8Unorm,
+			Dimension:     types.TextureViewDimension2D,
+			Aspect:        types.TextureAspectAll,
+			MipLevelCount: 1,
+		})
+		if err != nil {
+			ts.destroyTextures()
+			return fmt.Errorf("create MSAA color view: %w", err)
+		}
+		ts.msaaView = msaaView
 	}
-	ts.msaaView = msaaView
 
-	// Depth/stencil texture (Depth24PlusStencil8, sample count from GPUShared).
 	stencilTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         labelPrefix + "_depth_stencil",
 		Size:          size,
@@ -246,11 +258,11 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		"label", labelPrefix,
 		"width", w, "height", h,
 		"msaa_samples", sc,
+		"msaa_color", needMSAA,
 	)
 	return nil
 }
 
-// destroyTextures releases all texture resources and resets dimensions.
 func (ts *textureSet) destroyTextures() {
 	if ts.resolveView != nil {
 		ts.resolveView.Release()

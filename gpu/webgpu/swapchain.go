@@ -295,10 +295,17 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	t0 := time.Now()
 	st, suboptimal, err := sc.Surface.GetCurrentTexture()
 	if err != nil {
-		// One-shot recover: reconfigure (throttled) and retry.
-		if cfgErr := sc.reconfigureThrottled(); cfgErr != nil {
-			return nil, err
+		// Hard acquire failure (outdated / needs reconfigure / lost): always
+		// reconfigure once and retry. Do NOT use reconfigureThrottled here —
+		// Resize/Configure may have just set lastReconfig, and rate-limiting
+		// would drop the frame with "surface needs reconfigure" under churn.
+		if sc.Surface != nil {
+			sc.Surface.DiscardTexture()
 		}
+		if cfgErr := sc.Configure(); cfgErr != nil {
+			return nil, fmt.Errorf("%w (reconfigure: %v)", err, cfgErr)
+		}
+		sc.lastReconfig = time.Now()
 		sc.acquireRetries++
 		st, suboptimal, err = sc.Surface.GetCurrentTexture()
 		if err != nil {

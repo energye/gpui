@@ -232,8 +232,8 @@ func isolationProbes() []probeDef {
 			OverrideFeatures: true,
 			Solid:            true, Blend: true, Glow: true, Mesh: true, Atlas: true, Text: true, Layer: true,
 			ParticleN: 1600, Region: 0.68, BlendCircles: 80, MinN: 1200,
-			MemSoakSec: 20, AllowLowFPS: true,
-			Expect:     "L3 特征短浸泡：RSS 稳态斜率不得暴涨",
+			MemSoakSec: 60, AllowLowFPS: true,
+			Expect:     "L3 特征 ~60s 浸泡：RSS 稳态斜率不得暴涨（可用 GPUI_ANIM_SECONDS 覆盖）",
 			BisectHint: "RSS steady delta；layer RT 池；glow export",
 		},
 
@@ -279,8 +279,8 @@ func isolationProbes() []probeDef {
 			OverrideFeatures: true,
 			Solid:            true, Blend: true, Glow: true, Mesh: true, Atlas: true, Layer: true,
 			ParticleN: 1400, Region: 0.68, BlendCircles: 64, MinN: 1200,
-			MemSoakSec: 25, AllowLowFPS: true, GrowN: true,
-			Expect:     "25s L3+grow：RSS 稳态斜率硬顶；抓泄漏",
+			MemSoakSec: 180, AllowLowFPS: true, GrowN: true,
+			Expect:     "默认 ~180s L3+grow：RSS 稳态斜率硬顶；加深用 GPUI_ANIM_SECONDS=600/900/1800",
 			BisectHint: "rss / layer RT 池 / glow export",
 		},
 

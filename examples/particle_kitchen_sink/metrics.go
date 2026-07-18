@@ -95,6 +95,8 @@ func writeResult(path string, r runResult) {
 	_ = os.WriteFile(path+".line", []byte(line), 0o644)
 }
 
+// rssSteadyDelta estimates post-warmup RSS climb (KB).
+// Same shape as render.memAssertSteadyRSS: drop first 20%, then late-third − early-third.
 func rssSteadyDelta(samples []int64) int64 {
 	n := len(samples)
 	if n < 30 {

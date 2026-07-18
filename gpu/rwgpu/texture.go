@@ -92,10 +92,18 @@ func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) 
 		descPtr = uintptr(unsafe.Pointer(&wireDesc))
 	}
 
+	_, _ = LastUncapturedError()
 	handle, _, _ := procTextureCreateView.Call(
 		t.handle,
 		descPtr,
 	)
+	if typ, msg := LastUncapturedError(); msg != "" {
+		if handle != 0 {
+			untrackResource(handle)
+			procTextureViewRelease.Call(handle) //nolint:errcheck
+		}
+		return nil, &WGPUError{Op: "CreateView", Type: typ, Message: msg}
+	}
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateView", Message: "wgpu returned null handle"}
 	}
@@ -236,10 +244,22 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 		ViewFormats:     viewFormatsPtr,
 	}
 
+	// Clear sticky uncaptured state so we can attribute post-call errors to this op.
+	_, _ = LastUncapturedError()
 	handle, _, _ := procDeviceCreateTexture.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wireDesc)),
 	)
+	// wgpu-native may return a non-null handle while still reporting OOM via the
+	// uncaptured callback; using that handle produces cascading invalid-view panics
+	// on Submit. Treat uncaptured Validation/OOM as hard failure.
+	if typ, msg := LastUncapturedError(); msg != "" {
+		if handle != 0 {
+			untrackResource(handle)
+			procTextureRelease.Call(handle) //nolint:errcheck
+		}
+		return nil, &WGPUError{Op: "CreateTexture", Type: typ, Message: msg}
+	}
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateTexture", Message: "wgpu returned null handle"}
 	}

@@ -90,13 +90,18 @@ func memHardRSSCheck(t *testing.T) {
 	}
 }
 
-// memAssertSteadyRSS checks that late samples do not grow much vs early steady samples.
+// memAssertSteadyRSS checks steady-state RSS growth after warmup.
+// Algorithm is aligned with particle_kitchen_sink rssSteadyDelta:
+//  1. drop non-positive samples
+//  2. drop first 20% as warmup
+//  3. grow = mean(last third) - mean(first third) of the remainder
+//
+// Soft gate only; hard OOM/Present failures are separate.
 func memAssertSteadyRSS(t *testing.T, samples []int64, deltaKB int64, label string) {
 	t.Helper()
 	if len(samples) < 6 {
 		return
 	}
-	// drop zeros (unavailable)
 	xs := make([]int64, 0, len(samples))
 	for _, s := range samples {
 		if s > 0 {
@@ -107,21 +112,28 @@ func memAssertSteadyRSS(t *testing.T, samples []int64, deltaKB int64, label stri
 		t.Logf("%s: RSS unavailable or sparse; skip soft growth gate", label)
 		return
 	}
-	third := len(xs) / 3
+	start := len(xs) / 5
+	steady := xs[start:]
+	if len(steady) < 9 {
+		// short runs: fall back to full-sample thirds
+		steady = xs
+	}
+	third := len(steady) / 3
 	if third < 2 {
 		return
 	}
 	var early, late float64
 	for i := 0; i < third; i++ {
-		early += float64(xs[i])
+		early += float64(steady[i])
 	}
-	for i := len(xs) - third; i < len(xs); i++ {
-		late += float64(xs[i])
+	for i := len(steady) - third; i < len(steady); i++ {
+		late += float64(steady[i])
 	}
 	early /= float64(third)
 	late /= float64(third)
 	grow := late - early
-	t.Logf("%s RSS early_avg=%.0fKB late_avg=%.0fKB grow=%.0fKB limit=%dKB", label, early, late, grow, deltaKB)
+	t.Logf("%s RSS warmup_drop=%d early_avg=%.0fKB late_avg=%.0fKB grow=%.0fKB limit=%dKB",
+		label, start, early, late, grow, deltaKB)
 	if grow > float64(deltaKB) {
 		t.Fatalf("%s steady RSS growth %.0f KB exceeds limit %d KB", label, grow, deltaKB)
 	}

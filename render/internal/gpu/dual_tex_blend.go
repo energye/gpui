@@ -1211,6 +1211,7 @@ func (c *dualTexBlendCache) putOutBGRA(tex *webgpu.Texture, view *webgpu.Texture
 		return
 	}
 	c.outPool[key] = append(b, dualTexPooledTex{tex: tex, view: view})
+	c.enforceOutPoolBudgetLocked()
 }
 
 // dualTexAgeCool advances cooling temps; items age>=2 return to outPool.
@@ -1259,6 +1260,7 @@ func (c *dualTexBlendCache) dualTexAgeCool() {
 			b := c.outPool[key]
 			if len(b) < 8 {
 				c.outPool[key] = append(b, dualTexPooledTex{tex: it.tex, view: it.view})
+				c.enforceOutPoolBudgetLocked()
 				continue
 			}
 			if it.view != nil {
@@ -1300,6 +1302,94 @@ func (c *dualTexBlendCache) coolTex(tex *webgpu.Texture, view *webgpu.TextureVie
 	}
 	c.cool = append(c.cool, dualTexCoolItem{tex: tex, view: view, w: w, h: h, age: 0})
 	c.mu.Unlock()
+}
+
+// dualTexOutPoolBudgetBytes caps reusable dual-tex snap textures. Resize/churn
+// can accumulate many size buckets; without a total budget, pooled BGRA temps
+// compete with glyph atlases on low-VRAM hosts ("Not enough memory left").
+const dualTexOutPoolBudgetBytes int64 = 32 << 20 // 32 MiB
+
+// releasePooledVRAM frees cool + outPool textures while keeping pipelines.
+// Call under VRAM pressure before critical CreateTexture (glyph atlas, etc.).
+func (c *dualTexBlendCache) releasePooledVRAM() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, bucket := range c.outPool {
+		for _, it := range bucket {
+			if it.view != nil {
+				it.view.Release()
+			}
+			if it.tex != nil {
+				it.tex.Release()
+			}
+		}
+	}
+	c.outPool = nil
+	for _, it := range c.cool {
+		if it.view != nil {
+			it.view.Release()
+		}
+		if it.tex != nil {
+			it.tex.Release()
+		}
+	}
+	c.cool = nil
+	for i := range c.fullSnaps {
+		if c.fullSnaps[i].view != nil {
+			c.fullSnaps[i].view.Release()
+			c.fullSnaps[i].view = nil
+		}
+		if c.fullSnaps[i].tex != nil {
+			c.fullSnaps[i].tex.Release()
+			c.fullSnaps[i].tex = nil
+		}
+		c.fullSnaps[i].w, c.fullSnaps[i].h = 0, 0
+	}
+}
+
+// enforceOutPoolBudgetLocked drops pooled outs until estimated usage fits budget.
+// Caller must hold c.mu.
+func (c *dualTexBlendCache) enforceOutPoolBudgetLocked() {
+	if c == nil || c.outPool == nil {
+		return
+	}
+	for {
+		var used int64
+		var worstKey [2]int
+		worstN := 0
+		for key, bucket := range c.outPool {
+			if len(bucket) == 0 {
+				continue
+			}
+			// BGRA8 temps: w*h*4
+			bytes := int64(key[0]) * int64(key[1]) * 4 * int64(len(bucket))
+			used += bytes
+			if len(bucket) > worstN {
+				worstN = len(bucket)
+				worstKey = key
+			}
+		}
+		if used <= dualTexOutPoolBudgetBytes || worstN == 0 {
+			return
+		}
+		b := c.outPool[worstKey]
+		it := b[len(b)-1]
+		if it.view != nil {
+			it.view.Release()
+		}
+		if it.tex != nil {
+			it.tex.Release()
+		}
+		b = b[:len(b)-1]
+		if len(b) == 0 {
+			delete(c.outPool, worstKey)
+		} else {
+			c.outPool[worstKey] = b
+		}
+	}
 }
 
 // dualTexLayerIntoDestOp describes one deferred advanced layer to blend into dst.

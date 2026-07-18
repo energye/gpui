@@ -77,11 +77,14 @@ func TestP11_CJKDrawString_ShapeCacheWarm(t *testing.T) {
 	if stats.CPUFallbackOps > 0 {
 		t.Fatalf("CJK text cpu_fb: %s", stats.LogLine())
 	}
-	if st.Hits < 1 {
-		t.Fatalf("expected shape/layout cache hit for repeated CJK label, %+v", st)
-	}
+	// 3 unique + 1 repeat. R7.5/opt24 layout template may short-circuit
+	// LayoutGlyphs on the repeat, so shape Hits can stay 0 while Misses
+	// remains at the unique-label count (no extra miss for the repeat).
 	if st.Misses < 1 {
 		t.Fatalf("expected at least one shape miss for unique labels, %+v", st)
+	}
+	if st.Hits < 1 && st.Misses > 3 {
+		t.Fatalf("expected shape/layout reuse for repeated CJK label (hits>=1 or misses<=unique), %+v", st)
 	}
 
 	// Pixel ink present (not blank white)
@@ -115,8 +118,10 @@ func TestP11_CJKDrawString_ShapeCacheWarm(t *testing.T) {
 	st2 := text.ShapeResultCacheStats()
 	stats2 := dc.RenderPathStats()
 	t.Logf("warm2 path %s shape=%+v", stats2.LogLine(), st2)
-	if st2.Hits < 3 {
-		t.Fatalf("warm frame should mostly hit shape cache, %+v", st2)
+	// Warm frame: layout template and/or shape cache must prevent reshape.
+	// Template hits skip LayoutGlyphs entirely → Hits may be 0 with Misses=0.
+	if st2.Misses > 0 {
+		t.Fatalf("warm frame should not reshape CJK labels (template/shape reuse), %+v", st2)
 	}
 	if stats2.CPUFallbackOps > 0 {
 		t.Fatalf("warm cpu_fb: %s", stats2.LogLine())
