@@ -10,17 +10,17 @@ import (
 // Helper functions for public → wire conversion
 // =============================================================================
 
-// stringToStringView converts a Go string to a wgpu-native StringView.
-// The returned StringView points to the string's backing data — the string
-// must remain alive for the duration of any FFI call using the result.
+// stringToStringView converts a Go string to a wgpu-native StringView without
+// allocating (opt42). The returned view points at the string's backing bytes —
+// callers must KeepAlive the Go string (or a parent struct that holds it)
+// across the FFI call that consumes the StringView.
 func stringToStringView(s string) StringView {
 	if len(s) == 0 {
 		return EmptyStringView()
 	}
-	b := []byte(s)
 	return StringView{
-		Data:   uintptr(unsafe.Pointer(&b[0])),
-		Length: uintptr(len(b)),
+		Data:   uintptr(unsafe.Pointer(unsafe.StringData(s))),
+		Length: uintptr(len(s)),
 	}
 }
 

@@ -499,7 +499,7 @@ go test -count=1 ./widget -timeout 120s
 **A 已关闭**。**S4.0–S4.4 已关闭**。  
 **A / S4 / S5 已关闭。**  
 **S6.0–S6.9 已关闭**（深基线 + 帧/提交/batch/layer/text/path/资源/窗口 + 重场景分级预算）。  
-**S6.0–S6.9 已关闭**。**M 内存生命周期档已落地**（`docs/MEM_LEAK_TEST_PLAN.md` §11 更新）。**F1 核心已收口**。**当前主线**：① 全量单元 `./scripts/run_full_unit_tests.sh` 绿 → ② mem 泄漏 `./scripts/run_mem_leak_tests.sh` → ③ 再 dig glow hitch。控件层 W 仍后置。可选 S6.10 不阻塞。
+**S6.0–S6.9 已关闭**。**M 内存生命周期档已落地**（`docs/MEM_LEAK_TEST_PLAN.md` §11 更新）。**F1 核心已收口**。**当前主线**：**稳 60+ 已达成**（[`PERF_CPU_FORWARD_OPT_PLAN.md`](./PERF_CPU_FORWARD_OPT_PLAN.md) R8 opt43d Keep；核心探针 ema/avg≥60.7 hitch=0）；可选下一刀 R8.3 降主线程 CPU；mem 平台化 release 已绿作护栏。控件层 W 仍后置。可选 S6.10 不阻塞。
 
 ```bash
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so

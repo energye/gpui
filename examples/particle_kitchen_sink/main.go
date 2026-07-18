@@ -166,6 +166,11 @@ func main() {
 		log.Fatalf("Configure: %v", err)
 	}
 	defer sc.Release()
+	// Many X11/wgpu stacks report Fifo but Present returns immediately (no real
+	// wait-for-vblank). Rely on high-precision software pacing for stable 60.
+	// GPUI_APP_PACE=0 disables (uncapped / dig). Default ON.
+	appPace := envBool("GPUI_APP_PACE", true)
+	log.Printf("swapchain present_mode=%s app_pace=%v frame_budget=%s", sc.PresentModeName(), appPace, frameBudget)
 
 	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
 		Dev: device, Adpt: adapter, Format: sc.Format,
@@ -199,57 +204,59 @@ func main() {
 	rssStart := rssKB()
 	exitReason := "window_close"
 	var (
-		fpsEMA           float64
-		fpsMin           float64
-		fpsMax           float64
-		lastFrameEnd     time.Time
-		cpuPctEMA        float64
-		prevCPU          cpuSample
-		havePrevCPU      bool
-		cpuSum           float64
-		cpuSamples       int
-		rssSamples       []int64
-		lastRSS          int64
-		gpuOpsLast       int
-		cpuFBLast        int
-		lastFB           string
-		presents         int
-		presentErrors    int
-		presentErrResize int
-		presentErrSteady int
-		lastPresentErr   string
-		resizeEvents     int
-		recoverFails     int
-		resizeGrace      int // frames remaining that count as resize-side errors
-		postResizeOK     int // successful presents after last resize
-		awaitRecover     bool
-		probeOKFlag      bool
-		probeNote        string
-		probeChecked     bool
-		contentOKFlag    bool
-		contentNote      string
-		contentChecked   bool
-		pixelOKFlag      bool
-		pixelNote        string
-		pixelSamples     string
-		pixelChecked     bool
-		stageSigOK       bool
-		stageSigNote     string
-		stageSigChecked  bool
-		sigSamples       int
-		sigFails         int
-		markersLast      int
-		steadyStart      time.Time
-		steadyFrame0     int
-		haveSteady       bool
-		resizePhase      int
-		lowFPSCount      int
-		instFPSCount     int
-		skipFPSSample    bool // true after harness dig: next present interval includes dig wall time
-		instFPSSamples   []float64
+		fpsEMA            float64
+		fpsMin            float64
+		fpsMax            float64
+		lastFrameEnd      time.Time
+		cpuPctEMA         float64
+		prevCPU           cpuSample
+		havePrevCPU       bool
+		cpuSum            float64
+		cpuSamples        int
+		rssSamples        []int64
+		lastRSS           int64
+		gpuOpsLast        int
+		cpuFBLast         int
+		lastFB            string
+		presents          int
+		presentErrors     int
+		presentErrResize  int
+		presentErrSteady  int
+		lastPresentErr    string
+		resizeEvents      int
+		recoverFails      int
+		resizeGrace       int // frames remaining that count as resize-side errors
+		postResizeOK      int // successful presents after last resize
+		awaitRecover      bool
+		probeOKFlag       bool
+		probeNote         string
+		probeChecked      bool
+		contentOKFlag     bool
+		contentNote       string
+		contentChecked    bool
+		pixelOKFlag       bool
+		pixelNote         string
+		pixelSamples      string
+		pixelChecked      bool
+		stageSigOK        bool
+		stageSigNote      string
+		stageSigChecked   bool
+		sigSamples        int
+		sigFails          int
+		markersLast       int
+		steadyStart       time.Time
+		steadyFrame0      int
+		haveSteady        bool
+		resizePhase       int
+		lowFPSCount       int
+		instFPSCount      int
+		skipFPSSample     bool // true after harness dig: next present interval includes dig wall time
+		instFPSSamples    []float64
+		nextFrameDeadline time.Time
 	)
 	rssSamples = make([]int64, 0, 256)
 	instFPSSamples = make([]float64, 0, 4096)
+	nextFrameDeadline = time.Now()
 
 	running := true
 	for running {
@@ -266,7 +273,6 @@ func main() {
 			continue
 		}
 
-		deadline := time.Now().Add(frameBudget)
 		for xw.Pending() {
 			ev := xw.NextEvent()
 			if xw.IsDelete(ev) {
@@ -475,9 +481,10 @@ func main() {
 			log.Printf("pixel_probe ok=%v note=%s | stage_sig ok=%v note=%s",
 				pixelOKFlag, pixelNote, stageSigOK, stageSigNote)
 			skipFPSSample = true // next present interval includes this dig
-		} else if frame >= 45 && frame%30 == 0 && envBool("GPUI_INTERMITTENT_SIG", true) {
+		} else if frame >= 45 && frame%90 == 0 && envBool("GPUI_INTERMITTENT_SIG", true) {
 			// Intermittent content sampling — catches flicker/dropouts without full-frame readback.
-			// Set GPUI_INTERMITTENT_SIG=0 during mem dig to isolate harness vs engine climb.
+			// Every ~90 frames (was 30): under Fifo, dig wall time steals the next vsync.
+			// Set GPUI_INTERMITTENT_SIG=0 during pure perf/mem digs.
 			okSig, noteSig := stageContentSignature()
 			sigSamples++
 			if !okSig {
@@ -523,8 +530,32 @@ func main() {
 			log.Print(msg)
 		}
 
-		if sleep := time.Until(deadline); sleep > 0 {
-			time.Sleep(sleep)
+		// High-precision software pace: sleep bulk, busy-spin last ~1ms.
+		// (runtime.Gosched in the spin window yields too long → systematic ~59.9.)
+		// Drift-free schedule on nextFrameDeadline; fifo Present is not true vsync here.
+		// Pace period is frameBudget - paceLead so measured present rate clears target (60+).
+		if appPace {
+			const paceLead = 200 * time.Microsecond // ~60.7Hz when target=60
+			step := frameBudget - paceLead
+			if step < frameBudget/2 {
+				step = frameBudget
+			}
+			nextFrameDeadline = nextFrameDeadline.Add(step)
+			// If we fell more than one frame behind, resync (don't spiral sleep).
+			if behind := time.Since(nextFrameDeadline); behind > step {
+				nextFrameDeadline = time.Now().Add(step)
+			}
+			for {
+				d := time.Until(nextFrameDeadline)
+				if d <= 0 {
+					break
+				}
+				if d > time.Millisecond {
+					time.Sleep(d - time.Millisecond)
+					continue
+				}
+				// Tight busy-wait — do not Gosched (scheduler can overshoot by ms).
+			}
 		}
 	}
 

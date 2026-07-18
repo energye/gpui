@@ -1,7 +1,7 @@
 # Render 层代码优化收敛计划（功能不变）
 
-> 版本：1.7 | 日期：2026-07-17  
-> 状态：**R7.0–R7.6 计划表已收口**；后续按新热点开 R8 / PKS 实测  
+> 版本：1.8 | 日期：2026-07-18  
+> 状态：**R7 收口**；**R8 执行中** → [`PERF_CPU_FORWARD_OPT_PLAN.md`](./PERF_CPU_FORWARD_OPT_PLAN.md)  
 > 范围：`render` 主路径 + 为 render 服务的 `gpu/webgpu` / `gpu/rwgpu` 热路径  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
 > 上位主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) · 路由铁律：[`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md)
@@ -286,6 +286,8 @@ go test -count=1 ./render -run 'TestS6_L0_|TestS52_|TestS53_|TestS61_|TestS62_Pr
 **R7.6 关闭。** **§4.2 R7.0–R7.6 全部关闭。**
 
 ### R7 之后 — 新热点再开 R8 / PKS 实测
+
+**执行案（2026-07-18）：** 见 [`PERF_CPU_FORWARD_OPT_PLAN.md`](./PERF_CPU_FORWARD_OPT_PLAN.md)（稳 60 + CPU 正向；R8.0 baseline → pprof 选刀）。
 
 ---
 

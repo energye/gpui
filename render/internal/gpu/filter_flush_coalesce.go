@@ -38,8 +38,9 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 			rc.shared.mu.Unlock()
 			return gpucontext.TextureView{}, nil, err
 		}
-	} else {
-		_ = rc.shared.ensureGPU()
+	} else if !gpuFilterGraphRegistered {
+		// opt41: warm path — avoid ensureGPU every glow seed flush.
+		rc.shared.registerFilterGraphIfNeeded()
 	}
 	rc.shared.ensurePipelines()
 	device := rc.shared.device

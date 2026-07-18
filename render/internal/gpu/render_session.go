@@ -245,9 +245,14 @@ type GPURenderSession struct {
 	lastEnsurePipelines  int // diagnostic: 0=skipped fast, 1=full ensure (last call)
 	ensurePipelinesFastN uint64
 	ensurePipelinesFullN uint64
-	imagePipeline        *TexturedQuadPipeline
-	imageCache           *ImageCache
-	textPipeline         *MSDFTextPipeline
+	// opt41: reuse surface render-pass descriptor + attachments (no per-encode alloc).
+	surfaceColorAtt [1]webgpu.RenderPassColorAttachment
+	surfaceDSAtt    webgpu.RenderPassDepthStencilAttachment
+	surfaceRPDesc   webgpu.RenderPassDescriptor
+	surfaceRPInited bool
+	imagePipeline   *TexturedQuadPipeline
+	imageCache      *ImageCache
+	textPipeline    *MSDFTextPipeline
 
 	// Surface rendering mode fields. When surfaceView is non-nil, the session
 	// renders directly to the surface instead of reading back to CPU.
@@ -702,6 +707,33 @@ func (s *GPURenderSession) colorAttachment(targetView *webgpu.TextureView, loadO
 		StoreOp:    types.StoreOpStore,
 		ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 	}
+}
+
+// surfaceRenderPassDesc fills s.surfaceRPDesc for a surface/offscreen pass with
+// depth+stencil. Reuses backing storage so encodeSubmit* avoids heap allocs
+// every frame (opt41 class A).
+func (s *GPURenderSession) surfaceRenderPassDesc(
+	label string,
+	view *webgpu.TextureView,
+	colorLoadOp, stencilLoadOp, depthLoadOp types.LoadOp,
+) *webgpu.RenderPassDescriptor {
+	if !s.surfaceRPInited {
+		s.surfaceRPDesc.ColorAttachments = s.surfaceColorAtt[:]
+		s.surfaceRPDesc.DepthStencilAttachment = &s.surfaceDSAtt
+		s.surfaceRPInited = true
+	}
+	s.surfaceRPDesc.Label = label
+	s.surfaceColorAtt[0] = s.colorAttachment(view, colorLoadOp)
+	s.surfaceDSAtt = webgpu.RenderPassDepthStencilAttachment{
+		View:              s.textures.stencilView,
+		DepthLoadOp:       depthLoadOp,
+		DepthStoreOp:      types.StoreOpDiscard,
+		DepthClearValue:   1.0,
+		StencilLoadOp:     stencilLoadOp,
+		StencilStoreOp:    types.StoreOpStore,
+		StencilClearValue: 0,
+	}
+	return &s.surfaceRPDesc
 }
 
 // effectiveDimensions returns the width and height to use for MSAA textures
@@ -4201,19 +4233,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// always the correct initial state.
 	depthLoadOp := types.LoadOpClear
 
-	rpDesc := &webgpu.RenderPassDescriptor{
-		Label:            "session_surface_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{s.colorAttachment(view, colorLoadOp)},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
-			View:              s.textures.stencilView,
-			DepthLoadOp:       depthLoadOp,
-			DepthStoreOp:      types.StoreOpDiscard,
-			DepthClearValue:   1.0,
-			StencilLoadOp:     stencilLoadOp,
-			StencilStoreOp:    types.StoreOpStore,
-			StencilClearValue: 0,
-		},
-	}
+	rpDesc := s.surfaceRenderPassDesc("session_surface_pass", view, colorLoadOp, stencilLoadOp, depthLoadOp)
 
 	rp, rpErr := encoder.BeginRenderPass(rpDesc)
 	if rpErr != nil {
@@ -4741,19 +4761,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	// always the correct initial state.
 	depthLoadOp := types.LoadOpClear
 
-	rpDesc := &webgpu.RenderPassDescriptor{
-		Label:            "session_surface_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{s.colorAttachment(view, colorLoadOp)},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
-			View:              s.textures.stencilView,
-			DepthLoadOp:       depthLoadOp,
-			DepthStoreOp:      types.StoreOpDiscard,
-			DepthClearValue:   1.0,
-			StencilLoadOp:     stencilLoadOp,
-			StencilStoreOp:    types.StoreOpStore,
-			StencilClearValue: 0,
-		},
-	}
+	rpDesc := s.surfaceRenderPassDesc("session_surface_pass", view, colorLoadOp, stencilLoadOp, depthLoadOp)
 
 	rp, rpErr := encoder.BeginRenderPass(rpDesc)
 	if rpErr != nil {

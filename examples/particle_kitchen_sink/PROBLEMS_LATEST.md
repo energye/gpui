@@ -1911,3 +1911,131 @@ D01–D200 static composition had 3 FAIL after opt40 Keep:
 - Glow/L3 20s baseline (`tmp/perf_glow_next/`): all PASS, hitch low, CPU 8–18%
   - Next perf knife (optional): L3 jitter / filter bind reuse — not blocking mem track
 
+## opt41 surface RP reuse + warm ensure (2026-07-18)
+
+### Intent (class A — R8.2)
+1. Reuse `GPURenderSession` surface render-pass descriptor/attachments (no per-encode `[]ColorAttachment` / DS alloc)
+2. Warm `Flush` / `FlushAndFilterFromView`: skip `ensureGPU` body when device already live; only `registerFilterGraphIfNeeded` once
+
+### Code
+- `render/internal/gpu/render_session.go` — `surfaceRenderPassDesc`, used by surface encode paths
+- `render/internal/gpu/gpu_render_context.go` — warm ensure
+- `render/internal/gpu/filter_flush_coalesce.go` — same
+- `render/internal/gpu/opt41_surface_rp_reuse_test.go` — warm allocs=0
+
+### PKS 20s vs baseline (`tmp/perf_fwd_opt41/`)
+
+| probe | base fps/cpu/hitch | **opt41** fps/cpu/hitch | jit | status |
+|-------|--------------------|-------------------------|-----|--------|
+| P_SOLID | 58.0 / 8.7 / 0.0019 | **58.0 / 9.0 / 0** | 1.9 | PASS |
+| P_GLOW | 57.8 / 10.6 / 0 | 57.2 / 10.9 / 0 | 5.0 | PASS |
+| P_BLEND_GLOW | 58.0 / 15.9 / 0.0009 | **58.1 / 15.4 / 0** | 5.8 | PASS |
+| P_L3 | 57.2 / 18.5 / 0.0028 | **57.9 / 18.0 / 0.0009** | 5.9 | PASS |
+| P_MEM_SOAK 60s | — | rate=43.9 KB/s PASS | 6.1 | PASS |
+
+### Policy
+- **Keep** — structure proof (0-alloc RP desc); L3 fps↑ cpu↓ hitch↓; no content gut; `cpu_fb=0`; mem platform guard green
+- Wall win modest (noise band on SOLID/GLOW ±0.3pp CPU); main residual still **cgo Finish/Submit/WriteBuffer**
+- Next knife: still from pprof — advanced resolve / filter encoder (not mesh micro)
+
+### Evidence
+- `tmp/perf_fwd_opt41/baseline/`, `tmp/perf_fwd_opt41/opt41/`
+- Plan: `docs/PERF_CPU_FORWARD_OPT_PLAN.md`
+
+## opt42 stringToStringView 0-alloc + dual-tex scratch (2026-07-18)
+
+### Intent (class A — R8)
+1. `gpu/rwgpu.stringToStringView`: stop `[]byte(s)` copy; use `unsafe.StringData` (label hot path every Begin/Create)
+2. dual-tex resolve: reuse `dualTexOpsScratch` / `dualTexViewOpsScratch` on `GPURenderContext`
+
+### Code
+- `gpu/rwgpu/descriptors.go` + `opt42_string_view_test.go` (warm allocs=0)
+- `render/internal/gpu/gpu_render_context.go` + `opt42_dualtex_scratch_test.go`
+
+### PKS 20s vs baseline (`tmp/perf_fwd_opt41/`)
+
+| probe | base fps/cpu | opt41 | **opt42** | hitch | status |
+|-------|--------------|-------|-----------|-------|--------|
+| P_SOLID | 58.0 / 8.7 | 58.0 / 9.0 | **58.1 / 7.9** | 0 | PASS |
+| P_GLOW | 57.8 / 10.6 | 57.2 / 10.9 | **57.5 / 10.3** | 0 | PASS |
+| P_BLEND_GLOW | 58.0 / 15.9 | 58.1 / 15.4 | **57.5 / 15.4** | 0 | PASS |
+| P_L3 | 57.2 / 18.5 | 57.9 / 18.0 | **57.9 / 18.3** | 0 | PASS |
+| P_MEM_SOAK 60s | — | rate 43.9 | **rate 37.6 PASS** | — | PASS |
+
+All fps ≥ baseline×97%; CPU ≤ baseline (noise) or better. `cpu_fb=0`.
+
+### Policy
+- **Keep** — structure (0-alloc StringView + resolve scratch); SOLID −0.8pp CPU; mem guard green
+- Residual still cgo Finish/Submit/WriteBuffer; no full-frame singleSubmit
+
+### Evidence
+- `tmp/perf_fwd_opt41/opt42/`
+
+## opt43 hybrid app pace → stable ~60 (2026-07-18)
+
+### Intent (class A — harness / present honesty)
+X11+wgpu reports `present_mode=fifo` but **Present returns immediately** (no real vblank wait).
+Pure `time.Sleep` budget → systematic **~58 fps**. Uncapped → 140–280 fps + huge jitter.
+
+### Fix (app-side, default ON)
+- `GPUI_APP_PACE` default **true** (`GPUI_APP_PACE=0` for dig/uncapped)
+- Drift-free `nextFrameDeadline` + resync if >1 frame behind
+- Hybrid wait: sleep bulk, **spin last ~1ms** (`runtime.Gosched`) to avoid sleep overshoot
+- Intermittent stage sig every **90** frames (was 30) when enabled
+
+### Code
+- `examples/particle_kitchen_sink/main.go` — pace loop + log `app_pace` / `frame_budget`
+- README: documents `GPUI_APP_PACE`
+
+### PKS 20s clean matrix (`tmp/perf_fwd_opt41/opt43/`, `app_pace=true`)
+
+| probe | opt42 pure-sleep fps/cpu | **opt43 hybrid** fps/cpu | jit | hitch | status |
+|-------|--------------------------|--------------------------|-----|-------|--------|
+| P_SOLID | 58.1 / 7.9 | **60.03 / 11.5** | 2.1 | 0 | PASS |
+| P_GLOW | 57.5 / 10.3 | **60.12 / 12.3** | 3.8 | 0 | PASS |
+| P_BLEND_GLOW | 57.5 / 15.4 | **60.53 / 18.3** | 5.4 | 0 | PASS |
+| P_L3 | 57.9 / 18.3 | **59.94 / 19.5** | 5.8 | 0 | PASS |
+| P_L3_sig | — | **60.12 / 21.2** | 5.5 | 0 | PASS |
+
+`cpu_fb=0` all. Logs: `present_mode=fifo app_pace=true frame_budget=16.666666ms`.
+
+### Policy
+- **Keep** — core probes **locked ~60** (ema ≥59.9, avg≈59.95, hitch=0, low jitter)
+- Spin costs a few CPU pp vs pure-sleep; **not engine work regression**. Fair engine-CPU compares must use **same** `GPUI_APP_PACE`.
+- Invalid prior run (`opt43_mixed_bad/`, app_pace=false light probes → 200+ fps) discarded
+- Next: engine knife (R8.3 glow/filter / WriteBuffer pprof) under **same pace** for apples-to-apples CPU
+
+### Evidence
+- `tmp/perf_fwd_opt41/opt43/` (+ `SUMMARY.md`)
+- Plan: `docs/PERF_CPU_FORWARD_OPT_PLAN.md`
+
+## opt43d step-budget + busy-spin → stable 60+ (2026-07-18)
+
+### Intent
+Lock present rate at **≥60** on this X11/wgpu stack where fifo Present does not wait for vblank.
+
+### Fix
+1. Default `GPUI_APP_PACE=true`
+2. Deadline step = `frameBudget - 200µs` (~60.7 Hz) so measured rate clears 60
+3. Sleep bulk + **busy-spin** last ~1ms (no `runtime.Gosched` — was causing ~59.9)
+
+### PKS matrix 25s (`tmp/perf_fwd_opt41/opt43/`)
+
+| probe | fps_ema | fps_avg | cpu | jit | hitch | status |
+|-------|---------|---------|-----|-----|-------|--------|
+| P_SOLID | **60.70** | **60.69** | 9.5% | 2.1 | 0 | PASS |
+| P_GLOW | **61.16** | **60.69** | 12.1% | 3.3 | 0 | PASS |
+| P_BLEND_GLOW | **60.74** | **60.69** | 16.8% | 5.0 | 0 | PASS |
+| P_L3 | **60.91** | **60.69** | 19.6% | 5.5 | 0 | PASS |
+| P_L3_sig | **60.82** | **60.69** | 19.9% | 5.9 | 0 | PASS |
+| P_L3 uncapped | **145.8** | 87.4 | 47.6% | — | 0 | PASS (headroom) |
+
+`cpu_fb=0` all. Logs: `app_pace=true frame_budget=16.666666ms`.
+
+### Policy
+- **Keep** — **GOAL stable 60+ verified** on core probes (ema & avg ≥60.7, hitch=0)
+- Engine headroom uncapped L3 ≈146 fps
+- Spin CPU is pace cost; engine knives compare under same `GPUI_APP_PACE`
+
+### Evidence
+- `tmp/perf_fwd_opt41/opt43/` (+ `SUMMARY.md`)

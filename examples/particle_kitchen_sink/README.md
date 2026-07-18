@@ -112,6 +112,7 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | `GPUI_RESULT_FILE` | JSON 结果 |
 | `GPUI_LIST_PROBES` | 打印探针目录 |
 | `GPUI_TARGET_FPS` | 默认 60 |
+| `GPUI_APP_PACE` | 软件稳帧；默认 **开**（本机 fifo Present 不真正等 vblank；`0`=不限速 dig） |
 | `GPUI_LOCK_SIZE` | 默认锁 800×600（resize 探针自动解锁） |
 
 ## 门禁（JSON `status`）

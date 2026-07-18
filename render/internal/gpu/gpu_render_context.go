@@ -119,6 +119,9 @@ type GPURenderContext struct {
 	frameScratchW    int
 	frameScratchH    int
 	layerReleaseHold []func()
+	// opt42: dual-tex resolve scratch (avoid per-resolve make on L3 blend path).
+	dualTexOpsScratch     []dualTexLayerIntoDestOp
+	dualTexViewOpsScratch []dualTexViewBlendOp
 
 	// Pool of offscreen layer RTs by size to avoid per-PushLayer alloc/OOM.
 	offscreenPool map[[2]int][]offscreenPooled
@@ -1820,10 +1823,10 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			slogger().Warn("GPU init failed, using CPU fallback", "err", err)
 			return render.ErrFallbackToCPU
 		}
-	} else {
-		// Device may have been injected via SetDeviceProvider without ensureGPU.
-		// ensureGPU is cheap when device is set and registers the filter graph once.
-		_ = rc.shared.ensureGPU()
+	} else if !gpuFilterGraphRegistered {
+		// opt41: device already live — only register filter graph once.
+		// Skip ensureGPU body on the warm present path (was every Flush).
+		rc.shared.registerFilterGraphIfNeeded()
 	}
 	rc.shared.ensurePipelines()
 
@@ -2376,7 +2379,10 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	// F1: batch advanced layers into one dual-tex Submit writing directly into
 	// frameScratch (dest). Falls back to opacity blit if dual-tex fails.
 	holds := rc.layerReleaseHold[:0]
-	ops := make([]dualTexLayerIntoDestOp, 0, len(layers))
+	ops := rc.dualTexOpsScratch[:0]
+	if cap(ops) < len(layers) {
+		ops = make([]dualTexLayerIntoDestOp, 0, len(layers))
+	}
 	type fallbackLayer struct {
 		pl     pendingAdvancedLayer
 		bounds image.Rectangle
@@ -2431,6 +2437,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 		}
 	}
 
+	rc.dualTexOpsScratch = ops
 	var err error
 	// F1 correctness: dualTexBlendLayersIntoDest currently does not modify dest
 	// (verified: layer src red, dest stays base-only). Use the proven
@@ -2447,7 +2454,10 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	var compositeEnc *webgpu.CommandEncoder
 	if len(ops) > 0 {
 		dstView := (*webgpu.TextureView)(target.View.Pointer())
-		viewOps := make([]dualTexViewBlendOp, 0, len(ops))
+		viewOps := rc.dualTexViewOpsScratch[:0]
+		if cap(viewOps) < len(ops) {
+			viewOps = make([]dualTexViewBlendOp, 0, len(ops))
+		}
 		for i := range ops {
 			op := ops[i]
 			if op.srcView == nil {
@@ -2460,6 +2470,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 				opacity: op.opacity,
 			})
 		}
+		rc.dualTexViewOpsScratch = viewOps
 		if len(viewOps) > 0 {
 			recordEnc := enc
 			if recordEnc == nil && device != nil {
