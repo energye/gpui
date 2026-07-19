@@ -9,6 +9,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -69,7 +70,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("RequestDevice: %v", err)
 	}
-	defer device.Release()
+	defer func() {
+		if device != nil {
+			device.Release()
+		}
+	}()
 
 	sc := webgpu.NewSwapchain(surf, device, winW, winH)
 	sc.Usage = types.TextureUsageRenderAttachment
@@ -88,6 +93,18 @@ func main() {
 	}); err != nil {
 		log.Fatalf("SetDeviceProvider: %v", err)
 	}
+	defer func() { _ = rendgpu.ResetAccelerator() }()
+
+	// Library auto-recover (Flutter Rasterizer / Skia GrContext model).
+	sc.EnableAutoRecover(adapter, "window-present", func(dev *webgpu.Device) {
+		device = dev
+		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+			Dev: device, Adpt: adapter, Format: sc.Format,
+		}); err != nil {
+			log.Printf("SetDeviceProvider after recover: %v", err)
+		}
+		log.Printf("GPU device recovered (recoveries=%d)", sc.Recoveries())
+	})
 
 	dc := render.NewContext(winW, winH)
 	defer dc.Close()
@@ -109,16 +126,16 @@ func main() {
 		dc.DrawRectangle(20, 250, 440*(0.2+0.8*tt), 12)
 		_ = dc.Fill()
 
-		device.FlushCallbacks()
-		if device.IsLost() {
-			log.Printf("device lost at frame %d — stop", i)
-			break
+		if device != nil {
+			device.FlushCallbacks()
 		}
 		frame, err := sc.BeginFrame()
 		if err != nil {
-			if device.IsLost() {
-				log.Printf("BeginFrame device lost: %v", err)
-				break
+			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+				log.Printf("BeginFrame: device lost/recovering at frame %d (recoveries=%d) — skip",
+					i, sc.Recoveries())
+				time.Sleep(16 * time.Millisecond)
+				continue
 			}
 			log.Printf("BeginFrame: %v — skip", err)
 			continue
@@ -127,7 +144,14 @@ func main() {
 			return sc.EndFrame(frame)
 		}); err != nil {
 			sc.DiscardFrame(frame)
-			log.Fatalf("PresentFrameAuto: %v", err)
+			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+				log.Printf("PresentFrameAuto: device lost/recovering at frame %d (recoveries=%d) — skip",
+					i, sc.Recoveries())
+				time.Sleep(16 * time.Millisecond)
+				continue
+			}
+			log.Printf("PresentFrameAuto: %v — skip", err)
+			continue
 		}
 		xw.Flush()
 		// Fifo present already waits for vsync — only pad Immediate/Mailbox.
@@ -138,8 +162,8 @@ func main() {
 
 	stats := dc.RenderPathStats()
 	sst := sc.Stats()
-	fmt.Printf("done frames=%d mode=%s %s swapchain acquires=%d presents=%d reconfig=%d lastPresentMs=%.2f\n",
-		frames, sc.PresentModeName(), stats.LogLine(), sst.Acquires, sst.Presents, sst.Reconfigures, sst.LastPresentMs)
+	fmt.Printf("done frames=%d mode=%s %s swapchain acquires=%d presents=%d reconfig=%d recoveries=%d lastPresentMs=%.2f\n",
+		frames, sc.PresentModeName(), stats.LogLine(), sst.Acquires, sst.Presents, sst.Reconfigures, sc.Recoveries(), sst.LastPresentMs)
 }
 
 type x11Win struct {

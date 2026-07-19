@@ -120,7 +120,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("RequestDevice: %v", err)
 	}
-	defer device.Release()
+	defer func() {
+		if device != nil {
+			device.Release()
+		}
+	}()
 
 	sc := webgpu.NewSwapchain(surf, device, uint32(winW), uint32(winH))
 	sc.Usage = types.TextureUsageRenderAttachment
@@ -136,6 +140,18 @@ func main() {
 		log.Fatalf("SetDeviceProvider: %v", err)
 	}
 	defer func() { _ = rendgpu.ResetAccelerator() }()
+
+	// Library auto-recover: DeviceLostCallback → recreate device + reconfigure surface.
+	// Host rebinds accelerator; do not exit the process on device lost.
+	sc.EnableAutoRecover(adapter, "capability-matrix", func(dev *webgpu.Device) {
+		device = dev
+		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+			Dev: device, Adpt: adapter, Format: sc.Format,
+		}); err != nil {
+			log.Printf("SetDeviceProvider after recover: %v", err)
+		}
+		log.Printf("GPU device recovered (recoveries=%d) — continue rendering", sc.Recoveries())
+	})
 
 	dc := render.NewContext(winW, winH)
 	defer dc.Close()
@@ -238,21 +254,17 @@ func main() {
 			}
 		}
 
-		// Present via swapchain BeginFrame/EndFrame
-		device.FlushCallbacks()
-		if device.IsLost() {
-			log.Printf("GPU device lost — exit cleanly")
-			exitReason = "device_lost"
-			running = false
-			continue
+		// Present via swapchain BeginFrame/EndFrame.
+		// Device lost is recovered inside sc.BeginFrame when EnableAutoRecover is armed.
+		if device != nil {
+			device.FlushCallbacks()
 		}
 		fb, err := sc.BeginFrame()
 		if err != nil {
 			log.Printf("BeginFrame: %v — skip frame", err)
-			if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() {
-				log.Printf("GPU device lost — exit cleanly")
-				exitReason = "device_lost"
-				running = false
+			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+				log.Printf("BeginFrame: device lost/recovering (recoveries=%d) — skip", sc.Recoveries())
+				time.Sleep(16 * time.Millisecond)
 				continue
 			}
 			time.Sleep(2 * time.Millisecond)
@@ -266,13 +278,27 @@ func main() {
 			if err := dc.PresentFrameDamage(fb.Handle, fb.Width, fb.Height, rect, present); err != nil {
 				if err2 := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err2 != nil {
 					sc.DiscardFrame(fb)
-					log.Fatalf("Present: %v / fallback %v", err, err2)
+					if errors.Is(err2, webgpu.ErrDeviceLost) || errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+						log.Printf("Present: device lost/recovering (recoveries=%d) — skip", sc.Recoveries())
+						time.Sleep(16 * time.Millisecond)
+						continue
+					}
+					log.Printf("Present: %v / fallback %v — skip frame", err, err2)
+					time.Sleep(2 * time.Millisecond)
+					continue
 				}
 			}
 		} else {
 			if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
 				sc.DiscardFrame(fb)
-				log.Fatalf("PresentFrameFull: %v", err)
+				if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+					log.Printf("PresentFrameFull: device lost/recovering (recoveries=%d) — skip", sc.Recoveries())
+					time.Sleep(16 * time.Millisecond)
+					continue
+				}
+				log.Printf("PresentFrameFull: %v — skip frame", err)
+				time.Sleep(2 * time.Millisecond)
+				continue
 			}
 		}
 		presents++
