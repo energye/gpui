@@ -248,11 +248,15 @@ func (b *Buffer) Release() {
 }
 
 // WriteBuffer writes data to a buffer.
-// Returns nil on success. In this FFI implementation errors are surfaced through
-// the Device uncaptured-error callback; the signature matches gogpu/wgpu for API compatibility.
+// Returns nil on success. On this libwgpu_native.so, a lost parent yields a soft
+// uncaptured "Parent device is lost" (not a fatal abort). We fold that into
+// sticky device-lost and return ErrDeviceLost so surface acquire can refuse.
 func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
 	if err := gateQueue("Queue.WriteBuffer", q); err != nil {
 		return err
+	}
+	if buffer != nil && buffer.device != nil && buffer.device.IsLost() {
+		return ErrDeviceLost
 	}
 	if buffer == nil || buffer.handle == 0 || len(data) == 0 {
 		return nil
@@ -262,9 +266,21 @@ func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
 	}
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	_, _ = LastUncapturedError() // attribute post-call errors to this write
 	call5(procQueueWriteBuffer, q.handle, buffer.handle, uintptr(offset), uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)))
 	runtime.KeepAlive(data)
 	runtime.KeepAlive(buffer)
+	if typ, msg := LastUncapturedError(); msg != "" {
+		if looksLikeDeviceLost(msg) {
+			if buffer.device != nil {
+				buffer.device.MarkLost()
+			} else if q.device != 0 {
+				markDeviceLost(q.device)
+			}
+			return ErrDeviceLost
+		}
+		return &WGPUError{Op: "Queue.WriteBuffer", Type: typ, Message: msg}
+	}
 	return nil
 }
 

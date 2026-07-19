@@ -310,6 +310,22 @@ func (d *Device) IsLost() bool { return false }
 // FlushCallbacks is a no-op on the browser backend.
 func (d *Device) FlushCallbacks() {}
 
+// SyncLostState is a no-op on the browser backend.
+func (d *Device) SyncLostState() {}
+
+// MarkLost is a no-op on the browser backend.
+func (d *Device) MarkLost() {}
+
+// Destroy releases browser GPU device resources.
+func (d *Device) Destroy() {
+	if d == nil || d.released {
+		return
+	}
+	if d.browser != nil {
+		d.browser.Destroy()
+	}
+}
+
 func (d *Device) Poll(pollType PollType) bool {
 	return true
 }

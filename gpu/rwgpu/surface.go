@@ -126,9 +126,11 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 
 	// Refuse Configure after device-lost (native panics on lost parent).
 	if err := refuseIfLost("Surface.Configure", dev.handle); err != nil {
+		s.abandoned = true
 		return err
 	}
 	if dev.IsLost() {
+		s.abandoned = true
 		return ErrDeviceLost
 	}
 	if _, msg, owner := PeekLastUncapturedError(); looksLikeDeviceLost(msg) {
@@ -136,6 +138,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		if owner == 0 || owner == dev.handle {
 			noteLostMessage(dev.handle, msg)
 			_, _ = LastUncapturedError()
+			s.abandoned = true
 			return ErrDeviceLost
 		}
 	}
@@ -165,10 +168,17 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		uintptr(unsafe.Pointer(&nativeConfig)),
 	)
 	if typ, msg := LastUncapturedError(); msg != "" {
+		if looksLikeDeviceLost(msg) {
+			noteLostMessage(dev.handle, msg)
+			s.abandoned = true
+			return ErrDeviceLost
+		}
 		return &WGPUError{Op: "Surface.Configure", Type: typ, Message: msg}
 	}
 	s.device = dev.handle
 	s.deviceRef = dev
+	// Healthy configure clears abandon so a recovered device can present again.
+	s.abandoned = false
 	return nil
 }
 
@@ -179,13 +189,16 @@ func (s *Surface) ConfigureLegacy(config *SurfaceConfiguration) {
 }
 
 // Unconfigure removes the surface configuration.
-// Defense order: nil/zero handle → lost (skip native) → init → native.
+// Defense order: nil/zero handle → abandoned/lost (skip native) → init → native.
 // Nil-safe, zero-handle-safe, and idempotent w.r.t. Go-side device binding.
 func (s *Surface) Unconfigure() {
 	if s == nil || s.handle == 0 {
 		return
 	}
-	lost := isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
+	lost := s.abandoned || isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
+	if lost {
+		s.abandoned = true
+	}
 	s.device = 0
 	s.deviceRef = nil
 	if lost {
@@ -203,14 +216,20 @@ func (s *Surface) Unconfigure() {
 // and absorbs pending uncaptured "Parent device is lost" for THIS device only.
 // Multi-window: uncaptured from device A must not poison surface on device B.
 // Must run before any purego surface call that aborts when parent is lost.
+// On true, also sets s.abandoned so later Unconfigure/Release skip native.
 func (s *Surface) surfaceParentLost() bool {
 	if s == nil {
 		return false
 	}
+	if s.abandoned {
+		return true
+	}
 	if s.deviceRef != nil && s.deviceRef.IsLost() {
+		s.abandoned = true
 		return true
 	}
 	if isOwnerDeviceLost(s.device) {
+		s.abandoned = true
 		return true
 	}
 	// Pending uncaptured — only absorb if attributed to this surface's device.
@@ -229,6 +248,7 @@ func (s *Surface) surfaceParentLost() bool {
 	} else if s.device != 0 {
 		markDeviceLost(s.device)
 	}
+	s.abandoned = true
 	return true
 }
 
@@ -238,6 +258,7 @@ func (s *Surface) surfaceParentLost() bool {
 //
 // Defense: never call native when parent device is lost — wgpu-native panics with
 // "Parent device is lost" / SIGABRT instead of returning a status code.
+// Soft probe is fail-closed: if health cannot be confirmed, refuse without native GCT.
 func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s == nil || s.handle == 0 {
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface is nil or released"}
@@ -252,17 +273,38 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
 
-	// Deliver DeviceLostCallback (and re-check) under the GPU lock so a
-	// concurrent lost cannot slip between ProcessEvents and the native call.
+	// Soft probe under the same GPU lock as native acquire. Fail-closed.
+	// SIGABRT longjmp shield was removed: abort often runs on a native thread /
+	// CGO edge and left the process wedged on futex (alive but no frames).
+	// Prevention: refuse GCT when probe says lost/unavailable; hosts must pause
+	// present when the surface is fully covered (see mem_anim_window).
 	if s.deviceRef != nil {
-		pumpInstanceEvents(s.deviceRef)
+		switch s.deviceRef.probeDeviceForSurfaceLocked() {
+		case deviceProbeLost:
+			s.abandoned = true
+			return nil, false, ErrSurfaceDeviceLost
+		case deviceProbeUnavailable:
+			return nil, false, ErrSurfaceTimeout
+		}
+	} else if s.device != 0 {
+		if isOwnerDeviceLost(s.device) {
+			s.abandoned = true
+			return nil, false, ErrSurfaceDeviceLost
+		}
 	}
 	if s.surfaceParentLost() {
 		return nil, false, ErrSurfaceDeviceLost
 	}
+	if s.deviceRef != nil && s.deviceRef.IsLost() {
+		s.abandoned = true
+		return nil, false, ErrSurfaceDeviceLost
+	}
+	if s.device != 0 && isOwnerDeviceLost(s.device) {
+		s.abandoned = true
+		return nil, false, ErrSurfaceDeviceLost
+	}
 
 	var surfTex surfaceTexture
-
 	procSurfaceGetCurrentTexture.Call( //nolint:errcheck
 		s.handle,
 		uintptr(unsafe.Pointer(&surfTex)),
@@ -271,6 +313,7 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if typ, msg := LastUncapturedError(); msg != "" {
 		if looksLikeDeviceLost(msg) {
 			noteLostMessage(s.device, msg)
+			s.abandoned = true
 			// Drop any texture pointer — must not use after lost.
 			if surfTex.texture != 0 {
 				h := surfTex.texture
@@ -341,8 +384,14 @@ func (s *Surface) Present(texture ...*SurfaceTexture) error {
 	}
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	// Lighter than full canary: BeginFrame already probed. Only pump + sticky check
+	// so Present does not double WriteBuffer cost every frame.
 	if s.deviceRef != nil {
 		pumpInstanceEvents(s.deviceRef)
+		if s.deviceRef.absorbLostUncapturedLocked() {
+			s.abandoned = true
+			return ErrSurfaceDeviceLost
+		}
 	}
 	if s.surfaceParentLost() {
 		return ErrSurfaceDeviceLost
@@ -352,6 +401,7 @@ func (s *Surface) Present(texture ...*SurfaceTexture) error {
 	if typ, msg := LastUncapturedError(); msg != "" {
 		if looksLikeDeviceLost(msg) {
 			noteLostMessage(s.device, msg)
+			s.abandoned = true
 			return ErrSurfaceDeviceLost
 		}
 		return &WGPUError{Op: "Surface.Present", Type: typ, Message: msg}
@@ -364,12 +414,16 @@ func (s *Surface) Present(texture ...*SurfaceTexture) error {
 }
 
 // Release releases the surface.
-// Nil-safe and idempotent. Skips native release when the parent device is lost.
+// Nil-safe and idempotent. Skips native release when the parent device is lost
+// or the surface was abandoned after parent-lost refuse.
 func (s *Surface) Release() {
 	if s == nil {
 		return
 	}
-	lost := isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
+	lost := s.abandoned || isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
+	if lost {
+		s.abandoned = true
+	}
 	s.device = 0
 	s.deviceRef = nil
 	releaseNativeHandle(&s.handle, lost, func(h uintptr) {

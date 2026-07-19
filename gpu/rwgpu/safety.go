@@ -183,8 +183,17 @@ func refuseIfLost(op string, deviceHandle uintptr) error {
 
 // gateDevice validates device handle and per-handle lost state before purego Call.
 // Does not load the native library — safe after device-lost without init.
+// Order: nil → sticky lost (even when handle already cleared by Destroy) → zero handle.
 func gateDevice(op string, d *Device) error {
-	if d == nil || d.handle == 0 {
+	if d == nil {
+		return &WGPUError{Op: op, Message: "device is nil or released"}
+	}
+	// Destroy clears the native handle after sticky-mark; IsLost must win so
+	// callers get ErrDeviceLost (not "nil or released") after force-lost.
+	if d.IsLost() {
+		return ErrDeviceLost
+	}
+	if d.handle == 0 {
 		return &WGPUError{Op: op, Message: "device is nil or released"}
 	}
 	return refuseIfLost(op, d.handle)

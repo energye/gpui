@@ -205,17 +205,22 @@ GPUI_SCENARIO=S12 GPUI_TARGET_FPS=60 GPUI_ANIM_LOG_EVERY=30 GPUI_ANIM_SECONDS=90
 
 
 
-## 窗口后台 / 最小化稳定性
+## 窗口后台 / 最小化稳定性（Skia / Flutter surface 生命周期）
 
-示例会在以下状态**停止**调用 swapchain `BeginFrame` / `GetCurrentTexture`，避免 native `Parent device is lost` 崩溃：
+示例在 **surface 不可 present** 时停止 `BeginFrame` / `GetCurrentTexture`，避免本机 `libwgpu` 在 parent lost 后 GCT **SIGABRT**：
 
 - `UnmapNotify` / GNOME `WM_STATE` Iconic（最小化）
-- `VisibilityNotify` FullyObscured（被其他窗口完全遮挡）
-- 连续 surface 获取失败（WM 未发可见性事件时的兜底 idle）
+- `VisibilityNotify` FullyObscured
+- **几何完全被更高 stacking 的顶层窗口盖住**（`IsFullyCoveredByOtherWindows`；仅 unfocused 时检测，避免 shell 全屏层误报）
+- 连续 soft acquire 失败（WM 未发可见性事件时的兜底 idle）
 
-每帧在 present 前调用 `device.FlushCallbacks()`，确保 device-lost 回调先于 native acquire 落地为 Go 错误。
+**失焦但窗口仍露出**：**继续 present**（数据更新要画出来）。`FocusOut` 单独不 pause。
 
-恢复可见时会 `MarkNeedsReconfigure()` + 全量 redraw，并重置帧间 FPS 采样，避免最小化期间的长间隙把 `fps_ema` 压垮。
+每帧在 present 前 `FlushCallbacks()` / 库内 soft probe。Device lost 时 `EnableAutoRecover` 重建 Device 并 rebind，进程不退出。
+
+恢复可 present 时：`MarkNeedsReconfigure` + `forceFull` + `ClearRecoverCooldown`，用**当前最新场景状态**整帧绘制；并重置帧间 FPS 采样。
+
+遮挡期间暂停的是 GPU acquire，不是“丢掉更新”：状态可继续变，露出后再画最新画面。完整方案见 `docs/GPU_修复_device_lost.md`、`docs/WGPU_NATIVE_DEVICE_LOST.md`。
 
 ### 可见时间指标（避免误 FAIL）
 
@@ -226,7 +231,8 @@ GPUI_SCENARIO=S12 GPUI_TARGET_FPS=60 GPUI_ANIM_LOG_EVERY=30 GPUI_ANIM_SECONDS=90
 调试用（默认关闭）：
 
 ```bash
-GPUI_FORCE_RENDER_WHEN_HIDDEN=1  # 隐藏时仍尝试渲染（仅用于验证库错误路径）
+GPUI_FORCE_RENDER_WHEN_HIDDEN=1  # 隐藏时仍尝试渲染（仅用于验证库错误路径；正式验收不要开）
 ```
 
-device lost 时进程**干净退出**（`exit_reason=device_lost`），不再 SIGABRT。
+device lost 时进程**不退出**：`Swapchain.EnableAutoRecover` 在下一帧重建 Device 并 rebind；
+宿主对 `ErrDeviceLost` 跳帧重试。occlusion/最小化仅 pause present，不等于 device lost。

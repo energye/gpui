@@ -464,7 +464,9 @@ func (d *Device) Poll(pollType PollType) bool {
 }
 
 // FlushCallbacks pumps pending wgpu callbacks for this device's instance
-// without blocking on GPU work. Safe on nil / released / lost devices.
+// without blocking on GPU work. Also runs SyncLostState soft canary so a
+// silent native device-lost becomes sticky before surface acquire.
+// Safe on nil / released / lost devices.
 func (d *Device) FlushCallbacks() {
 	if d == nil || d.released {
 		return
@@ -472,8 +474,53 @@ func (d *Device) FlushCallbacks() {
 	if d.instance != nil {
 		d.instance.ProcessEvents()
 	}
-	if d.r != nil && !d.r.IsLost() {
-		_ = d.r.Poll(false)
+	if d.r != nil {
+		// Soft canary first: GetCurrentTexture aborts if parent is already lost
+		// and DeviceLostCallback never entered Go (known libwgpu_native gap).
+		d.r.SyncLostState()
+		if !d.r.IsLost() {
+			_ = d.r.Poll(false)
+		}
+	}
+}
+
+// SyncLostState pumps DeviceLost callbacks and runs the soft WriteBuffer canary.
+// Call before surface acquire / present when not already covered by FlushCallbacks.
+// Safe on nil / released / lost devices.
+func (d *Device) SyncLostState() {
+	if d == nil || d.released || d.r == nil {
+		return
+	}
+	if d.instance != nil {
+		d.instance.ProcessEvents()
+	}
+	d.r.SyncLostState()
+}
+
+// MarkLost sets sticky device-lost on this facade device (same as native callback).
+// Safe on nil. Used by tests and recovery injection.
+func (d *Device) MarkLost() {
+	if d == nil || d.r == nil {
+		return
+	}
+	d.r.MarkLost()
+}
+
+// Destroy forces native device teardown and sticky-lost (Skia/Flutter abandon).
+// After Destroy, IsLost is true and create/submit return ErrDeviceLost.
+// Does not set released — sticky lost remains addressable for recovery.
+// Safe on nil / already destroyed.
+func (d *Device) Destroy() {
+	if d == nil || d.released {
+		return
+	}
+	if d.r != nil {
+		d.r.Destroy()
+	}
+	// Drop cached queue handle (parent device is sticky-lost).
+	if d.queue != nil {
+		d.queue.Release()
+		d.queue = nil
 	}
 }
 

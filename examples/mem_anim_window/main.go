@@ -434,27 +434,31 @@ func main() {
 	rssStart := rssKB()
 	exitReason := "window_close"
 	var (
-		fpsEMA              float64
-		lastFrameEnd        time.Time
-		cpuPctEMA           float64
-		prevCPU             cpuSample
-		havePrevCPU         bool
-		cpuSum              float64
-		cpuSamples          int
-		rssSamples          []int64
-		lastRSS             int64
-		forceFull           = true // first frame + every resize → full clear present
-		lastGuideSizeClass  = -1
-		stickyLite          bool
-		lowFPSFrames        int
-		pendW, pendH        = winW, winH
-		havePendSize        bool
-		lastCfgEvent        time.Time
-		pendSizeSince       time.Time
-		nextFrameAt         time.Time // fixed-rate schedule (includes post-work)
-		fixedSize           = animSeconds > 0 || envBool("GPUI_FIXED_SIZE", false)
-		windowMinimized     bool
-		windowFullyObscured bool
+		fpsEMA               float64
+		lastFrameEnd         time.Time
+		cpuPctEMA            float64
+		prevCPU              cpuSample
+		havePrevCPU          bool
+		cpuSum               float64
+		cpuSamples           int
+		rssSamples           []int64
+		lastRSS              int64
+		forceFull            = true // first frame + every resize → full clear present
+		lastGuideSizeClass   = -1
+		stickyLite           bool
+		lowFPSFrames         int
+		pendW, pendH         = winW, winH
+		havePendSize         bool
+		lastCfgEvent         time.Time
+		pendSizeSince        time.Time
+		nextFrameAt          time.Time // fixed-rate schedule (includes post-work)
+		fixedSize            = animSeconds > 0 || envBool("GPUI_FIXED_SIZE", false)
+		windowMinimized      bool
+		windowFullyObscured  bool
+		windowFocused        = true
+		windowGeomCovered    bool // fully covered by another mapped top-level window
+		lastGeomCoverCheck   time.Time
+		geomCoverStickyUntil time.Time // hysteresis: stay paused after cover clears
 		// Consecutive soft BeginFrame failures while "visible". Used only to
 		// skip frames / log; does NOT freeze the animation for focus or partial
 		// cover (user still wants sim/draw updates when the window is on screen).
@@ -511,14 +515,27 @@ func main() {
 				softAcquireFails = 0
 			}
 			if ev.Type == xVisibilityNotify {
-				// ONLY FullyObscured pauses present. Partial cover / unfocused
-				// windows must keep animating (desktop UX: still visible content).
-				// Library sticky device-lost handling protects against native abort.
+				// FullyObscured pauses present. Partial cover still draws.
+				// Note: GNOME compositor often never sends FullyObscured when the
+				// window is merely stacked under another app — FocusOut handles that.
 				windowFullyObscured = ev.Visibility == xVisibilityFullyObscured
 				if !windowFullyObscured {
 					forceFull = true
 					softAcquireFails = 0
 				}
+			}
+			if ev.Type == xFocusIn {
+				windowFocused = true
+				windowGeomCovered = false // focused ⇒ presentable; keep drawing
+				geomCoverStickyUntil = time.Time{}
+				forceFull = true
+				softAcquireFails = 0
+			}
+			if ev.Type == xFocusOut {
+				// User switched to another window (typical "cover" repro). Continuous
+				// present while stacked-under causes TDR → Parent device is lost SIGABRT
+				// on this libwgpu. Pause present until focus returns.
+				windowFocused = false
 			}
 			// GNOME Iconify: often only WM_STATE→IconicState, no UnmapNotify.
 			if xw.IsWMStateProperty(ev) {
@@ -564,14 +581,55 @@ func main() {
 		// Policy (desktop UX + library safety):
 		//   minimized / FullyObscured → pause present (no usable surface)
 		//   partial cover / unfocused  → KEEP drawing (animation & sim advance)
-		// Device-lost is handled by the library sticky fuse, not by freezing UI.
-		hidden := (windowMinimized || windowFullyObscured) && !forceRenderHidden
+		//   soft-fail streak (cover without VisibilityFullyObscured on some WMs)
+		//     → enter FullyObscured idle to avoid continuous GCT after TDR
+		// Device-lost: sticky + AutoRecover; never rely on SIGABRT longjmp.
+		// Geometry full-cover check only when unfocused (Skia/Flutter: unpresentable
+		// surface → skip acquire). Focused window always presents (even partial cover).
+		// Unfocused + still partially visible → keep drawing data updates.
+		// Unfocused + fully covered by another top-level → pause present (TDR safety).
+		if time.Since(lastGeomCoverCheck) > 250*time.Millisecond {
+			lastGeomCoverCheck = time.Now()
+			rawCovered := false
+			if !windowFocused {
+				rawCovered = xw.IsFullyCoveredByOtherWindows()
+			}
+			// Hysteresis: once fully covered, keep pause for 3s after detector
+			// clears. Log flapping (covered true/false every few s) was still
+			// full-rate presenting under stack-under and hit Parent device is lost.
+			if rawCovered {
+				geomCoverStickyUntil = time.Now().Add(3 * time.Second)
+			}
+			covered := false
+			if windowFocused {
+				covered = false
+				geomCoverStickyUntil = time.Time{}
+			} else if rawCovered || (!geomCoverStickyUntil.IsZero() && time.Now().Before(geomCoverStickyUntil)) {
+				covered = true
+			}
+			if covered != windowGeomCovered {
+				windowGeomCovered = covered
+				if !covered {
+					forceFull = true
+					softAcquireFails = 0
+				}
+				log.Printf("geom cover changed: covered=%v raw=%v focused=%v sticky_left=%.1fs",
+					covered, rawCovered, windowFocused, time.Until(geomCoverStickyUntil).Seconds())
+			}
+		}
+
+		// Skia/Flutter surface lifecycle:
+		//   unpresentable (minimized / VisibilityFullyObscured / geom fully covered) → pause acquire
+		//   unfocused but still visible → KEEP presenting (data updates must draw)
+		//   device lost → sticky refuse + EnableAutoRecover (not process abort)
+		// FocusOut alone does NOT pause; geom cover is only checked while unfocused.
+		hidden := (windowMinimized || windowFullyObscured || windowGeomCovered) && !forceRenderHidden
 		if hidden {
 			if !wasHidden {
 				wasHidden = true
 				hiddenSince = time.Now()
-				log.Printf("window hidden (minimized=%v fully_obscured=%v) — pause present + FPS clock",
-					windowMinimized, windowFullyObscured)
+				log.Printf("window hidden (minimized=%v fully_obscured=%v geom_covered=%v focused=%v) — pause present",
+					windowMinimized, windowFullyObscured, windowGeomCovered, windowFocused)
 			}
 			now := time.Now()
 			if nextFrameAt.IsZero() {
@@ -603,7 +661,15 @@ func main() {
 			nextFrameAt = time.Time{}  // resync pace after resume
 			lastFrameEnd = time.Time{} // do not let hidden gap crush instFPS/EMA
 			sc.MarkNeedsReconfigure()
-			log.Printf("window visible again — resume present (hidden_total=%.1fs)", hiddenAccum.Seconds())
+			// Occlusion TDR may have sticky-lost the device while present was paused.
+			// Clear recover cooldown and re-sync host device pointer so the next
+			// BeginFrame can RequestDevice + rebind immediately.
+			sc.ClearRecoverCooldown()
+			if sc.Device != nil {
+				device = sc.Device
+			}
+			log.Printf("window visible again — resume present (hidden_total=%.1fs lost=%v recoveries=%d)",
+				hiddenAccum.Seconds(), device != nil && device.IsLost(), sc.Recoveries())
 		}
 		// Flush lost callbacks before GPU work. Device-lost is recovered inside
 		// sc.BeginFrame when EnableAutoRecover is armed (do not exit here).
@@ -743,7 +809,7 @@ func main() {
 		fb, err := sc.BeginFrame()
 		if err != nil {
 			// Library error policy (do not thrash native Configure):
-			//   DeviceLost  → exit cleanly (reconfigure panics "Parent device is lost")
+			//   DeviceLost  → skip frame; EnableAutoRecover recreates on next BeginFrame
 			//   Occluded/Timeout → skip frame only
 			//   Outdated/Lost → reconfigure once (unless fixed-size soak)
 			//   Other soft → skip on fixedSize; reconfigure once otherwise
@@ -753,6 +819,11 @@ func main() {
 				log.Printf("BeginFrame: %v — device lost/recovering (recoveries=%d), skip frame",
 					err, sc.Recoveries())
 				forceFull = true
+				// Keep trying recover; re-sync pointer if swapchain already swapped.
+				sc.ClearRecoverCooldown()
+				if sc.Device != nil && sc.Device != device {
+					device = sc.Device
+				}
 				time.Sleep(16 * time.Millisecond)
 				continue
 			}
@@ -770,7 +841,7 @@ func main() {
 			// Non-occluded soft errors: skip frame; only enter FullyObscured idle
 			// after a long streak (likely unmapped without events), not after a
 			// few focus/partial-cover glitches.
-			if softAcquireFails >= 180 { // ~3s at 60fps
+			if softAcquireFails >= 45 { // ~0.75s at 60fps — enter protect before TDR
 				windowFullyObscured = true
 				log.Printf("BeginFrame soft fails=%d — enter hidden idle (protect device)", softAcquireFails)
 				forceFull = true
@@ -931,7 +1002,20 @@ func main() {
 			nextFrameAt = now
 		}
 		// Target end of this frame slot.
-		deadline := nextFrameAt.Add(frameBudget)
+		budget := frameBudget
+		if !windowFocused {
+			// Still present for data updates, but lower rate to cut TDR risk while
+			// stacked partially under other windows (Skia hosts often throttle).
+			ufps := envInt("GPUI_UNFOCUSED_FPS", 15)
+			if ufps < 5 {
+				ufps = 5
+			}
+			if ufps > targetFPS {
+				ufps = targetFPS
+			}
+			budget = time.Second / time.Duration(ufps)
+		}
+		deadline := nextFrameAt.Add(budget)
 		if d := deadline.Sub(now); d > 200*time.Microsecond {
 			// Linux timers often overshoot 0.5-2ms under load; undersleep slightly.
 			pad := 900 * time.Microsecond
@@ -2641,6 +2725,7 @@ type x11Win struct {
 	lib                uintptr
 	Display            uintptr
 	Window             uintptr
+	Root               uintptr
 	wmDeleteAtom       uintptr
 	wmStateAtom        uintptr
 	xPending           func(dpy uintptr) int
@@ -2657,7 +2742,11 @@ type x11Win struct {
 		actualType *uintptr, actualFormat *int32,
 		nitems *uint64, bytesAfter *uint64, prop **byte,
 	) int
-	xFree func(ptr uintptr) int
+	xFree                 func(ptr uintptr) int
+	xQueryTree            func(dpy, w uintptr, root, parent *uintptr, children *uintptr, nchildren *uint32) int
+	xGetGeometry          func(dpy, w uintptr, root *uintptr, x, y *int32, width, height, border, depth *uint32) int
+	xTranslateCoordinates func(dpy, src, dst uintptr, srcX, srcY int32, dstX, dstY *int32, child *uintptr) int
+	xGetWindowAttributes  func(dpy, w uintptr, attrs *byte) int
 }
 
 // LockSize sets min=max size hints so the WM cannot maximize/tile during soaks.
@@ -2775,6 +2864,112 @@ func (w *x11Win) IsDelete(ev x11Event) bool {
 	return data0 == w.wmDeleteAtom || msgType == w.wmDeleteAtom
 }
 
+// IsFullyCoveredByOtherWindows reports whether a higher-stacked top-level window
+// fully covers this window (Flutter/Skia: unpresentable surface → skip acquire).
+// Unfocused-but-still-visible (partial cover) returns false — keep drawing.
+func (w *x11Win) IsFullyCoveredByOtherWindows() bool {
+	if w == nil || w.Display == 0 || w.Window == 0 || w.Root == 0 {
+		return false
+	}
+	if w.xQueryTree == nil || w.xGetGeometry == nil || w.xTranslateCoordinates == nil || w.xFree == nil {
+		return false
+	}
+
+	// Resolve reparented frame (WM decoration parent that is a direct root child).
+	frame := w.Window
+	for {
+		var rootOut, parent, children uintptr
+		var n uint32
+		if w.xQueryTree(w.Display, frame, &rootOut, &parent, &children, &n) == 0 {
+			break
+		}
+		if children != 0 {
+			w.xFree(children)
+		}
+		if parent == 0 || parent == w.Root {
+			break
+		}
+		frame = parent
+	}
+
+	var rootOut, parent, children uintptr
+	var nchildren uint32
+	if w.xQueryTree(w.Display, w.Root, &rootOut, &parent, &children, &nchildren) == 0 || nchildren == 0 || children == 0 {
+		return false
+	}
+	defer w.xFree(children)
+
+	// Our absolute content rect (use content window, not frame, for cover test).
+	var absX, absY int32
+	var child uintptr
+	var selfRoot uintptr
+	var sx, sy int32
+	var sw, sh, sb, sd uint32
+	if w.xGetGeometry(w.Display, w.Window, &selfRoot, &sx, &sy, &sw, &sh, &sb, &sd) == 0 {
+		return false
+	}
+	if w.xTranslateCoordinates(w.Display, w.Window, w.Root, 0, 0, &absX, &absY, &child) == 0 {
+		absX, absY = sx, sy
+	}
+	ourL, ourT := int(absX), int(absY)
+	ourR, ourB := ourL+int(sw), ourT+int(sh)
+	if int(sw) < 8 || int(sh) < 8 {
+		return false
+	}
+
+	var rootW, rootH uint32
+	{
+		var rr uintptr
+		var rx, ry int32
+		var rb, rd uint32
+		_ = w.xGetGeometry(w.Display, w.Root, &rr, &rx, &ry, &rootW, &rootH, &rb, &rd)
+	}
+
+	arr := unsafe.Slice((*uintptr)(unsafe.Pointer(children)), int(nchildren))
+	idx := -1
+	for i, id := range arr {
+		if id == frame {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return false // cannot establish stacking → do not pause (prefer draw)
+	}
+
+	// Only windows ABOVE us in the stack (higher index = top).
+	for i := idx + 1; i < len(arr); i++ {
+		id := arr[i]
+		if id == 0 || id == frame || id == w.Window {
+			continue
+		}
+		var r uintptr
+		var x, y int32
+		var ww, hh, br, dp uint32
+		if w.xGetGeometry(w.Display, id, &r, &x, &y, &ww, &hh, &br, &dp) == 0 {
+			continue
+		}
+		if ww < 64 || hh < 64 {
+			continue
+		}
+		// Skip near-fullscreen shell/desktop guards.
+		if rootW > 0 && rootH > 0 && uint64(ww)*uint64(hh)*10 >= uint64(rootW)*uint64(rootH)*9 {
+			continue
+		}
+		var ax, ay int32
+		var ch uintptr
+		if w.xTranslateCoordinates(w.Display, id, w.Root, 0, 0, &ax, &ay, &ch) == 0 {
+			continue
+		}
+		l, top := int(ax), int(ay)
+		rgt, bot := l+int(ww), top+int(hh)
+		if l <= ourL && top <= ourT && rgt >= ourR && bot >= ourB {
+			return true
+		}
+	}
+	return false
+}
+
 func openX11Window(w, h int, title string) (*x11Win, error) {
 	lib, err := purego.Dlopen("libX11.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
 	if err != nil {
@@ -2830,7 +3025,7 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	name := append([]byte(title), 0)
 	xStoreName(dpy, win, &name[0])
 	// Structure/Expose + Property (GNOME Iconify) + Visibility (covered by other windows).
-	xSelectInput(dpy, win, xStructureNotify|xExposureMask|xPropertyChangeMask|xVisibilityChangeMask)
+	xSelectInput(dpy, win, xStructureNotify|xExposureMask|xPropertyChangeMask|xVisibilityChangeMask|xFocusChangeMask)
 
 	atomName := append([]byte("WM_DELETE_WINDOW"), 0)
 	delAtom := xInternAtom(dpy, &atomName[0], 0)
@@ -2853,6 +3048,14 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	purego.RegisterLibFunc(&xGetWindowProperty, lib, "XGetWindowProperty")
 	var xFree func(ptr uintptr) int
 	purego.RegisterLibFunc(&xFree, lib, "XFree")
+	var xQueryTree func(dpy, w uintptr, root, parent *uintptr, children *uintptr, nchildren *uint32) int
+	purego.RegisterLibFunc(&xQueryTree, lib, "XQueryTree")
+	var xGetGeometry func(dpy, w uintptr, root *uintptr, x, y *int32, width, height, border, depth *uint32) int
+	purego.RegisterLibFunc(&xGetGeometry, lib, "XGetGeometry")
+	var xTranslateCoordinates func(dpy, src, dst uintptr, srcX, srcY int32, dstX, dstY *int32, child *uintptr) int
+	purego.RegisterLibFunc(&xTranslateCoordinates, lib, "XTranslateCoordinates")
+	var xGetWindowAttributes func(dpy, w uintptr, attrs *byte) int
+	purego.RegisterLibFunc(&xGetWindowAttributes, lib, "XGetWindowAttributes")
 	// _NET_WM_PID so external soak drivers can find this window by process id.
 	var xChangeProperty func(dpy, w, prop, typ uintptr, format, mode int, data *byte, nelements int) int
 	purego.RegisterLibFunc(&xChangeProperty, lib, "XChangeProperty")
@@ -2870,14 +3073,18 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	time.Sleep(50 * time.Millisecond)
 
 	xw := &x11Win{
-		lib: lib, Display: dpy, Window: win, wmDeleteAtom: delAtom,
+		lib: lib, Display: dpy, Window: win, Root: root, wmDeleteAtom: delAtom,
 		wmStateAtom: wmStateAtom,
 		xPending:    xPending, xNextEvent: xNextEvent, xFlush: xFlush,
 		xDestroyWindow: xDestroyWindow, xCloseDisplay: xCloseDisplay,
 		xInternAtom: xInternAtom, xSetWMProtocols: xSetWMProtocols,
-		xSetWMNormalHints:  xSetWMNormalHints,
-		xGetWindowProperty: xGetWindowProperty,
-		xFree:              xFree,
+		xSetWMNormalHints:     xSetWMNormalHints,
+		xGetWindowProperty:    xGetWindowProperty,
+		xFree:                 xFree,
+		xQueryTree:            xQueryTree,
+		xGetGeometry:          xGetGeometry,
+		xTranslateCoordinates: xTranslateCoordinates,
+		xGetWindowAttributes:  xGetWindowAttributes,
 	}
 	xw.LockSize(w, h)
 	return xw, nil

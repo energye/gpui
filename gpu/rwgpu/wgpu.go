@@ -33,6 +33,7 @@ var (
 
 	// Function pointers - Device
 	procDeviceRelease        Proc
+	procDeviceDestroy        Proc // wgpuDeviceDestroy — force device-lost / reclaim
 	procDeviceGetQueue       Proc
 	procDeviceCreateBuffer   Proc
 	procDevicePoll           Proc // wgpu-native extension
@@ -267,6 +268,7 @@ func initSymbols() {
 
 	// Device
 	procDeviceRelease = wgpuLib.NewProc("wgpuDeviceRelease")
+	procDeviceDestroy = wgpuLib.NewProc("wgpuDeviceDestroy")
 	procDeviceGetQueue = wgpuLib.NewProc("wgpuDeviceGetQueue")
 	procDeviceCreateBuffer = wgpuLib.NewProc("wgpuDeviceCreateBuffer")
 	procDevicePoll = wgpuLib.NewProc("wgpuDevicePoll") // wgpu-native extension

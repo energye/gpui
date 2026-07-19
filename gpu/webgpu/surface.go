@@ -210,8 +210,9 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s.device.IsLost() {
 		return nil, false, ErrDeviceLost
 	}
-	// Pump callbacks so spontaneous lost is sticky before native acquire.
+	// Pump callbacks + soft canary so silent native lost is sticky before acquire.
 	s.device.FlushCallbacks()
+	s.device.SyncLostState()
 	if s.device.IsLost() {
 		return nil, false, ErrDeviceLost
 	}

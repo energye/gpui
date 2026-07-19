@@ -145,6 +145,17 @@ func (sc *Swapchain) Recoveries() uint64 {
 	return sc.recoverAttempts
 }
 
+// ClearRecoverCooldown allows the next tryRecoverDeviceLocked to run immediately
+// (e.g. when the window becomes visible again after occlusion device-lost).
+func (sc *Swapchain) ClearRecoverCooldown() {
+	if sc == nil {
+		return
+	}
+	sc.frameMu.Lock()
+	sc.lastRecoverAt = time.Time{}
+	sc.frameMu.Unlock()
+}
+
 // Stats returns cumulative present-path counters.
 func (sc *Swapchain) Stats() SwapchainStats {
 	if sc == nil {
@@ -335,6 +346,9 @@ func (sc *Swapchain) deviceKnownLostLocked() bool {
 
 // tryRecoverDeviceLocked creates a new device and reconfigures the surface.
 // Caller holds frameMu. Requires RecoveryAdapter; rate-limited by recoverCooldown.
+//
+// Never leaves sc.Device == nil on failed RequestDevice: the sticky-lost pointer
+// remains addressable (Flutter/Skia keep-context-until-recreate model).
 func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	if sc == nil {
 		return fmt.Errorf("wgpu: swapchain is nil")
@@ -359,12 +373,8 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	sc.frameOpen = false
 	sc.pendingReconfigure = true
 
-	// Release the dead device (native may already be lost; Release must not panic).
+	// Keep old sticky-lost device until a new device is installed.
 	old := sc.Device
-	if old != nil {
-		old.Release()
-		sc.Device = nil
-	}
 
 	label := sc.DeviceLabel
 	if label == "" {
@@ -372,9 +382,15 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	}
 	dev, err := sc.RecoveryAdapter.RequestDevice(&DeviceDescriptor{Label: label})
 	if err != nil {
+		// sc.Device still points at old (sticky lost) — do not nil it.
 		return fmt.Errorf("%w: RequestDevice: %v", ErrDeviceLost, err)
 	}
+
+	// Swap only after successful RequestDevice.
 	sc.Device = dev
+	if old != nil {
+		old.Release()
+	}
 
 	if err := sc.ConfigureFromCapabilities(sc.RecoveryAdapter); err != nil {
 		if err2 := sc.Configure(); err2 != nil {
