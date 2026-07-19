@@ -9,9 +9,10 @@
 //
 // Exit:
 //
-//   - Interactive: close window (WM_DELETE).
+//   - Default (interactive): no time limit — close the window or Ctrl+C.
+//     GPUI_ANIM_SECONDS is unset/0 → never auto-exit on duration.
 //
-//   - Automation: ONE scenario per process: GPUI_SCENARIO=S0x GPUI_ANIM_SECONDS=N
+//   - Automation: ONE scenario per process with an explicit timeout:
 //
 //     GPUI_SCENARIO=S03 GPUI_ANIM_SECONDS=90 go run ./examples/mem_anim_window
 //
@@ -276,7 +277,6 @@ func main() {
 		_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
 	}
 
-	loadAnimEnvFile("/tmp/gpui_mem_anim.env")
 	// ONE scenario per process — never rotate scenarios in-process.
 	scenarioID := strings.TrimSpace(os.Getenv("GPUI_SCENARIO"))
 	spec, hasScenario := applyScenario(scenarioID)
@@ -299,7 +299,12 @@ func main() {
 	frameBudget := time.Second / time.Duration(targetFPS)
 	perfLite := envBool("GPUI_PERF_LITE", false) || spec.Lite
 	stress := envBool("GPUI_STRESS", false) || spec.Stress
+	// Default 0 = run until window close / signal (no duration auto-exit).
+	// Timed soak only when GPUI_ANIM_SECONDS is set to a positive value.
 	animSeconds := envInt("GPUI_ANIM_SECONDS", 0)
+	if animSeconds < 0 {
+		animSeconds = 0
+	}
 	density := envInt("GPUI_DENSITY", spec.Density)
 	if density < 0 {
 		density = 0
@@ -417,10 +422,11 @@ func main() {
 
 	log.Printf("scenario=%s (%s) ONE-SCENARIO-ONLY window %dx%d target=%dfps present=%s lite=%v stress=%v density=%d seconds=%d features=[%s]",
 		spec.ID, spec.Name, winW, winH, targetFPS, sc.PresentModeName(), perfLite, stress, density, animSeconds, Features.Summary())
+	// Always print so interactive runs are unambiguous about duration policy.
 	if animSeconds > 0 {
-		log.Printf("auto-exit after %ds (single scenario); or close window", animSeconds)
+		log.Printf("GPUI_ANIM_SECONDS=%d → auto-exit after %ds visible time (or close window)", animSeconds, animSeconds)
 	} else {
-		log.Printf("close window to exit; FPS paced ~%d", targetFPS)
+		log.Printf("GPUI_ANIM_SECONDS=0/unset → no time limit; close window or Ctrl+C; FPS paced ~%d", targetFPS)
 	}
 
 	start := time.Now()
@@ -2471,35 +2477,6 @@ func (r *rng) intn(n int) int {
 		return 0
 	}
 	return int(r.next() % uint64(n))
-}
-
-// loadAnimEnvFile loads KEY=VALUE lines into the process environment if the file exists.
-// Used by long-soak automation so the launcher can keep a stable approved command line
-// while selecting ONE scenario via this config file (not multi-scenario in one process).
-func loadAnimEnvFile(path string) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return
-	}
-	for _, line := range strings.Split(string(b), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		k, v, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		k = strings.TrimSpace(k)
-		v = strings.TrimSpace(v)
-		if k == "" {
-			continue
-		}
-		// only set if not already provided by real env
-		if os.Getenv(k) == "" {
-			_ = os.Setenv(k, v)
-		}
-	}
 }
 
 func envInt(key string, def int) int {
