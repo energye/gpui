@@ -480,9 +480,15 @@ func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
 	// This enables callers to poll for GPU completion of a specific submission.
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	_, _ = LastUncapturedError() // attribute post-call errors to this submit
 	submissionIndex, _ := call3(procQueueSubmitForIndex, q.handle, uintptr(len(handles)), uintptr(unsafe.Pointer(&handles[0])))
 	runtime.KeepAlive(handles)
 	runtime.KeepAlive(commands)
+	if typ, msg := LastUncapturedError(); msg != "" {
+		// Uncaptured errors are diagnostics/API errors only.
+		// Device-lost is marked solely by WGPUDeviceLostCallback (gateQueue above).
+		return 0, &WGPUError{Op: "Queue.Submit", Type: typ, Message: msg}
+	}
 	return uint64(submissionIndex), nil
 }
 

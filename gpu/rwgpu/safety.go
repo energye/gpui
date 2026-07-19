@@ -172,18 +172,18 @@ func looksLikeOOM(msg string) bool {
 		strings.Contains(lower, "not enough memory")
 }
 
-// refuseIfLost returns ErrDeviceLost when the process sticky fuse is set
-// or the given device handle is marked lost. op is unused but kept for
-// call-site readability / future diagnostics.
+// refuseIfLost returns ErrDeviceLost when this device handle was marked lost
+// by WGPUDeviceLostCallback. Per-handle only (multi-window isolation).
+// handle 0 never refuses (no device to attribute).
 func refuseIfLost(op string, deviceHandle uintptr) error {
 	_ = op
-	if AnyDeviceLost() || (deviceHandle != 0 && IsDeviceHandleLost(deviceHandle)) {
+	if deviceHandle != 0 && IsDeviceHandleLost(deviceHandle) {
 		return ErrDeviceLost
 	}
 	return nil
 }
 
-// gateDevice validates device handle and sticky fuse before any purego Call.
+// gateDevice validates device handle and per-handle lost state before purego Call.
 // Does not load the native library — safe after device-lost without init.
 func gateDevice(op string, d *Device) error {
 	if d == nil || d.handle == 0 {
@@ -192,8 +192,7 @@ func gateDevice(op string, d *Device) error {
 	return refuseIfLost(op, d.handle)
 }
 
-// gateQueue validates queue handle and sticky fuse (via parent device handle
-// when set, otherwise process sticky). Does not load the native library.
+// gateQueue validates queue handle and parent device lost state.
 func gateQueue(op string, q *Queue) error {
 	if q == nil || q.handle == 0 {
 		return &WGPUError{Op: op, Message: "queue is nil or released"}
@@ -216,29 +215,3 @@ func prepareQueueCall(op string, q *Queue) error {
 	}
 	return checkInit()
 }
-
-// ResetDeviceLostForTest clears sticky lost state and the per-handle map.
-// Tests only — do not use in production.
-func ResetDeviceLostForTest() {
-	deviceLostSticky.Store(false)
-	lostDevices.Range(func(k, _ any) bool {
-		lostDevices.Delete(k)
-		return true
-	})
-}
-
-// MarkDeviceLostForTest trips the sticky fuse for the given handle (0 = process sticky only).
-// Tests only — do not use in production.
-func MarkDeviceLostForTest(handle uintptr) {
-	if handle == 0 {
-		deviceLostSticky.Store(true)
-		return
-	}
-	markDeviceLost(handle)
-}
-
-// resetDeviceLostForTest is the unexported alias used by older tests.
-func resetDeviceLostForTest() { ResetDeviceLostForTest() }
-
-// markDeviceLostForTest is the unexported alias used by older tests.
-func markDeviceLostForTest(handle uintptr) { MarkDeviceLostForTest(handle) }

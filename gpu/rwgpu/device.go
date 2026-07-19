@@ -3,7 +3,6 @@ package rwgpu
 import (
 	"strings"
 	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -43,10 +42,7 @@ var (
 // deviceCallbackHandler is the Go function called by native code via purego.NewCallback.
 // Signature: void(status uint32, device uintptr, message StringView, userdata1 uintptr, userdata2 uintptr)
 func deviceCallbackHandler(status uintptr, device uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
-	var msg string
-	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
-		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
-	}
+	msg := callbackStringView(messageData, messageLength)
 
 	// Find and complete the request
 	deviceRequestsMu.Lock()
@@ -92,15 +88,10 @@ var (
 	lastUncapturedMsg string
 	lastUncapturedTyp ErrorType
 
-	// lostDevices tracks WGPUDevice handles that have fired DeviceLost.
-	// Values are always true; presence in the map is the signal.
-	lostDevices sync.Map // map[uintptr]bool
-
-	// deviceLostSticky is set on any DeviceLost (or uncaptured "device lost")
-	// message. Belt-and-suspenders when the C callback's device pointer cannot
-	// be resolved to a handle — prevents GetCurrentTexture from panicking.
-	// Single-device apps (all current examples) are the intended consumers.
-	deviceLostSticky atomic.Bool
+	// liveDevices maps native WGPUDevice handle → *Device so DeviceLostCallback
+	// can set d.lost on the correct Go object (callback only provides the handle).
+	// Not a "lost set" — only registration for routing the official callback.
+	liveDevices sync.Map // map[uintptr]*Device
 )
 
 // LastUncapturedError returns and clears the most recent uncaptured device error.
@@ -120,62 +111,67 @@ func PeekUncapturedError() (ErrorType, string) {
 	return lastUncapturedTyp, lastUncapturedMsg
 }
 
-// markDeviceLost records that a native device handle is permanently unusable.
+// registerLiveDevice records handle → *Device for DeviceLostCallback routing.
+func registerLiveDevice(d *Device) {
+	if d == nil || d.handle == 0 {
+		return
+	}
+	liveDevices.Store(d.handle, d)
+}
+
+// unregisterLiveDevice removes a device from callback routing (on Release).
+func unregisterLiveDevice(d *Device) {
+	if d == nil || d.handle == 0 {
+		return
+	}
+	liveDevices.Delete(d.handle)
+}
+
+// markDeviceLost marks the Go Device for this native handle as lost.
+// Authority path: WGPUDeviceLostCallback. handle 0 is ignored.
 func markDeviceLost(handle uintptr) {
-	deviceLostSticky.Store(true)
 	if handle == 0 {
 		return
 	}
-	lostDevices.Store(handle, true)
-}
-
-// clearDeviceLostSticky clears only the process-wide sticky fuse.
-// Used after a successful RequestDevice so a new device can proceed.
-// Per-handle entries in lostDevices are intentionally retained.
-func clearDeviceLostSticky() {
-	deviceLostSticky.Store(false)
-}
-
-// IsDeviceHandleLost reports whether the given native device handle has been lost.
-func IsDeviceHandleLost(handle uintptr) bool {
-	if deviceLostSticky.Load() {
-		return true
+	if v, ok := liveDevices.Load(handle); ok {
+		if d, ok := v.(*Device); ok && d != nil {
+			d.lost.Store(true)
+			return
+		}
 	}
+}
+
+// IsDeviceHandleLost reports whether the live Device for handle is lost.
+// Prefer Device.IsLost when you hold *Device.
+func IsDeviceHandleLost(handle uintptr) bool {
 	if handle == 0 {
 		return false
 	}
-	_, ok := lostDevices.Load(handle)
-	return ok
-}
-
-// AnyDeviceLost reports whether any device in this process has been lost.
-func AnyDeviceLost() bool {
-	return deviceLostSticky.Load()
-}
-
-// IsLost reports whether this device has been lost (sticky until process exit /
-// a new RequestDevice). Safe to call on nil.
-func (d *Device) IsLost() bool {
-	if deviceLostSticky.Load() {
-		return true
+	if v, ok := liveDevices.Load(handle); ok {
+		if d, ok := v.(*Device); ok && d != nil {
+			return d.lost.Load()
+		}
 	}
-	if d == nil || d.handle == 0 {
+	return false
+}
+
+// IsLost reports whether this Device was marked lost by WGPUDeviceLostCallback.
+// Safe on nil. State lives on the Device object — not a global lostDevices set.
+func (d *Device) IsLost() bool {
+	if d == nil {
 		return false
 	}
-	return IsDeviceHandleLost(d.handle)
+	return d.lost.Load()
 }
 
 // uncapturedErrorHandler matches WGPUUncapturedErrorCallback:
 // void(WGPUDevice const* device, WGPUErrorType type, WGPUStringView message, void* ud1, void* ud2)
+//
+// Records diagnostics only. Device-lost authority is WGPUDeviceLostCallback —
+// do not sticky-mark from uncaptured/OOM message heuristics (inaccurate).
 func uncapturedErrorHandler(devicePtr, errType, messageData, messageLength, _, _ uintptr) uintptr {
-	var msg string
-	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
-		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
-	}
-	// Some backends report device-lost only via uncaptured Validation errors.
-	if looksLikeDeviceLost(msg) {
-		markDeviceFromCallbackArg(devicePtr)
-	}
+	_ = devicePtr
+	msg := callbackStringView(messageData, messageLength)
 	lastUncapturedMu.Lock()
 	lastUncapturedTyp = ErrorType(errType)
 	lastUncapturedMsg = msg
@@ -187,57 +183,50 @@ func initUncapturedErrorCallback() {
 	uncapturedErrorCallbackPtr = purego.NewCallback(uncapturedErrorHandler)
 }
 
-// deviceLostHandler matches WGPUDeviceLostCallback:
-// void(WGPUDevice const* device, WGPUDeviceLostReason reason, WGPUStringView message, void* ud1, void* ud2)
-func deviceLostHandler(devicePtr, reason, messageData, messageLength, _, _ uintptr) uintptr {
-	var msg string
-	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
-		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
-	}
-	markDeviceFromCallbackArg(devicePtr)
-	lastUncapturedMu.Lock()
-	lastUncapturedTyp = ErrorTypeUnknown
-	if msg == "" {
-		lastUncapturedMsg = "device lost"
-	} else {
-		lastUncapturedMsg = "device lost: " + msg
-	}
+// deviceLostHandler is WGPUDeviceLostCallback — sole authority for Device.lost.
+// Shared C function for all devices; routes by native handle → liveDevices.
+func deviceLostHandler(devicePtr, reason, messageData, messageLength, userdata1, userdata2 uintptr) uintptr {
 	_ = reason
-	lastUncapturedMu.Unlock()
+	_ = userdata1
+	_ = userdata2
+	_ = callbackStringView(messageData, messageLength) // keep decode path exercised
+	if h := deviceHandleFromCallbackArg(devicePtr); h != 0 {
+		markDeviceLost(h)
+	}
 	return 0
 }
 
-// markDeviceFromCallbackArg extracts a WGPUDevice handle from the C callback's
+// deviceHandleFromCallbackArg extracts a WGPUDevice handle from the C callback's
 // first argument. webgpu.h passes WGPUDevice const* (pointer-to-handle); some
-// purego/ABI paths may pass the handle value directly — mark both candidates.
-//
-// Always trips the process sticky fuse even when devicePtr is null. Native
-// GetCurrentTexture aborts with "Parent device is lost" once the device is
-// lost; refusing all further native surface ops is safer than SIGABRT.
-func markDeviceFromCallbackArg(devicePtr uintptr) {
-	// Always sticky first — null devicePtr still means "device is gone".
-	deviceLostSticky.Store(true)
+// purego/ABI paths may pass the handle value directly.
+// Returns 0 when the pointed-to device is null (e.g. FailedCreation) — does not
+// mark any other device lost.
+func deviceHandleFromCallbackArg(devicePtr uintptr) uintptr {
 	if devicePtr == 0 {
-		return
+		return 0
 	}
-	// Spec: WGPUDevice const* — prefer dereference when non-null.
 	h := *(*uintptr)(ptrFromUintptr(devicePtr))
 	if h != 0 {
-		lostDevices.Store(h, true)
+		return h
 	}
-	// purego/ABI fallback: treat arg as the handle itself.
-	lostDevices.Store(devicePtr, true)
+	// ABI fallback: treat arg as the handle itself when non-null.
+	return devicePtr
 }
 
 func looksLikeDeviceLost(msg string) bool {
 	if msg == "" {
 		return false
 	}
-	// Match common wgpu / Vulkan phrasings.
+	// Match common wgpu / Vulkan / DX12 / Metal phrasings (log + uncaptured).
 	lower := strings.ToLower(msg)
 	return strings.Contains(lower, "device lost") ||
 		strings.Contains(lower, "device_lost") ||
-		strings.Contains(lower, "parent device is lost")
+		strings.Contains(lower, "parent device is lost") ||
+		strings.Contains(lower, "device is lost") ||
+		strings.Contains(lower, "lost the device") ||
+		strings.Contains(lower, "dxgienum::device_removed") ||
+		strings.Contains(lower, "device_removed") ||
+		strings.Contains(lower, "vk_error_device_lost")
 }
 
 func initDeviceLostCallback() {
@@ -276,7 +265,11 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 	var reqLimitsWire limitsWire // kept alive for the duration of the FFI call
 	wire := deviceDescriptorWire{
 		DeviceLostCallbackInfo: DeviceLostCallbackInfo{
-			Mode:     CallbackModeAllowSpontaneous,
+			// AllowProcessEvents: delivered inside wgpuInstanceProcessEvents
+			// (called by FlushCallbacks before every surface acquire). Safer than
+			// AllowSpontaneous (arbitrary thread + re-entrancy UB per webgpu.h).
+			// Shared callback; multi-device isolation is by WGPUDevice handle.
+			Mode:     CallbackModeAllowProcessEvents,
 			Callback: deviceLostCallbackPtr,
 		},
 		UncapturedErrorCallbackInfo: UncapturedErrorCallbackInfo{
@@ -328,10 +321,9 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 		}
 		if req.device != nil {
 			req.device.limits = fetchDeviceLimits(req.device.handle)
-			// New device is healthy: clear process sticky fuse so apps can recover
-			// after a prior device-lost by calling RequestDevice again.
-			// Per-handle lost map entries for old handles remain (old devices stay dead).
-			clearDeviceLostSticky()
+			req.device.instance = a.instance
+			// Route future DeviceLostCallback to this *Device via handle.
+			registerLiveDevice(req.device)
 		}
 		return req.device, nil
 	default:
@@ -422,7 +414,11 @@ func (d *Device) Poll(wait bool) bool {
 
 // Release releases the device resources.
 func (d *Device) Release() {
+	if d == nil {
+		return
+	}
 	if d.handle != 0 {
+		unregisterLiveDevice(d)
 		untrackResource(d.handle)
 		procDeviceRelease.Call(d.handle) //nolint:errcheck
 		d.handle = 0
@@ -603,4 +599,27 @@ func (d *Device) HasFeature(feature FeatureName) bool {
 	)
 
 	return Bool(result) == True
+}
+
+// pumpInstanceEvents delivers pending async callbacks for this device's
+// instance (webgpu.h: DeviceLost with AllowProcessEvents fires here).
+// Safe on nil / zero instance. Does not call into Device methods re-entrantly
+// beyond ProcessEvents (allowed per CallbackMode docs).
+func pumpInstanceEvents(d *Device) {
+	if d == nil || d.instance == 0 || procInstanceProcessEvents == nil {
+		return
+	}
+	procInstanceProcessEvents.Call(d.instance) //nolint:errcheck
+}
+
+// ProbeDeviceLost reports whether this device is lost after pumping instance
+// events (so AllowProcessEvents DeviceLost callbacks are observed).
+// Per-device only — does not treat other devices' loss as this device's loss.
+// Does not call wgpuDeviceGetLostFuture (unimplemented in shipped libwgpu_native).
+func ProbeDeviceLost(d *Device) bool {
+	if d == nil {
+		return false
+	}
+	pumpInstanceEvents(d)
+	return d.IsLost()
 }

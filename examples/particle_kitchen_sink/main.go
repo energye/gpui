@@ -158,7 +158,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("RequestDevice: %v", err)
 	}
-	defer device.Release()
+	defer func() {
+		if device != nil {
+			device.Release()
+		}
+	}()
 
 	sc := webgpu.NewSwapchain(surf, device, uint32(winW), uint32(winH))
 	sc.Usage = types.TextureUsageRenderAttachment
@@ -179,6 +183,17 @@ func main() {
 		log.Fatalf("SetDeviceProvider: %v", err)
 	}
 	defer func() { _ = rendgpu.ResetAccelerator() }()
+
+	// Library auto-recover (Flutter Rasterizer / Skia GrContext model).
+	sc.EnableAutoRecover(adapter, "particle-kitchen-sink", func(dev *webgpu.Device) {
+		device = dev
+		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+			Dev: device, Adpt: adapter, Format: sc.Format,
+		}); err != nil {
+			log.Printf("SetDeviceProvider after recover: %v", err)
+		}
+		log.Printf("GPU device recovered (recoveries=%d)", sc.Recoveries())
+	})
 
 	dc := render.NewContext(winW, winH)
 	defer dc.Close()
@@ -375,13 +390,10 @@ func main() {
 				log.Printf("window hidden (minimized=%v obscured=%v) — pause present + FPS clock",
 					windowMinimized, windowFullyObscured)
 			}
-			device.FlushCallbacks()
-			if device.IsLost() {
-				log.Printf("GPU device lost while hidden — exiting cleanly")
-				exitReason = "device_lost"
-				running = false
-				continue
+			if device != nil {
+				device.FlushCallbacks()
 			}
+			// Lost while hidden: recover on next visible BeginFrame (auto-recover).
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
@@ -398,12 +410,8 @@ func main() {
 			sc.MarkNeedsReconfigure()
 			log.Printf("window visible again — resume present (hidden_total=%.1fs)", hiddenAccum.Seconds())
 		}
-		device.FlushCallbacks()
-		if device.IsLost() {
-			log.Printf("GPU device lost — exiting cleanly (avoid native abort)")
-			exitReason = "device_lost"
-			running = false
-			continue
+		if device != nil {
+			device.FlushCallbacks()
 		}
 
 		// Real X11 resize oscillate (diagnostic): resize window; ConfigureNotify
@@ -469,30 +477,27 @@ func main() {
 			log.Printf("BeginFrame: %v — skip", err)
 			presentErrors++
 			lastPresentErr = err.Error()
-			if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() {
+			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
 				deviceLostFrames++
-				if deviceLostFrames >= 3 {
-					log.Printf("GPU device lost — exiting cleanly (avoid native abort)")
-					exitReason = "device_lost"
-					running = false
-					continue
-				}
-				time.Sleep(50 * time.Millisecond)
+				log.Printf("BeginFrame: device lost/recovering (n=%d recoveries=%d) — skip",
+					deviceLostFrames, sc.Recoveries())
+				time.Sleep(16 * time.Millisecond)
 				continue
 			}
 			// Occluded / Timeout: library already refuses reconfigure; idle.
 			// Some WMs minimize without UnmapNotify — treat Occluded as fully obscured.
 			if errors.Is(err, webgpu.ErrSurfaceOccluded) {
-				windowFullyObscured = true
+				// Skip frame only; partial cover / compositor may still show the
+				// window. Do not freeze sim/animation for the rest of the run.
 				deviceLostFrames = 0
 				softAcquireFails++
-				time.Sleep(8 * time.Millisecond)
+				time.Sleep(2 * time.Millisecond)
 				continue
 			}
 			if errors.Is(err, webgpu.ErrTimeout) {
 				deviceLostFrames = 0
 				softAcquireFails++
-				if softAcquireFails >= 60 {
+				if softAcquireFails >= 180 {
 					windowFullyObscured = true
 				}
 				time.Sleep(2 * time.Millisecond)
@@ -500,7 +505,7 @@ func main() {
 			}
 			deviceLostFrames = 0
 			softAcquireFails++
-			if softAcquireFails >= 90 {
+			if softAcquireFails >= 180 {
 				windowFullyObscured = true
 				log.Printf("BeginFrame soft fails=%d — enter hidden idle", softAcquireFails)
 			}

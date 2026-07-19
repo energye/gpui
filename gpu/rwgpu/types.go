@@ -1,6 +1,9 @@
 package rwgpu
 
-import "unsafe"
+import (
+	"sync/atomic"
+	"unsafe"
+)
 
 // ptrFromUintptr converts a uintptr to unsafe.Pointer without triggering go vet
 // "possible misuse of unsafe.Pointer" warnings. This is the standard idiom for
@@ -34,6 +37,14 @@ type Adapter struct {
 type Device struct {
 	handle uintptr
 	limits Limits // cached at request time, returned by Limits() without FFI call
+	// instance is the parent Instance handle. Used to call
+	// wgpuInstanceProcessEvents so DeviceLost callbacks registered with
+	// WGPUCallbackMode_AllowProcessEvents (webgpu.h) are delivered before
+	// Surface.GetCurrentTexture.
+	instance uintptr
+	// lost is set only by WGPUDeviceLostCallback for this Device. Per-device;
+	// multi-window isolation without a global lostDevices map.
+	lost atomic.Bool
 }
 
 // Queue is used to submit command buffers and write data to buffers/textures.
@@ -118,6 +129,9 @@ type ComputePassEncoder struct{ handle uintptr }
 type Surface struct {
 	handle uintptr
 	device uintptr
+	// deviceRef is the Go Device used at Configure time. Provides instance
+	// for ProcessEvents and sticky lost checks (webgpu.h contract).
+	deviceRef *Device
 }
 
 // QuerySet holds a set of GPU queries (occlusion or timestamp).

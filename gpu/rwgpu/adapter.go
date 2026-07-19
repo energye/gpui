@@ -83,10 +83,7 @@ var (
 // Signature: void(status uint32, adapter uintptr, message StringView, userdata1 uintptr, userdata2 uintptr)
 // On Linux SysV, WGPUStringView is passed by value as two integer words.
 func adapterCallbackHandler(status uintptr, adapter uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
-	var msg string
-	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
-		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
-	}
+	msg := callbackStringView(messageData, messageLength)
 
 	// Find and complete the request
 	adapterRequestsMu.Lock()
@@ -545,13 +542,46 @@ func (a *Adapter) Info() (*AdapterInfoGo, error) {
 
 // stringViewToString converts a StringView to a Go string.
 // This copies the data from C memory to Go memory.
+//
+// Per webgpu.h: length may be WGPU_STRLEN (SIZE_MAX) for a null-terminated
+// C string. Treating SIZE_MAX as "too long" would drop such messages.
 func stringViewToString(sv StringView) string {
-	if sv.Data == 0 || sv.Length == 0 {
+	if sv.Data == 0 {
 		return ""
 	}
-	// Sanity check: limit string length to prevent issues
-	if sv.Length > 1<<20 { // 1MB max
+	if sv.Length == 0 {
+		return ""
+	}
+	// WGPU_STRLEN (SIZE_MAX): null-terminated view.
+	if sv.Length == ^uintptr(0) {
+		return cStringAt(sv.Data, 1<<20)
+	}
+	if sv.Length > 1<<20 { // 1MB hard cap for explicit lengths
 		return ""
 	}
 	return unsafe.String((*byte)(ptrFromUintptr(sv.Data)), int(sv.Length))
+}
+
+// cStringAt reads a C string at ptr with a max byte budget (excluding NUL).
+func cStringAt(ptr uintptr, max int) string {
+	if ptr == 0 || max <= 0 {
+		return ""
+	}
+	// Bound scan so a bad pointer cannot walk forever.
+	b := unsafe.Slice((*byte)(ptrFromUintptr(ptr)), max)
+	n := 0
+	for n < max && b[n] != 0 {
+		n++
+	}
+	if n == 0 {
+		return ""
+	}
+	return string(b[:n])
+}
+
+// callbackStringView decodes a WGPUStringView passed as two integer regs
+// (data, length) into purego callbacks — the SysV layout for the 16-byte
+// struct. Handles WGPU_STRLEN null-terminated messages.
+func callbackStringView(data, length uintptr) string {
+	return stringViewToString(StringView{Data: data, Length: length})
 }

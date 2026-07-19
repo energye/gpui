@@ -3,7 +3,6 @@ package rwgpu
 import (
 	"fmt"
 	"sync"
-	"unsafe"
 
 	"github.com/ebitengine/purego"
 )
@@ -68,10 +67,7 @@ var (
 //
 //	WGPUStringView message, void* userdata1, void* userdata2)
 func errorScopeCallbackHandler(status uintptr, errType uintptr, messageData uintptr, messageLength uintptr, userdata1, _ uintptr) uintptr {
-	var msg string
-	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
-		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
-	}
+	msg := callbackStringView(messageData, messageLength)
 
 	// Find and complete the operation
 	errorScopeResultsMu.Lock()
@@ -113,7 +109,6 @@ func initErrorScopeCallback() {
 func (d *Device) PopErrorScope(instance *Instance) (ErrorType, string) {
 	errType, message, err := d.PopErrorScopeAsync(instance)
 	if err != nil {
-		// Panic on error since this is the "unsafe" simple version
 		panic(fmt.Sprintf("PopErrorScope failed: %v", err))
 	}
 	return errType, message

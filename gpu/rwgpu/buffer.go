@@ -71,10 +71,7 @@ var (
 // mapCallbackHandler is the Go function called by native code via purego.NewCallback.
 // Signature: void(status uint32, message StringView, userdata1 uintptr, userdata2 uintptr)
 func mapCallbackHandler(status uintptr, messageData uintptr, messageLength uintptr, userdata1, userdata2 uintptr) uintptr {
-	var msg string
-	if messageData != 0 && messageLength > 0 && messageLength < 1<<20 {
-		msg = unsafe.String((*byte)(ptrFromUintptr(messageData)), int(messageLength))
-	}
+	msg := callbackStringView(messageData, messageLength)
 
 	// Find and complete the request
 	mapRequestsMu.Lock()

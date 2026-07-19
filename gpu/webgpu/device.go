@@ -480,8 +480,8 @@ func (d *Device) FlushCallbacks() {
 	}
 }
 
-// IsLost reports whether the underlying GPU device has been lost.
-// Sticky for the lifetime of this Device; recreate via RequestDevice to recover.
+// IsLost reports whether this device handle was marked lost by WGPUDeviceLostCallback.
+// Per-device only; recreate via RequestDevice (and swapchain auto-recover) to continue.
 func (d *Device) IsLost() bool {
 	if d == nil || d.r == nil {
 		return false

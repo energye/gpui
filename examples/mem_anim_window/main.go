@@ -367,7 +367,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("RequestDevice: %v", err)
 	}
-	defer device.Release()
+	// Release the *current* device at exit (may change after auto-recover).
+	defer func() {
+		if device != nil {
+			device.Release()
+		}
+	}()
 
 	sc := webgpu.NewSwapchain(surf, device, uint32(winW), uint32(winH))
 	sc.Usage = types.TextureUsageRenderAttachment
@@ -383,6 +388,19 @@ func main() {
 		log.Fatalf("SetDeviceProvider: %v", err)
 	}
 	defer func() { _ = rendgpu.ResetAccelerator() }()
+
+	// Library-level device recovery (Flutter Rasterizer / Skia GrContext model):
+	// on device-lost, Swapchain recreates the device + reconfigures the surface.
+	// Host rebinds the render accelerator; animation loop keeps running.
+	sc.EnableAutoRecover(adapter, "mem-anim-window", func(dev *webgpu.Device) {
+		device = dev
+		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+			Dev: device, Adpt: adapter, Format: sc.Format,
+		}); err != nil {
+			log.Printf("SetDeviceProvider after recover: %v", err)
+		}
+		log.Printf("GPU device recovered (recoveries=%d) — continue rendering", sc.Recoveries())
+	})
 
 	dc := render.NewContext(winW, winH)
 	defer dc.Close()
@@ -431,8 +449,9 @@ func main() {
 		fixedSize           = animSeconds > 0 || envBool("GPUI_FIXED_SIZE", false)
 		windowMinimized     bool
 		windowFullyObscured bool
-		// Consecutive soft BeginFrame failures while "visible" (some WMs never
-		// deliver Unmap/Visibility for behind-window cases). Escalates to idle.
+		// Consecutive soft BeginFrame failures while "visible". Used only to
+		// skip frames / log; does NOT freeze the animation for focus or partial
+		// cover (user still wants sim/draw updates when the window is on screen).
 		softAcquireFails  int
 		forceRenderHidden = envBool("GPUI_FORCE_RENDER_WHEN_HIDDEN", false)
 		// Visible-only timing (mature apps pause metrics while minimized):
@@ -486,8 +505,9 @@ func main() {
 				softAcquireFails = 0
 			}
 			if ev.Type == xVisibilityNotify {
-				// Fully obscured by other windows: same risk as minimize —
-				// continuous present against a non-visible surface can lose the device.
+				// ONLY FullyObscured pauses present. Partial cover / unfocused
+				// windows must keep animating (desktop UX: still visible content).
+				// Library sticky device-lost handling protects against native abort.
 				windowFullyObscured = ev.Visibility == xVisibilityFullyObscured
 				if !windowFullyObscured {
 					forceFull = true
@@ -535,15 +555,16 @@ func main() {
 		// GPUI_FORCE_RENDER_WHEN_HIDDEN=1 keeps rendering for soak verification only
 		// (library must return Go errors, never native abort).
 		//
-		// Mature pattern (wgpu learn-wgpu, Flutter, Chromium, Skia window hosts):
-		//   visible  → present on vsync
-		//   occluded → skip acquire/present entirely; resume with full redraw
+		// Policy (desktop UX + library safety):
+		//   minimized / FullyObscured → pause present (no usable surface)
+		//   partial cover / unfocused  → KEEP drawing (animation & sim advance)
+		// Device-lost is handled by the library sticky fuse, not by freezing UI.
 		hidden := (windowMinimized || windowFullyObscured) && !forceRenderHidden
 		if hidden {
 			if !wasHidden {
 				wasHidden = true
 				hiddenSince = time.Now()
-				log.Printf("window hidden (minimized=%v obscured=%v) — pause present + FPS clock",
+				log.Printf("window hidden (minimized=%v fully_obscured=%v) — pause present + FPS clock",
 					windowMinimized, windowFullyObscured)
 			}
 			now := time.Now()
@@ -556,13 +577,11 @@ func main() {
 				time.Sleep(d)
 			}
 			nextFrameAt = deadline
-			// Still pump callbacks so a late device-lost is observed as sticky
-			// fuse rather than abort on resume.
-			device.FlushCallbacks()
-			if device.IsLost() {
-				log.Printf("GPU device lost while hidden — exiting cleanly")
-				exitReason = "device_lost"
-				goto done
+			// Pump callbacks so lost is sticky before resume acquire.
+			// Do NOT exit: Swapchain.EnableAutoRecover recreates device on next
+			// BeginFrame after the window becomes visible again.
+			if device != nil {
+				device.FlushCallbacks()
 			}
 			continue
 		}
@@ -580,12 +599,10 @@ func main() {
 			sc.MarkNeedsReconfigure()
 			log.Printf("window visible again — resume present (hidden_total=%.1fs)", hiddenAccum.Seconds())
 		}
-		// Always flush pending device-lost callbacks before any GPU present work.
-		device.FlushCallbacks()
-		if device.IsLost() {
-			log.Printf("GPU device lost — exiting cleanly (avoid native abort)")
-			exitReason = "device_lost"
-			goto done
+		// Flush lost callbacks before GPU work. Device-lost is recovered inside
+		// sc.BeginFrame when EnableAutoRecover is armed (do not exit here).
+		if device != nil {
+			device.FlushCallbacks()
 		}
 		if havePendSize && (pendW != winW || pendH != winH) {
 			if fixedSize {
@@ -724,29 +741,30 @@ func main() {
 			//   Occluded/Timeout → skip frame only
 			//   Outdated/Lost → reconfigure once (unless fixed-size soak)
 			//   Other soft → skip on fixedSize; reconfigure once otherwise
-			if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() {
-				log.Printf("BeginFrame: %v — GPU device lost, exiting cleanly", err)
-				exitReason = "device_lost"
-				goto done
+			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+				// Library auto-recover is rate-limited; skip frame and retry.
+				// Never abort — matches Flutter engine keep-alive after context loss.
+				log.Printf("BeginFrame: %v — device lost/recovering (recoveries=%d), skip frame",
+					err, sc.Recoveries())
+				forceFull = true
+				time.Sleep(16 * time.Millisecond)
+				continue
 			}
 			if errors.Is(err, webgpu.ErrSurfaceOccluded) || errors.Is(err, webgpu.ErrTimeout) {
-				// Minimized/covered or present timeout: idle without Resize.
-				if errors.Is(err, webgpu.ErrSurfaceOccluded) {
-					windowFullyObscured = true
-				}
+				// Skip this frame only — do NOT freeze animation for the rest of
+				// the run. Occluded/Timeout often happens under partial cover or
+				// compositor hitch; next frames may succeed. Library refuseIfLost
+				// protects against native abort if the device actually dies.
 				softAcquireFails++
-				if softAcquireFails >= 30 {
-					// WM never sent Unmap/Visibility but acquire keeps failing —
-					// enter hidden idle to protect the device.
-					windowFullyObscured = true
-					log.Printf("BeginFrame soft fails=%d — enter hidden idle", softAcquireFails)
-				}
 				forceFull = true
-				time.Sleep(8 * time.Millisecond)
+				time.Sleep(2 * time.Millisecond)
 				continue
 			}
 			softAcquireFails++
-			if softAcquireFails >= 60 {
+			// Non-occluded soft errors: skip frame; only enter FullyObscured idle
+			// after a long streak (likely unmapped without events), not after a
+			// few focus/partial-cover glitches.
+			if softAcquireFails >= 180 { // ~3s at 60fps
 				windowFullyObscured = true
 				log.Printf("BeginFrame soft fails=%d — enter hidden idle (protect device)", softAcquireFails)
 				forceFull = true
@@ -763,9 +781,10 @@ func main() {
 			log.Printf("BeginFrame: %v — reconfigure %dx%d and skip frame", err, winW, winH)
 			if rerr := sc.Resize(uint32(winW), uint32(winH)); rerr != nil {
 				log.Printf("recover Resize: %v", rerr)
-				if errors.Is(rerr, webgpu.ErrDeviceLost) || device.IsLost() {
-					exitReason = "device_lost"
-					goto done
+				if errors.Is(rerr, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+					forceFull = true
+					time.Sleep(16 * time.Millisecond)
+					continue
 				}
 			}
 			_ = dc.Resize(winW, winH)
@@ -782,10 +801,11 @@ func main() {
 			out, err := dc.PresentFrameAuto(fb.Handle, fb.Width, fb.Height, present)
 			if err != nil {
 				sc.DiscardFrame(fb)
-				if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() || strings.Contains(err.Error(), "device lost") {
-					log.Printf("PresentFrameAuto: %v — device lost, exiting cleanly", err)
-					exitReason = "device_lost"
-					goto done
+				if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) || strings.Contains(err.Error(), "device lost") {
+					log.Printf("PresentFrameAuto: %v — device lost/recovering, skip frame", err)
+					forceFull = true
+					time.Sleep(16 * time.Millisecond)
+					continue
 				}
 				log.Printf("PresentFrameAuto: %v — skip frame", err)
 				forceFull = true
@@ -796,10 +816,11 @@ func main() {
 				// Never freeze the window: force a tiny present if planner idled.
 				if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
 					sc.DiscardFrame(fb)
-					if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() || strings.Contains(err.Error(), "device lost") {
-						log.Printf("PresentFrameFull(idle-fallback): %v — device lost, exiting cleanly", err)
-						exitReason = "device_lost"
-						goto done
+					if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) || strings.Contains(err.Error(), "device lost") {
+						log.Printf("PresentFrameFull(idle-fallback): %v — device lost/recovering, skip frame", err)
+						forceFull = true
+						time.Sleep(16 * time.Millisecond)
+						continue
 					}
 					log.Printf("PresentFrameFull(idle-fallback): %v — skip frame", err)
 					forceFull = true
@@ -816,10 +837,11 @@ func main() {
 			}
 			if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
 				sc.DiscardFrame(fb)
-				if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() || strings.Contains(err.Error(), "device lost") {
-					log.Printf("PresentFrameFull: %v — device lost, exiting cleanly", err)
-					exitReason = "device_lost"
-					goto done
+				if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) || strings.Contains(err.Error(), "device lost") {
+					log.Printf("PresentFrameFull: %v — device lost/recovering, skip frame", err)
+					forceFull = true
+					time.Sleep(16 * time.Millisecond)
+					continue
 				}
 				log.Printf("PresentFrameFull: %v — skip frame", err)
 				forceFull = true
@@ -2605,6 +2627,8 @@ func max(a, b int) int {
 // ---------- X11 ----------
 
 const (
+	xFocusIn          = 9
+	xFocusOut         = 10
 	xVisibilityNotify = 15
 	xUnmapNotify      = 18
 	xMapNotify        = 19
@@ -2615,6 +2639,7 @@ const (
 	xExposureMask     = int64(1 << 15)
 	// VisibilityChangeMask: FullyObscured when covered by other windows.
 	xVisibilityChangeMask = int64(1 << 16)
+	xFocusChangeMask      = int64(1 << 21) // FocusChangeMask
 	// PropertyChangeMask: GNOME Iconify often sets WM_STATE without UnmapNotify.
 	xPropertyChangeMask = int64(1 << 22)
 

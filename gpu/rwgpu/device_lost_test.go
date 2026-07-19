@@ -1,111 +1,119 @@
 package rwgpu
 
-import "testing"
+import (
+	"errors"
+	"testing"
+	"unsafe"
+)
 
-func TestDeviceLostSticky(t *testing.T) {
-	// Save and restore sticky state so other tests are not poisoned.
-	was := deviceLostSticky.Load()
-	defer func() {
-		deviceLostSticky.Store(was)
-	}()
+// testDevice builds a registered Device shell for package tests (not a public API).
+func testDevice(handle uintptr) *Device {
+	d := &Device{handle: handle}
+	registerLiveDevice(d)
+	return d
+}
 
-	deviceLostSticky.Store(false)
-	// Clear a synthetic handle if present.
+func TestDeviceLostOnObject(t *testing.T) {
 	const h uintptr = 0xdeadbeef
-	lostDevices.Delete(h)
+	const otherH uintptr = 0xcafebabe
+	d := testDevice(h)
+	other := testDevice(otherH)
+	t.Cleanup(func() {
+		unregisterLiveDevice(d)
+		unregisterLiveDevice(other)
+	})
 
-	if AnyDeviceLost() {
-		t.Fatal("expected no device lost initially")
-	}
-	d := &Device{handle: h}
-	if d.IsLost() {
-		t.Fatal("device should not be lost before mark")
+	if d.IsLost() || other.IsLost() {
+		t.Fatal("devices must not be lost initially")
 	}
 
 	markDeviceLost(h)
-	if !AnyDeviceLost() {
-		t.Fatal("AnyDeviceLost should be true after mark")
-	}
 	if !d.IsLost() {
-		t.Fatal("device.IsLost should be true after mark")
+		t.Fatal("callback target device must be lost")
 	}
-	if !IsDeviceHandleLost(h) {
-		t.Fatal("IsDeviceHandleLost should be true for marked handle")
+	if other.IsLost() {
+		t.Fatal("other device must remain healthy")
 	}
-
-	// GetCurrentTexture pre-check path: zero-device surface still sees sticky.
-	s := &Surface{handle: 1, device: h}
-	if !(AnyDeviceLost() || (s.device != 0 && IsDeviceHandleLost(s.device))) {
-		t.Fatal("surface pre-check should refuse acquire after device lost")
+	if err := refuseIfLost("test", h); err == nil {
+		t.Fatal("refuseIfLost must refuse lost device")
 	}
-
-	// looksLikeDeviceLost covers native panic message phrasing.
-	for _, msg := range []string{
-		"device lost",
-		"Parent device is lost",
-		"Validation Error: parent device is lost",
-	} {
-		if !looksLikeDeviceLost(msg) {
-			t.Fatalf("looksLikeDeviceLost(%q) = false", msg)
-		}
-	}
-	if looksLikeDeviceLost("unrelated validation error") {
-		t.Fatal("looksLikeDeviceLost should not match unrelated messages")
+	if err := refuseIfLost("test", otherH); err != nil {
+		t.Fatalf("healthy device must not refuse: %v", err)
 	}
 }
 
-func TestClearDeviceLostSticky_AllowsNewDevice(t *testing.T) {
-	// After a prior lost, RequestDevice path clears process sticky so a new
-	// device can run. Per-handle entries for old devices remain lost.
-	was := deviceLostSticky.Load()
-	defer func() {
-		deviceLostSticky.Store(was)
-	}()
+func TestNewDeviceNotPoisonedByOldLost(t *testing.T) {
+	oldD := testDevice(0x1111)
+	newD := testDevice(0x2222)
+	t.Cleanup(func() {
+		unregisterLiveDevice(oldD)
+		unregisterLiveDevice(newD)
+	})
 
-	const oldH uintptr = 0x1111
-	const newH uintptr = 0x2222
-	lostDevices.Delete(oldH)
-	lostDevices.Delete(newH)
-
-	markDeviceLost(oldH)
-	if !AnyDeviceLost() {
-		t.Fatal("sticky should be set after mark")
-	}
-	clearDeviceLostSticky()
-	if AnyDeviceLost() {
-		t.Fatal("clearDeviceLostSticky must clear process sticky")
-	}
-	// Old handle still lost via map.
-	if !IsDeviceHandleLost(oldH) {
-		// IsDeviceHandleLost checks sticky first then map; sticky cleared so map should hit.
-		// Wait — IsDeviceHandleLost after sticky clear still checks map.
-		t.Fatal("old handle must remain lost via per-handle map")
-	}
-	// New handle is fine.
-	if IsDeviceHandleLost(newH) {
-		t.Fatal("new handle must not be lost")
-	}
-	dNew := &Device{handle: newH}
-	if dNew.IsLost() {
-		t.Fatal("new device must not report IsLost")
-	}
-	// Surface configured on old device still refuses.
-	if err := refuseIfLost("test", oldH); err == nil {
-		t.Fatal("old device handle must still refuse")
-	}
-	if err := refuseIfLost("test", newH); err != nil {
-		t.Fatalf("new device must not refuse: %v", err)
+	markDeviceLost(0x1111)
+	if !oldD.IsLost() || newD.IsLost() {
+		t.Fatal("lost must be isolated to the callback device")
 	}
 }
 
-func TestMarkDeviceFromCallbackArg_NullTripsSticky(t *testing.T) {
-	was := deviceLostSticky.Load()
-	defer func() {
-		deviceLostSticky.Store(was)
-	}()
-	deviceLostSticky.Store(false)
-	markDeviceFromCallbackArg(0)
-	if !AnyDeviceLost() {
-		t.Fatal("null devicePtr must trip process sticky fuse")
+func TestDeviceLostHandler_MarksDeviceObject(t *testing.T) {
+	const h uintptr = 0x5555
+	d := testDevice(h)
+	other := testDevice(0x6666)
+	t.Cleanup(func() {
+		unregisterLiveDevice(d)
+		unregisterLiveDevice(other)
+	})
+
+	devSlot := h
+	msg := "gpu reset"
+	b := append([]byte(msg), 0)
+	deviceLostHandler(uintptr(unsafe.Pointer(&devSlot)), 1,
+		uintptr(unsafe.Pointer(&b[0])), ^uintptr(0), 0, 0)
+
+	if !d.IsLost() {
+		t.Fatal("DeviceLostCallback must set Device.lost")
+	}
+	if other.IsLost() {
+		t.Fatal("other device must remain healthy")
+	}
+}
+
+func TestUncapturedDoesNotMarkLost(t *testing.T) {
+	const h uintptr = 0x7777
+	d := testDevice(h)
+	t.Cleanup(func() { unregisterLiveDevice(d) })
+
+	devSlot := h
+	msg := "Parent device is lost"
+	b := append([]byte(msg), 0)
+	uncapturedErrorHandler(uintptr(unsafe.Pointer(&devSlot)), uintptr(ErrorTypeValidation),
+		uintptr(unsafe.Pointer(&b[0])), uintptr(len(msg)), 0, 0)
+	if d.IsLost() {
+		t.Fatal("uncaptured must not mark lost")
+	}
+}
+
+func TestCallbackStringView_STRLEN(t *testing.T) {
+	msg := "Parent device is lost"
+	b := append([]byte(msg), 0)
+	got := callbackStringView(uintptr(unsafe.Pointer(&b[0])), ^uintptr(0))
+	if got != msg {
+		t.Fatalf("STRLEN decode=%q want %q", got, msg)
+	}
+}
+
+func TestRefuseIfLost_RequiresRegisteredDevice(t *testing.T) {
+	if err := refuseIfLost("op", 0); err != nil {
+		t.Fatalf("handle 0: %v", err)
+	}
+	if err := refuseIfLost("op", 0x9999); err != nil {
+		t.Fatalf("unregistered handle: %v", err)
+	}
+	d := testDevice(0x8888)
+	t.Cleanup(func() { unregisterLiveDevice(d) })
+	markDeviceLost(0x8888)
+	if !errors.Is(refuseIfLost("op", 0x8888), ErrDeviceLost) {
+		t.Fatal("marked device must refuse")
 	}
 }

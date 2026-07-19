@@ -39,13 +39,9 @@ func TestClassifyError_Sentinels(t *testing.T) {
 }
 
 func TestDeviceLostSticky_BlocksCreateTexture(t *testing.T) {
-	was := deviceLostSticky.Load()
-	defer func() { deviceLostSticky.Store(was) }()
-	deviceLostSticky.Store(false)
-
 	const h uintptr = 0xcafebabe
-	lostDevices.Delete(h)
-	d := &Device{handle: h}
+	d := testDevice(h)
+	t.Cleanup(func() { unregisterLiveDevice(d) })
 
 	// Before mark: refuseIfLost is clear (won't call native with fake handle).
 	if err := refuseIfLost("CreateTexture", d.handle); err != nil {
@@ -57,7 +53,7 @@ func TestDeviceLostSticky_BlocksCreateTexture(t *testing.T) {
 	if !errors.Is(err, ErrDeviceLost) {
 		t.Fatalf("after mark refuseIfLost=%v want ErrDeviceLost", err)
 	}
-	// CreateTexture must refuse without purego call on sticky lost.
+	// CreateTexture must refuse without purego call on lost device.
 	tex, err := d.CreateTexture(&TextureDescriptor{
 		Usage:         0x10,
 		Dimension:     2,
@@ -69,10 +65,11 @@ func TestDeviceLostSticky_BlocksCreateTexture(t *testing.T) {
 	if tex != nil || !errors.Is(err, ErrDeviceLost) {
 		t.Fatalf("CreateTexture after lost: tex=%v err=%v", tex, err)
 	}
-	// Sticky fuse blocks even a different handle.
-	d2 := &Device{handle: 0x1111}
-	if err := refuseIfLost("CreateBuffer", d2.handle); !errors.Is(err, ErrDeviceLost) {
-		t.Fatalf("sticky fuse should block any device: %v", err)
+	// Isolation: a different device is not blocked.
+	d2 := testDevice(0x1111)
+	t.Cleanup(func() { unregisterLiveDevice(d2) })
+	if err := refuseIfLost("CreateBuffer", d2.handle); err != nil {
+		t.Fatalf("other device must not be blocked: %v", err)
 	}
 }
 
@@ -139,12 +136,8 @@ func TestDestroyNullsHandle_Texture(t *testing.T) {
 		t.Skipf("wgpu-native unavailable: %v", err)
 	}
 	// Clear sticky so this test is not poisoned by earlier lost marks.
-	was := deviceLostSticky.Load()
-	defer deviceLostSticky.Store(was)
 	// Do not force-clear sticky if something else set it mid-run; only skip.
-	if AnyDeviceLost() {
-		t.Skip("device already lost in process; skip texture destroy test")
-	}
+	// Device.lost is per-object; no process-wide skip needed.
 	inst, err := CreateInstance(nil)
 	if err != nil {
 		t.Skipf("CreateInstance: %v", err)
@@ -205,14 +198,11 @@ func TestWithGPU_Serializes(t *testing.T) {
 }
 
 func TestSurface_GetCurrentTexture_StickyLost(t *testing.T) {
-	was := deviceLostSticky.Load()
-	defer deviceLostSticky.Store(was)
-	deviceLostSticky.Store(false)
 	const h uintptr = 0xbeef
-	lostDevices.Delete(h)
+	d := testDevice(h)
+	t.Cleanup(func() { unregisterLiveDevice(d) })
 
-	s := &Surface{handle: 1, device: h}
-	// After mark, refuseIfLost runs before checkInit — must be device-lost class.
+	s := &Surface{handle: 1, device: h, deviceRef: d}
 	markDeviceLost(h)
 	_, _, err := s.GetCurrentTexture()
 	if err == nil {
@@ -228,13 +218,9 @@ func TestSurface_GetCurrentTexture_StickyLost(t *testing.T) {
 }
 
 func TestDeviceLostSticky_BlocksCreateCommandEncoderAndSubmit(t *testing.T) {
-	was := deviceLostSticky.Load()
-	defer deviceLostSticky.Store(was)
-	deviceLostSticky.Store(false)
-
 	const h uintptr = 0xdeadbeef
-	lostDevices.Delete(h)
-	d := &Device{handle: h}
+	d := testDevice(h)
+	t.Cleanup(func() { unregisterLiveDevice(d) })
 	q := &Queue{handle: 0xabc, device: h}
 
 	// Before mark: gate is clear (no native call yet).
