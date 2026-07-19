@@ -76,7 +76,7 @@ func (d *Device) CreateRenderBundleEncoder(desc *RenderBundleEncoderDescriptor) 
 		return nil, &WGPUError{Op: "CreateRenderBundleEncoder", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "RenderBundleEncoder")
-	return &RenderBundleEncoder{handle: handle}, nil
+	return &RenderBundleEncoder{handle: handle, device: d.handle}, nil
 }
 
 // CreateRenderBundleEncoderSimple creates a render bundle encoder with common settings.
@@ -91,8 +91,11 @@ func (d *Device) CreateRenderBundleEncoderSimple(colorFormats []types.TextureFor
 
 // SetPipeline sets the render pipeline for subsequent draw calls.
 func (rbe *RenderBundleEncoder) SetPipeline(pipeline *RenderPipeline) {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 || pipeline == nil || pipeline.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return
 	}
 	procRenderBundleEncoderSetPipeline.Call(rbe.handle, pipeline.handle) //nolint:errcheck
@@ -100,8 +103,11 @@ func (rbe *RenderBundleEncoder) SetPipeline(pipeline *RenderPipeline) {
 
 // SetBindGroup sets a bind group at the given index.
 func (rbe *RenderBundleEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, dynamicOffsets []uint32) {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 || group == nil || group.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return
 	}
 	var offsetsPtr uintptr
@@ -119,8 +125,11 @@ func (rbe *RenderBundleEncoder) SetBindGroup(groupIndex uint32, group *BindGroup
 
 // SetVertexBuffer sets a vertex buffer at the given slot.
 func (rbe *RenderBundleEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, offset, size uint64) {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 || buffer == nil || buffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return
 	}
 	procRenderBundleEncoderSetVertexBuffer.Call( //nolint:errcheck
@@ -134,8 +143,11 @@ func (rbe *RenderBundleEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, off
 
 // SetIndexBuffer sets the index buffer.
 func (rbe *RenderBundleEncoder) SetIndexBuffer(buffer *Buffer, format types.IndexFormat, offset, size uint64) {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 || buffer == nil || buffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return
 	}
 	procRenderBundleEncoderSetIndexBuffer.Call( //nolint:errcheck
@@ -149,8 +161,11 @@ func (rbe *RenderBundleEncoder) SetIndexBuffer(buffer *Buffer, format types.Inde
 
 // Draw records a non-indexed draw call.
 func (rbe *RenderBundleEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32) {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return
 	}
 	procRenderBundleEncoderDraw.Call( //nolint:errcheck
@@ -164,8 +179,11 @@ func (rbe *RenderBundleEncoder) Draw(vertexCount, instanceCount, firstVertex, fi
 
 // DrawIndexed records an indexed draw call.
 func (rbe *RenderBundleEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32) {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return
 	}
 	procRenderBundleEncoderDrawIndexed.Call( //nolint:errcheck
@@ -180,8 +198,11 @@ func (rbe *RenderBundleEncoder) DrawIndexed(indexCount, instanceCount, firstInde
 
 // DrawIndirect records an indirect draw call.
 func (rbe *RenderBundleEncoder) DrawIndirect(indirectBuffer *Buffer, indirectOffset uint64) {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 || indirectBuffer == nil || indirectBuffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return
 	}
 	procRenderBundleEncoderDrawIndirect.Call( //nolint:errcheck
@@ -193,8 +214,11 @@ func (rbe *RenderBundleEncoder) DrawIndirect(indirectBuffer *Buffer, indirectOff
 
 // DrawIndexedIndirect records an indirect indexed draw call.
 func (rbe *RenderBundleEncoder) DrawIndexedIndirect(indirectBuffer *Buffer, indirectOffset uint64) {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 || indirectBuffer == nil || indirectBuffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return
 	}
 	procRenderBundleEncoderDrawIndexedIndirect.Call( //nolint:errcheck
@@ -207,8 +231,11 @@ func (rbe *RenderBundleEncoder) DrawIndexedIndirect(indirectBuffer *Buffer, indi
 // Finish completes recording and returns the render bundle.
 // The optional desc parameter allows specifying a label; if omitted, nil is used.
 func (rbe *RenderBundleEncoder) Finish(desc ...*RenderBundleDescriptor) *RenderBundle {
-	mustInit()
 	if rbe == nil || rbe.handle == 0 {
+		return nil
+	}
+
+	if isOwnerDeviceLost(rbe.device) || checkInit() != nil {
 		return nil
 	}
 
@@ -222,28 +249,32 @@ func (rbe *RenderBundleEncoder) Finish(desc ...*RenderBundleDescriptor) *RenderB
 		return nil
 	}
 	trackResource(handle, "RenderBundle")
-	return &RenderBundle{handle: handle}
+	return &RenderBundle{handle: handle, device: rbe.device}
 }
 
 // Release releases the render bundle encoder.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (rbe *RenderBundleEncoder) Release() {
-	if rbe.handle != 0 {
-		untrackResource(rbe.handle)
-		procRenderBundleEncoderRelease.Call(rbe.handle) //nolint:errcheck
-		rbe.handle = 0
+	if rbe == nil {
+		return
 	}
+	releaseNativeHandle(&rbe.handle, isOwnerDeviceLost(rbe.device), func(h uintptr) {
+		procRenderBundleEncoderRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle.
 func (rbe *RenderBundleEncoder) Handle() uintptr { return rbe.handle }
 
 // Release releases the render bundle.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (rb *RenderBundle) Release() {
-	if rb.handle != 0 {
-		untrackResource(rb.handle)
-		procRenderBundleRelease.Call(rb.handle) //nolint:errcheck
-		rb.handle = 0
+	if rb == nil {
+		return
 	}
+	releaseNativeHandle(&rb.handle, isOwnerDeviceLost(rb.device), func(h uintptr) {
+		procRenderBundleRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle.
@@ -252,8 +283,11 @@ func (rb *RenderBundle) Handle() uintptr { return rb.handle }
 // ExecuteBundles executes pre-recorded render bundles in the render pass.
 // This is useful for replaying static geometry without re-recording commands.
 func (rpe *RenderPassEncoder) ExecuteBundles(bundles []*RenderBundle) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 || len(bundles) == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 

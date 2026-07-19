@@ -66,13 +66,14 @@ func (a *Adapter) RequestDevice(desc *DeviceDescriptor) (*Device, error) {
 
 	rq := rd.Queue()
 
-	return &Device{
+	dev := &Device{
 		r:        rd,
 		instance: a.instance,
-		queue:    &Queue{r: rq},
 		features: deviceFeatures,
 		limits:   deviceLimits,
-	}, nil
+	}
+	dev.queue = &Queue{r: rq, device: dev}
+	return dev, nil
 }
 
 // SurfaceCapabilities describes what a surface supports on this adapter.

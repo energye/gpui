@@ -12,6 +12,7 @@ import (
 // On the wgpu-native backend, this wraps rwgpu Queue.
 type Queue struct {
 	r        *rwgpu.Queue
+	device   *Device // parent device for lost gate (nil-safe)
 	released bool
 }
 
@@ -22,13 +23,16 @@ type Queue struct {
 // small multi-CB submits (≤8). Semantics unchanged: non-nil CBs are marked
 // submitted; only CBs with a live native handle are passed to rwgpu.
 func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
-	if q.released {
-		return 0, ErrReleased
+	if err := prepareQueueCall(q); err != nil {
+		return 0, err
 	}
 	n := len(commandBuffers)
 	if n == 0 {
 		idx, err := q.r.Submit()
 		if err != nil {
+			if e := mapRWGPUErr(err); e != err {
+				return 0, e
+			}
 			return 0, fmt.Errorf("wgpu: submit failed: %w", err)
 		}
 		return idx, nil
@@ -39,6 +43,9 @@ func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
 		if cb == nil {
 			idx, err := q.r.Submit()
 			if err != nil {
+				if e := mapRWGPUErr(err); e != err {
+					return 0, e
+				}
 				return 0, fmt.Errorf("wgpu: submit failed: %w", err)
 			}
 			return idx, nil
@@ -47,12 +54,18 @@ func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
 		if cb.r == nil {
 			idx, err := q.r.Submit()
 			if err != nil {
+				if e := mapRWGPUErr(err); e != err {
+					return 0, e
+				}
 				return 0, fmt.Errorf("wgpu: submit failed: %w", err)
 			}
 			return idx, nil
 		}
 		idx, err := q.r.Submit(cb.r)
 		if err != nil {
+			if e := mapRWGPUErr(err); e != err {
+				return 0, e
+			}
 			return 0, fmt.Errorf("wgpu: submit failed: %w", err)
 		}
 		return idx, nil
@@ -79,6 +92,9 @@ func (q *Queue) Submit(commandBuffers ...*CommandBuffer) (uint64, error) {
 
 	idx, err := q.r.Submit(rBuffers...)
 	if err != nil {
+		if e := mapRWGPUErr(err); e != err {
+			return 0, e
+		}
 		return 0, fmt.Errorf("wgpu: submit failed: %w", err)
 	}
 
@@ -93,20 +109,26 @@ func (q *Queue) Poll() uint64 {
 
 // WriteBuffer writes data to a buffer.
 func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error {
-	if q.released {
-		return ErrReleased
+	if err := prepareQueueCall(q); err != nil {
+		return err
 	}
 	if buffer == nil || buffer.r == nil {
 		return fmt.Errorf("wgpu: WriteBuffer: buffer is nil")
 	}
-	return q.r.WriteBuffer(buffer.r, offset, data)
+	if err := q.r.WriteBuffer(buffer.r, offset, data); err != nil {
+		if e := mapRWGPUErr(err); e != err {
+			return e
+		}
+		return err
+	}
+	return nil
 }
 
 // WriteTexture writes data to a texture.
 // R7.0: stack-allocate destination/layout/size descriptors (no per-call heap).
 func (q *Queue) WriteTexture(dst *ImageCopyTexture, data []byte, layout *ImageDataLayout, size *Extent3D) error {
-	if q.released {
-		return ErrReleased
+	if err := prepareQueueCall(q); err != nil {
+		return err
 	}
 	if dst == nil || dst.Texture == nil || dst.Texture.r == nil {
 		return fmt.Errorf("wgpu: WriteTexture: destination is nil")
@@ -141,7 +163,13 @@ func (q *Queue) WriteTexture(dst *ImageCopyTexture, data []byte, layout *ImageDa
 		rSizePtr = &rSize
 	}
 
-	return q.r.WriteTexture(&rDst, data, rLayoutPtr, rSizePtr)
+	if err := q.r.WriteTexture(&rDst, data, rLayoutPtr, rSizePtr); err != nil {
+		if e := mapRWGPUErr(err); e != err {
+			return e
+		}
+		return err
+	}
+	return nil
 }
 
 // SetSwapchainSuppressed is a no-op on the wgpu-native backend.

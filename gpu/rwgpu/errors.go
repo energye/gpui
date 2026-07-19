@@ -24,8 +24,13 @@ import (
 //	    log.Printf("Validation error: %s", message)
 //	}
 func (d *Device) PushErrorScope(filter ErrorFilter) {
-	mustInit()
 	if d == nil || d.handle == 0 {
+		return
+	}
+	if refuseIfLost("Device.PushErrorScope", d.handle) != nil {
+		return
+	}
+	if checkInit() != nil {
 		return
 	}
 	// nolint:errcheck // PushErrorScope has no meaningful return value to check

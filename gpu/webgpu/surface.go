@@ -108,6 +108,9 @@ type Surface struct {
 //   - Linux/X11: displayHandle=Display*, windowHandle=Window
 //   - Linux/Wayland: displayHandle=wl_display*, windowHandle=wl_surface*
 func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface, error) {
+	if i == nil {
+		return nil, fmt.Errorf("wgpu: instance is nil")
+	}
 	if i.released {
 		return nil, ErrReleased
 	}
@@ -133,8 +136,15 @@ func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface,
 
 // Configure configures the surface for presentation.
 func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error {
+	// Defense order: nil surface → released → invalid handle → config/device → lost → native.
+	if s == nil {
+		return fmt.Errorf("wgpu: surface is nil")
+	}
 	if s.released {
 		return ErrReleased
+	}
+	if s.r == nil {
+		return ErrInvalidHandle
 	}
 	if config == nil {
 		return fmt.Errorf("wgpu: surface configuration is nil")
@@ -175,20 +185,23 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 }
 
 // Unconfigure removes the surface configuration.
+// Nil-safe and released-safe. Skips native when device is lost (rwgpu lost-safe path).
 func (s *Surface) Unconfigure() {
-	if s.released {
+	if s == nil || s.released {
 		return
 	}
 	s.DiscardTexture()
-	s.r.Unconfigure()
+	if s.r != nil {
+		s.r.Unconfigure()
+	}
 	s.device = nil
 }
 
 // GetCurrentTexture acquires the next texture for rendering.
 // Returns the surface texture and whether the surface is suboptimal.
 func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
-	if s.released {
-		return nil, false, ErrReleased
+	if err := prepareSurfaceCall(s); err != nil {
+		return nil, false, err
 	}
 	if s.device == nil {
 		return nil, false, fmt.Errorf("wgpu: surface not configured")
@@ -202,8 +215,13 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s.device.IsLost() {
 		return nil, false, ErrDeviceLost
 	}
-	// One in-flight surface texture at a time.
+	// One in-flight surface texture at a time (lost-safe Release on textures).
+	// rwgpu.GetCurrentTexture also absorbs sticky uncaptured "Parent device is lost".
 	s.DiscardTexture()
+	// Re-check after DiscardTexture / flush — never enter native when lost.
+	if s.device.IsLost() {
+		return nil, false, ErrDeviceLost
+	}
 
 	rst, suboptimal, err := s.r.GetCurrentTexture()
 	if err != nil {
@@ -225,8 +243,8 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 
 // Present presents a surface texture to the screen.
 func (s *Surface) Present(texture *SurfaceTexture) error {
-	if s.released {
-		return ErrReleased
+	if err := prepareSurfaceCall(s); err != nil {
+		return err
 	}
 	if texture == nil {
 		return fmt.Errorf("wgpu: surface texture is nil")
@@ -281,14 +299,16 @@ func (s *Surface) DiscardTexture() {
 }
 
 // Release releases the surface.
+// Nil-safe and idempotent.
 func (s *Surface) Release() {
-	if s.released {
+	if s == nil || s.released {
 		return
 	}
 	s.DiscardTexture()
 	s.released = true
 	if s.r != nil {
 		s.r.Release()
+		s.r = nil
 	}
 }
 

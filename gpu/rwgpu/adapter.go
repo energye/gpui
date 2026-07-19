@@ -225,11 +225,13 @@ func fetchAdapterLimits(handle uintptr) Limits {
 
 // Release releases the adapter resources.
 func (a *Adapter) Release() {
-	if a.handle != 0 {
-		untrackResource(a.handle)
-		procAdapterRelease.Call(a.handle) //nolint:errcheck
-		a.handle = 0
+	if a == nil {
+		return
 	}
+	// Adapter has no parent device; always release native when handle is live.
+	releaseNativeHandle(&a.handle, false, func(h uintptr) {
+		procAdapterRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Limits describes GPU resource limits for an adapter or device.
@@ -438,8 +440,11 @@ func (a *Adapter) Limits() Limits {
 // v29: Uses single-call wgpuAdapterGetFeatures with SupportedFeatures struct (replaces two-call EnumerateFeatures).
 // The returned slice is copied from C memory; the underlying C allocation is freed automatically.
 func (a *Adapter) Features() []FeatureName {
-	mustInit()
 	if a == nil || a.handle == 0 {
+		return nil
+	}
+
+	if checkInit() != nil {
 		return nil
 	}
 
@@ -477,8 +482,11 @@ func (a *Adapter) EnumerateFeatures() []FeatureName {
 
 // HasFeature checks if the adapter supports a specific feature.
 func (a *Adapter) HasFeature(feature FeatureName) bool {
-	mustInit()
 	if a == nil || a.handle == 0 {
+		return false
+	}
+
+	if checkInit() != nil {
 		return false
 	}
 

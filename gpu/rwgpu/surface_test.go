@@ -5,23 +5,17 @@ import (
 )
 
 // TestSurfaceGetCapabilities_NilSurface tests nil safety for surface.
+// Does not require native library — nil/zero guards run before checkInit.
 func TestSurfaceGetCapabilities_NilSurface(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("Failed to create instance: %v", err)
-	}
-	defer instance.Release()
-
-	adapter, err := instance.RequestAdapter(nil)
-	if err != nil {
-		t.Fatalf("Failed to request adapter: %v", err)
-	}
-	defer adapter.Release()
-
 	var surface *Surface
-	_, err = surface.GetCapabilities(adapter)
+	_, err := surface.GetCapabilities(&Adapter{handle: 1})
 	if err == nil {
 		t.Error("Expected error for nil surface, got nil")
+	}
+	surface = &Surface{handle: 0}
+	_, err = surface.GetCapabilities(&Adapter{handle: 1})
+	if err == nil {
+		t.Error("Expected error for zero-handle surface, got nil")
 	}
 }
 

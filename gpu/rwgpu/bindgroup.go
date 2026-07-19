@@ -264,7 +264,7 @@ func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGr
 		return nil, &WGPUError{Op: "CreateBindGroupLayout", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "BindGroupLayout")
-	return &BindGroupLayout{handle: handle}, nil
+	return &BindGroupLayout{handle: handle, device: d.handle}, nil
 }
 
 // CreateBindGroupLayoutSimple creates a bind group layout with the given entries.
@@ -276,12 +276,14 @@ func (d *Device) CreateBindGroupLayoutSimple(entries []BindGroupLayoutEntry) (*B
 }
 
 // Release releases the bind group layout.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (bgl *BindGroupLayout) Release() {
-	if bgl.handle != 0 {
-		untrackResource(bgl.handle)
-		procBindGroupLayoutRelease.Call(bgl.handle) //nolint:errcheck
-		bgl.handle = 0
+	if bgl == nil {
+		return
 	}
+	releaseNativeHandle(&bgl.handle, isOwnerDeviceLost(bgl.device), func(h uintptr) {
+		procBindGroupLayoutRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle.
@@ -334,7 +336,7 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 		return nil, &WGPUError{Op: "CreateBindGroup", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "BindGroup")
-	return &BindGroup{handle: handle}, nil
+	return &BindGroup{handle: handle, device: d.handle}, nil
 }
 
 // CreateBindGroupSimple creates a bind group with the given entries.
@@ -347,12 +349,14 @@ func (d *Device) CreateBindGroupSimple(layout *BindGroupLayout, entries []BindGr
 }
 
 // Release releases the bind group.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (bg *BindGroup) Release() {
-	if bg.handle != 0 {
-		untrackResource(bg.handle)
-		procBindGroupRelease.Call(bg.handle) //nolint:errcheck
-		bg.handle = 0
+	if bg == nil {
+		return
 	}
+	releaseNativeHandle(&bg.handle, isOwnerDeviceLost(bg.device), func(h uintptr) {
+		procBindGroupRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle.

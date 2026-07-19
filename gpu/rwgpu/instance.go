@@ -83,11 +83,13 @@ func CreateInstance(desc *InstanceDescriptor) (*Instance, error) {
 
 // Release releases the instance resources.
 func (i *Instance) Release() {
-	if i.handle != 0 {
-		untrackResource(i.handle)
-		procInstanceRelease.Call(i.handle) //nolint:errcheck
-		i.handle = 0
+	if i == nil {
+		return
 	}
+	// Instance has no parent device; always release native when handle is live.
+	releaseNativeHandle(&i.handle, false, func(h uintptr) {
+		procInstanceRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // ProcessEvents processes pending async events.

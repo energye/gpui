@@ -119,7 +119,7 @@ func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*Pipeline
 		return nil, &WGPUError{Op: "CreatePipelineLayout", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "PipelineLayout")
-	return &PipelineLayout{handle: handle}, nil
+	return &PipelineLayout{handle: handle, device: d.handle}, nil
 }
 
 // CreatePipelineLayoutSimple creates a pipeline layout with the given bind group layouts.
@@ -131,12 +131,14 @@ func (d *Device) CreatePipelineLayoutSimple(layouts []*BindGroupLayout) (*Pipeli
 }
 
 // Release releases the pipeline layout.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (pl *PipelineLayout) Release() {
-	if pl.handle != 0 {
-		untrackResource(pl.handle)
-		procPipelineLayoutRelease.Call(pl.handle) //nolint:errcheck
-		pl.handle = 0
+	if pl == nil {
+		return
 	}
+	releaseNativeHandle(&pl.handle, isOwnerDeviceLost(pl.device), func(h uintptr) {
+		procPipelineLayoutRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle.
@@ -190,7 +192,7 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*Comput
 		return nil, &WGPUError{Op: "CreateComputePipeline", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "ComputePipeline")
-	return &ComputePipeline{handle: handle}, nil
+	return &ComputePipeline{handle: handle, device: d.handle}, nil
 }
 
 // CreateComputePipelineSimple creates a compute pipeline with the given shader and entry point.
@@ -206,9 +208,12 @@ func (d *Device) CreateComputePipelineSimple(layout *PipelineLayout, shader *Sha
 
 // GetBindGroupLayout returns the bind group layout at the given index.
 // Useful for auto-layout pipelines.
+// Defense order: nil/zero handle → lost → init → native.
 func (cp *ComputePipeline) GetBindGroupLayout(groupIndex uint32) *BindGroupLayout {
-	mustInit()
 	if cp == nil || cp.handle == 0 {
+		return nil
+	}
+	if isOwnerDeviceLost(cp.device) || checkInit() != nil {
 		return nil
 	}
 	handle, _, _ := procComputePipelineGetBindGroupLayout.Call(
@@ -219,16 +224,18 @@ func (cp *ComputePipeline) GetBindGroupLayout(groupIndex uint32) *BindGroupLayou
 		return nil
 	}
 	trackResource(handle, "BindGroupLayout")
-	return &BindGroupLayout{handle: handle}
+	return &BindGroupLayout{handle: handle, device: cp.device}
 }
 
 // Release releases the compute pipeline.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (cp *ComputePipeline) Release() {
-	if cp.handle != 0 {
-		untrackResource(cp.handle)
-		procComputePipelineRelease.Call(cp.handle) //nolint:errcheck
-		cp.handle = 0
+	if cp == nil {
+		return
 	}
+	releaseNativeHandle(&cp.handle, isOwnerDeviceLost(cp.device), func(h uintptr) {
+		procComputePipelineRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle.

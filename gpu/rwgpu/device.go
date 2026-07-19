@@ -3,6 +3,7 @@ package rwgpu
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -84,14 +85,21 @@ var (
 	deviceLostCallbackPtr       uintptr
 	deviceLostCallbackOnce      sync.Once
 
-	lastUncapturedMu  sync.Mutex
-	lastUncapturedMsg string
-	lastUncapturedTyp ErrorType
+	lastUncapturedMu     sync.Mutex
+	lastUncapturedMsg    string
+	lastUncapturedTyp    ErrorType
+	lastUncapturedDevice uintptr // native handle of the device that reported it (0=unknown)
 
-	// liveDevices maps native WGPUDevice handle → *Device so DeviceLostCallback
-	// can set d.lost on the correct Go object (callback only provides the handle).
-	// Not a "lost set" — only registration for routing the official callback.
+	// liveDevices maps native WGPUDevice handle → *Device (secondary route).
 	liveDevices sync.Map // map[uintptr]*Device
+
+	// deviceSlots maps callback Userdata1 slot id → *Device.
+	// Multi-window: each Device has its own slot; lost marks only that device.
+	deviceSlots   sync.Map // map[uintptr]*Device
+	deviceSlotSeq atomic.Uint64
+
+	// lostDeviceHandles: sticky lost native handles after Device.Release.
+	lostDeviceHandles sync.Map // map[uintptr]struct{}
 )
 
 // LastUncapturedError returns and clears the most recent uncaptured device error.
@@ -101,30 +109,97 @@ func LastUncapturedError() (ErrorType, string) {
 	t, m := lastUncapturedTyp, lastUncapturedMsg
 	lastUncapturedTyp = 0
 	lastUncapturedMsg = ""
+	lastUncapturedDevice = 0
 	return t, m
 }
 
-// registerLiveDevice records handle → *Device for DeviceLostCallback routing.
+// PeekLastUncapturedError returns the sticky uncaptured error without clearing.
+// The second return is the native device handle that reported it (0 if unknown).
+func PeekLastUncapturedError() (typ ErrorType, msg string, deviceHandle uintptr) {
+	lastUncapturedMu.Lock()
+	defer lastUncapturedMu.Unlock()
+	return lastUncapturedTyp, lastUncapturedMsg, lastUncapturedDevice
+}
+
+// allocDeviceSlot reserves a userdata slot before RequestDevice so DeviceLost /
+// Uncaptured callbacks can identify this logical device even before the native
+// handle exists. Call bindDeviceSlot after RequestDevice succeeds.
+func allocDeviceSlot() uintptr {
+	id := deviceSlotSeq.Add(1)
+	if id == 0 {
+		id = deviceSlotSeq.Add(1)
+	}
+	slot := uintptr(id)
+	// Placeholder until bindDeviceSlot; prevents free-slot reuse races.
+	deviceSlots.Store(slot, (*Device)(nil))
+	return slot
+}
+
+// bindDeviceSlot associates a userdata slot with the created *Device.
+func bindDeviceSlot(slot uintptr, d *Device) {
+	if slot == 0 || d == nil {
+		return
+	}
+	d.callbackUserdata = slot
+	deviceSlots.Store(slot, d)
+}
+
+// freeDeviceSlot drops userdata routing for a released or failed device.
+func freeDeviceSlot(slot uintptr) {
+	if slot == 0 {
+		return
+	}
+	deviceSlots.Delete(slot)
+}
+
+// deviceFromUserdata resolves the *Device registered for a callback Userdata1.
+func deviceFromUserdata(userdata1 uintptr) *Device {
+	if userdata1 == 0 {
+		return nil
+	}
+	if v, ok := deviceSlots.Load(userdata1); ok {
+		if d, ok := v.(*Device); ok {
+			return d // may be nil while RequestDevice is in flight
+		}
+	}
+	return nil
+}
+
+// registerLiveDevice records handle → *Device for handle-based lost routing.
+// A newly registered device is healthy: any stale sticky lost mark for this
+// handle is dropped (tests reuse fake handles; native handles are unique).
 func registerLiveDevice(d *Device) {
 	if d == nil || d.handle == 0 {
 		return
 	}
+	lostDeviceHandles.Delete(d.handle)
+	d.lost.Store(false)
 	liveDevices.Store(d.handle, d)
+	if d.callbackUserdata != 0 {
+		deviceSlots.Store(d.callbackUserdata, d)
+	}
 }
 
 // unregisterLiveDevice removes a device from callback routing (on Release).
 func unregisterLiveDevice(d *Device) {
-	if d == nil || d.handle == 0 {
+	if d == nil {
 		return
 	}
-	liveDevices.Delete(d.handle)
+	if d.handle != 0 {
+		liveDevices.Delete(d.handle)
+	}
+	if d.callbackUserdata != 0 {
+		freeDeviceSlot(d.callbackUserdata)
+		d.callbackUserdata = 0
+	}
 }
 
-// markDeviceLost sets Device.lost for the registered handle (DeviceLostCallback).
+// markDeviceLost sets Device.lost for the registered handle only (per-device).
 func markDeviceLost(handle uintptr) {
 	if handle == 0 {
 		return
 	}
+	lostDeviceHandles.Store(handle, struct{}{})
 	if v, ok := liveDevices.Load(handle); ok {
 		if d, ok := v.(*Device); ok && d != nil {
 			d.lost.Store(true)
@@ -132,10 +207,60 @@ func markDeviceLost(handle uintptr) {
 	}
 }
 
-// IsDeviceHandleLost reports lost state for a registered native handle.
+// markDeviceObjectLost marks one *Device sticky-lost (userdata primary path).
+func markDeviceObjectLost(d *Device) {
+	if d == nil {
+		return
+	}
+	d.lost.Store(true)
+	if d.handle != 0 {
+		lostDeviceHandles.Store(d.handle, struct{}{})
+	}
+}
+
+// markDeviceLostFromCallback routes a native device-lost signal onto exactly
+// one Device when possible:
+//  1. userdata1 slot (preferred — multi-window / multi-device)
+//  2. native device handle from callback arg
+//
+// Never marks unrelated live devices.
+func markDeviceLostFromCallback(devicePtr, userdata1 uintptr) {
+	if d := deviceFromUserdata(userdata1); d != nil {
+		markDeviceObjectLost(d)
+		return
+	}
+	h := deviceHandleFromCallbackArg(devicePtr)
+	if h != 0 {
+		markDeviceLost(h)
+		return
+	}
+	// purego may pass WGPUDevice by value.
+	if devicePtr != 0 {
+		if _, ok := liveDevices.Load(devicePtr); ok {
+			markDeviceLost(devicePtr)
+		}
+	}
+	// Unresolved: do NOT mark all devices (would poison other windows).
+}
+
+// noteLostMessage marks sticky lost for one known device handle only.
+// If deviceHandle is 0, no device is marked (caller must pass the owner).
+func noteLostMessage(deviceHandle uintptr, msg string) {
+	if !looksLikeDeviceLost(msg) || deviceHandle == 0 {
+		return
+	}
+	markDeviceLost(deviceHandle)
+}
+
+// IsDeviceHandleLost reports sticky lost state for a native device handle.
+// Survives Device.Release (liveDevices unregister) so child Release/Destroy
+// still skip native after the parent Device object is gone.
 func IsDeviceHandleLost(handle uintptr) bool {
 	if handle == 0 {
 		return false
+	}
+	if _, ok := lostDeviceHandles.Load(handle); ok {
+		return true
 	}
 	if v, ok := liveDevices.Load(handle); ok {
 		if d, ok := v.(*Device); ok && d != nil {
@@ -150,14 +275,45 @@ func (d *Device) IsLost() bool {
 	return d != nil && d.lost.Load()
 }
 
-// uncapturedErrorHandler records validation/OOM/etc. Does not mark device lost.
-func uncapturedErrorHandler(devicePtr, errType, messageData, messageLength, _, _ uintptr) uintptr {
-	_ = devicePtr
+// MarkLost sets sticky device-lost state (same effect as DeviceLostCallback /
+// uncaptured "Parent device is lost"). Safe on nil. Used by facade tests and
+// recovery paths that inject lost without a native callback.
+func (d *Device) MarkLost() {
+	if d == nil {
+		return
+	}
+	d.lost.Store(true)
+	if d.handle != 0 {
+		lostDeviceHandles.Store(d.handle, struct{}{})
+	}
+}
+
+// uncapturedErrorHandler records validation/OOM/etc. When the message looks
+// like device-lost (e.g. "Parent device is lost"), also marks the owning
+// device sticky-lost so subsequent public calls refuse with ErrDeviceLost
+// instead of treating the device as healthy.
+//
+// Critical: wgpuSurfaceGetCurrentTexture panics in Rust when parent is lost.
+// We must mark sticky on the FIRST uncaptured lost message so the next
+// GetCurrentTexture refuses before purego Call.
+func uncapturedErrorHandler(devicePtr, errType, messageData, messageLength, userdata1, _ uintptr) uintptr {
 	msg := callbackStringView(messageData, messageLength)
+	// Resolve owning device for sticky storage + multi-device isolation.
+	ownerHandle := uintptr(0)
+	if d := deviceFromUserdata(userdata1); d != nil && d.handle != 0 {
+		ownerHandle = d.handle
+	} else {
+		ownerHandle = deviceHandleFromCallbackArg(devicePtr)
+	}
 	lastUncapturedMu.Lock()
 	lastUncapturedTyp = ErrorType(errType)
 	lastUncapturedMsg = msg
+	lastUncapturedDevice = ownerHandle
 	lastUncapturedMu.Unlock()
+	if looksLikeDeviceLost(msg) {
+		// Userdata first — which window/device owns this error.
+		markDeviceLostFromCallback(devicePtr, userdata1)
+	}
 	return 0
 }
 
@@ -165,11 +321,12 @@ func initUncapturedErrorCallback() {
 	uncapturedErrorCallbackPtr = purego.NewCallback(uncapturedErrorHandler)
 }
 
-// deviceLostHandler is WGPUDeviceLostCallback — sole writer of Device.lost.
+// deviceLostHandler is WGPUDeviceLostCallback — primary writer of Device.lost.
+// userdata1 is the per-device slot allocated at RequestDevice (multi-window safe).
 func deviceLostHandler(devicePtr, reason, messageData, messageLength, userdata1, userdata2 uintptr) uintptr {
-	_, _, _, _ = reason, messageData, messageLength, userdata1
+	_, _, _ = reason, messageData, messageLength
 	_ = userdata2
-	markDeviceLost(deviceHandleFromCallbackArg(devicePtr))
+	markDeviceLostFromCallback(devicePtr, userdata1)
 	return 0
 }
 
@@ -237,16 +394,24 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 
 	// Convert Go-idiomatic descriptor to wire format. Always attach non-panicking
 	// uncaptured/device-lost callbacks so VRAM pressure returns Go errors.
+	//
+	// Per-device userdata slot: multi-window apps each RequestDevice with their
+	// own slot so DeviceLost / uncaptured lost marks only that Device.
+	deviceSlot := allocDeviceSlot()
 	uncapturedErrorCallbackOnce.Do(initUncapturedErrorCallback)
 	deviceLostCallbackOnce.Do(initDeviceLostCallback)
 	var reqLimitsWire limitsWire // kept alive for the duration of the FFI call
 	wire := deviceDescriptorWire{
 		DeviceLostCallbackInfo: DeviceLostCallbackInfo{
-			Mode:     CallbackModeAllowProcessEvents, // delivered in ProcessEvents
-			Callback: deviceLostCallbackPtr,
+			// AllowSpontaneous: mark lost as soon as native decides, not only
+			// on the next ProcessEvents. GetCurrentTexture aborts if we race.
+			Mode:      CallbackModeAllowSpontaneous,
+			Callback:  deviceLostCallbackPtr,
+			Userdata1: deviceSlot,
 		},
 		UncapturedErrorCallbackInfo: UncapturedErrorCallbackInfo{
-			Callback: uncapturedErrorCallbackPtr,
+			Callback:  uncapturedErrorCallbackPtr,
+			Userdata1: deviceSlot,
 		},
 	}
 	if options != nil {
@@ -274,12 +439,14 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 
 	future, err := callAdapterRequestDevice(a.handle, optionsPtr, &callbackInfo)
 	if err != nil {
+		freeDeviceSlot(deviceSlot)
 		return nil, err
 	}
 	if err := waitForFuture(a.instance, future, "RequestDevice"); err != nil {
 		deviceRequestsMu.Lock()
 		delete(deviceRequests, reqID)
 		deviceRequestsMu.Unlock()
+		freeDeviceSlot(deviceSlot)
 		return nil, err
 	}
 
@@ -290,16 +457,21 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 			if msg == "" {
 				msg = "device request failed"
 			}
+			freeDeviceSlot(deviceSlot)
 			return nil, &WGPUError{Op: "RequestDevice", Message: msg}
 		}
 		if req.device != nil {
 			req.device.limits = fetchDeviceLimits(req.device.handle)
 			req.device.instance = a.instance
-			// Route future DeviceLostCallback to this *Device via handle.
+			// Primary route: userdata slot; secondary: native handle map.
+			bindDeviceSlot(deviceSlot, req.device)
 			registerLiveDevice(req.device)
+		} else {
+			freeDeviceSlot(deviceSlot)
 		}
 		return req.device, nil
 	default:
+		freeDeviceSlot(deviceSlot)
 		return nil, &WGPUError{Op: "RequestDevice", Message: "future completed without invoking callback"}
 	}
 }
@@ -386,25 +558,31 @@ func (d *Device) Poll(wait bool) bool {
 }
 
 // Release releases the device resources.
+// Nil-safe and idempotent. When the device is already lost, only Go-side
+// state is cleared — native DeviceRelease on a lost device can SIGABRT.
 func (d *Device) Release() {
 	if d == nil {
 		return
 	}
+	lost := d.IsLost()
 	if d.handle != 0 {
 		unregisterLiveDevice(d)
-		untrackResource(d.handle)
-		procDeviceRelease.Call(d.handle) //nolint:errcheck
-		d.handle = 0
 	}
+	releaseNativeHandle(&d.handle, lost, func(h uintptr) {
+		procDeviceRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Release releases the queue resources.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (q *Queue) Release() {
-	if q.handle != 0 {
-		untrackResource(q.handle)
-		procQueueRelease.Call(q.handle) //nolint:errcheck
-		q.handle = 0
+	if q == nil {
+		return
 	}
+	lost := isOwnerDeviceLost(q.device)
+	releaseNativeHandle(&q.handle, lost, func(h uintptr) {
+		procQueueRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // DeviceLostCallbackInfo configures the device-lost callback.
@@ -528,9 +706,15 @@ func (d *Device) Limits() Limits {
 
 // Features retrieves all features enabled on this device.
 // Returns a slice of FeatureName values.
+// Defense order: nil/zero handle → lost → init → native.
 func (d *Device) Features() []FeatureName {
-	mustInit()
 	if d == nil || d.handle == 0 {
+		return nil
+	}
+	if refuseIfLost("Device.Features", d.handle) != nil {
+		return nil
+	}
+	if checkInit() != nil {
 		return nil
 	}
 
@@ -560,9 +744,15 @@ func (d *Device) Features() []FeatureName {
 }
 
 // HasFeature checks if the device has a specific feature enabled.
+// Defense order: nil/zero handle → lost → init → native.
 func (d *Device) HasFeature(feature FeatureName) bool {
-	mustInit()
 	if d == nil || d.handle == 0 {
+		return false
+	}
+	if refuseIfLost("Device.HasFeature", d.handle) != nil {
+		return false
+	}
+	if checkInit() != nil {
 		return false
 	}
 

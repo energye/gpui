@@ -68,17 +68,20 @@ func (d *Device) CreateCommandEncoder(desc *CommandEncoderDescriptor) (*CommandE
 		return nil, &WGPUError{Op: "CreateCommandEncoder", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "CommandEncoder")
-	return &CommandEncoder{handle: handle}, nil
+	return &CommandEncoder{handle: handle, device: d.handle}, nil
 }
 
 // BeginComputePass begins a compute pass.
 // Returns an error if the FFI call fails or the encoder is nil.
 func (enc *CommandEncoder) BeginComputePass(desc *ComputePassDescriptor) (*ComputePassEncoder, error) {
-	if err := checkInit(); err != nil {
-		return nil, err
-	}
 	if enc == nil || enc.handle == 0 {
 		return nil, &WGPUError{Op: "BeginComputePass", Message: "encoder is nil or released"}
+	}
+	if err := refuseIfLost("BeginComputePass", enc.device); err != nil {
+		return nil, err
+	}
+	if err := checkInit(); err != nil {
+		return nil, err
 	}
 
 	var wireDesc computePassDescriptorWire
@@ -116,13 +119,15 @@ func (enc *CommandEncoder) BeginComputePass(desc *ComputePassDescriptor) (*Compu
 		return nil, &WGPUError{Op: "BeginComputePass", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "ComputePassEncoder")
-	return &ComputePassEncoder{handle: handle}, nil
+	return &ComputePassEncoder{handle: handle, device: enc.device}, nil
 }
 
 // CopyBufferToBuffer copies data between buffers.
 func (enc *CommandEncoder) CopyBufferToBuffer(src *Buffer, srcOffset uint64, dst *Buffer, dstOffset uint64, size uint64) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || src == nil || src.handle == 0 || dst == nil || dst.handle == 0 {
+		return
+	}
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	procCommandEncoderCopyBufferToBuffer.Call( //nolint:errcheck
@@ -138,8 +143,11 @@ func (enc *CommandEncoder) CopyBufferToBuffer(src *Buffer, srcOffset uint64, dst
 // ClearBuffer clears a region of a buffer to zeros.
 // size = 0 means clear from offset to end of buffer.
 func (enc *CommandEncoder) ClearBuffer(buffer *Buffer, offset, size uint64) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || buffer == nil || buffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	procCommandEncoderClearBuffer.Call( //nolint:errcheck
@@ -153,8 +161,11 @@ func (enc *CommandEncoder) ClearBuffer(buffer *Buffer, offset, size uint64) {
 // InsertDebugMarker inserts a single debug marker label.
 // This is useful for GPU debugging tools to identify specific command points.
 func (enc *CommandEncoder) InsertDebugMarker(markerLabel string) {
-	mustInit()
 	if enc == nil || enc.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	labelBytes := []byte(markerLabel)
@@ -171,8 +182,11 @@ func (enc *CommandEncoder) InsertDebugMarker(markerLabel string) {
 // PushDebugGroup begins a labeled debug group.
 // Use PopDebugGroup to end the group. Groups can be nested.
 func (enc *CommandEncoder) PushDebugGroup(groupLabel string) {
-	mustInit()
 	if enc == nil || enc.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	labelBytes := []byte(groupLabel)
@@ -189,8 +203,11 @@ func (enc *CommandEncoder) PushDebugGroup(groupLabel string) {
 // PopDebugGroup ends the current debug group.
 // Must match a preceding PushDebugGroup call.
 func (enc *CommandEncoder) PopDebugGroup() {
-	mustInit()
 	if enc == nil || enc.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	procCommandEncoderPopDebugGroup.Call(enc.handle) //nolint:errcheck
@@ -199,8 +216,11 @@ func (enc *CommandEncoder) PopDebugGroup() {
 // CopyBufferToTexture copies data from a buffer to a texture using low-level wire types.
 // Errors are reported via Device error scopes, not as return values.
 func (enc *CommandEncoder) CopyBufferToTexture(source *TexelCopyBufferInfo, destination *TexelCopyTextureInfo, copySize *types.Extent3D) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || source == nil || destination == nil || copySize == nil {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	procCommandEncoderCopyBufferToTexture.Call( //nolint:errcheck
@@ -216,8 +236,11 @@ func (enc *CommandEncoder) CopyBufferToTexture(source *TexelCopyBufferInfo, dest
 // Each region specifies the buffer layout, texture subresource origin, and copy extent.
 // Errors are reported via Device error scopes, not as return values.
 func (enc *CommandEncoder) CopyTextureToBuffer(src *Texture, dst *Buffer, regions []BufferTextureCopy) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || src == nil || dst == nil || len(regions) == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	for i := range regions {
@@ -244,8 +267,11 @@ func (enc *CommandEncoder) CopyTextureToBuffer(src *Texture, dst *Buffer, region
 // CopyTextureToBufferRaw copies data from a texture to a buffer using low-level wire types.
 // Prefer [CopyTextureToBuffer] for new code.
 func (enc *CommandEncoder) CopyTextureToBufferRaw(source *TexelCopyTextureInfo, destination *TexelCopyBufferInfo, copySize *types.Extent3D) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || source == nil || destination == nil || copySize == nil {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	procCommandEncoderCopyTextureToBuffer.Call( //nolint:errcheck
@@ -261,8 +287,11 @@ func (enc *CommandEncoder) CopyTextureToBufferRaw(source *TexelCopyTextureInfo, 
 // Each region specifies the source and destination subresource origins and copy extent.
 // Errors are reported via Device error scopes, not as return values.
 func (enc *CommandEncoder) CopyTextureToTexture(src, dst *Texture, regions []TextureCopy) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || src == nil || dst == nil || len(regions) == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	for i := range regions {
@@ -282,8 +311,11 @@ func (enc *CommandEncoder) CopyTextureToTexture(src, dst *Texture, regions []Tex
 // CopyTextureToTextureRaw copies data from one texture to another using low-level wire types.
 // Prefer [CopyTextureToTexture] for new code.
 func (enc *CommandEncoder) CopyTextureToTextureRaw(source *TexelCopyTextureInfo, destination *TexelCopyTextureInfo, copySize *types.Extent3D) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || source == nil || destination == nil || copySize == nil {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	procCommandEncoderCopyTextureToTexture.Call( //nolint:errcheck
@@ -299,11 +331,14 @@ func (enc *CommandEncoder) CopyTextureToTextureRaw(source *TexelCopyTextureInfo,
 // This variadic signature matches the gogpu/wgpu API for compatibility.
 // Returns an error if the FFI call fails or the encoder is nil.
 func (enc *CommandEncoder) Finish(desc ...*CommandBufferDescriptor) (*CommandBuffer, error) {
-	if err := checkInit(); err != nil {
-		return nil, err
-	}
 	if enc == nil || enc.handle == 0 {
 		return nil, &WGPUError{Op: "CommandEncoder.Finish", Message: "encoder is nil or released"}
+	}
+	if err := refuseIfLost("CommandEncoder.Finish", enc.device); err != nil {
+		return nil, err
+	}
+	if err := checkInit(); err != nil {
+		return nil, err
 	}
 	var descPtr uintptr
 	if len(desc) > 0 && desc[0] != nil {
@@ -317,24 +352,29 @@ func (enc *CommandEncoder) Finish(desc ...*CommandBufferDescriptor) (*CommandBuf
 		return nil, &WGPUError{Op: "CommandEncoder.Finish", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "CommandBuffer")
-	return &CommandBuffer{handle: handle}, nil
+	return &CommandBuffer{handle: handle, device: enc.device}, nil
 }
 
 // Release releases the command encoder.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (enc *CommandEncoder) Release() {
-	if enc.handle != 0 {
-		untrackResource(enc.handle)
-		call1(procCommandEncoderRelease, enc.handle)
-		enc.handle = 0
+	if enc == nil {
+		return
 	}
+	releaseNativeHandle(&enc.handle, isOwnerDeviceLost(enc.device), func(h uintptr) {
+		call1(procCommandEncoderRelease, h)
+	})
 }
 
 // WriteTimestamp writes a timestamp to a query.
 // Note: This is a wgpu-native extension. Prefer pass-level timestamps
 // via RenderPassTimestampWrites or ComputePassTimestampWrites when possible.
 func (enc *CommandEncoder) WriteTimestamp(querySet *QuerySet, queryIndex uint32) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || querySet == nil || querySet.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	procCommandEncoderWriteTimestamp.Call( //nolint:errcheck
@@ -347,8 +387,11 @@ func (enc *CommandEncoder) WriteTimestamp(querySet *QuerySet, queryIndex uint32)
 // ResolveQuerySet resolves query results to a buffer.
 // The buffer must have BufferUsageQueryResolve usage.
 func (enc *CommandEncoder) ResolveQuerySet(querySet *QuerySet, firstQuery, queryCount uint32, destination *Buffer, destinationOffset uint64) {
-	mustInit()
 	if enc == nil || enc.handle == 0 || querySet == nil || querySet.handle == 0 || destination == nil || destination.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(enc.device) || checkInit() != nil {
 		return
 	}
 	procCommandEncoderResolveQuerySet.Call( //nolint:errcheck
@@ -366,8 +409,11 @@ func (enc *CommandEncoder) Handle() uintptr { return enc.handle }
 
 // SetPipeline sets the compute pipeline.
 func (cpe *ComputePassEncoder) SetPipeline(pipeline *ComputePipeline) {
-	mustInit()
 	if cpe == nil || cpe.handle == 0 || pipeline == nil || pipeline.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(cpe.device) || checkInit() != nil {
 		return
 	}
 	procComputePassEncoderSetPipeline.Call( //nolint:errcheck
@@ -378,8 +424,11 @@ func (cpe *ComputePassEncoder) SetPipeline(pipeline *ComputePipeline) {
 
 // SetBindGroup sets a bind group.
 func (cpe *ComputePassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, dynamicOffsets []uint32) {
-	mustInit()
 	if cpe == nil || cpe.handle == 0 || group == nil || group.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(cpe.device) || checkInit() != nil {
 		return
 	}
 	var offsetsPtr uintptr
@@ -399,8 +448,11 @@ func (cpe *ComputePassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup,
 
 // DispatchWorkgroups dispatches compute work.
 func (cpe *ComputePassEncoder) DispatchWorkgroups(x, y, z uint32) {
-	mustInit()
 	if cpe == nil || cpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(cpe.device) || checkInit() != nil {
 		return
 	}
 	procComputePassEncoderDispatchWorkgroups.Call( //nolint:errcheck
@@ -417,8 +469,11 @@ func (cpe *ComputePassEncoder) DispatchWorkgroups(x, y, z uint32) {
 //   - workgroupCountY (uint32)
 //   - workgroupCountZ (uint32)
 func (cpe *ComputePassEncoder) DispatchWorkgroupsIndirect(indirectBuffer *Buffer, indirectOffset uint64) {
-	mustInit()
 	if cpe == nil || cpe.handle == 0 || indirectBuffer == nil || indirectBuffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(cpe.device) || checkInit() != nil {
 		return
 	}
 	procComputePassEncoderDispatchWorkgroupsIndirect.Call( //nolint:errcheck
@@ -430,20 +485,25 @@ func (cpe *ComputePassEncoder) DispatchWorkgroupsIndirect(indirectBuffer *Buffer
 
 // End ends the compute pass.
 func (cpe *ComputePassEncoder) End() {
-	mustInit()
 	if cpe == nil || cpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(cpe.device) || checkInit() != nil {
 		return
 	}
 	call1(procComputePassEncoderEnd, cpe.handle)
 }
 
 // Release releases the compute pass encoder.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (cpe *ComputePassEncoder) Release() {
-	if cpe.handle != 0 {
-		untrackResource(cpe.handle)
-		procComputePassEncoderRelease.Call(cpe.handle) //nolint:errcheck
-		cpe.handle = 0
+	if cpe == nil {
+		return
 	}
+	releaseNativeHandle(&cpe.handle, isOwnerDeviceLost(cpe.device), func(h uintptr) {
+		procComputePassEncoderRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle.
@@ -485,18 +545,25 @@ func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
 	runtime.KeepAlive(handles)
 	runtime.KeepAlive(commands)
 	if typ, msg := LastUncapturedError(); msg != "" {
+		// Fold device-lost uncaptured into sticky fuse before next surface acquire.
+		if looksLikeDeviceLost(msg) {
+			noteLostMessage(q.device, msg)
+			return 0, ErrDeviceLost
+		}
 		return 0, &WGPUError{Op: "Queue.Submit", Type: typ, Message: msg}
 	}
 	return uint64(submissionIndex), nil
 }
 
 // Release releases the command buffer.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (cb *CommandBuffer) Release() {
-	if cb.handle != 0 {
-		untrackResource(cb.handle)
-		call1(procCommandBufferRelease, cb.handle)
-		cb.handle = 0
+	if cb == nil {
+		return
 	}
+	releaseNativeHandle(&cb.handle, isOwnerDeviceLost(cb.device), func(h uintptr) {
+		call1(procCommandBufferRelease, h)
+	})
 }
 
 // Handle returns the underlying handle.

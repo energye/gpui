@@ -40,8 +40,8 @@ func (d *Device) Limits() Limits {
 
 // CreateBuffer creates a GPU buffer.
 func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: buffer descriptor is nil")
@@ -61,11 +61,8 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 
 // CreateTexture creates a GPU texture.
 func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
-	if d == nil {
-		return nil, fmt.Errorf("wgpu: device is nil")
-	}
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: texture descriptor is nil")
@@ -90,8 +87,8 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 // CreateTextureView creates a view into a texture.
 // In rwgpu, CreateView is a method on Texture, not Device.
 func (d *Device) CreateTextureView(texture *Texture, desc *TextureViewDescriptor) (*TextureView, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if texture == nil || texture.r == nil {
 		return nil, fmt.Errorf("wgpu: texture is nil")
@@ -131,8 +128,8 @@ func (d *Device) CreateTextureView(texture *Texture, desc *TextureViewDescriptor
 
 // CreateSampler creates a texture sampler.
 func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	var rDesc *rwgpu.SamplerDescriptor
 	if desc != nil {
@@ -161,8 +158,8 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 
 // CreateShaderModule creates a shader module.
 func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (*ShaderModule, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: shader module descriptor is nil")
@@ -188,8 +185,8 @@ func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (*ShaderModule
 
 // CreateBindGroupLayout creates a bind group layout.
 func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGroupLayout, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: bind group layout descriptor is nil")
@@ -219,8 +216,8 @@ func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGr
 
 // CreatePipelineLayout creates a pipeline layout.
 func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*PipelineLayout, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: pipeline layout descriptor is nil")
@@ -252,8 +249,8 @@ func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*Pipeline
 
 // CreateBindGroup creates a bind group.
 func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: bind group descriptor is nil")
@@ -289,8 +286,8 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 
 // CreateRenderPipeline creates a render pipeline.
 func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPipeline, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: render pipeline descriptor is nil")
@@ -311,8 +308,8 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 
 // CreateComputePipeline creates a compute pipeline.
 func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*ComputePipeline, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("wgpu: compute pipeline descriptor is nil")
@@ -341,8 +338,8 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*Comput
 
 // CreateCommandEncoder creates a command encoder for recording GPU commands.
 func (d *Device) CreateCommandEncoder(desc *CommandEncoderDescriptor) (*CommandEncoder, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	var rDesc *rwgpu.CommandEncoderDescriptor
 	if desc != nil {
@@ -363,8 +360,8 @@ func (d *Device) CreateCommandEncoder(desc *CommandEncoderDescriptor) (*CommandE
 // On the wgpu-native backend, fences are not exposed by wgpu-native.
 // Returns a no-op fence for API compatibility.
 func (d *Device) CreateFence() (*Fence, error) {
-	if d.released {
-		return nil, ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return nil, err
 	}
 	return &Fence{}, nil
 }
@@ -445,8 +442,8 @@ func (d *Device) PopErrorScope() *GPUError {
 
 // WaitIdle waits for all GPU work to complete.
 func (d *Device) WaitIdle() error {
-	if d.released {
-		return ErrReleased
+	if err := prepareDeviceCall(d); err != nil {
+		return err
 	}
 	// Poll with wait=true blocks until all work completes.
 	d.r.Poll(true)
@@ -505,7 +502,7 @@ func (d *Device) HalDevice() any { return nil }
 
 // Release releases the device and all associated resources.
 func (d *Device) Release() {
-	if d.released {
+	if d == nil || d.released {
 		return
 	}
 	d.released = true

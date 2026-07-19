@@ -128,6 +128,17 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	if err := refuseIfLost("Surface.Configure", dev.handle); err != nil {
 		return err
 	}
+	if dev.IsLost() {
+		return ErrDeviceLost
+	}
+	if _, msg, owner := PeekLastUncapturedError(); looksLikeDeviceLost(msg) {
+		// Only refuse if this device owns the sticky message (or owner unknown).
+		if owner == 0 || owner == dev.handle {
+			noteLostMessage(dev.handle, msg)
+			_, _ = LastUncapturedError()
+			return ErrDeviceLost
+		}
+	}
 	if err := checkInit(); err != nil {
 		return err
 	}
@@ -168,24 +179,70 @@ func (s *Surface) ConfigureLegacy(config *SurfaceConfiguration) {
 }
 
 // Unconfigure removes the surface configuration.
+// Defense order: nil/zero handle → lost (skip native) → init → native.
+// Nil-safe, zero-handle-safe, and idempotent w.r.t. Go-side device binding.
 func (s *Surface) Unconfigure() {
-	mustInit()
 	if s == nil || s.handle == 0 {
 		return
 	}
-	procSurfaceUnconfigure.Call(s.handle) //nolint:errcheck
+	lost := isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
 	s.device = 0
 	s.deviceRef = nil
+	if lost {
+		return
+	}
+	if checkInit() != nil {
+		return
+	}
+	unconfigureNativeHandle(s.handle, false, func(h uintptr) {
+		procSurfaceUnconfigure.Call(h) //nolint:errcheck
+	})
+}
+
+// surfaceParentLost reports whether this surface's parent device is sticky-lost
+// and absorbs pending uncaptured "Parent device is lost" for THIS device only.
+// Multi-window: uncaptured from device A must not poison surface on device B.
+// Must run before any purego surface call that aborts when parent is lost.
+func (s *Surface) surfaceParentLost() bool {
+	if s == nil {
+		return false
+	}
+	if s.deviceRef != nil && s.deviceRef.IsLost() {
+		return true
+	}
+	if isOwnerDeviceLost(s.device) {
+		return true
+	}
+	// Pending uncaptured — only absorb if attributed to this surface's device.
+	_, msg, owner := PeekLastUncapturedError()
+	if !looksLikeDeviceLost(msg) {
+		return false
+	}
+	// owner==0: unknown attribution; only apply if we have a parent handle match
+	// via consume+mark of this surface's device alone (never mark others).
+	if owner != 0 && s.device != 0 && owner != s.device {
+		return false // message belongs to another window's device
+	}
+	_, _ = LastUncapturedError() // consume sticky slot
+	if s.deviceRef != nil {
+		s.deviceRef.MarkLost()
+	} else if s.device != 0 {
+		markDeviceLost(s.device)
+	}
+	return true
 }
 
 // GetCurrentTexture gets the current texture to render to.
 // Returns the texture, a suboptimal flag (true if the surface needs reconfiguration
 // but is still usable this frame), and any error. This matches the gogpu/wgpu API.
+//
+// Defense: never call native when parent device is lost — wgpu-native panics with
+// "Parent device is lost" / SIGABRT instead of returning a status code.
 func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s == nil || s.handle == 0 {
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface is nil or released"}
 	}
-	if err := refuseIfLost("Surface.GetCurrentTexture", s.device); err != nil {
+	if s.surfaceParentLost() {
 		return nil, false, ErrSurfaceDeviceLost
 	}
 	if err := checkInit(); err != nil {
@@ -195,10 +252,12 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
 
+	// Deliver DeviceLostCallback (and re-check) under the GPU lock so a
+	// concurrent lost cannot slip between ProcessEvents and the native call.
 	if s.deviceRef != nil {
 		pumpInstanceEvents(s.deviceRef)
 	}
-	if err := refuseIfLost("Surface.GetCurrentTexture", s.device); err != nil {
+	if s.surfaceParentLost() {
 		return nil, false, ErrSurfaceDeviceLost
 	}
 
@@ -208,9 +267,23 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 		s.handle,
 		uintptr(unsafe.Pointer(&surfTex)),
 	)
+	// If native returned without aborting, still fold uncaptured lost into sticky.
+	if typ, msg := LastUncapturedError(); msg != "" {
+		if looksLikeDeviceLost(msg) {
+			noteLostMessage(s.device, msg)
+			// Drop any texture pointer — must not use after lost.
+			if surfTex.texture != 0 {
+				h := surfTex.texture
+				releaseNativeHandle(&h, true, nil)
+				surfTex.texture = 0
+			}
+			return nil, false, ErrSurfaceDeviceLost
+		}
+		_ = typ
+	}
 
 	result := &SurfaceTexture{
-		Texture: &Texture{handle: surfTex.texture},
+		Texture: &Texture{handle: surfTex.texture, device: s.device},
 		Status:  surfTex.status,
 	}
 
@@ -260,17 +333,27 @@ func (s *Surface) Present(texture ...*SurfaceTexture) error {
 	if s == nil || s.handle == 0 {
 		return &WGPUError{Op: "Surface.Present", Message: "surface is nil or released"}
 	}
-	if err := refuseIfLost("Surface.Present", s.device); err != nil {
-		return err
+	if s.surfaceParentLost() {
+		return ErrSurfaceDeviceLost
 	}
 	if err := checkInit(); err != nil {
 		return err
 	}
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	if s.deviceRef != nil {
+		pumpInstanceEvents(s.deviceRef)
+	}
+	if s.surfaceParentLost() {
+		return ErrSurfaceDeviceLost
+	}
 	_, _ = LastUncapturedError()
 	status, _, _ := procSurfacePresent.Call(s.handle)
 	if typ, msg := LastUncapturedError(); msg != "" {
+		if looksLikeDeviceLost(msg) {
+			noteLostMessage(s.device, msg)
+			return ErrSurfaceDeviceLost
+		}
 		return &WGPUError{Op: "Surface.Present", Type: typ, Message: msg}
 	}
 	if WGPUStatus(status) == WGPUStatusError {
@@ -281,12 +364,17 @@ func (s *Surface) Present(texture ...*SurfaceTexture) error {
 }
 
 // Release releases the surface.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (s *Surface) Release() {
-	if s.handle != 0 {
-		untrackResource(s.handle)
-		procSurfaceRelease.Call(s.handle) //nolint:errcheck
-		s.handle = 0
+	if s == nil {
+		return
 	}
+	lost := isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
+	s.device = 0
+	s.deviceRef = nil
+	releaseNativeHandle(&s.handle, lost, func(h uintptr) {
+		procSurfaceRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle. For advanced use only.
@@ -295,16 +383,16 @@ func (s *Surface) Handle() uintptr { return s.handle }
 // GetCapabilities queries the surface capabilities for the given adapter.
 // This determines which texture formats, present modes, and alpha modes are supported.
 // The caller must provide a valid adapter that will be used with this surface.
+// Defense order: nil/zero handle → init → native.
 func (s *Surface) GetCapabilities(adapter *Adapter) (*SurfaceCapabilities, error) {
-	if err := checkInit(); err != nil {
-		return nil, err
-	}
-
 	if s == nil || s.handle == 0 {
 		return nil, &WGPUError{Op: "Surface.GetCapabilities", Message: "surface is nil"}
 	}
 	if adapter == nil || adapter.handle == 0 {
 		return nil, &WGPUError{Op: "Surface.GetCapabilities", Message: "adapter is nil"}
+	}
+	if err := checkInit(); err != nil {
+		return nil, err
 	}
 
 	// Call wgpuSurfaceGetCapabilities

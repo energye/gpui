@@ -55,7 +55,7 @@ func (d *Device) CreateShaderModuleWGSL(code string) (*ShaderModule, error) {
 		return nil, &WGPUError{Op: "CreateShaderModuleWGSL", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "ShaderModule")
-	return &ShaderModule{handle: handle}, nil
+	return &ShaderModule{handle: handle, device: d.handle}, nil
 }
 
 // CreateShaderModule creates a shader module from a descriptor.
@@ -78,7 +78,7 @@ func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (*ShaderModule
 		return nil, &WGPUError{Op: "CreateShaderModule", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "ShaderModule")
-	return &ShaderModule{handle: handle}, nil
+	return &ShaderModule{handle: handle, device: d.handle}, nil
 }
 
 // CreateShaderModuleFromDescriptor creates a shader module from a Go-idiomatic ShaderDescriptor.
@@ -153,16 +153,17 @@ func (d *Device) CreateShaderModuleSPIRV(label string, spirv []uint32) (*ShaderM
 		return nil, &WGPUError{Op: "CreateShaderModuleSPIRV", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "ShaderModule")
-	return &ShaderModule{handle: handle}, nil
+	return &ShaderModule{handle: handle, device: d.handle}, nil
 }
 
 // Release releases the shader module resources.
 func (s *ShaderModule) Release() {
-	if s.handle != 0 {
-		untrackResource(s.handle)
-		procShaderModuleRelease.Call(s.handle) //nolint:errcheck
-		s.handle = 0
+	if s == nil {
+		return
 	}
+	releaseNativeHandle(&s.handle, isOwnerDeviceLost(s.device), func(h uintptr) {
+		procShaderModuleRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle. For advanced use only.

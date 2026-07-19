@@ -153,8 +153,13 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 // offset and size specify the range to access.
 // Returns nil if the buffer is not mapped or the range is invalid.
 func (b *Buffer) GetMappedRange(offset, size uint64) unsafe.Pointer {
-	mustInit()
 	if b == nil || b.handle == 0 {
+		return nil
+	}
+	if b.device != nil && b.device.IsLost() {
+		return nil
+	}
+	if checkInit() != nil {
 		return nil
 	}
 	ptr, _, _ := procBufferGetMappedRange.Call(
@@ -172,8 +177,14 @@ func (b *Buffer) GetMappedRange(offset, size uint64) unsafe.Pointer {
 // For buffers created with MappedAtCreation, this commits the data to the GPU.
 // Returns nil on success. Matches gogpu/wgpu Buffer.Unmap() error signature.
 func (b *Buffer) Unmap() error {
-	mustInit()
 	if b == nil || b.handle == 0 {
+		return nil
+	}
+	if b.device != nil && b.device.IsLost() {
+		b.mapState = BufferMapStateUnmapped
+		return nil
+	}
+	if checkInit() != nil {
 		return nil
 	}
 	procBufferUnmap.Call(b.handle) //nolint:errcheck
@@ -184,8 +195,13 @@ func (b *Buffer) Unmap() error {
 
 // Size returns the size of the buffer in bytes.
 func (b *Buffer) Size() uint64 {
-	mustInit()
 	if b == nil || b.handle == 0 {
+		return 0
+	}
+	if b.device != nil && b.device.IsLost() {
+		return 0
+	}
+	if checkInit() != nil {
 		return 0
 	}
 	size, _, _ := procBufferGetSize.Call(b.handle)
@@ -205,26 +221,29 @@ func (b *Buffer) MapAsyncBlocking(device *Device, mode MapMode, offset, size uin
 // Destroy destroys the buffer, making it invalid.
 // After Destroy the handle is nulled so subsequent ops cannot call native with
 // a wild pointer. Idempotent; a following Release is a no-op.
+// When the parent device is lost, only Go-side state is cleared.
 func (b *Buffer) Destroy() {
-	if b == nil || b.handle == 0 {
+	if b == nil {
 		return
 	}
-	mustInit()
-	h := b.handle
-	procBufferDestroy.Call(h) //nolint:errcheck
-	untrackResource(h)
-	procBufferRelease.Call(h) //nolint:errcheck
-	b.handle = 0
+	lost := b.device != nil && b.device.IsLost()
+	destroyAndReleaseNativeHandle(&b.handle, lost,
+		func(h uintptr) { procBufferDestroy.Call(h) }, //nolint:errcheck
+		func(h uintptr) { procBufferRelease.Call(h) }, //nolint:errcheck
+	)
 	b.mapState = BufferMapStateUnmapped
 }
 
 // Release releases the buffer reference.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (b *Buffer) Release() {
-	if b.handle != 0 {
-		untrackResource(b.handle)
-		procBufferRelease.Call(b.handle) //nolint:errcheck
-		b.handle = 0
+	if b == nil {
+		return
 	}
+	lost := b.device != nil && b.device.IsLost()
+	releaseNativeHandle(&b.handle, lost, func(h uintptr) {
+		procBufferRelease.Call(h) //nolint:errcheck
+	})
 	b.mapState = BufferMapStateUnmapped
 }
 
@@ -271,8 +290,13 @@ func (q *Queue) WriteBufferRaw(buffer *Buffer, offset uint64, data unsafe.Pointe
 
 // Usage returns the usage flags of this buffer.
 func (b *Buffer) Usage() types.BufferUsage {
-	mustInit()
 	if b == nil || b.handle == 0 {
+		return types.BufferUsageNone
+	}
+	if b.device != nil && b.device.IsLost() {
+		return types.BufferUsageNone
+	}
+	if checkInit() != nil {
 		return types.BufferUsageNone
 	}
 	usage, _, _ := procBufferGetUsage.Call(b.handle)

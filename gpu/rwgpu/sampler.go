@@ -85,7 +85,7 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 		return nil, &WGPUError{Op: "CreateSampler", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "Sampler")
-	return &Sampler{handle: handle}, nil
+	return &Sampler{handle: handle, device: d.handle}, nil
 }
 
 // CreateLinearSampler creates a sampler with linear filtering.
@@ -118,11 +118,12 @@ func (d *Device) CreateNearestSampler() (*Sampler, error) {
 
 // Release releases the sampler reference.
 func (s *Sampler) Release() {
-	if s.handle != 0 {
-		untrackResource(s.handle)
-		procSamplerRelease.Call(s.handle) //nolint:errcheck
-		s.handle = 0
+	if s == nil {
+		return
 	}
+	releaseNativeHandle(&s.handle, isOwnerDeviceLost(s.device), func(h uintptr) {
+		procSamplerRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle. For advanced use only.

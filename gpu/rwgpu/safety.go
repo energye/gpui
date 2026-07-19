@@ -213,3 +213,72 @@ func prepareQueueCall(op string, q *Queue) error {
 	}
 	return checkInit()
 }
+
+// nativeCallHook, when non-nil, is invoked immediately before a native
+// release/destroy/unconfigure Call. Tests use it to assert skip-on-lost.
+// Production code leaves this nil.
+var nativeCallHook func(kind string)
+
+// isOwnerDeviceLost reports whether the parent device handle is sticky-lost.
+func isOwnerDeviceLost(deviceHandle uintptr) bool {
+	return deviceHandle != 0 && IsDeviceHandleLost(deviceHandle)
+}
+
+// releaseNativeHandle clears *handle (nil/zero-safe, idempotent), untracks the
+// resource, and calls nativeRelease unless lost is true. When the parent device
+// is lost, only Go-side state is cleared — native release on a lost device can
+// SIGABRT inside wgpu-native.
+func releaseNativeHandle(handle *uintptr, lost bool, nativeRelease func(h uintptr)) {
+	if handle == nil || *handle == 0 {
+		return
+	}
+	h := *handle
+	*handle = 0
+	untrackResource(h)
+	if lost {
+		return
+	}
+	if nativeCallHook != nil {
+		nativeCallHook("release")
+	}
+	if nativeRelease != nil {
+		nativeRelease(h)
+	}
+}
+
+// destroyAndReleaseNativeHandle is releaseNativeHandle plus an optional native
+// Destroy before Release. When lost, both native calls are skipped.
+func destroyAndReleaseNativeHandle(handle *uintptr, lost bool, destroy, release func(h uintptr)) {
+	if handle == nil || *handle == 0 {
+		return
+	}
+	h := *handle
+	*handle = 0
+	untrackResource(h)
+	if lost {
+		return
+	}
+	if nativeCallHook != nil {
+		nativeCallHook("destroy")
+	}
+	if destroy != nil {
+		destroy(h)
+	}
+	if release != nil {
+		release(h)
+	}
+}
+
+// unconfigureNativeHandle runs native unconfigure unless lost. Does not clear
+// the surface handle (Unconfigure leaves the Surface object alive).
+func unconfigureNativeHandle(surfaceHandle uintptr, lost bool, nativeUnconfigure func(h uintptr)) {
+	if surfaceHandle == 0 || lost {
+		return
+	}
+	if nativeCallHook != nil {
+		nativeCallHook("unconfigure")
+	}
+	if nativeUnconfigure != nil {
+		nativeUnconfigure(surfaceHandle)
+	}
+}

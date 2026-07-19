@@ -68,11 +68,14 @@ type textureViewDescriptorWire struct {
 // Enum values are converted from gputypes to wgpu-native values before FFI call.
 // Returns an error if the FFI call fails or the texture is nil.
 func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) {
-	if err := checkInit(); err != nil {
-		return nil, err
-	}
 	if t == nil || t.handle == 0 {
 		return nil, &WGPUError{Op: "CreateView", Message: "texture is nil or released"}
+	}
+	if err := refuseIfLost("Texture.CreateView", t.device); err != nil {
+		return nil, err
+	}
+	if err := checkInit(); err != nil {
+		return nil, err
 	}
 
 	var descPtr uintptr
@@ -99,8 +102,11 @@ func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) 
 	)
 	if typ, msg := LastUncapturedError(); msg != "" {
 		if handle != 0 {
-			untrackResource(handle)
-			procTextureViewRelease.Call(handle) //nolint:errcheck
+			// Uncaptured may have just marked device lost; skip native release.
+			h := handle
+			releaseNativeHandle(&h, isOwnerDeviceLost(t.device) || looksLikeDeviceLost(msg), func(hh uintptr) {
+				procTextureViewRelease.Call(hh) //nolint:errcheck
+			})
 		}
 		return nil, &WGPUError{Op: "CreateView", Type: typ, Message: msg}
 	}
@@ -108,40 +114,49 @@ func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error) 
 		return nil, &WGPUError{Op: "CreateView", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "TextureView")
-	return &TextureView{handle: handle}, nil
+	return &TextureView{handle: handle, device: t.device}, nil
 }
 
 // Destroy destroys the texture.
 // After Destroy the handle is nulled so subsequent ops cannot call native with
 // a wild pointer. Idempotent; a following Release is a no-op.
+// When the parent device is lost, only Go-side state is cleared.
 func (t *Texture) Destroy() {
-	if t == nil || t.handle == 0 {
+	if t == nil {
 		return
 	}
-	mustInit()
-	h := t.handle
-	procTextureDestroy.Call(h) //nolint:errcheck
-	untrackResource(h)
-	procTextureRelease.Call(h) //nolint:errcheck
-	t.handle = 0
+	lost := isOwnerDeviceLost(t.device)
+	destroyAndReleaseNativeHandle(&t.handle, lost,
+		func(h uintptr) { procTextureDestroy.Call(h) }, //nolint:errcheck
+		func(h uintptr) { procTextureRelease.Call(h) }, //nolint:errcheck
+	)
 }
 
 // Release releases the texture reference.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (t *Texture) Release() {
-	if t.handle != 0 {
-		untrackResource(t.handle)
-		procTextureRelease.Call(t.handle) //nolint:errcheck
-		t.handle = 0
+	if t == nil {
+		return
 	}
+	releaseNativeHandle(&t.handle, isOwnerDeviceLost(t.device), func(h uintptr) {
+		procTextureRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle. For advanced use only.
-func (t *Texture) Handle() uintptr { return t.handle }
+func (t *Texture) Handle() uintptr {
+	if t == nil {
+		return 0
+	}
+	return t.handle
+}
 
 // Width returns the width of the texture in texels.
 func (t *Texture) Width() uint32 {
-	mustInit()
 	if t == nil || t.handle == 0 {
+		return 0
+	}
+	if isOwnerDeviceLost(t.device) || checkInit() != nil {
 		return 0
 	}
 	result, _, _ := procTextureGetWidth.Call(t.handle)
@@ -150,8 +165,10 @@ func (t *Texture) Width() uint32 {
 
 // Height returns the height of the texture in texels.
 func (t *Texture) Height() uint32 {
-	mustInit()
 	if t == nil || t.handle == 0 {
+		return 0
+	}
+	if isOwnerDeviceLost(t.device) || checkInit() != nil {
 		return 0
 	}
 	result, _, _ := procTextureGetHeight.Call(t.handle)
@@ -160,8 +177,10 @@ func (t *Texture) Height() uint32 {
 
 // DepthOrArrayLayers returns the depth (for 3D textures) or array layer count.
 func (t *Texture) DepthOrArrayLayers() uint32 {
-	mustInit()
 	if t == nil || t.handle == 0 {
+		return 0
+	}
+	if isOwnerDeviceLost(t.device) || checkInit() != nil {
 		return 0
 	}
 	result, _, _ := procTextureGetDepthOrArrayLayers.Call(t.handle)
@@ -170,8 +189,10 @@ func (t *Texture) DepthOrArrayLayers() uint32 {
 
 // MipLevelCount returns the number of mip levels.
 func (t *Texture) MipLevelCount() uint32 {
-	mustInit()
 	if t == nil || t.handle == 0 {
+		return 0
+	}
+	if isOwnerDeviceLost(t.device) || checkInit() != nil {
 		return 0
 	}
 	result, _, _ := procTextureGetMipLevelCount.Call(t.handle)
@@ -181,8 +202,10 @@ func (t *Texture) MipLevelCount() uint32 {
 // Format returns the texture format.
 // TextureFormat values match between gputypes v0.3.0 and wgpu-native v29 exactly.
 func (t *Texture) Format() types.TextureFormat {
-	mustInit()
 	if t == nil || t.handle == 0 {
+		return types.TextureFormatUndefined
+	}
+	if isOwnerDeviceLost(t.device) || checkInit() != nil {
 		return types.TextureFormatUndefined
 	}
 	result, _, _ := procTextureGetFormat.Call(t.handle)
@@ -190,12 +213,14 @@ func (t *Texture) Format() types.TextureFormat {
 }
 
 // Release releases the texture view reference.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (tv *TextureView) Release() {
-	if tv.handle != 0 {
-		untrackResource(tv.handle)
-		procTextureViewRelease.Call(tv.handle) //nolint:errcheck
-		tv.handle = 0
+	if tv == nil {
+		return
 	}
+	releaseNativeHandle(&tv.handle, isOwnerDeviceLost(tv.device), func(h uintptr) {
+		procTextureViewRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle. For advanced use only.
@@ -261,8 +286,11 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 	// on Submit. Treat uncaptured Validation/OOM as hard failure.
 	if typ, msg := LastUncapturedError(); msg != "" {
 		if handle != 0 {
-			untrackResource(handle)
-			procTextureRelease.Call(handle) //nolint:errcheck
+			// Uncaptured may have just marked device lost; skip native release.
+			h := handle
+			releaseNativeHandle(&h, isOwnerDeviceLost(d.handle) || looksLikeDeviceLost(msg), func(hh uintptr) {
+				procTextureRelease.Call(hh) //nolint:errcheck
+			})
 		}
 		return nil, &WGPUError{Op: "CreateTexture", Type: typ, Message: msg}
 	}
@@ -270,7 +298,7 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 		return nil, &WGPUError{Op: "CreateTexture", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "Texture")
-	return &Texture{handle: handle}, nil
+	return &Texture{handle: handle, device: d.handle}, nil
 }
 
 // TexelCopyTextureInfo describes a texture for WriteTexture (low-level wire type).

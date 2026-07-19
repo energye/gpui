@@ -34,6 +34,10 @@ type Adapter struct {
 
 // Device is the logical connection to a GPU, used to create all other resources.
 // Obtained via [Adapter.RequestDevice], release with [Device.Release].
+//
+// Multi-window / multi-device: each window (or logical GPU context) must own its
+// own Device. Device-lost is sticky per Device only — never process-wide.
+// Native DeviceLost / uncaptured callbacks route via callbackUserdata (slot id).
 type Device struct {
 	handle uintptr
 	limits Limits // cached at request time, returned by Limits() without FFI call
@@ -42,7 +46,11 @@ type Device struct {
 	// WGPUCallbackMode_AllowProcessEvents (webgpu.h) are delivered before
 	// Surface.GetCurrentTexture.
 	instance uintptr
-	// lost is set only by WGPUDeviceLostCallback for this Device.
+	// callbackUserdata is the stable slot id passed as Userdata1 on
+	// DeviceLostCallbackInfo / UncapturedErrorCallbackInfo so multi-device
+	// lost signals mark only this Device.
+	callbackUserdata uintptr
+	// lost is set only for this Device (DeviceLostCallback / uncaptured lost).
 	lost atomic.Bool
 }
 
@@ -66,52 +74,97 @@ type Buffer struct {
 
 // Texture represents a GPU texture resource (1D, 2D, or 3D).
 // Create with [Device.CreateTexture], release with [Texture.Release].
-type Texture struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release/Destroy.
+type Texture struct {
+	handle uintptr
+	device uintptr
+}
 
 // TextureView is a view into a subset of a [Texture], used in bind groups and render passes.
 // Create with [Texture.CreateView], release with [TextureView.Release].
-type TextureView struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type TextureView struct {
+	handle uintptr
+	device uintptr
+}
 
 // Sampler defines how a shader samples a [Texture].
 // Create with [Device.CreateSampler], release with [Sampler.Release].
-type Sampler struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type Sampler struct {
+	handle uintptr
+	device uintptr
+}
 
 // ShaderModule holds compiled shader code (WGSL or SPIR-V).
 // Create with [Device.CreateShaderModuleWGSL], release with [ShaderModule.Release].
-type ShaderModule struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type ShaderModule struct {
+	handle uintptr
+	device uintptr
+}
 
 // BindGroupLayout defines the layout of resource bindings for a shader stage.
 // Create with [Device.CreateBindGroupLayout], release with [BindGroupLayout.Release].
-type BindGroupLayout struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type BindGroupLayout struct {
+	handle uintptr
+	device uintptr
+}
 
 // BindGroup binds actual GPU resources (buffers, textures, samplers) to shader slots.
 // Create with [Device.CreateBindGroup], release with [BindGroup.Release].
-type BindGroup struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type BindGroup struct {
+	handle uintptr
+	device uintptr
+}
 
 // PipelineLayout defines the bind group layouts used by a pipeline.
 // Create with [Device.CreatePipelineLayout], release with [PipelineLayout.Release].
-type PipelineLayout struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type PipelineLayout struct {
+	handle uintptr
+	device uintptr
+}
 
 // RenderPipeline is a compiled render pipeline configuration (shaders, vertex layout, blend state).
 // Create with [Device.CreateRenderPipeline], release with [RenderPipeline.Release].
-type RenderPipeline struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type RenderPipeline struct {
+	handle uintptr
+	device uintptr
+}
 
 // ComputePipeline is a compiled compute pipeline configuration.
 // Create with [Device.CreateComputePipeline], release with [ComputePipeline.Release].
-type ComputePipeline struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type ComputePipeline struct {
+	handle uintptr
+	device uintptr
+}
 
 // CommandEncoder records GPU commands into a [CommandBuffer].
 // Create with [Device.CreateCommandEncoder], finalize with [CommandEncoder.Finish].
-type CommandEncoder struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type CommandEncoder struct {
+	handle uintptr
+	device uintptr
+}
 
 // CommandBuffer holds encoded GPU commands ready for submission via [Queue.Submit].
 // Obtained from [CommandEncoder.Finish], release with [CommandBuffer.Release].
-type CommandBuffer struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type CommandBuffer struct {
+	handle uintptr
+	device uintptr
+}
 
 // RenderPassEncoder records draw commands within a render pass.
 // Begin with [CommandEncoder.BeginRenderPass], end with [RenderPassEncoder.End].
 type RenderPassEncoder struct {
 	handle uintptr
+	device uintptr // parent Device handle for lost-safe Release
 	// last viewport; skip redundant SetViewport (RegisterFunc hot path).
 	vpValid                            bool
 	vpX, vpY, vpW, vpH, vpMinZ, vpMaxZ float32
@@ -119,7 +172,10 @@ type RenderPassEncoder struct {
 
 // ComputePassEncoder records dispatch commands within a compute pass.
 // Begin with [CommandEncoder.BeginComputePass], end with [ComputePassEncoder.End].
-type ComputePassEncoder struct{ handle uintptr }
+type ComputePassEncoder struct {
+	handle uintptr
+	device uintptr // parent Device handle for lost-safe Release
+}
 
 // Surface represents a platform window surface for presenting rendered frames.
 // Create with platform-specific CreateSurface, release with [Surface.Release].
@@ -135,15 +191,27 @@ type Surface struct {
 
 // QuerySet holds a set of GPU queries (occlusion or timestamp).
 // Create with [Device.CreateQuerySet], release with [QuerySet.Release].
-type QuerySet struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release/Destroy.
+type QuerySet struct {
+	handle uintptr
+	device uintptr
+}
 
 // RenderBundle is a pre-recorded set of render commands for efficient replay.
 // Obtained from [RenderBundleEncoder.Finish], release with [RenderBundle.Release].
-type RenderBundle struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type RenderBundle struct {
+	handle uintptr
+	device uintptr
+}
 
 // RenderBundleEncoder records render commands into a [RenderBundle].
 // Create with [Device.CreateRenderBundleEncoder], finalize with [RenderBundleEncoder.Finish].
-type RenderBundleEncoder struct{ handle uintptr }
+// device is the parent Device handle for lost-safe Release.
+type RenderBundleEncoder struct {
+	handle uintptr
+	device uintptr
+}
 
 // DrawIndirectArgs contains arguments for indirect (GPU-driven) draw calls.
 // This struct must be written to a Buffer for use with DrawIndirect.

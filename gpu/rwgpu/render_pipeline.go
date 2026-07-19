@@ -449,7 +449,7 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 	}
 
 	trackResource(handle, "RenderPipeline")
-	return &RenderPipeline{handle: handle}, nil
+	return &RenderPipeline{handle: handle, device: d.handle}, nil
 }
 
 // CreateRenderPipelineSimple creates a simple render pipeline with common defaults.
@@ -489,9 +489,12 @@ func (d *Device) CreateRenderPipelineSimple(
 }
 
 // GetBindGroupLayout returns the bind group layout for the given index.
+// Defense order: nil/zero handle → lost → init → native.
 func (rp *RenderPipeline) GetBindGroupLayout(groupIndex uint32) *BindGroupLayout {
-	mustInit()
 	if rp == nil || rp.handle == 0 {
+		return nil
+	}
+	if isOwnerDeviceLost(rp.device) || checkInit() != nil {
 		return nil
 	}
 	handle, _, _ := procRenderPipelineGetBindGroupLayout.Call(
@@ -502,16 +505,18 @@ func (rp *RenderPipeline) GetBindGroupLayout(groupIndex uint32) *BindGroupLayout
 		return nil
 	}
 	trackResource(handle, "BindGroupLayout")
-	return &BindGroupLayout{handle: handle}
+	return &BindGroupLayout{handle: handle, device: rp.device}
 }
 
 // Release releases the render pipeline.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (rp *RenderPipeline) Release() {
-	if rp.handle != 0 {
-		untrackResource(rp.handle)
-		procRenderPipelineRelease.Call(rp.handle) //nolint:errcheck
-		rp.handle = 0
+	if rp == nil {
+		return
 	}
+	releaseNativeHandle(&rp.handle, isOwnerDeviceLost(rp.device), func(h uintptr) {
+		procRenderPipelineRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle. For advanced use only.

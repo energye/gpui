@@ -43,31 +43,33 @@ func (d *Device) CreateQuerySet(desc *QuerySetDescriptor) (*QuerySet, error) {
 		return nil, &WGPUError{Op: "CreateQuerySet", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "QuerySet")
-	return &QuerySet{handle: handle}, nil
+	return &QuerySet{handle: handle, device: d.handle}, nil
 }
 
 // Destroy destroys the QuerySet, making it invalid.
 // After Destroy the handle is nulled so subsequent ops cannot call native with
 // a wild pointer. Idempotent; a following Release is a no-op.
+// When the parent device is lost, only Go-side state is cleared.
 func (qs *QuerySet) Destroy() {
-	if qs == nil || qs.handle == 0 {
+	if qs == nil {
 		return
 	}
-	mustInit()
-	h := qs.handle
-	procQuerySetDestroy.Call(h) //nolint:errcheck
-	untrackResource(h)
-	procQuerySetRelease.Call(h) //nolint:errcheck
-	qs.handle = 0
+	lost := isOwnerDeviceLost(qs.device)
+	destroyAndReleaseNativeHandle(&qs.handle, lost,
+		func(h uintptr) { procQuerySetDestroy.Call(h) }, //nolint:errcheck
+		func(h uintptr) { procQuerySetRelease.Call(h) }, //nolint:errcheck
+	)
 }
 
 // Release releases the QuerySet reference.
+// Nil-safe and idempotent. Skips native release when the parent device is lost.
 func (qs *QuerySet) Release() {
-	if qs.handle != 0 {
-		untrackResource(qs.handle)
-		procQuerySetRelease.Call(qs.handle) //nolint:errcheck
-		qs.handle = 0
+	if qs == nil {
+		return
 	}
+	releaseNativeHandle(&qs.handle, isOwnerDeviceLost(qs.device), func(h uintptr) {
+		procQuerySetRelease.Call(h) //nolint:errcheck
+	})
 }
 
 // Handle returns the underlying handle. For advanced use only.

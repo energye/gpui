@@ -114,17 +114,20 @@ type RenderPassDescriptor struct {
 // BeginRenderPass begins a render pass.
 // Returns an error if the FFI call fails, encoder is nil, or desc has no color attachments.
 func (enc *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPassEncoder, error) {
-	if err := checkInit(); err != nil {
-		return nil, err
-	}
 	if enc == nil || enc.handle == 0 {
 		return nil, &WGPUError{Op: "BeginRenderPass", Message: "encoder is nil or released"}
+	}
+	if err := refuseIfLost("BeginRenderPass", enc.device); err != nil {
+		return nil, err
 	}
 	if desc == nil {
 		return nil, &WGPUError{Op: "BeginRenderPass", Message: "descriptor is nil"}
 	}
 	if len(desc.ColorAttachments) == 0 {
 		return nil, &WGPUError{Op: "BeginRenderPass", Message: "no color attachments"}
+	}
+	if err := checkInit(); err != nil {
+		return nil, err
 	}
 
 	// Build native color attachments.
@@ -219,13 +222,16 @@ func (enc *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderP
 		return nil, &WGPUError{Op: "BeginRenderPass", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "RenderPassEncoder")
-	return &RenderPassEncoder{handle: handle}, nil
+	return &RenderPassEncoder{handle: handle, device: enc.device}, nil
 }
 
 // SetPipeline sets the render pipeline for this pass.
 func (rpe *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 || pipeline == nil || pipeline.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call2(procRenderPassEncoderSetPipeline, rpe.handle, pipeline.handle)
@@ -237,8 +243,11 @@ func (rpe *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline) {
 // bind-group layouts are incompatible with the previously bound groups
 // (wgpu validates currently-set bind groups against the new pipeline layout).
 func (rpe *RenderPassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, dynamicOffsets []uint32) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 
@@ -261,8 +270,11 @@ func (rpe *RenderPassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, 
 
 // SetVertexBuffer sets a vertex buffer for this pass.
 func (rpe *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, offset, size uint64) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 || buffer == nil || buffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call5(procRenderPassEncoderSetVertexBuffer, rpe.handle, uintptr(slot), buffer.handle, uintptr(offset), uintptr(size))
@@ -271,8 +283,11 @@ func (rpe *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, offse
 
 // SetIndexBuffer sets the index buffer for this pass.
 func (rpe *RenderPassEncoder) SetIndexBuffer(buffer *Buffer, format types.IndexFormat, offset, size uint64) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 || buffer == nil || buffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call5(procRenderPassEncoderSetIndexBuffer, rpe.handle, buffer.handle, uintptr(format), uintptr(offset), uintptr(size))
@@ -281,8 +296,11 @@ func (rpe *RenderPassEncoder) SetIndexBuffer(buffer *Buffer, format types.IndexF
 
 // Draw draws primitives.
 func (rpe *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call5(procRenderPassEncoderDraw, rpe.handle, uintptr(vertexCount), uintptr(instanceCount), uintptr(firstVertex), uintptr(firstInstance))
@@ -290,8 +308,11 @@ func (rpe *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firs
 
 // DrawIndexed draws indexed primitives.
 func (rpe *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call6(procRenderPassEncoderDrawIndexed, rpe.handle, uintptr(indexCount), uintptr(instanceCount), uintptr(firstIndex), uintptr(baseVertex), uintptr(firstInstance))
@@ -304,8 +325,11 @@ func (rpe *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex 
 //   - firstVertex (uint32)
 //   - firstInstance (uint32)
 func (rpe *RenderPassEncoder) DrawIndirect(indirectBuffer *Buffer, indirectOffset uint64) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 || indirectBuffer == nil || indirectBuffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	procRenderPassEncoderDrawIndirect.Call( //nolint:errcheck
@@ -323,8 +347,11 @@ func (rpe *RenderPassEncoder) DrawIndirect(indirectBuffer *Buffer, indirectOffse
 //   - baseVertex (int32)
 //   - firstInstance (uint32)
 func (rpe *RenderPassEncoder) DrawIndexedIndirect(indirectBuffer *Buffer, indirectOffset uint64) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 || indirectBuffer == nil || indirectBuffer.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	procRenderPassEncoderDrawIndexedIndirect.Call( //nolint:errcheck
@@ -339,8 +366,11 @@ func (rpe *RenderPassEncoder) DrawIndexedIndirect(indirectBuffer *Buffer, indire
 // width, height: dimensions of the viewport in pixels
 // minDepth, maxDepth: depth range for the viewport (typically 0.0 to 1.0)
 func (rpe *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	if rpe.vpValid &&
@@ -359,8 +389,11 @@ func (rpe *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDept
 // x, y: top-left corner of the scissor rectangle in pixels
 // width, height: dimensions of the scissor rectangle in pixels
 func (rpe *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call5(procRenderPassEncoderSetScissorRect, rpe.handle, uintptr(x), uintptr(y), uintptr(width), uintptr(height))
@@ -369,8 +402,11 @@ func (rpe *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
 // SetBlendConstant sets the blend constant color used by blend operations.
 // Errors are reported via Device error scopes.
 func (rpe *RenderPassEncoder) SetBlendConstant(color *Color) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 || color == nil {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call2(procRenderPassEncoderSetBlendConstant, rpe.handle, uintptr(unsafe.Pointer(color)))
@@ -379,8 +415,11 @@ func (rpe *RenderPassEncoder) SetBlendConstant(color *Color) {
 
 // SetStencilReference sets the stencil reference value used by stencil operations.
 func (rpe *RenderPassEncoder) SetStencilReference(reference uint32) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call2(procRenderPassEncoderSetStencilReference, rpe.handle, uintptr(reference))
@@ -389,8 +428,11 @@ func (rpe *RenderPassEncoder) SetStencilReference(reference uint32) {
 // InsertDebugMarker inserts a single debug marker label into the render pass.
 // This is useful for GPU debugging tools to identify specific command points.
 func (rpe *RenderPassEncoder) InsertDebugMarker(markerLabel string) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	labelBytes := []byte(markerLabel)
@@ -407,8 +449,11 @@ func (rpe *RenderPassEncoder) InsertDebugMarker(markerLabel string) {
 // PushDebugGroup begins a labeled debug group in the render pass.
 // Use PopDebugGroup to end the group. Groups can be nested.
 func (rpe *RenderPassEncoder) PushDebugGroup(groupLabel string) {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	labelBytes := []byte(groupLabel)
@@ -425,8 +470,11 @@ func (rpe *RenderPassEncoder) PushDebugGroup(groupLabel string) {
 // PopDebugGroup ends the current debug group in the render pass.
 // Must match a preceding PushDebugGroup call.
 func (rpe *RenderPassEncoder) PopDebugGroup() {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	procRenderPassEncoderPopDebugGroup.Call(rpe.handle) //nolint:errcheck
@@ -434,8 +482,11 @@ func (rpe *RenderPassEncoder) PopDebugGroup() {
 
 // End ends the render pass.
 func (rpe *RenderPassEncoder) End() {
-	mustInit()
 	if rpe == nil || rpe.handle == 0 {
+		return
+	}
+
+	if isOwnerDeviceLost(rpe.device) || checkInit() != nil {
 		return
 	}
 	call1(procRenderPassEncoderEnd, rpe.handle)
@@ -444,12 +495,13 @@ func (rpe *RenderPassEncoder) End() {
 
 // Release releases the render pass encoder.
 func (rpe *RenderPassEncoder) Release() {
-	if rpe.handle != 0 {
-		untrackResource(rpe.handle)
-		call1(procRenderPassEncoderRelease, rpe.handle)
-		rpe.handle = 0
-		rpe.vpValid = false
+	if rpe == nil {
+		return
 	}
+	rpe.vpValid = false
+	releaseNativeHandle(&rpe.handle, isOwnerDeviceLost(rpe.device), func(h uintptr) {
+		call1(procRenderPassEncoderRelease, h)
+	})
 }
 
 // Handle returns the underlying handle. For advanced use only.

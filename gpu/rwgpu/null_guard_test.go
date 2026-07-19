@@ -507,7 +507,7 @@ func TestNullGuard_RenderPipeline(t *testing.T) {
 // TestNullGuard_PopErrorScopeAsync tests nil device in PopErrorScopeAsync.
 func TestNullGuard_PopErrorScopeAsync(t *testing.T) {
 	if err := Init(); err != nil {
-		t.Fatalf("wgpu-native not available: %v", err)
+		t.Skipf("wgpu-native not available: %v", err)
 	}
 
 	var d *Device
