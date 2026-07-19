@@ -410,26 +410,37 @@ func main() {
 	rssStart := rssKB()
 	exitReason := "window_close"
 	var (
-		fpsEMA             float64
-		lastFrameEnd       time.Time
-		cpuPctEMA          float64
-		prevCPU            cpuSample
-		havePrevCPU        bool
-		cpuSum             float64
-		cpuSamples         int
-		rssSamples         []int64
-		lastRSS            int64
-		forceFull          = true // first frame + every resize → full clear present
-		lastGuideSizeClass = -1
-		stickyLite         bool
-		lowFPSFrames       int
-		pendW, pendH       = winW, winH
-		havePendSize       bool
-		lastCfgEvent       time.Time
-		pendSizeSince      time.Time
-		nextFrameAt        time.Time // fixed-rate schedule (includes post-work)
-		fixedSize          = animSeconds > 0 || envBool("GPUI_FIXED_SIZE", false)
-		windowMinimized    bool
+		fpsEMA              float64
+		lastFrameEnd        time.Time
+		cpuPctEMA           float64
+		prevCPU             cpuSample
+		havePrevCPU         bool
+		cpuSum              float64
+		cpuSamples          int
+		rssSamples          []int64
+		lastRSS             int64
+		forceFull           = true // first frame + every resize → full clear present
+		lastGuideSizeClass  = -1
+		stickyLite          bool
+		lowFPSFrames        int
+		pendW, pendH        = winW, winH
+		havePendSize        bool
+		lastCfgEvent        time.Time
+		pendSizeSince       time.Time
+		nextFrameAt         time.Time // fixed-rate schedule (includes post-work)
+		fixedSize           = animSeconds > 0 || envBool("GPUI_FIXED_SIZE", false)
+		windowMinimized     bool
+		windowFullyObscured bool
+		// Consecutive soft BeginFrame failures while "visible" (some WMs never
+		// deliver Unmap/Visibility for behind-window cases). Escalates to idle.
+		softAcquireFails  int
+		forceRenderHidden = envBool("GPUI_FORCE_RENDER_WHEN_HIDDEN", false)
+		// Visible-only timing (mature apps pause metrics while minimized):
+		// wall clock keeps running for wallElapsed, but FPS/duration gates use
+		// only time spent actively presenting.
+		hiddenAccum time.Duration
+		hiddenSince time.Time
+		wasHidden   bool
 	)
 	if fixedSize {
 		xw.LockSize(winW, winH)
@@ -444,8 +455,16 @@ func main() {
 			goto done
 		default:
 		}
-		if animSeconds > 0 && time.Since(start) >= time.Duration(animSeconds)*time.Second {
-			log.Printf("duration %ds reached frames=%d scenario=%s", animSeconds, frame, spec.ID)
+		// Pause the soak budget while hidden (Flutter/Chromium/winit pattern:
+		// do not charge wall-clock of minimized time against frame/FPS gates).
+		hiddenNow := hiddenAccum
+		if !hiddenSince.IsZero() {
+			hiddenNow += time.Since(hiddenSince)
+		}
+		visibleElapsed := time.Since(start) - hiddenNow
+		if animSeconds > 0 && visibleElapsed >= time.Duration(animSeconds)*time.Second {
+			log.Printf("duration %ds visible reached frames=%d scenario=%s (wall=%.1fs hidden=%.1fs)",
+				animSeconds, frame, spec.ID, time.Since(start).Seconds(), hiddenNow.Seconds())
 			exitReason = "duration"
 			goto done
 		}
@@ -464,6 +483,16 @@ func main() {
 			if ev.Type == xMapNotify {
 				windowMinimized = false
 				forceFull = true
+				softAcquireFails = 0
+			}
+			if ev.Type == xVisibilityNotify {
+				// Fully obscured by other windows: same risk as minimize —
+				// continuous present against a non-visible surface can lose the device.
+				windowFullyObscured = ev.Visibility == xVisibilityFullyObscured
+				if !windowFullyObscured {
+					forceFull = true
+					softAcquireFails = 0
+				}
 			}
 			// GNOME Iconify: often only WM_STATE→IconicState, no UnmapNotify.
 			if xw.IsWMStateProperty(ev) {
@@ -471,6 +500,7 @@ func main() {
 				windowMinimized = iconic
 				if !iconic {
 					forceFull = true
+					softAcquireFails = 0
 				}
 			}
 			if ev.Type == xConfigureNotify {
@@ -501,23 +531,57 @@ func main() {
 				goto done
 			}
 		}
-		// Idle while minimized/unmapped: do not touch the swapchain.
-		if windowMinimized {
+		// Idle while minimized/unmapped/fully-obscured: do not touch the swapchain.
+		// GPUI_FORCE_RENDER_WHEN_HIDDEN=1 keeps rendering for soak verification only
+		// (library must return Go errors, never native abort).
+		//
+		// Mature pattern (wgpu learn-wgpu, Flutter, Chromium, Skia window hosts):
+		//   visible  → present on vsync
+		//   occluded → skip acquire/present entirely; resume with full redraw
+		hidden := (windowMinimized || windowFullyObscured) && !forceRenderHidden
+		if hidden {
+			if !wasHidden {
+				wasHidden = true
+				hiddenSince = time.Now()
+				log.Printf("window hidden (minimized=%v obscured=%v) — pause present + FPS clock",
+					windowMinimized, windowFullyObscured)
+			}
 			now := time.Now()
 			if nextFrameAt.IsZero() {
 				nextFrameAt = now
 			}
-			deadline := nextFrameAt.Add(frameBudget)
+			// Throttle hard while hidden — no GPU work, just event drain.
+			deadline := nextFrameAt.Add(50 * time.Millisecond)
 			if d := deadline.Sub(now); d > 200*time.Microsecond {
-				pad := 900 * time.Microsecond
-				if d > pad+200*time.Microsecond {
-					time.Sleep(d - pad)
-				}
+				time.Sleep(d)
 			}
 			nextFrameAt = deadline
-			frame++
+			// Still pump callbacks so a late device-lost is observed as sticky
+			// fuse rather than abort on resume.
+			device.FlushCallbacks()
+			if device.IsLost() {
+				log.Printf("GPU device lost while hidden — exiting cleanly")
+				exitReason = "device_lost"
+				goto done
+			}
 			continue
 		}
+		// Transition hidden → visible: credit hidden time, force full present.
+		if wasHidden {
+			if !hiddenSince.IsZero() {
+				hiddenAccum += time.Since(hiddenSince)
+				hiddenSince = time.Time{}
+			}
+			wasHidden = false
+			forceFull = true
+			softAcquireFails = 0
+			nextFrameAt = time.Time{}  // resync pace after resume
+			lastFrameEnd = time.Time{} // do not let hidden gap crush instFPS/EMA
+			sc.MarkNeedsReconfigure()
+			log.Printf("window visible again — resume present (hidden_total=%.1fs)", hiddenAccum.Seconds())
+		}
+		// Always flush pending device-lost callbacks before any GPU present work.
+		device.FlushCallbacks()
 		if device.IsLost() {
 			log.Printf("GPU device lost — exiting cleanly (avoid native abort)")
 			exitReason = "device_lost"
@@ -556,7 +620,15 @@ func main() {
 			}
 		}
 
-		t := time.Since(start).Seconds()
+		// Animation clock excludes hidden idle (same basis as FPS duration).
+		hidNow := hiddenAccum
+		if !hiddenSince.IsZero() {
+			hidNow += time.Since(hiddenSince)
+		}
+		t := time.Since(start).Seconds() - hidNow.Seconds()
+		if t < 0 {
+			t = 0
+		}
 		scene.tick(t, frame, rng)
 
 		// Adaptive quality: large surfaces (more pixels) or FPS pressure → lite path.
@@ -659,9 +731,26 @@ func main() {
 			}
 			if errors.Is(err, webgpu.ErrSurfaceOccluded) || errors.Is(err, webgpu.ErrTimeout) {
 				// Minimized/covered or present timeout: idle without Resize.
-				windowMinimized = errors.Is(err, webgpu.ErrSurfaceOccluded)
+				if errors.Is(err, webgpu.ErrSurfaceOccluded) {
+					windowFullyObscured = true
+				}
+				softAcquireFails++
+				if softAcquireFails >= 30 {
+					// WM never sent Unmap/Visibility but acquire keeps failing —
+					// enter hidden idle to protect the device.
+					windowFullyObscured = true
+					log.Printf("BeginFrame soft fails=%d — enter hidden idle", softAcquireFails)
+				}
 				forceFull = true
 				time.Sleep(8 * time.Millisecond)
+				continue
+			}
+			softAcquireFails++
+			if softAcquireFails >= 60 {
+				windowFullyObscured = true
+				log.Printf("BeginFrame soft fails=%d — enter hidden idle (protect device)", softAcquireFails)
+				forceFull = true
+				time.Sleep(16 * time.Millisecond)
 				continue
 			}
 			if fixedSize {
@@ -684,6 +773,7 @@ func main() {
 			time.Sleep(2 * time.Millisecond)
 			continue
 		}
+		softAcquireFails = 0
 		present := func() error { return sc.EndFrame(fb) }
 		// Default: full present for continuous animation (avoids LoadOpLoad flash on iGPU).
 		// S19 DamagePartialPresent deliberately exercises PresentFrameAuto with dirty rects.
@@ -692,13 +782,29 @@ func main() {
 			out, err := dc.PresentFrameAuto(fb.Handle, fb.Width, fb.Height, present)
 			if err != nil {
 				sc.DiscardFrame(fb)
-				log.Fatalf("PresentFrameAuto: %v", err)
+				if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() || strings.Contains(err.Error(), "device lost") {
+					log.Printf("PresentFrameAuto: %v — device lost, exiting cleanly", err)
+					exitReason = "device_lost"
+					goto done
+				}
+				log.Printf("PresentFrameAuto: %v — skip frame", err)
+				forceFull = true
+				time.Sleep(2 * time.Millisecond)
+				continue
 			}
 			if out.Idle {
 				// Never freeze the window: force a tiny present if planner idled.
 				if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
 					sc.DiscardFrame(fb)
-					log.Fatalf("PresentFrameFull(idle-fallback): %v", err)
+					if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() || strings.Contains(err.Error(), "device lost") {
+						log.Printf("PresentFrameFull(idle-fallback): %v — device lost, exiting cleanly", err)
+						exitReason = "device_lost"
+						goto done
+					}
+					log.Printf("PresentFrameFull(idle-fallback): %v — skip frame", err)
+					forceFull = true
+					time.Sleep(2 * time.Millisecond)
+					continue
 				}
 				hud.PresentMode = "full(idle-fallback)"
 			} else {
@@ -710,7 +816,15 @@ func main() {
 			}
 			if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
 				sc.DiscardFrame(fb)
-				log.Fatalf("PresentFrameFull: %v", err)
+				if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() || strings.Contains(err.Error(), "device lost") {
+					log.Printf("PresentFrameFull: %v — device lost, exiting cleanly", err)
+					exitReason = "device_lost"
+					goto done
+				}
+				log.Printf("PresentFrameFull: %v — skip frame", err)
+				forceFull = true
+				time.Sleep(2 * time.Millisecond)
+				continue
 			}
 			if !damagePresent {
 				hud.PresentMode = sc.PresentModeName()
@@ -761,13 +875,23 @@ func main() {
 		if logEvery > 0 && frame%logEvery == 0 {
 			st := dc.RenderPathStats()
 			sst := sc.Stats()
-			elapsed := time.Since(start).Seconds()
-			avgFPS := float64(frame) / math.Max(elapsed, 1e-6)
+			// Mid-run avg must use visible time only — wall clock includes
+			// minimized/occluded idle and would falsely collapse avgFPS.
+			hid := hiddenAccum
+			if !hiddenSince.IsZero() {
+				hid += time.Since(hiddenSince)
+			}
+			elapsedWall := time.Since(start).Seconds()
+			elapsedVis := elapsedWall - hid.Seconds()
+			if elapsedVis < 1e-6 {
+				elapsedVis = elapsedWall
+			}
+			avgFPS := float64(frame) / math.Max(elapsedVis, 1e-6)
 			ncpu := hostCPUCount()
 			machCPU := cpuPctEMA / float64(ncpu)
 			log.Printf("scenario=%s frame=%d fps≈%.1f avg=%.1f work=%.1fms proc_cpu_1core≈%.0f%% proc_cpu_machine≈%.0f%%(/%dcores) size=%dx%d proc_rss=%dKB gpu_ops=%d cpu_fb=%d last_fb=%q presents=%d active=[%s]",
 				spec.ID, frame, fpsEMA, avgFPS, workMS, cpuPctEMA, machCPU, ncpu, winW, winH, curRSS, st.GPUOps, st.CPUFallbackOps, st.LastCPUFallbackReason, sst.Presents, active.Summary())
-			metrics.write(spec.ID, elapsed, frame, fpsEMA, avgFPS, workMS, cpuPctEMA, curRSS, st.GPUOps, st.CPUFallbackOps, st.LastCPUFallbackReason, int(sst.Presents), int(sst.Reconfigures), active.Summary())
+			metrics.write(spec.ID, elapsedVis, frame, fpsEMA, avgFPS, workMS, cpuPctEMA, curRSS, st.GPUOps, st.CPUFallbackOps, st.LastCPUFallbackReason, int(sst.Presents), int(sst.Reconfigures), active.Summary())
 		}
 
 		// Fixed-rate pacing AFTER all end-of-frame work (CPU/RSS/metrics).
@@ -821,8 +945,18 @@ func main() {
 done:
 	st := dc.RenderPathStats()
 	sst := sc.Stats()
-	elapsed := time.Since(start).Seconds()
-	avgFPS := float64(frame) / math.Max(elapsed, 1e-6)
+	// Finalize any in-progress hidden interval so metrics exclude it.
+	if !hiddenSince.IsZero() {
+		hiddenAccum += time.Since(hiddenSince)
+		hiddenSince = time.Time{}
+	}
+	elapsedWall := time.Since(start).Seconds()
+	elapsedVisible := elapsedWall - hiddenAccum.Seconds()
+	if elapsedVisible < 1e-6 {
+		elapsedVisible = elapsedWall
+	}
+	elapsed := elapsedVisible // gates / result "seconds" = visible render time
+	avgFPS := float64(frame) / math.Max(elapsedVisible, 1e-6)
 	cpuAvg := 0.0
 	if cpuSamples > 0 {
 		cpuAvg = cpuSum / float64(cpuSamples)
@@ -851,8 +985,8 @@ done:
 	res.Status, res.FailReason = judgeResult(res, targetFPS)
 	writeResult(resultPath, res)
 	ncpuDone := hostCPUCount()
-	fmt.Printf("done scenario=%s status=%s reason=%q frames=%d elapsed=%.1fs fps≈%.1f avg=%.1f proc_cpu_1core≈%.0f%% proc_cpu_machine≈%.0f%%(/%dcores) proc_rss %d→%dKB steady_delta=%dKB %s presents=%d reconfig=%d exit=%s feats=[%s]\n",
-		spec.ID, res.Status, res.FailReason, frame, elapsed, fpsEMA, avgFPS, cpuAvg, cpuAvg/float64(ncpuDone), ncpuDone, rssStart, rssEnd, steadyDelta, st.LogLine(),
+	fmt.Printf("done scenario=%s status=%s reason=%q frames=%d elapsed=%.1fs wall=%.1fs hidden=%.1fs fps≈%.1f avg=%.1f proc_cpu_1core≈%.0f%% proc_cpu_machine≈%.0f%%(/%dcores) proc_rss %d→%dKB steady_delta=%dKB %s presents=%d reconfig=%d exit=%s feats=[%s]\n",
+		spec.ID, res.Status, res.FailReason, frame, elapsed, elapsedWall, hiddenAccum.Seconds(), fpsEMA, avgFPS, cpuAvg, cpuAvg/float64(ncpuDone), ncpuDone, rssStart, rssEnd, steadyDelta, st.LogLine(),
 		sst.Presents, sst.Reconfigures, exitReason, Features.Summary())
 	if res.Status != "PASS" {
 		os.Exit(2)
@@ -2471,15 +2605,22 @@ func max(a, b int) int {
 // ---------- X11 ----------
 
 const (
-	xUnmapNotify     = 18
-	xMapNotify       = 19
-	xConfigureNotify = 22
-	xPropertyNotify  = 28
-	xClientMessage   = 33
-	xStructureNotify = int64(1 << 17)
-	xExposureMask    = int64(1 << 15)
+	xVisibilityNotify = 15
+	xUnmapNotify      = 18
+	xMapNotify        = 19
+	xConfigureNotify  = 22
+	xPropertyNotify   = 28
+	xClientMessage    = 33
+	xStructureNotify  = int64(1 << 17)
+	xExposureMask     = int64(1 << 15)
+	// VisibilityChangeMask: FullyObscured when covered by other windows.
+	xVisibilityChangeMask = int64(1 << 16)
 	// PropertyChangeMask: GNOME Iconify often sets WM_STATE without UnmapNotify.
 	xPropertyChangeMask = int64(1 << 22)
+
+	xVisibilityUnobscured        = 0
+	xVisibilityPartiallyObscured = 1
+	xVisibilityFullyObscured     = 2
 
 	xWMStateWithdrawn = 0
 	xWMStateNormal    = 1
@@ -2490,6 +2631,7 @@ type x11Event struct {
 	Type          int
 	Width, Height int
 	Atom          uintptr
+	Visibility    int // VisibilityNotify state
 	raw           [192]byte
 }
 
@@ -2582,6 +2724,10 @@ func (w *x11Win) NextEvent() x11Event {
 	if ev.Type == xPropertyNotify {
 		// LP64 XPropertyEvent: atom@40
 		ev.Atom = *(*uintptr)(unsafe.Pointer(&ev.raw[40]))
+	}
+	if ev.Type == xVisibilityNotify {
+		// LP64 XVisibilityEvent: state@40 (int)
+		ev.Visibility = int(*(*int32)(unsafe.Pointer(&ev.raw[40])))
 	}
 	return ev
 }
@@ -2681,8 +2827,8 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	}
 	name := append([]byte(title), 0)
 	xStoreName(dpy, win, &name[0])
-	// PropertyChangeMask: GNOME Iconify updates WM_STATE without UnmapNotify.
-	xSelectInput(dpy, win, xStructureNotify|xExposureMask|xPropertyChangeMask)
+	// Structure/Expose + Property (GNOME Iconify) + Visibility (covered by other windows).
+	xSelectInput(dpy, win, xStructureNotify|xExposureMask|xPropertyChangeMask|xVisibilityChangeMask)
 
 	atomName := append([]byte("WM_DELETE_WINDOW"), 0)
 	delAtom := xInternAtom(dpy, &atomName[0], 0)

@@ -453,12 +453,31 @@ func (d *Device) WaitIdle() error {
 	return nil
 }
 
-// Poll drives the per-device pending-map triage loop.
+// Poll drives the per-device pending-map triage loop and pumps instance
+// callbacks when available (device-lost / map async). Prefer calling Poll
+// (or Instance.ProcessEvents) once per frame before Swapchain.BeginFrame.
 func (d *Device) Poll(pollType PollType) bool {
 	if d == nil || d.r == nil {
 		return false
 	}
+	if d.instance != nil {
+		d.instance.ProcessEvents()
+	}
 	return d.r.Poll(pollType == PollWait)
+}
+
+// FlushCallbacks pumps pending wgpu callbacks for this device's instance
+// without blocking on GPU work. Safe on nil / released / lost devices.
+func (d *Device) FlushCallbacks() {
+	if d == nil || d.released {
+		return
+	}
+	if d.instance != nil {
+		d.instance.ProcessEvents()
+	}
+	if d.r != nil && !d.r.IsLost() {
+		_ = d.r.Poll(false)
+	}
 }
 
 // IsLost reports whether the underlying GPU device has been lost.

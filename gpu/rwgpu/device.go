@@ -129,6 +129,13 @@ func markDeviceLost(handle uintptr) {
 	lostDevices.Store(handle, true)
 }
 
+// clearDeviceLostSticky clears only the process-wide sticky fuse.
+// Used after a successful RequestDevice so a new device can proceed.
+// Per-handle entries in lostDevices are intentionally retained.
+func clearDeviceLostSticky() {
+	deviceLostSticky.Store(false)
+}
+
 // IsDeviceHandleLost reports whether the given native device handle has been lost.
 func IsDeviceHandleLost(handle uintptr) bool {
 	if deviceLostSticky.Load() {
@@ -203,17 +210,23 @@ func deviceLostHandler(devicePtr, reason, messageData, messageLength, _, _ uintp
 // markDeviceFromCallbackArg extracts a WGPUDevice handle from the C callback's
 // first argument. webgpu.h passes WGPUDevice const* (pointer-to-handle); some
 // purego/ABI paths may pass the handle value directly — mark both candidates.
+//
+// Always trips the process sticky fuse even when devicePtr is null. Native
+// GetCurrentTexture aborts with "Parent device is lost" once the device is
+// lost; refusing all further native surface ops is safer than SIGABRT.
 func markDeviceFromCallbackArg(devicePtr uintptr) {
+	// Always sticky first — null devicePtr still means "device is gone".
+	deviceLostSticky.Store(true)
 	if devicePtr == 0 {
 		return
 	}
-	// Prefer *WGPUDevice dereference (spec-correct).
+	// Spec: WGPUDevice const* — prefer dereference when non-null.
 	h := *(*uintptr)(ptrFromUintptr(devicePtr))
 	if h != 0 {
-		markDeviceLost(h)
+		lostDevices.Store(h, true)
 	}
-	// Fallback: treat arg as the handle itself.
-	markDeviceLost(devicePtr)
+	// purego/ABI fallback: treat arg as the handle itself.
+	lostDevices.Store(devicePtr, true)
 }
 
 func looksLikeDeviceLost(msg string) bool {
@@ -315,6 +328,10 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 		}
 		if req.device != nil {
 			req.device.limits = fetchDeviceLimits(req.device.handle)
+			// New device is healthy: clear process sticky fuse so apps can recover
+			// after a prior device-lost by calling RequestDevice again.
+			// Per-handle lost map entries for old handles remain (old devices stay dead).
+			clearDeviceLostSticky()
 		}
 		return req.device, nil
 	default:

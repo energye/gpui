@@ -7,6 +7,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"log"
@@ -238,9 +239,22 @@ func main() {
 		}
 
 		// Present via swapchain BeginFrame/EndFrame
+		device.FlushCallbacks()
+		if device.IsLost() {
+			log.Printf("GPU device lost — exit cleanly")
+			exitReason = "device_lost"
+			running = false
+			continue
+		}
 		fb, err := sc.BeginFrame()
 		if err != nil {
 			log.Printf("BeginFrame: %v — skip frame", err)
+			if errors.Is(err, webgpu.ErrDeviceLost) || device.IsLost() {
+				log.Printf("GPU device lost — exit cleanly")
+				exitReason = "device_lost"
+				running = false
+				continue
+			}
 			time.Sleep(2 * time.Millisecond)
 			continue
 		}

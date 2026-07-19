@@ -186,3 +186,12 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 ../../scripts/run_mem_guard.sh daily   # + unit + mem 矩阵 + LONG 180s + 性能抽样
 ../../scripts/run_mem_guard.sh deep    # LONG 600s
 ```
+
+
+## 窗口隐藏 / 遮挡
+
+- 最小化（Unmap / WM_STATE Iconic）与 **Visibility FullyObscured** 时进入 idle，不调用 `BeginFrame`
+- `device.FlushCallbacks()` 每帧泵送 device-lost 回调
+- 恢复可见：`MarkNeedsReconfigure` + 跳过一帧 FPS 采样 + 重同步 pacing
+- `GPUI_ANIM_SECONDS` / `fps_avg` 使用**可见时间**（扣除 hidden idle），避免最小化拉低 avg 导致假 FAIL
+- `GPUI_FORCE_RENDER_WHEN_HIDDEN=1` 或 `GPUI_FORCE_RENDER_WHEN_UNMAPPED=1` 可强制在隐藏时继续渲染（仅压测库错误路径）

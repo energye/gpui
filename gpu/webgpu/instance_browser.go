@@ -76,6 +76,9 @@ func (i *Instance) RequestAdapter(opts *RequestAdapterOptions) (*Adapter, error)
 // CreateSurface and CreateSurfaceFromCanvas are defined in surface_browser.go.
 
 // Release releases the instance and all associated resources.
+// ProcessEvents is a no-op on the browser backend (callbacks are event-loop driven).
+func (i *Instance) ProcessEvents() {}
+
 func (i *Instance) Release() {
 	if i.released {
 		return

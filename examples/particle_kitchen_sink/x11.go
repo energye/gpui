@@ -14,15 +14,22 @@ import (
 // ---------- X11 ----------
 
 const (
-	xUnmapNotify     = 18
-	xMapNotify       = 19
-	xConfigureNotify = 22
-	xPropertyNotify  = 28
-	xClientMessage   = 33
-	xStructureNotify = int64(1 << 17)
-	xExposureMask    = int64(1 << 15)
+	xVisibilityNotify = 15
+	xUnmapNotify      = 18
+	xMapNotify        = 19
+	xConfigureNotify  = 22
+	xPropertyNotify   = 28
+	xClientMessage    = 33
+	xStructureNotify  = int64(1 << 17)
+	xExposureMask     = int64(1 << 15)
+	// VisibilityChangeMask: FullyObscured when covered by other windows.
+	xVisibilityChangeMask = int64(1 << 16)
 	// PropertyChangeMask: GNOME Iconify often sets WM_STATE without UnmapNotify.
 	xPropertyChangeMask = int64(1 << 22)
+
+	xVisibilityUnobscured        = 0
+	xVisibilityPartiallyObscured = 1
+	xVisibilityFullyObscured     = 2
 
 	// ICCCM WM_STATE values.
 	xWMStateWithdrawn = 0
@@ -35,7 +42,9 @@ type x11Event struct {
 	Width, Height int
 	// Atom is set for PropertyNotify (property atom).
 	Atom uintptr
-	raw  [192]byte
+	// Visibility is set for VisibilityNotify (XVisibilityEvent.state).
+	Visibility int
+	raw        [192]byte
 }
 
 type x11Win struct {
@@ -146,6 +155,10 @@ func (w *x11Win) NextEvent() x11Event {
 		// LP64 XPropertyEvent: atom@40
 		ev.Atom = *(*uintptr)(unsafe.Pointer(&ev.raw[40]))
 	}
+	if ev.Type == xVisibilityNotify {
+		// LP64 XVisibilityEvent: state@40 (int)
+		ev.Visibility = int(*(*int32)(unsafe.Pointer(&ev.raw[40])))
+	}
 	return ev
 }
 
@@ -250,7 +263,7 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	name := append([]byte(title), 0)
 	xStoreName(dpy, win, &name[0])
 	// PropertyChangeMask: GNOME Iconify updates WM_STATE without UnmapNotify.
-	xSelectInput(dpy, win, xStructureNotify|xExposureMask|xPropertyChangeMask)
+	xSelectInput(dpy, win, xStructureNotify|xExposureMask|xPropertyChangeMask|xVisibilityChangeMask)
 
 	atomName := append([]byte("WM_DELETE_WINDOW"), 0)
 	delAtom := xInternAtom(dpy, &atomName[0], 0)

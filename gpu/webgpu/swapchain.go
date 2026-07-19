@@ -326,6 +326,16 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		}
 	}
 
+	// Pump device-lost / uncaptured callbacks before native acquire. Without
+	// this, a spontaneous device-lost (common after minimize / long occlude)
+	// may not set the sticky fuse until after GetCurrentTexture aborts.
+	if sc.Device != nil {
+		sc.Device.FlushCallbacks()
+		if sc.Device.IsLost() || rwgpu.AnyDeviceLost() {
+			return nil, ErrDeviceLost
+		}
+	}
+
 	t0 := time.Now()
 	st, suboptimal, err := sc.Surface.GetCurrentTexture()
 	if err != nil {

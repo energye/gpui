@@ -203,3 +203,30 @@ GPUI_SCENARIO=S12 GPUI_TARGET_FPS=60 GPUI_ANIM_LOG_EVERY=30 GPUI_ANIM_SECONDS=90
 | `GPUI_SOAK_HEAVY_SECONDS` | heavy 场景秒数，默认 300 |
 | `GPUI_SOAK_OUT` | 输出目录，默认 `/tmp/mem_anim_soak_YYYYMMDD_HHMMSS` |
 
+
+
+## 窗口后台 / 最小化稳定性
+
+示例会在以下状态**停止**调用 swapchain `BeginFrame` / `GetCurrentTexture`，避免 native `Parent device is lost` 崩溃：
+
+- `UnmapNotify` / GNOME `WM_STATE` Iconic（最小化）
+- `VisibilityNotify` FullyObscured（被其他窗口完全遮挡）
+- 连续 surface 获取失败（WM 未发可见性事件时的兜底 idle）
+
+每帧在 present 前调用 `device.FlushCallbacks()`，确保 device-lost 回调先于 native acquire 落地为 Go 错误。
+
+恢复可见时会 `MarkNeedsReconfigure()` + 全量 redraw，并重置帧间 FPS 采样，避免最小化期间的长间隙把 `fps_ema` 压垮。
+
+### 可见时间指标（避免误 FAIL）
+
+`GPUI_ANIM_SECONDS`、`fps_avg` 与 `done` 判定使用**可见渲染时间**（wall − 最小化/遮挡 idle），与 Flutter / Chromium 后台暂停 metrics 的做法一致。
+
+最小化约一半时长时，不应再出现 `avg≈25` / `fps_low_avg` 假失败；`done` 行会额外打印 `wall=` / `hidden=` 便于核对。
+
+调试用（默认关闭）：
+
+```bash
+GPUI_FORCE_RENDER_WHEN_HIDDEN=1  # 隐藏时仍尝试渲染（仅用于验证库错误路径）
+```
+
+device lost 时进程**干净退出**（`exit_reason=device_lost`），不再 SIGABRT。

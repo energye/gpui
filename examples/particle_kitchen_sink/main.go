@@ -205,57 +205,65 @@ func main() {
 	rssStart := rssKB()
 	exitReason := "window_close"
 	var (
-		fpsEMA            float64
-		fpsMin            float64
-		fpsMax            float64
-		lastFrameEnd      time.Time
-		cpuPctEMA         float64
-		prevCPU           cpuSample
-		havePrevCPU       bool
-		cpuSum            float64
-		cpuSamples        int
-		rssSamples        []int64
-		lastRSS           int64
-		gpuOpsLast        int
-		cpuFBLast         int
-		lastFB            string
-		presents          int
-		presentErrors     int
-		presentErrResize  int
-		presentErrSteady  int
-		lastPresentErr    string
-		resizeEvents      int
-		recoverFails      int
-		resizeGrace       int // frames remaining that count as resize-side errors
-		postResizeOK      int // successful presents after last resize
-		awaitRecover      bool
-		probeOKFlag       bool
-		probeNote         string
-		probeChecked      bool
-		contentOKFlag     bool
-		contentNote       string
-		contentChecked    bool
-		pixelOKFlag       bool
-		pixelNote         string
-		pixelSamples      string
-		pixelChecked      bool
-		stageSigOK        bool
-		stageSigNote      string
-		stageSigChecked   bool
-		sigSamples        int
-		sigFails          int
-		markersLast       int
-		steadyStart       time.Time
-		steadyFrame0      int
-		haveSteady        bool
-		resizePhase       int
-		lowFPSCount       int
-		instFPSCount      int
-		skipFPSSample     bool // true after harness dig: next present interval includes dig wall time
-		instFPSSamples    []float64
-		nextFrameDeadline time.Time
-		windowMinimized   bool
-		deviceLostFrames  int
+		fpsEMA              float64
+		fpsMin              float64
+		fpsMax              float64
+		lastFrameEnd        time.Time
+		cpuPctEMA           float64
+		prevCPU             cpuSample
+		havePrevCPU         bool
+		cpuSum              float64
+		cpuSamples          int
+		rssSamples          []int64
+		lastRSS             int64
+		gpuOpsLast          int
+		cpuFBLast           int
+		lastFB              string
+		presents            int
+		presentErrors       int
+		presentErrResize    int
+		presentErrSteady    int
+		lastPresentErr      string
+		resizeEvents        int
+		recoverFails        int
+		resizeGrace         int // frames remaining that count as resize-side errors
+		postResizeOK        int // successful presents after last resize
+		awaitRecover        bool
+		probeOKFlag         bool
+		probeNote           string
+		probeChecked        bool
+		contentOKFlag       bool
+		contentNote         string
+		contentChecked      bool
+		pixelOKFlag         bool
+		pixelNote           string
+		pixelSamples        string
+		pixelChecked        bool
+		stageSigOK          bool
+		stageSigNote        string
+		stageSigChecked     bool
+		sigSamples          int
+		sigFails            int
+		markersLast         int
+		steadyStart         time.Time
+		steadyFrame0        int
+		haveSteady          bool
+		resizePhase         int
+		lowFPSCount         int
+		instFPSCount        int
+		skipFPSSample       bool // true after harness dig: next present interval includes dig wall time
+		instFPSSamples      []float64
+		nextFrameDeadline   time.Time
+		windowMinimized     bool
+		windowFullyObscured bool
+		deviceLostFrames    int
+		softAcquireFails    int
+		// Visible-only timing: minimize/occlude must not charge wall-clock against
+		// FPS/duration gates (same policy as mem_anim_window / Flutter / Chromium).
+		hiddenAccum    time.Duration
+		hiddenSince    time.Time
+		wasHidden      bool
+		hiddenAtSteady time.Duration
 	)
 	rssSamples = make([]int64, 0, 256)
 	instFPSSamples = make([]float64, 0, 4096)
@@ -270,7 +278,14 @@ func main() {
 			continue
 		default:
 		}
-		if animSeconds > 0 && time.Since(start) >= time.Duration(animSeconds)*time.Second {
+		hiddenNow := hiddenAccum
+		if !hiddenSince.IsZero() {
+			hiddenNow += time.Since(hiddenSince)
+		}
+		visibleElapsed := time.Since(start) - hiddenNow
+		if animSeconds > 0 && visibleElapsed >= time.Duration(animSeconds)*time.Second {
+			log.Printf("duration %ds visible reached frames=%d (wall=%.1fs hidden=%.1fs)",
+				animSeconds, frame, time.Since(start).Seconds(), hiddenNow.Seconds())
 			running = false
 			exitReason = "timeout"
 			continue
@@ -290,12 +305,20 @@ func main() {
 			}
 			if ev.Type == xMapNotify {
 				windowMinimized = false
+				softAcquireFails = 0
+			}
+			if ev.Type == xVisibilityNotify {
+				windowFullyObscured = ev.Visibility == xVisibilityFullyObscured
+				if !windowFullyObscured {
+					softAcquireFails = 0
+				}
 			}
 			// GNOME Iconify: often only WM_STATE→IconicState, no UnmapNotify.
 			if xw.IsWMStateProperty(ev) {
 				windowMinimized = xw.IsIconic()
 				if !windowMinimized {
 					// Restored from iconify: force a clean present next frame.
+					softAcquireFails = 0
 				}
 			}
 			if ev.Type == xConfigureNotify && !lockSize {
@@ -336,11 +359,50 @@ func main() {
 		if !running {
 			break
 		}
-		// Idle while minimized/unmapped: do not touch the swapchain.
-		// GPUI_FORCE_RENDER_WHEN_UNMAPPED=1 keeps BeginFrame (library must return
-		// Go errors, never native abort) — for soak verification only.
-		if windowMinimized && !envBool("GPUI_FORCE_RENDER_WHEN_UNMAPPED", false) {
-			time.Sleep(16 * time.Millisecond)
+		// Idle while minimized/unmapped/fully-obscured: do not touch the swapchain.
+		// GPUI_FORCE_RENDER_WHEN_UNMAPPED / GPUI_FORCE_RENDER_WHEN_HIDDEN keep
+		// BeginFrame for soak verification only (library must never native abort).
+		//
+		// Mature pattern (winit/wgpu, Flutter, Chromium, Skia hosts):
+		//   visible  → present on vsync
+		//   occluded → skip acquire/present; resume with clean redraw
+		forceHidden := envBool("GPUI_FORCE_RENDER_WHEN_UNMAPPED", false) || envBool("GPUI_FORCE_RENDER_WHEN_HIDDEN", false)
+		hidden := (windowMinimized || windowFullyObscured) && !forceHidden
+		if hidden {
+			if !wasHidden {
+				wasHidden = true
+				hiddenSince = time.Now()
+				log.Printf("window hidden (minimized=%v obscured=%v) — pause present + FPS clock",
+					windowMinimized, windowFullyObscured)
+			}
+			device.FlushCallbacks()
+			if device.IsLost() {
+				log.Printf("GPU device lost while hidden — exiting cleanly")
+				exitReason = "device_lost"
+				running = false
+				continue
+			}
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if wasHidden {
+			if !hiddenSince.IsZero() {
+				hiddenAccum += time.Since(hiddenSince)
+				hiddenSince = time.Time{}
+			}
+			wasHidden = false
+			softAcquireFails = 0
+			deviceLostFrames = 0
+			nextFrameDeadline = time.Time{} // resync pace after resume
+			skipFPSSample = true            // do not let hidden gap crush instFPS
+			sc.MarkNeedsReconfigure()
+			log.Printf("window visible again — resume present (hidden_total=%.1fs)", hiddenAccum.Seconds())
+		}
+		device.FlushCallbacks()
+		if device.IsLost() {
+			log.Printf("GPU device lost — exiting cleanly (avoid native abort)")
+			exitReason = "device_lost"
+			running = false
 			continue
 		}
 
@@ -384,7 +446,14 @@ func main() {
 		}
 
 		fw, fh := float64(winW), float64(winH)
-		t := time.Since(start).Seconds()
+		hidNow := hiddenAccum
+		if !hiddenSince.IsZero() {
+			hidNow += time.Since(hiddenSince)
+		}
+		t := time.Since(start).Seconds() - hidNow.Seconds()
+		if t < 0 {
+			t = 0
+		}
 		_, _, sw, sh = stageRect(fw, fh, cfg.Region)
 		sim.step(1.0/float64(targetFPS), sw, sh)
 
@@ -412,19 +481,29 @@ func main() {
 				continue
 			}
 			// Occluded / Timeout: library already refuses reconfigure; idle.
-			// Some WMs minimize without UnmapNotify — treat Occluded as minimized.
+			// Some WMs minimize without UnmapNotify — treat Occluded as fully obscured.
 			if errors.Is(err, webgpu.ErrSurfaceOccluded) {
-				windowMinimized = true
+				windowFullyObscured = true
 				deviceLostFrames = 0
+				softAcquireFails++
 				time.Sleep(8 * time.Millisecond)
 				continue
 			}
 			if errors.Is(err, webgpu.ErrTimeout) {
 				deviceLostFrames = 0
+				softAcquireFails++
+				if softAcquireFails >= 60 {
+					windowFullyObscured = true
+				}
 				time.Sleep(2 * time.Millisecond)
 				continue
 			}
 			deviceLostFrames = 0
+			softAcquireFails++
+			if softAcquireFails >= 90 {
+				windowFullyObscured = true
+				log.Printf("BeginFrame soft fails=%d — enter hidden idle", softAcquireFails)
+			}
 			if resizeGrace > 0 {
 				presentErrResize++
 				resizeGrace--
@@ -435,6 +514,7 @@ func main() {
 			continue
 		}
 		deviceLostFrames = 0
+		softAcquireFails = 0
 		present := func() error { return sc.EndFrame(fb) }
 		if err := dc.PresentFrameFull(fb.Handle, fb.Width, fb.Height, present); err != nil {
 			sc.DiscardFrame(fb)
@@ -575,6 +655,7 @@ func main() {
 			haveSteady = true
 			steadyStart = time.Now()
 			steadyFrame0 = frame
+			hiddenAtSteady = hiddenAccum
 		}
 		if logEvery > 0 && frame%logEvery == 0 {
 			msg := fmt.Sprintf("%s frame=%d fps=%.1f cpu=%.1f%% rss=%dKB gpu_ops=%d cpu_fb=%d n=%d feats=%s probe=%v content=%v markers=%d",
@@ -615,13 +696,24 @@ func main() {
 		}
 	}
 
-	elapsed := time.Since(start).Seconds()
-	if elapsed < 1e-6 {
-		elapsed = 1e-6
+	// Finalize any in-progress hidden interval so metrics exclude it.
+	if !hiddenSince.IsZero() {
+		hiddenAccum += time.Since(hiddenSince)
+		hiddenSince = time.Time{}
 	}
+	elapsedWall := time.Since(start).Seconds()
+	elapsedVisible := elapsedWall - hiddenAccum.Seconds()
+	if elapsedVisible < 1e-6 {
+		elapsedVisible = elapsedWall
+	}
+	if elapsedVisible < 1e-6 {
+		elapsedVisible = 1e-6
+	}
+	elapsed := elapsedVisible // FPS/duration gates use visible present time only
 	fpsAvg := float64(frame) / elapsed
 	if haveSteady {
-		se := time.Since(steadyStart).Seconds()
+		// Steady avg excludes warmup AND minimized/occluded idle after steady start.
+		se := time.Since(steadyStart).Seconds() - (hiddenAccum - hiddenAtSteady).Seconds()
 		if se > 1e-3 {
 			sf := frame - steadyFrame0
 			if sf > 0 {

@@ -307,6 +307,9 @@ func (d *Device) WaitIdle() error {
 // tracked the same way as wgpu-native).
 func (d *Device) IsLost() bool { return false }
 
+// FlushCallbacks is a no-op on the browser backend.
+func (d *Device) FlushCallbacks() {}
+
 func (d *Device) Poll(pollType PollType) bool {
 	return true
 }

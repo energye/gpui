@@ -217,9 +217,14 @@ func prepareQueueCall(op string, q *Queue) error {
 	return checkInit()
 }
 
-// ResetDeviceLostForTest clears sticky lost state. Tests only — do not use in production.
+// ResetDeviceLostForTest clears sticky lost state and the per-handle map.
+// Tests only — do not use in production.
 func ResetDeviceLostForTest() {
 	deviceLostSticky.Store(false)
+	lostDevices.Range(func(k, _ any) bool {
+		lostDevices.Delete(k)
+		return true
+	})
 }
 
 // MarkDeviceLostForTest trips the sticky fuse for the given handle (0 = process sticky only).

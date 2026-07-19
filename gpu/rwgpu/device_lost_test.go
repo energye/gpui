@@ -53,3 +53,59 @@ func TestDeviceLostSticky(t *testing.T) {
 		t.Fatal("looksLikeDeviceLost should not match unrelated messages")
 	}
 }
+
+func TestClearDeviceLostSticky_AllowsNewDevice(t *testing.T) {
+	// After a prior lost, RequestDevice path clears process sticky so a new
+	// device can run. Per-handle entries for old devices remain lost.
+	was := deviceLostSticky.Load()
+	defer func() {
+		deviceLostSticky.Store(was)
+	}()
+
+	const oldH uintptr = 0x1111
+	const newH uintptr = 0x2222
+	lostDevices.Delete(oldH)
+	lostDevices.Delete(newH)
+
+	markDeviceLost(oldH)
+	if !AnyDeviceLost() {
+		t.Fatal("sticky should be set after mark")
+	}
+	clearDeviceLostSticky()
+	if AnyDeviceLost() {
+		t.Fatal("clearDeviceLostSticky must clear process sticky")
+	}
+	// Old handle still lost via map.
+	if !IsDeviceHandleLost(oldH) {
+		// IsDeviceHandleLost checks sticky first then map; sticky cleared so map should hit.
+		// Wait — IsDeviceHandleLost after sticky clear still checks map.
+		t.Fatal("old handle must remain lost via per-handle map")
+	}
+	// New handle is fine.
+	if IsDeviceHandleLost(newH) {
+		t.Fatal("new handle must not be lost")
+	}
+	dNew := &Device{handle: newH}
+	if dNew.IsLost() {
+		t.Fatal("new device must not report IsLost")
+	}
+	// Surface configured on old device still refuses.
+	if err := refuseIfLost("test", oldH); err == nil {
+		t.Fatal("old device handle must still refuse")
+	}
+	if err := refuseIfLost("test", newH); err != nil {
+		t.Fatalf("new device must not refuse: %v", err)
+	}
+}
+
+func TestMarkDeviceFromCallbackArg_NullTripsSticky(t *testing.T) {
+	was := deviceLostSticky.Load()
+	defer func() {
+		deviceLostSticky.Store(was)
+	}()
+	deviceLostSticky.Store(false)
+	markDeviceFromCallbackArg(0)
+	if !AnyDeviceLost() {
+		t.Fatal("null devicePtr must trip process sticky fuse")
+	}
+}

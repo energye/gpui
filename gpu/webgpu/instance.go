@@ -96,6 +96,17 @@ func (i *Instance) RequestAdapter(opts *RequestAdapterOptions) (*Adapter, error)
 	}, nil
 }
 
+// ProcessEvents pumps pending wgpu async callbacks (device-lost, map async, etc.).
+// Call periodically from the render loop so device-lost is observed as a Go
+// sticky fuse before the next Surface.GetCurrentTexture (which aborts native
+// when the parent device is already lost).
+func (i *Instance) ProcessEvents() {
+	if i == nil || i.released || i.r == nil {
+		return
+	}
+	i.r.ProcessEvents()
+}
+
 // Release releases the instance and all associated resources.
 func (i *Instance) Release() {
 	if i.released {

@@ -109,9 +109,19 @@ func main() {
 		dc.DrawRectangle(20, 250, 440*(0.2+0.8*tt), 12)
 		_ = dc.Fill()
 
+		device.FlushCallbacks()
+		if device.IsLost() {
+			log.Printf("device lost at frame %d — stop", i)
+			break
+		}
 		frame, err := sc.BeginFrame()
 		if err != nil {
-			log.Fatalf("BeginFrame: %v", err)
+			if device.IsLost() {
+				log.Printf("BeginFrame device lost: %v", err)
+				break
+			}
+			log.Printf("BeginFrame: %v — skip", err)
+			continue
 		}
 		if _, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
 			return sc.EndFrame(frame)

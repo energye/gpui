@@ -197,6 +197,11 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s.device.IsLost() {
 		return nil, false, ErrDeviceLost
 	}
+	// Pump callbacks so spontaneous lost is sticky before native acquire.
+	s.device.FlushCallbacks()
+	if s.device.IsLost() {
+		return nil, false, ErrDeviceLost
+	}
 	// One in-flight surface texture at a time.
 	s.DiscardTexture()
 

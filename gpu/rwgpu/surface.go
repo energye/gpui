@@ -206,6 +206,18 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
 
+	// Re-check under the GPU lock: a spontaneous device-lost callback may have
+	// fired between the pre-lock refuseIfLost and now (e.g. after minimize /
+	// long background). Calling native GetCurrentTexture on a lost parent
+	// device aborts the process — never skip this second gate.
+	if err := refuseIfLost("Surface.GetCurrentTexture", s.device); err != nil {
+		return nil, false, ErrSurfaceDeviceLost
+	}
+	if _, msg := PeekUncapturedError(); looksLikeDeviceLost(msg) {
+		markDeviceLost(s.device)
+		return nil, false, ErrSurfaceDeviceLost
+	}
+
 	var surfTex surfaceTexture
 
 	procSurfaceGetCurrentTexture.Call( //nolint:errcheck
