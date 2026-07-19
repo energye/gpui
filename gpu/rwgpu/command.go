@@ -485,8 +485,6 @@ func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
 	runtime.KeepAlive(handles)
 	runtime.KeepAlive(commands)
 	if typ, msg := LastUncapturedError(); msg != "" {
-		// Uncaptured errors are diagnostics/API errors only.
-		// Device-lost is marked solely by WGPUDeviceLostCallback (gateQueue above).
 		return 0, &WGPUError{Op: "Queue.Submit", Type: typ, Message: msg}
 	}
 	return uint64(submissionIndex), nil

@@ -42,8 +42,7 @@ type Device struct {
 	// WGPUCallbackMode_AllowProcessEvents (webgpu.h) are delivered before
 	// Surface.GetCurrentTexture.
 	instance uintptr
-	// lost is set only by WGPUDeviceLostCallback for this Device. Per-device;
-	// multi-window isolation without a global lostDevices map.
+	// lost is set only by WGPUDeviceLostCallback for this Device.
 	lost atomic.Bool
 }
 
@@ -51,7 +50,7 @@ type Device struct {
 // Obtained via [Device.Queue], release with [Queue.Release].
 type Queue struct {
 	handle uintptr
-	// device is the parent Device handle for sticky-lost / refuseIfLost checks.
+	// device is the parent Device handle for refuseIfLost checks.
 	device uintptr
 	// submitHandles is grow-only scratch for Queue.Submit (avoids per-frame make).
 	submitHandles []uintptr

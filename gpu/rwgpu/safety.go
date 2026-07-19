@@ -172,9 +172,7 @@ func looksLikeOOM(msg string) bool {
 		strings.Contains(lower, "not enough memory")
 }
 
-// refuseIfLost returns ErrDeviceLost when this device handle was marked lost
-// by WGPUDeviceLostCallback. Per-handle only (multi-window isolation).
-// handle 0 never refuses (no device to attribute).
+// refuseIfLost returns ErrDeviceLost when the device handle's Device.lost is set.
 func refuseIfLost(op string, deviceHandle uintptr) error {
 	_ = op
 	if deviceHandle != 0 && IsDeviceHandleLost(deviceHandle) {

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
-	"github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -124,14 +123,8 @@ func NewSwapchain(surface *Surface, device *Device, width, height uint32) *Swapc
 	}
 }
 
-// EnableAutoRecover arms library-level device recreation after device-lost.
-// adapter must outlive the swapchain (same Instance). onRecreated may be nil;
-// when set it is invoked after the new device is bound and the surface reconfigured.
-//
-// Contract:
-//   - Never panics / aborts the process on device-lost
-//   - BeginFrame returns a transient error while recovering, then resumes
-//   - Caller should keep the window open; minimize/occlude is orthogonal policy
+// EnableAutoRecover recreates the device after DeviceLostCallback (optional).
+// onRecreated rebinds app GPU state; adapter must outlive the swapchain.
 func (sc *Swapchain) EnableAutoRecover(adapter *Adapter, deviceLabel string, onRecreated func(*Device)) {
 	if sc == nil {
 		return
@@ -329,38 +322,19 @@ func (sc *Swapchain) MarkNeedsReconfigure() {
 // BeginFrame acquires the next surface texture and creates a render view.
 // Caller must EndFrame (or DiscardFrame) exactly once per successful BeginFrame.
 //
-// Pre-checks (all refuse before native acquire):
-//   - sticky/process device-lost fuse
-//   - device IsLost
-//   - surface non-nil / not released
-//   - no frame already open (pairing)
-//
-// Error policy (library-generic; window policy is downstream):
-//   - DeviceLost + EnableAutoRecover: RequestDevice + Configure, then acquire
-//   - DeviceLost without recovery: return ErrDeviceLost (never native abort)
-//   - Occluded / Timeout: return as-is; skip frame, do not reconfigure
-//   - Outdated / SurfaceLost: reconfigure once and retry acquire
-//   - Other: reconfigure once and retry (best-effort recovery)
-//
-// Window visibility (minimize / partial cover / focus) is host policy, not here.
+// Error policy:
+//   - DeviceLost + EnableAutoRecover → recreate device and retry
+//   - DeviceLost without recovery → ErrDeviceLost (no native abort)
+//   - Occluded / Timeout → skip frame
+//   - Outdated / other → reconfigure once and retry
+// Window visibility policy is host-side, not here.
 
-// deviceKnownLostLocked reports sticky fuse or device.IsLost.
-// Caller should hold frameMu when checking sc.Device.
 func (sc *Swapchain) deviceKnownLostLocked() bool {
-	if sc == nil {
-		return false
-	}
-	// Per-device only (multi-window isolation). Authority: DeviceLostCallback.
-	return sc.Device != nil && sc.Device.IsLost()
+	return sc != nil && sc.Device != nil && sc.Device.IsLost()
 }
 
-// tryRecoverDeviceLocked recreates the GPU device and reconfigures the surface.
-// Flutter/Skia alignment: lost context is abandoned; a new device/context is
-// created on the same adapter and the platform surface is rebound. The old
-// device must not be reused (native may abort on GetCurrentTexture).
-//
-// Caller must hold frameMu. Returns nil on success.
-// Requires RecoveryAdapter (EnableAutoRecover). Rate-limited by recoverCooldown.
+// tryRecoverDeviceLocked creates a new device and reconfigures the surface.
+// Caller holds frameMu. Requires RecoveryAdapter; rate-limited by recoverCooldown.
 func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	if sc == nil {
 		return fmt.Errorf("wgpu: swapchain is nil")
@@ -392,7 +366,6 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 		sc.Device = nil
 	}
 
-	// Sticky fuse is cleared by rwgpu on successful RequestDevice.
 	label := sc.DeviceLabel
 	if label == "" {
 		label = "gpui-recovered-device"
@@ -403,7 +376,6 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	}
 	sc.Device = dev
 
-	// Surface.device is rebound only via Configure (do not assign fields ad-hoc).
 	if err := sc.ConfigureFromCapabilities(sc.RecoveryAdapter); err != nil {
 		if err2 := sc.Configure(); err2 != nil {
 			return fmt.Errorf("%w: reconfigure: %v (caps: %v)", ErrDeviceLost, err2, err)
@@ -411,16 +383,18 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	}
 	sc.recoverAttempts++
 	if sc.OnDeviceRecreated != nil {
-		// Still under frameMu so BeginFrame cannot race a half-switched device.
 		sc.OnDeviceRecreated(dev)
 	}
 	return nil
 }
 
-// recoverIfArmedLocked attempts device recovery when EnableAutoRecover was used.
-// Returns nil when a new device is ready. Caller must hold frameMu.
-func (sc *Swapchain) recoverIfArmedLocked() error {
-	if sc == nil || sc.RecoveryAdapter == nil {
+// ensureDeviceLocked recovers a lost device when EnableAutoRecover is armed.
+// No-op when the device is healthy. Caller must hold frameMu.
+func (sc *Swapchain) ensureDeviceLocked() error {
+	if sc == nil || !sc.deviceKnownLostLocked() {
+		return nil
+	}
+	if sc.RecoveryAdapter == nil {
 		return ErrDeviceLost
 	}
 	return sc.tryRecoverDeviceLocked()
@@ -445,47 +419,30 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		return nil, fmt.Errorf("wgpu: swapchain extent must be non-zero")
 	}
 
-	// Sticky / IsLost: never call native acquire on a dead device (abort risk).
-	// With EnableAutoRecover, recreate device+reconfigure (Flutter Rasterizer /
-	// Skia GrContext recreation). Without it, return ErrDeviceLost cleanly.
-	if sc.deviceKnownLostLocked() {
-		if rerr := sc.recoverIfArmedLocked(); rerr != nil {
-			return nil, rerr
-		}
+	// Ensure device is healthy (DeviceLostCallback → recover or ErrDeviceLost).
+	if err := sc.ensureDeviceLocked(); err != nil {
+		return nil, err
 	}
 
 	if sc.pendingReconfigure || !sc.configured {
 		if err := sc.reconfigureThrottled(); err != nil {
-			// Keep pending; caller should skip frame rather than thrash native.
 			return nil, err
 		}
 	}
 
-	// Pump device-lost / uncaptured callbacks before native acquire. Without
-	// this, a spontaneous device-lost (common after minimize / long occlude)
-	// may not set the sticky fuse until after GetCurrentTexture aborts.
-	// Pattern matches Flutter/Skia: drain GPU notifications, then acquire.
+	// Pump pending DeviceLost callbacks before acquire.
 	if sc.Device != nil {
 		sc.Device.FlushCallbacks()
-		// Non-blocking poll surfaces deferred lost callbacks on some backends.
-		_ = sc.Device.Poll(PollPoll)
-		// ProbeDeviceLost: ProcessEvents + sticky (webgpu.h DeviceLost path).
-		lost := (sc.Device.r != nil && rwgpu.ProbeDeviceLost(sc.Device.r)) ||
-			sc.Device.IsLost()
-		if lost {
-			if rerr := sc.recoverIfArmedLocked(); rerr != nil {
-				return nil, rerr
-			}
-			// Recovered: fall through to acquire with the new device.
+		if err := sc.ensureDeviceLocked(); err != nil {
+			return nil, err
 		}
 	}
 
 	t0 := time.Now()
 	st, suboptimal, err := sc.Surface.GetCurrentTexture()
 	if err != nil {
-		// Device-lost: recover once then retry acquire (library-level; no abort).
 		if isDeviceLostErr(err) || sc.deviceKnownLostLocked() {
-			if rerr := sc.recoverIfArmedLocked(); rerr != nil {
+			if rerr := sc.ensureDeviceLocked(); rerr != nil {
 				return nil, rerr
 			}
 			st, suboptimal, err = sc.Surface.GetCurrentTexture()
@@ -498,13 +455,13 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		} else if isSkipFrameSurfaceErr(err) {
 			return nil, err
 		} else {
-			// Outdated / lost surface / other hard acquire failure: reconfigure once.
+			// Outdated / surface error: one reconfigure then retry.
 			if sc.Surface != nil {
 				sc.Surface.DiscardTexture()
 			}
 			if cfgErr := sc.Configure(); cfgErr != nil {
 				if isDeviceLostErr(cfgErr) || sc.deviceKnownLostLocked() {
-					if rerr := sc.recoverIfArmedLocked(); rerr != nil {
+					if rerr := sc.ensureDeviceLocked(); rerr != nil {
 						return nil, rerr
 					}
 					st, suboptimal, err = sc.Surface.GetCurrentTexture()
@@ -520,7 +477,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 				st, suboptimal, err = sc.Surface.GetCurrentTexture()
 				if err != nil {
 					if isDeviceLostErr(err) || sc.deviceKnownLostLocked() {
-						if rerr := sc.recoverIfArmedLocked(); rerr != nil {
+						if rerr := sc.ensureDeviceLocked(); rerr != nil {
 							return nil, rerr
 						}
 						st, suboptimal, err = sc.Surface.GetCurrentTexture()
@@ -572,9 +529,8 @@ func (sc *Swapchain) reconfigureThrottled() error {
 	if sc == nil {
 		return fmt.Errorf("wgpu: swapchain is nil")
 	}
-	if sc.deviceKnownLostLocked() {
-		// Do not thrash Configure on a dead device; recover when armed.
-		return sc.recoverIfArmedLocked()
+	if err := sc.ensureDeviceLocked(); err != nil {
+		return err
 	}
 	if !sc.lastReconfig.IsZero() && time.Since(sc.lastReconfig) < minInterval {
 		sc.pendingReconfigure = true
@@ -643,14 +599,10 @@ func (sc *Swapchain) endFrame(frame *Frame, rects []image.Rectangle) error {
 		frame.SurfaceTexture = nil
 	}
 	sc.frameOpen = false
-	// Drain callbacks after present so a late device-lost is sticky before the
-	// next BeginFrame acquire (avoids native "Parent device is lost" abort).
 	if sc.Device != nil {
 		sc.Device.FlushCallbacks()
-		if sc.Device.IsLost() {
-			if err == nil {
-				err = ErrDeviceLost
-			}
+		if err == nil && sc.Device.IsLost() {
+			err = ErrDeviceLost
 		}
 	}
 	if isDeviceLostErr(err) {

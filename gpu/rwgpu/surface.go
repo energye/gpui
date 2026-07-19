@@ -153,7 +153,6 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		s.handle,
 		uintptr(unsafe.Pointer(&nativeConfig)),
 	)
-	// Configure failures surface via uncaptured callback (not device-lost authority).
 	if typ, msg := LastUncapturedError(); msg != "" {
 		return &WGPUError{Op: "Surface.Configure", Type: typ, Message: msg}
 	}
@@ -186,7 +185,6 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s == nil || s.handle == 0 {
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface is nil or released"}
 	}
-	// Refuse before native: GetCurrentTexture aborts if parent device is lost.
 	if err := refuseIfLost("Surface.GetCurrentTexture", s.device); err != nil {
 		return nil, false, ErrSurfaceDeviceLost
 	}
@@ -197,7 +195,6 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
 
-	// Deliver pending DeviceLostCallback (AllowProcessEvents), then re-check.
 	if s.deviceRef != nil {
 		pumpInstanceEvents(s.deviceRef)
 	}
@@ -271,17 +268,13 @@ func (s *Surface) Present(texture ...*SurfaceTexture) error {
 	}
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
-	_, _ = LastUncapturedError() // attribute post-call errors to this op
-	// webgpu.h: wgpuSurfacePresent returns WGPUStatus (Success/Error).
+	_, _ = LastUncapturedError()
 	status, _, _ := procSurfacePresent.Call(s.handle)
-	if WGPUStatus(status) == WGPUStatusError {
-		if typ, msg := LastUncapturedError(); msg != "" {
-			return &WGPUError{Op: "Surface.Present", Type: typ, Message: msg}
-		}
-		return &WGPUError{Op: "Surface.Present", Message: "wgpuSurfacePresent returned Error"}
-	}
 	if typ, msg := LastUncapturedError(); msg != "" {
 		return &WGPUError{Op: "Surface.Present", Type: typ, Message: msg}
+	}
+	if WGPUStatus(status) == WGPUStatusError {
+		return &WGPUError{Op: "Surface.Present", Message: "wgpuSurfacePresent returned Error"}
 	}
 	_ = texture
 	return nil
