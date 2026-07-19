@@ -62,7 +62,7 @@ export GOCACHE=/tmp/gpui-go-cache
 export LD_LIBRARY_PATH=.../lib:$LD_LIBRARY_PATH
 
 go test -count=1 ./render/internal/gpu -run 'TestS62_' -timeout 180s
-go test -count=1 ./render -run 'TestS62_|TestS61_|TestS6_L0_|TestS52_|TestS53_' -timeout 300s
+go test -count=1 ./render -run 'TestS62_|TestS61_|TestS6_L0_|TestS61_' -timeout 300s
 go test -count=1 ./render -run 'TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 300s
 ```
 

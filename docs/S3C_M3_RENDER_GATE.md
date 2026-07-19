@@ -88,6 +88,6 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel'
 export DISPLAY=:1
 export WGPU_NATIVE_PATH=.../lib/libwgpu_native.so
 go run ./examples/window_present
-# Real X11 draw+present gate (opt-in tag: software backends may OOM in long suites)
-go test -tags gpui_x11_present -count=1 ./render -run 'TestS3c_M3_WindowPresentFrame_X11Draw' -v
+# Real X11 multi-frame present gate (S6.8 supersedes S3c X11 harness)
+go test -count=1 ./render -run 'TestS68_WindowPresent_MultiFrameDraw' -v
 ```

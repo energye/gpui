@@ -1,10 +1,10 @@
 # S4.0 性能基线（measure-only）
 
-> 版本：1.0 | 日期：2026-07-15  
-> 状态：**S4.0 已关闭**（只测量、不改算法）  
+> 版本：1.1 | 日期：2026-07-15（文档归档 2026-07-19）  
+> 状态：**S4.0 已关闭**（只测量、不改算法）；**harness 已移除**  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
-> 原始 JSON：`tmp/s4_baseline.json`  
-> Harness：`render/s4_perf_baseline_test.go` → `TestS4_PerfBaseline_Scenes`
+> 原始 JSON：`tmp/s4_baseline.json`（历史产物）  
+> 后续回归：使用 `TestS6_PresentBaseline_Scenes` / `TestS6_RegressionLock_Contract`（`render/s6_perf_baseline_test.go`）
 
 ---
 
@@ -51,9 +51,10 @@
 export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
 export GOCACHE=/tmp/gpui-go-cache
 export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
-# optional: S4_PERF_WARMUP=3 S4_PERF_ITERS=20 S4_PERF_JSON=tmp/s4_baseline.json
+# optional: S6_PERF_WARMUP=3 S6_PERF_ITERS=10 S6_PERF_JSON=tmp/s6_present_baseline.json
+# Note: original S4 harness removed; use S6 present baseline for live measurement.
 
-go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes' -timeout 10m -v
+go test -count=1 ./render -run 'TestS6_PresentBaseline_Scenes' -timeout 10m -v
 ```
 
 硬门禁：真 native 库；每帧 `GPUOps > 0`；`cpu_fallback_ops` 记入表（本轮全部为 0）。
@@ -131,7 +132,7 @@ export WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.
 export GOCACHE=/tmp/gpui-go-cache
 export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
 
-go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes|TestS3|TestP1_' -timeout 180s
+go test -count=1 ./render -run 'TestS6_PresentBaseline_Scenes|TestS3|TestP1_' -timeout 180s
 ```
 
 ---

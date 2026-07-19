@@ -200,9 +200,9 @@ Env（`particle_kitchen_sink` 窗口压测，详见 `examples/particle_kitchen_s
 
 | 门禁 | 命令（建议进程隔离） | 目的 |
 |------|----------------------|------|
-| L0 帧模型/60fps | `TestS54_|TestS52_|TestS53_` | 帧路径未回退 |
+| L0 帧模型/60fps | `TestS6_L0_|TestS61_` | 帧路径未回退 |
 | L1 Comp 抽样 | `TestP1_Comp_(D01\|D06\|D08\|D36\|D63\|D152)_` | 组合像素/语义 |
-| L3 present 基线 | `TestS5_PresentBaseline_Scenes` | 性能基线仍可跑 |
+| L3 present 基线 | `TestS6_PresentBaseline_Scenes` | 性能基线仍可跑 |
 | L4 窗口 | 各 `TestS68_*` **单独进程** | 真 present |
 
 **主机注意**（Intel iGPU / 低共享内存）：
@@ -249,7 +249,7 @@ Env（`particle_kitchen_sink` 窗口压测，详见 `examples/particle_kitchen_s
 |------|------|-------------|------|
 | **1** | **全量单元测试绿** | `./scripts/run_full_unit_tests.sh` → `tmp/full_unit/summary.txt` | 语义/编译/绑定回归先过 |
 | **2** | **内存泄漏观测档** | `./scripts/run_mem_leak_tests.sh`（`GPUI_MEM_COUNT=3`）→ `tmp/gpui_mem_leak_tests.log` | 进程 RSS + OOM 硬门 + 释放链 |
-| **3** | 正确性抽样（若动到 present/layer） | L0 `TestS54_|TestS52_|TestS53_` + Comp 抽样 + 相关 F1/P1 像素门 | 防「测绿但画面错」 |
+| **3** | 正确性抽样（若动到 present/layer） | L0 `TestS6_L0_|TestS61_` + Comp 抽样 + 相关 F1/P1 像素门 | 防「测绿但画面错」 |
 | **4** | 可选长时 / 真窗口 | `examples/particle_kitchen_sink`：`P_MEM_SOAK` / `P_MEM_LONG` 或 `GPUI_PKS_FILTER=mem ./scripts/run_pks_matrix.sh` | 稳态斜率 + present 综合 |
 
 **不得**在单元未绿时 dig 性能或「砍内容」过 mem 门。

@@ -44,7 +44,7 @@ Steady frame:
 
 | 测试 | 作用 |
 |------|------|
-| `TestS52_FrameModel_RetainedDamage` | bootstrap + multi-rect damage present |
+| `TestS61_PresentAuto_LocalDamageMulti`（原 TestS52 已归档） | bootstrap + multi-rect damage present |
 | D63 / D152 | 既有组合门禁 |
 | S5 U01–U03 | 稳态脏区场景 |
 

@@ -85,45 +85,6 @@ func TestVisualRegression_AllPorterDuff(t *testing.T) {
 	}
 }
 
-// TestVisualRegression_AdvancedBlend tests advanced separable blend modes.
-//
-// NOTE: These tests are currently skipped because the scalar implementations
-// use separableBlend (unpremultiply → blend → repremultiply) while the batch
-// implementations operate directly on premultiplied values. This is a known
-// architectural difference that results in larger differences (>100).
-//
-// The batch implementations are correct for premultiplied alpha workflows,
-// which is the standard in modern graphics (WebGPU, etc.).
-//
-// TODO: Either implement premultiplied scalar references or increase tolerance.
-func TestVisualRegression_AdvancedBlend(t *testing.T) {
-	t.Skip("Advanced blend modes have different premultiply behavior - see TODO")
-
-	modes := []struct {
-		name       string
-		batchFunc  BatchBlendFunc
-		scalarFunc BlendFunc
-	}{
-		{"Multiply", MultiplyBatch, blendMultiply},
-		{"Screen", ScreenBatch, blendScreen},
-		{"Darken", DarkenBatch, blendDarken},
-		{"Lighten", LightenBatch, blendLighten},
-	}
-
-	// Test with batch boundary sizes
-	sizes := []int{16, 32, 64}
-
-	for _, mode := range modes {
-		t.Run(mode.name, func(t *testing.T) {
-			for _, n := range sizes {
-				t.Run(fmt.Sprintf("n=%d", n), func(t *testing.T) {
-					testBatchVsScalarSize(t, mode.batchFunc, mode.scalarFunc, n)
-				})
-			}
-		})
-	}
-}
-
 // TestBatchBoundary tests edge cases around n % 16 boundaries.
 func TestBatchBoundary(t *testing.T) {
 	testCases := []struct {

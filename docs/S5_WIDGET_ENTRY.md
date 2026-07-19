@@ -12,8 +12,8 @@
 |---|------|------|------|
 | 1 | Skia 主路径 P0 能力无阻塞缺口 | `docs/S5_SKIA_UI_GAP.md` | ✅ |
 | 2 | Present-only 基线可复跑 | `docs/S5_PRESENT_BASELINE.md` + json | ✅ |
-| 3 | Retained + damage 帧模型固化 | `docs/S5_FRAME_MODEL.md` + `TestS52_*` | ✅ |
-| 4 | 主路径 U01–U04 60fps 门禁绿 | `docs/S5_60FPS_GATE.md` + `TestS53_*` | ✅ |
+| 3 | Retained + damage 帧模型固化 | `docs/S5_FRAME_MODEL.md` + `TestS61_*` | ✅ |
+| 4 | 主路径 U01–U04 60fps 门禁绿 | `docs/S5_60FPS_GATE.md` + `TestS6_RegressionLock_Contract` | ✅ |
 | 5 | P0/P1 阻塞补丁队列清空 | S5.0/S5.4 | ✅（队列空） |
 | 6 | 回归：`TestS3*` / 抽样 `TestP1_*` / Comp 绿 + GPUOps>0 | 测试 | ✅ |
 | 7 | **控件实现不得另起光栅化**；必须走 `render` 能力表 | 架构约束 | ✅ 写入本文 |

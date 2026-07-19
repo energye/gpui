@@ -82,7 +82,7 @@ export GOCACHE=/tmp/gpui-go-cache
 export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
 
 go test -count=1 ./render/internal/gpu -run 'TestS41_' -timeout 30s
-go test -count=1 ./render -run 'TestP1_Comp_D0|TestP1_Comp_D36|TestP12GPUFixedPixel|TestS3a_|TestS4_PerfBaseline' -timeout 180s
+go test -count=1 ./render -run 'TestP1_Comp_D0|TestP1_Comp_D36|TestP12GPUFixedPixel|TestS3a_|TestS6_PresentBaseline' -timeout 180s
 ```
 
 ---

@@ -20,7 +20,7 @@
 
 | 测试 | 作用 |
 |------|------|
-| `TestS54_P0Capability_NoBlockingGap` | P0 图元 present 路径 smoke |
+| `TestS6_L0_MainPathStillGreen`（原 TestS54 已归档） | P0 图元 present 路径 smoke |
 | 既有 `TestP1_Capability_*` | 能力表门禁保持 |
 
 无新增 API 实现；关闭条件为 **确认无阻塞缺口 + 回归绿**。

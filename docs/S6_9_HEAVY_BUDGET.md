@@ -94,7 +94,7 @@ S6_PERF_WARMUP=3 S6_PERF_ITERS=6 \
   go test -count=1 ./render -run 'TestS69_' -timeout 300s
 
 # L0 + 抽样正确性（每切片）
-go test -count=1 ./render -run 'TestS6_L0_|TestS69_L0_|TestS52_|TestS53_|TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 300s
+go test -count=1 ./render -run 'TestS6_L0_|TestS69_L0_|TestS61_|TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 300s
 ```
 
 Env：

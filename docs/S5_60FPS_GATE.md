@@ -28,7 +28,7 @@
 | **U04** ModalStatic | retained 轻量全量 | ✅ |
 | **U05** KitchenSink | 应力 | ❌ 只记录 |
 
-测试：`TestS53_MainPath60FPS_Gate`。
+测试（已归档）：原 `TestS53_MainPath60FPS_Gate` → 现用 `TestS6_RegressionLock_Contract` / `TestS61_*`。
 
 ---
 

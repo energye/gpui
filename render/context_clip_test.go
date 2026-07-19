@@ -346,37 +346,6 @@ func TestClipRectFill(t *testing.T) {
 	}
 }
 
-// TestClipRectStroke verifies that Stroke() respects rectangular clip regions.
-// NOTE: Stroke clip support depends on the renderer honoring paint.ClipCoverage.
-// This may not work in all configurations — skip if the renderer doesn't support it.
-func TestClipRectStroke(t *testing.T) {
-	t.Skip("Stroke clip not fully implemented in CPU software renderer")
-	dc := NewContext(200, 200)
-	dc.ClearWithColor(White)
-
-	// Clip to the right half.
-	dc.ClipRect(100, 0, 100, 200)
-
-	// Draw a horizontal line across the full width.
-	dc.SetRGB(0, 0, 1)
-	dc.SetLineWidth(4)
-	dc.MoveTo(0, 100)
-	dc.LineTo(200, 100)
-	dc.Stroke()
-
-	// Left half (50, 100) should be white (clipped out).
-	left := dc.pixmap.GetPixel(50, 100)
-	if left.B > 0.1 {
-		t.Errorf("Left of clip (50,100): expected white, got B=%.2f", left.B)
-	}
-
-	// Right half (150, 100) should be blue (inside clip).
-	right := dc.pixmap.GetPixel(150, 100)
-	if right.B < 0.8 {
-		t.Errorf("Right of clip (150,100): expected blue, got B=%.2f", right.B)
-	}
-}
-
 // TestClipNestedFill verifies nested clip regions (rect + path mask).
 func TestClipNestedFill(t *testing.T) {
 	dc := NewContext(200, 200)
@@ -424,12 +393,6 @@ func TestClipNestedFill(t *testing.T) {
 
 // --- Clip + Text rendering tests ---
 
-// TestClipRectText verifies that DrawString respects rectangular clip regions.
-// Text drawn inside the clip appears; text outside is clipped.
-func TestClipRectText(t *testing.T) {
-	t.Skip("GPU-CLIP-001 implemented; test requires GPU hardware to verify scissor rect")
-}
-
 // TestClipRectTextNoRegression verifies that DrawString without clip
 // still renders normally (no regression from clip fix).
 func TestClipRectTextNoRegression(t *testing.T) {
@@ -467,19 +430,6 @@ func TestClipRectTextNoRegression(t *testing.T) {
 	if !hasNonWhite {
 		t.Error("Expected text pixels without clip (regression check)")
 	}
-}
-
-// TestClipDrawStringAnchored verifies that DrawStringAnchored inherits
-// clip behavior from DrawString.
-func TestClipDrawStringAnchored(t *testing.T) {
-	t.Skip("GPU-CLIP-001 implemented; test requires GPU hardware to verify scissor rect")
-}
-
-// TestClipPathMaskText verifies that DrawString works with path-based
-// clip masks (circle clip), not just rectangular clips.
-// GPU-CLIP-003a provides depth-buffer clipping for this case.
-func TestClipPathMaskText(t *testing.T) {
-	t.Skip("requires GPU hardware to verify depth clip (GPU-CLIP-003a)")
 }
 
 // TestClipIsRectOnly verifies the IsRectOnly helper on ClipStack.

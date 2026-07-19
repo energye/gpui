@@ -94,7 +94,7 @@
 
 | 层级 | 套件 | S6.0 | 后续 S6.x 每切片 |
 |------|------|------|------------------|
-| **L0** | `TestS6_L0_MainPathStillGreen` + `TestS52_*` / `TestS53_*` | ✅ | 强制 |
+| **L0** | `TestS6_L0_MainPathStillGreen` + `TestS61_*` | ✅ | 强制 |
 | **L1** | `TestS3*` + Comp 抽样 D01/D06/D08/D36/D63/D152 | ✅ 本切片 | 强制 |
 | **L2** | 全量 `TestP1_Comp_` D01–D200 | ✅ **锁存** | 关闭 S6 再全量；中期可抽样 |
 | **L3** | `TestS6_PresentBaseline_Scenes` 前后对比 | ✅ 建基线 | 强制（相对本 JSON） |
@@ -117,7 +117,7 @@ export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
 S6_PERF_WARMUP=3 S6_PERF_ITERS=10 go test -count=1 ./render -run 'TestS6_' -timeout 400s
 
 # L0/L1 抽样
-go test -count=1 ./render -run 'TestS6_L0_|TestS52_|TestS53_|TestS3|TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 300s
+go test -count=1 ./render -run 'TestS6_L0_|TestS61_|TestS3|TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 300s
 
 # L2 全量（S6.0 / S6 关闭）
 go test -count=1 ./render -run 'TestP1_Comp_' -timeout 600s

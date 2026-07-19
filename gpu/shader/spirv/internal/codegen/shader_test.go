@@ -2623,13 +2623,6 @@ func TestCompileHelloComputeShader(t *testing.T) {
 		strings.Count(string(source), "\n"), len(spirvBytes))
 }
 
-// TestCompileHelloWorkgroupsShader tests the wgpu hello_workgroups example.
-// Tests multiple bare runtime arrays in storage, compound assignment to indexed buffer, 3D workgroup_size.
-// TODO: Requires abstract integer literal handling (a[x] += 1 where 1 is untyped).
-func TestCompileHelloWorkgroupsShader(t *testing.T) {
-	t.Skip("requires abstract integer literal type resolution for compound assignments")
-}
-
 // TestCompileRenderToTextureShader tests the wgpu render_to_texture example.
 func TestCompileRenderToTextureShader(t *testing.T) {
 	source, err := os.ReadFile("../../reference/wgpu-ecosystem/wgpu/examples/features/src/render_to_texture/shader.wgsl")
@@ -2643,13 +2636,6 @@ func TestCompileRenderToTextureShader(t *testing.T) {
 
 	t.Logf("Successfully compiled render_to_texture shader (%d lines): %d bytes",
 		strings.Count(string(source), "\n"), len(spirvBytes))
-}
-
-// TestCompileUniformValuesShader tests a uniform-based Mandelbrot shader.
-// Tests struct uniforms, local arrays, for loops with break, length builtin.
-// TODO: Requires abstract type inference for vec2()/vec4() without template params in let bindings.
-func TestCompileUniformValuesShader(t *testing.T) {
-	t.Skip("requires abstract type inference for inferred vec constructors in let bindings")
 }
 
 // TestCompileMSAALineShader tests a simple MSAA line rendering shader.

@@ -199,7 +199,7 @@ go test -count=1 ./render/internal/gpu -run 'Test.*(Native|Pipeline|Texture|Clea
 
 | 子阶段 | 目标 | 退出条件 |
 |--------|------|----------|
-| **S4.0 基线** | 只测量、不改算法：在 P1/A 场景上记录 FPS/frame time、`gpu_ops`、`cpu_fallback_ops`、上传/draw 计数（可得则记） | ✅ 产出 `docs/S4_PERF_BASELINE.md` + `TestS4_PerfBaseline_Scenes` + `tmp/s4_baseline.json` |
+| **S4.0 基线** | 只测量、不改算法：在 P1/A 场景上记录 FPS/frame time、`gpu_ops`、`cpu_fallback_ops`、上传/draw 计数（可得则记） | ✅ 产出 `docs/S4_PERF_BASELINE.md` + `TestS6_PresentBaseline_Scenes` + `tmp/s4_baseline.json` |
 | **S4.1 batch** | 同类 draw 合并 / instance 或顶点批 | ✅ Image multi-quad（`docs/S4_1_BATCH.md`）；SDF/text 既有 batch 保留 |
 | **S4.2 glyph/atlas** | 字形图集命中与上传收敛 | ✅ partial dirty upload + AdvanceFrame（`docs/S4_2_GLYPH_ATLAS.md`） |
 | **S4.3 path/texture cache** | path 几何/纹理复用 | ✅ `docs/S4_3_PATH_TEXTURE_CACHE.md` + `TestS43_*` |
@@ -336,10 +336,10 @@ go test -count=1 ./render -run 'TestS3|TestP1_|TestP1_Comp_' -timeout 300s
 
 | 层级 | 套件 | 何时 | 失败含义 |
 |------|------|------|----------|
-| L0 烟测 | `TestS54_*` / `TestS52_*` / `TestS53_*`（U01–U04） | 每切片 | 帧模型或主路径 60fps 回退 |
+| L0 烟测 | `TestS6_L0_*` / `TestS61_*`（U01–U04） | 每切片 | 帧模型或主路径 60fps 回退 |
 | L1 正确性 | `TestS3*` + Comp 抽样 + 相关 Capability | 每切片 | 像素/语义回退 |
 | L2 组合全量 | `TestP1_Comp_` D01–D200 | S6.0 锁存 + S6 关闭 | 组合维度回归 |
-| L3 性能 | `TestS5_PresentBaseline_Scenes` + S6 扩展场景 | 每切片前后 | 无改进或无故回退 |
+| L3 性能 | `TestS6_PresentBaseline_Scenes` + S6 扩展场景 | 每切片前后 | 无改进或无故回退 |
 | L4 窗口（可选加深） | `gpui_x11_present` / S6.8 套件 | S6.8 及关闭前 | 真 present 回退 |
 
 **准确性要求**：
@@ -355,7 +355,7 @@ export GOCACHE=/tmp/gpui-go-cache
 export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
 
 # L0+L3 性能与帧模型
-go test -count=1 ./render -run 'TestS5_|TestS52_|TestS53_|TestS54_|TestS6_' -timeout 300s
+go test -count=1 ./render -run 'TestS6_|TestS61_' -timeout 300s
 
 # L1 正确性抽样
 go test -count=1 ./render -run 'TestS3|TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 300s
@@ -417,7 +417,7 @@ export GPUI_SURFACE_SAMPLE_COUNT=1   # 低 VRAM 主机必开
 ./scripts/run_mem_leak_tests.sh      # 进程隔离；默认 COUNT=3
 
 # S4–S6 正确性抽样（建议与 mem 一样进程隔离重窗口用例）
-go test -count=1 ./render -run 'TestS54_|TestS52_|TestS53_' -timeout 120s
+go test -count=1 ./render -run 'TestS6_L0_|TestS61_' -timeout 120s
 go test -count=1 ./render -run 'TestP1_Comp_(D01|D06|D08|D36|D63|D152)_' -timeout 180s
 go test -count=1 ./render -run 'TestS68_WindowPresent_MultiFrameDraw$' -timeout 120s
 ```
@@ -588,7 +588,7 @@ go test -count=1 ./render -run 'TestP1_Comp_|TestP1_|TestS3a_|TestS3b_|TestS3c_|
 | 2026-07-15 | 1.49 | **S4.3 关闭**：Path/Stroke geometry cache + ImageCache stats |
 | 2026-07-15 | 1.48 | **S4.2 关闭**：glyph atlas dirty partial upload + AdvanceFrame；焦点 → S4.3 |
 | 2026-07-15 | 1.47 | **S4.1 batch 关闭**：image multi-quad coalescing + B13 + TestS41_*；焦点 → S4.2 |
-| 2026-07-15 | 1.46 | **S4.0 基线关闭**：`TestS4_PerfBaseline_Scenes` + `docs/S4_PERF_BASELINE.md`；焦点 → S4.1 batch |
+| 2026-07-15 | 1.46 | **S4.0 基线关闭**：`TestS6_PresentBaseline_Scenes` + `docs/S4_PERF_BASELINE.md`；焦点 → S4.1 batch |
 | 2026-07-15 | 1.45 | **阶段 A 关闭**：D01–D200 全绿；停扩组合探针；焦点 → S4.0 |
 | 2026-07-15 | 1.44 | 阶段 A 扩展至 **D01–D180** phi 组合；继续复杂场景 |
 | 2026-07-15 | 1.43 | 阶段 A 扩展至 **D01–D160** tau 组合；继续复杂场景 → 后 S4.0 |

@@ -99,7 +99,7 @@ export LD_LIBRARY_PATH=.../lib:$LD_LIBRARY_PATH
 
 go test -count=1 ./render/text -run 'TestS42_' -timeout 30s
 go test -count=1 ./render/internal/gpu -run 'TestS42_|TestGlyphMask' -timeout 120s
-go test -count=1 ./render -run 'TestP1_Comp_D0|TestP1_Comp_D36|TestS4_PerfBaseline' -timeout 180s
+go test -count=1 ./render -run 'TestP1_Comp_D0|TestP1_Comp_D36|TestS6_PresentBaseline' -timeout 180s
 ```
 
 ---

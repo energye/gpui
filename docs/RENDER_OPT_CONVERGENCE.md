@@ -125,7 +125,7 @@ export GPUI_SURFACE_SAMPLE_COUNT=1
 | 级 | 何时 | 命令（示意） |
 |----|------|----------------|
 | **L0 切片** | 每刀必跑 | 本刀 `TestR7x_*` + 触及包的既有 `TestS6*` / facade smoke |
-| **L1 主路径** | 每刀必跑 | `go test ./render -run 'TestS6_L0_|TestS52_|TestS53_|TestS61_|TestS62_|TestS63_Present'` |
+| **L1 主路径** | 每刀必跑 | `go test ./render -run 'TestS6_L0_|TestS61_|TestS62_|TestS63_Present'` |
 | **L1b 组合抽样** | 每刀必跑 | `TestP1_Comp_(D01|D06|D08|D36|D63|D152)_` |
 | **L2 组合全量** | 阶段关闭前 / 高风险 B 类 | 全量 `TestP1_Comp_`（可用 full_unit_fast 批隔离） |
 | **L3 mem** | 资源/池/生命周期改动 | `scripts/run_mem_leak_tests.sh` |
@@ -191,7 +191,7 @@ export GPUI_SURFACE_SAMPLE_COUNT=1
 ```bash
 go test -count=1 ./gpu/webgpu ./gpu/rwgpu -run 'TestR70_|TestS2_|TestABI|TestInit' -timeout 180s
 go test -count=1 ./render/internal/gpu -run 'TestR70_|TestS62_|TestS63_|TestS67_|TestP03_|TestP04_' -timeout 300s
-go test -count=1 ./render -run 'TestS6_L0_|TestS52_|TestS53_|TestS61_|TestS62_Present|TestS63_Present|TestP1_Comp_(D01|D06|D08|D36|D63|D152)_|TestF1_|TestP03_|TestP04_' -timeout 600s
+go test -count=1 ./render -run 'TestS6_L0_|TestS61_|TestS62_Present|TestS63_Present|TestP1_Comp_(D01|D06|D08|D36|D63|D152)_|TestF1_|TestP03_|TestP04_' -timeout 600s
 ```
 
 **退出条件：**

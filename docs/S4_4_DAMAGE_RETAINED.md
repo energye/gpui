@@ -81,7 +81,7 @@ Readback 测试路径（`activeView==nil`）仍全帧 clear/read；damage 优化
 | `TestS44_DamageUnion_MultiRegion` | multi-region union + skip |
 | `TestS44_SharedPathCacheAcrossContexts` | retained path cache |
 | `TestP1_Comp_D63` / `D152` | FrameDamage present 组合 |
-| `TestS4_PerfBaseline_Scenes` | B06 / **B14** / **B15**，`GPUOps>0` |
+| `TestS6_PresentBaseline_Scenes` | B06 / **B14** / **B15**，`GPUOps>0` |
 
 ### B14/B15 抽样（机器相关，warmup/iters 较小 run）
 
@@ -98,7 +98,7 @@ export GOCACHE=/tmp/gpui-go-cache
 export LD_LIBRARY_PATH=/home/yanghy/app/projects/gogpu/gpui/lib:$LD_LIBRARY_PATH
 
 go test -count=1 ./render/internal/gpu -run 'TestS44_|TestDamage|TestS43_' -timeout 120s
-S4_PERF_WARMUP=2 S4_PERF_ITERS=8 go test -count=1 ./render -run 'TestS4_PerfBaseline_Scenes' -timeout 300s
+S6_PERF_WARMUP=2 S6_PERF_ITERS=8 go test -count=1 ./render -run 'TestS6_PresentBaseline_Scenes' -timeout 300s
 ```
 
 ---

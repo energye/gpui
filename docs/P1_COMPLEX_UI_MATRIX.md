@@ -196,7 +196,7 @@ go test -count=1 ./render -run 'TestS3c_|TestS3b_|TestS3a_|TestP12GPUFixedPixel|
 
 | ID | 场景 | 测试 | 状态 |
 |----|------|------|------|
-| S.03 multi-rect | X11 PresentFrame + PresentFrameDamageRects | `TestS3c_M3_WindowPresentFrame_X11Draw` (`-tags gpui_x11_present`) | ✅ |
+| S.03 multi-rect | X11 PresentFrame + PresentFrameDamageRects | `TestS68_WindowPresent_MultiFrameDraw` | ✅ |
 
 ## Tier Q（multi-viewport / retained damage）
 

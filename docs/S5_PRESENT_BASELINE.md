@@ -1,7 +1,7 @@
 # S5.1 — Present-only 基线
 
-> 版本：1.0 | 日期：2026-07-15  
-> 状态：**S5.1 关闭**  
+> 版本：1.1 | 日期：2026-07-15（文档归档 2026-07-19）  
+> 状态：**S5.1 关闭**；**harness 已移除**（并入 S6）  
 > 依赖：S5.0 `docs/S5_SKIA_UI_GAP.md`  
 > 架构：`render.PresentFrame*` → `FlushGPUWithView*` → webgpu → rwgpu → libwgpu_native
 
@@ -17,17 +17,22 @@
 
 ---
 
-## 2. 测试
+## 2. 测试（已归档）
 
-| 测试 | 作用 |
+原 `render/s5_present_baseline_test.go` 中的 `TestS5_*` / `TestS52_*` / `TestS53_*` / `TestS54_*` 已删除。  
+共享测量 helpers（`s5Scenes` / `s5MeasurePresent` / `s5Percentile` 等）保留在 `render/s5_present_helpers_test.go`，供 S6 使用。
+
+| 替代 | 作用 |
 |------|------|
-| `TestS5_PresentBaseline_Scenes` | 全场景测量 + `tmp/s5_present_baseline.json` |
+| `TestS6_PresentBaseline_Scenes` | present-only 场景测量 + JSON |
+| `TestS6_RegressionLock_Contract` | 主路径回归锁 |
+| `TestS61_*` | 帧模型 / damage / idle present |
 
 ```bash
 export WGPU_NATIVE_PATH=.../lib/libwgpu_native.so
 export GOCACHE=/tmp/gpui-go-cache
 export LD_LIBRARY_PATH=.../lib:$LD_LIBRARY_PATH
-S5_PERF_WARMUP=3 S5_PERF_ITERS=10 go test -count=1 ./render -run TestS5_PresentBaseline_Scenes -timeout 300s
+S6_PERF_WARMUP=3 S6_PERF_ITERS=10 go test -count=1 ./render -run 'TestS6_PresentBaseline_Scenes|TestS6_RegressionLock' -timeout 300s
 ```
 
 ---

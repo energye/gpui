@@ -2,7 +2,6 @@ package rwgpu
 
 import (
 	"testing"
-	"unsafe"
 )
 
 func TestInit(t *testing.T) {
@@ -11,14 +10,6 @@ func TestInit(t *testing.T) {
 		t.Fatalf("Init failed: %v", err)
 	}
 	t.Log("Library initialized successfully")
-}
-
-func TestStructSizes(t *testing.T) {
-	t.Logf("sizeof(ChainedStruct) = %d (expected 16)", unsafe.Sizeof(ChainedStruct{}))
-	// v29: InstanceDescriptor changed layout — nextInChain(8) + requiredFeatureCount(8) + requiredFeatures(8) + requiredLimits(8) = 32
-	t.Logf("sizeof(InstanceDescriptor) = %d (expected 32)", unsafe.Sizeof(InstanceDescriptor{}))
-	// Public Limits (no NextInChain); limitsWire is the FFI struct (152 bytes).
-	t.Logf("sizeof(Limits) = %d (public, no NextInChain)", unsafe.Sizeof(Limits{}))
 }
 
 func TestCreateInstanceWithNil(t *testing.T) {

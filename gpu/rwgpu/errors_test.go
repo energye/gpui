@@ -6,22 +6,6 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-// TestErrorScopeEmptyStack tests popping an error scope when stack is empty.
-// NOTE: Currently disabled because wgpu-native panics on empty stack pop.
-// This is a known limitation - users must track push/pop manually.
-func TestErrorScopeEmptyStack(t *testing.T) {
-	t.Skip("wgpu-native panics when popping empty error scope stack - known limitation")
-
-	// This test would cause a panic:
-	// instance, _ := CreateInstance(nil)
-	// defer instance.Release()
-	// adapter, _ := instance.RequestAdapter(nil)
-	// defer adapter.Release()
-	// device, _ := adapter.RequestDevice(nil)
-	// defer device.Release()
-	// device.PopErrorScopeAsync(instance) // PANIC!
-}
-
 // TestErrorScopeNoError tests pushing and popping error scope with no error.
 func TestErrorScopeNoError(t *testing.T) {
 	instance, err := CreateInstance(nil)

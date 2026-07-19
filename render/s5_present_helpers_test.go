@@ -2,26 +2,16 @@
 
 package render_test
 
-// S5.1–S5.4 harness: present-only baseline, frame model, 60fps gate, P0 smoke.
+// Shared present-path helpers used by S6 baseline / frame / budget gates.
 //
+// Extracted from the archived S5.1–S5.4 harness (Test* functions removed).
 // Timed path = draw + PresentFrame/PresentFrameDamageRects (FlushGPUWithView*).
 // No ReadPixels in the timed path.
-//
-// Env:
-//   WGPU_NATIVE_PATH   required
-//   S5_PERF_WARMUP     default 3
-//   S5_PERF_ITERS      default 10
-//   S5_PERF_JSON       default tmp/s5_present_baseline.json
-//   S5_FPS_BUDGET_MS   default 16.7 (gate uses p50)
-//   S5_ALLOW_SLOW=1    soft-pass gate on overloaded hosts
 
 import (
-	"encoding/json"
 	"fmt"
 	"image"
 	"os"
-	"path/filepath"
-	"runtime"
 	"sort"
 	"testing"
 	"time"
@@ -49,18 +39,6 @@ type s5SceneResult struct {
 	GPUOps         int     `json:"gpu_ops"`
 	CPUFallbackOps int     `json:"cpu_fallback_ops"`
 	Path           string  `json:"path"`
-}
-
-type s5BaselineFile struct {
-	Version  string          `json:"version"`
-	Date     string          `json:"date"`
-	GOOS     string          `json:"goos"`
-	GOARCH   string          `json:"goarch"`
-	NumCPU   int             `json:"num_cpu"`
-	Hostname string          `json:"hostname"`
-	WGPUPath string          `json:"wgpu_native_path"`
-	Note     string          `json:"note"`
-	Scenes   []s5SceneResult `json:"scenes"`
 }
 
 type s5Scene struct {
@@ -455,178 +433,5 @@ func s5Scenes() []s5Scene {
 				dc.ResetClip()
 			},
 		},
-	}
-}
-
-func TestS5_PresentBaseline_Scenes(t *testing.T) {
-	p1RequireGPU(t)
-	warmup := s5EnvInt("S5_PERF_WARMUP", 3)
-	iters := s5EnvInt("S5_PERF_ITERS", 10)
-	if iters < 1 {
-		iters = 1
-	}
-
-	host, _ := os.Hostname()
-	out := s5BaselineFile{
-		Version:  "s5.1-present-1",
-		Date:     time.Now().Format(time.RFC3339),
-		GOOS:     runtime.GOOS,
-		GOARCH:   runtime.GOARCH,
-		NumCPU:   runtime.NumCPU(),
-		Hostname: host,
-		WGPUPath: os.Getenv("WGPU_NATIVE_PATH"),
-		Note:     "S5.1 present-only offscreen (FlushGPUWithView, no ReadPixels). Gate metric = p50.",
-	}
-
-	var results []s5SceneResult
-	for _, sc := range s5Scenes() {
-		sc := sc
-		t.Run(sc.Name, func(t *testing.T) {
-			res := s5MeasurePresent(t, sc, warmup, iters)
-			results = append(results, res)
-			t.Logf("%s p50=%.2f avg=%.2f present=%.2f fps_p50=%.1f gpu=%d cpu_fb=%d retained=%v damage=%v",
-				res.Name, res.TotalMsP50, res.TotalMsAvg, res.PresentMsAvg, res.FpsP50, res.GPUOps, res.CPUFallbackOps, res.Retained, res.Damage)
-			if res.CPUFallbackOps != 0 {
-				t.Fatalf("cpu_fallback_ops=%d", res.CPUFallbackOps)
-			}
-		})
-	}
-	out.Scenes = results
-	sort.Slice(out.Scenes, func(i, j int) bool { return out.Scenes[i].Name < out.Scenes[j].Name })
-
-	path := os.Getenv("S5_PERF_JSON")
-	if path == "" {
-		// Prefer repo-root tmp/ even when `go test` cwd is the package dir.
-		candidates := []string{
-			filepath.Join("tmp", "s5_present_baseline.json"),
-			filepath.Join("..", "tmp", "s5_present_baseline.json"),
-		}
-		path = candidates[0]
-		if _, err := os.Stat("go.mod"); err != nil {
-			if _, err2 := os.Stat(filepath.Join("..", "go.mod")); err2 == nil {
-				path = candidates[1]
-			}
-		}
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	raw, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		t.Fatalf("json: %v", err)
-	}
-	if err := os.WriteFile(path, raw, 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
-	t.Logf("wrote %s (%d scenes)", path, len(out.Scenes))
-}
-
-func TestS52_FrameModel_RetainedDamage(t *testing.T) {
-	p1RequireGPU(t)
-	const w, h = 320, 200
-	dc := render.NewContext(w, h)
-	defer dc.Close()
-	font := p1FindFont(t)
-	_ = dc.LoadFontFace(font, 12)
-
-	view, rel := dc.CreateOffscreenTexture(w, h)
-	if rel == nil || view.IsNil() {
-		t.Skip("offscreen unavailable")
-	}
-	defer rel()
-
-	// Bootstrap full present.
-	p1White(dc, w, h)
-	s5Solid(dc, 0.9, 0.91, 0.93, 1, 0, 0, w, h)
-	if err := dc.PresentFrame(view, uint32(w), uint32(h), nil); err != nil {
-		t.Fatalf("bootstrap: %v", err)
-	}
-
-	// Steady: reset damage → local draws → multi-rect present.
-	dc.ResetFrameDamage()
-	dc.ClipRect(16, 40, 120, 80)
-	s5Solid(dc, 0.2, 0.5, 0.9, 1, 16, 40, 120, 80)
-	dc.ResetClip()
-	dc.ClipRect(180, 40, 120, 80)
-	s5Solid(dc, 0.2, 0.7, 0.4, 1, 180, 40, 120, 80)
-	dc.ResetClip()
-	rects := dc.FrameDamage()
-	if len(rects) == 0 {
-		t.Fatal("expected FrameDamage")
-	}
-	if dc.FrameDamageUnion().Empty() {
-		t.Fatal("FrameDamageUnion empty")
-	}
-	if err := dc.PresentFrameDamageRects(view, uint32(w), uint32(h), rects, nil); err != nil {
-		t.Fatalf("damage present: %v", err)
-	}
-	if dc.RenderPathStats().GPUOps == 0 {
-		t.Fatal("GPUOps==0")
-	}
-	t.Logf("S5.2 ok damage=%v", rects)
-}
-
-func TestS53_MainPath60FPS_Gate(t *testing.T) {
-	p1RequireGPU(t)
-	budget := s5EnvFloat("S5_FPS_BUDGET_MS", 16.7)
-	warmup := s5EnvInt("S5_PERF_WARMUP", 3)
-	iters := s5EnvInt("S5_PERF_ITERS", 10)
-	if iters < 5 {
-		iters = 5
-	}
-
-	gated := []string{"U01_StaticShell", "U02_ListScrollMorph", "U03_FormFieldDamage", "U04_ModalStatic"}
-	byName := map[string]s5Scene{}
-	for _, sc := range s5Scenes() {
-		byName[sc.Name] = sc
-	}
-	for _, name := range gated {
-		sc := byName[name]
-		t.Run(name, func(t *testing.T) {
-			res := s5MeasurePresent(t, sc, warmup, iters)
-			metric := res.TotalMsP50
-			t.Logf("%s p50=%.2f avg=%.2f budget=%.2f fps_p50=%.1f", name, metric, res.TotalMsAvg, budget, res.FpsP50)
-			if res.CPUFallbackOps != 0 {
-				t.Fatalf("cpu_fallback_ops=%d", res.CPUFallbackOps)
-			}
-			if metric > budget {
-				if os.Getenv("S5_ALLOW_SLOW") == "1" {
-					t.Logf("OVER budget soft-pass S5_ALLOW_SLOW=1: p50=%.2f > %.2f", metric, budget)
-					return
-				}
-				t.Fatalf("present-only p50 %.2fms exceeds budget %.2fms (avg=%.2f)", metric, budget, res.TotalMsAvg)
-			}
-		})
-	}
-}
-
-func TestS54_P0Capability_NoBlockingGap(t *testing.T) {
-	p1RequireGPU(t)
-	dc := render.NewContext(200, 120)
-	defer dc.Close()
-	font := p1FindFont(t)
-	_ = dc.LoadFontFace(font, 14)
-	dc.ResetRenderPathStats()
-	p1White(dc, 200, 120)
-	dc.SetRGB(0.2, 0.4, 0.9)
-	dc.DrawRoundedRectangle(10, 10, 80, 40, 8)
-	_ = dc.Fill()
-	dc.ClipRect(100, 10, 90, 100)
-	dc.SetRGB(0.9, 0.3, 0.2)
-	dc.DrawCircle(145, 55, 30)
-	_ = dc.Fill()
-	dc.ResetClip()
-	dc.SetRGB(0.1, 0.1, 0.12)
-	dc.DrawString("P0 ok", 20, 90)
-	view, rel := dc.CreateOffscreenTexture(200, 120)
-	if rel == nil || view.IsNil() {
-		t.Skip("offscreen unavailable")
-	}
-	defer rel()
-	if err := dc.PresentFrame(view, 200, 120, nil); err != nil {
-		t.Fatalf("PresentFrame: %v", err)
-	}
-	if dc.RenderPathStats().GPUOps == 0 {
-		t.Fatal("GPUOps==0")
 	}
 }
