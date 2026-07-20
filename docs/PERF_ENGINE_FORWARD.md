@@ -827,16 +827,16 @@ F10 基线与归因
 
 | 切片 | 状态 | 证据 | 备注 |
 |------|------|------|------|
-| F10 基线+归因 | ⬜ 待开工 | — | 无 diff 可 |
-| F11 CPU alloc/desc | ⬜ | — | 按 pprof |
-| F12 上传 Write* | ⬜ | — | 按 pprof |
-| F13 submit/pass | ⬜ | — | 高风险 |
-| F14 filter/glow | ⬜ | — | hitch |
-| F15 damage | ⬜ | — | |
-| F16 text/atlas | ⬜ | — | |
-| F17 资源/生命周期 | ⬜ | — | mem 必跑 |
-| F18 重场景 combo | ⬜ | — | |
-| F19 收口 | ⬜ | — | |
+| F10 基线+归因 | ✅ 完成 | `tmp/perf_fwd_20260720/BASELINE.md` | 2026-07-20；已知 T4 OOM / S68 reconfig |
+| F11 CPU alloc/desc | ↩️ 回滚 | `opt1/SUMMARY.md` | packMesh re-inline 无收益 |
+| F12 上传 Write* | ⏭ 跳过 | — | WriteBuffer 多为 cgo 墙 |
+| F13 submit/pass | ⏭ 跳过 | — | 高风险；无验证 singleSubmit |
+| F14 filter/glow/readback | ✅ Keep | `opt2/SUMMARY.md` | effect FlushGPU 零读回；GRAD -6.8cpu COMBO -5.2cpu |
+| F15 damage | ⏭ 跳过 | — | 本轮 pprof 无主因 |
+| F16 text/atlas | ⏭ 跳过 | — | 次要 |
+| F17 资源/生命周期 | ⏭ 跳过 | — | T4 baseline_known OOM；未动池 |
+| F18 重场景 combo | 部分 | opt2 含 COMBO | 随 F14 收割 |
+| F19 收口 | ✅ 完成 | `tmp/perf_fwd_20260720/CLOSEOUT.md` | 平台期：cgo≈50% |
 
 ---
 

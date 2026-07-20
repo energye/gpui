@@ -1643,7 +1643,13 @@ func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape rende
 		return rc.FillPath(target, p, paint)
 	}
 	if !rc.shared.gpuReady {
-		return rc.shared.cpuFallback.FillShape(target, shape, paint)
+		// Match FillPath/text paths: lazy-init shared GPU before silent CPU fallback.
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return rc.shared.cpuFallback.FillShape(target, shape, paint)
+		}
 	}
 
 	// If in Compute mode, delegate to VelloAccelerator.
@@ -1665,7 +1671,12 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 	rc.sceneStats.ShapeCount++
 
 	if !rc.shared.gpuReady {
-		return rc.shared.cpuFallback.StrokeShape(target, shape, paint)
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return rc.shared.cpuFallback.StrokeShape(target, shape, paint)
+		}
 	}
 
 	// R3: dashed / non-SO / thin strokes → geometric StrokePath (GPU expand+fill)

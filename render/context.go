@@ -125,6 +125,12 @@ type Context struct {
 	lastFlushedViewW         int
 	lastFlushedViewH         int
 
+	// effectSurface: continuous effect offscreen (SetEffectSurface).
+	// F14: FlushGPU publishes into a pooled TextureBinding RT and attaches
+	// filterGPUView for zero-readback DrawGPUTexture present; pixmap stays stale
+	// until Export/Image materialize.
+	effectSurface bool
+
 	// midFrameNilFlush is set when FlushGPU (nil view) absorbed pending draws
 	// into the pixmap. ApplyImageFilterGraph must seed from pixmap afterward
 	// (D105/D140), not treat remaining pending as the full surface.
@@ -499,6 +505,7 @@ func (c *Context) SetEffectSurface(enabled bool) {
 	if c == nil {
 		return
 	}
+	c.effectSurface = enabled
 	c.ensureGPUCtx()
 	if rc := c.gpuCtxOps(); rc != nil {
 		type sc1 interface{ SetPreferSampleCount1(bool) }
@@ -506,6 +513,24 @@ func (c *Context) SetEffectSurface(enabled bool) {
 			s.SetPreferSampleCount1(enabled)
 		}
 	}
+}
+
+// acquireEffectPublishView allocates a pooled TextureBinding RT for F14 effect
+// FlushGPU publish. Caller must pass release to attachFilterGPUResult (or call it).
+func (c *Context) acquireEffectPublishView() (view gpucontext.TextureView, w, h int, release func(), ok bool) {
+	if c == nil || c.pixmap == nil {
+		return gpucontext.TextureView{}, 0, 0, nil, false
+	}
+	w, h = c.pixmap.Width(), c.pixmap.Height()
+	if w <= 0 || h <= 0 {
+		return gpucontext.TextureView{}, 0, 0, nil, false
+	}
+	c.ensureGPUCtx()
+	v, rel := c.CreateOffscreenTexture(w, h)
+	if v.IsNil() || rel == nil {
+		return gpucontext.TextureView{}, 0, 0, nil, false
+	}
+	return v, w, h, rel, true
 }
 
 func (c *Context) SetTextMode(mode TextMode) {
@@ -1766,6 +1791,37 @@ func (c *Context) FlushGPU() error {
 	}
 	t := c.gpuRenderTarget()
 	var err error
+
+	// F14: effect offscreen — flush into pooled TextureBinding RT and publish for
+	// zero-readback DrawGPUTexture. Skip when a layer already owns a GPU view
+	// (P0-1) so we do not steal the layer destination.
+	if pending > 0 && c.effectSurface && t.View.IsNil() {
+		if view, w, h, rel, ok := c.acquireEffectPublishView(); ok {
+			t.View = view
+			t.ViewWidth = uint32(w)  //nolint:gosec // pixmap dims bounded
+			t.ViewHeight = uint32(h) //nolint:gosec
+			if rc := c.gpuCtxOps(); rc != nil {
+				err = rc.Flush(t)
+			} else if a := Accelerator(); a != nil {
+				c.warnGPUFallback("FlushGPU")
+				err = a.Flush(t)
+			}
+			if err == nil {
+				c.attachFilterGPUResult(view, w, h, rel)
+				c.pixmapFilterStale = true
+				c.clearViewFlushTracking()
+				// Content lives on GPU, not pixmap (unlike nil-view Map path).
+				c.midFrameNilFlush = false
+				c.drainLayerGPUReleases()
+				return nil
+			}
+			// Fall through to CPU-readback Flush on failure.
+			rel()
+			t.View = gpucontext.TextureView{}
+			t.ViewWidth, t.ViewHeight = 0, 0
+		}
+	}
+
 	if rc := c.gpuCtxOps(); rc != nil {
 		err = rc.Flush(t)
 	} else if a := Accelerator(); a != nil {
@@ -1780,6 +1836,10 @@ func (c *Context) FlushGPU() error {
 		if pending > 0 {
 			c.clearViewFlushTracking()
 			c.midFrameNilFlush = true
+			// CPU path overwrote published GPU content.
+			if c.effectSurface {
+				c.pixmapFilterStale = false
+			}
 		}
 	}
 	// Layer GPU RTs used as DrawGPUTexture sources can be released now.

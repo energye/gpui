@@ -64,6 +64,12 @@ func (g *glowRT) publish() *render.ImageBuf {
 	if _, _, _, ok := g.dc.GPUFilterTexture(); ok {
 		return nil
 	}
+	// F14: effect FlushGPU publishes TextureBinding RT without Map; present via
+	// presentCached → DrawGPUTexture. Only Export (Map) if publish failed.
+	_ = g.dc.FlushGPU()
+	if _, _, _, ok := g.dc.GPUFilterTexture(); ok {
+		return nil
+	}
 	if !g.dc.ExportImageBuf(&g.img) {
 		return nil
 	}
@@ -816,13 +822,9 @@ func drawDigFeatures(dc *render.Context, fonts fontPack, cfg featureConfig, sx, 
 			rt.SetFillBrush(swp)
 			rt.DrawCircle(160, 78, 28)
 			_ = rt.Fill()
-			if img := gDigGrad.publish(); img != nil {
-				dc.DrawImageEx(img, render.DrawImageOptions{
-					X: sx + 12, Y: sy + sh*0.55,
-					DstWidth: float64(tw), DstHeight: float64(th),
-					Opacity: 0.95, Interpolation: render.InterpBilinear,
-				})
-			}
+			// F14: prefer GPUFilterTexture zero-readback present (effect FlushGPU publish).
+			_ = gDigGrad.publish()
+			_ = gDigGrad.presentCachedOpacity(dc, sx+12, sy+sh*0.55, 0.95)
 		}
 		dc.SetRGBA(1, 0.75, 0.2, 1)
 		dc.DrawRectangle(sx+sw-108, sy+sh-28, 16, 16)
@@ -876,13 +878,9 @@ func drawDigFeatures(dc *render.Context, fonts fontPack, cfg featureConfig, sx, 
 			rt.DrawRoundedRectangle(float64(tw)*0.35, float64(th)*0.32+6*math.Sin(t*1.4), 55, 34, 8)
 			_ = rt.Fill()
 			rt.SetBlendMode(render.BlendNormal)
-			if img := gDigBlend.publish(); img != nil {
-				dc.DrawImageEx(img, render.DrawImageOptions{
-					X: sx + sw*0.28, Y: sy + 16,
-					DstWidth: float64(tw), DstHeight: float64(th),
-					Opacity: 1, Interpolation: render.InterpBilinear,
-				})
-			}
+			// F14: prefer GPUFilterTexture zero-readback present.
+			_ = gDigBlend.publish()
+			_ = gDigBlend.presentCached(dc, sx+sw*0.28, sy+16)
 		} else {
 			_ = gDigBlend.presentCached(dc, sx+sw*0.28, sy+16)
 		}
