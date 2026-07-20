@@ -200,6 +200,8 @@ func (s *Surface) Unconfigure() {
 	}
 	s.device = 0
 	s.deviceRef = nil
+	// Skip native Unconfigure when lost: force-Unconfigure + Configure on the
+	// *same* surface SIGSEGVs in this libwgpu_native. Recover recreates Surface.
 	if lost {
 		return
 	}

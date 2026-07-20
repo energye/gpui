@@ -14,7 +14,7 @@ type Sampler struct {
 
 // Release destroys the sampler.
 func (s *Sampler) Release() {
-	if s.released {
+	if s == nil || s.released {
 		return
 	}
 	s.released = true

@@ -193,21 +193,24 @@ func (p *MSDFTextPipeline) createPipeline() error {
 	p.pipeLayoutHasClip = hasClip
 
 	// Create sampler for MSDF textures (linear filtering for smooth
-	// distance field interpolation).
-	sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
-		Label:        "msdf_text_sampler",
-		AddressModeU: types.AddressModeClampToEdge,
-		AddressModeV: types.AddressModeClampToEdge,
-		AddressModeW: types.AddressModeClampToEdge,
-		MagFilter:    types.FilterModeLinear,
-		MinFilter:    types.FilterModeLinear,
-		MipmapFilter: types.MipmapFilterModeLinear,
-		Anisotropy:   4, // reduces blurring at small text sizes
-	})
-	if err != nil {
-		return fmt.Errorf("create msdf_text sampler: %w", err)
+	// distance field interpolation). Keep existing sampler across
+	// destroyPipeline+createPipeline clip rebuilds (same leak class as glyph_mask).
+	if p.sampler == nil {
+		sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+			Label:        "msdf_text_sampler",
+			AddressModeU: types.AddressModeClampToEdge,
+			AddressModeV: types.AddressModeClampToEdge,
+			AddressModeW: types.AddressModeClampToEdge,
+			MagFilter:    types.FilterModeLinear,
+			MinFilter:    types.FilterModeLinear,
+			MipmapFilter: types.MipmapFilterModeLinear,
+			Anisotropy:   4, // reduces blurring at small text sizes
+		})
+		if err != nil {
+			return fmt.Errorf("create msdf_text sampler: %w", err)
+		}
+		p.sampler = sampler
 	}
-	p.sampler = sampler
 
 	premulBlend := types.BlendStatePremultiplied()
 	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{

@@ -417,6 +417,22 @@ func (c *Context) Close() error {
 // If the registered accelerator implements PipelineModeAware, the mode is
 // propagated so the accelerator can route operations to the correct pipeline
 // (render pass vs compute).
+// DropGPURenderContext closes the per-context GPU session (device-bound textures
+// / pipelines bindings) without closing the Context itself. Call after
+// AutoRecover / SetDeviceProvider so the next Present rebuilds a clean session.
+func (c *Context) DropGPURenderContext() {
+	if c == nil || c.gpuCtx == nil {
+		return
+	}
+	type gpuCtxCloser interface {
+		Close()
+	}
+	if closer, ok := c.gpuCtx.(gpuCtxCloser); ok {
+		closer.Close()
+	}
+	c.gpuCtx = nil
+}
+
 func (c *Context) SetPipelineMode(mode PipelineMode) {
 	c.pipelineMode = mode
 	if rc := c.gpuCtxOps(); rc != nil {

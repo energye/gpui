@@ -84,7 +84,11 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateSampler", Message: "wgpu returned null handle"}
 	}
-	trackResource(handle, "Sampler")
+	lab := ""
+	if desc != nil {
+		lab = desc.Label
+	}
+	trackResourceLabel(handle, "Sampler", lab)
 	return &Sampler{handle: handle, device: d.handle}, nil
 }
 

@@ -162,78 +162,89 @@ func (p *GlyphMaskPipeline) ensureSharedResources() error {
 		return fmt.Errorf("glyph_mask shader source is empty")
 	}
 
-	shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
-		Label: "glyph_mask_shader",
-		WGSL:  glyphMaskShaderSource,
-	})
-	if err != nil {
-		return fmt.Errorf("compile glyph_mask shader: %w", err)
+	// destroyPipeline clears shader/layouts but intentionally keeps sampler
+	// (shared across stencil/clip rebuilds). Only create missing pieces so we
+	// never overwrite a live GPU object (sampler leak → AutoRecover OOM).
+	if p.shader == nil {
+		shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+			Label: "glyph_mask_shader",
+			WGSL:  glyphMaskShaderSource,
+		})
+		if err != nil {
+			return fmt.Errorf("compile glyph_mask shader: %w", err)
+		}
+		p.shader = shader
 	}
-	p.shader = shader
 
 	// Bind group layout:
 	//   Binding 0: GlyphMaskUniforms (uniform buffer, vertex+fragment)
 	//   Binding 1: R8 atlas texture (texture_2d, fragment)
 	//   Binding 2: Sampler (fragment)
-	uniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
-		Label: "glyph_mask_uniform_layout",
-		Entries: []types.BindGroupLayoutEntry{
-			{
-				Binding:    0,
-				Visibility: types.ShaderStageVertex | types.ShaderStageFragment,
-				Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: glyphMaskUniformSize},
-			},
-			{
-				Binding:    1,
-				Visibility: types.ShaderStageFragment,
-				Texture: &types.TextureBindingLayout{
-					SampleType:    types.TextureSampleTypeFloat,
-					ViewDimension: types.TextureViewDimension2D,
+	if p.uniformLayout == nil {
+		uniformLayout, err := p.device.CreateBindGroupLayout(&webgpu.BindGroupLayoutDescriptor{
+			Label: "glyph_mask_uniform_layout",
+			Entries: []types.BindGroupLayoutEntry{
+				{
+					Binding:    0,
+					Visibility: types.ShaderStageVertex | types.ShaderStageFragment,
+					Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: glyphMaskUniformSize},
+				},
+				{
+					Binding:    1,
+					Visibility: types.ShaderStageFragment,
+					Texture: &types.TextureBindingLayout{
+						SampleType:    types.TextureSampleTypeFloat,
+						ViewDimension: types.TextureViewDimension2D,
+					},
+				},
+				{
+					Binding:    2,
+					Visibility: types.ShaderStageFragment,
+					Sampler:    &types.SamplerBindingLayout{Type: types.SamplerBindingTypeFiltering},
 				},
 			},
-			{
-				Binding:    2,
-				Visibility: types.ShaderStageFragment,
-				Sampler:    &types.SamplerBindingLayout{Type: types.SamplerBindingTypeFiltering},
-			},
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("create glyph_mask uniform layout: %w", err)
+		})
+		if err != nil {
+			return fmt.Errorf("create glyph_mask uniform layout: %w", err)
+		}
+		p.uniformLayout = uniformLayout
 	}
-	p.uniformLayout = uniformLayout
 
-	glyphBGLayouts := []*webgpu.BindGroupLayout{p.uniformLayout}
-	hasClip := p.clipBindLayout != nil
-	if hasClip {
-		glyphBGLayouts = append(glyphBGLayouts, p.clipBindLayout)
+	if p.pipeLayout == nil {
+		glyphBGLayouts := []*webgpu.BindGroupLayout{p.uniformLayout}
+		hasClip := p.clipBindLayout != nil
+		if hasClip {
+			glyphBGLayouts = append(glyphBGLayouts, p.clipBindLayout)
+		}
+		pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+			Label:            "glyph_mask_pipe_layout",
+			BindGroupLayouts: glyphBGLayouts,
+		})
+		if err != nil {
+			return fmt.Errorf("create glyph_mask pipeline layout: %w", err)
+		}
+		p.pipeLayout = pipeLayout
+		p.pipeLayoutHasClip = hasClip
 	}
-	pipeLayout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
-		Label:            "glyph_mask_pipe_layout",
-		BindGroupLayouts: glyphBGLayouts,
-	})
-	if err != nil {
-		return fmt.Errorf("create glyph_mask pipeline layout: %w", err)
-	}
-	p.pipeLayout = pipeLayout
-	p.pipeLayoutHasClip = hasClip
 
 	// Create sampler for R8 atlas textures.
 	// Nearest filtering: glyph masks are CPU-rasterized at exact device pixel size
 	// with subpixel hinting. Linear filtering would blur the already-hinted bitmaps.
-	sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
-		Label:        "glyph_mask_sampler",
-		AddressModeU: types.AddressModeClampToEdge,
-		AddressModeV: types.AddressModeClampToEdge,
-		AddressModeW: types.AddressModeClampToEdge,
-		MagFilter:    types.FilterModeNearest,
-		MinFilter:    types.FilterModeNearest,
-		MipmapFilter: types.MipmapFilterModeNearest,
-	})
-	if err != nil {
-		return fmt.Errorf("create glyph_mask sampler: %w", err)
+	if p.sampler == nil {
+		sampler, err := p.device.CreateSampler(&webgpu.SamplerDescriptor{
+			Label:        "glyph_mask_sampler",
+			AddressModeU: types.AddressModeClampToEdge,
+			AddressModeV: types.AddressModeClampToEdge,
+			AddressModeW: types.AddressModeClampToEdge,
+			MagFilter:    types.FilterModeNearest,
+			MinFilter:    types.FilterModeNearest,
+			MipmapFilter: types.MipmapFilterModeNearest,
+		})
+		if err != nil {
+			return fmt.Errorf("create glyph_mask sampler: %w", err)
+		}
+		p.sampler = sampler
 	}
-	p.sampler = sampler
 
 	return nil
 }

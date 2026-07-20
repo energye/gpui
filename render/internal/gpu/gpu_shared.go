@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -139,6 +140,11 @@ type GPUShared struct {
 	// deviceGen increments on every logical device install (SetDeviceProvider / initGPU).
 	// Per-context GPURenderSession must rebuild when gen changes (Skia abandon+recreate).
 	deviceGen uint64
+
+	// liveCtxs: per-window GPURenderContexts that hold session MSAA/depth textures.
+	// AbandonExternalDevice must Destroy these *before* Device.Destroy or VRAM
+	// stays pinned → CreateTexture OOM on the recovered device (minimize recover).
+	liveCtxs map[*GPURenderContext]struct{}
 }
 
 // NewGPUShared creates a new shared GPU resource holder. GPU initialization
@@ -148,6 +154,7 @@ type GPUShared struct {
 func NewGPUShared() *GPUShared {
 	return &GPUShared{
 		texturePool: NewTexturePool(defaultTexturePoolBudgetMB),
+		liveCtxs:    make(map[*GPURenderContext]struct{}),
 	}
 }
 
@@ -158,10 +165,26 @@ func (s *GPUShared) NewRenderContext() *GPURenderContext {
 	// GPU initialization is deferred to first Flush() or SetDeviceProvider().
 	// This avoids creating a standalone Vulkan instance before gogpu has a
 	// chance to provide its DeviceProvider (which may be software/CPU).
-	return &GPURenderContext{
+	rc := &GPURenderContext{
 		shared:    s,
 		antiAlias: true,
 	}
+	s.mu.Lock()
+	if s.liveCtxs == nil {
+		s.liveCtxs = make(map[*GPURenderContext]struct{})
+	}
+	s.liveCtxs[rc] = struct{}{}
+	s.mu.Unlock()
+	return rc
+}
+
+func (s *GPUShared) unregisterContext(rc *GPURenderContext) {
+	if s == nil || rc == nil {
+		return
+	}
+	s.mu.Lock()
+	delete(s.liveCtxs, rc)
+	s.mu.Unlock()
 }
 
 // IsReady reports whether the GPU shape/text pipelines are initialized.
@@ -264,14 +287,14 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	s.externalDevice = true
 	s.deviceGen++
 
-	// External/window devices: avoid MSAA probe CreateTexture (can abort via
-	// uncaptured OOM on software backends after long suites). Prefer prior
-	// sampleCount when set; otherwise default to 4. Callers that need lower
-	// memory can set GPUI_SURFACE_SAMPLE_COUNT=1 before SetDeviceProvider.
-	if sc := os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"); sc == "1" {
+	// External/window devices: default sampleCount=1 (post-TDR VRAM is tight on
+	// 1GB GPUs). Set GPUI_SURFACE_SAMPLE_COUNT=4 to opt into MSAA.
+	if sc := os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"); sc == "4" {
+		if s.sampleCount == 0 {
+			s.sampleCount = 4
+		}
+	} else {
 		s.sampleCount = 1
-	} else if s.sampleCount == 0 {
-		s.sampleCount = 4
 	}
 
 	// Auto-detect rendering strategy (Skia PathRendererStrategy pattern).
@@ -287,9 +310,8 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 		return nil
 	}
 
-	// Same pipeline path as first-use (no duplicate New* here).
-	s.ensurePipelines()
-	s.gpuReady = s.sdfRenderPipeline != nil
+	// Lazy pipelines after external bind/recover (first Flush ensurePipelines).
+	s.gpuReady = true
 	s.registerFilterGraphIfNeeded()
 
 	slogger().Info("gpu-shared: switched to shared GPU device",
@@ -300,17 +322,47 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	return nil
 }
 
-// AbandonExternalDevice drops objects on the current external device and
-// bumps deviceGen (session rebuild). For Swapchain.OnDeviceAbandon before
-// Device.Destroy/Release so AutoRecover does not OOM on the new device.
+// AbandonExternalDevice drops every GPU object still bound to the current
+// external device (live sessions + shared caches) and bumps deviceGen.
+//
+// Skia/Flutter order for device-lost recover:
+//
+//	abandon all GrGpuResources → destroy context → recreate.
+//
+// Session MSAA/depth must be Released *before* Device.Destroy; otherwise this
+// native build keeps VRAM pinned and the new device OOMs on CreateTexture.
 func (s *GPUShared) AbandonExternalDevice() {
 	if s == nil {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.abandonDeviceOwnedLocked(false)
-	s.deviceGen++
+	// Soft-native reclaim: child Release must run even when parent is sticky-lost.
+	rwgpu.WithForceNativeReleaseOnLost(func() {
+		s.mu.Lock()
+		ctxs := make([]*GPURenderContext, 0, len(s.liveCtxs))
+		for rc := range s.liveCtxs {
+			ctxs = append(ctxs, rc)
+		}
+		s.mu.Unlock()
+
+		nSess := 0
+		for _, rc := range ctxs {
+			if rc == nil {
+				continue
+			}
+			if rc.session != nil {
+				nSess++
+				rc.session.Destroy() // native Release depth/MSAA under force flag
+				rc.session = nil
+			}
+			rc.frameRendered = false
+			rc.lastView = nil
+			rc.deviceGen = 0
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.abandonDeviceOwnedLocked(false)
+		s.deviceGen++
+	})
 }
 
 // CanRenderDirect reports whether the GPU is initialized and can render
@@ -372,8 +424,10 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 		s.sharedAtlasTex.Release()
 		s.sharedAtlasTex = nil
 	}
-	if s.glyphMaskEngine != nil && s.device != nil {
-		s.glyphMaskEngine.Destroy(s.device)
+	if s.glyphMaskEngine != nil {
+		if s.device != nil {
+			s.glyphMaskEngine.Destroy(s.device)
+		}
 		s.glyphMaskEngine = nil
 	}
 	if s.velloAccel != nil {

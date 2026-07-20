@@ -4,6 +4,8 @@ package gpu
 
 import (
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -60,7 +62,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
 	if needMSAA {
-		msaaTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		msaaTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
 			Label:         labelPrefix + "_msaa_color",
 			Size:          size,
 			MipLevelCount: 1,
@@ -89,7 +91,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 	}
 
 	// Depth/stencil texture (sc samples, Depth24PlusStencil8).
-	stencilTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	stencilTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
 		Label:         labelPrefix + "_depth_stencil",
 		Size:          size,
 		MipLevelCount: 1,
@@ -99,8 +101,24 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 		Usage:         types.TextureUsageRenderAttachment,
 	})
 	if err != nil {
-		ts.destroyTextures()
-		return fmt.Errorf("create depth/stencil texture: %w", err)
+		// Post-TDR / AutoRecover: full-size depth may OOM while device heap is
+		// still reclaiming. Fall back to 1x1 depth (stencil Always/Keep still valid).
+		log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", size.Width, size.Height, sc, err)
+		stencilTex, err = createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+			Label:         labelPrefix + "_depth_stencil_1x1",
+			Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+			MipLevelCount: 1,
+			SampleCount:   1,
+			Dimension:     types.TextureDimension2D,
+			Format:        types.TextureFormatDepth24PlusStencil8,
+			Usage:         types.TextureUsageRenderAttachment,
+		})
+		if err != nil {
+			ts.destroyTextures()
+			return fmt.Errorf("create depth/stencil texture: %w", err)
+		}
+		// Force recreate next frame when heap has reclaimed (size mismatch path).
+		ts.width, ts.height = 0, 0
 	}
 	ts.stencilTex = stencilTex
 
@@ -119,7 +137,7 @@ func (ts *textureSet) ensureTextures(device *webgpu.Device, w, h uint32, labelPr
 
 	// Single-sample resolve target (CopySrc for readback). For sc==1 this is
 	// also the color attachment (no MSAA resolve).
-	resolveTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	resolveTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
 		Label:         labelPrefix + "_resolve",
 		Size:          size,
 		MipLevelCount: 1,
@@ -195,7 +213,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
 
 	if needMSAA {
-		msaaTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+		msaaTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
 			Label:         labelPrefix + "_msaa_color",
 			Size:          size,
 			MipLevelCount: 1,
@@ -223,7 +241,7 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		ts.msaaView = msaaView
 	}
 
-	stencilTex, err := device.CreateTexture(&webgpu.TextureDescriptor{
+	stencilTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
 		Label:         labelPrefix + "_depth_stencil",
 		Size:          size,
 		MipLevelCount: 1,
@@ -233,8 +251,24 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		Usage:         types.TextureUsageRenderAttachment,
 	})
 	if err != nil {
-		ts.destroyTextures()
-		return fmt.Errorf("create depth/stencil texture: %w", err)
+		// Post-TDR / AutoRecover: full-size depth may OOM while device heap is
+		// still reclaiming. Fall back to 1x1 depth (stencil Always/Keep still valid).
+		log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", size.Width, size.Height, sc, err)
+		stencilTex, err = createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+			Label:         labelPrefix + "_depth_stencil_1x1",
+			Size:          webgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+			MipLevelCount: 1,
+			SampleCount:   1,
+			Dimension:     types.TextureDimension2D,
+			Format:        types.TextureFormatDepth24PlusStencil8,
+			Usage:         types.TextureUsageRenderAttachment,
+		})
+		if err != nil {
+			ts.destroyTextures()
+			return fmt.Errorf("create depth/stencil texture: %w", err)
+		}
+		// Force recreate next frame when heap has reclaimed (size mismatch path).
+		ts.width, ts.height = 0, 0
 	}
 	ts.stencilTex = stencilTex
 
@@ -290,4 +324,35 @@ func (ts *textureSet) destroyTextures() {
 	}
 	ts.width = 0
 	ts.height = 0
+}
+
+// createTextureRetryOOM creates a texture; on OOM-like errors flushes and retries.
+// Second try forces SampleCount=1 when the failed desc used MSAA (post-TDR reclaim).
+func createTextureRetryOOM(device *webgpu.Device, desc *webgpu.TextureDescriptor) (*webgpu.Texture, error) {
+	if device == nil || desc == nil {
+		return nil, fmt.Errorf("createTextureRetryOOM: nil device/desc")
+	}
+	tex, err := device.CreateTexture(desc)
+	if err == nil {
+		return tex, nil
+	}
+	low := strings.ToLower(err.Error())
+	if !strings.Contains(low, "not enough memory") && !strings.Contains(low, "out of memory") {
+		return nil, err
+	}
+	log.Printf("CreateTexture OOM label=%s %dx%d samples=%d", desc.Label, desc.Size.Width, desc.Size.Height, desc.SampleCount)
+	device.FlushCallbacks()
+	_ = device.WaitIdle()
+	// Retry original once after flush.
+	tex, err2 := device.CreateTexture(desc)
+	if err2 == nil {
+		return tex, nil
+	}
+	// Last resort: drop MSAA for this allocation.
+	if desc.SampleCount > 1 {
+		d2 := *desc
+		d2.SampleCount = 1
+		return device.CreateTexture(&d2)
+	}
+	return nil, err2
 }

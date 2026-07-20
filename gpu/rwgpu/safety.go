@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // gpuMu serializes Device / Surface native entry points that are unsafe for
@@ -233,10 +234,30 @@ func isOwnerDeviceLost(deviceHandle uintptr) bool {
 	return deviceHandle != 0 && IsDeviceHandleLost(deviceHandle)
 }
 
+// forceNativeReleaseOnLost: when true, releaseNativeHandle still calls native
+// Release/Destroy for sticky-lost parents. Used only inside Abandon/recover so
+// session depth/MSAA VRAM is returned before RequestDevice (soft gogpu/rwgpu).
+// Default false keeps the historical skip-on-lost path (tests + fatal .so safety).
+var forceNativeReleaseOnLost atomic.Bool
+
+// WithForceNativeReleaseOnLost runs fn with native child Release enabled even when
+// the parent device is sticky-lost (Skia abandon before recreate).
+func WithForceNativeReleaseOnLost(fn func()) {
+	if fn == nil {
+		return
+	}
+	prev := forceNativeReleaseOnLost.Swap(true)
+	defer forceNativeReleaseOnLost.Store(prev)
+	fn()
+}
+
 // releaseNativeHandle clears *handle (nil/zero-safe, idempotent), untracks the
-// resource, and calls nativeRelease unless lost is true. When the parent device
-// is lost, only Go-side state is cleared — native release on a lost device can
-// SIGABRT inside wgpu-native.
+// resource, and calls nativeRelease unless the parent is sticky-lost *and*
+// forceNativeReleaseOnLost is false.
+//
+// Default skip-on-lost avoids SIGABRT on stock fatal .so. Soft-native recover
+// must flip forceNativeReleaseOnLost so VRAM is not left pinned across
+// Device.Destroy → RequestDevice (CreateTexture OOM after minimize recover).
 func releaseNativeHandle(handle *uintptr, lost bool, nativeRelease func(h uintptr)) {
 	if handle == nil || *handle == 0 {
 		return
@@ -244,7 +265,7 @@ func releaseNativeHandle(handle *uintptr, lost bool, nativeRelease func(h uintpt
 	h := *handle
 	*handle = 0
 	untrackResource(h)
-	if lost {
+	if lost && !forceNativeReleaseOnLost.Load() {
 		return
 	}
 	if nativeCallHook != nil {
@@ -256,7 +277,7 @@ func releaseNativeHandle(handle *uintptr, lost bool, nativeRelease func(h uintpt
 }
 
 // destroyAndReleaseNativeHandle is releaseNativeHandle plus an optional native
-// Destroy before Release. When lost, both native calls are skipped.
+// Destroy before Release. Honors forceNativeReleaseOnLost the same way.
 func destroyAndReleaseNativeHandle(handle *uintptr, lost bool, destroy, release func(h uintptr)) {
 	if handle == nil || *handle == 0 {
 		return
@@ -264,7 +285,7 @@ func destroyAndReleaseNativeHandle(handle *uintptr, lost bool, destroy, release 
 	h := *handle
 	*handle = 0
 	untrackResource(h)
-	if lost {
+	if lost && !forceNativeReleaseOnLost.Load() {
 		return
 	}
 	if nativeCallHook != nil {

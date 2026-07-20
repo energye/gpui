@@ -18,6 +18,8 @@ var (
 	// ErrDeviceLost is returned when the GPU device is lost.
 	ErrDeviceLost = errors.New("wgpu: device lost")
 
+	ErrRecovered = errors.New("wgpu: device recovered, skip frame")
+
 	// ErrOutOfMemory is returned when the GPU is out of memory.
 	ErrOutOfMemory = errors.New("wgpu: out of memory")
 

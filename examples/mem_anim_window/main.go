@@ -811,6 +811,10 @@ func main() {
 
 		fb, err := sc.BeginFrame()
 		if err != nil {
+			if errors.Is(err, webgpu.ErrRecovered) {
+				forceFull = true
+				continue
+			}
 			// Library error policy (do not thrash native Configure):
 			//   DeviceLost  → skip frame; EnableAutoRecover recreates on next BeginFrame
 			//   Occluded/Timeout → skip frame only

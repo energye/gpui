@@ -9,6 +9,7 @@ import (
 	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 )
 
@@ -80,6 +81,7 @@ type Swapchain struct {
 	recoverAttempts uint64
 	lastRecoverAt   time.Time
 	recoverCooldown time.Duration // min interval between recover tries (default 1s)
+	recoverGrace    int           // BeginFrames to skip after recover (ErrRecovered)
 }
 
 // Frame is one acquired swapchain image ready for rendering.
@@ -364,11 +366,106 @@ func (sc *Swapchain) deviceKnownLostLocked() bool {
 	return sc != nil && sc.Device != nil && sc.Device.IsLost()
 }
 
+// ForceRecoverHealthy abandons the current device while it is still healthy
+// (native Release reclaims VRAM), then RequestDevice + recreate surface + Configure.
+// Used by hosts that can tear down before sticky-lost (force-lost proof, scheduled
+// context reset). Prefer over MarkLost alone when the .so leaves VRAM pinned after
+// Release-on-lost of a fully-loaded UI device.
+func (sc *Swapchain) ForceRecoverHealthy() error {
+	if sc == nil {
+		return fmt.Errorf("wgpu: swapchain is nil")
+	}
+	if sc.RecoveryAdapter == nil {
+		return fmt.Errorf("wgpu: ForceRecoverHealthy requires RecoveryAdapter")
+	}
+	sc.frameMu.Lock()
+	defer sc.frameMu.Unlock()
+	sc.configured = false
+	sc.frameOpen = false
+	sc.pendingReconfigure = true
+
+	oldDev := sc.Device
+	oldSurf := sc.Surface
+	var disp, win uintptr
+	var inst *Instance
+	if oldSurf != nil {
+		disp, win = oldSurf.displayHandle, oldSurf.windowHandle
+		inst = oldSurf.instance
+	}
+	canRecreateSurf := inst != nil && win != 0
+
+	// Abandon host resources first while device still healthy (no force needed).
+	if oldDev != nil && sc.OnDeviceAbandon != nil {
+		sc.OnDeviceAbandon(oldDev)
+	}
+	if oldDev != nil && !oldDev.IsLost() {
+		_ = oldDev.WaitIdle()
+		oldDev.FlushCallbacks()
+	}
+	if oldSurf != nil {
+		oldSurf.DiscardTexture()
+		if oldDev == nil || !oldDev.IsLost() {
+			// Healthy Unconfigure frees swapchain images cleanly.
+			oldSurf.Unconfigure()
+		}
+		if canRecreateSurf {
+			oldSurf.Release()
+		}
+	}
+	if oldDev != nil {
+		// Healthy Release (lost=false) — measured path that reclaims VRAM.
+		if !oldDev.IsLost() {
+			oldDev.Release()
+		} else {
+			rwgpu.WithForceNativeReleaseOnLost(func() { oldDev.Release() })
+		}
+	}
+	sc.Device = nil
+	if canRecreateSurf {
+		sc.Surface = nil
+	}
+
+	label := sc.DeviceLabel
+	if label == "" {
+		label = "gpui-recovered-device"
+	}
+	dev, err := sc.RecoveryAdapter.RequestDevice(&DeviceDescriptor{Label: label})
+	if err != nil {
+		return fmt.Errorf("ForceRecoverHealthy RequestDevice: %w", err)
+	}
+	sc.Device = dev
+	if canRecreateSurf {
+		ns, err := inst.CreateSurface(disp, win)
+		if err != nil {
+			return fmt.Errorf("ForceRecoverHealthy CreateSurface: %w", err)
+		}
+		sc.Surface = ns
+	} else if sc.Surface == nil {
+		return fmt.Errorf("ForceRecoverHealthy: surface nil")
+	}
+	if sc.OnDeviceRecreated != nil {
+		sc.OnDeviceRecreated(dev)
+	}
+	if err := sc.ConfigureFromCapabilities(sc.RecoveryAdapter); err != nil {
+		if err2 := sc.Configure(); err2 != nil {
+			return fmt.Errorf("ForceRecoverHealthy configure: %v (caps: %v)", err2, err)
+		}
+	}
+	sc.recoverAttempts++
+	sc.recoverGrace = 5
+	sc.lastRecoverAt = time.Now()
+	return nil
+}
+
 // tryRecoverDeviceLocked creates a new device and reconfigures the surface.
 // Caller holds frameMu. Requires RecoveryAdapter; rate-limited by recoverCooldown.
 //
-// Never leaves sc.Device == nil on failed RequestDevice: the sticky-lost pointer
-// remains addressable (Flutter/Skia keep-context-until-recreate model).
+// Measured on libwgpu_native (940MX):
+//   - wgpuDeviceDestroy → permanent CreateTexture/RequestDevice OOM
+//   - Unconfigure-after-lost + Configure same surface → SIGSEGV
+//   - Force-Release surface+device children, recreate Surface, Release-only old device → OK
+//
+// Skia/Flutter: abandon all resources, drop context, recreate surface+device.
 func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	if sc == nil {
 		return fmt.Errorf("wgpu: swapchain is nil")
@@ -384,32 +481,51 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	}
 	sc.lastRecoverAt = time.Now()
 
-	// Drop any open frame ownership before tearing down device state.
-	if sc.Surface != nil {
-		sc.Surface.DiscardTexture()
-		sc.Surface.Unconfigure()
-	}
 	sc.configured = false
 	sc.frameOpen = false
 	sc.pendingReconfigure = true
 
-	old := sc.Device
+	oldDev := sc.Device
+	oldSurf := sc.Surface
+	var disp, win uintptr
+	var inst *Instance
+	if oldSurf != nil {
+		disp, win = oldSurf.displayHandle, oldSurf.windowHandle
+		inst = oldSurf.instance
+	}
+	// Always drop+recreate Surface when platform handles are known.
+	// Measured on this libwgpu_native:
+	//   - Unconfigure-after-lost + Configure same surface → SIGSEGV
+	//   - Unconfigure-while-healthy then MarkLost + Configure same surface →
+	//     SIGSEGV / CreateTexture OOM on next device (UI force-lost path)
+	//   - Release surface + CreateSurface + Configure new device → OK
+	canRecreateSurf := inst != nil && win != 0
 
-	// Skia abandon-then-recreate (VRAM):
-	//  1) Host drops all objects on OLD (OnDeviceAbandon → GPUShared abandon + deviceGen)
-	//  2) Destroy/Release OLD before RequestDevice (avoid peak = 2 devices + textures)
-	//  3) RequestDevice NEW
-	//  4) Host rebinds (OnDeviceRecreated → SetDeviceProvider)
-	// Earlier order (RequestDevice → rebind → free old) caused CreateTexture OOM
-	// ("Not enough memory left") on session_depth_stencil after recover.
-	if old != nil {
-		if sc.OnDeviceAbandon != nil {
-			sc.OnDeviceAbandon(old)
+	rwgpu.WithForceNativeReleaseOnLost(func() {
+		if oldDev != nil {
+			if sc.OnDeviceAbandon != nil {
+				sc.OnDeviceAbandon(oldDev) // sessions + GPUShared under force
+			}
+			if !oldDev.IsLost() {
+				_ = oldDev.WaitIdle()
+			}
+			oldDev.FlushCallbacks()
 		}
-		_ = old.WaitIdle() // best-effort; lost devices may error
-		old.Destroy()
-		old.Release()
-		sc.Device = nil
+		if oldSurf != nil {
+			oldSurf.DiscardTexture()
+			// Never Unconfigure-when-lost (SIGSEGV). Always Release when we can recreate.
+			if canRecreateSurf {
+				oldSurf.Release()
+			}
+		}
+		if oldDev != nil {
+			// Release only — no wgpuDeviceDestroy (measured permanent OOM).
+			oldDev.Release()
+		}
+	})
+	sc.Device = nil
+	if canRecreateSurf {
+		sc.Surface = nil
 	}
 
 	label := sc.DeviceLabel
@@ -418,12 +534,20 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	}
 	dev, err := sc.RecoveryAdapter.RequestDevice(&DeviceDescriptor{Label: label})
 	if err != nil {
-		// Leave sc.Device nil only if old was freed; sticky recover will retry.
-		// If RequestDevice fails after free, host must re-recover; do not keep freed old.
 		return fmt.Errorf("%w: RequestDevice: %v", ErrDeviceLost, err)
 	}
-
 	sc.Device = dev
+
+	if canRecreateSurf {
+		ns, err := inst.CreateSurface(disp, win)
+		if err != nil {
+			return fmt.Errorf("%w: recreate surface: %v", ErrDeviceLost, err)
+		}
+		sc.Surface = ns
+	} else if sc.Surface == nil {
+		return fmt.Errorf("%w: surface is nil after recover", ErrDeviceLost)
+	}
+
 	if sc.OnDeviceRecreated != nil {
 		sc.OnDeviceRecreated(dev)
 	}
@@ -434,6 +558,7 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 		}
 	}
 	sc.recoverAttempts++
+	sc.recoverGrace = 5
 	return nil
 }
 
@@ -447,6 +572,17 @@ func (sc *Swapchain) ensureDeviceLocked() error {
 		return ErrDeviceLost
 	}
 	return sc.tryRecoverDeviceLocked()
+}
+
+// takeRecoverGrace returns ErrRecovered while post-recover settle frames remain.
+// Must run after every ensureDeviceLocked that may have recovered — including the
+// GetCurrentTexture lost-retry path (user OOM: recover then same-frame Present).
+func (sc *Swapchain) takeRecoverGrace() error {
+	if sc != nil && sc.recoverGrace > 0 {
+		sc.recoverGrace--
+		return ErrRecovered
+	}
+	return nil
 }
 
 func (sc *Swapchain) BeginFrame() (*Frame, error) {
@@ -472,6 +608,9 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if err := sc.ensureDeviceLocked(); err != nil {
 		return nil, err
 	}
+	if err := sc.takeRecoverGrace(); err != nil {
+		return nil, err
+	}
 
 	if sc.pendingReconfigure || !sc.configured {
 		if err := sc.reconfigureThrottled(); err != nil {
@@ -485,22 +624,25 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		if err := sc.ensureDeviceLocked(); err != nil {
 			return nil, err
 		}
+		if err := sc.takeRecoverGrace(); err != nil {
+			return nil, err
+		}
 	}
 
 	t0 := time.Now()
 	st, suboptimal, err := sc.Surface.GetCurrentTexture()
 	if err != nil {
 		if isDeviceLostErr(err) || sc.deviceKnownLostLocked() {
+			// Recover here, but never Present in the same BeginFrame — session
+			// depth alloc after mid-call recover was the minimize OOM path.
 			if rerr := sc.ensureDeviceLocked(); rerr != nil {
 				return nil, rerr
 			}
-			st, suboptimal, err = sc.Surface.GetCurrentTexture()
-			if err != nil {
-				if isDeviceLostErr(err) || sc.deviceKnownLostLocked() {
-					return nil, ErrDeviceLost
-				}
+			if err := sc.takeRecoverGrace(); err != nil {
 				return nil, err
 			}
+			// Recover without grace (grace already 0): still skip this frame.
+			return nil, ErrRecovered
 		} else if isSkipFrameSurfaceErr(err) {
 			return nil, err
 		} else {
@@ -513,10 +655,10 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 					if rerr := sc.ensureDeviceLocked(); rerr != nil {
 						return nil, rerr
 					}
-					st, suboptimal, err = sc.Surface.GetCurrentTexture()
-					if err != nil {
+					if err := sc.takeRecoverGrace(); err != nil {
 						return nil, err
 					}
+					return nil, ErrRecovered
 				} else {
 					return nil, fmt.Errorf("%w (reconfigure: %v)", err, cfgErr)
 				}
@@ -529,10 +671,10 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 						if rerr := sc.ensureDeviceLocked(); rerr != nil {
 							return nil, rerr
 						}
-						st, suboptimal, err = sc.Surface.GetCurrentTexture()
-						if err != nil {
+						if err := sc.takeRecoverGrace(); err != nil {
 							return nil, err
 						}
+						return nil, ErrRecovered
 					} else {
 						return nil, err
 					}

@@ -23,6 +23,7 @@ const (
 	xUnmapNotify      = 18
 	xMapNotify        = 19
 	xConfigureNotify  = 22
+	xPropertyNotify   = 28
 	xClientMessage    = 33
 	xFocusIn          = 9
 	xFocusOut         = 10
@@ -31,16 +32,13 @@ const (
 	xVisibilityPartiallyObscured = 1
 	xVisibilityFullyObscured     = 2
 
-	// event masks
 	xKeyPressMask         = 1 << 0
 	xExposureMask         = 1 << 15
-	xStructureNotifyMask  = 1 << 17
 	xVisibilityChangeMask = 1 << 16
+	xStructureNotifyMask  = 1 << 17
 	xFocusChangeMask      = 1 << 21
+	xPropertyChangeMask   = 1 << 22
 
-	// XSetWindowAttributes value masks / gravity (amd64 Xlib).
-	// Critical for zero-flash resize: default CreateSimpleWindow background=0
-	// paints BLACK into newly exposed regions on every Configure.
 	xNone             = 0
 	xNorthWestGravity = 1
 	xWhenMapped       = 1
@@ -48,6 +46,10 @@ const (
 	xCWBitGravity     = 1 << 4
 	xCWWinGravity     = 1 << 5
 	xCWBackingStore   = 1 << 6
+
+	xWMStateWithdrawn = 0
+	xWMStateNormal    = 1
+	xWMStateIconic    = 3
 )
 
 type x11Event struct {
@@ -56,6 +58,7 @@ type x11Event struct {
 	Height     int
 	Visibility int
 	KeyCode    int
+	Atom       uintptr
 }
 
 type x11Win struct {
@@ -63,14 +66,16 @@ type x11Win struct {
 	Display uintptr
 	Window  uintptr
 
-	xPending   func(dpy uintptr) int
-	xNextEvent func(dpy uintptr, ev unsafe.Pointer)
-	xFlush     func(dpy uintptr) int
-	xClose     func(dpy uintptr) int
-	xDestroy   func(dpy uintptr, win uintptr) int
-	xGetAtom   func(dpy uintptr, name *byte, onlyIfExists int) uintptr
-	eventBytes []byte
-	wmDelete   uintptr
+	xPending           func(dpy uintptr) int
+	xNextEvent         func(dpy uintptr, ev unsafe.Pointer)
+	xFlush             func(dpy uintptr) int
+	xClose             func(dpy uintptr) int
+	xDestroy           func(dpy uintptr, win uintptr) int
+	xGetWindowProperty func(dpy, win, prop uintptr, offset, length int64, delete, reqType int, actualType *uintptr, actualFormat *int32, nitems, bytesAfter *uint64, propRet **byte) int
+	xFree              func(p uintptr) int
+	eventBytes         []byte
+	wmDelete           uintptr
+	wmStateAtom        uintptr
 }
 
 func openX11Window(w, h int, title string) (*x11Win, error) {
@@ -83,24 +88,28 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	}
 
 	var (
-		xOpenDisplay    func(name *byte) uintptr
-		xCloseDisplay   func(dpy uintptr) int
-		xDefaultScreen  func(dpy uintptr) int
-		xRootWindow     func(dpy uintptr, screen int) uintptr
-		xCreateSimple   func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
-		xMapWindow      func(dpy uintptr, win uintptr) int
-		xFlush          func(dpy uintptr) int
-		xDestroyWindow  func(dpy uintptr, win uintptr) int
-		xStoreName      func(dpy uintptr, win uintptr, name *byte) int
-		xSelectInput    func(dpy uintptr, win uintptr, mask int64) int
-		xPending        func(dpy uintptr) int
-		xNextEvent      func(dpy uintptr, ev unsafe.Pointer)
-		xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int) uintptr
-		xSetWMProtocols func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+		xOpenDisplay       func(name *byte) uintptr
+		xCloseDisplay      func(dpy uintptr) int
+		xDefaultScreen     func(dpy uintptr) int
+		xRootWindow        func(dpy uintptr, screen int) uintptr
+		xCreateSimple      func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
+		xMapWindow         func(dpy uintptr, win uintptr) int
+		xFlush             func(dpy uintptr) int
+		xDestroyWindow     func(dpy uintptr, win uintptr) int
+		xStoreName         func(dpy uintptr, win uintptr, name *byte) int
+		xSelectInput       func(dpy uintptr, win uintptr, mask int64) int
+		xPending           func(dpy uintptr) int
+		xNextEvent         func(dpy uintptr, ev unsafe.Pointer)
+		xInternAtom        func(dpy uintptr, name *byte, onlyIfExists int) uintptr
+		xSetWMProtocols    func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+		xGetWindowProperty func(dpy, win, prop uintptr, offset, length int64, delete, reqType int, actualType *uintptr, actualFormat *int32, nitems, bytesAfter *uint64, propRet **byte) int
+		xFree              func(p uintptr) int
+		xInitThreads       func() int
+		xSetBgPixmap       func(dpy, win, pixmap uintptr) int
+		xChangeAttr        func(dpy, win uintptr, mask uint64, attrs unsafe.Pointer) int
 	)
-	var xInitThreads func() int
 	purego.RegisterLibFunc(&xInitThreads, lib, "XInitThreads")
-	_ = xInitThreads() // before any other Xlib call; multi-thread event + present
+	_ = xInitThreads()
 
 	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
 	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
@@ -116,8 +125,11 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	purego.RegisterLibFunc(&xNextEvent, lib, "XNextEvent")
 	purego.RegisterLibFunc(&xInternAtom, lib, "XInternAtom")
 	purego.RegisterLibFunc(&xSetWMProtocols, lib, "XSetWMProtocols")
+	purego.RegisterLibFunc(&xGetWindowProperty, lib, "XGetWindowProperty")
+	purego.RegisterLibFunc(&xFree, lib, "XFree")
+	purego.RegisterLibFunc(&xSetBgPixmap, lib, "XSetWindowBackgroundPixmap")
+	purego.RegisterLibFunc(&xChangeAttr, lib, "XChangeWindowAttributes")
 
-	// Try current DISPLAY, then common local sockets — no env required to run.
 	dpy := xOpenDisplay(nil)
 	if dpy == 0 {
 		for _, name := range []string{":0", ":1", ":0.0", ":1.0"} {
@@ -138,8 +150,6 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	}
 	screen := xDefaultScreen(dpy)
 	root := xRootWindow(dpy, screen)
-	// No size hints → WM can freely resize / maximize / tile.
-	// background=0 would black-fill on resize; overridden immediately below.
 	win := xCreateSimple(dpy, root, 100, 80, uint(w), uint(h), 1, 0, 0)
 	if win == 0 {
 		xCloseDisplay(dpy)
@@ -147,31 +157,24 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 		return nil, fmt.Errorf("XCreateSimpleWindow failed")
 	}
 
-	// Skia/Flutter-style resize: do not paint black on expose/resize; keep pixels.
-	// XSetWindowAttributes (LP64): background_pixmap@0, bit_gravity@32, win_gravity@36, backing_store@40.
-	var (
-		xSetBgPixmap func(dpy, win, pixmap uintptr) int
-		xChangeAttr  func(dpy, win uintptr, mask uint64, attrs unsafe.Pointer) int
-	)
-	purego.RegisterLibFunc(&xSetBgPixmap, lib, "XSetWindowBackgroundPixmap")
-	purego.RegisterLibFunc(&xChangeAttr, lib, "XChangeWindowAttributes")
+	// Anti-flash resize: no black background fill; keep NW gravity.
 	xSetBgPixmap(dpy, win, uintptr(xNone))
 	attrs := make([]byte, 128)
-	*(*int32)(unsafe.Pointer(&attrs[32])) = int32(xNorthWestGravity) // bit_gravity
-	*(*int32)(unsafe.Pointer(&attrs[36])) = int32(xNorthWestGravity) // win_gravity
-	*(*int32)(unsafe.Pointer(&attrs[40])) = int32(xWhenMapped)       // backing_store
-	attrMask := uint64(xCWBackPixmap | xCWBitGravity | xCWWinGravity | xCWBackingStore)
-	// background_pixmap already 0 (None) at attrs[0]
-	xChangeAttr(dpy, win, attrMask, unsafe.Pointer(&attrs[0]))
+	*(*int32)(unsafe.Pointer(&attrs[32])) = int32(xNorthWestGravity)
+	*(*int32)(unsafe.Pointer(&attrs[36])) = int32(xNorthWestGravity)
+	*(*int32)(unsafe.Pointer(&attrs[40])) = int32(xWhenMapped)
+	xChangeAttr(dpy, win, uint64(xCWBackPixmap|xCWBitGravity|xCWWinGravity|xCWBackingStore), unsafe.Pointer(&attrs[0]))
 
 	name := append([]byte(title), 0)
 	xStoreName(dpy, win, &name[0])
 
-	evMask := int64(xStructureNotifyMask | xExposureMask | xVisibilityChangeMask | xFocusChangeMask | xKeyPressMask)
+	evMask := int64(xStructureNotifyMask | xExposureMask | xVisibilityChangeMask | xFocusChangeMask | xKeyPressMask | xPropertyChangeMask)
 	xSelectInput(dpy, win, evMask)
 
 	delName := append([]byte("WM_DELETE_WINDOW"), 0)
 	wmDelete := xInternAtom(dpy, &delName[0], 0)
+	stName := append([]byte("WM_STATE"), 0)
+	wmState := xInternAtom(dpy, &stName[0], 0)
 	if wmDelete != 0 {
 		prot := wmDelete
 		xSetWMProtocols(dpy, win, &prot, 1)
@@ -182,16 +185,19 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	time.Sleep(40 * time.Millisecond)
 
 	return &x11Win{
-		lib:        lib,
-		Display:    dpy,
-		Window:     win,
-		xPending:   xPending,
-		xNextEvent: xNextEvent,
-		xFlush:     xFlush,
-		xClose:     xCloseDisplay,
-		xDestroy:   xDestroyWindow,
-		eventBytes: make([]byte, 192),
-		wmDelete:   wmDelete,
+		lib:                lib,
+		Display:            dpy,
+		Window:             win,
+		xPending:           xPending,
+		xNextEvent:         xNextEvent,
+		xFlush:             xFlush,
+		xClose:             xCloseDisplay,
+		xDestroy:           xDestroyWindow,
+		xGetWindowProperty: xGetWindowProperty,
+		xFree:              xFree,
+		eventBytes:         make([]byte, 192),
+		wmDelete:           wmDelete,
+		wmStateAtom:        wmState,
 	}, nil
 }
 
@@ -222,22 +228,18 @@ func (w *x11Win) Pending() bool {
 	return w != nil && w.xPending != nil && w.xPending(w.Display) > 0
 }
 
-// NextEvent blocks until an event is available. Prefer Pending()+NextEvent in a drain loop.
 func (w *x11Win) NextEvent() x11Event {
 	if w == nil || w.xNextEvent == nil {
 		return x11Event{}
 	}
-	// Zero buffer; XNextEvent fills an XEvent.
 	for i := range w.eventBytes {
 		w.eventBytes[i] = 0
 	}
 	w.xNextEvent(w.Display, unsafe.Pointer(&w.eventBytes[0]))
-	// XEvent layout (Xlib): type is first int (32-bit).
 	typ := int(*(*int32)(unsafe.Pointer(&w.eventBytes[0])))
 	ev := x11Event{Type: typ}
 	switch typ {
 	case xConfigureNotify:
-		// LP64 XConfigureEvent: width@56 height@60 (same as mem_anim_window).
 		ev.Width = int(*(*int32)(unsafe.Pointer(&w.eventBytes[56])))
 		ev.Height = int(*(*int32)(unsafe.Pointer(&w.eventBytes[60])))
 		if ev.Width < 1 || ev.Height < 1 {
@@ -245,15 +247,14 @@ func (w *x11Win) NextEvent() x11Event {
 			ev.Height = int(*(*int32)(unsafe.Pointer(&w.eventBytes[44])))
 		}
 	case xVisibilityNotify:
-		// state after window fields on LP64
 		ev.Visibility = int(*(*int32)(unsafe.Pointer(&w.eventBytes[48])))
 		if ev.Visibility < 0 || ev.Visibility > 2 {
 			ev.Visibility = int(w.eventBytes[32])
 		}
 	case xKeyPress:
 		ev.KeyCode = int(w.eventBytes[84])
-	case xClientMessage:
-		// data.l[0] checked in IsDeleteMessage
+	case xPropertyNotify:
+		ev.Atom = *(*uintptr)(unsafe.Pointer(&w.eventBytes[40]))
 	}
 	return ev
 }
@@ -262,7 +263,37 @@ func (w *x11Win) IsDeleteMessage(ev x11Event) bool {
 	if w == nil || ev.Type != xClientMessage || w.wmDelete == 0 {
 		return false
 	}
-	// ClientMessage data.l[0] typically at offset 56 on amd64 Xlib.
 	atom := *(*uintptr)(unsafe.Pointer(&w.eventBytes[56]))
 	return atom == w.wmDelete
+}
+
+func (w *x11Win) IsWMStateProperty(ev x11Event) bool {
+	return w != nil && ev.Type == xPropertyNotify && w.wmStateAtom != 0 && ev.Atom == w.wmStateAtom
+}
+
+// IsIconic reports GNOME-style minimize (WM_STATE Iconic without UnmapNotify).
+func (w *x11Win) IsIconic() bool {
+	if w == nil || w.xGetWindowProperty == nil || w.wmStateAtom == 0 || w.Display == 0 || w.Window == 0 {
+		return false
+	}
+	var actualType uintptr
+	var actualFormat int32
+	var nitems, bytesAfter uint64
+	var prop *byte
+	status := w.xGetWindowProperty(
+		w.Display, w.Window, w.wmStateAtom,
+		0, 2, 0, 0,
+		&actualType, &actualFormat, &nitems, &bytesAfter, &prop,
+	)
+	if status != 0 || prop == nil || nitems < 1 {
+		if prop != nil && w.xFree != nil {
+			w.xFree(uintptr(unsafe.Pointer(prop)))
+		}
+		return false
+	}
+	state := *(*uint32)(unsafe.Pointer(prop))
+	if w.xFree != nil {
+		w.xFree(uintptr(unsafe.Pointer(prop)))
+	}
+	return state == uint32(xWMStateIconic) || state == uint32(xWMStateWithdrawn)
 }

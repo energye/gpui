@@ -10,6 +10,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -279,79 +280,6 @@ func main() {
 		time.Sleep(4 * time.Millisecond)
 	}
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
-	if err != nil {
-		log.Fatalf("CreateInstance: %v", err)
-	}
-	defer inst.Release()
-
-	surf, err := inst.CreateSurface(xw.Display, xw.Window)
-	if err != nil {
-		log.Fatalf("CreateSurface: %v", err)
-	}
-	defer surf.Release()
-
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
-		CompatibleSurface: surf,
-	})
-	if err != nil {
-		log.Fatalf("RequestAdapter: %v", err)
-	}
-	defer adapter.Release()
-
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("device-lost-redraw"))
-	if err != nil {
-		log.Fatalf("RequestDevice: %v", err)
-	}
-	var deviceMu sync.Mutex
-	getDevice := func() *webgpu.Device {
-		deviceMu.Lock()
-		defer deviceMu.Unlock()
-		return device
-	}
-	setDevice := func(d *webgpu.Device) {
-		deviceMu.Lock()
-		device = d
-		deviceMu.Unlock()
-	}
-	defer func() {
-		if d := getDevice(); d != nil {
-			d.Release()
-		}
-	}()
-
-	sc := webgpu.NewSwapchain(surf, device, uint32(winW), uint32(winH))
-	sc.Usage = types.TextureUsageRenderAttachment
-	sc.SetPreferVSync()
-	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
-		log.Fatalf("Configure: %v", err)
-	}
-	defer sc.Release()
-
-	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-		Dev: device, Adpt: adapter, Format: sc.Format,
-	}); err != nil {
-		log.Fatalf("SetDeviceProvider: %v", err)
-	}
-	defer func() { _ = rendgpu.ResetAccelerator() }()
-
-	sc.OnDeviceAbandon = func(_ *webgpu.Device) {
-		rendgpu.AbandonDevice() // free GPUShared before old Destroy/Release
-	}
-	sc.EnableAutoRecover(adapter, "device-lost-redraw", func(dev *webgpu.Device) {
-		setDevice(dev)
-		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-			Dev: dev, Adpt: adapter, Format: sc.Format,
-		}); err != nil {
-			log.Printf("SetDeviceProvider after recover: %v", err)
-		}
-		log.Printf("GPU device recovered (recoveries→%d)", sc.Recoveries()+1) // counter bumps after callback
-	})
-
-	dc := render.NewContext(winW, winH)
-	defer dc.Close()
-
 	host := &hostState{w: winW, h: winH, focused: true, mapped: true}
 	redraw := newRedrawHost()
 
@@ -382,6 +310,13 @@ func main() {
 		skipSoftN atomic.Uint64
 	)
 
+	// GPU is created on the render OS thread (sole owner). Creating the surface
+	// on main and recovering on the render thread left the adapter unable to
+	// CreateTexture after Release (1x1 OOM) on this libwgpu_native/NVIDIA path.
+	gpuReady := make(chan struct{})
+	gpuErr := make(chan error, 1)
+	var scStore atomic.Value // *webgpu.Swapchain
+
 	// Keep-alive when unpresentable (pump callbacks). Visible path: Fifo Present
 	// + frame-budget sleep to targetFPS, then RequestRedraw for the next frame.
 	go func() {
@@ -396,10 +331,14 @@ func main() {
 				if quit {
 					return
 				}
+				scAny := scStore.Load()
+				if scAny == nil {
+					continue
+				}
+				sc := scAny.(*webgpu.Swapchain)
 				if !presentable {
 					redraw.RequestRedraw()
 				} else {
-					// Drive quiet-configure transition after drag stops.
 					hw, hh, _, _, _, _ := host.snapshot()
 					if uint32(hw) != sc.Width || uint32(hh) != sc.Height {
 						redraw.RequestRedraw()
@@ -409,12 +348,108 @@ func main() {
 		}
 	}()
 
-	// Render goroutine — sole GPU owner
+	// Render goroutine — sole GPU owner (create + present + recover on this OS thread)
 	var renderWG sync.WaitGroup
 	renderWG.Add(1)
 	go func() {
 		defer renderWG.Done()
 		runtime.LockOSThread()
+		inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+		if err != nil {
+			gpuErr <- err
+			return
+		}
+		surf, err := inst.CreateSurface(xw.Display, xw.Window)
+		if err != nil {
+			inst.Release()
+			gpuErr <- err
+			return
+		}
+		adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
+			PowerPreference:   webgpu.PowerPreferenceHighPerformance,
+			CompatibleSurface: surf,
+		})
+		if err != nil {
+			surf.Release()
+			inst.Release()
+			gpuErr <- err
+			return
+		}
+		device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("device-lost-redraw"))
+		if err != nil {
+			adapter.Release()
+			surf.Release()
+			inst.Release()
+			gpuErr <- err
+			return
+		}
+		var deviceMu sync.Mutex
+		getDevice := func() *webgpu.Device {
+			deviceMu.Lock()
+			defer deviceMu.Unlock()
+			return device
+		}
+		setDevice := func(d *webgpu.Device) {
+			deviceMu.Lock()
+			device = d
+			deviceMu.Unlock()
+		}
+		sc := webgpu.NewSwapchain(surf, device, uint32(winW), uint32(winH))
+		sc.Usage = types.TextureUsageRenderAttachment
+		sc.SetPreferVSync()
+		if err := sc.ConfigureFromCapabilities(adapter); err != nil {
+			device.Release()
+			adapter.Release()
+			surf.Release()
+			inst.Release()
+			gpuErr <- err
+			return
+		}
+		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+			Dev: device, Adpt: adapter, Format: sc.Format,
+		}); err != nil {
+			sc.Release()
+			device.Release()
+			adapter.Release()
+			surf.Release()
+			inst.Release()
+			gpuErr <- err
+			return
+		}
+		var dc *render.Context
+		sc.OnDeviceAbandon = func(_ *webgpu.Device) {
+			rendgpu.AbandonDevice()
+		}
+		sc.EnableAutoRecover(adapter, "device-lost-redraw", func(dev *webgpu.Device) {
+			setDevice(dev)
+			if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+				Dev: dev, Adpt: adapter, Format: sc.Format,
+			}); err != nil {
+				log.Printf("SetDeviceProvider after recover: %v", err)
+			}
+			if dc != nil {
+				dc.DropGPURenderContext()
+			}
+			log.Printf("GPU device recovered (recoveries→%d)", sc.Recoveries()+1)
+		})
+		dc = render.NewContext(winW, winH)
+		defer func() {
+			dc.Close()
+			_ = rendgpu.ResetAccelerator()
+			sc.Release()
+			if d := getDevice(); d != nil {
+				d.Release()
+			}
+			adapter.Release()
+			if sc.Surface != nil {
+				sc.Surface.Release()
+			}
+			inst.Release()
+		}()
+		// Publish sc for keepalive size checks.
+		scStore.Store(sc)
+		close(gpuReady)
+
 		start := time.Now()
 		var lastLog time.Time
 		var lastResizeLog time.Time
@@ -433,6 +468,15 @@ func main() {
 			}
 
 			if !presentable {
+				// Free swapchain images while device is healthy (GNOME Iconic / Unmap).
+				// Prevents VRAM pin if device later goes sticky-lost under cover.
+				if sc.Surface != nil && sc.Device != nil && !sc.Device.IsLost() {
+					sc.Surface.Unconfigure()
+					sc.MarkNeedsReconfigure()
+				}
+				if dev != nil {
+					dev.FlushCallbacks()
+				}
 				time.Sleep(8 * time.Millisecond)
 				continue
 			}
@@ -498,6 +542,13 @@ func main() {
 			// → Present "resource already released" (seen after minimize/restore).
 			fb, err := sc.BeginFrame()
 			if err != nil {
+				if errors.Is(err, webgpu.ErrRecovered) {
+					// Post-recover settle: never Present in the same tick as recreate.
+					log.Printf("BeginFrame: device recovered — settle frame (skip Present)")
+					host.markForceFull()
+					redraw.RequestRedraw()
+					continue
+				}
 				if errors.Is(err, webgpu.ErrDeviceLost) || (dev != nil && dev.IsLost()) {
 					skipLostN.Add(1)
 					log.Printf("BeginFrame: device lost/recovering (recoveries=%d)", sc.Recoveries())
@@ -545,7 +596,16 @@ func main() {
 			if forceFull || sizeChanged {
 				dc.MarkFullRedraw()
 			}
-			drawCompositeFrame(dc, w, h, elapsed, hud)
+			if os.Getenv("GPUI_SIMPLE_DRAW") == "1" {
+				dc.SetRGB(0.1, 0.2, 0.3)
+				dc.DrawRectangle(0, 0, float64(w), float64(h))
+				_ = dc.Fill()
+				dc.SetRGB(1, 0.5, 0)
+				dc.DrawCircle(float64(w)/2, float64(h)/2, 40)
+				_ = dc.Fill()
+			} else {
+				drawCompositeFrame(dc, w, h, elapsed, hud)
+			}
 			if forceFull {
 				host.clearForceFull()
 			}
@@ -590,6 +650,17 @@ func main() {
 			// covers any remaining Xlib cross-thread use from wgpu surface present.
 			pn := presentN.Add(1)
 			fpsWindow.add(time.Now())
+			// Automated soak: force sticky lost once after N presents (UI recover proof).
+			if v := os.Getenv("GPUI_FORCE_LOST_AFTER"); v != "" {
+				var n uint64
+				fmt.Sscanf(v, "%d", &n)
+				if n > 0 && pn == n {
+					if d := getDevice(); d != nil {
+						log.Printf("GPUI_FORCE_LOST_AFTER=%d MarkLost (AutoRecover)", n)
+						d.MarkLost()
+					}
+				}
+			}
 			// Cap at targetFPS when Present returns early. During live resize skip
 			// the budget sleep so the next frame presents ASAP (closes expose gap).
 			if !sizeChanged {
@@ -607,7 +678,17 @@ func main() {
 		}
 	}()
 
-	log.Printf("device_lost_redraw ready — target=%dfps present=%s (vsync chain), free resize", targetFPS, sc.PresentModeName())
+	select {
+	case err := <-gpuErr:
+		log.Fatalf("GPU init: %v", err)
+	case <-gpuReady:
+	}
+
+	mode := "fifo"
+	if scAny := scStore.Load(); scAny != nil {
+		mode = scAny.(*webgpu.Swapchain).PresentModeName()
+	}
+	log.Printf("device_lost_redraw ready — target=%dfps present=%s (vsync chain), free resize", targetFPS, mode)
 	redraw.RequestRedraw()
 
 	for {
@@ -672,6 +753,25 @@ func main() {
 			case xExposure:
 				host.markForceFull()
 				redraw.RequestRedraw()
+			case xPropertyNotify:
+				// GNOME: Iconify via WM_STATE without Unmap — pause acquire (prevent TDR).
+				if xw.IsWMStateProperty(ev) {
+					iconic := xw.IsIconic()
+					host.mu.Lock()
+					mapped := host.mapped
+					obsc := host.obscured
+					host.mu.Unlock()
+					host.setPresentableFlags(mapped, iconic, obsc)
+					if !iconic {
+						host.markForceFull()
+						if scAny := scStore.Load(); scAny != nil {
+							sc := scAny.(*webgpu.Swapchain)
+							sc.MarkNeedsReconfigure()
+							sc.ClearRecoverCooldown()
+						}
+						redraw.RequestRedraw()
+					}
+				}
 			case xKeyPress:
 				if ev.KeyCode == 9 || ev.KeyCode == 24 { // Esc / q (best-effort)
 					doStop()
@@ -685,6 +785,10 @@ func main() {
 
 	doStop()
 	renderWG.Wait()
+	rec := uint64(0)
+	if scAny := scStore.Load(); scAny != nil {
+		rec = scAny.(*webgpu.Swapchain).Recoveries()
+	}
 	log.Printf("done present=%d frames=%d lost_skip=%d soft_skip=%d recoveries=%d",
-		presentN.Load(), frameN.Load(), skipLostN.Load(), skipSoftN.Load(), sc.Recoveries())
+		presentN.Load(), frameN.Load(), skipLostN.Load(), skipSoftN.Load(), rec)
 }

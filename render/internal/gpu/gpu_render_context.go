@@ -2863,6 +2863,9 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 // Close releases this context's GPU resources. Shared resources are NOT
 // released — they are owned by GPUShared.
 func (rc *GPURenderContext) Close() {
+	if rc.shared != nil {
+		rc.shared.unregisterContext(rc)
+	}
 	if rc.session != nil {
 		rc.session.Destroy()
 		rc.session = nil

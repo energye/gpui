@@ -127,9 +127,13 @@ func drawCompositeFrame(dc *render.Context, w, h int, t float64, st drawStats) {
 	dc.DrawRoundedRectangle(12, 10, math.Min(fw-24, 420), 34, 8)
 	_ = dc.Fill()
 	line := fmt.Sprintf("fps=%.1f  frame=%d  t=%.1fs", st.FPS, st.Frame, st.Seconds)
-	ensureHUDFont(dc)
+	if os.Getenv("GPUI_NO_HUD_TEXT") != "1" {
+		ensureHUDFont(dc)
+	}
 	dc.SetRGB(0.92, 0.95, 1.0)
-	dc.DrawString(line, 24, 32)
+	if os.Getenv("GPUI_NO_HUD_TEXT") != "1" {
+		dc.DrawString(line, 24, 32)
+	}
 
 	// Bottom ticker bar
 	dc.SetRGBA(0.1, 0.12, 0.18, 0.95)

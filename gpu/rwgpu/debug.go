@@ -18,8 +18,8 @@ var resourceTracker struct {
 }
 
 type resourceInfo struct {
-	Type string // "Buffer", "Texture", "Device", etc.
-	// No stack traces - keep it simple
+	Type  string
+	Label string
 }
 
 func init() {
@@ -27,9 +27,6 @@ func init() {
 }
 
 // SetDebugMode enables or disables resource tracking.
-// When enabled, all GPU resource allocations and releases are tracked,
-// and ReportLeaks() can be used to find unreleased resources.
-// Should be called before any GPU operations.
 func SetDebugMode(enabled bool) {
 	debugMode.Store(enabled)
 }
@@ -41,11 +38,16 @@ func DebugMode() bool {
 
 // trackResource records a resource allocation (debug mode only).
 func trackResource(handle uintptr, typeName string) {
+	trackResourceLabel(handle, typeName, "")
+}
+
+// trackResourceLabel records allocation with an optional label.
+func trackResourceLabel(handle uintptr, typeName, label string) {
 	if !debugMode.Load() || handle == 0 {
 		return
 	}
 	resourceTracker.mu.Lock()
-	resourceTracker.resources[handle] = resourceInfo{Type: typeName}
+	resourceTracker.resources[handle] = resourceInfo{Type: typeName, Label: label}
 	resourceTracker.mu.Unlock()
 }
 
@@ -61,27 +63,27 @@ func untrackResource(handle uintptr) {
 
 // LeakReport contains information about unreleased GPU resources.
 type LeakReport struct {
-	// Count is the total number of unreleased resources.
 	Count int
-	// Types maps resource type names to their counts.
 	Types map[string]int
+	Items []string // "Type:label" for each live resource
 }
 
 // String returns a human-readable summary of the leak report.
 func (r *LeakReport) String() string {
-	if r.Count == 0 {
+	if r == nil || r.Count == 0 {
 		return "no resource leaks detected"
 	}
 	s := fmt.Sprintf("%d unreleased GPU resource(s):", r.Count)
 	for typ, count := range r.Types {
 		s += fmt.Sprintf(" %s=%d", typ, count)
 	}
+	if len(r.Items) > 0 && len(r.Items) <= 32 {
+		s += " [" + fmt.Sprintf("%v", r.Items) + "]"
+	}
 	return s
 }
 
 // ReportLeaks returns information about unreleased GPU resources.
-// Only meaningful when debug mode is enabled via SetDebugMode(true).
-// Returns nil if no leaks are detected.
 func ReportLeaks() *LeakReport {
 	if !debugMode.Load() {
 		return nil
@@ -95,13 +97,20 @@ func ReportLeaks() *LeakReport {
 	}
 
 	types := make(map[string]int)
+	items := make([]string, 0, count)
 	for _, info := range resourceTracker.resources {
 		types[info.Type]++
+		lab := info.Label
+		if lab == "" {
+			lab = "-"
+		}
+		items = append(items, info.Type+":"+lab)
 	}
 
 	return &LeakReport{
 		Count: count,
 		Types: types,
+		Items: items,
 	}
 }
 

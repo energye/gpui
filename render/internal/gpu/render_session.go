@@ -1403,13 +1403,13 @@ func (s *GPURenderSession) Destroy() {
 	// suite pressure.
 	// After AutoRecover the session device may already be sticky-lost/released —
 	// skip drain (would only return ErrReleased/ErrDeviceLost).
-	if s.device != nil {
-		// Best-effort: lost/released devices cannot drain; ignore errors.
+	if s.device != nil && !s.device.IsLost() {
 		s.drainQueue()
 	}
+	// Always drop command buffer refs (holds device refcount / VRAM on this .so).
 	for _, cb := range s.prevCmdBufs {
 		if cb != nil {
-			s.device.FreeCommandBuffer(cb)
+			cb.Release()
 		}
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
@@ -1620,6 +1620,10 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		}
 	}
 	s.glyphMaskBindGroups = nil
+	// Views are owned by GlyphMaskEngine; only drop session cache keys.
+	s.glyphMaskBGViews = nil
+	s.glyphMaskBGIsLCD = nil
+	s.glyphMaskPendingViews = nil
 	for _, buf := range s.glyphMaskUniformBufs {
 		if buf != nil {
 			buf.Release()

@@ -501,21 +501,26 @@ func (d *Device) MarkLost() {
 	d.r.MarkLost()
 }
 
-// Destroy forces native device teardown and sticky-lost (Skia/Flutter abandon).
+// Destroy marks the device sticky-lost and drops the queue ref (Skia/Flutter abandon).
 // After Destroy, IsLost is true and create/submit return ErrDeviceLost.
-// Does not set released — sticky lost remains addressable for recovery.
-// Safe on nil / already destroyed.
+//
+// Does NOT call wgpuDeviceDestroy: on current libwgpu_native that API leaves the
+// adapter in a state where later RequestDevice/CreateTexture report
+// "Not enough memory left" (reproduced in isolation). Dropping the last device
+// ref via Release() reclaims VRAM correctly; AutoRecover uses Release only.
+// Safe on nil / already destroyed / released.
 func (d *Device) Destroy() {
 	if d == nil || d.released {
 		return
 	}
-	if d.r != nil {
-		d.r.Destroy()
-	}
-	// Drop cached queue handle (parent device is sticky-lost).
+	// Drop queue while parent is still "not lost" so native QueueRelease runs
+	// (skip-on-lost would otherwise pin the device refcount / VRAM).
 	if d.queue != nil {
 		d.queue.Release()
 		d.queue = nil
+	}
+	if d.r != nil {
+		d.r.MarkLost()
 	}
 }
 

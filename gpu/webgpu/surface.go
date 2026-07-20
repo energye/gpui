@@ -89,6 +89,12 @@ type Surface struct {
 	device   *Device
 	released bool
 
+	// Platform handles for recreate after device-lost (AutoRecover).
+	// Force-Unconfigure after lost SIGSEGVs reconfigure on this .so; drop+recreate instead.
+	instance      *Instance
+	displayHandle uintptr
+	windowHandle  uintptr
+
 	// current is the last acquired surface texture not yet Released/Presented.
 	// Used by DiscardTexture so Configure never runs with a live SurfaceOutput
 	// (native: "SurfaceOutput must be dropped before a new Surface is made").
@@ -131,7 +137,12 @@ func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface,
 		return nil, fmt.Errorf("wgpu: failed to create surface: %w", err)
 	}
 
-	return &Surface{r: rs}, nil
+	return &Surface{
+		r:             rs,
+		instance:      i,
+		displayHandle: displayHandle,
+		windowHandle:  windowHandle,
+	}, nil
 }
 
 // Configure configures the surface for presentation.
