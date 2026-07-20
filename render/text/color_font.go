@@ -91,27 +91,3 @@ func DetectGlyphType(font ParsedFont, glyphID uint16) GlyphType {
 
 	return colorFont.GlyphType(glyphID)
 }
-
-// GetBitmapGlyph extracts a bitmap glyph from a font.
-// Returns nil and error if the font doesn't support bitmap glyphs
-// or if the glyph is not available as bitmap.
-func GetBitmapGlyph(font ParsedFont, glyphID uint16, ppem uint16) (*emoji.BitmapGlyph, error) {
-	colorFont, ok := font.(ColorFont)
-	if !ok {
-		return nil, emoji.ErrGlyphNotInBitmap
-	}
-
-	return colorFont.BitmapGlyph(glyphID, ppem)
-}
-
-// GetCOLRGlyph extracts a COLR glyph from a font.
-// Returns nil and error if the font doesn't support COLR glyphs
-// or if the glyph is not available as COLR.
-func GetCOLRGlyph(font ParsedFont, glyphID uint16, paletteIndex int) (*emoji.COLRGlyph, error) {
-	colorFont, ok := font.(ColorFont)
-	if !ok {
-		return nil, emoji.ErrGlyphNotInCOLR
-	}
-
-	return colorFont.COLRGlyph(glyphID, paletteIndex)
-}

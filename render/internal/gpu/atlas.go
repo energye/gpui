@@ -56,11 +56,6 @@ func (r AtlasRegion) Contains(x, y int) bool {
 	return x >= r.X && x < r.X+r.Width && y >= r.Y && y < r.Y+r.Height
 }
 
-// String returns a string representation of the region.
-func (r AtlasRegion) String() string {
-	return fmt.Sprintf("Region(%d,%d %dx%d)", r.X, r.Y, r.Width, r.Height)
-}
-
 // shelf represents a horizontal shelf in the shelf-packing algorithm.
 type shelf struct {
 	y       int // Top Y coordinate of this shelf

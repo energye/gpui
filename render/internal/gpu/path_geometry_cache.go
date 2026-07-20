@@ -535,39 +535,6 @@ type GeometryCacheStats struct {
 	ConvexEntries            int
 }
 
-// pathFromVerbsCoords rebuilds a path from stored verbs/coords (legacy helper).
-func pathFromVerbsCoords(verbs []render.PathVerb, coords []float64) *render.Path {
-	p := render.NewPath()
-	ci := 0
-	for _, v := range verbs {
-		switch v {
-		case render.MoveTo:
-			if ci+1 < len(coords) {
-				p.MoveTo(coords[ci], coords[ci+1])
-				ci += 2
-			}
-		case render.LineTo:
-			if ci+1 < len(coords) {
-				p.LineTo(coords[ci], coords[ci+1])
-				ci += 2
-			}
-		case render.QuadTo:
-			if ci+3 < len(coords) {
-				p.QuadraticTo(coords[ci], coords[ci+1], coords[ci+2], coords[ci+3])
-				ci += 4
-			}
-		case render.CubicTo:
-			if ci+5 < len(coords) {
-				p.CubicTo(coords[ci], coords[ci+1], coords[ci+2], coords[ci+3], coords[ci+4], coords[ci+5])
-				ci += 6
-			}
-		case render.Close:
-			p.Close()
-		}
-	}
-	return p
-}
-
 func hashPathContent(path *render.Path) uint64 {
 	h := fnv.New64a()
 	verbs := path.Verbs()

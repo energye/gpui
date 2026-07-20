@@ -62,52 +62,6 @@ func SourceOverBatchAA(b *BatchState) {
 	b.DA = b.SA.Add(b.DA.MulDiv255(invSA)).Clamp(255)
 }
 
-// BlendSolidColorBatchAA blends a solid color (same for all 16 pixels)
-// over destination pixels with a constant coverage alpha.
-//
-// This is even more optimized than BlendBatchAA when the source color
-// is constant across all pixels, which is common in anti-aliased fill
-// operations.
-//
-// Parameters:
-//   - dst: destination buffer (16 pixels * 4 bytes = 64 bytes minimum)
-//   - r, g, b, a: source color components (premultiplied alpha, 0-255)
-//   - alpha: coverage alpha (0-255)
-func BlendSolidColorBatchAA(dst []byte, r, g, b, a, alpha uint8) {
-	if alpha == 0 {
-		return // No coverage - destination unchanged
-	}
-
-	// Pre-compute scaled source color
-	// scaledS = S * (alpha / 255)
-	scaledR := mulDiv255Fast(r, alpha)
-	scaledG := mulDiv255Fast(g, alpha)
-	scaledB := mulDiv255Fast(b, alpha)
-	scaledA := mulDiv255Fast(a, alpha)
-
-	// Pre-compute inverse of scaled alpha
-	invScaledA := 255 - scaledA
-
-	// Process 16 pixels
-	var batch BatchState
-	batch.LoadDst(dst)
-
-	// Splat the solid color to all lanes
-	splatR := SplatU16(uint16(scaledR))
-	splatG := SplatU16(uint16(scaledG))
-	splatB := SplatU16(uint16(scaledB))
-	splatA := SplatU16(uint16(scaledA))
-	splatInvA := SplatU16(uint16(invScaledA))
-
-	// Apply SourceOver: Result = scaledS + D * invScaledA
-	batch.DR = splatR.Add(batch.DR.MulDiv255(splatInvA)).Clamp(255)
-	batch.DG = splatG.Add(batch.DG.MulDiv255(splatInvA)).Clamp(255)
-	batch.DB = splatB.Add(batch.DB.MulDiv255(splatInvA)).Clamp(255)
-	batch.DA = splatA.Add(batch.DA.MulDiv255(splatInvA)).Clamp(255)
-
-	batch.StoreDst(dst)
-}
-
 // mulDiv255Fast multiplies two bytes and divides by 255 using fast approximation.
 // Formula: (a * b + 255) >> 8
 func mulDiv255Fast(a, b uint8) uint8 {

@@ -615,22 +615,6 @@ func abs32f(x float32) float32 {
 	return x
 }
 
-// extractFromOwn extracts outline from an ownParsedFont using raw glyf
-// contour points. This is the Pure Go path that does not depend on
-// sfnt.Font.LoadGlyph.
-//
-// The approach:
-//  1. Parse raw contour points via ParseGlyfContours (Y-UP font units)
-//  2. Scale to ppem and convert Y-UP → Y-DOWN (Go rendering convention)
-//  3. Convert TrueType on/off-curve points to MoveTo/LineTo/QuadTo segments
-//
-// This matches the sfnt.LoadGlyph output format so the rest of the
-// pipeline (hinting, rendering) works identically.
-func (e *OutlineExtractor) extractFromOwn(f *ownParsedFont, gid GlyphID, size float64) (*GlyphOutline, error) {
-	outline, _, err := e.extractFromOwnWithContours(f, gid, size)
-	return outline, err
-}
-
 // extractFromOwnWithContours builds a scaled outline and returns the raw
 // font-unit contours used so auto-hinting can reuse them (no second glyf parse).
 func (e *OutlineExtractor) extractFromOwnWithContours(f *ownParsedFont, gid GlyphID, size float64) (*GlyphOutline, *GlyfContours, error) {

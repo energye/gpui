@@ -122,15 +122,6 @@ func call3(p Proc, a0, a1, a2 uintptr) (uintptr, uintptr) {
 	return r1, r2
 }
 
-func call4(p Proc, a0, a1, a2, a3 uintptr) (uintptr, uintptr) {
-	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
-		r1, r2, _ := purego.SyscallN(u.fnPtr, a0, a1, a2, a3)
-		return r1, r2
-	}
-	r1, r2, _ := p.Call(a0, a1, a2, a3)
-	return r1, r2
-}
-
 func call5(p Proc, a0, a1, a2, a3, a4 uintptr) (uintptr, uintptr) {
 	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
 		r1, r2, _ := purego.SyscallN(u.fnPtr, a0, a1, a2, a3, a4)

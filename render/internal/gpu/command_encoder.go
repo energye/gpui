@@ -145,34 +145,6 @@ func NewCoreCommandEncoder(backend *Backend, label string) (*CoreCommandEncoder,
 	return enc, nil
 }
 
-// NewCoreCommandEncoderWithDevice creates a command encoder using a WebGPU device.
-//
-// This version creates a real wgpu command encoder.
-//
-// Parameters:
-//   - device: The core.Device to create the encoder on.
-//   - label: Debug label for the encoder (optional).
-//
-// Returns the encoder and nil on success.
-// Returns nil and an error if the device is invalid or creation fails.
-func NewCoreCommandEncoderWithDevice(device *webgpu.Device, label string) (*CoreCommandEncoder, error) {
-	if device == nil {
-		return nil, ErrNilDevice
-	}
-
-	gpuEncoder, err := device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: label})
-	if err != nil {
-		return nil, fmt.Errorf("create command encoder: %w", err)
-	}
-
-	enc := &CoreCommandEncoder{
-		gpuEncoder: gpuEncoder,
-		label:      label,
-	}
-
-	return enc, nil
-}
-
 // Label returns the encoder's debug label.
 func (e *CoreCommandEncoder) Label() string {
 	if e == nil {

@@ -1,7 +1,7 @@
 # Render / GPU 代码收敛任务卡（功能·性能·内存不回退）
 
 > 版本：1.3 | 日期：2026-07-20  
-> 状态：**可执行（待开工）**  
+> 状态：**C9.0–C9.6 完成**（C9.7 可选跳过）  
 > 范围：`render` 主路径 + 为 render 服务的 `gpu/webgpu` / `gpu/rwgpu`（**不含控件层**）  
 > 调用链（约定，以代码 import 为准）：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`
 
@@ -426,14 +426,14 @@ C9.0 盘点
 
 | 切片 | 状态 | 证据 | 备注 |
 |------|------|------|------|
-| C9.0 盘点与基线 | ⬜ 待开工 | — | 产出候选清单 |
-| C9.1 P0 color/testutil | ⬜ | — | 低风险首刀 |
-| C9.2 P1 支撑包 | ⬜ | — | |
-| C9.3 巨石拆分 | ⬜ | — | 零行为 |
-| C9.4 text 非热路径 | ⬜ | — | |
-| C9.5 internal/gpu 死代码 | ⬜ | — | 禁改热路径语义 |
-| C9.6 webgpu/rwgpu | ⬜ | — | |
-| C9.7 可选 B 合并 | ⬜ 可选 | — | 默认可跳过 |
+| C9.0 盘点与基线 | ✅ 完成 (2026-07-20) | `tmp/c9_0_STATUS.md` · `tmp/c9_0_unused.txt` | P0/P1 基线绿 |
+| C9.1 P0 color/testutil | ✅ 完成 (2026-07-20) | `tmp/c9_1_STATUS.md` | 删 `ColorSpace*` |
+| C9.2 P1 支撑包 | ✅ 完成 (2026-07-20) | `tmp/c9_2_STATUS.md` | 删 `BlendSolidColorBatchAA` |
+| C9.3 巨石拆分 | ✅ 完成 (2026-07-20) | `tmp/c9_3_STATUS.md` | `recorder.go` → 4 文件，零逻辑 |
+| C9.4 text 非热路径 | ✅ 完成 (2026-07-20) | `tmp/c9_4_STATUS.md` | 删 rasterize 文件 + 无引用 helper |
+| C9.5 internal/gpu 死代码 | ✅ 完成 (2026-07-20) | `tmp/c9_5_STATUS.md` | 6 处 A；未碰 dual-tex/glyph 热路径；D36/SDF 基线红 |
+| C9.6 webgpu/rwgpu | ✅ 完成 (2026-07-20) | `tmp/c9_6_STATUS.md` | 删 DebugMode/call4/floatsEqual；ABI/Release 未动 |
+| C9.7 可选 B 合并 | ⏭ 跳过 | — | 无高置信同语义重复 |
 
 ---
 

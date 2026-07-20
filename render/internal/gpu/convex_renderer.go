@@ -1119,14 +1119,6 @@ func unpackColorUnorm8x4(u uint32) [4]float32 {
 }
 
 // convexVertexCount returns the total vertex count for the given commands.
-
-// buildConvexBlendRanges groups consecutive convex commands that share a blend
-// mode into vertex ranges suitable for multi-draw with pipeline switches.
-// baseFirstVertex is the absolute firstVertex of the first command in commands.
-func buildConvexBlendRanges(commands []ConvexDrawCommand, baseFirstVertex uint32) []convexDrawRange {
-	return buildConvexBlendRangesIndexed(commands, baseFirstVertex, 0)
-}
-
 // buildConvexBlendRangesIndexed builds draw ranges; baseFirstIndex is the starting
 // offset into the combined index buffer for this command slice.
 func buildConvexBlendRangesIndexed(commands []ConvexDrawCommand, baseFirstVertex, baseFirstIndex uint32) []convexDrawRange {

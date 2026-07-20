@@ -481,22 +481,5 @@ func TestQueueSubmitMultiple(t *testing.T) {
 	t.Log("Multiple command buffers submitted successfully")
 }
 
-// Helper to check if two float slices are approximately equal
-func floatsEqual(a, b []float32, tolerance float32) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		diff := a[i] - b[i]
-		if diff < 0 {
-			diff = -diff
-		}
-		if diff > tolerance {
-			return false
-		}
-	}
-	return true
-}
-
 // Unused but kept for future MapAsync implementation
 var _ = unsafe.Pointer(nil)

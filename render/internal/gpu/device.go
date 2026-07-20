@@ -112,19 +112,3 @@ func releaseAdapter(adapter *webgpu.Adapter) error {
 	adapter.Release()
 	return nil
 }
-
-// CheckDeviceLimits verifies that the device meets minimum requirements.
-// This can be used to validate GPU capabilities before rendering.
-func CheckDeviceLimits(device *webgpu.Device) error {
-	if device == nil {
-		return fmt.Errorf("device is nil")
-	}
-	limits := device.Limits()
-
-	// Log some basic limits for diagnostics.
-	slogger().Debug("device limits",
-		"maxTexture2D", limits.MaxTextureDimension2D,
-		"maxBuffer", limits.MaxBufferSize)
-
-	return nil
-}

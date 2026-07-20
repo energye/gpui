@@ -31,11 +31,6 @@ func SetDebugMode(enabled bool) {
 	debugMode.Store(enabled)
 }
 
-// DebugMode returns whether debug mode is currently enabled.
-func DebugMode() bool {
-	return debugMode.Load()
-}
-
 // trackResource records a resource allocation (debug mode only).
 func trackResource(handle uintptr, typeName string) {
 	trackResourceLabel(handle, typeName, "")

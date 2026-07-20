@@ -86,17 +86,6 @@ func ClearShapeResultCache() {
 	globalShapeResultCache.clear()
 }
 
-// SetShapeResultCacheSoftLimit updates the soft entry limit (for tests/tuning).
-// Eviction is lazy on next insert.
-func SetShapeResultCacheSoftLimit(n int) {
-	if n <= 0 {
-		n = defaultShapeResultSoftLimit
-	}
-	globalShapeResultCache.mu.Lock()
-	globalShapeResultCache.softLimit = n
-	globalShapeResultCache.mu.Unlock()
-}
-
 func (c *shapeResultCache) stats() ShapeResultStats {
 	c.mu.Lock()
 	n := len(c.entries)

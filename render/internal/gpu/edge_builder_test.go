@@ -6,9 +6,9 @@
 package gpu
 
 import (
-	"github.com/energye/gpui/render/internal/raster"
-	"math"
 	"testing"
+
+	"github.com/energye/gpui/render/internal/raster"
 
 	"github.com/energye/gpui/render/scene"
 )
@@ -613,12 +613,4 @@ func BenchmarkAllEdgesIterator(b *testing.B) {
 		}
 		_ = count
 	}
-}
-
-// Helper function to check approximate float equality
-// Used for debugging and validation tests.
-var _ = approxEqual // Prevent unused warning
-
-func approxEqual(a, b, epsilon float32) bool {
-	return math.Abs(float64(a-b)) < float64(epsilon)
 }
