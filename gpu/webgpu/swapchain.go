@@ -67,6 +67,11 @@ type Swapchain struct {
 	// instead of permanently failing. Matches desktop hosts that recreate GPU
 	// state after TDR / driver reset without aborting the process.
 	RecoveryAdapter *Adapter
+	// OnDeviceAbandon is called on the sticky-lost device BEFORE it is Destroy/Release'd
+	// and before RequestDevice. Host must drop all GPU objects (pipelines, pools,
+	// sessions via deviceGen) so VRAM is free for the new device — otherwise the
+	// next CreateTexture hits "Not enough memory left".
+	OnDeviceAbandon func(oldDevice *Device)
 	// OnDeviceRecreated is called after a successful recovery with the new device.
 	// Apps rebind accelerators / device providers here.
 	OnDeviceRecreated func(newDevice *Device)
@@ -125,6 +130,11 @@ func NewSwapchain(surface *Surface, device *Device, width, height uint32) *Swapc
 
 // EnableAutoRecover recreates the device after DeviceLostCallback (optional).
 // onRecreated rebinds app GPU state; adapter must outlive the swapchain.
+//
+// Optional: set sc.OnDeviceAbandon before EnableAutoRecover so the host can
+// drop GPUShared/session resources while the old device is still addressable.
+// tryRecover then Destroy/Release's the old device *before* RequestDevice
+// (peak-VRAM safe; Skia abandon-then-recreate).
 func (sc *Swapchain) EnableAutoRecover(adapter *Adapter, deviceLabel string, onRecreated func(*Device)) {
 	if sc == nil {
 		return
@@ -309,16 +319,26 @@ func pickPresentMode(available []PresentMode, prefer []PresentMode) PresentMode 
 	return available[0]
 }
 
-// Resize updates extent and reconfigures.
+// Resize updates extent and reconfigures when the size actually changes.
+// Same-size calls are no-ops to avoid Surface.Configure thrash (black flash).
+//
+// Callers should draw + Present a full frame immediately after a successful
+// size-changing Resize (Skia/Flutter: first frame after surface recreate must
+// be complete before the compositor samples it).
 func (sc *Swapchain) Resize(width, height uint32) error {
 	if sc == nil {
 		return fmt.Errorf("wgpu: swapchain is nil")
 	}
+	if width == 0 || height == 0 {
+		return fmt.Errorf("wgpu: swapchain extent must be non-zero")
+	}
+	if sc.Width == width && sc.Height == height && sc.configured && !sc.pendingReconfigure {
+		return nil
+	}
 	sc.Width = width
 	sc.Height = height
-	// New extent: allow a single post-resize suboptimal recovery if needed.
-	sc.suboptHandledW = 0
-	sc.suboptHandledH = 0
+	// Configure() marks suboptHandled for this extent so the first suboptimal
+	// present after resize does not immediately reconfigure again (double flash).
 	return sc.Configure()
 }
 
@@ -373,8 +393,24 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	sc.frameOpen = false
 	sc.pendingReconfigure = true
 
-	// Keep old sticky-lost device until a new device is installed.
 	old := sc.Device
+
+	// Skia abandon-then-recreate (VRAM):
+	//  1) Host drops all objects on OLD (OnDeviceAbandon → GPUShared abandon + deviceGen)
+	//  2) Destroy/Release OLD before RequestDevice (avoid peak = 2 devices + textures)
+	//  3) RequestDevice NEW
+	//  4) Host rebinds (OnDeviceRecreated → SetDeviceProvider)
+	// Earlier order (RequestDevice → rebind → free old) caused CreateTexture OOM
+	// ("Not enough memory left") on session_depth_stencil after recover.
+	if old != nil {
+		if sc.OnDeviceAbandon != nil {
+			sc.OnDeviceAbandon(old)
+		}
+		_ = old.WaitIdle() // best-effort; lost devices may error
+		old.Destroy()
+		old.Release()
+		sc.Device = nil
+	}
 
 	label := sc.DeviceLabel
 	if label == "" {
@@ -382,18 +418,14 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	}
 	dev, err := sc.RecoveryAdapter.RequestDevice(&DeviceDescriptor{Label: label})
 	if err != nil {
-		// sc.Device still points at old (sticky lost) — do not nil it.
+		// Leave sc.Device nil only if old was freed; sticky recover will retry.
+		// If RequestDevice fails after free, host must re-recover; do not keep freed old.
 		return fmt.Errorf("%w: RequestDevice: %v", ErrDeviceLost, err)
 	}
 
-	// Swap only after successful RequestDevice.
 	sc.Device = dev
-	if old != nil {
-		// Destroy (not only Release): sticky-lost devices may skip native
-		// Release; Destroy force-reclaims (Skia abandon). Also ensures
-		// external render caches cannot keep using a half-dead device.
-		old.Destroy()
-		old.Release()
+	if sc.OnDeviceRecreated != nil {
+		sc.OnDeviceRecreated(dev)
 	}
 
 	if err := sc.ConfigureFromCapabilities(sc.RecoveryAdapter); err != nil {
@@ -402,9 +434,6 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 		}
 	}
 	sc.recoverAttempts++
-	if sc.OnDeviceRecreated != nil {
-		sc.OnDeviceRecreated(dev)
-	}
 	return nil
 }
 

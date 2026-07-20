@@ -1,7 +1,6 @@
 package rwgpu
 
 import (
-	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -307,10 +306,6 @@ func uncapturedErrorHandler(devicePtr, errType, messageData, messageLength, user
 	} else {
 		ownerHandle = deviceHandleFromCallbackArg(devicePtr)
 	}
-	// Always-on: soaks can see whether native delivered uncaptured into Go
-	// (including non-lost validation) before GCT / submit paths.
-	log.Printf("rwgpu: UncapturedCallback ENTER type=%d msg=%q devicePtr=%#x owner=%#x userdata1=%d",
-		errType, msg, devicePtr, ownerHandle, userdata1)
 	lastUncapturedMu.Lock()
 	lastUncapturedTyp = ErrorType(errType)
 	lastUncapturedMsg = msg
@@ -321,7 +316,6 @@ func uncapturedErrorHandler(devicePtr, errType, messageData, messageLength, user
 			errType, msg, ownerHandle, userdata1)
 		// Userdata first — which window/device owns this error.
 		markDeviceLostFromCallback(devicePtr, userdata1)
-		log.Printf("rwgpu: UncapturedCallback DONE sticky_lost=true owner=%#x", ownerHandle)
 	}
 	return 0
 }
@@ -492,7 +486,6 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 			// Primary route: userdata slot; secondary: native handle map.
 			bindDeviceSlot(deviceSlot, req.device)
 			registerLiveDevice(req.device)
-			// lostCanary is allocated lazily on first SyncLostState (surface present
 			// path). Eager alloc on every RequestDevice exhausted VRAM in unit
 			// suites that create many short-lived devices.
 		} else {
@@ -564,52 +557,9 @@ func (d *Device) Queue() *Queue {
 	return &Queue{handle: handle, device: d.handle}
 }
 
-// deviceProbeResult is the outcome of a soft health probe before fatal surface ops.
-type deviceProbeResult int
-
-const (
-	// deviceProbeAlive: soft ops succeeded; GetCurrentTexture may proceed.
-	deviceProbeAlive deviceProbeResult = iota
-	// deviceProbeLost: sticky lost set; refuse surface ops with ErrSurfaceDeviceLost.
-	deviceProbeLost
-	// deviceProbeUnavailable: cannot confirm health (OOM / null handles) — skip
-	// frame without calling fatal GetCurrentTexture. Does not mark sticky lost
-	// unless uncaptured already said so.
-	deviceProbeUnavailable
-)
-
-// ensureLostCanaryLocked allocates a 4-byte COPY_DST buffer for soft probe.
-// Caller must hold gpuMu. Best-effort: failure leaves lostCanary nil.
-func (d *Device) ensureLostCanaryLocked() {
-	if d == nil || d.handle == 0 || d.lostCanary != nil || d.IsLost() {
-		return
-	}
-	if procDeviceCreateBuffer == nil {
-		return
-	}
-	// COPY_BUFFER_ALIGNMENT is 4; WriteBuffer size must be a multiple of 4.
-	wire := bufferDescriptorWire{
-		Label:            stringToStringView("gpui-device-lost-canary"),
-		Usage:            BufferUsageCopyDst,
-		Size:             4,
-		MappedAtCreation: False,
-	}
-	_, _ = LastUncapturedError()
-	handle, _, _ := procDeviceCreateBuffer.Call(
-		d.handle,
-		uintptr(unsafe.Pointer(&wire)),
-	)
-	// Uncaptured may be async on some builds — pump before inspecting.
-	pumpInstanceEvents(d)
-	if handle == 0 {
-		return
-	}
-	trackResource(handle, "Buffer")
-	d.lostCanary = &Buffer{handle: handle, device: d, mapState: BufferMapStateUnmapped}
-}
-
 // absorbLostUncapturedLocked consumes a pending uncaptured lost message for this
 // device and marks sticky lost. Returns true if the device is now lost.
+// Caller should hold gpuMu when folding with surface acquire.
 func (d *Device) absorbLostUncapturedLocked() bool {
 	if d == nil {
 		return false
@@ -621,7 +571,6 @@ func (d *Device) absorbLostUncapturedLocked() bool {
 	if !looksLikeDeviceLost(msg) {
 		return d.IsLost()
 	}
-	// Only absorb when attributed to this device (or unknown owner).
 	if owner != 0 && d.handle != 0 && owner != d.handle {
 		return false
 	}
@@ -630,173 +579,10 @@ func (d *Device) absorbLostUncapturedLocked() bool {
 	return true
 }
 
-// dropLostCanaryLocked clears the canary Go handle (native skip if lost).
-func (d *Device) dropLostCanaryLocked() {
-	if d == nil || d.lostCanary == nil {
-		return
-	}
-	c := d.lostCanary
-	d.lostCanary = nil
-	if d.IsLost() {
-		c.handle = 0
-		c.device = nil
-		return
-	}
-	// Healthy drop uses native release (canary may be recreated next probe).
-	releaseNativeHandle(&c.handle, false, func(h uintptr) {
-		if procBufferDestroy != nil {
-			procBufferDestroy.Call(h) //nolint:errcheck
-		}
-		if procBufferRelease != nil {
-			procBufferRelease.Call(h) //nolint:errcheck
-		}
-	})
-	c.device = nil
-}
-
-// probeDeviceForSurfaceLocked runs soft-only ops to detect parent-device-lost
-// before fatal wgpuSurfaceGetCurrentTexture. Caller must hold gpuMu.
-//
-// Fail-closed: PopErrorScope failure / missing canary → unavailable (never Alive).
-// Soft probes can still false-negative under occlusion TDR; GetCurrentTexture uses
-// a SIGABRT shield (gct_guard_linux.c) as the last line of defense.
-func (d *Device) probeDeviceForSurfaceLocked() deviceProbeResult {
-	if d == nil || d.handle == 0 {
-		return deviceProbeUnavailable
-	}
-	if d.IsLost() {
-		return deviceProbeLost
-	}
-	if procDeviceGetQueue == nil || procQueueWriteBuffer == nil {
-		return deviceProbeUnavailable
-	}
-
-	pumpInstanceEvents(d)
-	if d.IsLost() || d.absorbLostUncapturedLocked() {
-		return deviceProbeLost
-	}
-
-	// Lazy canary (not per-frame CreateBuffer — that path stressed the 1GB GPU).
-	d.ensureLostCanaryLocked()
-	if d.IsLost() || d.absorbLostUncapturedLocked() {
-		d.dropLostCanaryLocked()
-		return deviceProbeLost
-	}
-	if d.lostCanary == nil || d.lostCanary.handle == 0 {
-		return deviceProbeUnavailable
-	}
-
-	qh, _, _ := procDeviceGetQueue.Call(d.handle)
-	pumpInstanceEvents(d)
-	if d.IsLost() || d.absorbLostUncapturedLocked() {
-		if qh != 0 {
-			procQueueRelease.Call(qh) //nolint:errcheck
-		}
-		return deviceProbeLost
-	}
-	if qh == 0 {
-		markDeviceObjectLost(d)
-		return deviceProbeLost
-	}
-
-	pushedScope := false
-	if procDevicePushErrorScope != nil {
-		procDevicePushErrorScope.Call(d.handle, uintptr(ErrorFilterValidation)) //nolint:errcheck
-		pushedScope = true
-	}
-
-	_, _ = LastUncapturedError()
-	var probe [4]byte
-	call5(procQueueWriteBuffer, qh, d.lostCanary.handle, 0,
-		uintptr(unsafe.Pointer(&probe[0])), 4)
-	procQueueRelease.Call(qh) //nolint:errcheck
-
-	pumpInstanceEvents(d)
-	if procDevicePoll != nil {
-		procDevicePoll.Call(d.handle, 0, 0)
-		pumpInstanceEvents(d)
-	}
-
-	if pushedScope && procDevicePopErrorScope != nil && d.instance != 0 {
-		errType, msg, err := d.popErrorScopeLocked()
-		if err != nil {
-			// Fail-closed: never treat pop failure as Alive (prior SIGABRT path).
-			return deviceProbeUnavailable
-		}
-		if looksLikeDeviceLost(msg) {
-			markDeviceObjectLost(d)
-			d.dropLostCanaryLocked()
-			return deviceProbeLost
-		}
-		if errType != ErrorTypeNoError && errType != 0 && msg != "" {
-			d.dropLostCanaryLocked()
-			// Transient validation — skip GCT this frame.
-			return deviceProbeUnavailable
-		}
-	} else if pushedScope {
-		return deviceProbeUnavailable
-	}
-
-	if d.IsLost() || d.absorbLostUncapturedLocked() {
-		d.dropLostCanaryLocked()
-		return deviceProbeLost
-	}
-	return deviceProbeAlive
-}
-
-// popErrorScopeLocked pops one error scope while gpuMu is already held.
-// Uses WaitAnyOnly; does not take gpuMu again.
-func (d *Device) popErrorScopeLocked() (ErrorType, string, error) {
-	if d == nil || d.handle == 0 || d.instance == 0 {
-		return ErrorTypeNoError, "", &WGPUError{Op: "popErrorScopeLocked", Message: "device/instance unavailable"}
-	}
-	errorScopeCallbackOnce.Do(initErrorScopeCallback)
-	result := &errorScopeResult{done: make(chan struct{})}
-	errorScopeResultsMu.Lock()
-	errorScopeResultID++
-	resultID := errorScopeResultID
-	errorScopeResults[resultID] = result
-	errorScopeResultsMu.Unlock()
-
-	callbackInfo := popErrorScopeCallbackInfo{
-		mode:      CallbackModeWaitAnyOnly,
-		callback:  errorScopeCallbackPtr,
-		userdata1: resultID,
-	}
-	future, err := callDevicePopErrorScope(d.handle, &callbackInfo)
-	if err != nil {
-		errorScopeResultsMu.Lock()
-		delete(errorScopeResults, resultID)
-		errorScopeResultsMu.Unlock()
-		return ErrorTypeNoError, "", err
-	}
-	if err := waitForFuture(d.instance, future, "popErrorScopeLocked"); err != nil {
-		errorScopeResultsMu.Lock()
-		delete(errorScopeResults, resultID)
-		errorScopeResultsMu.Unlock()
-		return ErrorTypeNoError, "", err
-	}
-	select {
-	case <-result.done:
-		if result.status != PopErrorScopeStatusSuccess {
-			return ErrorTypeNoError, "", &WGPUError{
-				Op:      "popErrorScopeLocked",
-				Message: fmt.Sprintf("pop status %d", result.status),
-			}
-		}
-		return result.errType, result.message, nil
-	default:
-		return ErrorTypeNoError, "", &WGPUError{Op: "popErrorScopeLocked", Message: "callback not invoked"}
-	}
-}
-
-// SyncLostState pumps DeviceLost callbacks and runs the soft probe canary.
-// On this libwgpu_native.so, DeviceLost often never enters Go and
-// GetCurrentTexture aborts if parent is already lost — the probe converts that
-// into sticky IsLost before surface acquire.
-//
-// Safe and idempotent on nil / already-lost devices. Must not false-positive a
-// healthy device (covered by TestSyncLostState_IdempotentOnHealthyDevice).
+// SyncLostState pumps instance events and folds pending Uncaptured/DeviceLost
+// into sticky IsLost (Skia abandon signal). Does not call WriteBuffer canary —
+// soft native returns errors from GetCurrentTexture/Submit instead of SIGABRT.
+// Safe and idempotent on nil / already-lost devices.
 func (d *Device) SyncLostState() {
 	if d == nil || d.IsLost() {
 		return
@@ -806,40 +592,27 @@ func (d *Device) SyncLostState() {
 	}
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
-	_ = d.probeDeviceForSurfaceLocked()
+	pumpInstanceEvents(d)
+	_ = d.absorbLostUncapturedLocked()
 }
 
-// syncLostStateLocked is kept for call sites that only need sticky update.
+// syncLostStateLocked is for call sites that already hold gpuMu.
 func (d *Device) syncLostStateLocked() {
-	_ = d.probeDeviceForSurfaceLocked()
+	if d == nil || d.IsLost() {
+		return
+	}
+	pumpInstanceEvents(d)
+	_ = d.absorbLostUncapturedLocked()
 }
 
 // Destroy forces native device teardown and sticky-lost state (Skia/Flutter
-// abandon-context equivalent for tests and intentional reclaim).
-//
-// This .so often does not deliver DeviceLostCallback after Destroy; sticky is
-// force-marked so public APIs refuse with ErrDeviceLost and surface acquire
-// never reaches fatal GetCurrentTexture. Idempotent and nil-safe.
+// abandon-context). Sticky is force-marked so public APIs refuse with
+// ErrDeviceLost even if DeviceLostCallback is not delivered. Idempotent and nil-safe.
 func (d *Device) Destroy() {
 	if d == nil {
 		return
 	}
-	// Free canary with native release while device is still healthy (before
-	// sticky-lost). Releasing after MarkLost skips BufferRelease and leaks VRAM,
-	// which causes subsequent RequestDevice "Not enough memory left" in tests.
-	if d.lostCanary != nil {
-		c := d.lostCanary
-		d.lostCanary = nil
-		if !d.IsLost() {
-			c.Release()
-		} else {
-			// Already lost: clear Go handle only.
-			c.handle = 0
-			c.device = nil
-		}
-	}
-
-	// Sticky so concurrent GetCurrentTexture refuses immediately.
+	// Sticky abandon (Skia/Flutter) so concurrent ops refuse with ErrDeviceLost.
 	d.MarkLost()
 
 	if d.handle == 0 {
@@ -891,22 +664,23 @@ func (d *Device) Poll(wait bool) bool {
 	}
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	_, _ = LastUncapturedError()
 	result, _, _ := procDevicePoll.Call(d.handle, waitArg, 0)
+	// Soft native: poll errors report via ErrorSink then return false.
+	if _, msg := LastUncapturedError(); looksLikeDeviceLost(msg) {
+		d.MarkLost()
+	}
 	return result != 0
 }
 
 // Release releases the device resources.
 // Nil-safe and idempotent. When the device is already lost, only Go-side
-// state is cleared — native DeviceRelease on a lost device can SIGABRT.
+// state is cleared — native DeviceRelease is skipped when lost.
 func (d *Device) Release() {
 	if d == nil {
 		return
 	}
 	lost := d.IsLost()
-	if d.lostCanary != nil {
-		d.lostCanary.Release()
-		d.lostCanary = nil
-	}
 	if d.handle != 0 {
 		// Preserve sticky lost map entry for this handle before unregister.
 		if lost {

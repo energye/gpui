@@ -162,11 +162,16 @@ func (b *Buffer) GetMappedRange(offset, size uint64) unsafe.Pointer {
 	if checkInit() != nil {
 		return nil
 	}
+	_, _ = LastUncapturedError()
 	ptr, _, _ := procBufferGetMappedRange.Call(
 		b.handle,
 		uintptr(offset),
 		uintptr(size),
 	)
+	// Soft native: null + Uncaptured/DeviceLost instead of panic.
+	if _, msg := LastUncapturedError(); looksLikeDeviceLost(msg) && b.device != nil {
+		b.device.MarkLost()
+	}
 	if ptr == 0 {
 		return nil
 	}

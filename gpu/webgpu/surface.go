@@ -206,13 +206,11 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s.device == nil {
 		return nil, false, fmt.Errorf("wgpu: surface not configured")
 	}
-	// Avoid native panic: wgpuSurfaceGetCurrentTexture aborts when parent device is lost.
+	// Skia: abandon sticky → refuse; FlushCallbacks folds pending lost signals.
 	if s.device.IsLost() {
 		return nil, false, ErrDeviceLost
 	}
-	// Pump callbacks + soft canary so silent native lost is sticky before acquire.
 	s.device.FlushCallbacks()
-	s.device.SyncLostState()
 	if s.device.IsLost() {
 		return nil, false, ErrDeviceLost
 	}

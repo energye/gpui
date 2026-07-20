@@ -68,10 +68,18 @@ func (d *Device) CreateRenderBundleEncoder(desc *RenderBundleEncoderDescriptor) 
 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	_, _ = LastUncapturedError()
 	handle, _, _ := procDeviceCreateRenderBundleEncoder.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),
 	)
+	if typ, msg := LastUncapturedError(); msg != "" {
+		if looksLikeDeviceLost(msg) {
+			d.MarkLost()
+			return nil, ErrDeviceLost
+		}
+		return nil, &WGPUError{Op: "CreateRenderBundleEncoder", Type: typ, Message: msg}
+	}
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateRenderBundleEncoder", Message: "wgpu returned null handle"}
 	}
@@ -244,7 +252,12 @@ func (rbe *RenderBundleEncoder) Finish(desc ...*RenderBundleDescriptor) *RenderB
 		descPtr = uintptr(unsafe.Pointer(desc[0]))
 	}
 
+	_, _ = LastUncapturedError()
 	handle, _, _ := procRenderBundleEncoderFinish.Call(rbe.handle, descPtr)
+	// Soft native returns null on finish failure.
+	if _, msg := LastUncapturedError(); looksLikeDeviceLost(msg) {
+		noteLostMessage(rbe.device, msg)
+	}
 	if handle == 0 {
 		return nil
 	}

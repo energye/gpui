@@ -52,11 +52,6 @@ type Device struct {
 	callbackUserdata uintptr
 	// lost is set only for this Device (DeviceLostCallback / uncaptured lost).
 	lost atomic.Bool
-	// lostCanary is a 4-byte COPY_DST buffer used by SyncLostState soft probe.
-	// wgpuSurfaceGetCurrentTexture aborts when parent is already lost; WriteBuffer
-	// only emits a soft uncaptured "Parent device is lost". The canary detects
-	// that gap before acquire (this libwgpu_native.so often skips DeviceLostCallback).
-	lostCanary *Buffer
 }
 
 // Queue is used to submit command buffers and write data to buffers/textures.
@@ -193,7 +188,7 @@ type Surface struct {
 	// for ProcessEvents and sticky lost checks (webgpu.h contract).
 	deviceRef *Device
 	// abandoned is sticky once parent device-lost is observed on this surface.
-	// After abandon: Unconfigure/Release skip native calls that can SIGABRT;
+	// After abandon: Unconfigure/Release skip native calls when parent is lost;
 	// cleared only by a successful Configure with a healthy device.
 	abandoned bool
 }

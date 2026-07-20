@@ -463,10 +463,8 @@ func (d *Device) Poll(pollType PollType) bool {
 	return d.r.Poll(pollType == PollWait)
 }
 
-// FlushCallbacks pumps pending wgpu callbacks for this device's instance
-// without blocking on GPU work. Also runs SyncLostState soft canary so a
-// silent native device-lost becomes sticky before surface acquire.
-// Safe on nil / released / lost devices.
+// FlushCallbacks pumps pending wgpu callbacks and folds Uncaptured/DeviceLost
+// into sticky IsLost (Skia abandon signal). Safe on nil / released / lost devices.
 func (d *Device) FlushCallbacks() {
 	if d == nil || d.released {
 		return
@@ -475,8 +473,6 @@ func (d *Device) FlushCallbacks() {
 		d.instance.ProcessEvents()
 	}
 	if d.r != nil {
-		// Soft canary first: GetCurrentTexture aborts if parent is already lost
-		// and DeviceLostCallback never entered Go (known libwgpu_native gap).
 		d.r.SyncLostState()
 		if !d.r.IsLost() {
 			_ = d.r.Poll(false)
@@ -484,8 +480,7 @@ func (d *Device) FlushCallbacks() {
 	}
 }
 
-// SyncLostState pumps DeviceLost callbacks and runs the soft WriteBuffer canary.
-// Call before surface acquire / present when not already covered by FlushCallbacks.
+// SyncLostState pumps callbacks and folds pending lost signals into sticky IsLost.
 // Safe on nil / released / lost devices.
 func (d *Device) SyncLostState() {
 	if d == nil || d.released || d.r == nil {

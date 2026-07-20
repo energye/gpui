@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 	"unsafe"
@@ -36,6 +37,17 @@ const (
 	xStructureNotifyMask  = 1 << 17
 	xVisibilityChangeMask = 1 << 16
 	xFocusChangeMask      = 1 << 21
+
+	// XSetWindowAttributes value masks / gravity (amd64 Xlib).
+	// Critical for zero-flash resize: default CreateSimpleWindow background=0
+	// paints BLACK into newly exposed regions on every Configure.
+	xNone             = 0
+	xNorthWestGravity = 1
+	xWhenMapped       = 1
+	xCWBackPixmap     = 1 << 0
+	xCWBitGravity     = 1 << 4
+	xCWWinGravity     = 1 << 5
+	xCWBackingStore   = 1 << 6
 )
 
 type x11Event struct {
@@ -86,6 +98,10 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 		xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int) uintptr
 		xSetWMProtocols func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
 	)
+	var xInitThreads func() int
+	purego.RegisterLibFunc(&xInitThreads, lib, "XInitThreads")
+	_ = xInitThreads() // before any other Xlib call; multi-thread event + present
+
 	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
 	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
 	purego.RegisterLibFunc(&xDefaultScreen, lib, "XDefaultScreen")
@@ -101,24 +117,58 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	purego.RegisterLibFunc(&xInternAtom, lib, "XInternAtom")
 	purego.RegisterLibFunc(&xSetWMProtocols, lib, "XSetWMProtocols")
 
+	// Try current DISPLAY, then common local sockets — no env required to run.
 	dpy := xOpenDisplay(nil)
 	if dpy == 0 {
+		for _, name := range []string{":0", ":1", ":0.0", ":1.0"} {
+			b := append([]byte(name), 0)
+			dpy = xOpenDisplay(&b[0])
+			if dpy != 0 {
+				if os.Getenv("DISPLAY") == "" {
+					_ = os.Setenv("DISPLAY", name)
+				}
+				log.Printf("XOpenDisplay fallback %s", name)
+				break
+			}
+		}
+	}
+	if dpy == 0 {
 		_ = purego.Dlclose(lib)
-		return nil, fmt.Errorf("XOpenDisplay failed (DISPLAY=%q)", os.Getenv("DISPLAY"))
+		return nil, fmt.Errorf("XOpenDisplay failed (DISPLAY=%q); start X11 or set DISPLAY", os.Getenv("DISPLAY"))
 	}
 	screen := xDefaultScreen(dpy)
 	root := xRootWindow(dpy, screen)
+	// No size hints → WM can freely resize / maximize / tile.
+	// background=0 would black-fill on resize; overridden immediately below.
 	win := xCreateSimple(dpy, root, 100, 80, uint(w), uint(h), 1, 0, 0)
 	if win == 0 {
 		xCloseDisplay(dpy)
 		_ = purego.Dlclose(lib)
 		return nil, fmt.Errorf("XCreateSimpleWindow failed")
 	}
+
+	// Skia/Flutter-style resize: do not paint black on expose/resize; keep pixels.
+	// XSetWindowAttributes (LP64): background_pixmap@0, bit_gravity@32, win_gravity@36, backing_store@40.
+	var (
+		xSetBgPixmap func(dpy, win, pixmap uintptr) int
+		xChangeAttr  func(dpy, win uintptr, mask uint64, attrs unsafe.Pointer) int
+	)
+	purego.RegisterLibFunc(&xSetBgPixmap, lib, "XSetWindowBackgroundPixmap")
+	purego.RegisterLibFunc(&xChangeAttr, lib, "XChangeWindowAttributes")
+	xSetBgPixmap(dpy, win, uintptr(xNone))
+	attrs := make([]byte, 128)
+	*(*int32)(unsafe.Pointer(&attrs[32])) = int32(xNorthWestGravity) // bit_gravity
+	*(*int32)(unsafe.Pointer(&attrs[36])) = int32(xNorthWestGravity) // win_gravity
+	*(*int32)(unsafe.Pointer(&attrs[40])) = int32(xWhenMapped)       // backing_store
+	attrMask := uint64(xCWBackPixmap | xCWBitGravity | xCWWinGravity | xCWBackingStore)
+	// background_pixmap already 0 (None) at attrs[0]
+	xChangeAttr(dpy, win, attrMask, unsafe.Pointer(&attrs[0]))
+
 	name := append([]byte(title), 0)
 	xStoreName(dpy, win, &name[0])
 
-	mask := int64(xStructureNotifyMask | xExposureMask | xVisibilityChangeMask | xFocusChangeMask | xKeyPressMask)
-	xSelectInput(dpy, win, mask)
+	evMask := int64(xStructureNotifyMask | xExposureMask | xVisibilityChangeMask | xFocusChangeMask | xKeyPressMask)
+	xSelectInput(dpy, win, evMask)
 
 	delName := append([]byte("WM_DELETE_WINDOW"), 0)
 	wmDelete := xInternAtom(dpy, &delName[0], 0)
@@ -131,7 +181,7 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	xFlush(dpy)
 	time.Sleep(40 * time.Millisecond)
 
-	xw := &x11Win{
+	return &x11Win{
 		lib:        lib,
 		Display:    dpy,
 		Window:     win,
@@ -140,10 +190,9 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 		xFlush:     xFlush,
 		xClose:     xCloseDisplay,
 		xDestroy:   xDestroyWindow,
-		eventBytes: make([]byte, 192), // XEvent is large; pad safely
+		eventBytes: make([]byte, 192),
 		wmDelete:   wmDelete,
-	}
-	return xw, nil
+	}, nil
 }
 
 func (w *x11Win) Close() {
@@ -188,26 +237,23 @@ func (w *x11Win) NextEvent() x11Event {
 	ev := x11Event{Type: typ}
 	switch typ {
 	case xConfigureNotify:
-		// xconfigure: type, serial, send_event, display, event, window, x, y, width, height, ...
-		// Offsets vary with 32/64; use conservative 64-bit Xlib offsets used elsewhere in tree.
-		ev.Width = int(*(*int32)(unsafe.Pointer(&w.eventBytes[32])))
-		ev.Height = int(*(*int32)(unsafe.Pointer(&w.eventBytes[36])))
-		if ev.Width == 0 && ev.Height == 0 {
-			// Fallback: common 64-bit packing after two window fields.
+		// LP64 XConfigureEvent: width@56 height@60 (same as mem_anim_window).
+		ev.Width = int(*(*int32)(unsafe.Pointer(&w.eventBytes[56])))
+		ev.Height = int(*(*int32)(unsafe.Pointer(&w.eventBytes[60])))
+		if ev.Width < 1 || ev.Height < 1 {
 			ev.Width = int(*(*int32)(unsafe.Pointer(&w.eventBytes[40])))
 			ev.Height = int(*(*int32)(unsafe.Pointer(&w.eventBytes[44])))
 		}
 	case xVisibilityNotify:
-		// state is after window fields; try a few offsets.
-		ev.Visibility = int(w.eventBytes[32])
-		if ev.Visibility > 2 {
-			ev.Visibility = int(w.eventBytes[24])
+		// state after window fields on LP64
+		ev.Visibility = int(*(*int32)(unsafe.Pointer(&w.eventBytes[48])))
+		if ev.Visibility < 0 || ev.Visibility > 2 {
+			ev.Visibility = int(w.eventBytes[32])
 		}
 	case xKeyPress:
-		// keycode often at offset 84 on 64-bit — best-effort for q/esc.
 		ev.KeyCode = int(w.eventBytes[84])
 	case xClientMessage:
-		// data.l[0] atom — if equals wmDelete, treat as close (checked in main).
+		// data.l[0] checked in IsDeleteMessage
 	}
 	return ev
 }

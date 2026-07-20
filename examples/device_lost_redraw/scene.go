@@ -3,16 +3,49 @@
 package main
 
 import (
+	"fmt"
 	"math"
+	"os"
+	"sync"
 
 	"github.com/energye/gpui/render"
 )
 
+// drawStats is overlay metrics for the HUD.
+type drawStats struct {
+	Frame   uint64
+	FPS     float64
+	Seconds float64
+}
+
+var (
+	hudFontOnce sync.Once
+	hudFontPath string
+)
+
+func ensureHUDFont(dc *render.Context) {
+	hudFontOnce.Do(func() {
+		for _, p := range []string{
+			"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+			"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+			"/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+			"/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf",
+		} {
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				hudFontPath = p
+				break
+			}
+		}
+	})
+	if hudFontPath != "" {
+		_ = dc.LoadFontFace(hudFontPath, 15)
+	}
+}
+
 // drawCompositeFrame is a mid-weight animation inspired by mem_anim S12
 // (cards + orbs + bars + soft panels). Intentionally self-contained so this
 // example does not import the full mem_anim scenario matrix.
-
-func drawCompositeFrame(dc *render.Context, w, h int, t float64, frame int) {
+func drawCompositeFrame(dc *render.Context, w, h int, t float64, st drawStats) {
 	fw, fh := float64(w), float64(h)
 
 	// Background gradient-ish bands
@@ -27,7 +60,7 @@ func drawCompositeFrame(dc *render.Context, w, h int, t float64, frame int) {
 		_ = dc.Fill()
 	}
 
-	// Floating orbs (glow-ish solid circles)
+	// Floating orbs
 	for i := 0; i < 12; i++ {
 		ang := t*0.7 + float64(i)*0.52
 		cx := fw*0.5 + math.Cos(ang)*fw*0.28
@@ -43,7 +76,7 @@ func drawCompositeFrame(dc *render.Context, w, h int, t float64, frame int) {
 		_ = dc.Fill()
 	}
 
-	// Card stack (UI-like)
+	// Card stack
 	for i := 0; i < 5; i++ {
 		ox := 36.0 + float64(i)*18 + 10*math.Sin(t+float64(i)*0.5)
 		oy := 48.0 + float64(i)*22
@@ -54,7 +87,6 @@ func drawCompositeFrame(dc *render.Context, w, h int, t float64, frame int) {
 		dc.SetRGBA(0.35, 0.55, 0.95, 0.9)
 		dc.DrawRoundedRectangle(ox+12, oy+16, 40, 40, 8)
 		_ = dc.Fill()
-		// progress bar
 		prog := 0.2 + 0.8*(0.5+0.5*math.Sin(t*1.5+float64(i)))
 		dc.SetRGBA(0.25, 0.28, 0.35, 1)
 		dc.DrawRoundedRectangle(ox+64, oy+32, cw-88, 10, 4)
@@ -64,7 +96,7 @@ func drawCompositeFrame(dc *render.Context, w, h int, t float64, frame int) {
 		_ = dc.Fill()
 	}
 
-	// Right panel: mesh-like lattice
+	// Right panel lattice
 	baseX := fw * 0.55
 	baseY := fh * 0.12
 	cols, rows := 8, 6
@@ -90,6 +122,15 @@ func drawCompositeFrame(dc *render.Context, w, h int, t float64, frame int) {
 		}
 	}
 
+	// Top HUD: fps / frame / runtime seconds
+	dc.SetRGBA(0.05, 0.06, 0.1, 0.82)
+	dc.DrawRoundedRectangle(12, 10, math.Min(fw-24, 420), 34, 8)
+	_ = dc.Fill()
+	line := fmt.Sprintf("fps=%.1f  frame=%d  t=%.1fs", st.FPS, st.Frame, st.Seconds)
+	ensureHUDFont(dc)
+	dc.SetRGB(0.92, 0.95, 1.0)
+	dc.DrawString(line, 24, 32)
+
 	// Bottom ticker bar
 	dc.SetRGBA(0.1, 0.12, 0.18, 0.95)
 	dc.DrawRectangle(0, fh-36, fw, 36)
@@ -99,8 +140,6 @@ func drawCompositeFrame(dc *render.Context, w, h int, t float64, frame int) {
 	dc.DrawRoundedRectangle(sweep, fh-28, 80, 20, 6)
 	_ = dc.Fill()
 
-	// Frame accent (forces continuous invalidation / full present content)
-	_ = frame
 	dc.SetRGBA(1, 1, 1, 0.08)
 	dc.DrawRectangle(0, 0, fw, 2)
 	_ = dc.Fill()

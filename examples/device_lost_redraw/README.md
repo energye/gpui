@@ -1,64 +1,45 @@
 # device_lost_redraw
 
-Device-lost soak sample: **RequestRedraw-driven ~60fps** on a **dedicated render goroutine**, with Skia/Flutter-style surface lifecycle.
+零配置 device-lost 示例：`RequestRedraw` 驱动 60fps + 独立渲染 goroutine。
 
-Inspired by `mem_anim_window` S12-style composite motion (cards / orbs / bars / glow panels), but smaller and focused on **not dying** when the window is fully covered or the GPU device is lost.
+## 运行（无需参数 / 环境变量）
 
-## Run
+在仓库根目录：
 
 ```bash
-cd /path/to/gpui
-export LD_LIBRARY_PATH=$PWD/lib
-export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so   # optional if lib/ present
-export DISPLAY=:1   # or your X11 display
-
 go run ./examples/device_lost_redraw
 ```
 
-Optional env:
+或：
 
-| Env | Default | Meaning |
-| --- | --- | --- |
-| `GPUI_TARGET_FPS` | `60` | Animation `RequestRedraw` rate (15–120) |
-| `GPUI_ANIM_SECONDS` | `0` | Auto-exit after N seconds of **visible** time; `0` = until close |
-| `GPUI_FORCE_RENDER_WHEN_HIDDEN` | `0` | `1` = still acquire when unpresentable (debug only) |
-| `GPUI_LOG_EVERY` | `60` | Log every N presented frames |
-
-## Architecture
-
-```
-main (X11 thread)
-  ├─ drain events (map, configure, visibility, focus, close)
-  ├─ update presentable / size / focus flags
-  └─ on Expose / resume visible → RequestRedraw()
-
-ticker goroutine (~60Hz)
-  └─ if presentable → RequestRedraw()   // coalesced (cap=1)
-
-render goroutine (ONLY place that touches GPU)
-  ├─ wait RequestRedraw
-  ├─ FlushCallbacks + SyncLostState
-  ├─ if !presentable → pump callbacks only, skip GCT
-  ├─ draw composite scene → BeginFrame / Present
-  └─ ErrDeviceLost → skip; EnableAutoRecover rebinds next frame
+```bash
+go build -o /tmp/device_lost_redraw ./examples/device_lost_redraw
+/tmp/device_lost_redraw
 ```
 
-`RequestRedraw` never blocks and **coalesces** (at most one pending frame). GPU work is **single-threaded** on the render goroutine (not multi-threaded device use).
+默认会：
 
-## Device-lost policy
+- 自动找 `lib/libwgpu_native.so`（当前目录 / 可执行文件旁）
+- 自动尝试 X11（`DISPLAY` 未设时试 `:0` / `:1`）
+- **窗口可自由缩放 / 最大化 / 平铺**（无锁尺寸）
+- 关窗口或 Ctrl+C 退出
 
-1. Always install DeviceLost + Uncaptured (via `RequestDevice` / library).
-2. `EnableAutoRecover` + host rebind of `SetDeviceProvider` (purge GPU caches).
-3. Unpresentable (minimized / FullyObscured) → **no** `GetCurrentTexture`.
-4. Unfocused but still visible → **keep** drawing.
-5. After long hide (≥2s) resume → optional `MarkLost` force recreate.
-6. Never `os.Exit` on `ErrDeviceLost`.
+## 行为摘要
 
-## Manual acceptance
+| 项目 | 默认 |
+|------|------|
+| FPS | 60（Fifo Prefer + 帧预算 sleep；HUD 用 1s 滑动窗口） |
+| 缩放 | **零闪**：拖动中不 `Surface.Configure`（合成器拉伸旧 buffer + 持续 present）；静默 ~32ms 再一次 Configure + 全量 Present。X11 `background=None` + bit gravity。 |
+| 动画 | 类 S12 复合（卡片/光球/网格） |
+| 完全遮挡 / 最小化 | 暂停 acquire，不 GCT |
+| 失焦仍可见 | 继续画 |
+| Device lost | AutoRecover，进程不退出 |
 
-1. Start: animation + `frame=` growing.
-2. Fully cover window with another window ≥5–10 min: process lives; no SIGABRT.
-3. Uncover: `visible again` / recover logs; animation continues with latest state.
-4. Optional: minimize / restore.
+盖住窗口 soak 后露出，应继续动画且无 SIGABRT。
 
-See also `docs/GPU_修复_device_lost.md`, `docs/WGPU_NATIVE_DEVICE_LOST.md`.
+## 与 soft native / Skia 对齐
+
+- 需要 **soft 补丁** `libwgpu_native.so`（`gogpu/rwgpu` 构建产物放到 `lib/`）。
+- Device lost：`sc.BeginFrame` 返回 `ErrDeviceLost` → skip + `EnableAutoRecover`（无强制 `MarkLost`）。
+- 不可 present：`!mapped` / minimized / **VisibilityFullyObscured** 时不 acquire。
+- 注意：部分 WM（如 GNOME）盖窗时**不发** FullyObscured；此时仍可能 present（依赖 soft 不崩 + AutoRecover）。更严遮挡检测见 `mem_anim_window` 几何 stacking。

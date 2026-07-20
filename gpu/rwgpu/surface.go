@@ -100,9 +100,8 @@ var (
 // Configure configures the surface for rendering.
 // The device argument specifies which logical device to use for the surface.
 // If config.Device is also set (deprecated usage), it takes precedence over the device arg.
-// Returns nil on success. Errors are surfaced through the Device uncaptured-error callback
-// in this FFI implementation; the error return matches the gogpu/wgpu API signature.
-// This replaces the deprecated SwapChain API.
+// Returns nil on success. Soft-error native reports failures via Device ErrorSink
+// (Uncaptured/DeviceLost); this method folds them into the returned error.
 // Enum values are converted from gputypes to wgpu-native values before FFI call.
 func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error {
 	if s == nil || s.handle == 0 {
@@ -124,7 +123,7 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 		return &WGPUError{Op: "Surface.Configure", Message: "device is nil or released"}
 	}
 
-	// Refuse Configure after device-lost (native panics on lost parent).
+	// Refuse Configure after sticky device-lost.
 	if err := refuseIfLost("Surface.Configure", dev.handle); err != nil {
 		s.abandoned = true
 		return err
@@ -256,9 +255,9 @@ func (s *Surface) surfaceParentLost() bool {
 // Returns the texture, a suboptimal flag (true if the surface needs reconfiguration
 // but is still usable this frame), and any error. This matches the gogpu/wgpu API.
 //
-// Defense: never call native when parent device is lost — wgpu-native panics with
-// "Parent device is lost" / SIGABRT instead of returning a status code.
-// Soft probe is fail-closed: if health cannot be confirmed, refuse without native GCT.
+// Soft-error native (patched rwgpu): parent-device-lost and not-configured return
+// status=Error (and may fire Uncaptured/DeviceLost). Go maps status + uncaptured
+// into structured errors. Still refuse native when sticky-lost / probe fail-closed.
 func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if s == nil || s.handle == 0 {
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface is nil or released"}
@@ -273,56 +272,44 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
 
-	// Soft probe under the same GPU lock as native acquire. Fail-closed.
-	// SIGABRT longjmp shield was removed: abort often runs on a native thread /
-	// CGO edge and left the process wedged on futex (alive but no frames).
-	// Prevention: refuse GCT when probe says lost/unavailable; hosts must pause
-	// present when the surface is fully covered (see mem_anim_window).
+	// Skia model: sticky lost / pending uncaptured → refuse; else call native
+	// (soft .so returns status/error, does not SIGABRT).
 	if s.deviceRef != nil {
-		switch s.deviceRef.probeDeviceForSurfaceLocked() {
-		case deviceProbeLost:
-			s.abandoned = true
-			return nil, false, ErrSurfaceDeviceLost
-		case deviceProbeUnavailable:
-			return nil, false, ErrSurfaceTimeout
-		}
-	} else if s.device != 0 {
-		if isOwnerDeviceLost(s.device) {
+		pumpInstanceEvents(s.deviceRef)
+		if s.deviceRef.IsLost() || s.deviceRef.absorbLostUncapturedLocked() {
 			s.abandoned = true
 			return nil, false, ErrSurfaceDeviceLost
 		}
+	} else if s.device != 0 && isOwnerDeviceLost(s.device) {
+		s.abandoned = true
+		return nil, false, ErrSurfaceDeviceLost
 	}
 	if s.surfaceParentLost() {
 		return nil, false, ErrSurfaceDeviceLost
 	}
-	if s.deviceRef != nil && s.deviceRef.IsLost() {
-		s.abandoned = true
-		return nil, false, ErrSurfaceDeviceLost
-	}
-	if s.device != 0 && isOwnerDeviceLost(s.device) {
-		s.abandoned = true
-		return nil, false, ErrSurfaceDeviceLost
-	}
 
 	var surfTex surfaceTexture
+	_, _ = LastUncapturedError()       // attribute post-call errors to this acquire
 	procSurfaceGetCurrentTexture.Call( //nolint:errcheck
 		s.handle,
 		uintptr(unsafe.Pointer(&surfTex)),
 	)
-	// If native returned without aborting, still fold uncaptured lost into sticky.
-	if typ, msg := LastUncapturedError(); msg != "" {
-		if looksLikeDeviceLost(msg) {
-			noteLostMessage(s.device, msg)
-			s.abandoned = true
-			// Drop any texture pointer — must not use after lost.
-			if surfTex.texture != 0 {
-				h := surfTex.texture
-				releaseNativeHandle(&h, true, nil)
-				surfTex.texture = 0
-			}
-			return nil, false, ErrSurfaceDeviceLost
+
+	// Soft native ErrorSink may fire DeviceLostCallback and/or Uncaptured during Call.
+	// DeviceLost goes to DeviceLost handler (sticky IsLost), not always LastUncapturedError.
+	uncapturedTyp, uncapturedMsg := LastUncapturedError()
+	if (s.deviceRef != nil && s.deviceRef.IsLost()) || isOwnerDeviceLost(s.device) ||
+		(uncapturedMsg != "" && looksLikeDeviceLost(uncapturedMsg)) {
+		if uncapturedMsg != "" && looksLikeDeviceLost(uncapturedMsg) {
+			noteLostMessage(s.device, uncapturedMsg)
 		}
-		_ = typ
+		s.abandoned = true
+		if surfTex.texture != 0 {
+			h := surfTex.texture
+			releaseNativeHandle(&h, true, nil)
+			surfTex.texture = 0
+		}
+		return nil, false, ErrSurfaceDeviceLost
 	}
 
 	result := &SurfaceTexture{
@@ -330,9 +317,8 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 		Status:  surfTex.status,
 	}
 
-	// On non-success statuses, wgpu-native may still fill a texture pointer.
-	// That SurfaceOutput MUST be dropped (Release) before Configure/re-acquire,
-	// otherwise: "SurfaceOutput must be dropped before a new Surface is made".
+	// On non-success statuses, native may still fill a texture pointer.
+	// That SurfaceOutput MUST be dropped (Release) before Configure/re-acquire.
 	dropTex := func() {
 		if result.Texture != nil && result.Texture.handle != 0 {
 			result.Texture.Release()
@@ -344,7 +330,6 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	case SurfaceGetCurrentTextureStatusSuccessOptimal:
 		return result, false, nil
 	case SurfaceGetCurrentTextureStatusSuccessSuboptimal:
-		// Surface still usable but caller should reconfigure soon.
 		return result, true, nil
 	case SurfaceGetCurrentTextureStatusOutdated:
 		dropTex()
@@ -356,14 +341,29 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 		dropTex()
 		return nil, false, ErrSurfaceTimeout
 	case NativeSurfaceGetCurrentTextureStatusOccluded:
-		// wgpu-native v29: window is occluded/minimized (Metal backend only).
-		// No texture is returned; caller should skip this frame and try again.
 		dropTex()
 		return nil, false, ErrSurfaceOccluded
-	default:
-		// v29: SurfaceGetCurrentTextureStatusError (0x06) covers all error cases
-		// including former OutOfMemory (0x06) and DeviceLost (0x07).
+	case SurfaceGetCurrentTextureStatusError:
+		// Soft native: not configured / parent device lost / other fatal-turned-soft.
 		dropTex()
+		if (s.deviceRef != nil && s.deviceRef.IsLost()) || isOwnerDeviceLost(s.device) {
+			s.abandoned = true
+			return nil, false, ErrSurfaceDeviceLost
+		}
+		if uncapturedMsg != "" {
+			if looksLikeDeviceLost(uncapturedMsg) {
+				noteLostMessage(s.device, uncapturedMsg)
+				s.abandoned = true
+				return nil, false, ErrSurfaceDeviceLost
+			}
+			return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Type: uncapturedTyp, Message: uncapturedMsg}
+		}
+		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface get current texture error"}
+	default:
+		dropTex()
+		if uncapturedMsg != "" {
+			return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Type: uncapturedTyp, Message: uncapturedMsg}
+		}
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "failed to get surface texture"}
 	}
 }

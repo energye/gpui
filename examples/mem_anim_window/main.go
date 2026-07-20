@@ -397,6 +397,9 @@ func main() {
 	// Library-level device recovery (Flutter Rasterizer / Skia GrContext model):
 	// on device-lost, Swapchain recreates the device + reconfigures the surface.
 	// Host rebinds the render accelerator; animation loop keeps running.
+	sc.OnDeviceAbandon = func(_ *webgpu.Device) {
+		rendgpu.AbandonDevice()
+	}
 	sc.EnableAutoRecover(adapter, "mem-anim-window", func(dev *webgpu.Device) {
 		device = dev
 		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
@@ -664,12 +667,7 @@ func main() {
 			lastFrameEnd = time.Time{} // do not let hidden gap crush instFPS/EMA
 			sc.MarkNeedsReconfigure()
 			sc.ClearRecoverCooldown()
-			// Skia: after long unpresentable surface, abandon context — soft probe
-			// can false-negative and GCT still SIGABRTs on half-dead device.
-			if hiddenDur >= 2*time.Second && device != nil && !device.IsLost() {
-				log.Printf("resume after %.1fs unpresentable — abandon device (force recreate)", hiddenDur.Seconds())
-				device.MarkLost()
-			}
+			// Soft native: BeginFrame maps device-lost via error; AutoRecover recreates.
 			if sc.Device != nil {
 				device = sc.Device
 			}

@@ -1401,7 +1401,10 @@ func (s *GPURenderSession) Destroy() {
 	// skip the drain, MSAA/depth textures can still be referenced by in-flight
 	// work and native VRAM is not reclaimed → "Not enough memory left" under
 	// suite pressure.
+	// After AutoRecover the session device may already be sticky-lost/released —
+	// skip drain (would only return ErrReleased/ErrDeviceLost).
 	if s.device != nil {
+		// Best-effort: lost/released devices cannot drain; ignore errors.
 		s.drainQueue()
 	}
 	for _, cb := range s.prevCmdBufs {

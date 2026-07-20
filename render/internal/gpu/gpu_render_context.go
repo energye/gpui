@@ -29,6 +29,9 @@ import (
 type GPURenderContext struct {
 	shared *GPUShared // reference to shared resources (NOT owned)
 
+	// deviceGen is GPUShared.deviceGen at last session (re)build.
+	deviceGen uint64
+
 	// Per-context render session (owns frame textures: MSAA, depth, resolve).
 	session *GPURenderSession
 
@@ -1837,7 +1840,18 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	stencilRend := rc.shared.stencilRenderer
 	textEng := rc.shared.textEngine
 	glyphEng := rc.shared.glyphMaskEngine
+	sharedGen := rc.shared.deviceGen
 	rc.shared.mu.Unlock()
+
+	// After AutoRecover / SetDeviceProvider, shared pipelines are Destroy()'d and
+	// deviceGen bumps. Session still holds the released *Device + stale pipeline
+	// pointers → CreateShaderModule "resource already released". Rebuild session.
+	if rc.session != nil && (rc.deviceGen != sharedGen || rc.session.device != device) {
+		rc.session.Destroy()
+		rc.session = nil
+		rc.frameRendered = false
+		rc.lastView = nil
+	}
 
 	// Ensure session exists with all renderers.
 	if rc.session == nil {
@@ -1846,6 +1860,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			sc = 1
 		}
 		rc.session = NewGPURenderSession(device, queue, sc)
+		rc.deviceGen = sharedGen
 		// Effect/offscreen surfaces (preferSampleCount1) MUST own sampleCount-matched
 		// shape pipelines. Injecting the shared stencil/sdf/convex renderers thrashes
 		// createPipelines every alternating main↔effect flush: each session has its
@@ -1857,6 +1872,18 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		} else {
 			rc.session.SetSDFPipeline(sdfPipeline)
 			rc.session.SetConvexRenderer(convexRend)
+			rc.session.SetStencilRenderer(stencilRend)
+		}
+	} else if !rc.preferSampleCount1 {
+		// Same device: re-bind only when GPUShared replaced pipeline objects
+		// (avoids pipelinesReady=false every frame).
+		if sdfPipeline != nil && rc.session.sdfPipeline != sdfPipeline {
+			rc.session.SetSDFPipeline(sdfPipeline)
+		}
+		if convexRend != nil && rc.session.convexRenderer != convexRend {
+			rc.session.SetConvexRenderer(convexRend)
+		}
+		if stencilRend != nil && rc.session.stencilRenderer != stencilRend {
 			rc.session.SetStencilRenderer(stencilRend)
 		}
 	}

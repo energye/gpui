@@ -23,13 +23,11 @@
 
 | 层 | 事实 |
 | --- | --- |
-| Native | GCT 在 parent 已 lost 时 **fatal**；WriteBuffer/CreateBuffer 多为 **soft** uncaptured |
-| Native | `wgpuDeviceGetLostFuture` **未实现**，禁止绑定调用 |
-| Native | DeviceLostCallback 在 Destroy 等路径上 **常不进入 Go** |
-| Binding | 仅靠 callback 不够；必须 sticky lost + **GCT 前 refuse** |
-| Binding | Soft WriteBuffer canary 在部分 TDR 路径上仍有 **假阴性**（探测 Alive 后 GCT 仍 abort） |
-| Host | 遮挡时仍 full-rate acquire 会制造 lost；**不可 present 的 surface 上不应 acquire** |
-| 错误方向 | 用 SIGABRT longjmp 包 GCT：**不可靠**（abort 线程/CGO 边界），实测 **futex 假死**，已废弃 |
+| Native（旧 `.so`） | GCT 在 parent 已 lost 时 **fatal panic** → SIGABRT |
+| Native（soft `gogpu/rwgpu` 补丁） | GCT/Configure/Submit 等 **ErrorSink + status/null**，不 panic |
+| Native | `wgpuDeviceGetLostFuture` **未实现**；DeviceLost 回调 Destroy 路径上常不进入 Go |
+| Binding | sticky per-device lost + 错误映射 + AutoRecover（Skia abandon+recreate） |
+| Host | 不可 present 的 surface **不 acquire**；失焦仍可见继续画 |
 
 ---
 
@@ -38,69 +36,55 @@
 | 实践 | 含义 |
 | --- | --- |
 | Sticky per-device lost | 每逻辑 Device 独立 lost，不 mark-all |
-| Refuse GPU work | lost 后 create/submit/acquire 返回结构化错误，**禁止**再调 fatal native |
-| Lost-safe teardown | Release/Unconfigure 在 lost/abandoned 时跳过危险 native |
-| Abandon + recreate | 下一帧 `RequestDevice` + surface reconfigure + 上层 rebind |
-| **遮挡 ≠ device lost** | 最小化 / 完全挡住 = **surface 不可 present → 暂停 acquire**；真 TDR 才 sticky lost |
-| **失焦 ≠ 暂停** | 窗口仍露出时，有数据更新必须继续 present（可降帧） |
-| 恢复可见 | 用 **当前最新状态** 整帧画上去（dirty + force full），不是遮挡期间硬 GCT |
-
-遮挡期间屏幕上是合成器旧帧；**最新数据在 CPU/场景状态中更新，恢复 present 后画出来**。
+| 底层只报错 | soft ABI 返回 error/status；上层记状态 |
+| Refuse GPU work | lost 后 create/submit/acquire 返回 `ErrDeviceLost` |
+| Lost-safe teardown | abandoned surface 跳过危险 native |
+| Abandon + recreate | `EnableAutoRecover` → RequestDevice + reconfigure + rebind + 清缓存 |
+| **遮挡 ≠ device lost** | 不可 present → 暂停 acquire |
+| **失焦 ≠ 暂停** | 仍露出则继续 present（可降帧） |
+| 恢复可见 | force 最新整帧 |
 
 ---
 
 ## 3. 解决方案（已实现）
 
-### 3.1 Binding：`gpu/rwgpu` + `gpu/webgpu`
+### 3.1 Binding：`gpu/rwgpu` + `gpu/webgpu`（soft native 假设）
 
-1. **Sticky lost**  
+1. **Sticky lost**（Skia abandon）  
    - DeviceLostCallback + uncaptured `looksLikeDeviceLost`  
-   - `Device.lost` + `lostDeviceHandles`（Release 后仍可识别）  
-   - 多设备：userdata slot + handle 路由，**永不 mark-all**
+   - `Device.lost` + `lostDeviceHandles`  
+   - 多设备 userdata 路由，**永不 mark-all**
 
-2. **GCT 前 fail-closed soft probe**（`probeDeviceForSurfaceLocked` / `SyncLostState`）  
-   - ProcessEvents → canary WriteBuffer（validation error scope）→ Poll/ProcessEvents → PopErrorScope  
-   - Lost → sticky + `ErrSurfaceDeviceLost`  
-   - 健康不可确认（Pop 失败 / 无 canary 等）→ `ErrSurfaceTimeout`，**不调 native GCT**  
-   - `Surface.abandoned`：parent lost 后 Unconfigure/Release 跳过 fatal native
+2. **Acquire 路径（无 WriteBuffer canary）**  
+   - `FlushCallbacks` / `SyncLostState` = ProcessEvents + 吸收 pending uncaptured lost  
+   - sticky lost → `ErrSurfaceDeviceLost` / `ErrDeviceLost`  
+   - 否则调 soft GCT → 按 **status + Uncaptured** 映射错误  
+   - `Surface.abandoned`：parent lost 后 Unconfigure/Release 跳过 native
 
 3. **Destroy**  
-   - 先释放 canary → force sticky → `wgpuDeviceDestroy` + Release → 清 handle
+   - force sticky → native Destroy+Release → 清 handle  
 
 4. **Facade**  
-   - `FlushCallbacks` = ProcessEvents + SyncLostState  
-   - `Swapchain.EnableAutoRecover`：`RequestDevice` 成功前 **不** `sc.Device = nil`  
-   - `ClearRecoverCooldown()`：恢复可见时允许立刻 recreate
+   - `EnableAutoRecover` + `ClearRecoverCooldown`  
+   - recover 成功后 `SetDeviceProvider` **必须**清 filter/glyph 等缓存  
 
-5. **明确不做**  
+5. **已删除（soft 后无用）**  
+   - GCT 前 WriteBuffer canary probe  
+   - SIGABRT longjmp `gct_guard`  
+   - 遮挡恢复强制 MarkLost / soft 失败 streak MarkLost 启发式  
+
+6. **明确不做**  
    - 不调用 `GetLostFuture`  
-   - 不用 SIGABRT longjmp 包 GCT（会假死）
 
-### 3.2 Host：`examples/mem_anim_window`（Skia surface 生命周期）
+### 3.2 Host：`examples/mem_anim_window` / `device_lost_redraw`
 
 | 条件 | present / acquire |
 | --- | --- |
-| 最小化 / Unmap | 暂停 |
-| `VisibilityFullyObscured` | 暂停 |
-| **几何完全被更高 stacking 的顶层窗口盖住**（仅 unfocused 时检测，避免 shell 全屏层误报） | 暂停 |
-| **仅失焦、窗口仍部分可见** | **继续画** |
-| soft acquire 连续失败（约 45 帧） | 进入保护 idle，防无 FullyObscured 的 WM |
+| 最小化 / Unmap / FullyObscured / 几何全盖住 | 暂停 |
+| 仅失焦、仍可见 | **继续画** |
+| `ErrDeviceLost` | skip + AutoRecover，**不** `os.Exit` |
 
-恢复可 present 时：
-
-- `forceFull` + `MarkNeedsReconfigure`  
-- `ClearRecoverCooldown` + 同步 `device = sc.Device`  
-- 下一帧用 **当前最新场景状态** 整屏绘制  
-- Device lost：`BeginFrame` 返回 `ErrDeviceLost` → 跳帧 + AutoRecover，**不** `os.Exit`
-
-关键 API：
-
-- `x11Win.IsFullyCoveredByOtherWindows()`：解析 WM reparent frame，只比较 **stacking 之上** 且非近全屏 shell 的窗口  
-- FocusIn：清空 `windowGeomCovered`，保证失焦可见路径不被粘住
-- **遮挡滞回**：一旦几何完全遮挡为 true，检测变 false 后仍保持 pause **3s**（防 stacking 抖动导致仍 full-rate present → TDR）
-- **失焦降帧**：未完全遮挡但 unfocused 时默认 `GPUI_UNFOCUSED_FPS=10` 继续画，降低 TDR 风险
-- **长遮挡后 resume**：hidden ≥2s 时 `device.MarkLost()` 强制 abandon+AutoRecover（防 half-dead device 假阴性后 GCT SIGABRT）
-- 遮挡检测：≥85% 面积重叠视为完全盖住；sticky 5s
+恢复可 present：`forceFull` + `MarkNeedsReconfigure` + `ClearRecoverCooldown`，画**当前最新**状态。
 
 ### 3.3 文档与测试
 
@@ -145,9 +129,9 @@ GPUI_SCENARIO=S23 go run ./examples/mem_anim_window
 
 | 路径 | 角色 |
 | --- | --- |
-| `gpu/rwgpu/device.go` | sticky lost、soft probe、Destroy、SyncLostState |
-| `gpu/rwgpu/surface.go` | GCT 前 probe/refuse、`abandoned` |
-| `gpu/rwgpu/safety.go` / `buffer.go` / `types.go` / `wgpu.go` | gate、WriteBuffer soft-lost、canary 字段、Destroy 绑定 |
+| `gpu/rwgpu/device.go` | sticky lost、SyncLostState（pump+uncaptured）、Destroy |
+| `gpu/rwgpu/surface.go` | GCT status/Uncaptured → error、`abandoned` |
+| `gpu/rwgpu/safety.go` / `buffer.go` / `types.go` / `wgpu.go` | gate、WriteBuffer soft-lost、Destroy 绑定 |
 | `gpu/webgpu/device.go` / `surface.go` / `swapchain.go` | FlushCallbacks、AutoRecover、ClearRecoverCooldown |
 | `examples/mem_anim_window/main.go` | EnableAutoRecover、几何完全遮挡 pause、恢复 forceFull |
 | `docs/WGPU_NATIVE_DEVICE_LOST.md` | native 契约 + host 职责 |
@@ -157,11 +141,11 @@ GPUI_SCENARIO=S23 go run ./examples/mem_anim_window
 
 ## 6. 残余限制
 
-1. 本 `.so` 无法把 fatal GCT 变成可靠 Go error；**唯一安全策略是 lost/不可 present 时不调 GCT**。  
-2. Soft probe 在部分 TDR 上仍可能假阴性 → host **完全遮挡 pause present** 是必要防线。  
-3. Soft probe 每帧少量 WriteBuffer 成本可接受。  
-4. 几何遮挡依赖 X11 stacking；极端 WM 布局需靠 FullyObscured / soft-fail idle 兜底。  
-5. 更换/升级 `libwgpu_native` 使 GCT soft 化或 GetLostFuture 可用后，可减弱 probe 与 host 遮挡依赖。
+1. 需使用 **soft 补丁** `libwgpu_native.so`（`gogpu/rwgpu`）；旧 fatal `.so` 仍会 SIGABRT。  
+2. DeviceLost 回调 Destroy 路径仍可能不投递 → sticky force-mark + Uncaptured 文案仍需要。  
+3. Host **完全遮挡 pause present** 仍建议保留（减 TDR，非防崩唯一手段）。  
+4. 几何遮挡依赖 X11 stacking；极端 WM 靠 FullyObscured / soft-fail idle。  
+5. recover 后必须清 GPU 缓存（filter bind group 等）。
 
 ---
 
@@ -178,4 +162,4 @@ GPUI_SCENARIO=S23 go run ./examples/mem_anim_window
 ## 8. 一句话
 
 **Skia 式：Context 可 abandon+recreate；Surface 不可 present 则不 acquire；Device lost 是状态不是崩溃。**  
-本树：binding sticky+fail-closed 拒 GCT + swapchain AutoRecover；host 仅在不可 present 时 pause，失焦仍可见继续画，恢复时 force 最新帧。
+本树：soft native 报错 → sticky abandon + AutoRecover；host 不可 present 时 pause，失焦仍可见继续画，恢复 force 最新帧。

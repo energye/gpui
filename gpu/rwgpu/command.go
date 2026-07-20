@@ -545,12 +545,14 @@ func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error) {
 	runtime.KeepAlive(handles)
 	runtime.KeepAlive(commands)
 	if typ, msg := LastUncapturedError(); msg != "" {
-		// Fold device-lost uncaptured into sticky fuse before next surface acquire.
 		if looksLikeDeviceLost(msg) {
 			noteLostMessage(q.device, msg)
 			return 0, ErrDeviceLost
 		}
 		return 0, &WGPUError{Op: "Queue.Submit", Type: typ, Message: msg}
+	}
+	if submissionIndex == 0 && q.device != 0 && isOwnerDeviceLost(q.device) {
+		return 0, ErrDeviceLost
 	}
 	return uint64(submissionIndex), nil
 }

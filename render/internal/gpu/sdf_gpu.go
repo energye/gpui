@@ -253,15 +253,36 @@ func (a *SDFAccelerator) SetLogger(l *slog.Logger) {
 }
 
 // SetDeviceProvider switches the accelerator to use a shared GPU device.
+// SetDeviceProvider switches the accelerator to use a shared GPU device.
 func (a *SDFAccelerator) SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 	a.mu.Lock()
-	// Close default context's session since device is changing.
 	if a.defaultCtx != nil {
 		a.defaultCtx.Close()
 		a.defaultCtx = nil
 	}
+	shared := a.shared
 	a.mu.Unlock()
-	return a.shared.SetDeviceProvider(provider)
+	if shared == nil {
+		shared = NewGPUShared()
+		a.mu.Lock()
+		a.shared = shared
+		a.mu.Unlock()
+	}
+	return shared.SetDeviceProvider(provider)
+}
+
+// AbandonDeviceProvider drops GPU objects without installing a replacement.
+func (a *SDFAccelerator) AbandonDeviceProvider() {
+	a.mu.Lock()
+	if a.defaultCtx != nil {
+		a.defaultCtx.Close()
+		a.defaultCtx = nil
+	}
+	shared := a.shared
+	a.mu.Unlock()
+	if shared != nil {
+		shared.AbandonExternalDevice()
+	}
 }
 
 // CanRenderDirect reports whether the GPU accelerator can render to a surface.

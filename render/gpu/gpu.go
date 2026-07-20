@@ -52,6 +52,12 @@ func SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 	return render.SetAcceleratorDeviceProvider(provider)
 }
 
+// AbandonDevice drops GPU objects on the current shared device without a
+// replacement. Wire to webgpu.Swapchain.OnDeviceAbandon before Destroy/Release.
+func AbandonDevice() {
+	render.AbandonAcceleratorDevice()
+}
+
 // ResetAccelerator closes the current accelerator and registers a fresh SDF
 // accelerator. Used by tests that inject a temporary window device via
 // SetDeviceProvider so later tests are not left holding a released device.

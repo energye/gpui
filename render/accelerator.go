@@ -346,6 +346,18 @@ func SetAcceleratorDeviceProvider(provider gpucontext.DeviceProvider) error {
 //
 // Use this to decide whether to attempt RenderDirect or go straight to
 // the universal CPU→texture→present path.
+// AbandonAcceleratorDevice drops GPU objects on the current accelerator device
+// without installing a replacement (Swapchain OnDeviceAbandon / AutoRecover).
+func AbandonAcceleratorDevice() {
+	a := Accelerator()
+	if a == nil {
+		return
+	}
+	if ab, ok := a.(interface{ AbandonDeviceProvider() }); ok {
+		ab.AbandonDeviceProvider()
+	}
+}
+
 func AcceleratorCanRenderDirect() bool {
 	switch renderMode() {
 	case renderModeCPU:

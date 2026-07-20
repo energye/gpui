@@ -135,6 +135,10 @@ type GPUShared struct {
 	softwareMode   bool              // true when software/CPU adapter detected (informational, does not disable GPU)
 	strategy       gpuRenderStrategy // auto-detected rendering strategy (Skia PathRendererStrategy pattern)
 	externalDevice bool              // true when using shared device (don't destroy on Close)
+
+	// deviceGen increments on every logical device install (SetDeviceProvider / initGPU).
+	// Per-context GPURenderSession must rebuild when gen changes (Skia abandon+recreate).
+	deviceGen uint64
 }
 
 // NewGPUShared creates a new shared GPU resource holder. GPU initialization
@@ -249,39 +253,16 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Tear down ALL device-owned GPU objects before switching devices (Skia abandon).
-	// destroyPipelines alone leaves filter_gpu_bg_cached bind groups on the old
-	// device; after AutoRecover, Submit validates them as invalid →
-	// handle_error_fatal SIGABRT (mem_anim 2026-07-20 resume-after-cover).
-	s.destroyPipelinesLocked()
-	s.filterGPU.release()
-	if s.glyphMaskEngine != nil && s.device != nil {
-		s.glyphMaskEngine.Destroy(s.device)
-		s.glyphMaskEngine = nil
-	}
-	if s.velloAccel != nil {
-		s.velloAccel.Close()
-		s.velloAccel = nil
-	}
-	s.gpuReady = false
-	if !s.externalDevice && s.device != nil {
-		s.device.Release() // also releases owned queue
-	}
-	s.device = nil
-	s.queue = nil
-	if s.adapter != nil {
-		s.adapter.Release()
-		s.adapter = nil
-	}
-	if s.instance != nil {
-		s.instance.Release()
-		s.instance = nil
-	}
+	// Full Skia abandon of device-owned objects (pipelines, caches, pools, mask).
+	// Incomplete teardown left dualTexBlend/mask caches + texture pool + sessions
+	// on the sticky-lost device → "resource already released" after AutoRecover.
+	s.abandonDeviceOwnedLocked(false /* releaseOwnedDevice */)
 
 	// Use provided resources (caller owns device/queue lifetime).
 	s.device = wgpuDev
 	s.queue = wgpuQueue
 	s.externalDevice = true
+	s.deviceGen++
 
 	// External/window devices: avoid MSAA probe CreateTexture (can abort via
 	// uncaptured OOM on software backends after long suites). Prefer prior
@@ -306,23 +287,30 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 		return nil
 	}
 
-	// Create pipelines with shared device (hardware adapters only).
-	s.sdfRenderPipeline = NewSDFRenderPipeline(s.device, s.queue, s.sampleCount)
-	s.convexRenderer = NewConvexRenderer(s.device, s.queue, s.sampleCount)
-	s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
-
-	s.gpuReady = true
-	// Vello compute: lazy on first CanCompute (see initVelloAccelerator).
-	// Window path never hits ensureGPU() (device already set) — register filter
-	// graph here so ApplyBlur/ApplyDropShadow use GPU from-view path (glow RT).
+	// Same pipeline path as first-use (no duplicate New* here).
+	s.ensurePipelines()
+	s.gpuReady = s.sdfRenderPipeline != nil
 	s.registerFilterGraphIfNeeded()
 
 	slogger().Info("gpu-shared: switched to shared GPU device",
 		"strategy", s.strategy.String(),
-		"adapter", fmt.Sprintf("%T", s.device),
 		"msaa_samples", s.sampleCount,
+		"deviceGen", s.deviceGen,
 	)
 	return nil
+}
+
+// AbandonExternalDevice drops objects on the current external device and
+// bumps deviceGen (session rebuild). For Swapchain.OnDeviceAbandon before
+// Device.Destroy/Release so AutoRecover does not OOM on the new device.
+func (s *GPUShared) AbandonExternalDevice() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.abandonDeviceOwnedLocked(false)
+	s.deviceGen++
 }
 
 // CanRenderDirect reports whether the GPU is initialized and can render
@@ -359,18 +347,20 @@ func (s *GPUShared) SetTexturePoolBudget(mb int) {
 	s.texturePool.SetBudget(mb)
 }
 
-// Close releases all shared GPU resources. After this call, GPU rendering
-// is no longer possible. Idempotent.
-func (s *GPUShared) Close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Drain GPU before tearing down pools/device so VRAM can be reclaimed
-	// before a subsequent ResetAccelerator / ensureGPU msaa_probe.
-	if s.device != nil {
-		if err := s.device.WaitIdle(); err != nil {
-			slogger().Warn("gpu-shared: WaitIdle before Close failed", "err", err)
-		}
+// abandonDeviceOwnedLocked drops every GPU object tied to the current device.
+// Caller holds s.mu. releaseOwnedDevice=true releases owned instance/adapter/device
+// (Close path for non-external). false keeps external device ownership with the host
+// (SetDeviceProvider switch / AutoRecover).
+//
+// Must stay complete: partial teardown after AutoRecover left session/pipeline
+// caches on a released device → "resource already released" on CreateShaderModule.
+func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
+	if s == nil {
+		return
+	}
+	// Best-effort drain only while device can still Poll.
+	if s.device != nil && !s.device.IsLost() {
+		_ = s.device.WaitIdle()
 	}
 
 	s.textEngine = nil
@@ -393,7 +383,6 @@ func (s *GPUShared) Close() {
 	if s.texturePool != nil {
 		s.texturePool.DestroyAll()
 	}
-	// CPU geometry caches hold no GPU handles but can pin large host allocations.
 	s.pathGeomCache = nil
 	s.strokeGeomCache = nil
 	s.dashGeomCache = nil
@@ -407,38 +396,41 @@ func (s *GPUShared) Close() {
 	s.filterGPU.release()
 	s.clearMaskLocked()
 	s.destroyPipelinesLocked()
-	if !s.externalDevice {
-		// Device.Release also releases the owned Queue ref.
+
+	oldExternal := s.externalDevice
+	if releaseOwnedDevice && !oldExternal {
 		if s.device != nil {
 			s.device.Release()
-			s.device = nil
 		}
-		s.queue = nil
 		if s.adapter != nil {
 			s.adapter.Release()
-			s.adapter = nil
 		}
 		if s.instance != nil {
 			s.instance.Release()
-			s.instance = nil
 		}
-	} else {
-		// External device/queue ownership stays with the caller.
-		s.device = nil
-		s.queue = nil
-		s.adapter = nil
-		s.instance = nil
 	}
+	// Drop Go refs; external device lifetime stays with the window/swapchain host.
+	s.device = nil
+	s.queue = nil
+	s.adapter = nil
+	s.instance = nil
+	s.gpuReady = false
+	s.deviceReady = false
+}
+
+// Close releases all shared GPU resources. After this call, GPU rendering
+// is no longer possible. Idempotent.
+func (s *GPUShared) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.abandonDeviceOwnedLocked(true /* releaseOwnedDevice */)
 	s.sampleCount = 0
 	s.strategy = 0
 	s.softwareMode = false
-	s.deviceReady = false
-	s.gpuReady = false
 	s.externalDevice = false
 }
 
-// SampleCount returns the resolved MSAA sample count (4 or 1).
-// Returns 4 before GPU initialization (safe default for pipeline descriptors).
 func (s *GPUShared) SampleCount() uint32 {
 	if s.sampleCount == 0 {
 		return 4 // default before init
@@ -586,6 +578,7 @@ func (s *GPUShared) initGPU() error {
 	}
 	s.device = device
 	s.queue = device.Queue()
+	s.deviceGen++
 
 	// Probe MSAA support (Skia Graphite pattern: try 4x, fallback to 1x).
 	s.sampleCount = resolveSampleCount(s.device)
