@@ -2,6 +2,7 @@ package rwgpu
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -306,14 +307,21 @@ func uncapturedErrorHandler(devicePtr, errType, messageData, messageLength, user
 	} else {
 		ownerHandle = deviceHandleFromCallbackArg(devicePtr)
 	}
+	// Always-on: soaks can see whether native delivered uncaptured into Go
+	// (including non-lost validation) before GCT / submit paths.
+	log.Printf("rwgpu: UncapturedCallback ENTER type=%d msg=%q devicePtr=%#x owner=%#x userdata1=%d",
+		errType, msg, devicePtr, ownerHandle, userdata1)
 	lastUncapturedMu.Lock()
 	lastUncapturedTyp = ErrorType(errType)
 	lastUncapturedMsg = msg
 	lastUncapturedDevice = ownerHandle
 	lastUncapturedMu.Unlock()
 	if looksLikeDeviceLost(msg) {
+		log.Printf("rwgpu: Uncaptured looksLikeDeviceLost type=%d msg=%q owner=%#x userdata1=%d",
+			errType, msg, ownerHandle, userdata1)
 		// Userdata first — which window/device owns this error.
 		markDeviceLostFromCallback(devicePtr, userdata1)
+		log.Printf("rwgpu: UncapturedCallback DONE sticky_lost=true owner=%#x", ownerHandle)
 	}
 	return 0
 }
@@ -328,13 +336,23 @@ var deviceLostEnterHook func()
 
 // deviceLostHandler is WGPUDeviceLostCallback — primary writer of Device.lost.
 // userdata1 is the per-device slot allocated at RequestDevice (multi-window safe).
+// Always logs ENTER so soaks can see whether native delivered into Go before GCT abort.
 func deviceLostHandler(devicePtr, reason, messageData, messageLength, userdata1, userdata2 uintptr) uintptr {
-	_, _, _ = reason, messageData, messageLength
 	_ = userdata2
 	if deviceLostEnterHook != nil {
 		deviceLostEnterHook()
 	}
+	msg := callbackStringView(messageData, messageLength)
+	h := deviceHandleFromCallbackArg(devicePtr)
+	log.Printf("rwgpu: DeviceLostCallback ENTER reason=%d msg=%q devicePtr=%#x handle=%#x userdata1=%d",
+		reason, msg, devicePtr, h, userdata1)
 	markDeviceLostFromCallback(devicePtr, userdata1)
+	d := deviceFromUserdata(userdata1)
+	lost := d != nil && d.IsLost()
+	if !lost && h != 0 {
+		lost = IsDeviceHandleLost(h)
+	}
+	log.Printf("rwgpu: DeviceLostCallback DONE sticky_lost=%v routed_device=%v", lost, d != nil)
 	return 0
 }
 

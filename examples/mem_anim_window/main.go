@@ -598,7 +598,7 @@ func main() {
 			// clears. Log flapping (covered true/false every few s) was still
 			// full-rate presenting under stack-under and hit Parent device is lost.
 			if rawCovered {
-				geomCoverStickyUntil = time.Now().Add(3 * time.Second)
+				geomCoverStickyUntil = time.Now().Add(5 * time.Second)
 			}
 			covered := false
 			if windowFocused {
@@ -651,8 +651,10 @@ func main() {
 		}
 		// Transition hidden → visible: credit hidden time, force full present.
 		if wasHidden {
+			hiddenDur := time.Duration(0)
 			if !hiddenSince.IsZero() {
-				hiddenAccum += time.Since(hiddenSince)
+				hiddenDur = time.Since(hiddenSince)
+				hiddenAccum += hiddenDur
 				hiddenSince = time.Time{}
 			}
 			wasHidden = false
@@ -661,10 +663,13 @@ func main() {
 			nextFrameAt = time.Time{}  // resync pace after resume
 			lastFrameEnd = time.Time{} // do not let hidden gap crush instFPS/EMA
 			sc.MarkNeedsReconfigure()
-			// Occlusion TDR may have sticky-lost the device while present was paused.
-			// Clear recover cooldown and re-sync host device pointer so the next
-			// BeginFrame can RequestDevice + rebind immediately.
 			sc.ClearRecoverCooldown()
+			// Skia: after long unpresentable surface, abandon context — soft probe
+			// can false-negative and GCT still SIGABRTs on half-dead device.
+			if hiddenDur >= 2*time.Second && device != nil && !device.IsLost() {
+				log.Printf("resume after %.1fs unpresentable — abandon device (force recreate)", hiddenDur.Seconds())
+				device.MarkLost()
+			}
 			if sc.Device != nil {
 				device = sc.Device
 			}
@@ -841,9 +846,15 @@ func main() {
 			// Non-occluded soft errors: skip frame; only enter FullyObscured idle
 			// after a long streak (likely unmapped without events), not after a
 			// few focus/partial-cover glitches.
-			if softAcquireFails >= 45 { // ~0.75s at 60fps — enter protect before TDR
+			softLimit := 45
+			if !windowFocused {
+				softLimit = 10 // unfocused: bail faster — half-covered still TDRs
+			}
+			if softAcquireFails >= softLimit {
 				windowFullyObscured = true
-				log.Printf("BeginFrame soft fails=%d — enter hidden idle (protect device)", softAcquireFails)
+				windowGeomCovered = true
+				geomCoverStickyUntil = time.Now().Add(5 * time.Second)
+				log.Printf("BeginFrame soft fails=%d (focused=%v) — enter hidden idle (protect device)", softAcquireFails, windowFocused)
 				forceFull = true
 				time.Sleep(16 * time.Millisecond)
 				continue
@@ -1006,7 +1017,7 @@ func main() {
 		if !windowFocused {
 			// Still present for data updates, but lower rate to cut TDR risk while
 			// stacked partially under other windows (Skia hosts often throttle).
-			ufps := envInt("GPUI_UNFOCUSED_FPS", 15)
+			ufps := envInt("GPUI_UNFOCUSED_FPS", 10)
 			if ufps < 5 {
 				ufps = 5
 			}
@@ -2963,8 +2974,20 @@ func (w *x11Win) IsFullyCoveredByOtherWindows() bool {
 		}
 		l, top := int(ax), int(ay)
 		rgt, bot := l+int(ww), top+int(hh)
+		// Full contain OR ≥85% area overlap (partial detector miss under reparent WMs).
 		if l <= ourL && top <= ourT && rgt >= ourR && bot >= ourB {
 			return true
+		}
+		ix0 := max(l, ourL)
+		iy0 := max(top, ourT)
+		ix1 := min(rgt, ourR)
+		iy1 := min(bot, ourB)
+		if ix1 > ix0 && iy1 > iy0 {
+			inter := (ix1 - ix0) * (iy1 - iy0)
+			ourArea := (ourR - ourL) * (ourB - ourT)
+			if ourArea > 0 && inter*100 >= ourArea*85 {
+				return true
+			}
 		}
 	}
 	return false

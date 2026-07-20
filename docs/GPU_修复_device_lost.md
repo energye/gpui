@@ -98,7 +98,9 @@
 - `x11Win.IsFullyCoveredByOtherWindows()`：解析 WM reparent frame，只比较 **stacking 之上** 且非近全屏 shell 的窗口  
 - FocusIn：清空 `windowGeomCovered`，保证失焦可见路径不被粘住
 - **遮挡滞回**：一旦几何完全遮挡为 true，检测变 false 后仍保持 pause **3s**（防 stacking 抖动导致仍 full-rate present → TDR）
-- **失焦降帧**：未完全遮挡但 unfocused 时默认 `GPUI_UNFOCUSED_FPS=15` 继续画，降低 TDR 风险
+- **失焦降帧**：未完全遮挡但 unfocused 时默认 `GPUI_UNFOCUSED_FPS=10` 继续画，降低 TDR 风险
+- **长遮挡后 resume**：hidden ≥2s 时 `device.MarkLost()` 强制 abandon+AutoRecover（防 half-dead device 假阴性后 GCT SIGABRT）
+- 遮挡检测：≥85% 面积重叠视为完全盖住；sticky 5s
 
 ### 3.3 文档与测试
 

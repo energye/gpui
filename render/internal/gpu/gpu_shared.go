@@ -249,8 +249,21 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Destroy own resources if we created them.
+	// Tear down ALL device-owned GPU objects before switching devices (Skia abandon).
+	// destroyPipelines alone leaves filter_gpu_bg_cached bind groups on the old
+	// device; after AutoRecover, Submit validates them as invalid →
+	// handle_error_fatal SIGABRT (mem_anim 2026-07-20 resume-after-cover).
 	s.destroyPipelinesLocked()
+	s.filterGPU.release()
+	if s.glyphMaskEngine != nil && s.device != nil {
+		s.glyphMaskEngine.Destroy(s.device)
+		s.glyphMaskEngine = nil
+	}
+	if s.velloAccel != nil {
+		s.velloAccel.Close()
+		s.velloAccel = nil
+	}
+	s.gpuReady = false
 	if !s.externalDevice && s.device != nil {
 		s.device.Release() // also releases owned queue
 	}

@@ -389,6 +389,10 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	// Swap only after successful RequestDevice.
 	sc.Device = dev
 	if old != nil {
+		// Destroy (not only Release): sticky-lost devices may skip native
+		// Release; Destroy force-reclaims (Skia abandon). Also ensures
+		// external render caches cannot keep using a half-dead device.
+		old.Destroy()
 		old.Release()
 	}
 
