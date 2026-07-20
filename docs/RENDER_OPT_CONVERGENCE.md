@@ -1,6 +1,6 @@
 # Render 层代码优化收敛计划（功能不变）
 
-> 版本：1.8 | 日期：2026-07-18  
+> 版本：1.9 | 日期：2026-07-20  
 > 状态：**R7 收口**；**R8 执行中** → [`PERF_CPU_FORWARD_OPT_PLAN.md`](./PERF_CPU_FORWARD_OPT_PLAN.md)  
 > 范围：`render` 主路径 + 为 render 服务的 `gpu/webgpu` / `gpu/rwgpu` 热路径  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
@@ -289,6 +289,8 @@ go test -count=1 ./render -run 'TestS6_L0_|TestS61_|TestS62_Present|TestS63_Pres
 
 **执行案（2026-07-18）：** 见 [`PERF_CPU_FORWARD_OPT_PLAN.md`](./PERF_CPU_FORWARD_OPT_PLAN.md)（稳 60 + CPU 正向；R8.0 baseline → pprof 选刀）。
 
+**结构收敛（非性能刀）：** 死代码 / 局部冗余 / 可读性 → [`CODE_CONVERGENCE.md`](./CODE_CONVERGENCE.md)（C9.x）。与 R7/R8 **分 PR**，禁止混刀。
+
 ---
 
 ## 6. 执行状态
@@ -325,6 +327,7 @@ go test -count=1 ./render -run 'TestS6_L0_|TestS61_|TestS62_Present|TestS63_Pres
 | 本计划 | `docs/RENDER_OPT_CONVERGENCE.md` |
 | 主线 | `docs/MAINLINE_PLAN.md` |
 | GPU 优先 | `docs/GPU_FIRST_ROUTING.md` |
+| 代码收敛 C9 | `docs/CODE_CONVERGENCE.md` |
 | 性能基线 JSON | `tmp/s4_baseline.json` / `tmp/s5_present_baseline.json` / `tmp/s6_present_baseline.json` |
 | Full unit 状态 | `tmp/full_unit/STATUS.md` |
 | 问题墙 | `examples/particle_kitchen_sink/PROBLEMS_LATEST.md` |
@@ -345,3 +348,4 @@ go test -count=1 ./render -run 'TestS6_L0_|TestS61_|TestS62_Present|TestS63_Pres
 | 1.5 | 2026-07-17 | R7.4 关闭：group-relevant multi-rect damage scissor + trackDamage CoalesceDamageRects；见 `tmp/r7_4_STATUS.md` |
 | 1.6 | 2026-07-17 | R7.5 关闭：glyph layout template + scroll-safe rebase；见 `tmp/r7_5_STATUS.md` |
 | 1.7 | 2026-07-17 | R7.6 关闭：pipeline convert pool + rwgpu/webgpu 小 N 栈；R7 计划表收口；见 `tmp/r7_6_STATUS.md` |
+| 1.9 | 2026-07-20 | 交叉引用代码收敛任务卡 [`CODE_CONVERGENCE.md`](./CODE_CONVERGENCE.md)（C9.x 结构刀，与 R7/R8 分轨） |

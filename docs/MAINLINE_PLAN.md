@@ -74,6 +74,8 @@
 
 **Render 优化收敛（post-S6）**：见 [`RENDER_OPT_CONVERGENCE.md`](./RENDER_OPT_CONVERGENCE.md)（R7.x；功能不变硬门禁）。
 
+**代码收敛（结构/去冗余，与性能刀分轨）**：见 [`CODE_CONVERGENCE.md`](./CODE_CONVERGENCE.md)（C9.x；功能·性能·内存不回退）。
+
 **下一执行刀（建议）**：画布矩阵 **L5 已宣告**（`CAPABILITY_MATRIX_WINDOW.md` v1.11）。下一产品刀：**控件层入口**仅在 `S5_WIDGET_ENTRY` 条件满足后；或可选 DOC.1 / 真 multiplanar YUV。**不要默认**再开 N3/N5 优化。
 
 **GPU_FIRST 回归**：关闭后必跑/选跑命令与证据见 [`GPU_FIRST_ROUTING.md`](./GPU_FIRST_ROUTING.md) **§10**。
