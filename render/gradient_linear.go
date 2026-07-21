@@ -79,19 +79,5 @@ func (g *LinearGradientBrush) ColorAt(x, y float64) RGBA {
 // ensureSorted returns stops sorted by offset, using a cached copy.
 // The cache is invalidated by AddColorStop.
 func (g *LinearGradientBrush) ensureSorted() []ColorStop {
-	if g.sorted {
-		return g.sortedStops
-	}
-	g.sortedStops = sortStops(g.Stops)
-	g.sorted = true
-	return g.sortedStops
-}
-
-// firstStopColor returns the first stop's color or Transparent if empty.
-// The stops slice MUST be pre-sorted by offset.
-func firstStopColor(stops []ColorStop) RGBA {
-	if len(stops) == 0 {
-		return Transparent
-	}
-	return stops[0].Color
+	return ensureSortedStops(&g.sorted, &g.sortedStops, g.Stops)
 }

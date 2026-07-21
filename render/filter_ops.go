@@ -242,37 +242,6 @@ func (c *Context) syncViewFlushIntoPixmap() bool {
 	return true
 }
 
-// seedFilterSrcFromPixmap uploads the current pixmap into filterSrcRT and marks
-// the view as having content (LoadOpLoad for subsequent pending flushes).
-func (c *Context) seedFilterSrcFromPixmap(srcView gpucontext.TextureView, w, h int) bool {
-	if c == nil || c.pixmap == nil || srcView.IsNil() || w <= 0 || h <= 0 {
-		return false
-	}
-	need := w * h * 4
-	data := c.pixmap.Data()
-	if len(data) < need {
-		return false
-	}
-	type uploader interface {
-		UploadRGBAToView(view gpucontext.TextureView, data []byte, w, h int) error
-	}
-	type frameMarker interface {
-		MarkViewHasContent(view gpucontext.TextureView)
-	}
-	raw := c.GPURenderContext()
-	up, ok := raw.(uploader)
-	if !ok || up == nil {
-		return false
-	}
-	if err := up.UploadRGBAToView(srcView, data[:need], w, h); err != nil {
-		return false
-	}
-	if fm, ok := raw.(frameMarker); ok && fm != nil {
-		fm.MarkViewHasContent(srcView)
-	}
-	return true
-}
-
 // tryApplyFilterGraphGPU runs nodes on the registered GPU multi-RT filter graph.
 // Returns true when the GPU path fully applied the result (P0-4 / L.04).
 //

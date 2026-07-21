@@ -198,9 +198,6 @@ type filterGPUCache struct {
 	lastGraphFinishes int
 	lastUsedSharedEnc bool
 
-	// Per-run scratch (no per-frame make).
-	passBGScratch []*webgpu.BindGroup
-
 	// Stable bind-group cache for continuous effect frames (glow).
 	// Keyed by view/uniform pointer + slab offset; cleared when pool/slab rebuilds.
 	bgCache map[filterBGKey]*webgpu.BindGroup
@@ -212,8 +209,8 @@ type filterGPUCache struct {
 }
 
 type filterBGKey struct {
-	src, dst, aux, ubuf uintptr
-	offset              uint64
+	src, aux, ubuf uintptr
+	offset         uint64
 }
 
 func (c *filterGPUCache) release() {
@@ -691,12 +688,6 @@ func (c *filterGPUCache) promotePoolResultToPublish(device *webgpu.Device, tex *
 		c.texB, c.viewB = replTex, replView
 	}
 	return filterPublishSlot{tex: tex, view: view, w: w, h: h}, nil
-}
-
-// detachPoolResult is kept for callers that need explicit ownership transfer.
-// Prefer promotePoolResultToPublish for continuous effect publish (glow).
-func (c *filterGPUCache) detachPoolResult(device *webgpu.Device, tex *webgpu.Texture, view *webgpu.TextureView, w, h int) (filterPublishSlot, error) {
-	return c.promotePoolResultToPublish(device, tex, view, w, h)
 }
 
 func (c *filterGPUCache) acquirePublish(device *webgpu.Device, w, h int) (filterPublishSlot, error) {

@@ -40,7 +40,7 @@
 | P0 | 稳：lost / minimize / 多 RT / VRAM | SURFACE · device_lost · ENGINE_GAPS G3 |
 | P0 | 引擎缺口 G1–G3 | [`ENGINE_GAPS.md`](./ENGINE_GAPS.md) |
 | P1 | 正向优化 | [`PERF_ENGINE_FORWARD.md`](./PERF_ENGINE_FORWARD.md) |
-| P2 | 控件层（另开） | S5_WIDGET_ENTRY |
+| P2 | 控件层（另开） | [`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) · [`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) |
 
 ---
 

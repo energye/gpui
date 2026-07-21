@@ -776,12 +776,9 @@ func SplitGlyphMaskBatchByPage(batch GlyphMaskBatch) []GlyphMaskBatch {
 
 // ---- Vertex/index/uniform data builders ----
 
-// buildGlyphMaskVertexData serializes GlyphMaskQuad slices into raw vertex
+// buildGlyphMaskVertexDataInto serializes GlyphMaskQuad slices into raw vertex
 // bytes suitable for GPU upload. Each quad produces 4 vertices x 16 bytes = 64 bytes.
-func buildGlyphMaskVertexData(quads []GlyphMaskQuad) []byte {
-	return buildGlyphMaskVertexDataInto(nil, quads)
-}
-
+// When data has enough capacity it is reused (zero-alloc hot path).
 func buildGlyphMaskVertexDataInto(data []byte, quads []GlyphMaskQuad) []byte {
 	if len(quads) == 0 {
 		return nil
@@ -819,12 +816,8 @@ func writeGlyphMaskVertex(buf []byte, x, y, u, v float32) {
 	binary.LittleEndian.PutUint32(buf[12:16], math.Float32bits(v))
 }
 
-// buildGlyphMaskIndexData serializes quad indices into raw bytes for GPU upload.
+// buildGlyphMaskIndexDataInto serializes quad indices into raw bytes for GPU upload.
 // Uses the same index pattern as MSDF text: 0,1,2, 2,3,0 per quad.
-func buildGlyphMaskIndexData(numQuads int) []byte {
-	return buildGlyphMaskIndexDataInto(nil, numQuads)
-}
-
 func buildGlyphMaskIndexDataInto(data []byte, numQuads int) []byte {
 	if numQuads <= 0 {
 		return nil
@@ -848,12 +841,8 @@ func buildGlyphMaskIndexDataInto(data []byte, numQuads int) []byte {
 	return data
 }
 
-// makeGlyphMaskUniform creates the 80-byte uniform buffer for a glyph mask batch.
+// makeGlyphMaskUniformInto creates the 80-byte uniform buffer for a glyph mask batch.
 // The uniform contains the transform matrix and text color.
-func makeGlyphMaskUniform(transform render.Matrix, color [4]float32) []byte {
-	return makeGlyphMaskUniformInto(nil, transform, color)
-}
-
 func makeGlyphMaskUniformInto(buf []byte, transform render.Matrix, color [4]float32) []byte {
 	if cap(buf) < int(glyphMaskUniformSize) {
 		buf = make([]byte, glyphMaskUniformSize)

@@ -123,7 +123,6 @@ type GPURenderContext struct {
 	frameScratchH    int
 	layerReleaseHold []func()
 	// opt42: dual-tex resolve scratch (avoid per-resolve make on L3 blend path).
-	dualTexOpsScratch     []dualTexLayerIntoDestOp
 	dualTexViewOpsScratch []dualTexViewBlendOp
 
 	// Pool of offscreen layer RTs by size to avoid per-PushLayer alloc/OOM.
@@ -2417,9 +2416,9 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	// F1: batch advanced layers into one dual-tex Submit writing directly into
 	// frameScratch (dest). Falls back to opacity blit if dual-tex fails.
 	holds := rc.layerReleaseHold[:0]
-	ops := rc.dualTexOpsScratch[:0]
-	if cap(ops) < len(layers) {
-		ops = make([]dualTexLayerIntoDestOp, 0, len(layers))
+	viewOps := rc.dualTexViewOpsScratch[:0]
+	if cap(viewOps) < len(layers) {
+		viewOps = make([]dualTexViewBlendOp, 0, len(layers))
 	}
 	type fallbackLayer struct {
 		pl     pendingAdvancedLayer
@@ -2460,8 +2459,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			srcTex = srcWGPU.Texture()
 		}
 		if canDual && srcTex != nil && srcWGPU != nil {
-			ops = append(ops, dualTexLayerIntoDestOp{
-				srcTex:  srcTex,
+			viewOps = append(viewOps, dualTexViewBlendOp{
 				srcView: srcWGPU,
 				bounds:  bounds,
 				mode:    pl.mode,
@@ -2475,11 +2473,9 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 		}
 	}
 
-	rc.dualTexOpsScratch = ops
+	rc.dualTexViewOpsScratch = viewOps
 	var err error
-	// F1 correctness: dualTexBlendLayersIntoDest currently does not modify dest
-	// (verified: layer src red, dest stays base-only). Use the proven
-	// dualTexAdvancedBlendViewsRegionSized → out RT → blit path instead.
+	// Live path: dualTexAdvancedBlendViewsRegionSized / multi bundle → out RT → blit.
 	// opt12: batch all layers into one dual-tex Submit when possible.
 	type outBlit struct {
 		view    *webgpu.TextureView
@@ -2490,80 +2486,61 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	var outs []outBlit
 	// opt32: optional shared encoder for dual-tex multi + composite blit (one Finish).
 	var compositeEnc *webgpu.CommandEncoder
-	if len(ops) > 0 {
+	if len(viewOps) > 0 {
 		dstView := (*webgpu.TextureView)(target.View.Pointer())
-		viewOps := rc.dualTexViewOpsScratch[:0]
-		if cap(viewOps) < len(ops) {
-			viewOps = make([]dualTexViewBlendOp, 0, len(ops))
+		recordEnc := enc
+		if recordEnc == nil && device != nil {
+			if ce, eerr := device.CreateCommandEncoder(dualTexCompositeEncoderDesc); eerr == nil {
+				compositeEnc = ce
+				recordEnc = ce
+			}
 		}
-		for i := range ops {
-			op := ops[i]
-			if op.srcView == nil {
-				continue
-			}
-			viewOps = append(viewOps, dualTexViewBlendOp{
-				srcView: op.srcView,
-				bounds:  op.bounds,
-				mode:    op.mode,
-				opacity: op.opacity,
-			})
+		// Prefer IntoEncoder (opt32 / shared frame enc). Fall back to R7.3
+		// separate dual-tex CB + leading coalesce, then per-op path.
+		var mout []dualTexViewBlendOut
+		var derr error
+		if recordEnc != nil {
+			mout, derr = dualTexAdvancedBlendViewsMultiIntoEncoder(
+				device, queue, cache, dstView, viewOps, tw, th, recordEnc)
+		} else {
+			derr = fmt.Errorf("dual-tex multi: no encoder")
 		}
-		rc.dualTexViewOpsScratch = viewOps
-		if len(viewOps) > 0 {
-			recordEnc := enc
-			if recordEnc == nil && device != nil {
-				if ce, eerr := device.CreateCommandEncoder(dualTexCompositeEncoderDesc); eerr == nil {
-					compositeEnc = ce
-					recordEnc = ce
-				}
+		if derr != nil {
+			if compositeEnc != nil {
+				compositeEnc.DiscardEncoding()
+				compositeEnc = nil
 			}
-			// Prefer IntoEncoder (opt32 / shared frame enc). Fall back to R7.3
-			// separate dual-tex CB + leading coalesce, then per-op path.
-			var mout []dualTexViewBlendOut
-			var derr error
-			if recordEnc != nil {
-				mout, derr = dualTexAdvancedBlendViewsMultiIntoEncoder(
-					device, queue, cache, dstView, viewOps, tw, th, recordEnc)
-			} else {
-				derr = fmt.Errorf("dual-tex multi: no encoder")
-			}
-			if derr != nil {
-				if compositeEnc != nil {
-					compositeEnc.DiscardEncoding()
-					compositeEnc = nil
-				}
-				// R7.3: finish dual-tex multi without Submit; coalesce with following
-				// blit Flush into one Queue.Submit (multi CB, ordered).
-				bundle, berr := dualTexAdvancedBlendViewsMultiBundle(device, queue, cache, dstView, viewOps, tw, th, false)
-				if berr != nil {
-					err = berr
-					// Fallback: per-op path (still correct, more submits).
-					for i := range ops {
-						op := ops[i]
-						outTex, outView, oerr := dualTexAdvancedBlendViewsRegionSized(
-							device, queue, cache, dstView, op.srcView, op.bounds, op.mode, tw, th)
-						if oerr != nil {
-							err = oerr
-							continue
-						}
-						outs = append(outs, outBlit{view: outView, tex: outTex, bounds: op.bounds, opacity: op.opacity})
+			// R7.3: finish dual-tex multi without Submit; coalesce with following
+			// blit Flush into one Queue.Submit (multi CB, ordered).
+			bundle, berr := dualTexAdvancedBlendViewsMultiBundle(device, queue, cache, dstView, viewOps, tw, th, false)
+			if berr != nil {
+				err = berr
+				// Fallback: per-op path (still correct, more submits).
+				for i := range viewOps {
+					op := viewOps[i]
+					outTex, outView, oerr := dualTexAdvancedBlendViewsRegionSized(
+						device, queue, cache, dstView, op.srcView, op.bounds, op.mode, tw, th)
+					if oerr != nil {
+						err = oerr
+						continue
 					}
-				} else {
-					for _, mo := range bundle.Outs {
-						outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
-					}
-					if bundle.Cmd != nil && rc.session != nil {
-						rc.session.EnqueueLeadingSubmit(bundle.Cmd, bundle.Cleanup)
-					} else if bundle.Cleanup != nil {
-						bundle.Cleanup()
-					}
+					outs = append(outs, outBlit{view: outView, tex: outTex, bounds: op.bounds, opacity: op.opacity})
 				}
 			} else {
-				for _, mo := range mout {
+				for _, mo := range bundle.Outs {
 					outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
 				}
-				// Dual-tex passes live on compositeEnc/enc — no separate lead CB.
+				if bundle.Cmd != nil && rc.session != nil {
+					rc.session.EnqueueLeadingSubmit(bundle.Cmd, bundle.Cleanup)
+				} else if bundle.Cleanup != nil {
+					bundle.Cleanup()
+				}
 			}
+		} else {
+			for _, mo := range mout {
+				outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
+			}
+			// Dual-tex passes live on compositeEnc/enc — no separate lead CB.
 		}
 	}
 

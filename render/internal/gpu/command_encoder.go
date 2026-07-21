@@ -165,21 +165,6 @@ func (e *CoreCommandEncoder) Status() CommandEncoderStatus {
 	return e.statusLocked()
 }
 
-// checkRecording returns an error if the encoder is not in Recording state.
-// This method acquires the mutex; use checkRecordingLocked if mutex is already held.
-//
-//nolint:unused // Public API for external use, internal code uses checkRecordingLocked
-func (e *CoreCommandEncoder) checkRecording() error {
-	if e == nil {
-		return ErrNilEncoder
-	}
-
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	return e.checkRecordingLocked()
-}
-
 // checkRecordingLocked returns an error if the encoder is not in Recording state.
 // The caller must hold e.mu.
 func (e *CoreCommandEncoder) checkRecordingLocked() error {

@@ -1033,9 +1033,14 @@ func TestDashStateAtNegativeOffset(t *testing.T) {
 // --- Flatten for dash tests ---
 
 func TestFlattenQuadForDash(t *testing.T) {
-	pts := flattenQuadForDash(0, 0, 50, 100, 100, 0, 0.5)
+	// Dash quads share path_ops.flattenQuad; collect points the same way as dashQuad.
+	start := Pt(0, 0)
+	pts := []float64{start.X, start.Y}
+	flattenQuad(start, Pt(50, 100), Pt(100, 0), 0.5, func(pt Point) {
+		pts = append(pts, pt.X, pt.Y)
+	})
 	if len(pts) < 4 { // At least start + one endpoint
-		t.Errorf("flattenQuadForDash produced %d coords, want >= 4", len(pts))
+		t.Errorf("flattenQuad produced %d coords, want >= 4", len(pts))
 	}
 	// First two coords should be start point
 	if pts[0] != 0 || pts[1] != 0 {

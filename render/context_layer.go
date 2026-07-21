@@ -557,22 +557,12 @@ func (c *Context) markLayerFullComposite() {
 
 // queueLayerAdvancedGPU defers advanced blend to Flush when a present View exists.
 // Offscreen unit-test / Image() path has View-nil targets; deferred dual-tex
-// resolve seeds from CPU and historically wiped outside-clip base (D05 black).
-// For pure-CPU parents, materialize the layer RT and composite immediately.
+// queueLayerAdvancedGPU defers advanced blend to dual-tex resolve on the next
+// GPU flush (F1). View-nil Image/FlushGPU advanced resolve is handled in
+// GPURenderContext.resolvePendingAdvancedLayersEnc (CPU blend into pixmap Data
+// when the original target has no View).
 func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 	if c == nil || layer == nil || parent == nil || layer.gpuView.IsNil() {
-		return false
-	}
-	// Prefer immediate CPU advanced composite when the active target stream is
-	// pixmap-backed (no live present View). Correct for FlushGPU/Image.
-	if c.preferImmediateAdvancedLayerComposite() {
-		// Parent base draws may still be stashed/pending on GPU — compositeLayer
-		// blends against parent.Data, so materialize the parent stream first.
-		_ = c.FlushGPU()
-		if !layer.cpuDrew {
-			_ = c.materializeLayerGPUToPixmap(layer)
-		}
-		// Fall through to PopLayer CPU compositeLayer path.
 		return false
 	}
 	type advancedLayerQueuer interface {
@@ -594,19 +584,6 @@ func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 	q.QueueAdvancedLayerComposite(layer.gpuView, layer.gpuW, layer.gpuH,
 		damage, layer.blendMode, layer.opacity, release)
 	return true
-}
-
-// preferImmediateAdvancedLayerComposite: keep deferred dual-tex queue for
-// present FlushGPUWithView (F1). View-nil Image/FlushGPU advanced resolve is
-// handled in GPURenderContext.resolvePendingAdvancedLayersEnc (CPU blend into
-// pixmap Data when the original target has no View).
-func (c *Context) preferImmediateAdvancedLayerComposite() bool {
-	return false
-}
-
-// compositeLayerAdvancedGPU is kept for tests; routes to queueLayerAdvancedGPU.
-func (c *Context) compositeLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
-	return c.queueLayerAdvancedGPU(layer, parent)
 }
 
 // layerForceCPUDraw reports whether the current top layer must receive CPU

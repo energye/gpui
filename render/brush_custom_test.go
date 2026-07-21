@@ -292,7 +292,7 @@ func TestStripesZeroWidth(t *testing.T) {
 	}
 }
 
-// TestClampT tests the clampT helper function.
+// TestClampT covers clamp01 used by custom-brush parameter paths.
 func TestClampT(t *testing.T) {
 	tests := []struct {
 		name string
@@ -308,9 +308,9 @@ func TestClampT(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := clampT(tt.val)
+			got := clamp01(tt.val)
 			if got != tt.want {
-				t.Errorf("clampT(%v) = %v, want %v", tt.val, got, tt.want)
+				t.Errorf("clamp01(%v) = %v, want %v", tt.val, got, tt.want)
 			}
 		})
 	}

@@ -757,6 +757,40 @@ func ImageBufFromImage(img image.Image) *ImageBuf {
 	return intImage.FromStdImage(img)
 }
 
+// gpuTextureDrawGeom holds CTM-mapped destination rect and viewport for
+// DrawGPUTexture* entry points (shared setup, no behavior change).
+type gpuTextureDrawGeom struct {
+	rc         gpuContextOps
+	target     GPURenderTarget
+	dstX, dstY float32
+	dstW, dstH float32
+	vpW, vpH   uint32
+}
+
+// prepareGPUTextureDraw shares sync/validate/CTM/viewport setup for DrawGPUTexture*.
+// Returns ok=false when GPU is unavailable or view is nil.
+func (c *Context) prepareGPUTextureDraw(view gpucontext.TextureView, x, y float64, width, height int) (g gpuTextureDrawGeom, ok bool) {
+	c.syncPublishedFilterBeforeDraw()
+	rc := c.gpuCtxOps()
+	if rc == nil || view.IsNil() {
+		return g, false
+	}
+	ctm := c.totalMatrix()
+	tl := ctm.TransformPoint(Pt(x, y))
+	br := ctm.TransformPoint(Pt(x+float64(width), y+float64(height)))
+	target := c.gpuRenderTarget()
+	return gpuTextureDrawGeom{
+		rc:     rc,
+		target: target,
+		dstX:   float32(tl.X),
+		dstY:   float32(tl.Y),
+		dstW:   float32(br.X - tl.X),
+		dstH:   float32(br.Y - tl.Y),
+		vpW:    uint32(target.Width),  //nolint:gosec // viewport fits uint32
+		vpH:    uint32(target.Height), //nolint:gosec // viewport fits uint32
+	}, true
+}
+
 // DrawGPUTexture composites an existing GPU texture view as a textured quad
 // at (x, y) with the given dimensions. No CPU readback or upload — pure
 // GPU-to-GPU compositing. The view must be from the same device (e.g.,
@@ -765,25 +799,7 @@ func ImageBufFromImage(img image.Image) *ImageBuf {
 // This is the Skia GrSurfaceProxyView direct-bind pattern for cached
 // offscreen rendering (RepaintBoundary, layer compositing).
 func (c *Context) DrawGPUTexture(view gpucontext.TextureView, x, y float64, width, height int) {
-	c.syncPublishedFilterBeforeDraw()
-	rc := c.gpuCtxOps()
-	if rc == nil || view.IsNil() {
-		return
-	}
-	defer c.setGPUClipRect()()
-
-	ctm := c.totalMatrix()
-	tl := ctm.TransformPoint(Pt(x, y))
-	br := ctm.TransformPoint(Pt(x+float64(width), y+float64(height)))
-
-	target := c.gpuRenderTarget()
-	vpW := uint32(target.Width)  //nolint:gosec // viewport fits uint32
-	vpH := uint32(target.Height) //nolint:gosec // viewport fits uint32
-
-	rc.QueueGPUTextureDraw(target, view,
-		float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
-		1.0, vpW, vpH)
-	c.recordGPUOp()
+	c.DrawGPUTextureWithOpacity(view, x, y, width, height, 1.0)
 }
 
 // DrawGPUTextureWithOpacity composites a GPU texture view as an overlay with
@@ -791,58 +807,33 @@ func (c *Context) DrawGPUTexture(view gpucontext.TextureView, x, y float64, widt
 // Same as DrawGPUTexture but with alpha blending for fade transitions
 // and OpacityLayer compositing (Flutter pattern).
 func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y float64, width, height int, opacity float32) {
-	c.syncPublishedFilterBeforeDraw()
-	rc := c.gpuCtxOps()
-	if rc == nil || view.IsNil() {
+	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
+	if !ok {
 		return
 	}
 	defer c.setGPUClipRect()()
-
-	ctm := c.totalMatrix()
-	tl := ctm.TransformPoint(Pt(x, y))
-	br := ctm.TransformPoint(Pt(x+float64(width), y+float64(height)))
-
-	target := c.gpuRenderTarget()
-	vpW := uint32(target.Width)  //nolint:gosec // viewport fits uint32
-	vpH := uint32(target.Height) //nolint:gosec // viewport fits uint32
-
-	rc.QueueGPUTextureDraw(target, view,
-		float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
-		opacity, vpW, vpH)
+	g.rc.QueueGPUTextureDraw(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, opacity, g.vpW, g.vpH)
 	c.recordGPUOp()
 }
 
 // DrawGPUTextureWithOpacityUV composites a sub-rectangle of a GPU texture with
 // opacity. u0..v1 are normalized source UVs (F1 damage-tight layer composite).
 func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y float64, width, height int, opacity float32, u0, v0, u1, v1 float32) {
-	c.syncPublishedFilterBeforeDraw()
-	rc := c.gpuCtxOps()
-	if rc == nil || view.IsNil() {
+	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
+	if !ok {
 		return
 	}
 	defer c.setGPUClipRect()()
-
-	ctm := c.totalMatrix()
-	tl := ctm.TransformPoint(Pt(x, y))
-	br := ctm.TransformPoint(Pt(x+float64(width), y+float64(height)))
-
-	target := c.gpuRenderTarget()
-	vpW := uint32(target.Width)  //nolint:gosec
-	vpH := uint32(target.Height) //nolint:gosec
 
 	type uvDrawer interface {
 		QueueGPUTextureDrawUV(target GPURenderTarget, view gpucontext.TextureView,
 			dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32,
 			u0, v0, u1, v1 float32)
 	}
-	if ud, ok := rc.(uvDrawer); ok {
-		ud.QueueGPUTextureDrawUV(target, view,
-			float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
-			opacity, vpW, vpH, u0, v0, u1, v1)
+	if ud, ok := g.rc.(uvDrawer); ok {
+		ud.QueueGPUTextureDrawUV(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, opacity, g.vpW, g.vpH, u0, v0, u1, v1)
 	} else {
-		rc.QueueGPUTextureDraw(target, view,
-			float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
-			opacity, vpW, vpH)
+		g.rc.QueueGPUTextureDraw(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, opacity, g.vpW, g.vpH)
 	}
 	c.recordGPUOp()
 }
@@ -856,23 +847,12 @@ func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y 
 //
 // See ADR-015 (Compositor Base Layer), Flutter OffsetLayer pattern.
 func (c *Context) DrawGPUTextureBase(view gpucontext.TextureView, x, y float64, width, height int) {
-	c.syncPublishedFilterBeforeDraw()
-	rc := c.gpuCtxOps()
-	if rc == nil || view.IsNil() {
+	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
+	if !ok {
 		return
 	}
-
-	ctm := c.totalMatrix()
-	tl := ctm.TransformPoint(Pt(x, y))
-	br := ctm.TransformPoint(Pt(x+float64(width), y+float64(height)))
-
-	target := c.gpuRenderTarget()
-	vpW := uint32(target.Width)  //nolint:gosec // viewport fits uint32
-	vpH := uint32(target.Height) //nolint:gosec // viewport fits uint32
-
-	rc.QueueBaseLayer(target, view,
-		float32(tl.X), float32(tl.Y), float32(br.X-tl.X), float32(br.Y-tl.Y),
-		1.0, vpW, vpH)
+	// Base layer intentionally does not set scissor clip (matches prior behavior).
+	g.rc.QueueBaseLayer(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, 1.0, g.vpW, g.vpH)
 	c.recordGPUOp()
 }
 

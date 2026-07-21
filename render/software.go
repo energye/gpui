@@ -315,6 +315,9 @@ func applyClipCoverage(clipFn func(x, y float64) byte, px, py int, coverage uint
 	if cc == 0 {
 		return 0
 	}
+	if cc == 255 {
+		return coverage
+	}
 	return uint8(uint16(coverage) * uint16(cc) / 255)
 }
 
@@ -881,18 +884,8 @@ func overlayChannelU8(src, dst uint8) uint8 {
 // the paint color at each pixel instead of using a single constant color.
 // When clipFn is non-nil, each pixel's alpha is multiplied by the clip coverage.
 // When maskFn is non-nil, each pixel's alpha is multiplied by the mask coverage.
-func min3u8(a, b uint8) uint8 {
-	if a < b {
-		return a
-	}
-	return b
-}
-func max3u8(a, b uint8) uint8 {
-	if a > b {
-		return a
-	}
-	return b
-}
+func min3u8(a, b uint8) uint8 { return min(a, b) }
+func max3u8(a, b uint8) uint8 { return max(a, b) }
 func absDiff3u8(a, b uint8) uint8 {
 	if a >= b {
 		return a - b
@@ -1313,9 +1306,14 @@ func dashLine(result *Path, currentX, currentY *float64, x, y float64,
 // dashQuad dashes a quadratic bezier curve by flattening it.
 func dashQuad(result *Path, currentX, currentY *float64, control, end Point,
 	pattern []float64, patternIdx *int, patternPos *float64, inDash *bool) {
-	// Flatten quadratic to line segments
+	// Flatten quadratic to line segments (shared path_ops flattener).
 	tolerance := 0.5 // reasonable tolerance for dashing
-	points := flattenQuadForDash(*currentX, *currentY, control.X, control.Y, end.X, end.Y, tolerance)
+	start := Pt(*currentX, *currentY)
+	var points []float64
+	points = append(points, start.X, start.Y)
+	flattenQuad(start, control, end, tolerance, func(pt Point) {
+		points = append(points, pt.X, pt.Y)
+	})
 
 	for i := 2; i < len(points); i += 2 {
 		dashLine(result, currentX, currentY, points[i], points[i+1],
@@ -1326,7 +1324,8 @@ func dashQuad(result *Path, currentX, currentY *float64, control, end Point,
 // dashCubic dashes a cubic bezier curve by flattening it.
 func dashCubic(result *Path, currentX, currentY *float64, c1, c2, end Point,
 	pattern []float64, patternIdx *int, patternPos *float64, inDash *bool) {
-	// Flatten cubic to line segments
+	// Keep dash-specific cubic flatten: path_ops cubicFlatness metric differs
+	// slightly from control-point distance used historically for dashing.
 	tolerance := 0.5 // reasonable tolerance for dashing
 	points := flattenCubicForDash(*currentX, *currentY,
 		c1.X, c1.Y, c2.X, c2.Y, end.X, end.Y, tolerance)
@@ -1344,44 +1343,6 @@ func pathEndAt(p *Path, x, y float64) bool {
 	}
 	cp := p.CurrentPoint()
 	return math.Abs(cp.X-x) < 1e-10 && math.Abs(cp.Y-y) < 1e-10
-}
-
-// flattenQuadForDash flattens a quadratic bezier to line points.
-func flattenQuadForDash(x0, y0, cx, cy, x1, y1, tolerance float64) []float64 {
-	points := []float64{x0, y0}
-	flattenQuadRecForDash(x0, y0, cx, cy, x1, y1, tolerance, &points, 0)
-	return points
-}
-
-func flattenQuadRecForDash(x0, y0, cx, cy, x1, y1, tolerance float64, points *[]float64, depth int) {
-	// Max recursion depth to prevent stack overflow (e.g. NaN coordinates)
-	if depth > 10 {
-		*points = append(*points, x1, y1)
-		return
-	}
-
-	// Check if curve is flat enough (distance from control to midpoint of line)
-	mx := (x0 + x1) / 2
-	my := (y0 + y1) / 2
-	dx := cx - mx
-	dy := cy - my
-	dist := math.Sqrt(dx*dx + dy*dy)
-
-	if dist < tolerance {
-		*points = append(*points, x1, y1)
-		return
-	}
-
-	// Subdivide using de Casteljau
-	x01 := (x0 + cx) / 2
-	y01 := (y0 + cy) / 2
-	x12 := (cx + x1) / 2
-	y12 := (cy + y1) / 2
-	x012 := (x01 + x12) / 2
-	y012 := (y01 + y12) / 2
-
-	flattenQuadRecForDash(x0, y0, x01, y01, x012, y012, tolerance, points, depth+1)
-	flattenQuadRecForDash(x012, y012, x12, y12, x1, y1, tolerance, points, depth+1)
 }
 
 // flattenCubicForDash flattens a cubic bezier to line points.
@@ -1463,24 +1424,8 @@ func hslSat(r, g, b uint8) float64 {
 	minv := float64(min3(r, g, b))
 	return maxv - minv
 }
-func max3(a, b, c uint8) uint8 {
-	if a >= b && a >= c {
-		return a
-	}
-	if b >= c {
-		return b
-	}
-	return c
-}
-func min3(a, b, c uint8) uint8 {
-	if a <= b && a <= c {
-		return a
-	}
-	if b <= c {
-		return b
-	}
-	return c
-}
+func max3(a, b, c uint8) uint8 { return max(a, b, c) }
+func min3(a, b, c uint8) uint8 { return min(a, b, c) }
 func hslClip(r, g, b float64) (uint8, uint8, uint8) {
 	l := 0.3*r + 0.59*g + 0.11*b
 	n := r

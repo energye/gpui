@@ -76,7 +76,7 @@ func HorizontalGradient(c0, c1 RGBA, x0, x1 float64) CustomBrush {
 	return CustomBrush{
 		Func: func(x, _ float64) RGBA {
 			t := (x - x0) / (x1 - x0)
-			t = clampT(t)
+			t = clamp01(t)
 			return c0.Lerp(c1, t)
 		},
 		Name: "horizontal_gradient",
@@ -93,7 +93,7 @@ func VerticalGradient(c0, c1 RGBA, y0, y1 float64) CustomBrush {
 	return CustomBrush{
 		Func: func(_, y float64) RGBA {
 			t := (y - y0) / (y1 - y0)
-			t = clampT(t)
+			t = clamp01(t)
 			return c0.Lerp(c1, t)
 		},
 		Name: "vertical_gradient",
@@ -125,7 +125,7 @@ func LinearGradient(c0, c1 RGBA, x0, y0, x1, y1 float64) CustomBrush {
 			px := x - x0
 			py := y - y0
 			t := (px*nx + py*ny) / length
-			t = clampT(t)
+			t = clamp01(t)
 			return c0.Lerp(c1, t)
 		},
 		Name: "linear_gradient",
@@ -151,7 +151,7 @@ func RadialGradient(c0, c1 RGBA, cx, cy, r float64) CustomBrush {
 			dy := y - cy
 			dist := math.Sqrt(dx*dx + dy*dy)
 			t := dist / r
-			t = clampT(t)
+			t = clamp01(t)
 			return c0.Lerp(c1, t)
 		},
 		Name: "radial_gradient",
@@ -213,17 +213,6 @@ func Stripes(c0, c1 RGBA, width, angle float64) CustomBrush {
 		},
 		Name: "stripes",
 	}
-}
-
-// clampT clamps a value to [0, 1] range.
-func clampT(t float64) float64 {
-	if t < 0 {
-		return 0
-	}
-	if t > 1 {
-		return 1
-	}
-	return t
 }
 
 // toCustomBrush converts a SolidBrush to CustomBrush.

@@ -42,6 +42,27 @@ func sortStops(stops []ColorStop) []ColorStop {
 	return sorted
 }
 
+// ensureSortedStops returns a cached sorted copy of stops.
+// Shared by Linear/Radial/Sweep gradient brushes to avoid three identical
+// ensureSorted methods. *sorted / *sortedStops are the brush's cache fields.
+func ensureSortedStops(sorted *bool, sortedStops *[]ColorStop, stops []ColorStop) []ColorStop {
+	if *sorted {
+		return *sortedStops
+	}
+	*sortedStops = sortStops(stops)
+	*sorted = true
+	return *sortedStops
+}
+
+// firstStopColor returns the first stop's color or Transparent if empty.
+// The stops slice MUST be pre-sorted by offset.
+func firstStopColor(stops []ColorStop) RGBA {
+	if len(stops) == 0 {
+		return Transparent
+	}
+	return stops[0].Color
+}
+
 // applyExtendMode applies the extend mode to normalize t to [0, 1].
 func applyExtendMode(t float64, mode ExtendMode) float64 {
 	switch mode {

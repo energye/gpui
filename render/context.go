@@ -196,10 +196,6 @@ func (c *Context) takeBrushBootstrapIfAny() {
 	}
 }
 
-func (c *Context) recordCPUFallbackOp() {
-	c.pathStats.CPUFallbackOps++
-}
-
 // recordCPUFallbackReason increments the CPU fallback counter and records a short reason.
 // Reason is best-effort diagnostic for soak/leak tools (last reason wins).
 func (c *Context) recordCPUFallbackReason(reason string) {
@@ -1855,6 +1851,36 @@ func (c *Context) FlushGPU() error {
 	return err
 }
 
+// flushGPUWithViewCore is the shared body for FlushGPUWithView* variants.
+// requireAccel mirrors historical FlushGPUWithView behavior (ErrFallbackToCPU
+// when neither per-context ops nor a global accelerator is available); damage
+// variants leave err nil in that case.
+func (c *Context) flushGPUWithViewCore(view gpucontext.TextureView, width, height uint32, damage []image.Rectangle, opName string, requireAccel bool) error {
+	c.recordFrameFlush()
+	t := c.gpuRenderTarget()
+	if !view.IsNil() {
+		t.View = view
+		t.ViewWidth = width
+		t.ViewHeight = height
+	}
+	if len(damage) > 0 {
+		t.DamageRects = damage
+	}
+	var err error
+	if rc := c.gpuCtxOps(); rc != nil {
+		err = rc.Flush(t)
+	} else if a := Accelerator(); a != nil {
+		c.warnGPUFallback(opName)
+		err = a.Flush(t)
+	} else if requireAccel {
+		err = ErrFallbackToCPU
+	}
+	if err == nil {
+		c.drainLayerGPUReleases()
+	}
+	return err
+}
+
 // FlushGPUWithView flushes pending GPU operations, resolving directly to the
 // given texture view instead of reading back to CPU. The view is passed
 // through GPURenderTarget.View so the render session uses it as the per-pass
@@ -1864,27 +1890,7 @@ func (c *Context) FlushGPU() error {
 // This is the per-pass render target path for ggcanvas.RenderDirect.
 // When view is nil/zero, behaves identically to FlushGPU (CPU readback).
 func (c *Context) FlushGPUWithView(view gpucontext.TextureView, width, height uint32) error {
-	c.recordFrameFlush()
-	t := c.gpuRenderTarget()
-	if !view.IsNil() {
-		t.View = view
-		t.ViewWidth = width
-		t.ViewHeight = height
-	}
-	var err error
-	rc := c.gpuCtxOps()
-	if rc != nil {
-		err = rc.Flush(t)
-	} else if a := Accelerator(); a != nil {
-		c.warnGPUFallback("FlushGPUWithView")
-		err = a.Flush(t)
-	} else {
-		err = ErrFallbackToCPU
-	}
-	if err == nil {
-		c.drainLayerGPUReleases()
-	}
-	return err
+	return c.flushGPUWithViewCore(view, width, height, nil, "FlushGPUWithView", true)
 }
 
 // FlushGPUWithViewDamage flushes pending GPU operations with damage-aware
@@ -1904,54 +1910,22 @@ func (c *Context) FlushGPUWithView(view gpucontext.TextureView, width, height ui
 // This enables sub-region compositing: a 48×48 spinner updates only 9KB
 // instead of the full surface (8MB at 1080p). See ADR-016 Phase 2.
 func (c *Context) FlushGPUWithViewDamage(view gpucontext.TextureView, width, height uint32, damageRect image.Rectangle) error {
-	c.recordFrameFlush()
-	t := c.gpuRenderTarget()
-	if !view.IsNil() {
-		t.View = view
-		t.ViewWidth = width
-		t.ViewHeight = height
-	}
+	var damage []image.Rectangle
 	if !damageRect.Empty() {
-		t.DamageRects = []image.Rectangle{damageRect}
+		damage = []image.Rectangle{damageRect}
 	}
-	var err error
-	if rc := c.gpuCtxOps(); rc != nil {
-		err = rc.Flush(t)
-	} else if a := Accelerator(); a != nil {
-		c.warnGPUFallback("FlushGPUWithViewDamage")
-		err = a.Flush(t)
-	}
-	if err == nil {
-		c.drainLayerGPUReleases()
-	}
-	return err
+	return c.flushGPUWithViewCore(view, width, height, damage, "FlushGPUWithViewDamage", false)
 }
 
 // FlushGPUWithViewDamageRects renders to a surface view with multiple damage rects
 // (ADR-028). Each overlay gets its own scissor from the closest damage rect,
 // enabling per-draw dynamic scissor for distant dirty regions.
 func (c *Context) FlushGPUWithViewDamageRects(view gpucontext.TextureView, width, height uint32, rects []image.Rectangle) error {
-	c.recordFrameFlush()
-	t := c.gpuRenderTarget()
-	if !view.IsNil() {
-		t.View = view
-		t.ViewWidth = width
-		t.ViewHeight = height
-	}
+	var damage []image.Rectangle
 	if len(rects) > 0 {
-		t.DamageRects = rects
+		damage = rects
 	}
-	var err error
-	if rc := c.gpuCtxOps(); rc != nil {
-		err = rc.Flush(t)
-	} else if a := Accelerator(); a != nil {
-		c.warnGPUFallback("FlushGPUWithViewDamageRects")
-		err = a.Flush(t)
-	}
-	if err == nil {
-		c.drainLayerGPUReleases()
-	}
-	return err
+	return c.flushGPUWithViewCore(view, width, height, damage, "FlushGPUWithViewDamageRects", false)
 }
 
 // gpuContextOps is the per-context GPU rendering interface.

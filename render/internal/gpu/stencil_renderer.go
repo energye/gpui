@@ -439,22 +439,6 @@ func (sr *StencilRenderer) updateRenderBuffers(
 	return b, nil
 }
 
-// createAndUploadVertexBuffer creates a vertex buffer and uploads data.
-func (sr *StencilRenderer) createAndUploadVertexBuffer(label string, data []byte) (*webgpu.Buffer, error) {
-	buf, err := sr.device.CreateBuffer(&webgpu.BufferDescriptor{
-		Label: label, Size: uint64(len(data)),
-		Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create %s buffer: %w", label, err)
-	}
-	if err := sr.queue.WriteBuffer(buf, 0, data); err != nil {
-		buf.Release()
-		return nil, fmt.Errorf("write %s buffer: %w", label, err)
-	}
-	return buf, nil
-}
-
 func (sr *StencilRenderer) updateVertexBuffer(buf **webgpu.Buffer, capBytes *uint64, label string, data []byte) error {
 	needed := uint64(len(data))
 	if *buf == nil || *capBytes < needed {

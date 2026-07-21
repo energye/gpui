@@ -95,12 +95,7 @@ func (g *RadialGradientBrush) ColorAt(x, y float64) RGBA {
 // ensureSorted returns stops sorted by offset, using a cached copy.
 // The cache is invalidated by AddColorStop.
 func (g *RadialGradientBrush) ensureSorted() []ColorStop {
-	if g.sorted {
-		return g.sortedStops
-	}
-	g.sortedStops = sortStops(g.Stops)
-	g.sorted = true
-	return g.sortedStops
+	return ensureSortedStops(&g.sorted, &g.sortedStops, g.Stops)
 }
 
 // computeT calculates the gradient parameter t for a point.

@@ -25,6 +25,7 @@
 | **窗口能力验收** | [`CAPABILITY_MATRIX_WINDOW.md`](./CAPABILITY_MATRIX_WINDOW.md) |
 | **组合 / 复杂 UI 门禁** | [`P1_COMPOSITION_MATRIX.md`](./P1_COMPOSITION_MATRIX.md) · [`P1_COMPLEX_UI_MATRIX.md`](./P1_COMPLEX_UI_MATRIX.md) |
 | **控件入口条件** | [`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) · [`S5_SKIA_UI_GAP.md`](./S5_SKIA_UI_GAP.md) |
+| **UI 框架总图与规划（P2）** | [`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) |
 
 ---
 

@@ -540,9 +540,8 @@ func (pc *PipelineCache) WarmupBlendPipelines() {
 
 // BindGroupBuilder helps construct bind groups for rendering.
 type BindGroupBuilder struct {
-	device       *webgpu.Device
-	layout       StubBindGroupLayoutID
-	nativeLayout *webgpu.BindGroupLayout
+	device *webgpu.Device
+	layout StubBindGroupLayoutID
 }
 
 // NewBindGroupBuilder creates a new bind group builder.
