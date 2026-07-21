@@ -7,11 +7,9 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/energye/gpui/examples/exboot"
 	"github.com/energye/gpui/gpu/types"
@@ -210,85 +208,43 @@ func main() {
 		log.Printf("a11y: %+v", nodes)
 	})
 
-	deadline := time.Now().Add(time.Duration(seconds * float64(time.Second)))
-	frames := 0
 	last := status
-	lastT := time.Now()
 	pct := 35.0
 
-	for time.Now().Before(deadline) {
-		now := time.Now()
-		dt := now.Sub(lastT).Seconds()
-		lastT = now
-		tree.TickClock(dt)
-
-		for _, ev := range host.PumpEvents() {
-			if ev.Type == platform.EventClose {
-				goto done
+	res := exboot.RunUIDemand(exboot.UIDemandConfig{
+		Host: host, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
+		Clear:      theme.Color(core.TokenColorBgLayout),
+		Seconds:    seconds,
+		Continuous: true, // motion/skeleton/spin need continuous ticks
+		Flush:      host.Flush,
+		OnResize: func(w, h int) {
+			winW, winH = w, h
+			vp = core.Size{Width: float64(w), Height: float64(h)}
+			root.Width, root.Height = float64(w), float64(h)
+			tour.Viewport = vp
+			root.MarkNeedsLayout()
+		},
+		OnUpdate: func(dt float64) {
+			tree.TickClock(dt)
+			motion.AdvanceClock(tree)
+			presence.Advance(dt, tree.Clock().ReduceMotion)
+			sk1.Tick(dt)
+			sk2.Tick(dt)
+			sk3.Tick(dt)
+			spin.Tick(dt)
+			pct += dt * 15
+			if pct > 100 {
+				pct = 0
 			}
-			if resize, _ := platform.Dispatch(tree, ev); resize != nil {
-				winW, winH = resize.Width, resize.Height
-				if winW < 64 {
-					winW = 64
-				}
-				if winH < 64 {
-					winH = 64
-				}
-				vp = core.Size{Width: float64(winW), Height: float64(winH)}
-				root.Width, root.Height = float64(winW), float64(winH)
-				tour.Viewport = vp
-				root.MarkNeedsLayout()
-				_ = sc.Resize(uint32(winW), uint32(winH))
-				_ = dc.Resize(winW, winH)
+			prog.SetPercent(pct)
+			tour.Sync()
+			if status != last {
+				statusTx.SetValue("status: " + status)
+				last = status
 			}
-		}
-
-		// animations
-		motion.AdvanceClock(tree)
-		presence.Advance(dt, tree.Clock().ReduceMotion)
-		sk1.Tick(dt)
-		sk2.Tick(dt)
-		sk3.Tick(dt)
-		spin.Tick(dt)
-		// Spin tick updates angle; full stack rebuild optional
-		pct += dt * 15
-		if pct > 100 {
-			pct = 0
-		}
-		prog.SetPercent(pct)
-		tour.Sync()
-
-		if status != last {
-			statusTx.SetValue("status: " + status)
-			last = status
-		}
-
-		dc.BeginFrame()
-		dc.ClearWithColor(theme.Color(core.TokenColorBgLayout))
-		pc := &core.PaintContext{DC: dc, Scale: host.ScaleFactor(), Theme: theme}
-		tree.Frame(pc, core.Size{Width: float64(winW), Height: float64(winH)})
-
-		if device != nil {
-			device.FlushCallbacks()
-		}
-		frame, err := sc.BeginFrame()
-		if err != nil {
-			time.Sleep(16 * time.Millisecond)
-			continue
-		}
-		if _, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
-			return sc.EndFrame(frame)
-		}); err != nil {
-			sc.DiscardFrame(frame)
-			if errors.Is(err, webgpu.ErrDeviceLost) {
-				time.Sleep(16 * time.Millisecond)
-			}
-			continue
-		}
-		host.Flush()
-		frames++
-	}
-done:
-	fmt.Printf("ui_kit_m5_smoke done frames=%d status=%q a11y=%d %s\n",
-		frames, status, len(kit.CollectA11y(tree.Root())), dc.RenderPathStats().LogLine())
+			tree.MarkDirty() // continuous demo always repaints
+		},
+	})
+	fmt.Printf("ui_kit_m5_smoke done frames=%d paints=%d hops=%d status=%q a11y=%d %s\n",
+		res.Loops, res.Paints, res.Hops, status, len(kit.CollectA11y(tree.Root())), dc.RenderPathStats().LogLine())
 }

@@ -9,11 +9,9 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/energye/gpui/examples/exboot"
 	"github.com/energye/gpui/gpu/types"
@@ -221,66 +219,30 @@ func main() {
 	root.Height = float64(winH)
 
 	tree := core.NewTree(root)
-	deadline := time.Now().Add(time.Duration(seconds * float64(time.Second)))
-	frames := 0
 	last := status
 
-	for time.Now().Before(deadline) {
-		for _, ev := range host.PumpEvents() {
-			if ev.Type == platform.EventClose {
-				goto done
+	res := exboot.RunUIDemand(exboot.UIDemandConfig{
+		Host: lh, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
+		Clear:   theme.Color(core.TokenColorBgLayout),
+		Seconds: seconds,
+		Flush:   lh.Flush,
+		OnResize: func(w, h int) {
+			winW, winH = w, h
+			vp = core.Size{Width: float64(w), Height: float64(h)}
+			root.Width, root.Height = float64(w), float64(h)
+			modal.Viewport, msgs.Viewport = vp, vp
+			root.MarkNeedsLayout()
+		},
+		OnUpdate: func(dt float64) {
+			modal.Sync()
+			msgs.Sync()
+			if status != last {
+				statusTx.SetValue("status: " + status)
+				last = status
 			}
-			if resize, _ := platform.Dispatch(tree, ev); resize != nil {
-				winW, winH = resize.Width, resize.Height
-				if winW < 64 {
-					winW = 64
-				}
-				if winH < 64 {
-					winH = 64
-				}
-				vp = core.Size{Width: float64(winW), Height: float64(winH)}
-				root.Width, root.Height = float64(winW), float64(winH)
-				modal.Viewport, msgs.Viewport = vp, vp
-				root.MarkNeedsLayout()
-				_ = sc.Resize(uint32(winW), uint32(winH))
-				_ = dc.Resize(winW, winH)
-			}
-		}
-		modal.Sync()
-		msgs.Sync()
-		if status != last {
-			statusTx.SetValue("status: " + status)
-			last = status
-		}
-
-		dc.BeginFrame()
-		dc.ClearWithColor(theme.Color(core.TokenColorBgLayout))
-		pc := &core.PaintContext{DC: dc, Scale: host.ScaleFactor(), Theme: theme}
-		tree.Frame(pc, core.Size{Width: float64(winW), Height: float64(winH)})
-
-		if device != nil {
-			device.FlushCallbacks()
-		}
-		frame, err := sc.BeginFrame()
-		if err != nil {
-			time.Sleep(16 * time.Millisecond)
-			continue
-		}
-		if _, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
-			return sc.EndFrame(frame)
-		}); err != nil {
-			sc.DiscardFrame(frame)
-			if errors.Is(err, webgpu.ErrDeviceLost) {
-				time.Sleep(16 * time.Millisecond)
-			}
-			continue
-		}
-		lh.Flush()
-		frames++
-	}
-done:
-	// coverage log
+		},
+	})
 	sum := kit.CoverageSummary(kit.AntCoverage())
-	fmt.Printf("ui_kit_shell done frames=%d status=%q coverage=%v %s\n",
-		frames, status, sum, dc.RenderPathStats().LogLine())
+	fmt.Printf("ui_kit_shell done frames=%d paints=%d hops=%d status=%q coverage=%v %s\n",
+		res.Loops, res.Paints, res.Hops, status, sum, dc.RenderPathStats().LogLine())
 }

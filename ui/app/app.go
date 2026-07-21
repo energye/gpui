@@ -1,0 +1,430 @@
+// Package app is the unified application entry for demand-driven UI frames.
+//
+// Frame modes align with gogpu (ADR-023 style):
+//
+//	IDLE       — no dirty, no tickers → WaitEvents(-1), 0% busy spin
+//	ANIMATING  — HasActiveTickers → onUpdate/Tick every ~16ms; OnDraw only if Dirty
+//	CONTINUOUS — ContinuousRender → paint every tick (game loop)
+//
+// Threads (gogpu multi-thread architecture):
+//
+//	Main (Run/Pulse):  WaitEvents · Dispatch · TickActive · OnUpdate
+//	Render (RenderLoop): Present / tree.Frame / GPU — via chan func queue + LockOSThread
+//
+// Present is hopped synchronously to the render thread so the live Tree is not
+// mutated concurrently (main waits until draw finishes).
+//
+// See docs/UI_APP_SHELL_PLAN.md.
+package app
+
+import (
+	"sync/atomic"
+	"time"
+
+	"github.com/energye/gpui/ui/core"
+	"github.com/energye/gpui/ui/platform"
+)
+
+// DefaultAnimTick is the wait slice while animations are active (~60 Hz).
+const DefaultAnimTick = 16 * time.Millisecond
+
+// Options configures Application.
+type Options struct {
+	// ContinuousRender forces a paint every loop tick (gogpu CONTINUOUS).
+	ContinuousRender bool
+	// AnimTick is the WaitEvents timeout while tickers are active (default 16ms).
+	AnimTick time.Duration
+	// OnUpdate runs every active tick (ANIMATING/CONTINUOUS), before paint.
+	// Delta is seconds since last tick (clamped like gogpu).
+	// Always on the main (Run) goroutine — never on the render thread.
+	OnUpdate func(dt float64)
+	// BeforeDispatch runs on the main goroutine for each host event before
+	// platform.Dispatch. Return true to skip default routing (event handled).
+	BeforeDispatch func(tree *core.Tree, ev platform.Event) (skip bool)
+	// DisableRenderThread runs Present on the main goroutine (tests / single-thread debug).
+	// Default false: dedicated render OS thread (gogpu-aligned).
+	DisableRenderThread bool
+}
+
+// PresentFunc paints one frame for a session. Called only when a draw is needed.
+// Implementations typically: BeginFrame → tree.Frame → PresentFrame*.
+type PresentFunc func(s *Session) error
+
+// Session is one window's UI binding (tree + host + present).
+type Session struct {
+	ID      int
+	Host    platform.Host
+	Tree    *core.Tree
+	Present PresentFunc
+
+	// Logical viewport; updated on resize.
+	Width, Height int
+
+	// Theme optional; Present may read it.
+	Theme *core.Theme
+
+	// OnResize optional.
+	OnResize func(w, h int)
+
+	app *Application
+}
+
+// Application owns the demand-driven run loop (single-window Phase 1; multi later).
+type Application struct {
+	opts Options
+
+	session *Session
+	nextID  int
+
+	// renderLoop is the dedicated GPU/draw OS thread (nil if DisableRenderThread).
+	renderLoop *RenderLoop
+
+	// Animation refcount (gogpu StartAnimation / StopAnimation).
+	animating int32
+
+	// Invalidator-style coalesced redraw from any goroutine.
+	pendingRedraw atomic.Bool
+
+	running atomic.Bool
+	quit    atomic.Bool
+
+	lastFrame time.Time
+
+	// PaintCount is incremented each time Present runs (tests / metrics).
+	PaintCount atomic.Int64
+	// LoopCount is incremented each runFrame iteration.
+	LoopCount atomic.Int64
+	// RenderThreadHops counts synchronous present hops to the render thread.
+	RenderThreadHops atomic.Int64
+}
+
+// New creates an Application.
+func New(opts Options) *Application {
+	if opts.AnimTick <= 0 {
+		opts.AnimTick = DefaultAnimTick
+	}
+	a := &Application{opts: opts, lastFrame: time.Now()}
+	if !opts.DisableRenderThread {
+		a.renderLoop = NewRenderLoop()
+	}
+	return a
+}
+
+// RenderLoop returns the dedicated render thread manager (may be nil if disabled).
+func (a *Application) RenderLoop() *RenderLoop {
+	if a == nil {
+		return nil
+	}
+	return a.renderLoop
+}
+
+// Close stops the render thread. Safe to call after Run returns.
+func (a *Application) Close() {
+	if a == nil {
+		return
+	}
+	a.Quit()
+	if a.renderLoop != nil {
+		a.renderLoop.Stop()
+		a.renderLoop = nil
+	}
+}
+
+// Attach binds an existing Host + Tree (Headless, LinuxHost, or ExternalHost).
+// present may be nil for headless tests that only care about Frame counting via Present stub.
+func (a *Application) Attach(host platform.Host, tree *core.Tree, present PresentFunc) *Session {
+	if a == nil {
+		return nil
+	}
+	a.nextID++
+	w, h := 0, 0
+	if host != nil {
+		w, h = host.Size()
+	}
+	s := &Session{
+		ID:      a.nextID,
+		Host:    host,
+		Tree:    tree,
+		Present: present,
+		Width:   w,
+		Height:  h,
+		app:     a,
+	}
+	if tree != nil {
+		tree.SetOnDirty(func() { a.RequestRedraw() })
+	}
+	a.session = s
+	// Initial frame required.
+	a.RequestRedraw()
+	return s
+}
+
+// Session returns the primary session (Phase 1 single window).
+func (a *Application) Session() *Session {
+	if a == nil {
+		return nil
+	}
+	return a.session
+}
+
+// RequestRedraw requests a paint pass (gogpu Invalidator). Safe from any goroutine.
+// Coalesces concurrent calls; wakes WaitEvents; marks tree dirty once.
+func (a *Application) RequestRedraw() {
+	if a == nil {
+		return
+	}
+	already := a.pendingRedraw.Swap(true)
+	if s := a.session; s != nil && s.Host != nil {
+		s.Host.WakeUp()
+	}
+	if already {
+		return
+	}
+	// Mark dirty if needed. Tree.OnDirty → RequestRedraw is coalesced via pendingRedraw.
+	if s := a.session; s != nil && s.Tree != nil && !s.Tree.Dirty() {
+		s.Tree.MarkDirty()
+	}
+}
+
+// StartAnimation increments the animation refcount (keep loop awake for onUpdate).
+func (a *Application) StartAnimation() {
+	if a == nil {
+		return
+	}
+	atomic.AddInt32(&a.animating, 1)
+	if s := a.session; s != nil && s.Host != nil {
+		s.Host.WakeUp()
+	}
+}
+
+// StopAnimation decrements the animation refcount.
+func (a *Application) StopAnimation() {
+	if a == nil {
+		return
+	}
+	for {
+		v := atomic.LoadInt32(&a.animating)
+		if v <= 0 {
+			return
+		}
+		if atomic.CompareAndSwapInt32(&a.animating, v, v-1) {
+			return
+		}
+	}
+}
+
+// IsAnimating reports whether StartAnimation refcount > 0 or tree has tickers.
+func (a *Application) IsAnimating() bool {
+	if a == nil {
+		return false
+	}
+	if atomic.LoadInt32(&a.animating) > 0 {
+		return true
+	}
+	if s := a.session; s != nil && s.Tree != nil {
+		return s.Tree.HasActiveTickers()
+	}
+	return false
+}
+
+// Quit signals the run loop to exit.
+func (a *Application) Quit() {
+	if a == nil {
+		return
+	}
+	a.quit.Store(true)
+	if s := a.session; s != nil && s.Host != nil {
+		s.Host.WakeUp()
+	}
+}
+
+// Running reports whether Run is active.
+func (a *Application) Running() bool {
+	return a != nil && a.running.Load()
+}
+
+// Run blocks on the demand-driven frame loop until Quit or host close.
+// Main-thread work only; Present is synchronized onto the render thread.
+func (a *Application) Run() {
+	if a == nil || a.session == nil {
+		return
+	}
+	a.running.Store(true)
+	a.quit.Store(false)
+	a.lastFrame = time.Now()
+	defer a.running.Store(false)
+
+	for !a.quit.Load() {
+		if !a.runFrame() {
+			break
+		}
+	}
+}
+
+// Pulse runs a single frame iteration (external main loops / tests).
+// Returns false if the session closed.
+func (a *Application) Pulse() bool {
+	if a == nil || a.session == nil {
+		return false
+	}
+	return a.runFrame()
+}
+
+// runFrame implements gogpu App.runFrame demand modes.
+// Returns false on close.
+func (a *Application) runFrame() bool {
+	s := a.session
+	if s == nil || s.Host == nil {
+		return false
+	}
+	a.LoopCount.Add(1)
+
+	continuous := a.opts.ContinuousRender
+	animating := a.IsAnimating()
+	invalidated := a.pendingRedraw.Swap(false)
+	if s.Tree != nil && s.Tree.Dirty() {
+		invalidated = true
+	}
+
+	// IDLE: block on OS / host events.
+	if !continuous && !animating && !invalidated {
+		evs := s.Host.WaitEvents(-1)
+		if !a.dispatchAll(s, evs) {
+			return false
+		}
+	} else if continuous || animating {
+		// Active loop: short wait (vsync-ish) so we don't busy-spin.
+		timeout := a.opts.AnimTick
+		if continuous {
+			timeout = a.opts.AnimTick
+		}
+		evs := s.Host.WaitEvents(timeout)
+		if !a.dispatchAll(s, evs) {
+			return false
+		}
+	} else {
+		// invalidated: non-blocking drain then draw
+		evs := s.Host.WaitEvents(0)
+		if !a.dispatchAll(s, evs) {
+			return false
+		}
+	}
+
+	// Events may have set dirty / pendingRedraw.
+	if a.pendingRedraw.Swap(false) {
+		invalidated = true
+	}
+	if s.Tree != nil && s.Tree.Dirty() {
+		invalidated = true
+	}
+
+	now := time.Now()
+	dt := now.Sub(a.lastFrame).Seconds()
+	a.lastFrame = now
+	if dt > 0.066 {
+		dt = 0.066
+	}
+
+	// onUpdate / TickActive when loop is "active" (gogpu: ANIMATING + CONTINUOUS).
+	// Also tick when invalidated so one-shot motion still advances if registered.
+	if continuous || animating || invalidated || (s.Tree != nil && s.Tree.HasActiveTickers()) {
+		if s.Tree != nil {
+			s.Tree.TickActive(dt)
+		}
+		if a.opts.OnUpdate != nil {
+			a.opts.OnUpdate(dt)
+		}
+		if a.pendingRedraw.Swap(false) {
+			invalidated = true
+		}
+		if s.Tree != nil && s.Tree.Dirty() {
+			invalidated = true
+		}
+	}
+
+	// OnDraw only when continuous or dirty (gogpu demand).
+	// Hop Present to render thread (sync) — same ordering as gogpu renderFrameMultiThread.
+	if continuous || invalidated {
+		needPaint := continuous || (s.Tree != nil && s.Tree.Dirty())
+		if needPaint {
+			if err := a.present(s); err != nil {
+				// Present errors do not exit the loop by default.
+				_ = err
+			}
+		}
+	}
+	return true
+}
+
+func (a *Application) present(s *Session) error {
+	// Apply deferred resize on render thread before draw (gogpu ConsumePendingResize).
+	run := func() error {
+		if a.renderLoop != nil {
+			if w, h, ok := a.renderLoop.ConsumePendingResize(); ok && w > 0 && h > 0 {
+				s.Width, s.Height = int(w), int(h)
+			}
+		}
+		a.PaintCount.Add(1)
+		if s.Present != nil {
+			return s.Present(s)
+		}
+		// Headless default: layout+paint clears dirty.
+		if s.Tree != nil {
+			pc := &core.PaintContext{Theme: s.Theme, Scale: 1}
+			if s.Host != nil {
+				pc.Scale = s.Host.ScaleFactor()
+			}
+			w, h := s.Width, s.Height
+			if w <= 0 || h <= 0 {
+				if s.Host != nil {
+					w, h = s.Host.Size()
+				}
+			}
+			s.Tree.Frame(pc, core.Size{Width: float64(w), Height: float64(h)})
+		}
+		return nil
+	}
+
+	if a.renderLoop == nil || !a.renderLoop.IsRunning() {
+		return run()
+	}
+	a.RenderThreadHops.Add(1)
+	var err error
+	a.renderLoop.RunOnRenderThreadVoid(func() {
+		err = run()
+	})
+	return err
+}
+
+func (a *Application) dispatchAll(s *Session, evs []platform.Event) bool {
+	for _, ev := range evs {
+		if ev.Type == platform.EventClose {
+			return false
+		}
+		if a.opts.BeforeDispatch != nil && s.Tree != nil {
+			if a.opts.BeforeDispatch(s.Tree, ev) {
+				continue
+			}
+		}
+		resize, close := platform.Dispatch(s.Tree, ev)
+		if close {
+			return false
+		}
+		if resize != nil {
+			s.Width, s.Height = resize.Width, resize.Height
+			if a.renderLoop != nil && resize.Width > 0 && resize.Height > 0 {
+				a.renderLoop.RequestResize(uint32(resize.Width), uint32(resize.Height))
+			}
+			if s.Tree != nil {
+				s.Tree.MarkDirty()
+			}
+			if s.OnResize != nil {
+				s.OnResize(resize.Width, resize.Height)
+			}
+		}
+		if ev.Type == platform.EventRedraw {
+			a.pendingRedraw.Store(true)
+		}
+	}
+	return true
+}

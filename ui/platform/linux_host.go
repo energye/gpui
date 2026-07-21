@@ -210,16 +210,67 @@ func (h *LinuxHost) Flush() {
 	}
 }
 
-// PumpEvents implements Host.
+// PumpEvents implements Host (non-blocking).
 func (h *LinuxHost) PumpEvents() []Event {
+	return h.WaitEvents(0)
+}
+
+// WaitEvents implements Host (gogpu-aligned demand loop).
+// timeout < 0 blocks on XNextEvent; 0 is non-blocking; >0 waits up to timeout.
+func (h *LinuxHost) WaitEvents(timeout time.Duration) []Event {
 	if h == nil || h.closed {
 		return nil
 	}
-	for h.xPending != nil && h.xPending(h.display) > 0 {
+	// Drain any already-pending X events / queue first.
+	h.drainPending()
+	if len(h.queue) > 0 {
+		return h.takeQueue()
+	}
+	if timeout == 0 {
+		return nil
+	}
+	if timeout < 0 {
+		var raw [192]byte
+		if h.xNextEvent != nil && h.display != 0 {
+			h.xNextEvent(h.display, &raw[0])
+			h.handleRaw(&raw)
+		}
+		h.drainPending()
+		return h.takeQueue()
+	}
+	// Timed wait: slice-poll so animation frames (~16ms) stay responsive.
+	deadline := time.Now().Add(timeout)
+	for {
+		h.drainPending()
+		if len(h.queue) > 0 {
+			return h.takeQueue()
+		}
+		if h.closed || !time.Now().Before(deadline) {
+			break
+		}
+		// Short sleep; remaining time may be less than 1ms.
+		left := time.Until(deadline)
+		if left > 2*time.Millisecond {
+			time.Sleep(1 * time.Millisecond)
+		} else if left > 0 {
+			time.Sleep(left)
+		} else {
+			break
+		}
+	}
+	h.drainPending()
+	return h.takeQueue()
+}
+
+func (h *LinuxHost) drainPending() {
+	for h.xPending != nil && h.display != 0 && h.xPending(h.display) > 0 {
 		var raw [192]byte
 		h.xNextEvent(h.display, &raw[0])
 		h.handleRaw(&raw)
 	}
+}
+
+func (h *LinuxHost) takeQueue() []Event {
 	if len(h.queue) == 0 {
 		return nil
 	}
@@ -227,6 +278,10 @@ func (h *LinuxHost) PumpEvents() []Event {
 	h.queue = nil
 	return out
 }
+
+// WakeUp implements Host. X11 wait is connection-driven; no-op until self-pipe.
+// Same-thread RequestRedraw already enqueues events for the next WaitEvents slice.
+func (h *LinuxHost) WakeUp() {}
 
 func (h *LinuxHost) handleRaw(raw *[192]byte) {
 	typ := int(*(*int32)(unsafe.Pointer(&raw[0])))
@@ -366,7 +421,11 @@ func keysymName(keysym uintptr) string {
 
 // RequestRedraw implements Host (X11 expose is async; we just enqueue).
 func (h *LinuxHost) RequestRedraw() {
+	if h == nil || h.closed {
+		return
+	}
 	h.queue = append(h.queue, Event{Type: EventRedraw})
+	h.WakeUp()
 }
 
 // Close implements Host.

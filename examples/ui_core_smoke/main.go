@@ -10,11 +10,9 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/energye/gpui/examples/exboot"
 	"github.com/energye/gpui/gpu/types"
@@ -166,96 +164,46 @@ func main() {
 	plugin := core.NewPluginHost()
 	_ = plugin.RegisterControl(primitive.TypePressable, btn) // empty-run registry
 
-	deadline := time.Now().Add(time.Duration(seconds * float64(time.Second)))
-	frames := 0
 	clicksSeen := 0
 	prevOn := on
+	autoclickDone := false
 
-	for time.Now().Before(deadline) {
-		// Events
-		for _, ev := range host.PumpEvents() {
-			if ev.Type == platform.EventClose {
-				log.Printf("close requested")
-				goto done
+	res := exboot.RunUIDemand(exboot.UIDemandConfig{
+		Host: host, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
+		Clear:   render.RGBA{R: 0.96, G: 0.96, B: 0.98, A: 1},
+		Seconds: seconds,
+		Flush:   host.Flush,
+		OnResize: func(w, h int) {
+			winW, winH = w, h
+			root.Width, root.Height = float64(w), float64(h)
+			root.MarkNeedsLayout()
+		},
+		OnUpdate: func(dt float64) {
+			if on != prevOn {
+				clicksSeen++
+				prevOn = on
 			}
-			if resize, _ := platform.Dispatch(tree, ev); resize != nil {
-				winW, winH = resize.Width, resize.Height
-				if winW < 64 {
-					winW = 64
+			if v := os.Getenv("GPUI_SMOKE_AUTOCLICK"); v != "" && !autoclickDone {
+				var n int
+				fmt.Sscanf(v, "%d", &n)
+				// fire once after first paint
+				if n > 0 {
+					autoclickDone = true
+					x, y := 28+60.0, 28+18+16+13+16+20.0
+					platform.Dispatch(tree, platform.Event{
+						Type: platform.EventPointer, Pointer: platform.PointerDown,
+						X: x, Y: y, Button: platform.BtnLeft,
+					})
+					platform.Dispatch(tree, platform.Event{
+						Type: platform.EventPointer, Pointer: platform.PointerUp,
+						X: x, Y: y, Button: platform.BtnLeft,
+					})
+					log.Printf("auto-click at %.0f,%.0f", x, y)
 				}
-				if winH < 64 {
-					winH = 64
-				}
-				root.Width = float64(winW)
-				root.Height = float64(winH)
-				root.MarkNeedsLayout()
-				if err := sc.Resize(uint32(winW), uint32(winH)); err != nil {
-					log.Printf("swapchain resize: %v", err)
-				}
-				if err := dc.Resize(winW, winH); err != nil {
-					// Resize may not exist — recreate context if needed
-					log.Printf("dc resize: %v", err)
-				}
 			}
-		}
-		if on != prevOn {
-			clicksSeen++
-			prevOn = on
-		}
-
-		// Frame: layout → paint → present
-		dc.BeginFrame()
-		dc.ClearWithColor(render.RGBA{R: 0.96, G: 0.96, B: 0.98, A: 1})
-		pc := &core.PaintContext{DC: dc, Origin: core.Point{}, Scale: host.ScaleFactor(), Theme: theme}
-		tree.Frame(pc, core.Size{Width: float64(winW), Height: float64(winH)})
-
-		if device != nil {
-			device.FlushCallbacks()
-		}
-		frame, err := sc.BeginFrame()
-		if err != nil {
-			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-				time.Sleep(16 * time.Millisecond)
-				continue
-			}
-			log.Printf("BeginFrame: %v", err)
-			continue
-		}
-		if _, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
-			return sc.EndFrame(frame)
-		}); err != nil {
-			sc.DiscardFrame(frame)
-			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-				time.Sleep(16 * time.Millisecond)
-				continue
-			}
-			log.Printf("PresentFrameAuto: %v", err)
-			continue
-		}
-		host.Flush()
-		frames++
-
-		// Optional auto-click for CI (headless-ish proof without human).
-		if v := os.Getenv("GPUI_SMOKE_AUTOCLICK"); v != "" {
-			var n int
-			fmt.Sscanf(v, "%d", &n)
-			if n > 0 && frames == n {
-				// Click approximate button center (padding 28 + title/hint + btn pad).
-				x, y := 28+60.0, 28+18+16+13+16+20.0
-				platform.Dispatch(tree, platform.Event{
-					Type: platform.EventPointer, Pointer: platform.PointerDown,
-					X: x, Y: y, Button: platform.BtnLeft,
-				})
-				platform.Dispatch(tree, platform.Event{
-					Type: platform.EventPointer, Pointer: platform.PointerUp,
-					X: x, Y: y, Button: platform.BtnLeft,
-				})
-				log.Printf("auto-click at %.0f,%.0f", x, y)
-			}
-		}
-	}
-
-done:
+		},
+	})
 	stats := dc.RenderPathStats()
-	fmt.Printf("ui_core_smoke done frames=%d clicks=%d on=%v %s\n", frames, clicksSeen, on, stats.LogLine())
+	fmt.Printf("ui_core_smoke done frames=%d paints=%d hops=%d clicks=%d on=%v %s\n",
+		res.Loops, res.Paints, res.Hops, clicksSeen, on, stats.LogLine())
 }

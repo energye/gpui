@@ -4,6 +4,7 @@ import "github.com/energye/gpui/ui/core"
 
 // Dispatch translates platform events into core.Tree pointer/key routing.
 // Resize/focus/close are returned for the app loop to handle.
+// EventRedraw marks the tree dirty (demand-driven paint; gogpu RequestRedraw).
 func Dispatch(tree *core.Tree, ev Event) (resize *Event, close bool) {
 	if tree == nil {
 		if ev.Type == EventClose {
@@ -51,6 +52,11 @@ func Dispatch(tree *core.Tree, ev Event) (resize *Event, close bool) {
 		return &e, false
 	case EventClose:
 		return nil, true
+	case EventRedraw:
+		// Expose / RequestRedraw: mark tree dirty so demand loop paints.
+		tree.MarkDirty()
+	case EventFocus:
+		// Focus alone does not force a frame; widgets mark paint if needed.
 	}
 	return nil, false
 }

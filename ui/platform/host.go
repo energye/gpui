@@ -1,5 +1,7 @@
 package platform
 
+import "time"
+
 // EventType classifies host events delivered to the UI layer.
 type EventType int
 
@@ -65,6 +67,11 @@ type Event struct {
 
 // Host is the SPI surface apps and core frame loops consume.
 // Implementations must not be imported by core/primitive.
+//
+// Demand-driven frame model (gogpu-aligned):
+//   - WaitEvents blocks when idle (timeout < 0) or until timeout (animation tick).
+//   - PumpEvents is non-blocking drain (equivalent to WaitEvents(0)).
+//   - RequestRedraw / WakeUp unblocks a waiting WaitEvents.
 type Host interface {
 	// Caps returns available capabilities.
 	Caps() Caps
@@ -72,9 +79,14 @@ type Host interface {
 	Size() (width, height int)
 	// ScaleFactor returns DPI scale (1.0 = standard).
 	ScaleFactor() float64
-	// PumpEvents drains the OS/queue and returns events since last pump.
+	// PumpEvents drains the OS/queue and returns events since last pump (non-blocking).
 	PumpEvents() []Event
-	// RequestRedraw asks the host to schedule another frame.
+	// WaitEvents waits for input then drains like PumpEvents.
+	// timeout < 0: block until events or WakeUp; 0: non-blocking; >0: max wait.
+	WaitEvents(timeout time.Duration) []Event
+	// WakeUp unblocks a WaitEvents waiter (any goroutine). No-op if not waiting.
+	WakeUp()
+	// RequestRedraw asks the host to schedule another frame (enqueue EventRedraw + WakeUp).
 	RequestRedraw()
 	// Close releases host resources.
 	Close() error

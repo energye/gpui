@@ -7,11 +7,9 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/energye/gpui/examples/exboot"
 	"github.com/energye/gpui/gpu/types"
@@ -181,74 +179,41 @@ func main() {
 
 	tree := core.NewTree(root)
 	lastStatus := status
-	deadline := time.Now().Add(time.Duration(seconds * float64(time.Second)))
-	frames := 0
+	autoSeed := false
 
-	for time.Now().Before(deadline) {
-		for _, ev := range host.PumpEvents() {
-			if ev.Type == platform.EventClose {
-				goto done
-			}
-			// Map key presses with single-char as text for EditableText demo
+	res := exboot.RunUIDemand(exboot.UIDemandConfig{
+		Host: host, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
+		Clear:   theme.Color(core.TokenColorBgLayout),
+		Seconds: seconds,
+		Flush:   host.Flush,
+		BeforeDispatch: func(tr *core.Tree, ev platform.Event) bool {
 			if ev.Type == platform.EventKey && ev.Down && len(ev.Key) == 1 {
-				tree.DispatchTextInput(&core.TextInputEvent{Text: ev.Key})
-				continue
+				tr.DispatchTextInput(&core.TextInputEvent{Text: ev.Key})
+				return true
 			}
-			if resize, _ := platform.Dispatch(tree, ev); resize != nil {
-				winW, winH = resize.Width, resize.Height
-				if winW < 64 {
-					winW = 64
+			return false
+		},
+		OnResize: func(w, h int) {
+			winW, winH = w, h
+			root.Width, root.Height = float64(w), float64(h)
+			root.MarkNeedsLayout()
+		},
+		OnUpdate: func(dt float64) {
+			if status != lastStatus {
+				statusTx.SetValue("status: " + status)
+				lastStatus = status
+			}
+			if !autoSeed {
+				autoSeed = true
+				// seed after first update if empty (was frames==20)
+				if name.Value == "" {
+					tree.SetFocus(name.Editor())
+					tree.DispatchTextInput(&core.TextInputEvent{Text: "Ada"})
+					log.Printf("auto-typed Ada")
 				}
-				if winH < 64 {
-					winH = 64
-				}
-				root.Width, root.Height = float64(winW), float64(winH)
-				pop.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
-				root.MarkNeedsLayout()
-				_ = sc.Resize(uint32(winW), uint32(winH))
-				_ = dc.Resize(winW, winH)
 			}
-		}
-		pop.Sync()
-		if status != lastStatus {
-			statusTx.SetValue("status: " + status)
-			lastStatus = status
-		}
-
-		dc.BeginFrame()
-		dc.ClearWithColor(theme.Color(core.TokenColorBgLayout))
-		pc := &core.PaintContext{DC: dc, Scale: host.ScaleFactor(), Theme: theme}
-		tree.Frame(pc, core.Size{Width: float64(winW), Height: float64(winH)})
-
-		if device != nil {
-			device.FlushCallbacks()
-		}
-		frame, err := sc.BeginFrame()
-		if err != nil {
-			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-				time.Sleep(16 * time.Millisecond)
-				continue
-			}
-			continue
-		}
-		if _, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
-			return sc.EndFrame(frame)
-		}); err != nil {
-			sc.DiscardFrame(frame)
-			time.Sleep(16 * time.Millisecond)
-			continue
-		}
-		host.Flush()
-		frames++
-
-		// Auto seed input once
-		if frames == 20 && name.Value == "" {
-			tree.SetFocus(name.Editor())
-			tree.DispatchTextInput(&core.TextInputEvent{Text: "Ada"})
-			log.Printf("auto-typed Ada")
-		}
-	}
-done:
-	fmt.Printf("ui_kit_b1_smoke done frames=%d status=%q %s\n",
-		frames, status, dc.RenderPathStats().LogLine())
+		},
+	})
+	fmt.Printf("ui_kit_b1_smoke done frames=%d paints=%d hops=%d status=%q %s\n",
+		res.Loops, res.Paints, res.Hops, status, dc.RenderPathStats().LogLine())
 }

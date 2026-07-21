@@ -2,7 +2,10 @@
 
 package platform
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // WindowsHost is an M6 stub host. Real Win32/WinUI adapter lands when GPU
 // surface bootstrap for Windows is productized; API matches LinuxHost.
@@ -61,18 +64,38 @@ func (h *WindowsHost) ScaleFactor() float64 {
 
 // PumpEvents implements Host.
 func (h *WindowsHost) PumpEvents() []Event {
-	if h == nil || h.closed || len(h.queue) == 0 {
+	return h.WaitEvents(0)
+}
+
+// WaitEvents implements Host (stub: queue + optional sleep).
+func (h *WindowsHost) WaitEvents(timeout time.Duration) []Event {
+	if h == nil || h.closed {
 		return nil
 	}
-	out := h.queue
-	h.queue = nil
-	return out
+	if len(h.queue) > 0 {
+		out := h.queue
+		h.queue = nil
+		return out
+	}
+	if timeout > 0 {
+		time.Sleep(timeout)
+		if len(h.queue) > 0 {
+			out := h.queue
+			h.queue = nil
+			return out
+		}
+	}
+	return nil
 }
+
+// WakeUp implements Host (no waiter on stub).
+func (h *WindowsHost) WakeUp() {}
 
 // RequestRedraw implements Host.
 func (h *WindowsHost) RequestRedraw() {
 	h.redraws++
 	h.queue = append(h.queue, Event{Type: EventRedraw})
+	h.WakeUp()
 }
 
 // Close implements Host.

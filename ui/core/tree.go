@@ -20,6 +20,12 @@ type Tree struct {
 
 	// clock drives Motion/Presence (C-Motion).
 	clock *Clock
+
+	// tickers drive demand-mode animation (gogpu ANIMATING).
+	tickers []tickerEntry
+
+	// onDirty optional wakeup when markDirty flips dirty→true or re-dirties.
+	onDirty func()
 }
 
 // NewTree creates a tree with the given root (may be nil).
@@ -69,10 +75,14 @@ func (t *Tree) SetRoot(root Node) {
 // Viewport returns the last layout viewport.
 func (t *Tree) Viewport() Size { return t.viewport }
 
-// markDirty flags that a frame phase is needed.
+// markDirty flags that a frame phase is needed and notifies onDirty.
 func (t *Tree) markDirty() {
-	if t != nil {
-		t.dirty = true
+	if t == nil {
+		return
+	}
+	t.dirty = true
+	if t.onDirty != nil {
+		t.onDirty()
 	}
 }
 
@@ -82,6 +92,14 @@ func (t *Tree) MarkDirty() { t.markDirty() }
 // Dirty reports whether layout or paint is needed.
 func (t *Tree) Dirty() bool {
 	return t != nil && t.dirty
+}
+
+// ClearDirty clears the tree-level dirty bit without painting.
+// Prefer Paint (which clears after a successful pass). Used by tests/schedulers.
+func (t *Tree) ClearDirty() {
+	if t != nil {
+		t.dirty = false
+	}
 }
 
 // Layout runs a single layout pass on the root with tight viewport constraints,
@@ -126,11 +144,24 @@ func (t *Tree) Paint(pc *PaintContext) {
 }
 
 // Frame runs layout then paint for the viewport.
+// Callers that want demand-driven skips should gate on Dirty()/NeedsFrame()
+// (gogpu: OnDraw only when invalidated). Frame itself always runs when called.
 func (t *Tree) Frame(pc *PaintContext, viewport Size) {
 	t.Layout(viewport)
 	if pc != nil {
 		t.Paint(pc)
 	}
+}
+
+// FrameIfNeeded runs Frame only when Dirty() is true.
+// Active tickers alone do not paint — tickers must MarkDirty/MarkNeedsPaint
+// when visual state changes (gogpu ANIMATING: onUpdate every tick, OnDraw on RequestRedraw).
+func (t *Tree) FrameIfNeeded(pc *PaintContext, viewport Size) bool {
+	if t == nil || !t.Dirty() {
+		return false
+	}
+	t.Frame(pc, viewport)
+	return true
 }
 
 // HitTest returns the deepest hit under absolute tree coordinates.

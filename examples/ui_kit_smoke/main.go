@@ -7,11 +7,9 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/energye/gpui/examples/exboot"
 	"github.com/energye/gpui/gpu/types"
@@ -199,91 +197,51 @@ func main() {
 
 	tree := core.NewTree(root)
 
-	deadline := time.Now().Add(time.Duration(seconds * float64(time.Second)))
-	frames := 0
 	lastStatus := status
+	autoclickDone := false
 
-	for time.Now().Before(deadline) {
-		for _, ev := range host.PumpEvents() {
-			if ev.Type == platform.EventClose {
-				goto done
+	res := exboot.RunUIDemand(exboot.UIDemandConfig{
+		Host: host, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
+		Clear:   theme.Color(core.TokenColorBgLayout),
+		Seconds: seconds,
+		Flush:   host.Flush,
+		OnResize: func(w, h int) {
+			winW, winH = w, h
+			root.Width, root.Height = float64(w), float64(h)
+			root.MarkNeedsLayout()
+		},
+		OnUpdate: func(dt float64) {
+			for _, b := range btns {
+				b.SyncState()
 			}
-			if resize, _ := platform.Dispatch(tree, ev); resize != nil {
-				winW, winH = resize.Width, resize.Height
-				if winW < 64 {
-					winW = 64
+			if status != lastStatus {
+				statusText.SetValue("status: " + status)
+				lastStatus = status
+			}
+			if v := os.Getenv("GPUI_SMOKE_AUTOCLICK"); v != "" && !autoclickDone {
+				var n int
+				fmt.Sscanf(v, "%d", &n)
+				if n > 0 {
+					autoclickDone = true
+					x, y := absoluteCenter(primary.Root)
+					platform.Dispatch(tree, platform.Event{
+						Type: platform.EventPointer, Pointer: platform.PointerDown,
+						X: x, Y: y, Button: platform.BtnLeft,
+					})
+					platform.Dispatch(tree, platform.Event{
+						Type: platform.EventPointer, Pointer: platform.PointerUp,
+						X: x, Y: y, Button: platform.BtnLeft,
+					})
+					for _, b := range btns {
+						b.SyncState()
+					}
+					log.Printf("auto-click at %.0f,%.0f", x, y)
 				}
-				if winH < 64 {
-					winH = 64
-				}
-				root.Width, root.Height = float64(winW), float64(winH)
-				root.MarkNeedsLayout()
-				_ = sc.Resize(uint32(winW), uint32(winH))
-				_ = dc.Resize(winW, winH)
 			}
-		}
-		for _, b := range btns {
-			b.SyncState()
-		}
-		if status != lastStatus {
-			statusText.SetValue("status: " + status)
-			lastStatus = status
-		}
-
-		dc.BeginFrame()
-		dc.ClearWithColor(theme.Color(core.TokenColorBgLayout))
-		pc := &core.PaintContext{DC: dc, Scale: host.ScaleFactor(), Theme: theme}
-		tree.Frame(pc, core.Size{Width: float64(winW), Height: float64(winH)})
-
-		if device != nil {
-			device.FlushCallbacks()
-		}
-		frame, err := sc.BeginFrame()
-		if err != nil {
-			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-				time.Sleep(16 * time.Millisecond)
-				continue
-			}
-			log.Printf("BeginFrame: %v", err)
-			continue
-		}
-		if _, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
-			return sc.EndFrame(frame)
-		}); err != nil {
-			sc.DiscardFrame(frame)
-			time.Sleep(16 * time.Millisecond)
-			continue
-		}
-		host.Flush()
-		frames++
-
-		if v := os.Getenv("GPUI_SMOKE_AUTOCLICK"); v != "" {
-			var n int
-			fmt.Sscanf(v, "%d", &n)
-			if n > 0 && frames == n {
-				// Prefer exact primary button center after layout.
-				x := primary.Root.Offset().X + primary.Root.Size().Width/2
-				y := primary.Root.Offset().Y + primary.Root.Size().Height/2
-				// Offsets are relative; walk absolute.
-				x, y = absoluteCenter(primary.Root)
-				platform.Dispatch(tree, platform.Event{
-					Type: platform.EventPointer, Pointer: platform.PointerDown,
-					X: x, Y: y, Button: platform.BtnLeft,
-				})
-				platform.Dispatch(tree, platform.Event{
-					Type: platform.EventPointer, Pointer: platform.PointerUp,
-					X: x, Y: y, Button: platform.BtnLeft,
-				})
-				for _, b := range btns {
-					b.SyncState()
-				}
-				log.Printf("auto-click at %.0f,%.0f", x, y)
-			}
-		}
-	}
-done:
-	fmt.Printf("ui_kit_smoke done frames=%d clicks=%d status=%q %s\n",
-		frames, clicks, status, dc.RenderPathStats().LogLine())
+		},
+	})
+	fmt.Printf("ui_kit_smoke done frames=%d paints=%d hops=%d clicks=%d status=%q %s\n",
+		res.Loops, res.Paints, res.Hops, clicks, status, dc.RenderPathStats().LogLine())
 }
 
 func absoluteCenter(n core.Node) (x, y float64) {

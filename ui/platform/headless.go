@@ -1,10 +1,15 @@
 package platform
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 // Headless is an in-memory Host for layout/hit tests and CI (no OS window).
+// Supports gogpu-style WaitEvents / WakeUp for demand-driven frame tests.
 type Headless struct {
 	mu sync.Mutex
+	cv *sync.Cond
 
 	width, height int
 	scale         float64
@@ -14,6 +19,7 @@ type Headless struct {
 	redraws int
 	closed  bool
 	focused bool
+	wake    int // WakeUp generations
 
 	// Last SetIMEPosition (tests / C3).
 	imeX, imeY float64
@@ -28,13 +34,15 @@ func NewHeadless(width, height int) *Headless {
 	if height <= 0 {
 		height = 600
 	}
-	return &Headless{
+	h := &Headless{
 		width:   width,
 		height:  height,
 		scale:   1,
 		caps:    HeadlessCaps,
 		focused: true,
 	}
+	h.cv = sync.NewCond(&h.mu)
+	return h
 }
 
 // Caps implements Host.
@@ -64,10 +72,50 @@ func (h *Headless) SetScale(s float64) {
 	h.scale = s
 }
 
-// PumpEvents implements Host.
+// PumpEvents implements Host (non-blocking).
 func (h *Headless) PumpEvents() []Event {
+	return h.WaitEvents(0)
+}
+
+// WaitEvents implements Host.
+func (h *Headless) WaitEvents(timeout time.Duration) []Event {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.closed {
+		return nil
+	}
+	if len(h.queue) > 0 {
+		return h.takeQueueLocked()
+	}
+	if timeout == 0 {
+		return nil
+	}
+	if timeout > 0 {
+		// Timed wait via channel + cond (avoid holding lock during sleep incorrectly).
+		timer := time.AfterFunc(timeout, func() { h.WakeUp() })
+		defer timer.Stop()
+		startWake := h.wake
+		for len(h.queue) == 0 && !h.closed && h.wake == startWake {
+			h.cv.Wait()
+		}
+	} else {
+		// Block until queue, WakeUp, or close.
+		for len(h.queue) == 0 && !h.closed {
+			startWake := h.wake
+			h.cv.Wait()
+			if h.wake != startWake && len(h.queue) == 0 {
+				// Pure wakeup without events — return empty (scheduler re-checks).
+				return nil
+			}
+		}
+	}
+	if h.closed {
+		return nil
+	}
+	return h.takeQueueLocked()
+}
+
+func (h *Headless) takeQueueLocked() []Event {
 	if len(h.queue) == 0 {
 		return nil
 	}
@@ -76,12 +124,21 @@ func (h *Headless) PumpEvents() []Event {
 	return out
 }
 
+// WakeUp implements Host.
+func (h *Headless) WakeUp() {
+	h.mu.Lock()
+	h.wake++
+	h.mu.Unlock()
+	h.cv.Broadcast()
+}
+
 // RequestRedraw implements Host.
 func (h *Headless) RequestRedraw() {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.redraws++
 	h.queue = append(h.queue, Event{Type: EventRedraw})
+	h.mu.Unlock()
+	h.WakeUp()
 }
 
 // RedrawCount returns how many times RequestRedraw was called.
@@ -94,16 +151,18 @@ func (h *Headless) RedrawCount() int {
 // Close implements Host.
 func (h *Headless) Close() error {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.closed = true
+	h.mu.Unlock()
+	h.WakeUp()
 	return nil
 }
 
 // Inject enqueues a synthetic event (tests).
 func (h *Headless) Inject(ev Event) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.queue = append(h.queue, ev)
+	h.mu.Unlock()
+	h.WakeUp()
 }
 
 // InjectPointer is a convenience for pointer events.
@@ -120,9 +179,10 @@ func (h *Headless) InjectClick(x, y float64) {
 // Resize changes the client size and enqueues a resize event.
 func (h *Headless) Resize(width, height int) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.width, h.height = width, height
 	h.queue = append(h.queue, Event{Type: EventResize, Width: width, Height: height})
+	h.mu.Unlock()
+	h.WakeUp()
 }
 
 // InjectScroll enqueues a scroll event at (x,y).
@@ -161,7 +221,6 @@ func (h *Headless) LastIMEPosition() (x, y float64, n int) {
 	return h.imeX, h.imeY, h.imePosN
 }
 
-// var _ Host = (*Headless)(nil) at bottom of file after methods — compile check.
 var (
 	_ Host          = (*Headless)(nil)
 	_ IMEPositioner = (*Headless)(nil)

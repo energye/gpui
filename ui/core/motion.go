@@ -185,11 +185,13 @@ func (t *Tree) Clock() *Clock {
 	return t.clock
 }
 
-// TickClock advances tree animation clock and marks dirty if any motion may run.
+// TickClock advances the tree animation clock only (does not mark dirty).
+// Demand-driven hosts must not treat a clock tick as a paint request.
+// Use AddTicker + TickActive for animations; visual changes call MarkNeedsPaint.
+// Deprecated path for hosts that still call TickClock: prefer TickActive.
 func (t *Tree) TickClock(dt float64) {
 	if t == nil {
 		return
 	}
 	t.Clock().Tick(dt)
-	t.MarkDirty()
 }

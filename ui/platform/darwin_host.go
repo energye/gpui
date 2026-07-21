@@ -2,7 +2,10 @@
 
 package platform
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // DarwinHost is an M6 stub host for macOS. Real AppKit/Metal surface adapter
 // is deferred; API surface matches LinuxHost/WindowsHost.
@@ -60,18 +63,38 @@ func (h *DarwinHost) ScaleFactor() float64 {
 
 // PumpEvents implements Host.
 func (h *DarwinHost) PumpEvents() []Event {
-	if h == nil || h.closed || len(h.queue) == 0 {
+	return h.WaitEvents(0)
+}
+
+// WaitEvents implements Host (stub: queue + optional sleep).
+func (h *DarwinHost) WaitEvents(timeout time.Duration) []Event {
+	if h == nil || h.closed {
 		return nil
 	}
-	out := h.queue
-	h.queue = nil
-	return out
+	if len(h.queue) > 0 {
+		out := h.queue
+		h.queue = nil
+		return out
+	}
+	if timeout > 0 {
+		time.Sleep(timeout)
+		if len(h.queue) > 0 {
+			out := h.queue
+			h.queue = nil
+			return out
+		}
+	}
+	return nil
 }
+
+// WakeUp implements Host (no waiter on stub).
+func (h *DarwinHost) WakeUp() {}
 
 // RequestRedraw implements Host.
 func (h *DarwinHost) RequestRedraw() {
 	h.redraws++
 	h.queue = append(h.queue, Event{Type: EventRedraw})
+	h.WakeUp()
 }
 
 // Close implements Host.
