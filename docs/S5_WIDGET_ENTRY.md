@@ -1,6 +1,6 @@
 # S5.5 — 控件层开工入口条件
 
-> 版本：1.2 | 日期：2026-07-21  
+> 版本：1.6 | 日期：2026-07-21  
 > 状态：**S5.5 关闭 / S5 全线关闭** — **允许**开控件层主线  
 > 引擎缺口（开工后仍要跟）：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md)
 
@@ -42,10 +42,11 @@
 
 ## 4. 建议的控件层第一批（非 S5 范围）
 
-形态：Button / Input / Modal / List row / Table cell — **仅组件 API**，绘制全走 `Context`。
+形态：先 **primitive 积木**，再组合为 Button / Input / Modal 等产品控件；绘制全走 `Context`。
 
-完整框架（分层 / 插件 / 跨平台 / M0–M6）→ [`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md)。  
-目标包：`ui/core` + `ui/kit` + `ui/skin/*` + `ui/platform`（**无**默认 `ui/antd`）。
+完整规格 → [`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) **v4.1**（含 Ant 全量 → primitive 组合清单）。  
+目标包：`ui/core` + **`ui/primitive`**（组合底层）+ `ui/kit`（产品面，默认可对标 Ant）+ `ui/skin/default` + `ui/platform`。  
+**包名不用 `ui/antd`**；Ant 是 kit+skin 目标，**不是**底座。
 
 ---
 
@@ -56,3 +57,7 @@
 | 2026-07-15 | 1.0 | S5.5 关闭 |
 | 2026-07-21 | 1.1 | 对齐现网 lifecycle；挂 ENGINE_GAPS |
 | 2026-07-21 | 1.2 | 挂合并后的 UI_FRAMEWORK_MAP |
+| 2026-07-21 | 1.3 | 默认 Ant 能力/风格；包名 kit+skin/default |
+| 2026-07-21 | 1.4 | 挂 UI_FRAMEWORK_MAP v3.0 完整规格 |
+| 2026-07-21 | 1.5 | 挂 v4.0：primitive 组合底座 + kit 产品面 |
+| 2026-07-21 | 1.6 | 挂 v4.1 Ant 全量组合能力清单 |
