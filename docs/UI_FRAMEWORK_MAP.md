@@ -1,6 +1,6 @@
 # UI 框架总图与规划 — Primitive 组合底座 × Kit 产品面 × Flutter 管线 × render
 
-> 版本：4.1 | 日期：2026-07-21 | **活文档 · M0–M6 主路径已落地**  
+> 版本：4.4 | 日期：2026-07-21 | **活文档 · 打磨 §12.1 · 测试 §12.2 · 波次执行 §12.3**  
 > 状态：**控件产品架构以「primitive 组合」为底座**；已含 **Ant 全量组件 → 组合能力反推清单**  
 > 入口：[`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) ✅  
 > 引擎：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) · [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
@@ -775,6 +775,462 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 
 **说明**：Win/mac 为可编译 SPI stub（合成事件），真 HWND/AppKit 适配仍后置；不改引擎主线。
 
+### 12.1 主路径视觉与输入打磨（需求清单）
+
+> **需求名**：主路径视觉与输入打磨  
+> **英文 / Epic**：`polish: visual chrome + IME` · `M5 polish — default skin & input`  
+> **背景**：M0–M6 **功能主路径已落地**，kit 控件多为灰盒/可辨认级，观感简陋（圆角边框、指示器、状态色等）；IME 事件模型有骨架，真宿主与体验需补完。  
+> **目标**：主路径 **观感自然可用** + **输入（含 IME）可用**；**不是** Ant 全库像素级、不是推倒重做。  
+> **原则**：先磨 **共用绘制链**，再磨指示器与基础控件；IME **可并行**，不与圆角绑同一 PR。M4+ 新控件必须走已打磨的 Decorated，禁止再分叉手绘边框。
+
+#### 范围
+
+| 包含 | 不包含（本需求外） |
+|------|-------------------|
+| `PaintContext` 圆角 fill/stroke 质量 | Table/Tree 高密度像素精修 |
+| `Decorated` + `skin/default` 单路径 | 全量 Ant 长尾组件 |
+| Checkbox / Radio / Switch 指示器 | 复杂动效体系（可仅最小） |
+| Button / Input 主状态观感与 Token | 真 Win32/AppKit present |
+| 焦点环最小可见 | 多端视觉矩阵 CI |
+| Linux IME composition→上屏主路径 | 推倒 core 架构 |
+
+#### A. 共用绘制（优先）
+
+| # | 任务 | 主要路径 | 完成标准（DoD） |
+|---|------|----------|-----------------|
+| A1 | 圆角 Fill/Stroke 质量 | `ui/core/paint.go`（`FillLocalRoundRect` / `StrokeLocalRoundRect`） | 1px 边框清晰；fill 与 stroke 半径对齐；常见尺寸不糊、无双边/明显锯齿 |
+| A2 | Decorated 绘制单路径 | `ui/primitive/decorated.go` · `ui/skin/default/skin.go` | skin 与节点 default **同一套** fill+stroke 顺序与 Token 解析；Button/Input/面板同源 |
+| A3 | Token 圆角/边框/控件高度 | `ui/core/theme.go` · kit 读 Token | 主路径少魔法数；`borderRadius*` / `controlHeight*` 生效 |
+
+#### B. 指示器与基础控件
+
+| # | 任务 | 主要路径 | 完成标准（DoD） |
+|---|------|----------|-----------------|
+| B1 | Checkbox | `ui/kit/checkbox.go`（及共享绘制 helper） | 小圆角方框；勾几何居中；选中/半选/禁用可辨且不别扭 |
+| B2 | Radio | `ui/kit` 对应实现 | **真圆** + 内点居中；组内选中正确 |
+| B3 | Switch | 若已有实现 | 轨道/滑块几何稳定；开/关/禁用可辨 |
+| B4 | Button | `ui/kit/button.go` | 高度/padding/圆角齐 Token；primary/default/disabled/hover 正确 |
+| B5 | Input | `ui/kit/input.go` | 边框/焦点态可读；placeholder 可辨 |
+| B6 | 焦点环最小集 | Focus 绘制或 Decorated 扩展 | 键盘聚焦时主路径控件可见 focus ring |
+
+#### C. 输入 / IME（可与 A/B 并行）
+
+| # | 任务 | 主要路径 | 完成标准（DoD） |
+|---|------|----------|-----------------|
+| C1 | Host → IME 事件 | `ui/platform/linux_*` → `Tree.DispatchIME` | 真窗 composition 能进 core（非仅单测假事件） |
+| C2 | Editable preedit + commit | `ui/primitive/editable.go` · kit Input | 预编辑可见；commit 写入值；End 清理 preedit |
+| C3 | IME 候选位置 | `SetIMEPosition` / caret 几何 | Caps 支持时候选靠近 caret；不支持则文档/Caps 标明 |
+| C4 | 单行输入回归 | smoke 或手工清单 | 中文拼写→上屏→删除/退格主路径通过 |
+
+#### D. 主路径走查（收口）
+
+| # | 任务 | 完成标准（DoD） |
+|---|------|-----------------|
+| D1 | 固定 gallery / smoke 页 | 含 Button（多 Type）· Input · Checkbox/Radio · 可选 Form/Modal；真窗可对照 |
+| D2 | 风格一致性抽查 | 主路径无「每控件一套手绘边框」；均走 Decorated/Token |
+| D3 | 范围确认 | 本需求 **不做** Table 像素精修、全 Ant、复杂动效、Win/mac 真适配 |
+
+#### E. 验收（本需求完成）
+
+- [ ] 共用 chrome 无「明显锯齿 / 双边 / 圆角崩」  
+- [ ] Checkbox/Radio（及已做 Switch）指示器自然可辨  
+- [ ] Button/Input 主状态观感一致、可读  
+- [ ] Linux 下 IME 主路径可用（或正式写清 Caps 降级范围）  
+- [ ] 主路径控件统一 Decorated + Token，无分叉画法  
+- [ ] gallery/smoke 走查通过  
+
+#### 建议执行顺序
+
+```text
+A1 → A2 → A3 → B1/B2/B3 → B4/B5 → B6
+              ↘ C1 → C2 → C3 → C4（并行）
+                    → D1–D3 收口 → E 验收
+```
+
+#### 状态
+
+| 项 | 状态 |
+|----|------|
+| 功能主路径 M0–M6 | ✅ 已落地（见 §12） |
+| 本打磨需求 | **待执行**（清单即需求正文） |
+| 测试方案 | 见 **§12.2**（三轨：逻辑 / 视觉回归 / 人工走查） |
+
+### 12.2 主路径打磨 — 测试方案
+
+> 配套 §12.1。目标：**AI 可写、CI 不脆、人能判观感、动态与 IME 可验收**。  
+> 对标 Ant Design / Flutter = **设计语言与交互正确**，**不是**与官网 PNG 逐像素一致。  
+> 现有 `ui/kit/golden_test.go` 的「非白像素计数」仅作冒烟；打磨阶段以本方案为准升级。
+
+#### 12.2.1 目标拆分（勿混测）
+
+| 问题 | 回答方式 |
+|------|----------|
+| 行为对不对？ | 轨 1 逻辑单测 |
+| 这版有没有画坏？ | 轨 2 部件图回归（**本库基线**） |
+| 像不像 Ant、好不好看？ | 轨 3 人眼 + 固定 gallery（非 CI 对齐官网） |
+| 动态 / IME 手感？ | 真窗短清单 + 可选关键帧导出 |
+
+#### 12.2.2 三轨架构
+
+```text
+轨 1  逻辑契约     — CI 必跑
+轨 2  视觉回归     — 小画布部件 PNG + 容差；CI 建议跑 / 可夜间
+轨 3  人工走查     — 打磨 PR 必做；真窗 + 短脚本
+```
+
+##### 轨 1 — 逻辑契约
+
+**不截图。** 改动至少覆盖（Headless / `go test`）：
+
+- 布局：固定 Constraints 下 Size/Offset；连续两次 layout 稳定  
+- 状态：hover / press / checked / disabled / focus 与回调  
+- Hit：盒内/外命中  
+- IME：可灌 `IMECompositionEvent` 序列 → preedit / commit / 清空  
+
+**通过**：`go test ./ui/core ./ui/primitive ./ui/kit ./ui/platform`（及后续 `./ui/visualtest`）必绿。  
+**不负责**：观感。
+
+##### 轨 2 — 视觉回归（部件「证件照」）
+
+**核心**：每个关键外观 = 固定尺寸小画布，CPU `render.Context` → 位图，与仓库 **自有基线** 比对（**不比** ant.design 网站图）。
+
+**场景约束**
+
+- 白底或棋盘格；`scale=1`；固定 Theme  
+- 尽量无字，或固定测试串/字体；优先只测 chrome（圆角、边框、勾、点、按钮块）  
+- 基线路径建议：`ui/visualtest/testdata/visual/<id>.png`（或等价）  
+- 实现建议包：`ui/visualtest`（harness + compare + scenarios）
+
+**第一期场景表（最低集）**
+
+| ID | 内容 | 建议尺寸 |
+|----|------|----------|
+| `roundrect_fill_stroke` | r=6、border=1、填充+描边 | 64×64 |
+| `button_primary` | primary 块（可无字或单字） | 120×40 |
+| `button_default` | default 块 | 120×40 |
+| `checkbox_off` / `checkbox_on` / `checkbox_indeterminate` | 指示器 | 32×32 |
+| `radio_off` / `radio_on` | 真圆+内点 | 32×32 |
+| `input_idle` / `input_focus` | 输入框轮廓 | 200×32 |
+
+**比对规则**
+
+1. 与本库基线比，禁止依赖外网截图。  
+2. **容差**：如每通道 ≤2，或 diff 像素占比阈值（抗锯齿）；禁止默认「PNG 严格相等」作为唯一标准。  
+3. 失败写出 `actual.png` + `diff.png`（差异高亮）。  
+4. 有意改观感：显式更新基线（如 `UPDATE_VISUAL=1`），PR 说明改了什么。  
+
+**与 Ant 的关系**：仅在 **建立或大改基线时** 人眼并排 ant.design；满意后 `UPDATE` 进库。CI 只锁「我们已认可的样子」。
+
+**不做（保证可行）**：全窗口 GPU 像素 CI 优先；与官网实时截图比对；动画全程逐帧视频 diff。
+
+##### 轨 3 — 人工走查（打磨棚）
+
+**入口**：新建 `examples/ui_polish_gallery`（或扩展现有 smoke，须一屏可对照）。
+
+**建议分区**：Button 多 Type · Input 多态 · Checkbox/Radio · 可选 Modal/Form。
+
+**手操清单（打磨 PR 必勾，约 5～10 分钟）**
+
+| # | 操作 | 看什么 |
+|---|------|--------|
+| 1 | 静态浏览 | 圆角、1px 边、间距是否像控件 |
+| 2 | 鼠标扫 Button/Checkbox | hover/press 干净 |
+| 3 | Tab 走焦 | focus 环可见 |
+| 4 | 点 Checkbox/Radio | 选中圆滑、居中 |
+| 5 | Linux 中文输入 | 预编辑、上屏、退格 |
+| 6 | 开一次 Modal | 遮罩、焦点、Esc |
+
+可选：快捷键导出当前帧 PNG，PR 附 2～3 张关键图。  
+**Flutter**：只作交互/桌面化参照，不对标 Material 皮。  
+**Ant**：设计语言参照，不要求像素哈希一致。
+
+##### 动态效果
+
+| 类型 | 测法 |
+|------|------|
+| Hover/Press/Focus | 轨 1 状态断言 + 可选每态一帧部件图；真窗手操 |
+| 选中切换 | 单测 + 真窗点选 |
+| Modal 开合 | 逻辑焦点 trap；开/关关键帧；动效真窗看 |
+| Motion | 真窗；或 `TickClock` 抽 t=0 / 中 / 末 三帧（可选进轨 2） |
+| IME | 见下小节 |
+
+##### IME 子轨（与纯视觉并行）
+
+| 级别 | 内容 |
+|------|------|
+| 自动 | Headless composition → preedit/commit 断言 |
+| **必过人工** | Linux 真窗：拼音→选字→上屏→删除 |
+| 可选 | caret / 候选位置眼看 |
+
+无真窗 IME 通过，§12.1 C/E 中「输入可用」不得勾完成（除非正式记录 Caps 降级）。
+
+#### 12.2.3 AI 改代码固定工作流
+
+```text
+改绘制/控件
+  → go test ./ui/...
+  → go test ./ui/visualtest/...     # 部件图 diff（落地后）
+  → 失败看 diff.png，修到绿或有意 UPDATE 基线
+  → 开 polish gallery 跑手操 1–6
+  → 需要时并排 ant.design 一眼
+  → 合入
+```
+
+**对 AI / 实现者约束**
+
+1. 先改 `paint` / `Decorated`，再改单个 kit。  
+2. 每个外观改动应对应 **≥1 个 scenario ID**（轨 2）。  
+3. **禁止**仅用「非白像素数量」作为观感验收。  
+4. 更新 visual 基线必须在 PR 说明观感变更。  
+
+#### 12.2.4 与 §12.1 任务映射
+
+| §12.1 | 主测法 |
+|-------|--------|
+| A1 圆角 stroke | 轨 2 `roundrect_*` + 轨 3 |
+| A2 Decorated | 多控件同帧一致性 + 轨 2 button/input |
+| A3 Token | 换 Token 后部件图/布局断言 |
+| B1–B3 指示器 | 轨 2 checkbox/radio ROI + 轨 3 |
+| B4–B5 Button/Input | 轨 2 多状态 + 轨 3 |
+| B6 焦点环 | 轨 1 focus + 轨 3 Tab |
+| C1–C4 IME | IME 子轨 |
+| D/E 走查验收 | 轨 3 清单 + 轨 1/2 绿 |
+
+#### 12.2.5 分期落地
+
+| 阶段 | 交付 |
+|------|------|
+| 波次 1 | `ui/visualtest` harness + 第一期场景表 + 容差 diff；gallery 入口 + 手操清单 |
+| 波次 2 | Checkbox/Radio/Button/Input 全进 scenario；IME 自动+真窗条目写入 checklist |
+| 常态 | 新主路径控件合并前至少 1 张部件图；大改皮肤才批量 UPDATE 基线 |
+
+#### 12.2.6 本方案成功标准
+
+1. 破坏圆角/勾形的改动 → 轨 2 失败并出 diff。  
+2. 行为回归 → 轨 1 失败。  
+3. 打磨 PR 无轨 3 手操 → 不算 §12.1 完成。  
+4. 团队以 **本库 visual 基线** 为 CI 真相；Ant/Flutter 仅人眼参照。  
+
+#### 12.2.7 状态
+
+| 项 | 状态 |
+|----|------|
+| 方案入文档 | ✅ §12.2 |
+| `ui/visualtest` 落地 | **待实现** |
+| `examples/ui_polish_gallery` | **待实现**（或等价 smoke 分区） |
+
+### 12.3 打磨执行波次（给 AI 的精确工作包）
+
+> **总 Goal**：完成 §12.1 E 验收 + §12.2.6 成功标准。  
+> **用法**：每个 AI 会话 **只执行一个波次**；会话开头粘贴该波「AI 只做 / 禁止」全文。上一波 DoD 全绿再开下一波。  
+> **总约束（每波都适用）**：只改 `ui/**` 与必要 `examples/ui_polish_*`（或文档标明的 smoke）；不改引擎主线大重构；不讨论/重写架构；禁止仅用「非白像素计数」作观感验收；做完必须跑通本波测试并汇报文件列表与结果。
+
+#### 全局禁止（所有波次）
+
+| 禁止 | 说明 |
+|------|------|
+| 改 `render/` / `gpu/` 大行为（除非 paint 调用缺 API 且最小补丁） | 打磨在 UI 层 |
+| 做 Table/Tree 像素精修、全 Ant 长尾 | 范围外 |
+| 真 Win32/AppKit present | 后置 |
+| 推倒 `core` 树模型 / 换包结构 | 不做 |
+| 同一会话跨多个波次「顺便做完」 | 易失控；除非用户明确 `连续 W1–W4` |
+| 静默大规模 UPDATE 全部 golden | 有意更新须在汇报中说明 ID |
+
+---
+
+#### W1 — 视觉测试基建 + 圆角描边
+
+| 项 | 内容 |
+|----|------|
+| **波次 ID** | `W1` |
+| **标题** | `ui/visualtest` + `PaintContext` 圆角 fill/stroke |
+| **依赖** | 无（可直接开） |
+| **对应清单** | §12.1 **A1**；§12.2 轨 2 波次 1 前半 |
+
+**AI 只做**
+
+1. 新建 `ui/visualtest`（或文档等价路径）：  
+   - harness：创建 `render.Context` → 挂最小树或直接画 → `Image()`  
+   - compare：与 `testdata/visual/<id>.png` 容差比对；失败写 `actual.png` / `diff.png`（或测试输出目录）  
+   - 环境变量或测试 flag 更新基线（如 `UPDATE_VISUAL=1`）  
+2. 实现并固定第一期场景 **至少一个**：`roundrect_fill_stroke`（64×64，r=6，border=1，填充+描边）。  
+3. 修改 `ui/core/paint.go` 中 `FillLocalRoundRect` / `StrokeLocalRoundRect`，使圆角与 1px 描边对齐、不糊、无双边（满足 A1 DoD）。  
+4. 将通过后的 `roundrect_fill_stroke` 基线入库。  
+5. `go test` 覆盖：`./ui/core`、`./ui/visualtest`（新包）。
+
+**AI 禁止做**
+
+- 不改 Checkbox/Radio/Button/Input 业务逻辑（W2/W3）  
+- 不接 IME / platform 宿主（W4）  
+- 不做 gallery 全页（W3 可建最小入口则仅允许空壳，本波不强制）  
+- 不扩 scenario 表到 button/checkbox（那些是 W2/W3）  
+- 不「优化」无关 primitive  
+
+**完成标准（DoD）**
+
+- [ ] `go test ./ui/visualtest` 对 `roundrect_fill_stroke` 绿  
+- [ ] 破坏 stroke inset/radius 会导致测试失败（机制有效）  
+- [ ] `go test ./ui/core` 绿  
+- [ ] 汇报：改动文件、是否 UPDATE 基线、未做项  
+
+**本波交付物路径（预期）**
+
+- `ui/visualtest/*.go`  
+- `ui/visualtest/testdata/visual/roundrect_fill_stroke.png`（或等价）  
+- `ui/core/paint.go`  
+
+---
+
+#### W2 — Decorated 单路径 + 指示器
+
+| 项 | 内容 |
+|----|------|
+| **波次 ID** | `W2` |
+| **标题** | Decorated/skin 统一 + Checkbox/Radio/Switch 指示器 |
+| **依赖** | **W1 DoD 已满足** |
+| **对应清单** | §12.1 **A2、A3、B1、B2、B3** |
+
+**AI 只做**
+
+1. 合并/对齐 `ui/primitive/decorated.go` 与 `ui/skin/default` 的绘制：fill→stroke 顺序、Token 解析、半径与边框宽度 **单一实现路径**（A2）。  
+2. 主路径圆角/边框/控件高度尽量读 Token（A3）；去掉 kit 指示器上无必要的魔法数（合理默认可保留）。  
+3. 打磨 **Checkbox** 指示器：小圆角方框、勾居中、on/off/indeterminate/disabled 可辨（B1）。  
+4. 打磨 **Radio**：真圆 + 内点居中、组行为不回归（B2）。  
+5. 若仓库已有 **Switch**：轨道/滑块几何与开关态（B3）；**无则跳过并在汇报写明**。  
+6. 为轨 2 增加 scenario（在 W1 harness 上扩展）：  
+   - `checkbox_off` / `checkbox_on` / `checkbox_indeterminate`  
+   - `radio_off` / `radio_on`  
+   - （可选）`switch_off` / `switch_on`  
+7. `go test ./ui/primitive ./ui/kit ./ui/visualtest ./ui/core` 绿。
+
+**AI 禁止做**
+
+- 不系统改 Button/Input 的 Type 色板与高度体系（W3）  
+- 不做 focus ring 专项（W3 B6）  
+- 不接 IME（W4）  
+- 不改 Table/Modal/Form 结构  
+- 不为「更好看」引入第二套绘制 API 绕过 Decorated  
+
+**完成标准（DoD）**
+
+- [ ] Decorated 与 skin/default 无两套矛盾逻辑（或一处委托另一处，单一真源）  
+- [ ] checkbox/radio（及已有 switch）visual scenario 绿  
+- [ ] kit 相关单测绿；指示器真窗点选不崩（若本波无法真窗，须说明 + Headless 状态测绿）  
+- [ ] 汇报：文件列表、基线 ID、跳过的 B3 与否  
+
+**本波交付物路径（预期）**
+
+- `ui/primitive/decorated.go` · `ui/skin/default/*`  
+- `ui/kit/checkbox.go` 及 radio/switch 对应文件  
+- `ui/visualtest/testdata/visual/checkbox_*.png` · `radio_*.png`  
+
+---
+
+#### W3 — Button / Input / 焦点环 + Gallery
+
+| 项 | 内容 |
+|----|------|
+| **波次 ID** | `W3` |
+| **标题** | Button/Input 观感、focus ring、polish gallery |
+| **依赖** | **W2 DoD 已满足** |
+| **对应清单** | §12.1 **B4、B5、B6、D1**（D2 预检） |
+
+**AI 只做**
+
+1. **Button**：高度/padding/圆角对齐 Token；primary/default/disabled/hover（及已有 Type）色与边可读（B4）。  
+2. **Input**：边框、焦点态、placeholder 可读；与 Decorated 同源（B5）。  
+3. **焦点环最小集**：键盘/程序聚焦时主路径 Button/Input（及可聚焦指示器）有可见 focus 反馈（B6）；不实现完整 a11y 树扩展。  
+4. 轨 2 scenario：`button_primary`、`button_default`、`input_idle`、`input_focus`（尺寸按 §12.2 表）。  
+5. 新增或扩展 **`examples/ui_polish_gallery`**（若坚持复用 smoke，须在同一示例内固定分区且文档写路径）：  
+   - 一屏可见：Button 多 Type、Input、Checkbox/Radio、可选简单 Modal 入口  
+   - README 或示例头注释写明 §12.2 手操清单 #1–4（#5–6 可在 W4 补 IME/Modal 说明）  
+6. `go test ./ui/kit ./ui/visualtest` 绿；gallery 须能 `go run`（Linux 有显示时）。
+
+**AI 禁止做**
+
+- 不实现 IME composition 真宿主接线（W4）  
+- 不精修 Table/Tree/Select 下拉像素  
+- 不做暗色主题大改（除非 Button/Input 状态必须的 Token 微调）  
+- 不把 gallery 做成完整 Ant 组件浏览器  
+
+**完成标准（DoD）**
+
+- [ ] button/input 相关 visual scenario 绿  
+- [ ] gallery 可运行且覆盖 B4–B6 可视项  
+- [ ] 手操清单 #1–4 可在 gallery 完成（作者自检或汇报步骤）  
+- [ ] 汇报：截图可选、基线是否 UPDATE  
+
+**本波交付物路径（预期）**
+
+- `ui/kit/button.go` · `ui/kit/input.go` · focus 相关最小改动  
+- `examples/ui_polish_gallery/`（或文档登记的等价路径）  
+- `ui/visualtest/testdata/visual/button_*.png` · `input_*.png`  
+
+---
+
+#### W4 — IME 输入闭环 + 走查收口
+
+| 项 | 内容 |
+|----|------|
+| **波次 ID** | `W4` |
+| **标题** | Linux IME 主路径 + §12.1 D/E 收口 |
+| **依赖** | **W3 DoD 已满足**（IME 子项可与 W3 后半并行，但收口勾选必须 W3 已完成） |
+| **对应清单** | §12.1 **C1–C4、D2、D3、E** |
+
+**AI 只做**
+
+1. **C1**：Linux platform host 将 IME composition 事件送入 `Tree.DispatchIME`（或现有等价 API）；无能力则 **Caps 标明** 并实现可测降级说明。  
+2. **C2**：`EditableText` / Input：preedit 展示、commit 写入、End 清理 preedit。  
+3. **C3**：在 Caps 支持时 `SetIMEPosition`（或等价）贴 caret；不支持则文档/Caps 注释写清。  
+4. **C4**：单行回归——自动：composition 序列单测；说明真窗中文步骤。  
+5. gallery/smoke 补充 IME 说明与手操 #5–6（Modal 若已有则验收焦点/Esc）。  
+6. **D2/D3/E**：对照 §12.1 E 勾选清单，在本文或 PR 中把已完成项标为完成；未完成项列出阻塞原因。  
+7. 全量：`go test ./ui/...` 绿。
+
+**AI 禁止做**
+
+- 不回头大改 W1 圆角算法「为了更好看」除非 IME 无关回归必须  
+- 不做 Win/mac IME  
+- 不做多行 TextArea 富文本  
+- 不新增长尾 Ant 组件  
+- 不以「单测假事件绿」单独宣称 IME 完成（须真窗路径或正式 Caps 降级）  
+
+**完成标准（DoD）**
+
+- [ ] IME：真窗主路径可用 **或** Caps/文档正式降级且自动测覆盖降级路径  
+- [ ] C 序列单测绿  
+- [ ] §12.1 E 验收项全部勾选或标注阻塞  
+- [ ] §12.2.6 成功标准可声称满足（visualtest 能挡坏图、手操清单跑过）  
+- [ ] 汇报：E 勾选表、降级说明、残留债  
+
+**本波交付物路径（预期）**
+
+- `ui/platform/linux*` · `ui/core/event_scroll_ime.go` / `tree.go` 接线  
+- `ui/primitive/editable.go` · `ui/kit/input.go`  
+- 文档 §12.1 E / §12.3 波次状态更新  
+
+---
+
+#### 波次状态总表
+
+| 波次 | 状态 | 说明 |
+|------|------|------|
+| W1 | **待执行** | visualtest + paint 圆角 |
+| W2 | **待执行** | Decorated + 指示器 |
+| W3 | **待执行** | Button/Input/focus + gallery |
+| W4 | **待执行** | IME + E 收口 |
+
+（完成后把状态改为 ✅ 并注明日期。）
+
+#### 给 AI 的会话首条模板
+
+```text
+你只执行 docs/UI_FRAMEWORK_MAP.md §12.3 波次 W?（把 ? 换成 1/2/3/4）。
+严格遵守该波「AI 只做 / AI 禁止做 / DoD」。
+先 Read §12.1、§12.2 相关条与本波涉及源文件，再改代码。
+完成后按该波 DoD 自检并汇报：文件列表、测试命令与结果、基线是否 UPDATE、未做项。
+不要进入其他波次。
+```
 
 ---
 
@@ -829,16 +1285,10 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 
 ## 15. 立即下一步
 
-1. ~~冻结 v4.0 分层与 primitive 清单。~~  
-2. ~~脚手架：`ui/core` + `ui/primitive` + `ui/platform`（Headless）+ smoke。~~ ✅  
-3. ~~M1：`ui/kit` 与 `skin/default`。~~ ✅  
-4. ~~M2：EditableText、IME、Input 系、Overlay/Mask/AnchoredPopup、ScrollViewport。~~ ✅  
-5. ~~M3：FormBind、SelectionScope、Modal/Drawer、VirtualList 起步。~~ ✅  
-6. ~~M4：Grid/Sticky/Table/List/Tree、Pagination 等。~~ ✅  
-7. ~~M5：Motion/Presence/Canvas 增强、A11y 最小集。~~ ✅  
-8. ~~M6：Win/mac SPI stub、示例迁 kit、golden、§5.7 覆盖率。~~ ✅  
-9. 后置：真 Win32/AppKit present、Ant 长尾、golden 像素基准库扩展。  
-10. 实现偏差回写本文。
+1. ~~M0–M6 主路径落地。~~ ✅  
+2. **按 §12.3 波次执行打磨**：先 **W1** → W2 → W3 → W4（每波独立会话，见波次模板）。  
+3. 每波结束对照该波 DoD；全部完成后勾选 §12.1 E 并更新 §12.3 波次状态表。  
+4. 后置：真 Win32/AppKit present、Ant 长尾、visual 基线扩展。
 
 ---
 
@@ -847,5 +1297,8 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 | 日期 | 版本 | 说明 |
 |------|------|------|
 | 2026-07-21 | 1.x–3.1 | 总图合并、Ant 默认、API/Token/Props、自定义入口 |
-| 2026-07-21 | **4.0** | **架构升级**：`ui/primitive` 为组合底层；kit 仅产品面（可对标 Ant）；组合公式/清单/扩展四级；里程碑改为底座优先 |
-| 2026-07-21 | **4.1** | **Ant 全量反推**：§5.3 架构能力 36 项；§5.4 primitive 28 种；§5.7 全组件组合表与覆盖率/缺口统计；里程碑对齐分层 0–8 |
+| 2026-07-21 | **4.0** | **架构升级**：`ui/primitive` 为组合底层；kit 仅产品面（可对标 Ant） |
+| 2026-07-21 | **4.1** | **Ant 全量反推**：能力/primitive/全组件组合表 |
+| 2026-07-21 | **4.2** | **§12.1** 主路径视觉与输入打磨需求正文 |
+| 2026-07-21 | **4.3** | **§12.2** 打磨测试方案：三轨逻辑/部件 PNG/人工走查、IME 子轨、AI 工作流 |
+| 2026-07-21 | **4.4** | **§12.3** 执行波次 W1–W4：每波 AI 只做/禁止/DoD/交付物/会话模板 |
