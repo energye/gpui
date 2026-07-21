@@ -11,6 +11,24 @@ fi
 export GOTOOLCHAIN="${GOTOOLCHAIN:-local}"
 export GOWORK="${GOWORK:-off}"
 
+# Prefer absolute go from GOROOT so bare `go` never falls back to system 1.21.
+if [[ -x "${GOROOT}/bin/go" ]]; then
+  GO_BIN="${GOROOT}/bin/go"
+elif command -v go >/dev/null 2>&1; then
+  GO_BIN="$(command -v go)"
+else
+  echo "error: go not found (set GOROOT to go1.25+ toolchain)" >&2
+  exit 127
+fi
+export GO_BIN
+# Prepend so child scripts / timeout see the same toolchain first.
+export PATH="$(dirname "$GO_BIN"):$PATH"
+if ! "$GO_BIN" version 2>/dev/null | grep -qE 'go1\.(2[5-9]|[3-9][0-9])'; then
+  echo "error: need go >= 1.25, got: $("$GO_BIN" version 2>&1)" >&2
+  exit 127
+fi
+
+
 export WGPU_NATIVE_PATH="${WGPU_NATIVE_PATH:-$ROOT/lib/libwgpu_native.so}"
 export GOCACHE="${GOCACHE:-$ROOT/tmp/go-cache}"
 export LD_LIBRARY_PATH="$ROOT/lib:${LD_LIBRARY_PATH:-}"
@@ -35,7 +53,7 @@ for run in $(seq 1 "$COUNT"); do
     'TestMem_T4_'
   do
     echo ">> $pat" | tee -a "$LOG"
-    if ! timeout "$TIMEOUT" go test -count=1 ./render -run "$pat" -timeout "$TIMEOUT" >>"$LOG" 2>&1; then
+    if ! timeout "$TIMEOUT" "$GO_BIN" test -count=1 ./render -run "$pat" -timeout "$TIMEOUT" >>"$LOG" 2>&1; then
       echo "FAIL $pat pass=$run" | tee -a "$LOG"
       fail=1
       # Give driver time to reclaim after hard OOM/abort.

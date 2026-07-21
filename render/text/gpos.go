@@ -5,8 +5,12 @@
 //
 //   - Type 1: Single adjustment (position a single glyph)
 //   - Type 2: Pair adjustment (kerning: position two adjacent glyphs)
-//   - Format 1: Specific pair list
-//   - Format 2: Class-based pairs
+//   - Type 3: Cursive attachment (ENGINE_GAPS G1.c)
+//   - Type 4: Mark-to-base (ENGINE_GAPS G1.c)
+//   - Type 5: Mark-to-ligature (ENGINE_GAPS G1.c)
+//   - Type 6: Mark-to-mark (ENGINE_GAPS G1.c)
+//   - Type 7: Contextual positioning (ENGINE_GAPS G1.c)
+//   - Type 8: Chained contextual positioning (ENGINE_GAPS G1.c)
 //   - Type 9: Extension positioning (wrapper for above types in large fonts)
 //
 // Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/gpos
@@ -21,6 +25,7 @@ type gposTable struct {
 	scripts  []otScript
 	features []otFeature
 	lookups  []otLookup
+	gdef     *gdefTable // optional; IgnoreMarks/Base/Ligature for matching
 }
 
 // parseGPOS parses the raw GPOS table data.
@@ -53,10 +58,12 @@ type gposAdjustment struct {
 
 // applyGPOS applies GPOS positioning to a glyph buffer.
 // Returns per-glyph adjustments in font units.
+// metrics supplies hmtx advances for mark attachment (may be zero-valued).
 func (g *gposTable) applyGPOS(
 	glyphs []shapingGlyph,
 	scriptTag, langTag [4]byte,
 	desiredTags [][4]byte,
+	metrics gposMetrics,
 ) []gposAdjustment {
 	adjustments := make([]gposAdjustment, len(glyphs))
 
@@ -65,28 +72,30 @@ func (g *gposTable) applyGPOS(
 		if int(li) >= len(g.lookups) {
 			continue
 		}
-		g.applyLookup(&g.lookups[li], glyphs, adjustments)
+		g.applyLookup(&g.lookups[li], glyphs, adjustments, metrics)
 	}
 	return adjustments
 }
 
 // applyLookup applies a single GPOS lookup.
-func (g *gposTable) applyLookup(lu *otLookup, glyphs []shapingGlyph, adj []gposAdjustment) {
+func (g *gposTable) applyLookup(lu *otLookup, glyphs []shapingGlyph, adj []gposAdjustment, metrics gposMetrics) {
 	lookupType := lu.lookupType
+	flag := lu.lookupFlag
+	mfs := lu.markFilterSet
 
 	// Extension positioning (Type 9) wraps another lookup type.
 	if lookupType == 9 {
-		g.applyExtensionLookup(lu, glyphs, adj)
+		g.applyExtensionLookup(lu, glyphs, adj, metrics)
 		return
 	}
 
 	for _, st := range lu.subtables {
-		g.applySubtable(lookupType, st, glyphs, adj)
+		g.applySubtable(lookupType, st, glyphs, adj, metrics, flag, mfs)
 	}
 }
 
 // applyExtensionLookup handles GPOS Lookup Type 9 (Extension Positioning).
-func (g *gposTable) applyExtensionLookup(lu *otLookup, glyphs []shapingGlyph, adj []gposAdjustment) {
+func (g *gposTable) applyExtensionLookup(lu *otLookup, glyphs []shapingGlyph, adj []gposAdjustment, metrics gposMetrics) {
 	for _, st := range lu.subtables {
 		if len(st) < 8 {
 			continue
@@ -100,20 +109,30 @@ func (g *gposTable) applyExtensionLookup(lu *otLookup, glyphs []shapingGlyph, ad
 		if int(extOffset) >= len(st) {
 			continue
 		}
-		g.applySubtable(extType, st[extOffset:], glyphs, adj)
+		g.applySubtable(extType, st[extOffset:], glyphs, adj, metrics, lu.lookupFlag, lu.markFilterSet)
 	}
 }
 
 // applySubtable dispatches to the correct positioning function.
-func (g *gposTable) applySubtable(lookupType uint16, data []byte, glyphs []shapingGlyph, adj []gposAdjustment) {
+func (g *gposTable) applySubtable(lookupType uint16, data []byte, glyphs []shapingGlyph, adj []gposAdjustment, metrics gposMetrics, flag uint16, markFilterSet int) {
 	switch lookupType {
 	case 1:
 		applySinglePos(data, glyphs, adj)
 	case 2:
-		applyPairPos(data, glyphs, adj)
+		applyPairPosFlag(data, glyphs, adj, flag, g.gdef, markFilterSet)
+	case 3:
+		applyCursivePos(data, glyphs, adj)
+	case 4:
+		applyMarkToBasePos(data, glyphs, adj, metrics)
+	case 5:
+		applyMarkToLigPos(data, glyphs, adj, metrics)
+	case 6:
+		applyMarkToMarkPos(data, glyphs, adj, metrics)
+	case 7:
+		g.applyContextualPos(data, glyphs, adj, metrics)
+	case 8:
+		g.applyChainedPos(data, glyphs, adj, metrics)
 	default:
-		// Types 3-8 (cursive, mark-to-base, mark-to-ligature, mark-to-mark,
-		// context, chaining context) not yet implemented.
 	}
 }
 
@@ -169,20 +188,29 @@ func applySinglePos(data []byte, glyphs []shapingGlyph, adj []gposAdjustment) {
 
 // applyPairPos applies pair positioning (kerning) to adjacent glyph pairs.
 func applyPairPos(data []byte, glyphs []shapingGlyph, adj []gposAdjustment) {
+	applyPairPosFlag(data, glyphs, adj, 0, nil, -1)
+}
+
+// applyPairPosFlag is applyPairPos with lookup flags (IgnoreMarks / MarkFilteringSet).
+func applyPairPosFlag(data []byte, glyphs []shapingGlyph, adj []gposAdjustment, flag uint16, gdef *gdefTable, markFilterSet int) {
 	if len(data) < 2 {
 		return
 	}
 	format := binary.BigEndian.Uint16(data[0:2])
 	switch format {
 	case 1:
-		applyPairPosFormat1(data, glyphs, adj)
+		applyPairPosFormat1Flag(data, glyphs, adj, flag, gdef, markFilterSet)
 	case 2:
-		applyPairPosFormat2(data, glyphs, adj)
+		applyPairPosFormat2Flag(data, glyphs, adj, flag, gdef, markFilterSet)
 	}
 }
 
 // applyPairPosFormat1 applies pair adjustment using specific glyph pairs.
 func applyPairPosFormat1(data []byte, glyphs []shapingGlyph, adj []gposAdjustment) {
+	applyPairPosFormat1Flag(data, glyphs, adj, 0, nil, -1)
+}
+
+func applyPairPosFormat1Flag(data []byte, glyphs []shapingGlyph, adj []gposAdjustment, flag uint16, gdef *gdefTable, markFilterSet int) {
 	if len(data) < 10 {
 		return
 	}
@@ -200,7 +228,7 @@ func applyPairPosFormat1(data []byte, glyphs []shapingGlyph, adj []gposAdjustmen
 	vr1Size := valueRecordSize(valueFormat1)
 	vr2Size := valueRecordSize(valueFormat2)
 
-	for i := 0; i+1 < len(glyphs); i++ {
+	for i := 0; i < len(glyphs); i++ {
 		idx, ok := cov.contains(glyphs[i].gid)
 		if !ok || idx >= pairSetCount {
 			continue
@@ -216,7 +244,17 @@ func applyPairPosFormat1(data []byte, glyphs []shapingGlyph, adj []gposAdjustmen
 		pairValueCount := int(binary.BigEndian.Uint16(ps[0:2]))
 		recordSize := 2 + vr1Size + vr2Size // uint16 secondGlyph + vr1 + vr2
 
-		secondGID := glyphs[i+1].gid
+		// Second of pair: next non-ignored glyph when lookup flags say so.
+		j := i + 1
+		if gdef != nil && (flag&(lookupFlagIgnoreBaseGlyphs|lookupFlagIgnoreLigatures|lookupFlagIgnoreMarks|lookupFlagUseMarkFilteringSet) != 0 || (flag>>8)&0xFF != 0) {
+			j = nextMatchIndex(glyphs, i+1, flag, gdef, markFilterSet)
+			if j < 0 {
+				continue
+			}
+		} else if j >= len(glyphs) {
+			continue
+		}
+		secondGID := glyphs[j].gid
 		// Binary search for secondGlyph in the PairSet.
 		found := searchPairSet(ps[2:], pairValueCount, recordSize, secondGID)
 		if found < 0 {
@@ -233,10 +271,10 @@ func applyPairPosFormat1(data []byte, glyphs []shapingGlyph, adj []gposAdjustmen
 
 		if valueFormat2 != 0 {
 			vr2, _ := parseValueRecord(ps, recordOff+2+n1, valueFormat2)
-			adj[i+1].xPlacement += vr2.xPlacement
-			adj[i+1].yPlacement += vr2.yPlacement
-			adj[i+1].xAdvance += vr2.xAdvance
-			adj[i+1].yAdvance += vr2.yAdvance
+			adj[j].xPlacement += vr2.xPlacement
+			adj[j].yPlacement += vr2.yPlacement
+			adj[j].xAdvance += vr2.xAdvance
+			adj[j].yAdvance += vr2.yAdvance
 		}
 	}
 }
@@ -267,6 +305,10 @@ func searchPairSet(data []byte, count, recordSize int, secondGlyph uint16) int {
 
 // applyPairPosFormat2 applies pair adjustment using glyph class pairs.
 func applyPairPosFormat2(data []byte, glyphs []shapingGlyph, adj []gposAdjustment) {
+	applyPairPosFormat2Flag(data, glyphs, adj, 0, nil, -1)
+}
+
+func applyPairPosFormat2Flag(data []byte, glyphs []shapingGlyph, adj []gposAdjustment, flag uint16, gdef *gdefTable, markFilterSet int) {
 	if len(data) < 16 {
 		return
 	}
@@ -296,12 +338,21 @@ func applyPairPosFormat2(data []byte, glyphs []shapingGlyph, adj []gposAdjustmen
 	recordSize := vr1Size + vr2Size
 	arrayStart := 16
 
-	for i := 0; i+1 < len(glyphs); i++ {
+	for i := 0; i < len(glyphs); i++ {
 		if _, ok := cov.contains(glyphs[i].gid); !ok {
 			continue
 		}
+		j := i + 1
+		if gdef != nil && (flag&(lookupFlagIgnoreBaseGlyphs|lookupFlagIgnoreLigatures|lookupFlagIgnoreMarks|lookupFlagUseMarkFilteringSet) != 0 || (flag>>8)&0xFF != 0) {
+			j = nextMatchIndex(glyphs, i+1, flag, gdef, markFilterSet)
+			if j < 0 {
+				continue
+			}
+		} else if j >= len(glyphs) {
+			continue
+		}
 		c1 := int(cd1.classOf(glyphs[i].gid))
-		c2 := int(cd2.classOf(glyphs[i+1].gid))
+		c2 := int(cd2.classOf(glyphs[j].gid))
 		if c1 >= class1Count || c2 >= class2Count {
 			continue
 		}
@@ -317,10 +368,10 @@ func applyPairPosFormat2(data []byte, glyphs []shapingGlyph, adj []gposAdjustmen
 
 		if valueFormat2 != 0 {
 			vr2, _ := parseValueRecord(data, recordOff+n1, valueFormat2)
-			adj[i+1].xPlacement += vr2.xPlacement
-			adj[i+1].yPlacement += vr2.yPlacement
-			adj[i+1].xAdvance += vr2.xAdvance
-			adj[i+1].yAdvance += vr2.yAdvance
+			adj[j].xPlacement += vr2.xPlacement
+			adj[j].yPlacement += vr2.yPlacement
+			adj[j].xAdvance += vr2.xAdvance
+			adj[j].yAdvance += vr2.yAdvance
 		}
 	}
 }

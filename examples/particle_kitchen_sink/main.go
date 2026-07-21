@@ -22,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/energye/gpui/examples/e
+	"github.com/energye/gpui/examples/exboot"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"

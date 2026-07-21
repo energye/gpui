@@ -58,10 +58,11 @@ func (p *ownParser) ParseIndex(data []byte, index int) (ParsedFont, error) {
 	numGlyphs := int(binary.BigEndian.Uint16(maxpData[4:6]))
 
 	font := &ownParsedFont{
-		rawData:   data,
-		tables:    tables,
-		upem:      upem,
-		numGlyphs: numGlyphs,
+		rawData:         data,
+		collectionIndex: index,
+		tables:          tables,
+		upem:            upem,
+		numGlyphs:       numGlyphs,
 	}
 
 	return font, nil
@@ -69,8 +70,9 @@ func (p *ownParser) ParseIndex(data []byte, index int) (ParsedFont, error) {
 
 // ownParsedFont implements ParsedFont with direct binary parsing.
 type ownParsedFont struct {
-	rawData []byte            // raw font file bytes
-	tables  map[string][]byte // raw table data keyed by tag
+	rawData         []byte            // raw font file bytes (may be TTC/OTC)
+	collectionIndex int               // index used when parsing a collection
+	tables          map[string][]byte // raw table data keyed by tag
 
 	// Eagerly parsed (cheap).
 	upem      int
@@ -121,6 +123,11 @@ type ownParsedFont struct {
 	// each glyph raster does not re-walk the sfnt directory (HUD/mask path).
 	glyfOnce  sync.Once
 	glyfCache *cachedGlyfParser
+
+	// CFF outline backend (sfnt) — only when tables have "CFF " and no glyf.
+	cffOnce sync.Once
+	cff     *cffOutlineSupport
+	cffErr  error
 }
 
 // --- ParsedFont interface ---
@@ -167,11 +174,18 @@ func (f *ownParsedFont) GlyphAdvance(glyphIndex uint16, ppem float64) float64 {
 // GlyphBounds implements ParsedFont.GlyphBounds.
 // Returns the glyph bounding box scaled from font units to pixels.
 //
-// Uses the glyf table for TrueType outlines. CFF fonts are not yet
-// supported by the own parser (returns zero rect).
+// TrueType: glyf header bounds. CFF (no glyf): segment bounds via sfnt
+// (ENGINE_GAPS G1.b).
 func (f *ownParsedFont) GlyphBounds(glyphIndex uint16, ppem float64) Rect {
+	if f.upem == 0 {
+		return Rect{}
+	}
 	glyfData, ok := f.tables["glyf"]
-	if !ok || f.upem == 0 {
+	if !ok {
+		if f.hasCFFTable() {
+			return f.glyphBoundsCFF(glyphIndex, ppem)
+		}
+		// CFF2: no bounds until supported (avoid pretending zero is empty glyph only).
 		return Rect{}
 	}
 

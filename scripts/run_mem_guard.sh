@@ -18,6 +18,24 @@ fi
 export GOTOOLCHAIN="${GOTOOLCHAIN:-local}"
 export GOWORK="${GOWORK:-off}"
 
+# Prefer absolute go from GOROOT so bare `go` never falls back to system 1.21.
+if [[ -x "${GOROOT}/bin/go" ]]; then
+  GO_BIN="${GOROOT}/bin/go"
+elif command -v go >/dev/null 2>&1; then
+  GO_BIN="$(command -v go)"
+else
+  echo "error: go not found (set GOROOT to go1.25+ toolchain)" >&2
+  exit 127
+fi
+export GO_BIN
+# Prepend so child scripts / timeout see the same toolchain first.
+export PATH="$(dirname "$GO_BIN"):$PATH"
+if ! "$GO_BIN" version 2>/dev/null | grep -qE 'go1\.(2[5-9]|[3-9][0-9])'; then
+  echo "error: need go >= 1.25, got: $("$GO_BIN" version 2>&1)" >&2
+  exit 127
+fi
+
+
 
 MODE="${1:-quick}"
 export WGPU_NATIVE_PATH="${WGPU_NATIVE_PATH:-$ROOT/lib/libwgpu_native.so}"
@@ -44,7 +62,7 @@ run_pks() {
   log ">> PKS $probe seconds=$sec"
   set +e
   GPUI_PROBE="$probe" GPUI_ANIM_SECONDS="$sec" GPUI_RESULT_FILE="$json" \
-    go run ./examples/particle_kitchen_sink >"$plog" 2>&1
+    "$GO_BIN" run ./examples/particle_kitchen_sink >"$plog" 2>&1
   local rc=$?
   set -e
   if [[ ! -f "$json" ]]; then

@@ -248,15 +248,34 @@ func memOpenX11(t *testing.T, w, h int) *memX11 {
 	xMapWindow(dpy, win)
 	xFlush(dpy)
 
+	// Keep libX11 loaded for the process lifetime. purego function pointers
+	// and residual wgpu/X11 teardown can still touch X after close; Dlclose
+	// here has produced SIGSEGV in TestMem_T4 cleanup (XCloseDisplay).
+	var closed bool
 	return &memX11{
 		lib: lib, display: dpy, window: win,
 		close: func() {
+			if closed {
+				return
+			}
+			closed = true
+			// Destroy the window only. XCloseDisplay/Dlclose have SIGSEGV'd in
+			// cleanup after wgpu surface release (purego + X11 + wgpu race).
+			// Tests are process-isolated (run_mem_leak_tests), so Display leak
+			// is reclaimed on process exit.
 			xDestroyWindow(dpy, win)
-			xCloseDisplay(dpy)
-			_ = purego.Dlclose(lib)
+			xFlush(dpy)
 		},
-		flush: func() { xFlush(dpy) },
+		flush: func() {
+			if closed {
+				return
+			}
+			xFlush(dpy)
+		},
 		resize: func(nw, nh int) {
+			if closed {
+				return
+			}
 			if nw < 64 {
 				nw = 64
 			}

@@ -1,6 +1,6 @@
 # 引擎必有缺口（Engine-scoped gaps）
 
-> 版本：1.2 | 日期：2026-07-21 | **活文档 · 缺口唯一真源**  
+> 版本：1.15 | 日期：2026-07-21 | **活文档 · 缺口唯一真源**  
 > 范围：**仅渲染引擎**（`render` / `gpu/webgpu` / `gpu/rwgpu`）  
 > 真源：现网代码；与本文冲突时以代码为准  
 > 非目标：布局 / HitTest / 焦点 / IME / 控件树（控件层）  
@@ -25,7 +25,7 @@
 | 判断 | 结论 |
 |------|------|
 | 画布 API 能否撑 antd 风格绘制 | **能**（矩阵除 R.02 PDF/SVG 外已齐） |
-| 引擎是否零缺口 | **否** — 主缺口 **G1–G3** |
+| 引擎是否零缺口 | **否** — G1 大部+CFF1+CFF2 边界+MarkFilteringSet+matra 类+多辅音 base/reph ✅；G2 契约+blit 局部像素 ✅；G3 TestMem ✅；仍开：Khmer·Myanmar / font-driven below-base、CFF2 出字、长 soak 日常 |
 | 控件层能否开工 | **能**（见 `S5_WIDGET_ENTRY`）；G1–G3 影响深度/性能/生产稳，**不是**缺一整块绘制 API |
 | 当前工程跟进 | **P0 = G1–G3 + 稳**（MAINLINE §3） |
 
@@ -37,11 +37,11 @@
 
 | 子项 | 现状（代码） | 影响 | 证据 | 修好标准 |
 |------|--------------|------|------|----------|
-| **G1.a 长文 / Input 路径** | shape + atlas + `DrawString` 可用；密集编辑 / 长列表下 reshape、cache、atlas **未做产品级长 soak** | Input、表格、虚拟列表滚动卡顿或内存爬升 | `render/text/*` · 矩阵 X.* 有门禁但非编辑器 soak | Input 形态长 soak：atlas 上传有界；RSS/VRAM 斜率≈0（对齐 `MEM_LEAK_*`） |
-| **G1.b CFF / CFF2 轮廓** | own parser **仅 TrueType `glyf`**；CFF 无 glyf → **零框 / 不出字** | 系统 OTF、多数 Noto CJK 桌面字体 | `font_parser_own.go`：`CFF fonts are not yet supported` · `glyf_parser.go` | 指定桌面/CJK **OTF(CFF)** 可测出字 + 度量；parser 不再对有轮廓字返回 zero box |
-| **G1.c 复杂 OT shaping** | **GSUB** Type **1–4、7** ✅；**5/6/8**（contextual / chaining / reverse）❌。**GPOS** Type **1–2**（+ Type 9 extension）✅；**3–8**（cursive / mark / context…）❌ | 阿拉伯、印地等；mark 附着、复杂连写 | `render/text/gsub.go` · `gpos.go` · `Script.RequiresComplexShaping` | 目标 script 集合有像素/advance 门禁；文档写明 Type 覆盖表并与代码一致 |
+| **G1.a 长文 / Input 路径** | shape + atlas + `DrawString` 可用；**产品级 CPU soak 门禁已落地**（`TestG1a_*`：Input reshape / 虚拟列表 / 编辑重入）。shape soft-LRU 与 atlas MaxEntries **有界可证**。**仍开**：真窗口 GPU 长 soak（mem_guard / 编辑器级 180s+）、VRAM 斜率 | Input 密集编辑、表格滚动 | `render/text/g1a_soak_test.go` · `shape_result_cache.go` · `glyph_mask_atlas.go` | `TestG1a_*` 持续绿；shape entries≤softLimit；atlas entries≤MaxEntries；堆增长有上界。真窗口仍跟 `MEM_LEAK_*` |
+| **G1.b CFF / CFF2 轮廓** | **CFF 1 已出字**（`sfnt` Type2）。**CFF2 已检测**并返回 `ErrCFF2Unsupported`（`x/image/sfnt` 无 CFF2 路径）；**CFF2 出字仍未做**；CFF 无 TT/auto-hint | CFF2 VF 仍空白但可显式错误/换 face | `cff_outline.go` · `TestCFF_*` · `TestCFF2_DetectedAndRejected` | CFF1 绿；CFF2 拒绝可测；出字实现另专项 |
+| **G1.c 复杂 OT shaping** | **GSUB/GPOS Type 1–9** ✅。**RTL visual** ✅。**GDEF** ✅（IgnoreBase/Lig/Marks、**MarkAttachmentType**、**MarkFilteringSet**/MarkGlyphSets + LookupFlag bit 4）。**Arabic joining** ✅。**Indic 特征分期** ✅。**Indic reordering** ✅（`indic_reorder.go`：音节切分；**多辅音 base**（末辅音）；initial reph 置于 base 后；final 桶序 pre\|base-group\|below\|above\|post\|reph；matra 类 + peer pre-base）。**仍开**：Khmer·Myanmar / 字体 OT below-base 类驱动；UAX#9 hit-test；真实字体像素 golden | 复杂字体驱动 below-base / 东南亚脚本仍可能不完美 | `gdef.go` · `TestGDEF_MarkFilteringSet` · `indic_reorder.go` · `TestIndicFindBase_*` · `TestIndicInitial_RephAfterMultiConsonantBase` · `TestIndicFinal_MatraBuckets` · `indic_shaping.go` | MarkFilteringSet / multi-consonant base+reph / matra 桶序可测；Khmer·Myanmar 另专项 |
 
-**排期建议：** G1.b（出字面）→ G1.c（目标 script）→ G1.a（产品 soak）。中文 antd 桌面若可绑 TTF/glyf 可先绕开 G1.b，但系统字体路径仍会撞上。
+**排期建议：** G1/G2 主路径门禁**已齐**。剩余：**CFF2 出字**、Khmer·Myanmar / font-driven below-base、长 soak 日常。
 
 **相关矩阵行：** X.01（Face/CFF）· X.03（shaping）
 
@@ -51,9 +51,9 @@
 
 | 子项 | 现状（代码） | 影响 | 证据 | 修好标准 / 契约 |
 |------|--------------|------|------|-----------------|
-| **G2.a MSAA 矢量帧** | 帧含 Fill/Stroke → MSAA 路径 **恒 `LoadOpClear`**；`damageRect` **不保留**旧像素 | 「只脏几像素」无法在矢量全帧上省 fill | `render/context.go` `FlushGPUWithViewDamage` 注释 | **契约保留**：有 API，**不承诺**任意矢量脏区=局部重画；若做增量，需可测分层/路径说明 |
-| **G2.b blit-only 路径** | 仅 `DrawGPUTexture*`（无矢量）时 **`LoadOpLoad` + scissor** | 控件层缓存 RT / 分层合成时有效 | 同上 · 对齐 Chrome/Flutter 分层实践 | 单测/示例证明：纯 blit 帧 damage 只更新脏区；混矢量则走 G2.a |
-| **G2.c OS Present damage** | `Surface.PresentWithDamage` **忽略 rect**（wgpu-native 不支持） | 无 OS 多矩形 present 省电收益 | `gpu/webgpu/surface.go` | 后端支持后再接线；此前文档与实现一致（忽略）即可 |
+| **G2.a MSAA 矢量帧** | 帧含 Fill/Stroke → MSAA 路径 **恒 `LoadOpClear`**；`damageRect` **不保留**旧像素 | 「只脏几像素」无法在矢量全帧上省 fill | `context.go` · **`TestG2_DamageContract_API`** | **契约可测**：API 绿；**不承诺**任意矢量脏区=局部重画 |
+| **G2.b blit-only 路径** | 仅 `DrawGPUTexture*`（无矢量）时 **`LoadOpLoad` + scissor** | 控件层缓存 RT / 分层合成时有效 | **`TestG2_BlitOnly_DamagePreservesOutsidePixels`**（域外白/域内红） | 纯 blit 帧 damage 保留域外像素；混矢量走 G2.a |
+| **G2.c OS Present damage** | `Surface.PresentWithDamage` **忽略 rect**（wgpu-native 不支持） | 无 OS 多矩形 present 省电收益 | `surface.go` · `TestG2_PresentWithDamage_IgnoresRect_Doc` | 后端支持后再接线；契约文档+测试钉死「忽略」 |
 
 **产品预期（写进对外/控件约定）：**
 
@@ -69,7 +69,7 @@
 
 | 子项 | 现状（代码） | 影响 | 证据 | 修好标准 |
 |------|--------------|------|------|----------|
-| **G3.a 多离屏 / filter 图** | API 齐；重场景预算与 soak **需持续绿** | Modal / Drawer / 毛玻璃 / 多路由 RT | `examples/api_coverage_app` · particle · `scripts/run_mem_guard.sh` | 重场景 mem guard 持续绿；无 RSS/VRAM 斜率爆炸 |
+| **G3.a 多离屏 / filter 图** | API 齐；**`TestMem_T0–T4` 已绿**（T4 X11 resize churn；清理路径已修 SIGSEGV）。`run_mem_guard.sh` 已钉 **GO_BIN≥1.25** | Modal / Drawer / 毛玻璃 / 多路由 RT | `scripts/run_mem_leak_tests.sh` · `run_mem_guard.sh` · particle | `TestMem_*` + mem_guard 持续绿 |
 | **G3.b Device lost / recover** | sticky lost · AutoRecover · `ForceRecoverHealthy` · Context 注册表 abandon · CB/pool/pipeline 回收 **已落地** | 遮挡/TDR 后 OOM、双 Device 堆 | [`GPU_修复_device_lost.md`](./GPU_修复_device_lost.md) | force-lost + recover 路径矩阵绿；恢复后无双 Device / 泄漏爬升 |
 | **G3.c Surface lifecycle** | tier **Normal / Purge / Recreate** 已实现；**`auto` 默认 = Purge**（含 dGPU）；仅 `GPUI_LIFECYCLE=normal` → Normal；`NoteTextureOOM` → 升 **Recreate** | 最小化/恢复跨硬件显存与恢复行为 | [`SURFACE_LIFECYCLE_SKIA_FLUTTER.md`](./SURFACE_LIFECYCLE_SKIA_FLUTTER.md) · `render/gpu/lifecycle_policy.go` · `exboot` | lifecycle matrix 绿；OOM 后自适应 Recreate 可测 |
 | **G3.d VRAM 基线** | 独显 Vulkan 设备基线偏高（本机约 **300MiB** 级）；可 low-power / adapter 策略 | 弱显存机 | [`VRAM_BUDGET.md`](./VRAM_BUDGET.md) | 预算文档与实测同量级；策略开关行为与文档一致 |
@@ -138,9 +138,9 @@ P 级 **不**升主缺口，除非变成「无此则生产不可用」。
 
 | 缺口 | 活文档 | 关键代码 |
 |------|--------|----------|
-| G1 | 本文 · 矩阵 X.* | `render/text/`（`font_parser_own.go` · `gsub.go` · `gpos.go` · `glyf_parser.go`） |
+| G1 | 本文 · 矩阵 X.* | `render/text/`（G1.a–c：cff/gsub/gpos/bidi reorder · shape/atlas soak） |
 | G2 | 本文 · 矩阵 S.09 | `render/context.go` · `gpu/webgpu/surface.go` |
-| G3 | SURFACE · device_lost · VRAM · MEM_LEAK_* | `render/gpu/lifecycle_policy.go` · `context_gpu_registry.go` · `gpu/webgpu/swapchain.go` |
+| G3 | SURFACE · device_lost · VRAM · MEM_LEAK_* | `render/mem_window_x11_linux_test.go` · `lifecycle_policy.go` · `scripts/run_mem_*.sh` |
 | 原则 | `GPU_FIRST_ROUTING` | ensureGPU / fallback 观测 |
 | 优化执行 | `PERF_ENGINE_FORWARD` · `CODE_CONVERGENCE` | 热路径改动任务卡 |
 
@@ -153,6 +153,19 @@ P 级 **不**升主缺口，除非变成「无此则生产不可用」。
 | 2026-07-21 | 1.0 | 首版：从源码与 antd 引擎职责评估收敛 |
 | 2026-07-21 | 1.1 | 源码对照：GSUB/GPOS 类型边界；lifecycle auto=Purge；去掉错误 G4 |
 | 2026-07-21 | 1.2 | 可执行化：每子项补「修好标准」；用法/落档流程；**修正 G3.c**（auto 默认 Purge，含 dGPU，非「非离散=Normal」）；GPOS 注明 Type 9 extension |
+| 2026-07-21 | 1.3 | **G1.b CFF 出字落地**：`cff_outline.go` + `TestCFF_*`（CFFTest/Nimbus/NotoSansCJK）；CFF2 仍开；更新排期 |
+| 2026-07-21 | 1.4 | **G1.c**：GSUB 5/6/8 + GPOS 3/4/6；默认 feature 扩 calt/locl/init…/mark/mkmk/curs；BiDi/GPOS 5/7/8 仍开 |
+| 2026-07-21 | 1.5 | **G1.a**：`TestG1a_*` Input/列表/编辑 reshape soak；shape+atlas 有界门禁；真窗口仍开 |
+| 2026-07-21 | 1.6 | **GPOS Type 5** mark-to-lig；mem 脚本 GO_BIN 钉死；**TestMem_T4** X11 cleanup SIGSEGV 修复；T0–T4 绿 |
+| 2026-07-21 | 1.7 | **GPOS Type 7/8** context/chaining pos（`gpos_context.go` + `TestGPOS_Context*`）；GPOS Type 表 1–9 齐 |
+| 2026-07-21 | 1.8 | **RTL visual reorder**：`ReorderRTLShapedGlyphs` + layout segment RTL；`TestReorderRTL*` / `TestOwnShaper_RTL*` |
+| 2026-07-21 | 1.9 | **GDEF+IgnoreMarks**（连字/配对）；**G2 damage 契约测试** `TestG2_*` |
+| 2026-07-21 | 1.10 | **Arabic joining** isol/init/medi/fina 分阶段；**MarkAttachmentType**；`TestArabicJoining_*` |
+| 2026-07-21 | 1.11 | **Indic 特征分期** `indic_shaping.go` + 默认 rphf/half/vatu/pres…；`TestGSUB_StagedIndic_*` |
+| 2026-07-21 | 1.12 | **Indic 轻量 reordering** reph/pre-base matra；`indic_reorder.go` · `TestIndic*` |
+| 2026-07-21 | 1.13 | **CFF2 检测/拒绝** `ErrCFF2Unsupported`；**G2 blit-only 局部像素** `TestG2_BlitOnly_DamagePreservesOutsidePixels` |
+| 2026-07-21 | 1.14 | **MarkFilteringSet**（GDEF MarkGlyphSets + LookupFlag bit 4 + lookup 解析）；**Indic matra 类** pre/above/below/post + peer pre-base；`TestGDEF_MarkFilteringSet` · `TestIndicCategory_MatraClasses` |
+| 2026-07-21 | 1.15 | **Indic 多辅音 base/reph**：`findIndicBaseIndex`；final matra 桶序；`TestIndicFindBase_*` · `TestIndicInitial_RephAfterMultiConsonantBase` · `TestIndicFinal_MatraBuckets` |
 
 ---
 
@@ -160,8 +173,9 @@ P 级 **不**升主缺口，除非变成「无此则生产不可用」。
 
 | 轮次 | 检查项 | 结果 |
 |------|--------|------|
-| R1 | G1.b `font_parser_own.go` CFF 注释；`glyf_parser.go` 无 glyf 报错 | ✅ |
-| R1 | G1.c `gsub.go` 实现 1–4、7；`gpos.go` 实现 1–2、9；无 5/6/8 与 GPOS 3–8 | ✅ |
+| R1 | G1.b CFF 出字：`cff_outline.go` + `TestCFF_*`；无 glyf 走 sfnt；CFF2 仍未做 | ✅（1.3） |
+| R7 | G1.c GSUB 5/6/8 · GPOS 3/4/6：`gsub_context.go` · `gpos_mark.go` · 单测绿 | ✅（1.4） |
+| R1 | G1.c 历史对照行；以 R7/R9/R10 为准（GSUB 1–8 · GPOS 1–9） | ⚠ 已由后续轮取代 |
 | R1 | G2.a `FlushGPUWithViewDamage`：矢量 MSAA → LoadOpClear | ✅ |
 | R1 | G2.c `PresentWithDamage` 忽略 rect | ✅ |
 | R2 | G3 `NoteTextureOOM` / `ForceRecoverHealthy` / registry abandon | ✅ |

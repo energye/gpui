@@ -2511,9 +2511,8 @@ type fontPack struct {
 }
 
 func loadFonts(dc *render.Context) fontPack {
-	// 中文说明必须用 TrueType(glyf) 字体。
-	// 当前 text 层不支持 CFF 轮廓：NotoSansCJK*.otf/*.ttc 会 Load 成功但字形空白→看起来像乱码。
-	// 已用 offscreen 探针验证：DroidSansFallbackFull.ttf 有像素；Noto CJK CFF 无像素。
+	// 中文优先 TrueType(glyf) 以走 pure-Go 轮廓/hint；CFF（Noto CJK OTTO）在
+	// ENGINE_GAPS G1.b 后已可出字（sfnt Type2），可作为回退。
 	cjk := findFirstExisting(
 		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 		"/usr/share/fonts/truetype/droid/DroidSansFallback.ttf",
@@ -2521,15 +2520,17 @@ func loadFonts(dc *render.Context) fontPack {
 		"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
 		"/usr/share/fonts/truetype/arphic/uming.ttc",
 		"/usr/share/fonts/truetype/arphic/ukai.ttc",
+		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
 	)
 	latin := findFirstExisting(
 		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 		"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
 	)
-	// serif/mono：优先可显示中文的 TTF；不要选 Noto CJK CFF
+	// serif/mono：优先可显示中文的 TTF；CFF Noto 也可作回退
 	serif := findFirstExisting(
 		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 		"/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
 	)
 	mono := findFirstExisting(
 		"/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
@@ -2561,7 +2562,7 @@ func loadFonts(dc *render.Context) fontPack {
 	if fp.latin == "" {
 		fp.latin = fp.sans
 	}
-	log.Printf("fonts: cjk=%s latin=%s (中文说明必须 TrueType/glyf; CFF-NotoCJK 会空白/乱码)", filepath.Base(fp.sans), filepath.Base(fp.latin))
+	log.Printf("fonts: cjk=%s latin=%s (CJK: glyf 优先；CFF Noto 已可出字)", filepath.Base(fp.sans), filepath.Base(fp.latin))
 	fp.ok = true
 	return fp
 }

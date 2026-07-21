@@ -1,6 +1,6 @@
 # Skia 级 2D 渲染能力表（GPUI 主线验收基准）
 
-> 版本：1.5 | 日期：2026-07-21 | **活文档**  
+> 版本：1.18 | 日期：2026-07-21 | **活文档**  
 > 用途：定义 render 对标 **Skia 2D 渲染能力** 的全面清单，并反推 `rwgpu` / `gpu/webgpu` 必绑 WebGPU 子集。  
 > 范围：**仅渲染栈** `render → gpu/webgpu → gpu/rwgpu → libwgpu_native`。不含控件层。  
 > 维护：能力缺口只允许“新增行”，不允许静默缩小已列必选项。  
@@ -165,9 +165,9 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| X.01 | 字体加载/Face | SkTypeface | CPU | N/A | N/A | ✅ **TrueType glyf**；**CFF/CFF2 未支持**（`ENGINE_GAPS` G1.b） | M1 |
+| X.01 | 字体加载/Face | SkTypeface | CPU | N/A | N/A | ✅ **TrueType glyf** + **CFF1**；**CFF2 检测并 ErrCFF2Unsupported**（出字未做，`ENGINE_GAPS` G1.b） | M1 |
 | X.02 | DrawString baseline | `drawString` | glyph atlas tex | ✅ R8 atlas | ✅ | ✅ GPU `TestS3b_M2_DrawString` | M2 |
-| X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | ✅ OwnShaper **GSUB 1–4/7** + **GPOS 1–2**；GSUB 5/6/8 与 GPOS 3–8 见 `ENGINE_GAPS` G1.c | M2 |
+| X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | ✅ OwnShaper Type+RTL+Arabic+**GDEF MarkFilteringSet**+**Indic matra 类/多辅音 base+reph**；Khmer·Myanmar 见 `ENGINE_GAPS` G1.c | M2 |
 | X.04 | Subpixel positioning | subpixel | atlas/frac | N/A | N/A | ✅ 1/4 px glyph mask frac GPU `TestP1_Capability_X04_SubpixelPosGPU` | M2 |
 | X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | ✅ | ✅ | ✅ LCD two-pass darken+add（白底+彩底）`TestP1_Capability_X05_LCDTextGPU` / `X05_LCDTextOnColoredDestGPU` | M2 |
 | X.06 | CJK / fallback 字体 | fallback | 同 text | N/A | N/A | ✅ MultiFace Runs + GPU glyph mask `TestP1_Capability_X06_CJKFallbackGPU` | M2 |
@@ -337,7 +337,7 @@
 
 | 类别 | 内容 | 文档 |
 |------|------|------|
-| 深度 | 文本 CFF / 复杂 shaping / Input 级压力 | `ENGINE_GAPS` G1 |
+| 深度 | 文本 **CFF2** / BiDi·完整 script / 真窗口 Input soak（CPU `TestG1a_*` 已绿） | `ENGINE_GAPS` G1 |
 | 效率 | 矢量 MSAA 脏区保留；OS present damage | G2 |
 | 稳定 | 重层+滤镜+多 RT · lifecycle/VRAM soak | G3 |
 | 生命周期 API | Unconfigure purge · NoteTextureOOM · ForceRecoverHealthy | `SURFACE_LIFECYCLE_*` · 已实现 |
@@ -360,6 +360,18 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-21 | 1.18 | X.03：Indic 多辅音 base/reph + final matra 桶序 |
+| 2026-07-21 | 1.17 | X.03：GDEF MarkFilteringSet；Indic matra 类（pre/above/below/post + peer pre-base） |
+| 2026-07-21 | 1.16 | X.01 CFF2 拒绝可测；S.09/G2 blit 局部像素门禁 |
+| 2026-07-21 | 1.15 | X.03：Indic 轻量 reordering（reph/pre-base） |
+| 2026-07-21 | 1.14 | X.03：Indic 特征分期（rphf/half/pres…） |
+| 2026-07-21 | 1.13 | G1.c GDEF IgnoreMarks；G2 damage 契约 `TestG2_*` |
+| 2026-07-21 | 1.12 | X.03：RTL visual reorder（face/segment） |
+| 2026-07-21 | 1.11 | X.03：GPOS Type 7/8 context/chaining；GPOS 1–9 齐 |
+| 2026-07-21 | 1.10 | X.03：GPOS Type 5 mark-to-lig；TestMem T4 清理修复 |
+| 2026-07-21 | 1.9 | G1.a：文本 CPU soak 门禁 `TestG1a_*`（shape/atlas 有界） |
+| 2026-07-21 | 1.8 | X.03：GSUB 1–8 + GPOS mark/cursive 落地；BiDi/GPOS 5/7/8 仍开 |
+| 2026-07-21 | 1.7 | X.01：CFF（sfnt Type2）出字落地；CFF2 仍未支持 |
 | 2026-07-21 | 1.5 | 挂 ENGINE_GAPS；S.09/X.01/X.03 标注真实边界；lifecycle 已实现不降 L5 |
 | 2026-07-15 | 1.8 | P1：T.03 non-uniform stroke、X.06 MultiFace GPU、X.11 atlas |
 | 2026-07-15 | 1.7 | P1：X.03/X.04/Q.03/L.06 GPU 门禁（shape/subpixel/snap/mask staging） |

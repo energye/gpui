@@ -617,6 +617,9 @@ func abs32f(x float32) float32 {
 
 // extractFromOwnWithContours builds a scaled outline and returns the raw
 // font-unit contours used so auto-hinting can reuse them (no second glyf parse).
+//
+// CFF fonts (no glyf): outlines come from extractCFFOutline; contours is nil
+// so auto-hint falls through to grid-fit only (ENGINE_GAPS G1.b).
 func (e *OutlineExtractor) extractFromOwnWithContours(f *ownParsedFont, gid GlyphID, size float64) (*GlyphOutline, *GlyfContours, error) {
 	if f == nil {
 		return nil, nil, &FontError{Reason: "own parser: nil font"}
@@ -624,6 +627,12 @@ func (e *OutlineExtractor) extractFromOwnWithContours(f *ownParsedFont, gid Glyp
 	upem := f.UnitsPerEm()
 	if upem == 0 {
 		return nil, nil, &FontError{Reason: "own parser: zero unitsPerEm"}
+	}
+
+	// CFF / PostScript outlines — no glyf contours.
+	if f.hasCFFTable() || f.hasCFF2Table() {
+		outline, err := f.extractCFFOutline(gid, size)
+		return outline, nil, err
 	}
 
 	// Get advance width.

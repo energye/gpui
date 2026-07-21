@@ -269,9 +269,15 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics) []ShapedRun {
 	var xOffset float64
 
 	for _, seg := range segments {
-		glyphs := Shape(seg.Text, face)
+		// Use uncached shape so segment-level RTL reorder is applied once here
+		// without double-reordering a Shape() cache entry that already reordered.
+		glyphs := ShapeUncached(seg.Text, face)
 		if len(glyphs) == 0 {
 			continue
+		}
+		// RTL segment → visual order (segmenter already split bidi runs).
+		if seg.Direction == DirectionRTL {
+			glyphs = ReorderRTLShapedGlyphs(glyphs)
 		}
 
 		// Adjust glyph positions by xOffset

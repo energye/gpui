@@ -187,9 +187,10 @@ func parseFeatureTable(data []byte, tag [4]byte) otFeature {
 // otLookup represents a parsed Lookup table header.
 // The subtable data slices are relative to the beginning of each subtable.
 type otLookup struct {
-	lookupType uint16
-	lookupFlag uint16
-	subtables  [][]byte // raw subtable data slices
+	lookupType    uint16
+	lookupFlag    uint16
+	markFilterSet int      // valid when lookupFlag&UseMarkFilteringSet; else -1
+	subtables     [][]byte // raw subtable data slices
 }
 
 // parseLookupList parses the LookupList and returns raw lookup entries.
@@ -216,7 +217,7 @@ func parseLookupList(data []byte) []otLookup {
 
 // parseLookupTable parses a single Lookup table.
 func parseLookupTable(data []byte) otLookup {
-	lu := otLookup{}
+	lu := otLookup{markFilterSet: -1}
 	if len(data) < 6 {
 		return lu
 	}
@@ -225,10 +226,12 @@ func parseLookupTable(data []byte) otLookup {
 	subtableCount := int(binary.BigEndian.Uint16(data[4:6]))
 
 	headerSize := 6
-	// If UseMarkFilteringSet flag (bit 4) is set, there is an extra uint16 after subtable offsets.
-	// We skip it — it is used for mark filtering which is not yet implemented.
-
-	if len(data) < headerSize+subtableCount*2 {
+	// UseMarkFilteringSet: MarkFilteringSet uint16 follows subtable offset array.
+	need := headerSize + subtableCount*2
+	if lu.lookupFlag&lookupFlagUseMarkFilteringSet != 0 {
+		need += 2
+	}
+	if len(data) < need {
 		return lu
 	}
 
@@ -239,6 +242,9 @@ func parseLookupTable(data []byte) otLookup {
 			continue
 		}
 		lu.subtables = append(lu.subtables, data[stOffset:])
+	}
+	if lu.lookupFlag&lookupFlagUseMarkFilteringSet != 0 {
+		lu.markFilterSet = int(binary.BigEndian.Uint16(data[headerSize+subtableCount*2 : headerSize+subtableCount*2+2]))
 	}
 	return lu
 }
@@ -579,6 +585,74 @@ func collectLookupIndices(
 		return lookupIndices[i] < lookupIndices[j]
 	})
 	return dedup(lookupIndices)
+}
+
+// collectLookupIndicesOrdered is like collectLookupIndices but preserves the
+// order features appear in LangSys (then required feature last). Lookups within
+// a feature keep their listed order. Duplicates are dropped while keeping first.
+func collectLookupIndicesOrdered(
+	scripts []otScript,
+	features []otFeature,
+	scriptTag, langTag [4]byte,
+	desiredTags [][4]byte,
+) []uint16 {
+	var langSys *otLangSys
+	for i := range scripts {
+		if scripts[i].tag == scriptTag {
+			if lang, ok := scripts[i].langSys[langTag]; ok {
+				langSys = lang
+			} else {
+				langSys = scripts[i].defaultLan
+			}
+			break
+		}
+	}
+	if langSys == nil {
+		dfltTag := [4]byte{'D', 'F', 'L', 'T'}
+		for i := range scripts {
+			if scripts[i].tag == dfltTag {
+				langSys = scripts[i].defaultLan
+				break
+			}
+		}
+	}
+	if langSys == nil {
+		return nil
+	}
+
+	tagSet := make(map[[4]byte]bool, len(desiredTags))
+	for _, t := range desiredTags {
+		tagSet[t] = true
+	}
+
+	seen := make(map[uint16]bool)
+	var out []uint16
+	add := func(indices []uint16) {
+		for _, li := range indices {
+			if seen[li] {
+				continue
+			}
+			seen[li] = true
+			out = append(out, li)
+		}
+	}
+
+	for _, fi := range langSys.featureIndices {
+		if int(fi) >= len(features) {
+			continue
+		}
+		f := &features[fi]
+		if tagSet[f.tag] {
+			add(f.lookupIndices)
+		}
+	}
+	if langSys.requiredFeatureIndex != 0xFFFF {
+		ri := langSys.requiredFeatureIndex
+		if int(ri) < len(features) {
+			add(features[ri].lookupIndices)
+		}
+	}
+	return out
 }
 
 // dedup removes consecutive duplicates from a sorted slice.
