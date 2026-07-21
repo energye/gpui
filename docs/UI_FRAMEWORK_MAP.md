@@ -1,6 +1,6 @@
 # UI 框架总图与规划 — Primitive 组合底座 × Kit 产品面 × Flutter 管线 × render
 
-> 版本：4.1 | 日期：2026-07-21 | **活文档 · 脚手架未开**  
+> 版本：4.1 | 日期：2026-07-21 | **活文档 · M0+M1 已落地**  
 > 状态：**控件产品架构以「primitive 组合」为底座**；已含 **Ant 全量组件 → 组合能力反推清单**  
 > 入口：[`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) ✅  
 > 引擎：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) · [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
@@ -696,9 +696,18 @@ tree.Frame() // layout → paint → present
 
 **DoD**：Linux 真窗可点可画 present；Headless 测 layout/hit；**不**依赖 kit/Ant。对照 §5.7 仅覆盖 Button 级组合预备。
 
-### M1 — §5.9 层2 观感 + kit B0
+### M1 — §5.9 层2 观感 + kit B0 ✅（2026-07-21）
 
 Decorated Slot Icon Focus HitTarget Divider Theme/Skin Token；kit.Button/Text/Icon；组合示例。
+
+| 产出 | 路径 |
+|------|------|
+| Theme/Token/Skin/Focus | `ui/core`（`theme.go` `skin.go` `focus.go`） |
+| P1 primitives | `ui/primitive` — Decorated Slot Icon Focusable HitTarget Divider PainterNode |
+| skin/default | `ui/skin/default` |
+| kit B0 | `ui/kit` — Button Text Icon |
+| smoke | `examples/ui_kit_smoke` |
+| 单测 | `go test ./ui/core ./ui/primitive ./ui/kit` |
 
 ### M2 — 层3–4 输入+浮层 + B1
 
@@ -751,18 +760,33 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 | 架构（primitive 底座） | ✅ 本文 v4.0 |
 | 引擎入口 S5 | ✅ |
 | M0 可开工 | ✅ 先 core+primitive，**不**先铺 Ant 全表 |
-| 代码 | ❌ 下一步脚手架 |
+| 代码 | ✅ **M0 + M1 已落地**（2026-07-21） |
 
-**判定：按 M0（core + primitive 最小集）开发。** Kit/Ant 在 M1+ 用组合叠上去。
+**判定：M0（core + primitive 最小集）与 M1（观感 + kit B0）已实现。** 输入/浮层走 M2。
+
+### 代码位置（M0–M1）
+
+| 包/示例 | 路径 |
+|---------|------|
+| core | `ui/core` — Node/Constraints/Flex·Stack/Hit/Event/Paint/Tree/Plugin/**Theme·Token·Skin·Focus** |
+| primitive | `ui/primitive` — P0 + **Decorated Slot Icon Focusable HitTarget Divider PainterNode** |
+| platform | `ui/platform` — Caps/Host/Headless/Linux X11 薄适配 |
+| skin/default | `ui/skin/default` — Ant light tokens + MapSkin |
+| kit | `ui/kit` — **Button / Text / Icon** |
+| smoke | `examples/ui_core_smoke` · `examples/ui_kit_smoke` |
+| 单测 | `go test ./ui/core ./ui/platform ./ui/primitive ./ui/kit` |
+
+**未做（有意）**：Input/Editable/Overlay（M2）、Table/Form（M3+）、引擎主线改动。
 
 ---
 
 ## 15. 立即下一步
 
-1. 冻结 v4.0 分层与 primitive 清单。  
-2. 脚手架：`ui/core` + `ui/primitive` + `ui/platform`（Headless）+ smoke。  
-3. M1 再引入 `ui/kit` 与 `skin/default`。  
-4. 实现偏差回写本文。
+1. ~~冻结 v4.0 分层与 primitive 清单。~~  
+2. ~~脚手架：`ui/core` + `ui/primitive` + `ui/platform`（Headless）+ smoke。~~ ✅  
+3. ~~M1：`ui/kit` 与 `skin/default`。~~ ✅  
+4. M2：EditableText、IME、Input 系、Overlay/Mask/AnchoredPopup、ScrollViewport。  
+5. 实现偏差回写本文。
 
 ---
 
