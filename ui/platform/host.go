@@ -11,6 +11,8 @@ const (
 	EventFocus
 	EventClose
 	EventRedraw
+	EventScroll
+	EventIME
 )
 
 // PointerKind mirrors core pointer types without importing core (SPI boundary).
@@ -47,6 +49,14 @@ type Event struct {
 	Key  string
 	Text string
 	Down bool // true=KeyDown, false=KeyUp
+
+	// Scroll deltas (EventScroll).
+	ScrollDX, ScrollDY float64
+
+	// IME composition (EventIME).
+	IMEText   string
+	IMECursor int
+	IMEEnd    bool
 
 	// Window fields.
 	Width, Height int

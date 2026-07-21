@@ -37,8 +37,15 @@ func Dispatch(tree *core.Tree, ev Event) (resize *Event, close bool) {
 		}
 		tree.DispatchKey(ke)
 	case EventText:
-		ke := &core.KeyEvent{Type: core.KeyDown, Text: ev.Text, Key: "Text"}
-		tree.DispatchKey(ke)
+		tree.DispatchTextInput(&core.TextInputEvent{Text: ev.Text})
+	case EventScroll:
+		tree.DispatchScroll(&core.ScrollEvent{
+			X: ev.X, Y: ev.Y, DX: ev.ScrollDX, DY: ev.ScrollDY,
+		})
+	case EventIME:
+		tree.DispatchIME(&core.IMECompositionEvent{
+			Text: ev.IMEText, Cursor: ev.IMECursor, End: ev.IMEEnd,
+		})
 	case EventResize:
 		e := ev
 		return &e, false

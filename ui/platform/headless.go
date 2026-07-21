@@ -121,5 +121,20 @@ func (h *Headless) Resize(width, height int) {
 	h.queue = append(h.queue, Event{Type: EventResize, Width: width, Height: height})
 }
 
+// InjectScroll enqueues a scroll event at (x,y).
+func (h *Headless) InjectScroll(x, y, dx, dy float64) {
+	h.Inject(Event{Type: EventScroll, X: x, Y: y, ScrollDX: dx, ScrollDY: dy})
+}
+
+// InjectText enqueues committed text input.
+func (h *Headless) InjectText(text string) {
+	h.Inject(Event{Type: EventText, Text: text})
+}
+
+// InjectKey enqueues a key down/up.
+func (h *Headless) InjectKey(key string, down bool) {
+	h.Inject(Event{Type: EventKey, Key: key, Down: down})
+}
+
 // var _ Host = (*Headless)(nil) at bottom of file after methods — compile check.
 var _ Host = (*Headless)(nil)

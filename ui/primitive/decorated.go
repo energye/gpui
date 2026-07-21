@@ -20,6 +20,8 @@ type Decorated struct {
 	BorderToken     string
 	// Min size hints.
 	MinWidth, MinHeight float64
+	// Width/Height when > 0 force preferred size.
+	Width, Height float64
 }
 
 // NewDecorated wraps children with decoration.
@@ -53,6 +55,12 @@ func (d *Decorated) Layout(c core.Constraints) core.Size {
 	}
 	w := content.Width + d.Padding.Left + d.Padding.Right
 	h := content.Height + d.Padding.Top + d.Padding.Bottom
+	if d.Width > 0 {
+		w = d.Width
+	}
+	if d.Height > 0 {
+		h = d.Height
+	}
 	if w < d.MinWidth {
 		w = d.MinWidth
 	}

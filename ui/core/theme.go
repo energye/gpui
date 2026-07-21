@@ -21,6 +21,7 @@ const (
 	TokenColorDisabledBg      = "colorDisabledBg"
 	TokenColorDisabledText    = "colorDisabledText"
 	TokenColorFillSecondary   = "colorFillSecondary"
+	TokenColorBgMask          = "colorBgMask"
 
 	TokenFontSize        = "fontSize"
 	TokenFontSizeSM      = "fontSizeSM"
@@ -227,6 +228,7 @@ func AntLightTokens() *TokenSet {
 	t.Colors[TokenColorDisabledBg] = render.RGBA{R: 0, G: 0, B: 0, A: 0.04}
 	t.Colors[TokenColorDisabledText] = render.RGBA{R: 0, G: 0, B: 0, A: 0.25}
 	t.Colors[TokenColorFillSecondary] = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
+	t.Colors[TokenColorBgMask] = render.RGBA{R: 0, G: 0, B: 0, A: 0.45}
 	// Sizes
 	t.Sizes[TokenFontSize] = 14
 	t.Sizes[TokenFontSizeSM] = 12

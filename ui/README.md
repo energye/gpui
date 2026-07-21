@@ -7,13 +7,11 @@
 
 | 包 | 职责 | 状态 |
 |----|------|------|
-| `ui/core` | 管线：树·布局·Hit·Event·Paint·Frame·Plugin·Theme/Token·Focus | M0–M1 ✅ |
-| `ui/primitive` | 积木 P0+P1：Box/Flex/Stack/…/Decorated/Icon/Slot/… | M0–M1 ✅ |
-| `ui/platform` | SPI + Headless + Linux 薄适配 | M0 ✅ |
-| `ui/skin/default` | Ant 向 Token + 默认 Skin | M1 ✅ |
-| `ui/kit` | 产品控件 B0：Button / Text / Icon | M1 ✅ |
-
-依赖只向下：`app → kit → primitive → core → render`；`platform` 不进 core。
+| `ui/core` | 树·布局·Hit·Event·Paint·Frame·Theme·Focus·**OverlayHost** | M0–M2 ✅ |
+| `ui/primitive` | P0/P1 + **Editable/Scroll/Overlay/Mask/Anchored/Trigger** | M0–M2 ✅ |
+| `ui/platform` | SPI + Headless + Linux（Scroll/Text/IME 事件） | M0–M2 ✅ |
+| `ui/skin/default` | Ant 向 Token + Skin | M1 ✅ |
+| `ui/kit` | B0 Button/Text/Icon + **B1 Input/Checkbox/Radio/Switch/Tooltip/Popover** | M1–M2 ✅ |
 
 ## 测试
 
@@ -25,10 +23,7 @@ go test ./ui/core ./ui/platform ./ui/primitive ./ui/kit
 
 ```bash
 export DISPLAY=:1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-
-# M0：primitive Pressable+Text
-GPUI_ANIM_SECONDS=12 GPUI_SMOKE_AUTOCLICK=30 go run ./examples/ui_core_smoke
-
-# M1：kit.Button 状态矩阵 + Icon
-GPUI_ANIM_SECONDS=12 GPUI_SMOKE_AUTOCLICK=40 go run ./examples/ui_kit_smoke
+go run ./examples/ui_core_smoke      # M0
+go run ./examples/ui_kit_smoke       # M1
+go run ./examples/ui_kit_b1_smoke    # M2
 ```

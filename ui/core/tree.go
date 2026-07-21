@@ -1,6 +1,6 @@
 package core
 
-// Tree owns the root node, dirty state, pointer capture, and focus.
+// Tree owns the root node, dirty state, pointer capture, focus, and overlays.
 type Tree struct {
 	root Node
 
@@ -14,11 +14,14 @@ type Tree struct {
 
 	// Viewport used for last layout (logical pixels).
 	viewport Size
+
+	// Overlay stack (portal host).
+	overlays *OverlayHost
 }
 
 // NewTree creates a tree with the given root (may be nil).
 func NewTree(root Node) *Tree {
-	t := &Tree{dirty: true}
+	t := &Tree{dirty: true, overlays: NewOverlayHost()}
 	if root != nil {
 		t.SetRoot(root)
 	}
@@ -31,6 +34,17 @@ func (t *Tree) Root() Node {
 		return nil
 	}
 	return t.root
+}
+
+// Overlays returns the portal host (never nil after NewTree).
+func (t *Tree) Overlays() *OverlayHost {
+	if t == nil {
+		return nil
+	}
+	if t.overlays == nil {
+		t.overlays = NewOverlayHost()
+	}
+	return t.overlays
 }
 
 // SetRoot replaces the root and remounts.
@@ -59,28 +73,52 @@ func (t *Tree) markDirty() {
 	}
 }
 
+// MarkDirty requests a layout/paint frame (for portals/setState).
+func (t *Tree) MarkDirty() { t.markDirty() }
+
 // Dirty reports whether layout or paint is needed.
 func (t *Tree) Dirty() bool {
 	return t != nil && t.dirty
 }
 
-// Layout runs a single layout pass on the root with tight viewport constraints.
+// Layout runs a single layout pass on the root with tight viewport constraints,
+// then lays out overlay nodes loosely within the viewport.
 func (t *Tree) Layout(viewport Size) {
-	if t == nil || t.root == nil {
+	if t == nil {
 		return
 	}
 	t.viewport = viewport
-	_ = t.root.Layout(Tight(viewport.Width, viewport.Height))
-	clearLayoutDirty(t.root)
+	if t.root != nil {
+		_ = t.root.Layout(Tight(viewport.Width, viewport.Height))
+		clearLayoutDirty(t.root)
+	}
+	for _, e := range t.Overlays().Entries() {
+		if e.Node == nil {
+			continue
+		}
+		_ = e.Node.Layout(Loose(viewport.Width, viewport.Height))
+		clearLayoutDirty(e.Node)
+	}
 }
 
-// Paint paints the root into pc. Origin should typically be (0,0).
+// Paint paints the root then overlays (ascending Z).
 func (t *Tree) Paint(pc *PaintContext) {
-	if t == nil || t.root == nil || pc == nil {
+	if t == nil || pc == nil {
 		return
 	}
-	t.root.Paint(pc)
-	clearPaintDirty(t.root)
+	if t.root != nil {
+		t.root.Paint(pc)
+		clearPaintDirty(t.root)
+	}
+	for _, e := range t.Overlays().Entries() {
+		if e.Node == nil {
+			continue
+		}
+		// Overlay nodes use their own Offset as absolute position.
+		childPC := pc.WithOrigin(pc.Origin.Add(e.Node.Base().Offset()))
+		e.Node.Paint(childPC)
+		clearPaintDirty(e.Node)
+	}
 	t.dirty = false
 }
 
@@ -93,8 +131,24 @@ func (t *Tree) Frame(pc *PaintContext, viewport Size) {
 }
 
 // HitTest returns the deepest hit under absolute tree coordinates.
+// Overlays are tested top-most first.
 func (t *Tree) HitTest(p Point) Node {
-	if t == nil || t.root == nil {
+	if t == nil {
+		return nil
+	}
+	entries := t.Overlays().Entries()
+	for i := len(entries) - 1; i >= 0; i-- {
+		e := entries[i]
+		if e.Node == nil {
+			continue
+		}
+		off := e.Node.Base().Offset()
+		local := p.Sub(off)
+		if hit := e.Node.HitTest(local); hit != nil {
+			return hit
+		}
+	}
+	if t.root == nil {
 		return nil
 	}
 	return t.root.HitTest(p)
@@ -156,7 +210,6 @@ func (t *Tree) DispatchPointer(ev *PointerEvent) {
 			upHit := t.HitTest(p)
 			if upHit == t.lastDown || t.capture == t.lastDown {
 				if ch, ok := t.lastDown.(ClickHandler); ok {
-					// Click is a separate callback; do not require !Handled.
 					ch.OnClick(ev)
 				}
 			}
@@ -221,6 +274,43 @@ func (t *Tree) DispatchKey(ev *KeyEvent) {
 	}
 }
 
+// DispatchScroll delivers a wheel event: hit-test then bubble for ScrollHandler.
+func (t *Tree) DispatchScroll(ev *ScrollEvent) {
+	if t == nil || ev == nil {
+		return
+	}
+	target := t.HitTest(Point{X: ev.X, Y: ev.Y})
+	for n := target; n != nil && !ev.Handled; n = n.Parent() {
+		if sh, ok := n.(ScrollHandler); ok {
+			sh.HandleScroll(ev)
+		}
+	}
+}
+
+// DispatchTextInput delivers committed text to the focused editor.
+func (t *Tree) DispatchTextInput(ev *TextInputEvent) {
+	if t == nil || ev == nil {
+		return
+	}
+	for n := t.focus; n != nil && !ev.Handled; n = n.Parent() {
+		if th, ok := n.(TextInputHandler); ok {
+			th.HandleTextInput(ev)
+		}
+	}
+}
+
+// DispatchIME delivers composition events to the focused editor.
+func (t *Tree) DispatchIME(ev *IMECompositionEvent) {
+	if t == nil || ev == nil {
+		return
+	}
+	for n := t.focus; n != nil && !ev.Handled; n = n.Parent() {
+		if ih, ok := n.(IMEHandler); ok {
+			ih.HandleIME(ev)
+		}
+	}
+}
+
 // Capture returns the current pointer capture node.
 func (t *Tree) Capture() Node {
 	if t == nil {
@@ -241,7 +331,7 @@ type hoverable interface {
 	SetHovered(bool)
 }
 
-// FocusTarget is implemented by focusable primitives (Pressable, Focusable).
+// FocusTarget is implemented by focusable primitives (Pressable, Focusable, EditableText).
 // Methods must be exported so cross-package types can satisfy the interface.
 type FocusTarget interface {
 	CanFocus() bool
