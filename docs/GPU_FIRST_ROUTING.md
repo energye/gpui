@@ -1,13 +1,10 @@
 # GPU 优先路由原则与「有 GPU 仍 CPU」清单
 
-> 版本：3.9.2 | 日期：2026-07-16  
-> 状态：**主线已关闭（v3.9 可签字；见 §9）**  
-> 状态：**§7 三轮遗漏审计已关闭（证据见 §7.4）**  
-> 状态：**§10 关闭后回归矩阵已补跑并落档（见 §10）**  
-> 状态：**本文保留为活文档 / 硬原则**；禁止降级已有 GPU 路径  
-> 后置（不阻塞主线）：N3 真 fragment ColorAt · N4 Bicubic · N5 极冷门 path effect  
-> 权威：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) §1b  
-> 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`
+> 版本：3.9.3 | 日期：2026-07-21 | **活文档 / 硬原则**  
+> 状态：主线审计已关闭（v3.9）；**原则永久有效** — 禁止降级已有 GPU 路径  
+> 后置（不阻塞画布 100%）：N3 ColorAt · N4 Bicubic · N5 极冷 path effect（见 `ENGINE_GAPS` P4）  
+> 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
+> 索引：[`README.md`](./README.md)
 
 ---
 
@@ -46,7 +43,7 @@
 
 - UI 主路径（有 GPU）：稳定 ~60fps **且** `cpu_fb=0`  
 - 重特效叠压：可分级预算（见 S6.9），**仍禁止** silent CPU 冒充 GPU 完成  
-- mem_anim：`cpu_fb=0` 硬门禁；见 [`MEM_ANIM_LONGSOAK_PLAN.md`](./MEM_ANIM_LONGSOAK_PLAN.md) §0c  
+- mem_anim：`cpu_fb=0` 硬门禁；见 `examples/mem_anim_window`（cpu_fb=0 硬门禁）  
 
 ---
 
@@ -266,7 +263,7 @@ GPUI_SCENARIO=S12 GPUI_ANIM_SECONDS=30 /tmp/mem_anim_window
 - [x] GPU-first 门禁抽测绿且 `cpu_fb=0`：  
       `go test ./render -run 'TestP02_LinearGradientNativeGPU|TestP02_ImagePatternNativeGPU|TestR1_PushMaskLayerGPU|TestR3_DashedCircleStrokeGPU|TestP04_ApplyBlurGPU'` → **ok**（2026-07-16）  
       （更全量 S5/S6 / mem_anim 仍按 MAINLINE 回归；本审计关闭不依赖全量重跑）
-- [x] examples 关键路径：`capability_matrix` C01–C20 / mem_anim 门禁要求 **`cpu_fb=0`**（见 CAPABILITY_MATRIX_WINDOW / MEM_ANIM 计划）
+- [x] examples 关键路径：`capability_matrix` C01–C20 / mem_anim 门禁要求 **`cpu_fb=0`**（见 CAPABILITY_MATRIX_WINDOW / mem_anim_window）
 - [x] **关闭后补跑**见 **§10**（扩展单测矩阵 + 2026-07-16 证据）
 
 **§7 正式关闭。** 后续缺口只允许：GPU\*→真原生、或新发现 silent 再开 Round。
@@ -415,7 +412,7 @@ go test ./render -count=1 -timeout 1200s \
 | **S69 性能契约** | `TestS69_HeavyBudget_TierGates` / `TestS69_Contract_FromJSON` | **选跑**；机器负载抖动可 FAIL，**不否决 GPU-first** |
 | **S68 真窗口** | `TestS68_WindowPresent_*` | 需可用 `DISPLAY` + X11 |
 | **capability 窗口** | `GPUI_SCENARIO=C0x` + `examples/capability_matrix` | 需 X11；要求结果行 `cpu_fb=0` |
-| **mem_anim soak** | 见 `MEM_ANIM_LONGSOAK_PLAN.md` | 长时 `cpu_fb=0`；非每次关闭必跑 |
+| **mem_anim soak** | `examples/mem_anim_window` | 长时 `cpu_fb=0`；非每次关闭必跑 |
 
 ### 10.4 用例映射（能力 → 测试）
 
@@ -431,7 +428,7 @@ go test ./render -count=1 -timeout 1200s \
 | R2 非 solid stroke | `TestR2_GradientStrokeGPU` | 非 silent CPU |
 | R3 dash/thin | `TestR3_DashedCircleStrokeGPU` / `ThinStrokeGPU` | 主路径 dash GPU |
 | P1-1 shape cache | `TestP11_*` | CJK warm hit |
-| P1-2 clip mask | `TestP12_Clip*Difference*` | Difference R8 |
+| P1-2 clip mask | `TestP12_ClipRectDifferenceGPU` / `TestP12_ClipPathDifferenceGPU` | Difference R8 |
 | P1-3 frame flush | `TestP13_*` | layer pop 批 flush |
 | B.02/B.07 blend 像素 | `TestP12GPUFixedPixel_Blend*` | fixed-function 含 Plus/Modulate |
 

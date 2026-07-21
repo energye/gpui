@@ -1,13 +1,12 @@
 # 内存 / VRAM 泄漏测试方案
 
-
-> **时长分层说明**：60s 只用于抓快泄漏（每秒百 KB 级）；平台化置信靠 180s+；慢爬/延迟释放用 600–1800s。rate 门限是噪声带，目标仍是 ≈0。
-> 版本：1.6 | 日期：2026-07-18  
-> 状态：**执行中**（**日常权威入口见 `docs/MEM_LEAK_PERF_GUARD_PLAN.md` + `scripts/run_mem_guard.sh`）  
-> 范围：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`（经 render 真链路）  
-> 非目标：游戏引擎、控件层、完整 ASAN/Valgrind 替代；**不**宣称覆盖全部 API  
-> 独立窗口压测程序：`examples/particle_kitchen_sink`（取代旧 `mem_window_stress`）  
-> **正向优化：** 修泄漏不得拖垮 FPS/CPU/稳态占用 — 见 PERF_GUARD 护栏
+> **时长分层说明**：60s 抓快泄漏；180s+ 平台化；600–1800s 慢爬。目标斜率 ≈0。  
+> 版本：1.7 | 日期：2026-07-21 | **活文档**  
+> 状态：**执行中** — 日常入口 [`MEM_LEAK_PERF_GUARD_PLAN.md`](./MEM_LEAK_PERF_GUARD_PLAN.md) + `scripts/run_mem_guard.sh`  
+> 范围：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
+> 非目标：控件层、完整 ASAN/Valgrind 替代  
+> 窗口压测：`examples/particle_kitchen_sink`  
+> 关联：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) G3 · device_lost / surface lifecycle
 
 ---
 
@@ -230,7 +229,7 @@ Env（`particle_kitchen_sink` 窗口压测，详见 `examples/particle_kitchen_s
   - 探针：`P_MEM_SOAK` / `P_MEM_LONG` / `P_GROW_N` / `P_RESIZE`  
   - 批量：`GPUI_PKS_FILTER=mem ./scripts/run_pks_matrix.sh`  
   - 说明：`examples/particle_kitchen_sink/README.md` · `COVERAGE.md`  
-- **历史（默认不跑）**：`docs/MEM_ANIM_LONGSOAK_PLAN.md`（`mem_anim_window` S01–S23）。**新工作默认只用 PKS**；不再推荐 `mem_window_stress`。
+- **历史（默认不跑）**：`examples/mem_anim_window`（S01–S23）。**新工作默认只用 particle_kitchen_sink**；`mem_window_stress` 非日常入口。
 - **权威日常流程**：`docs/MEM_LEAK_PERF_GUARD_PLAN.md` · `./scripts/run_mem_guard.sh`
 
 ---

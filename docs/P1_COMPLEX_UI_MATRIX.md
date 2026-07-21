@@ -1,9 +1,9 @@
 # P1 — 复杂 UI 场景矩阵门禁
 
-> 版本：1.12 | 日期：2026-07-15  
-> 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) / 能力表 [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
+> 版本：1.13 | 日期：2026-07-21 | **活门禁表**  
+> 能力表：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md) · 索引：[`README.md`](./README.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
-> **非控件层**：场景只模拟 Ant Design 级 UI 的绘制形态。
+> **非控件层**：场景只模拟 Ant Design 级 UI 的 **绘制形态**。
 
 ## 硬规则
 

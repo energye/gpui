@@ -1,10 +1,12 @@
-# GPU device lost 修复方案（mem_anim_window / Skia·Flutter 生命周期）
+# GPU device lost 修复方案（Skia·Flutter 生命周期）
 
-> **任务**：修复 device lost 导致测试程序崩溃  
-> **测试程序**：`examples/mem_anim_window`  
-> **webgpu 库**：`lib/libwgpu_native.so`  
+> **状态：主路径已落地（活文档）** — 2026-07-21  
+> **任务**：修复 device lost 导致测试程序崩溃 / 恢复后 OOM  
+> **主测**：`examples/mem_anim_window` · `api_coverage_app` · `device_lost_redraw` · lifecycle matrix  
+> **webgpu 库**：`lib/libwgpu_native.so`（soft 补丁：lost 不 panic）  
 > **规范**：对标 Skia `GrDirectContext` abandon+recreate / Flutter Rasterizer surface 生命周期（策略映射，非源码拷贝）  
-> **最后更新**：2026-07-21
+> **策略活文档**：[`SURFACE_LIFECYCLE_SKIA_FLUTTER.md`](./SURFACE_LIFECYCLE_SKIA_FLUTTER.md)  
+> **引擎缺口**：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) G3（持续 soak，非「未实现」）
 
 ---
 
@@ -91,24 +93,23 @@
 6. **明确不做**  
    - 不调用 `GetLostFuture`  
 
-### 3.2 Host：全部窗口示例（`examples/exboot` 统一）
+### 3.2 Host（`examples/exboot` + 各示例）
 
-| 条件 | present / acquire |
+| 条件 | present / acquire（与 `SurfaceHost` / 手写 pause 对齐） |
 | --- | --- |
-| 最小化 / Unmap / FullyObscured / 几何全盖住 | **暂停 present** + **`Surface.Unconfigure`**（释放 swapchain 显存，防恢复 OOM） |
-| 仅失焦、仍可见 | **继续画** |
+| 最小化 / Unmap / FullyObscured / 几何全盖住 | **暂停 present**；**auto/Purge/Recreate**：`Unconfigure` + DropGPU（见 lifecycle）；**Normal 档不 Unconfigure** |
+| 仅失焦、仍可见 | **继续画**（FocusOut ≠ hidden） |
 | `ErrDeviceLost` | skip + AutoRecover，**不** `os.Exit` |
-| 恢复可 present | `forceFull` + `MarkNeedsReconfigure` + `ClearRecoverCooldown`；recover 回调 **`DropGPURenderContext`** |
+| 恢复可 present | force full / reconfigure 或 `ForceRecoverHealthy`；recover 回调 **`DropGPURenderContext`** |
 
-共享启动：`examples/exboot`（`InitEnv` / `NewInstanceX11` / `OpenDevice` / `WireAutoRecover`）。
+共享启动：`examples/exboot`（`InitEnv` / `NewInstanceX11` / `OpenDevice` / `WireAutoRecover`）。  
+自适应策略：`exboot.SurfaceHost`（`lifecycle.go`）。
 
-| 示例 | 对齐项 |
+| 示例 | 接入方式（2026-07-21 源码） |
 | --- | --- |
-| `device_lost_redraw` | 参考实现 |
-| `mem_anim_window` | exboot + Unconfigure + DropGPU + ClearRecoverCooldown |
-| `particle_kitchen_sink` | 同上 |
-| `capability_matrix` | 同上（补 minimize/obscure pause） |
-| `window_present` | exboot recover DropGPU |
+| `api_coverage_app` · `mem_anim_window` · `antd_desktop_app` · `flutter_app_shell` | **SurfaceHost** + WireAutoRecover |
+| `app_lifecycle_shell` · `capability_matrix` · `window_present` · `particle_kitchen_sink` | WireAutoRecover；pause/Unconfigure **手写**（未统一 SurfaceHost） |
+| `device_lost_redraw` | 手写 Unconfigure + DropGPU（参考路径） |
 | `mem_window_stress` | 离屏；`InitEnv` only |
 | `vram_stages` | 诊断 |
 
@@ -116,16 +117,17 @@
 
 ### 3.3 文档与测试
 
-- 契约：`docs/WGPU_NATIVE_DEVICE_LOST.md`  
-- 本文件：任务 + 方案 + 验收  
+- 本文件：问题 / 方案 / 验收（**已实现**）  
+- 表面策略：[`SURFACE_LIFECYCLE_SKIA_FLUTTER.md`](./SURFACE_LIFECYCLE_SKIA_FLUTTER.md)  
+- 持续缺口：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) G3  
 - 门禁：
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib
 go test ./gpu/rwgpu -run 'DeviceLost|Lost|Uncaptured|ForceNative|SyncLost|SurfaceParent|Registration' -count=1
 go test ./gpu/webgpu -run 'Lost|Force|PrepareDevice|RecoverKeeps' -count=1
+go test ./render/gpu -run 'Lifecycle|TextureOOM' -count=1
 ```
-
 ---
 
 ## 4. 验收步骤（人工）
@@ -161,22 +163,23 @@ GPUI_SCENARIO=S23 go run ./examples/mem_anim_window
 | `gpu/rwgpu/surface.go` | GCT status/Uncaptured → error、`abandoned` |
 | `gpu/rwgpu/safety.go` / `buffer.go` / `types.go` / `wgpu.go` | gate、WriteBuffer soft-lost、Destroy 绑定 |
 | `gpu/webgpu/device.go` / `surface.go` / `swapchain.go` | FlushCallbacks、AutoRecover、ClearRecoverCooldown |
-| `examples/exboot/boot.go` | 统一 InitEnv / OpenDevice / WireAutoRecover（DropGPU + Abandon） |
-| `examples/mem_anim_window/main.go` | EnableAutoRecover、几何完全遮挡 pause、**Unconfigure**、恢复 forceFull |
-| `examples/device_lost_redraw/main.go` | 参考实现：Unconfigure while hidden + DropGPU on recover |
-| `examples/particle_kitchen_sink` / `capability_matrix` / `window_present` | 与上对齐 |
-| `docs/WGPU_NATIVE_DEVICE_LOST.md` | native 契约 + host 职责 |
+| `examples/exboot/boot.go` · `lifecycle.go` | InitEnv / OpenDevice / WireAutoRecover · **SurfaceHost** 三档策略 |
+| `examples/mem_anim_window` · `device_lost_redraw` · `api_coverage_app` · `antd_desktop_app` · `flutter_app_shell` | Unconfigure + DropGPU + lifecycle selftest |
+| `render/context_gpu_registry.go` · `render/accelerator.go` | 全 Context abandon / purge |
+| `render/gpu/lifecycle_policy.go` · `gpu.go` | NoteTextureOOM · Purge hooks |
+| `gpu/webgpu/lifecycle_hooks.go` · `swapchain.go` | AfterSurfaceUnconfigure · ForceRecoverHealthy · VRAM probe |
 | `gpu/rwgpu/force_native_lost_test.go` 等 | 强制 Destroy / 隔离 / 拒 GCT 单测 |
 
 ---
 
-## 6. 残余限制
+## 6. 残余限制（与 ENGINE_GAPS G3 对齐）
 
-1. 需使用 **soft 补丁** `libwgpu_native.so`（`gogpu/rwgpu`）；旧 fatal `.so` 仍会 SIGABRT。  
-2. DeviceLost 回调 Destroy 路径仍可能不投递 → sticky force-mark + Uncaptured 文案仍需要。  
-3. Host **完全遮挡 pause present** 仍建议保留（减 TDR，非防崩唯一手段）。  
-4. 几何遮挡依赖 X11 stacking；极端 WM 靠 FullyObscured / soft-fail idle。  
-5. recover 后必须清 GPU 缓存（filter bind group 等）。
+1. 需使用 **soft 补丁** `libwgpu_native.so`；旧 fatal `.so` 仍会 SIGABRT。  
+2. DeviceLost 回调 Destroy 路径仍可能不投递 → sticky + Uncaptured 仍需要。  
+3. Host **完全遮挡 pause present** 仍建议保留（减 TDR）。  
+4. 几何遮挡依赖 X11 stacking；极端 WM 靠 FullyObscured。  
+5. recover 后必须 abandon Context GPU 缓存（引擎注册表已做；host 仍应 DropGPU）。  
+6. **持续**：重层 + 多 RT + force-lost soak（非未实现 API，见 G3）。
 
 ---
 

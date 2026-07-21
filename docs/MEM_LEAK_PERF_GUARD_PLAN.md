@@ -1,13 +1,13 @@
 # 内存泄漏测试计划（含性能正向护栏）
 
-
-> **时长分层说明**：60s 只用于抓快泄漏（每秒百 KB 级）；平台化置信靠 180s+；慢爬/延迟释放用 600–1800s。rate 门限是噪声带，目标仍是 ≈0。
-> 版本：1.3 | 日期：2026-07-18  
-> 状态：**执行中（权威入口）**  
+> **时长分层说明**：60s 只用于抓快泄漏；平台化置信靠 180s+；慢爬/延迟释放用 600–1800s。rate 门限是噪声带，目标仍是 ≈0。  
+> 版本：1.4 | 日期：2026-07-21 | **活文档 · 日常权威入口**  
+> 状态：**执行中**  
 > **目标：正向优化渲染引擎** — 修泄漏/收敛冗余时，功能与 FPS/CPU/稳态内存占用只许持平或变好。  
-> 时长尺度：**约 1 分钟～30 分钟**（工程稳态；非无限时长）  
-> 实现细节分档：`docs/MEM_LEAK_TEST_PLAN.md`  
-> 历史窗口程序：`docs/MEM_ANIM_LONGSOAK_PLAN.md`（**默认不跑**，见该文降级声明）
+> 时长尺度：**约 1 分钟～30 分钟**  
+> 实现细节：[`MEM_LEAK_TEST_PLAN.md`](./MEM_LEAK_TEST_PLAN.md)  
+> 历史长 soak：`examples/mem_anim_window`（**默认不跑**；日常用 particle + `run_mem_guard.sh`）  
+> 引擎稳定性缺口：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) G3
 
 ---
 
@@ -17,7 +17,7 @@
 |--------|------|-------------|
 | **P0 日常** | 泄漏 + 短浸泡 + 性能护栏 | **本文** + `./scripts/run_mem_guard.sh` |
 | P1 细节 | T0–T4 语义 / env | `docs/MEM_LEAK_TEST_PLAN.md` |
-| P2 历史 | mem_anim_window 长 soak 档案 | `docs/MEM_ANIM_LONGSOAK_PLAN.md`（可选） |
+| P2 历史 | mem_anim_window 长 soak | `examples/mem_anim_window` + `GPUI_SCENARIO`（可选） |
 | 探针说明 | PKS ID 与失败模式 | `examples/particle_kitchen_sink/README.md` · `COVERAGE.md` |
 
 ---

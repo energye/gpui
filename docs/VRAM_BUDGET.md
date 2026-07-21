@@ -1,8 +1,8 @@
 # GPU 显存预算与适配（对齐 Skia / Flutter）
 
-> 日期：2026-07-21  
-> 范围：`gpu/rwgpu` InstanceExtras · `render/gpu` adapter 策略 · 示例 `vram_stages` / `device_lost_redraw`
-
+> 版本：1.1 | 日期：2026-07-21 | **活文档**  
+> 范围：`gpu/rwgpu` InstanceExtras · `render/gpu` adapter 策略 · 示例 `vram_stages` / `device_lost_redraw`  
+> 关联：[`SURFACE_LIFECYCLE_SKIA_FLUTTER.md`](./SURFACE_LIFECYCLE_SKIA_FLUTTER.md) · [`ENGINE_GAPS.md`](./ENGINE_GAPS.md) G3.d
 ## 问题
 
 在 **NVIDIA 940MX (1GB) + wgpu-native Vulkan** 上，即使只 clear 一帧：
@@ -81,6 +81,14 @@ GPUI_LOW_VRAM=1 go run ./examples/device_lost_redraw
 
 ```go
 policy := gpu.ResolveAdapterPolicy()
-adpt, soft, err := gpu.RequestAdapterWithPolicy(inst, surf, policy)
+// forceFallback=true when only software/CPU adapter is available
+adpt, forceFallback, err := gpu.RequestAdapterWithPolicy(inst, surf, policy)
+_ = forceFallback
 dev, err := adpt.RequestDevice(gpu.DeviceDescriptorForAdapter("app", adpt))
 ```
+
+## 与 surface lifecycle
+
+- 不可 present（**auto/Purge 默认**）：`Unconfigure` + `PurgeSurfaceResources` / DropGPU；**Normal 档**仅 purge 引擎附件、不 Unconfigure（见 surface 文档）。  
+- OOM：`NoteTextureOOM` → lifecycle 升 **Recreate** → `ForceRecoverHealthy`（见 surface 文档）。  
+- 双 Device 峰值：recover 必须完整 Release 旧堆（CB / offscreen pool / blend pipeline）；见 device_lost 文档 4c。

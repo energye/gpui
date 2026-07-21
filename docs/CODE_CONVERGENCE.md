@@ -1,14 +1,15 @@
 # Render / GPU 代码收敛任务卡（功能·性能·内存不回退）
 
-> 版本：1.3 | 日期：2026-07-20  
+> 版本：1.4 | 日期：2026-07-21 | **任务卡（C9 已完成）**  
 > 状态：**C9.0–C9.6 完成**（C9.7 可选跳过）  
-> 范围：`render` 主路径 + 为 render 服务的 `gpu/webgpu` / `gpu/rwgpu`（**不含控件层**）  
-> 调用链（约定，以代码 import 为准）：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`
+> 范围：`render` + `gpu/webgpu` / `gpu/rwgpu`（**不含控件层**）  
+> 调用链：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
+> 索引：[`README.md`](./README.md) · 优化：[`PERF_ENGINE_FORWARD.md`](./PERF_ENGINE_FORWARD.md) · 缺口：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md)
 
 ### 本文自包含
 
-本卡 **不依赖** 其它 `docs/*` 计划文档作为规格或进度真源。  
-历史主线 / GPU 路由清单 / R7·R8 性能计划 / mem 计划等 **可能与现网代码有出入**，C9 **不引用、不跟做**。
+本卡执行时不依赖其它计划文档作规格真源。  
+**现网索引** 以 `docs/README.md` 为准；历史/归档卡不跟做。
 
 | 优先级 | 真源 |
 |--------|------|
@@ -35,7 +36,7 @@
 1. 生产主路径行为清晰 + T0/T1 绿 → 可合入  
 2. 本刀后 **T0/T1 新红** 且与改动相关 → 回滚或修刀（默认）  
 3. 仅 **T2/T3** 红 → 记录在 `tmp/c9_x_STATUS.md`：环境 / 特场景 / 疑似过时；**不**擅自删测试；不扩大重构去“修全世界”  
-4. 发现测试确已过时 → **另开**「测试校正」项（可标 `TestC9Fix_*` 或单独 PR）；**禁止**与大范围删生产代码混在同一刀  
+4. 发现测试确已过时 → **另开**「测试校正」项（可标 测试校正项（单独 PR） 或单独 PR）；**禁止**与大范围删生产代码混在同一刀  
 5. **禁止** 用放宽断言、删测试、关 AA/减内容 换 C9 绿  
 
 选门禁时：**少而准**（触及包 + 相关 T0/T1），不要无脑全仓 `go test ./...` 当唯一真理，也不要忽略明显相关的主路径锁。
@@ -171,7 +172,7 @@ export GPUI_SURFACE_SAMPLE_COUNT=1
 | **L1 主路径** | 动到 `render` 核心 / gpu session / present | `go test -count=1 ./render -run 'TestS6_L0_|TestS61_|TestS62_Present|TestS63_Present' -timeout 600s` |
 | **L1b 组合抽样** | 动到绘制/clip/blend/layer/text 语义 | `TestP1_Comp_(D01|D06|D08|D36|D63|D152)_` |
 | **L1c GPU 路由** | 动到 fill/stroke/filter/layer/mask 路由 | `TestF1_|TestP03_|TestP04_|TestP12_` 等对口；断言 `cpu_fb=0` |
-| **L2 组合/全量** | B 类合并 或 阶段关闭 | 扩大 `TestP1_Comp_` 或 `scripts/run_full_unit_tests.sh` 策略 |
+| **L2 组合/全量** | B 类合并 或 阶段关闭 | 扩大 `TestP1_Comp_*` 或 `scripts/run_full_unit_tests.sh` 策略 |
 | **L3 mem** | 池 / texture / atlas / Release / encoder 生命周期 | `./scripts/run_mem_guard.sh quick`（加深用 daily） |
 | **L4 问题墙** | filter/layer/glow/session 大整理 | PKS 子集或 `PROBLEMS_LATEST` 对口探针 |
 

@@ -1,13 +1,13 @@
 # S5.0 — Skia 控件向能力对账
 
-> 版本：1.0 | 日期：2026-07-15  
-> 状态：**S5.0 关闭**  
-> 依据：`docs/SKIA_2D_CAPABILITY_MATRIX.md` + `docs/MAINLINE_PLAN.md` S5  
-> 目标：按 **未来 UI 控件依赖度** 重排缺口；**不实现控件层**。
+> 版本：1.1 | 日期：2026-07-21  
+> 状态：**S5.0 关闭**（历史对账保留）  
+> 依据：`docs/SKIA_2D_CAPABILITY_MATRIX.md`  
+> **现网引擎缺口真源：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md)**（2026-07-21 起）
 
 ---
 
-## 1. 方法
+## 1. 方法（S5 当时）
 
 1. 以能力表为唯一真相来源，逐项标 **P0 / P1 / P2 / 旁路**。  
 2. 每项状态：`已有测试` | `需补（阻塞 UI）` | `书面后置`。  
@@ -27,96 +27,44 @@
 
 ---
 
-## 3. P0 对账结果
+## 3. P0 / P1 对账结果（S5 关闭时）
 
-| ID | 能力 | 状态 | 证据 / 结论 |
-|----|------|------|-------------|
-| X.* | 文本 shape/LCD/CJK/atlas/modes | **已有测试** | `TestP1_Capability_X03/X04/X05/X06/X11` 等 |
-| C.* | Clip rect/rrect/path/AA | **已有测试** | `TestP1_Capability_C05*`、S3b/S3c clip 门禁 |
-| L.01–L.04 | Layer opacity / save-restore | **已有测试** | Layer GPU 门禁 + 组合 D 系列 |
-| L.06 | Mask layer | **已有测试** | `TestP1_Capability_L06_*` |
-| I.01–I.03 | Image 采样 | **已有测试** | Image GPU 门禁 / `I03` |
-| P.01–P.06 | Paint stroke/fill/rrect/caps | **已有测试** | S3a/S3b + `P04/P05/P06` |
-| B.01–B.06 | Blend / premul / alpha | **已有测试** | SourceOver 固定像素 + blend 门禁；alpha 可精修不阻塞 |
-| H.* | Path fill 规则 | **已有测试** | `H03 EvenOdd` 等 |
-| S.03 | PresentFrame | **已有测试** | `TestS3c_M3_PresentFrame_*` / X11 可选 |
-| Damage | FrameDamage / PresentDamage | **已有测试** | D63/D152 + S4.4；S5.2 固化惯例 |
-| T.01–T.03 | CTM / scale / HiDPI | **已有测试** | damage_scale + transform 组合 |
-| Q.01/Q.03 | MSAA / pixel snap | **已有测试** | S3b MSAA / Q03 |
+**P0 阻塞项：无。** **P1 阻塞项：无。**  
+（绘制 API / 像素门禁维度；证据见当时 `TestP1_*` / S3* 门禁。）
 
-**P0 阻塞项：无。**  
-不进入 S5.4「必补实现」队列。
+细节表见 git 历史；**不再在此维护逐 ID 复制**，以免与能力矩阵分叉。  
+权威能力状态：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)。
 
 ---
 
-## 4. P1 对账结果
+## 4. 2026-07-21 引擎侧补充（非 S5「缺 API」）
 
-| ID | 能力 | 状态 | 结论 |
-|----|------|------|------|
-| L.05 | Backdrop layer | 已有测试 | `L05_BackdropLayerGPU` |
-| F.*/Shadow | Filter / blur / shadow | 已有测试 | S3c ApplyBlur/Shadow 门禁 |
-| P.dash / E.* | Dash / path effect / trim | 已有测试 | GPU dash + E03 |
-| D.* | Gradient / pattern | 已有测试 | 多 stop / image pattern；sweep 等已知差异书面后置 |
-| I.07 | Nine-patch | 已有测试 | DrawImageNine |
-| I.04 | Bicubic / mipmap | 已有测试 | S3c |
+S5.0 关闭的是 **「控件主路径绕不开的绘制 API」**。  
+后续源码与 antd 引擎职责评估表明，**仍属引擎必跟** 的是深度/效率/稳，见：
 
-**P1 阻塞项：无。**  
-精修（质量/性能）归 S5.3/S4 后续，不挡控件入口。
+| 缺口 | 摘要 | 真源 |
+|------|------|------|
+| **G1 文本** | CFF 轮廓、复杂 shaping、Input/长文深度 | `ENGINE_GAPS` G1 |
+| **G2 脏区效率** | 矢量 MSAA 常 LoadOpClear；OS Present damage no-op | G2 |
+| **G3 稳定性** | 重层/滤镜/多 RT + lifecycle/VRAM soak | G3 |
 
----
-
-## 5. P2 / 旁路
-
-| ID | 能力 | 优先级 | 状态 |
-|----|------|--------|------|
-| B.07 Modulate 等 | 冷门 blend | P2 | **书面后置**（Plus 已 ✅） |
-| B.06 预乘精修 | 边角质量 | P2 | 可精修，不阻塞 |
-| CS.02 | F16 Context 全链路 | P2 | RT ✅；render Context 仍 8-bit — **书面后置** |
-| K.02 高层 multi-draw | scene 间接绘制 | P2 | ABI/低层 ✅；高层后置 |
-| V.03 Mesh | 自定义 mesh | P2 | 已有 indexed 门禁 |
-| R.02 | PDF/SVG | **旁路** | ⬜ 不阻塞 S5 |
-| I.08 真 multiplanar YUV | 媒体 | **旁路** | external ✅；真 YUV 后置 |
-| Skia 绝对 FPS 报表 | 性能对表 | **旁路** | S5 用本机 present 预算 |
+这些 **不推翻**「P0 绘制 API 可开工控件层」；它们是 **生产级画布后端** 的后续必补。
 
 ---
 
-## 6. S5.4 输入（能力补丁队列）
+## 5. 旁路（仍成立）
 
-| 队列 | 项 |
-|------|----|
-| **必补（阻塞）** | *空* |
-| **建议观察（不阻塞关闭）** | B.06/B.07 边角、CS.02 Context 宽色域、窗口 X11 multi-rect 长期 e2e |
-| **旁路** | R.02、真 YUV、Skia FPS 报表 |
-
-→ **S5.4 退出条件**：确认 P0/P1 无阻塞缺口 + 回归绿（无需新 API 实现）。
+| ID | 能力 | 状态 |
+|----|------|------|
+| R.02 | PDF/SVG | ⬜ 不阻塞画布 100% |
+| I.08 真 multiplanar YUV | 媒体 | 后置 |
+| CS.02 Context 宽色域全链 | F16 RT 有；Context 8-bit | 后置 |
 
 ---
 
-## 7. 与后续子阶段关系
-
-| 子阶段 | 依赖本对账 |
-|--------|------------|
-| S5.1 Present 基线 | P0 Present 已具备 → 可直接测 present-only |
-| S5.2 帧模型 | Damage API 已具备 → 固化惯例 |
-| S5.3 60fps | 主路径场景建立在 P0 能力上 |
-| S5.4 补丁 | 队列为空则文档关闭 |
-| S5.5 控件入口 | 引用本节 P0 清零结论 |
-
----
-
-## 8. 退出条件
-
-| 条件 | 状态 |
-|------|------|
-| P0/P1/P2/旁路清单完整 | ✅ |
-| 每项已有测试 / 需补 / 后置 | ✅ |
-| 阻塞 UI 的需补项列出（可为空） | ✅ **空** |
-| 不实现控件层 | ✅ |
-
-**S5.0 关闭。** 下一焦点：**S5.1 Present-only 基线**。
-
-## 9. 修订
+## 6. 修订
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
 | 2026-07-15 | 1.0 | 首版对账；P0/P1 无阻塞缺口 |
+| 2026-07-21 | 1.1 | 指向 `ENGINE_GAPS`；压缩重复表；与现网对齐 |

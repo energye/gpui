@@ -1,8 +1,9 @@
 # 能力矩阵窗口验收（examples/capability_matrix）
 
-> 版本：1.11 | 日期：2026-07-16  
-> 真源：`docs/SKIA_2D_CAPABILITY_MATRIX.md`（Skia 2D 语义 ID）  
-> 实现：`examples/capability_matrix/`（真实 X11 窗口 + webgpu → render 呈现链）
+> 版本：1.12 | 日期：2026-07-21 | **活文档**  
+> 真源：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
+> 引擎缺口：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md)  
+> 实现：`examples/capability_matrix/`（X11 + webgpu → render）
 
 ## 0. 「2D 画布 100%」范围声明（含 R.02）
 
@@ -508,7 +509,7 @@ done
 
 | 子项 | 内容 | Matrix / 层 | 验收 |
 |------|------|-------------|------|
-| 4.1 颜色空间 | 默认 sRGB 一致；线性混合路径可切换 | CS.01, CS.03 | ✅ 单测 `TestP1_Capability_CS03` + C06/C29 渐变 present |
+| 4.1 颜色空间 | 默认 sRGB 一致；线性混合路径可切换 | CS.01, CS.03 | ✅ 单测 `TestP1_Capability_CS03_LinearBlendMidGPU` + C06/C29 渐变 present |
 | 4.2 F16 / 宽色域 | 可选：`Context` 或离屏 RT 走 rgba16float | CS.02 | 📝 **书面后置**：底层 RT 子集；**不阻塞** L3/L5 画布 100%（与 I.08 同类） |
 | 4.3 MSAA 窗口 e2e | 4x resolve 真 present | Q.01 | ✅ C29 + `MSAAAware` 单测门禁 |
 | 4.4 Filter DAG 深度 | blur/CM/shadow 多节点图稳定 | F.03 | ✅ C28 layer+blur+CM；cpu_fb=0 |

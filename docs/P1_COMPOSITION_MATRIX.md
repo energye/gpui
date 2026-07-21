@@ -1,8 +1,7 @@
 # 阶段 A — 任意组合维度矩阵（Composition Matrix）
 
-> 版本：1.12 | 日期：2026-07-15  
-> 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md) v1.45+  
-> 能力表：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
+> 版本：1.13 | 日期：2026-07-21 | **活门禁表**  
+> 能力表：[`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md) · 索引：[`README.md`](./README.md)  
 > 形态密度（旁证）：[`P1_COMPLEX_UI_MATRIX.md`](./P1_COMPLEX_UI_MATRIX.md)  
 > 架构：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`
 

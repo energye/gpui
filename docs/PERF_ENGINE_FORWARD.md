@@ -1,10 +1,12 @@
 # 渲染引擎正向优化任务卡（CPU · GPU · 内存/资源）
 
-> 版本：1.3 | 日期：2026-07-20  
+> 版本：1.4 | 日期：2026-07-21 | **活任务卡**  
 > 状态：**可执行（稳优先 + 正向优化）**  
 > 范围：`render` 主路径 + `gpu/webgpu` / `gpu/rwgpu` 热路径（**不含控件层**）  
-> 调用链（约定，以代码 import 为准）：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
-> **本阶段产品焦点：先「稳」，再在稳上做 CPU/GPU/内存正向优化；不实现控件层。**
+> 调用链：`render → gpu/webgpu → gpu/rwgpu → libwgpu_native`  
+> **本阶段产品焦点：先「稳」，再在稳上做 CPU/GPU/内存正向优化；不实现控件层。**  
+> 索引：[`README.md`](./README.md) · 必有缺口：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md)（G2 · G3）  
+> 历史 R7/R8 任务已收敛进本卡；以现网代码与本卡为准。
 
 ---
 
@@ -86,7 +88,7 @@ ST 红 → 回滚；不得用「FPS 更高」掩盖不稳
 | `render/internal/gpu` flush/submit/session | 触及包测 + present/S6 抽样 + `TestF1_*`（layer/submit 相关） |
 | dual-tex / advanced blend | `TestP03_*` / `TestF1_*` / 相关 Comp |
 | filter / glow / export | `TestP04_*` / filter 对口 / present coherence |
-| damage / scissor | damage 相关 `Test*Damage*` / R74 类若仍存在 |
+| damage / scissor | damage 相关如 `TestS61_PresentAuto_LocalDamageMulti` / `TestTrackDamage_*` / `TestContextFrameDamage_*` |
 | text / atlas / layout | `TestS65_*` / `TestP11_*` / text 对口 |
 | clip / mask | `TestP12_*` / clip 对口 |
 | webgpu/rwgpu facade | `./gpu/webgpu` `./gpu/rwgpu` 包测 + ABI/Release 相关 |
@@ -346,7 +348,7 @@ GPUI_SCENARIO=C01 GPUI_ANIM_SECONDS=30 GPUI_RESULT_FILE=.../C01.json \
 | Advanced layer | `TestF1_*` | 动 layer/blend/submit |
 | 组合抽样 | `TestP1_Comp_D01|D06|D08|D36|...` | 动绘制语义 |
 | 能力对口 | `TestP1_Capability_*` 与改动相关 | 动该能力 |
-| Mem 单测 | `TestMem_T0`… / `scripts/run_mem_leak_tests.sh` | 资源/生命周期 |
+| Mem 单测 | `TestMem_T0_CreateClose`… / `scripts/run_mem_leak_tests.sh` | 资源/生命周期 |
 
 **名称以现网 `go test -list` 为准**；过时名写进 STATUS 并换能跑通的。
 

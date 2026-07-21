@@ -1,7 +1,9 @@
 # 表面生命周期（Skia / Flutter 对齐 · 跨硬件自适应）
 
+> 版本：1.1 | 日期：2026-07-21 | **活文档**  
 > 目标：所有机器统一策略；**不是**绑死某一台 1GB 卡。  
-> 实现：`render/gpu/lifecycle_policy.go` + `examples/exboot/lifecycle.go`（`SurfaceHost`）
+> 实现：`render/gpu/lifecycle_policy.go` + `examples/exboot/lifecycle.go`（`SurfaceHost`）  
+> 关联：[`GPU_修复_device_lost.md`](./GPU_修复_device_lost.md) · [`VRAM_BUDGET.md`](./VRAM_BUDGET.md) · [`ENGINE_GAPS.md`](./ENGINE_GAPS.md) G3
 
 ## 1. 对标映射
 
@@ -16,19 +18,22 @@
 
 ## 2. 三档策略（`GPUI_LIFECYCLE`）
 
-| Tier | 何时 | hide | show |
-| --- | --- | --- | --- |
-| **Normal** | 默认离散 GPU、无 OOM 史 | Unconfigure | reconfigure |
-| **Purge** | `GPUI_LOW_VRAM=1` / 核显/CPU / `GPUI_LIFECYCLE=purge` | Unconfigure + DropGPU | reconfigure（session 懒建） |
-| **Recreate** | `GPUI_LIFECYCLE=recreate` **或进程内出现过 CreateTexture OOM** | Unconfigure + DropGPU + AbandonDevice | **ForceRecoverHealthy** |
+源码真源：`render/gpu/lifecycle_policy.go`（`ResolveSurfaceLifecycle`）+ `examples/exboot/lifecycle.go`（`SurfaceHost`）。
 
-`auto`（默认）：
+| Tier | 何时（Resolve） | hide（SurfaceHost.OnUnpresentable） | show（OnPresentable） |
+| --- | --- | --- | --- |
+| **Normal** | **仅** `GPUI_LIFECYCLE=normal\|flutter\|light` | **先** `PurgeSurfaceResources()`；**不** Unconfigure、**不** DropGPU（host 只停 present） | `ClearRecoverCooldown` + 保持已配置 surface |
+| **Purge** | `auto`/`""` 且无 OOM；或显式 `purge`；`GPUI_LOW_VRAM`/核显/CPU 亦落此档（auto 下与 Purge 相同） | PurgeSurfaceResources → **Unconfigure** + MarkNeedsReconfigure + **DropGPU** | 同 device **reconfigure**（无 abandon 则不 ForceRecoverHealthy） |
+| **Recreate** | 显式 `recreate` **或** 进程内 `TextureOOMCount()>0` | Purge 路径 + **AbandonDevice** | **ForceRecoverHealthy** + BindProvider |
+
+`auto` / 默认（`GPUI_LIFECYCLE` 未设）：
 
 1. 有 OOM 记录 → **Recreate**  
-2. 否则 → **Purge**（含离散 GPU：Unconfigure + purge session 纹理 + DropGPU；**不**每次 recreate Device）  
-3. 显式 `GPUI_LIFECYCLE=normal` → 仅 pause present（桌面 Flutter 轻量）  
+2. **否则一律 Purge**（含离散 GPU；**不是**「离散默认 Normal」）  
+3. 显式 `normal` 才是 Flutter-light（不 Unconfigure）
 
-OOM 由引擎 `createTextureRetryOOM` → `NoteTextureOOM()` 记入，**任意 GPU** 上首次 OOM 后自动升级，无需为某型号写死。
+OOM：`createTextureRetryOOM` → `noteTextureOOM` → `NoteTextureOOM()`；任意 GPU 首次 OOM 后升 Recreate。  
+引擎侧：`Surface.Unconfigure` 成功后仍回调 `AfterSurfaceUnconfigure` → 再 `PurgeSurfaceResources`（与 host 显式 Purge 可叠加，幂等）。
 
 ## 3. 引擎层（不靠示例特例）
 
@@ -98,3 +103,7 @@ GPUI_LIFECYCLE=normal GPUI_ANIM_SECONDS=8 ./tmp/bins/api_coverage_app
 - 不为某个 NVIDIA 型号写死「永远 recreate」  
 - 不把 FocusOut 当 pause  
 - 不用 sticky `MarkLost` 做日常注入（用 `ForceRecoverHealthy`）  
+
+## 8. 与引擎缺口
+
+本策略 **已实现**；持续压力与 soak 仍属 **G3**（见 [`ENGINE_GAPS.md`](./ENGINE_GAPS.md)）：多 RT + 滤镜 + force-lost 矩阵需保持绿，不在本文重复列方案。
