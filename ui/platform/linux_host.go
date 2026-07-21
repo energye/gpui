@@ -13,6 +13,10 @@ import (
 
 // Linux X11 thin adapter (M0). Real present/GPU stays in the app/example host
 // loop via NativeHandles; this package only owns window + input.
+//
+// IME: CapIME is NOT set (XIM/XIC not wired). See ime.go for the formal
+// degradation contract. KeyPress is decoded with XLookupString for Latin /
+// special keys → EventKey + EventText.
 
 const (
 	xKeyPress         = 2
@@ -57,6 +61,7 @@ type LinuxHost struct {
 	xDestroyWindow func(dpy uintptr, win uintptr) int
 	xCloseDisplay  func(dpy uintptr) int
 	xStoreName     func(dpy uintptr, win uintptr, name *byte) int
+	xLookupString  func(ev *byte, buf *byte, bytes int, keysym *uintptr, status *int) int
 
 	queue  []Event
 	closed bool
@@ -110,6 +115,7 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		xNextEvent      func(dpy uintptr, ev *byte) int
 		xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int) uintptr
 		xSetWMProtocols func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+		xLookupString   func(ev *byte, buf *byte, bytes int, keysym *uintptr, status *int) int
 	)
 	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
 	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
@@ -125,6 +131,7 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	purego.RegisterLibFunc(&xNextEvent, lib, "XNextEvent")
 	purego.RegisterLibFunc(&xInternAtom, lib, "XInternAtom")
 	purego.RegisterLibFunc(&xSetWMProtocols, lib, "XSetWMProtocols")
+	purego.RegisterLibFunc(&xLookupString, lib, "XLookupString")
 
 	dpy := xOpenDisplay(nil)
 	if dpy == 0 {
@@ -164,12 +171,17 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		wmDelete: delAtom,
 		xPending: xPending, xNextEvent: xNextEvent, xFlush: xFlush,
 		xDestroyWindow: xDestroyWindow, xCloseDisplay: xCloseDisplay,
-		xStoreName: xStoreName,
+		xStoreName: xStoreName, xLookupString: xLookupString,
 	}
 	return h, nil
 }
 
 // Caps implements Host.
+//
+// CapIME is intentionally NOT set: XIM/XIC composition is not wired in this thin
+// X11 adapter. Composition events must not be assumed on the true window.
+// See ime.go and docs/UI_FRAMEWORK_MAP.md §12.1 C1 / §12.3 W4.
+// Latin/special keys emit EventKey/EventText via XLookupString.
 func (h *LinuxHost) Caps() Caps {
 	return CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent | CapSurfaceLifecycle | CapCursor
 }
@@ -256,6 +268,8 @@ func (h *LinuxHost) handleRaw(raw *[192]byte) {
 		h.queue = append(h.queue, Event{Type: EventFocus, Focused: true})
 	case xFocusOut:
 		h.queue = append(h.queue, Event{Type: EventFocus, Focused: false})
+	case xKeyPress, xKeyRelease:
+		h.handleKey(raw, typ == xKeyPress)
 	case xClientMessage:
 		msgType := *(*uintptr)(unsafe.Pointer(&raw[40]))
 		data0 := *(*uintptr)(unsafe.Pointer(&raw[56]))
@@ -263,6 +277,91 @@ func (h *LinuxHost) handleRaw(raw *[192]byte) {
 			h.queue = append(h.queue, Event{Type: EventClose})
 		}
 	}
+}
+
+// handleKey decodes XKeyEvent via XLookupString into EventKey and optional EventText.
+// This is Latin/special-key path only — not CapIME composition (see Caps / ime.go).
+func (h *LinuxHost) handleKey(raw *[192]byte, down bool) {
+	var keysym uintptr
+	var buf [32]byte
+	n := 0
+	if h.xLookupString != nil {
+		n = h.xLookupString(&raw[0], &buf[0], len(buf), &keysym, nil)
+	}
+	key := keysymName(keysym)
+	text := ""
+	if n > 0 {
+		s := string(buf[:n])
+		if isPrintableText(s) {
+			text = s
+			if key == "" {
+				key = s
+			}
+		}
+	}
+	if key == "" && text == "" {
+		return
+	}
+	h.queue = append(h.queue, Event{Type: EventKey, Key: key, Text: text, Down: down})
+	// Committed printable on key down (no CapIME): EventText for EditableText.
+	if down && text != "" && !isControlKey(key) {
+		h.queue = append(h.queue, Event{Type: EventText, Text: text})
+	}
+}
+
+func isPrintableText(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+func isControlKey(key string) bool {
+	switch key {
+	case "BackSpace", "Backspace", "Delete", "Tab", "Return", "Enter",
+		"Left", "Right", "Up", "Down", "Home", "End", "Escape", "Esc":
+		return true
+	}
+	return false
+}
+
+// keysymName maps common X11 keysyms to core-friendly key names.
+func keysymName(keysym uintptr) string {
+	switch keysym {
+	case 0xff08: // XK_BackSpace
+		return "Backspace"
+	case 0xffff: // XK_Delete
+		return "Delete"
+	case 0xff09: // XK_Tab
+		return "Tab"
+	case 0xff0d: // XK_Return
+		return "Enter"
+	case 0xff1b: // XK_Escape
+		return "Escape"
+	case 0xff51: // XK_Left
+		return "Left"
+	case 0xff52: // XK_Up
+		return "Up"
+	case 0xff53: // XK_Right
+		return "Right"
+	case 0xff54: // XK_Down
+		return "Down"
+	case 0xff50: // XK_Home
+		return "Home"
+	case 0xff57: // XK_End
+		return "End"
+	case 0x20: // space
+		return " "
+	}
+	if keysym >= 0x20 && keysym <= 0x7e {
+		return string(rune(keysym))
+	}
+	return ""
 }
 
 // RequestRedraw implements Host (X11 expose is async; we just enqueue).

@@ -14,6 +14,10 @@ type Headless struct {
 	redraws int
 	closed  bool
 	focused bool
+
+	// Last SetIMEPosition (tests / C3).
+	imeX, imeY float64
+	imePosN    int
 }
 
 // NewHeadless creates a headless host with the given logical size.
@@ -136,5 +140,29 @@ func (h *Headless) InjectKey(key string, down bool) {
 	h.Inject(Event{Type: EventKey, Key: key, Down: down})
 }
 
+// InjectIME enqueues an IME composition update (requires CapIME — set on Headless).
+// End=true clears preedit; non-empty Text with End may be committed by EditableText.
+func (h *Headless) InjectIME(text string, end bool) {
+	h.Inject(Event{Type: EventIME, IMEText: text, IMEEnd: end})
+}
+
+// SetIMEPosition implements IMEPositioner for tests (records last caret request).
+func (h *Headless) SetIMEPosition(x, y float64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.imeX, h.imeY = x, y
+	h.imePosN++
+}
+
+// LastIMEPosition returns the last SetIMEPosition arguments and call count.
+func (h *Headless) LastIMEPosition() (x, y float64, n int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.imeX, h.imeY, h.imePosN
+}
+
 // var _ Host = (*Headless)(nil) at bottom of file after methods — compile check.
-var _ Host = (*Headless)(nil)
+var (
+	_ Host          = (*Headless)(nil)
+	_ IMEPositioner = (*Headless)(nil)
+)

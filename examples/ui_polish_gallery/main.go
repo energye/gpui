@@ -1,23 +1,30 @@
 //go:build linux && !nogpu
 
-// ui_polish_gallery — §12.3 W3 polish gallery for visual + focus walkthrough.
+// ui_polish_gallery — polish gallery (W3 visual/focus + W4 IME notes / Modal).
 //
-// §12.2 手操清单（本示例可完成 #1–4；#5–6 见 W4）:
+// §12.2 手操清单:
 //
 //  1. 静态浏览 — 圆角、1px 边、间距是否像控件
 //
-//  2. 鼠标扫 Button/Checkbox — hover/press（Button 每帧 SyncState）
+//  2. 鼠标扫 Button/Checkbox — hover/press（Button 每帧 SyncSta
+e）
 //
 //  3. Tab 走焦 — focus 环（Button）/ 主色边框（Input）可见
+//  3. Tab 走焦 — focus 环（Button）/ 主色边框（Input）可见
+Li
 //
-//  4. 点 Checkbox/Radio — 选中圆滑、居中
+//  4
+ Caps 降级：LinuxHost 无 CapIME（见 README / ui/platform/ime.go）
 //
-//  5. Linux 中文输入 — W4
-//
-//  6. 开一次 Modal — 点 “Open Modal”；Esc/遮罩关闭（有则验收）
-//
+//  2. 鼠标扫 Button/Checkbox — hover/press（Button 每帧 SyncState）
 //     export DISPLAY=:1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //     GPUI_ANIM_SECONDS=60 go run ./examples/ui_polish_gallery
+//  5. Linux 中文输入 — Caps 降级：LinuxHost 无 CapIME（见 README / ui/platform/ime.go）
+//     Latin 键经 XLookupString → EventText；composition 单测走 Headless InjectIME
+//  6. 开一次 Modal — 点 “Open Modal”；遮罩/OK/Cancel
+//
+//	export DISPLAY=:1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+//	GPUI_ANIM_SECONDS=60 go run ./examples/ui_polish_gallery
 package main
 
 import (
@@ -50,12 +57,14 @@ func main() {
 	}
 
 	host, err := platform.NewLinuxHost(platform.LinuxOptions{
-		Width: winW, Height: winH, Title: "gpui ui_polish_gallery (W3)",
+		Width: winW, Height: winH, Title: "gpui ui_polish_gallery (W3+W4)",
 	})
 	if err != nil {
 		log.Fatalf("host: %v", err)
 	}
 	defer host.Close()
+	log.Printf("host caps=%s CapIME=%v (CJK composition needs CapIME; see README)",
+		host.Caps(), host.Caps().Has(platform.CapIME))
 
 	inst, err := exboot.NewInstanceX11(host.Display(), 0)
 	if err != nil {
@@ -115,11 +124,11 @@ func main() {
 	status := "ready — Tab for focus · click controls"
 
 	// --- Section headers ---
-	title := kit.NewText("Polish gallery · W3 (Button / Input / Indicators / Modal)")
+	title := kit.NewText("Polish gallery · W3/W4 (Button / Input / Indicators / Modal / IME caps)")
 	title.SetFace(face)
 	title.Root.FontSize = 16
 
-	hint := kit.NewText("Checklist §12.2 #1–4 on this screen · #5–6 IME/Modal notes → W4")
+	hint := kit.NewText("§12.2 #1–4 visual · #5 CapIME degraded on LinuxHost · #6 Open Modal")
 	hint.SetFace(face)
 	hint.SetSecondary(true)
 

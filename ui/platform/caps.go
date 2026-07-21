@@ -57,5 +57,7 @@ func (c Caps) String() string {
 	return out + ")"
 }
 
-// HeadlessCaps is the minimal test host capability set.
-const HeadlessCaps = CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent
+// HeadlessCaps is the test host capability set.
+// CapIME is included so composition sequences can be injected in CI
+// (Linux true-window host does NOT advertise CapIME until XIM is wired).
+const HeadlessCaps = CapWindow | CapPointer | CapKeyboard | CapTextInput | CapIME | CapPresent

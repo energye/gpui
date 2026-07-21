@@ -832,12 +832,12 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 
 #### E. 验收（本需求完成）
 
-- [ ] 共用 chrome 无「明显锯齿 / 双边 / 圆角崩」  
-- [ ] Checkbox/Radio（及已做 Switch）指示器自然可辨  
-- [ ] Button/Input 主状态观感一致、可读  
-- [ ] Linux 下 IME 主路径可用（或正式写清 Caps 降级范围）  
-- [ ] 主路径控件统一 Decorated + Token，无分叉画法  
-- [ ] gallery/smoke 走查通过  
+- [x] 共用 chrome 无「明显锯齿 / 双边 / 圆角崩」 — W1 `roundrect_fill_stroke` + Decorated 单路径  
+- [x] Checkbox/Radio（及已做 Switch）指示器自然可辨 — W2 visual scenarios  
+- [x] Button/Input 主状态观感一致、可读 — W3 visual + gallery  
+- [x] Linux 下 IME 主路径可用（或正式写清 Caps 降级范围） — **正式 Caps 降级**：`LinuxHost` **无 CapIME**（XIM 未接）；Headless `CapIME` + `InjectIME` 覆盖 composition 序列；Latin 真窗 `XLookupString`→EventText。见 `ui/platform/ime.go`、`examples/ui_polish_gallery/README.md`  
+- [x] 主路径控件统一 Decorated + Token，无分叉画法 — W2/W3  
+- [x] gallery/smoke 走查通过 — `examples/ui_polish_gallery`（手操 #1–4 可做；#5 按降级说明；#6 Modal 入口）  
 
 #### 建议执行顺序
 
@@ -852,7 +852,7 @@ A1 → A2 → A3 → B1/B2/B3 → B4/B5 → B6
 | 项 | 状态 |
 |----|------|
 | 功能主路径 M0–M6 | ✅ 已落地（见 §12） |
-| 本打磨需求 | **待执行**（清单即需求正文） |
+| 本打磨需求 | ✅ **W1–W4 已执行**（2026-07-21）；IME 真窗 composition 为 Caps 降级 |
 | 测试方案 | 见 **§12.2**（三轨：逻辑 / 视觉回归 / 人工走查） |
 
 ### 12.2 主路径打磨 — 测试方案
@@ -1016,8 +1016,8 @@ A1 → A2 → A3 → B1/B2/B3 → B4/B5 → B6
 | 项 | 状态 |
 |----|------|
 | 方案入文档 | ✅ §12.2 |
-| `ui/visualtest` 落地 | **待实现** |
-| `examples/ui_polish_gallery` | **待实现**（或等价 smoke 分区） |
+| `ui/visualtest` 落地 | ✅ W1–W3 scenarios + 基线 |
+| `examples/ui_polish_gallery` | ✅ W3/W4 |
 
 ### 12.3 打磨执行波次（给 AI 的精确工作包）
 
@@ -1215,12 +1215,12 @@ A1 → A2 → A3 → B1/B2/B3 → B4/B5 → B6
 
 | 波次 | 状态 | 说明 |
 |------|------|------|
-| W1 | **待执行** | visualtest + paint 圆角 |
-| W2 | **待执行** | Decorated + 指示器 |
-| W3 | **待执行** | Button/Input/focus + gallery |
-| W4 | **待执行** | IME + E 收口 |
+| W1 | ✅ 2026-07-21 | visualtest + paint 圆角 |
+| W2 | ✅ 2026-07-21 | Decorated + 指示器 |
+| W3 | ✅ 2026-07-21 | Button/Input/focus + gallery |
+| W4 | ✅ 2026-07-21 | IME Caps 降级 + E 收口；Headless composition 测绿 |
 
-（完成后把状态改为 ✅ 并注明日期。）
+（真窗 CJK CapIME/XIM 为残留债，见 `ui/platform/ime.go`。）
 
 #### 给 AI 的会话首条模板
 

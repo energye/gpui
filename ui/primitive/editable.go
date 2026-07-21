@@ -161,6 +161,21 @@ func (e *EditableText) Paint(pc *core.PaintContext) {
 		}
 		dc.DrawString(line, pc.Origin.X, y)
 	}
+	// Preedit underline so composition is visible (C2).
+	if e.preedit != "" && e.focused {
+		preX := measureTextWidth(e.Face, runePrefix(e.Value, e.Cursor), fs)
+		preW := measureTextWidth(e.Face, e.preedit, fs)
+		if preW < 2 {
+			preW = 2
+		}
+		ul := e.CaretColor
+		if pc.Theme != nil {
+			if c := pc.Theme.Color(core.TokenColorPrimary); c.A > 0 {
+				ul = c
+			}
+		}
+		pc.FillLocalRect(preX, fs*1.05, preW, 1.5, ul)
+	}
 	// Caret
 	if e.focused && !e.Disabled && !e.ReadOnly {
 		cx := measureTextWidth(e.Face, runePrefix(e.Value, e.Cursor)+e.preedit, fs)
@@ -301,17 +316,45 @@ func (e *EditableText) HandleTextInput(ev *core.TextInputEvent) {
 }
 
 // HandleIME implements core.IMEHandler.
+//
+// Sequence (C2):
+//   - preedit update: End=false, Text=current composition
+//   - end without commit: End=true, Text="" → clear preedit
+//   - end with commit text: End=true, Text=final → insert then clear
+//   - separate EventText / TextInput may also commit (host-dependent)
 func (e *EditableText) HandleIME(ev *core.IMECompositionEvent) {
 	if e.Disabled || e.ReadOnly || ev == nil {
 		return
 	}
 	if ev.End {
+		final := ev.Text
 		e.preedit = ""
+		if final != "" {
+			e.insertText(final)
+		} else {
+			e.MarkNeedsPaint()
+		}
 	} else {
 		e.preedit = ev.Text
+		e.MarkNeedsPaint()
 	}
-	e.MarkNeedsPaint()
 	ev.Handled = true
+}
+
+// Preedit returns the current IME preedit string (empty when none).
+func (e *EditableText) Preedit() string { return e.preedit }
+
+// CaretLocalPos returns the caret position in local coordinates (top of caret).
+// Apps combine with AbsoluteOffset for host SetIMEPosition when CapIME is set.
+func (e *EditableText) CaretLocalPos() (x, y float64) {
+	fs := e.FontSize
+	if fs <= 0 {
+		fs = 14
+	}
+	prefix := runePrefix(e.Value, e.Cursor) + e.preedit
+	x = measureTextWidth(e.Face, prefix, fs)
+	y = 0
+	return x, y
 }
 
 func (e *EditableText) insertText(s string) {
