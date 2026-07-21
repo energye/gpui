@@ -14,9 +14,9 @@ type LinuxOptions struct {
 	Scale         float64
 }
 
-// NewLinuxHost returns an error on non-Linux builds (M6 will add Win/mac).
+// NewLinuxHost returns an error on non-Linux builds (use WindowsHost/DarwinHost/Headless).
 func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
-	return nil, fmt.Errorf("platform: Linux host not available on this OS (M0 Linux-only; Win/mac in M6)")
+	return nil, fmt.Errorf("platform: Linux host not available on this OS (use NewHost / Headless / Windows / Darwin stubs)")
 }
 
 func (h *LinuxHost) Caps() Caps           { return 0 }

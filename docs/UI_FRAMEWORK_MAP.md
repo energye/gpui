@@ -1,6 +1,6 @@
 # UI 框架总图与规划 — Primitive 组合底座 × Kit 产品面 × Flutter 管线 × render
 
-> 版本：4.1 | 日期：2026-07-21 | **活文档 · M0–M5 已落地**  
+> 版本：4.1 | 日期：2026-07-21 | **活文档 · M0–M6 主路径已落地**  
 > 状态：**控件产品架构以「primitive 组合」为底座**；已含 **Ant 全量组件 → 组合能力反推清单**  
 > 入口：[`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) ✅  
 > 引擎：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) · [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
@@ -761,9 +761,20 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 | 单测 | `ui/kit/m5_test.go` |
 
 
-### M6 — 壳与跨平台
+### M6 — 壳与跨平台 ✅（2026-07-21）
 
 示例迁 kit、Win/mac、golden、§5.7 覆盖率对照更新。
+
+| 产出 | 路径 |
+|------|------|
+| `NewHost` 工厂 · Win/mac API stub | `ui/platform/factory.go` · `windows_host*.go` · `darwin_host*.go` |
+| GPU present | **Linux only**（`GPUPresentReady`）；Win/mac stub 不握 swapchain |
+| Golden layout/paint/hit | `ui/kit/golden_test.go` |
+| Ant §5.7 覆盖率表 | `ui/kit/coverage.go` · `AntCoverage()` |
+| kit 壳示例 | `examples/ui_kit_shell`（Header/Sider/Table/Modal/Message） |
+
+**说明**：Win/mac 为可编译 SPI stub（合成事件），真 HWND/AppKit 适配仍后置；不改引擎主线。
+
 
 ---
 
@@ -796,9 +807,9 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 | 架构（primitive 底座） | ✅ 本文 v4.0 |
 | 引擎入口 S5 | ✅ |
 | M0 可开工 | ✅ 先 core+primitive，**不**先铺 Ant 全表 |
-| 代码 | ✅ **M0–M5 已落地**（2026-07-21） |
+| 代码 | ✅ **M0–M6 主路径已落地**（2026-07-21） |
 
-**判定：M0–M5 已实现。** 跨平台/示例迁 kit/golden 走 M6。
+**判定：M0–M6 主路径已实现**（Linux 真窗 present；Win/mac SPI stub；kit 壳 + golden + 覆盖率表）。后续为真 Win/mac 适配与 Ant 长尾组件。
 
 ### 代码位置（M0–M1）
 
@@ -825,8 +836,9 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 5. ~~M3：FormBind、SelectionScope、Modal/Drawer、VirtualList 起步。~~ ✅  
 6. ~~M4：Grid/Sticky/Table/List/Tree、Pagination 等。~~ ✅  
 7. ~~M5：Motion/Presence/Canvas 增强、A11y 最小集。~~ ✅  
-8. M6：Win/mac stub→真适配、示例迁 kit、golden、§5.7 覆盖率。  
-9. 实现偏差回写本文。
+8. ~~M6：Win/mac SPI stub、示例迁 kit、golden、§5.7 覆盖率。~~ ✅  
+9. 后置：真 Win32/AppKit present、Ant 长尾、golden 像素基准库扩展。  
+10. 实现偏差回写本文。
 
 ---
 
