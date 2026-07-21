@@ -201,10 +201,75 @@ func TestCFF2_DetectedAndRejected(t *testing.T) {
 	}
 	_, err = NewOutlineExtractor().ExtractOutline(own, 0, 16)
 	if err == nil {
-		t.Fatal("expected CFF2 error")
+		t.Fatal("expected CFF2 error for truncated/synthetic table")
 	}
 	if !errors.Is(err, ErrCFF2Unsupported) && !containsCFF2(err.Error()) {
 		t.Fatalf("want ErrCFF2Unsupported, got %v", err)
+	}
+}
+
+// TestCFF2_OutlineAndRaster_NotoVF loads a real CFF2 VF (default instance) and
+// verifies outlines + mask ink — ENGINE_GAPS G1.b CFF2 出字.
+func TestCFF2_OutlineAndRaster_NotoVF(t *testing.T) {
+	path := filepath.Join("testdata", "NotoSansCJK-VF.abc.otf")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	parsed, err := (&ownParser{}).Parse(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	own, ok := parsed.(*ownParsedFont)
+	if !ok {
+		t.Fatalf("type %T", parsed)
+	}
+	if !own.hasCFF2Table() || own.hasCFFTable() {
+		t.Fatalf("expected CFF2-only font (cff2=%v cff1=%v)", own.hasCFF2Table(), own.hasCFFTable())
+	}
+	const ppem = 48.0
+	// Font is a tiny subset; probe first few gids for non-empty outlines.
+	var found bool
+	for gid := uint16(0); gid < 8 && int(gid) < own.NumGlyphs(); gid++ {
+		outline, err := NewOutlineExtractor().ExtractOutline(own, GlyphID(gid), ppem)
+		if err != nil {
+			t.Fatalf("ExtractOutline gid=%d: %v", gid, err)
+		}
+		if outline == nil || len(outline.Segments) == 0 {
+			continue
+		}
+		found = true
+		if outline.Bounds == (Rect{}) {
+			t.Fatalf("gid %d: empty bounds with segments", gid)
+		}
+		if outline.Bounds.MaxX <= outline.Bounds.MinX {
+			t.Fatalf("gid %d: invalid bounds %+v", gid, outline.Bounds)
+		}
+		mask, err := NewGlyphMaskRasterizer().Rasterize(own, GlyphID(gid), ppem, 0, 0)
+		if err != nil {
+			t.Fatalf("Rasterize gid=%d: %v", gid, err)
+		}
+		if mask == nil || !maskBytesHaveInk(mask.Mask) {
+			t.Fatalf("gid %d: no ink in mask", gid)
+		}
+		// CFF2 Y-down: bounds should span negative Y for typical Latin (baseline-relative).
+		t.Logf("gid=%d segs=%d bounds=%+v mask=%dx%d advance=%.2f",
+			gid, len(outline.Segments), outline.Bounds, mask.Width, mask.Height, outline.Advance)
+		break
+	}
+	if !found {
+		t.Fatal("no non-empty CFF2 glyph outline in first 8 gids")
+	}
+
+	// Also via glyph index for 'a' if cmap maps it.
+	if gid := own.GlyphIndex('a'); gid != 0 {
+		outline, err := NewOutlineExtractor().ExtractOutline(own, GlyphID(gid), ppem)
+		if err != nil {
+			t.Fatalf("ExtractOutline('a'): %v", err)
+		}
+		if outline == nil || len(outline.Segments) == 0 {
+			t.Fatal("'a' empty outline")
+		}
 	}
 }
 

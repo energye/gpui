@@ -1,6 +1,6 @@
 # Skia 级 2D 渲染能力表（GPUI 主线验收基准）
 
-> 版本：1.18 | 日期：2026-07-21 | **活文档**  
+> 版本：1.19 | 日期：2026-07-21 | **活文档**  
 > 用途：定义 render 对标 **Skia 2D 渲染能力** 的全面清单，并反推 `rwgpu` / `gpu/webgpu` 必绑 WebGPU 子集。  
 > 范围：**仅渲染栈** `render → gpu/webgpu → gpu/rwgpu → libwgpu_native`。不含控件层。  
 > 维护：能力缺口只允许“新增行”，不允许静默缩小已列必选项。  
@@ -165,7 +165,7 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| X.01 | 字体加载/Face | SkTypeface | CPU | N/A | N/A | ✅ **TrueType glyf** + **CFF1**；**CFF2 检测并 ErrCFF2Unsupported**（出字未做，`ENGINE_GAPS` G1.b） | M1 |
+| X.01 | 字体加载/Face | SkTypeface | CPU | N/A | N/A | ✅ **TrueType glyf** + **CFF1** + **CFF2 默认实例出字**（go-text；坏表拒绝；轴 blend 仍见 `ENGINE_GAPS` G1.b） | M1 |
 | X.02 | DrawString baseline | `drawString` | glyph atlas tex | ✅ R8 atlas | ✅ | ✅ GPU `TestS3b_M2_DrawString` | M2 |
 | X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | ✅ OwnShaper Type+RTL+Arabic+**GDEF MarkFilteringSet**+**Indic matra 类/多辅音 base+reph**；Khmer·Myanmar 见 `ENGINE_GAPS` G1.c | M2 |
 | X.04 | Subpixel positioning | subpixel | atlas/frac | N/A | N/A | ✅ 1/4 px glyph mask frac GPU `TestP1_Capability_X04_SubpixelPosGPU` | M2 |
@@ -337,7 +337,7 @@
 
 | 类别 | 内容 | 文档 |
 |------|------|------|
-| 深度 | 文本 **CFF2** / BiDi·完整 script / 真窗口 Input soak（CPU `TestG1a_*` 已绿） | `ENGINE_GAPS` G1 |
+| 深度 | 文本 **CFF2 轴 blend** / Khmer·Myanmar / 真窗口 Input soak（CPU `TestG1a_*` 已绿；CFF2 默认实例已出字） | `ENGINE_GAPS` G1 |
 | 效率 | 矢量 MSAA 脏区保留；OS present damage | G2 |
 | 稳定 | 重层+滤镜+多 RT · lifecycle/VRAM soak | G3 |
 | 生命周期 API | Unconfigure purge · NoteTextureOOM · ForceRecoverHealthy | `SURFACE_LIFECYCLE_*` · 已实现 |
@@ -360,6 +360,7 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-21 | 1.19 | X.01：CFF2 默认实例出字（`TestCFF2_OutlineAndRaster_NotoVF`） |
 | 2026-07-21 | 1.18 | X.03：Indic 多辅音 base/reph + final matra 桶序 |
 | 2026-07-21 | 1.17 | X.03：GDEF MarkFilteringSet；Indic matra 类（pre/above/below/post + peer pre-base） |
 | 2026-07-21 | 1.16 | X.01 CFF2 拒绝可测；S.09/G2 blit 局部像素门禁 |

@@ -11,8 +11,9 @@
 //   - GlyphBounds for CFF (from loaded segments)
 //   - TTC/OTC via sfnt.ParseCollection + collection index
 //
-// CFF2: detected and rejected with ErrCFF2Unsupported (x/image/font/sfnt has
-// no CFF2 charstring path — "TODO: cff2"). Variable CFF2 remains ENGINE_GAPS G1.b.
+// CFF2: parsed via github.com/go-text/typesetting/font/cff (default instance;
+// coords empty). Variation-axis blending is supported by the library when
+// coords are supplied; we pass nil today (default master).
 // CFF has no TT/auto-hint (unhinted outlines still draw).
 package text
 
@@ -21,12 +22,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-text/typesetting/font/cff"
+	ot "github.com/go-text/typesetting/font/opentype"
+	"github.com/go-text/typesetting/font/opentype/tables"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
 
-// ErrCFF2Unsupported is returned when a font has a CFF2 table but no CFF 1
-// outlines (or glyf). Callers may fall back to another face.
+// ErrCFF2Unsupported is returned when a CFF2 table is present but cannot be
+// parsed or loaded (corrupt/truncated table). Successful CFF2 fonts use the
+// go-text path and do not return this error.
 var ErrCFF2Unsupported = errors.New("text: CFF2 outlines are not yet supported")
 
 // cffOutlineSupport is attached lazily on ownParsedFont when tables have CFF
@@ -35,6 +40,12 @@ type cffOutlineSupport struct {
 	font *sfnt.Font
 }
 
+// cff2OutlineSupport holds a parsed CFF2 table for glyph outline extraction.
+type cff2OutlineSupport struct {
+	font *cff.CFF2
+}
+
+// hasCFFTable reports CFF 1 ("CFF ") without glyf — the supported path
 // hasCFFTable reports CFF 1 ("CFF ") without glyf — the supported path.
 func (f *ownParsedFont) hasCFFTable() bool {
 	if f == nil || f.tables == nil {
@@ -69,16 +80,8 @@ func (f *ownParsedFont) ensureCFF() error {
 		return fmt.Errorf("text: cff: nil font")
 	}
 	f.cffOnce.Do(func() {
-		if f.hasCFF2Table() && !f.hasCFFTable() {
-			f.cffErr = fmt.Errorf("%w", ErrCFF2Unsupported)
-			return
-		}
 		if !f.hasCFFTable() {
-			if f.hasCFF2Table() {
-				f.cffErr = fmt.Errorf("%w", ErrCFF2Unsupported)
-			} else {
-				f.cffErr = fmt.Errorf("text: cff: no CFF table")
-			}
+			f.cffErr = fmt.Errorf("text: cff: no CFF table")
 			return
 		}
 		src := f.rawData
@@ -109,6 +112,34 @@ func (f *ownParsedFont) ensureCFF() error {
 	return f.cffErr
 }
 
+func (f *ownParsedFont) ensureCFF2() error {
+	if f == nil {
+		return fmt.Errorf("text: cff2: nil font")
+	}
+	f.cff2Once.Do(func() {
+		if !f.hasCFF2Table() {
+			f.cff2Err = fmt.Errorf("%w", ErrCFF2Unsupported)
+			return
+		}
+		raw, ok := f.tables["CFF2"]
+		if !ok || len(raw) == 0 {
+			f.cff2Err = fmt.Errorf("%w", ErrCFF2Unsupported)
+			return
+		}
+		parsed, err := cff.ParseCFF2(raw)
+		if err != nil {
+			f.cff2Err = fmt.Errorf("%w: %v", ErrCFF2Unsupported, err)
+			return
+		}
+		if len(parsed.Charstrings) == 0 {
+			f.cff2Err = fmt.Errorf("%w: empty charstrings", ErrCFF2Unsupported)
+			return
+		}
+		f.cff2 = &cff2OutlineSupport{font: parsed}
+	})
+	return f.cff2Err
+}
+
 // fixed26_6ToFloat converts a 26.6 fixed-point value to float64 pixels.
 func fixed26_6ToFloat(v fixed.Int26_6) float64 {
 	return float64(v) / 64
@@ -117,6 +148,10 @@ func fixed26_6ToFloat(v fixed.Int26_6) float64 {
 // extractCFFOutline loads a CFF glyph outline at ppem (pixels per em).
 // Coordinates are already Y-down from sfnt.LoadGlyph.
 func (f *ownParsedFont) extractCFFOutline(gid GlyphID, size float64) (*GlyphOutline, error) {
+	// Prefer CFF 1 when both exist (rare); CFF2 alone uses go-text path.
+	if f.hasCFF2Table() && !f.hasCFFTable() {
+		return f.extractCFF2Outline(gid, size)
+	}
 	if err := f.ensureCFF(); err != nil {
 		return nil, err
 	}
@@ -174,6 +209,99 @@ func (f *ownParsedFont) extractCFFOutline(gid GlyphID, size float64) (*GlyphOutl
 		outline.Bounds = Rect{MinX: minX, MinY: minY, MaxX: maxX, MaxY: maxY}
 	}
 	return outline, nil
+}
+
+// extractCFF2Outline loads a CFF2 glyph at default variation (nil coords).
+// go-text segments are font-unit Y-up; we scale to ppem and flip Y to match
+// the rest of the pipeline (Y-down pixels, same as sfnt CFF1 path).
+func (f *ownParsedFont) extractCFF2Outline(gid GlyphID, size float64) (*GlyphOutline, error) {
+	if err := f.ensureCFF2(); err != nil {
+		return nil, err
+	}
+	if size <= 0 {
+		return nil, &FontError{Reason: "cff2: non-positive size"}
+	}
+	upem := f.UnitsPerEm()
+	if upem == 0 {
+		return nil, &FontError{Reason: "cff2: zero unitsPerEm"}
+	}
+	cs := f.cff2.font.Charstrings
+	if int(gid) >= len(cs) {
+		return nil, &FontError{Reason: fmt.Sprintf("cff2: glyph ID %d out of range", gid)}
+	}
+
+	// nil coords → default master (no blend applied).
+	segs, _, err := f.cff2.font.LoadGlyph(tables.GlyphID(gid), nil)
+	if err != nil {
+		return nil, fmt.Errorf("text: cff2 LoadGlyph: %w", err)
+	}
+
+	advance := float32(f.GlyphAdvance(uint16(gid), size))
+	if len(segs) == 0 {
+		return &GlyphOutline{
+			GID:     gid,
+			Type:    GlyphTypeOutline,
+			Advance: advance,
+		}, nil
+	}
+
+	scale := size / float64(upem)
+	segments := make([]OutlineSegment, 0, len(segs))
+	for _, s := range segs {
+		seg, ok := goTextSegmentToOutline(s, scale)
+		if !ok {
+			continue
+		}
+		segments = append(segments, seg)
+	}
+
+	outline := &GlyphOutline{
+		Segments: segments,
+		GID:      gid,
+		Type:     GlyphTypeOutline,
+		Advance:  advance,
+	}
+	if len(segments) > 0 {
+		minX, minY := float64(1e10), float64(1e10)
+		maxX, maxY := float64(-1e10), float64(-1e10)
+		for _, seg := range segments {
+			for j := range segPointCount(seg.Op) {
+				updateBounds(seg.Points[j], &minX, &minY, &maxX, &maxY)
+			}
+		}
+		outline.Bounds = Rect{MinX: minX, MinY: minY, MaxX: maxX, MaxY: maxY}
+	}
+	return outline, nil
+}
+
+// goTextSegmentToOutline converts go-text font-unit Y-up segments to our
+// Y-down pixel OutlineSegment at the given scale (ppem/upem).
+func goTextSegmentToOutline(s ot.Segment, scale float64) (OutlineSegment, bool) {
+	var op OutlineOp
+	n := 1
+	switch s.Op {
+	case ot.SegmentOpMoveTo:
+		op = OutlineOpMoveTo
+	case ot.SegmentOpLineTo:
+		op = OutlineOpLineTo
+	case ot.SegmentOpQuadTo:
+		op = OutlineOpQuadTo
+		n = 2
+	case ot.SegmentOpCubeTo:
+		op = OutlineOpCubicTo
+		n = 3
+	default:
+		return OutlineSegment{}, false
+	}
+	var pts [3]OutlinePoint
+	for i := 0; i < n; i++ {
+		// Y-up font units → Y-down pixels
+		pts[i] = OutlinePoint{
+			X: float32(float64(s.Args[i].X) * scale),
+			Y: float32(-float64(s.Args[i].Y) * scale),
+		}
+	}
+	return OutlineSegment{Op: op, Points: pts}, true
 }
 
 func sfntSegmentToOutline(s sfnt.Segment) (OutlineSegment, bool) {

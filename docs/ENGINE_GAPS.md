@@ -1,6 +1,6 @@
 # 引擎必有缺口（Engine-scoped gaps）
 
-> 版本：1.15 | 日期：2026-07-21 | **活文档 · 缺口唯一真源**  
+> 版本：1.16 | 日期：2026-07-21 | **活文档 · 缺口唯一真源**  
 > 范围：**仅渲染引擎**（`render` / `gpu/webgpu` / `gpu/rwgpu`）  
 > 真源：现网代码；与本文冲突时以代码为准  
 > 非目标：布局 / HitTest / 焦点 / IME / 控件树（控件层）  
@@ -25,7 +25,7 @@
 | 判断 | 结论 |
 |------|------|
 | 画布 API 能否撑 antd 风格绘制 | **能**（矩阵除 R.02 PDF/SVG 外已齐） |
-| 引擎是否零缺口 | **否** — G1 大部+CFF1+CFF2 边界+MarkFilteringSet+matra 类+多辅音 base/reph ✅；G2 契约+blit 局部像素 ✅；G3 TestMem ✅；仍开：Khmer·Myanmar / font-driven below-base、CFF2 出字、长 soak 日常 |
+| 引擎是否零缺口 | **否** — G1 大部+CFF1+**CFF2 默认实例出字**+MarkFilteringSet+matra 类+多辅音 base/reph ✅；G2 契约+blit 局部像素 ✅；G3 TestMem ✅；仍开：Khmer·Myanmar / font-driven below-base、CFF2 轴坐标 blend 接线、长 soak 日常 |
 | 控件层能否开工 | **能**（见 `S5_WIDGET_ENTRY`）；G1–G3 影响深度/性能/生产稳，**不是**缺一整块绘制 API |
 | 当前工程跟进 | **P0 = G1–G3 + 稳**（MAINLINE §3） |
 
@@ -38,10 +38,10 @@
 | 子项 | 现状（代码） | 影响 | 证据 | 修好标准 |
 |------|--------------|------|------|----------|
 | **G1.a 长文 / Input 路径** | shape + atlas + `DrawString` 可用；**产品级 CPU soak 门禁已落地**（`TestG1a_*`：Input reshape / 虚拟列表 / 编辑重入）。shape soft-LRU 与 atlas MaxEntries **有界可证**。**仍开**：真窗口 GPU 长 soak（mem_guard / 编辑器级 180s+）、VRAM 斜率 | Input 密集编辑、表格滚动 | `render/text/g1a_soak_test.go` · `shape_result_cache.go` · `glyph_mask_atlas.go` | `TestG1a_*` 持续绿；shape entries≤softLimit；atlas entries≤MaxEntries；堆增长有上界。真窗口仍跟 `MEM_LEAK_*` |
-| **G1.b CFF / CFF2 轮廓** | **CFF 1 已出字**（`sfnt` Type2）。**CFF2 已检测**并返回 `ErrCFF2Unsupported`（`x/image/sfnt` 无 CFF2 路径）；**CFF2 出字仍未做**；CFF 无 TT/auto-hint | CFF2 VF 仍空白但可显式错误/换 face | `cff_outline.go` · `TestCFF_*` · `TestCFF2_DetectedAndRejected` | CFF1 绿；CFF2 拒绝可测；出字实现另专项 |
+| **G1.b CFF / CFF2 轮廓** | **CFF 1 已出字**（`sfnt` Type2）。**CFF2 默认实例出字** ✅（`go-text/typesetting/font/cff`：`ParseCFF2` + `LoadGlyph` nil coords；Y-up→Y-down 缩放）。损坏/截断 CFF2 仍 `ErrCFF2Unsupported`。**仍开**：把 face 变体坐标接到 CFF2 blend；CFF 无 TT/auto-hint | 默认 master CFF2 VF 可画；轴插值需接线 | `cff_outline.go` · `TestCFF_*` · `TestCFF2_OutlineAndRaster_NotoVF` · `TestCFF2_DetectedAndRejected` | CFF1 绿；CFF2 出字+mask 可测；坏表拒绝可测 |
 | **G1.c 复杂 OT shaping** | **GSUB/GPOS Type 1–9** ✅。**RTL visual** ✅。**GDEF** ✅（IgnoreBase/Lig/Marks、**MarkAttachmentType**、**MarkFilteringSet**/MarkGlyphSets + LookupFlag bit 4）。**Arabic joining** ✅。**Indic 特征分期** ✅。**Indic reordering** ✅（`indic_reorder.go`：音节切分；**多辅音 base**（末辅音）；initial reph 置于 base 后；final 桶序 pre\|base-group\|below\|above\|post\|reph；matra 类 + peer pre-base）。**仍开**：Khmer·Myanmar / 字体 OT below-base 类驱动；UAX#9 hit-test；真实字体像素 golden | 复杂字体驱动 below-base / 东南亚脚本仍可能不完美 | `gdef.go` · `TestGDEF_MarkFilteringSet` · `indic_reorder.go` · `TestIndicFindBase_*` · `TestIndicInitial_RephAfterMultiConsonantBase` · `TestIndicFinal_MatraBuckets` · `indic_shaping.go` | MarkFilteringSet / multi-consonant base+reph / matra 桶序可测；Khmer·Myanmar 另专项 |
 
-**排期建议：** G1/G2 主路径门禁**已齐**。剩余：**CFF2 出字**、Khmer·Myanmar / font-driven below-base、长 soak 日常。
+**排期建议：** G1/G2 主路径门禁**已齐**。剩余：CFF2 轴 blend 接线、Khmer·Myanmar / font-driven below-base、长 soak 日常。
 
 **相关矩阵行：** X.01（Face/CFF）· X.03（shaping）
 
@@ -166,6 +166,7 @@ P 级 **不**升主缺口，除非变成「无此则生产不可用」。
 | 2026-07-21 | 1.13 | **CFF2 检测/拒绝** `ErrCFF2Unsupported`；**G2 blit-only 局部像素** `TestG2_BlitOnly_DamagePreservesOutsidePixels` |
 | 2026-07-21 | 1.14 | **MarkFilteringSet**（GDEF MarkGlyphSets + LookupFlag bit 4 + lookup 解析）；**Indic matra 类** pre/above/below/post + peer pre-base；`TestGDEF_MarkFilteringSet` · `TestIndicCategory_MatraClasses` |
 | 2026-07-21 | 1.15 | **Indic 多辅音 base/reph**：`findIndicBaseIndex`；final matra 桶序；`TestIndicFindBase_*` · `TestIndicInitial_RephAfterMultiConsonantBase` · `TestIndicFinal_MatraBuckets` |
+| 2026-07-21 | 1.16 | **CFF2 默认实例出字**（go-text CFF2）；`TestCFF2_OutlineAndRaster_NotoVF`；坏表仍拒绝 |
 
 ---
 

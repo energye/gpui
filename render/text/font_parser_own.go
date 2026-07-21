@@ -128,6 +128,11 @@ type ownParsedFont struct {
 	cffOnce sync.Once
 	cff     *cffOutlineSupport
 	cffErr  error
+
+	// CFF2 outline backend (go-text) — when tables have "CFF2" and no glyf.
+	cff2Once sync.Once
+	cff2     *cff2OutlineSupport
+	cff2Err  error
 }
 
 // --- ParsedFont interface ---
@@ -182,10 +187,9 @@ func (f *ownParsedFont) GlyphBounds(glyphIndex uint16, ppem float64) Rect {
 	}
 	glyfData, ok := f.tables["glyf"]
 	if !ok {
-		if f.hasCFFTable() {
+		if f.hasCFFTable() || f.hasCFF2Table() {
 			return f.glyphBoundsCFF(glyphIndex, ppem)
 		}
-		// CFF2: no bounds until supported (avoid pretending zero is empty glyph only).
 		return Rect{}
 	}
 
