@@ -12,8 +12,8 @@
 //   - TTC/OTC via sfnt.ParseCollection + collection index
 //
 // CFF2: parsed via github.com/go-text/typesetting/font/cff (default instance;
-// coords empty). Variation-axis blending is supported by the library when
-// coords are supplied; we pass nil today (default master).
+// coords empty) and with axis blend when FontVariation coords are supplied
+// (normalized F2.14 via fvar/avar → go-text tables.Coord).
 // CFF has no TT/auto-hint (unhinted outlines still draw).
 package text
 
@@ -150,7 +150,7 @@ func fixed26_6ToFloat(v fixed.Int26_6) float64 {
 func (f *ownParsedFont) extractCFFOutline(gid GlyphID, size float64) (*GlyphOutline, error) {
 	// Prefer CFF 1 when both exist (rare); CFF2 alone uses go-text path.
 	if f.hasCFF2Table() && !f.hasCFFTable() {
-		return f.extractCFF2Outline(gid, size)
+		return f.extractCFF2Outline(gid, size, nil)
 	}
 	if err := f.ensureCFF(); err != nil {
 		return nil, err
@@ -211,10 +211,11 @@ func (f *ownParsedFont) extractCFFOutline(gid GlyphID, size float64) (*GlyphOutl
 	return outline, nil
 }
 
-// extractCFF2Outline loads a CFF2 glyph at default variation (nil coords).
+// extractCFF2Outline loads a CFF2 glyph, optionally blending variation axes.
+// variations nil/empty → default master. Non-empty → fvar normalize + avar + blend.
 // go-text segments are font-unit Y-up; we scale to ppem and flip Y to match
 // the rest of the pipeline (Y-down pixels, same as sfnt CFF1 path).
-func (f *ownParsedFont) extractCFF2Outline(gid GlyphID, size float64) (*GlyphOutline, error) {
+func (f *ownParsedFont) extractCFF2Outline(gid GlyphID, size float64, variations []FontVariation) (*GlyphOutline, error) {
 	if err := f.ensureCFF2(); err != nil {
 		return nil, err
 	}
@@ -230,13 +231,18 @@ func (f *ownParsedFont) extractCFF2Outline(gid GlyphID, size float64) (*GlyphOut
 		return nil, &FontError{Reason: fmt.Sprintf("cff2: glyph ID %d out of range", gid)}
 	}
 
-	// nil coords → default master (no blend applied).
-	segs, _, err := f.cff2.font.LoadGlyph(tables.GlyphID(gid), nil)
+	coords := f.cff2VariationCoords(variations)
+	segs, _, err := f.cff2.font.LoadGlyph(tables.GlyphID(gid), coords)
 	if err != nil {
 		return nil, fmt.Errorf("text: cff2 LoadGlyph: %w", err)
 	}
 
-	advance := float32(f.GlyphAdvance(uint16(gid), size))
+	var advance float32
+	if len(variations) > 0 {
+		advance = float32(f.GlyphAdvanceVar(uint16(gid), size, variations))
+	} else {
+		advance = float32(f.GlyphAdvance(uint16(gid), size))
+	}
 	if len(segs) == 0 {
 		return &GlyphOutline{
 			GID:     gid,
@@ -272,6 +278,38 @@ func (f *ownParsedFont) extractCFF2Outline(gid GlyphID, size float64) (*GlyphOut
 		outline.Bounds = Rect{MinX: minX, MinY: minY, MaxX: maxX, MaxY: maxY}
 	}
 	return outline, nil
+}
+
+// cff2VariationCoords converts user FontVariation values to go-text
+// normalized coordinates (F2.14). Returns nil for default instance so
+// LoadGlyph skips blend application (still handles blend ops for stack).
+func (f *ownParsedFont) cff2VariationCoords(variations []FontVariation) []tables.Coord {
+	if f == nil || len(variations) == 0 {
+		return nil
+	}
+	f.loadFvar()
+	if len(f.fvarAxes) == 0 {
+		return nil
+	}
+	coords := normalizeCoords(f.fvarAxes, variations)
+	f.loadAvar()
+	f.avar.apply(coords)
+	allZero := true
+	for _, c := range coords {
+		if c != 0 {
+			allZero = false
+			break
+		}
+	}
+	if allZero {
+		return nil
+	}
+	out := make([]tables.Coord, len(coords))
+	for i, c := range coords {
+		// Our normalizeCoords and go-text tables.Coord are both F2.14 int16.
+		out[i] = tables.Coord(c)
+	}
+	return out
 }
 
 // goTextSegmentToOutline converts go-text font-unit Y-up segments to our

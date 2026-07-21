@@ -11,8 +11,8 @@
 //   - Type 6 Format 1/2/3
 //   - Type 8 Format 1 (single reverse chaining)
 //
-// Lookup flags IgnoreMarks/Base/Ligature are honored on ligature/pair paths
-// via GDEF (see gdef.go). MarkFilteringSet / MarkAttachmentType still open.
+// Lookup flags IgnoreMarks/Base/Ligature, MarkAttachmentType, and
+// MarkFilteringSet are honored via GDEF (see gdef.go / otLookup.markFilterSet).
 package text
 
 import "encoding/binary"

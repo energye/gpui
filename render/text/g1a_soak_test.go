@@ -203,3 +203,77 @@ func TestG1a_EditingReshape_NoEntryExplosion(t *testing.T) {
 		t.Fatalf("entries %d > softLimit %d", st.Entries, st.SoftLimit)
 	}
 }
+
+// TestG1a_LongReshape_HeapGrowthBounded is a heavier CPU soak for G1.a:
+// many reshape iterations + GC samples; heap must not grow unboundedly.
+// Complements short Input/list tests; still no GPU/window requirement.
+func TestG1a_LongReshape_HeapGrowthBounded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("long soak")
+	}
+	src, err := NewFontSource(requireTestFont(t), WithParser("own"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	face := src.Face(15)
+	ClearShapeResultCache()
+
+	// Warm once so first-parse allocations are excluded from the slope.
+	const warm = "warm 中文 ffi office 12345"
+	_ = Shape(warm, face)
+	runtime.GC()
+	var bas runtime.MemStats
+	runtime.ReadMemStats(&bas)
+	baseHeap := bas.HeapAlloc
+
+	var field strings.Builder
+	field.WriteString(warm)
+	const iters = 2500
+	var maxHeap uint64
+	for i := 0; i < iters; i++ {
+		field.WriteByte(byte('a' + i%26))
+		if i%80 == 79 {
+			// Keep field size bounded (editor-like window of text).
+			s := field.String()
+			if len(s) > 400 {
+				field.Reset()
+				field.WriteString(s[len(s)-200:])
+			}
+			field.WriteByte('\n')
+		}
+		_ = Shape(field.String(), face)
+		_ = Shape(fmt.Sprintf("HUD %d", i), face)
+		if i%250 == 0 {
+			runtime.GC()
+			var ms runtime.MemStats
+			runtime.ReadMemStats(&ms)
+			if ms.HeapAlloc > maxHeap {
+				maxHeap = ms.HeapAlloc
+			}
+		}
+	}
+	st := ShapeResultCacheStats()
+	if st.Entries > st.SoftLimit {
+		t.Fatalf("shape cache entries %d > softLimit %d", st.Entries, st.SoftLimit)
+	}
+
+	// Soft-LRU intentionally retains entries; clear before residual heap check.
+	ClearShapeResultCache()
+	runtime.GC()
+	runtime.GC()
+	var end runtime.MemStats
+	runtime.ReadMemStats(&end)
+
+	// Residual after cache clear: font/shaper warm data may remain.
+	// 12 MiB headroom flags real leaks without fighting GC noise.
+	const maxGrowth = 12 << 20
+	growth := int64(end.HeapAlloc) - int64(baseHeap)
+	if growth < 0 {
+		growth = 0
+	}
+	t.Logf("heap base=%d residual=%d midMax=%d residualGrowth=%d peakShapeEntries=%d soft=%d",
+		baseHeap, end.HeapAlloc, maxHeap, growth, st.Entries, st.SoftLimit)
+	if growth > maxGrowth {
+		t.Fatalf("residual heap growth %d bytes > %d after cache clear — possible leak", growth, maxGrowth)
+	}
+}

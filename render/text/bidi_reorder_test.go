@@ -93,3 +93,94 @@ func TestLayout_RTLSegment_VisualOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestHitTestCluster_LTR(t *testing.T) {
+	// Visual = logical: clusters 0,1,2 advances 10,12,8
+	gs := []ShapedGlyph{
+		{GID: 1, Cluster: 0, X: 0, XAdvance: 10},
+		{GID: 2, Cluster: 1, X: 10, XAdvance: 12},
+		{GID: 3, Cluster: 2, X: 22, XAdvance: 8},
+	}
+	if HitTestCluster(gs, -1) != 0 {
+		t.Fatal("before start")
+	}
+	if HitTestCluster(gs, 0) != 0 {
+		t.Fatal("at 0")
+	}
+	if HitTestCluster(gs, 9.9) != 0 {
+		t.Fatal("end of first")
+	}
+	if HitTestCluster(gs, 10) != 1 {
+		t.Fatal("start of second")
+	}
+	if HitTestCluster(gs, 21) != 1 {
+		t.Fatal("inside second")
+	}
+	if HitTestCluster(gs, 22) != 2 {
+		t.Fatal("start of third")
+	}
+	c, trailing := HitTestClusterEdge(gs, 100)
+	if c != 2 || !trailing {
+		t.Fatalf("past end: c=%d trailing=%v", c, trailing)
+	}
+	// mid of second glyph → trailing
+	_, tr := HitTestClusterEdge(gs, 10+6) // mid of 12
+	if !tr {
+		t.Fatal("mid should trailing")
+	}
+}
+
+func TestHitTestCluster_RTLVisual(t *testing.T) {
+	// After ReorderRTL: visual order clusters 2,1,0
+	in := []ShapedGlyph{
+		{GID: 1, Cluster: 0, X: 0, XAdvance: 10},
+		{GID: 2, Cluster: 1, X: 10, XAdvance: 12},
+		{GID: 3, Cluster: 2, X: 22, XAdvance: 8},
+	}
+	gs := ReorderRTLShapedGlyphs(in)
+	// Visual: cluster2 @0..8, cluster1 @8..20, cluster0 @20..30
+	if HitTestCluster(gs, 0) != 2 {
+		t.Fatalf("left hit want cluster 2 got %d", HitTestCluster(gs, 0))
+	}
+	if HitTestCluster(gs, 8) != 1 {
+		t.Fatalf("mid run want 1 got %d", HitTestCluster(gs, 8))
+	}
+	if HitTestCluster(gs, 20) != 0 {
+		t.Fatalf("right want 0 got %d", HitTestCluster(gs, 20))
+	}
+	// Round-trip: caret X for cluster should hit-test back (approx)
+	for _, cl := range []int{0, 1, 2} {
+		x := CaretXForCluster(gs, cl)
+		got := HitTestCluster(gs, x)
+		if got != cl {
+			// At exact boundary between glyphs, HitTest uses [X, X+adv); caret at
+			// leading edge of cluster may be the left edge of that visual glyph.
+			if got != cl {
+				t.Fatalf("cluster %d caretX=%v hit=%d", cl, x, got)
+			}
+		}
+	}
+}
+
+func TestCaretXForCluster_LTR(t *testing.T) {
+	gs := []ShapedGlyph{
+		{GID: 1, Cluster: 0, X: 0, XAdvance: 10},
+		{GID: 2, Cluster: 1, X: 10, XAdvance: 12},
+		{GID: 3, Cluster: 2, X: 22, XAdvance: 8},
+	}
+	if CaretXForCluster(gs, 0) != 0 {
+		t.Fatal()
+	}
+	if CaretXForCluster(gs, 1) != 10 {
+		t.Fatal()
+	}
+	if CaretXForCluster(gs, 2) != 22 {
+		t.Fatal()
+	}
+	if CaretXForCluster(gs, 99) != 30 {
+		t.Fatalf("after last want 30 got %v", CaretXForCluster(gs, 99))
+	}
+	if RunAdvance(gs) != 30 {
+		t.Fatalf("advance %v", RunAdvance(gs))
+	}
+}

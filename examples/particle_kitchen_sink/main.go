@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,6 +35,20 @@ const (
 	defaultH         = 600
 	defaultTargetFPS = 60
 )
+
+// isSurfaceHandleInvalid reports stale/released surface handles (common when
+// the window has been fully covered or compositor reclaimed the swapchain).
+// Continuing Present/BeginFrame in that state yields "wgpu: invalid handle".
+func isSurfaceHandleInvalid(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, webgpu.ErrInvalidHandle) {
+		return true
+	}
+	s := err.Error()
+	return strings.Contains(s, "invalid handle") || strings.Contains(s, "Invalid handle")
+}
 
 func main() {
 	if envBool("GPUI_LIST_PROBES", false) {
@@ -373,6 +388,10 @@ func main() {
 		// Mature pattern (winit/wgpu, Flutter, Chromium, Skia hosts):
 		//   visible  → present on vsync
 		//   occluded → skip acquire/present; resume with clean redraw
+		//
+		// Also: stacking another window in front (partial/full cover) can leave
+		// the surface handle unusable after a while; continuing Present yields
+		// "wgpu: invalid handle". Treat that as hidden (see present path below).
 		forceHidden := envBool("GPUI_FORCE_RENDER_WHEN_UNMAPPED", false) || envBool("GPUI_FORCE_RENDER_WHEN_HIDDEN", false)
 		hidden := (windowMinimized || windowFullyObscured) && !forceHidden
 		if hidden {
@@ -495,6 +514,15 @@ func main() {
 				time.Sleep(2 * time.Millisecond)
 				continue
 			}
+			// Stale surface after long cover / compositor reclaim.
+			if isSurfaceHandleInvalid(err) {
+				deviceLostFrames = 0
+				softAcquireFails++
+				windowFullyObscured = true
+				log.Printf("BeginFrame: invalid surface handle — pause present until visible (%v)", err)
+				time.Sleep(16 * time.Millisecond)
+				continue
+			}
 			if errors.Is(err, webgpu.ErrTimeout) {
 				deviceLostFrames = 0
 				softAcquireFails++
@@ -527,6 +555,21 @@ func main() {
 			presentErrors++
 			lastPresentErr = err.Error()
 			log.Printf("PresentFrameFull: %v", err)
+			// Covered-by-other-window / compositor reclaim: do not burn the
+			// steady present-error budget or fatal the probe. Enter hidden idle
+			// so Unconfigure runs and resume reconfigures on VisibilityNotify.
+			if isSurfaceHandleInvalid(err) {
+				windowFullyObscured = true
+				softAcquireFails = 0
+				// Do not count as steady gate failure when cover is the cause.
+				if presentErrSteady > 0 {
+					presentErrSteady--
+				}
+				presentErrors--
+				log.Printf("PresentFrameFull: invalid handle — treat as obscured, pause present")
+				time.Sleep(16 * time.Millisecond)
+				continue
+			}
 			if resizeGrace > 0 {
 				presentErrResize++
 				resizeGrace--

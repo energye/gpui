@@ -273,6 +273,87 @@ func TestCFF2_OutlineAndRaster_NotoVF(t *testing.T) {
 	}
 }
 
+// TestCFF2_VariationBlend changes axis coords and expects geometry to move.
+func TestCFF2_VariationBlend(t *testing.T) {
+	path := filepath.Join("testdata", "NotoSansCJK-VF.abc.otf")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	parsed, err := (&ownParser{}).Parse(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	own := parsed.(*ownParsedFont)
+	if !own.hasCFF2Table() {
+		t.Fatal("need CFF2")
+	}
+	own.loadFvar()
+	if len(own.fvarAxes) == 0 {
+		t.Fatal("expected fvar axes on VF font")
+	}
+	axis := own.fvarAxes[0]
+	const ppem = 64.0
+	maxVar := []FontVariation{{Tag: axis.Tag, Value: axis.MaxValue}}
+	// Pick a glyph whose outline actually moves under the axis (not all
+	// glyphs carry CFF2 blend deltas).
+	var (
+		gid  GlyphID
+		def  *GlyphOutline
+		maxO *GlyphOutline
+	)
+	for i := 0; i < own.NumGlyphs(); i++ {
+		d, err := own.extractCFF2Outline(GlyphID(i), ppem, nil)
+		if err != nil || d == nil || len(d.Segments) == 0 {
+			continue
+		}
+		m, err := own.extractCFF2Outline(GlyphID(i), ppem, maxVar)
+		if err != nil || m == nil || len(m.Segments) == 0 {
+			continue
+		}
+		if !outlinesEqualPoints(d, m) {
+			gid, def, maxO = GlyphID(i), d, m
+			break
+		}
+	}
+	if def == nil || maxO == nil {
+		t.Fatal("no CFF2 glyph with non-zero variation deltas in font")
+	}
+	t.Logf("gid=%d axis=%s max=%.0f default segs=%d", gid, string(axis.Tag[:]), axis.MaxValue, len(def.Segments))
+
+	// Public API: ExtractOutlineHintedVar must take CFF2 blend path.
+	viaAPI, err := NewOutlineExtractor().ExtractOutlineHintedVar(own, gid, ppem, HintingNone, maxVar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outlinesEqualPoints(viaAPI, def) {
+		t.Fatal("ExtractOutlineHintedVar did not apply CFF2 blend")
+	}
+	if !outlinesEqualPoints(viaAPI, maxO) {
+		t.Fatal("ExtractOutlineHintedVar mismatch vs extractCFF2Outline")
+	}
+}
+
+func outlinesEqualPoints(a, b *GlyphOutline) bool {
+	if a == nil || b == nil || len(a.Segments) != len(b.Segments) {
+		return false
+	}
+	const eps = 1e-4
+	for i := range a.Segments {
+		if a.Segments[i].Op != b.Segments[i].Op {
+			return false
+		}
+		for j := 0; j < 3; j++ {
+			dx := a.Segments[i].Points[j].X - b.Segments[i].Points[j].X
+			dy := a.Segments[i].Points[j].Y - b.Segments[i].Points[j].Y
+			if dx > eps || dx < -eps || dy > eps || dy < -eps {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func containsCFF2(s string) bool {
 	return errors.Is(errors.New(s), ErrCFF2Unsupported) || // never
 		(len(s) > 0 && (indexStr(s, "CFF2") >= 0 || indexStr(s, "not yet supported") >= 0))

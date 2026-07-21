@@ -154,6 +154,54 @@ func TestIndicFindBase_MultiConsonant(t *testing.T) {
 	}
 }
 
+func TestIndicFindBase_SkipBelowBaseRa(t *testing.T) {
+	// Ka + Halant + Ra → base is Ka (Ra is below-base / rakar, not base)
+	units := []indicUnit{
+		{r: 0x0915, orig: 0}, // Ka
+		{r: devaHalant, orig: 1},
+		{r: devaRa, orig: 2},
+	}
+	if findIndicBaseIndex(units) != 0 {
+		t.Fatalf("base=%d want 0 (Ka, skip below Ra)", findIndicBaseIndex(units))
+	}
+	if indicConsonantPos(devaRa) != consPosBelow {
+		t.Fatal("Ra should be below-base class")
+	}
+	if indicConsonantPos(0x0915) != consPosBase {
+		t.Fatal("Ka base class")
+	}
+}
+
+func TestIndicFinal_BelowBaseConsonantBucket(t *testing.T) {
+	// Logical: Ka + Halant + Ra (rakar). Final: Ka then Halant+Ra in below bucket.
+	runes := []rune{0x0915, devaHalant, devaRa}
+	gs := []shapingGlyph{
+		{gid: 1, cluster: 0}, // Ka
+		{gid: 2, cluster: 1}, // Halant
+		{gid: 3, cluster: 2}, // Ra
+	}
+	out := reorderIndicFinalGlyphs(gs, runes)
+	// base mid first, then below (halant+ra)
+	if out[0].cluster != 0 {
+		t.Fatalf("base first: %v", clustersOf(out))
+	}
+	if out[1].cluster != 1 || out[2].cluster != 2 {
+		t.Fatalf("below cluster order: %v", clustersOf(out))
+	}
+}
+
+func TestIndicConsonantPos_PeerScripts(t *testing.T) {
+	if indicConsonantPos(0x09B0) != consPosBelow { // Bengali Ra
+		t.Fatal("bengali ra")
+	}
+	if indicConsonantPos(0x0C30) != consPosPost { // Telugu Ra
+		t.Fatal("telugu ra post")
+	}
+	if indicConsonantPos(0x0915) != consPosBase {
+		t.Fatal("ka base")
+	}
+}
+
 func TestIndicInitial_RephAfterMultiConsonantBase(t *testing.T) {
 	// र् + क + ् + त → क + ् + त + र + ्  (reph after base Ta)
 	runes := []rune{devaRa, devaHalant, 0x0915, devaHalant, 0x0924}
@@ -234,4 +282,111 @@ func clustersOf(gs []shapingGlyph) []int {
 		out[i] = g.cluster
 	}
 	return out
+}
+
+func TestKhmerCategory_PreBaseAndCoeng(t *testing.T) {
+	if indicCategory(0x1780) != icConsonant { // ក
+		t.Fatal("khmer ka")
+	}
+	if indicCategory(khmerCoeng) != icVirama {
+		t.Fatal("coeng")
+	}
+	if indicCategory(0x17C1) != icPreBaseMatra { // េ
+		t.Fatal("khmer e pre")
+	}
+	if indicCategory(0x17B6) != icPostMatra { // ា
+		t.Fatal("khmer aa post")
+	}
+}
+
+func TestKhmerFinal_PreBaseBeforeBase(t *testing.T) {
+	// Ka + pre-base e → visual e then Ka
+	runes := []rune{0x1780, 0x17C1} // ក េ
+	gs := []shapingGlyph{{gid: 1, cluster: 0}, {gid: 2, cluster: 1}}
+	out := reorderIndicFinalGlyphs(gs, runes)
+	if out[0].cluster != 1 || out[1].cluster != 0 {
+		t.Fatalf("khmer pre-base: %v", clustersOf(out))
+	}
+}
+
+func TestKhmerSyllable_CoengCluster(t *testing.T) {
+	// Ka + Coeng + Kho → one syllable
+	runes := []rune{0x1780, khmerCoeng, 0x1781}
+	units := make([]indicUnit, len(runes))
+	for i, r := range runes {
+		units[i] = indicUnit{r: r, orig: i}
+	}
+	sylls := splitIndicSyllables(units)
+	if len(sylls) != 1 || len(sylls[0]) != 3 {
+		t.Fatalf("sylls=%d len0=%v", len(sylls), len(sylls[0]))
+	}
+	if findIndicBaseIndex(units) != 2 {
+		t.Fatalf("base=%d want last consonant (kho)", findIndicBaseIndex(units))
+	}
+}
+
+func TestMyanmarCategory_PreBaseE(t *testing.T) {
+	if indicCategory(0x1000) != icConsonant { // က
+		t.Fatal("myan ka")
+	}
+	if indicCategory(myanE) != icPreBaseMatra {
+		t.Fatal("myan e pre")
+	}
+	if indicCategory(myanVirama) != icVirama {
+		t.Fatal("myan virama")
+	}
+}
+
+func TestMyanmarFinal_PreBaseE(t *testing.T) {
+	// Ka + e → e before Ka
+	runes := []rune{0x1000, myanE}
+	gs := []shapingGlyph{{gid: 1, cluster: 0}, {gid: 2, cluster: 1}}
+	out := reorderIndicFinalGlyphs(gs, runes)
+	if out[0].cluster != 1 || out[1].cluster != 0 {
+		t.Fatalf("myanmar pre-base: %v", clustersOf(out))
+	}
+}
+
+func TestMyanmarInitial_KinziAfterBase(t *testing.T) {
+	// Kinzi + Ka → Ka + kinzi (Nga Asat Virama)
+	// U+1004 U+103A U+1039 U+1000
+	runes := []rune{myanNga, myanAsat, myanVirama, 0x1000}
+	units := reorderIndicInitial(runes)
+	got := indicUnitsToRunes(units)
+	want := []rune{0x1000, myanNga, myanAsat, myanVirama}
+	if string(got) != string(want) {
+		t.Fatalf("kinzi initial: got %U want %U", got, want)
+	}
+}
+
+func TestMyanmarFinal_KinziToEnd(t *testing.T) {
+	runes := []rune{myanNga, myanAsat, myanVirama, 0x1000, myanE}
+	units := reorderIndicInitial(runes)
+	gs := make([]shapingGlyph, len(units))
+	for i, u := range units {
+		gs[i] = shapingGlyph{gid: uint16(10 + i), cluster: u.orig}
+	}
+	out := reorderIndicFinalGlyphs(gs, runes)
+	// pre e (4), base (3), kinzi (0,1,2)
+	if len(out) != 5 {
+		t.Fatalf("len=%d %v", len(out), clustersOf(out))
+	}
+	if out[0].cluster != 4 {
+		t.Fatalf("pre first: %v", clustersOf(out))
+	}
+	if out[1].cluster != 3 {
+		t.Fatalf("base second: %v", clustersOf(out))
+	}
+	if out[2].cluster != 0 || out[3].cluster != 1 || out[4].cluster != 2 {
+		t.Fatalf("kinzi end: %v", clustersOf(out))
+	}
+}
+
+func TestNeedsIndic_KhmerMyanmar(t *testing.T) {
+	if !needsIndicShaping([]rune{0x1780, 0x17C1}) {
+		t.Fatal("khmer should need indic staging")
+	}
+	if !needsIndicShaping([]rune{0x1000, myanE}) {
+		t.Fatal("myanmar should need indic staging")
+	}
 }

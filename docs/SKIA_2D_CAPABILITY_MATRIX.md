@@ -1,6 +1,6 @@
 # Skia 级 2D 渲染能力表（GPUI 主线验收基准）
 
-> 版本：1.19 | 日期：2026-07-21 | **活文档**  
+> 版本：1.27 | 日期：2026-07-21 | **活文档**  
 > 用途：定义 render 对标 **Skia 2D 渲染能力** 的全面清单，并反推 `rwgpu` / `gpu/webgpu` 必绑 WebGPU 子集。  
 > 范围：**仅渲染栈** `render → gpu/webgpu → gpu/rwgpu → libwgpu_native`。不含控件层。  
 > 维护：能力缺口只允许“新增行”，不允许静默缩小已列必选项。  
@@ -165,9 +165,9 @@
 
 | ID | 能力 | Skia 参考 | WebGPU 需求 | rwgpu | webgpu | render | Pri |
 |----|------|-----------|-------------|-------|--------|--------|-----|
-| X.01 | 字体加载/Face | SkTypeface | CPU | N/A | N/A | ✅ **TrueType glyf** + **CFF1** + **CFF2 默认实例出字**（go-text；坏表拒绝；轴 blend 仍见 `ENGINE_GAPS` G1.b） | M1 |
+| X.01 | 字体加载/Face | SkTypeface | CPU | N/A | N/A | ✅ **TrueType glyf** + **CFF1** + **CFF2 出字+轴 blend**（go-text；坏表拒绝；`TestCFF2_VariationBlend`） | M1 |
 | X.02 | DrawString baseline | `drawString` | glyph atlas tex | ✅ R8 atlas | ✅ | ✅ GPU `TestS3b_M2_DrawString` | M2 |
-| X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | ✅ OwnShaper Type+RTL+Arabic+**GDEF MarkFilteringSet**+**Indic matra 类/多辅音 base+reph**；Khmer·Myanmar 见 `ENGINE_GAPS` G1.c | M2 |
+| X.03 | Glyph 位置 shaping | shape + pos | CPU shape | N/A | N/A | ✅ OwnShaper Type+RTL+Arabic+**GDEF MarkFilteringSet**+**Indic/Khmer·Myanmar 轻量**+**static+blwf/pstf/rkrf/vatu pos（缓存）**+**cluster hit-test**；full OT class rewrite 见 `ENGINE_GAPS` G1.c | M2 |
 | X.04 | Subpixel positioning | subpixel | atlas/frac | N/A | N/A | ✅ 1/4 px glyph mask frac GPU `TestP1_Capability_X04_SubpixelPosGPU` | M2 |
 | X.05 | Edging: alias/anti-alias/subpixel LCD | edging | RGB mask / blend | ✅ | ✅ | ✅ LCD two-pass darken+add（白底+彩底）`TestP1_Capability_X05_LCDTextGPU` / `X05_LCDTextOnColoredDestGPU` | M2 |
 | X.06 | CJK / fallback 字体 | fallback | 同 text | N/A | N/A | ✅ MultiFace Runs + GPU glyph mask `TestP1_Capability_X06_CJKFallbackGPU` | M2 |
@@ -337,7 +337,7 @@
 
 | 类别 | 内容 | 文档 |
 |------|------|------|
-| 深度 | 文本 **CFF2 轴 blend** / Khmer·Myanmar / 真窗口 Input soak（CPU `TestG1a_*` 已绿；CFF2 默认实例已出字） | `ENGINE_GAPS` G1 |
+| 深度 | 文本 full OT class rewrite（mem_guard quick/daily/deep 主路径已绿；遮挡 invalid handle 已按 hidden 处理） | `ENGINE_GAPS` G1 |
 | 效率 | 矢量 MSAA 脏区保留；OS present damage | G2 |
 | 稳定 | 重层+滤镜+多 RT · lifecycle/VRAM soak | G3 |
 | 生命周期 API | Unconfigure purge · NoteTextureOOM · ForceRecoverHealthy | `SURFACE_LIFECYCLE_*` · 已实现 |
@@ -360,6 +360,14 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-21 | 1.27 | 遮挡后 invalid handle → pause present；mem_guard deep 根因注记 |
+| 2026-07-21 | 1.26 | G1.a：mem_guard deep P_MEM_LONG 600s PASS；font pos base 选择；P_BLEND_LAYER 偶发注记 |
+| 2026-07-21 | 1.25 | X.03：rkrf/vatu + fontPos 缓存；G1.a mem_guard daily 实测 PASS |
+| 2026-07-21 | 1.24 | X.03：per-font blwf/pstf coverage；G1.a mem_guard quick 实测 PASS |
+| 2026-07-21 | 1.23 | X.03：static below-base 辅音类 + G1.a 长 reshape residual heap 门禁 |
+| 2026-07-21 | 1.22 | X.03：cluster hit-test（`HitTestCluster` / `CaretXForCluster`） |
+| 2026-07-21 | 1.21 | X.03：Khmer·Myanmar 轻量 reordering（pre-base / kinzi / coeng） |
+| 2026-07-21 | 1.20 | X.01：CFF2 轴 blend（fvar/avar → LoadGlyph） |
 | 2026-07-21 | 1.19 | X.01：CFF2 默认实例出字（`TestCFF2_OutlineAndRaster_NotoVF`） |
 | 2026-07-21 | 1.18 | X.03：Indic 多辅音 base/reph + final matra 桶序 |
 | 2026-07-21 | 1.17 | X.03：GDEF MarkFilteringSet；Indic matra 类（pre/above/below/post + peer pre-base） |

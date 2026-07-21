@@ -2,10 +2,17 @@
 //
 // Implements a Devanagari-oriented initial + final reorder sufficient for
 // common Ra+Halant (reph), multi-consonant base selection, and pre-base matras
-// across major Indic scripts.
+// across major Indic scripts, plus lightweight Khmer / Myanmar:
+//   - Khmer coeng (U+17D2) + pre-base vowels (េ ែ ៃ)
+//   - Myanmar kinzi (Nga+Asat+Virama) + pre-base e (ေ)
+//
 // Matra classification covers pre / above / below / post for Devanagari and
 // common peer-script pre-base signs. Not a full Uniscribe/HarfBuzz Indic
-// engine (no Khmer / Myanmar / font-driven below-base classification).
+// engine (no full font-driven below-base OT class tables).
+//
+// Below/post-base consonant positions use a *static* OT-style table
+// (Unicode-driven, not per-font GSUB class defs). Base selection walks
+// backward skipping below/post consonants when an earlier base exists.
 //
 // Pipeline position (OwnShaper):
 //  1. initial reorder on logical runes (reph after base for feature application)
@@ -13,7 +20,7 @@
 //  3. staged GSUB / GPOS
 //  4. final reorder on glyphs by cluster (pre | base-group | below | above | post | reph)
 //
-// Reference: Microsoft OpenType Devanagari shaping / “dev2” model (simplified).
+// Reference: Microsoft OpenType Devanagari / Khmer / Myanmar shaping (simplified).
 package text
 
 // Devanagari code points used by the lightweight classifier.
@@ -22,6 +29,19 @@ const (
 	devaHalant = 0x094D
 	devaNukta  = 0x093C
 	devaIMatra = 0x093F // pre-base matra "ि"
+)
+
+// Khmer
+const (
+	khmerCoeng = 0x17D2 // virama / coeng
+)
+
+// Myanmar
+const (
+	myanNga    = 0x1004
+	myanAsat   = 0x103A
+	myanVirama = 0x1039
+	myanE      = 0x1031 // pre-base e
 )
 
 type indicCat uint8
@@ -54,6 +74,11 @@ func indicCategory(r rune) indicCat {
 	case devaHalant:
 		return icVirama
 	case devaNukta:
+		return icNukta
+	case khmerCoeng, myanVirama:
+		return icVirama
+	case myanAsat:
+		// Asat kills inherent vowel; treat like nukta/mark so it stays with base/kinzi.
 		return icNukta
 	}
 	if isIndicPreBaseMatra(r) {
@@ -96,7 +121,90 @@ func indicCategory(r rune) indicCat {
 	if isIndicPeerVirama(r) {
 		return icVirama
 	}
+	// Khmer
+	if r >= 0x1780 && r <= 0x17FF || r >= 0x19E0 && r <= 0x19FF {
+		return khmerCategory(r)
+	}
+	// Myanmar
+	if r >= 0x1000 && r <= 0x109F || r >= 0xAA60 && r <= 0xAA7F {
+		return myanmarCategory(r)
+	}
 	return icOther
+}
+
+func khmerCategory(r rune) indicCat {
+	switch {
+	case r == khmerCoeng:
+		return icVirama
+	case r >= 0x1780 && r <= 0x17A2: // consonants
+		return icConsonant
+	case r >= 0x17A3 && r <= 0x17B3: // independent vowels
+		return icIndependentVowel
+	case r == 0x17B6: // aa post
+		return icPostMatra
+	case r >= 0x17B7 && r <= 0x17BA: // i/ii/y/yy above-ish
+		return icAboveMatra
+	case r == 0x17BB || r == 0x17BC || r == 0x17BD: // u/uu/ua below
+		return icBelowMatra
+	case r == 0x17BE: // oe — left component; pre for final reorder
+		return icPreBaseMatra
+	case r >= 0x17BF && r <= 0x17C0: // ya/ie — mixed; post bucket
+		return icPostMatra
+	case r >= 0x17C1 && r <= 0x17C3: // e/ae/ai pre-base
+		return icPreBaseMatra
+	case r == 0x17C4 || r == 0x17C5: // oo/au post
+		return icPostMatra
+	case r >= 0x17C6 && r <= 0x17D1: // signs (nikahit, reahmuk, …)
+		return icPostMatra
+	case r >= 0x17D4 && r <= 0x17DD: // various marks
+		return icPostMatra
+	case r >= 0x17E0 && r <= 0x17E9: // digits
+		return icOther
+	default:
+		return icOther
+	}
+}
+
+func myanmarCategory(r rune) indicCat {
+	switch {
+	case r == myanVirama:
+		return icVirama
+	case r == myanAsat:
+		return icNukta
+	case r >= 0x1000 && r <= 0x102A: // consonants
+		return icConsonant
+	case r >= 0x102B && r <= 0x102C: // tall aa / aa — post
+		return icPostMatra
+	case r >= 0x102D && r <= 0x102E: // i/ii above
+		return icAboveMatra
+	case r >= 0x102F && r <= 0x1030: // u/uu below
+		return icBelowMatra
+	case r == myanE: // ေ pre-base
+		return icPreBaseMatra
+	case r == 0x1032: // ai above
+		return icAboveMatra
+	case r >= 0x1033 && r <= 0x1035: // mon etc. above
+		return icAboveMatra
+	case r == 0x1036 || r == 0x1037: // anusvara / dot below
+		return icPostMatra
+	case r == 0x1038: // visarga post
+		return icPostMatra
+	case r >= 0x103B && r <= 0x103E: // medials — stay with base (like nukta in syllable walk)
+		return icNukta
+	case r == 0x103F: // great sa
+		return icConsonant
+	case r >= 0x1040 && r <= 0x1049: // digits
+		return icOther
+	case r >= 0x1050 && r <= 0x1055: // shan etc. consonants
+		return icConsonant
+	case r >= 0x1056 && r <= 0x1059: // vowels
+		return icPostMatra
+	default:
+		if r >= 0x1000 && r <= 0x109F {
+			return icPostMatra
+		}
+		return icOther
+	}
 }
 
 // isIndicPreBaseMatra lists common left-side (pre-base) matras used by final reorder.
@@ -141,6 +249,15 @@ func isIndicPreBaseMatra(r rune) bool {
 	case 0x0C46, // ె
 		0x0C47, // ే
 		0x0C48: // ై
+		return true
+	// Khmer pre-base
+	case 0x17BE, // ើ (oe left)
+		0x17C1, // េ
+		0x17C2, // ែ
+		0x17C3: // ៃ
+		return true
+	// Myanmar pre-base
+	case myanE: // ေ
 		return true
 	}
 	return false
@@ -236,7 +353,8 @@ func isIndicPeerConsonant(r rune) bool {
 
 func isIndicPeerVirama(r rune) bool {
 	switch r {
-	case 0x09CD, 0x0A4D, 0x0ACD, 0x0B4D, 0x0BCD, 0x0C4D, 0x0CCD, 0x0D4D:
+	case 0x09CD, 0x0A4D, 0x0ACD, 0x0B4D, 0x0BCD, 0x0C4D, 0x0CCD, 0x0D4D,
+		khmerCoeng, myanVirama:
 		return true
 	}
 	return false
@@ -271,6 +389,12 @@ func reorderIndicInitial(runes []rune) []indicUnit {
 // via glyph.cluster. Pre-base matras move before base; reph (Ra+Halant clusters)
 // moves to the end of the syllable.
 func reorderIndicFinalGlyphs(glyphs []shapingGlyph, runes []rune) []shapingGlyph {
+	return reorderIndicFinalGlyphsFont(glyphs, runes, nil)
+}
+
+// reorderIndicFinalGlyphsFont is like reorderIndicFinalGlyphs with optional
+// per-font blwf/pstf coverage classes for below/post consonant bucketing.
+func reorderIndicFinalGlyphsFont(glyphs []shapingGlyph, runes []rune, fontPos *indicFontPosClasses) []shapingGlyph {
 	if len(glyphs) == 0 || len(runes) == 0 {
 		return glyphs
 	}
@@ -307,7 +431,7 @@ func reorderIndicFinalGlyphs(glyphs []shapingGlyph, runes []rune) []shapingGlyph
 
 	out := make([]shapingGlyph, 0, len(glyphs))
 	for si, syl := range sylls {
-		out = append(out, reorderSyllableFinalGlyphs(buckets[si].gs, syl)...)
+		out = append(out, reorderSyllableFinalGlyphsFont(buckets[si].gs, syl, fontPos)...)
 	}
 	out = append(out, other...)
 	return out
@@ -387,6 +511,10 @@ func reorderSyllableInitial(syl []indicUnit) []indicUnit {
 	if len(syl) < 3 {
 		return syl
 	}
+	// Myanmar kinzi: Nga + Asat + Virama + Consonant... → move kinzi after base.
+	if isMyanmarKinziLead(syl) {
+		return reorderKinziInitial(syl)
+	}
 	// Detect leading Reph: Ra + Halant + Consonant...
 	if syl[0].r != devaRa || indicCategory(syl[1].r) != icVirama {
 		return syl
@@ -414,12 +542,50 @@ func reorderSyllableInitial(syl []indicUnit) []indicUnit {
 	return out
 }
 
+// isMyanmarKinziLead reports Nga + Asat + Virama at syllable start.
+func isMyanmarKinziLead(syl []indicUnit) bool {
+	return len(syl) >= 4 &&
+		syl[0].r == myanNga &&
+		syl[1].r == myanAsat &&
+		indicCategory(syl[2].r) == icVirama
+}
+
+// reorderKinziInitial moves leading kinzi (Nga+Asat+Virama) to after the base
+// consonant, analogous to Devanagari reph initial reordering.
+func reorderKinziInitial(syl []indicUnit) []indicUnit {
+	base := findIndicBaseIndex(syl)
+	if base < 3 {
+		return syl
+	}
+	endBase := base + 1
+	for endBase < len(syl) {
+		c := indicCategory(syl[endBase].r)
+		if c == icNukta {
+			endBase++
+			continue
+		}
+		break
+	}
+	out := make([]indicUnit, 0, len(syl))
+	out = append(out, syl[3:endBase]...)
+	out = append(out, syl[0], syl[1], syl[2])
+	out = append(out, syl[endBase:]...)
+	return out
+}
+
 // findIndicBaseIndex returns the index of the base consonant within a syllable.
 //
-// Simplified Uniscribe/dev2 rule without font OT classes: the base is the last
-// consonant before any matra. Leading reph (Ra+Halant) is not a base candidate.
+// Uniscribe/dev2-style: the base is the last consonant that is not a
+// below-base or post-base form (when an earlier base candidate exists).
+// Leading reph / kinzi are not base candidates.
 // Returns -1 if no consonant base exists.
 func findIndicBaseIndex(syl []indicUnit) int {
+	return findIndicBaseIndexWithFont(syl, nil, nil)
+}
+
+// findIndicBaseIndexWithFont is like findIndicBaseIndex but may use per-font
+// blwf/pstf coverage classes when glyph IDs for units are provided.
+func findIndicBaseIndexWithFont(syl []indicUnit, gids []uint16, fontPos *indicFontPosClasses) int {
 	if len(syl) == 0 {
 		return -1
 	}
@@ -435,17 +601,122 @@ func findIndicBaseIndex(syl []indicUnit) int {
 	// Skip leading reph Ra + Halant so base is chosen among following consonants.
 	if end >= 2 && syl[0].r == devaRa && indicCategory(syl[1].r) == icVirama {
 		start = 2
+	} else if isMyanmarKinziLead(syl) {
+		start = 3
 	}
-	base := -1
+	// Collect consonant indices in [start, end).
+	var cons []int
 	for i := start; i < end; i++ {
 		if indicCategory(syl[i].r) == icConsonant {
-			base = i
+			cons = append(cons, i)
 		}
 	}
-	return base
+	if len(cons) == 0 {
+		return -1
+	}
+	// Walk from the end: skip below/post when an earlier base-capable consonant exists.
+	for ci := len(cons) - 1; ci >= 0; ci-- {
+		i := cons[ci]
+		pos := consPosBase
+		if fontPos != nil && gids != nil && i < len(gids) {
+			pos = fontPos.consonantPosFor(gids[i], syl[i].r)
+		} else {
+			pos = indicConsonantPos(syl[i].r)
+		}
+		if pos == consPosBelow || pos == consPosPost {
+			if hasEarlierBaseCapable(syl, cons, ci, gids, fontPos) {
+				continue
+			}
+		}
+		return i
+	}
+	// Fallback: first consonant after start.
+	return cons[0]
+}
+
+// hasEarlierBaseCapable reports whether any consonant before cons[ci] can serve as base.
+func hasEarlierBaseCapable(syl []indicUnit, cons []int, ci int, gids []uint16, fontPos *indicFontPosClasses) bool {
+	for j := 0; j < ci; j++ {
+		idx := cons[j]
+		var pos consPos
+		if fontPos != nil && gids != nil && idx < len(gids) {
+			pos = fontPos.consonantPosFor(gids[idx], syl[idx].r)
+		} else {
+			pos = indicConsonantPos(syl[idx].r)
+		}
+		if pos == consPosBase {
+			return true
+		}
+	}
+	return false
+}
+
+// ot consonant position (static OT Indic model subset).
+type consPos uint8
+
+const (
+	consPosBase consPos = iota
+	consPosBelow
+	consPosPost
+)
+
+// indicConsonantPos returns the static OpenType-style position class for a
+// consonant code point. Used for base selection and final below/post buckets.
+// Not font-driven (no GDEF/GSUB class tables); covers common Indic repertoires.
+func indicConsonantPos(r rune) consPos {
+	// Devanagari: Ra is below-base (rakar) when not reph.
+	if r == devaRa {
+		return consPosBelow
+	}
+	// Bengali: Ra, Ya often below/post forms
+	if r == 0x09B0 || r == 0x09F0 { // র ৰ
+		return consPosBelow
+	}
+	if r == 0x09AF { // য yaphala-ish post/below
+		return consPosPost
+	}
+	// Gujarati Ra
+	if r == 0x0AB0 {
+		return consPosBelow
+	}
+	// Gurmukhi Ra
+	if r == 0x0A30 {
+		return consPosBelow
+	}
+	// Oriya Ra, Ya
+	if r == 0x0B30 {
+		return consPosBelow
+	}
+	if r == 0x0B2F {
+		return consPosPost
+	}
+	// Telugu: common post-base (Ra, La, Ya, Va) — simplified
+	if r == 0x0C30 || r == 0x0C32 || r == 0x0C2F || r == 0x0C35 {
+		return consPosPost
+	}
+	// Kannada: Ra, La, Va post/below
+	if r == 0x0CB0 || r == 0x0CB2 || r == 0x0CB5 {
+		return consPosPost
+	}
+	// Malayalam: Ra, La below/post
+	if r == 0x0D30 || r == 0x0D32 {
+		return consPosBelow
+	}
+	// Tamil: Ra post forms
+	if r == 0x0BB0 {
+		return consPosPost
+	}
+	// Khmer: below-base consonants after coeng are still consonants; treat as base
+	// for selection (last before matra) — coeng model differs. Default base.
+	// Myanmar medials already classified as nukta-like; consonants default base.
+	return consPosBase
 }
 
 func reorderSyllableFinalGlyphs(gs []shapingGlyph, syl []indicUnit) []shapingGlyph {
+	return reorderSyllableFinalGlyphsFont(gs, syl, nil)
+}
+
+func reorderSyllableFinalGlyphsFont(gs []shapingGlyph, syl []indicUnit, fontPos *indicFontPosClasses) []shapingGlyph {
 	if len(gs) <= 1 || len(syl) == 0 {
 		return gs
 	}
@@ -455,14 +726,76 @@ func reorderSyllableFinalGlyphs(gs []shapingGlyph, syl []indicUnit) []shapingGly
 	aboveClusters := map[int]bool{}
 	postClusters := map[int]bool{}
 
-	// Leading reph only (original logical Ra+Halant at syllable start).
+	// Map original cluster → a representative glyph ID after shaping (for font pos).
+	clusterGID := map[int]uint16{}
+	for _, g := range gs {
+		if _, ok := clusterGID[g.cluster]; !ok {
+			clusterGID[g.cluster] = g.gid
+		}
+	}
+	posOf := func(u indicUnit) consPos {
+		if fontPos != nil {
+			if gid, ok := clusterGID[u.orig]; ok {
+				return fontPos.consonantPosFor(gid, u.r)
+			}
+		}
+		return indicConsonantPos(u.r)
+	}
+
+	// Per-unit glyph IDs for font-aware base selection (0 if unknown).
+	gids := make([]uint16, len(syl))
+	for i, u := range syl {
+		gids[i] = clusterGID[u.orig]
+	}
+	baseIdx := findIndicBaseIndexWithFont(syl, gids, fontPos)
+
+	// Leading reph (Ra+Halant) or Myanmar kinzi (Nga+Asat+Virama).
 	if len(syl) >= 2 && syl[0].r == devaRa && indicCategory(syl[1].r) == icVirama {
 		// Only treat as reph if a following base consonant exists in the syllable.
-		if findIndicBaseIndex(syl) >= 0 {
+		if baseIdx >= 0 {
 			rephClusters[syl[0].orig] = true
 			rephClusters[syl[1].orig] = true
 		}
+	} else if isMyanmarKinziLead(syl) && baseIdx >= 0 {
+		rephClusters[syl[0].orig] = true
+		rephClusters[syl[1].orig] = true
+		rephClusters[syl[2].orig] = true
 	}
+
+	// Below/post-base consonants after the base (and viramas attaching them).
+	if baseIdx >= 0 {
+		for i := baseIdx + 1; i < len(syl); i++ {
+			if indicCategory(syl[i].r).isMatra() {
+				break
+			}
+			// Skip reph/kinzi already classified.
+			if rephClusters[syl[i].orig] {
+				continue
+			}
+			c := indicCategory(syl[i].r)
+			if c == icVirama {
+				// Virama before a below/post consonant attaches to that form.
+				if i+1 < len(syl) && indicCategory(syl[i+1].r) == icConsonant {
+					pos := posOf(syl[i+1])
+					if pos == consPosBelow {
+						belowClusters[syl[i].orig] = true
+					} else if pos == consPosPost {
+						postClusters[syl[i].orig] = true
+					}
+				}
+				continue
+			}
+			if c == icConsonant {
+				switch posOf(syl[i]) {
+				case consPosBelow:
+					belowClusters[syl[i].orig] = true
+				case consPosPost:
+					postClusters[syl[i].orig] = true
+				}
+			}
+		}
+	}
+
 	for i := 0; i < len(syl); i++ {
 		switch indicCategory(syl[i].r) {
 		case icPreBaseMatra:
@@ -480,7 +813,7 @@ func reorderSyllableFinalGlyphs(gs []shapingGlyph, syl []indicUnit) []shapingGly
 		return gs
 	}
 	// Final visual buckets (dev2-simplified):
-	//   pre-base matras | base/half group | below | above | post | reph
+	//   pre-base matras | base/half group | below (matra+cons) | above | post | reph
 	var pre, mid, below, above, post, reph []shapingGlyph
 	for _, g := range gs {
 		switch {

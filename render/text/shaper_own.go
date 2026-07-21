@@ -52,6 +52,11 @@ type ownShaperCache struct {
 	hmtxAdv  []uint16
 	numHMtx  int
 	numGlyph int
+
+	// Per-script Indic font positional classes (blwf/pstf/… coverage).
+	// Lazy map key = scriptTag||langTag; built once per (font, script, lang).
+	fontPosMu sync.Mutex
+	fontPos   map[[8]byte]*indicFontPosClasses
 }
 
 // NewOwnShaper creates a new OwnShaper.
@@ -59,6 +64,27 @@ func NewOwnShaper() *OwnShaper {
 	return &OwnShaper{
 		cache: make(map[*FontSource]*ownShaperCache),
 	}
+}
+
+// indicFontPos returns cached per-font positional classes for script/lang.
+func (sc *ownShaperCache) indicFontPos(scriptTag, langTag [4]byte) *indicFontPosClasses {
+	if sc == nil || sc.gsub == nil {
+		return nil
+	}
+	var key [8]byte
+	copy(key[0:4], scriptTag[:])
+	copy(key[4:8], langTag[:])
+	sc.fontPosMu.Lock()
+	defer sc.fontPosMu.Unlock()
+	if sc.fontPos == nil {
+		sc.fontPos = make(map[[8]byte]*indicFontPosClasses)
+	}
+	if fp, ok := sc.fontPos[key]; ok {
+		return fp
+	}
+	fp := buildIndicFontPosClasses(sc.gsub, scriptTag, langTag)
+	sc.fontPos[key] = fp // may store nil = "no classes"
+	return fp
 }
 
 // Shape implements the Shaper interface.
@@ -130,7 +156,9 @@ func (s *OwnShaper) Shape(text string, face Face) []ShapedGlyph {
 	// Step 5b: Indic final reorder (pre-base matra / reph) before kern merge.
 	// Adjustments move with glyphs by index — reorder glyphs+adj together.
 	if indic {
-		glyphs, adjustments = reorderIndicGlyphsWithAdj(glyphs, adjustments, runes)
+		// Prefer per-font blwf/pstf/rkrf/vatu coverage classes (cached).
+		fontPos := sc.indicFontPos(scriptTag, langTag)
+		glyphs, adjustments = reorderIndicGlyphsWithAdjFont(glyphs, adjustments, runes, fontPos)
 	}
 
 	// Step 6: kern table fallback (only if GPOS has no kern feature).
@@ -337,10 +365,14 @@ func unitsToGlyphs(units []indicUnit, sc *ownShaperCache) []shapingGlyph {
 
 // reorderIndicGlyphsWithAdj final-reorders glyphs and permutes GPOS adjustments.
 func reorderIndicGlyphsWithAdj(glyphs []shapingGlyph, adj []gposAdjustment, runes []rune) ([]shapingGlyph, []gposAdjustment) {
+	return reorderIndicGlyphsWithAdjFont(glyphs, adj, runes, nil)
+}
+
+func reorderIndicGlyphsWithAdjFont(glyphs []shapingGlyph, adj []gposAdjustment, runes []rune, fontPos *indicFontPosClasses) ([]shapingGlyph, []gposAdjustment) {
 	if len(glyphs) == 0 {
 		return glyphs, adj
 	}
-	reordered := reorderIndicFinalGlyphs(append([]shapingGlyph(nil), glyphs...), runes)
+	reordered := reorderIndicFinalGlyphsFont(append([]shapingGlyph(nil), glyphs...), runes, fontPos)
 	type key struct {
 		gid     uint16
 		cluster int

@@ -390,6 +390,23 @@ func (e *OutlineExtractor) ExtractOutlineHintedVar(
 		return nil, ErrUnsupportedFontType
 	}
 
+	// CFF2 variable fonts store deltas in charstrings (not gvar). Blend via
+	// go-text LoadGlyph coords; no glyf contours for TT/auto-hint.
+	if ownFont.hasCFF2Table() && !ownFont.hasCFFTable() {
+		outline, err := ownFont.extractCFF2Outline(gid, size, variations)
+		if err != nil {
+			return nil, err
+		}
+		if outline == nil || hinting == HintingNone {
+			return outline, nil
+		}
+		// CFF has no TT bytecode; grid-fit only (same as static CFF path).
+		if !autoHintOutline(outline, parsedFont, size, hinting) {
+			gridFitOutline(outline, hinting)
+		}
+		return outline, nil
+	}
+
 	// Extract the gvar-varied outline AND the varied contour points.
 	// Both are needed: the outline for the final result, and the contours
 	// for the auto-hinter fallback (which must operate on gvar-varied points,
@@ -737,6 +754,12 @@ func (e *OutlineExtractor) extractFromOwnVariableImpl(
 	upem := f.UnitsPerEm()
 	if upem == 0 {
 		return nil, nil, &FontError{Reason: "own parser: zero unitsPerEm"}
+	}
+
+	// CFF2: charstring blend, not gvar.
+	if f.hasCFF2Table() && !f.hasCFFTable() {
+		outline, err := f.extractCFF2Outline(gid, size, variations)
+		return outline, nil, err
 	}
 
 	// Get variation-aware advance.
