@@ -36,11 +36,12 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/examples/exboot"
+	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
-	rendgpu "github.com/energye/gpui/render/gpu"
 )
 
 const (
@@ -347,7 +348,12 @@ func main() {
 		time.Sleep(5 * time.Millisecond)
 	}
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	exboot.InitEnv()
+	if os.Getenv("GPUI_DEBUG_GPU") == "1" {
+		rwgpu.SetDebugMode(true)
+		rwgpu.ResetLeakTracker()
+	}
+	inst, err := exboot.NewInstanceX11(xw.Display, 0)
 	if err != nil {
 		log.Fatalf("CreateInstance: %v", err)
 	}
@@ -359,19 +365,11 @@ func main() {
 	}
 	defer surf.Release()
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
-		CompatibleSurface: surf,
-	})
+	adapter, device, err := exboot.OpenDevice(inst, surf, "mem-anim-window")
 	if err != nil {
-		log.Fatalf("RequestAdapter: %v", err)
+		log.Fatalf("OpenDevice: %v", err)
 	}
 	defer adapter.Release()
-
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("mem-anim-window"))
-	if err != nil {
-		log.Fatalf("RequestDevice: %v", err)
-	}
 	// Release the *current* device at exit (may change after auto-recover).
 	defer func() {
 		if device != nil {
@@ -387,31 +385,32 @@ func main() {
 	}
 	defer sc.Release()
 
-	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-		Dev: device, Adpt: adapter, Format: sc.Format,
-	}); err != nil {
+	if err := exboot.BindProvider(device, adapter, sc.Format); err != nil {
 		log.Fatalf("SetDeviceProvider: %v", err)
 	}
-	defer func() { _ = rendgpu.ResetAccelerator() }()
+	defer exboot.ResetAccelerator()
 
 	// Library-level device recovery (Flutter Rasterizer / Skia GrContext model):
 	// on device-lost, Swapchain recreates the device + reconfigures the surface.
 	// Host rebinds the render accelerator; animation loop keeps running.
-	sc.OnDeviceAbandon = func(_ *webgpu.Device) {
-		rendgpu.AbandonDevice()
-	}
-	sc.EnableAutoRecover(adapter, "mem-anim-window", func(dev *webgpu.Device) {
-		device = dev
-		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-			Dev: device, Adpt: adapter, Format: sc.Format,
-		}); err != nil {
-			log.Printf("SetDeviceProvider after recover: %v", err)
-		}
-		log.Printf("GPU device recovered (recoveries=%d) — continue rendering", sc.Recoveries())
-	})
-
 	dc := render.NewContext(winW, winH)
 	defer dc.Close()
+	var needForceFullAfterRecover bool
+	dropGPU := func() {
+		// Main window session + every effect offscreen Context (S12 filter/layer
+		// RTs pin VRAM if left alive — OOM even 1x1 depth after recover).
+		dc.DropGPURenderContext()
+		closeAllEffectRTs()
+		needForceFullAfterRecover = true
+	}
+	exboot.WireAutoRecover(sc, adapter, "mem-anim-window",
+		func(dev *webgpu.Device) { device = dev },
+		dropGPU,
+		nil,
+	)
+	surfHost := &exboot.SurfaceHost{
+		SC: sc, Adapter: adapter, Device: &device, DropGPU: dropGPU, Format: sc.Format,
+	}
 
 	fonts := loadFonts(dc)
 	rng := newRNG(42)
@@ -434,6 +433,7 @@ func main() {
 
 	start := time.Now()
 	frame := 0
+	selftestTick := 0 // advances every loop iter (incl. hidden)
 	rssStart := rssKB()
 	exitReason := "window_close"
 	var (
@@ -631,7 +631,9 @@ func main() {
 			if !wasHidden {
 				wasHidden = true
 				hiddenSince = time.Now()
-				log.Printf("window hidden (minimized=%v fully_obscured=%v geom_covered=%v focused=%v) — pause present",
+				// Adaptive Skia/Flutter surface policy (purge session textures on Unconfigure).
+				surfHost.OnUnpresentable()
+				log.Printf("window hidden (minimized=%v fully_obscured=%v geom_covered=%v focused=%v) — adaptive unpresentable",
 					windowMinimized, windowFullyObscured, windowGeomCovered, windowFocused)
 			}
 			now := time.Now()
@@ -650,6 +652,25 @@ func main() {
 			if device != nil {
 				device.FlushCallbacks()
 			}
+			// Lifecycle selftest must advance while hidden (frame++ only after present).
+			if os.Getenv("GPUI_SELFTEST_LIFECYCLE") == "1" {
+				selftestTick++
+				mapAt := 780
+				if v := os.Getenv("GPUI_SELFTEST_MAP_AT"); v != "" {
+					fmt.Sscanf(v, "%d", &mapAt)
+				}
+				if selftestTick == mapAt {
+					log.Printf("SELFTEST: MapRaise tick=%d (restore path while hidden)", selftestTick)
+					xw.MapRaise()
+					// Headless/CI WMs may keep Iconic / geom-cover sticky after MapRaised.
+					// Force local presentable so resume+recover selftest can continue.
+					windowMinimized = false
+					windowFullyObscured = false
+					windowGeomCovered = false
+					geomCoverStickyUntil = time.Time{}
+					windowFocused = true
+				}
+			}
 			continue
 		}
 		// Transition hidden → visible: credit hidden time, force full present.
@@ -665,9 +686,7 @@ func main() {
 			softAcquireFails = 0
 			nextFrameAt = time.Time{}  // resync pace after resume
 			lastFrameEnd = time.Time{} // do not let hidden gap crush instFPS/EMA
-			sc.MarkNeedsReconfigure()
-			sc.ClearRecoverCooldown()
-			// Soft native: BeginFrame maps device-lost via error; AutoRecover recreates.
+			surfHost.OnPresentable()
 			if sc.Device != nil {
 				device = sc.Device
 			}
@@ -787,6 +806,10 @@ func main() {
 		dc.BeginFrame()
 		// Background always fills the surface → coverage promotes to full clear path.
 		// Force explicit full present after resize / first frames to avoid flash.
+		if needForceFullAfterRecover {
+			forceFull = true
+			needForceFullAfterRecover = false
+		}
 		if forceFull || resizedThis {
 			dc.MarkFullRedraw()
 			if damagePresent {
@@ -972,6 +995,66 @@ func main() {
 		}
 
 		frame++
+		// Automated recover proof. Prefer ForceRecoverHealthy over MarkLost:
+		// sticky MarkLost + Release-on-lost pins the old device heap on this
+		// libwgpu_native (nvidia-smi: ~322→515MiB) → CreateTexture OOM after recover.
+		// ForceRecoverHealthy abandons+Releases while still healthy (VRAM reclaimed).
+		if v := os.Getenv("GPUI_FORCE_LOST_AFTER"); v != "" {
+			var n int
+			fmt.Sscanf(v, "%d", &n)
+			if n > 0 && frame == n && sc != nil {
+				log.Printf("GPUI_FORCE_LOST_AFTER=%d ForceRecoverHealthy (AutoRecover path)", n)
+				if err := sc.ForceRecoverHealthy(); err != nil {
+					log.Printf("ForceRecoverHealthy: %v", err)
+				} else if sc.Device != nil {
+					device = sc.Device
+					needForceFullAfterRecover = true
+				}
+			}
+		}
+		// Lifecycle selftest: warmup → minimize → restore → ForceRecoverHealthy → continue.
+		// Gates use selftestTick (every loop iter, incl. hidden). frame alone stalls
+		// while minimized because frame++ only runs after a successful present.
+		if os.Getenv("GPUI_SELFTEST_LIFECYCLE") == "1" {
+			selftestTick++
+			// Defaults ~60fps present + 50ms hidden sleeps.
+			minAt, mapAt, lostAt, doneAt := 480, 780, 900, 1100
+			if v := os.Getenv("GPUI_SELFTEST_MIN_AT"); v != "" {
+				fmt.Sscanf(v, "%d", &minAt)
+			}
+			if v := os.Getenv("GPUI_SELFTEST_MAP_AT"); v != "" {
+				fmt.Sscanf(v, "%d", &mapAt)
+			}
+			if v := os.Getenv("GPUI_SELFTEST_LOST_AT"); v != "" {
+				fmt.Sscanf(v, "%d", &lostAt)
+			}
+			if v := os.Getenv("GPUI_SELFTEST_DONE_AT"); v != "" {
+				fmt.Sscanf(v, "%d", &doneAt)
+			}
+			switch selftestTick {
+			case minAt:
+				log.Printf("SELFTEST: Iconify after warmup tick=%d frame=%d (minimize path)", selftestTick, frame)
+				xw.Iconify()
+			case mapAt:
+				// Usually handled in hidden branch; keep as fallback if still visible.
+				log.Printf("SELFTEST: MapRaise tick=%d (restore path)", selftestTick)
+				xw.MapRaise()
+			case lostAt:
+				log.Printf("SELFTEST: ForceRecoverHealthy tick=%d frame=%d (device recreate)", selftestTick, frame)
+				if err := sc.ForceRecoverHealthy(); err != nil {
+					log.Printf("SELFTEST ForceRecoverHealthy: %v", err)
+				} else if sc.Device != nil {
+					device = sc.Device
+					needForceFullAfterRecover = true
+				}
+			}
+			if selftestTick >= doneAt {
+				log.Printf("SELFTEST: complete tick=%d frame=%d gpu_ctxs=%d recoveries=%d",
+					selftestTick, frame, render.GPUContextCount(), sc.Recoveries())
+				exitReason = "selftest_ok"
+				goto done
+			}
+		}
 		if cpuPctEMA > 0 {
 			cpuSum += cpuPctEMA
 			cpuSamples++
@@ -2760,6 +2843,11 @@ type x11Win struct {
 	xGetGeometry          func(dpy, w uintptr, root *uintptr, x, y *int32, width, height, border, depth *uint32) int
 	xTranslateCoordinates func(dpy, src, dst uintptr, srcX, srcY int32, dstX, dstY *int32, child *uintptr) int
 	xGetWindowAttributes  func(dpy, w uintptr, attrs *byte) int
+	xIconifyWindow        func(dpy uintptr, win uintptr, screen int) int
+	xMapWindow            func(dpy uintptr, win uintptr) int
+	xMapRaised            func(dpy uintptr, win uintptr) int
+	xRaiseWindow          func(dpy uintptr, win uintptr) int
+	screen                int
 }
 
 // LockSize sets min=max size hints so the WM cannot maximize/tile during soaks.
@@ -2843,6 +2931,35 @@ func (w *x11Win) IsWMStateProperty(ev x11Event) bool {
 }
 
 // IsIconic queries ICCCM WM_STATE. True when IconicState / WithdrawnState.
+func (w *x11Win) Iconify() {
+	if w == nil || w.xIconifyWindow == nil || w.Display == 0 || w.Window == 0 {
+		return
+	}
+	w.xIconifyWindow(w.Display, w.Window, w.screen)
+	if w.xFlush != nil {
+		w.xFlush(w.Display)
+	}
+}
+
+func (w *x11Win) MapRaise() {
+	if w == nil || w.Display == 0 || w.Window == 0 {
+		return
+	}
+	// Prefer MapRaised (de-iconify+raise) over Map+Raise; GNOME often ignores bare Map
+	// while WM_STATE is Iconic without an ICCCM NormalState request.
+	if w.xMapRaised != nil {
+		w.xMapRaised(w.Display, w.Window)
+	} else if w.xMapWindow != nil {
+		w.xMapWindow(w.Display, w.Window)
+	}
+	if w.xRaiseWindow != nil {
+		w.xRaiseWindow(w.Display, w.Window)
+	}
+	if w.xFlush != nil {
+		w.xFlush(w.Display)
+	}
+}
+
 func (w *x11Win) IsIconic() bool {
 	if w == nil || w.xGetWindowProperty == nil || w.wmStateAtom == 0 || w.Display == 0 || w.Window == 0 {
 		return false
@@ -3025,6 +3142,12 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	purego.RegisterLibFunc(&xRootWindow, lib, "XRootWindow")
 	purego.RegisterLibFunc(&xCreateSimple, lib, "XCreateSimpleWindow")
 	purego.RegisterLibFunc(&xMapWindow, lib, "XMapWindow")
+	var xMapRaised func(dpy uintptr, win uintptr) int
+	purego.RegisterLibFunc(&xMapRaised, lib, "XMapRaised")
+	var xIconifyWindow func(dpy uintptr, win uintptr, screen int) int
+	var xRaiseWindow func(dpy uintptr, win uintptr) int
+	purego.RegisterLibFunc(&xIconifyWindow, lib, "XIconifyWindow")
+	purego.RegisterLibFunc(&xRaiseWindow, lib, "XRaiseWindow")
 	purego.RegisterLibFunc(&xFlush, lib, "XFlush")
 	purego.RegisterLibFunc(&xDestroyWindow, lib, "XDestroyWindow")
 	purego.RegisterLibFunc(&xStoreName, lib, "XStoreName")
@@ -3110,6 +3233,11 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 		xGetGeometry:          xGetGeometry,
 		xTranslateCoordinates: xTranslateCoordinates,
 		xGetWindowAttributes:  xGetWindowAttributes,
+		xIconifyWindow:        xIconifyWindow,
+		xMapWindow:            xMapWindow,
+		xMapRaised:            xMapRaised,
+		xRaiseWindow:          xRaiseWindow,
+		screen:                screen,
 	}
 	xw.LockSize(w, h)
 	return xw, nil

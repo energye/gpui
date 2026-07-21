@@ -65,6 +65,7 @@ type x11Win struct {
 	lib     uintptr
 	Display uintptr
 	Window  uintptr
+	Screen  int
 
 	xPending           func(dpy uintptr) int
 	xNextEvent         func(dpy uintptr, ev unsafe.Pointer)
@@ -187,6 +188,7 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	return &x11Win{
 		lib:                lib,
 		Display:            dpy,
+		Screen:             screen,
 		Window:             win,
 		xPending:           xPending,
 		xNextEvent:         xNextEvent,

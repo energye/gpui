@@ -7,11 +7,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/energye/gpui/examples/exboot"
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/gpu"
 )
 
 func main() {
+	exboot.InitEnv()
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		// Prefer in-repo native lib when unset.
 		if _, err := os.Stat("lib/libwgpu_native.so"); err == nil {

@@ -87,6 +87,30 @@ func (e *effectRT) close() {
 	e.closed = true
 }
 
+// dropGPU drops per-context GPU session + cached ImageBuf GPU upload state
+// without destroying the logical offscreen (recreated lazily via ensure).
+// Must run on device-lost abandon/recover (1GB cards OOM if old sessions pin VRAM).
+func (e *effectRT) dropGPU() {
+	if e == nil {
+		return
+	}
+	if e.dc != nil {
+		e.dc.DropGPURenderContext()
+	}
+	e.img = nil
+}
+
+// closeAllEffectRTs frees every package-level effect offscreen (filter/layer/blend…).
+func closeAllEffectRTs() {
+	for _, e := range []*effectRT{
+		&gFilterBlurRT, &gFilterShadowRT, &gFilterGrayRT,
+		&gLayerRT, &gBackdropRT, &gBlendRT,
+		&gAdvBlendRT, &gGradientRT,
+	} {
+		e.close()
+	}
+}
+
 // shouldRecompute decides whether an effect RT should rebuild this frame.
 //
 //	no cache          → always rebuild

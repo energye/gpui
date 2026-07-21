@@ -1055,7 +1055,7 @@ type dispatchResources struct {
 
 // cleanup destroys all tracked per-frame resources.
 func (r *dispatchResources) cleanup() {
-	// cmdBuf is consumed by Submit; no explicit free needed.
+	// cmdBuf is Released in submitAndWait (Submit does not drop the ref).
 	for _, g := range r.bindGroups {
 		g.Release()
 	}
@@ -1211,6 +1211,11 @@ type stageDispatch struct {
 
 // submitAndWait submits the command buffer and waits for GPU completion.
 func (d *VelloComputeDispatcher) submitAndWait(res *dispatchResources) error {
+	if res != nil && res.cmdBuf != nil {
+		// wgpu-native: Submit does not consume the CB ref — must Release or
+		// device heaps stay pinned across AutoRecover.
+		defer res.cmdBuf.Release()
+	}
 	if _, err := d.queue.Submit(res.cmdBuf); err != nil {
 		return fmt.Errorf("vello compute: submit: %w", err)
 	}

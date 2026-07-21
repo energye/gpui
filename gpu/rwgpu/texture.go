@@ -1,6 +1,8 @@
 package rwgpu
 
 import (
+	"log"
+	"os"
 	"runtime"
 	"unsafe"
 
@@ -237,6 +239,15 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 		return nil, &WGPUError{Op: "CreateTexture", Message: "descriptor is nil"}
 	}
 
+	if os.Getenv("GPUI_LOG_TEXTURE") == "1" {
+		sc := desc.SampleCount
+		if sc == 0 {
+			sc = 1
+		}
+		est := uint64(desc.Size.Width) * uint64(desc.Size.Height) * uint64(sc) * 4
+		log.Printf("RWGPU_TEX label=%q %dx%d samples=%d est_mib=%.3f usage=%d fmt=%d",
+			desc.Label, desc.Size.Width, desc.Size.Height, sc, float64(est)/(1024*1024), desc.Usage, desc.Format)
+	}
 	// wgpu-native requires MipLevelCount >= 1 and SampleCount >= 1
 	mipLevelCount := desc.MipLevelCount
 	if mipLevelCount == 0 {
@@ -297,7 +308,11 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error) {
 	if handle == 0 {
 		return nil, &WGPUError{Op: "CreateTexture", Message: "wgpu returned null handle"}
 	}
-	trackResource(handle, "Texture")
+	lab := ""
+	if desc != nil {
+		lab = desc.Label
+	}
+	trackResourceLabel(handle, "Texture", lab)
 	return &Texture{handle: handle, device: d.handle}, nil
 }
 

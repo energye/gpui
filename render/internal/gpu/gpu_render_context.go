@@ -2873,6 +2873,19 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 
 // Close releases this context's GPU resources. Shared resources are NOT
 // released — they are owned by GPUShared.
+// PurgeSurfaceResources drops surface-sized GPU attachments and offscreen
+// pools without unregistering the context or destroying shared pipelines.
+func (rc *GPURenderContext) PurgeSurfaceResources() {
+	if rc == nil {
+		return
+	}
+	if rc.session != nil {
+		rc.session.PurgeSurfaceTextures()
+	}
+	rc.drainOffscreenPool()
+	rc.releaseBrushCoverResults()
+}
+
 func (rc *GPURenderContext) Close() {
 	if rc.shared != nil {
 		rc.shared.unregisterContext(rc)
@@ -2881,6 +2894,18 @@ func (rc *GPURenderContext) Close() {
 		rc.session.Destroy()
 		rc.session = nil
 	}
+	// Layer offscreen pool (CreateOffscreenTexture "offscreen_cache") pins device
+	// VRAM across AutoRecover if not drained — measured 3×tex+view after abandon.
+	rc.drainOffscreenPool()
+	if rc.frameScratchView != nil {
+		rc.frameScratchView.Release()
+		rc.frameScratchView = nil
+	}
+	if rc.frameScratchTex != nil {
+		rc.frameScratchTex.Release()
+		rc.frameScratchTex = nil
+	}
+	rc.frameScratchW, rc.frameScratchH = 0, 0
 	rc.pendingShapes = nil
 	rc.pendingConvexCommands = nil
 	rc.pendingStencilPaths = nil
@@ -2902,6 +2927,27 @@ func (rc *GPURenderContext) Close() {
 	rc.textBatchSealed = false
 	rc.glyphBatchSealed = false
 	rc.sceneStats = render.SceneStats{}
+}
+
+// drainOffscreenPool releases every pooled layer RT texture/view.
+func (rc *GPURenderContext) drainOffscreenPool() {
+	if rc == nil || rc.offscreenPool == nil {
+		return
+	}
+	for key, bucket := range rc.offscreenPool {
+		for i := range bucket {
+			if bucket[i].view != nil {
+				bucket[i].view.Release()
+				bucket[i].view = nil
+			}
+			if bucket[i].tex != nil {
+				bucket[i].tex.Release()
+				bucket[i].tex = nil
+			}
+		}
+		delete(rc.offscreenPool, key)
+	}
+	rc.offscreenPool = nil
 }
 
 // Draw-order tiers match GPURenderSession.recordGroupDraws pass order.

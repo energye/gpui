@@ -14,31 +14,69 @@ import (
 // ---------- X11 ----------
 
 const (
-	xConfigureNotify = 22
-	xClientMessage   = 33
-	xStructureNotify = int64(1 << 17)
-	xExposureMask    = int64(1 << 15)
+	xConfigureNotify         = 22
+	xClientMessage           = 33
+	xPropertyNotify          = 28
+	xVisibilityNotify        = 15
+	xStructureNotify         = int64(1 << 17)
+	xExposureMask            = int64(1 << 15)
+	xVisibilityChangeMask    = int64(1 << 16)
+	xPropertyChangeMask      = int64(1 << 22)
+	xVisibilityFullyObscured = 2
+	xWMStateIconic           = 3
+	xWMStateWithdrawn        = 0
 )
 
 type x11Event struct {
 	Type          int
 	Width, Height int
+	Visibility    int
 	raw           [192]byte
 }
 
 type x11Win struct {
-	lib               uintptr
-	Display           uintptr
-	Window            uintptr
-	wmDeleteAtom      uintptr
-	xPending          func(dpy uintptr) int
-	xNextEvent        func(dpy uintptr, ev *byte) int
-	xFlush            func(dpy uintptr) int
-	xDestroyWindow    func(dpy uintptr, win uintptr) int
-	xCloseDisplay     func(dpy uintptr) int
-	xInternAtom       func(dpy uintptr, name *byte, onlyIfExists int) uintptr
-	xSetWMProtocols   func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
-	xSetWMNormalHints func(dpy uintptr, win uintptr, hints *byte) int
+	lib                uintptr
+	Display            uintptr
+	Window             uintptr
+	wmDeleteAtom       uintptr
+	wmStateAtom        uintptr
+	xPending           func(dpy uintptr) int
+	xNextEvent         func(dpy uintptr, ev *byte) int
+	xFlush             func(dpy uintptr) int
+	xDestroyWindow     func(dpy uintptr, win uintptr) int
+	xCloseDisplay      func(dpy uintptr) int
+	xInternAtom        func(dpy uintptr, name *byte, onlyIfExists int) uintptr
+	xSetWMProtocols    func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+	xSetWMNormalHints  func(dpy uintptr, win uintptr, hints *byte) int
+	xGetWindowProperty func(dpy, win, prop uintptr, offset, length int64, delete, reqType int, actualType *uintptr, actualFormat *int32, nitems, bytesAfter *uint64, propRet **byte) int
+	xFree              func(ptr uintptr) int
+}
+
+// IsIconic reports GNOME-style minimize (WM_STATE Iconic).
+func (w *x11Win) IsIconic() bool {
+	if w == nil || w.xGetWindowProperty == nil || w.wmStateAtom == 0 || w.Display == 0 || w.Window == 0 {
+		return false
+	}
+	var actualType uintptr
+	var actualFormat int32
+	var nitems, bytesAfter uint64
+	var prop *byte
+	status := w.xGetWindowProperty(
+		w.Display, w.Window, w.wmStateAtom,
+		0, 2, 0, 0,
+		&actualType, &actualFormat, &nitems, &bytesAfter, &prop,
+	)
+	if status != 0 || prop == nil || nitems < 1 {
+		if prop != nil && w.xFree != nil {
+			w.xFree(uintptr(unsafe.Pointer(prop)))
+		}
+		return false
+	}
+	state := *(*uint32)(unsafe.Pointer(prop))
+	if w.xFree != nil {
+		w.xFree(uintptr(unsafe.Pointer(prop)))
+	}
+	return state == uint32(xWMStateIconic) || state == uint32(xWMStateWithdrawn)
 }
 
 // LockSize sets min=max size hints so the WM cannot maximize/tile during soaks.
@@ -94,11 +132,15 @@ func (w *x11Win) Pending() bool {
 }
 func (w *x11Win) NextEvent() x11Event {
 	var ev x11Event
+	// filled below
 	if w == nil || w.xNextEvent == nil {
 		return ev
 	}
 	w.xNextEvent(w.Display, &ev.raw[0])
 	ev.Type = int(*(*int32)(unsafe.Pointer(&ev.raw[0])))
+	if ev.Type == xVisibilityNotify {
+		ev.Visibility = int(*(*int32)(unsafe.Pointer(&ev.raw[8])))
+	}
 	if ev.Type == xConfigureNotify {
 		// LP64 XConfigureEvent: width@56 height@60
 		ev.Width = int(*(*int32)(unsafe.Pointer(&ev.raw[56])))
@@ -153,6 +195,10 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	purego.RegisterLibFunc(&xNextEvent, lib, "XNextEvent")
 	purego.RegisterLibFunc(&xInternAtom, lib, "XInternAtom")
 	purego.RegisterLibFunc(&xSetWMProtocols, lib, "XSetWMProtocols")
+	var xGetWindowProperty func(dpy, win, prop uintptr, offset, length int64, delete, reqType int, actualType *uintptr, actualFormat *int32, nitems, bytesAfter *uint64, propRet **byte) int
+	var xFree func(ptr uintptr) int
+	purego.RegisterLibFunc(&xGetWindowProperty, lib, "XGetWindowProperty")
+	purego.RegisterLibFunc(&xFree, lib, "XFree")
 
 	dpy := xOpenDisplay(nil)
 	if dpy == 0 {
@@ -169,7 +215,7 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	}
 	name := append([]byte(title), 0)
 	xStoreName(dpy, win, &name[0])
-	xSelectInput(dpy, win, xStructureNotify|xExposureMask)
+	xSelectInput(dpy, win, xStructureNotify|xExposureMask|xVisibilityChangeMask|xPropertyChangeMask)
 
 	atomName := append([]byte("WM_DELETE_WINDOW"), 0)
 	delAtom := xInternAtom(dpy, &atomName[0], 0)
@@ -177,6 +223,8 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 		prot := delAtom
 		xSetWMProtocols(dpy, win, &prot, 1)
 	}
+	stName := append([]byte("WM_STATE"), 0)
+	wmState := xInternAtom(dpy, &stName[0], 0)
 	// Register size-hint setter for LockSize (timed soaks keep 800x600).
 	var xSetWMNormalHints func(dpy uintptr, win uintptr, hints *byte) int
 	purego.RegisterLibFunc(&xSetWMNormalHints, lib, "XSetWMNormalHints")
@@ -186,11 +234,12 @@ func openX11Window(w, h int, title string) (*x11Win, error) {
 	time.Sleep(50 * time.Millisecond)
 
 	xw := &x11Win{
-		lib: lib, Display: dpy, Window: win, wmDeleteAtom: delAtom,
+		lib: lib, Display: dpy, Window: win, wmDeleteAtom: delAtom, wmStateAtom: wmState,
 		xPending: xPending, xNextEvent: xNextEvent, xFlush: xFlush,
 		xDestroyWindow: xDestroyWindow, xCloseDisplay: xCloseDisplay,
 		xInternAtom: xInternAtom, xSetWMProtocols: xSetWMProtocols,
-		xSetWMNormalHints: xSetWMNormalHints,
+		xSetWMNormalHints:  xSetWMNormalHints,
+		xGetWindowProperty: xGetWindowProperty, xFree: xFree,
 	}
 	xw.LockSize(w, h)
 	return xw, nil

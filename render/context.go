@@ -402,6 +402,7 @@ func (c *Context) Close() error {
 			closer.Close()
 		}
 		c.gpuCtx = nil
+		unregisterGPUContext(c)
 	}
 
 	// Clear path to release memory
@@ -427,16 +428,23 @@ func (c *Context) Close() error {
 // / pipelines bindings) without closing the Context itself. Call after
 // AutoRecover / SetDeviceProvider so the next Present rebuilds a clean session.
 func (c *Context) DropGPURenderContext() {
-	if c == nil || c.gpuCtx == nil {
+	if c == nil {
 		return
 	}
-	type gpuCtxCloser interface {
-		Close()
+	// Device-bound filter publishes / seed RTs pin VRAM across AutoRecover if kept.
+	c.releaseFilterGPUResult()
+	c.releaseFilterSrcRT()
+	c.pixmapFilterStale = false
+	if c.gpuCtx != nil {
+		type gpuCtxCloser interface {
+			Close()
+		}
+		if closer, ok := c.gpuCtx.(gpuCtxCloser); ok {
+			closer.Close()
+		}
+		c.gpuCtx = nil
 	}
-	if closer, ok := c.gpuCtx.(gpuCtxCloser); ok {
-		closer.Close()
-	}
-	c.gpuCtx = nil
+	unregisterGPUContext(c)
 }
 
 func (c *Context) SetPipelineMode(mode PipelineMode) {
@@ -2020,6 +2028,7 @@ func (c *Context) ensureGPUCtx() {
 		return
 	}
 	c.gpuCtx = ops
+	registerGPUContext(c)
 }
 
 // gpuCtxOps returns the per-context GPU ops interface, or nil if unavailable.

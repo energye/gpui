@@ -17,10 +17,10 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/examples/exboot"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
-	rendgpu "github.com/energye/gpui/render/gpu"
 )
 
 func main() {
@@ -31,11 +31,14 @@ func main() {
 		}
 	}
 
-	const (
-		winW   = 480
-		winH   = 320
-		frames = 90 // ~1.5s at 60fps-ish sleep
-	)
+	winW, winH := 480, 320
+	frames := 90 // ~1.5s at 60fps-ish sleep
+	if v := os.Getenv("GPUI_PRESENT_FRAMES"); v != "" {
+		fmt.Sscanf(v, "%d", &frames)
+		if frames < 10 {
+			frames = 10
+		}
+	}
 
 	xw, err := openX11Window(winW, winH, "gpui window present (S.03)")
 	if err != nil {
@@ -44,7 +47,8 @@ func main() {
 	defer xw.Close()
 	log.Printf("X11 window mapped display=%#x window=%#x", xw.Display, xw.Window)
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	exboot.InitEnv()
+	inst, err := exboot.NewInstanceX11(xw.Display, 0)
 	if err != nil {
 		log.Fatalf("CreateInstance: %v", err)
 	}
@@ -56,27 +60,18 @@ func main() {
 	}
 	defer surf.Release()
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
-		CompatibleSurface: surf,
-	})
+	adapter, device, err := exboot.OpenDevice(inst, surf, "window-present")
 	if err != nil {
-		log.Fatalf("RequestAdapter: %v", err)
+		log.Fatalf("OpenDevice: %v", err)
 	}
 	defer adapter.Release()
-
-	// Must match GPUI render limits (Vello needs max_storage_buffers >= 9).
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("window_present"))
-	if err != nil {
-		log.Fatalf("RequestDevice: %v", err)
-	}
 	defer func() {
 		if device != nil {
 			device.Release()
 		}
 	}()
 
-	sc := webgpu.NewSwapchain(surf, device, winW, winH)
+	sc := webgpu.NewSwapchain(surf, device, uint32(winW), uint32(winH))
 	sc.Usage = types.TextureUsageRenderAttachment
 	sc.SetPreferVSync() // S6.8: Fifo when available
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
@@ -88,26 +83,18 @@ func main() {
 	// CRITICAL: render must use the SAME device that owns the swapchain.
 	// GPUShared otherwise creates a second device; MSAA resolve into a
 	// foreign surface texture fails native validation.
-	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-		Dev: device, Adpt: adapter, Format: sc.Format,
-	}); err != nil {
+	if err := exboot.BindProvider(device, adapter, sc.Format); err != nil {
 		log.Fatalf("SetDeviceProvider: %v", err)
 	}
-	defer func() { _ = rendgpu.ResetAccelerator() }()
-
-	// Library auto-recover (Flutter Rasterizer / Skia GrContext model).
-	sc.EnableAutoRecover(adapter, "window-present", func(dev *webgpu.Device) {
-		device = dev
-		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-			Dev: device, Adpt: adapter, Format: sc.Format,
-		}); err != nil {
-			log.Printf("SetDeviceProvider after recover: %v", err)
-		}
-		log.Printf("GPU device recovered (recoveries=%d)", sc.Recoveries())
-	})
+	defer exboot.ResetAccelerator()
 
 	dc := render.NewContext(winW, winH)
 	defer dc.Close()
+	exboot.WireAutoRecover(sc, adapter, "window-present",
+		func(dev *webgpu.Device) { device = dev },
+		func() { dc.DropGPURenderContext() },
+		nil,
+	)
 
 	for i := 0; i < frames; i++ {
 		dc.BeginFrame()
@@ -154,6 +141,19 @@ func main() {
 			continue
 		}
 		xw.Flush()
+		// Optional recover proof (same as mem_anim / device_lost_redraw).
+		if v := os.Getenv("GPUI_FORCE_LOST_AFTER"); v != "" {
+			var n int
+			fmt.Sscanf(v, "%d", &n)
+			if n > 0 && i+1 == n && sc != nil {
+				log.Printf("GPUI_FORCE_LOST_AFTER=%d ForceRecoverHealthy", n)
+				if err := sc.ForceRecoverHealthy(); err != nil {
+					log.Printf("ForceRecoverHealthy: %v", err)
+				} else if sc.Device != nil {
+					device = sc.Device
+				}
+			}
+		}
 		// Fifo present already waits for vsync — only pad Immediate/Mailbox.
 		if sc.PresentMode == webgpu.PresentModeImmediate {
 			time.Sleep(16 * time.Millisecond)

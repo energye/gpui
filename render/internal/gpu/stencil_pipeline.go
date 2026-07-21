@@ -542,6 +542,15 @@ func (sr *StencilRenderer) destroyPipelines() {
 		sr.pipelineWithDepthClipNZ.Release()
 		sr.pipelineWithDepthClipNZ = nil
 	}
+	// Cached cover pipelines for non-SourceOver blend modes (B.02).
+	// Missing Release pinned Device across AutoRecover (cover_pipeline_blend_Plus).
+	for mode, pipe := range sr.coverBlendPipelines {
+		if pipe != nil {
+			pipe.Release()
+		}
+		delete(sr.coverBlendPipelines, mode)
+	}
+	sr.coverBlendPipelines = nil
 	// Base pipelines.
 	if sr.nonZeroCoverPipeline != nil {
 		sr.nonZeroCoverPipeline.Release()

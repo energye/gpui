@@ -16,6 +16,10 @@ import (
 type InstanceDescriptor struct {
 	Backends Backends
 	Flags    types.InstanceFlags
+	// XlibDisplay is Display* for GL/X11 instance association (optional).
+	XlibDisplay uintptr
+	// XlibScreen is X11 screen index (DefaultScreen).
+	XlibScreen int32
 }
 
 // Instance is the entry point for GPU operations.
@@ -26,13 +30,25 @@ type Instance struct {
 }
 
 // CreateInstance creates a new GPU instance.
-// If desc is nil, all available backends are used.
+// If desc is nil, all available backends are used (unless GPUI_BACKEND /
+// GPUI_LOW_VRAM env select GL / budgets — see rwgpu.CreateInstance).
 func CreateInstance(desc *InstanceDescriptor) (*Instance, error) {
 	if err := rwgpu.Init(); err != nil {
 		return nil, fmt.Errorf("wgpu: failed to init wgpu-native: %w", err)
 	}
 
-	ri, err := rwgpu.CreateInstance(nil)
+	var rDesc *rwgpu.InstanceDescriptor
+	if desc != nil {
+		rDesc = &rwgpu.InstanceDescriptor{
+			Backends:    desc.Backends,
+			Flags:       desc.Flags,
+			XlibDisplay: desc.XlibDisplay,
+			XlibScreen:  desc.XlibScreen,
+		}
+	}
+	// Always call through so env (GPUI_BACKEND / GPUI_LOW_VRAM / budget) applies
+	// even when desc is nil.
+	ri, err := rwgpu.CreateInstance(rDesc)
 	if err != nil {
 		return nil, fmt.Errorf("wgpu: failed to create instance: %w", err)
 	}

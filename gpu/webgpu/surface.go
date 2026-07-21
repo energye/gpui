@@ -206,6 +206,10 @@ func (s *Surface) Unconfigure() {
 		s.r.Unconfigure()
 	}
 	s.device = nil
+	// Engine purge of surface-bound session textures (registered by render/gpu).
+	if AfterSurfaceUnconfigure != nil {
+		AfterSurfaceUnconfigure()
+	}
 }
 
 // GetCurrentTexture acquires the next texture for rendering.

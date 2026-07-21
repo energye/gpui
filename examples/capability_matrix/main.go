@@ -18,11 +18,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/energye/gpui/examples/e
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
-	rendgpu "github.com/energye/gpui/render/gpu"
 )
 
 const (
@@ -95,7 +95,8 @@ func main() {
 	}
 	xw.LockSize(winW, winH)
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	exboot.InitEnv()
+	inst, err := exboot.NewInstanceX11(xw.Display, 0)
 	if err != nil {
 		log.Fatalf("CreateInstance: %v", err)
 	}
@@ -107,19 +108,11 @@ func main() {
 	}
 	defer surf.Release()
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
-		CompatibleSurface: surf,
-	})
+	adapter, device, err := exboot.OpenDevice(inst, surf, "capability-matrix")
 	if err != nil {
-		log.Fatalf("RequestAdapter: %v", err)
+		log.Fatalf("OpenDevice: %v", err)
 	}
 	defer adapter.Release()
-
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("capability-matrix"))
-	if err != nil {
-		log.Fatalf("RequestDevice: %v", err)
-	}
 	defer func() {
 		if device != nil {
 			device.Release()
@@ -134,27 +127,19 @@ func main() {
 	}
 	defer sc.Release()
 
-	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-		Dev: device, Adpt: adapter, Format: sc.Format,
-	}); err != nil {
+	if err := exboot.BindProvider(device, adapter, sc.Format); err != nil {
 		log.Fatalf("SetDeviceProvider: %v", err)
 	}
-	defer func() { _ = rendgpu.ResetAccelerator() }()
+	defer exboot.ResetAccelerator()
 
 	// Library auto-recover: DeviceLostCallback → recreate device + reconfigure surface.
-	// Host rebinds accelerator; do not exit the process on device lost.
-	sc.EnableAutoRecover(adapter, "capability-matrix", func(dev *webgpu.Device) {
-		device = dev
-		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-			Dev: device, Adpt: adapter, Format: sc.Format,
-		}); err != nil {
-			log.Printf("SetDeviceProvider after recover: %v", err)
-		}
-		log.Printf("GPU device recovered (recoveries=%d) — continue rendering", sc.Recoveries())
-	})
-
 	dc := render.NewContext(winW, winH)
 	defer dc.Close()
+	exboot.WireAutoRecover(sc, adapter, "capability-matrix",
+		func(dev *webgpu.Device) { device = dev },
+		func() { dc.DropGPURenderContext() },
+		nil,
+	)
 	fonts := loadFonts(dc)
 	pixelScratch := make([]byte, 64*48*4)
 
@@ -193,6 +178,9 @@ func main() {
 	)
 
 	running := true
+	windowMinimized := false
+	windowFullyObscured := false
+	wasHidden := false
 	for running {
 		deadline := time.Now().Add(frameBudget)
 		// Events
@@ -206,6 +194,38 @@ func main() {
 			if ev.Type == xConfigureNotify {
 				// fixed size soak — ignore maximize
 			}
+			if ev.Type == xVisibilityNotify {
+				windowFullyObscured = ev.Visibility == xVisibilityFullyObscured
+			}
+			// GNOME minimize often only updates WM_STATE.
+			windowMinimized = xw.IsIconic()
+		}
+		// Pause present when unpresentable (docs/GPU_修复_device_lost.md).
+		hidden := windowMinimized || windowFullyObscured
+		if hidden {
+			if !wasHidden {
+				wasHidden = true
+				if sc.Surface != nil && sc.Device != nil && !sc.Device.IsLost() {
+					sc.Surface.Unconfigure()
+					sc.MarkNeedsReconfigure()
+				}
+				log.Printf("window hidden (minimized=%v obscured=%v) — pause present + unconfigure",
+					windowMinimized, windowFullyObscured)
+			}
+			if device != nil {
+				device.FlushCallbacks()
+			}
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if wasHidden {
+			wasHidden = false
+			sc.MarkNeedsReconfigure()
+			sc.ClearRecoverCooldown()
+			if sc.Device != nil {
+				device = sc.Device
+			}
+			log.Printf("window visible again — resume present recoveries=%d", sc.Recoveries())
 		}
 		select {
 		case <-stopSig:
@@ -355,6 +375,18 @@ func main() {
 			rssSamples = append(rssSamples, lastRSS)
 		}
 		frame++
+		if v := os.Getenv("GPUI_FORCE_LOST_AFTER"); v != "" {
+			var n int
+			fmt.Sscanf(v, "%d", &n)
+			if n > 0 && frame == n && sc != nil {
+				log.Printf("GPUI_FORCE_LOST_AFTER=%d ForceRecoverHealthy", n)
+				if err := sc.ForceRecoverHealthy(); err != nil {
+					log.Printf("ForceRecoverHealthy: %v", err)
+				} else if sc.Device != nil {
+					device = sc.Device
+				}
+			}
+		}
 		// Begin steady window after ~1s of frames (or frame 45 min) so avg FPS
 		// is not poisoned by first-frame pipeline/mask compile cost.
 		if !haveSteady && (time.Since(start) >= time.Second || frame >= 45) {

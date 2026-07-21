@@ -889,6 +889,9 @@ func (s *GPURenderSession) RenderFrame(
 	if err := s.ensurePipelines(); err != nil {
 		return fmt.Errorf("ensure pipelines: %w", err)
 	}
+	if err := s.ensureStagePipelines(len(stencilPaths) > 0, false, false); err != nil {
+		return err
+	}
 
 	// Build per-frame GPU resources using persistent buffers.
 	var sdfResources *sdfFrameResources
@@ -1000,6 +1003,21 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	}
 	if err := s.ensurePipelines(); err != nil {
 		return fmt.Errorf("ensure pipelines: %w", err)
+	}
+	needStencil, needImage, needDepth := false, baseLayer != nil, false
+	for i := range groups {
+		if len(groups[i].StencilPaths) > 0 {
+			needStencil = true
+		}
+		if len(groups[i].ImageCommands) > 0 || len(groups[i].GPUTextureCommands) > 0 {
+			needImage = true
+		}
+		if groups[i].ClipPath != nil || groups[i].ClipDepthLevel > 0 {
+			needDepth = true
+		}
+	}
+	if err := s.ensureStagePipelines(needStencil, needImage, needDepth); err != nil {
+		return err
 	}
 	// Reset clip pool usage for this frame.
 	s.clipPoolUsed = 0
@@ -1394,6 +1412,43 @@ func (s *GPURenderSession) Size() (uint32, uint32) {
 // Destroy releases all GPU resources held by the session. Safe to call
 // multiple times or on a session with no allocated resources.
 // The surface view is not destroyed -- it is owned by the caller.
+// PurgeSurfaceTextures releases MSAA/depth/resolve and in-flight command
+// buffers while keeping pipelines and the device binding (Skia freeGpuResources
+// for surface-sized attachments). Safe while the window is unpresentable.
+func (s *GPURenderSession) PurgeSurfaceTextures() {
+	if s == nil {
+		return
+	}
+	if s.device != nil && !s.device.IsLost() {
+		s.drainQueue()
+	}
+	for _, cb := range s.leadSubmitCBs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+	s.leadSubmitCBs = s.leadSubmitCBs[:0]
+	for _, c := range s.leadSubmitClean {
+		if c != nil {
+			c()
+		}
+	}
+	s.leadSubmitClean = s.leadSubmitClean[:0]
+	s.deferredConvexUses = 0
+	for _, cb := range s.prevCmdBufs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+	s.prevCmdBufs = s.prevCmdBufs[:0]
+	s.textures.destroyTextures()
+	s.surfaceView = nil
+	s.surfaceWidth = 0
+	s.surfaceHeight = 0
+	s.lastView = nil
+	s.frameRendered = false
+}
+
 func (s *GPURenderSession) Destroy() {
 	// Always WaitIdle before releasing session-owned GPU memory.
 	// prevCmdBufs may already be empty after BeginFrame freed them without a
@@ -1407,6 +1462,20 @@ func (s *GPURenderSession) Destroy() {
 		s.drainQueue()
 	}
 	// Always drop command buffer refs (holds device refcount / VRAM on this .so).
+	// Leading (deferred) CBs first — not tracked in prevCmdBufs.
+	for _, cb := range s.leadSubmitCBs {
+		if cb != nil {
+			cb.Release()
+		}
+	}
+	s.leadSubmitCBs = s.leadSubmitCBs[:0]
+	for _, c := range s.leadSubmitClean {
+		if c != nil {
+			c()
+		}
+	}
+	s.leadSubmitClean = s.leadSubmitClean[:0]
+	s.deferredConvexUses = 0
 	for _, cb := range s.prevCmdBufs {
 		if cb != nil {
 			cb.Release()
@@ -1692,23 +1761,17 @@ type sdfFrameResources struct {
 	firstVertex uint32 // offset into shared vertex buffer (for scissor group sub-ranges)
 }
 
-// ensurePipelines creates SDF, convex, and stencil pipelines if they don't
-// exist yet. Pipelines are lazily created on first use. The text pipeline
-// is NOT created here — it is created on demand when text batches are present
-// (see ensureTextPipeline).
+// ensurePipelines creates core shape pipelines (SDF + convex).
+// F17 VRAM: stencil / image / depth-clip / text are ensured on demand so a
+// clear/solid present does not compile the full pipeline set (first-frame
+// +~128MiB on 940MX was mostly unused stage compile + driver heaps).
 func (s *GPURenderSession) ensurePipelines() error {
-	// opt38: warm path — clip/mask layouts stable and core pipelines present.
-	// Must also verify GPU objects still exist: a shared StencilRenderer can be
-	// destroyed by another session's DetachExternalLayouts (short-lived Context
-	// from Image()/HUD rasterize) while this session still has pipelinesReady=true.
+	// Warm path: clip/mask layouts stable and core pipelines present.
 	if s.pipelinesReady &&
 		s.pipelinesReadyClip == s.clipBindLayout &&
 		s.pipelinesReadyMask == s.maskBindLayout &&
 		s.sdfPipeline != nil && s.sdfPipeline.pipelineWithStencil != nil &&
-		s.convexRenderer != nil && s.convexRenderer.pipelineWithStencil != nil &&
-		s.stencilRenderer != nil && s.stencilRenderer.nonZeroStencilPipeline != nil &&
-		s.stencilRenderer.uniformLayout != nil &&
-		s.imagePipeline != nil && s.depthClipPipeline != nil {
+		s.convexRenderer != nil && s.convexRenderer.pipelineWithStencil != nil {
 		s.lastEnsurePipelines = 0
 		s.ensurePipelinesFastN++
 		return nil
@@ -1743,15 +1806,27 @@ func (s *GPURenderSession) ensurePipelines() error {
 		return fmt.Errorf("mask defaults: %w", err)
 	}
 
+	s.pipelinesReady = true
+	s.pipelinesReadyClip = s.clipBindLayout
+	s.pipelinesReadyMask = s.maskBindLayout
+	return nil
+}
+
+// ensureStencilPipelines creates stencil-then-cover pipelines when needed.
+func (s *GPURenderSession) ensureStencilPipelines() error {
+	if s.device == nil {
+		return fmt.Errorf("ensure stencil: nil device")
+	}
+	if err := s.ensureMaskBindLayout(); err != nil {
+		return err
+	}
 	if s.stencilRenderer == nil {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
 		s.ownsShapePipelines = true
 	}
-	// Detect layout mismatch BEFORE Set* (SetMask would make identity compare useless).
 	stencilMaskMismatch := s.maskBindLayout != nil &&
 		s.stencilRenderer.coverPipeMaskLayout != s.maskBindLayout
 	stencilClipMismatch := s.clipBindLayout != nil && !s.stencilRenderer.coverPipeLayoutHasClip
-	// Also treat a destroyed shared renderer (DetachExternalLayouts) as mismatch.
 	stencilMissing := s.stencilRenderer.nonZeroStencilPipeline == nil || s.stencilRenderer.uniformLayout == nil
 	s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
 	s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
@@ -1763,8 +1838,14 @@ func (s *GPURenderSession) ensurePipelines() error {
 			return fmt.Errorf("stencil pipelines: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Image pipeline (Tier 3) — lazily created alongside other pipelines.
+// ensureImagePipeline creates textured-quad pipelines for DrawImage / GPU tex.
+func (s *GPURenderSession) ensureImagePipeline() error {
+	if s.device == nil {
+		return fmt.Errorf("ensure image: nil device")
+	}
 	if s.imagePipeline == nil {
 		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
 	}
@@ -1775,18 +1856,41 @@ func (s *GPURenderSession) ensurePipelines() error {
 	if s.imageCache == nil {
 		s.imageCache = NewImageCache(s.device, s.queue)
 	}
+	return nil
+}
 
-	// Depth clip pipeline (GPU-CLIP-003a) — lazily created alongside others.
-	if s.depthClipPipeline == nil {
-		s.depthClipPipeline = NewDepthClipPipeline(s.device, s.queue, s.sampleCount)
+// ensureImageBlitPipeline creates only the blit compositor pipeline.
+func (s *GPURenderSession) ensureImageBlitPipeline() error {
+	if s.device == nil {
+		return fmt.Errorf("ensure blit: nil device")
 	}
-	if err := s.depthClipPipeline.ensurePipeline(); err != nil {
-		return fmt.Errorf("depth clip pipeline: %w", err)
+	if s.imagePipeline == nil {
+		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
 	}
+	// Was recursive self-call → stack overflow on particle/image blit path.
+	if err := s.imagePipeline.ensureBlitPipeline(); err != nil {
+		return fmt.Errorf("blit pipeline: %w", err)
+	}
+	return nil
+}
 
-	s.pipelinesReady = true
-	s.pipelinesReadyClip = s.clipBindLayout
-	s.pipelinesReadyMask = s.maskBindLayout
+// ensureStagePipelines creates optional stages for this frame's command mix.
+func (s *GPURenderSession) ensureStagePipelines(needStencil, needImage, needDepthClip bool) error {
+	if needStencil {
+		if err := s.ensureStencilPipelines(); err != nil {
+			return err
+		}
+	}
+	if needImage {
+		if err := s.ensureImagePipeline(); err != nil {
+			return err
+		}
+	}
+	if needDepthClip {
+		if err := s.ensureDepthClipPipelineVariants(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1805,17 +1909,26 @@ func (s *GPURenderSession) hasAnyDepthClip(grpRes []groupResources) bool {
 // lazily (only when at least one group uses depth clipping) to avoid
 // unnecessary GPU pipeline compilation for the common no-clip case.
 func (s *GPURenderSession) ensureDepthClipPipelineVariants() error {
+	if s.sdfPipeline == nil || s.convexRenderer == nil {
+		if err := s.ensurePipelines(); err != nil {
+			return err
+		}
+	}
 	if err := s.sdfPipeline.ensureDepthClipPipeline(); err != nil {
 		return fmt.Errorf("SDF depth clip pipeline: %w", err)
 	}
 	if err := s.convexRenderer.ensureDepthClipPipeline(); err != nil {
 		return fmt.Errorf("convex depth clip pipeline: %w", err)
 	}
-	if err := s.stencilRenderer.ensureDepthClipPipelines(); err != nil {
-		return fmt.Errorf("stencil depth clip pipelines: %w", err)
+	if s.stencilRenderer != nil {
+		if err := s.stencilRenderer.ensureDepthClipPipelines(); err != nil {
+			return fmt.Errorf("stencil depth clip pipelines: %w", err)
+		}
 	}
-	if err := s.imagePipeline.ensureDepthClipPipeline(); err != nil {
-		return fmt.Errorf("image depth clip pipeline: %w", err)
+	if s.imagePipeline != nil {
+		if err := s.imagePipeline.ensureDepthClipPipeline(); err != nil {
+			return fmt.Errorf("image depth clip pipeline: %w", err)
+		}
 	}
 	if s.textPipeline != nil {
 		if err := s.textPipeline.ensureDepthClipPipeline(); err != nil {
@@ -2495,7 +2608,10 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 // current path count are kept alive for future frames.
 func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand, w, h uint32) ([]*stencilCoverBuffers, error) {
 	if len(paths) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil
+	}
+	if err := s.ensureStencilPipelines(); err != nil {
+		return nil, err
 	}
 
 	// Grow pool if needed.
@@ -3391,8 +3507,8 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	if len(cmds) == 0 {
 		return nil, nil //nolint:nilnil // no GPU texture commands
 	}
-	if err := s.ensurePipelines(); err != nil {
-		return nil, fmt.Errorf("ensure pipelines: %w", err)
+	if err := s.ensureImagePipeline(); err != nil {
+		return nil, fmt.Errorf("ensure image pipeline: %w", err)
 	}
 
 	totalVertBytes := len(cmds) * 6 * imageVertexStride //nolint:mnd // 6 verts per quad
@@ -4145,6 +4261,10 @@ func (s *GPURenderSession) copySubmitAndReadback(
 		return fmt.Errorf("end encoding: %w", err)
 	}
 	encoderConsumed = true
+	// Offscreen readback: Submit does not drop the CB ref. Must Release or
+	// CommandBuffers accumulate (~1/frame per effect RT) and pin device VRAM
+	// across AutoRecover (CreateTexture OOM on 1GB cards).
+	defer cmdBuf.Release()
 
 	// Submit (auto-polls pending maps at tail).
 	if _, err := s.queue.Submit(cmdBuf); err != nil {
@@ -4637,7 +4757,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	baseLayerRes *imageFrameResources,
 	damageRects []image.Rectangle,
 ) error {
-	if err := s.imagePipeline.ensureBlitPipeline(); err != nil {
+	if err := s.ensureImageBlitPipeline(); err != nil {
 		return fmt.Errorf("ensure blit pipeline: %w", err)
 	}
 
@@ -4902,7 +5022,7 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 	baseLayerRes *imageFrameResources,
 	damageRects []image.Rectangle,
 ) error {
-	if err := s.imagePipeline.ensureBlitPipeline(); err != nil {
+	if err := s.ensureImageBlitPipeline(); err != nil {
 		return fmt.Errorf("ensure blit pipeline: %w", err)
 	}
 

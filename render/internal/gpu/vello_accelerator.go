@@ -802,7 +802,8 @@ func (a *VelloAccelerator) readbackBuffer(outputBuffer *webgpu.Buffer, size uint
 	if err != nil {
 		return nil, fmt.Errorf("end readback encoding: %w", err)
 	}
-	// cmdBuf freed after fence wait
+	// Must Release after Submit (pins device VRAM if leaked across recover).
+	defer cmdBuf.Release()
 
 	// Submit (auto-polls pending maps at tail).
 	if _, err := a.queue.Submit(cmdBuf); err != nil {

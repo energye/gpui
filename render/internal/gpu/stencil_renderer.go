@@ -782,7 +782,6 @@ func (sr *StencilRenderer) encodeAndReadback(
 	if err != nil {
 		return fmt.Errorf("end encoding: %w", err)
 	}
-	// cmdBuf freed after fence wait
 
 	return sr.submitAndReadback(cmdBuf, stagingBuf, stagingBufSize, bytesPerRow, alignedBytesPerRow, h, target)
 }
@@ -793,6 +792,10 @@ func (sr *StencilRenderer) submitAndReadback(
 	cmdBuf *webgpu.CommandBuffer, stagingBuf *webgpu.Buffer,
 	stagingBufSize uint64, bytesPerRow, alignedBytesPerRow, height uint32, target render.GPURenderTarget,
 ) error {
+	if cmdBuf != nil {
+		// Submit does not drop the CB ref on wgpu-native.
+		defer cmdBuf.Release()
+	}
 	if _, err := sr.queue.Submit(cmdBuf); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}

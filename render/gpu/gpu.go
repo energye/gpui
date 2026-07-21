@@ -21,12 +21,20 @@ package gpu
 
 import (
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
 	gpuimpl "github.com/energye/gpui/render/internal/gpu"
 )
 
 func init() {
+	// Adaptive surface lifecycle: escalate to recreate after real OOM (all GPUs).
+	gpuimpl.SetTextureOOMHook(NoteTextureOOM)
+	// Skia freeGpuResources when platform surface is unconfigured.
+	webgpu.AfterSurfaceUnconfigure = PurgeSurfaceResources
+	// Ensure purge+abandon before device recreate (even if host forgot OnDeviceAbandon).
+	// Purge surface attachments first; host OnDeviceAbandon then DropGPU+AbandonDevice.
+	webgpu.BeforeDeviceRecover = PurgeSurfaceResources
 	// GPU accelerator (SDF shapes: circles, rounded rects)
 	accel := &gpuimpl.SDFAccelerator{}
 	if err := render.RegisterAccelerator(accel); err != nil {
@@ -56,6 +64,12 @@ func SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 // replacement. Wire to webgpu.Swapchain.OnDeviceAbandon before Destroy/Release.
 func AbandonDevice() {
 	render.AbandonAcceleratorDevice()
+}
+
+// PurgeSurfaceResources frees surface-sized GPU attachments process-wide
+// without destroying the logical device (Skia freeGpuResources-style).
+func PurgeSurfaceResources() {
+	render.PurgeAcceleratorSurfaceResources()
 }
 
 // ResetAccelerator closes the current accelerator and registers a fresh SDF

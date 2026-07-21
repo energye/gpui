@@ -655,7 +655,8 @@ func (p *SDFRenderPipeline) encodeAndReadback(
 	if err != nil {
 		return fmt.Errorf("end encoding: %w", err)
 	}
-	// cmdBuf freed after fence wait
+	// Must Release after Submit: unreleased CBs pin device VRAM across recover.
+	defer cmdBuf.Release()
 
 	// Submit (auto-polls pending maps at tail).
 	if _, err := p.queue.Submit(cmdBuf); err != nil {

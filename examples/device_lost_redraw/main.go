@@ -354,7 +354,10 @@ func main() {
 	go func() {
 		defer renderWG.Done()
 		runtime.LockOSThread()
-		inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+		inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{
+			XlibDisplay: xw.Display,
+			XlibScreen:  int32(xw.Screen),
+		})
 		if err != nil {
 			gpuErr <- err
 			return
@@ -365,17 +368,19 @@ func main() {
 			gpuErr <- err
 			return
 		}
-		adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-			PowerPreference:   webgpu.PowerPreferenceHighPerformance,
-			CompatibleSurface: surf,
-		})
+		adapter, _, err := rendgpu.RequestAdapterWithPolicy(inst, surf, rendgpu.ResolveAdapterPolicy())
 		if err != nil {
 			surf.Release()
 			inst.Release()
 			gpuErr <- err
 			return
 		}
-		device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("device-lost-redraw"))
+		{
+			info := adapter.Info()
+			log.Printf("adapter name=%q backend=%v type=%v vendor=%q policy=%v",
+				info.Name, info.Backend, info.DeviceType, info.Vendor, rendgpu.ResolveAdapterPolicy())
+		}
+		device, err := adapter.RequestDevice(rendgpu.DeviceDescriptorForAdapter("device-lost-redraw", adapter))
 		if err != nil {
 			adapter.Release()
 			surf.Release()
@@ -650,14 +655,14 @@ func main() {
 			// covers any remaining Xlib cross-thread use from wgpu surface present.
 			pn := presentN.Add(1)
 			fpsWindow.add(time.Now())
-			// Automated soak: force sticky lost once after N presents (UI recover proof).
+			// Automated soak: healthy abandon+recreate (VRAM-safe; not sticky MarkLost).
 			if v := os.Getenv("GPUI_FORCE_LOST_AFTER"); v != "" {
 				var n uint64
 				fmt.Sscanf(v, "%d", &n)
-				if n > 0 && pn == n {
-					if d := getDevice(); d != nil {
-						log.Printf("GPUI_FORCE_LOST_AFTER=%d MarkLost (AutoRecover)", n)
-						d.MarkLost()
+				if n > 0 && pn == n && sc != nil {
+					log.Printf("GPUI_FORCE_LOST_AFTER=%d ForceRecoverHealthy", n)
+					if err := sc.ForceRecoverHealthy(); err != nil {
+						log.Printf("ForceRecoverHealthy: %v", err)
 					}
 				}
 			}

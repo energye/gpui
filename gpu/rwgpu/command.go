@@ -2,10 +2,13 @@ package rwgpu
 
 import (
 	"runtime"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/types"
 )
+
+var cmdBufLive atomic.Int64
 
 // CommandEncoderDescriptor describes a command encoder to create.
 type CommandEncoderDescriptor struct {
@@ -352,6 +355,7 @@ func (enc *CommandEncoder) Finish(desc ...*CommandBufferDescriptor) (*CommandBuf
 		return nil, &WGPUError{Op: "CommandEncoder.Finish", Message: "wgpu returned null handle"}
 	}
 	trackResource(handle, "CommandBuffer")
+	cmdBufLive.Add(1)
 	return &CommandBuffer{handle: handle, device: enc.device}, nil
 }
 
@@ -563,10 +567,16 @@ func (cb *CommandBuffer) Release() {
 	if cb == nil {
 		return
 	}
+	if cb.handle != 0 {
+		cmdBufLive.Add(-1)
+	}
 	releaseNativeHandle(&cb.handle, isOwnerDeviceLost(cb.device), func(h uintptr) {
 		call1(procCommandBufferRelease, h)
 	})
 }
+
+// CmdBufLive returns outstanding CommandBuffer handles (diagnostics).
+func CmdBufLive() int64 { return cmdBufLive.Load() }
 
 // Handle returns the underlying handle.
 func (cb *CommandBuffer) Handle() uintptr { return cb.handle }

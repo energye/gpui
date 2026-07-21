@@ -603,11 +603,12 @@ func TestABIEnumValues(t *testing.T) {
 		}{
 			{"DeviceExtras", uint32(STypeDeviceExtras), 0x00030001},
 			{"NativeLimits", uint32(STypeNativeLimits), 0x00030002},
-			{"PipelineLayoutExtras", uint32(STypePipelineLayoutExtras), 0x00030003},
-			{"ShaderSourceGLSL", uint32(STypeShaderSourceGLSL), 0x00030004},
-			{"InstanceExtras", uint32(STypeInstanceExtras), 0x00030006},
-			{"BindGroupEntryExtras", uint32(STypeBindGroupEntryExtras), 0x00030007},
-			{"BindGroupLayoutEntryExtras", uint32(STypeBindGroupLayoutEntryExtras), 0x00030008},
+			{"ShaderSourceGLSL", uint32(STypeShaderSourceGLSL), 0x00030003},
+			{"InstanceExtras", uint32(STypeInstanceExtras), 0x00030004},
+			{"BindGroupEntryExtras", uint32(STypeBindGroupEntryExtras), 0x00030005},
+			{"BindGroupLayoutEntryExtras", uint32(STypeBindGroupLayoutEntryExtras), 0x00030006},
+			{"QuerySetDescriptorExtras", uint32(STypeQuerySetDescriptorExtras), 0x00030007},
+			{"SamplerDescriptorExtras", uint32(STypeSamplerDescriptorExtras), 0x0003000B},
 		}
 		runEnumTests(t, tests)
 	})

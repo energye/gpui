@@ -285,6 +285,21 @@ func (a *SDFAccelerator) AbandonDeviceProvider() {
 	}
 }
 
+// PurgeSurfaceResources drops surface-sized GPU attachments on all live
+// contexts without abandoning the device (Skia freeGpuResources for surfaces).
+func (a *SDFAccelerator) PurgeSurfaceResources() {
+	a.mu.Lock()
+	shared := a.shared
+	def := a.defaultCtx
+	a.mu.Unlock()
+	if def != nil {
+		def.PurgeSurfaceResources()
+	}
+	if shared != nil {
+		shared.PurgeAllSurfaceResources()
+	}
+}
+
 // CanRenderDirect reports whether the GPU accelerator can render to a surface.
 // Returns false on software adapters — SDF pipelines hang on CPU (BUG-SW-002).
 func (a *SDFAccelerator) CanRenderDirect() bool {

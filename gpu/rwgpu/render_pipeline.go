@@ -448,7 +448,11 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPi
 		return nil, &WGPUError{Op: "CreateRenderPipeline", Message: "wgpu returned null handle"}
 	}
 
-	trackResource(handle, "RenderPipeline")
+	lab := ""
+	if desc != nil {
+		lab = desc.Label
+	}
+	trackResourceLabel(handle, "RenderPipeline", lab)
 	return &RenderPipeline{handle: handle, device: d.handle}, nil
 }
 

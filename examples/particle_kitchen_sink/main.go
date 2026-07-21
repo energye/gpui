@@ -22,11 +22,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/energye/gpui/examples/e
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
-	rendgpu "github.com/energye/gpui/render/gpu"
 )
 
 const (
@@ -133,7 +133,8 @@ func main() {
 		xw.LockSize(winW, winH)
 	}
 
-	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
+	exboot.InitEnv()
+	inst, err := exboot.NewInstanceX11(xw.Display, 0)
 	if err != nil {
 		log.Fatalf("CreateInstance: %v", err)
 	}
@@ -145,19 +146,11 @@ func main() {
 	}
 	defer surf.Release()
 
-	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
-		CompatibleSurface: surf,
-	})
+	adapter, device, err := exboot.OpenDevice(inst, surf, "particle-kitchen-sink")
 	if err != nil {
-		log.Fatalf("RequestAdapter: %v", err)
+		log.Fatalf("OpenDevice: %v", err)
 	}
 	defer adapter.Release()
-
-	device, err := adapter.RequestDevice(rendgpu.DeviceDescriptor("particle-kitchen-sink"))
-	if err != nil {
-		log.Fatalf("RequestDevice: %v", err)
-	}
 	defer func() {
 		if device != nil {
 			device.Release()
@@ -177,26 +170,25 @@ func main() {
 	appPace := envBool("GPUI_APP_PACE", true)
 	log.Printf("swapchain present_mode=%s app_pace=%v frame_budget=%s", sc.PresentModeName(), appPace, frameBudget)
 
-	if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-		Dev: device, Adpt: adapter, Format: sc.Format,
-	}); err != nil {
+	if err := exboot.BindProvider(device, adapter, sc.Format); err != nil {
 		log.Fatalf("SetDeviceProvider: %v", err)
 	}
-	defer func() { _ = rendgpu.ResetAccelerator() }()
-
-	// Library auto-recover (Flutter Rasterizer / Skia GrContext model).
-	sc.EnableAutoRecover(adapter, "particle-kitchen-sink", func(dev *webgpu.Device) {
-		device = dev
-		if err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
-			Dev: device, Adpt: adapter, Format: sc.Format,
-		}); err != nil {
-			log.Printf("SetDeviceProvider after recover: %v", err)
-		}
-		log.Printf("GPU device recovered (recoveries=%d)", sc.Recoveries())
-	})
+	defer exboot.ResetAccelerator()
 
 	dc := render.NewContext(winW, winH)
 	defer dc.Close()
+	exboot.WireAutoRecover(sc, adapter, "particle-kitchen-sink",
+		func(dev *webgpu.Device) { device = dev },
+		func() {
+			dc.DropGPURenderContext()
+			// dig RTs (glow/grad/filter) hold separate Context sessions
+			gGlow.close()
+			gDigGrad.close()
+			gDigFilter.close()
+			gDigBlend.close()
+		},
+		nil,
+	)
 	fonts := loadFonts(dc)
 
 	sx, sy, sw, sh := stageRect(float64(winW), float64(winH), cfg.Region)
@@ -387,7 +379,11 @@ func main() {
 			if !wasHidden {
 				wasHidden = true
 				hiddenSince = time.Now()
-				log.Printf("window hidden (minimized=%v obscured=%v) — pause present + FPS clock",
+				if sc.Surface != nil && sc.Device != nil && !sc.Device.IsLost() {
+					sc.Surface.Unconfigure()
+					sc.MarkNeedsReconfigure()
+				}
+				log.Printf("window hidden (minimized=%v obscured=%v) — pause present + unconfigure surface",
 					windowMinimized, windowFullyObscured)
 			}
 			if device != nil {
@@ -408,7 +404,12 @@ func main() {
 			nextFrameDeadline = time.Time{} // resync pace after resume
 			skipFPSSample = true            // do not let hidden gap crush instFPS
 			sc.MarkNeedsReconfigure()
-			log.Printf("window visible again — resume present (hidden_total=%.1fs)", hiddenAccum.Seconds())
+			sc.ClearRecoverCooldown()
+			if sc.Device != nil {
+				device = sc.Device
+			}
+			log.Printf("window visible again — resume present (hidden_total=%.1fs recoveries=%d)",
+				hiddenAccum.Seconds(), sc.Recoveries())
 		}
 		if device != nil {
 			device.FlushCallbacks()
@@ -656,6 +657,18 @@ func main() {
 			rssSamples = append(rssSamples, lastRSS)
 		}
 		frame++
+		if v := os.Getenv("GPUI_FORCE_LOST_AFTER"); v != "" {
+			var n int
+			fmt.Sscanf(v, "%d", &n)
+			if n > 0 && frame == n && sc != nil {
+				log.Printf("GPUI_FORCE_LOST_AFTER=%d ForceRecoverHealthy", n)
+				if err := sc.ForceRecoverHealthy(); err != nil {
+					log.Printf("ForceRecoverHealthy: %v", err)
+				} else if sc.Device != nil {
+					device = sc.Device
+				}
+			}
+		}
 		if !haveSteady && (time.Since(start) >= time.Second || frame >= 45) {
 			haveSteady = true
 			steadyStart = time.Now()

@@ -72,7 +72,7 @@ func (r *LeakReport) String() string {
 	for typ, count := range r.Types {
 		s += fmt.Sprintf(" %s=%d", typ, count)
 	}
-	if len(r.Items) > 0 && len(r.Items) <= 32 {
+	if len(r.Items) > 0 && len(r.Items) <= 128 {
 		s += " [" + fmt.Sprintf("%v", r.Items) + "]"
 	}
 	return s

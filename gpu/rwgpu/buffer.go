@@ -2,6 +2,8 @@ package rwgpu
 
 import (
 	"context"
+	"log"
+	"os"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -131,6 +133,10 @@ func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error) {
 	}
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+	if os.Getenv("GPUI_LOG_BUFFER") == "1" {
+		log.Printf("BUF_CREATE label=%q size=%d (%.3f MiB) usage=%d",
+			desc.Label, desc.Size, float64(desc.Size)/(1024*1024), desc.Usage)
+	}
 	handle, _, _ := procDeviceCreateBuffer.Call(
 		d.handle,
 		uintptr(unsafe.Pointer(&wire)),

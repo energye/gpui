@@ -331,6 +331,34 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 //
 // Session MSAA/depth must be Released *before* Device.Destroy; otherwise this
 // native build keeps VRAM pinned and the new device OOMs on CreateTexture.
+// PurgeAllSurfaceResources frees surface-bound GPU memory on every live
+// context (depth/MSAA/offscreen pools) without abandoning the device.
+// Call when the window is unpresentable (Skia freeGpuResources pattern).
+func (s *GPUShared) PurgeAllSurfaceResources() {
+	if s == nil {
+		return
+	}
+	rwgpu.WithForceNativeReleaseOnLost(func() {
+		s.mu.Lock()
+		ctxs := make([]*GPURenderContext, 0, len(s.liveCtxs))
+		for rc := range s.liveCtxs {
+			ctxs = append(ctxs, rc)
+		}
+		s.mu.Unlock()
+		for _, rc := range ctxs {
+			if rc != nil {
+				rc.PurgeSurfaceResources()
+			}
+		}
+		// Texture pool holds surface-sized sets — drop while unpresentable.
+		s.mu.Lock()
+		if s.texturePool != nil {
+			s.texturePool.DestroyAll()
+		}
+		s.mu.Unlock()
+	})
+}
+
 func (s *GPUShared) AbandonExternalDevice() {
 	if s == nil {
 		return
@@ -344,22 +372,21 @@ func (s *GPUShared) AbandonExternalDevice() {
 		}
 		s.mu.Unlock()
 
-		nSess := 0
+		// Fully Close each GPURenderContext (Destroy session + unregister liveCtxs).
+		// Destroy-only left zombie contexts; offscreen NewContext RTs then re-attached
+		// half-state and OOM'd CreateTexture after AutoRecover on 1GB GPUs.
 		for _, rc := range ctxs {
 			if rc == nil {
 				continue
 			}
-			if rc.session != nil {
-				nSess++
-				rc.session.Destroy() // native Release depth/MSAA under force flag
-				rc.session = nil
-			}
-			rc.frameRendered = false
-			rc.lastView = nil
-			rc.deviceGen = 0
+			rc.Close()
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		// liveCtxs should be empty after Close; clear defensively.
+		if s.liveCtxs != nil {
+			clear(s.liveCtxs)
+		}
 		s.abandonDeviceOwnedLocked(false)
 		s.deviceGen++
 	})

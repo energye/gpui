@@ -96,30 +96,37 @@ const (
 	// STypeTextureBindingViewDimension identifies a texture binding view dimension. New in v29.
 	STypeTextureBindingViewDimension SType = 0x00000010
 
-	// Native wgpu-native extension STypes (0x0003XXXX range)
+	// Native wgpu-native extension STypes (0x0003XXXX range).
+	// Values must match lib/include/webgpu/wgpu.h WGPUSType_* exactly —
+	// a shift here silently disables InstanceExtras backends/budgets.
 
 	// STypeDeviceExtras identifies wgpu-native device extras chained struct.
 	STypeDeviceExtras SType = 0x00030001
 	// STypeNativeLimits identifies wgpu-native native limits chained struct.
 	STypeNativeLimits SType = 0x00030002
-	// STypePipelineLayoutExtras identifies wgpu-native pipeline layout extras chained struct.
-	STypePipelineLayoutExtras SType = 0x00030003
-	// STypeShaderSourceGLSL identifies a GLSL shader source chained struct (wgpu-native extension).
-	STypeShaderSourceGLSL SType = 0x00030004
-	// STypeInstanceExtras identifies wgpu-native instance extras chained struct.
-	STypeInstanceExtras SType = 0x00030006
+	// STypeShaderSourceGLSL identifies a GLSL shader source chained struct.
+	STypeShaderSourceGLSL SType = 0x00030003
+	// STypeInstanceExtras identifies wgpu-native instance extras (backends, budgets).
+	STypeInstanceExtras SType = 0x00030004
 	// STypeBindGroupEntryExtras identifies wgpu-native bind group entry extras.
-	STypeBindGroupEntryExtras SType = 0x00030007
+	STypeBindGroupEntryExtras SType = 0x00030005
 	// STypeBindGroupLayoutEntryExtras identifies wgpu-native bind group layout entry extras.
-	STypeBindGroupLayoutEntryExtras SType = 0x00030008
+	STypeBindGroupLayoutEntryExtras SType = 0x00030006
 	// STypeQuerySetDescriptorExtras identifies wgpu-native query set descriptor extras.
-	STypeQuerySetDescriptorExtras SType = 0x00030009
+	STypeQuerySetDescriptorExtras SType = 0x00030007
 	// STypeSurfaceConfigurationExtras identifies wgpu-native surface configuration extras.
-	STypeSurfaceConfigurationExtras SType = 0x0003000A
+	STypeSurfaceConfigurationExtras SType = 0x00030008
 	// STypeSurfaceSourceSwapChainPanel identifies a WinUI SwapChainPanel surface source.
-	STypeSurfaceSourceSwapChainPanel SType = 0x0003000B
+	STypeSurfaceSourceSwapChainPanel SType = 0x00030009
 	// STypePrimitiveStateExtras identifies wgpu-native primitive state extras.
-	STypePrimitiveStateExtras SType = 0x0003000C
+	STypePrimitiveStateExtras SType = 0x0003000A
+	// STypeSamplerDescriptorExtras identifies wgpu-native sampler descriptor extras.
+	STypeSamplerDescriptorExtras SType = 0x0003000B
+
+	// STypePipelineLayoutExtras is no longer in current wgpu.h; kept as an alias
+	// of ShaderSourceGLSL only so old references compile. Do not chain this.
+	// Deprecated: removed from native ABI.
+	STypePipelineLayoutExtras SType = STypeShaderSourceGLSL
 )
 
 // SurfaceGetCurrentTextureStatus describes the result of GetCurrentTexture.

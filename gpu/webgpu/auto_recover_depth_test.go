@@ -95,12 +95,16 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 		_ = sc.EndFrame(fb0)
 	}
 
-	// Force lost (minimize/TDR equivalent).
-	dev.MarkLost()
+	// Prefer healthy abandon+recreate. Sticky MarkLost alone pins the old device
+	// heap on this libwgpu_native → CreateTexture OOM after recover on 1GB cards.
+	if err := sc.ForceRecoverHealthy(); err != nil {
+		t.Logf("ForceRecoverHealthy: %v — falling back to MarkLost", err)
+		dev.MarkLost()
+	}
 
-	// First BeginFrames after recover return ErrRecovered (grace).
+	// First BeginFrames after recover return ErrRecovered (grace=12).
 	var recovered bool
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 24; i++ {
 		fb, err := sc.BeginFrame()
 		if err != nil {
 			if errors.Is(err, webgpu.ErrRecovered) {

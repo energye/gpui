@@ -5,6 +5,7 @@ package gpu
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/energye/gpui/gpu/types"
@@ -332,6 +333,17 @@ func createTextureRetryOOM(device *webgpu.Device, desc *webgpu.TextureDescriptor
 	if device == nil || desc == nil {
 		return nil, fmt.Errorf("createTextureRetryOOM: nil device/desc")
 	}
+	if os.Getenv("GPUI_LOG_TEXTURE") == "1" {
+		sc := desc.SampleCount
+		if sc == 0 {
+			sc = 1
+		}
+		// Rough VRAM estimate: BGRA8=4B, depth24+stencil≈4B per sample.
+		bpp := uint64(4)
+		est := uint64(desc.Size.Width) * uint64(desc.Size.Height) * uint64(sc) * bpp
+		log.Printf("TEX_CREATE label=%q %dx%d samples=%d est_mib=%.2f usage=%d",
+			desc.Label, desc.Size.Width, desc.Size.Height, sc, float64(est)/(1024*1024), desc.Usage)
+	}
 	tex, err := device.CreateTexture(desc)
 	if err == nil {
 		return tex, nil
@@ -341,6 +353,7 @@ func createTextureRetryOOM(device *webgpu.Device, desc *webgpu.TextureDescriptor
 		return nil, err
 	}
 	log.Printf("CreateTexture OOM label=%s %dx%d samples=%d", desc.Label, desc.Size.Width, desc.Size.Height, desc.SampleCount)
+	noteTextureOOM()
 	device.FlushCallbacks()
 	_ = device.WaitIdle()
 	// Retry original once after flush.

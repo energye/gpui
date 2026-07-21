@@ -4,7 +4,7 @@
 > **测试程序**：`examples/mem_anim_window`  
 > **webgpu 库**：`lib/libwgpu_native.so`  
 > **规范**：对标 Skia `GrDirectContext` abandon+recreate / Flutter Rasterizer surface 生命周期（策略映射，非源码拷贝）  
-> **最后更新**：2026-07-20
+> **最后更新**：2026-07-21
 
 ---
 
@@ -68,6 +68,21 @@
    - `EnableAutoRecover` + `ClearRecoverCooldown`  
    - recover 成功后 `SetDeviceProvider` **必须**清 filter/glyph 等缓存  
 
+4b. **引擎级 abandon（标准解，不靠示例枚举 Context）** — 2026-07-21
+   - `render` 维护 **GPU Context 注册表**（`NewContext`/`ensureGPUCtx` 自动登记）
+   - `AbandonAcceleratorDevice` → **先 `abandonAllContextGPU()`**（所有窗口/离屏 Context 的 session + filter publish）→ 再 `AbandonDeviceProvider`
+   - `SetAcceleratorDeviceProvider` 换绑前同样 `abandonAllContextGPU`
+   - `GPUShared.AbandonExternalDevice` 对 `liveCtxs` **完整 Close**（非仅 Destroy session）
+   - 示例 `closeAllEffectRTs` 变为双保险；**根治点在引擎**
+
+4c. **Recover VRAM（CommandBuffer / offscreen pool / blend pipeline）** — 2026-07-21
+   - 根因：旧 Device 子资源未 Release → 进程显存 ~322→515MiB（双 RequestDevice 堆）→ 新 Device 上 `session_depth_stencil` 连 1x1 都 OOM
+   - **离屏 readback** `encodeSubmitReadback`：`Finish`+`Submit` 后必须 `CommandBuffer.Release`（否则每帧/每个 effect RT 漏 CB）
+   - 同类：`sdf_render` / `vello_*` / `stencil` readback 路径
+   - **`GPURenderContext.Close`** 必须 `drainOffscreenPool`（`offscreen_cache`）+ 释放 `frameScratch`
+   - **`StencilRenderer.destroyPipelines`** 必须 Release `coverBlendPipelines`（如 `cover_pipeline_blend_Plus`）
+   - 注入/自测：优先 `Swapchain.ForceRecoverHealthy`（健康 abandon+Release），避免 sticky `MarkLost` 钉堆
+   - 验收：`GPUI_SCENARIO=S12 GPUI_FORCE_LOST_AFTER=45` 后 nvidia-smi 进程显存保持 ~322MiB、`CreateTexture OOM`=0、帧继续；lifecycle selftest `exit=selftest_ok recoveries>=1`
 5. **已删除（soft 后无用）**  
    - GCT 前 WriteBuffer canary probe  
    - SIGABRT longjmp `gct_guard`  
@@ -76,15 +91,28 @@
 6. **明确不做**  
    - 不调用 `GetLostFuture`  
 
-### 3.2 Host：`examples/mem_anim_window` / `device_lost_redraw`
+### 3.2 Host：全部窗口示例（`examples/exboot` 统一）
 
 | 条件 | present / acquire |
 | --- | --- |
-| 最小化 / Unmap / FullyObscured / 几何全盖住 | 暂停 |
+| 最小化 / Unmap / FullyObscured / 几何全盖住 | **暂停 present** + **`Surface.Unconfigure`**（释放 swapchain 显存，防恢复 OOM） |
 | 仅失焦、仍可见 | **继续画** |
 | `ErrDeviceLost` | skip + AutoRecover，**不** `os.Exit` |
+| 恢复可 present | `forceFull` + `MarkNeedsReconfigure` + `ClearRecoverCooldown`；recover 回调 **`DropGPURenderContext`** |
 
-恢复可 present：`forceFull` + `MarkNeedsReconfigure` + `ClearRecoverCooldown`，画**当前最新**状态。
+共享启动：`examples/exboot`（`InitEnv` / `NewInstanceX11` / `OpenDevice` / `WireAutoRecover`）。
+
+| 示例 | 对齐项 |
+| --- | --- |
+| `device_lost_redraw` | 参考实现 |
+| `mem_anim_window` | exboot + Unconfigure + DropGPU + ClearRecoverCooldown |
+| `particle_kitchen_sink` | 同上 |
+| `capability_matrix` | 同上（补 minimize/obscure pause） |
+| `window_present` | exboot recover DropGPU |
+| `mem_window_stress` | 离屏；`InitEnv` only |
+| `vram_stages` | 诊断 |
+
+恢复可 present：画**当前最新**状态（非暂停前缓存帧）。
 
 ### 3.3 文档与测试
 
@@ -133,7 +161,10 @@ GPUI_SCENARIO=S23 go run ./examples/mem_anim_window
 | `gpu/rwgpu/surface.go` | GCT status/Uncaptured → error、`abandoned` |
 | `gpu/rwgpu/safety.go` / `buffer.go` / `types.go` / `wgpu.go` | gate、WriteBuffer soft-lost、Destroy 绑定 |
 | `gpu/webgpu/device.go` / `surface.go` / `swapchain.go` | FlushCallbacks、AutoRecover、ClearRecoverCooldown |
-| `examples/mem_anim_window/main.go` | EnableAutoRecover、几何完全遮挡 pause、恢复 forceFull |
+| `examples/exboot/boot.go` | 统一 InitEnv / OpenDevice / WireAutoRecover（DropGPU + Abandon） |
+| `examples/mem_anim_window/main.go` | EnableAutoRecover、几何完全遮挡 pause、**Unconfigure**、恢复 forceFull |
+| `examples/device_lost_redraw/main.go` | 参考实现：Unconfigure while hidden + DropGPU on recover |
+| `examples/particle_kitchen_sink` / `capability_matrix` / `window_present` | 与上对齐 |
 | `docs/WGPU_NATIVE_DEVICE_LOST.md` | native 契约 + host 职责 |
 | `gpu/rwgpu/force_native_lost_test.go` 等 | 强制 Destroy / 隔离 / 拒 GCT 单测 |
 

@@ -16,14 +16,18 @@ type Texture struct {
 // Format returns the texture format.
 func (t *Texture) Format() TextureFormat { return t.format }
 
-// Release destroys the texture.
+// Release frees the texture. On native this maps to wgpuTextureDestroy +
+// Release so GPU memory is reclaimed immediately (WebGPU texture.destroy).
+// Release-only left device heaps pinned across AutoRecover on libwgpu_native
+// (process VRAM ≈ old+new RequestDevice reserve → CreateTexture OOM).
 func (t *Texture) Release() {
 	if t.released {
 		return
 	}
 	t.released = true
 	if t.r != nil {
-		t.r.Release()
+		t.r.Destroy()
+		t.r = nil
 	}
 }
 

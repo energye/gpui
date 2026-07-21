@@ -5,6 +5,7 @@ package webgpu
 import (
 	"fmt"
 	"image"
+	"os"
 	"sync"
 	"time"
 
@@ -366,6 +367,63 @@ func (sc *Swapchain) deviceKnownLostLocked() bool {
 	return sc != nil && sc.Device != nil && sc.Device.IsLost()
 }
 
+// requestDeviceWithVRAMProbe requests a device and verifies a 1x1 texture
+// allocation succeeds. Retries when the previous device heap is slow to reclaim
+// after Unconfigure + heavy GPU work (portable across vendors/sizes).
+func (sc *Swapchain) requestDeviceWithVRAMProbe(label string, lim *types.Limits) (*Device, error) {
+	if sc == nil || sc.RecoveryAdapter == nil {
+		return nil, fmt.Errorf("wgpu: requestDeviceWithVRAMProbe: nil swapchain/adapter")
+	}
+	var inst *Instance
+	if sc.Surface != nil {
+		inst = sc.Surface.instance
+	}
+	// Prefer instance from recovery path via adapter's stored instance if needed.
+	var last error
+	for attempt := 0; attempt < 5; attempt++ {
+		devDesc := &DeviceDescriptor{Label: label, RequiredLimits: types.DefaultLimits()}
+		if lim != nil {
+			devDesc.RequiredLimits = *lim
+		} else {
+			l := devDesc.RequiredLimits
+			l.MaxBufferSize = 64 * 1024 * 1024
+			l.MaxStorageBufferBindingSize = 32 * 1024 * 1024
+			if l.MaxStorageBuffersPerShaderStage < 9 {
+				l.MaxStorageBuffersPerShaderStage = 9
+			}
+			devDesc.RequiredLimits = l
+		}
+		dev, err := sc.RecoveryAdapter.RequestDevice(devDesc)
+		if err != nil {
+			last = err
+		} else {
+			tex, err2 := dev.CreateTexture(&TextureDescriptor{
+				Label:         "recover_vram_probe",
+				Size:          Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+				MipLevelCount: 1,
+				SampleCount:   1,
+				Dimension:     types.TextureDimension2D,
+				Format:        types.TextureFormatBGRA8Unorm,
+				Usage:         types.TextureUsageRenderAttachment,
+			})
+			if err2 == nil {
+				tex.Release()
+				return dev, nil
+			}
+			last = err2
+			dev.Release()
+		}
+		if inst != nil {
+			inst.ProcessEvents()
+		}
+		time.Sleep(time.Duration(25*(attempt+1)) * time.Millisecond)
+	}
+	if last == nil {
+		last = fmt.Errorf("requestDeviceWithVRAMProbe: exhausted retries")
+	}
+	return nil, last
+}
+
 // ForceRecoverHealthy abandons the current device while it is still healthy
 // (native Release reclaims VRAM), then RequestDevice + recreate surface + Configure.
 // Used by hosts that can tear down before sticky-lost (force-lost proof, scheduled
@@ -394,7 +452,10 @@ func (sc *Swapchain) ForceRecoverHealthy() error {
 	}
 	canRecreateSurf := inst != nil && win != 0
 
-	// Abandon host resources first while device still healthy (no force needed).
+	// Engine + host abandon (Skia abandonContext order).
+	if BeforeDeviceRecover != nil {
+		BeforeDeviceRecover()
+	}
 	if oldDev != nil && sc.OnDeviceAbandon != nil {
 		sc.OnDeviceAbandon(oldDev)
 	}
@@ -424,12 +485,30 @@ func (sc *Swapchain) ForceRecoverHealthy() error {
 	if canRecreateSurf {
 		sc.Surface = nil
 	}
+	if os.Getenv("GPUI_DEBUG_GPU") == "1" {
+		fmt.Printf("ForceRecoverHealthy: cmdBufLive=%d\n", rwgpu.CmdBufLive())
+		if leak := rwgpu.ReportLeaks(); leak != nil && leak.Count > 0 {
+			fmt.Printf("ForceRecoverHealthy: LEAK after abandon+Release: %s\n", leak.String())
+		} else {
+			fmt.Printf("ForceRecoverHealthy: no tracked leaks after abandon+Release\n")
+		}
+	}
+	if inst != nil {
+		inst.ProcessEvents()
+	}
+	// Allow driver to reclaim heaps after last ref drop (portable across GPUs).
+	for i := 0; i < 3; i++ {
+		if inst != nil {
+			inst.ProcessEvents()
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
 	label := sc.DeviceLabel
 	if label == "" {
 		label = "gpui-recovered-device"
 	}
-	dev, err := sc.RecoveryAdapter.RequestDevice(&DeviceDescriptor{Label: label})
+	dev, err := sc.requestDeviceWithVRAMProbe(label, nil)
 	if err != nil {
 		return fmt.Errorf("ForceRecoverHealthy RequestDevice: %w", err)
 	}
@@ -452,7 +531,7 @@ func (sc *Swapchain) ForceRecoverHealthy() error {
 		}
 	}
 	sc.recoverAttempts++
-	sc.recoverGrace = 5
+	sc.recoverGrace = 12
 	sc.lastRecoverAt = time.Now()
 	return nil
 }
@@ -527,12 +606,34 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	if canRecreateSurf {
 		sc.Surface = nil
 	}
+	if leak := rwgpu.ReportLeaks(); leak != nil && leak.Count > 0 {
+		fmt.Printf("ForceRecoverHealthy: LEAK after abandon+Release: %s\n", leak.String())
+	} else {
+		fmt.Printf("ForceRecoverHealthy: no tracked leaks after abandon+Release\n")
+	}
+	if inst != nil {
+		inst.ProcessEvents()
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	// Let the driver reclaim heaps before the next RequestDevice. Without this,
+	// dual-device peak on 1GB cards OOMs CreateTexture (session_depth_stencil).
+	if inst != nil {
+		inst.ProcessEvents()
+	}
+	// Allow driver to reclaim heaps after last ref drop (portable across GPUs).
+	for i := 0; i < 3; i++ {
+		if inst != nil {
+			inst.ProcessEvents()
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
 	label := sc.DeviceLabel
 	if label == "" {
 		label = "gpui-recovered-device"
 	}
-	dev, err := sc.RecoveryAdapter.RequestDevice(&DeviceDescriptor{Label: label})
+	dev, err := sc.requestDeviceWithVRAMProbe(label, nil)
 	if err != nil {
 		return fmt.Errorf("%w: RequestDevice: %v", ErrDeviceLost, err)
 	}
@@ -558,7 +659,7 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 		}
 	}
 	sc.recoverAttempts++
-	sc.recoverGrace = 5
+	sc.recoverGrace = 12
 	return nil
 }
 

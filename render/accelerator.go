@@ -323,6 +323,11 @@ func CloseAccelerator() {
 // The provider's Device() returns gpucontext.Device; accelerators type-assert
 // to *wgpu.Device to obtain HAL access for GPU operations.
 func SetAcceleratorDeviceProvider(provider gpucontext.DeviceProvider) error {
+	// Invalidate every Context GPU session before binding a new device so
+	// offscreen RTs cannot keep sessions on the previous (or sticky-lost) device.
+	if provider != nil {
+		abandonAllContextGPU()
+	}
 	a := Accelerator()
 	if a == nil {
 		return nil
@@ -348,7 +353,24 @@ func SetAcceleratorDeviceProvider(provider gpucontext.DeviceProvider) error {
 // the universal CPU→texture→present path.
 // AbandonAcceleratorDevice drops GPU objects on the current accelerator device
 // without installing a replacement (Swapchain OnDeviceAbandon / AutoRecover).
+// PurgeAcceleratorSurfaceResources frees surface-bound GPU memory (session
+// depth/MSAA, offscreen pools, texture pool) without abandoning the device.
+// Call when the window is unpresentable (minimize / fully obscured).
+func PurgeAcceleratorSurfaceResources() {
+	a := Accelerator()
+	if a == nil {
+		return
+	}
+	if p, ok := a.(interface{ PurgeSurfaceResources() }); ok {
+		p.PurgeSurfaceResources()
+	}
+}
+
 func AbandonAcceleratorDevice() {
+	// Skia abandonContext: every canvas/context GPU resource is invalidated
+	// before the device is dropped. Offscreen Contexts (effect RTs) are included
+	// via the registry — hosts need not enumerate them.
+	abandonAllContextGPU()
 	a := Accelerator()
 	if a == nil {
 		return
