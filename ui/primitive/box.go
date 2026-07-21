@@ -29,6 +29,13 @@ const (
 	TypeTrigger        = "primitive.Trigger"
 	TypeVirtualList    = "primitive.VirtualList"
 	TypeFocusScope     = "primitive.FocusScope"
+	TypeGrid           = "primitive.Grid"
+	TypeSticky         = "primitive.Sticky"
+	TypeDraggable      = "primitive.Draggable"
+	TypeSplitPane      = "primitive.SplitPane"
+	TypeCanvas         = "primitive.Canvas"
+	TypeMotion         = "primitive.Motion"
+	TypePresence       = "primitive.Presence"
 )
 
 // EdgeInsets is padding/margin on four sides.

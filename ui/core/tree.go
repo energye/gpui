@@ -17,6 +17,9 @@ type Tree struct {
 
 	// Overlay stack (portal host).
 	overlays *OverlayHost
+
+	// clock drives Motion/Presence (C-Motion).
+	clock *Clock
 }
 
 // NewTree creates a tree with the given root (may be nil).

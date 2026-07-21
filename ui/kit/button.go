@@ -195,6 +195,8 @@ func (b *Button) rebuild() {
 	b.Root.Focusable = true
 	b.Root.Click = b.fireClick
 	b.Root.SetDisabled(b.Disabled || b.Loading)
+	b.Root.Base().Role = "button"
+	b.Root.Base().Label = b.Label
 
 	b.lastHovered, b.lastPressed = false, false
 	b.applyChrome()

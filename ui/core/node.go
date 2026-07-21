@@ -69,6 +69,12 @@ type NodeBase struct {
 
 	// Key is optional identity for future reconciliation.
 	Key string
+
+	// A11y minimal fields (C-A11y). Empty Role/Label means none.
+	Role  string // e.g. "button", "dialog", "navigation", "listitem"
+	Label string // accessible name
+	// Live is aria-live region: "", "polite", "assertive".
+	Live string
 }
 
 // Init wires the concrete self pointer. Call once after construction.
