@@ -1,6 +1,6 @@
 # UI 框架总图与规划 — Primitive 组合底座 × Kit 产品面 × Flutter 管线 × render
 
-> 版本：4.1 | 日期：2026-07-21 | **活文档 · M0–M2 已落地**  
+> 版本：4.1 | 日期：2026-07-21 | **活文档 · M0–M3 已落地**  
 > 状态：**控件产品架构以「primitive 组合」为底座**；已含 **Ant 全量组件 → 组合能力反推清单**  
 > 入口：[`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) ✅  
 > 引擎：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) · [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
@@ -722,9 +722,18 @@ EditableText、IME、Input 系、Checkbox/Radio/Switch、OverlayPortal/Mask/Anch
 | 单测 | `go test ./ui/kit`（m2_test 等） |
 
 
-### M3 — 层5–6 部分 + B2/B3
+### M3 — 层5–6 部分 + B2/B3 ✅（2026-07-21）
 
 FormBind、SelectionScope、KeyboardNav、VirtualList 起步、Modal/Drawer/message 队列、Select/Menu/Tabs 基。
+
+| 产出 | 路径 |
+|------|------|
+| FormModel / SelectionModel / KeyboardNav / NotifyQueue | `ui/core` |
+| VirtualList · FocusScope | `ui/primitive` |
+| kit B2/B3 | Form FormItem Select Menu Tabs Modal Drawer MessageHost |
+| smoke | `examples/ui_kit_b2_smoke` |
+| 单测 | `ui/kit/m3_test.go` |
+
 
 ### M4 — Table/Tree/复杂选择 + B4/B5
 
@@ -769,9 +778,9 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 | 架构（primitive 底座） | ✅ 本文 v4.0 |
 | 引擎入口 S5 | ✅ |
 | M0 可开工 | ✅ 先 core+primitive，**不**先铺 Ant 全表 |
-| 代码 | ✅ **M0–M2 已落地**（2026-07-21） |
+| 代码 | ✅ **M0–M3 已落地**（2026-07-21） |
 
-**判定：M0–M2 已实现。** Form/浮层完善/虚拟列表走 M3。
+**判定：M0–M3 已实现。** Table/Tree/复杂选择走 M4。
 
 ### 代码位置（M0–M1）
 
@@ -781,11 +790,11 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 | primitive | `ui/primitive` — P0 + **Decorated Slot Icon Focusable HitTarget Divider PainterNode** |
 | platform | `ui/platform` — Caps/Host/Headless/Linux X11 薄适配 |
 | skin/default | `ui/skin/default` — Ant light tokens + MapSkin |
-| kit | `ui/kit` — Button/Text/Icon + **Input/Checkbox/Radio/Switch/Tooltip/Popover** |
-| smoke | `examples/ui_core_smoke` · `ui_kit_smoke` · **`ui_kit_b1_smoke`** |
+| kit | `ui/kit` — B0–B3（Button…Form/Select/Tabs/Modal/Drawer/Message） |
+| smoke | `ui_core_smoke` · `ui_kit_smoke` · `ui_kit_b1_smoke` · **`ui_kit_b2_smoke`** |
 | 单测 | `go test ./ui/core ./ui/platform ./ui/primitive ./ui/kit` |
 
-**未做（有意）**：Form 校验管线、Modal/Drawer 完整、VirtualList/Table（M3+）、引擎主线改动。
+**未做（有意）**：Table/Tree 完整、虚拟列、复杂 DatePicker 等（M4+）、引擎主线改动。
 
 ---
 
@@ -795,8 +804,9 @@ Motion Presence Canvas 增强、Tour/Skeleton 等、A11y、density。
 2. ~~脚手架：`ui/core` + `ui/primitive` + `ui/platform`（Headless）+ smoke。~~ ✅  
 3. ~~M1：`ui/kit` 与 `skin/default`。~~ ✅  
 4. ~~M2：EditableText、IME、Input 系、Overlay/Mask/AnchoredPopup、ScrollViewport。~~ ✅  
-5. M3：FormBind、SelectionScope、Modal/Drawer、VirtualList 起步。  
-6. 实现偏差回写本文。
+5. ~~M3：FormBind、SelectionScope、Modal/Drawer、VirtualList 起步。~~ ✅  
+6. M4：Grid/Sticky/Table/List/Tree、Pagination 等。  
+7. 实现偏差回写本文。
 
 ---
 

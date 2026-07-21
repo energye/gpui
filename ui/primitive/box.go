@@ -27,6 +27,8 @@ const (
 	TypeMask           = "primitive.Mask"
 	TypeAnchoredPopup  = "primitive.AnchoredPopup"
 	TypeTrigger        = "primitive.Trigger"
+	TypeVirtualList    = "primitive.VirtualList"
+	TypeFocusScope     = "primitive.FocusScope"
 )
 
 // EdgeInsets is padding/margin on four sides.
