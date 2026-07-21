@@ -6,25 +6,19 @@
 //
 //  1. 静态浏览 — 圆角、1px 边、间距是否像控件
 //
-//  2. 鼠标扫 Button/Checkbox — hover/press（Button 每帧 SyncSta
-e）
-//
-//  3. Tab 走焦 — focus 环（Button）/ 主色边框（Input）可见
-//  3. Tab 走焦 — focus 环（Button）/ 主色边框（Input）可见
-Li
-//
-//  4
- Caps 降级：LinuxHost 无 CapIME（见 README / ui/platform/ime.go）
-//
 //  2. 鼠标扫 Button/Checkbox — hover/press（Button 每帧 SyncState）
-//     export DISPLAY=:1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//     GPUI_ANIM_SECONDS=60 go run ./examples/ui_polish_gallery
+//
+//  3. Tab 走焦 — focus 环（Button）/ 主色边框（Input）可见
+//
+//  4. 点 Checkbox/Radio — 选中圆滑、居中
+//
 //  5. Linux 中文输入 — Caps 降级：LinuxHost 无 CapIME（见 README / ui/platform/ime.go）
 //     Latin 键经 XLookupString → EventText；composition 单测走 Headless InjectIME
+//
 //  6. 开一次 Modal — 点 “Open Modal”；遮罩/OK/Cancel
 //
-//	export DISPLAY=:1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	GPUI_ANIM_SECONDS=60 go run ./examples/ui_polish_gallery
+//     export DISPLAY=:1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+//     GPUI_ANIM_SECONDS=60 go run ./examples/ui_polish_gallery
 package main
 
 import (
