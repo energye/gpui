@@ -38,8 +38,13 @@ type EditableText struct {
 
 	focused bool
 
-	OnChange func(value string)
-	OnSubmit func(value string) // Enter when !Multiline
+	OnChange      func(value string)
+	OnSubmit      func(value string) // Enter when !Multiline
+	OnFocusChange func(focused bool)
+
+	// ShowFocusRing draws an inner focus ring (default true).
+	// Kit Input sets this false and uses Decorated border as focus chrome.
+	ShowFocusRing bool
 }
 
 // NewEditableText creates an empty editor.
@@ -49,6 +54,7 @@ func NewEditableText() *EditableText {
 		Color:            render.RGBA{R: 0, G: 0, B: 0, A: 0.88},
 		PlaceholderColor: render.RGBA{R: 0, G: 0, B: 0, A: 0.25},
 		CaretColor:       render.RGBA{R: 0.09, G: 0.42, B: 0.93, A: 1},
+		ShowFocusRing:    true,
 	}
 	e.Init(e)
 	e.Hit = core.HitTarget
@@ -169,17 +175,10 @@ func (e *EditableText) Paint(pc *core.PaintContext) {
 			pc.FillLocalRect(cx, 1, 1.5, fs*1.2, cc)
 		}
 	}
-	// Focus ring
-	if e.focused && pc != nil {
+	// Optional inner focus ring (kit Input uses outer Decorated border instead).
+	if e.focused && e.ShowFocusRing {
 		sz := e.Size()
-		ring := render.RGBA{R: 0.09, G: 0.42, B: 0.93, A: 0.45}
-		if pc.Theme != nil {
-			if c := pc.Theme.Color(core.TokenColorPrimary); c.A > 0 {
-				ring = c
-				ring.A = 0.45
-			}
-		}
-		pc.StrokeLocalRoundRect(-1, -1, sz.Width+2, sz.Height+2, 2, 1.5, ring)
+		PaintFocusRing(pc, sz.Width, sz.Height, 2, 1, 1.5)
 	}
 }
 
@@ -207,6 +206,9 @@ func (e *EditableText) SetFocused(f bool) {
 		e.preedit = ""
 	}
 	e.MarkNeedsPaint()
+	if e.OnFocusChange != nil {
+		e.OnFocusChange(f)
+	}
 }
 
 // IsFocused reports focus.

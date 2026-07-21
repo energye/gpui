@@ -82,14 +82,24 @@ func (d *Decorated) Paint(pc *core.PaintContext) {
 		if p != nil {
 			p(pc, d)
 		} else {
-			d.paintDefault(pc)
+			PaintDecorated(pc, d)
 		}
 	}
 	d.DefaultPaintChildren(pc)
 }
 
-func (d *Decorated) paintDefault(pc *core.PaintContext) {
+// PaintDecorated is the single chrome path for Decorated: resolve optional
+// color tokens, then fill → stroke (border-box via PaintContext helpers).
+// Used by the node default path and skin/default so fill/stroke order and
+// radius/border handling never diverge.
+func PaintDecorated(pc *core.PaintContext, d *Decorated) {
+	if pc == nil || d == nil {
+		return
+	}
 	sz := d.Size()
+	if sz.Width <= 0 || sz.Height <= 0 {
+		return
+	}
 	bg := d.Background
 	bd := d.BorderColor
 	if pc.Theme != nil {
@@ -104,11 +114,13 @@ func (d *Decorated) paintDefault(pc *core.PaintContext) {
 			}
 		}
 	}
+	radius := d.Radius
+	borderW := d.BorderWidth
 	if bg.A > 0 {
-		pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, d.Radius, bg)
+		pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, radius, bg)
 	}
-	if d.BorderWidth > 0 && bd.A > 0 {
-		pc.StrokeLocalRoundRect(0, 0, sz.Width, sz.Height, d.Radius, d.BorderWidth, bd)
+	if borderW > 0 && bd.A > 0 {
+		pc.StrokeLocalRoundRect(0, 0, sz.Width, sz.Height, radius, borderW, bd)
 	}
 }
 

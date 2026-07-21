@@ -15,6 +15,8 @@ type Focusable struct {
 	OnFocusChange func(focused bool)
 	// Child padding.
 	Padding EdgeInsets
+	// FocusRingRadius matches child chrome (0 → 6).
+	FocusRingRadius float64
 }
 
 // NewFocusable wraps a child as a focus target.
@@ -50,16 +52,15 @@ func (f *Focusable) Layout(c core.Constraints) core.Size {
 
 // Paint implements core.Node.
 func (f *Focusable) Paint(pc *core.PaintContext) {
-	// Focus ring
-	if f.focused && pc != nil {
-		col := core.DefaultTheme().Color(core.TokenColorPrimary)
-		if pc.Theme != nil {
-			col = pc.Theme.Color(core.TokenColorPrimary)
-		}
-		sz := f.Size()
-		pc.StrokeLocalRoundRect(-2, -2, sz.Width+4, sz.Height+4, 4, 2, col)
-	}
 	f.DefaultPaintChildren(pc)
+	if f.focused && pc != nil {
+		sz := f.Size()
+		r := f.FocusRingRadius
+		if r <= 0 {
+			r = 6
+		}
+		PaintFocusRing(pc, sz.Width, sz.Height, r, 2, 2)
+	}
 }
 
 // HitTest implements core.Node.

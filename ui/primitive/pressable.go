@@ -32,6 +32,8 @@ type Pressable struct {
 	ColorDisabled render.RGBA
 	// Focusable allows Tab focus in M0+; default true.
 	Focusable bool
+	// FocusRingRadius matches child chrome corner radius (0 → default 6).
+	FocusRingRadius float64
 }
 
 // NewPressable wraps a child as a pressable.
@@ -80,17 +82,14 @@ func (p *Pressable) Paint(pc *core.PaintContext) {
 		pc.FillLocalRect(0, 0, p.Size().Width, p.Size().Height, col)
 	}
 	p.DefaultPaintChildren(pc)
-	// Focus ring on top.
+	// Focus ring on top of children (visible keyboard focus).
 	if p.State.Focused && pc != nil {
-		ring := render.RGBA{R: 0.09, G: 0.42, B: 0.93, A: 0.55}
-		if pc.Theme != nil {
-			if c := pc.Theme.Color(core.TokenColorPrimary); c.A > 0 {
-				ring = c
-				ring.A = 0.55
-			}
-		}
 		sz := p.Size()
-		pc.StrokeLocalRoundRect(-2, -2, sz.Width+4, sz.Height+4, 4, 2, ring)
+		r := p.FocusRingRadius
+		if r <= 0 {
+			r = 6
+		}
+		PaintFocusRing(pc, sz.Width, sz.Height, r, 2, 2)
 	}
 }
 

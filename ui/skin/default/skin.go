@@ -15,42 +15,15 @@ func Tokens() *core.TokenSet {
 }
 
 // NewSkin builds the default map skin with painters for common primitives.
+// Decorated chrome is delegated to primitive.PaintDecorated (single source of truth).
 func NewSkin() *core.MapSkin {
 	s := core.NewMapSkin()
-	// Decorated: default painter is already on the node; optional override hook.
 	s.Set(primitive.TypeDecorated, func(pc *core.PaintContext, n core.Node) {
 		if d, ok := n.(*primitive.Decorated); ok {
-			// Delegate to node default by clearing skin temporarily is awkward;
-			// call public paint path: re-use node fields.
-			paintDecorated(pc, d)
+			primitive.PaintDecorated(pc, d)
 		}
 	})
 	return s
-}
-
-func paintDecorated(pc *core.PaintContext, d *primitive.Decorated) {
-	// Mirror Decorated.paintDefault via public fields.
-	sz := d.Size()
-	bg := d.Background
-	bd := d.BorderColor
-	if pc.Theme != nil {
-		if d.BackgroundToken != "" {
-			if c := pc.Theme.Color(d.BackgroundToken); c.A > 0 {
-				bg = c
-			}
-		}
-		if d.BorderToken != "" {
-			if c := pc.Theme.Color(d.BorderToken); c.A > 0 {
-				bd = c
-			}
-		}
-	}
-	if bg.A > 0 {
-		pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, d.Radius, bg)
-	}
-	if d.BorderWidth > 0 && bd.A > 0 {
-		pc.StrokeLocalRoundRect(0, 0, sz.Width, sz.Height, d.Radius, d.BorderWidth, bd)
-	}
 }
 
 // Theme returns core.DefaultTheme with default skin attached.

@@ -28,6 +28,9 @@ go run ./examples/ui_kit_b2_smoke
 go run ./examples/ui_kit_b3_smoke
 go run ./examples/ui_kit_m5_smoke
 go run ./examples/ui_kit_shell      # M6 kit 桌面壳
+go run ./examples/ui_polish_gallery # §12.3 W3 打磨棚
 ```
+
+视觉回归：`go test ./ui/visualtest`（`UPDATE_VISUAL=1` 更新基线）。
 
 覆盖率：`kit.AntCoverage()` / `CoverageSummary`。

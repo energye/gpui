@@ -56,6 +56,14 @@ func (b *Button) Node() core.Node {
 	return b.Root
 }
 
+// ChromeNode returns the Decorated chrome (for visual tests / composition).
+func (b *Button) ChromeNode() core.Node {
+	if b.decorated == nil {
+		b.rebuild()
+	}
+	return b.decorated
+}
+
 // SetLabel updates the button label.
 func (b *Button) SetLabel(s string) {
 	b.Label = s
@@ -124,6 +132,23 @@ func (b *Button) SetFace(face text.Face) {
 	}
 }
 
+// SetFixedSize forces outer chrome to a fixed size (0 clears width/height force).
+// Used by visual scenarios for stable 120×40 chrome blocks.
+func (b *Button) SetFixedSize(w, h float64) {
+	if b.decorated == nil {
+		b.rebuild()
+	}
+	b.decorated.Width = w
+	b.decorated.Height = h
+	if h > 0 {
+		b.decorated.MinHeight = h
+	}
+	if w > 0 {
+		b.decorated.MinWidth = w
+	}
+	b.decorated.MarkNeedsLayout()
+}
+
 // SyncState copies Pressable hover/press into Decorated background.
 // Call after DispatchPointer / each frame.
 func (b *Button) SyncState() {
@@ -190,9 +215,14 @@ func (b *Button) rebuild() {
 	b.decorated.Padding = primitive.Symmetric(padH, padV)
 	b.decorated.Radius = radius
 	b.decorated.MinHeight = height
+	if b.Block {
+		// Expand horizontally when parent gives a max width.
+		b.decorated.MinWidth = th.SizeOr(core.TokenControlHeight, 32) * 4
+	}
 
 	b.Root = primitive.NewPressable(b.decorated)
 	b.Root.Focusable = true
+	b.Root.FocusRingRadius = radius
 	b.Root.Click = b.fireClick
 	b.Root.SetDisabled(b.Disabled || b.Loading)
 	b.Root.Base().Role = "button"
@@ -206,20 +236,25 @@ func (b *Button) metrics(th *core.Theme) (padH, padV, height, fontSize, radius, 
 	fontSize = th.SizeOr(core.TokenFontSize, 14)
 	radius = th.SizeOr(core.TokenBorderRadius, 6)
 	gap = th.SizeOr(core.TokenMarginXS, 4)
+	// Horizontal padding tracks Ant middle (~15) via padding token − 1.
+	padBase := th.SizeOr(core.TokenPadding, 16)
 	switch b.Size {
 	case ButtonSmall:
 		height = th.SizeOr(core.TokenControlHeightSM, 24)
 		fontSize = th.SizeOr(core.TokenFontSizeSM, 12)
-		padH, padV = 7, 2
+		padH = th.SizeOr(core.TokenPaddingSM, 8) - 1 // ~7
+		padV = th.SizeOr(core.TokenPaddingXS, 4) / 2 // ~2
 		radius = th.SizeOr(core.TokenBorderRadiusSM, 4)
 	case ButtonLarge:
 		height = th.SizeOr(core.TokenControlHeightLG, 40)
 		fontSize = th.SizeOr(core.TokenFontSizeLG, 16)
-		padH, padV = 15, 6
+		padH = padBase - 1                           // ~15
+		padV = th.SizeOr(core.TokenPaddingSM, 8) - 2 // ~6
 		radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	default:
 		height = th.SizeOr(core.TokenControlHeight, 32)
-		padH, padV = 15, 4
+		padH = padBase - 1                       // ~15
+		padV = th.SizeOr(core.TokenPaddingXS, 4) // ~4
 	}
 	return
 }
@@ -232,6 +267,9 @@ func (b *Button) applyChrome() {
 	_, _, height, _, radius, _ := b.metrics(th)
 	b.decorated.Radius = radius
 	b.decorated.MinHeight = height
+	if b.Root != nil {
+		b.Root.FocusRingRadius = radius
+	}
 
 	primary := th.Color(core.TokenColorPrimary)
 	primaryHover := th.Color(core.TokenColorPrimaryHover)
@@ -243,7 +281,15 @@ func (b *Button) applyChrome() {
 	disabledBg := th.Color(core.TokenColorDisabledBg)
 	disabledText := th.Color(core.TokenColorDisabledText)
 	errorC := th.Color(core.TokenColorError)
-	fillSec := th.Color(core.TokenColorFillSecondary)
+	// Stronger hover than raw fillSecondary (0.06) — layout bg reads as soft gray.
+	hoverFill := th.Color(core.TokenColorBgLayout)
+	if hoverFill.A < 0.5 {
+		hoverFill = render.Hex("#F5F5F5")
+	}
+	pressFill := th.Color(core.TokenColorBorderSecondary)
+	if pressFill.A < 0.5 {
+		pressFill = render.Hex("#F0F0F0")
+	}
 
 	var bgN, bgH, bgP, fg, bd render.RGBA
 	bw := th.SizeOr(core.TokenLineWidth, 1)
@@ -258,14 +304,14 @@ func (b *Button) applyChrome() {
 		bd = bgN
 		bw = 0
 	case ButtonDashed:
-		bgN, bgH, bgP = bg, fillSec, fillSec
+		bgN, bgH, bgP = bg, hoverFill, pressFill
 		fg, bd = textCol, border
 		if b.Danger {
 			fg, bd = errorC, errorC
 		}
 	case ButtonText:
 		bgN = render.RGBA{}
-		bgH, bgP = fillSec, fillSec
+		bgH, bgP = hoverFill, pressFill
 		fg = textCol
 		if b.Danger {
 			fg = errorC
@@ -273,14 +319,14 @@ func (b *Button) applyChrome() {
 		bd, bw = render.RGBA{}, 0
 	case ButtonLink:
 		bgN = render.RGBA{}
-		bgH, bgP = fillSec, fillSec
+		bgH, bgP = hoverFill, pressFill
 		fg = primary
 		if b.Danger {
 			fg = errorC
 		}
 		bd, bw = render.RGBA{}, 0
-	default:
-		bgN, bgH, bgP = bg, fillSec, fillSec
+	default: // ButtonDefault
+		bgN, bgH, bgP = bg, hoverFill, pressFill
 		fg, bd = textCol, border
 		if b.Danger {
 			fg, bd = errorC, errorC
@@ -291,6 +337,12 @@ func (b *Button) applyChrome() {
 		bgN, bgH, bgP = disabledBg, disabledBg, disabledBg
 		fg, bd = disabledText, border
 		if b.Type == ButtonPrimary {
+			// Keep a muted solid primary-ish block for disabled primary.
+			p := primary
+			bgN = render.RGBA{R: p.R, G: p.G, B: p.B, A: 0.35}
+			bgH, bgP = bgN, bgN
+			fg = textInv
+			bd = bgN
 			bw = 0
 		}
 	}

@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/primitive"
@@ -11,6 +12,9 @@ import (
 //	Decorated
 //	  └─ Flex(Row)
 //	       Prefix? · EditableText · Suffix?
+//
+// Focus chrome is the Decorated border (primary when focused); the inner
+// EditableText focus ring is disabled so there is a single path with Decorated.
 type Input struct {
 	Root        *primitive.Decorated
 	editor      *primitive.EditableText
@@ -95,6 +99,25 @@ func (in *Input) SetFace(face text.Face) {
 	}
 }
 
+// SetFixedSize forces outer chrome size (visual scenarios / forms).
+func (in *Input) SetFixedSize(w, h float64) {
+	if in.Root == nil {
+		in.rebuild()
+	}
+	in.Root.Width = w
+	in.Root.Height = h
+	if h > 0 {
+		in.Root.MinHeight = h
+	}
+	if w > 0 {
+		in.Root.MinWidth = w
+	}
+	in.Root.MarkNeedsLayout()
+}
+
+// IsFocused reports whether the inner editor is focused.
+func (in *Input) IsFocused() bool { return in.focused }
+
 func (in *Input) theme() *core.Theme {
 	if in.Theme != nil {
 		return in.Theme
@@ -105,8 +128,11 @@ func (in *Input) theme() *core.Theme {
 func (in *Input) rebuild() {
 	th := in.theme()
 	h := th.SizeOr(core.TokenControlHeight, 32)
-	pad := th.SizeOr(core.TokenPaddingSM, 8)
+	padH := th.SizeOr(core.TokenPaddingSM, 8)
+	padV := th.SizeOr(core.TokenPaddingXS, 4)
 	radius := th.SizeOr(core.TokenBorderRadius, 6)
+	lineW := th.SizeOr(core.TokenLineWidth, 1)
+	fontSize := th.SizeOr(core.TokenFontSize, 14)
 
 	in.editor = primitive.NewEditableText()
 	in.editor.Placeholder = in.Placeholder
@@ -115,7 +141,13 @@ func (in *Input) rebuild() {
 	in.editor.ReadOnly = in.ReadOnly
 	in.editor.MaxLength = in.MaxLength
 	in.editor.Face = in.Face
-	in.editor.FontSize = th.SizeOr(core.TokenFontSize, 14)
+	in.editor.FontSize = fontSize
+	in.editor.ShowFocusRing = false // outer Decorated border is focus chrome
+	in.editor.Color = th.Color(core.TokenColorText)
+	in.editor.PlaceholderColor = th.Color(core.TokenColorTextSecondary)
+	if in.editor.PlaceholderColor.A < 0.15 {
+		in.editor.PlaceholderColor = render.RGBA{R: 0, G: 0, B: 0, A: 0.25}
+	}
 	in.editor.OnChange = func(v string) {
 		in.Value = v
 		if in.OnChange != nil {
@@ -123,20 +155,25 @@ func (in *Input) rebuild() {
 		}
 	}
 	in.editor.OnSubmit = in.OnSubmit
+	in.editor.OnFocusChange = func(f bool) {
+		in.focused = f
+		in.applyChrome()
+	}
+
 	// Expand editor in flex
 	flexEd := primitive.NewFlexible(1, in.editor)
 
 	in.prefix = primitive.NewSlot("prefix", nil)
 	in.suffix = primitive.NewSlot("suffix", nil)
 	in.row = primitive.Row(in.prefix, flexEd, in.suffix)
-	in.row.Gap = 6
+	in.row.Gap = th.SizeOr(core.TokenMarginXS, 4) + 2 // ~6
 	in.row.CrossAlign = core.CrossCenter
 
 	in.Root = primitive.NewDecorated(in.row)
-	in.Root.Padding = primitive.Symmetric(pad, 4)
+	in.Root.Padding = primitive.Symmetric(padH, padV)
 	in.Root.Radius = radius
 	in.Root.MinHeight = h
-	in.Root.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
+	in.Root.BorderWidth = lineW
 	in.applyChrome()
 }
 
@@ -147,10 +184,23 @@ func (in *Input) applyChrome() {
 	th := in.theme()
 	in.Root.Background = th.Color(core.TokenColorBgContainer)
 	in.Root.BorderColor = th.Color(core.TokenColorBorder)
+	in.Root.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 	if in.Disabled {
 		in.Root.Background = th.Color(core.TokenColorDisabledBg)
 		in.Root.BorderColor = th.Color(core.TokenColorBorder)
+		if in.editor != nil {
+			in.editor.Color = th.Color(core.TokenColorDisabledText)
+		}
+	} else if in.focused {
+		// Primary border = focus state (Ant Input).
+		in.Root.BorderColor = th.Color(core.TokenColorPrimary)
+		if in.editor != nil {
+			in.editor.Color = th.Color(core.TokenColorText)
+		}
+	} else if in.editor != nil {
+		in.editor.Color = th.Color(core.TokenColorText)
 	}
+	in.Root.MarkNeedsPaint()
 }
 
 // TextArea is a multi-line Input.

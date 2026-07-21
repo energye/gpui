@@ -31,22 +31,45 @@ func Capture(width, height int, paint PaintFunc) image.Image {
 	return dc.Image()
 }
 
+// CaptureTreeOptions configures CaptureTreeEx.
+type CaptureTreeOptions struct {
+	Theme *core.Theme
+	// Focus, if non-nil, is focused after layout before paint.
+	Focus core.Node
+	// Clear is the background color; zero A → white.
+	Clear render.RGBA
+}
+
 // CaptureTree layouts and paints a root node into a fixed-size CPU canvas.
 func CaptureTree(width, height int, root core.Node, theme *core.Theme) image.Image {
+	return CaptureTreeEx(width, height, root, CaptureTreeOptions{Theme: theme})
+}
+
+// CaptureTreeEx layouts and paints with optional focus + clear color.
+func CaptureTreeEx(width, height int, root core.Node, opts CaptureTreeOptions) image.Image {
 	if width <= 0 || height <= 0 || root == nil {
 		return nil
 	}
 	dc := render.NewContext(width, height)
 	defer dc.Close()
 	dc.BeginFrame()
-	dc.ClearWithColor(render.RGBA{R: 1, G: 1, B: 1, A: 1})
+	clear := opts.Clear
+	if clear.A <= 0 {
+		clear = render.RGBA{R: 1, G: 1, B: 1, A: 1}
+	}
+	dc.ClearWithColor(clear)
 	tree := core.NewTree(root)
+	// Layout first so focus targets have size, then focus, then paint.
+	tree.Layout(core.Size{Width: float64(width), Height: float64(height)})
+	if opts.Focus != nil {
+		tree.SetFocus(opts.Focus)
+	}
 	pc := &core.PaintContext{
 		DC:     dc,
 		Origin: core.Point{},
 		Scale:  1,
-		Theme:  theme,
+		Theme:  opts.Theme,
 	}
-	tree.Frame(pc, core.Size{Width: float64(width), Height: float64(height)})
+	tree.Paint(pc)
 	return dc.Image()
 }
