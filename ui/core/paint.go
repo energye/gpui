@@ -60,21 +60,50 @@ func (pc *PaintContext) FillLocalRect(x, y, w, h float64, col render.RGBA) {
 	pc.FillRect(NewRect(pc.Origin.X+x, pc.Origin.Y+y, w, h), col)
 }
 
+// clampCornerRadius clamps a corner radius to the geometric maximum for the rect.
+func clampCornerRadius(w, h, radius float64) float64 {
+	if radius <= 0 || w <= 0 || h <= 0 {
+		return 0
+	}
+	maxR := w
+	if h < maxR {
+		maxR = h
+	}
+	maxR *= 0.5
+	if radius > maxR {
+		return maxR
+	}
+	return radius
+}
+
 // FillLocalRoundRect fills a rounded rect relative to Origin.
+// Radius is clamped to min(w,h)/2 so corners stay circular and match StrokeLocalRoundRect.
 func (pc *PaintContext) FillLocalRoundRect(x, y, w, h, radius float64, col render.RGBA) {
 	if pc == nil || pc.DC == nil || w <= 0 || h <= 0 || col.A <= 0 {
 		return
 	}
+	ax := pc.Origin.X + x
+	ay := pc.Origin.Y + y
+	r := clampCornerRadius(w, h, radius)
 	pc.DC.SetRGBA(col.R, col.G, col.B, col.A)
-	if radius <= 0 {
-		pc.DC.DrawRectangle(pc.Origin.X+x, pc.Origin.Y+y, w, h)
+	if r <= 0 {
+		pc.DC.DrawRectangle(ax, ay, w, h)
 	} else {
-		pc.DC.DrawRoundedRectangle(pc.Origin.X+x, pc.Origin.Y+y, w, h, radius)
+		pc.DC.DrawRoundedRectangle(ax, ay, w, h, r)
 	}
 	_ = pc.DC.Fill()
 }
 
-// StrokeLocalRoundRect strokes a rounded rect relative to Origin.
+// StrokeLocalRoundRect strokes a rounded rect relative to Origin using a
+// border-box model: the stroke is fully inside [x,y,w,h].
+//
+// The path is inset by lineWidth/2 and the path radius is reduced by the same
+// amount, so the outer edge of the stroke coincides with the outer edge of a
+// matching FillLocalRoundRect at the same (x,y,w,h,radius). This keeps fill
+// and stroke radii aligned and avoids a "double border" from painting the
+// stroke centered on the outer path.
+//
+// For 1px borders the path sits on half-pixel centers, which keeps AA crisp.
 func (pc *PaintContext) StrokeLocalRoundRect(x, y, w, h, radius, lineWidth float64, col render.RGBA) {
 	if pc == nil || pc.DC == nil || w <= 0 || h <= 0 || col.A <= 0 {
 		return
@@ -82,17 +111,38 @@ func (pc *PaintContext) StrokeLocalRoundRect(x, y, w, h, radius, lineWidth float
 	if lineWidth <= 0 {
 		lineWidth = 1
 	}
+	// Degenerate: stroke thicker than the box — fill the whole box instead of
+	// producing an inverted/empty path (common for very small indicators).
+	if lineWidth >= w || lineWidth >= h {
+		pc.FillLocalRoundRect(x, y, w, h, radius, col)
+		return
+	}
+
+	outerR := clampCornerRadius(w, h, radius)
+	inset := lineWidth / 2
+	iw := w - lineWidth
+	ih := h - lineWidth
+	// Outer stroke radius should equal outerR:
+	//   pathRadius + inset = outerR  →  pathRadius = outerR - inset
+	pathR := outerR - inset
+	if pathR < 0 {
+		pathR = 0
+	}
+	// Keep path radius within the inset rect (defense in depth).
+	pathR = clampCornerRadius(iw, ih, pathR)
+
+	ax := pc.Origin.X + x + inset
+	ay := pc.Origin.Y + y + inset
 	pc.DC.SetRGBA(col.R, col.G, col.B, col.A)
 	pc.DC.SetLineWidth(lineWidth)
-	inset := lineWidth / 2
-	if radius <= 0 {
-		pc.DC.DrawRectangle(pc.Origin.X+x+inset, pc.Origin.Y+y+inset, w-lineWidth, h-lineWidth)
+	// Rounded rects are already smooth; Round join avoids spikes if the path
+	// degenerates under extreme radii / widths.
+	pc.DC.SetLineJoin(render.LineJoinRound)
+
+	if pathR <= 0 {
+		pc.DC.DrawRectangle(ax, ay, iw, ih)
 	} else {
-		r := radius - inset
-		if r < 0 {
-			r = 0
-		}
-		pc.DC.DrawRoundedRectangle(pc.Origin.X+x+inset, pc.Origin.Y+y+inset, w-lineWidth, h-lineWidth, r)
+		pc.DC.DrawRoundedRectangle(ax, ay, iw, ih, pathR)
 	}
 	_ = pc.DC.Stroke()
 }

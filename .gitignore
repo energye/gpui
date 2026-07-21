@@ -13,3 +13,6 @@ standardtest/canvaskit/node_modules/
 
 *.log
 .gitkeep
+# visualtest failure dumps (baselines under testdata/visual stay tracked)
+ui/visualtest/testdata/out/*
+!ui/visualtest/testdata/out/.gitkeep
