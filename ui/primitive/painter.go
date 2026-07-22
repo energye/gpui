@@ -29,24 +29,7 @@ func (p *PainterNode) TypeID() string { return TypePainterNode }
 
 // Layout implements core.Node.
 func (p *PainterNode) Layout(c core.Constraints) core.Size {
-	inner := c.Deflate(p.Padding.Left, p.Padding.Top, p.Padding.Right, p.Padding.Bottom)
-	content := core.Size{}
-	kids := p.Children()
-	if len(kids) > 0 {
-		content = kids[0].Layout(inner.Expand())
-		kids[0].Base().SetOffset(core.Point{X: p.Padding.Left, Y: p.Padding.Top})
-	}
-	w := content.Width + p.Padding.Left + p.Padding.Right
-	h := content.Height + p.Padding.Top + p.Padding.Bottom
-	if p.Width > 0 {
-		w = p.Width
-	}
-	if p.Height > 0 {
-		h = p.Height
-	}
-	out := c.Tighten(core.Size{Width: w, Height: h})
-	p.SetSize(out)
-	return out
+	return layoutPaddedChild(&p.NodeBase, c, p.Padding, p.Width, p.Height)
 }
 
 // Paint implements core.Node.

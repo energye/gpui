@@ -82,45 +82,7 @@ func (b *Box) Layout(c core.Constraints) core.Size {
 	if sz, ok := b.LayoutSkipIfClean(c); ok {
 		return sz
 	}
-	inner := c.Deflate(b.Padding.Left, b.Padding.Top, b.Padding.Right, b.Padding.Bottom)
-	// Preferred size if set.
-	if b.Width > 0 {
-		inner = inner.WithMaxWidth(b.Width - b.Padding.Left - b.Padding.Right)
-		if inner.MinWidth > inner.MaxWidth {
-			inner.MinWidth = inner.MaxWidth
-		}
-	}
-	if b.Height > 0 {
-		inner = inner.WithMaxHeight(b.Height - b.Padding.Top - b.Padding.Bottom)
-		if inner.MinHeight > inner.MaxHeight {
-			inner.MinHeight = inner.MaxHeight
-		}
-	}
-
-	content := core.Size{}
-	kids := b.Children()
-	if len(kids) == 1 {
-		content = kids[0].Layout(inner.Expand())
-		kids[0].Base().SetOffset(core.Point{X: b.Padding.Left, Y: b.Padding.Top})
-	} else if len(kids) > 1 {
-		// Stack-like: max of children at padding origin.
-		for _, child := range kids {
-			sz := child.Layout(inner.Expand())
-			child.Base().SetOffset(core.Point{X: b.Padding.Left, Y: b.Padding.Top})
-			content = core.MaxSize(content, sz)
-		}
-	}
-
-	w := content.Width + b.Padding.Left + b.Padding.Right
-	h := content.Height + b.Padding.Top + b.Padding.Bottom
-	if b.Width > 0 {
-		w = b.Width
-	}
-	if b.Height > 0 {
-		h = b.Height
-	}
-	out := c.Tighten(core.Size{Width: w, Height: h})
-	b.SetSize(out)
+	out := layoutPaddedChild(&b.NodeBase, c, b.Padding, b.Width, b.Height)
 	b.RememberConstraints(c)
 	return out
 }

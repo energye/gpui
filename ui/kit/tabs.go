@@ -224,7 +224,6 @@ func (t *Tabs) rebuild() {
 		t.rail.BorderWidth = 0
 		t.rail.Padding = primitive.EdgeInsets{Top: 8, Bottom: 8}
 		// Tabs stick to the top of the rail — never vertically center the list.
-		t.rail.SetCenterContent(false)
 		// Ensure children of rail are width-capped (Decorated.Layout clamps MaxWidth).
 
 		div := primitive.NewDivider()
@@ -322,7 +321,6 @@ func (t *Tabs) rebuildBar() {
 				labelHost.MinWidth = labelW
 				labelHost.BorderWidth = 0
 				labelHost.Background = antItemSelectedFill(th)
-				labelHost.SetCenterContent(false)
 				labelHost.StretchChild = true // Pressable fills full tab hit area
 				if itemH > 0 {
 					labelHost.Height = itemH
@@ -348,7 +346,6 @@ func (t *Tabs) rebuildBar() {
 					pin.MinHeight = itemH
 					pin.BorderWidth = 0
 					pin.Background = render.RGBA{}
-					pin.SetCenterContent(false)
 					pin.StretchChild = true
 					t.bar.AddChild(pin)
 				} else {
@@ -360,7 +357,6 @@ func (t *Tabs) rebuildBar() {
 				host.MinWidth = innerW
 				host.BorderWidth = 0
 				host.Background = render.RGBA{}
-				host.SetCenterContent(false)
 				host.StretchChild = true
 				if itemH > 0 {
 					host.Height = itemH

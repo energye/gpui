@@ -280,15 +280,13 @@ func (e *EditableText) SetFocused(f bool) {
 	}
 }
 
-// AttachTicker registers caret blink on the demand-frame loop.
+// AttachTicker registers caret blink on the demand-frame loop when focused.
 func (e *EditableText) AttachTicker(tr *core.Tree) {
 	if e == nil || tr == nil {
 		return
 	}
 	e.boundTree = tr
-	if e.focused {
-		tr.AddTicker(e)
-	}
+	tr.BindTicker(e, e.focused)
 }
 
 // Tick advances caret blink. Implements core.Ticker.

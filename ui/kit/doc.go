@@ -1,8 +1,10 @@
-// Package kit is the product control surface (L4).
-// Controls are composed from ui/primitive only — no OS, no GPU device ownership.
-// Default visual target may align with Ant Design; package name is kit, not antd.
+// Package kit is the product control surface (Ant Design tokens + composition).
 //
-// M1 B0: Button, Text, Icon.
+// Controls compose ui/primitive only — no OS, no GPU device ownership.
+// Prefer shared Style / theme tokens; keep chrome in Decorated + Pressable;
+// avoid per-control layout hacks (hit must match paint Offset).
+//
+// DefaultTheme returns Ant-leaning tokens via ui/skin/default.
 package kit
 
 import (

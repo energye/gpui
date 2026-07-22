@@ -134,9 +134,7 @@ func (b *Button) AttachTicker(t *core.Tree) {
 		return
 	}
 	b.boundTree = t
-	if b.Loading {
-		t.AddTicker(b)
-	}
+	t.BindTicker(b, b.Loading)
 }
 
 // Tick advances the loading spinner. Implements core.Ticker when Loading.

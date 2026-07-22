@@ -35,19 +35,7 @@ func (f *Focusable) TypeID() string { return TypeFocusable }
 
 // Layout implements core.Node.
 func (f *Focusable) Layout(c core.Constraints) core.Size {
-	inner := c.Deflate(f.Padding.Left, f.Padding.Top, f.Padding.Right, f.Padding.Bottom)
-	content := core.Size{}
-	kids := f.Children()
-	if len(kids) > 0 {
-		content = kids[0].Layout(inner.Expand())
-		kids[0].Base().SetOffset(core.Point{X: f.Padding.Left, Y: f.Padding.Top})
-	}
-	out := c.Tighten(core.Size{
-		Width:  content.Width + f.Padding.Left + f.Padding.Right,
-		Height: content.Height + f.Padding.Top + f.Padding.Bottom,
-	})
-	f.SetSize(out)
-	return out
+	return layoutPaddedChild(&f.NodeBase, c, f.Padding, 0, 0)
 }
 
 // Paint implements core.Node.

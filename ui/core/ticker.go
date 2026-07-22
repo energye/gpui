@@ -92,3 +92,14 @@ func (t *Tree) SetOnDirty(fn func()) {
 	}
 	t.onDirty = fn
 }
+
+// BindTicker stores tree for later use and optionally registers tk now.
+// Widgets call BindTicker(tr, self, active) from AttachTicker / SetFocused.
+func (t *Tree) BindTicker(tk Ticker, active bool) {
+	if t == nil || tk == nil {
+		return
+	}
+	if active {
+		t.AddTicker(tk)
+	}
+}

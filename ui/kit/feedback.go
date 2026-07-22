@@ -59,9 +59,7 @@ func (s *Skeleton) AttachTicker(t *core.Tree) {
 		return
 	}
 	s.boundTree = t
-	if s.Active {
-		t.AddTicker(s)
-	}
+	t.BindTicker(s, s.Active)
 }
 
 // SetActive enables/disables shimmer and ticker membership.
@@ -177,9 +175,7 @@ func (s *Spin) AttachTicker(t *core.Tree) {
 		return
 	}
 	s.boundTree = t
-	if s.Spinning {
-		t.AddTicker(s)
-	}
+	t.BindTicker(s, s.Spinning)
 }
 
 // SetSpinning enables/disables the spinner ticker.

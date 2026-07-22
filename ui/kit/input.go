@@ -308,7 +308,6 @@ func NewTextArea(placeholder string, rows int) *TextArea {
 		if ta.Root != nil {
 			ta.Root.Height = 0
 			ta.Root.MinHeight = ta.editor.Height + 8
-			ta.Root.SetCenterContent(false)
 			ta.Root.Padding = primitive.Symmetric(
 				ta.theme().SizeOr(core.TokenControlPaddingInline, 11),
 				ta.theme().SizeOr(core.TokenPaddingXS, 4),

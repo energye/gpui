@@ -144,9 +144,7 @@ func (m *Motion) AttachTicker(t *core.Tree) {
 	if m == nil || t == nil {
 		return
 	}
-	if !m.Anim.Done() {
-		t.AddTicker(m)
-	}
+	t.BindTicker(m, !m.Anim.Done())
 }
 
 // Layout implements core.Node.

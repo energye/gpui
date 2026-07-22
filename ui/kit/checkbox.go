@@ -626,7 +626,6 @@ func (s *Switch) rebuild() {
 	s.track.Radius = s.trackH / 2 // pill
 	s.track.BorderWidth = 0
 	s.track.Padding = primitive.EdgeInsets{Left: s.pad, Top: s.pad, Right: s.pad, Bottom: s.pad}
-	s.track.SetCenterContent(false) // keep thumb circular; pad positions it
 
 	s.Root = primitive.NewPressable(s.track)
 	s.Root.Focusable = true
@@ -654,9 +653,7 @@ func (s *Switch) AttachTicker(t *core.Tree) {
 		return
 	}
 	s.boundTree = t
-	if s.thumbPos.Active() {
-		t.AddTicker(s)
-	}
+	t.BindTicker(s, s.thumbPos.Active())
 }
 
 // Tick advances thumb animation. Implements core.Ticker.

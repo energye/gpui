@@ -1,8 +1,12 @@
-// Package core is the UI framework runtime (L3a): single Node tree, layout,
-// hit-testing, event routing, paint context, and frame pipeline.
+// Package core is the UI runtime (Flutter-like single tree):
 //
-// core owns algorithms and contracts; it has no product control names and does
-// not call OS APIs. Drawing goes only through render.Context via PaintContext.
+//	Node + Constraints layout → Offset/Size
+//	HitTest uses Offset (local = parentPoint − Offset)
+//	Paint uses Origin = parentOrigin + Offset
+//	Tree: layout / paint / overlays / tickers / focus / events
 //
-// See docs/UI_FRAMEWORK_MAP.md §1, §5.3 P0, §9, §12 M0.
+// core owns algorithms and contracts only — no product control names, no OS APIs.
+// Drawing goes through render.Context via PaintContext.
+//
+// Contract: hit == layout == paint (logical pixels). See docs/LAYOUT_FOUNDATION.md.
 package core
