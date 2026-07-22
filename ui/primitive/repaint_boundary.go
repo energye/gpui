@@ -1,17 +1,20 @@
 package primitive
 
 import (
+	"math"
+	"unsafe"
+
 	"github.com/energye/gpui/ui/core"
 )
 
 // RepaintBoundary isolates paint dirty bubbling (Flutter RepaintBoundary).
 //
-// Children that MarkNeedsPaint only dirty this boundary (and schedule a tree
-// frame); ancestors stay paint-clean so composite-only frames can skip them.
+// With PaintContext.LayerCache (G2 compositor path):
+//   - dirty → RasterizeBoundary into offscreen GPU RT (vector OK on that RT)
+//   - clean → keep RT; BlitBoundary updates origin (and blits if !DeferLayerBlit)
+//   - DeferLayerBlit=true → host Compositor does a blit-only present pass (G2.b)
 //
-// Paint always draws children into the current PaintContext (vector path).
-// Hosts that want GPU layer caching can wrap additional logic; this primitive
-// provides the dirty isolation contract required by Flutter-aligned demand paint.
+// Without LayerCache: paints children directly into parent.
 type RepaintBoundary struct {
 	core.NodeBase
 }
@@ -31,7 +34,7 @@ func NewRepaintBoundary(children ...core.Node) *RepaintBoundary {
 // TypeID implements core.Node.
 func (b *RepaintBoundary) TypeID() string { return TypeRepaintBoundary }
 
-// Layout implements core.Node — pass-through to single child or max of children.
+// Layout implements core.Node.
 func (b *RepaintBoundary) Layout(c core.Constraints) core.Size {
 	if sz, ok := b.LayoutSkipIfClean(c); ok {
 		return sz
@@ -54,30 +57,80 @@ func (b *RepaintBoundary) Layout(c core.Constraints) core.Size {
 	return out
 }
 
+func (b *RepaintBoundary) cacheKey() uintptr {
+	return uintptr(unsafe.Pointer(b))
+}
+
 // Paint implements core.Node.
-// Always paints children when this boundary is dirty or the frame is a full paint.
-// On composite-only clean frames, still paints children once so the first cache
-// exists; subsequent clean composite frames re-paint children only if dirty
-// (vector path has no retained texture — host may upgrade later).
 func (b *RepaintBoundary) Paint(pc *core.PaintContext) {
 	if pc == nil {
 		return
 	}
-	// When composite-only and clean: skip re-recording (pixels retained on surface).
+	sz := b.Size()
+	w := int(math.Ceil(sz.Width))
+	h := int(math.Ceil(sz.Height))
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	scale := pc.Scale
+	if scale <= 0 {
+		scale = 1
+	}
+	key := b.cacheKey()
+	ox, oy := pc.Origin.X, pc.Origin.Y
+
+	if pc.LayerCache != nil {
+		needRaster := b.NeedsPaint() || pc.ForceFullPaint
+		if !needRaster {
+			// Touch origin / validate cache (parent=nil → no draw).
+			if !pc.LayerCache.BlitBoundary(key, nil, ox, oy, w, h) {
+				needRaster = true
+			}
+		}
+		if needRaster {
+			ok := pc.LayerCache.RasterizeBoundary(key, pc.DC, ox, oy, w, h, scale, func(childPC *core.PaintContext) {
+				if childPC == nil {
+					return
+				}
+				if pc.Theme != nil {
+					childPC.Theme = pc.Theme
+				}
+				for _, ch := range b.Children() {
+					cb := ch.Base()
+					ch.Paint(childPC.WithOrigin(cb.Offset()))
+				}
+			})
+			if !ok {
+				b.paintDirect(pc)
+				return
+			}
+		}
+		if !pc.DeferLayerBlit && pc.DC != nil {
+			_ = pc.LayerCache.BlitBoundary(key, pc.DC, ox, oy, w, h)
+		}
+		b.ClearPaintDirty()
+		return
+	}
+
+	b.paintDirect(pc)
+}
+
+func (b *RepaintBoundary) paintDirect(pc *core.PaintContext) {
 	if pc.CompositeOnly && !b.NeedsPaint() && !pc.ForceFullPaint {
 		b.ClearPaintDirty()
 		return
 	}
-	// Force children to paint when the boundary itself is dirty.
 	childPC := pc
 	if b.NeedsPaint() || pc.ForceFullPaint {
 		childPC = pc.WithForceFullPaint()
-		// Restore CompositeOnly false for children under force.
 		childPC.CompositeOnly = false
 	}
-	for _, c := range b.Children() {
-		cb := c.Base()
-		c.Paint(childPC.WithOrigin(pc.Origin.Add(cb.Offset())))
+	for _, ch := range b.Children() {
+		cb := ch.Base()
+		ch.Paint(childPC.WithOrigin(pc.Origin.Add(cb.Offset())))
 	}
 	b.ClearPaintDirty()
 }

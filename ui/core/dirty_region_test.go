@@ -79,3 +79,34 @@ func TestCollectPaintDamage(t *testing.T) {
 func TestProgressSetPercentStableRoot(t *testing.T) {
 	// living in kit package — use primitive only here; kit test covers progress.
 }
+
+func TestCompositeOnlySkipsCleanLeaves(t *testing.T) {
+	inner := primitive.NewBox()
+	inner.Width, inner.Height = 20, 12
+	boundary := primitive.NewRepaintBoundary(inner)
+	static := primitive.NewBox()
+	static.Width, static.Height = 40, 20
+	root := primitive.NewBox(boundary, static)
+	root.Width, root.Height = 200, 100
+	tree := core.NewTree(root)
+	vp := core.Size{Width: 200, Height: 100}
+	// First full paint.
+	tree.Frame(&core.PaintContext{}, vp)
+	if tree.FullPaintRequired() {
+		t.Fatal("full paint should clear")
+	}
+	// Dirty only the animated branch.
+	inner.MarkNeedsPaint()
+	if static.NeedsPaint() {
+		t.Fatal("static must stay clean")
+	}
+	// Composite-only frame: clean static leaf must not need paint flag.
+	pc := &core.PaintContext{CompositeOnly: true}
+	tree.Frame(pc, vp)
+	if tree.Dirty() {
+		t.Fatal("frame should clear tree dirty")
+	}
+	if static.NeedsPaint() {
+		t.Fatal("static should remain paint-clean after composite-only frame")
+	}
+}

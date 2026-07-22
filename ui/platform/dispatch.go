@@ -53,8 +53,9 @@ func Dispatch(tree *core.Tree, ev Event) (resize *Event, close bool) {
 	case EventClose:
 		return nil, true
 	case EventRedraw:
-		// Expose / RequestRedraw: mark tree dirty so demand loop paints.
-		tree.MarkDirty()
+		// Expose / RequestRedraw: OS may have discarded window pixels — force a
+		// full paint on the next frame (Phase A retained present).
+		tree.MarkFullPaintRequired()
 	case EventFocus:
 		// Focus alone does not force a frame; widgets mark paint if needed.
 	}

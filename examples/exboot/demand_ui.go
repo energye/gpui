@@ -4,26 +4,31 @@ package exboot
 
 import (
 	"errors"
-	"image"
 	"log"
+	"os"
 	"time"
 
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/app"
 	"github.com/energye/gpui/ui/core"
+	"github.com/energye/gpui/ui/layer"
 	"github.com/energye/gpui/ui/platform"
 )
 
 // UIDemandConfig drives a gogpu-aligned demand frame loop for UI smokes.
 //
-// Present policy (Flutter demand + engine G2):
-//   - Continuous=false (kit default): paint only when Tree.Dirty(); tickers
-//     MarkNeedsPaint. First frame / resize / FullPaintRequired → full clear.
-//   - Subsequent dirty frames with CollectPaintDamage: Invalidate rects then
-//     PresentFrameAuto. Vector MSAA may still LoadOpClear (G2.a); demand frame
-//     still avoids idle present. RepaintBoundary reduces paint CPU.
-//   - Continuous=true: game-loop full paint every tick (not for kit smokes).
+// Present policy:
+//
+//	Default ON — compositor base RT (recommended):
+//	  full tree → offscreen base texture (GPU vector)
+//	  swapchain ← DrawGPUTexture(base) only (G2.b blit-only)
+//	  Host kit smoke (4-core): ~3.05% CPU vs ~3.5% with GPUI_COMPOSITOR=0 (~0.5pp better).
+//
+//	Opt-out — surface direct vector (G2.a):
+//	  GPUI_COMPOSITOR=0
+//
+// Demand: Continuous=false → paint only when Tree.Dirty().
 type UIDemandConfig struct {
 	Host   platform.Host
 	Tree   *core.Tree
@@ -31,18 +36,17 @@ type UIDemandConfig struct {
 	DC     *render.Context
 	Device *webgpu.Device
 	Theme  *core.Theme
-	// Clear is the per-frame clear color (logical).
+	// Clear is the frame background color (base RT / surface).
 	Clear render.RGBA
 	// Seconds is how long to run before Quit; <=0 means unlimited (default).
-	// Set GPUI_ANIM_SECONDS>0 in callers for timed CI smokes.
 	Seconds float64
-	// Continuous forces every-tick paint (game loop only). Kit smokes must leave false.
+	// Continuous forces every-tick paint (game loop only).
 	Continuous bool
 	// OnUpdate runs on the main (Run) goroutine each active tick.
 	OnUpdate func(dt float64)
 	// BeforeDispatch optional; return true to skip platform.Dispatch.
 	BeforeDispatch func(tree *core.Tree, ev platform.Event) (skip bool)
-	// OnResize is called after session size update (swapchain/dc resize here).
+	// OnResize is called after session size update.
 	OnResize func(w, h int)
 	// Flush is optional (LinuxHost.Flush after present).
 	Flush func()
@@ -55,13 +59,23 @@ type UIDemandResult struct {
 	Hops   int64
 }
 
-// RunUIDemand attaches host+tree to ui/app, presents via PresentFrame*, and
-// runs until Seconds elapse (if >0), window close, or error.
-//
-// Present runs on the app render OS thread (default); events stay on Run.
+func useCompositor() bool {
+	v := os.Getenv("GPUI_COMPOSITOR")
+	// Default ON. Explicit off for direct surface path.
+	return v != "0" && v != "false" && v != "off"
+}
+
+// RunUIDemand attaches host+tree to ui/app and runs the demand loop.
 func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 	if cfg.Host == nil || cfg.Tree == nil || cfg.SC == nil || cfg.DC == nil {
 		log.Fatal("exboot.RunUIDemand: Host, Tree, SC, DC required")
+	}
+
+	var comp *layer.Compositor
+	if useCompositor() {
+		comp = layer.NewCompositor()
+		comp.BG = cfg.Clear
+		defer comp.ReleaseAll()
 	}
 
 	a := app.New(app.Options{
@@ -81,80 +95,19 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		if w < 1 || h < 1 {
 			w, h = host.Size()
 		}
-
-		dc.BeginFrame()
-
-		full := cfg.Continuous || s.Tree == nil || s.Tree.FullPaintRequired()
-		if !full && s.Tree != nil {
-			for _, r := range s.Tree.CollectPaintDamage() {
-				if r.Empty() {
-					continue
-				}
-				dc.Invalidate(image.Rect(
-					int(r.Min.X), int(r.Min.Y),
-					int(r.Max.X+0.999), int(r.Max.Y+0.999),
-				))
-			}
+		scale := host.ScaleFactor()
+		if scale <= 0 {
+			scale = 1
 		}
 
-		// Clear surface. Under G2.a vector MSAA still LoadOpClear; CompositeOnly
-		// skips clean non-boundary CPU work. FullPaintRequired drives first frame.
-		dc.ClearWithColor(cfg.Clear)
-		if full {
-			dc.MarkFullRedraw()
-		}
-
-		pc := &core.PaintContext{
-			DC:    dc,
-			Scale: host.ScaleFactor(),
-			Theme: cfg.Theme,
-		}
-		if s.Theme != nil {
-			pc.Theme = s.Theme
-		}
-		if !full {
-			// Skip clean non-boundary subtrees (Flutter retained path for CPU).
-			// NOTE: with Clear above, skipped subtrees leave holes unless they are
-			// only under RepaintBoundary isolation of dirty animators and static
-			// chrome is re-painted by full frames. Prefer MarkFullPaintRequired
-			// after expose; steady animation frames still re-paint dirty leaves.
-			//
-			// Conservative: CompositeOnly only skips nodes that are clean AND have
-			// no repaint-boundary descendants that need blit — see DefaultPaintChildren.
-			// Because we Clear, we must NOT skip static content. So CompositeOnly is
-			// only safe when the host does not Clear (blit LoadOpLoad). Disable for
-			// vector clear path to avoid blank static UI.
-			pc.CompositeOnly = false
-		}
-		s.Tree.Frame(pc, core.Size{Width: float64(w), Height: float64(h)})
-
-		if device != nil {
-			device.FlushCallbacks()
-		}
-		frame, err := sc.BeginFrame()
-		if err != nil {
-			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-				time.Sleep(16 * time.Millisecond)
+		if comp != nil {
+			if err := presentCompositor(cfg, s, comp, dc, sc, device, w, h, scale); err == nil {
 				return nil
 			}
-			log.Printf("BeginFrame: %v", err)
-			return nil
+			// Fall through to direct if compositor cannot produce a base RT.
+			log.Printf("exboot: compositor unavailable, using direct present")
 		}
-		if _, err := dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, func() error {
-			return sc.EndFrame(frame)
-		}); err != nil {
-			sc.DiscardFrame(frame)
-			if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-				time.Sleep(16 * time.Millisecond)
-				return nil
-			}
-			log.Printf("PresentFrameAuto: %v", err)
-			return nil
-		}
-		if cfg.Flush != nil {
-			cfg.Flush()
-		}
-		return nil
+		return presentDirect(cfg, s, dc, sc, device, w, h, scale)
 	}
 
 	sess := a.Attach(cfg.Host, cfg.Tree, present)
@@ -174,6 +127,9 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		sess.Width, sess.Height = w, h
 		_ = cfg.SC.Resize(uint32(w), uint32(h))
 		_ = cfg.DC.Resize(w, h)
+		if comp != nil {
+			comp.ReleaseAll()
+		}
 		if cfg.Tree != nil {
 			cfg.Tree.MarkFullPaintRequired()
 		}
@@ -182,8 +138,6 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		}
 	}
 
-	// Optional wall-clock stop for CI smokes; Quit wakes IDLE WaitEvents.
-	// Seconds<=0 → unlimited (close window / signal to exit).
 	if cfg.Seconds > 0 {
 		go func() {
 			time.Sleep(time.Duration(cfg.Seconds * float64(time.Second)))
@@ -197,4 +151,144 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		Loops:  a.LoopCount.Load(),
 		Hops:   a.RenderThreadHops.Load(),
 	}
+}
+
+// presentCompositor paints full tree into base RT, then blit-only to surface.
+func presentCompositor(
+	cfg UIDemandConfig,
+	s *app.Session,
+	comp *layer.Compositor,
+	dc *render.Context,
+	sc *webgpu.Swapchain,
+	device *webgpu.Device,
+	w, h int,
+	scale float64,
+) error {
+	comp.BG = cfg.Clear
+	comp.Resize(w, h, scale)
+
+	full := cfg.Continuous || s.Tree == nil || s.Tree.FullPaintRequired()
+	if !comp.Frame(s.Tree, themeOf(cfg, s), full) || !comp.HasBase() {
+		return errors.New("compositor: base RT not ready")
+	}
+
+	// Blit-only into the window context (no Clear / no Fill on surface).
+	dc.BeginFrame()
+	comp.BlitTo(dc)
+	if !comp.HasBase() {
+		return errors.New("compositor: base missing after blit setup")
+	}
+
+	if device != nil {
+		device.FlushCallbacks()
+	}
+	frame, err := sc.BeginFrame()
+	if err != nil {
+		if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+			comp.ReleaseAll()
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
+			time.Sleep(16 * time.Millisecond)
+			return nil
+		}
+		log.Printf("BeginFrame: %v", err)
+		return nil
+	}
+
+	if err := dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, func() error {
+		return sc.EndFrame(frame)
+	}); err != nil {
+		sc.DiscardFrame(frame)
+		if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+			comp.ReleaseAll()
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
+			time.Sleep(16 * time.Millisecond)
+			return nil
+		}
+		log.Printf("PresentFrameFull: %v", err)
+		return nil
+	}
+	if cfg.Flush != nil {
+		cfg.Flush()
+	}
+	return nil
+}
+
+// presentDirect: clear + full vector paint into the surface (G2.a).
+func presentDirect(
+	cfg UIDemandConfig,
+	s *app.Session,
+	dc *render.Context,
+	sc *webgpu.Swapchain,
+	device *webgpu.Device,
+	w, h int,
+	scale float64,
+) error {
+	if w < 1 {
+		w = s.Width
+	}
+	if h < 1 {
+		h = s.Height
+	}
+	dc.BeginFrame()
+	// GPU-visible background (ClearWithColor is CPU pixmap only).
+	dc.SetRGBA(cfg.Clear.R, cfg.Clear.G, cfg.Clear.B, cfg.Clear.A)
+	if cfg.Clear.A <= 0 {
+		dc.SetRGBA(0.1, 0.1, 0.1, 1)
+	}
+	dc.DrawRectangle(0, 0, float64(w), float64(h))
+	_ = dc.Fill()
+	dc.MarkFullRedraw()
+
+	pc := &core.PaintContext{
+		DC:            dc,
+		Scale:         scale,
+		Theme:         themeOf(cfg, s),
+		CompositeOnly: false,
+	}
+	s.Tree.Frame(pc, core.Size{Width: float64(w), Height: float64(h)})
+
+	if device != nil {
+		device.FlushCallbacks()
+	}
+	frame, err := sc.BeginFrame()
+	if err != nil {
+		if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
+			time.Sleep(16 * time.Millisecond)
+			return nil
+		}
+		log.Printf("BeginFrame: %v", err)
+		return nil
+	}
+	if err := dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, func() error {
+		return sc.EndFrame(frame)
+	}); err != nil {
+		sc.DiscardFrame(frame)
+		if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
+			time.Sleep(16 * time.Millisecond)
+			return nil
+		}
+		log.Printf("PresentFrameFull: %v", err)
+		return nil
+	}
+	if cfg.Flush != nil {
+		cfg.Flush()
+	}
+	return nil
+}
+
+func themeOf(cfg UIDemandConfig, s *app.Session) *core.Theme {
+	if s != nil && s.Theme != nil {
+		return s.Theme
+	}
+	return cfg.Theme
 }

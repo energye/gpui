@@ -2,6 +2,22 @@ package core
 
 import "github.com/energye/gpui/render"
 
+// LayerCache is the host-provided retained GPU surface store for RepaintBoundary
+// (ui/layer.Cache). Defined as an interface here so core does not import ui/layer.
+type LayerCache interface {
+	// BlitBoundary draws a cached layer for key at origin if valid; returns false if miss.
+	BlitBoundary(key uintptr, parent *render.Context, x, y float64, w, h int) bool
+	// RasterizeBoundary ensures key has a fresh texture painted via paintFn into
+	// an offscreen context of size (w,h) at scale; then blits to parent. paintFn
+	// receives a PaintContext whose DC is the offscreen surface and Origin is 0.
+	// Returns false if GPU cache is unavailable (caller falls back to direct paint).
+	RasterizeBoundary(key uintptr, parent *render.Context, x, y float64, w, h int, scale float64, paintFn func(pc *PaintContext)) bool
+	// InvalidateBoundary marks key invalid.
+	InvalidateBoundary(key uintptr)
+	// ReleaseAll drops all layers.
+	ReleaseAll()
+}
+
 // PaintContext is the only drawing surface for nodes.
 // DC is a render.Context; final pixels go through PresentFrame* at host level.
 // Nodes must not open a silent CPU bitmap as the final frame.
@@ -24,6 +40,12 @@ type PaintContext struct {
 	// ForceFullPaint disables CompositeOnly skip for this subtree (used when a node
 	// itself is paint-dirty and must redraw non-boundary children).
 	ForceFullPaint bool
+	// LayerCache optional GPU boundary texture cache (Phase B).
+	LayerCache LayerCache
+	// DeferLayerBlit: when true with LayerCache, RepaintBoundary only updates the
+	// offscreen RT (RasterizeBoundary) and does not blit into DC. The host
+	// Compositor blits all layers in a later blit-only pass (G2.b).
+	DeferLayerBlit bool
 }
 
 // WithOrigin returns a child paint context with a new absolute origin.

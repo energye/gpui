@@ -65,6 +65,22 @@ Default 路径：先 `PowerPreferenceNone`，若落在独显且存在核显 → 
 
 窗口示例默认 **不限时**（`GPUI_ANIM_SECONDS` / `GPUI_VRAM_SECONDS` 未设或 0）；CI 显式设秒数。
 
+UI 窗口 present（`exboot.RunUIDemand`）：
+
+| 环境变量 | 行为 |
+|----------|------|
+| （默认） / `GPUI_COMPOSITOR=1` | **推荐**：整树 → base 离屏 RT → 上屏只 blit（G2.b） |
+| `GPUI_COMPOSITOR=0` | 表面直接矢量 Clear+全画（G2.a 对照） |
+
+本机对照（4 核、kit 类窗口、有限动画控件，2026-07）：
+
+| 路径 | 整机 CPU 约 |
+|------|-------------|
+| `GPUI_COMPOSITOR=1`（默认） | **~3.05%** |
+| `GPUI_COMPOSITOR=0` | ~3.5%（约高 **0.5pp**） |
+
+说明：差值不大但方向稳定；compositor 把矢量留在稳定 offscreen，上屏一轮 blit，表面路径驱动/同步更重。小 Spin 再叠 per-widget 离屏层未必更省，分层优化需按场景再测。
+
 ```bash
 # 默认（混合本 → 核显；不限时 present）
 go run ./examples/vram_stages

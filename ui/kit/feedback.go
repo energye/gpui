@@ -96,6 +96,8 @@ func (s *Skeleton) rebuild() {
 	}
 	s.Root.Radius = 4
 	s.Root.Base().Role = "presentation"
+	// Phase B: isolate paint dirty under CompositeOnly present.
+	s.Root.SetRepaintBoundary(true)
 	s.applyChrome()
 }
 
@@ -259,6 +261,10 @@ func (s *Spin) rebuild() {
 	s.Root.Base().Role = "status"
 	s.Root.Base().Label = "Loading"
 	s.Root.Base().Live = "polite"
+	// Phase B: keep spin dirty local under CompositeOnly present.
+	if s.Root != nil {
+		s.Root.SetRepaintBoundary(true)
+	}
 }
 
 // TourStep is one guided step.
@@ -572,6 +578,9 @@ func (p *Progress) rebuild() {
 	p.Root.Radius = 4
 	p.Root.Base().Role = "progressbar"
 	p.Root.Base().Label = fmt.Sprintf("%.0f percent", p.Percent)
+	if p.Root != nil {
+		p.Root.SetRepaintBoundary(true)
+	}
 }
 
 // Density constants for Theme.Density.
