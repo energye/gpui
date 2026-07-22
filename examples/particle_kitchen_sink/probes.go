@@ -281,7 +281,7 @@ func isolationProbes() []probeDef {
 			Solid: true, Blend: true, Glow: true, Mesh: true, Atlas: true, Text: true, Layer: true,
 			ParticleN: 1600, Region: 0.68, BlendCircles: 80, MinN: 1200,
 			MemSoakSec: 180, AllowLowFPS: true,
-			Expect:     "默认 ~180s 全 L3 固定 N：稳态斜率≈0；中泡 GPUI_ANIM_SECONDS=600；长泡 900/1800",
+			Expect:     "推荐 GPUI_ANIM_SECONDS=180 全 L3 固定 N：稳态斜率≈0；中泡 600；长泡 900/1800（默认不限时）",
 			BisectHint: "rss / layer RT 池 / glow export；动态 HUD 文本路径",
 		},
 

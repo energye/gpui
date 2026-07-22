@@ -111,10 +111,11 @@ export LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH
 export DISPLAY=:1
 
 # 短/长内存浸泡 + resize/grow（本进程 RSS；JSON 证据）
-# 默认 SOAK=60s / LONG=180s（探针 MemSoakSec）；可用 GPUI_ANIM_SECONDS 覆盖
-GPUI_PROBE=P_MEM_SOAK GPUI_RESULT_FILE=/tmp/pks_mem_soak.json \
+# 直接 go run 默认不限时；浸泡须显式 GPUI_ANIM_SECONDS（run_mem_guard 会代设）
+# 建议：SOAK=60 / LONG=180；加深 600|900|1800
+GPUI_PROBE=P_MEM_SOAK GPUI_ANIM_SECONDS=60 GPUI_RESULT_FILE=/tmp/pks_mem_soak.json \
   go run ./examples/particle_kitchen_sink
-GPUI_PROBE=P_MEM_LONG GPUI_RESULT_FILE=/tmp/pks_mem_long.json \
+GPUI_PROBE=P_MEM_LONG GPUI_ANIM_SECONDS=180 GPUI_RESULT_FILE=/tmp/pks_mem_long.json \
   go run ./examples/particle_kitchen_sink
 # 加深示例：GPUI_ANIM_SECONDS=600|900|1800
 
@@ -143,7 +144,7 @@ Env（`particle_kitchen_sink` 窗口压测，详见 `examples/particle_kitchen_s
 |------|------|------|
 | `GPUI_PROBE` | 隔离探针（`P_MEM_SOAK` / `P_MEM_LONG` / `P_RESIZE` 等） | 空=档位模式 |
 | `GPUI_TIER` | L0–L4 档位 | L0 |
-| `GPUI_ANIM_SECONDS` | 运行秒数 | 探针/档位默认 |
+| `GPUI_ANIM_SECONDS` | 运行秒数；**0/未设 = 不限时** | **0** |
 | `GPUI_RESULT_FILE` | JSON 证据路径（含 `rss_*` / status） | 空 |
 | `GPUI_PKS_FILTER` | `run_pks_matrix.sh` 过滤（`mem` / `gate` / …） | 全矩阵 |
 

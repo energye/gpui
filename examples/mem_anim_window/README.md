@@ -2,7 +2,7 @@
 
 `mem_anim_window` 是 Linux/X11 真窗口动画压测示例，主要用于复杂 2D/UI 渲染、FPS、CPU fallback 和 RSS soak 观察。
 
-程序没有命令行 flag，运行控制主要通过 `GPUI_*` 环境变量完成。自动化时保持一个进程只跑一个场景：`GPUI_SCENARIO=S0x GPUI_ANIM_SECONDS=N`。
+程序没有命令行 flag，运行控制主要通过 `GPUI_*` 环境变量完成。交互默认不限时；自动化时保持一个进程只跑一个场景并显式设时长：`GPUI_SCENARIO=S0x GPUI_ANIM_SECONDS=N`。
 
 ## 前置条件
 
@@ -154,7 +154,7 @@ GPUI_SCENARIO=S12 GPUI_TARGET_FPS=60 GPUI_ANIM_LOG_EVERY=30 GPUI_ANIM_SECONDS=90
 | 变量 | 说明 |
 | --- | --- |
 | `GPUI_SCENARIO` | 场景 ID：S01-S23 |
-| `GPUI_ANIM_SECONDS` | 自动退出秒数；未设置时手动关窗口退出 |
+| `GPUI_ANIM_SECONDS` | 自动退出秒数；**默认 0/未设 = 不限时**（关窗/信号退出） |
 | `GPUI_METRICS_FILE` | 写 CSV metrics |
 | `GPUI_RESULT_FILE` | 写结果；程序会同时生成 `.json.line` 摘要 |
 | `GPUI_ANIM_LOG_EVERY` | 每多少帧打印一次运行日志，默认 60 |

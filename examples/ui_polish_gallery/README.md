@@ -8,8 +8,17 @@
 export DISPLAY=:1
 export LD_LIBRARY_PATH=$PWD/lib
 export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+
+# 默认不限时（关窗 / Ctrl+C 退出）
+go run ./examples/ui_polish_gallery
+
+# CI / 限时
 GPUI_ANIM_SECONDS=60 go run ./examples/ui_polish_gallery
 ```
+
+| 变量 | 默认 | 含义 |
+|------|------|------|
+| `GPUI_ANIM_SECONDS` | **0（不限时）** | `>0` 时到达秒数后自动退出 |
 
 ## §12.2 手操清单
 

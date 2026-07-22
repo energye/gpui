@@ -7,6 +7,7 @@
 - 仅失焦、仍可见 → **继续 present**
 - `GPUI_FORCE_LOST_AFTER=N` → `ForceRecoverHealthy`（健康路径，不钉 VRAM）
 - 可选 `GPUI_SELFTEST_LIFECYCLE=1` 最小化→还原→recover 自测
+- **时长**：`GPUI_ANIM_SECONDS` 默认 **0 = 不限时**（关窗/信号退出）；CI/自动化显式设秒数
 
 ## 矩阵脚本
 
@@ -33,14 +34,18 @@ ROUNDS=2 bash examples/run_window_lifecycle_matrix.sh
 ## 推荐手测命令
 
 ```bash
-# Ant Design 桌面壳 + 强制 recover
+# 交互默认不限时
+go run ./examples/antd_desktop_app
+go run ./examples/ui_polish_gallery
+
+# Ant Design 桌面壳 + 限时 + 强制 recover（CI 风格）
 GPUI_ANIM_SECONDS=15 GPUI_FORCE_LOST_AFTER=50 ./tmp/bins/antd_desktop_app
 
 # Flutter Material 壳 + 生命周期自测
 GPUI_SELFTEST_LIFECYCLE=1 GPUI_SELFTEST_MIN_AT=40 GPUI_SELFTEST_MAP_AT=90 \
   GPUI_SELFTEST_LOST_AT=140 GPUI_SELFTEST_DONE_AT=200 ./tmp/bins/flutter_app_shell
 
-# 完整 API 覆盖 + minimize selftest
+# 完整 API 覆盖 + minimize selftest（不限时；selftest 帧点到齐后退出）
 GPUI_SCENARIO=S12 GPUI_SELFTEST_LIFECYCLE=1 ./tmp/bins/mem_anim_window
 ```
 
@@ -56,6 +61,7 @@ GPUI_SCENARIO=S12 GPUI_SELFTEST_LIFECYCLE=1 ./tmp/bins/mem_anim_window
 
 ```bash
 # 必须 180/180；失败则 GPUI_COVERAGE_STRICT=1 → exit 2
+# 限时可选；不设 GPUI_ANIM_SECONDS 则一直跑到关窗
 GPUI_COVERAGE_STRICT=1 GPUI_ANIM_SECONDS=15 GPUI_FORCE_LOST_AFTER=5 \
   ./tmp/bins/api_coverage_app
 

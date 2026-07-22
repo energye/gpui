@@ -22,7 +22,8 @@
 //	G_FRAME     damage, present full/auto/damage, flush GPU, shared encoder
 //	G_IO        EncodePNG/JPEG, SavePNG, Image, AsMask
 //
-//	GPUI_ANIM_SECONDS=20 go run ./examples/api_coverage_app
+//	go run ./examples/api_coverage_app                  # default unlimited
+//	GPUI_ANIM_SECONDS=20 go run ./examples/api_coverage_app  # timed CI
 //	GPUI_FORCE_LOST_AFTER=80 /tmp/api_coverage_app
 //	GPUI_SELFTEST_LIFECYCLE=1 ... /tmp/api_coverage_app
 //	GPUI_COVERAGE_STRICT=1  → exit 1 if any public API never hit

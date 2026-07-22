@@ -14,6 +14,7 @@ export DISPLAY=:1   # 按本机
 
 go run .                              # 默认 L0
 GPUI_TIER=L2 go run .
+# 默认不限时：go run . / GPUI_PROBE=P_SOLID go run .
 GPUI_PROBE=P_BLEND_LAYER GPUI_ANIM_SECONDS=8 GPUI_RESULT_FILE=/tmp/p.json go run .
 GPUI_LIST_PROBES=1 go run .           # 打印隔离探针目录
 ```
@@ -68,7 +69,7 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | **P_ALPHA_MESH** | gate | alpha mesh+混合 | 密度叠压 |
 | **P_RESIZE** | stress | 尺寸振荡 | swapchain/context 重建泄漏 |
 | **P_DARK_STAGE** | gate | 暗场少粒子 | 非空内容 + GPU 路径 |
-| **P_MEM_SOAK** | stress | 短浸泡（默认 **60s**） | RSS 稳态斜率 |
+| **P_MEM_SOAK** | stress | 短浸泡（推荐 **60s**，须 `GPUI_ANIM_SECONDS`） | RSS 稳态斜率 |
 | **P_BLEND_GLOW** | stress | 混合×光晕 | L2 组合分解 |
 | **P_LAYER_BLEND** | stress | 层×混合 | 嵌套 composite |
 | **P_MULTI_LAYER** | stress | 多层嵌套 | RT 池/闪烁 |
@@ -84,8 +85,8 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | **P_EMPTY_TRAP** | trap | 空内容陷阱 | 装空绿必 FAIL |
 | **P_FLICKER** | gate | 交替清屏闪烁 | intermittent_content |
 | **P_FLICKER_BLEND** | stress | 混合+交替清屏 | hitch+闪烁 |
-| **P_MEM_LONG** | stress | 加长浸泡（默认 **180s**，固定 N） | 稳态斜率≈0 |
-| 时长分层 | — | `P_MEM_SOAK` **60s** 快筛 · `P_MEM_LONG` **180s** 日常 · `GPUI_ANIM_SECONDS=600` **10min** 中泡 · `900/1800` 发版长泡 | 抓慢爬/延迟释放 |
+| **P_MEM_LONG** | stress | 加长浸泡（推荐 **180s**，须 `GPUI_ANIM_SECONDS`；固定 N） | 稳态斜率≈0 |
+| 时长分层 | — | 直接 `go run` **默认不限时**；`run_mem_guard` / 矩阵脚本注入秒数：`P_MEM_SOAK` **60s** · `P_MEM_LONG` **180s** · `GPUI_ANIM_SECONDS=600` **10min** · `900/1800` 发版长泡 | 抓慢爬/延迟释放 |
 | FPS jitter | — | present→present；dig 后一帧不计；`fps_jitter`=p95−p5 | 避免 harness 假 hitch |
 | **P_L0…P_L4** | gate/stress | 档位别名 | 与 L0–L4 对齐 |
 
@@ -108,7 +109,7 @@ GPUI_PKS_FILTER=dig scripts/run_pks_matrix.sh
 | `GPUI_ENABLE_RESIZE` | 尺寸振荡 |
 | `GPUI_BLEND_CIRCLES` | 高级混合圆数量 |
 | `GPUI_ALLOW_LOW_FPS` | 放宽帧率门禁（仅记录用） |
-| `GPUI_ANIM_SECONDS` | 自动退出秒数 |
+| `GPUI_ANIM_SECONDS` | 自动退出秒数；**默认 0 = 不限时**（关窗/信号）；CI 脚本会显式设值 |
 | `GPUI_RESULT_FILE` | JSON 结果 |
 | `GPUI_LIST_PROBES` | 打印探针目录 |
 | `GPUI_TARGET_FPS` | 默认 60 |

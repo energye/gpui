@@ -63,9 +63,14 @@ Default 路径：先 `PowerPreferenceNone`，若落在独显且存在核显 → 
 
 ## 测量工具
 
+窗口示例默认 **不限时**（`GPUI_ANIM_SECONDS` / `GPUI_VRAM_SECONDS` 未设或 0）；CI 显式设秒数。
+
 ```bash
-# 默认（混合本 → 核显）
+# 默认（混合本 → 核显；不限时 present）
 go run ./examples/vram_stages
+
+# 限时 hold/present
+GPUI_VRAM_SECONDS=4 go run ./examples/vram_stages
 
 # 强制独显
 GPUI_POWER=high go run ./examples/vram_stages

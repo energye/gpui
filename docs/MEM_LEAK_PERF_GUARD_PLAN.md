@@ -74,7 +74,8 @@
 | **M2 加深** | LONG **600s（10min）** | `run_mem_guard.sh deep` |
 | **M3 加长** | LONG **900–1800s** | 手动 `GPUI_ANIM_SECONDS` |
 
-探针默认（无 env 时）：`P_MEM_SOAK` → 60s，`P_MEM_LONG` → 180s（`MemSoakSec`）。  
+探针 **推荐时长**（须显式 `GPUI_ANIM_SECONDS` 或由 `run_mem_guard.sh` 注入）：`P_MEM_SOAK` → 60s，`P_MEM_LONG` → 180s。  
+直接 `go run` 且不设 `GPUI_ANIM_SECONDS` → **不限时**；`MemSoakSec` 仅为文档/脚本约定，不再自动套用。  
 `P_MEM_LONG` 为 **固定粒子 N**（增长压力见 `P_GROW_N`）。加长：`GPUI_ANIM_SECONDS=600|900|1800`。
 
 ### 2.3.1 时长选择（抓什么）

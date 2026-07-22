@@ -95,7 +95,7 @@ GPUI_COVERAGE_STRICT=1 GPUI_LIFECYCLE=auto GPUI_SELFTEST_LIFECYCLE=1 \
   ./tmp/bins/api_coverage_app
 
 # 高显存机模拟「只 Unconfigure」
-GPUI_LIFECYCLE=normal GPUI_ANIM_SECONDS=8 ./tmp/bins/api_coverage_app
+GPUI_LIFECYCLE=normal GPUI_ANIM_SECONDS=8 ./tmp/bins/api_coverage_app  # 限时；省略 ANIM_SECONDS 则不限时
 ```
 
 ## 7. 明确不做
