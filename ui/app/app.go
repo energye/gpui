@@ -64,6 +64,9 @@ type Session struct {
 
 	// Logical viewport; updated on resize.
 	Width, Height int
+	// PresentW/H is the size of the last successful present (0 = never).
+	// Used to force a redraw when the host size changes.
+	PresentW, PresentH int
 
 	// Theme optional; Present may read it.
 	Theme *core.Theme
@@ -291,19 +294,38 @@ func (a *Application) runFrame() bool {
 		invalidated = true
 	}
 
-	// IDLE: block on OS / host events.
-	if !continuous && !animating && !invalidated {
+	// Size mismatch vs last present forces a frame (resize sync).
+	if hw, hh := s.Host.Size(); hw > 0 && hh > 0 {
+		if s.PresentW == 0 || s.PresentH == 0 || hw != s.PresentW || hh != s.PresentH {
+			invalidated = true
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
+		}
+	}
+
+	// sizeLag: window client size ≠ last present buffer (live resize in progress
+	// or waiting for quiet Surface.Configure). Must not WaitEvents(-1) forever or
+	// sharp reconfigure never runs after mouse release.
+	sizeLag := false
+	if hw, hh := s.Host.Size(); hw > 0 && hh > 0 {
+		if s.PresentW == 0 || s.PresentH == 0 || hw != s.PresentW || hh != s.PresentH {
+			sizeLag = true
+			invalidated = true
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
+		}
+	}
+
+	// IDLE only when fully stable; sizeLag polls at AnimTick until quiet configure.
+	if !continuous && !animating && !invalidated && !sizeLag {
 		evs := s.Host.WaitEvents(-1)
 		if !a.dispatchAll(s, evs) {
 			return false
 		}
-	} else if continuous || animating {
-		// Active loop: short wait (vsync-ish) so we don't busy-spin.
-		timeout := a.opts.AnimTick
-		if continuous {
-			timeout = a.opts.AnimTick
-		}
-		evs := s.Host.WaitEvents(timeout)
+	} else if continuous || animating || sizeLag {
+		evs := s.Host.WaitEvents(a.opts.AnimTick)
 		if !a.dispatchAll(s, evs) {
 			return false
 		}
@@ -315,12 +337,42 @@ func (a *Application) runFrame() bool {
 		}
 	}
 
-	// Events may have set dirty / pendingRedraw.
+	// Drain remaining pending events so drag-resize coalesces to the latest size
+	// before we paint (avoids N Configure → N Configure/paint flashes).
+	for {
+		more := s.Host.WaitEvents(0)
+		if len(more) == 0 {
+			break
+		}
+		if !a.dispatchAll(s, more) {
+			return false
+		}
+	}
+
+	// Events may have set dirty / pendingRedraw / size.
 	if a.pendingRedraw.Swap(false) {
 		invalidated = true
 	}
 	if s.Tree != nil && s.Tree.Dirty() {
 		invalidated = true
+	}
+	if hw, hh := s.Host.Size(); hw > 0 && hh > 0 {
+		if hw != s.Width || hh != s.Height {
+			s.Width, s.Height = hw, hh
+			invalidated = true
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
+			if s.OnResize != nil {
+				s.OnResize(hw, hh)
+			}
+		}
+		if s.PresentW != hw || s.PresentH != hh {
+			invalidated = true
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
+		}
 	}
 
 	now := time.Now()
@@ -330,8 +382,6 @@ func (a *Application) runFrame() bool {
 		dt = 0.066
 	}
 
-	// onUpdate / TickActive when loop is "active" (gogpu: ANIMATING + CONTINUOUS).
-	// Also tick when invalidated so one-shot motion still advances if registered.
 	if continuous || animating || invalidated || (s.Tree != nil && s.Tree.HasActiveTickers()) {
 		if s.Tree != nil {
 			s.Tree.TickActive(dt)
@@ -347,13 +397,17 @@ func (a *Application) runFrame() bool {
 		}
 	}
 
-	// OnDraw only when continuous or dirty (gogpu demand).
-	// Hop Present to render thread (sync) — same ordering as gogpu renderFrameMultiThread.
-	if continuous || invalidated {
-		needPaint := continuous || (s.Tree != nil && s.Tree.Dirty())
+	// Paint when continuous, dirty, or size still does not match last present.
+	needPaint := continuous
+	if s.Tree != nil && (s.Tree.Dirty() || s.Tree.FullPaintRequired()) {
+		needPaint = true
+	}
+	if hw, hh := s.Host.Size(); hw > 0 && hh > 0 && (hw != s.PresentW || hh != s.PresentH) {
+		needPaint = true
+	}
+	if continuous || invalidated || needPaint {
 		if needPaint {
 			if err := a.present(s); err != nil {
-				// Present errors do not exit the loop by default.
 				_ = err
 			}
 		}
@@ -362,19 +416,23 @@ func (a *Application) runFrame() bool {
 }
 
 func (a *Application) present(s *Session) error {
-	// Apply deferred resize on render thread before draw (gogpu ConsumePendingResize).
+	// Snapshot host size on the calling thread (main) before render-thread hop.
+	if s != nil && s.Host != nil {
+		if hw, hh := s.Host.Size(); hw > 0 && hh > 0 {
+			s.Width, s.Height = hw, hh
+		}
+	}
 	run := func() error {
 		if a.renderLoop != nil {
-			if w, h, ok := a.renderLoop.ConsumePendingResize(); ok && w > 0 && h > 0 {
-				s.Width, s.Height = int(w), int(h)
-			}
+			// Consume deferred resize hint; host snapshot above is authoritative.
+			_, _, _ = a.renderLoop.ConsumePendingResize()
 		}
 		a.PaintCount.Add(1)
+		var err error
 		if s.Present != nil {
-			return s.Present(s)
-		}
-		// Headless default: layout+paint clears dirty.
-		if s.Tree != nil {
+			err = s.Present(s)
+		} else if s.Tree != nil {
+			// Headless default: layout+paint clears dirty.
 			pc := &core.PaintContext{Theme: s.Theme, Scale: 1}
 			if s.Host != nil {
 				pc.Scale = s.Host.ScaleFactor()
@@ -387,9 +445,11 @@ func (a *Application) present(s *Session) error {
 			}
 			s.Tree.Frame(pc, core.Size{Width: float64(w), Height: float64(h)})
 		}
-		return nil
+		if err == nil && s != nil {
+			s.PresentW, s.PresentH = s.Width, s.Height
+		}
+		return err
 	}
-
 	if a.renderLoop == nil || !a.renderLoop.IsRunning() {
 		return run()
 	}
@@ -402,7 +462,10 @@ func (a *Application) present(s *Session) error {
 }
 
 func (a *Application) dispatchAll(s *Session, evs []platform.Event) bool {
-	for _, ev := range evs {
+	// Coalesce resize: many ConfigureNotify during drag → one layout update.
+	var lastResize *platform.Event
+	for i := range evs {
+		ev := evs[i]
 		if ev.Type == platform.EventClose {
 			return false
 		}
@@ -416,16 +479,9 @@ func (a *Application) dispatchAll(s *Session, evs []platform.Event) bool {
 			return false
 		}
 		if resize != nil {
-			s.Width, s.Height = resize.Width, resize.Height
-			if a.renderLoop != nil && resize.Width > 0 && resize.Height > 0 {
-				a.renderLoop.RequestResize(uint32(resize.Width), uint32(resize.Height))
-			}
-			if s.Tree != nil {
-				s.Tree.MarkFullPaintRequired()
-			}
-			if s.OnResize != nil {
-				s.OnResize(resize.Width, resize.Height)
-			}
+			r := *resize
+			lastResize = &r
+			continue
 		}
 		if ev.Type == platform.EventRedraw {
 			a.pendingRedraw.Store(true)
@@ -433,6 +489,27 @@ func (a *Application) dispatchAll(s *Session, evs []platform.Event) bool {
 			if s.Tree != nil {
 				s.Tree.MarkFullPaintRequired()
 			}
+		}
+	}
+	if lastResize != nil {
+		w, h := lastResize.Width, lastResize.Height
+		if w < 1 {
+			w = 1
+		}
+		if h < 1 {
+			h = 1
+		}
+		s.Width, s.Height = w, h
+		if a.renderLoop != nil {
+			a.renderLoop.RequestResize(uint32(w), uint32(h))
+		}
+		if s.Tree != nil {
+			s.Tree.MarkFullPaintRequired()
+		}
+		// Force a present this tick (resize must paint even without tickers).
+		a.pendingRedraw.Store(true)
+		if s.OnResize != nil {
+			s.OnResize(w, h)
 		}
 	}
 	return true

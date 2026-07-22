@@ -40,6 +40,15 @@ const (
 	xVisibilityChangeMask = int64(1 << 16)
 	xStructureNotifyMask  = int64(1 << 17)
 	xFocusChangeMask      = int64(1 << 21)
+
+	// Zero-flash live resize (device_lost_redraw / Skia / Flutter).
+	xNone             = 0
+	xNorthWestGravity = 1
+	xWhenMapped       = 1
+	xCWBackPixmap     = 1 << 0
+	xCWBitGravity     = 1 << 4
+	xCWWinGravity     = 1 << 5
+	xCWBackingStore   = 1 << 6
 )
 
 // LinuxHost is a minimal X11 window Host.
@@ -116,6 +125,8 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int) uintptr
 		xSetWMProtocols func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
 		xLookupString   func(ev *byte, buf *byte, bytes int, keysym *uintptr, status *int) int
+		xSetBgPixmap    func(dpy, win, pixmap uintptr) int
+		xChangeAttr     func(dpy, win uintptr, mask uint64, attrs unsafe.Pointer) int
 	)
 	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
 	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
@@ -132,6 +143,8 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	purego.RegisterLibFunc(&xInternAtom, lib, "XInternAtom")
 	purego.RegisterLibFunc(&xSetWMProtocols, lib, "XSetWMProtocols")
 	purego.RegisterLibFunc(&xLookupString, lib, "XLookupString")
+	purego.RegisterLibFunc(&xSetBgPixmap, lib, "XSetWindowBackgroundPixmap")
+	purego.RegisterLibFunc(&xChangeAttr, lib, "XChangeWindowAttributes")
 
 	dpy := xOpenDisplay(nil)
 	if dpy == 0 {
@@ -140,12 +153,22 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	}
 	screen := xDefaultScreen(dpy)
 	root := xRootWindow(dpy, screen)
-	win := xCreateSimple(dpy, root, 80, 60, uint(opts.Width), uint(opts.Height), 1, 0, 0x202020)
+	// Background 0 + None pixmap: X must not fill new regions solid mid-drag
+	// (main cause of continuous flash). Aligns with device_lost_redraw/x11.go.
+	win := xCreateSimple(dpy, root, 80, 60, uint(opts.Width), uint(opts.Height), 1, 0, 0)
 	if win == 0 {
 		xCloseDisplay(dpy)
 		_ = purego.Dlclose(lib)
 		return nil, fmt.Errorf("platform/linux: XCreateSimpleWindow failed")
 	}
+	// Zero-flash live resize (Skia/Flutter): no bg fill, NW gravity, backing store.
+	xSetBgPixmap(dpy, win, uintptr(xNone))
+	attrs := make([]byte, 128)
+	*(*int32)(unsafe.Pointer(&attrs[32])) = int32(xNorthWestGravity)
+	*(*int32)(unsafe.Pointer(&attrs[36])) = int32(xNorthWestGravity)
+	*(*int32)(unsafe.Pointer(&attrs[40])) = int32(xWhenMapped)
+	xChangeAttr(dpy, win, uint64(xCWBackPixmap|xCWBitGravity|xCWWinGravity|xCWBackingStore), unsafe.Pointer(&attrs[0]))
+
 	name := append([]byte(opts.Title), 0)
 	xStoreName(dpy, win, &name[0])
 

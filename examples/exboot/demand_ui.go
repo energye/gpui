@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/energye/gpui/gpu/webgpu"
@@ -23,12 +24,24 @@ import (
 //	Default ON — compositor base RT (recommended):
 //	  full tree → offscreen base texture (GPU vector)
 //	  swapchain ← DrawGPUTexture(base) only (G2.b blit-only)
-//	  Host kit smoke (4-core): ~3.05% CPU vs ~3.5% with GPUI_COMPOSITOR=0 (~0.5pp better).
 //
 //	Opt-out — surface direct vector (G2.a):
 //	  GPUI_COMPOSITOR=0
 //
-// Demand: Continuous=false → paint only when Tree.Dirty().
+// Resize policy (framework — not per-example):
+//
+//  1. Every ConfigureNotify updates live client size (coalesced by ui/app).
+//  2. Each present paints at the LIVE window size so content tracks the window
+//     (no black margins mid-drag).
+//  3. Surface.Configure is deferred to present and applied at most once per
+//     present with the latest size (event drain + coalesce). Content is painted
+//     into the base RT before Configure when using the compositor, then blit
+//     + Present in the same call so the first frame after recreate is complete.
+//  4. X11 LinuxHost uses back_pixmap=None + NW gravity so the server does not
+//     solid-fill enlarged regions (device_lost_redraw anti-flash).
+//  5. BeginFrame Outdated/Lost: force reconfigure to live size and retry.
+//
+// Demand: Continuous=false → paint when Dirty() or size/present mismatch.
 type UIDemandConfig struct {
 	Host   platform.Host
 	Tree   *core.Tree
@@ -46,7 +59,9 @@ type UIDemandConfig struct {
 	OnUpdate func(dt float64)
 	// BeforeDispatch optional; return true to skip platform.Dispatch.
 	BeforeDispatch func(tree *core.Tree, ev platform.Event) (skip bool)
-	// OnResize is called after session size update.
+	// OnResize is layout-only (root width/height / viewport). Called with the
+	// size that will be painted this frame (surface size mid-drag, live size when quiet).
+	// Do not call SC.Resize here.
 	OnResize func(w, h int)
 	// Flush is optional (LinuxHost.Flush after present).
 	Flush func()
@@ -59,10 +74,56 @@ type UIDemandResult struct {
 	Hops   int64
 }
 
+// ResizeConfigureIdle is how long ConfigureNotify must be quiet before we
+// Surface.Configure to the live size (sharp pixels). Matches device_lost_redraw.
+const ResizeConfigureIdle = 32 * time.Millisecond
+
 func useCompositor() bool {
 	v := os.Getenv("GPUI_COMPOSITOR")
-	// Default ON. Explicit off for direct surface path.
 	return v != "0" && v != "false" && v != "off"
+}
+
+const minPresentSize = 64
+
+// resizeTracker records live client size + last ConfigureNotify time.
+type resizeTracker struct {
+	mu        sync.Mutex
+	liveW     int
+	liveH     int
+	lastCfgAt time.Time
+}
+
+func (r *resizeTracker) noteLive(w, h int) {
+	if r == nil {
+		return
+	}
+	if w < minPresentSize {
+		w = minPresentSize
+	}
+	if h < minPresentSize {
+		h = minPresentSize
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastCfgAt = time.Now()
+	r.liveW, r.liveH = w, h
+}
+
+func (r *resizeTracker) snapshot() (liveW, liveH int, quiet bool) {
+	if r == nil {
+		return 0, 0, true
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	liveW, liveH = r.liveW, r.liveH
+	if liveW < 1 || liveH < 1 {
+		return liveW, liveH, true
+	}
+	if r.lastCfgAt.IsZero() {
+		return liveW, liveH, true
+	}
+	quiet = time.Since(r.lastCfgAt) >= ResizeConfigureIdle
+	return liveW, liveH, quiet
 }
 
 // RunUIDemand attaches host+tree to ui/app and runs the demand loop.
@@ -78,6 +139,11 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		defer comp.ReleaseAll()
 	}
 
+	rt := &resizeTracker{}
+	if w, h := cfg.Host.Size(); w > 0 && h > 0 {
+		rt.noteLive(w, h)
+	}
+
 	a := app.New(app.Options{
 		ContinuousRender: cfg.Continuous,
 		OnUpdate:         cfg.OnUpdate,
@@ -85,29 +151,100 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 	})
 	defer a.Close()
 
+	lastLayoutW, lastLayoutH := 0, 0
+
 	present := func(s *app.Session) error {
 		dc := cfg.DC
 		sc := cfg.SC
 		device := cfg.Device
-		host := cfg.Host
 
-		w, h := s.Width, s.Height
-		if w < 1 || h < 1 {
-			w, h = host.Size()
+		// Live client size (window).
+		liveW, liveH, _ := rt.snapshot()
+		if liveW < 1 || liveH < 1 {
+			liveW, liveH = s.Width, s.Height
 		}
-		scale := host.ScaleFactor()
+		if liveW < minPresentSize {
+			liveW = minPresentSize
+		}
+		if liveH < minPresentSize {
+			liveH = minPresentSize
+		}
+
+		// Current surface buffer size.
+		surfW, surfH := int(sc.Width), int(sc.Height)
+		if surfW < 1 {
+			surfW = liveW
+		}
+		if surfH < 1 {
+			surfH = liveH
+		}
+
+		scale := 1.0
+		if cfg.Host != nil {
+			scale = cfg.Host.ScaleFactor()
+		}
 		if scale <= 0 {
 			scale = 1
 		}
 
-		if comp != nil {
-			if err := presentCompositor(cfg, s, comp, dc, sc, device, w, h, scale); err == nil {
-				return nil
+		// Always paint at LIVE window size so content tracks the window.
+		// Reconfigure surface when it lags (at most once per present after event drain).
+		paintW, paintH := liveW, liveH
+		doConfigure := paintW != surfW || paintH != surfH
+
+		// Layout to the size we will paint this frame.
+		if lastLayoutW != paintW || lastLayoutH != paintH {
+			s.Width, s.Height = paintW, paintH
+			lastLayoutW, lastLayoutH = paintW, paintH
+			if cfg.OnResize != nil {
+				cfg.OnResize(paintW, paintH)
 			}
-			// Fall through to direct if compositor cannot produce a base RT.
-			log.Printf("exboot: compositor unavailable, using direct present")
+			if cfg.Tree != nil {
+				cfg.Tree.MarkFullPaintRequired()
+			}
 		}
-		return presentDirect(cfg, s, dc, sc, device, w, h, scale)
+
+		if comp != nil {
+			// 1) Paint full content into base RT at the new size first.
+			comp.BG = cfg.Clear
+			comp.Resize(paintW, paintH, scale)
+			full := true // resize/drag always needs a complete base frame
+			if !comp.Frame(s.Tree, themeOf(cfg, s), full) || !comp.HasBase() {
+				log.Printf("exboot: compositor base failed, direct present")
+				// Direct path must Configure before drawing into the surface.
+				if doConfigure {
+					_ = sc.Resize(uint32(paintW), uint32(paintH))
+					_ = dc.Resize(paintW, paintH)
+				}
+				return presentDirect(cfg, s, dc, sc, device, paintW, paintH, scale)
+			}
+
+			// 2) Reconfigure surface only after base content is ready, then blit+present.
+			if doConfigure {
+				if err := sc.Resize(uint32(paintW), uint32(paintH)); err != nil {
+					log.Printf("exboot: swapchain resize %dx%d: %v", paintW, paintH, err)
+				}
+				if err := dc.Resize(paintW, paintH); err != nil {
+					log.Printf("exboot: dc resize %dx%d: %v", paintW, paintH, err)
+				}
+				if cfg.Tree != nil {
+					cfg.Tree.MarkFullPaintRequired()
+				}
+			}
+
+			return blitAndPresent(cfg, s, comp, dc, sc, device, paintW, paintH, liveW, liveH, rt)
+		}
+
+		// Direct: Configure then paint into surface in the same present call.
+		if doConfigure {
+			if err := sc.Resize(uint32(paintW), uint32(paintH)); err != nil {
+				log.Printf("exboot: swapchain resize %dx%d: %v", paintW, paintH, err)
+			}
+			if err := dc.Resize(paintW, paintH); err != nil {
+				log.Printf("exboot: dc resize %dx%d: %v", paintW, paintH, err)
+			}
+		}
+		return presentDirect(cfg, s, dc, sc, device, paintW, paintH, scale)
 	}
 
 	sess := a.Attach(cfg.Host, cfg.Tree, present)
@@ -117,24 +254,20 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 	if w, h := cfg.Host.Size(); w > 0 && h > 0 {
 		sess.Width, sess.Height = w, h
 	}
+
+	// Layout + track live size; never SC.Resize here.
 	sess.OnResize = func(w, h int) {
-		if w < 64 {
-			w = 64
+		if w < minPresentSize {
+			w = minPresentSize
 		}
-		if h < 64 {
-			h = 64
+		if h < minPresentSize {
+			h = minPresentSize
 		}
+		// Track live client size for quiet-configure; layout applied in present.
+		rt.noteLive(w, h)
 		sess.Width, sess.Height = w, h
-		_ = cfg.SC.Resize(uint32(w), uint32(h))
-		_ = cfg.DC.Resize(w, h)
-		if comp != nil {
-			comp.ReleaseAll()
-		}
 		if cfg.Tree != nil {
 			cfg.Tree.MarkFullPaintRequired()
-		}
-		if cfg.OnResize != nil {
-			cfg.OnResize(w, h)
 		}
 	}
 
@@ -153,32 +286,26 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 	}
 }
 
-// presentCompositor paints full tree into base RT, then blit-only to surface.
-func presentCompositor(
+func blitAndPresent(
 	cfg UIDemandConfig,
 	s *app.Session,
 	comp *layer.Compositor,
 	dc *render.Context,
 	sc *webgpu.Swapchain,
 	device *webgpu.Device,
-	w, h int,
-	scale float64,
+	paintW, paintH, liveW, liveH int,
+	rt *resizeTracker,
 ) error {
-	comp.BG = cfg.Clear
-	comp.Resize(w, h, scale)
-
-	full := cfg.Continuous || s.Tree == nil || s.Tree.FullPaintRequired()
-	if !comp.Frame(s.Tree, themeOf(cfg, s), full) || !comp.HasBase() {
-		return errors.New("compositor: base RT not ready")
+	// Ensure DC matches surface (mid-drag surface size).
+	if dc.Width() != paintW || dc.Height() != paintH {
+		_ = dc.Resize(paintW, paintH)
 	}
 
-	// Blit-only into the window context (no Clear / no Fill on surface).
 	dc.BeginFrame()
 	comp.BlitTo(dc)
 	if !comp.HasBase() {
-		return errors.New("compositor: base missing after blit setup")
+		return errors.New("compositor: base missing after blit")
 	}
-
 	if device != nil {
 		device.FlushCallbacks()
 	}
@@ -192,10 +319,26 @@ func presentCompositor(
 			time.Sleep(16 * time.Millisecond)
 			return nil
 		}
-		log.Printf("BeginFrame: %v", err)
+		// Outdated: must reconfigure to live size (cannot present old surface).
+		if liveW >= minPresentSize && liveH >= minPresentSize {
+			_ = sc.Resize(uint32(liveW), uint32(liveH))
+			_ = dc.Resize(liveW, liveH)
+			if comp != nil {
+				comp.Resize(liveW, liveH, 1)
+			}
+			if rt != nil {
+				// Allow immediate quiet reconfigure next frame.
+				rt.mu.Lock()
+				rt.lastCfgAt = time.Time{}
+				rt.mu.Unlock()
+			}
+		}
+		if s.Tree != nil {
+			s.Tree.MarkFullPaintRequired()
+		}
+		log.Printf("BeginFrame: %v (will retry)", err)
 		return nil
 	}
-
 	if err := dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, func() error {
 		return sc.EndFrame(frame)
 	}); err != nil {
@@ -209,6 +352,9 @@ func presentCompositor(
 			return nil
 		}
 		log.Printf("PresentFrameFull: %v", err)
+		if s.Tree != nil {
+			s.Tree.MarkFullPaintRequired()
+		}
 		return nil
 	}
 	if cfg.Flush != nil {
@@ -217,7 +363,6 @@ func presentCompositor(
 	return nil
 }
 
-// presentDirect: clear + full vector paint into the surface (G2.a).
 func presentDirect(
 	cfg UIDemandConfig,
 	s *app.Session,
@@ -227,14 +372,17 @@ func presentDirect(
 	w, h int,
 	scale float64,
 ) error {
-	if w < 1 {
-		w = s.Width
+	if w < minPresentSize {
+		w = minPresentSize
 	}
-	if h < 1 {
-		h = s.Height
+	if h < minPresentSize {
+		h = minPresentSize
 	}
+	if dc.Width() != w || dc.Height() != h {
+		_ = dc.Resize(w, h)
+	}
+
 	dc.BeginFrame()
-	// GPU-visible background (ClearWithColor is CPU pixmap only).
 	dc.SetRGBA(cfg.Clear.R, cfg.Clear.G, cfg.Clear.B, cfg.Clear.A)
 	if cfg.Clear.A <= 0 {
 		dc.SetRGBA(0.1, 0.1, 0.1, 1)
@@ -264,6 +412,9 @@ func presentDirect(
 			return nil
 		}
 		log.Printf("BeginFrame: %v", err)
+		if s.Tree != nil {
+			s.Tree.MarkFullPaintRequired()
+		}
 		return nil
 	}
 	if err := dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, func() error {
@@ -278,6 +429,9 @@ func presentDirect(
 			return nil
 		}
 		log.Printf("PresentFrameFull: %v", err)
+		if s.Tree != nil {
+			s.Tree.MarkFullPaintRequired()
+		}
 		return nil
 	}
 	if cfg.Flush != nil {
