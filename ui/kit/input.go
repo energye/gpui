@@ -31,6 +31,7 @@ type Input struct {
 	MaxLength   int
 	Face        text.Face
 	Theme       *core.Theme
+	Style       Style
 	OnChange    func(string)
 	OnSubmit    func(string)
 	focused     bool
@@ -97,9 +98,41 @@ func (in *Input) SetOnChange(fn func(string)) {
 // SetFace sets the font face.
 func (in *Input) SetFace(face text.Face) {
 	in.Face = face
+	in.Style.Face = face
 	if in.editor != nil {
 		in.editor.Face = face
 	}
+}
+
+// SetStyle applies visual overrides.
+func (in *Input) SetStyle(st Style) {
+	in.Style = st
+	if st.Face != nil {
+		in.SetFace(st.Face)
+	}
+	if st.FontSize > 0 || st.Height > 0 || st.Width > 0 {
+		in.rebuild()
+		return
+	}
+	in.applyChrome()
+}
+
+// SetBackground overrides fill.
+func (in *Input) SetBackground(c render.RGBA) {
+	in.Style.Background = c
+	in.applyChrome()
+}
+
+// SetTextColor overrides editor text color.
+func (in *Input) SetTextColor(c render.RGBA) {
+	in.Style.Text = c
+	in.applyChrome()
+}
+
+// SetFontSize overrides editor font size.
+func (in *Input) SetFontSize(px float64) {
+	in.Style.FontSize = px
+	in.rebuild()
 }
 
 // SetFixedSize forces outer chrome size (visual scenarios / forms).
@@ -136,6 +169,12 @@ func (in *Input) rebuild() {
 	radius := th.SizeOr(core.TokenBorderRadius, 6)
 	lineW := th.SizeOr(core.TokenLineWidth, 1)
 	fontSize := th.SizeOr(core.TokenFontSize, 14)
+	if in.Style.FontSize > 0 {
+		fontSize = in.Style.FontSize
+	}
+	if in.Style.Height > 0 {
+		h = in.Style.Height
+	}
 
 	in.editor = primitive.NewEditableText()
 	in.editor.Placeholder = in.Placeholder
@@ -191,7 +230,19 @@ func (in *Input) applyChrome() {
 	}
 	th := in.theme()
 	in.Root.Background = th.Color(core.TokenColorBgContainer)
+	if in.Style.hasBG() {
+		in.Root.Background = in.Style.Background
+	}
 	in.Root.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
+	if in.Style.hasBorder() {
+		in.Root.BorderColor = in.Style.Border
+	}
+	if in.Style.hasRadius() {
+		in.Root.Radius = in.Style.Radius
+	}
+	if in.editor != nil && in.Style.hasText() {
+		in.editor.Color = in.Style.Text
+	}
 	switch {
 	case in.Disabled:
 		in.Root.Background = th.Color(core.TokenColorDisabledBg)

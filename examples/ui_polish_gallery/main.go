@@ -39,7 +39,7 @@ import (
 
 func main() {
 	exboot.InitEnv()
-	winW, winH := 720, 560
+	winW, winH := 1024, 768
 	// Default unlimited; set GPUI_ANIM_SECONDS>0 for timed CI smoke.
 	seconds := 0.0
 	if v := os.Getenv("GPUI_ANIM_SECONDS"); v != "" {
@@ -50,7 +50,7 @@ func main() {
 	}
 
 	host, err := platform.NewLinuxHost(platform.LinuxOptions{
-		Width: winW, Height: winH, Title: "gpui ui_polish_gallery (W3+W4)",
+		Width: winW, Height: winH, Title: "gpui ui_polish_gallery · 1024×768",
 		// Scale left 0 → LinuxHost reads GPUI_SCALE / GDK_SCALE (default 1).
 	})
 	if err != nil {
@@ -118,19 +118,16 @@ func main() {
 	status := "ready — Tab for focus · click controls"
 
 	// --- Section headers ---
-	title := kit.NewText("Polish gallery · W3/W4 (Button / Input / Indicators / Modal / IME caps)")
+
+	title := kit.NewText("Polish gallery · Ant-style kit (tabs by control type)")
 	title.SetFace(face)
 	title.Root.FontSize = 16
 
-	hint := kit.NewText("§12.2 #1–4 visual · #5 CapIME degraded on LinuxHost · #6 Open Modal")
+	hint := kit.NewText("Tabs switch panels · hover/press · Switch slide · Style API · Modal")
 	hint.SetFace(face)
 	hint.SetSecondary(true)
 
-	// --- Buttons multi-type ---
-	secBtn := kit.NewText("Button · primary / default / dashed / text / link / disabled")
-	secBtn.SetFace(face)
-	secBtn.SetSecondary(true)
-
+	// --- Buttons panel ---
 	mkBtn := func(label string, typ kit.ButtonType, disabled bool) *kit.Button {
 		b := kit.NewButton(label)
 		b.SetType(typ)
@@ -155,23 +152,77 @@ func main() {
 		btnRow.AddChild(b.Node())
 	}
 
-	// --- Input ---
-	secIn := kit.NewText("Input · idle / type / focus border (Tab or click)")
-	secIn.SetFace(face)
-	secIn.SetSecondary(true)
+	styGreen := kit.NewButton("Green 36")
+	styGreen.SetFace(face)
+	styGreen.SetStyle(kit.Style{
+		Background: render.Hex("#52C41A"),
+		Text:       render.Hex("#FFFFFF"),
+		Height:     36,
+		Radius:     8,
+		FontSize:   14,
+	})
+	styGreen.SetOnClick(func() { status = "style green" })
+	styOrange := kit.NewButton("Orange 8pt")
+	styOrange.SetFace(face)
+	styOrange.SetType(kit.ButtonDefault)
+	styOrange.SetStyle(kit.Style{
+		Background: render.Hex("#FFF7E6"),
+		Border:     render.Hex("#FA8C16"),
+		Text:       render.Hex("#D46B08"),
+		Height:     28,
+		Radius:     4,
+		FontSize:   8,
+	})
+	styOrange.SetOnClick(func() { status = "style orange" })
+	styBig := kit.NewButton("Tall 44")
+	styBig.SetFace(face)
+	styBig.SetType(kit.ButtonPrimary)
+	styBig.SetStyle(kit.Style{Height: 44, FontSize: 16, Radius: 10, Width: 140})
+	styBig.SetOnClick(func() { status = "style tall" })
+	styleRow := primitive.Row(styGreen.Node(), styOrange.Node(), styBig.Node())
+	styleRow.Gap = 10
+	styleRow.CrossAlign = core.CrossCenter
+	buttons = append(buttons, styGreen, styOrange, styBig)
+
+	labTypes := kit.NewText("Types · primary / default / dashed / text / link / disabled")
+	labTypes.SetFace(face)
+	labTypes.SetSecondary(true)
+	labStyle := kit.NewText("Style API · custom bg / text / height / font size")
+	labStyle.SetFace(face)
+	labStyle.SetSecondary(true)
+	panelButtons := primitive.Column(labTypes.Node(), btnRow, labStyle.Node(), styleRow)
+	panelButtons.Gap = 12
+	panelButtons.CrossAlign = core.CrossStart
+	panelButtons.Padding = primitive.All(12)
+
+	// --- Input panel ---
+	labIn := kit.NewText("Input · idle / type / focus border")
+	labIn.SetFace(face)
+	labIn.SetSecondary(true)
 	name := kit.NewInput("Placeholder — type here")
 	name.SetFace(face)
 	name.SetOnChange(func(v string) { status = "input=" + v })
+	name2 := kit.NewInput("Custom style")
+	name2.SetFace(face)
+	name2.SetStyle(kit.Style{
+		Background: render.Hex("#F6FFED"),
+		Border:     render.Hex("#52C41A"),
+		Text:       render.Hex("#135200"),
+		Height:     36,
+		FontSize:   14,
+	})
+	panelInput := primitive.Column(labIn.Node(), name.Node(), name2.Node())
+	panelInput.Gap = 12
+	panelInput.CrossAlign = core.CrossStart
+	panelInput.Padding = primitive.All(12)
 
-	// --- Checkbox / Radio ---
-	secInd := kit.NewText("Checkbox / Radio / Switch")
-	secInd.SetFace(face)
-	secInd.SetSecondary(true)
-
+	// --- Indicators panel ---
+	labInd := kit.NewText("Checkbox / Radio (hollow selected) / Switch (press stretch + slide)")
+	labInd.SetFace(face)
+	labInd.SetSecondary(true)
 	cb := kit.NewCheckbox("I agree")
 	cb.SetFace(face)
 	cb.SetOnChange(func(v bool) { status = fmt.Sprintf("checkbox=%v", v) })
-
 	ra := kit.NewRadio("a", "Option A")
 	rb := kit.NewRadio("b", "Option B")
 	ra.SetFace(face)
@@ -179,7 +230,6 @@ func main() {
 	rg := kit.NewRadioGroup(ra, rb)
 	rg.OnChange = func(v string) { status = "radio=" + v }
 	rg.Select("a")
-
 	sw := kit.NewSwitch()
 	sw.OnChange = func(v bool) { status = fmt.Sprintf("switch=%v", v) }
 	swLab := kit.NewText("Notifications")
@@ -187,12 +237,54 @@ func main() {
 	swRow := primitive.Row(sw.Node(), swLab.Node())
 	swRow.Gap = 10
 	swRow.CrossAlign = core.CrossCenter
+	panelInd := primitive.Column(labInd.Node(), cb.Node(), rg.Node(), swRow)
+	panelInd.Gap = 12
+	panelInd.CrossAlign = core.CrossStart
+	panelInd.Padding = primitive.All(12)
 
-	// --- Modal ---
-	secModal := kit.NewText("Modal · Open then Esc / mask / buttons")
-	secModal.SetFace(face)
-	secModal.SetSecondary(true)
+	// --- Feedback panel ---
+	labFb := kit.NewText("Progress / Spin / Skeleton")
+	labFb.SetFace(face)
+	labFb.SetSecondary(true)
+	prog := kit.NewProgress(65)
+	prog.Width = 320
+	spin := kit.NewSpin(nil)
+	sk := kit.NewSkeleton(240, 16)
+	sk.SetActive(false)
+	panelFb := primitive.Column(labFb.Node(), prog.Node(), spin.Node(), sk.Node())
+	panelFb.Gap = 12
+	panelFb.CrossAlign = core.CrossStart
+	panelFb.Padding = primitive.All(12)
 
+	// --- Select / Menu panel ---
+	labSel := kit.NewText("Select / Menu")
+	labSel.SetFace(face)
+	labSel.SetSecondary(true)
+	sel := kit.NewSelect("Please select",
+		kit.SelectOption{Value: "1", Label: "One"},
+		kit.SelectOption{Value: "2", Label: "Two"},
+	)
+	if face != nil {
+		sel.SetFace(face)
+	}
+	menu := kit.NewMenu(
+		kit.MenuItem{Key: "a", Label: "Item A"},
+		kit.MenuItem{Key: "b", Label: "Item B"},
+		kit.MenuItem{Key: "c", Label: "Item C"},
+	)
+	if face != nil {
+		menu.Face = face
+	}
+	menu.SetSelected("b")
+	panelSel := primitive.Column(labSel.Node(), sel.Node(), menu.Node())
+	panelSel.Gap = 12
+	panelSel.CrossAlign = core.CrossStart
+	panelSel.Padding = primitive.All(12)
+
+	// --- Modal panel ---
+	labModal := kit.NewText("Modal · Open then Esc / mask / buttons")
+	labModal.SetFace(face)
+	labModal.SetSecondary(true)
 	modalBody := kit.NewText("Minimal modal body for polish walkthrough.")
 	modalBody.SetFace(face)
 	modal := kit.NewModal("Confirm")
@@ -214,30 +306,46 @@ func main() {
 		modal.SetOpen(true)
 		status = "modal open"
 	})
+	buttons = append(buttons, openModal)
+	panelModal := primitive.Column(labModal.Node(), openModal.Node(), modal.Node())
+	panelModal.Gap = 12
+	panelModal.CrossAlign = core.CrossStart
+	panelModal.Padding = primitive.All(12)
+
+	// --- Tabs ---
+	tabs := kit.NewTabs(
+		kit.MenuItem{Key: "btn", Label: "Button"},
+		kit.MenuItem{Key: "input", Label: "Input"},
+		kit.MenuItem{Key: "ind", Label: "Checkbox/Radio/Switch"},
+		kit.MenuItem{Key: "fb", Label: "Feedback"},
+		kit.MenuItem{Key: "sel", Label: "Select/Menu"},
+		kit.MenuItem{Key: "modal", Label: "Modal"},
+	)
+	tabs.Face = face
+	tabs.SetPosition(kit.TabLeft)
+	// Configurable left-tabs metrics (0 → kit defaults: width 160, item height 40).
+	tabs.TabWidth = 160
+	tabs.TabItemHeight = 40
+	tabs.TabInkWidth = 3
+	tabs.TabPadInline = 16
+	tabs.TabPadBlock = 10
+	tabs.SetContent("btn", panelButtons)
+	tabs.SetContent("input", panelInput)
+	tabs.SetContent("ind", panelInd)
+	tabs.SetContent("fb", panelFb)
+	tabs.SetContent("sel", panelSel)
+	tabs.SetContent("modal", panelModal)
+	tabs.SetActive("btn")
 
 	statusTx := kit.NewText("status: " + status)
 	statusTx.SetFace(face)
 	statusTx.SetSecondary(true)
 
-	col := primitive.Column(
-		title.Node(),
-		hint.Node(),
-		secBtn.Node(),
-		btnRow,
-		secIn.Node(),
-		name.Node(),
-		secInd.Node(),
-		cb.Node(),
-		rg.Node(),
-		swRow,
-		secModal.Node(),
-		openModal.Node(),
-		statusTx.Node(),
-		modal.Node(), // zero-size portal host
-	)
+	tabsHost := primitive.NewFlexible(1, tabs.Node())
+	col := primitive.Column(title.Node(), hint.Node(), tabsHost, statusTx.Node())
 	col.Gap = 12
-	col.CrossAlign = core.CrossStart
-	col.Padding = primitive.All(20)
+	col.CrossAlign = core.CrossStretch
+	col.Padding = primitive.All(16)
 
 	root := primitive.NewBox(col)
 	root.Color = theme.Color(core.TokenColorBgLayout)

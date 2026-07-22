@@ -39,6 +39,8 @@ type Button struct {
 	OnClick  func()
 	Face     text.Face
 	Theme    *core.Theme
+	// Style optional one-off overrides (background/font/size). See kit.Style.
+	Style Style
 
 	bgNormal, bgHover, bgPressed render.RGBA
 	bdNormal, bdHover            render.RGBA
@@ -177,9 +179,49 @@ func (b *Button) SetOnClick(fn func()) {
 // SetFace sets the label font face.
 func (b *Button) SetFace(face text.Face) {
 	b.Face = face
+	b.Style.Face = face
 	if b.label != nil {
 		b.label.Face = face
 	}
+}
+
+// SetStyle applies visual overrides (bg/text/font/size) and refreshes chrome.
+func (b *Button) SetStyle(st Style) {
+	b.Style = st
+	if st.Face != nil {
+		b.Face = st.Face
+	}
+	if st.FontSize > 0 || st.Height > 0 || st.hasRadius() {
+		b.rebuild()
+		return
+	}
+	if b.label != nil {
+		if st.Face != nil {
+			b.label.Face = st.Face
+		}
+		if st.FontSize > 0 {
+			b.label.FontSize = st.FontSize
+		}
+	}
+	b.applyChrome()
+}
+
+// SetBackground overrides idle fill color.
+func (b *Button) SetBackground(c render.RGBA) {
+	b.Style.Background = c
+	b.applyChrome()
+}
+
+// SetTextColor overrides label color.
+func (b *Button) SetTextColor(c render.RGBA) {
+	b.Style.Text = c
+	b.applyChrome()
+}
+
+// SetFontSize overrides label size (rebuilds metrics-sensitive layout).
+func (b *Button) SetFontSize(px float64) {
+	b.Style.FontSize = px
+	b.rebuild()
 }
 
 // SetFixedSize forces outer chrome to a fixed size (0 clears width/height force).
@@ -331,8 +373,6 @@ func (b *Button) metrics(th *core.Theme) (padH, padV, height, fontSize, radius, 
 	fontSize = th.SizeOr(core.TokenFontSize, 14)
 	radius = th.SizeOr(core.TokenBorderRadius, 6)
 	gap = th.SizeOr(core.TokenMarginXS, 4) + 4 // Ant icon gap ~8
-	// Vertical padding is absorbed by fixed Height + content centering;
-	// keep small pad so text doesn't touch border if measure is tall.
 	padV = 0
 	switch b.Size {
 	case ButtonSmall:
@@ -349,6 +389,16 @@ func (b *Button) metrics(th *core.Theme) (padH, padV, height, fontSize, radius, 
 	default:
 		height = th.SizeOr(core.TokenControlHeight, 32)
 		padH = th.SizeOr(core.TokenButtonPaddingInline, 15)
+	}
+	// Style overrides
+	if b.Style.FontSize > 0 {
+		fontSize = b.Style.FontSize
+	}
+	if b.Style.Height > 0 {
+		height = b.Style.Height
+	}
+	if b.Style.hasRadius() {
+		radius = b.Style.Radius
 	}
 	return
 }
@@ -474,6 +524,33 @@ func (b *Button) applyChrome() {
 		// non-primary: keep type chrome from switch above
 	}
 
+	// Style overrides (one-off colors)
+	if b.Style.hasBG() {
+		bgN = b.Style.Background
+		if !b.Style.hasBGHover() {
+			bgH = bgN
+		}
+		if !b.Style.hasBGActive() {
+			bgP = bgN
+		}
+	}
+	if b.Style.hasBGHover() {
+		bgH = b.Style.BackgroundHover
+	}
+	if b.Style.hasBGActive() {
+		bgP = b.Style.BackgroundActive
+	}
+	if b.Style.hasBorder() {
+		bd, bdH = b.Style.Border, b.Style.Border
+	}
+	if b.Style.hasText() {
+		fg = b.Style.Text
+	}
+	if b.Style.Width > 0 && b.decorated != nil {
+		b.decorated.MinWidth = b.Style.Width
+		b.decorated.Width = b.Style.Width
+	}
+
 	b.bgNormal, b.bgHover, b.bgPressed = bgN, bgH, bgP
 	b.bdNormal, b.bdHover, b.borderW = bd, bdH, bw
 
@@ -495,9 +572,10 @@ func (b *Button) applyStateChrome() {
 	if b.decorated == nil {
 		return
 	}
-	h, p := false, false
+	h, p, f := false, false, false
 	if b.Root != nil {
 		h, p = b.Root.State.Hovered, b.Root.State.Pressed
+		f = b.Root.State.Focused
 	}
 	bg := b.bgNormal
 	bd := b.bdNormal
@@ -511,6 +589,11 @@ func (b *Button) applyStateChrome() {
 	case h:
 		bg = b.bgHover
 		bd = b.bdHover
+	}
+	dash := b.decorated.BorderDash
+	if f && !b.Disabled && !b.Loading && b.Type != ButtonDashed {
+		th := b.theme()
+		bd = th.Color(core.TokenColorPrimary)
 	}
 	// Link type: text color shifts on hover (lighter primary).
 	if b.Type == ButtonLink && !b.Disabled && !b.Loading && b.label != nil {
@@ -532,6 +615,18 @@ func (b *Button) applyStateChrome() {
 	b.decorated.Background = bg
 	b.decorated.BorderColor = bd
 	b.decorated.BorderWidth = b.borderW
+	// Dashed stays dashed in all states including focus (user: dashed focus = dashed).
+	if b.Type == ButtonDashed && !b.Disabled && !b.Loading {
+		b.decorated.BorderDash = []float64{3, 2}
+		if f || h || p {
+			// Focus/hover: still dashed but primary-colored.
+			th := b.theme()
+			b.decorated.BorderColor = th.Color(core.TokenColorPrimary)
+		}
+	} else {
+		b.decorated.BorderDash = nil
+	}
+	_ = dash
 	b.decorated.MarkNeedsPaint()
 }
 

@@ -1,8 +1,6 @@
 package primitive
 
 import (
-	"math"
-
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 )
@@ -48,10 +46,10 @@ type Pressable struct {
 	// FocusRingOutset distance outside the box (0 → 1.5 Ant-tight).
 	FocusRingOutset float64
 
-	// EnableRipple paints a soft gray wave on press (default true).
+	// EnableRipple: same-shape gray wave on confirmed click (release inside), not on press-down.
 	// Set false to disable for a control (or globally via DefaultPressableRipple).
 	EnableRipple bool
-	// RippleExtra is how far the wave extends past the control edge (default 5).
+	// RippleExtra is how far the wave extends past the control edge (default 8).
 	RippleExtra float64
 	// RippleColor defaults to rgba(0,0,0,0.12).
 	RippleColor render.RGBA
@@ -75,12 +73,13 @@ func NewPressable(child core.Node) *Pressable {
 		Focusable:      true,
 		ShowFocusRing:  true,
 		EnableRipple:   DefaultPressableRipple,
-		RippleExtra:    5,
+		RippleExtra:    8, // ~8px past control outer edge
 		RippleDuration: 0.4,
 		RippleColor:    render.RGBA{R: 0, G: 0, B: 0, A: 0.12},
 	}
 	p.Init(p)
 	p.Hit = core.HitTarget
+	p.Cursor = core.CursorPointer // clickable hand by default
 	if child != nil {
 		p.AddChild(child)
 	}
@@ -151,7 +150,8 @@ func (p *Pressable) Paint(pc *core.PaintContext) {
 }
 
 func (p *Pressable) paintRipple(pc *core.PaintContext, sz core.Size) {
-	// phase 0→1: radius grows, alpha fades
+	// phase 0→1: same-shape outline expands past control outer edge, alpha fades.
+	// Starts at control bounds (w×h + radius), grows by RippleExtra (~3–4px).
 	t := p.ripplePhase
 	if t < 0 {
 		t = 0
@@ -159,33 +159,38 @@ func (p *Pressable) paintRipple(pc *core.PaintContext, sz core.Size) {
 	if t > 1 {
 		t = 1
 	}
-	// Ease-out growth.
-	ease := 1 - (1-t)*(1-t)
+	ease := 1 - (1-t)*(1-t) // ease-out
 	extra := p.RippleExtra
 	if extra <= 0 {
-		extra = 5
+		extra = 8
 	}
-	// Max radius: half-diagonal + extra (~5px past edge as requested).
-	maxR := math.Hypot(sz.Width/2, sz.Height/2) + extra
-	r := maxR * ease
-	if r < 0.5 {
-		return
+	outset := extra * ease
+	if outset < 0.25 && t < 0.05 {
+		outset = 0.25 // visible first frame
 	}
 	col := p.RippleColor
 	if col.A <= 0 {
-		col = render.RGBA{R: 0, G: 0, B: 0, A: 0.12}
+		col = render.RGBA{R: 0, G: 0, B: 0, A: 0.14}
 	}
-	// Fade out as wave expands.
 	col.A = col.A * (1 - t)
 	if col.A < 0.01 {
 		return
 	}
-	cx, cy := p.rippleCX, p.rippleCY
-	if cx == 0 && cy == 0 {
-		cx, cy = sz.Width/2, sz.Height/2
+	// Match control chrome shape (FocusRingRadius = corner radius of outer chrome).
+	radius := p.FocusRingRadius
+	if radius < 0 {
+		radius = 0
 	}
-	// Soft disk (fill circle uses AA).
-	pc.FillLocalCircle(cx, cy, r, col)
+	// Outer rounded rect grows from control size; stroke keeps a thin wave band.
+	band := 1.5
+	if band > outset+0.5 {
+		band = outset + 0.5
+	}
+	if band < 1 {
+		band = 1
+	}
+	ringR := radius + outset
+	pc.StrokeLocalRoundRect(-outset, -outset, sz.Width+2*outset, sz.Height+2*outset, ringR, band, col)
 }
 
 // HitTest implements core.Node.
@@ -208,7 +213,7 @@ func (p *Pressable) HandlePointer(ev *core.PointerEvent) {
 	case core.PointerDown:
 		if ev.Button == core.ButtonLeft || ev.Button == core.ButtonNone {
 			p.setPressed(true)
-			p.startRipple(ev)
+			// Ripple only on confirmed click (OnClick).
 			ev.Handled = true
 		}
 	case core.PointerUp, core.PointerCancel:
@@ -269,6 +274,8 @@ func (p *Pressable) OnClick(ev *core.PointerEvent) {
 	if p.State.Disabled {
 		return
 	}
+	// Ripple only when a real click fires (release still over control).
+	p.startRipple(ev)
 	if p.Click != nil {
 		p.Click()
 	}
@@ -337,6 +344,9 @@ func (p *Pressable) SetDisabled(d bool) {
 		p.State.Pressed = false
 		p.State.Hovered = false
 		p.rippleActive = false
+		p.Cursor = core.CursorNotAllowed
+	} else if p.Cursor == core.CursorNotAllowed || p.Cursor == core.CursorInherit {
+		p.Cursor = core.CursorPointer
 	}
 	p.MarkNeedsPaint()
 	p.fireStateChange()

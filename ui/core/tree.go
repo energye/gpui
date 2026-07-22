@@ -29,6 +29,11 @@ type Tree struct {
 
 	// onDirty optional wakeup when markDirty flips dirty→true or re-dirties.
 	onDirty func()
+
+	// onCursor optional host callback when hover cursor should change.
+	onCursor   func(CursorKind)
+	lastCursor CursorKind
+	hasCursor  bool
 }
 
 // NewTree creates a tree with the given root (may be nil).
@@ -247,6 +252,27 @@ func (t *Tree) HitTest(p Point) Node {
 	return t.root.HitTest(p)
 }
 
+// SetOnCursor registers a host callback for mouse cursor changes.
+func (t *Tree) SetOnCursor(fn func(CursorKind)) {
+	if t == nil {
+		return
+	}
+	t.onCursor = fn
+}
+
+func (t *Tree) applyCursor(n Node) {
+	if t == nil || t.onCursor == nil {
+		return
+	}
+	k := ResolveCursor(n)
+	if t.hasCursor && t.lastCursor == k {
+		return
+	}
+	t.lastCursor = k
+	t.hasCursor = true
+	t.onCursor(k)
+}
+
 // DispatchPointer routes a pointer event: capture → target → bubble.
 func (t *Tree) DispatchPointer(ev *PointerEvent) {
 	if t == nil || ev == nil {
@@ -276,6 +302,7 @@ func (t *Tree) DispatchPointer(ev *PointerEvent) {
 					h.SetHovered(true)
 				}
 			}
+			t.applyCursor(target)
 		}
 	}
 
@@ -298,19 +325,21 @@ func (t *Tree) DispatchPointer(ev *PointerEvent) {
 	}
 
 	// Click synthesis after handlers so Pressable can clear Pressed on Up.
+	// Ant/HTML: fire only if pointer-up is still over the same target (or a
+	// descendant). Release outside the control cancels the click.
+	// Note: do NOT treat capture==lastDown as success — capture is always the
+	// down target until cleared, which incorrectly fired click on outside-up.
 	if ev.Type == PointerUp || ev.Type == PointerCancel {
-		if ev.Type == PointerUp && t.capture != nil && t.lastDown != nil {
+		if ev.Type == PointerUp && t.lastDown != nil {
 			upHit := t.HitTest(p)
-			if upHit == t.lastDown || t.capture == t.lastDown {
+			if sameOrDescendant(upHit, t.lastDown) {
 				if ch, ok := t.lastDown.(ClickHandler); ok {
 					ch.OnClick(ev)
 				}
 			}
 		}
 		t.capture = nil
-		if ev.Type == PointerCancel {
-			t.lastDown = nil
-		}
+		t.lastDown = nil
 	}
 }
 
@@ -451,4 +480,14 @@ func clearPaintDirty(n Node) {
 	for _, c := range b.children {
 		clearPaintDirty(c)
 	}
+}
+
+// sameOrDescendant reports whether n is ancestor or n itself.
+func sameOrDescendant(n, ancestor Node) bool {
+	for x := n; x != nil; x = x.Parent() {
+		if x == ancestor {
+			return true
+		}
+	}
+	return false
 }

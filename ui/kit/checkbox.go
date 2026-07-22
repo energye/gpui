@@ -20,6 +20,7 @@ type Checkbox struct {
 	Face          text.Face
 	Theme         *core.Theme
 	OnChange      func(checked bool)
+	Style         Style
 
 	lastHovered bool
 }
@@ -78,9 +79,28 @@ func (c *Checkbox) SetOnChange(fn func(bool)) { c.OnChange = fn }
 // SetFace sets label font.
 func (c *Checkbox) SetFace(face text.Face) {
 	c.Face = face
+	c.Style.Face = face
 	if c.label != nil {
 		c.label.Face = face
 	}
+}
+
+// SetStyle applies visual overrides.
+func (c *Checkbox) SetStyle(st Style) {
+	c.Style = st
+	if st.Face != nil {
+		c.SetFace(st.Face)
+	}
+	if st.FontSize > 0 && c.label != nil {
+		c.label.FontSize = st.FontSize
+	}
+	c.applyChrome()
+}
+
+// SetTextColor overrides label color.
+func (c *Checkbox) SetTextColor(col render.RGBA) {
+	c.Style.Text = col
+	c.applyChrome()
 }
 
 // SyncState applies hover border chrome from Pressable.
@@ -163,6 +183,7 @@ func (c *Checkbox) rebuild() {
 	c.Root = primitive.NewPressable(row)
 	c.Root.Focusable = true
 	c.Root.ShowFocusRing = false // Ant: no mouse-focus outline on checkbox
+	c.Root.FocusRingRadius = th.SizeOr(core.TokenBorderRadiusSM, 4)
 	c.Root.OnStateChange = c.SyncState
 	c.Root.Click = func() {
 		if c.Disabled {
@@ -218,6 +239,9 @@ func (c *Checkbox) applyChrome() {
 	}
 	if c.label != nil {
 		c.label.Color = th.Color(core.TokenColorText)
+		if c.Style.hasText() {
+			c.label.Color = c.Style.Text
+		}
 	}
 	c.box.MarkNeedsPaint()
 }
@@ -235,6 +259,7 @@ type Radio struct {
 	Face     text.Face
 	Theme    *core.Theme
 	OnSelect func(value string)
+	Style    Style
 
 	lastHovered bool
 	indSize     float64
@@ -272,9 +297,28 @@ func (r *Radio) SetSelected(v bool) {
 // SetFace sets the label font.
 func (r *Radio) SetFace(face text.Face) {
 	r.Face = face
+	r.Style.Face = face
 	if r.label != nil {
 		r.label.Face = face
 	}
+}
+
+// SetStyle applies visual overrides.
+func (r *Radio) SetStyle(st Style) {
+	r.Style = st
+	if st.Face != nil {
+		r.SetFace(st.Face)
+	}
+	if st.FontSize > 0 && r.label != nil {
+		r.label.FontSize = st.FontSize
+	}
+	r.applyChrome()
+}
+
+// SetTextColor overrides label color.
+func (r *Radio) SetTextColor(c render.RGBA) {
+	r.Style.Text = c
+	r.applyChrome()
 }
 
 // SetDisabled toggles disabled chrome.
@@ -354,25 +398,16 @@ func (r *Radio) rebuild() {
 		} else if r.Root != nil && r.Root.State.Hovered {
 			bd = th.Color(core.TokenColorPrimary)
 		}
-		pc.StrokeLocalCircle(cx, cy, outerR, lineW, bd)
-
-		if !r.Selected {
-			return
+		// Unselected: thin hollow ring. Selected: thicker primary hollow ring (空心圆).
+		lw := lineW
+		if r.Selected {
+			lw = lineW + 1.5
+			if lw < 2 {
+				lw = 2
+			}
 		}
-		// Inner disc ≈ half outer diameter (Ant radio).
-		innerR := outerR * 0.5
-		if innerR < 3 {
-			innerR = 3
-		}
-		// Leave a clear gap from the ring (stroke already inside outerR).
-		if innerR > outerR-lineW-1.5 {
-			innerR = outerR - lineW - 1.5
-		}
-		col := th.Color(core.TokenColorPrimary)
-		if r.Disabled {
-			col = render.RGBA{R: col.R, G: col.G, B: col.B, A: 0.45}
-		}
-		pc.FillLocalCircle(cx, cy, innerR, col)
+		pc.StrokeLocalCircle(cx, cy, outerR, lw, bd)
+		// No solid fill — selected is hollow circle only.
 	})
 	ring.Width, ring.Height = size, size
 	r.dot.AddChild(ring)
@@ -385,7 +420,8 @@ func (r *Radio) rebuild() {
 	row.CrossAlign = core.CrossCenter
 	r.Root = primitive.NewPressable(row)
 	r.Root.Focusable = true
-	r.Root.ShowFocusRing = false // Ant: no mouse-focus outline on radio
+	r.Root.ShowFocusRing = false      // Ant: no mouse-focus outline on radio
+	r.Root.FocusRingRadius = size / 2 // circular indicator-led soft corner for row
 	r.Root.OnStateChange = r.SyncState
 	r.Root.Click = func() {
 		if r.Disabled {
@@ -410,6 +446,9 @@ func (r *Radio) applyChrome() {
 			r.label.Color = th.Color(core.TokenColorDisabledText)
 		} else {
 			r.label.Color = th.Color(core.TokenColorText)
+			if r.Style.hasText() {
+				r.label.Color = r.Style.Text
+			}
 		}
 	}
 	r.dot.MarkNeedsPaint()
@@ -460,11 +499,14 @@ type Switch struct {
 	Disabled bool
 	Theme    *core.Theme
 	OnChange func(checked bool)
+	// Style optional overrides (Background = off track, BackgroundActive = on track, etc.).
+	Style Style
 
 	trackW, trackH float64
 	thumbSize      float64
 	pad            float64
 	lastHovered    bool
+	lastPressed    bool
 
 	// thumbPos is animated 0 (off) → 1 (on); left padding derives from it.
 	thumbPos  primitive.FloatAnim
@@ -504,6 +546,24 @@ func (s *Switch) SetChecked(v bool) {
 	s.applyChrome()
 }
 
+// SetStyle applies visual overrides.
+func (s *Switch) SetStyle(st Style) {
+	s.Style = st
+	s.applyChrome()
+}
+
+// SetBackground sets off-track color (A>0).
+func (s *Switch) SetBackground(c render.RGBA) {
+	s.Style.Background = c
+	s.applyChrome()
+}
+
+// SetActiveColor sets on-track color (A>0).
+func (s *Switch) SetActiveColor(c render.RGBA) {
+	s.Style.BackgroundActive = c
+	s.applyChrome()
+}
+
 // SetDisabled toggles disabled.
 func (s *Switch) SetDisabled(d bool) {
 	s.Disabled = d
@@ -513,16 +573,17 @@ func (s *Switch) SetDisabled(d bool) {
 	s.applyChrome()
 }
 
-// SyncState applies hover chrome.
+// SyncState applies hover/press chrome (including Ant press thumb stretch).
 func (s *Switch) SyncState() {
 	if s.Root == nil {
 		return
 	}
-	h := s.Root.State.Hovered
-	if h == s.lastHovered {
+	h, p := s.Root.State.Hovered, s.Root.State.Pressed
+	if h == s.lastHovered && p == s.lastPressed {
 		return
 	}
-	s.lastHovered = h
+	s.lastHovered, s.lastPressed = h, p
+	s.applyThumbShape()
 	s.applyChrome()
 }
 
@@ -549,7 +610,7 @@ func (s *Switch) rebuild() {
 		s.thumbPos.Snap(0)
 	}
 	s.thumbPos.OnUpdate = func(v float64) {
-		s.applyThumbPad(v)
+		s.applyThumbShape()
 	}
 
 	s.thumb = primitive.NewDecorated()
@@ -569,7 +630,8 @@ func (s *Switch) rebuild() {
 
 	s.Root = primitive.NewPressable(s.track)
 	s.Root.Focusable = true
-	s.Root.ShowFocusRing = false // Ant: no focus ring on switch
+	s.Root.ShowFocusRing = false          // Ant: no focus ring on switch
+	s.Root.FocusRingRadius = s.trackH / 2 // pill: same-shape ripple (full round ends)
 	s.Root.OnStateChange = s.SyncState
 	s.Root.Click = func() {
 		if s.Disabled {
@@ -631,25 +693,70 @@ func (s *Switch) animateThumb() {
 	}
 }
 
+// thumbWidth returns handle width.
+// Ant: press elongates ~+1/5; recovery is blended into the slide (not a snap on release).
+func (s *Switch) thumbWidth() float64 {
+	base := s.thumbSize
+	if base <= 0 {
+		base = 18
+	}
+	const stretch = 1.2 // +1/5
+	// While finger down: fully stretched.
+	if s.Root != nil && s.Root.State.Pressed && !s.Disabled {
+		return base * stretch
+	}
+	// During slide: ease stretch → 1.0 with position animation progress (imperceptible recovery).
+	if s.thumbPos.Active() {
+		den := s.thumbPos.Target - s.thumbPos.From
+		prog := 1.0
+		if den != 0 {
+			prog = (s.thumbPos.Current - s.thumbPos.From) / den
+			if prog < 0 {
+				prog = -prog
+			}
+			if prog > 1 {
+				prog = 1
+			}
+		}
+		// progress 0 → width 1.2×; progress 1 → width 1.0×
+		return base * (stretch + (1-stretch)*prog)
+	}
+	return base
+}
+
+func (s *Switch) applyThumbShape() {
+	if s.thumb == nil {
+		return
+	}
+	w := s.thumbWidth()
+	s.thumb.Width = w
+	s.thumb.MinWidth = w
+	s.thumb.Height = s.thumbSize
+	s.thumb.MinHeight = s.thumbSize
+	// Stadium: radius = half height so ends stay round when stretched.
+	s.thumb.Radius = s.thumbSize / 2
+	s.thumb.MarkNeedsLayout()
+	s.applyThumbPad(s.thumbPos.Current)
+}
+
 func (s *Switch) applyThumbPad(t float64) {
 	if s.track == nil {
 		return
 	}
+	tw := s.thumbWidth()
 	leftOff := s.pad
-	leftOn := s.trackW - s.pad - s.thumbSize
+	leftOn := s.trackW - s.pad - tw
 	if leftOn < s.pad {
 		leftOn = s.pad
 	}
 	left := leftOff + (leftOn-leftOff)*t
 	s.track.Padding = primitive.EdgeInsets{Left: left, Top: s.pad, Right: s.pad, Bottom: s.pad}
-	// Padding change must re-layout (LayoutSkipIfClean would keep old thumb offset).
 	s.track.MarkNeedsLayout()
 	s.track.MarkNeedsPaint()
 	if s.Root != nil {
 		s.Root.MarkNeedsLayout()
 		s.Root.MarkNeedsPaint()
 	}
-	// Immediately re-layout track under last constraints so thumb moves this frame.
 	if s.track.Width > 0 && s.track.Height > 0 {
 		_ = s.track.Layout(core.Tight(s.track.Width, s.track.Height))
 	}
@@ -666,11 +773,20 @@ func (s *Switch) applyChrome() {
 		if hovered {
 			bg = th.Color(core.TokenColorPrimaryHover)
 		}
+		if s.Style.hasBGActive() {
+			bg = s.Style.BackgroundActive
+		}
 		s.track.Background = bg
 	} else {
 		bg := render.RGBA{R: 0, G: 0, B: 0, A: 0.25}
 		if hovered {
 			bg = render.RGBA{R: 0, G: 0, B: 0, A: 0.35}
+		}
+		if s.Style.hasBG() {
+			bg = s.Style.Background
+			if hovered && s.Style.hasBGHover() {
+				bg = s.Style.BackgroundHover
+			}
 		}
 		s.track.Background = bg
 	}
@@ -681,7 +797,7 @@ func (s *Switch) applyChrome() {
 	} else {
 		s.track.BorderWidth = 0
 	}
-	s.applyThumbPad(s.thumbPos.Current)
+	s.applyThumbShape()
 	if s.thumb != nil {
 		s.thumb.Background = render.RGBA{R: 1, G: 1, B: 1, A: 1}
 		s.thumb.MarkNeedsPaint()

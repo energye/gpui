@@ -225,3 +225,6 @@ var (
 	_ Host          = (*Headless)(nil)
 	_ IMEPositioner = (*Headless)(nil)
 )
+
+// SetCursor implements CursorHost (no-op on headless).
+func (h *Headless) SetCursor(kind CursorKind) {}

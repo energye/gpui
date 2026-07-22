@@ -65,13 +65,20 @@ type LinuxHost struct {
 
 	wmDelete uintptr
 
-	xPending       func(dpy uintptr) int
-	xNextEvent     func(dpy uintptr, ev *byte) int
-	xFlush         func(dpy uintptr) int
-	xDestroyWindow func(dpy uintptr, win uintptr) int
-	xCloseDisplay  func(dpy uintptr) int
-	xStoreName     func(dpy uintptr, win uintptr, name *byte) int
-	xLookupString  func(ev *byte, buf *byte, bytes int, keysym *uintptr, status *int) int
+	xPending          func(dpy uintptr) int
+	xNextEvent        func(dpy uintptr, ev *byte) int
+	xFlush            func(dpy uintptr) int
+	xDestroyWindow    func(dpy uintptr, win uintptr) int
+	xCloseDisplay     func(dpy uintptr) int
+	xStoreName        func(dpy uintptr, win uintptr, name *byte) int
+	xLookupString     func(ev *byte, buf *byte, bytes int, keysym *uintptr, status *int) int
+	xCreateFontCursor func(dpy uintptr, shape uint) uintptr
+	xDefineCursor     func(dpy, win, cursor uintptr) int
+	xFreeCursor       func(dpy, cursor uintptr) int
+
+	cursors       map[CursorKind]uintptr
+	lastCursor    CursorKind
+	hasLastCursor bool
 
 	queue  []Event
 	closed bool
@@ -125,23 +132,26 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	}
 
 	var (
-		xOpenDisplay    func(name *byte) uintptr
-		xCloseDisplay   func(dpy uintptr) int
-		xDefaultScreen  func(dpy uintptr) int
-		xRootWindow     func(dpy uintptr, screen int) uintptr
-		xCreateSimple   func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
-		xMapWindow      func(dpy uintptr, win uintptr) int
-		xFlush          func(dpy uintptr) int
-		xDestroyWindow  func(dpy uintptr, win uintptr) int
-		xStoreName      func(dpy uintptr, win uintptr, name *byte) int
-		xSelectInput    func(dpy uintptr, win uintptr, mask int64) int
-		xPending        func(dpy uintptr) int
-		xNextEvent      func(dpy uintptr, ev *byte) int
-		xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int) uintptr
-		xSetWMProtocols func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
-		xLookupString   func(ev *byte, buf *byte, bytes int, keysym *uintptr, status *int) int
-		xSetBgPixmap    func(dpy, win, pixmap uintptr) int
-		xChangeAttr     func(dpy, win uintptr, mask uint64, attrs unsafe.Pointer) int
+		xOpenDisplay      func(name *byte) uintptr
+		xCloseDisplay     func(dpy uintptr) int
+		xDefaultScreen    func(dpy uintptr) int
+		xRootWindow       func(dpy uintptr, screen int) uintptr
+		xCreateSimple     func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
+		xMapWindow        func(dpy uintptr, win uintptr) int
+		xFlush            func(dpy uintptr) int
+		xDestroyWindow    func(dpy uintptr, win uintptr) int
+		xStoreName        func(dpy uintptr, win uintptr, name *byte) int
+		xSelectInput      func(dpy uintptr, win uintptr, mask int64) int
+		xPending          func(dpy uintptr) int
+		xNextEvent        func(dpy uintptr, ev *byte) int
+		xInternAtom       func(dpy uintptr, name *byte, onlyIfExists int) uintptr
+		xSetWMProtocols   func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+		xLookupString     func(ev *byte, buf *byte, bytes int, keysym *uintptr, status *int) int
+		xSetBgPixmap      func(dpy, win, pixmap uintptr) int
+		xChangeAttr       func(dpy, win uintptr, mask uint64, attrs unsafe.Pointer) int
+		xCreateFontCursor func(dpy uintptr, shape uint) uintptr
+		xDefineCursor     func(dpy, win, cursor uintptr) int
+		xFreeCursor       func(dpy, cursor uintptr) int
 	)
 	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
 	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
@@ -158,6 +168,9 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	purego.RegisterLibFunc(&xInternAtom, lib, "XInternAtom")
 	purego.RegisterLibFunc(&xSetWMProtocols, lib, "XSetWMProtocols")
 	purego.RegisterLibFunc(&xLookupString, lib, "XLookupString")
+	purego.RegisterLibFunc(&xCreateFontCursor, lib, "XCreateFontCursor")
+	purego.RegisterLibFunc(&xDefineCursor, lib, "XDefineCursor")
+	purego.RegisterLibFunc(&xFreeCursor, lib, "XFreeCursor")
 	purego.RegisterLibFunc(&xSetBgPixmap, lib, "XSetWindowBackgroundPixmap")
 	purego.RegisterLibFunc(&xChangeAttr, lib, "XChangeWindowAttributes")
 
@@ -210,6 +223,8 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		xPending: xPending, xNextEvent: xNextEvent, xFlush: xFlush,
 		xDestroyWindow: xDestroyWindow, xCloseDisplay: xCloseDisplay,
 		xStoreName: xStoreName, xLookupString: xLookupString,
+		xCreateFontCursor: xCreateFontCursor, xDefineCursor: xDefineCursor, xFreeCursor: xFreeCursor,
+		cursors: make(map[CursorKind]uintptr),
 	}
 	return h, nil
 }
@@ -240,6 +255,54 @@ func (h *LinuxHost) Display() uintptr { return h.display }
 
 // Window implements NativeHandles.
 func (h *LinuxHost) Window() uintptr { return h.window }
+
+// SetCursor implements CursorHost (X11 font cursors).
+func (h *LinuxHost) SetCursor(kind CursorKind) {
+	if h == nil || h.closed || h.display == 0 || h.window == 0 {
+		return
+	}
+	if h.hasLastCursor && h.lastCursor == kind {
+		return
+	}
+	if h.xCreateFontCursor == nil || h.xDefineCursor == nil {
+		return
+	}
+	if h.cursors == nil {
+		h.cursors = make(map[CursorKind]uintptr)
+	}
+	cur, ok := h.cursors[kind]
+	if !ok || cur == 0 {
+		shape := uint(68) // XC_left_ptr
+		switch kind {
+		case CursorPointer:
+			shape = 60 // XC_hand2
+		case CursorText:
+			shape = 152 // XC_xterm
+		case CursorNotAllowed:
+			shape = 88 // XC_pirate (approx) / XC_X_cursor=0 better: 24 XC_circle
+			shape = 24 // XC_circle often used as forbidden
+		case CursorWait:
+			shape = 150 // XC_watch
+		case CursorMove:
+			shape = 52 // XC_fleur
+		case CursorCrosshair:
+			shape = 34 // XC_crosshair
+		default:
+			shape = 68
+		}
+		cur = h.xCreateFontCursor(h.display, shape)
+		if cur == 0 {
+			return
+		}
+		h.cursors[kind] = cur
+	}
+	h.xDefineCursor(h.display, h.window, cur)
+	if h.xFlush != nil {
+		h.xFlush(h.display)
+	}
+	h.lastCursor = kind
+	h.hasLastCursor = true
+}
 
 // Flush flushes the X connection.
 func (h *LinuxHost) Flush() {

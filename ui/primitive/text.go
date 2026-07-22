@@ -7,13 +7,16 @@ import (
 )
 
 // Text paints a single-line string (C-Measure baseline; ellipsis later).
+//
+// FontSize is authoritative when > 0: if Face was created at a different size
+// (e.g. Face(14) while FontSize=8), the face is re-derived via FontSource.
 type Text struct {
 	core.NodeBase
 
 	Value    string
 	Color    render.RGBA
 	FontSize float64 // points; 0 → 14
-	// Face is optional; when set, used for measure and draw.
+	// Face is optional; when set, used for measure and draw (re-sized to FontSize).
 	Face text.Face
 	// MaxWidth when > 0 constrains layout width (no wrap in M0; may clip).
 	MaxWidth float64
@@ -43,6 +46,25 @@ func (t *Text) SetValue(v string) {
 	t.MarkNeedsLayout()
 }
 
+// SetFontSize updates point size and dirties layout (re-derives Face when needed).
+func (t *Text) SetFontSize(px float64) {
+	if t.FontSize == px {
+		return
+	}
+	t.FontSize = px
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// effectiveFace returns Face sized to FontSize.
+func (t *Text) effectiveFace() text.Face {
+	size := t.FontSize
+	if size <= 0 {
+		size = 14
+	}
+	return faceAtSize(t.Face, size)
+}
+
 // Layout implements core.Node.
 func (t *Text) Layout(c core.Constraints) core.Size {
 	w, h := t.measure()
@@ -59,9 +81,10 @@ func (t *Text) measure() (w, h float64) {
 	if size <= 0 {
 		size = 14
 	}
-	if t.Face != nil {
-		w = t.Face.Advance(t.Value)
-		m := t.Face.Metrics()
+	face := t.effectiveFace()
+	if face != nil {
+		w = face.Advance(t.Value)
+		m := face.Metrics()
 		h = m.Ascent + m.Descent
 		if h <= 0 {
 			h = size * 1.2
@@ -80,8 +103,9 @@ func (t *Text) Paint(pc *core.PaintContext) {
 		return
 	}
 	dc := pc.DC
-	if t.Face != nil {
-		dc.SetFont(t.Face)
+	face := t.effectiveFace()
+	if face != nil {
+		dc.SetFont(face)
 	}
 	dc.SetRGBA(t.Color.R, t.Color.G, t.Color.B, t.Color.A)
 	// Baseline ≈ Origin.Y + ascent
@@ -89,8 +113,8 @@ func (t *Text) Paint(pc *core.PaintContext) {
 	if t.FontSize <= 0 {
 		ascent = 14
 	}
-	if t.Face != nil {
-		ascent = t.Face.Metrics().Ascent
+	if face != nil {
+		ascent = face.Metrics().Ascent
 	} else {
 		ascent = ascent * 0.8
 	}

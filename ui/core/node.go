@@ -71,6 +71,8 @@ type NodeBase struct {
 
 	// Hit controls hit participation; default HitDefer for containers.
 	Hit HitBehavior
+	// Cursor is the mouse cursor when this node is the hover hit (CursorInherit = walk parent).
+	Cursor CursorKind
 
 	// ClipHit when true restricts child hits to local bounds.
 	ClipHit bool
@@ -90,9 +92,24 @@ func (n *NodeBase) Init(self Node) {
 	n.self = self
 	n.needsLayout = true
 	n.needsPaint = true
+	n.Cursor = CursorInherit
 	if n.Hit == 0 && self != nil {
 		// zero value is HitTarget; containers should set HitDefer/HitBlock explicitly.
 	}
+}
+
+// SetCursor sets the mouse cursor when this node is the hover target.
+func (n *NodeBase) SetCursor(c CursorKind) { n.Cursor = c }
+
+// ResolveCursor walks from n to root and returns the first non-Inherit cursor.
+func ResolveCursor(n Node) CursorKind {
+	for x := n; x != nil; x = x.Parent() {
+		c := x.Base().Cursor
+		if c != CursorInherit {
+			return c
+		}
+	}
+	return CursorDefault
 }
 
 // Self returns the concrete node (or nil if Init was not called).

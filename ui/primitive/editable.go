@@ -61,6 +61,7 @@ func NewEditableText() *EditableText {
 	}
 	e.Init(e)
 	e.Hit = core.HitTarget
+	e.Base().Cursor = core.CursorText
 	return e
 }
 
@@ -138,7 +139,7 @@ func (e *EditableText) Paint(pc *core.PaintContext) {
 	}
 	dc := pc.DC
 	if e.Face != nil {
-		dc.SetFont(e.Face)
+		dc.SetFont(faceAtSize(e.Face, e.FontSize))
 	}
 	show := e.Value
 	col := e.Color
@@ -153,11 +154,27 @@ func (e *EditableText) Paint(pc *core.PaintContext) {
 	}
 	dc.SetRGBA(col.R, col.G, col.B, col.A)
 	ascent := fs * 0.8
+	descent := fs * 0.2
 	if e.Face != nil {
-		ascent = e.Face.Metrics().Ascent
+		m := faceAtSize(e.Face, fs).Metrics()
+		ascent = m.Ascent
+		if m.Descent > 0 {
+			descent = m.Descent
+		}
 	}
-	// Multi-line: draw line by line.
-	y := pc.Origin.Y + ascent
+	// Single-line: vertically center in allocated height (Input placeholder).
+	lineH := ascent + descent
+	if lineH <= 0 {
+		lineH = fs * 1.2
+	}
+	y0 := pc.Origin.Y + ascent
+	if !e.Multiline {
+		sz := e.Size()
+		if sz.Height > lineH {
+			y0 = pc.Origin.Y + (sz.Height-lineH)/2 + ascent
+		}
+	}
+	y := y0
 	for i, line := range strings.Split(show, "\n") {
 		if i > 0 {
 			y += fs * 1.3
@@ -449,11 +466,12 @@ func (e *EditableText) clampCursor() {
 }
 
 func measureTextWidth(face text.Face, s string, fontSize float64) float64 {
-	if face != nil {
-		return face.Advance(s)
-	}
 	if fontSize <= 0 {
 		fontSize = 14
+	}
+	if face != nil {
+		// Re-derive face at fontSize so FontSize is not ignored when Face is set.
+		return faceAtSize(face, fontSize).Advance(s)
 	}
 	return float64(utf8.RuneCountInString(s)) * fontSize * 0.5
 }

@@ -134,6 +134,13 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		log.Fatal("exboot.RunUIDemand: Host, Tree, SC, DC required")
 	}
 
+	// Mouse cursor: map core.CursorKind → platform.CursorHost when available.
+	if ch, ok := cfg.Host.(platform.CursorHost); ok {
+		cfg.Tree.SetOnCursor(func(k core.CursorKind) {
+			ch.SetCursor(platform.CursorKind(k))
+		})
+	}
+
 	var comp *layer.Compositor
 	if useCompositor() {
 		comp = layer.NewCompositor()
