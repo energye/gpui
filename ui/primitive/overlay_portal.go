@@ -94,6 +94,9 @@ func (p *OverlayPortal) syncHost() {
 		p.removeHost()
 		return
 	}
+	// Mount content onto the tree so hover/press MarkNeedsPaint schedules frames
+	// (content is not under root; without mount, chrome never repaints in overlays).
+	t.AttachSubtree(p.Content)
 	p.Content.Base().SetOffset(p.ContentOffset)
 	id := p.ID
 	if id == "" {
@@ -111,12 +114,18 @@ func (p *OverlayPortal) removeHost() {
 	if t == nil {
 		t = p.tree
 	}
-	if t == nil || t.Overlays() == nil || p.ID == "" {
+	if t == nil || t.Overlays() == nil {
 		p.pushed = false
 		return
 	}
 	if p.pushed {
-		t.Overlays().Remove(p.ID)
+		if p.ID != "" {
+			t.Overlays().Remove(p.ID)
+		}
+		// Detach so nodes do not keep a stale tree pointer after close.
+		if p.Content != nil {
+			t.DetachSubtree(p.Content)
+		}
 		p.pushed = false
 	}
 }

@@ -292,7 +292,7 @@ func main() {
 	modalBody := kit.NewText("Minimal modal body for polish walkthrough.")
 	modalBody.SetFace(face)
 	modal := kit.NewModal("Confirm")
-	modal.Face = face
+	modal.SetFace(face) // same face as Button tab; applies to footer OK/Cancel
 	modal.SetContent(modalBody.Node())
 	modal.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
 	modal.OnOk = func() {

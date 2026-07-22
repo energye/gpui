@@ -74,8 +74,29 @@ func (m *Modal) SetOpen(open bool) {
 	}
 }
 
-// Sync repositions the panel for the current viewport.
+// SetFace applies the product font to title and footer buttons (same as gallery Buttons).
+func (m *Modal) SetFace(face text.Face) {
+	m.Face = face
+	if m.title != nil {
+		m.title.Face = face
+	}
+	if m.okBtn != nil {
+		m.okBtn.SetFace(face)
+	}
+	if m.cancelBtn != nil {
+		m.cancelBtn.SetFace(face)
+	}
+}
+
+// Sync repositions the panel and refreshes footer button chrome (hover/press).
+// Call once per frame while open — same role as Button.SyncState in the host loop.
 func (m *Modal) Sync() {
+	if m.okBtn != nil {
+		m.okBtn.SyncState()
+	}
+	if m.cancelBtn != nil {
+		m.cancelBtn.SyncState()
+	}
 	if m.Open {
 		m.layoutPanel()
 	}
@@ -101,17 +122,21 @@ func (m *Modal) rebuild() {
 
 	m.bodySlot = primitive.NewSlot("body", m.content)
 
+	// Same Button kit as the Button tab — primary OK + default Cancel.
 	m.okBtn = NewButton("OK")
 	m.okBtn.SetType(ButtonPrimary)
-	m.okBtn.SetFace(m.Face)
+	m.cancelBtn = NewButton("Cancel")
+	m.cancelBtn.SetType(ButtonDefault)
+	if m.Face != nil {
+		m.okBtn.SetFace(m.Face)
+		m.cancelBtn.SetFace(m.Face)
+	}
 	m.okBtn.SetOnClick(func() {
 		if m.OnOk != nil {
 			m.OnOk()
 		}
 		m.SetOpen(false)
 	})
-	m.cancelBtn = NewButton("Cancel")
-	m.cancelBtn.SetFace(m.Face)
 	m.cancelBtn.SetOnClick(func() {
 		if m.OnCancel != nil {
 			m.OnCancel()

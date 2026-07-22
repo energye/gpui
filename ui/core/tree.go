@@ -64,6 +64,23 @@ func (t *Tree) Overlays() *OverlayHost {
 	return t.overlays
 }
 
+// AttachSubtree mounts n (and descendants) onto this tree so MarkNeedsPaint
+// dirties frames. Used for OverlayPortal content which is not in the root hierarchy.
+func (t *Tree) AttachSubtree(n Node) {
+	if t == nil || n == nil {
+		return
+	}
+	mountNode(n, t)
+}
+
+// DetachSubtree unmounts n (and descendants) from this tree.
+func (t *Tree) DetachSubtree(n Node) {
+	if t == nil || n == nil {
+		return
+	}
+	unmountNode(n)
+}
+
 // SetRoot replaces the root and remounts.
 func (t *Tree) SetRoot(root Node) {
 	if t.root != nil {
