@@ -2,6 +2,7 @@ package kit
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -25,6 +26,8 @@ type Table struct {
 	Columns    []TableColumn
 	Data       []map[string]string
 	RowHeight  float64
+	SortKey    string
+	SortAsc    bool
 	Face       text.Face
 	Theme      *core.Theme
 	Selection  *core.SelectionModel
@@ -52,10 +55,41 @@ func (t *Table) Node() core.Node {
 // SetData replaces rows and rebuilds the body.
 func (t *Table) SetData(data []map[string]string) {
 	t.Data = data
+	if t.SortKey != "" {
+		t.applySort()
+	}
 	if t.body != nil {
-		t.body.ItemCount = len(data)
+		t.body.ItemCount = len(t.Data)
 		t.body.MarkNeedsLayout()
 	}
+}
+
+// SetSort sorts rows by column key ascending or descending and rebuilds.
+func (t *Table) SetSort(key string, asc bool) {
+	t.SortKey = key
+	t.SortAsc = asc
+	t.applySort()
+	if t.body != nil {
+		t.body.ItemCount = len(t.Data)
+		t.body.MarkNeedsLayout()
+	} else {
+		t.rebuild()
+	}
+}
+
+func (t *Table) applySort() {
+	if t.SortKey == "" || len(t.Data) == 0 {
+		return
+	}
+	key := t.SortKey
+	asc := t.SortAsc
+	sort.SliceStable(t.Data, func(i, j int) bool {
+		a, b := t.Data[i][key], t.Data[j][key]
+		if asc {
+			return a < b
+		}
+		return a > b
+	})
 }
 
 func (t *Table) theme() *core.Theme {

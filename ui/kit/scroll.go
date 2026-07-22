@@ -47,6 +47,15 @@ func (s *Scroll) SetAxis(vertical, horizontal bool) {
 	s.Root.SetAxis(vertical, horizontal)
 }
 
+// SetShowScrollbar toggles scrollbar chrome.
+func (s *Scroll) SetShowScrollbar(v bool) {
+	if s == nil || s.Root == nil {
+		return
+	}
+	s.Root.ShowScrollbar = v
+	s.Root.MarkNeedsPaint()
+}
+
 // SetBarColors overrides track/thumb colors (A=0 keeps defaults).
 func (s *Scroll) SetBarColors(track, thumb render.RGBA) {
 	if s == nil || s.Root == nil {

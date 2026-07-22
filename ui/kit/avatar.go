@@ -14,13 +14,14 @@ type Avatar struct {
 	label *primitive.Text
 	Text  string
 	Size  float64
+	Shape string // "circle" | "square"
 	Face  text.Face
 	Theme *core.Theme
 }
 
 // NewAvatar creates an avatar with text (initials).
 func NewAvatar(text string) *Avatar {
-	a := &Avatar{Text: text, Size: 32}
+	a := &Avatar{Text: text, Size: 32, Shape: "circle"}
 	a.rebuild()
 	return a
 }
@@ -31,6 +32,21 @@ func (a *Avatar) Node() core.Node {
 		a.rebuild()
 	}
 	return a.Root
+}
+
+// SetText updates initials and rebuilds.
+func (a *Avatar) SetText(s string) {
+	a.Text = s
+	a.rebuild()
+}
+
+// SetSize sets pixel size and rebuilds.
+func (a *Avatar) SetSize(px float64) {
+	if px <= 0 {
+		px = 32
+	}
+	a.Size = px
+	a.rebuild()
 }
 
 // SetFace sets font.
@@ -60,7 +76,11 @@ func (a *Avatar) rebuild() {
 	a.Root = primitive.NewDecorated(a.label)
 	a.Root.Width, a.Root.Height = sz, sz
 	a.Root.MinWidth, a.Root.MinHeight = sz, sz
-	a.Root.Radius = sz / 2
+	if a.Shape == "square" {
+		a.Root.Radius = th.SizeOr(core.TokenBorderRadius, 6)
+	} else {
+		a.Root.Radius = sz / 2
+	}
 	a.Root.Background = th.Color(core.TokenColorPrimary)
 	if a.Root.Background.A < 0.5 {
 		a.Root.Background = render.Hex("#1677FF")

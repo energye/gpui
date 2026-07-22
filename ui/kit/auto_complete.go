@@ -53,6 +53,12 @@ func (a *AutoComplete) SetValue(v string) {
 	}
 }
 
+// SetOptions replaces suggestion options and rebuilds the list.
+func (a *AutoComplete) SetOptions(opts []string) {
+	a.Options = append([]string(nil), opts...)
+	a.rebuildList()
+}
+
 func (a *AutoComplete) rebuild() {
 	a.input.SetFace(a.Face)
 	a.input.SetOnChange(func(v string) {

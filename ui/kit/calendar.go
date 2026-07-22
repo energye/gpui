@@ -47,6 +47,37 @@ func (c *Calendar) SetFace(face text.Face) {
 	c.rebuild()
 }
 
+// SelectDay selects a day in the current month (1..daysInMonth).
+func (c *Calendar) SelectDay(day int) {
+	if day < 1 {
+		return
+	}
+	max := daysInMonth(c.Year, c.Month)
+	if day > max {
+		day = max
+	}
+	c.SelectedDay = day
+	if c.OnSelect != nil {
+		c.OnSelect(day)
+	}
+	c.rebuild()
+}
+
+// SetMonth sets year/month and rebuilds the grid.
+func (c *Calendar) SetMonth(year int, month time.Month) {
+	if year == 0 {
+		year = c.Year
+	}
+	if month < 1 {
+		month = 1
+	}
+	if month > 12 {
+		month = 12
+	}
+	c.Year, c.Month = year, month
+	c.rebuild()
+}
+
 func (c *Calendar) rebuild() {
 	th := DefaultTheme()
 	if c.Theme != nil {

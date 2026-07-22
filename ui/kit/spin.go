@@ -15,6 +15,8 @@ type Spin struct {
 	ring     *primitive.Canvas
 	content  core.Node
 	Spinning bool
+	// Tip shown under the spinner when non-empty.
+	Tip string
 	// angle for rotation simulation (0..1 wraps)
 	angle     float64
 	Size      float64
@@ -61,6 +63,12 @@ func (s *Spin) AttachTicker(t *core.Tree) {
 	}
 	s.boundTree = t
 	t.BindTicker(s, s.Spinning)
+}
+
+// SetTip sets the loading tip text under the ring.
+func (s *Spin) SetTip(tip string) {
+	s.Tip = tip
+	s.rebuild()
 }
 
 // SetSpinning enables/disables the spinner ticker.
@@ -145,12 +153,26 @@ func (s *Spin) rebuild() {
 	if s.content != nil {
 		kids = append(kids, s.content)
 	}
-	if s.ring != nil {
-		kids = append(kids, primitive.Positioned(core.AlignCenter, s.ring))
+	var spinUI core.Node = s.ring
+	if s.Tip != "" && s.ring != nil {
+		lab := primitive.NewText(s.Tip)
+		lab.FontSize = 12
+		lab.Color = th.Color(core.TokenColorTextSecondary)
+		col := primitive.Column(s.ring, lab)
+		col.Gap = 8
+		col.CrossAlign = core.CrossCenter
+		spinUI = col
+	}
+	if spinUI != nil {
+		kids = append(kids, primitive.Positioned(core.AlignCenter, spinUI))
 	}
 	s.Root = primitive.NewStack(kids...)
 	s.Root.Base().Role = "status"
-	s.Root.Base().Label = "Loading"
+	if s.Tip != "" {
+		s.Root.Base().Label = s.Tip
+	} else {
+		s.Root.Base().Label = "Loading"
+	}
 	s.Root.Base().Live = "polite"
 	// Phase B: keep spin dirty local under CompositeOnly present.
 	if s.Root != nil {

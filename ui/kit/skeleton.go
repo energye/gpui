@@ -11,8 +11,13 @@ import (
 // primitive.RepaintBoundary so paint dirty stays local.
 type Skeleton struct {
 	Root   *primitive.Decorated
+	host   *primitive.Flex
 	Width  float64
 	Height float64
+	// Rows number of placeholder bars (0/1 → single block).
+	Rows int
+	// Avatar shows a circle placeholder beside rows.
+	Avatar bool
 	// Active enables shimmer phase (advance via Tick / Ticker).
 	Active bool
 	phase  float64
@@ -58,6 +63,12 @@ func (s *Skeleton) AttachTicker(t *core.Tree) {
 	t.BindTicker(s, s.Active)
 }
 
+// SetRows sets placeholder bar count (rebuilds multi-row layout).
+func (s *Skeleton) SetRows(n int) {
+	s.Rows = n
+	s.rebuild()
+}
+
 // SetActive enables/disables shimmer and ticker membership.
 func (s *Skeleton) SetActive(v bool) {
 	s.Active = v
@@ -79,18 +90,51 @@ func (s *Skeleton) theme() *core.Theme {
 }
 
 func (s *Skeleton) rebuild() {
-	s.Root = primitive.NewDecorated()
-	s.Root.Width = s.Width
-	s.Root.Height = s.Height
-	if s.Root.Width <= 0 {
-		s.Root.Width = 120
+	w := s.Width
+	if w <= 0 {
+		w = 120
 	}
-	if s.Root.Height <= 0 {
-		s.Root.Height = 16
+	h := s.Height
+	if h <= 0 {
+		h = 16
 	}
-	s.Root.Radius = 4
+	rows := s.Rows
+	if rows < 1 {
+		rows = 1
+	}
+	if rows == 1 && !s.Avatar {
+		s.Root = primitive.NewDecorated()
+		s.Root.Width = w
+		s.Root.Height = h
+		s.Root.Radius = 4
+		s.Root.Base().Role = "presentation"
+		s.Root.SetRepaintBoundary(true)
+		s.host = nil
+		s.applyChrome()
+		return
+	}
+	col := primitive.Column()
+	col.Gap = 8
+	for i := 0; i < rows; i++ {
+		bar := primitive.NewDecorated()
+		bar.Width = w
+		bar.Height = h
+		bar.Radius = 4
+		col.AddChild(bar)
+	}
+	if s.Avatar {
+		av := primitive.NewDecorated()
+		av.Width, av.Height = 40, 40
+		av.Radius = 20
+		row := primitive.Row(av, col)
+		row.Gap = 12
+		row.CrossAlign = core.CrossStart
+		s.host = row
+	} else {
+		s.host = col
+	}
+	s.Root = primitive.NewDecorated(s.host)
 	s.Root.Base().Role = "presentation"
-	// Phase B: isolate paint dirty under CompositeOnly present.
 	s.Root.SetRepaintBoundary(true)
 	s.applyChrome()
 }
@@ -105,9 +149,26 @@ func (s *Skeleton) applyChrome() {
 	if a > 0.2 {
 		a = 0.2
 	}
-	s.Root.Background = render.RGBA{R: base.R, G: base.G, B: base.B, A: a}
-	if s.Root.Background.A < 0.04 {
-		s.Root.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.06 + 0.06*s.phase}
+	col := render.RGBA{R: base.R, G: base.G, B: base.B, A: a}
+	if col.A < 0.04 {
+		col = render.RGBA{R: 0, G: 0, B: 0, A: 0.06 + 0.06*s.phase}
+	}
+	s.Root.Background = col
+	if s.host != nil {
+		applySkeletonChrome(s.host, col)
 	}
 	s.Root.MarkNeedsPaint()
+}
+
+func applySkeletonChrome(n core.Node, col render.RGBA) {
+	if n == nil {
+		return
+	}
+	if d, ok := n.(*primitive.Decorated); ok {
+		d.Background = col
+		d.MarkNeedsPaint()
+	}
+	for _, c := range n.Base().Children() {
+		applySkeletonChrome(c, col)
+	}
 }

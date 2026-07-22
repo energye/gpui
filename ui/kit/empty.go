@@ -12,6 +12,7 @@ import (
 type Empty struct {
 	Root        *primitive.Flex
 	Description string
+	Image       core.Node
 	Face        text.Face
 	Theme       *core.Theme
 }
@@ -34,6 +35,18 @@ func (e *Empty) Node() core.Node {
 	return e.Root
 }
 
+// SetDescription updates the description text.
+func (e *Empty) SetDescription(s string) {
+	e.Description = s
+	e.rebuild()
+}
+
+// SetImage sets a custom illustration node.
+func (e *Empty) SetImage(n core.Node) {
+	e.Image = n
+	e.rebuild()
+}
+
 // SetFace sets font.
 func (e *Empty) SetFace(face text.Face) {
 	e.Face = face
@@ -45,12 +58,18 @@ func (e *Empty) rebuild() {
 	if e.Theme != nil {
 		th = e.Theme
 	}
-	icon := primitive.NewText("∅")
-	icon.FontSize = 32
-	icon.Face = e.Face
-	icon.Color = th.Color(core.TokenColorTextSecondary)
-	if icon.Color.A < 0.1 {
-		icon.Color = render.RGBA{R: 0, G: 0, B: 0, A: 0.25}
+	var icon core.Node
+	if e.Image != nil {
+		icon = e.Image
+	} else {
+		t := primitive.NewText("∅")
+		t.FontSize = 32
+		t.Face = e.Face
+		t.Color = th.Color(core.TokenColorTextSecondary)
+		if t.Color.A < 0.1 {
+			t.Color = render.RGBA{R: 0, G: 0, B: 0, A: 0.25}
+		}
+		icon = t
 	}
 	desc := primitive.NewText(e.Description)
 	desc.FontSize = 14

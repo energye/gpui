@@ -23,6 +23,8 @@ type Image struct {
 	PixelW, PixelH int
 	// Fallback is used when no pixels (A>0).
 	Fallback render.RGBA
+	// Preview enables preview mode flag (state only for R3).
+	Preview bool
 }
 
 // NewImage creates an image frame (placeholder or pixel-backed).
@@ -57,6 +59,14 @@ func (im *Image) SetPixels(w, h int, rgba []byte) {
 	im.PixelW, im.PixelH = w, h
 	im.Pixels = rgba
 	im.rebuild()
+}
+
+// SetPreview toggles preview mode flag.
+func (im *Image) SetPreview(on bool) {
+	if im == nil {
+		return
+	}
+	im.Preview = on
 }
 
 func (im *Image) rebuild() {

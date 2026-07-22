@@ -20,6 +20,7 @@ type Tree struct {
 	col      *primitive.Flex
 	Nodes    []*TreeNode
 	Selected string
+	Expanded map[string]bool // optional expand override by key
 	Face     text.Face
 	Theme    *core.Theme
 	OnSelect func(key string)
@@ -27,7 +28,7 @@ type Tree struct {
 
 // NewTree creates a tree.
 func NewTree(nodes ...*TreeNode) *Tree {
-	tr := &Tree{Nodes: nodes}
+	tr := &Tree{Nodes: nodes, Expanded: make(map[string]bool)}
 	tr.rebuild()
 	return tr
 }
@@ -40,6 +41,65 @@ func (tr *Tree) Node() core.Node {
 	return tr.Root
 }
 
+// SetSelected selects a node by key and rebuilds.
+func (tr *Tree) SetSelected(key string) {
+	tr.Selected = key
+	if tr.OnSelect != nil {
+		tr.OnSelect(key)
+	}
+	tr.rebuild()
+}
+
+// ToggleExpand toggles expanded state for a key.
+func (tr *Tree) ToggleExpand(key string) {
+	if tr.Expanded == nil {
+		tr.Expanded = make(map[string]bool)
+	}
+	// flip map and node.Expanded when found
+	if v, ok := tr.Expanded[key]; ok {
+		tr.Expanded[key] = !v
+	} else {
+		// seed from node if present
+		n := tr.findNode(tr.Nodes, key)
+		cur := false
+		if n != nil {
+			cur = n.Expanded
+		}
+		tr.Expanded[key] = !cur
+	}
+	if n := tr.findNode(tr.Nodes, key); n != nil {
+		n.Expanded = tr.Expanded[key]
+	}
+	tr.rebuild()
+}
+
+func (tr *Tree) findNode(nodes []*TreeNode, key string) *TreeNode {
+	for _, n := range nodes {
+		if n == nil {
+			continue
+		}
+		if n.Key == key {
+			return n
+		}
+		if c := tr.findNode(n.Children, key); c != nil {
+			return c
+		}
+	}
+	return nil
+}
+
+func (tr *Tree) isExpanded(n *TreeNode) bool {
+	if n == nil {
+		return false
+	}
+	if tr.Expanded != nil {
+		if v, ok := tr.Expanded[n.Key]; ok {
+			return v
+		}
+	}
+	return n.Expanded
+}
+
 func (tr *Tree) theme() *core.Theme {
 	if tr.Theme != nil {
 		return tr.Theme
@@ -49,6 +109,9 @@ func (tr *Tree) theme() *core.Theme {
 
 func (tr *Tree) rebuild() {
 	th := tr.theme()
+	if tr.Expanded == nil {
+		tr.Expanded = make(map[string]bool)
+	}
 	tr.col = primitive.Column()
 	tr.col.Gap = 2
 	tr.col.CrossAlign = core.CrossStart
@@ -69,10 +132,11 @@ func (tr *Tree) addNode(parent *primitive.Flex, n *TreeNode, depth int) {
 	}
 	th := tr.theme()
 	hasKids := len(n.Children) > 0
+	expanded := tr.isExpanded(n)
 	var chev core.Node
 	if hasKids {
 		name := "chevron-right"
-		if n.Expanded {
+		if expanded {
 			name = "chevron-down"
 		}
 		ic := primitive.NewIcon(name)
@@ -104,7 +168,12 @@ func (tr *Tree) addNode(parent *primitive.Flex, n *TreeNode, depth int) {
 	node := n
 	press.Click = func() {
 		if hasKids {
-			node.Expanded = !node.Expanded
+			if tr.Expanded == nil {
+				tr.Expanded = make(map[string]bool)
+			}
+			cur := tr.isExpanded(node)
+			tr.Expanded[node.Key] = !cur
+			node.Expanded = !cur
 		}
 		tr.Selected = node.Key
 		if tr.OnSelect != nil {
@@ -113,7 +182,7 @@ func (tr *Tree) addNode(parent *primitive.Flex, n *TreeNode, depth int) {
 		tr.rebuild()
 	}
 	parent.AddChild(press)
-	if hasKids && n.Expanded {
+	if hasKids && expanded {
 		for _, c := range n.Children {
 			tr.addNode(parent, c, depth+1)
 		}

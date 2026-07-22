@@ -18,6 +18,8 @@ type QRCode struct {
 	Face    text.Face
 	// Fg / Bg when A>0 override black/white modules.
 	Fg, Bg render.RGBA
+	// Status is "active" | "expired" | "loading" | "scanned" (display flag).
+	Status string
 }
 
 // NewQRCode creates a QR stand-in labeled with text.
@@ -50,6 +52,15 @@ func (q *QRCode) SetSize(px float64) {
 		return
 	}
 	q.Size = px
+	q.rebuild()
+}
+
+// SetStatus sets display status string and rebuilds.
+func (q *QRCode) SetStatus(s string) {
+	if q == nil {
+		return
+	}
+	q.Status = s
 	q.rebuild()
 }
 

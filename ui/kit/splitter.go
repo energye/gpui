@@ -23,3 +23,26 @@ func (s *Splitter) Node() core.Node {
 	}
 	return s.Root
 }
+
+// Ratio returns the split ratio (0..1).
+func (s *Splitter) Ratio() float64 {
+	if s == nil || s.Root == nil {
+		return 0.5
+	}
+	return s.Root.Ratio
+}
+
+// SetRatio sets the split ratio (0..1).
+func (s *Splitter) SetRatio(r float64) {
+	if s == nil || s.Root == nil {
+		return
+	}
+	if r < 0 {
+		r = 0
+	}
+	if r > 1 {
+		r = 1
+	}
+	s.Root.Ratio = r
+	s.Root.MarkNeedsLayout()
+}

@@ -46,6 +46,16 @@ func (c *Carousel) SetIndex(i int) {
 	c.rebuild()
 }
 
+// Next advances to the next slide.
+func (c *Carousel) Next() {
+	c.SetIndex(c.Index + 1)
+}
+
+// Prev goes to the previous slide.
+func (c *Carousel) Prev() {
+	c.SetIndex(c.Index - 1)
+}
+
 func (c *Carousel) rebuild() {
 	slot := primitive.NewSlot("slide", nil)
 	if len(c.Slides) > 0 {
@@ -53,10 +63,10 @@ func (c *Carousel) rebuild() {
 	}
 	prev := NewButton("<")
 	prev.SetType(ButtonDefault)
-	prev.SetOnClick(func() { c.SetIndex(c.Index - 1) })
+	prev.SetOnClick(func() { c.Prev() })
 	next := NewButton(">")
 	next.SetType(ButtonDefault)
-	next.SetOnClick(func() { c.SetIndex(c.Index + 1) })
+	next.SetOnClick(func() { c.Next() })
 	nav := primitive.Row(prev.Node(), next.Node())
 	nav.Gap = 8
 	c.Root = primitive.Column(slot, nav)

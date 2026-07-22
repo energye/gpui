@@ -42,6 +42,18 @@ func (l *List) SetItems(items []string) {
 	l.rebuild()
 }
 
+// SetSelected selects an index (-1 clears).
+func (l *List) SetSelected(index int) {
+	if index < -1 {
+		index = -1
+	}
+	if index >= len(l.Items) {
+		index = len(l.Items) - 1
+	}
+	l.Selected = index
+	l.rebuild()
+}
+
 func (l *List) theme() *core.Theme {
 	if l.Theme != nil {
 		return l.Theme

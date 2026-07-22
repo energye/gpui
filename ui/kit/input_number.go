@@ -38,9 +38,6 @@ func (n *InputNumber) Node() core.Node {
 
 // SetValue sets numeric value (clamped to Min/Max).
 func (n *InputNumber) SetValue(v float64) {
-	if n.Disabled {
-		return
-	}
 	if v < n.Min {
 		v = n.Min
 	}

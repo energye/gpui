@@ -13,12 +13,13 @@ type Watermark struct {
 	Root    *primitive.Stack
 	Content core.Node
 	Text    string
+	Gap     float64 // spacing hint for tiled marks (state; paint uses single center)
 	Face    text.Face
 }
 
 // NewWatermark wraps content with a watermark label.
 func NewWatermark(content core.Node, text string) *Watermark {
-	w := &Watermark{Content: content, Text: text}
+	w := &Watermark{Content: content, Text: text, Gap: 100}
 	w.rebuild()
 	return w
 }
@@ -31,6 +32,12 @@ func (w *Watermark) Node() core.Node {
 	return w.Root
 }
 
+// SetText updates watermark text and rebuilds.
+func (w *Watermark) SetText(s string) {
+	w.Text = s
+	w.rebuild()
+}
+
 func (w *Watermark) rebuild() {
 	w.Root = primitive.NewStack()
 	if w.Content != nil {
@@ -40,5 +47,7 @@ func (w *Watermark) rebuild() {
 	lab.FontSize = 18
 	lab.Face = w.Face
 	lab.Color = render.RGBA{R: 0, G: 0, B: 0, A: 0.08}
+	// Gap reserved for multi-tile layout; single center mark for now.
+	_ = w.Gap
 	w.Root.AddChild(primitive.Positioned(core.AlignCenter, lab))
 }

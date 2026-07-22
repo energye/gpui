@@ -6,11 +6,14 @@ import (
 	"github.com/energye/gpui/ui/core"
 )
 
-// Slider is Ant Design Slider (horizontal value 0..100).
+// Slider is Ant Design Slider (horizontal value Min..Max).
 // https://ant.design/components/slider
 type Slider struct {
 	Root     *sliderHost
-	Value    float64 // 0..100
+	Value    float64
+	Min      float64
+	Max      float64
+	Step     float64
 	Width    float64
 	Face     text.Face
 	Theme    *core.Theme
@@ -18,9 +21,9 @@ type Slider struct {
 	dragging bool
 }
 
-// NewSlider creates a slider at value.
+// NewSlider creates a slider at value (default range 0..100).
 func NewSlider(value float64) *Slider {
-	s := &Slider{Value: value, Width: 200}
+	s := &Slider{Value: value, Min: 0, Max: 100, Step: 1, Width: 200}
 	s.rebuild()
 	return s
 }
@@ -40,13 +43,34 @@ func (s *Slider) Node() core.Node {
 	return s.Root
 }
 
-// SetValue sets 0..100.
+// SetValue sets value clamped to Min..Max (and stepped when Step>0).
 func (s *Slider) SetValue(v float64) {
-	if v < 0 {
-		v = 0
+	min, max := s.Min, s.Max
+	if max <= min {
+		min, max = 0, 100
 	}
-	if v > 100 {
-		v = 100
+	if v < min {
+		v = min
+	}
+	if v > max {
+		v = max
+	}
+	if s.Step > 0 {
+		// snap to step from min
+		steps := (v - min) / s.Step
+		// round to nearest step
+		if steps >= 0 {
+			steps = float64(int(steps + 0.5))
+		} else {
+			steps = float64(int(steps - 0.5))
+		}
+		v = min + steps*s.Step
+		if v < min {
+			v = min
+		}
+		if v > max {
+			v = max
+		}
 	}
 	s.Value = v
 	if s.Root != nil {
@@ -61,6 +85,12 @@ func (s *Slider) rebuild() {
 	w := s.Width
 	if w <= 0 {
 		w = 200
+	}
+	if s.Max <= s.Min {
+		s.Min, s.Max = 0, 100
+	}
+	if s.Step <= 0 {
+		s.Step = 1
 	}
 	h := &sliderHost{Slider: s, width: w}
 	h.Init(h)
@@ -95,7 +125,18 @@ func (h *sliderHost) Paint(pc *core.PaintContext) {
 		fillC = render.Hex("#1677FF")
 	}
 	pc.FillLocalRoundRect(0, sz.Height/2-2, sz.Width, 4, 2, trackC)
-	fw := sz.Width * h.Value / 100
+	min, max := h.Min, h.Max
+	if max <= min {
+		min, max = 0, 100
+	}
+	ratio := (h.Value - min) / (max - min)
+	if ratio < 0 {
+		ratio = 0
+	}
+	if ratio > 1 {
+		ratio = 1
+	}
+	fw := sz.Width * ratio
 	if fw > 0 {
 		pc.FillLocalRoundRect(0, sz.Height/2-2, fw, 4, 2, fillC)
 	}
@@ -136,5 +177,9 @@ func (h *sliderHost) setFromX(lx float64) {
 	if w < 1 {
 		w = h.width
 	}
-	h.SetValue(lx / w * 100)
+	min, max := h.Min, h.Max
+	if max <= min {
+		min, max = 0, 100
+	}
+	h.SetValue(min + lx/w*(max-min))
 }

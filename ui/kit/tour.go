@@ -64,6 +64,27 @@ func (t *Tour) SetOpen(open bool) {
 	}
 }
 
+// SetCurrent jumps to step index.
+func (t *Tour) SetCurrent(i int) {
+	if i < 0 {
+		i = 0
+	}
+	if len(t.Steps) > 0 && i >= len(t.Steps) {
+		i = len(t.Steps) - 1
+	}
+	if t.Index == i {
+		return
+	}
+	t.Index = i
+	if t.OnChange != nil {
+		t.OnChange(t.Index)
+	}
+	t.rebuild()
+	if t.Open && t.Portal != nil {
+		t.Portal.SetOpen(true)
+	}
+}
+
 // Next advances step.
 func (t *Tour) Next() {
 	if t.Index+1 < len(t.Steps) {

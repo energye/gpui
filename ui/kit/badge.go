@@ -12,17 +12,18 @@ import (
 // Badge overlays a count/dot on a child (simplified Ant Badge).
 // https://ant.design/components/badge
 type Badge struct {
-	Root  *primitive.Stack
-	child core.Node
-	Count int
-	Dot   bool
-	Face  text.Face
-	Theme *core.Theme
+	Root          *primitive.Stack
+	child         core.Node
+	Count         int
+	Dot           bool
+	OverflowCount int // display "N+" when Count > OverflowCount (default 99)
+	Face          text.Face
+	Theme         *core.Theme
 }
 
 // NewBadge wraps child with a count badge.
 func NewBadge(child core.Node, count int) *Badge {
-	b := &Badge{child: child, Count: count}
+	b := &Badge{child: child, Count: count, OverflowCount: 99}
 	b.rebuild()
 	return b
 }
@@ -38,6 +39,21 @@ func (b *Badge) Node() core.Node {
 // SetCount updates badge number (0 hides count text when !Dot).
 func (b *Badge) SetCount(n int) {
 	b.Count = n
+	b.rebuild()
+}
+
+// SetDot toggles red-dot mode.
+func (b *Badge) SetDot(dot bool) {
+	b.Dot = dot
+	b.rebuild()
+}
+
+// SetOverflowCount sets the overflow threshold (e.g. 99 → "99+").
+func (b *Badge) SetOverflowCount(n int) {
+	if n <= 0 {
+		n = 99
+	}
+	b.OverflowCount = n
 	b.rebuild()
 }
 
@@ -60,9 +76,13 @@ func (b *Badge) rebuild() {
 		}
 		mark = d
 	} else if b.Count > 0 {
+		ov := b.OverflowCount
+		if ov <= 0 {
+			ov = 99
+		}
 		txt := fmt.Sprintf("%d", b.Count)
-		if b.Count > 99 {
-			txt = "99+"
+		if b.Count > ov {
+			txt = fmt.Sprintf("%d+", ov)
 		}
 		lab := primitive.NewText(txt)
 		lab.FontSize = 10

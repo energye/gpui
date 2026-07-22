@@ -13,14 +13,18 @@ type Progress struct {
 	Root    *primitive.Decorated
 	track   *primitive.Box
 	bar     *primitive.Box
+	info    *primitive.Text
 	Percent float64 // 0..100
 	Width   float64
-	Theme   *core.Theme
+	// Status: "" | "success" | "exception" | "active" | "normal"
+	Status   string
+	ShowInfo bool // show percent label
+	Theme    *core.Theme
 }
 
 // NewProgress creates a progress bar.
 func NewProgress(percent float64) *Progress {
-	p := &Progress{Percent: percent, Width: 200}
+	p := &Progress{Percent: percent, Width: 200, ShowInfo: true}
 	p.rebuild()
 	return p
 }
@@ -31,6 +35,12 @@ func (p *Progress) Node() core.Node {
 		p.rebuild()
 	}
 	return p.Root
+}
+
+// SetStatus sets status chrome (success|exception|active|normal).
+func (p *Progress) SetStatus(status string) {
+	p.Status = status
+	p.applyFill()
 }
 
 // SetPercent updates fill 0..100 without rebuilding the node tree.
@@ -64,10 +74,27 @@ func (p *Progress) applyFill() {
 	if w <= 0 {
 		w = 200
 	}
+	th := p.theme()
 	if p.bar != nil {
 		p.bar.Width = w * (p.Percent / 100)
+		switch p.Status {
+		case "success":
+			p.bar.Color = th.Color(core.TokenColorSuccess)
+		case "exception":
+			p.bar.Color = th.Color(core.TokenColorError)
+		default:
+			p.bar.Color = th.Color(core.TokenColorPrimary)
+		}
 		p.bar.MarkNeedsLayout()
 		p.bar.MarkNeedsPaint()
+	}
+	if p.info != nil {
+		if p.ShowInfo {
+			p.info.Value = fmt.Sprintf("%.0f%%", p.Percent)
+		} else {
+			p.info.Value = ""
+		}
+		p.info.MarkNeedsPaint()
 	}
 	if p.track != nil {
 		p.track.MarkNeedsLayout()
@@ -86,7 +113,14 @@ func (p *Progress) rebuild() {
 	p.bar = primitive.NewBox()
 	p.bar.Height = barH
 	p.bar.Width = w * (p.Percent / 100)
-	p.bar.Color = th.Color(core.TokenColorPrimary)
+	switch p.Status {
+	case "success":
+		p.bar.Color = th.Color(core.TokenColorSuccess)
+	case "exception":
+		p.bar.Color = th.Color(core.TokenColorError)
+	default:
+		p.bar.Color = th.Color(core.TokenColorPrimary)
+	}
 
 	p.track = primitive.NewBox(p.bar)
 	p.track.Width = w
@@ -96,9 +130,18 @@ func (p *Progress) rebuild() {
 		p.track.Color = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
 	}
 
-	p.Root = primitive.NewDecorated(p.track)
-	// Ant Progress line: fully rounded ends (pill).
-	p.Root.Radius = barH / 2
+	trackHost := primitive.NewDecorated(p.track)
+	trackHost.Radius = barH / 2
+	p.info = primitive.NewText("")
+	p.info.FontSize = 12
+	p.info.Color = th.Color(core.TokenColorTextSecondary)
+	if p.ShowInfo {
+		p.info.Value = fmt.Sprintf("%.0f%%", p.Percent)
+	}
+	row := primitive.Row(trackHost, p.info)
+	row.Gap = 8
+	row.CrossAlign = core.CrossCenter
+	p.Root = primitive.NewDecorated(row)
 	p.Root.Base().Role = "progressbar"
 	p.Root.Base().Label = fmt.Sprintf("%.0f percent", p.Percent)
 	if p.Root != nil {

@@ -38,6 +38,24 @@ func (r *Result) SetFace(face text.Face) {
 	r.rebuild()
 }
 
+// SetStatus updates status type and rebuilds.
+func (r *Result) SetStatus(s string) {
+	r.Status = s
+	r.rebuild()
+}
+
+// SetTitle updates title and rebuilds.
+func (r *Result) SetTitle(s string) {
+	r.Title = s
+	r.rebuild()
+}
+
+// SetSubTitle updates subtitle and rebuilds.
+func (r *Result) SetSubTitle(s string) {
+	r.SubTitle = s
+	r.rebuild()
+}
+
 func (r *Result) rebuild() {
 	th := DefaultTheme()
 	if r.Theme != nil {

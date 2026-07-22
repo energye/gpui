@@ -54,6 +54,18 @@ func (t *Tag) SetFace(face text.Face) {
 	}
 }
 
+// SetClosable toggles the close button and rebuilds.
+func (t *Tag) SetClosable(on bool) {
+	t.Closable = on
+	t.rebuild()
+}
+
+// SetColor sets fill color and rebuilds.
+func (t *Tag) SetColor(c render.RGBA) {
+	t.Color = c
+	t.rebuild()
+}
+
 func (t *Tag) theme() *core.Theme {
 	if t.Theme != nil {
 		return t.Theme

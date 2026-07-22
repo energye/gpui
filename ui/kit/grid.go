@@ -30,3 +30,28 @@ func (g *Grid) Node() core.Node {
 	}
 	return g.Root
 }
+
+// SetGap sets column and row gap.
+func (g *Grid) SetGap(gap float64) {
+	if g == nil || g.Root == nil {
+		return
+	}
+	g.Root.ColumnGap = gap
+	g.Root.RowGap = gap
+}
+
+// SetCols rebuilds equal FR columns.
+func (g *Grid) SetCols(n int) {
+	if g == nil || g.Root == nil {
+		return
+	}
+	if n < 1 {
+		n = 1
+	}
+	cols := make([]core.GridTrack, n)
+	for i := range cols {
+		cols[i] = core.GridTrack{Fr: 1}
+	}
+	g.Root.Columns = cols
+	g.Root.MarkNeedsLayout()
+}

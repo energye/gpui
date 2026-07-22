@@ -9,15 +9,16 @@ import (
 // Descriptions is Ant Design Descriptions (label-value pairs).
 // https://ant.design/components/descriptions
 type Descriptions struct {
-	Root  *primitive.Flex
-	Items [][2]string // label, value
-	Face  text.Face
-	Theme *core.Theme
+	Root   *primitive.Flex
+	Items  [][2]string // label, value
+	Column int         // columns per row (default 1)
+	Face   text.Face
+	Theme  *core.Theme
 }
 
 // NewDescriptions creates descriptions from label/value pairs.
 func NewDescriptions(pairs ...[2]string) *Descriptions {
-	d := &Descriptions{Items: append([][2]string(nil), pairs...)}
+	d := &Descriptions{Items: append([][2]string(nil), pairs...), Column: 1}
 	d.rebuild()
 	return d
 }
@@ -28,6 +29,12 @@ func (d *Descriptions) Node() core.Node {
 		d.rebuild()
 	}
 	return d.Root
+}
+
+// SetItems replaces label/value pairs and rebuilds.
+func (d *Descriptions) SetItems(items [][2]string) {
+	d.Items = append([][2]string(nil), items...)
+	d.rebuild()
 }
 
 // SetFace sets font.
@@ -41,10 +48,21 @@ func (d *Descriptions) rebuild() {
 	if d.Theme != nil {
 		th = d.Theme
 	}
+	cols := d.Column
+	if cols <= 0 {
+		cols = 1
+	}
 	d.Root = primitive.Column()
 	d.Root.Gap = 8
 	d.Root.CrossAlign = core.CrossStart
-	for _, pair := range d.Items {
+	var row *primitive.Flex
+	for i, pair := range d.Items {
+		if i%cols == 0 {
+			row = primitive.Row()
+			row.Gap = 16
+			row.CrossAlign = core.CrossStart
+			d.Root.AddChild(row)
+		}
 		lab := primitive.NewText(pair[0] + ":")
 		lab.FontSize = 14
 		lab.Face = d.Face
@@ -53,8 +71,8 @@ func (d *Descriptions) rebuild() {
 		val.FontSize = 14
 		val.Face = d.Face
 		val.Color = th.Color(core.TokenColorText)
-		row := primitive.Row(lab, val)
-		row.Gap = 8
-		d.Root.AddChild(row)
+		cell := primitive.Row(lab, val)
+		cell.Gap = 8
+		row.AddChild(cell)
 	}
 }

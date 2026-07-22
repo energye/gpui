@@ -16,10 +16,11 @@ type TimelineItem struct {
 // Timeline is Ant Design Timeline.
 // https://ant.design/components/timeline
 type Timeline struct {
-	Root  *primitive.Flex
-	Items []TimelineItem
-	Face  text.Face
-	Theme *core.Theme
+	Root    *primitive.Flex
+	Items   []TimelineItem
+	Pending string // pending tail label when non-empty
+	Face    text.Face
+	Theme   *core.Theme
 }
 
 // NewTimeline creates a vertical timeline.
@@ -37,6 +38,12 @@ func (tl *Timeline) Node() core.Node {
 	return tl.Root
 }
 
+// SetItems replaces timeline items and rebuilds.
+func (tl *Timeline) SetItems(items []TimelineItem) {
+	tl.Items = append([]TimelineItem(nil), items...)
+	tl.rebuild()
+}
+
 // SetFace sets font.
 func (tl *Timeline) SetFace(face text.Face) {
 	tl.Face = face
@@ -51,6 +58,8 @@ func (tl *Timeline) rebuild() {
 	tl.Root = primitive.Column()
 	tl.Root.Gap = 0
 	tl.Root.CrossAlign = core.CrossStart
+	n := len(tl.Items)
+	hasPending := tl.Pending != ""
 	for i, it := range tl.Items {
 		dot := primitive.NewBox()
 		dot.Width, dot.Height = 10, 10
@@ -66,15 +75,27 @@ func (tl *Timeline) rebuild() {
 		row.Gap = 12
 		row.CrossAlign = core.CrossCenter
 		tl.Root.AddChild(row)
-		if i < len(tl.Items)-1 {
+		if i < n-1 || hasPending {
 			line := primitive.NewBox()
 			line.Width, line.Height = 2, 20
 			line.Color = th.Color(core.TokenColorBorder)
-			// indent under dot
 			pad := primitive.NewDecorated(line)
 			pad.Padding = primitive.EdgeInsets{Left: 4}
 			pad.BorderWidth = 0
 			tl.Root.AddChild(pad)
 		}
+	}
+	if hasPending {
+		dot := primitive.NewBox()
+		dot.Width, dot.Height = 10, 10
+		dot.Color = th.Color(core.TokenColorBorder)
+		lab := primitive.NewText(tl.Pending)
+		lab.FontSize = 14
+		lab.Face = tl.Face
+		lab.Color = th.Color(core.TokenColorTextSecondary)
+		row := primitive.Row(dot, lab)
+		row.Gap = 12
+		row.CrossAlign = core.CrossCenter
+		tl.Root.AddChild(row)
 	}
 }

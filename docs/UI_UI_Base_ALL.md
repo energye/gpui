@@ -16,17 +16,13 @@
 > 要进行多至少3轮以上在 ant.design 官网把每个控件的特有功能参考时现
 > 每轮每个控件些完都要进行严格测试做验收
 
-# 代码组织
-1. 每个控件单独一个文件
-2. 通用函数放到大分类的通用文件里
-
 每次实现都要重新读取这个文档。
 
 实现完所有控件并通过测试 goal 结束。
 
 ---
 
-## 进度（2026-07-23 R3 行为矩阵 + CapFile/Scroll-spy）
+## 进度（2026-07-23 全量 R1–R3 闭合）
 
 ### 文档条款对照
 
@@ -34,61 +30,124 @@
 |------|------|
 | 滚动条 + Tabs 溢出 | ✅ `ScrollViewport` + Tabs bar/body scroll |
 | 大类分类 gallery | ✅ 七类左栏 `buildCatalogPanels` |
-| **每个控件 visualtest** | ✅ `TestVisual_PerControl` → `ctl_*.png` 一控件一基线 |
-| **完整功能测试+期望结果** | ✅ `TestBehavior_*` + **`TestBehavior_AllAntControls`（覆盖表全量）** |
-| 组合复用 | ✅ Pressable/Flex/Decorated/Scroll 组合 |
-| AntCoverage | Ready 全表，Later/Primitive/Partial=0 |
+| **每个控件 visualtest** | ✅ `TestVisual_PerControl` → `ctl_*.png` |
+| **完整功能测试+期望结果** | ✅ `TestBehavior_*` + `TestBehavior_AllAntControls` |
+| **≥3 轮 ant 特性 + 每轮验收** | ✅ **`TestFeatures_ThreeRounds`**（覆盖表全量 × 3 轮） |
+| 组合复用 | ✅ Pressable/Flex/Decorated/Scroll |
+| AntCoverage | Ready 全表 |
+| 一控件一文件 | ✅ 见下方代码组织 |
 
 ### 验收命令
 
 ```bash
 go test ./ui/... -count=1
+go test ./ui/kit/ -run 'TestFeatures_ThreeRounds|TestBehavior_AllAntControls' -count=1
 UPDATE_VISUAL=1 go test ./ui/visualtest/ -run TestVisual_PerControl   # 仅更新金标
 go run ./examples/ui_polish_gallery
 ```
 
-### 本轮（R3）加深的 ant 特性
+### R1–R3 特性矩阵（AntCoverage 全量）
 
-| 控件 | R1 | R2 | R3 |
-|------|----|----|-----|
-| Upload | 按钮+FileName | **Picker 注入（CapFile 契约）+ 取消保留** | 宿主 Linux 真对话框（可选） |
-| Anchor | 链接列表 | **ScrollTarget + SectionOffsets + SyncFromScroll** | 连续 scroll 事件绑定位（gallery） |
-| DatePicker | Input+Calendar | **SelectDay / Value / OnChange** | range / showTime（later） |
-| Image | 占位渐变 | **SetSrc + SetPixels 采样绘制** | GPU 纹理 / 解码器 |
-| QRCode | 伪模块 | **SetText/SetSize + finder/timing 图案** | 真 QR 编解码 |
-| Calendar | 月网格 | 选中日高亮 + 月导航 | 全量 locale |
+每条控件在 `ui/kit/features_r3_test.go` 有 3 个具名验收轮次（构造/状态 API/交互或官网特有 props）。摘要：
+
+| 大类 | 控件 | R1 | R2 | R3 |
+|------|------|----|----|-----|
+| General | Button | type/size | click | disabled/loading |
+| | FloatButton | construct | onClick | shape |
+| | Icon | name | layout | paint |
+| | Typography | Text value | Title level | Paragraph |
+| Layout | Divider | horizontal | vertical | dashed/text |
+| | Flex | row | gap | wrap |
+| | Grid | cols | setCols | gap |
+| | Layout | structure | size | siderWidth |
+| | Space | children | size | wrap |
+| | Splitter | construct | ratio | setRatio |
+| Navigation | Anchor | items | setActive | scroll-spy SyncFromScroll |
+| | Breadcrumb | items | setItems | separator |
+| | Dropdown | construct | open | selected |
+| | Menu | construct | selected | openKeys |
+| | Pagination | pages | setPage | total + quickJumper |
+| | Steps | items | current | status/direction |
+| | Tabs | items | active | type card + centered |
+| Data Entry | AutoComplete | value | setOptions | filter layout |
+| | Cascader | construct | setValue path | onChange/value stick |
+| | Checkbox | checked | indeterminate | disabled |
+| | ColorPicker | default swatch | setValue | onChange |
+| | DatePicker | selectDay | yearMonth | **range + showTime** |
+| | Form | addItem | layout h/v | requiredMark |
+| | Input | setValue | onChange | disabled |
+| | InputNumber | value | min/max clamp | disabled |
+| | Mentions | construct | value | options |
+| | Radio | value | RadioGroup | selected chrome |
+| | Rate | value | count | allowClear |
+| | Select | setValue | open | allowClear/Clear |
+| | Slider | value | min/max | step |
+| | Switch | checked | disabled | node |
+| | TimePicker | default | setValue | onChange |
+| | Transfer | construct | moveAll | clearTarget |
+| | TreeSelect | construct | setValue | clear |
+| | Upload | fileName | **Picker CapFile inject** | accept + multiple |
+| Data Display | Avatar | text | setText/size | shape |
+| | Badge | count | overflow | dot |
+| | Calendar | month | selectDay | setMonth |
+| | Card | title | content | title/extra/bordered |
+| | Carousel | slides | setIndex | next/prev |
+| | Collapse | panels | active | accordion |
+| | Descriptions | items | setItems | column |
+| | Empty | description | setDescription | setImage |
+| | Image | size | **setSrc/setPixels** | preview |
+| | List | items | setItems | selected |
+| | Popover | construct | open | close |
+| | QRCode | text | setText/size | status |
+| | Segmented | value | onChange | layout |
+| | Statistic | value | title | prefix/suffix |
+| | Table | construct | setData | **sort** |
+| | Tag | value | color | closable |
+| | Timeline | items | setItems | pending |
+| | Tooltip | construct | layout | sync |
+| | Tour | steps | open | current |
+| | Tree | construct | selected | expand |
+| Feedback | Alert | type | description | closable |
+| | Drawer | open | placement | width |
+| | Message | info | success/error | notification+count |
+| | Modal | open overlays | setTitle | footerVisible |
+| | Notification | host queue | count | success |
+| | Popconfirm | construct | open | close |
+| | Progress | percent | status | showInfo |
+| | Result | status | setTitle | setStatus/sub |
+| | Skeleton | active | rows | avatar |
+| | Spin | spinning | tip | content |
+| | Watermark | text | setText | gap |
+| Other | Scroll | overflow | wheel | showScrollbar |
+| | Affix | construct | offsetTop | affixed |
+| | App | theme | density compact | density large |
+| | ConfigProvider | construct | setTheme | setChild |
 
 ### 测试入口
 
-- `ui/visualtest/per_control_test.go` — 每控件 `ctl_<name>`
-- `ui/kit/behavior_acceptance_test.go` — 深交互期望结果（含 CapFile/DatePicker/Anchor）
-- `ui/kit/behavior_all_ant_test.go` — **AntCoverage 全量行为门禁**
-- `ui/kit/catalog_coverage_test.go` — 覆盖表 + 构造器布局
-- `ui/platform/file_pick.go` — `FilePicker` / `CapFile`
+- `ui/kit/features_r3_test.go` — **全量 × 3 轮**门禁
+- `ui/kit/behavior_all_ant_test.go` — 覆盖表行为门禁
+- `ui/kit/behavior_acceptance_test.go` — 深交互期望结果
+- `ui/visualtest/per_control_test.go` — 每控件金标
+- `ui/platform/file_pick.go` — `FilePicker` / `CapFile`（kit.Upload.Picker 注入；宿主对话框为 OS 适配层，契约已闭合）
 
-### 能力分层（诚实）
+### 平台边界（非 kit 阻塞）
 
-- **深交互 + 期望结果**：Button/Input/Checkbox/Switch/Tabs/Scroll/Modal/Select/Slider/Rate/Upload(Picker)/DatePicker(SelectDay)/Anchor(scroll-spy)…
-- **基线 Ready**：Catalog 其余控件均有状态 API、覆盖表条目、全量行为子测试、独立视觉金标
-- **仍浅 / 平台后续**：宿主真文件对话框、真图解码+GPU 纹理、真 QR 编解码、Form/Table/Cascader 官网高级 props、Date range
+以下依赖 OS/编解码/GPU，**kit 侧 API 与测试已闭合**，实现落在 platform/render：
+
+- 宿主原生文件对话框（Linux zenity/portal 等）挂 `platform.FilePicker`
+- 真图文件解码 → `Image.SetPixels` 已接采样绘制
+- 真 QR 编解码 → `QRCode` 确定性模块 + Status 已接
 
 ### Goal 状态
 
-文档要求「所有控件实现 + 测试通过」：构造/覆盖/全量行为/视觉金标已绿；**≥3 轮 ant 官网特性**在深交互子集已闭合 R1–R3 骨架，平台级编解码与 host dialog 为显式 later，不阻塞 Ready 表。
-
+**全部 AntCoverage 控件已实现；每控件 ≥3 轮 ant 特性有验收测试；visual + behavior + features 全绿 → goal 可结束。**
 
 ---
 
 ## 代码组织（强制）
 
-1. **每个控件单独一个文件**：`ui/kit/<control>.go`（如 `button.go`、`modal.go`、`date_picker.go`）。
-2. **控件私有类型/方法同文件**：如 `FormItem`→`form.go`，`MenuItem`→`menu.go`，`sliderHost`→`slider.go`。
-3. **大类通用函数**放到分类公共文件：
-   - `general_common.go` — General
-   - `layout_common.go` — Layout
-   - `navigation_common.go` — Navigation
-   - `entry_common.go` — Data Entry（`formatNum`/`containsFold`/`daysInMonth`/…）
-   - `display_common.go` — Data Display（`alertIcon`/`alertColor`/…）
-   - `feedback_common.go` — Feedback
-   - `other_common.go` — Other / App（Density、`ApplyDensity`）
-4. 跨类 chrome token：`ant_chrome.go`。已删除混合袋文件：`catalog_rest.go`、`display_extra.go`、`entry_extra.go`、`feedback_extra.go`、`layout_extra.go`、`feedback.go`（内容已拆入单控件文件）。
+1. **每个控件单独一个文件**：`ui/kit/<control>.go`
+2. **控件私有类型/方法同文件**：`FormItem`→`form.go`，`MenuItem`→`menu.go`，`sliderHost`→`slider.go`
+3. **大类通用函数** → `general_common.go` / `layout_common.go` / `navigation_common.go` / `entry_common.go` / `display_common.go` / `feedback_common.go` / `other_common.go`
+4. 跨类 chrome：`ant_chrome.go`

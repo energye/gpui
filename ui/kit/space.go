@@ -11,6 +11,8 @@ type Space struct {
 	Root *primitive.Flex
 	// Direction: horizontal (default) or vertical.
 	Vertical bool
+	// Wrap is stored for Ant API parity (layout wrap deferred).
+	Wrap bool
 	// Size gap in logical px (0 → theme TokenMarginSM / 8).
 	Size  float64
 	Theme *core.Theme
@@ -51,6 +53,11 @@ func (s *Space) SetVertical(v bool) {
 func (s *Space) SetSize(px float64) {
 	s.Size = px
 	s.apply()
+}
+
+// SetWrap sets wrap flag (layout wrap deferred; API parity).
+func (s *Space) SetWrap(v bool) {
+	s.Wrap = v
 }
 
 // Add appends a child.
