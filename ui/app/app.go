@@ -4,7 +4,11 @@
 //
 //	IDLE       — no dirty, no tickers → WaitEvents(-1), 0% busy spin
 //	ANIMATING  — HasActiveTickers → onUpdate/Tick every ~16ms; OnDraw only if Dirty
-//	CONTINUOUS — ContinuousRender → paint every tick (game loop)
+//	CONTINUOUS — ContinuousRender → paint every tick (game loop ONLY)
+//
+// Kit / product UI must use ContinuousRender=false and drive animation via
+// Tree.AddTicker + MarkNeedsPaint (Flutter demand). Continuous is for full-screen
+// game/demo loops (mem_anim, particles), not Skeleton/Spin smokes.
 //
 // Threads (gogpu multi-thread architecture):
 //
@@ -30,7 +34,8 @@ const DefaultAnimTick = 16 * time.Millisecond
 
 // Options configures Application.
 type Options struct {
-	// ContinuousRender forces a paint every loop tick (gogpu CONTINUOUS).
+	// ContinuousRender forces a paint every loop tick (gogpu CONTINUOUS / game loop).
+	// Kit smokes must leave false and use AddTicker + MarkNeedsPaint (ANIMATING).
 	ContinuousRender bool
 	// AnimTick is the WaitEvents timeout while tickers are active (default 16ms).
 	AnimTick time.Duration
@@ -416,7 +421,7 @@ func (a *Application) dispatchAll(s *Session, evs []platform.Event) bool {
 				a.renderLoop.RequestResize(uint32(resize.Width), uint32(resize.Height))
 			}
 			if s.Tree != nil {
-				s.Tree.MarkDirty()
+				s.Tree.MarkFullPaintRequired()
 			}
 			if s.OnResize != nil {
 				s.OnResize(resize.Width, resize.Height)
@@ -424,6 +429,10 @@ func (a *Application) dispatchAll(s *Session, evs []platform.Event) bool {
 		}
 		if ev.Type == platform.EventRedraw {
 			a.pendingRedraw.Store(true)
+			// Expose/damage from OS: retained pixels may be invalid → full paint.
+			if s.Tree != nil {
+				s.Tree.MarkFullPaintRequired()
+			}
 		}
 	}
 	return true

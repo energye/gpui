@@ -548,7 +548,7 @@ a.Run()
 
 1. UI **单线程**；多窗轮转 Present，不做并行 paint。  
 2. 默认 **共享 Device**。  
-3. 按需帧 **整窗 present**，不做局部 GPU damage。  
+3. 按需帧默认 **整窗 present**（Phase1）；产品侧用 **RepaintBoundary + MarkNeedsPaint** 降 CPU；引擎 G2 下矢量 MSAA 仍常 LoadOpClear，**不**承诺 swapchain 任意矢量脏矩形保留。可选 damage present 见 Phase5 / `PresentFrameAuto`。  
 4. 第三方 **零强制依赖**；只 SPI + 示例。  
 5. 唯一入口包名：**`ui/app`**（不用 `ui/antd`，不把循环留在 kit）。
 

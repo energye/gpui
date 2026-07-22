@@ -16,6 +16,14 @@ type PaintContext struct {
 	Theme *Theme
 	// Clip is the active absolute clip in logical pixels (optional advisory).
 	Clip Rect
+	// CompositeOnly: retained frame — skip clean non-boundary subtrees; RepaintBoundary
+	// nodes blit cached layers. Requires prior full frame + LoadOpLoad-capable present
+	// (or accept holes if the surface was cleared). Hosts set this after the first
+	// full paint when only boundary layers are dirty.
+	CompositeOnly bool
+	// ForceFullPaint disables CompositeOnly skip for this subtree (used when a node
+	// itself is paint-dirty and must redraw non-boundary children).
+	ForceFullPaint bool
 }
 
 // WithOrigin returns a child paint context with a new absolute origin.
@@ -25,6 +33,17 @@ func (pc *PaintContext) WithOrigin(origin Point) *PaintContext {
 	}
 	out := *pc
 	out.Origin = origin
+	return &out
+}
+
+// WithForceFullPaint returns a paint context that paints all children (no skip).
+func (pc *PaintContext) WithForceFullPaint() *PaintContext {
+	if pc == nil {
+		return &PaintContext{ForceFullPaint: true, Scale: 1}
+	}
+	out := *pc
+	out.ForceFullPaint = true
+	out.CompositeOnly = false
 	return &out
 }
 

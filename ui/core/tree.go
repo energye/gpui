@@ -6,6 +6,9 @@ type Tree struct {
 
 	dirty bool
 
+	// fullPaintRequired forces the next Frame to fully repaint (resize, expose, first frame).
+	fullPaintRequired bool
+
 	// Pointer routing
 	hover    Node
 	capture  Node
@@ -30,7 +33,7 @@ type Tree struct {
 
 // NewTree creates a tree with the given root (may be nil).
 func NewTree(root Node) *Tree {
-	t := &Tree{dirty: true, overlays: NewOverlayHost()}
+	t := &Tree{dirty: true, fullPaintRequired: true, overlays: NewOverlayHost()}
 	if root != nil {
 		t.SetRoot(root)
 	}
@@ -89,6 +92,21 @@ func (t *Tree) markDirty() {
 // MarkDirty requests a layout/paint frame (for portals/setState).
 func (t *Tree) MarkDirty() { t.markDirty() }
 
+// MarkFullPaintRequired forces the next Frame to repaint the whole tree
+// (resize, expose, device lost). Clears after a successful full Paint.
+func (t *Tree) MarkFullPaintRequired() {
+	if t == nil {
+		return
+	}
+	t.fullPaintRequired = true
+	t.markDirty()
+}
+
+// FullPaintRequired reports whether the next paint must be a full tree paint.
+func (t *Tree) FullPaintRequired() bool {
+	return t != nil && t.fullPaintRequired
+}
+
 // Dirty reports whether layout or paint is needed.
 func (t *Tree) Dirty() bool {
 	return t != nil && t.dirty
@@ -104,6 +122,8 @@ func (t *Tree) ClearDirty() {
 
 // Layout runs a single layout pass on the root with tight viewport constraints,
 // then lays out overlay nodes loosely within the viewport.
+// Clean nodes with identical constraints early-out inside each Layout impl via
+// NodeBase.LayoutSkipIfClean / ShouldRelayout.
 func (t *Tree) Layout(viewport Size) {
 	if t == nil {
 		return
@@ -111,21 +131,26 @@ func (t *Tree) Layout(viewport Size) {
 	t.viewport = viewport
 	if t.root != nil {
 		_ = t.root.Layout(Tight(viewport.Width, viewport.Height))
-		clearLayoutDirty(t.root)
 	}
 	for _, e := range t.Overlays().Entries() {
 		if e.Node == nil {
 			continue
 		}
 		_ = e.Node.Layout(Loose(viewport.Width, viewport.Height))
-		clearLayoutDirty(e.Node)
 	}
 }
 
 // Paint paints the root then overlays (ascending Z).
+// When FullPaintRequired is false and pc.CompositeOnly is set by the host,
+// clean non-boundary subtrees are skipped (Flutter retained layer path).
 func (t *Tree) Paint(pc *PaintContext) {
 	if t == nil || pc == nil {
 		return
+	}
+	full := t.fullPaintRequired
+	if full {
+		pc.CompositeOnly = false
+		pc.ForceFullPaint = true
 	}
 	if t.root != nil {
 		t.root.Paint(pc)
@@ -141,6 +166,9 @@ func (t *Tree) Paint(pc *PaintContext) {
 		clearPaintDirty(e.Node)
 	}
 	t.dirty = false
+	if full {
+		t.fullPaintRequired = false
+	}
 }
 
 // Frame runs layout then paint for the viewport.
@@ -151,6 +179,37 @@ func (t *Tree) Frame(pc *PaintContext, viewport Size) {
 	if pc != nil {
 		t.Paint(pc)
 	}
+}
+
+// CollectPaintDamage returns absolute logical rects for nodes that need paint.
+// Used by hosts to Invalidate / PresentFrameAuto. Empty when full paint is required.
+func (t *Tree) CollectPaintDamage() []Rect {
+	if t == nil || t.fullPaintRequired {
+		return nil
+	}
+	var out []Rect
+	var walk func(n Node)
+	walk = func(n Node) {
+		if n == nil {
+			return
+		}
+		b := n.Base()
+		if b.needsPaint {
+			r := AbsoluteBounds(n)
+			if !r.Empty() {
+				out = append(out, r)
+			}
+			// Still walk children: nested dirty regions refine multi-rect present.
+		}
+		for _, c := range b.children {
+			walk(c)
+		}
+	}
+	walk(t.root)
+	for _, e := range t.Overlays().Entries() {
+		walk(e.Node)
+	}
+	return out
 }
 
 // FrameIfNeeded runs Frame only when Dirty() is true.

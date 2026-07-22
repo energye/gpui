@@ -143,8 +143,22 @@ ui/
 
 ```text
 PumpEvents → Dispatch → flush setState
-  → Layout(root) → Paint → PresentFrame*
+  → Layout(仅 needsLayout / 约束变化) → Paint
+  → PresentFrame*（按需；无 dirty/ticker/expose 则不 Present）
 ```
+
+**脏区 / 按需（Flutter 向 · 2026-07-22）**
+
+| 机制 | 行为 |
+|------|------|
+| `MarkNeedsLayout` | 气泡祖先；下次 Layout 重算；约束相同且 clean → early-out |
+| `MarkNeedsPaint` | 气泡至 **RepaintBoundary** 停止；仍 `tree.markDirty` 调度帧 |
+| `primitive.RepaintBoundary` | 隔离动画控件脏区（对标 Flutter RepaintBoundary） |
+| `Tree.AddTicker` | ANIMATING；Tick 内 MarkNeedsPaint；**禁止** kit Continuous |
+| `FullPaintRequired` | 首帧/resize/expose 全量 paint |
+| G2 非承诺 | 矢量 MSAA 直写 swapchain **不**保证区外像素保留；blit 层为正确局部路径 |
+
+Kit smoke（`ui_kit_m5_smoke`）默认 `Continuous=false` + Ticker。
 
 ---
 

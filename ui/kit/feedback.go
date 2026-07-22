@@ -2,6 +2,7 @@ package kit
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -10,14 +11,18 @@ import (
 )
 
 // Skeleton is a placeholder shimmer block (M5).
+// Tick only mutates paint chrome (no tree rebuild). Prefer wrapping Node() in
+// primitive.RepaintBoundary so paint dirty stays local.
 type Skeleton struct {
 	Root   *primitive.Decorated
 	Width  float64
 	Height float64
-	// Active enables shimmer phase (advance via Tick).
+	// Active enables shimmer phase (advance via Tick / Ticker).
 	Active bool
 	phase  float64
 	Theme  *core.Theme
+	// boundTree is set by AttachTicker for demand-frame registration.
+	boundTree *core.Tree
 }
 
 // NewSkeleton creates a skeleton bar.
@@ -35,16 +40,41 @@ func (s *Skeleton) Node() core.Node {
 	return s.Root
 }
 
-// Tick advances shimmer.
-func (s *Skeleton) Tick(dt float64) {
+// Tick advances shimmer. Implements core.Ticker when Active.
+func (s *Skeleton) Tick(dt float64) (still bool) {
 	if !s.Active {
-		return
+		return false
 	}
 	s.phase += dt * 1.5
 	if s.phase > 1 {
 		s.phase -= 1
 	}
 	s.applyChrome()
+	return s.Active
+}
+
+// AttachTicker registers this skeleton on the tree for ANIMATING demand frames.
+func (s *Skeleton) AttachTicker(t *core.Tree) {
+	if s == nil || t == nil {
+		return
+	}
+	s.boundTree = t
+	if s.Active {
+		t.AddTicker(s)
+	}
+}
+
+// SetActive enables/disables shimmer and ticker membership.
+func (s *Skeleton) SetActive(v bool) {
+	s.Active = v
+	if s.boundTree == nil {
+		return
+	}
+	if v {
+		s.boundTree.AddTicker(s)
+	} else {
+		s.boundTree.RemoveTicker(s)
+	}
 }
 
 func (s *Skeleton) theme() *core.Theme {
@@ -94,15 +124,17 @@ func abs01(v float64) float64 {
 }
 
 // Spin overlays a progress ring on content (or alone).
+// Angle is painted in-place — no per-tick ring node rebuild.
 type Spin struct {
 	Root     *primitive.Stack
 	ring     *primitive.Canvas
 	content  core.Node
 	Spinning bool
-	// angle for rotation simulation via progress offset
-	angle float64
-	Size  float64
-	Theme *core.Theme
+	// angle for rotation simulation (0..1 wraps)
+	angle     float64
+	Size      float64
+	Theme     *core.Theme
+	boundTree *core.Tree
 }
 
 // NewSpin creates a spinner; content may be nil.
@@ -120,16 +152,48 @@ func (s *Spin) Node() core.Node {
 	return s.Root
 }
 
-// Tick advances spin angle.
-func (s *Spin) Tick(dt float64) {
+// Tick advances spin angle. Implements core.Ticker when Spinning.
+func (s *Spin) Tick(dt float64) (still bool) {
 	if !s.Spinning {
-		return
+		return false
 	}
 	s.angle += dt * 1.2
 	if s.angle > 1 {
 		s.angle -= 1
 	}
-	s.rebuildRing()
+	if s.ring != nil {
+		s.ring.MarkNeedsPaint()
+	} else if s.Root != nil {
+		s.Root.MarkNeedsPaint()
+	}
+	return s.Spinning
+}
+
+// AttachTicker registers this spin on the tree.
+func (s *Spin) AttachTicker(t *core.Tree) {
+	if s == nil || t == nil {
+		return
+	}
+	s.boundTree = t
+	if s.Spinning {
+		t.AddTicker(s)
+	}
+}
+
+// SetSpinning enables/disables the spinner ticker.
+func (s *Spin) SetSpinning(v bool) {
+	s.Spinning = v
+	if s.boundTree == nil {
+		return
+	}
+	if v {
+		s.boundTree.AddTicker(s)
+	} else {
+		s.boundTree.RemoveTicker(s)
+	}
+	if s.Root != nil {
+		s.Root.MarkNeedsPaint()
+	}
 }
 
 func (s *Spin) theme() *core.Theme {
@@ -140,31 +204,61 @@ func (s *Spin) theme() *core.Theme {
 }
 
 func (s *Spin) rebuild() {
-	s.rebuildRing()
+	th := s.theme()
+	size := s.Size
+	if size <= 0 {
+		size = 28
+	}
+	track := th.Color(core.TokenColorFillSecondary)
+	fill := th.Color(core.TokenColorPrimary)
+	// Fixed canvas; PaintFn reads s.angle each paint (no alloc per tick).
+	s.ring = primitive.NewCanvas(size, size, func(pc *core.PaintContext, sz core.Size) {
+		if pc == nil || pc.DC == nil || !s.Spinning {
+			return
+		}
+		// Rotating arc: ProgressRing-like with angle-shifted start.
+		prog := 0.7
+		stroke := 3.0
+		dc := pc.DC
+		cx := pc.Origin.X + sz.Width/2
+		cy := pc.Origin.Y + sz.Height/2
+		r := size/2 - stroke
+		if r < 1 {
+			r = 1
+		}
+		dc.SetRGBA(track.R, track.G, track.B, track.A)
+		dc.SetLineWidth(stroke)
+		dc.DrawCircle(cx, cy, r)
+		_ = dc.Stroke()
+		// fill arc from rotating start
+		start := -math.Pi/2 + s.angle*2*math.Pi
+		end := start + 2*math.Pi*prog
+		steps := 48
+		dc.SetRGBA(fill.R, fill.G, fill.B, fill.A)
+		dc.SetLineWidth(stroke)
+		for i := 0; i <= steps; i++ {
+			a := start + (end-start)*float64(i)/float64(steps)
+			x := cx + r*math.Cos(a)
+			y := cy + r*math.Sin(a)
+			if i == 0 {
+				dc.MoveTo(x, y)
+			} else {
+				dc.LineTo(x, y)
+			}
+		}
+		_ = dc.Stroke()
+	})
 	kids := []core.Node{}
 	if s.content != nil {
 		kids = append(kids, s.content)
 	}
-	if s.Spinning && s.ring != nil {
+	if s.ring != nil {
 		kids = append(kids, primitive.Positioned(core.AlignCenter, s.ring))
 	}
 	s.Root = primitive.NewStack(kids...)
 	s.Root.Base().Role = "status"
 	s.Root.Base().Label = "Loading"
 	s.Root.Base().Live = "polite"
-}
-
-func (s *Spin) rebuildRing() {
-	th := s.theme()
-	// sweep 0.25 of circle with rotating start via progress trick:
-	// draw progress 0.75 and rotate by painting offset start — ProgressRing starts at -90deg.
-	// Approximate: vary progress slightly
-	prog := 0.7
-	s.ring = primitive.ProgressRing(s.Size, 3, prog,
-		th.Color(core.TokenColorFillSecondary),
-		th.Color(core.TokenColorPrimary),
-	)
-	// re-center if already in stack — full rebuild for simplicity
 }
 
 // TourStep is one guided step.
@@ -412,7 +506,7 @@ func (p *Progress) Node() core.Node {
 	return p.Root
 }
 
-// SetPercent updates fill 0..100.
+// SetPercent updates fill 0..100 without rebuilding the node tree.
 func (p *Progress) SetPercent(v float64) {
 	if v < 0 {
 		v = 0
@@ -420,8 +514,11 @@ func (p *Progress) SetPercent(v float64) {
 	if v > 100 {
 		v = 100
 	}
+	if p.Percent == v && p.bar != nil {
+		return
+	}
 	p.Percent = v
-	p.rebuild()
+	p.applyFill()
 }
 
 func (p *Progress) theme() *core.Theme {
@@ -429,6 +526,27 @@ func (p *Progress) theme() *core.Theme {
 		return p.Theme
 	}
 	return DefaultTheme()
+}
+
+func (p *Progress) applyFill() {
+	if p.Root == nil {
+		p.rebuild()
+		return
+	}
+	w := p.Width
+	if w <= 0 {
+		w = 200
+	}
+	if p.bar != nil {
+		p.bar.Width = w * (p.Percent / 100)
+		p.bar.MarkNeedsLayout()
+		p.bar.MarkNeedsPaint()
+	}
+	if p.track != nil {
+		p.track.MarkNeedsLayout()
+	}
+	p.Root.Base().Label = fmt.Sprintf("%.0f percent", p.Percent)
+	p.Root.MarkNeedsPaint()
 }
 
 func (p *Progress) rebuild() {

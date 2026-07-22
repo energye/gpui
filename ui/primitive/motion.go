@@ -99,17 +99,35 @@ func (m *Motion) TypeID() string { return TypeMotion }
 func (m *Motion) Progress() float64 { return m.t }
 
 // Advance updates animation from dt (respects ReduceMotion).
-func (m *Motion) Advance(dt float64, reduce bool) {
+// Returns still=true while the animation is running (implements core.Ticker).
+func (m *Motion) Advance(dt float64, reduce bool) (still bool) {
+	if m.Anim.Done() && !reduce {
+		return false
+	}
 	if reduce {
-		m.t = 1
-		m.Anim.Stop()
-		return
+		if m.t != 1 {
+			m.t = 1
+			m.Anim.Stop()
+			m.MarkNeedsPaint()
+			if m.UseHeight {
+				m.MarkNeedsLayout()
+			}
+		} else {
+			m.Anim.Stop()
+		}
+		return false
 	}
 	m.t = m.Anim.Advance(dt)
 	m.MarkNeedsPaint()
 	if m.UseHeight {
 		m.MarkNeedsLayout()
 	}
+	return !m.Anim.Done()
+}
+
+// Tick implements core.Ticker for demand-frame ANIMATING.
+func (m *Motion) Tick(dt float64) bool {
+	return m.Advance(dt, false)
 }
 
 // AdvanceClock uses tree clock.
@@ -119,6 +137,16 @@ func (m *Motion) AdvanceClock(t *core.Tree) {
 	}
 	cl := t.Clock()
 	m.Advance(cl.DT, cl.ReduceMotion)
+}
+
+// AttachTicker registers motion on the tree while the animation is running.
+func (m *Motion) AttachTicker(t *core.Tree) {
+	if m == nil || t == nil {
+		return
+	}
+	if !m.Anim.Done() {
+		t.AddTicker(m)
+	}
 }
 
 // Layout implements core.Node.
@@ -229,6 +257,10 @@ func (p *Presence) Show() {
 		p.phase = 1
 		p.Visible = true
 		p.enter.Start()
+		p.MarkNeedsPaint()
+		if p.Tree() != nil {
+			p.Tree().AddTicker(p)
+		}
 	}
 }
 
@@ -238,42 +270,63 @@ func (p *Presence) Hide() {
 	if p.phase == 1 || p.phase == 2 {
 		p.phase = 3
 		p.leave.Start()
+		p.MarkNeedsPaint()
+		if p.Tree() != nil {
+			p.Tree().AddTicker(p)
+		}
 	}
 }
 
 // Advance steps presence state machine.
-func (p *Presence) Advance(dt float64, reduce bool) {
+// Returns still=true while enter/leave animation is in progress.
+func (p *Presence) Advance(dt float64, reduce bool) (still bool) {
 	if reduce {
+		prev := p.opacity
 		if p.WantVisible {
 			p.phase, p.opacity, p.Visible, p.Gone = 2, 1, true, false
 		} else {
 			p.phase, p.opacity, p.Visible, p.Gone = 0, 0, false, true
 		}
-		return
+		if prev != p.opacity {
+			p.MarkNeedsPaint()
+		}
+		return false
 	}
 	switch p.phase {
 	case 1: // entering
 		p.t = p.enter.Advance(dt)
 		p.opacity = p.t
+		p.MarkNeedsPaint()
 		if p.enter.Done() {
 			p.phase = 2
 			p.opacity = 1
+			return false
 		}
+		return true
 	case 3: // leaving
 		p.t = p.leave.Advance(dt)
 		p.opacity = 1 - p.t
+		p.MarkNeedsPaint()
 		if p.leave.Done() {
 			p.phase = 0
 			p.opacity = 0
 			p.Visible = false
 			p.Gone = true
+			return false
 		}
+		return true
 	case 2:
 		p.opacity = 1
+		return false
 	default:
 		p.opacity = 0
+		return false
 	}
-	p.MarkNeedsPaint()
+}
+
+// Tick implements core.Ticker while enter/leave is animating.
+func (p *Presence) Tick(dt float64) bool {
+	return p.Advance(dt, false)
 }
 
 // Layout implements core.Node.

@@ -61,6 +61,14 @@ type NodeBase struct {
 	mounted     bool
 	tree        *Tree
 
+	// lastConstraints caches the most recent Layout input for early-out (Flutter RO).
+	lastConstraints Constraints
+	hasConstraints  bool
+
+	// isRepaintBoundary stops MarkNeedsPaint bubbling (Flutter RepaintBoundary).
+	// Paint still walks this node; implementations may cache an offscreen layer.
+	isRepaintBoundary bool
+
 	// Hit controls hit participation; default HitDefer for containers.
 	Hit HitBehavior
 
@@ -170,7 +178,7 @@ func (n *NodeBase) ClearChildren() {
 	n.MarkNeedsLayout()
 }
 
-// MarkNeedsLayout dirties this node and ancestors.
+// MarkNeedsLayout dirties this node and ancestors (always bubbles past boundaries).
 func (n *NodeBase) MarkNeedsLayout() {
 	n.needsLayout = true
 	n.needsPaint = true
@@ -188,6 +196,9 @@ func (n *NodeBase) MarkNeedsLayout() {
 }
 
 // MarkNeedsPaint dirties paint without forcing full layout.
+// Bubbling stops at a parent that is already needsPaint, or at a
+// RepaintBoundary (Flutter: layer isolates paint dirty). The tree is still
+// marked dirty so a frame is scheduled.
 func (n *NodeBase) MarkNeedsPaint() {
 	n.needsPaint = true
 	if n.tree != nil {
@@ -198,9 +209,21 @@ func (n *NodeBase) MarkNeedsPaint() {
 		if b.needsPaint {
 			break
 		}
+		// Paint dirty stops at the boundary: the boundary itself becomes dirty
+		// so it re-rasterizes; ancestors above it stay clean.
+		if b.isRepaintBoundary {
+			b.needsPaint = true
+			break
+		}
 		b.needsPaint = true
 	}
 }
+
+// SetRepaintBoundary marks this node as a Flutter-style paint isolation root.
+func (n *NodeBase) SetRepaintBoundary(v bool) { n.isRepaintBoundary = v }
+
+// IsRepaintBoundary reports paint isolation (Flutter RepaintBoundary).
+func (n *NodeBase) IsRepaintBoundary() bool { return n.isRepaintBoundary }
 
 // NeedsLayout reports layout dirtiness.
 func (n *NodeBase) NeedsLayout() bool { return n.needsLayout }
@@ -212,6 +235,45 @@ func (n *NodeBase) NeedsPaint() bool { return n.needsPaint }
 func (n *NodeBase) ClearDirty() {
 	n.needsLayout = false
 	n.needsPaint = false
+}
+
+// ClearLayoutDirty clears only the layout dirty bit (after a successful Layout).
+func (n *NodeBase) ClearLayoutDirty() { n.needsLayout = false }
+
+// ClearPaintDirty clears only the paint dirty bit (after a successful Paint).
+func (n *NodeBase) ClearPaintDirty() { n.needsPaint = false }
+
+// ShouldRelayout reports whether Layout must recompute under c.
+// Clean nodes with identical constraints skip work (Flutter RO early-out).
+func (n *NodeBase) ShouldRelayout(c Constraints) bool {
+	if n.needsLayout {
+		return true
+	}
+	if !n.hasConstraints {
+		return true
+	}
+	return !constraintsEqual(n.lastConstraints, c)
+}
+
+// RememberConstraints stores c after a successful Layout pass.
+func (n *NodeBase) RememberConstraints(c Constraints) {
+	n.lastConstraints = c
+	n.hasConstraints = true
+	n.needsLayout = false
+}
+
+// LayoutSkipIfClean returns the cached size when layout can be skipped.
+// Call at the start of Layout; ok=true means return size immediately.
+func (n *NodeBase) LayoutSkipIfClean(c Constraints) (size Size, ok bool) {
+	if n.ShouldRelayout(c) {
+		return Size{}, false
+	}
+	return n.size, true
+}
+
+func constraintsEqual(a, b Constraints) bool {
+	return a.MinWidth == b.MinWidth && a.MaxWidth == b.MaxWidth &&
+		a.MinHeight == b.MinHeight && a.MaxHeight == b.MaxHeight
 }
 
 // DefaultHitTest walks children reverse-z then applies Hit behavior.
@@ -250,12 +312,58 @@ func (n *NodeBase) DefaultHitTest(p Point) Node {
 }
 
 // DefaultPaintChildren paints children with translated origin.
+//
+// When pc.CompositeOnly is set (retained composite frame after the first full
+// paint), children that are not paint-dirty are still visited if they contain
+// RepaintBoundary descendants that may blit a cached layer; leaf-like clean
+// subtrees without dirty descendants are skipped to cut CPU.
 func (n *NodeBase) DefaultPaintChildren(pc *PaintContext) {
 	for _, c := range n.children {
 		cb := c.Base()
+		if pc != nil && pc.CompositeOnly && !cb.needsPaint && !subtreeHasPaintDirty(c) {
+			// Still blit clean repaint boundaries so the retained surface stays correct
+			// when the parent path is composite-only and this branch only holds layers.
+			if !subtreeHasRepaintBoundary(c) {
+				continue
+			}
+		}
 		childPC := pc.WithOrigin(pc.Origin.Add(cb.offset))
 		c.Paint(childPC)
 	}
+}
+
+// subtreeHasPaintDirty reports whether n or any descendant needs paint.
+func subtreeHasPaintDirty(n Node) bool {
+	if n == nil {
+		return false
+	}
+	b := n.Base()
+	if b.needsPaint {
+		return true
+	}
+	for _, c := range b.children {
+		if subtreeHasPaintDirty(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// subtreeHasRepaintBoundary reports whether n or any descendant is a boundary.
+func subtreeHasRepaintBoundary(n Node) bool {
+	if n == nil {
+		return false
+	}
+	b := n.Base()
+	if b.isRepaintBoundary {
+		return true
+	}
+	for _, c := range b.children {
+		if subtreeHasRepaintBoundary(c) {
+			return true
+		}
+	}
+	return false
 }
 
 func mountNode(n Node, t *Tree) {

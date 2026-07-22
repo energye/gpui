@@ -35,6 +35,9 @@ func (f *Flex) TypeID() string { return TypeFlex }
 
 // Layout implements core.Node.
 func (f *Flex) Layout(c core.Constraints) core.Size {
+	if sz, ok := f.LayoutSkipIfClean(c); ok {
+		return sz
+	}
 	inner := c.Deflate(f.Padding.Left, f.Padding.Top, f.Padding.Right, f.Padding.Bottom)
 	// Temporarily layout children relative to content box; LayoutFlex writes offsets at 0,0.
 	// We re-offset by padding after.
@@ -57,11 +60,17 @@ func (f *Flex) Layout(c core.Constraints) core.Size {
 	}
 	out = c.Tighten(out)
 	f.SetSize(out)
+	f.RememberConstraints(c)
 	return out
 }
 
 // Paint implements core.Node.
-func (f *Flex) Paint(pc *core.PaintContext) { f.DefaultPaintChildren(pc) }
+func (f *Flex) Paint(pc *core.PaintContext) {
+	f.DefaultPaintChildren(pc)
+	if pc != nil {
+		f.ClearPaintDirty()
+	}
+}
 
 // HitTest implements core.Node.
 func (f *Flex) HitTest(p core.Point) core.Node { return f.DefaultHitTest(p) }

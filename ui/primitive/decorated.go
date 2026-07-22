@@ -40,6 +40,9 @@ func (d *Decorated) TypeID() string { return TypeDecorated }
 
 // Layout implements core.Node.
 func (d *Decorated) Layout(c core.Constraints) core.Size {
+	if sz, ok := d.LayoutSkipIfClean(c); ok {
+		return sz
+	}
 	inner := c.Deflate(d.Padding.Left, d.Padding.Top, d.Padding.Right, d.Padding.Bottom)
 	content := core.Size{}
 	kids := d.Children()
@@ -69,12 +72,14 @@ func (d *Decorated) Layout(c core.Constraints) core.Size {
 	}
 	out := c.Tighten(core.Size{Width: w, Height: h})
 	d.SetSize(out)
+	d.RememberConstraints(c)
 	return out
 }
 
 // Paint implements core.Node.
 func (d *Decorated) Paint(pc *core.PaintContext) {
-	if pc != nil {
+	paintChrome := pc == nil || !pc.CompositeOnly || d.NeedsPaint() || pc.ForceFullPaint
+	if paintChrome && pc != nil {
 		var p core.Painter
 		if pc.Theme != nil {
 			p = pc.Theme.Painter(TypeDecorated)
@@ -86,6 +91,9 @@ func (d *Decorated) Paint(pc *core.PaintContext) {
 		}
 	}
 	d.DefaultPaintChildren(pc)
+	if pc != nil {
+		d.ClearPaintDirty()
+	}
 }
 
 // PaintDecorated is the single chrome path for Decorated: resolve optional

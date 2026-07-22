@@ -7,35 +7,36 @@ import (
 
 // Type IDs (stable strings for Skin/Plugin).
 const (
-	TypeBox            = "primitive.Box"
-	TypeFlex           = "primitive.Flex"
-	TypeStack          = "primitive.Stack"
-	TypeFlexible       = "primitive.Flexible"
-	TypeText           = "primitive.Text"
-	TypePressable      = "primitive.Pressable"
-	TypeClip           = "primitive.Clip"
-	TypeDecorated      = "primitive.Decorated"
-	TypeSlot           = "primitive.Slot"
-	TypeIcon           = "primitive.Icon"
-	TypeFocusable      = "primitive.Focusable"
-	TypeHitTarget      = "primitive.HitTarget"
-	TypeDivider        = "primitive.Divider"
-	TypePainterNode    = "primitive.PainterNode"
-	TypeEditableText   = "primitive.EditableText"
-	TypeScrollViewport = "primitive.ScrollViewport"
-	TypeOverlayPortal  = "primitive.OverlayPortal"
-	TypeMask           = "primitive.Mask"
-	TypeAnchoredPopup  = "primitive.AnchoredPopup"
-	TypeTrigger        = "primitive.Trigger"
-	TypeVirtualList    = "primitive.VirtualList"
-	TypeFocusScope     = "primitive.FocusScope"
-	TypeGrid           = "primitive.Grid"
-	TypeSticky         = "primitive.Sticky"
-	TypeDraggable      = "primitive.Draggable"
-	TypeSplitPane      = "primitive.SplitPane"
-	TypeCanvas         = "primitive.Canvas"
-	TypeMotion         = "primitive.Motion"
-	TypePresence       = "primitive.Presence"
+	TypeBox             = "primitive.Box"
+	TypeFlex            = "primitive.Flex"
+	TypeStack           = "primitive.Stack"
+	TypeFlexible        = "primitive.Flexible"
+	TypeText            = "primitive.Text"
+	TypePressable       = "primitive.Pressable"
+	TypeClip            = "primitive.Clip"
+	TypeDecorated       = "primitive.Decorated"
+	TypeSlot            = "primitive.Slot"
+	TypeIcon            = "primitive.Icon"
+	TypeFocusable       = "primitive.Focusable"
+	TypeHitTarget       = "primitive.HitTarget"
+	TypeDivider         = "primitive.Divider"
+	TypePainterNode     = "primitive.PainterNode"
+	TypeEditableText    = "primitive.EditableText"
+	TypeScrollViewport  = "primitive.ScrollViewport"
+	TypeOverlayPortal   = "primitive.OverlayPortal"
+	TypeMask            = "primitive.Mask"
+	TypeAnchoredPopup   = "primitive.AnchoredPopup"
+	TypeTrigger         = "primitive.Trigger"
+	TypeVirtualList     = "primitive.VirtualList"
+	TypeFocusScope      = "primitive.FocusScope"
+	TypeGrid            = "primitive.Grid"
+	TypeSticky          = "primitive.Sticky"
+	TypeDraggable       = "primitive.Draggable"
+	TypeSplitPane       = "primitive.SplitPane"
+	TypeCanvas          = "primitive.Canvas"
+	TypeMotion          = "primitive.Motion"
+	TypePresence        = "primitive.Presence"
+	TypeRepaintBoundary = "primitive.RepaintBoundary"
 )
 
 // EdgeInsets is padding/margin on four sides.
@@ -78,6 +79,9 @@ func (b *Box) TypeID() string { return TypeBox }
 
 // Layout implements core.Node.
 func (b *Box) Layout(c core.Constraints) core.Size {
+	if sz, ok := b.LayoutSkipIfClean(c); ok {
+		return sz
+	}
 	inner := c.Deflate(b.Padding.Left, b.Padding.Top, b.Padding.Right, b.Padding.Bottom)
 	// Preferred size if set.
 	if b.Width > 0 {
@@ -117,15 +121,21 @@ func (b *Box) Layout(c core.Constraints) core.Size {
 	}
 	out := c.Tighten(core.Size{Width: w, Height: h})
 	b.SetSize(out)
+	b.RememberConstraints(c)
 	return out
 }
 
 // Paint implements core.Node.
 func (b *Box) Paint(pc *core.PaintContext) {
-	if b.Color.A > 0 && pc != nil {
+	// Composite-only frames: skip solid fill when this box is clean (pixels retained).
+	paintSelf := pc == nil || !pc.CompositeOnly || b.NeedsPaint() || pc.ForceFullPaint
+	if paintSelf && b.Color.A > 0 && pc != nil {
 		pc.FillLocalRect(0, 0, b.Size().Width, b.Size().Height, b.Color)
 	}
 	b.DefaultPaintChildren(pc)
+	if pc != nil {
+		b.ClearPaintDirty()
+	}
 }
 
 // HitTest implements core.Node.

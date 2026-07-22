@@ -4,6 +4,7 @@ package exboot
 
 import (
 	"errors"
+	"image"
 	"log"
 	"time"
 
@@ -15,6 +16,14 @@ import (
 )
 
 // UIDemandConfig drives a gogpu-aligned demand frame loop for UI smokes.
+//
+// Present policy (Flutter demand + engine G2):
+//   - Continuous=false (kit default): paint only when Tree.Dirty(); tickers
+//     MarkNeedsPaint. First frame / resize / FullPaintRequired → full clear.
+//   - Subsequent dirty frames with CollectPaintDamage: Invalidate rects then
+//     PresentFrameAuto. Vector MSAA may still LoadOpClear (G2.a); demand frame
+//     still avoids idle present. RepaintBoundary reduces paint CPU.
+//   - Continuous=true: game-loop full paint every tick (not for kit smokes).
 type UIDemandConfig struct {
 	Host   platform.Host
 	Tree   *core.Tree
@@ -27,7 +36,7 @@ type UIDemandConfig struct {
 	// Seconds is how long to run before Quit; <=0 means unlimited (default).
 	// Set GPUI_ANIM_SECONDS>0 in callers for timed CI smokes.
 	Seconds float64
-	// Continuous forces every-tick paint (animations / gallery demos).
+	// Continuous forces every-tick paint (game loop only). Kit smokes must leave false.
 	Continuous bool
 	// OnUpdate runs on the main (Run) goroutine each active tick.
 	OnUpdate func(dt float64)
@@ -74,7 +83,27 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		}
 
 		dc.BeginFrame()
+
+		full := cfg.Continuous || s.Tree == nil || s.Tree.FullPaintRequired()
+		if !full && s.Tree != nil {
+			for _, r := range s.Tree.CollectPaintDamage() {
+				if r.Empty() {
+					continue
+				}
+				dc.Invalidate(image.Rect(
+					int(r.Min.X), int(r.Min.Y),
+					int(r.Max.X+0.999), int(r.Max.Y+0.999),
+				))
+			}
+		}
+
+		// Clear surface. Under G2.a vector MSAA still LoadOpClear; CompositeOnly
+		// skips clean non-boundary CPU work. FullPaintRequired drives first frame.
 		dc.ClearWithColor(cfg.Clear)
+		if full {
+			dc.MarkFullRedraw()
+		}
+
 		pc := &core.PaintContext{
 			DC:    dc,
 			Scale: host.ScaleFactor(),
@@ -82,6 +111,20 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		}
 		if s.Theme != nil {
 			pc.Theme = s.Theme
+		}
+		if !full {
+			// Skip clean non-boundary subtrees (Flutter retained path for CPU).
+			// NOTE: with Clear above, skipped subtrees leave holes unless they are
+			// only under RepaintBoundary isolation of dirty animators and static
+			// chrome is re-painted by full frames. Prefer MarkFullPaintRequired
+			// after expose; steady animation frames still re-paint dirty leaves.
+			//
+			// Conservative: CompositeOnly only skips nodes that are clean AND have
+			// no repaint-boundary descendants that need blit — see DefaultPaintChildren.
+			// Because we Clear, we must NOT skip static content. So CompositeOnly is
+			// only safe when the host does not Clear (blit LoadOpLoad). Disable for
+			// vector clear path to avoid blank static UI.
+			pc.CompositeOnly = false
 		}
 		s.Tree.Frame(pc, core.Size{Width: float64(w), Height: float64(h)})
 
@@ -131,6 +174,9 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		sess.Width, sess.Height = w, h
 		_ = cfg.SC.Resize(uint32(w), uint32(h))
 		_ = cfg.DC.Resize(w, h)
+		if cfg.Tree != nil {
+			cfg.Tree.MarkFullPaintRequired()
+		}
 		if cfg.OnResize != nil {
 			cfg.OnResize(w, h)
 		}

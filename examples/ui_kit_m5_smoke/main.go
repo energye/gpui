@@ -2,6 +2,9 @@
 
 // ui_kit_m5_smoke — M5 proof: Skeleton / Spin / Progress / Tour / Motion / A11y.
 //
+// Demand-frame aligned (Flutter dirty): Continuous=false; animators use Tree.AddTicker
+// and MarkNeedsPaint only — no full-tree MarkDirty every tick.
+//
 //	export DISPLAY=:1 WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	go run ./examples/ui_kit_m5_smoke
 package main
@@ -22,6 +25,24 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
+// progressTicker drives Progress percent under demand-frame ANIMATING.
+type progressTicker struct {
+	prog *kit.Progress
+	pct  float64
+}
+
+func (p *progressTicker) Tick(dt float64) bool {
+	if p == nil || p.prog == nil {
+		return false
+	}
+	p.pct += dt * 15
+	if p.pct > 100 {
+		p.pct = 0
+	}
+	p.prog.SetPercent(p.pct)
+	return true
+}
+
 func main() {
 	exboot.InitEnv()
 	winW, winH := 720, 520
@@ -35,7 +56,7 @@ func main() {
 	}
 
 	host, err := platform.NewLinuxHost(platform.LinuxOptions{
-		Width: winW, Height: winH, Title: "gpui ui_kit_m5_smoke (M5)",
+		Width: winW, Height: winH, Title: "gpui ui_kit_m5_smoke (M5 demand)",
 	})
 	if err != nil {
 		log.Fatalf("host: %v", err)
@@ -98,16 +119,17 @@ func main() {
 	vp := core.Size{Width: float64(winW), Height: float64(winH)}
 	status := "ready"
 
-	title := kit.NewText("M5 · Motion / Presence / Skeleton / Spin / Progress / Tour / A11y")
+	title := kit.NewText("M5 · demand dirty · Motion / Skeleton / Spin / Progress / Tour / A11y")
 	title.SetFace(face)
 	title.Root.FontSize = 15
 
-	// Motion fade-in text
+	// Motion fade-in text — ticker only while animating
 	hello := kit.NewText("Fading content (Motion)")
 	hello.SetFace(face)
 	motion := primitive.NewMotion(hello.Node())
 	motion.Anim.Duration = 0.8
 	motion.Anim.Start()
+	motionBoundary := primitive.NewRepaintBoundary(motion)
 
 	// Presence panel
 	presBody := kit.NewText("Presence panel — toggle hide/show")
@@ -125,23 +147,30 @@ func main() {
 		}
 	})
 
-	// Skeleton row
+	// Skeleton row — each bar isolated in a RepaintBoundary
 	sk1 := kit.NewSkeleton(180, 14)
 	sk2 := kit.NewSkeleton(120, 14)
 	sk3 := kit.NewSkeleton(160, 14)
-	skRow := primitive.Column(sk1.Node(), sk2.Node(), sk3.Node())
+	skRow := primitive.Column(
+		primitive.NewRepaintBoundary(sk1.Node()),
+		primitive.NewRepaintBoundary(sk2.Node()),
+		primitive.NewRepaintBoundary(sk3.Node()),
+	)
 	skRow.Gap = 8
 
 	// Spin
 	spinLabel := kit.NewText("Loading…")
 	spinLabel.SetFace(face)
 	spin := kit.NewSpin(spinLabel.Node())
+	spinBoundary := primitive.NewRepaintBoundary(spin.Node())
 
 	// Progress
 	prog := kit.NewProgress(35)
 	prog.Width = 280
+	progBoundary := primitive.NewRepaintBoundary(prog.Node())
+	progTick := &progressTicker{prog: prog, pct: 35}
 
-	// Ring canvas
+	// Ring canvas (static demo ring)
 	ring := primitive.ProgressRing(48, 4, 0.65,
 		theme.Color(core.TokenColorFillSecondary),
 		theme.Color(core.TokenColorPrimary),
@@ -181,14 +210,14 @@ func main() {
 
 	col := primitive.Column(
 		title.Node(),
-		motion,
+		motionBoundary,
 		presence,
 		kit.NewText("Skeleton").Node(),
 		skRow,
 		kit.NewText("Spin").Node(),
-		spin.Node(),
+		spinBoundary,
 		kit.NewText("Progress").Node(),
-		prog.Node(),
+		progBoundary,
 		row1,
 		statusTx.Node(),
 		tour.Node(),
@@ -203,6 +232,14 @@ func main() {
 	root.Height = float64(winH)
 	tree := core.NewTree(root)
 
+	// Demand-frame tickers (ANIMATING) — MarkNeedsPaint from each Tick, no tree.MarkDirty spam.
+	sk1.AttachTicker(tree)
+	sk2.AttachTicker(tree)
+	sk3.AttachTicker(tree)
+	spin.AttachTicker(tree)
+	motion.AttachTicker(tree)
+	tree.AddTicker(progTick)
+
 	a11yBtn.SetOnClick(func() {
 		nodes := kit.CollectA11y(tree.Root())
 		status = fmt.Sprintf("a11y nodes=%d", len(nodes))
@@ -210,13 +247,13 @@ func main() {
 	})
 
 	last := status
-	pct := 35.0
 
 	res := exboot.RunUIDemand(exboot.UIDemandConfig{
 		Host: host, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
-		Clear:      theme.Color(core.TokenColorBgLayout),
-		Seconds:    seconds,
-		Continuous: true, // motion/skeleton/spin need continuous ticks
+		Clear:   theme.Color(core.TokenColorBgLayout),
+		Seconds: seconds,
+		// Continuous false: Flutter demand — paint only when Dirty (tickers MarkNeedsPaint).
+		Continuous: false,
 		Flush:      host.Flush,
 		OnResize: func(w, h int) {
 			winW, winH = w, h
@@ -224,26 +261,17 @@ func main() {
 			root.Width, root.Height = float64(w), float64(h)
 			tour.Viewport = vp
 			root.MarkNeedsLayout()
+			tree.MarkFullPaintRequired()
 		},
 		OnUpdate: func(dt float64) {
-			tree.TickClock(dt)
-			motion.AdvanceClock(tree)
-			presence.Advance(dt, tree.Clock().ReduceMotion)
-			sk1.Tick(dt)
-			sk2.Tick(dt)
-			sk3.Tick(dt)
-			spin.Tick(dt)
-			pct += dt * 15
-			if pct > 100 {
-				pct = 0
-			}
-			prog.SetPercent(pct)
+			// TickActive is already run by ui/app for registered tickers.
+			// Keep tour/status bookkeeping only — no continuous MarkDirty.
+			_ = dt
 			tour.Sync()
 			if status != last {
 				statusTx.SetValue("status: " + status)
 				last = status
 			}
-			tree.MarkDirty() // continuous demo always repaints
 		},
 	})
 	fmt.Printf("ui_kit_m5_smoke done frames=%d paints=%d hops=%d status=%q a11y=%d %s\n",

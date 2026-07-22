@@ -77,17 +77,26 @@ func TestCanvasProgressRing(t *testing.T) {
 
 func TestSkeletonAndSpin(t *testing.T) {
 	sk := kit.NewSkeleton(100, 16)
-	sk.Tick(0.05)
+	if !sk.Tick(0.05) {
+		t.Fatal("active skeleton should keep ticking")
+	}
 	_ = sk.Node().Layout(core.Loose(200, 50))
 
 	sp := kit.NewSpin(nil)
-	sp.Tick(0.05)
+	if !sp.Tick(0.05) {
+		t.Fatal("spinning spin should keep ticking")
+	}
 	_ = sp.Node().Layout(core.Loose(50, 50))
 }
 
 func TestProgress(t *testing.T) {
 	p := kit.NewProgress(40)
+	root1 := p.Node()
 	p.SetPercent(80)
+	root2 := p.Node()
+	if root1 != root2 {
+		t.Fatal("SetPercent must not rebuild root")
+	}
 	sz := p.Node().Layout(core.Loose(300, 40))
 	if sz.Width < 80 {
 		t.Fatal(sz)
