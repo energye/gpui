@@ -6,10 +6,19 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
-// MenuItem is one menu entry.
+// MenuItem is one menu entry (also used by Tabs / Dropdown).
 type MenuItem struct {
 	Key   string
 	Label string
+	// Disabled: non-interactive (e.g. Tabs category header — gray, no content).
+	Disabled bool
+	// Divider: thin separator row; Key/Label ignored (e.g. Tabs rail "-").
+	Divider bool
+}
+
+// Selectable reports whether the item can become the active Tabs key.
+func (it MenuItem) Selectable() bool {
+	return !it.Disabled && !it.Divider && it.Key != ""
 }
 
 // Menu is a vertical list of selectable items with keyboard nav (B3 base).

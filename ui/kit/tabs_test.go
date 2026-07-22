@@ -33,12 +33,50 @@ func TestTabsLeftItemHeightNotFillRail(t *testing.T) {
 	if rail.Size().Width < 150 || rail.Size().Width > 170 {
 		t.Fatalf("rail width=%v want ~160", rail.Size().Width)
 	}
-	// rail → ScrollViewport → Flex(bar)
+	// rail → ScrollViewport → Stack(barList, ink) → Flex(barList)
 	scroll, ok := rail.Children()[0].(*primitive.ScrollViewport)
 	if !ok {
 		t.Fatalf("rail child type %T want ScrollViewport", rail.Children()[0])
 	}
-	bar := scroll.Children()[0].(*primitive.Flex)
+	// scroll child is kit.tabsBarHost (Stack wrapper) — walk for Flex barList
+	host := scroll.Children()[0]
+	var bar *primitive.Flex
+	var walk func(core.Node)
+	walk = func(n core.Node) {
+		if n == nil || bar != nil {
+			return
+		}
+		if f, ok := n.(*primitive.Flex); ok && len(f.Children()) >= 1 {
+			// Prefer the flex that holds tab hosts (Decorated rows)
+			if _, ok := f.Children()[0].(*primitive.Decorated); ok || len(f.Children()) == 3 {
+				bar = f
+				return
+			}
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(host)
+	if bar == nil {
+		// fallback: first flex under host
+		walk = func(n core.Node) {
+			if n == nil || bar != nil {
+				return
+			}
+			if f, ok := n.(*primitive.Flex); ok {
+				bar = f
+				return
+			}
+			for _, c := range n.Children() {
+				walk(c)
+			}
+		}
+		walk(host)
+	}
+	if bar == nil {
+		t.Fatalf("bar Flex not found under %T", host)
+	}
 	items := bar.Children()
 	if len(items) != 3 {
 		t.Fatalf("tab items=%d want 3", len(items))

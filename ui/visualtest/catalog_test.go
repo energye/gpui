@@ -70,6 +70,7 @@ func TestVisual_ScrollOverflow(t *testing.T) {
 		inner.AddChild(b)
 	}
 	sc := kit.NewScroll(inner)
+	sc.SetScrollbarVisibility(primitive.ScrollbarAuto)
 	sc.SetSize(120, 80)
 	captureAssert(t, "catalog_scroll", frame(sc.Node(), 140, 100), 140, 100)
 }

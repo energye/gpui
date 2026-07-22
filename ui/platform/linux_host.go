@@ -461,6 +461,28 @@ func (h *LinuxHost) handleRaw(raw *[192]byte) {
 		x := float64(*(*int32)(unsafe.Pointer(&raw[64])))
 		y := float64(*(*int32)(unsafe.Pointer(&raw[68])))
 		btnN := int(*(*uint32)(unsafe.Pointer(&raw[84])))
+		// Classic X11 mouse wheel: Button4/5 vertical, Button6/7 horizontal.
+		// Only press generates a step (release is ignored).
+		if btnN >= 4 && btnN <= 7 {
+			if typ == xButtonPress {
+				const step = 48.0 // ~3 lines at 16px
+				dx, dy := 0.0, 0.0
+				switch btnN {
+				case 4: // up
+					dy = -step
+				case 5: // down
+					dy = step
+				case 6: // left
+					dx = -step
+				case 7: // right
+					dx = step
+				}
+				h.queue = append(h.queue, Event{
+					Type: EventScroll, X: x, Y: y, ScrollDX: dx, ScrollDY: dy,
+				})
+			}
+			break
+		}
 		btn := BtnNone
 		switch btnN {
 		case 1:

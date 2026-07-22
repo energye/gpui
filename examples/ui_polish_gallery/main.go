@@ -117,11 +117,11 @@ func main() {
 	theme := kit.DefaultTheme()
 	// --- Ant Design catalog panels ---
 
-	title := kit.NewText("Polish gallery · Ant Design catalog (scroll tabs)")
+	title := kit.NewText("Polish gallery · Ant Design catalog (per-control tabs)")
 	title.SetFace(face)
 	title.Root.FontSize = 16
 
-	hint := kit.NewText("Categories: General · Layout · Navigation · Data Entry · Data Display · Feedback · Other")
+	hint := kit.NewText("Rail: gray category headers · separator · one tab per control")
 	hint.SetFace(face)
 	hint.SetSecondary(true)
 
@@ -133,14 +133,18 @@ func main() {
 	tabs := kit.NewTabs(items...)
 	tabs.Face = face
 	tabs.SetPosition(kit.TabLeft)
-	tabs.TabWidth = 160
-	tabs.TabItemHeight = 40
+	tabs.SetTabWidth(168)
+	tabs.SetTabItemHeight(36)
+	tabs.SetInkSize(3)
+	tabs.SetInkAnimated(true)
 	for k, n := range panels {
 		tabs.SetContent(k, n)
 	}
-	if len(items) > 0 {
-		tabs.SetActive(items[0].Key)
+	if k := tabs.FirstSelectableKey(); k != "" {
+		tabs.SetActive(k)
 	}
+	// Sliding ink indicator animation (demand loop TickActive)
+	tickers = append(tickers, tabs)
 
 	statusTx := kit.NewText("status: " + status)
 	statusTx.SetFace(face)

@@ -115,6 +115,7 @@ func perControlSpecs() []ctlSpec {
 			}
 			sc := kit.NewScroll(col)
 			sc.SetSize(120, 80)
+			sc.SetScrollbarVisibility(primitive.ScrollbarAuto) // visual: bars always while overflow
 			return padRoot(sc.Node(), 140, 100)
 		}},
 		{"ctl_calendar", 280, 280, func() core.Node { return padRoot(kit.NewCalendar(2026, 7).Node(), 280, 280) }},

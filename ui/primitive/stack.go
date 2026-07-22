@@ -35,6 +35,14 @@ func (p *positioned) HitTest(pt core.Point) core.Node { return p.DefaultHitTest(
 func (p *positioned) StackAlignment() core.Alignment  { return p.align }
 func (p *positioned) StackOffset() (core.Point, bool) { return p.offset, p.useOff }
 
+// SetStackOffset updates absolute offset used by LayoutStack (ink bar animation).
+func (p *positioned) SetStackOffset(x, y float64) {
+	p.offset = core.Point{X: x, Y: y}
+	p.useOff = true
+	p.MarkNeedsLayout()
+	p.MarkNeedsPaint()
+}
+
 // NewStack constructs a Stack.
 func NewStack(children ...core.Node) *Stack {
 	s := &Stack{Fit: true}
