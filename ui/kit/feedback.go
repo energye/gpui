@@ -141,7 +141,7 @@ type Spin struct {
 
 // NewSpin creates a spinner; content may be nil.
 func NewSpin(content core.Node) *Spin {
-	s := &Spin{content: content, Spinning: true, Size: 28}
+	s := &Spin{content: content, Spinning: true, Size: 0} // Size 0 → theme TokenSpinSize
 	s.rebuild()
 	return s
 }
@@ -209,18 +209,27 @@ func (s *Spin) rebuild() {
 	th := s.theme()
 	size := s.Size
 	if size <= 0 {
-		size = 28
+		size = th.SizeOr(core.TokenSpinSize, 20)
 	}
 	track := th.Color(core.TokenColorFillSecondary)
+	if track.A < 0.08 {
+		track = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
+	}
 	fill := th.Color(core.TokenColorPrimary)
 	// Fixed canvas; PaintFn reads s.angle each paint (no alloc per tick).
 	s.ring = primitive.NewCanvas(size, size, func(pc *core.PaintContext, sz core.Size) {
 		if pc == nil || pc.DC == nil || !s.Spinning {
 			return
 		}
-		// Rotating arc: ProgressRing-like with angle-shifted start.
-		prog := 0.7
-		stroke := 3.0
+		// Ant Spin: round-capped arc on a light track (true circle stroke).
+		prog := 0.75
+		stroke := size * 0.12
+		if stroke < 2 {
+			stroke = 2
+		}
+		if stroke > 3 {
+			stroke = 3
+		}
 		dc := pc.DC
 		cx := pc.Origin.X + sz.Width/2
 		cy := pc.Origin.Y + sz.Height/2
@@ -228,16 +237,17 @@ func (s *Spin) rebuild() {
 		if r < 1 {
 			r = 1
 		}
-		dc.SetRGBA(track.R, track.G, track.B, track.A)
+		dc.SetLineCap(render.LineCapRound)
+		dc.SetLineJoin(render.LineJoinRound)
 		dc.SetLineWidth(stroke)
+		dc.SetRGBA(track.R, track.G, track.B, track.A)
 		dc.DrawCircle(cx, cy, r)
 		_ = dc.Stroke()
-		// fill arc from rotating start
+		// Active arc from rotating start — more steps for smoother AA.
 		start := -math.Pi/2 + s.angle*2*math.Pi
 		end := start + 2*math.Pi*prog
-		steps := 48
+		steps := 64
 		dc.SetRGBA(fill.R, fill.G, fill.B, fill.A)
-		dc.SetLineWidth(stroke)
 		for i := 0; i <= steps; i++ {
 			a := start + (end-start)*float64(i)/float64(steps)
 			x := cx + r*math.Cos(a)
@@ -561,21 +571,23 @@ func (p *Progress) rebuild() {
 	if w <= 0 {
 		w = 200
 	}
+	barH := th.SizeOr(core.TokenProgressHeight, 8)
 	p.bar = primitive.NewBox()
-	p.bar.Height = 8
+	p.bar.Height = barH
 	p.bar.Width = w * (p.Percent / 100)
 	p.bar.Color = th.Color(core.TokenColorPrimary)
 
 	p.track = primitive.NewBox(p.bar)
 	p.track.Width = w
-	p.track.Height = 8
+	p.track.Height = barH
 	p.track.Color = th.Color(core.TokenColorFillSecondary)
 	if p.track.Color.A < 0.05 {
 		p.track.Color = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
 	}
 
 	p.Root = primitive.NewDecorated(p.track)
-	p.Root.Radius = 4
+	// Ant Progress line: fully rounded ends (pill).
+	p.Root.Radius = barH / 2
 	p.Root.Base().Role = "progressbar"
 	p.Root.Base().Label = fmt.Sprintf("%.0f percent", p.Percent)
 	if p.Root != nil {

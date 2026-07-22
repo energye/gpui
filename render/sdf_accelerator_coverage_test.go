@@ -47,13 +47,13 @@ func TestSDFAcceleratorFillShapeTooSmall(t *testing.T) {
 	paint := NewPaint()
 	paint.SetBrush(Solid(Red))
 
-	// Small circle (radius 5, diameter 10 < sdfMinSize=16)
+	// Small circle (radius 3, diameter 6 < sdfMinSize=8)
 	small := DetectedShape{
 		Kind:    ShapeCircle,
 		CenterX: 50,
 		CenterY: 50,
-		RadiusX: 5,
-		RadiusY: 5,
+		RadiusX: 3,
+		RadiusY: 3,
 	}
 	err := a.FillShape(target, small, paint)
 	if !errors.Is(err, ErrFallbackToCPU) {
@@ -99,13 +99,13 @@ func TestSDFAcceleratorStrokeShapeTooSmall(t *testing.T) {
 	paint.SetBrush(Solid(Red))
 	paint.LineWidth = 2.0
 
-	// Small circle
+	// Small circle (diameter 6 < sdfMinSize=8)
 	small := DetectedShape{
 		Kind:    ShapeCircle,
 		CenterX: 50,
 		CenterY: 50,
-		RadiusX: 5,
-		RadiusY: 5,
+		RadiusX: 3,
+		RadiusY: 3,
 	}
 	err := a.StrokeShape(target, small, paint)
 	if !errors.Is(err, ErrFallbackToCPU) {
@@ -355,9 +355,10 @@ func TestSDFAccelerator_ThinStrokeFallback(t *testing.T) {
 		lineWidth float64
 		wantErr   bool
 	}{
-		{"lineWidth=1.0 fallback", 1.0, true},
-		{"lineWidth=1.5 fallback", 1.5, true},
-		{"lineWidth=1.99 fallback", 1.99, true},
+		{"lineWidth=0.5 fallback", 0.5, true},
+		{"lineWidth=0.74 fallback", 0.74, true},
+		{"lineWidth=1.0 renders", 1.0, false},
+		{"lineWidth=1.5 renders", 1.5, false},
 		{"lineWidth=2.0 renders", 2.0, false},
 		{"lineWidth=3.0 renders", 3.0, false},
 		{"lineWidth=10.0 renders", 10.0, false},

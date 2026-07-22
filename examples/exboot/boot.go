@@ -12,13 +12,19 @@ import (
 	"path/filepath"
 
 	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/render"
 	rendgpu "github.com/energye/gpui/render/gpu"
 )
 
-// InitEnv sets sample-count and native lib defaults when unset.
+// InitEnv sets native lib / display defaults when unset.
+//
+// MSAA: default GPUI_SURFACE_SAMPLE_COUNT=4 for Ant-class soft edges in the
+// window. Set GPUI_SURFACE_SAMPLE_COUNT=1 only when VRAM is tight.
 func InitEnv() {
 	if os.Getenv("GPUI_SURFACE_SAMPLE_COUNT") == "" {
-		_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+		// UI chrome: 4× MSAA (was 1 — hard edges made window look non-Ant
+		// while ui_ant_compare CPU path looked fine).
+		_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "4")
 	}
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		for _, p := range []string{
@@ -71,10 +77,29 @@ func OpenDevice(inst *webgpu.Instance, surf *webgpu.Surface, label string) (*web
 }
 
 // BindProvider installs the shared device into the render accelerator.
+// Logs env + resolved MSAA sample count (Skia-style: GPU on, coverage+MSAA quality).
 func BindProvider(dev *webgpu.Device, adpt *webgpu.Adapter, format webgpu.TextureFormat) error {
-	return rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
+	err := rendgpu.SetDeviceProvider(&webgpu.SimpleDeviceProvider{
 		Dev: dev, Adpt: adpt, Format: format,
 	})
+	scEnv := os.Getenv("GPUI_SURFACE_SAMPLE_COUNT")
+	if scEnv == "" {
+		scEnv = "(default→4)"
+	}
+	if err != nil {
+		log.Printf("exboot: BindProvider failed: %v (GPUI_SURFACE_SAMPLE_COUNT=%s)", err, scEnv)
+		return err
+	}
+	// Actual pipeline samples after bind (not just env).
+	samples := uint32(0)
+	if a := render.Accelerator(); a != nil {
+		if m, ok := a.(render.MSAAAware); ok {
+			samples = m.MSAASampleCount()
+		}
+	}
+	log.Printf("exboot: BindProvider ok format=%v env_SAMPLE_COUNT=%s resolved_msaa=%d ui_supersample=%q",
+		format, scEnv, samples, os.Getenv("GPUI_UI_SUPERSAMPLE"))
+	return nil
 }
 
 // WireAutoRecover arms swapchain recovery (Skia abandon+recreate).

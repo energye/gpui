@@ -7,6 +7,8 @@ const (
 	TokenColorPrimary         = "colorPrimary"
 	TokenColorPrimaryHover    = "colorPrimaryHover"
 	TokenColorPrimaryActive   = "colorPrimaryActive"
+	TokenColorPrimaryBg       = "colorPrimaryBg"
+	TokenColorPrimaryBorder   = "colorPrimaryBorder"
 	TokenColorText            = "colorText"
 	TokenColorTextSecondary   = "colorTextSecondary"
 	TokenColorTextInverse     = "colorTextInverse"
@@ -22,6 +24,11 @@ const (
 	TokenColorDisabledText    = "colorDisabledText"
 	TokenColorFillSecondary   = "colorFillSecondary"
 	TokenColorBgMask          = "colorBgMask"
+	// Hover/interaction fills (Ant controlItemBgHover / text hover).
+	TokenColorBgTextHover    = "colorBgTextHover"
+	TokenColorBgTextActive   = "colorBgTextActive"
+	TokenColorBorderHover    = "colorBorderHover"
+	TokenColorControlOutline = "controlOutline"
 
 	TokenFontSize        = "fontSize"
 	TokenFontSizeSM      = "fontSizeSM"
@@ -29,16 +36,33 @@ const (
 	TokenControlHeight   = "controlHeight"
 	TokenControlHeightSM = "controlHeightSM"
 	TokenControlHeightLG = "controlHeightLG"
-	TokenPaddingXS       = "paddingXS"
-	TokenPaddingSM       = "paddingSM"
-	TokenPadding         = "padding"
-	TokenPaddingLG       = "paddingLG"
-	TokenBorderRadius    = "borderRadius"
-	TokenBorderRadiusLG  = "borderRadiusLG"
-	TokenBorderRadiusSM  = "borderRadiusSM"
-	TokenLineWidth       = "lineWidth"
-	TokenMarginXS        = "marginXS"
-	TokenMarginSM        = "marginSM"
+	// Control horizontal padding (Ant paddingInline for Input/Select ≈ 11).
+	TokenControlPaddingInline   = "controlPaddingInline"
+	TokenControlPaddingInlineSM = "controlPaddingInlineSM"
+	TokenControlPaddingInlineLG = "controlPaddingInlineLG"
+	// Button horizontal padding (Ant paddingInline for Button middle ≈ 15).
+	TokenButtonPaddingInline   = "buttonPaddingInline"
+	TokenButtonPaddingInlineSM = "buttonPaddingInlineSM"
+	TokenButtonPaddingInlineLG = "buttonPaddingInlineLG"
+	TokenPaddingXS             = "paddingXS"
+	TokenPaddingSM             = "paddingSM"
+	TokenPadding               = "padding"
+	TokenPaddingLG             = "paddingLG"
+	TokenBorderRadius          = "borderRadius"
+	TokenBorderRadiusLG        = "borderRadiusLG"
+	TokenBorderRadiusSM        = "borderRadiusSM"
+	TokenLineWidth             = "lineWidth"
+	TokenLineWidthFocus        = "lineWidthFocus"
+	TokenMarginXS              = "marginXS"
+	TokenMarginSM              = "marginSM"
+	// Indicator size for Checkbox / Radio (Ant 16).
+	TokenSizeIndicator = "sizeIndicator"
+	// Switch track (Ant default ≈ 44×22).
+	TokenSwitchWidth  = "switchWidth"
+	TokenSwitchHeight = "switchHeight"
+	// Progress / spin.
+	TokenProgressHeight = "progressHeight"
+	TokenSpinSize       = "spinSize"
 )
 
 // TokenSet holds semantic design tokens (colors + dimensions).
@@ -214,6 +238,8 @@ func AntLightTokens() *TokenSet {
 	t.Colors[TokenColorPrimary] = render.Hex("#1677FF")
 	t.Colors[TokenColorPrimaryHover] = render.Hex("#4096FF")
 	t.Colors[TokenColorPrimaryActive] = render.Hex("#0958D9")
+	t.Colors[TokenColorPrimaryBg] = render.Hex("#E6F4FF")
+	t.Colors[TokenColorPrimaryBorder] = render.Hex("#91CAFF")
 	t.Colors[TokenColorText] = render.RGBA{R: 0, G: 0, B: 0, A: 0.88}
 	t.Colors[TokenColorTextSecondary] = render.RGBA{R: 0, G: 0, B: 0, A: 0.45}
 	t.Colors[TokenColorTextInverse] = render.RGBA{R: 1, G: 1, B: 1, A: 1}
@@ -229,13 +255,26 @@ func AntLightTokens() *TokenSet {
 	t.Colors[TokenColorDisabledText] = render.RGBA{R: 0, G: 0, B: 0, A: 0.25}
 	t.Colors[TokenColorFillSecondary] = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
 	t.Colors[TokenColorBgMask] = render.RGBA{R: 0, G: 0, B: 0, A: 0.45}
-	// Sizes
+	// Ant controlItemBgHover ≈ rgba(0,0,0,0.06); active slightly stronger.
+	t.Colors[TokenColorBgTextHover] = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
+	t.Colors[TokenColorBgTextActive] = render.RGBA{R: 0, G: 0, B: 0, A: 0.15}
+	// Input/Select border hover (Ant colorPrimaryHover family).
+	t.Colors[TokenColorBorderHover] = render.Hex("#4096FF")
+	// Focus outline glow (Ant controlOutline).
+	t.Colors[TokenColorControlOutline] = render.RGBA{R: 5.0 / 255, G: 145.0 / 255, B: 255.0 / 255, A: 0.1}
+	// Sizes — Ant Design 5 defaults
 	t.Sizes[TokenFontSize] = 14
 	t.Sizes[TokenFontSizeSM] = 12
 	t.Sizes[TokenFontSizeLG] = 16
 	t.Sizes[TokenControlHeight] = 32
 	t.Sizes[TokenControlHeightSM] = 24
 	t.Sizes[TokenControlHeightLG] = 40
+	t.Sizes[TokenControlPaddingInline] = 11
+	t.Sizes[TokenControlPaddingInlineSM] = 7
+	t.Sizes[TokenControlPaddingInlineLG] = 11
+	t.Sizes[TokenButtonPaddingInline] = 15
+	t.Sizes[TokenButtonPaddingInlineSM] = 7
+	t.Sizes[TokenButtonPaddingInlineLG] = 15
 	t.Sizes[TokenPaddingXS] = 4
 	t.Sizes[TokenPaddingSM] = 8
 	t.Sizes[TokenPadding] = 16
@@ -244,7 +283,13 @@ func AntLightTokens() *TokenSet {
 	t.Sizes[TokenBorderRadiusLG] = 8
 	t.Sizes[TokenBorderRadiusSM] = 4
 	t.Sizes[TokenLineWidth] = 1
+	t.Sizes[TokenLineWidthFocus] = 2
 	t.Sizes[TokenMarginXS] = 4
 	t.Sizes[TokenMarginSM] = 8
+	t.Sizes[TokenSizeIndicator] = 16
+	t.Sizes[TokenSwitchWidth] = 44
+	t.Sizes[TokenSwitchHeight] = 22
+	t.Sizes[TokenProgressHeight] = 8
+	t.Sizes[TokenSpinSize] = 20
 	return t
 }

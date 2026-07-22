@@ -38,6 +38,9 @@ type CaptureTreeOptions struct {
 	Focus core.Node
 	// Clear is the background color; zero A → white.
 	Clear render.RGBA
+	// Scale is device pixel ratio (1 = logical; 2 = HiDPI supersample).
+	// Physical image size is width*Scale × height*Scale.
+	Scale float64
 }
 
 // CaptureTree layouts and paints a root node into a fixed-size CPU canvas.
@@ -45,12 +48,16 @@ func CaptureTree(width, height int, root core.Node, theme *core.Theme) image.Ima
 	return CaptureTreeEx(width, height, root, CaptureTreeOptions{Theme: theme})
 }
 
-// CaptureTreeEx layouts and paints with optional focus + clear color.
+// CaptureTreeEx layouts and paints with optional focus, clear color, and DPR.
 func CaptureTreeEx(width, height int, root core.Node, opts CaptureTreeOptions) image.Image {
 	if width <= 0 || height <= 0 || root == nil {
 		return nil
 	}
-	dc := render.NewContext(width, height)
+	scale := opts.Scale
+	if scale <= 0 {
+		scale = 1
+	}
+	dc := render.NewContext(width, height, render.WithDeviceScale(scale))
 	defer dc.Close()
 	dc.BeginFrame()
 	clear := opts.Clear
@@ -59,7 +66,7 @@ func CaptureTreeEx(width, height int, root core.Node, opts CaptureTreeOptions) i
 	}
 	dc.ClearWithColor(clear)
 	tree := core.NewTree(root)
-	// Layout first so focus targets have size, then focus, then paint.
+	// Layout in logical pixels; device scale is applied by the render Context.
 	tree.Layout(core.Size{Width: float64(width), Height: float64(height)})
 	if opts.Focus != nil {
 		tree.SetFocus(opts.Focus)
@@ -67,7 +74,7 @@ func CaptureTreeEx(width, height int, root core.Node, opts CaptureTreeOptions) i
 	pc := &core.PaintContext{
 		DC:     dc,
 		Origin: core.Point{},
-		Scale:  1,
+		Scale:  scale,
 		Theme:  opts.Theme,
 	}
 	tree.Paint(pc)

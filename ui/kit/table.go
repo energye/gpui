@@ -34,7 +34,7 @@ type Table struct {
 // NewTable creates a table.
 func NewTable(columns []TableColumn, data []map[string]string) *Table {
 	t := &Table{
-		Columns: columns, Data: data, RowHeight: 36,
+		Columns: columns, Data: data, RowHeight: 47, // Ant table middle row
 		Selection: core.NewSelectionModel(core.SelectSingle),
 	}
 	t.rebuild()
@@ -76,8 +76,8 @@ func (t *Table) rebuild() {
 		lab.Face = t.Face
 		lab.Color = th.Color(core.TokenColorTextSecondary)
 		cell := primitive.NewDecorated(lab)
-		cell.Padding = primitive.Symmetric(10, 8)
-		cell.Background = th.Color(core.TokenColorFillSecondary)
+		cell.Padding = primitive.Symmetric(8, 12) // Ant table header cell
+		cell.Background = antHeaderFill(th)
 		if col.Width > 0 {
 			cell.Width = col.Width
 		} else {
@@ -102,9 +102,10 @@ func (t *Table) rebuild() {
 	// scroll viewport containing sticky + virtual is complex; simplify:
 	// column: header (fixed) + virtual body
 	frame := primitive.NewDecorated(primitive.Column(sticky, t.body))
-	frame.BorderWidth = 1
+	frame.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 	frame.BorderColor = th.Color(core.TokenColorBorder)
 	frame.Radius = th.SizeOr(core.TokenBorderRadius, 6)
+	frame.Background = th.Color(core.TokenColorBgContainer)
 
 	t.Root = primitive.Column(frame)
 	t.Root.CrossAlign = core.CrossStretch
@@ -125,7 +126,7 @@ func (t *Table) rowAt(i int) core.Node {
 		lab.Face = t.Face
 		lab.Color = th.Color(core.TokenColorText)
 		cell := primitive.NewBox(lab)
-		cell.Padding = primitive.Symmetric(10, 6)
+		cell.Padding = primitive.Symmetric(8, 12)
 		if col.Width > 0 {
 			cell.Width = col.Width
 			r.AddChild(cell)
@@ -140,12 +141,11 @@ func (t *Table) rowAt(i int) core.Node {
 	key := fmt.Sprintf("%d", i)
 	bg := render.RGBA{}
 	if t.Selection != nil && t.Selection.Has(key) {
-		bg = th.Color(core.TokenColorPrimary)
-		bg.A = 0.08
+		bg = antItemSelectedFill(th)
 	}
 	press := primitive.NewPressable(r)
 	press.Color = bg
-	press.ColorHovered = th.Color(core.TokenColorFillSecondary)
+	press.ColorHovered = antItemHoverFill(th)
 	idx := i
 	press.Click = func() {
 		if t.Selection != nil {
@@ -178,7 +178,7 @@ type List struct {
 
 // NewList creates a list.
 func NewList(items ...string) *List {
-	l := &List{Items: items, Selected: -1, ItemHeight: 36, Virtual: len(items) > 40}
+	l := &List{Items: items, Selected: -1, ItemHeight: 40, Virtual: len(items) > 40}
 	l.rebuild()
 	return l
 }
@@ -224,10 +224,11 @@ func (l *List) rebuild() {
 		l.scroll.Height = 200
 		l.Root = primitive.NewDecorated(l.scroll)
 	}
-	l.Root.BorderWidth = 1
+	l.Root.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 	l.Root.BorderColor = th.Color(core.TokenColorBorder)
-	l.Root.Radius = th.SizeOr(core.TokenBorderRadius, 6)
+	l.Root.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	l.Root.Padding = primitive.All(4)
+	l.Root.Background = th.Color(core.TokenColorBgContainer)
 }
 
 func (l *List) itemNode(i int) core.Node {
@@ -240,11 +241,12 @@ func (l *List) itemNode(i int) core.Node {
 	lab.Face = l.Face
 	lab.Color = th.Color(core.TokenColorText)
 	press := primitive.NewPressable(lab)
-	press.Padding = primitive.Symmetric(12, 8)
+	press.Padding = primitive.Symmetric(12, 5) // Ant list item
 	if i == l.Selected {
-		press.Color = th.Color(core.TokenColorFillSecondary)
+		press.Color = antItemSelectedFill(th)
+		lab.Color = antItemSelectedText(th)
 	}
-	press.ColorHovered = th.Color(core.TokenColorFillSecondary)
+	press.ColorHovered = antItemHoverFill(th)
 	idx := i
 	press.Click = func() {
 		l.Selected = idx
@@ -306,8 +308,8 @@ func (tr *Tree) rebuild() {
 		tr.addNode(tr.col, n, 0)
 	}
 	tr.Root = primitive.NewDecorated(tr.col)
-	tr.Root.Padding = primitive.All(6)
-	tr.Root.BorderWidth = 1
+	tr.Root.Padding = primitive.All(4)
+	tr.Root.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 	tr.Root.BorderColor = th.Color(core.TokenColorBorder)
 	tr.Root.Radius = th.SizeOr(core.TokenBorderRadius, 6)
 	tr.Root.Background = th.Color(core.TokenColorBgContainer)
@@ -345,11 +347,12 @@ func (tr *Tree) addNode(parent *primitive.Flex, n *TreeNode, depth int) {
 	row.Gap = 6
 	row.CrossAlign = core.CrossCenter
 	press := primitive.NewPressable(row)
-	press.Padding = primitive.Symmetric(6, 4)
+	press.Padding = primitive.Symmetric(4, 5) // Ant Tree node
 	if n.Key == tr.Selected {
-		press.Color = th.Color(core.TokenColorFillSecondary)
+		press.Color = antItemSelectedFill(th)
+		lab.Color = antItemSelectedText(th)
 	}
-	press.ColorHovered = th.Color(core.TokenColorFillSecondary)
+	press.ColorHovered = antItemHoverFill(th)
 	node := n
 	press.Click = func() {
 		if hasKids {
@@ -587,7 +590,7 @@ func NewTransfer(source []string) *Transfer {
 		}
 	}
 	tr.Root = primitive.Row(tr.Source.Node(), tr.Target.Node())
-	tr.Root.Gap = 12
+	tr.Root.Gap = 16 // Ant Transfer list gap
 	return tr
 }
 

@@ -26,6 +26,17 @@
 
 ## 策略（已收敛）
 
+### 0. MSAA（窗口边缘质量）
+
+| 环境变量 | 行为 |
+|----------|------|
+| （默认） | **4× MSAA**（UI 圆角/1px 边/圆 软边，接近 CPU 对照图） |
+| `GPUI_SURFACE_SAMPLE_COUNT=1` | 关 MSAA（省 VRAM，边缘发硬） |
+
+窗口与 `ui_ant_compare`（CPU AA）观感差时，先确认未强制 `=1`。
+
+完整 Skia/浏览器对齐策略见 [`SKIA_UI_AA.md`](./SKIA_UI_AA.md)（覆盖率 AA + 超采样 + MSA）。
+
 ### 1. Adapter：仅 `GPUI_POWER`
 
 | 环境变量 | 行为 |

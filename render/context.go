@@ -920,18 +920,31 @@ func (c *Context) StrokeBrush() Brush {
 }
 
 // SetLineWidth sets the line width for stroking.
+// Also syncs paint.Stroke.Width when a Stroke struct is active (EffectiveLineWidth).
 func (c *Context) SetLineWidth(width float64) {
 	c.paint.LineWidth = width
+	if c.paint.Stroke != nil {
+		c.paint.Stroke.Width = width
+	}
 }
 
 // SetLineCap sets the line cap style.
+// Also syncs paint.Stroke.Cap when a Stroke struct is active (EffectiveLineCap);
+// otherwise SetLineCap is ignored after any SetDash/SetStroke and ends stay Butt.
 func (c *Context) SetLineCap(lineCap LineCap) {
 	c.paint.LineCap = lineCap
+	if c.paint.Stroke != nil {
+		c.paint.Stroke.Cap = lineCap
+	}
 }
 
 // SetLineJoin sets the line join style.
+// Also syncs paint.Stroke.Join when a Stroke struct is active (EffectiveLineJoin).
 func (c *Context) SetLineJoin(join LineJoin) {
 	c.paint.LineJoin = join
+	if c.paint.Stroke != nil {
+		c.paint.Stroke.Join = join
+	}
 }
 
 // SetFillRule sets the fill rule.

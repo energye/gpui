@@ -287,14 +287,29 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	s.externalDevice = true
 	s.deviceGen++
 
-	// External/window devices: default sampleCount=1 (post-TDR VRAM is tight on
-	// 1GB GPUs). Set GPUI_SURFACE_SAMPLE_COUNT=4 to opt into MSAA.
-	if sc := os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"); sc == "4" {
-		if s.sampleCount == 0 {
+	// External/window devices sample count (UI chrome quality):
+	//
+	//	Default 4 — MSAA soft edges for circles / 1px borders / icons. Matches
+	//	CPU software AA used by visualtests and ui_ant_compare; sampleCount=1
+	//	produces hard binary coverage that looks "non-Ant" in the window.
+	//
+	//	GPUI_SURFACE_SAMPLE_COUNT=1 — opt out for tight VRAM (1GB dGPU / multi-app).
+	//	GPUI_SURFACE_SAMPLE_COUNT=4 — explicit MSAA (same as default).
+	if sc := os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"); sc == "1" {
+		s.sampleCount = 1
+	} else {
+		// Prefer device-probed 4x; fall back to resolveSampleCount.
+		resolved := resolveSampleCount(s.device)
+		if resolved >= 4 {
+			s.sampleCount = 4
+		} else if resolved > 0 {
+			s.sampleCount = resolved
+		} else {
 			s.sampleCount = 4
 		}
-	} else {
-		s.sampleCount = 1
+		if sc == "4" {
+			s.sampleCount = 4
+		}
 	}
 
 	// Auto-detect rendering strategy (Skia PathRendererStrategy pattern).

@@ -15,6 +15,8 @@ import (
 //
 // Focus chrome is the Decorated border (primary when focused); the inner
 // EditableText focus ring is disabled so there is a single path with Decorated.
+//
+// Ant Design 5 middle: height 32, paddingInline 11, font 14, radius 6.
 type Input struct {
 	Root        *primitive.Decorated
 	editor      *primitive.EditableText
@@ -32,6 +34,7 @@ type Input struct {
 	OnChange    func(string)
 	OnSubmit    func(string)
 	focused     bool
+	hovered     bool
 }
 
 // NewInput creates an Input with optional placeholder.
@@ -128,8 +131,8 @@ func (in *Input) theme() *core.Theme {
 func (in *Input) rebuild() {
 	th := in.theme()
 	h := th.SizeOr(core.TokenControlHeight, 32)
-	padH := th.SizeOr(core.TokenPaddingSM, 8)
-	padV := th.SizeOr(core.TokenPaddingXS, 4)
+	padH := th.SizeOr(core.TokenControlPaddingInline, 11)
+	padV := 0.0 // fixed height + content centering
 	radius := th.SizeOr(core.TokenBorderRadius, 6)
 	lineW := th.SizeOr(core.TokenLineWidth, 1)
 	fontSize := th.SizeOr(core.TokenFontSize, 14)
@@ -159,6 +162,10 @@ func (in *Input) rebuild() {
 		in.focused = f
 		in.applyChrome()
 	}
+	in.editor.OnHoverChange = func(h bool) {
+		in.hovered = h
+		in.applyChrome()
+	}
 
 	// Expand editor in flex
 	flexEd := primitive.NewFlexible(1, in.editor)
@@ -173,6 +180,7 @@ func (in *Input) rebuild() {
 	in.Root.Padding = primitive.Symmetric(padH, padV)
 	in.Root.Radius = radius
 	in.Root.MinHeight = h
+	in.Root.Height = h
 	in.Root.BorderWidth = lineW
 	in.applyChrome()
 }
@@ -183,22 +191,35 @@ func (in *Input) applyChrome() {
 	}
 	th := in.theme()
 	in.Root.Background = th.Color(core.TokenColorBgContainer)
-	in.Root.BorderColor = th.Color(core.TokenColorBorder)
 	in.Root.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
-	if in.Disabled {
+	switch {
+	case in.Disabled:
 		in.Root.Background = th.Color(core.TokenColorDisabledBg)
 		in.Root.BorderColor = th.Color(core.TokenColorBorder)
 		if in.editor != nil {
 			in.editor.Color = th.Color(core.TokenColorDisabledText)
 		}
-	} else if in.focused {
+	case in.focused:
 		// Primary border = focus state (Ant Input).
 		in.Root.BorderColor = th.Color(core.TokenColorPrimary)
 		if in.editor != nil {
 			in.editor.Color = th.Color(core.TokenColorText)
 		}
-	} else if in.editor != nil {
-		in.editor.Color = th.Color(core.TokenColorText)
+	case in.hovered:
+		// Hover border (Ant colorPrimaryHover / colorBorderHover).
+		bd := th.Color(core.TokenColorBorderHover)
+		if bd.A < 0.5 {
+			bd = th.Color(core.TokenColorPrimaryHover)
+		}
+		in.Root.BorderColor = bd
+		if in.editor != nil {
+			in.editor.Color = th.Color(core.TokenColorText)
+		}
+	default:
+		in.Root.BorderColor = th.Color(core.TokenColorBorder)
+		if in.editor != nil {
+			in.editor.Color = th.Color(core.TokenColorText)
+		}
 	}
 	in.Root.MarkNeedsPaint()
 }
@@ -219,8 +240,17 @@ func NewTextArea(placeholder string, rows int) *TextArea {
 	if ta.editor != nil {
 		ta.editor.Multiline = true
 		fs := ta.theme().SizeOr(core.TokenFontSize, 14)
-		ta.editor.Height = fs * 1.3 * float64(rows)
-		ta.Root.MinHeight = ta.editor.Height + 8
+		// Ant line-height ≈ 1.5714285714 (22/14)
+		ta.editor.Height = fs * 1.5714285714 * float64(rows)
+		if ta.Root != nil {
+			ta.Root.Height = 0
+			ta.Root.MinHeight = ta.editor.Height + 8
+			ta.Root.SetCenterContent(false)
+			ta.Root.Padding = primitive.Symmetric(
+				ta.theme().SizeOr(core.TokenControlPaddingInline, 11),
+				ta.theme().SizeOr(core.TokenPaddingXS, 4),
+			)
+		}
 	}
 	return ta
 }

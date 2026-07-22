@@ -51,6 +51,7 @@ func main() {
 
 	host, err := platform.NewLinuxHost(platform.LinuxOptions{
 		Width: winW, Height: winH, Title: "gpui ui_polish_gallery (W3+W4)",
+		// Scale left 0 → LinuxHost reads GPUI_SCALE / GDK_SCALE (default 1).
 	})
 	if err != nil {
 		log.Fatalf("host: %v", err)
@@ -244,6 +245,7 @@ func main() {
 	root.Height = float64(winH)
 
 	tree := core.NewTree(root)
+	sw.AttachTicker(tree)
 	lastStatus := status
 
 	res := exboot.RunUIDemand(exboot.UIDemandConfig{
@@ -269,6 +271,10 @@ func main() {
 				b.SyncState()
 			}
 			openModal.SyncState()
+			cb.SyncState()
+			ra.SyncState()
+			rb.SyncState()
+			sw.SyncState()
 			modal.Sync()
 			if status != lastStatus {
 				statusTx.SetValue("status: " + status)
@@ -276,5 +282,5 @@ func main() {
 			}
 		},
 	})
-	log.Printf("gallery exit status=%q paints=%d hops=%d", status, res.Paints, res.Hops)
+	log.Printf("gallery exit status=%q paints=%d hops=%d scale=%.2f", status, res.Paints, res.Hops, host.ScaleFactor())
 }

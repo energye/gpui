@@ -5,6 +5,7 @@ package platform
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -95,7 +96,21 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		opts.Title = "gpui"
 	}
 	if opts.Scale <= 0 {
+		// HiDPI: respect common desktop scale env (matches browser DPR for AA).
 		opts.Scale = 1
+		if v := os.Getenv("GDK_SCALE"); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+				opts.Scale = f
+			}
+		} else if v := os.Getenv("QT_SCALE_FACTOR"); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+				opts.Scale = f
+			}
+		} else if v := os.Getenv("GPUI_SCALE"); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+				opts.Scale = f
+			}
+		}
 	}
 	if os.Getenv("DISPLAY") == "" {
 		_ = os.Setenv("DISPLAY", ":1")

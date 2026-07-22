@@ -7,13 +7,12 @@ const (
 	// Below this, AnalyticFiller's scanline approach is faster because the
 	// per-pixel SDF evaluation cost exceeds the benefit for tiny shapes where
 	// the total pixel count is low (e.g., a 10x10 circle = 100 pixels).
-	sdfMinSize = 16
+	// 8px: UI indicators (16px radio/checkbox) stay on filled-circle SDF AA.
+	sdfMinSize = 8
 
-	// sdfMinStrokeWidth is the minimum stroke width for SDF stroke rendering.
-	// Below this, the annular ring (half_stroke) is thinner than the smoothstep
-	// AA zone, producing near-zero coverage. Geometric stroke expansion (CPU
-	// scanline) handles thin strokes correctly. ADR-040.
-	sdfMinStrokeWidth = 2.0
+	// sdfMinStrokeWidth: allow 1px Ant borders on SDF stroke for small rings.
+	// Sub-1px still expands geometrically (ADR-040 thin-ring AA).
+	sdfMinStrokeWidth = 1.0
 )
 
 // SDFAccelerator is a CPU-based SDF accelerator for simple geometric shapes.

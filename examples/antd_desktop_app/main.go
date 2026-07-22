@@ -574,7 +574,8 @@ func bootstrapEnv() {
 		}
 	}
 	if os.Getenv("GPUI_SURFACE_SAMPLE_COUNT") == "" {
-		_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+		// UI defaults to 4× MSAA (soft edges). Use =1 only for tight VRAM.
+		_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "4")
 	}
 }
 func envInt(k string, def int) int {

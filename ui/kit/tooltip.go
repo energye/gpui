@@ -59,13 +59,13 @@ func (tt *Tooltip) theme() *core.Theme {
 func (tt *Tooltip) rebuild(trigger core.Node) {
 	th := tt.theme()
 	tt.Label = primitive.NewText(tt.Title)
-	tt.Label.FontSize = th.SizeOr(core.TokenFontSizeSM, 12)
+	tt.Label.FontSize = th.SizeOr(core.TokenFontSize, 14)
 	tt.Label.Face = tt.Face
 	tt.Label.Color = th.Color(core.TokenColorTextInverse)
 
 	tt.Bubble = primitive.NewDecorated(tt.Label)
-	tt.Bubble.Padding = primitive.Symmetric(8, 4)
-	tt.Bubble.Radius = 4
+	tt.Bubble.Padding = primitive.Symmetric(8, 6) // Ant tooltip padding ≈ 6×8
+	tt.Bubble.Radius = th.SizeOr(core.TokenBorderRadius, 6)
 	tt.Bubble.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.85}
 
 	tt.Popup = primitive.NewAnchoredPopup(tt.Bubble)

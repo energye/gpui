@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"math"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/core"
@@ -12,16 +14,19 @@ import (
 //	Pressable
 //	  └─ Decorated
 //	       └─ Flex(Row)
-//	            Icon? · Text(label)
+//	            Spinner? · Icon? · Text(label)
 //
-// Call SyncState() once per frame (or after pointer events) so hover/press
-// chrome tracks PressableState.
+// Hover/press chrome tracks PressableState automatically via OnStateChange.
+// SyncState() remains for explicit host loops that want a manual refresh.
+//
+// Metrics follow Ant Design 5 defaults (middle: h=32, font=14, paddingInline=15, radius=6).
 type Button struct {
 	Root      *primitive.Pressable
 	decorated *primitive.Decorated
 	row       *primitive.Flex
 	label     *primitive.Text
 	icon      *primitive.Icon
+	spinner   *primitive.Canvas
 
 	Type     ButtonType
 	Size     ButtonSize
@@ -36,9 +41,12 @@ type Button struct {
 	Theme    *core.Theme
 
 	bgNormal, bgHover, bgPressed render.RGBA
-	bdNormal                     render.RGBA
+	bdNormal, bdHover            render.RGBA
 	borderW                      float64
 	lastHovered, lastPressed     bool
+	lastFocused                  bool
+	spinPhase                    float64
+	boundTree                    *core.Tree
 }
 
 // NewButton creates a Button with the given label.
@@ -69,6 +77,9 @@ func (b *Button) SetLabel(s string) {
 	b.Label = s
 	if b.label != nil {
 		b.label.SetValue(s)
+		if b.Root != nil {
+			b.Root.Base().Label = s
+		}
 		return
 	}
 	b.rebuild()
@@ -95,13 +106,52 @@ func (b *Button) SetDisabled(d bool) {
 	b.applyChrome()
 }
 
-// SetLoading toggles loading (disables press).
+// SetLoading toggles loading (disables press, shows spinner).
 func (b *Button) SetLoading(v bool) {
+	if b.Loading == v {
+		return
+	}
 	b.Loading = v
 	if b.Root != nil {
 		b.Root.SetDisabled(b.Disabled || b.Loading)
 	}
-	b.applyChrome()
+	// Spinner presence changes the child list — rebuild chrome.
+	b.rebuild()
+	if b.boundTree != nil {
+		if v {
+			b.boundTree.AddTicker(b)
+		} else {
+			b.boundTree.RemoveTicker(b)
+		}
+	}
+}
+
+// AttachTicker registers the loading spinner for demand-frame ANIMATING.
+func (b *Button) AttachTicker(t *core.Tree) {
+	if b == nil || t == nil {
+		return
+	}
+	b.boundTree = t
+	if b.Loading {
+		t.AddTicker(b)
+	}
+}
+
+// Tick advances the loading spinner. Implements core.Ticker when Loading.
+func (b *Button) Tick(dt float64) bool {
+	if b == nil || !b.Loading {
+		return false
+	}
+	b.spinPhase += dt * 1.4
+	if b.spinPhase > 1 {
+		b.spinPhase -= 1
+	}
+	if b.spinner != nil {
+		b.spinner.MarkNeedsPaint()
+	} else if b.Root != nil {
+		b.Root.MarkNeedsPaint()
+	}
+	return b.Loading
 }
 
 // SetDanger toggles danger styling.
@@ -150,27 +200,17 @@ func (b *Button) SetFixedSize(w, h float64) {
 }
 
 // SyncState copies Pressable hover/press into Decorated background.
-// Call after DispatchPointer / each frame.
+// Prefer automatic OnStateChange; this remains for explicit host loops.
 func (b *Button) SyncState() {
 	if b.Root == nil || b.decorated == nil {
 		return
 	}
-	h, p := b.Root.State.Hovered, b.Root.State.Pressed
-	if h == b.lastHovered && p == b.lastPressed {
+	h, p, f := b.Root.State.Hovered, b.Root.State.Pressed, b.Root.State.Focused
+	if h == b.lastHovered && p == b.lastPressed && f == b.lastFocused {
 		return
 	}
-	b.lastHovered, b.lastPressed = h, p
-	bg := b.bgNormal
-	switch {
-	case b.Disabled || b.Loading:
-		bg = b.bgNormal
-	case p:
-		bg = b.bgPressed
-	case h:
-		bg = b.bgHover
-	}
-	b.decorated.Background = bg
-	b.decorated.MarkNeedsPaint()
+	b.lastHovered, b.lastPressed, b.lastFocused = h, p, f
+	b.applyStateChrome()
 }
 
 func (b *Button) fireClick() {
@@ -202,7 +242,19 @@ func (b *Button) rebuild() {
 	b.row.CrossAlign = core.CrossCenter
 	b.row.MainAlign = core.MainCenter
 
-	if b.IconName != "" {
+	// Loading spinner (Ant: leading icon-sized ring).
+	spinSize := fontSize
+	if spinSize < 12 {
+		spinSize = 12
+	}
+	if b.Loading {
+		b.spinner = primitive.NewCanvas(spinSize, spinSize, b.paintSpinner)
+		b.row.AddChild(b.spinner)
+	} else {
+		b.spinner = nil
+	}
+
+	if b.IconName != "" && !b.Loading {
 		b.icon = primitive.NewIcon(b.IconName)
 		b.icon.Size = fontSize + 2
 		b.row.AddChild(b.icon)
@@ -214,7 +266,9 @@ func (b *Button) rebuild() {
 	b.decorated = primitive.NewDecorated(b.row)
 	b.decorated.Padding = primitive.Symmetric(padH, padV)
 	b.decorated.Radius = radius
+	// Force exact Ant control height so vertical center is stable.
 	b.decorated.MinHeight = height
+	b.decorated.Height = height
 	if b.Block {
 		// Expand horizontally when parent gives a max width.
 		b.decorated.MinWidth = th.SizeOr(core.TokenControlHeight, 32) * 4
@@ -222,39 +276,79 @@ func (b *Button) rebuild() {
 
 	b.Root = primitive.NewPressable(b.decorated)
 	b.Root.Focusable = true
+	b.Root.ShowFocusRing = true
 	b.Root.FocusRingRadius = radius
+	b.Root.FocusRingOutset = 1.5 // Ant-tight
 	b.Root.Click = b.fireClick
+	b.Root.OnStateChange = b.SyncState
 	b.Root.SetDisabled(b.Disabled || b.Loading)
 	b.Root.Base().Role = "button"
 	b.Root.Base().Label = b.Label
 
-	b.lastHovered, b.lastPressed = false, false
+	b.lastHovered, b.lastPressed, b.lastFocused = false, false, false
 	b.applyChrome()
+}
+
+func (b *Button) paintSpinner(pc *core.PaintContext, sz core.Size) {
+	if pc == nil || !b.Loading {
+		return
+	}
+	th := b.theme()
+	col := th.Color(core.TokenColorPrimary)
+	if b.Type == ButtonPrimary {
+		col = th.Color(core.TokenColorTextInverse)
+	}
+	if b.Disabled {
+		col = th.Color(core.TokenColorDisabledText)
+	}
+	track := render.RGBA{R: col.R, G: col.G, B: col.B, A: col.A * 0.35}
+	if track.A < 0.1 {
+		track.A = 0.2
+	}
+	stroke := 2.0
+	if sz.Width < 14 {
+		stroke = 1.5
+	}
+	cx, cy := sz.Width/2, sz.Height/2
+	r := sz.Width/2 - stroke
+	if r < 1 {
+		r = 1
+	}
+	// Local helpers (canvas Origin already applied by PaintContext).
+	pc.StrokeLocalCircle(cx, cy, r, stroke, track)
+	start := -math.Pi/2 + b.spinPhase*2*math.Pi
+	end := start + 2*math.Pi*0.7
+	steps := 40
+	pts := make([]float64, 0, (steps+1)*2)
+	for i := 0; i <= steps; i++ {
+		a := start + (end-start)*float64(i)/float64(steps)
+		pts = append(pts, cx+r*math.Cos(a), cy+r*math.Sin(a))
+	}
+	pc.StrokeLocalPolyline(pts, stroke, col)
 }
 
 func (b *Button) metrics(th *core.Theme) (padH, padV, height, fontSize, radius, gap float64) {
 	fontSize = th.SizeOr(core.TokenFontSize, 14)
 	radius = th.SizeOr(core.TokenBorderRadius, 6)
-	gap = th.SizeOr(core.TokenMarginXS, 4)
-	// Horizontal padding tracks Ant middle (~15) via padding token − 1.
-	padBase := th.SizeOr(core.TokenPadding, 16)
+	gap = th.SizeOr(core.TokenMarginXS, 4) + 4 // Ant icon gap ~8
+	// Vertical padding is absorbed by fixed Height + content centering;
+	// keep small pad so text doesn't touch border if measure is tall.
+	padV = 0
 	switch b.Size {
 	case ButtonSmall:
 		height = th.SizeOr(core.TokenControlHeightSM, 24)
 		fontSize = th.SizeOr(core.TokenFontSizeSM, 12)
-		padH = th.SizeOr(core.TokenPaddingSM, 8) - 1 // ~7
-		padV = th.SizeOr(core.TokenPaddingXS, 4) / 2 // ~2
+		padH = th.SizeOr(core.TokenButtonPaddingInlineSM, 7)
 		radius = th.SizeOr(core.TokenBorderRadiusSM, 4)
+		gap = th.SizeOr(core.TokenMarginXS, 4)
 	case ButtonLarge:
 		height = th.SizeOr(core.TokenControlHeightLG, 40)
 		fontSize = th.SizeOr(core.TokenFontSizeLG, 16)
-		padH = padBase - 1                           // ~15
-		padV = th.SizeOr(core.TokenPaddingSM, 8) - 2 // ~6
+		padH = th.SizeOr(core.TokenButtonPaddingInlineLG, 15)
 		radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	default:
 		height = th.SizeOr(core.TokenControlHeight, 32)
-		padH = padBase - 1                       // ~15
-		padV = th.SizeOr(core.TokenPaddingXS, 4) // ~4
+		padH = th.SizeOr(core.TokenButtonPaddingInline, 15)
 	}
 	return
 }
@@ -267,8 +361,10 @@ func (b *Button) applyChrome() {
 	_, _, height, _, radius, _ := b.metrics(th)
 	b.decorated.Radius = radius
 	b.decorated.MinHeight = height
+	b.decorated.Height = height
 	if b.Root != nil {
 		b.Root.FocusRingRadius = radius
+		b.Root.FocusRingOutset = 1.5
 	}
 
 	primary := th.Color(core.TokenColorPrimary)
@@ -281,18 +377,26 @@ func (b *Button) applyChrome() {
 	disabledBg := th.Color(core.TokenColorDisabledBg)
 	disabledText := th.Color(core.TokenColorDisabledText)
 	errorC := th.Color(core.TokenColorError)
-	// Stronger hover than raw fillSecondary (0.06) — layout bg reads as soft gray.
-	hoverFill := th.Color(core.TokenColorBgLayout)
-	if hoverFill.A < 0.5 {
-		hoverFill = render.Hex("#F5F5F5")
+	// Ant default button hover: colorBgTextHover (rgba black 0.06).
+	hoverFill := th.Color(core.TokenColorBgTextHover)
+	if hoverFill.A < 0.02 {
+		hoverFill = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
 	}
-	pressFill := th.Color(core.TokenColorBorderSecondary)
-	if pressFill.A < 0.5 {
-		pressFill = render.Hex("#F0F0F0")
+	// Composite hover over white so solid paint is correct without blend.
+	hoverFill = compositeOver(hoverFill, bg)
+	pressFill := th.Color(core.TokenColorBgTextActive)
+	if pressFill.A < 0.02 {
+		pressFill = render.RGBA{R: 0, G: 0, B: 0, A: 0.15}
+	}
+	pressFill = compositeOver(pressFill, bg)
+	borderHover := th.Color(core.TokenColorPrimaryHover)
+	if borderHover.A < 0.5 {
+		borderHover = primaryHover
 	}
 
-	var bgN, bgH, bgP, fg, bd render.RGBA
+	var bgN, bgH, bgP, fg, bd, bdH render.RGBA
 	bw := th.SizeOr(core.TokenLineWidth, 1)
+	var dash []float64
 
 	switch b.Type {
 	case ButtonPrimary:
@@ -301,13 +405,14 @@ func (b *Button) applyChrome() {
 		if b.Danger {
 			bgN, bgH, bgP = errorC, render.Hex("#FF7875"), render.Hex("#D9363E")
 		}
-		bd = bgN
+		bd, bdH = bgN, bgH
 		bw = 0
 	case ButtonDashed:
 		bgN, bgH, bgP = bg, hoverFill, pressFill
-		fg, bd = textCol, border
+		fg, bd, bdH = textCol, border, borderHover
+		dash = []float64{3, 2}
 		if b.Danger {
-			fg, bd = errorC, errorC
+			fg, bd, bdH = errorC, errorC, render.Hex("#FF7875")
 		}
 	case ButtonText:
 		bgN = render.RGBA{}
@@ -316,43 +421,63 @@ func (b *Button) applyChrome() {
 		if b.Danger {
 			fg = errorC
 		}
-		bd, bw = render.RGBA{}, 0
+		bd, bdH, bw = render.RGBA{}, render.RGBA{}, 0
 	case ButtonLink:
 		bgN = render.RGBA{}
-		bgH, bgP = hoverFill, pressFill
+		// Link: hover lightens primary text, subtle bg optional.
+		bgH, bgP = render.RGBA{}, render.RGBA{}
 		fg = primary
 		if b.Danger {
 			fg = errorC
 		}
-		bd, bw = render.RGBA{}, 0
+		bd, bdH, bw = render.RGBA{}, render.RGBA{}, 0
 	default: // ButtonDefault
 		bgN, bgH, bgP = bg, hoverFill, pressFill
-		fg, bd = textCol, border
+		fg, bd, bdH = textCol, border, borderHover
 		if b.Danger {
-			fg, bd = errorC, errorC
+			fg, bd, bdH = errorC, errorC, render.Hex("#FF7875")
 		}
 	}
 
-	if b.Disabled || b.Loading {
-		bgN, bgH, bgP = disabledBg, disabledBg, disabledBg
-		fg, bd = disabledText, border
+	if b.Disabled {
 		if b.Type == ButtonPrimary {
-			// Keep a muted solid primary-ish block for disabled primary.
+			// Disabled primary: muted solid (Ant ~35% opacity).
 			p := primary
+			if b.Danger {
+				p = errorC
+			}
 			bgN = render.RGBA{R: p.R, G: p.G, B: p.B, A: 0.35}
 			bgH, bgP = bgN, bgN
 			fg = textInv
-			bd = bgN
+			bd, bdH = bgN, bgN
 			bw = 0
+			dash = nil
+		} else {
+			bgN, bgH, bgP = disabledBg, disabledBg, disabledBg
+			fg, bd, bdH = disabledText, border, border
 		}
+	} else if b.Loading {
+		// Ant loading: keep type colors solid; clicks blocked via Root.SetDisabled.
+		if b.Type == ButtonPrimary {
+			p := primary
+			if b.Danger {
+				p = errorC
+			}
+			// Slight dim (~12% white) without washing out.
+			bgN = render.RGBA{R: p.R*0.88 + 0.12, G: p.G*0.88 + 0.12, B: p.B*0.88 + 0.12, A: 1}
+			bgH, bgP = bgN, bgN
+			fg = textInv
+			bd, bdH = bgN, bgN
+			bw = 0
+			dash = nil
+		}
+		// non-primary: keep type chrome from switch above
 	}
 
 	b.bgNormal, b.bgHover, b.bgPressed = bgN, bgH, bgP
-	b.bdNormal, b.borderW = bd, bw
+	b.bdNormal, b.bdHover, b.borderW = bd, bdH, bw
 
-	b.decorated.Background = bgN
-	b.decorated.BorderColor = bd
-	b.decorated.BorderWidth = bw
+	b.decorated.BorderDash = dash
 	b.label.Color = fg
 	if b.icon != nil {
 		b.icon.Color = fg
@@ -361,6 +486,69 @@ func (b *Button) applyChrome() {
 	b.Root.Color = render.RGBA{}
 	b.Root.ColorHovered = render.RGBA{}
 	b.Root.ColorPressed = render.RGBA{}
-	b.lastHovered, b.lastPressed = false, false
+	b.lastHovered, b.lastPressed, b.lastFocused = false, false, false
+	b.applyStateChrome()
+}
+
+// applyStateChrome paints the current hover/press/focus into Decorated.
+func (b *Button) applyStateChrome() {
+	if b.decorated == nil {
+		return
+	}
+	h, p := false, false
+	if b.Root != nil {
+		h, p = b.Root.State.Hovered, b.Root.State.Pressed
+	}
+	bg := b.bgNormal
+	bd := b.bdNormal
+	switch {
+	case b.Disabled || b.Loading:
+		bg = b.bgNormal
+		bd = b.bdNormal
+	case p:
+		bg = b.bgPressed
+		bd = b.bdHover
+	case h:
+		bg = b.bgHover
+		bd = b.bdHover
+	}
+	// Link type: text color shifts on hover (lighter primary).
+	if b.Type == ButtonLink && !b.Disabled && !b.Loading && b.label != nil {
+		th := b.theme()
+		if h || p {
+			if b.Danger {
+				b.label.Color = render.Hex("#FF7875")
+			} else {
+				b.label.Color = th.Color(core.TokenColorPrimaryHover)
+			}
+		} else {
+			if b.Danger {
+				b.label.Color = th.Color(core.TokenColorError)
+			} else {
+				b.label.Color = th.Color(core.TokenColorPrimary)
+			}
+		}
+	}
+	b.decorated.Background = bg
+	b.decorated.BorderColor = bd
+	b.decorated.BorderWidth = b.borderW
 	b.decorated.MarkNeedsPaint()
+}
+
+// compositeOver blends src (with alpha) over dst solid.
+func compositeOver(src, dst render.RGBA) render.RGBA {
+	a := src.A
+	if a <= 0 {
+		return dst
+	}
+	if a >= 1 {
+		return src
+	}
+	ia := 1 - a
+	return render.RGBA{
+		R: src.R*a + dst.R*ia,
+		G: src.G*a + dst.G*ia,
+		B: src.B*a + dst.B*ia,
+		A: 1,
+	}
 }

@@ -7,6 +7,10 @@ import (
 
 // Decorated paints background, border, and optional rounded corners (C-Theme/C-Skin).
 // Children are laid out inside padding. Prefer token keys when Theme is present.
+//
+// When the final height exceeds content+padding (MinHeight/Height force), the
+// single content child is vertically centered — matches Ant control chrome
+// (Button / Input / Select label alignment).
 type Decorated struct {
 	core.NodeBase
 
@@ -15,6 +19,9 @@ type Decorated struct {
 	BorderWidth float64
 	Background  render.RGBA
 	BorderColor render.RGBA
+	// BorderDash when non-empty draws a dashed border (Ant Button dashed).
+	// Units are logical px, e.g. {3, 2}. Cleared after stroke.
+	BorderDash []float64
 	// Token keys (optional · override solid colors when Theme resolves them).
 	BackgroundToken string
 	BorderToken     string
@@ -22,6 +29,28 @@ type Decorated struct {
 	MinWidth, MinHeight float64
 	// Width/Height when > 0 force preferred size.
 	Width, Height float64
+	// CenterContent when true (default) vertically centers a single child when
+	// the box is taller than content+padding. Set false for top-aligned multi-line.
+	// Zero-value is true for Ant form-control defaults; set CenterContent=false
+	// explicitly only when needed (use centerContentSet to track).
+	CenterContent    bool
+	centerContentSet bool
+}
+
+// SetCenterContent enables/disables vertical content centering.
+func (d *Decorated) SetCenterContent(v bool) {
+	d.CenterContent = v
+	d.centerContentSet = true
+}
+
+func (d *Decorated) centerContentEnabled() bool {
+	if d == nil {
+		return true
+	}
+	if d.centerContentSet {
+		return d.CenterContent
+	}
+	return true // Ant default: center labels in control chrome
 }
 
 // NewDecorated wraps children with decoration.
@@ -48,11 +77,9 @@ func (d *Decorated) Layout(c core.Constraints) core.Size {
 	kids := d.Children()
 	if len(kids) == 1 {
 		content = kids[0].Layout(inner.Expand())
-		kids[0].Base().SetOffset(core.Point{X: d.Padding.Left, Y: d.Padding.Top})
 	} else if len(kids) > 1 {
 		for _, child := range kids {
 			sz := child.Layout(inner.Expand())
-			child.Base().SetOffset(core.Point{X: d.Padding.Left, Y: d.Padding.Top})
 			content = core.MaxSize(content, sz)
 		}
 	}
@@ -71,6 +98,17 @@ func (d *Decorated) Layout(c core.Constraints) core.Size {
 		h = d.MinHeight
 	}
 	out := c.Tighten(core.Size{Width: w, Height: h})
+	// Vertical center content when chrome is taller (Button/Input Ant alignment).
+	offY := d.Padding.Top
+	if d.centerContentEnabled() && len(kids) >= 1 {
+		availH := out.Height - d.Padding.Top - d.Padding.Bottom
+		if availH > content.Height {
+			offY = d.Padding.Top + (availH-content.Height)/2
+		}
+	}
+	for _, child := range kids {
+		child.Base().SetOffset(core.Point{X: d.Padding.Left, Y: offY})
+	}
 	d.SetSize(out)
 	d.RememberConstraints(c)
 	return out
@@ -128,7 +166,13 @@ func PaintDecorated(pc *core.PaintContext, d *Decorated) {
 		pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, radius, bg)
 	}
 	if borderW > 0 && bd.A > 0 {
-		pc.StrokeLocalRoundRect(0, 0, sz.Width, sz.Height, radius, borderW, bd)
+		if len(d.BorderDash) > 0 && pc.DC != nil {
+			pc.DC.SetDash(d.BorderDash...)
+			pc.StrokeLocalRoundRect(0, 0, sz.Width, sz.Height, radius, borderW, bd)
+			pc.DC.SetDash()
+		} else {
+			pc.StrokeLocalRoundRect(0, 0, sz.Width, sz.Height, radius, borderW, bd)
+		}
 	}
 }
 

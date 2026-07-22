@@ -41,6 +41,9 @@ type EditableText struct {
 	OnChange      func(value string)
 	OnSubmit      func(value string) // Enter when !Multiline
 	OnFocusChange func(focused bool)
+	// OnHoverChange is invoked when pointer hover enters/leaves (for kit Input border).
+	OnHoverChange func(hovered bool)
+	hovered       bool
 
 	// ShowFocusRing draws an inner focus ring (default true).
 	// Kit Input sets this false and uses Decorated border as focus chrome.
@@ -196,6 +199,20 @@ func (e *EditableText) Paint(pc *core.PaintContext) {
 		PaintFocusRing(pc, sz.Width, sz.Height, 2, 1, 1.5)
 	}
 }
+
+// SetHovered implements tree hoverable — used for kit Input hover border.
+func (e *EditableText) SetHovered(h bool) {
+	if e.hovered == h {
+		return
+	}
+	e.hovered = h
+	if e.OnHoverChange != nil {
+		e.OnHoverChange(h)
+	}
+}
+
+// IsHovered reports hover state.
+func (e *EditableText) IsHovered() bool { return e != nil && e.hovered }
 
 // HitTest implements core.Node.
 func (e *EditableText) HitTest(p core.Point) core.Node {

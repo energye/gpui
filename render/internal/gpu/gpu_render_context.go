@@ -1678,9 +1678,13 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 		}
 	}
 
-	// R3: dashed / non-SO / thin strokes → geometric StrokePath (GPU expand+fill)
-	// instead of hard CPU fallback. SDF annular path stays SourceOver solid ≥2px.
-	if paint.IsDashed() || !paintUsesSourceOver(paint) || effectiveStrokeWidth(paint) < 2.0 || !isGPUSolidPaint(paint) {
+	// R3: dashed / non-SO / non-solid → geometric StrokePath (GPU expand+fill).
+	// Thin solid SourceOver strokes (Ant 1px rings/borders) stay on SDF annular
+	// coverage AA — expand+fill path produces hard edges that look non-Ant in
+	// the window (CPU software AA in ui_ant_compare looked fine by comparison).
+	// Floor matches CPU sdfMinStrokeWidth (1.0); sub-1px still expands.
+	w := effectiveStrokeWidth(paint)
+	if paint.IsDashed() || !paintUsesSourceOver(paint) || w < 1.0 || !isGPUSolidPaint(paint) {
 		p := detectedShapeToPath(shape)
 		if p == nil {
 			return render.ErrFallbackToCPU

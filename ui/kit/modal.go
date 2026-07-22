@@ -127,7 +127,7 @@ func (m *Modal) rebuild() {
 	col.CrossAlign = core.CrossStart
 
 	m.panel = primitive.NewDecorated(col)
-	m.panel.Padding = primitive.All(20)
+	m.panel.Padding = primitive.All(24) // Ant Modal body padding
 	m.panel.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	m.panel.Background = th.Color(core.TokenColorBgContainer)
 	m.panel.BorderWidth = 0
@@ -248,7 +248,7 @@ type Drawer struct {
 
 // NewDrawer creates a closed drawer.
 func NewDrawer(title string) *Drawer {
-	d := &Drawer{Title: title, Width: 360}
+	d := &Drawer{Title: title, Width: 378} // Ant Drawer default
 	d.rebuild()
 	return d
 }

@@ -1,6 +1,8 @@
 package primitive
 
 import (
+	"math"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 )
@@ -14,7 +16,12 @@ type PressableState struct {
 }
 
 // Pressable is a hit target with hover/press and OnClick (C-Hit + C-Event).
-// Optional background colors per state for M0 smoke without Decorated/Skin.
+//
+// Generic interaction (Skia/Ant-style, configured here — not per-kit hacks):
+//
+//   - EnableRipple: gray ink expanding ~RippleExtra beyond the control (default on)
+//   - ShowFocusRing: keyboard focus outline (default on; kit disables for Switch etc.)
+//   - Click only fires when pointer is released over this target (tree enforces)
 type Pressable struct {
 	core.NodeBase
 
@@ -22,6 +29,8 @@ type Pressable struct {
 	// Click is invoked on a completed press (down+up on same target).
 	// Named Click (not OnClick) so it does not collide with ClickHandler.OnClick.
 	Click func()
+	// OnStateChange is invoked when Hovered/Pressed/Focused/Disabled change.
+	OnStateChange func()
 	// Padding around the child content.
 	Padding EdgeInsets
 
@@ -30,15 +39,46 @@ type Pressable struct {
 	ColorHovered  render.RGBA
 	ColorPressed  render.RGBA
 	ColorDisabled render.RGBA
-	// Focusable allows Tab focus in M0+; default true.
+	// Focusable allows Tab focus; default true.
 	Focusable bool
+	// ShowFocusRing draws keyboard focus chrome when Focused (default true).
+	ShowFocusRing bool
 	// FocusRingRadius matches child chrome corner radius (0 → default 6).
 	FocusRingRadius float64
+	// FocusRingOutset distance outside the box (0 → 1.5 Ant-tight).
+	FocusRingOutset float64
+
+	// EnableRipple paints a soft gray wave on press (default true).
+	// Set false to disable for a control (or globally via DefaultPressableRipple).
+	EnableRipple bool
+	// RippleExtra is how far the wave extends past the control edge (default 5).
+	RippleExtra float64
+	// RippleColor defaults to rgba(0,0,0,0.12).
+	RippleColor render.RGBA
+	// RippleDuration seconds (default 0.4).
+	RippleDuration float64
+
+	// ripple animation state (0..1); driven by Tick when active.
+	ripplePhase  float64
+	rippleActive bool
+	rippleCX     float64 // local origin of wave
+	rippleCY     float64
 }
 
-// NewPressable wraps a child as a pressable.
+// DefaultPressableRipple is the package default for new Pressables (true).
+// Set false at app start to disable ink globally.
+var DefaultPressableRipple = true
+
+// NewPressable wraps a child as a pressable with default interaction chrome.
 func NewPressable(child core.Node) *Pressable {
-	p := &Pressable{Focusable: true}
+	p := &Pressable{
+		Focusable:      true,
+		ShowFocusRing:  true,
+		EnableRipple:   DefaultPressableRipple,
+		RippleExtra:    5,
+		RippleDuration: 0.4,
+		RippleColor:    render.RGBA{R: 0, G: 0, B: 0, A: 0.12},
+	}
 	p.Init(p)
 	p.Hit = core.HitTarget
 	if child != nil {
@@ -78,19 +118,74 @@ func (p *Pressable) Paint(pc *core.PaintContext) {
 	case p.State.Hovered && p.ColorHovered.A > 0:
 		col = p.ColorHovered
 	}
+	sz := p.Size()
+	// Round fill when FocusRingRadius is set so kit Button chrome never shows a
+	// square press/hover plate over rounded Decorated children.
 	if col.A > 0 && pc != nil {
-		pc.FillLocalRect(0, 0, p.Size().Width, p.Size().Height, col)
+		r := p.FocusRingRadius
+		if r > 0 {
+			pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, r, col)
+		} else {
+			pc.FillLocalRect(0, 0, sz.Width, sz.Height, col)
+		}
 	}
 	p.DefaultPaintChildren(pc)
-	// Focus ring on top of children (visible keyboard focus).
-	if p.State.Focused && pc != nil {
-		sz := p.Size()
+
+	// Ink ripple above chrome, clipped to rounded control when radius known.
+	if p.EnableRipple && p.rippleActive && pc != nil {
+		p.paintRipple(pc, sz)
+	}
+
+	// Focus ring on top. Opt-out via ShowFocusRing=false.
+	if p.State.Focused && p.ShowFocusRing && pc != nil {
 		r := p.FocusRingRadius
 		if r <= 0 {
 			r = 6
 		}
-		PaintFocusRing(pc, sz.Width, sz.Height, r, 2, 2)
+		outset := p.FocusRingOutset
+		if outset <= 0 {
+			outset = 1.5
+		}
+		PaintFocusRing(pc, sz.Width, sz.Height, r, outset, 2)
 	}
+}
+
+func (p *Pressable) paintRipple(pc *core.PaintContext, sz core.Size) {
+	// phase 0→1: radius grows, alpha fades
+	t := p.ripplePhase
+	if t < 0 {
+		t = 0
+	}
+	if t > 1 {
+		t = 1
+	}
+	// Ease-out growth.
+	ease := 1 - (1-t)*(1-t)
+	extra := p.RippleExtra
+	if extra <= 0 {
+		extra = 5
+	}
+	// Max radius: half-diagonal + extra (~5px past edge as requested).
+	maxR := math.Hypot(sz.Width/2, sz.Height/2) + extra
+	r := maxR * ease
+	if r < 0.5 {
+		return
+	}
+	col := p.RippleColor
+	if col.A <= 0 {
+		col = render.RGBA{R: 0, G: 0, B: 0, A: 0.12}
+	}
+	// Fade out as wave expands.
+	col.A = col.A * (1 - t)
+	if col.A < 0.01 {
+		return
+	}
+	cx, cy := p.rippleCX, p.rippleCY
+	if cx == 0 && cy == 0 {
+		cx, cy = sz.Width/2, sz.Height/2
+	}
+	// Soft disk (fill circle uses AA).
+	pc.FillLocalCircle(cx, cy, r, col)
 }
 
 // HitTest implements core.Node.
@@ -101,7 +196,6 @@ func (p *Pressable) HitTest(pt core.Point) core.Node {
 	if !p.LocalBounds().Contains(pt) {
 		return nil
 	}
-	// Prefer self as target (children are visual).
 	return p
 }
 
@@ -114,17 +208,63 @@ func (p *Pressable) HandlePointer(ev *core.PointerEvent) {
 	case core.PointerDown:
 		if ev.Button == core.ButtonLeft || ev.Button == core.ButtonNone {
 			p.setPressed(true)
+			p.startRipple(ev)
 			ev.Handled = true
 		}
 	case core.PointerUp, core.PointerCancel:
 		p.setPressed(false)
 		ev.Handled = true
 	case core.PointerMove:
-		// hover maintained by tree; paint dirty on state change
+		// hover maintained by tree
 	}
 }
 
+func (p *Pressable) startRipple(ev *core.PointerEvent) {
+	if !p.EnableRipple {
+		return
+	}
+	sz := p.Size()
+	// Local press point if event carries position relative to node;
+	// tree events are absolute — convert via AbsoluteBounds.
+	cx, cy := sz.Width/2, sz.Height/2
+	if ev != nil {
+		abs := core.AbsoluteBounds(p)
+		if !abs.Empty() {
+			cx = ev.X - abs.Min.X
+			cy = ev.Y - abs.Min.Y
+		}
+	}
+	p.rippleCX, p.rippleCY = cx, cy
+	p.ripplePhase = 0
+	p.rippleActive = true
+	p.MarkNeedsPaint()
+	// Register ticker on owning tree for ANIMATING demand frames.
+	if tr := p.Tree(); tr != nil {
+		tr.AddTicker(p)
+	}
+}
+
+// Tick advances the ripple wave. Implements core.Ticker.
+func (p *Pressable) Tick(dt float64) bool {
+	if p == nil || !p.rippleActive {
+		return false
+	}
+	dur := p.RippleDuration
+	if dur <= 0 {
+		dur = 0.4
+	}
+	p.ripplePhase += dt / dur
+	p.MarkNeedsPaint()
+	if p.ripplePhase >= 1 {
+		p.ripplePhase = 1
+		p.rippleActive = false
+		return false
+	}
+	return true
+}
+
 // OnClick implements core.ClickHandler.
+// Tree only invokes this when pointer-up hits the same target (release-inside).
 func (p *Pressable) OnClick(ev *core.PointerEvent) {
 	if p.State.Disabled {
 		return
@@ -149,6 +289,8 @@ func (p *Pressable) HandleKey(ev *core.KeyEvent) {
 		return
 	}
 	if ev.Key == " " || ev.Key == "Space" || ev.Key == "Enter" || ev.Key == "Return" {
+		// Keyboard activate: ripple from center + click.
+		p.startRipple(nil)
 		if p.Click != nil {
 			p.Click()
 		}
@@ -163,6 +305,7 @@ func (p *Pressable) SetHovered(h bool) {
 	}
 	p.State.Hovered = h
 	p.MarkNeedsPaint()
+	p.fireStateChange()
 }
 
 // SetFocused implements core.FocusTarget.
@@ -172,6 +315,7 @@ func (p *Pressable) SetFocused(f bool) {
 	}
 	p.State.Focused = f
 	p.MarkNeedsPaint()
+	p.fireStateChange()
 }
 
 func (p *Pressable) setPressed(v bool) {
@@ -180,6 +324,7 @@ func (p *Pressable) setPressed(v bool) {
 	}
 	p.State.Pressed = v
 	p.MarkNeedsPaint()
+	p.fireStateChange()
 }
 
 // SetDisabled updates disabled state.
@@ -191,8 +336,16 @@ func (p *Pressable) SetDisabled(d bool) {
 	if d {
 		p.State.Pressed = false
 		p.State.Hovered = false
+		p.rippleActive = false
 	}
 	p.MarkNeedsPaint()
+	p.fireStateChange()
+}
+
+func (p *Pressable) fireStateChange() {
+	if p != nil && p.OnStateChange != nil {
+		p.OnStateChange()
+	}
 }
 
 // SetColors is a convenience for M0 smoke (normal / hover / pressed).

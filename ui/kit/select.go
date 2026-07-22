@@ -70,6 +70,18 @@ func (s *Select) SetOpen(open bool) {
 	}
 }
 
+// SetFace sets the font face for the value label and rebuilds chrome.
+func (s *Select) SetFace(face text.Face) {
+	s.Face = face
+	if s.display != nil {
+		s.display.Face = face
+		s.display.MarkNeedsLayout()
+		s.display.MarkNeedsPaint()
+	} else {
+		s.rebuild()
+	}
+}
+
 // Sync repositions while open.
 func (s *Select) Sync() {
 	if s.Open && s.popup != nil {
@@ -93,6 +105,9 @@ func (s *Select) refreshLabel() {
 		return
 	}
 	label := s.Placeholder
+	if label == "" {
+		label = "Please select"
+	}
 	col := s.theme().Color(core.TokenColorTextSecondary)
 	for _, o := range s.Options {
 		if o.Value == s.Value {
@@ -107,26 +122,37 @@ func (s *Select) refreshLabel() {
 
 func (s *Select) rebuild() {
 	th := s.theme()
-	s.display = primitive.NewText(s.Placeholder)
+	ph := s.Placeholder
+	if ph == "" {
+		ph = "Please select"
+	}
+	s.display = primitive.NewText(ph)
 	s.display.FontSize = th.SizeOr(core.TokenFontSize, 14)
 	s.display.Face = s.Face
 	s.display.Color = th.Color(core.TokenColorTextSecondary)
 
 	chev := primitive.NewIcon("chevron-down")
-	chev.Size = 14
-	chev.Color = th.Color(core.TokenColorTextSecondary)
+	chev.Size = 12
+	sec := th.Color(core.TokenColorTextSecondary)
+	if sec.A < 0.3 {
+		sec = render.RGBA{R: 0, G: 0, B: 0, A: 0.45}
+	}
+	chev.Color = sec
 
 	row := primitive.Row(s.display, primitive.Spacer(), chev)
 	row.CrossAlign = core.CrossCenter
 	row.Gap = 8
 
+	h := th.SizeOr(core.TokenControlHeight, 32)
+	padH := th.SizeOr(core.TokenControlPaddingInline, 11)
 	s.decor = primitive.NewDecorated(row)
-	s.decor.Padding = primitive.Symmetric(12, 6)
+	s.decor.Padding = primitive.Symmetric(padH, 0)
 	s.decor.Radius = th.SizeOr(core.TokenBorderRadius, 6)
-	s.decor.BorderWidth = 1
+	s.decor.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 	s.decor.BorderColor = th.Color(core.TokenColorBorder)
 	s.decor.Background = th.Color(core.TokenColorBgContainer)
-	s.decor.MinHeight = th.SizeOr(core.TokenControlHeight, 32)
+	s.decor.MinHeight = h
+	s.decor.Height = h
 	s.decor.MinWidth = 160
 
 	s.list = primitive.Column()
@@ -136,9 +162,9 @@ func (s *Select) rebuild() {
 
 	panel := primitive.NewDecorated(s.list)
 	panel.Padding = primitive.All(4)
-	panel.Radius = th.SizeOr(core.TokenBorderRadius, 6)
+	panel.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	panel.Background = th.Color(core.TokenColorBgContainer)
-	panel.BorderWidth = 1
+	panel.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 	panel.BorderColor = th.Color(core.TokenColorBorder)
 	panel.MinWidth = 160
 
@@ -149,7 +175,27 @@ func (s *Select) rebuild() {
 
 	s.Root = primitive.NewPressable(s.decor)
 	s.Root.Focusable = true
+	s.Root.FocusRingRadius = s.decor.Radius
 	s.Root.SetDisabled(s.Disabled)
+	s.Root.OnStateChange = func() {
+		if s.Root == nil || s.decor == nil || s.Disabled {
+			return
+		}
+		th := s.theme()
+		switch {
+		case s.Root.State.Focused || s.Open:
+			s.decor.BorderColor = th.Color(core.TokenColorPrimary)
+		case s.Root.State.Hovered:
+			bd := th.Color(core.TokenColorBorderHover)
+			if bd.A < 0.5 {
+				bd = th.Color(core.TokenColorPrimaryHover)
+			}
+			s.decor.BorderColor = bd
+		default:
+			s.decor.BorderColor = th.Color(core.TokenColorBorder)
+		}
+		s.decor.MarkNeedsPaint()
+	}
 	s.Root.Click = func() {
 		if s.Disabled {
 			return
@@ -176,11 +222,13 @@ func (s *Select) rebuildOptions() {
 		lab.Face = s.Face
 		lab.Color = th.Color(core.TokenColorText)
 		item := primitive.NewPressable(lab)
-		item.Padding = primitive.Symmetric(10, 6)
+		// Ant Select option: paddingBlock 5, paddingInline 12
+		item.Padding = primitive.Symmetric(12, 5)
 		if opt.Value == s.Value {
-			item.Color = th.Color(core.TokenColorFillSecondary)
+			item.Color = antItemSelectedFill(th)
+			lab.Color = antItemSelectedText(th)
 		}
-		item.ColorHovered = th.Color(core.TokenColorFillSecondary)
+		item.ColorHovered = antItemHoverFill(th)
 		item.Click = func() {
 			s.SetValue(opt.Value)
 			s.Nav.Index = i
@@ -280,13 +328,13 @@ func (m *Menu) rebuild() {
 		lab.Face = m.Face
 		lab.Color = th.Color(core.TokenColorText)
 		row := primitive.NewPressable(lab)
-		row.Padding = primitive.Symmetric(12, 8)
+		// Ant Menu item: padding 5×12
+		row.Padding = primitive.Symmetric(12, 5)
 		if it.Key == m.Selected {
-			row.Color = th.Color(core.TokenColorPrimary)
-			// use fill for selected bg
-			row.Color = th.Color(core.TokenColorFillSecondary)
+			row.Color = antItemSelectedFill(th)
+			lab.Color = antItemSelectedText(th)
 		}
-		row.ColorHovered = th.Color(core.TokenColorFillSecondary)
+		row.ColorHovered = antItemHoverFill(th)
 		row.Click = func() {
 			m.Selected = it.Key
 			m.Nav.Index = i
@@ -299,7 +347,7 @@ func (m *Menu) rebuild() {
 	}
 	m.Root = primitive.NewDecorated(m.list)
 	m.Root.Padding = primitive.All(4)
-	m.Root.Radius = th.SizeOr(core.TokenBorderRadius, 6)
+	m.Root.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	m.Root.Background = th.Color(core.TokenColorBgContainer)
 	m.Root.BorderWidth = 1
 	m.Root.BorderColor = th.Color(core.TokenColorBorder)
@@ -400,7 +448,8 @@ func (t *Tabs) rebuildBar() {
 			lab.Color = th.Color(core.TokenColorText)
 		}
 		tab := primitive.NewPressable(lab)
-		tab.Padding = primitive.Symmetric(14, 8)
+		tab.Padding = primitive.Symmetric(16, 12)
+		tab.ColorHovered = antItemHoverFill(th)
 		if it.Key == t.Active {
 			// underline via bottom border simulation: decorated
 			dec := primitive.NewDecorated(tab)
@@ -506,14 +555,14 @@ func (h *MessageHost) refresh() {
 	col.CrossAlign = core.CrossEnd
 	for _, it := range h.Queue.Items() {
 		tx := primitive.NewText(it.Content)
-		tx.FontSize = 13
+		tx.FontSize = th.SizeOr(core.TokenFontSize, 14)
 		tx.Face = h.Face
 		tx.Color = th.Color(core.TokenColorText)
 		card := primitive.NewDecorated(tx)
-		card.Padding = primitive.Symmetric(14, 10)
-		card.Radius = 6
+		card.Padding = primitive.Symmetric(12, 9) // Ant Message
+		card.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 		card.Background = th.Color(core.TokenColorBgContainer)
-		card.BorderWidth = 1
+		card.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 		switch it.Kind {
 		case "success":
 			card.BorderColor = th.Color(core.TokenColorSuccess)

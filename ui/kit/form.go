@@ -75,7 +75,11 @@ func (fi *FormItem) rebuild() {
 	if fi.control == nil {
 		fi.control = primitive.NewBox()
 	}
-	col := primitive.Column(fi.label, fi.control, fi.errorText)
+	// Ant Form vertical: label above control (gap 8), error under (gap 4).
+	field := primitive.Column(fi.label, fi.control)
+	field.Gap = 8
+	field.CrossAlign = core.CrossStart
+	col := primitive.Column(field, fi.errorText)
 	col.Gap = 4
 	col.CrossAlign = core.CrossStart
 	fi.Root = col
@@ -186,7 +190,7 @@ func (f *Form) theme() *core.Theme {
 func (f *Form) rebuild() {
 	th := f.theme()
 	f.Root = primitive.Column()
-	f.Root.Gap = 12
+	f.Root.Gap = 24 // Ant Form vertical layout margin
 	f.Root.CrossAlign = core.CrossStart
 	for _, it := range f.Items {
 		if it.Root == nil {

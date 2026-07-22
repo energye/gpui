@@ -78,6 +78,8 @@ type UIDemandResult struct {
 // Surface.Configure to the live size (sharp pixels). Matches device_lost_redraw.
 const ResizeConfigureIdle = 32 * time.Millisecond
 
+var logPaintScaleOnce sync.Once
+
 func useCompositor() bool {
 	v := os.Getenv("GPUI_COMPOSITOR")
 	return v != "0" && v != "false" && v != "off"
@@ -186,7 +188,24 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		if scale <= 0 {
 			scale = 1
 		}
+		// UI supersample: paint compositor base at ≥2× when host DPR is 1 so
+		// 1px borders / small circles get soft edges (match ui_ant_compare).
+		// Disable with GPUI_UI_SUPERSAMPLE=0.
+		if v := os.Getenv("GPUI_UI_SUPERSAMPLE"); v != "0" && v != "false" && v != "off" {
+			if scale < 2 {
+				scale = 2
+			}
+		}
 
+		logPaintScaleOnce.Do(func() {
+			log.Printf("exboot: UI paint scale=%.2f (host=%.2f supersample env=%q sample_count env=%q)",
+				scale, func() float64 {
+					if cfg.Host != nil {
+						return cfg.Host.ScaleFactor()
+					}
+					return 1
+				}(), os.Getenv("GPUI_UI_SUPERSAMPLE"), os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"))
+		})
 		// Always paint at LIVE window size so content tracks the window.
 		// Reconfigure surface when it lags (at most once per present after event drain).
 		paintW, paintH := liveW, liveH

@@ -69,7 +69,8 @@ func (r *IconRegistry) Lookup(name string) (IconDef, bool) {
 	return d, ok
 }
 
-// Icon paints a named icon glyph.
+// Icon paints a named icon glyph via shared PaintContext stroke helpers
+// (round caps, AA, consistent line widths).
 type Icon struct {
 	core.NodeBase
 
@@ -127,75 +128,68 @@ func (ic *Icon) Paint(pc *core.PaintContext) {
 	if pc.Theme != nil && col.A == 0 {
 		col = pc.Theme.Color(core.TokenColorText)
 	}
-	drawIcon(pc, def.Kind, pc.Origin.X, pc.Origin.Y, s, col)
+	// Draw in local space (Origin is already icon top-left).
+	drawIconLocal(pc, def.Kind, s, col)
 }
 
 // HitTest implements core.Node.
 func (ic *Icon) HitTest(p core.Point) core.Node { return ic.DefaultHitTest(p) }
 
-func drawIcon(pc *core.PaintContext, kind IconKind, x, y, s float64, col render.RGBA) {
-	dc := pc.DC
-	dc.SetRGBA(col.R, col.G, col.B, col.A)
-	dc.SetLineWidth(1.5)
-	pad := s * 0.2
-	x0, y0 := x+pad, y+pad
-	x1, y1 := x+s-pad, y+s-pad
-	cx, cy := x+s/2, y+s/2
+// drawIconLocal paints built-in icons using shared stroke/circle APIs only.
+// Coordinates are local to the icon box [0,s]×[0,s].
+func drawIconLocal(pc *core.PaintContext, kind IconKind, s float64, col render.RGBA) {
+	if pc == nil {
+		return
+	}
+	lw := s * 0.125
+	if lw < 1.6 {
+		lw = 1.6
+	}
+	if lw > 2.5 {
+		lw = 2.5
+	}
+	pad := s * 0.18
+	x0, y0 := pad, pad
+	x1, y1 := s-pad, s-pad
+	cx, cy := s/2, s/2
 
 	switch kind {
 	case IconCheck:
-		dc.MoveTo(x0, cy)
-		dc.LineTo(cx-s*0.05, y1)
-		dc.LineTo(x1, y0)
-		_ = dc.Stroke()
+		pc.PaintLocalCheck(s, s, lw, col)
 	case IconClose:
-		dc.MoveTo(x0, y0)
-		dc.LineTo(x1, y1)
-		dc.MoveTo(x1, y0)
-		dc.LineTo(x0, y1)
-		_ = dc.Stroke()
+		pc.PaintLocalClose(s, s, pad, lw, col)
 	case IconPlus:
-		dc.MoveTo(cx, y0)
-		dc.LineTo(cx, y1)
-		dc.MoveTo(x0, cy)
-		dc.LineTo(x1, cy)
-		_ = dc.Stroke()
+		pc.StrokeLocalLine(cx, y0, cx, y1, lw, col)
+		pc.StrokeLocalLine(x0, cy, x1, cy, lw, col)
 	case IconMinus:
-		dc.MoveTo(x0, cy)
-		dc.LineTo(x1, cy)
-		_ = dc.Stroke()
+		pc.StrokeLocalLine(x0, cy, x1, cy, lw, col)
 	case IconChevronRight:
-		dc.MoveTo(x0+s*0.1, y0)
-		dc.LineTo(x1-s*0.05, cy)
-		dc.LineTo(x0+s*0.1, y1)
-		_ = dc.Stroke()
+		pc.StrokeLocalPolyline([]float64{
+			x0 + s*0.1, y0,
+			x1 - s*0.05, cy,
+			x0 + s*0.1, y1,
+		}, lw, col)
 	case IconChevronDown:
-		dc.MoveTo(x0, y0+s*0.1)
-		dc.LineTo(cx, y1-s*0.05)
-		dc.LineTo(x1, y0+s*0.1)
-		_ = dc.Stroke()
+		pc.StrokeLocalPolyline([]float64{
+			x0, y0 + s*0.1,
+			cx, y1 - s*0.05,
+			x1, y0 + s*0.1,
+		}, lw, col)
 	case IconSearch:
 		r := s * 0.28
-		dc.DrawCircle(cx-s*0.08, cy-s*0.08, r)
-		_ = dc.Stroke()
-		dc.MoveTo(cx+r*0.4, cy+r*0.4)
-		dc.LineTo(x1, y1)
-		_ = dc.Stroke()
+		pc.StrokeLocalCircle(cx-s*0.08, cy-s*0.08, r, lw, col)
+		pc.StrokeLocalLine(cx+r*0.4, cy+r*0.4, x1, y1, lw, col)
 	case IconInfo:
-		dc.DrawCircle(cx, cy, s*0.35)
-		_ = dc.Stroke()
-		dc.SetLineWidth(1.8)
-		dc.MoveTo(cx, cy-s*0.08)
-		dc.LineTo(cx, cy+s*0.18)
-		_ = dc.Stroke()
-		dc.DrawCircle(cx, cy-s*0.22, s*0.04)
-		_ = dc.Fill()
+		pc.StrokeLocalCircle(cx, cy, s*0.35, lw, col)
+		pc.StrokeLocalLine(cx, cy-s*0.08, cx, cy+s*0.18, lw*1.15, col)
+		pc.FillLocalCircle(cx, cy-s*0.22, s*0.04, col)
 	default: // placeholder diamond
-		dc.MoveTo(cx, y0)
-		dc.LineTo(x1, cy)
-		dc.LineTo(cx, y1)
-		dc.LineTo(x0, cy)
-		dc.ClosePath()
-		_ = dc.Stroke()
+		pc.StrokeLocalPolyline([]float64{
+			cx, y0,
+			x1, cy,
+			cx, y1,
+			x0, cy,
+			cx, y0, // close
+		}, lw, col)
 	}
 }
