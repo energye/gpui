@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 )
 
@@ -22,8 +21,7 @@ import (
 //
 // Auto selection:
 //
-//	GPUI_LIFECYCLE=normal|purge|recreate|auto  (default auto)
-//	GPUI_LOW_VRAM=1 or integrated/CPU adapter → at least Purge
+//	GPUI_LIFECYCLE=normal|purge|recreate|auto  (default auto → Purge)
 //	any CreateTexture OOM observed this process → Recreate (adaptive)
 type SurfaceLifecycle int
 
@@ -66,7 +64,9 @@ func TextureOOMCount() uint32 { return textureOOMs.Load() }
 func ResetTextureOOMCount() { textureOOMs.Store(0) }
 
 // ResolveSurfaceLifecycle picks the host tier for this process/adapter.
+// adpt is accepted for API stability; auto tier does not branch on adapter type.
 func ResolveSurfaceLifecycle(adpt *webgpu.Adapter) SurfaceLifecycle {
+	_ = adpt
 	switch strings.ToLower(os.Getenv("GPUI_LIFECYCLE")) {
 	case "normal", "flutter", "light":
 		return LifecycleNormal
@@ -86,18 +86,6 @@ func ResolveSurfaceLifecycle(adpt *webgpu.Adapter) SurfaceLifecycle {
 	}
 
 	// Portable default: Purge surface-bound GPU memory while unpresentable.
-	// Matches Skia freeGpuResources + Flutter detaching GPU layers when the
-	// platform surface is gone. Does NOT recreate the Device every Iconify
-	// (that is Recreate tier / adaptive after OOM).
 	// Opt into Flutter-light Unconfigure-only with GPUI_LIFECYCLE=normal.
-	if os.Getenv("GPUI_LOW_VRAM") == "1" {
-		return LifecyclePurge
-	}
-	if adpt != nil {
-		info := adpt.Info()
-		if info.DeviceType == types.DeviceTypeIntegratedGPU || info.DeviceType == types.DeviceTypeCPU {
-			return LifecyclePurge
-		}
-	}
 	return LifecyclePurge
 }

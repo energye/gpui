@@ -1,8 +1,9 @@
 # GPU 显存预算与适配（对齐 Skia / Flutter）
 
-> 版本：1.1 | 日期：2026-07-21 | **活文档**  
+> 版本：1.3 | 日期：2026-07-22 | **活文档**  
 > 范围：`gpu/rwgpu` InstanceExtras · `render/gpu` adapter 策略 · 示例 `vram_stages` / `device_lost_redraw`  
 > 关联：[`SURFACE_LIFECYCLE_SKIA_FLUTTER.md`](./SURFACE_LIFECYCLE_SKIA_FLUTTER.md) · [`ENGINE_GAPS.md`](./ENGINE_GAPS.md) G3.d
+
 ## 问题
 
 在 **NVIDIA 940MX (1GB) + wgpu-native Vulkan** 上，即使只 clear 一帧：
@@ -20,68 +21,74 @@
 
 - 没有独显（核显 / 软渲染）
 - 只有几十 MiB 可用显存
-- 混合本：独显被 UI 占 300M+ 不合理
+- 混合本：独显被 UI 占 300M+ 离谱
+- **多开**：每个进程都抢独显 → OOM / 连锁崩溃
 
-## 策略（已实现）
+## 策略（已收敛）
 
-### 1. 默认 Adapter 策略：**独显优先**
-
-`render/gpu.ResolveAdapterPolicy()`：
+### 1. Adapter：仅 `GPUI_POWER`
 
 | 环境变量 | 行为 |
 |----------|------|
-| （默认） | **HighPerformance**：有独显用独显；**没有独显才**用核显；再不行 software |
-| `GPUI_POWER=high` / `auto` | 同上（独显优先） |
-| `GPUI_POWER=low` / `GPUI_LOW_VRAM=1` | **核显优先**（混合本省独显 VRAM） |
+| （默认） | **Default**：混合本有核显则用核显；单卡用那块卡 |
+| `GPUI_POWER=high` | 独显优先 |
+| `GPUI_POWER=low` | 核显优先 |
 
-**默认 = 独显优先。** 弱显存/混合本要省独显时显式设 `GPUI_LOW_VRAM=1` 或 `GPUI_POWER=low`。
+实现：`render/gpu.ResolveAdapterPolicy()` + `RequestAdapterWithPolicy`。  
+Default 路径：先 `PowerPreferenceNone`，若落在独显且存在核显 → 改用核显（修正 Optimus 上 bare None 仍回 dGPU 的问题）。
 
-### 2. Instance 后端与预算（`gpu/rwgpu.CreateInstance`）
+**不再使用** `GPUI_LOW_VRAM` / `GPUI_AUTO_VRAM`（limits 按 adapter 类型自动收紧）。
 
-- 修复 **`STypeInstanceExtras` ABI**（曾与 `webgpu.h` 错位，导致 backends 完全失效）
-- 支持 `GPUI_BACKEND=gl|vulkan|primary|all|gl+vulkan`
-- 支持 `GPUI_VRAM_BUDGET_PCT`（谨慎：过低会 device lost，**不要默认开**）
-- X11：`XlibDisplay` 传入 InstanceExtras（GL 表面兼容仍依赖驱动/EGL，本机 NVIDIA 上 GL 仍可能报 not compatible）
+### 2. Device limits：跟 adapter 类型
 
-### 3. 管线按需（F17）
+`DeviceDescriptorForAdapter`：
 
-`ensurePipelines` 只建 SDF+convex；stencil/image/depth-clip 按帧内容创建。  
-减少无用变体编译（对 322 基线帮助有限，但对弱设备与启动路径正确）。
+- Integrated / CPU → `DeviceDescriptorLowVRAM`（更紧 limits）
+- Discrete → 默认 UI limits
 
-### 4. LowVRAM Device limits
+### 3. Instance：`GPUI_BACKEND`（+ 专家项预算）
 
-`DeviceDescriptorLowVRAM` / `DeviceDescriptorForAdapter`：核显/CPU 使用更紧的 RequiredLimits。
+- `GPUI_BACKEND=gl|vulkan|primary|all|gl+vulkan`
+- `GPUI_VRAM_BUDGET_PCT`（谨慎：过低会 device lost，**不要默认开**）
+
+### 4. Surface lifecycle：仅 `GPUI_LIFECYCLE`
+
+- 默认 auto → **Purge**
+- 见过 CreateTexture OOM → **Recreate**
+- 显式 `normal|purge|recreate`
+
+### 5. 管线按需（F17）
+
+`ensurePipelines` 只建 SDF+convex；stencil/image/depth-clip 按帧内容 lazy。
 
 ## 测量工具
 
 ```bash
-# 分阶段归因（默认独显优先）
+# 默认（混合本 → 核显）
 go run ./examples/vram_stages
 
-# 强制核显（混合本省独显）
+# 强制独显
+GPUI_POWER=high go run ./examples/vram_stages
+
+# 强制核显
 GPUI_POWER=low go run ./examples/vram_stages
 
-# 窗口示例
 go run ./examples/device_lost_redraw
-GPUI_LOW_VRAM=1 go run ./examples/device_lost_redraw
 ```
 
-## 对标 Skia / Flutter 的诚实边界
+## 预期占用
 
 | 路径 | 预期占用 | 适用 |
 |------|----------|------|
-| **默认 High（独显优先）** | 有独显 → ~200–320 MiB（本机 940MX Vulkan） | 正常桌面默认 |
-| **无独显 → 核显** | 独显 0；系统内存 | 只有核显的机器 |
-| `GPUI_LOW_VRAM=1` / `GPUI_POWER=low` | 强制核显优先 | 混合本要省独显显存 |
+| **默认 Default** | 混合本 → 核显（独显 0）；仅有独显 → 独显 | 桌面 UI |
+| `GPUI_POWER=high` | 有独显 → ~200–320 MiB（本机 940MX Vulkan） | 明确要独显性能 |
+| `GPUI_POWER=low` | 强制核显 | 强制省独显 |
 | 纯软渲染 | 无 GPU 进程显存 | 策略末级 ForceFallback |
-
-**默认：有独显用独显，没有才用集成显卡。** 要省独显 VRAM 时显式 `GPUI_LOW_VRAM=1`。
 
 ## API
 
 ```go
 policy := gpu.ResolveAdapterPolicy()
-// forceFallback=true when only software/CPU adapter is available
 adpt, forceFallback, err := gpu.RequestAdapterWithPolicy(inst, surf, policy)
 _ = forceFallback
 dev, err := adpt.RequestDevice(gpu.DeviceDescriptorForAdapter("app", adpt))
@@ -89,6 +96,6 @@ dev, err := adpt.RequestDevice(gpu.DeviceDescriptorForAdapter("app", adpt))
 
 ## 与 surface lifecycle
 
-- 不可 present（**auto/Purge 默认**）：`Unconfigure` + `PurgeSurfaceResources` / DropGPU；**Normal 档**仅 purge 引擎附件、不 Unconfigure（见 surface 文档）。  
-- OOM：`NoteTextureOOM` → lifecycle 升 **Recreate** → `ForceRecoverHealthy`（见 surface 文档）。  
-- 双 Device 峰值：recover 必须完整 Release 旧堆（CB / offscreen pool / blend pipeline）；见 device_lost 文档 4c。
+- 不可 present（**auto/Purge 默认**）：`Unconfigure` + `PurgeSurfaceResources` / DropGPU  
+- OOM：`NoteTextureOOM` → lifecycle 升 **Recreate** → `ForceRecoverHealthy`  
+- 双 Device 峰值：recover 必须完整 Release 旧堆；见 device_lost 文档 4c

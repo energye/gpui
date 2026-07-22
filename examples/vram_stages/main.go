@@ -3,7 +3,7 @@
 // vram_stages — stepwise VRAM attribution for 940MX-class GPUs.
 //
 //	GPUI_VRAM_STAGE=device|swapchain|clear|full GPUI_VRAM_SECONDS=4 go run ./examples/vram_stages
-//	GPUI_LOW_VRAM=1  — tighter RequiredLimits
+//	GPUI_POWER=high|low — adapter policy override
 //	GPUI_DEVICE_NIL_LIMITS=1 — RequestDevice with label only
 package main
 
@@ -43,10 +43,10 @@ func main() {
 			h = n
 		}
 	}
-	log.Printf("stage=%s seconds=%d size=%dx%d pid=%d sample=%s low_vram=%s nil_limits=%s",
+	log.Printf("stage=%s seconds=%d size=%dx%d pid=%d sample=%s power=%s nil_limits=%s",
 		stage, sec, w, h, os.Getpid(),
 		os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"),
-		os.Getenv("GPUI_LOW_VRAM"),
+		os.Getenv("GPUI_POWER"),
 		os.Getenv("GPUI_DEVICE_NIL_LIMITS"))
 
 	report("start")
@@ -65,7 +65,7 @@ func main() {
 		instDesc.XlibDisplay = xw.Display
 		instDesc.XlibScreen = int32(xw.Screen)
 	}
-	inst, err := webgpu.CreateInstance(instDesc) // env: GPUI_BACKEND / GPUI_LOW_VRAM
+	inst, err := webgpu.CreateInstance(instDesc) // env: GPUI_BACKEND
 	must(err)
 	defer inst.Release()
 	report("after_instance")

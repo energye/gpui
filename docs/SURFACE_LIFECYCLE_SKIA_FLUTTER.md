@@ -23,7 +23,7 @@
 | Tier | 何时（Resolve） | hide（SurfaceHost.OnUnpresentable） | show（OnPresentable） |
 | --- | --- | --- | --- |
 | **Normal** | **仅** `GPUI_LIFECYCLE=normal\|flutter\|light` | **先** `PurgeSurfaceResources()`；**不** Unconfigure、**不** DropGPU（host 只停 present） | `ClearRecoverCooldown` + 保持已配置 surface |
-| **Purge** | `auto`/`""` 且无 OOM；或显式 `purge`；`GPUI_LOW_VRAM`/核显/CPU 亦落此档（auto 下与 Purge 相同） | PurgeSurfaceResources → **Unconfigure** + MarkNeedsReconfigure + **DropGPU** | 同 device **reconfigure**（无 abandon 则不 ForceRecoverHealthy） |
+| **Purge** | `auto`/`""` 且无 OOM；或显式 `purge` | PurgeSurfaceResources → **Unconfigure** + MarkNeedsReconfigure + **DropGPU** | 同 device **reconfigure**（无 abandon 则不 ForceRecoverHealthy） |
 | **Recreate** | 显式 `recreate` **或** 进程内 `TextureOOMCount()>0` | Purge 路径 + **AbandonDevice** | **ForceRecoverHealthy** + BindProvider |
 
 `auto` / 默认（`GPUI_LIFECYCLE` 未设）：

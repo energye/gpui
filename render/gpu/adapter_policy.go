@@ -13,59 +13,90 @@ import (
 
 // AdapterPolicy controls which GPU is selected.
 //
-// Default is discrete-first (HighPerformance): use the dedicated GPU when
-// present, fall back to integrated only if no discrete adapter is available.
-// LowPower / GPUI_LOW_VRAM opt into integrated-first for hybrid machines that
-// must minimize dedicated VRAM (wgpu-native Vulkan on small NVIDIA cards can
-// reserve ~200–320 MiB even for a clear present).
+// Three policies only:
+//
+//	Default — hybrid UI default: prefer integrated when both discrete and
+//	          integrated exist (avoids multi-app OOM on small dGPUs).
+//	High    — discrete-first (games / explicit performance).
+//	Low     — integrated-first (force spare dGPU).
+//
+// Env: GPUI_POWER=high|low  (unset → Default). No other knobs.
 type AdapterPolicy int
 
 const (
-	// PolicyHighPerformance prefers discrete GPUs; falls back to integrated, then software.
-	PolicyHighPerformance AdapterPolicy = iota
-	// PolicyLowPower prefers integrated / low-power GPUs (min dedicated VRAM).
-	PolicyLowPower
-	// PolicyAuto is an alias of discrete-first (same order as HighPerformance).
-	// Kept for env GPUI_POWER=auto / GPUI_AUTO_VRAM=1 compatibility.
-	PolicyAuto
+	// PolicyDefault prefers integrated on hybrid machines; single-GPU uses that GPU.
+	PolicyDefault AdapterPolicy = iota
+	// PolicyHigh prefers discrete GPUs; falls back to integrated, then software.
+	PolicyHigh
+	// PolicyLow prefers integrated / low-power GPUs.
+	PolicyLow
+)
+
+// Deprecated aliases (same values as above). Prefer PolicyDefault/High/Low.
+const (
+	PolicyNone            = PolicyDefault
+	PolicyHighPerformance = PolicyHigh
+	PolicyLowPower        = PolicyLow
+	PolicyAuto            = PolicyDefault
 )
 
 func (p AdapterPolicy) String() string {
 	switch p {
-	case PolicyHighPerformance:
+	case PolicyDefault:
+		return "default"
+	case PolicyHigh:
 		return "high"
-	case PolicyLowPower:
+	case PolicyLow:
 		return "low"
-	case PolicyAuto:
-		return "auto"
 	default:
 		return "unknown"
 	}
 }
 
-// ResolveAdapterPolicy reads GPUI_POWER / GPUI_LOW_VRAM / GPUI_AUTO_VRAM.
+// ResolveAdapterPolicy reads GPUI_POWER only.
 //
-//	GPUI_POWER=high|low|auto   (auto = discrete-first, same as high)
-//	GPUI_LOW_VRAM=1            → LowPower (integrated-first)
-//	GPUI_AUTO_VRAM=1           → same as default high (discrete-first)
+//	(unset) / empty     → Default (hybrid prefer iGPU)
+//	GPUI_POWER=high     → High (discrete-first)
+//	GPUI_POWER=low      → Low (integrated-first)
 //
-// Default when nothing set: PolicyHighPerformance — discrete if present,
-// integrated only when no discrete adapter is available.
+// Legacy aliases still accepted: discrete/dgpu→high, integrated/igpu→low,
+// none/auto/default→Default. GPUI_LOW_VRAM is ignored for adapter selection
+// (device limits follow adapter type automatically).
 func ResolveAdapterPolicy() AdapterPolicy {
-	switch strings.ToLower(os.Getenv("GPUI_POWER")) {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("GPUI_POWER"))) {
 	case "high", "discrete", "dgpu":
-		return PolicyHighPerformance
+		return PolicyHigh
 	case "low", "integrated", "igpu":
-		return PolicyLowPower
-	case "auto":
-		// Discrete-first (same order as HighPerformance).
-		return PolicyAuto
+		return PolicyLow
+	default:
+		// unset, "", "none", "auto", "default", unknown → Default
+		return PolicyDefault
 	}
-	if os.Getenv("GPUI_LOW_VRAM") == "1" {
-		return PolicyLowPower
+}
+
+func adapterDeviceType(a *webgpu.Adapter) types.DeviceType {
+	if a == nil {
+		return types.DeviceTypeOther
 	}
-	// Default: discrete GPU when available; iGPU only as fallback.
-	return PolicyHighPerformance
+	return a.Info().DeviceType
+}
+
+// preferIntegratedOverDiscrete keeps alt when primary is discrete and alt is
+// integrated. Releases the unused adapter.
+func preferIntegratedOverDiscrete(primary, alt *webgpu.Adapter) *webgpu.Adapter {
+	if primary == nil {
+		return alt
+	}
+	if alt == nil {
+		return primary
+	}
+	if adapterDeviceType(primary) == types.DeviceTypeDiscreteGPU &&
+		adapterDeviceType(alt) == types.DeviceTypeIntegratedGPU {
+		primary.Release()
+		return alt
+	}
+	alt.Release()
+	return primary
 }
 
 // RequestAdapterWithPolicy selects an adapter for the instance/surface.
@@ -90,8 +121,7 @@ func RequestAdapterWithPolicy(
 	}
 
 	switch policy {
-	case PolicyLowPower:
-		// Integrated-first (explicit GPUI_LOW_VRAM / GPUI_POWER=low).
+	case PolicyLow:
 		a, e := try(webgpu.PowerPreferenceLowPower, false)
 		if e == nil {
 			return a, false, nil
@@ -102,7 +132,7 @@ func RequestAdapterWithPolicy(
 		}
 		a, e = try(webgpu.PowerPreferenceLowPower, true)
 		return a, true, e
-	default: // HighPerformance and Auto: discrete first, then integrated, then software.
+	case PolicyHigh:
 		a, e := try(webgpu.PowerPreferenceHighPerformance, false)
 		if e == nil {
 			return a, false, nil
@@ -113,15 +143,33 @@ func RequestAdapterWithPolicy(
 		}
 		a, e = try(webgpu.PowerPreferenceLowPower, true)
 		return a, true, e
+	default: // PolicyDefault
+		a, e := try(webgpu.PowerPreferenceNone, false)
+		if e == nil {
+			// Hybrid: bare None often returns dGPU first under Optimus/Vulkan.
+			if adapterDeviceType(a) == types.DeviceTypeDiscreteGPU {
+				if b, e2 := try(webgpu.PowerPreferenceLowPower, false); e2 == nil {
+					a = preferIntegratedOverDiscrete(a, b)
+				}
+			}
+			return a, false, nil
+		}
+		a, e = try(webgpu.PowerPreferenceLowPower, false)
+		if e == nil {
+			return a, false, nil
+		}
+		a, e = try(webgpu.PowerPreferenceHighPerformance, false)
+		if e == nil {
+			return a, false, nil
+		}
+		a, e = try(webgpu.PowerPreferenceNone, true)
+		return a, true, e
 	}
 }
 
-// DeviceDescriptorForAdapter picks LowVRAM limits for integrated/CPU adapters
-// or when GPUI_LOW_VRAM=1.
+// DeviceDescriptorForAdapter picks tighter LowVRAM limits for integrated/CPU
+// adapters. Discrete uses full UI defaults. No env override.
 func DeviceDescriptorForAdapter(label string, adpt *webgpu.Adapter) *webgpu.DeviceDescriptor {
-	if os.Getenv("GPUI_LOW_VRAM") == "1" {
-		return DeviceDescriptorLowVRAM(label)
-	}
 	if adpt != nil {
 		info := adpt.Info()
 		if info.DeviceType == types.DeviceTypeIntegratedGPU || info.DeviceType == types.DeviceTypeCPU {

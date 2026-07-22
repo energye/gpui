@@ -16,9 +16,8 @@ import (
 //
 // Env (applied when using CreateInstance):
 //
-//	GPUI_BACKEND=gl|vulkan|primary|all
-//	GPUI_VRAM_BUDGET_PCT=1..100  (wgpu-native memory budget %)
-//	GPUI_LOW_VRAM=1              (prefer GL+Vulkan, budget 35%)
+//	GPUI_BACKEND=gl|vulkan|primary|all|gl+vulkan
+//	GPUI_VRAM_BUDGET_PCT=1..100  (wgpu-native memory budget %; expert-only)
 type InstanceDescriptor struct {
 	// Backends selects which GPU backends to enable.
 	// Zero = All (wgpu-native default) unless env overrides.
@@ -213,14 +212,6 @@ func applyInstanceEnv(desc *InstanceDescriptor) {
 			if desc.BudgetForDeviceLossPct == 0 {
 				desc.BudgetForDeviceLossPct = uint8(n) //nolint:gosec
 			}
-		}
-	}
-	if os.Getenv("GPUI_LOW_VRAM") == "1" {
-		if desc.Backends == 0 && os.Getenv("GPUI_BACKEND") == "" {
-			// Enable GL+Vulkan; pair with LowPower RequestAdapter for iGPU.
-			// Do NOT set memory budget % by default — aggressive budgets device-lost
-			// on NVIDIA/wgpu (see vram_stages budget25).
-			desc.Backends = types.BackendsGL | types.BackendsVulkan
 		}
 	}
 }

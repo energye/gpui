@@ -50,8 +50,8 @@ func NewInstanceX11(display uintptr, screen int) (*webgpu.Instance, error) {
 	})
 }
 
-// OpenDevice requests adapter+device with the shared policy (discrete-first by
-// default; GPUI_LOW_VRAM=1 → integrated-first).
+// OpenDevice requests adapter+device with the shared policy
+// (default: hybrid prefer iGPU; GPUI_POWER=high|low override).
 func OpenDevice(inst *webgpu.Instance, surf *webgpu.Surface, label string) (*webgpu.Adapter, *webgpu.Device, error) {
 	if inst == nil {
 		return nil, nil, fmt.Errorf("exboot: nil instance")

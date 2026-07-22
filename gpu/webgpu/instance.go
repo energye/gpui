@@ -31,7 +31,7 @@ type Instance struct {
 
 // CreateInstance creates a new GPU instance.
 // If desc is nil, all available backends are used (unless GPUI_BACKEND /
-// GPUI_LOW_VRAM env select GL / budgets — see rwgpu.CreateInstance).
+// GPUI_VRAM_BUDGET_PCT env apply — see rwgpu.CreateInstance).
 func CreateInstance(desc *InstanceDescriptor) (*Instance, error) {
 	if err := rwgpu.Init(); err != nil {
 		return nil, fmt.Errorf("wgpu: failed to init wgpu-native: %w", err)
@@ -46,7 +46,7 @@ func CreateInstance(desc *InstanceDescriptor) (*Instance, error) {
 			XlibScreen:  desc.XlibScreen,
 		}
 	}
-	// Always call through so env (GPUI_BACKEND / GPUI_LOW_VRAM / budget) applies
+	// Always call through so env (GPUI_BACKEND / budget) applies
 	// even when desc is nil.
 	ri, err := rwgpu.CreateInstance(rDesc)
 	if err != nil {

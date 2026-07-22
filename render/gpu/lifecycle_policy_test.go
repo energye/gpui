@@ -5,16 +5,12 @@ package gpu
 import (
 	"os"
 	"testing"
-
-	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 func TestResolveSurfaceLifecycle_EnvAndOOM(t *testing.T) {
 	ResetTextureOOMCount()
 	t.Cleanup(func() {
 		_ = os.Unsetenv("GPUI_LIFECYCLE")
-		_ = os.Unsetenv("GPUI_LOW_VRAM")
 		ResetTextureOOMCount()
 	})
 
@@ -54,7 +50,3 @@ func TestNoteTextureOOM_Increments(t *testing.T) {
 	}
 	ResetTextureOOMCount()
 }
-
-// silence unused types import when building without adapter fixtures
-var _ = types.DeviceTypeDiscreteGPU
-var _ = webgpu.PowerPreferenceHighPerformance
