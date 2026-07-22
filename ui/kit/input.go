@@ -151,6 +151,14 @@ func (in *Input) SetFixedSize(w, h float64) {
 	in.Root.MarkNeedsLayout()
 }
 
+// AttachTicker registers caret blink on the demand-frame loop.
+func (in *Input) AttachTicker(t *core.Tree) {
+	if in == nil || t == nil || in.editor == nil {
+		return
+	}
+	in.editor.AttachTicker(t)
+}
+
 // IsFocused reports whether the inner editor is focused.
 func (in *Input) IsFocused() bool { return in.focused }
 
@@ -206,14 +214,16 @@ func (in *Input) rebuild() {
 		in.applyChrome()
 	}
 
-	// Expand editor in flex
+	// Expand editor in flex; FillChild so editor fills control height (caret/placeholder center in field).
 	flexEd := primitive.NewFlexible(1, in.editor)
+	flexEd.FillChild = true
 
 	in.prefix = primitive.NewSlot("prefix", nil)
 	in.suffix = primitive.NewSlot("suffix", nil)
 	in.row = primitive.Row(in.prefix, flexEd, in.suffix)
 	in.row.Gap = th.SizeOr(core.TokenMarginXS, 4) + 2 // ~6
-	in.row.CrossAlign = core.CrossCenter
+	// Stretch so EditableText fills control height → placeholder/value/caret vertically centered.
+	in.row.CrossAlign = core.CrossStretch
 
 	in.Root = primitive.NewDecorated(in.row)
 	in.Root.Padding = primitive.Symmetric(padH, padV)
@@ -221,6 +231,8 @@ func (in *Input) rebuild() {
 	in.Root.MinHeight = h
 	in.Root.Height = h
 	in.Root.BorderWidth = lineW
+	// Single-line: center editor row in control chrome.
+	in.Root.SetCenterContent(true)
 	in.applyChrome()
 }
 

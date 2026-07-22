@@ -14,30 +14,23 @@ const (
 	// TabTop is horizontal tabs above content (default).
 	TabTop TabPosition = iota
 	// TabLeft is a vertical category rail on the left + content on the right.
-	// Matches https://ant.design/components/tabs tabPosition="left".
+	// https://ant.design/components/tabs tabPosition="left"
 	TabLeft
 )
 
-// Default left-tabs metrics (overridable; 0 on Tabs fields → these defaults).
+// Defaults when Tabs fields are 0.
 const (
-	DefaultTabWidth      = 160.0 // rail width
-	DefaultTabItemHeight = 40.0  // each left-tab row height
-	DefaultTabInkWidth   = 3.0   // left active ink bar width
-	DefaultTabPadInline  = 16.0  // horizontal padding inside a tab
-	DefaultTabPadBlock   = 10.0  // vertical padding when height hugs content
+	DefaultTabWidth      = 160.0
+	DefaultTabItemHeight = 40.0
+	DefaultTabInkWidth   = 3.0
+	DefaultTabPadInline  = 16.0
+	DefaultTabPadBlock   = 10.0
 )
 
-// Tabs is Ant Design–style tabs: tab list + content panel.
+// Tabs is Ant Design–style tabs: list + content panel.
 //
-//	TabLeft layout (default for gallery):
-//	  ┌──────────┬────────────────┐
-//	  │ Button   │  content       │
-//	  │ Input    │                │
-//	  │ …        │                │
-//	  └──────────┴────────────────┘
-//
-// Left tab items keep a fixed/content height — they do NOT stretch to fill the
-// rail. Configure TabWidth / TabItemHeight / TabPad* / TabInkWidth; zero uses defaults.
+// Left tabs: each item is a fixed-size row (default 160×40). Items never stretch
+// to fill the rail height. Width/height/padding/ink are configurable.
 type Tabs struct {
 	Root *primitive.Flex
 
@@ -51,13 +44,13 @@ type Tabs struct {
 
 	Position TabPosition
 
-	// TabWidth: left rail width (0 → DefaultTabWidth=160).
+	// TabWidth left rail width (0 → 160).
 	TabWidth float64
-	// TabItemHeight: left-tab row height (0 → DefaultTabItemHeight=40; <0 → hug content).
+	// TabItemHeight per left-tab row (0 → 40; <0 → hug content).
 	TabItemHeight float64
-	// TabInkWidth: active indicator size (0 → 3 left / 2 top).
+	// TabInkWidth active indicator (0 → 3 left / 2 top).
 	TabInkWidth float64
-	// TabPadInline / TabPadBlock: padding inside each tab (0 → defaults).
+	// TabPadInline / TabPadBlock padding inside each tab (0 → 16 / 10).
 	TabPadInline float64
 	TabPadBlock  float64
 
@@ -67,10 +60,10 @@ type Tabs struct {
 	OnChange func(key string)
 }
 
-// NewTabs creates tabs (top position by default).
+// NewTabs creates tabs (top by default).
 func NewTabs(items ...MenuItem) *Tabs {
 	t := &Tabs{
-		Items:    items,
+		Items:    append([]MenuItem(nil), items...),
 		Contents: make(map[string]core.Node),
 		Position: TabTop,
 	}
@@ -82,7 +75,7 @@ func NewTabs(items ...MenuItem) *Tabs {
 	return t
 }
 
-// Node returns the root for tree attachment.
+// Node returns the root.
 func (t *Tabs) Node() core.Node {
 	if t.Root == nil {
 		t.rebuild()
@@ -90,7 +83,7 @@ func (t *Tabs) Node() core.Node {
 	return t.Root
 }
 
-// SetPosition sets tab list placement and rebuilds.
+// SetPosition sets placement and rebuilds.
 func (t *Tabs) SetPosition(pos TabPosition) {
 	t.Position = pos
 	if pos == TabLeft {
@@ -99,29 +92,21 @@ func (t *Tabs) SetPosition(pos TabPosition) {
 		t.Nav = core.NewKeyboardNav(core.NavHorizontal, len(t.Items))
 	}
 	t.rebuild()
-	if t.body != nil && t.Active != "" {
-		t.body.SetChild(t.Contents[t.Active])
-	}
+	t.syncBody()
 }
 
-// SetTabWidth sets left rail width (0 restores DefaultTabWidth).
+// SetTabWidth sets left rail width (0 → default 160).
 func (t *Tabs) SetTabWidth(w float64) {
 	t.TabWidth = w
 	t.rebuild()
-	if t.body != nil && t.Active != "" {
-		t.body.SetChild(t.Contents[t.Active])
-	}
+	t.syncBody()
 }
 
-// SetTabItemHeight sets each left-tab row height.
-// 0 → DefaultTabItemHeight (40); negative → hug content height.
+// SetTabItemHeight sets left-tab row height (0 → 40; <0 → hug).
 func (t *Tabs) SetTabItemHeight(h float64) {
 	t.TabItemHeight = h
 	t.rebuildBar()
-	if t.Root != nil {
-		t.Root.MarkNeedsLayout()
-		t.Root.MarkNeedsPaint()
-	}
+	t.markDirty()
 }
 
 // SetContent associates a panel with a tab key.
@@ -130,28 +115,38 @@ func (t *Tabs) SetContent(key string, n core.Node) {
 		t.Contents = make(map[string]core.Node)
 	}
 	t.Contents[key] = n
-	if key == t.Active && t.body != nil {
-		t.body.SetChild(n)
-		if t.Root != nil {
-			t.Root.MarkNeedsLayout()
-			t.Root.MarkNeedsPaint()
-		}
+	if key == t.Active {
+		t.syncBody()
 	}
 }
 
-// SetActive switches the visible panel and tab chrome.
+// SetActive switches the panel and tab chrome.
 func (t *Tabs) SetActive(key string) {
-	t.Active = key
-	if t.body != nil {
-		t.body.SetChild(t.Contents[key])
+	if key == "" {
+		return
 	}
+	changed := t.Active != key
+	t.Active = key
+	t.syncBody()
 	t.rebuildBar()
+	t.markDirty()
+	if changed && t.OnChange != nil {
+		t.OnChange(key)
+	}
+}
+
+func (t *Tabs) syncBody() {
+	if t.body == nil {
+		return
+	}
+	t.body.SetChild(t.Contents[t.Active])
+	t.markDirty()
+}
+
+func (t *Tabs) markDirty() {
 	if t.Root != nil {
 		t.Root.MarkNeedsLayout()
 		t.Root.MarkNeedsPaint()
-	}
-	if t.OnChange != nil {
-		t.OnChange(key)
 	}
 }
 
@@ -169,7 +164,6 @@ func (t *Tabs) tabWidth() float64 {
 	return DefaultTabWidth
 }
 
-// tabItemHeight: 0 default 40; negative → 0 (hug).
 func (t *Tabs) tabItemHeight() float64 {
 	if t.TabItemHeight < 0 {
 		return 0
@@ -207,10 +201,9 @@ func (t *Tabs) padBlock() float64 {
 func (t *Tabs) rebuild() {
 	th := t.theme()
 	if t.Position == TabLeft {
-		// Column of fixed-height rows. CrossStretch only stretches width of each
-		// row to the rail width — NOT the height of a single tab to fill the rail.
 		t.bar = primitive.Column()
 		t.bar.Gap = 0
+		// CrossStretch: stretch each item's WIDTH to rail, not its height.
 		t.bar.CrossAlign = core.CrossStretch
 	} else {
 		t.bar = primitive.Row()
@@ -218,11 +211,8 @@ func (t *Tabs) rebuild() {
 		t.bar.CrossAlign = core.CrossEnd
 	}
 
-	var prev core.Node
-	if t.Active != "" {
-		prev = t.Contents[t.Active]
-	}
-	t.body = primitive.NewSlot("tab-body", prev)
+	t.body = primitive.NewSlot("tab-body", t.Contents[t.Active])
+	t.body.ExpandFill = true // panel fills right side
 	t.rebuildBar()
 
 	if t.Position == TabLeft {
@@ -233,6 +223,9 @@ func (t *Tabs) rebuild() {
 		t.rail.Background = th.Color(core.TokenColorBgContainer)
 		t.rail.BorderWidth = 0
 		t.rail.Padding = primitive.EdgeInsets{Top: 8, Bottom: 8}
+		// Tabs stick to the top of the rail — never vertically center the list.
+		t.rail.SetCenterContent(false)
+		// Ensure children of rail are width-capped (Decorated.Layout clamps MaxWidth).
 
 		div := primitive.NewDivider()
 		div.Vertical = true
@@ -243,9 +236,12 @@ func (t *Tabs) rebuild() {
 		padBody.Padding = primitive.All(16)
 		padBody.Background = th.Color(core.TokenColorBgLayout)
 		padBody.BorderWidth = 0
+		// Fill Flexible: panel background + hit cover full body (top-left content).
+		padBody.StretchChild = true
+		padBody.Hit = core.HitBlock
 		bodyHost := primitive.NewFlexible(1, padBody)
+		bodyHost.FillChild = true
 
-		// rail is non-flex (fixed width); bodyHost grows horizontally.
 		t.Root = primitive.Row(t.rail, div, bodyHost)
 		t.Root.Gap = 0
 		t.Root.CrossAlign = core.CrossStretch
@@ -267,16 +263,21 @@ func (t *Tabs) rebuildBar() {
 	if t.Nav != nil {
 		t.Nav.SetCount(len(t.Items))
 	}
+
 	itemH := t.tabItemHeight()
 	inkW := t.tabInkWidth()
 	padI, padB := t.padInline(), t.padBlock()
+	railW := t.tabWidth()
+	// Inner width available for tab chrome (rail has no horizontal padding).
+	innerW := railW
 
 	for i, it := range t.Items {
-		i, it := i, it
+		idx, key := i, it.Key
+		active := key == t.Active
+
 		lab := primitive.NewText(it.Label)
 		lab.FontSize = th.SizeOr(core.TokenFontSize, 14)
 		lab.Face = t.Face
-		active := it.Key == t.Active
 		if active {
 			lab.Color = th.Color(core.TokenColorPrimary)
 		} else {
@@ -285,64 +286,88 @@ func (t *Tabs) rebuildBar() {
 
 		tab := primitive.NewPressable(lab)
 		tab.Base().Cursor = core.CursorPointer
+		tab.EnableRipple = true
 		if t.Position == TabLeft {
-			tab.Padding = primitive.EdgeInsets{Left: padI, Right: padI, Top: padB, Bottom: padB}
+			// Leave room on the right for ink when active.
+			rightPad := padI
+			if active {
+				rightPad = padI + inkW
+			}
+			tab.Padding = primitive.EdgeInsets{Left: padI, Right: rightPad, Top: padB, Bottom: padB}
 		} else {
 			tab.Padding = primitive.Symmetric(padI, padB)
 		}
 		tab.ColorHovered = antItemHoverFill(th)
+		if active {
+			tab.Color = antItemSelectedFill(th)
+		}
 		tab.Click = func() {
 			if t.Nav != nil {
-				t.Nav.Index = i
+				t.Nav.Index = idx
 			}
-			t.SetActive(it.Key)
+			t.SetActive(key)
 		}
 
 		if t.Position == TabLeft {
-			// One row per tab, fixed height — never Flexible(grow) in the vertical bar.
-			var item core.Node
+			// One fixed-size Decorated per tab: full rail width × item height.
+			// Ink is painted as a right-edge box sibling inside a non-flex Row
+			// with explicit widths only (never Flexible in the vertical list).
 			if active {
-				fill := primitive.NewDecorated(tab)
-				fill.Background = antItemSelectedFill(th)
-				fill.BorderWidth = 0
-				if itemH > 0 {
-					fill.Height = itemH
-					fill.MinHeight = itemH
+				labelW := innerW - inkW
+				if labelW < 48 {
+					labelW = 48
 				}
+				labelHost := primitive.NewDecorated(tab)
+				labelHost.Width = labelW
+				labelHost.MinWidth = labelW
+				labelHost.BorderWidth = 0
+				labelHost.Background = antItemSelectedFill(th)
+				labelHost.SetCenterContent(false)
+				labelHost.StretchChild = true // Pressable fills full tab hit area
+				if itemH > 0 {
+					labelHost.Height = itemH
+					labelHost.MinHeight = itemH
+				}
+
 				ink := primitive.NewBox()
 				ink.Width = inkW
 				ink.Color = th.Color(core.TokenColorPrimary)
 				if itemH > 0 {
 					ink.Height = itemH
 				}
-				// Horizontal flex only: fill takes remaining rail width, ink fixed.
-				row := primitive.Row(primitive.NewFlexible(1, fill), ink)
+
+				row := primitive.Row(labelHost, ink)
 				row.Gap = 0
 				row.CrossAlign = core.CrossStretch
+				// Pin the whole row height so Column cannot re-stretch it.
 				if itemH > 0 {
-					// Cap row height so Column parent cannot stretch this child.
-					wrap := primitive.NewDecorated(row)
-					wrap.Height = itemH
-					wrap.MinHeight = itemH
-					wrap.BorderWidth = 0
-					wrap.Background = render.RGBA{}
-					item = wrap
+					pin := primitive.NewDecorated(row)
+					pin.Width = innerW
+					pin.MinWidth = innerW
+					pin.Height = itemH
+					pin.MinHeight = itemH
+					pin.BorderWidth = 0
+					pin.Background = render.RGBA{}
+					pin.SetCenterContent(false)
+					pin.StretchChild = true
+					t.bar.AddChild(pin)
 				} else {
-					item = row
+					t.bar.AddChild(row)
 				}
 			} else {
+				host := primitive.NewDecorated(tab)
+				host.Width = innerW
+				host.MinWidth = innerW
+				host.BorderWidth = 0
+				host.Background = render.RGBA{}
+				host.SetCenterContent(false)
+				host.StretchChild = true
 				if itemH > 0 {
-					wrap := primitive.NewDecorated(tab)
-					wrap.Height = itemH
-					wrap.MinHeight = itemH
-					wrap.BorderWidth = 0
-					wrap.Background = render.RGBA{}
-					item = wrap
-				} else {
-					item = tab
+					host.Height = itemH
+					host.MinHeight = itemH
 				}
+				t.bar.AddChild(host)
 			}
-			t.bar.AddChild(item)
 			continue
 		}
 

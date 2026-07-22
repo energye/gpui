@@ -15,7 +15,7 @@ type Flex struct {
 
 // NewFlex constructs a Flex along axis with optional children.
 func NewFlex(axis core.Axis, children ...core.Node) *Flex {
-	f := &Flex{Axis: axis, CrossAlign: core.CrossCenter}
+	f := &Flex{Axis: axis, CrossAlign: core.CrossStart}
 	f.Init(f)
 	f.Hit = core.HitDefer
 	for _, c := range children {

@@ -308,9 +308,10 @@ func (b *Button) rebuild() {
 	b.decorated = primitive.NewDecorated(b.row)
 	b.decorated.Padding = primitive.Symmetric(padH, padV)
 	b.decorated.Radius = radius
-	// Force exact Ant control height so vertical center is stable.
+	// Force exact Ant control height; center label/icon in chrome.
 	b.decorated.MinHeight = height
 	b.decorated.Height = height
+	b.decorated.SetCenterContent(true)
 	if b.Block {
 		// Expand horizontally when parent gives a max width.
 		b.decorated.MinWidth = th.SizeOr(core.TokenControlHeight, 32) * 4

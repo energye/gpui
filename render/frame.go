@@ -77,6 +77,9 @@ func (c *Context) BeginFrame() {
 	if c == nil {
 		return
 	}
+	// Reset user CTM so a prior InvertY/Translate cannot leak into UI paint
+	// (hit uses layout offsets; paint must share the same Y-down origin).
+	c.Identity()
 	c.ResetFrameDamage()
 	// P1-3: per-frame flush metric (F.03).
 	c.pathStats.FrameFlushes = 0

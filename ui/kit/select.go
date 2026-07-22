@@ -73,13 +73,7 @@ func (s *Select) SetOpen(open bool) {
 // SetFace sets the font face for the value label and rebuilds chrome.
 func (s *Select) SetFace(face text.Face) {
 	s.Face = face
-	if s.display != nil {
-		s.display.Face = face
-		s.display.MarkNeedsLayout()
-		s.display.MarkNeedsPaint()
-	} else {
-		s.rebuild()
-	}
+	s.rebuild()
 }
 
 // Sync repositions while open.
@@ -130,6 +124,9 @@ func (s *Select) rebuild() {
 	s.display.FontSize = th.SizeOr(core.TokenFontSize, 14)
 	s.display.Face = s.Face
 	s.display.Color = th.Color(core.TokenColorTextSecondary)
+	if s.display.Color.A < 0.2 {
+		s.display.Color = render.RGBA{R: 0, G: 0, B: 0, A: 0.45}
+	}
 
 	chev := primitive.NewIcon("chevron-down")
 	chev.Size = 12
@@ -153,7 +150,10 @@ func (s *Select) rebuild() {
 	s.decor.Background = th.Color(core.TokenColorBgContainer)
 	s.decor.MinHeight = h
 	s.decor.Height = h
-	s.decor.MinWidth = 160
+	s.decor.MinWidth = 200
+	s.decor.Width = 240 // visible control chrome (Ant-like default width)
+	s.decor.SetCenterContent(true)
+	s.decor.StretchChild = true // row fills chrome; label+chevron lay out inside
 
 	s.list = primitive.Column()
 	s.list.Gap = 2

@@ -90,18 +90,68 @@ func NewPressable(child core.Node) *Pressable {
 func (p *Pressable) TypeID() string { return TypePressable }
 
 // Layout implements core.Node.
+//
+// hit == paint (Flutter Align.topLeft):
+//   - Own size is content+padding unless the parent forces a TIGHT axis (Min==Max),
+//     e.g. tab item host 160×40 — then expand to fill so the whole chrome hits.
+//   - Child offset is (padL, padT) top-left. Vertical center only when height is
+//     already tight (same rule as expand). Never use loose MaxHeight to center:
+//     Tabs body passes a huge MaxHeight and that used to paint chrome mid/bottom
+//     while hit stayed on the content-sized box at the top (gallery bug).
 func (p *Pressable) Layout(c core.Constraints) core.Size {
 	inner := c.Deflate(p.Padding.Left, p.Padding.Top, p.Padding.Right, p.Padding.Bottom)
 	content := core.Size{}
 	kids := p.Children()
+	tightH := c.MinHeight == c.MaxHeight && c.MaxHeight < core.Unbounded
+	tightW := c.MinWidth == c.MaxWidth && c.MaxWidth < core.Unbounded
+
 	if len(kids) > 0 {
-		content = kids[0].Layout(inner.Expand())
+		// Under tight height, give the child the full inner height so Decorated
+		// chrome can center its own label (Button). Under loose max, keep loose
+		// so intrinsic controls stay content-sized.
+		childC := inner.Expand()
+		if tightH {
+			ih := c.MaxHeight - p.Padding.Top - p.Padding.Bottom
+			if ih < 0 {
+				ih = 0
+			}
+			childC.MinHeight, childC.MaxHeight = ih, ih
+		}
+		if tightW {
+			iw := c.MaxWidth - p.Padding.Left - p.Padding.Right
+			if iw < 0 {
+				iw = 0
+			}
+			childC.MinWidth, childC.MaxWidth = iw, iw
+		}
+		content = kids[0].Layout(childC)
+		// Top-left padding only. Do NOT center using loose MaxHeight.
+		// (If tight, child already fills; Decorated.CenterContent handles chrome.)
 		kids[0].Base().SetOffset(core.Point{X: p.Padding.Left, Y: p.Padding.Top})
 	}
-	out := c.Tighten(core.Size{
+	out := core.Size{
 		Width:  content.Width + p.Padding.Left + p.Padding.Right,
 		Height: content.Height + p.Padding.Top + p.Padding.Bottom,
-	})
+	}
+	// Expand only when parent forces a tight size on that axis (tab host, etc.).
+	if tightW {
+		out.Width = c.MaxWidth
+	}
+	if tightH {
+		out.Height = c.MaxHeight
+	}
+	if out.Width < c.MinWidth {
+		out.Width = c.MinWidth
+	}
+	if out.Height < c.MinHeight {
+		out.Height = c.MinHeight
+	}
+	if out.Width > c.MaxWidth {
+		out.Width = c.MaxWidth
+	}
+	if out.Height > c.MaxHeight {
+		out.Height = c.MaxHeight
+	}
 	p.SetSize(out)
 	return out
 }

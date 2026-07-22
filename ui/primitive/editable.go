@@ -45,6 +45,11 @@ type EditableText struct {
 	OnHoverChange func(hovered bool)
 	hovered       bool
 
+	// Caret blink state (demand-frame ticker).
+	caretPhase   float64
+	caretVisible bool
+	boundTree    *core.Tree
+
 	// ShowFocusRing draws an inner focus ring (default true).
 	// Kit Input sets this false and uses Decorated border as focus chrome.
 	ShowFocusRing bool
@@ -58,6 +63,7 @@ func NewEditableText() *EditableText {
 		PlaceholderColor: render.RGBA{R: 0, G: 0, B: 0, A: 0.25},
 		CaretColor:       render.RGBA{R: 0.09, G: 0.42, B: 0.93, A: 1},
 		ShowFocusRing:    true,
+		caretVisible:     true,
 	}
 	e.Init(e)
 	e.Hit = core.HitTarget
@@ -197,7 +203,7 @@ func (e *EditableText) Paint(pc *core.PaintContext) {
 		pc.FillLocalRect(preX, fs*1.05, preW, 1.5, ul)
 	}
 	// Caret
-	if e.focused && !e.Disabled && !e.ReadOnly {
+	if e.focused && !e.Disabled && !e.ReadOnly && e.caretVisible {
 		cx := measureTextWidth(e.Face, runePrefix(e.Value, e.Cursor)+e.preedit, fs)
 		// account for newlines before caret roughly on first line only for M2
 		if !e.Multiline || !strings.Contains(e.Value[:byteIndex(e.Value, e.Cursor)], "\n") {
@@ -207,7 +213,12 @@ func (e *EditableText) Paint(pc *core.PaintContext) {
 					cc = c
 				}
 			}
-			pc.FillLocalRect(cx, 1, 1.5, fs*1.2, cc)
+			// Local Y matches vertically-centered text (same as DrawString baseline path).
+			caretTop := (y0 - pc.Origin.Y) - ascent
+			if caretTop < 0 {
+				caretTop = 0
+			}
+			pc.FillLocalRect(cx, caretTop, 1.5, lineH, cc)
 		}
 	}
 	// Optional inner focus ring (kit Input uses outer Decorated border instead).
@@ -253,11 +264,49 @@ func (e *EditableText) SetFocused(f bool) {
 	e.focused = f
 	if !f {
 		e.preedit = ""
+		if e.boundTree != nil {
+			e.boundTree.RemoveTicker(e)
+		}
+	} else {
+		e.caretPhase = 0
+		e.caretVisible = true
+		if e.boundTree != nil {
+			e.boundTree.AddTicker(e)
+		}
 	}
 	e.MarkNeedsPaint()
 	if e.OnFocusChange != nil {
 		e.OnFocusChange(f)
 	}
+}
+
+// AttachTicker registers caret blink on the demand-frame loop.
+func (e *EditableText) AttachTicker(tr *core.Tree) {
+	if e == nil || tr == nil {
+		return
+	}
+	e.boundTree = tr
+	if e.focused {
+		tr.AddTicker(e)
+	}
+}
+
+// Tick advances caret blink. Implements core.Ticker.
+func (e *EditableText) Tick(dt float64) bool {
+	if e == nil || !e.focused {
+		return false
+	}
+	const period = 1.06
+	e.caretPhase += dt / period
+	if e.caretPhase >= 1 {
+		e.caretPhase -= 1
+	}
+	vis := e.caretPhase < 0.5
+	if vis != e.caretVisible {
+		e.caretVisible = vis
+		e.MarkNeedsPaint()
+	}
+	return true
 }
 
 // IsFocused reports focus.

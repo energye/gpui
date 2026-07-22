@@ -2,10 +2,20 @@ package primitive
 
 import "github.com/energye/gpui/ui/core"
 
-// Slot is a named child host for composition (prefix/suffix/child/…).
+// Slot is a named child host for composition (prefix/suffix/tab-body/…).
+//
+// Flutter-style sizing:
+//   - Empty slot → preferred size 0 (unless parent tight-forces an axis).
+//   - With child → child's preferred size, optionally expanded when parent is tight.
+//
+// Never expand an empty slot to MaxWidth under loose constraints — that broke
+// Input (prefix Slot ate the whole row and pushed placeholder off-screen).
 type Slot struct {
 	core.NodeBase
 	Name string
+	// ExpandFill when true expands to fill bounded max even under loose mins
+	// (tab body host). Default false.
+	ExpandFill bool
 }
 
 // NewSlot creates a named slot with an optional child.
@@ -43,13 +53,49 @@ func (s *Slot) Child() core.Node {
 func (s *Slot) Layout(c core.Constraints) core.Size {
 	kids := s.Children()
 	if len(kids) == 0 {
-		out := c.Tighten(core.Size{})
+		// Empty: size 0 unless parent tight-forces an axis (Flutter empty SizedBox).
+		out := core.Size{}
+		if c.MinWidth == c.MaxWidth && c.MaxWidth < core.Unbounded {
+			out.Width = c.MaxWidth
+		} else if c.MinWidth > 0 {
+			out.Width = c.MinWidth
+		}
+		if c.MinHeight == c.MaxHeight && c.MaxHeight < core.Unbounded {
+			out.Height = c.MaxHeight
+		} else if c.MinHeight > 0 {
+			out.Height = c.MinHeight
+		}
+		out = c.Tighten(out)
 		s.SetSize(out)
 		return out
 	}
-	sz := kids[0].Layout(c.Expand())
+
+	// Child gets available max; tight axes stay tight.
+	childC := core.Constraints{
+		MaxWidth:  c.MaxWidth,
+		MaxHeight: c.MaxHeight,
+	}
+	if c.MinWidth == c.MaxWidth && c.MaxWidth < core.Unbounded {
+		childC.MinWidth, childC.MaxWidth = c.MinWidth, c.MaxWidth
+	}
+	if c.MinHeight == c.MaxHeight && c.MaxHeight < core.Unbounded {
+		childC.MinHeight, childC.MaxHeight = c.MinHeight, c.MaxHeight
+	}
+	sz := kids[0].Layout(childC)
 	kids[0].Base().SetOffset(core.Point{})
+
 	out := c.Tighten(sz)
+	// ExpandFill or tight parent → fill remaining space (tab panels).
+	if s.ExpandFill || (c.MinWidth == c.MaxWidth && c.MaxWidth < core.Unbounded) {
+		if c.HasBoundedWidth() && c.MaxWidth < core.Unbounded && out.Width < c.MaxWidth {
+			out.Width = c.MaxWidth
+		}
+	}
+	if s.ExpandFill || (c.MinHeight == c.MaxHeight && c.MaxHeight < core.Unbounded) {
+		if c.HasBoundedHeight() && c.MaxHeight < core.Unbounded && out.Height < c.MaxHeight {
+			out.Height = c.MaxHeight
+		}
+	}
 	s.SetSize(out)
 	return out
 }

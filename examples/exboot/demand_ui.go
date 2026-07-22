@@ -188,30 +188,21 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 			surfH = liveH
 		}
 
+		// FOUNDATION: paint scale is always 1 for UI demand loop.
+		// Layout, pointer, and draw share one logical pixel space (Flutter).
+		// Device DPR for swapchain sharpness is a separate concern; do not mix it
+		// into tree layout coordinates.
 		scale := 1.0
+		hostScale := 1.0
 		if cfg.Host != nil {
-			scale = cfg.Host.ScaleFactor()
-		}
-		if scale <= 0 {
-			scale = 1
-		}
-		// UI supersample: paint compositor base at ≥2× when host DPR is 1 so
-		// 1px borders / small circles get soft edges (match ui_ant_compare).
-		// Disable with GPUI_UI_SUPERSAMPLE=0.
-		if v := os.Getenv("GPUI_UI_SUPERSAMPLE"); v != "0" && v != "false" && v != "off" {
-			if scale < 2 {
-				scale = 2
+			hostScale = cfg.Host.ScaleFactor()
+			if hostScale <= 0 {
+				hostScale = 1
 			}
 		}
-
 		logPaintScaleOnce.Do(func() {
-			log.Printf("exboot: UI paint scale=%.2f (host=%.2f supersample env=%q sample_count env=%q)",
-				scale, func() float64 {
-					if cfg.Host != nil {
-						return cfg.Host.ScaleFactor()
-					}
-					return 1
-				}(), os.Getenv("GPUI_UI_SUPERSAMPLE"), os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"))
+			log.Printf("exboot: UI logical scale=1 hostDPR=%.2f compositor=%v sample_count=%q",
+				hostScale, useCompositor(), os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"))
 		})
 		// Always paint at LIVE window size so content tracks the window.
 		// Reconfigure surface when it lags (at most once per present after event drain).
@@ -233,8 +224,8 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		if comp != nil {
 			// 1) Paint full content into base RT at the new size first.
 			comp.BG = cfg.Clear
-			comp.Resize(paintW, paintH, scale)
-			full := true // resize/drag always needs a complete base frame
+			comp.Resize(paintW, paintH, 1) // logical pixels only
+			full := true                   // resize/drag always needs a complete base frame
 			if !comp.Frame(s.Tree, themeOf(cfg, s), full) || !comp.HasBase() {
 				log.Printf("exboot: compositor base failed, direct present")
 				// Direct path must Configure before drawing into the surface.
@@ -404,8 +395,12 @@ func presentDirect(
 	if h < minPresentSize {
 		h = minPresentSize
 	}
+	scale = 1 // always logical
 	if dc.Width() != w || dc.Height() != h {
 		_ = dc.Resize(w, h)
+	}
+	if dc.DeviceScale() != 1 {
+		dc.SetDeviceScale(1)
 	}
 
 	dc.BeginFrame()

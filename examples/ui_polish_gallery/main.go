@@ -192,6 +192,7 @@ func main() {
 	labStyle.SetSecondary(true)
 	panelButtons := primitive.Column(labTypes.Node(), btnRow, labStyle.Node(), styleRow)
 	panelButtons.Gap = 12
+	panelButtons.MainAlign = core.MainStart
 	panelButtons.CrossAlign = core.CrossStart
 	panelButtons.Padding = primitive.All(12)
 
@@ -201,9 +202,11 @@ func main() {
 	labIn.SetSecondary(true)
 	name := kit.NewInput("Placeholder — type here")
 	name.SetFace(face)
+	name.SetFixedSize(360, 32)
 	name.SetOnChange(func(v string) { status = "input=" + v })
 	name2 := kit.NewInput("Custom style")
 	name2.SetFace(face)
+	name2.SetFixedSize(360, 36)
 	name2.SetStyle(kit.Style{
 		Background: render.Hex("#F6FFED"),
 		Border:     render.Hex("#52C41A"),
@@ -213,6 +216,7 @@ func main() {
 	})
 	panelInput := primitive.Column(labIn.Node(), name.Node(), name2.Node())
 	panelInput.Gap = 12
+	panelInput.MainAlign = core.MainStart
 	panelInput.CrossAlign = core.CrossStart
 	panelInput.Padding = primitive.All(12)
 
@@ -239,6 +243,7 @@ func main() {
 	swRow.CrossAlign = core.CrossCenter
 	panelInd := primitive.Column(labInd.Node(), cb.Node(), rg.Node(), swRow)
 	panelInd.Gap = 12
+	panelInd.MainAlign = core.MainStart
 	panelInd.CrossAlign = core.CrossStart
 	panelInd.Padding = primitive.All(12)
 
@@ -250,9 +255,10 @@ func main() {
 	prog.Width = 320
 	spin := kit.NewSpin(nil)
 	sk := kit.NewSkeleton(240, 16)
-	sk.SetActive(false)
+	sk.SetActive(true) // animate pulse
 	panelFb := primitive.Column(labFb.Node(), prog.Node(), spin.Node(), sk.Node())
 	panelFb.Gap = 12
+	panelFb.MainAlign = core.MainStart
 	panelFb.CrossAlign = core.CrossStart
 	panelFb.Padding = primitive.All(12)
 
@@ -264,20 +270,18 @@ func main() {
 		kit.SelectOption{Value: "1", Label: "One"},
 		kit.SelectOption{Value: "2", Label: "Two"},
 	)
-	if face != nil {
-		sel.SetFace(face)
-	}
+	sel.SetFace(face)
+	sel.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
 	menu := kit.NewMenu(
 		kit.MenuItem{Key: "a", Label: "Item A"},
 		kit.MenuItem{Key: "b", Label: "Item B"},
 		kit.MenuItem{Key: "c", Label: "Item C"},
 	)
-	if face != nil {
-		menu.Face = face
-	}
+	menu.Face = face
 	menu.SetSelected("b")
 	panelSel := primitive.Column(labSel.Node(), sel.Node(), menu.Node())
 	panelSel.Gap = 12
+	panelSel.MainAlign = core.MainStart
 	panelSel.CrossAlign = core.CrossStart
 	panelSel.Padding = primitive.All(12)
 
@@ -309,6 +313,7 @@ func main() {
 	buttons = append(buttons, openModal)
 	panelModal := primitive.Column(labModal.Node(), openModal.Node(), modal.Node())
 	panelModal.Gap = 12
+	panelModal.MainAlign = core.MainStart
 	panelModal.CrossAlign = core.CrossStart
 	panelModal.Padding = primitive.All(12)
 
@@ -344,6 +349,7 @@ func main() {
 	tabsHost := primitive.NewFlexible(1, tabs.Node())
 	col := primitive.Column(title.Node(), hint.Node(), tabsHost, statusTx.Node())
 	col.Gap = 12
+	col.MainAlign = core.MainStart
 	col.CrossAlign = core.CrossStretch
 	col.Padding = primitive.All(16)
 
@@ -354,6 +360,11 @@ func main() {
 
 	tree := core.NewTree(root)
 	sw.AttachTicker(tree)
+	spin.AttachTicker(tree)
+	sk.AttachTicker(tree)
+	name.AttachTicker(tree)
+	name2.AttachTicker(tree)
+	sel.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
 	lastStatus := status
 
 	res := exboot.RunUIDemand(exboot.UIDemandConfig{
@@ -383,6 +394,7 @@ func main() {
 			ra.SyncState()
 			rb.SyncState()
 			sw.SyncState()
+			sel.Sync()
 			modal.Sync()
 			if status != lastStatus {
 				statusTx.SetValue("status: " + status)

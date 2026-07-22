@@ -17,23 +17,15 @@ func TestTabsLeftItemHeightNotFillRail(t *testing.T) {
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160
 	tabs.TabItemHeight = 40
-	panel := primitive.NewDecorated()
-	panel.Width, panel.Height = 400, 300
-	tabs.SetContent("a", panel)
-	tabs.SetContent("b", panel)
-	tabs.SetContent("c", panel)
+	tabs.SetContent("a", primitive.NewText("panel-A"))
+	tabs.SetContent("b", primitive.NewText("panel-B"))
+	tabs.SetContent("c", primitive.NewText("panel-C"))
 	tabs.SetActive("a")
 
 	root := tabs.Node()
-	// Parent gives tall height — tabs must not stretch each item to fill.
 	_ = root.Layout(core.Tight(800, 600))
 
-	// Root is Row: rail | div | body
 	kids := root.Children()
-	if len(kids) < 1 {
-		t.Fatal("no children")
-	}
-	// First child should be rail Decorated ~160 wide
 	rail, ok := kids[0].(*primitive.Decorated)
 	if !ok {
 		t.Fatalf("rail type %T", kids[0])
@@ -41,31 +33,58 @@ func TestTabsLeftItemHeightNotFillRail(t *testing.T) {
 	if rail.Size().Width < 150 || rail.Size().Width > 170 {
 		t.Fatalf("rail width=%v want ~160", rail.Size().Width)
 	}
-	// Bar is inside rail — sum of item heights should be ~3*40, not ~600
-	bar := rail.Children()
-	if len(bar) < 1 {
-		t.Fatal("empty rail")
+	bar := rail.Children()[0].(*primitive.Flex)
+	items := bar.Children()
+	if len(items) != 3 {
+		t.Fatalf("tab items=%d want 3", len(items))
 	}
-	col, ok := bar[0].(*primitive.Flex)
-	if !ok {
-		// might be nested
-		t.Logf("rail child0 %T size=%v", bar[0], bar[0].Base().Size())
-	} else {
-		// column of 3 items
-		items := col.Children()
-		if len(items) != 3 {
-			t.Fatalf("tab items=%d want 3", len(items))
+	var sum float64
+	var prevY float64 = -1
+	for i, it := range items {
+		h := it.Base().Size().Height
+		y := it.Base().Offset().Y
+		sum += h
+		if h > 50 {
+			t.Fatalf("item %d height=%v should be ~40", i, h)
 		}
-		var sum float64
-		for _, it := range items {
-			h := it.Base().Size().Height
-			sum += h
-			if h > 50 {
-				t.Fatalf("tab item height=%v should be ~40, not filling rail", h)
-			}
+		if prevY >= 0 && y <= prevY {
+			t.Fatalf("item %d y=%v should be below previous y=%v (merged?)", i, y, prevY)
 		}
-		if sum > 150 {
-			t.Fatalf("sum item heights=%v want ~120", sum)
-		}
+		prevY = y
+	}
+	if sum < 90 || sum > 150 {
+		t.Fatalf("sum heights=%v want ~120", sum)
+	}
+	// First item near top (rail pad 8), not vertically centered in 600.
+	if items[0].Base().Offset().Y > 20 {
+		t.Fatalf("first tab y=%v should be near top (~0), not centered", items[0].Base().Offset().Y)
+	}
+}
+
+func TestTabsLeftClickSwitches(t *testing.T) {
+	tabs := kit.NewTabs(
+		kit.MenuItem{Key: "a", Label: "Alpha"},
+		kit.MenuItem{Key: "b", Label: "Beta"},
+	)
+	tabs.SetPosition(kit.TabLeft)
+	tabs.TabWidth = 160
+	tabs.TabItemHeight = 40
+	tabs.SetContent("a", primitive.NewText("AAA"))
+	tabs.SetContent("b", primitive.NewText("BBB"))
+	tabs.SetActive("a")
+
+	tree := core.NewTree(tabs.Node())
+	tree.Layout(core.Size{Width: 800, Height: 600})
+
+	// First tab: y ≈ 8..48 (rail top pad 8 + height 40)
+	// Second tab: y ≈ 48..88
+	x, y := 80.0, 68.0
+	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
+	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
+
+	if tabs.Active != "b" {
+		// dump hit
+		hit := tree.HitTest(core.Point{X: x, Y: y})
+		t.Fatalf("after click active=%q want b; hit=%T abs=%v", tabs.Active, hit, core.AbsoluteBounds(hit))
 	}
 }
