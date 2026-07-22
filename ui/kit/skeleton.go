@@ -1,0 +1,113 @@
+package kit
+
+import (
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/ui/core"
+	"github.com/energye/gpui/ui/primitive"
+)
+
+// Skeleton is a placeholder shimmer block (M5).
+// Tick only mutates paint chrome (no tree rebuild). Prefer wrapping Node() in
+// primitive.RepaintBoundary so paint dirty stays local.
+type Skeleton struct {
+	Root   *primitive.Decorated
+	Width  float64
+	Height float64
+	// Active enables shimmer phase (advance via Tick / Ticker).
+	Active bool
+	phase  float64
+	Theme  *core.Theme
+	// boundTree is set by AttachTicker for demand-frame registration.
+	boundTree *core.Tree
+}
+
+// NewSkeleton creates a skeleton bar.
+func NewSkeleton(w, h float64) *Skeleton {
+	s := &Skeleton{Width: w, Height: h, Active: true}
+	s.rebuild()
+	return s
+}
+
+// Node returns the root.
+func (s *Skeleton) Node() core.Node {
+	if s.Root == nil {
+		s.rebuild()
+	}
+	return s.Root
+}
+
+// Tick advances shimmer. Implements core.Ticker when Active.
+func (s *Skeleton) Tick(dt float64) (still bool) {
+	if !s.Active {
+		return false
+	}
+	s.phase += dt * 1.5
+	if s.phase > 1 {
+		s.phase -= 1
+	}
+	s.applyChrome()
+	return s.Active
+}
+
+// AttachTicker registers this skeleton on the tree for ANIMATING demand frames.
+func (s *Skeleton) AttachTicker(t *core.Tree) {
+	if s == nil || t == nil {
+		return
+	}
+	s.boundTree = t
+	t.BindTicker(s, s.Active)
+}
+
+// SetActive enables/disables shimmer and ticker membership.
+func (s *Skeleton) SetActive(v bool) {
+	s.Active = v
+	if s.boundTree == nil {
+		return
+	}
+	if v {
+		s.boundTree.AddTicker(s)
+	} else {
+		s.boundTree.RemoveTicker(s)
+	}
+}
+
+func (s *Skeleton) theme() *core.Theme {
+	if s.Theme != nil {
+		return s.Theme
+	}
+	return DefaultTheme()
+}
+
+func (s *Skeleton) rebuild() {
+	s.Root = primitive.NewDecorated()
+	s.Root.Width = s.Width
+	s.Root.Height = s.Height
+	if s.Root.Width <= 0 {
+		s.Root.Width = 120
+	}
+	if s.Root.Height <= 0 {
+		s.Root.Height = 16
+	}
+	s.Root.Radius = 4
+	s.Root.Base().Role = "presentation"
+	// Phase B: isolate paint dirty under CompositeOnly present.
+	s.Root.SetRepaintBoundary(true)
+	s.applyChrome()
+}
+
+func (s *Skeleton) applyChrome() {
+	if s.Root == nil {
+		return
+	}
+	// pulse between fill secondary intensities
+	base := s.theme().Color(core.TokenColorFillSecondary)
+	a := 0.06 + 0.08*float64(0.5+0.5*( /*sin-ish*/ 1-2*abs01(s.phase-0.5)*2))
+	if a > 0.2 {
+		a = 0.2
+	}
+	s.Root.Background = render.RGBA{R: base.R, G: base.G, B: base.B, A: a}
+	if s.Root.Background.A < 0.04 {
+		s.Root.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.06 + 0.06*s.phase}
+	}
+	s.Root.MarkNeedsPaint()
+}

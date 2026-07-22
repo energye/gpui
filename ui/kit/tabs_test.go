@@ -33,7 +33,12 @@ func TestTabsLeftItemHeightNotFillRail(t *testing.T) {
 	if rail.Size().Width < 150 || rail.Size().Width > 170 {
 		t.Fatalf("rail width=%v want ~160", rail.Size().Width)
 	}
-	bar := rail.Children()[0].(*primitive.Flex)
+	// rail → ScrollViewport → Flex(bar)
+	scroll, ok := rail.Children()[0].(*primitive.ScrollViewport)
+	if !ok {
+		t.Fatalf("rail child type %T want ScrollViewport", rail.Children()[0])
+	}
+	bar := scroll.Children()[0].(*primitive.Flex)
 	items := bar.Children()
 	if len(items) != 3 {
 		t.Fatalf("tab items=%d want 3", len(items))

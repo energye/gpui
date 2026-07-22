@@ -26,6 +26,7 @@ type Select struct {
 	Placeholder string
 	Open        bool
 	Disabled    bool
+	AllowClear  bool
 	Face        text.Face
 	Theme       *core.Theme
 	Viewport    core.Size
@@ -55,6 +56,16 @@ func (s *Select) SetValue(v string) {
 	s.refreshLabel()
 	if s.OnChange != nil {
 		s.OnChange(v)
+	}
+}
+
+// Clear resets the selection (when AllowClear or always via API).
+func (s *Select) Clear() {
+	s.Value = ""
+	s.refreshLabel()
+	s.rebuildOptions()
+	if s.OnChange != nil {
+		s.OnChange("")
 	}
 }
 
@@ -268,226 +279,3 @@ func (s *Select) HandleKey(ev *core.KeyEvent) {
 		ev.Handled = true
 	}
 }
-
-// MenuItem is one menu entry.
-type MenuItem struct {
-	Key   string
-	Label string
-}
-
-// Menu is a vertical list of selectable items with keyboard nav (B3 base).
-type Menu struct {
-	Root     *primitive.Decorated
-	list     *primitive.Flex
-	Items    []MenuItem
-	Selected string
-	Face     text.Face
-	Theme    *core.Theme
-	Nav      *core.KeyboardNav
-	OnSelect func(key string)
-}
-
-// NewMenu creates a menu.
-func NewMenu(items ...MenuItem) *Menu {
-	m := &Menu{Items: items}
-	m.Nav = core.NewKeyboardNav(core.NavVertical, len(items))
-	m.rebuild()
-	return m
-}
-
-// Node returns the root.
-func (m *Menu) Node() core.Node {
-	if m.Root == nil {
-		m.rebuild()
-	}
-	return m.Root
-}
-
-// SetSelected highlights a key.
-func (m *Menu) SetSelected(key string) {
-	m.Selected = key
-	m.rebuild()
-}
-
-func (m *Menu) theme() *core.Theme {
-	if m.Theme != nil {
-		return m.Theme
-	}
-	return DefaultTheme()
-}
-
-func (m *Menu) rebuild() {
-	th := m.theme()
-	m.list = primitive.Column()
-	m.list.Gap = 2
-	m.Nav.SetCount(len(m.Items))
-	for i, it := range m.Items {
-		i, it := i, it
-		lab := primitive.NewText(it.Label)
-		lab.FontSize = th.SizeOr(core.TokenFontSize, 14)
-		lab.Face = m.Face
-		lab.Color = th.Color(core.TokenColorText)
-		row := primitive.NewPressable(lab)
-		// Ant Menu item: padding 5×12
-		row.Padding = primitive.Symmetric(12, 5)
-		if it.Key == m.Selected {
-			row.Color = antItemSelectedFill(th)
-			lab.Color = antItemSelectedText(th)
-		}
-		row.ColorHovered = antItemHoverFill(th)
-		row.Click = func() {
-			m.Selected = it.Key
-			m.Nav.Index = i
-			if m.OnSelect != nil {
-				m.OnSelect(it.Key)
-			}
-			m.rebuild()
-		}
-		m.list.AddChild(row)
-	}
-	m.Root = primitive.NewDecorated(m.list)
-	m.Root.Padding = primitive.All(4)
-	m.Root.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
-	m.Root.Background = th.Color(core.TokenColorBgContainer)
-	m.Root.BorderWidth = 1
-	m.Root.BorderColor = th.Color(core.TokenColorBorder)
-	m.Root.MinWidth = 160
-}
-
-// TabPosition places the tab list (Ant: top | left).
-// MessageHost renders a NotifyQueue as stacked toasts (top-right).
-type MessageHost struct {
-	Portal   *primitive.OverlayPortal
-	Queue    *core.NotifyQueue
-	Face     text.Face
-	Theme    *core.Theme
-	Viewport core.Size
-	layer    *messageLayer
-}
-
-// NewMessageHost creates a message host with its own queue.
-func NewMessageHost() *MessageHost {
-	h := &MessageHost{Queue: core.NewNotifyQueue(5)}
-	h.rebuild()
-	h.Queue.OnChange = func() { h.refresh() }
-	return h
-}
-
-// Node returns the portal node to mount.
-func (h *MessageHost) Node() core.Node {
-	if h.Portal == nil {
-		h.rebuild()
-	}
-	return h.Portal
-}
-
-// Info pushes an info message.
-func (h *MessageHost) Info(text string) {
-	h.Queue.Push(core.NotifyItem{Content: text, Kind: "info", DurationMs: 3000})
-}
-
-// Success pushes a success message.
-func (h *MessageHost) Success(text string) {
-	h.Queue.Push(core.NotifyItem{Content: text, Kind: "success", DurationMs: 3000})
-}
-
-// Error pushes an error message.
-func (h *MessageHost) Error(text string) {
-	h.Queue.Push(core.NotifyItem{Content: text, Kind: "error", DurationMs: 4000})
-}
-
-// Sync keeps portal open while items exist.
-func (h *MessageHost) Sync() {
-	if h.Portal == nil {
-		return
-	}
-	h.refresh()
-	h.Portal.SetOpen(h.Queue.Len() > 0)
-}
-
-func (h *MessageHost) theme() *core.Theme {
-	if h.Theme != nil {
-		return h.Theme
-	}
-	return DefaultTheme()
-}
-
-func (h *MessageHost) rebuild() {
-	h.layer = &messageLayer{host: h}
-	h.layer.Init(h.layer)
-	h.layer.Hit = core.HitDefer
-	h.Portal = primitive.NewOverlayPortal(h.layer)
-	h.Portal.ID = "messages"
-	h.Portal.ZOrder = 600
-	h.refresh()
-}
-
-func (h *MessageHost) refresh() {
-	if h.layer == nil {
-		return
-	}
-	h.layer.ClearChildren()
-	th := h.theme()
-	col := primitive.Column()
-	col.Gap = 8
-	col.CrossAlign = core.CrossEnd
-	for _, it := range h.Queue.Items() {
-		tx := primitive.NewText(it.Content)
-		tx.FontSize = th.SizeOr(core.TokenFontSize, 14)
-		tx.Face = h.Face
-		tx.Color = th.Color(core.TokenColorText)
-		card := primitive.NewDecorated(tx)
-		card.Padding = primitive.Symmetric(12, 9) // Ant Message
-		card.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
-		card.Background = th.Color(core.TokenColorBgContainer)
-		card.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
-		switch it.Kind {
-		case "success":
-			card.BorderColor = th.Color(core.TokenColorSuccess)
-		case "error":
-			card.BorderColor = th.Color(core.TokenColorError)
-		case "warning":
-			card.BorderColor = th.Color(core.TokenColorWarning)
-		default:
-			card.BorderColor = th.Color(core.TokenColorPrimary)
-		}
-		// close on click
-		id := it.ID
-		press := primitive.NewPressable(card)
-		press.Click = func() { h.Queue.Remove(id) }
-		col.AddChild(press)
-	}
-	h.layer.AddChild(col)
-}
-
-type messageLayer struct {
-	core.NodeBase
-	host *MessageHost
-}
-
-func (l *messageLayer) TypeID() string { return "kit.MessageLayer" }
-func (l *messageLayer) Layout(c core.Constraints) core.Size {
-	vw, vh := c.MaxWidth, c.MaxHeight
-	if l.host != nil && l.host.Viewport.Width > 0 {
-		vw, vh = l.host.Viewport.Width, l.host.Viewport.Height
-	}
-	if vw >= core.Unbounded/2 {
-		vw = 800
-	}
-	if vh >= core.Unbounded/2 {
-		vh = 600
-	}
-	// content top-right
-	for _, child := range l.Children() {
-		sz := child.Layout(core.Loose(320, vh))
-		child.Base().SetOffset(core.Point{X: vw - sz.Width - 16, Y: 16})
-	}
-	out := core.Size{Width: vw, Height: vh}
-	l.SetSize(out)
-	return out
-}
-func (l *messageLayer) Paint(pc *core.PaintContext)    { l.DefaultPaintChildren(pc) }
-func (l *messageLayer) HitTest(p core.Point) core.Node { return l.DefaultHitTest(p) }
-
-// ensure render used for type ref in other files
-var _ = render.RGBA{}

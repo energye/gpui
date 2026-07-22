@@ -115,232 +115,32 @@ func main() {
 	}
 
 	theme := kit.DefaultTheme()
-	status := "ready — Tab for focus · click controls"
+	// --- Ant Design catalog panels ---
 
-	// --- Section headers ---
-
-	title := kit.NewText("Polish gallery · Ant-style kit (tabs by control type)")
+	title := kit.NewText("Polish gallery · Ant Design catalog (scroll tabs)")
 	title.SetFace(face)
 	title.Root.FontSize = 16
 
-	hint := kit.NewText("Tabs switch panels · hover/press · Switch slide · Style API · Modal")
+	hint := kit.NewText("Categories: General · Layout · Navigation · Data Entry · Data Display · Feedback · Other")
 	hint.SetFace(face)
 	hint.SetSecondary(true)
 
-	// --- Buttons panel ---
-	mkBtn := func(label string, typ kit.ButtonType, disabled bool) *kit.Button {
-		b := kit.NewButton(label)
-		b.SetType(typ)
-		b.SetFace(face)
-		if disabled {
-			b.SetDisabled(true)
-		}
-		b.SetOnClick(func() { status = "click " + label })
-		return b
-	}
-	primary := mkBtn("Primary", kit.ButtonPrimary, false)
-	def := mkBtn("Default", kit.ButtonDefault, false)
-	dashed := mkBtn("Dashed", kit.ButtonDashed, false)
-	textBtn := mkBtn("Text", kit.ButtonText, false)
-	link := mkBtn("Link", kit.ButtonLink, false)
-	dis := mkBtn("Disabled", kit.ButtonPrimary, true)
-	buttons := []*kit.Button{primary, def, dashed, textBtn, link, dis}
-	btnRow := primitive.Row()
-	btnRow.Gap = 10
-	btnRow.CrossAlign = core.CrossCenter
-	for _, b := range buttons {
-		btnRow.AddChild(b.Node())
-	}
+	var buttons []*kit.Button
+	var tickers []interface{ AttachTicker(*core.Tree) }
+	status := "ready — catalog"
+	items, panels, modal := buildCatalogPanels(face, theme, &status, &buttons, &tickers)
 
-	styGreen := kit.NewButton("Green 36")
-	styGreen.SetFace(face)
-	styGreen.SetStyle(kit.Style{
-		Background: render.Hex("#52C41A"),
-		Text:       render.Hex("#FFFFFF"),
-		Height:     36,
-		Radius:     8,
-		FontSize:   14,
-	})
-	styGreen.SetOnClick(func() { status = "style green" })
-	styOrange := kit.NewButton("Orange 8pt")
-	styOrange.SetFace(face)
-	styOrange.SetType(kit.ButtonDefault)
-	styOrange.SetStyle(kit.Style{
-		Background: render.Hex("#FFF7E6"),
-		Border:     render.Hex("#FA8C16"),
-		Text:       render.Hex("#D46B08"),
-		Height:     28,
-		Radius:     4,
-		FontSize:   8,
-	})
-	styOrange.SetOnClick(func() { status = "style orange" })
-	styBig := kit.NewButton("Tall 44")
-	styBig.SetFace(face)
-	styBig.SetType(kit.ButtonPrimary)
-	styBig.SetStyle(kit.Style{Height: 44, FontSize: 16, Radius: 10, Width: 140})
-	styBig.SetOnClick(func() { status = "style tall" })
-	styleRow := primitive.Row(styGreen.Node(), styOrange.Node(), styBig.Node())
-	styleRow.Gap = 10
-	styleRow.CrossAlign = core.CrossCenter
-	buttons = append(buttons, styGreen, styOrange, styBig)
-
-	labTypes := kit.NewText("Types · primary / default / dashed / text / link / disabled")
-	labTypes.SetFace(face)
-	labTypes.SetSecondary(true)
-	labStyle := kit.NewText("Style API · custom bg / text / height / font size")
-	labStyle.SetFace(face)
-	labStyle.SetSecondary(true)
-	panelButtons := primitive.Column(labTypes.Node(), btnRow, labStyle.Node(), styleRow)
-	panelButtons.Gap = 12
-	panelButtons.MainAlign = core.MainStart
-	panelButtons.CrossAlign = core.CrossStart
-	panelButtons.Padding = primitive.All(12)
-
-	// --- Input panel ---
-	labIn := kit.NewText("Input · idle / type / focus border")
-	labIn.SetFace(face)
-	labIn.SetSecondary(true)
-	name := kit.NewInput("Placeholder — type here")
-	name.SetFace(face)
-	name.SetFixedSize(360, 32)
-	name.SetOnChange(func(v string) { status = "input=" + v })
-	name2 := kit.NewInput("Custom style")
-	name2.SetFace(face)
-	name2.SetFixedSize(360, 36)
-	name2.SetStyle(kit.Style{
-		Background: render.Hex("#F6FFED"),
-		Border:     render.Hex("#52C41A"),
-		Text:       render.Hex("#135200"),
-		Height:     36,
-		FontSize:   14,
-	})
-	panelInput := primitive.Column(labIn.Node(), name.Node(), name2.Node())
-	panelInput.Gap = 12
-	panelInput.MainAlign = core.MainStart
-	panelInput.CrossAlign = core.CrossStart
-	panelInput.Padding = primitive.All(12)
-
-	// --- Indicators panel ---
-	labInd := kit.NewText("Checkbox / Radio (hollow selected) / Switch (press stretch + slide)")
-	labInd.SetFace(face)
-	labInd.SetSecondary(true)
-	cb := kit.NewCheckbox("I agree")
-	cb.SetFace(face)
-	cb.SetOnChange(func(v bool) { status = fmt.Sprintf("checkbox=%v", v) })
-	ra := kit.NewRadio("a", "Option A")
-	rb := kit.NewRadio("b", "Option B")
-	ra.SetFace(face)
-	rb.SetFace(face)
-	rg := kit.NewRadioGroup(ra, rb)
-	rg.OnChange = func(v string) { status = "radio=" + v }
-	rg.Select("a")
-	sw := kit.NewSwitch()
-	sw.OnChange = func(v bool) { status = fmt.Sprintf("switch=%v", v) }
-	swLab := kit.NewText("Notifications")
-	swLab.SetFace(face)
-	swRow := primitive.Row(sw.Node(), swLab.Node())
-	swRow.Gap = 10
-	swRow.CrossAlign = core.CrossCenter
-	panelInd := primitive.Column(labInd.Node(), cb.Node(), rg.Node(), swRow)
-	panelInd.Gap = 12
-	panelInd.MainAlign = core.MainStart
-	panelInd.CrossAlign = core.CrossStart
-	panelInd.Padding = primitive.All(12)
-
-	// --- Feedback panel ---
-	labFb := kit.NewText("Progress / Spin / Skeleton")
-	labFb.SetFace(face)
-	labFb.SetSecondary(true)
-	prog := kit.NewProgress(65)
-	prog.Width = 320
-	spin := kit.NewSpin(nil)
-	sk := kit.NewSkeleton(240, 16)
-	sk.SetActive(true) // animate pulse
-	panelFb := primitive.Column(labFb.Node(), prog.Node(), spin.Node(), sk.Node())
-	panelFb.Gap = 12
-	panelFb.MainAlign = core.MainStart
-	panelFb.CrossAlign = core.CrossStart
-	panelFb.Padding = primitive.All(12)
-
-	// --- Select / Menu panel ---
-	labSel := kit.NewText("Select / Menu")
-	labSel.SetFace(face)
-	labSel.SetSecondary(true)
-	sel := kit.NewSelect("Please select",
-		kit.SelectOption{Value: "1", Label: "One"},
-		kit.SelectOption{Value: "2", Label: "Two"},
-	)
-	sel.SetFace(face)
-	sel.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
-	menu := kit.NewMenu(
-		kit.MenuItem{Key: "a", Label: "Item A"},
-		kit.MenuItem{Key: "b", Label: "Item B"},
-		kit.MenuItem{Key: "c", Label: "Item C"},
-	)
-	menu.Face = face
-	menu.SetSelected("b")
-	panelSel := primitive.Column(labSel.Node(), sel.Node(), menu.Node())
-	panelSel.Gap = 12
-	panelSel.MainAlign = core.MainStart
-	panelSel.CrossAlign = core.CrossStart
-	panelSel.Padding = primitive.All(12)
-
-	// --- Modal panel ---
-	labModal := kit.NewText("Modal · Open then Esc / mask / buttons")
-	labModal.SetFace(face)
-	labModal.SetSecondary(true)
-	modalBody := kit.NewText("Minimal modal body for polish walkthrough.")
-	modalBody.SetFace(face)
-	modal := kit.NewModal("Confirm")
-	modal.SetFace(face) // same face as Button tab; applies to footer OK/Cancel
-	modal.SetContent(modalBody.Node())
-	modal.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
-	modal.OnOk = func() {
-		status = "modal ok"
-		modal.SetOpen(false)
-	}
-	modal.OnCancel = func() {
-		status = "modal cancel"
-		modal.SetOpen(false)
-	}
-	openModal := kit.NewButton("Open Modal")
-	openModal.SetType(kit.ButtonDefault)
-	openModal.SetFace(face)
-	openModal.SetOnClick(func() {
-		modal.SetOpen(true)
-		status = "modal open"
-	})
-	buttons = append(buttons, openModal)
-	panelModal := primitive.Column(labModal.Node(), openModal.Node(), modal.Node())
-	panelModal.Gap = 12
-	panelModal.MainAlign = core.MainStart
-	panelModal.CrossAlign = core.CrossStart
-	panelModal.Padding = primitive.All(12)
-
-	// --- Tabs ---
-	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "btn", Label: "Button"},
-		kit.MenuItem{Key: "input", Label: "Input"},
-		kit.MenuItem{Key: "ind", Label: "Checkbox/Radio/Switch"},
-		kit.MenuItem{Key: "fb", Label: "Feedback"},
-		kit.MenuItem{Key: "sel", Label: "Select/Menu"},
-		kit.MenuItem{Key: "modal", Label: "Modal"},
-	)
+	tabs := kit.NewTabs(items...)
 	tabs.Face = face
 	tabs.SetPosition(kit.TabLeft)
-	// Configurable left-tabs metrics (0 → kit defaults: width 160, item height 40).
 	tabs.TabWidth = 160
 	tabs.TabItemHeight = 40
-	tabs.TabInkWidth = 3
-	tabs.TabPadInline = 16
-	tabs.TabPadBlock = 10
-	tabs.SetContent("btn", panelButtons)
-	tabs.SetContent("input", panelInput)
-	tabs.SetContent("ind", panelInd)
-	tabs.SetContent("fb", panelFb)
-	tabs.SetContent("sel", panelSel)
-	tabs.SetContent("modal", panelModal)
-	tabs.SetActive("btn")
+	for k, n := range panels {
+		tabs.SetContent(k, n)
+	}
+	if len(items) > 0 {
+		tabs.SetActive(items[0].Key)
+	}
 
 	statusTx := kit.NewText("status: " + status)
 	statusTx.SetFace(face)
@@ -359,12 +159,12 @@ func main() {
 	root.Height = float64(winH)
 
 	tree := core.NewTree(root)
-	sw.AttachTicker(tree)
-	spin.AttachTicker(tree)
-	sk.AttachTicker(tree)
-	name.AttachTicker(tree)
-	name2.AttachTicker(tree)
-	sel.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
+	for _, tk := range tickers {
+		tk.AttachTicker(tree)
+	}
+	if modal != nil {
+		modal.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
+	}
 	lastStatus := status
 
 	res := exboot.RunUIDemand(exboot.UIDemandConfig{
@@ -382,20 +182,18 @@ func main() {
 		OnResize: func(w, h int) {
 			winW, winH = w, h
 			root.Width, root.Height = float64(w), float64(h)
-			modal.Viewport = core.Size{Width: float64(w), Height: float64(h)}
+			if modal != nil {
+				modal.Viewport = core.Size{Width: float64(w), Height: float64(h)}
+			}
 			root.MarkNeedsLayout()
 		},
 		OnUpdate: func(dt float64) {
 			for _, b := range buttons {
 				b.SyncState()
 			}
-			openModal.SyncState()
-			cb.SyncState()
-			ra.SyncState()
-			rb.SyncState()
-			sw.SyncState()
-			sel.Sync()
-			modal.Sync()
+			if modal != nil {
+				modal.Sync()
+			}
 			if status != lastStatus {
 				statusTx.SetValue("status: " + status)
 				lastStatus = status

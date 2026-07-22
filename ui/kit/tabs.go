@@ -34,9 +34,11 @@ const (
 type Tabs struct {
 	Root *primitive.Flex
 
-	bar  *primitive.Flex
-	body *primitive.Slot
-	rail *primitive.Decorated
+	bar        *primitive.Flex
+	body       *primitive.Slot
+	rail       *primitive.Decorated
+	barScroll  *primitive.ScrollViewport
+	bodyScroll *primitive.ScrollViewport
 
 	Items    []MenuItem
 	Contents map[string]core.Node
@@ -53,6 +55,11 @@ type Tabs struct {
 	// TabPadInline / TabPadBlock padding inside each tab (0 → 16 / 10).
 	TabPadInline float64
 	TabPadBlock  float64
+
+	// Type: "line" (default) or "card".
+	Type string
+	// Centered centers the tab list on the bar (top tabs).
+	Centered bool
 
 	Face     text.Face
 	Theme    *core.Theme
@@ -135,6 +142,13 @@ func (t *Tabs) SetActive(key string) {
 	}
 }
 
+// SetType sets tab style ("line" or "card").
+func (t *Tabs) SetType(typ string) {
+	t.Type = typ
+	t.rebuild()
+	t.syncBody()
+}
+
 func (t *Tabs) syncBody() {
 	if t.body == nil {
 		return
@@ -209,33 +223,48 @@ func (t *Tabs) rebuild() {
 		t.bar = primitive.Row()
 		t.bar.Gap = 0
 		t.bar.CrossAlign = core.CrossEnd
+		if t.Centered {
+			t.bar.MainAlign = core.MainCenter
+		}
 	}
 
 	t.body = primitive.NewSlot("tab-body", t.Contents[t.Active])
 	t.body.ExpandFill = true // panel fills right side
 	t.rebuildBar()
 
+	// Overflow scroll (Ant: many tabs / long panel content).
+	t.barScroll = primitive.NewScrollViewport(t.bar)
+	t.barScroll.ShowScrollbar = true
+	t.bodyScroll = primitive.NewScrollViewport(t.body)
+	t.bodyScroll.ShowScrollbar = true
+	if t.Position == TabLeft {
+		t.barScroll.SetAxis(true, false)
+		t.bodyScroll.SetAxis(true, false)
+	} else {
+		t.barScroll.SetAxis(false, true)
+		t.bodyScroll.SetAxis(true, false)
+	}
+
 	if t.Position == TabLeft {
 		railW := t.tabWidth()
-		t.rail = primitive.NewDecorated(t.bar)
+		t.rail = primitive.NewDecorated(t.barScroll)
 		t.rail.Width = railW
 		t.rail.MinWidth = railW
 		t.rail.Background = th.Color(core.TokenColorBgContainer)
 		t.rail.BorderWidth = 0
 		t.rail.Padding = primitive.EdgeInsets{Top: 8, Bottom: 8}
-		// Tabs stick to the top of the rail — never vertically center the list.
-		// Ensure children of rail are width-capped (Decorated.Layout clamps MaxWidth).
+		t.rail.StretchChild = true
+		t.rail.Hit = core.HitBlock
 
 		div := primitive.NewDivider()
 		div.Vertical = true
 		div.Thickness = 1
 		div.ColorToken = core.TokenColorBorder
 
-		padBody := primitive.NewDecorated(t.body)
+		padBody := primitive.NewDecorated(t.bodyScroll)
 		padBody.Padding = primitive.All(16)
 		padBody.Background = th.Color(core.TokenColorBgLayout)
 		padBody.BorderWidth = 0
-		// Fill Flexible: panel background + hit cover full body (top-left content).
 		padBody.StretchChild = true
 		padBody.Hit = core.HitBlock
 		bodyHost := primitive.NewFlexible(1, padBody)
@@ -247,7 +276,13 @@ func (t *Tabs) rebuild() {
 	} else {
 		div := primitive.NewDivider()
 		div.ColorToken = core.TokenColorBorder
-		t.Root = primitive.Column(t.bar, div, t.body)
+		barHost := primitive.NewDecorated(t.barScroll)
+		barHost.StretchChild = true
+		barHost.Background = th.Color(core.TokenColorBgContainer)
+		barHost.BorderWidth = 0
+		bodyHost := primitive.NewFlexible(1, t.bodyScroll)
+		bodyHost.FillChild = true
+		t.Root = primitive.Column(barHost, div, bodyHost)
 		t.Root.Gap = 0
 		t.Root.CrossAlign = core.CrossStretch
 	}

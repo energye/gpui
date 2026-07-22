@@ -38,16 +38,19 @@ func TestYOrientationDiag(t *testing.T) {
 	var firstBtn *primitive.Pressable
 	var walk func(core.Node, int)
 	walk = func(n core.Node, d int) {
-		if n == nil || d > 8 {
+		if n == nil || d > 14 {
 			return
 		}
 		abs := core.AbsoluteBounds(n)
-		if abs.Height() > 0 && abs.Width() > 0 && d < 6 {
+		if abs.Height() > 0 && abs.Width() > 0 && d < 10 {
 			t.Logf("%*s%s size=%.0fx%.0f absY=%.1f..%.1f hit=%v", d*2, "", n.TypeID(),
 				n.Base().Size().Width, n.Base().Size().Height, abs.Min.Y, abs.Max.Y, n.Base().Hit)
 		}
-		if p, ok := n.(*primitive.Pressable); ok && firstBtn == nil && abs.Min.X > 160 {
-			firstBtn = p
+		if p, ok := n.(*primitive.Pressable); ok && firstBtn == nil {
+			// Content area (right of left tabs rail ~160); ignore zero-size.
+			if abs.Min.X > 100 && abs.Width() > 40 && abs.Height() > 10 {
+				firstBtn = p
+			}
 		}
 		for _, c := range n.Children() {
 			walk(c, d+1)
