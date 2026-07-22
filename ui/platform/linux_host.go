@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -53,6 +54,10 @@ const (
 )
 
 // LinuxHost is a minimal X11 window Host.
+//
+// Threading: the UI app runs WaitEvents/XNextEvent on the main goroutine and
+// may call Flush/SetCursor from the render thread after Present. Xlib requires
+// XInitThreads before XOpenDisplay; xmu serializes all Xlib entry points.
 type LinuxHost struct {
 	lib     uintptr
 	display uintptr
@@ -62,6 +67,8 @@ type LinuxHost struct {
 	height  int
 	scale   float64
 	title   string
+
+	xmu sync.Mutex // all Xlib calls (display + window)
 
 	wmDelete uintptr
 
@@ -132,6 +139,7 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	}
 
 	var (
+		xInitThreads      func() int
 		xOpenDisplay      func(name *byte) uintptr
 		xCloseDisplay     func(dpy uintptr) int
 		xDefaultScreen    func(dpy uintptr) int
@@ -153,6 +161,11 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		xDefineCursor     func(dpy, win, cursor uintptr) int
 		xFreeCursor       func(dpy, cursor uintptr) int
 	)
+	// MUST be first Xlib call: render thread may XFlush while main drains events.
+	purego.RegisterLibFunc(&xInitThreads, lib, "XInitThreads")
+	if xInitThreads != nil {
+		_ = xInitThreads()
+	}
 	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
 	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
 	purego.RegisterLibFunc(&xDefaultScreen, lib, "XDefaultScreen")
@@ -240,7 +253,14 @@ func (h *LinuxHost) Caps() Caps {
 }
 
 // Size implements Host.
-func (h *LinuxHost) Size() (int, int) { return h.width, h.height }
+func (h *LinuxHost) Size() (int, int) {
+	if h == nil {
+		return 0, 0
+	}
+	h.xmu.Lock()
+	defer h.xmu.Unlock()
+	return h.width, h.height
+}
 
 // ScaleFactor implements Host.
 func (h *LinuxHost) ScaleFactor() float64 {
@@ -258,7 +278,12 @@ func (h *LinuxHost) Window() uintptr { return h.window }
 
 // SetCursor implements CursorHost (X11 font cursors).
 func (h *LinuxHost) SetCursor(kind CursorKind) {
-	if h == nil || h.closed || h.display == 0 || h.window == 0 {
+	if h == nil {
+		return
+	}
+	h.xmu.Lock()
+	defer h.xmu.Unlock()
+	if h.closed || h.display == 0 || h.window == 0 {
 		return
 	}
 	if h.hasLastCursor && h.lastCursor == kind {
@@ -305,10 +330,17 @@ func (h *LinuxHost) SetCursor(kind CursorKind) {
 }
 
 // Flush flushes the X connection.
+// Safe to call from the render thread after Present (XInitThreads + xmu).
 func (h *LinuxHost) Flush() {
-	if h != nil && h.xFlush != nil && h.display != 0 {
-		h.xFlush(h.display)
+	if h == nil || h.xFlush == nil {
+		return
 	}
+	h.xmu.Lock()
+	defer h.xmu.Unlock()
+	if h.closed || h.display == 0 {
+		return
+	}
+	h.xFlush(h.display)
 }
 
 // PumpEvents implements Host (non-blocking).
@@ -318,60 +350,89 @@ func (h *LinuxHost) PumpEvents() []Event {
 
 // WaitEvents implements Host (gogpu-aligned demand loop).
 // timeout < 0 blocks on XNextEvent; 0 is non-blocking; >0 waits up to timeout.
+//
+// All Xlib entry points run under xmu (with XInitThreads) so render-thread
+// Flush/SetCursor cannot race the event pump (resize storms used to abort in xcb).
 func (h *LinuxHost) WaitEvents(timeout time.Duration) []Event {
-	if h == nil || h.closed {
+	if h == nil {
+		return nil
+	}
+	h.xmu.Lock()
+	if h.closed {
+		h.xmu.Unlock()
 		return nil
 	}
 	// Drain any already-pending X events / queue first.
-	h.drainPending()
+	h.drainPendingLocked()
 	if len(h.queue) > 0 {
-		return h.takeQueue()
+		out := h.takeQueueLocked()
+		h.xmu.Unlock()
+		return out
 	}
 	if timeout == 0 {
+		h.xmu.Unlock()
 		return nil
 	}
 	if timeout < 0 {
 		var raw [192]byte
 		if h.xNextEvent != nil && h.display != 0 {
+			// Blocking wait while holding xmu: Present/Flush only runs after
+			// WaitEvents returns (main thread serializes the app loop).
 			h.xNextEvent(h.display, &raw[0])
 			h.handleRaw(&raw)
 		}
-		h.drainPending()
-		return h.takeQueue()
+		h.drainPendingLocked()
+		out := h.takeQueueLocked()
+		h.xmu.Unlock()
+		return out
 	}
-	// Timed wait: slice-poll so animation frames (~16ms) stay responsive.
+	// Timed wait: release lock during sleep so Flush from a concurrent present
+	// hop cannot wedge if the architecture ever overlaps (defensive).
 	deadline := time.Now().Add(timeout)
 	for {
-		h.drainPending()
+		h.drainPendingLocked()
 		if len(h.queue) > 0 {
-			return h.takeQueue()
+			out := h.takeQueueLocked()
+			h.xmu.Unlock()
+			return out
 		}
-		if h.closed || !time.Now().Before(deadline) {
+		closed := h.closed
+		h.xmu.Unlock()
+		if closed || !time.Now().Before(deadline) {
+			h.xmu.Lock()
 			break
 		}
-		// Short sleep; remaining time may be less than 1ms.
 		left := time.Until(deadline)
 		if left > 2*time.Millisecond {
 			time.Sleep(1 * time.Millisecond)
 		} else if left > 0 {
 			time.Sleep(left)
 		} else {
+			h.xmu.Lock()
+			break
+		}
+		h.xmu.Lock()
+		if h.closed {
 			break
 		}
 	}
-	h.drainPending()
-	return h.takeQueue()
+	h.drainPendingLocked()
+	out := h.takeQueueLocked()
+	h.xmu.Unlock()
+	return out
 }
 
-func (h *LinuxHost) drainPending() {
-	for h.xPending != nil && h.display != 0 && h.xPending(h.display) > 0 {
+// drainPendingLocked requires h.xmu held.
+func (h *LinuxHost) drainPendingLocked() {
+	for h.xPending != nil && h.display != 0 && !h.closed && h.xPending(h.display) > 0 {
 		var raw [192]byte
 		h.xNextEvent(h.display, &raw[0])
 		h.handleRaw(&raw)
 	}
 }
 
-func (h *LinuxHost) takeQueue() []Event {
+// takeQueueLocked requires h.xmu held.
+func (h *LinuxHost) takeQueueLocked() []Event {
 	if len(h.queue) == 0 {
 		return nil
 	}
@@ -522,19 +583,37 @@ func keysymName(keysym uintptr) string {
 
 // RequestRedraw implements Host (X11 expose is async; we just enqueue).
 func (h *LinuxHost) RequestRedraw() {
-	if h == nil || h.closed {
+	if h == nil {
+		return
+	}
+	h.xmu.Lock()
+	defer h.xmu.Unlock()
+	if h.closed {
 		return
 	}
 	h.queue = append(h.queue, Event{Type: EventRedraw})
-	h.WakeUp()
+	// WakeUp is a no-op on X11; next WaitEvents drain will see the queue.
 }
 
 // Close implements Host.
 func (h *LinuxHost) Close() error {
-	if h == nil || h.closed {
+	if h == nil {
+		return nil
+	}
+	h.xmu.Lock()
+	defer h.xmu.Unlock()
+	if h.closed {
 		return nil
 	}
 	h.closed = true
+	if h.xFreeCursor != nil {
+		for _, cur := range h.cursors {
+			if cur != 0 {
+				h.xFreeCursor(h.display, cur)
+			}
+		}
+		h.cursors = nil
+	}
 	if h.xDestroyWindow != nil && h.display != 0 && h.window != 0 {
 		h.xDestroyWindow(h.display, h.window)
 	}
