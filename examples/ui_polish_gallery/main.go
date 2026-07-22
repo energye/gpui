@@ -18,7 +18,7 @@
 //  6. 开一次 Modal — 点 “Open Modal”；遮罩/OK/Cancel
 //
 //     export DISPLAY=:1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//     GPUI_ANIM_SECONDS=60 go run ./examples/ui_polish_gallery
+//     go run ./examples/ui_polish_gallery
 package main
 
 import (
@@ -40,11 +40,12 @@ import (
 func main() {
 	exboot.InitEnv()
 	winW, winH := 720, 560
-	seconds := 60.0
+	// Default unlimited; set GPUI_ANIM_SECONDS>0 for timed CI smoke.
+	seconds := 0.0
 	if v := os.Getenv("GPUI_ANIM_SECONDS"); v != "" {
 		fmt.Sscanf(v, "%f", &seconds)
-		if seconds < 1 {
-			seconds = 1
+		if seconds < 0 {
+			seconds = 0
 		}
 	}
 

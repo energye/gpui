@@ -18,7 +18,7 @@
 //
 //   - Host: minimize → Unconfigure; ForceRecoverHealthy mid-session
 //
-//     GPUI_ANIM_SECONDS=12 go run ./examples/antd_desktop_app
+//     go run ./examples/antd_desktop_app
 //     GPUI_FORCE_LOST_AFTER=50 /tmp/antd_desktop_app
 //     GPUI_SELFTEST_LIFECYCLE=1 GPUI_SELFTEST_MIN_AT=40 ... /tmp/antd_desktop_app
 package main
@@ -59,7 +59,7 @@ var (
 
 func main() {
 	bootstrapEnv()
-	animSec := envInt("GPUI_ANIM_SECONDS", 12)
+	animSec := envInt("GPUI_ANIM_SECONDS", 0)
 	targetFPS := envInt("GPUI_TARGET_FPS", 60)
 	frameBudget := time.Second / time.Duration(max(15, targetFPS))
 

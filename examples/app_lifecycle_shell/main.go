@@ -15,7 +15,7 @@
 //	S_CYCLE    rapid minimize↔restore bursts (WM thrash)
 //	S_ALL      short pass of the above in one process
 //
-//	GPUI_SHELL_SCENARIO=S_ALL GPUI_ANIM_SECONDS=12 go run ./examples/app_lifecycle_shell
+//	GPUI_SHELL_SCENARIO=S_ALL go run ./examples/app_lifecycle_shell
 //	GPUI_FORCE_LOST_AFTER=40 /tmp/app_lifecycle_shell
 //	GPUI_SELFTEST_LIFECYCLE=1 GPUI_SELFTEST_MIN_AT=30 ... /tmp/app_lifecycle_shell
 package main
@@ -49,9 +49,10 @@ func main() {
 	}
 
 	scenario := strings.ToUpper(envOr("GPUI_SHELL_SCENARIO", "S_ALL"))
-	animSec := envInt("GPUI_ANIM_SECONDS", 10)
-	if animSec < 1 {
-		animSec = 10
+	// Default unlimited; GPUI_ANIM_SECONDS>0 for timed CI.
+	animSec := envInt("GPUI_ANIM_SECONDS", 0)
+	if animSec < 0 {
+		animSec = 0
 	}
 	targetFPS := envInt("GPUI_TARGET_FPS", 60)
 	if targetFPS < 15 {

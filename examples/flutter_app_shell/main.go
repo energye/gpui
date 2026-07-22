@@ -20,7 +20,7 @@
 //
 //   - Device lost: ForceRecoverHealthy (Rasterizer rebind / GrContext abandon)
 //
-//     GPUI_ANIM_SECONDS=12 go run ./examples/flutter_app_shell
+//     go run ./examples/flutter_app_shell
 //     GPUI_FORCE_LOST_AFTER=55 /tmp/flutter_app_shell
 //     GPUI_SELFTEST_LIFECYCLE=1 ... /tmp/flutter_app_shell
 package main
@@ -65,7 +65,7 @@ func main() {
 		_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
 	}
 
-	animSec := envInt("GPUI_ANIM_SECONDS", 12)
+	animSec := envInt("GPUI_ANIM_SECONDS", 0)
 	targetFPS := envInt("GPUI_TARGET_FPS", 60)
 	frameBudget := time.Second / time.Duration(max(15, targetFPS))
 	winW, winH := 420, 780 // phone-like portrait (Flutter mobile + desktop)

@@ -2,7 +2,8 @@
 
 // vram_stages — stepwise VRAM attribution for 940MX-class GPUs.
 //
-//	GPUI_VRAM_STAGE=device|swapchain|clear|full GPUI_VRAM_SECONDS=4 go run ./examples/vram_stages
+//	GPUI_VRAM_STAGE=device|swapchain|clear|full go run ./examples/vram_stages
+//	GPUI_VRAM_SECONDS=N  — optional timed hold/present (default unlimited)
 //	GPUI_POWER=high|low — adapter policy override
 //	GPUI_DEVICE_NIL_LIMITS=1 — RequestDevice with label only
 package main
@@ -28,9 +29,10 @@ func main() {
 	runtime.LockOSThread()
 	bootstrap()
 	stage := envOr("GPUI_VRAM_STAGE", "clear")
-	sec, _ := strconv.Atoi(envOr("GPUI_VRAM_SECONDS", "4"))
-	if sec < 1 {
-		sec = 4
+	// Default unlimited (0); set GPUI_VRAM_SECONDS>0 for timed CI hold/present.
+	sec, _ := strconv.Atoi(envOr("GPUI_VRAM_SECONDS", "0"))
+	if sec < 0 {
+		sec = 0
 	}
 	w, h := 960, 640
 	if v := os.Getenv("GPUI_VRAM_W"); v != "" {
@@ -124,9 +126,12 @@ func main() {
 	defer dc.Close()
 	report("after_context")
 
-	deadline := time.Now().Add(time.Duration(sec) * time.Second)
+	start := time.Now()
 	n := 0
-	for time.Now().Before(deadline) {
+	for {
+		if sec > 0 && time.Since(start) >= time.Duration(sec)*time.Second {
+			break
+		}
 		if stage == "full" {
 			drawBusy(dc, w, h, float64(n)*0.016)
 		} else {
@@ -179,6 +184,11 @@ func drawBusy(dc *render.Context, w, h int, t float64) {
 }
 
 func sleepReport(sec int) {
+	// sec<=0: one sample then return (device/swapchain stages without timed hold).
+	if sec <= 0 {
+		report("hold")
+		return
+	}
 	deadline := time.Now().Add(time.Duration(sec) * time.Second)
 	for time.Now().Before(deadline) {
 		time.Sleep(time.Second)

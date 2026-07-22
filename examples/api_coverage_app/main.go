@@ -38,7 +38,7 @@ func main() {
 		_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
 	}
 
-	animSec := envInt("GPUI_ANIM_SECONDS", 15)
+	animSec := envInt("GPUI_ANIM_SECONDS", 0)
 	targetFPS := envInt("GPUI_TARGET_FPS", 20)
 	if targetFPS < 10 {
 		targetFPS = 10

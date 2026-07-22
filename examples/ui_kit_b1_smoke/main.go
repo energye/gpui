@@ -3,7 +3,7 @@
 // ui_kit_b1_smoke — M2 proof: Input / Checkbox / Switch / Scroll / Overlay.
 //
 //	export DISPLAY=:1 WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	GPUI_ANIM_SECONDS=12 go run ./examples/ui_kit_b1_smoke
+//	go run ./examples/ui_kit_b1_smoke
 package main
 
 import (
@@ -25,11 +25,12 @@ import (
 func main() {
 	exboot.InitEnv()
 	winW, winH := 640, 480
-	seconds := 12.0
+	// Default unlimited; set GPUI_ANIM_SECONDS>0 for timed CI smoke.
+	seconds := 0.0
 	if v := os.Getenv("GPUI_ANIM_SECONDS"); v != "" {
 		fmt.Sscanf(v, "%f", &seconds)
-		if seconds < 1 {
-			seconds = 1
+		if seconds < 0 {
+			seconds = 0
 		}
 	}
 

@@ -104,9 +104,10 @@ func main() {
 		targetFPS = 120
 	}
 	frameBudget := time.Second / time.Duration(targetFPS)
+	// Default unlimited. Timed soak: GPUI_ANIM_SECONDS=N (probe MemSoakSec is advisory only).
 	animSeconds := envInt("GPUI_ANIM_SECONDS", 0)
-	if animSeconds <= 0 && cfg.MemSoakSec > 0 {
-		animSeconds = cfg.MemSoakSec
+	if animSeconds < 0 {
+		animSeconds = 0
 	}
 	resultPath := os.Getenv("GPUI_RESULT_FILE")
 	logEvery := envInt("GPUI_ANIM_LOG_EVERY", 60)

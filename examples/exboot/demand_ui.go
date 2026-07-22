@@ -24,7 +24,8 @@ type UIDemandConfig struct {
 	Theme  *core.Theme
 	// Clear is the per-frame clear color (logical).
 	Clear render.RGBA
-	// Seconds is how long to run before Quit (default 12).
+	// Seconds is how long to run before Quit; <=0 means unlimited (default).
+	// Set GPUI_ANIM_SECONDS>0 in callers for timed CI smokes.
 	Seconds float64
 	// Continuous forces every-tick paint (animations / gallery demos).
 	Continuous bool
@@ -46,13 +47,10 @@ type UIDemandResult struct {
 }
 
 // RunUIDemand attaches host+tree to ui/app, presents via PresentFrame*, and
-// runs until Seconds elapse, window close, or error.
+// runs until Seconds elapse (if >0), window close, or error.
 //
 // Present runs on the app render OS thread (default); events stay on Run.
 func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
-	if cfg.Seconds <= 0 {
-		cfg.Seconds = 12
-	}
 	if cfg.Host == nil || cfg.Tree == nil || cfg.SC == nil || cfg.DC == nil {
 		log.Fatal("exboot.RunUIDemand: Host, Tree, SC, DC required")
 	}
@@ -138,11 +136,14 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		}
 	}
 
-	// Wall-clock stop (smoke demos); Quit wakes IDLE WaitEvents.
-	go func() {
-		time.Sleep(time.Duration(cfg.Seconds * float64(time.Second)))
-		a.Quit()
-	}()
+	// Optional wall-clock stop for CI smokes; Quit wakes IDLE WaitEvents.
+	// Seconds<=0 → unlimited (close window / signal to exit).
+	if cfg.Seconds > 0 {
+		go func() {
+			time.Sleep(time.Duration(cfg.Seconds * float64(time.Second)))
+			a.Quit()
+		}()
+	}
 
 	a.Run()
 	return UIDemandResult{
