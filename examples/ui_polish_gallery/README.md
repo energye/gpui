@@ -1,5 +1,8 @@
 # ui_polish_gallery
 
+> **规则：** 每个控件能力必须落在左侧对应分类 Tab 的 demo section 里（见 `docs/UI_KIT_DEV_GUIDE.md` §2.7）。  
+> 例：Button Ghost → General · Button；FlexShrink → Layout · Flex。禁止只写单测、gallery 无入口。
+
 §12.3 打磨棚（W3 视觉/焦点 + **W4 IME 说明与 Modal**）：主路径 Button / Input / Checkbox / Radio / Switch / Modal。
 
 ## 运行

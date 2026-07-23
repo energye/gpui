@@ -15,6 +15,7 @@
 kit = 产品 Props + 状态机 + a11y 名 + 组合 primitive
 禁止：第二套 Hit / 帧循环 / 每帧 Sync / 魔法 offset / 硬编码色当默认皮
 禁止：rebuild 写死度量且无 DefaultXxx + SetXxx（见 §0.1）
+禁止：能力只测不展 — 示例必须进 ui_polish_gallery 对应控件分类（见 §2.7）
 对齐 Ant：见 UI_KIT_ANT_V5_SPEC（行为 + Token + 本库 golden；非浏览器像素哈希）
 ```
 
@@ -218,7 +219,30 @@ func (c *MyControl) theme() *core.Theme {
 - [ ] 虚拟列表：**固定行高** `VirtualList` only  
 - [ ] Table 头：固定 Column，勿当 CSS sticky  
 
-### 2.7 测试
+### 2.7 真窗示例（`examples/ui_polish_gallery` · **必过**）
+
+> **每个可演示的能力都必须出现在 gallery 对应控件分类页里**，禁止只写单测、不写可见示例。
+
+```text
+能力落地 = Headless 测 + coverage Notes + gallery 对应 Tab 的 demo section
+```
+
+| 要求 | 说明 |
+|------|------|
+| **分类** | 与左侧 rail 控件一致：Button 能力 → `General · Button`；Flex shrink → `Layout · Flex`；勿塞进无关 Tab |
+| **结构** | 优先 `demoPage` + `demoSection`（Ant 文档页形态）；旧 `panel` 逐步替换 |
+| **内容** | 覆盖本控件 API 主路径（默认 + 重要 props）；与 [ant.design 组件页](https://ant.design/components/overview) 分区对齐 |
+| **新能力** | 例如 FlexShrink、Wrap、Ghost → 加在 **本控件** 页新 section，并更新 section 说明文案 |
+| **禁止** | 只在 `*_test.go` / 文档描述能力、gallery 无入口；把示例堆在 `main.go` 杂项区 |
+
+```bash
+# 手操验收
+go run ./examples/ui_polish_gallery
+# 切到对应 Tab，确认新 section 可见、可点
+```
+
+### 2.8 测试
+
 
 - [ ] Headless：布局稳定、状态回调、Hit、（若有）打开/关闭浮层  
 - [ ] 不引入第二套 present 循环  

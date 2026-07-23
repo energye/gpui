@@ -341,8 +341,135 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	div := kit.NewDivider()
 	add("divider", "Divider", "Layout · Divider", div.Node())
 
-	add("flex", "Flex", "Layout · Flex",
-		kit.NewFlexRow(kit.NewText("row-a").Node(), kit.NewText("row-b").Node()).Node(),
+	// Flex — gap / wrap / grow / shrink (Ant Flex demos)
+	box := func(label string, w, h float64, col render.RGBA) core.Node {
+		tx := kit.NewText(label)
+		tx.SetFace(face)
+		inner := primitive.NewDecorated(tx.Node())
+		inner.Padding = primitive.Symmetric(8, 4)
+		inner.Background = col
+		inner.Radius = 4
+		host := primitive.NewBox(inner)
+		if w > 0 {
+			host.Width = w
+		}
+		if h > 0 {
+			host.Height = h
+		}
+		return host
+	}
+	blue := render.RGBA{R: 0.09, G: 0.47, B: 1, A: 0.25}
+	green := render.RGBA{R: 0.32, G: 0.77, B: 0.10, A: 0.25}
+	orange := render.RGBA{R: 0.98, G: 0.68, B: 0.08, A: 0.35}
+	gray := render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
+
+	flexGap := kit.NewFlexRow(
+		box("A", 64, 32, blue),
+		box("B", 64, 32, green),
+		box("C", 64, 32, orange),
+	)
+	flexGap.SetGap(16)
+
+	// Wrap: many fixed boxes in a bounded width host
+	wrapKids := make([]core.Node, 0, 8)
+	for i, lab := range []string{"1", "2", "3", "4", "5", "6", "7", "8"} {
+		_ = i
+		wrapKids = append(wrapKids, box(lab, 72, 28, blue))
+	}
+	flexWrap := kit.NewFlexRow(wrapKids...)
+	flexWrap.SetGap(8)
+	flexWrap.SetWrap(true)
+	wrapHost := primitive.NewDecorated(flexWrap.Node())
+	wrapHost.Width = 280
+	wrapHost.Padding = primitive.All(8)
+	wrapHost.Background = gray
+	wrapHost.Radius = 6
+
+	// Grow: two Flexible share remaining width
+	left := primitive.NewFlexible(1, box("grow=1", 0, 32, blue))
+	left.FillChild = true
+	right := primitive.NewFlexible(2, box("grow=2", 0, 32, green))
+	right.FillChild = true
+	growRow := primitive.Row(box("fixed", 56, 32, orange), left, right)
+	growRow.Gap = 8
+	growHost := primitive.NewDecorated(growRow)
+	growHost.Width = 400
+	growHost.Padding = primitive.All(8)
+	growHost.Background = gray
+	growHost.Radius = 6
+	growHost.StretchChild = true
+
+	// Shrink demos.
+	// IMPORTANT: fixed-width playgrounds must NOT sit under CrossStretch alone, or
+	// parent tight MinWidth forces the host to full page width while children still
+	// layout at host.Width — looks like "blocks never change". Wrap with CrossStart.
+	alignStart := func(n core.Node) core.Node {
+		r := primitive.Row(n)
+		r.CrossAlign = core.CrossStart
+		return r
+	}
+
+	// Prefer width via Decorated MinWidth so measure is large before shrink.
+	wide := func(label string, shrink float64, minW float64, col render.RGBA) core.Node {
+		tx := kit.NewText(label)
+		tx.SetFace(face)
+		d := primitive.NewDecorated(tx.Node())
+		d.Padding = primitive.Symmetric(12, 6)
+		d.Background = col
+		d.Radius = 4
+		d.MinWidth = minW
+		f := primitive.NewFlexible(0, d)
+		f.Shrink = shrink
+		f.FillChild = true
+		return f
+	}
+
+	// Fixed playground: host width 240, two blocks want 160 each → shrink to ~108.
+	shrinkRow := primitive.Row(wide("shrink=1 · A", 1, 160, blue), wide("shrink=1 · B", 1, 160, green))
+	shrinkRow.Gap = 8
+	shrinkHost := primitive.NewDecorated(shrinkRow)
+	shrinkHost.Width = 240
+	shrinkHost.Padding = primitive.All(8)
+	shrinkHost.Background = gray
+	shrinkHost.Radius = 6
+	shrinkHost.StretchChild = true
+
+	// shrink=0 vs shrink=1 in fixed 240 host
+	shrink0Row := primitive.Row(wide("shrink=0", 0, 160, orange), wide("shrink=1", 1, 160, blue))
+	shrink0Row.Gap = 8
+	shrink0Host := primitive.NewDecorated(shrink0Row)
+	shrink0Host.Width = 240
+	shrink0Host.Padding = primitive.All(8)
+	shrink0Host.Background = gray
+	shrink0Host.Radius = 6
+	shrink0Host.StretchChild = true
+
+	// Responsive: host expands to content width (no fixed Width). Blocks prefer 220 each.
+	// Narrow the window / content column — when max width < 220+8+220, both shrink.
+	respRow := primitive.Row(wide("want 280 · shrink=1", 1, 280, blue), wide("want 280 · shrink=1", 1, 280, green))
+	respRow.Gap = 8
+	respHost := primitive.NewDecorated(respRow)
+	respHost.ExpandWidth = true // follow parent max width
+	respHost.Padding = primitive.All(8)
+	respHost.Background = gray
+	respHost.Radius = 6
+	respHost.StretchChild = true
+
+	items = append(items, ctlTab("flex", "Flex"))
+	contents["flex"] = demoPage(face, "Flex",
+		"Ant Design Flex: gap, wrap, grow, shrink. Blue/green blocks are the flex items that shrink — gray is only the host.",
+		demoSection(face, theme, "Basic / Gap", "Horizontal row with gap.", flexGap.Node()),
+		demoSection(face, theme, "Wrap", "Children wrap when main axis is bounded (width 280).", alignStart(wrapHost)),
+		demoSection(face, theme, "Grow", "Flexible grow factors share free space (1 : 2).", alignStart(growHost)),
+		demoSection(face, theme, "Shrink (fixed host 240)",
+			"Gray host is fixed 240px wide. Two blocks want 160 each → FlexShrink packs them to ~108. The colored blocks shrink, not the gray chrome.",
+			alignStart(shrinkHost)),
+		demoSection(face, theme, "Shrink = 0",
+			"Left shrink=0 keeps ~160; right shrink=1 absorbs the deficit.",
+			alignStart(shrink0Host)),
+		demoSection(face, theme, "Shrink with window",
+			"Gray host fills the content width. Each block wants 280px. Narrow the window — when content area < ~568px the colored blocks compress (not the gray alone).",
+			respHost),
 	)
 
 	g := kit.NewGridCols(3,
@@ -359,9 +486,41 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	)
 	add("layout", "Layout", "Layout · Layout shell", lay.Node())
 
-	sp := kit.NewSpace(kit.NewTag("A").Node(), kit.NewTag("B").Node(), kit.NewTag("C").Node())
-	sp.SetSize(8)
-	add("space", "Space", "Layout · Space", sp.Node())
+	// Space — size / vertical / wrap
+	spH := kit.NewSpace(
+		kit.NewTag("Item 1").Node(),
+		kit.NewTag("Item 2").Node(),
+		kit.NewTag("Item 3").Node(),
+	)
+	spH.SetSize(16)
+
+	spV := kit.NewSpace(
+		kit.NewTag("Top").Node(),
+		kit.NewTag("Middle").Node(),
+		kit.NewTag("Bottom").Node(),
+	)
+	spV.SetSize(8)
+	spV.SetVertical(true)
+
+	spWrap := kit.NewSpace()
+	spWrap.SetSize(8)
+	spWrap.SetWrap(true)
+	for _, lab := range []string{"Tag", "Tag", "Tag", "Tag", "Tag", "Tag", "Tag"} {
+		spWrap.Add(kit.NewTag(lab).Node())
+	}
+	spWrapHost := primitive.NewDecorated(spWrap.Node())
+	spWrapHost.Width = 220
+	spWrapHost.Padding = primitive.All(8)
+	spWrapHost.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
+	spWrapHost.Radius = 6
+
+	items = append(items, ctlTab("space", "Space"))
+	contents["space"] = demoPage(face, "Space",
+		"Ant Design Space: uniform gap, direction, wrap.",
+		demoSection(face, theme, "Horizontal", "size=16 gap between children.", spH.Node()),
+		demoSection(face, theme, "Vertical", "SetVertical(true).", spV.Node()),
+		demoSection(face, theme, "Wrap", "SetWrap(true) in a narrow host (width 220).", spWrapHost),
+	)
 
 	split := kit.NewSplitter(
 		kit.NewText("Left pane").Node(),
