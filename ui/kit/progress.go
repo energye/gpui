@@ -59,10 +59,11 @@ func (p *Progress) SetPercent(v float64) {
 }
 
 func (p *Progress) theme() *core.Theme {
-	if p.Theme != nil {
-		return p.Theme
+	var n core.Node
+	if p.Root != nil {
+		n = p.Root
 	}
-	return DefaultTheme()
+	return themeOf(p.Theme, n)
 }
 
 func (p *Progress) applyFill() {

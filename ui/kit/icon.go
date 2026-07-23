@@ -50,10 +50,11 @@ func (ic *Icon) SetSize(s float64) {
 }
 
 func (ic *Icon) theme() *core.Theme {
-	if ic.Theme != nil {
-		return ic.Theme
+	var n core.Node
+	if ic.Root != nil {
+		n = ic.Root
 	}
-	return DefaultTheme()
+	return themeOf(ic.Theme, n)
 }
 
 func (ic *Icon) rebuild() {

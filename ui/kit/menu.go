@@ -65,10 +65,11 @@ func (m *Menu) SetOpenKeys(keys []string) {
 }
 
 func (m *Menu) theme() *core.Theme {
-	if m.Theme != nil {
-		return m.Theme
+	var n core.Node
+	if m.Root != nil {
+		n = m.Root
 	}
-	return DefaultTheme()
+	return themeOf(m.Theme, n)
 }
 
 func (m *Menu) rebuild() {

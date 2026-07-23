@@ -102,10 +102,11 @@ func (tr *Tree) isExpanded(n *TreeNode) bool {
 }
 
 func (tr *Tree) theme() *core.Theme {
-	if tr.Theme != nil {
-		return tr.Theme
+	var n core.Node
+	if tr.Root != nil {
+		n = tr.Root
 	}
-	return DefaultTheme()
+	return themeOf(tr.Theme, n)
 }
 
 func (tr *Tree) rebuild() {

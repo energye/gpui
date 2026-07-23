@@ -27,6 +27,11 @@ type PointerEvent struct {
 	X, Y      float64
 	Button    PointerButton
 	PointerID int
+	// Modifier state at event time (host-filled). Used for Shift+click extend selection.
+	Shift bool
+	Ctrl  bool
+	Alt   bool
+	Meta  bool
 	// Handled stops bubbling when set by a handler.
 	Handled bool
 	// Target is the hit node at dispatch start (may be nil).

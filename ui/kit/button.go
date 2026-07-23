@@ -263,10 +263,11 @@ func (b *Button) fireClick() {
 }
 
 func (b *Button) theme() *core.Theme {
-	if b.Theme != nil {
-		return b.Theme
+	var n core.Node
+	if b.Root != nil {
+		n = b.Root
 	}
-	return DefaultTheme()
+	return themeOf(b.Theme, n)
 }
 
 func (b *Button) rebuild() {

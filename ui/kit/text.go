@@ -7,6 +7,7 @@ import (
 )
 
 // Text is a product text node (typography baseline for B0).
+// Supports F6 overflow: MaxWidth / MaxLines / Ellipsis via primitive.Text.
 type Text struct {
 	Root  *primitive.Text
 	Value string
@@ -15,6 +16,12 @@ type Text struct {
 	Face      text.Face
 	FontSize  float64
 	Theme     *core.Theme
+	// MaxWidth caps layout width (0 = unconstrained preferred).
+	MaxWidth float64
+	// MaxLines wrap budget (≤1 single line). 0 = single line.
+	MaxLines int
+	// Ellipsis truncates overflow with "…" (needs MaxWidth or tight parent).
+	Ellipsis bool
 }
 
 // NewText creates kit text with the given value.
@@ -54,11 +61,37 @@ func (t *Text) SetFace(face text.Face) {
 	}
 }
 
-func (t *Text) theme() *core.Theme {
-	if t.Theme != nil {
-		return t.Theme
+// SetEllipsis enables overflow ellipsis.
+func (t *Text) SetEllipsis(on bool) {
+	t.Ellipsis = on
+	if t.Root != nil {
+		t.Root.SetEllipsis(on)
 	}
-	return DefaultTheme()
+}
+
+// SetMaxWidth sets the preferred max width for ellipsis/wrap.
+func (t *Text) SetMaxWidth(w float64) {
+	t.MaxWidth = w
+	if t.Root != nil {
+		t.Root.MaxWidth = w
+		t.Root.MarkNeedsLayout()
+	}
+}
+
+// SetMaxLines sets wrap line budget.
+func (t *Text) SetMaxLines(n int) {
+	t.MaxLines = n
+	if t.Root != nil {
+		t.Root.SetMaxLines(n)
+	}
+}
+
+func (t *Text) theme() *core.Theme {
+	var n core.Node
+	if t.Root != nil {
+		n = t.Root
+	}
+	return themeOf(t.Theme, n)
 }
 
 func (t *Text) rebuild() {
@@ -70,6 +103,9 @@ func (t *Text) rebuild() {
 	}
 	t.Root.FontSize = fs
 	t.Root.Face = t.Face
+	t.Root.MaxWidth = t.MaxWidth
+	t.Root.MaxLines = t.MaxLines
+	t.Root.Ellipsis = t.Ellipsis
 	t.applyColor()
 }
 

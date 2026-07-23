@@ -85,10 +85,11 @@ func (h *MessageHost) Sync() {
 }
 
 func (h *MessageHost) theme() *core.Theme {
-	if h.Theme != nil {
-		return h.Theme
+	var n core.Node
+	if h.Portal != nil {
+		n = h.Portal
 	}
-	return DefaultTheme()
+	return themeOf(h.Theme, n)
 }
 
 func (h *MessageHost) rebuild() {

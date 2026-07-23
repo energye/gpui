@@ -18,6 +18,8 @@ type WindowsHost struct {
 	closed        bool
 	redraws       int
 	clip          Clipboard
+	lastCursor    CursorKind
+	hasCursor     bool
 }
 
 // WindowsOptions configures NewWindowsHost.
@@ -124,6 +126,22 @@ func (h *WindowsHost) Inject(ev Event) {
 	h.queue = append(h.queue, ev)
 }
 
+// SetCursor implements CursorHost (stub: records last kind for tests).
+func (h *WindowsHost) SetCursor(kind CursorKind) {
+	if h != nil {
+		h.lastCursor = kind
+		h.hasCursor = true
+	}
+}
+
+// LastCursor returns the last SetCursor kind (stub observability).
+func (h *WindowsHost) LastCursor() (CursorKind, bool) {
+	if h == nil {
+		return CursorDefault, false
+	}
+	return h.lastCursor, h.hasCursor
+}
+
 // NativeHandles: HWND not yet available.
 func (h *WindowsHost) Display() uintptr { return 0 }
 func (h *WindowsHost) Window() uintptr  { return 0 }
@@ -135,4 +153,5 @@ var ErrWindowsGPUNotWired = fmt.Errorf("platform/windows: GPU present not wired 
 var (
 	_ Host          = (*WindowsHost)(nil)
 	_ NativeHandles = (*WindowsHost)(nil)
+	_ CursorHost    = (*WindowsHost)(nil)
 )

@@ -10,6 +10,12 @@
 // Tree.AddTicker + MarkNeedsPaint (Flutter demand). Continuous is for full-screen
 // game/demo loops (mem_anim, particles), not Skeleton/Spin smokes.
 //
+// # Present (F4)
+//
+// True-window retained present must use OwnedPresenter (dual-band Compositor) or
+// examples/exboot.RunUIDemand which wraps it. Do not hand-roll layer.NewCompositor
+// in product smokes — see docs/UI_FOUNDATION_P0.md P0.5 / F4.
+//
 // Threads (gogpu multi-thread architecture):
 //
 //	Main (Run/Pulse):  WaitEvents · Dispatch · TickActive · OnUpdate
@@ -166,6 +172,19 @@ func (a *Application) Attach(host platform.Host, tree *core.Tree, present Presen
 				if c := cp.Clipboard(); c != nil {
 					tree.SetClipboard(clipboardBridge{c: c})
 				}
+			}
+			// Bridge cursor shape (CapCursor / CursorHost) — F2.
+			if ch, ok := host.(platform.CursorHost); ok {
+				tree.SetOnCursor(func(k core.CursorKind) {
+					ch.SetCursor(platform.CursorKind(k))
+				})
+			}
+			// Bridge IME candidate position when host supports it (F5 / CapIME).
+			if _, ok := host.(platform.IMEPositioner); ok {
+				h := host
+				tree.SetOnIMEPosition(func(x, y float64) {
+					platform.SetIMEPositionIfSupported(h, x, y)
+				})
 			}
 		}
 	}

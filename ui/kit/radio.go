@@ -126,10 +126,11 @@ func (r *Radio) SyncState() {
 }
 
 func (r *Radio) theme() *core.Theme {
-	if r.Theme != nil {
-		return r.Theme
+	var n core.Node
+	if r.Root != nil {
+		n = r.Root
 	}
-	return DefaultTheme()
+	return themeOf(r.Theme, n)
 }
 
 func (r *Radio) rebuild() {

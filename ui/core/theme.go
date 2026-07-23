@@ -179,6 +179,38 @@ func DefaultTheme() *Theme {
 	return th
 }
 
+// ThemeProvider is implemented by nodes that supply an ambient Theme for
+// descendants (ConfigProvider / custom shells). Used by ResolveTheme (F8).
+type ThemeProvider interface {
+	AmbientTheme() *Theme
+}
+
+// ResolveTheme walks from n toward the root for a ThemeProvider, then the Tree
+// default theme. Returns nil if nothing is set (callers fall back to DefaultTheme).
+func ResolveTheme(n Node) *Theme {
+	for cur := n; cur != nil; cur = cur.Parent() {
+		if tp, ok := cur.(ThemeProvider); ok {
+			if th := tp.AmbientTheme(); th != nil {
+				return th
+			}
+		}
+	}
+	if n != nil {
+		if b := n.Base(); b != nil && b.tree != nil {
+			return b.tree.theme
+		}
+	}
+	return nil
+}
+
+// ThemeOrDefault is ResolveTheme with DefaultTheme fallback.
+func ThemeOrDefault(n Node) *Theme {
+	if th := ResolveTheme(n); th != nil {
+		return th
+	}
+	return DefaultTheme()
+}
+
 // Color resolves a token color (falls back to convenience fields for primary/text/bg).
 func (th *Theme) Color(key string) render.RGBA {
 	if th == nil {

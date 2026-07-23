@@ -89,10 +89,11 @@ func (fi *FormItem) SyncError() {
 }
 
 func (fi *FormItem) theme() *core.Theme {
-	if fi.Theme != nil {
-		return fi.Theme
+	var n core.Node
+	if fi.Root != nil {
+		n = fi.Root
 	}
-	return DefaultTheme()
+	return themeOf(fi.Theme, n)
 }
 
 func (fi *FormItem) rebuild() {
@@ -204,10 +205,11 @@ func (f *Form) Validate() bool {
 }
 
 func (f *Form) theme() *core.Theme {
-	if f.Theme != nil {
-		return f.Theme
+	var n core.Node
+	if f.Root != nil {
+		n = f.Root
 	}
-	return DefaultTheme()
+	return themeOf(f.Theme, n)
 }
 
 func (f *Form) rebuild() {

@@ -369,10 +369,11 @@ func (t *Tabs) markLayoutDirty() {
 }
 
 func (t *Tabs) theme() *core.Theme {
-	if t.Theme != nil {
-		return t.Theme
+	var n core.Node
+	if t.Root != nil {
+		n = t.Root
 	}
-	return DefaultTheme()
+	return themeOf(t.Theme, n)
 }
 
 func (t *Tabs) tabWidth() float64 {

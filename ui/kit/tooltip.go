@@ -50,10 +50,11 @@ func (tt *Tooltip) Sync() {
 }
 
 func (tt *Tooltip) theme() *core.Theme {
-	if tt.Theme != nil {
-		return tt.Theme
+	var n core.Node
+	if tt.Root != nil {
+		n = tt.Root
 	}
-	return DefaultTheme()
+	return themeOf(tt.Theme, n)
 }
 
 func (tt *Tooltip) rebuild(trigger core.Node) {

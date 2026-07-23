@@ -1,6 +1,6 @@
 package platform
 
-// IME capability contract (W4 / §12.1 C1–C3).
+// IME capability contract (W4 / §12.1 C1–C3 / F5).
 //
 // # CapIME — composition events
 //
@@ -8,7 +8,7 @@ package platform
 // which platform.Dispatch maps to core.Tree.DispatchIME → EditableText.HandleIME.
 // Committed characters are delivered as EventText → DispatchTextInput.
 //
-// # LinuxHost (true window) — formal degradation
+// # LinuxHost (true window) — formal degradation (unchanged)
 //
 // LinuxHost does **not** set CapIME. XIM/XIC is not wired in the thin X11
 // adapter. OS CJK candidate UI / composition events are **not** delivered on
@@ -23,13 +23,15 @@ package platform
 //  2. If false: do not claim true-window IME; use Headless InjectIME for CI.
 //  3. Headless sets CapIME and implements IMEPositioner for composition tests.
 //
-// # SetIMEPosition (C3)
+// # SetIMEPosition (C3 / F5)
 //
 // Hosts implementing IMEPositioner place the OS candidate window near the caret.
 // LinuxHost does not implement IMEPositioner while CapIME is off.
-// EditableText.CaretLocalPos + core.AbsoluteOffset supply caret geometry.
+// ui/app.Attach wires Tree.SetOnIMEPosition → IMEPositioner when available.
+// EditableText.CaretLocalPos + AbsoluteOffset supply caret geometry after
+// focus / key / IME events.
 //
-// See docs/UI_FRAMEWORK_MAP.md §12.1 C1–C4 and §12.3 W4.
+// See docs/UI_FRAMEWORK_MAP.md §12.1 C1–C4 and docs/UI_FOUNDATION_P0.md §8.8.
 
 // IMEPositioner is an optional Host extension for candidate-window placement.
 // Coordinates are logical pixels in the client area (top-left origin).

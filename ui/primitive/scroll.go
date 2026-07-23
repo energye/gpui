@@ -16,6 +16,9 @@ import (
 //   - Thumb extent = f(viewport, content, track); independent of pixels.
 //   - Thumb drag freezes extents; ScrollY = scroll0 + ΔpointerAbs/travel*maxScroll.
 //
+// Nested wheel (F7): by default, wheel at edge does not mark Handled so ancestors
+// can scroll (chain). Set TrapWheel=true to always consume wheel (trap).
+//
 // Paint isolation: ScrollViewport is a RepaintBoundary. Scroll/drag MarkNeedsPaint
 // dirties only this layer (not the full window base). Without that, each drag move
 // forces NonBoundaryPaintDirty → full base rebuild → “跟手延迟后猛跳”.
@@ -42,6 +45,10 @@ type ScrollViewport struct {
 	AxisVertical   bool
 	AxisHorizontal bool
 	axisSet        bool
+
+	// TrapWheel when true always marks scroll Handled (no chain to ancestors).
+	// Default false: chain at edge (F7).
+	TrapWheel bool
 
 	// Bar is the scrollbar policy (separate control). Nil → DefaultScrollbar().
 	Bar *Scrollbar
@@ -1163,19 +1170,57 @@ func (s *ScrollViewport) beginThumbDrag(axis int, ptrAbs float64, sz core.Size) 
 }
 
 // HandleScroll implements core.ScrollHandler (wheel).
+//
+// Nested scroll policy (F7):
+//
+//	Default: chain at edge — if this viewport cannot absorb the wheel delta
+//	(already at min/max on that axis, or no overflow), Handled stays false so
+//	ancestors may scroll (Flutter NestedScrollView / browser-like).
+//
+//	TrapWheel=true: always consume the event (Handled=true) even at edges.
 func (s *ScrollViewport) HandleScroll(ev *core.ScrollEvent) {
-	if ev == nil {
+	if ev == nil || s == nil {
 		return
 	}
 	step := s.resolveBar().wheelStep()
+	prevX, prevY := s.ScrollX, s.ScrollY
 	// Prefer vertical; shift+wheel or DX for horizontal.
 	s.ScrollX += ev.DX * step
 	s.ScrollY += ev.DY * step
 	s.clampScroll()
-	s.bumpReveal()
-	// Paint-only: ContentPaintOffset updates scroll transform.
-	s.MarkNeedsPaint()
-	ev.Handled = true
+	moved := s.ScrollX != prevX || s.ScrollY != prevY
+	if moved {
+		s.bumpReveal()
+		// Paint-only: ContentPaintOffset updates scroll transform.
+		s.MarkNeedsPaint()
+		ev.Handled = true
+		return
+	}
+	// No movement: at edge or no overflow.
+	if s.TrapWheel {
+		// Still consume so parents do not chain (modal lists, locked panes).
+		ev.Handled = true
+		s.bumpReveal()
+		return
+	}
+	// Chain: leave Handled=false for DispatchScroll bubble.
+}
+
+// MaxScroll returns the clamped max offsets (after last Layout).
+func (s *ScrollViewport) MaxScroll() (maxX, maxY float64) {
+	if s == nil {
+		return 0, 0
+	}
+	cs := s.ContentSize()
+	maxX = s.ContentW - cs.Width
+	maxY = s.ContentH - cs.Height
+	if maxX < 0 {
+		maxX = 0
+	}
+	if maxY < 0 {
+		maxY = 0
+	}
+	return maxX, maxY
 }
 
 // SetScroll sets offsets and clamps. No-op (no paint) when clamped values are unchanged.

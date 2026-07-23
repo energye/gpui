@@ -56,10 +56,11 @@ func (l *List) SetSelected(index int) {
 }
 
 func (l *List) theme() *core.Theme {
-	if l.Theme != nil {
-		return l.Theme
+	var n core.Node
+	if l.Root != nil {
+		n = l.Root
 	}
-	return DefaultTheme()
+	return themeOf(l.Theme, n)
 }
 
 func (l *List) rebuild() {

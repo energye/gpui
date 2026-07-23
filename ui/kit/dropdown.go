@@ -58,6 +58,14 @@ func (d *Dropdown) SetOpen(open bool) {
 	}
 }
 
+// Popup returns the anchored menu popup.
+func (d *Dropdown) Popup() *primitive.AnchoredPopup {
+	if d == nil {
+		return nil
+	}
+	return d.popup
+}
+
 // SetSelected highlights a menu key.
 func (d *Dropdown) SetSelected(key string) {
 	d.Selected = key
@@ -78,6 +86,10 @@ func (d *Dropdown) rebuild() {
 	d.popup.Placement = primitive.PlaceBottomStart
 	d.popup.Gap = 4
 	d.popup.Portal.ID = "" // auto-id; avoid clobber
+	d.popup.DismissOnOutside = true
+	d.popup.OnDismiss = func() {
+		d.Open = false
+	}
 	d.Trigger.SetOnClick(func() { d.SetOpen(!d.Open) })
 	d.Wrap = primitive.Column(d.Trigger.Node(), d.popup)
 	d.Wrap.CrossAlign = core.CrossStart

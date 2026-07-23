@@ -107,10 +107,11 @@ func (s *Spin) SetSpinning(v bool) {
 }
 
 func (s *Spin) theme() *core.Theme {
-	if s.Theme != nil {
-		return s.Theme
+	var n core.Node
+	if s.Root != nil {
+		n = s.Root
 	}
-	return DefaultTheme()
+	return themeOf(s.Theme, n)
 }
 
 func (s *Spin) rebuild() {

@@ -40,6 +40,12 @@ type Tree struct {
 
 	// clipboard is optional C-Clipbd service for EditableText copy/paste.
 	clipboard Clipboard
+
+	// theme is the tree-default Theme (F8); overridden by ThemeProvider ancestors.
+	theme *Theme
+
+	// onIMEPos optional host callback for candidate-window placement (CapIME).
+	onIMEPos func(x, y float64)
 }
 
 // outsideDismissEntry closes a floating UI when pointer-down is outside keep roots.
@@ -605,6 +611,7 @@ func (t *Tree) SetFocus(n Node) {
 			f.SetFocused(true)
 		}
 	}
+	t.updateIMEPosition()
 }
 
 // Focus returns the focused node.
@@ -647,6 +654,7 @@ func (t *Tree) DispatchKey(ev *KeyEvent) {
 		}
 	}
 	if ev.Handled || ev.Type != KeyDown {
+		t.updateIMEPosition()
 		return
 	}
 	switch ev.Key {
@@ -657,6 +665,7 @@ func (t *Tree) DispatchKey(ev *KeyEvent) {
 		t.FocusNext()
 		ev.Handled = true
 	}
+	t.updateIMEPosition()
 }
 
 func nodeInSubtree(n, root Node) bool {
@@ -726,6 +735,7 @@ func (t *Tree) DispatchIME(ev *IMECompositionEvent) {
 			ih.HandleIME(ev)
 		}
 	}
+	t.updateIMEPosition()
 }
 
 // Capture returns the current pointer capture node.

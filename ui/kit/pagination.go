@@ -71,10 +71,11 @@ func (p *Pagination) SetTotalPages(n int) {
 }
 
 func (p *Pagination) theme() *core.Theme {
-	if p.Theme != nil {
-		return p.Theme
+	var n core.Node
+	if p.Root != nil {
+		n = p.Root
 	}
-	return DefaultTheme()
+	return themeOf(p.Theme, n)
 }
 
 func (p *Pagination) rebuild() {

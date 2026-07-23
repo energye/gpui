@@ -141,10 +141,11 @@ func (t *Tour) Sync() {
 }
 
 func (t *Tour) theme() *core.Theme {
-	if t.Theme != nil {
-		return t.Theme
+	var n core.Node
+	if t.Portal != nil {
+		n = t.Portal
 	}
-	return DefaultTheme()
+	return themeOf(t.Theme, n)
 }
 
 // ensureShell builds a stable Portal/Scope/layer once.

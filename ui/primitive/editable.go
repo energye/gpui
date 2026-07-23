@@ -51,6 +51,9 @@ type EditableText struct {
 	caretVisible bool
 	boundTree    *core.Tree
 
+	// Pointer drag selection (F1).
+	dragging bool
+
 	// ShowFocusRing draws an inner focus ring (default true).
 	// Kit Input sets this false and uses Decorated border as focus chrome.
 	ShowFocusRing bool
@@ -412,6 +415,7 @@ func (e *EditableText) SetFocused(f bool) {
 	e.focused = f
 	if !f {
 		e.preedit = ""
+		e.dragging = false
 		if e.boundTree != nil {
 			e.boundTree.RemoveTicker(e)
 		}
@@ -458,22 +462,59 @@ func (e *EditableText) Tick(dt float64) bool {
 // IsFocused reports focus.
 func (e *EditableText) IsFocused() bool { return e.focused }
 
-// HandlePointer focuses and places caret by local coordinates (click-to-caret).
+// HandlePointer focuses, places caret, supports drag-select and Shift+click extend (F1).
+//
+//	PointerDown: click → caret (collapse) + start drag; Shift+click (when focused) → extend
+//	PointerMove while dragging: update Cursor, keep SelAnchor
+//	PointerUp / Cancel: end drag
 func (e *EditableText) HandlePointer(ev *core.PointerEvent) {
 	if e.Disabled || ev == nil {
 		return
 	}
-	if ev.Type == core.PointerDown {
-		abs := core.AbsoluteOffset(e)
-		lx := ev.X - abs.X
-		ly := ev.Y - abs.Y
-		idx := e.indexAtLocal(lx, ly)
+	abs := core.AbsoluteOffset(e)
+	lx := ev.X - abs.X
+	ly := ev.Y - abs.Y
+	idx := e.indexAtLocal(lx, ly)
+
+	switch ev.Type {
+	case core.PointerDown:
+		if ev.Shift && e.focused {
+			// Extend: keep SelAnchor, move Cursor only (no drag).
+			e.Cursor = idx
+			e.dragging = false
+		} else {
+			// New selection origin; tree capture delivers subsequent Move/Up here.
+			e.Cursor = idx
+			e.SelAnchor = idx
+			e.dragging = true
+		}
+		ev.Handled = true
+		e.MarkNeedsPaint()
+
+	case core.PointerMove:
+		if !e.dragging {
+			return
+		}
+		if e.Cursor != idx {
+			e.Cursor = idx
+			e.MarkNeedsPaint()
+		}
+		ev.Handled = true
+
+	case core.PointerUp, core.PointerCancel:
+		if !e.dragging {
+			return
+		}
 		e.Cursor = idx
-		// Shift+click extends selection when host sets… plain click collapses.
-		e.SelAnchor = e.Cursor
+		e.dragging = false
 		ev.Handled = true
 		e.MarkNeedsPaint()
 	}
+}
+
+// IsDraggingSelection reports an active mouse drag selection (tests / chrome).
+func (e *EditableText) IsDraggingSelection() bool {
+	return e != nil && e.dragging
 }
 
 // CaretLocalPos returns the caret top-left in local coordinates (for IME position).

@@ -67,10 +67,11 @@ func (t *Tag) SetColor(c render.RGBA) {
 }
 
 func (t *Tag) theme() *core.Theme {
-	if t.Theme != nil {
-		return t.Theme
+	var n core.Node
+	if t.Root != nil {
+		n = t.Root
 	}
-	return DefaultTheme()
+	return themeOf(t.Theme, n)
 }
 
 func (t *Tag) rebuild() {
@@ -79,6 +80,9 @@ func (t *Tag) rebuild() {
 	t.label.FontSize = th.SizeOr(core.TokenFontSizeSM, 12)
 	t.label.Face = t.Face
 	t.label.Color = th.Color(core.TokenColorText)
+	// Long tags ellipsize inside chip (F6).
+	t.label.MaxWidth = 160
+	t.label.Ellipsis = true
 
 	row := primitive.Row(t.label)
 	row.CrossAlign = core.CrossCenter

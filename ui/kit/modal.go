@@ -156,10 +156,11 @@ func (m *Modal) Sync() {
 }
 
 func (m *Modal) theme() *core.Theme {
-	if m.Theme != nil {
-		return m.Theme
+	var n core.Node
+	if m.Portal != nil {
+		n = m.Portal
 	}
-	return DefaultTheme()
+	return themeOf(m.Theme, n)
 }
 
 func (m *Modal) rebuild() {

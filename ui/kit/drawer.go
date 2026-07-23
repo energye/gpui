@@ -135,10 +135,11 @@ func (d *Drawer) SetFace(face text.Face) {
 }
 
 func (d *Drawer) theme() *core.Theme {
-	if d.Theme != nil {
-		return d.Theme
+	var n core.Node
+	if d.Portal != nil {
+		n = d.Portal
 	}
-	return DefaultTheme()
+	return themeOf(d.Theme, n)
 }
 
 func (d *Drawer) rebuild() {

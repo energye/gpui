@@ -68,10 +68,11 @@ func (p *Popover) Sync() {
 }
 
 func (p *Popover) theme() *core.Theme {
-	if p.Theme != nil {
-		return p.Theme
+	var n core.Node
+	if p.Root != nil {
+		n = p.Root
 	}
-	return DefaultTheme()
+	return themeOf(p.Theme, n)
 }
 
 func (p *Popover) rebuild(trigger core.Node) {
@@ -90,6 +91,10 @@ func (p *Popover) rebuild(trigger core.Node) {
 	p.Popup.Placement = primitive.PlaceBottomStart
 	p.Popup.Gap = 8
 	p.Popup.Portal.ID = "" // auto id per instance (avoid clobbering other popovers)
+	p.Popup.DismissOnOutside = true
+	p.Popup.OnDismiss = func() {
+		p.Open = false
+	}
 
 	if trigger == nil {
 		trigger = primitive.NewText("Popover")

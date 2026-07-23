@@ -99,10 +99,11 @@ func (s *Skeleton) SetActive(v bool) {
 }
 
 func (s *Skeleton) theme() *core.Theme {
-	if s.Theme != nil {
-		return s.Theme
+	var n core.Node
+	if s.Root != nil {
+		n = s.Root
 	}
-	return DefaultTheme()
+	return themeOf(s.Theme, n)
 }
 
 func (s *Skeleton) rebuild() {

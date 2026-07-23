@@ -27,6 +27,10 @@ type Headless struct {
 
 	// In-memory clipboard (CapClipboard).
 	clip *MemoryClipboard
+
+	// Last cursor (CursorHost; tests).
+	lastCursor CursorKind
+	hasCursor  bool
 }
 
 // NewHeadless creates a headless host with the given logical size.
@@ -233,10 +237,29 @@ func (h *Headless) LastIMEPosition() (x, y float64, n int) {
 	return h.imeX, h.imeY, h.imePosN
 }
 
+// SetCursor implements CursorHost (records kind for tests).
+func (h *Headless) SetCursor(kind CursorKind) {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	h.lastCursor = kind
+	h.hasCursor = true
+	h.mu.Unlock()
+}
+
+// LastCursor returns the last SetCursor kind.
+func (h *Headless) LastCursor() (CursorKind, bool) {
+	if h == nil {
+		return CursorDefault, false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastCursor, h.hasCursor
+}
+
 var (
 	_ Host          = (*Headless)(nil)
 	_ IMEPositioner = (*Headless)(nil)
+	_ CursorHost    = (*Headless)(nil)
 )
-
-// SetCursor implements CursorHost (no-op on headless).
-func (h *Headless) SetCursor(kind CursorKind) {}

@@ -18,6 +18,8 @@ type DarwinHost struct {
 	closed        bool
 	redraws       int
 	clip          Clipboard
+	lastCursor    CursorKind
+	hasCursor     bool
 }
 
 // DarwinOptions configures NewDarwinHost.
@@ -123,6 +125,22 @@ func (h *DarwinHost) Inject(ev Event) {
 	h.queue = append(h.queue, ev)
 }
 
+// SetCursor implements CursorHost (stub: records last kind for tests).
+func (h *DarwinHost) SetCursor(kind CursorKind) {
+	if h != nil {
+		h.lastCursor = kind
+		h.hasCursor = true
+	}
+}
+
+// LastCursor returns the last SetCursor kind (stub observability).
+func (h *DarwinHost) LastCursor() (CursorKind, bool) {
+	if h == nil {
+		return CursorDefault, false
+	}
+	return h.lastCursor, h.hasCursor
+}
+
 func (h *DarwinHost) Display() uintptr { return 0 }
 func (h *DarwinHost) Window() uintptr  { return 0 }
 func (h *DarwinHost) Flush()           {}
@@ -133,4 +151,5 @@ var ErrDarwinGPUNotWired = fmt.Errorf("platform/darwin: GPU present not wired (M
 var (
 	_ Host          = (*DarwinHost)(nil)
 	_ NativeHandles = (*DarwinHost)(nil)
+	_ CursorHost    = (*DarwinHost)(nil)
 )

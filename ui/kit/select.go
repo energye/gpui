@@ -81,6 +81,14 @@ func (s *Select) SetOpen(open bool) {
 	}
 }
 
+// Popup returns the anchored popup (tests / advanced hosts).
+func (s *Select) Popup() *primitive.AnchoredPopup {
+	if s == nil {
+		return nil
+	}
+	return s.popup
+}
+
 // SetFace sets the font face for the value label and rebuilds chrome.
 func (s *Select) SetFace(face text.Face) {
 	s.Face = face
@@ -99,10 +107,11 @@ func (s *Select) Sync() {
 }
 
 func (s *Select) theme() *core.Theme {
-	if s.Theme != nil {
-		return s.Theme
+	var n core.Node
+	if s.Wrap != nil {
+		n = s.Wrap
 	}
-	return DefaultTheme()
+	return themeOf(s.Theme, n)
 }
 
 func (s *Select) refreshLabel() {
@@ -183,6 +192,14 @@ func (s *Select) rebuild() {
 	s.popup.Placement = primitive.PlaceBottomStart
 	s.popup.Gap = 4
 	s.popup.Portal.ID = "" // auto-id; avoid clobber
+	s.popup.DismissOnOutside = true
+	s.popup.OnDismiss = func() {
+		// Outside dismiss closes AnchoredPopup; keep product Open in sync.
+		s.Open = false
+		if s.Root != nil && s.Root.OnStateChange != nil {
+			s.Root.OnStateChange()
+		}
+	}
 
 	if s.Root == nil {
 		s.Root = primitive.NewPressable(s.decor)

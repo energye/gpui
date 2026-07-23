@@ -117,10 +117,11 @@ func (c *Checkbox) SyncState() {
 }
 
 func (c *Checkbox) theme() *core.Theme {
-	if c.Theme != nil {
-		return c.Theme
+	var n core.Node
+	if c.Root != nil {
+		n = c.Root
 	}
-	return DefaultTheme()
+	return themeOf(c.Theme, n)
 }
 
 func (c *Checkbox) rebuild() {

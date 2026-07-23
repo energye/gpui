@@ -24,6 +24,10 @@ func Dispatch(tree *core.Tree, ev Event) (resize *Event, close bool) {
 			Y:         ev.Y,
 			Button:    mapButton(ev.Button),
 			PointerID: ev.PointerID,
+			Shift:     ev.Shift,
+			Ctrl:      ev.Ctrl,
+			Alt:       ev.Alt,
+			Meta:      ev.Meta,
 		}
 		tree.DispatchPointer(pe)
 	case EventKey:

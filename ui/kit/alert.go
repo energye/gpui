@@ -75,10 +75,11 @@ func (a *Alert) SetFace(face text.Face) {
 }
 
 func (a *Alert) theme() *core.Theme {
-	if a.Theme != nil {
-		return a.Theme
+	var n core.Node
+	if a.Root != nil {
+		n = a.Root
 	}
-	return DefaultTheme()
+	return themeOf(a.Theme, n)
 }
 
 func (a *Alert) rebuild() {

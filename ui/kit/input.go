@@ -163,10 +163,11 @@ func (in *Input) AttachTicker(t *core.Tree) {
 func (in *Input) IsFocused() bool { return in.focused }
 
 func (in *Input) theme() *core.Theme {
-	if in.Theme != nil {
-		return in.Theme
+	var n core.Node
+	if in.Root != nil {
+		n = in.Root
 	}
-	return DefaultTheme()
+	return themeOf(in.Theme, n)
 }
 
 func (in *Input) rebuild() {
