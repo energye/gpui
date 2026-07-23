@@ -1,10 +1,12 @@
 # UI 框架总图与规划 — Primitive 组合底座 × Kit 产品面 × Flutter 管线 × render
 
-> 版本：4.4 | 日期：2026-07-21 | **活文档 · 打磨 §12.1 · 测试 §12.2 · 波次执行 §12.3**  
+> 版本：4.5 | 日期：2026-07-23 | **活文档 · 打磨 §12.1 · 测试 §12.2 · 波次执行 §12.3 · 合成带 §4.1**  
 > 状态：**控件产品架构以「primitive 组合」为底座**；已含 **Ant 全量组件 → 组合能力反推清单**  
 > 入口：[`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) ✅  
 > 引擎：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) · [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
-> 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md)（控件 = **P2 另开轨道**）
+> 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md)（控件 = **P2 另开轨道**）  
+> 覆盖率权威表：[`ui/kit/coverage.go`](../ui/kit/coverage.go) · 摘要 [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)  
+> App 壳：[`UI_APP_SHELL_PLAN.md`](./UI_APP_SHELL_PLAN.md)（按需帧已落地；多窗 API 仍后置）
 
 ---
 
@@ -46,14 +48,18 @@ Ant Design = 某一套 kit API + skin/default 的目标，不是底座
 │     skin/default 默认可为 Ant 视觉；可换整皮或单 typeID Painter   │
 ├──────────────────────────────────────────────────────────────┤
 │ L3b ui/primitive（★ 组合底层 · 无 Button/Modal 等产品名）         │
-│     Box Flex Stack Text Icon Pressable Focusable EditableText… │
+│     Box Flex Stack Text Icon Pressable Scroll OverlayPortal…   │
+├──────────────────────────────────────────────────────────────┤
+│ L3a′ ui/layer（retained 合成 · host 选用）                       │
+│     Compositor · LayerCache · main/overlay 双带 BlitTo         │
 ├──────────────────────────────────────────────────────────────┤
 │ L3a ui/core（框架运行时 · 非控件）                               │
-│     Node 树 · 布局算法 · Hit · Focus · Event · Frame · Plugin  │
+│     Node · Layout · Hit · Focus · Frame · OverlayHost          │
+│     PaintMain / PaintOverlays · LayerBand · Ticker             │
 ├──────────────────────────────────────────────────────────────┤
 │ L2  ui/platform（跨平台 SPI + Caps）                            │
 ├──────────────────────────────────────────────────────────────┤
-│ L1  render（Context · PresentFrame* · text · lifecycle）        │
+│ L1  render（Context · PresentFrame* · text · lifecycle）       │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -62,6 +68,7 @@ Ant Design = 某一套 kit API + skin/default 的目标，不是底座
 | L1 | `render` | 像素与 present | 布局树、控件状态机 |
 | L2 | `ui/platform` | 窗口/输入/IME/剪贴板/能力 | 产品控件 API |
 | L3a | `ui/core` | 管线与算法 | 具体色值、产品控件名、OS API |
+| L3a′ | `ui/layer` | 离屏 base/boundary 合成 | 产品控件、OS API |
 | L3b | `ui/primitive` | **通用可组合积木** | 依赖 kit、Ant 专有枚举当唯一 API |
 | L3c | `ui/skin/*` | 外观与组装绘制 | 自管 swapchain |
 | L4 | `ui/kit` | 产品级控件 API | 硬编码色、绕过 primitive 堆业务绘制、包名 antd |
@@ -71,9 +78,10 @@ Ant Design = 某一套 kit API + skin/default 的目标，不是底座
 
 ```text
 app → kit → primitive → core → render
- app → primitive → core          // 允许：业务直接组合积木
-      skin → primitive + core    // 皮肤不依赖 kit 类型名时可只挂 typeID
-      * → platform SPI           // 不直连 OS
+ app → primitive → core
+ app → layer → core → render     // retained 合成（exboot / 真窗）
+      skin → primitive + core
+      * → platform SPI
 ```
 
 禁止：`primitive → kit`；`core → primitive/kit`；`render → ui`；`kit/core/primitive → X11/Win32/AppKit`。
@@ -86,10 +94,12 @@ app → kit → primitive → core → render
 
 ```text
 <module>/ui/core
+<module>/ui/layer              # retained 合成（Compositor · LayerCache）
 <module>/ui/primitive          # 组合底层（★）
 <module>/ui/kit                # 产品面（默认可 Ant 向）
 <module>/ui/platform
 <module>/ui/platform/linux|windows|darwin
+<module>/ui/app                # 按需帧会话入口（见 UI_APP_SHELL_PLAN）
 <module>/ui/skin/default       # 默认可 Ant 视觉
 <module>/ui/skin/<name>
 ```
@@ -99,13 +109,16 @@ app → kit → primitive → core → render
 | 禁止 | `ui/antd` |
 | 应用默认 | `kit` + `theme.Default()`（内聚 primitive 组装 + default skin） |
 | 重度自定义 | 主要 import `primitive`，可不依赖 kit |
+| 真窗 present | `ui/app` + `ui/layer.Compositor`（或等价双带 Blit）；见 §4.1 |
 | 类型 ID | `primitive.Pressable`、`kit.Button`（稳定字符串，与路径解耦） |
 
 ```text
 ui/
-  core/         node layout hit focus event frame paint theme plugin services edit/
-  primitive/    box flex stack text icon pressable focusable editable scroll slot decorated ...
+  core/         node layout hit focus event frame paint theme plugin · OverlayHost
+  layer/        compositor cache · main/overlay 双带
+  primitive/    box flex stack text icon pressable scroll overlay_portal mask ...
   kit/          button input form modal table menu ...   # 内部只组合 primitive
+  app/          Application · Session · demand loop
   platform/     host caps headless ...
   skin/default/ tokens painters ...
 ```
@@ -136,7 +149,8 @@ ui/
 | Material Button 等 | **kit.*** 组合，非底层 |
 | Theme / ThemeExtension | TokenSet + Theme；产品 type→Token 在 kit |
 | CustomPainter / 自定义 RO | PainterNode 或实现 Node 全契约 |
-| Overlay | primitive.OverlayPortal + kit Modal 等 |
+| Overlay | primitive.OverlayPortal + OverlayHost + kit Modal 等（合成见 §4.1） |
+| RepaintBoundary | primitive.RepaintBoundary / ScrollViewport；Paint 脏隔离 |
 | 替换官方 Button 工厂 | 非 Flutter 强项；本框架可选显式 `ReplaceControl` |
 
 **帧顺序**
@@ -154,11 +168,47 @@ PumpEvents → Dispatch → flush setState
 | `MarkNeedsLayout` | 气泡祖先；下次 Layout 重算；约束相同且 clean → early-out |
 | `MarkNeedsPaint` | 气泡至 **RepaintBoundary** 停止；仍 `tree.markDirty` 调度帧 |
 | `primitive.RepaintBoundary` | 隔离动画控件脏区（对标 Flutter RepaintBoundary） |
+| `ScrollViewport` | **默认** `SetRepaintBoundary(true)`；滚动用 `ContentPaintOffset`，不改 child layout Offset |
+| `Pressable` | **默认不是** Boundary（Tabs 等大量实例；每 Boundary 每帧 markLive 成本高） |
 | `Tree.AddTicker` | ANIMATING；Tick 内 MarkNeedsPaint；**禁止** kit Continuous |
 | `FullPaintRequired` | 首帧/resize/expose 全量 paint |
 | G2 非承诺 | 矢量 MSAA 直写 swapchain **不**保证区外像素保留；blit 层为正确局部路径 |
+| Present 默认 | Phase1 **整窗** present；可选 `PresentFrameDamage*` 须先证明 surface LoadOpLoad（曾试局部 present 导致黑屏，已撤回） |
 
 Kit smoke（`ui_kit_m5_smoke`）默认 `Continuous=false` + Ticker。
+
+### 4.1 合成带（Main / Overlay）— 对齐 Flutter Overlay
+
+**问题**：仅把 portal 画进与主树相同的 base RT，再 `CompositeLive` 全部 Boundary，会使 **Tabs `ScrollViewport` 等 main 层画在 Modal mask 之上**（hit 仍 overlays 优先 → 点得中、看起来没盖住）。
+
+**契约（已实现 · `ui/core` + `ui/layer`）**
+
+| 阶段 | API | 内容 |
+|------|-----|------|
+| 主树 paint | `Tree.PaintMain` | root only · `LayerBandMain` |
+| 浮层 paint | `Tree.PaintOverlays` | OverlayHost · `LayerBandOverlay` |
+| 主树 base | compositor `mainBase` | 非 deferred 主树像素 |
+| 浮层 base | compositor `overlayBase` | Mask / 面板 chrome（透明底） |
+| Present | `Compositor.BlitTo` | **mainBase → mainLayers → overlayBase → overlayLayers** |
+
+```text
+HitTest（不变）:  overlays 自上而下 → root
+Present Z（compositor 路径）:
+  [top]    overlayLayers（portal 内 Boundary，若有）
+           overlayBase（Modal Mask + 面板矢量）
+           mainLayers（ScrollViewport / Spin / Skeleton …）
+  [bottom] mainBase
+```
+
+**硬规则**
+
+1. 真窗 retained 路径必须用 **`Compositor.Frame` + `BlitTo`**（或等价双 RT / 分带 blit）。  
+2. **禁止**假设「单 DC `Tree.Paint` + DeferLayerBlit + 一次 CompositeLive」能正确盖住 Scroll 层。  
+3. 浮层必须走 **OverlayPortal → OverlayHost**；禁止 in-tree 假遮罩指望盖住 Boundary 层。  
+4. 无 compositor（`GPUI_COMPOSITOR=0`）时单 surface 顺序 root→overlays 仍正确（无 deferred 分轨）。  
+5. 细节与注释：`ui/core/doc.go` · `ui/layer/compositor.go`。
+
+**kit 受益**：Modal / Drawer / Message / Tooltip / Select popup 等一切 portal 浮层。
 
 ---
 
@@ -424,7 +474,7 @@ PressableState { Hovered, Pressed, Focused, Disabled }
 | **Alert** | Decorated + Flex + Icon + Text + 关闭 Pressable | P2 |
 | **Drawer** | OverlayPortal + 滑入面板 Box + Mask + FocusTrap | P3 |
 | **Message** | PortalHost + **C-NotifyQueue** + 项 Decorated；C-Presence | P3 |
-| **Modal** | OverlayPortal + Mask + 居中面板 + FocusTrap + 脚 Button 组合 | P3 |
+| **Modal** | OverlayPortal + Mask + 居中面板 + FocusScope + 脚 Button；**合成须 §4.1 双带**；MaskClosable 默认 true；**Esc 关闭尚未接线** | P3 |
 | **Notification** | 同 Message 角位置队列 | P3 |
 | **Popconfirm** | Popover + 确认/取消 Pressable | P3 |
 | **Progress** | Canvas/Box 条或环 | P3 |
@@ -443,16 +493,18 @@ PressableState { Hovered, Pressed, Focused, Disabled }
 | **BorderBeam 等装饰** | Canvas/Motion 特效 | ○ |
 | **Util**（hooks 等） | 非节点；对等于服务/工具包 | P2+ |
 
-### 5.7.8 覆盖率与缺口统计
+### 5.7.8 覆盖率与缺口统计（2026-07-23 · 以源码为准）
 
 | 项 | 数量/结论 |
 |----|-----------|
-| Ant 组件条目（含组） | **约 70+**（overview 列表） |
-| 仅用 P0–P2 能力可组合（主路径桌面） | Button Icon Flex Space Typography(基) Divider Layout(基) Input 系 Checkbox Radio Switch Tag Card Alert Tooltip Popover Dropdown 基 Modal/Drawer 基 Spin Avatar Badge Empty… **~30** |
-| 强依赖 P3+（虚拟/表/树/复杂选择/队列） | Table List Tree Select Menu Tabs Form Cascader Transfer DatePicker… **~25** |
-| 强依赖平台/后置 | Upload(FileHost) Tour ColorPicker 完整 QR Masonry… **~10+** |
-| **Primitive 侧缺口（相对旧 §5 仅 15 项）** | 必须补：**AnchoredPopup、Mask、Grid、VirtualList、Draggable、SplitPane、Canvas、Sticky、FocusScope、SelectionScope、RichText、Divider、Notify 级 PortalHost 能力** |
-| **架构能力缺口** | 必须补：**C-Anchor C-Overlay C-Virtual C-Drag C-FormBind C-KeyboardNav C-NotifyQueue C-Motion C-Sticky C-ScrollSpy C-FileHost C-SelectModel** |
+| 权威表 | **`ui/kit/coverage.go` → `AntCoverage()`**（`go test ./ui/kit -run TestAntCoverageTable`） |
+| 表项 / `CovReady` | **70 / 70**（状态列全 ready） |
+| CovPartial / Primitive / Later | **0**（残差写在 **Notes**，非 Status） |
+| Notes 残差（能力未齐） | Menu 嵌套 later；DatePicker range later；Upload host dialog later；Image GPU texture later；QR codec later；Table virtual+sticky head 基线 |
+| 摘要文档 | [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)（须与 coverage.go 同步） |
+| 历史规划表（§5.7 各节 Pri） | 仍作**组合依赖参考**；**不**再当作落地状态表 |
+| Primitive / C-* 能力 | 主路径已补 OverlayPortal、Mask、Scroll、FocusScope、VirtualList 等；细节见 §5.3–§5.4 与源码 |
+| 合成 | 浮层 Z 序见 **§4.1**（双带）；勿用旧「单 base + 全层 CompositeLive」 |
 
 ### 5.7.9 实现分层建议（由清单反推）
 
@@ -509,11 +561,16 @@ Focusable
 **kit.Modal**
 
 ```text
-OverlayPortal(fullscreen)
-  └─ Stack
-       Pressable(mask) · Decorated(panel)
-            Flex(Column): title · content · footer(Buttons)
+OverlayPortal(Z=500)          // 进 OverlayHost；合成见 §4.1 双带
+  └─ FocusScope
+       └─ modalLayer
+            Mask(fullscreen) · Decorated(panel)
+                 Flex(Column): title · content · footer(kit.Button)
 ```
+
+Mask 尺寸 = `Modal.Viewport` 或 `Tree.Viewport()`。**MaskClosable** 默认 true。  
+**Esc 关闭**：文档目标有；**当前源码未接线**（实现债）。  
+Present 必须 `Compositor` 双带，否则 main 的 Scroll 层会盖住 mask。
 
 **业务自研（非 Ant）** 如工具条、时间线、芯片输入：只组合 primitive，或自建 `mykit`，**不改 core**。
 
@@ -573,7 +630,7 @@ default / hover / active / focus / disabled；（表单）error/warning；（But
 
 **Form/FormItem**：Layout、OnFinish、Name、Label、Required、Rules、ValidateStatus。  
 
-**Modal**：Open、Title、Content、OnOk/OnCancel、MaskClosable、Keyboard Esc、Width；focus trap。  
+**Modal**：Open、Title、Content、OnOk/OnCancel、MaskClosable、Width、Viewport；FocusScope；**Keyboard Esc 目标有、源码未接线**；合成见 §4.1。  
 
 **Table/List**：Columns/DataSource/RowKey/Loading/虚拟高度等基础集；排序固定列后置。  
 

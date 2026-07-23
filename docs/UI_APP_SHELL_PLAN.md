@@ -1,8 +1,8 @@
 # UI App Shell 实现方案 — 按需帧 × 第三方窗口挂载 × 统一入口 × 多窗口
 
-> 版本：1.1 | 日期：2026-07-21  
+> 版本：1.2 | 日期：2026-07-23  
 > 关联：[`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) · [`SURFACE_LIFECYCLE_SKIA_FLUTTER.md`](./SURFACE_LIFECYCLE_SKIA_FLUTTER.md) · [`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md)  
-> 状态：**Phase 0–1 落地中** — 按需帧对齐 gogpu（`ui/app` + `Tree` Ticker + `Host.WaitEvents`）
+> 状态：**Phase 1 单窗按需帧已落地**；**多窗 / OpenWindow / AttachWindow 表 API 未实现**（见 §0.1）
 
 ---
 
@@ -21,16 +21,32 @@ core 管树与脏 · platform 管 SPI · app 管会话与调度 · render 只管
 
 ---
 
+## 0.1 实现状态速查（以源码为准）
+
+| 能力 | 状态 | 源码锚点 |
+|------|------|----------|
+| 按需帧 R1 | ✅ | `ui/app` `runFrame` · `Tree.NeedsFrame` · `Host.WaitEvents` |
+| 统一入口 R3（单窗） | ✅ | `Application.Attach` / `Run` / `Pulse` / `Quit` |
+| Present 委托 | ✅ | `PresentFunc` + Session |
+| retained 双带合成 | ✅ | `ui/layer.Compositor` · MAP §4.1 |
+| 第三方挂载 R2 完整 SPI | ⏳ 设计见 §4.2 | 现状：`Attach(Host, …)` 注入 |
+| 多窗口 R4 | ⏳ 设计见 §3–§5 | **未实现**多 Session；`app.go` 标注 single-window Phase 1 |
+| OpenWindow 一站式 | ⏳ 概念 API §3.1 | 现状：业务/exboot 建 Host 再 Attach |
+| 任意矢量局部 damage | ❌ 非目标 §1.3 | 整窗 present |
+
+---
+
 ## 1. 背景与问题
 
-### 1.1 现状
+### 1.1 现状（2026-07-23 · 源码对照）
 
-| 层 | 已有 | 缺口 |
-|----|------|------|
-| `ui/core` | `MarkNeedsLayout/Paint`、`Tree.Dirty`、`TickClock` | `Frame` 无条件 Layout+Paint；`TickClock` 无脑 MarkDirty；无 Ticker 注册表 |
-| `ui/platform` | `Host`、`PumpEvents`、`RequestRedraw`、`EventRedraw`、`NewHost` | Pump 非阻塞忙等；`Dispatch` 忽略 Redraw；无第三方挂载 SPI；无多窗 |
-| examples | 各自 for 循环 + `exboot` GPU 引导 | 每圈必 Present；GPU/loop 散落；单窗假设 |
-| `gpu/rwgpu` | Xlib/HWND/Metal/Wayland `CreateSurfaceFrom*` | 未收成 app 层挂载 API |
+| 层 | 已落地 | 仍缺口 / 后置 |
+|----|--------|----------------|
+| `ui/core` | NeedsFrame / Dirty / Ticker；Layout early-out；`PaintMain`/`PaintOverlays`；OverlayHost | — |
+| `ui/layer` | Compositor 双带 present 序（见 MAP §4.1） | 默认不做「只 blit 脏层」的 surface damage |
+| `ui/platform` | WaitEvents 阻塞/超时；Headless；Linux Host；WakeUp | 真 Win/mac Host；多窗 OS 会话 |
+| `ui/app` | **单** Session：`Attach`·`Run`·`Pulse`；IDLE/ANIMATING | **无**多 Session 表、`OpenWindow`/`AttachWindow`/`Windows` |
+| examples | exboot + gallery 用 compositor + 按需帧 | 业务优先 `ui/app`，少抄 smoke 循环 |
 
 ### 1.2 需求合集
 
@@ -98,7 +114,7 @@ core 管树与脏 · platform 管 SPI · app 管会话与调度 · render 只管
 | 线程约定 | **UI 单线程**（与现有 X11/wgpu 假设一致）；`runtime.LockOSThread` 由 Run 负责 |
 
 ```go
-// 概念 API（落地时以源码为准）
+// 概念 API（**多窗目标**；单窗现状见 §0.1，以 `Attach` 为准）
 app := app.New(app.Options{ /* Theme, SharedGPU, ... */ })
 win, _ := app.OpenWindow(app.WindowOptions{Title: "...", Width: 800, Height: 600})
 // 或
@@ -308,7 +324,7 @@ Application
 
 ### 5.4 与文档「多窗口后置」的关系
 
-`UI_FRAMEWORK_MAP` 将「多窗口」标为后置能力 —— 本方案把 **壳层多窗** 提前为 **P0/P1 架构**，避免入口做成单窗死结构；**原生系统菜单 / 跨窗 DnD** 仍后置。
+`UI_FRAMEWORK_MAP` 将「多窗口」标为后置能力 —— 本方案把 **壳层多窗** 设计为 **架构目标**（避免入口做成死结构）；**当前实现仍是单窗 Session**；**原生系统菜单 / 跨窗 DnD** 仍后置。
 
 ---
 
