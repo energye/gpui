@@ -1,8 +1,9 @@
 # UI Kit 开发指南 — 底层契约（必读）
 
-> 版本：1.0 | 日期：2026-07-23  
+> 版本：1.1 | 日期：2026-07-23  
 > 状态：**活文档** · 与源码冲突时以源码 + `go test` 为准  
-> 底层交付总账：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) v2.0+  
+> 底层交付总账：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) v2.1+  
+> **Ant 对齐目标/验收：** [`UI_KIT_ANT_V5_SPEC.md`](./UI_KIT_ANT_V5_SPEC.md)（L1 行为 · L2 Token · L3 本库 golden · L4 人眼）  
 > 架构总图：[`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) · 布局：[`LAYOUT_FOUNDATION.md`](./LAYOUT_FOUNDATION.md)  
 > 覆盖率表：[`ui/kit/coverage.go`](../ui/kit/coverage.go) · [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)
 
@@ -13,6 +14,7 @@
 ```text
 kit = 产品 Props + 状态机 + a11y 名 + 组合 primitive
 禁止：第二套 Hit / 帧循环 / 每帧 Sync / 魔法 offset / 硬编码色当默认皮
+对齐 Ant：见 UI_KIT_ANT_V5_SPEC（行为 + Token + 本库 golden；非浏览器像素哈希）
 ```
 
 依赖方向（硬）：

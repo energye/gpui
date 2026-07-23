@@ -6,11 +6,13 @@
 //
 // # Developer guide (required reading)
 //
-//	docs/UI_KIT_DEV_GUIDE.md  — contracts for kit work on the stabilized foundation
-//	docs/UI_FOUNDATION_P0.md  — what the foundation delivered (Present, overlays, theme, …)
-//	docs/LAYOUT_FOUNDATION.md — hit == layout == paint
+//	docs/UI_KIT_DEV_GUIDE.md     — contracts for kit work on the stabilized foundation
+//	docs/UI_KIT_ANT_V5_SPEC.md   — Ant Design v5 alignment goals, waves, L1–L4 acceptance
+//	docs/UI_FOUNDATION_P0.md     — what the foundation delivered (Present, overlays, theme, …)
+//	docs/LAYOUT_FOUNDATION.md    — hit == layout == paint
 //
 // Rules of thumb:
+//   - Align Ant via behavior + tokens + in-repo golden (not browser pixel hash).
 //   - No ContinuousRender for product controls (use Tree.AddTicker).
 //   - No per-frame Sync() requirement for popups (Tree.Layout refreshes anchors).
 //   - Theme via themeOf / ConfigProvider / Tree.SetTheme + SetThemeHook(rebuild).

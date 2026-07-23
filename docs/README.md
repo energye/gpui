@@ -29,6 +29,7 @@
 | **UI 布局底盘契约** | [`LAYOUT_FOUNDATION.md`](./LAYOUT_FOUNDATION.md) |
 | **UI 底层交付（P0/F 系列）** | [`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) |
 | **UI Kit 开发指南（必读）** | [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md) |
+| **UI Kit Ant v5 对齐规格** | [`UI_KIT_ANT_V5_SPEC.md`](./UI_KIT_ANT_V5_SPEC.md)（目标/分期/验收；非官网像素哈希） |
 | **UI App 壳 / 按需帧** | [`UI_APP_SHELL_PLAN.md`](./UI_APP_SHELL_PLAN.md) |
 | **UI Kit 覆盖率摘要** | [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)（权威表：`ui/kit/coverage.go`） |
 
