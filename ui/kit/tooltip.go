@@ -37,6 +37,8 @@ func (tt *Tooltip) Node() core.Node {
 }
 
 // Sync opens/closes based on shell hover and updates anchor.
+// Deprecated: prefer Tree.Layout + AnchoredPopup.RefreshOpenGeometry (automatic).
+// Kept for one-shot forced reposition after external layout changes.
 func (tt *Tooltip) Sync() {
 	if tt.shell == nil || tt.Popup == nil {
 		return

@@ -285,5 +285,6 @@ func (in *Input) applyChrome() {
 			in.editor.Color = th.Color(core.TokenColorText)
 		}
 	}
+	in.Root.SetThemeHook(func(*core.Theme) { in.rebuild() })
 	in.Root.MarkNeedsPaint()
 }

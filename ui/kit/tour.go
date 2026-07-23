@@ -133,6 +133,8 @@ func (t *Tour) Prev() {
 }
 
 // Sync repositions for viewport.
+// Deprecated: prefer Tree.Layout + AnchoredPopup.RefreshOpenGeometry (automatic).
+// Kept for one-shot forced reposition after external layout changes.
 func (t *Tour) Sync() {
 	if t.Open && t.Portal != nil {
 		t.layer.MarkNeedsLayout()

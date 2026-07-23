@@ -85,6 +85,17 @@ type NodeBase struct {
 	Label string // accessible name
 	// Live is aria-live region: "", "polite", "assertive".
 	Live string
+
+	// themeHook is set by product controls to rebuild chrome when Tree/Config theme changes.
+	themeHook func(th *Theme)
+}
+
+// SetThemeHook registers a callback invoked on theme broadcast (SetTheme / ConfigProvider).
+// Kit controls use this to rebuild token-baked chrome without host Sync loops.
+func (n *NodeBase) SetThemeHook(fn func(th *Theme)) {
+	if n != nil {
+		n.themeHook = fn
+	}
 }
 
 // Init wires the concrete self pointer. Call once after construction.

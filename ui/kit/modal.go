@@ -143,6 +143,8 @@ func (m *Modal) SetFace(face text.Face) {
 
 // Sync repositions the panel and refreshes footer button chrome (hover/press).
 // Call once per frame while open — same role as Button.SyncState in the host loop.
+// Deprecated: prefer Tree.Layout + AnchoredPopup.RefreshOpenGeometry (automatic).
+// Kept for one-shot forced reposition after external layout changes.
 func (m *Modal) Sync() {
 	if m.okBtn != nil {
 		m.okBtn.SyncState()

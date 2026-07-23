@@ -341,6 +341,7 @@ func (b *Button) rebuild() {
 	b.Root.SetDisabled(b.Disabled || b.Loading)
 	b.Root.Base().Role = "button"
 	b.Root.Base().Label = b.Label
+	b.Root.SetThemeHook(func(*core.Theme) { b.rebuild() })
 
 	b.lastHovered, b.lastPressed, b.lastFocused = false, false, false
 	b.applyChrome()

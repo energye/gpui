@@ -75,6 +75,8 @@ func (d *Dropdown) SetSelected(key string) {
 }
 
 // Sync repositions while open.
+// Deprecated: prefer Tree.Layout + AnchoredPopup.RefreshOpenGeometry (automatic).
+// Kept for one-shot forced reposition after external layout changes.
 func (d *Dropdown) Sync() {
 	if d.Open {
 		d.SetOpen(true)

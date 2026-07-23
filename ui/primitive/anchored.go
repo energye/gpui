@@ -59,21 +59,46 @@ func NewAnchoredPopup(content core.Node) *AnchoredPopup {
 // TypeID implements core.Node.
 func (a *AnchoredPopup) TypeID() string { return TypeAnchoredPopup }
 
-// Layout implements core.Node.
+// Layout implements core.Node — zero-size host; open content is measured and positioned.
 func (a *AnchoredPopup) Layout(c core.Constraints) core.Size {
-	// Portal is zero-sized; measure content for positioning if open.
 	if a.Open && a.Content != nil {
 		if a.AnchorNode != nil {
 			a.Anchor = core.AbsoluteBounds(a.AnchorNode)
 		}
 		_ = a.Content.Layout(core.Loose(c.MaxWidth, c.MaxHeight))
 		a.reposition()
-		// Re-bind outside dismiss after mount/layout (tree may be nil at first SetOpen).
 		a.syncOutsideDismiss()
 	}
 	out := a.Portal.Layout(c)
 	a.SetSize(out)
 	return out
+}
+
+// RefreshOpenGeometry implements core.OpenGeometryRefresher.
+// Called by Tree.Layout after the main pass so AbsoluteBounds of AnchorNode are current.
+// This replaces the need for kit Select/Dropdown/Tooltip Sync() every frame.
+func (a *AnchoredPopup) RefreshOpenGeometry() {
+	if a == nil || !a.Open {
+		return
+	}
+	if a.AnchorNode != nil {
+		a.Anchor = core.AbsoluteBounds(a.AnchorNode)
+	}
+	if a.Content != nil {
+		if a.Content.Base().Size().IsZero() {
+			vp := a.resolveViewport()
+			mw, mh := 400.0, 400.0
+			if vp.Width > 0 {
+				mw = vp.Width
+			}
+			if vp.Height > 0 {
+				mh = vp.Height
+			}
+			_ = a.Content.Layout(core.Loose(mw, mh))
+		}
+	}
+	a.reposition()
+	a.syncOutsideDismiss()
 }
 
 // Paint implements core.Node.

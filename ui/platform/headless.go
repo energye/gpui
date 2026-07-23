@@ -186,6 +186,14 @@ func (h *Headless) InjectPointer(kind PointerKind, x, y float64, btn PointerBtn)
 	h.Inject(Event{Type: EventPointer, Pointer: kind, X: x, Y: y, Button: btn})
 }
 
+// InjectPointerMods enqueues a pointer event with modifier keys (cross-platform tests).
+func (h *Headless) InjectPointerMods(kind PointerKind, x, y float64, btn PointerBtn, shift, ctrl, alt, meta bool) {
+	h.Inject(Event{
+		Type: EventPointer, Pointer: kind, X: x, Y: y, Button: btn,
+		Shift: shift, Ctrl: ctrl, Alt: alt, Meta: meta,
+	})
+}
+
 // InjectClick synthesizes left-button down+up at (x,y).
 func (h *Headless) InjectClick(x, y float64) {
 	h.InjectPointer(PointerDown, x, y, BtnLeft)
@@ -214,6 +222,14 @@ func (h *Headless) InjectText(text string) {
 // InjectKey enqueues a key down/up.
 func (h *Headless) InjectKey(key string, down bool) {
 	h.Inject(Event{Type: EventKey, Key: key, Down: down})
+}
+
+// InjectKeyMods enqueues a key event with modifiers.
+func (h *Headless) InjectKeyMods(key string, down, shift, ctrl, alt, meta bool) {
+	h.Inject(Event{
+		Type: EventKey, Key: key, Down: down,
+		Shift: shift, Ctrl: ctrl, Alt: alt, Meta: meta,
+	})
 }
 
 // InjectIME enqueues an IME composition update (requires CapIME — set on Headless).

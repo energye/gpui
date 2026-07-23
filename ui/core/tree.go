@@ -43,6 +43,8 @@ type Tree struct {
 
 	// theme is the tree-default Theme (F8); overridden by ThemeProvider ancestors.
 	theme *Theme
+	// themeEpoch increments on SetTheme for observers/tests.
+	themeEpoch uint64
 
 	// onIMEPos optional host callback for candidate-window placement (CapIME).
 	onIMEPos func(x, y float64)
@@ -200,6 +202,9 @@ func (t *Tree) ClearDirty() {
 // then lays out overlay nodes loosely within the viewport.
 // Clean nodes with identical constraints early-out inside each Layout impl via
 // NodeBase.LayoutSkipIfClean / ShouldRelayout.
+//
+// After the main tree layout, OpenGeometryRefresher nodes (e.g. AnchoredPopup)
+// recompute anchor/flip using AbsoluteBounds (F: float layer sync).
 func (t *Tree) Layout(viewport Size) {
 	if t == nil {
 		return
@@ -207,12 +212,33 @@ func (t *Tree) Layout(viewport Size) {
 	t.viewport = viewport
 	if t.root != nil {
 		_ = t.root.Layout(Tight(viewport.Width, viewport.Height))
+		refreshOpenGeometry(t.root)
 	}
 	for _, e := range t.Overlays().Entries() {
 		if e.Node == nil {
 			continue
 		}
 		_ = e.Node.Layout(Loose(viewport.Width, viewport.Height))
+		refreshOpenGeometry(e.Node)
+	}
+}
+
+// OpenGeometryRefresher is implemented by floating shells that must recompute
+// geometry after each tree layout (anchor move, viewport, flip).
+// AnchoredPopup implements this so kit does not need a per-frame Sync loop.
+type OpenGeometryRefresher interface {
+	RefreshOpenGeometry()
+}
+
+func refreshOpenGeometry(n Node) {
+	if n == nil {
+		return
+	}
+	if r, ok := n.(OpenGeometryRefresher); ok {
+		r.RefreshOpenGeometry()
+	}
+	for _, c := range n.Children() {
+		refreshOpenGeometry(c)
 	}
 }
 

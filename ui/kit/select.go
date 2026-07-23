@@ -96,6 +96,8 @@ func (s *Select) SetFace(face text.Face) {
 }
 
 // Sync repositions while open.
+// Deprecated: prefer Tree.Layout + AnchoredPopup.RefreshOpenGeometry (automatic).
+// Kept for one-shot forced reposition after external layout changes.
 func (s *Select) Sync() {
 	if s.Open && s.popup != nil {
 		s.popup.UpdateAnchorFromNode(s.Root)
@@ -246,6 +248,7 @@ func (s *Select) rebuild() {
 	s.Wrap.CrossAlign = core.CrossStart
 	s.Wrap.MarkNeedsLayout()
 	s.Wrap.MarkNeedsPaint()
+	s.Wrap.SetThemeHook(func(*core.Theme) { s.rebuild() })
 	s.refreshLabel()
 }
 

@@ -74,6 +74,8 @@ func (h *MessageHost) Count() int {
 }
 
 // Sync expires timed toasts and rebuilds the toast list.
+// Deprecated: prefer Tree.Layout + AnchoredPopup.RefreshOpenGeometry (automatic).
+// Kept for one-shot forced reposition after external layout changes.
 func (h *MessageHost) Sync() {
 	if h == nil {
 		return

@@ -40,14 +40,20 @@ func (c *ConfigProvider) AmbientTheme() *core.Theme {
 	return c.theme
 }
 
-// SetTheme replaces the ambient theme and dirties the subtree.
+// SetTheme replaces the ambient theme, notifies theme hooks under this subtree,
+// and dirties layout/paint (theme change broadcast).
 func (c *ConfigProvider) SetTheme(th *core.Theme) {
 	if c == nil {
 		return
 	}
 	c.theme = th
+	core.NotifyThemeChanged(c, th)
 	c.MarkNeedsLayout()
 	c.MarkNeedsPaint()
+	if t := c.Tree(); t != nil {
+		t.MarkFullPaintRequired()
+		t.MarkDirty()
+	}
 }
 
 // Theme returns the ambient theme (alias for AmbientTheme).

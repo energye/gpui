@@ -43,6 +43,13 @@ const (
 	xStructureNotifyMask  = int64(1 << 17)
 	xFocusChangeMask      = int64(1 << 21)
 
+	// X11 modifier masks (X.h) for XKeyEvent/XButtonEvent/XMotionEvent.state.
+	xShiftMask   = uint32(1 << 0)
+	xLockMask    = uint32(1 << 1)
+	xControlMask = uint32(1 << 2)
+	xMod1Mask    = uint32(1 << 3) // typically Alt
+	xMod4Mask    = uint32(1 << 6) // typically Super/Meta
+
 	// Zero-flash live resize (device_lost_redraw / Skia / Flutter).
 	xNone             = 0
 	xNorthWestGravity = 1
@@ -476,10 +483,12 @@ func (h *LinuxHost) handleRaw(raw *[192]byte) {
 			h.queue = append(h.queue, Event{Type: EventResize, Width: w, Height: ht})
 		}
 	case xButtonPress, xButtonRelease:
-		// XButtonEvent LP64: x@64 y@68 button@84 (approx on amd64)
+		// XButtonEvent LP64: x@64 y@68 state@80 button@84
 		x := float64(*(*int32)(unsafe.Pointer(&raw[64])))
 		y := float64(*(*int32)(unsafe.Pointer(&raw[68])))
+		state := *(*uint32)(unsafe.Pointer(&raw[80]))
 		btnN := int(*(*uint32)(unsafe.Pointer(&raw[84])))
+		sh, ctrl, alt, meta := modsFromXState(state)
 		// Classic X11 mouse wheel: Button4/5 vertical, Button6/7 horizontal.
 		// Only press generates a step (release is ignored).
 		if btnN >= 4 && btnN <= 7 {
@@ -498,6 +507,7 @@ func (h *LinuxHost) handleRaw(raw *[192]byte) {
 				}
 				h.queue = append(h.queue, Event{
 					Type: EventScroll, X: x, Y: y, ScrollDX: dx, ScrollDY: dy,
+					Shift: sh, Ctrl: ctrl, Alt: alt, Meta: meta,
 				})
 			}
 			break
@@ -515,11 +525,20 @@ func (h *LinuxHost) handleRaw(raw *[192]byte) {
 		if typ == xButtonRelease {
 			kind = PointerUp
 		}
-		h.queue = append(h.queue, Event{Type: EventPointer, Pointer: kind, X: x, Y: y, Button: btn})
+		h.queue = append(h.queue, Event{
+			Type: EventPointer, Pointer: kind, X: x, Y: y, Button: btn,
+			Shift: sh, Ctrl: ctrl, Alt: alt, Meta: meta,
+		})
 	case xMotionNotify:
+		// XMotionEvent LP64: x@64 y@68 state@80
 		x := float64(*(*int32)(unsafe.Pointer(&raw[64])))
 		y := float64(*(*int32)(unsafe.Pointer(&raw[68])))
-		h.queue = append(h.queue, Event{Type: EventPointer, Pointer: PointerMove, X: x, Y: y})
+		state := *(*uint32)(unsafe.Pointer(&raw[80]))
+		sh, ctrl, alt, meta := modsFromXState(state)
+		h.queue = append(h.queue, Event{
+			Type: EventPointer, Pointer: PointerMove, X: x, Y: y,
+			Shift: sh, Ctrl: ctrl, Alt: alt, Meta: meta,
+		})
 	case xExpose:
 		h.queue = append(h.queue, Event{Type: EventRedraw})
 	case xFocusIn:
@@ -539,7 +558,12 @@ func (h *LinuxHost) handleRaw(raw *[192]byte) {
 
 // handleKey decodes XKeyEvent via XLookupString into EventKey and optional EventText.
 // This is Latin/special-key path only — not CapIME composition (see Caps / ime.go).
+// Modifiers are taken from XKeyEvent.state (Shift/Ctrl/Alt/Meta).
 func (h *LinuxHost) handleKey(raw *[192]byte, down bool) {
+	// XKeyEvent LP64: state@80 keycode@84 (same prefix as XButtonEvent)
+	state := *(*uint32)(unsafe.Pointer(&raw[80]))
+	sh, ctrl, alt, meta := modsFromXState(state)
+
 	var keysym uintptr
 	var buf [32]byte
 	n := 0
@@ -560,11 +584,19 @@ func (h *LinuxHost) handleKey(raw *[192]byte, down bool) {
 	if key == "" && text == "" {
 		return
 	}
-	h.queue = append(h.queue, Event{Type: EventKey, Key: key, Text: text, Down: down})
+	h.queue = append(h.queue, Event{
+		Type: EventKey, Key: key, Text: text, Down: down,
+		Shift: sh, Ctrl: ctrl, Alt: alt, Meta: meta,
+	})
 	// Committed printable on key down (no CapIME): EventText for EditableText.
 	if down && text != "" && !isControlKey(key) {
 		h.queue = append(h.queue, Event{Type: EventText, Text: text})
 	}
+}
+
+// modsFromXState maps X11 state mask bits to unified Event modifiers.
+func modsFromXState(state uint32) (shift, ctrl, alt, meta bool) {
+	return ParseModifierState(state)
 }
 
 func isPrintableText(s string) bool {

@@ -54,6 +54,8 @@ func (p *Popover) SetOpen(open bool) {
 }
 
 // Sync updates anchor while open.
+// Deprecated: prefer Tree.Layout + AnchoredPopup.RefreshOpenGeometry (automatic).
+// Kept for one-shot forced reposition after external layout changes.
 func (p *Popover) Sync() {
 	if p.Popup == nil || p.shell == nil {
 		return

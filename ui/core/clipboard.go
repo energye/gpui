@@ -56,12 +56,85 @@ func (t *Tree) Clipboard() Clipboard {
 }
 
 // SetTheme installs the tree-default Theme (F8). Nodes under a ThemeProvider win.
+// Broadcasts ThemeObserver.OnThemeChanged and marks the tree for full relayout/paint
+// so chrome rebuilt from tokens can refresh (theme change contract).
 func (t *Tree) SetTheme(th *Theme) {
 	if t == nil {
 		return
 	}
 	t.theme = th
+	t.themeEpoch++
+	t.broadcastThemeChanged(th)
+	if t.root != nil {
+		markSubtreeNeedsLayout(t.root)
+	}
+	for _, e := range t.Overlays().Entries() {
+		if e.Node != nil {
+			markSubtreeNeedsLayout(e.Node)
+		}
+	}
+	t.MarkFullPaintRequired()
 	t.markDirty()
+}
+
+// ThemeEpoch returns a monotonic counter incremented on each SetTheme (tests / cache keys).
+func (t *Tree) ThemeEpoch() uint64 {
+	if t == nil {
+		return 0
+	}
+	return t.themeEpoch
+}
+
+// ThemeObserver is optional: controls that bake token colors into children should
+// re-apply chrome when the ambient/tree theme changes.
+type ThemeObserver interface {
+	OnThemeChanged(th *Theme)
+}
+
+func (t *Tree) broadcastThemeChanged(th *Theme) {
+	if t == nil {
+		return
+	}
+	if t.root != nil {
+		walkThemeObservers(t.root, th)
+	}
+	for _, e := range t.Overlays().Entries() {
+		if e.Node != nil {
+			walkThemeObservers(e.Node, th)
+		}
+	}
+}
+
+func walkThemeObservers(n Node, th *Theme) {
+	if n == nil {
+		return
+	}
+	if b := n.Base(); b != nil && b.themeHook != nil {
+		b.themeHook(th)
+	}
+	if o, ok := n.(ThemeObserver); ok {
+		o.OnThemeChanged(th)
+	}
+	for _, c := range n.Children() {
+		walkThemeObservers(c, th)
+	}
+}
+
+// NotifyThemeChanged walks n and descendants invoking ThemeObserver / theme hooks.
+// Used by ConfigProvider.SetTheme and Tree.SetTheme.
+func NotifyThemeChanged(n Node, th *Theme) {
+	walkThemeObservers(n, th)
+}
+
+func markSubtreeNeedsLayout(n Node) {
+	if n == nil {
+		return
+	}
+	n.Base().MarkNeedsLayout()
+	n.Base().MarkNeedsPaint()
+	for _, c := range n.Children() {
+		markSubtreeNeedsLayout(c)
+	}
 }
 
 // Theme returns the tree-default Theme (may be nil).
