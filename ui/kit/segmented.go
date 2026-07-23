@@ -9,6 +9,7 @@ import (
 
 // Segmented is Ant Design Segmented control.
 // https://ant.design/components/segmented
+// Outer Root stays stable; option row is rebuilt in place.
 type Segmented struct {
 	Root     *primitive.Decorated
 	Options  []string
@@ -79,7 +80,12 @@ func (s *Segmented) rebuild() {
 		p.Click = func() { s.SetValue(opt) }
 		row.AddChild(p)
 	}
-	s.Root = primitive.NewDecorated(row)
+	if s.Root == nil {
+		s.Root = primitive.NewDecorated(row)
+	} else {
+		s.Root.ClearChildren()
+		s.Root.AddChild(row)
+	}
 	s.Root.Padding = primitive.All(2)
 	s.Root.Radius = 6
 	s.Root.Background = th.Color(core.TokenColorBgLayout)
@@ -87,4 +93,6 @@ func (s *Segmented) rebuild() {
 		s.Root.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.04}
 	}
 	s.Root.Hit = core.HitBlock
+	s.Root.MarkNeedsLayout()
+	s.Root.MarkNeedsPaint()
 }

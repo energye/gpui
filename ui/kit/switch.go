@@ -144,7 +144,12 @@ func (s *Switch) rebuild() {
 	s.track.BorderWidth = 0
 	s.track.Padding = primitive.EdgeInsets{Left: s.pad, Top: s.pad, Right: s.pad, Bottom: s.pad}
 
-	s.Root = primitive.NewPressable(s.track)
+	if s.Root == nil {
+		s.Root = primitive.NewPressable(s.track)
+	} else {
+		s.Root.ClearChildren()
+		s.Root.AddChild(s.track)
+	}
 	s.Root.Focusable = true
 	s.Root.ShowFocusRing = false          // Ant: no focus ring on switch
 	s.Root.FocusRingRadius = s.trackH / 2 // pill: same-shape ripple (full round ends)
@@ -265,15 +270,23 @@ func (s *Switch) applyThumbPad(t float64) {
 	}
 	left := leftOff + (leftOn-leftOff)*t
 	s.track.Padding = primitive.EdgeInsets{Left: left, Top: s.pad, Right: s.pad, Bottom: s.pad}
-	// Local remeasure of fixed-size track only — never MarkNeedsLayout (that bubbles
-	// past RepaintBoundary and forces full-tree layout every tick → scroll thumb jump).
-	if s.track.Width > 0 && s.track.Height > 0 {
-		_ = s.track.Layout(core.Tight(s.track.Width, s.track.Height))
-	}
-	s.track.MarkNeedsPaint()
+
+	// Drive thumb geometry in place. Do NOT rely on track.Layout alone:
+	// LayoutSkipIfClean skips when needsLayout=false and constraints match, so
+	// changing only Padding left the thumb Offset stuck (no visible slide).
+	// Also avoid MarkNeedsLayout — it bubbles past boundaries and thrashs scroll.
 	if s.thumb != nil {
+		s.thumb.Width = tw
+		s.thumb.MinWidth = tw
+		s.thumb.Height = s.thumbSize
+		s.thumb.MinHeight = s.thumbSize
+		s.thumb.Radius = s.thumbSize / 2
+		// Size may change (press stretch); constraints differ → Layout runs.
+		_ = s.thumb.Layout(core.Tight(tw, s.thumbSize))
+		s.thumb.Base().SetOffset(core.Point{X: left, Y: s.pad})
 		s.thumb.MarkNeedsPaint()
 	}
+	s.track.MarkNeedsPaint()
 	if s.Root != nil {
 		s.Root.MarkNeedsPaint()
 	}

@@ -15,6 +15,7 @@ type CollapsePanel struct {
 
 // Collapse is Ant Design Collapse (accordion).
 // https://ant.design/components/collapse
+// Root stays stable across expand/collapse so mounted trees update in place.
 type Collapse struct {
 	Root      *primitive.Flex
 	Panels    []CollapsePanel
@@ -63,7 +64,11 @@ func (c *Collapse) rebuild() {
 	if c.Theme != nil {
 		th = c.Theme
 	}
-	c.Root = primitive.Column()
+	if c.Root == nil {
+		c.Root = primitive.Column()
+	} else {
+		c.Root.ClearChildren()
+	}
 	c.Root.Gap = 8
 	c.Root.CrossAlign = core.CrossStretch
 	for _, p := range c.Panels {
@@ -97,9 +102,6 @@ func (c *Collapse) rebuild() {
 				}
 				c.OnChange(keys)
 			}
-			if c.Root != nil {
-				c.Root.MarkNeedsLayout()
-			}
 		}
 		shell := primitive.NewDecorated(head)
 		shell.BorderWidth = 1
@@ -116,4 +118,6 @@ func (c *Collapse) rebuild() {
 		col.Gap = 0
 		c.Root.AddChild(col)
 	}
+	c.Root.MarkNeedsLayout()
+	c.Root.MarkNeedsPaint()
 }

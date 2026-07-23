@@ -1,5 +1,7 @@
 package core
 
+import "time"
+
 // NotifyItem is one toast/message entry (C-NotifyQueue).
 type NotifyItem struct {
 	ID      string
@@ -8,7 +10,9 @@ type NotifyItem struct {
 	Kind string
 	// DurationMs 0 = sticky until close.
 	DurationMs int
-	// CreatedAt frame counter or host time optional — host may expire.
+	// CreatedAtMs wall clock (Unix milli); set on Push if zero. Used by Expire.
+	CreatedAtMs int64
+	// Seq is a monotonic sequence number for ordering.
 	Seq int
 }
 
@@ -48,6 +52,9 @@ func (q *NotifyQueue) Push(it NotifyItem) string {
 		it.ID = formatOverlayID(q.seq) // reuse small id helper
 	}
 	it.Seq = q.seq
+	if it.CreatedAtMs == 0 {
+		it.CreatedAtMs = time.Now().UnixMilli()
+	}
 	q.items = append(q.items, it)
 	for len(q.items) > q.max {
 		q.items = q.items[1:]
@@ -91,4 +98,35 @@ func (q *NotifyQueue) Len() int {
 		return 0
 	}
 	return len(q.items)
+}
+
+// Expire removes items whose DurationMs has elapsed since CreatedAtMs.
+// DurationMs <= 0 means sticky. nowMs <= 0 uses time.Now(). Returns true if any removed.
+func (q *NotifyQueue) Expire(nowMs int64) bool {
+	if q == nil || len(q.items) == 0 {
+		return false
+	}
+	if nowMs <= 0 {
+		nowMs = time.Now().UnixMilli()
+	}
+	n := q.items[:0]
+	changed := false
+	for _, it := range q.items {
+		if it.DurationMs > 0 && it.CreatedAtMs > 0 && nowMs-it.CreatedAtMs >= int64(it.DurationMs) {
+			changed = true
+			continue
+		}
+		n = append(n, it)
+	}
+	if !changed {
+		return false
+	}
+	for i := len(n); i < len(q.items); i++ {
+		q.items[i] = NotifyItem{}
+	}
+	q.items = n
+	if q.OnChange != nil {
+		q.OnChange()
+	}
+	return true
 }

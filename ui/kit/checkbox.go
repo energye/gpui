@@ -180,7 +180,12 @@ func (c *Checkbox) rebuild() {
 	row.Gap = gap
 	row.CrossAlign = core.CrossCenter
 
-	c.Root = primitive.NewPressable(row)
+	if c.Root == nil {
+		c.Root = primitive.NewPressable(row)
+	} else {
+		c.Root.ClearChildren()
+		c.Root.AddChild(row)
+	}
 	c.Root.Focusable = true
 	c.Root.ShowFocusRing = false // Ant: no mouse-focus outline on checkbox
 	c.Root.FocusRingRadius = th.SizeOr(core.TokenBorderRadiusSM, 4)

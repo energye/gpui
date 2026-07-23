@@ -95,7 +95,12 @@ func (t *Tag) rebuild() {
 		row.AddChild(x.Node())
 	}
 
-	t.Root = primitive.NewDecorated(row)
+	if t.Root == nil {
+		t.Root = primitive.NewDecorated(row)
+	} else {
+		t.Root.ClearChildren()
+		t.Root.AddChild(row)
+	}
 	t.Root.Padding = primitive.Symmetric(7, 1)
 	t.Root.Radius = th.SizeOr(core.TokenBorderRadiusSM, 4)
 	if t.Bordered {
@@ -108,4 +113,6 @@ func (t *Tag) rebuild() {
 		t.Root.Background = th.Color(core.TokenColorBgContainer)
 	}
 	t.Root.Hit = core.HitDefer
+	t.Root.MarkNeedsLayout()
+	t.Root.MarkNeedsPaint()
 }

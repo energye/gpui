@@ -8,58 +8,86 @@ import (
 
 // Popconfirm is Popover + confirm/cancel (simplified).
 // https://ant.design/components/popconfirm
+// Open state lives on embedded *Popover (no shadowing Open field).
 type Popconfirm struct {
 	*Popover
 	Title     string
-	Open      bool
 	OnConfirm func()
 	OnCancel  func()
 	Face      text.Face
+	titleLab  *primitive.Text
+	okBtn     *Button
+	cancelBtn *Button
 }
 
-// NewPopconfirm wraps trigger with confirm UI.
+// NewPopconfirm wraps trigger with confirm UI (title + OK/Cancel).
 func NewPopconfirm(trigger core.Node, title string) *Popconfirm {
+	if title == "" {
+		title = "Are you sure?"
+	}
 	pc := &Popconfirm{Title: title}
-	body := primitive.Column()
-	lab := primitive.NewText(title)
-	lab.FontSize = 14
-	ok := NewButton("OK")
-	ok.SetType(ButtonPrimary)
-	ok.SetOnClick(func() {
+
+	pc.titleLab = primitive.NewText(title)
+	pc.titleLab.FontSize = 14
+	// Explicit color so theme/dark paths never leave A=0 invisible text.
+	pc.titleLab.Color = DefaultTheme().Color(core.TokenColorText)
+
+	pc.okBtn = NewButton("OK")
+	pc.okBtn.SetType(ButtonPrimary)
+	pc.okBtn.SetOnClick(func() {
 		if pc.OnConfirm != nil {
 			pc.OnConfirm()
 		}
-		if pc.Popover != nil {
-			pc.Popover.SetOpen(false)
-		}
+		pc.SetOpen(false)
 	})
-	cancel := NewButton("Cancel")
-	cancel.SetOnClick(func() {
+	pc.cancelBtn = NewButton("Cancel")
+	pc.cancelBtn.SetOnClick(func() {
 		if pc.OnCancel != nil {
 			pc.OnCancel()
 		}
-		if pc.Popover != nil {
-			pc.Popover.SetOpen(false)
-		}
+		pc.SetOpen(false)
 	})
-	row := primitive.Row(cancel.Node(), ok.Node())
+	row := primitive.Row(pc.cancelBtn.Node(), pc.okBtn.Node())
 	row.Gap = 8
-	body.AddChild(lab)
-	body.AddChild(row)
+	body := primitive.Column(pc.titleLab, row)
 	body.Gap = 12
+	body.CrossAlign = core.CrossStart
+
 	pc.Popover = NewPopover(trigger, body)
 	return pc
 }
 
 // SetOpen shows/hides the confirm popup.
 func (p *Popconfirm) SetOpen(open bool) {
-	p.Open = open
-	if p.Popover != nil {
-		p.Popover.SetOpen(open)
+	if p == nil || p.Popover == nil {
+		return
+	}
+	p.Popover.SetOpen(open)
+}
+
+// SetFace sets font on title and footer buttons.
+func (p *Popconfirm) SetFace(face text.Face) {
+	if p == nil {
+		return
+	}
+	p.Face = face
+	if p.titleLab != nil {
+		p.titleLab.Face = face
+		p.titleLab.MarkNeedsLayout()
+		p.titleLab.MarkNeedsPaint()
+	}
+	if p.okBtn != nil {
+		p.okBtn.SetFace(face)
+	}
+	if p.cancelBtn != nil {
+		p.cancelBtn.SetFace(face)
 	}
 }
 
-// SetFace sets font on buttons/title via rebuild of popover content (best-effort).
-func (p *Popconfirm) SetFace(face text.Face) {
-	p.Face = face
+// Node returns the composed control (trigger + portal).
+func (p *Popconfirm) Node() core.Node {
+	if p == nil || p.Popover == nil {
+		return nil
+	}
+	return p.Popover.Node()
 }

@@ -81,10 +81,15 @@ func (s *Steps) rebuild() {
 		th = s.Theme
 	}
 	vertical := s.Direction == "vertical"
-	if vertical {
-		s.Root = primitive.Column()
+	if s.Root == nil {
+		if vertical {
+			s.Root = primitive.Column()
+		} else {
+			s.Root = primitive.Row()
+		}
 	} else {
-		s.Root = primitive.Row()
+		s.Root.ClearChildren()
+		// Axis cannot change in place; rebuild only clears children.
 	}
 	s.Root.Gap = 8
 	s.Root.CrossAlign = core.CrossCenter

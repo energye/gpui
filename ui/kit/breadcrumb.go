@@ -59,7 +59,11 @@ func (b *Breadcrumb) rebuild() {
 	if sepStr == "" {
 		sepStr = "/"
 	}
-	b.Root = primitive.Row()
+	if b.Root == nil {
+		b.Root = primitive.Row()
+	} else {
+		b.Root.ClearChildren()
+	}
 	b.Root.Gap = 4
 	b.Root.CrossAlign = core.CrossCenter
 	for i, it := range b.Items {

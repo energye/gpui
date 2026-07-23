@@ -59,7 +59,10 @@ func ctlTab(key, label string) kit.MenuItem {
 //	Divider / Flex / ...
 //
 // Every selectable control has its own tab content.
-func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, buttons *[]*kit.Button, tickers *[]interface{ AttachTicker(*core.Tree) }) (
+// msgHost is app-level Message/Notification portal (Ant App pattern). Must stay
+// mounted under the window root — not only inside a tab panel — or toasts never show
+// when the Message tab content is inactive / unmounted.
+func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, buttons *[]*kit.Button, tickers *[]interface{ AttachTicker(*core.Tree) }, msgHost *kit.MessageHost) (
 	items []kit.MenuItem, contents map[string]core.Node, modal *kit.Modal,
 ) {
 	contents = make(map[string]core.Node)
@@ -371,12 +374,15 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	*buttons = append(*buttons, openD)
 	add("drawer", "Drawer", "Feedback · Drawer", openD.Node(), drawer.Node())
 
-	msg := kit.NewMessageHost()
+	if msgHost == nil {
+		msgHost = kit.NewMessageHost()
+	}
 	msgBtn := kit.NewButton("Info message")
 	msgBtn.SetFace(face)
-	msgBtn.SetOnClick(func() { msg.Info("hello"); *status = "message" })
+	msgBtn.SetOnClick(func() { msgHost.Info("hello"); *status = "message" })
 	*buttons = append(*buttons, msgBtn)
-	add("message", "Message", "Feedback · Message", msgBtn.Node(), msg.Node())
+	// Portal is mounted at app root (main.go); only the trigger lives in this tab.
+	add("message", "Message", "Feedback · Message", msgBtn.Node())
 
 	modal = kit.NewModal("Confirm")
 	modal.SetFace(face)
@@ -390,18 +396,23 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	*buttons = append(*buttons, openM)
 	add("modal", "Modal", "Feedback · Modal", openM.Node(), modal.Node())
 
-	// Notification shares MessageHost queue
-	nHost := kit.NewMessageHost()
+	// Notification uses the same app-level MessageHost (Ant notification queue).
 	nBtn := kit.NewButton("Notify")
 	nBtn.SetFace(face)
-	nBtn.SetOnClick(func() { nHost.Notification("Title", "body"); *status = "notify" })
+	nBtn.SetOnClick(func() { msgHost.Notification("Title", "body"); *status = "notify" })
 	*buttons = append(*buttons, nBtn)
-	add("notification", "Notification", "Feedback · Notification", nBtn.Node(), nHost.Node())
+	add("notification", "Notification", "Feedback · Notification", nBtn.Node())
 
-	pc := kit.NewPopconfirm(kit.NewButton("Popconfirm").Node(), "Are you sure?")
+	pcTrig := kit.NewButton("Popconfirm")
+	pcTrig.SetFace(face)
+	pc := kit.NewPopconfirm(pcTrig.Node(), "Are you sure?")
+	pc.SetFace(face)
+	*buttons = append(*buttons, pcTrig)
 	add("popconfirm", "Popconfirm", "Feedback · Popconfirm", pc.Node())
 
 	prog := kit.NewProgress(60)
+	prog.Width = 280
+	prog.ShowInfo = true
 	add("progress", "Progress", "Feedback · Progress", prog.Node())
 
 	res := kit.NewResult("success", "Success", "All good")

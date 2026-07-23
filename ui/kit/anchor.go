@@ -77,7 +77,11 @@ func (a *Anchor) SyncFromScroll() {
 
 func (a *Anchor) rebuild() {
 	th := DefaultTheme()
-	a.Root = primitive.Column()
+	if a.Root == nil {
+		a.Root = primitive.Column()
+	} else {
+		a.Root.ClearChildren()
+	}
 	a.Root.Gap = 4
 	for _, it := range a.Items {
 		it := it

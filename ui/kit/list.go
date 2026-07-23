@@ -7,6 +7,7 @@ import (
 )
 
 // List is a simple vertical list (non-virtual or virtual for large N).
+// Root stays stable across rebuild so parent-mounted trees keep working.
 type List struct {
 	Root       *primitive.Decorated
 	scroll     *primitive.ScrollViewport
@@ -63,13 +64,14 @@ func (l *List) theme() *core.Theme {
 
 func (l *List) rebuild() {
 	th := l.theme()
+	var body core.Node
 	if l.Virtual {
 		l.vlist = primitive.NewVirtualList(l.ItemHeight, func(i int) core.Node {
 			return l.itemNode(i)
 		})
 		l.vlist.ItemCount = len(l.Items)
 		l.vlist.Height = 200
-		l.Root = primitive.NewDecorated(l.vlist)
+		body = l.vlist
 	} else {
 		col := primitive.Column()
 		col.Gap = 0
@@ -78,13 +80,21 @@ func (l *List) rebuild() {
 		}
 		l.scroll = primitive.NewScrollViewport(col)
 		l.scroll.Height = 200
-		l.Root = primitive.NewDecorated(l.scroll)
+		body = l.scroll
+	}
+	if l.Root == nil {
+		l.Root = primitive.NewDecorated(body)
+	} else {
+		l.Root.ClearChildren()
+		l.Root.AddChild(body)
 	}
 	l.Root.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 	l.Root.BorderColor = th.Color(core.TokenColorBorder)
 	l.Root.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	l.Root.Padding = primitive.All(4)
 	l.Root.Background = th.Color(core.TokenColorBgContainer)
+	l.Root.MarkNeedsLayout()
+	l.Root.MarkNeedsPaint()
 }
 
 func (l *List) itemNode(i int) core.Node {

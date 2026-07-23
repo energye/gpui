@@ -200,7 +200,12 @@ func (r *Radio) rebuild() {
 	row := primitive.Row(r.dot, r.label)
 	row.Gap = gap
 	row.CrossAlign = core.CrossCenter
-	r.Root = primitive.NewPressable(row)
+	if r.Root == nil {
+		r.Root = primitive.NewPressable(row)
+	} else {
+		r.Root.ClearChildren()
+		r.Root.AddChild(row)
+	}
 	r.Root.Focusable = true
 	r.Root.ShowFocusRing = false      // Ant: no mouse-focus outline on radio
 	r.Root.FocusRingRadius = size / 2 // circular indicator-led soft corner for row

@@ -128,7 +128,11 @@ func main() {
 	var buttons []*kit.Button
 	var tickers []interface{ AttachTicker(*core.Tree) }
 	status := "ready — catalog"
-	items, panels, modal := buildCatalogPanels(face, theme, &status, &buttons, &tickers)
+	// App-level notify host (Ant App): must remain mounted for Message/Notification.
+	msgHost := kit.NewMessageHost()
+	msgHost.Face = face
+	msgHost.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
+	items, panels, modal := buildCatalogPanels(face, theme, &status, &buttons, &tickers, msgHost)
 
 	tabs := kit.NewTabs(items...)
 	tabs.Face = face
@@ -151,7 +155,8 @@ func main() {
 	statusTx.SetSecondary(true)
 
 	tabsHost := primitive.NewFlexible(1, tabs.Node())
-	col := primitive.Column(title.Node(), hint.Node(), tabsHost, statusTx.Node())
+	// msgHost.Node() is a zero-size OverlayPortal placeholder; keep mounted at root.
+	col := primitive.Column(title.Node(), hint.Node(), tabsHost, statusTx.Node(), msgHost.Node())
 	col.Gap = 12
 	col.MainAlign = core.MainStart
 	col.CrossAlign = core.CrossStretch
@@ -189,6 +194,9 @@ func main() {
 			if modal != nil {
 				modal.Viewport = core.Size{Width: float64(w), Height: float64(h)}
 			}
+			if msgHost != nil {
+				msgHost.Viewport = core.Size{Width: float64(w), Height: float64(h)}
+			}
 			root.MarkNeedsLayout()
 		},
 		OnUpdate: func(dt float64) {
@@ -197,6 +205,9 @@ func main() {
 			}
 			if modal != nil {
 				modal.Sync()
+			}
+			if msgHost != nil {
+				msgHost.Sync()
 			}
 			if status != lastStatus {
 				statusTx.SetValue("status: " + status)

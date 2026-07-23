@@ -6,7 +6,6 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
-// TabPosition places the tab list (Ant: top | left).
 // MessageHost renders a NotifyQueue as stacked toasts (top-right).
 type MessageHost struct {
 	Portal   *primitive.OverlayPortal
@@ -74,13 +73,15 @@ func (h *MessageHost) Count() int {
 	return h.Queue.Len()
 }
 
-// Sync keeps portal open while items exist.
+// Sync expires timed toasts and rebuilds the toast list.
 func (h *MessageHost) Sync() {
-	if h.Portal == nil {
+	if h == nil {
 		return
 	}
+	if h.Queue != nil {
+		h.Queue.Expire(0)
+	}
 	h.refresh()
-	h.Portal.SetOpen(h.Queue.Len() > 0)
 }
 
 func (h *MessageHost) theme() *core.Theme {
@@ -91,17 +92,29 @@ func (h *MessageHost) theme() *core.Theme {
 }
 
 func (h *MessageHost) rebuild() {
-	h.layer = &messageLayer{host: h}
-	h.layer.Init(h.layer)
-	h.layer.Hit = core.HitDefer
-	h.Portal = primitive.NewOverlayPortal(h.layer)
-	h.Portal.ID = "messages"
-	h.Portal.ZOrder = 600
+	if h.layer == nil {
+		h.layer = &messageLayer{host: h}
+		h.layer.Init(h.layer)
+		h.layer.Hit = core.HitDefer
+	}
+	if h.Portal == nil {
+		h.Portal = primitive.NewOverlayPortal(h.layer)
+		// Empty ID → unique auto-id so Message + Notification hosts do not clobber.
+		h.Portal.ID = ""
+		h.Portal.ZOrder = OverlayZMessage
+	} else {
+		h.Portal.Content = h.layer
+		h.Portal.ZOrder = OverlayZMessage
+	}
 	h.refresh()
 }
 
 func (h *MessageHost) refresh() {
+	if h == nil {
+		return
+	}
 	if h.layer == nil {
+		h.rebuild()
 		return
 	}
 	h.layer.ClearChildren()
@@ -129,28 +142,31 @@ func (h *MessageHost) refresh() {
 		default:
 			card.BorderColor = th.Color(core.TokenColorPrimary)
 		}
-		// close on click
 		id := it.ID
 		press := primitive.NewPressable(card)
 		press.Click = func() { h.Queue.Remove(id) }
 		col.AddChild(press)
 	}
 	h.layer.AddChild(col)
+	// Open portal whenever there are toasts (Info/Success/… only used to Push;
+	// without this the overlay never mounts and gallery looks "dead").
+	if h.Portal != nil {
+		h.Portal.SetOpen(h.Queue.Len() > 0)
+	}
+	h.layer.MarkNeedsLayout()
+	h.layer.MarkNeedsPaint()
 }
 
 func (l *messageLayer) TypeID() string { return "kit.MessageLayer" }
 
 func (l *messageLayer) Layout(c core.Constraints) core.Size {
-	vw, vh := c.MaxWidth, c.MaxHeight
-	if l.host != nil && l.host.Viewport.Width > 0 {
-		vw, vh = l.host.Viewport.Width, l.host.Viewport.Height
+	var portal *primitive.OverlayPortal
+	var vp core.Size
+	if l.host != nil {
+		portal = l.host.Portal
+		vp = l.host.Viewport
 	}
-	if vw >= core.Unbounded/2 {
-		vw = 800
-	}
-	if vh >= core.Unbounded/2 {
-		vh = 600
-	}
+	vw, vh := resolveOverlayViewport(vp, portal, c.MaxWidth, c.MaxHeight)
 	// content top-right
 	for _, child := range l.Children() {
 		sz := child.Layout(core.Loose(320, vh))

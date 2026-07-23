@@ -9,12 +9,15 @@ import (
 // Modal is a centered dialog over a mask (B3).
 //
 //	OverlayPortal
-//	  └─ Stack
-//	       Mask · Decorated(panel)
-//	            Flex(Column): title · content · footer
+//	  └─ FocusScope
+//	       └─ modalLayer: Mask · Decorated(panel)
+//
+// Portal/Scope stay stable across content rebuilds so open state is not lost
+// when SetFooterVisible / SetContent triggers rebuild.
 type Modal struct {
 	Portal    *primitive.OverlayPortal
 	Scope     *primitive.FocusScope
+	layer     *modalLayer
 	panel     *primitive.Decorated
 	title     *primitive.Text
 	bodySlot  *primitive.Slot
@@ -34,8 +37,7 @@ type Modal struct {
 	OnCancel      func()
 	// Content set via SetContent.
 	content core.Node
-	// prevFocus restored when the modal closes (focus trap).
-	prevFocus core.Node
+	trap    overlayFocusTrap
 }
 
 // NewModal creates a closed modal.
@@ -70,24 +72,27 @@ func (m *Modal) SetOpen(open bool) {
 	if m == nil {
 		return
 	}
+	if m.Portal == nil {
+		m.rebuild()
+	}
 	was := m.Open
 	m.Open = open
 	if m.Portal != nil {
 		m.Portal.SetOpen(open)
 	}
-	if m.Scope != nil {
-		m.Scope.Active = open
-		if open {
-			m.Scope.OnEscape = m.onEscape
-		} else {
-			m.Scope.OnEscape = nil
-		}
-	}
 	if open {
+		m.trap.wire(m.Scope, true, m.onEscape)
 		m.layoutPanel()
-		m.enterFocusTrap()
+		var prefer core.Node
+		if m.okBtn != nil {
+			prefer = m.okBtn.Root
+		}
+		m.trap.enter(m.Scope, m.Portal, prefer)
 	} else if was {
-		m.leaveFocusTrap()
+		m.trap.wire(m.Scope, false, nil)
+		m.trap.leave(m.Scope, m.Portal)
+	} else {
+		m.trap.wire(m.Scope, false, nil)
 	}
 }
 
@@ -102,59 +107,6 @@ func (m *Modal) onEscape() {
 	m.SetOpen(false)
 }
 
-func (m *Modal) enterFocusTrap() {
-	if m == nil || m.Scope == nil {
-		return
-	}
-	t := m.Scope.Tree()
-	if t == nil && m.Portal != nil {
-		t = m.Portal.Tree()
-	}
-	if t == nil {
-		return
-	}
-	m.prevFocus = t.Focus()
-	list := core.CollectFocusables(m.Scope)
-	if len(list) == 0 {
-		return
-	}
-	next := list[0]
-	if m.okBtn != nil && m.okBtn.Root != nil {
-		for _, n := range list {
-			if n == m.okBtn.Root {
-				next = n
-				break
-			}
-		}
-	}
-	t.SetFocus(next)
-}
-
-func (m *Modal) leaveFocusTrap() {
-	if m == nil {
-		return
-	}
-	var t *core.Tree
-	if m.Scope != nil {
-		t = m.Scope.Tree()
-	}
-	if t == nil && m.Portal != nil {
-		t = m.Portal.Tree()
-	}
-	prev := m.prevFocus
-	m.prevFocus = nil
-	if t == nil {
-		return
-	}
-	if prev != nil {
-		if f, ok := prev.(core.FocusTarget); ok && f.CanFocus() && prev.Base() != nil && prev.Base().Tree() == t {
-			t.SetFocus(prev)
-			return
-		}
-	}
-	t.SetFocus(nil)
-}
-
 // SetTitle updates the dialog title.
 func (m *Modal) SetTitle(title string) {
 	m.Title = title
@@ -166,8 +118,11 @@ func (m *Modal) SetTitle(title string) {
 	}
 }
 
-// SetFooterVisible shows or hides the OK/Cancel footer.
+// SetFooterVisible shows or hides the OK/Cancel footer without replacing the portal.
 func (m *Modal) SetFooterVisible(v bool) {
+	if m.FooterVisible == v {
+		return
+	}
 	m.FooterVisible = v
 	m.rebuild()
 }
@@ -269,25 +224,43 @@ func (m *Modal) rebuild() {
 		}
 	}
 
-	// Layer: full mask + centered panel via absolute offsets on a stack root
-	// Use a custom root node that sizes to viewport in overlay layout.
-	layer := &modalLayer{mask: mask, panel: m.panel, modal: m}
-	layer.Init(layer)
-	layer.Hit = core.HitDefer
-	layer.AddChild(mask)
-	layer.AddChild(m.panel)
-
-	m.Scope = primitive.NewFocusScope(layer)
-	m.Scope.Active = m.Open
-	if m.Open {
-		m.Scope.OnEscape = m.onEscape
+	// Keep layer/portal identity stable when already built (open rebuild safe).
+	if m.layer == nil {
+		m.layer = &modalLayer{modal: m}
+		m.layer.Init(m.layer)
+		m.layer.Hit = core.HitDefer
+		m.layer.Role = "dialog"
+		m.layer.Label = m.Title
 	}
-	m.Portal = primitive.NewOverlayPortal(m.Scope)
-	m.Portal.ID = "modal"
-	m.Portal.ZOrder = 500
-	m.Portal.SetContentOffset(core.Point{})
+	m.layer.mask = mask
+	m.layer.panel = m.panel
+	m.layer.ClearChildren()
+	m.layer.AddChild(mask)
+	m.layer.AddChild(m.panel)
+
+	if m.Scope == nil {
+		m.Scope = primitive.NewFocusScope(m.layer)
+	} else {
+		// FocusScope content is the layer; layer children already refreshed.
+	}
+	m.trap.wire(m.Scope, m.Open, m.onEscape)
+
+	if m.Portal == nil {
+		m.Portal = primitive.NewOverlayPortal(m.Scope)
+		// Intentional singleton id for one Modal per app shell; multi-instance apps
+		// can assign Portal.ID after NewModal.
+		m.Portal.ID = "modal"
+		m.Portal.ZOrder = OverlayZModal
+		m.Portal.SetContentOffset(core.Point{})
+	} else {
+		// Content pointer may already be Scope; ensure portal still points at it.
+		m.Portal.Content = m.Scope
+		m.Portal.ZOrder = OverlayZModal
+	}
 	if m.Open {
 		m.Portal.SetOpen(true)
+		m.layer.MarkNeedsLayout()
+		m.layer.MarkNeedsPaint()
 	}
 }
 
@@ -332,6 +305,9 @@ func (m *Modal) layoutPanel() {
 	_ = x
 	_ = y
 	// offsets set in modalLayer.Layout
+	if m.layer != nil {
+		m.layer.MarkNeedsLayout()
+	}
 }
 
 // modalLayer lays out mask fullscreen and centers panel.
@@ -345,36 +321,28 @@ type modalLayer struct {
 func (l *modalLayer) TypeID() string { return "kit.ModalLayer" }
 
 func (l *modalLayer) Layout(c core.Constraints) core.Size {
-	vw, vh := c.MaxWidth, c.MaxHeight
-	if l.modal != nil && l.modal.Viewport.Width > 0 && l.modal.Viewport.Height > 0 {
-		vw, vh = l.modal.Viewport.Width, l.modal.Viewport.Height
-	} else if l.modal != nil {
-		// Fall back to tree viewport so mask still covers full client when host
-		// forgets to set Modal.Viewport (Ant: mask = full window).
-		if t := l.Tree(); t != nil {
-			tv := t.Viewport()
-			if tv.Width > 0 && tv.Height > 0 {
-				vw, vh = tv.Width, tv.Height
-			}
-		}
+	var portal *primitive.OverlayPortal
+	var vp core.Size
+	if l.modal != nil {
+		portal = l.modal.Portal
+		vp = l.modal.Viewport
 	}
-	if vw >= core.Unbounded/2 || vw <= 0 {
-		vw = 800
+	vw, vh := resolveOverlayViewport(vp, portal, c.MaxWidth, c.MaxHeight)
+	if l.mask != nil {
+		l.mask.Width, l.mask.Height = vw, vh
+		_ = l.mask.Layout(core.Tight(vw, vh))
+		l.mask.SetOffset(core.Point{})
 	}
-	if vh >= core.Unbounded/2 || vh <= 0 {
-		vh = 600
-	}
-	l.mask.Width, l.mask.Height = vw, vh
-	_ = l.mask.Layout(core.Tight(vw, vh))
-	l.mask.SetOffset(core.Point{})
 
-	w := l.modal.Width
-	if w <= 0 {
-		w = 480
+	w := 480.0
+	if l.modal != nil && l.modal.Width > 0 {
+		w = l.modal.Width
 	}
-	_ = l.panel.Layout(core.Constraints{MaxWidth: w, MaxHeight: vh * 0.9, MinWidth: w})
-	pw, ph := l.panel.Size().Width, l.panel.Size().Height
-	l.panel.SetOffset(core.Point{X: (vw - pw) / 2, Y: (vh - ph) / 2})
+	if l.panel != nil {
+		_ = l.panel.Layout(core.Constraints{MaxWidth: w, MaxHeight: vh * 0.9, MinWidth: w})
+		pw, ph := l.panel.Size().Width, l.panel.Size().Height
+		l.panel.SetOffset(core.Point{X: (vw - pw) / 2, Y: (vh - ph) / 2})
+	}
 	out := core.Size{Width: vw, Height: vh}
 	l.SetSize(out)
 	return out

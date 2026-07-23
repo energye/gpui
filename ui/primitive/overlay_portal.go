@@ -1,10 +1,27 @@
 package primitive
 
-import "github.com/energye/gpui/ui/core"
+import (
+	"fmt"
+	"sync/atomic"
+
+	"github.com/energye/gpui/ui/core"
+)
+
+// portalSeq allocates unique OverlayPortal IDs when callers leave ID empty.
+// Fixed IDs ("modal", "drawer") remain for intentional singletons.
+var portalSeq atomic.Uint64
+
+func nextPortalID() string {
+	return fmt.Sprintf("portal-%d", portalSeq.Add(1))
+}
 
 // OverlayPortal teleports content into the tree OverlayHost when Open (C-PortalHost).
 // The portal node itself has zero size in the main tree; content is laid out/painted
 // via Tree.Overlays().
+//
+// ID: empty → assigned a unique stable id on first push (never collapses to a shared
+// "portal" string that would clobber concurrent Tooltip/Select/Message overlays).
+// Explicit IDs (e.g. "modal") replace by design (one instance per id).
 type OverlayPortal struct {
 	core.NodeBase
 
@@ -62,6 +79,10 @@ func (p *OverlayPortal) OnUnmount() {
 // SetOpen toggles visibility in the overlay host.
 func (p *OverlayPortal) SetOpen(open bool) {
 	if p.Open == open {
+		// Still re-sync offset/content when staying open (anchor moves).
+		if open {
+			p.syncHost()
+		}
 		return
 	}
 	p.Open = open
@@ -98,15 +119,13 @@ func (p *OverlayPortal) syncHost() {
 	// (content is not under root; without mount, chrome never repaints in overlays).
 	t.AttachSubtree(p.Content)
 	p.Content.Base().SetOffset(p.ContentOffset)
-	id := p.ID
-	if id == "" {
-		id = "portal"
+	if p.ID == "" {
+		p.ID = nextPortalID()
 	}
 	t.Overlays().Push(core.OverlayEntry{
-		ID: id, Node: p.Content, ZOrder: p.ZOrder,
+		ID: p.ID, Node: p.Content, ZOrder: p.ZOrder,
 	})
 	p.pushed = true
-	p.ID = id
 }
 
 func (p *OverlayPortal) removeHost() {

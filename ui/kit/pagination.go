@@ -9,6 +9,7 @@ import (
 )
 
 // Pagination is page navigation controls.
+// Root stays stable across page changes so mounted trees update in place.
 type Pagination struct {
 	Root            *primitive.Flex
 	Current         int
@@ -124,7 +125,17 @@ func (p *Pagination) rebuild() {
 		nums.AddChild(b.Node())
 	}
 
-	p.Root = primitive.Row(prev.Node(), nums, next.Node(), info)
+	if p.Root == nil {
+		p.Root = primitive.Row()
+	} else {
+		p.Root.ClearChildren()
+	}
+	p.Root.AddChild(prev.Node())
+	p.Root.AddChild(nums)
+	p.Root.AddChild(next.Node())
+	p.Root.AddChild(info)
 	p.Root.Gap = 8
 	p.Root.CrossAlign = core.CrossCenter
+	p.Root.MarkNeedsLayout()
+	p.Root.MarkNeedsPaint()
 }

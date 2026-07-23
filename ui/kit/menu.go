@@ -22,6 +22,7 @@ func (it MenuItem) Selectable() bool {
 }
 
 // Menu is a vertical list of selectable items with keyboard nav (B3 base).
+// Root stays stable across select rebuilds (Dropdown popup content stays live).
 type Menu struct {
 	Root     *primitive.Decorated
 	list     *primitive.Flex
@@ -99,11 +100,18 @@ func (m *Menu) rebuild() {
 		}
 		m.list.AddChild(row)
 	}
-	m.Root = primitive.NewDecorated(m.list)
+	if m.Root == nil {
+		m.Root = primitive.NewDecorated(m.list)
+	} else {
+		m.Root.ClearChildren()
+		m.Root.AddChild(m.list)
+	}
 	m.Root.Padding = primitive.All(4)
 	m.Root.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	m.Root.Background = th.Color(core.TokenColorBgContainer)
 	m.Root.BorderWidth = 1
 	m.Root.BorderColor = th.Color(core.TokenColorBorder)
 	m.Root.MinWidth = 160
+	m.Root.MarkNeedsLayout()
+	m.Root.MarkNeedsPaint()
 }

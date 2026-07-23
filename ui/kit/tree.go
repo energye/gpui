@@ -15,6 +15,7 @@ type TreeNode struct {
 }
 
 // Tree is an expandable tree (B4 base, non-virtual).
+// Root stays stable across expand/select rebuilds.
 type Tree struct {
 	Root     *primitive.Decorated
 	col      *primitive.Flex
@@ -118,12 +119,19 @@ func (tr *Tree) rebuild() {
 	for _, n := range tr.Nodes {
 		tr.addNode(tr.col, n, 0)
 	}
-	tr.Root = primitive.NewDecorated(tr.col)
+	if tr.Root == nil {
+		tr.Root = primitive.NewDecorated(tr.col)
+	} else {
+		tr.Root.ClearChildren()
+		tr.Root.AddChild(tr.col)
+	}
 	tr.Root.Padding = primitive.All(4)
 	tr.Root.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)
 	tr.Root.BorderColor = th.Color(core.TokenColorBorder)
 	tr.Root.Radius = th.SizeOr(core.TokenBorderRadius, 6)
 	tr.Root.Background = th.Color(core.TokenColorBgContainer)
+	tr.Root.MarkNeedsLayout()
+	tr.Root.MarkNeedsPaint()
 }
 
 func (tr *Tree) addNode(parent *primitive.Flex, n *TreeNode, depth int) {

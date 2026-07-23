@@ -17,9 +17,11 @@ type TourStep struct {
 	Target core.Rect
 }
 
-// Tour is a minimal multi-step spotlight tour (M5 lite).
+// Tour is a multi-step spotlight tour (M5 lite).
+// Portal/Scope are stable across step changes (rebuild only refreshes layer content).
 type Tour struct {
 	Portal   *primitive.OverlayPortal
+	Scope    *primitive.FocusScope
 	Steps    []TourStep
 	Index    int
 	Open     bool
@@ -30,12 +32,13 @@ type Tour struct {
 	OnChange func(index int)
 
 	layer *tourLayer
+	trap  overlayFocusTrap
 }
 
 // NewTour creates a closed tour.
 func NewTour(steps ...TourStep) *Tour {
 	t := &Tour{Steps: steps}
-	t.rebuild()
+	t.ensureShell()
 	return t
 }
 
@@ -47,24 +50,47 @@ type tourLayer struct {
 
 // Node returns the portal node.
 func (t *Tour) Node() core.Node {
-	if t.Portal == nil {
-		t.rebuild()
+	if t == nil {
+		return nil
 	}
+	t.ensureShell()
 	return t.Portal
 }
 
-// SetOpen shows/hides the tour.
+// SetOpen shows/hides the tour. Esc / mask click ends the tour (focus trap while open).
 func (t *Tour) SetOpen(open bool) {
+	if t == nil {
+		return
+	}
+	t.ensureShell()
+	was := t.Open
 	t.Open = open
 	if t.Portal != nil {
 		t.Portal.SetOpen(open)
 	}
-	if !open && t.OnClose != nil {
-		t.OnClose()
+	if open {
+		t.layer.MarkNeedsLayout()
+		t.trap.wire(t.Scope, true, t.onEscape)
+		t.trap.enter(t.Scope, t.Portal, nil)
+	} else {
+		t.trap.wire(t.Scope, false, nil)
+		if was {
+			t.trap.leave(t.Scope, t.Portal)
+			if t.OnClose != nil {
+				t.OnClose()
+			}
+		}
 	}
 }
 
-// SetCurrent jumps to step index.
+func (t *Tour) onEscape() {
+	if t == nil || !t.Open {
+		return
+	}
+	t.SetOpen(false)
+}
+
+// SetCurrent jumps to step index without replacing the portal (keeps overlay mounted).
 func (t *Tour) SetCurrent(i int) {
 	if i < 0 {
 		i = 0
@@ -79,10 +105,7 @@ func (t *Tour) SetCurrent(i int) {
 	if t.OnChange != nil {
 		t.OnChange(t.Index)
 	}
-	t.rebuild()
-	if t.Open && t.Portal != nil {
-		t.Portal.SetOpen(true)
-	}
+	t.invalidateStep()
 }
 
 // Next advances step.
@@ -92,8 +115,7 @@ func (t *Tour) Next() {
 		if t.OnChange != nil {
 			t.OnChange(t.Index)
 		}
-		t.rebuild()
-		t.Portal.SetOpen(true)
+		t.invalidateStep()
 	} else {
 		t.SetOpen(false)
 	}
@@ -106,14 +128,14 @@ func (t *Tour) Prev() {
 		if t.OnChange != nil {
 			t.OnChange(t.Index)
 		}
-		t.rebuild()
-		t.Portal.SetOpen(true)
+		t.invalidateStep()
 	}
 }
 
 // Sync repositions for viewport.
 func (t *Tour) Sync() {
 	if t.Open && t.Portal != nil {
+		t.layer.MarkNeedsLayout()
 		t.Portal.SetOpen(true)
 	}
 }
@@ -125,31 +147,51 @@ func (t *Tour) theme() *core.Theme {
 	return DefaultTheme()
 }
 
-func (t *Tour) rebuild() {
+// ensureShell builds a stable Portal/Scope/layer once.
+func (t *Tour) ensureShell() {
+	if t.Portal != nil && t.layer != nil && t.Scope != nil {
+		return
+	}
 	th := t.theme()
 	t.layer = &tourLayer{tour: t, theme: th}
 	t.layer.Init(t.layer)
 	t.layer.Hit = core.HitDefer
 	t.layer.Role = "dialog"
 	t.layer.Label = "Tour"
-	t.Portal = primitive.NewOverlayPortal(t.layer)
-	t.Portal.ID = "tour"
-	t.Portal.ZOrder = 700
+	t.Scope = primitive.NewFocusScope(t.layer)
+	t.trap.wire(t.Scope, t.Open, t.onEscape)
+	t.Portal = primitive.NewOverlayPortal(t.Scope)
+	t.Portal.ID = "" // unique auto-id
+	t.Portal.ZOrder = OverlayZTour
+	if t.Open {
+		t.Portal.SetOpen(true)
+	}
+}
+
+func (t *Tour) invalidateStep() {
+	t.ensureShell()
+	if t.layer != nil {
+		t.layer.MarkNeedsLayout()
+		t.layer.MarkNeedsPaint()
+	}
+	if t.Open && t.Portal != nil {
+		t.Portal.SetOpen(true)
+		if tr := t.Portal.Tree(); tr != nil {
+			tr.MarkDirty()
+		}
+	}
 }
 
 func (l *tourLayer) TypeID() string { return "kit.TourLayer" }
 
 func (l *tourLayer) Layout(c core.Constraints) core.Size {
-	vw, vh := c.MaxWidth, c.MaxHeight
-	if l.tour.Viewport.Width > 0 {
-		vw, vh = l.tour.Viewport.Width, l.tour.Viewport.Height
+	var portal *primitive.OverlayPortal
+	var vp core.Size
+	if l.tour != nil {
+		portal = l.tour.Portal
+		vp = l.tour.Viewport
 	}
-	if vw >= core.Unbounded/2 {
-		vw = 800
-	}
-	if vh >= core.Unbounded/2 {
-		vh = 600
-	}
+	vw, vh := resolveOverlayViewport(vp, portal, c.MaxWidth, c.MaxHeight)
 	l.ClearChildren()
 
 	// dim mask
@@ -167,7 +209,6 @@ func (l *tourLayer) Layout(c core.Constraints) core.Size {
 		target = l.tour.Steps[l.tour.Index].Target
 	}
 	if !target.Empty() {
-		// border around target
 		hole := primitive.NewDecorated()
 		hole.Width = target.Width()
 		hole.Height = target.Height()
@@ -223,7 +264,6 @@ func (l *tourLayer) Layout(c core.Constraints) core.Size {
 	panel.Background = l.theme.Color(core.TokenColorBgContainer)
 	panel.MinWidth = 280
 	_ = panel.Layout(core.Loose(320, vh))
-	// place below target or center
 	px := (vw - panel.Size().Width) / 2
 	py := vh * 0.6
 	if !target.Empty() {

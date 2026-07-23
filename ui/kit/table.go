@@ -141,8 +141,15 @@ func (t *Table) rebuild() {
 	frame.Radius = th.SizeOr(core.TokenBorderRadius, 6)
 	frame.Background = th.Color(core.TokenColorBgContainer)
 
-	t.Root = primitive.Column(frame)
+	if t.Root == nil {
+		t.Root = primitive.Column(frame)
+	} else {
+		t.Root.ClearChildren()
+		t.Root.AddChild(frame)
+	}
 	t.Root.CrossAlign = core.CrossStretch
+	t.Root.MarkNeedsLayout()
+	t.Root.MarkNeedsPaint()
 }
 
 func (t *Table) rowAt(i int) core.Node {

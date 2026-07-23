@@ -472,7 +472,7 @@ PressableState { Hovered, Pressed, Focused, Disabled }
 | Ant 组件 | 主要组合 | Pri |
 |----------|----------|-----|
 | **Alert** | Decorated + Flex + Icon + Text + 关闭 Pressable | P2 |
-| **Drawer** | OverlayPortal + 滑入面板 Box + Mask + FocusTrap | P3 |
+| **Drawer** | OverlayPortal + Mask + 侧栏 + FocusScope 陷阱 + Esc；**合成 §4.1**；Z=400 | P3 |
 | **Message** | PortalHost + **C-NotifyQueue** + 项 Decorated；C-Presence | P3 |
 | **Modal** | OverlayPortal + Mask + 居中面板 + FocusScope 陷阱 + Esc + 脚 Button；**合成须 §4.1 双带**；MaskClosable 默认 true | P3 |
 | **Notification** | 同 Message 角位置队列 | P3 |

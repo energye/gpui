@@ -144,7 +144,7 @@ func (p *Progress) rebuild() {
 	p.Root = primitive.NewDecorated(row)
 	p.Root.Base().Role = "progressbar"
 	p.Root.Base().Label = fmt.Sprintf("%.0f percent", p.Percent)
-	if p.Root != nil {
-		p.Root.SetRepaintBoundary(true)
-	}
+	// Not a RepaintBoundary: nested under ScrollViewport, SkipRepaintBoundaries
+	// would leave a hole and Progress can disappear until a full scroll re-raster.
+	// Progress updates are infrequent (SetPercent) — baking into parent is fine.
 }

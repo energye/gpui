@@ -9,6 +9,7 @@ import (
 
 // Rate is Ant Design Rate (star rating).
 // https://ant.design/components/rate
+// Root stays stable so star clicks update the mounted control.
 type Rate struct {
 	Root       *primitive.Flex
 	Value      int
@@ -75,7 +76,11 @@ func (r *Rate) rebuild() {
 	if r.Count <= 0 {
 		r.Count = 5
 	}
-	r.Root = primitive.Row()
+	if r.Root == nil {
+		r.Root = primitive.Row()
+	} else {
+		r.Root.ClearChildren()
+	}
 	r.Root.Gap = 4
 	r.Root.CrossAlign = core.CrossCenter
 	gold := render.Hex("#FADB14")
@@ -105,4 +110,6 @@ func (r *Rate) rebuild() {
 		}
 		r.Root.AddChild(p)
 	}
+	r.Root.MarkNeedsLayout()
+	r.Root.MarkNeedsPaint()
 }

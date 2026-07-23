@@ -182,9 +182,14 @@ func (s *Select) rebuild() {
 	s.popup = primitive.NewAnchoredPopup(panel)
 	s.popup.Placement = primitive.PlaceBottomStart
 	s.popup.Gap = 4
-	s.popup.Portal.ID = "select"
+	s.popup.Portal.ID = "" // auto-id; avoid clobber
 
-	s.Root = primitive.NewPressable(s.decor)
+	if s.Root == nil {
+		s.Root = primitive.NewPressable(s.decor)
+	} else {
+		s.Root.ClearChildren()
+		s.Root.AddChild(s.decor)
+	}
 	s.Root.Focusable = true
 	s.Root.FocusRingRadius = s.decor.Radius
 	s.Root.SetDisabled(s.Disabled)
@@ -214,8 +219,16 @@ func (s *Select) rebuild() {
 		s.SetOpen(!s.Open)
 	}
 
-	s.Wrap = primitive.Column(s.Root, s.popup)
+	if s.Wrap == nil {
+		s.Wrap = primitive.Column(s.Root, s.popup)
+	} else {
+		s.Wrap.ClearChildren()
+		s.Wrap.AddChild(s.Root)
+		s.Wrap.AddChild(s.popup)
+	}
 	s.Wrap.CrossAlign = core.CrossStart
+	s.Wrap.MarkNeedsLayout()
+	s.Wrap.MarkNeedsPaint()
 	s.refreshLabel()
 }
 

@@ -8,8 +8,10 @@ import (
 
 // Carousel is a simple horizontal page switcher.
 // https://ant.design/components/carousel
+// Root + slide slot stay stable; only the active slide child is swapped.
 type Carousel struct {
 	Root   *primitive.Flex
+	slot   *primitive.Slot
 	Slides []core.Node
 	Index  int
 	Face   text.Face
@@ -43,7 +45,7 @@ func (c *Carousel) SetIndex(i int) {
 		i = len(c.Slides) - 1
 	}
 	c.Index = i
-	c.rebuild()
+	c.applySlide()
 }
 
 // Next advances to the next slide.
@@ -56,10 +58,29 @@ func (c *Carousel) Prev() {
 	c.SetIndex(c.Index - 1)
 }
 
-func (c *Carousel) rebuild() {
-	slot := primitive.NewSlot("slide", nil)
+func (c *Carousel) applySlide() {
+	if c.slot == nil {
+		c.rebuild()
+		return
+	}
 	if len(c.Slides) > 0 {
-		slot.SetChild(c.Slides[c.Index])
+		c.slot.SetChild(c.Slides[c.Index])
+	} else {
+		c.slot.SetChild(nil)
+	}
+	if c.Root != nil {
+		c.Root.MarkNeedsLayout()
+		c.Root.MarkNeedsPaint()
+	}
+}
+
+func (c *Carousel) rebuild() {
+	if c.slot == nil {
+		c.slot = primitive.NewSlot("slide", nil)
+	}
+	c.applySlide()
+	if c.Root != nil {
+		return // shell already built
 	}
 	prev := NewButton("<")
 	prev.SetType(ButtonDefault)
@@ -69,7 +90,7 @@ func (c *Carousel) rebuild() {
 	next.SetOnClick(func() { c.Next() })
 	nav := primitive.Row(prev.Node(), next.Node())
 	nav.Gap = 8
-	c.Root = primitive.Column(slot, nav)
+	c.Root = primitive.Column(c.slot, nav)
 	c.Root.Gap = 8
 	c.Root.CrossAlign = core.CrossCenter
 }

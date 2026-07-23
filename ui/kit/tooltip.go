@@ -8,7 +8,7 @@ import (
 )
 
 // Tooltip shows title near a trigger on hover.
-// Call Sync() each frame (or after pointer dispatch) to open/close from hover.
+// Hover is wired via Pressable.OnStateChange; Sync may still be called each frame.
 type Tooltip struct {
 	Root     *primitive.Flex
 	shell    *primitive.Pressable
@@ -71,13 +71,15 @@ func (tt *Tooltip) rebuild(trigger core.Node) {
 	tt.Popup = primitive.NewAnchoredPopup(tt.Bubble)
 	tt.Popup.Placement = primitive.PlaceTop
 	tt.Popup.Gap = 6
-	tt.Popup.Portal.ID = "tooltip"
+	tt.Popup.Portal.ID = "" // auto-id; avoid clobber
 
 	if trigger == nil {
 		trigger = primitive.NewText("?")
 	}
 	tt.shell = primitive.NewPressable(trigger)
 	tt.shell.Focusable = false
+	// Open/close on hover without requiring host to remember Sync every frame.
+	tt.shell.OnStateChange = func() { tt.Sync() }
 
 	tt.Root = primitive.Column(tt.shell, tt.Popup)
 	tt.Root.CrossAlign = core.CrossStart

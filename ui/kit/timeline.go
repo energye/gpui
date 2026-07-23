@@ -55,7 +55,11 @@ func (tl *Timeline) rebuild() {
 	if tl.Theme != nil {
 		th = tl.Theme
 	}
-	tl.Root = primitive.Column()
+	if tl.Root == nil {
+		tl.Root = primitive.Column()
+	} else {
+		tl.Root.ClearChildren()
+	}
 	tl.Root.Gap = 0
 	tl.Root.CrossAlign = core.CrossStart
 	n := len(tl.Items)

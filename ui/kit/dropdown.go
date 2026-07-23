@@ -77,7 +77,7 @@ func (d *Dropdown) rebuild() {
 	d.popup = primitive.NewAnchoredPopup(d.menu.Node())
 	d.popup.Placement = primitive.PlaceBottomStart
 	d.popup.Gap = 4
-	d.popup.Portal.ID = "dropdown"
+	d.popup.Portal.ID = "" // auto-id; avoid clobber
 	d.Trigger.SetOnClick(func() { d.SetOpen(!d.Open) })
 	d.Wrap = primitive.Column(d.Trigger.Node(), d.popup)
 	d.Wrap.CrossAlign = core.CrossStart

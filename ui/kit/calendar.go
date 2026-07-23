@@ -12,6 +12,7 @@ import (
 
 // Calendar is a simple month grid (Ant Calendar simplified).
 // https://ant.design/components/calendar
+// Root stays stable across day/month navigation.
 type Calendar struct {
 	Root        *primitive.Flex
 	Year        int
@@ -95,9 +96,6 @@ func (c *Calendar) rebuild() {
 		}
 		c.Year, c.Month = y, m
 		c.rebuild()
-		if c.Root != nil {
-			c.Root.MarkNeedsLayout()
-		}
 	})
 	next := NewButton(">")
 	next.SetType(ButtonText)
@@ -111,9 +109,6 @@ func (c *Calendar) rebuild() {
 		}
 		c.Year, c.Month = y, m
 		c.rebuild()
-		if c.Root != nil {
-			c.Root.MarkNeedsLayout()
-		}
 	})
 	title := primitive.NewText(fmt.Sprintf("%d-%02d", c.Year, int(c.Month)))
 	title.FontSize = 16
@@ -183,9 +178,6 @@ func (c *Calendar) rebuild() {
 				c.OnSelect(d)
 			}
 			c.rebuild()
-			if c.Root != nil {
-				c.Root.MarkNeedsLayout()
-			}
 		}
 		row.AddChild(p)
 		cell++
@@ -197,8 +189,17 @@ func (c *Calendar) rebuild() {
 	if row != nil {
 		grid.AddChild(row)
 	}
-	c.Root = primitive.Column(titleRow, head, grid)
+	if c.Root == nil {
+		c.Root = primitive.Column()
+	} else {
+		c.Root.ClearChildren()
+	}
+	c.Root.AddChild(titleRow)
+	c.Root.AddChild(head)
+	c.Root.AddChild(grid)
 	c.Root.Gap = 8
 	c.Root.CrossAlign = core.CrossStart
 	c.Root.Padding = primitive.All(8)
+	c.Root.MarkNeedsLayout()
+	c.Root.MarkNeedsPaint()
 }

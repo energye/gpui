@@ -38,7 +38,8 @@ func NewAnchoredPopup(content core.Node) *AnchoredPopup {
 	a.Init(a)
 	a.Hit = core.HitTransparent
 	a.Portal = NewOverlayPortal(content)
-	a.Portal.ID = "anchored"
+	// Empty → unique auto-id on first push (concurrent popups must not clobber).
+	a.Portal.ID = ""
 	a.Portal.ZOrder = 200
 	a.AddChild(a.Portal)
 	return a

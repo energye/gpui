@@ -32,13 +32,25 @@ func (p *Popover) Node() core.Node {
 	return p.Root
 }
 
-// SetOpen forces open state.
+// SetOpen forces open state (same measure + Viewport path as click).
 func (p *Popover) SetOpen(open bool) {
 	p.Open = open
-	if p.Popup != nil {
-		p.Popup.UpdateAnchorFromNode(p.shell)
-		p.Popup.SetOpen(open)
+	if p.Popup == nil {
+		return
 	}
+	if open {
+		// Measure panel before open so AnchoredPopup reposition has size.
+		if p.Panel != nil {
+			_ = p.Panel.Layout(core.Loose(400, 400))
+		}
+		if p.shell != nil {
+			p.Popup.UpdateAnchorFromNode(p.shell)
+		}
+		if p.Viewport.Width > 0 {
+			p.Popup.Viewport = p.Viewport
+		}
+	}
+	p.Popup.SetOpen(open)
 }
 
 // Sync updates anchor while open.
@@ -77,7 +89,7 @@ func (p *Popover) rebuild(trigger core.Node) {
 	p.Popup = primitive.NewAnchoredPopup(p.Panel)
 	p.Popup.Placement = primitive.PlaceBottomStart
 	p.Popup.Gap = 8
-	p.Popup.Portal.ID = "popover"
+	p.Popup.Portal.ID = "" // auto id per instance (avoid clobbering other popovers)
 
 	if trigger == nil {
 		trigger = primitive.NewText("Popover")
@@ -86,8 +98,18 @@ func (p *Popover) rebuild(trigger core.Node) {
 	p.shell.Focusable = true
 	p.shell.Click = func() {
 		p.Open = !p.Open
+		// Measure panel content before open so AnchoredPopup reposition has size.
+		if p.Panel != nil {
+			_ = p.Panel.Layout(core.Loose(400, 400))
+		}
 		p.Popup.UpdateAnchorFromNode(p.shell)
+		if p.Viewport.Width > 0 {
+			p.Popup.Viewport = p.Viewport
+		}
 		p.Popup.SetOpen(p.Open)
+		if t := p.shell.Tree(); t != nil {
+			t.MarkDirty()
+		}
 	}
 
 	p.Root = primitive.Column(p.shell, p.Popup)

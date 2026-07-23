@@ -7,6 +7,7 @@ import (
 )
 
 // Cascader is a simplified multi-column cascade picker (B4 simplified).
+// Root stays stable when columns are added/removed on selection.
 type Cascader struct {
 	Root     *primitive.Flex
 	Columns  []*List
@@ -51,7 +52,11 @@ func (c *Cascader) GetValue() []string {
 }
 
 func (c *Cascader) rebuild() {
-	c.Root = primitive.Row()
+	if c.Root == nil {
+		c.Root = primitive.Row()
+	} else {
+		c.Root.ClearChildren()
+	}
 	c.Root.Gap = 8
 	// first column = roots
 	labels := make([]string, 0, len(c.Options))
@@ -73,12 +78,13 @@ func (c *Cascader) rebuild() {
 	}
 	c.Columns = []*List{col0}
 	c.Root.AddChild(col0.Node())
+	c.Root.MarkNeedsLayout()
+	c.Root.MarkNeedsPaint()
 }
 
 func (c *Cascader) showLevel(level int, nodes []*TreeNode) {
 	// trim extra columns
 	for len(c.Columns) > level {
-		// rebuild root from remaining columns
 		c.Columns = c.Columns[:level]
 	}
 	if len(nodes) == 0 {
@@ -115,9 +121,15 @@ func (c *Cascader) showLevel(level int, nodes []*TreeNode) {
 }
 
 func (c *Cascader) rebuildRootFromColumns() {
-	c.Root = primitive.Row()
+	if c.Root == nil {
+		c.Root = primitive.Row()
+	} else {
+		c.Root.ClearChildren()
+	}
 	c.Root.Gap = 8
 	for _, col := range c.Columns {
 		c.Root.AddChild(col.Node())
 	}
+	c.Root.MarkNeedsLayout()
+	c.Root.MarkNeedsPaint()
 }

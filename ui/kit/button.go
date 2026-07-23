@@ -277,7 +277,11 @@ func (b *Button) rebuild() {
 	b.label.FontSize = fontSize
 	b.label.Face = b.Face
 
-	b.row = primitive.Row()
+	if b.row == nil {
+		b.row = primitive.Row()
+	} else {
+		b.row.ClearChildren()
+	}
 	b.row.Gap = gap
 	b.row.CrossAlign = core.CrossCenter
 	b.row.MainAlign = core.MainCenter
@@ -303,7 +307,12 @@ func (b *Button) rebuild() {
 	}
 	b.row.AddChild(b.label)
 
-	b.decorated = primitive.NewDecorated(b.row)
+	if b.decorated == nil {
+		b.decorated = primitive.NewDecorated(b.row)
+	} else {
+		b.decorated.ClearChildren()
+		b.decorated.AddChild(b.row)
+	}
 	b.decorated.Padding = primitive.Symmetric(padH, padV)
 	b.decorated.Radius = radius
 	// Force exact Ant control height; center label/icon in chrome.
@@ -315,7 +324,13 @@ func (b *Button) rebuild() {
 		b.decorated.MinWidth = th.SizeOr(core.TokenControlHeight, 32) * 4
 	}
 
-	b.Root = primitive.NewPressable(b.decorated)
+	if b.Root == nil {
+		b.Root = primitive.NewPressable(b.decorated)
+	} else {
+		// Keep mounted Pressable; ensure decorated is its child.
+		b.Root.ClearChildren()
+		b.Root.AddChild(b.decorated)
+	}
 	b.Root.Focusable = true
 	b.Root.ShowFocusRing = true
 	b.Root.FocusRingRadius = radius
@@ -328,6 +343,8 @@ func (b *Button) rebuild() {
 
 	b.lastHovered, b.lastPressed, b.lastFocused = false, false, false
 	b.applyChrome()
+	b.Root.MarkNeedsLayout()
+	b.Root.MarkNeedsPaint()
 }
 
 func (b *Button) paintSpinner(pc *core.PaintContext, sz core.Size) {
