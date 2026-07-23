@@ -1,8 +1,8 @@
 # UI App Shell 实现方案 — 按需帧 × 第三方窗口挂载 × 统一入口 × 多窗口
 
 > 版本：1.2 | 日期：2026-07-23  
-> 关联：[`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) · [`SURFACE_LIFECYCLE_SKIA_FLUTTER.md`](./SURFACE_LIFECYCLE_SKIA_FLUTTER.md) · [`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) · [`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md)（默认 Present 上收 = P0.5）  
-> 状态：**Phase 1 单窗按需帧已落地**；**多窗 / OpenWindow / AttachWindow 表 API 未实现**（见 §0.1）
+> 关联：[`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) · [`SURFACE_LIFECYCLE_SKIA_FLUTTER.md`](./SURFACE_LIFECYCLE_SKIA_FLUTTER.md) · [`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) · [`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) · [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md)  
+> 状态：**Phase 1 单窗按需帧 + OwnedPresenter 已落地**；**多窗 / OpenWindow / AttachWindow 表 API 未实现**（见 §0.1）
 
 ---
 

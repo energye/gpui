@@ -4,6 +4,18 @@
 // Prefer shared Style / theme tokens; keep chrome in Decorated + Pressable;
 // avoid per-control layout hacks (hit must match paint Offset).
 //
+// # Developer guide (required reading)
+//
+//	docs/UI_KIT_DEV_GUIDE.md  — contracts for kit work on the stabilized foundation
+//	docs/UI_FOUNDATION_P0.md  — what the foundation delivered (Present, overlays, theme, …)
+//	docs/LAYOUT_FOUNDATION.md — hit == layout == paint
+//
+// Rules of thumb:
+//   - No ContinuousRender for product controls (use Tree.AddTicker).
+//   - No per-frame Sync() requirement for popups (Tree.Layout refreshes anchors).
+//   - Theme via themeOf / ConfigProvider / Tree.SetTheme + SetThemeHook(rebuild).
+//   - True-window present: app.OwnedPresenter or exboot.RunUIDemand only.
+//
 // # File layout
 //
 //   - One exported control per file (button.go, modal.go, …).
@@ -13,7 +25,9 @@
 //     general_common.go, layout_common.go, navigation_common.go,
 //     entry_common.go, display_common.go, feedback_common.go, other_common.go.
 //   - Cross-cutting Ant chrome tokens: ant_chrome.go
+//   - Theme resolve: theme_resolve.go (themeOf)
 //   - Theme entry: DefaultTheme via ui/skin/default.
+//   - Coverage table: coverage.go (AntCoverage) — source of truth for Ready/Notes.
 //
 // DefaultTheme returns Ant-leaning tokens via ui/skin/default.
 package kit

@@ -1,8 +1,9 @@
 # S5.5 — 控件层开工入口条件
 
-> 版本：1.6 | 日期：2026-07-21  
+> 版本：1.7 | 日期：2026-07-23  
 > 状态：**S5.5 关闭 / S5 全线关闭** — **允许**开控件层主线  
-> 引擎缺口（开工后仍要跟）：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md)
+> 引擎缺口（开工后仍要跟）：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md)  
+> **UI 底层已交付 + Kit 开发指南：** [`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) · [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md)
 
 ---
 

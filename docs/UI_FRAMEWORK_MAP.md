@@ -1,13 +1,13 @@
 # UI 框架总图与规划 — Primitive 组合底座 × Kit 产品面 × Flutter 管线 × render
 
-> 版本：4.5 | 日期：2026-07-23 | **活文档 · 打磨 §12.1 · 测试 §12.2 · 波次执行 §12.3 · 合成带 §4.1**  
+> 版本：4.6 | 日期：2026-07-23 | **活文档 · 底层 P0/F 已交付 · kit 开发见 UI_KIT_DEV_GUIDE**  
 > 状态：**控件产品架构以「primitive 组合」为底座**；已含 **Ant 全量组件 → 组合能力反推清单**  
 > 入口：[`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) ✅  
 > 引擎：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) · [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md)（控件 = **P2 另开轨道**）  
 > 覆盖率权威表：[`ui/kit/coverage.go`](../ui/kit/coverage.go) · 摘要 [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)  
-> App 壳：[`UI_APP_SHELL_PLAN.md`](./UI_APP_SHELL_PLAN.md)（按需帧已落地；多窗 API 仍后置）  
-> 底层 P0（稳住 kit 支撑）：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md)
+> App 壳：[`UI_APP_SHELL_PLAN.md`](./UI_APP_SHELL_PLAN.md)（按需帧已落地；**OwnedPresenter** 默认双带；多窗 API 仍后置）  
+> 底层交付：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) · **Kit 开发：** [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md)
 
 ---
 
