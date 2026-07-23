@@ -318,9 +318,61 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 		"To trigger an operation. Aligns Ant Design Button demos (type/size/icon/disabled/loading/danger/block/ghost/variant).",
 		secType, secIcon, secIconEnd, secSize, secDisabled, secLoading, secMultiple, secDanger, secBlock, secGhost, secVariant)
 
-	fb := kit.NewFloatButton("+")
-	fb.SetFace(face)
-	add("float_button", "FloatButton", "General · FloatButton", fb.Node())
+	// FloatButton — Ant Design demos
+	// https://ant.design/components/float-button
+	trackFB := func(fb *kit.FloatButton) *kit.FloatButton {
+		fb.SetFace(face)
+		if fb.Button() != nil {
+			*buttons = append(*buttons, fb.Button())
+		}
+		return fb
+	}
+	fbCircle := trackFB(kit.NewFloatButton("+"))
+	fbSquare := trackFB(kit.NewFloatButton("+"))
+	fbSquare.SetShape(kit.FloatButtonSquare)
+	fbIcon := trackFB(kit.NewFloatButton(""))
+	fbIcon.SetIcon("plus")
+	fbIcon.SetLabel("")
+	fbDesc := trackFB(kit.NewFloatButton(""))
+	fbDesc.SetIcon("info")
+	fbDesc.SetDescription("HELP")
+	fbDesc.SetShape(kit.FloatButtonSquare)
+	fbSm := trackFB(kit.NewFloatButton("+"))
+	fbSm.SetSize(32)
+	fbLg := trackFB(kit.NewFloatButton("+"))
+	fbLg.SetSize(48)
+	fbDefault := trackFB(kit.NewFloatButton("+"))
+	fbDefault.SetType(kit.ButtonDefault)
+	// Corner placement sample (layout-only, not OS always-on-top)
+	corner := kit.NewFloatButton("")
+	corner.SetFace(face)
+	corner.SetIcon("plus")
+	*buttons = append(*buttons, corner.Button())
+	// Put FAB at bottom-right of a fixed stage via Stack-like column+row spacers
+	stageInner := primitive.Column(primitive.Spacer(), primitive.Row(primitive.Spacer(), corner.Node()))
+	stageInner.CrossAlign = core.CrossStretch
+	stage := primitive.NewDecorated(stageInner)
+	stage.Width = 280
+	stage.Height = 160
+	stage.Padding = primitive.All(12)
+	stage.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.04}
+	stage.Radius = 8
+	stage.StretchChild = true
+
+	items = append(items, ctlTab("float_button", "FloatButton"))
+	contents["float_button"] = demoPage(face, "FloatButton",
+		"Floating action button. Position via layout (Stack/offset) — not system always-on-top. Defaults: primary, circle, 40×40.",
+		demoSection(face, theme, "Type & Shape", "circle (default) vs square; primary vs default type.",
+			spaceWrap(16, fbCircle.Node(), fbSquare.Node(), fbDefault.Node())),
+		demoSection(face, theme, "Icon", "Icon-only FAB (plus).",
+			spaceWrap(16, fbIcon.Node())),
+		demoSection(face, theme, "Description", "Icon + description caption (square).",
+			spaceWrap(16, fbDesc.Node())),
+		demoSection(face, theme, "Size", "Default 40; custom 32 / 48.",
+			spaceWrap(16, fbSm.Node(), fbCircle.Node(), fbLg.Node())),
+		demoSection(face, theme, "Placement (layout)", "Bottom-right via Column/Row spacers in a stage — not OS float.",
+			stage),
+	)
 
 	ic := kit.NewIcon("star")
 	add("icon", "Icon", "General · Icon", ic.Node())

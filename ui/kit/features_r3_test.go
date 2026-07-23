@@ -62,8 +62,8 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 			{"R3 shape", func(t *testing.T) {
 				fb := kit.NewFloatButton("+")
-				fb.SetShape("square")
-				if fb.Shape != "square" {
+				fb.SetShape(kit.FloatButtonSquare)
+				if fb.Shape != kit.FloatButtonSquare {
 					t.Fatal(fb.Shape)
 				}
 			}},

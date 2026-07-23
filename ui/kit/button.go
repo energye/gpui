@@ -360,10 +360,15 @@ func (b *Button) rebuild() {
 		b.icon = nil
 	}
 	// Icon start (default): icon · label; end: label · icon. Spinner always leading when loading.
+	// Skip empty label when icon-only so gap does not offset the icon (FloatButton FAB).
+	hasLabel := b.Label != ""
 	if b.icon != nil && b.IconPlacement != ButtonIconEnd {
 		b.row.AddChild(b.icon)
 	}
-	b.row.AddChild(b.label)
+	if hasLabel || b.icon == nil {
+		// Always keep a label node for color updates when text-only; icon-only omits empty text.
+		b.row.AddChild(b.label)
+	}
 	if b.icon != nil && b.IconPlacement == ButtonIconEnd {
 		b.row.AddChild(b.icon)
 	}
