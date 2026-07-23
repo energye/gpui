@@ -209,6 +209,17 @@ func (m *Modal) layoutPanel() {
 		return
 	}
 	vw, vh := m.Viewport.Width, m.Viewport.Height
+	if (vw <= 0 || vh <= 0) && m.Portal != nil {
+		if t := m.Portal.Tree(); t != nil {
+			tv := t.Viewport()
+			if vw <= 0 && tv.Width > 0 {
+				vw = tv.Width
+			}
+			if vh <= 0 && tv.Height > 0 {
+				vh = tv.Height
+			}
+		}
+	}
 	if vw <= 0 {
 		vw = 800
 	}
@@ -248,13 +259,22 @@ func (l *modalLayer) TypeID() string { return "kit.ModalLayer" }
 
 func (l *modalLayer) Layout(c core.Constraints) core.Size {
 	vw, vh := c.MaxWidth, c.MaxHeight
-	if l.modal != nil && l.modal.Viewport.Width > 0 {
+	if l.modal != nil && l.modal.Viewport.Width > 0 && l.modal.Viewport.Height > 0 {
 		vw, vh = l.modal.Viewport.Width, l.modal.Viewport.Height
+	} else if l.modal != nil {
+		// Fall back to tree viewport so mask still covers full client when host
+		// forgets to set Modal.Viewport (Ant: mask = full window).
+		if t := l.Tree(); t != nil {
+			tv := t.Viewport()
+			if tv.Width > 0 && tv.Height > 0 {
+				vw, vh = tv.Width, tv.Height
+			}
+		}
 	}
-	if vw >= core.Unbounded/2 {
+	if vw >= core.Unbounded/2 || vw <= 0 {
 		vw = 800
 	}
-	if vh >= core.Unbounded/2 {
+	if vh >= core.Unbounded/2 || vh <= 0 {
 		vh = 600
 	}
 	l.mask.Width, l.mask.Height = vw, vh

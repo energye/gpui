@@ -256,7 +256,7 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 				}
 			}
 
-			return blitAndPresent(cfg, s, comp, dc, sc, device, paintW, paintH, liveW, liveH, rt)
+			return blitAndPresent(cfg, s, comp, dc, sc, device, paintW, paintH, liveW, liveH, rt, full)
 		}
 
 		// Direct: Configure then paint into surface in the same present call.
@@ -319,12 +319,18 @@ func blitAndPresent(
 	device *webgpu.Device,
 	paintW, paintH, liveW, liveH int,
 	rt *resizeTracker,
+	fullBase bool, // retained for callers; surface present is always base+layers (G2.b full composite)
 ) error {
+	_ = fullBase
 	// Ensure DC matches surface (mid-drag surface size).
 	if dc.Width() != paintW || dc.Height() != paintH {
 		_ = dc.Resize(paintW, paintH)
 	}
 
+	// Always composite base + live layers. Partial damage present was attempted for
+	// Spin CPU, but swapchain LoadOpLoad was not reliable (static UI went black;
+	// only re-rasterized layers remained). Until surface retention is proven,
+	// present the full composite every frame.
 	dc.BeginFrame()
 	comp.BlitTo(dc)
 	if !comp.HasBase() {
@@ -351,7 +357,6 @@ func blitAndPresent(
 				comp.Resize(liveW, liveH, 1)
 			}
 			if rt != nil {
-				// Allow immediate quiet reconfigure next frame.
 				rt.mu.Lock()
 				rt.lastCfgAt = time.Time{}
 				rt.mu.Unlock()

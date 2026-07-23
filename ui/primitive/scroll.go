@@ -653,6 +653,11 @@ func (s *ScrollViewport) cacheKey() uintptr {
 
 // Paint implements core.Node. With LayerCache, content+chrome live in a retained
 // layer so thumb drag re-rasterizes only this viewport (not the full window).
+//
+// Nested RepaintBoundary (Spin/Skeleton) dirtiness must NOT force this layer to
+// re-vectorize the whole body — that scaled with window/content size to ~4% CPU.
+// Nested boundaries keep their own RTs; we only re-rasterize when non-boundary
+// content under the clip is dirty (scroll/chrome) or this node is dirty.
 func (s *ScrollViewport) Paint(pc *core.PaintContext) {
 	if pc == nil {
 		return
@@ -674,10 +679,9 @@ func (s *ScrollViewport) Paint(pc *core.PaintContext) {
 	ox, oy := pc.Origin.X, pc.Origin.Y
 
 	if pc.LayerCache != nil {
-		// Re-rasterize only when this viewport (or nested content) is dirty.
-		// ForceFullPaint alone must NOT rebuild a clean scroll layer (thumb lag with animations).
-		// Nested Spin painted into this layer still triggers via scrollDescendantPaintDirty.
-		needRaster := s.NeedsPaint() || scrollDescendantPaintDirty(s)
+		// Self or non-boundary descendant dirty → rebuild this RT.
+		// Nested Spin dirty alone → keep RT; visit children so Spin updates its layer.
+		needRaster := s.NeedsPaint() || scrollNonBoundaryDescPaintDirty(s)
 		if !needRaster {
 			if !pc.LayerCache.BlitBoundary(key, nil, ox, oy, w, h) {
 				needRaster = true
@@ -691,6 +695,9 @@ func (s *ScrollViewport) Paint(pc *core.PaintContext) {
 				if pc.Theme != nil {
 					childPC.Theme = pc.Theme
 				}
+				// Holes for nested Spin/Skeleton — they paint as independent layers
+				// with absolute origins in paintNestedBoundaries (not baked here).
+				childPC.SkipRepaintBoundaries = true
 				s.paintBody(childPC, sz)
 			})
 			if !ok {
@@ -698,6 +705,10 @@ func (s *ScrollViewport) Paint(pc *core.PaintContext) {
 				return
 			}
 		}
+		// Always visit nested boundaries with window-absolute origins so Spin
+		// markLive/Rasterize works without re-vectorizing the whole scroll RT.
+		// CPU stays ~constant with window size (and does not grow when the window grows).
+		s.paintNestedBoundaries(pc, sz)
 		if !pc.DeferLayerBlit && pc.DC != nil {
 			_ = pc.LayerCache.BlitBoundary(key, pc.DC, ox, oy, w, h)
 		}
@@ -709,7 +720,11 @@ func (s *ScrollViewport) Paint(pc *core.PaintContext) {
 }
 
 func (s *ScrollViewport) paintDirect(pc *core.PaintContext, sz core.Size) {
-	if pc.CompositeOnly && !s.NeedsPaint() && !pc.ForceFullPaint && !scrollDescendantPaintDirty(s) {
+	if pc.CompositeOnly && !s.NeedsPaint() && !pc.ForceFullPaint && !scrollNonBoundaryDescPaintDirty(s) {
+		// Still visit nested boundaries on composite-only frames.
+		if scrollHasRepaintBoundary(s) {
+			s.paintBody(pc, sz)
+		}
 		s.ClearPaintDirty()
 		return
 	}
@@ -720,6 +735,34 @@ func (s *ScrollViewport) paintDirect(pc *core.PaintContext, sz core.Size) {
 	}
 	s.paintBody(childPC, sz)
 	s.ClearPaintDirty()
+}
+
+// paintNestedBoundaries walks content with LayerCache so nested Spin/Skeleton
+// layers re-rasterize at window-absolute origins. Does not redraw scroll chrome
+// or non-boundary content into the parent DC (those live in this scroll's RT).
+func (s *ScrollViewport) paintNestedBoundaries(pc *core.PaintContext, sz core.Size) {
+	if pc == nil || pc.LayerCache == nil || !scrollHasRepaintBoundary(s) {
+		return
+	}
+	l, top, r, bot := s.ContentInsets()
+	cw := sz.Width - l - r
+	ch := sz.Height - top - bot
+	if cw < 0 {
+		cw = 0
+	}
+	if ch < 0 {
+		ch = 0
+	}
+	// Copy so we can set CompositeOnly without mutating caller's flags.
+	c := *pc
+	c.CompositeOnly = true
+	c.ForceFullPaint = false
+	c.SkipRepaintBoundaries = false // we WANT to enter nested boundaries here
+	childPC := &c
+	// Cull to content box; ContentPaintOffset applied in DefaultPaintChildren.
+	childPC.PushClipLocal(l, top, cw, ch)
+	s.DefaultPaintChildren(childPC)
+	childPC.Pop()
 }
 
 // paintBody draws clipped content + scrollbar chrome in the given paint space
@@ -741,29 +784,63 @@ func (s *ScrollViewport) paintBody(pc *core.PaintContext, sz core.Size) {
 	s.paintScrollbars(pc, sz)
 }
 
-// scrollDescendantPaintDirty reports paint dirty under s (not including s).
-func scrollDescendantPaintDirty(s *ScrollViewport) bool {
+// scrollNonBoundaryDescPaintDirty reports paint-dirty descendants that are not
+// isolated by a RepaintBoundary. Nested Spin/Skeleton dirty must not force the
+// whole scroll RT to rebuild (CPU scaled with window/content size).
+func scrollNonBoundaryDescPaintDirty(s *ScrollViewport) bool {
 	if s == nil {
 		return false
 	}
 	for _, c := range s.Children() {
-		if nodeOrDescPaintDirty(c) {
+		if nonBoundaryDescPaintDirty(c) {
 			return true
 		}
 	}
 	return false
 }
 
-func nodeOrDescPaintDirty(n core.Node) bool {
+func nonBoundaryDescPaintDirty(n core.Node) bool {
 	if n == nil {
 		return false
 	}
 	b := n.Base()
+	if b.IsRepaintBoundary() {
+		// Isolated: this subtree's dirty is handled by its own layer.
+		return false
+	}
 	if b.NeedsPaint() {
 		return true
 	}
 	for _, c := range b.Children() {
-		if nodeOrDescPaintDirty(c) {
+		if nonBoundaryDescPaintDirty(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func scrollHasRepaintBoundary(s *ScrollViewport) bool {
+	if s == nil {
+		return false
+	}
+	for _, c := range s.Children() {
+		if nodeHasRepaintBoundary(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeHasRepaintBoundary(n core.Node) bool {
+	if n == nil {
+		return false
+	}
+	b := n.Base()
+	if b.IsRepaintBoundary() {
+		return true
+	}
+	for _, c := range b.Children() {
+		if nodeHasRepaintBoundary(c) {
 			return true
 		}
 	}

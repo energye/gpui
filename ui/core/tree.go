@@ -200,6 +200,9 @@ func (t *Tree) Layout(viewport Size) {
 // Paint paints the root then overlays (ascending Z).
 // When FullPaintRequired is false and pc.CompositeOnly is set by the host,
 // clean non-boundary subtrees are skipped (Flutter retained layer path).
+//
+// Compositor hosts should prefer PaintMain + PaintOverlays into separate RTs so
+// main ScrollViewport layers never blit above modal masks (see ui/layer).
 func (t *Tree) Paint(pc *PaintContext) {
 	if t == nil || pc == nil {
 		return
@@ -209,23 +212,99 @@ func (t *Tree) Paint(pc *PaintContext) {
 		pc.CompositeOnly = false
 		pc.ForceFullPaint = true
 	}
+	t.PaintMain(pc)
+	t.PaintOverlays(pc)
+	t.finishPaint(full)
+}
+
+// PaintMain paints only the root tree (no OverlayHost). Used by the compositor
+// mainBase pass so portal content is not baked under deferred main layers.
+func (t *Tree) PaintMain(pc *PaintContext) {
+	if t == nil || pc == nil {
+		return
+	}
+	if pc.LayerBand != LayerBandOverlay {
+		pc.LayerBand = LayerBandMain
+	}
 	if t.root != nil {
 		t.root.Paint(pc)
 		clearPaintDirty(t.root)
 	}
+}
+
+// PaintOverlays paints OverlayHost entries (ascending Z) with LayerBandOverlay.
+// Compositor paints this into overlayBase so masks sit above main Scroll layers.
+func (t *Tree) PaintOverlays(pc *PaintContext) {
+	if t == nil || pc == nil {
+		return
+	}
+	pc.LayerBand = LayerBandOverlay
 	for _, e := range t.Overlays().Entries() {
 		if e.Node == nil {
 			continue
 		}
 		// Overlay nodes use their own Offset as absolute position.
 		childPC := pc.WithOrigin(pc.Origin.Add(e.Node.Base().Offset()))
+		childPC.LayerBand = LayerBandOverlay
 		e.Node.Paint(childPC)
 		clearPaintDirty(e.Node)
+	}
+}
+
+// finishPaint clears tree dirty flags after a successful paint pass.
+func (t *Tree) finishPaint(full bool) {
+	if t == nil {
+		return
 	}
 	t.dirty = false
 	if full {
 		t.fullPaintRequired = false
 	}
+}
+
+// FinishPaint clears dirty after a split PaintMain/PaintOverlays compositor frame.
+func (t *Tree) FinishPaint() {
+	if t == nil {
+		return
+	}
+	full := t.fullPaintRequired
+	t.finishPaint(full)
+}
+
+// OverlayNonBoundaryPaintDirty reports paint-dirty nodes in overlays outside a
+// RepaintBoundary (modal mask/panel chrome). Used to rebuild overlayBase only.
+func (t *Tree) OverlayNonBoundaryPaintDirty() bool {
+	if t == nil {
+		return false
+	}
+	var walk func(n Node, underBoundary bool) bool
+	walk = func(n Node, underBoundary bool) bool {
+		if n == nil {
+			return false
+		}
+		b := n.Base()
+		ub := underBoundary || b.IsRepaintBoundary()
+		if b.NeedsPaint() && !ub {
+			return true
+		}
+		for _, c := range b.Children() {
+			if walk(c, ub) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, e := range t.Overlays().Entries() {
+		if walk(e.Node, false) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasOverlays reports whether any portal content is mounted.
+func (t *Tree) HasOverlays() bool {
+	return t != nil && t.Overlays().Len() > 0
 }
 
 // Frame runs layout (when needed) then paint for the viewport.

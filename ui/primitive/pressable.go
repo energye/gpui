@@ -78,9 +78,11 @@ func NewPressable(child core.Node) *Pressable {
 		RippleColor:    render.RGBA{R: 0, G: 0, B: 0, A: 0.12},
 	}
 	p.Init(p)
-	// Isolate ripple/hover paint so click ink does not force full window base rebuild
-	// (which made scroll thumb lag/jump while any Pressable animated).
-	p.SetRepaintBoundary(true)
+	// Not a RepaintBoundary by default. Tabs/gallery mount dozens of Pressables;
+	// each boundary must be visited + markLive on every ANIMATING frame
+	// (CompositeLive live-set protocol). That path alone pushed idle Spin to ~4% CPU.
+	// Spin/Skeleton/ScrollViewport own dedicated boundaries; ripple paint bubbles
+	// to the nearest ancestor boundary instead.
 	p.Hit = core.HitTarget
 	p.Cursor = core.CursorPointer // clickable hand by default
 	if child != nil {

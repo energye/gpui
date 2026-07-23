@@ -18,6 +18,15 @@ type LayerCache interface {
 	ReleaseAll()
 }
 
+// LayerBand selects the compositor stacking band for RepaintBoundary layers.
+// Main layers blit before Overlay (Flutter: Overlay above the app retained tree).
+type LayerBand int
+
+const (
+	LayerBandMain LayerBand = iota
+	LayerBandOverlay
+)
+
 // PaintContext is the only drawing surface for nodes.
 // DC is a render.Context; final pixels go through PresentFrame* at host level.
 // Nodes must not open a silent CPU bitmap as the final frame.
@@ -50,6 +59,14 @@ type PaintContext struct {
 	// offscreen RT (RasterizeBoundary) and does not blit into DC. The host
 	// Compositor blits all layers in a later blit-only pass (G2.b).
 	DeferLayerBlit bool
+	// SkipRepaintBoundaries: DefaultPaintChildren skips IsRepaintBoundary children
+	// (transparent holes). Used when ScrollViewport rasterizes its RT so nested
+	// Spin/Skeleton keep independent layers and are not re-baked every frame.
+	// CPU for a single Spin must not scale with window/content size.
+	SkipRepaintBoundaries bool
+	// LayerBand is Main (default) or Overlay. Portal/modal paint sets Overlay so
+	// retained layers under the mask never composite above the dimmer.
+	LayerBand LayerBand
 }
 
 // WithOrigin returns a child paint context with a new absolute origin.

@@ -362,6 +362,10 @@ func (n *NodeBase) DefaultPaintChildren(pc *PaintContext) {
 	}
 	for _, c := range n.children {
 		cb := c.Base()
+		// Parent layer rasterize: leave holes for nested Spin/Skeleton layers.
+		if pc != nil && pc.SkipRepaintBoundaries && cb.IsRepaintBoundary() {
+			continue
+		}
 		if pc != nil && pc.CompositeOnly && !cb.needsPaint && !subtreeHasPaintDirty(c) {
 			// Still blit clean repaint boundaries so the retained surface stays correct
 			// when the parent path is composite-only and this branch only holds layers.

@@ -15,6 +15,7 @@
 package layer
 
 import (
+	"image"
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -64,9 +65,14 @@ func (e *Entry) Release() {
 //
 // Keys not marked live are unmounted ghosts and are released.
 type Cache struct {
-	mu   sync.Mutex
-	m    map[uintptr]*Entry
-	live map[uintptr]struct{} // reused; cleared in BeginFrame (no alloc per frame)
+	mu          sync.Mutex
+	m           map[uintptr]*Entry
+	live        map[uintptr]struct{} // reused; cleared in BeginFrame
+	liveOrder   []uintptr            // paint order within current band (deprecated for dual: use main/overlay)
+	liveMain    []uintptr            // Main band paint order
+	liveOverlay []uintptr            // Overlay band paint order (blit after main)
+	rasterized  []uintptr            // keys re-rasterized this frame
+	paintBand   core.LayerBand       // current band for markLive (set by compositor)
 }
 
 // NewCache creates an empty layer cache.
@@ -92,19 +98,44 @@ func (c *Cache) BeginFrame() {
 func clearLive(c *Cache) {
 	if c.live == nil {
 		c.live = make(map[uintptr]struct{})
-		return
+	} else {
+		for k := range c.live {
+			delete(c.live, k)
+		}
 	}
-	for k := range c.live {
-		delete(c.live, k)
-	}
+	c.liveOrder = c.liveOrder[:0]
+	c.liveMain = c.liveMain[:0]
+	c.liveOverlay = c.liveOverlay[:0]
+	c.rasterized = c.rasterized[:0]
+	c.paintBand = core.LayerBandMain
 }
 
-// markLive requires c.mu held.
+// SetPaintBand selects which composite band subsequent markLive calls join.
+// Call before Tree.PaintMain (Main) and Tree.PaintOverlays (Overlay).
+func (c *Cache) SetPaintBand(band core.LayerBand) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.paintBand = band
+	c.mu.Unlock()
+}
+
+// markLive requires c.mu held. Preserves first-seen paint order within band.
 func (c *Cache) markLive(key uintptr) {
 	if c.live == nil {
 		c.live = make(map[uintptr]struct{})
 	}
+	if _, ok := c.live[key]; ok {
+		return
+	}
 	c.live[key] = struct{}{}
+	c.liveOrder = append(c.liveOrder, key)
+	if c.paintBand == core.LayerBandOverlay {
+		c.liveOverlay = append(c.liveOverlay, key)
+	} else {
+		c.liveMain = append(c.liveMain, key)
+	}
 }
 
 // Get returns the entry for key, or nil.
@@ -240,6 +271,7 @@ func (c *Cache) RasterizeBoundary(
 	}
 	c.mu.Lock()
 	c.markLive(key)
+	c.rasterized = append(c.rasterized, key)
 	c.mu.Unlock()
 	return true
 }
@@ -266,6 +298,58 @@ func (c *Cache) Len() int {
 	return len(c.m)
 }
 
+// DirtyLayerRects returns logical rects of layers re-rasterized this frame.
+// Used for partial swapchain present (single Spin should not full-blit the window).
+func (c *Cache) DirtyLayerRects() []image.Rectangle {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.rasterized) == 0 {
+		return nil
+	}
+	out := make([]image.Rectangle, 0, len(c.rasterized))
+	seen := make(map[uintptr]struct{}, len(c.rasterized))
+	for _, k := range c.rasterized {
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		e := c.m[k]
+		if e == nil || !e.Valid || e.W < 1 || e.H < 1 {
+			continue
+		}
+		x0 := int(e.X)
+		y0 := int(e.Y)
+		// Expand 1px for AA / subpixel origin.
+		out = append(out, image.Rect(x0-1, y0-1, x0+e.W+1, y0+e.H+1))
+	}
+	return out
+}
+
+// CompositeDirtyOnly blits only layers re-rasterized this frame into parent
+// (partial present path). Parent surface must use LoadOpLoad for undamaged pixels.
+func (c *Cache) CompositeDirtyOnly(parent *render.Context) {
+	if c == nil || parent == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	seen := make(map[uintptr]struct{}, len(c.rasterized))
+	for _, k := range c.rasterized {
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		e := c.m[k]
+		if e == nil || !e.Valid || e.View.IsNil() {
+			continue
+		}
+		e.Blit(parent, e.X, e.Y, e.W, e.H)
+	}
+}
+
 // ReleaseAll implements core.LayerCache.
 func (c *Cache) ReleaseAll() {
 	if c == nil {
@@ -280,8 +364,9 @@ func (c *Cache) ReleaseAll() {
 	clearLive(c)
 }
 
-// CompositeLive blits layers visited this frame, then releases unvisited entries
-// (unmounted controls). One lock, no ghost layers.
+// CompositeLive blits Main-band layers then Overlay-band layers (paint order
+// within each band), then releases unvisited entries. Modal masks in overlayBase
+// are blitted by the compositor between these bands.
 func (c *Cache) CompositeLive(parent *render.Context) {
 	if c == nil {
 		return
@@ -289,14 +374,49 @@ func (c *Cache) CompositeLive(parent *render.Context) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if parent != nil {
-		for k := range c.live {
-			e := c.m[k]
-			if e == nil || !e.Valid || e.View.IsNil() {
-				continue
-			}
-			e.Blit(parent, e.X, e.Y, e.W, e.H)
-		}
+		c.blitOrderLocked(parent, c.liveMain)
+		c.blitOrderLocked(parent, c.liveOverlay)
 	}
+	c.releaseUnvisitedLocked()
+}
+
+// CompositeBand blits only one band (Main or Overlay). Used when the host
+// interleaves overlayBase between main and overlay layers.
+func (c *Cache) CompositeBand(parent *render.Context, band core.LayerBand) {
+	if c == nil || parent == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if band == core.LayerBandOverlay {
+		c.blitOrderLocked(parent, c.liveOverlay)
+	} else {
+		c.blitOrderLocked(parent, c.liveMain)
+	}
+}
+
+// ReleaseUnvisited drops ghost layers not marked live this frame.
+// Call once after all CompositeBand passes for the frame.
+func (c *Cache) ReleaseUnvisited() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.releaseUnvisitedLocked()
+}
+
+func (c *Cache) blitOrderLocked(parent *render.Context, order []uintptr) {
+	for _, k := range order {
+		e := c.m[k]
+		if e == nil || !e.Valid || e.View.IsNil() {
+			continue
+		}
+		e.Blit(parent, e.X, e.Y, e.W, e.H)
+	}
+}
+
+func (c *Cache) releaseUnvisitedLocked() {
 	for k, e := range c.m {
 		if _, ok := c.live[k]; ok {
 			continue
