@@ -18,7 +18,11 @@ type TableColumn struct {
 	Flex  float64 // default 1 when Width==0
 }
 
-// Table is a simple data table with sticky header + virtual body (B4 base).
+// Table is a simple data table with fixed header + virtual body (B4 base).
+//
+// Sticky policy (UI_FOUNDATION_P0 C3 decision B): header is a fixed Column
+// sibling above VirtualList — not scroll-container sticky. primitive.Sticky
+// wraps the header for future in-scroll sticky paint; hit/layout remain fixed.
 type Table struct {
 	Root       *primitive.Flex
 	header     *primitive.Flex

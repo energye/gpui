@@ -34,6 +34,19 @@ type Tree struct {
 	onCursor   func(CursorKind)
 	lastCursor CursorKind
 	hasCursor  bool
+
+	// outsideDismiss: floating shells that close on pointer-down outside keep roots.
+	outsideDismiss []outsideDismissEntry
+
+	// clipboard is optional C-Clipbd service for EditableText copy/paste.
+	clipboard Clipboard
+}
+
+// outsideDismissEntry closes a floating UI when pointer-down is outside keep roots.
+type outsideDismissEntry struct {
+	id        string
+	onDismiss func()
+	keep      []Node // content + anchor; clicks here do not dismiss
 }
 
 // NewTree creates a tree with the given root (may be nil).
@@ -437,6 +450,66 @@ func (t *Tree) applyCursor(n Node) {
 	t.onCursor(k)
 }
 
+// RegisterOutsideDismiss asks the tree to call onDismiss when a PointerDown
+// hits outside all keep roots (typically floating content + anchor trigger).
+// Empty id is ignored. Re-registering the same id replaces the entry.
+func (t *Tree) RegisterOutsideDismiss(id string, onDismiss func(), keep ...Node) {
+	if t == nil || id == "" || onDismiss == nil {
+		return
+	}
+	// Replace existing id.
+	out := t.outsideDismiss[:0]
+	for _, e := range t.outsideDismiss {
+		if e.id != id {
+			out = append(out, e)
+		}
+	}
+	t.outsideDismiss = append(out, outsideDismissEntry{id: id, onDismiss: onDismiss, keep: keep})
+}
+
+// UnregisterOutsideDismiss removes a previously registered outside-dismiss handler.
+func (t *Tree) UnregisterOutsideDismiss(id string) {
+	if t == nil || id == "" {
+		return
+	}
+	out := t.outsideDismiss[:0]
+	for _, e := range t.outsideDismiss {
+		if e.id != id {
+			out = append(out, e)
+		}
+	}
+	t.outsideDismiss = out
+}
+
+func (t *Tree) fireOutsideDismiss(hit Node) {
+	if t == nil || len(t.outsideDismiss) == 0 {
+		return
+	}
+	// Snapshot: dismiss may unregister during callback.
+	entries := append([]outsideDismissEntry(nil), t.outsideDismiss...)
+	for _, e := range entries {
+		if e.onDismiss == nil {
+			continue
+		}
+		inside := false
+		for _, k := range e.keep {
+			if k == nil {
+				continue
+			}
+			if hit == nil {
+				continue
+			}
+			if sameOrDescendant(hit, k) {
+				inside = true
+				break
+			}
+		}
+		if !inside {
+			e.onDismiss()
+		}
+	}
+}
+
 // DispatchPointer routes a pointer event: capture → target → bubble.
 func (t *Tree) DispatchPointer(ev *PointerEvent) {
 	if t == nil || ev == nil {
@@ -451,6 +524,12 @@ func (t *Tree) DispatchPointer(ev *PointerEvent) {
 		target = t.HitTest(p)
 	}
 	ev.Target = target
+
+	// Outside dismiss before capture/click so open popups close on blank press.
+	// Anchor/content keep roots skip dismiss (Select trigger toggle stays clean).
+	if ev.Type == PointerDown && t.capture == nil {
+		t.fireOutsideDismiss(target)
+	}
 
 	// Hover enter/leave (Move only when not captured for simplicity).
 	if ev.Type == PointerMove && t.capture == nil {

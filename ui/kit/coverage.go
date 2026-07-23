@@ -83,7 +83,7 @@ func AntCoverage() []CoverageEntry {
 		{Ant: "QRCode", Status: CovReady, Via: "kit.QRCode", Since: "Base-ALL", Notes: "deterministic modules; codec later"},
 		{Ant: "Segmented", Status: CovReady, Via: "kit.Segmented", Since: "Base-ALL"},
 		{Ant: "Statistic", Status: CovReady, Via: "kit.Statistic", Since: "Base-ALL"},
-		{Ant: "Table", Status: CovReady, Via: "kit.Table", Since: "M4", Notes: "virtual rows; sticky head"},
+		{Ant: "Table", Status: CovReady, Via: "kit.Table", Since: "M4", Notes: "virtual rows; fixed header (Column, not in-scroll sticky)"},
 		{Ant: "Tag", Status: CovReady, Via: "kit.Tag", Since: "Base-ALL"},
 		{Ant: "Timeline", Status: CovReady, Via: "kit.Timeline", Since: "Base-ALL"},
 		{Ant: "Tooltip", Status: CovReady, Via: "kit.Tooltip", Since: "M2"},

@@ -3,43 +3,27 @@
 package exboot
 
 import (
-	"errors"
 	"log"
-	"os"
-	"sync"
 	"time"
 
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/app"
 	"github.com/energye/gpui/ui/core"
-	"github.com/energye/gpui/ui/layer"
 	"github.com/energye/gpui/ui/platform"
 )
 
 // UIDemandConfig drives a gogpu-aligned demand frame loop for UI smokes.
 //
-// Present policy:
-//
-//	Default ON — compositor base RT (recommended):
-//	  full tree → offscreen base texture (GPU vector)
-//	  swapchain ← DrawGPUTexture(base) only (G2.b blit-only)
-//
-//	Opt-out — surface direct vector (G2.a):
-//	  GPUI_COMPOSITOR=0
+// Present is owned by ui/app.OwnedPresenter (compositor dual-band by default;
+// GPUI_COMPOSITOR=0 for direct Tree.Frame). See docs/UI_FOUNDATION_P0.md P0.5.
 //
 // Resize policy (framework — not per-example):
 //
 //  1. Every ConfigureNotify updates live client size (coalesced by ui/app).
-//  2. Each present paints at the LIVE window size so content tracks the window
-//     (no black margins mid-drag).
-//  3. Surface.Configure is deferred to present and applied at most once per
-//     present with the latest size (event drain + coalesce). Content is painted
-//     into the base RT before Configure when using the compositor, then blit
-//     + Present in the same call so the first frame after recreate is complete.
-//  4. X11 LinuxHost uses back_pixmap=None + NW gravity so the server does not
-//     solid-fill enlarged regions (device_lost_redraw anti-flash).
-//  5. BeginFrame Outdated/Lost: force reconfigure to live size and retry.
+//  2. Each present paints at the LIVE window size so content tracks the window.
+//  3. Surface.Configure is applied inside OwnedPresenter with the latest size.
+//  4. X11 LinuxHost uses back_pixmap=None + NW gravity (anti-flash).
 //
 // Demand: Continuous=false → paint when Dirty() or size/present mismatch.
 type UIDemandConfig struct {
@@ -59,8 +43,7 @@ type UIDemandConfig struct {
 	OnUpdate func(dt float64)
 	// BeforeDispatch optional; return true to skip platform.Dispatch.
 	BeforeDispatch func(tree *core.Tree, ev platform.Event) (skip bool)
-	// OnResize is layout-only (root width/height / viewport). Called with the
-	// size that will be painted this frame (surface size mid-drag, live size when quiet).
+	// OnResize is layout-only (root width/height / viewport). Called when paint size changes.
 	// Do not call SC.Resize here.
 	OnResize func(w, h int)
 	// Flush is optional (LinuxHost.Flush after present).
@@ -74,64 +57,12 @@ type UIDemandResult struct {
 	Hops   int64
 }
 
-// ResizeConfigureIdle is how long ConfigureNotify must be quiet before we
-// Surface.Configure to the live size (sharp pixels). Matches device_lost_redraw.
+// ResizeConfigureIdle is retained for callers that still reference the constant.
+// Quiet-configure is handled inside the present path via live size vs surface size.
 const ResizeConfigureIdle = 32 * time.Millisecond
 
-var logPaintScaleOnce sync.Once
-
-// useCompositor enables retained dual-band composition (default ON).
-// Required for correct Modal/Drawer Z-order above ScrollViewport layers
-// (see docs/UI_FRAMEWORK_MAP.md §4.1). Set GPUI_COMPOSITOR=0 only for debug.
-func useCompositor() bool {
-	v := os.Getenv("GPUI_COMPOSITOR")
-	return v != "0" && v != "false" && v != "off"
-}
-
-const minPresentSize = 64
-
-// resizeTracker records live client size + last ConfigureNotify time.
-type resizeTracker struct {
-	mu        sync.Mutex
-	liveW     int
-	liveH     int
-	lastCfgAt time.Time
-}
-
-func (r *resizeTracker) noteLive(w, h int) {
-	if r == nil {
-		return
-	}
-	if w < minPresentSize {
-		w = minPresentSize
-	}
-	if h < minPresentSize {
-		h = minPresentSize
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.lastCfgAt = time.Now()
-	r.liveW, r.liveH = w, h
-}
-
-func (r *resizeTracker) snapshot() (liveW, liveH int, quiet bool) {
-	if r == nil {
-		return 0, 0, true
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	liveW, liveH = r.liveW, r.liveH
-	if liveW < 1 || liveH < 1 {
-		return liveW, liveH, true
-	}
-	if r.lastCfgAt.IsZero() {
-		return liveW, liveH, true
-	}
-	quiet = time.Since(r.lastCfgAt) >= ResizeConfigureIdle
-	return liveW, liveH, quiet
-}
-
 // RunUIDemand attaches host+tree to ui/app and runs the demand loop.
+// Present uses app.NewOwnedPresenter (framework default dual-band path).
 func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 	if cfg.Host == nil || cfg.Tree == nil || cfg.SC == nil || cfg.DC == nil {
 		log.Fatal("exboot.RunUIDemand: Host, Tree, SC, DC required")
@@ -144,17 +75,20 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		})
 	}
 
-	var comp *layer.Compositor
-	if useCompositor() {
-		comp = layer.NewCompositor()
-		comp.BG = cfg.Clear
-		defer comp.ReleaseAll()
-	}
-
-	rt := &resizeTracker{}
-	if w, h := cfg.Host.Size(); w > 0 && h > 0 {
-		rt.noteLive(w, h)
-	}
+	presenter := app.NewOwnedPresenter(app.OwnedPresentConfig{
+		SC:     cfg.SC,
+		DC:     cfg.DC,
+		Device: cfg.Device,
+		Clear:  cfg.Clear,
+		Theme:  cfg.Theme,
+		Flush:  cfg.Flush,
+		OnLayoutSize: func(w, h int) {
+			if cfg.OnResize != nil {
+				cfg.OnResize(w, h)
+			}
+		},
+	})
+	defer presenter.Release()
 
 	a := app.New(app.Options{
 		ContinuousRender: cfg.Continuous,
@@ -163,122 +97,7 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 	})
 	defer a.Close()
 
-	lastLayoutW, lastLayoutH := 0, 0
-
-	present := func(s *app.Session) error {
-		dc := cfg.DC
-		sc := cfg.SC
-		device := cfg.Device
-
-		// Live client size (window).
-		liveW, liveH, _ := rt.snapshot()
-		if liveW < 1 || liveH < 1 {
-			liveW, liveH = s.Width, s.Height
-		}
-		if liveW < minPresentSize {
-			liveW = minPresentSize
-		}
-		if liveH < minPresentSize {
-			liveH = minPresentSize
-		}
-
-		// Current surface buffer size.
-		surfW, surfH := int(sc.Width), int(sc.Height)
-		if surfW < 1 {
-			surfW = liveW
-		}
-		if surfH < 1 {
-			surfH = liveH
-		}
-
-		// FOUNDATION: paint scale is always 1 for UI demand loop.
-		// Layout, pointer, and draw share one logical pixel space (Flutter).
-		// Device DPR for swapchain sharpness is a separate concern; do not mix it
-		// into tree layout coordinates.
-		scale := 1.0
-		hostScale := 1.0
-		if cfg.Host != nil {
-			hostScale = cfg.Host.ScaleFactor()
-			if hostScale <= 0 {
-				hostScale = 1
-			}
-		}
-		logPaintScaleOnce.Do(func() {
-			log.Printf("exboot: UI logical scale=1 hostDPR=%.2f compositor=%v sample_count=%q",
-				hostScale, useCompositor(), os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"))
-		})
-		// Always paint at LIVE window size so content tracks the window.
-		// Reconfigure surface when it lags (at most once per present after event drain).
-		paintW, paintH := liveW, liveH
-		doConfigure := paintW != surfW || paintH != surfH
-
-		// Layout to the size we will paint this frame.
-		if lastLayoutW != paintW || lastLayoutH != paintH {
-			s.Width, s.Height = paintW, paintH
-			lastLayoutW, lastLayoutH = paintW, paintH
-			if cfg.OnResize != nil {
-				cfg.OnResize(paintW, paintH)
-			}
-			if cfg.Tree != nil {
-				cfg.Tree.MarkFullPaintRequired()
-			}
-		}
-
-		if comp != nil {
-			// 1) Retained composition (full or boundary-only).
-			comp.BG = cfg.Clear
-			comp.Resize(paintW, paintH, 1) // logical pixels only
-			// full base only when required; else dirty RepaintBoundary layers only.
-			full := true
-			if s.Tree != nil {
-				full = s.Tree.FullPaintRequired() || doConfigure || s.Tree.NonBoundaryPaintDirty()
-			}
-			if !comp.HasBase() {
-				full = true
-			}
-			if !comp.Frame(s.Tree, themeOf(cfg, s), full) || !comp.HasBase() {
-				if s.Tree != nil && s.Tree.HasOverlays() {
-					log.Printf("exboot: compositor base failed with overlays open — direct present may mis-order Modal vs Scroll layers (MAP §4.1)")
-				} else {
-					log.Printf("exboot: compositor base failed, direct present")
-				}
-				// Direct path must Configure before drawing into the surface.
-				if doConfigure {
-					_ = sc.Resize(uint32(paintW), uint32(paintH))
-					_ = dc.Resize(paintW, paintH)
-				}
-				return presentDirect(cfg, s, dc, sc, device, paintW, paintH, scale)
-			}
-
-			// 2) Reconfigure surface only after base content is ready, then blit+present.
-			if doConfigure {
-				if err := sc.Resize(uint32(paintW), uint32(paintH)); err != nil {
-					log.Printf("exboot: swapchain resize %dx%d: %v", paintW, paintH, err)
-				}
-				if err := dc.Resize(paintW, paintH); err != nil {
-					log.Printf("exboot: dc resize %dx%d: %v", paintW, paintH, err)
-				}
-				if cfg.Tree != nil {
-					cfg.Tree.MarkFullPaintRequired()
-				}
-			}
-
-			return blitAndPresent(cfg, s, comp, dc, sc, device, paintW, paintH, liveW, liveH, rt, full)
-		}
-
-		// Direct: Configure then paint into surface in the same present call.
-		if doConfigure {
-			if err := sc.Resize(uint32(paintW), uint32(paintH)); err != nil {
-				log.Printf("exboot: swapchain resize %dx%d: %v", paintW, paintH, err)
-			}
-			if err := dc.Resize(paintW, paintH); err != nil {
-				log.Printf("exboot: dc resize %dx%d: %v", paintW, paintH, err)
-			}
-		}
-		return presentDirect(cfg, s, dc, sc, device, paintW, paintH, scale)
-	}
-
-	sess := a.Attach(cfg.Host, cfg.Tree, present)
+	sess := a.Attach(cfg.Host, cfg.Tree, presenter.Func())
 	if cfg.Theme != nil {
 		sess.Theme = cfg.Theme
 	}
@@ -286,16 +105,14 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		sess.Width, sess.Height = w, h
 	}
 
-	// Layout + track live size; never SC.Resize here.
+	// Track live size for app session; Present paints at Host.Size / Session size.
 	sess.OnResize = func(w, h int) {
-		if w < minPresentSize {
-			w = minPresentSize
+		if w < app.MinPresentSize {
+			w = app.MinPresentSize
 		}
-		if h < minPresentSize {
-			h = minPresentSize
+		if h < app.MinPresentSize {
+			h = app.MinPresentSize
 		}
-		// Track live client size for quiet-configure; layout applied in present.
-		rt.noteLive(w, h)
 		sess.Width, sess.Height = w, h
 		if cfg.Tree != nil {
 			cfg.Tree.MarkFullPaintRequired()
@@ -315,178 +132,4 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		Loops:  a.LoopCount.Load(),
 		Hops:   a.RenderThreadHops.Load(),
 	}
-}
-
-func blitAndPresent(
-	cfg UIDemandConfig,
-	s *app.Session,
-	comp *layer.Compositor,
-	dc *render.Context,
-	sc *webgpu.Swapchain,
-	device *webgpu.Device,
-	paintW, paintH, liveW, liveH int,
-	rt *resizeTracker,
-	fullBase bool, // retained for callers; surface present is always base+layers (G2.b full composite)
-) error {
-	_ = fullBase
-	// Ensure DC matches surface (mid-drag surface size).
-	if dc.Width() != paintW || dc.Height() != paintH {
-		_ = dc.Resize(paintW, paintH)
-	}
-
-	// Always composite base + live layers. Partial damage present was attempted for
-	// Spin CPU, but swapchain LoadOpLoad was not reliable (static UI went black;
-	// only re-rasterized layers remained). Until surface retention is proven,
-	// present the full composite every frame.
-	dc.BeginFrame()
-	comp.BlitTo(dc)
-	if !comp.HasBase() {
-		return errors.New("compositor: base missing after blit")
-	}
-	if device != nil {
-		device.FlushCallbacks()
-	}
-	frame, err := sc.BeginFrame()
-	if err != nil {
-		if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-			comp.ReleaseAll()
-			if s.Tree != nil {
-				s.Tree.MarkFullPaintRequired()
-			}
-			time.Sleep(16 * time.Millisecond)
-			return nil
-		}
-		// Outdated: must reconfigure to live size (cannot present old surface).
-		if liveW >= minPresentSize && liveH >= minPresentSize {
-			_ = sc.Resize(uint32(liveW), uint32(liveH))
-			_ = dc.Resize(liveW, liveH)
-			if comp != nil {
-				comp.Resize(liveW, liveH, 1)
-			}
-			if rt != nil {
-				rt.mu.Lock()
-				rt.lastCfgAt = time.Time{}
-				rt.mu.Unlock()
-			}
-		}
-		if s.Tree != nil {
-			s.Tree.MarkFullPaintRequired()
-		}
-		log.Printf("BeginFrame: %v (will retry)", err)
-		return nil
-	}
-	if err := dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, func() error {
-		return sc.EndFrame(frame)
-	}); err != nil {
-		sc.DiscardFrame(frame)
-		if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-			comp.ReleaseAll()
-			if s.Tree != nil {
-				s.Tree.MarkFullPaintRequired()
-			}
-			time.Sleep(16 * time.Millisecond)
-			return nil
-		}
-		log.Printf("PresentFrameFull: %v", err)
-		if s.Tree != nil {
-			s.Tree.MarkFullPaintRequired()
-		}
-		return nil
-	}
-	if cfg.Flush != nil {
-		cfg.Flush()
-	}
-	return nil
-}
-
-// presentDirect paints the full tree into the surface DC (no dual-band layer
-// split). Safe for GPUI_COMPOSITOR=0 / fallback when layers are not deferred.
-// When overlays (Modal) coexist with ScrollViewport RepaintBoundary layers,
-// prefer the compositor path — direct paint uses Tree.Frame single DC order.
-func presentDirect(
-	cfg UIDemandConfig,
-	s *app.Session,
-	dc *render.Context,
-	sc *webgpu.Swapchain,
-	device *webgpu.Device,
-	w, h int,
-	scale float64,
-) error {
-	if w < minPresentSize {
-		w = minPresentSize
-	}
-	if h < minPresentSize {
-		h = minPresentSize
-	}
-	scale = 1 // always logical
-	if dc.Width() != w || dc.Height() != h {
-		_ = dc.Resize(w, h)
-	}
-	if dc.DeviceScale() != 1 {
-		dc.SetDeviceScale(1)
-	}
-
-	dc.BeginFrame()
-	dc.SetRGBA(cfg.Clear.R, cfg.Clear.G, cfg.Clear.B, cfg.Clear.A)
-	if cfg.Clear.A <= 0 {
-		dc.SetRGBA(0.1, 0.1, 0.1, 1)
-	}
-	dc.DrawRectangle(0, 0, float64(w), float64(h))
-	_ = dc.Fill()
-	dc.MarkFullRedraw()
-
-	pc := &core.PaintContext{
-		DC:            dc,
-		Scale:         scale,
-		Theme:         themeOf(cfg, s),
-		CompositeOnly: false,
-	}
-	s.Tree.Frame(pc, core.Size{Width: float64(w), Height: float64(h)})
-
-	if device != nil {
-		device.FlushCallbacks()
-	}
-	frame, err := sc.BeginFrame()
-	if err != nil {
-		if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-			if s.Tree != nil {
-				s.Tree.MarkFullPaintRequired()
-			}
-			time.Sleep(16 * time.Millisecond)
-			return nil
-		}
-		log.Printf("BeginFrame: %v", err)
-		if s.Tree != nil {
-			s.Tree.MarkFullPaintRequired()
-		}
-		return nil
-	}
-	if err := dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, func() error {
-		return sc.EndFrame(frame)
-	}); err != nil {
-		sc.DiscardFrame(frame)
-		if errors.Is(err, webgpu.ErrDeviceLost) || (device != nil && device.IsLost()) {
-			if s.Tree != nil {
-				s.Tree.MarkFullPaintRequired()
-			}
-			time.Sleep(16 * time.Millisecond)
-			return nil
-		}
-		log.Printf("PresentFrameFull: %v", err)
-		if s.Tree != nil {
-			s.Tree.MarkFullPaintRequired()
-		}
-		return nil
-	}
-	if cfg.Flush != nil {
-		cfg.Flush()
-	}
-	return nil
-}
-
-func themeOf(cfg UIDemandConfig, s *app.Session) *core.Theme {
-	if s != nil && s.Theme != nil {
-		return s.Theme
-	}
-	return cfg.Theme
 }

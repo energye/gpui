@@ -56,9 +56,14 @@ const (
 
 // KeyEvent is a keyboard event delivered to the focused node.
 type KeyEvent struct {
-	Type    KeyType
-	Key     string // physical/logical key name, e.g. "Enter", "a"
-	Text    string // produced text if any
+	Type KeyType
+	Key  string // physical/logical key name, e.g. "Enter", "a", "ArrowLeft"
+	Text string // produced text if any
+	// Modifier state (host-filled). Also accept composite Key names like "Ctrl+C".
+	Shift   bool
+	Ctrl    bool
+	Alt     bool
+	Meta    bool // Cmd on macOS
 	Handled bool
 }
 

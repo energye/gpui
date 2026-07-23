@@ -153,3 +153,89 @@ func TestFlexibleFillChild(t *testing.T) {
 		t.Fatalf("FillChild size=%v want 100×40", child.Size())
 	}
 }
+
+// TestSpacerDoesNotTakeLooseMaxHeight locks LAYOUT_FOUNDATION: Flexible only
+// expands tight axes. Modal footer Row(Spacer, btn) must not inflate to MaxHeight.
+func TestSpacerDoesNotTakeLooseMaxHeight(t *testing.T) {
+	sp := primitive.Spacer()
+	// Loose constraints with huge MaxHeight (as if Column gave unbounded cross).
+	sz := sp.Layout(core.Constraints{MaxWidth: 200, MaxHeight: 600, MinWidth: 0, MinHeight: 0})
+	if sz.Height > 1 {
+		t.Fatalf("Spacer under loose height=%v want ~0 (only tight axes expand)", sz.Height)
+	}
+	// Tight main axis only (Row flex allocation): width expands, height stays 0.
+	sz = sp.Layout(core.Constraints{MinWidth: 120, MaxWidth: 120, MinHeight: 0, MaxHeight: 600})
+	if sz.Width != 120 {
+		t.Fatalf("Spacer tight width=%v want 120", sz.Width)
+	}
+	if sz.Height > 1 {
+		t.Fatalf("Spacer must not adopt loose MaxHeight: height=%v", sz.Height)
+	}
+}
+
+// TestDecoratedCenterContentDefaultOff — chrome must opt in.
+func TestDecoratedCenterContentDefaultOff(t *testing.T) {
+	child := primitive.NewDecorated()
+	child.Width, child.Height = 20, 10
+	host := primitive.NewDecorated(child)
+	host.Width, host.Height = 100, 40 // explicit taller chrome
+	// default CenterContent false → child top (after padding 0)
+	_ = host.Layout(core.Loose(200, 200))
+	if host.CenterContent {
+		t.Fatal("CenterContent must default false")
+	}
+	if child.Base().Offset().Y != 0 {
+		t.Fatalf("default no center: child Y=%v want 0", child.Base().Offset().Y)
+	}
+	host.SetCenterContent(true)
+	host.MarkNeedsLayout()
+	_ = host.Layout(core.Loose(200, 200))
+	// With center, child should move down when host is taller than child.
+	if child.Base().Offset().Y <= 0 {
+		t.Fatalf("CenterContent=true: child Y=%v want >0", child.Base().Offset().Y)
+	}
+}
+
+// TestPressableChildTopLeftUnderLooseColumn — no magic mid-box paint offset.
+func TestPressableChildTopLeftUnderLooseColumn(t *testing.T) {
+	lab := primitive.NewText("Tab")
+	p := primitive.NewPressable(lab)
+	p.Padding = primitive.Symmetric(8, 4)
+	// Tall loose max as Tabs body used to pass.
+	sz := p.Layout(core.Loose(160, 400))
+	if sz.Height > 60 {
+		t.Fatalf("pressable expanded under loose: H=%v", sz.Height)
+	}
+	// Label must sit inside pressable box (top-left after padding).
+	if len(p.Children()) == 0 {
+		t.Fatal("no child")
+	}
+	off := p.Children()[0].Base().Offset()
+	if off.Y > p.Size().Height {
+		t.Fatalf("child offset.Y=%v outside pressable H=%v", off.Y, p.Size().Height)
+	}
+	if off.Y < 0 {
+		t.Fatalf("negative child offset %v", off)
+	}
+}
+
+// TestRowSpacerButtonsStayTop — Modal footer pattern under loose column height.
+func TestRowSpacerButtonsStayTop(t *testing.T) {
+	b1 := primitive.NewPressable(primitive.NewText("Cancel"))
+	b1.Padding = primitive.Symmetric(12, 6)
+	b2 := primitive.NewPressable(primitive.NewText("OK"))
+	b2.Padding = primitive.Symmetric(12, 6)
+	row := primitive.Row(primitive.Spacer(), b1, b2)
+	row.Gap = 8
+	row.CrossAlign = core.CrossCenter
+	// Loose max height 400 — historical bug inflated Spacer → CrossCenter mid-box.
+	sz := row.Layout(core.Constraints{MaxWidth: 480, MaxHeight: 400})
+	if sz.Height > 80 {
+		t.Fatalf("row height=%v (Spacer took loose MaxHeight?)", sz.Height)
+	}
+	for _, btn := range []*primitive.Pressable{b1, b2} {
+		if btn.Base().Offset().Y > 20 {
+			t.Fatalf("button offset.Y=%v in row H=%v — pushed mid-box", btn.Base().Offset().Y, sz.Height)
+		}
+	}
+}

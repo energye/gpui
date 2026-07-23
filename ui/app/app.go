@@ -160,11 +160,38 @@ func (a *Application) Attach(host platform.Host, tree *core.Tree, present Presen
 	}
 	if tree != nil {
 		tree.SetOnDirty(func() { a.RequestRedraw() })
+		// Bridge host clipboard into the tree when available (C-Clipbd).
+		if host != nil {
+			if cp, ok := host.(platform.ClipboardProvider); ok {
+				if c := cp.Clipboard(); c != nil {
+					tree.SetClipboard(clipboardBridge{c: c})
+				}
+			}
+		}
 	}
 	a.session = s
 	// Initial frame required.
 	a.RequestRedraw()
 	return s
+}
+
+// clipboardBridge adapts platform.Clipboard → core.Clipboard.
+type clipboardBridge struct {
+	c platform.Clipboard
+}
+
+func (b clipboardBridge) ReadText() (string, bool) {
+	if b.c == nil {
+		return "", false
+	}
+	return b.c.ReadText()
+}
+
+func (b clipboardBridge) WriteText(s string) error {
+	if b.c == nil {
+		return nil
+	}
+	return b.c.WriteText(s)
 }
 
 // Session returns the primary session (Phase 1 single window).

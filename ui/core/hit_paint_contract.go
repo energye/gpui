@@ -18,7 +18,6 @@ type HitPaintIssue struct {
 //   - Hit:   local = parentPoint - child.Offset()
 //   - AbsoluteOffset = sum of Offset along ancestor chain
 //
-// Therefore Offset is the single source of truth; this audit catches lay
 // Therefore Offset is the single source of truth; this audit catches layout
 // that wrote Offset inconsistently with Size (e.g. center-with-loose-max).
 func AuditHitPaintContract(root Node) []HitPaintIssue {

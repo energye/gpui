@@ -24,6 +24,9 @@ type Headless struct {
 	// Last SetIMEPosition (tests / C3).
 	imeX, imeY float64
 	imePosN    int
+
+	// In-memory clipboard (CapClipboard).
+	clip *MemoryClipboard
 }
 
 // NewHeadless creates a headless host with the given logical size.
@@ -40,9 +43,18 @@ func NewHeadless(width, height int) *Headless {
 		scale:   1,
 		caps:    HeadlessCaps,
 		focused: true,
+		clip:    NewMemoryClipboard(),
 	}
 	h.cv = sync.NewCond(&h.mu)
 	return h
+}
+
+// Clipboard implements ClipboardProvider.
+func (h *Headless) Clipboard() Clipboard {
+	if h == nil {
+		return nil
+	}
+	return h.clip
 }
 
 // Caps implements Host.

@@ -9,6 +9,7 @@ import (
 
 // DarwinHost is an M6 stub host for macOS. Real AppKit/Metal surface adapter
 // is deferred; API surface matches LinuxHost/WindowsHost.
+// CapClipboard uses pbcopy/pbpaste + memory fallback (cross-platform SPI).
 type DarwinHost struct {
 	width, height int
 	scale         float64
@@ -16,6 +17,7 @@ type DarwinHost struct {
 	queue         []Event
 	closed        bool
 	redraws       int
+	clip          Clipboard
 }
 
 // DarwinOptions configures NewDarwinHost.
@@ -42,12 +44,25 @@ func NewDarwinHost(opts DarwinOptions) (*DarwinHost, error) {
 	return &DarwinHost{
 		width: opts.Width, height: opts.Height,
 		scale: opts.Scale, title: opts.Title,
+		clip: NewSystemClipboard(),
 	}, nil
 }
 
 // Caps implements Host.
+// CapClipboard is set (pbcopy/pbpaste + memory fallback).
 func (h *DarwinHost) Caps() Caps {
-	return CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent | CapCursor
+	return CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent | CapCursor | CapClipboard
+}
+
+// Clipboard implements ClipboardProvider.
+func (h *DarwinHost) Clipboard() Clipboard {
+	if h == nil {
+		return nil
+	}
+	if h.clip == nil {
+		h.clip = NewSystemClipboard()
+	}
+	return h.clip
 }
 
 // Size implements Host.

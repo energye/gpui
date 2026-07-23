@@ -60,4 +60,5 @@ func (c Caps) String() string {
 // HeadlessCaps is the test host capability set.
 // CapIME is included so composition sequences can be injected in CI
 // (Linux true-window host does NOT advertise CapIME until XIM is wired).
-const HeadlessCaps = CapWindow | CapPointer | CapKeyboard | CapTextInput | CapIME | CapPresent
+// CapClipboard is included with an in-memory clipboard on Headless.
+const HeadlessCaps = CapWindow | CapPointer | CapKeyboard | CapTextInput | CapIME | CapClipboard | CapPresent

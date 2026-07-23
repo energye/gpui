@@ -28,6 +28,7 @@ core 管树与脏 · platform 管 SPI · app 管会话与调度 · render 只管
 | 按需帧 R1 | ✅ | `ui/app` `runFrame` · `Tree.NeedsFrame` · `Host.WaitEvents` |
 | 统一入口 R3（单窗） | ✅ | `Application.Attach` / `Run` / `Pulse` / `Quit` |
 | Present 委托 | ✅ | `PresentFunc` + Session |
+| 默认 GPU Present（双带） | ✅ | `ui/app.OwnedPresenter` · MAP §4.1；exboot 薄包装 |
 | retained 双带合成 | ✅ | `ui/layer.Compositor` · MAP §4.1 |
 | 第三方挂载 R2 完整 SPI | ⏳ 设计见 §4.2 | 现状：`Attach(Host, …)` 注入 |
 | 多窗口 R4 | ⏳ 设计见 §3–§5 | **未实现**多 Session；`app.go` 标注 single-window Phase 1 |

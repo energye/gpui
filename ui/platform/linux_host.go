@@ -89,6 +89,9 @@ type LinuxHost struct {
 
 	queue  []Event
 	closed bool
+
+	// System text clipboard (xclip/xsel + memory fallback). CapClipboard always set.
+	clip Clipboard
 }
 
 // LinuxOptions configures NewLinuxHost.
@@ -238,6 +241,7 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		xStoreName: xStoreName, xLookupString: xLookupString,
 		xCreateFontCursor: xCreateFontCursor, xDefineCursor: xDefineCursor, xFreeCursor: xFreeCursor,
 		cursors: make(map[CursorKind]uintptr),
+		clip:    NewSystemClipboard(),
 	}
 	return h, nil
 }
@@ -248,8 +252,20 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 // X11 adapter. Composition events must not be assumed on the true window.
 // See ime.go and docs/UI_FRAMEWORK_MAP.md §12.1 C1 / §12.3 W4.
 // Latin/special keys emit EventKey/EventText via XLookupString.
+// CapClipboard is set; backend is OS clipboard (xclip/xsel) + memory fallback.
 func (h *LinuxHost) Caps() Caps {
-	return CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent | CapSurfaceLifecycle | CapCursor
+	return CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent | CapSurfaceLifecycle | CapCursor | CapClipboard
+}
+
+// Clipboard implements ClipboardProvider.
+func (h *LinuxHost) Clipboard() Clipboard {
+	if h == nil {
+		return nil
+	}
+	if h.clip == nil {
+		h.clip = NewSystemClipboard()
+	}
+	return h.clip
 }
 
 // Size implements Host.

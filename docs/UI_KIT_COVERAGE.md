@@ -41,7 +41,7 @@ go test ./ui/kit -run TestAntCoverageTable -v
 | Upload | ready | Picker/CapFile inject; **host dialog later** |
 | Image | ready | Src+SetPixels sample; **GPU texture later** |
 | QRCode | ready | deterministic modules; **codec later** |
-| Table | ready | virtual rows; sticky head |
+| Table | ready | virtual rows; fixed header (Column, not in-scroll sticky) |
 
 主路径 ready 含：Button、Input、Checkbox/Radio/Switch、Form、Select、Menu/Tabs、Modal/Drawer/Message、Table/List/Tree、Pagination/Dropdown、Transfer/Cascader、Progress/Skeleton/Spin/Tour、Tooltip/Popover 等（完整列表见 `AntCoverage()`）。
 

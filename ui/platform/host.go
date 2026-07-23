@@ -51,6 +51,8 @@ type Event struct {
 	Key  string
 	Text string
 	Down bool // true=KeyDown, false=KeyUp
+	// Modifiers (when host provides them).
+	Shift, Ctrl, Alt, Meta bool
 
 	// Scroll deltas (EventScroll).
 	ScrollDX, ScrollDY float64

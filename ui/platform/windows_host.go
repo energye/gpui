@@ -9,6 +9,7 @@ import (
 
 // WindowsHost is an M6 stub host. Real Win32/WinUI adapter lands when GPU
 // surface bootstrap for Windows is productized; API matches LinuxHost.
+// CapClipboard uses PowerShell Get/Set-Clipboard + memory fallback (cross-platform SPI).
 type WindowsHost struct {
 	width, height int
 	scale         float64
@@ -16,6 +17,7 @@ type WindowsHost struct {
 	queue         []Event
 	closed        bool
 	redraws       int
+	clip          Clipboard
 }
 
 // WindowsOptions configures NewWindowsHost.
@@ -43,12 +45,25 @@ func NewWindowsHost(opts WindowsOptions) (*WindowsHost, error) {
 	return &WindowsHost{
 		width: opts.Width, height: opts.Height,
 		scale: opts.Scale, title: opts.Title,
+		clip: NewSystemClipboard(),
 	}, nil
 }
 
 // Caps implements Host — window/input/present claimed; real GPU later.
+// CapClipboard is set (PowerShell/clip.exe + memory fallback).
 func (h *WindowsHost) Caps() Caps {
-	return CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent | CapCursor
+	return CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent | CapCursor | CapClipboard
+}
+
+// Clipboard implements ClipboardProvider.
+func (h *WindowsHost) Clipboard() Clipboard {
+	if h == nil {
+		return nil
+	}
+	if h.clip == nil {
+		h.clip = NewSystemClipboard()
+	}
+	return h.clip
 }
 
 // Size implements Host.

@@ -28,8 +28,12 @@ func Dispatch(tree *core.Tree, ev Event) (resize *Event, close bool) {
 		tree.DispatchPointer(pe)
 	case EventKey:
 		ke := &core.KeyEvent{
-			Key:  ev.Key,
-			Text: ev.Text,
+			Key:   ev.Key,
+			Text:  ev.Text,
+			Shift: ev.Shift,
+			Ctrl:  ev.Ctrl,
+			Alt:   ev.Alt,
+			Meta:  ev.Meta,
 		}
 		if ev.Down {
 			ke.Type = core.KeyDown
