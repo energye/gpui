@@ -78,6 +78,9 @@ func NewPressable(child core.Node) *Pressable {
 		RippleColor:    render.RGBA{R: 0, G: 0, B: 0, A: 0.12},
 	}
 	p.Init(p)
+	// Isolate ripple/hover paint so click ink does not force full window base rebuild
+	// (which made scroll thumb lag/jump while any Pressable animated).
+	p.SetRepaintBoundary(true)
 	p.Hit = core.HitTarget
 	p.Cursor = core.CursorPointer // clickable hand by default
 	if child != nil {

@@ -206,14 +206,14 @@ func (t *Tabs) SetTabWidth(w float64) {
 func (t *Tabs) SetTabItemHeight(h float64) {
 	t.TabItemHeight = h
 	t.rebuildBar()
-	t.markDirty()
+	t.markLayoutDirty()
 }
 
 // SetInkSize sets indicator thickness (left: width, top: height).
 func (t *Tabs) SetInkSize(px float64) {
 	t.TabInkWidth = px
 	t.rebuildBar()
-	t.markDirty()
+	t.markLayoutDirty()
 }
 
 // SetInkColor sets indicator color (A=0 uses theme primary).
@@ -279,7 +279,7 @@ func (t *Tabs) SetActive(key string) {
 	}
 
 	t.rebuildBar()
-	t.markDirty()
+	t.markLayoutDirty()
 	if changed && t.OnChange != nil {
 		t.OnChange(key)
 	}
@@ -344,16 +344,27 @@ func (t *Tabs) syncBody() {
 		return
 	}
 	t.body.SetChild(t.Contents[t.Active])
-	t.markDirty()
+	t.markLayoutDirty()
 }
 
+// markDirty schedules paint only. Ink slide and hover must not remeasure the
+// rail (remeasure during barScroll drag was a source of thumb height thrash).
 func (t *Tabs) markDirty() {
-	if t.Root != nil {
-		t.Root.MarkNeedsLayout()
+	if t.barStack != nil {
+		t.barStack.MarkNeedsPaint()
+	} else if t.Root != nil {
 		t.Root.MarkNeedsPaint()
 	}
 	if t.ink != nil {
 		t.ink.MarkNeedsPaint()
+	}
+}
+
+// markLayoutDirty is for structure / size policy changes only.
+func (t *Tabs) markLayoutDirty() {
+	if t.Root != nil {
+		t.Root.MarkNeedsLayout()
+		t.Root.MarkNeedsPaint()
 	}
 }
 
@@ -476,7 +487,7 @@ func (t *Tabs) rebuild() {
 		t.rail.MinWidth = railW
 		t.rail.Background = th.Color(core.TokenColorBgContainer)
 		t.rail.BorderWidth = 0
-		t.rail.Padding = primitive.EdgeInsets{Top: 8, Bottom: 8}
+		t.rail.Padding = primitive.EdgeInsets{} // track fills rail height (no vertical inset gap)
 		t.rail.StretchChild = true
 		t.rail.Hit = core.HitBlock
 
@@ -516,15 +527,15 @@ func (t *Tabs) applyInkChrome() {
 	if t.ink == nil {
 		return
 	}
-	// Keep node ink in sync for hit/debug; primary paint is paintInk.
-	t.ink.Color = t.inkColor()
-	if !t.inkVisible() {
-		t.ink.Color = render.RGBA{}
-	}
+	// Ink Box is geometry/hit scaffolding only. The visible indicator is drawn
+	// exclusively by paintInk (tabsBarHost.Paint). Painting both left a ghost of
+	// the previous selection when Offset lagged behind inkAlong during animation.
+	t.ink.Color = render.RGBA{}
 }
 
 // paintInk draws the selection indicator into the bar host local coords.
 // Called from tabsBarHost.Paint so the mark is never clipped under siblings.
+// This is the only place the active indicator is painted (single mark).
 func (t *Tabs) paintInk(pc *core.PaintContext) {
 	if t == nil || pc == nil || !t.inkVisible() {
 		return
@@ -592,13 +603,13 @@ func (t *Tabs) applyInkGeometry() {
 	if inkW <= 0 {
 		inkW = DefaultTabInkWidth
 	}
+	// Never paint the node itself — paintInk is sole visual source.
+	t.ink.Color = render.RGBA{}
 	if !t.inkVisible() {
 		t.ink.Width, t.ink.Height = 0, 0
-		t.ink.Color = render.RGBA{}
 		t.setInkOffset(0, 0)
 		return
 	}
-	t.ink.Color = t.inkColor()
 
 	if t.Position == TabLeft {
 		// Vertical ink on the trailing edge of the tab list content box.

@@ -36,10 +36,14 @@ func (p *positioned) StackAlignment() core.Alignment  { return p.align }
 func (p *positioned) StackOffset() (core.Point, bool) { return p.offset, p.useOff }
 
 // SetStackOffset updates absolute offset used by LayoutStack (ink bar animation).
+// Also writes NodeBase.Offset so DefaultPaintChildren sees the new position without
+// a full tree layout pass (paint-only animation). Previously only StackOffset()
+// was updated while paint still used the last LayoutStack offset — Tabs ink left
+// a ghost of the previous selection until the next layout.
 func (p *positioned) SetStackOffset(x, y float64) {
 	p.offset = core.Point{X: x, Y: y}
 	p.useOff = true
-	p.MarkNeedsLayout()
+	p.SetOffset(p.offset)
 	p.MarkNeedsPaint()
 }
 

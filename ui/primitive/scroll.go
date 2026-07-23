@@ -1,14 +1,24 @@
 package primitive
 
 import (
+	"math"
+	"unsafe"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 )
 
-// ScrollViewport clips children and offsets them by ScrollX/ScrollY (C-Scroll).
+// ScrollViewport clips children and scrolls them by ScrollX/ScrollY (C-Scroll).
 //
-// Flutter SingleChildScrollView + browser overflow: content may exceed the
-// viewport; wheel / drag thumb scrolls.
+// Principle (Flutter Scrollable / ScrollbarPainter):
+//   - Layout measures ContentW/H only; never stores scroll in child layout Offset.
+//   - Scroll is ContentPaintOffset{-ScrollX,-ScrollY} (paint + hit + AbsoluteBounds).
+//   - Thumb extent = f(viewport, content, track); independent of pixels.
+//   - Thumb drag freezes extents; ScrollY = scroll0 + ΔpointerAbs/travel*maxScroll.
+//
+// Paint isolation: ScrollViewport is a RepaintBoundary. Scroll/drag MarkNeedsPaint
+// dirties only this layer (not the full window base). Without that, each drag move
+// forces NonBoundaryPaintDirty → full base rebuild → “跟手延迟后猛跳”.
 //
 // Scrollbar chrome is a separate policy object (see Scrollbar). Enable/configure
 // via SetScrollbar / Scrollbar(). Default: Auto visibility + non-overlay gutter
@@ -51,10 +61,65 @@ type ScrollViewport struct {
 	revealLeft float64 // seconds of Hover reveal after wheel/scroll
 	tree       *core.Tree
 
-	// drag state (thumb)
-	dragAxis   int // 0 none, 1 Y, 2 X
-	dragStart  float64
-	dragScroll float64
+	// drag freezes bar geometry for one thumb gesture (length cannot thrash).
+	drag scrollThumbDrag
+}
+
+// scrollThumbDrag freezes bar metrics at pointer-down (Flutter Scrollbar drag).
+//
+// Principle (same as Flutter ScrollbarPainter + ScrollPosition):
+//
+//	travel    = trackMain - thumbMain          // frozen
+//	maxScroll = content - viewport             // frozen
+//	ScrollY   = scroll0 + (ptrAbs - ptr0Abs) / travel * maxScroll
+//	thumbY    = ScrollY / maxScroll * travel
+//	contentY  = -ScrollY   via ContentPaintOffset (NOT layout Offset)
+//
+// Pointer is in *event absolute* space so host layout cannot thrash mapping.
+type scrollThumbDrag struct {
+	axis int // 0 none, 1 Y, 2 X
+	// Principle mapping anchors
+	ptr0Abs float64 // event X or Y at pointer-down
+	scroll0 float64 // Scroll at pointer-down
+	// Frozen extents
+	viewport  float64
+	content   float64
+	maxScroll float64
+	trackMain float64
+	thumbMain float64
+	// Frozen cross-axis paint
+	cross, pad, margin, trackCross float64
+	viewW, viewH                   float64
+}
+
+func (d *scrollThumbDrag) active() bool { return d != nil && d.axis != 0 }
+
+func (d *scrollThumbDrag) clear() {
+	if d != nil {
+		*d = scrollThumbDrag{}
+	}
+}
+
+// pixelsForPointerAbs is the pure principle formula from frozen anchors.
+func (d *scrollThumbDrag) pixelsForPointerAbs(ptrAbs float64) float64 {
+	if d == nil || d.maxScroll <= 0 {
+		if d == nil {
+			return 0
+		}
+		return d.scroll0
+	}
+	travel := d.trackMain - d.thumbMain
+	if travel <= 1e-6 {
+		return d.scroll0
+	}
+	px := d.scroll0 + (ptrAbs-d.ptr0Abs)/travel*d.maxScroll
+	if px < 0 {
+		return 0
+	}
+	if px > d.maxScroll {
+		return d.maxScroll
+	}
+	return px
 }
 
 // NewScrollViewport wraps children in a scrollable clip (vertical by default).
@@ -70,6 +135,9 @@ func NewScrollViewport(children ...core.Node) *ScrollViewport {
 	s.Init(s)
 	s.Hit = core.HitBlock
 	s.ClipHit = true
+	// Isolate scroll/drag paint so the compositor keeps the window base RT
+	// (Flutter RepaintBoundary). Required for smooth thumb drag.
+	s.SetRepaintBoundary(true)
 	for _, c := range children {
 		s.AddChild(c)
 	}
@@ -149,6 +217,35 @@ func (s *ScrollViewport) AttachTicker(t *core.Tree) {
 // TypeID implements core.Node.
 func (s *ScrollViewport) TypeID() string { return TypeScrollViewport }
 
+// ContentPaintOffset implements core.PaintOffsetParent.
+// Scroll is a paint/hit transform only — never mutates child layout Offset
+// (Flutter Scrollable; avoids fighting Flex SetOffset → bottom thrash).
+func (s *ScrollViewport) ContentPaintOffset() core.Point {
+	if s == nil {
+		return core.Point{}
+	}
+	return core.Point{X: -s.ScrollX, Y: -s.ScrollY}
+}
+
+// Dragging reports an active thumb drag (for hosts/tests).
+func (s *ScrollViewport) Dragging() bool {
+	return s != nil && s.drag.active()
+}
+
+// ThumbMainLength is the painted thumb extent along the scroll axis (for tests/diagnostics).
+func (s *ScrollViewport) ThumbMainLength(vertical bool) float64 {
+	if s == nil {
+		return 0
+	}
+	sz := s.Size()
+	if vertical {
+		_, _, _, _, h := s.vThumbGeom(sz)
+		return h
+	}
+	_, _, _, w, _ := s.hThumbGeom(sz)
+	return w
+}
+
 func (s *ScrollViewport) axes() (vert, horiz bool) {
 	if s == nil {
 		return true, false
@@ -181,15 +278,18 @@ func (s *ScrollViewport) resolveBarMut() *Scrollbar {
 }
 
 // resolveBar returns effective policy for paint/hit (ShowScrollbar=false ⇒ Enabled off).
+// Avoids Clone() on the paint/hit hot path (drag frames allocate nothing for bar policy).
 func (s *ScrollViewport) resolveBar() *Scrollbar {
 	b := s.resolveBarMut()
-	if !s.ShowScrollbar {
-		c := b.Clone()
-		c.Enabled = false
-		return c
+	if s.ShowScrollbar {
+		return b
 	}
-	return b
+	// Shared disabled view — callers must not mutate. Hot path never allocates.
+	return scrollbarDisabledView
 }
+
+// scrollbarDisabledView is a read-only "bars off" policy (no per-call Clone).
+var scrollbarDisabledView = &Scrollbar{Enabled: false}
 
 // Layout implements core.Node.
 func (s *ScrollViewport) Layout(c core.Constraints) core.Size {
@@ -197,6 +297,9 @@ func (s *ScrollViewport) Layout(c core.Constraints) core.Size {
 	bar := s.resolveBarMut()
 
 	// Viewport size first (from fixed fields or parent).
+	// During drag we still accept parent size so Flex/StretchChild placement is
+	// stable (freezing outer size fought the rail and made the whole tab column 窜).
+	// Only content extent is frozen (no child remeasure).
 	w, h := s.Width, s.Height
 	if w <= 0 {
 		if c.HasBoundedWidth() && c.MaxWidth < core.Unbounded {
@@ -207,6 +310,26 @@ func (s *ScrollViewport) Layout(c core.Constraints) core.Size {
 		if c.HasBoundedHeight() && c.MaxHeight < core.Unbounded {
 			h = c.MaxHeight
 		}
+	}
+
+	if s.drag.active() {
+		// Outer size from parent; content metrics frozen at pointer-down.
+		if w <= 0 {
+			w = s.drag.viewW
+		}
+		if h <= 0 {
+			h = s.drag.viewH
+		}
+		out := c.Tighten(core.Size{Width: w, Height: h})
+		s.SetSize(out)
+		if s.drag.axis == 1 {
+			s.ContentH = s.drag.content
+		} else if s.drag.axis == 2 {
+			s.ContentW = s.drag.content
+		}
+		// Do not layout children — preserves layout Offset chain (paint scroll only).
+		s.RememberConstraints(c)
+		return out
 	}
 
 	// Content insets: when scrollbar enabled and not Overlay, subtract bar size
@@ -266,7 +389,7 @@ func (s *ScrollViewport) Layout(c core.Constraints) core.Size {
 	// Second pass: if Auto/Hover with Overlay=false and overflow just appeared,
 	// insets are already stable (reserved whenever policy != Never).
 	s.clampScroll()
-	s.applyChildOffsets()
+	s.RememberConstraints(c)
 	return out
 }
 
@@ -320,18 +443,288 @@ func (s *ScrollViewport) ContentSize() core.Size {
 	return core.Size{Width: w, Height: h}
 }
 
-func (s *ScrollViewport) applyChildOffsets() {
-	for _, child := range s.Children() {
-		child.Base().SetOffset(core.Point{X: -s.ScrollX, Y: -s.ScrollY})
+// barMetrics is the Flutter ScrollMetrics subset used by the scrollbar painter.
+// Thumb extent is a pure function of (viewport, content, trackMain) — independent
+// of pixels — matching ScrollbarPainter._thumbExtent.
+type barMetrics struct {
+	viewport  float64 // viewportDimension
+	content   float64 // scrollExtent + viewportDimension ≈ ContentH/W
+	maxScroll float64 // maxScrollExtent
+	trackMain float64 // painted track length along main axis
+	thumbMain float64 // thumb extent along main axis
+}
+
+// flutterThumbExtent — ScrollbarPainter: track * viewport / content, clamped.
+func flutterThumbExtent(trackMain, viewport, content, minThumb, maxFrac float64) float64 {
+	if trackMain < 1 {
+		trackMain = 1
+	}
+	if content < viewport {
+		content = viewport
+	}
+	if content <= viewport+1e-6 {
+		return trackMain
+	}
+	if minThumb < 1 {
+		minThumb = 20
+	}
+	// fractionVisible = viewport / content
+	ext := trackMain * (viewport / content)
+	if ext < minThumb {
+		ext = minThumb
+	}
+	if maxFrac > 0 && maxFrac < 1 && ext > trackMain*maxFrac {
+		ext = trackMain * maxFrac
+	}
+	if ext > trackMain {
+		ext = trackMain
+	}
+	return ext
+}
+
+func flutterThumbOffset(pixels, maxScroll, trackMain, thumbMain float64) float64 {
+	travel := trackMain - thumbMain
+	if maxScroll <= 0 || travel <= 0 {
+		return 0
+	}
+	// Linear map; hard clamp only. No epsilon snap (snap caused visible 窜 near end).
+	y := pixels / maxScroll * travel
+	if y < 0 {
+		return 0
+	}
+	if y > travel {
+		return travel
+	}
+	return y
+}
+
+// computeBarMetrics builds painter metrics for one axis.
+// trackMain is the painted track length (outer size along axis, minus main-axis margin*2).
+// viewport is the content-box size (Flutter viewportDimension).
+func (s *ScrollViewport) computeBarMetrics(vertical bool, outerMain float64) barMetrics {
+	bar := s.resolveBar()
+	cs := s.ContentSize()
+	var viewport, content float64
+	if vertical {
+		viewport, content = cs.Height, s.ContentH
+	} else {
+		viewport, content = cs.Width, s.ContentW
+	}
+	if viewport < 1 {
+		viewport = 1
+	}
+	if content < 1 {
+		content = 1
+	}
+	// Track main length = outer widget size along the axis (full visible height/width).
+	// Content viewport may equal outer for single-axis bars; thumb + track share trackMain
+	// so the rail visually seats flush top/bottom (no multi-pixel gap).
+	_ = bar.margin()
+	trackMain := outerMain
+	if trackMain < 1 {
+		trackMain = viewport
+	}
+	if trackMain < 1 {
+		trackMain = 1
+	}
+	// maxScroll still uses content-box viewport (how much content can move).
+	// thumb extent uses trackMain with visible fraction viewport/content.
+	maxScroll := content - viewport
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	thumb := flutterThumbExtent(trackMain, viewport, content, bar.minThumb(), bar.maxThumbFraction())
+	return barMetrics{
+		viewport:  viewport,
+		content:   content,
+		maxScroll: maxScroll,
+		trackMain: trackMain,
+		thumbMain: thumb,
 	}
 }
 
-// Paint implements core.Node.
+// metricsForPaint returns frozen metrics while dragging, else live compute.
+func (s *ScrollViewport) metricsForPaint(vertical bool, outerMain float64) barMetrics {
+	if vertical && s.drag.axis == 1 {
+		return barMetrics{
+			viewport:  s.drag.viewport,
+			content:   s.drag.content,
+			maxScroll: s.drag.maxScroll,
+			trackMain: s.drag.trackMain,
+			thumbMain: s.drag.thumbMain,
+		}
+	}
+	if !vertical && s.drag.axis == 2 {
+		return barMetrics{
+			viewport:  s.drag.viewport,
+			content:   s.drag.content,
+			maxScroll: s.drag.maxScroll,
+			trackMain: s.drag.trackMain,
+			thumbMain: s.drag.thumbMain,
+		}
+	}
+	return s.computeBarMetrics(vertical, outerMain)
+}
+
+// vThumbGeom returns vertical bar geometry.
+// Flutter: thumb MAIN length is independent of ScrollY; during drag it is frozen.
+func (s *ScrollViewport) vThumbGeom(sz core.Size) (trackX, thumbX, thumbY, thumbW, thumbH float64) {
+	if s.drag.axis == 1 {
+		// Exact freeze — no live thickness/ContentH/Size.
+		trackX = s.drag.trackCross
+		pad, cross := s.drag.pad, s.drag.cross
+		thumbX = trackX + pad
+		thumbW = cross - 2*pad
+		if thumbW < 2 {
+			thumbW = cross
+			thumbX = trackX
+		}
+		thumbH = s.drag.thumbMain
+		thumbY = flutterThumbOffset(s.ScrollY, s.drag.maxScroll, s.drag.trackMain, s.drag.thumbMain)
+		return trackX, thumbX, thumbY, thumbW, thumbH
+	}
+	bar := s.resolveBar()
+	on := s.onBarV
+	th := bar.thickness(on)
+	gutter := bar.GutterThickness()
+	if gutter < th {
+		gutter = th
+	}
+	margin := bar.margin()
+	pad := bar.padding()
+	trackX = sz.Width - gutter + (gutter-th)/2
+	if margin > 0 && th+2*margin <= gutter {
+		trackX = sz.Width - th - margin
+	}
+	thumbX = trackX + pad
+	thumbW = th - 2*pad
+	if thumbW < 2 {
+		thumbW = th
+		thumbX = trackX
+	}
+	m := s.computeBarMetrics(true, sz.Height)
+	thumbY = flutterThumbOffset(s.ScrollY, m.maxScroll, m.trackMain, m.thumbMain)
+	thumbH = m.thumbMain
+	return trackX, thumbX, thumbY, thumbW, thumbH
+}
+
+func (s *ScrollViewport) hThumbGeom(sz core.Size) (trackY, thumbX, thumbY, thumbW, thumbH float64) {
+	if s.drag.axis == 2 {
+		trackY = s.drag.trackCross
+		pad, cross := s.drag.pad, s.drag.cross
+		thumbY = trackY + pad
+		thumbH = cross - 2*pad
+		if thumbH < 2 {
+			thumbH = cross
+			thumbY = trackY
+		}
+		thumbW = s.drag.thumbMain
+		thumbX = flutterThumbOffset(s.ScrollX, s.drag.maxScroll, s.drag.trackMain, s.drag.thumbMain)
+		return trackY, thumbX, thumbY, thumbW, thumbH
+	}
+	bar := s.resolveBar()
+	on := s.onBarH
+	th := bar.thickness(on)
+	gutter := bar.GutterThickness()
+	if gutter < th {
+		gutter = th
+	}
+	margin := bar.margin()
+	pad := bar.padding()
+	trackY = sz.Height - gutter + (gutter-th)/2
+	if margin > 0 && th+2*margin <= gutter {
+		trackY = sz.Height - th - margin
+	}
+	thumbY = trackY + pad
+	thumbH = th - 2*pad
+	if thumbH < 2 {
+		thumbH = th
+		thumbY = trackY
+	}
+	m := s.computeBarMetrics(false, sz.Width)
+	thumbX = flutterThumbOffset(s.ScrollX, m.maxScroll, m.trackMain, m.thumbMain)
+	thumbW = m.thumbMain
+	return trackY, thumbX, thumbY, thumbW, thumbH
+}
+
+func (s *ScrollViewport) cacheKey() uintptr {
+	return uintptr(unsafe.Pointer(s))
+}
+
+// Paint implements core.Node. With LayerCache, content+chrome live in a retained
+// layer so thumb drag re-rasterizes only this viewport (not the full window).
 func (s *ScrollViewport) Paint(pc *core.PaintContext) {
 	if pc == nil {
 		return
 	}
 	sz := s.Size()
+	w := int(math.Ceil(sz.Width))
+	h := int(math.Ceil(sz.Height))
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	scale := pc.Scale
+	if scale <= 0 {
+		scale = 1
+	}
+	key := s.cacheKey()
+	ox, oy := pc.Origin.X, pc.Origin.Y
+
+	if pc.LayerCache != nil {
+		// Re-rasterize only when this viewport (or nested content) is dirty.
+		// ForceFullPaint alone must NOT rebuild a clean scroll layer (thumb lag with animations).
+		// Nested Spin painted into this layer still triggers via scrollDescendantPaintDirty.
+		needRaster := s.NeedsPaint() || scrollDescendantPaintDirty(s)
+		if !needRaster {
+			if !pc.LayerCache.BlitBoundary(key, nil, ox, oy, w, h) {
+				needRaster = true
+			}
+		}
+		if needRaster {
+			ok := pc.LayerCache.RasterizeBoundary(key, pc.DC, ox, oy, w, h, scale, func(childPC *core.PaintContext) {
+				if childPC == nil {
+					return
+				}
+				if pc.Theme != nil {
+					childPC.Theme = pc.Theme
+				}
+				s.paintBody(childPC, sz)
+			})
+			if !ok {
+				s.paintDirect(pc, sz)
+				return
+			}
+		}
+		if !pc.DeferLayerBlit && pc.DC != nil {
+			_ = pc.LayerCache.BlitBoundary(key, pc.DC, ox, oy, w, h)
+		}
+		s.ClearPaintDirty()
+		return
+	}
+
+	s.paintDirect(pc, sz)
+}
+
+func (s *ScrollViewport) paintDirect(pc *core.PaintContext, sz core.Size) {
+	if pc.CompositeOnly && !s.NeedsPaint() && !pc.ForceFullPaint && !scrollDescendantPaintDirty(s) {
+		s.ClearPaintDirty()
+		return
+	}
+	childPC := pc
+	if s.NeedsPaint() || pc.ForceFullPaint {
+		childPC = pc.WithForceFullPaint()
+		childPC.CompositeOnly = false
+	}
+	s.paintBody(childPC, sz)
+	s.ClearPaintDirty()
+}
+
+// paintBody draws clipped content + scrollbar chrome in the given paint space
+// (parent origin or offscreen RT local origin).
+func (s *ScrollViewport) paintBody(pc *core.PaintContext, sz core.Size) {
 	l, t, r, b := s.ContentInsets()
 	// Clip content to the area excluding scrollbar gutters (no style under bars).
 	cw := sz.Width - l - r
@@ -348,15 +741,51 @@ func (s *ScrollViewport) Paint(pc *core.PaintContext) {
 	s.paintScrollbars(pc, sz)
 }
 
+// scrollDescendantPaintDirty reports paint dirty under s (not including s).
+func scrollDescendantPaintDirty(s *ScrollViewport) bool {
+	if s == nil {
+		return false
+	}
+	for _, c := range s.Children() {
+		if nodeOrDescPaintDirty(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeOrDescPaintDirty(n core.Node) bool {
+	if n == nil {
+		return false
+	}
+	b := n.Base()
+	if b.NeedsPaint() {
+		return true
+	}
+	for _, c := range b.Children() {
+		if nodeOrDescPaintDirty(c) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *ScrollViewport) paintScrollbars(pc *core.PaintContext, sz core.Size) {
 	bar := s.resolveBar()
 	vert, horiz := s.axes()
 	cs := s.ContentSize()
-	overflowY := s.ContentH > cs.Height+0.5
-	overflowX := s.ContentW > cs.Width+0.5
+	// During drag use frozen content for overflow so chrome does not flicker.
+	contentH, contentW := s.ContentH, s.ContentW
+	if s.drag.axis == 1 {
+		contentH = s.drag.content
+	} else if s.drag.axis == 2 {
+		contentW = s.drag.content
+	}
+	overflowY := contentH > cs.Height+0.5
+	overflowX := contentW > cs.Width+0.5
 	reveal := s.revealLeft > 0
-	draggingV := s.dragAxis == 1
-	draggingH := s.dragAxis == 2
+	draggingV := s.drag.axis == 1
+	draggingH := s.drag.axis == 2
 
 	showV := vert && bar.shouldShow(bar.Vertical, overflowY, s.hovered, draggingV, reveal)
 	showH := horiz && bar.shouldShow(bar.Horizontal, overflowX, s.hovered, draggingH, reveal)
@@ -366,138 +795,30 @@ func (s *ScrollViewport) paintScrollbars(pc *core.PaintContext, sz core.Size) {
 
 	if showV {
 		on := s.onBarV || draggingV
+		trackX, thumbX, thumbY, thumbW, thumbH := s.vThumbGeom(sz)
 		th := bar.thickness(on)
-		gutter := bar.GutterThickness()
-		if gutter < th {
-			gutter = th
+		if draggingV {
+			th = s.drag.cross
+			trackX = s.drag.trackCross
 		}
-		// Align bar to trailing edge inside gutter (margin inward).
-		margin := bar.margin()
-		pad := bar.padding()
-		xTrack := sz.Width - gutter + (gutter-th)/2
-		if margin > 0 && th+2*margin <= gutter {
-			xTrack = sz.Width - th - margin
-		}
-		// Track
 		if bar.showTrack() {
-			pc.FillLocalRoundRect(xTrack, 0, th, sz.Height, bar.trackRadius(th), bar.trackCol(on))
+			pc.FillLocalRoundRect(trackX, 0, th, sz.Height, bar.trackRadius(th), bar.trackCol(on))
 		}
-		// Thumb
-		x, y, w, h := s.vThumbRect(sz, th, bar.minThumb())
-		// Reposition x to expanded bar; inset padding
-		x = xTrack + pad
-		w = th - 2*pad
-		if w < 2 {
-			w = th
-			x = xTrack
-		}
-		y += pad
-		h -= 2 * pad
-		if h < bar.minThumb()/2 {
-			h = bar.minThumb() / 2
-			if h < 8 {
-				h = 8
-			}
-		}
-		pc.FillLocalRoundRect(x, y, w, h, bar.radius(th), bar.thumbCol(on, draggingV))
+		pc.FillLocalRoundRect(thumbX, thumbY, thumbW, thumbH, bar.radius(th), bar.thumbCol(on, draggingV))
 	}
 	if showH {
 		on := s.onBarH || draggingH
+		trackY, thumbX, thumbY, thumbW, thumbH := s.hThumbGeom(sz)
 		th := bar.thickness(on)
-		gutter := bar.GutterThickness()
-		if gutter < th {
-			gutter = th
-		}
-		margin := bar.margin()
-		pad := bar.padding()
-		yTrack := sz.Height - gutter + (gutter-th)/2
-		if margin > 0 && th+2*margin <= gutter {
-			yTrack = sz.Height - th - margin
+		if draggingH {
+			th = s.drag.cross
+			trackY = s.drag.trackCross
 		}
 		if bar.showTrack() {
-			pc.FillLocalRoundRect(0, yTrack, sz.Width, th, bar.trackRadius(th), bar.trackCol(on))
+			pc.FillLocalRoundRect(0, trackY, sz.Width, th, bar.trackRadius(th), bar.trackCol(on))
 		}
-		x, y, w, h := s.hThumbRect(sz, th, bar.minThumb())
-		y = yTrack + pad
-		h = th - 2*pad
-		if h < 2 {
-			h = th
-			y = yTrack
-		}
-		x += pad
-		w -= 2 * pad
-		if w < bar.minThumb()/2 {
-			w = bar.minThumb() / 2
-			if w < 8 {
-				w = 8
-			}
-		}
-		pc.FillLocalRoundRect(x, y, w, h, bar.radius(th), bar.thumbCol(on, draggingH))
+		pc.FillLocalRoundRect(thumbX, thumbY, thumbW, thumbH, bar.radius(th), bar.thumbCol(on, draggingH))
 	}
-}
-
-func (s *ScrollViewport) vThumbRect(sz core.Size, bar, minThumb float64) (x, y, w, h float64) {
-	viewH := s.ContentSize().Height
-	if viewH < 1 {
-		viewH = sz.Height
-	}
-	contentH := s.ContentH
-	if contentH < 1 {
-		contentH = 1
-	}
-	h = viewH * viewH / contentH
-	if h < minThumb {
-		h = minThumb
-	}
-	maxF := s.resolveBar().maxThumbFraction()
-	if maxF < 1 && h > viewH*maxF {
-		h = viewH * maxF
-	}
-	if h > viewH {
-		h = viewH
-	}
-	maxScroll := contentH - viewH
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	track := viewH - h
-	y = 0
-	if maxScroll > 0 && track > 0 {
-		y = s.ScrollY / maxScroll * track
-	}
-	return sz.Width - bar, y, bar, h
-}
-
-func (s *ScrollViewport) hThumbRect(sz core.Size, bar, minThumb float64) (x, y, w, h float64) {
-	viewW := s.ContentSize().Width
-	if viewW < 1 {
-		viewW = sz.Width
-	}
-	contentW := s.ContentW
-	if contentW < 1 {
-		contentW = 1
-	}
-	w = viewW * viewW / contentW
-	if w < minThumb {
-		w = minThumb
-	}
-	maxF := s.resolveBar().maxThumbFraction()
-	if maxF < 1 && w > viewW*maxF {
-		w = viewW * maxF
-	}
-	if w > viewW {
-		w = viewW
-	}
-	maxScroll := contentW - viewW
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	track := viewW - w
-	x = 0
-	if maxScroll > 0 && track > 0 {
-		x = s.ScrollX / maxScroll * track
-	}
-	return x, sz.Height - bar, w, bar
 }
 
 // HitTest implements core.Node.
@@ -597,29 +918,68 @@ func (s *ScrollViewport) bumpReveal() {
 }
 
 // HandlePointer implements thumb drag (pointer capture via tree on Down).
+// Drag-move is a hot path: no AbsoluteBounds, no bar policy resolve, no hover work.
 func (s *ScrollViewport) HandlePointer(ev *core.PointerEvent) {
 	if s == nil || ev == nil {
 		return
 	}
+
+	// ---- drag hot path (must stay cheap: thumb lag is mostly paint cost + here) ----
+	if s.drag.axis == 1 {
+		switch ev.Type {
+		case core.PointerMove:
+			next := s.drag.pixelsForPointerAbs(ev.Y)
+			if next != s.ScrollY {
+				s.ScrollY = next
+				s.MarkNeedsPaint()
+			}
+			ev.Handled = true
+			return
+		case core.PointerUp, core.PointerCancel:
+			s.drag.clear()
+			s.bumpReveal()
+			ev.Handled = true
+			return
+		}
+	} else if s.drag.axis == 2 {
+		switch ev.Type {
+		case core.PointerMove:
+			next := s.drag.pixelsForPointerAbs(ev.X)
+			if next != s.ScrollX {
+				s.ScrollX = next
+				s.MarkNeedsPaint()
+			}
+			ev.Handled = true
+			return
+		case core.PointerUp, core.PointerCancel:
+			s.drag.clear()
+			s.bumpReveal()
+			ev.Handled = true
+			return
+		}
+	}
+
 	sz := s.Size()
 	bar := s.resolveBar()
 	thV := bar.GutterThickness()
-	thH := bar.GutterThickness()
-	thVPaint := bar.thickness(s.onBarV)
-	thHPaint := bar.thickness(s.onBarH)
-	// Convert absolute event to local.
+	thH := thV
+	// Local coords for hit-testing against bar geometry (widget space).
 	abs := core.AbsoluteBounds(s)
 	lx := ev.X - abs.Min.X
 	ly := ev.Y - abs.Min.Y
 
-	// Track hover over bar regions for thickness expand.
+	// Track hover over bar regions for thickness expand (paint only on change).
 	if ev.Type == core.PointerMove || ev.Type == core.PointerDown {
+		prevV, prevH := s.onBarV, s.onBarH
 		s.hovered = true
 		cs := s.ContentSize()
 		overflowY := s.ContentH > cs.Height+0.5
 		overflowX := s.ContentW > cs.Width+0.5
 		s.onBarV = overflowY && lx >= sz.Width-thV
 		s.onBarH = overflowX && ly >= sz.Height-thH
+		if s.onBarV != prevV || s.onBarH != prevH {
+			s.MarkNeedsPaint()
+		}
 	}
 
 	switch ev.Type {
@@ -629,21 +989,21 @@ func (s *ScrollViewport) HandlePointer(ev *core.PointerEvent) {
 		}
 		vert, horiz := s.axes()
 		if vert && s.ContentH > s.ContentSize().Height+0.5 {
-			x, y, w, h := s.vThumbRect(sz, thVPaint, bar.minThumb())
-			if bar.dragEnabled() && lx >= x && lx <= x+w && ly >= y && ly <= y+h {
-				s.dragAxis = 1
-				s.dragStart = ly
-				s.dragScroll = s.ScrollY
+			_, _, thumbY, _, thumbH := s.vThumbGeom(sz)
+			// Full-gutter hit on Y span (thin painted thumb is easy to miss).
+			inStrip := lx >= sz.Width-thV && lx <= sz.Width
+			inThumb := ly >= thumbY && ly <= thumbY+thumbH
+			if bar.dragEnabled() && inStrip && inThumb {
+				s.beginThumbDrag(1, ev.Y, sz) // event absolute Y
 				ev.Handled = true
 				s.MarkNeedsPaint()
 				return
 			}
-			// Track click: jump page
-			if bar.trackClickEnabled() && lx >= sz.Width-thV {
+			if bar.trackClickEnabled() && inStrip {
 				page := s.ContentSize().Height * bar.pageFraction()
-				if ly < y {
+				if ly < thumbY {
 					s.SetScroll(s.ScrollX, s.ScrollY-page)
-				} else if ly > y+h {
+				} else if ly > thumbY+thumbH {
 					s.SetScroll(s.ScrollX, s.ScrollY+page)
 				}
 				s.bumpReveal()
@@ -652,20 +1012,20 @@ func (s *ScrollViewport) HandlePointer(ev *core.PointerEvent) {
 			}
 		}
 		if horiz && s.ContentW > s.ContentSize().Width+0.5 {
-			x, y, w, h := s.hThumbRect(sz, thHPaint, bar.minThumb())
-			if bar.dragEnabled() && lx >= x && lx <= x+w && ly >= y && ly <= y+h {
-				s.dragAxis = 2
-				s.dragStart = lx
-				s.dragScroll = s.ScrollX
+			_, thumbX, _, thumbW, _ := s.hThumbGeom(sz)
+			inStrip := ly >= sz.Height-thH && ly <= sz.Height
+			inThumb := lx >= thumbX && lx <= thumbX+thumbW
+			if bar.dragEnabled() && inStrip && inThumb {
+				s.beginThumbDrag(2, ev.X, sz) // event absolute X
 				ev.Handled = true
 				s.MarkNeedsPaint()
 				return
 			}
-			if bar.trackClickEnabled() && ly >= sz.Height-thH {
+			if bar.trackClickEnabled() && inStrip {
 				page := s.ContentSize().Width * bar.pageFraction()
-				if lx < x {
+				if lx < thumbX {
 					s.SetScroll(s.ScrollX-page, s.ScrollY)
-				} else if lx > x+w {
+				} else if lx > thumbX+thumbW {
 					s.SetScroll(s.ScrollX+page, s.ScrollY)
 				}
 				s.bumpReveal()
@@ -673,35 +1033,55 @@ func (s *ScrollViewport) HandlePointer(ev *core.PointerEvent) {
 				return
 			}
 		}
-	case core.PointerMove:
-		if s.dragAxis == 1 {
-			_, _, _, th := s.vThumbRect(sz, thV, bar.minThumb())
-			track := sz.Height - th
-			maxScroll := s.ContentH - s.ContentSize().Height
-			if track > 0 && maxScroll > 0 {
-				dy := ly - s.dragStart
-				s.SetScroll(s.ScrollX, s.dragScroll+dy/track*maxScroll)
-			}
-			ev.Handled = true
-		} else if s.dragAxis == 2 {
-			_, _, tw, _ := s.hThumbRect(sz, thH, bar.minThumb())
-			track := sz.Width - tw
-			maxScroll := s.ContentW - s.ContentSize().Width
-			if track > 0 && maxScroll > 0 {
-				dx := lx - s.dragStart
-				s.SetScroll(s.dragScroll+dx/track*maxScroll, s.ScrollY)
-			}
-			ev.Handled = true
-		} else {
-			// Hover paint updates for Hover visibility / thickness.
-			s.MarkNeedsPaint()
+	}
+}
+
+// beginThumbDrag freezes metrics + paint sizes; ptrAbs is event.X or event.Y.
+func (s *ScrollViewport) beginThumbDrag(axis int, ptrAbs float64, sz core.Size) {
+	outer := sz.Height
+	if axis == 2 {
+		outer = sz.Width
+	}
+	m := s.computeBarMetrics(axis == 1, outer)
+	bar := s.resolveBar()
+	cross := bar.thickness(true) // freeze expanded thickness for gesture
+	pad := bar.padding()
+	margin := bar.margin()
+	gutter := bar.GutterThickness()
+	if gutter < cross {
+		gutter = cross
+	}
+	var trackCross float64
+	if axis == 1 {
+		trackCross = sz.Width - gutter + (gutter-cross)/2
+		if margin > 0 && cross+2*margin <= gutter {
+			trackCross = sz.Width - cross - margin
 		}
-	case core.PointerUp, core.PointerCancel:
-		if s.dragAxis != 0 {
-			s.dragAxis = 0
-			s.bumpReveal()
-			ev.Handled = true
+	} else {
+		trackCross = sz.Height - gutter + (gutter-cross)/2
+		if margin > 0 && cross+2*margin <= gutter {
+			trackCross = sz.Height - cross - margin
 		}
+	}
+	scroll0 := s.ScrollY
+	if axis == 2 {
+		scroll0 = s.ScrollX
+	}
+	s.drag = scrollThumbDrag{
+		axis:       axis,
+		ptr0Abs:    ptrAbs,
+		scroll0:    scroll0,
+		viewport:   m.viewport,
+		content:    m.content,
+		maxScroll:  m.maxScroll,
+		trackMain:  m.trackMain,
+		thumbMain:  m.thumbMain,
+		cross:      cross,
+		pad:        pad,
+		margin:     margin,
+		trackCross: trackCross,
+		viewW:      sz.Width,
+		viewH:      sz.Height,
 	}
 }
 
@@ -715,18 +1095,23 @@ func (s *ScrollViewport) HandleScroll(ev *core.ScrollEvent) {
 	s.ScrollX += ev.DX * step
 	s.ScrollY += ev.DY * step
 	s.clampScroll()
-	s.applyChildOffsets()
 	s.bumpReveal()
-	s.MarkNeedsLayout() // offsets changed — keep layout clean via paint+offset
+	// Paint-only: ContentPaintOffset updates scroll transform.
 	s.MarkNeedsPaint()
 	ev.Handled = true
 }
 
-// SetScroll sets offsets and clamps.
+// SetScroll sets offsets and clamps. No-op (no paint) when clamped values are unchanged.
 func (s *ScrollViewport) SetScroll(x, y float64) {
+	if s == nil {
+		return
+	}
+	prevX, prevY := s.ScrollX, s.ScrollY
 	s.ScrollX, s.ScrollY = x, y
 	s.clampScroll()
-	s.applyChildOffsets()
+	if s.ScrollX == prevX && s.ScrollY == prevY {
+		return
+	}
 	s.MarkNeedsPaint()
 }
 
@@ -754,9 +1139,9 @@ func (s *ScrollViewport) BarVisible(vertical bool) bool {
 	bar := s.resolveBar()
 	sz := s.Size()
 	if vertical {
-		return s.axesVert() && bar.shouldShow(bar.Vertical, s.ContentH > sz.Height+0.5, s.hovered, s.dragAxis == 1, s.revealLeft > 0)
+		return s.axesVert() && bar.shouldShow(bar.Vertical, s.ContentH > sz.Height+0.5, s.hovered, s.drag.axis == 1, s.revealLeft > 0)
 	}
-	return s.axesHoriz() && bar.shouldShow(bar.Horizontal, s.ContentW > sz.Width+0.5, s.hovered, s.dragAxis == 2, s.revealLeft > 0)
+	return s.axesHoriz() && bar.shouldShow(bar.Horizontal, s.ContentW > sz.Width+0.5, s.hovered, s.drag.axis == 2, s.revealLeft > 0)
 }
 
 func (s *ScrollViewport) axesVert() bool {
@@ -770,6 +1155,25 @@ func (s *ScrollViewport) axesHoriz() bool {
 }
 
 func (s *ScrollViewport) clampScroll() {
+	// Principle: while dragging, maxScroll is frozen — never recompute from live layout.
+	if s.drag.axis == 1 {
+		if s.ScrollY < 0 {
+			s.ScrollY = 0
+		} else if s.ScrollY > s.drag.maxScroll {
+			s.ScrollY = s.drag.maxScroll
+		}
+		s.ScrollX = 0
+		return
+	}
+	if s.drag.axis == 2 {
+		if s.ScrollX < 0 {
+			s.ScrollX = 0
+		} else if s.ScrollX > s.drag.maxScroll {
+			s.ScrollX = s.drag.maxScroll
+		}
+		s.ScrollY = 0
+		return
+	}
 	cs := s.ContentSize()
 	maxX := s.ContentW - cs.Width
 	maxY := s.ContentH - cs.Height
@@ -790,14 +1194,12 @@ func (s *ScrollViewport) clampScroll() {
 	}
 	if s.ScrollX < 0 {
 		s.ScrollX = 0
+	} else if s.ScrollX > maxX {
+		s.ScrollX = maxX
 	}
 	if s.ScrollY < 0 {
 		s.ScrollY = 0
-	}
-	if s.ScrollX > maxX {
-		s.ScrollX = maxX
-	}
-	if s.ScrollY > maxY {
+	} else if s.ScrollY > maxY {
 		s.ScrollY = maxY
 	}
 }

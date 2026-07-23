@@ -57,6 +57,30 @@ func TestRepaintBoundaryStopsPaintBubble(t *testing.T) {
 	}
 }
 
+// Boundary calling MarkNeedsPaint on itself must not dirty ancestors.
+// ScrollViewport is a boundary and marks itself on every drag move; bubbling
+// would set NonBoundaryPaintDirty and force full base rebuild (lag-then-jump).
+func TestRepaintBoundarySelfMarkDoesNotBubble(t *testing.T) {
+	boundary := primitive.NewRepaintBoundary()
+	outer := primitive.NewBox(boundary)
+	outer.Width, outer.Height = 50, 50
+	tree := core.NewTree(outer)
+	tree.Frame(&core.PaintContext{}, core.Size{Width: 50, Height: 50})
+	boundary.MarkNeedsPaint()
+	if !boundary.NeedsPaint() {
+		t.Fatal("boundary should be paint dirty")
+	}
+	if outer.NeedsPaint() {
+		t.Fatal("MarkNeedsPaint on boundary must not dirty ancestors")
+	}
+	if tree.NonBoundaryPaintDirty() {
+		t.Fatal("boundary-only dirty must not force full base (NonBoundaryPaintDirty)")
+	}
+	if !tree.Dirty() {
+		t.Fatal("tree must still schedule a frame")
+	}
+}
+
 func TestCollectPaintDamage(t *testing.T) {
 	inner := primitive.NewBox()
 	inner.Width, inner.Height = 20, 12

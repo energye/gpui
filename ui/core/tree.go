@@ -254,6 +254,12 @@ func (t *Tree) needsLayoutPass(viewport Size) bool {
 	if t.viewport != viewport {
 		return true
 	}
+	// Thumb drag freezes geometry. Animating widgets (Switch MarkNeedsLayout every
+	// tick, Progress width, …) must not remeasure the tree mid-drag — that shifts
+	// AbsoluteBounds of the scroll rail and the thumb appears to jump vs the pointer.
+	if d, ok := t.capture.(interface{ Dragging() bool }); ok && d.Dragging() {
+		return false
+	}
 	if t.root != nil && t.root.Base().NeedsLayout() {
 		return true
 	}

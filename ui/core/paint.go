@@ -31,7 +31,11 @@ type PaintContext struct {
 	// Theme is optional token/skin access.
 	Theme *Theme
 	// Clip is the active absolute clip in logical pixels (optional advisory).
+	// Used by DefaultPaintChildren to skip fully off-screen subtrees (scroll cull).
 	Clip Rect
+	// prevClips + clipDepth restore Clip across PushClipLocal/Pop without heap.
+	prevClips [6]Rect
+	clipDepth int
 	// CompositeOnly: retained frame — skip clean non-boundary subtrees; RepaintBoundary
 	// nodes blit cached layers. Requires prior full frame + LoadOpLoad-capable present
 	// (or accept holes if the surface was cleared). Hosts set this after the first
@@ -117,20 +121,40 @@ func clampCornerRadius(w, h, radius float64) float64 {
 	return radius
 }
 
-// PushClipLocal clips to a local rect (relative to Origin) via render.Context.
+// PushClipLocal clips to a local rect (relative to Origin) via render.Context
+// and updates the advisory Clip for subtree paint culling.
 // Caller must Pop after painting children.
 func (pc *PaintContext) PushClipLocal(x, y, w, h float64) {
-	if pc == nil || pc.DC == nil {
+	if pc == nil {
 		return
 	}
-	pc.DC.Push()
-	pc.DC.ClipRect(pc.Origin.X+x, pc.Origin.Y+y, w, h)
+	if pc.DC != nil {
+		pc.DC.Push()
+		pc.DC.ClipRect(pc.Origin.X+x, pc.Origin.Y+y, w, h)
+	}
+	// Advisory cull stack (fixed depth — no heap on the scroll hot path).
+	if pc.clipDepth < len(pc.prevClips) {
+		pc.prevClips[pc.clipDepth] = pc.Clip
+		pc.clipDepth++
+		r := NewRect(pc.Origin.X+x, pc.Origin.Y+y, w, h)
+		if pc.Clip.Empty() {
+			pc.Clip = r
+		} else {
+			pc.Clip = pc.Clip.Intersect(r)
+		}
+	}
 }
 
 // Pop restores render state after PushClipLocal.
 func (pc *PaintContext) Pop() {
-	if pc == nil || pc.DC == nil {
+	if pc == nil {
 		return
 	}
-	pc.DC.Pop()
+	if pc.DC != nil {
+		pc.DC.Pop()
+	}
+	if pc.clipDepth > 0 {
+		pc.clipDepth--
+		pc.Clip = pc.prevClips[pc.clipDepth]
+	}
 }

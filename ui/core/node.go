@@ -216,10 +216,17 @@ func (n *NodeBase) MarkNeedsLayout() {
 // Bubbling stops at a parent that is already needsPaint, or at a
 // RepaintBoundary (Flutter: layer isolates paint dirty). The tree is still
 // marked dirty so a frame is scheduled.
+//
+// If this node itself is a RepaintBoundary, ancestors stay clean — required so
+// ScrollViewport/Spin drag or tick only re-rasterize their layer (partial
+// compositor path) instead of NonBoundaryPaintDirty full base rebuilds.
 func (n *NodeBase) MarkNeedsPaint() {
 	n.needsPaint = true
 	if n.tree != nil {
 		n.tree.markDirty()
+	}
+	if n.isRepaintBoundary {
+		return
 	}
 	for p := n.parent; p != nil; p = p.Parent() {
 		b := p.Base()
@@ -295,15 +302,23 @@ func constraintsEqual(a, b Constraints) bool {
 
 // DefaultHitTest walks children reverse-z then applies Hit behavior.
 // Concrete nodes may call this from HitTest.
+// When self implements PaintOffsetParent, ContentPaintOffset is applied so hit
+// matches paint (scroll without mutating layout Offset).
 func (n *NodeBase) DefaultHitTest(p Point) Node {
 	if n.ClipHit && !n.LocalBounds().Contains(p) {
 		return nil
+	}
+	var paintOff Point
+	if n.self != nil {
+		if po, ok := n.self.(PaintOffsetParent); ok {
+			paintOff = po.ContentPaintOffset()
+		}
 	}
 	// Children are painted in order; last child is topmost.
 	for i := len(n.children) - 1; i >= 0; i-- {
 		c := n.children[i]
 		cb := c.Base()
-		local := p.Sub(cb.offset)
+		local := p.Sub(cb.offset).Sub(paintOff)
 		if hit := c.HitTest(local); hit != nil {
 			return hit
 		}
@@ -334,7 +349,17 @@ func (n *NodeBase) DefaultHitTest(p Point) Node {
 // paint), children that are not paint-dirty are still visited if they contain
 // RepaintBoundary descendants that may blit a cached layer; leaf-like clean
 // subtrees without dirty descendants are skipped to cut CPU.
+//
+// When pc.Clip is set (PushClipLocal advisory), children whose painted bounds
+// do not intersect the clip are skipped — critical for ScrollViewport drag
+// (long Columns must not re-vectorize off-screen rows every pointer move).
 func (n *NodeBase) DefaultPaintChildren(pc *PaintContext) {
+	var paintOff Point
+	if n.self != nil {
+		if po, ok := n.self.(PaintOffsetParent); ok {
+			paintOff = po.ContentPaintOffset()
+		}
+	}
 	for _, c := range n.children {
 		cb := c.Base()
 		if pc != nil && pc.CompositeOnly && !cb.needsPaint && !subtreeHasPaintDirty(c) {
@@ -344,7 +369,18 @@ func (n *NodeBase) DefaultPaintChildren(pc *PaintContext) {
 				continue
 			}
 		}
-		childPC := pc.WithOrigin(pc.Origin.Add(cb.offset))
+		childOrigin := pc.Origin.Add(cb.offset).Add(paintOff)
+		// Advisory cull: skip fully off-screen children (scroll / clip).
+		if pc != nil && !pc.Clip.Empty() {
+			cw, ch := cb.size.Width, cb.size.Height
+			if cw > 0 && ch > 0 {
+				cr := NewRect(childOrigin.X, childOrigin.Y, cw, ch)
+				if cr.Intersect(pc.Clip).Empty() {
+					continue
+				}
+			}
+		}
+		childPC := pc.WithOrigin(childOrigin)
 		c.Paint(childPC)
 	}
 }

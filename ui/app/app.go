@@ -461,7 +461,40 @@ func (a *Application) present(s *Session) error {
 	return err
 }
 
+// coalescePointerMoves collapses runs of PointerMove to the last sample so a
+// backlog of motion events (common when a frame is expensive) does not walk the
+// tree N times before one present. Down/Up/Scroll/Key are kept in order.
+func coalescePointerMoves(evs []platform.Event) []platform.Event {
+	if len(evs) < 2 {
+		return evs
+	}
+	out := make([]platform.Event, 0, len(evs))
+	var pending platform.Event
+	hasPending := false
+	flushMove := func() {
+		if hasPending {
+			out = append(out, pending)
+			hasPending = false
+		}
+	}
+	for i := range evs {
+		ev := evs[i]
+		if ev.Type == platform.EventPointer && ev.Pointer == platform.PointerMove {
+			pending = ev
+			hasPending = true
+			continue
+		}
+		flushMove()
+		out = append(out, ev)
+	}
+	flushMove()
+	return out
+}
+
 func (a *Application) dispatchAll(s *Session, evs []platform.Event) bool {
+	// Coalesce pointer moves: many MotionNotify during slow paint → apply latest only.
+	// Preserves Down/Up order so capture and click synthesis stay correct.
+	evs = coalescePointerMoves(evs)
 	// Coalesce resize: many ConfigureNotify during drag → one layout update.
 	var lastResize *platform.Event
 	for i := range evs {

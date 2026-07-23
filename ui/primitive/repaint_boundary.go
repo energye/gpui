@@ -83,9 +83,12 @@ func (b *RepaintBoundary) Paint(pc *core.PaintContext) {
 	ox, oy := pc.Origin.X, pc.Origin.Y
 
 	if pc.LayerCache != nil {
-		needRaster := b.NeedsPaint() || pc.ForceFullPaint
+		// ForceFullPaint rebuilds the window base; clean boundaries keep their
+		// retained RT and only update blit origin. Re-rasterizing every boundary
+		// on any non-boundary dirty (or while Spin runs) made scroll thumb lag
+		// the pointer and thrash with animations.
+		needRaster := b.NeedsPaint()
 		if !needRaster {
-			// Touch origin / validate cache (parent=nil → no draw).
 			if !pc.LayerCache.BlitBoundary(key, nil, ox, oy, w, h) {
 				needRaster = true
 			}

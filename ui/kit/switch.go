@@ -249,7 +249,7 @@ func (s *Switch) applyThumbShape() {
 	s.thumb.MinHeight = s.thumbSize
 	// Stadium: radius = half height so ends stay round when stretched.
 	s.thumb.Radius = s.thumbSize / 2
-	s.thumb.MarkNeedsLayout()
+	// Paint-only: do not MarkNeedsLayout (bubbles to tree root and thrashs scroll drag).
 	s.applyThumbPad(s.thumbPos.Current)
 }
 
@@ -265,14 +265,17 @@ func (s *Switch) applyThumbPad(t float64) {
 	}
 	left := leftOff + (leftOn-leftOff)*t
 	s.track.Padding = primitive.EdgeInsets{Left: left, Top: s.pad, Right: s.pad, Bottom: s.pad}
-	s.track.MarkNeedsLayout()
-	s.track.MarkNeedsPaint()
-	if s.Root != nil {
-		s.Root.MarkNeedsLayout()
-		s.Root.MarkNeedsPaint()
-	}
+	// Local remeasure of fixed-size track only — never MarkNeedsLayout (that bubbles
+	// past RepaintBoundary and forces full-tree layout every tick → scroll thumb jump).
 	if s.track.Width > 0 && s.track.Height > 0 {
 		_ = s.track.Layout(core.Tight(s.track.Width, s.track.Height))
+	}
+	s.track.MarkNeedsPaint()
+	if s.thumb != nil {
+		s.thumb.MarkNeedsPaint()
+	}
+	if s.Root != nil {
+		s.Root.MarkNeedsPaint()
 	}
 }
 
