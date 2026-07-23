@@ -19,12 +19,62 @@ func CollectFocusables(root Node) []Node {
 	return out
 }
 
-// FocusNext moves focus to the next focusable node (wraps).
+// ActiveFocusScope is implemented by primitive.FocusScope (Active trap root).
+type ActiveFocusScope interface {
+	Node
+	// FocusTrapActive reports whether Tab must stay inside this subtree.
+	FocusTrapActive() bool
+}
+
+// focusRootForTraversal returns the active focus trap containing focus, or tree root.
+func (t *Tree) focusRootForTraversal() Node {
+	if t == nil {
+		return nil
+	}
+	if t.focus != nil {
+		for x := t.focus; x != nil; x = x.Parent() {
+			if s, ok := x.(ActiveFocusScope); ok && s.FocusTrapActive() {
+				return x
+			}
+		}
+	}
+	// Overlay portals: active trap may not be under focus yet — scan overlays.
+	for _, e := range t.Overlays().Entries() {
+		if e.Node == nil {
+			continue
+		}
+		if s := findActiveFocusScope(e.Node); s != nil {
+			return s
+		}
+	}
+	return t.root
+}
+
+func findActiveFocusScope(n Node) Node {
+	if n == nil {
+		return nil
+	}
+	if s, ok := n.(ActiveFocusScope); ok && s.FocusTrapActive() {
+		return n
+	}
+	for _, c := range n.Children() {
+		if s := findActiveFocusScope(c); s != nil {
+			return s
+		}
+	}
+	return nil
+}
+
+// FocusNext moves focus to the next focusable node (wraps within active trap).
 func (t *Tree) FocusNext() {
-	if t == nil || t.root == nil {
+	if t == nil {
 		return
 	}
-	list := CollectFocusables(t.root)
+	root := t.focusRootForTraversal()
+	if root == nil {
+		return
+	}
+	list := CollectFocusables(root)
 	if len(list) == 0 {
 		return
 	}
@@ -44,12 +94,16 @@ func (t *Tree) FocusNext() {
 	t.SetFocus(next)
 }
 
-// FocusPrev moves focus to the previous focusable node (wraps).
+// FocusPrev moves focus to the previous focusable node (wraps within active trap).
 func (t *Tree) FocusPrev() {
-	if t == nil || t.root == nil {
+	if t == nil {
 		return
 	}
-	list := CollectFocusables(t.root)
+	root := t.focusRootForTraversal()
+	if root == nil {
+		return
+	}
+	list := CollectFocusables(root)
 	if len(list) == 0 {
 		return
 	}

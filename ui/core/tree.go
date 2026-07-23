@@ -537,14 +537,34 @@ func (t *Tree) Focus() Node {
 }
 
 // DispatchKey delivers a key event to the focused node (bubble to root).
-// Unhandled Tab / Shift+Tab traverse focusables.
+// Unhandled Tab / Shift+Tab traverse focusables (within active FocusScope when open).
+// Escape is offered to active overlay FocusScopes even when focus is nil or outside.
 func (t *Tree) DispatchKey(ev *KeyEvent) {
 	if t == nil || ev == nil {
 		return
 	}
+	// Ensure keyboard stays in the active trap when one is open (Modal/Drawer).
+	if ev.Type == KeyDown {
+		if trap := t.focusRootForTraversal(); trap != nil && trap != t.root {
+			if t.focus == nil || !nodeInSubtree(t.focus, trap) {
+				list := CollectFocusables(trap)
+				if len(list) > 0 {
+					t.SetFocus(list[0])
+				}
+			}
+		}
+	}
 	for n := t.focus; n != nil && !ev.Handled; n = n.Parent() {
 		if kh, ok := n.(KeyHandler); ok {
 			kh.HandleKey(ev)
+		}
+	}
+	// Escape may need overlay trap when focus bubble missed FocusScope.
+	if !ev.Handled && ev.Type == KeyDown && (ev.Key == "Escape" || ev.Key == "Esc") {
+		for _, e := range t.Overlays().Entries() {
+			if deliverKeyToActiveScopes(e.Node, ev) {
+				break
+			}
 		}
 	}
 	if ev.Handled || ev.Type != KeyDown {
@@ -558,6 +578,38 @@ func (t *Tree) DispatchKey(ev *KeyEvent) {
 		t.FocusNext()
 		ev.Handled = true
 	}
+}
+
+func nodeInSubtree(n, root Node) bool {
+	if n == nil || root == nil {
+		return false
+	}
+	for x := n; x != nil; x = x.Parent() {
+		if x == root {
+			return true
+		}
+	}
+	return false
+}
+
+func deliverKeyToActiveScopes(n Node, ev *KeyEvent) bool {
+	if n == nil || ev == nil || ev.Handled {
+		return ev != nil && ev.Handled
+	}
+	if s, ok := n.(ActiveFocusScope); ok && s.FocusTrapActive() {
+		if kh, ok := n.(KeyHandler); ok {
+			kh.HandleKey(ev)
+			if ev.Handled {
+				return true
+			}
+		}
+	}
+	for _, c := range n.Children() {
+		if deliverKeyToActiveScopes(c, ev) {
+			return true
+		}
+	}
+	return false
 }
 
 // DispatchScroll delivers a wheel event: hit-test then bubble for ScrollHandler.

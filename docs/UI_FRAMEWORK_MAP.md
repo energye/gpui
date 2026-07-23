@@ -474,7 +474,7 @@ PressableState { Hovered, Pressed, Focused, Disabled }
 | **Alert** | Decorated + Flex + Icon + Text + 关闭 Pressable | P2 |
 | **Drawer** | OverlayPortal + 滑入面板 Box + Mask + FocusTrap | P3 |
 | **Message** | PortalHost + **C-NotifyQueue** + 项 Decorated；C-Presence | P3 |
-| **Modal** | OverlayPortal + Mask + 居中面板 + FocusScope + 脚 Button；**合成须 §4.1 双带**；MaskClosable 默认 true；**Esc 关闭尚未接线** | P3 |
+| **Modal** | OverlayPortal + Mask + 居中面板 + FocusScope 陷阱 + Esc + 脚 Button；**合成须 §4.1 双带**；MaskClosable 默认 true | P3 |
 | **Notification** | 同 Message 角位置队列 | P3 |
 | **Popconfirm** | Popover + 确认/取消 Pressable | P3 |
 | **Progress** | Canvas/Box 条或环 | P3 |
@@ -569,7 +569,7 @@ OverlayPortal(Z=500)          // 进 OverlayHost；合成见 §4.1 双带
 ```
 
 Mask 尺寸 = `Modal.Viewport` 或 `Tree.Viewport()`。**MaskClosable** 默认 true。  
-**Esc 关闭**：文档目标有；**当前源码未接线**（实现债）。  
+**Esc 关闭**：已接线（FocusScope.OnEscape → OnCancel + close）。  
 Present 必须 `Compositor` 双带，否则 main 的 Scroll 层会盖住 mask。
 
 **业务自研（非 Ant）** 如工具条、时间线、芯片输入：只组合 primitive，或自建 `mykit`，**不改 core**。
@@ -630,7 +630,7 @@ default / hover / active / focus / disabled；（表单）error/warning；（But
 
 **Form/FormItem**：Layout、OnFinish、Name、Label、Required、Rules、ValidateStatus。  
 
-**Modal**：Open、Title、Content、OnOk/OnCancel、MaskClosable、Width、Viewport；FocusScope；**Keyboard Esc 目标有、源码未接线**；合成见 §4.1。  
+**Modal**：Open、Title、Content、OnOk/OnCancel、MaskClosable、Width、Viewport；FocusScope 陷阱 + **Esc**；合成见 §4.1。  
 
 **Table/List**：Columns/DataSource/RowKey/Loading/虚拟高度等基础集；排序固定列后置。  
 

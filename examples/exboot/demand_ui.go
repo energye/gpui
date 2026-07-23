@@ -80,6 +80,9 @@ const ResizeConfigureIdle = 32 * time.Millisecond
 
 var logPaintScaleOnce sync.Once
 
+// useCompositor enables retained dual-band composition (default ON).
+// Required for correct Modal/Drawer Z-order above ScrollViewport layers
+// (see docs/UI_FRAMEWORK_MAP.md §4.1). Set GPUI_COMPOSITOR=0 only for debug.
 func useCompositor() bool {
 	v := os.Getenv("GPUI_COMPOSITOR")
 	return v != "0" && v != "false" && v != "off"
@@ -234,7 +237,11 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 				full = true
 			}
 			if !comp.Frame(s.Tree, themeOf(cfg, s), full) || !comp.HasBase() {
-				log.Printf("exboot: compositor base failed, direct present")
+				if s.Tree != nil && s.Tree.HasOverlays() {
+					log.Printf("exboot: compositor base failed with overlays open — direct present may mis-order Modal vs Scroll layers (MAP §4.1)")
+				} else {
+					log.Printf("exboot: compositor base failed, direct present")
+				}
 				// Direct path must Configure before drawing into the surface.
 				if doConfigure {
 					_ = sc.Resize(uint32(paintW), uint32(paintH))
@@ -392,6 +399,10 @@ func blitAndPresent(
 	return nil
 }
 
+// presentDirect paints the full tree into the surface DC (no dual-band layer
+// split). Safe for GPUI_COMPOSITOR=0 / fallback when layers are not deferred.
+// When overlays (Modal) coexist with ScrollViewport RepaintBoundary layers,
+// prefer the compositor path — direct paint uses Tree.Frame single DC order.
 func presentDirect(
 	cfg UIDemandConfig,
 	s *app.Session,

@@ -34,6 +34,8 @@ type Modal struct {
 	OnCancel      func()
 	// Content set via SetContent.
 	content core.Node
+	// prevFocus restored when the modal closes (focus trap).
+	prevFocus core.Node
 }
 
 // NewModal creates a closed modal.
@@ -62,17 +64,95 @@ func (m *Modal) SetContent(n core.Node) {
 }
 
 // SetOpen shows/hides the modal.
+// Opening activates FocusScope trap, focuses the primary action, and wires
+// Escape → OnCancel + close (Ant keyboard). Closing restores previous focus.
 func (m *Modal) SetOpen(open bool) {
+	if m == nil {
+		return
+	}
+	was := m.Open
 	m.Open = open
 	if m.Portal != nil {
 		m.Portal.SetOpen(open)
 	}
 	if m.Scope != nil {
 		m.Scope.Active = open
+		if open {
+			m.Scope.OnEscape = m.onEscape
+		} else {
+			m.Scope.OnEscape = nil
+		}
 	}
 	if open {
 		m.layoutPanel()
+		m.enterFocusTrap()
+	} else if was {
+		m.leaveFocusTrap()
 	}
+}
+
+func (m *Modal) onEscape() {
+	if m == nil || !m.Open {
+		return
+	}
+	// Ant: Esc closes the dialog (MaskClosable only gates mask click).
+	if m.OnCancel != nil {
+		m.OnCancel()
+	}
+	m.SetOpen(false)
+}
+
+func (m *Modal) enterFocusTrap() {
+	if m == nil || m.Scope == nil {
+		return
+	}
+	t := m.Scope.Tree()
+	if t == nil && m.Portal != nil {
+		t = m.Portal.Tree()
+	}
+	if t == nil {
+		return
+	}
+	m.prevFocus = t.Focus()
+	list := core.CollectFocusables(m.Scope)
+	if len(list) == 0 {
+		return
+	}
+	next := list[0]
+	if m.okBtn != nil && m.okBtn.Root != nil {
+		for _, n := range list {
+			if n == m.okBtn.Root {
+				next = n
+				break
+			}
+		}
+	}
+	t.SetFocus(next)
+}
+
+func (m *Modal) leaveFocusTrap() {
+	if m == nil {
+		return
+	}
+	var t *core.Tree
+	if m.Scope != nil {
+		t = m.Scope.Tree()
+	}
+	if t == nil && m.Portal != nil {
+		t = m.Portal.Tree()
+	}
+	prev := m.prevFocus
+	m.prevFocus = nil
+	if t == nil {
+		return
+	}
+	if prev != nil {
+		if f, ok := prev.(core.FocusTarget); ok && f.CanFocus() && prev.Base() != nil && prev.Base().Tree() == t {
+			t.SetFocus(prev)
+			return
+		}
+	}
+	t.SetFocus(nil)
 }
 
 // SetTitle updates the dialog title.
@@ -198,10 +278,17 @@ func (m *Modal) rebuild() {
 	layer.AddChild(m.panel)
 
 	m.Scope = primitive.NewFocusScope(layer)
+	m.Scope.Active = m.Open
+	if m.Open {
+		m.Scope.OnEscape = m.onEscape
+	}
 	m.Portal = primitive.NewOverlayPortal(m.Scope)
 	m.Portal.ID = "modal"
 	m.Portal.ZOrder = 500
 	m.Portal.SetContentOffset(core.Point{})
+	if m.Open {
+		m.Portal.SetOpen(true)
+	}
 }
 
 func (m *Modal) layoutPanel() {

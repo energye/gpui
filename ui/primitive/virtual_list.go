@@ -148,10 +148,13 @@ func (v *VirtualList) clampScroll() {
 }
 
 // FocusScope traps Tab focus within descendants when Active (C-Focus).
+// Used by Modal/Drawer: keyboard must not escape to the main tree while open.
 type FocusScope struct {
 	core.NodeBase
-	// Active enables tab trapping (e.g. modal open).
+	// Active enables tab trapping and Escape handling (e.g. modal open).
 	Active bool
+	// OnEscape is invoked on Escape key when Active (Ant Modal keyboard).
+	OnEscape func()
 }
 
 // NewFocusScope wraps children.
@@ -167,6 +170,9 @@ func NewFocusScope(children ...core.Node) *FocusScope {
 
 // TypeID implements core.Node.
 func (f *FocusScope) TypeID() string { return TypeFocusScope }
+
+// FocusTrapActive implements core.ActiveFocusScope.
+func (f *FocusScope) FocusTrapActive() bool { return f != nil && f.Active }
 
 // Layout implements core.Node.
 func (f *FocusScope) Layout(c core.Constraints) core.Size {
@@ -195,9 +201,17 @@ func (f *FocusScope) Paint(pc *core.PaintContext) { f.DefaultPaintChildren(pc) }
 // HitTest implements core.Node.
 func (f *FocusScope) HitTest(p core.Point) core.Node { return f.DefaultHitTest(p) }
 
-// HandleKey traps Tab within scope when Active.
+// HandleKey traps Tab within scope and handles Escape when Active.
 func (f *FocusScope) HandleKey(ev *core.KeyEvent) {
 	if !f.Active || ev == nil || ev.Type != core.KeyDown {
+		return
+	}
+	// Escape → dismiss (Modal/Drawer OnCancel path).
+	if ev.Key == "Escape" || ev.Key == "Esc" {
+		if f.OnEscape != nil {
+			f.OnEscape()
+		}
+		ev.Handled = true
 		return
 	}
 	if ev.Key != "Tab" && ev.Key != "Shift+Tab" && ev.Key != "ISO_Left_Tab" {
@@ -212,7 +226,6 @@ func (f *FocusScope) HandleKey(ev *core.KeyEvent) {
 		ev.Handled = true
 		return
 	}
-	// find current
 	cur := t.Focus()
 	idx := -1
 	for i, n := range list {
@@ -238,4 +251,17 @@ func (f *FocusScope) HandleKey(ev *core.KeyEvent) {
 	}
 	t.SetFocus(next)
 	ev.Handled = true
+}
+
+// ContainsFocus reports whether n is this scope or a descendant.
+func (f *FocusScope) ContainsFocus(n core.Node) bool {
+	if f == nil || n == nil {
+		return false
+	}
+	for x := n; x != nil; x = x.Parent() {
+		if x == f {
+			return true
+		}
+	}
+	return false
 }
