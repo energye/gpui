@@ -2,7 +2,8 @@
 
 > 版本：2.2 | 2026-07-22  
 > 收敛：`layoutPaddedChild` · `Flexible` 仅 tight 轴 · `BindTicker` · 去掉默认 CenterContent 噪音  
-> **先稳底盘，上层只消费规则，禁止在控件里打补丁抵消引擎错误。**
+> **先稳底盘，上层只消费规则，禁止在控件里打补丁抵消引擎错误。**  
+> 任务化 P0（契约门禁 / 浮层 / 滚动 / 编辑 / 默认 Present）：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md)
 
 ## 原则
 

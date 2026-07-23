@@ -6,7 +6,8 @@
 > 引擎：[`ENGINE_GAPS.md`](./ENGINE_GAPS.md) · [`SKIA_2D_CAPABILITY_MATRIX.md`](./SKIA_2D_CAPABILITY_MATRIX.md)  
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md)（控件 = **P2 另开轨道**）  
 > 覆盖率权威表：[`ui/kit/coverage.go`](../ui/kit/coverage.go) · 摘要 [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)  
-> App 壳：[`UI_APP_SHELL_PLAN.md`](./UI_APP_SHELL_PLAN.md)（按需帧已落地；多窗 API 仍后置）
+> App 壳：[`UI_APP_SHELL_PLAN.md`](./UI_APP_SHELL_PLAN.md)（按需帧已落地；多窗 API 仍后置）  
+> 底层 P0（稳住 kit 支撑）：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md)
 
 ---
 

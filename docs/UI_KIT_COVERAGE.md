@@ -1,7 +1,8 @@
 # UI Kit ↔ Ant Design 覆盖率
 
 > **权威源码**：[`ui/kit/coverage.go`](../ui/kit/coverage.go) · 对照 [`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) §5.7  
-> **更新**：2026-07-23 · 与 `AntCoverage()` 表一致（**勿以本文件过期叙述为准，以 `go test` 为准**）
+> **更新**：2026-07-23 · 与 `AntCoverage()` 表一致（**勿以本文件过期叙述为准，以 `go test` 为准**）  
+> **底层支撑 P0**（非本表 Ready 计数）：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md)
 
 运行：
 

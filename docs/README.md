@@ -26,6 +26,10 @@
 | **组合 / 复杂 UI 门禁** | [`P1_COMPOSITION_MATRIX.md`](./P1_COMPOSITION_MATRIX.md) · [`P1_COMPLEX_UI_MATRIX.md`](./P1_COMPLEX_UI_MATRIX.md) |
 | **控件入口条件** | [`S5_WIDGET_ENTRY.md`](./S5_WIDGET_ENTRY.md) · [`S5_SKIA_UI_GAP.md`](./S5_SKIA_UI_GAP.md) |
 | **UI 框架总图与规划（P2）** | [`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md)（v4：primitive 组合底座） |
+| **UI 布局底盘契约** | [`LAYOUT_FOUNDATION.md`](./LAYOUT_FOUNDATION.md) |
+| **UI 底层 P0（稳 kit 支撑）** | [`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) |
+| **UI App 壳 / 按需帧** | [`UI_APP_SHELL_PLAN.md`](./UI_APP_SHELL_PLAN.md) |
+| **UI Kit 覆盖率摘要** | [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)（权威表：`ui/kit/coverage.go`） |
 
 ---
 
