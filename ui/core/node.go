@@ -42,7 +42,7 @@ type FlexFactorNode interface {
 	Node
 	// FlexGrow is the flex grow factor (>= 0). Zero means fixed intrinsic size.
 	FlexGrow() float64
-	// FlexShrink is reserved for future multi-pass shrink; M0 may ignore.
+	// FlexShrink is the flex shrink factor (>= 0). Zero means do not shrink under pressure.
 	FlexShrink() float64
 }
 

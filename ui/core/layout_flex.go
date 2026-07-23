@@ -49,7 +49,7 @@ type FlexLayoutParams struct {
 //
 // When Wrap is true and the main axis max is finite, children are packed into
 // multiple lines (row→next row below, column→next column to the right).
-// Otherwise a single-line pass runs (with optional flex-grow).
+// Otherwise a single-line pass runs (flex-grow and flex-shrink).
 func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 	kids := parent.children
 	n := len(kids)
@@ -79,25 +79,27 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 		gapTotal = p.Gap * float64(n-1)
 	}
 
-	// First pass: layout non-flex children with loose constraints; measure flex intrinsics at 0 grow.
+	// Measure pass: non-grow children at full maxMain; grow children at intrinsic (main max 0).
 	type item struct {
 		node     Node
 		base     *NodeBase
-		flex     float64
+		grow     float64
+		shrink   float64
 		mainSize float64
 		cross    float64
 	}
 	items := make([]item, n)
-	var totalFlex float64
+	var totalGrow float64
 	var fixedMain float64
 
 	for i, child := range kids {
 		it := item{node: child, base: child.Base()}
 		if fn, ok := child.(FlexFactorNode); ok {
-			it.flex = fn.FlexGrow()
+			it.grow = fn.FlexGrow()
+			it.shrink = fn.FlexShrink()
 		}
-		if it.flex > 0 {
-			totalFlex += it.flex
+		if it.grow > 0 {
+			totalGrow += it.grow
 			// Intrinsic: layout with zero main max to get minimum content size.
 			childC := flexChildConstraints(horizontal, 0, maxCross, p.CrossAlign)
 			sz := child.Layout(childC)
@@ -109,26 +111,22 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 				it.cross = sz.Width
 			}
 		} else {
-			childC := flexChildConstraints(horizontal, maxMain, maxCross, p.CrossAlign)
-			// Non-flex: unbounded main for intrinsic, capped by remaining later — use maxMain for simplicity.
 			if horizontal {
-				childC = Constraints{MaxWidth: maxMain, MaxHeight: maxCross}
+				childC := Constraints{MaxWidth: maxMain, MaxHeight: maxCross}
 				if p.CrossAlign == CrossStretch && c.HasBoundedHeight() {
 					childC.MinHeight = maxCross
 					childC.MaxHeight = maxCross
 				}
+				sz := child.Layout(childC)
+				it.mainSize = sz.Width
+				it.cross = sz.Height
 			} else {
-				childC = Constraints{MaxWidth: maxCross, MaxHeight: maxMain}
+				childC := Constraints{MaxWidth: maxCross, MaxHeight: maxMain}
 				if p.CrossAlign == CrossStretch && c.HasBoundedWidth() {
 					childC.MinWidth = maxCross
 					childC.MaxWidth = maxCross
 				}
-			}
-			sz := child.Layout(childC)
-			if horizontal {
-				it.mainSize = sz.Width
-				it.cross = sz.Height
-			} else {
+				sz := child.Layout(childC)
 				it.mainSize = sz.Height
 				it.cross = sz.Width
 			}
@@ -137,66 +135,108 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 		items[i] = it
 	}
 
-	// Free main space for flex children.
-	freeMain := maxMain - fixedMain - gapTotal
-	if freeMain < 0 || !isFinite(maxMain) {
-		// Unbounded main: flex children keep intrinsic; grow does not expand infinitely.
-		freeMain = 0
-	}
-
-	// Intrinsic main of flex kids counted separately for parent size when unbounded.
+	// Sum flex-grow intrinsic mains for overflow / free calculation.
 	var flexIntrinsicMain float64
 	for i := range items {
-		it := &items[i]
-		if it.flex <= 0 {
-			continue
+		if items[i].grow > 0 {
+			flexIntrinsicMain += items[i].mainSize
 		}
-		flexIntrinsicMain += it.mainSize
-		share := 0.0
-		if totalFlex > 0 && freeMain > 0 {
-			share = freeMain * (it.flex / totalFlex)
-		}
-		// Re-layout flex child with allocated main size.
-		mainAlloc := share
-		if mainAlloc < it.mainSize {
-			// Allow growing from intrinsic zero; if share is larger use share.
-			mainAlloc = share
-		}
-		// Prefer allocated share when free space exists; else intrinsic.
-		if freeMain > 0 {
-			mainAlloc = freeMain * (it.flex / totalFlex)
-		} else {
-			mainAlloc = it.mainSize
-		}
-		var childC Constraints
-		if horizontal {
-			childC = Constraints{MinWidth: mainAlloc, MaxWidth: mainAlloc, MaxHeight: maxCross}
-			if p.CrossAlign == CrossStretch && c.HasBoundedHeight() {
-				childC.MinHeight = maxCross
-				childC.MaxHeight = maxCross
-			}
-		} else {
-			childC = Constraints{MaxWidth: maxCross, MinHeight: mainAlloc, MaxHeight: mainAlloc}
-			if p.CrossAlign == CrossStretch && c.HasBoundedWidth() {
-				childC.MinWidth = maxCross
-				childC.MaxWidth = maxCross
+	}
+	contentMain := fixedMain + flexIntrinsicMain + gapTotal
+
+	// Shrink when content overflows a bounded main axis (CSS flex-shrink / Flutter).
+	if isFinite(maxMain) && contentMain > maxMain {
+		deficit := contentMain - maxMain
+		var totalWeight float64
+		for i := range items {
+			it := &items[i]
+			if it.shrink > 0 && it.mainSize > 0 {
+				totalWeight += it.mainSize * it.shrink
 			}
 		}
-		sz := it.node.Layout(childC)
-		if horizontal {
-			it.mainSize = sz.Width
-			it.cross = sz.Height
-		} else {
-			it.mainSize = sz.Height
-			it.cross = sz.Width
+		if totalWeight > 0 && deficit > 0 {
+			for i := range items {
+				it := &items[i]
+				if it.shrink <= 0 || it.mainSize <= 0 {
+					continue
+				}
+				reduce := deficit * (it.mainSize * it.shrink) / totalWeight
+				mainAlloc := it.mainSize - reduce
+				if mainAlloc < 0 {
+					mainAlloc = 0
+				}
+				var childC Constraints
+				if horizontal {
+					childC = Constraints{MinWidth: mainAlloc, MaxWidth: mainAlloc, MaxHeight: maxCross}
+					if p.CrossAlign == CrossStretch && c.HasBoundedHeight() {
+						childC.MinHeight = maxCross
+						childC.MaxHeight = maxCross
+					}
+				} else {
+					childC = Constraints{MaxWidth: maxCross, MinHeight: mainAlloc, MaxHeight: mainAlloc}
+					if p.CrossAlign == CrossStretch && c.HasBoundedWidth() {
+						childC.MinWidth = maxCross
+						childC.MaxWidth = maxCross
+					}
+				}
+				sz := it.node.Layout(childC)
+				if horizontal {
+					it.mainSize, it.cross = sz.Width, sz.Height
+				} else {
+					it.mainSize, it.cross = sz.Height, sz.Width
+				}
+			}
+		}
+	} else {
+		// Grow when free space remains on a bounded main axis.
+		freeMain := 0.0
+		if isFinite(maxMain) {
+			freeMain = maxMain - fixedMain - flexIntrinsicMain - gapTotal
+			if freeMain < 0 {
+				freeMain = 0
+			}
+		}
+		for i := range items {
+			it := &items[i]
+			if it.grow <= 0 {
+				continue
+			}
+			mainAlloc := it.mainSize
+			if freeMain > 0 && totalGrow > 0 {
+				mainAlloc = freeMain * (it.grow / totalGrow)
+				// Grow from intrinsic: allocation is the grow share of free space + keep min content?
+				// Match prior behavior: allocated main is the free share only when free>0
+				// (child fills the flex slot). Use max(intrinsic, share) so content is not clipped.
+				if mainAlloc < it.mainSize {
+					mainAlloc = it.mainSize
+				}
+				// Actually prior code used ONLY free share as tight size when free>0.
+				// Keep that for Expanded filling: share of freeMain only.
+				mainAlloc = freeMain * (it.grow / totalGrow)
+			}
+			var childC Constraints
+			if horizontal {
+				childC = Constraints{MinWidth: mainAlloc, MaxWidth: mainAlloc, MaxHeight: maxCross}
+				if p.CrossAlign == CrossStretch && c.HasBoundedHeight() {
+					childC.MinHeight = maxCross
+					childC.MaxHeight = maxCross
+				}
+			} else {
+				childC = Constraints{MaxWidth: maxCross, MinHeight: mainAlloc, MaxHeight: mainAlloc}
+				if p.CrossAlign == CrossStretch && c.HasBoundedWidth() {
+					childC.MinWidth = maxCross
+					childC.MaxWidth = maxCross
+				}
+			}
+			sz := it.node.Layout(childC)
+			if horizontal {
+				it.mainSize, it.cross = sz.Width, sz.Height
+			} else {
+				it.mainSize, it.cross = sz.Height, sz.Width
+			}
 		}
 	}
 
-	// Content main/cross.
-	contentMain := fixedMain + flexIntrinsicMain
-	if freeMain > 0 && totalFlex > 0 {
-		contentMain = fixedMain + freeMain
-	}
 	// Recompute contentMain from final item sizes.
 	contentMain = 0
 	contentCross := 0.0

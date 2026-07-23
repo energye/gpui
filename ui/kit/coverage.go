@@ -30,7 +30,7 @@ type CoverageEntry struct {
 func AntCoverage() []CoverageEntry {
 	return []CoverageEntry{
 		// General
-		{Ant: "Button", Status: CovReady, Via: "kit.Button", Since: "M1", Notes: "ghost/color-variant/icon-end later"},
+		{Ant: "Button", Status: CovReady, Via: "kit.Button", Since: "M1", Notes: "ghost/variant/color/iconPlacement; gradient later"},
 		{Ant: "FloatButton", Status: CovReady, Via: "kit.FloatButton", Since: "Base-ALL"},
 		{Ant: "Icon", Status: CovReady, Via: "kit.Icon / primitive.Icon", Since: "M1"},
 		{Ant: "Typography", Status: CovReady, Via: "kit.Text/Title/Paragraph", Since: "Base-ALL"},

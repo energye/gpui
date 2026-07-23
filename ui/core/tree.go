@@ -587,7 +587,7 @@ func (t *Tree) DispatchPointer(ev *PointerEvent) {
 		if target != nil {
 			t.capture = target
 			if f, ok := target.(FocusTarget); ok && f.CanFocus() {
-				t.SetFocus(target)
+				t.SetFocusFromPointer(target)
 			}
 		}
 	}
@@ -618,12 +618,27 @@ func (t *Tree) DispatchPointer(ev *PointerEvent) {
 	}
 }
 
-// SetFocus moves keyboard focus.
+// SetFocus moves keyboard focus and marks it focus-visible (Tab / programmatic).
 func (t *Tree) SetFocus(n Node) {
+	t.setFocus(n, true)
+}
+
+// SetFocusFromPointer focuses a node from mouse/touch without focus-visible ring.
+func (t *Tree) SetFocusFromPointer(n Node) {
+	t.setFocus(n, false)
+}
+
+func (t *Tree) setFocus(n Node, visible bool) {
 	if t == nil {
 		return
 	}
 	if t.focus == n {
+		// Same target: still update visibility (e.g. Tab to already-focused).
+		if n != nil {
+			if fv, ok := n.(FocusVisibleTarget); ok {
+				fv.SetFocusVisible(visible)
+			}
+		}
 		return
 	}
 	if t.focus != nil {
@@ -635,6 +650,9 @@ func (t *Tree) SetFocus(n Node) {
 	if t.focus != nil {
 		if f, ok := t.focus.(FocusTarget); ok {
 			f.SetFocused(true)
+		}
+		if fv, ok := t.focus.(FocusVisibleTarget); ok {
+			fv.SetFocusVisible(visible)
 		}
 	}
 	t.updateIMEPosition()
@@ -789,6 +807,12 @@ type hoverable interface {
 type FocusTarget interface {
 	CanFocus() bool
 	SetFocused(bool)
+}
+
+// FocusVisibleTarget optionally distinguishes keyboard focus (ring) from pointer focus.
+// Ant Design :focus-visible — mouse click focuses without outline; Tab shows outline.
+type FocusVisibleTarget interface {
+	SetFocusVisible(bool)
 }
 
 func clearLayoutDirty(n Node) {

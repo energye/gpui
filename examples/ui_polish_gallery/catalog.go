@@ -168,8 +168,16 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	bIconOnly := mkBtn("Search", kit.ButtonDefault)
 	bIconOnly.SetIcon("search")
 	secIcon := demoSection(face, theme, "Icon",
-		"Button components can contain an Icon (leading).",
+		"Button components can contain an Icon (leading or end).",
 		spaceWrap(8, bIconSearch.Node(), bIconPlus.Node(), bIconOnly.Node()))
+
+	// Icon placement end
+	bIconEnd := mkBtn("Search", kit.ButtonDefault)
+	bIconEnd.SetIcon("search")
+	bIconEnd.SetIconPlacement(kit.ButtonIconEnd)
+	secIconEnd := demoSection(face, theme, "Icon Placement",
+		"Icon at start (default) or end of the label.",
+		spaceWrap(8, bIconSearch.Node(), bIconEnd.Node()))
 
 	// Size
 	bLarge := mkBtn("Large", kit.ButtonPrimary)
@@ -244,10 +252,71 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 		"block property will make the button fit to its parent width.",
 		blockCol)
 
+	// Ghost — Ant demos put ghost on a dark/complex surface so transparency is obvious.
+	bGhostP := mkBtn("Primary", kit.ButtonPrimary)
+	bGhostP.SetGhost(true)
+	bGhostD := mkBtn("Default", kit.ButtonDefault)
+	bGhostD.SetGhost(true)
+	bGhostR := mkBtn("Danger", kit.ButtonPrimary)
+	bGhostR.SetDanger(true)
+	bGhostR.SetGhost(true)
+	ghostRow := kit.NewSpace(bGhostP.Node(), bGhostD.Node(), bGhostR.Node())
+	ghostRow.SetSize(8)
+	ghostRow.SetWrap(true)
+	ghostHost := primitive.NewDecorated(ghostRow.Node())
+	ghostHost.Padding = primitive.All(16)
+	ghostHost.Radius = 8
+	// Ant docs use a dark band behind ghost buttons.
+	ghostHost.Background = render.RGBA{R: 0.12, G: 0.14, B: 0.18, A: 1}
+	ghostHost.BorderWidth = 0
+	secGhost := demoSection(face, theme, "Ghost Button",
+		"Ghost = transparent fill (use on dark / image backgrounds). Primary/Default/Danger differ by border & text color.",
+		ghostHost)
+
+	// Color & Variant — each variant looks different; Color changes the accent.
+	mkVar := func(label string, v kit.ButtonVariant, c kit.ButtonColor) core.Node {
+		b := mkBtn(label, kit.ButtonDefault)
+		b.SetVariant(v)
+		b.SetColor(c)
+		return b.Node()
+	}
+	rowPrimary := spaceWrap(8,
+		mkVar("Solid", kit.ButtonVariantSolid, kit.ButtonColorPrimary),
+		mkVar("Outlined", kit.ButtonVariantOutlined, kit.ButtonColorPrimary),
+		mkVar("Dashed", kit.ButtonVariantDashed, kit.ButtonColorPrimary),
+		mkVar("Filled", kit.ButtonVariantFilled, kit.ButtonColorPrimary),
+		mkVar("Text", kit.ButtonVariantText, kit.ButtonColorPrimary),
+		mkVar("Link", kit.ButtonVariantLink, kit.ButtonColorPrimary),
+	)
+	rowDanger := spaceWrap(8,
+		mkVar("Solid", kit.ButtonVariantSolid, kit.ButtonColorDanger),
+		mkVar("Outlined", kit.ButtonVariantOutlined, kit.ButtonColorDanger),
+		mkVar("Filled", kit.ButtonVariantFilled, kit.ButtonColorDanger),
+		mkVar("Text", kit.ButtonVariantText, kit.ButtonColorDanger),
+	)
+	rowSuccess := spaceWrap(8,
+		mkVar("Solid", kit.ButtonVariantSolid, kit.ButtonColorSuccess),
+		mkVar("Outlined", kit.ButtonVariantOutlined, kit.ButtonColorSuccess),
+		mkVar("Filled", kit.ButtonVariantFilled, kit.ButtonColorSuccess),
+	)
+	varCol := primitive.Column(
+		sec(face, "color=primary · variant=…"),
+		rowPrimary,
+		sec(face, "color=danger"),
+		rowDanger,
+		sec(face, "color=success"),
+		rowSuccess,
+	)
+	varCol.Gap = 10
+	varCol.CrossAlign = core.CrossStart
+	secVariant := demoSection(face, theme, "Color & Variant",
+		"Solid=fill · Outlined=border · Dashed=dashed border · Filled=light wash · Text/Link=no chrome. Same Type「Primary」≈ Solid+primary.",
+		varCol)
+
 	items = append(items, ctlTab("btn", "Button"))
 	contents["btn"] = demoPage(face, "Button",
-		"To trigger an operation. Aligns Ant Design Button demos (type/size/icon/disabled/loading/danger/block).",
-		secType, secIcon, secSize, secDisabled, secLoading, secMultiple, secDanger, secBlock)
+		"To trigger an operation. Aligns Ant Design Button demos (type/size/icon/disabled/loading/danger/block/ghost/variant).",
+		secType, secIcon, secIconEnd, secSize, secDisabled, secLoading, secMultiple, secDanger, secBlock, secGhost, secVariant)
 
 	fb := kit.NewFloatButton("+")
 	fb.SetFace(face)

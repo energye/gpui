@@ -17,7 +17,7 @@ func PaintFocusRing(pc *core.PaintContext, w, h, radius, outset, lineWidth float
 		outset = 1.5
 	}
 	if lineWidth <= 0 {
-		lineWidth = 2
+		lineWidth = 2.5
 	}
 	if radius < 0 {
 		radius = 0
@@ -28,11 +28,11 @@ func PaintFocusRing(pc *core.PaintContext, w, h, radius, outset, lineWidth float
 	if pc.Theme != nil {
 		if c := pc.Theme.Color(core.TokenColorPrimary); c.A > 0 {
 			col = c
-			col.A = 0.4
+			col.A = 0.65
 		}
 		if c := pc.Theme.Color(core.TokenColorControlOutline); c.A > 0 {
 			// Soft Ant-like outline (primary-tinted).
-			col = render.RGBA{R: c.R, G: c.G, B: c.B, A: 0.55}
+			col = render.RGBA{R: c.R, G: c.G, B: c.B, A: 0.7}
 		}
 	}
 	pc.StrokeLocalRoundRect(-outset, -outset, w+2*outset, h+2*outset, ringR, lineWidth, col)

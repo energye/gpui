@@ -32,7 +32,10 @@
    - 贪心装行：下一子 + gap 放不下则换行（Row→下行，Column→右列）  
    - 行/列间距与行内间距共用 `Gap`  
    - 行内 `MainAlign` / 行内 `CrossAlign`；**不跨行 flex-grow**（Ant Space wrap 场景）  
-   - 无界主轴：不 wrap，退回单行
+   - 无界主轴：不 wrap，退回单行  
+   **`FlexShrink`**（主轴有界且内容溢出时）  
+   - `FlexFactorNode.FlexShrink()>0` 的子按 `mainSize×shrink` 权重收缩  
+   - `Flexible` 默认 `Shrink=1`；`shrink=0` 不参与收缩  
 
 4. **`Decorated`**  
    - 定自己的 `Width/Height`  

@@ -7,10 +7,12 @@ import (
 
 // PressableState is the interactive state surface (skin maps state → tokens later).
 type PressableState struct {
-	Hovered  bool
-	Pressed  bool
-	Focused  bool
-	Disabled bool
+	Hovered bool
+	Pressed bool
+	Focused bool
+	// FocusVisible: ring only for keyboard focus (Ant :focus-visible; not mouse click).
+	FocusVisible bool
+	Disabled     bool
 }
 
 // Pressable is a hit target with hover/press and OnClick (C-Hit + C-Event).
@@ -190,8 +192,9 @@ func (p *Pressable) Paint(pc *core.PaintContext) {
 		p.paintRipple(pc, sz)
 	}
 
-	// Focus ring on top. Opt-out via ShowFocusRing=false.
-	if p.State.Focused && p.ShowFocusRing && pc != nil {
+	// Focus ring only for keyboard focus (:focus-visible). Mouse click focuses
+	// without ring — matches Ant Design Button.
+	if p.State.Focused && p.State.FocusVisible && p.ShowFocusRing && pc != nil {
 		r := p.FocusRingRadius
 		if r <= 0 {
 			r = 6
@@ -376,6 +379,19 @@ func (p *Pressable) SetFocused(f bool) {
 		return
 	}
 	p.State.Focused = f
+	if !f {
+		p.State.FocusVisible = false
+	}
+	p.MarkNeedsPaint()
+	p.fireStateChange()
+}
+
+// SetFocusVisible implements core.FocusVisibleTarget (keyboard vs pointer focus).
+func (p *Pressable) SetFocusVisible(v bool) {
+	if p.State.FocusVisible == v {
+		return
+	}
+	p.State.FocusVisible = v
 	p.MarkNeedsPaint()
 	p.fireStateChange()
 }

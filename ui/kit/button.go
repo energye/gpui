@@ -14,7 +14,7 @@ import (
 //	Pressable
 //	  └─ Decorated
 //	       └─ Flex(Row)
-//	            Spinner? · Icon? · Text(label)
+//	            Spinner? · Icon? · Text(label) · Icon?   (icon start or end)
 //
 // Hover/press chrome tracks PressableState automatically via OnStateChange.
 // SyncState() remains for explicit host loops that want a manual refresh.
@@ -34,11 +34,18 @@ type Button struct {
 	Disabled bool
 	Loading  bool
 	Block    bool
-	Label    string
-	IconName string
-	OnClick  func()
-	Face     text.Face
-	Theme    *core.Theme
+	// Ghost: transparent fill (Ant ghost).
+	Ghost bool
+	// Variant / Color: Ant 5.21+; VariantAuto derives from Type.
+	Variant ButtonVariant
+	Color   ButtonColor
+	// IconPlacement: start (default) or end.
+	IconPlacement ButtonIconPlacement
+	Label         string
+	IconName      string
+	OnClick       func()
+	Face          text.Face
+	Theme         *core.Theme
 	// Style optional one-off overrides (background/font/size). See kit.Style.
 	Style Style
 
@@ -170,9 +177,45 @@ func (b *Button) SetBlock(v bool) {
 	b.rebuild()
 }
 
-// SetIcon sets an optional leading icon name (empty clears).
+// SetGhost toggles Ant ghost styling (transparent fill).
+func (b *Button) SetGhost(v bool) {
+	if b.Ghost == v {
+		return
+	}
+	b.Ghost = v
+	b.applyChrome()
+}
+
+// SetVariant sets Ant 5.21+ visual variant (Auto → derive from Type).
+func (b *Button) SetVariant(v ButtonVariant) {
+	if b.Variant == v {
+		return
+	}
+	b.Variant = v
+	b.applyChrome()
+}
+
+// SetColor sets Ant 5.21+ semantic color for variants (Default → Type/Danger).
+func (b *Button) SetColor(c ButtonColor) {
+	if b.Color == c {
+		return
+	}
+	b.Color = c
+	b.applyChrome()
+}
+
+// SetIcon sets an optional icon name (empty clears). Placement via SetIconPlacement.
 func (b *Button) SetIcon(name string) {
 	b.IconName = name
+	b.rebuild()
+}
+
+// SetIconPlacement places the icon at start (default) or end of the label.
+func (b *Button) SetIconPlacement(p ButtonIconPlacement) {
+	if b.IconPlacement == p {
+		return
+	}
+	b.IconPlacement = p
 	b.rebuild()
 }
 
@@ -255,7 +298,8 @@ func (b *Button) SyncState() {
 	if b.Root == nil || b.decorated == nil {
 		return
 	}
-	h, p, f := b.Root.State.Hovered, b.Root.State.Pressed, b.Root.State.Focused
+	h, p := b.Root.State.Hovered, b.Root.State.Pressed
+	f := b.Root.State.Focused && b.Root.State.FocusVisible
 	if h == b.lastHovered && p == b.lastPressed && f == b.lastFocused {
 		return
 	}
@@ -312,11 +356,17 @@ func (b *Button) rebuild() {
 	if b.IconName != "" && !b.Loading {
 		b.icon = primitive.NewIcon(b.IconName)
 		b.icon.Size = fontSize + 2
-		b.row.AddChild(b.icon)
 	} else {
 		b.icon = nil
 	}
+	// Icon start (default): icon · label; end: label · icon. Spinner always leading when loading.
+	if b.icon != nil && b.IconPlacement != ButtonIconEnd {
+		b.row.AddChild(b.icon)
+	}
 	b.row.AddChild(b.label)
+	if b.icon != nil && b.IconPlacement == ButtonIconEnd {
+		b.row.AddChild(b.icon)
+	}
 
 	if b.decorated == nil {
 		b.decorated = primitive.NewDecorated(b.row)
@@ -371,7 +421,12 @@ func (b *Button) paintSpinner(pc *core.PaintContext, sz core.Size) {
 	}
 	th := b.theme()
 	col := th.Color(core.TokenColorPrimary)
-	if b.Type == ButtonPrimary {
+	// Inverse spinner on solid non-ghost fills.
+	v := b.Variant
+	if v == ButtonVariantAuto && b.Type == ButtonPrimary {
+		v = ButtonVariantSolid
+	}
+	if v == ButtonVariantSolid && !b.Ghost {
 		col = th.Color(core.TokenColorTextInverse)
 	}
 	if b.Disabled {
@@ -461,12 +516,13 @@ func (b *Button) applyChrome() {
 	disabledBg := th.Color(core.TokenColorDisabledBg)
 	disabledText := th.Color(core.TokenColorDisabledText)
 	errorC := th.Color(core.TokenColorError)
-	// Ant default button hover: colorBgTextHover (rgba black 0.06).
+	successC := th.Color(core.TokenColorSuccess)
+	warningC := th.Color(core.TokenColorWarning)
+	primaryBg := th.Color(core.TokenColorPrimaryBg)
 	hoverFill := th.Color(core.TokenColorBgTextHover)
 	if hoverFill.A < 0.02 {
 		hoverFill = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
 	}
-	// Composite hover over white so solid paint is correct without blend.
 	hoverFill = compositeOver(hoverFill, bg)
 	pressFill := th.Color(core.TokenColorBgTextActive)
 	if pressFill.A < 0.02 {
@@ -478,58 +534,97 @@ func (b *Button) applyChrome() {
 		borderHover = primaryHover
 	}
 
+	// Resolve Ant 5.21+ color + variant (Auto → classic Type).
+	variant, accent, accentHover, accentActive := b.resolveColorVariant(
+		primary, primaryHover, primaryActive, errorC, successC, warningC, textCol, border,
+	)
+
 	var bgN, bgH, bgP, fg, bd, bdH render.RGBA
 	bw := th.SizeOr(core.TokenLineWidth, 1)
 	var dash []float64
 
-	switch b.Type {
-	case ButtonPrimary:
-		bgN, bgH, bgP = primary, primaryHover, primaryActive
+	switch variant {
+	case ButtonVariantSolid:
+		bgN, bgH, bgP = accent, accentHover, accentActive
 		fg = textInv
-		if b.Danger {
-			bgN, bgH, bgP = errorC, render.Hex("#FF7875"), render.Hex("#D9363E")
-		}
 		bd, bdH = bgN, bgH
 		bw = 0
-	case ButtonDashed:
+	case ButtonVariantDashed:
 		bgN, bgH, bgP = bg, hoverFill, pressFill
-		fg, bd, bdH = textCol, border, borderHover
-		dash = []float64{3, 2}
-		if b.Danger {
-			fg, bd, bdH = errorC, errorC, render.Hex("#FF7875")
+		if b.Color == ButtonColorDefault && !b.Danger && b.Type != ButtonPrimary {
+			// Classic Type=Dashed: black text + gray dashed border.
+			fg, bd, bdH = textCol, border, borderHover
+		} else {
+			// color=primary/danger dashed: accent stroke + text.
+			fg, bd, bdH = accent, accent, accentHover
 		}
-	case ButtonText:
+		dash = []float64{3, 2}
+	case ButtonVariantFilled:
+		// Light wash of accent (primaryBg for primary; tint otherwise).
+		fill := primaryBg
+		if b.Color == ButtonColorDanger || (b.Color == ButtonColorDefault && b.Danger) {
+			fill = render.RGBA{R: errorC.R, G: errorC.G, B: errorC.B, A: 0.1}
+			fill = compositeOver(fill, bg)
+		} else if b.Color == ButtonColorSuccess {
+			fill = render.RGBA{R: successC.R, G: successC.G, B: successC.B, A: 0.1}
+			fill = compositeOver(fill, bg)
+		} else if b.Color == ButtonColorWarning {
+			fill = render.RGBA{R: warningC.R, G: warningC.G, B: warningC.B, A: 0.12}
+			fill = compositeOver(fill, bg)
+		} else if b.Color != ButtonColorPrimary && b.Color != ButtonColorDefault {
+			fill = primaryBg
+		} else if b.Type != ButtonPrimary && b.Color == ButtonColorDefault && !b.Danger {
+			// default filled ≈ subtle gray
+			fill = hoverFill
+		}
+		bgN, bgH, bgP = fill, compositeOver(hoverFill, fill), compositeOver(pressFill, fill)
+		fg = accent
+		bd, bdH, bw = render.RGBA{}, render.RGBA{}, 0
+	case ButtonVariantText:
 		bgN = render.RGBA{}
 		bgH, bgP = hoverFill, pressFill
-		fg = textCol
-		if b.Danger {
-			fg = errorC
-		}
+		fg = accent
 		bd, bdH, bw = render.RGBA{}, render.RGBA{}, 0
-	case ButtonLink:
-		bgN = render.RGBA{}
-		// Link: hover lightens primary text, subtle bg optional.
-		bgH, bgP = render.RGBA{}, render.RGBA{}
-		fg = primary
-		if b.Danger {
-			fg = errorC
-		}
+	case ButtonVariantLink:
+		bgN, bgH, bgP = render.RGBA{}, render.RGBA{}, render.RGBA{}
+		fg = accent
 		bd, bdH, bw = render.RGBA{}, render.RGBA{}, 0
-	default: // ButtonDefault
+	default: // outlined
 		bgN, bgH, bgP = bg, hoverFill, pressFill
-		fg, bd, bdH = textCol, border, borderHover
-		if b.Danger {
-			fg, bd, bdH = errorC, errorC, render.Hex("#FF7875")
+		// Primary/Danger/... outlined: accent stroke + text.
+		// Default color outlined: text token + gray border (Ant default button).
+		if b.Color == ButtonColorDefault && !b.Danger && b.Type != ButtonPrimary {
+			fg, bd, bdH = textCol, border, borderHover
+		} else {
+			fg, bd, bdH = accent, accent, accentHover
+		}
+	}
+
+	// Ghost: transparent idle fill; keep border/text of the variant (Ant ghost).
+	if b.Ghost && !b.Disabled {
+		switch variant {
+		case ButtonVariantSolid:
+			// solid+ghost → outlined accent on transparent
+			bgN = render.RGBA{}
+			bgH = render.RGBA{R: accent.R, G: accent.G, B: accent.B, A: 0.1}
+			bgH = compositeOver(bgH, bg)
+			bgP = render.RGBA{R: accent.R, G: accent.G, B: accent.B, A: 0.2}
+			bgP = compositeOver(bgP, bg)
+			fg = accent
+			bd, bdH = accent, accentHover
+			bw = th.SizeOr(core.TokenLineWidth, 1)
+			dash = nil
+		case ButtonVariantText, ButtonVariantLink:
+			// already transparent
+		default:
+			bgN = render.RGBA{}
+			// keep hover washes
 		}
 	}
 
 	if b.Disabled {
-		if b.Type == ButtonPrimary {
-			// Disabled primary: muted solid (Ant ~35% opacity).
-			p := primary
-			if b.Danger {
-				p = errorC
-			}
+		if variant == ButtonVariantSolid && !b.Ghost {
+			p := accent
 			bgN = render.RGBA{R: p.R, G: p.G, B: p.B, A: 0.35}
 			bgH, bgP = bgN, bgN
 			fg = textInv
@@ -539,15 +634,13 @@ func (b *Button) applyChrome() {
 		} else {
 			bgN, bgH, bgP = disabledBg, disabledBg, disabledBg
 			fg, bd, bdH = disabledText, border, border
+			if b.Ghost {
+				bgN, bgH, bgP = render.RGBA{}, render.RGBA{}, render.RGBA{}
+			}
 		}
 	} else if b.Loading {
-		// Ant loading: keep type colors solid; clicks blocked via Root.SetDisabled.
-		if b.Type == ButtonPrimary {
-			p := primary
-			if b.Danger {
-				p = errorC
-			}
-			// Slight dim (~12% white) without washing out.
+		if variant == ButtonVariantSolid && !b.Ghost {
+			p := accent
 			bgN = render.RGBA{R: p.R*0.88 + 0.12, G: p.G*0.88 + 0.12, B: p.B*0.88 + 0.12, A: 1}
 			bgH, bgP = bgN, bgN
 			fg = textInv
@@ -555,7 +648,6 @@ func (b *Button) applyChrome() {
 			bw = 0
 			dash = nil
 		}
-		// non-primary: keep type chrome from switch above
 	}
 
 	// Style overrides (one-off colors)
@@ -601,6 +693,50 @@ func (b *Button) applyChrome() {
 	b.applyStateChrome()
 }
 
+// resolveColorVariant maps Type/Danger/Color/Variant to a concrete variant and accent colors.
+func (b *Button) resolveColorVariant(
+	primary, primaryHover, primaryActive, errorC, successC, warningC, textCol, border render.RGBA,
+) (variant ButtonVariant, accent, accentHover, accentActive render.RGBA) {
+	// Variant from Type when Auto.
+	variant = b.Variant
+	if variant == ButtonVariantAuto {
+		switch b.Type {
+		case ButtonPrimary:
+			variant = ButtonVariantSolid
+		case ButtonDashed:
+			variant = ButtonVariantDashed
+		case ButtonText:
+			variant = ButtonVariantText
+		case ButtonLink:
+			variant = ButtonVariantLink
+		default:
+			variant = ButtonVariantOutlined
+		}
+	}
+	// Accent from Color, then Danger, then Type primary.
+	switch b.Color {
+	case ButtonColorPrimary:
+		accent, accentHover, accentActive = primary, primaryHover, primaryActive
+	case ButtonColorDanger:
+		accent, accentHover, accentActive = errorC, render.Hex("#FF7875"), render.Hex("#D9363E")
+	case ButtonColorSuccess:
+		accent, accentHover, accentActive = successC, render.Hex("#73D13D"), render.Hex("#389E0D")
+	case ButtonColorWarning:
+		accent, accentHover, accentActive = warningC, render.Hex("#FFC53D"), render.Hex("#D48806")
+	default:
+		if b.Danger {
+			accent, accentHover, accentActive = errorC, render.Hex("#FF7875"), render.Hex("#D9363E")
+		} else if b.Type == ButtonPrimary || variant == ButtonVariantSolid || variant == ButtonVariantLink {
+			accent, accentHover, accentActive = primary, primaryHover, primaryActive
+		} else {
+			// Default color + non-primary type: neutral text; outlined/dashed use border token
+			// when accent equals textCol (see variant branches: accent.A check uses border for bd).
+			accent, accentHover, accentActive = textCol, primaryHover, primaryActive
+		}
+	}
+	return variant, accent, accentHover, accentActive
+}
+
 // applyStateChrome paints the current hover/press/focus into Decorated.
 func (b *Button) applyStateChrome() {
 	if b.decorated == nil {
@@ -609,7 +745,8 @@ func (b *Button) applyStateChrome() {
 	h, p, f := false, false, false
 	if b.Root != nil {
 		h, p = b.Root.State.Hovered, b.Root.State.Pressed
-		f = b.Root.State.Focused
+		// Ant :focus-visible — only keyboard focus changes chrome outline.
+		f = b.Root.State.Focused && b.Root.State.FocusVisible
 	}
 	bg := b.bgNormal
 	bd := b.bdNormal
@@ -625,12 +762,14 @@ func (b *Button) applyStateChrome() {
 		bd = b.bdHover
 	}
 	dash := b.decorated.BorderDash
-	if f && !b.Disabled && !b.Loading && b.Type != ButtonDashed {
+	isDashed := b.Type == ButtonDashed || b.Variant == ButtonVariantDashed
+	if f && !b.Disabled && !b.Loading && !isDashed {
 		th := b.theme()
 		bd = th.Color(core.TokenColorPrimary)
 	}
-	// Link type: text color shifts on hover (lighter primary).
-	if b.Type == ButtonLink && !b.Disabled && !b.Loading && b.label != nil {
+	// Link (type or variant): text color shifts on hover (lighter primary).
+	isLink := b.Type == ButtonLink || b.Variant == ButtonVariantLink
+	if isLink && !b.Disabled && !b.Loading && b.label != nil {
 		th := b.theme()
 		if h || p {
 			if b.Danger {
@@ -649,13 +788,16 @@ func (b *Button) applyStateChrome() {
 	b.decorated.Background = bg
 	b.decorated.BorderColor = bd
 	b.decorated.BorderWidth = b.borderW
-	// Dashed stays dashed in all states including focus (user: dashed focus = dashed).
-	if b.Type == ButtonDashed && !b.Disabled && !b.Loading {
+	// Dashed (Type or Variant) keeps dash pattern in all states.
+	if isDashed && !b.Disabled && !b.Loading {
 		b.decorated.BorderDash = []float64{3, 2}
 		if f || h || p {
-			// Focus/hover: still dashed but primary-colored.
-			th := b.theme()
-			b.decorated.BorderColor = th.Color(core.TokenColorPrimary)
+			// Focus/hover: still dashed but primary-colored (classic Type=Dashed).
+			// Color+Variant dashed keeps accent from applyChrome (bd already set).
+			if b.Variant == ButtonVariantAuto || b.Variant == 0 {
+				th := b.theme()
+				b.decorated.BorderColor = th.Color(core.TokenColorPrimary)
+			}
 		}
 	} else {
 		b.decorated.BorderDash = nil
