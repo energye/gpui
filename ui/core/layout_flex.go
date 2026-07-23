@@ -36,11 +36,20 @@ type FlexLayoutParams struct {
 	MainAlign  MainAxisAlignment
 	CrossAlign CrossAxisAlignment
 	Gap        float64
+	// Wrap packs children onto multiple lines when the main axis is bounded
+	// and the next child would exceed maxMain. Gap is used both within a line
+	// and between lines. Flex-grow is ignored while Wrap is true (Ant Space
+	// wrap / multi-line row of fixed controls). Unbounded main never wraps.
+	Wrap bool
 }
 
-// LayoutFlex performs a single-pass flex layout for children of parent.
+// LayoutFlex performs flex layout for children of parent.
 // parent must already have NodeBase children attached; sizes/offsets are written
 // onto each child. Returns the parent's resulting size (constrained).
+//
+// When Wrap is true and the main axis max is finite, children are packed into
+// multiple lines (row→next row below, column→next column to the right).
+// Otherwise a single-line pass runs (with optional flex-grow).
 func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 	kids := parent.children
 	n := len(kids)
@@ -58,6 +67,10 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 	if !horizontal {
 		maxMain, maxCross = c.MaxHeight, c.MaxWidth
 		minMain, minCross = c.MinHeight, c.MinWidth
+	}
+
+	if p.Wrap && isFinite(maxMain) {
+		return layoutFlexWrap(parent, c, p, horizontal, maxMain, maxCross, minMain, minCross)
 	}
 
 	// Gap total between children.
@@ -334,4 +347,164 @@ func crossAxisOffset(align CrossAxisAlignment, parentCross, childCross float64) 
 
 func isFinite(v float64) bool {
 	return v < Unbounded/2
+}
+
+// layoutFlexWrap packs children into multiple lines along the main axis.
+// Flex-grow is not applied (wrap is for fixed/control rows like Ant Space).
+func layoutFlexWrap(parent *NodeBase, c Constraints, p FlexLayoutParams, horizontal bool, maxMain, maxCross, minMain, minCross float64) Size {
+	kids := parent.children
+	n := len(kids)
+	type item struct {
+		node     Node
+		base     *NodeBase
+		mainSize float64
+		cross    float64
+	}
+	items := make([]item, n)
+
+	// Measure each child: main max capped by container so a single item can still
+	// sit alone on a line; cross is loose (line height comes from max child).
+	for i, child := range kids {
+		var childC Constraints
+		if horizontal {
+			childC = Constraints{MaxWidth: maxMain, MaxHeight: maxCross}
+		} else {
+			childC = Constraints{MaxWidth: maxCross, MaxHeight: maxMain}
+		}
+		sz := child.Layout(childC)
+		it := item{node: child, base: child.Base()}
+		if horizontal {
+			it.mainSize = sz.Width
+			it.cross = sz.Height
+		} else {
+			it.mainSize = sz.Height
+			it.cross = sz.Width
+		}
+		items[i] = it
+	}
+
+	// Pack into lines (indices into items).
+	type line struct {
+		start, end int // half-open [start, end)
+		main       float64
+		cross      float64
+	}
+	var lines []line
+	lineStart := 0
+	lineMain := 0.0
+	lineCross := 0.0
+	for i := 0; i < n; i++ {
+		need := items[i].mainSize
+		if i > lineStart {
+			need += p.Gap
+		}
+		if i > lineStart && lineMain+need > maxMain {
+			lines = append(lines, line{start: lineStart, end: i, main: lineMain, cross: lineCross})
+			lineStart = i
+			lineMain = items[i].mainSize
+			lineCross = items[i].cross
+			continue
+		}
+		if i > lineStart {
+			lineMain += p.Gap
+		}
+		lineMain += items[i].mainSize
+		if items[i].cross > lineCross {
+			lineCross = items[i].cross
+		}
+	}
+	if lineStart < n {
+		lines = append(lines, line{start: lineStart, end: n, main: lineMain, cross: lineCross})
+	}
+
+	// Content size: main = max line main; cross = sum line crosses + gaps between lines.
+	contentMain := 0.0
+	contentCross := 0.0
+	for i, ln := range lines {
+		if ln.main > contentMain {
+			contentMain = ln.main
+		}
+		contentCross += ln.cross
+		if i > 0 {
+			contentCross += p.Gap
+		}
+	}
+
+	var out Size
+	if horizontal {
+		out = c.Tighten(Size{Width: contentMain, Height: contentCross})
+	} else {
+		out = c.Tighten(Size{Width: contentCross, Height: contentMain})
+	}
+	if horizontal {
+		if out.Width < minMain {
+			out.Width = minMain
+		}
+		if out.Height < minCross {
+			out.Height = minCross
+		}
+	} else {
+		if out.Height < minMain {
+			out.Height = minMain
+		}
+		if out.Width < minCross {
+			out.Width = minCross
+		}
+	}
+	// When parent is stretched to a larger main (e.g. Max==Min), lines align within that.
+	parentMain := out.Width
+	if !horizontal {
+		parentMain = out.Height
+	}
+	parent.SetSize(out)
+
+	// Position each line then each child within the line.
+	crossPos := 0.0
+	for li, ln := range lines {
+		if li > 0 {
+			crossPos += p.Gap
+		}
+		count := ln.end - ln.start
+		remaining := parentMain - ln.main
+		if remaining < 0 {
+			remaining = 0
+		}
+		leading, between := mainAxisPlacement(p.MainAlign, remaining, count)
+		mainPos := leading
+		// Line cross for CrossAlign / Stretch within this line.
+		lineCross := ln.cross
+		for i := ln.start; i < ln.end; i++ {
+			it := &items[i]
+			// Stretch re-layout to line cross size.
+			if p.CrossAlign == CrossStretch {
+				var childC Constraints
+				if horizontal {
+					childC = Constraints{
+						MinWidth: it.mainSize, MaxWidth: it.mainSize,
+						MinHeight: lineCross, MaxHeight: lineCross,
+					}
+				} else {
+					childC = Constraints{
+						MinWidth: lineCross, MaxWidth: lineCross,
+						MinHeight: it.mainSize, MaxHeight: it.mainSize,
+					}
+				}
+				sz := it.node.Layout(childC)
+				if horizontal {
+					it.mainSize, it.cross = sz.Width, sz.Height
+				} else {
+					it.mainSize, it.cross = sz.Height, sz.Width
+				}
+			}
+			childCrossOff := crossAxisOffset(p.CrossAlign, lineCross, it.cross)
+			if horizontal {
+				it.base.SetOffset(Point{X: mainPos, Y: crossPos + childCrossOff})
+			} else {
+				it.base.SetOffset(Point{X: crossPos + childCrossOff, Y: mainPos})
+			}
+			mainPos += it.mainSize + p.Gap + between
+		}
+		crossPos += lineCross
+	}
+	return out
 }

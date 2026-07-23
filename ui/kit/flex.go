@@ -9,7 +9,7 @@ import (
 // https://ant.design/components/flex
 type Flex struct {
 	Root *primitive.Flex
-	// Wrap is stored for Ant API parity (layout wrap deferred).
+	// Wrap packs children onto multiple lines when the main axis is bounded.
 	Wrap bool
 }
 
@@ -28,6 +28,9 @@ func (f *Flex) Node() core.Node {
 	if f == nil {
 		return nil
 	}
+	if f.Root != nil {
+		f.Root.Wrap = f.Wrap
+	}
 	return f.Root
 }
 
@@ -38,9 +41,13 @@ func (f *Flex) SetGap(g float64) {
 	}
 }
 
-// SetWrap sets wrap flag (layout wrap deferred; API parity).
+// SetWrap enables multi-line packing when the main axis is bounded.
 func (f *Flex) SetWrap(v bool) {
-	if f != nil {
-		f.Wrap = v
+	if f == nil {
+		return
+	}
+	f.Wrap = v
+	if f.Root != nil {
+		f.Root.Wrap = v
 	}
 }

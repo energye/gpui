@@ -33,6 +33,9 @@ go test ./ui/kit -run TestAntCoverageTable -v
 
 | Ant | Status | Notes |
 |-----|--------|--------|
+| Button | ready | ghost/color-variant/icon-end later |
+| Flex | ready | wrap ✅ |
+| Space | ready | wrap ✅ |
 | Anchor | ready | ScrollTarget+SyncFromScroll spy |
 | Menu | ready | flat; **nested later** |
 | Tabs | ready | bar/body ScrollViewport |

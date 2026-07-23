@@ -30,6 +30,69 @@ func panel(face text.Face, title string, kids ...core.Node) core.Node {
 	return col
 }
 
+// demoPage is an Ant Design–style component docs page: title + optional description
+// + stacked demo sections (scrolls inside Tabs body ScrollViewport).
+func demoPage(face text.Face, title, desc string, sections ...core.Node) core.Node {
+	lab := kit.NewText(title)
+	lab.SetFace(face)
+	lab.Root.FontSize = 20
+	col := primitive.Column(lab.Node())
+	col.Gap = 24
+	col.MainAlign = core.MainStart
+	col.CrossAlign = core.CrossStretch
+	col.Padding = primitive.All(16)
+	if desc != "" {
+		d := kit.NewText(desc)
+		d.SetFace(face)
+		d.SetSecondary(true)
+		col.AddChild(d.Node())
+	}
+	for _, s := range sections {
+		if s != nil {
+			col.AddChild(s)
+		}
+	}
+	return col
+}
+
+// demoSection is one bordered playground block (title + optional desc + content).
+func demoSection(face text.Face, theme *core.Theme, title, desc string, body core.Node) core.Node {
+	titleT := kit.NewText(title)
+	titleT.SetFace(face)
+	titleT.Root.FontSize = 16
+	inner := primitive.Column(titleT.Node())
+	inner.Gap = 12
+	inner.MainAlign = core.MainStart
+	inner.CrossAlign = core.CrossStretch
+	if desc != "" {
+		d := kit.NewText(desc)
+		d.SetFace(face)
+		d.SetSecondary(true)
+		inner.AddChild(d.Node())
+	}
+	if body != nil {
+		inner.AddChild(body)
+	}
+	card := primitive.NewDecorated(inner)
+	card.Padding = primitive.All(16)
+	card.Radius = 8
+	card.BorderWidth = 1
+	if theme != nil {
+		card.Background = theme.Color(core.TokenColorBgContainer)
+		card.BorderColor = theme.Color(core.TokenColorBorder)
+	}
+	card.Hit = core.HitDefer
+	return card
+}
+
+// spaceWrap is Ant Space with wrap for demo button rows.
+func spaceWrap(gap float64, kids ...core.Node) core.Node {
+	sp := kit.NewSpace(kids...)
+	sp.SetSize(gap)
+	sp.SetWrap(true)
+	return sp.Node()
+}
+
 func sec(face text.Face, s string) core.Node {
 	t := kit.NewText(s)
 	t.SetFace(face)
@@ -74,20 +137,117 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	// ─── General ───────────────────────────────────────────────
 	items = append(items, catHeader("General"), catDivider())
 
-	bPrimary := kit.NewButton("Primary")
-	bPrimary.SetType(kit.ButtonPrimary)
-	bPrimary.SetFace(face)
-	bDefault := kit.NewButton("Default")
-	bDefault.SetType(kit.ButtonDefault)
-	bDefault.SetFace(face)
-	bDashed := kit.NewButton("Dashed")
-	bDashed.SetType(kit.ButtonDashed)
-	bDashed.SetFace(face)
-	*buttons = append(*buttons, bPrimary, bDefault, bDashed)
-	add("btn", "Button", "General · Button",
-		sec(face, "types"),
-		primitive.Row(bPrimary.Node(), bDefault.Node(), bDashed.Node()),
-	)
+	// Button — Ant Design docs-style multi-section page
+	// https://ant.design/components/button
+	trackBtn := func(b *kit.Button) *kit.Button {
+		b.SetFace(face)
+		*buttons = append(*buttons, b)
+		return b
+	}
+	mkBtn := func(label string, typ kit.ButtonType) *kit.Button {
+		b := kit.NewButton(label)
+		b.SetType(typ)
+		return trackBtn(b)
+	}
+
+	// Type
+	bPrimary := mkBtn("Primary Button", kit.ButtonPrimary)
+	bDefault := mkBtn("Default Button", kit.ButtonDefault)
+	bDashed := mkBtn("Dashed Button", kit.ButtonDashed)
+	bText := mkBtn("Text Button", kit.ButtonText)
+	bLink := mkBtn("Link Button", kit.ButtonLink)
+	secType := demoSection(face, theme, "Type",
+		"There are primary button, default button, dashed button, text button and link button.",
+		spaceWrap(8, bPrimary.Node(), bDefault.Node(), bDashed.Node(), bText.Node(), bLink.Node()))
+
+	// Icon
+	bIconSearch := mkBtn("Search", kit.ButtonPrimary)
+	bIconSearch.SetIcon("search")
+	bIconPlus := mkBtn("Add", kit.ButtonDefault)
+	bIconPlus.SetIcon("plus")
+	bIconOnly := mkBtn("Search", kit.ButtonDefault)
+	bIconOnly.SetIcon("search")
+	secIcon := demoSection(face, theme, "Icon",
+		"Button components can contain an Icon (leading).",
+		spaceWrap(8, bIconSearch.Node(), bIconPlus.Node(), bIconOnly.Node()))
+
+	// Size
+	bLarge := mkBtn("Large", kit.ButtonPrimary)
+	bLarge.SetSize(kit.ButtonLarge)
+	bMiddle := mkBtn("Middle", kit.ButtonPrimary)
+	bMiddle.SetSize(kit.ButtonMiddle)
+	bSmall := mkBtn("Small", kit.ButtonPrimary)
+	bSmall.SetSize(kit.ButtonSmall)
+	secSize := demoSection(face, theme, "Size",
+		"Ant Design supports a default button size as well as a large and small size.",
+		spaceWrap(8, bLarge.Node(), bMiddle.Node(), bSmall.Node()))
+
+	// Disabled
+	bDisP := mkBtn("Primary", kit.ButtonPrimary)
+	bDisP.SetDisabled(true)
+	bDisD := mkBtn("Default", kit.ButtonDefault)
+	bDisD.SetDisabled(true)
+	bDisH := mkBtn("Dashed", kit.ButtonDashed)
+	bDisH.SetDisabled(true)
+	bDisT := mkBtn("Text", kit.ButtonText)
+	bDisT.SetDisabled(true)
+	bDisL := mkBtn("Link", kit.ButtonLink)
+	bDisL.SetDisabled(true)
+	secDisabled := demoSection(face, theme, "Disabled",
+		"To mark a button as disabled, add the disabled property to the Button.",
+		spaceWrap(8, bDisP.Node(), bDisD.Node(), bDisH.Node(), bDisT.Node(), bDisL.Node()))
+
+	// Loading
+	bLoad1 := mkBtn("Loading", kit.ButtonPrimary)
+	bLoad1.SetLoading(true)
+	bLoad2 := mkBtn("Loading", kit.ButtonDefault)
+	bLoad2.SetLoading(true)
+	bLoad3 := mkBtn("Loading", kit.ButtonDashed)
+	bLoad3.SetLoading(true)
+	*tickers = append(*tickers, bLoad1, bLoad2, bLoad3)
+	secLoading := demoSection(face, theme, "Loading",
+		"A loading indicator can be added to a button by setting the loading property on the Button.",
+		spaceWrap(8, bLoad1.Node(), bLoad2.Node(), bLoad3.Node()))
+
+	// Multiple
+	bM1 := mkBtn("Button 1", kit.ButtonDefault)
+	bM2 := mkBtn("Button 2", kit.ButtonDefault)
+	bM3 := mkBtn("Button 3", kit.ButtonDefault)
+	secMultiple := demoSection(face, theme, "Multiple Buttons",
+		"If you need several buttons, we recommend that you use Space to set the spacing.",
+		spaceWrap(8, bM1.Node(), bM2.Node(), bM3.Node()))
+
+	// Danger
+	bDangP := mkBtn("Primary", kit.ButtonPrimary)
+	bDangP.SetDanger(true)
+	bDangD := mkBtn("Default", kit.ButtonDefault)
+	bDangD.SetDanger(true)
+	bDangH := mkBtn("Dashed", kit.ButtonDashed)
+	bDangH.SetDanger(true)
+	bDangT := mkBtn("Text", kit.ButtonText)
+	bDangT.SetDanger(true)
+	bDangL := mkBtn("Link", kit.ButtonLink)
+	bDangL.SetDanger(true)
+	secDanger := demoSection(face, theme, "Danger Buttons",
+		"Danger buttons are used for actions with higher risk.",
+		spaceWrap(8, bDangP.Node(), bDangD.Node(), bDangH.Node(), bDangT.Node(), bDangL.Node()))
+
+	// Block
+	bBlock := mkBtn("Primary Block Button", kit.ButtonPrimary)
+	bBlock.SetBlock(true)
+	bBlock2 := mkBtn("Default Block Button", kit.ButtonDefault)
+	bBlock2.SetBlock(true)
+	blockCol := primitive.Column(bBlock.Node(), bBlock2.Node())
+	blockCol.Gap = 8
+	blockCol.CrossAlign = core.CrossStretch
+	secBlock := demoSection(face, theme, "Block Button",
+		"block property will make the button fit to its parent width.",
+		blockCol)
+
+	items = append(items, ctlTab("btn", "Button"))
+	contents["btn"] = demoPage(face, "Button",
+		"To trigger an operation. Aligns Ant Design Button demos (type/size/icon/disabled/loading/danger/block).",
+		secType, secIcon, secSize, secDisabled, secLoading, secMultiple, secDanger, secBlock)
 
 	fb := kit.NewFloatButton("+")
 	fb.SetFace(face)

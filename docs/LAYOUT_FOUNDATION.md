@@ -27,7 +27,12 @@
    **`Flexible` = Expanded + Align.topLeft（默认）**  
    - 自己占满 flex 分配空间  
    - 子在 `(0,0)`，**不**被强制铺满、**不**被居中  
-   - 需要铺满时显式 `FillChild=true`（Input 编辑器 / tab body）
+   - 需要铺满时显式 `FillChild=true`（Input 编辑器 / tab body）  
+   **`Wrap=true`**（主轴有界时）  
+   - 贪心装行：下一子 + gap 放不下则换行（Row→下行，Column→右列）  
+   - 行/列间距与行内间距共用 `Gap`  
+   - 行内 `MainAlign` / 行内 `CrossAlign`；**不跨行 flex-grow**（Ant Space wrap 场景）  
+   - 无界主轴：不 wrap，退回单行
 
 4. **`Decorated`**  
    - 定自己的 `Width/Height`  

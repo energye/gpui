@@ -34,6 +34,10 @@ type Decorated struct {
 	// StretchChild: child receives tight constraints equal to the inner box.
 	// Use for tab hit hosts. Leave false for Switch track (thumb must stay 18×18).
 	StretchChild bool
+	// ExpandWidth: when parent MaxWidth is finite, outer width becomes MaxWidth
+	// (Ant block Button / full-width bars). Works under loose min (CrossStretch
+	// already tightens; ExpandWidth also covers non-stretch parents with a max).
+	ExpandWidth bool
 	// CenterContent: vertically center a single child when outer box is taller
 	// (Ant control label alignment). Default false = top-left (Flutter Align.topLeft).
 	// Opt in via SetCenterContent(true) for Button/Input/Select chrome only.
@@ -159,6 +163,9 @@ func (d *Decorated) Layout(c core.Constraints) core.Size {
 	}
 	if h < d.MinHeight {
 		h = d.MinHeight
+	}
+	if d.ExpandWidth && c.HasBoundedWidth() {
+		w = c.MaxWidth
 	}
 	// Honor parent constraints.
 	out := c.Tighten(core.Size{Width: w, Height: h})

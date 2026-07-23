@@ -11,6 +11,9 @@ type Flex struct {
 	CrossAlign core.CrossAxisAlignment
 	Gap        float64
 	Padding    EdgeInsets
+	// Wrap packs children onto multiple lines when the main axis is bounded
+	// (see core.FlexLayoutParams.Wrap). Gap applies within and between lines.
+	Wrap bool
 }
 
 // NewFlex constructs a Flex along axis with optional children.
@@ -46,6 +49,7 @@ func (f *Flex) Layout(c core.Constraints) core.Size {
 		MainAlign:  f.MainAlign,
 		CrossAlign: f.CrossAlign,
 		Gap:        f.Gap,
+		Wrap:       f.Wrap,
 	})
 	// Shift children by padding.
 	if f.Padding.Left != 0 || f.Padding.Top != 0 {

@@ -160,6 +160,16 @@ func (b *Button) SetDanger(v bool) {
 	b.applyChrome()
 }
 
+// SetBlock makes the button expand to the parent max width when bounded
+// (Ant block). Parent Column should use CrossStretch for full content width.
+func (b *Button) SetBlock(v bool) {
+	if b.Block == v {
+		return
+	}
+	b.Block = v
+	b.rebuild()
+}
+
 // SetIcon sets an optional leading icon name (empty clears).
 func (b *Button) SetIcon(name string) {
 	b.IconName = name
@@ -321,8 +331,14 @@ func (b *Button) rebuild() {
 	b.decorated.Height = height
 	b.decorated.SetCenterContent(true)
 	if b.Block {
-		// Expand horizontally when parent gives a max width.
-		b.decorated.MinWidth = th.SizeOr(core.TokenControlHeight, 32) * 4
+		// Full parent max width (Ant block); StretchChild centers label row.
+		b.decorated.ExpandWidth = true
+		b.decorated.StretchChild = true
+		b.decorated.MinWidth = 0
+	} else {
+		b.decorated.ExpandWidth = false
+		b.decorated.StretchChild = false
+		b.decorated.MinWidth = 0
 	}
 
 	if b.Root == nil {

@@ -11,7 +11,7 @@ type Space struct {
 	Root *primitive.Flex
 	// Direction: horizontal (default) or vertical.
 	Vertical bool
-	// Wrap is stored for Ant API parity (layout wrap deferred).
+	// Wrap packs children onto multiple lines when the main axis is bounded.
 	Wrap bool
 	// Size gap in logical px (0 → theme TokenMarginSM / 8).
 	Size  float64
@@ -55,9 +55,10 @@ func (s *Space) SetSize(px float64) {
 	s.apply()
 }
 
-// SetWrap sets wrap flag (layout wrap deferred; API parity).
+// SetWrap enables multi-line packing when the main axis is bounded.
 func (s *Space) SetWrap(v bool) {
 	s.Wrap = v
+	s.apply()
 }
 
 // Add appends a child.
@@ -83,6 +84,7 @@ func (s *Space) apply() {
 		gap = th.SizeOr(core.TokenMarginSM, 8)
 	}
 	s.Root.Gap = gap
+	s.Root.Wrap = s.Wrap
 	if s.Vertical {
 		s.Root.Axis = core.AxisVertical
 		s.Root.CrossAlign = core.CrossStart

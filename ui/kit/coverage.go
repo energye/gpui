@@ -30,16 +30,16 @@ type CoverageEntry struct {
 func AntCoverage() []CoverageEntry {
 	return []CoverageEntry{
 		// General
-		{Ant: "Button", Status: CovReady, Via: "kit.Button", Since: "M1"},
+		{Ant: "Button", Status: CovReady, Via: "kit.Button", Since: "M1", Notes: "ghost/color-variant/icon-end later"},
 		{Ant: "FloatButton", Status: CovReady, Via: "kit.FloatButton", Since: "Base-ALL"},
 		{Ant: "Icon", Status: CovReady, Via: "kit.Icon / primitive.Icon", Since: "M1"},
 		{Ant: "Typography", Status: CovReady, Via: "kit.Text/Title/Paragraph", Since: "Base-ALL"},
 		// Layout
 		{Ant: "Divider", Status: CovReady, Via: "kit.Divider", Since: "Base-ALL"},
-		{Ant: "Flex", Status: CovReady, Via: "kit.Flex", Since: "Base-ALL"},
+		{Ant: "Flex", Status: CovReady, Via: "kit.Flex", Since: "Base-ALL", Notes: "wrap ✅"},
 		{Ant: "Grid", Status: CovReady, Via: "kit.Grid", Since: "Base-ALL"},
 		{Ant: "Layout", Status: CovReady, Via: "kit.Layout", Since: "Base-ALL"},
-		{Ant: "Space", Status: CovReady, Via: "kit.Space", Since: "Base-ALL"},
+		{Ant: "Space", Status: CovReady, Via: "kit.Space", Since: "Base-ALL", Notes: "wrap ✅"},
 		{Ant: "Splitter", Status: CovReady, Via: "kit.Splitter", Since: "Base-ALL"},
 		// Navigation
 		{Ant: "Anchor", Status: CovReady, Via: "kit.Anchor", Since: "Base-ALL", Notes: "ScrollTarget+SyncFromScroll spy"},
