@@ -6,6 +6,13 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
+// Ant Design Form vertical density defaults.
+const (
+	DefaultFormItemGap  = 24.0 // between form items
+	DefaultFormFieldGap = 8.0  // label ↔ control (horizontal/vertical)
+	DefaultFormErrorGap = 4.0  // control ↔ error text
+)
+
 // FormItem is a labeled field row with optional error text.
 type FormItem struct {
 	Root         *primitive.Flex
@@ -17,9 +24,13 @@ type FormItem struct {
 	Required     bool
 	Layout       string // "vertical" | "horizontal"
 	RequiredMark bool   // when true and Required, append " *"
-	Model        *core.FormModel
-	Face         text.Face
-	Theme        *core.Theme
+	// FieldGap label↔control (0 → DefaultFormFieldGap).
+	FieldGap float64
+	// ErrorGap control↔error (0 → DefaultFormErrorGap).
+	ErrorGap float64
+	Model    *core.FormModel
+	Face     text.Face
+	Theme    *core.Theme
 }
 
 // NewFormItem creates a form item with a control node.
@@ -31,6 +42,8 @@ func NewFormItem(name, label string, control core.Node) *FormItem {
 
 // Form hosts FormItems and a submit button bound to FormModel.
 type Form struct {
+	// ItemGap between items (0 → DefaultFormItemGap).
+	ItemGap      float64
 	Root         *primitive.Flex
 	Model        *core.FormModel
 	Items        []*FormItem
@@ -115,19 +128,27 @@ func (fi *FormItem) rebuild() {
 	if fi.control == nil {
 		fi.control = primitive.NewBox()
 	}
+	fg := DefaultFormFieldGap
+	if fi.FieldGap > 0 {
+		fg = fi.FieldGap
+	}
 	var field *primitive.Flex
 	if fi.Layout == "horizontal" {
 		field = primitive.Row(fi.label, fi.control)
-		field.Gap = 8
+		field.Gap = fg
 		field.CrossAlign = core.CrossCenter
 	} else {
-		// Ant Form vertical: label above control (gap 8), error under (gap 4).
+		// Ant Form vertical: label above control, error under.
 		field = primitive.Column(fi.label, fi.control)
-		field.Gap = 8
+		field.Gap = fg
 		field.CrossAlign = core.CrossStart
 	}
+	eg := DefaultFormErrorGap
+	if fi.ErrorGap > 0 {
+		eg = fi.ErrorGap
+	}
 	col := primitive.Column(field, fi.errorText)
-	col.Gap = 4
+	col.Gap = eg
 	col.CrossAlign = core.CrossStart
 	fi.Root = col
 }
@@ -195,6 +216,22 @@ func (f *Form) BindInput(name string, in *Input, required bool, label string) *F
 	return item
 }
 
+// SetItemGap sets vertical spacing between items (0 → DefaultFormItemGap).
+func (f *Form) SetItemGap(px float64) {
+	if f == nil {
+		return
+	}
+	f.ItemGap = px
+	if f.Root != nil {
+		gap := DefaultFormItemGap
+		if px > 0 {
+			gap = px
+		}
+		f.Root.Gap = gap
+		f.Root.MarkNeedsLayout()
+	}
+}
+
 // Validate runs ValidateAll and syncs error texts.
 func (f *Form) Validate() bool {
 	ok := f.Model.ValidateAll()
@@ -215,7 +252,11 @@ func (f *Form) theme() *core.Theme {
 func (f *Form) rebuild() {
 	th := f.theme()
 	f.Root = primitive.Column()
-	f.Root.Gap = 24 // Ant Form vertical layout margin
+	gap := DefaultFormItemGap
+	if f.ItemGap > 0 {
+		gap = f.ItemGap
+	}
+	f.Root.Gap = gap
 	f.Root.CrossAlign = core.CrossStart
 	for _, it := range f.Items {
 		it.Layout = f.Layout

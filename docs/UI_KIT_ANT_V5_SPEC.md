@@ -14,7 +14,7 @@
 | 文档 | 管什么 |
 |------|--------|
 | **本文 SPEC** | 对齐 Ant Design **v5 的什么**（能力、状态、验收类别、分期） |
-| [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md) | **怎么实现**（primitive 组合、禁止每帧 Sync、Theme hook、Present 路径） |
+| [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md) | **怎么实现**（primitive 组合、**§0.1 Default+Set 强制**、禁止每帧 Sync、Theme hook、Present） |
 | [`coverage.go`](../ui/kit/coverage.go) | **做到哪了**（Ready + Notes；改表只改源码） |
 
 与代码冲突时：**以源码与 `go test` 为准**，再回写文档。

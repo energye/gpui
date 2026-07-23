@@ -13,6 +13,7 @@
 //
 // Rules of thumb:
 //   - Align Ant via behavior + tokens + in-repo golden (not browser pixel hash).
+//   - DefaultXxx + SetXxx for chrome metrics (docs/UI_KIT_DEV_GUIDE.md §0.1) — Ant real defaults; override at use site.
 //   - No ContinuousRender for product controls (use Tree.AddTicker).
 //   - No per-frame Sync() requirement for popups (Tree.Layout refreshes anchors).
 //   - Theme via themeOf / ConfigProvider / Tree.SetTheme + SetThemeHook(rebuild).

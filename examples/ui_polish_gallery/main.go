@@ -117,13 +117,9 @@ func main() {
 	theme := kit.DefaultTheme()
 	// --- Ant Design catalog panels ---
 
-	title := kit.NewText("Polish gallery · Ant Design catalog (per-control tabs)")
+	title := kit.NewText("Polish gallery · Ant Design catalog")
 	title.SetFace(face)
 	title.Root.FontSize = 16
-
-	hint := kit.NewText("Rail: gray category headers · separator · one tab per control")
-	hint.SetFace(face)
-	hint.SetSecondary(true)
 
 	var buttons []*kit.Button
 	var tickers []interface{ AttachTicker(*core.Tree) }
@@ -150,22 +146,29 @@ func main() {
 	// Sliding ink indicator animation (demand loop TickActive)
 	tickers = append(tickers, tabs)
 
-	statusTx := kit.NewText("status: " + status)
-	statusTx.SetFace(face)
-	statusTx.SetSecondary(true)
+	// Title bar (compact) + Tabs filling the rest of the window.
+	titleBar := primitive.NewDecorated(title.Node())
+	titleBar.Padding = primitive.Symmetric(16, 10)
+	titleBar.Background = theme.Color(core.TokenColorBgLayout)
+	titleBar.ExpandWidth = true
 
 	tabsHost := primitive.NewFlexible(1, tabs.Node())
-	// msgHost.Node() is a zero-size OverlayPortal placeholder; keep mounted at root.
-	col := primitive.Column(title.Node(), hint.Node(), tabsHost, statusTx.Node(), msgHost.Node())
-	col.Gap = 12
+	tabsHost.FillChild = true
+	// msgHost: zero-size OverlayPortal; keep mounted at root for Message/Notification.
+	col := primitive.Column(titleBar, tabsHost, msgHost.Node())
+	col.Gap = 0
 	col.MainAlign = core.MainStart
 	col.CrossAlign = core.CrossStretch
-	col.Padding = primitive.All(16)
+	// No outer padding: Tabs rail/body go edge-to-edge under the title bar.
 
-	root := primitive.NewBox(col)
-	root.Color = theme.Color(core.TokenColorBgLayout)
+	// StretchChild + fixed size: Column receives TIGHT max so Flexible truly
+	// consumes remaining height (Box+Expand only passes loose max).
+	root := primitive.NewDecorated(col)
+	root.Background = theme.Color(core.TokenColorBgLayout)
 	root.Width = float64(winW)
 	root.Height = float64(winH)
+	root.StretchChild = true
+	root.ExpandWidth = true
 
 	tree := core.NewTree(root)
 	for _, tk := range tickers {
@@ -174,7 +177,6 @@ func main() {
 	if modal != nil {
 		modal.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
 	}
-	lastStatus := status
 
 	res := exboot.RunUIDemand(exboot.UIDemandConfig{
 		Host: host, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
@@ -209,11 +211,7 @@ func main() {
 			if msgHost != nil {
 				msgHost.Sync()
 			}
-			if status != lastStatus {
-				statusTx.SetValue("status: " + status)
-				lastStatus = status
-			}
 		},
 	})
-	log.Printf("gallery exit status=%q paints=%d hops=%d scale=%.2f", status, res.Paints, res.Hops, host.ScaleFactor())
+	log.Printf("gallery exit paints=%d hops=%d scale=%.2f", res.Paints, res.Hops, host.ScaleFactor())
 }

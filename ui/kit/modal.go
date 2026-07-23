@@ -6,6 +6,15 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
+// Ant Design Modal defaults (https://ant.design/components/modal).
+const (
+	DefaultModalWidth     = 520.0 // Ant default ~520; kit historically 480 — use 520 Ant
+	DefaultModalPadding   = 24.0
+	DefaultModalTitleFont = 16.0
+	DefaultModalBodyGap   = 16.0
+	DefaultModalFooterGap = 8.0
+)
+
 // Modal is a centered dialog over a mask (B3).
 //
 //	OverlayPortal
@@ -14,6 +23,8 @@ import (
 //
 // Portal/Scope stay stable across content rebuilds so open state is not lost
 // when SetFooterVisible / SetContent triggers rebuild.
+//
+// Defaults match Ant; override via fields / SetPadding / SetWidth.
 type Modal struct {
 	Portal    *primitive.OverlayPortal
 	Scope     *primitive.FocusScope
@@ -25,9 +36,14 @@ type Modal struct {
 	okBtn     *Button
 	cancelBtn *Button
 
-	Open          bool
-	Title         string
-	Width         float64
+	Open  bool
+	Title string
+	Width float64 // 0 → DefaultModalWidth
+	// Padding uniform panel inset (0 → DefaultModalPadding). SetPaddingInsets for sides.
+	Padding       float64
+	TitleFontSize float64 // 0 → DefaultModalTitleFont
+	BodyGap       float64 // 0 → DefaultModalBodyGap
+	FooterGap     float64 // 0 → DefaultModalFooterGap
 	MaskClosable  bool
 	FooterVisible bool // default true
 	Face          text.Face
@@ -38,11 +54,13 @@ type Modal struct {
 	// Content set via SetContent.
 	content core.Node
 	trap    overlayFocusTrap
+	pad     primitive.EdgeInsets
+	padSet  bool
 }
 
 // NewModal creates a closed modal.
 func NewModal(title string) *Modal {
-	m := &Modal{Title: title, Width: 480, MaskClosable: true, FooterVisible: true}
+	m := &Modal{Title: title, Width: DefaultModalWidth, MaskClosable: true, FooterVisible: true}
 	m.rebuild()
 	return m
 }
@@ -157,6 +175,67 @@ func (m *Modal) Sync() {
 	}
 }
 
+// SetWidth sets dialog width (0 → DefaultModalWidth on next rebuild).
+func (m *Modal) SetWidth(w float64) {
+	if m == nil {
+		return
+	}
+	m.Width = w
+	m.rebuild()
+}
+
+// SetPadding sets uniform panel inset (0 → DefaultModalPadding).
+func (m *Modal) SetPadding(px float64) {
+	if m == nil {
+		return
+	}
+	m.Padding = px
+	m.padSet = false
+	m.rebuild()
+}
+
+// SetPaddingInsets sets per-side panel inset (explicit, including all-zero).
+func (m *Modal) SetPaddingInsets(p primitive.EdgeInsets) {
+	if m == nil {
+		return
+	}
+	m.pad = p
+	m.padSet = true
+	m.rebuild()
+}
+
+func (m *Modal) panelPadding() primitive.EdgeInsets {
+	if m != nil && m.padSet {
+		return m.pad
+	}
+	px := DefaultModalPadding
+	if m != nil && m.Padding > 0 {
+		px = m.Padding
+	}
+	return primitive.All(px)
+}
+
+func (m *Modal) titleFont() float64 {
+	if m != nil && m.TitleFontSize > 0 {
+		return m.TitleFontSize
+	}
+	return DefaultModalTitleFont
+}
+
+func (m *Modal) bodyGap() float64 {
+	if m != nil && m.BodyGap > 0 {
+		return m.BodyGap
+	}
+	return DefaultModalBodyGap
+}
+
+func (m *Modal) footerGap() float64 {
+	if m != nil && m.FooterGap > 0 {
+		return m.FooterGap
+	}
+	return DefaultModalFooterGap
+}
+
 func (m *Modal) theme() *core.Theme {
 	var n core.Node
 	if m.Portal != nil {
@@ -168,11 +247,11 @@ func (m *Modal) theme() *core.Theme {
 func (m *Modal) rebuild() {
 	th := m.theme()
 	if m.Width <= 0 {
-		m.Width = 480
+		m.Width = DefaultModalWidth
 	}
 
 	m.title = primitive.NewText(m.Title)
-	m.title.FontSize = 16
+	m.title.FontSize = m.titleFont()
 	m.title.Face = m.Face
 	m.title.Color = th.Color(core.TokenColorText)
 
@@ -200,18 +279,18 @@ func (m *Modal) rebuild() {
 		m.SetOpen(false)
 	})
 	m.footer = primitive.Row(primitive.Spacer(), m.cancelBtn.Node(), m.okBtn.Node())
-	m.footer.Gap = 8
+	m.footer.Gap = m.footerGap()
 	m.footer.CrossAlign = core.CrossCenter
 
 	col := primitive.Column(m.title, m.bodySlot)
 	if m.FooterVisible {
 		col.AddChild(m.footer)
 	}
-	col.Gap = 16
+	col.Gap = m.bodyGap()
 	col.CrossAlign = core.CrossStart
 
 	m.panel = primitive.NewDecorated(col)
-	m.panel.Padding = primitive.All(24) // Ant Modal body padding
+	m.panel.Padding = m.panelPadding()
 	m.panel.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	m.panel.Background = th.Color(core.TokenColorBgContainer)
 	m.panel.BorderWidth = 0

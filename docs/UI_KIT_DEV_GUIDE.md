@@ -1,6 +1,6 @@
 # UI Kit 开发指南 — 底层契约（必读）
 
-> 版本：1.1 | 日期：2026-07-23  
+> 版本：1.2 | 日期：2026-07-23  
 > 状态：**活文档** · 与源码冲突时以源码 + `go test` 为准  
 > 底层交付总账：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) v2.1+  
 > **Ant 对齐目标/验收：** [`UI_KIT_ANT_V5_SPEC.md`](./UI_KIT_ANT_V5_SPEC.md)（L1 行为 · L2 Token · L3 本库 golden · L4 人眼）  
@@ -14,6 +14,7 @@
 ```text
 kit = 产品 Props + 状态机 + a11y 名 + 组合 primitive
 禁止：第二套 Hit / 帧循环 / 每帧 Sync / 魔法 offset / 硬编码色当默认皮
+禁止：rebuild 写死度量且无 DefaultXxx + SetXxx（见 §0.1）
 对齐 Ant：见 UI_KIT_ANT_V5_SPEC（行为 + Token + 本库 golden；非浏览器像素哈希）
 ```
 
@@ -23,6 +24,113 @@ kit = 产品 Props + 状态机 + a11y 名 + 组合 primitive
 业务 → ui/app → ui/kit → ui/primitive → ui/core → render
               ↘ ui/platform（仅 Host 注入）
 真窗 Present：ui/app.OwnedPresenter（或 exboot.RunUIDemand 薄包装）
+```
+
+---
+
+## 0.1 默认值与配置（**强制 · 全控件**）
+
+> **后面开发的每个 kit 控件必须按本节实现。** Review / PR 可据此拒合。
+
+### 铁律
+
+```text
+1. DefaultXxx 常量 = 真实 Ant Design v5 控件的默认度量（padding / gap / width / height / font…）
+2. 公开字段 + SetXxx / SetXxxInsets = 业务使用时覆盖
+3. rebuild() 只读「解析后的默认或字段」，禁止散落 magic 数字且无 Default/API
+4. 色/圆角/控件高优先 Token（th.SizeOr / th.Color）；Token 没有的再写 Default 常量
+5. 未调用 Set 时：走 Default（Ant 真默认）
+6. 调用 Set(零值) 时：视为显式配置（用 bodyPadSet / padSet 等 flag 区分「未设」与「设为 0」）
+```
+
+| 允许 | 禁止 |
+|------|------|
+| `const DefaultModalPadding = 24` + `SetPadding` | `panel.Padding = All(24)` 且无字段/setter |
+| `DefaultTabBodyPadding = {}`（Tabs **壳**无 inset，内容自 pad） | 为「省事」把 Modal/Card 的 Ant 默认改成全 0 |
+| 0 表示「用 Default」的 float 字段（`Width float64`） | 业务只能改源码才能调间距 |
+| Theme Token 作默认（`TokenControlHeight`） | 硬编码品牌色当唯一默认皮 |
+
+### 实现模板（新控件复制）
+
+```go
+// Ant Design Xxx defaults — https://ant.design/components/xxx
+const (
+    DefaultXxxPadding   = 24.0
+    DefaultXxxTitleFont = 16.0
+    DefaultXxxGap       = 12.0
+)
+
+type Xxx struct {
+    // Padding uniform inset (0 → DefaultXxxPadding). Prefer SetPaddingInsets for sides.
+    Padding       float64
+    TitleFontSize float64 // 0 → DefaultXxxTitleFont
+    Gap           float64 // 0 → DefaultXxxGap
+    // …
+    pad    primitive.EdgeInsets
+    padSet bool
+}
+
+func (x *Xxx) SetPadding(px float64) {
+    x.Padding = px
+    x.padSet = false
+    x.rebuild()
+}
+
+func (x *Xxx) SetPaddingInsets(p primitive.EdgeInsets) {
+    x.pad = p
+    x.padSet = true // explicit, including all-zero
+    x.rebuild()
+}
+
+func (x *Xxx) padding() primitive.EdgeInsets {
+    if x.padSet {
+        return x.pad
+    }
+    px := DefaultXxxPadding
+    if x.Padding > 0 {
+        px = x.Padding
+    }
+    return primitive.All(px)
+}
+
+func (x *Xxx) rebuild() {
+    // …
+    root.Padding = x.padding() // never literal All(24) here
+}
+```
+
+### 壳 vs 产品控件
+
+| 类型 | 默认策略 | 示例 |
+|------|----------|------|
+| **产品控件** | Ant 真实 chrome（有 pad/gap/宽） | Card 24 · Modal 24 · Drawer 24 · Form item 24 |
+| **布局壳** | 可为 0；内容节点自己 pad | `DefaultTabBodyPadding={}` · 需要时 `SetBodyPadding` |
+
+### 已落地范例（抄作业）
+
+| 控件 | Default | API |
+|------|---------|-----|
+| Tabs | `DefaultTabBodyPadding` · width/ink/pad* | `SetBodyPadding` · `SetTabWidth` · … |
+| Card | `DefaultCardPadding=24` 等 | `SetPadding` · `SetPaddingInsets` · `SetTitleFontSize` · gaps |
+| Modal | `DefaultModalPadding=24` · `DefaultModalWidth=520` | `SetPadding` · `SetPaddingInsets` · `SetWidth` |
+| Drawer | `DefaultDrawerPadding=24` · `DefaultDrawerWidth=378` | `SetPadding` · `SetPaddingInsets` · `SetWidth` |
+| Form | `DefaultFormItemGap=24` · Field/Error gap | `SetItemGap` · `FieldGap`/`ErrorGap` 字段 |
+| Button / Input | Size ladder + Theme Token | `SetSize` · `Style` · `SetFixedSize` |
+| Space | gap → TokenMarginSM | `SetSize` · `SetWrap` |
+
+### 验收
+
+- [ ] 存在 `Default*` 常量（或明确走 Theme Token，注释写清）  
+- [ ] 存在字段 + `Set*`；Insets 类支持「显式全 0」  
+- [ ] `rebuild` 无裸 `All(16)` / `Gap = 24`（除非只出现在 Default 常量定义处）  
+- [ ] Headless：`默认几何` + `Set 后几何变化` 至少各一条  
+- [ ] 业务用法：`NewXxx` 即 Ant 默认；`SetXxx` 再定制  
+
+```go
+// 业务侧
+m := kit.NewModal("确认")           // Ant 默认
+m.SetPadding(16)                   // 使用时覆盖
+m.SetWidth(640)
 ```
 
 ---
@@ -52,6 +160,14 @@ kit = 产品 Props + 状态机 + a11y 名 + 组合 primitive
 ---
 
 ## 2. 新控件实现清单（PR 自检）
+
+### 2.0 默认值与配置（§0.1 · **必过**）
+
+- [ ] `Default*` 对齐 Ant v5 真默认（或注释写明 Theme Token）  
+- [ ] 公开字段 + `SetXxx` / `SetXxxInsets`（Insets 能显式全 0）  
+- [ ] `rebuild` **无**无 API 的 magic padding/gap/width  
+- [ ] Headless：默认几何 + Set 后变化  
+- [ ] 业务：`New` = 默认；使用时 `Set` 定制  
 
 ### 2.1 组合
 
@@ -227,6 +343,7 @@ go run ./examples/ui_polish_gallery
 
 | 改动 | 更新 |
 |------|------|
+| 新/改控件 chrome | 本文 **§0.1** + §2.0 自检；Default 对齐 Ant，API 可覆盖 |
 | 新底层契约 | 本文 §1–§4 + `UI_FOUNDATION_P0` |
 | 新/改覆盖率 | `coverage.go` + `UI_KIT_COVERAGE.md` |
 | Present / 壳 | `UI_APP_SHELL_PLAN` |

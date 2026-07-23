@@ -6,6 +6,14 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
+// Ant Design Drawer defaults (https://ant.design/components/drawer).
+const (
+	DefaultDrawerWidth     = 378.0
+	DefaultDrawerPadding   = 24.0 // Ant content padding
+	DefaultDrawerTitleFont = 16.0
+	DefaultDrawerBodyGap   = 12.0
+)
+
 // Drawer is a side panel with mask (Ant Drawer).
 //
 //	OverlayPortal (Z=400)
@@ -14,6 +22,7 @@ import (
 //
 // Shares Modal overlay contracts: dual-band present, Esc, focus trap, full-viewport mask.
 // Portal/Scope stay stable across rebuilds while open.
+// Defaults match Ant; override via SetWidth / SetPadding.
 type Drawer struct {
 	Portal   *primitive.OverlayPortal
 	Scope    *primitive.FocusScope
@@ -24,7 +33,11 @@ type Drawer struct {
 	closeBtn *Button
 	Open     bool
 	Title    string
-	Width    float64
+	Width    float64 // 0 → DefaultDrawerWidth
+	// Padding uniform panel inset (0 → DefaultDrawerPadding).
+	Padding       float64
+	TitleFontSize float64 // 0 → DefaultDrawerTitleFont
+	BodyGap       float64 // 0 → DefaultDrawerBodyGap
 	// Placement: "left" or "right" (default right).
 	Placement string
 	// Left is true when Placement is "left" (kept for layout).
@@ -37,11 +50,13 @@ type Drawer struct {
 	OnClose      func()
 	content      core.Node
 	trap         overlayFocusTrap
+	pad          primitive.EdgeInsets
+	padSet       bool
 }
 
 // NewDrawer creates a closed drawer.
 func NewDrawer(title string) *Drawer {
-	d := &Drawer{Title: title, Width: 378, MaskClosable: true} // Ant Drawer default width
+	d := &Drawer{Title: title, Width: DefaultDrawerWidth, MaskClosable: true}
 	d.rebuild()
 	return d
 }
@@ -142,10 +157,55 @@ func (d *Drawer) theme() *core.Theme {
 	return themeOf(d.Theme, n)
 }
 
+// SetPadding sets uniform panel inset (0 → DefaultDrawerPadding).
+func (d *Drawer) SetPadding(px float64) {
+	if d == nil {
+		return
+	}
+	d.Padding = px
+	d.padSet = false
+	d.rebuild()
+}
+
+// SetPaddingInsets sets per-side panel inset (explicit, including all-zero).
+func (d *Drawer) SetPaddingInsets(p primitive.EdgeInsets) {
+	if d == nil {
+		return
+	}
+	d.pad = p
+	d.padSet = true
+	d.rebuild()
+}
+
+func (d *Drawer) panelPadding() primitive.EdgeInsets {
+	if d != nil && d.padSet {
+		return d.pad
+	}
+	px := DefaultDrawerPadding
+	if d != nil && d.Padding > 0 {
+		px = d.Padding
+	}
+	return primitive.All(px)
+}
+
+func (d *Drawer) titleFont() float64 {
+	if d != nil && d.TitleFontSize > 0 {
+		return d.TitleFontSize
+	}
+	return DefaultDrawerTitleFont
+}
+
+func (d *Drawer) bodyGap() float64 {
+	if d != nil && d.BodyGap > 0 {
+		return d.BodyGap
+	}
+	return DefaultDrawerBodyGap
+}
+
 func (d *Drawer) rebuild() {
 	th := d.theme()
 	d.title = primitive.NewText(d.Title)
-	d.title.FontSize = 16
+	d.title.FontSize = d.titleFont()
 	d.title.Face = d.Face
 	d.title.Color = th.Color(core.TokenColorText)
 	d.body = primitive.NewSlot("body", d.content)
@@ -161,11 +221,11 @@ func (d *Drawer) rebuild() {
 	head := primitive.Row(d.title, primitive.Spacer(), d.closeBtn.Node())
 	head.CrossAlign = core.CrossCenter
 	col := primitive.Column(head, primitive.NewDivider(), d.body)
-	col.Gap = 12
+	col.Gap = d.bodyGap()
 	col.CrossAlign = core.CrossStart
 
 	d.panel = primitive.NewDecorated(col)
-	d.panel.Padding = primitive.All(16)
+	d.panel.Padding = d.panelPadding()
 	d.panel.Background = th.Color(core.TokenColorBgContainer)
 	d.panel.Radius = 0
 

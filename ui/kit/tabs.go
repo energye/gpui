@@ -75,6 +75,11 @@ type Tabs struct {
 	// TabPadInline / TabPadBlock padding inside each tab (0 → 16 / 10).
 	TabPadInline float64
 	TabPadBlock  float64
+	// BodyPadding insets the TabLeft body panel around bodyScroll.
+	// Unset → DefaultTabBodyPadding (all 0 — shell only; content pads itself).
+	// Use SetBodyPadding for chrome-level inset (Right=0 keeps scrollbar flush).
+	BodyPadding primitive.EdgeInsets
+	bodyPadSet  bool
 
 	// Type: "line" (default) or "card".
 	Type string
@@ -207,6 +212,28 @@ func (t *Tabs) SetTabItemHeight(h float64) {
 	t.TabItemHeight = h
 	t.rebuildBar()
 	t.markLayoutDirty()
+}
+
+// SetBodyPadding sets TabLeft body panel insets around the content ScrollViewport.
+// Default is all-zero (no chrome inset). Prefer padding inside content nodes when
+// possible. If you set side insets, keep Right=0 so the vertical scrollbar stays
+// flush with the panel/window edge.
+func (t *Tabs) SetBodyPadding(p primitive.EdgeInsets) {
+	if t == nil {
+		return
+	}
+	t.BodyPadding = p
+	t.bodyPadSet = true
+	t.rebuild()
+	t.syncBody()
+}
+
+// bodyPadding returns configured body insets or DefaultTabBodyPadding.
+func (t *Tabs) bodyPadding() primitive.EdgeInsets {
+	if t != nil && t.bodyPadSet {
+		return t.BodyPadding
+	}
+	return primitive.EdgeInsets{}
 }
 
 // SetInkSize sets indicator thickness (left: width, top: height).
@@ -498,7 +525,8 @@ func (t *Tabs) rebuild() {
 		div.ColorToken = core.TokenColorBorder
 
 		padBody := primitive.NewDecorated(t.bodyScroll)
-		padBody.Padding = primitive.All(16)
+		// Configurable via SetBodyPadding; default Right=0 → scrollbar flush right.
+		padBody.Padding = t.bodyPadding()
 		padBody.Background = th.Color(core.TokenColorBgLayout)
 		padBody.BorderWidth = 0
 		padBody.StretchChild = true
