@@ -403,14 +403,17 @@ func (h *LinuxHost) WaitEvents(timeout time.Duration) []Event {
 			break
 		}
 		left := time.Until(deadline)
-		if left > 2*time.Millisecond {
-			time.Sleep(1 * time.Millisecond)
-		} else if left > 0 {
-			time.Sleep(left)
-		} else {
+		if left <= 0 {
 			h.xmu.Lock()
 			break
 		}
+		// One sleep for the remainder (cap 16ms). Avoid 1ms busy slices that
+		// keep ANIMATING mode hot even when a single Spin only paints occasionally.
+		chunk := left
+		if chunk > 16*time.Millisecond {
+			chunk = 16 * time.Millisecond
+		}
+		time.Sleep(chunk)
 		h.xmu.Lock()
 		if h.closed {
 			break

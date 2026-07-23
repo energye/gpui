@@ -124,6 +124,41 @@ func (t *Tree) MarkFullPaintRequired() {
 	t.markDirty()
 }
 
+// NonBoundaryPaintDirty reports whether any paint-dirty node sits outside a
+// RepaintBoundary. When false, only boundary layers need re-rasterize and the
+// compositor may keep the base RT (single Spin/Skeleton demand path).
+func (t *Tree) NonBoundaryPaintDirty() bool {
+	if t == nil {
+		return false
+	}
+	var walk func(n Node, underBoundary bool) bool
+	walk = func(n Node, underBoundary bool) bool {
+		if n == nil {
+			return false
+		}
+		b := n.Base()
+		ub := underBoundary || b.IsRepaintBoundary()
+		if b.NeedsPaint() && !ub {
+			return true
+		}
+		for _, c := range b.Children() {
+			if walk(c, ub) {
+				return true
+			}
+		}
+		return false
+	}
+	if walk(t.root, false) {
+		return true
+	}
+	for _, e := range t.Overlays().Entries() {
+		if walk(e.Node, false) {
+			return true
+		}
+	}
+	return false
+}
+
 // FullPaintRequired reports whether the next paint must be a full tree paint.
 func (t *Tree) FullPaintRequired() bool {
 	return t != nil && t.fullPaintRequired
@@ -193,14 +228,41 @@ func (t *Tree) Paint(pc *PaintContext) {
 	}
 }
 
-// Frame runs layout then paint for the viewport.
-// Callers that want demand-driven skips should gate on Dirty()/NeedsFrame()
-// (gogpu: OnDraw only when invalidated). Frame itself always runs when called.
+// Frame runs layout (when needed) then paint for the viewport.
+//
+// Layout is skipped when the viewport is unchanged and no node has needsLayout.
+// Paint-only frames (Spin angle, Skeleton shimmer) must not remeasure the tree.
+// Callers still gate OnDraw on Dirty()/NeedsFrame().
 func (t *Tree) Frame(pc *PaintContext, viewport Size) {
-	t.Layout(viewport)
+	if t == nil {
+		return
+	}
+	if t.needsLayoutPass(viewport) {
+		t.Layout(viewport)
+	} else {
+		t.viewport = viewport
+	}
 	if pc != nil {
 		t.Paint(pc)
 	}
+}
+
+func (t *Tree) needsLayoutPass(viewport Size) bool {
+	if t == nil {
+		return false
+	}
+	if t.viewport != viewport {
+		return true
+	}
+	if t.root != nil && t.root.Base().NeedsLayout() {
+		return true
+	}
+	for _, e := range t.Overlays().Entries() {
+		if e.Node != nil && e.Node.Base().NeedsLayout() {
+			return true
+		}
+	}
+	return false
 }
 
 // CollectPaintDamage returns absolute logical rects for nodes that need paint.

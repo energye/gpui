@@ -222,10 +222,17 @@ func RunUIDemand(cfg UIDemandConfig) UIDemandResult {
 		}
 
 		if comp != nil {
-			// 1) Paint full content into base RT at the new size first.
+			// 1) Retained composition (full or boundary-only).
 			comp.BG = cfg.Clear
 			comp.Resize(paintW, paintH, 1) // logical pixels only
-			full := true                   // resize/drag always needs a complete base frame
+			// full base only when required; else dirty RepaintBoundary layers only.
+			full := true
+			if s.Tree != nil {
+				full = s.Tree.FullPaintRequired() || doConfigure || s.Tree.NonBoundaryPaintDirty()
+			}
+			if !comp.HasBase() {
+				full = true
+			}
 			if !comp.Frame(s.Tree, themeOf(cfg, s), full) || !comp.HasBase() {
 				log.Printf("exboot: compositor base failed, direct present")
 				// Direct path must Configure before drawing into the surface.

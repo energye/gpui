@@ -10,7 +10,8 @@
 //  1. Rasterize chrome + each RepaintBoundary into offscreen RTs (vector allowed).
 //  2. Present to the swapchain with ONLY DrawGPUTexture blits (G2.b).
 //
-// Compositor implements that split. Cache stores per-boundary (and base) textures.
+// Compositor implements that split. Cache stores per-boundary textures and
+// tracks which keys were visited this frame so unmounted controls do not ghost.
 package layer
 
 import (
@@ -56,17 +57,55 @@ func (e *Entry) Release() {
 }
 
 // Cache maps boundary keys to Entries. Implements core.LayerCache.
+//
+// Live-set protocol (per composition frame):
+//
+//	BeginFrame → paint (BlitBoundary/RasterizeBoundary markLive) → CompositeLive
+//
+// Keys not marked live are unmounted ghosts and are released.
 type Cache struct {
-	mu sync.Mutex
-	m  map[uintptr]*Entry
+	mu   sync.Mutex
+	m    map[uintptr]*Entry
+	live map[uintptr]struct{} // reused; cleared in BeginFrame (no alloc per frame)
 }
 
 // NewCache creates an empty layer cache.
 func NewCache() *Cache {
-	return &Cache{m: make(map[uintptr]*Entry)}
+	return &Cache{
+		m:    make(map[uintptr]*Entry),
+		live: make(map[uintptr]struct{}),
+	}
 }
 
 var _ core.LayerCache = (*Cache)(nil)
+
+// BeginFrame clears the live set for a new composition frame (reuses map storage).
+func (c *Cache) BeginFrame() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	clearLive(c)
+	c.mu.Unlock()
+}
+
+func clearLive(c *Cache) {
+	if c.live == nil {
+		c.live = make(map[uintptr]struct{})
+		return
+	}
+	for k := range c.live {
+		delete(c.live, k)
+	}
+}
+
+// markLive requires c.mu held.
+func (c *Cache) markLive(key uintptr) {
+	if c.live == nil {
+		c.live = make(map[uintptr]struct{})
+	}
+	c.live[key] = struct{}{}
+}
 
 // Get returns the entry for key, or nil.
 func (c *Cache) Get(key uintptr) *Entry {
@@ -149,22 +188,28 @@ func (e *Entry) Blit(parent *render.Context, x, y float64, w, h int) {
 }
 
 // BlitBoundary implements core.LayerCache.
-// When parent is nil, only updates stored origin (for compositor) if the entry is valid.
+// When parent is nil, only updates stored origin if the entry is valid.
 func (c *Cache) BlitBoundary(key uintptr, parent *render.Context, x, y float64, w, h int) bool {
-	e := c.Get(key)
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	e := c.m[key]
 	if e == nil || !e.Matches(w, h) {
+		c.mu.Unlock()
 		return false
 	}
 	e.X, e.Y = x, y
+	c.markLive(key)
+	c.mu.Unlock()
 	if parent != nil {
 		e.Blit(parent, x, y, w, h)
 	}
 	return true
 }
 
-// RasterizeBoundary implements core.LayerCache: update offscreen cache only (no parent blit).
-// Parent blit is done by BlitBoundary or Compositor.BlitLayers so the swapchain frame
-// can stay blit-only (G2.b).
+// RasterizeBoundary implements core.LayerCache: update offscreen cache only.
+// Parent blit is deferred to CompositeLive so the swapchain frame stays blit-only (G2.b).
 func (c *Cache) RasterizeBoundary(
 	key uintptr,
 	parent *render.Context,
@@ -176,7 +221,7 @@ func (c *Cache) RasterizeBoundary(
 	if c == nil || paintFn == nil || w < 1 || h < 1 {
 		return false
 	}
-	_ = parent // parent is not drawn into here
+	_ = parent
 	e := c.Ensure(key, w, h, scale)
 	if e == nil || e.DC == nil {
 		return false
@@ -184,15 +229,19 @@ func (c *Cache) RasterizeBoundary(
 	e.X, e.Y = x, y
 	e.DC.BeginFrame()
 	e.DC.Clear() // transparent
-	childPC := &core.PaintContext{
+	paintFn(&core.PaintContext{
 		DC:             e.DC,
 		Origin:         core.Point{},
 		Scale:          scale,
 		ForceFullPaint: true,
-		CompositeOnly:  false,
+	})
+	if !e.Rasterize() {
+		return false
 	}
-	paintFn(childPC)
-	return e.Rasterize()
+	c.mu.Lock()
+	c.markLive(key)
+	c.mu.Unlock()
+	return true
 }
 
 // InvalidateBoundary implements core.LayerCache.
@@ -228,18 +277,33 @@ func (c *Cache) ReleaseAll() {
 		e.Release()
 		delete(c.m, k)
 	}
+	clearLive(c)
 }
 
-// ForEachValid walks valid entries (for compositor blit of all boundaries).
-func (c *Cache) ForEachValid(fn func(key uintptr, e *Entry)) {
-	if c == nil || fn == nil {
+// CompositeLive blits layers visited this frame, then releases unvisited entries
+// (unmounted controls). One lock, no ghost layers.
+func (c *Cache) CompositeLive(parent *render.Context) {
+	if c == nil {
 		return
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for k, e := range c.m {
-		if e != nil && e.Valid && !e.View.IsNil() {
-			fn(k, e)
+	if parent != nil {
+		for k := range c.live {
+			e := c.m[k]
+			if e == nil || !e.Valid || e.View.IsNil() {
+				continue
+			}
+			e.Blit(parent, e.X, e.Y, e.W, e.H)
 		}
+	}
+	for k, e := range c.m {
+		if _, ok := c.live[k]; ok {
+			continue
+		}
+		if e != nil {
+			e.Release()
+		}
+		delete(c.m, k)
 	}
 }

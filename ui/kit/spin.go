@@ -9,24 +9,45 @@ import (
 )
 
 // Spin overlays a progress ring on content (or alone).
-// Angle is painted in-place — no per-tick ring node rebuild.
+// Root is a RepaintBoundary; paint dirty stops here. Ticker auto-binds on mount.
 type Spin struct {
-	Root     *primitive.Stack
+	Root     *spinHost
+	stack    *primitive.Stack
 	ring     *primitive.Canvas
 	content  core.Node
 	Spinning bool
-	// Tip shown under the spinner when non-empty.
-	Tip string
-	// angle for rotation simulation (0..1 wraps)
-	angle     float64
-	Size      float64
-	Theme     *core.Theme
-	boundTree *core.Tree
+	Tip      string
+	angle    float64
+	Size     float64
+	Theme    *core.Theme
+	life     tickerLifecycle
+}
+
+type spinHost struct {
+	primitive.RepaintBoundary
+	spin *Spin
+}
+
+func (h *spinHost) TypeID() string { return "kit.Spin" }
+
+func (h *spinHost) OnMount() {
+	if h == nil || h.spin == nil {
+		return
+	}
+	if t := h.Tree(); t != nil {
+		h.spin.life.attach(t, h.spin, h.spin.Spinning)
+	}
+}
+
+func (h *spinHost) OnUnmount() {
+	if h != nil && h.spin != nil {
+		h.spin.life.unmount()
+	}
 }
 
 // NewSpin creates a spinner; content may be nil.
 func NewSpin(content core.Node) *Spin {
-	s := &Spin{content: content, Spinning: true, Size: 0} // Size 0 → theme TokenSpinSize
+	s := &Spin{content: content, Spinning: true}
 	s.rebuild()
 	return s
 }
@@ -39,9 +60,16 @@ func (s *Spin) Node() core.Node {
 	return s.Root
 }
 
-// Tick advances spin angle. Implements core.Ticker when Spinning.
+// Tick advances spin angle. Drops when unmounted (bound tree + no mount).
 func (s *Spin) Tick(dt float64) (still bool) {
 	if !s.Spinning {
+		return false
+	}
+	var nt *core.Tree
+	if s.Root != nil {
+		nt = s.Root.Tree()
+	}
+	if !s.life.stillMounted(nt) {
 		return false
 	}
 	s.angle += dt * 1.2
@@ -53,16 +81,14 @@ func (s *Spin) Tick(dt float64) (still bool) {
 	} else if s.Root != nil {
 		s.Root.MarkNeedsPaint()
 	}
-	return s.Spinning
+	return true
 }
 
-// AttachTicker registers this spin on the tree.
+// AttachTicker registers this spin (also automatic OnMount).
 func (s *Spin) AttachTicker(t *core.Tree) {
-	if s == nil || t == nil {
-		return
+	if s != nil {
+		s.life.attach(t, s, s.Spinning)
 	}
-	s.boundTree = t
-	t.BindTicker(s, s.Spinning)
 }
 
 // SetTip sets the loading tip text under the ring.
@@ -74,14 +100,7 @@ func (s *Spin) SetTip(tip string) {
 // SetSpinning enables/disables the spinner ticker.
 func (s *Spin) SetSpinning(v bool) {
 	s.Spinning = v
-	if s.boundTree == nil {
-		return
-	}
-	if v {
-		s.boundTree.AddTicker(s)
-	} else {
-		s.boundTree.RemoveTicker(s)
-	}
+	s.life.setActive(v)
 	if s.Root != nil {
 		s.Root.MarkNeedsPaint()
 	}
@@ -105,13 +124,10 @@ func (s *Spin) rebuild() {
 		track = render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
 	}
 	fill := th.Color(core.TokenColorPrimary)
-	// Fixed canvas; PaintFn reads s.angle each paint (no alloc per tick).
 	s.ring = primitive.NewCanvas(size, size, func(pc *core.PaintContext, sz core.Size) {
 		if pc == nil || pc.DC == nil || !s.Spinning {
 			return
 		}
-		// Ant Spin: round-capped arc on a light track (true circle stroke).
-		prog := 0.75
 		stroke := size * 0.12
 		if stroke < 2 {
 			stroke = 2
@@ -132,13 +148,11 @@ func (s *Spin) rebuild() {
 		dc.SetRGBA(track.R, track.G, track.B, track.A)
 		dc.DrawCircle(cx, cy, r)
 		_ = dc.Stroke()
-		// Active arc from rotating start — more steps for smoother AA.
 		start := -math.Pi/2 + s.angle*2*math.Pi
-		end := start + 2*math.Pi*prog
-		steps := 64
+		end := start + 2*math.Pi*0.75
 		dc.SetRGBA(fill.R, fill.G, fill.B, fill.A)
-		for i := 0; i <= steps; i++ {
-			a := start + (end-start)*float64(i)/float64(steps)
+		for i := 0; i <= 64; i++ {
+			a := start + (end-start)*float64(i)/64
 			x := cx + r*math.Cos(a)
 			y := cy + r*math.Sin(a)
 			if i == 0 {
@@ -166,16 +180,19 @@ func (s *Spin) rebuild() {
 	if spinUI != nil {
 		kids = append(kids, primitive.Positioned(core.AlignCenter, spinUI))
 	}
-	s.Root = primitive.NewStack(kids...)
-	s.Root.Base().Role = "status"
+	s.stack = primitive.NewStack(kids...)
+	s.stack.Base().Role = "status"
 	if s.Tip != "" {
-		s.Root.Base().Label = s.Tip
+		s.stack.Base().Label = s.Tip
 	} else {
-		s.Root.Base().Label = "Loading"
+		s.stack.Base().Label = "Loading"
 	}
-	s.Root.Base().Live = "polite"
-	// Phase B: keep spin dirty local under CompositeOnly present.
-	if s.Root != nil {
-		s.Root.SetRepaintBoundary(true)
-	}
+	s.stack.Base().Live = "polite"
+
+	h := &spinHost{spin: s}
+	h.Init(h)
+	h.Hit = core.HitDefer
+	h.SetRepaintBoundary(true)
+	h.AddChild(s.stack)
+	s.Root = h
 }

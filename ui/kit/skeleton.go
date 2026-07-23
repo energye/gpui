@@ -7,23 +7,41 @@ import (
 )
 
 // Skeleton is a placeholder shimmer block (M5).
-// Tick only mutates paint chrome (no tree rebuild). Prefer wrapping Node() in
-// primitive.RepaintBoundary so paint dirty stays local.
+// Root is a RepaintBoundary; ticker auto-binds on mount when Active.
 type Skeleton struct {
-	Root   *primitive.Decorated
-	host   *primitive.Flex
-	Width  float64
-	Height float64
-	// Rows number of placeholder bars (0/1 → single block).
-	Rows int
-	// Avatar shows a circle placeholder beside rows.
-	Avatar bool
-	// Active enables shimmer phase (advance via Tick / Ticker).
-	Active bool
-	phase  float64
-	Theme  *core.Theme
-	// boundTree is set by AttachTicker for demand-frame registration.
-	boundTree *core.Tree
+	Root      *skeletonHost
+	decorated *primitive.Decorated
+	host      *primitive.Flex
+	Width     float64
+	Height    float64
+	Rows      int
+	Avatar    bool
+	Active    bool
+	phase     float64
+	Theme     *core.Theme
+	life      tickerLifecycle
+}
+
+type skeletonHost struct {
+	primitive.RepaintBoundary
+	sk *Skeleton
+}
+
+func (h *skeletonHost) TypeID() string { return "kit.Skeleton" }
+
+func (h *skeletonHost) OnMount() {
+	if h == nil || h.sk == nil {
+		return
+	}
+	if t := h.Tree(); t != nil {
+		h.sk.life.attach(t, h.sk, h.sk.Active)
+	}
+}
+
+func (h *skeletonHost) OnUnmount() {
+	if h != nil && h.sk != nil {
+		h.sk.life.unmount()
+	}
 }
 
 // NewSkeleton creates a skeleton bar.
@@ -41,9 +59,16 @@ func (s *Skeleton) Node() core.Node {
 	return s.Root
 }
 
-// Tick advances shimmer. Implements core.Ticker when Active.
+// Tick advances shimmer. Drops when unmounted (bound tree + no mount).
 func (s *Skeleton) Tick(dt float64) (still bool) {
 	if !s.Active {
+		return false
+	}
+	var nt *core.Tree
+	if s.Root != nil {
+		nt = s.Root.Tree()
+	}
+	if !s.life.stillMounted(nt) {
 		return false
 	}
 	s.phase += dt * 1.5
@@ -51,16 +76,14 @@ func (s *Skeleton) Tick(dt float64) (still bool) {
 		s.phase -= 1
 	}
 	s.applyChrome()
-	return s.Active
+	return true
 }
 
-// AttachTicker registers this skeleton on the tree for ANIMATING demand frames.
+// AttachTicker registers this skeleton (also automatic OnMount).
 func (s *Skeleton) AttachTicker(t *core.Tree) {
-	if s == nil || t == nil {
-		return
+	if s != nil {
+		s.life.attach(t, s, s.Active)
 	}
-	s.boundTree = t
-	t.BindTicker(s, s.Active)
 }
 
 // SetRows sets placeholder bar count (rebuilds multi-row layout).
@@ -72,14 +95,7 @@ func (s *Skeleton) SetRows(n int) {
 // SetActive enables/disables shimmer and ticker membership.
 func (s *Skeleton) SetActive(v bool) {
 	s.Active = v
-	if s.boundTree == nil {
-		return
-	}
-	if v {
-		s.boundTree.AddTicker(s)
-	} else {
-		s.boundTree.RemoveTicker(s)
-	}
+	s.life.setActive(v)
 }
 
 func (s *Skeleton) theme() *core.Theme {
@@ -90,11 +106,10 @@ func (s *Skeleton) theme() *core.Theme {
 }
 
 func (s *Skeleton) rebuild() {
-	w := s.Width
+	w, h := s.Width, s.Height
 	if w <= 0 {
 		w = 120
 	}
-	h := s.Height
 	if h <= 0 {
 		h = 16
 	}
@@ -103,13 +118,11 @@ func (s *Skeleton) rebuild() {
 		rows = 1
 	}
 	if rows == 1 && !s.Avatar {
-		s.Root = primitive.NewDecorated()
-		s.Root.Width = w
-		s.Root.Height = h
-		s.Root.Radius = 4
-		s.Root.Base().Role = "presentation"
-		s.Root.SetRepaintBoundary(true)
+		s.decorated = primitive.NewDecorated()
+		s.decorated.Width, s.decorated.Height, s.decorated.Radius = w, h, 4
+		s.decorated.Base().Role = "presentation"
 		s.host = nil
+		s.wrapRoot()
 		s.applyChrome()
 		return
 	}
@@ -117,15 +130,12 @@ func (s *Skeleton) rebuild() {
 	col.Gap = 8
 	for i := 0; i < rows; i++ {
 		bar := primitive.NewDecorated()
-		bar.Width = w
-		bar.Height = h
-		bar.Radius = 4
+		bar.Width, bar.Height, bar.Radius = w, h, 4
 		col.AddChild(bar)
 	}
 	if s.Avatar {
 		av := primitive.NewDecorated()
-		av.Width, av.Height = 40, 40
-		av.Radius = 20
+		av.Width, av.Height, av.Radius = 40, 40, 20
 		row := primitive.Row(av, col)
 		row.Gap = 12
 		row.CrossAlign = core.CrossStart
@@ -133,19 +143,29 @@ func (s *Skeleton) rebuild() {
 	} else {
 		s.host = col
 	}
-	s.Root = primitive.NewDecorated(s.host)
-	s.Root.Base().Role = "presentation"
-	s.Root.SetRepaintBoundary(true)
+	s.decorated = primitive.NewDecorated(s.host)
+	s.decorated.Base().Role = "presentation"
+	s.wrapRoot()
 	s.applyChrome()
 }
 
+func (s *Skeleton) wrapRoot() {
+	h := &skeletonHost{sk: s}
+	h.Init(h)
+	h.Hit = core.HitDefer
+	h.SetRepaintBoundary(true)
+	if s.decorated != nil {
+		h.AddChild(s.decorated)
+	}
+	s.Root = h
+}
+
 func (s *Skeleton) applyChrome() {
-	if s.Root == nil {
+	if s.decorated == nil {
 		return
 	}
-	// pulse between fill secondary intensities
 	base := s.theme().Color(core.TokenColorFillSecondary)
-	a := 0.06 + 0.08*float64(0.5+0.5*( /*sin-ish*/ 1-2*abs01(s.phase-0.5)*2))
+	a := 0.06 + 0.08*float64(0.5+0.5*(1-2*abs01(s.phase-0.5)*2))
 	if a > 0.2 {
 		a = 0.2
 	}
@@ -153,11 +173,14 @@ func (s *Skeleton) applyChrome() {
 	if col.A < 0.04 {
 		col = render.RGBA{R: 0, G: 0, B: 0, A: 0.06 + 0.06*s.phase}
 	}
-	s.Root.Background = col
+	s.decorated.Background = col
 	if s.host != nil {
 		applySkeletonChrome(s.host, col)
 	}
-	s.Root.MarkNeedsPaint()
+	s.decorated.MarkNeedsPaint()
+	if s.Root != nil {
+		s.Root.MarkNeedsPaint()
+	}
 }
 
 func applySkeletonChrome(n core.Node, col render.RGBA) {
