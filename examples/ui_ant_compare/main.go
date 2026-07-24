@@ -370,10 +370,10 @@ func main() {
 	if face != nil {
 		menu.Face = face
 	}
-	menu.SetSelected("b")
+	menu.SetSelectedKeys("b")
 	add("menu_selected", "Menu · selected B",
-		"Ant: selected #E6F4FF + 主色字；item padding 5×12",
-		180, 120, padFrame(menu.Node(), 180, 120, 8))
+		"Ant: selected #E6F4FF + 主色字；itemHeight=40",
+		180, 140, padFrame(menu.Node(), 180, 140, 8))
 
 	// ── Token strip ──────────────────────────────────────────────────────
 	add("ant_token_strip", "Ant token strip (reference)",

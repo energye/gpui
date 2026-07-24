@@ -432,11 +432,10 @@ import { Menu } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 菜单项高 itemHeight | **40** | controlHeightLG |
-| itemHeight | **40** | controlHeightLG |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
+| 菜单项高 itemHeight | **40** | `controlHeightLG` |
+| 折叠栏宽 collapsedWidth | **80** | `controlHeightLG * 2` |
+| 浮层菜单最小宽 dropdownWidth | **160** | 组件 Token |
+| inline 缩进 inlineIndent | **24** | 组件默认（可 `SetInlineIndent`） |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
@@ -545,14 +544,17 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onClick` | 必须 |
-| `disabled` | 必须 |
-| `onOpenChange` | 必须 |
-| `items` | 必须 |
-| `children` | 必须 |
-| `title` | 必须 |
-| `mode` | 必须 |
-| `icon` | 必须 |
+| `onClick` / `onSelect` | 点选叶子项；`selectedKeys` 更新（`selectable` 默认 true） |
+| `disabled` | 项级禁用（`MenuItem.Disabled`）；禁用项不可选 |
+| `onOpenChange` + `openKeys` / `defaultOpenKeys` | SubMenu 展开/关闭；受控/非受控 |
+| `selectedKeys` / `defaultSelectedKeys` | 选中；受控/非受控；`multiple` 多选 |
+| `items` | 数据驱动菜单内容（含嵌套 `children`） |
+| 项字段 `children` / `icon` / `title` / `label` / `key` | SubMenu 子项；图标；折叠悬浮标题；文案；唯一 key |
+| 项 `type=group` / `divider` | 分组标题与分割线（内嵌/弹出主路径） |
+| `mode` | `vertical` \| `horizontal` \| `inline` |
+| `theme` | `light` \| `dark`（含 SubMenu 级 `theme` 覆盖） |
+| `inlineCollapsed` / `inlineIndent` | 缩起内嵌；缩进宽度默认 24 |
+| `tooltip` | inline 折叠时项悬浮提示；`false` 可关（P0：布尔开关即可） |
 | 官方主路径示例 | 顶部导航、内嵌菜单、缩起内嵌菜单、菜单项提示、只展开当前父级菜单、垂直菜单、主题、子菜单主题 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -603,27 +605,74 @@ mount ──► mode=vertical|horizontal|inline 渲染 items
 | MNU-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。  
+> **Breaking（相对旧 kit.Menu）**：`Selected string` → `SelectedKeys []string`；`OnSelect func(key)` → `OnClick`/`OnSelect` 带 `MenuInfo`；`SetSelected` → `SetSelectedKeys` / `SetDefaultSelectedKeys`。
 
 ```text
-NewMenu(...) *Menu
+NewMenu(items ...MenuItem) *Menu
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 形态 / 数据
+SetItems(...MenuItem)
+SetMode(MenuMode)                 // vertical|horizontal|inline
+SetColorTheme(MenuColorTheme)     // light|dark（antd theme；与 Theme *core.Theme 设计令牌区分）
+SetInlineCollapsed(bool)
+SetInlineIndent(px float64)       // 0 → DefaultMenuInlineIndent=24
+SetMultiple(bool)
+SetSelectable(bool)               // default true
+SetTooltipEnabled(bool)           // inline 折叠悬浮提示；default true
+
+// 选中 / 展开（受控 vs 非受控）
+SetSelectedKeys(...string)        // 受控：外部优先（MNU-S3）
+SetDefaultSelectedKeys(...string)
+SelectedKeys() []string
+SetOpenKeys(...string)            // 受控
+SetDefaultOpenKeys(...string)
+OpenKeys() []string
+
+// 回调
+SetOnClick(func(MenuInfo))        // 点叶子项
+SetOnSelect(func(MenuInfo))       // 选中时（selectable）
+SetOnDeselect(func(MenuInfo))     // 仅 multiple
+SetOnOpenChange(func(openKeys []string))
+
+// 主题 Token / a11y
+Theme *core.Theme / SetTheme
+SetAriaLabel(string)
+Face text.Face
+
+// 挂树
+Node() core.Node
+ChromeNode() core.Node            // 根 chrome（测 Token）
+ItemPressable(key) *Pressable     // 测点选 / 键盘（可选）
 ```
+
+**MenuItem（共享模型，Dropdown/Tabs 亦用；P0 字段）：**
+
+```text
+Key, Label, Icon, Disabled, Danger, Extra
+Divider bool | Type=="divider"
+Group bool   | Type=="group"
+Children []MenuItem               // SubMenu
+Title string                      // 折叠时 tooltip
+ColorTheme MenuColorTheme         // SubMenu 主题覆盖（submenu-theme 示例）
+```
+
+**MenuInfo：** `Key string` · `KeyPath []string` · `SelectedKeys []string`
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Mode | `vertical` |
+| ColorTheme | `light` |
+| Selectable | true |
+| Multiple | false |
+| InlineCollapsed | false |
+| InlineIndent | 24 |
+| TooltipEnabled | true |
+| SelectedKeys | `defaultSelectedKeys` 或空 |
+| OpenKeys | `defaultOpenKeys` 或空 |
+| Theme Token | `themeOf` → DefaultTheme |
 
 ### 6.11 结构与绘制分层（实现提示）
 

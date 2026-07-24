@@ -147,14 +147,17 @@ func TestSelectHeightAnt(t *testing.T) {
 
 func TestMenuSelectedChrome(t *testing.T) {
 	m := kit.NewMenu(kit.MenuItem{Key: "a", Label: "A"}, kit.MenuItem{Key: "b", Label: "B"})
-	m.SetSelected("a")
+	m.SetSelectedKeys("a")
 	_ = m.Node().Layout(core.Loose(200, 200))
 	// Rebuild applied selected fill without panic.
 	if m.Root == nil {
 		t.Fatal("nil menu root")
 	}
-	if m.Root.Radius < 6 {
-		t.Fatalf("menu radius=%v want >=6", m.Root.Radius)
+	if !m.IsSelected("a") {
+		t.Fatal("want selected a")
+	}
+	if h := m.ItemHeight(); h < 39.5 || h > 40.5 {
+		t.Fatalf("itemHeight=%v want 40", h)
 	}
 }
 

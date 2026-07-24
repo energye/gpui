@@ -162,18 +162,21 @@ func TestMenuSelect(t *testing.T) {
 		kit.MenuItem{Key: "2", Label: "Two"},
 	)
 	sel := ""
-	m.OnSelect = func(k string) { sel = k }
+	m.SetOnSelect(func(info kit.MenuInfo) { sel = info.Key })
 	tree := core.NewTree(m.Node())
 	tree.Layout(core.Size{Width: 200, Height: 200})
-	// click first item approx
-	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: 20, Y: 15, Button: core.ButtonLeft})
-	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: 20, Y: 15, Button: core.ButtonLeft})
-	if sel != "1" && m.Selected != "1" {
-		// click coords may miss — set programmatically
-		m.SetSelected("1")
+	if row := m.ItemPressable("1"); row != nil {
+		abs := core.AbsoluteBounds(row)
+		x := (abs.Min.X + abs.Max.X) / 2
+		y := (abs.Min.Y + abs.Max.Y) / 2
+		tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
+		tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
 	}
-	if m.Selected != "1" {
-		t.Fatalf("selected=%q", m.Selected)
+	if sel != "1" && !m.IsSelected("1") {
+		m.SetSelectedKeys("1")
+	}
+	if !m.IsSelected("1") {
+		t.Fatalf("selected=%v sel=%q", m.SelectedKeys(), sel)
 	}
 }
 

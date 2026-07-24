@@ -123,8 +123,8 @@ func main() {
 		kit.MenuItem{Key: "settings", Label: "Settings"},
 	)
 	menu.Face = face
-	menu.SetSelected("users")
-	menu.OnSelect = func(k string) { status = "nav=" + k }
+	menu.SetSelectedKeys("users")
+	menu.SetOnSelect(func(info kit.MenuInfo) { status = "nav=" + info.Key })
 	sider := primitive.NewDecorated(menu.Node())
 	sider.Padding = primitive.All(8)
 	sider.Background = theme.Color(core.TokenColorBgContainer)

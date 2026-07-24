@@ -324,15 +324,15 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 			{"R2 selected", func(t *testing.T) {
 				m := kit.NewMenu(kit.MenuItem{Key: "a", Label: "A"})
-				m.SetSelected("a")
-				if m.Selected != "a" {
+				m.SetSelectedKeys("a")
+				if !m.IsSelected("a") {
 					t.Fatal()
 				}
 			}},
 			{"R3 openKeys", func(t *testing.T) {
-				m := kit.NewMenu(kit.MenuItem{Key: "a", Label: "A"})
-				m.SetOpenKeys([]string{"a"})
-				if len(m.OpenKeys) != 1 {
+				m := kit.NewMenu(kit.MenuItem{Key: "a", Label: "A", Children: []kit.MenuItem{{Key: "a1", Label: "A1"}}})
+				m.SetOpenKeys("a")
+				if len(m.OpenKeys()) != 1 {
 					t.Fatal()
 				}
 			}},

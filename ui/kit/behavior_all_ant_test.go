@@ -197,9 +197,9 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		}},
 		{"Menu", func(t *testing.T) {
 			m := kit.NewMenu(kit.MenuItem{Key: "a", Label: "A"})
-			m.SetSelected("a")
-			if m.Selected != "a" {
-				t.Fatalf("selected=%q", m.Selected)
+			m.SetSelectedKeys("a")
+			if !m.IsSelected("a") {
+				t.Fatalf("selected=%v", m.SelectedKeys())
 			}
 		}},
 		{"Pagination", func(t *testing.T) {
