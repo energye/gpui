@@ -129,7 +129,7 @@ func (c *catalogCtx) registerButton() {
 	bGhostR.SetDanger(true)
 	bGhostR.SetGhost(true)
 	ghostRow := kit.NewSpace(bGhostP.Node(), bGhostD.Node(), bGhostR.Node())
-	ghostRow.SetSize(8)
+	ghostRow.SetSizePx(8)
 	ghostRow.SetWrap(true)
 	ghostHost := primitive.NewDecorated(ghostRow.Node())
 	ghostHost.Padding = primitive.All(16)

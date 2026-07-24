@@ -32,7 +32,7 @@ func TestSpaceGap(t *testing.T) {
 	a := kit.NewText("A").Node()
 	b := kit.NewText("B").Node()
 	sp := kit.NewSpace(a, b)
-	sp.SetSize(12)
+	sp.SetSizePx(12)
 	_ = sp.Node().Layout(core.Loose(400, 100))
 	if sp.Root.Gap != 12 {
 		t.Fatalf("gap=%v", sp.Root.Gap)

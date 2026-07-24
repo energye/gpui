@@ -365,18 +365,22 @@ import { Space } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `align` | 对齐方式 | `start` \ | `end` \ |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props: SpaceProps })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `orientation` | 间距方向 | `vertical` \ | `horizontal` |
-| `size` | 间距大小 | [Size](#size) \ | [Size\[\]](#size) |
-| `separator` | 设置分隔符 | ReactNode | - |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props: SpaceProps })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
-| `vertical` | 是否垂直，和 `orientation` 同时配置以 `orientation` 优先 | boolean | false |
-| `wrap` | 是否自动换行，仅在 `horizontal` 时有效 | boolean | false |
-| `block` | 将宽度调整为父元素宽度的选项 | boolean | false |
-| `children` | 自定义内容 | ReactNode | - |
+| `align` | 交叉轴对齐 | `start` \| `end` \| `center` \| `baseline` | 水平未设时 **center**；垂直未设时无强制 |
+| `orientation` | 间距方向（优先于 `vertical` / 废弃 `direction`） | `vertical` \| `horizontal` | `horizontal` |
+| `vertical` | 是否垂直；与 `orientation` 同时配置以 `orientation` 优先 | boolean | false |
+| `size` | 间距大小（预设或数字或 `[列, 行]`） | `small` \| `medium`/`middle` \| `large` \| `number` \| `[Size, Size]` | **`small`（8）** |
+| `wrap` | 是否自动换行，**仅 horizontal** 有效 | boolean | false |
+| `separator` | 子项之间的分隔节点（装饰可 aria-hidden） | Node | - |
+| `children` | 子节点 | Node… | - |
+| `classNames` / `styles` | 语义钩子 | — | P1 |
+| **Space.Compact** |  |  |  |
+| `block` | Compact 宽度铺满父级 | boolean | false |
+| `orientation` / `vertical` | Compact 排列方向 | 同 Space | horizontal |
+| `size` | 下传给紧凑子控件的尺寸档（Button 等） | small/middle/large | middle |
+| **Space.Addon** | Compact 内自定义单元格 | children | — |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级（通用）：** 受控 props > 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。  
+**方向解析：** `orientation`（若 Set）> `vertical` 糖 > 默认 horizontal（与 antd `useOrientation` 一致）。
 
 ### 6.4 交互状态机（L1）
 
@@ -485,26 +489,59 @@ import { Space } from 'antd';
 | SPC-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。旧 `SetSize(float64)` 改为 `SetSizePx`；新增 Compact / Addon。
 
 ```text
-NewSpace(...) *Space
+// —— Space ——
+NewSpace(children ...core.Node) *Space
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+SetOrientation(SpaceOrientation)   // horizontal | vertical；优先于 Vertical
+SetVertical(bool)                  // 糖；orientation 已 Set 时忽略
+SetAlign(SpaceAlign)               // auto|start|end|center|baseline
+SetSize(SpaceSize)                 // small|middle|large 预设
+SetSizePx(float64)                 // 数字间距（含显式 0）
+SetSizeXY(col, row float64)        // antd size={[col,row]}；主轴/列间距优先写入 Gap
+SetWrap(bool)                      // 仅 horizontal 生效
+SetSeparator(func() core.Node)     // 每个子项间隙调用一次（避免同 Node 挂多次）
+SetChildren(...core.Node) / Add / ClearChildren
+SetTheme(*Theme)
+SetAriaLabel(string)               // 可选布局名；分隔符纯装饰不抢焦点
+SetExpandMax(bool)                 // block 级铺满父宽（antd style display:flex vs 默认 inline-flex）；Compact block 嵌套时需开
+Node() core.Node
+ChromeNode() core.Node
+ResolvedGap() float64
+EffectiveOrientation() SpaceOrientation
+IsVertical() bool
+
+// —— Space.Compact ——
+NewSpaceCompact(children ...core.Node) *SpaceCompact
+SetOrientation / SetVertical / SetBlock / SetSize(ButtonSize 等档)
+Add / SetChildren / Node()
+// 行为：gap ≈ -lineWidth 叠边；子 Button 中间项圆角清零（无逐角 radius 时的 P0 近似）
+
+// —— Space.Addon ——
+NewSpaceAddon(children ...core.Node) *SpaceAddon
+SetChildren(...core.Node) / SetChild / Add
+SetSize(ButtonSize)                // small|middle|large → height/pad/radius
+SetDisabled(bool)
+SetTheme(*Theme)
+Node() core.Node
+// 结构：Decorated(h=controlHeight) → Flex(Row, CrossCenter, gap0) → children
+// Compact.AddAddon 下传 Size/Theme（antd useCompactItemContext）
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Orientation | horizontal |
+| Vertical | false |
+| Size | **small（8）** — 非 middle |
+| Align | auto → 水平 **center**；垂直 start |
+| Wrap | false |
+| Separator | nil |
+| Compact.block | false |
+| Compact.size | middle（子控件档） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

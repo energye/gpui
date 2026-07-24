@@ -15,7 +15,7 @@ func TestSpace_WrapGeometry(t *testing.T) {
 		return b
 	}
 	sp := kit.NewSpace(mk(), mk(), mk())
-	sp.SetSize(8)
+	sp.SetSizePx(8)
 	sp.SetWrap(true)
 	n := sp.Node()
 	sz := n.Layout(core.Constraints{MaxWidth: 100, MaxHeight: 400})

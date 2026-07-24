@@ -203,7 +203,7 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 			{"R2 size", func(t *testing.T) {
 				s := kit.NewSpace()
-				s.SetSize(16)
+				s.SetSizePx(16)
 				if s.Root.Gap != 16 {
 					t.Fatal()
 				}

@@ -134,7 +134,7 @@ func demoSection(face text.Face, theme *core.Theme, title, desc string, body cor
 // spaceWrap is Ant Space with wrap for demo button rows.
 func spaceWrap(gap float64, kids ...core.Node) core.Node {
 	sp := kit.NewSpace(kids...)
-	sp.SetSize(gap)
+	sp.SetSizePx(gap)
 	sp.SetWrap(true)
 	return sp.Node()
 }

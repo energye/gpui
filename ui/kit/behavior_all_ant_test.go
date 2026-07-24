@@ -141,7 +141,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		}},
 		{"Space", func(t *testing.T) {
 			s := kit.NewSpace(kit.NewText("a").Node(), kit.NewText("b").Node())
-			s.SetSize(16)
+			s.SetSizePx(16)
 			_ = s.Node()
 			if s.Root.Gap != 16 {
 				t.Fatal(s.Root.Gap)
