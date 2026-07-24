@@ -20,7 +20,7 @@ type catalogCtx struct {
 	buttons  *[]*kit.Button
 	tickers  *[]interface{ AttachTicker(*core.Tree) }
 	msgHost  *kit.MessageHost
-	items    []kit.MenuItem
+	items    []kit.TabItem
 	contents map[string]core.Node
 	modal    *kit.Modal
 }
@@ -143,16 +143,16 @@ func sec(face text.Face, s string) core.Node {
 	return demoDesc(face, s)
 }
 
-func catHeader(label string) kit.MenuItem {
-	return kit.MenuItem{Key: "cat:" + label, Label: label, Disabled: true}
+func catHeader(label string) kit.TabItem {
+	return kit.TabItem{Key: "cat:" + label, Label: label, Disabled: true}
 }
 
-func catDivider() kit.MenuItem {
-	return kit.MenuItem{Key: "div", Label: "-", Divider: true}
+func catDivider() kit.TabItem {
+	return kit.TabItem{Key: "div", Label: "-", Divider: true}
 }
 
-func ctlTab(key, label string) kit.MenuItem {
-	return kit.MenuItem{Key: key, Label: label}
+func ctlTab(key, label string) kit.TabItem {
+	return kit.TabItem{Key: key, Label: label}
 }
 
 // buildCatalogPanels builds left Tabs rail:

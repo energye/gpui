@@ -22,7 +22,7 @@ import (
 // mounted under the window root — not only inside a tab panel — or toasts never show
 // when the Message tab content is inactive / unmounted.
 func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, buttons *[]*kit.Button, tickers *[]interface{ AttachTicker(*core.Tree) }, msgHost *kit.MessageHost) (
-	items []kit.MenuItem, contents map[string]core.Node, modal *kit.Modal,
+	items []kit.TabItem, contents map[string]core.Node, modal *kit.Modal,
 ) {
 	c := &catalogCtx{
 		face:     face,

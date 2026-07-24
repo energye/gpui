@@ -20,8 +20,8 @@ func TestTabsContentButtonHitAndClick(t *testing.T) {
 	panel.CrossAlign = core.CrossStart
 
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "btn", Label: "Button"},
-		kit.MenuItem{Key: "other", Label: "Other"},
+		kit.TabItem{Key: "btn", Label: "Button"},
+		kit.TabItem{Key: "other", Label: "Other"},
 	)
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160

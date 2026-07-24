@@ -10,7 +10,7 @@ import (
 
 func TestTabsInkVisibleAfterLayout(t *testing.T) {
 	// Mimic gallery: many left tabs with headers
-	items := []kit.MenuItem{
+	items := []kit.TabItem{
 		{Key: "cat", Label: "General", Disabled: true},
 		{Divider: true},
 		{Key: "a", Label: "Button"},
@@ -64,8 +64,8 @@ func TestTabsInkVisibleAfterLayout(t *testing.T) {
 	tabs.AttachTicker(tree)
 	tabs.SetActive("c")
 	tree.Layout(core.Size{Width: 1024, Height: 768})
-	if tabs.Active != "c" {
-		t.Fatal(tabs.Active)
+	if tabs.ActiveKey != "c" {
+		t.Fatal(tabs.ActiveKey)
 	}
 	// Scaffold still transparent after switch.
 	if inkBox.Color.A > 0.01 {
@@ -77,9 +77,9 @@ func TestTabsInkVisibleAfterLayout(t *testing.T) {
 // at the previous tab (ghost from dual paint / stale Offset).
 func TestTabsInkSingleMarkOnSwitch(t *testing.T) {
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "a", Label: "A"},
-		kit.MenuItem{Key: "b", Label: "B"},
-		kit.MenuItem{Key: "c", Label: "C"},
+		kit.TabItem{Key: "a", Label: "A"},
+		kit.TabItem{Key: "b", Label: "B"},
+		kit.TabItem{Key: "c", Label: "C"},
 	)
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160
@@ -128,8 +128,8 @@ func TestTabsInkSingleMarkOnSwitch(t *testing.T) {
 	walk(tabs.Node())
 	// May count more than hosts if body has fills; require at least that Active is c
 	// and ink scaffold stays transparent (no dual solid ink boxes).
-	if tabs.Active != "c" {
-		t.Fatal(tabs.Active)
+	if tabs.ActiveKey != "c" {
+		t.Fatal(tabs.ActiveKey)
 	}
 	var solidInk int
 	var walkInk func(core.Node)

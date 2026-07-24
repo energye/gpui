@@ -9,24 +9,24 @@ import (
 
 func TestTabs_GroupHeaderAndDivider(t *testing.T) {
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "cat:g", Label: "General", Disabled: true},
-		kit.MenuItem{Divider: true},
-		kit.MenuItem{Key: "btn", Label: "Button"},
-		kit.MenuItem{Key: "icon", Label: "Icon"},
+		kit.TabItem{Key: "cat:g", Label: "General", Disabled: true},
+		kit.TabItem{Divider: true},
+		kit.TabItem{Key: "btn", Label: "Button"},
+		kit.TabItem{Key: "icon", Label: "Icon"},
 	)
-	if tabs.Active != "btn" {
-		t.Fatalf("Active=%q want first selectable btn", tabs.Active)
+	if tabs.ActiveKey != "btn" {
+		t.Fatalf("Active=%q want first selectable btn", tabs.ActiveKey)
 	}
 	// Cannot activate header
 	tabs.SetActive("cat:g")
-	if tabs.Active != "btn" {
-		t.Fatalf("header activated Active=%q", tabs.Active)
+	if tabs.ActiveKey != "btn" {
+		t.Fatalf("header activated Active=%q", tabs.ActiveKey)
 	}
 	tabs.SetContent("btn", kit.NewText("B").Node())
 	tabs.SetContent("icon", kit.NewText("I").Node())
 	tabs.SetActive("icon")
-	if tabs.Active != "icon" {
-		t.Fatal(tabs.Active)
+	if tabs.ActiveKey != "icon" {
+		t.Fatal(tabs.ActiveKey)
 	}
 	_ = tabs.Node().Layout(core.Loose(400, 300))
 	tabs.SetPosition(kit.TabLeft)

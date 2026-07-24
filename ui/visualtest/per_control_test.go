@@ -152,7 +152,7 @@ func perControlSpecs() []ctlSpec {
 		{"ctl_anchor", 120, 80, func() core.Node { return padRoot(kit.NewAnchor("#a", "#b").Node(), 120, 80) }},
 		{"ctl_color_picker", 200, 48, func() core.Node { return padRoot(kit.NewColorPicker().Node(), 200, 48) }},
 		{"ctl_tabs", 320, 160, func() core.Node {
-			tabs := kit.NewTabs(kit.MenuItem{Key: "a", Label: "A"}, kit.MenuItem{Key: "b", Label: "B"})
+			tabs := kit.NewTabs(kit.TabItem{Key: "a", Label: "A"}, kit.TabItem{Key: "b", Label: "B"})
 			tabs.SetContent("a", kit.NewText("pa").Node())
 			tabs.SetContent("b", kit.NewText("pb").Node())
 			box := primitive.NewBox(tabs.Node())

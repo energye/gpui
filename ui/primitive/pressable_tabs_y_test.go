@@ -43,7 +43,7 @@ func TestTabsBodyButtonPaintTopMatchesHit(t *testing.T) {
 	panel.CrossAlign = core.CrossStart
 	panel.Padding = primitive.All(12)
 
-	tabs := kit.NewTabs(kit.MenuItem{Key: "b", Label: "Button"})
+	tabs := kit.NewTabs(kit.TabItem{Key: "b", Label: "Button"})
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160
 	tabs.TabItemHeight = 40

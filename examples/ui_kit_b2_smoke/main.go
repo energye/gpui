@@ -141,8 +141,8 @@ func main() {
 	vframe.Padding = primitive.All(4)
 
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "form", Label: "Form"},
-		kit.MenuItem{Key: "list", Label: "VirtualList"},
+		kit.TabItem{Key: "form", Label: "Form"},
+		kit.TabItem{Key: "list", Label: "VirtualList"},
 	)
 	tabs.Face = face
 	tabs.SetContent("form", form.Node())

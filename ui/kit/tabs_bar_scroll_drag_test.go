@@ -10,11 +10,11 @@ import (
 
 // Gallery left Tabs + ink animation: thumb MAIN height must stay fixed while dragging.
 func TestTabsLeftRailThumbHeightStableDuringDrag(t *testing.T) {
-	var items []MenuItem
+	var items []TabItem
 	for i := 0; i < 45; i++ {
-		items = append(items, MenuItem{Key: fmt.Sprintf("k%d", i), Label: fmt.Sprintf("Tab %02d long", i)})
+		items = append(items, TabItem{Key: fmt.Sprintf("k%d", i), Label: fmt.Sprintf("Tab %02d long", i)})
 	}
-	items = append([]MenuItem{
+	items = append([]TabItem{
 		{Key: "cat", Label: "General", Disabled: true},
 		{Key: "div", Label: "-", Divider: true},
 	}, items...)
@@ -46,7 +46,7 @@ func TestTabsLeftRailThumbHeightStableDuringDrag(t *testing.T) {
 
 	// Start ink animation (old path MarkNeedsLayout every Tick).
 	for _, it := range items {
-		if it.Selectable() && it.Key != tabs.Active {
+		if it.Selectable() && it.Key != tabs.ActiveKey {
 			tabs.SetActive(it.Key)
 			break
 		}

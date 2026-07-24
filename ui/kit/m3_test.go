@@ -182,14 +182,14 @@ func TestMenuSelect(t *testing.T) {
 
 func TestTabsSwitch(t *testing.T) {
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "a", Label: "Tab A"},
-		kit.MenuItem{Key: "b", Label: "Tab B"},
+		kit.TabItem{Key: "a", Label: "Tab A"},
+		kit.TabItem{Key: "b", Label: "Tab B"},
 	)
 	tabs.SetContent("a", primitive.NewText("AAA"))
 	tabs.SetContent("b", primitive.NewText("BBB"))
 	tabs.SetActive("b")
-	if tabs.Active != "b" {
-		t.Fatal(tabs.Active)
+	if tabs.ActiveKey != "b" {
+		t.Fatal(tabs.ActiveKey)
 	}
 }
 

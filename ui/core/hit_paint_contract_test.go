@@ -19,7 +19,7 @@ func TestAuditHitPaint_TabsNestedControls(t *testing.T) {
 	panel.Gap = 12
 	panel.Padding = primitive.All(12)
 
-	tabs := kit.NewTabs(kit.MenuItem{Key: "x", Label: "X"})
+	tabs := kit.NewTabs(kit.TabItem{Key: "x", Label: "X"})
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160
 	tabs.TabItemHeight = 40

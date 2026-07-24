@@ -9,96 +9,207 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
-// TabPosition places the tab list (Ant Design tabPosition).
-type TabPosition int
-
+// Ant Design Tabs defaults — docs/antd/tabs.md §6.2 / §6.10
+// Source: components/tabs/style prepareComponentToken
+// horizontalItemGutter=32; cardHeight=controlHeightLG=40.
 const (
-	// TabTop is horizontal tabs above content (default).
-	TabTop TabPosition = iota
-	// TabLeft is a vertical category rail on the left + content on the right.
-	TabLeft
+	DefaultTabsHorizontalGutter = 32.0
+	DefaultTabsCardHeight       = 40.0 // controlHeightLG
+	DefaultTabsCardHeightSM     = 32.0 // controlHeight
+	DefaultTabsCardHeightLG     = 48.0 // controlHeightLG+8
+	DefaultTabsInkThickness     = 2.0
+	DefaultTabsInkThicknessVert = 3.0
+	DefaultTabsPadInline        = 0.0 // line: gutter between items, not pad
+	DefaultTabsPadBlock         = 12.0
+	DefaultTabsRailWidth        = 160.0 // kit left-rail shell
+	DefaultTabsInkDuration      = 0.22
+	DefaultTabsFocusOutset      = 1.5
+	DefaultTabsIconGap          = 8.0
+	DefaultTabsCloseSize        = 16.0
+	DefaultTabsAddSize          = 32.0
 )
 
-// Defaults when Tabs fields are 0.
+// TabsType is antd type: line | card | editable-card.
+type TabsType int
+
 const (
-	DefaultTabWidth       = 160.0
-	DefaultTabItemHeight  = 40.0
-	DefaultTabInkWidth    = 3.0
-	DefaultTabPadInline   = 16.0
-	DefaultTabPadBlock    = 10.0
-	DefaultTabInkDuration = 0.22 // seconds for ink slide
+	TabsLine TabsType = iota
+	TabsCard
+	TabsEditableCard
 )
 
-// Tabs is Ant Design–style tabs: list + content panel + sliding ink bar.
+// TabsSize is antd size: large | medium | small.
+type TabsSize int
+
+const (
+	// TabsMiddle is medium (default).
+	TabsMiddle TabsSize = iota
+	TabsSmall
+	TabsLarge
+)
+
+// TabsPlacement is antd tabPlacement / tabPosition.
+type TabsPlacement int
+
+const (
+	TabsTop TabsPlacement = iota
+	TabsBottom
+	TabsLeft
+	TabsRight
+)
+
+// Legacy aliases used by gallery shell and older call sites.
+const (
+	TabTop  = TabsTop
+	TabLeft = TabsLeft
+)
+
+// TabPosition is a legacy alias for TabsPlacement.
+type TabPosition = TabsPlacement
+
+// TabsIndicatorAlign is antd indicator.align.
+type TabsIndicatorAlign int
+
+const (
+	TabsIndicatorCenter TabsIndicatorAlign = iota
+	TabsIndicatorStart
+	TabsIndicatorEnd
+)
+
+// TabsIndicator customizes the line ink bar (antd indicator).
+type TabsIndicator struct {
+	// Size is absolute length; 0 → use laid-out tab span (or SizeFn).
+	Size float64
+	// SizeFn maps origin tab span → ink span (takes precedence when non-nil).
+	SizeFn func(origin float64) float64
+	Align  TabsIndicatorAlign
+}
+
+// TabItem is antd TabItemType (+ kit rail helpers).
+type TabItem struct {
+	Key      string
+	Label    string
+	Children core.Node // panel body
+	Icon     string
+	IconNode core.Node
+	Disabled bool
+	// Closable: nil → editable-card default true; false hides close.
+	Closable *bool
+	// ForceRender keeps panel mounted even when inactive (when DestroyOnHidden).
+	ForceRender bool
+	// Divider: kit extension — thin separator row in the rail (catalog).
+	Divider bool
+}
+
+// Selectable reports whether the item can become ActiveKey.
+func (it TabItem) Selectable() bool {
+	if it.Divider || it.Disabled {
+		return false
+	}
+	return it.Key != ""
+}
+
+// closable reports whether the close affordance should show.
+func (it TabItem) closable(typ TabsType) bool {
+	if typ != TabsEditableCard {
+		return false
+	}
+	if it.Closable != nil {
+		return *it.Closable
+	}
+	return true
+}
+
+// Tabs is Ant Design Tabs (navigation tab list + panel).
 //
-// Left: vertical ink on the trailing edge of the rail content (not under scrollbar).
-// Top: horizontal ink under the active tab.
-// Ink is configurable (size/color) and animates between tabs on switch.
+//	Flex root (role=tablist host)
+//	  bar (scroll) · divider · body (scroll)
+//
+// Product contract: docs/antd/tabs.md §6 (P0 DoD).
+// hit == layout == paint; ink slides via AttachTicker when animated.
 type Tabs struct {
 	Root *primitive.Flex
 
-	barList    *primitive.Flex // tab items only
+	barList    *primitive.Flex
 	barStack   *tabsBarHost
 	body       *primitive.Slot
+	bodyStack  *primitive.Stack // when !DestroyOnHidden
 	rail       *primitive.Decorated
 	barScroll  *primitive.ScrollViewport
 	bodyScroll *primitive.ScrollViewport
+	barHost    *primitive.Decorated
 
-	// ink indicator (shared, animated)
-	ink     *primitive.Box
-	inkPos  *core.NodeBase // positioned wrapper base for SetOffset
-	inkNode core.Node      // PositionedAt host
+	// ink indicator
+	ink            *primitive.Box
+	inkNode        core.Node
+	inkAlong       float64
+	inkSpan        float64
+	inkAlongFrom   float64
+	inkAlongTo     float64
+	inkSpanFrom    float64
+	inkSpanTo      float64
+	inkT           float64 // 0..1 animating; <0 idle
+	inkSlots       []inkSlot
+	inkContentMain float64
 
-	Items    []MenuItem
-	Contents map[string]core.Node
-	Active   string
+	Items []TabItem
+	// ActiveKey is the current panel key (antd activeKey).
+	ActiveKey string
 
-	Position TabPosition
+	Type      TabsType
+	Size      TabsSize
+	Placement TabsPlacement
 
-	// TabWidth left rail width (0 → 160).
-	TabWidth float64
-	// TabItemHeight per left-tab row (0 → 40; <0 → hug content).
-	TabItemHeight float64
-	// TabInkWidth indicator thickness: left=width, top=height (0 → 3 / 2).
-	TabInkWidth float64
-	// TabInkColor when A>0 overrides theme primary for the ink bar.
-	TabInkColor render.RGBA
-	// ShowInk when false hides the indicator (also hidden for Type "card").
-	// Zero-value is treated as true (use HideInk to force off).
-	HideInk bool
-	// InkAnimated slides the indicator between tabs (default true).
-	// Set InkAnimated=false for instant jump. inkAnimSet tracks explicit set.
-	InkAnimated bool
-	inkAnimSet  bool
-	// InkDuration seconds for slide (0 → DefaultTabInkDuration).
-	InkDuration float64
-	// TabPadInline / TabPadBlock padding inside each tab (0 → 16 / 10).
-	TabPadInline float64
-	TabPadBlock  float64
-	// BodyPadding insets the TabLeft body panel around bodyScroll.
-	// Unset → DefaultTabBodyPadding (all 0 — shell only; content pads itself).
-	// Use SetBodyPadding for chrome-level inset (Right=0 keeps scrollbar flush).
-	BodyPadding primitive.EdgeInsets
-	bodyPadSet  bool
+	// Position is a legacy alias field for Placement (gallery writes Position / SetPosition).
+	// Prefer Placement / SetPlacement.
+	Position TabsPlacement
 
-	// Type: "line" (default) or "card".
-	Type string
-	// Centered centers the tab list on the bar (top tabs).
-	Centered bool
+	Centered        bool
+	HideAdd         bool
+	DestroyOnHidden bool
+	TabBarGutter    float64 // 0 → DefaultTabsHorizontalGutter for horizontal line
+	Indicator       TabsIndicator
+	ExtraLeft       core.Node
+	ExtraRight      core.Node
+	HideInk         bool
+	InkAnimated     bool
+	inkAnimSet      bool
+	InkDuration     float64
+	TabInkWidth     float64
+	TabInkColor     render.RGBA
+	TabWidth        float64 // left/right rail (0 → DefaultTabsRailWidth)
+	TabItemHeight   float64 // 0 → size ladder; <0 hug
+	TabPadInline    float64
+	TabPadBlock     float64
+	BodyPadding     primitive.EdgeInsets
+	bodyPadSet      bool
 
-	Face     text.Face
-	Theme    *core.Theme
-	Nav      *core.KeyboardNav
-	OnChange func(key string)
+	Face      text.Face
+	Theme     *core.Theme
+	AriaLabel string
+	Nav       *core.KeyboardNav
 
-	// ink animation state (main-axis position + span)
-	inkAlong, inkSpan        float64
-	inkAlongFrom, inkAlongTo float64
-	inkSpanFrom, inkSpanTo   float64
-	inkT                     float64 // 0..1 while animating; <0 idle
-	inkSlots                 []inkSlot
-	inkContentMain           float64 // content box size along main axis for layout
-	tree                     *core.Tree
+	OnChange   func(key string)
+	OnEdit     func(targetKey, action string) // action: "add" | "remove"
+	OnTabClick func(key string)
+
+	// Controlled / default
+	activeControlled bool
+	defaultActiveKey string
+	appliedDefault   bool
+
+	// Test hooks
+	itemPress  map[string]*primitive.Pressable
+	itemHost   map[string]*primitive.Decorated
+	addPress   *primitive.Pressable
+	closePress map[string]*primitive.Pressable
+
+	// side content map (SetContent); merged over Items[].Children
+	contents map[string]core.Node
+	// force-mounted inactive panels
+	mounted map[string]core.Node
+
+	tree *core.Tree
 }
 
 type inkSlot struct {
@@ -106,8 +217,7 @@ type inkSlot struct {
 	along, span float64
 }
 
-// tabsBarHost is Stack(barList, ink) that syncs ink slots after layout and
-// paints the indicator after children so it always composites on top.
+// tabsBarHost is Stack(barList, ink) that syncs ink after layout and paints on top.
 type tabsBarHost struct {
 	primitive.Stack
 	tabs *Tabs
@@ -124,31 +234,33 @@ func (h *tabsBarHost) Layout(c core.Constraints) core.Size {
 }
 
 func (h *tabsBarHost) Paint(pc *core.PaintContext) {
-	// Paint tab list (and any ink node) first.
 	h.Stack.Paint(pc)
-	// Draw indicator explicitly on top using current inkAlong/inkSpan (animation-safe).
 	if h.tabs != nil {
 		h.tabs.paintInk(pc)
 	}
 }
 
-// NewTabs creates tabs (top by default).
-func NewTabs(items ...MenuItem) *Tabs {
+// NewTabs creates Tabs (placement top, type line, size middle).
+func NewTabs(items ...TabItem) *Tabs {
 	t := &Tabs{
-		Items:       append([]MenuItem(nil), items...),
-		Contents:    make(map[string]core.Node),
-		Position:    TabTop,
+		Items:       append([]TabItem(nil), items...),
+		contents:    make(map[string]core.Node),
+		mounted:     make(map[string]core.Node),
+		Placement:   TabsTop,
+		Position:    TabsTop,
+		Type:        TabsLine,
+		Size:        TabsMiddle,
 		InkAnimated: true,
 		inkAnimSet:  true,
 		inkT:        -1,
 	}
-	t.Nav = core.NewKeyboardNav(core.NavHorizontal, len(items))
-	t.Active = firstSelectableKey(items)
+	t.Nav = core.NewKeyboardNav(core.NavHorizontal, 0)
+	t.ActiveKey = firstSelectableTabKey(t.Items)
 	t.rebuild()
 	return t
 }
 
-func firstSelectableKey(items []MenuItem) string {
+func firstSelectableTabKey(items []TabItem) string {
 	for _, it := range items {
 		if it.Selectable() {
 			return it.Key
@@ -162,16 +274,22 @@ func (t *Tabs) FirstSelectableKey() string {
 	if t == nil {
 		return ""
 	}
-	return firstSelectableKey(t.Items)
+	return firstSelectableTabKey(t.Items)
 }
 
-// Node returns the root.
+// Node returns the stable root.
 func (t *Tabs) Node() core.Node {
+	if t == nil {
+		return nil
+	}
 	if t.Root == nil {
 		t.rebuild()
 	}
 	return t.Root
 }
+
+// ChromeNode returns the root (a11y host).
+func (t *Tabs) ChromeNode() core.Node { return t.Node() }
 
 // AttachTicker enables ink slide animation frames.
 func (t *Tabs) AttachTicker(tr *core.Tree) {
@@ -184,20 +302,260 @@ func (t *Tabs) AttachTicker(tr *core.Tree) {
 	}
 }
 
-// SetPosition sets placement and rebuilds.
-func (t *Tabs) SetPosition(pos TabPosition) {
-	t.Position = pos
-	if pos == TabLeft {
-		t.Nav = core.NewKeyboardNav(core.NavVertical, len(t.Items))
-	} else {
-		t.Nav = core.NewKeyboardNav(core.NavHorizontal, len(t.Items))
+// SetItems replaces tab items.
+func (t *Tabs) SetItems(items []TabItem) {
+	if t == nil {
+		return
 	}
-	t.inkT = -1 // snap after rebuild
+	t.Items = append([]TabItem(nil), items...)
+	if !t.activeControlled {
+		if t.ActiveKey == "" || !t.hasSelectableKey(t.ActiveKey) {
+			t.ActiveKey = firstSelectableTabKey(t.Items)
+		}
+	}
 	t.rebuild()
 	t.syncBody()
 }
 
-// SetTabWidth sets left rail width (0 → default 160).
+// SetContent associates a panel with a tab key (writes side map + item Children when present).
+func (t *Tabs) SetContent(key string, n core.Node) {
+	if t == nil {
+		return
+	}
+	if t.contents == nil {
+		t.contents = make(map[string]core.Node)
+	}
+	t.contents[key] = n
+	for i := range t.Items {
+		if t.Items[i].Key == key {
+			t.Items[i].Children = n
+			break
+		}
+	}
+	if key == t.ActiveKey {
+		t.syncBody()
+	}
+}
+
+// Content returns the resolved panel for key.
+func (t *Tabs) Content(key string) core.Node {
+	if t == nil {
+		return nil
+	}
+	if n, ok := t.contents[key]; ok && n != nil {
+		return n
+	}
+	for _, it := range t.Items {
+		if it.Key == key {
+			return it.Children
+		}
+	}
+	return nil
+}
+
+// SetActiveKey sets controlled activeKey (antd activeKey).
+// While controlled, clicks fire OnChange but do not mutate ActiveKey until
+// the parent calls SetActiveKey again.
+func (t *Tabs) SetActiveKey(key string) {
+	if t == nil {
+		return
+	}
+	t.activeControlled = true
+	t.applyActive(key, false)
+}
+
+// SetActive programmatically switches the panel without entering controlled mode
+// (legacy kit helper; gallery / tests). Prefer SetActiveKey for antd-controlled
+// activeKey, or rely on defaultActiveKey + clicks for uncontrolled.
+func (t *Tabs) SetActive(key string) {
+	if t == nil {
+		return
+	}
+	t.applyActive(key, false)
+}
+
+// SetDefaultActiveKey sets non-controlled initial key (antd defaultActiveKey).
+func (t *Tabs) SetDefaultActiveKey(key string) {
+	if t == nil {
+		return
+	}
+	t.defaultActiveKey = key
+	if !t.activeControlled && !t.appliedDefault {
+		t.appliedDefault = true
+		if key != "" {
+			t.ActiveKey = key
+		}
+		t.rebuildBar()
+		t.syncBody()
+		t.markLayoutDirty()
+	}
+}
+
+// Active returns ActiveKey (legacy accessor used by older tests).
+func (t *Tabs) Active() string {
+	if t == nil {
+		return ""
+	}
+	return t.ActiveKey
+}
+
+// SetType sets line | card | editable-card.
+func (t *Tabs) SetType(typ TabsType) {
+	if t == nil {
+		return
+	}
+	t.Type = typ
+	t.rebuild()
+	t.syncBody()
+}
+
+// SetSize sets small | middle | large.
+func (t *Tabs) SetSize(sz TabsSize) {
+	if t == nil {
+		return
+	}
+	t.Size = sz
+	t.rebuild()
+	t.syncBody()
+}
+
+// SetPlacement sets tabPlacement (top/bottom/left/right).
+func (t *Tabs) SetPlacement(p TabsPlacement) {
+	if t == nil {
+		return
+	}
+	t.Placement = p
+	t.Position = p
+	if t.isVertical() {
+		t.Nav = core.NewKeyboardNav(core.NavVertical, 0)
+	} else {
+		t.Nav = core.NewKeyboardNav(core.NavHorizontal, 0)
+	}
+	t.inkT = -1
+	t.rebuild()
+	t.syncBody()
+}
+
+// SetPosition is a legacy alias for SetPlacement.
+func (t *Tabs) SetPosition(pos TabsPlacement) { t.SetPlacement(pos) }
+
+// SetCentered centers the tab list on horizontal bars.
+func (t *Tabs) SetCentered(v bool) {
+	if t == nil {
+		return
+	}
+	t.Centered = v
+	t.rebuild()
+}
+
+// SetIndicator sets line ink size/align.
+func (t *Tabs) SetIndicator(ind TabsIndicator) {
+	if t == nil {
+		return
+	}
+	t.Indicator = ind
+	t.markDirty()
+	if t.barStack != nil {
+		t.barStack.MarkNeedsLayout()
+	}
+}
+
+// SetTabBarGutter sets gap between tabs (0 → default 32 for horizontal line).
+func (t *Tabs) SetTabBarGutter(px float64) {
+	if t == nil {
+		return
+	}
+	t.TabBarGutter = px
+	t.rebuildBar()
+	t.markLayoutDirty()
+}
+
+// SetTabBarExtraContent sets left/right extra nodes on the bar.
+func (t *Tabs) SetTabBarExtraContent(left, right core.Node) {
+	if t == nil {
+		return
+	}
+	t.ExtraLeft, t.ExtraRight = left, right
+	t.rebuild()
+	t.syncBody()
+}
+
+// SetHideAdd hides the add button on editable-card.
+func (t *Tabs) SetHideAdd(v bool) {
+	if t == nil {
+		return
+	}
+	t.HideAdd = v
+	t.rebuildBar()
+	t.markLayoutDirty()
+}
+
+// SetDestroyOnHidden toggles unmount of inactive panels.
+func (t *Tabs) SetDestroyOnHidden(v bool) {
+	if t == nil {
+		return
+	}
+	t.DestroyOnHidden = v
+	if v {
+		t.mounted = make(map[string]core.Node)
+	}
+	t.rebuild()
+	t.syncBody()
+}
+
+// SetOnChange sets onChange(activeKey).
+func (t *Tabs) SetOnChange(fn func(key string)) {
+	if t != nil {
+		t.OnChange = fn
+	}
+}
+
+// SetOnEdit sets onEdit for editable-card (action: "add"|"remove").
+func (t *Tabs) SetOnEdit(fn func(targetKey, action string)) {
+	if t != nil {
+		t.OnEdit = fn
+	}
+}
+
+// SetOnTabClick sets onTabClick.
+func (t *Tabs) SetOnTabClick(fn func(key string)) {
+	if t != nil {
+		t.OnTabClick = fn
+	}
+}
+
+// SetTheme sets design tokens.
+func (t *Tabs) SetTheme(th *core.Theme) {
+	if t == nil {
+		return
+	}
+	t.Theme = th
+	t.rebuild()
+	t.syncBody()
+}
+
+// SetFace sets text face.
+func (t *Tabs) SetFace(face text.Face) {
+	if t == nil {
+		return
+	}
+	t.Face = face
+	t.rebuildBar()
+	t.markLayoutDirty()
+}
+
+// SetAriaLabel sets accessible name on the tablist root.
+func (t *Tabs) SetAriaLabel(name string) {
+	if t == nil {
+		return
+	}
+	t.AriaLabel = name
+	if t.Root != nil {
+		t.Root.Base().Label = name
+	}
+}
+
+// SetTabWidth sets left/right rail width (0 → default 160).
 func (t *Tabs) SetTabWidth(w float64) {
 	if t == nil {
 		return
@@ -207,17 +565,17 @@ func (t *Tabs) SetTabWidth(w float64) {
 	t.syncBody()
 }
 
-// SetTabItemHeight sets left-tab row height (0 → 40; <0 → hug).
+// SetTabItemHeight sets fixed item height (0 → size ladder; <0 hug).
 func (t *Tabs) SetTabItemHeight(h float64) {
+	if t == nil {
+		return
+	}
 	t.TabItemHeight = h
 	t.rebuildBar()
 	t.markLayoutDirty()
 }
 
-// SetBodyPadding sets TabLeft body panel insets around the content ScrollViewport.
-// Default is all-zero (no chrome inset). Prefer padding inside content nodes when
-// possible. If you set side insets, keep Right=0 so the vertical scrollbar stays
-// flush with the panel/window edge.
+// SetBodyPadding sets body panel insets (explicit, including zero).
 func (t *Tabs) SetBodyPadding(p primitive.EdgeInsets) {
 	if t == nil {
 		return
@@ -228,7 +586,354 @@ func (t *Tabs) SetBodyPadding(p primitive.EdgeInsets) {
 	t.syncBody()
 }
 
-// bodyPadding returns configured body insets or DefaultTabBodyPadding.
+// SetInkSize sets indicator thickness.
+func (t *Tabs) SetInkSize(px float64) {
+	if t == nil {
+		return
+	}
+	t.TabInkWidth = px
+	t.rebuildBar()
+	t.markLayoutDirty()
+}
+
+// SetInkColor sets indicator color (A=0 → theme primary).
+func (t *Tabs) SetInkColor(c render.RGBA) {
+	if t == nil {
+		return
+	}
+	t.TabInkColor = c
+	t.applyInkChrome()
+	t.markDirty()
+}
+
+// SetInkAnimated enables/disables sliding ink.
+func (t *Tabs) SetInkAnimated(v bool) {
+	if t == nil {
+		return
+	}
+	t.InkAnimated = v
+	t.inkAnimSet = true
+}
+
+// ItemPressable returns the pressable for a key (tests).
+func (t *Tabs) ItemPressable(key string) *primitive.Pressable {
+	if t == nil || t.itemPress == nil {
+		return nil
+	}
+	return t.itemPress[key]
+}
+
+// ItemHost returns the decorated host for a key (size/layout asserts).
+func (t *Tabs) ItemHost(key string) *primitive.Decorated {
+	if t == nil || t.itemHost == nil {
+		return nil
+	}
+	return t.itemHost[key]
+}
+
+// ClosePressable returns the close pressable for editable-card tests.
+func (t *Tabs) ClosePressable(key string) *primitive.Pressable {
+	if t == nil || t.closePress == nil {
+		return nil
+	}
+	return t.closePress[key]
+}
+
+// AddPressable returns the add button pressable.
+func (t *Tabs) AddPressable() *primitive.Pressable {
+	if t == nil {
+		return nil
+	}
+	return t.addPress
+}
+
+// ItemHeight returns resolved tab item height for current size.
+func (t *Tabs) ItemHeight() float64 {
+	if t == nil {
+		return DefaultTabsCardHeight
+	}
+	return t.tabItemHeight()
+}
+
+// HorizontalGutter returns resolved gutter between horizontal tabs.
+func (t *Tabs) HorizontalGutter() float64 {
+	if t == nil {
+		return DefaultTabsHorizontalGutter
+	}
+	return t.gutter()
+}
+
+// IsCard reports card or editable-card chrome.
+func (t *Tabs) IsCard() bool {
+	return t != nil && (t.Type == TabsCard || t.Type == TabsEditableCard)
+}
+
+// InkVisible reports whether the line indicator is shown (tests / chrome).
+func (t *Tabs) InkVisible() bool {
+	if t == nil {
+		return false
+	}
+	return t.inkVisible()
+}
+
+// BarCentered reports horizontal bar MainCenter (centered prop).
+func (t *Tabs) BarCentered() bool {
+	if t == nil || t.barList == nil {
+		return false
+	}
+	return t.barList.MainAlign == core.MainCenter
+}
+
+// IsMounted reports whether a panel node is currently under the body (destroyOnHidden tests).
+func (t *Tabs) IsMounted(key string) bool {
+	if t == nil {
+		return false
+	}
+	if t.DestroyOnHidden {
+		return key == t.ActiveKey && t.Content(key) != nil
+	}
+	if _, ok := t.mounted[key]; ok {
+		return true
+	}
+	return key == t.ActiveKey
+}
+
+// HandleKey routes arrow keys among selectable tabs (host may call after focus).
+func (t *Tabs) HandleKey(ev *core.KeyEvent) bool {
+	if t == nil || ev == nil || ev.Type != core.KeyDown {
+		return false
+	}
+	keys := t.selectableKeys()
+	if len(keys) == 0 {
+		return false
+	}
+	// Map Nav index to selectable list.
+	if t.Nav == nil {
+		t.Nav = core.NewKeyboardNav(core.NavHorizontal, len(keys))
+	}
+	t.Nav.SetCount(len(keys))
+	// Sync index to current active
+	for i, k := range keys {
+		if k == t.ActiveKey {
+			t.Nav.Index = i
+			break
+		}
+	}
+	prev := t.Nav.Index
+	if !t.Nav.HandleKey(ev.Key) {
+		// Enter/Space activate current (already active)
+		if ev.Key == "Enter" || ev.Key == " " || ev.Key == "Space" {
+			return true
+		}
+		return false
+	}
+	if t.Nav.Index != prev && t.Nav.Index >= 0 && t.Nav.Index < len(keys) {
+		t.activate(keys[t.Nav.Index])
+		return true
+	}
+	return true
+}
+
+// Tick advances ink slide animation.
+func (t *Tabs) Tick(dt float64) bool {
+	if t == nil || t.inkT < 0 {
+		return false
+	}
+	dur := t.InkDuration
+	if dur <= 0 {
+		dur = DefaultTabsInkDuration
+	}
+	t.inkT += dt / dur
+	if t.inkT >= 1 {
+		t.inkT = 1
+		t.inkAlong, t.inkSpan = t.inkAlongTo, t.inkSpanTo
+		t.applyInkGeometry()
+		t.inkT = -1
+		t.markDirty()
+		return false
+	}
+	u := t.inkT
+	e := 1 - (1-u)*(1-u)*(1-u)
+	t.inkAlong = t.inkAlongFrom + (t.inkAlongTo-t.inkAlongFrom)*e
+	t.inkSpan = t.inkSpanFrom + (t.inkSpanTo-t.inkSpanFrom)*e
+	t.applyInkGeometry()
+	if t.barStack != nil {
+		t.barStack.MarkNeedsPaint()
+	}
+	t.markDirty()
+	return true
+}
+
+// --- internals ---
+
+func (t *Tabs) theme() *core.Theme {
+	var n core.Node
+	if t.Root != nil {
+		n = t.Root
+	}
+	return themeOf(t.Theme, n)
+}
+
+func (t *Tabs) isVertical() bool {
+	return t.Placement == TabsLeft || t.Placement == TabsRight ||
+		t.Position == TabsLeft || t.Position == TabsRight
+}
+
+func (t *Tabs) placement() TabsPlacement {
+	// Prefer Placement; fall back to Position for legacy field writes.
+	if t.Placement != TabsTop {
+		return t.Placement
+	}
+	if t.Position != TabsTop {
+		return t.Position
+	}
+	return TabsTop
+}
+
+func (t *Tabs) hasSelectableKey(key string) bool {
+	for _, it := range t.Items {
+		if it.Key == key && it.Selectable() {
+			return true
+		}
+	}
+	return false
+}
+
+func (t *Tabs) selectableKeys() []string {
+	var out []string
+	for _, it := range t.Items {
+		if it.Selectable() {
+			out = append(out, it.Key)
+		}
+	}
+	return out
+}
+
+func (t *Tabs) gutter() float64 {
+	if t.TabBarGutter > 0 {
+		return t.TabBarGutter
+	}
+	if t.isVertical() || t.IsCard() {
+		return 0
+	}
+	return DefaultTabsHorizontalGutter
+}
+
+func (t *Tabs) tabWidth() float64 {
+	if t.TabWidth > 0 {
+		return t.TabWidth
+	}
+	return DefaultTabsRailWidth
+}
+
+func (t *Tabs) tabItemHeight() float64 {
+	if t.TabItemHeight < 0 {
+		return 0
+	}
+	if t.TabItemHeight > 0 {
+		return t.TabItemHeight
+	}
+	switch t.Size {
+	case TabsSmall:
+		if t.IsCard() {
+			return DefaultTabsCardHeightSM
+		}
+		return t.theme().SizeOr(core.TokenControlHeightSM, 24)
+	case TabsLarge:
+		if t.IsCard() {
+			return DefaultTabsCardHeightLG
+		}
+		return t.theme().SizeOr(core.TokenControlHeightLG, 40)
+	default:
+		if t.IsCard() {
+			return DefaultTabsCardHeight
+		}
+		// line middle ~ controlHeight + some chrome → use cardHeight rhythm
+		return DefaultTabsCardHeight
+	}
+}
+
+func (t *Tabs) padInline() float64 {
+	if t.TabPadInline > 0 {
+		return t.TabPadInline
+	}
+	if t.IsCard() {
+		switch t.Size {
+		case TabsSmall:
+			return 8
+		case TabsLarge:
+			return 16
+		default:
+			return 16
+		}
+	}
+	// line: horizontal spacing via gutter; keep modest inner pad
+	return 0
+}
+
+func (t *Tabs) padBlock() float64 {
+	if t.TabPadBlock > 0 {
+		return t.TabPadBlock
+	}
+	h := t.tabItemHeight()
+	fs := t.fontSize()
+	// vertical pad so total height ≈ item height
+	pad := (h - fs*1.2) / 2
+	if pad < 4 {
+		pad = 4
+	}
+	if pad > 16 {
+		pad = 16
+	}
+	return pad
+}
+
+func (t *Tabs) fontSize() float64 {
+	th := t.theme()
+	switch t.Size {
+	case TabsSmall:
+		return th.SizeOr(core.TokenFontSize, 14)
+	case TabsLarge:
+		return th.SizeOr(core.TokenFontSizeLG, 16)
+	default:
+		return th.SizeOr(core.TokenFontSize, 14)
+	}
+}
+
+func (t *Tabs) tabInkWidth() float64 {
+	if t.TabInkWidth > 0 {
+		return t.TabInkWidth
+	}
+	if t.isVertical() {
+		return DefaultTabsInkThicknessVert
+	}
+	return DefaultTabsInkThickness
+}
+
+func (t *Tabs) inkColor() render.RGBA {
+	if t.TabInkColor.A > 0 {
+		return t.TabInkColor
+	}
+	return t.theme().Color(core.TokenColorPrimary)
+}
+
+func (t *Tabs) inkVisible() bool {
+	if t.HideInk {
+		return false
+	}
+	if t.IsCard() {
+		return false
+	}
+	return true
+}
+
+func (t *Tabs) inkAnimated() bool {
+	if t.inkAnimSet {
+		return t.InkAnimated
+	}
+	return true
+}
+
 func (t *Tabs) bodyPadding() primitive.EdgeInsets {
 	if t != nil && t.bodyPadSet {
 		return t.BodyPadding
@@ -236,40 +941,7 @@ func (t *Tabs) bodyPadding() primitive.EdgeInsets {
 	return primitive.EdgeInsets{}
 }
 
-// SetInkSize sets indicator thickness (left: width, top: height).
-func (t *Tabs) SetInkSize(px float64) {
-	t.TabInkWidth = px
-	t.rebuildBar()
-	t.markLayoutDirty()
-}
-
-// SetInkColor sets indicator color (A=0 uses theme primary).
-func (t *Tabs) SetInkColor(c render.RGBA) {
-	t.TabInkColor = c
-	t.applyInkChrome()
-	t.markDirty()
-}
-
-// SetInkAnimated enables/disables sliding ink animation.
-func (t *Tabs) SetInkAnimated(v bool) {
-	t.InkAnimated = v
-	t.inkAnimSet = true
-}
-
-// SetContent associates a panel with a tab key.
-func (t *Tabs) SetContent(key string, n core.Node) {
-	if t.Contents == nil {
-		t.Contents = make(map[string]core.Node)
-	}
-	t.Contents[key] = n
-	if key == t.Active {
-		t.syncBody()
-	}
-}
-
-// SetActive switches the panel and tab chrome.
-// Group headers (Disabled) and Divider items cannot be activated.
-func (t *Tabs) SetActive(key string) {
+func (t *Tabs) applyActive(key string, fireChange bool) {
 	if key == "" {
 		return
 	}
@@ -278,9 +950,9 @@ func (t *Tabs) SetActive(key string) {
 			return
 		}
 	}
-	changed := t.Active != key
-	prev := t.Active
-	t.Active = key
+	changed := t.ActiveKey != key
+	prev := t.ActiveKey
+	t.ActiveKey = key
 	t.syncBody()
 
 	if changed && t.inkAnimated() && t.inkSlots != nil {
@@ -288,7 +960,6 @@ func (t *Tabs) SetActive(key string) {
 		if from != nil && to != nil {
 			t.inkAlongFrom, t.inkSpanFrom = t.inkAlong, t.inkSpan
 			if t.inkT < 0 {
-				// was snapped: start from previous slot geometry
 				t.inkAlongFrom, t.inkSpanFrom = from.along, from.span
 			}
 			t.inkAlongTo, t.inkSpanTo = to.along, to.span
@@ -307,75 +978,67 @@ func (t *Tabs) SetActive(key string) {
 
 	t.rebuildBar()
 	t.markLayoutDirty()
-	if changed && t.OnChange != nil {
+	if fireChange && changed && t.OnChange != nil {
 		t.OnChange(key)
 	}
 }
 
-// SetType sets tab style ("line" or "card").
-func (t *Tabs) SetType(typ string) {
-	t.Type = typ
-	t.rebuild()
-	t.syncBody()
-}
-
-// Tick advances ink slide animation.
-func (t *Tabs) Tick(dt float64) bool {
-	if t == nil || t.inkT < 0 {
-		return false
+// activate is user interaction: respects controlled mode.
+func (t *Tabs) activate(key string) {
+	if t == nil || key == "" {
+		return
 	}
-	dur := t.InkDuration
-	if dur <= 0 {
-		dur = DefaultTabInkDuration
+	if t.OnTabClick != nil {
+		t.OnTabClick(key)
 	}
-	t.inkT += dt / dur
-	if t.inkT >= 1 {
-		t.inkT = 1
-		t.inkAlong, t.inkSpan = t.inkAlongTo, t.inkSpanTo
-		t.applyInkGeometry()
-		t.inkT = -1
-		t.markDirty()
-		return false
-	}
-	// easeOutCubic
-	u := t.inkT
-	e := 1 - (1-u)*(1-u)*(1-u)
-	t.inkAlong = t.inkAlongFrom + (t.inkAlongTo-t.inkAlongFrom)*e
-	t.inkSpan = t.inkSpanFrom + (t.inkSpanTo-t.inkSpanFrom)*e
-	t.applyInkGeometry()
-	if t.barStack != nil {
-		t.barStack.MarkNeedsPaint()
-	}
-	t.markDirty()
-	return true
-}
-
-func (t *Tabs) inkAnimated() bool {
-	if t.inkAnimSet {
-		return t.InkAnimated
-	}
-	return true
-}
-
-func (t *Tabs) slotOf(key string) *inkSlot {
-	for i := range t.inkSlots {
-		if t.inkSlots[i].key == key {
-			return &t.inkSlots[i]
+	if t.activeControlled {
+		if t.OnChange != nil && key != t.ActiveKey {
+			t.OnChange(key)
 		}
+		return
 	}
-	return nil
+	t.applyActive(key, true)
 }
 
 func (t *Tabs) syncBody() {
-	if t.body == nil {
+	if t == nil {
 		return
 	}
-	t.body.SetChild(t.Contents[t.Active])
+	active := t.Content(t.ActiveKey)
+	if t.DestroyOnHidden {
+		if t.body != nil {
+			t.body.SetChild(active)
+		}
+		t.mounted = map[string]core.Node{}
+		if active != nil {
+			t.mounted[t.ActiveKey] = active
+		}
+		t.markLayoutDirty()
+		return
+	}
+	// Keep previously seen panels mounted (forceRender-ish + non-destroy).
+	if active != nil {
+		t.mounted[t.ActiveKey] = active
+	}
+	for _, it := range t.Items {
+		if it.ForceRender {
+			if n := t.Content(it.Key); n != nil {
+				t.mounted[it.Key] = n
+			}
+		}
+	}
+	if t.bodyStack != nil {
+		t.bodyStack.ClearChildren()
+		// Active on top
+		if active != nil {
+			t.bodyStack.AddChild(active)
+		}
+	} else if t.body != nil {
+		t.body.SetChild(active)
+	}
 	t.markLayoutDirty()
 }
 
-// markDirty schedules paint only. Ink slide and hover must not remeasure the
-// rail (remeasure during barScroll drag was a source of thumb height thrash).
 func (t *Tabs) markDirty() {
 	if t.barStack != nil {
 		t.barStack.MarkNeedsPaint()
@@ -387,7 +1050,6 @@ func (t *Tabs) markDirty() {
 	}
 }
 
-// markLayoutDirty is for structure / size policy changes only.
 func (t *Tabs) markLayoutDirty() {
 	if t.Root != nil {
 		t.Root.MarkNeedsLayout()
@@ -395,75 +1057,23 @@ func (t *Tabs) markLayoutDirty() {
 	}
 }
 
-func (t *Tabs) theme() *core.Theme {
-	var n core.Node
-	if t.Root != nil {
-		n = t.Root
+func (t *Tabs) slotOf(key string) *inkSlot {
+	for i := range t.inkSlots {
+		if t.inkSlots[i].key == key {
+			return &t.inkSlots[i]
+		}
 	}
-	return themeOf(t.Theme, n)
-}
-
-func (t *Tabs) tabWidth() float64 {
-	if t.TabWidth > 0 {
-		return t.TabWidth
-	}
-	return DefaultTabWidth
-}
-
-func (t *Tabs) tabItemHeight() float64 {
-	if t.TabItemHeight < 0 {
-		return 0
-	}
-	if t.TabItemHeight > 0 {
-		return t.TabItemHeight
-	}
-	return DefaultTabItemHeight
-}
-
-func (t *Tabs) tabInkWidth() float64 {
-	if t.TabInkWidth > 0 {
-		return t.TabInkWidth
-	}
-	if t.Position == TabLeft {
-		return DefaultTabInkWidth
-	}
-	return 2
-}
-
-func (t *Tabs) inkColor() render.RGBA {
-	if t.TabInkColor.A > 0 {
-		return t.TabInkColor
-	}
-	return t.theme().Color(core.TokenColorPrimary)
-}
-
-func (t *Tabs) inkVisible() bool {
-	if t.HideInk {
-		return false
-	}
-	if t.Type == "card" {
-		return false
-	}
-	return true
-}
-
-func (t *Tabs) padInline() float64 {
-	if t.TabPadInline > 0 {
-		return t.TabPadInline
-	}
-	return DefaultTabPadInline
-}
-
-func (t *Tabs) padBlock() float64 {
-	if t.TabPadBlock > 0 {
-		return t.TabPadBlock
-	}
-	return DefaultTabPadBlock
+	return nil
 }
 
 func (t *Tabs) rebuild() {
 	th := t.theme()
-	if t.Position == TabLeft {
+	// Keep Placement/Position in sync
+	pl := t.placement()
+	t.Placement = pl
+	t.Position = pl
+
+	if t.isVertical() {
 		t.barList = primitive.Column()
 		t.barList.Gap = 0
 		t.barList.CrossAlign = core.CrossStretch
@@ -476,7 +1086,6 @@ func (t *Tabs) rebuild() {
 		}
 	}
 
-	// Shared ink indicator
 	t.ink = primitive.NewBox()
 	t.ink.Hit = core.HitTransparent
 	t.applyInkChrome()
@@ -489,14 +1098,32 @@ func (t *Tabs) rebuild() {
 	t.barStack.AddChild(t.barList)
 	t.barStack.AddChild(t.inkNode)
 
-	t.body = primitive.NewSlot("tab-body", t.Contents[t.Active])
+	// Body host: slot (destroy) or stack (keep)
+	t.body = primitive.NewSlot("tab-body", t.Content(t.ActiveKey))
 	t.body.ExpandFill = true
+	if !t.DestroyOnHidden {
+		t.bodyStack = primitive.NewStack()
+		t.bodyStack.Fit = false
+		if n := t.Content(t.ActiveKey); n != nil {
+			t.bodyStack.AddChild(n)
+		}
+	} else {
+		t.bodyStack = nil
+	}
+
+	t.itemPress = make(map[string]*primitive.Pressable)
+	t.itemHost = make(map[string]*primitive.Decorated)
+	t.closePress = make(map[string]*primitive.Pressable)
+	t.addPress = nil
 	t.rebuildBar()
 
-	// Overflow scroll: Auto + non-overlap gutters.
 	t.barScroll = primitive.NewScrollViewport(t.barStack)
-	t.bodyScroll = primitive.NewScrollViewport(t.body)
-	if t.Position == TabLeft {
+	var bodyChild core.Node = t.body
+	if t.bodyStack != nil {
+		bodyChild = t.bodyStack
+	}
+	t.bodyScroll = primitive.NewScrollViewport(bodyChild)
+	if t.isVertical() {
 		t.barScroll.SetAxis(true, false)
 		t.barScroll.Scrollbar().Horizontal = primitive.ScrollbarNever
 		t.bodyScroll.SetAxis(true, false)
@@ -508,89 +1135,139 @@ func (t *Tabs) rebuild() {
 		t.bodyScroll.Scrollbar().Horizontal = primitive.ScrollbarNever
 	}
 
-	if t.Position == TabLeft {
-		railW := t.tabWidth()
-		t.rail = primitive.NewDecorated(t.barScroll)
-		t.rail.Width = railW
-		t.rail.MinWidth = railW
-		t.rail.Background = th.Color(core.TokenColorBgContainer)
-		t.rail.BorderWidth = 0
-		t.rail.Padding = primitive.EdgeInsets{} // track fills rail height (no vertical inset gap)
-		t.rail.StretchChild = true
-		t.rail.Hit = core.HitBlock
+	// Bar chrome with optional extra left/right
+	barInner := t.wrapBarWithExtra(t.barScroll)
+	t.barHost = primitive.NewDecorated(barInner)
+	t.barHost.StretchChild = true
+	t.barHost.Background = th.Color(core.TokenColorBgContainer)
+	t.barHost.BorderWidth = 0
 
-		div := primitive.NewDivider()
-		div.Vertical = true
-		div.Thickness = 1
-		div.ColorToken = core.TokenColorBorder
+	bodyNode := t.wrapBody()
 
-		padBody := primitive.NewDecorated(t.bodyScroll)
-		// Configurable via SetBodyPadding; default Right=0 → scrollbar flush right.
-		padBody.Padding = t.bodyPadding()
-		padBody.Background = th.Color(core.TokenColorBgLayout)
-		padBody.BorderWidth = 0
-		padBody.StretchChild = true
-		padBody.Hit = core.HitBlock
-		bodyHost := primitive.NewFlexible(1, padBody)
-		bodyHost.FillChild = true
-
-		t.Root = primitive.Row(t.rail, div, bodyHost)
+	switch pl {
+	case TabsLeft:
+		t.Root = primitive.Row(t.buildRail(th), t.vDivider(th), bodyNode)
 		t.Root.Gap = 0
 		t.Root.CrossAlign = core.CrossStretch
-	} else {
-		div := primitive.NewDivider()
-		div.ColorToken = core.TokenColorBorder
-		barHost := primitive.NewDecorated(t.barScroll)
-		barHost.StretchChild = true
-		barHost.Background = th.Color(core.TokenColorBgContainer)
-		barHost.BorderWidth = 0
-		bodyHost := primitive.NewFlexible(1, t.bodyScroll)
-		bodyHost.FillChild = true
-		t.Root = primitive.Column(barHost, div, bodyHost)
+	case TabsRight:
+		t.Root = primitive.Row(bodyNode, t.vDivider(th), t.buildRail(th))
+		t.Root.Gap = 0
+		t.Root.CrossAlign = core.CrossStretch
+	case TabsBottom:
+		t.Root = primitive.Column(bodyNode, t.hDivider(th), t.barHost)
+		t.Root.Gap = 0
+		t.Root.CrossAlign = core.CrossStretch
+	default: // top
+		t.Root = primitive.Column(t.barHost, t.hDivider(th), bodyNode)
 		t.Root.Gap = 0
 		t.Root.CrossAlign = core.CrossStretch
 	}
+	t.Root.Base().Role = "tablist"
+	if t.AriaLabel != "" {
+		t.Root.Base().Label = t.AriaLabel
+	}
+	t.syncBody()
+}
+
+func (t *Tabs) buildRail(th *core.Theme) core.Node {
+	railW := t.tabWidth()
+	t.rail = primitive.NewDecorated(t.barScroll)
+	t.rail.Width = railW
+	t.rail.MinWidth = railW
+	t.rail.Background = th.Color(core.TokenColorBgContainer)
+	t.rail.BorderWidth = 0
+	t.rail.Padding = primitive.EdgeInsets{}
+	t.rail.StretchChild = true
+	t.rail.Hit = core.HitBlock
+	return t.rail
+}
+
+func (t *Tabs) wrapBody() core.Node {
+	th := t.theme()
+	padBody := primitive.NewDecorated(t.bodyScroll)
+	padBody.Padding = t.bodyPadding()
+	if t.isVertical() {
+		padBody.Background = th.Color(core.TokenColorBgLayout)
+	} else {
+		padBody.Background = th.Color(core.TokenColorBgContainer)
+	}
+	padBody.BorderWidth = 0
+	padBody.StretchChild = true
+	padBody.Hit = core.HitBlock
+	bodyHost := primitive.NewFlexible(1, padBody)
+	bodyHost.FillChild = true
+	return bodyHost
+}
+
+func (t *Tabs) wrapBarWithExtra(bar core.Node) core.Node {
+	if t.ExtraLeft == nil && t.ExtraRight == nil {
+		return bar
+	}
+	row := primitive.Row()
+	row.CrossAlign = core.CrossCenter
+	row.Gap = 8
+	if t.ExtraLeft != nil {
+		row.AddChild(t.ExtraLeft)
+	}
+	flex := primitive.NewFlexible(1, bar)
+	flex.FillChild = true
+	row.AddChild(flex)
+	if t.ExtraRight != nil {
+		row.AddChild(t.ExtraRight)
+	}
+	return row
+}
+
+func (t *Tabs) hDivider(th *core.Theme) core.Node {
+	div := primitive.NewDivider()
+	div.ColorToken = core.TokenColorBorder
+	_ = th
+	return div
+}
+
+func (t *Tabs) vDivider(th *core.Theme) core.Node {
+	div := primitive.NewDivider()
+	div.Vertical = true
+	div.Thickness = 1
+	div.ColorToken = core.TokenColorBorder
+	_ = th
+	return div
 }
 
 func (t *Tabs) applyInkChrome() {
 	if t.ink == nil {
 		return
 	}
-	// Ink Box is geometry/hit scaffolding only. The visible indicator is drawn
-	// exclusively by paintInk (tabsBarHost.Paint). Painting both left a ghost of
-	// the previous selection when Offset lagged behind inkAlong during animation.
 	t.ink.Color = render.RGBA{}
 }
 
-// paintInk draws the selection indicator into the bar host local coords.
-// Called from tabsBarHost.Paint so the mark is never clipped under siblings.
-// This is the only place the active indicator is painted (single mark).
 func (t *Tabs) paintInk(pc *core.PaintContext) {
 	if t == nil || pc == nil || !t.inkVisible() {
 		return
 	}
 	inkW := t.tabInkWidth()
 	if inkW <= 0 {
-		inkW = DefaultTabInkWidth
+		inkW = DefaultTabsInkThickness
 	}
 	col := t.inkColor()
 	if col.A <= 0 {
 		return
 	}
 	along, span := t.inkAlong, t.inkSpan
+	// Apply indicator size/align
+	span = t.indicatorSpan(span)
+	along = t.indicatorAlong(along, t.inkSpan, span)
 	if span < 4 {
-		// Before first layout, derive from item height.
-		if t.Position == TabLeft {
+		if t.isVertical() {
 			span = t.tabItemHeight()
 			if span <= 0 {
-				span = DefaultTabItemHeight
+				span = DefaultTabsCardHeight
 			}
 		} else {
 			span = 48
 		}
 	}
-	if t.Position == TabLeft {
-		// Right edge of bar list content.
+	if t.isVertical() {
 		main := t.inkContentMain
 		if t.barList != nil {
 			if w := t.barList.Size().Width; w > 1 {
@@ -598,12 +1275,14 @@ func (t *Tabs) paintInk(pc *core.PaintContext) {
 			}
 		}
 		if main < inkW {
-			// fallback: host width
 			if t.barStack != nil {
 				main = t.barStack.Size().Width
 			}
 		}
 		x := main - inkW
+		if t.placement() == TabsRight {
+			x = 0
+		}
 		if x < 0 {
 			x = 0
 		}
@@ -616,6 +1295,9 @@ func (t *Tabs) paintInk(pc *core.PaintContext) {
 			}
 		}
 		y := main - inkW
+		if t.placement() == TabsBottom {
+			y = 0
+		}
 		if y < 0 {
 			y = 0
 		}
@@ -623,32 +1305,49 @@ func (t *Tabs) paintInk(pc *core.PaintContext) {
 	}
 }
 
-// applyInkGeometry places the ink box at the current animated along/span.
+func (t *Tabs) indicatorSpan(origin float64) float64 {
+	if t.Indicator.SizeFn != nil {
+		return t.Indicator.SizeFn(origin)
+	}
+	if t.Indicator.Size > 0 {
+		return t.Indicator.Size
+	}
+	return origin
+}
+
+func (t *Tabs) indicatorAlong(originAlong, originSpan, inkSpan float64) float64 {
+	switch t.Indicator.Align {
+	case TabsIndicatorStart:
+		return originAlong
+	case TabsIndicatorEnd:
+		return originAlong + (originSpan - inkSpan)
+	default:
+		return originAlong + (originSpan-inkSpan)/2
+	}
+}
+
 func (t *Tabs) applyInkGeometry() {
 	if t.ink == nil {
 		return
 	}
 	inkW := t.tabInkWidth()
 	if inkW <= 0 {
-		inkW = DefaultTabInkWidth
+		inkW = DefaultTabsInkThickness
 	}
-	// Never paint the node itself — paintInk is sole visual source.
 	t.ink.Color = render.RGBA{}
 	if !t.inkVisible() {
 		t.ink.Width, t.ink.Height = 0, 0
 		t.setInkOffset(0, 0)
 		return
 	}
-
-	if t.Position == TabLeft {
-		// Vertical ink on the trailing edge of the tab list content box.
-		span := t.inkSpan
+	span := t.indicatorSpan(t.inkSpan)
+	along := t.indicatorAlong(t.inkAlong, t.inkSpan, span)
+	if t.isVertical() {
 		if span < 4 {
 			span = 4
 		}
 		t.ink.Width = inkW
 		t.ink.Height = span
-		// Cross-axis: right edge of laid-out bar list (or estimated content main).
 		main := t.inkContentMain
 		if t.barList != nil {
 			if w := t.barList.Size().Width; w > 0 {
@@ -656,12 +1355,14 @@ func (t *Tabs) applyInkGeometry() {
 			}
 		}
 		x := main - inkW
+		if t.placement() == TabsRight {
+			x = 0
+		}
 		if x < 0 {
 			x = 0
 		}
-		t.setInkOffset(x, t.inkAlong)
+		t.setInkOffset(x, along)
 	} else {
-		span := t.inkSpan
 		if span < 8 {
 			span = 8
 		}
@@ -674,14 +1375,16 @@ func (t *Tabs) applyInkGeometry() {
 			}
 		}
 		y := main - inkW
+		if t.placement() == TabsBottom {
+			y = 0
+		}
 		if y < 0 {
 			y = 0
 		}
-		t.setInkOffset(t.inkAlong, y)
+		t.setInkOffset(along, y)
 	}
 }
 
-// syncInkFromLaidOutBar rebuilds inkSlots from real tab host offsets/sizes after layout.
 func (t *Tabs) syncInkFromLaidOutBar() {
 	if t == nil || t.barList == nil {
 		return
@@ -700,21 +1403,22 @@ func (t *Tabs) syncInkFromLaidOutBar() {
 		}
 		off := host.Base().Offset()
 		sz := host.Base().Size()
-		if t.Position == TabLeft {
+		if t.isVertical() {
 			t.inkSlots = append(t.inkSlots, inkSlot{key: it.Key, along: off.Y, span: math.Max(sz.Height, 4)})
 		} else {
 			t.inkSlots = append(t.inkSlots, inkSlot{key: it.Key, along: off.X, span: math.Max(sz.Width, 8)})
 		}
 	}
+	// skip add button host if present
 	if bs := t.barList.Size(); bs.Width > 0 || bs.Height > 0 {
-		if t.Position == TabLeft && bs.Width > 0 {
+		if t.isVertical() && bs.Width > 0 {
 			t.inkContentMain = bs.Width
 		}
-		if t.Position != TabLeft && bs.Height > 0 {
+		if !t.isVertical() && bs.Height > 0 {
 			t.inkContentMain = bs.Height
 		}
 	}
-	if s := t.slotOf(t.Active); s != nil {
+	if s := t.slotOf(t.ActiveKey); s != nil {
 		if t.inkT < 0 {
 			t.inkAlong, t.inkSpan = s.along, s.span
 		} else {
@@ -738,7 +1442,6 @@ func (t *Tabs) setInkOffset(x, y float64) {
 		if s, ok := c.(stackOffSet); ok {
 			s.SetStackOffset(x, y)
 			t.ink.Base().SetOffset(core.Point{})
-			// Force size into layout cache for paint
 			if t.ink.Width > 0 && t.ink.Height > 0 {
 				t.ink.Base().SetSize(core.Size{Width: t.ink.Width, Height: t.ink.Height})
 			}
@@ -749,12 +1452,9 @@ func (t *Tabs) setInkOffset(x, y float64) {
 	}
 	newHost := primitive.PositionedAt(x, y, t.ink)
 	t.inkNode = newHost
-	// Keep barList; replace ink host only
-	kids := append([]core.Node(nil), t.barStack.Children()...)
 	t.barStack.ClearChildren()
 	t.barStack.AddChild(t.barList)
 	t.barStack.AddChild(newHost)
-	_ = kids
 	if t.ink.Width > 0 && t.ink.Height > 0 {
 		t.ink.Base().SetSize(core.Size{Width: t.ink.Width, Height: t.ink.Height})
 	}
@@ -766,28 +1466,29 @@ func (t *Tabs) rebuildBar() {
 	}
 	t.barList.ClearChildren()
 	th := t.theme()
+	keys := t.selectableKeys()
 	if t.Nav != nil {
-		t.Nav.SetCount(len(t.Items))
+		t.Nav.SetCount(len(keys))
 	}
 
 	itemH := t.tabItemHeight()
 	inkW := t.tabInkWidth()
 	padI, padB := t.padInline(), t.padBlock()
+	gutter := t.gutter()
 	railW := t.tabWidth()
+	fs := t.fontSize()
 
-	// Content width available for tabs (viewport will also subtract scrollbar gutter).
-	gutter := 0.0
+	gutterScroll := 0.0
 	if t.barScroll != nil {
 		if b := t.barScroll.Scrollbar(); b != nil {
-			gutter = b.GutterThickness()
+			gutterScroll = b.GutterThickness()
 		}
 	} else {
-		gutter = 6
+		gutterScroll = 6
 	}
 	innerW := railW
-	if t.Position == TabLeft {
-		innerW = railW - gutter
-		// Account for rail vertical padding? content is inside scroll only.
+	if t.isVertical() {
+		innerW = railW - gutterScroll
 		if innerW < 64 {
 			innerW = 64
 		}
@@ -795,21 +1496,24 @@ func (t *Tabs) rebuildBar() {
 
 	t.inkSlots = t.inkSlots[:0]
 	along := 0.0
+	firstSelectable := true
 
-	for i, it := range t.Items {
-		idx, key := i, it.Key
+	for _, it := range t.Items {
+		key := it.Key
 
 		if it.Divider {
 			line := primitive.NewBox()
 			line.Height = 1
 			line.Color = th.Color(core.TokenColorBorder)
 			host := primitive.NewDecorated(line)
-			host.Width = innerW
-			host.MinWidth = innerW
+			if t.isVertical() {
+				host.Width = innerW
+				host.MinWidth = innerW
+			}
 			host.Height = 9
 			host.MinHeight = 9
 			host.BorderWidth = 0
-			host.Padding = primitive.EdgeInsets{Top: 4, Bottom: 4, Left: padI, Right: padI}
+			host.Padding = primitive.EdgeInsets{Top: 4, Bottom: 4, Left: 16, Right: 16}
 			host.StretchChild = true
 			host.Background = render.RGBA{}
 			t.barList.AddChild(host)
@@ -818,6 +1522,7 @@ func (t *Tabs) rebuildBar() {
 		}
 
 		if it.Disabled || !it.Selectable() {
+			// Category header (disabled, non-selectable)
 			lab := primitive.NewText(it.Label)
 			lab.FontSize = th.SizeOr(core.TokenFontSizeSM, 12)
 			lab.Face = t.Face
@@ -826,13 +1531,14 @@ func (t *Tabs) rebuildBar() {
 				lab.Color = render.RGBA{R: 0.55, G: 0.55, B: 0.58, A: 1}
 			}
 			box := primitive.NewDecorated(lab)
-			box.Width = innerW
-			box.MinWidth = innerW
+			if t.isVertical() {
+				box.Width = innerW
+				box.MinWidth = innerW
+			}
 			box.BorderWidth = 0
 			box.Background = render.RGBA{}
-			box.Padding = primitive.EdgeInsets{Left: padI, Right: padI, Top: 10, Bottom: 4}
+			box.Padding = primitive.EdgeInsets{Left: 16, Right: 16, Top: 10, Bottom: 4}
 			box.StretchChild = true
-			// Match host preferred height: top 10 + bottom 4 + ~14 text.
 			h := 28.0
 			box.Height = h
 			box.MinHeight = h
@@ -841,93 +1547,200 @@ func (t *Tabs) rebuildBar() {
 			continue
 		}
 
-		active := key == t.Active
+		active := key == t.ActiveKey
+
+		// Label: [icon?] label. Close is a sibling Pressable (Pressable.HitTest does not walk children).
+		var labelKids []core.Node
+		if it.IconNode != nil {
+			labelKids = append(labelKids, it.IconNode)
+		} else if it.Icon != "" {
+			ic := NewIcon(it.Icon)
+			ic.SetSize(fs)
+			if active {
+				ic.SetColor(th.Color(core.TokenColorPrimary))
+			} else {
+				ic.SetColor(th.Color(core.TokenColorText))
+			}
+			labelKids = append(labelKids, ic.Node())
+		}
 		lab := primitive.NewText(it.Label)
-		lab.FontSize = th.SizeOr(core.TokenFontSize, 14)
+		lab.FontSize = fs
 		lab.Face = t.Face
 		if active {
 			lab.Color = th.Color(core.TokenColorPrimary)
 		} else {
 			lab.Color = th.Color(core.TokenColorText)
 		}
+		labelKids = append(labelKids, lab)
 
-		tab := primitive.NewPressable(lab)
-		tab.Base().Cursor = core.CursorPointer
-		tab.EnableRipple = true
-		tab.ShowFocusRing = false
-		tab.Focusable = false
-		if t.Position == TabLeft {
-			// Leave room on the right for the sliding ink bar.
-			tab.Padding = primitive.EdgeInsets{Left: padI, Right: padI + inkW, Top: padB, Bottom: padB}
+		var labelNode core.Node
+		if len(labelKids) == 1 {
+			labelNode = labelKids[0]
 		} else {
-			tab.Padding = primitive.Symmetric(padI, padB)
+			row := primitive.Row(labelKids...)
+			row.Gap = DefaultTabsIconGap
+			row.CrossAlign = core.CrossCenter
+			labelNode = row
+		}
+
+		tab := primitive.NewPressable(labelNode)
+		tab.Base().Cursor = core.CursorPointer
+		tab.EnableRipple = false
+		tab.ShowFocusRing = true
+		tab.FocusRingOutset = DefaultTabsFocusOutset
+		tab.Focusable = true
+		tab.Base().Role = "tab"
+		tab.Base().Label = it.Label
+		leftExtra := 0.0
+		if !t.isVertical() && !t.IsCard() {
+			if firstSelectable {
+				firstSelectable = false
+			} else {
+				leftExtra = gutter
+			}
+		}
+		if t.isVertical() {
+			tab.Padding = primitive.EdgeInsets{Left: 16, Right: 8 + inkW, Top: padB, Bottom: padB}
+		} else if t.IsCard() {
+			tab.Padding = primitive.EdgeInsets{Left: padI + leftExtra, Right: padI, Top: padB, Bottom: padB}
+		} else {
+			tab.Padding = primitive.EdgeInsets{Left: leftExtra, Right: 0, Top: padB, Bottom: padB}
 		}
 		tab.ColorHovered = antItemHoverFill(th)
 		if active {
-			tab.Color = antItemSelectedFill(th)
-		}
-		tab.Click = func() {
-			if t.Nav != nil {
-				t.Nav.Index = idx
+			if t.IsCard() {
+				tab.Color = th.Color(core.TokenColorBgContainer)
+			} else {
+				tab.Color = antItemSelectedFill(th)
 			}
-			t.SetActive(key)
+		}
+		k := key
+		tab.Click = func() {
+			t.activate(k)
+		}
+		t.itemPress[key] = tab
+
+		var tabChrome core.Node = tab
+		if it.closable(t.Type) {
+			closeLab := primitive.NewText("×")
+			closeLab.FontSize = fs
+			closeLab.Face = t.Face
+			closeLab.Color = th.Color(core.TokenColorTextSecondary)
+			closePr := primitive.NewPressable(closeLab)
+			closePr.Base().Cursor = core.CursorPointer
+			closePr.Padding = primitive.All(4)
+			closePr.ShowFocusRing = false
+			closePr.Focusable = false
+			closePr.Base().Role = "button"
+			closePr.Base().Label = "Remove tab"
+			ck := key
+			closePr.Click = func() {
+				if t.OnEdit != nil {
+					t.OnEdit(ck, "remove")
+				}
+			}
+			t.closePress[key] = closePr
+			row := primitive.Row(tab, closePr)
+			row.Gap = 4
+			row.CrossAlign = core.CrossCenter
+			tabChrome = row
 		}
 
-		if t.Position == TabLeft {
-			host := primitive.NewDecorated(tab)
+		host := primitive.NewDecorated(tabChrome)
+		host.BorderWidth = 0
+		host.StretchChild = true
+		if t.IsCard() {
+			host.BorderWidth = 1
+			host.BorderColor = th.Color(core.TokenColorBorder)
+			host.Radius = th.SizeOr(core.TokenBorderRadius, 6)
+			if active {
+				host.Background = th.Color(core.TokenColorBgContainer)
+				host.BorderColor = th.Color(core.TokenColorBorder)
+			} else {
+				host.Background = th.Color(core.TokenColorFillSecondary)
+				if host.Background.A <= 0 {
+					host.Background = render.RGBA{R: 0.97, G: 0.97, B: 0.98, A: 1}
+				}
+			}
+		} else if active {
+			host.Background = antItemSelectedFill(th)
+		} else {
+			host.Background = render.RGBA{}
+		}
+
+		span := itemH
+		if span <= 0 {
+			span = padB*2 + 20
+		}
+		if t.isVertical() {
 			host.Width = innerW
 			host.MinWidth = innerW
-			host.BorderWidth = 0
-			if active {
-				host.Background = antItemSelectedFill(th)
-			} else {
-				host.Background = render.RGBA{}
-			}
-			host.StretchChild = true
-			span := itemH
-			if span <= 0 {
-				span = padB*2 + 20
-			}
 			if itemH > 0 {
 				host.Height = itemH
 				host.MinHeight = itemH
 			}
-			t.barList.AddChild(host)
-			t.inkSlots = append(t.inkSlots, inkSlot{key: key, along: along, span: span})
-			along += span
-			continue
+		} else {
+			minW := 48.0 + leftExtra
+			approx := minW + float64(len(it.Label))*fs*0.55
+			if it.Icon != "" || it.IconNode != nil {
+				approx += fs + DefaultTabsIconGap
+			}
+			if it.closable(t.Type) {
+				approx += fs + DefaultTabsIconGap + 8
+			}
+			if approx < minW {
+				approx = minW
+			}
+			host.MinWidth = approx
+			host.Width = approx
+			if itemH > 0 {
+				host.Height = itemH
+				host.MinHeight = itemH
+			}
 		}
-
-		// Top tabs: measure width roughly from label + padding (fixed min).
-		// Prefer fixed min width for stable ink.
-		minW := 72.0
-		// Approximate: pad*2 + 8*len(label) — better after layout; use min for now.
-		span := minW + float64(len(it.Label))*7
-		if span < minW {
-			span = minW
-		}
-		host := primitive.NewDecorated(tab)
-		host.MinWidth = span
-		host.Width = span
-		host.BorderWidth = 0
-		if active {
-			host.Background = antItemSelectedFill(th)
-		}
-		host.StretchChild = true
-		if itemH > 0 {
-			host.Height = itemH
-			host.MinHeight = itemH
-		}
+		t.itemHost[key] = host
 		t.barList.AddChild(host)
 		t.inkSlots = append(t.inkSlots, inkSlot{key: key, along: along, span: span})
-		along += span
+		if t.isVertical() {
+			along += span
+		} else {
+			along += host.Width
+		}
 	}
 
-	// Content main size for ink placement (cross-axis).
-	if t.Position == TabLeft {
+	// editable-card add button
+	if t.Type == TabsEditableCard && !t.HideAdd {
+		addLab := primitive.NewText("+")
+		addLab.FontSize = fs + 2
+		addLab.Face = t.Face
+		addLab.Color = th.Color(core.TokenColorText)
+		add := primitive.NewPressable(addLab)
+		add.Base().Cursor = core.CursorPointer
+		add.Padding = primitive.Symmetric(10, padB)
+		add.ShowFocusRing = true
+		add.Focusable = true
+		add.Base().Role = "button"
+		add.Base().Label = "Add tab"
+		add.Click = func() {
+			if t.OnEdit != nil {
+				t.OnEdit("", "add")
+			}
+		}
+		t.addPress = add
+		addHost := primitive.NewDecorated(add)
+		addHost.BorderWidth = 1
+		addHost.BorderColor = th.Color(core.TokenColorBorder)
+		addHost.Radius = th.SizeOr(core.TokenBorderRadius, 6)
+		if itemH > 0 {
+			addHost.Height = itemH
+			addHost.MinHeight = itemH
+		}
+		t.barList.AddChild(addHost)
+	}
+
+	if t.isVertical() {
 		t.inkContentMain = innerW
 	} else {
-		// top: ink sits at bottom of bar row — height of bar content
 		h := itemH
 		if h <= 0 {
 			h = padB*2 + 22
@@ -935,11 +1748,10 @@ func (t *Tabs) rebuildBar() {
 		t.inkContentMain = h
 	}
 
-	// Snap ink if not animating
 	if t.inkT < 0 {
-		if s := t.slotOf(t.Active); s != nil {
+		if s := t.slotOf(t.ActiveKey); s != nil {
 			t.inkAlong, t.inkSpan = s.along, s.span
 		}
+		t.applyInkGeometry()
 	}
-	t.applyInkGeometry()
 }

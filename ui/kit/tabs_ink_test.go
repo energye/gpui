@@ -11,9 +11,9 @@ import (
 
 func TestTabsInkSlidesOnSwitch(t *testing.T) {
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "a", Label: "A"},
-		kit.MenuItem{Key: "b", Label: "B"},
-		kit.MenuItem{Key: "c", Label: "C"},
+		kit.TabItem{Key: "a", Label: "A"},
+		kit.TabItem{Key: "b", Label: "B"},
+		kit.TabItem{Key: "c", Label: "C"},
 	)
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160
@@ -43,8 +43,8 @@ func TestTabsInkSlidesOnSwitch(t *testing.T) {
 	}
 	// Still not finished or finished — ink should have moved toward C (slot y≈80)
 	// Smoke: no panic + active is c
-	if tabs.Active != "c" {
-		t.Fatal(tabs.Active)
+	if tabs.ActiveKey != "c" {
+		t.Fatal(tabs.ActiveKey)
 	}
 	// Finish animation
 	for i := 0; i < 20; i++ {
@@ -55,7 +55,7 @@ func TestTabsInkSlidesOnSwitch(t *testing.T) {
 }
 
 func TestTabsInkConfigurable(t *testing.T) {
-	tabs := kit.NewTabs(kit.MenuItem{Key: "a", Label: "A"}, kit.MenuItem{Key: "b", Label: "B"})
+	tabs := kit.NewTabs(kit.TabItem{Key: "a", Label: "A"}, kit.TabItem{Key: "b", Label: "B"})
 	tabs.SetPosition(kit.TabLeft)
 	tabs.SetInkSize(5)
 	tabs.SetInkColor(render.Hex("#FF0000"))

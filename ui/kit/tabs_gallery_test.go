@@ -11,8 +11,8 @@ import (
 
 func TestTabsGalleryLikeSwitch(t *testing.T) {
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "btn", Label: "Button"},
-		kit.MenuItem{Key: "input", Label: "Input"},
+		kit.TabItem{Key: "btn", Label: "Button"},
+		kit.TabItem{Key: "input", Label: "Input"},
 	)
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160
@@ -55,7 +55,7 @@ func TestTabsGalleryLikeSwitch(t *testing.T) {
 	// Force layout dirty flags before click path that rebuilds
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
-	fmt.Printf("active=%q dirty=%v\n", tabs.Active, tree.Dirty())
+	fmt.Printf("active=%q dirty=%v\n", tabs.ActiveKey, tree.Dirty())
 	fmt.Printf("root.needsLayout=%v flex.needsLayout=%v\n", root.Base().NeedsLayout(), tabs.Node().Base().NeedsLayout())
 
 	// Must layout after switch
@@ -65,8 +65,8 @@ func TestTabsGalleryLikeSwitch(t *testing.T) {
 	for i, p := range pressables {
 		fmt.Printf("after[%d] size=%v abs=%v\n", i, p.Size(), core.AbsoluteBounds(p))
 	}
-	if tabs.Active != "input" {
-		t.Fatalf("active=%q", tabs.Active)
+	if tabs.ActiveKey != "input" {
+		t.Fatalf("active=%q", tabs.ActiveKey)
 	}
 	if pressables[0].Size().Width < 100 {
 		t.Fatalf("tab not laid out after switch: %v", pressables[0].Size())

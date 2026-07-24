@@ -521,27 +521,35 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `type` | 必须 |
-| `items` | 必须 |
-| `children` | 必须 |
-| `icon` | 必须 |
-| 官方主路径示例 | 基本、禁用、居中、图标、指示条、滑动、附加内容、大小 |
+| `onChange` / `onTabClick` | 必须 |
+| `activeKey` / `defaultActiveKey` | 受控 + 非受控 |
+| `disabled` | 项级禁用 |
+| `size` | small / medium / large |
+| `type` | line / card / editable-card（card 样式 + editable 的 remove/add 回调） |
+| `items` + `label` + `children` + `icon` | 数据驱动 |
+| `centered` | 标签居中（水平） |
+| `indicator` | 指示条 size/align（line） |
+| `tabBarExtraContent` | left/right 附加内容 |
+| `tabPlacement` / `tabPosition` | top / bottom / left / right（至少 top+left 布局正确） |
+| `destroyOnHidden` | 隐藏面板卸载 |
+| `hideAdd` / `onEdit` | editable-card 增删 |
+| 键盘方向 | 在可选项间移动 active（§6.4 TAB-S8） |
+| 官方主路径示例（gallery） | 基本、禁用、居中、图标、指示条、滑动、附加内容、大小 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| a11y §6.6 | tablist / tab / 焦点环最低要求 |
+| §6.9 中 **L1/L2 且非 P1** 用例 | 测试通过（含 TAB-05/06/07 能力，不强制完整 gallery 四方位/editable 全页） |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 ink / tabPane | 分期（P0 ink 可瞬时或短滑动） |
+| `more` 折叠菜单 / 溢出 Dropdown 深度 | 分期 |
+| `renderTabBar` / 可拖拽标签 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 位置, 卡片式页签, 新增和关闭页签, 自定义新增页签触发器 |
+| 其余 gallery 示例页 | 位置全矩阵页、卡片式页签完整页、新增和关闭页签完整页、自定义新增触发器、自定义页签头 |
 
 ### 6.9 验收用例表（可测）
 
@@ -581,23 +589,59 @@ mount ──► items；activeKey=默认第一或 defaultActiveKey
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewTabs(...) *Tabs
+type TabItem struct {
+  Key, Label string
+  Children   core.Node   // 面板内容（antd children）
+  Icon       string      // 图标名；或 IconNode
+  IconNode   core.Node
+  Disabled   bool
+  Closable   *bool       // nil → editable-card 默认 true
+  ForceRender bool
+  // kit 扩展（catalog 左轨）：Divider / 灰标题用 Disabled+无 Children
+  Divider bool
+}
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewTabs(items ...TabItem) *Tabs
+
+// items / 面板
+SetItems([]TabItem)
+SetContent(key string, n core.Node)   // 写 items[i].Children 或侧表
+// 激活
+SetActiveKey(key)                     // 受控
+SetDefaultActiveKey(key)              // 非受控初始
+ActiveKey() string
+// 形态
+SetType(line|card|editable-card)
+SetSize(small|middle|large)
+SetPlacement(top|bottom|left|right)   // tabPlacement；兼容 SetPosition
+SetCentered(bool)
+SetIndicator(size, align)             // line ink
+SetTabBarGutter(px)                   // 0 → horizontalItemGutter=32
+SetTabBarExtraContent(left, right core.Node)
+SetHideAdd(bool)
+SetDestroyOnHidden(bool)
+// 回调
+SetOnChange(func(key string))
+SetOnEdit(func(targetKey, action string)) // action: add|remove
+SetOnTabClick(func(key string))
+// 主题 / a11y / 挂树
+SetTheme / SetFace / SetAriaLabel
+AttachTicker(*Tree)                   // ink 滑动（可选）
+HandleKey(*KeyEvent) bool
+Node() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Type | line |
+| Size | middle（medium） |
+| Placement | top |
+| Centered / HideAdd / DestroyOnHidden | false |
+| ActiveKey | 第一个可选项 key；或 `defaultActiveKey` |
+| TabBarGutter | 32（水平 line；`horizontalItemGutter`） |
+| Ink animated | true（可关；reduced-motion 下瞬时） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

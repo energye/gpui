@@ -78,18 +78,18 @@ func TestBehavior_SwitchToggle(t *testing.T) {
 
 func TestBehavior_TabsSwitch(t *testing.T) {
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "a", Label: "A"},
-		kit.MenuItem{Key: "b", Label: "B"},
+		kit.TabItem{Key: "a", Label: "A"},
+		kit.TabItem{Key: "b", Label: "B"},
 	)
 	tabs.SetContent("a", kit.NewText("PA").Node())
 	tabs.SetContent("b", kit.NewText("PB").Node())
 	tabs.SetActive("a")
-	if tabs.Active != "a" {
-		t.Fatal(tabs.Active)
+	if tabs.ActiveKey != "a" {
+		t.Fatal(tabs.ActiveKey)
 	}
 	tabs.SetActive("b")
-	if tabs.Active != "b" {
-		t.Fatalf("active=%q want b", tabs.Active)
+	if tabs.ActiveKey != "b" {
+		t.Fatalf("active=%q want b", tabs.ActiveKey)
 	}
 }
 

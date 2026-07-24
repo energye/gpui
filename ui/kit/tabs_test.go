@@ -10,9 +10,9 @@ import (
 
 func TestTabsLeftItemHeightNotFillRail(t *testing.T) {
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "a", Label: "A"},
-		kit.MenuItem{Key: "b", Label: "B"},
-		kit.MenuItem{Key: "c", Label: "C"},
+		kit.TabItem{Key: "a", Label: "A"},
+		kit.TabItem{Key: "b", Label: "B"},
+		kit.TabItem{Key: "c", Label: "C"},
 	)
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160
@@ -106,8 +106,8 @@ func TestTabsLeftItemHeightNotFillRail(t *testing.T) {
 
 func TestTabsLeftClickSwitches(t *testing.T) {
 	tabs := kit.NewTabs(
-		kit.MenuItem{Key: "a", Label: "Alpha"},
-		kit.MenuItem{Key: "b", Label: "Beta"},
+		kit.TabItem{Key: "a", Label: "Alpha"},
+		kit.TabItem{Key: "b", Label: "Beta"},
 	)
 	tabs.SetPosition(kit.TabLeft)
 	tabs.TabWidth = 160
@@ -125,9 +125,9 @@ func TestTabsLeftClickSwitches(t *testing.T) {
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
 
-	if tabs.Active != "b" {
+	if tabs.ActiveKey != "b" {
 		// dump hit
 		hit := tree.HitTest(core.Point{X: x, Y: y})
-		t.Fatalf("after click active=%q want b; hit=%T abs=%v", tabs.Active, hit, core.AbsoluteBounds(hit))
+		t.Fatalf("after click active=%q want b; hit=%T abs=%v", tabs.ActiveKey, hit, core.AbsoluteBounds(hit))
 	}
 }

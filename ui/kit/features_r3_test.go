@@ -389,23 +389,23 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Tabs": {
 			{"R1 items", func(t *testing.T) {
-				tabs := kit.NewTabs(kit.MenuItem{Key: "a", Label: "A"})
+				tabs := kit.NewTabs(kit.TabItem{Key: "a", Label: "A"})
 				if tabs.Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 active", func(t *testing.T) {
-				tabs := kit.NewTabs(kit.MenuItem{Key: "a", Label: "A"}, kit.MenuItem{Key: "b", Label: "B"})
+				tabs := kit.NewTabs(kit.TabItem{Key: "a", Label: "A"}, kit.TabItem{Key: "b", Label: "B"})
 				tabs.SetActive("b")
-				if tabs.Active != "b" {
+				if tabs.ActiveKey != "b" {
 					t.Fatal()
 				}
 			}},
 			{"R3 type card", func(t *testing.T) {
-				tabs := kit.NewTabs(kit.MenuItem{Key: "a", Label: "A"})
-				tabs.SetType("card")
+				tabs := kit.NewTabs(kit.TabItem{Key: "a", Label: "A"})
+				tabs.SetType(kit.TabsCard)
 				tabs.Centered = true
-				if tabs.Type != "card" || !tabs.Centered {
+				if tabs.Type != kit.TabsCard || !tabs.Centered {
 					t.Fatal()
 				}
 			}},

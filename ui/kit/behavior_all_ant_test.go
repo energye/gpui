@@ -217,10 +217,10 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Tabs", func(t *testing.T) {
-			tabs := kit.NewTabs(kit.MenuItem{Key: "a", Label: "A"}, kit.MenuItem{Key: "b", Label: "B"})
+			tabs := kit.NewTabs(kit.TabItem{Key: "a", Label: "A"}, kit.TabItem{Key: "b", Label: "B"})
 			tabs.SetActive("b")
-			if tabs.Active != "b" {
-				t.Fatal(tabs.Active)
+			if tabs.ActiveKey != "b" {
+				t.Fatal(tabs.ActiveKey)
 			}
 		}},
 		{"AutoComplete", func(t *testing.T) {
