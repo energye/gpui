@@ -160,3 +160,132 @@ func (s ButtonShape) String() string {
 		return "default"
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Input (docs/antd/input.md §6.10)
+// ---------------------------------------------------------------------------
+
+// InputSize is Ant Design Input size (medium → middle).
+// https://ant.design/components/input — size: large | medium | small
+type InputSize int
+
+const (
+	InputMiddle InputSize = iota // default; antd "medium"
+	InputSmall
+	InputLarge
+)
+
+// InputVariant is Ant Design 5.13+ visual variant.
+// https://ant.design/components/input — variant
+type InputVariant int
+
+const (
+	InputOutlined InputVariant = iota // default
+	InputFilled
+	InputBorderless
+	InputUnderlined
+)
+
+// InputStatus is validation chrome (error | warning).
+type InputStatus int
+
+const (
+	InputStatusNone InputStatus = iota
+	InputStatusError
+	InputStatusWarning
+)
+
+// InputType is the single-line input kind (native type subset).
+// Use NewTextArea for multi-line — do not use type=textarea.
+type InputType int
+
+const (
+	InputTypeText InputType = iota
+	InputTypePassword
+)
+
+// SearchSource identifies what triggered Input.Search onSearch.
+type SearchSource int
+
+const (
+	SearchFromInput  SearchSource = iota // Enter in field
+	SearchFromClear                      // clear icon (antd may also fire onSearch)
+	SearchFromButton                     // search icon / enterButton
+)
+
+func (s InputSize) String() string {
+	switch s {
+	case InputSmall:
+		return "small"
+	case InputLarge:
+		return "large"
+	default:
+		return "middle"
+	}
+}
+
+func (v InputVariant) String() string {
+	switch v {
+	case InputFilled:
+		return "filled"
+	case InputBorderless:
+		return "borderless"
+	case InputUnderlined:
+		return "underlined"
+	default:
+		return "outlined"
+	}
+}
+
+func (s InputStatus) String() string {
+	switch s {
+	case InputStatusError:
+		return "error"
+	case InputStatusWarning:
+		return "warning"
+	default:
+		return ""
+	}
+}
+
+func (t InputType) String() string {
+	if t == InputTypePassword {
+		return "password"
+	}
+	return "text"
+}
+
+func (s SearchSource) String() string {
+	switch s {
+	case SearchFromClear:
+		return "clear"
+	case SearchFromButton:
+		return "button"
+	default:
+		return "input"
+	}
+}
+
+// ToButtonSize maps InputSize → ButtonSize for Space.Compact co-sizing.
+func (s InputSize) ToButtonSize() ButtonSize {
+	switch s {
+	case InputSmall:
+		return ButtonSmall
+	case InputLarge:
+		return ButtonLarge
+	default:
+		return ButtonMiddle
+	}
+}
+
+// InputSizeFromButton maps Compact/Button size onto Input.
+func InputSizeFromButton(s ButtonSize) InputSize {
+	switch s {
+	case ButtonSmall:
+		return InputSmall
+	case ButtonLarge:
+		return InputLarge
+	default:
+		return InputMiddle
+	}
+}

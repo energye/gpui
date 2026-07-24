@@ -56,7 +56,7 @@ func AntCoverage() []CoverageEntry {
 		{Ant: "ColorPicker", Status: CovReady, Via: "kit.ColorPicker", Since: "Base-ALL", Notes: "swatches"},
 		{Ant: "DatePicker", Status: CovReady, Via: "kit.DatePicker", Since: "Base-ALL", Notes: "SelectDay+Value; range later"},
 		{Ant: "Form", Status: CovReady, Via: "kit.Form + FormModel", Since: "M3"},
-		{Ant: "Input", Status: CovReady, Via: "kit.Input", Since: "M2"},
+		{Ant: "Input", Status: CovReady, Via: "kit.Input / Search / Password / TextArea", Since: "M2", Notes: "P0 对齐 docs/antd/input.md §6（value/defaultValue/onChange 受控、disabled/readOnly、maxLength、onPressEnter、size 24/32/40、type text|password、variant outlined|filled|borderless|underlined、status error|warning、allowClear、prefix/suffix、Input.Search onSearch+enterButton+loading Ticker、Input.TextArea rows+autoSize min/maxRows、Input.Password visibilityToggle 掩码、a11y textbox+AriaLabel、Token paddingInline≈11/radius6、hit==layout==paint）；P1: showCount/count CountConfig、Input.OTP、formatter 展示、searchIcon/iconRender 深度、semantic classNames/styles、ConfigProvider 全局、debug/官网逐像素"},
 		{Ant: "InputNumber", Status: CovReady, Via: "kit.InputNumber", Since: "Base-ALL"},
 		{Ant: "Mentions", Status: CovReady, Via: "kit.Mentions", Since: "Base-ALL"},
 		{Ant: "Radio", Status: CovReady, Via: "kit.Radio/RadioGroup", Since: "M2"},

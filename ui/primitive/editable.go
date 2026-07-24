@@ -26,6 +26,10 @@ type EditableText struct {
 	ReadOnly  bool
 	Disabled  bool
 	MaxLength int
+	// Password masks displayed glyphs (Value stays plaintext). Used by kit.Password.
+	Password bool
+	// MaskChar replaces each rune when Password; 0 → '•'.
+	MaskChar rune
 	// Width/Height preferred; 0 → intrinsic / expand.
 	Width, Height    float64
 	FontSize         float64
@@ -131,11 +135,36 @@ func (e *EditableText) displayText() string {
 	if e.Value == "" && e.preedit == "" {
 		return e.Placeholder
 	}
+	raw := e.Value
 	if e.preedit != "" {
 		// Insert preedit at caret for display.
-		return insertAtRune(e.Value, e.Cursor, e.preedit)
+		raw = insertAtRune(e.Value, e.Cursor, e.preedit)
 	}
-	return e.Value
+	if e.Password {
+		return maskRunes(raw, e.MaskChar)
+	}
+	return raw
+}
+
+// maskRunes replaces every non-empty rune with mask (default '•').
+// Newlines are preserved so multiline password fields keep line structure.
+func maskRunes(s string, mask rune) string {
+	if mask == 0 {
+		mask = '•'
+	}
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	out := make([]rune, len(r))
+	for i, ch := range r {
+		if ch == '\n' {
+			out[i] = '\n'
+		} else {
+			out[i] = mask
+		}
+	}
+	return string(out)
 }
 
 // LineMetricsForTest exposes line pitch for geometry tests.

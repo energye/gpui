@@ -663,30 +663,39 @@ mount ──► idle
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `loading` | 必须 |
-| `size` | 必须 |
-| `type` | 必须 |
-| `variant` | 必须 |
-| `status` | 必须 |
-| `allowClear` | 必须 |
+| `value` / `defaultValue` / `onChange` | 受控与非受控；键入只经 `onChange` 上抛 |
+| `disabled` / `readOnly` | 禁用不可编辑；只读可聚焦不可改 |
+| `maxLength` | 截断输入，无法超过 N |
+| `onPressEnter` | 单行 Enter 回调（antd `onPressEnter`） |
+| `size` | small / middle(medium) / large → 高 24/32/40 |
+| `type` | 单行 `text`（默认）；密码见 `Input.Password`（勿用 `type=textarea`） |
+| `variant` | outlined / filled / borderless / underlined |
+| `status` | error / warning 语义边框（不阻断输入） |
+| `allowClear` | 有内容时显示清除；点清除 → `onChange("")` + `onClear` |
+| `prefix` / `suffix` | 前后缀节点（`size.tsx` 等主路径需要） |
+| **Input.Search** | `onSearch`、`enterButton`（bool/文案）、**`loading`**（仅 Search；用 Ticker 转圈） |
+| **Input.TextArea** | `rows`；`autoSize` bool 或 `{minRows,maxRows}` |
+| **Input.Password** | `visibilityToggle` 掩码显隐，`value` 不变（INP-09） |
 | 官方主路径示例 | 基本使用、三种大小、形态变体、紧凑模式、搜索框、搜索框 loading、文本域、适应文本高度的文本域 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| a11y §6.6 | 最低要求（textbox 角色、AriaLabel、error→invalid、Focus ring） |
+| §6.9 中 L1/L2 用例 | 测试通过（INP-01…INP-25；L3/L4/P1 除外） |
+
+> **说明（相对旧稿修正）**：antd 基础 `Input` **无** `loading`；`loading` 仅 **`Input.Search`**（见官方 `search-input-loading.tsx`）。P0 验收以 Search.loading 为准。`Input.Password` 虽不在官方「主路径示例」前八项，但 §6.4 / INP-09 为 L1 必测，故纳入 P0。
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `showCount` / `count`（CountConfig） | 字数统计与自定义 strategy |
+| Input.OTP | 一次性密码框 |
+| 输入时格式化展示（tooltip formatter） | 分期 |
+| `searchIcon` 自定义 / `iconRender` 深度 | 分期 |
 | semantic classNames/styles 深度 | 分期 |
+| ConfigProvider 全局默认 | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 一次性密码框, 输入时格式化展示, 前缀和后缀, 密码框 |
 
 ### 6.9 验收用例表（可测）
 
@@ -725,42 +734,97 @@ mount ──► idle
 | INP-28 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约，实现可微调命名但语义不可丢。
 
 ```text
-NewInput(...) *Input
+// --- 类型 ---
+InputSize     = small | middle | large     // 默认 middle（antd medium）
+InputVariant  = outlined | filled | borderless | underlined  // 默认 outlined
+InputStatus   = none | error | warning
+InputType     = text | password            // 默认 text；textarea 走 NewTextArea
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// --- Input ---
+NewInput(placeholder string) *Input
+NewInputWithDefault(placeholder, defaultValue string) *Input
+
+SetValue(string)                 // 写显示值；值变化时触发 OnChange（kit 历史路径 / Form 兼容）
+Value() string
+SetDefaultValue(string)          // 仅未受控且未编辑时生效
+SetPlaceholder(string)
+SetSize(InputSize)
+SetVariant(InputVariant)
+SetStatus(InputStatus)
+SetType(InputType)               // text|password 快捷掩码（完整产品用 NewPassword）
+SetControlled(bool)              // true：键入只 onChange 上抛，不私自写回 Value（INP-02）
+SetDisabled(bool)
+SetReadOnly(bool)
+SetMaxLength(int)                // 0 = 不限
+SetAllowClear(bool)
+SetPrefix(core.Node) / SetSuffix(core.Node)
+SetOnChange(func(string))
+SetOnPressEnter(func(string))    // 单行 Enter；兼容旧名 SetOnSubmit
+SetOnClear(func())
+SetTheme(*Theme) / Theme 字段
+Style 可选覆盖
+SetAriaLabel(string)
+SetFixedSize(w, h float64)       // 场景/表单定宽
+AttachTicker(*Tree)              // caret + Search loading
+Editor() *primitive.EditableText
+ChromeNode() core.Node           // Decorated 外框
+Node() core.Node
+IsFocused() bool
+
+// --- Input.Search ---
+NewSearch(placeholder string) *Search   // 内嵌 *Input
+SetEnterButton(bool) / SetEnterButtonText(string)
+SetLoading(bool)                 // Ticker 旋转；禁用搜索提交
+SetOnSearch(func(value string, source SearchSource))  // input|clear|button
+// 其余透传 Input：Size/Variant/AllowClear/Disabled/…
+
+// --- Input.TextArea ---
+NewTextArea(placeholder string, rows int) *TextArea  // rows 默认 3（antd 常 4 示例）
+SetRows(int)
+SetAutoSize(bool) / SetAutoSizeRange(minRows, maxRows int)
+// 共享 Input 字段：Value/MaxLength/Status/Variant/Disabled/…
+
+// --- Input.Password ---
+NewPassword(placeholder string) *Password
+SetVisibilityToggle(bool)        // 默认 true
+SetVisible(bool) / IsVisible() bool
+// 共享 Input；掩码字符 ● 或 *
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Size | middle |
+| Variant | outlined |
+| Status | none |
+| Type | text |
+| Disabled / ReadOnly / AllowClear / Loading | false |
+| VisibilityToggle（Password） | true |
+| Password visible | false（掩码） |
+| 受控值 | 未 `SetValue` 时用 `defaultValue` 或 `""` |
+| TextArea rows | 调用方传入；`<2` → 3 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+Decorated（底、边框、圆角、高度 / TextArea 最小高）
+  └─ Flex(Row) CrossStretch gap≈6
+       prefix? · Flexible(EditableText) · clear? · suffix?
+                                         · Search: searchIcon | enterButton | spinner?
+                                         · Password: eye toggle?
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- 组合 `ui/primitive`（Decorated / Flex / EditableText / Pressable / Icon / Canvas）+ `ui/core`，禁止第二套事件/帧循环。  
+- Focus chrome：外框主色边 + 可见 ring（`TokenColorControlOutline` / outset≈1.5）；内层 EditableText `ShowFocusRing=false`。  
+- Search `loading` / caret 用 `Tree.AddTicker`，静止卸掉；禁止 ContinuousRender。  
+- `rebuild()` 只读 Default / 字段 / Token；值变更不整树 rebuild（patch editor.Value）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 紧凑模式：与 `Space.Compact` 组合（gallery / INP-17）；Input 自身不实现 addonBefore/After（antd 已弃用）。
 
 ### 6.12 完成定义（DoD）
 
