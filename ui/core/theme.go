@@ -17,13 +17,15 @@ const (
 	TokenColorBgLayout        = "colorBgLayout"
 	TokenColorBorder          = "colorBorder"
 	TokenColorBorderSecondary = "colorBorderSecondary"
-	TokenColorError           = "colorError"
-	TokenColorSuccess         = "colorSuccess"
-	TokenColorWarning         = "colorWarning"
-	TokenColorDisabledBg      = "colorDisabledBg"
-	TokenColorDisabledText    = "colorDisabledText"
-	TokenColorFillSecondary   = "colorFillSecondary"
-	TokenColorBgMask          = "colorBgMask"
+	// TokenColorSplit is Divider/Table rail color (antd colorSplit ≈ text @ 6%).
+	TokenColorSplit         = "colorSplit"
+	TokenColorError         = "colorError"
+	TokenColorSuccess       = "colorSuccess"
+	TokenColorWarning       = "colorWarning"
+	TokenColorDisabledBg    = "colorDisabledBg"
+	TokenColorDisabledText  = "colorDisabledText"
+	TokenColorFillSecondary = "colorFillSecondary"
+	TokenColorBgMask        = "colorBgMask"
 	// Hover/interaction fills (Ant controlItemBgHover / text hover).
 	TokenColorBgTextHover    = "colorBgTextHover"
 	TokenColorBgTextActive   = "colorBgTextActive"
@@ -280,6 +282,10 @@ func AntLightTokens() *TokenSet {
 	t.Colors[TokenColorBgLayout] = render.Hex("#F5F5F5")
 	t.Colors[TokenColorBorder] = render.Hex("#D9D9D9")
 	t.Colors[TokenColorBorderSecondary] = render.Hex("#F0F0F0")
+	// antd colorSplit is rgba(5,5,5,0.06); blended on white ≈ #F0F0F0.
+	// Use opaque equivalent so 1px vertical rails stay visible under software AA
+	// (raw A=0.06 on a 1×12 hairline is effectively invisible).
+	t.Colors[TokenColorSplit] = render.Hex("#F0F0F0")
 	t.Colors[TokenColorError] = render.Hex("#FF4D4F")
 	t.Colors[TokenColorSuccess] = render.Hex("#52C41A")
 	t.Colors[TokenColorWarning] = render.Hex("#FAAD14")

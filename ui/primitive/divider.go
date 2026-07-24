@@ -6,6 +6,8 @@ import (
 )
 
 // Divider is a geometric separator line (horizontal or vertical).
+// Solid paints a filled hairline; when Dash is non-empty, paints a stroked
+// dashed/dotted line (antd Divider variant).
 type Divider struct {
 	core.NodeBase
 
@@ -17,10 +19,13 @@ type Divider struct {
 	Length float64
 	// Color of the line.
 	Color render.RGBA
-	// ColorToken optional theme key.
+	// ColorToken optional theme key (e.g. colorSplit).
 	ColorToken string
 	// Margin around the line.
 	Margin EdgeInsets
+	// Dash when non-empty draws a dashed/dotted stroke instead of a solid fill.
+	// Example: dashed ≈ {4, 4}, dotted ≈ {1, 3}.
+	Dash []float64
 }
 
 // NewDivider creates a horizontal divider.
@@ -94,22 +99,52 @@ func (d *Divider) Paint(pc *core.PaintContext) {
 			col = pc.Theme.Color(core.TokenColorBorder)
 		}
 	}
+	if col.A <= 0 {
+		return
+	}
 	th := d.Thickness
 	if th <= 0 {
 		th = 1
 	}
 	sz := d.Size()
+	x := d.Margin.Left
+	y := d.Margin.Top
 	if d.Vertical {
-		x := d.Margin.Left
-		y := d.Margin.Top
 		h := sz.Height - d.Margin.Top - d.Margin.Bottom
+		if h <= 0 {
+			return
+		}
+		if len(d.Dash) > 0 {
+			d.strokeDashed(pc, x+th/2, y, x+th/2, y+h, th, col)
+			return
+		}
 		pc.FillLocalRect(x, y, th, h, col)
-	} else {
-		x := d.Margin.Left
-		y := d.Margin.Top
-		w := sz.Width - d.Margin.Left - d.Margin.Right
-		pc.FillLocalRect(x, y, w, th, col)
+		return
 	}
+	w := sz.Width - d.Margin.Left - d.Margin.Right
+	if w <= 0 {
+		return
+	}
+	if len(d.Dash) > 0 {
+		d.strokeDashed(pc, x, y+th/2, x+w, y+th/2, th, col)
+		return
+	}
+	pc.FillLocalRect(x, y, w, th, col)
+}
+
+func (d *Divider) strokeDashed(pc *core.PaintContext, x0, y0, x1, y1, th float64, col render.RGBA) {
+	if pc.DC == nil {
+		// Fallback: solid segment when no draw context (headless layout-only).
+		if d.Vertical {
+			pc.FillLocalRect(x0-th/2, y0, th, y1-y0, col)
+		} else {
+			pc.FillLocalRect(x0, y0-th/2, x1-x0, th, col)
+		}
+		return
+	}
+	pc.DC.SetDash(d.Dash...)
+	pc.StrokeLocalLine(x0, y0, x1, y1, th, col)
+	pc.DC.SetDash()
 }
 
 // HitTest implements core.Node.

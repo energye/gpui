@@ -108,7 +108,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		{"Divider", func(t *testing.T) {
 			d := kit.NewDivider()
 			d.SetVertical(true)
-			if d.Root == nil || !d.Root.Vertical {
+			if d.Root == nil || !d.IsVertical() {
 				t.Fatal("vertical not set")
 			}
 		}},

@@ -117,15 +117,15 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			{"R2 vertical", func(t *testing.T) {
 				d := kit.NewDivider()
 				d.SetVertical(true)
-				if !d.Root.Vertical {
+				if !d.IsVertical() {
 					t.Fatal()
 				}
 			}},
 			{"R3 dashed/text", func(t *testing.T) {
 				d := kit.NewDivider()
 				d.SetDashed(true)
-				d.SetText("OR")
-				if !d.Dashed || d.Text != "OR" {
+				d.SetTitle("OR")
+				if !d.Dashed || d.Title != "OR" || d.EffectiveVariant() != kit.DividerDashed {
 					t.Fatal()
 				}
 			}},
