@@ -23,26 +23,32 @@ func (c *catalogCtx) registerGrid() {
 		}
 		return render.Hex("#1677ffbf")
 	}
-	// Content block inside Col (matches antd demo height/padding vibe).
+	// Content block inside Col — match antd site CSS (.dumi Markdown.tsx grid-demo):
+	//   min-height: 30px; padding: 16px 0; text-align: center; alternating bg.
+	// Row.align/justify only place Cols; cell label centering is demo chrome.
 	mkCell := func(label string, i int, h float64) core.Node {
 		tx := kit.NewText(label)
 		tx.SetFace(c.face)
 		tx.SetStyle(kit.Style{Text: render.RGBA{R: 1, G: 1, B: 1, A: 1}})
 		d := primitive.NewDecorated(tx.Node())
 		d.Background = colBg(i)
-		d.Padding = primitive.Symmetric(0, 8)
+		d.ExpandWidth = true
+		// CenterContent (no StretchChild) → label mid-box both axes (text-align:center).
+		d.SetCenterContent(true)
 		if h > 0 {
+			// flex-align.tsx height-N classes (line-height ≈ height for mid text).
 			d.Height = h
 			d.MinHeight = h
 		} else {
-			d.MinHeight = 32
+			// basic / offset / sort / flex / order / stretch default chrome.
+			d.MinHeight = 30
+			d.Padding = primitive.Symmetric(0, 16) // padding: 16px 0
 		}
-		d.ExpandWidth = true
-		d.StretchChild = true
 		return d
 	}
 	mkCol := func(span int, label string, i int) *kit.Col {
-		col := kit.NewCol(mkCell(label, i, 32))
+		// h=0 → site default min-height 30 + vertical padding 16.
+		col := kit.NewCol(mkCell(label, i, 0))
 		if span >= 0 {
 			col.SetSpan(span)
 		}
@@ -93,14 +99,18 @@ func (c *catalogCtx) registerGrid() {
 
 	// ---------- gutter.tsx ----------
 	gutterCell := func(label string, i int) *kit.Col {
-		// gutter demo wraps content with padding style — our Col padH handles gutter.
+		// antd gutter.tsx: inner div style={{ padding: '8px 0', backgroundColor: '#0092ff' }}
+		// site CSS still applies min-height:30 + text-align:center on .ant-row > div.
 		tx := kit.NewText(label)
 		tx.SetFace(c.face)
 		tx.SetStyle(kit.Style{Text: render.RGBA{R: 1, G: 1, B: 1, A: 1}})
 		inner := primitive.NewDecorated(tx.Node())
 		inner.Background = render.Hex("#0092ff")
-		inner.Padding = primitive.Symmetric(8, 0)
+		// Symmetric(h,v): was (8,0)=horizontal — wrong; antd is vertical 8.
+		inner.Padding = primitive.Symmetric(0, 8)
+		inner.MinHeight = 30
 		inner.ExpandWidth = true
+		inner.SetCenterContent(true)
 		col := kit.NewCol(inner)
 		col.SetSpan(6)
 		return col

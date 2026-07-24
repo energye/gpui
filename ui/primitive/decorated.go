@@ -172,23 +172,19 @@ func (d *Decorated) Layout(c core.Constraints) core.Size {
 
 	// Position children top-left (hit == paint == Flutter Align.topLeft).
 	// CenterContent is opt-in; StretchChild always keeps top-left (contract tests).
-	// Horizontal center when chrome has explicit Width so icon-only FixedSize FABs
-	// stay mid-box if content is smaller than chrome.
+	// When enabled, center in any spare space of the final outer box (Width /
+	// MinWidth / Height / MinHeight / ExpandWidth / parent tight constraints).
+	// Previously only Width/Min* counted — ExpandWidth (block bars, grid demo
+	// cells) left labels top-left despite CenterContent=true.
 	offX, offY := padL, padT
-	explicitChromeH := d.Height > 0 || d.MinHeight > content.Height+padT+padB
-	explicitChromeW := d.Width > 0 || d.MinWidth > content.Width+padL+padR
 	if !d.StretchChild && d.centerContentEnabled() && len(kids) >= 1 {
-		if explicitChromeH {
-			availH := out.Height - padT - padB
-			if availH > content.Height {
-				offY = padT + (availH-content.Height)/2
-			}
+		availH := out.Height - padT - padB
+		if availH > content.Height {
+			offY = padT + (availH-content.Height)/2
 		}
-		if explicitChromeW {
-			availW := out.Width - padL - padR
-			if availW > content.Width {
-				offX = padL + (availW-content.Width)/2
-			}
+		availW := out.Width - padL - padR
+		if availW > content.Width {
+			offX = padL + (availW-content.Width)/2
 		}
 	}
 	for _, child := range kids {

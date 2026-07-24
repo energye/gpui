@@ -525,3 +525,94 @@ func TestGrid_PRD_Span0Hidden(t *testing.T) {
 		t.Fatalf("hidden col w=%v", c1.Node().Base().Size().Width)
 	}
 }
+
+// galleryDemoCell mirrors examples/ui_polish_gallery/grid.go mkCell / gutterCell
+// chrome (antd site CSS: min-height 30, text-align center, gutter padding 8px 0).
+func galleryDemoCell(label string, h float64, gutterStyle bool) *primitive.Decorated {
+	tx := primitive.NewText(label)
+	tx.FontSize = 14
+	d := primitive.NewDecorated(tx)
+	d.ExpandWidth = true
+	d.SetCenterContent(true)
+	if gutterStyle {
+		// antd gutter.tsx padding: '8px 0' + site min-height 30
+		d.Padding = primitive.Symmetric(0, 8)
+		d.MinHeight = 30
+	} else if h > 0 {
+		d.Height = h
+		d.MinHeight = h
+	} else {
+		d.MinHeight = 30
+		d.Padding = primitive.Symmetric(0, 16)
+	}
+	return d
+}
+
+func TestGrid_PRD_08_BasicDemoCellChrome(t *testing.T) {
+	// GRD-08 main visual: demo cell text centered + default height chrome
+	// (antd .dumi Markdown.tsx grid-demo: min-height 30, padding 16px 0, text-align center).
+	cell := galleryDemoCell("col-12", 0, false)
+	col := kit.NewCol(cell)
+	col.SetSpan(12)
+	r := kit.NewRow(colNode(col))
+	_ = r.Node().Layout(core.Loose(400, 200))
+
+	// Cell fills half row and is taller than bare text (~14–20).
+	cw := cell.Base().Size().Width
+	ch := cell.Base().Size().Height
+	if cw < 180 {
+		t.Fatalf("basic cell w=%v want ~200 (span12 of 400)", cw)
+	}
+	// min-height 30 + padding 16*2 = at least ~30; with text+pad usually ≥30
+	if ch < 30-0.5 {
+		t.Fatalf("basic cell h=%v want ≥30 (site min-height)", ch)
+	}
+	// Label centered inside cell
+	kids := cell.Children()
+	if len(kids) == 0 {
+		t.Fatal("no label child")
+	}
+	lab := kids[0]
+	off := lab.Base().Offset()
+	// horizontal mid: off.X ≈ (cellW - labelW)/2 > 0 for short label
+	if off.X < 1 {
+		t.Fatalf("label not horizontally centered: X=%v cellW=%v labW=%v", off.X, cw, lab.Base().Size().Width)
+	}
+	// vertical mid within padding box
+	if off.Y < 1 {
+		t.Fatalf("label not vertically centered: Y=%v cellH=%v labH=%v", off.Y, ch, lab.Base().Size().Height)
+	}
+}
+
+func TestGrid_PRD_09_GutterDemoCellChrome(t *testing.T) {
+	// GRD-09 main visual: gutter cells must not collapse to bare text height.
+	// Root cause was Symmetric(8,0) (horizontal pad) + no MinHeight.
+	cell := galleryDemoCell("col-6", 0, true)
+	col := kit.NewCol(cell)
+	col.SetSpan(6)
+	r := kit.NewRow(colNode(col), colNode(kit.NewCol(galleryDemoCell("col-6", 0, true))))
+	r.SetGutter(16)
+	_ = r.Node().Layout(core.Loose(400, 200))
+
+	ch := cell.Base().Size().Height
+	// padding 8+8 + text line ≥ ~14 → ≥30 with MinHeight floor
+	if ch < 30-0.5 {
+		t.Fatalf("gutter cell h=%v want ≥30 (antd site min-height + padding 8px 0)", ch)
+	}
+	// Must be taller than pure text (no pad/min) — regression for Symmetric axis bug
+	bare := primitive.NewText("col-6")
+	bare.FontSize = 14
+	_ = bare.Layout(core.Loose(400, 200))
+	if ch <= bare.Base().Size().Height+0.5 {
+		t.Fatalf("gutter cell h=%v collapsed to text h=%v (padding/min-height missing?)", ch, bare.Base().Size().Height)
+	}
+	// Label centered
+	kids := cell.Children()
+	if len(kids) == 0 {
+		t.Fatal("no label")
+	}
+	off := kids[0].Base().Offset()
+	if off.X < 1 {
+		t.Fatalf("gutter label not centered X=%v", off.X)
+	}
+}

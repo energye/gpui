@@ -239,3 +239,27 @@ func TestRowSpacerButtonsStayTop(t *testing.T) {
 		}
 	}
 }
+
+// TestDecoratedCenterContentExpandWidth — ExpandWidth must count as chrome width
+// so CenterContent can mid-box the label (grid/layout demo cells).
+func TestDecoratedCenterContentExpandWidth(t *testing.T) {
+	child := primitive.NewDecorated()
+	child.Width, child.Height = 20, 10
+	host := primitive.NewDecorated(child)
+	host.ExpandWidth = true
+	host.MinHeight = 40
+	host.SetCenterContent(true)
+	// Parent gives finite MaxWidth (Col / row packer style).
+	_ = host.Layout(core.Constraints{MaxWidth: 200, MaxHeight: 100})
+	if host.Size().Width != 200 {
+		t.Fatalf("ExpandWidth size.W=%v want 200", host.Size().Width)
+	}
+	off := child.Base().Offset()
+	// horizontal: (200-20)/2 = 90; vertical: (40-10)/2 = 15
+	if off.X < 80 || off.X > 100 {
+		t.Fatalf("CenterContent+ExpandWidth X=%v want ~90", off.X)
+	}
+	if off.Y < 10 || off.Y > 20 {
+		t.Fatalf("CenterContent+MinHeight Y=%v want ~15", off.Y)
+	}
+}
