@@ -51,7 +51,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Typography", kit.NewTypography("ty").Node())
 	must("Space", kit.NewSpace(kit.NewText("a").Node()).Node())
 	must("Divider", kit.NewDivider().Node())
-	must("Flex", kit.NewFlexRow(kit.NewText("a").Node()).Node())
+	must("Flex", kit.NewFlex(kit.NewText("a").Node()).Node())
 	must("Grid", kit.NewGridCols(2, kit.NewText("1").Node(), kit.NewText("2").Node()).Node())
 	must("Layout", kit.NewLayout(kit.NewText("h").Node(), nil, kit.NewText("c").Node(), nil).Node())
 	must("Splitter", kit.NewSplitter(kit.NewText("a").Node(), kit.NewText("b").Node()).Node())

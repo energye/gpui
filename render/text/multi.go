@@ -153,6 +153,47 @@ func (m *MultiFace) Size() float64 {
 	return m.faces[0].Size()
 }
 
+// AtSize returns a MultiFace with every component face re-derived at size.
+// Source() is nil on MultiFace (composite), so callers that only do
+// Source().Face(size) would keep the old size or drop CJK fallbacks.
+// UI kit uses this when SetFace(14) then SetFontSize(16/20) for titles.
+func (m *MultiFace) AtSize(size float64) Face {
+	if m == nil || len(m.faces) == 0 {
+		return m
+	}
+	if size <= 0 {
+		return m
+	}
+	if fs := m.Size(); fs > 0 {
+		d := fs - size
+		if d < 0 {
+			d = -d
+		}
+		if d < 0.25 {
+			return m
+		}
+	}
+	out := make([]Face, 0, len(m.faces))
+	for _, f := range m.faces {
+		if f == nil {
+			continue
+		}
+		if src := f.Source(); src != nil {
+			out = append(out, src.Face(size))
+			continue
+		}
+		out = append(out, f)
+	}
+	if len(out) == 0 {
+		return m
+	}
+	mf, err := NewMultiFace(out...)
+	if err != nil {
+		return m
+	}
+	return mf
+}
+
 // Features implements Face.Features.
 // Returns features from the first face.
 func (m *MultiFace) Features() []FontFeature {

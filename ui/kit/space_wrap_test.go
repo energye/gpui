@@ -37,7 +37,7 @@ func TestFlex_WrapGeometry(t *testing.T) {
 		b.Width, b.Height = 40, 20
 		return b
 	}
-	f := kit.NewFlexRow(mk(), mk(), mk())
+	f := kit.NewFlex(mk(), mk(), mk())
 	f.SetGap(8)
 	f.SetWrap(true)
 	n := f.Node()

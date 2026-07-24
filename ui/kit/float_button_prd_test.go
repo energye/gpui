@@ -195,6 +195,49 @@ func TestFloatButton_PRD_07_GroupTriggerClickOpen(t *testing.T) {
 	}
 }
 
+func TestFloatButton_PRD_07b_MenuOpenStableHostSize(t *testing.T) {
+	// FB-S6 / FB-07: menu open/close must not grow the layout host (antd overlay).
+	// Regression: in-flow Column root made parent demo section height jump after Flex live-layout fix.
+	c1 := kit.NewFloatButton()
+	c1.SetIcon("plus")
+	c1.SetAriaLabel("c1")
+	c2 := kit.NewFloatButton()
+	c2.SetIcon("info")
+	c2.SetAriaLabel("c2")
+	g := kit.NewFloatButtonGroup(c1, c2)
+	g.SetTrigger(kit.FloatButtonTriggerClick)
+	g.SetIcon("plus")
+	n := g.Node()
+	// closed
+	closed := n.Layout(core.Loose(300, 300))
+	if closed.Height < kit.DefaultFloatButtonSize-0.5 || closed.Height > kit.DefaultFloatButtonSize+0.5 {
+		t.Fatalf("closed host h=%v want %v", closed.Height, kit.DefaultFloatButtonSize)
+	}
+	if closed.Width < kit.DefaultFloatButtonSize-0.5 || closed.Width > kit.DefaultFloatButtonSize+0.5 {
+		t.Fatalf("closed host w=%v want %v", closed.Width, kit.DefaultFloatButtonSize)
+	}
+	// open
+	g.SetOpen(true)
+	openSz := n.Layout(core.Loose(300, 300))
+	if openSz.Height != closed.Height || openSz.Width != closed.Width {
+		t.Fatalf("menu open changed host size closed=%v open=%v (must stay trigger-sized)", closed, openSz)
+	}
+	// list still laid out and placed above (placement top)
+	list := g.ListNode()
+	if list == nil || list.Parent() == nil {
+		t.Fatal("list should be parented when open")
+	}
+	if list.Base().Offset().Y >= 0 {
+		t.Fatalf("placement=top: list offset.Y=%v want < 0 (above trigger)", list.Base().Offset().Y)
+	}
+	// close again
+	g.SetOpen(false)
+	closed2 := n.Layout(core.Loose(300, 300))
+	if closed2.Height != closed.Height {
+		t.Fatalf("close host h=%v want %v", closed2.Height, closed.Height)
+	}
+}
+
 func TestFloatButton_PRD_08_ControlledOpenFalse(t *testing.T) {
 	// FB-08
 	c1 := kit.NewFloatButton()
@@ -693,4 +736,115 @@ func approxRGBA(a, b render.RGBA, eps float64) bool {
 		da = -da
 	}
 	return dr <= eps && dg <= eps && db <= eps && da <= eps
+}
+
+// FB-S6/FB-07 general: menu host size stable under various parents (not demo-only).
+func TestFloatButton_PRD_MenuHost_GeneralParents(t *testing.T) {
+	newMenu := func() *kit.FloatButtonGroup {
+		a := kit.NewFloatButton()
+		a.SetAriaLabel("a")
+		a.SetIcon("plus")
+		b := kit.NewFloatButton()
+		b.SetAriaLabel("b")
+		b.SetIcon("info")
+		g := kit.NewFloatButtonGroup(a, b)
+		g.SetTrigger(kit.FloatButtonTriggerClick)
+		g.SetIcon("plus")
+		return g
+	}
+	want := kit.DefaultFloatButtonSize
+
+	// 1) Loose column (typical form/page)
+	{
+		g := newMenu()
+		col := primitive.Column(g.Node(), kit.NewText("below").Node())
+		col.Gap = 8
+		_ = col.Layout(core.Loose(400, 800))
+		closedH := g.Node().Base().Size().Height
+		g.SetOpen(true)
+		_ = col.Layout(core.Loose(400, 800))
+		openH := g.Node().Base().Size().Height
+		if closedH != want || openH != want {
+			t.Fatalf("column parent: closed=%v open=%v want host=%v", closedH, openH, want)
+		}
+		// parent column height must not grow by list size when open
+		// (group contributes only trigger size)
+		g.SetOpen(false)
+		hClosed := col.Layout(core.Loose(400, 800)).Height
+		g.SetOpen(true)
+		hOpen := col.Layout(core.Loose(400, 800)).Height
+		if hOpen != hClosed {
+			t.Fatalf("column total height jumped closed=%v open=%v", hClosed, hOpen)
+		}
+	}
+
+	// 2) StretchChild tight host (tab body / decorated stage)
+	{
+		g := newMenu()
+		host := primitive.NewDecorated(g.Node())
+		host.Width, host.Height = 300, 200
+		host.StretchChild = true
+		_ = host.Layout(core.Tight(300, 200))
+		sz := g.Node().Base().Size()
+		if sz.Width != want || sz.Height != want {
+			t.Fatalf("stretch parent: group size=%v want %v×%v (must not fill stage)", sz, want, want)
+		}
+		g.SetOpen(true)
+		_ = host.Layout(core.Tight(300, 200))
+		sz2 := g.Node().Base().Size()
+		if sz2 != sz {
+			t.Fatalf("stretch open size changed %v → %v", sz, sz2)
+		}
+	}
+
+	// 3) kit.Flex ExpandMax row (page toolbars)
+	{
+		g := newMenu()
+		row := kit.NewFlex(g.Node(), kit.NewText("side").Node())
+		row.SetGap(12)
+		_ = row.Node().Layout(core.Loose(400, 100))
+		g.SetOpen(true)
+		_ = row.Node().Layout(core.Loose(400, 100))
+		if g.Node().Base().Size().Height != want {
+			t.Fatalf("flex parent open h=%v", g.Node().Base().Size().Height)
+		}
+	}
+
+	// 4) All placements: list offset outside host; host size stable
+	for _, pl := range []kit.FloatButtonPlacement{
+		kit.FloatButtonTop, kit.FloatButtonBottom, kit.FloatButtonLeft, kit.FloatButtonRight,
+	} {
+		g := newMenu()
+		g.SetPlacement(pl)
+		n := g.Node()
+		closed := n.Layout(core.Loose(400, 400))
+		g.SetOpen(true)
+		openSz := n.Layout(core.Loose(400, 400))
+		if openSz != closed {
+			t.Fatalf("placement %v host size closed=%v open=%v", pl, closed, openSz)
+		}
+		list := g.ListNode()
+		if list == nil {
+			t.Fatal("nil list")
+		}
+		o := list.Base().Offset()
+		switch pl {
+		case kit.FloatButtonTop:
+			if o.Y >= 0 {
+				t.Fatalf("top: list Y=%v want <0", o.Y)
+			}
+		case kit.FloatButtonBottom:
+			if o.Y <= 0 {
+				t.Fatalf("bottom: list Y=%v want >0", o.Y)
+			}
+		case kit.FloatButtonLeft:
+			if o.X >= 0 {
+				t.Fatalf("left: list X=%v want <0", o.X)
+			}
+		case kit.FloatButtonRight:
+			if o.X <= 0 {
+				t.Fatalf("right: list X=%v want >0", o.X)
+			}
+		}
+	}
 }

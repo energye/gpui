@@ -82,15 +82,19 @@ func (s *Slider) SetValue(v float64) {
 }
 
 func (s *Slider) rebuild() {
-	w := s.Width
-	if w <= 0 {
-		w = 200
-	}
 	if s.Max <= s.Min {
 		s.Min, s.Max = 0, 100
 	}
 	if s.Step <= 0 {
 		s.Step = 1
+	}
+	// width field is a preferred size only; Layout resolves 0 as "fill parent max".
+	w := s.Width
+	if s.Root != nil {
+		s.Root.Slider = s
+		s.Root.width = w
+		s.Root.MarkNeedsLayout()
+		return
 	}
 	h := &sliderHost{Slider: s, width: w}
 	h.Init(h)
@@ -98,14 +102,37 @@ func (s *Slider) rebuild() {
 	s.Root = h
 }
 
+// SetWidth sets preferred track width. 0 → fill parent MaxWidth (antd block track).
+func (s *Slider) SetWidth(w float64) {
+	if s == nil {
+		return
+	}
+	s.Width = w
+	s.rebuild()
+}
+
 func (h *sliderHost) TypeID() string { return "kit.SliderHost" }
 
 func (h *sliderHost) Layout(c core.Constraints) core.Size {
-	w := h.width
+	// Preferred: explicit Width > 0; else fill bounded parent (ExpandWidth hosts);
+	// else default 200 (antd control width rhythm).
+	w := h.Slider.Width
 	if w <= 0 {
-		w = 200
+		w = h.width
 	}
+	if w <= 0 {
+		if c.HasBoundedWidth() && c.MaxWidth < core.Unbounded {
+			w = c.MaxWidth
+		} else {
+			w = 200
+		}
+	}
+	h.width = w
 	out := c.Tighten(core.Size{Width: w, Height: 16})
+	// Prefer parent tight height when StretchChild hosts give one (gallery customize).
+	if c.MinHeight == c.MaxHeight && c.HasBoundedHeight() && c.MaxHeight >= 16 && c.MaxHeight < core.Unbounded {
+		out.Height = c.MaxHeight
+	}
 	h.SetSize(out)
 	return out
 }
@@ -119,12 +146,23 @@ func (h *sliderHost) Paint(pc *core.PaintContext) {
 		th = h.Theme
 	}
 	sz := h.Size()
-	trackC := th.Color(core.TokenColorBorder)
+	if sz.Width < 1 {
+		return
+	}
+	// Track: fill-secondary (antd rail) — colorBorder alone can be near-white on light bg.
+	trackC := th.Color(core.TokenColorFillSecondary)
+	if trackC.A < 0.15 {
+		trackC = th.Color(core.TokenColorBorderSecondary)
+	}
+	if trackC.A < 0.15 {
+		trackC = render.RGBA{R: 0, G: 0, B: 0, A: 0.15}
+	}
 	fillC := th.Color(core.TokenColorPrimary)
 	if fillC.A < 0.5 {
 		fillC = render.Hex("#1677FF")
 	}
-	pc.FillLocalRoundRect(0, sz.Height/2-2, sz.Width, 4, 2, trackC)
+	cy := sz.Height / 2
+	pc.FillLocalRoundRect(0, cy-2, sz.Width, 4, 2, trackC)
 	min, max := h.Min, h.Max
 	if max <= min {
 		min, max = 0, 100
@@ -138,9 +176,12 @@ func (h *sliderHost) Paint(pc *core.PaintContext) {
 	}
 	fw := sz.Width * ratio
 	if fw > 0 {
-		pc.FillLocalRoundRect(0, sz.Height/2-2, fw, 4, 2, fillC)
+		pc.FillLocalRoundRect(0, cy-2, fw, 4, 2, fillC)
 	}
-	pc.FillLocalCircle(fw, sz.Height/2, 7, fillC)
+	// Thumb (handle)
+	pc.FillLocalCircle(fw, cy, 7, fillC)
+	// White ring for contrast on primary fill
+	pc.StrokeLocalCircle(fw, cy, 7, 2, render.RGBA{R: 1, G: 1, B: 1, A: 1})
 }
 
 func (h *sliderHost) HitTest(p core.Point) core.Node {

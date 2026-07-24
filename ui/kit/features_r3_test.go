@@ -132,19 +132,19 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Flex": {
 			{"R1 row", func(t *testing.T) {
-				if kit.NewFlexRow(kit.NewText("a").Node()).Node() == nil {
+				if kit.NewFlex(kit.NewText("a").Node()).Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 gap", func(t *testing.T) {
-				f := kit.NewFlexRow()
+				f := kit.NewFlex()
 				f.SetGap(12)
 				if f.Root.Gap != 12 {
 					t.Fatal()
 				}
 			}},
 			{"R3 wrap", func(t *testing.T) {
-				f := kit.NewFlexRow()
+				f := kit.NewFlex()
 				f.SetWrap(true)
 				if !f.Wrap {
 					t.Fatal()

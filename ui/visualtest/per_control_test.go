@@ -56,7 +56,7 @@ func perControlSpecs() []ctlSpec {
 		}},
 		{"ctl_divider", 160, 24, func() core.Node { return padRoot(kit.NewDivider().Node(), 160, 24) }},
 		{"ctl_flex", 160, 40, func() core.Node {
-			return padRoot(kit.NewFlexRow(kit.NewText("a").Node(), kit.NewText("b").Node()).Node(), 160, 40)
+			return padRoot(kit.NewFlex(kit.NewText("a").Node(), kit.NewText("b").Node()).Node(), 160, 40)
 		}},
 		{"ctl_grid", 180, 80, func() core.Node {
 			return padRoot(kit.NewGridCols(2,

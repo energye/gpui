@@ -1,6 +1,7 @@
 package primitive
 
 import (
+	"math"
 	"strings"
 
 	"github.com/energye/gpui/render"
@@ -378,6 +379,9 @@ func (t *Text) Paint(pc *core.PaintContext) {
 		lines = []string{t.Value}
 	}
 	dc := pc.DC
+	// Always paint with a face sized to FontSize. Callers often SetFace(14pt)
+	// then SetFontSize(20) for titles; without re-derive, glyphs are scaled
+	// bitmaps → uneven stroke weight / blur.
 	face := t.effectiveFace()
 	if face != nil {
 		dc.SetFont(face)
@@ -394,15 +398,50 @@ func (t *Text) Paint(pc *core.PaintContext) {
 	}
 	lineH := t.lineHeight()
 	sz := t.Size()
-	pc.PushClipLocal(0, 0, sz.Width, sz.Height)
+	// Expand clip by 1px so baseline snap cannot shear glyph edges against a
+	// fractional parent Origin (half-pixel clip → one side of strokes soft).
+	pc.PushClipLocal(-1, -1, sz.Width+2, sz.Height+2)
 	defer pc.Pop()
+	// Snap baseline to the device pixel grid. Layout (Flex ExpandMax / gap /
+	// center / padding) often yields fractional Origin; glyph-mask text on
+	// half-pixels looks like mixed thick/thin strokes (kit.NewText titles).
+	ds := textDeviceScale(pc)
 	for i, ln := range lines {
 		if ln == "" {
 			continue
 		}
-		y := pc.Origin.Y + float64(i)*lineH + ascent
-		dc.DrawString(ln, pc.Origin.X, y)
+		x := snapDevice(pc.Origin.X, ds)
+		y := snapDevice(pc.Origin.Y+float64(i)*lineH+ascent, ds)
+		dc.DrawString(ln, x, y)
 	}
+}
+
+// textDeviceScale is physical pixels per logical pixel for text snapping.
+func textDeviceScale(pc *core.PaintContext) float64 {
+	ds := 1.0
+	if pc == nil {
+		return ds
+	}
+	if pc.DC != nil {
+		if s := pc.DC.DeviceScale(); s > 0 {
+			ds = s
+		}
+	}
+	if pc.Scale > 0 && pc.Scale != 1 {
+		ds *= pc.Scale
+	}
+	if ds <= 0 {
+		return 1
+	}
+	return ds
+}
+
+// snapDevice rounds a logical coordinate onto the device pixel grid.
+func snapDevice(v, deviceScale float64) float64 {
+	if deviceScale <= 0 {
+		deviceScale = 1
+	}
+	return math.Round(v*deviceScale) / deviceScale
 }
 
 // HitTest implements core.Node.

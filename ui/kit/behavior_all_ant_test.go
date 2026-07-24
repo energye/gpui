@@ -113,7 +113,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Flex", func(t *testing.T) {
-			f := kit.NewFlexRow(kit.NewText("a").Node())
+			f := kit.NewFlex(kit.NewText("a").Node())
 			f.SetGap(10)
 			if f.Root.Gap != 10 {
 				t.Fatal(f.Root.Gap)

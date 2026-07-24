@@ -101,17 +101,56 @@ func main() {
 		nil,
 	)
 
+	// UI face: Latin + CJK fallback. Flex/Divider pages use Chinese kit.NewText
+	// titles/descriptions; DejaVu alone has no CJK glyphs → missing/bad strokes.
+	// MultiFace keeps fallback when SetFontSize re-derives via AtSize.
 	var face text.Face
-	for _, path := range []string{
+	loadFace := func(path string, size float64) text.Face {
+		src, err := text.NewFontSourceFromFile(path)
+		if err != nil {
+			return nil
+		}
+		return src.Face(size)
+	}
+	const uiPt = 14.0
+	latinPaths := []string{
 		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 		"/usr/share/fonts/TTF/DejaVuSans.ttf",
 		"render/text/testdata/goregular.ttf",
-	} {
-		if src, err := text.NewFontSourceFromFile(path); err == nil {
-			face = src.Face(14)
-			log.Printf("font %s", path)
+	}
+	cjkPaths := []string{
+		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+	}
+	var latin, cjk text.Face
+	for _, path := range latinPaths {
+		if f := loadFace(path, uiPt); f != nil {
+			latin = f
+			log.Printf("font latin %s", path)
 			break
 		}
+	}
+	for _, path := range cjkPaths {
+		if f := loadFace(path, uiPt); f != nil {
+			cjk = f
+			log.Printf("font cjk %s", path)
+			break
+		}
+	}
+	switch {
+	case latin != nil && cjk != nil:
+		if mf, err := text.NewMultiFace(latin, cjk); err == nil {
+			face = mf
+			log.Printf("font MultiFace latin+cjk @%.0fpt", uiPt)
+		} else {
+			face = latin
+			log.Printf("font MultiFace failed: %v — latin only", err)
+		}
+	case latin != nil:
+		face = latin
+	case cjk != nil:
+		face = cjk
 	}
 
 	theme := kit.DefaultTheme()

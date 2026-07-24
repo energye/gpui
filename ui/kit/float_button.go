@@ -632,13 +632,30 @@ func (f *FloatButton) syncTooltip() {
 
 // FloatButtonGroup is Ant Design FloatButton.Group.
 //
-// Without trigger: children always visible (column/row by shape).
+// Without trigger: children always visible (column stack — antd individual group).
 // With trigger (menu mode): trigger FAB + expandable child list (placement).
+//
+// Menu mode (general, not demo-only) — matches antd CSS:
+//
+//	.ant-float-btn-group { position: fixed|relative; }  // layout box = trigger
+//	.ant-float-btn-group-menu-mode .list { position: absolute; }
+//
+// Implementation: floatMenuRoot always reports trigger size (40×40). Open children
+// are laid out with absolute offsets outside that box (top/bottom/left/right + gap).
+// Parent flow height/width therefore does not jump on open/close under any parent
+// (Column, StretchChild, ExpandMax Flex, ScrollViewport, tight tab body, …).
+// FB-S6 / FB-07 / FB-08 / FB-09.
+//
+// Callers that clip overflow (ClipHit / tight Scroll clip) may still clip the
+// absolute list — same as CSS overflow:hidden on a relative parent. Prefer not
+// clipping the group host, or place the group where the menu has room to paint.
 type FloatButtonGroup struct {
-	root    *primitive.Flex
-	list    *primitive.Flex
-	trigger *FloatButton
-	shell   *primitive.Pressable // hover trigger surface
+	root     *primitive.Flex // non-menu always-visible list
+	menuRoot *floatMenuRoot  // menu mode host (sizes to trigger only)
+	list     *primitive.Flex
+	trigger  *FloatButton
+	shell    *primitive.Pressable // hover trigger surface
+	menuGap  float64              // resolved gap for menu positioning
 
 	Children  []*FloatButton
 	Trigger   FloatButtonTrigger
@@ -656,6 +673,76 @@ type FloatButtonGroup struct {
 	OnClick      func() // trigger click
 	Face         text.Face
 	Theme        *core.Theme
+}
+
+// floatMenuRoot is the layout root for menu-mode Group.
+// Parent size == trigger size; open list is positioned outside (negative/positive offset).
+type floatMenuRoot struct {
+	core.NodeBase
+	g *FloatButtonGroup
+}
+
+func (r *floatMenuRoot) TypeID() string { return "kit.FloatButtonGroupMenu" }
+
+func (r *floatMenuRoot) Layout(c core.Constraints) core.Size {
+	if r == nil || r.g == nil || r.g.trigger == nil {
+		out := core.Size{}
+		if r != nil {
+			r.SetSize(out)
+		}
+		return out
+	}
+	g := r.g
+	trig := g.trigger.Node()
+	// Measure with loose constraints — never inherit parent CrossStretch tight box
+	// (that inflated the host to the whole demo stage and left the FAB top-left).
+	loose := core.Constraints{MaxWidth: core.Unbounded, MaxHeight: core.Unbounded}
+	tsz := trig.Layout(loose)
+	trig.Base().SetOffset(core.Point{})
+
+	gap := g.menuGap
+	if gap <= 0 {
+		gap = DefaultFloatButtonGroupGap
+	}
+	showList := g.Open && g.list != nil
+
+	if showList {
+		lsz := g.list.Layout(loose)
+		var ox, oy float64
+		switch g.Placement {
+		case FloatButtonBottom:
+			ox = (tsz.Width - lsz.Width) / 2
+			oy = tsz.Height + gap
+		case FloatButtonLeft:
+			ox = -(lsz.Width + gap)
+			oy = (tsz.Height - lsz.Height) / 2
+		case FloatButtonRight:
+			ox = tsz.Width + gap
+			oy = (tsz.Height - lsz.Height) / 2
+		default: // top — list above trigger (antd default)
+			ox = (tsz.Width - lsz.Width) / 2
+			oy = -(lsz.Height + gap)
+		}
+		g.list.Base().SetOffset(core.Point{X: ox, Y: oy})
+	}
+
+	// Host size is always the trigger only (antd menu is overlay, not in-flow).
+	// Do not c.Tighten to parent max — that expanded 40×40 → full stage under StretchChild.
+	r.SetSize(tsz)
+	r.RememberConstraints(c)
+	return tsz
+}
+
+func (r *floatMenuRoot) Paint(pc *core.PaintContext) {
+	r.DefaultPaintChildren(pc)
+	if pc != nil {
+		r.ClearPaintDirty()
+	}
+}
+
+func (r *floatMenuRoot) HitTest(p core.Point) core.Node {
+	// Children may sit outside local bounds (menu list above/beside trigger).
+	return r.DefaultHitTest(p)
 }
 
 // NewFloatButtonGroup creates a group with optional children.
@@ -677,11 +764,18 @@ func (g *FloatButtonGroup) Node() core.Node {
 	if g == nil {
 		return nil
 	}
-	if g.root == nil {
+	if g.menuMode() {
+		if g.menuRoot == nil {
+			g.rebuild()
+		}
+	} else if g.root == nil {
 		g.rebuild()
 	}
 	if g.shell != nil {
 		return g.shell
+	}
+	if g.menuMode() {
+		return g.menuRoot
 	}
 	return g.root
 }
@@ -930,41 +1024,23 @@ func (g *FloatButtonGroup) syncTriggerIcon() {
 }
 
 func (g *FloatButtonGroup) applyOpenVisibility() {
-	if g == nil || g.root == nil || !g.menuMode() || g.trigger == nil {
+	if g == nil || !g.menuMode() || g.trigger == nil {
+		return
+	}
+	if g.menuRoot == nil {
 		return
 	}
 	showList := g.Open
 	trig := g.trigger.Node()
-	// Rebuild root children order by placement; omit list when closed.
-	// top:    list above trigger
-	// bottom: trigger above list
-	// left:   list · trigger (row)
-	// right:  trigger · list (row)
-	g.root.ClearChildren()
-	switch g.Placement {
-	case FloatButtonBottom:
-		g.root.AddChild(trig)
-		if showList && g.list != nil {
-			g.root.AddChild(g.list)
-		}
-	case FloatButtonLeft:
-		if showList && g.list != nil {
-			g.root.AddChild(g.list)
-		}
-		g.root.AddChild(trig)
-	case FloatButtonRight:
-		g.root.AddChild(trig)
-		if showList && g.list != nil {
-			g.root.AddChild(g.list)
-		}
-	default: // top
-		if showList && g.list != nil {
-			g.root.AddChild(g.list)
-		}
-		g.root.AddChild(trig)
+	// Menu host always sizes to trigger; list is an out-of-flow child when open.
+	// Paint order: list first, trigger last (trigger stays clickable on top).
+	g.menuRoot.ClearChildren()
+	if showList && g.list != nil {
+		g.menuRoot.AddChild(g.list)
 	}
-	g.root.MarkNeedsLayout()
-	g.root.MarkNeedsPaint()
+	g.menuRoot.AddChild(trig)
+	g.menuRoot.MarkNeedsLayout()
+	g.menuRoot.MarkNeedsPaint()
 }
 
 func (g *FloatButtonGroup) rebuild() {
@@ -1020,13 +1096,15 @@ func (g *FloatButtonGroup) rebuild() {
 	if !g.menuMode() {
 		// Always-visible group: just the list.
 		g.root = g.list
+		g.menuRoot = nil
 		g.trigger = nil
 		g.shell = nil
-		g.applyOpenVisibility()
 		return
 	}
 
-	// Menu mode: trigger + list ordered by placement.
+	// Menu mode: trigger + list; host sizes to trigger only (overlay children).
+	g.root = nil
+	g.menuGap = gap
 	if g.trigger == nil {
 		g.trigger = NewFloatButton()
 	}
@@ -1050,30 +1128,22 @@ func (g *FloatButtonGroup) rebuild() {
 		}
 	})
 
-	// Build root flex by placement: list relative to trigger.
-	var parts []core.Node
-	switch g.Placement {
-	case FloatButtonBottom:
-		parts = []core.Node{g.trigger.Node(), g.list}
-		g.root = primitive.Column(parts...)
-	case FloatButtonLeft:
-		parts = []core.Node{g.list, g.trigger.Node()}
-		g.root = primitive.Row(parts...)
-	case FloatButtonRight:
-		parts = []core.Node{g.trigger.Node(), g.list}
-		g.root = primitive.Row(parts...)
-	default: // top
-		parts = []core.Node{g.list, g.trigger.Node()}
-		g.root = primitive.Column(parts...)
+	if g.menuRoot == nil {
+		g.menuRoot = &floatMenuRoot{g: g}
+		g.menuRoot.Init(g.menuRoot)
+		g.menuRoot.Hit = core.HitDefer
+		// Never clip absolute menu children to the 40×40 host.
+		g.menuRoot.ClipHit = false
+	} else {
+		g.menuRoot.g = g
 	}
-	g.root.Gap = gap
-	g.root.MainAlign = core.MainStart
-	g.root.CrossAlign = core.CrossCenter
 
 	// Hover surface for hover trigger.
 	if g.Trigger == FloatButtonTriggerHover {
-		g.shell = primitive.NewPressable(g.root)
+		g.shell = primitive.NewPressable(g.menuRoot)
 		g.shell.Focusable = false
+		// Hug menu host under tight parents (same as FAB FixedSize) — general use.
+		g.shell.FixedSize = true
 		g.shell.SetDisabled(g.Disabled)
 		g.shell.OnStateChange = func() {
 			if g.Disabled {

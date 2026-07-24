@@ -6,6 +6,12 @@ type Tree struct {
 
 	dirty bool
 
+	// layoutDirty is set by any MarkNeedsLayout. needsLayoutPass must honor this
+	// even when root.NeedsLayout() is false — LayoutSkipIfClean on an ancestor can
+	// leave a deep child dirty while the root was already cleared, and the early
+	// exit in MarkNeedsLayout then stops re-bubbling to root (click no-op until resize).
+	layoutDirty bool
+
 	// fullPaintRequired forces the next Frame to fully repaint (resize, expose, first frame).
 	fullPaintRequired bool
 
@@ -59,7 +65,7 @@ type outsideDismissEntry struct {
 
 // NewTree creates a tree with the given root (may be nil).
 func NewTree(root Node) *Tree {
-	t := &Tree{dirty: true, fullPaintRequired: true, overlays: NewOverlayHost()}
+	t := &Tree{dirty: true, layoutDirty: true, fullPaintRequired: true, overlays: NewOverlayHost()}
 	if root != nil {
 		t.SetRoot(root)
 	}
@@ -198,6 +204,22 @@ func (t *Tree) ClearDirty() {
 	}
 }
 
+// markLayoutDirty records that some node needs layout (see layoutDirty).
+// Also marks the root needsLayout so root.Layout cannot LayoutSkipIfClean-skip
+// past a dirty descendant (which would leave justify/align changes stuck until resize).
+func (t *Tree) markLayoutDirty() {
+	if t == nil {
+		return
+	}
+	t.layoutDirty = true
+	if t.root != nil {
+		rb := t.root.Base()
+		rb.needsLayout = true
+		rb.needsPaint = true
+	}
+	t.markDirty()
+}
+
 // Layout runs a single layout pass on the root with tight viewport constraints,
 // then lays out overlay nodes loosely within the viewport.
 // Clean nodes with identical constraints early-out inside each Layout impl via
@@ -210,6 +232,7 @@ func (t *Tree) Layout(viewport Size) {
 		return
 	}
 	t.viewport = viewport
+	t.layoutDirty = false
 	if t.root != nil {
 		_ = t.root.Layout(Tight(viewport.Width, viewport.Height))
 		refreshOpenGeometry(t.root)
@@ -383,6 +406,11 @@ func (t *Tree) needsLayoutPass(viewport Size) bool {
 	// AbsoluteBounds of the scroll rail and the thumb appears to jump vs the pointer.
 	if d, ok := t.capture.(interface{ Dragging() bool }); ok && d.Dragging() {
 		return false
+	}
+	// Prefer the O(1) tree flag set by MarkNeedsLayout — root.NeedsLayout() alone
+	// misses deep dirty children after an ancestor LayoutSkipIfClean early-out.
+	if t.layoutDirty {
+		return true
 	}
 	if t.root != nil && t.root.Base().NeedsLayout() {
 		return true

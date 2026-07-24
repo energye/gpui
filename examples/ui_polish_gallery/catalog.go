@@ -13,15 +13,28 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
+// demoDesc is multi-line secondary copy for gallery pages.
+// kit.NewText defaults to single-line (EllipsisRows→1); long 说明 would clip/overflow.
+// Use Paragraph + wrap budget so descriptions stay readable under CrossStretch parents.
+func demoDesc(face text.Face, s string) core.Node {
+	if s == "" {
+		return nil
+	}
+	d := kit.NewParagraph(s)
+	d.SetFace(face)
+	// Readable body copy: Token secondary A=0.45 looks soft/uneven on CJK strokes.
+	// Use near-body text color (antd description ~0.65–0.88), not pure secondary.
+	d.SetStyle(kit.Style{Text: render.RGBA{R: 0, G: 0, B: 0, A: 0.65}})
+	d.SetEllipsisRows(16) // soft-wrap up to 16 lines; not ellipsis unless SetEllipsis
+	return d.Node()
+}
+
 // panel wraps a single control demo for its own tab content.
 func panel(face text.Face, title string, kids ...core.Node) core.Node {
-	lab := kit.NewText(title)
-	lab.SetFace(face)
-	lab.SetSecondary(true)
-	col := primitive.Column(lab.Node())
+	col := primitive.Column(demoDesc(face, title))
 	col.Gap = 12
 	col.MainAlign = core.MainStart
-	col.CrossAlign = core.CrossStart
+	col.CrossAlign = core.CrossStretch
 	col.Padding = primitive.All(12)
 	for _, k := range kids {
 		if k != nil {
@@ -42,11 +55,8 @@ func demoPage(face text.Face, title, desc string, sections ...core.Node) core.No
 	col.MainAlign = core.MainStart
 	col.CrossAlign = core.CrossStretch
 	col.Padding = primitive.All(16)
-	if desc != "" {
-		d := kit.NewText(desc)
-		d.SetFace(face)
-		d.SetSecondary(true)
-		col.AddChild(d.Node())
+	if n := demoDesc(face, desc); n != nil {
+		col.AddChild(n)
 	}
 	for _, s := range sections {
 		if s != nil {
@@ -65,11 +75,8 @@ func demoSection(face text.Face, theme *core.Theme, title, desc string, body cor
 	inner.Gap = 12
 	inner.MainAlign = core.MainStart
 	inner.CrossAlign = core.CrossStretch
-	if desc != "" {
-		d := kit.NewText(desc)
-		d.SetFace(face)
-		d.SetSecondary(true)
-		inner.AddChild(d.Node())
+	if n := demoDesc(face, desc); n != nil {
+		inner.AddChild(n)
 	}
 	if body != nil {
 		inner.AddChild(body)
@@ -95,10 +102,7 @@ func spaceWrap(gap float64, kids ...core.Node) core.Node {
 }
 
 func sec(face text.Face, s string) core.Node {
-	t := kit.NewText(s)
-	t.SetFace(face)
-	t.SetSecondary(true)
-	return t.Node()
+	return demoDesc(face, s)
 }
 
 func catHeader(label string) kit.MenuItem {
@@ -379,7 +383,7 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	gChild2.SetAriaLabel("g2")
 	fbGroup := kit.NewFloatButtonGroup(gChild1, gChild2)
 	fbGroup.SetFace(face)
-	// menu mode click
+	// menu mode click (antd group-menu.tsx) — fixed stage so overlay list is not clipped
 	m1 := trackFB(kit.NewFloatButton())
 	m1.SetIcon("plus")
 	m1.SetAriaLabel("m1")
@@ -395,7 +399,7 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	if tr := fbMenu.TriggerButton(); tr != nil && tr.Button() != nil {
 		*buttons = append(*buttons, tr.Button())
 	}
-	// controlled + placement left
+	// controlled + placement left (antd controlled / placement)
 	c1 := trackFB(kit.NewFloatButton())
 	c1.SetIcon("plus")
 	c1.SetAriaLabel("c1")
@@ -413,15 +417,27 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	corner.SetIcon("plus")
 	corner.SetType(kit.ButtonPrimary)
 	corner.SetAriaLabel("corner")
-	stageInner := primitive.Column(primitive.Spacer(), primitive.Row(primitive.Spacer(), corner.Node()))
-	stageInner.CrossAlign = core.CrossStretch
-	stage := primitive.NewDecorated(stageInner)
-	stage.Width = 280
-	stage.Height = 160
-	stage.Padding = primitive.All(12)
-	stage.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.04}
-	stage.Radius = 8
-	stage.StretchChild = true
+
+	// Fixed playgrounds (antd placement.tsx style): menu expands inside the stage
+	// without changing demo-section height; group anchors bottom/end like inset FAB.
+	fabStage := func(body core.Node, w, h float64) core.Node {
+		// pin body to bottom-end
+		inner := primitive.Column(primitive.Spacer(), primitive.Row(primitive.Spacer(), body))
+		inner.CrossAlign = core.CrossStretch
+		stage := primitive.NewDecorated(inner)
+		stage.Width = w
+		stage.Height = h
+		stage.Padding = primitive.All(12)
+		stage.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.04}
+		stage.Radius = 8
+		stage.StretchChild = true
+		return stage
+	}
+	// open menu (top): 2×40 + gap16 + gap16 + trigger40 ≈ 152 → stage 180
+	menuStage := fabStage(fbMenu.Node(), 200, 180)
+	// left placement: need horizontal room for child + gap + trigger
+	ctrlStage := fabStage(fbCtrl.Node(), 220, 120)
+	cornerStage := fabStage(corner.Node(), 280, 160)
 
 	items = append(items, ctlTab("float_button", "FloatButton"))
 	contents["float_button"] = demoPage(face, "FloatButton",
@@ -436,14 +452,14 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 			spaceWrap(16, fbTip.Node())),
 		demoSection(face, theme, "Disabled / Loading", "disabled swallows click; loading uses Ticker spinner.",
 			spaceWrap(16, fbDis.Node(), fbLoad.Node())),
-		demoSection(face, theme, "Group", "no trigger — children always visible.",
+		demoSection(face, theme, "Group", "no trigger — children always visible (antd group.tsx stack).",
 			fbGroup.Node()),
-		demoSection(face, theme, "Menu mode", "trigger=click; open shows children + close icon.",
-			fbMenu.Node()),
-		demoSection(face, theme, "Controlled + placement=left", "SetOpen(true); children to the left of trigger.",
-			fbCtrl.Node()),
+		demoSection(face, theme, "Menu mode", "antd group-menu.tsx: trigger=click; open shows children above + close icon. Stage height fixed so parent section does not jump.",
+			menuStage),
+		demoSection(face, theme, "Controlled + placement=left", "SetOpen(true); children to the left of trigger (antd placement).",
+			ctrlStage),
 		demoSection(face, theme, "Placement (layout)", "Bottom-right via Column/Row spacers in a stage — not OS float.",
-			stage),
+			cornerStage),
 	)
 
 	// Icon — docs/antd/icon.md §6.8 P0
@@ -881,135 +897,318 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 		secDivHorizontal, secDivWithText, secDivSize, secDivPlain, secDivVertical, secDivVariant, secDivStyleClass, secDivSemantic,
 	)
 
-	// Flex — gap / wrap / grow / shrink (Ant Flex demos)
-	box := func(label string, w, h float64, col render.RGBA) core.Node {
-		tx := kit.NewText(label)
-		tx.SetFace(face)
-		inner := primitive.NewDecorated(tx.Node())
-		inner.Padding = primitive.Symmetric(8, 4)
-		inner.Background = col
-		inner.Radius = 4
-		host := primitive.NewBox(inner)
-		if w > 0 {
-			host.Width = w
-		}
+	// Flex — antd demos: basic / align / gap / wrap / combination
+	// https://ant.design/components/flex · components/flex/demo/*.tsx
+	//
+	// Responsive rules (match antd docs, avoid overflow outside parent):
+	//   - playgrounds use ExpandWidth so they shrink with the tab body
+	//   - wrap Flex must see a bounded MaxWidth (ExpandWidth host)
+	//   - fixed 480/520/620 widths were causing children to paint past the card
+	// Playground host: fills available width, clips overflow, optional fixed height.
+	playground := func(body core.Node, h float64, border render.RGBA) *primitive.Decorated {
+		d := primitive.NewDecorated(body)
+		d.ExpandWidth = true
+		d.StretchChild = true
+		d.Radius = 6
+		d.Padding = primitive.All(0)
+		d.Background = render.RGBA{R: 1, G: 1, B: 1, A: 1}
 		if h > 0 {
-			host.Height = h
+			d.Height = h
 		}
-		return host
+		if border.A > 0 {
+			d.BorderWidth = 1
+			d.BorderColor = border
+		}
+		return d
 	}
-	blue := render.RGBA{R: 0.09, G: 0.47, B: 1, A: 0.25}
-	green := render.RGBA{R: 0.32, G: 0.77, B: 0.10, A: 0.25}
-	orange := render.RGBA{R: 0.98, G: 0.68, B: 0.08, A: 0.35}
-	gray := render.RGBA{R: 0, G: 0, B: 0, A: 0.06}
+	// antd basic.tsx bars: height 54.
+	// horizontal → Flexible equal width (≈25%); vertical → fixed h=54, stretch width.
+	mkBar := func(solid bool) *primitive.Decorated {
+		d := primitive.NewDecorated(nil)
+		d.Height = 54
+		d.MinHeight = 54
+		if solid {
+			d.Background = render.Hex("#1677ff")
+		} else {
+			d.Background = render.Hex("#1677ffbf")
+		}
+		return d
+	}
+	basicBars := kit.NewFlex()
+	fillBasicBars := func(vertical bool) {
+		solids := []bool{false, true, false, true}
+		kids := make([]core.Node, 0, 4)
+		for _, solid := range solids {
+			d := mkBar(solid)
+			if vertical {
+				kids = append(kids, d)
+			} else {
+				fl := primitive.NewFlexible(1, d)
+				fl.FillChild = true
+				kids = append(kids, fl)
+			}
+		}
+		basicBars.SetChildren(kids...)
+		basicBars.SetVertical(vertical)
+		if vertical {
+			basicBars.SetAlign(kit.FlexAlignStretch)
+		} else {
+			basicBars.SetAlign(kit.FlexAlignAuto)
+		}
+	}
+	fillBasicBars(false)
+	mkPrimaryBtn := func(label string) *kit.Button {
+		b := kit.NewButton(label)
+		b.SetFace(face)
+		b.SetType(kit.ButtonPrimary)
+		return trackBtn(b)
+	}
+	mkBtnTyped := func(label string, typ kit.ButtonType) *kit.Button {
+		b := kit.NewButton(label)
+		b.SetFace(face)
+		b.SetType(typ)
+		return trackBtn(b)
+	}
+	radioRow := func(g *kit.RadioGroup) {
+		if fl, ok := g.Node().(*primitive.Flex); ok {
+			fl.Axis = core.AxisHorizontal
+			fl.CrossAlign = core.CrossCenter
+			fl.Gap = 16
+			fl.Wrap = true
+			fl.MarkNeedsLayout()
+		}
+	}
 
-	flexGap := kit.NewFlexRow(
-		box("A", 64, 32, blue),
-		box("B", 64, 32, green),
-		box("C", 64, 32, orange),
+	// ---------- basic.tsx ----------
+	basicHost := playground(basicBars.Node(), 0, render.RGBA{})
+	basicHost.Radius = 0
+
+	rh := kit.NewRadio("horizontal", "horizontal")
+	rv := kit.NewRadio("vertical", "vertical")
+	rh.SetFace(face)
+	rv.SetFace(face)
+	basicRG := kit.NewRadioGroup(rh, rv)
+	basicRG.Select("horizontal")
+	radioRow(basicRG)
+	basicRG.OnChange = func(v string) {
+		fillBasicBars(v == "vertical")
+		basicHost.MarkNeedsLayout()
+		*status = "flex basic → " + v
+	}
+	basicOuter := kit.NewFlex(basicRG.Node(), basicHost)
+	basicOuter.SetVertical(true)
+	basicOuter.SetGapSize(kit.FlexGapMedium)
+	secFlexBasic := demoSection(face, theme, "基本布局",
+		"antd basic.tsx：Radio 切换 horizontal / vertical。色块高 54；水平均分宽度，垂直通栏堆叠。宿主 ExpandWidth，随窗口收缩。",
+		basicOuter.Node())
+
+	// ---------- align.tsx ----------
+	alignBtns := kit.NewFlex(
+		mkPrimaryBtn("Primary").Node(),
+		mkPrimaryBtn("Primary").Node(),
+		mkPrimaryBtn("Primary").Node(),
+		mkPrimaryBtn("Primary").Node(),
 	)
-	flexGap.SetGap(16)
+	alignBtns.SetJustify(kit.FlexJustifyStart)
+	alignBtns.SetAlign(kit.FlexAlignStart)
+	// antd align.tsx: no wrap — align-items needs a single line in the tall playground
+	alignBtns.SetWrap(false)
+	alignBtns.SetGap(8)
+	alignPlay := playground(alignBtns.Node(), 120, render.Hex("#40a9ff"))
 
-	// Wrap: many fixed boxes in a bounded width host
-	wrapKids := make([]core.Node, 0, 8)
-	for i, lab := range []string{"1", "2", "3", "4", "5", "6", "7", "8"} {
-		_ = i
-		wrapKids = append(wrapKids, box(lab, 72, 28, blue))
+	applyJustify := func(v string) {
+		switch v {
+		case "center":
+			alignBtns.SetJustify(kit.FlexJustifyCenter)
+		case "flex-end":
+			alignBtns.SetJustify(kit.FlexJustifyEnd)
+		case "space-between":
+			alignBtns.SetJustify(kit.FlexJustifySpaceBetween)
+		case "space-around":
+			alignBtns.SetJustify(kit.FlexJustifySpaceAround)
+		case "space-evenly":
+			alignBtns.SetJustify(kit.FlexJustifySpaceEvenly)
+		default:
+			alignBtns.SetJustify(kit.FlexJustifyStart)
+		}
+		alignPlay.MarkNeedsLayout()
+		*status = "flex justify → " + v
 	}
-	flexWrap := kit.NewFlexRow(wrapKids...)
-	flexWrap.SetGap(8)
+	applyAlign := func(v string) {
+		switch v {
+		case "center":
+			alignBtns.SetAlign(kit.FlexAlignCenter)
+		case "flex-end":
+			alignBtns.SetAlign(kit.FlexAlignEnd)
+		default:
+			alignBtns.SetAlign(kit.FlexAlignStart)
+		}
+		alignPlay.MarkNeedsLayout()
+		*status = "flex align → " + v
+	}
+	justifySeg := kit.NewSegmented(
+		"flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly",
+	)
+	justifySeg.SetFace(face)
+	justifySeg.OnChange = applyJustify
+	alignSeg := kit.NewSegmented("flex-start", "center", "flex-end")
+	alignSeg.SetFace(face)
+	alignSeg.OnChange = applyAlign
+	lblJ := kit.NewText("Select justify :")
+	lblJ.SetFace(face)
+	lblA := kit.NewText("Select align :")
+	lblA.SetFace(face)
+	alignOuter := kit.NewFlex(
+		lblJ.Node(), justifySeg.Node(),
+		lblA.Node(), alignSeg.Node(),
+		alignPlay,
+	)
+	alignOuter.SetVertical(true)
+	alignOuter.SetGapSize(kit.FlexGapMedium)
+	alignOuter.SetAlign(kit.FlexAlignStart)
+	secFlexAlign := demoSection(face, theme, "对齐方式",
+		"antd align.tsx：Segmented 选 justify / align。场地高度 120、边框 #40a9ff、宽度 100%（ExpandWidth），缩窗口时按钮可 wrap，不跑出父容器。",
+		alignOuter.Node())
+
+	// ---------- gap.tsx ----------
+	gapRow := kit.NewFlex(
+		mkBtnTyped("Primary", kit.ButtonPrimary).Node(),
+		mkBtnTyped("Default", kit.ButtonDefault).Node(),
+		mkBtnTyped("Dashed", kit.ButtonDashed).Node(),
+		mkBtnTyped("Link", kit.ButtonLink).Node(),
+	)
+	gapRow.SetGapSize(kit.FlexGapSmall)
+	gapRow.SetWrap(true)
+
+	rSmall := kit.NewRadio("small", "small")
+	rMed := kit.NewRadio("medium", "medium")
+	rLarge := kit.NewRadio("large", "large")
+	rCust := kit.NewRadio("customize", "customize")
+	for _, r := range []*kit.Radio{rSmall, rMed, rLarge, rCust} {
+		r.SetFace(face)
+	}
+	gapRG := kit.NewRadioGroup(rSmall, rMed, rLarge, rCust)
+	gapRG.Select("small")
+	radioRow(gapRG)
+	gapSlider := kit.NewSlider(16)
+	gapSlider.Min, gapSlider.Max = 0, 64
+	gapSlider.Width = 0 // follow host
+	// Slider host expands with content width when shown
+	sliderSlot := primitive.NewSlot("flex-gap-slider", nil)
+
+	applyGapMode := func(mode string) {
+		switch mode {
+		case "medium":
+			gapRow.SetGapSize(kit.FlexGapMedium)
+			sliderSlot.SetChild(nil)
+		case "large":
+			gapRow.SetGapSize(kit.FlexGapLarge)
+			sliderSlot.SetChild(nil)
+		case "customize":
+			gapRow.SetGap(gapSlider.Value)
+			// wrap slider in ExpandWidth host so it tracks tab width
+			sh := primitive.NewDecorated(gapSlider.Node())
+			sh.ExpandWidth = true
+			sh.Height = 32
+			sh.StretchChild = true
+			sliderSlot.SetChild(sh)
+		default:
+			gapRow.SetGapSize(kit.FlexGapSmall)
+			sliderSlot.SetChild(nil)
+		}
+		*status = "flex gap → " + mode
+	}
+	gapRG.OnChange = applyGapMode
+	gapSlider.OnChange = func(v float64) {
+		if gapRG.Value == "customize" {
+			gapRow.SetGap(v)
+			*status = fmt.Sprintf("flex gap custom → %.0f", v)
+		}
+	}
+	gapOuter := kit.NewFlex(gapRG.Node(), sliderSlot, gapRow.Node())
+	gapOuter.SetVertical(true)
+	gapOuter.SetGapSize(kit.FlexGapMedium)
+	secFlexGap := demoSection(face, theme, "设置间隙",
+		"antd gap.tsx：Radio 选 small(8)/medium(16)/large(24)/customize。customize 时出现 Slider；按钮行 wrap，窄窗不溢出。",
+		gapOuter.Node())
+
+	// ---------- wrap.tsx ----------
+	wrapKids := make([]core.Node, 0, 24)
+	for i := 0; i < 24; i++ {
+		wrapKids = append(wrapKids, mkPrimaryBtn("Button").Node())
+	}
+	flexWrap := kit.NewFlex(wrapKids...)
 	flexWrap.SetWrap(true)
-	wrapHost := primitive.NewDecorated(flexWrap.Node())
-	wrapHost.Width = 280
+	flexWrap.SetGapSize(kit.FlexGapSmall)
+	// ExpandWidth host passes bounded MaxWidth so wrap actually engages (antd 100% row).
+	wrapHost := playground(flexWrap.Node(), 0, render.RGBA{R: 0, G: 0, B: 0, A: 0.06})
 	wrapHost.Padding = primitive.All(8)
-	wrapHost.Background = gray
-	wrapHost.Radius = 6
+	wrapHost.Background = render.RGBA{R: 0, G: 0, B: 0, A: 0.04}
+	secFlexWrap := demoSection(face, theme, "自动换行",
+		"antd wrap.tsx：wrap + gap=small，24 个 Primary Button。宿主宽度随内容区收缩；窗口变窄时自动换行，不横向撑破父级。",
+		wrapHost)
 
-	// Grow: two Flexible share remaining width
-	left := primitive.NewFlexible(1, box("grow=1", 0, 32, blue))
-	left.FillChild = true
-	right := primitive.NewFlexible(2, box("grow=2", 0, 32, green))
-	right.FillChild = true
-	growRow := primitive.Row(box("fixed", 56, 32, orange), left, right)
-	growRow.Gap = 8
-	growHost := primitive.NewDecorated(growRow)
-	growHost.Width = 400
-	growHost.Padding = primitive.All(8)
-	growHost.Background = gray
-	growHost.Radius = 6
-	growHost.StretchChild = true
+	// ---------- combination.tsx ----------
+	// antd combination.tsx (Card 620, body pad 0):
+	//   Flex justify=space-between
+	//     img width 273 (photo ~square → height ≈ 180–273)
+	//     Flex vertical align=end justify=space-between style={{padding:32}}
+	//       Title level 3
+	//       Button "Get Started"
+	//
+	// Critical for "Get Started" at bottom-right with a large gap:
+	// the right column must be TALLER than title+button. antd gets that from
+	// the image height; if title wraps taller than the image, space-between
+	// has zero free space and the button sticks under the title.
+	const comboImgW, comboImgH = 273.0, 273.0
+	flexImg := primitive.NewDecorated(nil)
+	flexImg.Width = comboImgW
+	flexImg.Height = comboImgH
+	flexImg.MinWidth = comboImgW
+	flexImg.Background = render.Hex("#1677ff")
 
-	// Shrink demos.
-	// IMPORTANT: fixed-width playgrounds must NOT sit under CrossStretch alone, or
-	// parent tight MinWidth forces the host to full page width while children still
-	// layout at host.Width — looks like "blocks never change". Wrap with CrossStart.
-	alignStart := func(n core.Node) core.Node {
-		r := primitive.Row(n)
-		r.CrossAlign = core.CrossStart
-		return r
-	}
+	quote := kit.NewTitle("“antd is an enterprise-class UI design language and React UI library.”", 3)
+	quote.SetFace(face)
+	quote.SetEllipsisRows(3)
+	// Cap title width so level-3 wraps like antd (~ right column − pad).
+	quoteBox := primitive.NewDecorated(quote.Node())
+	quoteBox.Width = 250
 
-	// Prefer width via Decorated MinWidth so measure is large before shrink.
-	wide := func(label string, shrink float64, minW float64, col render.RGBA) core.Node {
-		tx := kit.NewText(label)
-		tx.SetFace(face)
-		d := primitive.NewDecorated(tx.Node())
-		d.Padding = primitive.Symmetric(12, 6)
-		d.Background = col
-		d.Radius = 4
-		d.MinWidth = minW
-		f := primitive.NewFlexible(0, d)
-		f.Shrink = shrink
-		f.FillChild = true
-		return f
-	}
+	getStarted := mkPrimaryBtn("Get Started")
+	comboInner := kit.NewFlex(quoteBox, getStarted.Node())
+	comboInner.SetVertical(true)
+	comboInner.SetAlign(kit.FlexAlignEnd)              // items to the right
+	comboInner.SetJustify(kit.FlexJustifySpaceBetween) // title top, button bottom
 
-	// Fixed playground: host width 240, two blocks want 160 each → shrink to ~108.
-	shrinkRow := primitive.Row(wide("shrink=1 · A", 1, 160, blue), wide("shrink=1 · B", 1, 160, green))
-	shrinkRow.Gap = 8
-	shrinkHost := primitive.NewDecorated(shrinkRow)
-	shrinkHost.Width = 240
-	shrinkHost.Padding = primitive.All(8)
-	shrinkHost.Background = gray
-	shrinkHost.Radius = 6
-	shrinkHost.StretchChild = true
+	// Definite height = image height so StretchChild gives the inner flex a
+	// tight height and space-between creates the large vertical gap.
+	innerPad := primitive.NewDecorated(comboInner.Node())
+	innerPad.Padding = primitive.All(32)
+	innerPad.Width = 620 - comboImgW // 347
+	innerPad.Height = comboImgH
+	innerPad.StretchChild = true
 
-	// shrink=0 vs shrink=1 in fixed 240 host
-	shrink0Row := primitive.Row(wide("shrink=0", 0, 160, orange), wide("shrink=1", 1, 160, blue))
-	shrink0Row.Gap = 8
-	shrink0Host := primitive.NewDecorated(shrink0Row)
-	shrink0Host.Width = 240
-	shrink0Host.Padding = primitive.All(8)
-	shrink0Host.Background = gray
-	shrink0Host.Radius = 6
-	shrink0Host.StretchChild = true
+	comboRow := kit.NewFlex(flexImg, innerPad)
+	comboRow.SetJustify(kit.FlexJustifyStart)
+	comboRow.SetAlign(kit.FlexAlignStart) // both panes fixed size; no stretch fight
+	comboRow.SetWrap(false)
+	comboRow.SetGap(0)
 
-	// Responsive: host expands to content width (no fixed Width). Blocks prefer 220 each.
-	// Narrow the window / content column — when max width < 220+8+220, both shrink.
-	respRow := primitive.Row(wide("want 280 · shrink=1", 1, 280, blue), wide("want 280 · shrink=1", 1, 280, green))
-	respRow.Gap = 8
-	respHost := primitive.NewDecorated(respRow)
-	respHost.ExpandWidth = true // follow parent max width
-	respHost.Padding = primitive.All(8)
-	respHost.Background = gray
-	respHost.Radius = 6
-	respHost.StretchChild = true
+	cardShell := primitive.NewDecorated(comboRow.Node())
+	cardShell.Width = 620
+	cardShell.Radius = theme.SizeOr(core.TokenBorderRadiusLG, 8)
+	cardShell.BorderWidth = 1
+	cardShell.BorderColor = theme.Color(core.TokenColorBorder)
+	cardShell.Background = theme.Color(core.TokenColorBgContainer)
+	cardShell.Padding = primitive.EdgeInsets{}
+	secFlexCombo := demoSection(face, theme, "组合使用",
+		"antd combination.tsx：左图 273×273；右栏宽 347、高与图相同、pad 32；vertical + align=end + space-between → 标题右上、Get Started 右下且中间大间距。",
+		cardShell)
 
 	items = append(items, ctlTab("flex", "Flex"))
 	contents["flex"] = demoPage(face, "Flex",
-		"Ant Design Flex: gap, wrap, grow, shrink. Blue/green blocks are the flex items that shrink — gray is only the host.",
-		demoSection(face, theme, "Basic / Gap", "Horizontal row with gap.", flexGap.Node()),
-		demoSection(face, theme, "Wrap", "Children wrap when main axis is bounded (width 280).", alignStart(wrapHost)),
-		demoSection(face, theme, "Grow", "Flexible grow factors share free space (1 : 2).", alignStart(growHost)),
-		demoSection(face, theme, "Shrink (fixed host 240)",
-			"Gray host is fixed 240px wide. Two blocks want 160 each → FlexShrink packs them to ~108. The colored blocks shrink, not the gray chrome.",
-			alignStart(shrinkHost)),
-		demoSection(face, theme, "Shrink = 0",
-			"Left shrink=0 keeps ~160; right shrink=1 absorbs the deficit.",
-			alignStart(shrink0Host)),
-		demoSection(face, theme, "Shrink with window",
-			"Gray host fills the content width. Each block wants 280px. Narrow the window — when content area < ~568px the colored blocks compress (not the gray alone).",
-			respHost),
+		"用于对齐的弹性布局容器。示例对齐 antd 6.5 官方非 debug demo。交互改 props 后立即重排；宿主随窗口宽度收缩，子项 wrap/均分，不溢出父容器。",
+		secFlexBasic, secFlexAlign, secFlexGap, secFlexWrap, secFlexCombo,
 	)
 
 	g := kit.NewGridCols(3,

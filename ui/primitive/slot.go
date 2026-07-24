@@ -15,6 +15,10 @@ type Slot struct {
 	Name string
 	// ExpandFill when true expands to fill bounded max even under loose mins
 	// (tab body host). Default false.
+	//
+	// Important: the child is re-laid out with tight min==max on each bounded
+	// axis so descendants (e.g. kit.Flex justify) see real free space. Expanding
+	// only the Slot shell left children at intrinsic width and broke space-between.
 	ExpandFill bool
 }
 
@@ -80,6 +84,18 @@ func (s *Slot) Layout(c core.Constraints) core.Size {
 	}
 	if c.MinHeight == c.MaxHeight && c.MaxHeight < core.Unbounded {
 		childC.MinHeight, childC.MaxHeight = c.MinHeight, c.MaxHeight
+	}
+	// ExpandFill: fill bounded axes and pass that tightness to the child so
+	// product layout (Flex justify/align, wrap) uses the real content box.
+	if s.ExpandFill {
+		if c.HasBoundedWidth() && c.MaxWidth < core.Unbounded {
+			childC.MinWidth, childC.MaxWidth = c.MaxWidth, c.MaxWidth
+		}
+		// Height: only force when parent already tight (scroll viewport keeps
+		// MaxHeight unbounded so content can grow and scroll).
+		if c.MinHeight == c.MaxHeight && c.HasBoundedHeight() && c.MaxHeight < core.Unbounded {
+			childC.MinHeight, childC.MaxHeight = c.MaxHeight, c.MaxHeight
+		}
 	}
 	sz := kids[0].Layout(childC)
 	kids[0].Base().SetOffset(core.Point{})

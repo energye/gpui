@@ -206,18 +206,26 @@ func (n *NodeBase) ClearChildren() {
 	n.MarkNeedsLayout()
 }
 
-// MarkNeedsLayout dirties this node and ancestors (always bubbles past boundaries).
+// MarkNeedsLayout dirties this node and ALL ancestors up to the root.
+//
+// Early-exit when an ancestor is already dirty is unsafe: LayoutSkipIfClean on a
+// clean intermediate would never visit a dirty descendant, so property changes
+// (Flex justify/align/gap) appear stuck until a resize forces full remeasure.
+// Depth is small (UI trees); always marking ancestors is the correct O(depth) fix.
+//
+// Also sets Tree.layoutDirty so Frame/needsLayoutPass remeasures.
 func (n *NodeBase) MarkNeedsLayout() {
+	if n == nil {
+		return
+	}
 	n.needsLayout = true
 	n.needsPaint = true
 	if n.tree != nil {
-		n.tree.markDirty()
+		n.tree.markLayoutDirty()
 	}
 	for p := n.parent; p != nil; p = p.Parent() {
 		b := p.Base()
-		if b.needsLayout {
-			break
-		}
+		// Always set — do not break on already-dirty ancestors.
 		b.needsLayout = true
 		b.needsPaint = true
 	}

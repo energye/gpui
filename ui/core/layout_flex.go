@@ -113,7 +113,7 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 		} else {
 			if horizontal {
 				childC := Constraints{MaxWidth: maxMain, MaxHeight: maxCross}
-				if p.CrossAlign == CrossStretch && c.HasBoundedHeight() {
+				if p.CrossAlign == CrossStretch && stretchCrossTight(c, true) {
 					childC.MinHeight = maxCross
 					childC.MaxHeight = maxCross
 				}
@@ -122,7 +122,7 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 				it.cross = sz.Height
 			} else {
 				childC := Constraints{MaxWidth: maxCross, MaxHeight: maxMain}
-				if p.CrossAlign == CrossStretch && c.HasBoundedWidth() {
+				if p.CrossAlign == CrossStretch && stretchCrossTight(c, false) {
 					childC.MinWidth = maxCross
 					childC.MaxWidth = maxCross
 				}
@@ -168,13 +168,13 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 				var childC Constraints
 				if horizontal {
 					childC = Constraints{MinWidth: mainAlloc, MaxWidth: mainAlloc, MaxHeight: maxCross}
-					if p.CrossAlign == CrossStretch && c.HasBoundedHeight() {
+					if p.CrossAlign == CrossStretch && stretchCrossTight(c, true) {
 						childC.MinHeight = maxCross
 						childC.MaxHeight = maxCross
 					}
 				} else {
 					childC = Constraints{MaxWidth: maxCross, MinHeight: mainAlloc, MaxHeight: mainAlloc}
-					if p.CrossAlign == CrossStretch && c.HasBoundedWidth() {
+					if p.CrossAlign == CrossStretch && stretchCrossTight(c, false) {
 						childC.MinWidth = maxCross
 						childC.MaxWidth = maxCross
 					}
@@ -217,13 +217,13 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 			var childC Constraints
 			if horizontal {
 				childC = Constraints{MinWidth: mainAlloc, MaxWidth: mainAlloc, MaxHeight: maxCross}
-				if p.CrossAlign == CrossStretch && c.HasBoundedHeight() {
+				if p.CrossAlign == CrossStretch && stretchCrossTight(c, true) {
 					childC.MinHeight = maxCross
 					childC.MaxHeight = maxCross
 				}
 			} else {
 				childC = Constraints{MaxWidth: maxCross, MinHeight: mainAlloc, MaxHeight: mainAlloc}
-				if p.CrossAlign == CrossStretch && c.HasBoundedWidth() {
+				if p.CrossAlign == CrossStretch && stretchCrossTight(c, false) {
 					childC.MinWidth = maxCross
 					childC.MaxWidth = maxCross
 				}
@@ -252,12 +252,13 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 	var out Size
 	if horizontal {
 		out = c.Tighten(Size{Width: contentMain, Height: contentCross})
-		if p.CrossAlign == CrossStretch && c.HasBoundedHeight() && c.MaxHeight < Unbounded {
+		// Only expand to MaxHeight when cross size is definite (min==max).
+		if p.CrossAlign == CrossStretch && stretchCrossTight(c, true) {
 			out.Height = c.Tighten(Size{Width: out.Width, Height: c.MaxHeight}).Height
 		}
 	} else {
 		out = c.Tighten(Size{Width: contentCross, Height: contentMain})
-		if p.CrossAlign == CrossStretch && c.HasBoundedWidth() && c.MaxWidth < Unbounded {
+		if p.CrossAlign == CrossStretch && stretchCrossTight(c, false) {
 			out.Width = c.Tighten(Size{Width: c.MaxWidth, Height: out.Height}).Width
 		}
 	}
@@ -297,27 +298,24 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 	for i := range items {
 		it := &items[i]
 		crossPos := crossAxisOffset(p.CrossAlign, parentCross, it.cross)
-		// Stretch: re-layout if needed with exact cross size.
+		// Stretch: always re-layout with tight cross so Flexible/FillChild /
+		// Decorated.StretchChild get a definite height (combination Get Started).
 		if p.CrossAlign == CrossStretch {
 			crossPos = 0
 			if horizontal {
-				if it.cross != parentCross {
-					childC := Constraints{
-						MinWidth: it.mainSize, MaxWidth: it.mainSize,
-						MinHeight: parentCross, MaxHeight: parentCross,
-					}
-					sz := it.node.Layout(childC)
-					it.mainSize, it.cross = sz.Width, sz.Height
+				childC := Constraints{
+					MinWidth: it.mainSize, MaxWidth: it.mainSize,
+					MinHeight: parentCross, MaxHeight: parentCross,
 				}
+				sz := it.node.Layout(childC)
+				it.mainSize, it.cross = sz.Width, sz.Height
 			} else {
-				if it.cross != parentCross {
-					childC := Constraints{
-						MinWidth: parentCross, MaxWidth: parentCross,
-						MinHeight: it.mainSize, MaxHeight: it.mainSize,
-					}
-					sz := it.node.Layout(childC)
-					it.mainSize, it.cross = sz.Height, sz.Width
+				childC := Constraints{
+					MinWidth: parentCross, MaxWidth: parentCross,
+					MinHeight: it.mainSize, MaxHeight: it.mainSize,
 				}
+				sz := it.node.Layout(childC)
+				it.mainSize, it.cross = sz.Height, sz.Width
 			}
 		}
 		if horizontal {
@@ -331,19 +329,24 @@ func LayoutFlex(parent *NodeBase, c Constraints, p FlexLayoutParams) Size {
 	return out
 }
 
-func flexChildConstraints(horizontal bool, maxMain, maxCross float64, cross CrossAxisAlignment) Constraints {
+// stretchCrossTight is true when CrossStretch should force min=max on the cross axis.
+// CSS/Flutter: stretch only when the container has a definite cross size (min==max),
+// not merely a loose Max from a parent Scroll/Column. Otherwise a 180px image row
+// becomes 400px tall under MaxHeight=400 and space-between buttons sit mid-card.
+func stretchCrossTight(c Constraints, horizontal bool) bool {
 	if horizontal {
-		c := Constraints{MaxWidth: maxMain, MaxHeight: maxCross}
-		if cross == CrossStretch && isFinite(maxCross) {
-			c.MinHeight = maxCross
-		}
-		return c
+		return c.MinHeight == c.MaxHeight && isFinite(c.MaxHeight) && c.MaxHeight > 0
 	}
-	c := Constraints{MaxWidth: maxCross, MaxHeight: maxMain}
-	if cross == CrossStretch && isFinite(maxCross) {
-		c.MinWidth = maxCross
+	return c.MinWidth == c.MaxWidth && isFinite(c.MaxWidth) && c.MaxWidth > 0
+}
+
+func flexChildConstraints(horizontal bool, maxMain, maxCross float64, cross CrossAxisAlignment) Constraints {
+	// Intrinsic / grow measure pass: never force CrossStretch min — only cap Max.
+	// Definite stretch is applied in the main measure/grow passes via stretchCrossTight.
+	if horizontal {
+		return Constraints{MaxWidth: maxMain, MaxHeight: maxCross}
 	}
-	return c
+	return Constraints{MaxWidth: maxCross, MaxHeight: maxMain}
 }
 
 func mainAxisPlacement(align MainAxisAlignment, remaining float64, n int) (leading, between float64) {
@@ -499,7 +502,26 @@ func layoutFlexWrap(parent *NodeBase, c Constraints, p FlexLayoutParams, horizon
 	parent.SetSize(out)
 
 	// Position each line then each child within the line.
+	// parentCross is the flex container cross size (may be > content when minCross
+	// or StretchChild forces a tall/wide playground). CSS align-items operates on
+	// the container cross size; for a single line the line box stretches to that
+	// size (align-content: stretch default). Multi-line keeps per-line cross and
+	// packs from the start (align-content start) — enough for Ant Flex P0.
+	parentCross := out.Height
+	if !horizontal {
+		parentCross = out.Width
+	}
 	crossPos := 0.0
+	// Single-line: stretch line cross to container so CrossCenter/End have free space
+	// (antd align.tsx playground height 120 + align=center).
+	singleLineStretch := len(lines) == 1 && parentCross > lines[0].cross
+	if singleLineStretch {
+		// Center/end the line box itself when not stretching items.
+		// For CrossStretch, items fill parentCross; line starts at 0.
+		if p.CrossAlign != CrossStretch {
+			crossPos = crossAxisOffset(p.CrossAlign, parentCross, lines[0].cross)
+		}
+	}
 	for li, ln := range lines {
 		if li > 0 {
 			crossPos += p.Gap
@@ -513,6 +535,10 @@ func layoutFlexWrap(parent *NodeBase, c Constraints, p FlexLayoutParams, horizon
 		mainPos := leading
 		// Line cross for CrossAlign / Stretch within this line.
 		lineCross := ln.cross
+		if singleLineStretch && p.CrossAlign == CrossStretch {
+			lineCross = parentCross
+			crossPos = 0
+		}
 		for i := ln.start; i < ln.end; i++ {
 			it := &items[i]
 			// Stretch re-layout to line cross size.
@@ -536,15 +562,28 @@ func layoutFlexWrap(parent *NodeBase, c Constraints, p FlexLayoutParams, horizon
 					it.mainSize, it.cross = sz.Height, sz.Width
 				}
 			}
-			childCrossOff := crossAxisOffset(p.CrossAlign, lineCross, it.cross)
+			// align-items within the line box. When single-line stretched and not
+			// CrossStretch, free space was applied via crossPos (line origin).
+			alignCross := lineCross
+			if singleLineStretch && p.CrossAlign != CrossStretch {
+				alignCross = ln.cross // items align within content line; line already offset
+			}
+			childCrossOff := crossAxisOffset(p.CrossAlign, alignCross, it.cross)
+			if singleLineStretch && p.CrossAlign != CrossStretch {
+				// line origin already accounts for container free space; items at line-local 0+
+				childCrossOff = crossAxisOffset(p.CrossAlign, ln.cross, it.cross)
+			}
 			if horizontal {
 				it.base.SetOffset(Point{X: mainPos, Y: crossPos + childCrossOff})
 			} else {
 				it.base.SetOffset(Point{X: crossPos + childCrossOff, Y: mainPos})
 			}
-			mainPos += it.mainSize + p.Gap + between
+			mainPos += it.mainSize + between
+			if i < ln.end-1 {
+				mainPos += p.Gap
+			}
 		}
-		crossPos += lineCross
+		crossPos += ln.cross
 	}
 	return out
 }

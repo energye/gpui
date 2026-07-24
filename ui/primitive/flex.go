@@ -14,6 +14,12 @@ type Flex struct {
 	// Wrap packs children onto multiple lines when the main axis is bounded
 	// (see core.FlexLayoutParams.Wrap). Gap applies within and between lines.
 	Wrap bool
+	// ExpandMax makes this flex behave like a CSS block-level flex container:
+	// when the parent provides a finite MaxWidth, the flex fills that width so
+	// justify-content free space (space-between/center/…) is real.
+	// kit.Flex (Ant Design Flex) sets this; internal tool rows (Button chrome)
+	// leave it false so they hug content.
+	ExpandMax bool
 }
 
 // NewFlex constructs a Flex along axis with optional children.
@@ -42,6 +48,14 @@ func (f *Flex) Layout(c core.Constraints) core.Size {
 		return sz
 	}
 	inner := c.Deflate(f.Padding.Left, f.Padding.Top, f.Padding.Right, f.Padding.Bottom)
+	// Block-level fill: CSS flex container width is the containing block.
+	// Without this, MaxWidth is only a cap and MainSpaceBetween has zero free space
+	// under ScrollViewport/Slot loose mins (justify appears "broken" until resize).
+	if f.ExpandMax && inner.HasBoundedWidth() && inner.MaxWidth < core.Unbounded {
+		if inner.MinWidth < inner.MaxWidth {
+			inner.MinWidth = inner.MaxWidth
+		}
+	}
 	// Temporarily layout children relative to content box; LayoutFlex writes offsets at 0,0.
 	// We re-offset by padding after.
 	sz := core.LayoutFlex(&f.NodeBase, inner, core.FlexLayoutParams{
