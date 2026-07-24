@@ -120,7 +120,10 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Grid", func(t *testing.T) {
-			g := kit.NewGridCols(2, kit.NewText("1").Node(), kit.NewText("2").Node())
+			c1, c2 := kit.NewCol(kit.NewText("1").Node()), kit.NewCol(kit.NewText("2").Node())
+			c1.SetSpan(12)
+			c2.SetSpan(12)
+			g := kit.NewRow(c1.Node(), c2.Node())
 			sz := g.Node().Layout(core.Loose(200, 100))
 			if sz.Width <= 0 {
 				t.Fatal(sz)

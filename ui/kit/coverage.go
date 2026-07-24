@@ -37,7 +37,7 @@ func AntCoverage() []CoverageEntry {
 		// Layout
 		{Ant: "Divider", Status: CovReady, Via: "kit.Divider", Since: "Base-ALL", Notes: "P0 对齐 docs/antd/divider.md §6（orientation/vertical、size small|medium|large|unset margin 8/16/24、variant solid|dashed|dotted + dashed 糖、Title/plain/titlePlacement start|end|center、orientationMargin 默认 0.05、role=separator、Token colorSplit + lineWidth、hit==layout==paint）；P1: semantic classNames/styles 深度、orientationMargin 绝对 px / styles.content.margin 全矩阵、垂直 -0.06em 光学、dashed/dotted 官网纹样逐像素、ConfigProvider 全局"},
 		{Ant: "Flex", Status: CovReady, Via: "kit.Flex", Since: "Base-ALL", Notes: "P0 对齐 docs/antd/flex.md §6（orientation/vertical、gap small|medium|large|px 8/16/24、justify、align 默认水平 start/垂直 stretch、wrap、官方 basic/align/gap/wrap/combination、Token、AriaLabel、hit==layout==paint）；P1: flex CSS 简写、component、wrap-reverse、semantic classNames/styles、ConfigProvider 全局 flex 默认、官网逐像素"},
-		{Ant: "Grid", Status: CovReady, Via: "kit.Grid", Since: "Base-ALL"},
+		{Ant: "Grid", Status: CovReady, Via: "kit.Row / kit.Col / NewGrid", Since: "Base-ALL", Notes: "P0 对齐 docs/antd/grid.md §6（Row align/justify/wrap/gutter[h|hv]、Col span/offset/order/push/pull/flex、断点 span xs…xxxl + SetViewportWidth、官方 basic/gutter/offset/sort/flex/flex-align/flex-order/flex-stretch、gridColumns=24、AriaLabel、hit==layout==paint）；P1: gutter/align/justify 响应式 object 与 CSS 字符串 gutter、Col 响应式 object 全字段、useBreakpoint/playground、官方响应式三示例、semantic classNames/styles、ConfigProvider 全局、官网逐像素"},
 		{Ant: "Layout", Status: CovReady, Via: "kit.Layout", Since: "Base-ALL"},
 		{Ant: "Space", Status: CovReady, Via: "kit.Space", Since: "Base-ALL", Notes: "wrap ✅"},
 		{Ant: "Splitter", Status: CovReady, Via: "kit.Splitter", Since: "Base-ALL"},

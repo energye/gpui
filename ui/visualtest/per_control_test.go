@@ -59,10 +59,12 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(kit.NewFlex(kit.NewText("a").Node(), kit.NewText("b").Node()).Node(), 160, 40)
 		}},
 		{"ctl_grid", 180, 80, func() core.Node {
-			return padRoot(kit.NewGridCols(2,
-				kit.NewText("1").Node(), kit.NewText("2").Node(),
-				kit.NewText("3").Node(), kit.NewText("4").Node(),
-			).Node(), 180, 80)
+			mk := func(s string) core.Node {
+				c := kit.NewCol(kit.NewText(s).Node())
+				c.SetSpan(12)
+				return c.Node()
+			}
+			return padRoot(kit.NewRow(mk("1"), mk("2"), mk("3"), mk("4")).Node(), 180, 80)
 		}},
 		{"ctl_tag", 100, 40, func() core.Node { return padRoot(kit.NewTag("Tag").Node(), 100, 40) }},
 		{"ctl_alert", 280, 64, func() core.Node {

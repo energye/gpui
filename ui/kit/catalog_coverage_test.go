@@ -52,7 +52,12 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Space", kit.NewSpace(kit.NewText("a").Node()).Node())
 	must("Divider", kit.NewDivider().Node())
 	must("Flex", kit.NewFlex(kit.NewText("a").Node()).Node())
-	must("Grid", kit.NewGridCols(2, kit.NewText("1").Node(), kit.NewText("2").Node()).Node())
+	must("Grid", func() core.Node {
+		a, b := kit.NewCol(kit.NewText("1").Node()), kit.NewCol(kit.NewText("2").Node())
+		a.SetSpan(12)
+		b.SetSpan(12)
+		return kit.NewRow(a.Node(), b.Node()).Node()
+	}())
 	must("Layout", kit.NewLayout(kit.NewText("h").Node(), nil, kit.NewText("c").Node(), nil).Node())
 	must("Splitter", kit.NewSplitter(kit.NewText("a").Node(), kit.NewText("b").Node()).Node())
 	must("Breadcrumb", kit.NewBreadcrumb("a", "b").Node())

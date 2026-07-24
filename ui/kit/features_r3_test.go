@@ -152,18 +152,22 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 		},
 		"Grid": {
-			{"R1 cols", func(t *testing.T) {
-				if kit.NewGridCols(2, kit.NewText("1").Node()).Node() == nil {
+			{"R1 row/col", func(t *testing.T) {
+				c := kit.NewCol(kit.NewText("1").Node())
+				c.SetSpan(12)
+				if kit.NewRow(c.Node()).Node() == nil {
 					t.Fatal()
 				}
 			}},
-			{"R2 setCols", func(t *testing.T) {
-				g := kit.NewGridCols(2)
-				g.SetCols(3)
+			{"R2 span", func(t *testing.T) {
+				c := kit.NewCol()
+				c.SetSpan(8)
+				c.SetOffset(4)
 			}},
-			{"R3 gap", func(t *testing.T) {
-				g := kit.NewGridCols(2)
-				g.SetGap(8)
+			{"R3 gutter", func(t *testing.T) {
+				g := kit.NewGrid()
+				g.SetGutter(8)
+				g.SetGutterHV(8, 16)
 			}},
 		},
 		"Layout": {

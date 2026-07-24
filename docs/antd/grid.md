@@ -327,28 +327,34 @@ import { Grid } from 'antd';
 
 ### 6.3 关键配置与语义
 
-下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**布局**。
+下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**布局**。  
+antd **Grid** 由 **Row + Col** 组成（24 列）；kit 公开 `NewRow` / `NewCol`（`NewGrid` ≡ `NewRow` 入口别名）。
+
+#### Row
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `align` | 垂直对齐方式 | `top` \ | `middle` \ |
-| `gutter` | 栅格间隔，可以写成[字符串CSS单位](https://developer.mozilla.org/zh-CN/d… | number \ | string \ |
-| `justify` | 水平排列方式 | `start` \ | `end` \ |
+| `align` | 垂直对齐 | `top` \| `middle` \| `bottom` \| `stretch` | `top` |
+| `gutter` | 栅格间隔；数字=水平；`[h,v]`=水平+垂直（P0）；响应式 object / CSS 字符串 → P1 | number \| [h,v] | 0 |
+| `justify` | 水平排列 | `start` \| `end` \| `center` \| `space-around` \| `space-between` \| `space-evenly` | `start` |
 | `wrap` | 是否自动换行 | boolean | true |
-| `flex` | flex 布局属性。数字类型对应 'flex: n n auto'；字符串类型直接透传（例如纯数字字符串 'n' … | string \ | number |
-| `offset` | 栅格左侧的间隔格数，间隔内不可以有栅格 | number | 0 |
-| `order` | 栅格顺序 | number | 0 |
-| `pull` | 栅格向左移动格数 | number | 0 |
-| `push` | 栅格向右移动格数 | number | 0 |
-| `span` | 栅格占位格数，为 0 时相当于 `display: none` | number | - |
-| `xs` | `窗口宽度 < 576px` 响应式栅格，可为栅格数或一个包含其他属性的对象 | number \ | object |
-| `sm` | `窗口宽度 ≥ 576px` 响应式栅格，可为栅格数或一个包含其他属性的对象 | number \ | object |
-| `md` | `窗口宽度 ≥ 768px` 响应式栅格，可为栅格数或一个包含其他属性的对象 | number \ | object |
-| `lg` | `窗口宽度 ≥ 992px` 响应式栅格，可为栅格数或一个包含其他属性的对象 | number \ | object |
-| `xl` | `窗口宽度 ≥ 1200px` 响应式栅格，可为栅格数或一个包含其他属性的对象 | number \ | object |
-| `xxl` | `窗口宽度 ≥ 1600px` 响应式栅格，可为栅格数或一个包含其他属性的对象 | number \ | object |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+#### Col
+
+| 配置 | 说明 | 类型（摘录） | 默认 |
+| --- | --- | --- | --- |
+| `span` | 占位格数（/24）；`0` ≡ 隐藏 | number | —（未设则随内容 / flex） |
+| `offset` | 左侧间隔格数 | number | 0 |
+| `order` | 栅格顺序 | number | 0 |
+| `push` | 向右推移格数（相对定位） | number | 0 |
+| `pull` | 向左推移格数（相对定位） | number | 0 |
+| `flex` | flex 简写：数字 → `n n auto`；`"auto"` / `"none"` / `"100px"` / `"1 1 200px"` | string \| number | — |
+| `xs`…`xxxl` | 断点 span 或对象（P0：至少 `span` 数字切换，见 GRD-06） | number \| object | — |
+
+**断点默认值（antd）：** xs&lt;576 · sm≥576 · md≥768 · lg≥992 · xl≥1200 · xxl≥1600 · xxxl≥1920。  
+kit 通过 `Row.SetViewportWidth(w)`（或布局约束 MaxWidth）解析响应式，不依赖浏览器 media query。
+
+**配置优先级（Col）：** 当前断点命中的响应式字段 > 显式 `span`/`offset`/… > 零值默认。
 
 ### 6.4 交互状态机（L1）
 
@@ -406,28 +412,31 @@ gutter 间距
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `align` | 必须 |
-| `gutter` | 必须 |
-| `justify` | 必须 |
-| `wrap` | 必须 |
-| `flex` | 必须 |
-| `offset` | 必须 |
-| `order` | 必须 |
-| `pull` | 必须 |
+| `Row.align` | top / middle / bottom / stretch |
+| `Row.gutter` | 数字水平；`[h,v]` 水平+垂直 |
+| `Row.justify` | start / end / center / space-around / space-between / space-evenly |
+| `Row.wrap` | 默认 true |
+| `Col.span` | 24 栅格占位；0 隐藏（基础栅格必备） |
+| `Col.offset` | 左空格数 |
+| `Col.order` | 排序 |
+| `Col.push` / `Col.pull` | 栅格排序示例必备（成对） |
+| `Col.flex` | 数字 / auto / none / 定宽 / 三值简写 |
+| 断点 span 切换（GRD-06） | `xs`/`md` 等数字 span + `SetViewportWidth`；非完整响应式示例页 |
 | 官方主路径示例 | 基础栅格、区块间隔、左右偏移、栅格排序、排版、对齐、排序、Flex 填充 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 度量 §6.2 | Token 断言（gridColumns=24 等） |
+| a11y §6.6 | 布局容器可选 AriaLabel；无强制 role |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 响应式布局, Flex 响应式布局, 其他属性的响应式, 栅格配置器 |
+| gutter / align / justify 的响应式 object 与 CSS 字符串 gutter | 分期 |
+| Col 响应式 object（order/offset/push/pull/flex 全字段） | 分期（P0 仅 span 数字） |
+| useBreakpoint Hook / 栅格配置器 playground | 分期 |
+| 官方示例：响应式布局、Flex 响应式、其他属性响应式 | 分期 |
+| semantic classNames/styles、ConfigProvider 全局 | 分期 |
+| 动画像素级、官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -460,39 +469,60 @@ gutter 间距
 | GRD-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（删除 `NewGridCols` / 旧 `*Grid` FR 均分封装）。语义对齐 antd **Row + Col**。
 
 ```text
-NewGrid(...) *Grid
+// 入口
+NewRow(children ...core.Node) *Row
+NewCol(children ...core.Node) *Col
+NewGrid(children ...core.Node) *Row   // ≡ NewRow（§6 产品名 / GRD-01）
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// Row P0
+(*Row) SetAlign(RowAlign)            // top|middle|bottom|stretch
+(*Row) SetJustify(RowJustify)        // start|end|center|space-*
+(*Row) SetWrap(bool)                 // default true
+(*Row) SetGutter(h float64)          // 水平 gutter
+(*Row) SetGutterHV(h, v float64)     // [水平, 垂直]
+(*Row) SetViewportWidth(w float64)   // 断点解析（0=用布局 MaxWidth）
+(*Row) SetTheme(*Theme) / SetAriaLabel(string)
+(*Row) Add / SetChildren / ClearChildren / Node() core.Node
+
+// Col P0
+(*Col) SetSpan(n int)                // 0=隐藏；负值/未设=非 span 模式
+(*Col) SetOffset / SetOrder / SetPush / SetPull(int)
+(*Col) SetFlexNumber(n float64) / SetFlexString(s string) / SetFlexAuto()
+(*Col) SetXs/Sm/Md/Lg/Xl/Xxl/Xxxl(span int)  // 响应式 span 数字
+(*Col) SetChildren / Node() core.Node
+
+// 常量
+GridColumns = 24
+ScreenSM/MD/LG/XL/XXL/XXXL 断点宽度
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Row.align | top |
+| Row.justify | start |
+| Row.wrap | true |
+| Row.gutter | 0 |
+| Col.offset/order/push/pull | 0 |
+| Col.span | 未设置（内容宽；或由 flex / 断点决定） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Layout root
-  └─ children with gap/span/handles
+Row (custom flex-like packer, ExpandMax width)
+  └─ Col × N  (span%/flex + offset margin + push/pull shift)
+       └─ children…
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 水平 gutter：Col 左右 padding = gutterH/2（对齐 antd margin 负半 + padding 半）；垂直 gutter：行间距 = gutterV。  
+- `rebuild()` / `apply()` 只读字段与 Token；`hit == layout == paint`（push/pull 改 Offset，命中随视觉盒）。  
+- 布局容器：无 disabled/loading chrome；无强制 focus role。  
 
 ### 6.12 完成定义（DoD）
 
