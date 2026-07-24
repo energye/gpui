@@ -99,7 +99,7 @@ func main() {
 
 	title := kit.NewText("M2 · Input / Checkbox / Switch / Scroll / Popover")
 	title.SetFace(face)
-	title.Root.FontSize = 16
+	title.SetFontSize(16)
 
 	name := kit.NewInput("Your name")
 	name.SetFace(face)

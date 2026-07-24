@@ -107,7 +107,7 @@ func main() {
 	// Header
 	brand := kit.NewText("gpui · kit shell")
 	brand.SetFace(face)
-	brand.Root.FontSize = 16
+	brand.SetFontSize(16)
 	userBtn := kit.NewButton("New")
 	userBtn.SetType(kit.ButtonPrimary)
 	userBtn.SetFace(face)

@@ -46,9 +46,10 @@ import (
 
 // Type IDs for plugin/skin hooks.
 const (
-	TypeButton = "kit.Button"
-	TypeText   = "kit.Text"
-	TypeIcon   = "kit.Icon"
+	TypeButton     = "kit.Button"
+	TypeText       = "kit.Text"
+	TypeTypography = "kit.Typography"
+	TypeIcon       = "kit.Icon"
 )
 
 // DefaultTheme returns the default product theme (Ant-leaning tokens + skin).

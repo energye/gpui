@@ -532,12 +532,16 @@ import { Typography } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| Title h1..h5 | **38/30/24/20/16** | fontSizeHeading* |
-| 正文 | **14** | fontSize |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| Title h1..h5 | **38/30/24/20/16** | `fontSizeHeading1..5`（无 Token 时回落常量） |
+| 正文 | **14** | `fontSize` |
+| 操作图标 | **14** | `fontSize` |
+| 操作间距 | **4** | `marginXXS` / `TokenMarginXS` |
+| code/kbd 圆角 | **3** | 组件常量（antd style 硬编码） |
+| mark 底色 | gold[2] ≈ `#ffe58f` | 组件常量（antd v4 兼容） |
+| 圆角（容器） | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 复制成功反馈时长 | **≈3s** | Ticker 短时态（非 loading） |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -640,15 +644,18 @@ editable ──► 编辑态 Enter 提交 Esc 取消
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `onClick` | 必须 |
-| `disabled` | 必须 |
-| `type` | 必须 |
-| `placement` | 必须 |
-| `icon` | 必须 |
+| 形态 `Text` / `Title` / `Paragraph` / `Link` | 四种构造；Title 带 `level` 1..5 |
+| `type` | `secondary` / `success` / `warning` / `danger` 语义色（§6.2 Token） |
+| `disabled` | 禁用文本；不可触发复制 / 编辑 / onClick |
+| `copyable` + `onCopy` + `icon` | 复制到 Tree 剪贴板；可自定义拷贝文案 / 图标名 |
+| `editable` + `onChange` / `onStart` / `onEnd` / `onCancel` | Enter 提交、Esc 取消；支持受控 `editing` |
+| `ellipsis` | 超长省略；`rows` / `expandable`/`collapsible` / 受控 `expanded` / `suffix` / **中间省略** |
+| `actions.placement` | 操作栏 `start` / `end`（默认 end） |
+| `strong` / `code` / `mark` / `delete` / `underline` / `italic` / `keyboard` | 修饰可区分（code/mark/kbd 有 chrome；delete/underline 装饰线） |
+| `onClick` | Text / Title / Paragraph / Link 点击 |
+| 正文 / Title 度量 | 正文 **14**；Title **38/30/24/20/16**（§6.2） |
 | 官方主路径示例 | 基本、标题组件、文本与超链接组件、可编辑、可复制、省略号、受控省略展开/收起、省略中间 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | 复制 / 编辑 / 展开操作有可访问名 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -656,10 +663,14 @@ editable ──► 编辑态 Enter 提交 Esc 取消
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| copyable.format / tooltips 深度 / tabIndex | 分期 |
+| editable.autoSize / maxLength / enterIcon / triggerType 全矩阵 | 分期（P0 支持 icon 触发 + Enter/Esc） |
+| ellipsis.tooltip / onEllipsis 像素级 | 分期（P0 有回调钩子即可） |
+| 动画像素级 / 复制成功动画像素级 | 分期（P0 可用瞬时或短 Ticker 态） |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 | 其余示例 | 后缀, 表格, _semantic.tsx |
+| ConfigProvider 全局 Typography 默认 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -698,39 +709,99 @@ editable ──► 编辑态 Enter 提交 Esc 取消
 | TYP-28 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。  
+> 四种形态共享 `*Typography`；`NewText` / `NewTitle` / `NewParagraph` / `NewLink` 为语法糖。
 
 ```text
-NewTypography(...) *Typography
+NewTypography(value string) *Typography          // kind=Text
+NewText(value string) *Typography                // = NewTypography
+NewTitle(value string, level int) *Typography    // level 1..5，默认 1
+NewParagraph(value string) *Typography
+NewLink(value string) *Typography
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 内容 / 形态
+SetValue(string) / Value() string
+SetKind(Text|Title|Paragraph|Link)
+SetLevel(1..5)                    // Title
+SetType(Default|Secondary|Success|Warning|Danger)
+SetDisabled(bool)
+SetStrong / SetCode / SetMark / SetDelete / SetUnderline / SetItalic / SetKeyboard(bool)
+
+// 复制
+SetCopyable(bool)
+SetCopyText(string)               // 空 = 用 Value
+SetCopyIcon(name string)          // 空 = 默认图标
+OnCopy func(text string)
+
+// 编辑
+SetEditable(bool)
+SetEditing(bool)                  // 受控；未 Set 时内部状态
+OnChange func(value string)       // 提交后的新文案
+OnStart / OnEnd / OnCancel func()
+
+// 省略
+SetEllipsis(bool)
+SetEllipsisRows(n int)            // 0/1 = 单行
+SetExpandable(bool)               // true → 可展开；+collapsible 可收起
+SetCollapsible(bool)
+SetExpanded(bool)                 // 受控 expanded
+SetDefaultExpanded(bool)
+SetEllipsisMiddle(bool)
+SetSuffix(string)
+SetExpandSymbol(expand, collapse string)  // 默认 「展开」「收起」
+OnExpand func(expanded bool)
+OnEllipsis func(ellipsis bool)
+
+// 操作栏
+SetActionsPlacement(start|end)    // 默认 end
+
+// 布局 / 主题
+SetMaxWidth(float64)
+SetFontSize(float64)              // 0 → 形态默认（正文 14 / Title 阶梯）
+SetFace(text.Face)
+SetTheme(*Theme) / Theme 字段
+Style 可选覆盖
+
+// 交互 / a11y
+OnClick func()
+SetAriaLabel(string)
+// 操作按钮自带可访问名：复制 / 编辑 / 展开|收起
+
+// 挂树
+Node() core.Node
+ContentNode() core.Node           // 文本内容节点（测省略 / 字号）
+ChromeNode() core.Node            // code/mark/kbd 外壳（适用者）
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Kind | Text（`NewText` / `NewTypography`） |
+| Level（Title） | 1（字号 38） |
+| Type | default（`colorText`） |
+| Disabled / Copyable / Editable / Ellipsis | false |
+| ActionsPlacement | end |
+| EllipsisRows | 1（Text 单行）；Paragraph 可多行由调用方 Set |
+| ExpandSymbol | `展开` / `收起` |
+| 正文 FontSize | 14（Token `fontSize`） |
+| Title FontSize | 38 / 30 / 24 / 20 / 16 |
+| 受控 editing / expanded | 未 `SetEditing` / `SetExpanded` 时用内部非受控状态 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+host (Flex row；无操作时可为内容本身)
+  ├─ actions? (placement=start)
+  ├─ content chrome? (code / mark / keyboard → Decorated)
+  │    └─ Text | EditableText（editing）
+  └─ actions? (placement=end)：expand · edit · copy
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token；值变更优先 patch，避免无谓整树重建。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 复制成功反馈跟随 Host Tick；尊重 reduced-motion。  
 
 ### 6.12 完成定义（DoD）
 

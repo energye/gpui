@@ -229,7 +229,7 @@ func main() {
 
 	title := kit.NewText("M5 · demand dirty · animations (typewriter / blink / counters)")
 	title.SetFace(face)
-	title.Root.FontSize = 15
+	title.SetFontSize(15)
 
 	// Motion fade-in text — ticker only while animating
 	hello := kit.NewText("Fading content (Motion)")

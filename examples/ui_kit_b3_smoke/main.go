@@ -100,7 +100,7 @@ func main() {
 
 	title := kit.NewText("M4 · Table / List / Tree / Pagination / Grid / Split / Dropdown")
 	title.SetFace(face)
-	title.Root.FontSize = 15
+	title.SetFontSize(15)
 
 	// Table
 	cols := []kit.TableColumn{

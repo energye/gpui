@@ -47,6 +47,8 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Text", kit.NewText("t").Node())
 	must("Title", kit.NewTitle("T", 2).Node())
 	must("Paragraph", kit.NewParagraph("p").Node())
+	must("Link", kit.NewLink("l").Node())
+	must("Typography", kit.NewTypography("ty").Node())
 	must("Space", kit.NewSpace(kit.NewText("a").Node()).Node())
 	must("Divider", kit.NewDivider().Node())
 	must("Flex", kit.NewFlexRow(kit.NewText("a").Node()).Node())

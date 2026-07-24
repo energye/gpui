@@ -103,7 +103,7 @@ func main() {
 	title := kit.NewText("M1 · kit B0 (Button / Text / Icon)")
 	title.FontSize = 18
 	title.SetFace(face)
-	title.Root.FontSize = 18
+	title.SetFontSize(18)
 
 	sub := kit.NewText("Theme tokens · Decorated · Pressable · focus Tab")
 	sub.SetSecondary(true)

@@ -100,7 +100,7 @@ func main() {
 
 	title := kit.NewText("M3 · Form / Tabs / Select / Modal / Message / VirtualList")
 	title.SetFace(face)
-	title.Root.FontSize = 15
+	title.SetFontSize(15)
 
 	// Form
 	form := kit.NewForm(nil)

@@ -119,7 +119,7 @@ func main() {
 
 	title := kit.NewText("Polish gallery · Ant Design catalog")
 	title.SetFace(face)
-	title.Root.FontSize = 16
+	title.SetFontSize(16)
 
 	var buttons []*kit.Button
 	var tickers []interface{ AttachTicker(*core.Tree) }

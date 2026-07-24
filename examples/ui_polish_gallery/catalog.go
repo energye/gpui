@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -35,7 +36,7 @@ func panel(face text.Face, title string, kids ...core.Node) core.Node {
 func demoPage(face text.Face, title, desc string, sections ...core.Node) core.Node {
 	lab := kit.NewText(title)
 	lab.SetFace(face)
-	lab.Root.FontSize = 20
+	lab.SetFontSize(20)
 	col := primitive.Column(lab.Node())
 	col.Gap = 24
 	col.MainAlign = core.MainStart
@@ -59,7 +60,7 @@ func demoPage(face text.Face, title, desc string, sections ...core.Node) core.No
 func demoSection(face text.Face, theme *core.Theme, title, desc string, body core.Node) core.Node {
 	titleT := kit.NewText(title)
 	titleT.SetFace(face)
-	titleT.Root.FontSize = 16
+	titleT.SetFontSize(16)
 	inner := primitive.Column(titleT.Node())
 	inner.Gap = 12
 	inner.MainAlign = core.MainStart
@@ -552,14 +553,121 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 		"Semantic vector icons. P0: name, size, color, rotate, spin, twoTone, painter, offline iconfont multi-source, decorative a11y.",
 		secIconBasic, secIconTwoTone, secIconCustom, secIconFont, secIconMulti, secIconStyle)
 
-	ty := kit.NewTitle("Title H3", 3)
-	ty.SetFace(face)
-	pg := kit.NewParagraph("Typography paragraph — Ant General.")
-	pg.SetFace(face)
-	tx := kit.NewText("Text")
-	tx.SetFace(face)
-	add("typography", "Typography", "General · Typography (Text / Title / Paragraph)",
-		tx.Node(), ty.Node(), pg.Node(),
+	// Typography — docs/antd/typography.md §6.8 P0
+	// https://ant.design/components/typography
+	secTypoBasic := demoSection(face, theme, "Basic",
+		"Title + Paragraph (antd basic.tsx).",
+		primitive.Column(
+			func() core.Node {
+				h := kit.NewTitle("Introduction", 2)
+				h.SetFace(face)
+				return h.Node()
+			}(),
+			func() core.Node {
+				p := kit.NewParagraph("Ant Design, a design language for background applications, is refined by Ant UED Team.")
+				p.SetFace(face)
+				p.SetMaxWidth(520)
+				return p.Node()
+			}(),
+		))
+
+	titleKids := make([]core.Node, 0, 5)
+	for lv := 1; lv <= 5; lv++ {
+		h := kit.NewTitle(fmt.Sprintf("h%d. Ant Design", lv), lv)
+		h.SetFace(face)
+		titleKids = append(titleKids, h.Node())
+	}
+	secTypoTitle := demoSection(face, theme, "Title",
+		"level 1..5 → 38/30/24/20/16 (antd title.tsx).",
+		primitive.Column(titleKids...))
+
+	mkText := func(label string, cfg func(*kit.Typography)) core.Node {
+		x := kit.NewText(label)
+		x.SetFace(face)
+		if cfg != nil {
+			cfg(x)
+		}
+		return x.Node()
+	}
+	secTypoText := demoSection(face, theme, "Text & Link",
+		"type / mark / code / delete / underline / strong / Link (antd text.tsx).",
+		spaceWrap(12,
+			mkText("default", nil),
+			mkText("secondary", func(t *kit.Typography) { t.SetType(kit.TypographyTypeSecondary) }),
+			mkText("success", func(t *kit.Typography) { t.SetType(kit.TypographyTypeSuccess) }),
+			mkText("warning", func(t *kit.Typography) { t.SetType(kit.TypographyTypeWarning) }),
+			mkText("danger", func(t *kit.Typography) { t.SetType(kit.TypographyTypeDanger) }),
+			mkText("mark", func(t *kit.Typography) { t.SetMark(true) }),
+			mkText("code", func(t *kit.Typography) { t.SetCode(true) }),
+			mkText("delete", func(t *kit.Typography) { t.SetDelete(true) }),
+			mkText("underline", func(t *kit.Typography) { t.SetUnderline(true) }),
+			mkText("strong", func(t *kit.Typography) { t.SetStrong(true) }),
+			func() core.Node {
+				l := kit.NewLink("Ant Design")
+				l.SetFace(face)
+				return l.Node()
+			}(),
+		))
+
+	editTx := kit.NewText("This is an editable text.")
+	editTx.SetFace(face)
+	editTx.SetEditable(true)
+	secTypoEdit := demoSection(face, theme, "Editable",
+		"Edit icon → Enter commit / Esc cancel (antd editable.tsx).",
+		editTx.Node())
+
+	copyTx := kit.NewText("This is a copyable text.")
+	copyTx.SetFace(face)
+	copyTx.SetCopyable(true)
+	secTypoCopy := demoSection(face, theme, "Copyable",
+		"Copy icon → Tree clipboard + onCopy (antd copyable.tsx).",
+		copyTx.Node())
+
+	ellip := kit.NewParagraph(strings.Repeat("Ant Design, a design language for background applications, is refined by Ant UED Team. ", 6))
+	ellip.SetFace(face)
+	ellip.SetEllipsis(true)
+	ellip.SetEllipsisRows(3)
+	ellip.SetMaxWidth(420)
+	ellip.SetExpandable(true)
+	ellip.SetCollapsible(true)
+	secTypoEllipsis := demoSection(face, theme, "Ellipsis",
+		"rows=3 + expandable/collapsible (antd ellipsis.tsx).",
+		ellip.Node())
+
+	ellipCtrl := kit.NewParagraph(strings.Repeat("Controlled expand / collapse. ", 12))
+	ellipCtrl.SetFace(face)
+	ellipCtrl.SetEllipsis(true)
+	ellipCtrl.SetEllipsisRows(2)
+	ellipCtrl.SetMaxWidth(420)
+	ellipCtrl.SetExpandable(true)
+	ellipCtrl.SetCollapsible(true)
+	ellipCtrl.SetExpanded(false)
+	secTypoEllipsisCtrl := demoSection(face, theme, "Controlled expand",
+		"SetExpanded controlled (antd ellipsis-controlled.tsx).",
+		ellipCtrl.Node())
+
+	ellipMid := kit.NewText("https://ant.design/components/typography-cn#components-typography-demo-ellipsis-middle")
+	ellipMid.SetFace(face)
+	ellipMid.SetEllipsis(true)
+	ellipMid.SetEllipsisMiddle(true)
+	ellipMid.SetMaxWidth(280)
+	secTypoMiddle := demoSection(face, theme, "Ellipsis middle",
+		"start…end truncation (antd ellipsis-middle.tsx).",
+		ellipMid.Node())
+
+	disTx := kit.NewText("disabled text")
+	disTx.SetFace(face)
+	disTx.SetDisabled(true)
+	disTx.SetCopyable(true)
+	secTypoDisabled := demoSection(face, theme, "Disabled",
+		"disabled color; copy/edit hidden.",
+		disTx.Node())
+
+	items = append(items, ctlTab("typography", "Typography"))
+	contents["typography"] = demoPage(face, "Typography",
+		"Text / Title / Paragraph / Link. P0: type, disabled, copyable, editable, ellipsis(+middle/controlled), decorations, Token 14 & title ladder (docs/antd/typography.md §6).",
+		secTypoBasic, secTypoTitle, secTypoText, secTypoEdit, secTypoCopy,
+		secTypoEllipsis, secTypoEllipsisCtrl, secTypoMiddle, secTypoDisabled,
 	)
 
 	// ─── Layout ────────────────────────────────────────────────

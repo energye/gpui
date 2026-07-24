@@ -36,6 +36,8 @@ type Text struct {
 	// Ellipsis truncates overflow with "…" when true (F6). Default false for
 	// back-compat; kit Typography/Tag should opt in.
 	Ellipsis bool
+	// Decoration is underline / line-through / overline (render.TextDecoration bitset).
+	Decoration render.TextDecoration
 
 	// paintLines is set in Layout for Paint.
 	paintLines []string
@@ -92,6 +94,15 @@ func (t *Text) SetMaxLines(n int) {
 	}
 	t.MaxLines = n
 	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// SetDecoration sets underline / line-through / overline and dirties paint.
+func (t *Text) SetDecoration(d render.TextDecoration) {
+	if t.Decoration == d {
+		return
+	}
+	t.Decoration = d
 	t.MarkNeedsPaint()
 }
 
@@ -372,6 +383,11 @@ func (t *Text) Paint(pc *core.PaintContext) {
 		dc.SetFont(face)
 	}
 	dc.SetRGBA(t.Color.R, t.Color.G, t.Color.B, t.Color.A)
+	prevDec := dc.TextDecoration()
+	if t.Decoration != render.TextDecorationNone {
+		dc.SetTextDecoration(t.Decoration)
+	}
+	defer dc.SetTextDecoration(prevDec)
 	ascent := t.fontSize() * 0.8
 	if face != nil {
 		ascent = face.Metrics().Ascent
