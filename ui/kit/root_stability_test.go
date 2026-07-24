@@ -89,29 +89,25 @@ func TestCarousel_NextKeepsRootIdentity(t *testing.T) {
 }
 
 func TestCascader_SelectKeepsRootIdentity(t *testing.T) {
-	c := kit.NewCascader(
-		&kit.TreeNode{Key: "a", Title: "A", Children: []*kit.TreeNode{{Key: "a1", Title: "A1"}}},
-		&kit.TreeNode{Key: "b", Title: "B"},
+	c := kit.NewCascader("Please select",
+		kit.CascaderOption{Value: "a", Label: "A", Children: []kit.CascaderOption{{Value: "a1", Label: "A1"}}},
+		kit.CascaderOption{Value: "b", Label: "B"},
 	)
 	tree := core.NewTree(c.Node())
 	tree.Layout(core.Size{Width: 600, Height: 300})
 	r0 := c.Root
-	// select first column via list API path
-	if len(c.Columns) < 1 {
-		t.Fatal("no columns")
-	}
-	c.Columns[0].SetSelected(0)
-	// OnSelect of cascader is only wired via List.OnSelect — call showLevel path via SetSelected click:
-	// SetSelected rebuilds list but doesn't fire OnSelect. Fire manually as click would:
-	if c.Columns[0].OnSelect != nil {
-		c.Columns[0].OnSelect(0, "A")
-	}
+	w0 := c.Wrap
+	c.SetChangeOnSelect(true)
+	c.SelectPath([]string{"a"})
 	tree.Layout(core.Size{Width: 600, Height: 300})
 	if c.Root != r0 {
 		t.Fatal("Cascader column select replaced Root")
 	}
-	if len(c.Columns) < 2 {
-		t.Fatalf("expected 2 columns, got %d", len(c.Columns))
+	if c.Wrap != w0 {
+		t.Fatal("Cascader column select replaced Wrap")
+	}
+	if len(c.ActivePath()) < 1 || c.ActivePath()[0] != "a" {
+		t.Fatalf("active=%v", c.ActivePath())
 	}
 }
 

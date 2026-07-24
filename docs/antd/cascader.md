@@ -631,22 +631,25 @@ loadData 异步填 children
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `variant` | 必须 |
-| `status` | 必须 |
-| `open` | 必须 |
-| `onOpenChange` | 必须 |
-| `options` | 必须 |
-| `placement` | 必须 |
-| `allowClear` | 必须 |
-| `showSearch` | 必须 |
+| `value` / `defaultValue` | 单选路径 `[]string`；多选 `[][]string` |
+| `onChange` | 单选路径回调；多选 `onChangeMulti` |
+| `options` | `CascaderOption{Value,Label,Disabled,Children,IsLeaf}` |
+| `disabled` | 不打开、不可选 |
+| `size` / `variant` / `status` | middle/outlined 默认；error/warning 边框 |
+| `open` / `defaultOpen` / `onOpenChange` | 受控/非受控浮层 |
+| `placement` | bottomLeft（默认）/ bottomRight / topLeft / topRight |
+| `allowClear` | 默认 **true**（antd）；清空 value |
+| `placeholder` | 无选中时展示 |
+| `changeOnSelect` | 单选每级触发 onChange（默认 false） |
+| `expandTrigger` | `click`（默认）/ `hover` 下钻 |
+| `displayRender` | 输入框展示定制（默认 `labels.Join("/")`） |
+| `multiple` | 多路径勾选 |
+| `showCheckedStrategy` | 多选回填 `SHOW_PARENT`（默认）/ `SHOW_CHILD` |
+| `showSearch` | 布尔即可；路径 label 过滤（对象形态 filter/limit 等 P1） |
+| `loadData` | 异步补 children；节点 `Loading` + Ticker 指示（CAS-04） |
 | 官方主路径示例 | 基本、默认值、可以自定义显示、移入展开、禁用选项、选择即改变、多选、自定义回填方式 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | combobox + listbox；清除/下拉可访问名；status=error → invalid |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -654,10 +657,13 @@ loadData 异步填 children
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
+| `showSearch` 对象形态（filter/limit/sort/render/matchInputWidth） | 分期 |
+| `tagRender` / `optionRender` / `popupRender` / `fieldNames` | 分期 |
+| `maxTagCount=responsive` 像素级 / 虚拟长列 | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 大小, 自定义已选项, 搜索, 动态加载选项 |
+| 其余示例深度 | 大小档位 gallery 全矩阵、自定义已选项、搜索高级、动态加载完整 demo 视觉 |
 
 ### 6.9 验收用例表（可测）
 
@@ -692,17 +698,48 @@ loadData 异步填 children
 | CAS-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（旧 `NewCascader(*TreeNode…)` / `Columns` / `Path` / 内嵌 `List` 列表现已废弃）。  
+> 以下为 **产品需求层** 契约；命名可微调，语义不可丢。
 
 ```text
-NewCascader(...) *Cascader
+type CascaderOption struct {
+  Value, Label string
+  Disabled, DisableCheckbox, IsLeaf, Loading bool
+  Children []CascaderOption
+}
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewCascader(placeholder string, options ...CascaderOption) *Cascader
+
+// 数据 / 值
+SetOptions / Options
+SetValue([]string) / GetValue()           // 单选路径；API 写不触发 OnChange
+SetDefaultValue([]string)
+SetMultiValue([][]string) / GetMultiValue() // multiple
+SetDefaultMultiValue([][]string)
+Clear()
+
+// P0 配置
+SetDisabled / SetSize / SetVariant / SetStatus
+SetAllowClear / SetPlaceholder / SetPlacement
+SetOpen / SetDefaultOpen / IsOpen / OnOpenChange
+SetChangeOnSelect / SetExpandTrigger / SetMultiple
+SetShowCheckedStrategy / SetShowSearch / SetSearchValue
+SetDisplayRender / SetLoadData / SetTriggerNode
+SetAriaLabel / SetTheme / SetFace
+
+// 回调
+OnChange(value []string, selected []CascaderOption)          // 单选
+OnChangeMulti(values [][]string, selected [][]CascaderOption) // 多选
+OnClear / OnSearch
+
+// 交互辅助（测试 / 宿主）
+SelectPath([]string)   // 模拟逐级选择至路径（尊重 changeOnSelect / leaf 规则）
+ExpandPath([]string)   // 仅展开列，不提交
+HoverExpand(level, index) // expandTrigger=hover
+ActivePath() []string  // 当前展开路径
+VisibleSearchPaths() [][]string
+Popup() / Panel() / TriggerShell() / Node()
+AttachTicker(*Tree)    // loadData Loading 指示
 ```
 
 **默认值（未 Set 时）：**
@@ -710,9 +747,19 @@ NewCascader(...) *Cascader
 | 字段 | 默认 |
 | --- | --- |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Size | middle（`controlHeight=32`） |
+| Variant | outlined |
+| Status | none |
+| AllowClear | **true**（antd） |
+| ExpandTrigger | click |
+| ChangeOnSelect | false |
+| Multiple | false |
+| ShowCheckedStrategy | SHOW_PARENT |
+| ShowSearch | false |
+| Placement | bottomLeft |
+| DisplayRender | `strings.Join(labels, " / ")` |
+| Open | false（可用 defaultOpen） |
+| 受控值 | 未 Set 时用 default* 或空 |
 
 ### 6.11 结构与绘制分层（实现提示）
 

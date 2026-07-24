@@ -231,7 +231,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Cascader", func(t *testing.T) {
-			c := kit.NewCascader(&kit.TreeNode{Key: "r", Title: "r"})
+			c := kit.NewCascader("", kit.CascaderOption{Value: "r", Label: "r"})
 			if c.Node() == nil {
 				t.Fatal()
 			}

@@ -117,5 +117,5 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Affix", kit.NewAffix(kit.NewText("a").Node()).Node())
 	must("ConfigProvider", kit.NewConfigProvider(kit.DefaultTheme(), kit.NewText("c").Node()).Node())
 	must("Transfer", kit.NewTransfer([]string{"a"}).Node())
-	must("Cascader", kit.NewCascader(&kit.TreeNode{Key: "r", Title: "r"}).Node())
+	must("Cascader", kit.NewCascader("", kit.CascaderOption{Value: "r", Label: "r"}).Node())
 }

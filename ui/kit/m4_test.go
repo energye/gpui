@@ -164,20 +164,20 @@ func TestTransfer(t *testing.T) {
 }
 
 func TestCascader(t *testing.T) {
-	c := kit.NewCascader(
-		&kit.TreeNode{Key: "cn", Title: "China", Children: []*kit.TreeNode{
-			{Key: "bj", Title: "Beijing"},
-			{Key: "sh", Title: "Shanghai"},
+	c := kit.NewCascader("Please select",
+		kit.CascaderOption{Value: "cn", Label: "China", Children: []kit.CascaderOption{
+			{Value: "bj", Label: "Beijing"},
+			{Value: "sh", Label: "Shanghai"},
 		}},
-		&kit.TreeNode{Key: "us", Title: "USA"},
+		kit.CascaderOption{Value: "us", Label: "USA"},
 	)
-	// select first root
-	c.Columns[0].OnSelect(0, "China")
-	if len(c.Path) < 1 || c.Path[0] != "cn" {
-		t.Fatalf("path=%v", c.Path)
+	c.SetChangeOnSelect(true)
+	c.SelectPath([]string{"cn"})
+	if got := c.GetValue(); len(got) < 1 || got[0] != "cn" {
+		t.Fatalf("value=%v", got)
 	}
-	if len(c.Columns) < 2 {
-		t.Fatalf("cols=%d", len(c.Columns))
+	if len(c.ActivePath()) < 1 {
+		t.Fatalf("active=%v", c.ActivePath())
 	}
 }
 

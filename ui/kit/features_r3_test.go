@@ -430,12 +430,15 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Cascader": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewCascader(&kit.TreeNode{Key: "r", Title: "r"}).Node() == nil {
+				if kit.NewCascader("", kit.CascaderOption{Value: "r", Label: "r"}).Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 setValue", func(t *testing.T) {
-				c := kit.NewCascader(&kit.TreeNode{Key: "r", Title: "r", Children: []*kit.TreeNode{{Key: "c", Title: "c"}}})
+				c := kit.NewCascader("", kit.CascaderOption{
+					Value: "r", Label: "r",
+					Children: []kit.CascaderOption{{Value: "c", Label: "c"}},
+				})
 				c.SetValue([]string{"r", "c"})
 				if len(c.GetValue()) != 2 {
 					t.Fatal(c.GetValue())
@@ -443,8 +446,8 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 			{"R3 onChange", func(t *testing.T) {
 				got := 0
-				c := kit.NewCascader(&kit.TreeNode{Key: "r", Title: "r"})
-				c.OnChange = func([]string) { got++ }
+				c := kit.NewCascader("", kit.CascaderOption{Value: "r", Label: "r"})
+				c.OnChange = func([]string, []kit.CascaderOption) { got++ }
 				c.SetValue([]string{"r"})
 				if got < 1 && len(c.GetValue()) != 1 {
 					// SetValue may or may not fire OnChange; value must stick
