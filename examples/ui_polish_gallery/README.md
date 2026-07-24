@@ -5,6 +5,19 @@
 
 §12.3 打磨棚（W3 视觉/焦点 + **W4 IME 说明与 Modal**）：主路径 Button / Input / Checkbox / Radio / Switch / Modal。
 
+## 文件布局
+
+每个控件 demo 独立一个文件，禁止再堆进单文件混写：
+
+| 文件 | 职责 |
+|------|------|
+| `main.go` | 窗口 / GPU / Tree / 主循环 |
+| `helpers.go` | `catalogCtx`、`demoPage` / `demoSection` 等共享脚手架 |
+| `catalog.go` | 左侧 Tabs 分类编排（只 `registerXxx()`，无控件细节） |
+| `button.go` / `flex.go` / … | 单控件 demo：`func (c *catalogCtx) registerXxx()` |
+
+新增控件示例：新建 `foo.go`，实现 `registerFoo`，在 `catalog.go` 对应分类里挂一行。
+
 ## 运行
 
 ```bash
