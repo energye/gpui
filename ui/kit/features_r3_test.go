@@ -339,22 +339,25 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Pagination": {
 			{"R1 pages", func(t *testing.T) {
-				if kit.NewPagination(5).Node() == nil {
+				p := kit.NewPagination()
+				p.SetTotal(50)
+				if p.Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 setPage", func(t *testing.T) {
-				p := kit.NewPagination(5)
-				p.SetPage(3)
+				p := kit.NewPagination()
+				p.SetTotal(50)
+				p.SetCurrent(3)
 				if p.Current != 3 {
 					t.Fatal(p.Current)
 				}
 			}},
 			{"R3 total+jumper", func(t *testing.T) {
-				p := kit.NewPagination(5)
-				p.SetTotalPages(10)
-				p.ShowQuickJumper = true
-				if p.Total != 10 || !p.ShowQuickJumper {
+				p := kit.NewPagination()
+				p.SetTotal(100)
+				p.SetShowQuickJumper(true)
+				if p.Total != 100 || !p.ShowQuickJumper {
 					t.Fatal()
 				}
 			}},

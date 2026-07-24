@@ -142,9 +142,10 @@ func main() {
 	split.Ratio = 0.4
 
 	// Pagination
-	pager := kit.NewPagination(8)
+	pager := kit.NewPagination()
+	pager.SetTotal(80)
 	pager.Face = face
-	pager.OnChange = func(p int) { status = fmt.Sprintf("page=%d", p) }
+	pager.OnChange = func(page, pageSize int) { status = fmt.Sprintf("page=%d size=%d", page, pageSize) }
 
 	// Dropdown
 	dd := kit.NewDropdown("Actions",

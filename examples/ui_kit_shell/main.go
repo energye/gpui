@@ -147,9 +147,10 @@ func main() {
 	table.OnRowClick = func(i int, row map[string]string) {
 		status = fmt.Sprintf("row %s", row["name"])
 	}
-	pager := kit.NewPagination(5)
+	pager := kit.NewPagination()
+	pager.SetTotal(50)
 	pager.Face = face
-	pager.OnChange = func(p int) { status = fmt.Sprintf("page=%d", p) }
+	pager.OnChange = func(page, pageSize int) { status = fmt.Sprintf("page=%d size=%d", page, pageSize) }
 
 	contentCol := primitive.Column(
 		kit.NewText("Users").Node(),

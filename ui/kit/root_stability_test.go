@@ -63,13 +63,14 @@ func TestSegmented_SetValueKeepsRootIdentity(t *testing.T) {
 }
 
 func TestPagination_SetPageKeepsRootIdentity(t *testing.T) {
-	p := kit.NewPagination(10)
+	p := kit.NewPagination()
+	p.SetTotal(100)
 	tree := core.NewTree(p.Node())
 	tree.Layout(core.Size{Width: 400, Height: 40})
 	r0 := p.Root
-	p.SetPage(3)
+	p.SetCurrent(3)
 	if p.Root != r0 {
-		t.Fatal("Pagination.SetPage replaced Root")
+		t.Fatal("Pagination.SetCurrent replaced Root")
 	}
 }
 

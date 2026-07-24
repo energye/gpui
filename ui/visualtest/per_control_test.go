@@ -139,7 +139,11 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(kit.NewDescriptions([2]string{"K", "V"}).Node(), 220, 80)
 		}},
 		{"ctl_list", 160, 100, func() core.Node { return padRoot(kit.NewList("a", "b", "c").Node(), 160, 100) }},
-		{"ctl_pagination", 200, 40, func() core.Node { return padRoot(kit.NewPagination(5).Node(), 200, 40) }},
+		{"ctl_pagination", 200, 40, func() core.Node {
+			p := kit.NewPagination()
+			p.SetTotal(50)
+			return padRoot(p.Node(), 200, 40)
+		}},
 		{"ctl_menu", 160, 120, func() core.Node {
 			return padRoot(kit.NewMenu(
 				kit.MenuItem{Key: "a", Label: "A"}, kit.MenuItem{Key: "b", Label: "B"},

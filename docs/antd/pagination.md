@@ -282,14 +282,15 @@ import { Pagination } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 分页项高 itemSize | **32** | controlHeight |
-| itemSize | **32/24/40** | controlHeight* |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
+| 分页项高 middle（itemSize） | **32** | `controlHeight` |
+| 分页项高 small（itemSizeSM） | **24** | `controlHeightSM` |
+| 分页项高 large（itemSizeLG） | **40** | `controlHeightLG` |
 | 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 字号 small | **12** | `fontSizeSM` |
+| 字号 large | **16** | `fontSizeLG` |
+| 圆角 | **6** | `borderRadius`（small→SM=4，large→LG=8） |
 | 边框线宽 | **1** | `lineWidth` |
+| 项间距 | **8** | ≈ `marginXS` 节奏 |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
@@ -311,24 +312,27 @@ import { Pagination } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `align` | 对齐方式 | start \ | center \ |
-| `classNames` | 自定义组件内部各语义化结构的类名。支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> |
-| `current` | 当前页数 | number | - |
-| `defaultCurrent` | 默认的当前页数 | number | 1 |
-| `defaultPageSize` | 默认的每页条数 | number | 10 |
-| `disabled` | 禁用分页 | boolean | - |
+| `align` | 对齐方式 | `start` \| `center` \| `end` | — |
+| `current` | 当前页数（受控） | number | — |
+| `defaultCurrent` | 默认的当前页数（非受控） | number | 1 |
+| `defaultPageSize` | 默认的每页条数（非受控） | number | 10 |
+| `disabled` | 禁用分页 | boolean | false |
 | `hideOnSinglePage` | 只有一页时是否隐藏分页器 | boolean | false |
-| `itemRender` | 用于自定义页码的结构，可用于优化 SEO | (page, type: 'page' \ | 'prev' \ |
-| `pageSize` | 每页条数 | number | - |
-| `pageSizeOptions` | 指定每页可以显示多少条 | number\[] | \[`10`, `20`, `50`, `100`] |
-| `responsive` | 当 size 未指定时，根据屏幕宽度自动调整尺寸 | boolean | - |
+| `pageSize` | 每页条数（受控） | number | — |
+| `pageSizeOptions` | 指定每页可以显示多少条 | number[] | `[10, 20, 50, 100]` |
+| `responsive` | 当 size 未指定时，根据屏幕宽度自动调整尺寸 | boolean | — |
 | `showLessItems` | 是否显示较少页面内容 | boolean | false |
-| `showQuickJumper` | 是否可以快速跳转至某页 | boolean \ | { goButton: ReactNode } |
-| `showSizeChanger` | 是否展示 `pageSize` 切换器 | boolean \ | [SelectProps](/components/select-cn#api) |
-| `showTitle` | 是否显示原生 tooltip 页码提示 | boolean | true |
-| `showTotal` | 用于显示数据总量和当前数据顺序 | function(total, range) | - |
+| `showQuickJumper` | 是否可以快速跳转至某页 | boolean | false |
+| `showSizeChanger` | 是否展示 `pageSize` 切换器；未设时 `total > totalBoundaryShowSizeChanger` 默认为 true | boolean | auto（见 boundary） |
+| `showTotal` | 用于显示数据总量和当前数据顺序 | `func(total, range[2]) string` | — |
+| `simple` | 简单分页；`readOnly` 时当前页只读 | boolean \| `{ readOnly?: boolean }` | false |
+| `size` | 组件尺寸 | `large` \| `medium` \| `small` | `medium` |
+| `total` | **数据总数**（条目数，非总页数） | number | 0 |
+| `totalBoundaryShowSizeChanger` | 当 `total` 大于该值时，`showSizeChanger` 默认为 true | number | 50 |
+| `onChange` | 页码或 `pageSize` 改变 | `func(page, pageSize)` | — |
+| `onShowSizeChange` | `pageSize` 变化 | `func(current, size)` | — |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级（通用）：** 受控 props（`current`/`pageSize`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
 ### 6.4 交互状态机（L1）
 
@@ -447,27 +451,59 @@ current, pageSize, total
 | PG-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（旧 `NewPagination(totalPages)`、`Total`=总页数、`OnChange(page int)`、`SetPage`/`SetTotalPages` 全部废弃）。  
+> 以下为 **产品需求层** 契约；命名可微调但语义不可丢。
 
 ```text
-NewPagination(...) *Pagination
+NewPagination() *Pagination   // total=0, current=1, pageSize=10（antd 默认）
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 分页状态（total = 数据条数，非总页数）
+SetTotal(n int)
+SetCurrent(page int)                 // 受控 current
+SetDefaultCurrent(page int)          // 非受控初始
+SetPageSize(n int)                   // 受控 pageSize
+SetDefaultPageSize(n int)
+PageCount() int                      // ceil(total/pageSize)，至少 1（total=0 → 1）
+
+// P0 配置
+SetDisabled(bool)
+SetSize(PaginationSize)              // small | middle | large → itemH 24/32/40
+SetAlign(PaginationAlign)            // start | center | end
+SetSimple(bool) / SetSimpleReadOnly(bool)
+SetShowQuickJumper(bool)
+SetShowSizeChanger(bool)             // 显式；未调时走 totalBoundary 自动
+SetHideOnSinglePage(bool)
+SetShowLessItems(bool)
+SetPageSizeOptions([]int)            // 默认 10/20/50/100
+SetTotalBoundaryShowSizeChanger(n)   // 默认 50
+SetShowTotal(fn func(total, start, end int) string)
+
+// 回调
+SetOnChange(func(page, pageSize int))
+SetOnShowSizeChange(func(current, size int))
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) · SetFace(text.Face) · SetAriaLabel(string)
+Node() core.Node · ChromeNode() core.Node
+// 测试钩：ItemPressable(kind, page) — kind=page|prev|next|jump-prev|jump-next
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
+| Current / DefaultCurrent | 1 |
+| PageSize / DefaultPageSize | 10 |
+| Total | 0（PageCount=1，展示第 1 页） |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Size | middle（item 高 32） |
+| Align | start |
+| ShowQuickJumper | false |
+| ShowSizeChanger | auto：`total > 50` 时 true，否则 false；`SetShowSizeChanger` 后固定 |
+| Simple | false |
+| HideOnSinglePage | false |
+| PageSizeOptions | 10, 20, 50, 100 |
+| totalBoundaryShowSizeChanger | 50 |
 
 ### 6.11 结构与绘制分层（实现提示）
 

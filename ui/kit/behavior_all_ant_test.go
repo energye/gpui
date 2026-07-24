@@ -203,7 +203,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Pagination", func(t *testing.T) {
-			p := kit.NewPagination(5)
+			p := kit.NewPagination()
+			p.SetTotal(50)
 			if p.Node() == nil {
 				t.Fatal()
 			}

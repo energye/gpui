@@ -113,12 +113,13 @@ func TestTreeExpand(t *testing.T) {
 }
 
 func TestPagination(t *testing.T) {
-	p := kit.NewPagination(10)
-	p.SetPage(5)
+	p := kit.NewPagination()
+	p.SetTotal(100) // 10 pages @ pageSize=10
+	p.SetCurrent(5)
 	if p.Current != 5 {
 		t.Fatal(p.Current)
 	}
-	p.SetPage(100)
+	p.SetCurrent(100)
 	if p.Current != 10 {
 		t.Fatal(p.Current)
 	}

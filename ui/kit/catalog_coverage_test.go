@@ -63,7 +63,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Breadcrumb", kit.NewBreadcrumb("a", "b").Node())
 	must("Steps", kit.NewSteps("a", "b").Node())
 	must("Anchor", kit.NewAnchor(kit.AnchorItem{Key: "a", Href: "#a", Title: "A"}).Node())
-	must("Pagination", kit.NewPagination(3).Node())
+	must("Pagination", func() core.Node { p := kit.NewPagination(); p.SetTotal(30); return p.Node() }())
 	must("Menu", kit.NewMenu(kit.MenuItem{Key: "a", Label: "A"}).Node())
 	must("Tabs", kit.NewTabs(kit.MenuItem{Key: "a", Label: "A"}).Node())
 	must("Dropdown", kit.NewDropdown("d", kit.MenuItem{Key: "1", Label: "1"}).Node())
