@@ -130,7 +130,7 @@ func TestDropdown(t *testing.T) {
 		kit.MenuItem{Key: "y", Label: "Y"},
 	)
 	sel := ""
-	d.OnSelect = func(k string) { sel = k }
+	d.SetOnMenuClick(func(k string) { sel = k })
 	root := primitive.NewBox(d.Node())
 	root.Width, root.Height = 300, 200
 	tree := core.NewTree(root)
@@ -140,7 +140,10 @@ func TestDropdown(t *testing.T) {
 	if tree.Overlays().Len() < 1 {
 		t.Fatal("dropdown overlay missing")
 	}
-	d.OnSelect("x")
+	// Simulate menu click callback path.
+	if d.OnMenuClick != nil {
+		d.OnMenuClick("x")
+	}
 	if sel != "x" {
 		t.Fatalf("sel=%q", sel)
 	}

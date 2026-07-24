@@ -44,7 +44,7 @@ func AntCoverage() []CoverageEntry {
 		// Navigation
 		{Ant: "Anchor", Status: CovReady, Via: "kit.Anchor", Since: "Base-ALL", Notes: "P0 对齐 docs/antd/anchor.md §6（items/title/href/children、direction vertical|horizontal、affix 默认 true、showInkInFixed、bounds=5、offsetTop/targetOffset、getCurrentAnchor、onChange/onClick、replace History 映射、ink 指示条、ScrollTarget+SectionOffsets+SyncFromScroll 桌面滚动宿主、嵌套二级、a11y navigation+focus ring、Token linkPadding 4/16 inkW=2 fontSize=14）；P1: per-link targetOffset、semantic classNames/styles、ink 滑动动画、真 window history、ConfigProvider 全局、debug/官网逐像素"},
 		{Ant: "Breadcrumb", Status: CovReady, Via: "kit.Breadcrumb", Since: "Base-ALL"},
-		{Ant: "Dropdown", Status: CovReady, Via: "kit.Dropdown", Since: "M4"},
+		{Ant: "Dropdown", Status: CovReady, Via: "kit.Dropdown", Since: "M4", Notes: "P0 对齐 docs/antd/dropdown.md §6（trigger hover|click|contextMenu、placement 12 向、arrow/pointAtCenter、open/onOpenChange 受控、disabled、menu items danger/extra/icon/divider/一级 Children、外点/Esc、Token 面板 radiusLG=8 item pad 12×5、a11y menu/menuitem、hit==layout==paint、官方 basic/extra/placement/arrow/item/arrow-center/trigger/event）；P1: Dropdown.Button、popupRender/扩展菜单、多级菜单 gallery、菜单隐藏方式 overlay-open、右键完整 demo、loading、selectable、划词、semantic classNames/styles、destroyOnHidden 深度、ConfigProvider 全局、动画像素级、官网逐像素"},
 		{Ant: "Menu", Status: CovReady, Via: "kit.Menu", Since: "M3", Notes: "flat; nested later"},
 		{Ant: "Pagination", Status: CovReady, Via: "kit.Pagination", Since: "M4"},
 		{Ant: "Steps", Status: CovReady, Via: "kit.Steps", Since: "Base-ALL"},

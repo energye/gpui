@@ -14,6 +14,14 @@ type MenuItem struct {
 	Disabled bool
 	// Divider: thin separator row; Key/Label ignored (e.g. Tabs rail "-").
 	Divider bool
+	// Danger: error-colored label (Dropdown / Menu item.danger).
+	Danger bool
+	// Extra: trailing shortcut / hint text (Dropdown extra demo).
+	Extra string
+	// Icon: optional leading icon name (primitive.Icon registry).
+	Icon string
+	// Children: one-level submenu items (Dropdown P0 nested; multi-level gallery P1).
+	Children []MenuItem
 }
 
 // Selectable reports whether the item can become the active Tabs key.

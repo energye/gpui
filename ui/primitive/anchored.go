@@ -3,6 +3,8 @@ package primitive
 import "github.com/energye/gpui/ui/core"
 
 // Placement for AnchoredPopup relative to the anchor.
+// Naming aligns with Ant Design placement where applicable
+// (bottomLeft → PlaceBottomStart, bottomRight → PlaceBottomEnd, …).
 type Placement int
 
 const (
@@ -10,8 +12,14 @@ const (
 	PlaceTop
 	PlaceLeft
 	PlaceRight
-	PlaceBottomStart
-	PlaceTopStart
+	PlaceBottomStart // bottomLeft
+	PlaceTopStart    // topLeft
+	PlaceBottomEnd   // bottomRight
+	PlaceTopEnd      // topRight
+	PlaceLeftStart   // leftTop
+	PlaceLeftEnd     // leftBottom
+	PlaceRightStart  // rightTop
+	PlaceRightEnd    // rightBottom
 )
 
 // AnchoredPopup positions content relative to an anchor rect (C-Anchor + C-Overlay).
@@ -248,20 +256,38 @@ func (a *AnchoredPopup) reposition() {
 
 	placeOnce := func(pl Placement) (px, py float64) {
 		switch pl {
-		case PlaceTop, PlaceTopStart:
+		case PlaceTop:
+			px = ar.Min.X + (ar.Width()-cs.Width)/2
+			py = ar.Min.Y - gap - cs.Height
+		case PlaceTopStart:
 			px = ar.Min.X
-			if pl == PlaceTop {
-				px = ar.Min.X + (ar.Width()-cs.Width)/2
-			}
+			py = ar.Min.Y - gap - cs.Height
+		case PlaceTopEnd:
+			px = ar.Max.X - cs.Width
 			py = ar.Min.Y - gap - cs.Height
 		case PlaceLeft:
 			px = ar.Min.X - gap - cs.Width
 			py = ar.Min.Y + (ar.Height()-cs.Height)/2
+		case PlaceLeftStart:
+			px = ar.Min.X - gap - cs.Width
+			py = ar.Min.Y
+		case PlaceLeftEnd:
+			px = ar.Min.X - gap - cs.Width
+			py = ar.Max.Y - cs.Height
 		case PlaceRight:
 			px = ar.Max.X + gap
 			py = ar.Min.Y + (ar.Height()-cs.Height)/2
+		case PlaceRightStart:
+			px = ar.Max.X + gap
+			py = ar.Min.Y
+		case PlaceRightEnd:
+			px = ar.Max.X + gap
+			py = ar.Max.Y - cs.Height
 		case PlaceBottomStart:
 			px = ar.Min.X
+			py = ar.Max.Y + gap
+		case PlaceBottomEnd:
+			px = ar.Max.X - cs.Width
 			py = ar.Max.Y + gap
 		default: // Bottom
 			px = ar.Min.X + (ar.Width()-cs.Width)/2
@@ -276,28 +302,28 @@ func (a *AnchoredPopup) reposition() {
 	if vp.Width > 0 && vp.Height > 0 {
 		// Flip primary axis when overflowing and opposite side fits.
 		switch place {
-		case PlaceBottom, PlaceBottomStart:
+		case PlaceBottom, PlaceBottomStart, PlaceBottomEnd:
 			if y+cs.Height > vp.Height {
 				altY := ar.Min.Y - gap - cs.Height
 				if altY >= 0 {
 					y = altY
 				}
 			}
-		case PlaceTop, PlaceTopStart:
+		case PlaceTop, PlaceTopStart, PlaceTopEnd:
 			if y < 0 {
 				altY := ar.Max.Y + gap
 				if altY+cs.Height <= vp.Height {
 					y = altY
 				}
 			}
-		case PlaceLeft:
+		case PlaceLeft, PlaceLeftStart, PlaceLeftEnd:
 			if x < 0 {
 				altX := ar.Max.X + gap
 				if altX+cs.Width <= vp.Width {
 					x = altX
 				}
 			}
-		case PlaceRight:
+		case PlaceRight, PlaceRightStart, PlaceRightEnd:
 			if x+cs.Width > vp.Width {
 				altX := ar.Min.X - gap - cs.Width
 				if altX >= 0 {

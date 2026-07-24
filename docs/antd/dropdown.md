@@ -311,27 +311,36 @@ import { Dropdown } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/dropdown/style/index.ts`（`paddingBlock`、`dropdownEdgeChildPadding`、`borderRadiusLG`、`controlPaddingHorizontal`）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 面板圆角 | **8** | `borderRadiusLG`（浮层，非控件 6） |
+| 触发器圆角（默认 Button 触发） | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 菜单面板内边距 | **4** | `paddingXXS` / `dropdownEdgeChildPadding` |
+| 菜单项水平 padding | **12** | `controlPaddingHorizontal` |
+| 菜单项垂直 padding | **5** | `paddingBlock` ≈ `(controlHeight - fontSize*lineHeight)/2` |
+| 触发器与面板间距 | **4** | `marginXXS` 量级；kit `DefaultDropdownGap` |
+| 面板最小宽 | **160** | 产品回落（避免挤扁） |
+| 箭头边长（示意） | **8** | `sizePopupArrow` 近似；P0 几何示意即可 |
+| Focus ring outset | ≈ **1.5px** 可见 | 触发器可聚焦时必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
 | 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 危险菜单项 | `colorError` | `danger` item 文字 |
+| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | extra 快捷键用次级 |
+| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer`（浮层可用 elevated） | 面板底+边 |
+| 项 hover 底 | `controlItemBgHover` / 合成 | 禁止硬编码品牌色 |
+| 禁用 | `colorDisabledText` | 无 hover 高亮；项不可点 |
+| 浮层阴影 | `boxShadowSecondary`（有则用） | 无 Token 时允许弱阴影或缺省 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -360,34 +369,48 @@ import { Dropdown } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-closed ── trigger(hover/click/contextMenu) ──► open menu
-  选 item ──► onClick + 常关闭
-  外点/Esc ──► 关闭
-  受控 open
-  disabled ──► 不打开
+                     disabled ──► 忽略一切打开意图
+mount ──► closed
+   │
+   ├─ trigger hover（默认） ──► open
+   ├─ trigger click（若含 click）──► toggle open/closed
+   ├─ trigger contextMenu（右键）──► open
+   ├─ SetOpen(true) 受控/非受控 ──► open
+   │
+open ──► panel 可见（Portal / AnchoredPopup）
+   ├─ 选可点 item ──► OnMenuClick(key) + 关闭（source=menu）
+   ├─ 点 disabled / divider ──► 无 OnMenuClick；保持 open
+   ├─ 外点（outside dismiss）──► 关闭（source=trigger）
+   ├─ Esc ──► 关闭（source=trigger）
+   ├─ hover 离开关闭：指针离开触发器且不在面板上 ──► 关闭
+   ├─ 受控 open：用户意图只回调 OnOpenChange；显示态以 SetOpen 为准
+   └─ 一级子菜单（Children 非空）──► 悬停/点击父项展开子列表（P0 最小；多级 gallery 见 P1）
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
 | DD-S1 | click 触发打开 | 菜单可见 |
-| DD-S2 | 选一项 | onClick；关闭 |
+| DD-S2 | 选一项 | OnMenuClick；关闭 |
 | DD-S3 | 外点 | 关闭 |
 | DD-S4 | Esc | 关闭 |
 | DD-S5 | disabled | 不打开 |
-| DD-S6 | 受控 open=false | 关 |
-| DD-S7 | placement | 位置正确 |
-| DD-S8 | hover 触发 | 悬停开，离开关 |
-| DD-S9 | 子菜单（适用） | 可展开 |
-| DD-S10 | 危险项 | 红色样式 |
+| DD-S6 | 受控 open=false | 保持关；意图走 OnOpenChange |
+| DD-S7 | placement | 面板相对触发器方位正确 |
+| DD-S8 | hover 触发 | 悬停开；离开触发器且离开面板则关 |
+| DD-S9 | 子菜单（一级 Children） | 可展开子项列表 |
+| DD-S10 | 危险项 | 文字用 error 色 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| mask | `colorBgMask` 半透明（适用者） |
-| panel/popup | 容器底 + 阴影 + 圆角 LG |
-| open/close | 动画可关 / reduced-motion |
+| panel/popup | 容器底 + 边框 + 圆角 LG；无全屏 mask（Dropdown ≠ Modal） |
+| arrow | `arrow=true` 时在 placement 主轴侧绘制示意箭头；`pointAtCenter` 时箭头指向触发器中心 |
+| item hover | 项背景 hover 填充；disabled 无 hover 高亮 |
+| danger item | 标签 `colorError` |
+| divider | 细分割线 `colorSplit` |
+| open/close | 动画可关 / reduced-motion；**P0 瞬时切换** |
 | disabled 触发 | 触发器禁用皮，不打开 |
-
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
 
@@ -395,11 +418,11 @@ closed ── trigger(hover/click/contextMenu) ──► open menu
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | dialog / menu / tooltip 等 |
-| 焦点 | 打开进入浮层；关闭回触发器（可配） |
-| Esc | 关闭（若允许） |
-| 标题 | Dialog 必须有可访问名 |
-| 遮罩 | 点击策略明确 |
+| 角色 | 触发器可激活；菜单容器 `menu`；项 `menuitem`（divider 用 `separator`） |
+| 名称 | 触发器可访问名 = 标签 / `AriaLabel` |
+| 焦点 | 触发器可聚焦并显示 focus ring；打开后 Esc 可关 |
+| Esc | 打开时 Esc 关闭菜单 |
+| 键盘 | 适用者：Enter/Space 在 click 触发模式下可切换（与 Button 一致） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -456,8 +479,8 @@ closed ── trigger(hover/click/contextMenu) ──► open menu
 | DD-07 | L1 | 受控 open=false | 关 |
 | DD-08 | L1 | placement | 位置正确 |
 | DD-09 | L1 | hover 触发 | 悬停开，离开关 |
-| DD-10 | L1 | 子菜单（适用） | 可展开 |
-| DD-11 | L1 | 危险项 | 红色样式 |
+| DD-10 | L1 | 一级子菜单（`Children`） | 可展开子项；完整多级 demo 属 P1 |
+| DD-11 | L1 | 危险项 | 红色样式（`colorError`） |
 | DD-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | DD-13 | L1 | 复现官方示例「额外节点」（`extra.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | DD-14 | L1 | 复现官方示例「弹出位置」（`placement.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
@@ -478,14 +501,36 @@ closed ── trigger(hover/click/contextMenu) ──► open menu
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewDropdown(...) *Dropdown
+NewDropdown(triggerLabel string, items ...MenuItem) *Dropdown
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 菜单
+SetItems(...MenuItem) / Items 字段
+// MenuItem: Key, Label, Disabled, Divider, Danger, Extra, Icon, Children []MenuItem
+
+// 触发器
+SetTriggerLabel(string)          // 默认文本触发（Button/链接皮）
+SetTrigger(core.Node)            // 自定义触发节点（可选）
+SetTriggerModes(...DropdownTrigger)  // hover | click | contextMenu；可多选
+// 别名 SetTrigger(mode) 单模式可接受
+
+// 浮层
+SetPlacement(DropdownPlacement)  // bottomLeft 默认；含 top/bottom/left/right 12 向
+SetArrow(bool) / SetArrowConfig(show, pointAtCenter bool)
+SetAutoAdjustOverflow(bool)      // 默认 true → AnchoredPopup flip/shift
+SetOpen(bool)                    // 受控 open
+SetDefaultOpen(bool)             // 非受控初值
+SetOnOpenChange(func(open bool, source DropdownOpenSource))  // trigger | menu
+SetOnMenuClick(func(key string)) // 菜单项点击（antd menu.onClick）
+
+// 状态
+SetDisabled(bool)
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) / Theme 字段 / SetFace
+SetAriaLabel(string)
+Node() core.Node
+Popup() *primitive.AnchoredPopup  // 测试 / 高级宿主
+IsOpen() bool
 ```
 
 **默认值（未 Set 时）：**
@@ -493,8 +538,11 @@ NewDropdown(...) *Dropdown
 | 字段 | 默认 |
 | --- | --- |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Placement | `bottomLeft` |
+| Trigger | `[hover]`（antd 默认；移动端语义在桌面仍实现 hover） |
+| Arrow | false / 不显示 |
+| AutoAdjustOverflow | true |
+| Open | false；未 `SetOpen` 前为非受控 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

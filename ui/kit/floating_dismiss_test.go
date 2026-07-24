@@ -67,12 +67,19 @@ func TestDropdown_OutsideDismiss(t *testing.T) {
 		kit.MenuItem{Key: "1", Label: "One"},
 		kit.MenuItem{Key: "2", Label: "Two"},
 	)
+	dd.SetTrigger(kit.DropdownTriggerClick)
 	dd.Viewport = core.Size{Width: 400, Height: 300}
 	bg := primitive.NewBox(dd.Node())
 	bg.Width, bg.Height = 400, 300
 	tree := core.NewTree(bg)
 	tree.Layout(core.Size{Width: 400, Height: 300})
-	dd.SetOpen(true)
+	// Uncontrolled open via click (SetOpen is controlled antd open prop).
+	shell := dd.TriggerShell()
+	abs := core.AbsoluteBounds(shell)
+	cx := (abs.Min.X + abs.Max.X) / 2
+	cy := (abs.Min.Y + abs.Max.Y) / 2
+	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: cx, Y: cy, Button: core.ButtonLeft})
+	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: cx, Y: cy, Button: core.ButtonLeft})
 	tree.Layout(core.Size{Width: 400, Height: 300})
 	if !dd.Popup().Open {
 		t.Fatal("want open")

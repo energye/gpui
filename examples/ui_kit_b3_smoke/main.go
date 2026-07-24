@@ -153,7 +153,8 @@ func main() {
 	)
 	dd.Face = face
 	dd.Viewport = vp
-	dd.OnSelect = func(k string) { status = "action=" + k }
+	dd.SetTrigger(kit.DropdownTriggerClick)
+	dd.SetOnMenuClick(func(k string) { status = "action=" + k })
 
 	// Grid of cards
 	mkCard := func(s string) core.Node {
