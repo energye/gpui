@@ -14,7 +14,10 @@
 // Rules of thumb:
 //   - Align Ant via behavior + tokens + in-repo golden (not browser pixel hash).
 //   - DefaultXxx + SetXxx for chrome metrics (docs/UI_KIT_DEV_GUIDE.md §0.1) — Ant real defaults; override at use site.
-//   - Demos: every capability goes in examples/ui_polish_gallery under the matching control tab (§2.7).
+//   - Demos: every P0 capability goes in examples/ui_polish_gallery under the matching
+//     control page/tab (see docs/antd/README.md «ui_polish_gallery» + each control §6.12).
+//     Scope = that control's docs/antd/<name>.md §6.8 P0 (not full §1–§3 demo matrix).
+//     P1 may skip gallery; note in coverage.go. Util (no UI) is exempt.
 //   - No ContinuousRender for product controls (use Tree.AddTicker).
 //   - No per-frame Sync() requirement for popups (Tree.Layout refreshes anchors).
 //   - Theme via themeOf / ConfigProvider / Tree.SetTheme + SetThemeHook(rebuild).

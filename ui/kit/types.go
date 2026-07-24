@@ -48,6 +48,16 @@ const (
 	ButtonColorWarning
 )
 
+// ButtonShape is Ant Design button shape.
+// https://ant.design/components/button#shape
+type ButtonShape int
+
+const (
+	ButtonShapeDefault ButtonShape = iota // rectangular with size radius
+	ButtonShapeCircle                     // circular; typically icon-only, w=h
+	ButtonShapeRound                      // capsule, radius ≈ height/2
+)
+
 // ButtonIconPlacement places the icon relative to the label.
 type ButtonIconPlacement int
 
@@ -122,4 +132,15 @@ func (p ButtonIconPlacement) String() string {
 		return "end"
 	}
 	return "start"
+}
+
+func (s ButtonShape) String() string {
+	switch s {
+	case ButtonShapeCircle:
+		return "circle"
+	case ButtonShapeRound:
+		return "round"
+	default:
+		return "default"
+	}
 }

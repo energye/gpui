@@ -19,7 +19,8 @@ import (
 // Hover/press chrome tracks PressableState automatically via OnStateChange.
 // SyncState() remains for explicit host loops that want a manual refresh.
 //
-// Metrics follow Ant Design 5 defaults (middle: h=32, font=14, paddingInline=15, radius=6).
+// Metrics follow docs/antd/button.md §6.2 (middle: h=32, font=14, paddingInline=15, radius=6).
+// Product contract: docs/antd/button.md §6 (P0 DoD).
 type Button struct {
 	Root      *primitive.Pressable
 	decorated *primitive.Decorated
@@ -30,6 +31,7 @@ type Button struct {
 
 	Type     ButtonType
 	Size     ButtonSize
+	Shape    ButtonShape // default | circle | round (§6.10)
 	Danger   bool
 	Disabled bool
 	Loading  bool
@@ -37,15 +39,18 @@ type Button struct {
 	// Ghost: transparent fill (Ant ghost).
 	Ghost bool
 	// Variant / Color: Ant 5.21+; VariantAuto derives from Type.
+	// When Variant != Auto, it takes precedence over Type (§6.3 / B-S / BTN-19).
 	Variant ButtonVariant
 	Color   ButtonColor
 	// IconPlacement: start (default) or end.
 	IconPlacement ButtonIconPlacement
 	Label         string
 	IconName      string
-	OnClick       func()
-	Face          text.Face
-	Theme         *core.Theme
+	// AriaLabel: accessible name; required for icon-only (BTN-23 / §6.6).
+	AriaLabel string
+	OnClick   func()
+	Face      text.Face
+	Theme     *core.Theme
 	// Style optional one-off overrides (background/font/size). See kit.Style.
 	Style Style
 
@@ -59,8 +64,18 @@ type Button struct {
 }
 
 // NewButton creates a Button with the given label.
+// Defaults (docs/antd/button.md §6.10): Type=default, Size=middle, Shape=default,
+// Variant=auto, Color=default, IconPlacement=start, all flags false.
 func NewButton(label string) *Button {
-	b := &Button{Label: label, Type: ButtonDefault, Size: ButtonMiddle}
+	b := &Button{
+		Label:         label,
+		Type:          ButtonDefault,
+		Size:          ButtonMiddle,
+		Shape:         ButtonShapeDefault,
+		Variant:       ButtonVariantAuto,
+		Color:         ButtonColorDefault,
+		IconPlacement: ButtonIconStart,
+	}
 	b.rebuild()
 	return b
 }
@@ -83,12 +98,16 @@ func (b *Button) ChromeNode() core.Node {
 
 // SetLabel updates the button label.
 func (b *Button) SetLabel(s string) {
+	prevEmpty := b.Label == ""
 	b.Label = s
+	// Child list / circle padding depends on whether label is empty.
+	if prevEmpty != (s == "") || b.Shape == ButtonShapeCircle {
+		b.rebuild()
+		return
+	}
 	if b.label != nil {
 		b.label.SetValue(s)
-		if b.Root != nil {
-			b.Root.Base().Label = s
-		}
+		b.applyA11yName()
 		return
 	}
 	b.rebuild()
@@ -219,12 +238,41 @@ func (b *Button) SetIconPlacement(p ButtonIconPlacement) {
 	b.rebuild()
 }
 
+// SetShape sets Ant shape: default rectangle, circle (w=h), or round (capsule).
+func (b *Button) SetShape(s ButtonShape) {
+	if b.Shape == s {
+		return
+	}
+	b.Shape = s
+	b.rebuild()
+}
+
+// SetAriaLabel sets the accessible name. Required when Label is empty (icon-only).
+func (b *Button) SetAriaLabel(name string) {
+	b.AriaLabel = name
+	if b.Root != nil {
+		b.applyA11yName()
+	}
+}
+
 // SetOnClick sets the click handler.
 func (b *Button) SetOnClick(fn func()) {
 	b.OnClick = fn
 	if b.Root != nil {
 		b.Root.Click = b.fireClick
 	}
+}
+
+// applyA11yName sets Pressable role label from Label or AriaLabel (§6.6).
+func (b *Button) applyA11yName() {
+	if b.Root == nil {
+		return
+	}
+	name := b.Label
+	if name == "" {
+		name = b.AriaLabel
+	}
+	b.Root.Base().Label = name
 }
 
 // SetFace sets the label font face.
@@ -328,6 +376,15 @@ func (b *Button) rebuild() {
 	th := b.theme()
 	padH, padV, height, fontSize, radius, gap := b.metrics(th)
 
+	// Shape: circle → square box w=h, full round; round → capsule radius h/2.
+	// docs/antd/button.md §6.2 / BTN-16 / BTN-17
+	switch b.Shape {
+	case ButtonShapeCircle:
+		radius = height / 2
+	case ButtonShapeRound:
+		radius = height / 2
+	}
+
 	b.label = primitive.NewText(b.Label)
 	b.label.FontSize = fontSize
 	b.label.Face = b.Face
@@ -360,7 +417,7 @@ func (b *Button) rebuild() {
 		b.icon = nil
 	}
 	// Icon start (default): icon · label; end: label · icon. Spinner always leading when loading.
-	// Skip empty label when icon-only so gap does not offset the icon (FloatButton FAB).
+	// Skip empty label when icon-only so gap does not offset the icon (FloatButton FAB / circle).
 	hasLabel := b.Label != ""
 	if b.icon != nil && b.IconPlacement != ButtonIconEnd {
 		b.row.AddChild(b.icon)
@@ -379,21 +436,34 @@ func (b *Button) rebuild() {
 		b.decorated.ClearChildren()
 		b.decorated.AddChild(b.row)
 	}
-	b.decorated.Padding = primitive.Symmetric(padH, padV)
+	// Circle icon-only: no horizontal padding so w≈h; content centered.
+	if b.Shape == ButtonShapeCircle && !hasLabel {
+		b.decorated.Padding = primitive.Symmetric(0, 0)
+	} else {
+		b.decorated.Padding = primitive.Symmetric(padH, padV)
+	}
 	b.decorated.Radius = radius
 	// Force exact Ant control height; center label/icon in chrome.
 	b.decorated.MinHeight = height
 	b.decorated.Height = height
 	b.decorated.SetCenterContent(true)
-	if b.Block {
+	if b.Shape == ButtonShapeCircle {
+		// Square outer box (BTN-16).
+		b.decorated.MinWidth = height
+		b.decorated.Width = height
+		b.decorated.ExpandWidth = false
+		b.decorated.StretchChild = false
+	} else if b.Block {
 		// Full parent max width (Ant block); StretchChild centers label row.
 		b.decorated.ExpandWidth = true
 		b.decorated.StretchChild = true
 		b.decorated.MinWidth = 0
+		b.decorated.Width = 0
 	} else {
 		b.decorated.ExpandWidth = false
 		b.decorated.StretchChild = false
 		b.decorated.MinWidth = 0
+		b.decorated.Width = 0
 	}
 
 	if b.Root == nil {
@@ -406,12 +476,12 @@ func (b *Button) rebuild() {
 	b.Root.Focusable = true
 	b.Root.ShowFocusRing = true
 	b.Root.FocusRingRadius = radius
-	b.Root.FocusRingOutset = 1.5 // Ant-tight
+	b.Root.FocusRingOutset = 1.5 // Ant-tight §6.2
 	b.Root.Click = b.fireClick
 	b.Root.OnStateChange = b.SyncState
 	b.Root.SetDisabled(b.Disabled || b.Loading)
 	b.Root.Base().Role = "button"
-	b.Root.Base().Label = b.Label
+	b.applyA11yName()
 	b.Root.SetThemeHook(func(*core.Theme) { b.rebuild() })
 
 	b.lastHovered, b.lastPressed, b.lastFocused = false, false, false
@@ -503,9 +573,17 @@ func (b *Button) applyChrome() {
 	}
 	th := b.theme()
 	_, _, height, _, radius, _ := b.metrics(th)
+	switch b.Shape {
+	case ButtonShapeCircle, ButtonShapeRound:
+		radius = height / 2
+	}
 	b.decorated.Radius = radius
 	b.decorated.MinHeight = height
 	b.decorated.Height = height
+	if b.Shape == ButtonShapeCircle {
+		b.decorated.MinWidth = height
+		b.decorated.Width = height
+	}
 	if b.Root != nil {
 		b.Root.FocusRingRadius = radius
 		b.Root.FocusRingOutset = 1.5
