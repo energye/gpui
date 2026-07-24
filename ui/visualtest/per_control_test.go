@@ -193,7 +193,7 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(kit.NewConfigProvider(kit.DefaultTheme(), kit.NewText("cfg").Node()).Node(), 120, 40)
 		}},
 		{"ctl_splitter", 200, 80, func() core.Node {
-			return padRoot(kit.NewSplitter(kit.NewText("L").Node(), kit.NewText("R").Node()).Node(), 200, 80)
+			return padRoot(kit.NewSplitterNodes(kit.NewText("L").Node(), kit.NewText("R").Node()).Node(), 200, 80)
 		}},
 		{"ctl_table", 240, 100, func() core.Node {
 			return padRoot(kit.NewTable(

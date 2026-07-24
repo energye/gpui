@@ -218,19 +218,23 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Splitter": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewSplitter(kit.NewText("L").Node(), kit.NewText("R").Node()).Node() == nil {
+				if kit.NewSplitterNodes(kit.NewText("L").Node(), kit.NewText("R").Node()).Node() == nil {
 					t.Fatal()
 				}
 			}},
-			{"R2 ratio get", func(t *testing.T) {
-				sp := kit.NewSplitter(kit.NewText("L").Node(), kit.NewText("R").Node())
-				_ = sp.Ratio()
+			{"R2 sizes get", func(t *testing.T) {
+				sp := kit.NewSplitterNodes(kit.NewText("L").Node(), kit.NewText("R").Node())
+				_ = sp.Node().Layout(core.Tight(200, 100))
+				_ = sp.PanelSizes()
 			}},
-			{"R3 setRatio", func(t *testing.T) {
-				sp := kit.NewSplitter(kit.NewText("L").Node(), kit.NewText("R").Node())
-				sp.SetRatio(0.3)
-				if sp.Ratio() < 0.29 || sp.Ratio() > 0.31 {
-					t.Fatal(sp.Ratio())
+			{"R3 setPanelSizes", func(t *testing.T) {
+				sp := kit.NewSplitterNodes(kit.NewText("L").Node(), kit.NewText("R").Node())
+				_ = sp.Node().Layout(core.Tight(200, 100))
+				sp.SetPanelSizesPx([]float64{60, 140})
+				_ = sp.Node().Layout(core.Tight(200, 100))
+				sz := sp.PanelSizes()
+				if len(sz) != 2 || sz[0] < 55 || sz[0] > 65 {
+					t.Fatal(sz)
 				}
 			}},
 		},

@@ -239,7 +239,8 @@
 | onCollapse | 展开-收起时回调 | `(collapsed: boolean[], sizes: number[]) => void` | - | 5.28.0 | × |
 | orientation | 布局方向 | `horizontal` \| `vertical` | `horizontal` | - | × |
 | styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 6.0.0 | 6.0.0 |
-| vertical | 排列方向，与 `orientation` 同时存在，以 `orientation` 优先 | boolean | `false` | onDraggerDoubleClick | 双击拖拽条回调 | `(index: number) => void` | - | 6.3.0 | × |
+| vertical | 排列方向，与 `orientation` 同时存在，以 `orientation` 优先 | boolean | `false` | - | × |
+| onDraggerDoubleClick | 双击拖拽条回调 | `(index: number) => void` | - | 6.3.0 | × |
 | onResize | 面板大小变化回调 | `(sizes: number[]) => void` | - | - | × |
 | onResizeEnd | 拖拽结束回调 | `(sizes: number[]) => void` | - | - | × |
 | onResizeStart | 开始拖拽之前回调 | `(sizes: number[]) => void` | - | - | × |
@@ -346,25 +347,35 @@ import { Splitter } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+数值来自 antd `components/splitter/style` `prepareComponentToken` + 全局种子。
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
+| 拖拽可视条宽 `splitBarSize` | **2** | 组件 Token（kit `DefaultSplitBarSize`） |
+| 拖拽命中区 `splitTriggerSize` | **6** | 组件 Token（kit `DefaultSplitTriggerSize`）；**命中 ≥ 可视** |
+| 拖拽把手标识高 `splitBarDraggableSize` | **20** | 组件 Token（kit `DefaultSplitBarDraggableSize`） |
+| 字号 | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 折叠按钮（水平条） | 宽≈`fontSizeSM`、高≈`controlHeightSM` | Token 回落 12×24 |
+
+> **布局约定（gpui）：** 面板 `sizes` 之和 = 容器主轴长度（与 antd 一致；条在边界上叠加命中区，不挤占 flex 百分比基数）。`hit == layout == paint`：条节点布局盒 = `splitTriggerSize`，居中压在相邻面板接缝上。
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
+| 拖拽条 hover 底 | `colorBgTextHover` | 对应 antd `controlItemBgHover` |
+| 拖拽条 active 底 | `colorBgTextActive` | 对应 antd active hover 阶 |
+| 拖拽把手填充 | `colorFillSecondary` / `colorTextSecondary` | antd `colorFill` 近似 |
+| 主色 / lazy 预览 | `colorPrimary` @ 低透明 | lazy 拖动预览线 |
+| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | 折叠图标 |
 | 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 禁用（不可拖） | 无把手 spinner；cursor default | `resizable=false` |
+| Focus ring | `controlOutline` / primary 描边 | 条可聚焦时 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色（如 `#1677ff`）作为唯一默认皮。
 
 ### 6.3 关键配置与语义
 
@@ -394,20 +405,23 @@ import { Splitter } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-drag handle ──► 面板 size 变（夹紧 min/max）+ onResize
-release ──► onResizeEnd
-collapsible ──► 折叠/恢复
+drag handle ──► 面板 size 变（夹紧 min/max）+ onResize（lazy 时拖中仅预览）
+release ──► onResizeEnd（lazy 时于此提交 size）
+collapsible ──► 折叠/恢复 + onCollapse
+keyboard on bar ──► 方向键微调相邻面板
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| SPL-S1 | 拖动 | 尺寸变；onResize |
+| SPL-S1 | 拖动 | 尺寸变；onResize（非 lazy） |
 | SPL-S2 | 低于 min | 夹紧 |
 | SPL-S3 | 高于 max | 夹紧 |
 | SPL-S4 | 松手 | onResizeEnd |
-| SPL-S5 | 折叠 | 面板收起 |
+| SPL-S5 | 折叠 | 面板收起（size→0，空间给邻面板） |
 | SPL-S6 | vertical | 上下分 |
-| SPL-S7 | 命中条 | ≥ 可视宽 |
+| SPL-S7 | 命中条 | 布局盒 ≥ 可视宽（trigger ≥ bar） |
+| SPL-S8 | lazy | 拖中面板几何不变；松手一次提交 |
+| SPL-S9 | resizable=false | 不可拖；仍可折叠（若 collapsible） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -495,39 +509,76 @@ collapsible ──► 折叠/恢复
 | SPL-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 **breaking** 旧 `NewSplitter(first, second)` / `Ratio` / `SetRatio` 双栏 API。  
+> 实现可微调命名，但下列语义不可丢。
 
 ```text
-NewSplitter(...) *Splitter
+// 尺寸：px 或百分比（antd number | 'xx%'）
+DimPx(px float64) SplitterDim
+DimPercent(pct float64) SplitterDim   // 0..100，如 40 → "40%"
+ParseDim(s string) (SplitterDim, error)
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewSplitterPanel(child core.Node) *SplitterPanel
+  SetChild(core.Node)
+  SetMin / SetMax / SetSize / SetDefaultSize(SplitterDim)
+  SetMinPx / SetMaxPx / SetSizePx / SetDefaultSizePx(float64)
+  SetMinPercent / SetMaxPercent / SetSizePercent / SetDefaultSizePercent(float64)
+  SetResizable(bool)                  // 默认 true
+  SetCollapsible(bool)                // 两侧均可折
+  SetCollapsibleSides(start, end bool)
+  SetShowCollapsibleIcon(mode)        // auto | always | never
+  SetDestroyOnHidden(bool)
+
+NewSplitter(panels ...*SplitterPanel) *Splitter
+  SetPanels(...*SplitterPanel)
+  SetOrientation(horizontal|vertical) // 优先于 Vertical 糖
+  SetVertical(bool)
+  SetLazy(bool)                       // 拖中不改 size，松手提交
+  SetDestroyOnHidden(bool)            // 全局；面板可覆盖
+  SetCollapsibleMotion(bool)          // P0 可瞬时；P1 动画
+  SetWidth / SetHeight(float64)       // 可选固定盒；0 → 填父
+  SetTheme(*Theme)
+  SetAriaLabel(string)
+
+  // 状态 / 回调
+  PanelSizes() []float64              // 当前 px（需先 Layout）
+  SetPanelSizesPx([]float64)          // 写回非受控 inner 或驱动受控
+  OnResize / OnResizeStart / OnResizeEnd func([]float64)
+  OnCollapse func(collapsed []bool, sizes []float64)
+  CollapseAt(barIndex int, side start|end)
+
+  // 挂树
+  Node() core.Node
+  ChromeNode() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Orientation | horizontal |
+| Vertical | false |
+| Lazy / DestroyOnHidden | false |
+| Panel.Resizable | true |
+| Panel.Collapsible | false |
+| Panel size | 均分剩余空间（`autoPtgSizes`） |
+| splitBarSize / trigger / spinner | 2 / 6 / 20 |
+| 受控 | 任一面板 `size` 已 Set → 受控路径；否则 `defaultSize` + 拖动写 inner |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Layout root
-  └─ children with gap/span/handles
+splitterRoot（自定义 Layout：按 PanelSizes 摆面板 + 条）
+  ├─ panelHost[i]（内容；size=0 时 hidden / 可 destroy）
+  └─ bar[i]（Draggable + 折叠 Pressable；布局盒 = triggerSize）
+       └─ 可视 2px 轨 + 可选 20px spinner + 折叠图标
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 组合 `ui/primitive`（Box / Draggable / Pressable）+ `ui/core`，禁止第二套事件/帧循环。  
+- `rebuild()` 只读 Default / 字段 / Token。  
+- 命中区域与布局盒一致（`hit == layout == paint`）；条盒 ≥ 可视条。  
+- lazy 预览线可叠在 root 上画；折叠动画 P0 瞬时，Ticker 仅用于 loading 类控件（本控件无 loading）。  
+- 键盘：条可聚焦；方向键微调为 P0 主路径（步进 ≈ 容器 1% 或 4px）。  
 
 ### 6.12 完成定义（DoD）
 

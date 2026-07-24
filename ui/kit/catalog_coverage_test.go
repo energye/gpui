@@ -59,7 +59,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 		return kit.NewRow(a.Node(), b.Node()).Node()
 	}())
 	must("Layout", kit.NewLayout(kit.NewHeader(kit.NewText("h").Node()).Node(), kit.NewContent(kit.NewText("c").Node()).Node()).Node())
-	must("Splitter", kit.NewSplitter(kit.NewText("a").Node(), kit.NewText("b").Node()).Node())
+	must("Splitter", kit.NewSplitterNodes(kit.NewText("a").Node(), kit.NewText("b").Node()).Node())
 	must("Breadcrumb", kit.NewBreadcrumb("a", "b").Node())
 	must("Steps", kit.NewSteps("a", "b").Node())
 	must("Anchor", kit.NewAnchor("#a").Node())

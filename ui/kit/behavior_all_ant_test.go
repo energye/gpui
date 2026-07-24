@@ -148,7 +148,10 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Splitter", func(t *testing.T) {
-			sp := kit.NewSplitter(kit.NewText("L").Node(), kit.NewText("R").Node())
+			sp := kit.NewSplitter(
+				kit.NewSplitterPanel(kit.NewText("L").Node()),
+				kit.NewSplitterPanel(kit.NewText("R").Node()),
+			)
 			if sp.Node() == nil {
 				t.Fatal()
 			}

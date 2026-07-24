@@ -77,6 +77,14 @@ type NodeBase struct {
 	// ClipHit when true restricts child hits to local bounds.
 	ClipHit bool
 
+	// PaintOrder stacks siblings for paint/hit (hit == paint z-order).
+	// Higher paints later (above) and is hit-tested first among siblings.
+	// 0 is the default; when all siblings are 0, order matches children slice
+	// (paint forward, hit reverse) — same as before this field existed.
+	// Use for chrome that may overflow into a later sibling (splitter bars,
+	// handles, badges) without special-casing TypeIDs in parent Paint.
+	PaintOrder int
+
 	// Key is optional identity for future reconciliation.
 	Key string
 
@@ -323,6 +331,9 @@ func constraintsEqual(a, b Constraints) bool {
 // Concrete nodes may call this from HitTest.
 // When self implements PaintOffsetParent, ContentPaintOffset is applied so hit
 // matches paint (scroll without mutating layout Offset).
+//
+// Z-order: higher PaintOrder is tested first (matches paint: higher paints above).
+// When all PaintOrder are 0, last child is topmost (historical order).
 func (n *NodeBase) DefaultHitTest(p Point) Node {
 	if n.ClipHit && !n.LocalBounds().Contains(p) {
 		return nil
@@ -333,9 +344,10 @@ func (n *NodeBase) DefaultHitTest(p Point) Node {
 			paintOff = po.ContentPaintOffset()
 		}
 	}
-	// Children are painted in order; last child is topmost.
-	for i := len(n.children) - 1; i >= 0; i-- {
-		c := n.children[i]
+	order := childPaintIndices(n.children)
+	// hit: reverse paint order (topmost first)
+	for i := len(order) - 1; i >= 0; i-- {
+		c := n.children[order[i]]
 		cb := c.Base()
 		local := p.Sub(cb.offset).Sub(paintOff)
 		if hit := c.HitTest(local); hit != nil {
@@ -372,6 +384,10 @@ func (n *NodeBase) DefaultHitTest(p Point) Node {
 // When pc.Clip is set (PushClipLocal advisory), children whose painted bounds
 // do not intersect the clip are skipped — critical for ScrollViewport drag
 // (long Columns must not re-vectorize off-screen rows every pointer move).
+//
+// Z-order: lower PaintOrder first, higher last (above). All-zero PaintOrder
+// keeps children-slice order (no sort, same as historical behavior).
+// hit == paint: DefaultHitTest uses the same PaintOrder ranking.
 func (n *NodeBase) DefaultPaintChildren(pc *PaintContext) {
 	var paintOff Point
 	if n.self != nil {
@@ -379,7 +395,9 @@ func (n *NodeBase) DefaultPaintChildren(pc *PaintContext) {
 			paintOff = po.ContentPaintOffset()
 		}
 	}
-	for _, c := range n.children {
+	order := childPaintIndices(n.children)
+	for _, idx := range order {
+		c := n.children[idx]
 		cb := c.Base()
 		// Parent layer rasterize: leave holes for nested Spin/Skeleton layers.
 		if pc != nil && pc.SkipRepaintBoundaries && cb.IsRepaintBoundary() {
@@ -394,6 +412,7 @@ func (n *NodeBase) DefaultPaintChildren(pc *PaintContext) {
 		}
 		childOrigin := pc.Origin.Add(cb.offset).Add(paintOff)
 		// Advisory cull: skip fully off-screen children (scroll / clip).
+		// Overflow chrome may extend past layout size; cull uses layout box only.
 		if pc != nil && !pc.Clip.Empty() {
 			cw, ch := cb.size.Width, cb.size.Height
 			if cw > 0 && ch > 0 {
@@ -406,6 +425,50 @@ func (n *NodeBase) DefaultPaintChildren(pc *PaintContext) {
 		childPC := pc.WithOrigin(childOrigin)
 		c.Paint(childPC)
 	}
+}
+
+// childPaintIndices returns child indices sorted by (PaintOrder, original index).
+// Stable for equal PaintOrder; identity when all PaintOrder are 0 (fast path).
+func childPaintIndices(kids []Node) []int {
+	n := len(kids)
+	if n == 0 {
+		return nil
+	}
+	// Fast path: all zero → identity order (no alloc beyond tiny stack for n≤16).
+	needSort := false
+	for _, c := range kids {
+		if c != nil && c.Base().PaintOrder != 0 {
+			needSort = true
+			break
+		}
+	}
+	idx := make([]int, n)
+	for i := range idx {
+		idx[i] = i
+	}
+	if !needSort {
+		return idx
+	}
+	// Stable insertion sort by PaintOrder then index (n is small for layout trees).
+	for i := 1; i < n; i++ {
+		j := i
+		for j > 0 {
+			a, b := idx[j-1], idx[j]
+			oa, ob := 0, 0
+			if kids[a] != nil {
+				oa = kids[a].Base().PaintOrder
+			}
+			if kids[b] != nil {
+				ob = kids[b].Base().PaintOrder
+			}
+			if oa < ob || (oa == ob && a < b) {
+				break
+			}
+			idx[j-1], idx[j] = idx[j], idx[j-1]
+			j--
+		}
+	}
+	return idx
 }
 
 // subtreeHasPaintDirty reports whether n or any descendant needs paint.
