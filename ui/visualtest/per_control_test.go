@@ -165,8 +165,12 @@ func perControlSpecs() []ctlSpec {
 		}},
 		{"ctl_layout", 280, 160, func() core.Node {
 			return padRoot(kit.NewLayout(
-				kit.NewText("H").Node(), kit.NewText("S").Node(),
-				kit.NewText("C").Node(), kit.NewText("F").Node(),
+				kit.NewHeader(kit.NewText("H").Node()).Node(),
+				kit.NewLayout(
+					kit.NewSider(kit.NewText("S").Node()).Node(),
+					kit.NewContent(kit.NewText("C").Node()).Node(),
+				).Node(),
+				kit.NewFooter(kit.NewText("F").Node()).Node(),
 			).Node(), 280, 160)
 		}},
 		{"ctl_watermark", 180, 80, func() core.Node {

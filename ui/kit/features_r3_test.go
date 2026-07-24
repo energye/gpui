@@ -172,22 +172,26 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Layout": {
 			{"R1 structure", func(t *testing.T) {
-				if kit.NewLayout(kit.NewText("h").Node(), nil, kit.NewText("c").Node(), nil).Node() == nil {
+				if kit.NewLayout(kit.NewHeader(kit.NewText("h").Node()).Node(), kit.NewContent(kit.NewText("c").Node()).Node()).Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 layout size", func(t *testing.T) {
-				l := kit.NewLayout(kit.NewText("h").Node(), kit.NewText("s").Node(), kit.NewText("c").Node(), nil)
+				l := kit.NewLayout(
+					kit.NewHeader(kit.NewText("h").Node()).Node(),
+					kit.NewSider(kit.NewText("s").Node()).Node(),
+					kit.NewContent(kit.NewText("c").Node()).Node(),
+				)
 				sz := l.Node().Layout(core.Loose(300, 200))
 				if sz.Height <= 0 {
 					t.Fatal(sz)
 				}
 			}},
 			{"R3 sider width", func(t *testing.T) {
-				l := kit.NewLayout(nil, kit.NewText("s").Node(), kit.NewText("c").Node(), nil)
-				l.SetSiderWidth(180)
-				if l.SiderWidth != 180 {
-					t.Fatal(l.SiderWidth)
+				s := kit.NewSider(kit.NewText("s").Node())
+				s.SetWidth(180)
+				if s.EffectiveWidth() != 180 {
+					t.Fatal(s.EffectiveWidth())
 				}
 			}},
 		},

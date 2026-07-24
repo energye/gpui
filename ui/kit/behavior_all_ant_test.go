@@ -130,7 +130,10 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Layout", func(t *testing.T) {
-			l := kit.NewLayout(kit.NewText("h").Node(), nil, kit.NewText("c").Node(), nil)
+			l := kit.NewLayout(
+				kit.NewHeader(kit.NewText("h").Node()).Node(),
+				kit.NewContent(kit.NewText("c").Node()).Node(),
+			)
 			sz := l.Node().Layout(core.Loose(300, 200))
 			if sz.Height <= 0 {
 				t.Fatal(sz)

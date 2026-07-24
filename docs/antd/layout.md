@@ -271,14 +271,23 @@ import { Layout } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| Layout Header 高 | **64** | controlHeight×2 |
-| Header 高 | **64** | controlHeight×2 |
+| Layout body 背景 | `colorBgLayout` | Theme |
+| Header 高 | **64** | `controlHeight×2` |
+| Header 水平 padding | **50** | `controlHeightLG×1.25`（40×1.25） |
+| Header 背景（dark 壳） | **#001529** | 组件 Token `headerBg` |
+| Footer 垂直 padding | **24** | `controlHeightSM` |
+| Footer 水平 padding | **50** | 同 Header inline |
+| Footer / body 背景 | `colorBgLayout` | Theme |
 | Sider 宽 | **200** | 组件默认 |
-| collapsedWidth | **80** | 常见默认 |
+| collapsedWidth | **80** | 组件默认 |
+| Sider 背景 dark | **#001529** | 组件 Token `siderBg` |
+| Sider 背景 light | `colorBgContainer` | Theme |
+| trigger 高 | **48** | `controlHeightLG + marginXXS×2`（40+8） |
+| trigger 背景 dark | **#002140** | 组件 Token `triggerBg` |
+| zero-width trigger | **40×40** | `controlHeightLG` |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -373,10 +382,18 @@ Sider collapsible ──► collapsed 宽变化 + onCollapse
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `trigger` | 必须 |
+| `Layout` 嵌套 | `Header` / `Sider` / `Content` / `Footer` / 嵌套 `Layout`；默认 column，有 Sider 时 row（`hasSider` 可强制） |
+| `Header` 高 | 默认 **64**（`controlHeight×2`） |
+| `Sider.width` / `collapsedWidth` | 默认 **200** / **80**；`collapsedWidth=0` 出现 zero-width trigger |
+| `Sider.collapsible` + `collapsed` / `defaultCollapsed` | 受控 / 非受控折叠；`onCollapse(collapsed, type)` |
+| `Sider.theme` | `dark`（默认）/ `light` 侧栏底色 |
+| `Sider.trigger` | 默认箭头 trigger；自定义 Node；`null` 隐藏（自定义触发器示例） |
+| `Sider.breakpoint` + 视口 | 断点以下自动折叠 + `onBreakpoint`（`SetViewportWidth` 测） |
+| `Sider.reverseArrow` | 右侧 Sider 时翻转箭头 |
+| `Sider` 覆盖折叠 | `collapsedWidth=0` + 覆盖位（折叠覆盖布局示例） |
 | 官方主路径示例 | 基本结构、上中下布局、顶部-侧边布局、顶部-侧边布局-通栏、侧边布局、自定义触发器、折叠覆盖布局、响应式布局 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 度量 §6.2 | Token / Default 断言 |
+| a11y §6.6 | 容器可选 AriaLabel；trigger 可点可键盘 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -384,10 +401,10 @@ Sider collapsible ──► collapsed 宽变化 + onCollapse
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| 折叠宽度过渡动画像素级 | 分期（P0 瞬时切换） |
+| 固定头部 / 固定侧边栏（`fixed.tsx` / `fixed-sider.tsx`） | 分期 |
+| 浏览器-only API / ConfigProvider 全局 Layout 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 固定头部, 固定侧边栏, _semantic.tsx |
 
 ### 6.9 验收用例表（可测）
 
@@ -421,39 +438,84 @@ Sider collapsible ──► collapsed 宽变化 + onCollapse
 | LAY-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（删除 `NewLayout(header,sider,content,footer)` 四参壳）。语义对齐 antd **Layout + Header + Sider + Content + Footer**。
 
 ```text
-NewLayout(...) *Layout
+// 入口（均可挂 children …core.Node）
+NewLayout(children ...core.Node) *Layout
+NewHeader / NewFooter / NewContent / NewSider(children ...core.Node)
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// Layout P0
+(*Layout) SetHasSider(bool)          // 强制 has-sider 行向；未设时按子项是否含 Sider 自动
+(*Layout) SetTheme(*Theme) / SetAriaLabel(string)
+(*Layout) SetBackground(RGBA)        // 覆盖 bodyBg（默认 colorBgLayout）
+(*Layout) Add / SetChildren / ClearChildren / Node() core.Node
+
+// Header P0
+(*Header) SetHeight(h)               // 0 → DefaultLayoutHeaderHeight(64)
+(*Header) SetPaddingInsets / SetBackground / SetChildren / Node()
+
+// Footer P0
+(*Footer) SetPaddingInsets / SetBackground / SetChildren / Node()
+
+// Content P0
+(*Content) SetMinHeight / SetPaddingInsets / SetBackground / SetChildren / Node()
+
+// Sider P0
+(*Sider) SetWidth(w)                 // 0 → DefaultSiderWidth(200)
+(*Sider) SetCollapsedWidth(w)        // 默认 80；显式 0 → zero-width trigger
+(*Sider) SetCollapsible(bool)
+(*Sider) SetCollapsed(bool)          // 受控
+(*Sider) SetDefaultCollapsed(bool)   // 非受控初值
+(*Sider) CollapsedState() bool       // 当前折叠（受控字段或内部态）
+(*Sider) SetTheme(SiderTheme)        // dark|light（侧栏皮，非全局 Theme）
+(*Sider) SetReverseArrow(bool)
+(*Sider) SetBreakpoint(LayoutBreakpoint) // xs…xxxl
+(*Sider) SetViewportWidth(w)         // 断点解析（测试/宿主注入）
+(*Sider) SetTrigger(node)            // 自定义；SetHideTrigger() ≡ trigger=null
+(*Sider) SetOverlay(bool)            // 折叠覆盖：不占主轴流宽，叠在内容上
+(*Sider) SetOnCollapse(func(collapsed bool, typ CollapseType))
+(*Sider) SetOnBreakpoint(func(broken bool))
+(*Sider) SetChildren / Node()
+
+// 常量 / 枚举
+DefaultLayoutHeaderHeight=64 · DefaultSiderWidth=200 · DefaultSiderCollapsedWidth=80
+SiderThemeDark|Light · CollapseClickTrigger|CollapseResponsive
+LayoutBreakpointXS…XXXL · Screen* 断点宽度（与 Grid 共用语义）
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Layout 方向 | column；子项含 Sider 或 `SetHasSider(true)` → row |
+| Header 高 / 侧栏宽 | 64 / 200 |
+| collapsedWidth | 80 |
+| collapsible | false |
+| Sider.theme | dark |
+| reverseArrow | false |
+| trigger | 默认折叠箭头（可自定义 / 隐藏） |
+| 受控 collapsed | 未 `SetCollapsed` 时用 `defaultCollapsed`（false） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Layout root
-  └─ children with gap/span/handles
+Layout root (Flex column | hasSider → row；bg = bodyBg)
+  ├─ Header (Decorated h=64)
+  ├─ Sider (fixed width · body + optional trigger)
+  │    └─ zero-width trigger when collapsedWidth=0
+  ├─ Content (Flexible grow)
+  ├─ Footer
+  └─ nested Layout (Flexible when sibling of Sider)
+
+Overlay Sider: Stack[ content-flow , Positioned sider ]
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` / `apply()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 折叠宽度 P0 瞬时切换；过渡动画 P1。  
 
 ### 6.12 完成定义（DoD）
 
