@@ -523,6 +523,7 @@ Row (custom flex-like packer, ExpandMax width)
 - 水平 gutter：Col 左右 padding = gutterH/2（对齐 antd margin 负半 + padding 半）；垂直 gutter：行间距 = gutterV。  
 - `rebuild()` / `apply()` 只读字段与 Token；`hit == layout == paint`（push/pull 改 Offset，命中随视觉盒）。  
 - 布局容器：无 disabled/loading chrome；无强制 focus role。  
+- **Demo 区块 chrome（非 Row/Col API）**：antd 站点 CSS（`.dumi` `Markdown.tsx` grid-demo）对示例 Col 施加 `min-height: 30`、非 gutter `padding: 16px 0`、`text-align: center`；gutter 示例内层为 `padding: 8px 0` + 同 min-height。gallery 须对齐该视觉；**文本居中不可通过 Row.align/justify 配置**（二者只排 Col，不排 Col 内文案）。  
 
 ### 6.12 完成定义（DoD）
 
