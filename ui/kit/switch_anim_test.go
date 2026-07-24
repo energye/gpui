@@ -15,18 +15,26 @@ func TestSwitchThumbMoves(t *testing.T) {
 	tree := core.NewTree(root)
 	sw.AttachTicker(tree)
 	tree.Layout(core.Size{Width: 100, Height: 40})
-	// off: thumb near left
-	// get track padding via IndicatorNode
-	track := sw.IndicatorNode().(*primitive.Decorated)
-	if track.Padding.Left > 5 {
-		t.Fatalf("off pad left=%v want ~2", track.Padding.Left)
+	// Prefer ThumbNode host offset (Stack PositionedAt).
+	thumb := sw.ThumbNode()
+	if thumb == nil {
+		t.Fatal("nil thumb")
+	}
+	// Host is parent of thumb.
+	host := thumb.Base().Parent()
+	if host == nil {
+		t.Fatal("no thumb host")
+	}
+	off0 := host.Base().Offset().X
+	if off0 > 5 {
+		t.Fatalf("off offsetX=%v want ~2", off0)
 	}
 	sw.SetChecked(true)
-	// animate: several ticks
 	for i := 0; i < 20; i++ {
 		tree.TickActive(0.02)
 	}
-	if track.Padding.Left < 15 {
-		t.Fatalf("after ticks pad left=%v want ~24 (on)", track.Padding.Left)
+	off1 := host.Base().Offset().X
+	if off1 < 15 {
+		t.Fatalf("after ticks offsetX=%v want ~24 (on)", off1)
 	}
 }

@@ -66,6 +66,22 @@ const (
 	ButtonIconEnd                              // trailing
 )
 
+// SwitchSize is Ant Design Switch size (medium default, small).
+// https://ant.design/components/switch — size: 'medium' | 'small'
+type SwitchSize int
+
+const (
+	SwitchMedium SwitchSize = iota // default ≈ 44×22
+	SwitchSmall                    // ≈ 28×16
+)
+
+func (s SwitchSize) String() string {
+	if s == SwitchSmall {
+		return "small"
+	}
+	return "medium"
+}
+
 // String helpers for debugging.
 func (t ButtonType) String() string {
 	switch t {

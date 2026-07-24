@@ -695,9 +695,88 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	slider := kit.NewSlider(40)
 	add("slider", "Slider", "Data Entry · Slider", slider.Node())
 
-	sw := kit.NewSwitch()
-	*tickers = append(*tickers, sw)
-	add("switch", "Switch", "Data Entry · Switch", sw.Node())
+	// Switch — docs/antd/switch.md §6.8 P0
+	// https://ant.design/components/switch
+	trackSw := func(s *kit.Switch) *kit.Switch {
+		*tickers = append(*tickers, s)
+		return s
+	}
+	swBasic := trackSw(kit.NewSwitch())
+	swBasic.SetDefaultChecked(true)
+	swBasic.SetOnChange(func(v bool) { *status = fmt.Sprintf("switch → %v", v) })
+	swBasic.SetAriaLabel("basic")
+
+	swDis := trackSw(kit.NewSwitch())
+	swDis.SetDefaultChecked(true)
+	swDis.SetDisabled(true)
+	swDisToggle := kit.NewButton("Toggle disabled")
+	swDisToggle.SetType(kit.ButtonPrimary)
+	swDisToggle.SetOnClick(func() {
+		swDis.SetDisabled(!swDis.Disabled)
+		if swDis.Disabled {
+			*status = "switch disabled"
+		} else {
+			*status = "switch enabled"
+		}
+	})
+	*buttons = append(*buttons, swDisToggle)
+
+	swText1 := trackSw(kit.NewSwitch())
+	swText1.SetFace(face)
+	swText1.SetCheckedChildren("On")
+	swText1.SetUnCheckedChildren("Off")
+	swText1.SetDefaultChecked(true)
+	swText2 := trackSw(kit.NewSwitch())
+	swText2.SetFace(face)
+	swText2.SetCheckedChildren("1")
+	swText2.SetUnCheckedChildren("0")
+	swText2.SetDefaultChecked(true)
+
+	swMed := trackSw(kit.NewSwitch())
+	swMed.SetDefaultChecked(true)
+	swSm := trackSw(kit.NewSwitch())
+	swSm.SetSize(kit.SwitchSmall)
+	swSm.SetDefaultChecked(true)
+
+	swLoad1 := trackSw(kit.NewSwitch())
+	swLoad1.SetLoading(true)
+	swLoad1.SetDefaultChecked(true)
+	swLoad2 := trackSw(kit.NewSwitch())
+	swLoad2.SetSize(kit.SwitchSmall)
+	swLoad2.SetLoading(true)
+
+	swCtrl := trackSw(kit.NewSwitch())
+	swCtrl.SetControlled(true)
+	swCtrl.SetChecked(false)
+	swCtrl.SetOnChange(func(v bool) {
+		// Parent applies value (controlled demo).
+		swCtrl.SetChecked(v)
+		*status = fmt.Sprintf("controlled → %v", v)
+	})
+	swCtrl.SetAriaLabel("controlled")
+
+	secSwBasic := demoSection(face, theme, "Basic",
+		"The most basic usage.",
+		spaceWrap(12, swBasic.Node()))
+	secSwDis := demoSection(face, theme, "Disabled",
+		"Disabled state of Switch.",
+		spaceWrap(12, swDis.Node(), swDisToggle.Node()))
+	secSwText := demoSection(face, theme, "Text & icon",
+		"With text checkedChildren / unCheckedChildren (string).",
+		spaceWrap(12, swText1.Node(), swText2.Node()))
+	secSwSize := demoSection(face, theme, "Two sizes",
+		"size=medium (default) and size=small.",
+		spaceWrap(12, swMed.Node(), swSm.Node()))
+	secSwLoad := demoSection(face, theme, "Loading",
+		"Mark a pending state of switch.",
+		spaceWrap(12, swLoad1.Node(), swLoad2.Node()))
+	secSwCtrl := demoSection(face, theme, "Controlled",
+		"SetControlled + SetChecked: parent owns the value.",
+		spaceWrap(12, swCtrl.Node()))
+	add("switch", "Switch", "Data Entry · Switch",
+		demoPage(face, "Switch",
+			"Switching Selector. P0: checked/value, defaultChecked, controlled, onChange/onClick, disabled, loading, size, children text.",
+			secSwBasic, secSwDis, secSwText, secSwSize, secSwLoad, secSwCtrl))
 
 	ta := kit.NewTextArea("TextArea", 3)
 	add("textarea", "TextArea", "Data Entry · TextArea", ta.Node())

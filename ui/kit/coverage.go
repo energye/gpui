@@ -63,7 +63,7 @@ func AntCoverage() []CoverageEntry {
 		{Ant: "Rate", Status: CovReady, Via: "kit.Rate", Since: "Base-ALL"},
 		{Ant: "Select", Status: CovReady, Via: "kit.Select", Since: "M3"},
 		{Ant: "Slider", Status: CovReady, Via: "kit.Slider", Since: "Base-ALL"},
-		{Ant: "Switch", Status: CovReady, Via: "kit.Switch", Since: "M2"},
+		{Ant: "Switch", Status: CovReady, Via: "kit.Switch", Since: "M2", Notes: "P0 对齐 docs/antd/switch.md §6（checked/value、defaultChecked/defaultValue、controlled、onChange/onClick、disabled、loading、size medium|small、checkedChildren/unCheckedChildren 字符串、a11y role=switch、Token 44×22/28×16、thumb FloatAnim+loading Ticker）；P1: semantic classNames/styles、复杂 ReactNode 内文、Wave/像素级 handle 拉伸、官网逐像素"},
 		{Ant: "TimePicker", Status: CovReady, Via: "kit.TimePicker", Since: "Base-ALL"},
 		{Ant: "Transfer", Status: CovReady, Via: "kit.Transfer", Since: "M4"},
 		{Ant: "TreeSelect", Status: CovReady, Via: "kit.TreeSelect", Since: "Base-ALL"},
