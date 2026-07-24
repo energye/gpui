@@ -299,32 +299,41 @@ import { Divider } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`fontSize=14`、`fontSizeLG=16`、`lineWidth=1`）。实现必须通过 Token / `DefaultDivider*` 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/divider/style/index.ts`（`prepareComponentToken` + `genSharedDividerStyle` + `genSizeDividerStyle`）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| Divider size=small marginBlock | **8** | marginXS |
-| 水平 margin 默认 | **24** | marginLG |
-| size=small margin | **8** | marginXS |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 水平无 size / size=large `marginBlock` | **24** | antd `marginLG`（无 `-sm`/`-md` class 时的默认） |
+| size=medium（兼容 middle）`marginBlock` | **16** | antd `margin`（`-md` class） |
+| size=small `marginBlock` | **8** | antd `marginXS`（`-sm` class） |
+| 带文字水平 `marginBlock` 基线 | **16** | `dividerHorizontalWithTextGutterMargin` = `margin`；size class 仍可覆盖 |
+| 线宽 | **1** | `lineWidth` |
+| 标题默认字号（非 plain） | **16** | `fontSizeLG`；字重视觉≈500（kit 可用常规面 + 字号） |
+| 标题 plain 字号 | **14** | `fontSize`；字重 normal；色 `colorText` |
+| 标题 `paddingInline` | **1em** | 组件 Token `textPaddingInline` |
+| `titlePlacement` start/end 默认轨宽比 | **0.05** | 组件 Token `orientationMargin`（近侧轨 `0.05*100%`，远侧 `0.95*100%`） |
+| 垂直线高度 | **0.9em** | 相对当前正文字号（≈`0.9 * fontSize`） |
+| 垂直线 `marginInline` | **8** | 组件 Token `verticalMarginInline` = antd `marginXS` |
+| 垂直线垂直偏移 | **-0.06em** | 光学对齐（P0 可近似 0，L3 再抠） |
+
+> **size 未设置**：antd 不挂 size class → 水平 `marginBlock=24`。  
+> **size 仅水平有效**；垂直忽略 size。  
+> **children + vertical**：antd 忽略文字（warning）；kit 同样不画标题。
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 分割线色 | `colorSplit` | 默认皮；未注册时回落 `colorBorderSecondary` / fill 浅色 |
+| 标题默认色 | `colorTextHeading` 或 `colorText` | 非 plain |
+| 标题 plain 色 | `colorText` | |
+| 次级文本 | `colorTextSecondary` | 适用者 |
+| 容器底 | `colorBgContainer` | 页面背景，非线色 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色（如 `#1677FF`）作为唯一默认线色。
 
 ### 6.3 关键配置与语义
 
@@ -332,60 +341,67 @@ import { Divider } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `children` | 嵌套的标题 | ReactNode | - |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `dashed` | 是否虚线 | boolean | false |
-| `orientation` | 水平或垂直类型 | `horizontal` \ | `vertical` |
-| `plain` | 文字是否显示为普通正文样式 | boolean | false |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
-| `size` | 间距大小，仅对水平布局有效 | `small` \ | `medium` \ |
-| `titlePlacement` | 分割线标题的位置 | `start` \ | `end` \ |
-| `variant` | 分割线是虚线、点线还是实线 | `dashed` \ | `dotted` \ |
-| `vertical` | 是否垂直，和 orientation 同时配置以 orientation 优先 | boolean | false |
+| `children` / Title | 嵌套标题（水平 with-text） | string / Node | 空 = 纯线 |
+| `orientation` | 水平或垂直 | `horizontal` \| `vertical` | `horizontal` |
+| `vertical` | 是否垂直；与 `orientation` 同时配置时 **orientation 优先** | boolean | false |
+| `size` | 水平 `marginBlock` 档位 | `small` \| `medium` \| `large` | 未设 → 24（等同 large 节奏） |
+| `variant` | 实线 / 虚线 / 点线 | `solid` \| `dashed` \| `dotted` | `solid` |
+| `dashed` | 虚线糖；`variant=solid` 时仍可出虚线 | boolean | false |
+| `plain` | 标题用正文字号/字重 | boolean | false |
+| `titlePlacement` | 标题位置 | `start` \| `end` \| `center`（兼容 left/right） | `center` |
+| `orientationMargin` | start/end 近侧比例或绝对边距（legacy） | number | 组件 Token 0.05 |
+| `classNames` / `styles` | 语义钩子 root/rail/content | — | **P1** |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**有效线型：** `variant=dotted` > `variant=dashed` \|\| `dashed` > `solid`。  
+**配置优先级（通用）：** 显式 props > 组件默认 > ConfigProvider（P1）。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-mount ──► orientation=horizontal|vertical 绘制
+mount ──► orientation=horizontal|vertical
              ├── variant solid|dashed|dotted（dashed 糖）
-             ├── children + titlePlacement ──► 线-文-线
-             ├── plain ──► 标题正文字号
-             ├── size ──► 水平 marginBlock
-             └── 无点击态
+             ├── children? + titlePlacement ──► rail-start · content · rail-end
+             ├── plain ──► 标题 fontSize=14 / colorText
+             ├── size ──► 水平 marginBlock（8/16/24）
+             └── 无 hover / press / focus / loading 态
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| DIV-S1 | 默认 | 水平实线 |
-| DIV-S2 | vertical | 行内竖线高≈0.9em |
-| DIV-S3 | dashed/variant=dashed | 虚线 |
-| DIV-S4 | variant=dotted | 点线 |
-| DIV-S5 | 标题 center | 中置 |
-| DIV-S6 | titlePlacement=start | 偏起侧 |
-| DIV-S7 | plain | 标题字号≈14 |
-| DIV-S8 | size=small | marginBlock≈8 |
-| DIV-S9 | 线宽 | 1 |
-| DIV-S10 | 线色 | colorSplit |
+| DIV-S1 | 默认 | 水平实线；`marginBlock≈24`；线宽 1；色 colorSplit |
+| DIV-S2 | vertical / orientation=vertical | 行内竖线高≈0.9em；`marginInline≈8` |
+| DIV-S3 | `dashed` 或 `variant=dashed` | 虚线轨 |
+| DIV-S4 | `variant=dotted` | 点线轨 |
+| DIV-S5 | 标题 + center（默认） | 双轨 flex 等分；标题居中 |
+| DIV-S6 | `titlePlacement=start` | 近侧轨短（默认比 0.05）、远侧长 |
+| DIV-S6b | `titlePlacement=end` | 近侧（右）轨短、远侧长 |
+| DIV-S7 | plain | 标题字号≈14、字重 normal |
+| DIV-S7b | 非 plain 标题 | 字号≈16（fontSizeLG） |
+| DIV-S8 | size=small | `marginBlock≈8` |
+| DIV-S8b | size=medium | `marginBlock≈16` |
+| DIV-S8c | size=large / 未设 | `marginBlock≈24` |
+| DIV-S9 | 线宽 | 1（Token lineWidth） |
+| DIV-S10 | 线色 | colorSplit（Theme） |
+| DIV-S11 | role | `separator`（装饰分隔） |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 符合 §6.2 Token；轨 + 可选标题 |
+| hover/active/focus | **不适用**（非交互控件，无 ring / 无 press chrome） |
+| disabled / loading | **不适用** |
+| 主题切换 | 线色 / 字色 / 间距随 Theme 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 无入场动画要求；P0 瞬时。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰分隔 | 纯装饰可 aria-hidden |
-| 拖拽把手 | 可命名；键盘微调 P0/P1 按控件 |
+| role | 根节点 `role=separator` |
+| 装饰分隔 | 默认无强制可聚焦；可选 `AriaLabel`；纯装饰不抢焦点 |
+| 键盘 | 不适用（无激活键） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -393,10 +409,9 @@ mount ──► orientation=horizontal|vertical 绘制
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| dashed/dotted 像素纹样 | **近似** stroke dash | P0 可见区分；像素级 P1 |
+| 垂直 `-0.06em` 光学偏移 | **近似** | P0 可 0 |
+| Semantic classNames/styles | kit 语义钩子 / Style 覆盖 | **P1**（gallery 可示意结构） |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
@@ -406,104 +421,164 @@ mount ──► orientation=horizontal|vertical 绘制
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `size` | 必须 |
-| `variant` | 必须 |
-| `children` | 必须 |
-| `orientation` | 必须 |
-| 官方主路径示例 | 水平分割线、带文字的分割线、设置分割线的间距大小、分割文字使用正文样式、垂直分割线、变体、自定义语义结构的样式和类、_semantic.tsx |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| `orientation` / `vertical` | 水平 + 垂直；orientation 优先 |
+| `size` | small / medium / large / 未设 |
+| `variant` + `dashed` | solid / dashed / dotted |
+| `children` / Title | 带文字分割线 |
+| `titlePlacement` | start / end / center |
+| `plain` | 正文字号标题 |
+| 官方主路径示例 | horizontal、with-text、size、plain、vertical、variant；style-class / _semantic **结构可挂载**（深度 P1） |
+| 度量 §6.2 | Token / Default 断言 |
+| a11y §6.6 | role=separator |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| semantic classNames/styles 深度（root/rail/content 函数式） | 分期；P0 可用 `Style` 做线色等一锤子覆盖 |
+| `orientationMargin` 绝对 px + styles.content.margin 全矩阵 | 分期；P0 默认比例 0.05 |
+| 垂直光学 top:-0.06em 像素级 | 分期 |
+| dashed/dotted 与浏览器纹样逐像素 | 分期 |
+| ConfigProvider 全局 Divider 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestDivider_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Divider 完成 1:1 主路径。
+> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Divider 完成 1:1 主路径。  
+> L3/L4 与 P1 不阻塞本阶段 DoD。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| DIV-01 | L1 | NewDivider 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| DIV-02 | L1 | 默认 | 水平实线 |
-| DIV-03 | L1 | vertical | 行内竖线高≈0.9em |
-| DIV-04 | L1 | dashed/variant=dashed | 虚线 |
-| DIV-05 | L1 | variant=dotted | 点线 |
-| DIV-06 | L1 | 标题 center | 中置 |
-| DIV-07 | L1 | titlePlacement=start | 偏起侧 |
-| DIV-08 | L1 | plain | 标题字号≈14 |
-| DIV-09 | L1 | size=small | marginBlock≈8 |
-| DIV-10 | L1 | 线宽 | 1 |
-| DIV-11 | L1 | 线色 | colorSplit |
-| DIV-12 | L1 | 复现官方示例「水平分割线」（`horizontal.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DIV-13 | L1 | 复现官方示例「带文字的分割线」（`with-text.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DIV-14 | L1 | 复现官方示例「设置分割线的间距大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DIV-15 | L1 | 复现官方示例「分割文字使用正文样式」（`plain.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DIV-16 | L1 | 复现官方示例「垂直分割线」（`vertical.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DIV-17 | L1 | 复现官方示例「变体」（`variant.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DIV-18 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DIV-19 | L1 | 复现官方示例「_semantic.tsx」（`_semantic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DIV-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| DIV-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| DIV-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| DIV-23 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| DIV-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| DIV-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
-| DIV-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+| DIV-01 | L1 | `NewDivider()` | 不崩溃；默认 orientation=horizontal、variant=solid、size 未设、plain=false、titlePlacement=center |
+| DIV-02 | L1 | 默认布局 | 水平实线；`marginBlock≈24`；线宽 1 |
+| DIV-03 | L1 | `SetVertical(true)` 或 `SetOrientation(vertical)` | 竖线；高≈0.9×fontSize；`marginInline≈8` |
+| DIV-04 | L1 | `SetDashed(true)` 或 `SetVariant(dashed)` | 有效线型 dashed |
+| DIV-05 | L1 | `SetVariant(dotted)` | 有效线型 dotted |
+| DIV-06 | L1 | `SetTitle("Text")` 默认 placement | 线-文-线；双轨 grow 等分 |
+| DIV-07 | L1 | `titlePlacement=start` | 近侧轨 grow 比 0.05 / 远侧 0.95 |
+| DIV-08 | L1 | `titlePlacement=end` | 近侧（右）轨短 |
+| DIV-09 | L1 | plain + Title | 标题字号≈14 |
+| DIV-10 | L1 | 非 plain + Title | 标题字号≈16 |
+| DIV-11 | L1 | size=small / medium / large | marginBlock≈8 / 16 / 24 |
+| DIV-12 | L1 | 线宽 | Thickness / lineWidth = 1 |
+| DIV-13 | L1 | 线色 | 走 Theme colorSplit（或回落），非硬编码品牌主色 |
+| DIV-14 | L1 | a11y | 根 `Role=separator` |
+| DIV-15 | L1 | 官方 horizontal 组合（实线+dashed） | 可挂树布局；无 panic |
+| DIV-16 | L1 | 官方 with-text 组合 | center/start/end 可挂树 |
+| DIV-17 | L1 | 官方 size 组合 | 三档 margin 可断言 |
+| DIV-18 | L1 | 官方 plain 组合 | 字号 14 |
+| DIV-19 | L1 | 官方 vertical 组合 | 行内竖线可挂树 |
+| DIV-20 | L1 | 官方 variant 组合 | solid/dotted/dashed 可区分 |
+| DIV-21 | L1 | style-class / _semantic | 结构可挂载（深度 P1，不测 class 字符串） |
+| DIV-22 | L2 | §6.2 关键 margin / 字号 / 线宽 | ±0.5px |
+| DIV-23 | L2 | 默认皮颜色 | Theme Token；无硬编码 `#1677FF` 线色 |
+| DIV-24 | L3 | 关键态 golden | 与仓库基线一致（AA）；本阶段可选 |
+| DIV-25 | L4 | 与 ant.design 并排 | 人眼签字 |
+| DIV-26 | P1 | §6.8 P1 任一能力 | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 **breaking** 旧 API（`SetText` / 仅 `Root *primitive.Divider` 等）；以下为产品契约。
 
 ```text
-NewDivider(...) *Divider
+type DividerOrientation  // Horizontal | Vertical
+type DividerSize         // SizeUnset(0) | Small | Medium | Large  （Medium 兼容 middle）
+type DividerVariant      // Solid | Dashed | Dotted
+type DividerTitlePlacement // Center | Start | End  （Left→Start, Right→End）
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewDivider() *Divider
+NewDividerWithTitle(title string) *Divider   // 可选糖
+
+// 配置（P0）
+SetOrientation(DividerOrientation)
+SetVertical(bool)                 // orientation 已设时以 Orientation 为准
+SetSize(DividerSize)
+SetVariant(DividerVariant)
+SetDashed(bool)                   // 糖：true 时若 variant=solid 则按 dashed 画
+SetPlain(bool)
+SetTitle(string)                  // children；空=纯线
+SetTitleNode(core.Node)           // 可选；优先于 Title 字符串
+SetTitlePlacement(DividerTitlePlacement)
+SetOrientationMargin(ratio float64) // 0→默认 0.05；仅 start/end
+
+// 主题 / 覆盖
+SetTheme(*core.Theme)
+SetStyle(Style)                   // Border→线色；Text→标题色；FontSize→标题字号
+SetFace(text.Face)
+SetAriaLabel(string)
+
+// 查询（测试 / 组合）
+EffectiveOrientation() DividerOrientation
+EffectiveVariant() DividerVariant   // dotted > dashed|Dashed > solid
+IsVertical() bool
+MarginBlock() float64               // 水平上下外边距
+LineWidth() float64
+LineColor() render.RGBA             // 解析后 Token 色
+
+// 挂树
+Node() core.Node                    // 始终同一根，rebuild 替换子树
+ChromeNode() core.Node              // 轨或 with-text 根（测试）
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Orientation | Horizontal |
+| Vertical | false |
+| Size | 未设（marginBlock=24） |
+| Variant | Solid |
+| Dashed | false |
+| Plain | false |
+| Title | "" |
+| TitlePlacement | Center |
+| OrientationMargin | 0 → 0.05 |
+| 其余 | 对齐 antd 6.5 §3 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Layout root
-  └─ children with gap/span/handles
+// 水平无标题
+Box/Flex root (padding = marginBlock 上下)
+  └─ primitive.Divider  (rail, ColorToken=colorSplit, Dash?)
+
+// 水平 with-text
+Flex row root (padding = marginBlock 上下; CrossCenter; Gap≈0)
+  ├─ Flexible(growStart) → primitive.Divider rail-start
+  ├─ Text / TitleNode      (paddingInline ≈ 1em)
+  └─ Flexible(growEnd)   → primitive.Divider rail-end
+
+// 垂直
+Box root (marginInline; Height≈0.9em)
+  └─ primitive.Divider Vertical
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 组合 `ui/primitive` + `ui/core`；禁止第二套 Hit / 帧循环。  
+- `rebuild()` 只读 Default / 字段 / Token；线型进 `primitive.Divider` Dash。  
+- `hit == layout == paint`；根 `HitTransparent` 或 `HitDefer`（装饰）。  
+- 无 Ticker（无 loading）。  
 
 ### 6.12 完成定义（DoD）
 
 同时满足即可宣布 **Divider 主路径 1:1 完成**：
 
 1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+2. §6.9 中 **P0 / L1 / L2** 用例（DIV-01…DIV-23）测试通过。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+4. L3 golden 本阶段可选（控件可见但非交互）。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：Divider 页覆盖 horizontal / with-text / size / plain / vertical / variant；style-class 仅示意。  
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/divider.md` §6；P1 显式列出。  
 
 ---
 
 **本章用法**：实现 `ui/kit` Divider 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+
+**本轮 §6 修订说明（相对批量模板）：**  
+- **§6.2**：按 antd `style/index.ts` 重写 margin 档（未设/large=24、medium=16、small=8）、标题字号 LG/plain、orientationMargin=0.05、vertical 0.9em；去掉无关 controlHeight/focus ring/圆角。  
+- **§6.3 / §6.4**：补 effective variant 规则、DIV-S* 细则、role=separator。  
+- **§6.5 / §6.6**：明确非交互、无 focus ring / disabled。  
+- **§6.7 / §6.8**：semantic / orientationMargin 深度 / 光学偏移 标 P1。  
+- **§6.9**：用例改为可断言的 L1/L2；style-class 深度 P1。  
+- **§6.10 / §6.11**：具体 Go API 与 rail/content 分层。
