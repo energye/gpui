@@ -420,7 +420,7 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 			{"R2 options", func(t *testing.T) {
 				ac := kit.NewAutoComplete("q")
-				ac.SetOptions([]string{"x", "y"})
+				ac.SetOptionValues("x", "y")
 			}},
 			{"R3 filter layout", func(t *testing.T) {
 				ac := kit.NewAutoComplete("q", "Apple", "Banana")

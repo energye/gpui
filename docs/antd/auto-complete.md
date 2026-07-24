@@ -406,21 +406,28 @@ import { AutoComplete } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-输入 ──► onSearch ──► 过滤 options 开列表
-选中 ──► 回填 + onSelect/onChange
-allowClear 清空
+[closed] ── type / focus+options ──► [open]
+[open]   ── select / Esc / blur / outside / empty-options ──► [closed]
+输入 ──► onChange + onSearch ──► filterOption ──► 可见 options
+选中 ──► 回填 value + onSelect + onChange ──► close
+allowClear ──► value="" + onClear + onChange
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| AC-S1 | 输入触发 onSearch | 回调 |
-| AC-S2 | 选建议 | 回填 value |
-| AC-S3 | clear | 空 |
-| AC-S4 | 无匹配 | 空列表/notFound |
-| AC-S5 | 键盘选中 | Enter 选 |
-| AC-S6 | disabled | 不交互 |
-| AC-S7 | 受控 value | 外部 |
-| AC-S8 | 高度 | 32 middle |
+| AC-S1 | 输入触发 `onSearch` / `onChange` | 每次有效输入回调；`onSearch` 在搜索路径触发（点选选项不触发 onSearch） |
+| AC-S2 | 选建议 | 回填 `value`；触发 `onSelect(value, option)` 与 `onChange`；关闭弹层 |
+| AC-S3 | allowClear | 清空为 `""`；`onClear` + `onChange("")`；清除钮无内容时隐藏 |
+| AC-S4 | 无匹配 | 过滤后为空：不展示建议项；有 `notFoundContent` 则显示之，否则空面板/关层 |
+| AC-S5 | 键盘选中 | 弹层开：↑/↓ 高亮；Enter 选中高亮项；Esc 关闭 |
+| AC-S6 | disabled | 不输入、不展开、不回调交互 |
+| AC-S7 | 受控 `value` | 键入只上抛 `onChange`，展示值由外部 `SetValue` 写回（`Controlled=true`） |
+| AC-S8 | 高度 middle | chrome 高 = Token `controlHeight` = **32**（small=24 / large=40） |
+| AC-S9 | 受控 `open` | `SetOpen` 标记受控；空 `options`（过滤后）时 **不展示** 下拉（FAQ：空 options 不误导） |
+| AC-S10 | `defaultActiveFirstOption` | 默认 **true**：打开时高亮第一项；false 时初始无高亮 |
+| AC-S11 | `filterOption` | 默认 true（label/value 不区分大小写包含）；函数自定义；false 不过滤（由 `onSearch` 供数） |
+| AC-S12 | 自定义输入 `children` | 可替换默认 Input（Search / TextArea 等）；尺寸/禁用/值同步到子输入 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
@@ -464,30 +471,37 @@ allowClear 清空
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `variant` | 必须 |
-| `status` | 必须 |
-| `open` | 必须 |
-| `onOpenChange` | 必须 |
-| `options` | 必须 |
-| `children` | 必须 |
-| `allowClear` | 必须 |
-| `showSearch` | 必须 |
+| `value` / `defaultValue` / `onChange` | 受控与非受控输入值 |
+| `onSearch` | 搜索补全回调（点选不触发） |
+| `onSelect` | 选中建议 |
+| `disabled` | 禁用 |
+| `size` | small / middle / large → 24 / 32 / 40 |
+| `variant` | outlined / filled / borderless / underlined |
+| `status` | error / warning |
+| `open` / `defaultOpen` / `onOpenChange` | 弹层显隐；空 options 不展示 |
+| `options` | `{label,value}[]`，支持一层 group（`options` 嵌套） |
+| `filterOption` | bool 或函数；默认 true（折叠大小写包含） |
+| `defaultActiveFirstOption` | 默认 true |
+| `allowClear` / `onClear` | 清除 |
+| `notFoundContent` | 无匹配文案（可选；空则不展示空列表误导） |
+| `children` | 自定义输入（默认 Input；可 Search / TextArea） |
+| `placeholder` | 输入提示 |
+| `popupMatchSelectWidth` | 默认 true（弹层 min-width=触发器宽） |
+| `loading` | 异步搜索指示（kit 扩展；Ticker 转圈，挂在面板） |
 | 官方主路径示例 | 基本使用、自定义选项、自定义输入组件、不区分大小写、查询模式 - 确定类目、查询模式 - 不确定类目、自定义状态、多种形态 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | combobox + listbox；焦点/键盘主路径 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `backfill` 键盘回填输入框 | 分期 |
+| `virtual` 虚拟滚动 / 大数据 | 分期 |
+| `popupRender` 自定义下拉壳 | 分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 | 其余示例 | 自定义清除按钮, 自定义语义结构的样式和类, _semantic.tsx |
@@ -528,14 +542,29 @@ allowClear 清空
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewAutoComplete(...) *AutoComplete
+NewAutoComplete(placeholder string, optionValues ...string) *AutoComplete
+// optionValues 便捷构造为 []AutoCompleteOption{Value:s}
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type AutoCompleteOption struct {
+  Value, Label string
+  Disabled bool
+  Extra string                 // 右侧附加文案（类目 demo）
+  Options []AutoCompleteOption // 非空 = group
+  LabelNode core.Node          // 可选自定义 label 节点
+}
+
+// 配置 SetXxx（P0）：
+//   SetValue / SetDefaultValue / SetPlaceholder / SetOptions / SetOptionValues
+//   SetDisabled / SetSize / SetVariant / SetStatus / SetAllowClear
+//   SetOpen / SetDefaultOpen / SetFilterOption / SetFilterOptionFunc
+//   SetDefaultActiveFirstOption / SetNotFoundContent / SetChildren
+//   SetPopupMatchSelectWidth / SetLoading / SetFixedWidth
+// 回调：
+//   SetOnChange / SetOnSearch / SetOnSelect / SetOnOpenChange / SetOnClear
+// 状态：SetDisabled / SetLoading（Ticker）
+// 主题：SetTheme(*Theme)；SetFace
+// a11y：SetAriaLabel；HandleKey(↑↓EnterEsc)
+// 挂树：Node() core.Node；Input() *Input；Popup() *AnchoredPopup
 ```
 
 **默认值（未 Set 时）：**
@@ -543,24 +572,33 @@ NewAutoComplete(...) *AutoComplete
 | 字段 | 默认 |
 | --- | --- |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Size | middle（高 32） |
+| Variant | outlined |
+| Status | none |
+| AllowClear | false |
+| FilterOption | true（containsFold on value/label） |
+| DefaultActiveFirstOption | true |
+| PopupMatchSelectWidth | true |
+| Open | false（非受控） |
+| 受控值 | 未 Set 时用 defaultValue 或 `""` |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+Column (Wrap)
+  ├─ Input | children (Search / TextArea / custom)
+  └─ AnchoredPopup (Portal)
+       └─ Decorated panel
+            ├─ loading spinner? (Ticker)
+            ├─ group title? …
+            └─ option rows (Pressable) | notFoundContent
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
+- 组合 `ui/primitive` + `ui/core` + 已有 `kit.Input`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- loading 跟随 Host Tick；尊重 reduced-motion（可瞬时）。  
 
 ### 6.12 完成定义（DoD）
 
