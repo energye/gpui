@@ -120,7 +120,8 @@ func TestCollapseTimelineSliderResult(t *testing.T) {
 	_ = st.Node().Layout(core.Loose(120, 80))
 	ds := kit.NewDescriptions([2]string{"Name", "Ada"}, [2]string{"Role", "Admin"})
 	_ = ds.Node().Layout(core.Loose(300, 80))
-	fb := kit.NewFloatButton("+")
+	fb := kit.NewFloatButton()
+	fb.SetAriaLabel("fab")
 	_ = fb.Node().Layout(core.Loose(60, 60))
 }
 

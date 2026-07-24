@@ -42,7 +42,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	}
 
 	must("Button", kit.NewButton("ok").Node())
-	must("FloatButton", kit.NewFloatButton("+").Node())
+	must("FloatButton", kit.NewFloatButton().Node())
 	must("Icon", kit.NewIcon("check").Node())
 	must("Text", kit.NewText("t").Node())
 	must("Title", kit.NewTitle("T", 2).Node())

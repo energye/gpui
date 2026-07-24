@@ -171,19 +171,28 @@ func (d *Decorated) Layout(c core.Constraints) core.Size {
 	out := c.Tighten(core.Size{Width: w, Height: h})
 
 	// Position children top-left (hit == paint == Flutter Align.topLeft).
-	// CenterContent is opt-in and only when THIS Decorated requested a taller
-	// chrome via Height/MinHeight — never because a parent tight Min forced out
-	// taller (Tabs body / Flexible would otherwise center nested chrome mid-box).
-	offY := padT
+	// CenterContent is opt-in; StretchChild always keeps top-left (contract tests).
+	// Horizontal center when chrome has explicit Width so icon-only FixedSize FABs
+	// stay mid-box if content is smaller than chrome.
+	offX, offY := padL, padT
 	explicitChromeH := d.Height > 0 || d.MinHeight > content.Height+padT+padB
-	if !d.StretchChild && d.centerContentEnabled() && explicitChromeH && len(kids) >= 1 {
-		availH := out.Height - padT - padB
-		if availH > content.Height {
-			offY = padT + (availH-content.Height)/2
+	explicitChromeW := d.Width > 0 || d.MinWidth > content.Width+padL+padR
+	if !d.StretchChild && d.centerContentEnabled() && len(kids) >= 1 {
+		if explicitChromeH {
+			availH := out.Height - padT - padB
+			if availH > content.Height {
+				offY = padT + (availH-content.Height)/2
+			}
+		}
+		if explicitChromeW {
+			availW := out.Width - padL - padR
+			if availW > content.Width {
+				offX = padL + (availW-content.Width)/2
+			}
 		}
 	}
 	for _, child := range kids {
-		child.Base().SetOffset(core.Point{X: padL, Y: offY})
+		child.Base().SetOffset(core.Point{X: offX, Y: offY})
 	}
 	d.SetSize(out)
 	d.RememberConstraints(c)

@@ -318,37 +318,100 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 		"To trigger an operation. Aligns Ant Design Button demos (type/size/icon/disabled/loading/danger/block/ghost/variant).",
 		secType, secIcon, secIconEnd, secSize, secDisabled, secLoading, secMultiple, secDanger, secBlock, secGhost, secVariant)
 
-	// FloatButton — Ant Design demos
+	// FloatButton — Ant Design demos (docs/antd/float-button.md §6.8 P0)
 	// https://ant.design/components/float-button
 	trackFB := func(fb *kit.FloatButton) *kit.FloatButton {
 		fb.SetFace(face)
+		if fb.AriaLabel == "" {
+			fb.SetAriaLabel("float-button")
+		}
 		if fb.Button() != nil {
 			*buttons = append(*buttons, fb.Button())
 		}
 		return fb
 	}
-	fbCircle := trackFB(kit.NewFloatButton("+"))
-	fbSquare := trackFB(kit.NewFloatButton("+"))
-	fbSquare.SetShape(kit.FloatButtonSquare)
-	fbIcon := trackFB(kit.NewFloatButton(""))
-	fbIcon.SetIcon("plus")
-	fbIcon.SetLabel("")
-	fbDesc := trackFB(kit.NewFloatButton(""))
-	fbDesc.SetIcon("info")
-	fbDesc.SetDescription("HELP")
-	fbDesc.SetShape(kit.FloatButtonSquare)
-	fbSm := trackFB(kit.NewFloatButton("+"))
-	fbSm.SetSize(32)
-	fbLg := trackFB(kit.NewFloatButton("+"))
-	fbLg.SetSize(48)
-	fbDefault := trackFB(kit.NewFloatButton("+"))
+	// basic / type
+	fbDefault := trackFB(kit.NewFloatButton())
 	fbDefault.SetType(kit.ButtonDefault)
-	// Corner placement sample (layout-only, not OS always-on-top)
-	corner := kit.NewFloatButton("")
-	corner.SetFace(face)
+	fbDefault.SetIcon("plus")
+	fbDefault.SetAriaLabel("default")
+	fbPrimary := trackFB(kit.NewFloatButton())
+	fbPrimary.SetType(kit.ButtonPrimary)
+	fbPrimary.SetIcon("plus")
+	fbPrimary.SetAriaLabel("primary")
+	// shape
+	fbCircle := trackFB(kit.NewFloatButton())
+	fbCircle.SetShape(kit.FloatButtonCircle)
+	fbCircle.SetIcon("plus")
+	fbCircle.SetAriaLabel("circle")
+	fbSquare := trackFB(kit.NewFloatButton())
+	fbSquare.SetShape(kit.FloatButtonSquare)
+	fbSquare.SetIcon("plus")
+	fbSquare.SetAriaLabel("square")
+	// content
+	fbContent := trackFB(kit.NewFloatButton())
+	fbContent.SetIcon("info")
+	fbContent.SetContent("HELP")
+	fbContent.SetShape(kit.FloatButtonSquare)
+	fbContent.SetAriaLabel("help")
+	// tooltip
+	fbTip := trackFB(kit.NewFloatButton())
+	fbTip.SetIcon("info")
+	fbTip.SetTooltip("HELP TOOLTIP")
+	fbTip.SetAriaLabel("with-tooltip")
+	// disabled / loading
+	fbDis := trackFB(kit.NewFloatButton())
+	fbDis.SetIcon("plus")
+	fbDis.SetDisabled(true)
+	fbDis.SetAriaLabel("disabled")
+	fbLoad := trackFB(kit.NewFloatButton())
+	fbLoad.SetIcon("plus")
+	fbLoad.SetLoading(true)
+	fbLoad.SetAriaLabel("loading")
+	*tickers = append(*tickers, fbLoad)
+	// group (always open)
+	gChild1 := trackFB(kit.NewFloatButton())
+	gChild1.SetIcon("plus")
+	gChild1.SetAriaLabel("g1")
+	gChild2 := trackFB(kit.NewFloatButton())
+	gChild2.SetIcon("info")
+	gChild2.SetAriaLabel("g2")
+	fbGroup := kit.NewFloatButtonGroup(gChild1, gChild2)
+	fbGroup.SetFace(face)
+	// menu mode click
+	m1 := trackFB(kit.NewFloatButton())
+	m1.SetIcon("plus")
+	m1.SetAriaLabel("m1")
+	m2 := trackFB(kit.NewFloatButton())
+	m2.SetIcon("info")
+	m2.SetAriaLabel("m2")
+	fbMenu := kit.NewFloatButtonGroup(m1, m2)
+	fbMenu.SetFace(face)
+	fbMenu.SetTrigger(kit.FloatButtonTriggerClick)
+	fbMenu.SetType(kit.ButtonPrimary)
+	fbMenu.SetIcon("plus")
+	fbMenu.SetDefaultOpen(true)
+	if tr := fbMenu.TriggerButton(); tr != nil && tr.Button() != nil {
+		*buttons = append(*buttons, tr.Button())
+	}
+	// controlled + placement left
+	c1 := trackFB(kit.NewFloatButton())
+	c1.SetIcon("plus")
+	c1.SetAriaLabel("c1")
+	fbCtrl := kit.NewFloatButtonGroup(c1)
+	fbCtrl.SetFace(face)
+	fbCtrl.SetTrigger(kit.FloatButtonTriggerClick)
+	fbCtrl.SetPlacement(kit.FloatButtonLeft)
+	fbCtrl.SetOpen(true)
+	fbCtrl.SetIcon("info")
+	if tr := fbCtrl.TriggerButton(); tr != nil && tr.Button() != nil {
+		*buttons = append(*buttons, tr.Button())
+	}
+	// layout stage (bottom-right sample)
+	corner := trackFB(kit.NewFloatButton())
 	corner.SetIcon("plus")
-	*buttons = append(*buttons, corner.Button())
-	// Put FAB at bottom-right of a fixed stage via Stack-like column+row spacers
+	corner.SetType(kit.ButtonPrimary)
+	corner.SetAriaLabel("corner")
 	stageInner := primitive.Column(primitive.Spacer(), primitive.Row(primitive.Spacer(), corner.Node()))
 	stageInner.CrossAlign = core.CrossStretch
 	stage := primitive.NewDecorated(stageInner)
@@ -361,15 +424,23 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 
 	items = append(items, ctlTab("float_button", "FloatButton"))
 	contents["float_button"] = demoPage(face, "FloatButton",
-		"Floating action button. Position via layout (Stack/offset) — not system always-on-top. Defaults: primary, circle, 40×40.",
-		demoSection(face, theme, "Type & Shape", "circle (default) vs square; primary vs default type.",
-			spaceWrap(16, fbCircle.Node(), fbSquare.Node(), fbDefault.Node())),
-		demoSection(face, theme, "Icon", "Icon-only FAB (plus).",
-			spaceWrap(16, fbIcon.Node())),
-		demoSection(face, theme, "Description", "Icon + description caption (square).",
-			spaceWrap(16, fbDesc.Node())),
-		demoSection(face, theme, "Size", "Default 40; custom 32 / 48.",
-			spaceWrap(16, fbSm.Node(), fbCircle.Node(), fbLg.Node())),
+		"Floating action button. Position via layout — not OS always-on-top. Defaults: type=default, shape=circle, 40×40 (docs/antd/float-button.md §6 P0).",
+		demoSection(face, theme, "Basic / Type", "default vs primary (antd type.tsx).",
+			spaceWrap(16, fbDefault.Node(), fbPrimary.Node())),
+		demoSection(face, theme, "Shape", "circle vs square.",
+			spaceWrap(16, fbCircle.Node(), fbSquare.Node())),
+		demoSection(face, theme, "Content", "icon + content caption (square recommended).",
+			spaceWrap(16, fbContent.Node())),
+		demoSection(face, theme, "Tooltip", "hover bubble (SetTooltip).",
+			spaceWrap(16, fbTip.Node())),
+		demoSection(face, theme, "Disabled / Loading", "disabled swallows click; loading uses Ticker spinner.",
+			spaceWrap(16, fbDis.Node(), fbLoad.Node())),
+		demoSection(face, theme, "Group", "no trigger — children always visible.",
+			fbGroup.Node()),
+		demoSection(face, theme, "Menu mode", "trigger=click; open shows children + close icon.",
+			fbMenu.Node()),
+		demoSection(face, theme, "Controlled + placement=left", "SetOpen(true); children to the left of trigger.",
+			fbCtrl.Node()),
 		demoSection(face, theme, "Placement (layout)", "Bottom-right via Column/Row spacers in a stage — not OS float.",
 			stage),
 	)

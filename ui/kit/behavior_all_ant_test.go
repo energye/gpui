@@ -40,7 +40,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		}},
 		{"FloatButton", func(t *testing.T) {
 			n := 0
-			fb := kit.NewFloatButton("+")
+			fb := kit.NewFloatButton()
+			fb.SetAriaLabel("fab")
 			fb.SetOnClick(func() { n++ })
 			// use underlying button if accessible via Node pressable
 			_ = fb.Node().Layout(core.Loose(60, 60))

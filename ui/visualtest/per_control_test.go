@@ -42,7 +42,11 @@ func perControlSpecs() []ctlSpec {
 			b.SetFixedSize(100, 32)
 			return padRoot(b.Node(), 140, 48)
 		}},
-		{"ctl_float_button", 80, 80, func() core.Node { return padRoot(kit.NewFloatButton("+").Node(), 80, 80) }},
+		{"ctl_float_button", 80, 80, func() core.Node {
+			fb := kit.NewFloatButton()
+			fb.SetAriaLabel("fab")
+			return padRoot(fb.Node(), 80, 80)
+		}},
 		{"ctl_icon", 48, 48, func() core.Node { return padRoot(kit.NewIcon("check").Node(), 48, 48) }},
 		{"ctl_text", 120, 40, func() core.Node { return padRoot(kit.NewText("Text").Node(), 120, 40) }},
 		{"ctl_title", 200, 56, func() core.Node { return padRoot(kit.NewTitle("Title", 3).Node(), 200, 56) }},

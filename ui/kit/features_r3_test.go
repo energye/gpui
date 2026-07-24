@@ -48,12 +48,15 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"FloatButton": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewFloatButton("+").Node() == nil {
+				fb := kit.NewFloatButton()
+				fb.SetAriaLabel("fab")
+				if fb.Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 onClick", func(t *testing.T) {
-				fb := kit.NewFloatButton("+")
+				fb := kit.NewFloatButton()
+				fb.SetAriaLabel("fab")
 				n := 0
 				fb.SetOnClick(func() { n++ })
 				if fb.Node() == nil {
@@ -61,7 +64,7 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 				}
 			}},
 			{"R3 shape", func(t *testing.T) {
-				fb := kit.NewFloatButton("+")
+				fb := kit.NewFloatButton()
 				fb.SetShape(kit.FloatButtonSquare)
 				if fb.Shape != kit.FloatButtonSquare {
 					t.Fatal(fb.Shape)

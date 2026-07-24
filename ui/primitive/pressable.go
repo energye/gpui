@@ -47,6 +47,10 @@ type Pressable struct {
 	FocusRingRadius float64
 	// FocusRingOutset distance outside the box (0 → 1.5 Ant-tight).
 	FocusRingOutset float64
+	// FixedSize: keep content intrinsic size under tight parent constraints
+	// (do not expand to fill CrossStretch). Used by FloatButton FAB so icons
+	// stay centered in the fixed chrome.
+	FixedSize bool
 
 	// EnableRipple: same-shape gray wave on confirmed click (release inside), not on press-down.
 	// Set false to disable for a control (or globally via DefaultPressableRipple).
@@ -101,6 +105,8 @@ func (p *Pressable) TypeID() string { return TypePressable }
 // hit == paint (Flutter Align.topLeft):
 //   - Own size is content+padding unless the parent forces a TIGHT axis (Min==Max),
 //     e.g. tab item host 160×40 — then expand to fill so the whole chrome hits.
+//   - FixedSize=true (FloatButton FAB): never expand; stay content-sized so icons
+//     remain centered in the fixed chrome under CrossStretch parents.
 //   - Child offset is (padL, padT) top-left. Vertical center only when height is
 //     already tight (same rule as expand). Never use loose MaxHeight to center:
 //     Tabs body passes a huge MaxHeight and that used to paint chrome mid/bottom
@@ -111,20 +117,24 @@ func (p *Pressable) Layout(c core.Constraints) core.Size {
 	kids := p.Children()
 	tightH := c.MinHeight == c.MaxHeight && c.MaxHeight < core.Unbounded
 	tightW := c.MinWidth == c.MaxWidth && c.MaxWidth < core.Unbounded
+	// FixedSize FABs must not inherit tight CrossStretch slots — that stretches
+	// chrome while content stays top-left (icon looks off-center).
+	expandW := tightW && !p.FixedSize
+	expandH := tightH && !p.FixedSize
 
 	if len(kids) > 0 {
 		// Under tight height, give the child the full inner height so Decorated
 		// chrome can center its own label (Button). Under loose max, keep loose
 		// so intrinsic controls stay content-sized.
 		childC := inner.Expand()
-		if tightH {
+		if expandH {
 			ih := c.MaxHeight - p.Padding.Top - p.Padding.Bottom
 			if ih < 0 {
 				ih = 0
 			}
 			childC.MinHeight, childC.MaxHeight = ih, ih
 		}
-		if tightW {
+		if expandW {
 			iw := c.MaxWidth - p.Padding.Left - p.Padding.Right
 			if iw < 0 {
 				iw = 0
@@ -141,17 +151,19 @@ func (p *Pressable) Layout(c core.Constraints) core.Size {
 		Height: content.Height + p.Padding.Top + p.Padding.Bottom,
 	}
 	// Expand only when parent forces a tight size on that axis (tab host, etc.).
-	if tightW {
+	if expandW {
 		out.Width = c.MaxWidth
 	}
-	if tightH {
+	if expandH {
 		out.Height = c.MaxHeight
 	}
-	if out.Width < c.MinWidth {
-		out.Width = c.MinWidth
-	}
-	if out.Height < c.MinHeight {
-		out.Height = c.MinHeight
+	if !p.FixedSize {
+		if out.Width < c.MinWidth {
+			out.Width = c.MinWidth
+		}
+		if out.Height < c.MinHeight {
+			out.Height = c.MinHeight
+		}
 	}
 	if out.Width > c.MaxWidth {
 		out.Width = c.MaxWidth

@@ -31,7 +31,7 @@ func AntCoverage() []CoverageEntry {
 	return []CoverageEntry{
 		// General
 		{Ant: "Button", Status: CovReady, Via: "kit.Button", Since: "M1", Notes: "P0 对齐 docs/antd/button.md §6（type/size/shape/variant/color/danger/ghost/block/loading/iconPlacement/a11y）；P1: preset 全色板、loading.delay、autoInsertSpace、wave、href/htmlType"},
-		{Ant: "FloatButton", Status: CovReady, Via: "kit.FloatButton", Since: "Base-ALL", Notes: "shape/size/icon/description; group later"},
+		{Ant: "FloatButton", Status: CovReady, Via: "kit.FloatButton / FloatButtonGroup", Since: "Base-ALL", Notes: "P0 对齐 docs/antd/float-button.md §6（type default|primary、shape circle|square、icon/content、tooltip、disabled、loading Ticker、onClick、Group trigger click|hover、open/onOpenChange 受控、placement 四向、closeIcon、a11y AriaLabel、Token 40×40 / square r=8）；P1: badge、BackTop、draggable、href/target/htmlType、semantic classNames/styles、ConfigProvider 全局、展开入场动画像素级、官网逐像素"},
 		{Ant: "Icon", Status: CovReady, Via: "kit.Icon / primitive.Icon", Since: "M1"},
 		{Ant: "Typography", Status: CovReady, Via: "kit.Text/Title/Paragraph", Since: "Base-ALL"},
 		// Layout
