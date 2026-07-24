@@ -304,13 +304,14 @@ import { Checkbox } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| Checkbox 指示器 | **16** | controlInteractiveSize |
-| 指示器 | **16×16** | controlInteractiveSize |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
+| Checkbox 指示器 | **16×16** | `controlInteractiveSize` / kit `TokenSizeIndicator` |
+| 指示器圆角 | **4** | `borderRadiusSM`（antd `style/index.ts` 用 SM，非 `borderRadius=6`） |
+| 指示器↔标签间距 | **8** | `marginXS` / kit `TokenMarginSM` |
+| Group 项间距 | **8** | `marginXS`（`columnGap`） |
+| 控件行高对齐 middle | **32** | `controlHeight`（表单行；指示器仍 16） |
+| 控件行高对齐 small | **24** | `controlHeightSM` |
+| 控件行高对齐 large | **40** | `controlHeightLG` |
 | 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
@@ -417,26 +418,27 @@ disabled ──► 不切换
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `checked` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `options` | 必须 |
-| `title` | 必须 |
+| `checked` / `defaultChecked` | 单框受控 / 非受控 |
+| `indeterminate` | 半选皮；点击后进 checked 并清半选（CB-S3/S4） |
+| `onChange` | 单框 `(checked bool)`；Group `([]string)` |
+| `disabled` | 单框与 Group |
+| `title` | 选项 title（可作 a11y 名回落） |
+| `Checkbox.Group`：`value` / `defaultValue` / `options` / `name` | 多选组；options 支持 string 或 `{label,value,disabled,title}` |
 | 官方主路径示例 | 基本用法、不可用、受控的 Checkbox、Checkbox 组、全选、布局、自定义语义结构的样式和类、_semantic.tsx |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | role=checkbox、名称、焦点 ring、Space/Enter |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| semantic `classNames`/`styles` 函数形态深度 | 分期；P0 仅暴露 root/icon/label 节点钩子 + Style 覆盖 |
+| `onFocus` / `onBlur` | 分期 |
+| 动画像素级 / Wave | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
+| ConfigProvider 全局 checkbox 默认 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -474,23 +476,40 @@ disabled ──► 不切换
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewCheckbox(...) *Checkbox
+// ── 单框 ──────────────────────────────────────────────
+NewCheckbox(label string) *Checkbox
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+SetChecked(bool) / SetDefaultChecked(bool)
+SetControlled(bool)                 // true：点击只发 onChange，不改本地 Checked
+SetIndeterminate(bool)              // 半选皮；SetChecked 会清半选
+SetDisabled(bool)
+SetLabel(string) / SetTitle(string) // title=选项 title
+SetValue(string)                    // Group 内 option value（非 checked）
+SetOnChange(func(checked bool))
+SetAriaLabel(string)
+SetFace / SetStyle / SetTheme
+Node() / ChromeNode() / IndicatorNode() / LabelNode()
+
+// ── 组 ────────────────────────────────────────────────
+NewCheckboxGroup() *CheckboxGroup
+SetOptions(...CheckboxOption)       // label/value/disabled/title
+SetStringOptions(...string)         // plainOptions 糖
+SetValue([]string) / SetDefaultValue([]string) / Value() []string
+SetDisabled(bool) / SetName(string)
+SetOnChange(func(values []string))
+Add(...*Checkbox)                   // children 布局（layout 示例）
+SetBody(core.Node)                  // 自定义根内容（Row/Col 布局）
+Node()
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Checked / Indeterminate / Disabled / Controlled | false |
+| Group.Value | `[]` |
+| Group.options 为空且无 children | 空组 |
+| 指示器 | 16×16，圆角 4，线宽 1 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
