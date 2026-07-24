@@ -3,7 +3,6 @@ package kit_test
 import (
 	"testing"
 
-	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -215,19 +214,15 @@ func TestBehavior_CalendarMonthNav(t *testing.T) {
 }
 
 func TestBehavior_ColorPicker(t *testing.T) {
-	cp := kit.NewColorPicker(render.Hex("#FF0000"), render.Hex("#00FF00"))
-	got := render.RGBA{}
-	cp.OnChange = func(c render.RGBA) { got = c }
-	// First swatch is default value
-	if cp.Value.A < 0.5 {
+	cp := kit.NewColorPicker()
+	cp.SetDefaultValue(kit.ColorFromHex("#FF0000"))
+	got := kit.Color{}
+	cp.SetOnChange(func(c kit.Color, _ string) { got = c })
+	if cp.GetValue().RGBA.A < 0.5 {
 		t.Fatal("no default value")
 	}
-	// Direct set via OnChange simulation
-	cp.Value = render.Hex("#00FF00")
-	if cp.OnChange != nil {
-		cp.OnChange(cp.Value)
-	}
-	if got.G < 0.5 {
+	cp.SetHSB(120, 1, 1, 1) // green
+	if got.RGBA.G < 0.5 {
 		t.Fatalf("got=%v", got)
 	}
 }

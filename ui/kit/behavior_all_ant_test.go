@@ -3,7 +3,6 @@ package kit_test
 import (
 	"testing"
 
-	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -244,8 +243,9 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"ColorPicker", func(t *testing.T) {
-			cp := kit.NewColorPicker(render.Hex("#112233"))
-			if cp.Value.A < 0.5 {
+			cp := kit.NewColorPicker()
+			cp.SetDefaultValue(kit.ColorFromHex("#112233"))
+			if cp.GetValue().RGBA.A < 0.5 {
 				t.Fatal()
 			}
 		}},

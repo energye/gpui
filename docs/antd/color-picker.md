@@ -504,26 +504,36 @@ import { ColorPicker } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
+| 触发器高度 middle | **32** | `controlHeight` |
+| 触发器高度 small | **24** | `controlHeightSM` |
+| 触发器高度 large | **40** | `controlHeightLG` |
+| 色块 middle | **24** | `controlHeightSM`（antd color-block） |
+| 色块 small | **16** | `controlHeightXS` 回落 16 |
+| 色块 large | **32** | `controlHeight` |
 | 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 触发器圆角 | **6** | `borderRadius`（sm/lg 随 size） |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 面板宽度 | **234** | `colorPickerWidth`（组件常量） |
+| 饱和度面板边长 | ≈ **234** | 与面板同宽 |
+| 滑条高度 | **8** | `colorPickerSliderHeight` |
+| 滑条手柄 | **12** / **16** | `colorPickerHandlerSizeSM` / `HandlerSize` |
+| 面板圆角 | **8** | `borderRadiusLG` |
+| 面板内边距 | **8** | `paddingSM` 回落 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
+| 主色 / hover / active | `colorPrimary` + 变体 | 开态边框、focus outline |
+| 默认色样 | `colorPrimary` | antd base `defaultValue` 常用 `#1677ff` |
 | 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
+| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | showText、格式串 |
+| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | 触发器 / 面板 |
 | 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 浮层底 | `colorBgElevated` 或 `colorBgContainer` | 弹层面板 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色作为唯一默认皮（`#1677ff` 仅作 Token 未覆盖时的回落）。
 
 ### 6.3 关键配置与语义
 
@@ -553,22 +563,29 @@ import { ColorPicker } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-开面板 ── 调色 ── onChange
-松手/完成 ── onChangeComplete
-format hex/rgb/hsb
-disabledAlpha 无透明
+[closed] ──trigger──► [open]
+   ▲                      │
+   └── outside/Esc/再点 ──┘
+open 后：
+  拖 SV / Hue / Alpha ── onChange(value, css)
+  松手 ── onChangeComplete(value)
+  Clear ── cleared + onClear + onChange
+  Mode single|gradient ── 切换值形态
+disabled ── 阻断 open / 改色
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| CP-S1 | 改色 | onChange |
-| CP-S2 | format=hex | 字符串 #rrggbb |
-| CP-S3 | presets 点选 | 到预设色 |
-| CP-S4 | clear | 空 |
-| CP-S5 | disabledAlpha | 无 alpha 滑条 |
-| CP-S6 | disabled | 不打开 |
-| CP-S7 | showText | 展示文本 |
-| CP-S8 | 受控 value | 外部 |
+| CP-S1 | 改色（拖/点面板） | 更新内部色并发 `onChange(color, css)` |
+| CP-S2 | 松手/完成 | 发 `onChangeComplete(color)`（拖过程中可不发） |
+| CP-S3 | format=hex | `ToHexString()` 为 `#rrggbb` 或带 alpha `#rrggbbaa` |
+| CP-S4 | clear（allowClear） | `cleared=true`；触发器空态；`onClear` |
+| CP-S5 | disabledAlpha | 面板**无** alpha 滑条；A 固定 1 |
+| CP-S6 | disabled | 不可打开面板；触发器禁用皮 |
+| CP-S7 | showText | 触发器展示格式文本（默认 hex） |
+| CP-S8 | 受控 value | `SetValue` 写入不发 onChange；父在 onChange 中回写 |
+| CP-S9 | open / onOpenChange | 受控 `SetOpen`；非受控 toggle；外点关闭回调 |
+| CP-S10 | mode=gradient | 值带 stops；触发器可画渐变条 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
@@ -612,32 +629,37 @@ disabledAlpha 无透明
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `open` | 必须 |
-| `onOpenChange` | 必须 |
-| `children` | 必须 |
-| `placement` | 必须 |
-| `trigger` | 必须 |
-| `allowClear` | 必须 |
-| `mode` | 必须 |
+| `value` / `defaultValue` | 受控 / 非受控色值（单色 + 简化渐变 stops） |
+| `onChange` / `onChangeComplete` | 拖动中 / 完成 |
+| `disabled` | 禁用打开与改色 |
+| `size` | small / middle / large 触发器高度 |
+| `open` / `onOpenChange` | 受控与非受控弹层 |
+| `children` / TriggerNode | 自定义触发器节点（P0 提供 API；官方「自定义触发器」完整视觉可 P1 gallery） |
+| `placement` | 默认 bottomLeft；四角映射 |
+| `trigger` | click（默认）/ hover |
+| `allowClear` / `onClear` | 清除为空 |
+| `mode` | `single` / `gradient`（及 dual 列表切换） |
+| `showText` | 触发器文本（bool；自定义 render 函数 P0 字符串钩子） |
+| `disabledAlpha` | 隐藏 alpha 滑条 |
+| `format` | 默认 hex；`ToHexString`/`ToRgbString`/`ToHsbString` |
 | 官方主路径示例 | 基本使用、触发器尺寸大小、受控模式、渐变色、渲染触发器文本、禁用、禁用透明度、清除颜色 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| §6.9 中 L1/L2 用例（非 P1） | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `presets` 预设色面板 | 分期（含 presets 示例） |
+| 面板内 format 切换 UI / `disabledFormat` / `onFormatChange` | 分期（颜色编码示例） |
+| `panelRender` / 箭头 `arrow` 像素级 | 分期 |
+| 自定义触发器完整 demo / 自定义 trigger 事件 demo | 分期（API 可先有） |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 / 多 stop 渐变编辑器深度 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 自定义触发器, 自定义触发事件, 颜色编码, 预设颜色 |
+| ConfigProvider 全局默认 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -647,51 +669,98 @@ disabledAlpha 无透明
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | CP-01 | L1 | NewColorPicker 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| CP-02 | L1 | 改色 | onChange |
-| CP-03 | L1 | format=hex | 字符串 #rrggbb |
-| CP-04 | L1 | presets 点选 | 到预设色 |
-| CP-05 | L1 | clear | 空 |
-| CP-06 | L1 | disabledAlpha | 无 alpha 滑条 |
+| CP-02 | L1 | 改色（SetHSB / 面板） | onChange 收到新色与 css |
+| CP-03 | L1 | format=hex | `ToHexString()` → `#rrggbb` |
+| CP-04 | P1 | presets 点选 | 到预设色（§6.8 P1，本阶段可不测） |
+| CP-05 | L1 | clear | cleared；空态 |
+| CP-06 | L1 | disabledAlpha | `HasAlphaSlider()==false` |
 | CP-07 | L1 | disabled | 不打开 |
-| CP-08 | L1 | showText | 展示文本 |
-| CP-09 | L1 | 受控 value | 外部 |
-| CP-10 | L1 | 复现官方示例「基本使用」（`base.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CP-11 | L1 | 复现官方示例「触发器尺寸大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CP-12 | L1 | 复现官方示例「受控模式」（`controlled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CP-13 | L1 | 复现官方示例「渐变色」（`line-gradient.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CP-14 | L1 | 复现官方示例「渲染触发器文本」（`text-render.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CP-15 | L1 | 复现官方示例「禁用」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CP-16 | L1 | 复现官方示例「禁用透明度」（`disabled-alpha.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CP-17 | L1 | 复现官方示例「清除颜色」（`allowClear.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CP-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| CP-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| CP-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| CP-21 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| CP-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
+| CP-08 | L1 | showText | 触发器文本非空且含 hex |
+| CP-09 | L1 | 受控 value | SetValue 不发 onChange；父回写 |
+| CP-10 | L1 | 复现官方示例「基本使用」（`base.tsx`） | defaultValue 生效；可打开 |
+| CP-11 | L1 | 复现官方示例「触发器尺寸大小」（`size.tsx`） | sm/md/lg 高度 Token |
+| CP-12 | L1 | 复现官方示例「受控模式」（`controlled.tsx`） | onChange / onChangeComplete |
+| CP-13 | L1 | 复现官方示例「渐变色」（`line-gradient.tsx`） | mode gradient + stops |
+| CP-14 | L1 | 复现官方示例「渲染触发器文本」（`text-render.tsx`） | showText / 自定义文本钩子 |
+| CP-15 | L1 | 复现官方示例「禁用」（`disabled.tsx`） | disabled + showText |
+| CP-16 | L1 | 复现官方示例「禁用透明度」（`disabled-alpha.tsx`） | 无 alpha |
+| CP-17 | L1 | 复现官方示例「清除颜色」（`allowClear.tsx`） | clear 路径 |
+| CP-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px） |
+| CP-19 | L2 | 默认皮颜色 | 走 Theme Token（primary 可测） |
+| CP-20 | L2 | disabled 外观 | 禁用底/字色；无 hover 强调 |
+| CP-21 | L1 | 键盘/焦点主路径 | Focus ring；Space/Enter 开关面板 |
+| CP-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差）— 可后补 |
 | CP-23 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | CP-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
-### 6.10 产品 API 契约（Go kit 侧）
+
+### 6.10 产品 API 契约（Go kit 侧，便于 1:1 重写）
 
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewColorPicker(...) *ColorPicker
+// 值类型（antd AggregationColor 子集）
+type Color struct {
+  RGBA    render.RGBA
+  Cleared bool
+  Stops   []ColorStop // gradient
+}
+ColorFromHex(s) Color
+(c Color) ToHexString() / ToRgbString() / ToHsbString() / ToCssString(format)
+(c Color) IsGradient() / IsEmpty()
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewColorPicker() *ColorPicker
+
+// 值
+SetValue(Color)              // 不发 onChange
+SetDefaultValue(Color)
+SetHex(string)               // 便捷
+Clear()                      // allowClear 路径；发 onChange/onClear
+GetValue() Color
+
+// 形态 / 行为
+SetSize(InputSize)           // small|middle|large
+SetDisabled(bool)
+SetAllowClear(bool)
+SetDisabledAlpha(bool)
+SetShowText(bool)
+SetShowTextRender(func(Color) string)  // 自定义触发器文本
+SetFormat(ColorFormat)       // hex|rgb|hsb
+SetMode(ColorMode)           // single|gradient
+SetModes(...ColorMode)       // 面板可切换列表
+SetPlacement(ColorPlacement) // 默认 bottomLeft
+SetTrigger(ColorTrigger)     // click|hover
+SetTriggerNode(core.Node)    // children
+SetOpen(bool) / SetDefaultOpen(bool)
+IsOpen() bool
+
+// 面板（测试 / 程序化调色）
+SetHSB(h,s,b,a float64)      // 改色 + onChange
+CommitChange()               // onChangeComplete
+HasAlphaSlider() bool
+Panel() / TriggerShell() / Popup()
+
+// 回调
+OnChange(func(Color, css string))
+OnChangeComplete(func(Color))
+OnOpenChange(func(bool))
+OnClear(func())
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) / SetFace / SetAriaLabel
+Node() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Disabled / AllowClear / DisabledAlpha / ShowText / Open | false |
+| Size | middle |
+| Format | hex |
+| Mode | single |
+| Trigger | click |
+| Placement | bottomLeft |
+| Value | 空（cleared）；`SetDefaultValue` 或 demo 写入 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

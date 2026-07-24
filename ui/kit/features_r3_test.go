@@ -477,26 +477,25 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"ColorPicker": {
 			{"R1 default", func(t *testing.T) {
-				cp := kit.NewColorPicker(render.Hex("#112233"))
-				if cp.Value.A < 0.5 {
+				cp := kit.NewColorPicker()
+				cp.SetDefaultValue(kit.ColorFromHex("#112233"))
+				if cp.GetValue().RGBA.A < 0.5 {
 					t.Fatal()
 				}
 			}},
 			{"R2 setValue", func(t *testing.T) {
-				cp := kit.NewColorPicker(render.Hex("#000000"))
-				cp.SetValue(render.Hex("#FF0000"))
-				if cp.Value.R < 0.5 {
+				cp := kit.NewColorPicker()
+				cp.SetValue(kit.ColorFromHex("#FF0000"))
+				if cp.GetValue().RGBA.R < 0.5 {
 					t.Fatal()
 				}
 			}},
 			{"R3 onChange", func(t *testing.T) {
-				cp := kit.NewColorPicker(render.Hex("#00FF00"))
+				cp := kit.NewColorPicker()
+				cp.SetDefaultValue(kit.ColorFromHex("#00FF00"))
 				got := false
-				cp.OnChange = func(render.RGBA) { got = true }
-				cp.SetValue(render.Hex("#0000FF"))
-				if cp.OnChange != nil {
-					cp.OnChange(cp.Value)
-				}
+				cp.SetOnChange(func(kit.Color, string) { got = true })
+				cp.SetHSB(240, 1, 1, 1)
 				if !got {
 					t.Fatal()
 				}
