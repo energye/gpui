@@ -1,6 +1,7 @@
 package primitive
 
 import (
+	"math"
 	"sync"
 
 	"github.com/energye/gpui/render"
@@ -19,7 +20,15 @@ type IconDef struct {
 	Kind IconKind
 	// Path is reserved for SVG path data (later).
 	Path string
+	// TwoTone marks glyphs that use primary + secondary colors when provided.
+	TwoTone bool
+	// Paint is an optional custom painter (overrides Kind when non-nil).
+	Paint IconPaintFn
 }
+
+// IconPaintFn draws a custom glyph in local box [0,size]×[0,size].
+// color is the resolved primary color; secondary may be transparent.
+type IconPaintFn func(pc *core.PaintContext, size float64, primary, secondary render.RGBA)
 
 // IconKind enumerates built-in M1 icons.
 type IconKind int
@@ -34,7 +43,10 @@ const (
 	IconChevronDown
 	IconSearch
 	IconInfo
-	IconCustom // uses Path later; draws a diamond placeholder
+	IconStar
+	IconHeart
+	IconLoading // ring segment (spin-friendly)
+	IconCustom  // uses Path later; draws a diamond placeholder
 )
 
 // GlobalIcons is the process-wide icon registry.
@@ -51,11 +63,18 @@ func NewIconRegistry() *IconRegistry {
 	r.Register("chevron-down", IconDef{Kind: IconChevronDown})
 	r.Register("search", IconDef{Kind: IconSearch})
 	r.Register("info", IconDef{Kind: IconInfo})
+	r.Register("star", IconDef{Kind: IconStar, TwoTone: true})
+	r.Register("heart", IconDef{Kind: IconHeart, TwoTone: true})
+	r.Register("loading", IconDef{Kind: IconLoading})
+	r.Register("sync", IconDef{Kind: IconLoading})
 	return r
 }
 
 // Register adds or replaces an icon definition.
 func (r *IconRegistry) Register(name string, def IconDef) {
+	if r == nil || name == "" {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.paths[name] = def
@@ -63,6 +82,9 @@ func (r *IconRegistry) Register(name string, def IconDef) {
 
 // Lookup returns an icon definition.
 func (r *IconRegistry) Lookup(name string) (IconDef, bool) {
+	if r == nil {
+		return IconDef{}, false
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	d, ok := r.paths[name]
@@ -70,7 +92,7 @@ func (r *IconRegistry) Lookup(name string) (IconDef, bool) {
 }
 
 // Icon paints a named icon glyph via shared PaintContext stroke helpers
-// (round caps, AA, consistent line widths).
+// (round caps, AA, consistent line widths). Supports static rotate and spin phase.
 type Icon struct {
 	core.NodeBase
 
@@ -79,6 +101,18 @@ type Icon struct {
 	Color render.RGBA
 	// Registry defaults to GlobalIcons.
 	Registry *IconRegistry
+
+	// RotateDeg is static rotation in degrees (antd rotate).
+	RotateDeg float64
+	// SpinPhase is [0,1) additional turn from spin animation (product drives).
+	SpinPhase float64
+
+	// TwoTonePrimary / TwoToneSecondary tint two-tone glyphs (A==0 → ignore).
+	TwoTonePrimary   render.RGBA
+	TwoToneSecondary render.RGBA
+
+	// PaintCustom overrides registry glyph when non-nil (antd component).
+	PaintCustom IconPaintFn
 }
 
 // NewIcon constructs an Icon by name.
@@ -107,11 +141,56 @@ func (ic *Icon) Layout(c core.Constraints) core.Size {
 	return out
 }
 
+// EffectiveAngleDeg returns rotate + spinPhase*360 (degrees).
+func (ic *Icon) EffectiveAngleDeg() float64 {
+	if ic == nil {
+		return 0
+	}
+	return ic.RotateDeg + ic.SpinPhase*360
+}
+
 // Paint implements core.Node.
 func (ic *Icon) Paint(pc *core.PaintContext) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
+	s := ic.Size
+	if s <= 0 {
+		s = 16
+	}
+	primary := ic.Color
+	if pc.Theme != nil && primary.A == 0 {
+		primary = pc.Theme.Color(core.TokenColorText)
+	}
+	secondary := ic.TwoToneSecondary
+	useTwoTone := ic.TwoTonePrimary.A > 0
+	if useTwoTone {
+		// Two-tone mode: primary color is TwoTonePrimary; monochrome Color still
+		// applies only when TwoTonePrimary is unset.
+		primary = ic.TwoTonePrimary
+		if secondary.A == 0 {
+			// Default secondary: primary at ~20% opacity (antd two-tone feel).
+			secondary = render.RGBA{R: primary.R, G: primary.G, B: primary.B, A: primary.A * 0.2}
+			if secondary.A < 0.08 {
+				secondary.A = 0.12
+			}
+		}
+	}
+
+	angle := ic.EffectiveAngleDeg()
+	if angle != 0 {
+		pc.DC.Push()
+		cx := pc.Origin.X + s/2
+		cy := pc.Origin.Y + s/2
+		pc.DC.RotateAbout(angle*math.Pi/180, cx, cy)
+		defer pc.DC.Pop()
+	}
+
+	if ic.PaintCustom != nil {
+		ic.PaintCustom(pc, s, primary, secondary)
+		return
+	}
+
 	reg := ic.Registry
 	if reg == nil {
 		reg = GlobalIcons
@@ -120,16 +199,11 @@ func (ic *Icon) Paint(pc *core.PaintContext) {
 	if !ok {
 		def = IconDef{Kind: IconCustom}
 	}
-	s := ic.Size
-	if s <= 0 {
-		s = 16
+	if def.Paint != nil {
+		def.Paint(pc, s, primary, secondary)
+		return
 	}
-	col := ic.Color
-	if pc.Theme != nil && col.A == 0 {
-		col = pc.Theme.Color(core.TokenColorText)
-	}
-	// Draw in local space (Origin is already icon top-left).
-	drawIconLocal(pc, def.Kind, s, col)
+	drawIconLocal(pc, def.Kind, s, primary, secondary, def.TwoTone || useTwoTone)
 }
 
 // HitTest implements core.Node.
@@ -137,7 +211,7 @@ func (ic *Icon) HitTest(p core.Point) core.Node { return ic.DefaultHitTest(p) }
 
 // drawIconLocal paints built-in icons using shared stroke/circle APIs only.
 // Coordinates are local to the icon box [0,s]×[0,s].
-func drawIconLocal(pc *core.PaintContext, kind IconKind, s float64, col render.RGBA) {
+func drawIconLocal(pc *core.PaintContext, kind IconKind, s float64, primary, secondary render.RGBA, twoTone bool) {
 	if pc == nil {
 		return
 	}
@@ -155,34 +229,90 @@ func drawIconLocal(pc *core.PaintContext, kind IconKind, s float64, col render.R
 
 	switch kind {
 	case IconCheck:
-		pc.PaintLocalCheck(s, s, lw, col)
+		if twoTone && secondary.A > 0 {
+			pc.FillLocalCircle(cx, cy, s*0.42, secondary)
+		}
+		pc.PaintLocalCheck(s, s, lw, primary)
 	case IconClose:
-		pc.PaintLocalClose(s, s, pad, lw, col)
+		pc.PaintLocalClose(s, s, pad, lw, primary)
 	case IconPlus:
-		pc.StrokeLocalLine(cx, y0, cx, y1, lw, col)
-		pc.StrokeLocalLine(x0, cy, x1, cy, lw, col)
+		pc.StrokeLocalLine(cx, y0, cx, y1, lw, primary)
+		pc.StrokeLocalLine(x0, cy, x1, cy, lw, primary)
 	case IconMinus:
-		pc.StrokeLocalLine(x0, cy, x1, cy, lw, col)
+		pc.StrokeLocalLine(x0, cy, x1, cy, lw, primary)
 	case IconChevronRight:
 		pc.StrokeLocalPolyline([]float64{
 			x0 + s*0.1, y0,
 			x1 - s*0.05, cy,
 			x0 + s*0.1, y1,
-		}, lw, col)
+		}, lw, primary)
 	case IconChevronDown:
 		pc.StrokeLocalPolyline([]float64{
 			x0, y0 + s*0.1,
 			cx, y1 - s*0.05,
 			x1, y0 + s*0.1,
-		}, lw, col)
+		}, lw, primary)
 	case IconSearch:
 		r := s * 0.28
-		pc.StrokeLocalCircle(cx-s*0.08, cy-s*0.08, r, lw, col)
-		pc.StrokeLocalLine(cx+r*0.4, cy+r*0.4, x1, y1, lw, col)
+		pc.StrokeLocalCircle(cx-s*0.08, cy-s*0.08, r, lw, primary)
+		pc.StrokeLocalLine(cx+r*0.4, cy+r*0.4, x1, y1, lw, primary)
 	case IconInfo:
-		pc.StrokeLocalCircle(cx, cy, s*0.35, lw, col)
-		pc.StrokeLocalLine(cx, cy-s*0.08, cx, cy+s*0.18, lw*1.15, col)
-		pc.FillLocalCircle(cx, cy-s*0.22, s*0.04, col)
+		pc.StrokeLocalCircle(cx, cy, s*0.35, lw, primary)
+		pc.StrokeLocalLine(cx, cy-s*0.08, cx, cy+s*0.18, lw*1.15, primary)
+		pc.FillLocalCircle(cx, cy-s*0.22, s*0.04, primary)
+	case IconStar:
+		// Simple 4-point star; secondary fill when two-tone.
+		if twoTone && secondary.A > 0 {
+			pc.FillLocalCircle(cx, cy, s*0.22, secondary)
+		}
+		pc.StrokeLocalPolyline([]float64{
+			cx, y0,
+			cx + s*0.12, cy - s*0.12,
+			x1, cy,
+			cx + s*0.12, cy + s*0.12,
+			cx, y1,
+			cx - s*0.12, cy + s*0.12,
+			x0, cy,
+			cx - s*0.12, cy - s*0.12,
+			cx, y0,
+		}, lw, primary)
+	case IconHeart:
+		if twoTone && secondary.A > 0 {
+			pc.FillLocalCircle(cx-s*0.12, cy-s*0.08, s*0.16, secondary)
+			pc.FillLocalCircle(cx+s*0.12, cy-s*0.08, s*0.16, secondary)
+		}
+		// Heart outline approx via polyline.
+		pc.StrokeLocalPolyline([]float64{
+			cx, y1 - pad*0.4,
+			x0 + pad*0.2, cy,
+			x0 + pad*0.3, y0 + pad*0.6,
+			cx - s*0.08, y0 + pad*0.3,
+			cx, y0 + pad*0.7,
+			cx + s*0.08, y0 + pad*0.3,
+			x1 - pad*0.3, y0 + pad*0.6,
+			x1 - pad*0.2, cy,
+			cx, y1 - pad*0.4,
+		}, lw, primary)
+	case IconLoading:
+		// Open ring segment — reads as spinner when rotated.
+		track := primary
+		track.A *= 0.25
+		if track.A < 0.08 {
+			track.A = 0.12
+		}
+		r := s*0.5 - lw
+		if r < 1 {
+			r = 1
+		}
+		pc.StrokeLocalCircle(cx, cy, r, lw, track)
+		steps := 28
+		pts := make([]float64, 0, (steps+1)*2)
+		start, end := -math.Pi/2, -math.Pi/2+2*math.Pi*0.72
+		for i := 0; i <= steps; i++ {
+			a := start + (end-start)*float64(i)/float64(steps)
+			pts = append(pts, cx+r*math.Cos(a), cy+r*math.Sin(a))
+		}
+		pc.StrokeLocalPolyline(pts, lw, primary)
 	default: // placeholder diamond
 		pc.StrokeLocalPolyline([]float64{
 			cx, y0,
@@ -190,6 +320,6 @@ func drawIconLocal(pc *core.PaintContext, kind IconKind, s float64, col render.R
 			cx, y1,
 			x0, cy,
 			cx, y0, // close
-		}, lw, col)
+		}, lw, primary)
 	}
 }

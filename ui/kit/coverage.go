@@ -32,7 +32,7 @@ func AntCoverage() []CoverageEntry {
 		// General
 		{Ant: "Button", Status: CovReady, Via: "kit.Button", Since: "M1", Notes: "P0 对齐 docs/antd/button.md §6（type/size/shape/variant/color/danger/ghost/block/loading/iconPlacement/a11y）；P1: preset 全色板、loading.delay、autoInsertSpace、wave、href/htmlType"},
 		{Ant: "FloatButton", Status: CovReady, Via: "kit.FloatButton / FloatButtonGroup", Since: "Base-ALL", Notes: "P0 对齐 docs/antd/float-button.md §6（type default|primary、shape circle|square、icon/content、tooltip、disabled、loading Ticker、onClick、Group trigger click|hover、open/onOpenChange 受控、placement 四向、closeIcon、a11y AriaLabel、Token 40×40 / square r=8）；P1: badge、BackTop、draggable、href/target/htmlType、semantic classNames/styles、ConfigProvider 全局、展开入场动画像素级、官网逐像素"},
-		{Ant: "Icon", Status: CovReady, Via: "kit.Icon / primitive.Icon", Since: "M1"},
+		{Ant: "Icon", Status: CovReady, Via: "kit.Icon / primitive.Icon", Since: "M1", Notes: "P0 对齐 docs/antd/icon.md §6（name 注册表、size 默认16、color Token、rotate、spin Ticker+ReduceMotion、twoTone 实例/全局、SetPainter、CreateFromIconfont+RegisterSource 离线多源、装饰默认 a11y/AriaLabel、hit==layout==paint）；P1: 远程 iconfont.cn scriptUrl、extraCommonProps/真 DOM classNames、全量 SVG Path/上千官方字形、spin 动画像素级/官网哈希、ConfigProvider 全局 Icon 默认"},
 		{Ant: "Typography", Status: CovReady, Via: "kit.Text/Title/Paragraph", Since: "Base-ALL"},
 		// Layout
 		{Ant: "Divider", Status: CovReady, Via: "kit.Divider", Since: "Base-ALL"},

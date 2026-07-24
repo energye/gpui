@@ -728,9 +728,10 @@ func (s *ScrollViewport) Paint(pc *core.PaintContext) {
 
 func (s *ScrollViewport) paintDirect(pc *core.PaintContext, sz core.Size) {
 	if pc.CompositeOnly && !s.NeedsPaint() && !pc.ForceFullPaint && !scrollNonBoundaryDescPaintDirty(s) {
-		// Still visit nested boundaries on composite-only frames.
+		// Still visit nested boundaries on composite-only frames — RB only,
+		// never re-paint Text/chrome (same rule as LayerCache path).
 		if scrollHasRepaintBoundary(s) {
-			s.paintBody(pc, sz)
+			s.paintNestedBoundariesDirect(pc, sz)
 		}
 		s.ClearPaintDirty()
 		return
@@ -744,32 +745,111 @@ func (s *ScrollViewport) paintDirect(pc *core.PaintContext, sz core.Size) {
 	s.ClearPaintDirty()
 }
 
-// paintNestedBoundaries walks content with LayerCache so nested Spin/Skeleton
+// paintNestedBoundariesDirect is the no-LayerCache counterpart of
+// paintNestedBoundaries: paint only nested RepaintBoundary nodes.
+func (s *ScrollViewport) paintNestedBoundariesDirect(pc *core.PaintContext, sz core.Size) {
+	if pc == nil || !scrollHasRepaintBoundary(s) {
+		return
+	}
+	l, top, r, bot := s.ContentInsets()
+	cw := sz.Width - l - r
+	chH := sz.Height - top - bot
+	if cw < 0 {
+		cw = 0
+	}
+	if chH < 0 {
+		chH = 0
+	}
+	c := *pc
+	c.CompositeOnly = true
+	c.ForceFullPaint = false
+	childPC := &c
+	childPC.PushClipLocal(l, top, cw, chH)
+	paintOff := s.ContentPaintOffset()
+	for _, child := range s.Children() {
+		if child == nil {
+			continue
+		}
+		origin := childPC.Origin.Add(child.Base().Offset()).Add(paintOff)
+		paintNestedRepaintBoundaries(childPC, child, origin)
+	}
+	childPC.Pop()
+}
+
+// paintNestedBoundaries walks content with LayerCache so nested Spin/Skeleton/Icon
 // layers re-rasterize at window-absolute origins. Does not redraw scroll chrome
 // or non-boundary content into the parent DC (those live in this scroll's RT).
+//
+// Important: only IsRepaintBoundary nodes are painted. Walking via
+// DefaultPaintChildren under CompositeOnly still visited ancestors that contain
+// a boundary and re-drew sibling Text (section descriptions) on top of the
+// retained scroll RT — ghost labels on Icon/Spin gallery pages.
 func (s *ScrollViewport) paintNestedBoundaries(pc *core.PaintContext, sz core.Size) {
 	if pc == nil || pc.LayerCache == nil || !scrollHasRepaintBoundary(s) {
 		return
 	}
 	l, top, r, bot := s.ContentInsets()
 	cw := sz.Width - l - r
-	ch := sz.Height - top - bot
+	chH := sz.Height - top - bot
 	if cw < 0 {
 		cw = 0
 	}
-	if ch < 0 {
-		ch = 0
+	if chH < 0 {
+		chH = 0
 	}
 	// Copy so we can set CompositeOnly without mutating caller's flags.
 	c := *pc
 	c.CompositeOnly = true
 	c.ForceFullPaint = false
-	c.SkipRepaintBoundaries = false // we WANT to enter nested boundaries here
+	c.SkipRepaintBoundaries = false // nested RB.Paint must run LayerCache path
 	childPC := &c
-	// Cull to content box; ContentPaintOffset applied in DefaultPaintChildren.
-	childPC.PushClipLocal(l, top, cw, ch)
-	s.DefaultPaintChildren(childPC)
+	// Cull to content box.
+	childPC.PushClipLocal(l, top, cw, chH)
+	paintOff := s.ContentPaintOffset()
+	for _, child := range s.Children() {
+		if child == nil {
+			continue
+		}
+		origin := childPC.Origin.Add(child.Base().Offset()).Add(paintOff)
+		paintNestedRepaintBoundaries(childPC, child, origin)
+	}
 	childPC.Pop()
+}
+
+// paintNestedRepaintBoundaries paints only IsRepaintBoundary nodes under n.
+// origin is the absolute paint origin of n (parent origin + layout offset + paint offset).
+func paintNestedRepaintBoundaries(pc *core.PaintContext, n core.Node, origin core.Point) {
+	if pc == nil || n == nil {
+		return
+	}
+	b := n.Base()
+	// Cull fully off-screen branches early.
+	if !pc.Clip.Empty() {
+		cw, ch := b.Size().Width, b.Size().Height
+		if cw > 0 && ch > 0 {
+			cr := core.NewRect(origin.X, origin.Y, cw, ch)
+			if cr.Intersect(pc.Clip).Empty() {
+				return
+			}
+		}
+	}
+	if b.IsRepaintBoundary() {
+		// RB.Paint owns LayerCache rasterize/blit and paints its own children.
+		n.Paint(pc.WithOrigin(origin))
+		return
+	}
+	// Nested scroll/viewport paint offsets (rare inside body) still apply.
+	var paintOff core.Point
+	if po, ok := n.(core.PaintOffsetParent); ok {
+		paintOff = po.ContentPaintOffset()
+	}
+	for _, c := range b.Children() {
+		if c == nil || !nodeHasRepaintBoundary(c) {
+			continue
+		}
+		co := origin.Add(c.Base().Offset()).Add(paintOff)
+		paintNestedRepaintBoundaries(pc, c, co)
+	}
 }
 
 // paintBody draws clipped content + scrollbar chrome in the given paint space
