@@ -240,16 +240,22 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Anchor": {
 			{"R1 items", func(t *testing.T) {
-				a := kit.NewAnchor("#a", "#b")
+				a := kit.NewAnchor(
+					kit.AnchorItem{Key: "a", Href: "#a", Title: "A"},
+					kit.AnchorItem{Key: "b", Href: "#b", Title: "B"},
+				)
 				if len(a.Items) != 2 {
 					t.Fatal(len(a.Items))
 				}
 			}},
 			{"R2 setActive", func(t *testing.T) {
-				a := kit.NewAnchor("#a", "#b")
-				a.SetActive("#b")
-				if a.Active != "#b" {
-					t.Fatal(a.Active)
+				a := kit.NewAnchor(
+					kit.AnchorItem{Key: "a", Href: "#a", Title: "A"},
+					kit.AnchorItem{Key: "b", Href: "#b", Title: "B"},
+				)
+				a.SetActiveLink("#b")
+				if a.ActiveLink != "#b" {
+					t.Fatal(a.ActiveLink)
 				}
 			}},
 			{"R3 scroll-spy", func(t *testing.T) {
@@ -258,13 +264,16 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 				sv := primitive.NewScrollViewport(content)
 				sv.Height = 100
 				_ = sv.Layout(core.Tight(80, 100))
-				a := kit.NewAnchor("#a", "#b")
-				a.ScrollTarget = sv
-				a.SectionOffsets = map[string]float64{"#a": 0, "#b": 50}
+				a := kit.NewAnchor(
+					kit.AnchorItem{Key: "a", Href: "#a", Title: "A"},
+					kit.AnchorItem{Key: "b", Href: "#b", Title: "B"},
+				)
+				a.SetScrollTarget(sv)
+				a.SetSectionOffsets(map[string]float64{"#a": 0, "#b": 50})
 				sv.SetScroll(0, 60)
 				a.SyncFromScroll()
-				if a.Active != "#b" {
-					t.Fatal(a.Active)
+				if a.ActiveLink != "#b" {
+					t.Fatal(a.ActiveLink)
 				}
 			}},
 		},

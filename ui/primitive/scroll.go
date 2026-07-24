@@ -61,6 +61,11 @@ type ScrollViewport struct {
 	BarSize                float64
 	TrackColor, ThumbColor render.RGBA
 
+	// OnScroll is invoked after ScrollX/ScrollY actually change (wheel, SetScroll,
+	// thumb drag). Not called when clamp leaves offsets unchanged.
+	// Used by kit.Anchor scroll-spy and other scroll listeners.
+	OnScroll func(x, y float64)
+
 	// hover / auto-hide state
 	hovered    bool
 	onBarV     bool
@@ -1096,6 +1101,7 @@ func (s *ScrollViewport) HandlePointer(ev *core.PointerEvent) {
 			if next != s.ScrollY {
 				s.ScrollY = next
 				s.MarkNeedsPaint()
+				s.notifyScroll()
 			}
 			ev.Handled = true
 			return
@@ -1112,6 +1118,7 @@ func (s *ScrollViewport) HandlePointer(ev *core.PointerEvent) {
 			if next != s.ScrollX {
 				s.ScrollX = next
 				s.MarkNeedsPaint()
+				s.notifyScroll()
 			}
 			ev.Handled = true
 			return
@@ -1273,6 +1280,7 @@ func (s *ScrollViewport) HandleScroll(ev *core.ScrollEvent) {
 		s.bumpReveal()
 		// Paint-only: ContentPaintOffset updates scroll transform.
 		s.MarkNeedsPaint()
+		s.notifyScroll()
 		ev.Handled = true
 		return
 	}
@@ -1315,6 +1323,15 @@ func (s *ScrollViewport) SetScroll(x, y float64) {
 		return
 	}
 	s.MarkNeedsPaint()
+	s.notifyScroll()
+}
+
+// notifyScroll fires OnScroll after a real offset change.
+func (s *ScrollViewport) notifyScroll() {
+	if s == nil || s.OnScroll == nil {
+		return
+	}
+	s.OnScroll(s.ScrollX, s.ScrollY)
 }
 
 // OverflowY reports whether content is taller than the content box (viewport minus bar gutters).

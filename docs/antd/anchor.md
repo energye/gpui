@@ -269,30 +269,36 @@ import { Anchor } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design Anchor `style/index.ts` + 本库 Theme 默认** 为准（`scale=1`，种子：`fontSize=14`、`padding=16`、`paddingXXS=4`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
 
-#### 6.2.1 几何与组件 Token
+> Anchor **无** `size` / `controlHeight` 档位（与 Button 不同）；通用 controlHeight 表不适用。
+
+#### 6.2.1 几何与组件 Token（antd `prepareComponentToken` / `mergeToken`）
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
+| 字号 | **14** | `fontSize` |
+| 链接纵向内间距 `linkPaddingBlock` | **4** | `paddingXXS` → kit `TokenPaddingXS` |
+| 链接横向起边距 `linkPaddingInlineStart` | **16** | `padding` → kit `TokenPadding` |
+| 容器块偏移 `holderOffsetBlock` | **4** | `paddingXXS` |
+| 次级链接纵向间距 `anchorPaddingBlockSecondary` | **2** | `paddingXXS / 2` |
+| 标题块间距 `anchorTitleBlock` | **3** | `fontSize/14*3`（仅有嵌套子链时） |
+| 指示条粗细（ink / 左轨） | **2** | antd `lineWidthBold`（≈ `lineWidth*2`；kit 回落 2） |
+| 分割轨色 | `colorSplit` | 垂直左轨 / 水平底轨 |
+| 圆角（容器） | **6** | `borderRadius`（链接本身无圆角强制） |
+| 边框线宽（轨） | **1** | `lineWidth`（水平底部分割线） |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 链接默认字色 | `colorText` | title 默认 |
+| 激活 / ink | `colorPrimary` | active title + ink 条 |
+| hover 字色 | `colorPrimary` 或 `colorPrimaryHover` | 可交互反馈 |
+| 分割轨 | `colorSplit` | 垂直 `borderInlineStart` / 水平 `borderBottom` |
+| 禁用（适用者） | `colorDisabledText` | Anchor 本体无 disabled API；预留 |
+| 容器底 | `colorBgContainer` | 透明可 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -376,25 +382,33 @@ affix ──► 钉住
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `onClick` | 必须 |
-| `items` | 必须 |
-| `children` | 必须 |
-| `title` | 必须 |
-| 官方主路径示例 | 基本、横向 Anchor、静态位置、自定义 onClick 事件、自定义锚点高亮、设置锚点滚动偏移量、监听锚点链接改变、替换历史中的 href |
+| `items` + `title` + `href` + `key` | 数据化配置；title/href 为链接展示与跳转主键 |
+| `children` 嵌套 | 垂直方向二级可见；水平方向忽略 children（与 antd 一致） |
+| `direction` | `vertical`（默认）/ `horizontal` |
+| `affix` | 默认 **true**；`false` 为静态位置（static 示例） |
+| `showInkInFixed` | `affix=false` 时是否仍显示 ink；默认 false |
+| `bounds` | 滚动高亮边界，默认 **5** |
+| `offsetTop` / `targetOffset` | affix 顶偏 / 滚动停位偏移（targetOffset 默认等同 offsetTop） |
+| `getCurrentAnchor` | 自定义高亮 href（customizeHighlight） |
+| `onChange` / `onClick` | 必须；onClick 载荷 `{title, href}`（+ key） |
+| `replace` | 导航时替换历史项而非 push（桌面映射见 §6.7） |
+| ink 指示条 | active 时可见（vertical 左轨 / horizontal 底轨）；`affix=false && !showInkInFixed` 隐藏 |
+| 滚动宿主映射 | 桌面：`ScrollTarget *ScrollViewport` + `SectionOffsets map[href]Y` + `SyncFromScroll`（对等 `getContainer` + DOM id 查询） |
+| 官方主路径示例 | 基本、横向 Anchor、静态位置、自定义 onClick、自定义锚点高亮、targetOffset、onChange、replace |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | role=navigation；当前 `aria-current`；键盘方向键 + 激活 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| per-link `targetOffset`（6.4.0 / targetOffset-per-link debug） | 分期 |
+| semantic classNames/styles 深度 | 分期（style-class / _semantic） |
+| ink 滑动动画像素级 | 分期；P0 瞬时切换 |
+| 真浏览器 history / `window` 容器 | 桌面用 History 栈 + ScrollTarget 映射 |
+| ConfigProvider 全局默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 自定义语义结构的样式和类, _semantic.tsx |
 
 ### 6.9 验收用例表（可测）
 
@@ -427,37 +441,78 @@ affix ──► 钉住
 | ANC-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 **breaking** 旧 `NewAnchor(...string)` / `Active string` API；以下为产品契约。
 
 ```text
-NewAnchor(...) *Anchor
+type AnchorItem struct {
+  Key, Href, Title, Target string
+  Children []AnchorItem
+  Replace  bool // item-level replace（可选；默认跟 Anchor.Replace）
+}
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type AnchorLinkInfo struct { Title, Href, Key string }
+
+type AnchorDirection int // AnchorVertical=0 | AnchorHorizontal
+
+NewAnchor(items ...AnchorItem) *Anchor
+
+// items / 方向 / affix
+SetItems([]AnchorItem)
+SetDirection(AnchorDirection)   // or SetHorizontal(bool)
+SetAffix(bool)                  // default true
+SetShowInkInFixed(bool)         // default false
+SetBounds(float64)              // default 5
+SetOffsetTop(float64)
+SetTargetOffset(float64)        // 未 Set 时回落 OffsetTop
+SetReplace(bool)
+SetGetCurrentAnchor(func(active string) string)
+
+// 滚动宿主（桌面映射 getContainer + section tops）
+SetScrollTarget(*primitive.ScrollViewport)
+SetSectionOffsets(map[string]float64) // href → content Y
+SyncFromScroll()                      // scroll-spy → ActiveLink + OnChange + ink
+ScrollTo(href string)                 // 应用 targetOffset 后 SetScroll
+
+// 回调 / 状态
+OnChange func(currentActiveLink string)
+OnClick  func(link AnchorLinkInfo)
+ActiveLink string                     // 当前高亮 href（getCurrentAnchor 解析后）
+// 历史映射（replace）：History []string + CurrentHref；Replace=true 时改末项
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme)  SetFace(text.Face)  SetAriaLabel(string)
+Node() core.Node  ChromeNode() core.Node
+InkVisible() bool                     // 测试用：ink 是否绘制
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Direction | vertical |
+| Affix | **true** |
+| ShowInkInFixed | false |
+| Bounds | **5** |
+| OffsetTop | 0 |
+| TargetOffset | 等同 OffsetTop |
+| Replace | false |
+| ActiveLink | ""（无高亮 / ink 隐藏） |
+| Items | 构造参数或空 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Nav root
-  └─ items / panels / connectors
+[Affix/Sticky?]                              // affix=true 时钉住
+  └─ wrapper (role=navigation)
+       └─ Stack  (relative)
+            ├─ rail   垂直: 左 colorSplit 线；水平: 底部分割线
+            ├─ ink    PositionedAt primary 条（active 时）
+            └─ links  Flex column|row
+                 └─ link Pressable(title) + nested children (vertical only)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读字段 / Token；ink 位置在 Layout 后根据 active title 盒同步（可瞬时，动画 P1）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
 - 动画跟随 Host Tick；尊重 reduced-motion。  
 

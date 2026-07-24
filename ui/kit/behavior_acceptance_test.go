@@ -317,8 +317,8 @@ func TestBehavior_DatePickerSelectDay(t *testing.T) {
 	}
 }
 
-// Anchor scroll-spy: SyncFromScroll picks last section offset ≤ ScrollY;
-// clicking an item scrolls ScrollTarget to SectionOffsets[item].
+// Anchor scroll-spy: SyncFromScroll picks last section offset ≤ ScrollY+bounds;
+// clicking an item scrolls ScrollTarget to SectionOffsets[href] - targetOffset.
 func TestBehavior_AnchorSyncFromScroll(t *testing.T) {
 	// Tall content so SetScroll is not clamped to 0.
 	content := primitive.NewBox()
@@ -329,56 +329,46 @@ func TestBehavior_AnchorSyncFromScroll(t *testing.T) {
 	sv.Width = 80
 	_ = sv.Layout(core.Tight(80, 100))
 
-	a := kit.NewAnchor("#intro", "#api", "#faq")
-	a.ScrollTarget = sv
-	a.SectionOffsets = map[string]float64{"#intro": 0, "#api": 120, "#faq": 240}
+	a := kit.NewAnchor(
+		kit.AnchorItem{Key: "intro", Href: "#intro", Title: "Intro"},
+		kit.AnchorItem{Key: "api", Href: "#api", Title: "API"},
+		kit.AnchorItem{Key: "faq", Href: "#faq", Title: "FAQ"},
+	)
+	a.SetAffix(false)
+	a.SetScrollTarget(sv)
+	a.SetSectionOffsets(map[string]float64{"#intro": 0, "#api": 120, "#faq": 240})
 
 	sv.ScrollY = 0
 	a.SyncFromScroll()
-	if a.Active != "#intro" {
-		t.Fatalf("y=0 active=%q want #intro", a.Active)
+	if a.ActiveLink != "#intro" {
+		t.Fatalf("y=0 active=%q want #intro", a.ActiveLink)
 	}
 	sv.SetScroll(0, 130)
 	a.SyncFromScroll()
-	if a.Active != "#api" {
-		t.Fatalf("y=130 active=%q want #api (ScrollY=%v)", a.Active, sv.ScrollY)
+	if a.ActiveLink != "#api" {
+		t.Fatalf("y=130 active=%q want #api (ScrollY=%v)", a.ActiveLink, sv.ScrollY)
 	}
 	sv.SetScroll(0, 300)
 	a.SyncFromScroll()
-	if a.Active != "#faq" {
-		t.Fatalf("y=300 active=%q want #faq (ScrollY=%v ContentH=%v)", a.Active, sv.ScrollY, sv.ContentH)
+	if a.ActiveLink != "#faq" {
+		t.Fatalf("y=300 active=%q want #faq (ScrollY=%v ContentH=%v)", a.ActiveLink, sv.ScrollY, sv.ContentH)
 	}
 
 	// Click last link → ScrollY = SectionOffsets["#faq"].
 	var clicked string
-	a.OnClick = func(item string) { clicked = item }
-	a.SetFace(nil) // rebuild with ScrollTarget/OnClick wired
+	a.SetOnClick(func(link kit.AnchorLinkInfo) { clicked = link.Href })
 	tree := core.NewTree(a.Node())
 	tree.Layout(core.Size{Width: 160, Height: 120})
-	var pressables []*primitive.Pressable
-	var walk func(core.Node)
-	walk = func(n core.Node) {
-		if n == nil {
-			return
-		}
-		if p, ok := n.(*primitive.Pressable); ok {
-			pressables = append(pressables, p)
-		}
-		for _, c := range n.Children() {
-			walk(c)
-		}
+	target := a.LinkPressable("#faq")
+	if target == nil {
+		t.Fatal("missing #faq pressable")
 	}
-	walk(a.Node())
-	if len(pressables) < 3 {
-		t.Fatalf("anchor links=%d", len(pressables))
-	}
-	target := pressables[2] // #faq
 	abs := core.AbsoluteBounds(target)
 	x, y := mid(abs)
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
-	if a.Active != "#faq" {
-		t.Fatalf("after click active=%q", a.Active)
+	if a.ActiveLink != "#faq" {
+		t.Fatalf("after click active=%q", a.ActiveLink)
 	}
 	if a.ScrollTarget.ScrollY != 240 {
 		t.Fatalf("ScrollY=%v want 240 ContentH=%v", a.ScrollTarget.ScrollY, a.ScrollTarget.ContentH)
@@ -450,11 +440,14 @@ func TestBehavior_DatePickerSelectDayAPI(t *testing.T) {
 }
 
 func TestBehavior_AnchorActive(t *testing.T) {
-	a := kit.NewAnchor("#a", "#b")
-	a.Active = "#b"
+	a := kit.NewAnchor(
+		kit.AnchorItem{Key: "a", Href: "#a", Title: "A"},
+		kit.AnchorItem{Key: "b", Href: "#b", Title: "B"},
+	)
+	a.SetActiveLink("#b")
 	_ = a.Node().Layout(core.Loose(120, 80))
-	if a.Active != "#b" {
-		t.Fatal(a.Active)
+	if a.ActiveLink != "#b" {
+		t.Fatal(a.ActiveLink)
 	}
 }
 

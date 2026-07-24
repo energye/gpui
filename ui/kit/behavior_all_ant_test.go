@@ -157,15 +157,21 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Anchor", func(t *testing.T) {
-			sv := primitive.NewScrollViewport(primitive.NewBox())
+			content := primitive.NewBox()
+			content.Height = 400
+			sv := primitive.NewScrollViewport(content)
 			sv.Height = 100
-			a := kit.NewAnchor("#a", "#b")
-			a.ScrollTarget = sv
-			a.SectionOffsets = map[string]float64{"#a": 0, "#b": 50}
+			_ = sv.Layout(core.Tight(80, 100))
+			a := kit.NewAnchor(
+				kit.AnchorItem{Key: "a", Href: "#a", Title: "A"},
+				kit.AnchorItem{Key: "b", Href: "#b", Title: "B"},
+			)
+			a.SetScrollTarget(sv)
+			a.SetSectionOffsets(map[string]float64{"#a": 0, "#b": 50})
 			sv.ScrollY = 60
 			a.SyncFromScroll()
-			if a.Active != "#b" {
-				t.Fatalf("active=%q want #b", a.Active)
+			if a.ActiveLink != "#b" {
+				t.Fatalf("active=%q want #b", a.ActiveLink)
 			}
 		}},
 		{"Breadcrumb", func(t *testing.T) {

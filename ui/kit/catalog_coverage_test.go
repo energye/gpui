@@ -62,7 +62,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Splitter", kit.NewSplitterNodes(kit.NewText("a").Node(), kit.NewText("b").Node()).Node())
 	must("Breadcrumb", kit.NewBreadcrumb("a", "b").Node())
 	must("Steps", kit.NewSteps("a", "b").Node())
-	must("Anchor", kit.NewAnchor("#a").Node())
+	must("Anchor", kit.NewAnchor(kit.AnchorItem{Key: "a", Href: "#a", Title: "A"}).Node())
 	must("Pagination", kit.NewPagination(3).Node())
 	must("Menu", kit.NewMenu(kit.MenuItem{Key: "a", Label: "A"}).Node())
 	must("Tabs", kit.NewTabs(kit.MenuItem{Key: "a", Label: "A"}).Node())

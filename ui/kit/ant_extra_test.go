@@ -150,7 +150,10 @@ func TestCatalogRestAPIs(t *testing.T) {
 	_ = ts.Node().Layout(core.Loose(200, 40))
 	up := kit.NewUpload("Upload")
 	_ = up.Node().Layout(core.Loose(100, 40))
-	an := kit.NewAnchor("#Intro", "#API")
+	an := kit.NewAnchor(
+		kit.AnchorItem{Key: "intro", Href: "#Intro", Title: "Intro"},
+		kit.AnchorItem{Key: "api", Href: "#API", Title: "API"},
+	)
 	_ = an.Node().Layout(core.Loose(120, 80))
 	af := kit.NewAffix(kit.NewText("sticky").Node())
 	_ = af.Node().Layout(core.Loose(100, 40))
