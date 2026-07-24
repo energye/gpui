@@ -287,13 +287,12 @@ import { Switch } from 'antd';
 | Switch small 轨高 | **16** | controlHeight/2 |
 | 默认轨 | **≈44×22** | prepareComponentToken 公式 |
 | small 轨 | **≈28×16** | SM 公式 |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 轨内边距 trackPadding | **2** | prepareComponentToken 固定值 |
+| handle 直径 default | **≈18** | trackHeight − 2×padding |
+| handle 直径 small | **≈12** | trackHeightSM − 2×padding |
+| 字号（内文） | **12**（小）/ 跟随内容 | 内文非按钮 controlHeight |
+| 圆角（轨） | **轨高/2**（胶囊） | 非 `borderRadius` 矩形 |
+| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见；形状跟胶囊 |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -352,7 +351,7 @@ mount ──► unchecked | checked（受控/非受控）
 | SW-S3 | `disabled=true` 点击/Space | 不触发 `onChange` |
 | SW-S4 | `loading=true` 点击 | 不触发 `onChange`；有 spinner |
 | SW-S5 | 受控 `checked=false` 时点击 | 仍显示关，直到父级改 props；回调仍抛出 |
-| SW-S6 | 聚焦 + Space | 切换（同 click） |
+| SW-S6 | 聚焦 + Space / Enter | 切换（同 click） |
 | SW-S7 | `size=small` | 轨高≈16、最小宽≈28 |
 | SW-S8 | 默认尺寸 | 轨高≈22、最小宽≈44（公式见 §6.2） |
 | SW-S9 | `checkedChildren`/`unCheckedChildren` | 开/关文案随状态显示 |
@@ -400,25 +399,27 @@ mount ──► unchecked | checked（受控/非受控）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `checked` | 必须 |
+| `checked` / `value`（别名） | 受控当前值；`SetChecked` / `SetValue` |
+| `defaultChecked` / `defaultValue`（别名） | 非受控初值 |
+| 受控模式 | `SetControlled(true)`：点击只抛回调，外观等父级改值 |
 | `onChange` | 必须 |
-| `onClick` | 必须 |
+| `onClick` | 必须（与 onChange 同新值；禁用/加载时不触发） |
 | `disabled` | 必须 |
-| `loading` | 必须 |
-| `size` | 必须 |
-| 官方主路径示例 | 基本、不可用、文字和图标、两种大小、加载中、自定义语义结构的样式和类、_semantic.tsx |
+| `loading` | 必须（handle 内 spinner；期间不切换） |
+| `size` | `medium`（默认）/ `small` |
+| `checkedChildren` / `unCheckedChildren` | 字符串内文（图标名可走文案占位） |
+| 官方主路径示例 | 基本、不可用、文字和图标、两种大小、加载中 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| a11y §6.6 | 最低要求（role=switch；焦点环；Space/Enter） |
+| §6.9 中 L1/L2 且非 P1 的用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| semantic classNames/styles 深度 | 分期（含 style-class / _semantic 示例） |
+| 复杂 ReactNode 内文（多节点 Flex 图标） | 分期；P0 仅字符串 |
+| 动画像素级 handle 拉伸 / Wave | 分期（P0 可用瞬时或 FloatAnim 滑块） |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
@@ -442,15 +443,15 @@ mount ──► unchecked | checked（受控/非受控）
 | SW-11 | L1 | 主题主色 | 开态轨道 = `colorPrimary` |
 | SW-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | SW-13 | L1 | 复现官方示例「不可用」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SW-14 | L1 | 复现官方示例「文字和图标」（`text.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| SW-14 | L1 | 复现官方示例「文字和图标」（`text.tsx`，字符串内文） | 交互与主视觉符合文档；无控制台级错误 |
 | SW-15 | L1 | 复现官方示例「两种大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | SW-16 | L1 | 复现官方示例「加载中」（`loading.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SW-17 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SW-18 | L1 | 复现官方示例「_semantic.tsx」（`_semantic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| SW-17 | P1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | semantic 深度分期 |
+| SW-18 | P1 | 复现官方示例「_semantic.tsx」 | semantic 深度分期 |
 | SW-19 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| SW-20 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
+| SW-20 | L2 | 默认皮颜色 | 开态 = `colorPrimary`；关态中性填充（非品牌硬编码） |
 | SW-21 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| SW-22 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| SW-22 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；Space/Enter 激活 |
 | SW-23 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | SW-24 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | SW-25 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -459,23 +460,38 @@ mount ──► unchecked | checked（受控/非受控）
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewSwitch(...) *Switch
+NewSwitch() *Switch
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 值
+SetChecked(bool) / Checked          // 当前值（受控时父级写入）
+SetValue(bool)                      // checked 别名；标记受控
+SetDefaultChecked(bool)             // 非受控初值（defaultChecked）
+SetDefaultValue(bool)               // defaultChecked 别名
+SetControlled(bool)                 // true：点击只抛 OnChange/OnClick，不翻转本地 Checked
+// 配置
+SetSize(SwitchSize)                 // medium | small
+SetDisabled(bool) / SetLoading(bool)
+SetCheckedChildren(string) / SetUnCheckedChildren(string)
+// 回调
+SetOnChange(func(bool)) / SetOnClick(func(bool))
+// 主题 / 样式
+Theme *Theme；SetStyle(Style)；SetBackground(关态) / SetActiveColor(开态)
+// a11y
+SetAriaLabel(string)；role=switch；Focusable；Space/Enter
+// 挂树 / 动画
+Node() core.Node；ChromeNode() / IndicatorNode()
+AttachTicker(*Tree)；Tick(dt)        // thumb 滑动 + loading spinner
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Checked | false |
+| Controlled | false（非受控，点击翻转） |
+| Disabled / Loading | false |
+| Size | medium（轨 ≈44×22） |
+| CheckedChildren / UnCheckedChildren | 空 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

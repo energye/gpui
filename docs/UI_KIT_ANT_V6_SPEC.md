@@ -1,4 +1,4 @@
-# UI Kit · Ant Design v5 对齐规格
+# UI Kit · Ant Design V6 对齐规格
 
 > 版本：1.0 | 日期：2026-07-23  
 > 状态：**活文档 · kit 产品对齐目标与验收大纲**  
@@ -13,7 +13,7 @@
 
 | 文档 | 管什么 |
 |------|--------|
-| **本文 SPEC** | 对齐 Ant Design **v5 的什么**（能力、状态、验收类别、分期） |
+| **本文 SPEC** | 对齐 Ant Design **V6 的什么**（能力、状态、验收类别、分期） |
 | [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md) | **怎么实现**（primitive 组合、**§0.1 Default+Set 强制**、禁止每帧 Sync、Theme hook、Present） |
 | [`coverage.go`](../ui/kit/coverage.go) | **做到哪了**（Ready + Notes；改表只改源码） |
 
@@ -25,7 +25,7 @@
 
 | 项 | 约定 |
 |----|------|
-| 基线版本 | **Ant Design v5**（桌面主路径） |
+| 基线版本 | **Ant Design V6**（桌面主路径） |
 | 适用范围 | 当前 `ui/kit` 已有控件与后续同类扩展 |
 | **不含** | Pro Components、纯 Web 专属能力、系统原生菜单/托盘（另轨） |
 | 底层约束 | 只用 `ui/core` + `ui/primitive` + `ui/layer` + `ui/app`；**禁止** kit 自建第二套渲染/事件/帧循环 |
@@ -36,7 +36,7 @@
 
 | 级别 | 名称 | 标准 | 验收 |
 |------|------|------|------|
-| **L1** | 行为 | 与 Ant v5 桌面主路径一致：开合、选中、键盘、禁用、校验、浮层规则等 | Headless / behavior 测 |
+| **L1** | 行为 | 与 Ant V6 桌面主路径一致：开合、选中、键盘、禁用、校验、浮层规则等 | Headless / behavior 测 |
 | **L2** | Token / 几何 | 色、字号、圆角、间距、控件高度与 **Token 基线**一致 | `ant_style_test` + 控件读 Token |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与 **仓库基线**一致（容差抗 AA） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时签字，**非 CI 哈希官网** |
@@ -333,7 +333,7 @@ go run ./examples/ui_polish_gallery
 - `ui/layer/compositor.go`  
 - `ui/app/app.go` · `present.go`  
 
-### 8.2 Ant Design v5
+### 8.2 Ant Design V6
 
 - 组件总览：https://ant.design/components/overview/  
 - 主题定制：https://ant.design/docs/react/customize-theme-cn/  

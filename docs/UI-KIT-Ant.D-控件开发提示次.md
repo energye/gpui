@@ -10,7 +10,7 @@
   新做 / 推翻重写再加：
   样板：docs/antd/button.md §6 + ui/kit/button.go + button_prd_test.go
   工程：docs/UI_KIT_DEV_GUIDE.md
-  对齐：docs/UI_KIT_ANT_V5_SPEC.md（L1–L4）
+  对齐：docs/UI_KIT_ANT_V6_SPEC.md（L1–L4）
   antd 只读：/home/yanghy/app/projects/ant-design/components/<slug>/
 
   ---
@@ -23,7 +23,7 @@
   - 全库：docs/antd/README.md（ui_polish_gallery / 完成定义）
   - 样板：docs/antd/button.md §6 + ui/kit/button.go + button_prd_test.go
   - 工程：docs/UI_KIT_DEV_GUIDE.md
-  - 对齐：docs/UI_KIT_ANT_V5_SPEC.md
+  - 对齐：docs/UI_KIT_ANT_V6_SPEC.md
   - antd 只读：/home/yanghy/app/projects/ant-design/components/<slug>/
 
   【硬性要求】
@@ -87,7 +87,7 @@
   - 全库：docs/antd/README.md
   - 样板：docs/antd/button.md §6 + button.go + button_prd_test.go
   - 工程：docs/UI_KIT_DEV_GUIDE.md
-  - 对齐：docs/UI_KIT_ANT_V5_SPEC.md
+  - 对齐：docs/UI_KIT_ANT_V6_SPEC.md
   - antd 只读：/home/yanghy/app/projects/ant-design/components/<slug>/
 
   【实现】

@@ -3,7 +3,7 @@
 > 版本：1.2 | 日期：2026-07-23  
 > 状态：**活文档** · 与源码冲突时以源码 + `go test` 为准  
 > 底层交付总账：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) v2.1+  
-> **Ant 对齐目标/验收：** [`UI_KIT_ANT_V5_SPEC.md`](./UI_KIT_ANT_V5_SPEC.md)（L1 行为 · L2 Token · L3 本库 golden · L4 人眼）  
+> **Ant 对齐目标/验收：** [`UI_KIT_ANT_V6_SPEC.md`](./UI_KIT_ANT_V6_SPEC.md)（L1 行为 · L2 Token · L3 本库 golden · L4 人眼）  
 > 架构总图：[`UI_FRAMEWORK_MAP.md`](./UI_FRAMEWORK_MAP.md) · 布局：[`LAYOUT_FOUNDATION.md`](./LAYOUT_FOUNDATION.md)  
 > 覆盖率表：[`ui/kit/coverage.go`](../ui/kit/coverage.go) · [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)
 

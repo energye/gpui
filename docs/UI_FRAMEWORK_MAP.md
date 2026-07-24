@@ -7,7 +7,7 @@
 > 主线：[`MAINLINE_PLAN.md`](./MAINLINE_PLAN.md)（控件 = **P2 另开轨道**）  
 > 覆盖率权威表：[`ui/kit/coverage.go`](../ui/kit/coverage.go) · 摘要 [`UI_KIT_COVERAGE.md`](./UI_KIT_COVERAGE.md)  
 > App 壳：[`UI_APP_SHELL_PLAN.md`](./UI_APP_SHELL_PLAN.md)（按需帧已落地；**OwnedPresenter** 默认双带；多窗 API 仍后置）  
-> 底层交付：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) · **Kit 开发：** [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md) · **Ant 对齐：** [`UI_KIT_ANT_V5_SPEC.md`](./UI_KIT_ANT_V5_SPEC.md)
+> 底层交付：[`UI_FOUNDATION_P0.md`](./UI_FOUNDATION_P0.md) · **Kit 开发：** [`UI_KIT_DEV_GUIDE.md`](./UI_KIT_DEV_GUIDE.md) · **Ant 对齐：** [`UI_KIT_ANT_V6_SPEC.md`](./UI_KIT_ANT_V6_SPEC.md)
 
 ---
 
