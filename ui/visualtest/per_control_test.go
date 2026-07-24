@@ -98,7 +98,7 @@ func perControlSpecs() []ctlSpec {
 		{"ctl_segmented", 200, 48, func() core.Node { return padRoot(kit.NewSegmented("A", "B").Node(), 200, 48) }},
 		{"ctl_slider", 220, 40, func() core.Node { return padRoot(kit.NewSlider(50).Node(), 220, 40) }},
 		{"ctl_steps", 320, 48, func() core.Node {
-			s := kit.NewSteps("A", "B", "C")
+			s := kit.NewSteps(kit.StepTitles("A", "B", "C")...)
 			s.SetCurrent(1)
 			return padRoot(s.Node(), 320, 48)
 		}},

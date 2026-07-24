@@ -44,7 +44,7 @@ func TestVisual_SpaceAvatarBadge(t *testing.T) {
 }
 
 func TestVisual_StepsBreadcrumb(t *testing.T) {
-	st := kit.NewSteps("A", "B", "C")
+	st := kit.NewSteps(kit.StepTitles("A", "B", "C")...)
 	st.SetCurrent(1)
 	bc := kit.NewBreadcrumb("Home", "List")
 	col := primitive.Column(st.Node(), bc.Node())

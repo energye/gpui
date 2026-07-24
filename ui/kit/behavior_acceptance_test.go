@@ -452,7 +452,7 @@ func TestBehavior_AnchorActive(t *testing.T) {
 }
 
 func TestBehavior_StepsCurrent(t *testing.T) {
-	s := kit.NewSteps("1", "2", "3")
+	s := kit.NewSteps(kit.StepTitles("1", "2", "3")...)
 	s.SetCurrent(2)
 	if s.Current != 2 {
 		t.Fatal(s.Current)

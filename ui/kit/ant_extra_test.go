@@ -75,7 +75,7 @@ func TestInputNumberRateSegmented(t *testing.T) {
 }
 
 func TestStepsBreadcrumbBadgeAvatar(t *testing.T) {
-	st := kit.NewSteps("A", "B", "C")
+	st := kit.NewSteps(kit.StepTitles("A", "B", "C")...)
 	st.SetCurrent(1)
 	_ = st.Node().Layout(core.Loose(500, 40))
 	bc := kit.NewBreadcrumb("Home", "List", "Detail")

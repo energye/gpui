@@ -446,28 +446,40 @@ import { Steps } from 'antd';
 
 数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
 
-#### 6.2.1 几何与组件 Token
+> Steps 组件 Token 源：`components/steps/style/index.ts` `prepareComponentToken`：`iconSize=controlHeight`、`iconSizeSM=fontSizeHeading3`（默认算法下 ≈ **24**）、`customIconSize=controlHeight`、`dotSize=controlHeight/4`。
+
+#### 6.2.1 几何与组件 Token（Steps 专用）
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
+| 图标容器 middle（`size=medium`） | **32** | Steps `iconSize` ← `controlHeight` |
+| 图标容器 small | **24** | Steps `iconSizeSM`（≈ `controlHeightSM` / heading3） |
+| 自定义图标容器 | 同 size 档 | `customIconSize` |
+| 标题字号 | **16** | `fontSizeLG`（title） |
+| 正文字号 / content | **14** | `fontSize` |
+| 子标题字号 | **14** | `fontSize`；色 `colorTextSecondary` |
+| 图标内数字字号 middle | **14** | `fontSize` |
+| 图标内数字字号 small | **12** | `fontSizeSM` |
 | 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 边框线宽 / rail | **1** | `lineWidth` |
+| 步骤间距 gap（水平 rail 区） | **8+** | 实现可读；rail 可 flex 填充 |
+| Focus ring outset | ≈ **1.5px** 可见 | 可点步可聚焦时必须可见 |
+| percent 进度环 stroke | ≈ **2–3** | process 步图标外环 |
+
+> 注：antd Steps **无 large size**（仅 `medium` / `small`）。通用表里的 large 不适用于本控件。
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| process / finish 主色 | `colorPrimary` + hover/active | 当前步、已完成轨/图标 |
+| finish 浅底 | `colorPrimaryBg` | filled 完成图标底 |
+| wait 图标底 / 字 | `colorFillSecondary` / `colorTextSecondary` | 未达步 |
+| error | `colorError` | status=error 当前或单步 |
+| 文本 / 次级 / 描述 | `colorText` / `colorTextSecondary` | title / subtitle / content |
+| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | outlined / panel / rail |
+| 禁用 | `colorDisabledBg` / `colorDisabledText` | disabled 步；无 hover 高亮 |
+| 反白字 | `colorTextInverse` | process solid 数字/勾 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -499,22 +511,27 @@ import { Steps } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-current=i
-  items[0..i-1] finish；i process；>i wait（可被 status 覆盖）
-  onChange 可点 ──► current'
-  status=error ──► 当前错误皮
+current=i（0-based；与 antd 一致；Initial 偏移后 mapped = current-initial）
+  未显式 item.status 时：
+    index < mapped  → finish
+    index == mapped → Steps.status（默认 process）
+    index > mapped  → wait
+  item.status 显式覆盖单步
+  OnChange 非 nil 且步未 disabled ──► 可点；点击触发 OnChange(originIndex)
+  Steps.status=error ──► 当前 mapped 步错误皮（可被 item.status 覆盖）
+  maxCount>=3 且 items 更长 ──► 折叠为可见集 + 禁用省略步；OnChange 仍用原始下标
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| STP-S1 | current=1（0-based 实现需锁定） | 对应步为 process |
-| STP-S2 | 点可点步 | onChange |
-| STP-S3 | status=error | 错误样式 |
-| STP-S4 | vertical | 纵向 |
-| STP-S5 | size=small | 更小 |
-| STP-S6 | disabled 步 | 不可点 |
-| STP-S7 | 自定义 icon | 可见 |
-| STP-S8 | description | 可见 |
+| STP-S1 | current=1（**0-based**） | 第 2 步为 process（或 Steps.status） |
+| STP-S2 | 点可点步（OnChange 已设） | 触发 OnChange(index)；未受控时 Current 更新 |
+| STP-S3 | status=error | 当前步错误样式（色=error） |
+| STP-S4 | orientation=vertical | 根轴纵向 |
+| STP-S5 | size=small | 图标容器 ≈24（小于 middle 32） |
+| STP-S6 | item.disabled | 不可点；不触发 OnChange |
+| STP-S7 | 自定义 icon | 图标节点可见 |
+| STP-S8 | content（description 别名） | 详情文案可见 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -554,32 +571,33 @@ current=i
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `type` | 必须 |
-| `variant` | 必须 |
-| `status` | 必须 |
-| `items` | 必须 |
-| `title` | 必须 |
-| `content` | 必须 |
-| `orientation` | 必须 |
-| `icon` | 必须 |
-| `percent` | 必须 |
-| 官方主路径示例 | 基本用法、步骤运行错误、竖直方向的步骤条、可点击、面板式步骤、带图标的步骤条、标签放置位置与进度、限量展示 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| `items` / `title` / `content` / `subTitle` / `icon` / `disabled` / 单步 `status` | StepItem 主字段；`description` 作 content 别名 |
+| `current` / `initial` / `status` | 当前步（0-based）与整体当前态（默认 process） |
+| `onChange` | 可点击切换；未设则不可点（展示型） |
+| `orientation` | horizontal（默认）/ vertical（`direction` 废弃别名可读） |
+| `size` | medium（默认）/ small（无 large） |
+| `type` | **P0 子集** `default` / `panel`（`dot`/`inline`/`navigation` → P1） |
+| `variant` | filled（默认）/ outlined |
+| `titlePlacement` | horizontal（默认）/ vertical（标签在图标下） |
+| `percent` | 当前 process 步进度环（0–100；仅 default type） |
+| `maxCount` | ≥3 时折叠；省略步 disabled；OnChange 原始下标 |
+| 官方主路径示例 | simple / error / vertical / clickable / panel / icon / title-placement / max-count |
+| 度量 §6.2 | Token 断言（icon 32/24 等） |
+| a11y §6.6 | role=navigation；可点步可聚焦 + focus ring；当前 aria 语义 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `type=dot` / `navigation` / `inline` | 点状 / 导航 / 内联 |
+| `responsive` 断点自动 vertical | 桌面宿主映射 |
+| `iconRender` 深度 / progressDot function | 自定义渲染钩子 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 / rail 过渡 | 分期；P0 瞬时 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 点状步骤条, 导航步骤, 内联步骤, 内联样式组合 |
+| 其余示例 | progress-dot / nav / inline / inline-variant / style-class |
 
 ### 6.9 验收用例表（可测）
 
@@ -588,63 +606,101 @@ current=i
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| STP-01 | L1 | NewSteps 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| STP-02 | L1 | current=1（0-based 实现需锁定） | 对应步为 process |
-| STP-03 | L1 | 点可点步 | onChange |
-| STP-04 | L1 | status=error | 错误样式 |
-| STP-05 | L1 | vertical | 纵向 |
-| STP-06 | L1 | size=small | 更小 |
-| STP-07 | L1 | disabled 步 | 不可点 |
-| STP-08 | L1 | 自定义 icon | 可见 |
-| STP-09 | L1 | description | 可见 |
-| STP-10 | L1 | 复现官方示例「基本用法」（`simple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STP-11 | L1 | 复现官方示例「步骤运行错误」（`error.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STP-12 | L1 | 复现官方示例「竖直方向的步骤条」（`vertical.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STP-13 | L1 | 复现官方示例「可点击」（`clickable.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STP-14 | L1 | 复现官方示例「面板式步骤」（`panel.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STP-15 | L1 | 复现官方示例「带图标的步骤条」（`icon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STP-16 | L1 | 复现官方示例「标签放置位置与进度」（`title-placement.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STP-17 | L1 | 复现官方示例「限量展示」（`max-count.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STP-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| STP-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| STP-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| STP-21 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| STP-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| STP-23 | L4 | 与 ant.design 并排 | 人眼签字记录 |
-| STP-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+| STP-01 | L1 | NewSteps 默认创建 | 不崩溃；Current=0、Size=middle、Orientation=horizontal、Type=default、Variant=filled、Status=process |
+| STP-02 | L1 | current=1（0-based） | ItemStatus(1)=process；0=finish；2=wait |
+| STP-03 | L1 | 点可点步 | OnChange(index)；Current 更新（非受控） |
+| STP-04 | L1 | status=error | 当前步 ItemStatus=error；图标/字用 error 色 |
+| STP-05 | L1 | orientation=vertical | 根 Flex 纵向 |
+| STP-06 | L1 | size=small | 图标容器高 ≈24（小于 middle 32） |
+| STP-07 | L1 | disabled 步 | 点击不触发 OnChange |
+| STP-08 | L1 | 自定义 icon | Icon 节点存在 / 非空 |
+| STP-09 | L1 | content（description 别名） | 详情文案进入树 |
+| STP-10 | L1 | 官方 simple | current=1 + items 三步 + variant/size 矩阵可建 |
+| STP-11 | L1 | 官方 error | current=1 status=error |
+| STP-12 | L1 | 官方 vertical | orientation=vertical |
+| STP-13 | L1 | 官方 clickable | OnChange 水平/垂直可点 |
+| STP-14 | L1 | 官方 panel | type=panel 可建；单步 status=error 可见 |
+| STP-15 | L1 | 官方 icon | 自定义 icon + 单步 status |
+| STP-16 | L1 | 官方 title-placement | titlePlacement=vertical + percent |
+| STP-17 | L1 | 官方 max-count | maxCount=5 时展示折叠 + 省略步 |
+| STP-18 | L2 | §6.2 关键尺寸 | icon middle=32 / small=24（±0.5） |
+| STP-19 | L2 | 默认皮颜色 | process 用 Theme colorPrimary，非硬编码 |
+| STP-20 | L2 | disabled 外观 | 禁用色 Token；Disabled 态 |
+| STP-21 | L1 | 键盘/焦点 | 可点步 Focusable；Enter/Space 触发 OnChange |
+| STP-22 | L3 | 关键态 golden | 与仓库基线一致（AA 容差）— 非本阶段强制 PRD 单测 |
+| STP-23 | L4 | 与 ant.design 并排 | 人眼签字 — 非 CI |
+| STP-24 | P1 | §6.8 P1 任一能力 | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。
 
 ```text
-NewSteps(...) *Steps
+NewSteps(items ...StepItem) *Steps
+// 便利：也可用 NewSteps() 后 SetItems
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type StepItem struct {
+  Title, Content, Description, SubTitle string // Description → Content 别名
+  Disabled bool
+  Icon     string      // 注册表名；"loading" → spinner（Ticker）
+  IconNode core.Node   // 优先于 Icon 字符串
+  Status   StepsStatus // 空 = 自动
+}
+
+// 形态
+SetItems([]StepItem)
+SetCurrent(int)                 // 受控 current（0-based）
+SetDefaultCurrent(int)          // 非受控初值
+SetInitial(int)                 // 起始序号偏移，默认 0
+SetStatus(StepsStatus)          // 当前步整体态 wait|process|finish|error
+SetSize(StepsSize)              // middle|small
+SetType(StepsType)              // default|panel（+ P1 枚举预留）
+SetVariant(StepsVariant)        // filled|outlined
+SetOrientation(StepsOrientation)// horizontal|vertical
+SetTitlePlacement(StepsTitlePlacement) // horizontal|vertical
+SetPercent(float64)             // 0..100；<0 表示未设
+SetMaxCount(int)                // 0=关闭；>=3 生效
+SetOnChange(func(current int))
+
+// 主题 / a11y / 挂树
+SetFace / SetTheme / SetAriaLabel
+Node() / ChromeNode()
+// 测试钩子
+ItemStatus(i int) StepsStatus
+ItemPressable(i int) *Pressable  // 原始下标；折叠省略返回 nil
+IconSize() float64
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Current | 0 |
+| Initial | 0 |
+| Status | process |
+| Size | middle（medium） |
+| Type | default |
+| Variant | filled |
+| Orientation | horizontal |
+| TitlePlacement | horizontal |
+| Percent | 未设（无环） |
+| MaxCount | 0（关闭） |
+| OnChange | nil（不可点） |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Nav root
-  └─ items / panels / connectors
+Flex root (role=navigation)  — 稳定 Root，rebuild ClearChildren
+  └─ [item Pressable|Box] × N
+       └─ wrapper (row|column by titlePlacement / orientation)
+            icon Decorated(圆)  ·  title/subTitle/content
+       + rail Box（panel 隐藏；finish 主色）
+  maxCount：display 列表可含 disabled 省略步；点击回调原始 originIndex
+  percent：process 图标 Canvas 环；loading icon：Ticker 旋转
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
 - 动画跟随 Host Tick；尊重 reduced-motion。  
 
@@ -653,10 +709,10 @@ Nav root
 同时满足即可宣布 **Steps 主路径 1:1 完成**：
 
 1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+2. §6.9 中 **P0 / L1 / L2** 用例（STP-01–STP-21）测试通过。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+4. L3 golden 至少覆盖 1 个关键可见态（若控件可见；可与 visualtest 共用）。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。  
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/steps.md` §6；P1 显式列出。  
 
 ---

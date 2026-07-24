@@ -364,23 +364,26 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Steps": {
 			{"R1 items", func(t *testing.T) {
-				if kit.NewSteps("a", "b").Node() == nil {
+				if kit.NewSteps(kit.StepTitles("a", "b")...).Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 current", func(t *testing.T) {
-				s := kit.NewSteps("a", "b", "c")
+				s := kit.NewSteps(kit.StepTitles("a", "b", "c")...)
 				s.SetCurrent(2)
 				if s.Current != 2 {
 					t.Fatal()
 				}
 			}},
-			{"R3 status/direction", func(t *testing.T) {
-				s := kit.NewSteps("a", "b")
-				s.SetStatus(0, "error")
-				s.Direction = "vertical"
-				if s.Statuses[0] != "error" {
-					t.Fatal()
+			{"R3 status/orientation", func(t *testing.T) {
+				s := kit.NewSteps(kit.StepTitles("a", "b")...)
+				s.SetItems([]kit.StepItem{{Title: "a", Status: kit.StepsError}, {Title: "b"}})
+				s.SetOrientation(kit.StepsVertical)
+				if s.ItemStatus(0) != kit.StepsError {
+					t.Fatal(s.ItemStatus(0))
+				}
+				if s.Orientation != kit.StepsVertical {
+					t.Fatal(s.Orientation)
 				}
 			}},
 		},

@@ -210,7 +210,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Steps", func(t *testing.T) {
-			s := kit.NewSteps("a", "b", "c")
+			s := kit.NewSteps(kit.StepTitles("a", "b", "c")...)
 			s.SetCurrent(2)
 			if s.Current != 2 {
 				t.Fatal(s.Current)
