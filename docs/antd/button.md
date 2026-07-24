@@ -712,7 +712,7 @@ Pressable（命中、hover/press/focus、键盘）
 2. §6.9 中 **P0 相关用例（BTN-01–BTN-24）** 测试通过。  
 3. L2 度量与 Token 断言通过（高度档位等）。  
 4. L3 golden 至少覆盖 primary middle 与 default middle 之一。  
-5. gallery 展示：type 语法糖、尺寸、颜色变体、图标、loading、disabled、ghost、danger、block。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
 6. `coverage.go` Notes 更新为：P0 已对齐 docs/antd/button.md §6；P1 项显式列出。
 
 ---

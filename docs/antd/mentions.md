@@ -578,7 +578,7 @@ Field / Selector
 2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
 4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. gallery 展示主路径（对照官方非 debug 示例与 P0）。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/mentions.md` §6；P1 显式列出。  
 
 ---
