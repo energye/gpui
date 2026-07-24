@@ -240,16 +240,19 @@ import { Flex } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+> antd 源：`flexGapSM/MD/LG = paddingXS/padding/paddingLG`，默认算法 `paddingXS=sizeXS=8`、`padding=16`、`paddingLG=24`。  
+> kit Theme 里 `TokenPaddingXS` 现为 **4**（偏 xxs），**Flex 不得直用该值当 small gap**；small 走 `DefaultFlexGapSmall=8`（或等价 Size 回落）。
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| Flex gap small | **8** | paddingXS |
-| Flex gap medium | **16** | padding |
-| Flex gap large | **24** | paddingLG |
-| gap s/m/l | **8 / 16 / 24** | paddingXS/padding/paddingLG |
+| Flex gap small | **8** | antd `paddingXS`(=sizeXS)；kit `DefaultFlexGapSmall` |
+| Flex gap medium / middle | **16** | `padding` / `TokenPadding` |
+| Flex gap large | **24** | `paddingLG` / `TokenPaddingLG` |
+| gap s/m/l | **8 / 16 / 24** | 同上 |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| Focus ring outset | ≈ **1.5px** 可见 | 布局容器无焦点皮；可交互子控件自理 |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -271,13 +274,13 @@ import { Flex } from 'antd';
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
 | `vertical` | flex 主轴的方向是否垂直，使用 `flex-direction: column` | boolean | false |
-| `wrap` | 设置元素单行显示还是多行显示 | [flex-wrap](https://developer.mozilla… | boolean |
-| `justify` | 设置元素在主轴方向上的对齐方式 | [justify-content](https://developer.m… | normal |
-| `align` | 设置元素在交叉轴方向上的对齐方式 | [align-items](https://developer.mozil… | normal |
-| `flex` | flex CSS 简写属性 | [flex](https://developer.mozilla.org/… | normal |
-| `gap` | 设置网格之间的间隙 | `small` \ | `medium` \ |
-| `component` | 自定义元素类型 | React.ComponentType | `div` |
-| `orientation` | 主轴的方向类型 | `horizontal` \ | `vertical` |
+| `wrap` | 设置元素单行显示还是多行显示 | `bool` / flex-wrap | false（nowrap） |
+| `justify` | 设置元素在主轴方向上的对齐方式 | justify-content 枚举 | normal → start |
+| `align` | 设置元素在交叉轴方向上的对齐方式 | align-items 枚举 | normal（水平 start / 垂直 stretch） |
+| `flex` | 容器自身作 flex item 的 CSS 简写（P1） | string / number | normal |
+| `gap` | 子项间隙 | `small` \| `medium`/`middle` \| `large` \| number(px) | 未设 = 0 |
+| `component` | 自定义元素类型（浏览器-only，P1） | React.ComponentType | `div` |
+| `orientation` | 主轴方向；与 `vertical` 二选一，**orientation 优先** | `horizontal` \| `vertical` | `horizontal` |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
@@ -337,19 +340,26 @@ direction/gap/justify/align/wrap 布局 children
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `orientation` | 必须 |
+| `orientation` / `vertical` | 主轴方向；`orientation` 优先于 `vertical` 糖 |
+| `gap` | `small`\|`medium`/`middle`\|`large`\|数字 px；s/m/l = 8/16/24 |
+| `justify` | start / center / end / space-between / space-around / space-evenly |
+| `align` | start / center / end / stretch；未设时水平 start、垂直 stretch（antd） |
+| `wrap` | bool；窄主轴多行 |
 | 官方主路径示例 | 基本布局、对齐方式、设置间隙、自动换行、组合使用 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 度量 §6.2 | gap / 字号 / 圆角 Token 断言 |
+| a11y §6.6 | 布局容器最低：可选 `AriaLabel`；无装饰分隔/把手 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `flex` CSS 简写（容器作 flex item） | 分期；item 侧用 `primitive.Flexible` |
+| `component` 自定义元素类型 | 浏览器-only |
+| `wrap-reverse` 等非 bool wrap | 分期 |
 | semantic classNames/styles 深度 | 分期 |
+| ConfigProvider 全局 `flex` 默认 | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）
@@ -382,27 +392,37 @@ direction/gap/justify/align/wrap 布局 children
 | FLX-21 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（删除 `NewFlexRow` / `NewFlexColumn` 薄封装亦可，以 `NewFlex` + `SetOrientation`/`SetVertical` 为准）。  
+> 实现可微调命名但 **P0 语义不可丢**。
 
 ```text
-NewFlex(...) *Flex
+NewFlex(children ...core.Node) *Flex
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+SetOrientation(FlexOrientation)     // horizontal | vertical；优先于 Vertical
+SetVertical(bool)                   // antd vertical 糖
+SetWrap(bool)
+SetJustify(FlexJustify)             // start|center|end|space-between|around|evenly
+SetAlign(FlexAlign)                 // auto|start|center|end|stretch
+SetGapSize(FlexGapSize)             // unset|small|medium|large  → 0/8/16/24
+SetGap(px float64)                  // 数字间隙；显式覆盖 preset
+Add / SetChildren / ClearChildren
+SetTheme(*Theme)
+SetAriaLabel(string)                // 可选命名
+Node() core.Node
+// 解析：EffectiveOrientation / ResolvedGap / IsVertical
+// 布局容器：无 Disabled/Loading/OnClick（不适用）
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Orientation | horizontal（`vertical=false`） |
+| Wrap | false |
+| Justify | start（antd `normal`） |
+| Align | auto → 水平 CrossStart / 垂直 CrossStretch |
+| Gap | unset = 0；small/medium/large = 8/16/24 |
+| 其余 | 对齐 antd 6.5 §3 表；`flex`/`component` 见 P1 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
