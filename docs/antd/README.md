@@ -144,12 +144,11 @@
 
 ## 再生生成
 
-源文档缓存与生成脚本：
+- **antd 源码（权威）**：`/home/yanghy/app/projects/ant-design/components/*`
+- §1–§5 历史脚本：[`_generate_deep_docs.py`](./_generate_deep_docs.py)（可作骨架，需校对）
+- **§6**：**逐个手写**（Button 模板）；`_deepen_sec6.py` 仅历史批量草稿，**不得**再覆盖已手写章节
 
-- 源：`/tmp/antd-docs-src/*.md`（官方 zh-CN）
-- 脚本：[`_generate_deep_docs.py`](./_generate_deep_docs.py)（历史脚本；当前以会话内增强生成器为准）
-
-更新 antd 版本后，可重新拉取官方 `index.zh-CN.md` 再生成。
+手写下一控件流程：读 `index.zh-CN.md` + `style/*.ts` + 组件 TS → 按 button.md §6 结构写满 6.1–6.12 → 只替换该文件 `## 6.` 起至文末。
 
 ## 使用建议（开发 kit）
 
@@ -157,9 +156,28 @@
 2. 以 **§1.2 示例表 + §2.2 功能清单** 建可视化/交互用例。  
 3. 以 **§3 API + 配置项速查** 定公共 props / 枚举。  
 4. 以 **§4 kit 实现要点** 做 PR 验收勾选。  
+5. **1:1 产品级验收**：若该文档含 **§6 增量规格**，以 §6 为 DoD（见 Button 样板）。
+
+## 1:1 产品规格（§6）
+
+**写法约定：** 全部控件 §6 对齐 [Button §6](./button.md) 模板细度（6.1–6.12：度量 Token、状态机规则 ID、chrome、a11y、平台边界、P0/P1、可测用例、Go API、结构、DoD）。  
+**依据源码：** `/home/yanghy/app/projects/ant-design/components/<name>/`。  
+**再生（跳过 button 样板）：**
+
+```bash
+python3 docs/antd/_write_button_depth_sec6.py --force
+python3 docs/antd/_write_button_depth_sec6.py input modal  # 子集
+```
+
+| 状态 | 说明 |
+| --- | --- |
+| **样板** | [button.md §6](./button.md)（手写最细，不自动覆盖） |
+| **全库** | **71 控件** §6 已按 Button 结构从本地 antd 源码重写（约 200–260 行/控件；无「见上文」filler） |
+| **实现时** | 以该控件 §6 为 DoD；复杂控件可再对照 style/*.ts 补业务专用数字 |
 
 ## 说明
 
 - **List** 官方倾向废弃，仍保留完整规格便于兼容。  
 - **Icon** 依赖 `@ant-design/icons@6.x`。  
 - Table / Form / DatePicker 等 API 极长，文档含官方全文表 + 解析速查。  
+- §1–§3 = antd 能力全集；**§6 = gpui 可交付的 1:1 产品需求**（含裁剪与平台边界）。  
