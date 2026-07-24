@@ -1594,16 +1594,14 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		}
 	}
 
-	// EvenOdd correctly handles both stroke topologies:
-	//   - Smooth paths (round-rects, circles): 2-contour ring (outer CW + inner CCW).
-	//     Each pixel in the hollow center is toggled twice → stencil=0 → empty.
-	//   - Sharp paths (rectangles): inner-pivot V-shapes create self-intersections.
-	//     V-shape area is toggled twice → stencil=0 → correctly hollow.
-	// The stencil EvenOdd pipeline uses IncrementWrap+WriteMask=0x01 (parity toggle)
-	// instead of StencilOperationInvert, which has a driver bug on AMD D3D12 (#374).
-	// NonZero would miscount V-shape area as winding=2 → solid fill (wrong for sharp paths).
+	// NonZero matches Skia stroke outlines:
+	//   - Closed rings (round-rects, rects): reverse inner contour → hollow center.
+	//   - Sharp open joins (check marks, polylines): solid ink at elbows.
+	// EvenOdd punched holes at inner-pivot V-joins of open strokes (icon checks).
+	// Note: #374 AMD Invert bug is avoided by IncrementWrap stencil; fill rule is
+	// independent — NonZero uses Increment/Decrement wrap for winding.
 	strokePaint := *paint
-	strokePaint.FillRule = render.FillRuleEvenOdd
+	strokePaint.FillRule = render.FillRuleNonZero
 	return rc.FillPath(target, fillPath, &strokePaint)
 }
 

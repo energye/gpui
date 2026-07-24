@@ -2307,9 +2307,10 @@ func (c *Context) doFill() error {
 // ~20fps.
 //
 // Fallback (T.03): expand stroke in pure user space, transform the outline by
-// the CTM, then fill (EvenOdd). Matches Skia/Cairo under non-uniform scale
-// (anisotropic thickness) and keeps HiDPI via deviceSpacePath in doFill.
-// Pixmap consumers still see correct pixels because Image()/SavePNG() FlushGPU.
+// the CTM, then fill (NonZero). NonZero matches Skia stroke outlines and keeps
+// sharp open joins solid (EvenOdd punched holes at inner-pivot V-joins).
+// Closed stroke rings stay hollow via reverse inner contour winding.
+// HiDPI via deviceSpacePath in doFill; Image()/SavePNG() FlushGPU.
 func (c *Context) doStroke() error {
 	c.syncPublishedFilterBeforeDraw()
 	mode := c.rasterizerMode
@@ -2380,7 +2381,7 @@ func (c *Context) doStroke() error {
 	origRule := c.paint.FillRule
 	origScale := c.paint.TransformScale
 	c.path = outline
-	c.paint.FillRule = FillRuleEvenOdd
+	c.paint.FillRule = FillRuleNonZero
 	// Outline already includes user CTM; device scale applied in doFill.
 	c.paint.TransformScale = 1
 	err := c.doFill()

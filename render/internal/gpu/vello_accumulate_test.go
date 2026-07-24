@@ -154,16 +154,12 @@ func TestVelloAccelerator_StrokePathAccumulates(t *testing.T) {
 	}
 }
 
-// TestVelloAccelerator_StrokeAlwaysUsesEvenOdd verifies that all stroke expansions
-// use EvenOdd fill rule regardless of path topology (smooth or sharp corners).
-// EvenOdd via IncrementWrap+WriteMask=0x01 correctly handles both topologies:
-//   - Smooth (round-rects, circles): 2-contour ring — center toggled twice → empty.
-//   - Sharp (rectangles): inner-pivot V-shapes — intersection toggled twice → empty.
-//
-// Using EvenOdd unconditionally also avoids any potential AMD D3D12 stencil issues
-// that may affect the NonZero IncrementWrap/DecrementWrap pipeline on ring paths (#374).
-// ADR-043, #369, #374.
-func TestVelloAccelerator_StrokeAlwaysUsesEvenOdd(t *testing.T) {
+// TestVelloAccelerator_StrokeAlwaysUsesNonZero verifies that all stroke expansions
+// use NonZero fill rule regardless of path topology (smooth or sharp corners).
+// NonZero matches Skia stroke outlines:
+//   - Closed rings: reverse inner contour → hollow center.
+//   - Open sharp joins: solid ink (EvenOdd used to punch holes at check elbows).
+func TestVelloAccelerator_StrokeAlwaysUsesNonZero(t *testing.T) {
 	tests := []struct {
 		name string
 		path func() *render.Path
@@ -196,16 +192,16 @@ func TestVelloAccelerator_StrokeAlwaysUsesEvenOdd(t *testing.T) {
 			if a.PendingCount() != 1 {
 				t.Fatalf("expected 1 pending, got %d", a.PendingCount())
 			}
-			if got := a.pendingPaths[0].FillRule; got != tilecompute.FillRuleEvenOdd {
-				t.Errorf("%s: fill rule = %v, want EvenOdd", tc.name, got)
+			if got := a.pendingPaths[0].FillRule; got != tilecompute.FillRuleNonZero {
+				t.Errorf("%s: fill rule = %v, want NonZero", tc.name, got)
 			}
 		})
 	}
 }
 
-// TestVelloAccelerator_StrokeShapeUsesEvenOdd verifies that StrokeShape (which
-// delegates to StrokePath) also produces EvenOdd fill rule. ADR-043, #369, #374.
-func TestVelloAccelerator_StrokeShapeUsesEvenOdd(t *testing.T) {
+// TestVelloAccelerator_StrokeShapeUsesNonZero verifies that StrokeShape (which
+// delegates to StrokePath) also produces NonZero fill rule. ADR-043, #369, #374.
+func TestVelloAccelerator_StrokeShapeUsesNonZero(t *testing.T) {
 	a := &VelloAccelerator{gpuReady: true}
 	target := makeTestTarget(200, 200)
 
@@ -220,8 +216,8 @@ func TestVelloAccelerator_StrokeShapeUsesEvenOdd(t *testing.T) {
 	if a.PendingCount() != 1 {
 		t.Fatalf("expected 1 pending, got %d", a.PendingCount())
 	}
-	if got := a.pendingPaths[0].FillRule; got != tilecompute.FillRuleEvenOdd {
-		t.Errorf("StrokeShape fill rule = %v, want EvenOdd", got)
+	if got := a.pendingPaths[0].FillRule; got != tilecompute.FillRuleNonZero {
+		t.Errorf("StrokeShape fill rule = %v, want NonZero", got)
 	}
 }
 

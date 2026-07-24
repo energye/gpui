@@ -265,7 +265,7 @@ func (a *VelloAccelerator) StrokePath(target render.GPURenderTarget, path *rende
 	//   - Sharp paths: V-shape intersections toggled twice → correctly hollow.
 	// Mirrors GPURenderContext.StrokePath. ADR-043, #369, #374.
 	strokePaint := *paint
-	strokePaint.FillRule = render.FillRuleEvenOdd
+	strokePaint.FillRule = render.FillRuleNonZero
 	return a.FillPath(target, fillPath, &strokePaint)
 }
 
