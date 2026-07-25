@@ -291,7 +291,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Radio", func(t *testing.T) {
-			r := kit.NewRadio("v", "L")
+			r := kit.NewRadio("L")
+			r.SetValue("v")
 			_ = r.Node()
 			if r.Value != "v" {
 				t.Fatal(r.Value)

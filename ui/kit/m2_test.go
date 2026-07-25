@@ -57,12 +57,14 @@ func TestCheckboxToggle(t *testing.T) {
 }
 
 func TestRadioGroup(t *testing.T) {
-	a := kit.NewRadio("a", "A")
-	b := kit.NewRadio("b", "B")
-	g := kit.NewRadioGroup(a, b)
-	g.Select("b")
-	if g.Value != "b" || !b.Selected || a.Selected {
-		t.Fatalf("value=%s a=%v b=%v", g.Value, a.Selected, b.Selected)
+	g := kit.NewRadioGroup()
+	g.SetOptions(
+		kit.RadioOption{Label: "A", Value: "a"},
+		kit.RadioOption{Label: "B", Value: "b"},
+	)
+	g.SetDefaultValue("b")
+	if g.Value != "b" || !g.Items[1].Checked || g.Items[0].Checked {
+		t.Fatalf("value=%s a=%v b=%v", g.Value, g.Items[0].Checked, g.Items[1].Checked)
 	}
 }
 

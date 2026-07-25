@@ -257,7 +257,7 @@ func main() {
 		160, 40, padFrame(cb.Node(), 160, 40, 8))
 
 	// ── Radio ────────────────────────────────────────────────────────────
-	rd := kit.NewRadio("a", "Option")
+	rd := kit.NewRadio("Option")
 	if face != nil {
 		rd.SetFace(face)
 	}
@@ -265,26 +265,26 @@ func main() {
 		"Ant: 16px 真圆 1px 环 — 不得方/毛边",
 		160, 40, padFrame(rd.Node(), 160, 40, 8))
 
-	rd = kit.NewRadio("a", "Option")
+	rd = kit.NewRadio("Option")
 	if face != nil {
 		rd.SetFace(face)
 	}
-	rd.SetSelected(true)
+	rd.SetChecked(true)
 	add("radio_on", "Radio · on",
 		"Ant: 主色环 + 内圆实心（约半外径）— 内外均 AA",
 		160, 40, padFrame(rd.Node(), 160, 40, 8))
 
-	rd = kit.NewRadio("a", "Option")
+	rd = kit.NewRadio("Option")
 	if face != nil {
 		rd.SetFace(face)
 	}
-	rd.SetSelected(true)
+	rd.SetChecked(true)
 	rd.SetDisabled(true)
 	add("radio_on_disabled", "Radio · on disabled",
 		"Ant: 半透明主色内圆",
 		160, 40, padFrame(rd.Node(), 160, 40, 8))
 
-	rd = kit.NewRadio("a", "Option")
+	rd = kit.NewRadio("Option")
 	if face != nil {
 		rd.SetFace(face)
 	}

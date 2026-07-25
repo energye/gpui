@@ -619,24 +619,25 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Radio": {
 			{"R1 value", func(t *testing.T) {
-				r := kit.NewRadio("v", "L")
+				r := kit.NewRadio("L")
+				r.SetValue("v")
 				if r.Value != "v" {
 					t.Fatal()
 				}
 			}},
 			{"R2 group", func(t *testing.T) {
-				a := kit.NewRadio("a", "A")
-				b := kit.NewRadio("b", "B")
-				g := kit.NewRadioGroup(a, b)
-				g.Select("b")
-				if !b.Selected {
+				g := kit.NewRadioGroup()
+				g.SetStringOptions("a", "b")
+				g.SetDefaultValue("b")
+				if !g.Items[1].Checked {
 					t.Fatal()
 				}
 			}},
 			{"R3 selected chrome", func(t *testing.T) {
-				r := kit.NewRadio("v", "L")
-				r.SetSelected(true)
-				if !r.Selected {
+				r := kit.NewRadio("L")
+				r.SetValue("v")
+				r.SetChecked(true)
+				if !r.Checked {
 					t.Fatal()
 				}
 			}},

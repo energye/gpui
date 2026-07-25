@@ -58,14 +58,16 @@ func TestScenario_CheckboxIndeterminate(t *testing.T) {
 }
 
 func TestScenario_RadioOff(t *testing.T) {
-	r := kit.NewRadio("a", "")
+	r := kit.NewRadio("")
+	r.SetValue("a")
 	root := frameIndicator(r.IndicatorNode(), 32, 32, 16, 16)
 	assertIndicator(t, "radio_off", root, 32, 32)
 }
 
 func TestScenario_RadioOn(t *testing.T) {
-	r := kit.NewRadio("a", "")
-	r.SetSelected(true)
+	r := kit.NewRadio("")
+	r.SetValue("a")
+	r.SetChecked(true)
 	root := frameIndicator(r.IndicatorNode(), 32, 32, 16, 16)
 	assertIndicator(t, "radio_on", root, 32, 32)
 }
@@ -96,16 +98,18 @@ func TestIndicators_HeadlessToggle(t *testing.T) {
 		t.Fatal("checkbox not checked after click")
 	}
 
-	a := kit.NewRadio("a", "A")
-	b := kit.NewRadio("b", "B")
-	g := kit.NewRadioGroup(a, b)
-	g.Select("a")
-	if !a.Selected || b.Selected {
-		t.Fatalf("radio group a=%v b=%v", a.Selected, b.Selected)
+	g := kit.NewRadioGroup()
+	g.SetOptions(
+		kit.RadioOption{Label: "A", Value: "a"},
+		kit.RadioOption{Label: "B", Value: "b"},
+	)
+	g.SetDefaultValue("a")
+	if !g.Items[0].Checked || g.Items[1].Checked {
+		t.Fatalf("radio group a=%v b=%v", g.Items[0].Checked, g.Items[1].Checked)
 	}
-	g.Select("b")
-	if a.Selected || !b.Selected || g.Value != "b" {
-		t.Fatalf("radio group after b: a=%v b=%v v=%s", a.Selected, b.Selected, g.Value)
+	g.SetDefaultValue("b")
+	if g.Items[0].Checked || !g.Items[1].Checked || g.Value != "b" {
+		t.Fatalf("radio group after b: a=%v b=%v v=%s", g.Items[0].Checked, g.Items[1].Checked, g.Value)
 	}
 
 	sw := kit.NewSwitch()

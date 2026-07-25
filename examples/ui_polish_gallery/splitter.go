@@ -164,14 +164,14 @@ func (c *catalogCtx) registerSplitter() {
 	)
 	iconSp.SetHeight(200)
 	iconSp.SetTheme(th)
-	ra := kit.NewRadio("auto", "Auto")
-	rt := kit.NewRadio("true", "True")
-	rf := kit.NewRadio("false", "False")
-	for _, r := range []*kit.Radio{ra, rt, rf} {
-		r.SetFace(face)
-	}
-	rg := kit.NewRadioGroup(ra, rt, rf)
-	rg.Select("true")
+	rg := kit.NewRadioGroup()
+	rg.SetFace(face)
+	rg.SetOptions(
+		kit.RadioOption{Label: "Auto", Value: "auto"},
+		kit.RadioOption{Label: "True", Value: "true"},
+		kit.RadioOption{Label: "False", Value: "false"},
+	)
+	rg.SetDefaultValue("true")
 	applyIconMode := func(mode string) {
 		var m kit.CollapsibleIconMode
 		switch mode {
@@ -189,7 +189,7 @@ func (c *catalogCtx) registerSplitter() {
 			iconSp.Root.MarkNeedsLayout()
 		}
 	}
-	rg.OnChange = func(key string) { applyIconMode(key) }
+	rg.SetOnChange(func(key string) { applyIconMode(key) })
 	if fl, ok := rg.Node().(*primitive.Flex); ok {
 		fl.Axis = core.AxisHorizontal
 		fl.CrossAlign = core.CrossCenter

@@ -483,29 +483,35 @@ Group value=v
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `checked` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `options` | 必须 |
-| `title` | 必须 |
-| `orientation` | 必须 |
+| `value` / `defaultValue` | Group 受控 / 非受控选中值 |
+| `checked` / `defaultChecked` | 单 Radio 受控 / 非受控 |
+| `onChange` | 单 Radio 与 Group 均必须 |
+| `disabled` | 单项与整组 |
+| `size` | 只对 `optionType=button` / Radio.Button 生效（small/medium/large → 24/32/40） |
+| `options` | Group 配置式子项（string[] 或 {label,value,disabled,title}） |
+| `title` | 选项 title；a11y 名称回落 |
+| `orientation` / `vertical` | 排列方向；二者同时存在以 `orientation` 优先 |
+| `optionType` | `default` \| `button`（按钮皮；RDO-03 / 官方按钮示例） |
+| `buttonStyle` | `outline` \| `solid`（RDO-04 / Block 示例 solid 行） |
+| `block` | Group 通栏；按钮模式均分宽 |
+| `name` | Group 名称（a11y / radiogroup-with-name） |
+| `Radio.Button` | 子项按钮皮（与 optionType=button 等价路径） |
 | 官方主路径示例 | 基本、不可用、单选组合、Radio.Group 垂直、Block 单选组合、Radio.Group 组合 - 配置方式、按钮样式、单选组合 - 配合 name 使用 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 度量 §6.2 | Token 断言（圆点 16、Button middle 高 32） |
+| a11y §6.6 | role=radio / radiogroup；焦点 ring；Space/Enter；方向键移选 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
+| semantic classNames/styles 深度 | 分期（函数形态 / 完整 semantic DOM） |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 大小, 填底的按钮样式, 自定义语义结构的样式和类, _semantic.tsx |
+| 其余示例 | 大小(size.tsx 完整页)、填底的按钮样式(radiobutton-solid.tsx 独立页)、自定义语义结构的样式和类、_semantic.tsx |
+| ConfigProvider 全局默认 | 随 ConfigProvider |
+| loading / Wave | Radio 无官方 loading；Wave 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -543,14 +549,41 @@ Group value=v
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewRadio(...) *Radio
+// 单选
+NewRadio(label string) *Radio
+NewRadioButton(label string) *Radio   // antd Radio.Button
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+Radio:
+  Checked / SetChecked / SetDefaultChecked / SetControlled
+  Value / SetValue
+  Label / SetLabel / Title / SetTitle
+  Disabled / SetDisabled
+  OnChange(func(checked bool)) / SetOnChange
+  AriaLabel / SetAriaLabel
+  Theme / SetTheme / Face / SetFace / Style / SetStyle
+  Node() / ChromeNode() / IndicatorNode() / LabelNode()
+  // 旧 Selected / SetSelected / OnSelect 删除（→ Checked / OnChange）
+
+// 组合
+NewRadioGroup() *RadioGroup
+
+RadioGroup:
+  Value / SetValue / SetDefaultValue          // 受控 / 非受控
+  Options / SetOptions / SetStringOptions
+  Items / Add / SetBody
+  Disabled / SetDisabled
+  Name / SetName
+  Size / SetSize                              // RadioMiddle|Small|Large；仅 button 皮
+  OptionType / SetOptionType                  // RadioOptionDefault|Button
+  ButtonStyle / SetButtonStyle                // RadioButtonOutline|Solid
+  Orientation / SetOrientation                // RadioHorizontal|Vertical
+  SetVertical(bool)                           // 便捷；orientation 优先
+  Block / SetBlock
+  OnChange(func(value string)) / SetOnChange
+  HandleKey(*KeyEvent) bool                   // 方向键移选（L1）
+  Node() / AriaLabel / SetAriaLabel / Face / Theme
+  // 旧 NewRadioGroup(items...) / Select(v) 删除
+  //   → NewRadioGroup(); Add / SetOptions; SetValue|SetDefaultValue
 ```
 
 **默认值（未 Set 时）：**
@@ -558,8 +591,13 @@ NewRadio(...) *Radio
 | 字段 | 默认 |
 | --- | --- |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Checked | false |
+| Size | middle（controlHeight=32） |
+| OptionType | default（圆点皮） |
+| ButtonStyle | outline |
+| Orientation | horizontal |
+| Block | false |
+| 受控值 | 未 SetValue 时用 default* 或零值 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

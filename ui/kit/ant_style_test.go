@@ -99,7 +99,7 @@ func TestCheckboxRadioIndicatorSize(t *testing.T) {
 	if ind.Width != 16 || ind.Height != 16 {
 		t.Fatalf("checkbox indicator %vx%v want 16x16", ind.Width, ind.Height)
 	}
-	rd := kit.NewRadio("a", "A")
+	rd := kit.NewRadio("A")
 	rind := rd.IndicatorNode().(*primitive.Decorated)
 	_ = rind.Layout(core.Loose(100, 100))
 	if rind.Width != 16 || rind.Height != 16 {

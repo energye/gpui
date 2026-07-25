@@ -98,18 +98,16 @@ func (c *catalogCtx) registerFlex() {
 	basicHost := playground(basicBars.Node(), 0, render.RGBA{})
 	basicHost.Radius = 0
 
-	rh := kit.NewRadio("horizontal", "horizontal")
-	rv := kit.NewRadio("vertical", "vertical")
-	rh.SetFace(c.face)
-	rv.SetFace(c.face)
-	basicRG := kit.NewRadioGroup(rh, rv)
-	basicRG.Select("horizontal")
+	basicRG := kit.NewRadioGroup()
+	basicRG.SetFace(c.face)
+	basicRG.SetStringOptions("horizontal", "vertical")
+	basicRG.SetDefaultValue("horizontal")
 	radioRow(basicRG)
-	basicRG.OnChange = func(v string) {
+	basicRG.SetOnChange(func(v string) {
 		fillBasicBars(v == "vertical")
 		basicHost.MarkNeedsLayout()
 		*c.status = "flex basic → " + v
-	}
+	})
 	basicOuter := kit.NewFlex(basicRG.Node(), basicHost)
 	basicOuter.SetVertical(true)
 	basicOuter.SetGapSize(kit.FlexGapMedium)
@@ -195,15 +193,10 @@ func (c *catalogCtx) registerFlex() {
 	gapRow.SetGapSize(kit.FlexGapSmall)
 	gapRow.SetWrap(true)
 
-	rSmall := kit.NewRadio("small", "small")
-	rMed := kit.NewRadio("medium", "medium")
-	rLarge := kit.NewRadio("large", "large")
-	rCust := kit.NewRadio("customize", "customize")
-	for _, r := range []*kit.Radio{rSmall, rMed, rLarge, rCust} {
-		r.SetFace(c.face)
-	}
-	gapRG := kit.NewRadioGroup(rSmall, rMed, rLarge, rCust)
-	gapRG.Select("small")
+	gapRG := kit.NewRadioGroup()
+	gapRG.SetFace(c.face)
+	gapRG.SetStringOptions("small", "medium", "large", "customize")
+	gapRG.SetDefaultValue("small")
 	radioRow(gapRG)
 	gapSlider := kit.NewSlider(16)
 	gapSlider.Min, gapSlider.Max = 0, 64
@@ -233,7 +226,7 @@ func (c *catalogCtx) registerFlex() {
 		}
 		*c.status = "flex gap → " + mode
 	}
-	gapRG.OnChange = applyGapMode
+	gapRG.SetOnChange(applyGapMode)
 	gapSlider.OnChange = func(v float64) {
 		if gapRG.Value == "customize" {
 			gapRow.SetGap(v)

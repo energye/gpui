@@ -86,15 +86,10 @@ func (c *catalogCtx) registerSpace() {
 	sizeRow.SetSize(kit.SpaceSizeSmall)
 	sizeHost := playground(sizeRow.Node())
 
-	rs := kit.NewRadio("small", "small")
-	rm := kit.NewRadio("medium", "medium")
-	rl := kit.NewRadio("large", "large")
-	rc := kit.NewRadio("customize", "customize")
-	for _, r := range []*kit.Radio{rs, rm, rl, rc} {
-		r.SetFace(c.face)
-	}
-	sizeRG := kit.NewRadioGroup(rs, rm, rl, rc)
-	sizeRG.Select("small")
+	sizeRG := kit.NewRadioGroup()
+	sizeRG.SetFace(c.face)
+	sizeRG.SetStringOptions("small", "medium", "large", "customize")
+	sizeRG.SetDefaultValue("small")
 	if fl, ok := sizeRG.Node().(*primitive.Flex); ok {
 		fl.Axis = core.AxisHorizontal
 		fl.CrossAlign = core.CrossCenter
@@ -129,7 +124,7 @@ func (c *catalogCtx) registerSpace() {
 		sizeHost.MarkNeedsLayout()
 		*c.status = "space size → " + mode
 	}
-	sizeRG.OnChange = applySizeMode
+	sizeRG.SetOnChange(applySizeMode)
 	sizeSlider.OnChange = func(v float64) {
 		if sizeRG.Value == "customize" {
 			sizeRow.SetSizePx(v)

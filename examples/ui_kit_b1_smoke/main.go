@@ -124,11 +124,13 @@ func main() {
 	swRow.Gap = 10
 	swRow.CrossAlign = core.CrossCenter
 
-	ra := kit.NewRadio("light", "Light")
-	rb := kit.NewRadio("dark", "Dark")
-	rg := kit.NewRadioGroup(ra, rb)
-	rg.OnChange = func(v string) { status = "theme=" + v }
-	rg.Select("light")
+	rg := kit.NewRadioGroup()
+	rg.SetOptions(
+		kit.RadioOption{Label: "Light", Value: "light"},
+		kit.RadioOption{Label: "Dark", Value: "dark"},
+	)
+	rg.SetOnChange(func(v string) { status = "theme=" + v })
+	rg.SetDefaultValue("light")
 
 	// Scroll demo content
 	scrollCol := primitive.Column()
