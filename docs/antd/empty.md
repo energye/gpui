@@ -223,27 +223,33 @@ import { Empty } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，种子：`controlHeightLG=40`、`fontSize=14`）。实现必须通过 Token / `DefaultEmpty*` 读取；下表对齐 `components/empty/style/index.ts`。
+
+> kit `TokenMarginXS=4` 对应 antd `marginXXS`；antd Empty 用的 `marginXS=8` 在 kit 侧以 `TokenMarginSM` 或 `DefaultEmpty*` 回落（与 Rate/Divider 同口径）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 字号 | **14** | `fontSize` |
+| 根 margin-inline | **8** | antd `marginXS`（kit `DefaultEmptyMarginInline` / `TokenMarginSM`） |
+| 图 height（default） | **100** | `emptyImgHeight = controlHeightLG × 2.5` |
+| 图 height（simple / normal） | **40** | `emptyImgHeightMD = controlHeightLG` |
+| 图 height（small 上下文） | **35** | `emptyImgHeightSM = controlHeightLG × 0.875` |
+| 图 margin-bottom | **8** | antd `marginXS` |
+| 图 opacity | **1** | `opacityImage`（未覆盖时 1） |
+| footer margin-top | **16** | antd `margin` |
+| simple 根 margin-block | **32** | antd `marginXL`（`empty-normal`） |
+| Focus ring outset（footer 可交互子） | ≈ **1.5px** | 子 Button 自带 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 描述文案 | `colorTextDescription` ≈ `colorTextSecondary` | antd description 色 |
+| 内置插画 fill | `colorFill*` / `colorBgContainer` / `colorTextQuaternary` | 随 Theme，禁止硬编码品牌主色当皮 |
+| 容器底 / 边框（styles 覆盖） | `colorBgContainer` / `colorBorder` | 仅 style-class 路径 |
+| 禁用 | 不适用 | Empty **无** disabled API |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -253,48 +259,54 @@ import { Empty } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `description` | 自定义描述内容 | ReactNode | - |
-| `image` | 设置显示图片，为 string 时表示自定义图片地址。 | ReactNode | `Empty.PRESENTED_IMAGE_DEFAULT` |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
+| `description` | 自定义描述；`false`/`null`/空串隐藏（antd `des &&`） | ReactNode \| false | locale `No data` |
+| `image` | 内置 default/simple、自定义 Node、或 string 源 | ReactNode \| string | `Empty.PRESENTED_IMAGE_DEFAULT` |
+| `children` | 底部操作区（footer） | ReactNode | - |
+| `styles` | 语义浅覆盖 root/image/description/footer | Record / Style | - |
+| `classNames` | 语义钩子 root/image/description/footer | Record / string tags | - |
+| ~~`imageStyle`~~ | 已弃用 → `styles.image`（高度等） | — | — |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级（通用）：** 显式 props > 组件默认 > ConfigProvider 全局默认（全局空态见 P1）。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-mount ──► 显示 image + description + children(actions)?
-             ├── image=Empty.PRESENTED_IMAGE_SIMPLE ──► 简图
-             ├── description=null/false ──► 可隐藏文案（按 API）
-             └── 无选中/输入态
+mount ──► 显示 image + description? + children(footer)?
+             ├── image=PRESENTED_IMAGE_SIMPLE ──► 简图（empty-normal 度量）
+             ├── image=string|Node ──► 自定义图
+             ├── description 未设 ──► locale「No data」
+             ├── description=false|"" ──► 隐藏文案
+             └── children ──► footer 可点（子控件自身交互）
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| EMP-S1 | 默认 Empty | 有默认插画与「暂无数据」类文案（locale） |
-| EMP-S2 | simple 图 | 简图资源 |
+| EMP-S1 | 默认 Empty | 默认插画 + locale「No data」 |
+| EMP-S2 | simple 图 | 简图高度 40 + normal 外边距 |
 | EMP-S3 | 自定义 description | 文案替换 |
-| EMP-S4 | children 按钮 | 操作区可点 |
-| EMP-S5 | 自定义 image | 显示指定图 |
-| EMP-S6 | 主题切换 | 字色随 Theme |
+| EMP-S4 | children 按钮 | footer 存在且可点 |
+| EMP-S5 | 自定义 image | 显示指定 Node/src |
+| EMP-S6 | 主题切换 | 描述色/插画色随 Theme |
+| EMP-S7 | description=false | 无描述节点 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| default | 符合 §6.2 Token；居中；image→description→footer 纵向 |
+| hover/active/focus | Empty 本体无交互态；footer 子控件自带 |
+| disabled / loading | **不适用**（Empty 无此 API） |
 | 主题切换 | 色与间距随 Theme 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 无入场强制动效；P0 瞬时。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| 装饰内置图 | 无 Role/Label（装饰）；有 `AriaLabel` 时可标名 |
+| string 图 | Role=`img`，alt=描述文案或 `AriaLabel` |
+| footer 操作 | 子 Button 自带可访问名 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -302,12 +314,13 @@ mount ──► 显示 image + description + children(actions)?
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| 内置 SVG 插画 | **近似** Canvas/几何色块（随 Token） | P0 近似 |
+| 真 URL 图片解码 | **映射**为 src 标签/占位 | P1 |
+| ConfigProvider `renderEmpty` / 全局 empty.image | 随 ConfigProvider | P1 |
+| semantic classNames/styles **函数形态**深度 | 分期 | P1 |
+| styles/classNames **浅覆盖** | kit Style / ClassNames 钩子 | P0 |
+| debug `_semantic.tsx` / 官网逐像素 | **不做** / P1 | P1 |
+| 动画/波纹 | 瞬时 | P1 |
 
 ### 6.8 能力裁剪（P0 / P1）
 
@@ -315,87 +328,118 @@ mount ──► 显示 image + description + children(actions)?
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `classNames` | 必须 |
-| `description` | 必须 |
-| `image` | 必须 |
-| `styles` | 必须 |
-| 官方主路径示例 | 基本、选择图片、自定义、全局化配置、自定义语义结构的样式和类、无描述、_semantic.tsx |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| `description` | 默认 locale；自定义；`false`/空隐藏 |
+| `image` | DEFAULT / SIMPLE / 自定义 Node / string src |
+| `children` | footer 操作区 |
+| `styles` 浅覆盖 | root / image / description / footer（Style） |
+| `classNames` 浅钩子 | root / image / description / footer 字符串标签 |
+| `styles.image.height` | 覆盖图高度（含旧 `imageStyle` 语义） |
+| 官方主路径示例 | **基本**、**选择图片**、**自定义**、**无描述**、**style-class**（浅） |
+| 度量 §6.2 | Token / DefaultEmpty* 断言 |
+| a11y §6.6 | 装饰图 + 有意义操作 |
+| §6.9 中 L1/L2 **无 P1 标记** 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| ConfigProvider `renderEmpty` / 全局 empty 默认图 | `config-provider.tsx` |
+| semantic classNames/styles 函数形态与深度合并 | 分期 |
+| `_semantic.tsx` debug 语义预览 | 文档工具 |
+| 真 HTTP/SVG 原样解码、动画像素级 | 分期 |
+| 浏览器-only API / 官网逐像素哈希 | 不做 / 分期 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestEmpty_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Empty 完成 1:1 主路径。
+> **P0 相关用例（无 P1/L3/L4 标记）全部通过** 才可宣称 Empty 完成 1:1 主路径。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | EMP-01 | L1 | NewEmpty 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| EMP-02 | L1 | 默认 Empty | 有默认插画与「暂无数据」类文案（locale） |
-| EMP-03 | L1 | simple 图 | 简图资源 |
+| EMP-02 | L1 | 默认 Empty | 默认插画 kind=default + 文案「No data」 |
+| EMP-03 | L1 | simple 图 | kind=simple；图高 ≈40 |
 | EMP-04 | L1 | 自定义 description | 文案替换 |
-| EMP-05 | L1 | children 按钮 | 操作区可点 |
-| EMP-06 | L1 | 自定义 image | 显示指定图 |
-| EMP-07 | L1 | 主题切换 | 字色随 Theme |
-| EMP-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| EMP-09 | L1 | 复现官方示例「选择图片」（`simple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| EMP-10 | L1 | 复现官方示例「自定义」（`customize.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| EMP-11 | L1 | 复现官方示例「全局化配置」（`config-provider.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| EMP-12 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| EMP-13 | L1 | 复现官方示例「无描述」（`description.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| EMP-14 | L1 | 复现官方示例「_semantic.tsx」（`_semantic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| EMP-15 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| EMP-16 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| EMP-17 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| EMP-18 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| EMP-19 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| EMP-20 | L4 | 与 ant.design 并排 | 人眼签字记录 |
-| EMP-21 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+| EMP-05 | L1 | children 按钮 | footer 存在；子可点 |
+| EMP-06 | L1 | 自定义 image Node/src | 显示指定图 |
+| EMP-07 | L1 | 主题切换 | 描述色随 Theme Token |
+| EMP-08 | L1 | 复现官方「基本」（`basic.tsx`） | 默认可布局 |
+| EMP-09 | L1 | 复现官方「选择图片」（`simple.tsx`） | simple 度量 |
+| EMP-10 | L1 | 复现官方「自定义」（`customize.tsx`） | 自定义图高/描述/footer 按钮 |
+| EMP-11 | P1 | 复现「全局化配置」（`config-provider.tsx`） | ConfigProvider.renderEmpty |
+| EMP-12 | L1 | 复现「style-class」（`style-class.tsx`） | 浅 Root/Image/Description/Footer Style |
+| EMP-13 | L1 | 复现「无描述」（`description.tsx`） | 无描述节点 |
+| EMP-14 | P1 | `_semantic.tsx` | debug 语义预览 |
+| EMP-15 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px） |
+| EMP-16 | L2 | 默认皮颜色 | 描述色走 Theme；无硬编码品牌主色 |
+| EMP-17 | L2 | disabled 外观 | **不适用**（Empty 无 disabled）— 跳过 |
+| EMP-18 | L1 | 键盘/焦点 | footer 子 Button 可聚焦（本体无焦点） |
+| EMP-19 | L3 | 关键态 golden | 本库 golden（可后补） |
+| EMP-20 | L4 | 与 ant.design 并排 | 人眼签字 |
+| EMP-21 | P1 | §6.8 其余 P1 | Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。
 
 ```text
-NewEmpty(...) *Empty
+NewEmpty() *Empty
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// image
+EmptyImageDefault / EmptyImageSimple          // ≈ PRESENTED_IMAGE_*
+SetImage(kind EmptyImageKind)
+SetImageNode(n core.Node)                     // 自定义 Node
+SetImageSrc(src string)                       // string 图
+SetImageHeight(h float64)                     // styles.image.height；0=按 kind
+
+// description
+SetDescription(s string)                      // "" → 隐藏（antd 假值）
+SetDescriptionNode(n core.Node)
+HideDescription()                             // description=false
+ResolvedDescription() string
+HasDescription() bool
+
+// footer
+SetChildren(kids ...core.Node)
+HasFooter() bool
+
+// styles / classNames（浅）
+SetStyle(Style)                               // root
+SetImageStyle / SetDescriptionStyle / SetFooterStyle(Style)
+SetClassNames(EmptyClassNames)
+
+// theme / a11y / mount
+SetTheme(*Theme)  SetFace(Face)  SetAriaLabel(string)
+Node() / ChromeNode() core.Node
+
+// L2 只读
+ImageHeight() / ImageMarginBottom() / FooterMarginTop() / MarginInline()
+DescriptionColor() / FontSize()
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Image | `EmptyImageDefault`（高 100） |
+| Description | locale **`No data`**（`DefaultEmptyDescription`） |
+| Children | 无 footer |
+| styles/classNames | 空（走 Token） |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+Decorated root          // styles.root / classNames.root
+  └─ Column (CrossCenter)
+       ├─ image box     // Canvas 内置 or ImageNode；styles.image
+       ├─ description?  // Text / Node；styles.description
+       └─ footer?       // children；styles.footer；marginTop=16
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token；Root 指针尽量稳定（ClearChildren）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 无 Ticker 需求（Empty 本体无 loading）；footer 子 Button 自管。  
 
 ### 6.12 完成定义（DoD）
 

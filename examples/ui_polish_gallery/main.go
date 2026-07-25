@@ -39,7 +39,7 @@ import (
 
 func main() {
 	exboot.InitEnv()
-	winW, winH := 1024, 768
+	winW, winH := 1600, 900
 	// Default unlimited; set GPUI_ANIM_SECONDS>0 for timed CI smoke.
 	seconds := 0.0
 	if v := os.Getenv("GPUI_ANIM_SECONDS"); v != "" {

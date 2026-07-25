@@ -51,7 +51,8 @@ func TestTagAlertCardEmpty(t *testing.T) {
 	card := kit.NewCard("Title")
 	card.SetContent(kit.NewText("body").Node())
 	_ = card.Node().Layout(core.Loose(300, 200))
-	em := kit.NewEmpty("nothing")
+	em := kit.NewEmpty()
+	em.SetDescription("nothing")
 	_ = em.Node().Layout(core.Loose(200, 200))
 }
 

@@ -427,7 +427,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Empty", func(t *testing.T) {
-			e := kit.NewEmpty("none")
+			e := kit.NewEmpty()
+			e.SetDescription("none")
 			if e.Description != "none" {
 				t.Fatal()
 			}

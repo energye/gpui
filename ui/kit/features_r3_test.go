@@ -1008,18 +1008,20 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Empty": {
 			{"R1 description", func(t *testing.T) {
-				e := kit.NewEmpty("none")
+				e := kit.NewEmpty()
+				e.SetDescription("none")
 				if e.Description != "none" {
 					t.Fatal()
 				}
 			}},
 			{"R2 setDescription", func(t *testing.T) {
-				e := kit.NewEmpty("")
+				e := kit.NewEmpty()
 				e.SetDescription("empty")
 			}},
 			{"R3 setImage", func(t *testing.T) {
-				e := kit.NewEmpty("x")
-				e.SetImage(kit.NewText("img").Node())
+				e := kit.NewEmpty()
+				e.SetDescription("x")
+				e.SetImageNode(kit.NewText("img").Node())
 			}},
 		},
 		"Image": {

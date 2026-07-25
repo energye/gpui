@@ -80,7 +80,8 @@ func TestVisual_ScrollOverflow(t *testing.T) {
 }
 
 func TestVisual_EmptyResultProgress(t *testing.T) {
-	em := kit.NewEmpty("none")
+	em := kit.NewEmpty()
+	em.SetDescription("none")
 	res := kit.NewResult("info", "Info", "sub")
 	prog := kit.NewProgress(70)
 	col := primitive.Column(em.Node(), res.Node(), prog.Node())

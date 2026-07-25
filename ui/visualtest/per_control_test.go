@@ -77,7 +77,11 @@ func perControlSpecs() []ctlSpec {
 			c.SetContent(kit.NewText("body").Node())
 			return padRoot(c.Node(), 200, 100)
 		}},
-		{"ctl_empty", 160, 100, func() core.Node { return padRoot(kit.NewEmpty("none").Node(), 160, 100) }},
+		{"ctl_empty", 160, 100, func() core.Node {
+			e := kit.NewEmpty()
+			e.SetDescription("none")
+			return padRoot(e.Node(), 160, 100)
+		}},
 		{"ctl_avatar", 56, 56, func() core.Node { return padRoot(kit.NewAvatar("AB").Node(), 56, 56) }},
 		{"ctl_badge", 100, 48, func() core.Node {
 			bdg := kit.NewBadge()

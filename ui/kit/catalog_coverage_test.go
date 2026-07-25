@@ -94,7 +94,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 		return b.Node()
 	}())
 	must("Card", kit.NewCard("c").Node())
-	must("Empty", kit.NewEmpty("").Node())
+	must("Empty", kit.NewEmpty().Node())
 	must("List", kit.NewList("a").Node())
 	must("Table", kit.NewTable([]kit.TableColumn{{Key: "a", Title: "A"}}, nil).Node())
 	must("Tree", kit.NewTree(&kit.TreeNode{Key: "r", Title: "r"}).Node())
