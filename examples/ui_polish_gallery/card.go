@@ -88,7 +88,7 @@ func (c *catalogCtx) registerCard() {
 	flexC.SetHoverable(true)
 	flexC.SetVariant(kit.CardBorderless)
 	flexC.SetWidth(240)
-	cover := kit.NewImage("cover", 240, 150)
+	cover := kit.NewImageSized("cover", 240, 150)
 	flexC.SetCover(cover.Node())
 	flexC.SetContent(meta.Node())
 	secFlex := demoSection(face, th, "更灵活的内容展示",

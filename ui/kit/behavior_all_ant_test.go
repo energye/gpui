@@ -434,7 +434,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Image", func(t *testing.T) {
-			im := kit.NewImage("alt", 50, 40)
+			im := kit.NewImageSized("alt", 50, 40)
 			sz := im.Node().Layout(core.Loose(60, 50))
 			if sz.Width < 40 {
 				t.Fatal(sz)
@@ -447,7 +447,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Popover", func(t *testing.T) {
-			p := kit.NewPopover(kit.NewText("t").Node(), kit.NewText("b").Node())
+			p := kit.NewPopover("t")
+			p.SetContent("b")
 			p.SetOpen(true)
 			if !p.Open {
 				t.Fatal("not open")

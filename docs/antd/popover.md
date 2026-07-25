@@ -321,8 +321,8 @@ import { Popover } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 开合、遮罩/Esc、placement、确认/取消主路径 | Headless / behavior 测试 |
-| **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
+| **L1** | 行为 | 开合、Esc/外点、trigger（hover/click/focus）、placement、受控 open、浮层内可交互 | Headless / behavior 测试 |
+| **L2** | Token / 几何 | 内边距、圆角 LG、标题最小宽、颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
 
@@ -333,83 +333,122 @@ import { Popover } from 'antd';
 - 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
 - 官方 **debug** 示例不计入 P0 验收。  
 
-> 控件说明：点击/鼠标移入元素，弹出气泡式的卡片浮层。
+> 控件说明：点击/鼠标移入元素，弹出气泡式的卡片浮层（title + content）。与 Tooltip 的区别：浮层内容可交互（链接/按钮等）。
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/popover/style/index.ts` → `prepareComponentToken` / `genBaseStyle`。
 
 #### 6.2.1 几何与组件 Token
 
-| 项 | 默认值 | Token / 来源 |
-| --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 项 | 默认值 | Token / 来源 | kit 常量建议 |
+| --- | --- | --- | --- |
+| 字号 | **14** | `fontSize` | `DefaultPopoverFontSize` |
+| 面板圆角 | **8** | `borderRadiusLG`（非 `borderRadius`） | |
+| 边框线宽 | **1** | `lineWidth` | |
+| 面板内边距（非 wireframe） | **12** | 组件 token `innerPadding` | `DefaultPopoverInnerPadding` |
+| 标题最小宽度 | **177** | 组件 token `titleMinWidth` | `DefaultPopoverTitleMinWidth` |
+| 标题下间距 | **4** | `marginXS`（kit 映射） | `DefaultPopoverTitleMarginBottom` |
+| 触发器↔面板间距 | **8** | 约 `sizePopupArrow` 量级 | `DefaultPopoverGap` |
+| 箭头边长（示意） | **8** | `sizePopupArrow` 近似 | `DefaultPopoverArrowSize` |
+| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 | |
+| z-index 阶梯 | `zIndexPopupBase+30` | antd 组件 token；kit 映射 `Portal.ZOrder`（可 `SetZIndex`） | |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 面板底 | `colorBgContainer`（≈ antd `colorBgElevated` / `popoverBg`） | 禁止硬编码白 |
+| 正文色 | `colorText`（`popoverColor`） | |
+| 标题色 | `colorText` / heading 语义 | 加粗可选（P1 字重） |
+| 边框 | `colorBorder` | 面板描边 |
+| 禁用触发 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
+| 浮层阴影 | 宿主/Decorated 阴影（P1 像素级） | P0 可用边框+底近似 |
+| `color` 预设底色 | PresetColors → 面板/箭头底 | **P1** |
 
 禁止硬编码品牌色作为唯一默认皮。
 
 ### 6.3 关键配置与语义
 
-下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**数据展示**。
+下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**数据展示**。  
+Popover **继承 Tooltip 共享 API**（placement / trigger / open / arrow / autoAdjustOverflow / …），并增加 `title` / `content`。
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `content` | 卡片内容 | ReactNode \ | () => ReactNode |
-| `title` | 卡片标题 | ReactNode \ | () => ReactNode |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
+| `title` | 卡片标题 | string / Node | — |
+| `content` | 卡片内容（可交互） | string / Node | — |
+| `trigger` | 触发行为；可多选 | `hover` \| `focus` \| `click` \| `contextMenu` | `hover` |
+| `placement` | 12 向 | `top` / `topLeft` / … / `rightBottom` | `top` |
+| `arrow` | 是否显示；`pointAtCenter` | bool \| `{ pointAtCenter }` | `true` |
+| `open` / `defaultOpen` | 受控 / 非受控初值 | bool | `false` |
+| `onOpenChange` | 显隐回调 | `(open bool)` | — |
+| `autoAdjustOverflow` | 贴边 flip/shift | bool | `true` |
+| `disabled` | 触发器禁用，不打开 | bool | `false` |
+| `zIndex` | 浮层 ZOrder | number | 默认 portal 阶梯 |
+| `mouseEnterDelay` / `mouseLeaveDelay` | 悬停延时（秒） | number | `0.1`（**P1**；P0 可瞬时+离开关闭宽限） |
+| `destroyOnHidden` / `fresh` | 关闭销毁 / 始终刷新 | bool | false（**P1**） |
+| `color` | 面板背景色 | string / color | —（**P1** 预设色板） |
+| `classNames` / `styles` | 语义节点钩子 | Record | —（**P1**） |
+| `getPopupContainer` / `align` | 挂载容器 / dom-align | — | 桌面映射 **P1** |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级（通用）：** 受控 props（`open`）> 显式非受控 `defaultOpen` > 组件默认 > ConfigProvider 全局默认。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-同 Tooltip 开合，但内容为 title+content 卡片
-click 外 ──► 关（trigger=click）
+  mount ──► closed
+               │
+   trigger=hover ── enter trigger ──► open ── leave (宽限 Tick) ──► closed
+   trigger=click ── click trigger ──► toggle open/closed
+   trigger=focus ── focus trigger  ──► open ── blur ──► closed
+   trigger=contextMenu ── right-down ──► open
+               │
+   open ── outside pointer (DismissOnOutside) ──► closed（非受控）
+   open ── Esc (FocusScope) ──► closed
+   open ── content 内按钮/链接可点（不自动关，除非业务 SetOpen(false)）
+               │
+   disabled ── 吞所有打开意图
+   controlled open ── 仅 OnOpenChange 通知；显隐等 SetOpen
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| POP-S1 | 打开 | title/content 可见 |
-| POP-S2 | 关闭 | 不可见 |
-| POP-S3 | placement | 位置 |
-| POP-S4 | 受控 open | 外部 |
-| POP-S5 | trigger=click | 点击切换 |
-| POP-S6 | 复杂 content 按钮 | 可点 |
+| POP-S1 | 打开 | 面板可见；`title`/`content` 按设置渲染 |
+| POP-S2 | 关闭 | 面板不可见；`IsOpen()==false` |
+| POP-S3 | `placement` 12 向 | 映射 `AnchoredPopup.Placement`；打开后几何有效 |
+| POP-S4 | 受控 `open` | `SetOpen` 决定显隐；用户意图只触发 `OnOpenChange` |
+| POP-S5 | `trigger=click` | 点击触发器切换；外点关闭（非受控） |
+| POP-S6 | 复杂 `content` | 浮层内按钮/链接可点（不吞事件） |
+| POP-S7 | `trigger=hover` | 悬停开；离开触发器且未进入面板 → 关（Tick 宽限） |
+| POP-S8 | `trigger=focus` | 聚焦开、失焦关 |
+| POP-S9 | Esc | 打开时 Esc 关闭（非受控；受控走 `OnOpenChange`） |
+| POP-S10 | `disabled` | 不打开；触发器禁用皮 |
+| POP-S11 | `arrow` | `true` 时绘制示意箭头；`pointAtCenter` 时主轴居中映射 |
+| POP-S12 | `autoAdjustOverflow` | `true` 时传入 Viewport 做 flip/shift；`false` 清 Viewport |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| mask | `colorBgMask` 半透明（适用者） |
-| panel/popup | 容器底 + 阴影 + 圆角 LG |
-| open/close | 动画可关 / reduced-motion |
+| panel/popup | `colorBgContainer` 底 + 边框 + **圆角 LG(8)** + 内边距 **12**；无全屏 mask（Popover ≠ Modal） |
+| title | 可选；最小宽 **177**；与 content 间距 **titleMarginBottom**；标题色/字重强调 |
+| content | 正文字色 `colorText`；可承载任意 Node |
+| arrow | `arrow=true` 时在 placement 主轴侧绘制示意箭头；`pointAtCenter` 指向触发器中心 |
+| open/close | 动画可关 / reduced-motion；**P0 瞬时切换** |
 | disabled 触发 | 触发器禁用皮，不打开 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** zoom-big 属 **P1**；P0 瞬时切换即可。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | dialog / menu / tooltip 等 |
-| 焦点 | 打开进入浮层；关闭回触发器（可配） |
-| Esc | 关闭（若允许） |
-| 标题 | Dialog 必须有可访问名 |
-| 遮罩 | 点击策略明确 |
+| 角色 | 触发器可激活（`button`）；浮层容器 `dialog`（或等价）；有 `title` 时作为可访问名 |
+| 名称 | 触发器可访问名 = 标签 / `AriaLabel`；面板 `Label` 优先 `title` |
+| 焦点 | 触发器可聚焦并显示 focus ring；打开后 Esc 可关 |
+| Esc | 打开时 Esc 关闭（POP-S9） |
+| 键盘 | click 触发：Enter/Space 切换（与 Button 一致，经 Pressable） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -417,10 +456,11 @@ click 外 ──► 关（trigger=click）
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| 动画 zoom-big / 阴影像素 | **近似**或瞬时 | P1 |
+| `mouseEnterDelay` / `mouseLeaveDelay` | **近似**（P0 瞬时+宽限；精确秒级 P1） | P1 |
+| `getPopupContainer` / `align` / `destroyOnHidden` / `fresh` | **映射**或分期 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
+| `color` 预设色板 | 分期；可用 `SetPanelBackground` 近似 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
@@ -430,22 +470,30 @@ click 外 ──► 关（trigger=click）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `title` | 必须 |
-| `content` | 必须 |
-| 官方主路径示例 | 基本、三种触发方式、位置、箭头展示、贴边偏移、从浮层内关闭、悬停点击弹出窗口、自定义语义结构的样式和类 |
+| `title` / `content` | 字符串或 Node；面板内渲染 |
+| `trigger` | `hover`（默认）/ `click` / `focus` / `contextMenu`；可多选 |
+| `placement` | 12 向；默认 `top` |
+| `arrow` / `pointAtCenter` | 默认显示箭头 |
+| `open` / `defaultOpen` / `onOpenChange` | 受控 + 非受控 |
+| `autoAdjustOverflow` | 默认 true |
+| `disabled` | 不打开 |
+| `zIndex` | 可选覆盖 Portal.ZOrder |
+| 官方主路径示例 | 基本、三种触发方式、位置、箭头展示、贴边偏移、从浮层内关闭、悬停点击弹出窗口 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| §6.9 中 L1/L2 用例（无 P1 标记） | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| semantic classNames/styles 深度；`style-class.tsx` | 分期 |
+| `mouseEnterDelay` / `mouseLeaveDelay` 精确秒级 | 分期 |
+| `color` 预设色 / `destroyOnHidden` / `fresh` / `getPopupContainer` / `align` | 分期 |
+| 动画像素级 zoom-big / 复杂阴影 | 分期 |
+| ConfigProvider 全局 popover 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | _semantic.tsx |
+| 其余示例 | `_semantic.tsx` / wireframe / component-token |
 
 ### 6.9 验收用例表（可测）
 
@@ -454,64 +502,97 @@ click 外 ──► 关（trigger=click）
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| POP-01 | L1 | NewPopover 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| POP-02 | L1 | 打开 | title/content 可见 |
+| POP-01 | L1 | `NewPopover` 默认创建 | 不崩溃；placement=top、arrow=true、trigger=hover、closed、AutoAdjustOverflow=true |
+| POP-02 | L1 | 打开（`SetOpen(true)` 或 click） | title/content 可见；`IsOpen()` |
 | POP-03 | L1 | 关闭 | 不可见 |
-| POP-04 | L1 | placement | 位置 |
-| POP-05 | L1 | 受控 open | 外部 |
-| POP-06 | L1 | trigger=click | 点击切换 |
-| POP-07 | L1 | 复杂 content 按钮 | 可点 |
-| POP-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| POP-09 | L1 | 复现官方示例「三种触发方式」（`triggerType.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| POP-10 | L1 | 复现官方示例「位置」（`placement.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| POP-11 | L1 | 复现官方示例「箭头展示」（`arrow.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| POP-12 | L1 | 复现官方示例「贴边偏移」（`shift.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| POP-13 | L1 | 复现官方示例「从浮层内关闭」（`control.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| POP-14 | L1 | 复现官方示例「悬停点击弹出窗口」（`hover-with-click.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| POP-15 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| POP-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| POP-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| POP-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| POP-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| POP-04 | L1 | `placement` 12 向 | 映射成功；打开不崩 |
+| POP-05 | L1 | 受控 `open=false` 时点击 | 仍关；触发 `OnOpenChange`；`SetOpen(true)` 后开 |
+| POP-06 | L1 | `trigger=click` | 点击切换；外点关闭（非受控） |
+| POP-07 | L1 | 复杂 content 内按钮 | 可点并回调 |
+| POP-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | title+content；默认 hover 可构树 |
+| POP-09 | L1 | 复现官方示例「三种触发方式」（`triggerType.tsx`） | hover/focus/click 均可构造并主路径可用 |
+| POP-10 | L1 | 复现官方示例「位置」（`placement.tsx`） | 12 向可构造 |
+| POP-11 | L1 | 复现官方示例「箭头展示」（`arrow.tsx`） | arrow true/false/pointAtCenter |
+| POP-12 | L1 | 复现官方示例「贴边偏移」（`shift.tsx`） | `autoAdjustOverflow` + Viewport |
+| POP-13 | L1 | 复现官方示例「从浮层内关闭」（`control.tsx`） | 受控 open；content 内关闭 |
+| POP-14 | L1 | 复现官方示例「悬停点击弹出窗口」（`hover-with-click.tsx`） | 嵌套 hover+click 可构造 |
+| POP-15 | P1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 单独用例；Notes 标明 |
+| POP-16 | L2 | 读取 §6.2 关键尺寸/间距 | 14/8/12/177/1 等 ±0.5 |
+| POP-17 | L2 | 默认皮颜色 | 面板底/字/边框走 Theme Token |
+| POP-18 | L2 | disabled | 不打开；触发器禁用 |
+| POP-19 | L1 | 键盘/焦点主路径 | Focus ring 可见；Esc 关；focus 触发可用 |
 | POP-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | POP-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | POP-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewPopover(...) *Popover
+NewPopover(triggerLabel string) *Popover
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 内容
+SetTitle(string) / SetTitleNode(core.Node)
+SetContent(string) / SetContentNode(core.Node)
+
+// 触发器
+SetTriggerLabel(string)
+SetTriggerNode(core.Node)                 // 自定义触发节点
+SetTriggerModes(...PopoverTrigger)        // hover|click|focus|contextMenu；可多选
+SetTrigger(PopoverTrigger)                // 单模式便利
+
+// 浮层
+SetPlacement(PopoverPlacement)            // 默认 Top；12 向
+SetArrow(bool) / SetArrowConfig(show, pointAtCenter bool)  // 默认 arrow=true
+SetAutoAdjustOverflow(bool)               // 默认 true
+SetOpen(bool)                             // 受控 open
+SetDefaultOpen(bool)                      // 非受控初值
+SetOnOpenChange(func(open bool))
+SetZIndex(int)                            // Portal.ZOrder；0=默认
+
+// 状态
+SetDisabled(bool)
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) / Theme 字段 / SetFace
+SetAriaLabel(string)
+Node() core.Node
+Popup() *primitive.AnchoredPopup
+Panel() *primitive.Decorated
+TriggerShell() *primitive.Pressable
+IsOpen() bool
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Placement | `top`（antd） |
+| Trigger | `[hover]`（空切片表示默认 hover） |
+| Arrow | `true` |
+| AutoAdjustOverflow | `true` |
+| Open | `false`；未 `SetOpen` 前为非受控 |
+| Disabled | `false` |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Trigger?
-  └─ Portal
-       ├─ mask?
-       └─ panel / popup (+ arrow?)
+Column (Wrap)
+  ├─ pointer host? (contextMenu) / Pressable shell (trigger)
+  └─ AnchoredPopup (Portal)
+       └─ FocusScope (Esc)
+            └─ panel Decorated (+ optional arrow)
+                 └─ Column
+                      ├─ title?
+                      └─ content
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
+- hover 离开宽限用 `Ticker`（跟随 Host Tick）；无控件级 loading 帧循环。  
 - 动画跟随 Host Tick；尊重 reduced-motion。  
 
 ### 6.12 完成定义（DoD）
@@ -519,10 +600,10 @@ Trigger?
 同时满足即可宣布 **Popover 主路径 1:1 完成**：
 
 1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+2. §6.9 中 **P0 / L1 / L2** 用例测试通过（POP-01–POP-14、POP-16–POP-19）。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+4. L3 golden 至少覆盖 1 个关键可见态（若控件可见；可后补）。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。  
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/popover.md` §6；P1 显式列出。  
 
 ---

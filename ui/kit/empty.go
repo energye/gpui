@@ -556,7 +556,11 @@ func (e *Empty) rebuild() {
 		if e.AriaLabel != "" {
 			alt = e.AriaLabel
 		}
-		im := NewImage(alt, imgW, imgH)
+		im := NewImage()
+		im.SetAlt(alt)
+		im.SetWidth(imgW)
+		im.SetHeight(imgH)
+		im.SetPreview(false)
 		im.Face = e.Face
 		im.Theme = th
 		im.SetSrc(e.ImageSrc)

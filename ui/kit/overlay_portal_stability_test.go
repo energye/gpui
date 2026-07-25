@@ -105,9 +105,8 @@ func TestModal_RebuildWhileOpenKeepsPortal(t *testing.T) {
 
 // Popover programmatic SetOpen applies Viewport like click path.
 func TestPopover_SetOpenAppliesViewport(t *testing.T) {
-	trig := kit.NewButton("pop").Node()
-	body := primitive.NewText("panel body")
-	p := kit.NewPopover(trig, body)
+	p := kit.NewPopover("pop")
+	p.SetContent("panel body")
 	p.Viewport = core.Size{Width: 640, Height: 480}
 	tree := core.NewTree(p.Node())
 	tree.Layout(core.Size{Width: 640, Height: 480})
@@ -115,11 +114,11 @@ func TestPopover_SetOpenAppliesViewport(t *testing.T) {
 	if !p.Open {
 		t.Fatal("Open flag")
 	}
-	if p.Popup == nil || !p.Popup.Open {
+	if p.Popup() == nil || !p.Popup().Open {
 		t.Fatal("popup not open")
 	}
-	if p.Popup.Viewport.Width != 640 {
-		t.Fatalf("Viewport not applied: %+v", p.Popup.Viewport)
+	if p.Popup().Viewport.Width != 640 {
+		t.Fatalf("Viewport not applied: %+v", p.Popup().Viewport)
 	}
 	tree.Layout(core.Size{Width: 640, Height: 480})
 	if tree.Overlays().Len() < 1 {

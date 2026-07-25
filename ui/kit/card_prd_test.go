@@ -67,7 +67,7 @@ func TestCard_PRD_02_TitleExtra(t *testing.T) {
 func TestCard_PRD_03_Cover(t *testing.T) {
 	// CRD-03: cover
 	c := kit.NewCard("")
-	cover := kit.NewImage("cover", 240, 120)
+	cover := kit.NewImageSized("cover", 240, 120)
 	c.SetCover(cover.Node())
 	c.SetContent(kit.NewText("body").Node())
 	sz := c.Node().Layout(core.Loose(300, 400))
@@ -276,7 +276,7 @@ func TestCard_PRD_13_DemoFlexibleContent(t *testing.T) {
 	c.SetHoverable(true)
 	c.SetVariant(kit.CardBorderless)
 	c.SetWidth(240)
-	c.SetCover(kit.NewImage("example", 240, 150).Node())
+	c.SetCover(kit.NewImageSized("example", 240, 150).Node())
 	c.SetContent(meta.Node())
 	_ = c.Node().Layout(core.Loose(280, 400))
 	if !c.Hoverable || c.Variant != kit.CardBorderless {

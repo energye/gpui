@@ -145,7 +145,7 @@ func TestCatalogRestAPIs(t *testing.T) {
 	car := kit.NewCarousel(kit.NewText("1").Node(), kit.NewText("2").Node())
 	car.SetIndex(1)
 	_ = car.Node().Layout(core.Loose(200, 100))
-	img := kit.NewImage("photo", 100, 60)
+	img := kit.NewImageSized("photo", 100, 60)
 	_ = img.Node().Layout(core.Loose(100, 60))
 	qr := kit.NewQRCode("hello")
 	_ = qr.Node().Layout(core.Loose(128, 128))

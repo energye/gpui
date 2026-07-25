@@ -1026,13 +1026,13 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Image": {
 			{"R1 size", func(t *testing.T) {
-				sz := kit.NewImage("alt", 50, 40).Node().Layout(core.Loose(60, 50))
+				sz := kit.NewImageSized("alt", 50, 40).Node().Layout(core.Loose(60, 50))
 				if sz.Width < 40 {
 					t.Fatal(sz)
 				}
 			}},
 			{"R2 setSrc/pixels", func(t *testing.T) {
-				im := kit.NewImage("", 32, 32)
+				im := kit.NewImageSized("", 32, 32)
 				im.SetSrc("res://x")
 				im.SetPixels(1, 1, []byte{255, 0, 0, 255})
 				if im.Src != "res://x" || im.PixelW != 1 {
@@ -1040,7 +1040,7 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 				}
 			}},
 			{"R3 preview", func(t *testing.T) {
-				im := kit.NewImage("a", 32, 32)
+				im := kit.NewImageSized("a", 32, 32)
 				im.SetPreview(true)
 				if !im.Preview {
 					t.Fatal()
@@ -1067,19 +1067,23 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Popover": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewPopover(kit.NewText("t").Node(), kit.NewText("b").Node()).Node() == nil {
+				pop := kit.NewPopover("t")
+				pop.SetContent("b")
+				if pop.Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 open", func(t *testing.T) {
-				p := kit.NewPopover(kit.NewText("t").Node(), kit.NewText("b").Node())
+				p := kit.NewPopover("t")
+				p.SetContent("b")
 				p.SetOpen(true)
 				if !p.Open {
 					t.Fatal()
 				}
 			}},
 			{"R3 close", func(t *testing.T) {
-				p := kit.NewPopover(kit.NewText("t").Node(), kit.NewText("b").Node())
+				p := kit.NewPopover("t")
+				p.SetContent("b")
 				p.SetOpen(true)
 				p.SetOpen(false)
 				if p.Open {

@@ -422,7 +422,7 @@ func TestBehavior_QRCodeDeterministic(t *testing.T) {
 }
 
 func TestBehavior_ImageSized(t *testing.T) {
-	im := kit.NewImage("alt", 100, 60)
+	im := kit.NewImageSized("alt", 100, 60)
 	sz := im.Node().Layout(core.Loose(120, 80))
 	if sz.Width < 90 || sz.Height < 50 {
 		t.Fatalf("size=%v", sz)
@@ -430,14 +430,14 @@ func TestBehavior_ImageSized(t *testing.T) {
 }
 
 func TestBehavior_ImageSetPixels(t *testing.T) {
-	im := kit.NewImage("", 64, 64)
+	im := kit.NewImageSized("", 64, 64)
 	// 2×2 red/green/blue/white
 	pix := []byte{
 		255, 0, 0, 255, 0, 255, 0, 255,
 		0, 0, 255, 255, 255, 255, 255, 255,
 	}
-	im.SetPixels(2, 2, pix)
 	im.SetSrc("res://tex")
+	im.SetPixels(2, 2, pix)
 	if im.PixelW != 2 || im.Src != "res://tex" {
 		t.Fatalf("pw=%d src=%q", im.PixelW, im.Src)
 	}

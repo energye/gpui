@@ -92,7 +92,7 @@ func TestVisual_EmptyResultProgress(t *testing.T) {
 func TestVisual_CalendarImageQR(t *testing.T) {
 	cal := kit.NewCalendar()
 	cal.SetDefaultValue(kit.DateOf(2026, 7, 1))
-	img := kit.NewImage("img", 80, 48)
+	img := kit.NewImageSized("img", 80, 48)
 	qr := kit.NewQRCode("x")
 	col := primitive.Column(cal.Node(), img.Node(), qr.Node())
 	col.Gap = 8

@@ -166,22 +166,18 @@ func TestTooltipSync(t *testing.T) {
 }
 
 func TestPopoverClick(t *testing.T) {
-	body := primitive.NewText("panel")
-	trig := kit.NewButton("Open")
-	pop := kit.NewPopover(trig.Node(), body)
+	pop := kit.NewPopover("Open")
+	pop.SetContent("panel")
+	pop.SetTrigger(kit.PopoverTriggerClick)
 	tree := core.NewTree(pop.Node())
 	tree.Layout(core.Size{Width: 400, Height: 300})
-	// click shell (button pressable nested)
-	// find pressable shell at root child 0
 	host := platform.NewHeadless(400, 300)
 	defer host.Close()
-	// use button size
 	ax := 10.0
 	ay := 10.0
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: ax, Y: ay, Button: core.ButtonLeft})
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: ax, Y: ay, Button: core.ButtonLeft})
 	pop.Sync()
-	// open may be true if hit
 	_ = pop.Open
 }
 

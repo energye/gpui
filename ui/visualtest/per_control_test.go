@@ -144,7 +144,7 @@ func perControlSpecs() []ctlSpec {
 			c.SetDefaultValue(kit.DateOf(2026, 7, 1))
 			return padRoot(c.Node(), 280, 280)
 		}},
-		{"ctl_image", 140, 100, func() core.Node { return padRoot(kit.NewImage("img", 100, 60).Node(), 140, 100) }},
+		{"ctl_image", 140, 100, func() core.Node { return padRoot(kit.NewImageSized("img", 100, 60).Node(), 140, 100) }},
 		{"ctl_qrcode", 150, 150, func() core.Node { return padRoot(kit.NewQRCode("gpui").Node(), 150, 150) }},
 		{"ctl_statistic", 140, 80, func() core.Node {
 			return padRoot(kit.NewStatistic("N", "128").Node(), 140, 80)
@@ -256,7 +256,9 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(kit.NewTooltip(kit.NewButton("tip").Node(), "hello").Node(), 140, 48)
 		}},
 		{"ctl_popover", 140, 48, func() core.Node {
-			return padRoot(kit.NewPopover(kit.NewButton("pop").Node(), kit.NewText("body").Node()).Node(), 140, 48)
+			pop := kit.NewPopover("pop")
+			pop.SetContent("body")
+			return padRoot(pop.Node(), 140, 48)
 		}},
 		{"ctl_tour", 100, 40, func() core.Node {
 			return padRoot(kit.NewTour(kit.TourStep{Title: "t", Body: "b"}).Node(), 100, 40)

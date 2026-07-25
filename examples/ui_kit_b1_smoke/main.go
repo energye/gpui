@@ -149,11 +149,10 @@ func main() {
 	scrollFrame.Padding = primitive.All(4)
 
 	// Popover
-	popBody := kit.NewText("Popover body · M2 AnchoredPopup")
-	popBody.SetFace(face)
-	popBtn := kit.NewButton("Popover")
-	popBtn.SetFace(face)
-	pop := kit.NewPopover(popBtn.Node(), popBody.Node())
+	pop := kit.NewPopover("Popover")
+	pop.SetFace(face)
+	pop.SetContent("Popover body · M2 AnchoredPopup")
+	pop.SetTrigger(kit.PopoverTriggerClick)
 	pop.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
 
 	statusTx := kit.NewText("status: ready")

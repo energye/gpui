@@ -102,8 +102,8 @@ func TestPopconfirm_TitleInContent(t *testing.T) {
 			walk(c)
 		}
 	}
-	if pc.Popover != nil && pc.Popover.Content != nil {
-		walk(pc.Popover.Content)
+	if pc.Popover != nil && pc.Popover.ContentRoot() != nil {
+		walk(pc.Popover.ContentRoot())
 	}
 	if !found {
 		t.Fatal("popconfirm title text missing from content")

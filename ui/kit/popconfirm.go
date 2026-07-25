@@ -53,7 +53,15 @@ func NewPopconfirm(trigger core.Node, title string) *Popconfirm {
 	body.Gap = 12
 	body.CrossAlign = core.CrossStart
 
-	pc.Popover = NewPopover(trigger, body)
+	pc.Popover = NewPopover("")
+	if trigger != nil {
+		pc.Popover.SetTriggerNode(trigger)
+	} else {
+		pc.Popover.SetTriggerLabel("Confirm")
+	}
+	pc.Popover.SetContentNode(body)
+	pc.Popover.SetTrigger(PopoverTriggerClick)
+	pc.Popover.SetArrow(true)
 	return pc
 }
 
