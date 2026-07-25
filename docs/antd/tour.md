@@ -326,27 +326,39 @@ import { Tour } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/tour/style/index.ts`（`prepareComponentToken` + `mergeToken`）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 字号 | **14** | `fontSize` |
+| 面板圆角 | **8** | `borderRadiusLG`（`tourBorderRadius`） |
+| 面板水平/垂直 padding | **16** | `padding` |
+| 面板内容 gap | **8** | `paddingXS` / `marginXS` |
+| 面板参考宽 | **520**（内容可更窄） | 样式 `width: 520`；kit 作 max 宽 |
+| 高亮 gap.offset | **6** | API 默认；支持单值或 `[x,y]` |
+| 高亮 gap.radius | **2** | API 默认 |
+| 指示器点 | **6×6** | `indicatorWidth` / `indicatorHeight` |
+| 指示器间距 | **8** | `marginXS` |
+| 关闭按钮区 | ≈ **22**（`fontSize * lineHeight`） | `closeBtnSize` |
 | 边框线宽 | **1** | `lineWidth` |
+| zIndex | **1001**（`zIndexPopupBase+70`） | `zIndexPopup`；kit `OverlayZTour` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 默认面板底 / 字 | `colorBgElevated`（回落 `colorBgContainer`）/ `colorText` | `type=default` |
+| Primary 面板 | `colorPrimary` 底 + 反白字 `colorTextLightSolid`/`colorTextInverse` | `type=primary` |
+| 次级文本 / 描述 | `colorTextSecondary` | description |
+| 遮罩 | `colorBgMask`（默认 α≈0.45） | `mask=true`；可 `mask.color` 覆盖 |
+| 高亮描边 | `colorPrimary` | 洞边框 |
+| 指示器未激活 / 激活 | `colorFill` / `colorPrimary` | dots |
+| 浮层阴影 | `boxShadowTertiary` / `boxShadowSecondary` | 面板 |
+| 禁用 | `colorDisabledBg` / `colorDisabledText` | 按钮禁用 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -378,28 +390,38 @@ import { Tour } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-open ── step[current] 高亮洞 + 气泡
-next/prev ── current'
-close ── onClose
+closed ──SetOpen(true)/open──► open@current
+  open ── Next ──► current+1（非末步）或 Finish（末步）
+  open ── Prev ──► current-1（current>0）
+  open ── Close/Esc/mask(可关)/closeIcon ──► closed + onClose
+  open ── Finish(末步 Next) ──► closed + onFinish（+ onClose 可同帧）
+  open ── SetCurrent / 受控 current ──► 外部驱动 current
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| TOU-S1 | 打开 | 洞+气泡 |
-| TOU-S2 | 下一步 | current+1 |
-| TOU-S3 | 上一步 | current-1 |
-| TOU-S4 | 关闭 | onClose |
-| TOU-S5 | 受控 current | 外部 |
-| TOU-S6 | 末步完成 | 关闭或回调 |
+| TOU-S1 | `open=true` | 显示蒙层（若 mask）+ 高亮洞（有 target）+ 引导面板；焦点进入浮层（dialog） |
+| TOU-S2 | Next（非末步） | 非受控：`current+1` + `onChange`；受控：仅 `onChange`，等外部 `SetCurrent` |
+| TOU-S3 | Prev（current>0） | 非受控：`current-1` + `onChange`；受控：仅 `onChange` |
+| TOU-S4 | Close / Esc / closeIcon / mask 点击 | `open=false` + `onClose`；Esc 受 `keyboard` 约束（默认 true） |
+| TOU-S5 | 受控 `current` | 外部 `SetCurrent` 为真相；内部 Next/Prev 不擅自改 current |
+| TOU-S6 | 末步 Next | `onFinish`；关闭引导（`open=false`）；可再触发 `onClose` |
+| TOU-S7 | `mask=false`（非模态） | 无全屏遮罩；面板仍显示；背景可交互（不 trap 全屏 mask） |
+| TOU-S8 | `type` / step.`type` | 面板底色与文字切换 default↔primary |
+| TOU-S9 | `placement` / step.`placement` | 面板相对 target 方位；`center` 或 target 空 → 视口居中 |
+| TOU-S10 | `gap` | 高亮洞相对 target 外扩 offset、圆角 radius |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| mask | `colorBgMask` 半透明（适用者） |
-| panel/popup | 容器底 + 阴影 + 圆角 LG |
-| open/close | 动画可关 / reduced-motion |
-| disabled 触发 | 触发器禁用皮，不打开 |
-
+| mask | `colorBgMask` 半透明；可 `mask.color` 覆盖；`mask=false` 不绘 |
+| 高亮洞 | target ± gap.offset；描边主色；圆角 gap.radius；`disabledInteraction` 时洞区不透传点击 |
+| panel default | elevated/container 底 + 文本色 + 圆角 LG + 阴影 |
+| panel primary | primary 底 + 反白字；按钮反色语义 |
+| footer | 指示器（左）+ 操作 Prev/Next|Finish（右）；可 `indicatorsRender` / `actionsRender` |
+| open/close | 动画可关 / reduced-motion；P0 瞬时 |
+| closeIcon | 默认显示；点击关闭 |
 
 **动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
 
@@ -432,25 +454,37 @@ close ── onClose
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `type` | 必须 |
-| `open` | 必须 |
-| `title` | 必须 |
-| `placement` | 必须 |
-| 官方主路径示例 | 基本、非模态、位置、自定义遮罩样式、自定义指示器、自定义操作按钮、自定义高亮区域的样式、自定义语义结构的样式和类 |
+| `open` / `SetOpen` | 受控显隐 |
+| `current` / `SetCurrent` / `onChange` | 步骤；受控/非受控 |
+| `onClose` / `onFinish` | 关闭与末步完成 |
+| `steps[]`：`title` / `description` / `target` / `cover` / `placement` / `type` / `mask` / `nextButtonProps` / `prevButtonProps` | 步骤卡片主字段 |
+| `type`（Tour 与 step） | `default` \| `primary` |
+| `placement`（Tour 与 step） | 含 `center` 与 12 方位；默认 `bottom` |
+| `mask` | bool 或颜色覆盖；step 可覆盖/关闭 |
+| `gap` | `offset` 单值/`[x,y]` + `radius` |
+| `arrow` | 是否显示箭头（P0 可简化几何） |
+| `keyboard` | Esc 关闭；默认 true |
+| `closeIcon` | 默认 true |
+| `indicatorsRender` | 自定义指示器文案/节点 |
+| `actionsRender` | 自定义操作区（可包 origin Next/Prev） |
+| `disabledInteraction` | 禁用高亮区交互（洞不透传） |
+| 官方主路径示例 | 基本、非模态、位置、自定义遮罩样式、自定义指示器、自定义操作按钮、自定义高亮区域的样式、自定义语义结构的样式和类（**浅** styles：mask/section 色与圆角） |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | dialog 角色 + 可访问名 + Esc + 焦点 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| semantic classNames/styles **函数形态**与全 SemanticDOM 深度 | 分期 |
+| 箭头像素级 / pointAtCenter 精细 | 分期 |
+| `scrollIntoViewOptions` 真滚动宿主 | 分期（桌面宿主） |
+| `getPopupContainer` 自定义挂载 | 分期 |
+| 动画像素级 / placeholder-animated | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | _semantic.tsx |
+| debug `render-panel` 与官网逐像素哈希 | 分期 |
+| ConfigProvider 全局 Tour 默认 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -483,27 +517,58 @@ close ── onClose
 | TOU-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（如 `Body`→`Description`、`Index`→`Current`）；语义对齐 antd 6.5。
 
 ```text
-NewTour(...) *Tour
+NewTour(steps ...TourStep) *Tour
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// Tour
+SetSteps(...TourStep) / Steps
+SetOpen(bool) / IsOpen() / Open
+SetCurrent(int) / Current          // 受控 current；非受控由 Next/Prev 改
+SetDefaultCurrent(int)             // 仅非受控初始
+SetType(TourType)                  // default | primary
+SetPlacement(TourPlacement)        // bottom 默认；含 center + 12 向
+SetMask(bool) / SetMaskColor(RGBA) // mask=false → 非模态
+SetGap(offset, radius) / SetGapXY(ox, oy, radius)
+SetArrow(bool)                     // 默认 true
+SetKeyboard(bool)                  // 默认 true；Esc
+SetCloseIcon(bool)                 // 默认 true
+SetDisabledInteraction(bool)
+SetIndicatorsRender(func(current, total int) core.Node) // 或 string 便捷
+SetActionsRender(func(origin core.Node, current, total int) core.Node)
+SetOnChange(func(current int))
+SetOnClose(func())
+SetOnFinish(func())
+SetTheme(*Theme) / SetFace(Face) / SetAriaLabel(string)
+SetStyles(TourStyles)              // 浅：Mask/Section/Title/Description …
+Next() / Prev() / Close()
+Node() core.Node                   // OverlayPortal 宿主
+Panel() core.Node                  // 测试钩：当前面板
+
+// TourStep
+Title / Description / Cover(core.Node)
+Target core.Rect                   // 空 → 居中；宿主每帧可写绝对矩形
+Placement / Type / Mask* / Arrow*
+NextButtonProps / PrevButtonProps  // Children + OnClick + 浅 Style
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Open | false |
+| Current | 0（或 DefaultCurrent） |
+| Type | `default` |
+| Placement | `bottom` |
+| Mask | true（`colorBgMask`） |
+| Gap | offset=6，radius=2 |
+| Arrow | true |
+| Keyboard | true |
+| CloseIcon | true |
+| DisabledInteraction | false |
+| 按钮文案 | Previous / Next / Finish（末步） |
+| 其余 | 对齐 antd 6.5 §3 表 / §6.2 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
