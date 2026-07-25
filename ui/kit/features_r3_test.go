@@ -609,9 +609,12 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 					t.Fatal()
 				}
 			}},
-			{"R3 options via AC", func(t *testing.T) {
+			{"R3 options", func(t *testing.T) {
 				m := kit.NewMentions("@", "alice", "bob")
-				m.SetOptions([]string{"@alice", "@bob"})
+				m.SetOptionValues("alice", "bob")
+				if len(m.Options) != 2 {
+					t.Fatal()
+				}
 			}},
 		},
 		"Radio": {

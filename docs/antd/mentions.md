@@ -419,20 +419,29 @@ import { Mentions } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-输入 prefix(@) ──► 建议列表
-选中 ──► 插入 token + onSelect
-onSearch 过滤
+idle ──type prefix(@/#) after boundary──► measuring
+measuring ──onSearch(text,prefix) + filter──► open panel
+open ──↑↓──► active option
+open ──Enter/click──► insert "prefix+value+split" at measure range; onSelect; close
+open ──Esc / 失焦 / 搜索含 split──► close
+loading ──► panel spinner（Ticker）；options 可异步替换
+disabled / readOnly ──► 不打开 / 不可编辑
+allowClear ──► value="" + onClear
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| MEN-S1 | 输入 @ | 开面板 |
-| MEN-S2 | 选一项 | 插入；onSelect |
-| MEN-S3 | onSearch | 过滤 |
-| MEN-S4 | 多行 rows | 高度 |
-| MEN-S5 | disabled | 不交互 |
-| MEN-S6 | clear | 空 |
-| MEN-S7 | 自定义 prefix # | # 触发 |
+| MEN-S1 | 输入触发符（默认 `@`；边界：行首或空白后） | 开面板；`onSearch("", prefix)` |
+| MEN-S2 | 选一项（点击 / Enter） | 在 measure 区间插入 `prefix+value+split`；`onSelect(option, prefix)`；关面板 |
+| MEN-S3 | 继续输入搜索段 / `onSearch` | 过滤 options（默认 case-insensitive contains）；`onSearch(text, prefix)` |
+| MEN-S4 | `rows` 多行 | 高度按 TextArea 行高公式 |
+| MEN-S5 | `disabled` | 不编辑、不打开、不 clear |
+| MEN-S6 | `allowClear` 点清除 | value 空；`onClear`；关面板 |
+| MEN-S7 | `prefix` 含 `#`（可多触发符） | 对应字符触发；`onSearch` 第二参为命中 prefix |
+| MEN-S8 | `placement` top/bottom | 弹层在触发器上/下 |
+| MEN-S9 | `loading` | 面板 spinner + Ticker；可显示当前 options |
+| MEN-S10 | `readOnly` | 可聚焦浏览，不可编辑/选中插入 |
+| MEN-S11 | 键盘 ↑↓ + Enter / Esc | 导航选中 / 关闭；focus ring 可见 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
@@ -476,19 +485,24 @@ onSearch 过滤
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `variant` | 必须 |
-| `status` | 必须 |
-| `options` | 必须 |
-| `placement` | 必须 |
-| `allowClear` | 必须 |
+| `value` / `defaultValue` / `onChange` | 受控/非受控文本 |
+| `disabled` / `readOnly` | 禁用与只读（readonly.tsx） |
+| `size` | large / middle / small → 24/32/40 节奏（多行时影响字号/行高） |
+| `variant` | outlined / filled / borderless / underlined |
+| `status` | error / warning（API；自定义状态完整 demo 见 P1） |
+| `options` | `{value,label,key,disabled}` |
+| `prefix` | 触发关键字，默认 `@`；支持 `string[]`（prefix.tsx） |
+| `split` | 选中插入后缀分隔，默认单空格 |
+| `placement` | `top` \| `bottom`（默认 bottom） |
+| `allowClear` / `onClear` | 清除（API；带自定义 clearIcon 完整 demo 见 P1） |
+| `onSearch` / `onSelect` | 搜索与选中 |
+| `filterOption` | 默认 contains 过滤；`false` 关闭（异步由调用方喂 options） |
+| `loading` | 异步面板 spinner + Ticker（async.tsx） |
+| `rows` | 多行高度（form.tsx rows=1/3） |
+| `notFoundContent` | 空列表文案（默认 `Not Found` 可选） |
 | 官方主路径示例 | 基本使用、尺寸、形态变体、异步加载、配合 Form 使用、自定义触发字符、无效或只读、向上展开 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | combobox/listbox + focus ring + 键盘主路径 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -497,8 +511,12 @@ onSearch 过滤
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| 浏览器-only API（getPopupContainer DOM、onResize 宿主细节） | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
+| allowClear 自定义 clearIcon 完整 demo | 分期（API allowClear 已在 P0） |
+| autoSize min/maxRows 完整 demo | 分期 |
+| 自定义 status 完整 demo 页 | 分期（status API 已在 P0） |
+| validateSearch 自定义钩子 / onPopupScroll | 分期 |
 | 其余示例 | 带移除图标, 自动大小, 自定义状态, 自定义语义结构的样式和类 |
 
 ### 6.9 验收用例表（可测）
@@ -536,39 +554,56 @@ onSearch 过滤
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewMentions(...) *Mentions
+NewMentions(placeholder string, optionValues ...string) *Mentions
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 配置 SetXxx（P0）
+//   SetValue / SetDefaultValue / SetPlaceholder
+//   SetOptions([]MentionsOption) / SetOptionValues(...string)
+//   SetDisabled / SetReadOnly / SetAllowClear
+//   SetSize / SetVariant / SetStatus
+//   SetPrefix(...string) / SetSplit / SetPlacement / SetRows
+//   SetFilterOption(bool) / SetFilterOptionFunc / SetNotFoundContent
+//   SetLoading / SetOpen（测试/受控）
+// 回调
+//   SetOnChange / SetOnSearch(text,prefix) / SetOnSelect(option,prefix)
+//   SetOnClear / SetOnOpenChange
+// 主题 / a11y
+//   SetTheme / SetFace / SetAriaLabel / Focus / Blur
+// 工具
+//   GetMentions(value, prefix?, split?) []MentionsEntity  // Form 校验用
+// 挂树：Node() core.Node；Field() *Input；Popup() *AnchoredPopup
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Disabled / ReadOnly / AllowClear / Loading | false |
+| Size | middle |
+| Variant | outlined |
+| Status | none |
+| Prefix | `["@"]` |
+| Split | `" "`（单空格） |
+| Placement | bottom |
+| Rows | 1（多行 TextArea；高度按行高公式） |
+| FilterOption | 开启（contains, case-insensitive） |
+| 受控值 | 未 Set 时用 defaultValue 或 `""` |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+Column (Wrap)
+  ├─ TextArea / multiline Input   (editable value + clear?)
+  └─ AnchoredPopup
+       └─ panel (options | notFound | loading spinner)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- loading 动画跟随 Host Tick；尊重 reduced-motion。  
+- measure：在 caret 前扫描 prefix（边界=行首/空白）；搜索段不含 split 才开面板。  
 
 ### 6.12 完成定义（DoD）
 
