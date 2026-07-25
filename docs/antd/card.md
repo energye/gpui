@@ -343,27 +343,38 @@ import { Card } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`、`paddingLG=24`、`borderRadiusLG=8`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/card/style/index.ts` → `prepareComponentToken` / `genCardStyle`。
 
 #### 6.2.1 几何与组件 Token
 
-| 项 | 默认值 | Token / 来源 |
-| --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 项 | middle（默认） | small | Token / 来源 |
+| --- | --- | --- | --- |
+| 正文字号 | **14** | **14** | `fontSize` |
+| 标题字号 | **16**（`fontSizeLG`） | **14**（`fontSize`） | `headerFontSize` / `headerFontSizeSM` |
+| 圆角 | **8** | **8** | `borderRadiusLG`（Card 根） |
+| 边框线宽 | **1** | **1** | `lineWidth` |
+| body 内边距 | **24**（`paddingLG`） | **12**（固定） | `bodyPadding` / `bodyPaddingSM` |
+| header 水平 pad | **24** | **12** | `headerPadding` / `headerPaddingSM` |
+| header 最小高 | **≈56**（`fontSizeLG×lineHeightLG + padding×2`） | **≈30** | `headerHeight` / `headerHeightSM` |
+| actions 行上下 margin | **12**（`paddingSM`） | 同 | `actionsLiMargin` |
+| Meta 标题字号 | **16**（`fontSizeLG`） | 同 | Meta style |
+| Meta avatar 右 pad | **16**（`padding`） | 同 | Meta style |
+| Grid 默认宽 | **33.33%** | — | `genCardGridStyle`；demo 可 25% |
+| Grid 内边距 | **24**（`paddingLG`） | — | `cardPaddingBase` |
+| Focus ring outset | ≈ **1.5px** 可见 | 同 | 可调，必须可见（hoverable/可点时） |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 容器底 / header 默认底 | `colorBgContainer` / headerBg=transparent | |
+| 边框 / 分割 | `colorBorderSecondary`（outlined）/ `colorSplit` | header/actions 底边 |
+| 标题字 / 正文字 | `colorTextHeading`≈`colorText` / `colorText` | |
+| Meta 描述 / actions 图标 | `colorTextSecondary` / `colorTextDescription` | |
+| type=inner 头底 | `colorFillSecondary`（≈ colorFillAlter） | |
+| hoverable 悬停 | 边框透明 + 抬升阴影（桌面可近似边框/底反馈） | `boxShadowCard` 像素级 P1 |
+| 禁用 | `colorDisabledBg` / `colorDisabledText` | 适用者（kit 可选 SetDisabled） |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -395,23 +406,31 @@ import { Card } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-静态结构 title/extra/cover/actions
-loading ──► 遮罩/骨架
-hoverable ──► 悬停抬升
+mount ──► default chrome（variant outlined|borderless · size middle|small · type default|inner）
+            │
+            ├─ title / extra ──► header 区（有 title|extra 时渲染）
+            ├─ cover ──► header 下封面
+            ├─ body children | Card.Meta | Card.Grid…
+            ├─ actions[] ──► 底栏等分可点
+            ├─ loading=true ──► body 换 Skeleton（paragraph rows≈4，active Ticker 闪烁）
+            ├─ hoverable=true ──► pointer 悬停抬升反馈；可 OnClick
+            └─ disabled=true（kit 扩展）──► 禁用色；无 hover 高亮；吞 click
 ```
 
-\*padding 24；圆角 8。
+默认度量：body pad **24**；圆角 **8**（`borderRadiusLG`）。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| CRD-S1 | title+extra | 头区 |
-| CRD-S2 | cover | 封面 |
-| CRD-S3 | actions | 底操作可点 |
-| CRD-S4 | loading | 加载态 |
-| CRD-S5 | hoverable | 悬停样式 |
-| CRD-S6 | Meta | avatar+title+desc |
-| CRD-S7 | size=small | 更紧 padding |
-| CRD-S8 | type=inner | 内嵌皮 |
+| CRD-S1 | title+extra | 头区：title 左、extra 右；header 底部分割线 |
+| CRD-S2 | cover | 封面在 header 下、body 上；圆角顶随根 |
+| CRD-S3 | actions | 底操作等分；项可点（Pressable） |
+| CRD-S4 | loading | body 显示骨架；不展示原 children；Ticker 驱动闪烁 |
+| CRD-S5 | hoverable | 悬停样式变化；cursor=pointer |
+| CRD-S6 | Meta | avatar + title + description 横排 |
+| CRD-S7 | size=small | body/header pad=12；标题字 14；header 更矮 |
+| CRD-S8 | type=inner | 头底 fillAlter；标题字号 14；内嵌皮 |
+| CRD-S9 | variant=borderless | 无描边（可弱阴影近似）；outlined 有 1px 边 |
+| CRD-S10 | Card.Grid | 等分网格；默认 hoverable；body 无 pad 包裹 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -450,25 +469,33 @@ hoverable ──► 悬停抬升
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `loading` | 必须 |
-| `size` | 必须 |
-| `type` | 必须 |
-| `variant` | 必须 |
-| `title` | 必须 |
-| 官方主路径示例 | 典型卡片、无边框、简洁卡片、更灵活的内容展示、栅格卡片、预加载的卡片、网格型内嵌卡片、内部卡片 |
+| `title` / `extra` | 头区 |
+| `cover` | 封面 |
+| `actions` | 底操作组 |
+| `loading` | body Skeleton + Ticker |
+| `hoverable` | 悬停反馈；可 OnClick |
+| `size` | middle（默认）/ small |
+| `type` | default / inner |
+| `variant` | outlined（默认）/ borderless（取代 bordered） |
+| `Card.Meta` | avatar + title + description |
+| `Card.Grid` | 网格子块（含 hoverable） |
+| 官方主路径示例 | basic、border-less、simple、flexible-content、in-column、loading、grid-card、inner |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | 最低要求（可聚焦者 focus ring；结构可读） |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `tabList` / `activeTabKey` / `tabBarExtraContent` / `tabProps` | 带页签的卡片 |
 | semantic classNames/styles 深度 | 分期 |
+| boxShadowCard 像素级悬停阴影 | 桌面可近似 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
+| ConfigProvider 全局 card 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 带页签的卡片, 支持更多内容配置, 自定义语义结构的样式和类, _semantic.tsx |
+| 其余示例 | tabs、meta 独立页、支持更多内容配置、style-class、_semantic.tsx |
 
 ### 6.9 验收用例表（可测）
 
@@ -506,38 +533,82 @@ hoverable ──► 悬停抬升
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewCard(...) *Card
+NewCard(title string) *Card
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 形态
+SetSize(CardSize)                 // middle|small
+SetVariant(CardVariant)           // outlined|borderless
+SetType(CardType)                 // default|inner
+SetHoverable(bool)
+SetLoading(bool)                  // body Skeleton + Ticker
+SetDisabled(bool)                 // kit 扩展；禁用色/吞 click
+
+// 内容
+SetTitle(string) / SetTitleNode(core.Node)
+SetExtra(core.Node)
+SetCover(core.Node)
+SetContent(core.Node)             // body children
+SetActions(...core.Node)          // 底栏
+
+// 尺寸覆盖
+SetWidth(float64)                 // 0 = 内容宽
+
+// 回调
+OnClick func()                    // hoverable / 可点时
+
+// 主题 / 覆盖
+SetTheme(*Theme) / Theme 字段
+SetFace(text.Face)
+SetStyle(Style)                   // Width/Radius/Background/Border 等可选覆盖
+
+// a11y
+SetAriaLabel(string)
+
+// 挂树
+Node() core.Node
+ChromeNode() core.Node            // Decorated 皮
+AttachTicker(*core.Tree)          // loading 骨架
+
+// 子组件
+NewCardMeta() *CardMeta           // SetAvatar / SetTitle / SetDescription
+NewCardGrid() *CardGrid           // SetContent / SetHoverable / SetWidthFrac
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Size | middle（antd medium） |
+| Variant | outlined |
+| Type | default（无 type class） |
+| Loading / Hoverable / Disabled | false |
+| Title | NewCard 入参（可空 → 无头区，除非有 extra） |
+| 其余 | 对齐 antd 6.5 §3 / §6.2 |
+
+**Breaking（相对旧 kit.Card）：**
+
+| 旧 | 新 |
+| --- | --- |
+| `Bordered bool` | `Variant`（`CardOutlined` / `CardBorderless`） |
+| `SetPadding` / `SetPaddingInsets` / gap 微调 API | 走 size Token；`Style` 覆盖 |
+| 仅 title+body 壳 | 完整 header/cover/body/actions + Meta/Grid |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Data view
-  ├─ header?
-  ├─ body rows/nodes
-  └─ pagination/footer?
+Pressable?（hoverable / OnClick）
+  └─ Decorated（根 chrome：底、边框、圆角）
+       └─ Column
+            ├─ header?（title | spacer | extra + 底边）
+            ├─ cover?
+            ├─ body（content | Skeleton×loading | Grid 流式）
+            └─ actions?（等分 Row + 顶边）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- loading 骨架跟随 Host Tick（`Skeleton` / `AttachTicker`）；尊重 reduced-motion。  
 
 ### 6.12 完成定义（DoD）
 

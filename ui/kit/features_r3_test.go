@@ -934,7 +934,7 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 				c := kit.NewCard("T")
 				c.SetTitle("U")
 				c.SetExtra(kit.NewText("more").Node())
-				c.Bordered = false
+				c.SetVariant(kit.CardBorderless)
 			}},
 		},
 		"Carousel": {
