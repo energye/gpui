@@ -151,7 +151,7 @@ func perControlSpecs() []ctlSpec {
 			).Node(), 200, 120)
 		}},
 		{"ctl_descriptions", 220, 80, func() core.Node {
-			return padRoot(kit.NewDescriptions([2]string{"K", "V"}).Node(), 220, 80)
+			return padRoot(kit.NewDescriptions(kit.DescriptionsItem{Label: "K", Children: "V"}).Node(), 220, 80)
 		}},
 		{"ctl_list", 160, 100, func() core.Node { return padRoot(kit.NewList("a", "b", "c").Node(), 160, 100) }},
 		{"ctl_pagination", 200, 40, func() core.Node {

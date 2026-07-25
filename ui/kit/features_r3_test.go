@@ -986,20 +986,20 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Descriptions": {
 			{"R1 items", func(t *testing.T) {
-				d := kit.NewDescriptions([2]string{"a", "b"})
+				d := kit.NewDescriptions(kit.DescriptionsItem{Label: "a", Children: "b"})
 				if len(d.Items) != 1 {
 					t.Fatal()
 				}
 			}},
 			{"R2 setItems", func(t *testing.T) {
 				d := kit.NewDescriptions()
-				d.SetItems([][2]string{{"k", "v"}})
+				d.SetItems(kit.DescriptionsItem{Label: "k", Children: "v"})
 				if len(d.Items) != 1 {
 					t.Fatal()
 				}
 			}},
 			{"R3 column", func(t *testing.T) {
-				d := kit.NewDescriptions([2]string{"a", "b"})
+				d := kit.NewDescriptions(kit.DescriptionsItem{Label: "a", Children: "b"})
 				d.Column = 2
 				if d.Column != 2 {
 					t.Fatal()

@@ -301,27 +301,40 @@ import { Descriptions } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/descriptions/style/index.ts` → `prepareComponentToken` + `genBorderedStyle` / `genDescriptionStyles`。
 
 #### 6.2.1 几何与组件 Token
 
-| 项 | 默认值 | Token / 来源 |
-| --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 项 | 默认值（large） | medium | small | Token / 来源 |
+| --- | --- | --- | --- | --- |
+| 正文字号 | **14** | 14 | 14 | `fontSize` |
+| 标题字号 | **16** | 16 | 16 | `fontSizeLG` |
+| 标题下间距 | **20** | 20 | 20 | `titleMarginBottom` = `fontSizeSM × lineHeightSM` ≈ 12×1.666 |
+| 非边框 item 下间距 | **16** | **12** | **8** | `itemPaddingBottom`：`padding` / antd `paddingSM` / `paddingXS` |
+| 非边框 item 右间距 | **16** | 16 | 16 | `itemPaddingEnd` = `padding` |
+| 边框格 padding 竖 | **16** | **12** | **8** | `padding` / antd `paddingSM` / `paddingXS` |
+| 边框格 padding 横 | **24** | **24** | **16** | `paddingLG` / `paddingLG` / `padding` |
+| 冒号左/右间距 | **2 / 4** | 同 | 同 | `colonMarginLeft`=`marginXXS/2`，`colonMarginRight`=`marginXS` |
+| 圆角（view） | **8** | 8 | 8 | `borderRadiusLG` |
+| 边框线宽 | **1** | 1 | 1 | `lineWidth` |
+| 默认 column | **3** | — | — | 未设时 `DEFAULT_COLUMN_MAP` 在 md+ 为 3 |
+| 默认响应式 column | xs=1 sm=2 md…xl=3 xxl=3 xxxl=4 | — | — | `components/descriptions/constant.ts` |
+| Focus ring outset | ≈ **1.5px** 可见（可交互子节点） | | | 可调 |
+
+> **注意：** 本库 Theme `TokenPaddingSM=8` 对应 antd `paddingXS`，**不是** antd `paddingSM=12`。Descriptions medium 的 12 用组件常量 `DefaultDescriptionsItemPadBottomMD`，勿直接读 `TokenPaddingSM`。
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 标签字色 | `colorTextTertiary`（组件 `labelColor`） | 非边框 / 边框 label 均用 |
+| 内容字色 | `colorText`（`contentColor`） | |
+| 标题 / extra 字色 | `colorText` | 标题 `fontWeightStrong` |
+| 边框 label 底 | `colorFillSecondary`（≈ antd `colorFillAlter`） | bordered 表头格 |
+| 表框 / 分割线 | `colorSplit` | bordered 外框与格线 |
+| 容器底 | `colorBgContainer` | |
+| 禁用（适用者） | `colorDisabledBg` / `colorDisabledText` | Descriptions 本体无 disabled API |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -331,20 +344,19 @@ import { Descriptions } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `bordered` | 是否展示边框 | boolean | false |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `colon` | 配置 `Descriptions.Item` 的 `colon` 的默认值。表示是否显示 label 后面的冒号 | boolean | true |
-| `column` | 一行的 `DescriptionItems` 数量，可以写成像素值或支持响应式的对象写法 `{ xs: 8, sm… | number \ | [Record<Breakpoint, number>](https://github.com/ant-design/ant-design/blob/84ca0d23ae52e4f0940f20b0e22eabe743f90dca/components/descriptions/index.tsx#L111C21-L111C56) |
-| `extra` | 描述列表的操作区域，显示在右上方 | ReactNode | - |
-| `items` | 描述列表项内容 | [DescriptionsItem](#descriptionitem)[] | - |
-| `layout` | 描述布局 | `horizontal` \ | `vertical` |
-| `size` | 设置列表的大小。可以设置为 `medium` 、`small`, 或不填 | `large` \ | `medium` \ |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
-| `title` | 描述列表的标题，显示在最顶部 | ReactNode | - |
-| `label` | 内容的描述 | ReactNode | - |
-| `span` | 包含列的数量（`filled` 铺满当前行剩余部分） | number\ | `filled` \ |
+| `bordered` | 是否展示边框 | boolean | **false** |
+| `colon` | label 后是否显示冒号（仅非边框；边框态强制无冒号） | boolean | **true** |
+| `column` | 一行的 `DescriptionItems` 数量；支持 number 或响应式 map `{ xs, sm, … }` | number \| Record\<Breakpoint, number\> | **3**（或 `DEFAULT_COLUMN_MAP`） |
+| `extra` | 右上角操作区 | ReactNode | - |
+| `items` | 描述列表项（`label` / `children` / `span`） | DescriptionsItem[] | - |
+| `layout` | 描述布局 | `horizontal` \| `vertical` | **horizontal** |
+| `size` | 列表尺寸（影响 item / 边框格 padding） | `large` \| `medium` \| `small` | **large** |
+| `title` | 顶部标题 | ReactNode | - |
+| `span`（Item） | 占用列数；`filled` 铺满当前行剩余 | number \| `filled` \| Screens | **1** |
+| `styles` / `classNames` | 语义结构样式钩子 | Record / fn | -（P1 深度） |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**Item 字段：** `label`、`children`（内容）、`span`、可选 `key`。  
+**配置优先级（通用）：** 显式 props > 组件默认 > ConfigProvider 全局默认（ConfigProvider 全局为 P1）。
 
 ### 6.4 交互状态机（L1）
 
@@ -399,23 +411,29 @@ bordered 表框
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `size` | 必须 |
-| `items` | 必须 |
-| `title` | 必须 |
-| 官方主路径示例 | 基本、带边框的、自定义尺寸、响应式、垂直、垂直带边框的、自定义语义结构的样式和类、整行 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| `items` | `label` / `children` / `span` / `span=filled` / 响应式 span map |
+| `title` / `extra` | 顶栏标题 + 右上操作区 |
+| `size` | `large`（默认）\| `medium` \| `small` → padding 见 §6.2 |
+| `bordered` | 表框 + 格线 + label 底色 |
+| `column` | number 默认 3；响应式 `ColumnMap` + `ViewportWidth` |
+| `layout` | `horizontal`（默认）\| `vertical`（标签在上） |
+| `colon` | 默认 true；bordered 时不画冒号（对齐 antd） |
+| 行算法 | 对齐 `useRow`：满列换行、末项补齐、`filled` 收行 |
+| 官方主路径示例 | 基本、带边框的、自定义尺寸、响应式、垂直、垂直带边框的、自定义语义结构的样式和类（浅 styles）、整行 |
+| 度量 §6.2 | Token / Default 常量断言 |
+| a11y §6.6 | 根 `group` + 可选 `AriaLabel`；结构可读 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| semantic classNames/styles 函数形态 / 全 SemanticDOM 深度 | 分期（P0 仅浅 label/content/root Style） |
+| 动画像素级 / 复杂虚拟列表 | 分期（本控件无主路径动画） |
 | 浏览器-only API 或桌面无等价项 | 分期 |
+| ConfigProvider 全局默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | _semantic.tsx |
+| 其余示例 | text/padding/style/jsx/component-token/_semantic |
 
 ### 6.9 验收用例表（可测）
 
@@ -451,38 +469,52 @@ bordered 表框
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewDescriptions(...) *Descriptions
+NewDescriptions(items ...DescriptionsItem) *Descriptions
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// DescriptionsItem: Key, Label, LabelNode, Children, ChildrenNode,
+//                   Span, SpanFilled, SpanMap
+
+// 配置 SetXxx（P0）：
+//   SetItems / SetTitle / SetTitleNode / SetExtra
+//   SetSize / SetBordered / SetLayout / SetColon
+//   SetColumn / SetColumnMap / SetViewportWidth
+//   SetLabelStyle / SetContentStyle / SetStyle（浅语义）
+// 主题：SetTheme(*Theme)；SetFace
+// a11y：SetAriaLabel（role=group）
+// 查询：ResolvedColumn / RowCount / RowSpans / ItemPadBottom / …
+// 挂树：Node() core.Node；ChromeNode() 视觉壳
+// 本控件无 value/onChange、无 disabled/loading 主 API
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Size | **large**（antd Descriptions 默认） |
+| Bordered | false |
+| Layout | horizontal |
+| Colon | true |
+| Column | 3（或 `DEFAULT_COLUMN_MAP` + ViewportWidth） |
+| Item.Span | 1 |
+| 其余 | 对齐 antd 6.5 §3 / §6.2 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Data view
-  ├─ header?
-  ├─ body rows/nodes
-  └─ pagination/footer?
+Decorated root (ExpandWidth)
+  └─ Column
+       ├─ header?  (title · spacer · extra)
+       └─ view
+            └─ Column of rows
+                 └─ Row ExpandMax
+                      └─ Flexible(grow=span) × N
+                           └─ cell (horizontal: label[:]+content | vertical: label/content 列)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token；行算法对齐 antd `useRow`。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 本控件无主路径 Ticker；子节点若自带 loading 各自 AttachTicker。  
 
 ### 6.12 完成定义（DoD）
 

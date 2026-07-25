@@ -421,7 +421,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Descriptions", func(t *testing.T) {
-			d := kit.NewDescriptions([2]string{"a", "b"})
+			d := kit.NewDescriptions(kit.DescriptionsItem{Label: "a", Children: "b"})
 			if len(d.Items) != 1 {
 				t.Fatal()
 			}
