@@ -281,27 +281,34 @@ import { Spin } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`controlHeightLG=40`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/spin/style/index.ts` → `prepareComponentToken` + `genIndicatorStyle`。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| **dotSize**（medium） | **20** | `controlHeightLG/2`；本库 `TokenSpinSize` |
+| **dotSizeSM**（small） | **14** | `controlHeightLG * 0.35` |
+| **dotSizeLG**（large） | **32** | `controlHeight` |
+| **contentHeight** | **400** | 组件 token（嵌套空态最小高参考） |
+| section 指示↔文案 gap | **8** | `paddingSM` / `TokenPaddingSM` |
+| description 字号 | **14** | `fontSize` / `TokenFontSize` |
+| 4-dot 单项边长 | `(dotSize − marginXXS/2) / 2` | antd CSS var `dot-item-size` |
+| 进度环 viewBox | 100；stroke = 20；r = 40 | `Indicator/Progress.tsx` |
+| 旋转周期 | **1.2s** / 转（≈0.833 rps） | `antRotate` 1.2s linear |
+| percent=auto 步进 | **200ms** 桶 [30→5%, 70→3%, 96→1%] | `usePercent.ts` |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 指示符 / description | `colorPrimary` | section 色；禁止硬编码品牌蓝 |
+| 进度环底轨 | `colorFillSecondary` | percent 模式 |
+| 嵌套 children 遮罩 | `colorBgContainer` @ ≈0.4 | spinning 时盖在 container 上 |
+| 嵌套 children 视觉降对比 | container opacity ≈ **0.5** | P0 可用遮罩近似 |
+| fullscreen 遮罩（P1） | `colorBgMask` | 视口 fixed |
+| fullscreen 文案（P1） | `colorTextLightSolid` / 白 | |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -311,55 +318,67 @@ import { Spin } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> |
-| `delay` | 延迟显示加载效果的时间（防止闪烁） | number (毫秒) | - |
-| `description` | 可以自定义描述文案 | ReactNode | - |
-| `fullscreen` | 显示带有 `Spin` 组件的背景 | boolean | false |
-| `indicator` | 加载指示符 | ReactNode | - |
-| `percent` | 展示进度，当设置 `percent="auto"` 时会预估一个永远不会停止的进度 | number \ | 'auto' |
-| `size` | 组件大小，可选值为 `small` `medium` `large` | string | `medium` |
-| `spinning` | 是否为加载中状态 | boolean | true |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> |
+| `spinning` | 是否为加载中状态（props）；`delay>0` 时显示态可滞后 | bool | **true** |
+| `size` | `small` / `medium`（`default` 兼容映射到 medium）/ `large` | string | **medium** |
+| `percent` | 进度环；`auto` 为永不停止的模拟进度；未设则 4-dot | number \| `auto` | 未设 |
+| `delay` | 延迟显示加载效果（防闪烁），毫秒 | number (ms) | **0** |
+| `description` | 描述文案（与指示同显） | string / Node | 空 |
+| `tip` | **已废弃**，等价 `description` | string | 空 |
+| `indicator` | 自定义指示符；优先于全局默认与内置 4-dot | Node | 空 |
+| `fullscreen` | 视口级遮罩（**P1**） | bool | false |
+| `classNames` / `styles` | 语义钩子 root/section/indicator/description/container | 浅层 Record | 空 |
+| `children` / content | 嵌套内容；有 content 时为 nested 模式 | Node | 空 |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 实例 `indicator` > `SetDefaultIndicator` 全局 > 内置 Looper（4-dot / percent 环）。  
+`description` > 废弃 `tip`。`size="default"` → `medium`。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-spinning=false ──► 仅 children
-spinning=true ──► 指示器 + 可选 mask 盖 children
-delay>0 ──► 延迟后才显示指示器
-fullscreen ──► 视口级遮罩
+props.spinning=false ──► display=false；仅 children（可点）；无指示
+props.spinning=true && delay==0 ──► display=true 立即
+props.spinning=true && delay>0 ──► display 保持 false，经 delay ms 后 true（Ticker）
+display=true 无 children ──► 仅 section（indicator [+ description]）
+display=true 有 children ──► container(children) + 居中 section + 遮罩挡点击
+percent 未设 ──► 4-dot 旋转（或自定义 indicator）
+percent 数值|>0 ──► 进度环（4-dot 隐藏）；percent=auto ──► 模拟进度爬升
+reduced-motion ──► 停转 / 停 auto 步进，指示仍可见
+fullscreen（P1）──► 视口 mask + section
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| SPN-S1 | spinning=true | 可见旋转指示 |
+| SPN-S1 | spinning=true（delay=0） | 可见指示（4-dot / percent / indicator） |
 | SPN-S2 | spinning=false | 无指示；children 可点 |
-| SPN-S3 | tip 文案 | 与指示同显 |
-| SPN-S4 | fullscreen | 全屏遮罩 |
-| SPN-S5 | delay=500 | 500ms 内不闪烁显示 |
-| SPN-S6 | 嵌套 children | children 仍在树中 |
-| SPN-S7 | reduced-motion | 可静止或降动画 |
+| SPN-S3 | description（或 tip 别名）非空 | 与指示同显 |
+| SPN-S4 | fullscreen | **P1** 全屏遮罩 |
+| SPN-S5 | delay=500 + spinning↑ | 500ms 内 display 仍 false（不闪） |
+| SPN-S6 | 嵌套 children | children 仍在树中（spinning 时亦然） |
+| SPN-S7 | reduced-motion | Tick 返回 false 或相位不再推进 |
+| SPN-S8 | percent 数值 / auto | 进度环；auto 随 Tick 爬升且 <100 |
+| SPN-S9 | 自定义 indicator | 使用实例/全局 indicator，非内置 4-dot |
+| SPN-S10 | size small/medium/large | DotSize 14 / 20 / 32（±0.5） |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default / spinning | 指示色 `colorPrimary`；几何 §6.2 |
+| nested spinning | children 降对比 + 遮罩挡点；section 居中 |
+| percent | 环 fill=`colorPrimary`，轨=`colorFillSecondary` |
+| reduced-motion | 静止指示，无旋转相位 |
+| 主题切换 | 色与尺寸随 Theme / Token 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 4-dot 旋转与 percent=auto 由 **Tree Ticker** 驱动；须尊重 reduced-motion。P0 不要求与 CSS keyframes 逐帧一致。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 实时区域 | message/notification 用 status 语义等价 |
-| 关闭 | 可关控件可操作 |
-| 不抢焦点 | 轻提示默认不抢（Modal 例外） |
+| 角色 / 实时区 | root `role=status`，`aria-live=polite`，`aria-busy=displaySpinning` |
+| 可访问名 | `description` / `AriaLabel` / 默认 `"Loading"` |
+| 不抢焦点 | Spin 本身不抢焦点 |
+| 进度 | percent 模式暴露 progressbar 语义（valuemin/max/now） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -367,11 +386,10 @@ fullscreen ──► 视口级遮罩
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| 4-dot / percent 动画 | **近似**（Ticker 相位） | P0 行为 / P1 像素 |
+| fullscreen 视口 fixed | Portal / 视口 mask | **P1** |
+| Semantic classNames/styles 深度（函数式） | 浅层字段 P0；函数/深度 P1 | P0 浅 / P1 深 |
+| ConfigProvider `spin` 全局 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -380,89 +398,121 @@ fullscreen ──► 视口级遮罩
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `size` | 必须 |
-| `percent` | 必须 |
-| `spinning` | 必须 |
-| 官方主路径示例 | 基本用法、各种大小、卡片加载中、自定义描述文案、延迟、自定义指示符、进度、自定义语义结构的样式和类 |
+| `spinning` + 显示态 | delay=0 立即；含 `IsDisplaySpinning` |
+| `size` small/medium/large | DotSize 14/20/32 |
+| `percent` number \| auto | 进度环 + auto 爬升 |
+| `delay` | 毫秒防闪烁（Ticker） |
+| `description` + 废弃 `tip` 别名 | 与指示同显 |
+| `indicator` + `SetDefaultIndicator` | 自定义 / 全局默认 |
+| nested `content` | children 在树；spinning 时挡点 |
+| 浅层 `classNames` / `styles` | 够 style-class 示例 |
+| 官方主路径示例 | basic / size / nested / tip / delay / custom-indicator / percent / style-class |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| a11y §6.6 | status + busy + label |
+| §6.9 中 **无 P1/N/A/L3/L4 标记** 的 L1/L2 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 全屏, _semantic.tsx |
+| `fullscreen` | 视口级 mask + 示例 |
+| semantic classNames/styles 函数式/深度 | 分期 |
+| 动画像素级（4-dot keyframes / 405°） | 分期 |
+| ConfigProvider 全局 spin | 分期 |
+| debug / `_semantic.tsx` / 官网逐像素 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestSpin_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Spin 完成 1:1 主路径。
+> **P0 相关用例（无 P1 / N/A / L3 / L4 标记）全部通过** 才可宣称 Spin 完成 1:1 主路径。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| SPN-01 | L1 | NewSpin 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| SPN-02 | L1 | spinning=true | 可见旋转指示 |
-| SPN-03 | L1 | spinning=false | 无指示；children 可点 |
-| SPN-04 | L1 | tip 文案 | 与指示同显 |
-| SPN-05 | L1 | fullscreen | 全屏遮罩 |
-| SPN-06 | L1 | delay=500 | 500ms 内不闪烁显示 |
-| SPN-07 | L1 | 嵌套 children | children 仍在树中 |
-| SPN-08 | L1 | reduced-motion | 可静止或降动画 |
-| SPN-09 | L1 | 复现官方示例「基本用法」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPN-10 | L1 | 复现官方示例「各种大小」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPN-11 | L1 | 复现官方示例「卡片加载中」（`nested.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPN-12 | L1 | 复现官方示例「自定义描述文案」（`tip.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPN-13 | L1 | 复现官方示例「延迟」（`delayAndDebounce.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPN-14 | L1 | 复现官方示例「自定义指示符」（`custom-indicator.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPN-15 | L1 | 复现官方示例「进度」（`percent.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPN-16 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| SPN-17 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| SPN-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| SPN-19 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| SPN-20 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| SPN-21 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| SPN-22 | L4 | 与 ant.design 并排 | 人眼签字记录 |
-| SPN-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+| SPN-01 | L1 | NewSpin 默认创建 | spinning=true、size=medium、delay=0；Node 非空；RepaintBoundary |
+| SPN-02 | L1 | spinning=true | IsDisplaySpinning；有指示节点；Tick 推进 |
+| SPN-03 | L1 | spinning=false + children | 无指示；children 可命中 |
+| SPN-04 | L1 | SetDescription / SetTip | 文案节点与指示同显 |
+| SPN-05 | L1 **P1** | fullscreen | 全屏遮罩（本阶段不测） |
+| SPN-06 | L1 | delay=500 后 SetSpinning(true) | 累时 <500ms 时 display=false；≥500ms 后 true |
+| SPN-07 | L1 | 嵌套 children | spinning 时 children 仍在树中 |
+| SPN-08 | L1 | reduced-motion | Tick 不再推进旋转 / 返回 false |
+| SPN-09 | L1 | 官方 basic | 独立 Spin 可布局 |
+| SPN-10 | L1 | 官方 size | small/medium/large DotSize 14/20/32 |
+| SPN-11 | L1 | 官方 nested | 切换 spinning 指示显隐 |
+| SPN-12 | L1 | 官方 tip/description | 三档 size + description |
+| SPN-13 | L1 | 官方 delay | 同 SPN-06 路径可复现 |
+| SPN-14 | L1 | 官方 custom-indicator | Indicator 非空且优先于 4-dot |
+| SPN-15 | L1 | 官方 percent | SetPercent / SetPercentAuto；EffectivePercent 合理 |
+| SPN-16 | L1 | 官方 style-class | 浅层 ClassNames/Styles 可设且不崩 |
+| SPN-17 | L2 | §6.2 尺寸 | DotSize medium=20、gap=8、font=14（±0.5） |
+| SPN-18 | L2 | 默认皮颜色 | 指示色走 `colorPrimary` Token |
+| SPN-19 | L2 **N/A** | disabled | Spin 无 disabled API |
+| SPN-20 | L1 **N/A** | 键盘/焦点 | Spin 非焦点控件 |
+| SPN-21 | L3 | golden | visualtest 基线 |
+| SPN-22 | L4 | 人眼 | 并排签字 |
+| SPN-23 | **P1** | fullscreen 等 | Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（旧 `Size float64` 像素字段删除）。语义对齐 antd 6.5。
 
 ```text
-NewSpin(...) *Spin
+NewSpin(content core.Node) *Spin   // content 可 nil；默认 spinning=true, size=medium
+Node() core.Node
+AttachTicker(*core.Tree) / Tick(dt) bool   // delay + 旋转 + percent=auto
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+SetContent(core.Node)
+SetSpinning(bool)                 // props；触发 delay 状态机
+SetDelay(ms float64)              // 毫秒；0=立即
+SetSize(SpinSize)                 // small|medium|large（"default"→medium）
+SetDescription(string)            // 主文案
+SetTip(string)                    // 废弃别名 → Description
+SetPercent(float64)               // 数值进度；清除 auto
+SetPercentAuto()                  // percent="auto"
+ClearPercent()                    // 回到 4-dot
+SetIndicator(core.Node)           // 实例自定义指示符
+SetDefaultIndicator(core.Node)    // 包级全局默认（antd Spin.setDefaultIndicator）
+SetTheme(*Theme) / SetStyle(Style)
+SetClassNames(SpinClassNames) / SetStyles(SpinStyles)  // 浅层
+SetAriaLabel(string)
+
+IsDisplaySpinning() bool          // 经过 delay 后的显示态
+EffectivePercent() float64        // auto 模拟值或数值；未设 → 0 且 HasPercent()=false
+HasPercent() bool
+DotSize() float64                 // 当前 size 对应几何
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Spinning | **true** |
+| Size | **medium**（DotSize=20） |
+| Delay | **0** |
+| Description / Tip | 空 |
+| Percent | 未设（4-dot） |
+| Fullscreen | false（P1） |
+| Indicator | 空 → 全局默认 → 内置 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Host holder or inline
-  └─ item (icon + content + close?)
+spinHost (RepaintBoundary, role=status, aria-live=polite, aria-busy)
+  ├─ simple（无 content）
+  │    └─ section (column: indicator + description?)   // display 时
+  └─ nested（有 content）
+       stack
+         ├─ container (children)                         // 始终在树
+         ├─ mask (HitBlock, colorBgContainer@0.4)        // 仅 display
+         └─ section Positioned(center)                   // 仅 display
+              column(indicator, description?)
 ```
 
+- 指示：自定义 Node **或** Canvas 绘 4-dot / percent 环；相位仅 `MarkNeedsPaint`，不整树 rebuild。  
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- `rebuild()` 只读 Default / 字段 / Token。  
+- 命中区域与布局盒一致（`hit == layout == paint`）；nested spinning 时 mask `HitBlock` 挡 children。  
+- 动画跟随 Host **Ticker**；尊重 reduced-motion。  
 
 ### 6.12 完成定义（DoD）
 
