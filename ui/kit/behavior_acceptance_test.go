@@ -159,11 +159,22 @@ func TestBehavior_SegmentedSelect(t *testing.T) {
 
 func TestBehavior_SliderValue(t *testing.T) {
 	sl := kit.NewSlider(10)
+	// SetValue is programmatic (antd value=) and does not fire OnChange.
+	sl.SetValue(80)
+	if sl.Value != 80 {
+		t.Fatalf("slider=%v want 80", sl.Value)
+	}
 	got := -1.0
 	sl.OnChange = func(v float64) { got = v }
-	sl.SetValue(80)
-	if sl.Value != 80 || got != 80 {
-		t.Fatalf("slider=%v got=%v", sl.Value, got)
+	// User path: keyboard step fires OnChange.
+	sl.SetDefaultValue(10)
+	sl.SetControlled(false)
+	sl.Value = 10
+	if !sl.HandleKey(&core.KeyEvent{Type: core.KeyDown, Key: "ArrowRight"}) {
+		t.Fatal("key not handled")
+	}
+	if sl.Value != 11 || got != 11 {
+		t.Fatalf("slider=%v got=%v want 11", sl.Value, got)
 	}
 }
 

@@ -381,32 +381,40 @@ import { Slider } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design Slider `prepareComponentToken` + 本库 Theme 默认** 为准（`scale=1`，种子：`controlHeight=32`、`controlHeightSM=24`、`controlHeightLG=40`、`fontSize=14`、`lineWidth=1`）。实现必须通过 Token / `DefaultSlider*` 读取；下表为 Token 未覆盖时的回落。
+
+> 源码：`components/slider/style/index.ts` → `prepareComponentToken`。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| `controlSize`（水平控件高 / 垂直控件宽） | **10** | `controlHeightLG / 4` → `DefaultSliderControlSize` |
+| `railSize`（轨道厚度） | **4** | 组件 token → `DefaultSliderRailSize` |
+| `handleSize`（滑块直径） | **10** | `= controlSize` → `DefaultSliderHandleSize` |
+| `handleSizeHover` | **12** | `controlHeightSM / 2` → `DefaultSliderHandleSizeHover` |
+| `handleLineWidth`（滑块描边） | **2** | `lineWidth + 1` → `DefaultSliderHandleLineWidth` |
+| `dotSize`（刻度点） | **8** | 组件 token → `DefaultSliderDotSize` |
+| 轨道圆角 | **2** | `borderRadiusXS`（回落 railSize/2） |
+| 字号（marks 标签） | **14** | `fontSize` |
+| Focus ring outset | ≈ **1.5px** 可见 | `DefaultSliderFocusOutset`；必须可见 |
+| 水平默认轨长 | 填父宽；无界时 **200** | `Width=0` 填父；`DefaultSliderFallbackWidth` |
+| 垂直默认轨高 | 填父高；无界时 **200** | `Height=0` 填父；`DefaultSliderFallbackHeight` |
+| handle 命中 | ≥ 可视 `handleSize` | 命中盒可 ≥ 可视（§6.4 注） |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 轨道底 `railBg` | `colorFillSecondary`（antd `colorFillTertiary` 回落） | hover → 略深 / `colorFillSecondary` |
+| 已选轨 `trackBg` | `colorPrimaryBorder` | hover → `colorPrimaryHover` 近似 |
+| 滑块描边 `handleColor` | `colorPrimaryBorder` | active → `colorPrimary` |
+| 滑块填充 | `colorBgContainer` / 白 | 描边强调 |
+| marks 文案 | `colorText` / `colorTextSecondary` | 可单点覆写 |
+| 禁用轨/柄 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
+| Focus ring | `colorPrimary` / `controlOutline` | 可见 outset |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色（如 `#1677FF`）作为唯一默认皮。
 
 ### 6.3 关键配置与语义
 
@@ -463,25 +471,25 @@ value=v ∈ [min,max]
 
 | 态 / 变体 | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| default | rail 浅填 + track 主色边系 + handle 白底描边；Token 色 |
+| hover（轨/柄） | rail/track 略深；handle 可用 `handleSizeHover` |
+| focus | **可见** focus ring（主色）；键盘聚焦时 |
+| dragging | handle active 描边；tooltip 按配置展示 |
+| disabled | 降对比；cursor 不可点；无 hover 高亮 |
+| marks | 刻度点 + 标签；`included` 控制 track 与 marks 包含关系 |
+| tooltip | 默认拖/悬停展示；`open=true` 常显；`open=false` 永不；`formatter` 可定制/`null` 关闭文案 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** handle 尺寸/色过渡 P0 可用瞬时；尊重 reduced-motion。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | textbox / combobox / spinbutton / listbox 等 |
-| 标签 | 与 Form.Item label 或 aria-labelledby 关联 |
-| 清除/下拉 | 控件有可访问名称 |
-| 错误 | status=error 时暴露 invalid |
-| 键盘 | 主路径可选/提交/关闭 |
+| 角色 | **`slider`**（range 时每个 handle 或整体暴露双值语义） |
+| 值 | 暴露 min / max / now（及 range 的两端） |
+| 标签 | `AriaLabel` 或与 Form.Item label 关联；默认可读名 "Slider" |
+| 键盘 | `keyboard=true`（默认）：方向键 ±step；Home/End → min/max |
+| 禁用 | `disabled` 时不可聚焦或不响应键鼠 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -502,13 +510,15 @@ value=v ∈ [min,max]
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `open` | 必须 |
-| `placement` | 必须 |
-| `orientation` | 必须 |
+| `value` / `defaultValue` | 单值；受控 / 非受控 |
+| `min` / `max` / `step` | 夹紧与步长（`step=null` + marks 仅落刻度） |
+| `onChange` / `onChangeComplete` | 拖动中 / 仅松手 |
+| `disabled` | 不响应键鼠 |
+| `keyboard` | 默认 true；方向键 ±step |
+| `range` | 双柄；左≤右；`Values`/`OnRangeChange` |
+| `marks` / `included` / `dots` | 刻度标签；点击跳刻度 |
+| `orientation` / `vertical` | 水平 / 垂直轨 |
+| `tooltip.open` / `tooltip.placement` / `tooltip.formatter` | 拖动展示值；常显/关闭；文案格式 |
 | 官方主路径示例 | 基本、带输入框的滑块、带 icon 的滑块、自定义提示、事件、带标签的滑块、垂直、控制 ToolTip 的显示 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -518,11 +528,14 @@ value=v ∈ [min,max]
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `reverse` 反向坐标轴 | 分期（官方 reverse 示例） |
+| `range.draggableTrack` 范围轨拖拽 | 分期 |
+| 多点 / editable / maxCount | 分期（multiple / editable 示例） |
+| range 单柄 `disabled=[bool,bool]` | 分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| 动画像素级 handle hover 过渡 | 分期 |
+| ConfigProvider 全局默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 反向, 范围可拖拽, 多点组合, 动态增减节点 |
 
 ### 6.9 验收用例表（可测）
 
@@ -559,42 +572,87 @@ value=v ∈ [min,max]
 | SLD-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约，实现可微调命名但语义不可丢。
 
 ```text
-NewSlider(...) *Slider
+NewSlider() *Slider                         // 默认 min=0 max=100 step=1 value=0
+// 或 NewSlider(defaultValue float64) 等价 SetDefaultValue
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 值（单）
+SetValue(v float64)                         // 受控写入；Controlled=true 时交互只回调
+SetDefaultValue(v float64)                  // 非受控初值
+Value float64                               // 当前单值（range 时等于 Values[0] 语义由实现定，测试读 Values）
+
+// 值（双 · range）
+SetRange(bool)
+SetValues(lo, hi float64)
+Values() (lo, hi float64)
+
+// 区间 / 步长
+SetMin / SetMax / SetStep
+SetStepNull(bool)                           // antd step={null}：仅落 marks
+SetDots(bool) / SetIncluded(bool)
+
+// marks
+SetMarks(...SliderMark)                     // {Value, Label, Color?}
+
+// 方向
+SetOrientation(SliderHorizontal|Vertical) / SetVertical(bool)
+
+// 交互
+SetDisabled(bool) / SetKeyboard(bool)       // keyboard 默认 true
+SetControlled(bool)
+
+// tooltip（antd tooltip.open / placement / formatter）
+SetTooltipOpen(SliderTooltipAuto|Always|Never)   // open 三态；Always≡open:true
+SetTooltipPlacement(placement)                   // 默认 top
+SetTooltipFormatter(func(float64) string)        // nil=默认数字；配合 SetTooltipFormatterNull
+SetTooltipFormatterNull(bool)                    // antd formatter: null → 不展示文案
+
+// 回调
+OnChange func(v float64)                    // 单值拖动中
+OnRangeChange func(lo, hi float64)          // range 拖动中
+OnChangeComplete func(vals []float64)       // 松手；len=1 或 2
+
+// 主题 / a11y / 布局
+SetTheme(*Theme) / SetFace / SetAriaLabel / SetWidth / SetHeight
+Node() core.Node
+HandleKey(*KeyEvent) bool                   // 测试/宿主可直接调
+// 测试钩子：TooltipVisible() / TooltipText() / RailSize() / HandleSize() / IsVertical()
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
+| Min / Max / Step | 0 / 100 / 1 |
+| Value | 0（或 NewSlider 入参） |
+| Range / Values | false / [0,0] |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Keyboard | true |
+| Included | true |
+| Dots | false |
+| Orientation | horizontal |
+| TooltipOpen | Auto（拖/悬停显示） |
+| TooltipPlacement | top |
+| Width / Height | 0 → 填父；无界回落 200 |
+| 受控 | 未 SetValue 前用 default*；SetValue 进入受控或显式 SetControlled |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+sliderHost (role=slider, hit==layout==paint)
+  ├─ rail（全轨底）
+  ├─ track（已选段；range 为两柄之间）
+  ├─ dots? / marks points + labels
+  ├─ handle ×1|2（命中 ≥ 可视）
+  └─ tooltip bubble（拖/open 时；可 Portal/AnchoredPopup）
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- 组合 `ui/primitive` + `ui/core`（Flex 外壳可选；轨/柄可用自绘 host），禁止第二套事件/帧循环。  
+- `rebuild()` 只读 Default/字段/Token；值变更优先 `applyChrome` 勿整树重建。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 无 loading；无需 Ticker（除非后续 P1 动画）。  
 
 ### 6.12 完成定义（DoD）
 
