@@ -252,13 +252,13 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		{"DatePicker", func(t *testing.T) {
 			dp := kit.NewDatePicker()
 			got := ""
-			dp.OnChange = func(v string) { got = v }
+			dp.OnChange = func(v kit.DateValue, s string) { got = s }
 			dp.SelectDay(15)
-			if dp.SelectedDay != 15 || dp.Value == "" {
-				t.Fatalf("day=%d value=%q", dp.SelectedDay, dp.Value)
+			if dp.SelectedDay() != 15 || !dp.GetValue().Valid {
+				t.Fatalf("day=%d value=%+v", dp.SelectedDay(), dp.GetValue())
 			}
-			if got != dp.Value {
-				t.Fatalf("onChange=%q value=%q", got, dp.Value)
+			if got == "" || got != dp.DisplayText() {
+				t.Fatalf("onChange=%q display=%q", got, dp.DisplayText())
 			}
 		}},
 		{"Form", func(t *testing.T) {

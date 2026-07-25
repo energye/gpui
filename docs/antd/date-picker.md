@@ -724,43 +724,50 @@ import { DatePicker } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `allowClear` | 自定义清除按钮 | boolean \ | { clearIcon?: ReactNode } |
-| `className` | 选择器 className | string | - |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `dateRender` | 自定义日期单元格的内容，5.4.0 起用 `cellRender` 代替 | function(currentDate: dayjs, today: d… | - |
-| `cellRender` | 自定义单元格的内容 | (current: dayjs, info: { originNode: … | 'end', type: PanelMode, locale?: Locale, subType?: 'hour' \ |
-| `components` | 自定义面板 | Record<Panel \ | 'input', React.ComponentType> |
-| `defaultOpen` | 是否默认展开控制弹层 | boolean | - |
-| `disabled` | 禁用 | boolean | false |
-| `disabledDate` | 不可选择的日期 | (currentDate: dayjs, info: { from?: d… | - |
-| `format` | 设置日期格式，为数组时支持多格式匹配，展示以第一个为准。配置参考 [dayjs#format](https://d… | [formatType](#formattype) | [@rc-component/picker](https://github.com/react-component/picker/blob/f512f18ed59d6791280d1c3d7d37abbb9867eb0b/src/utils/uiUtil.ts#L155-L177) |
-| `order` | 多选、范围时是否自动排序 | boolean | true |
-| `preserveInvalidOnBlur` | 失去焦点是否要清空输入框内无效内容 | boolean | false |
-| `getPopupContainer` | 定义浮层的容器，默认为 body 上新建 div | function(trigger) | - |
-| `inputReadOnly` | 设置输入框为只读（避免在移动设备上打开虚拟键盘） | boolean | false |
-| `locale` | 国际化配置 | object | [默认配置](https://github.com/ant-design/ant-design/blob/master/components/date-picker/locale/example.json) |
-| `minDate` | 最小日期，同样会限制面板的切换范围 | dayjs | - |
+| `value` / `defaultValue` | 受控 / 非受控值；Range 为二元组；`multiple` 为数组 | dayjs \| [dayjs, dayjs] \| dayjs[] | — |
+| `onChange` | 值变更（date, dateString） | function | — |
+| `picker` | 选择器类型 | `date` \| `week` \| `month` \| `quarter` \| `year` | `date` |
+| `format` | 展示/解析格式；字符串或以 `{format,type:'mask'}` 声明 mask | string \| FormatType | 见 antd 默认表 |
+| `showTime` | 增加时分秒（可与 `needConfirm` 同用） | boolean \| object | false |
+| `needConfirm` | 需点确认才提交 | boolean | false（showTime 时 antd 默认 true，kit P0 以显式字段为准） |
+| `multiple` | 多选日期（仅 DatePicker，非 Range） | boolean | false |
+| `allowClear` | 清除按钮 | boolean | true |
+| `disabled` | 整控件禁用 | boolean | false |
+| `disabledDate` | 不可选日期 | `(current) => boolean` | — |
+| `size` | 控件高度档 | `large` \| `middle` \| `small` | `middle` |
+| `variant` | 形态 | `outlined` \| `filled` \| `borderless` \| `underlined` | `outlined` |
+| `status` | 校验态 | `error` \| `warning` | — |
+| `open` / `defaultOpen` / `onOpenChange` | 弹层受控 / 非受控 | boolean / function | closed |
+| `placement` | 弹层四角 | `bottomLeft` \| `bottomRight` \| `topLeft` \| `topRight` | `bottomLeft` |
+| `placeholder` | 空值占位 | string \| [string,string] | locale 默认 |
+| `order` | Range/多选是否自动排序 | boolean | true |
+| `minDate` / `maxDate` | 面板可切换范围下界/上界 | dayjs | — |
+| `mode` | **受控面板模式**（time/date/month/year/decade） | PanelMode | 由 `picker` 推导（**P1**） |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**RangePicker：** 与 DatePicker 共享上表；值类型为 `[start, end]`；无 `multiple`。
+
+**配置优先级（通用）：** 受控 props（`value`/`open`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-closed ── open ──► 面板（picker=date/week/month/…）
-             ├── 点日 ──► onChange(dayjs, string) ──► 常关闭
-             ├── Range：点起 + 点止 ──► onChange([start,end])
-             ├── showTime ──► 选日后进时间或同屏
-             ├── disabledDate(current) true ──► 不可点
-             ├── allowClear ──► 空值
-             └── Esc/外点 ──► 关闭
+closed ── open ──► 面板（picker=date/week/month/quarter/year）
+             ├── 点日/周/月/季/年 ──► onChange(value, string) ──► 常关闭
+             ├── Range：点起 + 点止 ──► onChange([start,end], [s,e])；order 时有序
+             ├── multiple：点选切换集合；面板常保持打开
+             ├── showTime ──► 选日后进/同屏时分秒；可选 needConfirm → OK 才提交
+             ├── needConfirm ──► 预览选择；OK 提交 / 取消或外点丢弃
+             ├── disabledDate(current)=true ──► 不可点
+             ├── allowClear ──► 空值 + onChange(nil)
+             └── Esc/外点 ──► 关闭（needConfirm 未确认则丢弃预览）
 ```
 
-\*值类型桌面可用 time.Time / 整型时间戳，但语义对齐 dayjs 值。
+\*值类型桌面用 `DateValue`（日历日 + 可选时分秒）；语义对齐 dayjs。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
 | DP-S1 | 打开并选一天 | `onChange` 一次；输入框展示 format |
-| DP-S2 | Range 选起止 | 数组两值有序 |
+| DP-S2 | Range 选起止 | 两值有序（`order=true`） |
 | DP-S3 | `disabledDate` 禁今天 | 今天不可选 |
 | DP-S4 | `picker=month` | 月面板；选月 |
 | DP-S5 | `allowClear` | 清空 |
@@ -769,6 +776,8 @@ closed ── open ──► 面板（picker=date/week/month/…）
 | DP-S8 | 格式 format | 展示字符串匹配 |
 | DP-S9 | 禁用 | 打不开或不响应 |
 | DP-S10 | size 高度 | 24/32/40 |
+| DP-S11 | `needConfirm` | 选日不立即 onChange；Confirm 后一次 |
+| DP-S12 | `multiple` | 多日集合；再点取消 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
@@ -812,18 +821,18 @@ closed ── open ──► 面板（picker=date/week/month/…）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `variant` | 必须 |
-| `status` | 必须 |
-| `open` | 必须 |
-| `onOpenChange` | 必须 |
-| `placement` | 必须 |
-| `allowClear` | 必须 |
-| `mode` | 必须 |
+| `value` / `defaultValue` / `onChange` | 单选 / Range 二元组 / multiple 数组 |
+| `picker` | `date` \| `week` \| `month` \| `quarter` \| `year` |
+| `format` + mask 形态 | 展示串；`type=mask` 时占位对齐（输入深度可简） |
+| `showTime` | 时分秒可选出 |
+| `needConfirm` | 确认后才提交 |
+| `multiple` | 多选日期 |
+| RangePicker | `NewRangePicker` 或 `SetRange(true)` |
+| `disabled` / `disabledDate` | 整控件 / 单日禁选 |
+| `size` / `variant` / `status` | 高度档 / 形态 / 校验态 |
+| `open` / `defaultOpen` / `onOpenChange` | 弹层 |
+| `placement` | 四角 |
+| `allowClear` | 清除 |
 | 官方主路径示例 | 基本、范围选择器、多选、选择确认、切换不同的选择器、日期格式、日期时间选择、格式对齐 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -833,11 +842,13 @@ closed ── open ──► 面板（picker=date/week/month/…）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| 受控 `mode` 面板（time/date/month/year/decade） | 分期 |
+| `minDate`/`maxDate` 面板切换钳制、`presets`、`cellRender` | 分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 / 虚拟长列表 / 输入 mask 逐键编辑深度 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 日期限定范围, 禁用, 不可选择日期和时间, 允许留空 |
+| 其余示例 | 日期限定范围、禁用态完整 demo、不可选择日期和时间 demo、允许留空、预设范围 |
 
 ### 6.9 验收用例表（可测）
 
@@ -848,7 +859,7 @@ closed ── open ──► 面板（picker=date/week/month/…）
 | --- | --- | --- | --- |
 | DP-01 | L1 | NewDatePicker 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
 | DP-02 | L1 | 打开并选一天 | `onChange` 一次；输入框展示 format |
-| DP-03 | L1 | Range 选起止 | 数组两值有序 |
+| DP-03 | L1 | Range 选起止 | 两值有序 |
 | DP-04 | L1 | `disabledDate` 禁今天 | 今天不可选 |
 | DP-05 | L1 | `picker=month` | 月面板；选月 |
 | DP-06 | L1 | `allowClear` | 清空 |
@@ -857,53 +868,107 @@ closed ── open ──► 面板（picker=date/week/month/…）
 | DP-09 | L1 | 格式 format | 展示字符串匹配 |
 | DP-10 | L1 | 禁用 | 打不开或不响应 |
 | DP-11 | L1 | size 高度 | 24/32/40 |
-| DP-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DP-13 | L1 | 复现官方示例「范围选择器」（`range-picker.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DP-14 | L1 | 复现官方示例「多选」（`multiple.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DP-15 | L1 | 复现官方示例「选择确认」（`needConfirm.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DP-16 | L1 | 复现官方示例「切换不同的选择器」（`switchable.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DP-17 | L1 | 复现官方示例「日期格式」（`format.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DP-18 | L1 | 复现官方示例「日期时间选择」（`time.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DP-19 | L1 | 复现官方示例「格式对齐」（`mask.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DP-20 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
+| DP-12 | L1 | 复现官方示例「基本」（`basic.tsx`） | picker 切换 date/week/month/quarter/year 可创建；主路径可选 |
+| DP-13 | L1 | 复现官方示例「范围选择器」（`range-picker.tsx`） | NewRangePicker 选起止；可选 showTime/picker 变体 |
+| DP-14 | L1 | 复现官方示例「多选」（`multiple.tsx`） | multiple 多日；size 档可建 |
+| DP-15 | L1 | 复现官方示例「选择确认」（`needConfirm.tsx`） | 选日不立即 onChange；Confirm 后一次 |
+| DP-16 | L1 | 复现官方示例「切换不同的选择器」（`switchable.tsx`） | SetPicker 切换后面板类型正确 |
+| DP-17 | L1 | 复现官方示例「日期格式」（`format.tsx`） | format 展示串匹配 |
+| DP-18 | L1 | 复现官方示例「日期时间选择」（`time.tsx`） | showTime 选出含时分 |
+| DP-19 | L1 | 复现官方示例「格式对齐」（`mask.tsx`） | FormatMask 时 format 生效且可选日 |
+| DP-20 | L2 | 读取 §6.2 关键尺寸/间距 | 高度 24/32/40、圆角 6、线宽 1（±0.5） |
 | DP-21 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| DP-22 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| DP-23 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| DP-22 | L2 | disabled 外观 | 禁用色；无 hover 高亮 |
+| DP-23 | L1 | 键盘/焦点主路径 | Focus ring 可见；Enter/Space 开；Esc 关 |
 | DP-24 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | DP-25 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | DP-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。值类型 `DateValue` 对齐 dayjs 日历语义。
 
 ```text
-NewDatePicker(...) *DatePicker
+// 值
+type DateValue struct { Year, Month, Day, Hour, Minute, Second int; Valid, HasTime bool }
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewDatePicker() *DatePicker
+NewRangePicker() *DatePicker   // Range=true
+
+// 值
+SetValue(DateValue) / GetValue() DateValue
+SetDefaultValue(DateValue)
+SetRangeValue(start, end DateValue) / GetRangeValue() (start, end DateValue)
+SetMultiValue([]DateValue) / GetMultiValue() []DateValue
+Clear()
+SelectDate(DateValue)          // 程序选日（尊重 needConfirm / disabledDate）
+SelectRange(start, end DateValue)
+Confirm()                      // needConfirm OK
+CancelPending()
+
+// 形态 / 行为
+SetPicker(DatePickerPicker)    // date|week|month|quarter|year
+SetFormat(string)
+SetFormatMask(bool)            // format type=mask
+SetShowTime(bool)
+SetNeedConfirm(bool)
+SetMultiple(bool)
+SetRange(bool)
+SetOrder(bool)                 // default true
+SetDisabledDate(func(DateValue) bool)
+SetDisabled(bool)
+SetSize(InputSize)
+SetVariant(InputVariant)
+SetStatus(InputStatus)
+SetOpen(bool) / SetDefaultOpen(bool) / IsOpen() bool
+SetPlacement(DatePickerPlacement)
+SetAllowClear(bool)
+SetPlaceholder(string) / SetRangePlaceholder(start, end string)
+SetTheme(*Theme) / SetFace(text.Face)
+SetAriaLabel(string)
+
+// 回调
+OnChange / OnChangeRange / OnChangeMulti
+OnOpenChange / OnOk / OnClear
+
+// 面板 / 展示
+PanelYearMonth() (year int, month time.Month)
+SetPanelMonth(year int, month time.Month)
+DisplayText() string
+FormatValue(DateValue) string
+Popup() / TriggerShell() / Panel() / Node()
+HandleKey(*core.KeyEvent)
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Picker | date |
+| Size | middle（高 32） |
+| Variant | outlined |
+| Status | none |
+| Disabled / Open / Multiple / Range / ShowTime / NeedConfirm / FormatMask | false |
+| AllowClear | true |
+| Order | true |
+| Format | 随 picker：`YYYY-MM-DD` / `YYYY-wo` / `YYYY-MM` / `YYYY-[Q]Q` / `YYYY`；showTime 时追加 ` HH:mm:ss` |
+| Placement | bottomLeft |
+| 受控值 | 未 Set 时用 default* 或空 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+Column (Wrap)
+  ├─ Pressable trigger (Decorated field)
+  │    ├─ display text / range dual / multi summary
+  │    ├─ clear?
+  │    └─ suffix calendar icon
+  └─ AnchoredPopup
+       └─ panel (Decorated)
+            ├─ header (prev/next · title)
+            ├─ body (day|week|month|quarter|year grid)
+            ├─ time columns? (showTime)
+            └─ footer? (needConfirm OK)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  

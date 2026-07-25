@@ -505,8 +505,8 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			{"R1 selectDay", func(t *testing.T) {
 				dp := kit.NewDatePicker()
 				dp.SelectDay(10)
-				if dp.SelectedDay != 10 || dp.Value == "" {
-					t.Fatal(dp.SelectedDay, dp.Value)
+				if dp.SelectedDay() != 10 || !dp.GetValue().Valid {
+					t.Fatal(dp.SelectedDay(), dp.GetValue())
 				}
 			}},
 			{"R2 yearMonth", func(t *testing.T) {
@@ -517,11 +517,13 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 				}
 			}},
 			{"R3 range+showTime", func(t *testing.T) {
-				dp := kit.NewDatePicker()
-				dp.ShowTime = true
-				dp.SelectRange(3, 8)
-				if dp.StartDay != 3 || dp.EndDay != 8 || !dp.Range {
-					t.Fatalf("range=%v %d-%d", dp.Range, dp.StartDay, dp.EndDay)
+				dp := kit.NewRangePicker()
+				dp.SetShowTime(true)
+				y, m := dp.YearMonth()
+				dp.SelectRange(kit.DateOf(y, m, 3), kit.DateOf(y, m, 8))
+				s, e := dp.GetRangeValue()
+				if !dp.Range || s.Day != 3 || e.Day != 8 {
+					t.Fatalf("range=%v %d-%d", dp.Range, s.Day, e.Day)
 				}
 			}},
 		},

@@ -278,9 +278,12 @@ func TestBehavior_UploadCapFilePick(t *testing.T) {
 func TestBehavior_DatePickerSelectDay(t *testing.T) {
 	dp := kit.NewDatePicker()
 	got := ""
-	dp.OnChange = func(v string) { got = v }
+	dp.OnChange = func(v kit.DateValue, s string) { got = s }
+	dp.Viewport = core.Size{Width: 480, Height: 420}
 	tree := core.NewTree(dp.Node())
-	tree.Layout(core.Size{Width: 320, Height: 360})
+	tree.Layout(core.Size{Width: 480, Height: 420})
+	dp.SetOpen(true)
+	tree.Layout(core.Size{Width: 480, Height: 420})
 	var cells []*primitive.Pressable
 	var walk func(core.Node)
 	walk = func(n core.Node) {
@@ -294,26 +297,26 @@ func TestBehavior_DatePickerSelectDay(t *testing.T) {
 			walk(c)
 		}
 	}
-	walk(dp.Node())
+	if dp.Panel() != nil {
+		walk(dp.Panel())
+	}
 	if len(cells) < 5 {
 		t.Fatalf("day pressables=%d", len(cells))
 	}
-	// Mid cell is a day (prev/next are first two).
+	// Mid cell is a day (nav buttons are first few).
 	target := cells[len(cells)/2]
 	abs := core.AbsoluteBounds(target)
 	x, y := mid(abs)
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
-	if dp.SelectedDay < 1 || dp.Value == "" {
-		t.Fatalf("SelectedDay=%d Value=%q OnChange=%q", dp.SelectedDay, dp.Value, got)
+	if dp.SelectedDay() < 1 || !dp.GetValue().Valid {
+		t.Fatalf("SelectedDay=%d Value=%+v OnChange=%q", dp.SelectedDay(), dp.GetValue(), got)
 	}
-	if got != dp.Value {
-		t.Fatalf("OnChange=%q Value=%q", got, dp.Value)
+	if got == "" || got != dp.DisplayText() {
+		t.Fatalf("OnChange=%q display=%q", got, dp.DisplayText())
 	}
 }
 
-// Anchor scroll-spy: SyncFromScroll picks last section offset ≤ ScrollY+bounds;
-// clicking an item scrolls ScrollTarget to SectionOffsets[href] - targetOffset.
 func TestBehavior_AnchorSyncFromScroll(t *testing.T) {
 	// Tall content so SetScroll is not clamped to 0.
 	content := primitive.NewBox()
@@ -420,13 +423,13 @@ func TestBehavior_ImageSetPixels(t *testing.T) {
 func TestBehavior_DatePickerSelectDayAPI(t *testing.T) {
 	dp := kit.NewDatePicker()
 	got := ""
-	dp.OnChange = func(v string) { got = v }
+	dp.OnChange = func(v kit.DateValue, s string) { got = s }
 	dp.SelectDay(12)
-	if dp.SelectedDay != 12 {
-		t.Fatalf("day=%d", dp.SelectedDay)
+	if dp.SelectedDay() != 12 {
+		t.Fatalf("day=%d", dp.SelectedDay())
 	}
-	if dp.Value == "" || got != dp.Value {
-		t.Fatalf("value=%q onChange=%q", dp.Value, got)
+	if !dp.GetValue().Valid || got == "" || got != dp.DisplayText() {
+		t.Fatalf("value=%+v onChange=%q display=%q", dp.GetValue(), got, dp.DisplayText())
 	}
 	y, m := dp.YearMonth()
 	if y == 0 || m < 1 || m > 12 {
