@@ -531,10 +531,11 @@ func TestBehavior_CarouselIndex(t *testing.T) {
 }
 
 func TestBehavior_StatisticValue(t *testing.T) {
-	s := kit.NewStatistic("t", "1")
+	s := kit.NewStatistic()
+	s.SetTitle("t")
 	s.SetValue("99")
-	if s.Value != "99" {
-		t.Fatal(s.Value)
+	if s.Value() != "99" {
+		t.Fatal(s.Value())
 	}
 }
 

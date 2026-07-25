@@ -256,88 +256,113 @@ import { Statistic } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/statistic/style/index.ts`（`prepareComponentToken` + `genStatisticStyle`）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| `titleFontSize` | **14** | 组件 Token；回落 `fontSize` |
+| `contentFontSize` | **24** | 组件 Token；回落 `fontSizeHeading3`（antd seed） |
+| header `paddingBottom` | **4** | `marginXXS`；kit 回落 `marginXS`/`paddingXS`=4 |
+| prefix `marginInlineEnd` | **4** | `marginXXS` |
+| suffix `marginInlineStart` | **4** | `marginXXS` |
+| skeleton 顶 pad（loading） | **16** | `padding` |
+| 圆角（styles 覆盖用） | **6** | `borderRadius` |
+| 边框线宽（styles 覆盖用） | **1** | `lineWidth` |
+| Focus ring outset（可聚焦子控件） | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 标题色 | `colorTextDescription` ≈ `colorTextSecondary` | antd title 用 description 色 |
+| 数值/内容色 | `colorTextHeading` ≈ `colorText`（A≈0.88） | content 色 |
+| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | 通用 |
+| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | card 示例 content 色覆盖 |
+| 边框 / 容器底 | `colorBorder` / `colorBgContainer` | styles 覆盖 / Card 容器 |
+| loading 骨架 | `colorFillSecondary` | Skeleton 条 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
 ### 6.3 关键配置与语义
 
-下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**数据展示**。
+下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**数据展示**。  
+**Statistic** 与 **Statistic.Timer** 分表；Timer 在 ≥5.25 替代已弃用的 Countdown。
+
+#### Statistic
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `classNames` | 用于自定义 Statistic 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> |
-| `decimalSeparator` | 设置小数点 | string | `.` |
-| `formatter` | 自定义数值展示 | (value) => ReactNode | - |
-| `groupSeparator` | 设置千分位标识符 | string | `,` |
-| `loading` | 数值是否加载中 | boolean | false |
-| `precision` | 数值精度 | number | - |
-| `prefix` | 设置数值的前缀 | ReactNode | - |
-| `styles` | 用于自定义 Statistic 组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom) ,… | (info: { props }) => Record<[SemanticDOM](#semantic-dom) , CSSProperties> |
-| `suffix` | 设置数值的后缀 | ReactNode | - |
-| `title` | 数值的标题 | ReactNode | - |
-| `value` | 数值内容 | string \ | number |
-| `format` | 格式化倒计时展示，参考 [dayjs](https://day.js.org/) | string | `HH:mm:ss` |
-| `valueStyle` | 设置数值区域的样式 | CSSProperties | - |
-| `onFinish` | 倒计时完成时触发 | () => void | - |
-| `onChange` | 倒计时时间变化时触发 | (value: number) => void | - |
-| `type` | 计时类型，倒计时或者正计时 | `countdown` \ | `countup` |
+| `value` | 数值内容 | `string \| number` | `0` |
+| `title` | 标题 | string / Node | - |
+| `prefix` / `suffix` | 数值前后缀 | string / Node | - |
+| `precision` | 小数精度（内置数字格式化） | int | -（不强制） |
+| `decimalSeparator` | 小数点 | string | `.` |
+| `groupSeparator` | 千分位 | string | `,` |
+| `formatter` | 自定义数值展示（覆盖内置格式化） | `func(value) string\|Node` | - |
+| `loading` | 数值区 Skeleton | bool | false |
+| `valueStyle` | **弃用**，映射 `styles.content` | Style | - |
+| `styles` / `classNames` | 语义钩子 root/header/title/content/value/prefix/suffix | 浅 Style / ClassNames | - |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+#### Statistic.Timer
+
+| 配置 | 说明 | 类型（摘录） | 默认 |
+| --- | --- | --- | --- |
+| `type` | `countdown` \| `countup` | enum | **必填** |
+| `value` | 目标/起点时间戳（ms，Unix 毫秒） | number | - |
+| `format` | dayjs 风格时间模板 | string | `HH:mm:ss` |
+| `title` / `prefix` / `suffix` | 同 Statistic | string / Node | - |
+| `onChange` | 时间差变化（ms） | `func(diffMs float64)` | - |
+| `onFinish` | **仅 countdown** 到 0 触发一次 | `func()` | - |
+
+**配置优先级（通用）：** 受控 props（`value`）> 显式字段 > 组件默认 > ConfigProvider 全局默认（P1）。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-展示 title/value
-Countdown 每秒 tick ──► 0 时 onFinish
+[idle]
+  title? + content(prefix + formatted value + suffix)
+  loading=true ──► content 换 Skeleton（Ticker 闪烁）
+  Timer:
+    mount/AttachTicker ──► 按 ~60fps Tick 刷新展示
+    countdown: remaining = max(target-now, 0)
+      remaining==0 且未 finished ──► onFinish() 一次，停表
+    countup: elapsed = max(now-target, 0)
+    每次 Tick ──► onChange(diffMs)
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| STA-S1 | value 显示 | 数字文案 |
-| STA-S2 | precision=2 | 两位小数 |
-| STA-S3 | prefix/suffix | 前后缀 |
-| STA-S4 | Countdown 结束 | onFinish |
-| STA-S5 | loading | 加载皮 |
-| STA-S6 | valueStyle | 色/字号覆盖 |
+| STA-S1 | `value` 默认 0；数字走内置格式化 | 展示文案正确 |
+| STA-S2 | `precision=2` | 两位小数（不足补 0） |
+| STA-S3 | `prefix`/`suffix` | 前后缀出现在数值两侧，间距 marginXXS |
+| STA-S4 | Timer `countdown` 到期 | `onFinish` 恰一次；展示停在 0 |
+| STA-S5 | `loading=true` | 内容区 Skeleton，Ticker 激活 |
+| STA-S6 | `styles.content` / `valueStyle` | 色/字号覆盖 content |
+| STA-S7 | `groupSeparator` / `decimalSeparator` | 千分位与小数点可配 |
+| STA-S8 | `formatter` | 覆盖内置格式；Timer 内部也走 formatter 路径 |
+| STA-S9 | Timer `format` | `HH:mm:ss` / `D 天 H 时 m 分 s 秒` 等模板 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| default | 标题 description 色 + 数值 heading 色；字号 §6.2 |
+| loading | 内容换 Skeleton；标题仍可显示 |
+| styles 覆盖 | content/value/title/prefix/suffix 浅 Style 生效 |
 | 主题切换 | 色与间距随 Theme 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** loading Skeleton 与 Timer 刷新走 Host Tick；CountUp 像素级入场 **P1**（P0 可用 formatter 瞬时终值）。尊重 reduced-motion。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| 根 | `role=group`；可选 `AriaLabel` |
+| 装饰前缀图标 | decorative / aria-hidden |
+| 数值文案 | 可读（文本节点） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -345,11 +370,11 @@ Countdown 每秒 tick ──► 0 时 onFinish
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
+| CountUp 动画像素 / 复杂 CSS | **近似**或瞬时 | P1 |
+| Timer 刷新率 | Host Tick（≈60fps 目标） | P0 |
+| Semantic classNames/styles 函数形态 | 浅钩子 P0；函数深度 P1 | 分档 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| `_semantic.tsx` 文档预览 | 不进 P0 gallery | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -358,23 +383,28 @@ Countdown 每秒 tick ──► 0 时 onFinish
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `onChange` | 必须 |
-| `loading` | 必须 |
-| `type` | 必须 |
+| `value`（string\|number，默认 0） | 必须 |
 | `title` | 必须 |
-| 官方主路径示例 | 基本、单位、动画效果、在卡片中使用、计时器、自定义语义结构的样式和类、_semantic.tsx |
+| `prefix` / `suffix` | 必须（string 或 Node） |
+| `precision` / `decimalSeparator` / `groupSeparator` | 必须（内置数字格式化） |
+| `formatter` | 必须（覆盖内置；动画示例用终值） |
+| `loading` + Skeleton Ticker | 必须 |
+| `styles.content`（兼容 `valueStyle`）+ 浅 semantic styles/classNames | 必须 |
+| **Statistic.Timer**：`type` / `format` / `onChange` / `onFinish` + Ticker | 必须 |
+| 官方主路径示例 | 基本、单位、动画效果（formatter 近似）、在卡片中使用、计时器、自定义语义结构的样式和类 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| §6.9 中 L1/L2 且非 P1 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| CountUp / 动画像素级 | `animated.tsx` 真滚动数字 |
+| semantic classNames/styles 函数形态深度 | 分期 |
+| `_semantic.tsx` 文档预览页 | 分期 |
+| ConfigProvider 全局 statistic 默认 | 分期 |
+| 弃用 `Statistic.Countdown` 独立类型（已并入 Timer） | 仅文档兼容说明 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）
@@ -384,62 +414,97 @@ Countdown 每秒 tick ──► 0 时 onFinish
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| STA-01 | L1 | NewStatistic 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| STA-02 | L1 | value 显示 | 数字文案 |
+| STA-01 | L1 | NewStatistic 默认创建 | 不崩溃；`value` 默认 0；loading=false；分隔符 `.` / `,` |
+| STA-02 | L1 | value 显示 | 数字文案（含千分位默认） |
 | STA-03 | L1 | precision=2 | 两位小数 |
 | STA-04 | L1 | prefix/suffix | 前后缀 |
-| STA-05 | L1 | Countdown 结束 | onFinish |
-| STA-06 | L1 | loading | 加载皮 |
-| STA-07 | L1 | valueStyle | 色/字号覆盖 |
-| STA-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STA-09 | L1 | 复现官方示例「单位」（`unit.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STA-10 | L1 | 复现官方示例「动画效果」（`animated.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STA-11 | L1 | 复现官方示例「在卡片中使用」（`card.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STA-12 | L1 | 复现官方示例「计时器」（`timer.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STA-13 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STA-14 | L1 | 复现官方示例「_semantic.tsx」（`_semantic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| STA-15 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
+| STA-05 | L1 | Timer countdown 结束 | onFinish 一次 |
+| STA-06 | L1 | loading | 加载皮 + Ticker 可绑 |
+| STA-07 | L1 | styles.content / valueStyle | 色/字号覆盖 |
+| STA-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | title+value+precision+loading；无控制台级错误 |
+| STA-09 | L1 | 复现官方示例「单位」（`unit.tsx`） | prefix/suffix |
+| STA-10 | L1 | 复现官方示例「动画效果」（`animated.tsx`） | formatter 路径可用（像素动画 P1） |
+| STA-11 | L1 | 复现官方示例「在卡片中使用」（`card.tsx`） | Card 内 content 色 + prefix/suffix |
+| STA-12 | L1 | 复现官方示例「计时器」（`timer.tsx`） | countdown/countup + format + onChange/onFinish |
+| STA-13 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 浅 styles/classNames |
+| STA-14 | P1 | 复现 `_semantic.tsx` | 文档预览；本阶段不做 |
+| STA-15 | L2 | 读取 §6.2 关键尺寸/间距 | title 14 / content 24 / gap 4（±0.5） |
 | STA-16 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| STA-17 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| STA-18 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| STA-17 | L2 | disabled 外观（适用者） | **N/A**（Statistic 无 disabled） |
+| STA-18 | L1 | 键盘/焦点主路径（适用者） | **N/A**（展示控件；子按钮自管焦点） |
 | STA-19 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | STA-20 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | STA-21 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。
 
 ```text
-NewStatistic(...) *Statistic
+NewStatistic() *Statistic
+NewStatisticTimer(type countdown|countup) *Statistic   // Timer 入口；等价 SetTimerType
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// value
+SetValue(v any)          // string | number；Timer 为 Unix ms
+Value() any
+DisplayText() string     // 当前格式化结果（loading 时仍可算）
+
+// 展示
+SetTitle / SetTitleNode
+SetPrefix / SetPrefixNode / SetSuffix / SetSuffixNode
+SetPrecision(n int)      // 启用精度；ClearPrecision 取消
+SetDecimalSeparator / SetGroupSeparator
+SetFormatter(fn func(any) string)
+SetLoading(bool)
+SetFormat(string)        // Timer 模板，默认 HH:mm:ss
+SetTimerType(...)        // none | countdown | countup
+
+// 回调（Timer）
+SetOnChange(func(diffMs float64))
+SetOnFinish(func())
+
+// 语义 / 皮
+SetStyle / SetContentStyle / SetValueStyle / SetTitleStyle / …
+SetClassNames(StatisticClassNames)
+SetTheme / SetFace / SetAriaLabel
+
+// Ticker
+AttachTicker(*core.Tree) // loading 或 Timer 时激活
+Tick(dt) bool            // core.Ticker
+
+// 挂树
+Node() / ChromeNode() core.Node
+TitleNodeHost / ContentNodeHost / ValueNodeHost / PrefixHost / SuffixHost
+IsLoading() / HasTitle() / Finished() …
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| value | `0` |
+| loading | false |
+| decimalSeparator | `.` |
+| groupSeparator | `,` |
+| format（Timer） | `HH:mm:ss` |
+| TimerType | none（`NewStatistic`）；Timer 构造器写入 type |
+| 其余 | 对齐 antd 6.5 §3 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+statisticHost / Decorated root   // OnMount 绑 Ticker（loading|Timer）
+  └─ Column
+       header?  (paddingBottom=marginXXS)
+         title
+       content  OR  Skeleton(loading)
+         Row CrossCenter: prefix | value | suffix
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token；Root 指针尽量稳定（ClearChildren）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- loading / Timer 动画跟随 Host Tick；尊重 reduced-motion。  
 
 ### 6.12 完成定义（DoD）
 

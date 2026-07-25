@@ -147,7 +147,10 @@ func perControlSpecs() []ctlSpec {
 		{"ctl_image", 140, 100, func() core.Node { return padRoot(kit.NewImageSized("img", 100, 60).Node(), 140, 100) }},
 		{"ctl_qrcode", 150, 150, func() core.Node { return padRoot(kit.NewQRCode("gpui").Node(), 150, 150) }},
 		{"ctl_statistic", 140, 80, func() core.Node {
-			return padRoot(kit.NewStatistic("N", "128").Node(), 140, 80)
+			s := kit.NewStatistic()
+			s.SetTitle("N")
+			s.SetValue(128)
+			return padRoot(s.Node(), 140, 80)
 		}},
 		{"ctl_timeline", 200, 120, func() core.Node {
 			return padRoot(kit.NewTimeline(

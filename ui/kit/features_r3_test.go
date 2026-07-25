@@ -1138,18 +1138,22 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Statistic": {
 			{"R1 value", func(t *testing.T) {
-				s := kit.NewStatistic("t", "1")
+				s := kit.NewStatistic()
+				s.SetTitle("t")
 				s.SetValue("2")
-				if s.Value != "2" {
+				if s.Value() != "2" {
 					t.Fatal()
 				}
 			}},
 			{"R2 title", func(t *testing.T) {
-				s := kit.NewStatistic("t", "1")
+				s := kit.NewStatistic()
 				s.SetTitle("N")
+				s.SetValue("1")
 			}},
 			{"R3 prefix/suffix", func(t *testing.T) {
-				s := kit.NewStatistic("t", "1")
+				s := kit.NewStatistic()
+				s.SetTitle("t")
+				s.SetValue("1")
 				s.SetPrefix("$")
 				s.SetSuffix("%")
 			}},

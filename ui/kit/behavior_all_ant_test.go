@@ -469,9 +469,10 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Statistic", func(t *testing.T) {
-			s := kit.NewStatistic("t", "1")
+			s := kit.NewStatistic()
+			s.SetTitle("t")
 			s.SetValue("2")
-			if s.Value != "2" {
+			if s.Value() != "2" {
 				t.Fatal()
 			}
 		}},
