@@ -38,7 +38,8 @@ func TestCollapse_ToggleKeepsRootIdentity(t *testing.T) {
 }
 
 func TestRate_SetValueKeepsRootIdentity(t *testing.T) {
-	r := kit.NewRate(2)
+	r := kit.NewRate()
+	r.SetDefaultValue(2)
 	tree := core.NewTree(r.Node())
 	tree.Layout(core.Size{Width: 200, Height: 40})
 	r0 := r.Root

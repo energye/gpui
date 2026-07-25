@@ -644,22 +644,22 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Rate": {
 			{"R1 value", func(t *testing.T) {
-				r := kit.NewRate(2)
+				r := kit.NewRate()
 				r.SetValue(4)
 				if r.Value != 4 {
 					t.Fatal()
 				}
 			}},
 			{"R2 count", func(t *testing.T) {
-				r := kit.NewRate(0)
+				r := kit.NewRate()
 				r.SetCount(10)
 				if r.Count != 10 {
 					t.Fatal()
 				}
 			}},
 			{"R3 allowClear", func(t *testing.T) {
-				r := kit.NewRate(3)
-				r.AllowClear = true
+				r := kit.NewRate()
+				r.SetAllowClear(true)
 				if !r.AllowClear {
 					t.Fatal()
 				}

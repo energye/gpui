@@ -73,7 +73,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Checkbox", kit.NewCheckbox("c").Node())
 	must("Switch", kit.NewSwitch().Node())
 	must("Select", kit.NewSelect("s", kit.SelectOption{Value: "1", Label: "1"}).Node())
-	must("Rate", kit.NewRate(2).Node())
+	must("Rate", kit.NewRate().Node())
 	must("Segmented", kit.NewSegmented("a", "b").Node())
 	must("Slider", kit.NewSlider(10).Node())
 	must("AutoComplete", kit.NewAutoComplete("a", "x").Node())

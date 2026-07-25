@@ -58,16 +58,16 @@
 
 #### `size`
 
-- **说明**：星星尺寸
-- **类型**：'small' | 'medium' | 'large'
-- **默认值**：'medium'
+- **说明**：星星尺寸（antd `SizeType`）
+- **类型**：'small' | 'middle' | 'large'（文档偶写 medium＝middle）
+- **默认值**：'middle'
 - **可选值与外观含义**：
 
   | 值 | 外观/语义 |
   | --- | --- |
-  | `small` | 小尺寸（更紧凑） |
-  | `medium` | 中尺寸（默认节奏） |
-  | `large` | 大尺寸（更高/更大字号/更宽内边距） |
+  | `small` | starSize **15**（controlHeightSM×0.625） |
+  | `middle` | starSize **20**（默认） |
+  | `large` | starSize **25**（controlHeightLG×0.625） |
 
 ### 1.4 交互视觉状态（实现检查表）
 
@@ -184,7 +184,7 @@ import { Rate } from 'antd';
 | `defaultValue` | 默认值 | number | 0 | — |
 | `disabled` | 只读，无法进行交互 | boolean | false | — |
 | `keyboard` | 支持使用键盘操作 | boolean | true | 5.18.0 |
-| `size` | 星星尺寸 | 'small' \| 'medium' \| 'large' | 'medium' | — |
+| `size` | 星星尺寸 | 'small' \| 'middle' \| 'large' | 'middle' | — |
 | `tooltips` | 自定义每项的提示信息 | [TooltipProps](/components/tooltip-cn#api)[] \| string\[] | - | — |
 | `value` | 当前数，受控值 | number | - | — |
 | `onBlur` | 失去焦点时的回调 | function() | - | — |
@@ -254,29 +254,35 @@ import { Rate } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+数值来自 antd `components/rate/style` `prepareComponentToken`（`starSize = controlHeight * 0.625`，星间距 `marginXS`）。
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | 默认 count | **5** | API |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 星星尺寸 middle | **20** | `starSize` = `controlHeight`×0.625（32×0.625） |
+| 星星尺寸 small | **15** | `starSizeSM` = `controlHeightSM`×0.625（24×0.625） |
+| 星星尺寸 large | **25** | `starSizeLG` = `controlHeightLG`×0.625（40×0.625） |
+| 星间距（marginInlineEnd） | **8** | antd `marginXS`（kit 回落 `DefaultRateStarGap`；勿与本库 `TokenMarginXS=4` 混用） |
+| 字号 middle（字符） | **= starSize** | 字符字号跟星尺寸 |
+| 圆角 | **6** | `borderRadius`（focus ring 等） |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 悬停缩放 | scale(1.1) | `starHoverScale`（P0 可瞬时/近似） |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
+| 星星填充色 | `starColor` = antd **yellow6** ≈ `#FADB14` | kit：`DefaultRateStarColor`；`Style.Text` 可覆盖 |
+| 星星空底 | `starBg` = `colorFillContent` ≈ `colorFillSecondary` | kit：`TokenColorFillSecondary` |
+| 主色 / hover / active | `colorPrimary` + 变体 | 非 Rate 主填充；强调/其它控件 |
 | 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
+| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | 文案展现旁路文字 |
 | 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 禁用 | `colorDisabledBg` / `colorDisabledText` | 降对比；无 hover 高亮 |
+| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | Tooltip 适用者 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色作为唯一默认皮（`#FADB14` 仅作 antd yellow6 回落常量，须可被 Theme/Style 覆盖）。
 
 ### 6.3 关键配置与语义
 
@@ -291,9 +297,9 @@ import { Rate } from 'antd';
 | `defaultValue` | 默认值 | number | 0 |
 | `disabled` | 只读，无法进行交互 | boolean | false |
 | `keyboard` | 支持使用键盘操作 | boolean | true |
-| `size` | 星星尺寸 | 'small' \ | 'medium' \ |
-| `tooltips` | 自定义每项的提示信息 | [TooltipProps](/components/tooltip-cn… | string\[] |
-| `value` | 当前数，受控值 | number | - |
+| `size` | 星星尺寸 | `'small'` \| `'middle'` \| `'large'`（文档偶写 medium＝middle） | middle |
+| `tooltips` | 自定义每项的提示信息 | `string[]`（完整 TooltipProps 形态 P1） | - |
+| `value` | 当前数，受控值 | number（半星为 x.5） | - |
 | `onBlur` | 失去焦点时的回调 | function() | - |
 | `onChange` | 选择时的回调 | function(value: number) | - |
 | `onFocus` | 获取焦点时的回调 | function() | - |
@@ -367,15 +373,20 @@ disabled ──► 不改
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `allowClear` | 必须 |
+| `value` / `defaultValue` / 受控 | float64；半星 x.5；Controlled 时 click 只派发 onChange |
+| `onChange` | 选择时回调（含 allowClear→0） |
+| `onHoverChange` | 悬停预览数值变化（离开时 0） |
+| `disabled` | 只读，不改值、无 hover 预览 |
+| `size` | small \| middle \| large → starSize 15/20/25 |
+| `count` | star 总数，默认 5 |
+| `allowClear` | 默认 true；再点当前值 → 0 |
+| `allowHalf` | 半星命中与绘制 |
+| `character` / `character(index)` | 自定义字符或按 index 渲染（字符串；图标节点 P1） |
+| `tooltips` | 每星悬停文案（string[]；完整 TooltipProps P1） |
+| `keyboard` | 默认 true；方向键调值 |
 | 官方主路径示例 | 基本、尺寸、半星、文案展现、只读、清除、其他字符、自定义字符 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 度量 §6.2 | Token / Default 断言 |
+| a11y §6.6 | role + 焦点 ring + 键盘 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -383,8 +394,12 @@ disabled ──► 不改
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
+| `character` 为复杂 ReactNode / 图标节点 | 分期（P0 仅 string / index→string） |
+| `tooltips` 完整 TooltipProps（placement 等） | 分期（P0 仅 string[]） |
+| 悬停 scale(1.1) 像素级 | 分期（P0 可用瞬时高亮） |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
+| ConfigProvider 全局默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）
@@ -423,37 +438,64 @@ disabled ──► 不改
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewRate(...) *Rate
+NewRate() *Rate
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 值（float64，半星 x.5）
+SetValue(v) / Value()          // 写入当前值；不派发 OnChange
+SetDefaultValue(v)             // 非受控初始
+SetControlled(bool)
+// 配置（§6.3 / §3 P0）
+SetCount(n)                    // 默认 5
+SetAllowClear(bool)            // 默认 true
+SetAllowHalf(bool)             // 默认 false
+SetSize(RateSize)              // RateSmall|RateMiddle|RateLarge
+SetCharacter(string)           // 默认 "★"
+SetCharacterAt(func(index int) string)  // 0-based；优先于 Character
+SetTooltips([]string)
+SetKeyboard(bool)              // 默认 true
+SetDisabled(bool)
+// 回调
+SetOnChange(func(float64))
+SetOnHoverChange(func(float64))
+SetOnFocus / SetOnBlur / SetOnKeyDown
+// 主题 / a11y / 挂树
+SetTheme(*Theme)；Style 可选覆盖（Style.Text → starColor）
+SetAriaLabel / SetFace
+Node() core.Node               // Root 身份稳定
+HandleKey(*KeyEvent) bool      // 方向键（keyboard=true）
+StarNodes() []core.Node        // 测试/几何
+StarSize() float64             // 当前档 starSize
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
+| Value | 0 |
+| Count | 5 |
+| AllowClear | true |
+| AllowHalf | false |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Keyboard | true |
+| Size | middle（starSize **20**） |
+| Character | `"★"` |
+| 受控值 | 未 SetControlled 时本地提交；Controlled 时 click 只 OnChange |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Pressable
-  └─ Decorated chrome
-       └─ content (icon/label/indicator)
+Flex Row (Root, role=radiogroup, gap=starGap)
+  └─ rateStar × count   (role=radio, focusable)
+       └─ paint ★ / character（full | half-clip | empty）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 半星：同盒 left 50% 命中 = n-0.5，right 50% = n；绘制 left clip 填色。  
+- `rebuild()` 只在 count/size/character/tooltips 结构变化时重建星节点；`SetValue`/hover 只 `applyChrome`。  
+- 命中区域与布局盒一致（`hit == layout == paint`）；Root 身份跨 `SetValue` 稳定。  
+- Rate 无 loading API；无需 Ticker（P0）。  
+- 动画（hover scale）P1；P0 瞬时高亮即可。  
 
 ### 6.12 完成定义（DoD）
 

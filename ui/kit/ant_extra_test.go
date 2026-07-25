@@ -61,10 +61,10 @@ func TestInputNumberRateSegmented(t *testing.T) {
 	if n.Value != 5 {
 		t.Fatalf("value=%v", n.Value)
 	}
-	r := kit.NewRate(2)
+	r := kit.NewRate()
 	r.SetValue(4)
 	if r.Value != 4 {
-		t.Fatalf("rate=%d", r.Value)
+		t.Fatalf("rate=%v", r.Value)
 	}
 	s := kit.NewSegmented("Daily", "Weekly", "Monthly")
 	s.SetValue("Weekly")

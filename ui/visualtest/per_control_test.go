@@ -98,7 +98,11 @@ func perControlSpecs() []ctlSpec {
 		{"ctl_select", 260, 48, func() core.Node {
 			return padRoot(kit.NewSelect("pick", kit.SelectOption{Value: "1", Label: "One"}).Node(), 260, 48)
 		}},
-		{"ctl_rate", 160, 40, func() core.Node { return padRoot(kit.NewRate(3).Node(), 160, 40) }},
+		{"ctl_rate", 160, 40, func() core.Node {
+			r := kit.NewRate()
+			r.SetDefaultValue(3)
+			return padRoot(r.Node(), 160, 40)
+		}},
 		{"ctl_segmented", 200, 48, func() core.Node { return padRoot(kit.NewSegmented("A", "B").Node(), 200, 48) }},
 		{"ctl_slider", 220, 40, func() core.Node { return padRoot(kit.NewSlider(50).Node(), 220, 40) }},
 		{"ctl_steps", 320, 48, func() core.Node {

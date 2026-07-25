@@ -123,12 +123,27 @@ func TestBehavior_InputNumberStep(t *testing.T) {
 }
 
 func TestBehavior_RateSetValue(t *testing.T) {
-	r := kit.NewRate(1)
-	got := 0
-	r.OnChange = func(v int) { got = v }
+	r := kit.NewRate()
+	// SetValue is parent write — does not fire OnChange (controlled pattern).
 	r.SetValue(4)
-	if r.Value != 4 || got != 4 {
-		t.Fatalf("rate=%d got=%d", r.Value, got)
+	if r.Value != 4 {
+		t.Fatalf("rate=%v", r.Value)
+	}
+	got := -1.0
+	r.SetOnChange(func(v float64) { got = v })
+	r.SetDefaultValue(1) // not controlled; SetDefaultValue via SetValue path
+	// Interaction path fires OnChange:
+	r2 := kit.NewRate()
+	r2.SetOnChange(func(v float64) { got = v })
+	// Direct commit via SetValue then click simulation not needed for smoke;
+	// SetValue alone must not call OnChange:
+	got = -1
+	r2.SetValue(3)
+	if got != -1 {
+		t.Fatalf("SetValue must not fire OnChange, got=%v", got)
+	}
+	if r2.Value != 3 {
+		t.Fatalf("rate=%v", r2.Value)
 	}
 }
 

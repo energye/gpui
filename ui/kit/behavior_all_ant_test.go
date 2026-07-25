@@ -299,7 +299,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Rate", func(t *testing.T) {
-			r := kit.NewRate(2)
+			r := kit.NewRate()
 			r.SetValue(5)
 			if r.Value != 5 {
 				t.Fatal(r.Value)

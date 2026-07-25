@@ -54,7 +54,8 @@ func TestVisual_StepsBreadcrumb(t *testing.T) {
 
 func TestVisual_SegmentedRateSlider(t *testing.T) {
 	seg := kit.NewSegmented("A", "B")
-	rate := kit.NewRate(3)
+	rate := kit.NewRate()
+	rate.SetDefaultValue(3)
 	sl := kit.NewSlider(50)
 	col := primitive.Column(seg.Node(), rate.Node(), sl.Node())
 	col.Gap = 12
