@@ -163,11 +163,14 @@ func main() {
 	var buttons []*kit.Button
 	var tickers []interface{ AttachTicker(*core.Tree) }
 	status := "ready — catalog"
-	// App-level notify host (Ant App): must remain mounted for Message/Notification.
+	// App-level hosts (Ant App): must remain mounted for Message / Notification.
 	msgHost := kit.NewMessageHost()
 	msgHost.Face = face
 	msgHost.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
-	items, panels, modal := buildCatalogPanels(face, theme, &status, &buttons, &tickers, msgHost)
+	ntfHost := kit.NewNotification()
+	ntfHost.Face = face
+	ntfHost.Viewport = core.Size{Width: float64(winW), Height: float64(winH)}
+	items, panels, modal := buildCatalogPanels(face, theme, &status, &buttons, &tickers, msgHost, ntfHost)
 
 	tabs := kit.NewTabs(items...)
 	tabs.Face = face
@@ -193,8 +196,8 @@ func main() {
 
 	tabsHost := primitive.NewFlexible(1, tabs.Node())
 	tabsHost.FillChild = true
-	// msgHost: zero-size OverlayPortal; keep mounted at root for Message/Notification.
-	col := primitive.Column(titleBar, tabsHost, msgHost.Node())
+	// msgHost / ntfHost: zero-size OverlayPortals; keep mounted at root.
+	col := primitive.Column(titleBar, tabsHost, msgHost.Node(), ntfHost.Node())
 	col.Gap = 0
 	col.MainAlign = core.MainStart
 	col.CrossAlign = core.CrossStretch

@@ -50,26 +50,26 @@ func TestMessageHost_InfoOpensPortal(t *testing.T) {
 	}
 }
 
-func TestMessageHost_NotificationOpensPortal(t *testing.T) {
-	h := kit.NewMessageHost()
-	h.Viewport = core.Size{Width: 640, Height: 480}
-	tree := core.NewTree(h.Node())
+func TestNotification_OpensPortal(t *testing.T) {
+	n := kit.NewNotification()
+	n.Viewport = core.Size{Width: 640, Height: 480}
+	tree := core.NewTree(n.Node())
 	tree.Layout(core.Size{Width: 640, Height: 480})
-	h.Notification("Title", "body")
-	if !h.Portal.Open {
+	n.Open(kit.NotificationConfig{Title: "Title", Description: "body", Duration: 0, DurationSet: true})
+	if n.Portal == nil || !n.Portal.Open {
 		t.Fatal("Notification must open portal")
 	}
 	tree.Layout(core.Size{Width: 640, Height: 480})
 	found := false
 	var walk func(core.Node)
-	walk = func(n core.Node) {
-		if n == nil || found {
+	walk = func(node core.Node) {
+		if node == nil || found {
 			return
 		}
-		if tx, ok := n.(*primitive.Text); ok && strings.Contains(tx.Value, "Title") {
+		if tx, ok := node.(*primitive.Text); ok && strings.Contains(tx.Value, "Title") {
 			found = true
 		}
-		for _, c := range n.Children() {
+		for _, c := range node.Children() {
 			walk(c)
 		}
 	}

@@ -550,10 +550,9 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			m.SetOpen(false)
 		}},
 		{"Notification", func(t *testing.T) {
-			// Same host queue as Message
-			h := kit.NewMessageHost()
-			h.Success("ok")
-			if h.Node() == nil {
+			n := kit.NewNotification()
+			n.Success(kit.NotificationConfig{Title: "ok", Duration: 0, DurationSet: true})
+			if n.Node() == nil || n.Count() < 1 {
 				t.Fatal()
 			}
 		}},

@@ -20,6 +20,7 @@ type catalogCtx struct {
 	buttons  *[]*kit.Button
 	tickers  *[]interface{ AttachTicker(*core.Tree) }
 	msgHost  *kit.MessageHost
+	ntfHost  *kit.Notification
 	items    []kit.TabItem
 	contents map[string]core.Node
 	modal    *kit.Modal
@@ -165,6 +166,6 @@ func ctlTab(key, label string) kit.TabItem {
 //	Divider / Flex / ...
 //
 // Every selectable control has its own tab content.
-// msgHost is app-level Message/Notification portal (Ant App pattern). Must stay
-// mounted under the window root — not only inside a tab panel — or toasts never show
-// when the Message tab content is inactive / unmounted.
+// msgHost / ntfHost are app-level Message and Notification portals (Ant App
+// pattern). Must stay mounted under the window root — not only inside a tab
+// panel — or toasts never show when the tab content is inactive / unmounted.

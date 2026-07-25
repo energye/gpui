@@ -341,20 +341,6 @@ func (m *Message) Loading(content string, duration ...float64) *MessageHandle {
 	return m.openSugar(MessageLoading, content, duration...)
 }
 
-// Notification preserves the old smoke-demo entry point. It displays a normal
-// info message using title/body text; full Notification owns its own P0 later.
-func (m *Message) Notification(title, body string) *MessageHandle {
-	content := title
-	if body != "" {
-		if content != "" {
-			content += " - " + body
-		} else {
-			content = body
-		}
-	}
-	return m.Info(content, 4)
-}
-
 func (m *Message) openSugar(typ MessageType, content string, duration ...float64) *MessageHandle {
 	cfg := MessageConfig{Type: typ, Content: content}
 	if len(duration) > 0 {

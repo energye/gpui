@@ -1343,9 +1343,9 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 				h.Success("ok")
 				h.Error("e")
 			}},
-			{"R3 notification+count", func(t *testing.T) {
+			{"R3 count", func(t *testing.T) {
 				h := kit.NewMessageHost()
-				h.Notification("t", "b")
+				h.Info("t")
 				if h.Count() < 1 {
 					t.Fatal(h.Count())
 				}
@@ -1378,21 +1378,24 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 		},
 		"Notification": {
-			{"R1 via host", func(t *testing.T) {
-				h := kit.NewMessageHost()
-				h.Notification("n", "b")
+			{"R1 open", func(t *testing.T) {
+				n := kit.NewNotification()
+				n.Open(kit.NotificationConfig{Title: "n", Description: "b", Duration: 0, DurationSet: true})
+				if n.Node() == nil || n.Count() < 1 {
+					t.Fatal()
+				}
 			}},
 			{"R2 count", func(t *testing.T) {
-				h := kit.NewMessageHost()
-				h.Notification("n", "b")
-				if h.Count() < 1 {
+				n := kit.NewNotification()
+				n.Info(kit.NotificationConfig{Title: "n", Description: "b", Duration: 0, DurationSet: true})
+				if n.Count() < 1 {
 					t.Fatal()
 				}
 			}},
 			{"R3 success queue", func(t *testing.T) {
-				h := kit.NewMessageHost()
-				h.Success("ok")
-				if h.Count() < 1 {
+				n := kit.NewNotification()
+				n.Success(kit.NotificationConfig{Title: "ok", Duration: 0, DurationSet: true})
+				if n.Count() < 1 {
 					t.Fatal()
 				}
 			}},

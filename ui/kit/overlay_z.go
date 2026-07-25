@@ -7,6 +7,7 @@ package kit
 //	Modal         500
 //	ImagePreview  550  (antd zIndexPopupBase+80 ladder)
 //	Message       600
+//	Notification  650  (antd zIndexPopupBase+CONTAINER_MAX_OFFSET+50)
 //	Tour          700
 //
 // Anchored popups (Tooltip/Select/Dropdown) use primitive defaults (~200) unless
@@ -16,5 +17,6 @@ const (
 	OverlayZModal        = 500
 	OverlayZImagePreview = 550
 	OverlayZMessage      = 600
+	OverlayZNotification = 650
 	OverlayZTour         = 700
 )

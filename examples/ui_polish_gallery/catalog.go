@@ -18,10 +18,10 @@ import (
 //	Divider / Flex / ...
 //
 // Every selectable control has its own tab content (one file per control).
-// msgHost is app-level Message/Notification portal (Ant App pattern). Must stay
-// mounted under the window root — not only inside a tab panel — or toasts never show
-// when the Message tab content is inactive / unmounted.
-func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, buttons *[]*kit.Button, tickers *[]interface{ AttachTicker(*core.Tree) }, msgHost *kit.MessageHost) (
+// msgHost / ntfHost are app-level Message and Notification portals (Ant App
+// pattern). Must stay mounted under the window root — not only inside a tab
+// panel — or toasts never show when the tab content is inactive / unmounted.
+func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, buttons *[]*kit.Button, tickers *[]interface{ AttachTicker(*core.Tree) }, msgHost *kit.MessageHost, ntfHost *kit.Notification) (
 	items []kit.TabItem, contents map[string]core.Node, modal *kit.Modal,
 ) {
 	c := &catalogCtx{
@@ -31,6 +31,7 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 		buttons:  buttons,
 		tickers:  tickers,
 		msgHost:  msgHost,
+		ntfHost:  ntfHost,
 		contents: make(map[string]core.Node),
 	}
 

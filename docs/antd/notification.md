@@ -468,14 +468,23 @@ import { Notification } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+数值对齐 antd `components/notification/style`（`prepareComponentToken` / `notification.ts`）：
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | duration 默认 | **4.5s** | API |
-| 宽约 | **384** | 实现/token |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 宽 | **384** | componentToken `width` |
+| 字号正文 | **14** | `fontSize` |
+| 标题字号 | **16** | `fontSizeLG` |
+| 圆角 | **8** | `borderRadiusLG` |
+| 边框线宽 | **1** | `lineWidth`（默认皮可 0 边框 + 阴影语义） |
+| 内边距 | **16 × 24** | `paddingMD` × `paddingContentHorizontalLG` / `paddingLG` |
+| 图标尺寸 | **24** | `fontSizeLG × lineHeightLG` |
+| 关闭钮约 | **22** | `controlHeightLG × 0.55` |
+| 列表项间距 | **16** | `margin`（notificationMarginBottom） |
+| 边缘 inset | **24** | `marginLG`（notificationMarginEdge）；`top`/`bottom` API 默认 24 |
+| stack 阈值 | **3** | `stack.threshold` 默认 |
+| Focus ring outset | ≈ **1.5px** 可见 | 关闭钮等可聚焦控件 |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -571,24 +580,33 @@ btn 点击 ──► 业务回调
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onClick` | 必须 |
-| `title` | 必须 |
-| `placement` | 必须 |
-| `icon` | 必须 |
+| `Open` / `Info` / `Success` / `Error` / `Warning` | hooks 对等 API；`Node()` 作 contextHolder |
+| `title` / `description` | 主文案；`title` 取代已弃用 `message` |
+| `placement` | `top` \| `topLeft` \| `topRight` \| `bottom` \| `bottomLeft` \| `bottomRight`；默认 `topRight` |
+| `duration` | 默认 4.5s；`0` 常驻 |
+| `key` 更新 | 同 key 替换，不新增 |
+| `icon` / 类型图标 | 自定义 `IconName`；type sugar 带语义图标 |
+| `actions` | 自定义按钮组（Go：`[]NotificationAction`） |
+| `closable` / 手动 close | 默认 true；关闭触发 `onClose` |
+| `onClick` / `onClose` | 必须 |
+| `stack` + threshold | 默认阈值 3；超过折叠 |
+| `Destroy` / `maxCount` / `top` / `bottom` | 全局配置子集 |
 | 官方主路径示例 | Hooks 调用（推荐）、自动关闭的延时、带有图标的通知提醒框、自定义按钮、自定义图标、位置、更新消息内容、堆叠 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | role=`alert`（可 `status`）；轻提示不抢焦点；关闭可操作 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| `showProgress` / 进度条色 | 显示进度条、自定义进度条颜色 |
+| `pauseOnHover` 精确计时 | 悬停暂停 |
+| 静态方法全局单例 | `notification.success` 静态路径（不推荐） |
+| semantic classNames/styles 深度 | 自定义语义结构样式 |
+| 动画像素级 / 复杂虚拟列表 stack 阴影 | 分期 |
+| 浏览器-only API（getContainer/prefixCls/RTL） | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 显示进度条, 静态方法（不推荐）, 自定义进度条颜色, 自定义语义结构样式 |
 
 ### 6.9 验收用例表（可测）
 
@@ -621,26 +639,46 @@ btn 点击 ──► 业务回调
 | NTF-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（含历史 `Message.Notification` 兼容路径）；语义对齐 antd `useNotification` + `api.open/config`。
 
 ```text
-NewNotification(...) *Notification
+NewNotification() *Notification
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 全局 / holder
+SetTheme(*Theme) / SetFace / SetStyle
+SetDuration(seconds) / SetPlacement / SetTop / SetBottom
+SetMaxCount / SetStack / SetStackThreshold / SetClosable
+Node() core.Node                 // OverlayPortal contextHolder，挂 app root
+AttachTicker(*Tree) / Tick(dt)   // duration 自动关；无私有帧循环
+
+// 打开
+Open(NotificationConfig) *NotificationHandle
+Info|Success|Error|Warning(NotificationConfig) *NotificationHandle
+Destroy(keys ...string)          // 空 = 全清
+
+// NotificationConfig P0 字段
+//   Type, Title, Description, Key, IconName
+//   Duration + DurationSet（0 = 常驻）
+//   Placement, Closable + ClosableSet
+//   Actions []NotificationAction{Label, Primary, OnClick}
+//   OnClick, OnClose, Style, Role ("alert"|"status")
+
+// 只读 / 测试
+Count() / Items() / VisibleItems()
+PlacementOf(key) / ItemBox(key)  // 布局断言（可选）
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Duration | **4.5** |
+| Placement | **topRight** |
+| Top / Bottom | **24** |
+| Closable | **true** |
+| Stack | false（`SetStack(true)` 后 threshold=**3**） |
+| Role | **alert** |
+| Width | **384** |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
