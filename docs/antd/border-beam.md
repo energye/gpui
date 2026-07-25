@@ -261,90 +261,113 @@ import { BorderBeam } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/border-beam/style/index.ts`、`util.ts`（`DEFAULT_BORDER_BEAM_DURATION=6`、`MAX_BEAM_COLOR_STOP_PERCENT=70`）。
+
+> **注意：** antd `size` 是 **流光可见段长度（px）**，不是 Button 的 small/middle/large 档。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 流光段长 `size` | **100** px | props；CSS var `--ant-border-beam-size` |
+| 线宽 `lineWidth` | **1** px | `lineWidth` / props |
+| 一圈时长 `duration` | **6** s | props；CSS var duration |
+| 渐变色有效映射上限 | **70%** | `MAX_BEAM_COLOR_STOP_PERCENT`：用户 0–100 映射到可见段前 70%，尾部 30% 留给透明淡出 |
+| 容器圆角（跟随 children） | 读容器 / 回落 **6** | `borderRadius`；Card 示例常用 **8**（`borderRadiusLG`） |
+| 字号（内容区） | **14** | `fontSize`（仅 children 文本，非 beam 本体） |
+| Focus ring outset | **不适用** | BorderBeam 装饰层 `pointer-events: none`，不抢焦点 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 默认流光渐变头 | `colorPrimary` | 未设 `color` 时 |
+| 默认流光渐变中 | `colorPrimaryHover` | 映射到约 70% 后接透明 |
+| 容器底 / 边 | `colorBgContainer` / `colorBorder` | 仅 children 容器皮，非 beam |
+| 文本 | `colorText` / `colorTextSecondary` | children 文案 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色作为唯一默认皮（须经 Theme Token；测试可断言读到 primary）。
 
 ### 6.3 关键配置与语义
 
-下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**其他**。
+下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**其他（Other）**。
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `children` | 装饰内容 | `ReactNode` | - |
-| `color` | 流光颜色配置，支持单色字符串或渐变停靠点数组。`percent` 使用 `0 ~ 100` 的输入区间，组件会在内… | `string \ | { color: string; percent: number }[]` |
-| `duration` | 流光完成一圈动画的时间，单位秒 | number | 6 |
-| `lineWidth` | 流光线宽，数字类型按像素处理 | `number \ | string` |
-| `outset` | 流光层相对容器边缘的外扩距离，遇到裁剪容器时可设为 `0` | `number \ | string` |
-| `size` | 流光可见段的尺寸，数字类型按像素处理 | `number \ | string` |
+| `children` | 被装饰的容器内容；kit 侧为 `core.Node` | Node | - |
+| `color` | 流光色：单色或 `{color, percent}[]`（percent 输入 0–100） | 色 / 停靠点数组 | Theme primary 渐变 |
+| `duration` | 流光完成一圈的时间（秒） | number | **6** |
+| `lineWidth` | 流光线宽（px） | number | **1** |
+| `outset` | 流光层相对容器边缘的外扩（px）；裁剪容器可设 **0** | number | 未设 → **0**（贴边） |
+| `size` | **流光可见段长度**（px），非控件 size 档 | number | **100** |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**桌面映射（非 antd props，但官方示例需要）：**
+
+| 能力 | 说明 |
+| --- | --- |
+| `showOnHover` | 映射 `hover.tsx`：默认隐藏 beam，指针进入容器后显示并运行 |
+| `borderRadius` | 映射 FAQ：跟随容器圆角；可显式 Set |
+
+**配置优先级：** 显式 SetXxx > 组件默认 > Theme Token 回落。无受控 value。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-mount ── 光束循环（Tick）
-reduced-motion ── 停
+mount ──► running（Tick 推进 phase 0→1 循环）
+             │
+             ├── SetDuration / SetSize / SetColor / SetLineWidth / SetOutset ──► 下帧生效
+             ├── showOnHover=true 且未 hover ──► beam 隐藏（phase 可冻结）
+             ├── showOnHover=true 且 hover ──► beam 显示 + running
+             └── ReduceMotion=true ──► beam 隐藏（antd：::before display:none）
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| BB-S1 | 默认 | 可见流光或等价动画 |
-| BB-S2 | reduced-motion | 静止 |
-| BB-S3 | 改 duration | 速度变 |
-| BB-S4 | 改颜色 | 色变 |
-| BB-S5 | children | 内容可见 |
+| BB-S1 | 默认（非 reduced-motion） | beam 可见；Ticker 推进 phase |
+| BB-S2 | `Clock.ReduceMotion=true` | **隐藏** beam（非仅静止可见）；Ticker 可停 |
+| BB-S3 | `SetDuration(d)` d>0 | 角速度 = 1/d 圈/秒；d 变小则变快 |
+| BB-S4 | `SetColor` / 渐变 stops | 解析色变；默认走 primary Token |
+| BB-S5 | children 非空 | 内容节点在树中且可布局/可见 |
+| BB-S6 | `SetShowOnHover(true)` | 未 hover 时 beam 不可见；hover 后可见 |
+| BB-S7 | `SetSize` / `SetLineWidth` | 段长 / 线宽立即参与绘制 |
+| BB-S8 | beam 层 | `HitTransparent`；不抢 children 点击 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | 圆角矩形路径上流光；默认 primary→primaryHover→透明 |
+| reduced-motion | **不绘制** beam |
+| showOnHover 未悬停 | **不绘制** beam |
+| showOnHover 悬停 | 绘制 + 动画 |
+| 主题切换 | 默认色随 Theme 更新 |
+| children 容器 | 业务自备边框/底；BorderBeam 不替代 focus/校验边框 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 线性循环（antd `animation-timing-function: linear`）；P0 用沿周长的短段描边近似 CSS `offset-path`，不要求 mask-composite 像素级。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| 角色 | 装饰层 `presentation` / `aria-hidden` 等价（antd beam `aria-hidden="true"`） |
+| 交互 | beam **不**参与命中；焦点与键盘留给 children |
+| 名称 | 无强制业务名；可选 `SetAriaLabel` 挂在根（少用） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
 | 能力 | 策略 | 级别 |
 | --- | --- | --- |
-| 主路径行为（§6.1 L1） | **对等** | P0 L1 |
-| 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
-| Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
-| 逐像素官网哈希 | **不做** | — |
+| children 包裹 + 配置字段 | **对等** | P0 L1 |
+| duration / size / lineWidth / color / outset | **对等** | P0 L1+L2 |
+| 沿边循环动画 | **近似**（Tick + 路径采样，非 CSS offset-path） | P0 行为 / P1 像素级 |
+| reduced-motion 隐藏 | **对等** | P0 L1 |
+| 插入真实 DOM / portal 进 children | **映射**：kit 叠 beam 层于 host 内 | P0 |
+| 读 computed border-radius 持续监听 | **映射**：显式 `SetBorderRadius` + 默认 Token | P0 近似 |
+| mask-composite / 官网逐像素 | **不做** | — |
+| semantic classNames/styles | kit Style 钩子 | P1 |
+| ConfigProvider `borderBeam` 全局 | 随 ConfigProvider | P1 |
+| debug 示例（non-uniform-radius / component-token） | 分期 | P1 |
 
 ### 6.8 能力裁剪（P0 / P1）
 
@@ -352,96 +375,144 @@ reduced-motion ── 停
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `size` | 必须 |
-| `children` | 必须 |
-| 官方主路径示例 | 基础用法、鼠标悬浮时显示、自定义容器、渐变色、动画时长、尺寸、线宽 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| `children` | 包裹内容节点 |
+| `color` | 单色 + 渐变 stops（percent 0–100 → 映射到 70% 可见段） |
+| `duration` | 默认 6s |
+| `lineWidth` | 默认 1px |
+| `outset` | 可选；未设回落 0（布局盒内贴边） |
+| `size` | 流光段长，默认 100px |
+| `showOnHover` | 复现 hover.tsx |
+| `borderRadius` | 跟随 / 显式 |
+| reduced-motion | 隐藏 beam |
+| Ticker | 仅 beam 可见且需动画时挂载 |
+| 官方主路径示例 | basic / hover / custom-container / customized-color / duration / size / line-width |
+| 度量 §6.2 | Token / 默认数字断言 |
+| a11y §6.6 | 装饰层不抢 hit |
+| §6.9 中 L1/L2 非 P1 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| CSS offset-path / mask-composite 像素级 | 分期 |
+| 自动测量 children 运行时 border-radius 变化 | 分期 |
+| ConfigProvider 全局 `borderBeam` | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
+| non-uniform 四角圆角 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestBorderBeam_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 BorderBeam 完成 1:1 主路径。
+> **P0 相关用例（无 P1 / L3 / L4 标记，且适用者）全部通过** 才可宣称 BorderBeam 完成 1:1 主路径。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| BB-01 | L1 | NewBorderBeam 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| BB-02 | L1 | 默认 | 可见流光或等价动画 |
-| BB-03 | L1 | reduced-motion | 静止 |
-| BB-04 | L1 | 改 duration | 速度变 |
-| BB-05 | L1 | 改颜色 | 色变 |
-| BB-06 | L1 | children | 内容可见 |
-| BB-07 | L1 | 复现官方示例「基础用法」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BB-08 | L1 | 复现官方示例「鼠标悬浮时显示」（`hover.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BB-09 | L1 | 复现官方示例「自定义容器」（`custom-container.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BB-10 | L1 | 复现官方示例「渐变色」（`customized-color.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BB-11 | L1 | 复现官方示例「动画时长」（`duration.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BB-12 | L1 | 复现官方示例「尺寸」（`size.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BB-13 | L1 | 复现官方示例「线宽」（`line-width.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BB-14 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| BB-15 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| BB-16 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| BB-17 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| BB-18 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| BB-19 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| BB-01 | L1 | `NewBorderBeam(nil)` 默认 | 不崩溃；duration=6、size=100、lineWidth=1；Node 可 Layout |
+| BB-02 | L1 | 默认 running | `IsBeamVisible()`；`Tick` 推进 `Phase()` |
+| BB-03 | L1 | Tree `ReduceMotion=true` | beam **隐藏**；Tick 不推进 / 返回 idle |
+| BB-04 | L1 | `SetDuration(3)` vs `12` | 相同 dt 下 phase 增量反比于 duration |
+| BB-05 | L1 | `SetColor` / `SetColorStops` | 解析色变；stops 生效 |
+| BB-06 | L1 | children 文本/节点 | 内容在树中可找到 |
+| BB-07 | L1 | 复现 `basic.tsx` | Card/容器 + 默认 BorderBeam；有 beam 层 |
+| BB-08 | L1 | 复现 `hover.tsx` | `ShowOnHover`：未 hover 不可见，hover 后可见 |
+| BB-09 | L1 | 复现 `custom-container.tsx` | 自定义容器 children；radius≈8 可设 |
+| BB-10 | L1 | 复现 `customized-color.tsx` | 多 stops 渐变可切换 |
+| BB-11 | L1 | 复现 `duration.tsx` | 3 / 6 / 12 三档 duration |
+| BB-12 | L1 | 复现 `size.tsx` | 默认 100 / 56 / 160 |
+| BB-13 | L1 | 复现 `line-width.tsx` | lineWidth=2 |
+| BB-14 | L2 | 读 §6.2 默认数字 | duration/size/lineWidth/fontSize/radius 容差 ±0.5 |
+| BB-15 | L2 | 默认皮颜色 | 默认 stops 来自 Theme primary（非写死唯一皮） |
+| BB-16 | L2 | disabled（不适用） | N/A — 跳过 |
+| BB-17 | L1 | 键盘/焦点（不适用） | N/A — beam 不聚焦；children 自理 |
+| BB-18 | L3 | 关键态 golden | 可选；有则与基线 AA 容差 |
+| BB-19 | L4 | 与 ant.design 并排 | 人眼签字 |
 | BB-20 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。
 
 ```text
-NewBorderBeam(...) *BorderBeam
+NewBorderBeam(child core.Node) *BorderBeam
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 内容
+SetChild(core.Node)
+
+// 流光配置（antd props）
+SetColor(render.RGBA)                         // 单色
+SetColorStops(...BorderBeamColorStop)         // {Color, Percent 0..100}
+ClearColor()                                  // 回落 Theme 默认渐变
+SetDuration(seconds float64)                  // ≤0 → 默认 6
+SetLineWidth(px float64)                      // ≤0 → 默认 1
+SetOutset(px float64)                         // 显式含 0
+ClearOutset()                                 // 未设
+SetSize(px float64)                           // 流光段长；≤0 → 默认 100
+SetBorderRadius(px float64)                   // 路径圆角
+
+// 桌面映射
+SetShowOnHover(bool)                          // hover.tsx
+SetHovered(bool)                              // 测试 / 宿主注入；或 host 实现 hoverable
+
+// 主题 / 覆盖
+SetTheme(*core.Theme)
+SetStyle(Style)
+SetAriaLabel(string)
+
+// 查询（测试 / 宿主）
+Node() core.Node
+Child() core.Node
+Phase() float64                               // 0..1
+IsBeamVisible() bool
+ResolvedDuration() / ResolvedSize() / ResolvedLineWidth() / ResolvedOutset() / ResolvedBorderRadius()
+ResolvedColorStops() []BorderBeamColorStop
+
+// 动画
+AttachTicker(*core.Tree)
+Tick(dt float64) bool
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Duration | **6** |
+| Size（段长） | **100** |
+| LineWidth | **1** |
+| Outset | 未设 → **0**（贴容器边） |
+| Color | Theme `colorPrimary` → `colorPrimaryHover` → 透明 |
+| BorderRadius | Token `borderRadius`（**6**） |
+| ShowOnHover | false（始终尝试显示 beam） |
+| Disabled / Loading | 不适用 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+borderBeamHost（HitDefer · layout = children 盒）
+  ├─ child（业务容器；可点）
+  └─ beamLayer（HitTransparent · aria-hidden/presentation）
+       └─ 沿圆角矩形周长采样短段，按 phase 与 size 着色描边
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- `rebuild()` 只读 Default / 字段 / Token。  
+- `hit == layout == paint`：host 盒 = children 布局盒；beam 不扩大命中。  
+- 动画跟随 Host Tick；`ReduceMotion` 时不挂有效动画且不绘制 beam。  
+- outset>0 时允许绘制略超出 host 盒（父级裁剪由业务决定）。
 
 ### 6.12 完成定义（DoD）
 
 同时满足即可宣布 **BorderBeam 主路径 1:1 完成**：
 
 1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+2. §6.9 中 **P0 / L1 / L2 适用用例（BB-01–15）** 测试通过。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+4. L3 golden 可选（装饰控件；有则覆盖 1 关键可见态）。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：BorderBeam 页覆盖 **§6.8 P0** 官方非 debug 七例。  
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/border-beam.md` §6；P1 显式列出。  
 
 ---
 
 **本章用法**：实现 `ui/kit` BorderBeam 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+
+**§6 修订说明（相对模板薄稿）：** 6.2 改为流光专用度量（去掉错误的 focus-ring/禁用色表）；6.3–6.4 补 `showOnHover` 与 reduced-motion **隐藏**；6.8 P0 列全 color/duration/lineWidth/outset/size；6.9 明确 BB-16/17 N/A；6.10 写成具体 Go API；6.11 改为 host+beamLayer。

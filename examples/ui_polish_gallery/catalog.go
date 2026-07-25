@@ -122,6 +122,7 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	c.cat("Other")
 	c.registerAffix()
 	c.registerApp()
+	c.registerBorderBeam()
 	c.registerConfigProvider()
 	c.registerScroll()
 	c.registerScrollbar()

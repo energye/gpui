@@ -133,6 +133,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Popconfirm", kit.NewPopconfirm("sure?").Node())
 	must("Scroll", kit.NewScroll(kit.NewText("s").Node()).Node())
 	must("Affix", kit.NewAffix(kit.NewText("a").Node()).Node())
+	must("BorderBeam", kit.NewBorderBeam(kit.NewText("bb").Node()).Node())
 	must("ConfigProvider", kit.NewConfigProvider(kit.DefaultTheme(), kit.NewText("c").Node()).Node())
 	must("Transfer", func() core.Node {
 		tr := kit.NewTransfer()
