@@ -336,8 +336,16 @@ func TestSwitch_PRD_20_ThemeTokens(t *testing.T) {
 	if !approxColor(on, th.Color(core.TokenColorPrimary), 0.02) {
 		t.Fatalf("on uses non-token primary: %v", on)
 	}
+	// Off track = colorTextQuaternary (antd), not brand hardcode.
+	sw.SetChecked(false)
+	_ = sw.Node().Layout(core.Loose(100, 40))
+	off := sw.ChromeNode().(*primitive.Decorated).Background
+	if !approxColor(off, th.Color(core.TokenColorTextQuaternary), 0.02) {
+		t.Fatalf("off track=%v want colorTextQuaternary %v", off, th.Color(core.TokenColorTextQuaternary))
+	}
 	// Style override still allowed.
 	custom := render.RGBA{R: 0.1, G: 0.8, B: 0.2, A: 1}
+	sw.SetChecked(true)
 	sw.SetActiveColor(custom)
 	_ = sw.Node().Layout(core.Loose(100, 40))
 	if !approxColor(sw.ChromeNode().(*primitive.Decorated).Background, custom, 0.02) {

@@ -4,13 +4,16 @@ import "github.com/energye/gpui/render"
 
 // Token keys (semantic · Ant-leaning defaults in skin/default).
 const (
-	TokenColorPrimary         = "colorPrimary"
-	TokenColorPrimaryHover    = "colorPrimaryHover"
-	TokenColorPrimaryActive   = "colorPrimaryActive"
-	TokenColorPrimaryBg       = "colorPrimaryBg"
-	TokenColorPrimaryBorder   = "colorPrimaryBorder"
-	TokenColorText            = "colorText"
-	TokenColorTextSecondary   = "colorTextSecondary"
+	TokenColorPrimary       = "colorPrimary"
+	TokenColorPrimaryHover  = "colorPrimaryHover"
+	TokenColorPrimaryActive = "colorPrimaryActive"
+	TokenColorPrimaryBg     = "colorPrimaryBg"
+	TokenColorPrimaryBorder = "colorPrimaryBorder"
+	TokenColorText          = "colorText"
+	TokenColorTextSecondary = "colorTextSecondary"
+	// TokenColorTextTertiary / Quaternary match antd seed (Switch off track, etc.).
+	TokenColorTextTertiary    = "colorTextTertiary"
+	TokenColorTextQuaternary  = "colorTextQuaternary"
 	TokenColorTextInverse     = "colorTextInverse"
 	TokenColorBg              = "colorBg"
 	TokenColorBgContainer     = "colorBgContainer"
@@ -257,6 +260,15 @@ func (th *Theme) SizeOr(key string, fallback float64) float64 {
 	return v
 }
 
+// ColorOr resolves a color token or returns fallback when missing/zero-alpha.
+func (th *Theme) ColorOr(key string, fallback render.RGBA) render.RGBA {
+	c := th.Color(key)
+	if c.A <= 0 && c.R == 0 && c.G == 0 && c.B == 0 {
+		return fallback
+	}
+	return c
+}
+
 // Painter returns a skin painter for typeID, or nil.
 func (th *Theme) Painter(typeID string) Painter {
 	if th == nil || th.Skin == nil {
@@ -276,6 +288,8 @@ func AntLightTokens() *TokenSet {
 	t.Colors[TokenColorPrimaryBorder] = render.Hex("#91CAFF")
 	t.Colors[TokenColorText] = render.RGBA{R: 0, G: 0, B: 0, A: 0.88}
 	t.Colors[TokenColorTextSecondary] = render.RGBA{R: 0, G: 0, B: 0, A: 0.45}
+	t.Colors[TokenColorTextTertiary] = render.RGBA{R: 0, G: 0, B: 0, A: 0.45}
+	t.Colors[TokenColorTextQuaternary] = render.RGBA{R: 0, G: 0, B: 0, A: 0.25}
 	t.Colors[TokenColorTextInverse] = render.RGBA{R: 1, G: 1, B: 1, A: 1}
 	t.Colors[TokenColorBg] = render.Hex("#FFFFFF")
 	t.Colors[TokenColorBgContainer] = render.Hex("#FFFFFF")

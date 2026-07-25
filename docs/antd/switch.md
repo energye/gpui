@@ -298,14 +298,18 @@ import { Switch } from 'antd';
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
+| 开态轨道 | `colorPrimary`（antd `switchColor`） | hover → `colorPrimaryHover` |
+| 关态轨道 | `colorTextQuaternary`（≈ rgba(0,0,0,0.25)） | hover → `colorTextTertiary`（≈ 0.45） |
+| 内文（开/关文案） | `colorTextLightSolid` / `colorTextInverse` | 轨上反白字 |
+| 把手 | `colorWhite` / 白 | handleBg；loading 图标深色描边 |
 | 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
 | 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
 | 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
 | 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
+| 禁用 | 整体 `opacityLoading`（≈0.65）或降对比主色/中性填充 | 无 hover 高亮；不可点 |
 | 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色作为唯一默认皮。关态默认填充走 `colorTextQuaternary`，不得写死 `#1677ff` 类品牌色。
 
 ### 6.3 关键配置与语义
 

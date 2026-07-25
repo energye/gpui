@@ -769,7 +769,8 @@ func (s *Switch) paintSpinner(pc *core.PaintContext, sz core.Size) {
 	if pc == nil || !s.Loading {
 		return
 	}
-	col := render.RGBA{R: 0, G: 0, B: 0, A: 0.45}
+	// antd switchLoadingIconColor ≈ rgba(0,0,0, opacityLoading)
+	col := s.theme().ColorOr(core.TokenColorTextTertiary, render.RGBA{R: 0, G: 0, B: 0, A: 0.45})
 	if s.Disabled {
 		col = s.theme().Color(core.TokenColorDisabledText)
 	}
@@ -803,20 +804,27 @@ func (s *Switch) applyChrome() {
 		return
 	}
 	th := s.theme()
+	// antd: off=colorTextQuaternary, off-hover=colorTextTertiary,
+	// on=colorPrimary, on-hover=colorPrimaryHover; disabled/loading opacity≈0.65.
+	off := th.ColorOr(core.TokenColorTextQuaternary, render.RGBA{R: 0, G: 0, B: 0, A: 0.25})
+	offHover := th.ColorOr(core.TokenColorTextTertiary, render.RGBA{R: 0, G: 0, B: 0, A: 0.45})
+	on := th.Color(core.TokenColorPrimary)
+	onHover := th.Color(core.TokenColorPrimaryHover)
+
 	hovered := s.Root != nil && s.Root.State.Hovered && !s.Disabled && !s.Loading
+	var bg render.RGBA
 	if s.Checked {
-		bg := th.Color(core.TokenColorPrimary)
+		bg = on
 		if hovered {
-			bg = th.Color(core.TokenColorPrimaryHover)
+			bg = onHover
 		}
 		if s.Style.hasBGActive() {
 			bg = s.Style.BackgroundActive
 		}
-		s.track.Background = bg
 	} else {
-		bg := render.RGBA{R: 0, G: 0, B: 0, A: 0.25}
+		bg = off
 		if hovered {
-			bg = render.RGBA{R: 0, G: 0, B: 0, A: 0.35}
+			bg = offHover
 		}
 		if s.Style.hasBG() {
 			bg = s.Style.Background
@@ -824,23 +832,34 @@ func (s *Switch) applyChrome() {
 				bg = s.Style.BackgroundHover
 			}
 		}
-		s.track.Background = bg
 	}
 	if s.Disabled {
+		// Approximate antd switchDisabledOpacity (opacityLoading ≈ 0.65)
+		// by reducing track alpha rather than a second event path.
 		if s.Checked {
-			c := th.Color(core.TokenColorPrimary)
-			c.A *= 0.4
-			if c.A < 0.15 {
+			c := on
+			if s.Style.hasBGActive() {
+				c = s.Style.BackgroundActive
+			}
+			c.A *= 0.65
+			if c.A < 0.2 {
 				c.A = 0.25
 			}
-			s.track.Background = c
+			bg = c
 		} else {
-			s.track.Background = th.Color(core.TokenColorDisabledBg)
+			c := off
+			if s.Style.hasBG() {
+				c = s.Style.Background
+			}
+			c.A *= 0.65
+			if c.A < 0.1 {
+				c = th.Color(core.TokenColorDisabledBg)
+			}
+			bg = c
 		}
-		s.track.BorderWidth = 0
-	} else {
-		s.track.BorderWidth = 0
 	}
+	s.track.Background = bg
+	s.track.BorderWidth = 0
 
 	s.labelColor = th.Color(core.TokenColorTextInverse)
 	if s.Disabled {
