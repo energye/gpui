@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -1204,7 +1203,7 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 			{"R2 color", func(t *testing.T) {
 				tg := kit.NewTag("t")
-				tg.SetColor(render.Hex("#1677FF"))
+				tg.SetColor("#1677FF")
 			}},
 			{"R3 closable", func(t *testing.T) {
 				tg := kit.NewTag("t")

@@ -1123,9 +1123,9 @@ func (s *Select) buildMultiContent(th *core.Theme, fontSz float64) core.Node {
 		if !s.Disabled {
 			tag.SetClosable(true)
 			vv := v
-			tag.OnClose = func() {
+			tag.SetOnClose(func() {
 				s.toggleMulti(vv, false)
-			}
+			})
 		}
 		row.AddChild(tag.Node())
 	}
