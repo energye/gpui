@@ -556,24 +556,33 @@ import { Modal } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+数值对齐 antd `components/modal/style`（非 wireframe）+ 全局 Token 默认算法。
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | 默认 width | **520** | API 默认 |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
+| 非居中 top 偏移 | **100** | style `top: 100`（`centered=false`） |
+| 标题字号 | **16** | `titleFontSize` ← `fontSizeHeading5` |
+| 正文字号 | **14** | `fontSize` |
+| 内容区内边距 | **16** 上下 / **24** 左右 | `contentPadding` ← `paddingMD` + `paddingContentHorizontalLG` |
+| 标题下间距 | **8** | `headerMarginBottom` ← `marginXS` |
+| 页脚上间距 | **12** | `footerMarginTop` ← `marginSM` |
+| 圆角 | **8** | `borderRadiusLG`（面板，非 `borderRadius=6`） |
+| 边框线宽 | **1** | `lineWidth`（wireframe 分割线；默认皮无描边） |
+| 关闭按钮尺寸 | **32** | `modalCloseBtnSize` ← `controlHeight` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 面板底 | `colorBgElevated`（无则回落 `colorBgContainer`） | antd `contentBg` |
+| 主色 / hover / active | `colorPrimary` + 变体 | OK primary、强调 |
+| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | confirm type 图标色 |
+| 文本 / 标题 / 次级 | `colorText` / `colorTextHeading` / `colorTextSecondary` | |
+| 边框 / 分割 | `colorBorder` / `colorSplit` | wireframe 分割 |
+| 禁用 | `colorDisabledBg` / `colorDisabledText` | 关闭图标 disabled |
+| 浮层阴影 / 遮罩 | `boxShadow` / `colorBgMask` | 面板阴影 + 遮罩 0.45 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -675,26 +684,39 @@ closed ── SetOpen(true) / 命令式 open ──► opening ──► open
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `disabled` | 必须 |
-| `loading` | 必须 |
-| `open` | 必须 |
-| `title` | 必须 |
-| `content` | 必须 |
-| `icon` | 必须 |
+| `open` / `SetOpen` | 受控开合；焦点陷阱进出 |
+| `title` / `content` | 标题 + 内容区 |
+| `footer` | 默认 OK/Cancel；`footer=null` 隐藏；自定义节点 / 渲染函数（OkBtn+CancelBtn） |
+| `okText` / `cancelText` / `okType` | 按钮文案与类型（默认 primary） |
+| `onOk` / `onCancel` / `afterClose` | 回调；Cancel/Esc/遮罩/关闭图标走 `onCancel` 并关闭 |
+| `confirmLoading` | OK 按钮 loading；防重复点 |
+| `loading` | 内容区骨架屏（body skeleton） |
+| `closable` / 关闭图标 | 右上角关闭；可关 |
+| `mask` / `maskClosable` | 遮罩显隐；点击遮罩关闭策略 |
+| `keyboard` | Esc 关闭（默认 true） |
+| `centered` | 垂直居中；默认 false → top=100 |
+| `width` | 默认 **520** |
+| `destroyOnHidden` | 关闭卸载子树 |
+| `Modal.confirm`（+ Host hooks 等价） | 命令式确认框；OK/Cancel 回调；`icon` |
+| 国际化文案 | `okText`/`cancelText` 可设（中/英等） |
 | 官方主路径示例 | 基本、异步关闭、自定义页脚、遮罩、加载中、自定义页脚渲染函数、使用 hooks 获得上下文、国际化 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | `role=dialog`、可访问名=title、焦点陷阱、Esc |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| semantic classNames/styles 深度 / 函数形态 | 分期 |
+| `modalRender` / 自定义鼠标位置 / 嵌套 Modal 像素动效 | 分期 |
+| `getContainer` / `forceRender` / `scrollLock` 宿主级 | 分期 |
+| `okButtonProps` / `cancelButtonProps` 全量透传 | 分期（P0 仅文案/类型/loading） |
+| `mask.blur` 真实模糊 | 分期（P0 可近似 dim / 无模糊） |
+| ConfigProvider 全局默认 / locale 注入 | 分期 |
+| 动画像素级 open/close | 分期（P0 瞬时） |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 手动更新和移除, 自定义位置, 自定义页脚按钮属性, 自定义渲染对话框 |
+| 其余示例 | 手动更新和移除, 自定义位置, 自定义页脚按钮属性, 自定义渲染对话框, 静态 info 全家桶细皮 |
 
 ### 6.9 验收用例表（可测）
 
@@ -736,23 +758,62 @@ closed ── SetOpen(true) / 命令式 open ──► opening ──► open
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewModal(...) *Modal
+NewModal(title string) *Modal
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 开合 / 内容
+SetOpen(bool)
+SetTitle(string)
+SetContent(core.Node)
+SetFooter(core.Node)            // 自定义页脚；与默认互斥
+SetFooterNull()                 // antd footer={null}
+SetFooterRender(fn)             // fn(ok, cancel core.Node) core.Node
+SetFooterVisible(bool)          // 兼容：false→null，true→恢复默认
+
+// 按钮
+SetOkText / SetCancelText(string)
+SetOkType(ButtonType)           // 默认 primary
+SetConfirmLoading(bool)         // OK 按钮 loading
+
+// 行为开关
+SetClosable(bool)               // 默认 true
+SetMask(bool)                   // 默认 true
+SetMaskClosable(bool)           // 默认 true（≡ mask.closable）
+SetKeyboard(bool)               // 默认 true
+SetCentered(bool)               // 默认 false
+SetWidth(float64)               // 0→520
+SetTop(float64)                 // 非居中 top；0→DefaultModalTop(100)
+SetLoading(bool)                // 内容骨架
+SetDestroyOnHidden(bool)
+
+// 回调
+OnOk / OnCancel / AfterClose / OnOpenChange
+// OK：只触发 OnOk，不自动关（受控；confirmLoading 时防重复）
+// Cancel / Esc / mask / 关闭图标：OnCancel + SetOpen(false)
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) / SetFace(Face)
+SetAriaLabel(string)            // 覆盖 dialog 可访问名（默认 title）
+Node() core.Node
+AttachTicker(*Tree) / Tick      // loading skeleton
+
+// 命令式（hooks 等价）
+NewModalHost() *ModalHost
+host.Confirm/Info/Success/Error/Warning(ModalConfirmConfig) *ModalConfirmHandle
+// Handle.Destroy / Update；Config 含 Title/Content/Icon/OkText/CancelText/OnOk/OnCancel
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Open | false |
+| Width | 520 |
+| Top（!Centered） | 100 |
+| Closable / Mask / MaskClosable / Keyboard | true |
+| Centered / Loading / ConfirmLoading / DestroyOnHidden | false |
+| OkText / CancelText | `OK` / `Cancel`（可用 Set 做国际化） |
+| OkType | primary |
+| Footer | 默认 Cancel + OK |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

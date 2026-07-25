@@ -153,7 +153,7 @@ func main() {
 	modal.Face = face
 	modal.Viewport = vp
 	modal.SetContent(kit.NewText("Modal body — OK closes.").Node())
-	modal.OnOk = func() { status = "modal ok" }
+	modal.OnOk = func() { status = "modal ok"; modal.SetOpen(false) }
 
 	openModal := kit.NewButton("Open Modal")
 	openModal.SetFace(face)
