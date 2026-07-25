@@ -410,29 +410,35 @@ import { Progress } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落（对照 `components/progress/utils.ts` + `style/index.ts`）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 线高 | **8** | line stroke |
-| 环默认 | **120** | circle size |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| line 轨高 medium | **8** | `TokenProgressHeight` / `getSize(…,'line')` |
+| line 轨高 small | **6** | size=`small` |
+| line 轨圆角 | **半高**（胶囊） | antd `lineBorderRadius`≈100 → clamp 半高 |
+| line 与 info 间距 | **8** | `marginXS` |
+| circle / dashboard 默认边长 | **120** | `getSize` medium |
+| circle / dashboard small 边长 | **60** | size=`small` |
+| circle 线宽（相对边长 %） | **6** | `strokeWidth` 默认；且 ≥ `3/size*100` |
+| dashboard 默认 gapDegree | **75** | `Circle.tsx` |
+| dashboard 默认 gapPlacement | **bottom** | |
+| 环内文字字号 | ≈ `size*0.15+6` | antd circleStyle.fontSize |
+| 字号（line info） | **14** | `fontSize` |
+| 线宽 fallback（无父约束） | **160** | kit 桌面默认（antd 为 100% 宽） |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 进度填充 defaultColor | `colorPrimary` | status=normal/active |
+| 成功填充 | `colorSuccess` | status=success 或 percent≥100 自动 |
+| 异常填充 | `colorError` | status=exception |
+| 轨道 remainingColor / rail | `colorFillSecondary` | `railColor` 可覆盖 |
+| 文本 / 环心文字 | `colorText` / `colorTextSecondary` | success/exception 时 info 跟 status 色 |
+| 边框 / 容器底 | `colorBorder` / `colorBgContainer` | active 闪光近似用 bgContainer |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -464,41 +470,52 @@ import { Progress } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-percent=p ──► 线宽/圆弧 = p%
-status=normal|active|exception|success ──► 色与图标
-type=line|circle|dashboard ──► 形态
-showInfo=false ──► 隐藏百分比文案
+percent=p ∈ [0,100] ──► 线填充宽 / 圆弧扫角 = p%
+status 显式 ∈ {normal, active, exception, success}
+  未设且 percent≥100 ──► 自动 success（antd progressStatus）
+  未设且 percent<100 ──► normal
+type=line|circle|dashboard ──► 线 / 全环 / 缺口环（dashboard gapDegree 默认 75）
+showInfo=false ──► 无百分比与状态图标
+format 设 ──► info 文案走 format(percent, successPercent)；覆盖默认 `%` 与成功/异常图标
+status=active（仅 line）──► 轨上闪光/扫光；Ticker 驱动；非 line 忽略动画
+size=small|medium|number ──► 线高 6|8；环边长 60|120|自定义
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
 | PRG-S1 | percent=50 type=line | 轨填充约一半 |
-| PRG-S2 | percent=100 | 成功态可自动 success（按 antd） |
-| PRG-S3 | status=exception | 错误色 |
-| PRG-S4 | type=circle | 环形 |
-| PRG-S5 | showInfo=false | 无百分比数字 |
-| PRG-S6 | 线高 | ≈8 |
-| PRG-S7 | 环 size 默认 | ≈120 |
-| PRG-S8 | steps 线（适用者） | 分段显示 |
+| PRG-S2 | percent=100 且未显式 status | 自动 success（色+图标） |
+| PRG-S3 | status=exception | 错误色；info 为异常图标/色 |
+| PRG-S4 | type=circle | 环形；默认边长 120 |
+| PRG-S5 | showInfo=false | 无百分比数字与状态图标 |
+| PRG-S6 | size=medium type=line | 线高 ≈8 |
+| PRG-S7 | type=circle 默认 size | 边长 ≈120 |
+| PRG-S8 | type=dashboard | 缺口环；默认 gapDegree=75 |
+| PRG-S9 | status=active type=line | Ticker 扫光；SetPercent 不整树 rebuild |
+| PRG-S10 | format 自定义 | info 显示 format 返回值 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| normal | 填充 primary；info 为 `p%`（或 format） |
+| active（line） | 同 normal 色 + 扫光层（P0 近似，非像素级 CSS keyframes） |
+| success | 填充 success；无 format 时 line 用成功图标、circle 用中心勾 |
+| exception | 填充 error；无 format 时 line 用异常图标、circle 用中心叉 |
+| showInfo=false | 无 info 节点 |
+| 主题切换 | 色与间距随 Theme / Token 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** `status=active` 的扫光跟 Host Ticker；P0 允许简化；尊重 reduced-motion 时可静止。percent 变更优先改几何/脏区，**禁止**无结构变化时整树 rebuild。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 实时区域 | message/notification 用 status 语义等价 |
-| 关闭 | 可关控件可操作 |
-| 不抢焦点 | 轻提示默认不抢（Modal 例外） |
+| role | 根节点 `progressbar` |
+| 值 | `aria-valuenow`≈percent；`valuemin=0` `valuemax=100`（Label/Value 字段承载） |
+| 名 | `SetAriaLabel` 或默认 `"{percent} percent"` / format 文案 |
+| 焦点 | **非**键盘操作控件；不抢焦点、无强制 tabIndex |
+| 实时 | 值变更更新 accessible name；不必 live region |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -519,102 +536,145 @@ showInfo=false ──► 隐藏百分比文案
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `size` | 必须 |
-| `type` | 必须 |
-| `status` | 必须 |
-| `percent` | 必须 |
+| `size` | small / medium / 自定义 SizePx |
+| `type` | line / circle / dashboard |
+| `status` | normal / exception / active(line) / success；空=自动 |
+| `percent` | 0..100；SetPercent 不整树 rebuild |
+| `showInfo` / `format` | 默认 true；自定义文案 |
+| `type=dashboard` + gapDegree | 默认 gap 75 / placement bottom |
+| `status=active`（line） | Ticker 扫光近似 |
 | 官方主路径示例 | 进度条、进度圈、小型进度条、响应式进度圈、小型进度圈、动态展示、自定义文字格式、仪表盘 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| a11y §6.6 | role=progressbar + 值名 |
+| §6.9 中 L1/L2 P0 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `steps` 线/圈分段 | 分期 |
+| `strokeLinecap` butt/square、渐变 `strokeColor` object | 分期 |
+| `percentPosition` inner/outer/align | 分期 |
+| `success.percent` 双色分段 | 分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| 动画像素级 active keyframes | 分期 |
+| ConfigProvider 全局 progress 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 分段进度条, 边缘形状, 自定义进度条渐变色, 步骤进度条 |
+| 其余示例 | 分段进度条、边缘形状、自定义渐变、步骤进度条/圈、尺寸全矩阵、info-position |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestProgress_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Progress 完成 1:1 主路径。
+> **P0 相关 L1/L2 用例全部通过** 才可宣称 Progress 完成 1:1 主路径。  
+> L3/L4 与 P1 不阻塞本阶段 DoD（可另测）。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| PRG-01 | L1 | NewProgress 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| PRG-02 | L1 | percent=50 type=line | 轨填充约一半 |
-| PRG-03 | L1 | percent=100 | 成功态可自动 success（按 antd） |
-| PRG-04 | L1 | status=exception | 错误色 |
-| PRG-05 | L1 | type=circle | 环形 |
-| PRG-06 | L1 | showInfo=false | 无百分比数字 |
-| PRG-07 | L1 | 线高 | ≈8 |
-| PRG-08 | L1 | 环 size 默认 | ≈120 |
-| PRG-09 | L1 | steps 线（适用者） | 分段显示 |
-| PRG-10 | L1 | 复现官方示例「进度条」（`line.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PRG-11 | L1 | 复现官方示例「进度圈」（`circle.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PRG-12 | L1 | 复现官方示例「小型进度条」（`line-mini.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PRG-13 | L1 | 复现官方示例「响应式进度圈」（`circle-micro.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PRG-14 | L1 | 复现官方示例「小型进度圈」（`circle-mini.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PRG-15 | L1 | 复现官方示例「动态展示」（`dynamic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PRG-16 | L1 | 复现官方示例「自定义文字格式」（`format.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PRG-17 | L1 | 复现官方示例「仪表盘」（`dashboard.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| PRG-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| PRG-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| PRG-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| PRG-21 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| PRG-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| PRG-23 | L4 | 与 ant.design 并排 | 人眼签字记录 |
-| PRG-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+| PRG-01 | L1 | NewProgress 默认创建 | type=line、size=medium、showInfo=true、status 空（自动）、percent 入参 |
+| PRG-02 | L1 | percent=50 type=line | 轨填充约一半（FillRatio≈0.5） |
+| PRG-03 | L1 | percent=100 未设 status | effectiveStatus=success |
+| PRG-04 | L1 | status=exception | 填充/info 用 error 色 |
+| PRG-05 | L1 | type=circle | 环形节点；默认边长≈120 |
+| PRG-06 | L1 | showInfo=false | 无百分比数字节点 |
+| PRG-07 | L1 | size=medium type=line | 线高≈8 |
+| PRG-08 | L1 | type=circle 默认 | 边长≈120 |
+| PRG-09 | P1 | steps 线 | 分段显示（本阶段不做） |
+| PRG-10 | L1 | 复现「进度条」`line.tsx` | 30/50 active/70 exception/100/50 hideInfo 可构建 |
+| PRG-11 | L1 | 复现「进度圈」`circle.tsx` | 75 / 70 exception / 100 可构建 |
+| PRG-12 | L1 | 复现「小型进度条」`line-mini.tsx` | size=small 线高≈6 |
+| PRG-13 | L1 | 复现「响应式进度圈」`circle-micro.tsx` | size 小数 + strokeWidth + format 可构建 |
+| PRG-14 | L1 | 复现「小型进度圈」`circle-mini.tsx` | size=80 三环可构建 |
+| PRG-15 | L1 | 复现「动态展示」`dynamic.tsx` | SetPercent ±10 不整树 rebuild 根 |
+| PRG-16 | L1 | 复现「自定义文字格式」`format.tsx` | format 返回值出现在 info |
+| PRG-17 | L1 | 复现「仪表盘」`dashboard.tsx` | type=dashboard + gapDegree 可构建 |
+| PRG-18 | L2 | §6.2 关键尺寸 | line 8/6、circle 120/60、info gap≈8（±0.5） |
+| PRG-19 | L2 | 默认皮颜色 | 走 Theme Token；无硬编码品牌蓝/绿/红为唯一皮 |
+| PRG-20 | — | disabled（不适用） | Progress **无** disabled；跳过 |
+| PRG-21 | L1 | a11y 主路径 | role=progressbar；Label/值反映 percent；非焦点控件 |
+| PRG-22 | L3 | 关键态 golden | 与仓库基线一致（另轨） |
+| PRG-23 | L4 | 与 ant.design 并排 | 人眼签字（另轨） |
+| PRG-24 | P1 | steps/gradient/linecap/percentPosition 等 | Notes 标明；本阶段不做 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约，实现可微调命名但语义不可丢。
 
 ```text
-NewProgress(...) *Progress
+NewProgress(percent float64) *Progress
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 形态
+SetType(ProgressType)              // line | circle | dashboard
+SetSize(ProgressSize)              // small | medium（预设）
+SetSizePx(float64)                 // 自定义：line 高或 circle 边长；0=用 Size 预设
+SetWidth(float64)                  // line 轨宽；0=父约束或 fallback 160
+SetStrokeWidth(float64)            // circle 线宽（相对边长 %）；0=默认 6
+SetGapDegree(float64)              // dashboard 缺口角度；未设 dashboard 默认 75
+SetGapPlacement(ProgressGapPlacement) // top|bottom|start|end；dashboard 默认 bottom
+
+// 值与状态
+SetPercent(float64)                // clamp 0..100；禁止无结构变化时 rebuild 根
+SetStatus(ProgressStatus)          // ""=自动 | normal|exception|active|success
+SetShowInfo(bool)                  // 默认 true
+SetFormat(func(percent, successPercent float64) string) // nil=默认
+
+// 色（可选覆盖；零值/未 Set 走 Token）
+SetStrokeColor(render.RGBA)
+SetRailColor(render.RGBA)          // 亦兼容 trailColor 语义
+
+// 主题 / a11y / 挂树
+SetTheme(*core.Theme)
+SetAriaLabel(string)
+Node() core.Node
+AttachTicker(*core.Tree)           // status=active 扫光；OnMount 亦可自动绑
+EffectiveStatus() ProgressStatus   // 含 percent≥100 自动 success
+LineHeight() / CircleSize() float64
+FillRatio() float64                // 0..1，测填充
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Type | line |
+| Size | medium |
+| SizePx / Width / StrokeWidth | 0（走预设 / fallback） |
+| Status | 空（自动：≥100→success，否则 normal） |
+| ShowInfo | true |
+| Format | nil → `"{percent}%"`；success/exception 且无 format 时用状态图标 |
+| GapDegree | dashboard 未设 → 75 |
+| GapPlacement | dashboard → bottom |
+| Percent | NewProgress 入参（clamp） |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Host holder or inline
-  └─ item (icon + content + close?)
+progressHost（非 RepaintBoundary；OnMount 绑 Ticker）
+  └─ line:
+       Row(gap=marginXS) CrossCenter
+         progressTrack（Layout 定宽高；Paint rail+fill+active 扫光）
+         info Text?（outer end）
+  └─ circle|dashboard:
+       Stack / 定边长盒
+         progressRing Canvas（轨弧 + 进度弧；dashboard 留 gapDegree）
+         居中 info Text?（% / format / 勾叉）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- `rebuild()` 只读 Default/字段/Token；`SetPercent` / active Tick 只改脏画与 info 文案。  
+- 命中区域与布局盒一致（`hit == layout == paint`）；**禁止** Progress 根 `RepaintBoundary`（ScrollViewport 嵌套会留洞）。  
+- active 扫光跟随 Host Tick；非 active 不挂 Ticker。
 
 ### 6.12 完成定义（DoD）
 
 同时满足即可宣布 **Progress 主路径 1:1 完成**：
 
 1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+2. §6.9 中 **P0 相关 L1/L2**（PRG-01…08、10…19、21）测试通过；PRG-09/20/22–24 不阻塞。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+4. L3 golden 至少覆盖 1 个关键可见态（若仓库已有 Progress golden 则保持）。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：Progress 页按 §6.8 P0 官方示例重铺；P1 可不进 gallery。  
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/progress.md` §6；P1 显式列出。  
+
 
 ---
 

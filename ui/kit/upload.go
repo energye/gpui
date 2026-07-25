@@ -1283,12 +1283,11 @@ func (u *Upload) buildTextPictureItem(th *core.Theme, file UploadFile) core.Node
 
 	if file.Status == UploadStatusUploading {
 		prog := NewProgress(file.Percent)
-		prog.ShowInfo = false
-		prog.Width = 200
+		prog.SetShowInfo(false)
+		prog.SetWidth(200)
 		if u.Theme != nil {
-			prog.Theme = u.Theme
+			prog.SetTheme(u.Theme)
 		}
-		// Force thin bar via rebuild — Progress uses TokenProgressHeight; acceptable for P0.
 		shell.AddChild(prog.Node())
 	}
 
