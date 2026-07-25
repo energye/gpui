@@ -105,7 +105,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 		return s.Node()
 	}())
 	must("Descriptions", kit.NewDescriptions(kit.DescriptionsItem{Label: "a", Children: "b"}).Node())
-	must("Timeline", kit.NewTimeline(kit.TimelineItem{Label: "x"}).Node())
+	must("Timeline", kit.NewTimeline(kit.TimelineItem{Content: "x"}).Node())
 	must("Collapse", kit.NewCollapse(kit.CollapsePanel{Key: "1", Header: "h"}).Node())
 	must("Carousel", kit.NewCarousel(kit.NewText("1").Node()).Node())
 	must("Image", kit.NewImageSized("i", 40, 40).Node())

@@ -107,8 +107,8 @@ func TestCollapseTimelineSliderResult(t *testing.T) {
 	c.SetActive("1")
 	_ = c.Node().Layout(core.Loose(400, 300))
 	tl := kit.NewTimeline(
-		kit.TimelineItem{Label: "Created"},
-		kit.TimelineItem{Label: "Shipped"},
+		kit.TimelineItem{Content: "Created"},
+		kit.TimelineItem{Content: "Shipped"},
 	)
 	_ = tl.Node().Layout(core.Loose(300, 200))
 	sl := kit.NewSlider(40)

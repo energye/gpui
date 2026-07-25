@@ -1215,22 +1215,24 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Timeline": {
 			{"R1 items", func(t *testing.T) {
-				tl := kit.NewTimeline(kit.TimelineItem{Label: "x"})
+				tl := kit.NewTimeline(kit.TimelineItem{Content: "x"})
 				if len(tl.Items) != 1 {
 					t.Fatal()
 				}
 			}},
 			{"R2 setItems", func(t *testing.T) {
 				tl := kit.NewTimeline()
-				tl.SetItems([]kit.TimelineItem{{Label: "a"}, {Label: "b"}})
+				tl.SetItems([]kit.TimelineItem{{Content: "a"}, {Content: "b"}})
 				if len(tl.Items) != 2 {
 					t.Fatal()
 				}
 			}},
-			{"R3 pending", func(t *testing.T) {
-				tl := kit.NewTimeline(kit.TimelineItem{Label: "x"})
-				tl.Pending = "more"
-				if tl.Pending != "more" {
+			{"R3 pending loading", func(t *testing.T) {
+				tl := kit.NewTimeline(
+					kit.TimelineItem{Content: "x"},
+					kit.TimelineItem{Content: "more", Loading: true},
+				)
+				if !tl.HasPending() || !tl.ItemLoading(1) {
 					t.Fatal()
 				}
 			}},

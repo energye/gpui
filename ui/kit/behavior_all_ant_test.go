@@ -490,7 +490,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Timeline", func(t *testing.T) {
-			tl := kit.NewTimeline(kit.TimelineItem{Label: "x"})
+			tl := kit.NewTimeline(kit.TimelineItem{Content: "x"})
 			if len(tl.Items) != 1 {
 				t.Fatal()
 			}

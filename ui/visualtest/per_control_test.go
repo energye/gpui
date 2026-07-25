@@ -154,7 +154,7 @@ func perControlSpecs() []ctlSpec {
 		}},
 		{"ctl_timeline", 200, 120, func() core.Node {
 			return padRoot(kit.NewTimeline(
-				kit.TimelineItem{Label: "A"}, kit.TimelineItem{Label: "B"},
+				kit.TimelineItem{Content: "A"}, kit.TimelineItem{Content: "B"},
 			).Node(), 200, 120)
 		}},
 		{"ctl_descriptions", 220, 80, func() core.Node {

@@ -363,27 +363,40 @@ import { Timeline } from 'antd';
 
 数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
 
+来源：`components/timeline/style/index.ts` `prepareComponentToken` + `itemHeadSize` 合并值。
+
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 内容字号 | **14** | `fontSize` |
+| 内容行高参考 | **≈22** | `fontHeight`（fontSize×lineHeight） |
+| 节点（dot）直径 | **10** | 组件 `itemHeadSize` / `dotSize` 回落 |
+| 节点边框宽 | **2** | `dotBorderWidth` ← `lineWidthBold`（无 token 时 = `lineWidth`×2 或 **2**） |
+| 轨迹（tail）线宽 | **2** | `tailWidth` ← `lineWidthBold` |
+| 轨迹色 | `colorSplit` | `tailColor` |
+| 节点背景（outlined 空心） | `colorBgContainer` | `dotBg` |
+| 项底间距 | **20** | `itemPaddingBottom` = `padding`×1.25（padding=16 → 20） |
+| 自定义图标上下垫 | **4** | `customHeadPaddingVertical` ← `paddingXXS` |
+| 标题占比 `titleSpan` | **12** | 到 dot 中心；`12/24 → 50%`（P1 深度可调，P0 默认可用） |
+| 圆角（根/覆盖） | **6** | `borderRadius` |
+| 边框线宽（通用） | **1** | `lineWidth` |
+| Focus ring outset | ≈ **1.5px** 可见 | 可调；Timeline 本身非焦点控件时 N/A |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 默认点色 `blue` | `colorPrimary` | item.color 默认 |
+| 点色 `red` / `green` / `gray` | `colorError` / `colorSuccess` / `colorTextDisabled` | 预设名 |
+| 自定义点色 | 解析 `#hex` 等 | 非预设时直用 |
+| 内容文本 | `colorText` | item content |
+| 标题文本 | `colorTextSecondary` | item title |
+| 轨迹 | `colorSplit` | tail |
+| 空心点底 | `colorBgContainer` | outlined variant |
+| 禁用 | `colorDisabledBg` / `colorDisabledText` | 适用者 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色作为唯一默认皮（测试可断言走 Theme Token）。
 
 ### 6.3 关键配置与语义
 
@@ -411,19 +424,42 @@ import { Timeline } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-items 时间轴渲染
-mode alternate 左右
-pending 末尾未完成
+                    ┌──────────────────────────┐
+  NewTimeline ───►  │ idle · items 渲染         │
+                    └────────────┬─────────────┘
+           SetItems / reverse / mode / orientation / variant
+                                 │
+         ┌───────────────────────┼───────────────────────┐
+         ▼                       ▼                       ▼
+   mode=start|end          mode=alternate          orientation
+   同侧内容+点              左右(上下)交错           vertical|horizontal
+         │                       │
+         ▼                       ▼
+   item.placement 覆盖 mode 默认侧
+         │
+         ▼
+   item.loading ──► process 态 + spinner（Ticker）+ 虚线轨
+   item.icon    ──► 自定义点（替换默认圆点）
+   item.color   ──► blue|red|green|gray|#hex
+   item.title   ──► 侧标题（vertical 有 title 时布局可走 alternate 槽）
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| TL-S1 | 3 items | 3 节点 |
-| TL-S2 | alternate | 左右交错 |
-| TL-S3 | pending | 末尾 pending |
-| TL-S4 | reverse | 倒序 |
-| TL-S5 | color 点 | 点色 |
-| TL-S6 | 自定义 dot | 自定义点 |
+| TL-S1 | N 个 `items` | 渲染 N 个节点（content/title/icon 按项） |
+| TL-S2 | `mode=alternate` | 偶数项 `start`、奇数项 `end`（可被 item.placement 覆盖） |
+| TL-S3 | 末项 `loading=true`（或历史 pending） | 末尾 process 点 + spinner；内容展示 loading 文案 |
+| TL-S4 | `reverse=true` | 显示顺序与 `items` 数组相反 |
+| TL-S5 | `item.color` | 点色映射 Token/自定义；默认 `blue`→`colorPrimary` |
+| TL-S6 | `item.icon` / IconNode | 自定义点替换默认圆点 |
+| TL-S7 | `mode=start`（默认） | 内容在逻辑 end 侧（LTR 右侧） |
+| TL-S8 | `mode=end` | 内容在逻辑 start 侧（LTR 左侧，点在右） |
+| TL-S9 | `variant=outlined\|filled` | outlined 空心描边点；filled 实心点 |
+| TL-S10 | `orientation=horizontal` | 主轴水平；placement 控制内容在轴上/下 |
+| TL-S11 | `item.title` | 标题区可见；vertical+title 启用双侧槽布局 |
+
+> **pending 迁移（antd 6）：** 根级 `pending` / `pendingDot` 已弃用。P0 用 **`items[i].loading`** + 可选 `icon`。kit 可不暴露根 pending；测试「等待及排序」按 item.loading 复现。
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -462,24 +498,28 @@ pending 末尾未完成
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `loading` | 必须 |
-| `variant` | 必须 |
-| `items` | 必须 |
-| `title` | 必须 |
-| `content` | 必须 |
-| `placement` | 必须 |
-| `mode` | 必须 |
-| `orientation` | 必须 |
-| `icon` | 必须 |
+| `items` | 数据驱动节点列表（必须） |
+| `items[].content` | 节点正文（string \| Node） |
+| `items[].title` | 节点标题/时间标签（string \| Node） |
+| `items[].color` | `blue`/`red`/`green`/`gray`/`#hex`（默认 blue） |
+| `items[].icon` / IconNode | 自定义时间轴点 |
+| `items[].loading` | 加载态 + Ticker spinner（替代根 pending） |
+| `items[].placement` | `start` \| `end` 覆盖 mode 默认侧 |
+| `mode` | `start` \| `alternate` \| `end`（默认 start） |
+| `orientation` | `vertical` \| `horizontal`（默认 vertical） |
+| `variant` | `outlined` \| `filled`（默认 outlined） |
+| `reverse` | 倒序渲染（等待及排序 demo） |
 | 官方主路径示例 | 基本用法、变体样式、等待及排序、交替展现、水平布局、自定义时间轴点、另一侧时间轴点、标题 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 度量 §6.2 | Token 断言（dot 10、tail 2、padBottom 20、font 14） |
+| a11y §6.6 | list / listitem 结构角色 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `titleSpan` 精细占比 / 百分比字符串 | 分期（默认 12 可用） |
+| 根级 deprecated `pending`/`pendingDot`/`label`/`dot`/`children`/`position` | 映射或分期 |
 | semantic classNames/styles 深度 | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
@@ -496,10 +536,10 @@ pending 末尾未完成
 | TL-01 | L1 | NewTimeline 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
 | TL-02 | L1 | 3 items | 3 节点 |
 | TL-03 | L1 | alternate | 左右交错 |
-| TL-04 | L1 | pending | 末尾 pending |
-| TL-05 | L1 | reverse | 倒序 |
-| TL-06 | L1 | color 点 | 点色 |
-| TL-07 | L1 | 自定义 dot | 自定义点 |
+| TL-04 | L1 | 末项 loading（pending 语义） | 末尾 process + spinner；HasPending/ItemLoading |
+| TL-05 | L1 | reverse | 显示序与 items 相反 |
+| TL-06 | L1 | color 点 | 点色映射 Token/自定义 |
+| TL-07 | L1 | 自定义 icon/dot | 自定义点节点可见 |
 | TL-08 | L1 | 复现官方示例「基本用法」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | TL-09 | L1 | 复现官方示例「变体样式」（`variant.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | TL-10 | L1 | 复现官方示例「等待及排序」（`pending.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
@@ -517,41 +557,76 @@ pending 末尾未完成
 | TL-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（删除 `TimelineItem.Label` / 根 `Pending string` 等）。语义对齐 antd 6.5 `items` + `mode`/`orientation`/`variant`/`reverse`。
 
 ```text
-NewTimeline(...) *Timeline
+NewTimeline(items ...TimelineItem) *Timeline
+// 或 NewTimeline() + SetItems
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type TimelineMode        // TimelineModeStart | Alternate | End
+type TimelineOrientation // TimelineVertical | Horizontal
+type TimelineVariant     // TimelineOutlined | Filled
+type TimelinePlacement   // TimelinePlacementStart | End | Auto(0)
+
+type TimelineItem struct {
+  Content / ContentNode
+  Title   / TitleNode
+  Color   string          // blue|red|green|gray|#hex；空=blue
+  Icon    string          // 注册表名；"loading" 或 Loading=true → spinner
+  IconNode core.Node
+  Loading bool
+  Placement TimelinePlacement
+}
+
+// 配置
+SetItems / Items / ItemCount / DisplayIndex(i) // reverse 后显示序
+SetMode / Mode
+SetOrientation / Orientation
+SetVariant / Variant
+SetReverse / Reverse
+SetTitleSpan(float64) // P0 默认可读；精细布局 P1
+SetTheme / SetFace / SetStyle / SetAriaLabel
+
+// 查询（测试 / gallery）
+ItemPlacement(i) TimelinePlacement
+ItemColor(i) render.RGBA
+ItemLoading(i) bool
+ItemHasIcon(i) bool
+DotSize / TailWidth / ItemPaddingBottom / FontSize  // §6.2
+HasLoadingSpinner() bool
+AttachTicker / Tick   // item.loading → Ticker
+
+// 挂树
+Node() / ChromeNode() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| mode | `start` |
+| orientation | `vertical` |
+| variant | `outlined` |
+| reverse | false |
+| titleSpan | 12 |
+| item.color | `blue`（→ `colorPrimary`） |
+| item.loading | false |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Data view
-  ├─ header?
-  ├─ body rows/nodes
-  └─ pagination/footer?
+timelineHost (RepaintBoundary; OnMount → Ticker if any loading)
+  └─ Flex root (Column | Row by orientation)  role=list
+       └─ item (role=listitem) × N
+            railCol: Dot|Icon + Tail
+            title? · content
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读字段/Token；根指针尽量稳定（ClearChildren）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- loading spinner 跟随 Host Tick；尊重 reduced-motion（可瞬时静态环）。  
 
 ### 6.12 完成定义（DoD）
 
