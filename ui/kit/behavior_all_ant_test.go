@@ -328,8 +328,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		}},
 		{"TimePicker", func(t *testing.T) {
 			tp := kit.NewTimePicker()
-			tp.Value = "12:00"
-			if tp.Value != "12:00" {
+			tp.SetValue(kit.TimeOf(12, 0, 0))
+			if !tp.GetValue().Valid || tp.GetValue().Hour != 12 {
 				t.Fatal()
 			}
 		}},

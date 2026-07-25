@@ -470,43 +470,49 @@ import { TimePicker } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `allowClear` | 自定义清除按钮 | boolean \ | { clearIcon?: ReactNode } |
-| `cellRender` | 自定义单元格的内容 | (current: number, info: { originNode:… | 'end', subType: 'hour' \ |
-| `changeOnScroll` | 在滚动时改变选择值 | boolean | false |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `defaultValue` | 默认时间 | [dayjs](http://day.js.org/) | - |
-| `disabled` | 禁用全部操作 | boolean | false |
-| `disabledTime` | 不可选择的时间 | [DisabledTime](#disabledtime) | - |
-| `format` | 展示的时间格式 | string | `HH:mm:ss` |
-| `getPopupContainer` | 定义浮层的容器，默认为 body 上新建 div | function(trigger) | - |
-| `hideDisabledOptions` | 隐藏禁止选择的选项 | boolean | false |
-| `hourStep` | 小时选项间隔 | number | 1 |
-| `inputReadOnly` | 设置输入框为只读（避免在移动设备上打开虚拟键盘） | boolean | false |
-| `minuteStep` | 分钟选项间隔 | number | 1 |
-| `needConfirm` | 是否需要确认按钮，为 `false` 时失去焦点即代表选择 | boolean | - |
-| `open` | 面板是否打开 | boolean | false |
-| `placeholder` | 没有值的时候显示的内容 | string \ | \[string, string] |
+| `value` / `defaultValue` | 受控 / 非受控当前时间 | `TimeValue`（kit；antd dayjs） | 空 |
+| `onChange` | 时间变化回调 | `(time TimeValue, timeString string)` | - |
+| `open` / `defaultOpen` / `onOpenChange` | 面板显隐 | bool / callback | false |
+| `allowClear` / `onClear` | 清除按钮与回调 | bool / `()` | true |
+| `disabled` | 禁用全部操作 | bool | false |
+| `size` | 输入框大小 | large / middle / small | middle |
+| `variant` | 形态 | outlined / filled / borderless / underlined | outlined |
+| `status` | 校验态 | error / warning | - |
+| `placement` | 弹层位置 | bottomLeft / bottomRight / topLeft / topRight | bottomLeft |
+| `format` | 展示格式；决定是否显示秒列等 | string | `HH:mm:ss`（`use12Hours` 时 `h:mm:ss a`） |
+| `hourStep` / `minuteStep` / `secondStep` | 列选项间隔 | number ≥1 | 1 |
+| `needConfirm` | true 时需点 OK 才提交 onChange | bool | false |
+| `showNow` | 面板「此刻」按钮 | bool | true（`needConfirm` 时更常用） |
+| `disabledTime` | 不可选的时/分/秒 | `func(draft) TimeDisabled` | - |
+| `use12Hours` | 12 小时制 + AM/PM 列 | bool | false |
+| `renderExtraFooter` | 面板底部附加内容 | `func() Node` | - |
+| `placeholder` | 空值占位 | string | `Select time` |
+| `Range` / `NewTimeRangePicker` | 起止时间（API；gallery 示例可 P1） | bool | false |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级（通用）：** 受控 props（`value`/`open`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-开面板 ── 选 H/M/S ── onChange
-disabledTime 禁部分
-step 控制列间隔
+closed ──click trigger──► open
+open ──select H/M/S──► (needConfirm? pending : commit onChange)
+open ──OK (needConfirm)──► commit onChange + close
+open ──Now──► set now (+ commit if !needConfirm)
+open ──outside / Esc──► close (cancel pending)
+value + allowClear ──clear──► empty + onChange + onClear
+disabled ──*──► 忽略交互
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| TP-S1 | 选时间 | onChange |
-| TP-S2 | format 展示 | 字符串匹配 |
-| TP-S3 | hourStep=2 | 小时列间隔 2 |
-| TP-S4 | disabledTime | 禁项不可选 |
-| TP-S5 | clear | 空 |
-| TP-S6 | Range | 起止 |
-| TP-S7 | 12 小时制（适用） | am/pm |
-| TP-S8 | 高度 | 32 |
+| TP-S1 | 选时间（非 needConfirm） | 立即 `onChange(time, timeString)` |
+| TP-S2 | format 展示 | `DisplayText` / `FormatValue` 匹配 format |
+| TP-S3 | hourStep=2 | 小时列取值 0,2,4…（24h） |
+| TP-S4 | disabledTime | 禁项不可点、不提交 |
+| TP-S5 | clear | 值空；`onClear` + `onChange` 空值 |
+| TP-S6 | Range | 起止 `RangeStart`/`RangeEnd`；可自动 order |
+| TP-S7 | use12Hours | AM/PM 列；format 默 `h:mm:ss a` |
+| TP-S8 | 高度 middle | Token `controlHeight`=**32** |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
@@ -550,18 +556,24 @@ step 控制列间隔
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
+| `value` / `defaultValue` / `onChange` | 受控与非受控 |
 | `disabled` | 必须 |
-| `size` | 必须 |
-| `variant` | 必须 |
-| `status` | 必须 |
-| `open` | 必须 |
-| `onOpenChange` | 必须 |
-| `placement` | 必须 |
-| `allowClear` | 必须 |
-| 官方主路径示例 | 基本、受控组件、三种大小、选择确认、禁用、选择时分、步长选项、附加内容 |
+| `size` | small / middle / large → 24 / 32 / 40 |
+| `variant` | outlined / filled / borderless / underlined |
+| `status` | error / warning |
+| `open` / `defaultOpen` / `onOpenChange` | 受控显隐 |
+| `placement` | 四角 |
+| `allowClear` / `onClear` | 默认 true |
+| `format` | 展示 + 列显隐（如 `HH:mm` 无秒列） |
+| `hourStep` / `minuteStep` / `secondStep` | 列间隔 |
+| `needConfirm` + OK | 选择确认 |
+| `showNow` | 此刻 |
+| `disabledTime` | 禁项 |
+| `use12Hours` | L1 API（§6.9 TP-08）；gallery 完整页可 P1 |
+| `Range` / `NewTimeRangePicker` | L1 API（§6.9 TP-07）；gallery 完整页可 P1 |
+| `renderExtraFooter` | 附加内容 |
+| `loading` + Ticker | 后缀 loading 指示（适用） |
+| 官方主路径示例（gallery） | 基本、受控组件、三种大小、选择确认、禁用、选择时分、步长选项、附加内容 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
@@ -571,10 +583,11 @@ step 控制列间隔
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 / 列虚拟滚动 / changeOnScroll 像素级 | 分期 |
+| cellRender / hideDisabledOptions / inputReadOnly / getPopupContainer | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 12 小时制, 滚动即改变, 范围选择器, 形态变体 |
+| 其余官方示例页 | 12 小时制完整页、滚动即改变、范围选择器完整页、形态变体完整页、前后缀、status 完整页 |
 
 ### 6.9 验收用例表（可测）
 
@@ -609,27 +622,48 @@ step 控制列间隔
 | TP-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（旧 `Value string` / `OnChange func(string)` 删除）。语义对齐 antd 6.5。
 
 ```text
-NewTimePicker(...) *TimePicker
+type TimeValue struct { Hour, Minute, Second int; Valid bool } // Hour 0..23 内部
+TimeOf(h,m,s int) TimeValue
+NowTime() TimeValue
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewTimePicker() *TimePicker
+NewTimeRangePicker() *TimePicker   // Range=true
+
+// 值
+SetValue / GetValue / SetDefaultValue
+SetRangeValue / GetRangeValue / SetDefaultRangeValue
+SelectTime(TimeValue)              // 程序化选时（走 needConfirm 规则）
+SelectHour/Minute/Second/Meridiem  // 列选择
+Confirm() / Clear() / Now()
+FormatValue(v) / DisplayText() / Format string
+
+// 配置 SetXxx：Disabled, Size, Variant, Status, Open/DefaultOpen,
+// Placement, AllowClear, Format, HourStep/MinuteStep/SecondStep,
+// NeedConfirm, ShowNow, Use12Hours, Placeholder, AriaLabel,
+// DisabledTime, RenderExtraFooter, Loading, Face, Theme, Viewport
+
+// 回调：OnChange(time, timeString) / OnChangeRange / OnOpenChange / OnOk / OnClear
+// a11y：Root Role=combobox；Focus ring；Esc 关；方向键列导航（适用）
+// 挂树：Node() / Popup() / Panel() / TriggerShell()
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Disabled / Open / Loading / NeedConfirm / Use12Hours / Range | false |
+| AllowClear / ShowNow / Order | true |
+| Size | middle（高度 32） |
+| Variant | outlined |
+| Status | none |
+| Placement | bottomLeft |
+| Format | `HH:mm:ss`（`Use12Hours` → `h:mm:ss a`） |
+| hour/minute/secondStep | 1 |
+| Placeholder | `Select time` |
+| 受控值 | 空；`defaultValue` 仅在仍空时应用一次 |
 
 ### 6.11 结构与绘制分层（实现提示）
 

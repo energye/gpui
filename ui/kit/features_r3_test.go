@@ -735,27 +735,27 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		"TimePicker": {
 			{"R1 default", func(t *testing.T) {
 				tp := kit.NewTimePicker()
-				if tp.Value == "" {
+				if tp.Node() == nil {
 					t.Fatal()
+				}
+				if tp.GetValue().Valid {
+					t.Fatal("default empty")
 				}
 			}},
 			{"R2 setValue", func(t *testing.T) {
 				tp := kit.NewTimePicker()
-				tp.SetValue("15:30")
-				if tp.Value != "15:30" {
-					t.Fatal(tp.Value)
+				tp.SetValue(kit.TimeOf(15, 30, 0))
+				if !tp.GetValue().Valid || tp.GetValue().Hour != 15 || tp.GetValue().Minute != 30 {
+					t.Fatal(tp.GetValue())
 				}
 			}},
 			{"R3 onChange", func(t *testing.T) {
 				tp := kit.NewTimePicker()
 				got := ""
-				tp.OnChange = func(v string) { got = v }
-				tp.SetValue("08:00")
-				if tp.OnChange != nil {
-					tp.OnChange(tp.Value)
-				}
-				if got != "08:00" && tp.Value != "08:00" {
-					t.Fatal(got, tp.Value)
+				tp.OnChange = func(v kit.TimeValue, s string) { got = s }
+				tp.SelectTime(kit.TimeOf(8, 0, 0))
+				if got != "08:00:00" && tp.GetValue().Hour != 8 {
+					t.Fatal(got, tp.GetValue())
 				}
 			}},
 		},
