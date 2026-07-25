@@ -591,8 +591,9 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Watermark", func(t *testing.T) {
-			w := kit.NewWatermark(kit.NewText("c").Node(), "WM")
-			if w.Text != "WM" {
+			w := kit.NewWatermark(kit.NewText("c").Node())
+			w.SetContent("WM")
+			if w.ContentText() != "WM" {
 				t.Fatal()
 			}
 		}},

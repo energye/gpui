@@ -1511,20 +1511,23 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Watermark": {
 			{"R1 text", func(t *testing.T) {
-				w := kit.NewWatermark(kit.NewText("c").Node(), "WM")
-				if w.Text != "WM" {
+				w := kit.NewWatermark(kit.NewText("c").Node())
+				w.SetContent("WM")
+				if w.ContentText() != "WM" {
 					t.Fatal()
 				}
 			}},
-			{"R2 setText", func(t *testing.T) {
-				w := kit.NewWatermark(kit.NewText("c").Node(), "WM")
-				w.SetText("X")
+			{"R2 setContent", func(t *testing.T) {
+				w := kit.NewWatermark(kit.NewText("c").Node())
+				w.SetContent("X")
 			}},
 			{"R3 gap", func(t *testing.T) {
-				w := kit.NewWatermark(kit.NewText("c").Node(), "WM")
-				w.Gap = 40
-				if w.Gap != 40 {
-					t.Fatal()
+				w := kit.NewWatermark(kit.NewText("c").Node())
+				w.SetContent("WM")
+				w.SetGap(40, 40)
+				gx, gy := w.ResolvedGap()
+				if gx != 40 || gy != 40 {
+					t.Fatal(gx, gy)
 				}
 			}},
 		},

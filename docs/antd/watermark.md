@@ -323,28 +323,32 @@ import { Watermark } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`）。实现优先 Token；下表为回落常量（与 `components/watermark` + `useClips` 对齐）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| rotate 默认 | **-22** | API |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| rotate 默认 | **-22**° | API |
+| gap 默认 | **\[100, 100\]** | API |
+| offset 默认 | **gap/2**（各轴） | API |
+| mark 默认宽（image / 显式） | **120** | API `width` |
+| mark 默认高（image / 显式） | **64** | API `height` |
+| 文字 mark 宽/高 | 随 content 度量（未 Set width/height） | measureText |
+| fontSize | **16** | `fontSizeLG` / Font |
+| 多行行距 FontGap | **3** | `useClips.FontGap` |
+| zIndex 默认 | **9**（paint 序；antd 文档写 999 / `zIndexPopupBase-1`） | API |
+| 容器 | `position: relative` + 裁剪于自身盒 | 实现 |
+
+> 水印为装饰层，**无** controlHeight / focus ring / 圆角控件 chrome 主路径。
 
 #### 6.2.2 颜色 Token（语义）
 
-| 用途 | Token 建议 | 备注 |
+| 用途 | Token / 默认 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 水印字色 | `Font.color` → 回落 **rgba(0,0,0,.15)**（antd `colorFill` 系） | 禁止硬编码品牌主色当唯一皮 |
+| 主题切换 | `SetTheme` / ambient Theme 可覆盖字色 | Style.Text 可选覆盖 |
+| children 区 | 不改写子树色 | 仅叠层 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -354,60 +358,64 @@ import { Watermark } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `width` | 水印的宽度，`content` 的默认值为自身的宽度 | number | 120 |
-| `height` | 水印的高度，`content` 的默认值为自身的高度 | number | 64 |
-| `inherit` | 是否将水印传导给弹出组件如 Modal、Drawer | boolean | true |
-| `rotate` | 水印绘制时，旋转的角度，单位 `°` | number | -22 |
-| `zIndex` | 追加的水印元素的 z-index | number | 999 |
-| `image` | 图片源，建议导出 2 倍或 3 倍图，优先级高 (支持 base64 格式) | string | - |
-| `content` | 水印文字内容 | string \ | [WatermarkText](#watermarktext) \ |
-| `font` | 文字样式 | [Font](#font) | [Font](#font) |
-| `gap` | 水印之间的间距 | \[number, number\] | \[100, 100\] |
-| `offset` | 水印距离容器左上角的偏移量，默认为 `gap/2` | \[number, number\] | \[gap\[0\]/2, gap\[1\]/2\] |
-| `onRemove` | 水印因 DOM 变更被移除时触发的回调 | `() => void` | - |
-| `text` | 单行文字内容 | string | - |
-| `color` | 字体颜色 | [CanvasFillStrokeStyles.fillStyle](ht… | rgba(0,0,0,.15) |
-| `fontSize` | 字体大小 | number | 16 |
-| `fontWeight` | 字体粗细 | `normal` \ | `lighter` \ |
-| `fontFamily` | 字体类型 | string | sans-serif |
+| `content` | 水印文字：单行 string、多行 string[]、或带 per-line Font 的 WatermarkText | string \| WatermarkText \| 数组 | — |
+| `image` | 图片源标签（host 解码）；优先级高于文字；失败可回落 content | string | — |
+| `width` / `height` | 单枚 mark 宽高；文字未设时按 content 度量；image 默认 120×64 | number | 120 / 64（image） |
+| `rotate` | 旋转角度（°） | number | **-22** |
+| `gap` | 水印间距 \[x, y\] | \[number, number\] | **\[100, 100\]** |
+| `offset` | 距容器左上偏移；未设 = gap/2 | \[number, number\] | gap/2 |
+| `zIndex` | 叠层序（桌面映射为 paint 序） | number | 9 / 文档 999 |
+| `font` | 全局文字样式（color/fontSize/…） | Font | 见 §6.2 |
+| `inherit` | 是否将水印配置传导给 Modal/Drawer 等内容（桌面：Wrap/Apply） | boolean | **true** |
+| `onRemove` | 水印层被移除/剥离时回调 | `() => void` | — |
+| children | 被覆盖的内容区 | Node | — |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 显式 SetXxx > 组件 Default 常量 > Theme Token 回落。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-content/image 平铺层盖在 children 上
-gap/rotate/zIndex 变化 ──► 重绘
-```
+                    ┌─ image OK ──────────► 图 mark 平铺
+content/image ──►──┤
+                    └─ 仅 content / 图失败+content ► 字 mark 平铺
+无 content 且无 image ──► 无 mark（仍渲染 children）
 
-\*rotate 默认 -22。
+gap / rotate / offset / font / size 变化 ──► 重绘 mark（children 树可稳定）
+image 加载中 ──► Loading + Ticker（host SetPixels 后结束）
+children 命中 ──► mark pointer-events:none（HitTransparent）
+inherit=true ──► 可用同一配置 Wrap 到 Modal/Drawer 内容
+onRemove / NotifyRemoved ──► 回调一次
+```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| WM-S1 | 文字 content | 可见水印 |
-| WM-S2 | rotate=-22 | 有倾角 |
-| WM-S3 | gap | 间距变化 |
-| WM-S4 | image | 图水印 |
-| WM-S5 | children 可点 | 不阻断（pointer-events 策略） |
-| WM-S6 | 多行 content 数组 | 多行字 |
+| WM-S1 | 文字 content | 可见水印（有 content 行） |
+| WM-S2 | rotate 默认 -22 | 倾角写入并参与绘制 |
+| WM-S3 | gap | 间距字段变化影响铺贴步长 |
+| WM-S4 | image + 像素 | 图水印优先 |
+| WM-S5 | children 可点 | mark 不阻断命中 |
+| WM-S6 | 多行 content 数组 | 多行字 + FontGap |
+| WM-S7 | inherit | 默认 true；false 时不自动传导 |
+| WM-S8 | 图失败 + content | 回落文字（FAQ） |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
-| 主题切换 | 色与间距随 Theme 更新 |
+| default | mark 字色/间距符合 §6.2；children 正常 |
+| hover/active/focus | **不适用** mark（装饰、不拦截指针） |
+| loading（image） | host 像素未到前 Loading+Ticker；可无视觉 spinner |
+| 主题切换 | SetTheme / ambient 可影响字号 Token；色可 Style/Font 覆盖 |
+| 图失败 | 有 content 则回落字 mark |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 无入场动画要求；P0 瞬时重绘即可。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| 根 / mark 层 | `role=presentation`（装饰）；不抢焦点 |
+| 有意义操作 | 无（水印本身无操作）；children 自管 a11y |
+| AriaLabel | 可选 SetAriaLabel；默认空 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -428,82 +436,120 @@ gap/rotate/zIndex 变化 ──► 重绘
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `content` | 必须 |
-| 官方主路径示例 | 基本、多行水印、图片水印、自定义配置、Modal 与 Drawer |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| `content` / 多行 / WatermarkText 行级 font | 必须 |
+| `image` + host `SetImagePixels` / 失败回落 content | 必须 |
+| `width`/`height`/`rotate`/`gap`/`offset`/`font`/`zIndex` | 必须 |
+| `inherit` + `Wrap`（Modal/Drawer 内容传导） | 必须（桌面映射） |
+| `onRemove` / `NotifyRemoved` | 必须 |
+| children 可点（mark HitTransparent） | 必须 |
+| 官方主路径示例 | 基本、多行、图片、自定义、Modal 与 Drawer |
+| 度量 §6.2 | Token/常量断言 |
+| a11y §6.6 | 装饰层 presentation / aria-hidden 语义 |
+| §6.9 中 L1/L2 **适用**用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| MutationObserver 级防删 DOM 重建 | 浏览器-only；桌面用 NotifyRemoved |
+| 真 HTTP 解码 image URL | host 职责；kit 只收像素 |
+| alternate clip 与官网 canvas 逐像素 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
+| ConfigProvider 全局 watermark 默认 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestWatermark_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Watermark 完成 1:1 主路径。
+> **P0 相关 L1/L2 适用用例全部通过** 才可宣称 Watermark 完成 1:1 主路径。  
+> WM-15/16：水印为装饰层，**不适用** disabled/键盘主路径（标 N/A，不阻塞 P0）。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| WM-01 | L1 | NewWatermark 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| WM-02 | L1 | 文字 content | 可见水印 |
-| WM-03 | L1 | rotate=-22 | 有倾角 |
-| WM-04 | L1 | gap | 间距变化 |
-| WM-05 | L1 | image | 图水印 |
-| WM-06 | L1 | children 可点 | 不阻断（pointer-events 策略） |
-| WM-07 | L1 | 多行 content 数组 | 多行字 |
-| WM-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| WM-09 | L1 | 复现官方示例「多行水印」（`multi-line.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| WM-10 | L1 | 复现官方示例「图片水印」（`image.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| WM-11 | L1 | 复现官方示例「自定义配置」（`custom.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| WM-12 | L1 | 复现官方示例「Modal 与 Drawer」（`portal.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| WM-13 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| WM-14 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| WM-15 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| WM-16 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| WM-17 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| WM-18 | L4 | 与 ant.design 并排 | 人眼签字记录 |
-| WM-19 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+| WM-01 | L1 | NewWatermark 默认创建 | 不崩溃；rotate=-22、gap=100、inherit=true 等符合 §6.10 |
+| WM-02 | L1 | 文字 content | HasMark；内容行非空 |
+| WM-03 | L1 | rotate 默认 / 显式 | 默认 -22；可 SetRotate |
+| WM-04 | L1 | gap | SetGap 后步长变化 |
+| WM-05 | L1 | image + SetImagePixels | 图模式 HasMark |
+| WM-06 | L1 | children 可点 | mark HitTransparent；子节点可命中 |
+| WM-07 | L1 | 多行 content | ContentLines≥2 |
+| WM-08 | L1 | 复现「基本」basic.tsx | content=Ant Design；可 Layout |
+| WM-09 | L1 | 复现「多行」multi-line.tsx | 两行 + 行级 fontSize |
+| WM-10 | L1 | 复现「图片」image.tsx | width/height/image |
+| WM-11 | L1 | 复现「自定义」custom.tsx | font/gap/offset/rotate/zIndex 可配 |
+| WM-12 | L1 | 复现「Modal 与 Drawer」portal.tsx | inherit 默认 true；Wrap 可挂到 Modal/Drawer 内容；inherit=false 可关 |
+| WM-13 | L2 | §6.2 关键度量 | rotate/gap/fontSize/width/height/FontGap 与表一致（±0.5） |
+| WM-14 | L2 | 默认字色 | 非品牌主色硬编码；Default 或 Theme 回落 |
+| WM-15 | L2 | disabled（N/A） | 本控件无 disabled；跳过 |
+| WM-16 | L1 | 键盘/焦点（N/A） | 装饰层不抢焦；跳过 |
+| WM-17 | L3 | 关键态 golden | 可选基线（本阶段不阻塞） |
+| WM-18 | L4 | 与 ant.design 并排 | 人眼签字 |
+| WM-19 | P1 | §6.8 P1 | Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> **允许 breaking** 旧 `NewWatermark(content, text)` / `SetText` / 单 `Gap`。语义对齐 antd 6.5。
 
 ```text
-NewWatermark(...) *Watermark
+NewWatermark(child core.Node) *Watermark
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// content（水印字，非 children）
+SetContent(text string)
+SetContentLines(lines ...WatermarkContentLine)   // text + 可选行级 Font
+SetContentStrings(lines ...string)
+
+// children
+SetChild(n core.Node)
+
+// mark 几何 / 样式
+SetWidth / SetHeight / SetRotate / SetZIndex
+SetGap(x, y) / SetOffset(x, y)   // offset 未设 → gap/2
+SetFont(WatermarkFont) / SetFontColor / SetFontSize
+SetImage(src string)
+SetImagePixels(w, h int, rgba []byte)  // host 解码
+NotifyImageError()                     // 失败 → 若有 content 则回落字
+
+// 行为
+SetInherit(bool)          // 默认 true
+Wrap(child) *Watermark    // 复制 mark 配置到新实例（Modal/Drawer 内容）
+SetOnRemove(fn)
+NotifyRemoved()           // 触发 onRemove（防删/剥离映射）
+SetLoading(bool)          // image 加载；Ticker
+
+// 主题 / a11y / 树
+SetTheme(*Theme) / SetFace / SetStyle / SetAriaLabel
+Node() core.Node
+HasMark() bool
+ContentLines() []WatermarkContentLine
+ResolvedGap() (x,y) / ResolvedOffset() / ResolvedRotate() / …
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Rotate | **-22** |
+| Gap | **100, 100** |
+| Offset | gap/2 |
+| FontSize | **16**（fontSizeLG） |
+| Font color | rgba(0,0,0,.15) |
+| Width/Height（image） | 120 / 64 |
+| Inherit | **true** |
+| ZIndex | 9（文档语义 999） |
+| Loading | false |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+watermarkHost（相对容器 · 尺寸随 children）
+  ├─ children（可点）
+  └─ markLayer（HitTransparent · 平铺 rotate 字/图 · paint 在上）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- `rebuild()` 只读 Default/字段/Token；image 像素变更可只 MarkNeedsPaint。  
+- **hit == layout == paint**；mark 不扩大命中盒。  
+- Loading 用 `Tree.AddTicker`；静止 Remove。  
 
 ### 6.12 完成定义（DoD）
 
