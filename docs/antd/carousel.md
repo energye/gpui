@@ -249,29 +249,41 @@ import { Carousel } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/carousel/style/index.ts` → `prepareComponentToken`。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
+| 字号 | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 指示点宽 `dotWidth` | **16** | 组件 Token |
+| 指示点高 `dotHeight` | **3** | 组件 Token |
+| 指示点间距 `dotGap` | **4** | `marginXXS`（本库回落 4） |
+| 指示点边距 `dotOffset` | **12** | 组件 Token |
+| 激活指示点宽 `dotActiveWidth` | **24** | 组件 Token |
+| 箭头尺寸 `arrowSize` | **16** | 组件 Token |
+| 箭头边距 `arrowOffset` | **8** | `marginXS`（antd 语义；本库回落 8） |
+| 舞台默认高（demo 节奏） | **160** | 官方 basic 示例 `height: 160px`；非 antd Token |
+| `autoplaySpeed` 默认 | **3000** ms | API 默认 |
+| `speed` 默认 | **500** ms | API 默认；P0 可瞬时切换 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
+| 指示点底色 | `colorBgContainer` | antd dots `button` 底；默认 opacity≈0.2，active 拉高 |
+| 箭头色 | inverse / `#fff` | slick 默认白箭头 + opacity 0.4→1 hover |
+| 主色 / hover / active | `colorPrimary` + 变体 | 强调（非 Carousel 默认皮主路径） |
+| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | 舞台内容由业务 slide 自带 |
 | 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 禁用 | 降 opacity / 禁交互 | 无 hover 高亮；禁拖/禁点/禁 autoplay |
+| Focus ring | `colorPrimary` | 键盘可见 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色（如 `#1677ff`）作为唯一默认皮。
 
 ### 6.3 关键配置与语义
 
@@ -280,57 +292,68 @@ import { Carousel } from 'antd';
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
 | `arrows` | 是否显示箭头 | boolean | false |
-| `autoplay` | 是否自动切换，如果为 object 可以指定 `dotDuration` 来展示指示点进度条 | boolean \ | { dotDuration?: boolean } |
-| `autoplaySpeed` | 自动切换的间隔（毫秒） | number | 3000 |
-| `adaptiveHeight` | 高度自适应 | boolean | false |
-| `dotPlacement` | 面板指示点位置，可选 `top` `bottom` `start` `end` | string | `bottom` |
-| `dots` | 是否显示面板指示点，如果为 `object` 则可以指定 `dotsClass` | boolean \ | { className?: string } |
+| `autoplay` | 是否自动切换；object 可指定 `dotDuration` 指示点进度 | boolean \| { dotDuration?: boolean } | false |
+| `autoplaySpeed` | 自动切换间隔（毫秒） | number | 3000 |
+| `adaptiveHeight` | 高度随当前 slide 自适应 | boolean | false |
+| `dotPlacement` | 指示点位置 `top`/`bottom`/`start`/`end` | string | `bottom` |
+| `dots` | 是否显示指示点 | boolean | true |
 | `draggable` | 是否启用拖拽切换 | boolean | false |
-| `fade` | 使用渐变切换动效 | boolean | false |
-| `infinite` | 是否无限循环切换（实现方式是复制两份 children 元素，如果子元素有副作用则可能会引发 bug） | boolean | true |
-| `speed` | 切换动效的时间（毫秒） | number | 500 |
-| `easing` | 动画效果 | string | `linear` |
-| `effect` | 动画效果函数 | `scrollx` \ | `fade` |
-| `afterChange` | 切换面板的回调 | (current: number) => void | - |
-| `beforeChange` | 切换面板的回调 | (current: number, next: number) => void | - |
-| `waitForAnimate` | 是否等待切换动画 | boolean | false |
+| `fade` / `effect=fade` | 渐显切换（P0 可瞬时；flag 必须可配） | boolean / effect | false / `scrollx` |
+| `infinite` | 是否无限循环 | boolean | **true** |
+| `speed` | 切换动效时长（毫秒） | number | 500 |
+| `afterChange` | 切换后回调 `(current)` | fn | - |
+| `beforeChange` | 切换前回调 `(current, next)` | fn | - |
+| `initialSlide` / index | 初始索引 | number | 0 |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级（通用）：** 受控 index（`GoTo`/`SetIndex`）> 显式非受控 default > 组件默认 > ConfigProvider 全局默认。
+
+**衍生：** `dotPlacement` 为 `start`/`end` 时舞台为**纵向**（antd `vertical`）；`top`/`bottom` 为横向。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-index=i
-  next/prev / dots / autoplay ──► index' + afterChange
-  infinite 边界 ──► 循环
+index=i  (0..n-1)
+  Next / Prev / dots[n] / GoTo(i) / autoplay Tick / drag 阈值
+       ──► beforeChange(i, next) → index' → afterChange(index')
+  infinite=true  边界：末→0、0→末
+  infinite=false 边界：夹紧；末张 Next / 首张 Prev 无效；箭头 disabled 隐
+  Disabled       ──► 禁 Next/Prev/dots/drag/autoplay
+  autoplay+DotDuration ──► 活跃指示点进度 0→1 随 autoplaySpeed
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| CRS-S1 | next | index+1；afterChange |
+| CRS-S1 | next | index+1；`afterChange` |
 | CRS-S2 | dots 点第 n | 到 n |
-| CRS-S3 | autoplay | 自动前进 |
-| CRS-S4 | 到末张再 next infinite | 回首 |
-| CRS-S5 | arrows=false | 无箭头 |
-| CRS-S6 | GoTo(i) | 跳转 |
+| CRS-S3 | autoplay | Tick 累计 ≥ autoplaySpeed → 前进 |
+| CRS-S4 | 末张再 next 且 infinite | 回 0 |
+| CRS-S5 | arrows=false | 无箭头节点 |
+| CRS-S6 | GoTo(i) | 跳转；越界夹紧或按 infinite 取模 |
+| CRS-S7 | drag 水平/垂直阈值 | 达阈值 Next/Prev |
+| CRS-S8 | infinite=false 末张 Next | 仍停留末张 |
+| CRS-S9 | Disabled | 交互无效 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| default | 符合 §6.2 Token；dots 默认 bottom |
+| hover/active/focus | 箭头 opacity 提升；dots/箭头可聚焦 focus ring |
+| disabled | 降对比；禁交互 |
+| empty（0 slides） | 不崩溃；无 dots/箭头操作 |
 | 主题切换 | 色与间距随 Theme 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** scrollx/fade 像素级动画为 P1；**P0 允许瞬时切换**。`dotDuration` 进度条 P0 用 Ticker 填充活跃点宽（近似 antd keyframes）。尊重 `ReduceMotion`（autoplay 仍可步进，进度可瞬时满）。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 表格/树/列表 | 结构角色与展开/选中态可读 |
-| 排序/筛选 | 控件有名 |
+| 根 | `role=region`（或 group）；`AriaLabel` 可设 |
+| 指示点 | 每个 dot 可激活；有名（如 “Go to slide n”） |
+| 箭头 | prev/next 有名；`infinite=false` 边界禁用 |
+| 键盘 | 聚焦舞台后 `ArrowLeft`/`ArrowRight`（纵向 `ArrowUp`/`ArrowDown`）切换 |
+| Focus ring | 可聚焦控件可见 ring（§6.2 outset） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -338,9 +361,8 @@ index=i
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| scrollx/fade 像素级动画 | **瞬时**或近似 | P1 |
+| react-slick 全量 Settings | **子集**映射 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -351,14 +373,17 @@ index=i
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `arrows` | 必须 |
-| `autoplay` | 必须 |
-| `autoplaySpeed` | 必须 |
-| `adaptiveHeight` | 必须 |
-| `dotPlacement` | 必须 |
-| `dots` | 必须 |
-| `draggable` | 必须 |
-| `fade` | 必须 |
+| `arrows` | 显隐 + 点击 Next/Prev |
+| `autoplay` + `autoplaySpeed` | Ticker 自动前进 |
+| `autoplay.dotDuration` | 活跃点进度条 |
+| `adaptiveHeight` | 固定舞台高 vs 随 slide |
+| `dotPlacement` | top/bottom/start/end（含纵向） |
+| `dots` | 显隐 + 点击跳转 |
+| `draggable` | 拖拽阈值切换 |
+| `fade` / `effect` | 可配；P0 切换可瞬时 |
+| `infinite` | 默认 true；边界循环 |
+| `GoTo` / `Next` / `Prev` | 实例方法 |
+| `afterChange` / `beforeChange` | 回调 |
 | 官方主路径示例 | 基本、位置、自动切换、渐显、切换箭头、进度条 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -368,74 +393,115 @@ index=i
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| scrollx/fade 像素级过渡 / `speed`/`easing`/`waitForAnimate` 动画语义 | 分期 |
+| 自定义 `prevArrow`/`nextArrow` 节点 | 分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| react-slick 其余 Settings（variableWidth、centerMode、…） | 分期 |
+| ConfigProvider 全局 Carousel 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestCarousel_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Carousel 完成 1:1 主路径。
+> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Carousel 完成 1:1 主路径。  
+> L3/L4（CRS-18/19）与 P1（CRS-20）本阶段不强制。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
 | CRS-01 | L1 | NewCarousel 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
 | CRS-02 | L1 | next | index+1；afterChange |
 | CRS-03 | L1 | dots 点第 n | 到 n |
-| CRS-04 | L1 | autoplay | 自动前进 |
+| CRS-04 | L1 | autoplay | Tick 后自动前进 |
 | CRS-05 | L1 | 到末张再 next infinite | 回首 |
 | CRS-06 | L1 | arrows=false | 无箭头 |
 | CRS-07 | L1 | GoTo(i) | 跳转 |
-| CRS-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRS-09 | L1 | 复现官方示例「位置」（`placement.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRS-10 | L1 | 复现官方示例「自动切换」（`autoplay.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRS-11 | L1 | 复现官方示例「渐显」（`fade.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRS-12 | L1 | 复现官方示例「切换箭头」（`arrows.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRS-13 | L1 | 复现官方示例「进度条」（`dot-duration.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| CRS-14 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| CRS-15 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| CRS-16 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| CRS-17 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| CRS-18 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| CRS-19 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| CRS-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 4 slide；afterChange 可挂；布局不崩 |
+| CRS-09 | L1 | 复现官方示例「位置」（`placement.tsx`） | 四向 DotPlacement 可设 |
+| CRS-10 | L1 | 复现官方示例「自动切换」（`autoplay.tsx`） | Autoplay=true 可前进 |
+| CRS-11 | L1 | 复现官方示例「渐显」（`fade.tsx`） | Effect=fade 或 Fade=true |
+| CRS-12 | L1 | 复现官方示例「切换箭头」（`arrows.tsx`） | Arrows + infinite=false 边界 |
+| CRS-13 | L1 | 复现官方示例「进度条」（`dot-duration.tsx`） | DotDuration + autoplaySpeed |
+| CRS-14 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px） |
+| CRS-15 | L2 | 默认皮颜色 | 无硬编码品牌主色；走 Theme Token |
+| CRS-16 | L2 | disabled | 禁交互；无推进 |
+| CRS-17 | L1 | 键盘主路径 | Arrow 键切换（适用） |
+| CRS-18 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差）— **本阶段不强制** |
+| CRS-19 | L4 | 与 ant.design 并排 | 人眼签字 — **本阶段不强制** |
 | CRS-20 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约，实现可微调命名但语义不可丢。
 
 ```text
-NewCarousel(...) *Carousel
+NewCarousel(slides ...core.Node) *Carousel
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 数据
+SetSlides(...core.Node)
+// 索引 / 方法（antd ref）
+Index int                    // 当前
+SetIndex(i int)              // 等价 GoTo(i) 无动画
+GoTo(i int)                  // 切换到 i（P0 瞬时）
+Next() / Prev()
+// P0 配置
+SetArrows(bool)
+SetAutoplay(bool)
+SetDotDuration(bool)         // autoplay: { dotDuration: true }
+SetAutoplaySpeed(ms int)     // 0 → Default 3000
+SetAdaptiveHeight(bool)
+SetDotPlacement(CarouselDotPlacement)  // Bottom|Top|Start|End
+SetDots(bool)                // 默认 true
+SetDraggable(bool)
+SetFade(bool) / SetEffect(CarouselEffect)  // ScrollX|Fade
+SetInfinite(bool)            // 默认 true
+SetSpeed(ms int)             // 记录；P0 切换可瞬时
+SetWidth / SetHeight         // 舞台优先尺寸；Height 0 + !adaptive → DefaultStageHeight
+// 回调
+SetAfterChange(func(current int))
+SetBeforeChange(func(current, next int))
+// 状态 / 主题 / a11y
+SetDisabled(bool)
+SetTheme(*Theme) / SetFace / SetStyle
+SetAriaLabel(string)
+AttachTicker(*Tree) / Tick(dt) bool   // autoplay + dotDuration
+// 挂树
+Node() core.Node             // 稳定 Root 身份（Next/GoTo 不换根）
+ChromeNode() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
+| Arrows | false |
+| Autoplay / DotDuration | false |
+| AutoplaySpeed | 3000 |
+| AdaptiveHeight | false |
+| DotPlacement | bottom |
+| Dots | true |
+| Draggable | false |
+| Fade / Effect | false / scrollx |
+| Infinite | **true** |
+| Speed | 500 |
+| Index | 0 |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| 度量 | §6.2 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Data view
-  ├─ header?
-  ├─ body rows/nodes
-  └─ pagination/footer?
+Root (Stack, hit==layout==paint)
+  ├─ stage (Clip + 可选 drag PointerHandler)
+  │     └─ active slide (Slot；P0 单 slide 挂载，瞬时切换)
+  ├─ dots (Positioned top|bottom|start|end；Flex row/col)
+  │     └─ li button…  active 更宽 + optional duration fill
+  └─ arrows? (Positioned；prev / next)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token；**Root 身份稳定**。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
+- autoplay / dotDuration 走 `Tree.AddTicker`；静止且无 autoplay 不挂无 Ticker。  
 - 动画跟随 Host Tick；尊重 reduced-motion。  
 
 ### 6.12 完成定义（DoD）
@@ -443,12 +509,14 @@ Data view
 同时满足即可宣布 **Carousel 主路径 1:1 完成**：
 
 1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+2. §6.9 中 **P0 / L1 / L2** 用例（CRS-01…17）测试通过。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+4. L3 golden 本阶段不强制（CRS-18 deferred）。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：Carousel 页覆盖 **§6.8 P0** 官方非 debug 六例。  
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/carousel.md` §6；P1 显式列出。  
 
 ---
 
 **本章用法**：实现 `ui/kit` Carousel 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+
+> **§6 修订说明（相对模板稿）**：补强 **§6.2** 组件 Token（dots/arrows 源码表）；**§6.3** 补 infinite 默认与纵向衍生；**§6.4** 增 drag/disabled/边界规则；**§6.6** 具体 a11y；**§6.8** 明确 autoplay.dotDuration 与 infinite；**§6.10** 落地 Go 契约；**§6.11** 改为 Carousel 分层；**§6.9/6.12** 标明 L3/L4 本阶段不强制。
