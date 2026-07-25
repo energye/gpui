@@ -320,27 +320,44 @@ import { Collapse } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/collapse/style/index.ts` · `prepareComponentToken` / `genBaseStyle`（`collapsePanelBorderRadius = borderRadiusLG`）。
 
 #### 6.2.1 几何与组件 Token
 
-| 项 | 默认值 | Token / 来源 |
+| 项 | 默认值（antd 种子） | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 字号 medium | **14** | `fontSize` |
+| 字号 large | **16** | `fontSizeLG` |
+| 面板圆角 | **8** | `borderRadiusLG`（`collapsePanelBorderRadius`） |
 | 边框线宽 | **1** | `lineWidth` |
+| header 内边距 medium | **12 × 16**（上下 × 左右） | `headerPadding` = `paddingSM` `padding`（组件常量；本库 seed `paddingSM` 映射见下） |
+| header 内边距 small | **8 × 12**（上下 × 左右；左可 8） | `headerPaddingSM` |
+| header 内边距 large | **16 × 24** | `headerPaddingLG` |
+| content 内边距 medium | **16 × 16** | `contentPadding`（垂直 `padding`，水平固定 16） |
+| content 内边距 small | **12** | `contentPaddingSM` = `paddingSM`（antd 12；kit 常量 12） |
+| content 内边距 large | **24** | `contentPaddingLG` = `paddingLG` |
+| borderless content 内边距 | **4 / 16 / 16**（上 / 左右 / 下） | `borderlessContentPadding` |
+| 箭头区高度 medium | ≈ **fontHeight**（≈22） | `fontSize × lineHeight` |
+| 箭头字号 | **12** | `fontSizeIcon` |
+| 箭头与标题间距 | **12** | `marginSM`（antd；kit 可用常量 12） |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+
+> **kit 种子差异：** 本库 `TokenPaddingSM=8`、`TokenPaddingXS=4` 对齐 antd `paddingXS`/`paddingXXS` 阶梯，**不等于** antd Collapse 组件 token 里的 `paddingSM=12`。Collapse 组件度量以本表 **DefaultCollapse\*** 常量为准，再 `SizeOr` 读 Theme 覆盖。
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 根 / 头背景（默认 bordered） | `colorFillAlter` → kit **`colorFillSecondary`** | antd `headerBg` |
+| 面板 body 背景 | `colorBgContainer` | antd `contentBg` |
+| 标题文字 | `colorText` / heading | header 文案 |
+| body 文字 | `colorText` | |
+| 边框 / 分割 | `colorBorder` | 根框 + item 底边 + body 顶边 |
+| borderless body 背景 | transparent | `borderlessContentBg` |
+| ghost 根/体 | transparent、无边框 | |
+| 禁用头文字 | `colorDisabledText` | collapsible=disabled |
+| Focus ring | `colorPrimary` / controlOutline | 键盘可见 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -350,44 +367,56 @@ import { Collapse } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `accordion` | 手风琴模式 | boolean | false |
-| `activeKey` | 当前激活 tab 面板的 key | string\[] \ | string <br/> number\[] \ |
-| `bordered` | 带边框风格的折叠面板 | boolean | true |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `collapsible` | 所有子面板是否可折叠或指定可折叠触发区域 | `header` \ | `icon` \ |
-| `defaultActiveKey` | 初始化选中面板的 key | string\[] \ | string<br/> number\[] \ |
-| `destroyOnHidden` | 销毁折叠隐藏的面板 | boolean | false |
-| `expandIcon` | 自定义切换图标 | (panelProps) => ReactNode | - |
-| `expandIconPlacement` | 设置图标位置 | `start` \ | `end` |
-| `ghost` | 使折叠面板透明且无边框 | boolean | false |
-| `size` | 设置折叠面板大小 | `large` \ | `medium` \ |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
-| `onChange` | 切换面板的回调 | function | - |
-| `items` | 折叠项目内容 | [ItemType](#itemtype) | - |
-| `children` | body 区域内容 | ReactNode | - |
-| `extra` | 自定义渲染每个面板右上角的内容 | ReactNode | - |
+| `accordion` | 手风琴：至多一个展开 | bool | false |
+| `activeKey` | 受控展开 key（多选为列表；手风琴单 key） | `[]string` / string | — |
+| `defaultActiveKey` | 非受控初始展开 | `[]string` / string | —（手风琴文档可默认首项，kit 不强制） |
+| `bordered` | 带边框风格 | bool | true |
+| `collapsible` | 全局触发区：`header` \| `icon` \| `disabled` | enum | header（整头可点） |
+| `destroyOnHidden` | 收起时卸载 body | bool | false |
+| `expandIcon` | 自定义箭头（`isActive`） | func | 默认 ▸/▾ 或 Right 旋转 |
+| `expandIconPlacement` | 箭头 `start` \| `end` | enum | start |
+| `ghost` | 透明无边框 | bool | false |
+| `size` | `large` \| `medium` \| `small` | enum | medium（kit=`CollapseMiddle`） |
+| `onChange` | 展开 key 变化 | `func([]string)` | — |
+| `items` | 面板数据（现代 API） | `[]CollapseItem` | — |
+| item.`key` | 对应 activeKey | string | 必填 |
+| item.`label` / `header` | 面板标题 | string / Node | — |
+| item.`children` | body 内容 | Node | — |
+| item.`extra` | 头右侧额外节点（点击不切换） | Node | — |
+| item.`showArrow` | 是否显示箭头（false 时 collapsible 不可为 icon） | bool | true |
+| item.`collapsible` | 覆盖全局 collapsible | enum | 继承 |
+| item.`forceRender` | 收起仍挂载 body | bool | false |
+| `classNames` / `styles` | 语义钩子 | — | **P1** |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 受控 `activeKey` > 非受控 `defaultActiveKey` / 内部态 > 组件默认 > ConfigProvider（P1）。  
+item 级 `collapsible` / `showArrow` 覆盖全局。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-activeKey 集合
-  点 panel 头 ──► 切换展开
-  accordion=true ──► 至多一个 key
-  collapsible=disabled ──► 头不可点
+activeKeys 集合（多选）或单 key（accordion）
+  点触发区 ──► toggle key；onChange(keys)
+  accordion=true ──► 至多保留一个 key
+  collapsible=disabled ──► 不可切换（含键盘）
+  collapsible=icon ──► 仅箭头可点（需 showArrow）
+  collapsible=header ──► 标题+箭头可点；extra 不切换
+  受控 activeKey ──► 点击只 onChange，不改内部，直到 SetActiveKey
+  destroyOnHidden + 收起 ──► 卸载 body（forceRender 除外）
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| COL-S1 | 展开一项 | 内容可见；onChange |
-| COL-S2 | accordion 开第二项 | 第一项收起 |
-| COL-S3 | collapsible=disabled | 不可点 |
-| COL-S4 | ghost | 无边框背景弱 |
-| COL-S5 | bordered=false | 无边框 |
-| COL-S6 | destroyOnHidden | 收起卸载 |
-| COL-S7 | 受控 activeKey | 外部优先 |
-| COL-S8 | 键盘（适用） | 可激活头 |
+| COL-S1 | 展开一项 | body 可见；`onChange` 含该 key |
+| COL-S2 | accordion 开第二项 | 第一项收起；keys 长度为 1 |
+| COL-S3 | collapsible=disabled | 点击/键盘不切换 |
+| COL-S4 | ghost | 根/体透明、无边框 |
+| COL-S5 | bordered=false | 根无描边；item 保留底部分割 |
+| COL-S6 | destroyOnHidden | 收起后 body 不在树（无 forceRender） |
+| COL-S7 | 受控 activeKey | 外部 `SetActiveKey` 优先；点击不私自改 |
+| COL-S8 | 键盘 | 可聚焦头；Enter/Space 切换 |
+| COL-S9 | showArrow=false | 无箭头；不可 collapsible=icon |
+| COL-S10 | expandIconPlacement=end | 箭头在标题逻辑尾侧 |
+| COL-S11 | extra 点击 | 不触发折叠 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -404,8 +433,10 @@ activeKey 集合
 
 | 项 | 要求 |
 | --- | --- |
-| 表格/树/列表 | 结构角色与展开/选中态可读 |
-| 排序/筛选 | 控件有名 |
+| 根 | `Role=group`（或 region）+ 可选 `AriaLabel` |
+| 面板头 | 可 Tab 聚焦（非 disabled）；`Role=button`；展开态可读（aria-expanded 映射 Label/State） |
+| 键盘 | 聚焦头上 Enter/Space 切换（与 collapsible 一致） |
+| extra | 不抢头的展开语义；独立可点节点自行处理 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -426,13 +457,18 @@ activeKey 集合
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `size` | 必须 |
-| `items` | 必须 |
-| `children` | 必须 |
-| 官方主路径示例 | 折叠面板、面板尺寸、手风琴、面板嵌套、简洁风格、自定义面板、隐藏箭头、额外节点 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| `items` / item `key`·`label`·`children` | 现代数据驱动（兼容 `CollapsePanel`/`Header`/`Content` 别名） |
+| `activeKey` / `defaultActiveKey` / `onChange` | 受控 + 非受控 |
+| `accordion` | 至多一开 |
+| `size` small\|medium\|large | 头/体 padding + large 字号 |
+| `bordered` / `ghost` | 边框与幽灵皮 |
+| `collapsible` header\|icon\|disabled（含 item 级） | 触发区；disabled 禁键盘 |
+| `showArrow` / `expandIcon` / `expandIconPlacement` | 箭头显隐、自定义、起止侧 |
+| `extra` | 右侧节点；点击不折叠 |
+| `destroyOnHidden` / item `forceRender` | 收起卸载 |
+| 官方主路径示例（gallery） | basic / size / accordion / mix / borderless / custom / noarrow / extra |
+| 度量 §6.2 | Token / DefaultCollapse\* 断言 |
+| a11y §6.6 | 头可聚焦 + 展开态可读 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -440,10 +476,11 @@ activeKey 集合
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 展开/收起高度动画像素级 | P0 瞬时切换 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 幽灵折叠面板, 可折叠触发区域, 自定义语义结构的样式和类, _semantic.tsx |
+| ConfigProvider 全局默认 | 分期 |
+| 其余示例 | 幽灵折叠面板 gallery 整页、可折叠触发区域三态 demo、自定义语义 style-class、_semantic.tsx |
 
 ### 6.9 验收用例表（可测）
 
@@ -481,38 +518,71 @@ activeKey 集合
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewCollapse(...) *Collapse
+type CollapseItem struct {
+  Key, Label string
+  LabelNode, Children, Extra, ExpandIcon core.Node
+  ShowArrow *bool          // nil → true
+  Collapsible CollapseCollapsible // 0=inherit
+  ForceRender bool
+  // 兼容别名：Header≡Label，Content≡Children（旧 CollapsePanel）
+}
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type CollapseSize         // Middle | Small | Large   （antd medium|small|large）
+type CollapseCollapsible  // Header | Icon | Disabled
+type CollapseIconPlacement // Start | End
+
+NewCollapse(items ...CollapseItem) *Collapse
+// 兼容：CollapsePanel 类型别名 = CollapseItem；NewCollapse(panels...)
+
+// 数据
+SetItems(...CollapseItem) / Items()
+// 展开
+ActiveKeys() []string
+SetActiveKey(keys ...string)          // 受控
+SetActive(keys ...string)             // 非受控程序化（兼容旧名；不进 controlled）
+SetDefaultActiveKey(keys ...string)
+IsActive(key string) bool
+// 配置
+SetAccordion / SetBordered / SetGhost / SetSize / SetCollapsible
+SetDestroyOnHidden / SetExpandIconPlacement
+SetExpandIcon(func(isActive bool, item CollapseItem) core.Node)
+// 回调
+SetOnChange(func(keys []string))  // 字段 OnChange
+// 主题 / a11y / 挂树
+SetTheme / SetFace / SetStyle / SetAriaLabel
+Node() core.Node   // 根身份在 toggle 后保持稳定（ClearChildren 复用 Root）
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Accordion | false |
+| Bordered | true |
+| Ghost | false |
+| Size | CollapseMiddle（medium） |
+| Collapsible | CollapseCollapsibleHeader |
+| ExpandIconPlacement | CollapseIconStart |
+| DestroyOnHidden | false |
+| ShowArrow（item） | true |
+| ActiveKeys | 空（或 defaultActiveKey） |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Data view
-  ├─ header?
-  ├─ body rows/nodes
-  └─ pagination/footer?
+Decorated root（边框/圆角/headerBg 或 ghost）
+  └─ Column items
+       └─ item Column
+            ├─ header row（Pressable 或分区 icon/title）
+            │    expandIcon? · title · extra?
+            └─ panel body?（展开或 forceRender；destroyOnHidden 则收起卸）
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token；**Root 指针稳定**（ClearChildren）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 展开动效 P0 瞬时；Ticker 仅当 loading/自定动画需要。  
 
 ### 6.12 完成定义（DoD）
 
