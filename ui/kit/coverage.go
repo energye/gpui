@@ -92,9 +92,9 @@ func AntCoverage() []CoverageEntry {
 		// Feedback
 		{Ant: "Alert", Status: CovReady, Via: "kit.Alert", Since: "Base-ALL", Notes: "P0 对齐 docs/antd/alert.md §6（type success|info|warning|error、variant outlined|filled、title/TitleNode、description、showIcon/icon、banner 默认 warning+icon、closable/onClose+PreventDefault/afterClose 瞬时隐藏、action 槽、Token pad8×12/desc16×24/radiusLG8/font14|16、a11y role=alert+close、hit==layout==paint、官方 basic/style/filled/closable/description/icon/banner/loop-banner）；P1: semantic classNames/styles、smooth-closed leave 动画像素、ErrorBoundary、ConfigProvider 全局 closeIcon/*Icon、自定义标题对齐/style-class、完整 action.tsx 多按钮矩阵、debug/官网逐像素"},
 		{Ant: "Drawer", Status: CovReady, Via: "kit.Drawer", Since: "M3", Notes: "P0 对齐 docs/antd/drawer.md §6（open/title、placement top|right|bottom|left、size default378|large736|SetSizePx、closable、mask/maskClosable、keyboard Esc、destroyOnHidden、extra/footer、loading Skeleton+Ticker、resizable+resize callbacks/bounds、Token padding24/title16/bgContainer/mask、a11y dialog+focus trap、hit==layout==paint、官方 basic/placement/resizable/loading/extra/form-in-drawer/user-profile）；P1: semantic classNames/styles 深度、动画滑入像素级、getContainer=false/render-in-current DOM 容器裁剪、多层 push、size 字符串/百分比/vw、mask blur、关闭按钮 placement、自定义 drawerRender、ConfigProvider 全局、debug/官网逐像素"},
-		{Ant: "Message", Status: CovReady, Via: "kit.MessageHost", Since: "M3"},
+		{Ant: "Message", Status: CovReady, Via: "kit.Message / NewMessageHost alias", Since: "M3", Notes: "P0 对齐 docs/antd/message.md §6（Open config、Info/Success/Error/Warning/Loading、duration含0常驻、key更新、Destroy、maxCount、stack threshold、top、onClick/onClose、thenable、类型图标、loading Ticker、Token 几何/a11y status、gallery 官方 hooks/other/duration/stack/loading/thenable/style-class/update）；P1: semantic classNames/styles 深度、pauseOnHover 精确计时、入退场动画像素级、浏览器 getContainer/prefixCls/RTL 静态全局上下文、_semantic/debug/官网逐像素"},
 		{Ant: "Modal", Status: CovReady, Via: "kit.Modal", Since: "M3"},
-		{Ant: "Notification", Status: CovReady, Via: "MessageHost queue", Since: "M3"},
+		{Ant: "Notification", Status: CovReady, Via: "Message compatibility path", Since: "M3"},
 		{Ant: "Popconfirm", Status: CovReady, Via: "kit.Popconfirm", Since: "Base-ALL"},
 		{Ant: "Progress", Status: CovReady, Via: "kit.Progress / ProgressRing", Since: "M5"},
 		{Ant: "Result", Status: CovReady, Via: "kit.Result", Since: "Base-ALL"},

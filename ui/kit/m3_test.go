@@ -212,8 +212,8 @@ func TestMessageQueue(t *testing.T) {
 	h.Info("hello")
 	h.Sync()
 	tree.Layout(core.Size{Width: 400, Height: 300})
-	if h.Queue.Len() != 1 {
-		t.Fatal(h.Queue.Len())
+	if h.Count() != 1 {
+		t.Fatal(h.Count())
 	}
 	if tree.Overlays().Len() < 1 {
 		t.Fatal("message host not open")

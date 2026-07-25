@@ -446,22 +446,22 @@ import { Message } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `content` | 提示内容 | ReactNode \ | config |
+| `content` | 提示内容 | ReactNode \| config |
 | `duration` | 自动关闭的延时，单位秒。设为 0 时不自动关闭 | number | 3 |
 | `onClose` | 关闭时触发的回调函数 | function | - |
 | `className` | 自定义 CSS class | string | - |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
+| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
 | `icon` | 自定义图标 | ReactNode | - |
 | `pauseOnHover` | 悬停时是否暂停计时器 | boolean | true |
-| `key` | 当前提示的唯一标志 | string \ | number |
+| `key` | 当前提示的唯一标志 | string \| number |
 | `style` | 自定义内联样式 | [CSSProperties](https://github.com/De… | - |
-| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
+| `styles` | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> |
 | `onClick` | 点击 message 时触发的回调函数 | function | - |
 | `getContainer` | 配置渲染节点的输出位置，但依旧为全屏展示 | () => HTMLElement | () => document.body |
 | `maxCount` | 最大显示数，超过限制时，最早的消息会被自动关闭 | number | - |
 | `prefixCls` | 消息节点的 className 前缀 | string | `ant-message` |
 | `rtl` | 是否开启 RTL 模式 | boolean | false |
-| `stack` | 堆叠模式，超过阈值时会将所有消息收起。折叠状态下仅展示最新的消息 | boolean \ | `{ threshold: number }` |
+| `stack` | 堆叠模式，超过阈值时会将所有消息收起。折叠状态下仅展示最新的消息 | boolean \| `{ threshold: number }` |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
@@ -527,7 +527,9 @@ Message.success(content) ──► 顶栏入队显示
 | --- | --- |
 | `onClick` | 必须 |
 | `content` | 必须 |
-| `icon` | 必须 |
+| `icon` | 类型图标必须；自定义图标名/节点提供浅覆盖 |
+| `duration` / `key` / `onClose` | 自动关闭、常驻、同 key 更新与关闭回调 |
+| `destroy` / `maxCount` / `stack` / `top` | 清空、超限丢最旧、折叠堆叠、顶部偏移 |
 | 官方主路径示例 | Hooks 调用（推荐）、其他提示类型、修改延时、堆叠、加载中、Promise 接口、自定义语义结构样式、更新消息内容 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -541,7 +543,8 @@ Message.success(content) ──► 顶栏入队显示
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 静态方法（不推荐）, _semantic.tsx |
+| 静态方法全局上下文 | `message.useMessage` / App 模式为 P0；全局静态方法仅保留便利用法 |
+| 其余示例 | 静态方法（不推荐）, `_semantic.tsx` |
 
 ### 6.9 验收用例表（可测）
 
@@ -568,8 +571,8 @@ Message.success(content) ──► 顶栏入队显示
 | MSG-16 | L1 | 复现官方示例「更新消息内容」（`update.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | MSG-17 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | MSG-18 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| MSG-19 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| MSG-20 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| MSG-19 | L2 | 自定义 style-class 主路径 | 浅 Style 覆盖 root/icon/title 色与圆角；semantic 深度 P1 |
+| MSG-20 | L1 | onClick 主路径 | 点击 message 触发 onClick；轻提示不抢焦点 |
 | MSG-21 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | MSG-22 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | MSG-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
@@ -578,13 +581,26 @@ Message.success(content) ──► 顶栏入队显示
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewMessage(...) *Message
+NewMessage() *Message
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
+Open(MessageConfig) *MessageHandle
+Info(content string, duration ...float64) *MessageHandle
+Success(content string, duration ...float64) *MessageHandle
+Error(content string, duration ...float64) *MessageHandle
+Warning(content string, duration ...float64) *MessageHandle
+Loading(content string, duration ...float64) *MessageHandle
+Destroy(key ...string)
+SetDuration(seconds float64)
+SetTop(px float64)
+SetMaxCount(n int)
+SetStack(enabled bool)
+SetStackThreshold(n int)
+
+// 配置：MessageConfig 覆盖 content/type/icon/duration/key/style/onClick/onClose
+// 回调：onClick / onClose；MessageHandle.Then(afterClose) 映射 promise 主路径
+// 状态：loading 作为 MessageType，由 Ticker 驱动图标
 // 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
+// a11y：实时区域 status；默认不抢焦点
 // 挂树：Node() core.Node
 ```
 
@@ -592,10 +608,12 @@ NewMessage(...) *Message
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Duration | 3s |
+| Top | 8px |
+| Type | info |
+| MaxCount | 0（不限制；SetMaxCount 后超限丢最旧） |
+| Stack | false；threshold=3 |
+| PauseOnHover | true（P0 行为允许不暂停；精确 hover 计时 P1） |
 
 ### 6.11 结构与绘制分层（实现提示）
 
