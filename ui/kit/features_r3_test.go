@@ -761,23 +761,30 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Transfer": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewTransfer([]string{"a", "b"}).Node() == nil {
+				tr := kit.NewTransfer()
+				tr.SetDataSource(kit.TransferItemsFromTitles("a", "b"))
+				if tr.Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 moveAll", func(t *testing.T) {
-				tr := kit.NewTransfer([]string{"a", "b"})
-				tr.MoveAllToTarget()
-				if len(tr.TargetItems()) < 2 {
-					t.Fatal(tr.TargetItems())
+				tr := kit.NewTransfer()
+				tr.SetDataSource(kit.TransferItemsFromTitles("a", "b"))
+				tr.SelectAllVisible(kit.TransferLeft)
+				tr.Move(kit.TransferRight)
+				if len(tr.TargetKeys()) < 2 {
+					t.Fatal(tr.TargetKeys())
 				}
 			}},
 			{"R3 clearTarget", func(t *testing.T) {
-				tr := kit.NewTransfer([]string{"a"})
-				tr.MoveAllToTarget()
-				tr.ClearTarget()
-				if len(tr.TargetItems()) != 0 {
-					t.Fatal(tr.TargetItems())
+				tr := kit.NewTransfer()
+				tr.SetDataSource(kit.TransferItemsFromTitles("a"))
+				tr.SelectAllVisible(kit.TransferLeft)
+				tr.Move(kit.TransferRight)
+				tr.SelectAllVisible(kit.TransferRight)
+				tr.Move(kit.TransferLeft)
+				if len(tr.TargetKeys()) != 0 {
+					t.Fatal(tr.TargetKeys())
 				}
 			}},
 		},

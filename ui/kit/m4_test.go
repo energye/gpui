@@ -151,15 +151,16 @@ func TestDropdown(t *testing.T) {
 }
 
 func TestTransfer(t *testing.T) {
-	tr := kit.NewTransfer([]string{"a", "b", "c"})
-	// move first via source select callback
-	if len(tr.Source.Items) != 3 {
-		t.Fatal(tr.Source.Items)
+	tr := kit.NewTransfer()
+	tr.SetDataSource(kit.TransferItemsFromTitles("a", "b", "c"))
+	if n := len(tr.FilteredItems(kit.TransferLeft)); n != 3 {
+		t.Fatalf("left=%d want 3", n)
 	}
-	// simulate select first
-	tr.Source.OnSelect(0, "a")
-	if len(tr.Target.Items) != 1 || tr.Target.Items[0] != "a" {
-		t.Fatalf("target=%v source=%v", tr.Target.Items, tr.Source.Items)
+	tr.SelectItem(kit.TransferLeft, "a", true)
+	tr.Move(kit.TransferRight)
+	keys := tr.TargetKeys()
+	if len(keys) != 1 || keys[0] != "a" {
+		t.Fatalf("target=%v", keys)
 	}
 }
 

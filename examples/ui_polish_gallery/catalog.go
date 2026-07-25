@@ -76,7 +76,6 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	c.registerSelect()
 	c.registerSlider()
 	c.registerSwitch()
-	c.registerTextArea()
 	c.registerTimePicker()
 	c.registerTransfer()
 	c.registerTreeSelect()

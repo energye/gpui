@@ -175,8 +175,9 @@ func main() {
 	)
 
 	// Transfer
-	xfer := kit.NewTransfer([]string{"Go", "Rust", "Zig", "C"})
-	xfer.Face = face
+	xfer := kit.NewTransfer()
+	xfer.SetDataSource(kit.TransferItemsFromTitles("Go", "Rust", "Zig", "C"))
+	xfer.SetFace(face)
 
 	statusTx := kit.NewText("status: ready")
 	statusTx.SetFace(face)

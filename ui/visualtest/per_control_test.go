@@ -217,7 +217,9 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(kit.NewTree(&kit.TreeNode{Key: "r", Title: "root"}).Node(), 160, 80)
 		}},
 		{"ctl_transfer", 280, 120, func() core.Node {
-			return padRoot(kit.NewTransfer([]string{"a", "b"}).Node(), 280, 120)
+			tr := kit.NewTransfer()
+			tr.SetDataSource(kit.TransferItemsFromTitles("a", "b"))
+			return padRoot(tr.Node(), 280, 120)
 		}},
 		{"ctl_cascader", 200, 48, func() core.Node {
 			return padRoot(kit.NewCascader(&kit.TreeNode{Key: "r", Title: "r"}).Node(), 200, 48)

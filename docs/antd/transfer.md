@@ -374,99 +374,117 @@ import { Transfer } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，种子：`controlHeight=32`、`controlHeightLG=40`、`fontSize=14`、`lineHeight≈1.571`）。实现必须通过 Theme Token 读取；组件级默认见 `prepareComponentToken`（antd `components/transfer/style`）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 列表宽 `listWidth` | **180** | 组件 Token `listWidth` |
+| 列表高 `listHeight` | **200** | 组件 Token `listHeight` |
+| 分页列表宽 `listWidthLG` | **250** | 组件 Token `listWidthLG`（`pagination` 开启时） |
+| 顶栏高 `headerHeight` | **40** | `controlHeightLG` |
+| 列表项高 `itemHeight` | **32** | `controlHeight` |
+| 列表项纵向 pad | ≈ **(itemHeight − fontHeight) / 2** | `itemPaddingBlock` |
+| 操作按钮 | size=**small**（高 **24**），type=primary | Button Token |
+| 两栏间距 / 操作列 margin | **8**（`marginXS`） | Theme |
+| 操作按钮 gap | **4**（`marginXXS`） | Theme |
+| 列表圆角 | **8** | `borderRadiusLG` |
 | 边框线宽 | **1** | `lineWidth` |
+| 字号 | **14** | `fontSize` |
+| 分页默认 `pageSize` | **10**；`simple=true` | antd ListBody |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 主色 / 操作按钮 | `colorPrimary` + 变体 | 穿梭 Button primary |
+| 列表边框 / 分割 | `colorBorder` / `colorSplit` | section 边框、header 底边 |
+| 容器底 | `colorBgContainer` | 列表底 |
+| 项 hover / 选中底 | `controlItemBgHover` / `controlItemBgActive` | 列表项 |
+| 错误 / 警告 | `colorError` / `colorWarning` | `status` 时 section 边框 |
+| 文本 / 次级 / 禁用文 | `colorText` / `colorTextSecondary` / `colorTextDisabled` | 标题、计数、空态 |
+| 禁用容器 | `colorBgContainerDisabled` | 整控件 disabled 时 section 底 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
 ### 6.3 关键配置与语义
 
-下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**数据录入**。
+下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**数据录入**。  
+官方说明：**Transfer 只支持受控 `targetKeys`**（父级在 `onChange` 后回写）；kit 为易用可提供本地提交，但 **Controlled 模式外部优先**。
 
-| 配置 | 说明 | 类型（摘录） | 默认 |
+| 配置 | 说明 | 类型（kit） | 默认 |
 | --- | --- | --- | --- |
-| `actions` | 操作文案集合，顺序从上至下。当为字符串数组时使用默认的按钮，当为 ReactNode 数组时直接使用自定义元素 | ReactNode\[] | \[`>`, `<`] |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `dataSource` | 数据源，其中的数据将会被渲染到左边一栏中，`targetKeys` 中指定的除外 | [RecordType extends TransferItem = Tr… | \[] |
-| `disabled` | 是否禁用 | boolean | false |
-| `selectionsIcon` | 自定义下拉菜单图标 | React.ReactNode | — |
-| `filterOption` | 根据搜索内容进行筛选，接收 `inputValue` `option` `direction` 三个参数，(`di… | (inputValue, option, direction: `left` \ | `right`): boolean |
-| `footer` | 底部渲染函数 | (props, { direction }) => ReactNode | - |
-| `locale` | 各种语言 | { itemUnit: string; itemsUnit: string… | ReactNode[]; } |
-| `oneWay` | 展示为单向样式 | boolean | false |
-| `pagination` | 使用分页样式，自定义渲染列表下无效 | boolean \ | { pageSize: number, simple: boolean, showSizeChanger?: boolean, showLessItems?: boolean } |
-| `render` | 每行数据渲染函数，该函数的入参为 `dataSource` 中的项，返回值为 ReactElement。或者返回一… | (record) => ReactNode | - |
-| `selectAllLabels` | 自定义顶部多选框标题的集合 | (ReactNode \ | (info: { selectedCount: number, totalCount: number }) => ReactNode)\[] |
-| `selectedKeys` | 设置哪些项应该被选中 | string\[] \ | number\[] |
-| `showSearch` | 是否显示搜索框，或可对两侧搜索框进行配置 | boolean \ | { placeholder:string,defaultValue:string } |
-| `showSelectAll` | 是否展示全选勾选框 | boolean | true |
-| `status` | 设置校验状态 | 'error' \ | 'warning' |
+| `dataSource` | 全量数据；`targetKeys` 中的项渲染到右栏，其余左栏 | `[]TransferItem` | `[]` |
+| `targetKeys` | 右栏 key 集合（受控主值） | `[]string` | `[]` |
+| `selectedKeys` | 当前勾选项（左右合计或分侧） | `[]string` | `[]` |
+| `onChange` | 穿梭完成：`(targetKeys, direction, moveKeys)` | callback | — |
+| `onSelectChange` | 勾选变化：`(sourceSelected, targetSelected)` | callback | — |
+| `onSearch` | 搜索框变化：`(direction, value)` | callback | — |
+| `disabled` | 整控件禁用 | bool | false |
+| `oneWay` | 单向：仅右移操作钮；右栏项显示移除 | bool | false |
+| `showSearch` | 两侧搜索框 | bool | false |
+| `showSelectAll` | 顶栏全选勾选框 | bool | true |
+| `filterOption` | 搜索过滤；默认按 render 文案包含 | `func(input, item, dir) bool` | 默认 includes |
+| `actions` | 操作文案 `[toRight, toLeft]` | `[]string` | `["", ""]`（图标箭头） |
+| `titles` | 左右标题 | `[2]string` | `["", ""]` |
+| `status` | 校验态 | `error` \| `warning` \| 空 | 空 |
+| `pagination` | 列表分页；自定义 ListBody 时无效 | bool \| `{pageSize, simple}` | false；pageSize=10 simple |
+| `render` | 行文案（P0 字符串） | `func(item) string` | `item.Title` 或 key |
+| `footer` | 底栏渲染 | `func(dir) Node` | — |
+| `children` / ListBody | 自定义列表体（表格穿梭） | `func(ListBodyProps) Node` | 默认 checkbox 列表 |
+| `locale` | 文案：项单位、搜索占位、空态 | struct | 中文默认「项」「请输入搜索内容」 |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 受控 `targetKeys` / `selectedKeys` > 本地非受控状态 > 组件默认。ConfigProvider 全局默认 P1。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-左选 ── > ── 右 targetKeys + onChange
-右选 ── < ── 移回
-search 过滤
-全选
+[左栏勾选] ── actions[0] / > ──► 右栏 targetKeys += moveKeys；onChange(right)
+[右栏勾选] ── actions[1] / < ──► 右栏 targetKeys -= moveKeys；onChange(left)
+[oneWay 右栏移除] ─────────────► 等同左移单项
+[search] 过滤当前栏 filteredItems（不改 targetKeys）
+[全选] 勾选当前栏可见（过滤后、非 disabled）项
+[disabled] 禁止勾选 / 穿梭 / 搜索输入
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| TF-S1 | 右移一项 | targetKeys 含 key |
-| TF-S2 | 左移 | 移除 |
-| TF-S3 | search 左 | 过滤 |
-| TF-S4 | 全选右移 | 批量 |
-| TF-S5 | disabled | 不可移 |
-| TF-S6 | oneWay | 无回移 |
-| TF-S7 | 受控 targetKeys | 外部优先 |
+| TF-S1 | 右移一项 | `targetKeys` 含该 key；`moveKeys` 正确；方向 `right` |
+| TF-S2 | 左移 | 从 `targetKeys` 移除 |
+| TF-S3 | search 左 | 左栏可见项按 filter 过滤；`onSearch` 触发 |
+| TF-S4 | 全选右移 | 批量加入 `targetKeys` |
+| TF-S5 | disabled | 不可移、不可改选 |
+| TF-S6 | oneWay | 无左移操作钮；右栏项可单条移除 |
+| TF-S7 | 受控 targetKeys | 本地不改值；仅 `onChange`；父 `SetTargetKeys` 后 UI 更新 |
+| TF-S8 | 项 disabled | 不可勾选；不计入全选可选项 |
+| TF-S9 | pagination | 仅当前页可勾选展示；pageSize 默认 10 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 / 变体 | 规则 |
 | --- | --- |
-| default | 容器底 + 边框（outlined）或族默认皮；Token 色 |
-| hover | 边框/底强调 |
-| focus | **可见** focus ring；主色边 |
-| disabled | 降对比；不可编辑 |
-| status=error/warning | 语义色边框/反馈 |
-| 弹层 open | elevation 阴影；与触发器对齐 placement |
+| default | section：`colorBgContainer` + `colorBorder` 边 + `borderRadiusLG` |
+| item hover | `controlItemBgHover` |
+| item checked | `controlItemBgActive` |
+| focus | 可聚焦控件 **可见** focus ring |
+| disabled | section 底 `colorBgContainerDisabled`；无 hover 高亮；操作钮 disabled |
+| status=error/warning | section 边框语义色（搜索框保持普通边） |
+| 操作钮 | primary small；无选中可移项时 disabled |
+| 空列表 | 居中 `notFoundContent`（默认「暂无数据」/locale） |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** P0 瞬时切换；操作钮 loading 用 Button Ticker。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | textbox / combobox / spinbutton / listbox 等 |
-| 标签 | 与 Form.Item label 或 aria-labelledby 关联 |
-| 清除/下拉 | 控件有可访问名称 |
-| 错误 | status=error 时暴露 invalid |
-| 键盘 | 主路径可选/提交/关闭 |
+| 角色 | 根 `group`（或无障碍组名）；列表区 listbox/list；项 option/可勾选；搜索 textbox |
+| 标签 | `SetAriaLabel` 或 titles 作为侧栏名；操作钮有可访问名（文案或「to right/left」） |
+| 全选 | checkbox + 与计数文案关联 |
+| 错误 | `status=error` 时暴露 invalid（平台支持时） |
+| 键盘 | 操作钮 Space/Enter；搜索可输入；焦点环可见 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -487,11 +505,21 @@ search 过滤
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `status` | 必须 |
-| `dataSource` | 必须 |
-| `showSearch` | 必须 |
+| `dataSource` / `targetKeys` / 受控 | 双栏数据；Controlled 时仅 onChange |
+| `selectedKeys` / `onSelectChange` | 勾选（左右分侧） |
+| `onChange(targetKeys, direction, moveKeys)` | 穿梭必须 |
+| `disabled` | 整控件禁用 |
+| `status` | error \| warning 边框 |
+| `oneWay` | 仅右移 + 右栏移除 |
+| `showSearch` + `filterOption` + `onSearch` | 两侧搜索 |
+| `showSelectAll` | 默认 true；顶栏全选 / 半选 |
+| `actions` | 操作文案；默认箭头 |
+| `titles` | 左右标题 |
+| `render` | 行字符串文案 |
+| `footer` | 底栏工厂 |
+| `pagination` | bool / pageSize；默认 pageSize=10 simple |
+| `ListBody` children | 自定义列表体（表格穿梭） |
+| 操作钮 loading | Button Ticker（自定义 actions 演示） |
 | 官方主路径示例 | 基本用法、单向样式、带搜索框、高级用法、自定义渲染行数据、自定义操作按钮、分页、表格穿梭框 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -502,10 +530,15 @@ search 过滤
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| `selectionsIcon` / 顶栏下拉「全选/反选/清空」菜单 | 分期（P0 仅 checkbox 全选） |
+| `selectAllLabels` 自定义 | 分期 |
+| 树穿梭框（tree-transfer） | 分期 |
+| 自定义状态完整 demo 页以外深度 / style-class | 分期（status 边框 P0 已覆盖） |
+| 动画像素级 / 超大虚拟列表 | 分期（分页 P0 可承载 large-data 主路径） |
 | 浏览器-only API 或桌面无等价项 | 分期 |
+| ConfigProvider 全局默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 树穿梭框, 自定义状态, 自定义语义结构的样式和类, _semantic.tsx |
+| 其余示例 | 树穿梭框, 自定义语义结构的样式和类, _semantic.tsx, component-token |
 
 ### 6.9 验收用例表（可测）
 
@@ -539,42 +572,103 @@ search 过滤
 | TF-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（删除 `NewTransfer([]string)` / `Source`/`Target` List 直出 / `MoveAllToTarget` 等简化接口）；以下为 **产品需求层** 契约。
 
 ```text
-NewTransfer(...) *Transfer
+type TransferItem struct {
+  Key, Title, Description string
+  Disabled bool
+}
+type TransferDirection string // "left" | "right"
+type TransferStatus int      // None | Error | Warning
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type TransferListBodyProps struct {
+  Direction TransferDirection
+  Disabled bool
+  FilteredItems []TransferItem
+  SelectedKeys []string
+  OnItemSelect    func(key string, selected bool)
+  OnItemSelectAll func(keys []string, selected bool) // selected=true 全选传入 keys；false 清空
+}
+
+NewTransfer() *Transfer
+TransferItemsFromTitles(titles ...string) []TransferItem  // 测试/迁移糖
+
+// 数据
+SetDataSource([]TransferItem)
+SetTargetKeys([]string) / TargetKeys() []string
+SetControlled(bool)                 // true：穿梭只 OnChange，不改本地 targetKeys
+SetSelectedKeys([]string)           // 合并左右勾选（或按侧过滤）
+SourceSelectedKeys() / TargetSelectedKeys()
+// 配置 P0
+SetDisabled / SetOneWay / SetShowSearch / SetShowSelectAll
+SetStatus(TransferStatus)
+SetTitles(left, right string)
+SetActions(toRight, toLeft string)  // 空串 → 默认 ">" / "<" 文案
+SetActionLoading(toRight, toLeft bool) // 操作钮 Button.Loading + Ticker
+SetFilterOption(func(input string, item TransferItem, dir TransferDirection) bool)
+SetRender(func(item TransferItem) string)
+SetFooter(func(dir TransferDirection) core.Node)
+SetPagination(enabled bool) / SetPaginationConfig(pageSize int, simple bool)
+SetListWidth / SetListHeight        // 覆盖默认 180×200；分页默认宽 250
+SetListBody(func(TransferListBodyProps) core.Node) // 表格穿梭等
+SetLocale(TransferLocale)
+// 回调
+SetOnChange(func(targetKeys []string, direction TransferDirection, moveKeys []string))
+SetOnSelectChange(func(sourceSelected, targetSelected []string))
+SetOnSearch(func(direction TransferDirection, value string))
+// 命令（测试 / 程序化）
+SelectItem(dir, key string, selected bool)
+SelectAllVisible(dir TransferDirection)
+Move(dir TransferDirection)         // right=左→右；left=右→左
+SetSearch(dir TransferDirection, query string)
+RemoveTargetItem(key string)        // oneWay 右栏移除
+// 主题 / a11y / 挂树
+SetTheme / SetFace / SetStyle / SetAriaLabel
+AttachTicker(*core.Tree)            // 转发操作钮 loading Ticker
+Node() core.Node                    // Root 身份稳定
+ListWidth() / ListHeight() / HeaderHeight() / ItemHeight()  // 度量测试
+SectionNodes() (left, right core.Node)
+ActionButtons() (toRight, toLeft *Button)
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| dataSource / targetKeys / selected | 空 |
+| Disabled / OneWay / ShowSearch | false |
+| ShowSelectAll | true |
+| Status | None |
+| Actions | `">"`, `"<"` |
+| Titles | 空 |
+| Pagination | off；开启后 pageSize=**10** simple |
+| listWidth × listHeight | **180 × 200** |
+| Controlled | false（本地提交；设 true 或文档示例用受控） |
+| locale.itemUnit / searchPlaceholder | `"项"` / `"请输入搜索内容"` |
+| 其余 | 对齐 antd 6.5 §3 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+Flex Row (Root, role=group, gap/margin 操作列)
+  ├─ Section left  (Decorated column, width=listWidth, height=listHeight)
+  │    ├─ Header: Checkbox? + title + "n/m 项"
+  │    ├─ Search Input? (showSearch)
+  │    ├─ Body: default item list | ListBody(props) | 空态
+  │    ├─ Footer?
+  │    └─ Pagination? (simple)
+  ├─ Actions column (primary small Buttons)
+  │    ├─ toRight  (>)
+  │    └─ toLeft   (<)  // !oneWay
+  └─ Section right (同 left；oneWay 时项带移除)
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- 组合 `ui/primitive` + `ui/kit`（Checkbox / Input / Button / Pagination）+ `ui/core`，禁止第二套事件/帧循环。  
+- `rebuild()` 在数据/配置变化时重建；Root 身份稳定。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 操作钮 loading 走 Button Ticker；`AttachTicker` 转发。  
+- 自定义 ListBody 时内建分页/默认项列表不渲染（对齐 antd「自定义渲染列表下 pagination 无效」）。  
 
 ### 6.12 完成定义（DoD）
 

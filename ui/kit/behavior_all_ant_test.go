@@ -334,7 +334,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Transfer", func(t *testing.T) {
-			tr := kit.NewTransfer([]string{"a", "b"})
+			tr := kit.NewTransfer()
+			tr.SetDataSource(kit.TransferItemsFromTitles("a", "b"))
 			if tr.Node() == nil {
 				t.Fatal()
 			}
