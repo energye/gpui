@@ -78,7 +78,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Slider", kit.NewSlider(10).Node())
 	must("AutoComplete", kit.NewAutoComplete("a", "x").Node())
 	must("Mentions", kit.NewMentions("@", "u").Node())
-	must("Calendar", kit.NewCalendar(2026, 7).Node())
+	must("Calendar", func() core.Node { c := kit.NewCalendar(); c.SetDefaultValue(kit.DateOf(2026, 7, 1)); return c.Node() }())
 	must("DatePicker", kit.NewDatePicker().Node())
 	must("TimePicker", kit.NewTimePicker().Node())
 	must("ColorPicker", kit.NewColorPicker().Node())

@@ -393,8 +393,9 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Calendar", func(t *testing.T) {
-			c := kit.NewCalendar(2026, 1)
-			if c.Year != 2026 || c.Month != 1 {
+			c := kit.NewCalendar()
+			c.SetDefaultValue(kit.DateOf(2026, 1, 1))
+			if c.PanelYear() != 2026 || c.PanelMonth() != 1 {
 				t.Fatal()
 			}
 		}},

@@ -135,7 +135,11 @@ func perControlSpecs() []ctlSpec {
 			sc.SetScrollbarVisibility(primitive.ScrollbarAuto) // visual: bars always while overflow
 			return padRoot(sc.Node(), 140, 100)
 		}},
-		{"ctl_calendar", 280, 280, func() core.Node { return padRoot(kit.NewCalendar(2026, 7).Node(), 280, 280) }},
+		{"ctl_calendar", 280, 280, func() core.Node {
+			c := kit.NewCalendar()
+			c.SetDefaultValue(kit.DateOf(2026, 7, 1))
+			return padRoot(c.Node(), 280, 280)
+		}},
 		{"ctl_image", 140, 100, func() core.Node { return padRoot(kit.NewImage("img", 100, 60).Node(), 140, 100) }},
 		{"ctl_qrcode", 150, 150, func() core.Node { return padRoot(kit.NewQRCode("gpui").Node(), 150, 150) }},
 		{"ctl_statistic", 140, 80, func() core.Node {

@@ -226,15 +226,16 @@ func TestBehavior_CollapseToggle(t *testing.T) {
 }
 
 func TestBehavior_CalendarMonthNav(t *testing.T) {
-	cal := kit.NewCalendar(2026, 7)
-	if cal.Month != 7 || cal.Year != 2026 {
-		t.Fatalf("%d-%d", cal.Year, cal.Month)
+	cal := kit.NewCalendar()
+	cal.SetDefaultValue(kit.DateOf(2026, 7, 1))
+	if cal.PanelMonth() != 7 || cal.PanelYear() != 2026 {
+		t.Fatalf("%d-%d", cal.PanelYear(), cal.PanelMonth())
 	}
-	// Public fields can advance month; layout must succeed after change.
-	cal.Month = 8
+	// Panel navigation advances month; layout must succeed after change.
+	cal.SetPanelMonth(2026, 8)
 	_ = cal.Node().Layout(core.Loose(300, 280))
-	if cal.Month != 8 {
-		t.Fatal(cal.Month)
+	if cal.PanelMonth() != 8 {
+		t.Fatal(cal.PanelMonth())
 	}
 }
 

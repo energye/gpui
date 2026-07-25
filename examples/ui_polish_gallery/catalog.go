@@ -92,7 +92,6 @@ func buildCatalogPanels(face text.Face, theme *core.Theme, status *string, butto
 	c.registerDescriptions()
 	c.registerEmpty()
 	c.registerImage()
-	c.registerList()
 	c.registerPopover()
 	c.registerQRCode()
 	c.registerSegmented()

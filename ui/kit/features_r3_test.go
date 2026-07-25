@@ -2,7 +2,6 @@ package kit_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
@@ -897,23 +896,26 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Calendar": {
 			{"R1 month", func(t *testing.T) {
-				c := kit.NewCalendar(2026, 1)
-				if c.Year != 2026 {
+				c := kit.NewCalendar()
+				c.SetDefaultValue(kit.DateOf(2026, 1, 1))
+				if c.PanelYear() != 2026 {
 					t.Fatal()
 				}
 			}},
 			{"R2 selectDay", func(t *testing.T) {
-				c := kit.NewCalendar(2026, 7)
+				c := kit.NewCalendar()
+				c.SetDefaultValue(kit.DateOf(2026, 7, 1))
 				c.SelectDay(15)
-				if c.SelectedDay != 15 {
+				if !c.GetValue().Valid || c.GetValue().Day != 15 {
 					t.Fatal()
 				}
 			}},
 			{"R3 setMonth", func(t *testing.T) {
-				c := kit.NewCalendar(2026, 7)
-				c.SetMonth(2025, time.December)
-				if c.Year != 2025 || c.Month != time.December {
-					t.Fatal(c.Year, c.Month)
+				c := kit.NewCalendar()
+				c.SetDefaultValue(kit.DateOf(2026, 7, 1))
+				c.SetPanelMonth(2025, 12)
+				if c.PanelYear() != 2025 || c.PanelMonth() != 12 {
+					t.Fatal(c.PanelYear(), c.PanelMonth())
 				}
 			}},
 		},
