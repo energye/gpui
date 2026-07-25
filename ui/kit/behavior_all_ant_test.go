@@ -277,7 +277,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"InputNumber", func(t *testing.T) {
-			n := kit.NewInputNumber(1)
+			n := kit.NewInputNumberValue(1)
 			n.SetValue(9)
 			if n.Value != 9 {
 				t.Fatal(n.Value)

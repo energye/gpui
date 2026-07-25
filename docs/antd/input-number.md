@@ -430,6 +430,8 @@ import { InputNumber } from 'antd';
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
+| 默认控件宽 | **90** | 组件 Token `controlWidth`（antd `style/token.ts`） |
+| 步进手柄宽 | **≈22** | `controlHeightSM − 2×lineWidth`（≈ handleWidth） |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
@@ -534,17 +536,25 @@ value
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `variant` | 必须 |
-| `status` | 必须 |
-| `mode` | 必须 |
+| `value` / `defaultValue` / `onChange` | 受控与非受控；步进/输入只经 `onChange` 上抛 |
+| `min` / `max` / `step` | 步进夹紧；默认 step=1；受控展示可越界（见 FAQ） |
+| `precision` | 小数位；与 step 共同决定展示 |
+| `controls` | 默认 true 显示加减钮；false 隐藏（INN-S7） |
+| `keyboard` | 默认 true；↑/↓ 步进 |
+| `changeOnWheel` | 聚焦时滚轮步进（`change-on-wheel.tsx`） |
+| `changeOnBlur` | 默认 true；失焦夹紧并可能触发 `onChange` |
+| `disabled` / `readOnly` | 禁用不可改；只读可聚焦不可改 |
+| `size` | small / middle(medium) / large → 高 24/32/40 |
+| `variant` | outlined / filled / borderless / underlined |
+| `status` | error / warning 语义边框 |
+| `mode` | `input`（默认）\|`spinner`；spinner 结构可简，API 必有 |
+| `stringMode` | 高精度小数路径（`digit.tsx`）；步进仍走数值逻辑 |
+| `formatter` / `parser` | 格式化展示与回解析（`formatter.tsx`） |
+| `placeholder` | 空值占位 |
+| `onStep` / `onPressEnter` | 步进来源回调；Enter |
 | 官方主路径示例 | 基本、三种大小、不可用、高精度小数、格式化展示、键盘行为、鼠标滚轮、形态变体 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | role≈spinbutton/textbox；status=error 暴露 invalid |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -555,7 +565,9 @@ value
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 拨轮, 超出边界, 前缀/后缀, 自定义状态 |
+| 前缀/后缀 / addon（Space.Compact 替代） | 分期 |
+| 超出边界错误态完整 demo / 自定义 up/down 图标 | 分期 |
+| 其余示例 | 拨轮完整视觉、超出边界、前缀/后缀、自定义状态、聚焦 demo |
 
 ### 6.9 验收用例表（可测）
 
@@ -592,27 +604,62 @@ value
 | INN-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约，实现可微调命名但语义不可丢。
 
 ```text
-NewInputNumber(...) *InputNumber
+NewInputNumber() *InputNumber
+NewInputNumberValue(defaultValue float64) *InputNumber   // 糖：defaultValue
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 值
+SetValue(float64)                 // 受控写回 / 非受控赋值；不触发 onChange
+SetDefaultValue(float64)
+GetValue() float64
+SetControlled(bool)
+// 步进
+SetMin/SetMax/SetStep(float64)
+SetPrecision(int)                 // <0 表示未设置
+StepUp() / StepDown()             // 等价 handler；夹紧 + onChange + onStep
+// 行为
+SetControls(bool)                 // 默认 true
+SetKeyboard(bool)                 // 默认 true
+SetChangeOnWheel(bool)
+SetChangeOnBlur(bool)             // 默认 true
+SetDisabled(bool) / SetReadOnly(bool)
+SetSize(InputSize)                // small|middle|large
+SetVariant(InputVariant)          // outlined|filled|borderless|underlined
+SetStatus(InputStatus)            // none|error|warning
+SetMode(InputNumberMode)          // input|spinner
+SetStringMode(bool)
+SetFormatter(fn) / SetParser(fn)
+SetPlaceholder(string)
+SetOnChange(func(float64))
+SetOnStep(func(v float64, info InputNumberStepInfo))
+SetOnPressEnter(func(float64))
+// 主题 / a11y / 挂树
+SetTheme(*Theme) / SetFace / Style
+SetAriaLabel(string)
+SetFixedSize(w, h float64)
+Node() / ChromeNode() / Editor()
+HandleKey(*KeyEvent)              // ↑↓ 步进（keyboard）
+HandleScroll(*ScrollEvent)        // changeOnWheel
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Value | 无 / NaN 语义空；`NewInputNumberValue(v)` 设 defaultValue |
+| Min / Max | ±1e15 量级安全范围（对齐 MAX_SAFE_INTEGER 意图） |
+| Step | 1 |
+| Precision | 未设置 |
+| Controls / Keyboard / ChangeOnBlur | true |
+| ChangeOnWheel | false |
+| Disabled / ReadOnly / Controlled / StringMode | false |
+| Size | middle（antd medium） |
+| Variant | outlined |
+| Status | none |
+| Mode | input |
+| Width | controlWidth ≈ 90 |
 
 ### 6.11 结构与绘制分层（实现提示）
 

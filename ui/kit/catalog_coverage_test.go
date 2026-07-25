@@ -69,7 +69,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Dropdown", kit.NewDropdown("d", kit.MenuItem{Key: "1", Label: "1"}).Node())
 	must("Input", kit.NewInput("x").Node())
 	must("TextArea", kit.NewTextArea("x", 2).Node())
-	must("InputNumber", kit.NewInputNumber(1).Node())
+	must("InputNumber", kit.NewInputNumberValue(1).Node())
 	must("Checkbox", kit.NewCheckbox("c").Node())
 	must("Switch", kit.NewSwitch().Node())
 	must("Select", kit.NewSelect("s", kit.SelectOption{Value: "1", Label: "1"}).Node())

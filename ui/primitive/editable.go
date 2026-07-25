@@ -48,7 +48,10 @@ type EditableText struct {
 	OnFocusChange func(focused bool)
 	// OnHoverChange is invoked when pointer hover enters/leaves (for kit Input border).
 	OnHoverChange func(hovered bool)
-	hovered       bool
+	// VerticalArrowHandler intercepts Up/Down before line navigation.
+	// Return true to mark the key handled and skip moveLine (e.g. kit.InputNumber step).
+	VerticalArrowHandler func(dir int) bool // -1 = up, +1 = down
+	hovered              bool
 
 	// Caret blink state (demand-frame ticker).
 	caretPhase   float64
@@ -622,9 +625,17 @@ func (e *EditableText) HandleKey(ev *core.KeyEvent) {
 		e.MarkNeedsPaint()
 		ev.Handled = true
 	case "Up", "ArrowUp":
+		if e.VerticalArrowHandler != nil && e.VerticalArrowHandler(-1) {
+			ev.Handled = true
+			break
+		}
 		e.moveLine(-1, e.extendSelection(ev))
 		ev.Handled = true
 	case "Down", "ArrowDown":
+		if e.VerticalArrowHandler != nil && e.VerticalArrowHandler(1) {
+			ev.Handled = true
+			break
+		}
 		e.moveLine(1, e.extendSelection(ev))
 		ev.Handled = true
 	case "Home":

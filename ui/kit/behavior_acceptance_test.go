@@ -113,11 +113,10 @@ func TestBehavior_ScrollWheel(t *testing.T) {
 }
 
 func TestBehavior_InputNumberStep(t *testing.T) {
-	n := kit.NewInputNumber(5)
-	n.Step = 2
+	n := kit.NewInputNumberValue(5)
+	n.SetStep(2)
 	n.SetValue(5)
-	// Simulate step up via SetValue (steppers call SetValue)
-	n.SetValue(n.Value + n.Step)
+	n.StepUp()
 	if n.Value != 7 {
 		t.Fatalf("value=%v want 7", n.Value)
 	}

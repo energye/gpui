@@ -87,7 +87,7 @@ func perControlSpecs() []ctlSpec {
 			in.SetFixedSize(200, 32)
 			return padRoot(in.Node(), 220, 48)
 		}},
-		{"ctl_input_number", 180, 48, func() core.Node { return padRoot(kit.NewInputNumber(3).Node(), 180, 48) }},
+		{"ctl_input_number", 180, 48, func() core.Node { return padRoot(kit.NewInputNumberValue(3).Node(), 180, 48) }},
 		{"ctl_checkbox", 120, 40, func() core.Node { return padRoot(kit.NewCheckbox("CB").Node(), 120, 40) }},
 		{"ctl_radio", 120, 40, func() core.Node { return padRoot(kit.NewRadio("v", "R").Node(), 120, 40) }},
 		{"ctl_switch", 80, 40, func() core.Node { return padRoot(kit.NewSwitch().Node(), 80, 40) }},

@@ -56,7 +56,7 @@ func TestTagAlertCardEmpty(t *testing.T) {
 }
 
 func TestInputNumberRateSegmented(t *testing.T) {
-	n := kit.NewInputNumber(3)
+	n := kit.NewInputNumberValue(3)
 	n.SetValue(5)
 	if n.Value != 5 {
 		t.Fatalf("value=%v", n.Value)

@@ -574,14 +574,14 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"InputNumber": {
 			{"R1 value", func(t *testing.T) {
-				n := kit.NewInputNumber(1)
+				n := kit.NewInputNumberValue(1)
 				n.SetValue(9)
 				if n.Value != 9 {
 					t.Fatal()
 				}
 			}},
 			{"R2 min/max clamp", func(t *testing.T) {
-				n := kit.NewInputNumber(5)
+				n := kit.NewInputNumberValue(5)
 				n.Min, n.Max = 0, 10
 				n.SetValue(99)
 				if n.Value > 10 {
@@ -589,7 +589,7 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 				}
 			}},
 			{"R3 disabled", func(t *testing.T) {
-				n := kit.NewInputNumber(1)
+				n := kit.NewInputNumberValue(1)
 				n.SetDisabled(true)
 				if !n.Disabled {
 					t.Fatal()
