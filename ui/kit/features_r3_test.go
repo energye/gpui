@@ -790,20 +790,20 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"TreeSelect": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewTreeSelect("p", "a/b").Node() == nil {
+				if kit.NewTreeSelect("p", kit.TreeSelectNode{Value: "a/b", Title: "a/b"}).Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 setValue", func(t *testing.T) {
-				ts := kit.NewTreeSelect("p", "a/b")
+				ts := kit.NewTreeSelect("p", kit.TreeSelectNode{Value: "a/b", Title: "a/b"})
 				ts.SetValue("a/b")
 				if ts.Value != "a/b" {
 					t.Fatal()
 				}
 			}},
 			{"R3 clear", func(t *testing.T) {
-				ts := kit.NewTreeSelect("p", "a/b")
-				ts.AllowClear = true
+				ts := kit.NewTreeSelect("p", kit.TreeSelectNode{Value: "a/b", Title: "a/b"})
+				ts.SetAllowClear(true)
 				ts.SetValue("a/b")
 				ts.Clear()
 				if ts.Value != "" {

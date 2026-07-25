@@ -341,7 +341,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"TreeSelect", func(t *testing.T) {
-			ts := kit.NewTreeSelect("p", "a/b")
+			ts := kit.NewTreeSelect("p", kit.TreeSelectNode{Value: "a/b", Title: "a/b"})
 			ts.SetValue("a/b")
 			if ts.Value != "a/b" {
 				t.Fatal(ts.Value)

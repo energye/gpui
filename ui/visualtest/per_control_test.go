@@ -190,7 +190,7 @@ func perControlSpecs() []ctlSpec {
 		}},
 		{"ctl_upload", 120, 48, func() core.Node { return padRoot(kit.NewUpload("Upload").Node(), 120, 48) }},
 		{"ctl_tree_select", 220, 48, func() core.Node {
-			return padRoot(kit.NewTreeSelect("path", "a/b").Node(), 220, 48)
+			return padRoot(kit.NewTreeSelect("path", kit.TreeSelectNode{Value: "a/b", Title: "a/b"}).Node(), 220, 48)
 		}},
 		{"ctl_auto_complete", 220, 120, func() core.Node {
 			return padRoot(kit.NewAutoComplete("ac", "Apple", "Banana").Node(), 220, 120)

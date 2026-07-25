@@ -146,7 +146,7 @@ func TestCatalogRestAPIs(t *testing.T) {
 	_ = wm.Node().Layout(core.Loose(200, 100))
 	cp := kit.NewColorPicker()
 	_ = cp.Node().Layout(core.Loose(200, 40))
-	ts := kit.NewTreeSelect("path", "a/b", "a/c")
+	ts := kit.NewTreeSelect("path", kit.TreeSelectNode{Value: "a/b", Title: "a/b"}, kit.TreeSelectNode{Value: "a/c", Title: "a/c"})
 	_ = ts.Node().Layout(core.Loose(200, 40))
 	up := kit.NewUpload("Upload")
 	_ = up.Node().Layout(core.Loose(100, 40))
