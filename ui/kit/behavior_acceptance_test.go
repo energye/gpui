@@ -150,10 +150,26 @@ func TestBehavior_RateSetValue(t *testing.T) {
 func TestBehavior_SegmentedSelect(t *testing.T) {
 	s := kit.NewSegmented("A", "B", "C")
 	got := ""
-	s.OnChange = func(v string) { got = v }
+	s.SetOnChange(func(v string) { got = v })
+	// Programmatic SetValue does not fire OnChange (antd value=).
 	s.SetValue("C")
-	if s.Value != "C" || got != "C" {
-		t.Fatalf("value=%q got=%q", s.Value, got)
+	if s.Value != "C" {
+		t.Fatalf("value=%q", s.Value)
+	}
+	if got != "" {
+		t.Fatalf("SetValue should not fire OnChange, got=%q", got)
+	}
+	// User path: click second option.
+	tree := core.NewTree(s.Node())
+	tree.Layout(core.Size{Width: 400, Height: 40})
+	nodes := s.OptionNodes()
+	abs := core.AbsoluteBounds(nodes[1])
+	x := (abs.Min.X + abs.Max.X) / 2
+	y := (abs.Min.Y + abs.Max.Y) / 2
+	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
+	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
+	if s.Value != "B" || got != "B" {
+		t.Fatalf("value=%q got=%q want B", s.Value, got)
 	}
 }
 

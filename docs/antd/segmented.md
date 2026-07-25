@@ -307,26 +307,45 @@ import { Segmented } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+数值对齐 `components/segmented/style` `prepareComponentToken` + 尺寸档（`scale=1`）。
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 控件高度 middle | **32** | `controlHeight` |
+| 控件高度 middle | **32** | `controlHeight`（含 track） |
 | 控件高度 small | **24** | `controlHeightSM` |
 | 控件高度 large | **40** | `controlHeightLG` |
+| trackPadding | **2** | `lineWidthBold`（组件 Token `trackPadding`） |
+| item 标签高 middle | **28** | `controlHeight − 2×trackPadding` |
+| item 标签高 small | **20** | `controlHeightSM − 2×trackPadding` |
+| item 标签高 large | **36** | `controlHeightLG − 2×trackPadding` |
+| item 水平内边距 middle/large | **11** | `controlPaddingHorizontal − lineWidth`（≈12−1） |
+| item 水平内边距 small | **7** | `controlPaddingHorizontalSM − lineWidth`（≈8−1） |
 | 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
+| 字号 large | **16** | `fontSizeLG` |
+| 字号 small | **14** | `fontSize`（sm 档不缩字号） |
+| track 圆角 middle | **6** | `borderRadius` |
+| track 圆角 large | **8** | `borderRadiusLG` |
+| track 圆角 small | **4** | `borderRadiusSM` |
+| item / thumb 圆角 middle | **4** | `borderRadiusSM` |
+| item / thumb 圆角 large | **6** | `borderRadius` |
+| item / thumb 圆角 small | **2** | `borderRadiusXS`（回落 2） |
+| shape=round 圆角 | **9999** | 胶囊（track + item） |
+| icon↔label 间距 | **4** | `marginSM / 2` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
 
-| 用途 | Token 建议 | 备注 |
+| 用途 | Token / 组件 Token | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| track 底 | `trackBg` → `colorBgLayout` | 分段条容器 |
+| 选中 item 底 | `itemSelectedBg` → `colorBgElevated` / `colorBgContainer` | 白底浮起 |
+| 选中文字 | `itemSelectedColor` → `colorText` | |
+| 默认文字 | `itemColor` → `colorTextLabel` / `colorTextSecondary` | |
+| hover 文字 | `itemHoverColor` → `colorText` | |
+| hover 底 | `itemHoverBg` → `colorFillSecondary` | 未选中 |
+| active 底 | `itemActiveBg` → `colorFill` / fill 更深 | 未选中按下 |
+| 禁用文字 | `colorTextDisabled` / `colorDisabledText` | 无 hover 高亮 |
+| 选中阴影 | `boxShadowTertiary`（可选；P0 可瞬时无影） | |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -358,36 +377,45 @@ import { Segmented } from 'antd';
 ### 6.4 交互状态机（L1）
 
 ```text
-options 单选
-点 option ──► value + onChange
-block ──► 均分撑满
-disabled 项 ──► 不可点
+[idle]
+  │ click / Enter·Space / ←→↑↓（适用）
+  ▼
+select option ──► 非受控：写 Value；始终 onChange(value)
+  │
+  ├─ option.disabled 或 整体 disabled ──► 忽略
+  ├─ 再点已选 ──► 保持（不反选、不重复 onChange）
+  └─ Controlled ──► 仅 onChange；Value 等外部 SetValue
+block ──► track 撑满父宽；item 均分（flex:1）
+orientation vertical / vertical=true ──► 列排布（orientation 优先）
+shape=round ──► 胶囊圆角
 ```
 
-\*高≈controlHeight。
+\*外高 ≈ controlHeight（含 trackPadding）。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| SEG-S1 | 切换选项 | onChange |
-| SEG-S2 | block | 撑满宽 |
-| SEG-S3 | disabled 项 | 不可选 |
-| SEG-S4 | size | 高度档 |
-| SEG-S5 | 受控 value | 外部优先 |
-| SEG-S6 | 仅图标 option | 可显示 |
-| SEG-S7 | 键盘（适用） | 可切换 |
+| SEG-S1 | 切换选项 | 写 Value（非受控）+ onChange |
+| SEG-S2 | block | track 撑满宽；item 均分 |
+| SEG-S3 | disabled 整体 / 项 | 不可选；无 hover 高亮 |
+| SEG-S4 | size | 外高 24/32/40 档 |
+| SEG-S5 | 受控 value | 外部优先；点击只 onChange |
+| SEG-S6 | 仅图标 option | 可显示；须有名（AriaLabel/value） |
+| SEG-S7 | 键盘 | Tab 入组；方向键切换；Enter/Space 激活焦点项 |
+| SEG-S8 | defaultValue / 首项 | 未设 value 时默认选中 defaultValue 或 options 首项 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | Token 默认皮 |
-| hover / active | 可交互反馈 |
-| focus | 可见 focus ring |
-| checked/selected/active（适用者） | 主色强调 |
-| disabled | 降对比；无 hover |
-| loading | 指示器；防重复 |
+| default | track=`trackBg`；未选文字=`itemColor` |
+| hover（未选） | 文字=`itemHoverColor`；底=`itemHoverBg` |
+| active/pressed（未选） | 底=`itemActiveBg` |
+| selected | 底=`itemSelectedBg`；文字=`itemSelectedColor` |
+| focus | 焦点项可见 focus ring（≈1.5px） |
+| disabled | 文字=`colorDisabledText`；无 hover 高亮 |
 
+> Segmented **无** antd `loading` API；勿伪造全局 loading。
 
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** thumb 滑动 / 入场为 P1；P0 可用瞬时切换选中皮（尊重 reduced-motion 时同样瞬时）。
 
 ### 6.6 无障碍（a11y）最低要求
 
@@ -418,29 +446,33 @@ disabled 项 ──► 不可点
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `value` | 必须 |
-| `defaultValue` | 必须 |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `options` | 必须 |
-| `orientation` | 必须 |
-| `shape` | 必须 |
-| `icon` | 必须 |
-| 官方主路径示例 | 基本、垂直方向、Block 分段选择器、胶囊形状、不可用、受控模式、自定义渲染、动态数据 |
+| `value` / `defaultValue` / `onChange` | 受控 / 非受控；点击写值规则见 §6.4 |
+| `options` | string / number / `SegmentedOption`（label/value/icon/disabled/自定义节点） |
+| `disabled` | 整体禁用 |
+| option.`disabled` | 单项不可选 |
+| `size` | large / middle(medium) / small → 高 40/32/24 |
+| `block` | 撑满父宽 + item 均分 |
+| `orientation` / `vertical` | 水平 / 垂直（orientation 优先） |
+| `shape` | default / round |
+| option.`icon` / 仅图标 | 与 label 混排或 icon-only |
+| option 自定义 `LabelNode` | 自定义渲染主路径（custom.tsx） |
+| 动态 `SetOptions` | 选项列表可变（dynamic.tsx） |
+| 官方主路径示例 | 基本、垂直方向、Block、胶囊形状、不可用、受控模式、自定义渲染、动态数据 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | radiogroup/radio + 焦点 + 键盘 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `name`（radio 组名） | 配合 name 使用示例 |
+| option.`tooltip` 完整 TooltipProps | 分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| thumb 滑动动画像素级 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 三种大小, 设置图标, 只设置图标, 配合 name 使用 |
+| 其余示例 gallery 页 | 三种大小、设置图标、只设置图标、配合 name 使用、style-class |
 
 ### 6.9 验收用例表（可测）
 
@@ -474,40 +506,73 @@ disabled 项 ──► 不可点
 | SEG-23 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 **breaking** 旧 API；以下为产品需求层契约，实现可微调命名但语义不可丢。
 
 ```text
-NewSegmented(...) *Segmented
+NewSegmented(options ...string) *Segmented
+NewSegmentedOptions(opts ...SegmentedOption) *Segmented
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type SegmentedOption struct {
+  Label     string      // 显示文案
+  Value     string      // 空则回落 Label
+  Icon      string      // 注册表图标名
+  IconNode  core.Node   // 自定义图标节点（优先于 Icon）
+  LabelNode core.Node   // 自定义整项内容（custom.tsx；优先于 Label/Icon 组合）
+  Disabled  bool
+  Title     string      // 简短提示（P1 完整 Tooltip 前的回落）
+  AriaLabel string      // 仅图标时推荐
+}
+
+// 配置
+SetOptions(...SegmentedOption) / SetOptionsStrings(...string)
+SetValue(v)            // 程序化；不触发 OnChange
+SetDefaultValue(v)     // 仅非受控初始
+SetControlled(bool)    // true：点击只 OnChange，外部 SetValue
+SetDisabled(bool)
+SetBlock(bool)
+SetSize(SegmentedSize) // small|middle|large
+SetOrientation(SegmentedOrientation) // horizontal|vertical
+SetVertical(bool)      // 糖；orientation 优先
+SetShape(SegmentedShape) // default|round
+SetOnChange(func(value string))
+SetTheme(*Theme) / SetFace / SetStyle(Style)
+SetAriaLabel(string)
+
+// 查询
+Value string
+SelectedIndex() int
+OptionNodes() []core.Node // 每项 Pressable（测布局/点击）
+ChromeNode() core.Node    // track Decorated
+Node() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Disabled / Block / Controlled | false |
+| Size | middle（高 32） |
+| Orientation | horizontal |
+| Shape | default |
+| Value | `defaultValue`，否则 options 首项的 value |
+| OnChange | nil |
+| 其余 | 对齐 antd 6.5 §3 / §6.2 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Pressable
-  └─ Decorated chrome
-       └─ content (icon/label/indicator)
+Decorated track (Root, role=radiogroup)
+  └─ Flex group (row | column；block → ExpandMax + Flexible 均分)
+       └─ Pressable item (role=radio) × N
+            └─ Decorated chip (selected / hover 皮)
+                 └─ content: LabelNode | Row(Icon?, Label?)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `SetValue` **不得**替换 Root / 不得 ClearChildren 整树（只 recolor / 同步 selected）；`SetOptions` 才重建项。  
+- `rebuild()` 只读 Default / 字段 / Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- P0 选中切换瞬时；P1 thumb 滑动走 Host Tick + reduced-motion。  
 
 ### 6.12 完成定义（DoD）
 
