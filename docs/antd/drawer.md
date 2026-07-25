@@ -501,8 +501,12 @@ import { Drawer } from 'antd';
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | 默认 width | **378** | API 默认 |
+| 默认 height（top/bottom） | **378** | API 默认 |
+| large size | **736** | API 预设 |
+| 面板 padding | **24** | Ant content padding |
+| 标题字号 | **16** | `fontSizeLG` / 回落 |
 | 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 圆角 | **0** | Drawer 贴边面板，非浮动卡片 |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
@@ -521,26 +525,23 @@ import { Drawer } from 'antd';
 
 ### 6.3 关键配置与语义
 
-下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**反馈**。
+下列为 **P0 产品关键配置**（完整能力以 §3 / 官方 API 为准）。分类：**反馈**。
 
-| 配置 | 说明 | 类型（摘录） | 默认 |
+| 配置 | 说明 | 类型（Go kit） | 默认 |
 | --- | --- | --- | --- |
-| `afterOpenChange` | 切换抽屉时动画结束后的回调 | function(open) | - |
-| `className` | Drawer 容器外层 className 设置，如果需要设置最外层，请使用 rootClassName | string | - |
-| `classNames` | 用于自定义 Drawer 组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `closable` | 是否显示关闭按钮。可通过 `placement` 配置其位置 | boolean \ | { closeIcon?: React.ReactNode; disabled?: boolean; placement?: 'start' \ |
-| `destroyOnHidden` | 关闭时销毁 Drawer 里的子元素 | boolean | false |
-| `extra` | 抽屉右上角的操作区域 | ReactNode | - |
-| `footer` | 抽屉的页脚 | ReactNode | - |
-| `forceRender` | 预渲染 Drawer 内元素 | boolean | false |
-| `focusable` | 抽屉内焦点管理的配置 | `{ trap?: boolean, focusTriggerAfterC… | - |
-| `getContainer` | 指定 Drawer 挂载的节点，**并在容器内展现**，`false` 为挂载在当前位置 | HTMLElement \ | () => HTMLElement \ |
-| `keyboard` | 是否支持键盘 esc 关闭 | boolean | true |
-| `loading` | 显示骨架屏 | boolean | false |
-| `mask` | 遮罩效果 | boolean \ | `{ enabled?: boolean, blur?: boolean, closable?: boolean }` |
-| `maxSize` | 可拖拽的最大尺寸（宽度或高度，取决于 `placement`） | number | - |
-| `open` | Drawer 是否可见 | boolean | false |
-| `placement` | 抽屉的方向 | `top` \ | `right` \ |
+| `open` | Drawer 是否可见 | `bool` | `false` |
+| `title` | 标题 / dialog 可访问名 | `string` | `""` |
+| `placement` | 抽屉方向 | `DrawerPlacementTop/Right/Bottom/Left` | `right` |
+| `size` | 预设或自定义主轴尺寸 | `DrawerSizeDefault/Large` + `SetSizePx` | `default=378` |
+| `loading` | 内容区骨架屏 | `bool`，Ticker 驱动 | `false` |
+| `closable` | 头部关闭按钮 | `bool` | `true` |
+| `mask` | 是否显示遮罩 | `bool` | `true` |
+| `maskClosable` | 点击遮罩是否关闭 | `bool` | `true` |
+| `keyboard` | Esc 是否关闭 | `bool` | `true` |
+| `destroyOnHidden` | 关闭后卸载 body 子树 | `bool` | `false` |
+| `extra` | 标题栏右侧操作区 | `core.Node` | `nil` |
+| `footer` | 底栏 | `core.Node` | `nil` |
+| `resizable` | 拖拽边缘改主轴尺寸 | `bool` + resize callbacks | `false` |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
@@ -549,8 +550,10 @@ import { Drawer } from 'antd';
 ```text
 closed ── open ──► 侧滑 panel + mask
              ├── close / Esc / mask ──► onClose
-             ├── placement 四边 ──► 滑出方向
-             └── destroyOnHidden ──► 卸载
+             ├── placement 四边 ──► 主轴尺寸 width/height
+             ├── loading ──► body skeleton + Ticker
+             ├── resizable drag ──► size 更新 + onResize
+             └── destroyOnHidden ──► body 卸载
 ```
 
 \*默认 width=378。
@@ -559,12 +562,14 @@ closed ── open ──► 侧滑 panel + mask
 | --- | --- | --- |
 | DRW-S1 | open=true | 可见 |
 | DRW-S2 | onClose 路径 | 关闭 |
-| DRW-S3 | placement=left | 从左出 |
+| DRW-S3 | placement=top/right/bottom/left | 从对应边缘出；top/bottom 使用 height |
 | DRW-S4 | maskClosable=false | 点 mask 不关 |
-| DRW-S5 | Esc | 关（keyboard） |
+| DRW-S5 | Esc | keyboard=true 时关闭 |
 | DRW-S6 | 默认宽 | 378 |
 | DRW-S7 | footer | 底栏可见 |
 | DRW-S8 | destroyOnHidden | 卸载子树 |
+| DRW-S9 | loading=true | body 显示骨架屏，Ticker 驱动 |
+| DRW-S10 | resizable=true | 拖拽边缘改变主轴尺寸并触发回调 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -607,11 +612,15 @@ closed ── open ──► 侧滑 panel + mask
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | `loading` | 必须 |
-| `size` | 必须 |
+| `size` | default / large / 自定义数字必须 |
 | `open` | 必须 |
 | `title` | 必须 |
-| `placement` | 必须 |
-| 官方主路径示例 | 基础抽屉、自定义位置、可调整大小、加载中、额外操作、渲染在当前 DOM、抽屉表单、信息预览抽屉 |
+| `placement` | top / right / bottom / left 必须 |
+| `closable` / `maskClosable` / `keyboard` | 关闭路径必须 |
+| `destroyOnHidden` | 关闭卸载 body 必须 |
+| `extra` / `footer` | 标题栏额外操作与底栏必须 |
+| `resizable` | 可调整大小主路径必须 |
+| 官方主路径示例 | 基础抽屉、自定义位置、可调整大小、加载中、额外操作、抽屉表单、信息预览抽屉 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
@@ -624,7 +633,8 @@ closed ── open ──► 侧滑 panel + mask
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 多层抽屉, 预设宽度, 遮罩, 关闭按钮位置 |
+| `getContainer=false` / 渲染在当前 DOM | 浏览器 DOM 挂载语义，桌面容器内裁剪另期 |
+| 其余示例 | 多层抽屉, 预设宽度字符串/百分比/vw, 遮罩 blur, 关闭按钮位置 |
 
 ### 6.9 验收用例表（可测）
 
@@ -636,9 +646,9 @@ closed ── open ──► 侧滑 panel + mask
 | DRW-01 | L1 | NewDrawer 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
 | DRW-02 | L1 | open=true | 可见 |
 | DRW-03 | L1 | onClose 路径 | 关闭 |
-| DRW-04 | L1 | placement=left | 从左出 |
+| DRW-04 | L1 | placement=top/right/bottom/left | 面板出现在对应边缘；top/bottom 使用 height |
 | DRW-05 | L1 | maskClosable=false | 点 mask 不关 |
-| DRW-06 | L1 | Esc | 关（keyboard） |
+| DRW-06 | L1 | Esc | keyboard=true 关闭；keyboard=false 不关闭 |
 | DRW-07 | L1 | 默认宽 | 378 |
 | DRW-08 | L1 | footer | 底栏可见 |
 | DRW-09 | L1 | destroyOnHidden | 卸载子树 |
@@ -647,12 +657,12 @@ closed ── open ──► 侧滑 panel + mask
 | DRW-12 | L1 | 复现官方示例「可调整大小」（`resizable.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | DRW-13 | L1 | 复现官方示例「加载中」（`loading.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | DRW-14 | L1 | 复现官方示例「额外操作」（`extra.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| DRW-15 | L1 | 复现官方示例「渲染在当前 DOM」（`render-in-current.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
+| DRW-15 | P1 | 复现官方示例「渲染在当前 DOM」（`render-in-current.tsx`） | 桌面容器内裁剪另期 |
 | DRW-16 | L1 | 复现官方示例「抽屉表单」（`form-in-drawer.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | DRW-17 | L1 | 复现官方示例「信息预览抽屉」（`user-profile.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
 | DRW-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
 | DRW-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| DRW-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
+| DRW-20 | L2 | loading 骨架色与动效 | 走 Theme Token；Ticker 驱动，不静止空转 |
 | DRW-21 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
 | DRW-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | DRW-23 | L4 | 与 ant.design 并排 | 人眼签字记录 |
@@ -661,25 +671,74 @@ closed ── open ──► 侧滑 panel + mask
 
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
-```text
-NewDrawer(...) *Drawer
+```go
+type DrawerPlacement string
+const (
+    DrawerPlacementTop DrawerPlacement = "top"
+    DrawerPlacementRight DrawerPlacement = "right"
+    DrawerPlacementBottom DrawerPlacement = "bottom"
+    DrawerPlacementLeft DrawerPlacement = "left"
+)
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type DrawerSize string
+const (
+    DrawerSizeDefault DrawerSize = "default" // 378
+    DrawerSizeLarge DrawerSize = "large"     // 736
+)
+
+func NewDrawer(title string) *Drawer
+func (d *Drawer) Node() core.Node
+func (d *Drawer) SetOpen(open bool)
+func (d *Drawer) SetTitle(title string)
+func (d *Drawer) SetContent(n core.Node)
+func (d *Drawer) SetExtra(n core.Node)
+func (d *Drawer) SetFooter(n core.Node)
+func (d *Drawer) SetPlacement(p DrawerPlacement)
+func (d *Drawer) SetSize(s DrawerSize)
+func (d *Drawer) SetSizePx(px float64)
+func (d *Drawer) SetLoading(v bool)
+func (d *Drawer) SetClosable(v bool)
+func (d *Drawer) SetMask(v bool)
+func (d *Drawer) SetMaskClosable(v bool)
+func (d *Drawer) SetKeyboard(v bool)
+func (d *Drawer) SetDestroyOnHidden(v bool)
+func (d *Drawer) SetResizable(v bool)
+func (d *Drawer) SetResizeBounds(min, max float64)
+func (d *Drawer) SetPadding(px float64)
+func (d *Drawer) SetPaddingInsets(p primitive.EdgeInsets)
+func (d *Drawer) SetFace(face text.Face)
+func (d *Drawer) SetTheme(th *core.Theme)
+func (d *Drawer) AttachTicker(t *core.Tree)
+func (d *Drawer) Tick(dt float64) bool
+
+// 回调字段
+OnClose func()
+OnOpenChange func(open bool)
+AfterOpenChange func(open bool)
+OnResizeStart func()
+OnResize func(size float64)
+OnResizeEnd func()
+
+// 兼容旧名：SetWidth/SetHeight 作为 SetSizePx 的数字别名；不再作为主 API。
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Open | false |
+| Placement | right |
+| Size | default = 378 |
+| Large size | 736 |
+| Loading | false |
+| Closable | true |
+| Mask | true |
+| MaskClosable | true |
+| Keyboard | true |
+| DestroyOnHidden | false |
+| Padding | 24 |
+| ZIndex | `OverlayZDrawer` |
+| 其余 | P1 或对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 

@@ -211,7 +211,7 @@ func (c *catalogCtx) registerCalendar() {
 	selAlert.SetFace(face)
 	selCal.SetOnSelect(func(v kit.DateValue, _ kit.CalendarSelectSource) {
 		selCal.SetValue(v)
-		selAlert.SetMessage(fmt.Sprintf("You selected date: %04d-%02d-%02d", v.Year, v.Month, v.Day))
+		selAlert.SetTitle(fmt.Sprintf("You selected date: %04d-%02d-%02d", v.Year, v.Month, v.Day))
 		if status != nil {
 			*status = fmt.Sprintf("Calendar select → %04d-%02d-%02d", v.Year, v.Month, v.Day)
 		}

@@ -333,29 +333,43 @@ import { Alert } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`fontSize=14`、`padding=16`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/alert/style/index.ts` `prepareComponentToken` / `genBaseStyle` / `genTypeStyle`。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 默认内边距（无 description） | **8 × 12** | `defaultPadding` = `paddingContentVerticalSM(8)` + 固定水平 **12** |
+| 有 description 内边距 | **16 × 24** | `withDescriptionPadding` = `paddingMD(16)` × `paddingContentHorizontalLG(24)` |
+| 标题字号（无 description） | **14** | `fontSize` |
+| 标题字号（有 description） | **16** | `fontSizeLG`；`colorTextHeading` |
+| description 字号 | **14** | `fontSize`；色 `colorText` |
+| 圆角 | **8** | `borderRadiusLG`（Alert 根用 LG，非 `borderRadius`） |
+| 边框线宽 | **1** | `lineWidth`；`variant=filled` / `banner` → 无边框 |
+| 图标字号（无 description） | **14** | ≈ `fontSize` / 内置 filled 图标 |
+| 图标字号（有 description） | **24** | `withDescriptionIconSize` = `fontSizeHeading3` |
+| 图标右边距（无 description） | **8** | `marginXS` |
+| 图标右边距（有 description） | **12** | `marginSM` |
+| action / close 左边距 | **8** | `marginXS` |
+| Focus ring outset（close） | ≈ **1.5px** 可见 | 可调，必须可见 |
+| `banner` | 圆角 **0**、边框 **0**、铺满宽 | `banner` 修饰 |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| success 底 / 图标 / 边 | `colorSuccess` + 浅底/浅边（`colorSuccessBg` / `Border` 等价） | type=success |
+| info 底 / 图标 / 边 | `colorPrimary` + `colorPrimaryBg` / 浅边 | type=info（antd colorInfo≈primary） |
+| warning 底 / 图标 / 边 | `colorWarning` + 浅底/浅边 | type=warning；banner 默认 type |
+| error 底 / 图标 / 边 | `colorError` + 浅底/浅边 | type=error |
+| 标题字 | `colorText`（heading 语义） | 有/无 description 均 |
+| description 字 | `colorText` | 非 secondary（antd 正文色） |
+| close 图标 | `colorTextTertiary` / hover 更深 | 可交互 |
+| `variant=filled` | 同 type 底色，**边框透明** | 6.4.0 |
+| `variant=outlined` | type 底 + type 边框色 | 默认 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色作为唯一默认皮；浅底/浅边可用 `lighten(语义色)` 回落，但语义色本身须读 Theme。
 
 ### 6.3 关键配置与语义
 
@@ -365,58 +379,63 @@ import { Alert } from 'antd';
 | --- | --- | --- | --- |
 | `action` | 自定义操作项 | ReactNode | - |
 | `banner` | 是否用作顶部公告 | boolean | false |
-| `variant` | 警告提示样式变体 | `outlined` \ | `filled` |
-| `classNames` | 自定义组件内部各语义化结构的类名。支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> |
-| `closable` | 可关闭配置 | boolean \ | [ClosableType](#closabletype) & React.AriaAttributes |
-| `closeIcon` | （仅支持全局配置）自定义关闭图标 | ReactNode | - |
-| `description` | 警告提示的辅助性文字介绍 | ReactNode | - |
-| `errorIcon` | （仅支持全局配置）自定义错误图标 | ReactNode | - |
-| `icon` | 自定义图标，`showIcon` 为 true 时有效 | ReactNode | - |
-| `infoIcon` | （仅支持全局配置）自定义信息图标 | ReactNode | - |
-| `showIcon` | 是否显示辅助图标 | boolean | false，`banner` 模式下默认值为 true |
-| `styles` | 自定义组件内部各语义化结构的内联样式。支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> |
-| `successIcon` | （仅支持全局配置）自定义成功图标 | ReactNode | - |
-| `title` | 警告提示内容 | ReactNode | - |
-| `type` | 指定警告提示的样式，有四种选择 `success`、`info`、`warning`、`error` | string | `info`，`banner` 模式下默认值为 `warning` |
-| `warningIcon` | （仅支持全局配置）自定义警告图标 | ReactNode | - |
+| `variant` | 样式变体 | `outlined` \| `filled` | `outlined` |
+| `closable` | 可关闭；对象形态含 `onClose` / `afterClose` / `closeIcon` / aria | boolean \| ClosableType | false |
+| `description` | 辅助性文字介绍 | ReactNode | - |
+| `icon` | 自定义图标（`showIcon` 有效时） | ReactNode | 按 type 默认图标 |
+| `showIcon` | 是否显示辅助图标 | boolean | false；**banner 未显式设时 true** |
+| `title` | 警告提示内容（替换已弃用 `message`） | ReactNode | - |
+| `type` | `success` \| `info` \| `warning` \| `error` | string | `info`；**banner 未显式设时 `warning`** |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**P1 / 全局配置（本阶段不做实现强制）：** `classNames` / `styles` 语义钩子、`ConfigProvider` 的 `closeIcon` / `*Icon` 全局、ErrorBoundary、平滑卸载动画像素级。
+
+**配置优先级：** 显式 props > 组件默认（含 banner 对 type/showIcon 的默认）> ConfigProvider 全局默认。
+
+**弃用兼容（kit）：** `message` → `title`；顶层 `onClose` / `afterClose` / `closeIcon` → `closable.*`（可保留顶层 setter 作糖）。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-mount ──► type 语义色 + message + description?
-closable ──► 点关闭 ──► onClose ──► 卸载/隐藏
-banner ──► 顶栏铺满皮
+mount ──► type 语义色 + title + description?
+         │
+         ├─ showIcon ──► 默认/自定义图标
+         ├─ banner ──► 无边框、直角、默认 type=warning、默认 showIcon
+         ├─ variant=filled ──► 无描边
+         └─ action ──► 右侧操作槽
+closable ──► 点关闭 ──► onClose ──► Hidden(不可见) ──► afterClose（P0 瞬时，等同关闭后）
 ```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| ALT-S1 | type=success/info/warning/error | 四套语义色 |
-| ALT-S2 | closable 点关闭 | onClose；不可见 |
-| ALT-S3 | description | 双行结构 |
-| ALT-S4 | showIcon | 图标可见 |
-| ALT-S5 | banner | 横幅样式 |
-| ALT-S6 | action 区 | 可放按钮 |
+| ALT-S1 | type=success/info/warning/error | 四套语义底/边/图标色 |
+| ALT-S2 | closable 点关闭 | 触发 onClose；随后不可见（Hidden） |
+| ALT-S3 | description | 双行：title(LG) + description |
+| ALT-S4 | showIcon | 图标可见；自定义 icon 优先 |
+| ALT-S5 | banner | 直角、无边、默认 warning + showIcon |
+| ALT-S6 | action 区 | 可挂 Button 等节点 |
+| ALT-S7 | variant=filled | 边框宽 0 / 透明 |
+| ALT-S8 | onClose PreventDefault（若提供） | 可阻止隐藏（与 Tag 一致可选） |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| default | 符合 §6.2 Token；outlined 有 type 边 |
+| filled | 同底色、无边 |
+| banner | 无边、radius=0；常作顶栏宽铺满 |
+| with-description | padding 16×24；图标 24；title 16 |
+| close hover/focus | close 可点；focus ring 可见 |
 | 主题切换 | 色与间距随 Theme 更新 |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 关闭 leave 动画 P1；P0 **瞬时隐藏**。轮播公告（loop-banner）标题可走自定义 `TitleNode` + Ticker 位移，不强制像素级 marquee。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 实时区域 | message/notification 用 status 语义等价 |
-| 关闭 | 可关控件可操作 |
-| 不抢焦点 | 轻提示默认不抢（Modal 例外） |
+| 角色 | 根节点 `role=alert`（或等价 Label/Role） |
+| 关闭 | close 为可聚焦 button；默认可键盘激活；`aria-label` 默认 "Close" |
+| 不抢焦点 | 展示时不自动抢焦点 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -437,13 +456,17 @@ banner ──► 顶栏铺满皮
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `type` | 必须 |
-| `variant` | 必须 |
-| `title` | 必须 |
-| `icon` | 必须 |
-| 官方主路径示例 | 基本、四种样式、无边框、可关闭的警告提示、含有辅助性文字介绍、图标、顶部公告、轮播的公告 |
+| `type` | success / info / warning / error；banner 默认 warning |
+| `variant` | outlined（默认）/ filled |
+| `title` | 主文案；`TitleNode` 可自定义（轮播公告） |
+| `description` | 辅助文案；双行结构 |
+| `showIcon` / `icon` | 默认 false；banner 默认 true；可自定义 icon |
+| `banner` | 顶栏样式（无边、直角） |
+| `closable` + `onClose` / `afterClose` | 关闭；P0 瞬时隐藏 |
+| `action` | 操作槽（可挂 Button） |
+| 官方主路径示例 | 基本、四种样式、无边框、可关闭、description、图标、顶部公告、轮播的公告 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | role=alert + close 可操作 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -451,75 +474,108 @@ banner ──► 顶栏铺满皮
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| 关闭 leave 动画像素级 / smooth-closed | 分期 |
+| ConfigProvider 全局 closeIcon / *Icon | 分期 |
+| ErrorBoundary | React 专用，桌面映射弱 |
+| 自定义标题对齐 / style-class 语义 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 平滑地卸载, React 错误处理, 操作, 自定义标题对齐 |
+| 完整 action.tsx 矩阵（多按钮列布局精修） | 槽位 P0 已有；复杂矩阵 P1 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestAlert_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Alert 完成 1:1 主路径。
+> **P0 相关用例（无 P1/L3/L4 标记）全部通过** 才可宣称 Alert 完成 1:1 主路径。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| ALT-01 | L1 | NewAlert 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| ALT-02 | L1 | type=success/info/warning/error | 四套语义色 |
-| ALT-03 | L1 | closable 点关闭 | onClose；不可见 |
-| ALT-04 | L1 | description | 双行结构 |
+| ALT-01 | L1 | NewAlert 默认创建 | 不崩溃；type=info、variant=outlined、showIcon=false、closable=false |
+| ALT-02 | L1 | type=success/info/warning/error | 四套语义底/边/图标色互异 |
+| ALT-03 | L1 | closable 点关闭 | onClose；Hidden / Visible=false；afterClose 触发 |
+| ALT-04 | L1 | description | 双行结构（title + description 节点） |
 | ALT-05 | L1 | showIcon | 图标可见 |
-| ALT-06 | L1 | banner | 横幅样式 |
-| ALT-07 | L1 | action 区 | 可放按钮 |
-| ALT-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ALT-09 | L1 | 复现官方示例「四种样式」（`style.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ALT-10 | L1 | 复现官方示例「无边框」（`filled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ALT-11 | L1 | 复现官方示例「可关闭的警告提示」（`closable.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ALT-12 | L1 | 复现官方示例「含有辅助性文字介绍」（`description.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ALT-13 | L1 | 复现官方示例「图标」（`icon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ALT-14 | L1 | 复现官方示例「顶部公告」（`banner.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ALT-15 | L1 | 复现官方示例「轮播的公告」（`loop-banner.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| ALT-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| ALT-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| ALT-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| ALT-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| ALT-06 | L1 | banner | radius=0、无边；未 SetType 时 type=warning；未 SetShowIcon 时 showIcon |
+| ALT-07 | L1 | action 区 | 可挂 Button 节点 |
+| ALT-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | title + type=success 可布局 |
+| ALT-09 | L1 | 复现官方示例「四种样式」（`style.tsx`） | 四 type 均布局 |
+| ALT-10 | L1 | 复现官方示例「无边框」（`filled.tsx`） | variant=filled → 无边框 |
+| ALT-11 | L1 | 复现官方示例「可关闭的警告提示」（`closable.tsx`） | 四 type + closable 可关 |
+| ALT-12 | L1 | 复现官方示例「含有辅助性文字介绍」（`description.tsx`） | 四 type + description |
+| ALT-13 | L1 | 复现官方示例「图标」（`icon.tsx`） | showIcon ± description ± closable |
+| ALT-14 | L1 | 复现官方示例「顶部公告」（`banner.tsx`） | banner 组合 |
+| ALT-15 | L1 | 复现官方示例「轮播的公告」（`loop-banner.tsx`） | banner + TitleNode/长标题可布局 |
+| ALT-16 | L2 | 读取 §6.2 关键尺寸/间距 | pad 8×12 / 有 desc 16×24；radius 8；字号 14/16；容差 ±0.5 |
+| ALT-17 | L2 | 默认皮颜色 | 语义色走 Theme；非唯一硬编码品牌皮 |
+| ALT-18 | L2 | disabled 外观（适用者） | **N/A**：antd Alert 无 disabled；用例断言不适用即可 |
+| ALT-19 | L1 | 键盘/焦点主路径（适用者） | close 可聚焦；Enter/Space 可触发关闭 |
 | ALT-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | ALT-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | ALT-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。
 
 ```text
-NewAlert(...) *Alert
+NewAlert(title string) *Alert
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 内容
+SetTitle(string) / SetTitleNode(core.Node)
+SetMessage(string)            // 兼容别名 → SetTitle（antd message 已弃用）
+SetDescription(string) / SetDescriptionNode(core.Node)
+
+// 类型与变体
+SetType(AlertType|string)     // info|success|warning|error
+SetVariant(AlertVariant)      // outlined|filled
+SetBanner(bool)
+SetShowIcon(bool)
+SetIcon(name string) / SetIconNode(core.Node)
+
+// 关闭
+SetClosable(bool)
+SetCloseIcon(core.Node)
+SetOnClose(func()) / OnClose(func(*AlertCloseEvent))  // 支持 PreventDefault
+SetAfterClose(func())
+CloseAria / SetCloseAria(string)
+
+// 操作
+SetAction(core.Node)
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) · SetFace · SetStyle · SetAriaLabel
+Node() · ChromeNode() · CloseNode() · Visible() · IconVisible()
+// L2 只读：FontSize / TitleFontSize / PadH / PadV / Radius / LineWidth /
+//          Background / IconColor / BorderColor / HasBorder
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Type | `info`；**banner 且未显式 SetType → `warning`** |
+| Variant | `outlined` |
+| ShowIcon | `false`；**banner 且未显式 SetShowIcon → `true`** |
+| Closable | false |
+| Banner | false |
+| Title | NewAlert 入参 |
+| Description / Action / Icon | 空 |
+| 关闭后 | Hidden=true（瞬时；afterClose 同步触发） |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Host holder or inline
-  └─ item (icon + content + close?)
+Decorated Root  (role=alert)
+  └─ Row  (CrossCenter | CrossStart when description)
+       ├─ Icon?                 // showIcon
+       ├─ Flexible(1) Section   // Column(title, description?)
+       ├─ Action?               // 操作槽
+       └─ Close Pressable?      // closable
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default / 字段 / Token；禁止裸 magic padding。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 关闭动画 P1；P0 瞬时 ClearChildren + HitTransparent。  
+- 轮播标题：`TitleNode` + 可选 Ticker（gallery/loop-banner）。  
 
 ### 6.12 完成定义（DoD）
 
