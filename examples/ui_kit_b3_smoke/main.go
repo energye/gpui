@@ -104,22 +104,27 @@ func main() {
 
 	// Table
 	cols := []kit.TableColumn{
-		{Key: "id", Title: "ID", Width: 50},
-		{Key: "name", Title: "Name", Flex: 1},
-		{Key: "role", Title: "Role", Width: 100},
+		{Key: "id", Title: "ID", Width: 50, DataIndex: "id"},
+		{Key: "name", Title: "Name", Flex: 1, DataIndex: "name"},
+		{Key: "role", Title: "Role", Width: 100, DataIndex: "role"},
 	}
-	var data []map[string]string
+	var data []kit.TableRecord
 	for i := 1; i <= 50; i++ {
-		data = append(data, map[string]string{
-			"id": fmt.Sprintf("%d", i), "name": fmt.Sprintf("User %02d", i), "role": "dev",
+		data = append(data, kit.TableRecord{
+			"key": fmt.Sprintf("%d", i),
+			"id":  fmt.Sprintf("%d", i), "name": fmt.Sprintf("User %02d", i), "role": "dev",
 		})
 	}
-	table := kit.NewTable(cols, data)
-	table.Face = face
-	table.OnRowClick = func(i int, row map[string]string) {
-		status = fmt.Sprintf("row %d %s", i, row["name"])
-		log.Printf("%s", status)
-	}
+	table := kit.NewTableWith(cols, data)
+	table.SetFace(face)
+	table.SetRowSelection(&kit.TableRowSelection{
+		OnChange: func(keys []string, rows []kit.TableRecord) {
+			if len(rows) > 0 {
+				status = fmt.Sprintf("row %v %v", keys, rows[0]["name"])
+				log.Printf("%s", status)
+			}
+		},
+	})
 
 	// List + Tree in split
 	list := kit.NewList("Alpha", "Bravo", "Charlie", "Delta", "Echo")

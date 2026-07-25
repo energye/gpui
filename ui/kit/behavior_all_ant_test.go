@@ -477,7 +477,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Table", func(t *testing.T) {
-			tb := kit.NewTable([]kit.TableColumn{{Key: "a", Title: "A"}}, []map[string]string{{"a": "1"}})
+			tb := kit.NewTableWith([]kit.TableColumn{{Key: "a", Title: "A"}}, []kit.TableRecord{{"key": "1", "a": "1"}})
 			if tb.Node() == nil {
 				t.Fatal()
 			}

@@ -825,12 +825,23 @@ import { Table } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+源码：`components/table/style` `prepareComponentToken`（`padding=16` / `paddingSM=12` / `paddingXS=8` / `controlHeight=32` / `fontSize=14` / `borderRadiusLG=8` 表头圆角；表格容器 `borderRadius=6`）。
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 行高 middle 约 | **55** | 实现按 size/token |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| size 默认 | **large** | antd `size` default |
+| cell pad large (block×inline) | **16 × 16** | `padding` / `cellPaddingBlock`·`Inline` |
+| cell pad middle | **12 × 8** | `paddingSM` × `paddingXS` |
+| cell pad small | **8 × 8** | `paddingXS` |
+| 字号（各 size） | **14** | `fontSize` / `cellFontSize*` |
+| 选择列宽 | **32** | `selectionColumnWidth` = `controlHeight` |
+| 展开列宽 | **48** | `tableExpandColumnWidth`（实现回落） |
+| 行高 large 约 | **55** | `padBlock×2 + line`（≈16×2+22） |
+| 行高 middle 约 | **47** | `12×2+22` |
+| 行高 small 约 | **39** | `8×2+22` |
+| 表头/容器圆角 | **8 / 6** | `borderRadiusLG` / `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
+| 筛选下拉宽/高/搜索宽 | **120 / 264 / 140** | `tableFilterDropdown*` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）
@@ -937,30 +948,42 @@ mount ──► 渲染 columns × dataSource
 
 #### P0（本阶段必须 1:1，否则不算完成）
 
+> 修正（2026-07-25）：原稿误抄 Button 模板字段 `type` / `placement`；按 antd Table 主路径 + §6.4 状态机 + 官方 P0 示例重写。
+
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `loading` | 必须 |
-| `size` | 必须 |
-| `type` | 必须 |
-| `dataSource` | 必须 |
-| `columns` | 必须 |
-| `title` | 必须 |
-| `placement` | 必须 |
+| `columns` / `dataSource` | 列描述 + 数据数组；`dataIndex`/`key`/`title`/`width`/`render` |
+| `rowKey` | 默认 `"key"`；缺失时测试强制提供（TBL-S12） |
+| `pagination` | `object \| false`；默认分页（pageSize=10）；翻页触发 `onChange` |
+| `loading` | 表体遮罩 Spin；列头保留 |
+| `size` | `large`（默认）\| `middle` \| `small`；cell pad 见 §6.2 |
+| `bordered` / `showHeader` | 外边框+列边框；是否显示表头（默认 true） |
+| `title` / `footer` | 表格上下扩展区（string 或 Node） |
+| `rowSelection` | `type` checkbox\|radio、`selectedRowKeys` 受控、`onChange`、`getCheckboxProps`、`selections`（ALL/INVERT/NONE/自定义） |
+| `onChange` | `(pagination, filters, sorter, extra{action,currentDataSource})` |
+| 列 `sorter` / `sortDirections` / `defaultSortOrder` | 表头点击切换排序态 |
+| 列 `filters` / `onFilter` / `filterMode` / `filterSearch` | 菜单或树型筛选 + 搜索；确认写 filters |
+| `expandable` | `expandedRowRender` / `rowExpandable` / `expandedRowKeys` / `onExpand` |
+| `scroll` | `y` 表体滚动+表头固定；`x` 横滚 + `column.fixed` 左/右钉列 |
+| `rowHoverable` | 默认 true |
+| Empty | `dataSource=[]`（过滤后为空）显示 Empty |
 | 官方主路径示例 | 基本用法、JSX 风格的 API、可选择、选择和操作、自定义选择项、筛选和排序、树型筛选菜单、自定义筛选的搜索 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | 表格角色；排序/筛选控件有名 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| 多列排序 `multiple-sorter` | 分期 |
+| 可控的筛选和排序 / 自定义筛选菜单 `filterDropdown` | 分期 |
+| 远程加载 `ajax` / 服务端分页全量 | 分期 |
+| sticky 复杂 / 虚拟滚动像素级 | 分期 |
+| nested table / 编辑单元格 / 拖拽排序 | 分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| ConfigProvider 全局默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 多列排序, 可控的筛选和排序, 自定义筛选菜单, 远程加载数据 |
 
 ### 6.9 验收用例表（可测）
 
@@ -999,26 +1022,45 @@ mount ──► 渲染 columns × dataSource
 | TBL-28 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 **breaking** 旧 `NewTable(cols, []map[string]string)` / `Selection` / `SetSort` API；以下为产品契约。
 
 ```text
-NewTable(...) *Table
+type TableRecord map[string]any
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewTable() *Table
+SetColumns([]TableColumn) / SetDataSource([]TableRecord)
+SetRowKey(string) | SetRowKeyFunc(func(TableRecord) string)   // default "key"
+SetPagination(*TablePagination | false via SetPaginationEnabled(false))
+SetLoading(bool) / SetSize(TableSize) / SetBordered(bool) / SetShowHeader(bool)
+SetTitle(string|Node) / SetFooter(string|Node)
+SetRowSelection(*TableRowSelection)
+SetExpandable(*TableExpandable)
+SetScroll(TableScroll)   // X, Y
+SetRowHoverable(bool)
+SetOnChange(func(pag TablePaginationState, filters map[string][]string, sorter TableSorterResult, extra TableChangeExtra))
+SetLocale(TableLocale)   // empty text …
+SetTheme / SetFace / SetAriaLabel
+AttachTicker(*core.Tree)  // loading Spin
+Node() core.Node
+
+// Column P0: Key, Title, DataIndex, Width, Flex, Fixed, Sorter, SortDirections,
+//   DefaultSortOrder, Filters, OnFilter, FilterMode, FilterSearch, Render, Children(分组)
+// RowSelection P0: Type checkbox|radio, SelectedRowKeys, OnChange, GetCheckboxProps, Selections
+// Expandable P0: ExpandedRowRender, RowExpandable, ExpandedRowKeys, OnExpand
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Size | **large**（antd Table） |
+| ShowHeader | true |
+| Bordered | false |
+| Loading | false |
+| Pagination | 开启；current=1, pageSize=10 |
+| RowKey | `"key"` |
+| RowHoverable | true |
+| 受控 selected/expanded/filters/sorter | 未 Set 时用内部非受控态 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）

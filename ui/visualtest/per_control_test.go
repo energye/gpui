@@ -222,9 +222,9 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(kit.NewSplitterNodes(kit.NewText("L").Node(), kit.NewText("R").Node()).Node(), 200, 80)
 		}},
 		{"ctl_table", 240, 100, func() core.Node {
-			return padRoot(kit.NewTable(
-				[]kit.TableColumn{{Key: "n", Title: "N"}},
-				[]map[string]string{{"n": "a"}},
+			return padRoot(kit.NewTableWith(
+				[]kit.TableColumn{{Key: "n", Title: "N", DataIndex: "n"}},
+				[]kit.TableRecord{{"key": "1", "n": "a"}},
 			).Node(), 240, 100)
 		}},
 		{"ctl_tree", 160, 80, func() core.Node {

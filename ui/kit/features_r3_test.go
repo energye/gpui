@@ -1,6 +1,7 @@
 package kit_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -1160,23 +1161,36 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Table": {
 			{"R1 construct", func(t *testing.T) {
-				tb := kit.NewTable([]kit.TableColumn{{Key: "a", Title: "A"}}, []map[string]string{{"a": "1"}})
+				tb := kit.NewTableWith([]kit.TableColumn{{Key: "a", Title: "A"}}, []kit.TableRecord{{"key": "1", "a": "1"}})
 				if tb.Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 setData", func(t *testing.T) {
-				tb := kit.NewTable([]kit.TableColumn{{Key: "a", Title: "A"}}, nil)
-				tb.SetData([]map[string]string{{"a": "2"}})
+				tb := kit.NewTableWith([]kit.TableColumn{{Key: "a", Title: "A"}}, nil)
+				tb.SetDataSource([]kit.TableRecord{{"key": "2", "a": "2"}})
 			}},
 			{"R3 sort", func(t *testing.T) {
-				tb := kit.NewTable(
-					[]kit.TableColumn{{Key: "a", Title: "A"}},
-					[]map[string]string{{"a": "b"}, {"a": "a"}},
+				tb := kit.NewTableWith(
+					[]kit.TableColumn{{
+						Key: "a", Title: "A", DataIndex: "a",
+						Sorter: func(a, b kit.TableRecord) int {
+							as, bs := fmt.Sprint(a["a"]), fmt.Sprint(b["a"])
+							if as < bs {
+								return -1
+							}
+							if as > bs {
+								return 1
+							}
+							return 0
+						},
+					}},
+					[]kit.TableRecord{{"key": "1", "a": "b"}, {"key": "2", "a": "a"}},
 				)
-				tb.SetSort("a", true)
-				if tb.SortKey != "a" || !tb.SortAsc {
-					t.Fatal()
+				tb.ToggleSort("a")
+				k, o := tb.SortState()
+				if k != "a" || o != kit.TableSortAscend {
+					t.Fatal(k, o)
 				}
 			}},
 		},

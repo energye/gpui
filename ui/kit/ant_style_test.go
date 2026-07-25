@@ -171,9 +171,18 @@ func TestFormItemGapAnt(t *testing.T) {
 }
 
 func TestTableRowHeightAnt(t *testing.T) {
-	tb := kit.NewTable([]kit.TableColumn{{Key: "n", Title: "N"}}, []map[string]string{{"n": "x"}})
-	if tb.RowHeight != 47 {
-		t.Fatalf("row height=%v want 47", tb.RowHeight)
+	tb := kit.NewTable()
+	tb.SetColumns([]kit.TableColumn{{Key: "n", Title: "N"}})
+	tb.SetDataSource([]kit.TableRecord{{"key": "1", "n": "x"}})
+	// default size=large → pad 16*2 + line 22 ≈ 54
+	h := tb.RowHeightEstimate()
+	if h < 50 || h > 60 {
+		t.Fatalf("row height estimate=%v want ~54", h)
+	}
+	tb.SetSize(kit.TableMiddle)
+	h = tb.RowHeightEstimate()
+	if h < 40 || h > 55 {
+		t.Fatalf("middle row height estimate=%v want ~47", h)
 	}
 }
 

@@ -132,21 +132,26 @@ func main() {
 
 	// Content table
 	cols := []kit.TableColumn{
-		{Key: "id", Title: "ID", Width: 48},
-		{Key: "name", Title: "Name", Flex: 1},
-		{Key: "role", Title: "Role", Width: 100},
+		{Key: "id", Title: "ID", Width: 48, DataIndex: "id"},
+		{Key: "name", Title: "Name", Flex: 1, DataIndex: "name"},
+		{Key: "role", Title: "Role", Width: 100, DataIndex: "role"},
 	}
-	var data []map[string]string
+	var data []kit.TableRecord
 	for i := 1; i <= 40; i++ {
-		data = append(data, map[string]string{
-			"id": fmt.Sprintf("%d", i), "name": fmt.Sprintf("User %02d", i), "role": "member",
+		data = append(data, kit.TableRecord{
+			"key": fmt.Sprintf("%d", i),
+			"id":  fmt.Sprintf("%d", i), "name": fmt.Sprintf("User %02d", i), "role": "member",
 		})
 	}
-	table := kit.NewTable(cols, data)
-	table.Face = face
-	table.OnRowClick = func(i int, row map[string]string) {
-		status = fmt.Sprintf("row %s", row["name"])
-	}
+	table := kit.NewTableWith(cols, data)
+	table.SetFace(face)
+	table.SetRowSelection(&kit.TableRowSelection{
+		OnChange: func(keys []string, rows []kit.TableRecord) {
+			if len(rows) > 0 {
+				status = fmt.Sprintf("row %v", rows[0]["name"])
+			}
+		},
+	})
 	pager := kit.NewPagination()
 	pager.SetTotal(50)
 	pager.Face = face

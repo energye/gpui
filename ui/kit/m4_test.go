@@ -62,24 +62,25 @@ func TestSplitPaneRatio(t *testing.T) {
 
 func TestTableRows(t *testing.T) {
 	cols := []kit.TableColumn{
-		{Key: "id", Title: "ID", Width: 60},
-		{Key: "name", Title: "Name", Flex: 1},
+		{Key: "id", Title: "ID", Width: 60, DataIndex: "id"},
+		{Key: "name", Title: "Name", Flex: 1, DataIndex: "name"},
 	}
-	data := []map[string]string{
-		{"id": "1", "name": "Ada"},
-		{"id": "2", "name": "Bob"},
+	data := []kit.TableRecord{
+		{"key": "1", "id": "1", "name": "Ada"},
+		{"key": "2", "id": "2", "name": "Bob"},
 	}
-	tb := kit.NewTable(cols, data)
+	tb := kit.NewTableWith(cols, data)
+	tb.SetRowSelection(&kit.TableRowSelection{})
 	tree := core.NewTree(tb.Node())
 	tree.Layout(core.Size{Width: 400, Height: 300})
-	clicked := -1
-	tb.OnRowClick = func(i int, _ map[string]string) { clicked = i }
-	// virtual list rows hard to hit; set selection programmatically
-	tb.Selection.Set("0")
-	if !tb.Selection.Has("0") {
-		t.Fatal("selection")
+	tb.SelectRow("1")
+	keys := tb.SelectedRowKeys()
+	if len(keys) != 1 || keys[0] != "1" {
+		t.Fatalf("selection=%v", keys)
 	}
-	_ = clicked
+	if len(tb.PageRecords()) != 2 {
+		t.Fatalf("page rows=%d", len(tb.PageRecords()))
+	}
 }
 
 func TestListSelect(t *testing.T) {
