@@ -117,7 +117,10 @@ func TestCollapseTimelineSliderResult(t *testing.T) {
 		t.Fatalf("slider=%v", sl.Value)
 	}
 	_ = sl.Node().Layout(core.Loose(220, 20))
-	res := kit.NewResult("success", "Done", "ok")
+	res := kit.NewResult()
+	res.SetStatus(kit.ResultSuccess)
+	res.SetTitle("Done")
+	res.SetSubTitle("ok")
 	_ = res.Node().Layout(core.Loose(400, 200))
 	st := kit.NewStatistic()
 	st.SetTitle("Users")

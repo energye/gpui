@@ -211,7 +211,7 @@ import { Result } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 展示/自动关闭/堆叠/类型语义 | Headless / behavior 测试 |
+| **L1** | 行为 | 状态图标、异常页图形、标题/副标题、操作区与内容区展示 | Headless / behavior 测试 |
 | **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
@@ -233,10 +233,18 @@ import { Result } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| Root padding block | **48** | `paddingLG * 2` |
+| Root padding inline | **32** | `padding * 2` |
+| 普通状态 icon | **72** | `fontSizeHeading3 * 3`；kit 回落 `fontSizeLG * 4.5` |
+| 异常图宽高 | **250 × 295** | Result component token `imageWidth` / `imageHeight` |
+| icon margin-bottom | **24** | `paddingLG` |
+| title 字号 | **24** | `fontSizeHeading3`；kit 回落 `fontSizeLG * 1.5` |
+| title margin-block | **4** | `marginXS` |
+| subTitle 字号 | **14** | `fontSize` |
+| extra margin-top | **24** | `paddingLG` |
+| extra 子项水平间距 | **8** | `paddingXS * 2` |
+| body margin-top | **24** | `paddingLG` |
+| body padding | **24 × 40** | block=`paddingLG`；inline=`padding * 2.5` |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -297,9 +305,9 @@ title/subTitle/extra 展示
 
 | 项 | 要求 |
 | --- | --- |
-| 实时区域 | message/notification 用 status 语义等价 |
-| 关闭 | 可关控件可操作 |
-| 不抢焦点 | 轻提示默认不抢（Modal 例外） |
+| 语义 | 根节点提供结果区域语义；可用 `SetAriaLabel` 命名 |
+| 操作区 | `extra` 内可交互控件保持自身键盘/焦点能力 |
+| 不抢焦点 | Result 作为静态反馈容器默认不抢焦点 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -322,7 +330,10 @@ title/subTitle/extra 展示
 | --- | --- |
 | `status` | 必须 |
 | `title` | 必须 |
+| `subTitle` | 必须 |
 | `icon` | 必须 |
+| `extra` | 必须；操作区节点可点击 |
+| `children` / body | 必须；用于 Error 示例内容区 |
 | 官方主路径示例 | Success、Info、Warning、403、404、500、Error、自定义 icon |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -371,13 +382,24 @@ title/subTitle/extra 展示
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewResult(...) *Result
+type ResultStatus string
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
+const (
+    ResultInfo    ResultStatus = "info"
+    ResultSuccess ResultStatus = "success"
+    ResultWarning ResultStatus = "warning"
+    ResultError   ResultStatus = "error"
+    Result403     ResultStatus = "403"
+    Result404     ResultStatus = "404"
+    Result500     ResultStatus = "500"
+)
+
+NewResult() *Result
+
+// 配置：SetStatus / SetTitle / SetSubTitle / SetIcon / SetIconName / SetIconNone / SetExtra / SetBody
+// 状态：SetLoading（适用者：自定义/默认 glyph 可旋转提示；不改变 Result 展示语义）
+// 主题：SetTheme(*core.Theme)；SetStyle(Style) 可选覆盖 root/text
+// a11y：SetAriaLabel；extra 内控件保留自身焦点与键盘
 // 挂树：Node() core.Node
 ```
 
@@ -387,6 +409,8 @@ NewResult(...) *Result
 | --- | --- |
 | Disabled | false |
 | Size（适用者） | middle / 控件默认 |
+| status | `info` |
+| title/subTitle/extra/body/icon | 未设置 |
 | 受控值 | 未 Set 时用 default* 或零值 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 

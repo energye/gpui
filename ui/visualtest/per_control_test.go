@@ -124,7 +124,11 @@ func perControlSpecs() []ctlSpec {
 		{"ctl_spin", 80, 80, func() core.Node { return padRoot(kit.NewSpin(nil).Node(), 80, 80) }},
 		{"ctl_skeleton", 200, 40, func() core.Node { return padRoot(kit.NewSkeleton(160, 16).Node(), 200, 40) }},
 		{"ctl_result", 240, 160, func() core.Node {
-			return padRoot(kit.NewResult("success", "OK", "sub").Node(), 240, 160)
+			res := kit.NewResult()
+			res.SetStatus(kit.ResultSuccess)
+			res.SetTitle("OK")
+			res.SetSubTitle("sub")
+			return padRoot(res.Node(), 240, 160)
 		}},
 		{"ctl_scroll", 140, 100, func() core.Node {
 			col := primitive.Column()

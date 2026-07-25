@@ -1444,18 +1444,24 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Result": {
 			{"R1 status", func(t *testing.T) {
-				r := kit.NewResult("info", "t", "s")
-				if r.Status != "info" {
+				r := kit.NewResult()
+				r.SetTitle("t")
+				r.SetSubTitle("s")
+				if r.Status != kit.ResultInfo {
 					t.Fatal()
 				}
 			}},
 			{"R2 setTitle", func(t *testing.T) {
-				r := kit.NewResult("info", "t", "s")
+				r := kit.NewResult()
+				r.SetTitle("t")
+				r.SetSubTitle("s")
 				r.SetTitle("T2")
 			}},
 			{"R3 setStatus/sub", func(t *testing.T) {
-				r := kit.NewResult("info", "t", "s")
-				r.SetStatus("success")
+				r := kit.NewResult()
+				r.SetTitle("t")
+				r.SetSubTitle("s")
+				r.SetStatus(kit.ResultSuccess)
 				r.SetSubTitle("sub")
 			}},
 		},

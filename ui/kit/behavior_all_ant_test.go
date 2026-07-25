@@ -569,8 +569,10 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Result", func(t *testing.T) {
-			r := kit.NewResult("info", "t", "s")
-			if r.Status != "info" {
+			r := kit.NewResult()
+			r.SetTitle("t")
+			r.SetSubTitle("s")
+			if r.Status != kit.ResultInfo {
 				t.Fatal()
 			}
 		}},
