@@ -812,22 +812,20 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 		},
 		"Upload": {
-			{"R1 fileName", func(t *testing.T) {
+			{"R1 fileList", func(t *testing.T) {
 				u := kit.NewUpload("Up")
-				u.SetFileName("a.pdf")
-				if u.FileName != "a.pdf" {
+				u.SetFileList([]kit.UploadFile{{UID: "1", Name: "a.pdf", Status: kit.UploadStatusDone}})
+				if len(u.FileList()) != 1 || u.FileList()[0].Name != "a.pdf" {
 					t.Fatal()
 				}
 			}},
 			{"R2 picker CapFile", func(t *testing.T) {
 				u := kit.NewUpload("Up")
 				fp := &fakePicker{path: "/t", name: "t.bin", ok: true}
-				u.Picker = fp
-				// invoke click handler via pressable
+				u.SetPicker(fp)
 				tree := core.NewTree(u.Node())
-				tree.Layout(core.Size{Width: 120, Height: 40})
-				var pr *primitive.Pressable
-				walkPressable(u.Node(), &pr)
+				tree.Layout(core.Size{Width: 200, Height: 80})
+				pr := u.TriggerPressable()
 				if pr == nil {
 					t.Fatal("no pressable")
 				}
@@ -835,15 +833,15 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 				x, y := mid(abs)
 				tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
 				tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
-				if u.FileName != "t.bin" {
-					t.Fatal(u.FileName)
+				if len(u.FileList()) != 1 || u.FileList()[0].Name != "t.bin" {
+					t.Fatal(u.FileList())
 				}
 			}},
 			{"R3 accept+multiple", func(t *testing.T) {
 				u := kit.NewUpload("Up")
-				u.Accept = []string{".png"}
-				u.Multiple = true
-				if len(u.Accept) != 1 || !u.Multiple {
+				u.SetAccept(".png")
+				u.SetMultiple(true)
+				if u.Accept != ".png" || !u.Multiple {
 					t.Fatal()
 				}
 			}},

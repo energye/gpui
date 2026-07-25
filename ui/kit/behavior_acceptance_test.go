@@ -252,26 +252,26 @@ func TestBehavior_ColorPicker(t *testing.T) {
 	}
 }
 
-func TestBehavior_UploadFileName(t *testing.T) {
+func TestBehavior_UploadFileList(t *testing.T) {
 	u := kit.NewUpload("Upload")
-	u.SetFileName("doc.pdf")
-	if u.FileName != "doc.pdf" {
-		t.Fatal(u.FileName)
+	u.SetFileList([]kit.UploadFile{{UID: "1", Name: "doc.pdf", Status: kit.UploadStatusDone}})
+	list := u.FileList()
+	if len(list) != 1 || list[0].Name != "doc.pdf" {
+		t.Fatalf("fileList=%v", list)
 	}
 }
 
-// CapFile: injected FilePicker sets FileName on successful pick (expected: name + OnPick).
+// CapFile: injected FilePicker adds file via onChange on successful pick.
 func TestBehavior_UploadCapFilePick(t *testing.T) {
 	u := kit.NewUpload("Upload")
 	fp := &fakePicker{path: "/tmp/report.pdf", name: "report.pdf", ok: true}
-	u.Picker = fp
-	gotPath, gotName := "", ""
-	u.OnPick = func(path, name string) { gotPath, gotName = path, name }
+	u.SetPicker(fp)
+	var got kit.UploadChangeParam
+	u.SetOnChange(func(p kit.UploadChangeParam) { got = p })
 
 	tree := core.NewTree(u.Node())
-	tree.Layout(core.Size{Width: 160, Height: 48})
-	var pr *primitive.Pressable
-	walkPressable(u.Node(), &pr)
+	tree.Layout(core.Size{Width: 200, Height: 80})
+	pr := u.TriggerPressable()
 	if pr == nil {
 		t.Fatal("no pressable")
 	}
@@ -283,19 +283,20 @@ func TestBehavior_UploadCapFilePick(t *testing.T) {
 	if fp.calls != 1 {
 		t.Fatalf("picker calls=%d want 1", fp.calls)
 	}
-	if u.FileName != "report.pdf" {
-		t.Fatalf("FileName=%q", u.FileName)
+	list := u.FileList()
+	if len(list) != 1 || list[0].Name != "report.pdf" {
+		t.Fatalf("fileList=%v", list)
 	}
-	if gotPath != "/tmp/report.pdf" || gotName != "report.pdf" {
-		t.Fatalf("OnPick path=%q name=%q", gotPath, gotName)
+	if got.File.Name != "report.pdf" || got.File.Path != "/tmp/report.pdf" {
+		t.Fatalf("OnChange file=%+v", got.File)
 	}
 
-	// Cancel leaves prior name.
+	// Cancel leaves prior list.
 	fp.ok = false
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerDown, X: x, Y: y, Button: core.ButtonLeft})
 	tree.DispatchPointer(&core.PointerEvent{Type: core.PointerUp, X: x, Y: y, Button: core.ButtonLeft})
-	if u.FileName != "report.pdf" {
-		t.Fatalf("cancel mutated FileName=%q", u.FileName)
+	if len(u.FileList()) != 1 || u.FileList()[0].Name != "report.pdf" {
+		t.Fatalf("cancel mutated fileList=%v", u.FileList())
 	}
 }
 

@@ -505,15 +505,25 @@ import { Upload } from 'antd';
 
 #### 6.2.1 几何与组件 Token
 
+数值对齐 antd `components/upload/style`（`prepareComponentToken` + list/picture/dragger）。
+
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
+| 触发按钮高度 middle | **32** | `controlHeight`（内嵌 Button 时） |
+| 触发按钮高度 small | **24** | `controlHeightSM` |
+| 触发按钮高度 large | **40** | `controlHeightLG` |
 | 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 大字号（drag 文案） | **16** | `fontSizeLG` |
+| 圆角（列表项 / 触发） | **6** | `borderRadius` |
+| 大圆角（drag / picture-card） | **8** | `borderRadiusLG` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| `pictureCardSize` | **≈102**（`controlHeightLG * 2.55`） | 组件 Token；卡片格宽高 |
+| 列表缩略图 `uploadThumbnailSize` | **48**（`fontSizeHeading3 * 2`，回落 24×2） | 组件派生 |
+| 列表项上边距 | **4** | `marginXS` |
+| 列表项水平 padding | **4** | `paddingXS` |
+| Drag 区内边距 | **16** | `padding` |
+| 进度条线宽（list progress） | **2** | 与 antd Progress 默认 `strokeWidth: 2` 对齐 |
 
 #### 6.2.2 颜色 Token（语义）
 
@@ -600,11 +610,12 @@ disabled ──► 不可选
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | textbox / combobox / spinbutton / listbox 等 |
-| 标签 | 与 Form.Item label 或 aria-labelledby 关联 |
-| 清除/下拉 | 控件有可访问名称 |
-| 错误 | status=error 时暴露 invalid |
-| 键盘 | 主路径可选/提交/关闭 |
+| 角色 | 触发器 `button`（或等价可激活）；文件列表容器可标 `list`；单项 `listitem` |
+| 名称 | 触发器必须有可访问名（`AriaLabel` / 触发文案 / 自定义 Trigger 自带名） |
+| 焦点 | Tab 可聚焦触发器；Focus ring 可见（§6.2） |
+| 错误 | 文件 `status=error` 时名称/文案暴露错误语义（颜色 + 可读文案） |
+| 键盘 | Space / Enter 激活触发器选文件；删除键路径可选（P1） |
+| 禁用 | `disabled` 时不可激活、读屏可感知 |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -625,11 +636,25 @@ disabled ──► 不可选
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
-| `disabled` | 必须 |
-| `status` | 必须 |
-| `fileList` | 必须 |
-| `percent` | 必须 |
+| `fileList` / `defaultFileList` + 受控 `Controlled` | 列表数据；受控时父级 `SetFileList` |
+| `onChange({file, fileList, event?})` | 选择 / 进度 / 完成 / 失败 / 移除均触发 |
+| `UploadFile.status` / `percent` | `uploading` / `done` / `error` / `removed` + 0..100 |
+| `disabled` | 不可选 / 不可拖 / 不可粘贴 |
+| `listType` | `text` / `picture` / `picture-card` / `picture-circle` |
+| `type` | `select`（点击） / `drag`（拖拽区）；`NewUploadDragger` 糖 |
+| `customRequest` | **桌面主路径**；覆盖默认上传；`onProgress`/`onSuccess`/`onError` |
+| `beforeUpload` | `Proceed` / `SkipUpload`（列表可有文件不上传）/ `Reject` |
+| `onRemove` | 返回 false 阻止移除 |
+| `onPreview` | 点击文件名/预览 |
+| `maxCount` | 1=替换；>1 截断；触顶隐藏触发器（card） |
+| `accept` | 扩展名 / MIME 前缀过滤（或宿主 Picker 过滤） |
+| `multiple` | 多选 |
+| `showUploadList` | 默认 true；头像示例可关 |
+| `pastable` + `PasteFiles` / PasteProvider | 粘贴上传主路径（桌面注入） |
+| `DropFiles` / `onDrop` | 拖入等价 onChange |
+| 触发器 | 默认 Button / card「+ Upload」/ drag 区；`SetTriggerNode` 自定义 |
+| 宿主 `UploadFilePicker` | 注入系统选文件（CapFile）；测试用 fake |
+| 默认 `customRequest`（无注入时） | Ticker 模拟进度 → done（demo / gallery） |
 | 官方主路径示例 | 点击上传、用户头像、已上传的文件列表、照片墙、圆形照片墙、完全控制的上传列表、拖拽上传、粘贴上传 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -639,11 +664,16 @@ disabled ──► 不可选
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| `action` / `headers` / `data` / `method` / `withCredentials` 真 HTTP | 桌面由业务 `customRequest` 实现 |
+| `directory` 文件夹上传 | 宿主能力 |
+| `iconRender` / `itemRender` / `isImageUrl` / `previewFile` 深度 | 自定义渲染 |
+| `progress` ProgressProps 全量 | P0 仅 percent 线宽 2 |
+| 上传列表拖拽排序 / 裁切 / OSS 直传示例 | 业务层 |
 | semantic classNames/styles 深度 | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 文件夹上传, 手动上传, 只上传 png 图片, 图片列表样式 |
+| 其余示例 | 文件夹上传, 手动上传, 只上传 png 图片, 图片列表样式, 自定义进度条, 拖拽排序, 裁切 |
 
 ### 6.9 验收用例表（可测）
 
@@ -680,42 +710,101 @@ disabled ──► 不可选
 | UPL-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（旧 `FileName` / `OnPick` / `Accept []string` 删除）；以下为 **产品需求层** 契约。
 
 ```text
-NewUpload(...) *Upload
+NewUpload(triggerLabel ...string) *Upload
+NewUploadDragger(hint ...string) *Upload   // type=drag 糖
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 形态
+SetType(UploadType)                 // select | drag
+SetListType(UploadListType)         // text | picture | picture-card | picture-circle
+SetDisabled(bool)
+SetMultiple(bool)
+SetAccept(string)                   // ".png,image/*"
+SetMaxCount(int)                    // 0=不限；1=替换
+SetShowUploadList(bool)             // 默认 true
+SetPastable(bool)
+SetControlled(bool)
+SetTriggerLabel(string)
+SetTriggerNode(core.Node)           // 自定义 children；nil 恢复默认
+SetDragText / SetDragHint(string)   // type=drag 文案
+
+// 数据
+SetFileList([]UploadFile)
+SetDefaultFileList([]UploadFile)
+FileList() []UploadFile
+
+// 钩子
+SetBeforeUpload(func(file UploadLocalFile, batch []UploadLocalFile) UploadBeforeAction)
+SetCustomRequest(func(UploadRequestOptions))
+SetOnChange(func(UploadChangeParam))
+SetOnRemove(func(UploadFile) bool)  // false → 不移除
+SetOnPreview(func(UploadFile))
+SetOnDrop(func([]UploadLocalFile))
+
+// 宿主
+SetPicker(UploadFilePicker)         // PickFiles(opts) ([]UploadLocalFile, bool)
+SetPasteProvider(func() []UploadLocalFile)
+SelectFiles([]UploadLocalFile)      // 程序化选择（测试/宿主）
+DropFiles([]UploadLocalFile)        // 拖入
+PasteFiles([]UploadLocalFile)       // 粘贴
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) / SetFace / Style
+SetAriaLabel(string)
+Node() core.Node
+TriggerNode() core.Node             // 触发器根（测 focus / click）
+ListNode() core.Node                // 列表根（测布局）
+AttachTicker(*core.Tree)            // 默认上传进度 / loading 环
+```
+
+**类型摘录：**
+
+```text
+UploadFile{UID, Name, Size, Type, Path, URL, Status, Percent, ThumbURL, Response, Error, Origin}
+UploadFileStatus: "" | uploading | done | error | removed
+UploadLocalFile{Name, Path, Type, Size}
+UploadChangeParam{File, FileList, Event *{Percent}}
+UploadRequestOptions{File, OnProgress, OnSuccess, OnError}
+UploadBeforeAction: Proceed | SkipUpload | Reject
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Type | select |
+| ListType | text |
+| Disabled / Multiple / Pastable / Controlled | false |
+| ShowUploadList | true |
+| MaxCount | 0（不限） |
+| Accept | ""（不过滤） |
+| TriggerLabel | "Click to Upload"（或构造参数） |
+| DragText | "Click or drag file to this area to upload" |
+| DragHint | "Support for a single or bulk upload." |
+| 受控列表 | 未 Controlled 时内部维护；DefaultFileList 仅初始 |
+| customRequest | 未设时默认 Ticker 模拟上传至 done |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+Flex Root（column；picture-card/circle 为 wrap 行）
+  ├─ Trigger（Pressable）
+  │    ├─ select + text/picture → 默认 Button（icon+label）或 TriggerNode
+  │    ├─ select + picture-card/circle → 虚线卡片「+ / Upload」
+  │    └─ drag → 虚线大区（icon + text + hint）；hover 主色边
+  └─ List（ShowUploadList）
+       └─ Item × N
+            ├─ text/picture：icon/thumb + name + 移除 + Progress(line, strokeWidth=2)
+            └─ picture-card/circle：卡片格 + 预览/移除叠层；circle 圆角 50%
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default / 字段 / Token；色与圆角走 Theme。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 上传进度 / loading 环跟随 Host `Ticker`；尊重 reduced-motion（可瞬时到 done）。  
 
 ### 6.12 完成定义（DoD）
 

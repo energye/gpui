@@ -8,16 +8,23 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
-// fakePicker implements Upload.Picker for CapFile tests.
+// fakePicker implements kit.UploadFilePicker for CapFile tests.
 type fakePicker struct {
 	path, name string
 	ok         bool
 	calls      int
+	files      []kit.UploadLocalFile
 }
 
-func (f *fakePicker) PickOpen(title string, filters []string) (string, string, bool) {
+func (f *fakePicker) PickFiles(title string, filters []string, multiple bool) ([]kit.UploadLocalFile, bool) {
 	f.calls++
-	return f.path, f.name, f.ok
+	if !f.ok {
+		return nil, false
+	}
+	if len(f.files) > 0 {
+		return f.files, true
+	}
+	return []kit.UploadLocalFile{{Name: f.name, Path: f.path}}, true
 }
 
 // TestBehavior_AllAntControls has one acceptance case per AntCoverage entry
@@ -350,12 +357,11 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		{"Upload", func(t *testing.T) {
 			u := kit.NewUpload("Up")
 			fp := &fakePicker{path: "/tmp/x.png", name: "x.png", ok: true}
-			u.Picker = fp
-			// click button
+			u.SetPicker(fp)
+			// click trigger
 			tree := core.NewTree(u.Node())
-			tree.Layout(core.Size{Width: 120, Height: 48})
-			var pr *primitive.Pressable
-			walkPressable(u.Node(), &pr)
+			tree.Layout(core.Size{Width: 200, Height: 80})
+			pr := u.TriggerPressable()
 			if pr == nil {
 				t.Fatal("no pressable")
 			}
@@ -366,8 +372,9 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			if fp.calls != 1 {
 				t.Fatalf("picker calls=%d", fp.calls)
 			}
-			if u.FileName != "x.png" {
-				t.Fatalf("file=%q", u.FileName)
+			list := u.FileList()
+			if len(list) != 1 || list[0].Name != "x.png" {
+				t.Fatalf("fileList=%v", list)
 			}
 		}},
 		{"Avatar", func(t *testing.T) {
