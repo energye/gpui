@@ -46,6 +46,7 @@ const (
 	IconStar
 	IconHeart
 	IconLoading // ring segment (spin-friendly)
+	IconUser    // simple person silhouette (Avatar demos)
 	IconCustom  // uses Path later; draws a diamond placeholder
 )
 
@@ -67,6 +68,7 @@ func NewIconRegistry() *IconRegistry {
 	r.Register("heart", IconDef{Kind: IconHeart, TwoTone: true})
 	r.Register("loading", IconDef{Kind: IconLoading})
 	r.Register("sync", IconDef{Kind: IconLoading})
+	r.Register("user", IconDef{Kind: IconUser})
 	return r
 }
 
@@ -292,6 +294,16 @@ func drawIconLocal(pc *core.PaintContext, kind IconKind, s float64, primary, sec
 			x1 - pad*0.3, y0 + pad*0.6,
 			x1 - pad*0.2, cy,
 			cx, y1 - pad*0.4,
+		}, lw, primary)
+	case IconUser:
+		// Head + shoulders silhouette (antd UserOutlined-ish).
+		pc.StrokeLocalCircle(cx, cy-s*0.16, s*0.16, lw, primary)
+		pc.StrokeLocalPolyline([]float64{
+			x0 + pad*0.3, y1 - pad*0.15,
+			x0 + pad*0.3, cy + s*0.12,
+			cx, cy + s*0.02,
+			x1 - pad*0.3, cy + s*0.12,
+			x1 - pad*0.3, y1 - pad*0.15,
 		}, lw, primary)
 	case IconLoading:
 		// Open ring segment — reads as spinner when rotated.

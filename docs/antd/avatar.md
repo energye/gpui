@@ -277,30 +277,45 @@ import { Avatar } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。  
+源码：`components/avatar/style/index.ts` → `prepareComponentToken` / `genBaseStyle` / `genGroupStyle`。
 
-#### 6.2.1 几何与组件 Token
+#### 6.2.1 尺寸档位（containerSize）
+
+| size（antd） | kit 枚举 | 边长 | 字号 textFontSize | 图标字号 iconFontSize | square 圆角 |
+| --- | --- | --- | --- | --- | --- |
+| `small` | `AvatarSmall` | **24**（`controlHeightSM`） | **14**（`fontSize`） | **14**（`fontSize`） | **4**（`borderRadiusSM`） |
+| `medium`（默认） | `AvatarMiddle` | **32**（`controlHeight`） | **14**（`fontSize`） | **18**（≈`(fontSizeLG+fontSizeXL)/2`） | **6**（`borderRadius`） |
+| `large` | `AvatarLarge` | **40**（`controlHeightLG`） | **14**（`fontSize`） | **24**（≈`fontSizeHeading3`） | **8**（`borderRadiusLG`） |
+| 自定义 number | `AvatarSizeCustom` + px | 自定义 | 自定义 number 时字号 **18**（非 icon）；icon 时 **size/2** | 同左 | 同档 radius 或自定义 |
+
+#### 6.2.2 其它几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 默认 size | **32** | 默认尺寸 |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 默认 size | **32** | `containerSize` = `controlHeight` |
+| `gap`（字符左右留白） | **4** | 产品默认；`SetGap` 覆盖 |
+| 边框线宽 | **1** | `lineWidth`；默认色 transparent（组内见 groupBorder） |
+| circle 圆角 | **size/2** | 圆形 |
+| square 圆角 | 见上表 | `borderRadius` 档 |
+| Group 重叠 | **−8** | `groupOverlapping` = `−marginXS`（antd seed marginXS=8；本库 DefaultAvatarGroupOverlapping） |
+| Group 间距（popover 内） | **4** | `groupSpace` = `marginXXS`（库无 Token 时回落 4） |
+| Group 边框色 | 容器底 | `groupBorderColor` ≈ `colorBgContainer` |
+| Focus ring outset | ≈ **1.5px** 可见 | 可交互/可聚焦时；装饰默认 HitDefer 可不聚焦 |
+| Loading 指示 | 边长 ≈ size×0.45 | Ticker 旋转环 |
 
-#### 6.2.2 颜色 Token（语义）
+#### 6.2.3 颜色 Token（语义）
 
-| 用途 | Token 建议 | 备注 |
+| 用途 | Token / 回落 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 默认填充 `avatarBg` | `colorTextPlaceholder` ≈ **`colorTextQuaternary`**（A≈0.25 灰） | 非 primary；禁止默认用品牌蓝 |
+| 默认字/图标 `avatarColor` | **`colorTextLightSolid` / `colorTextInverse`** | 浅色字 |
+| 图片态底 | **透明** | `src` 成功时 |
+| 边框 | transparent（单）/ 组内 `groupBorderColor` | |
+| 禁用 | `colorDisabledBg` / `colorDisabledText` | 适用者 |
+| Style 覆盖 | `Style.Background` / `Style.Text` | 官方 type demo 自定义色 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色（`#1677FF`）作为唯一默认皮。
 
 ### 6.3 关键配置与语义
 
@@ -308,56 +323,84 @@ import { Avatar } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `alt` | 图像无法显示时的替代文本 | string | - |
-| `gap` | 字符类型距离左右两侧边界单位像素 | number | 4 |
-| `icon` | 设置头像的自定义图标 | ReactNode | - |
-| `shape` | 指定头像的形状 | `circle` \ | `square` |
-| `size` | 设置头像的大小 | number \ | `large` \ |
-| `src` | 图片类头像的资源地址或者图片元素 | string \ | ReactNode |
-| `srcSet` | 设置图片类头像响应式资源地址 | string | - |
-| `draggable` | 图片是否允许拖动 | boolean \ | `'true'` \ |
-| `crossOrigin` | CORS 属性设置 | `'anonymous'` \ | `'use-credentials'` \ |
-| `onError` | 图片加载失败的事件，返回 false 会关闭组件默认的 fallback 行为 | () => boolean | - |
-| `max` | 设置最多显示相关配置 | `{ count?: number; style?: CSSPropert… | - |
+| `children` / text | 字符头像内容 | string | — |
+| `alt` | 图像无法显示时的替代文本 | string | — |
+| `gap` | 字符类型距离左右两侧边界单位像素 | number | **4** |
+| `icon` | 设置头像的自定义图标（kit：图标名或 Node） | string / Node | — |
+| `shape` | 指定头像的形状 | `circle` \| `square` | **`circle`** |
+| `size` | 设置头像的大小 | number \| `large` \| `medium` \| `small` \| 响应式 map | **`medium`** |
+| `src` | 图片类头像资源（kit：路径/URL 标签；可 `SetPixels` 像素） | string | — |
+| `srcSet` | 响应式资源 | string | —（P1 宿主解码） |
+| `draggable` | 图片是否允许拖动 | bool | true（桌面映射为标志） |
+| `crossOrigin` | CORS | string | —（P1） |
+| `onError` | 图片加载失败；返回 false 关闭默认 fallback | `func() bool` | — |
+| `onClick` | 点击（可选交互） | `func()` | — |
+| `loading` | 加载中 | bool | false |
+| `disabled` | 禁用 | bool | false |
+| Group `max.count` | 最多显示个数，溢出 `+N` | int | — |
+| Group `max.style` | 溢出头 Style | Style | — |
+| Group `size` / `shape` | 组内默认 size/shape 上下文 | 同 Avatar | medium / circle |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**内容优先级（antd）：**  
+`src` 成功图 → 否则 `icon` → 否则 `children` 字（失败 fallback：`icon` > `children`）。
+
+**配置优先级（通用）：** 受控 props > 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认（ConfigProvider 为 P1）。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-优先 src 图 ── 失败 onError ──► children 字 / icon
-Group max ──► +N
-```
+mount
+  │
+  ├─ src 非空 ── load OK ──► image 态（透明底 + 图）
+  │                │ fail
+  │                └─ onError?  ── return false ──► 保持 image 占位（调用方自处理）
+  │                              └─ else ──► fallback: icon > children 字
+  ├─ 无 src + icon ──► icon 态
+  └─ 无 src + 无 icon ──► string 态（字符；gap 触发 scale 适配）
 
-\*默认 32。
+Group:
+  children N, max.count=M (M<N) ──► 显示前 M 个 + 溢出 Avatar("+N-M")
+  groupOverlapping 负边距叠压
+```
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| AV-S1 | src 成功 | 图 |
-| AV-S2 | src 失败 | 回退字/icon；onError |
-| AV-S3 | 字头像 | 显示字符 |
-| AV-S4 | shape=square | 方 |
-| AV-S5 | size=large | 更大 |
-| AV-S6 | Group max=2 三个头 | +1 类溢出 |
-| AV-S7 | 默认 size | 32 |
+| AV-S1 | `src` 成功（或 `SetImageOK(true)` / 有 Pixels） | 图态；底透明 |
+| AV-S2 | `src` 失败（`NotifyImageError` 或加载失败） | 调用 `onError`；非 false 则回退字/icon |
+| AV-S3 | 字头像 | 显示字符；长串按 gap 缩小 |
+| AV-S4 | `shape=square` | 圆角 = borderRadius 档（非 50%） |
+| AV-S5 | `size=large` | 边长 40 |
+| AV-S6 | Group `max.count=2` 且 3 个头 | 可见 2 + `+1` 溢出头 |
+| AV-S7 | 默认 size | 边长 32（medium） |
+| AV-S8 | `size=small` | 边长 24 |
+| AV-S9 | 自定义 `size=64` | 边长 64；icon 字号 32 |
+| AV-S10 | `SetLoading(true)` | 显示 spinner（Ticker）；可与内容叠加 |
+| AV-S11 | `SetGap` 变化 | 重新计算字符 scale |
+| AV-S12 | Group 继承 size/shape | 子项未显式设置时用组上下文 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| default | 符合 §6.2 Token |
-| hover/active/focus | 可交互者具备反馈与 focus ring |
-| disabled / loading / empty | 按本控件语义 |
+| default | 填充 `avatarBg`、字色 `avatarColor`；circle 50% / square radius 档 |
+| image | 底透明；内容 cover 铺满 |
+| icon | 图标居中；字号见 §6.2.1 |
+| string | 字符居中；scale ≤ 1 使 `advance ≤ size − 2×gap` |
+| hover/active/focus | 默认为展示控件（HitDefer）；若设 OnClick/可聚焦则 focus ring 可见 |
+| disabled / loading | 禁用色；loading 旋转指示（Ticker） |
 | 主题切换 | 色与间距随 Theme 更新 |
+| Group | 子项负 margin 叠压；子边框 `groupBorderColor` |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 字符 scale / 入场可瞬时；loading 旋转须可关或尊重 reduced-motion；P0 允许固定转速。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 装饰图 | alt 或 aria-hidden |
-| 有意义操作 | 复制/关闭/展开有名 |
+| 装饰默认 | 默认 `HitDefer`、非 Tab 序；`aria-hidden` 等价（Decorative） |
+| 图 | `alt` 有则作为可访问名；无则装饰 |
+| 有 OnClick / 可聚焦 | 角色 button 或等价；`SetAriaLabel` 可命名；Space/Enter 触发 |
+| 溢出 `+N` | 文本即名称（如 `+1`） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -365,9 +408,13 @@ Group max ──► +N
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
+| 字符自动 scale（gap） | **对等**（布局后量字宽） | P0 L1 |
+| Avatar.Group max + 溢出 | **对等**（`+N`） | P0 L1 |
+| Group max.popover 展开隐藏项 | **近似**：P0 可只显示 `+N`；Popover 为 P1 | P0 溢出 / P1 popover |
+| 真网络解码 `src` URL | **宿主**：P0 提供 `SetSrc` + `SetPixels` / `SetImageOK` / `NotifyImageError` 注入 | P0 状态机 / P1 自动 HTTP |
+| `srcSet` / `crossOrigin` / `draggable` 浏览器语义 | 标志或 P1 | P1 |
+| 响应式 size map（xs/sm/…） | **对等**：`SetResponsiveSize` + `SetBreakpoint` 注入当前档 | P0 L1 |
 | 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
 | ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
 | 逐像素官网哈希 | **不做** | — |
@@ -378,9 +425,16 @@ Group max ──► +N
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `size` | 必须 |
-| `shape` | 必须 |
-| `icon` | 必须 |
+| `size` small/medium/large + 自定义 number | 必须 |
+| `shape` circle \| square | 必须 |
+| `icon`（图标名 / Node） | 必须 |
+| `children` / text 字符 + `gap` 自动 scale | 必须 |
+| `src` 状态机 + `onError` + fallback | 必须（像素/OK 可注入） |
+| `alt` / `SetAriaLabel` | 必须 |
+| `loading`（Ticker） / `disabled` | 必须 |
+| `Style` 背景/字色覆盖 | 必须 |
+| Avatar.Group：`size`/`shape` 上下文、`max.count`、溢出 `+N`、叠压 | 必须 |
+| 响应式 size map + 当前 breakpoint 注入 | 必须 |
 | 官方主路径示例 | 基本、类型、自动调整字符大小、带徽标的头像、Avatar.Group、响应式尺寸 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -390,10 +444,12 @@ Group max ──► +N
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
+| Group `max.popover` 展开隐藏头像 | 分期 |
+| 真 HTTP 解码 `src` / `srcSet` / `crossOrigin` | 分期 |
+| `draggable` 桌面拖拽 | 分期 |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
+| ConfigProvider 全局 avatar 默认 | 分期 |
+| 动画像素级 / debug 示例 / 官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -402,62 +458,114 @@ Group max ──► +N
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| AV-01 | L1 | NewAvatar 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| AV-02 | L1 | src 成功 | 图 |
-| AV-03 | L1 | src 失败 | 回退字/icon；onError |
-| AV-04 | L1 | 字头像 | 显示字符 |
-| AV-05 | L1 | shape=square | 方 |
-| AV-06 | L1 | size=large | 更大 |
-| AV-07 | L1 | Group max=2 三个头 | +1 类溢出 |
-| AV-08 | L1 | 默认 size | 32 |
-| AV-09 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AV-10 | L1 | 复现官方示例「类型」（`type.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AV-11 | L1 | 复现官方示例「自动调整字符大小」（`dynamic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AV-12 | L1 | 复现官方示例「带徽标的头像」（`badge.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AV-13 | L1 | 复现官方示例「Avatar.Group」（`group.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AV-14 | L1 | 复现官方示例「响应式尺寸」（`responsive.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| AV-15 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| AV-16 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| AV-17 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| AV-18 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
+| AV-01 | L1 | NewAvatar 默认创建 | 不崩溃；shape=circle；size=middle；gap=4；非 disabled/loading |
+| AV-02 | L1 | src 成功（`SetSrc`+`SetImageOK(true)` 或 `SetPixels`） | 图态；ContentMode=image |
+| AV-03 | L1 | src 失败（`NotifyImageError`） | 调用 onError；回退字/icon |
+| AV-04 | L1 | 字头像 `SetText("U")` | 显示字符；ContentMode=text |
+| AV-05 | L1 | shape=square | 方；圆角≈6（middle） |
+| AV-06 | L1 | size=large | 边长 40±0.5 |
+| AV-07 | L1 | Group max=2 三个头 | 可见 2 + 溢出 `+1` |
+| AV-08 | L1 | 默认 size | 边长 32±0.5 |
+| AV-09 | L1 | 复现官方示例「基本」（`basic.tsx`） | circle/square × 多档 size 可布局 |
+| AV-10 | L1 | 复现官方示例「类型」（`type.tsx`） | icon / 字 / src / Style 自定义色可布局 |
+| AV-11 | L1 | 复现官方示例「自动调整字符大小」（`dynamic.tsx`） | 长串 scale&lt;1 或字宽适配 gap |
+| AV-12 | L1 | 复现官方示例「带徽标的头像」（`badge.tsx`） | Badge 包 Avatar 可布局 |
+| AV-13 | L1 | 复现官方示例「Avatar.Group」（`group.tsx`） | 组与 max 溢出可布局 |
+| AV-14 | L1 | 复现官方示例「响应式尺寸」（`responsive.tsx`） | SetResponsiveSize + breakpoint 改边长 |
+| AV-15 | L2 | 读取 §6.2 关键尺寸/间距 | small24 / middle32 / large40；字号/圆角表内数字 ±0.5 |
+| AV-16 | L2 | 默认皮颜色 | 填充非 primary 硬编码；走 quaternary/inverse Token |
+| AV-17 | L2 | disabled 外观 | 禁用色；无 hover 高亮 |
+| AV-18 | L1 | OnClick + 键盘 | 可聚焦时 Space/Enter 触发；Focus ring 可开 |
 | AV-19 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
 | AV-20 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | AV-21 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。
 
 ```text
-NewAvatar(...) *Avatar
+// ── Avatar ──
+NewAvatar(text string) *Avatar          // children 字；可空
+NewAvatarIcon(iconName string) *Avatar  // icon 便捷构造
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type AvatarSize int // AvatarSmall | AvatarMiddle | AvatarLarge | AvatarSizeCustom
+type AvatarShape int // AvatarCircle | AvatarSquare
+
+// 配置
+SetText(s string)
+SetIcon(name string)                 // 空清除；优先于字（无图时）
+SetIconNode(n core.Node)             // 自定义图标节点
+SetShape(AvatarShape)
+SetSize(AvatarSize)                  // 预设档
+SetSizePx(px float64)                // 自定义 number → AvatarSizeCustom
+SetResponsiveSize(m AvatarResponsiveSize) // xs/sm/md/lg/xl/xxl
+SetBreakpoint(bp string)             // 当前断点键，驱动响应式
+SetGap(px float64)                   // 默认 4
+SetSrc(src string)                   // 进入图态意图；重置 isImgExist
+SetSrcSet(s string)                  // 存字段；P1 解码
+SetPixels(w, h int, rgba []byte)     // 注入位图 → 图成功
+SetImageOK(ok bool)                  // 宿主标记解码结果
+NotifyImageError()                   // 触发 onError + 默认 fallback
+SetAlt(s string)
+SetDraggable(v bool)
+SetCrossOrigin(s string)
+SetOnError(fn func() bool)
+SetOnClick(fn func())
+SetLoading(v bool)                   // Ticker spinner
+SetDisabled(v bool)
+SetTheme(*core.Theme)
+SetStyle(Style)                      // Background / Text 等
+SetFace(text.Face)
+SetAriaLabel(s string)
+SetInteractive(v bool)               // 可聚焦 + 点击
+
+// 查询
+ContentMode() AvatarContent          // image | icon | text
+ResolvedSize() float64
+ChromeNode() core.Node
+Node() core.Node
+AttachTicker(*core.Tree)
+
+// ── Avatar.Group ──
+NewAvatarGroup(children ...*Avatar) *AvatarGroup
+SetSize / SetSizePx / SetShape       // 组上下文
+SetMaxCount(n int)                   // max.count；0=不限制
+SetMaxStyle(Style)                   // 溢出头样式
+Add / SetChildren
+Node() core.Node
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Shape | circle |
+| Size | middle → 32 |
+| Gap | 4 |
+| Disabled / Loading | false |
+| Draggable | true |
+| 默认皮 | Token quaternary 底 + inverse 字 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+Avatar
+  Decorated root (fixed size × size; radius; bg; clip via overflow hidden equiv)
+    └─ content: image | icon | scaled text
+    └─ loading spinner? (overlay / replace)
+
+AvatarGroup
+  Row / inline-flex
+    └─ Avatar… (marginInlineStart = groupOverlapping for i>0)
+    └─ overflow Avatar("+N")?
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- `rebuild()` 只读 Default/字段/Token；值变更避免无谓整树销毁（Root 身份尽量稳定）。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- loading 旋转跟随 Host Tick；静止不挂 Ticker。  
 
 ### 6.12 完成定义（DoD）
 
@@ -467,9 +575,15 @@ Display root
 2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
 4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。  
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/avatar.md` §6；P1 显式列出。  
 
 ---
 
 **本章用法**：实现 `ui/kit` Avatar 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+
+**本节相对原稿的修订（实现前）：**  
+- **§6.2**：补全 antd `prepareComponentToken` 尺寸/字号/图标字号/组叠压硬数字；默认皮改为 placeholder/inverse 而非 primary。  
+- **§6.3 / §6.4**：内容优先级、fallback、Group 规则 ID（AV-S8–S12）。  
+- **§6.7 / §6.8**：响应式 size、src 宿主注入、Group popover 划入 P1；P0 清单对齐官方 6 个非 debug 示例。  
+- **§6.9 / §6.10**：用例可测化；完整 Go API 契约（含 AvatarGroup）。

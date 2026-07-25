@@ -856,12 +856,12 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			{"R2 setText/size", func(t *testing.T) {
 				a := kit.NewAvatar("A")
 				a.SetText("B")
-				a.SetSize(48)
+				a.SetSizePx(48)
 			}},
 			{"R3 shape", func(t *testing.T) {
 				a := kit.NewAvatar("A")
-				a.Shape = "square"
-				if a.Shape != "square" {
+				a.SetShape(kit.AvatarSquare)
+				if a.Shape != kit.AvatarSquare {
 					t.Fatal()
 				}
 			}},
