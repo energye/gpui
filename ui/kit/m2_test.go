@@ -153,8 +153,10 @@ func TestAnchoredPopupOpen(t *testing.T) {
 }
 
 func TestTooltipSync(t *testing.T) {
-	trig := primitive.NewText("?")
-	tt := kit.NewTooltip(trig, "help")
+	tt := kit.NewTooltip("help")
+	tt.SetTriggerLabel("?")
+	tt.SetMouseEnterDelay(0)
+	tt.SetMouseLeaveDelay(0)
 	tree := core.NewTree(tt.Node())
 	tree.Layout(core.Size{Width: 300, Height: 200})
 	// hover shell via move

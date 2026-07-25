@@ -881,10 +881,13 @@ func (m *Menu) buildItemRow(it MenuItem, depth int, keyPath []string, ct MenuCol
 
 	// Collapsed tooltip.
 	if collapsed && m.tooltipOn() && it.tipTitle() != "" {
-		tt := NewTooltip(shell, it.tipTitle())
-		tt.Face = m.Face
+		tt := NewTooltip(it.tipTitle())
+		tt.SetTriggerNode(shell)
+		tt.SetFace(m.Face)
 		tt.Theme = m.Theme
-		tt.Popup.Placement = primitive.PlaceRight
+		tt.SetPlacement(TooltipRight)
+		tt.SetMouseEnterDelay(0)
+		tt.SetMouseLeaveDelay(0)
 		return tt.Node()
 	}
 

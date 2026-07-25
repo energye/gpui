@@ -256,7 +256,10 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(kit.NewPopconfirm(kit.NewButton("?").Node(), "sure?").Node(), 140, 48)
 		}},
 		{"ctl_tooltip", 140, 48, func() core.Node {
-			return padRoot(kit.NewTooltip(kit.NewButton("tip").Node(), "hello").Node(), 140, 48)
+			tt := kit.NewTooltip("hello")
+			tt.SetTriggerLabel("tip")
+			tt.SetMouseEnterDelay(0)
+			return padRoot(tt.Node(), 140, 48)
 		}},
 		{"ctl_popover", 140, 48, func() core.Node {
 			pop := kit.NewPopover("pop")

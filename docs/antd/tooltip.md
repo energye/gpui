@@ -372,8 +372,8 @@ import { Tooltip } from 'antd';
 
 | 级别 | 名称 | 本控件含义 | 验收方式 |
 | --- | --- | --- | --- |
-| **L1** | 行为 | 开合、遮罩/Esc、placement、确认/取消主路径 | Headless / behavior 测试 |
-| **L2** | Token / 几何 | 尺寸与颜色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
+| **L1** | 行为 | hover/focus/click 开合、空 title 不显示、placement 12 向、arrow、color、delay、受控 open | Headless / behavior 测试 |
+| **L2** | Token / 几何 | padding / 圆角 / 字号 / maxWidth / 默认皮色走 Theme；符合 §6.2 | Token 断言 / 布局测 |
 | **L3** | 本库 golden | 固定字体、`scale=1`、关键态截图与基线一致（AA 容差） | golden / visualtest |
 | **L4** | 人眼气质 | 与 ant.design 并排「一眼同系」 | 建/大改基线时人眼签字 |
 
@@ -384,33 +384,41 @@ import { Tooltip } from 'antd';
 - 浏览器-only 且桌面无等价映射的 API（见 §6.7，标 P1/不做）。  
 - 官方 **debug** 示例不计入 P0 验收。  
 
-> 控件说明：简单的文字提示气泡框。
+> 控件说明：简单的文字提示气泡框（悬停/聚焦/点击触发的黑底反白 tip）。
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`、`borderRadius=6`）。  
+源码：`components/tooltip/style`（`prepareComponentToken` + `genTooltipStyle`）。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| 字号 | **14** | `fontSize` |
+| 圆角 | **6** | `borderRadius`（`tooltipBorderRadius`） |
+| 水平 padding | **8** | antd `paddingXS`；kit 常量 `DefaultTooltipPaddingX` |
+| 垂直 padding | **6** | antd `paddingSM / 2`；kit 常量 `DefaultTooltipPaddingY` |
+| 内容 minHeight | **32** | `controlHeight` |
+| 最大宽度 | **250** | 组件 Token `maxWidth` |
+| 箭头边长 | **8** | `sizePopupArrow / 2` 近似；kit `DefaultTooltipArrowSize` |
+| 锚点间距 Gap | **8** | 与箭头半高同量级；`AnchoredPopup.Gap` |
+| z-index | **1070** 档 | antd `zIndexPopupBase + 70`；kit `DefaultTooltipPortalZ` |
+| Focus ring outset | ≈ **1.5px** 可见 | 触发器可聚焦时必须可见 |
+| mouseEnterDelay | **0.1 s** | antd 默认；Ticker 累计 |
+| mouseLeaveDelay | **0.1 s** | antd 默认；Ticker 累计 |
 
 #### 6.2.2 颜色 Token（语义）
 
-| 用途 | Token 建议 | 备注 |
+| 用途 | Token / 回落 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 默认气泡底 | `colorBgSpotlight`（未进 Theme 时回落 `rgba(0,0,0,0.85)`） | antd light seed = textBase @ 0.85 |
+| 默认气泡字 | `colorTextInverse`（= `colorTextLightSolid`） | 反白 |
+| `color` 预设 | 预设 solid/dark 色（与 Tag 预设同源） | pink/red/…/lime；字色自适应反白 |
+| `color` 自定义 | `#hex` | 底色 = 该色；字色按亮度自适应 |
+| 禁用触发 | `colorDisabledBg` / `colorDisabledText` | 触发器禁用皮；tip 不打开 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌主色作为唯一默认皮（默认黑底走 spotlight / 常量回落，非 primary）。
 
 ### 6.3 关键配置与语义
 
@@ -418,52 +426,67 @@ import { Tooltip } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `title` | 提示文字 | ReactNode \ | () => ReactNode |
-| `color` | 设置背景颜色，使用该属性后内部文字颜色将自适应 | string | - |
-| `classNames` | 语义化结构 class | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> |
-| `styles` | 语义化结构 style | Record<[SemanticDOM](#semantic-dom), … | (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> |
+| `title` | 提示文字；**空 / nil 时不显示**（antd 官方禁用 demo 即用此语义） | string \| Node | — |
+| `color` | 背景色（预设名或 `#hex`）；设后字色自适应 | string | —（spotlight 默认皮） |
+| `placement` | 12 向：`top` / `topLeft` / … / `rightBottom` | enum | `top` |
+| `arrow` | 显示箭头；`pointAtCenter` 时边角贴中 | bool \| { pointAtCenter } | true |
+| `trigger` | `hover` \| `focus` \| `click` \| `contextMenu`（可多选） | enum[] | `[hover]` |
+| `open` / `defaultOpen` | 受控 / 非受控显隐 | bool | false |
+| `onOpenChange` | 显隐回调 | `(open bool)` | — |
+| `mouseEnterDelay` / `mouseLeaveDelay` | 开/关延迟（秒） | float64 | 0.1 / 0.1 |
+| `autoAdjustOverflow` | 贴边 flip/shift | bool | true |
+| `zIndex` | 浮层 z-order | int | 组件默认档 |
+| `classNames` / `styles` | 语义化钩子 | Record | —（**P1**） |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级：** 受控 `open` > 显式 `defaultOpen` > 组件默认 > ConfigProvider 全局（P1）。
 
 ### 6.4 交互状态机（L1）
 
 ```text
-closed ── hover/focus/click ──► open tip
-leave / blur / 再 click / Esc ──► close
-受控 open
+                     ┌─ title 空 / Disabled ──► 永远 closed（TIP-S5）
+                     │
+  mount ──► closed ──┤
+                     │  hover（delay enter）/ focus / click / contextMenu
+                     ▼
+                   open tip ── leave（delay leave）/ blur / 再 click / Esc* ──► closed
+                     ▲
+                     └── 受控 SetOpen：外部决定；触发只发 OnOpenChange（TIP-S4）
 ```
+
+\*Esc：click/focus 触发时关闭（hover-only 可不抢焦点；P0 至少 click 路径可关）。
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| TIP-S1 | hover 打开 | title 可见 |
-| TIP-S2 | 离开关闭 | 不可见 |
-| TIP-S3 | placement=bottom | 在下方 |
-| TIP-S4 | 受控 open | 外部控制 |
-| TIP-S5 | 空 title | 不显示（antd 行为） |
-| TIP-S6 | arrow | 箭头指向 |
-| TIP-S7 | color 预设 | 底色变 |
-| TIP-S8 | delay（若配） | 延迟开 |
+| TIP-S1 | hover 打开（过 enterDelay） | title 可见；`IsOpen()==true` |
+| TIP-S2 | 离开关闭（过 leaveDelay） | 不可见 |
+| TIP-S3 | `placement=bottom`（及 12 向） | popup Placement 映射正确；面板在锚点对应侧 |
+| TIP-S4 | 受控 `open` | 触发只回调，不擅自改 `Open`；`SetOpen` 生效 |
+| TIP-S5 | 空 title / nil TitleNode | 任何触发都不打开 |
+| TIP-S6 | `arrow` true/false / pointAtCenter | 箭头节点有无；center 时边角映射到主轴中点 placement |
+| TIP-S7 | `color` 预设 / 自定义 | 面板底色变化；字色反白或自适应 |
+| TIP-S8 | delay | enterDelay>0 时 Tick 累计后才开；0 则立即 |
+
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
 | --- | --- |
-| mask | `colorBgMask` 半透明（适用者） |
-| panel/popup | 容器底 + 阴影 + 圆角 LG |
-| open/close | 动画可关 / reduced-motion |
-| disabled 触发 | 触发器禁用皮，不打开 |
+| panel | 默认 spotlight 底 + 反白字 + 圆角 6 + pad 6×8；`color` 覆盖底色 |
+| arrow | 与面板同色三角指示；`arrow=false` 时不绘制 |
+| open/close | P0 瞬时切换；zoom-big-fast 像素级 **P1** |
+| disabled 触发 | 触发器禁用皮；不打开 tip |
+| 空 title | 无 tip 展示（等价 antd `title={null}`） |
 
-
-**动效：** 展开/入场须可关或尊重 reduced-motion；P0 可用瞬时切换。
+**动效：** 入场 zoom 可关 / reduced-motion；P0 允许瞬时。
 
 ### 6.6 无障碍（a11y）最低要求
 
 | 项 | 要求 |
 | --- | --- |
-| 角色 | dialog / menu / tooltip 等 |
-| 焦点 | 打开进入浮层；关闭回触发器（可配） |
-| Esc | 关闭（若允许） |
-| 标题 | Dialog 必须有可访问名 |
-| 遮罩 | 点击策略明确 |
+| 角色 | 气泡 `role=tooltip`；触发器可聚焦时 `role=button`（或保留子节点角色） |
+| 可访问名 | 触发器 Label = `AriaLabel` 或 `TriggerLabel` 或 title 摘要 |
+| 焦点 | focus 触发：聚焦打开、失焦关闭；hover 不强制抢焦点 |
+| Esc | click/focus 打开时可关（若实现 key 路由） |
+| 遮罩 | Tooltip **无** mask（与 Modal/Drawer 不同） |
 
 ### 6.7 平台边界（gpui vs 浏览器 antd）
 
@@ -471,11 +494,11 @@ leave / blur / 再 click / Esc ──► close
 | --- | --- | --- |
 | 主路径行为（§6.1 L1） | **对等** | P0 L1 |
 | 尺寸/色 Token（§6.2） | **对等** | P0 L2 |
-| 动画/波纹/CSS 特效 | **近似**或瞬时 | P1 |
-| IME/剪贴板/滚动宿主（适用者） | **宿主** | P0 宿主 |
-| 浏览器-only API | **映射**或 P1 不做 | P1 |
+| zoom-big-fast 入场动画 | **瞬时**或近似 | P1 |
+| `getPopupContainer` / DOM 容器 | Portal 统一挂载；容器选择 **P1** | P1 |
 | Semantic classNames/styles | kit 语义钩子 | P1 |
-| ConfigProvider 全局默认 | 随 ConfigProvider | P1 |
+| ConfigProvider `tooltip.unique` | 全局唯一显示 | P1（smooth-transition 主路径用多 tip 独立展示） |
+| `align` / `fresh` / `destroyOnHidden` | 分期 | P1 |
 | 逐像素官网哈希 | **不做** | — |
 
 ### 6.8 能力裁剪（P0 / P1）
@@ -484,102 +507,153 @@ leave / blur / 再 click / Esc ──► close
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `title` | 必须 |
-| 官方主路径示例 | 基本、平滑过渡、位置、箭头展示、贴边偏移、多彩文字提示、禁用、自定义子组件 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| `title` / TitleNode | 必须；空则不显示 |
+| `placement` 12 向 | 默认 top |
+| `arrow` + `pointAtCenter` | 默认 true |
+| `trigger` hover（默认）/ focus / click | contextMenu 可做；至少 hover+click |
+| `open` / `defaultOpen` / `onOpenChange` | 受控 + 非受控 |
+| `color` 预设 + `#hex` | colorful 示例 |
+| `mouseEnterDelay` / `mouseLeaveDelay` | 默认 0.1；Ticker |
+| `autoAdjustOverflow` | flip/shift（贴边偏移） |
+| 官方主路径示例 | basic / smooth-transition（无 unique）/ placement / arrow / shift / colorful / disabled / wrap-custom-component |
+| 度量 §6.2 | Token / 常量断言 |
+| a11y §6.6 | role=tooltip + 触发名 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 自定义语义结构的样式和类, _semantic.tsx |
+| semantic classNames/styles / style-class 示例 | 分期 |
+| ConfigProvider `tooltip.unique` 平滑唯一浮层 | smooth-transition 完整 unique 行为 |
+| zoom-big-fast 动画像素级 | 分期 |
+| `getPopupContainer` / `align` / `fresh` / `destroyOnHidden` | 分期 |
+| debug / render-panel / 官网逐像素 | 不做 / 分期 |
+| `_semantic.tsx` 自定义语义结构 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
 > 测试名建议：`TestTooltip_PRD_<ID>` 或 gallery 场景 ID。  
-> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Tooltip 完成 1:1 主路径。
+> **P0 相关用例（无 P1 标记）全部通过** 才可宣称 Tooltip 完成 1:1 主路径。  
+> L3/L4（TIP-22/23）与 P1（TIP-24）本阶段不强制。
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| TIP-01 | L1 | NewTooltip 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| TIP-02 | L1 | hover 打开 | title 可见 |
+| TIP-01 | L1 | NewTooltip 默认创建 | 不崩溃；placement=top、arrow=true、trigger=hover、delay=0.1、closed |
+| TIP-02 | L1 | hover 打开 | title 可见；IsOpen |
 | TIP-03 | L1 | 离开关闭 | 不可见 |
-| TIP-04 | L1 | placement=bottom | 在下方 |
-| TIP-05 | L1 | 受控 open | 外部控制 |
+| TIP-04 | L1 | placement=bottom（及 12 向可设） | popup Placement 映射正确 |
+| TIP-05 | L1 | 受控 open | 触发只 OnOpenChange；SetOpen 生效 |
 | TIP-06 | L1 | 空 title | 不显示（antd 行为） |
-| TIP-07 | L1 | arrow | 箭头指向 |
-| TIP-08 | L1 | color 预设 | 底色变 |
-| TIP-09 | L1 | delay（若配） | 延迟开 |
-| TIP-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TIP-11 | L1 | 复现官方示例「平滑过渡」（`smooth-transition.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TIP-12 | L1 | 复现官方示例「位置」（`placement.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TIP-13 | L1 | 复现官方示例「箭头展示」（`arrow.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TIP-14 | L1 | 复现官方示例「贴边偏移」（`shift.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TIP-15 | L1 | 复现官方示例「多彩文字提示」（`colorful.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TIP-16 | L1 | 复现官方示例「禁用」（`disabled.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TIP-17 | L1 | 复现官方示例「自定义子组件」（`wrap-custom-component.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| TIP-18 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| TIP-19 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| TIP-20 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| TIP-21 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| TIP-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
-| TIP-23 | L4 | 与 ant.design 并排 | 人眼签字记录 |
+| TIP-07 | L1 | arrow true/false / center | 箭头节点有无；center 映射 |
+| TIP-08 | L1 | color 预设 / 自定义 | 底色变 |
+| TIP-09 | L1 | mouseEnterDelay | delay>0 需 Tick 后开；0 立即 |
+| TIP-10 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档 |
+| TIP-11 | L1 | 复现「平滑过渡」（`smooth-transition.tsx`，无 unique） | 多 tip 可独立开合；无崩溃 |
+| TIP-12 | L1 | 复现「位置」（`placement.tsx`） | 12 向可构造 |
+| TIP-13 | L1 | 复现「箭头展示」（`arrow.tsx`） | Show/Hide/Center |
+| TIP-14 | L1 | 复现「贴边偏移」（`shift.tsx`） | autoAdjustOverflow + Viewport 不崩溃；可开 |
+| TIP-15 | L1 | 复现「多彩文字提示」（`colorful.tsx`） | 预设 + 自定义色 |
+| TIP-16 | L1 | 复现「禁用」（`disabled.tsx`） | title 空/切换后可开 |
+| TIP-17 | L1 | 复现「自定义子组件」（`wrap-custom-component.tsx`） | SetTriggerNode 自定义触发 |
+| TIP-18 | L2 | 读取 §6.2 关键尺寸/间距 | pad 6×8、radius 6、fontSize 14、maxWidth 250（±0.5） |
+| TIP-19 | L2 | 默认皮颜色 | 底非 primary 硬编码；字走 inverse Token |
+| TIP-20 | L2 | disabled 触发（适用者） | 不打开 |
+| TIP-21 | L1 | 键盘/焦点主路径 | focus 触发可开；Focus ring 可见（可聚焦触发） |
+| TIP-22 | L3 | 关键态 golden 截图 | 与仓库基线一致（本阶段可选） |
+| TIP-23 | L4 | 与 ant.design 并排 | 人眼签字（本阶段可选） |
 | TIP-24 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> **Breaking OK。** 旧 `NewTooltip(trigger, title)` 删除；以下为产品契约。
 
 ```text
-NewTooltip(...) *Tooltip
+NewTooltip(title string) *Tooltip
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 内容
+SetTitle(string) / SetTitleNode(core.Node)   // 空 title 且无 TitleNode → 永不打开
+// 触发器
+SetTriggerLabel(string) / SetTriggerNode(core.Node)
+SetTrigger(TooltipTrigger) / SetTriggerModes(...TooltipTrigger)  // 空 → hover
+// 几何 / 皮
+SetPlacement(TooltipPlacement)               // 默认 Top
+SetArrow(bool) / SetArrowConfig(show, pointAtCenter bool)
+SetColor(string)                             // 预设名或 #hex；"" 恢复默认皮
+SetAutoAdjustOverflow(bool)                  // 默认 true
+SetZIndex(int)
+// 开合
+SetOpen(bool)                                // 受控
+SetDefaultOpen(bool)                         // 非受控初值
+SetOnOpenChange(func(bool))
+SetMouseEnterDelay(sec float64)              // 默认 0.1
+SetMouseLeaveDelay(sec float64)              // 默认 0.1
+SetDisabled(bool)                            // 额外硬关（官方 demo 多用空 title）
+// 主题 / a11y / 树
+SetTheme(*Theme) / SetFace(text.Face)
+SetAriaLabel(string)
+Node() core.Node
+IsOpen() bool
+Popup() *primitive.AnchoredPopup
+Panel() *primitive.Decorated
+TriggerShell() *primitive.Pressable
+// Ticker（delay）
+AttachTicker(*core.Tree) / Tick(dt float64) bool
+Sync() // deprecated 几何刷新
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
+| Title | 构造参数 |
+| Placement | Top |
+| Arrow | true |
+| ArrowPointAtCenter | false |
+| Triggers | 空 → hover |
+| AutoAdjustOverflow | true |
+| MouseEnterDelay / Leave | 0.1 / 0.1 |
+| Open | false（非受控） |
 | Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Color | ""（spotlight 默认皮） |
+| zIndex | DefaultTooltipPortalZ |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Trigger?
-  └─ Portal
-       ├─ mask?
-       └─ panel / popup (+ arrow?)
+Wrap (Column)
+  ├─ shell Pressable (trigger)
+  └─ AnchoredPopup
+       └─ panel Decorated (+ optional arrow Canvas)
+            └─ title Text | TitleNode
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
 - 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- **delay** 用 `core.Ticker`（`Tick`）累计，不另起 goroutine。  
+- 空 title：`requestOpen(true)` 直接 no-op。  
 
 ### 6.12 完成定义（DoD）
 
 同时满足即可宣布 **Tooltip 主路径 1:1 完成**：
 
 1. §6.8 **P0** 全部实现。  
-2. §6.9 中 **P0 / L1 / L2** 用例测试通过。  
+2. §6.9 中 **P0 / L1 / L2** 用例测试通过（TIP-01…TIP-21；L3/L4/P1 除外）。  
 3. L2 度量与 Token 断言通过（§6.2 关键数字）。  
-4. L3 golden 至少覆盖 1 个关键可见态（若控件可见）。  
-5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：在对应控件页**增加或更新**示例，覆盖 **§6.8 P0** 主路径（官方非 debug 优先；细则见 [README · ui_polish_gallery](./README.md#示例程序examplesui_polish_gallery强制)）；P1 可不进 gallery。
+4. L3 golden 可选（本阶段不阻塞）。  
+5. **示例程序** [`examples/ui_polish_gallery`](../../examples/ui_polish_gallery)：Tooltip 页覆盖 **§6.8 P0** 主路径官方示例；P1 可不进 gallery。  
 6. `coverage.go` Notes：P0 已对齐 `docs/antd/tooltip.md` §6；P1 显式列出。  
 
 ---
 
 **本章用法**：实现 `ui/kit` Tooltip 时以 **§6 为需求与验收**；§1–§3 为 antd 能力全集；§6.8 为范围裁剪。细度样板见 [Button §6](./button.md#6-11-产品需求增量gpui-验收规格)。
+
+**§6 修订说明（相对模板稿）：**  
+- **§6.1** 行为描述改为 tip 开合/placement/color/delay。  
+- **§6.2** 补 antd 源码级 padding 6×8、maxWidth 250、spotlight 底、delay 0.1、zIndex 档。  
+- **§6.3 / §6.10** 写成可实现的 P0 字段与 Go API（breaking `NewTooltip(title)`）。  
+- **§6.4** 状态机补空 title、受控、delay 规则 ID。  
+- **§6.6** 改为 `role=tooltip`、无 mask。  
+- **§6.7 / §6.8** 明确 unique / semantic / zoom 为 P1；smooth-transition P0 用不带 unique 的多 tip。  
+- **§6.9** 标明 L3/L4/P1 不阻塞；TIP-11 无 unique。

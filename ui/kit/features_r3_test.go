@@ -1239,15 +1239,15 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Tooltip": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewTooltip(kit.NewText("t").Node(), "tip").Node() == nil {
+				if kit.NewTooltip("tip").Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 layout", func(t *testing.T) {
-				_ = kit.NewTooltip(kit.NewButton("t").Node(), "tip").Node().Layout(core.Loose(100, 40))
+				_ = kit.NewTooltip("tip").Node().Layout(core.Loose(100, 40))
 			}},
 			{"R3 sync", func(t *testing.T) {
-				tt := kit.NewTooltip(kit.NewText("t").Node(), "tip")
+				tt := kit.NewTooltip("tip")
 				tt.Sync()
 			}},
 		},

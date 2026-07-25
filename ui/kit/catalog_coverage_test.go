@@ -110,7 +110,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Carousel", kit.NewCarousel(kit.NewText("1").Node()).Node())
 	must("Image", kit.NewImageSized("i", 40, 40).Node())
 	must("QRCode", kit.NewQRCode("q").Node())
-	must("Tooltip", kit.NewTooltip(kit.NewText("t").Node(), "tip").Node())
+	must("Tooltip", kit.NewTooltip("tip").Node())
 	pop := kit.NewPopover("t")
 	pop.SetContent("b")
 	must("Popover", pop.Node())

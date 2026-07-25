@@ -496,7 +496,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Tooltip", func(t *testing.T) {
-			tt := kit.NewTooltip(kit.NewText("t").Node(), "tip")
+			tt := kit.NewTooltip("tip")
 			if tt.Node() == nil {
 				t.Fatal()
 			}
