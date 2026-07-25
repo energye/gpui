@@ -82,8 +82,7 @@ func TestNotification_OpensPortal(t *testing.T) {
 }
 
 func TestPopconfirm_TitleInContent(t *testing.T) {
-	trig := kit.NewButton("Ask").Node()
-	pc := kit.NewPopconfirm(trig, "Are you sure?")
+	pc := kit.NewPopconfirm("Are you sure?")
 	// Walk popover content for title text
 	found := false
 	var walk func(core.Node)

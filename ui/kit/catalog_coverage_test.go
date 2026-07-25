@@ -125,7 +125,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Drawer", kit.NewDrawer("d").Node())
 	must("MessageHost", kit.NewMessageHost().Node())
 	must("Notification", kit.NewNotification().Node())
-	must("Popconfirm", kit.NewPopconfirm(kit.NewText("t").Node(), "sure?").Node())
+	must("Popconfirm", kit.NewPopconfirm("sure?").Node())
 	must("Scroll", kit.NewScroll(kit.NewText("s").Node()).Node())
 	must("Affix", kit.NewAffix(kit.NewText("a").Node()).Node())
 	must("ConfigProvider", kit.NewConfigProvider(kit.DefaultTheme(), kit.NewText("c").Node()).Node())

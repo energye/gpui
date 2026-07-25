@@ -1402,19 +1402,19 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Popconfirm": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewPopconfirm(kit.NewButton("?").Node(), "sure").Node() == nil {
+				if kit.NewPopconfirm("sure").Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 open", func(t *testing.T) {
-				pc := kit.NewPopconfirm(kit.NewButton("?").Node(), "sure")
+				pc := kit.NewPopconfirm("sure")
 				pc.SetOpen(true)
 				if !pc.Open {
 					t.Fatal()
 				}
 			}},
 			{"R3 close", func(t *testing.T) {
-				pc := kit.NewPopconfirm(kit.NewButton("?").Node(), "sure")
+				pc := kit.NewPopconfirm("sure")
 				pc.SetOpen(true)
 				pc.SetOpen(false)
 			}},

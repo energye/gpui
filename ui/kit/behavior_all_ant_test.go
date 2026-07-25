@@ -556,7 +556,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Popconfirm", func(t *testing.T) {
-			pc := kit.NewPopconfirm(kit.NewButton("?").Node(), "sure")
+			pc := kit.NewPopconfirm("sure")
 			if pc.Node() == nil {
 				t.Fatal()
 			}

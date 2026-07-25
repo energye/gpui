@@ -253,7 +253,7 @@ func perControlSpecs() []ctlSpec {
 		}},
 		{"ctl_textarea", 220, 80, func() core.Node { return padRoot(kit.NewTextArea("ta", 3).Node(), 220, 80) }},
 		{"ctl_popconfirm", 140, 48, func() core.Node {
-			return padRoot(kit.NewPopconfirm(kit.NewButton("?").Node(), "sure?").Node(), 140, 48)
+			return padRoot(kit.NewPopconfirm("sure?").Node(), 140, 48)
 		}},
 		{"ctl_tooltip", 140, 48, func() core.Node {
 			tt := kit.NewTooltip("hello")
