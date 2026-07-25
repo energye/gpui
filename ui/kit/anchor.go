@@ -669,13 +669,8 @@ func (a *Anchor) rebuild() {
 	if a.Affix {
 		if a.affix == nil {
 			a.affix = NewAffix(a.wrapper)
-		} else if a.affix.sticky != nil {
-			a.affix.sticky.ClearChildren()
-			a.affix.sticky.AddChild(a.wrapper)
-			a.affix.Content = a.wrapper
-			a.affix.Root = a.affix.sticky
 		} else {
-			a.affix = NewAffix(a.wrapper)
+			a.affix.SetContent(a.wrapper)
 		}
 		a.affix.SetOffsetTop(a.OffsetTop)
 		a.Root = a.affix.Node()

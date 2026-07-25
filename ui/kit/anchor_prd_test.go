@@ -185,12 +185,12 @@ func TestAnchor_PRD_04_Affix(t *testing.T) {
 	if !a.IsAffixed() {
 		t.Fatal("default affix true")
 	}
-	// Root should be Sticky when affix
-	if _, ok := a.Node().(*primitive.Sticky); !ok {
-		// Affix.Root is sticky
-		if a.Node() == a.ChromeNode() {
-			t.Fatal("affixed root should differ from chrome")
-		}
+	// Root is Affix host when affix (kit.Affix; no longer raw primitive.Sticky)
+	if a.Node() == a.ChromeNode() {
+		t.Fatal("affixed root should differ from chrome")
+	}
+	if a.Node().TypeID() != "kit.Affix" {
+		t.Fatalf("affix root type=%s", a.Node().TypeID())
 	}
 	a.SetAffix(false)
 	if a.IsAffixed() {

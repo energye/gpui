@@ -226,10 +226,10 @@ import { Affix } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `offsetBottom` | 距离窗口底部达到指定偏移量后触发 | number | - |
-| `offsetTop` | 距离窗口顶部达到指定偏移量后触发 | number | 0 |
-| `target` | 设置 `Affix` 需要监听其滚动事件的元素，值为一个返回对应 DOM 元素的函数 | () => Window \ | HTMLElement \ |
-| `onChange` | 固定状态改变时触发的回调函数 | (affixed?: boolean) => void | - |
+| `offsetBottom` | 距离窗口底部达到指定偏移量后触发 | number | -（未设） |
+| `offsetTop` | 距离窗口顶部达到指定偏移量后触发 | number | 0（两者皆未设时） |
+| `target` | 监听滚动的容器；桌面映射为 `SetScrollTarget(*ScrollViewport)` | `() => Window \| HTMLElement \| null` | `() => window` |
+| `onChange` | 固定状态改变时触发的回调 | `(affixed?: boolean) => void` | - |
 
 **配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
@@ -286,10 +286,14 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onChange` | 必须 |
+| `offsetTop` | 默认 0；过阈钉顶（AFX-S1） |
+| `offsetBottom` | 贴底钉住（AFX-S5）；仅 bottom 时 top 规则关闭 |
+| `target` → `SetScrollTarget` | 自定义滚动容器（AFX-S4）；桌面 `*ScrollViewport` |
+| `onChange` | 固定态翻转回调（true/false） |
+| 占位 | 钉住时布局盒不跳变（AFX-S3 / placeholderStyle） |
 | 官方主路径示例 | 基本、固定状态改变的回调、滚动容器 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| 度量 §6.2 | Token 断言（fontSize/radius/lineWidth） |
+| a11y §6.6 | 根 presentation；有名操作在子节点 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -299,6 +303,8 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 | semantic classNames/styles 深度 | 分期 |
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
+| ConfigProvider 全局 affix 默认 | 分期 |
+| 真 `position: fixed` 出流 / 跨层 Portal 钉住 | 分期（P0 为 scroll 内 paint/hit 钉） |
 | debug 示例与官网逐像素哈希 | 分期 |
 
 ### 6.9 验收用例表（可测）
@@ -326,39 +332,56 @@ scroll ≥ offsetTop ──► affixed fixed + onChange(true)
 | AFX-16 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约（实现已对齐）。
 
 ```text
-NewAffix(...) *Affix
+NewAffix(content core.Node) *Affix
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 配置（§6.3 P0）
+SetOffsetTop(top float64)             // antd offsetTop；显式含 0
+SetOffsetBottom(bottom float64)       // antd offsetBottom
+ClearOffsetBottom()                   // 恢复「未设 bottom」
+SetScrollTarget(*primitive.ScrollViewport)  // antd target() 桌面映射
+SetContentTop(y float64)              // 内容在滚动内容坐标中的 Y
+SetContent(content core.Node)         // 替换 children
+
+// 回调 / 状态机
+SetOnChange(func(affixed bool))       // antd onChange
+UpdatePosition() / SyncFromScroll()   // 从 ScrollTarget 重算
+Evaluate(scrollY, viewportH, contentTop, contentH)  // 纯几何（测试/无 target）
+IsAffixed() bool · AffixMode() string // "" | "top" | "bottom"
+PlaceholderSize() core.Size           // 占位盒（钉住时不变）
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) · SetStyle(Style) · SetAriaLabel(string)
+FontSize() / BorderRadius() / LineWidth() / FocusRingOutset()  // §6.2
+Node() core.Node                      // TypeID = "kit.Affix"
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| offsetTop | **0**（两者皆未设时启用 top 规则） |
+| offsetBottom | 未设（不启用 bottom 规则） |
+| Affixed | false |
+| ScrollTarget | nil（需 `SetScrollTarget` 或 `Evaluate`） |
 | 其余 | 对齐 antd 6.5 §3 表 |
+
+**不适用（无 antd 对等，用例标 N/A）：** `disabled` / 根级键盘焦点（交互在 children）。
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Display root
-  └─ content (+ actions?)
+affixHost (placeholder · TypeID kit.Affix · role=presentation)
+  └─ Content
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
-- 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 钉住时 **布局尺寸仍为 content**（占位）；`stickDY` 仅改 paint/hit，避免下方内容跳变。  
+- `rebuild()` 只读 Default/字段/Token；滚动态走 `Evaluate`/`UpdatePosition`，不整树 rebuild。  
+- 命中与绘制共用 stick 偏移（`hit ≈ paint`）；占位 layout 盒在文档流中稳定。  
+- 无 loading 动效需求；P0 瞬时切换 affixed。  
 
 ### 6.12 完成定义（DoD）
 
