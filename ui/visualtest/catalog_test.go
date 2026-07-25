@@ -39,7 +39,10 @@ func TestVisual_TagAlertCard(t *testing.T) {
 }
 
 func TestVisual_SpaceAvatarBadge(t *testing.T) {
-	sp := kit.NewSpace(kit.NewAvatar("A").Node(), kit.NewBadge(kit.NewButton("").Node(), 3).Node())
+	bdg := kit.NewBadge()
+	bdg.SetChild(kit.NewButton("").Node())
+	bdg.SetCount(3)
+	sp := kit.NewSpace(kit.NewAvatar("A").Node(), bdg.Node())
 	captureAssert(t, "catalog_space_avatar_badge", frame(sp.Node(), 200, 80), 200, 80)
 }
 

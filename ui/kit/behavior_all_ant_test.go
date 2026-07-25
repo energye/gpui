@@ -384,7 +384,9 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Badge", func(t *testing.T) {
-			b := kit.NewBadge(kit.NewText("x").Node(), 9)
+			b := kit.NewBadge()
+			b.SetChild(kit.NewText("x").Node())
+			b.SetCount(9)
 			b.SetCount(3)
 			if b.Count != 3 {
 				t.Fatal(b.Count)

@@ -86,7 +86,9 @@ func TestStepsBreadcrumbBadgeAvatar(t *testing.T) {
 		t.Fatalf("avatar w=%v", av.Root.Size().Width)
 	}
 	btn := kit.NewButton("msg")
-	badge := kit.NewBadge(btn.Node(), 5)
+	badge := kit.NewBadge()
+	badge.SetChild(btn.Node())
+	badge.SetCount(5)
 	_ = badge.Node().Layout(core.Loose(100, 40))
 }
 

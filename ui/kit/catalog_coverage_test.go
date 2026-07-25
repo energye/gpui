@@ -87,7 +87,12 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Form", kit.NewForm(core.NewFormModel()).Node())
 	must("Tag", kit.NewTag("t").Node())
 	must("Avatar", kit.NewAvatar("A").Node())
-	must("Badge", kit.NewBadge(kit.NewText("x").Node(), 1).Node())
+	must("Badge", func() core.Node {
+		b := kit.NewBadge()
+		b.SetChild(kit.NewText("x").Node())
+		b.SetCount(1)
+		return b.Node()
+	}())
 	must("Card", kit.NewCard("c").Node())
 	must("Empty", kit.NewEmpty("").Node())
 	must("List", kit.NewList("a").Node())

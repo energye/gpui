@@ -80,7 +80,10 @@ func perControlSpecs() []ctlSpec {
 		{"ctl_empty", 160, 100, func() core.Node { return padRoot(kit.NewEmpty("none").Node(), 160, 100) }},
 		{"ctl_avatar", 56, 56, func() core.Node { return padRoot(kit.NewAvatar("AB").Node(), 56, 56) }},
 		{"ctl_badge", 100, 48, func() core.Node {
-			return padRoot(kit.NewBadge(kit.NewButton("").Node(), 5).Node(), 100, 48)
+			bdg := kit.NewBadge()
+			bdg.SetChild(kit.NewButton("").Node())
+			bdg.SetCount(5)
+			return padRoot(bdg.Node(), 100, 48)
 		}},
 		{"ctl_input", 220, 48, func() core.Node {
 			in := kit.NewInput("")

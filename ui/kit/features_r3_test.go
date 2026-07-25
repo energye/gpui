@@ -868,21 +868,27 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Badge": {
 			{"R1 count", func(t *testing.T) {
-				b := kit.NewBadge(kit.NewText("x").Node(), 9)
+				b := kit.NewBadge()
+				b.SetChild(kit.NewText("x").Node())
+				b.SetCount(9)
 				b.SetCount(3)
 				if b.Count != 3 {
 					t.Fatal()
 				}
 			}},
 			{"R2 overflow", func(t *testing.T) {
-				b := kit.NewBadge(kit.NewText("x").Node(), 100)
+				b := kit.NewBadge()
+				b.SetChild(kit.NewText("x").Node())
+				b.SetCount(100)
 				b.SetOverflowCount(99)
 				if b.OverflowCount != 99 {
 					t.Fatal()
 				}
 			}},
 			{"R3 dot", func(t *testing.T) {
-				b := kit.NewBadge(kit.NewText("x").Node(), 0)
+				b := kit.NewBadge()
+				b.SetChild(kit.NewText("x").Node())
+				b.SetCount(0)
 				b.SetDot(true)
 				if !b.Dot {
 					t.Fatal()

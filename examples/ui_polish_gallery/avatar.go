@@ -122,10 +122,14 @@ func (c *catalogCtx) registerAvatar() {
 	// ---------- badge.tsx ----------
 	bAv1 := track(kit.NewAvatarIcon("user"))
 	bAv1.SetShape(kit.AvatarSquare)
-	badge1 := kit.NewBadge(bAv1.Node(), 1)
+	badge1 := kit.NewBadge()
+	badge1.SetChild(bAv1.Node())
+	badge1.SetCount(1)
 	bAv2 := track(kit.NewAvatarIcon("user"))
 	bAv2.SetShape(kit.AvatarSquare)
-	badge2 := kit.NewBadge(bAv2.Node(), 0)
+	badge2 := kit.NewBadge()
+	badge2.SetChild(bAv2.Node())
+	badge2.SetCount(0)
 	badge2.SetDot(true)
 	secBadge := demoSection(face, th, "带徽标的头像",
 		"通常与 Badge 组合使用。",
