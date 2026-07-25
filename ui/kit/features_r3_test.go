@@ -528,23 +528,23 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Form": {
 			{"R1 addItem", func(t *testing.T) {
-				f := kit.NewForm(core.NewFormModel())
-				f.AddItem(kit.NewFormItem("n", "N", kit.NewInput("").Node()))
+				f := kit.NewForm()
+				f.AddItem(kit.NewFormItemName("n", "N").BindInput(kit.NewInput("")))
 				if f.Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 layout", func(t *testing.T) {
-				f := kit.NewForm(core.NewFormModel())
-				f.SetLayout("horizontal")
-				if f.Layout != "horizontal" {
+				f := kit.NewForm()
+				f.SetLayout(kit.FormHorizontal)
+				if f.Layout != kit.FormHorizontal {
 					t.Fatal(f.Layout)
 				}
 			}},
 			{"R3 requiredMark", func(t *testing.T) {
-				f := kit.NewForm(core.NewFormModel())
-				f.RequiredMark = true
-				if !f.RequiredMark {
+				f := kit.NewForm()
+				f.SetRequiredMark(kit.FormRequiredMarkDefault)
+				if f.RequiredMark != kit.FormRequiredMarkDefault {
 					t.Fatal()
 				}
 			}},

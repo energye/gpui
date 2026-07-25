@@ -144,12 +144,22 @@ func loadingDrawerBody(c *catalogCtx) core.Node {
 }
 
 func drawerFormBody() core.Node {
-	form := kit.NewForm(nil)
-	form.BindInput("name", kit.NewInput("Please enter user name"), true, "Name")
-	form.BindInput("url", kit.NewInput("Please enter url"), true, "Url")
-	form.BindInput("owner", kit.NewInput("Please select an owner"), true, "Owner")
-	form.BindInput("type", kit.NewInput("Please choose the type"), true, "Type")
-	form.BindInput("description", kit.NewTextArea("please enter url description", 4).Input, true, "Description")
+	form := kit.NewForm()
+	form.AddItem(kit.NewFormItemName("name", "Name").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewInput("Please enter user name")))
+	form.AddItem(kit.NewFormItemName("url", "Url").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewInput("Please enter url")))
+	form.AddItem(kit.NewFormItemName("owner", "Owner").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewInput("Please select an owner")))
+	form.AddItem(kit.NewFormItemName("type", "Type").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewInput("Please choose the type")))
+	form.AddItem(kit.NewFormItemName("description", "Description").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewTextArea("please enter url description", 4).Input))
 	return form.Node()
 }
 

@@ -162,9 +162,9 @@ func TestMenuSelectedChrome(t *testing.T) {
 }
 
 func TestFormItemGapAnt(t *testing.T) {
-	fi := kit.NewFormItem("n", "Name", kit.NewInput("").Node())
+	fi := kit.NewFormItemName("n", "Name").BindInput(kit.NewInput(""))
 	_ = fi.Node().Layout(core.Loose(300, 200))
-	// Root is column: field + error; no crash.
+	// Root is layout row/column: label + control + error; no crash.
 	if fi.Root == nil {
 		t.Fatal("nil form item")
 	}

@@ -247,8 +247,8 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(kit.NewDropdown("DD", kit.MenuItem{Key: "1", Label: "One"}).Node(), 160, 48)
 		}},
 		{"ctl_form", 240, 80, func() core.Node {
-			f := kit.NewForm(core.NewFormModel())
-			f.AddItem(kit.NewFormItem("n", "Name", kit.NewInput("").Node()))
+			f := kit.NewForm()
+			f.AddItem(kit.NewFormItemName("n", "Name").BindInput(kit.NewInput("")))
 			return padRoot(f.Node(), 240, 80)
 		}},
 		{"ctl_textarea", 220, 80, func() core.Node { return padRoot(kit.NewTextArea("ta", 3).Node(), 220, 80) }},

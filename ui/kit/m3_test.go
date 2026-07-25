@@ -37,21 +37,17 @@ func TestFormModelValidate(t *testing.T) {
 }
 
 func TestFormBindInput(t *testing.T) {
-	f := kit.NewForm(nil)
-	var done map[string]string
-	f.OnFinish = func(v map[string]string) { done = v }
+	f := kit.NewForm()
+	var done map[string]any
+	f.SetOnFinish(func(v map[string]any) { done = v })
 	in := kit.NewInput("name")
-	f.BindInput("name", in, true, "Name")
-	in.SetValue("Bob")
-	// submit
-	if f.Validate() {
-		// required ok
-	} else {
-		t.Fatal("validate failed", f.Model.Field("name").Errors)
+	f.AddItem(kit.NewFormItemName("name", "Name").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(in))
+	f.SetFieldValue(kit.Name("name"), "Bob")
+	if !f.Submit() {
+		t.Fatal("validate failed", f.FieldError(kit.Name("name")))
 	}
-	// OnFinish set on Validate via submit click path — call Validate after wiring
-	f.Model.OnFinish = f.OnFinish
-	f.Validate()
 	if done["name"] != "Bob" {
 		t.Fatalf("done=%v", done)
 	}

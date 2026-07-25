@@ -1163,7 +1163,7 @@ import { Form } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。源码：`components/form/style/index.ts` `prepareComponentToken`。
 
 #### 6.2.1 几何与组件 Token
 
@@ -1172,21 +1172,32 @@ import { Form } from 'antd';
 | 控件高度 middle | **32** | `controlHeight` |
 | 控件高度 small | **24** | `controlHeightSM` |
 | 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
+| 字号 middle | **14** | `fontSize` / `labelFontSize` |
+| 字号 SM（错误文案） | **12** | `fontSizeSM` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
-| Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| Focus ring outset | ≈ **1.5px** 可见 | 子控件（Input 等） |
+| 表单项间距 `itemMarginBottom` | **24** | antd `marginLG` → `DefaultFormItemGap` |
+| 行内项底距 `inlineItemMarginBottom` | **0** | antd inline |
+| 垂直 label 底距 | **8** | `verticalLabelPadding` 底 = `paddingSM` |
+| label 高（horizontal） | **32** | `labelHeight` = `controlHeight` |
+| 冒号前距 | **2** | `labelColonMarginInlineStart` ≈ `marginXXS/2` |
+| 冒号后距 | **8** | `labelColonMarginInlineEnd` = `marginXS` |
+| 控件↔错误文案距 | **4** | `marginXXS` / `DefaultFormErrorGap` |
+| label↔控件（vertical gap） | **8** | `paddingSM` / `DefaultFormFieldGap` |
+| 默认 `labelCol.span` / `wrapperCol.span` | **8 / 16** | 官方 basic 示例节奏（可 Set） |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 主色 / hover / active | `colorPrimary` + 变体 | 子控件 focus |
+| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | 字段 status、必填 `*` |
+| 必填标记 | `colorError` | `labelRequiredMarkColor` |
+| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | label / optional 文案 |
+| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | 子控件皮 |
+| 禁用 | `colorDisabledBg` / `colorDisabledText` | Form `disabled` 下发 |
+| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 本控件 P0 无独立浮层 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -1194,26 +1205,49 @@ import { Form } from 'antd';
 
 下列为 **产品关键配置**（完整以 §3 / 官方 API 为准）。分类：**数据录入**。
 
+#### Form
+
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `colon` | 配置 Form.Item 的 `colon` 的默认值。表示是否显示 label 后面的冒号 (只有在属性 lay… | boolean | true |
-| `disabled` | 设置表单组件禁用，仅对 antd 组件有效 | boolean | false |
-| `component` | 设置 Form 渲染元素，为 `false` 则不创建 DOM 节点 | ComponentType \ | false |
-| `fields` | 通过状态管理（如 redux）控制表单字段，如非强需求不推荐使用。查看[示例](#form-demo-global… | [FieldData](#fielddata)\[] | - |
-| `form` | 经 `Form.useForm()` 创建的 form 控制实例，不提供时会自动创建 | [FormInstance](#forminstance) | - |
-| `feedbackIcons` | 当 `Form.Item` 有 `hasFeedback` 属性时可以自定义图标 | [FeedbackIcons](#feedbackicons) | - |
-| `initialValues` | 表单默认值，只有初始化以及重置时生效 | object | - |
-| `labelAlign` | label 标签的文本对齐方式 | `left` \ | `right` |
-| `labelWrap` | label 标签的文本换行方式 | boolean | false |
-| `labelCol` | label 标签布局，同 `<Col>` 组件，设置 `span` `offset` 值，如 `{span: 3,… | [object](/components/grid-cn#col) | - |
-| `layout` | 表单布局 | `horizontal` \ | `vertical` \ |
-| `name` | 表单名称，会作为表单字段 `id` 前缀使用 | string | - |
-| `preserve` | 当字段被删除时保留字段值。你可以通过 `getFieldsValue(true)` 来获取保留字段值 | boolean | true |
-| `requiredMark` | 必选样式，可以切换为必选或者可选展示样式。此为 Form 配置，Form.Item 无法单独配置 | boolean \ | `optional` \ |
-| `scrollToFirstError` | 提交失败自动滚动到第一个错误字段 | boolean \ | [Options](https://github.com/stipsan/scroll-into-view-if-needed/tree/ece40bd9143f48caf4b99503425ecb16b0ad8249#options) \ |
+| `layout` | 表单布局 | `horizontal` \| `vertical` \| `inline` | `horizontal` |
+| `disabled` | 禁用表单内 antd 风格子控件 | boolean | false |
+| `size` | 下发字段控件尺寸 | `small` \| `middle` \| `large` | `middle` |
+| `variant` | 下发字段控件变体 | `outlined` \| `filled` \| `borderless` \| `underlined` | `outlined` |
+| `colon` | Item label 后冒号默认（仅 horizontal 有效） | boolean | true |
+| `requiredMark` | 必选样式：显示 `*` / `optional` 文案 / 隐藏 | `true` \| `false` \| `optional` | `true` |
+| `initialValues` | 初始化与 reset 时生效的默认值 | object（嵌套 / 点路径） | - |
+| `labelAlign` | label 文本对齐 | `left` \| `right` | `right` |
+| `labelWrap` | label 是否换行 | boolean | false |
+| `labelCol` / `wrapperCol` | horizontal 栅格 span/offset | `{span, offset?}` | demo 常用 8/16 |
+| `name` | 表单名（字段 id 前缀语义） | string | - |
+| `preserve` | 字段卸载后是否保留值 | boolean | true |
+| `validateTrigger` | 默认校验时机 | `onChange` \| `onBlur` \| `onSubmit` | `onChange` |
+| `onFinish` / `onFinishFailed` | 提交成功 / 失败 | function | - |
+| `onValuesChange` | 字段值变更 | function(changed, all) | - |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+#### Form.Item（P0）
+
+| 配置 | 说明 | 默认 |
+| --- | --- | --- |
+| `name` | 字段路径（支持嵌套 `['a','b']`） | - |
+| `label` | 标签文本；无 label 的尾项可空 | - |
+| `rules` | `required` + `message` + 自定义 `validator` | - |
+| `required` | 必填样式；未设时由 rules 推导 | false |
+| `dependencies` | 依赖字段变更时重跑本项校验 | - |
+| `validateTrigger` | 覆盖 Form 级时机 | 继承 Form |
+| `valuePropName` | `value`（默认）或 `checked`（Switch/Checkbox） | `value` |
+| `layout` | 覆盖单项 `horizontal` \| `vertical` | 继承 Form |
+| `help` / 自动错误 | 校验失败展示 message | - |
+| `colon` / `labelCol` / `wrapperCol` | 覆盖 Form 默认 | 继承 |
+
+#### Form.List（P0）
+
+| 能力 | 说明 |
+| --- | --- |
+| `name` | 数组字段路径 |
+| `add` / `remove` | 增删行；提交 values 含数组结构 |
+
+**配置优先级（通用）：** 受控写入（`setFieldsValue`）> `initialValues` / Item `initialValue` > 零值。Item 覆盖 Form 的 layout/colon/labelCol。
 
 ### 6.4 交互状态机（L1）
 
@@ -1289,15 +1323,24 @@ mount ──► initialValues 写入字段
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `disabled` | 必须 |
-| `size` | 必须 |
-| `type` | 必须 |
-| `variant` | 必须 |
-| `children` | 必须 |
-| `trigger` | 必须 |
+| `layout` | `horizontal`（默认）/ `vertical` / `inline` |
+| `disabled` | 下发子控件不可编辑 |
+| `size` | `small` / `middle` / `large` 下发 |
+| `variant` | `outlined` / `filled` / `borderless` / `underlined` 下发 |
+| `colon` / `labelAlign` / `labelCol` / `wrapperCol` | horizontal 标签布局 |
+| `requiredMark` | `true` / `optional` / `false` |
+| `initialValues` + `resetFields` | 初始化与重置 |
+| `name`（Form / Item，含嵌套路径） | 数据域 |
+| `rules` / `required` / 自定义 validator | 校验与错误展示 |
+| `validateTrigger` | `onChange`（默认）/ `onBlur` / 提交时 |
+| `dependencies` | 关联字段变更触发再校验 |
+| `valuePropName` | `value` / `checked` |
+| `onFinish` / `onFinishFailed` / `onValuesChange` | 提交与变更回调 |
+| Form 实例方法 | `setFieldsValue` / `getFieldValue` / `getFieldsValue` / `validateFields` / `submit` |
+| `Form.List` | `add` / `remove` + 路径可提交 |
 | 官方主路径示例 | 基本使用、表单方法调用、表单布局、表单混合布局、表单禁用、表单变体、必选样式、表单尺寸 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | label 关联、error→invalid、键盘提交主路径 |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -1305,10 +1348,16 @@ mount ──► initialValues 写入字段
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
-| 浏览器-only API 或桌面无等价项 | 分期 |
+| `scrollToFirstError` / 真滚动宿主 | 分期 |
+| `hasFeedback` 图标 + validating Ticker 像素 | 分期 |
+| `fields` 受控 / redux 同步 | 分期 |
+| `feedbackIcons` / `validateMessages` i18n | 分期 |
+| `shouldUpdate` / `noStyle` 深度 / `getValueProps`+`normalize` | 分期 |
+| `preserve` 精细 `getFieldsValue(true)` | 分期 |
+| Form.Provider 多表单联动 | 分期 |
+| 其余示例 | 表单标签可换行、非阻塞校验、字段监听 Hooks、校验时机、动态规则、登录/注册等 |
+| ConfigProvider 全局 form 默认 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 表单标签可换行, 非阻塞校验, 字段监听 Hooks, 校验时机 |
 
 ### 6.9 验收用例表（可测）
 
@@ -1347,42 +1396,116 @@ mount ──► initialValues 写入字段
 | FRM-28 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约，实现可微调命名但语义不可丢。
 
 ```text
-NewForm(...) *Form
+// —— Form（容器 + FormInstance）——
+NewForm() *Form
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+SetLayout(FormLayout)                 // horizontal|vertical|inline
+SetSize(FormSize)                     // small|middle|large
+SetVariant(FormVariant)               // outlined|filled|borderless|underlined
+SetDisabled(bool)
+SetColon(bool)
+SetRequiredMark(FormRequiredMark)     // default|optional|hidden
+SetInitialValues(map[string]any)      // 支持嵌套 map / 点路径展开
+SetName(string)
+SetLabelAlign(FormLabelAlign)         // left|right
+SetLabelWrap(bool)
+SetLabelCol(FormCol) / SetWrapperCol(FormCol)  // Span/Offset
+SetValidateTrigger(FormValidateTrigger)        // onChange|onBlur|onSubmit
+SetItemGap(px)                        // 0 → DefaultFormItemGap(24)
+
+SetOnFinish(func(values map[string]any))
+SetOnFinishFailed(func(FormFailInfo))
+SetOnValuesChange(func(changed, all map[string]any))
+
+// 实例方法
+Submit()
+ValidateFields(names ...FormName) (map[string]any, error)
+SetFieldsValue(map[string]any)
+SetFieldValue(name FormName, value any)
+GetFieldValue(name FormName) any
+GetFieldsValue() map[string]any
+ResetFields(names ...FormName)
+
+// 结构
+AddItem(*FormItem)
+AddList(*FormList)
+AddChild(core.Node)                   // 非字段子节点（如提交按钮行）
+Node() core.Node
+SetTheme(*Theme) / SetFace / SetAriaLabel
+
+// —— Form.Item ——
+NewFormItem() *FormItem
+// 便捷：NewFormItemName(name, label string) *FormItem
+SetName(...string) / SetNamePath(FormName)
+SetLabel(string)
+SetRules(...FormRule)                 // Required, Message, Validator
+SetRequired(bool)
+SetDependencies(...FormName)
+SetValidateTrigger(FormValidateTrigger)
+SetValuePropName(string)              // "value"|"checked"
+SetLayout(FormLayout)                 // 覆盖 Form
+SetColon(*bool) / SetHelp / SetHidden / SetNoStyle
+SetLabelCol / SetWrapperCol
+BindInput(*Input) / BindCheckbox(*Checkbox) / BindSwitch(*Switch) / BindSelect(*Select)
+SetControl(core.Node)                 // 无绑定展示槽
+Error() string / SyncChrome()
+Node() core.Node
+
+// —— Form.List ——
+NewFormList(name string) *FormList
+Add() int                             // 追加行，返回 index
+Remove(index int)
+Len() int
+NameAt(index int, field string) FormName
+Node() core.Node                      // 列表容器（子项由业务 AddItem 挂到 Form）
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
-| 其余 | 对齐 antd 6.5 §3 表 |
+| Layout | horizontal |
+| Size | middle |
+| Variant | outlined |
+| Disabled / LabelWrap | false |
+| Colon | true |
+| RequiredMark | default（显示必填 `*`） |
+| LabelAlign | right |
+| LabelCol / WrapperCol | span 8 / 16（horizontal 布局用） |
+| ValidateTrigger | onChange |
+| Preserve | true |
+| ItemGap | 24（`itemMarginBottom`） |
+| ValuePropName | value |
+
+**Breaking（相对旧 kit.Form）：**
+
+- `NewForm(*core.FormModel)` → `NewForm()`；store 内聚，不再依赖外部 `FormModel` 作为主路径。  
+- 默认 `layout`：`vertical` → **`horizontal`**（对齐 antd）。  
+- **不再自动插入 Submit 按钮**；提交用 `Submit()` 或业务按钮 `OnClick → form.Submit()`。  
+- `BindInput(name, in, required, label)` → `AddItem` + `FormItem.BindInput` + `SetRules`。  
+- `OnFinish func(map[string]string)` → `func(map[string]any)`。  
+- `RequiredMark bool` → `FormRequiredMark` 三态。
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Field / Selector
-  ├─ prefix?
-  ├─ editable / display value
-  ├─ clear? / suffix?
-  └─ Portal popup? (list/panel)
+Form Root (Column | inline Row)
+  ├─ Form.Item*
+  │    ├─ label  (requiredMark? + text + colon?)
+  │    ├─ control (Input/Select/Switch/… 绑定 value)
+  │    └─ error / help
+  ├─ Form.List*  (数组字段元数据；行 UI 由 Item 组成)
+  └─ free children (提交按钮 Space 等)
 ```
 
 - 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- 值变更**不**整树 rebuild：只更新绑定控件显示与错误文案。  
+- `rebuild()` 只读 Default / 字段 / Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 子控件 loading（若有）走既有 Ticker；Form P0 无独立 loading 波纹。  
 
 ### 6.12 完成定义（DoD）
 

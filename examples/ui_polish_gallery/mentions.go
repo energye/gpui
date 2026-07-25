@@ -150,8 +150,8 @@ func (c *catalogCtx) registerMentions() {
 	btnRow := primitive.Row(submit.Node(), reset.Node())
 	btnRow.Gap = 8
 	formCol := primitive.Column(
-		kit.NewFormItem("coders", "Top coders", coders.Node()).Node(),
-		kit.NewFormItem("bio", "Bio", bio.Node()).Node(),
+		kit.NewFormItemName("coders", "Top coders").SetControl(coders.Node()).Node(),
+		kit.NewFormItemName("bio", "Bio").SetControl(bio.Node()).Node(),
 		btnRow,
 	)
 	formCol.Gap = 12

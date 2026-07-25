@@ -482,9 +482,8 @@ func TestMentions_PRD_13_FormDemo(t *testing.T) {
 		t.Fatalf("GetMentions=%v want ≥2", ents)
 	}
 	// form layout: bind into FormItem without crash
-	fm := core.NewFormModel()
-	form := kit.NewForm(fm)
-	form.AddItem(kit.NewFormItem("bio", "Bio", m.Node()))
+	form := kit.NewForm()
+	form.AddItem(kit.NewFormItemName("bio", "Bio").SetControl(m.Node()))
 	_ = form.Node().Layout(core.Loose(480, 400))
 	// rows=1 coders field
 	c := kit.NewMentions("coders", "afc163", "zombieJ")

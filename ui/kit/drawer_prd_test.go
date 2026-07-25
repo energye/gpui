@@ -253,10 +253,16 @@ func TestDrawer_PRD_DRW_16_FormOfficialDemo(t *testing.T) {
 	d, tree := mountedDrawer("Create a new account")
 	d.SetSizePx(720)
 	d.SetExtra(primitive.Row(kit.NewButton("Cancel").Node(), kit.NewButton("Submit").Node()))
-	form := kit.NewForm(nil)
-	form.BindInput("name", kit.NewInput("Please enter user name"), true, "Name")
-	form.BindInput("url", kit.NewInput("Please enter url"), true, "Url")
-	form.BindInput("description", kit.NewTextArea("please enter url description", 4).Input, true, "Description")
+	form := kit.NewForm()
+	form.AddItem(kit.NewFormItemName("name", "Name").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewInput("Please enter user name")))
+	form.AddItem(kit.NewFormItemName("url", "Url").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewInput("Please enter url")))
+	form.AddItem(kit.NewFormItemName("description", "Description").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewTextArea("please enter url description", 4).Input))
 	d.SetContent(form.Node())
 	d.SetOpen(true)
 	tree.Layout(core.Size{Width: 900, Height: 700})

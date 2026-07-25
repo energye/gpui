@@ -170,17 +170,19 @@ func main() {
 	modal := kit.NewModal("Create user")
 	modal.Face = face
 	modal.Viewport = vp
-	form := kit.NewForm(nil)
-	form.Face = face
+	form := kit.NewForm()
+	form.SetFace(face)
 	nameIn := kit.NewInput("Name")
 	nameIn.SetFace(face)
-	form.BindInput("name", nameIn, true, "Name")
-	form.OnFinish = func(vals map[string]string) {
-		status = "created " + vals["name"]
+	form.AddItem(kit.NewFormItemName("name", "Name").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(nameIn))
+	form.SetOnFinish(func(vals map[string]any) {
+		status = "created " + fmt.Sprint(vals["name"])
 		modal.SetOpen(false)
-	}
+	})
 	modal.SetContent(form.Node())
-	modal.OnOk = func() { form.Validate() }
+	modal.OnOk = func() { form.Submit() }
 
 	userBtn.SetOnClick(func() {
 		modal.Viewport = vp

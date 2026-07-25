@@ -117,7 +117,7 @@ func (x *Xxx) rebuild() {
 | Card | `DefaultCardPadding=24` 等 | `SetPadding` · `SetPaddingInsets` · `SetTitleFontSize` · gaps |
 | Modal | `DefaultModalPadding=24` · `DefaultModalWidth=520` | `SetPadding` · `SetPaddingInsets` · `SetWidth` |
 | Drawer | `DefaultDrawerPadding=24` · `DefaultDrawerWidth=378` | `SetPadding` · `SetPaddingInsets` · `SetWidth` |
-| Form | `DefaultFormItemGap=24` · Field/Error gap | `SetItemGap` · `FieldGap`/`ErrorGap` 字段 |
+| Form | `DefaultFormItemGap=24` · Field/Error gap | `SetItemGap` · `FormItem.FieldGap`/`ErrorGap` · `NewForm`+`FormItem`/`FormList` |
 | Button / Input | Size ladder + Theme Token | `SetSize` · `Style` · `SetFixedSize` |
 | Space | gap → TokenMarginSM | `SetSize` · `SetWrap` |
 

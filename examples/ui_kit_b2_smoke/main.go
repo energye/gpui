@@ -103,18 +103,24 @@ func main() {
 	title.SetFontSize(15)
 
 	// Form
-	form := kit.NewForm(nil)
-	form.Face = face
-	form.OnFinish = func(vals map[string]string) {
-		status = fmt.Sprintf("form ok name=%s", vals["name"])
+	form := kit.NewForm()
+	form.SetFace(face)
+	form.SetOnFinish(func(vals map[string]any) {
+		status = fmt.Sprintf("form ok name=%v", vals["name"])
 		log.Printf("form finish %v", vals)
-	}
+	})
 	nameIn := kit.NewInput("Name")
 	nameIn.SetFace(face)
-	form.BindInput("name", nameIn, true, "Name")
+	form.AddItem(kit.NewFormItemName("name", "Name").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(nameIn))
 	emailIn := kit.NewInput("Email")
 	emailIn.SetFace(face)
-	form.BindInput("email", emailIn, false, "Email")
+	form.AddItem(kit.NewFormItemName("email", "Email").BindInput(emailIn))
+	submit := kit.NewButton("Submit")
+	submit.SetType(kit.ButtonPrimary)
+	submit.SetOnClick(func() { form.Submit() })
+	form.AddChild(submit.Node())
 
 	// Select
 	sel := kit.NewSelect("Role",

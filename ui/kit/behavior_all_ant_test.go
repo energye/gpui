@@ -269,9 +269,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Form", func(t *testing.T) {
-			fm := core.NewFormModel()
-			f := kit.NewForm(fm)
-			f.AddItem(kit.NewFormItem("n", "N", kit.NewInput("").Node()))
+			f := kit.NewForm()
+			f.AddItem(kit.NewFormItemName("n", "N").BindInput(kit.NewInput("")))
 			if f.Node() == nil {
 				t.Fatal()
 			}

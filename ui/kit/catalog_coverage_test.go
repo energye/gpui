@@ -84,7 +84,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("ColorPicker", kit.NewColorPicker().Node())
 	must("Upload", kit.NewUpload("up").Node())
 	must("TreeSelect", kit.NewTreeSelect("t", kit.TreeSelectNode{Value: "a/b", Title: "a/b"}).Node())
-	must("Form", kit.NewForm(core.NewFormModel()).Node())
+	must("Form", kit.NewForm().Node())
 	must("Tag", kit.NewTag("t").Node())
 	must("Avatar", kit.NewAvatar("A").Node())
 	must("Badge", func() core.Node {

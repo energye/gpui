@@ -60,6 +60,9 @@ type Input struct {
 	OnChange     func(string)
 	OnPressEnter func(string)
 	OnClear      func()
+	// OnFocusChange reports editor focus transitions (true=focus, false=blur).
+	// Used by Form validateTrigger=onBlur; safe for other callers.
+	OnFocusChange func(focused bool)
 	// OnSubmit is an alias for OnPressEnter (legacy smoke tests).
 	OnSubmit func(string)
 
@@ -748,6 +751,9 @@ func (in *Input) rebuild() {
 	in.editor.OnFocusChange = func(f bool) {
 		in.focused = f
 		in.applyChrome()
+		if in.OnFocusChange != nil {
+			in.OnFocusChange(f)
+		}
 	}
 	in.editor.OnHoverChange = func(h bool) {
 		in.hovered = h
