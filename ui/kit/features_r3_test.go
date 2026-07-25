@@ -1092,24 +1092,24 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 			}},
 		},
 		"QRCode": {
-			{"R1 text", func(t *testing.T) {
+			{"R1 value", func(t *testing.T) {
 				q := kit.NewQRCode("data")
-				if q.Text != "data" {
+				if q.Value() != "data" {
 					t.Fatal()
 				}
 			}},
-			{"R2 setText/size", func(t *testing.T) {
+			{"R2 setValue/size", func(t *testing.T) {
 				q := kit.NewQRCode("a")
-				q.SetText("b")
+				q.SetValue("b")
 				q.SetSize(96)
-				if q.Text != "b" || q.Size != 96 {
+				if q.Value() != "b" || q.Size() != 96 {
 					t.Fatal()
 				}
 			}},
 			{"R3 status", func(t *testing.T) {
 				q := kit.NewQRCode("a")
-				q.SetStatus("expired")
-				if q.Status != "expired" {
+				q.SetStatus(kit.QRStatusExpired)
+				if q.Status() != kit.QRStatusExpired {
 					t.Fatal()
 				}
 			}},

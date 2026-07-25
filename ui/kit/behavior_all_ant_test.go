@@ -456,8 +456,8 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		}},
 		{"QRCode", func(t *testing.T) {
 			q := kit.NewQRCode("data")
-			_ = q.Node().Layout(core.Loose(128, 128))
-			if q.Text != "data" {
+			_ = q.Node().Layout(core.Loose(160, 160))
+			if q.Value() != "data" {
 				t.Fatal()
 			}
 		}},

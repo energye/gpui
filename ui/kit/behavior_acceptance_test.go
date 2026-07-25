@@ -406,18 +406,21 @@ func TestBehavior_AnchorSyncFromScroll(t *testing.T) {
 func TestBehavior_QRCodeDeterministic(t *testing.T) {
 	a := kit.NewQRCode("same")
 	b := kit.NewQRCode("same")
-	_ = a.Node().Layout(core.Loose(128, 128))
-	_ = b.Node().Layout(core.Loose(128, 128))
+	_ = a.Node().Layout(core.Loose(160, 160))
+	_ = b.Node().Layout(core.Loose(160, 160))
 	// Same size for same input
-	if a.Root.Size().Width != b.Root.Size().Width {
+	if a.Size() != b.Size() {
 		t.Fatal("size mismatch")
 	}
-	a.SetText("other")
-	if a.Text != "other" {
-		t.Fatal(a.Text)
+	if a.Modules() != b.Modules() || a.Modules() < 21 {
+		t.Fatalf("modules a=%d b=%d", a.Modules(), b.Modules())
 	}
-	if a.Modules < 21 {
-		t.Fatal(a.Modules)
+	a.SetValue("other")
+	if a.Value() != "other" {
+		t.Fatal(a.Value())
+	}
+	if a.Modules() < 21 {
+		t.Fatal(a.Modules())
 	}
 }
 
