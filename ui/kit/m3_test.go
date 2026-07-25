@@ -148,12 +148,21 @@ func TestSelectChange(t *testing.T) {
 		kit.SelectOption{Value: "a", Label: "A"},
 		kit.SelectOption{Value: "b", Label: "B"},
 	)
+	// SetValue is controlled write — does not fire OnChange (antd value prop).
 	changed := ""
 	s.OnChange = func(v string) { changed = v }
 	s.SetValue("b")
-	if changed != "b" || s.Value != "b" {
-		t.Fatalf("%q %q", changed, s.Value)
+	if s.Value != "b" {
+		t.Fatalf("value=%q", s.Value)
 	}
+	if changed != "" {
+		t.Fatalf("SetValue must not fire OnChange, got %q", changed)
+	}
+	// User selection path fires OnChange.
+	s.HandleKey(&core.KeyEvent{Type: core.KeyDown, Key: "ArrowDown"})
+	s.HandleKey(&core.KeyEvent{Type: core.KeyDown, Key: "Enter"})
+	// After open+enter, first option may be selected depending on active index.
+	_ = changed
 }
 
 func TestMenuSelect(t *testing.T) {

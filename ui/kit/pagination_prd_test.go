@@ -162,7 +162,11 @@ func TestPagination_PRD_05_PageSizeChange(t *testing.T) {
 	if sel == nil {
 		t.Fatal("SizeSelect nil")
 	}
-	sel.SetValue("20")
+	// User selection path fires OnChange (SetValue is silent controlled write).
+	if sel.OnChange == nil {
+		t.Fatal("SizeSelect OnChange nil")
+	}
+	sel.OnChange("20")
 	if sizeN < 1 {
 		t.Fatalf("onShowSizeChange n=%d", sizeN)
 	}

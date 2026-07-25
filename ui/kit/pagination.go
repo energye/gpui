@@ -1036,30 +1036,17 @@ func (p *Pagination) buildSizeChanger() core.Node {
 	sel := NewSelect("page size", selOpts...)
 	sel.Face = p.Face
 	sel.Theme = p.Theme
-	sel.Disabled = p.Disabled
-	// Seed value without firing OnChange (SetValue always notifies).
+	sel.SetDisabled(p.Disabled)
+	// Seed value without firing OnChange (SetValue is silent).
 	cur := strconv.Itoa(p.effectivePageSize())
-	sel.Value = cur
-	sel.refreshLabel()
-	sel.OnChange = func(v string) {
+	sel.SetValue(cur)
+	sel.SetOnChange(func(v string) {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			return
 		}
 		p.changePageSize(n)
-	}
-	sel.rebuild()
-	// rebuild keeps OnChange; re-seed value quietly after chrome rebuild.
-	sel.OnChange = nil
-	sel.Value = cur
-	sel.refreshLabel()
-	sel.OnChange = func(v string) {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return
-		}
-		p.changePageSize(n)
-	}
+	})
 	p.sizeSelect = sel
 	return sel.Node()
 }

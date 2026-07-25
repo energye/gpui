@@ -777,7 +777,12 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | `placement` | 必须 |
 | `allowClear` | 必须 |
 | `showSearch` | 必须 |
-| `mode` | 必须 |
+| `mode` | 必须（`default` / `multiple` / `tags`） |
+| `maxTagCount` | 必须（`multiple`/`tags` 折叠 +N；SEL-13） |
+| `filterOption` / `optionFilterProp` / `filterSort` | 必须（搜索主路径：自定义过滤、多字段、排序） |
+| `optionRender` | 必须（自定义下拉选项内容） |
+| `notFoundContent` | 必须（空 options / 无匹配） |
+| `onSearch` / `onClear` / `onSelect` | 必须（搜索/清除/选中回调） |
 | 官方主路径示例 | 基本使用、带搜索框、自定义搜索、多字段搜索、多选、三种大小、自定义下拉选项、带排序的搜索 |
 | 度量 §6.2 | Token 断言 |
 | a11y §6.6 | 最低要求 |
@@ -791,7 +796,7 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 | 动画像素级 / 复杂虚拟列表 | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 标签, 分组, 联动, 获得选项的文本 |
+| 其余示例 | 标签完整 demo、分组 optgroup、联动、label-in-value 完整、自动分词、前后缀、扩展菜单、隐藏已选、variant/status 完整 gallery、maxCount、响应式 maxTagCount、大数据 |
 
 ### 6.9 验收用例表（可测）
 
@@ -833,22 +838,80 @@ closed ── click/聚焦+开 ──► open（下拉 Portal）
 > 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
 
 ```text
-NewSelect(...) *Select
+NewSelect(placeholder string, options ...SelectOption) *Select
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+// 值（单选 string；多选/tags 用 Values []string）
+SetValue(string)                 // 单选；不触发 OnChange（受控写入）
+SetValues([]string)              // multiple/tags
+SetDefaultValue(string)
+SetDefaultValues([]string)
+GetValue() string
+GetValues() []string
+Clear()                          // allowClear / API；触发 OnChange + OnClear
+
+// 形态 / 状态
+SetSize(InputSize)               // small|middle|large → 高 24/32/40
+SetVariant(InputVariant)         // outlined|filled|borderless|underlined
+SetStatus(InputStatus)           // none|error|warning
+SetDisabled(bool)
+SetLoading(bool)                 // 后缀 Ticker 旋转指示
+SetMode(SelectMode)              // single|multiple|tags
+SetAllowClear(bool)
+SetShowSearch(bool)
+SetMaxTagCount(n int)            // 0=不限；>0 折叠为 +N
+SetPlacement(SelectPlacement)    // bottomLeft|bottomRight|topLeft|topRight
+SetListHeight(float64)           // 默认 256
+SetNotFoundContent(string)
+SetTitle(string)                 // option/selector title / a11y 提示
+SetPlaceholder(string)
+SetOptions(...SelectOption)
+SetFixedWidth(float64)
+
+// 搜索
+SetOptionFilterProp(...string)   // 默认 value；可 label / 多字段
+SetFilterOption(bool)            // false=不过滤（由 OnSearch 喂数据）
+SetFilterOptionFunc(fn)          // (input, option) bool
+SetFilterSort(fn)                // (a, b) int
+SetSearchValue(string)           // 受控搜索词；触发过滤
+SetOptionRender(fn)              // option → core.Node
+
+// 开合
+SetOpen(bool)                    // 受控 open
+SetDefaultOpen(bool)
+OnOpenChange func(open bool)
+
+// 回调
+OnChange      func(value string)              // 单选
+OnChangeMulti func(values []string)           // multiple/tags
+OnSelect      func(value string, opt SelectOption)
+OnDeselect    func(value string, opt SelectOption)  // multi/tags
+OnSearch      func(value string)
+OnClear       func()
+
+// 主题 / a11y / 挂树
+SetTheme(*Theme) / SetFace(text.Face)
+SetAriaLabel(string)
+Node() core.Node
+Popup() *AnchoredPopup
+ChromeNode() core.Node
+HandleKey(*KeyEvent)
+AttachTicker(*Tree)              // loading 旋转
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
+| Disabled / Loading / AllowClear / ShowSearch / Controlled | false |
+| Size | middle（`controlHeight`=32） |
+| Variant | outlined |
+| Status | none |
+| Mode | single（default） |
+| Placement | bottomLeft |
+| ListHeight | 256 |
+| DefaultActiveFirstOption | true |
+| PopupMatchSelectWidth | true |
+| OptionFilterProp | `value` |
 | 受控值 | 未 Set 时用 default* 或零值 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
