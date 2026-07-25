@@ -119,7 +119,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Alert", kit.NewAlert("a").Node())
 	must("Progress", kit.NewProgress(50).Node())
 	must("Spin", kit.NewSpin(nil).Node())
-	must("Skeleton", kit.NewSkeleton(40, 10).Node())
+	must("Skeleton", kit.NewSkeleton().Node())
 	res := kit.NewResult()
 	res.SetTitle("t")
 	res.SetSubTitle("s")

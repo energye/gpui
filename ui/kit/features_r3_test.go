@@ -1467,22 +1467,22 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Skeleton": {
 			{"R1 active", func(t *testing.T) {
-				s := kit.NewSkeleton(40, 10)
+				s := kit.NewSkeleton()
 				s.SetActive(true)
 				if !s.Active {
 					t.Fatal()
 				}
 			}},
 			{"R2 rows", func(t *testing.T) {
-				s := kit.NewSkeleton(40, 10)
+				s := kit.NewSkeleton()
 				s.SetRows(3)
-				if s.Rows != 3 {
+				if s.ParagraphRows != 3 {
 					t.Fatal()
 				}
 			}},
 			{"R3 avatar", func(t *testing.T) {
-				s := kit.NewSkeleton(40, 10)
-				s.Avatar = true
+				s := kit.NewSkeleton()
+				s.SetAvatar(true)
 				if !s.Avatar {
 					t.Fatal()
 				}

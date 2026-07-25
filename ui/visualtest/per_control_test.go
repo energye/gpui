@@ -122,7 +122,11 @@ func perControlSpecs() []ctlSpec {
 		}},
 		{"ctl_progress", 220, 32, func() core.Node { return padRoot(kit.NewProgress(65).Node(), 220, 32) }},
 		{"ctl_spin", 80, 80, func() core.Node { return padRoot(kit.NewSpin(nil).Node(), 80, 80) }},
-		{"ctl_skeleton", 200, 40, func() core.Node { return padRoot(kit.NewSkeleton(160, 16).Node(), 200, 40) }},
+		{"ctl_skeleton", 200, 40, func() core.Node {
+			sk := kit.NewSkeleton()
+			sk.SetParagraphRows(1)
+			return padRoot(sk.Node(), 200, 40)
+		}},
 		{"ctl_result", 240, 160, func() core.Node {
 			res := kit.NewResult()
 			res.SetStatus(kit.ResultSuccess)

@@ -451,9 +451,11 @@ func (d *Drawer) bodyNode() core.Node {
 		return nil
 	}
 	if d.Loading {
-		d.loadingSk = NewSkeleton(260, 16)
-		d.loadingSk.SetRows(3)
-		d.loadingSk.Theme = d.Theme
+		d.loadingSk = NewSkeleton()
+		d.loadingSk.SetStyle(Style{Width: 260})
+		d.loadingSk.SetParagraphRows(3)
+		d.loadingSk.SetActive(true)
+		d.loadingSk.SetTheme(d.Theme)
 		return d.loadingSk.Node()
 	}
 	d.loadingSk = nil

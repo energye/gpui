@@ -577,7 +577,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Skeleton", func(t *testing.T) {
-			s := kit.NewSkeleton(40, 10)
+			s := kit.NewSkeleton()
 			s.SetActive(true)
 			if !s.Active {
 				t.Fatal()

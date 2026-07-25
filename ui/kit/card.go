@@ -613,10 +613,11 @@ func (c *Card) rebuild() {
 	containGrid := len(c.Grids) > 0
 	if c.Loading {
 		// antd: Skeleton loading active paragraph={{ rows: 4 }} title={false}
-		sk := NewSkeleton(0, 14)
-		sk.SetRows(DefaultCardLoadingRows)
+		sk := NewSkeleton()
+		sk.SetTitle(false)
+		sk.SetParagraphRows(DefaultCardLoadingRows)
 		sk.SetActive(true)
-		sk.Theme = c.Theme
+		sk.SetTheme(c.Theme)
 		c.skeleton = sk
 		bodyChild = sk.Node()
 	} else if containGrid {

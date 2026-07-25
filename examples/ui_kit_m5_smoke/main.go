@@ -256,9 +256,14 @@ func main() {
 	})
 
 	// Skeleton row — each bar isolated in a RepaintBoundary
-	sk1 := kit.NewSkeleton(180, 14)
-	sk2 := kit.NewSkeleton(120, 14)
-	sk3 := kit.NewSkeleton(160, 14)
+	mkBar := func(w float64) *kit.Skeleton {
+		s := kit.NewSkeleton()
+		s.SetActive(true)
+		s.SetParagraph(false)
+		s.SetTitleWidth(w)
+		return s
+	}
+	sk1, sk2, sk3 := mkBar(180), mkBar(120), mkBar(160)
 	skRow := primitive.Column(
 		primitive.NewRepaintBoundary(sk1.Node()),
 		primitive.NewRepaintBoundary(sk2.Node()),

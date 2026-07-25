@@ -636,9 +636,11 @@ func (m *Modal) bodyNode() core.Node {
 		if w < 120 {
 			w = 120
 		}
-		m.loadingSk = NewSkeleton(w, 16)
-		m.loadingSk.SetRows(3)
-		m.loadingSk.Theme = m.Theme
+		m.loadingSk = NewSkeleton()
+		m.loadingSk.SetStyle(Style{Width: w})
+		m.loadingSk.SetParagraphRows(3)
+		m.loadingSk.SetActive(true)
+		m.loadingSk.SetTheme(m.Theme)
 		return m.loadingSk.Node()
 	}
 	m.loadingSk = nil

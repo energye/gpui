@@ -343,8 +343,10 @@ func main() {
 		"Ant: ~20px 圆头弧 primary",
 		64, 64, padFrame(spin.Node(), 64, 64, 12))
 
-	sk := kit.NewSkeleton(180, 16)
+	sk := kit.NewSkeleton()
 	sk.SetActive(false)
+	sk.SetParagraphRows(1)
+	sk.SetTitle(true)
 	add("skeleton", "Skeleton",
 		"Ant: radius~4 fillSecondary",
 		220, 40, padFrame(sk.Node(), 220, 40, 8))

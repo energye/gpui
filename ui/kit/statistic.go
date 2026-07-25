@@ -1138,7 +1138,10 @@ func (s *Statistic) rebuild() {
 
 	if s.Loading {
 		//debug
-		sk := NewSkeleton(DefaultStatisticSkeletonW, DefaultStatisticSkeletonH)
+		sk := NewSkeleton()
+		sk.SetParagraph(false)
+		sk.SetTitleWidth(DefaultStatisticSkeletonW)
+		sk.SetStyles(SkeletonStyles{Title: Style{Height: DefaultStatisticSkeletonH}})
 		sk.Theme = th
 		sk.SetActive(true)
 		// pad top like antd statistic-skeleton paddingTop

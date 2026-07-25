@@ -76,7 +76,8 @@ func TestCanvasProgressRing(t *testing.T) {
 }
 
 func TestSkeletonAndSpin(t *testing.T) {
-	sk := kit.NewSkeleton(100, 16)
+	sk := kit.NewSkeleton()
+	sk.SetActive(true)
 	if !sk.Tick(0.05) {
 		t.Fatal("active skeleton should keep ticking")
 	}
