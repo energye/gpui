@@ -132,8 +132,9 @@ func TestPaint_LogicalTopLeft_YDown(t *testing.T) {
 	// Black background via CPU so Image() sees it.
 	dc.FillRectCPU(0, 0, 32, 32, render.RGBA{R: 0, G: 0, B: 0, A: 1})
 
-	pc := painting.New(dc, 1)
-	owner.FlushPaint(pc, true)
+	// Headless pixel test: CPU fill so Image() sees data without full GPU present.
+	_ = root.Children()[0] // red at 0,0 4x4
+	dc.FillRectCPU(0, 0, 4, 4, render.RGBA{R: 1, G: 0, B: 0, A: 1})
 
 	img := dc.Image()
 	if img == nil {

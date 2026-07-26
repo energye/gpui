@@ -53,9 +53,26 @@ func (c *Context) NotePaintVisit() {
 }
 
 // FillRect fills a rectangle in local logical coordinates (Y-down).
-// Uses CPU pixmap fill so Image() readback and simple UI chrome stay coherent
-// without requiring a GPU flush (P1). Complex paths can still use DC directly later.
+//
+// Uses the GPU draw path (DrawRectangle+Fill) so content appears in
+// PresentFrame / swapchain presents. FillRectCPU only updates the CPU pixmap
+// and is invisible on the true-window present path.
+//
+// For headless Image() tests, call dc.FlushGPU() (or Image()) after paint.
 func (c *Context) FillRect(x, y, w, h, r, g, b, a float64) {
+	if c == nil || c.DC == nil || w <= 0 || h <= 0 {
+		return
+	}
+	ax := c.OriginX + x
+	ay := c.OriginY + y
+	c.DC.SetRGBA(r, g, b, a)
+	c.DC.DrawRectangle(ax, ay, w, h)
+	_ = c.DC.Fill()
+}
+
+// FillRectCPU writes directly to the CPU pixmap (tests / offscreen readback).
+// Does not show up on GPU present unless something blits the pixmap to the surface.
+func (c *Context) FillRectCPU(x, y, w, h, r, g, b, a float64) {
 	if c == nil || c.DC == nil || w <= 0 || h <= 0 {
 		return
 	}

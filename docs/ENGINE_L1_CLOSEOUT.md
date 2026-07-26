@@ -35,9 +35,9 @@
 | P1 | RO · Constraints · 坐标/Y-down · PaintingContext | ✅ |
 | P2 | Layer · RepaintBoundary · FramePacket COW · CompositeOnly | ✅ |
 | P3 | Animation · Spinner · 脏层统计 · SubmitLatest · PipelineApp | ✅ |
-| P4+ | 见 [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md) | ⬜ |
+| P4 | 滚动/虚拟列表/IO | ✅ [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md) |
 
-任务细节：[`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md)
+任务细节：P0–P3 [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md) · P4 [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md)
 
 ---
 
@@ -98,7 +98,7 @@ go run ./examples/ui_l1_spinner
 | SubmitLatest 不堵 UI | ✅ |
 | FrameMetrics JSON | ✅ |
 | 逻辑/物理/Y-down | ✅ |
-| 滚动 1k / IO 解码 | ⬜ P4 |
+| 滚动 1k / IO 解码 | ✅ P4（S5/S6 测 + ui_l1_scroll） |
 | 真 vsync（非 fallback） | ⚠ 接口有，多 fallback |
 | per-layer GPU RT 池 | ⚠ 语义有，可再加深 |
 
@@ -106,12 +106,12 @@ go run ./examples/ui_l1_spinner
 
 ## 6. 已知限制
 
-1. 无滚动虚拟化硬门禁（P4）  
-2. 无 IO 解码线程 / 文本 atlas 加深（P4）  
+1. 虚拟列表 MVP 为 **固定行高**；可变高 / 完整 sliver 未做  
+2. 文本为引擎级最小 DrawString，非 IME 编辑器；atlas 深度仍靠 render  
 3. Present 以整帧 `PresentWith` 为主；脏层 **计数/skip** 已有  
 4. `presents` 计的是「已提交」，可能比 GPU 完成早约 1 帧  
 5. Win/mac 真句柄未接  
-6. 手势/焦点/Overlay 产品机制属 P5  
+6. 手势竞技 / 焦点 / Overlay 产品机制属 **P5**  
 
 ---
 
@@ -123,7 +123,8 @@ go run ./examples/ui_l1_spinner
 | `ENGINE_FLUTTER_SKIA_ARCH` | 架构条款变更 |
 | `ENGINE_ARCH_OVERVIEW` | 图示/白话 |
 | `ENGINE_PHASE_P0_P3` | 已完成任务考古 |
-| `ENGINE_PHASE_P4_P7_OUTLINE` | 后续阶段 |
+| `ENGINE_PHASE_P4` | **P4 执行细卡** |
+| `ENGINE_PHASE_P4_P7_OUTLINE` | P4–P7 大纲 |
 
 **L1 冻结：** 除非修 bug 或 P4 回头改契约，否则以本文状态为准，不再扩 L1 范围冒充完成。
 
@@ -134,8 +135,8 @@ go run ./examples/ui_l1_spinner
 | 顺序 | 内容 |
 |------|------|
 | 1 | （可选）存 blank/spinner JSON baseline |
-| 2 | **P4** 滚动协议 + 虚拟化 S5/S6 |
-| 3 | P5 L2 → P7 Ant（后置） |
+| 2 | P4 ✅ 已实现 |
+| 3 | **P5** L2 框架壳 → P7 Ant（后置） |
 
 ---
 
@@ -145,3 +146,5 @@ go run ./examples/ui_l1_spinner
 |------|------|------|
 | 1.0 | 2026-07-27 | 首版收口 |
 | 1.1 | 2026-07-27 | 文档收尾定稿：职责表、冻结说明、单测确认 |
+| 1.2 | 2026-07-27 | 挂链 ENGINE_PHASE_P4 细卡 |
+| 1.3 | 2026-07-27 | P4 实现完成：限制与下一步更新 |

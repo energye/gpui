@@ -75,6 +75,12 @@ func (b *RenderBox) Layout(c Constraints) Size {
 }
 
 // Paint implements RenderObject.
+//
+// CompositeOnly rules (Flutter-like):
+//  1. Skip node if neither it nor any descendant needs paint.
+//  2. If this node NeedsPaint: draw self and all children except clean RepaintBoundaries
+//     (scroll/offset dirties parent → children must redraw).
+//  3. If only descendants need paint: do not draw self; recurse only into dirty paths.
 func (b *RenderBox) Paint(pc *painting.Context) {
 	if pc == nil {
 		return
@@ -83,18 +89,29 @@ func (b *RenderBox) Paint(pc *painting.Context) {
 		return
 	}
 	pc.NotePaintVisit()
-	if b.OnPaint != nil {
-		b.OnPaint(pc, b.size)
+	paintSelf := !pc.CompositeOnly || b.NeedsPaint()
+	if paintSelf {
+		if b.OnPaint != nil {
+			b.OnPaint(pc, b.size)
+		}
+		for _, ch := range b.children {
+			off := ch.Offset()
+			if pc.CompositeOnly && ch.IsRepaintBoundary() && !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
+				continue
+			}
+			ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
+		}
+		b.clearPaintDirty()
+		return
 	}
+	// Descend only into dirty subtrees / dirty boundaries.
 	for _, ch := range b.children {
-		off := ch.Offset()
-		// Skip clean non-boundary children under CompositeOnly.
-		if pc.CompositeOnly && !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
+		if !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
 			continue
 		}
+		off := ch.Offset()
 		ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
 	}
-	b.clearPaintDirty()
 }
 
 // HitTest implements RenderObject (Y-down local coords relative to this box).
@@ -146,11 +163,11 @@ func (c *RenderColorBox) Layout(cons Constraints) Size {
 }
 
 // Paint implements RenderObject.
+// If Paint is invoked, always draw — CompositeOnly skipping is the caller's job
+// (parent omits clean RepaintBoundary children). Leaves must redraw when a
+// scrolling ancestor repaints.
 func (c *RenderColorBox) Paint(pc *painting.Context) {
 	if pc == nil {
-		return
-	}
-	if pc.CompositeOnly && !c.NeedsPaint() {
 		return
 	}
 	pc.NotePaintVisit()

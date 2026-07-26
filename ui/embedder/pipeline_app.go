@@ -231,6 +231,10 @@ func (a *PipelineApp) Run() error {
 					if a.pipe.FlushLayout(vp, true) {
 						a.layoutFrames.Add(1)
 					}
+					// Size change must repaint even when layout early-outs (e.g. height-only).
+					if a.root != nil {
+						a.root.MarkNeedsPaint()
+					}
 					a.ScheduleFrame()
 				}
 			case platform.EventExpose:

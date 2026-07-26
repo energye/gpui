@@ -251,6 +251,14 @@ func baseOf(n RenderObject) (*Base, bool) {
 		return &t.Base, true
 	case *RenderSpinner:
 		return &t.Base, true
+	case *RenderViewport:
+		return &t.Base, true
+	case *VirtualList:
+		return &t.Base, true
+	case *RenderText:
+		return &t.Base, true
+	case *RenderImage:
+		return &t.Base, true
 	default:
 		return nil, false
 	}

@@ -1,6 +1,6 @@
 // Package ui is the L1 UI engine (Flutter-style pipeline) for gpui.
 //
-// Status: P0–P3 implemented (experience prototype). See docs/ENGINE_L1_CLOSEOUT.md.
+// Status: P0–P4 implemented (L1 prototype + scroll/IO). See docs/ENGINE_L1_CLOSEOUT.md.
 //
 // Dependency rule (hard):
 //
@@ -26,6 +26,7 @@
 //	ui/painting   — PaintingContext (logical px, Y-down, CompositeOnly)
 //	ui/scene      — Layer tree, FramePacket COW, RasterizeDirty
 //	ui/animation  — Controller (auto-unregister ticker)
+//	ui/io         — async image decode pool (F12)
 //
 // Coordinates: layout/hit/pointer = logical pixels, Y-down; GPU = physical × dpr.
 package ui

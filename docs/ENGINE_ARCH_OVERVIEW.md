@@ -4,6 +4,7 @@
 > **L1 收口（状态 / 命令）：** [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)  
 > **架构真源：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
 > **P0–P3 任务：** [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md)（已完成）  
+> **P4 细卡：** [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md)  
 > **P4+ 大纲：** [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md)
 
 ---
@@ -114,7 +115,7 @@ vsync/fallback → Tick → layout(脏) → paint(脏) → FramePacket
 | 阶段 | 内容 | 状态 |
 |------|------|------|
 | P0–P3 | L1 体验雏形 | ✅ |
-| P4 | 滚动 / 文本 / IO | ⬜ |
+| P4 | 滚动 / 文本 / IO | ✅ |
 | P5–P7 | L2 / 增强 / Ant | ⬜ |
 
 **验收命令与限制 →** [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)

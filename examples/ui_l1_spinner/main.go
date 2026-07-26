@@ -2,6 +2,9 @@
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	go run ./examples/ui_l1_spinner
+//
+// Duration: default 60s; override with RUN_SECONDS (e.g. RUN_SECONDS=180).
+// No MaxFrames cap — time-limited only, for hitch observation.
 package main
 
 import (
@@ -16,6 +19,7 @@ import (
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
+	"github.com/energye/gpui/ui/scheduler"
 
 	_ "github.com/energye/gpui/render/gpu"
 )
@@ -25,12 +29,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ui_l1_spinner: DISPLAY not set")
 		os.Exit(2)
 	}
-	secs := 3
-	if v := os.Getenv("RUN_SECONDS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			secs = n
-		}
-	}
+	secs := runSeconds(60)
+	fmt.Fprintf(os.Stderr, "ui_l1_spinner: running %ds (RUN_SECONDS to override, e.g. 180)\n", secs)
 	const winW, winH = 480, 320
 	xw, err := openX11(winW, winH, "gpui L1 spinner (P3)")
 	if err != nil {
@@ -53,13 +53,13 @@ func main() {
 
 	host := &x11Host{xw: xw, w: winW, h: winH, scale: 1}
 	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
-		ClearR:    0.10,
-		ClearG:    0.12,
-		ClearB:    0.16,
-		ClearA:    1,
-		RunFor:    time.Duration(secs) * time.Second,
-		MaxFrames: 300,
-		WarmUp:    true,
+		ClearR: 0.10,
+		ClearG: 0.12,
+		ClearB: 0.16,
+		ClearA: 1,
+		RunFor: time.Duration(secs) * time.Second,
+		// MaxFrames: 0 = unlimited
+		WarmUp: true,
 	})
 
 	ctrl := animation.NewController(1.0)
@@ -84,18 +84,28 @@ func main() {
 		fmt.Fprintln(os.Stderr, "no frames")
 		os.Exit(1)
 	}
-	// S2-ish: after warm-up, layout should not keep growing every frame.
-	// layoutFrames includes initial + resizes only ideally.
-	fmt.Fprintf(os.Stderr, "ui_l1_spinner: presents=%d layout_flushes=%d last_raster_layers=%d\n",
-		app.PresentCount(), app.LayoutFlushCount(), app.LastRasterStats().RasterLayerCount)
+	m := app.Metrics().Snapshot()
+	fps := float64(app.PresentCount()) / float64(secs)
+	fmt.Fprintf(os.Stderr, "ui_l1_spinner: presents=%d ~%.1f fps over %ds layout_flushes=%d raster_layers=%d\n",
+		app.PresentCount(), fps, secs, app.LayoutFlushCount(), app.LastRasterStats().RasterLayerCount)
+	fmt.Fprintf(os.Stderr, "ui_l1_spinner: avg=%.2fms max=%.2fms last=%.2fms hitches(>%.1fms)=%d\n",
+		m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.LastFrameIntervalMs, scheduler.HitchThresholdMs, m.HitchCount)
 	if b, err := app.Metrics().JSON(); err == nil {
 		fmt.Println(string(b))
 	}
-	// Soft gate: layout flushes should be small vs presents (not every frame).
 	if app.LayoutFlushCount() > app.PresentCount()/2 && app.PresentCount() > 10 {
 		fmt.Fprintf(os.Stderr, "warning: layout flushes high (%d / %d presents)\n",
 			app.LayoutFlushCount(), app.PresentCount())
 	}
+}
+
+func runSeconds(def int) int {
+	if v := os.Getenv("RUN_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
 }
 
 // --- minimal X11 (same pattern as ui_l1_blank) ---

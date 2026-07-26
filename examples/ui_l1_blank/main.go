@@ -5,7 +5,8 @@
 //	export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	go run ./examples/ui_l1_blank
 //
-// Exits 0 after a few successful presents (or RUN_SECONDS).
+// Duration: default 60s; override with RUN_SECONDS (e.g. RUN_SECONDS=180).
+// No MaxFrames cap — time-limited only, for hitch observation.
 package main
 
 import (
@@ -18,6 +19,7 @@ import (
 	"github.com/ebitengine/purego"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
+	"github.com/energye/gpui/ui/scheduler"
 
 	// Register GPU accelerator for render.Context present path.
 	_ "github.com/energye/gpui/render/gpu"
@@ -28,12 +30,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "ui_l1_blank: DISPLAY not set")
 		os.Exit(2)
 	}
-	secs := 3
-	if v := os.Getenv("RUN_SECONDS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			secs = n
-		}
-	}
+	secs := runSeconds(60)
+	fmt.Fprintf(os.Stderr, "ui_l1_blank: running %ds (RUN_SECONDS to override, e.g. 180)\n", secs)
 	const winW, winH = 480, 320
 	xw, err := openX11(winW, winH, "gpui L1 blank (P0)")
 	if err != nil {
@@ -50,7 +48,7 @@ func main() {
 		ClearA:          1,
 		ContinuousClear: true, // demo: keep refreshing while timed
 		RunFor:          time.Duration(secs) * time.Second,
-		MaxFrames:       180,
+		// MaxFrames: 0 = unlimited; stop only on RunFor
 	})
 	if err := app.Open(); err != nil {
 		fmt.Fprintln(os.Stderr, "open present:", err)
@@ -64,10 +62,30 @@ func main() {
 		fmt.Fprintln(os.Stderr, "no presents completed")
 		os.Exit(1)
 	}
+	m := app.Metrics().Snapshot()
+	printFrameSummary("ui_l1_blank", app.PresentCount(), secs, m)
 	if b, err := app.Metrics().JSON(); err == nil {
 		fmt.Println(string(b))
 	}
-	fmt.Fprintf(os.Stderr, "ui_l1_blank: presents=%d ok\n", app.PresentCount())
+}
+
+func runSeconds(def int) int {
+	if v := os.Getenv("RUN_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
+}
+
+func printFrameSummary(name string, presents int64, secs int, m scheduler.FrameMetrics) {
+	fps := 0.0
+	if secs > 0 {
+		fps = float64(presents) / float64(secs)
+	}
+	fmt.Fprintf(os.Stderr, "%s: presents=%d ~%.1f fps (wall %ds) avg=%.2fms max=%.2fms last=%.2fms hitches(>%.1fms)=%d\n",
+		name, presents, fps, secs, m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.LastFrameIntervalMs,
+		scheduler.HitchThresholdMs, m.HitchCount)
 }
 
 // --- minimal X11 host (example-local; not part of ui library) ---

@@ -12,7 +12,7 @@
 
 ```text
 P0–P3  L1 体验雏形  ✅ 已实现 / 可验收
-P4     L1 加深：滚动 / 文本 / 图 IO     ⬜ 下一刀
+P4     L1 加深：滚动 / 文本 / 图 IO     ✅
 P5     L2 框架壳：手势 / 焦点 / Overlay
 P6     L1 增强：细 damage / 缓存 / 多窗 / HUD
 P7     L3 产品控件：Ant（docs/antd）
@@ -62,10 +62,11 @@ Ant List/Table 产品 API；完整 IME 编辑器产品；L2 手势竞技场。
 - P3：Layer、管道、Ticker、render 热路径可用  
 - 可能改 `render` 文本/图 atlas、`gpu` 上传  
 
-## 细任务触发条件
+## 细任务
 
-✅ P0–P3 已收口（[`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)）。  
-建议：开 P4 细卡前存一份 `ui_l1_spinner` JSON 作 baseline。
+✅ **已开细卡：** [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md)（轨 A–E、S5/S6 数字、PR 切片）
+
+建议开工前存一份 `ui_l1_spinner` JSON 作 baseline。
 
 ---
 
@@ -316,3 +317,4 @@ P4 的 S5/S6 把「列表页」也纳入引擎手感，仍不算 L3 控件库完
 | 1.0 | 2026-07-26 | P4–P7 大纲 + L1 原生手感验收与「最优」边界 |
 | 1.1 | 2026-07-27 | 标注 P0–P3 已完成；挂链 L1 收口 |
 | 1.2 | 2026-07-27 | L1 文档收尾：P4 可开；前置改为已收口 |
+| 1.3 | 2026-07-27 | 挂链 ENGINE_PHASE_P4 细卡 |

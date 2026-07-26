@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// HitchThresholdMs counts a frame interval as a hitch when it exceeds this
+// wall-time gap (≈2× 60 Hz vsync). Used for soak / jank observation.
+const HitchThresholdMs = 33.4
+
 // FrameMetrics is the L1 observability snapshot (F14).
 // JSON field names are stable for baseline tooling.
 type FrameMetrics struct {
@@ -13,6 +17,7 @@ type FrameMetrics struct {
 	FrameCount   int64 `json:"frame_count"`
 	PresentCount int64 `json:"present_count"`
 	MissedVSync  int64 `json:"missed_vsync"`
+	HitchCount   int64 `json:"hitch_count"` // intervals > HitchThresholdMs
 
 	// Pipeline
 	PipelineDepth int `json:"pipeline_depth"`
@@ -20,6 +25,8 @@ type FrameMetrics struct {
 
 	// Timing (milliseconds)
 	LastFrameIntervalMs float64 `json:"last_frame_interval_ms"`
+	MaxFrameIntervalMs  float64 `json:"max_frame_interval_ms"`
+	AvgFrameIntervalMs  float64 `json:"avg_frame_interval_ms"`
 	LastBuildMs         float64 `json:"frame_build_ms"`
 	LastRasterMs        float64 `json:"frame_raster_ms"`
 
@@ -32,9 +39,11 @@ type FrameMetrics struct {
 
 // MetricsStore is a concurrency-safe metrics accumulator.
 type MetricsStore struct {
-	mu     sync.Mutex
-	m      FrameMetrics
-	lastAt time.Time
+	mu          sync.Mutex
+	m           FrameMetrics
+	lastAt      time.Time
+	intervalSum float64
+	intervalN   int64
 }
 
 // Snapshot returns a copy of current metrics.
@@ -54,6 +63,7 @@ func (s *MetricsStore) JSON() ([]byte, error) {
 }
 
 // NoteFrameInterval records wall time since previous frame note.
+// Tracks max/avg interval and hitch count for soak observation.
 func (s *MetricsStore) NoteFrameInterval(now time.Time) {
 	if s == nil {
 		return
@@ -61,7 +71,17 @@ func (s *MetricsStore) NoteFrameInterval(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.lastAt.IsZero() {
-		s.m.LastFrameIntervalMs = now.Sub(s.lastAt).Seconds() * 1000
+		ms := now.Sub(s.lastAt).Seconds() * 1000
+		s.m.LastFrameIntervalMs = ms
+		if ms > s.m.MaxFrameIntervalMs {
+			s.m.MaxFrameIntervalMs = ms
+		}
+		s.intervalSum += ms
+		s.intervalN++
+		s.m.AvgFrameIntervalMs = s.intervalSum / float64(s.intervalN)
+		if ms > HitchThresholdMs {
+			s.m.HitchCount++
+		}
 	}
 	s.lastAt = now
 	s.m.FrameCount++

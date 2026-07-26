@@ -63,9 +63,7 @@ func (s *RenderSpinner) Paint(pc *painting.Context) {
 	if pc == nil {
 		return
 	}
-	if pc.CompositeOnly && !s.NeedsPaint() {
-		return
-	}
+	// Spinner is a RepaintBoundary: parents skip us when clean. If Paint is called, draw.
 	pc.NotePaintVisit()
 	sz := s.size
 	if sz.Width <= 0 {

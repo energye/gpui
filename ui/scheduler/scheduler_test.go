@@ -82,4 +82,25 @@ func TestMetrics_Interval(t *testing.T) {
 	if m.FrameCount != 2 || m.LastFrameIntervalMs <= 0 {
 		t.Fatalf("%+v", m)
 	}
+	if m.MaxFrameIntervalMs < m.LastFrameIntervalMs {
+		t.Fatalf("max interval %.2f < last %.2f", m.MaxFrameIntervalMs, m.LastFrameIntervalMs)
+	}
+	if m.AvgFrameIntervalMs <= 0 {
+		t.Fatalf("avg interval expected > 0: %+v", m)
+	}
+}
+
+func TestMetrics_HitchCount(t *testing.T) {
+	s := scheduler.New()
+	t0 := time.Now()
+	s.Metrics().NoteFrameInterval(t0)
+	// Simulate a clear hitch (> 33.4ms).
+	s.Metrics().NoteFrameInterval(t0.Add(50 * time.Millisecond))
+	m := s.Metrics().Snapshot()
+	if m.HitchCount != 1 {
+		t.Fatalf("hitch_count want 1 got %d (%+v)", m.HitchCount, m)
+	}
+	if m.MaxFrameIntervalMs < 49 {
+		t.Fatalf("max_frame_interval_ms want ~50 got %.2f", m.MaxFrameIntervalMs)
+	}
 }
