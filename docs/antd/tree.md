@@ -414,21 +414,28 @@ import { Tree } from 'antd';
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
+| 节点标题行高 `titleHeight` | **24** | `controlHeightSM`（`prepareComponentToken`） |
+| switcher 宽高 `switcherSize` | **24** | = titleHeight |
+| 缩进 `indentSize` | **24** | = titleHeight |
+| 节点块内边距 `treeNodePadding` | **4** | `paddingXS / 2` |
 | 字号 middle | **14** | `fontSize` |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
+| showLine 叶图标直径 | **14** | 组件常量（线框圆） |
 
 #### 6.2.2 颜色 Token（语义）
 
 | 用途 | Token 建议 | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 主色 / hover / active | `colorPrimary` + 变体 | 强调、目录选中底 |
+| 节点 hover 底 | `controlItemBgHover` / `colorBgTextHover` | 行 hover |
+| 节点选中底 / 字 | `controlItemBgActive` / `colorPrimaryBg` · `colorText` | 普通 Tree 选中 |
+| 目录选中底 / 字 | `colorPrimary` · `colorTextLightSolid` | DirectoryTree |
+| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | title / switcher |
+| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | showLine 连接线走 `colorBorder` |
+| 禁用 | `colorTextDisabled` / 无 hover 高亮 | 整树或节点 disabled |
+| 搜索高亮 | `colorError` 或强调色 | SearchValue 命中片段 |
 
 禁止硬编码品牌色作为唯一默认皮。
 
@@ -438,24 +445,31 @@ import { Tree } from 'antd';
 
 | 配置 | 说明 | 类型（摘录） | 默认 |
 | --- | --- | --- | --- |
-| `allowDrop` | 是否允许拖拽时放置在该节点 | ({ dropNode, dropPosition }) => boolean | - |
-| `autoExpandParent` | 是否自动展开父节点 | boolean | false |
-| `blockNode` | 是否节点占据一行 | boolean | false |
-| `checkable` | 节点前添加 Checkbox 复选框 | boolean | false |
-| `checkedKeys` | （受控）选中复选框的树节点（注意：父子节点有关联，如果传入父节点 key，则子节点自动选中；相应当子节点 key … | string\[] \ | {checked: string\[], halfChecked: string\[]} |
-| `checkStrictly` | checkable 状态下节点选择完全受控（父子节点选中状态不再关联） | boolean | false |
-| `classNames` | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), … | (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> |
-| `defaultCheckedKeys` | 默认选中复选框的树节点 | string\[] | \[] |
-| `defaultExpandAll` | 默认展开所有树节点 | boolean | false |
-| `defaultExpandedKeys` | 默认展开指定的树节点 | string\[] | \[] |
-| `defaultExpandParent` | 默认展开父节点 | boolean | true |
-| `defaultSelectedKeys` | 默认选中的树节点 | string\[] | \[] |
-| `disabled` | 将树禁用 | boolean | false |
-| `draggable` | 设置节点可拖拽，可以通过 `icon: false` 关闭拖拽提示图标 | boolean \ | ((node: DataNode) => boolean) \ |
-| `expandedKeys` | （受控）展开指定的树节点 | string\[] | \[] |
-| `fieldNames` | 自定义节点 title、key、children 的字段 | object | { title: `title`, key: `key`, children: `children` } |
+| `treeData` | 树数据（key 全局唯一） | `[]TreeNode` | `[]` |
+| `title` | 节点标题（treeData 字段） | string | — |
+| `icon` | 节点前图标名（需 `showIcon`） | string | — |
+| `disabled` | 整树禁用 | boolean | false |
+| `checkable` | 节点前 Checkbox | boolean | false |
+| `checkedKeys` / `defaultCheckedKeys` | 勾选（受控/非受控） | `[]string` | `[]` |
+| `checkStrictly` | 勾选父子不联动 | boolean | false |
+| `selectedKeys` / `defaultSelectedKeys` | 选中 | `[]string` | `[]` |
+| `multiple` | 多选 selectedKeys | boolean | false |
+| `expandedKeys` / `defaultExpandedKeys` | 展开 | `[]string` | `[]` |
+| `defaultExpandAll` | 默认展开全部 | boolean | false |
+| `defaultExpandParent` | 默认展开选中/勾选节点的父 | boolean | true |
+| `autoExpandParent` | 自动展开父（搜索场景） | boolean | false |
+| `blockNode` | 节点占满一行 | boolean | false |
+| `showLine` | 连接线 | boolean | false |
+| `showIcon` | 展示节点 icon | boolean | false |
+| `switcherIcon` | 全局展开/折叠图标名 | string | chevron |
+| `loadData` | 异步加载子节点 | `func(TreeNode)` | — |
+| `loadedKeys` | 已加载 key（配合 loadData） | `[]string` | `[]` |
+| `draggable` | 节点可拖拽 | boolean | false |
+| `directory` | DirectoryTree 模式（选中主色底） | boolean | false |
+| `searchValue` | 标题高亮片段（外部搜索组合） | string | `""` |
+| `fieldNames` | 自定义 title/key/children 字段 | object | `{title,key,children}` |
 
-**配置优先级（通用）：** 受控 props（`value`/`open`/`checked`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
+**配置优先级（通用）：** 受控 props（`expandedKeys`/`selectedKeys`/`checkedKeys`）> 显式非受控 `default*` > 组件默认 > ConfigProvider 全局默认。
 
 ### 6.4 交互状态机（L1）
 
@@ -520,13 +534,21 @@ treeData 渲染
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `disabled` | 必须 |
-| `treeData` | 必须 |
-| `title` | 必须 |
-| `icon` | 必须 |
-| 官方主路径示例 | 基本、受控操作示例、拖动示例、异步数据加载、可搜索、连接线、自定义图标、目录 |
+| `treeData` / `title` / `key` / `children` | 数据驱动渲染 |
+| `disabled`（整树 + 节点） | 不可选/勾/拖 |
+| `expandedKeys` / `defaultExpandedKeys` / `defaultExpandAll` / `defaultExpandParent` / `autoExpandParent` / `onExpand` | 展开主路径；受控优先 |
+| `selectedKeys` / `defaultSelectedKeys` / `multiple` / `onSelect` | 选中主路径 |
+| `checkable` / `checkedKeys` / `defaultCheckedKeys` / `checkStrictly` / `onCheck` | 勾选 + 默认父子联动 |
+| `loadData` / `loadedKeys` / 节点 `Loading` + Ticker | 异步子节点 |
+| `showLine` | 连接线可见 |
+| `showIcon` / 节点 `icon` / `switcherIcon` | 自定义图标 |
+| `draggable` / `onDrop` | 拖拽重排主路径（`allowDrop` 细粒度 P1） |
+| `blockNode` | 节点占满行（拖拽示例配套） |
+| DirectoryTree（`directory`） | 目录选中主色底 + multiple |
+| `searchValue` 高亮 | 外部 Search 组合（可搜索示例） |
+| 官方主路径示例 | 基本、受控、拖动、异步、可搜索、连接线、自定义图标、目录 |
 | 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
+| a11y §6.6 | `role=tree` / `treeitem` + 展开/选中态；焦点 ring |
 | §6.9 中 L1/L2 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
@@ -534,10 +556,13 @@ treeData 渲染
 | 配置 / 能力 | 说明 |
 | --- | --- |
 | semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| 动画像素级 / 复杂虚拟列表 / `height` 虚拟滚动 | 分期 |
+| `allowDrop` 细粒度 / 拖拽 icon 关闭 / dropPosition 全矩阵 | 分期 |
+| `fieldNames` 自定义字段 / `treeDataSimpleMode` | 分期 |
+| 自定义 switcherIcon 节点级复杂渲染 / 多行 title ReactNode | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
 | debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | 自定义展开/折叠图标, 虚拟滚动, 占据整行, 自定义语义结构的样式和类 |
+| 其余示例 | 自定义展开/折叠图标完整页、占据整行独立页、自定义语义结构的样式和类、ConfigProvider 全局 |
 
 ### 6.9 验收用例表（可测）
 
@@ -574,41 +599,119 @@ treeData 渲染
 | TRE-26 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API（旧 `Nodes`/`Selected`/`Expanded map`/`OnSelect(string)`/`TreeNode.Expanded` 指针树）。  
+> 以下为 **产品需求层** 契约；命名可微调但语义不可丢。
 
 ```text
-NewTree(...) *Tree
+// 节点（antd TreeDataNode 子集）
+type TreeNode struct {
+  Key, Title, Icon, SwitcherIcon string
+  Children []TreeNode
+  Disabled, DisableCheckbox, IsLeaf, Loading bool
+  Selectable *bool // nil → true
+}
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+type TreeDropInfo struct {
+  DragKey, DropKey string
+  DropToGap bool
+  DropPosition int // -1 before, 0 inside, 1 after
+}
+
+NewTree(treeData ...TreeNode) *Tree
+NewDirectoryTree(treeData ...TreeNode) *Tree  // directory+blockNode
+
+// 数据
+SetTreeData(...TreeNode) / TreeData() / NotifyTreeDataChanged()
+
+// 展开
+SetExpandedKeys([]string)          // 写入；ControlledExpanded 时仅外部写入
+SetDefaultExpandedKeys([]string)
+SetDefaultExpandAll(bool)
+SetDefaultExpandParent(bool)       // default true
+SetAutoExpandParent(bool)
+SetControlledExpanded(bool)
+ExpandedKeys() []string
+ToggleExpand(key) / ExpandKey(key) / CollapseKey(key)
+
+// 选中
+SetSelectedKeys([]string)
+SetDefaultSelectedKeys([]string)
+SetMultiple(bool)
+SetControlledSelected(bool)
+SelectedKeys() []string
+SelectKey(key)                     // 程序化选中
+
+// 勾选
+SetCheckable(bool)
+SetCheckedKeys([]string)
+SetDefaultCheckedKeys([]string)
+SetCheckStrictly(bool)
+SetControlledChecked(bool)
+CheckedKeys() / HalfCheckedKeys() []string
+ToggleCheck(key)
+
+// 展示
+SetDisabled(bool)
+SetShowLine(bool) / SetShowLeafIcon(bool)
+SetShowIcon(bool)
+SetBlockNode(bool)
+SetDirectory(bool)
+SetSwitcherIcon(name string)
+SetSearchValue(q string)           // 标题高亮；配合 autoExpandParent
+
+// 异步
+SetLoadData(func(TreeNode))
+SetLoadedKeys([]string)
+LoadedKeys() []string
+
+// 拖拽
+SetDraggable(bool)
+Drop(dragKey, dropKey string, dropToGap bool, dropPosition int)  // 测试/程序化
+// OnDrop 非受控时默认重排 TreeData
+
+// 回调
+OnExpand  func(expandedKeys []string, node TreeNode, expanded bool)
+OnSelect  func(selectedKeys []string, node TreeNode, selected bool)
+OnCheck   func(checkedKeys []string, node TreeNode, checked bool)
+OnLoad    func(loadedKeys []string, node TreeNode)
+OnDrop    func(info TreeDropInfo)
+OnDragStart / OnDragEnter（可选）
+
+// 主题 / a11y / 挂树
+SetTheme / SetFace / SetStyle / SetAriaLabel
+Node() core.Node
+ChromeNode() core.Node
+AttachTicker(*core.Tree)           // loadData Loading 旋转
+VisibleKeys() / VisibleTitles()    // 测试
+TitleHeight() / IndentSize()       // L2 度量
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Disabled / Checkable / Multiple / Draggable / ShowLine / ShowIcon / BlockNode / Directory | false |
+| DefaultExpandParent | true |
+| AutoExpandParent | false |
+| CheckStrictly | false |
+| ShowLeafIcon（showLine 时） | true |
+| titleHeight / switcherSize / indentSize | 24（`controlHeightSM`） |
+| 受控值 | 未 Controlled* 时用 default* 或交互写入 |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Data view
-  ├─ header?
-  ├─ body rows/nodes
-  └─ pagination/footer?
+Decorated Root (role=tree)
+  └─ Flex Column body
+       └─ row × N (role=treeitem)
+            indent · switcher · checkbox? · icon? · title
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- 组合 `ui/primitive` + `ui/core`（Pressable / Flex / Text / Icon / Checkbox / Canvas spinner），禁止第二套事件/帧循环。  
+- `rebuild()` 只读 Default/字段/Token；Loading 用 `Tree.AddTicker` + `MarkNeedsPaint`。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 展开动效 P0 瞬时切换；尊重 reduced-motion。  
 
 ### 6.12 完成定义（DoD）
 

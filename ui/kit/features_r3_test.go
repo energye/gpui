@@ -1268,19 +1268,19 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Tree": {
 			{"R1 construct", func(t *testing.T) {
-				if kit.NewTree(&kit.TreeNode{Key: "r", Title: "r"}).Node() == nil {
+				if kit.NewTree(kit.TreeNode{Key: "r", Title: "r"}).Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 selected", func(t *testing.T) {
-				tr := kit.NewTree(&kit.TreeNode{Key: "r", Title: "r"})
-				tr.SetSelected("r")
-				if tr.Selected != "r" {
+				tr := kit.NewTree(kit.TreeNode{Key: "r", Title: "r"})
+				tr.SetSelectedKeys([]string{"r"})
+				if !tr.IsSelected("r") {
 					t.Fatal()
 				}
 			}},
 			{"R3 expand", func(t *testing.T) {
-				tr := kit.NewTree(&kit.TreeNode{Key: "r", Title: "r", Children: []*kit.TreeNode{{Key: "c", Title: "c"}}})
+				tr := kit.NewTree(kit.TreeNode{Key: "r", Title: "r", Children: []kit.TreeNode{{Key: "c", Title: "c"}}})
 				tr.ToggleExpand("r")
 			}},
 		},

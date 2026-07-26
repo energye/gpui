@@ -236,7 +236,7 @@ func perControlSpecs() []ctlSpec {
 			).Node(), 240, 100)
 		}},
 		{"ctl_tree", 160, 80, func() core.Node {
-			return padRoot(kit.NewTree(&kit.TreeNode{Key: "r", Title: "root"}).Node(), 160, 80)
+			return padRoot(kit.NewTree(kit.TreeNode{Key: "r", Title: "root"}).Node(), 160, 80)
 		}},
 		{"ctl_transfer", 280, 120, func() core.Node {
 			tr := kit.NewTransfer()
@@ -244,7 +244,7 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(tr.Node(), 280, 120)
 		}},
 		{"ctl_cascader", 200, 48, func() core.Node {
-			return padRoot(kit.NewCascader(&kit.TreeNode{Key: "r", Title: "r"}).Node(), 200, 48)
+			return padRoot(kit.NewCascader("", kit.CascaderOption{Value: "r", Label: "r"}).Node(), 200, 48)
 		}},
 		{"ctl_date_picker", 300, 320, func() core.Node { return padRoot(kit.NewDatePicker().Node(), 300, 320) }},
 		{"ctl_time_picker", 280, 48, func() core.Node { return padRoot(kit.NewTimePicker().Node(), 280, 48) }},

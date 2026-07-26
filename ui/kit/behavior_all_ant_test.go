@@ -511,7 +511,7 @@ func TestBehavior_AllAntControls(t *testing.T) {
 			}
 		}},
 		{"Tree", func(t *testing.T) {
-			tr := kit.NewTree(&kit.TreeNode{Key: "r", Title: "r"})
+			tr := kit.NewTree(kit.TreeNode{Key: "r", Title: "r"})
 			if tr.Node() == nil {
 				t.Fatal()
 			}

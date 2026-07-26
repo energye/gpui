@@ -132,16 +132,21 @@ func main() {
 	list.OnSelect = func(i int, s string) { status = "list=" + s }
 
 	tree := kit.NewTree(
-		&kit.TreeNode{Key: "src", Title: "src", Expanded: true, Children: []*kit.TreeNode{
-			{Key: "ui", Title: "ui", Expanded: true, Children: []*kit.TreeNode{
+		kit.TreeNode{Key: "src", Title: "src", Children: []kit.TreeNode{
+			{Key: "ui", Title: "ui", Children: []kit.TreeNode{
 				{Key: "kit", Title: "kit"},
 				{Key: "core", Title: "core"},
 			}},
 			{Key: "render", Title: "render"},
 		}},
 	)
-	tree.Face = face
-	tree.OnSelect = func(k string) { status = "tree=" + k }
+	tree.SetFace(face)
+	tree.SetDefaultExpandAll(true)
+	tree.SetOnSelect(func(keys []string, _ kit.TreeNode, _ bool) {
+		if len(keys) > 0 {
+			status = "tree=" + keys[0]
+		}
+	})
 
 	split := primitive.NewSplitPane(list.Node(), tree.Node())
 	split.Ratio = 0.4

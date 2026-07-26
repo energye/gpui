@@ -97,7 +97,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	must("Empty", kit.NewEmpty().Node())
 	must("List", kit.NewList("a").Node())
 	must("Table", kit.NewTableWith([]kit.TableColumn{{Key: "a", Title: "A"}}, nil).Node())
-	must("Tree", kit.NewTree(&kit.TreeNode{Key: "r", Title: "r"}).Node())
+	must("Tree", kit.NewTree(kit.TreeNode{Key: "r", Title: "r"}).Node())
 	must("Statistic", func() core.Node {
 		s := kit.NewStatistic()
 		s.SetTitle("t")

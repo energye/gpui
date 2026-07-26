@@ -101,15 +101,16 @@ func TestListSelect(t *testing.T) {
 }
 
 func TestTreeExpand(t *testing.T) {
-	root := &kit.TreeNode{Key: "r", Title: "Root", Expanded: true, Children: []*kit.TreeNode{
+	root := kit.TreeNode{Key: "r", Title: "Root", Children: []kit.TreeNode{
 		{Key: "c1", Title: "Child"},
 	}}
 	tr := kit.NewTree(root)
+	tr.SetDefaultExpandedKeys([]string{"r"})
 	tree := core.NewTree(tr.Node())
 	tree.Layout(core.Size{Width: 240, Height: 200})
-	tr.Selected = "c1"
-	if tr.Selected != "c1" {
-		t.Fatal(tr.Selected)
+	tr.SetSelectedKeys([]string{"c1"})
+	if !tr.IsSelected("c1") {
+		t.Fatal(tr.GetSelectedKeys())
 	}
 }
 
