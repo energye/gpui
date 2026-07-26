@@ -91,6 +91,16 @@ type FloatButton struct {
 	Style     Style
 }
 
+// # Lifecycle (#9, Button pattern)
+//
+// NewFloatButton always builds once. After that:
+//
+//   - structureChange() — full FAB rebuild (icon/content/loading tree)
+//   - chromeChange()    — type/shape/theme metrics via applyMetrics + Button chrome
+//   - ensureBuilt()     — Node/ChromeNode/Button paths
+//
+// Embedded Button Decorated uses SkinType = kit.FloatButton (#6), not kit.Button.
+//
 // NewFloatButton creates a FloatButton with Ant defaults.
 // Defaults (§6.10): Type=default, Shape=circle, no content, default icon.
 func NewFloatButton() *FloatButton {
@@ -102,14 +112,42 @@ func NewFloatButton() *FloatButton {
 	return f
 }
 
+// ensureBuilt materializes the embedded Button if missing.
+func (f *FloatButton) ensureBuilt() {
+	if f == nil {
+		return
+	}
+	if f.btn == nil {
+		f.rebuild()
+	}
+}
+
+// structureChange rebuilds the FAB (Button + tooltip host).
+func (f *FloatButton) structureChange() {
+	if f == nil {
+		return
+	}
+	f.rebuild()
+}
+
+// chromeChange refreshes type/shape/colors/metrics without full rebuild when possible.
+func (f *FloatButton) chromeChange() {
+	if f == nil {
+		return
+	}
+	f.ensureBuilt()
+	if f.btn != nil {
+		f.btn.chromeChange()
+	}
+	f.applyMetrics()
+}
+
 // Node returns the root core.Node (button, or button+tooltip host).
 func (f *FloatButton) Node() core.Node {
 	if f == nil {
 		return nil
 	}
-	if f.btn == nil {
-		f.rebuild()
-	}
+	f.ensureBuilt()
 	if f.Tooltip != "" && f.tooltipHost != nil {
 		return f.tooltipHost
 	}
@@ -121,9 +159,7 @@ func (f *FloatButton) ChromeNode() core.Node {
 	if f == nil {
 		return nil
 	}
-	if f.btn == nil {
-		f.rebuild()
-	}
+	f.ensureBuilt()
 	return f.btn.ChromeNode()
 }
 
@@ -132,9 +168,7 @@ func (f *FloatButton) Button() *Button {
 	if f == nil {
 		return nil
 	}
-	if f.btn == nil {
-		f.rebuild()
-	}
+	f.ensureBuilt()
 	return f.btn
 }
 
@@ -147,10 +181,9 @@ func (f *FloatButton) SetType(t ButtonType) {
 		t = ButtonDefault
 	}
 	f.Type = t
-	if f.btn != nil {
-		f.btn.SetType(t)
-		f.applyMetrics()
-	}
+	f.ensureBuilt()
+	f.btn.SetType(t)
+	f.applyMetrics()
 }
 
 // SetShape sets circle or square.
@@ -159,6 +192,7 @@ func (f *FloatButton) SetShape(shape FloatButtonShape) {
 		return
 	}
 	f.Shape = shape
+	f.ensureBuilt()
 	f.applyMetrics()
 }
 
@@ -214,9 +248,8 @@ func (f *FloatButton) SetDisabled(d bool) {
 		return
 	}
 	f.Disabled = d
-	if f.btn != nil {
-		f.btn.SetDisabled(d)
-	}
+	f.ensureBuilt()
+	f.btn.SetDisabled(d)
 }
 
 // SetLoading toggles loading spinner (Ticker via AttachTicker / Button).
@@ -225,10 +258,9 @@ func (f *FloatButton) SetLoading(v bool) {
 		return
 	}
 	f.Loading = v
-	if f.btn != nil {
-		f.btn.SetLoading(v)
-		f.applyMetrics()
-	}
+	f.ensureBuilt()
+	f.btn.SetLoading(v)
+	f.applyMetrics()
 }
 
 // SetOnClick sets the click handler.
@@ -237,9 +269,8 @@ func (f *FloatButton) SetOnClick(fn func()) {
 		return
 	}
 	f.OnClick = fn
-	if f.btn != nil {
-		f.btn.SetOnClick(fn)
-	}
+	f.ensureBuilt()
+	f.btn.SetOnClick(fn)
 }
 
 // SetAriaLabel sets the accessible name.
@@ -248,9 +279,8 @@ func (f *FloatButton) SetAriaLabel(name string) {
 		return
 	}
 	f.AriaLabel = name
-	if f.btn != nil {
-		f.btn.SetAriaLabel(name)
-	}
+	f.ensureBuilt()
+	f.btn.SetAriaLabel(name)
 }
 
 // SetFace sets the font face.
@@ -273,10 +303,9 @@ func (f *FloatButton) SetTheme(th *core.Theme) {
 		return
 	}
 	f.Theme = th
-	if f.btn != nil {
-		f.btn.Theme = th
-		f.btn.applyChrome()
-	}
+	f.ensureBuilt()
+	f.btn.Theme = th
+	f.btn.chromeChange()
 	f.applyMetrics()
 	f.rebuildTooltip()
 }
@@ -287,9 +316,8 @@ func (f *FloatButton) SetStyle(st Style) {
 		return
 	}
 	f.Style = st
-	if f.btn != nil {
-		f.btn.SetStyle(st)
-	}
+	f.ensureBuilt()
+	f.btn.SetStyle(st)
 	f.applyMetrics()
 }
 
@@ -456,6 +484,8 @@ func (f *FloatButton) applyMetrics() {
 		// leaves offset={0,0} until Tree.Layout. Gallery can paint that frame
 		// (top-left flash). Tight layout here keeps icon centered before paint.
 		_ = f.btn.decorated.Layout(core.Tight(sz, h))
+		// Product skin key: FAB chrome is kit.FloatButton, not kit.Button (#6).
+		f.btn.decorated.SkinType = TypeFloatButton
 		f.btn.decorated.MarkNeedsLayout()
 		f.btn.decorated.MarkNeedsPaint()
 	}

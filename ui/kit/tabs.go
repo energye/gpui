@@ -223,7 +223,7 @@ type tabsBarHost struct {
 	tabs *Tabs
 }
 
-func (h *tabsBarHost) TypeID() string { return "kit.TabsBar" }
+func (h *tabsBarHost) TypeID() string { return TypeTabs }
 
 func (h *tabsBarHost) Layout(c core.Constraints) core.Size {
 	sz := h.Stack.Layout(c)
@@ -278,13 +278,39 @@ func (t *Tabs) FirstSelectableKey() string {
 }
 
 // Node returns the stable root.
-func (t *Tabs) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (t *Tabs) ensureBuilt() {
 	if t == nil {
-		return nil
+		return
 	}
 	if t.Root == nil {
 		t.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (t *Tabs) structureChange() {
+	if t == nil {
+		return
+	}
+	t.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (t *Tabs) chromeChange() {
+	if t == nil {
+		return
+	}
+	t.ensureBuilt()
+	t.rebuild()
+}
+
+func (t *Tabs) Node() core.Node {
+	if t == nil {
+		return nil
+	}
+	t.ensureBuilt()
 	return t.Root
 }
 
@@ -1148,6 +1174,7 @@ func (t *Tabs) rebuild() {
 	case TabsLeft:
 		t.Root = primitive.Row(t.buildRail(th), t.vDivider(th), bodyNode)
 		t.Root.Gap = 0
+		t.Root.SkinType = TypeTabs
 		t.Root.CrossAlign = core.CrossStretch
 	case TabsRight:
 		t.Root = primitive.Row(bodyNode, t.vDivider(th), t.buildRail(th))

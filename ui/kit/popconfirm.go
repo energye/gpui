@@ -100,6 +100,39 @@ func NewPopconfirm(title string) *Popconfirm {
 }
 
 // Node returns the composition root (trigger + popup).
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (p *Popconfirm) ensureBuilt() {
+	if p == nil {
+		return
+	}
+	if p.Popover == nil {
+		// Popconfirm embeds *Popover; NewPopconfirm always sets it.
+		return
+	}
+	p.Popover.ensureBuilt()
+}
+
+// structureChange rebuilds the control tree (#9).
+func (p *Popconfirm) structureChange() {
+	if p == nil {
+		return
+	}
+	if p.Popover != nil {
+		p.Popover.structureChange()
+	}
+	p.rebuildContent()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (p *Popconfirm) chromeChange() {
+	if p == nil {
+		return
+	}
+	p.ensureBuilt()
+	p.structureChange()
+}
+
 func (p *Popconfirm) Node() core.Node {
 	if p == nil || p.Popover == nil {
 		return nil

@@ -166,6 +166,20 @@ type typographyHost struct {
 
 func (h *typographyHost) TypeID() string { return TypeTypography }
 
+func (h *typographyHost) Paint(pc *core.PaintContext) {
+	if pc != nil && pc.Theme != nil {
+		if painter := pc.Theme.Painter(TypeTypography); painter != nil {
+			painter(pc, h)
+			h.ClearPaintDirty()
+			return
+		}
+	}
+	h.DefaultPaintChildren(pc)
+	if pc != nil {
+		h.ClearPaintDirty()
+	}
+}
+
 func (h *typographyHost) OnMount() {
 	if h == nil || h.ty == nil {
 		return
@@ -238,18 +252,44 @@ func NewLink(value string) *Typography {
 		Kind:  TypographyLink,
 		Value: value,
 	}
-	t.rebuild()
+	t.structureChange()
 	return t
 }
 
 // Node returns the root core.Node.
-func (t *Typography) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (t *Typography) ensureBuilt() {
 	if t == nil {
-		return nil
+		return
 	}
 	if t.Root == nil {
 		t.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (t *Typography) structureChange() {
+	if t == nil {
+		return
+	}
+	t.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (t *Typography) chromeChange() {
+	if t == nil {
+		return
+	}
+	t.ensureBuilt()
+	t.rebuild()
+}
+
+func (t *Typography) Node() core.Node {
+	if t == nil {
+		return nil
+	}
+	t.ensureBuilt()
 	if t.host != nil {
 		return t.host
 	}
@@ -308,7 +348,7 @@ func (t *Typography) SetKind(k TypographyKind) {
 		return
 	}
 	t.Kind = k
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetLevel sets Title level 1..5.
@@ -376,7 +416,7 @@ func (t *Typography) SetCode(v bool) {
 		return
 	}
 	t.Code = v
-	t.rebuild()
+	t.structureChange()
 }
 
 func (t *Typography) SetMark(v bool) {
@@ -422,7 +462,7 @@ func (t *Typography) SetKeyboard(v bool) {
 		return
 	}
 	t.Keyboard = v
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetCopyable enables copy action.
@@ -452,7 +492,7 @@ func (t *Typography) SetCopyIcon(name string) {
 	}
 	t.CopyIcon = name
 	if t.Copyable {
-		t.rebuild()
+		t.structureChange()
 	}
 }
 
@@ -486,7 +526,7 @@ func (t *Typography) SetEditing(v bool) {
 	} else if t.isEditing() {
 		// controlled exit without commit
 		t.editing = false
-		t.rebuild()
+		t.structureChange()
 	}
 }
 
@@ -523,7 +563,7 @@ func (t *Typography) SetExpandable(v bool) {
 		return
 	}
 	t.Expandable = v
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetCollapsible allows collapsing after expand (antd expandable='collapsible').
@@ -606,7 +646,7 @@ func (t *Typography) SetActionsPlacement(p TypographyActionsPlacement) {
 		return
 	}
 	t.ActionsPlacement = p
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetMaxWidth constrains content width (needed for ellipsis).
@@ -676,7 +716,7 @@ func (t *Typography) SetOnClick(fn func()) {
 		return
 	}
 	t.OnClick = fn
-	t.rebuild()
+	t.structureChange()
 }
 
 // ResolvedFontSize returns the effective point size (§6.2).

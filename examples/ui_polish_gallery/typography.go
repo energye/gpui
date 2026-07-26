@@ -122,10 +122,41 @@ func (c *catalogCtx) registerTypography() {
 		"disabled color; copy/edit hidden.",
 		disTx.Node())
 
+	// Lifecycle (#9)
+	life := kit.NewText("Lifecycle text")
+	life.SetFace(c.face)
+	life.SetType(kit.TypographyTypeSuccess)
+	life.SetStrong(true)
+	life.SetUnderline(true)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange (Kind/Level) then chrome (Type/Strong/Underline)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeTypography, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeTypography); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinT := kit.NewText("Skin TypeID=kit.Typography")
+	skinT.SetFace(c.face)
+	if c.theme != nil {
+		skinT.SetTheme(c.theme)
+	}
+	skinT.SetType(kit.TypographyTypeWarning)
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"host TypeID=kit.Text / kit.Typography 已注册；Theme.Skin Override 可挂接。",
+		skinT.Node())
+
 	c.items = append(c.items, ctlTab("typography", "Typography"))
 	c.contents["typography"] = demoPage(c.face, "Typography",
-		"Text / Title / Paragraph / Link. P0: type, disabled, copyable, editable, ellipsis(+middle/controlled), decorations, Token 14 & title ladder (docs/antd/typography.md §6).",
+		"Text / Title / Paragraph / Link. P0 + #9 lifecycle + #6 Skin.",
 		secTypoBasic, secTypoTitle, secTypoText, secTypoEdit, secTypoCopy,
-		secTypoEllipsis, secTypoEllipsisCtrl, secTypoMiddle, secTypoDisabled,
+		secTypoEllipsis, secTypoEllipsisCtrl, secTypoMiddle, secTypoDisabled, secLife, secSkin,
 	)
 }

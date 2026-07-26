@@ -92,7 +92,7 @@ type skeletonHost struct {
 	sk *Skeleton
 }
 
-func (h *skeletonHost) TypeID() string { return "kit.Skeleton" }
+func (h *skeletonHost) TypeID() string { return TypeSkeleton }
 
 func (h *skeletonHost) OnMount() {
 	if h == nil || h.sk == nil {
@@ -244,13 +244,39 @@ func NewSkeleton() *Skeleton {
 }
 
 // Node returns the root.
-func (s *Skeleton) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Skeleton) ensureBuilt() {
 	if s == nil {
-		return nil
+		return
 	}
 	if s.Root == nil {
 		s.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Skeleton) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (s *Skeleton) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuild()
+}
+
+func (s *Skeleton) Node() core.Node {
+	if s == nil {
+		return nil
+	}
+	s.ensureBuilt()
 	return s.Root
 }
 
@@ -295,7 +321,7 @@ func (s *Skeleton) SetAvatar(v bool) {
 		return
 	}
 	s.Avatar = v
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetTitle toggles title placeholder.
@@ -328,7 +354,7 @@ func (s *Skeleton) SetParagraphRows(n int) {
 		return
 	}
 	s.ParagraphRows = n
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetRows is a compatibility alias for SetParagraphRows.
@@ -358,7 +384,7 @@ func (s *Skeleton) SetAvatarSize(sz SkeletonSize) {
 		return
 	}
 	s.AvatarSize = sz
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetTitleWidth updates the title bar width.
@@ -390,7 +416,7 @@ func (s *Skeleton) SetContent(n core.Node) {
 		return
 	}
 	s.content = n
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetTheme overrides the control theme.
@@ -417,7 +443,7 @@ func (s *Skeleton) SetHeaderStyle(st Style) {
 		return
 	}
 	s.HeaderStyle = st
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetSectionStyle updates the semantic section wrapper style.
@@ -444,7 +470,7 @@ func (s *Skeleton) SetTitleStyle(st Style) {
 		return
 	}
 	s.TitleStyle = st
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetParagraphStyle updates the paragraph placeholder style.
@@ -471,7 +497,7 @@ func (s *Skeleton) SetStyles(st SkeletonStyles) {
 		return
 	}
 	s.Styles = st
-	s.rebuild()
+	s.structureChange()
 }
 
 // AttachTicker registers the active ticker.

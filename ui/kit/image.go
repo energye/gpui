@@ -186,13 +186,39 @@ func NewImageSized(alt string, w, h float64) *Image {
 }
 
 // Node returns the mount root (thumb column + zero-size portal host).
-func (im *Image) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (im *Image) ensureBuilt() {
 	if im == nil {
-		return nil
+		return
 	}
 	if im.Root == nil {
 		im.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (im *Image) structureChange() {
+	if im == nil {
+		return
+	}
+	im.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (im *Image) chromeChange() {
+	if im == nil {
+		return
+	}
+	im.ensureBuilt()
+	im.rebuild()
+}
+
+func (im *Image) Node() core.Node {
+	if im == nil {
+		return nil
+	}
+	im.ensureBuilt()
 	return im.Root
 }
 

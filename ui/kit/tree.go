@@ -189,13 +189,39 @@ func NewDirectoryTree(treeData ...TreeNode) *Tree {
 }
 
 // Node returns the stable root.
-func (tr *Tree) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (tr *Tree) ensureBuilt() {
 	if tr == nil {
-		return nil
+		return
 	}
 	if tr.Root == nil {
 		tr.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (tr *Tree) structureChange() {
+	if tr == nil {
+		return
+	}
+	tr.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (tr *Tree) chromeChange() {
+	if tr == nil {
+		return
+	}
+	tr.ensureBuilt()
+	tr.rebuild()
+}
+
+func (tr *Tree) Node() core.Node {
+	if tr == nil {
+		return nil
+	}
+	tr.ensureBuilt()
 	return tr.Root
 }
 
@@ -966,6 +992,7 @@ func (tr *Tree) rebuild() {
 
 	if tr.Root == nil {
 		tr.Root = primitive.NewDecorated(tr.col)
+		tr.Root.SkinType = TypeTree
 	} else {
 		tr.Root.ClearChildren()
 		tr.Root.AddChild(tr.col)

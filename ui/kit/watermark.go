@@ -265,13 +265,39 @@ func NewWatermark(child core.Node) *Watermark {
 }
 
 // Node returns the root core.Node.
-func (w *Watermark) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (w *Watermark) ensureBuilt() {
 	if w == nil {
-		return nil
+		return
 	}
 	if w.Root == nil {
 		w.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (w *Watermark) structureChange() {
+	if w == nil {
+		return
+	}
+	w.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (w *Watermark) chromeChange() {
+	if w == nil {
+		return
+	}
+	w.ensureBuilt()
+	w.rebuild()
+}
+
+func (w *Watermark) Node() core.Node {
+	if w == nil {
+		return nil
+	}
+	w.ensureBuilt()
 	return w.Root
 }
 

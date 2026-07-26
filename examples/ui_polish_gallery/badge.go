@@ -218,8 +218,47 @@ func (c *catalogCtx) registerBadge() {
 		"count 的 medium / small 高度档。",
 		spaceWrap(24, szMed.Node(), szSm.Node()))
 
+	// Lifecycle (#9)
+	life := track(kit.NewBadge())
+	life.SetChild(sqAvatar().Node())
+	life.SetCount(3)
+	life.SetSize(kit.BadgeSmall)
+	life.SetOffset(4, 4)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Count → Size → Offset；ensureBuilt 保 host 稳定。",
+		spaceWrap(16, life.Node()))
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeBadge, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok {
+			if d.Base().Key == "badge-skin-demo" || d.SkinType == kit.TypeBadge {
+				d.BorderWidth = 2
+				if d.BorderColor.A < 0.5 {
+					d.BorderColor = render.Hex("#FA541C")
+				}
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinB := track(kit.NewBadge())
+	skinB.SetChild(sqAvatar().Node())
+	skinB.SetCount(9)
+	if ind := skinB.IndicatorNode(); ind != nil {
+		if d, ok := ind.(*primitive.Decorated); ok {
+			d.Base().Key = "badge-skin-demo"
+		}
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"TypeID/SkinType=kit.Badge。count 胶囊可 Override 橙边框。",
+		spaceWrap(16, skinB.Node()))
+
 	page := demoPage(face, "Badge 徽标数",
-		"图标右上角的圆形徽标数字。P0 对齐 docs/antd/badge.md §6；P1 状态点/多彩/缎带 gallery 未铺。",
-		secBasic, secNW, secOv, secDot, secDyn, secLink, secOff, secSize)
+		"图标右上角的圆形徽标数字。P0 + #9 lifecycle + #6 Skin。",
+		secBasic, secNW, secOv, secDot, secDyn, secLink, secOff, secSize, secLife, secSkin)
 	c.addPage("badge", "Badge", page)
 }

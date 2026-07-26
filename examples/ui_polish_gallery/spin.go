@@ -272,10 +272,28 @@ func (c *catalogCtx) registerSpin() {
 		"style-class.tsx：浅层 styles.indicator 色 + classNames.root（深度/函数式 P1）。",
 		row(sc1.Node(), sc2.Node()))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewSpin(nil))
+	life.SetSize(kit.SpinSizeLarge)
+	life.SetTip("building…")
+	life.SetSpinning(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size/Tip) then chrome (Spinning)；ensureBuilt 懒构建 host。",
+		life.Node())
+
+	// Skin (#6) — host embeds RepaintBoundary: TypeID registered; do not intercept host Paint.
+	skinS := wire(kit.NewSpin(nil))
+	skinS.SetSize(kit.SpinSizeDefault)
+	skinS.SetTip("TypeID=kit.Spin")
+	skinS.SetTheme(th)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"spinHost TypeID=kit.Spin 已注册；host 内嵌 RepaintBoundary，Paint 不走 Skin 拦截（与 Icon 同）。",
+		skinS.Node())
+
 	c.addPage("spin", "Spin", demoPage(face,
 		"Spin 加载中",
-		"用于页面和区块的加载中状态。P0 对齐 docs/antd/spin.md §6；fullscreen 等为 P1。",
-		secBasic, secSize, secNested, secTip, secDelay, secCustom, secPercent, secStyle,
+		"用于页面和区块的加载中状态。P0 对齐 docs/antd/spin.md §6；fullscreen 等为 P1。Also #9 lifecycle + #6 Skin.",
+		secBasic, secSize, secNested, secTip, secDelay, secCustom, secPercent, secStyle, secLife, secSkin,
 	))
 }
 

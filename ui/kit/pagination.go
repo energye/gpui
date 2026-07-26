@@ -133,13 +133,39 @@ func NewPagination() *Pagination {
 }
 
 // Node returns the stable root.
-func (p *Pagination) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (p *Pagination) ensureBuilt() {
 	if p == nil {
-		return nil
+		return
 	}
 	if p.Root == nil {
 		p.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (p *Pagination) structureChange() {
+	if p == nil {
+		return
+	}
+	p.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (p *Pagination) chromeChange() {
+	if p == nil {
+		return
+	}
+	p.ensureBuilt()
+	p.rebuild()
+}
+
+func (p *Pagination) Node() core.Node {
+	if p == nil {
+		return nil
+	}
+	p.ensureBuilt()
 	return p.Root
 }
 
@@ -651,6 +677,7 @@ func (p *Pagination) rebuild() {
 	p.jumper = nil
 
 	p.Root.Gap = DefaultPaginationItemGap
+	p.Root.SkinType = TypePagination
 	p.Root.CrossAlign = core.CrossCenter
 	switch p.Align {
 	case PaginationAlignCenter:

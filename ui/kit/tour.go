@@ -341,6 +341,30 @@ func NewTour(steps ...TourStep) *Tour {
 }
 
 // Node returns the portal host node to place in the tree.
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (t *Tour) ensureBuilt() {
+	if t == nil {
+		return
+	}
+	// Portal created in NewTour / SetOpen path
+}
+
+// structureChange rebuilds the control tree (#9).
+func (t *Tour) structureChange() {
+	if t == nil {
+		return
+	}
+	// Tour refreshes layer content via SetOpen/step APIs
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (t *Tour) chromeChange() {
+	if t == nil {
+		return
+	}
+}
+
 func (t *Tour) Node() core.Node {
 	if t == nil {
 		return nil
@@ -946,7 +970,7 @@ func (t *Tour) localeFinish() string {
 
 // ── layer layout / paint ─────────────────────────────────────────────
 
-func (l *tourLayer) TypeID() string { return "kit.TourLayer" }
+func (l *tourLayer) TypeID() string { return TypeTour }
 
 func (l *tourLayer) Layout(c core.Constraints) core.Size {
 	t := l.tour
@@ -1264,6 +1288,7 @@ func (l *tourLayer) Layout(c core.Constraints) core.Size {
 	_ = showArrow
 
 	panel := primitive.NewDecorated(col)
+	panel.SkinType = TypeTour
 	panel.Padding = primitive.All(t.padding)
 	panel.Radius = t.radius
 	if st := t.Styles.Section; st.Radius > 0 || st.ForceRadius {

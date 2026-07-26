@@ -279,13 +279,39 @@ func NewColorPicker() *ColorPicker {
 }
 
 // Node returns the composition root (trigger + popup host).
-func (cp *ColorPicker) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (cp *ColorPicker) ensureBuilt() {
 	if cp == nil {
-		return nil
+		return
 	}
 	if cp.Wrap == nil {
 		cp.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (cp *ColorPicker) structureChange() {
+	if cp == nil {
+		return
+	}
+	cp.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (cp *ColorPicker) chromeChange() {
+	if cp == nil {
+		return
+	}
+	cp.ensureBuilt()
+	cp.rebuild()
+}
+
+func (cp *ColorPicker) Node() core.Node {
+	if cp == nil {
+		return nil
+	}
+	cp.ensureBuilt()
 	return cp.Wrap
 }
 
@@ -747,6 +773,7 @@ func (cp *ColorPicker) rebuild() {
 	row.CrossAlign = core.CrossCenter
 
 	cp.decor = primitive.NewDecorated(row)
+	cp.decor.SkinType = TypeColorPicker
 	cp.decor.Padding = primitive.Symmetric(pad, 0)
 	cp.decor.Radius = radius
 	cp.decor.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)

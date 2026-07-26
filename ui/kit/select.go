@@ -200,13 +200,39 @@ func NewSelect(placeholder string, options ...SelectOption) *Select {
 }
 
 // Node returns the composition root (trigger + popup host).
-func (s *Select) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Select) ensureBuilt() {
 	if s == nil {
-		return nil
+		return
 	}
 	if s.Wrap == nil {
 		s.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Select) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (s *Select) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuild()
+}
+
+func (s *Select) Node() core.Node {
+	if s == nil {
+		return nil
+	}
+	s.ensureBuilt()
 	return s.Wrap
 }
 
@@ -941,6 +967,7 @@ func (s *Select) rebuild() {
 	row.Gap = 8
 
 	s.decor = primitive.NewDecorated(row)
+	s.decor.SkinType = TypeSelect
 	s.decor.Padding = primitive.Symmetric(padH, 0)
 	s.decor.Radius = radius
 	s.decor.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)

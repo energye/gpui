@@ -126,9 +126,42 @@ func (c *catalogCtx) registerFloatButton() {
 	ctrlStage := fabStage(fbCtrl.Node(), 220, 120)
 	cornerStage := fabStage(corner.Node(), 280, 160)
 
+	// Lifecycle (#9)
+	fbLife := trackFB(kit.NewFloatButton())
+	fbLife.SetIcon("plus")
+	fbLife.SetType(kit.ButtonPrimary)
+	fbLife.SetShape(kit.FloatButtonSquare)
+	fbLife.SetAriaLabel("lifecycle fab")
+	fbLife.SetOnClick(func() { *c.status = "lifecycle fab" })
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeFloatButton, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "fab-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#FA541C")
+		}
+		if p := baseSkin.Painter(kit.TypeFloatButton); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	fbSkin := trackFB(kit.NewFloatButton())
+	fbSkin.SetType(kit.ButtonPrimary)
+	fbSkin.SetIcon("plus")
+	fbSkin.SetAriaLabel("skin fab")
+	if dec, ok := fbSkin.ChromeNode().(*primitive.Decorated); ok {
+		dec.Base().Key = "fab-skin-demo"
+	}
+
 	c.items = append(c.items, ctlTab("float_button", "FloatButton"))
 	c.contents["float_button"] = demoPage(c.face, "FloatButton",
-		"Floating action button. Position via layout — not OS always-on-top. Defaults: type=default, shape=circle, 40×40 (docs/antd/float-button.md §6 P0).",
+		"Floating action button. P0 + #9 lifecycle + #6 Skin.",
 		demoSection(c.face, c.theme, "Basic / Type", "default vs primary (antd type.tsx).",
 			spaceWrap(16, fbDefault.Node(), fbPrimary.Node())),
 		demoSection(c.face, c.theme, "Shape", "circle vs square.",
@@ -147,5 +180,9 @@ func (c *catalogCtx) registerFloatButton() {
 			ctrlStage),
 		demoSection(c.face, c.theme, "Placement (layout)", "Bottom-right via Column/Row spacers in a stage — not OS float.",
 			cornerStage),
+		demoSection(c.face, c.theme, "Lifecycle (#9)", "structure/chrome：Icon → Type → Shape；ensureBuilt 保 FAB 稳定。",
+			spaceWrap(16, fbLife.Node())),
+		demoSection(c.face, c.theme, "Skin painter (#6)", "SkinType=kit.FloatButton。Key=fab-skin-demo → 橙边框 Override。",
+			spaceWrap(16, fbSkin.Node())),
 	)
 }

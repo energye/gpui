@@ -125,7 +125,7 @@ type anchorChrome struct {
 	a *Anchor
 }
 
-func (h *anchorChrome) TypeID() string { return "kit.AnchorChrome" }
+func (h *anchorChrome) TypeID() string { return TypeAnchor }
 
 func (h *anchorChrome) Layout(c core.Constraints) core.Size {
 	sz := h.Stack.Layout(c)
@@ -149,13 +149,39 @@ func NewAnchor(items ...AnchorItem) *Anchor {
 }
 
 // Node returns the root core.Node for tree attachment.
-func (a *Anchor) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (a *Anchor) ensureBuilt() {
 	if a == nil {
-		return nil
+		return
 	}
 	if a.Root == nil {
 		a.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (a *Anchor) structureChange() {
+	if a == nil {
+		return
+	}
+	a.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (a *Anchor) chromeChange() {
+	if a == nil {
+		return
+	}
+	a.ensureBuilt()
+	a.rebuild()
+}
+
+func (a *Anchor) Node() core.Node {
+	if a == nil {
+		return nil
+	}
+	a.ensureBuilt()
 	return a.Root
 }
 

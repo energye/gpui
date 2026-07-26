@@ -240,13 +240,39 @@ func NewTimeRangePicker() *TimePicker {
 }
 
 // Node returns the composition root.
-func (tp *TimePicker) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (tp *TimePicker) ensureBuilt() {
 	if tp == nil {
-		return nil
+		return
 	}
 	if tp.Wrap == nil {
 		tp.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (tp *TimePicker) structureChange() {
+	if tp == nil {
+		return
+	}
+	tp.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (tp *TimePicker) chromeChange() {
+	if tp == nil {
+		return
+	}
+	tp.ensureBuilt()
+	tp.rebuild()
+}
+
+func (tp *TimePicker) Node() core.Node {
+	if tp == nil {
+		return nil
+	}
+	tp.ensureBuilt()
 	return tp.Wrap
 }
 
@@ -1564,6 +1590,7 @@ func (tp *TimePicker) rebuild() {
 	row.Gap = 8
 
 	tp.decor = primitive.NewDecorated(row)
+	tp.decor.SkinType = TypeTimePicker
 	tp.decor.Padding = primitive.Symmetric(padH, 0)
 	tp.decor.Radius = radius
 	tp.decor.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)

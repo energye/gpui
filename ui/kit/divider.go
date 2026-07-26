@@ -132,13 +132,39 @@ func NewDividerWithTitle(title string) *Divider {
 }
 
 // Node returns the root core.Node for tree attachment.
-func (d *Divider) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (d *Divider) ensureBuilt() {
 	if d == nil {
-		return nil
+		return
 	}
 	if d.Root == nil {
 		d.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (d *Divider) structureChange() {
+	if d == nil {
+		return
+	}
+	d.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (d *Divider) chromeChange() {
+	if d == nil {
+		return
+	}
+	d.ensureBuilt()
+	d.rebuild()
+}
+
+func (d *Divider) Node() core.Node {
+	if d == nil {
+		return nil
+	}
+	d.ensureBuilt()
 	return d.Root
 }
 
@@ -176,7 +202,7 @@ func (d *Divider) SetOrientation(o DividerOrientation) {
 	}
 	d.Orientation = o
 	d.orientationSet = true
-	d.rebuild()
+	d.structureChange()
 }
 
 // SetVertical is antd vertical sugar; ignored when Orientation was Set.
@@ -210,7 +236,7 @@ func (d *Divider) SetVariant(v DividerVariant) {
 		return
 	}
 	d.Variant = v
-	d.rebuild()
+	d.structureChange()
 }
 
 // SetDashed toggles the dashed sugar flag.
@@ -237,7 +263,7 @@ func (d *Divider) SetTitle(s string) {
 		return
 	}
 	d.Title = s
-	d.rebuild()
+	d.structureChange()
 }
 
 // SetText is an alias of SetTitle (legacy name).
@@ -270,7 +296,7 @@ func (d *Divider) SetOrientationMargin(ratio float64) {
 		ratio = 0
 	}
 	d.OrientationMargin = ratio
-	d.rebuild()
+	d.structureChange()
 }
 
 // SetTheme overrides the theme used for Token resolution.
@@ -297,7 +323,7 @@ func (d *Divider) SetFace(face text.Face) {
 		return
 	}
 	d.Face = face
-	d.rebuild()
+	d.structureChange()
 }
 
 // SetAriaLabel sets an optional accessible name (root Role stays separator).
@@ -474,6 +500,7 @@ func (d *Divider) rebuild() {
 	}
 	if d.Root == nil {
 		d.Root = primitive.NewFlex(core.AxisVertical)
+		d.Root.SkinType = TypeDivider
 		d.Root.Hit = core.HitTransparent
 	}
 	// Clear previous children / refs.

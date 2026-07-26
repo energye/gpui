@@ -273,8 +273,27 @@ func (c *catalogCtx) registerSkeleton() {
 		"round=true：标题与段落胶囊化。",
 		round.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewSkeleton())
+	life.SetAvatar(true)
+	life.SetParagraphRows(3)
+	life.SetActive(true)
+	life.SetRound(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Avatar/ParagraphRows) then chrome (Active/Round)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6) — host may embed RepaintBoundary; TypeID registered.
+	skinSk := wire(kit.NewSkeleton())
+	skinSk.SetAvatar(true)
+	skinSk.SetParagraphRows(2)
+	skinSk.SetTheme(th)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"skeletonHost TypeID=kit.Skeleton 已注册；Theme.Skin 可 Override（host Paint 路径注意 RB）。",
+		skinSk.Node())
+
 	page := demoPage(face, "Skeleton 骨架屏",
-		"Feedback · docs/antd/skeleton.md §6 P0 — 在需要等待加载内容的位置提供占位图形组合。",
-		secBasic, secComplex, secActive, secElement, secChildren, secList, secStyle, secSem, secRound)
+		"Feedback · docs/antd/skeleton.md §6 P0 + #9 lifecycle + #6 Skin。",
+		secBasic, secComplex, secActive, secElement, secChildren, secList, secStyle, secSem, secRound, secLife, secSkin)
 	c.addPage("skeleton", "Skeleton", page)
 }

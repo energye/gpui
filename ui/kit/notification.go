@@ -209,13 +209,39 @@ func NewNotification() *Notification {
 }
 
 // Node returns the portal node to mount at app/root level (contextHolder).
-func (n *Notification) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (n *Notification) ensureBuilt() {
 	if n == nil {
-		return nil
+		return
 	}
 	if n.Portal == nil {
 		n.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (n *Notification) structureChange() {
+	if n == nil {
+		return
+	}
+	n.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (n *Notification) chromeChange() {
+	if n == nil {
+		return
+	}
+	n.ensureBuilt()
+	n.rebuild()
+}
+
+func (n *Notification) Node() core.Node {
+	if n == nil {
+		return nil
+	}
+	n.ensureBuilt()
 	return n.Portal
 }
 
@@ -712,6 +738,7 @@ func (n *Notification) buildItem(it *notificationItem) core.Node {
 	}
 
 	dec := primitive.NewDecorated(body)
+	dec.SkinType = TypeNotification
 	dec.Padding = primitive.EdgeInsets{Top: padV, Bottom: padV, Left: padH, Right: padH}
 	dec.Radius = radius
 	dec.Background = th.Color(core.TokenColorBgContainer)
@@ -997,7 +1024,7 @@ type notificationLayer struct {
 	host *Notification
 }
 
-func (l *notificationLayer) TypeID() string { return "kit.NotificationLayer" }
+func (l *notificationLayer) TypeID() string { return TypeNotification }
 
 func (l *notificationLayer) Layout(c core.Constraints) core.Size {
 	var portal *primitive.OverlayPortal

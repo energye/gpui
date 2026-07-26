@@ -380,13 +380,39 @@ func TableRecordsFromStringMaps(rows []map[string]string) []TableRecord {
 }
 
 // Node returns the composition root.
-func (t *Table) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (t *Table) ensureBuilt() {
 	if t == nil {
-		return nil
+		return
 	}
 	if t.Root == nil {
 		t.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (t *Table) structureChange() {
+	if t == nil {
+		return
+	}
+	t.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (t *Table) chromeChange() {
+	if t == nil {
+		return
+	}
+	t.ensureBuilt()
+	t.rebuild()
+}
+
+func (t *Table) Node() core.Node {
+	if t == nil {
+		return nil
+	}
+	t.ensureBuilt()
 	return t.Root
 }
 
@@ -1291,6 +1317,7 @@ func (t *Table) rebuild() {
 	}
 
 	t.frame = primitive.NewDecorated(frameChild)
+	t.frame.SkinType = TypeTable
 	t.frame.Background = bg
 	t.frame.Radius = radius
 	if t.bordered {

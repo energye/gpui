@@ -145,7 +145,7 @@ type statisticHost struct {
 	st *Statistic
 }
 
-func (h *statisticHost) TypeID() string { return "kit.Statistic" }
+func (h *statisticHost) TypeID() string { return TypeStatistic }
 
 func (h *statisticHost) OnMount() {
 	if h == nil || h.st == nil {
@@ -182,13 +182,39 @@ func NewStatisticTimer(typ StatisticTimerType) *Statistic {
 }
 
 // Node returns the mount root.
-func (s *Statistic) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Statistic) ensureBuilt() {
 	if s == nil {
-		return nil
+		return
 	}
 	if s.Root == nil {
 		s.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Statistic) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (s *Statistic) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuild()
+}
+
+func (s *Statistic) Node() core.Node {
+	if s == nil {
+		return nil
+	}
+	s.ensureBuilt()
 	return s.Root
 }
 
@@ -422,7 +448,7 @@ func (s *Statistic) SetValue(v any) {
 	if s.timerType != StatisticTimerNone {
 		s.refreshTimerDisplay(false)
 	}
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetTitle sets the string title.
@@ -451,7 +477,7 @@ func (s *Statistic) SetPrefix(p string) {
 	}
 	s.Prefix = p
 	s.PrefixNode = nil
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetPrefixNode sets a custom prefix node.
@@ -479,7 +505,7 @@ func (s *Statistic) SetSuffixNode(n core.Node) {
 		return
 	}
 	s.SuffixNode = n
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetPrecision enables numeric precision.
@@ -508,7 +534,7 @@ func (s *Statistic) SetDecimalSeparator(sep string) {
 		return
 	}
 	s.decimalSeparator = sep
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetGroupSeparator sets the thousand separator (default ",").
@@ -536,7 +562,7 @@ func (s *Statistic) SetLoading(v bool) {
 	}
 	s.Loading = v
 	s.syncTicker()
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetFormat sets the Timer format template (dayjs-like units).
@@ -567,7 +593,7 @@ func (s *Statistic) SetTimerType(typ StatisticTimerType) {
 	} else {
 		s.displayOverride = ""
 	}
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetOnChange sets Timer onChange (diff milliseconds).
@@ -601,7 +627,7 @@ func (s *Statistic) SetContentStyle(st Style) {
 		return
 	}
 	s.ContentStyle = st
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetValueStyle sets styles.value / deprecated valueStyle mapping to content when value empty.
@@ -627,7 +653,7 @@ func (s *Statistic) SetTitleStyle(st Style) {
 		return
 	}
 	s.TitleStyle = st
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetHeaderStyle sets styles.header.
@@ -654,7 +680,7 @@ func (s *Statistic) SetSuffixStyle(st Style) {
 		return
 	}
 	s.SuffixStyle = st
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetClassNames sets shallow semantic class tags.
@@ -681,7 +707,7 @@ func (s *Statistic) SetTheme(th *core.Theme) {
 		return
 	}
 	s.Theme = th
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetAriaLabel sets an accessible name on the root.
@@ -737,7 +763,7 @@ func (s *Statistic) Tick(dt float64) (still bool) {
 			s.valueLab.MarkNeedsLayout()
 			s.valueLab.MarkNeedsPaint()
 		} else {
-			s.rebuild()
+			s.structureChange()
 		}
 		if s.Root != nil {
 			s.Root.MarkNeedsPaint()
@@ -1043,7 +1069,7 @@ func (s *Statistic) AdvanceTimerForTest(fireCallbacks bool) {
 	if s.valueLab != nil {
 		s.valueLab.Value = s.DisplayText()
 	} else {
-		s.rebuild()
+		s.structureChange()
 	}
 }
 

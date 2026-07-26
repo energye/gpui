@@ -233,13 +233,39 @@ func NewForm() *Form {
 }
 
 // Node returns the form root.
-func (f *Form) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (f *Form) ensureBuilt() {
 	if f == nil {
-		return nil
+		return
 	}
 	if f.Root == nil {
 		f.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (f *Form) structureChange() {
+	if f == nil {
+		return
+	}
+	f.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (f *Form) chromeChange() {
+	if f == nil {
+		return
+	}
+	f.ensureBuilt()
+	f.rebuild()
+}
+
+func (f *Form) Node() core.Node {
+	if f == nil {
+		return nil
+	}
+	f.ensureBuilt()
 	return f.Root
 }
 

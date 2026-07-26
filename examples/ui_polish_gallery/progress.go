@@ -176,8 +176,34 @@ func (c *catalogCtx) registerProgress() {
 		"dashboard.tsx · gapDegree 75 (default) / 50 · gapPlacement=bottom.",
 		row(dash.Node(), dash50.Node()))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewProgress(40))
+	life.SetType(kit.ProgressLine)
+	life.SetWidth(220)
+	life.SetShowInfo(true)
+	life.SetPercent(70)
+	life.SetStatus(kit.ProgressStatusActive)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Type/Width) then chrome (Percent/Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeProgress, func(pc *core.PaintContext, n core.Node) {
+		// Default walk; Override proves hook runs (visual same).
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinP := wire(kit.NewProgress(60))
+	skinP.SetWidth(220)
+	skinP.SetTheme(th)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"progressHost TypeID=kit.Progress；Theme.Skin Override 可命中。",
+		skinP.Node())
+
 	c.addPage("progress", "Progress",
 		demoPage(face, "Progress 进度条",
-			"Ant Design Progress · docs/antd/progress.md §6.8 P0. type line|circle|dashboard · status · size · format · active Ticker.",
-			secLine, secCircle, secLineMini, secCircleMini, secMicro, secDynamic, secFormat, secDash))
+			"Ant Design Progress · P0 + #9 lifecycle + #6 Skin.",
+			secLine, secCircle, secLineMini, secCircleMini, secMicro, secDynamic, secFormat, secDash, secLife, secSkin))
 }

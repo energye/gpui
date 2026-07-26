@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -340,9 +341,44 @@ func (c *catalogCtx) registerTag() {
 		"disabled 降对比；close 不可点。",
 		spaceWrap(8, d1.Node(), d2.Node()))
 
+	// Lifecycle (#9)
+	life := track(kit.NewTag("Lifecycle"))
+	life.SetColor("blue")
+	life.SetVariant(kit.TagOutlined)
+	life.SetClosable(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Color → Variant → Closable；ensureBuilt 保 Root 稳定。",
+		spaceWrap(8, life.Node()))
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTag, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "tag-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#EB2F96")
+		}
+		if p := baseSkin.Painter(kit.TypeTag); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinTag := track(kit.NewTag("Skin tag"))
+	skinTag.SetColor("processing")
+	if root, ok := skinTag.ChromeNode().(*primitive.Decorated); ok {
+		root.Base().Key = "tag-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Tag。Key=tag-skin-demo → 粉边框 Override。",
+		spaceWrap(8, skinTag.Node()))
+
 	page := primitive.Column(
 		secBasic, secColor, secCtrl, secCheck,
-		secAnim, secIcon, secStatus, secDrag, secDis,
+		secAnim, secIcon, secStatus, secDrag, secDis, secLife, secSkin,
 	)
 	page.Gap = 16
 	page.MainAlign = core.MainStart

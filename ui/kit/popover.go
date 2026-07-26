@@ -140,13 +140,39 @@ func NewPopover(triggerLabel string) *Popover {
 }
 
 // Node returns the composition root (trigger + popup host).
-func (p *Popover) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (p *Popover) ensureBuilt() {
 	if p == nil {
-		return nil
+		return
 	}
 	if p.Wrap == nil {
 		p.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (p *Popover) structureChange() {
+	if p == nil {
+		return
+	}
+	p.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (p *Popover) chromeChange() {
+	if p == nil {
+		return
+	}
+	p.ensureBuilt()
+	p.rebuild()
+}
+
+func (p *Popover) Node() core.Node {
+	if p == nil {
+		return nil
+	}
+	p.ensureBuilt()
 	return p.Wrap
 }
 
@@ -721,6 +747,7 @@ func (p *Popover) rebuildPanel() {
 	}
 
 	p.panel = primitive.NewDecorated(inner)
+	p.panel.SkinType = TypePopover
 	p.panel.Padding = primitive.All(DefaultPopoverInnerPadding)
 	p.panel.Radius = th.SizeOr(core.TokenBorderRadiusLG, 8)
 	if p.hasPanelBg {

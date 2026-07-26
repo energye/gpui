@@ -212,9 +212,57 @@ func (c *catalogCtx) registerDivider() {
 			return col
 		}())
 
+	// Lifecycle (#9)
+	life := kit.NewDividerWithTitle("Lifecycle")
+	life.SetFace(c.face)
+	if c.theme != nil {
+		life.SetTheme(c.theme)
+	}
+	life.SetSize(kit.DividerSizeLarge)
+	life.SetDashed(true)
+	life.SetPlain(true)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange (Title/Size) then chrome (Dashed/Plain)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeDivider, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "divider-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeDivider); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeDivider); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinD := kit.NewDividerWithTitle("Skin")
+	skinD.SetFace(c.face)
+	skinD.SetTheme(c.theme)
+	if root, ok := skinD.ChromeNode().(*primitive.Decorated); ok {
+		root.Base().Key = "divider-skin-demo"
+	} else if f, ok := skinD.ChromeNode().(*primitive.Flex); ok && f != nil {
+		f.Base().Key = "divider-skin-demo"
+	}
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"Flex.SkinType=kit.Divider。Key=divider-skin-demo 可命中 Override。",
+		skinD.Node())
+
 	c.items = append(c.items, ctlTab("divider", "Divider"))
 	c.contents["divider"] = demoPage(c.face, "Divider",
-		"区隔内容的分割线。P0: orientation / size / variant / title / plain / titlePlacement；style-class 示意（semantic 深度 P1）。",
-		secDivHorizontal, secDivWithText, secDivSize, secDivPlain, secDivVertical, secDivVariant, secDivStyleClass, secDivSemantic,
+		"区隔内容的分割线。P0 + #9 lifecycle + #6 Skin。",
+		secDivHorizontal, secDivWithText, secDivSize, secDivPlain, secDivVertical, secDivVariant, secDivStyleClass, secDivSemantic, secLife, secSkin,
 	)
 }

@@ -148,13 +148,39 @@ func NewCard(title string) *Card {
 }
 
 // Node returns the mount root (Pressable when hoverable/clickable, else Decorated).
-func (c *Card) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (c *Card) ensureBuilt() {
 	if c == nil {
-		return nil
+		return
 	}
 	if c.Root == nil {
 		c.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (c *Card) structureChange() {
+	if c == nil {
+		return
+	}
+	c.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (c *Card) chromeChange() {
+	if c == nil {
+		return
+	}
+	c.ensureBuilt()
+	c.rebuild()
+}
+
+func (c *Card) Node() core.Node {
+	if c == nil {
+		return nil
+	}
+	c.ensureBuilt()
 	if c.press != nil {
 		return c.press
 	}
@@ -714,6 +740,7 @@ func (c *Card) rebuild() {
 	}
 
 	c.Root = primitive.NewDecorated(col)
+	c.Root.SkinType = TypeCard
 	c.Root.Radius = radius
 	c.Root.ExpandWidth = c.Width <= 0 && c.Style.Width <= 0
 	if c.Width > 0 {

@@ -151,13 +151,39 @@ func NewTooltip(title string) *Tooltip {
 }
 
 // Node returns the composition root (trigger + popup host).
-func (tt *Tooltip) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (tt *Tooltip) ensureBuilt() {
 	if tt == nil {
-		return nil
+		return
 	}
 	if tt.Wrap == nil {
 		tt.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (tt *Tooltip) structureChange() {
+	if tt == nil {
+		return
+	}
+	tt.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (tt *Tooltip) chromeChange() {
+	if tt == nil {
+		return
+	}
+	tt.ensureBuilt()
+	tt.rebuild()
+}
+
+func (tt *Tooltip) Node() core.Node {
+	if tt == nil {
+		return nil
+	}
+	tt.ensureBuilt()
 	return tt.Wrap
 }
 
@@ -805,6 +831,7 @@ func (tt *Tooltip) rebuildPanel() {
 	}
 
 	tt.panel = primitive.NewDecorated(inner)
+	tt.panel.SkinType = TypeTooltip
 	tt.panel.Padding = primitive.Symmetric(DefaultTooltipPaddingX, DefaultTooltipPaddingY)
 	tt.panel.Radius = th.SizeOr(core.TokenBorderRadius, 6)
 	tt.panel.Background = bg

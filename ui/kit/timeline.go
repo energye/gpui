@@ -197,13 +197,39 @@ func NewTimeline(items ...TimelineItem) *Timeline {
 }
 
 // Node returns the mount root.
-func (tl *Timeline) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (tl *Timeline) ensureBuilt() {
 	if tl == nil {
-		return nil
+		return
 	}
 	if tl.Root == nil {
 		tl.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (tl *Timeline) structureChange() {
+	if tl == nil {
+		return
+	}
+	tl.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (tl *Timeline) chromeChange() {
+	if tl == nil {
+		return
+	}
+	tl.ensureBuilt()
+	tl.rebuild()
+}
+
+func (tl *Timeline) Node() core.Node {
+	if tl == nil {
+		return nil
+	}
+	tl.ensureBuilt()
 	return tl.Root
 }
 

@@ -208,13 +208,39 @@ func NewCalendar() *Calendar {
 }
 
 // Node returns the stable root.
-func (c *Calendar) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (c *Calendar) ensureBuilt() {
 	if c == nil {
-		return nil
+		return
 	}
 	if c.Root == nil {
 		c.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (c *Calendar) structureChange() {
+	if c == nil {
+		return
+	}
+	c.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (c *Calendar) chromeChange() {
+	if c == nil {
+		return
+	}
+	c.ensureBuilt()
+	c.rebuild()
+}
+
+func (c *Calendar) Node() core.Node {
+	if c == nil {
+		return nil
+	}
+	c.ensureBuilt()
 	return c.Root
 }
 

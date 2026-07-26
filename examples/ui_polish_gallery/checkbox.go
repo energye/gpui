@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -235,10 +236,45 @@ func (c *catalogCtx) registerCheckbox() {
 		"root / icon / label hooks for P0; classNames/styles function form is P1.",
 		col(sem.Node(), semNote.Node()))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewCheckbox("Lifecycle"), "life")
+	life.SetIndeterminate(true)
+	life.SetChecked(true)
+	life.SetTextColor(th.Color(core.TokenColorPrimary))
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"chromeChange：Indeterminate → Checked → TextColor；ensureBuilt 保树稳定。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeCheckbox, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "cb-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#52C41A")
+		}
+		if p := baseSkin.Painter(kit.TypeCheckbox); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinCB := wire(kit.NewCheckbox("Skin indicator"), "skin")
+	skinCB.SetChecked(true)
+	if box, ok := skinCB.IndicatorNode().(*primitive.Decorated); ok {
+		box.Base().Key = "cb-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"indicator.SkinType=kit.Checkbox。Key=cb-skin-demo → 绿边框 Override。",
+		skinCB.Node())
+
 	page := demoPage(face,
 		"Checkbox",
-		"Collect user multiple selections. P0: checked/defaultChecked, indeterminate, onChange, disabled, title, Group value/defaultValue/options, a11y.",
-		secBasic, secDisabled, secControlled, secGroup, secCheckAll, secLayout, secStyle, secSemantic,
+		"Collect user multiple selections. P0 + #9 lifecycle + #6 Skin.",
+		secBasic, secDisabled, secControlled, secGroup, secCheckAll, secLayout, secStyle, secSemantic, secLife, secSkin,
 	)
 	c.addPage("checkbox", "Checkbox", page)
 }

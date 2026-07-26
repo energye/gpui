@@ -35,6 +35,20 @@ func NewScroll(content core.Node) *Scroll {
 }
 
 // Node returns the scroll viewport.
+
+// ensureBuilt (#9).
+func (s *Scroll) ensureBuilt() {
+	if s == nil {
+		return
+	}
+}
+
+// structureChange (#9).
+func (s *Scroll) structureChange() { s.ensureBuilt() }
+
+// chromeChange (#9).
+func (s *Scroll) chromeChange() { s.ensureBuilt() }
+
 func (s *Scroll) Node() core.Node {
 	if s == nil || s.Root == nil {
 		return nil

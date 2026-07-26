@@ -99,8 +99,16 @@ func (e *AlertCloseEvent) DefaultPrevented() bool {
 
 // Alert is Ant Design Alert (feedback banner).
 //
-//	Decorated Root (role=alert)
+//	Decorated Root (role=alert)  SkinType = kit.Alert
 //	  └─ Row(Icon? · Flexible(Section) · Action? · Close?)
+//
+// # Lifecycle (#9, Button pattern)
+//
+// NewAlert always builds once. After that:
+//
+//   - structureChange() — type/variant/icon/closable/content rebuild
+//   - chromeChange()    — aliases structureChange (colors in rebuild)
+//   - ensureBuilt()     — Node/ChromeNode paths
 //
 // Product contract: docs/antd/alert.md §6 (P0 DoD).
 type Alert struct {
@@ -183,14 +191,39 @@ func NewAlert(title string) *Alert {
 	return a
 }
 
+// ensureBuilt materializes Decorated root if missing.
+func (a *Alert) ensureBuilt() {
+	if a == nil {
+		return
+	}
+	if a.Root == nil {
+		a.rebuild()
+	}
+}
+
+// structureChange rebuilds alert chrome tree.
+func (a *Alert) structureChange() {
+	if a == nil {
+		return
+	}
+	a.rebuild()
+}
+
+// chromeChange refreshes colors; Alert resolves chrome inside rebuild.
+func (a *Alert) chromeChange() {
+	if a == nil {
+		return
+	}
+	a.ensureBuilt()
+	a.rebuild()
+}
+
 // Node returns the mount root.
 func (a *Alert) Node() core.Node {
 	if a == nil {
 		return nil
 	}
-	if a.Root == nil {
-		a.rebuild()
-	}
+	a.ensureBuilt()
 	return a.Root
 }
 
@@ -199,9 +232,7 @@ func (a *Alert) ChromeNode() core.Node {
 	if a == nil {
 		return nil
 	}
-	if a.Root == nil {
-		a.rebuild()
-	}
+	a.ensureBuilt()
 	return a.Root
 }
 
@@ -312,7 +343,7 @@ func (a *Alert) SetTitle(s string) {
 		a.applyA11y()
 		return
 	}
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetMessage is a deprecated alias for SetTitle (antd message → title).
@@ -332,7 +363,7 @@ func (a *Alert) SetTitleNode(n core.Node) {
 		return
 	}
 	a.TitleNode = n
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetDescription sets secondary description text.
@@ -341,7 +372,7 @@ func (a *Alert) SetDescription(s string) {
 		return
 	}
 	a.Description = s
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetDescriptionNode sets a custom description node.
@@ -350,7 +381,7 @@ func (a *Alert) SetDescriptionNode(n core.Node) {
 		return
 	}
 	a.DescriptionNode = n
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetType sets semantic type (success|info|warning|error or free string).
@@ -367,7 +398,7 @@ func (a *Alert) SetType(typ any) {
 		a.Type = AlertInfo
 	}
 	a.typeSet = true
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetVariant sets outlined | filled.
@@ -376,7 +407,7 @@ func (a *Alert) SetVariant(v AlertVariant) {
 		return
 	}
 	a.Variant = v
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetBanner toggles banner mode (top announcement skin + defaults).
@@ -385,7 +416,7 @@ func (a *Alert) SetBanner(on bool) {
 		return
 	}
 	a.Banner = on
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetShowIcon toggles the leading icon explicitly.
@@ -395,7 +426,7 @@ func (a *Alert) SetShowIcon(on bool) {
 	}
 	a.ShowIcon = on
 	a.showIconSet = true
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetIcon sets a registry icon name (used when showIcon).
@@ -404,7 +435,7 @@ func (a *Alert) SetIcon(name string) {
 		return
 	}
 	a.Icon = strings.TrimSpace(name)
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetIconNode sets a custom leading icon node.
@@ -413,7 +444,7 @@ func (a *Alert) SetIconNode(n core.Node) {
 		return
 	}
 	a.IconNode = n
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetClosable toggles the close control.
@@ -422,7 +453,7 @@ func (a *Alert) SetClosable(on bool) {
 		return
 	}
 	a.Closable = on
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetCloseIcon sets a custom close node (nil → default "×").
@@ -431,7 +462,7 @@ func (a *Alert) SetCloseIcon(n core.Node) {
 		return
 	}
 	a.CloseIcon = n
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetCloseAria sets the accessible name for the close control.
@@ -476,7 +507,7 @@ func (a *Alert) SetAction(n core.Node) {
 		return
 	}
 	a.Action = n
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetHidden forces visibility (tests / parent recovery).
@@ -485,7 +516,7 @@ func (a *Alert) SetHidden(v bool) {
 		return
 	}
 	a.Hidden = v
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetTheme sets the theme override.
@@ -494,7 +525,7 @@ func (a *Alert) SetTheme(th *core.Theme) {
 		return
 	}
 	a.Theme = th
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetFace sets the text face.
@@ -522,7 +553,7 @@ func (a *Alert) SetStyle(st Style) {
 	if st.Face != nil {
 		a.Face = st.Face
 	}
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetAriaLabel sets the accessible name override.
@@ -531,6 +562,7 @@ func (a *Alert) SetAriaLabel(name string) {
 		return
 	}
 	a.AriaLabel = name
+	a.ensureBuilt()
 	a.applyA11y()
 }
 
@@ -750,6 +782,9 @@ func (a *Alert) rebuild() {
 	} else {
 		a.Root.ClearChildren()
 	}
+	// Product skin key so Theme.Skin can override Alert chrome only (#6).
+	a.Root.SkinType = TypeAlert
+	a.Root.SetThemeHook(func(*core.Theme) { a.structureChange() })
 
 	if a.Hidden {
 		a.Root.Padding = primitive.EdgeInsets{}

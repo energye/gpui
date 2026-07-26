@@ -217,13 +217,39 @@ func NewBorderBeam(child core.Node) *BorderBeam {
 }
 
 // Node returns the mount root.
-func (b *BorderBeam) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (b *BorderBeam) ensureBuilt() {
 	if b == nil {
-		return nil
+		return
 	}
 	if b.Root == nil {
 		b.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (b *BorderBeam) structureChange() {
+	if b == nil {
+		return
+	}
+	b.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (b *BorderBeam) chromeChange() {
+	if b == nil {
+		return
+	}
+	b.ensureBuilt()
+	b.rebuild()
+}
+
+func (b *BorderBeam) Node() core.Node {
+	if b == nil {
+		return nil
+	}
+	b.ensureBuilt()
 	return b.Root
 }
 

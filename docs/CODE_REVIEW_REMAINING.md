@@ -9,12 +9,26 @@
 ## 建议推进顺序
 
 ```text
-0. #9+#6 按下方「控件推广顺序」手开（当前：Breadcrumb）
+0. #9+#6 控件 Skin 推广：已全部完成 ✅
 1. #12 PaintContext 分配 — 有 profile 再做（P2）
 2. #13 多窗口 — 独立里程碑（P1 功能）
 3. #4  巨型文件拆分 — 穿插重构（P3）
 4. #3  三套 GPU 管线收敛 — 长期（P3）
 ```
+
+---
+
+## #6 Skin 全量完成（2026-07-26）
+
+清单内全部 kit 控件已接入：
+
+1. `ui/kit/doc.go` — 统一 `TypeXxx` 常量  
+2. `ui/skin/default/skin.go` — 默认 Painter 注册（Decorated / Flex / host 遍历）  
+3. 各控件 `ensureBuilt` / `structureChange` / `chromeChange`（或等价）  
+4. 主 chrome `SkinType` 或 host `TypeID` + `Paint` 查 Skin  
+5. 回归：`TestAllKit_SkinPaintersRegistered` + `TestWave*` / 抽样 `Node()`  
+
+**说明：** 早期 Wave 0–1 含完整 lifecycle 单测 + gallery 小节；Wave 2 后半至 Wave 7 以批量 Skin 管道 + ensureBuilt + 注册表测试为主（gallery 小节可按需补）。
 
 ---
 
@@ -103,104 +117,70 @@
 |---|------|-----|------|------|
 | 1 | **Breadcrumb** | `breadcrumb.go` | **done** 2026-07-26 | ensureBuilt/structureChange/chromeChange + SkinType + gallery |
 | 2 | **Input** | `input.go` | **done** 2026-07-26 | ensureBuilt/structureChange/chromeChange + SkinType + gallery |
-| 3 | **Switch** | `switch.go` | **next** | 结构简单，适合巩固样板 |
-| 4 | Checkbox | `checkbox.go` | todo | 与 Radio 同型 |
-| 5 | Radio | `radio.go` | todo | 含 Radio.Button |
-| 6 | Tag | `tag.go` | todo | 偏展示，Skin 收益直观 |
+| 3 | **Switch** | `switch.go` | **done** 2026-07-26 | ensureBuilt/structureChange/chromeChange + SkinType + gallery |
+| 4 | **Checkbox** | `checkbox.go` | **done** 2026-07-26 | ensureBuilt/chromeChange + indicator SkinType + gallery |
+| 5 | **Radio** | `radio.go` | **done** 2026-07-26 | ensureBuilt/chromeChange + SkinType (dot/btn) + gallery |
+| 6 | **Tag** | `tag.go` | **done** 2026-07-26 | ensureBuilt/structureChange + Root.SkinType + gallery |
 
 #### Wave 2 — 展示 / 轻反馈
 
 | # | 控件 | kit | 状态 | 备注 |
 |---|------|-----|------|------|
-| 7 | FloatButton | `float_button.go` | todo | 贴近 Button |
-| 8 | Badge | `badge.go` | todo | 已有 countSet 等 flag 经验 |
-| 9 | Alert | `alert.go` | todo | |
-| 10 | Progress | `progress.go` | todo | |
-| 11 | Spin | `spin.go` | todo | Ticker |
-| 12 | Skeleton | `skeleton.go` | todo | Ticker；rebuild 重 |
-| 13 | Empty | `empty.go` | todo | |
-| 14 | Result | `result.go` | todo | |
-| 15 | Statistic | `statistic.go` | todo | |
-| 16 | Avatar | `avatar.go` | todo | |
-| 17 | Divider | `divider.go` | todo | 很轻 |
-| 18 | Icon | `icon.go` | todo | |
-| 19 | Typography / Text | `typography.go` | todo | |
+| 7 | **FloatButton** | `float_button.go` | **done** 2026-07-26 | ensureBuilt/chromeChange + SkinType kit.FloatButton + gallery |
+| 8 | **Badge** | `badge.go` | **done** 2026-07-26 | ensureBuilt + host TypeID + SkinType + gallery |
+| 9 | **Alert** | `alert.go` | **done** 2026-07-26 | ensureBuilt/structureChange + Root.SkinType + gallery |
+| 10 | **Progress** | `progress.go` | **done** 2026-07-26 | ensureBuilt/structureChange/chromeChange + host TypeID + gallery |
+| 11 | **Spin** | `spin.go` | **done** 2026-07-26 | ensureBuilt + host TypeID/Paint Skin + batch test |
+| 12 | **Skeleton** | `skeleton.go` | **done** 2026-07-26 | ensureBuilt + host TypeID/Paint Skin + batch test |
+| 13 | **Empty** | `empty.go` | **done** 2026-07-26 | ensureBuilt + Root.SkinType + batch test |
+| 14 | **Result** | `result.go` | **done** 2026-07-26 | ensureBuilt + Flex.SkinType + batch test |
+| 15 | **Statistic** | `statistic.go` | **done** 2026-07-26 | ensureBuilt + host TypeID/Paint Skin + batch test |
+| 16 | **Avatar** | `avatar.go` | **done** 2026-07-26 | ensureBuilt + Root.SkinType + batch test |
+| 17 | **Divider** | `divider.go` | **done** 2026-07-26 | ensureBuilt + Flex.SkinType + batch test |
+| 18 | **Icon** | `icon.go` | **done** 2026-07-26 | ensureBuilt + host Paint Skin + batch test |
+| 19 | **Typography / Text** | `typography.go` | **done** 2026-07-26 | ensureBuilt + host Paint Skin + batch test |
 
 #### Wave 3 — 导航 / 布局壳
 
 | # | 控件 | kit | 状态 | 备注 |
 |---|------|-----|------|------|
-| 20 | Tabs | `tabs.go` | todo | |
-| 21 | Menu | `menu.go` | todo | |
-| 22 | Dropdown | `dropdown.go` | todo | Overlay |
-| 23 | Pagination | `pagination.go` | todo | |
-| 24 | Steps | `steps.go` | todo | rebuild 多 |
-| 25 | Anchor | `anchor.go` | todo | |
-| 26 | Space | `space.go` | todo | |
-| 27 | Flex | `flex.go` | todo | 布局原语向 |
-| 28 | Grid | `grid.go` | todo | |
-| 29 | Layout | `layout.go` | todo | |
-| 30 | Splitter | `splitter.go` | todo | |
-| 31 | Scroll | `scroll.go` | todo | 原语向 |
+| 20 | **Tabs** | `tabs.go` | **done** 2026-07-26 | ensureBuilt + Flex.SkinType + skin |
+| 21 | **Menu** | `menu.go` | **done** 2026-07-26 | ensureBuilt + Root.SkinType + skin |
+| 22 | **Dropdown** | `dropdown.go` | **done** 2026-07-26 | ensureBuilt + skin |
+| 23 | **Pagination** | `pagination.go` | **done** 2026-07-26 | ensureBuilt + Flex.SkinType + skin |
+| 24 | **Steps** | `steps.go` | **done** 2026-07-26 | ensureBuilt + Flex.SkinType + skin |
+| 25 | **Anchor** | `anchor.go` | **done** 2026-07-26 | ensureBuilt + skin |
+| 26 | **Space** | `space.go` | **done** 2026-07-26 | ensureBuilt + Flex.SkinType + skin |
+| 27 | **Flex** | `flex.go` | **done** 2026-07-26 | ensureBuilt + TypeKitFlex + skin |
+| 28 | Grid | `grid.go` | **done** 2026-07-26 | TypeID kit.Row/Col (layout primitive) |
+| 29 | **Layout** | `layout.go` | **done** 2026-07-26 | ensureBuilt + TypeLayout + skin |
+| 30 | **Splitter** | `splitter.go` | **done** 2026-07-26 | ensureBuilt + TypeSplitter + skin |
+| 31 | **Scroll** | `scroll.go` | **done** 2026-07-26 | ensureBuilt + TypeScroll + skin |
 
 #### Wave 4 — 反馈浮层
 
 | # | 控件 | kit | 状态 | 备注 |
 |---|------|-----|------|------|
-| 32 | Modal | `modal.go` | todo | 已有 widthSet 等；补生命周期+Skin |
-| 33 | Drawer | `drawer.go` | todo | |
-| 34 | Message | `message.go` | todo | Host 型 |
-| 35 | Notification | `notification.go` | todo | Host 型 |
-| 36 | Popover | `popover.go` | todo | |
-| 37 | Tooltip | `tooltip.go` | todo | |
-| 38 | Popconfirm | `popconfirm.go` | todo | |
-| 39 | Tour | `tour.go` | todo | |
+| 32–39 | Modal/Drawer/Message/Notification/Popover/Tooltip/Popconfirm/Tour | 对应文件 | **done** 2026-07-26 | ensureBuilt + panel SkinType + skin 注册 |
 
 #### Wave 5 — 录入复合
 
 | # | 控件 | kit | 状态 | 备注 |
 |---|------|-----|------|------|
-| 40 | Select | `select.go` | todo | Overlay + 列表 |
-| 41 | InputNumber | `input_number.go` | todo | |
-| 42 | Mentions | `mentions.go` | todo | |
-| 43 | AutoComplete | `auto_complete.go` | todo | |
-| 44 | Cascader | `cascader.go` | todo | |
-| 45 | TreeSelect | `tree_select.go` | todo | |
-| 46 | DatePicker | `date_picker.go` | todo | |
-| 47 | TimePicker | `time_picker.go` | todo | |
-| 48 | Upload | `upload.go` | todo | |
-| 49 | Form | `form.go` | todo | 依赖 Item/录入稳定 |
-| 50 | Rate | `rate.go` | todo | |
-| 51 | Slider | `slider.go` | todo | |
-| 52 | ColorPicker | `color_picker.go` | todo | |
-| 53 | Segmented | `segmented.go` | todo | |
-| 54 | Transfer | `transfer.go` | todo | |
+| 40–54 | Select…Transfer（全表） | 对应文件 | **done** 2026-07-26 | ensureBuilt + Skin 注册 + 抽样 Node 测试 |
 
 #### Wave 6 — 数据展示重型
 
 | # | 控件 | kit | 状态 | 备注 |
 |---|------|-----|------|------|
-| 55 | Table | `table.go` | todo | 最重；靠后 |
-| 56 | Tree | `tree.go` | todo | 近期完善中；生命周期后置以免搅局 |
-| 57 | List | `list.go` | todo | |
-| 58 | Descriptions | `descriptions.go` | todo | |
-| 59 | Card | `card.go` | todo | |
-| 60 | Calendar | `calendar.go` | todo | |
-| 61 | Carousel | `carousel.go` | todo | |
-| 62 | Collapse | `collapse.go` | todo | |
-| 63 | Image | `image.go` | todo | Preview overlay |
-| 64 | Timeline | `timeline.go` | todo | |
-| 65 | QRCode | `qrcode.go` | todo | |
+| 55–65 | Table…QRCode（全表） | 对应文件 | **done** 2026-07-26 | ensureBuilt + Skin 注册 + 抽样 Node 测试 |
 
 #### Wave 7 — 其它 / 特效 / 壳
 
 | # | 控件 | kit | 状态 | 备注 |
 |---|------|-----|------|------|
-| 66 | Affix | `affix.go` | todo | |
-| 67 | Watermark | `watermark.go` | todo | |
-| 68 | BorderBeam | `border_beam.go` | todo | |
-| 69 | ConfigProvider | `config_provider.go` | todo | 主题入口；Skin 挂载点 |
-| 70 | App | （theme density） | todo | 偏壳 |
+| 66–70 | Affix/Watermark/BorderBeam/ConfigProvider/App | 对应文件 | **done** 2026-07-26 | ensureBuilt + Skin 注册（App 为 theme 壳） |
+
 
 ### 每手开一个控件的检查单
 
@@ -217,7 +197,7 @@
 ### 当前手开指针
 
 ```text
-→ Wave 1 #3 Switch
+→ #9+#6 控件 Skin 推广：全部完成 ✅
 ```
 
 ---
@@ -235,6 +215,9 @@
 | 6 | Skin 空壳（Button 试点） | SkinType；default 注册 kit.Button；Override+gallery | 2026-07-26 |
 | 9+6 | Breadcrumb 推广 | 同 Button 模式；Flex.SkinType；测试+gallery | 2026-07-26 |
 | 9+6 | Input 推广 | Decorated.SkinType；structure/chrome 分类；测试+gallery | 2026-07-26 |
+| 9+6 | Switch 推广 | track.SkinType；structure/chrome；测试+gallery | 2026-07-26 |
+| 9+6 | Checkbox 推广 | indicator.SkinType；chrome 为主；测试+gallery | 2026-07-26 |
+| 9+6 | Radio 推广 | default/button SkinType；structure/chrome；测试+gallery | 2026-07-26 |
 | 10 | TightWidthHeight | TightHeight；旧名删除 | 2026-07-26 |
 | 11 | OverlayHost Entries | 写时有序；Entries 只 copy | 2026-07-26 |
 

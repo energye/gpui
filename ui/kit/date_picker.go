@@ -273,13 +273,39 @@ func NewRangePicker() *DatePicker {
 }
 
 // Node returns the composition root.
-func (d *DatePicker) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (d *DatePicker) ensureBuilt() {
 	if d == nil {
-		return nil
+		return
 	}
 	if d.Wrap == nil {
 		d.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (d *DatePicker) structureChange() {
+	if d == nil {
+		return
+	}
+	d.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (d *DatePicker) chromeChange() {
+	if d == nil {
+		return
+	}
+	d.ensureBuilt()
+	d.rebuild()
+}
+
+func (d *DatePicker) Node() core.Node {
+	if d == nil {
+		return nil
+	}
+	d.ensureBuilt()
 	return d.Wrap
 }
 
@@ -1290,6 +1316,7 @@ func (d *DatePicker) rebuild() {
 	row.Gap = 8
 
 	d.decor = primitive.NewDecorated(row)
+	d.decor.SkinType = TypeDatePicker
 	d.decor.Padding = primitive.Symmetric(padH, 0)
 	d.decor.Radius = radius
 	d.decor.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)

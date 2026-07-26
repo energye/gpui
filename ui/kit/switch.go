@@ -29,7 +29,7 @@ type stackOffsetter interface {
 // Switch is an on/off toggle composed from Pressable + Decorated track + Stack.
 //
 //	Pressable (role=switch)
-//	  └─ Decorated track (pill)
+//	  └─ Decorated track (pill)  SkinType = kit.Switch
 //	       └─ Stack
 //	            ├─ PositionedAt(0,0) Canvas  — dual labels (checked/unchecked)
 //	            └─ PositionedAt thumb
@@ -38,6 +38,16 @@ type stackOffsetter interface {
 // Labels: both drawn every frame; position/alpha follow thumbPos (antd slide
 // appear/hide). Vertical center uses DrawStringAnchored(ay=0.5) on free-slot
 // mid-Y (= track mid) — general face-metrics centering, no optical constants.
+//
+// # Lifecycle (#9, Button pattern)
+//
+// NewSwitch always builds once. After that:
+//
+//   - structureChange() — size / loading / inner children / face (when labels)
+//   - chromeChange()    — checked/disabled/style colors (applyChrome)
+//   - ensureBuilt()     — Node/ChromeNode paths
+//
+// Track Decorated uses SkinType = kit.Switch (#6).
 //
 // Product contract: docs/antd/switch.md §6 (P0 DoD).
 type Switch struct {
@@ -103,37 +113,67 @@ func NewSwitch() *Switch {
 	return s
 }
 
-func (s *Switch) Node() core.Node {
-	if s.Root == nil {
+// ensureBuilt materializes Pressable + track if missing.
+func (s *Switch) ensureBuilt() {
+	if s == nil {
+		return
+	}
+	if s.Root == nil || s.track == nil {
 		s.rebuild()
 	}
+}
+
+// structureChange rebuilds track/thumb/label tree (size, loading, children text).
+func (s *Switch) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes track/thumb colors without tearing down the tree when built.
+func (s *Switch) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.applyChrome()
+}
+
+func (s *Switch) Node() core.Node {
+	if s == nil {
+		return nil
+	}
+	s.ensureBuilt()
 	return s.Root
 }
 
 func (s *Switch) ChromeNode() core.Node {
-	if s.track == nil {
-		s.rebuild()
+	if s == nil {
+		return nil
 	}
+	s.ensureBuilt()
 	return s.track
 }
 
 func (s *Switch) IndicatorNode() core.Node { return s.ChromeNode() }
 
 func (s *Switch) ThumbNode() core.Node {
-	if s.thumb == nil {
-		s.rebuild()
+	if s == nil {
+		return nil
 	}
+	s.ensureBuilt()
 	return s.thumb
 }
 
 func (s *Switch) SetChecked(v bool) {
 	if s.Checked == v {
-		s.applyChrome()
+		s.chromeChange()
 		return
 	}
 	s.Checked = v
 	s.animateThumb()
-	s.applyChrome()
+	s.chromeChange()
 	s.applyA11yName()
 }
 
@@ -160,15 +200,16 @@ func (s *Switch) SetSize(sz SwitchSize) {
 		return
 	}
 	s.Size = sz
-	s.rebuild()
+	s.structureChange()
 }
 
 func (s *Switch) SetDisabled(d bool) {
 	s.Disabled = d
+	s.ensureBuilt()
 	if s.Root != nil {
 		s.Root.SetDisabled(d || s.Loading)
 	}
-	s.applyChrome()
+	s.chromeChange()
 }
 
 func (s *Switch) SetLoading(v bool) {
@@ -176,10 +217,10 @@ func (s *Switch) SetLoading(v bool) {
 		return
 	}
 	s.Loading = v
+	s.structureChange()
 	if s.Root != nil {
 		s.Root.SetDisabled(s.Disabled || s.Loading)
 	}
-	s.rebuild()
 	if s.boundTree != nil {
 		if v || s.thumbPos.Active() {
 			s.boundTree.AddTicker(s)
@@ -191,12 +232,12 @@ func (s *Switch) SetLoading(v bool) {
 
 func (s *Switch) SetCheckedChildren(text string) {
 	s.CheckedChildren = text
-	s.rebuild()
+	s.structureChange()
 }
 
 func (s *Switch) SetUnCheckedChildren(text string) {
 	s.UnCheckedChildren = text
-	s.rebuild()
+	s.structureChange()
 }
 
 func (s *Switch) SetOnChange(fn func(bool)) { s.OnChange = fn }
@@ -204,13 +245,14 @@ func (s *Switch) SetOnClick(fn func(bool))  { s.OnClick = fn }
 
 func (s *Switch) SetAriaLabel(name string) {
 	s.AriaLabel = name
+	s.ensureBuilt()
 	s.applyA11yName()
 }
 
 func (s *Switch) SetFace(face text.Face) {
 	s.Face = face
 	if s.CheckedChildren != "" || s.UnCheckedChildren != "" {
-		s.rebuild()
+		s.structureChange()
 		return
 	}
 	if s.label != nil {
@@ -223,17 +265,17 @@ func (s *Switch) SetStyle(st Style) {
 	if st.Face != nil {
 		s.SetFace(st.Face)
 	}
-	s.applyChrome()
+	s.chromeChange()
 }
 
 func (s *Switch) SetBackground(c render.RGBA) {
 	s.Style.Background = c
-	s.applyChrome()
+	s.chromeChange()
 }
 
 func (s *Switch) SetActiveColor(c render.RGBA) {
 	s.Style.BackgroundActive = c
-	s.applyChrome()
+	s.chromeChange()
 }
 
 func (s *Switch) AttachTicker(t *core.Tree) {
@@ -267,7 +309,7 @@ func (s *Switch) Tick(dt float64) bool {
 }
 
 func (s *Switch) SyncState() {
-	if s.Root == nil {
+	if s == nil || s.Root == nil {
 		return
 	}
 	h, p := s.Root.State.Hovered, s.Root.State.Pressed
@@ -277,7 +319,7 @@ func (s *Switch) SyncState() {
 	}
 	s.lastHovered, s.lastPressed, s.lastFocused = h, p, f
 	s.applyThumbShape()
-	s.applyChrome()
+	s.chromeChange()
 }
 
 func (s *Switch) theme() *core.Theme {
@@ -473,6 +515,8 @@ func (s *Switch) rebuild() {
 		s.track.ClearChildren()
 		s.track.AddChild(s.stack)
 	}
+	// Product skin key so Theme.Skin can override Switch track chrome only (#6).
+	s.track.SkinType = TypeSwitch
 	s.track.Width, s.track.Height = s.trackW, s.trackH
 	s.track.MinWidth, s.track.MinHeight = s.trackW, s.trackH
 	s.track.Radius = s.trackH / 2
@@ -493,7 +537,7 @@ func (s *Switch) rebuild() {
 	s.Root.OnStateChange = s.SyncState
 	s.Root.Click = s.fireToggle
 	s.Root.SetDisabled(s.Disabled || s.Loading)
-	s.Root.SetThemeHook(func(*core.Theme) { s.rebuild() })
+	s.Root.SetThemeHook(func(*core.Theme) { s.structureChange() })
 	s.applyA11yName()
 
 	s.lastHovered, s.lastPressed, s.lastFocused = false, false, false

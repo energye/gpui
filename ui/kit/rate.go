@@ -132,10 +132,36 @@ func NewRate() *Rate {
 }
 
 // Node returns the root row (stable across SetValue).
-func (r *Rate) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (r *Rate) ensureBuilt() {
+	if r == nil {
+		return
+	}
 	if r.Root == nil {
 		r.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (r *Rate) structureChange() {
+	if r == nil {
+		return
+	}
+	r.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (r *Rate) chromeChange() {
+	if r == nil {
+		return
+	}
+	r.ensureBuilt()
+	r.rebuild()
+}
+
+func (r *Rate) Node() core.Node {
+	r.ensureBuilt()
 	return r.Root
 }
 

@@ -54,8 +54,16 @@ const (
 // Radio is a single radio option (antd Radio / Radio.Button).
 //
 //	Pressable (role=radio)
-//	  └─ default: Row(indicator 16×16, label)
-//	  └─ button:  Decorated chrome + label
+//	  └─ default: Row(indicator 16×16 SkinType=kit.Radio, label)
+//	  └─ button:  Decorated chrome SkinType=kit.Radio + label
+//
+// # Lifecycle (#9, Button pattern)
+//
+// NewRadio / NewRadioButton always build once. After that:
+//
+//   - structureChange() — button mode toggle / full tree rebuild
+//   - chromeChange()    — checked/disabled/style colors
+//   - ensureBuilt()     — Node/ChromeNode paths
 //
 // Product contract: docs/antd/radio.md §6 (P0 DoD).
 type Radio struct {
@@ -151,53 +159,81 @@ func NewRadioButton(label string) *Radio {
 	return r
 }
 
-// Node returns the root Pressable.
-func (r *Radio) Node() core.Node {
-	if r.Root == nil {
+// ensureBuilt materializes Pressable + indicator/button chrome if missing.
+func (r *Radio) ensureBuilt() {
+	if r == nil {
+		return
+	}
+	if r.Root == nil || (r.isButton() && r.btn == nil) || (!r.isButton() && r.dot == nil) {
 		r.rebuild()
 	}
+}
+
+// structureChange rebuilds default or button chrome tree.
+func (r *Radio) structureChange() {
+	if r == nil {
+		return
+	}
+	r.rebuild()
+}
+
+// chromeChange refreshes colors without full rebuild when built.
+func (r *Radio) chromeChange() {
+	if r == nil {
+		return
+	}
+	r.ensureBuilt()
+	r.applyChrome()
+}
+
+// Node returns the root Pressable.
+func (r *Radio) Node() core.Node {
+	if r == nil {
+		return nil
+	}
+	r.ensureBuilt()
 	return r.Root
 }
 
 // ChromeNode returns the root chrome (Pressable).
 func (r *Radio) ChromeNode() core.Node {
-	if r.Root == nil {
-		r.rebuild()
+	if r == nil {
+		return nil
 	}
+	r.ensureBuilt()
 	return r.Root
 }
 
 // IndicatorNode returns the bare indicator (icon semantic part, no label).
 // For button mode returns the button chrome Decorated.
 func (r *Radio) IndicatorNode() core.Node {
-	if r.isButton() {
-		if r.btn == nil {
-			r.rebuild()
-		}
-		return r.btn
+	if r == nil {
+		return nil
 	}
-	if r.dot == nil {
-		r.rebuild()
+	r.ensureBuilt()
+	if r.isButton() {
+		return r.btn
 	}
 	return r.dot
 }
 
 // LabelNode returns the label text node (label semantic part).
 func (r *Radio) LabelNode() core.Node {
-	if r.label == nil {
-		r.rebuild()
+	if r == nil {
+		return nil
 	}
+	r.ensureBuilt()
 	return r.label
 }
 
 // SetChecked updates checked chrome. Does not fire OnChange.
 func (r *Radio) SetChecked(v bool) {
 	if r.Checked == v {
-		r.applyChrome()
+		r.chromeChange()
 		return
 	}
 	r.Checked = v
-	r.applyChrome()
+	r.chromeChange()
 	r.applyA11y()
 }
 
@@ -215,16 +251,18 @@ func (r *Radio) SetControlled(v bool) { r.Controlled = v }
 // SetDisabled toggles disabled chrome and interaction.
 func (r *Radio) SetDisabled(d bool) {
 	r.Disabled = d
+	r.ensureBuilt()
 	if r.Root != nil {
 		r.Root.SetDisabled(d || r.groupDisabled())
 	}
-	r.applyChrome()
+	r.chromeChange()
 	r.applyA11y()
 }
 
 // SetLabel updates the visible label text.
 func (r *Radio) SetLabel(s string) {
 	r.Label = s
+	r.ensureBuilt()
 	if r.label != nil {
 		r.label.SetValue(s)
 	}
@@ -234,6 +272,7 @@ func (r *Radio) SetLabel(s string) {
 // SetTitle sets antd title (option title / tooltip attribute).
 func (r *Radio) SetTitle(s string) {
 	r.Title = s
+	r.ensureBuilt()
 	r.applyA11y()
 }
 
@@ -246,6 +285,7 @@ func (r *Radio) SetOnChange(fn func(bool)) { r.OnChange = fn }
 // SetAriaLabel sets the accessible name override.
 func (r *Radio) SetAriaLabel(name string) {
 	r.AriaLabel = name
+	r.ensureBuilt()
 	r.applyA11y()
 }
 
@@ -264,22 +304,23 @@ func (r *Radio) SetStyle(st Style) {
 	if st.Face != nil {
 		r.SetFace(st.Face)
 	}
+	r.ensureBuilt()
 	if st.FontSize > 0 && r.label != nil {
 		r.label.FontSize = st.FontSize
 	}
-	r.applyChrome()
+	r.chromeChange()
 }
 
 // SetTheme sets an explicit theme (highest priority).
 func (r *Radio) SetTheme(th *core.Theme) {
 	r.Theme = th
-	r.applyChrome()
+	r.chromeChange()
 }
 
 // SetTextColor overrides label color.
 func (r *Radio) SetTextColor(col render.RGBA) {
 	r.Style.Text = col
-	r.applyChrome()
+	r.chromeChange()
 }
 
 // SetButtonMode toggles Radio.Button chrome (also applied by group optionType).
@@ -288,12 +329,12 @@ func (r *Radio) SetButtonMode(v bool) {
 		return
 	}
 	r.ButtonMode = v
-	r.rebuild()
+	r.structureChange()
 }
 
 // SyncState reapplies hover/focus chrome from Pressable.
 func (r *Radio) SyncState() {
-	if r.Root == nil {
+	if r == nil || r.Root == nil {
 		return
 	}
 	h := r.Root.State.Hovered
@@ -303,7 +344,7 @@ func (r *Radio) SyncState() {
 	}
 	r.lastHovered = h
 	r.lastFocused = f
-	r.applyChrome()
+	r.chromeChange()
 }
 
 func (r *Radio) theme() *core.Theme {
@@ -372,6 +413,8 @@ func (r *Radio) rebuildDefault() {
 
 	// Transparent Decorated shell for layout size; circle painted by PainterNode.
 	r.dot = primitive.NewDecorated()
+	// Product skin key so Theme.Skin can override Radio indicator only (#6).
+	r.dot.SkinType = TypeRadio
 	r.dot.Width, r.dot.Height = size, size
 	r.dot.MinWidth, r.dot.MinHeight = size, size
 	r.dot.Radius = size / 2
@@ -458,6 +501,7 @@ func (r *Radio) rebuildDefault() {
 	r.Root.OnStateChange = r.SyncState
 	r.Root.Click = r.onActivate
 	r.Root.SetDisabled(r.isDisabled())
+	r.Root.SetThemeHook(func(*core.Theme) { r.structureChange() })
 	r.applyA11y()
 	r.applyChrome()
 }
@@ -483,6 +527,8 @@ func (r *Radio) rebuildButton() {
 	r.label.Face = r.Face
 
 	r.btn = primitive.NewDecorated(r.label)
+	// Product skin key for Radio.Button chrome (#6).
+	r.btn.SkinType = TypeRadio
 	r.btn.MinHeight = h
 	r.btn.Height = h
 	r.btn.Padding = primitive.Symmetric(DefaultRadioBtnPadH, 0)
@@ -503,6 +549,7 @@ func (r *Radio) rebuildButton() {
 	r.Root.OnStateChange = r.SyncState
 	r.Root.Click = r.onActivate
 	r.Root.SetDisabled(r.isDisabled())
+	r.Root.SetThemeHook(func(*core.Theme) { r.structureChange() })
 	// Block equal-width: parent Flexible fills; expand pressable to host.
 	if r.group != nil && r.group.Block {
 		// Pressable fills Flexible allocation via parent stretch.
@@ -526,7 +573,7 @@ func (r *Radio) onActivate() {
 	}
 	if !r.Controlled {
 		r.Checked = true
-		r.applyChrome()
+		r.chromeChange()
 		r.applyA11y()
 	}
 	if r.OnChange != nil {

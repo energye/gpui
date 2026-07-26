@@ -112,13 +112,39 @@ func NewModal(title string) *Modal {
 }
 
 // Node returns the portal host node to place in the tree.
-func (m *Modal) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (m *Modal) ensureBuilt() {
 	if m == nil {
-		return nil
+		return
 	}
 	if m.Portal == nil {
 		m.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (m *Modal) structureChange() {
+	if m == nil {
+		return
+	}
+	m.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (m *Modal) chromeChange() {
+	if m == nil {
+		return
+	}
+	m.ensureBuilt()
+	m.rebuild()
+}
+
+func (m *Modal) Node() core.Node {
+	if m == nil {
+		return nil
+	}
+	m.ensureBuilt()
 	return m.Portal
 }
 
@@ -830,6 +856,7 @@ func (m *Modal) rebuild() {
 	col.CrossAlign = core.CrossStretch
 
 	m.panel = primitive.NewDecorated(col)
+	m.panel.SkinType = TypeModal
 	m.panel.Padding = m.panelPadding()
 	// antd contentBg = colorBgElevated; kit falls back to container white.
 	bg := th.Color(core.TokenColorBgContainer)
@@ -903,7 +930,7 @@ type modalLayer struct {
 	modal *Modal
 }
 
-func (l *modalLayer) TypeID() string { return "kit.ModalLayer" }
+func (l *modalLayer) TypeID() string { return TypeModal }
 
 func (l *modalLayer) Layout(c core.Constraints) core.Size {
 	var portal *primitive.OverlayPortal

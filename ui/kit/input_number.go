@@ -159,13 +159,39 @@ func NewInputNumberValue(defaultValue float64) *InputNumber {
 }
 
 // Node returns the root host node for tree attachment.
-func (n *InputNumber) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (n *InputNumber) ensureBuilt() {
 	if n == nil {
-		return nil
+		return
 	}
 	if n.host == nil {
 		n.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (n *InputNumber) structureChange() {
+	if n == nil {
+		return
+	}
+	n.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (n *InputNumber) chromeChange() {
+	if n == nil {
+		return
+	}
+	n.ensureBuilt()
+	n.rebuild()
+}
+
+func (n *InputNumber) Node() core.Node {
+	if n == nil {
+		return nil
+	}
+	n.ensureBuilt()
 	return n.host
 }
 
@@ -891,6 +917,7 @@ func (n *InputNumber) rebuild() {
 
 	if n.Root == nil {
 		n.Root = primitive.NewDecorated(body)
+		n.Root.SkinType = TypeInputNumber
 	} else {
 		n.Root.ClearChildren()
 		n.Root.AddChild(body)

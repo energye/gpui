@@ -140,13 +140,39 @@ func NewDropdown(label string, items ...MenuItem) *Dropdown {
 }
 
 // Node returns the composition root (trigger + popup host).
-func (d *Dropdown) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (d *Dropdown) ensureBuilt() {
 	if d == nil {
-		return nil
+		return
 	}
 	if d.Wrap == nil {
 		d.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (d *Dropdown) structureChange() {
+	if d == nil {
+		return
+	}
+	d.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (d *Dropdown) chromeChange() {
+	if d == nil {
+		return
+	}
+	d.ensureBuilt()
+	d.rebuild()
+}
+
+func (d *Dropdown) Node() core.Node {
+	if d == nil {
+		return nil
+	}
+	d.ensureBuilt()
 	return d.Wrap
 }
 

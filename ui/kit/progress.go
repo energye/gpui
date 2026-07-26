@@ -111,7 +111,7 @@ type progressHost struct {
 	prog *Progress
 }
 
-func (h *progressHost) TypeID() string { return "kit.Progress" }
+func (h *progressHost) TypeID() string { return TypeProgress }
 
 func (h *progressHost) OnMount() {
 	if h == nil || h.prog == nil {
@@ -148,6 +148,13 @@ func (h *progressHost) Layout(c core.Constraints) core.Size {
 }
 
 func (h *progressHost) Paint(pc *core.PaintContext) {
+	if pc != nil && pc.Theme != nil {
+		if painter := pc.Theme.Painter(TypeProgress); painter != nil {
+			painter(pc, h)
+			h.ClearPaintDirty()
+			return
+		}
+	}
 	h.DefaultPaintChildren(pc)
 	if pc != nil {
 		h.ClearPaintDirty()
@@ -158,6 +165,16 @@ func (h *progressHost) HitTest(p core.Point) core.Node {
 	return h.DefaultHitTest(p)
 }
 
+// # Lifecycle (#9, Button pattern)
+//
+// NewProgress is lazy (rebuild on first Node). After that:
+//
+//   - structureChange() — type/size/showInfo tree rebuild
+//   - chromeChange()    — percent/status/colors without full rebuild when possible
+//   - ensureBuilt()     — Node paths
+//
+// progressHost TypeID = kit.Progress for Skin (#6).
+//
 // NewProgress creates Progress with percent (clamped) and antd defaults.
 func NewProgress(percent float64) *Progress {
 	p := &Progress{
@@ -170,14 +187,66 @@ func NewProgress(percent float64) *Progress {
 	return p
 }
 
+// ensureBuilt materializes the progress host if missing.
+func (p *Progress) ensureBuilt() {
+	if p == nil {
+		return
+	}
+	if p.Root == nil {
+		p.rebuild()
+	}
+}
+
+// structureChange rebuilds line/circle body tree.
+func (p *Progress) structureChange() {
+	if p == nil {
+		return
+	}
+	p.rebuild()
+}
+
+// chromeChange updates percent text/status colors; rebuilds only if tree exists
+// and geometry-sensitive fields changed via structureChange setters.
+func (p *Progress) chromeChange() {
+	if p == nil {
+		return
+	}
+	if p.Root == nil {
+		return // still lazy
+	}
+	// Percent/status often only need paint refresh
+	if p.info != nil {
+		p.info.SetValue(p.resolveInfoText())
+		p.info.Color = p.infoCol(p.theme())
+		p.info.MarkNeedsPaint()
+	}
+	if p.track != nil {
+		p.track.MarkNeedsPaint()
+	}
+	if p.ring != nil {
+		p.ring.MarkNeedsPaint()
+	}
+	if p.Root != nil {
+		p.Root.MarkNeedsPaint()
+	}
+	p.syncTicker()
+}
+
 // Node returns the mount root.
 func (p *Progress) Node() core.Node {
 	if p == nil {
 		return nil
 	}
-	if p.Root == nil {
-		p.rebuild()
+	p.ensureBuilt()
+	return p.Root
+}
+
+// ChromeNode returns the progress host (for tests / composition).
+func (p *Progress) ChromeNode() core.Node {
+	if p == nil {
+		return nil
 	}
+	p.ensureBuilt()
 	return p.Root
 }
 
@@ -224,7 +293,7 @@ func (p *Progress) SetType(t ProgressType) {
 		return
 	}
 	p.Type = t
-	p.rebuild()
+	p.structureChange()
 }
 
 // SetSize sets small|medium preset (clears numeric override semantics only when SizePx==0).
@@ -239,7 +308,7 @@ func (p *Progress) SetSize(s ProgressSize) {
 		return
 	}
 	p.Size = s
-	p.rebuild()
+	p.structureChange()
 }
 
 // SetSizePx sets custom geometry: line height or circle edge. 0 → preset Size.
@@ -254,7 +323,7 @@ func (p *Progress) SetSizePx(px float64) {
 		return
 	}
 	p.SizePx = px
-	p.rebuild()
+	p.structureChange()
 }
 
 // SetWidth sets line track width. 0 → parent constraint / fallback.
@@ -276,7 +345,7 @@ func (p *Progress) SetWidth(w float64) {
 	if p.Root != nil {
 		p.Root.MarkNeedsLayout()
 	} else {
-		p.rebuild()
+		p.structureChange()
 	}
 }
 
@@ -295,7 +364,7 @@ func (p *Progress) SetStrokeWidth(pct float64) {
 	if p.ring != nil {
 		p.ring.MarkNeedsPaint()
 	} else {
-		p.rebuild()
+		p.structureChange()
 	}
 }
 
@@ -315,7 +384,7 @@ func (p *Progress) SetGapDegree(deg float64) {
 	if p.ring != nil {
 		p.ring.MarkNeedsPaint()
 	} else {
-		p.rebuild()
+		p.structureChange()
 	}
 }
 
@@ -331,7 +400,7 @@ func (p *Progress) SetGapPlacement(g ProgressGapPlacement) {
 	if p.ring != nil {
 		p.ring.MarkNeedsPaint()
 	} else {
-		p.rebuild()
+		p.structureChange()
 	}
 }
 
@@ -370,7 +439,7 @@ func (p *Progress) SetShowInfo(v bool) {
 		return
 	}
 	p.ShowInfo = v
-	p.rebuild()
+	p.structureChange()
 }
 
 // SetFormat sets info formatter; nil restores default.
@@ -408,7 +477,9 @@ func (p *Progress) SetTheme(th *core.Theme) {
 		return
 	}
 	p.Theme = th
-	p.rebuild()
+	if p.Root != nil {
+		p.structureChange()
+	}
 }
 
 // SetAriaLabel sets accessible name override.
@@ -417,7 +488,9 @@ func (p *Progress) SetAriaLabel(s string) {
 		return
 	}
 	p.AriaLabel = s
-	p.applyA11y()
+	if p.Root != nil {
+		p.applyA11y()
+	}
 }
 
 // EffectiveStatus returns resolved status (auto success at 100%).
@@ -625,7 +698,7 @@ func (p *Progress) applyValue() {
 		return
 	}
 	if p.Root == nil {
-		p.rebuild()
+		// still lazy — percent stored until Node()
 		return
 	}
 	if p.info != nil {

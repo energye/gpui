@@ -142,13 +142,39 @@ func NewAffix(content core.Node) *Affix {
 }
 
 // Node returns the mount root (stable identity across rebuild).
-func (a *Affix) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (a *Affix) ensureBuilt() {
 	if a == nil {
-		return nil
+		return
 	}
 	if a.Root == nil {
 		a.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (a *Affix) structureChange() {
+	if a == nil {
+		return
+	}
+	a.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (a *Affix) chromeChange() {
+	if a == nil {
+		return
+	}
+	a.ensureBuilt()
+	a.rebuild()
+}
+
+func (a *Affix) Node() core.Node {
+	if a == nil {
+		return nil
+	}
+	a.ensureBuilt()
 	return a.Root
 }
 

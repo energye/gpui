@@ -5,7 +5,10 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
+	"github.com/energye/gpui/ui/primitive"
 )
 
 func (c *catalogCtx) registerSwitch() {
@@ -87,8 +90,47 @@ func (c *catalogCtx) registerSwitch() {
 	secSwCtrl := demoSection(c.face, c.theme, "Controlled",
 		"SetControlled + SetChecked: parent owns the value.",
 		spaceWrap(12, swCtrl.Node()))
+
+	// Lifecycle (#9)
+	swLife := trackSw(kit.NewSwitch())
+	swLife.SetSize(kit.SwitchSmall)
+	swLife.SetCheckedChildren("ON")
+	swLife.SetUnCheckedChildren("OFF")
+	swLife.SetChecked(true)
+	swLife.SetAriaLabel("lifecycle")
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange (Size/children) then chromeChange (Checked) — order-safe.",
+		spaceWrap(12, swLife.Node()))
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeSwitch, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "switch-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#FA8C16")
+		}
+		if p := baseSkin.Painter(kit.TypeSwitch); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	swSkin := trackSw(kit.NewSwitch())
+	swSkin.SetChecked(true)
+	swSkin.SetAriaLabel("skin")
+	if tr, ok := swSkin.ChromeNode().(*primitive.Decorated); ok {
+		tr.Base().Key = "switch-skin-demo"
+	}
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"track.SkinType=kit.Switch. Key=switch-skin-demo → orange 2px border via Override.",
+		spaceWrap(12, swSkin.Node()))
+
 	c.add("switch", "Switch", "Data Entry · Switch",
 		demoPage(c.face, "Switch",
-			"Switching Selector. P0: checked/value, defaultChecked, controlled, onChange/onClick, disabled, loading, size, children text.",
-			secSwBasic, secSwDis, secSwText, secSwSize, secSwLoad, secSwCtrl))
+			"Switching Selector. P0 + #9 lifecycle + #6 Skin.",
+			secSwBasic, secSwDis, secSwText, secSwSize, secSwLoad, secSwCtrl, secLife, secSkin))
 }

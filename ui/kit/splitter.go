@@ -14,10 +14,6 @@ import (
 // Product contract: docs/antd/splitter.md §6 (P0 DoD).
 // https://ant.design/components/splitter
 const (
-	TypeSplitter      = "kit.Splitter"
-	TypeSplitterPanel = "kit.SplitterPanel"
-	TypeSplitterBar   = "kit.SplitterBar"
-
 	// DefaultSplitBarSize is antd splitBarSize (visual rail).
 	DefaultSplitBarSize = 2.0
 	// DefaultSplitTriggerSize is antd splitTriggerSize (hit box ≥ visual).
@@ -357,16 +353,39 @@ func NewSplitterNodes(nodes ...core.Node) *Splitter {
 }
 
 // Node returns the stable mount root.
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Splitter) ensureBuilt() {
+	if s == nil {
+		return
+	}
+	if s.Root == nil {
+		s.rebuild()
+	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Splitter) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (s *Splitter) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuild()
+}
+
 func (s *Splitter) Node() core.Node {
 	if s == nil {
 		return nil
 	}
-	if s.Root == nil {
-		s.Root = &splitterRoot{owner: s}
-		s.Root.Init(s.Root)
-		s.Root.Hit = core.HitDefer
-		s.rebuild()
-	}
+	s.ensureBuilt()
 	return s.Root
 }
 

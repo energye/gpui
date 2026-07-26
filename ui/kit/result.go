@@ -63,10 +63,39 @@ func NewResult() *Result {
 }
 
 // Node returns the root core.Node for tree attachment.
-func (r *Result) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (r *Result) ensureBuilt() {
+	if r == nil {
+		return
+	}
 	if r.Root == nil {
 		r.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (r *Result) structureChange() {
+	if r == nil {
+		return
+	}
+	r.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (r *Result) chromeChange() {
+	if r == nil {
+		return
+	}
+	r.ensureBuilt()
+	r.rebuild()
+}
+
+func (r *Result) Node() core.Node {
+	if r == nil {
+		return nil
+	}
+	r.ensureBuilt()
 	return r.Root
 }
 
@@ -97,7 +126,7 @@ func (r *Result) SubTitleNode() *primitive.Text {
 // ExtraNode returns the extra action row when present.
 func (r *Result) ExtraNode() *primitive.Flex {
 	if r.Root == nil {
-		r.rebuild()
+		r.structureChange()
 	}
 	return r.extraNode
 }
@@ -125,7 +154,7 @@ func (r *Result) SetTitle(s string) {
 // SetSubTitle updates subtitle text.
 func (r *Result) SetSubTitle(s string) {
 	r.SubTitle = s
-	r.rebuild()
+	r.structureChange()
 }
 
 // SetExtra replaces the action area.
@@ -153,7 +182,7 @@ func (r *Result) SetIconName(name string) {
 	r.iconName = name
 	r.customIcon = nil
 	r.iconNone = false
-	r.rebuild()
+	r.structureChange()
 }
 
 // SetIconNone hides the icon, matching antd icon={null}.
@@ -221,7 +250,7 @@ func (r *Result) SetAriaLabel(name string) {
 func (r *Result) SetFace(face text.Face) {
 	r.Face = face
 	r.Style.Face = face
-	r.rebuild()
+	r.structureChange()
 }
 
 // SetTheme applies a theme and rebuilds token-derived chrome.

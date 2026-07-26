@@ -181,13 +181,39 @@ func NewTransfer() *Transfer {
 }
 
 // Node returns the stable root.
-func (tr *Transfer) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (tr *Transfer) ensureBuilt() {
 	if tr == nil {
-		return nil
+		return
 	}
 	if tr.Root == nil {
 		tr.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (tr *Transfer) structureChange() {
+	if tr == nil {
+		return
+	}
+	tr.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (tr *Transfer) chromeChange() {
+	if tr == nil {
+		return
+	}
+	tr.ensureBuilt()
+	tr.rebuild()
+}
+
+func (tr *Transfer) Node() core.Node {
+	if tr == nil {
+		return nil
+	}
+	tr.ensureBuilt()
 	return tr.Root
 }
 

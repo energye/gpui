@@ -176,13 +176,39 @@ func NewAvatarIcon(iconName string) *Avatar {
 }
 
 // Node returns the mount root (Pressable when interactive, else Decorated).
-func (a *Avatar) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (a *Avatar) ensureBuilt() {
 	if a == nil {
-		return nil
+		return
 	}
 	if a.Root == nil {
 		a.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (a *Avatar) structureChange() {
+	if a == nil {
+		return
+	}
+	a.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (a *Avatar) chromeChange() {
+	if a == nil {
+		return
+	}
+	a.ensureBuilt()
+	a.rebuild()
+}
+
+func (a *Avatar) Node() core.Node {
+	if a == nil {
+		return nil
+	}
+	a.ensureBuilt()
 	if a.Interactive && a.pressable != nil {
 		return a.pressable
 	}
@@ -228,7 +254,7 @@ func (a *Avatar) SetText(s string) {
 		return
 	}
 	a.Text = s
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetIcon sets a named icon (empty clears). Wins over text when no image.
@@ -259,7 +285,7 @@ func (a *Avatar) SetShape(sh AvatarShape) {
 	}
 	a.Shape = sh
 	a.shapeExplicit = true
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetSize sets a preset size ladder entry.
@@ -288,7 +314,7 @@ func (a *Avatar) SetSizePx(px float64) {
 	a.sizeExplicit = true
 	// Clear responsive so custom wins.
 	a.Responsive = AvatarResponsiveSize{}
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetResponsiveSize installs antd size={{ xs, sm, … }} map.
@@ -318,7 +344,7 @@ func (a *Avatar) SetGap(px float64) {
 	}
 	a.Gap = px
 	a.gapSet = true
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetSrc sets the image source and resets image-exist to true (antd src change).
@@ -358,7 +384,7 @@ func (a *Avatar) SetPixels(w, h int, rgba []byte) {
 			a.Src = "pixels"
 		}
 	}
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetImageOK marks host decode success/failure without firing onError.
@@ -390,7 +416,7 @@ func (a *Avatar) NotifyImageError() {
 		a.isImgExist = false
 		a.imageOK = false
 	}
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetAlt sets image alt text.
@@ -435,7 +461,7 @@ func (a *Avatar) SetOnClick(fn func()) {
 	if fn != nil {
 		a.Interactive = true
 	}
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetInteractive toggles focusable / keyboard activation.
@@ -469,7 +495,7 @@ func (a *Avatar) SetDisabled(v bool) {
 	if a.pressable != nil {
 		a.pressable.SetDisabled(v)
 	}
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetTheme sets the theme override.
@@ -505,7 +531,7 @@ func (a *Avatar) SetFace(face text.Face) {
 		a.label.MarkNeedsPaint()
 	}
 	// Recompute scale with new face metrics.
-	a.rebuild()
+	a.structureChange()
 }
 
 // SetAriaLabel sets the accessible name.
@@ -560,7 +586,7 @@ func (a *Avatar) applyGroupContext(size AvatarSize, sizePx float64, shape Avatar
 	a.groupHasShape = true
 	a.groupShape = shape
 	a.groupBorder = border
-	a.rebuild()
+	a.structureChange()
 }
 
 func (a *Avatar) theme() *core.Theme {
@@ -872,6 +898,7 @@ func (a *Avatar) rebuild() {
 
 	if a.Root == nil {
 		a.Root = primitive.NewDecorated(clip)
+		a.Root.SkinType = TypeAvatar
 	} else {
 		a.Root.ClearChildren()
 		a.Root.AddChild(clip)

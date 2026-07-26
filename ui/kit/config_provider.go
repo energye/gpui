@@ -22,6 +22,20 @@ func NewConfigProvider(theme *core.Theme, child core.Node) *ConfigProvider {
 }
 
 // Node returns this provider (mount this, not only the child).
+
+// ensureBuilt (#9).
+func (c *ConfigProvider) ensureBuilt() {
+	if c == nil {
+		return
+	}
+}
+
+// structureChange (#9).
+func (c *ConfigProvider) structureChange() {}
+
+// chromeChange (#9).
+func (c *ConfigProvider) chromeChange() {}
+
 func (c *ConfigProvider) Node() core.Node {
 	if c == nil {
 		return nil

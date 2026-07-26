@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -177,8 +178,42 @@ func (c *catalogCtx) registerAlert() {
 		"action 可挂 Button；完整多按钮矩阵见 P1。",
 		act.Node())
 
+	// Lifecycle (#9)
+	life := track(kit.NewAlert("Lifecycle"))
+	life.SetType(kit.AlertWarning)
+	life.SetShowIcon(true)
+	life.SetDescription("structureChange: type → icon → description")
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Type → ShowIcon → Description；ensureBuilt 保 Root 稳定。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeAlert, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "alert-skin-demo" || d.SkinType == kit.TypeAlert {
+			if d.Base().Key == "alert-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinA := track(kit.NewAlert("Skin Alert"))
+	skinA.SetType(kit.AlertInfo)
+	skinA.SetShowIcon(true)
+	if root, ok := skinA.ChromeNode().(*primitive.Decorated); ok {
+		root.Base().Key = "alert-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Alert。Key=alert-skin-demo → 蓝边框 Override。",
+		skinA.Node())
+
 	page := demoPage(face, "Alert 警告提示",
-		"Ant Design Alert · docs/antd/alert.md §6.8 P0",
-		secBasic, secStyle, secFilled, secClose, secDesc, secIcon, secBanner, secLoop, secAction)
+		"Ant Design Alert · P0 + #9 lifecycle + #6 Skin",
+		secBasic, secStyle, secFilled, secClose, secDesc, secIcon, secBanner, secLoop, secAction, secLife, secSkin)
 	c.addPage("alert", "Alert", page)
 }

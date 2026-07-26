@@ -114,8 +114,52 @@ func (c *catalogCtx) registerResult() {
 		"customIcon.tsx：SetIconName 替换默认状态图标。",
 		custom.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewResult())
+	life.SetStatus(kit.ResultInfo)
+	life.SetTitle("Lifecycle")
+	life.SetSubTitle("structureChange: Status → Title → SubTitle")
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Status → Title → SubTitle；ensureBuilt 懒构建 Flex root。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeResult, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "result-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeResult); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeResult); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinR := wire(kit.NewResult())
+	skinR.SetStatus(kit.ResultSuccess)
+	skinR.SetTitle("Skin Result")
+	if root, ok := skinR.Node().(*primitive.Decorated); ok {
+		root.Base().Key = "result-skin-demo"
+	} else if f, ok := skinR.Node().(*primitive.Flex); ok && f != nil {
+		f.Base().Key = "result-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Flex.SkinType=kit.Result。Key=result-skin-demo 可命中 Override。",
+		skinR.Node())
+
 	page := demoPage(face, "Result 结果",
-		"用于反馈一系列操作任务的处理结果。P0 对齐 docs/antd/result.md §6；P1 见 coverage Notes。",
-		secSuccess, secInfo, secWarning, secExceptions, secError, secCustom)
+		"用于反馈一系列操作任务的处理结果。P0 + #9 lifecycle + #6 Skin。",
+		secSuccess, secInfo, secWarning, secExceptions, secError, secCustom, secLife, secSkin)
 	c.addPage("result", "Result", page)
 }

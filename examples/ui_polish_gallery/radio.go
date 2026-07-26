@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -207,10 +208,49 @@ func (c *catalogCtx) registerRadio() {
 		"Passing the name property to all input[type=\"radio\"] that are in the same Radio.Group.",
 		named.Node())
 
+	// Lifecycle (#9)
+	life := kit.NewRadio("Lifecycle")
+	life.SetFace(face)
+	life.SetTheme(th)
+	life.SetChecked(true)
+	life.SetButtonMode(false)
+	life.SetTextColor(th.Color(core.TokenColorPrimary))
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"chromeChange (Checked/TextColor) + structureChange (ButtonMode) — ensureBuilt 保树稳定。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeRadio, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "radio-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeRadio); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinR := kit.NewRadio("Skin radio")
+	skinR.SetFace(face)
+	skinR.SetTheme(th)
+	skinR.SetChecked(true)
+	if ind, ok := skinR.IndicatorNode().(*primitive.Decorated); ok {
+		ind.Base().Key = "radio-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"indicator/button.SkinType=kit.Radio。Key=radio-skin-demo → 蓝边框 Override。",
+		skinR.Node())
+
 	page := demoPage(face,
 		"Radio",
-		"Select a single state from multiple options. P0: value/defaultValue/checked, onChange, disabled, size, options, title, orientation, optionType, buttonStyle, block, name, a11y.",
-		secBasic, secDisabled, secGroup, secVertical, secBlock, secOptions, secBtn, secName,
+		"Select a single state from multiple options. P0 + #9 lifecycle + #6 Skin.",
+		secBasic, secDisabled, secGroup, secVertical, secBlock, secOptions, secBtn, secName, secLife, secSkin,
 	)
 	c.addPage("radio", "Radio", page)
 }

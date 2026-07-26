@@ -231,7 +231,7 @@ type spinHost struct {
 	spin *Spin
 }
 
-func (h *spinHost) TypeID() string { return "kit.Spin" }
+func (h *spinHost) TypeID() string { return TypeSpin }
 
 func (h *spinHost) OnMount() {
 	if h == nil || h.spin == nil {
@@ -260,14 +260,39 @@ func NewSpin(content core.Node) *Spin {
 	return s
 }
 
-// Node returns the mount root (lazy rebuild).
-func (s *Spin) Node() core.Node {
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Spin) ensureBuilt() {
 	if s == nil {
-		return nil
+		return
 	}
 	if s.Root == nil {
 		s.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Spin) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (s *Spin) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuild()
+}
+
+// Node returns the mount root (lazy rebuild via ensureBuilt).
+func (s *Spin) Node() core.Node {
+	if s == nil {
+		return nil
+	}
+	s.ensureBuilt()
 	return s.Root
 }
 
@@ -300,7 +325,7 @@ func (s *Spin) Tick(dt float64) bool {
 			s.delayAcc = 0
 			if s.Spinning && !s.displaySpinning {
 				s.displaySpinning = true
-				s.rebuild()
+				s.structureChange()
 				s.syncTicker()
 				return s.needsTicker()
 			}
@@ -454,7 +479,7 @@ func (s *Spin) SetContent(n core.Node) {
 		return
 	}
 	s.content = n
-	s.rebuild()
+	s.structureChange()
 }
 
 // Content returns nested children.
@@ -476,7 +501,7 @@ func (s *Spin) SetSpinning(v bool) {
 		s.delayAcc = 0
 		if s.displaySpinning {
 			s.displaySpinning = false
-			s.rebuild()
+			s.structureChange()
 		}
 		s.syncTicker()
 		return
@@ -498,7 +523,7 @@ func (s *Spin) SetSpinning(v bool) {
 			s.autoPercent = 0
 			s.autoAcc = 0
 		}
-		s.rebuild()
+		s.structureChange()
 	}
 	s.waitingDelay = false
 	s.syncTicker()
@@ -526,7 +551,7 @@ func (s *Spin) SetDelay(ms float64) {
 	if s.Spinning && !s.displaySpinning && ms == 0 {
 		s.displaySpinning = true
 		s.waitingDelay = false
-		s.rebuild()
+		s.structureChange()
 		s.syncTicker()
 	}
 }
@@ -541,7 +566,7 @@ func (s *Spin) SetSize(sz SpinSize) {
 		return
 	}
 	s.Size = sz
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetDescription sets the description text.
@@ -553,7 +578,7 @@ func (s *Spin) SetDescription(text string) {
 		return
 	}
 	s.Description = text
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetTip is the deprecated antd tip alias → Description.
@@ -563,7 +588,7 @@ func (s *Spin) SetTip(text string) {
 	}
 	s.Tip = text
 	if s.Description == "" {
-		s.rebuild()
+		s.structureChange()
 	}
 }
 
@@ -586,7 +611,7 @@ func (s *Spin) SetPercent(p float64) {
 	s.Percent = p
 	s.percentSet = true
 	s.PercentAuto = false
-	s.rebuild()
+	s.structureChange()
 	s.syncTicker()
 }
 
@@ -599,7 +624,7 @@ func (s *Spin) SetPercentAuto() {
 	s.percentSet = true
 	s.autoPercent = 0
 	s.autoAcc = 0
-	s.rebuild()
+	s.structureChange()
 	s.syncTicker()
 }
 
@@ -612,7 +637,7 @@ func (s *Spin) ClearPercent() {
 	s.PercentAuto = false
 	s.Percent = 0
 	s.autoPercent = 0
-	s.rebuild()
+	s.structureChange()
 	s.syncTicker()
 }
 
@@ -622,7 +647,7 @@ func (s *Spin) SetIndicator(n core.Node) {
 		return
 	}
 	s.Indicator = n
-	s.rebuild()
+	s.structureChange()
 	s.syncTicker()
 }
 
@@ -632,7 +657,7 @@ func (s *Spin) SetTheme(th *core.Theme) {
 		return
 	}
 	s.Theme = th
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetStyle sets root style override.
@@ -641,7 +666,7 @@ func (s *Spin) SetStyle(st Style) {
 		return
 	}
 	s.Style = st
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetClassNames sets shallow semantic class tags.
@@ -650,7 +675,7 @@ func (s *Spin) SetClassNames(cn SpinClassNames) {
 		return
 	}
 	s.ClassNames = cn
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetStyles sets shallow semantic style overrides.
@@ -659,7 +684,7 @@ func (s *Spin) SetStyles(st SpinStyles) {
 		return
 	}
 	s.Styles = st
-	s.rebuild()
+	s.structureChange()
 }
 
 // SetAriaLabel sets the accessible name.

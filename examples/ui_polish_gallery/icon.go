@@ -112,8 +112,28 @@ func (c *catalogCtx) registerIcon() {
 		"Default 16; SetSize; SetColor; disabled tint.",
 		spaceWrap(12, icSz16.Node(), icSz24.Node(), icSz32.Node(), icCol.Node(), icDis.Node()))
 
+	// Lifecycle (#9)
+	life := trackIcon(kit.NewIcon("user"))
+	life.SetSize(28)
+	life.SetColor(render.Hex("#722ED1"))
+	life.SetRotate(15)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange (Name/Size) then chrome (Color/Rotate)；ensureBuilt 懒构建 host。",
+		life.Node())
+
+	// Skin (#6) — host embeds RepaintBoundary: TypeID registered; Paint not Skin-intercepted.
+	skinI := trackIcon(kit.NewIcon("star"))
+	skinI.SetSize(24)
+	skinI.SetColor(render.Hex("#FAAD14"))
+	if c.theme != nil {
+		skinI.SetTheme(c.theme)
+	}
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"iconHost TypeID=kit.Icon 已注册；host 内嵌 RepaintBoundary，Paint 不走 Skin 拦截（否则 glyph/layer 路径断裂）。",
+		skinI.Node())
+
 	c.items = append(c.items, ctlTab("icon", "Icon"))
 	c.contents["icon"] = demoPage(c.face, "Icon",
-		"Semantic vector icons. P0: name, size, color, rotate, spin, twoTone, painter, offline iconfont multi-source, decorative a11y.",
-		secIconBasic, secIconTwoTone, secIconCustom, secIconFont, secIconMulti, secIconStyle)
+		"Semantic vector icons. P0 + #9 lifecycle + #6 Skin (TypeID; no host Paint intercept).",
+		secIconBasic, secIconTwoTone, secIconCustom, secIconFont, secIconMulti, secIconStyle, secLife, secSkin)
 }

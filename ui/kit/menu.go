@@ -182,13 +182,39 @@ func NewMenu(items ...MenuItem) *Menu {
 }
 
 // Node returns the root core.Node.
-func (m *Menu) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (m *Menu) ensureBuilt() {
 	if m == nil {
-		return nil
+		return
 	}
 	if m.Root == nil {
 		m.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (m *Menu) structureChange() {
+	if m == nil {
+		return
+	}
+	m.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (m *Menu) chromeChange() {
+	if m == nil {
+		return
+	}
+	m.ensureBuilt()
+	m.rebuild()
+}
+
+func (m *Menu) Node() core.Node {
+	if m == nil {
+		return nil
+	}
+	m.ensureBuilt()
 	return m.Root
 }
 
@@ -522,6 +548,7 @@ func (m *Menu) rebuild() {
 
 	if m.Root == nil {
 		m.Root = primitive.NewDecorated(m.list)
+		m.Root.SkinType = TypeMenu
 	} else {
 		m.Root.ClearChildren()
 		m.Root.AddChild(m.list)

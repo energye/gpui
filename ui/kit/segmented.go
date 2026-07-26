@@ -167,10 +167,36 @@ func NewSegmentedOptions(opts ...SegmentedOption) *Segmented {
 }
 
 // Node returns the track root (stable across SetValue).
-func (s *Segmented) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Segmented) ensureBuilt() {
+	if s == nil {
+		return
+	}
 	if s.Root == nil {
 		s.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Segmented) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (s *Segmented) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuild()
+}
+
+func (s *Segmented) Node() core.Node {
+	s.ensureBuilt()
 	return s.Root
 }
 
@@ -561,6 +587,7 @@ func (s *Segmented) rebuild() {
 
 	if s.Root == nil {
 		s.Root = primitive.NewDecorated(s.group)
+		s.Root.SkinType = TypeSegmented
 	} else {
 		// Keep Root identity; swap single child if needed.
 		kids := s.Root.Children()

@@ -258,9 +258,29 @@ func (c *catalogCtx) registerStatistic() {
 		"style-class.tsx：浅 styles.root/title/content/value + classNames.root（函数形态深度 P1）。",
 		styleCol)
 
+	// Lifecycle (#9)
+	life := wire(kit.NewStatistic())
+	life.SetTitle("Lifecycle")
+	life.SetValue(112893)
+	life.SetPrecision(2)
+	life.SetPrefix("¥")
+	life.SetSuffix("CNY")
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Title/Value) then chrome (Precision/Prefix/Suffix)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6) — host embeds RepaintBoundary-like path; TypeID registered.
+	skinSt := wire(kit.NewStatistic())
+	skinSt.SetTitle("Skin")
+	skinSt.SetValue(88)
+	skinSt.SetTheme(th)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"statisticHost TypeID=kit.Statistic 已注册；Theme.Skin 可 Override（注意 host Paint 路径）。",
+		skinSt.Node())
+
 	page := demoPage(face, "Statistic 统计数值",
-		"展示统计数值。P0：value/title/prefix/suffix/precision/分隔符/formatter/loading、Timer countdown|countup、浅 styles·classNames。\n"+
+		"展示统计数值。P0 + #9 lifecycle + #6 Skin。\n"+
 			"P1：CountUp 像素动画、_semantic、styles 函数深度、ConfigProvider 全局、官网逐像素。",
-		secBasic, secUnit, secAnim, secCard, secTimer, secStyle)
+		secBasic, secUnit, secAnim, secCard, secTimer, secStyle, secLife, secSkin)
 	c.addPage("statistic", "Statistic", page)
 }

@@ -192,13 +192,39 @@ func NewSteps(items ...StepItem) *Steps {
 }
 
 // Node returns the stable root.
-func (s *Steps) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Steps) ensureBuilt() {
 	if s == nil {
-		return nil
+		return
 	}
 	if s.Root == nil {
 		s.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Steps) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (s *Steps) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuild()
+}
+
+func (s *Steps) Node() core.Node {
+	if s == nil {
+		return nil
+	}
+	s.ensureBuilt()
 	return s.Root
 }
 
@@ -512,6 +538,7 @@ func (s *Steps) rebuild() {
 		s.Root.ClearChildren()
 	}
 	s.Root.Gap = gap
+	s.Root.SkinType = TypeSteps
 	if panel && !vertical {
 		s.Root.CrossAlign = core.CrossStretch
 	} else {

@@ -72,10 +72,20 @@ const (
 
 // Badge is Ant Design Badge (data display).
 //
-//	Stack host
+//	Stack host (TypeID kit.Badge for Skin)
 //	  ├─ child? (wrapper)
 //	  └─ indicator (count | dot | status-dot) half-out top-right + offset
 //	or status row (standalone status + text)
+//
+// # Lifecycle (#9, Button pattern)
+//
+// NewBadge always builds once. After that:
+//
+//   - structureChange() — full host/indicator rebuild (most setters)
+//   - chromeChange()    — aliases structureChange (colors resolved in rebuild)
+//   - ensureBuilt()     — Node/ChromeNode paths
+//
+// Count capsule Decorated uses SkinType = kit.Badge (#6).
 //
 // Product contract: docs/antd/badge.md §6 (P0 DoD).
 type Badge struct {
@@ -142,14 +152,39 @@ func NewBadge() *Badge {
 	return b
 }
 
+// ensureBuilt materializes the badge host if missing.
+func (b *Badge) ensureBuilt() {
+	if b == nil {
+		return
+	}
+	if b.host == nil {
+		b.rebuild()
+	}
+}
+
+// structureChange rebuilds host + indicator tree.
+func (b *Badge) structureChange() {
+	if b == nil {
+		return
+	}
+	b.rebuild()
+}
+
+// chromeChange refreshes colors. Badge resolves chrome inside rebuild.
+func (b *Badge) chromeChange() {
+	if b == nil {
+		return
+	}
+	b.ensureBuilt()
+	b.rebuild()
+}
+
 // Node returns the mount root (Pressable when clickable, else host).
 func (b *Badge) Node() core.Node {
 	if b == nil {
 		return nil
 	}
-	if b.host == nil {
-		b.rebuild()
-	}
+	b.ensureBuilt()
 	if b.OnClick != nil && b.pressable != nil {
 		return b.pressable
 	}
@@ -161,9 +196,7 @@ func (b *Badge) ChromeNode() core.Node {
 	if b == nil {
 		return nil
 	}
-	if b.host == nil {
-		b.rebuild()
-	}
+	b.ensureBuilt()
 	return b.host
 }
 
@@ -272,7 +305,7 @@ func (b *Badge) SetChild(n core.Node) {
 		return
 	}
 	b.child = n
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetCount sets the numeric count (marks count as explicitly set).
@@ -282,7 +315,7 @@ func (b *Badge) SetCount(n int) {
 	}
 	b.Count = n
 	b.countSet = true
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetCountNode sets a custom count node (wins over numeric label).
@@ -294,7 +327,7 @@ func (b *Badge) SetCountNode(n core.Node) {
 	if n != nil {
 		b.countSet = true
 	}
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetShowZero toggles showing zero counts.
@@ -303,7 +336,7 @@ func (b *Badge) SetShowZero(v bool) {
 		return
 	}
 	b.ShowZero = v
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetOverflowCount sets the overflow threshold (≤0 → 99).
@@ -315,7 +348,7 @@ func (b *Badge) SetOverflowCount(n int) {
 		n = DefaultBadgeOverflowCount
 	}
 	b.OverflowCount = n
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetDot toggles red-dot mode.
@@ -324,7 +357,7 @@ func (b *Badge) SetDot(dot bool) {
 		return
 	}
 	b.Dot = dot
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetOffset sets antd offset [x, y] from the default half-out anchor.
@@ -334,7 +367,7 @@ func (b *Badge) SetOffset(x, y float64) {
 	}
 	b.OffsetX, b.OffsetY = x, y
 	b.offsetSet = true
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetSize sets medium | small (count height).
@@ -343,7 +376,7 @@ func (b *Badge) SetSize(sz BadgeSize) {
 		return
 	}
 	b.Size = sz
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetStatus sets the status-dot mode.
@@ -352,7 +385,7 @@ func (b *Badge) SetStatus(st BadgeStatus) {
 		return
 	}
 	b.Status = st
-	b.rebuild()
+	b.structureChange()
 	b.life.setActive(st == BadgeStatusProcessing)
 }
 
@@ -362,7 +395,7 @@ func (b *Badge) SetText(s string) {
 		return
 	}
 	b.Text = s
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetColor sets a custom hex color (empty clears).
@@ -379,7 +412,7 @@ func (b *Badge) SetColor(hex string) {
 		b.ColorRGBA = render.Hex(hex)
 		b.colorSet = b.ColorRGBA.A > 0
 	}
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetColorRGBA sets a custom solid color.
@@ -392,7 +425,7 @@ func (b *Badge) SetColorRGBA(c render.RGBA) {
 	if !b.colorSet {
 		b.ColorHex = ""
 	}
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetTitle sets the hover / a11y title string.
@@ -423,7 +456,7 @@ func (b *Badge) SetOnClick(fn func()) {
 		return
 	}
 	b.OnClick = fn
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetDisabled dims chrome and blocks clicks.
@@ -435,7 +468,7 @@ func (b *Badge) SetDisabled(v bool) {
 	if b.pressable != nil {
 		b.pressable.SetDisabled(v)
 	}
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetTheme sets the theme override.
@@ -444,7 +477,7 @@ func (b *Badge) SetTheme(th *core.Theme) {
 		return
 	}
 	b.Theme = th
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetStyle applies Style overrides (Background → count fill).
@@ -456,7 +489,7 @@ func (b *Badge) SetStyle(st Style) {
 	if st.Face != nil {
 		b.Face = st.Face
 	}
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetFace sets the count text face.
@@ -470,7 +503,7 @@ func (b *Badge) SetFace(face text.Face) {
 		b.markLab.MarkNeedsLayout()
 		b.markLab.MarkNeedsPaint()
 	}
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetAriaLabel sets the accessible name.
@@ -479,6 +512,7 @@ func (b *Badge) SetAriaLabel(name string) {
 		return
 	}
 	b.AriaLabel = name
+	b.ensureBuilt()
 	b.applyA11y()
 }
 
@@ -750,6 +784,7 @@ func (b *Badge) buildMark(th *core.Theme, withBorder bool) core.Node {
 		d.Color = col
 		if withBorder {
 			dec := primitive.NewDecorated(nil)
+			dec.SkinType = TypeBadge
 			lw := th.SizeOr(core.TokenLineWidth, 1)
 			dec.BorderWidth = lw
 			dec.BorderColor = th.Color(core.TokenColorBgContainer)
@@ -794,6 +829,8 @@ func (b *Badge) buildMark(th *core.Theme, withBorder bool) core.Node {
 		padX = 0
 	}
 	dec := primitive.NewDecorated(lab)
+	// Product skin key for count capsule (#6).
+	dec.SkinType = TypeBadge
 	dec.Padding = primitive.Symmetric(padX, 0)
 	dec.Radius = h / 2
 	dec.Background = col
@@ -906,7 +943,7 @@ type badgeHost struct {
 	b *Badge
 }
 
-func (h *badgeHost) TypeID() string { return "kit.Badge" }
+func (h *badgeHost) TypeID() string { return TypeBadge }
 
 func (h *badgeHost) Layout(c core.Constraints) core.Size {
 	if h == nil {
@@ -1010,7 +1047,19 @@ func (h *badgeHost) Layout(c core.Constraints) core.Size {
 	return out
 }
 
-func (h *badgeHost) Paint(pc *core.PaintContext) { h.DefaultPaintChildren(pc) }
+func (h *badgeHost) Paint(pc *core.PaintContext) {
+	if pc != nil && pc.Theme != nil {
+		if p := pc.Theme.Painter(TypeBadge); p != nil {
+			p(pc, h)
+			h.ClearPaintDirty()
+			return
+		}
+	}
+	h.DefaultPaintChildren(pc)
+	if pc != nil {
+		h.ClearPaintDirty()
+	}
+}
 
 func (h *badgeHost) HitTest(pt core.Point) core.Node { return h.DefaultHitTest(pt) }
 

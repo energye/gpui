@@ -94,13 +94,39 @@ func NewIcon(name string) *Icon {
 }
 
 // Node returns the root node.
-func (ic *Icon) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (ic *Icon) ensureBuilt() {
 	if ic == nil {
-		return nil
+		return
 	}
 	if ic.Root == nil {
 		ic.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (ic *Icon) structureChange() {
+	if ic == nil {
+		return
+	}
+	ic.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (ic *Icon) chromeChange() {
+	if ic == nil {
+		return
+	}
+	ic.ensureBuilt()
+	ic.rebuild()
+}
+
+func (ic *Icon) Node() core.Node {
+	if ic == nil {
+		return nil
+	}
+	ic.ensureBuilt()
 	return ic.Root
 }
 

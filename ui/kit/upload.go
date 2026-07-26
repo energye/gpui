@@ -214,13 +214,39 @@ func NewUploadDragger(hint ...string) *Upload {
 }
 
 // Node returns the root.
-func (u *Upload) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (u *Upload) ensureBuilt() {
 	if u == nil {
-		return nil
+		return
 	}
 	if u.Root == nil {
 		u.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (u *Upload) structureChange() {
+	if u == nil {
+		return
+	}
+	u.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (u *Upload) chromeChange() {
+	if u == nil {
+		return
+	}
+	u.ensureBuilt()
+	u.rebuild()
+}
+
+func (u *Upload) Node() core.Node {
+	if u == nil {
+		return nil
+	}
+	u.ensureBuilt()
 	return u.Root
 }
 

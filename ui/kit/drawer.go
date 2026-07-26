@@ -123,10 +123,36 @@ func NewDrawer(title string) *Drawer {
 }
 
 // Node returns the portal host node.
-func (d *Drawer) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (d *Drawer) ensureBuilt() {
+	if d == nil {
+		return
+	}
 	if d.Portal == nil {
 		d.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (d *Drawer) structureChange() {
+	if d == nil {
+		return
+	}
+	d.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (d *Drawer) chromeChange() {
+	if d == nil {
+		return
+	}
+	d.ensureBuilt()
+	d.rebuild()
+}
+
+func (d *Drawer) Node() core.Node {
+	d.ensureBuilt()
 	return d.Portal
 }
 
@@ -510,6 +536,7 @@ func (d *Drawer) rebuild() {
 	}
 
 	d.panel = primitive.NewDecorated(col)
+	d.panel.SkinType = TypeDrawer
 	d.panel.Padding = d.panelPadding()
 	d.panel.Background = th.Color(core.TokenColorBgContainer)
 	d.panel.Radius = 0
@@ -709,7 +736,7 @@ type drawerLayer struct {
 	drawer *Drawer
 }
 
-func (l *drawerLayer) TypeID() string { return "kit.DrawerLayer" }
+func (l *drawerLayer) TypeID() string { return TypeDrawer }
 
 func (l *drawerLayer) Layout(c core.Constraints) core.Size {
 	var portal *primitive.OverlayPortal

@@ -210,13 +210,39 @@ func NewCollapse(items ...CollapseItem) *Collapse {
 }
 
 // Node returns the mount root (stable Decorated).
-func (c *Collapse) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (c *Collapse) ensureBuilt() {
 	if c == nil {
-		return nil
+		return
 	}
 	if c.Root == nil {
 		c.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (c *Collapse) structureChange() {
+	if c == nil {
+		return
+	}
+	c.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (c *Collapse) chromeChange() {
+	if c == nil {
+		return
+	}
+	c.ensureBuilt()
+	c.rebuild()
+}
+
+func (c *Collapse) Node() core.Node {
+	if c == nil {
+		return nil
+	}
+	c.ensureBuilt()
 	return c.Root
 }
 
@@ -992,6 +1018,7 @@ func (c *Collapse) rebuild() {
 
 	if c.Root == nil {
 		c.Root = primitive.NewDecorated(c.col)
+		c.Root.SkinType = TypeCollapse
 	} else {
 		// Keep Root identity: replace single child.
 		c.Root.ClearChildren()

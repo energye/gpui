@@ -194,13 +194,39 @@ func NewCascader(placeholder string, options ...CascaderOption) *Cascader {
 }
 
 // Node returns the composition root (trigger + popup host).
-func (c *Cascader) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (c *Cascader) ensureBuilt() {
 	if c == nil {
-		return nil
+		return
 	}
 	if c.Wrap == nil {
 		c.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (c *Cascader) structureChange() {
+	if c == nil {
+		return
+	}
+	c.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (c *Cascader) chromeChange() {
+	if c == nil {
+		return
+	}
+	c.ensureBuilt()
+	c.rebuild()
+}
+
+func (c *Cascader) Node() core.Node {
+	if c == nil {
+		return nil
+	}
+	c.ensureBuilt()
 	return c.Wrap
 }
 
@@ -933,6 +959,7 @@ func (c *Cascader) rebuild() {
 	row.Gap = 8
 
 	c.decor = primitive.NewDecorated(row)
+	c.decor.SkinType = TypeCascader
 	c.decor.Padding = primitive.Symmetric(padH, 0)
 	c.decor.Radius = radius
 	c.decor.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)

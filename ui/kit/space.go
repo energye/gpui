@@ -108,6 +108,7 @@ func NewSpace(children ...core.Node) *Space {
 	s.Root.Hit = core.HitDefer
 	// Space is inline-flex: hug content (unlike kit.Flex block ExpandMax).
 	s.Root.ExpandMax = false
+	s.Root.SkinType = TypeSpace
 	s.children = filterNilNodes(children)
 	s.rebuildChildren()
 	s.apply()
@@ -115,14 +116,39 @@ func NewSpace(children ...core.Node) *Space {
 }
 
 // Node returns the root core.Node for tree attachment.
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Space) ensureBuilt() {
+	if s == nil {
+		return
+	}
+	if s.Root == nil {
+		s.rebuildChildren()
+	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Space) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuildChildren()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (s *Space) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuildChildren()
+}
+
 func (s *Space) Node() core.Node {
 	if s == nil {
 		return nil
 	}
-	if s.Root == nil {
-		s.Root = primitive.Row()
-		s.Root.Hit = core.HitDefer
-	}
+	s.ensureBuilt()
 	s.apply()
 	return s.Root
 }

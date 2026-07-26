@@ -190,10 +190,36 @@ func NewSlider(defaultValue float64) *Slider {
 }
 
 // Node returns root (stable across SetValue).
-func (s *Slider) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (s *Slider) ensureBuilt() {
+	if s == nil {
+		return
+	}
 	if s.Root == nil {
 		s.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (s *Slider) structureChange() {
+	if s == nil {
+		return
+	}
+	s.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (s *Slider) chromeChange() {
+	if s == nil {
+		return
+	}
+	s.ensureBuilt()
+	s.rebuild()
+}
+
+func (s *Slider) Node() core.Node {
+	s.ensureBuilt()
 	return s.Root
 }
 

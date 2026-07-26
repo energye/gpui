@@ -29,10 +29,36 @@ func NewList(items ...string) *List {
 }
 
 // Node returns the root.
-func (l *List) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (l *List) ensureBuilt() {
+	if l == nil {
+		return
+	}
 	if l.Root == nil {
 		l.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (l *List) structureChange() {
+	if l == nil {
+		return
+	}
+	l.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (l *List) chromeChange() {
+	if l == nil {
+		return
+	}
+	l.ensureBuilt()
+	l.rebuild()
+}
+
+func (l *List) Node() core.Node {
+	l.ensureBuilt()
 	return l.Root
 }
 
@@ -85,6 +111,7 @@ func (l *List) rebuild() {
 	}
 	if l.Root == nil {
 		l.Root = primitive.NewDecorated(body)
+		l.Root.SkinType = TypeList
 	} else {
 		l.Root.ClearChildren()
 		l.Root.AddChild(body)

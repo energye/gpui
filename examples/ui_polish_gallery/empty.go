@@ -111,9 +111,48 @@ func (c *catalogCtx) registerEmpty() {
 		"SetDescriptionNode：描述区挂自定义 Node。",
 		nodeDesc.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewEmpty())
+	life.SetImage(kit.EmptyImageSimple)
+	life.SetDescription("structure then chrome")
+	life.SetStyle(kit.Style{Background: render.Hex("#FAFAFA"), Radius: 8, ForceRadius: true})
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Image/Description) then chromeChange (Style)；ensureBuilt 懒构建 Root。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeEmpty, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			if p := baseSkin.Painter(kit.TypeEmpty); p != nil {
+				p(pc, n)
+			}
+			return
+		}
+		if d.Base().Key == "empty-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeEmpty); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinE := wire(kit.NewEmpty())
+	skinE.SetImage(kit.EmptyImageSimple)
+	skinE.SetDescription("Skin Override")
+	if root, ok := skinE.ChromeNode().(*primitive.Decorated); ok {
+		root.Base().Key = "empty-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Empty。Key=empty-skin-demo → 蓝边框 Override。",
+		skinE.Node())
+
 	page := demoPage(face, "Empty 空状态",
 		"空状态占位图。P0：description / image DEFAULT|SIMPLE|Node|src / children footer / 浅 styles·classNames。\n"+
-			"P1：ConfigProvider.renderEmpty、_semantic、真 URL 解码、styles 函数形态。",
-		secBasic, secSimple, secCustom, secNoDesc, secStyle, secNode)
+			"P1：ConfigProvider.renderEmpty、_semantic、真 URL 解码、styles 函数形态。Also #9 lifecycle + #6 Skin.",
+		secBasic, secSimple, secCustom, secNoDesc, secStyle, secNode, secLife, secSkin)
 	c.addPage("empty", "Empty", page)
 }

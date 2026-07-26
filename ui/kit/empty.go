@@ -125,13 +125,39 @@ func NewEmpty() *Empty {
 }
 
 // Node returns the mount root (stable Decorated).
-func (e *Empty) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (e *Empty) ensureBuilt() {
 	if e == nil {
-		return nil
+		return
 	}
 	if e.Root == nil {
 		e.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (e *Empty) structureChange() {
+	if e == nil {
+		return
+	}
+	e.rebuild()
+}
+
+// chromeChange refreshes chrome; defaults to structure rebuild when colors are baked in rebuild (#9).
+func (e *Empty) chromeChange() {
+	if e == nil {
+		return
+	}
+	e.ensureBuilt()
+	e.rebuild()
+}
+
+func (e *Empty) Node() core.Node {
+	if e == nil {
+		return nil
+	}
+	e.ensureBuilt()
 	return e.Root
 }
 
@@ -302,7 +328,7 @@ func (e *Empty) SetDescription(s string) {
 	e.descriptionNone = s == ""
 	e.Description = s
 	e.DescriptionNode = nil
-	e.rebuild()
+	e.structureChange()
 }
 
 // SetDescriptionNode sets a custom description node (overrides string).
@@ -328,7 +354,7 @@ func (e *Empty) HideDescription() {
 	e.descriptionNone = true
 	e.Description = ""
 	e.DescriptionNode = nil
-	e.rebuild()
+	e.structureChange()
 }
 
 // SetImage selects a built-in illustration (clears custom Node/src).
@@ -363,7 +389,7 @@ func (e *Empty) SetImageSrc(src string) {
 	if src != "" {
 		e.ImageNode = nil
 	}
-	e.rebuild()
+	e.structureChange()
 }
 
 // SetImageHeight sets styles.image.height (0 clears override → kind default).
@@ -391,7 +417,7 @@ func (e *Empty) SetStyle(st Style) {
 		return
 	}
 	e.Style = st
-	e.rebuild()
+	e.structureChange()
 }
 
 // SetImageStyle sets image semantic style overrides.
@@ -418,7 +444,7 @@ func (e *Empty) SetFooterStyle(st Style) {
 		return
 	}
 	e.FooterStyle = st
-	e.rebuild()
+	e.structureChange()
 }
 
 // SetClassNames sets shallow semantic class tags.
@@ -445,7 +471,7 @@ func (e *Empty) SetTheme(th *core.Theme) {
 		return
 	}
 	e.Theme = th
-	e.rebuild()
+	e.structureChange()
 }
 
 // SetAriaLabel sets an accessible name on the root (optional).
@@ -479,6 +505,7 @@ func (e *Empty) rebuild() {
 	// Root (stable)
 	if e.Root == nil {
 		e.Root = primitive.NewDecorated()
+		e.Root.SkinType = TypeEmpty
 		e.Root.Hit = core.HitDefer
 	} else {
 		e.Root.ClearChildren()

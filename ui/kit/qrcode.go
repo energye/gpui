@@ -171,13 +171,39 @@ func NewQRCode(value string) *QRCode {
 }
 
 // Node returns the mount root (stable Decorated when possible).
-func (q *QRCode) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (q *QRCode) ensureBuilt() {
 	if q == nil {
-		return nil
+		return
 	}
 	if q.Root == nil {
 		q.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (q *QRCode) structureChange() {
+	if q == nil {
+		return
+	}
+	q.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (q *QRCode) chromeChange() {
+	if q == nil {
+		return
+	}
+	q.ensureBuilt()
+	q.rebuild()
+}
+
+func (q *QRCode) Node() core.Node {
+	if q == nil {
+		return nil
+	}
+	q.ensureBuilt()
 	return q.Root
 }
 

@@ -11,13 +11,6 @@ import (
 // https://ant.design/components/layout
 
 const (
-	// Type IDs for hasSider / flex-role detection.
-	TypeLayout  = "kit.Layout"
-	TypeHeader  = "kit.Header"
-	TypeFooter  = "kit.Footer"
-	TypeContent = "kit.Content"
-	TypeSider   = "kit.Sider"
-
 	// Defaults — antd prepareComponentToken + Sider props.
 	DefaultLayoutHeaderHeight        = 64.0 // controlHeight×2
 	DefaultLayoutHeaderPaddingInline = 50.0 // controlHeightLG×1.25
@@ -206,19 +199,39 @@ func NewLayout(children ...core.Node) *Layout {
 }
 
 // Node returns the stable mount root.
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (l *Layout) ensureBuilt() {
+	if l == nil {
+		return
+	}
+	if l.Root == nil {
+		l.rebuild()
+	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (l *Layout) structureChange() {
+	if l == nil {
+		return
+	}
+	l.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (l *Layout) chromeChange() {
+	if l == nil {
+		return
+	}
+	l.ensureBuilt()
+	l.rebuild()
+}
+
 func (l *Layout) Node() core.Node {
 	if l == nil {
 		return nil
 	}
-	if l.Root == nil {
-		l.Root = &layoutRoot{owner: l}
-		l.Root.Init(l.Root)
-		l.Root.Hit = core.HitDefer
-		l.flex = primitive.Column()
-		l.flex.CrossAlign = core.CrossStretch
-		l.flex.ExpandMax = true
-		l.Root.AddChild(l.flex)
-	}
+	l.ensureBuilt()
 	return l.Root
 }
 

@@ -140,6 +140,16 @@ type Tag struct {
 	hasBorder bool
 }
 
+// # Lifecycle (#9, Button pattern)
+//
+// NewTag always builds once. After that:
+//
+//   - structureChange() — color/variant/icon/closable/layout rebuild
+//   - chromeChange()    — currently aliases structureChange (chrome resolved in rebuild)
+//   - ensureBuilt()     — Node/ChromeNode paths
+//
+// Root Decorated uses SkinType = kit.Tag (#6).
+//
 // NewTag creates a Tag with antd defaults (variant=filled, not closable).
 func NewTag(label string) *Tag {
 	t := &Tag{
@@ -151,14 +161,40 @@ func NewTag(label string) *Tag {
 	return t
 }
 
+// ensureBuilt materializes Decorated chrome if missing.
+func (t *Tag) ensureBuilt() {
+	if t == nil {
+		return
+	}
+	if t.Root == nil {
+		t.rebuild()
+	}
+}
+
+// structureChange rebuilds chip content (icons, close, colors, layout).
+func (t *Tag) structureChange() {
+	if t == nil {
+		return
+	}
+	t.rebuild()
+}
+
+// chromeChange refreshes token/style chrome. Tag resolves colors inside rebuild,
+// so this aliases structureChange (symmetric with Button's chrome path intent).
+func (t *Tag) chromeChange() {
+	if t == nil {
+		return
+	}
+	t.ensureBuilt()
+	t.structureChange()
+}
+
 // Node returns the mount root (Pressable when clickable, else Decorated).
 func (t *Tag) Node() core.Node {
 	if t == nil {
 		return nil
 	}
-	if t.Root == nil {
-		t.rebuild()
-	}
+	t.ensureBuilt()
 	if t.Hidden {
 		return t.Root
 	}
@@ -173,9 +209,7 @@ func (t *Tag) ChromeNode() core.Node {
 	if t == nil {
 		return nil
 	}
-	if t.Root == nil {
-		t.rebuild()
-	}
+	t.ensureBuilt()
 	return t.Root
 }
 
@@ -253,7 +287,7 @@ func (t *Tag) SetColor(nameOrHex string) {
 	t.Color = strings.TrimSpace(nameOrHex)
 	t.colorRGBA = false
 	t.ColorRGBA = render.RGBA{}
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetColorRGBA sets a custom solid color (clears named Color).
@@ -266,7 +300,7 @@ func (t *Tag) SetColorRGBA(c render.RGBA) {
 	if t.colorRGBA {
 		t.Color = ""
 	}
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetVariant sets filled | solid | outlined.
@@ -276,7 +310,7 @@ func (t *Tag) SetVariant(v TagVariant) {
 	}
 	t.Variant = v
 	t.variantSet = true
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetBordered is the deprecated antd bordered flag.
@@ -294,7 +328,7 @@ func (t *Tag) SetBordered(on bool) {
 			t.Variant = TagFilled
 		}
 	}
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetClosable toggles the close control.
@@ -303,7 +337,7 @@ func (t *Tag) SetClosable(on bool) {
 		return
 	}
 	t.Closable = on
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetCloseIcon sets a custom close node (nil → default "×" when Closable).
@@ -312,7 +346,7 @@ func (t *Tag) SetCloseIcon(n core.Node) {
 		return
 	}
 	t.CloseIcon = n
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetIcon sets a leading registry icon name.
@@ -321,7 +355,7 @@ func (t *Tag) SetIcon(name string) {
 		return
 	}
 	t.Icon = name
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetIconNode sets a custom leading icon node.
@@ -330,7 +364,7 @@ func (t *Tag) SetIconNode(n core.Node) {
 		return
 	}
 	t.IconNode = n
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetIconSpin enables continuous spin on the leading Icon (processing status).
@@ -339,7 +373,7 @@ func (t *Tag) SetIconSpin(on bool) {
 		return
 	}
 	t.IconSpin = on
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetDisabled dims chrome and blocks close/click.
@@ -348,7 +382,7 @@ func (t *Tag) SetDisabled(v bool) {
 		return
 	}
 	t.Disabled = v
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetOnClick enables whole-tag click (New Tag / link demos).
@@ -357,7 +391,7 @@ func (t *Tag) SetOnClick(fn func()) {
 		return
 	}
 	t.OnClick = fn
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetOnClose sets the close callback (simple form; always allows hide unless
@@ -379,7 +413,7 @@ func (t *Tag) SetHidden(v bool) {
 		return
 	}
 	t.Hidden = v
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetTheme sets the theme override.
@@ -388,7 +422,7 @@ func (t *Tag) SetTheme(th *core.Theme) {
 		return
 	}
 	t.Theme = th
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetFace sets the label face.
@@ -412,7 +446,7 @@ func (t *Tag) SetStyle(st Style) {
 	if st.Face != nil {
 		t.Face = st.Face
 	}
-	t.rebuild()
+	t.structureChange()
 }
 
 // SetAriaLabel sets the accessible name override.
@@ -673,6 +707,8 @@ func (t *Tag) rebuild() {
 		t.Root.ClearChildren()
 		t.Root.AddChild(t.row)
 	}
+	// Product skin key so Theme.Skin can override Tag chrome only (#6).
+	t.Root.SkinType = TypeTag
 	t.Root.Padding = primitive.EdgeInsets{
 		Left: t.padH, Right: t.padH,
 		Top: t.padV, Bottom: t.padV,
@@ -717,6 +753,7 @@ func (t *Tag) rebuild() {
 
 	t.applyA11y()
 	if t.Root != nil {
+		t.Root.SetThemeHook(func(*core.Theme) { t.structureChange() })
 		t.Root.MarkNeedsLayout()
 		t.Root.MarkNeedsPaint()
 	}
@@ -731,7 +768,7 @@ func (t *Tag) handleClose() {
 		return
 	}
 	t.Hidden = true
-	t.rebuild()
+	t.structureChange()
 }
 
 func (t *Tag) applyA11y() {

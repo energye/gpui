@@ -180,13 +180,39 @@ func NewMentions(placeholder string, optionValues ...string) *Mentions {
 }
 
 // Node returns the composition root (field + popup host).
-func (m *Mentions) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (m *Mentions) ensureBuilt() {
 	if m == nil {
-		return nil
+		return
 	}
 	if m.Wrap == nil {
 		m.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (m *Mentions) structureChange() {
+	if m == nil {
+		return
+	}
+	m.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (m *Mentions) chromeChange() {
+	if m == nil {
+		return
+	}
+	m.ensureBuilt()
+	m.rebuild()
+}
+
+func (m *Mentions) Node() core.Node {
+	if m == nil {
+		return nil
+	}
+	m.ensureBuilt()
 	return m.Wrap
 }
 
@@ -816,6 +842,7 @@ func (m *Mentions) rebuild() {
 	m.list.Gap = 2
 	m.list.CrossAlign = core.CrossStart
 	m.panel = primitive.NewDecorated(m.list)
+	m.panel.SkinType = TypeMentions
 	m.panel.Padding = primitive.All(DefaultMentionsPanelPad)
 	m.panel.Radius = th.SizeOr(core.TokenBorderRadiusLG, DefaultMentionsPanelRadius)
 	m.panel.Background = th.Color(core.TokenColorBgContainer)

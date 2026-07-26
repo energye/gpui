@@ -20,9 +20,17 @@ const (
 //
 //	Pressable (role=checkbox)
 //	  └─ Row
-//	       ├─ Decorated indicator (icon) 16×16
+//	       ├─ Decorated indicator (icon) 16×16  SkinType = kit.Checkbox
 //	       │    └─ PainterNode (check / indeterminate bar)
 //	       └─ Text label
+//
+// # Lifecycle (#9, Button pattern)
+//
+// NewCheckbox always builds once. After that:
+//
+//   - structureChange() — full indicator/label tree rebuild (rare after New)
+//   - chromeChange()    — checked/indeterminate/disabled/style colors
+//   - ensureBuilt()     — Node/ChromeNode paths
 //
 // Product contract: docs/antd/checkbox.md §6 (P0 DoD).
 type Checkbox struct {
@@ -95,47 +103,78 @@ func NewCheckbox(label string) *Checkbox {
 	return c
 }
 
-// Node returns the root Pressable.
-func (c *Checkbox) Node() core.Node {
-	if c.Root == nil {
+// ensureBuilt materializes Pressable + indicator if missing.
+func (c *Checkbox) ensureBuilt() {
+	if c == nil {
+		return
+	}
+	if c.Root == nil || c.box == nil {
 		c.rebuild()
 	}
+}
+
+// structureChange rebuilds indicator/label tree.
+func (c *Checkbox) structureChange() {
+	if c == nil {
+		return
+	}
+	c.rebuild()
+}
+
+// chromeChange refreshes indicator/label colors without full rebuild when built.
+func (c *Checkbox) chromeChange() {
+	if c == nil {
+		return
+	}
+	c.ensureBuilt()
+	c.applyChrome()
+}
+
+// Node returns the root Pressable.
+func (c *Checkbox) Node() core.Node {
+	if c == nil {
+		return nil
+	}
+	c.ensureBuilt()
 	return c.Root
 }
 
 // ChromeNode returns the root chrome (Pressable).
 func (c *Checkbox) ChromeNode() core.Node {
-	if c.Root == nil {
-		c.rebuild()
+	if c == nil {
+		return nil
 	}
+	c.ensureBuilt()
 	return c.Root
 }
 
 // IndicatorNode returns the bare indicator (icon semantic part, no label).
 func (c *Checkbox) IndicatorNode() core.Node {
-	if c.box == nil {
-		c.rebuild()
+	if c == nil {
+		return nil
 	}
+	c.ensureBuilt()
 	return c.box
 }
 
 // LabelNode returns the label text node (label semantic part).
 func (c *Checkbox) LabelNode() core.Node {
-	if c.label == nil {
-		c.rebuild()
+	if c == nil {
+		return nil
 	}
+	c.ensureBuilt()
 	return c.label
 }
 
 // SetChecked updates checked state and clears indeterminate (display pure checked).
 func (c *Checkbox) SetChecked(v bool) {
 	if c.Checked == v && !c.Indeterminate {
-		c.applyChrome()
+		c.chromeChange()
 		return
 	}
 	c.Checked = v
 	c.Indeterminate = false
-	c.applyChrome()
+	c.chromeChange()
 	c.applyA11y()
 }
 
@@ -154,23 +193,25 @@ func (c *Checkbox) SetControlled(v bool) { c.Controlled = v }
 // Does not change Checked; paint prefers indeterminate mark over check.
 func (c *Checkbox) SetIndeterminate(v bool) {
 	c.Indeterminate = v
-	c.applyChrome()
+	c.chromeChange()
 	c.applyA11y()
 }
 
 // SetDisabled toggles disabled chrome and interaction.
 func (c *Checkbox) SetDisabled(d bool) {
 	c.Disabled = d
+	c.ensureBuilt()
 	if c.Root != nil {
 		c.Root.SetDisabled(d || c.groupDisabled())
 	}
-	c.applyChrome()
+	c.chromeChange()
 	c.applyA11y()
 }
 
 // SetLabel updates the visible label text.
 func (c *Checkbox) SetLabel(s string) {
 	c.Label = s
+	c.ensureBuilt()
 	if c.label != nil {
 		c.label.SetValue(s)
 	}
@@ -180,6 +221,7 @@ func (c *Checkbox) SetLabel(s string) {
 // SetTitle sets antd title (option title / tooltip attribute).
 func (c *Checkbox) SetTitle(s string) {
 	c.Title = s
+	c.ensureBuilt()
 	c.applyA11y()
 }
 
@@ -192,6 +234,7 @@ func (c *Checkbox) SetOnChange(fn func(bool)) { c.OnChange = fn }
 // SetAriaLabel sets the accessible name override.
 func (c *Checkbox) SetAriaLabel(name string) {
 	c.AriaLabel = name
+	c.ensureBuilt()
 	c.applyA11y()
 }
 
@@ -210,30 +253,31 @@ func (c *Checkbox) SetStyle(st Style) {
 	if st.Face != nil {
 		c.SetFace(st.Face)
 	}
+	c.ensureBuilt()
 	if st.FontSize > 0 && c.label != nil {
 		c.label.FontSize = st.FontSize
 	}
 	if c.box != nil && st.hasRadius() {
 		c.box.Radius = st.Radius
 	}
-	c.applyChrome()
+	c.chromeChange()
 }
 
 // SetTheme sets an explicit theme (highest priority).
 func (c *Checkbox) SetTheme(th *core.Theme) {
 	c.Theme = th
-	c.applyChrome()
+	c.chromeChange()
 }
 
 // SetTextColor overrides label color.
 func (c *Checkbox) SetTextColor(col render.RGBA) {
 	c.Style.Text = col
-	c.applyChrome()
+	c.chromeChange()
 }
 
 // SyncState reapplies hover/focus chrome from Pressable.
 func (c *Checkbox) SyncState() {
-	if c.Root == nil {
+	if c == nil || c.Root == nil {
 		return
 	}
 	h := c.Root.State.Hovered
@@ -243,7 +287,7 @@ func (c *Checkbox) SyncState() {
 	}
 	c.lastHovered = h
 	c.lastFocused = f
-	c.applyChrome()
+	c.chromeChange()
 }
 
 func (c *Checkbox) theme() *core.Theme {
@@ -271,6 +315,8 @@ func (c *Checkbox) rebuild() {
 	gap := th.SizeOr(core.TokenMarginSM, DefaultCheckboxGap)
 
 	c.box = primitive.NewDecorated()
+	// Product skin key so Theme.Skin can override Checkbox indicator only (#6).
+	c.box.SkinType = TypeCheckbox
 	c.box.Width, c.box.Height = size, size
 	c.box.MinWidth, c.box.MinHeight = size, size
 	c.box.Radius = radius
@@ -337,6 +383,7 @@ func (c *Checkbox) rebuild() {
 	c.Root.OnStateChange = c.SyncState
 	c.Root.Click = c.onActivate
 	c.Root.SetDisabled(c.isDisabled())
+	c.Root.SetThemeHook(func(*core.Theme) { c.structureChange() })
 	c.applyA11y()
 	c.applyChrome()
 }
@@ -358,7 +405,7 @@ func (c *Checkbox) onActivate() {
 	if !c.Controlled {
 		c.Checked = next
 		c.Indeterminate = false
-		c.applyChrome()
+		c.chromeChange()
 		c.applyA11y()
 	}
 	if c.OnChange != nil {

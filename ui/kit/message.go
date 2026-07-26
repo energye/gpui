@@ -167,13 +167,39 @@ func NewMessage() *Message {
 func NewMessageHost() *MessageHost { return NewMessage() }
 
 // Node returns the portal node to mount at app/root level.
-func (m *Message) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (m *Message) ensureBuilt() {
 	if m == nil {
-		return nil
+		return
 	}
 	if m.Portal == nil {
 		m.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (m *Message) structureChange() {
+	if m == nil {
+		return
+	}
+	m.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (m *Message) chromeChange() {
+	if m == nil {
+		return
+	}
+	m.ensureBuilt()
+	m.rebuild()
+}
+
+func (m *Message) Node() core.Node {
+	if m == nil {
+		return nil
+	}
+	m.ensureBuilt()
 	return m.Portal
 }
 
@@ -557,6 +583,7 @@ func (m *Message) buildItem(it *messageItem) core.Node {
 	row.AddChild(txt)
 
 	dec := primitive.NewDecorated(row)
+	dec.SkinType = TypeMessage
 	dec.Padding = primitive.Symmetric(12, 9)
 	dec.Radius = th.SizeOr(core.TokenBorderRadius, 6)
 	if m.Style.hasRadius() {
@@ -803,7 +830,7 @@ type messageLayer struct {
 	host *Message
 }
 
-func (l *messageLayer) TypeID() string { return "kit.MessageLayer" }
+func (l *messageLayer) TypeID() string { return TypeMessage }
 
 func (l *messageLayer) Layout(c core.Constraints) core.Size {
 	var portal *primitive.OverlayPortal

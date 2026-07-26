@@ -214,13 +214,39 @@ func NewTreeSelect(placeholder string, treeData ...TreeSelectNode) *TreeSelect {
 }
 
 // Node returns the composition root (trigger + popup host).
-func (ts *TreeSelect) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (ts *TreeSelect) ensureBuilt() {
 	if ts == nil {
-		return nil
+		return
 	}
 	if ts.Wrap == nil {
 		ts.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (ts *TreeSelect) structureChange() {
+	if ts == nil {
+		return
+	}
+	ts.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (ts *TreeSelect) chromeChange() {
+	if ts == nil {
+		return
+	}
+	ts.ensureBuilt()
+	ts.rebuild()
+}
+
+func (ts *TreeSelect) Node() core.Node {
+	if ts == nil {
+		return nil
+	}
+	ts.ensureBuilt()
 	return ts.Wrap
 }
 
@@ -1075,6 +1101,7 @@ func (ts *TreeSelect) rebuild() {
 	row.Gap = 8
 
 	ts.decor = primitive.NewDecorated(row)
+	ts.decor.SkinType = TypeTreeSelect
 	ts.decor.Padding = primitive.Symmetric(padH, 0)
 	ts.decor.Radius = radius
 	ts.decor.BorderWidth = th.SizeOr(core.TokenLineWidth, 1)

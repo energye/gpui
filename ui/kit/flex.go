@@ -101,6 +101,7 @@ func NewFlex(children ...core.Node) *Flex {
 	// Ant Design Flex is a block-level flex container (width fills parent).
 	// Required for justify free-space under ScrollViewport/Slot loose constraints.
 	f.Root.ExpandMax = true
+	f.Root.SkinType = TypeKitFlex
 	for _, c := range children {
 		if c != nil {
 			f.Root.AddChild(c)
@@ -111,15 +112,25 @@ func NewFlex(children ...core.Node) *Flex {
 }
 
 // Node returns the root core.Node for tree attachment.
+
+// ensureBuilt (#9).
+func (f *Flex) ensureBuilt() {
+	if f == nil {
+		return
+	}
+}
+
+// structureChange (#9).
+func (f *Flex) structureChange() { f.ensureBuilt() }
+
+// chromeChange (#9).
+func (f *Flex) chromeChange() { f.ensureBuilt() }
+
 func (f *Flex) Node() core.Node {
 	if f == nil {
 		return nil
 	}
-	if f.Root == nil {
-		f.Root = primitive.Row()
-		f.Root.Hit = core.HitDefer
-		f.Root.ExpandMax = true
-	}
+	f.ensureBuilt()
 	f.apply()
 	return f.Root
 }

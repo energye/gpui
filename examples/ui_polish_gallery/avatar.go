@@ -265,8 +265,45 @@ func (c *catalogCtx) registerAvatar() {
 		"loading 走 Ticker 旋转环；disabled 用禁用色。",
 		spaceWrap(16, load.Node(), dis.Node()))
 
+	// Lifecycle (#9)
+	life := track(kit.NewAvatar("LC"))
+	life.SetShape(kit.AvatarSquare)
+	life.SetSize(kit.AvatarLarge)
+	life.SetGap(4)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Shape/Size) then chrome (Gap/Style)；ensureBuilt 保 Root。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeAvatar, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			if p := baseSkin.Painter(kit.TypeAvatar); p != nil {
+				p(pc, n)
+			}
+			return
+		}
+		if d.Base().Key == "avatar-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#EB2F96")
+		}
+		if p := baseSkin.Painter(kit.TypeAvatar); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinA := track(kit.NewAvatar("SK"))
+	if root, ok := skinA.ChromeNode().(*primitive.Decorated); ok {
+		root.Base().Key = "avatar-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Avatar。Key=avatar-skin-demo → 粉边框 Override。",
+		skinA.Node())
+
 	c.add("avatar", "Avatar", "Data Display · Avatar",
 		demoPage(face, "Avatar",
-			"用来代表用户或事物，支持图片、图标或字符展示。P0：size/shape/icon/text+gap/src+onError、Group max、响应式、Token、loading Ticker。",
-			secBasic, secType, secDyn, secBadge, secGroup, secResp, secExtra))
+			"用来代表用户或事物，支持图片、图标或字符展示。P0 + #9 lifecycle + #6 Skin。",
+			secBasic, secType, secDyn, secBadge, secGroup, secResp, secExtra, secLife, secSkin))
 }

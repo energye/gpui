@@ -152,13 +152,39 @@ func NewAutoComplete(placeholder string, optionValues ...string) *AutoComplete {
 }
 
 // Node returns the composition root (field + popup host).
-func (a *AutoComplete) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (a *AutoComplete) ensureBuilt() {
 	if a == nil {
-		return nil
+		return
 	}
 	if a.Wrap == nil {
 		a.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (a *AutoComplete) structureChange() {
+	if a == nil {
+		return
+	}
+	a.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (a *AutoComplete) chromeChange() {
+	if a == nil {
+		return
+	}
+	a.ensureBuilt()
+	a.rebuild()
+}
+
+func (a *AutoComplete) Node() core.Node {
+	if a == nil {
+		return nil
+	}
+	a.ensureBuilt()
 	return a.Wrap
 }
 
@@ -719,6 +745,7 @@ func (a *AutoComplete) rebuild() {
 	a.list.Gap = 2
 	a.list.CrossAlign = core.CrossStart
 	a.panel = primitive.NewDecorated(a.list)
+	a.panel.SkinType = TypeAutoComplete
 	a.panel.Padding = primitive.All(DefaultAutoCompletePanelPad)
 	a.panel.Radius = th.SizeOr(core.TokenBorderRadiusLG, DefaultAutoCompletePanelRadius)
 	a.panel.Background = th.Color(core.TokenColorBgContainer)

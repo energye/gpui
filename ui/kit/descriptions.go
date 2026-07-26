@@ -172,13 +172,39 @@ func NewDescriptions(items ...DescriptionsItem) *Descriptions {
 }
 
 // Node returns the mount root (stable Decorated).
-func (d *Descriptions) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (d *Descriptions) ensureBuilt() {
 	if d == nil {
-		return nil
+		return
 	}
 	if d.Root == nil {
 		d.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (d *Descriptions) structureChange() {
+	if d == nil {
+		return
+	}
+	d.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (d *Descriptions) chromeChange() {
+	if d == nil {
+		return
+	}
+	d.ensureBuilt()
+	d.rebuild()
+}
+
+func (d *Descriptions) Node() core.Node {
+	if d == nil {
+		return nil
+	}
+	d.ensureBuilt()
 	return d.Root
 }
 
@@ -681,6 +707,7 @@ func (d *Descriptions) rebuild() {
 	// Root shell
 	if d.Root == nil {
 		d.Root = primitive.NewDecorated(nil)
+		d.Root.SkinType = TypeDescriptions
 		d.Root.ExpandWidth = true
 		d.Root.Hit = core.HitDefer
 	}

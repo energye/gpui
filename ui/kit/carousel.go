@@ -147,13 +147,39 @@ func NewCarousel(slides ...core.Node) *Carousel {
 }
 
 // Node returns the mount root (stable across Next/GoTo).
-func (c *Carousel) Node() core.Node {
+
+// ensureBuilt materializes the control tree if missing (#9).
+func (c *Carousel) ensureBuilt() {
 	if c == nil {
-		return nil
+		return
 	}
 	if c.Root == nil {
 		c.rebuild()
 	}
+}
+
+// structureChange rebuilds the control tree (#9).
+func (c *Carousel) structureChange() {
+	if c == nil {
+		return
+	}
+	c.rebuild()
+}
+
+// chromeChange refreshes chrome via rebuild (#9).
+func (c *Carousel) chromeChange() {
+	if c == nil {
+		return
+	}
+	c.ensureBuilt()
+	c.rebuild()
+}
+
+func (c *Carousel) Node() core.Node {
+	if c == nil {
+		return nil
+	}
+	c.ensureBuilt()
 	return c.Root
 }
 
