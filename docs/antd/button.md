@@ -411,8 +411,8 @@ import { Button } from 'antd';
 6. **RTL**：`iconPlacement` start/end 随写作方向镜像。
 7. **动效**：波纹/旋转在 reduced-motion 下可关（§6.7）。
 8. **示例矩阵**：§6.9 用例全部可勾选。
-9. **纪律**：遵循 [`UI_KIT_DEV_GUIDE.md`](../UI_KIT_DEV_GUIDE.md)（Default + Set + rebuild，禁止魔法 offset）。
-10. **对齐级别**：遵循 [`UI_KIT_ANT_V6_SPEC.md`](../UI_KIT_ANT_V6_SPEC.md) L1–L4 定义（§6.1）。
+9. **纪律**：Default + Set + rebuild；禁止魔法 offset；实现须落在架构 [`ENGINE_FLUTTER_SKIA_ARCH.md`](../ENGINE_FLUTTER_SKIA_ARCH.md) 的 RenderObject / Layer 契约上（P7 及以后）。
+10. **对齐级别**：以本节 **§6.1 L1–L4** 定义为准。
 
 ---
 
@@ -422,8 +422,8 @@ import { Button } from 'antd';
 - 中文文档：https://ant.design/components/button-cn
 - 设计规范：https://ant.design/docs/spec/buttons
 - 源码：https://github.com/ant-design/ant-design/tree/master/components/button
-- 本库对齐规格：[`UI_KIT_ANT_V6_SPEC.md`](../UI_KIT_ANT_V6_SPEC.md)
-- 本库实现纪律：[`UI_KIT_DEV_GUIDE.md`](../UI_KIT_DEV_GUIDE.md)
+- 引擎架构真源：[`ENGINE_FLUTTER_SKIA_ARCH.md`](../ENGINE_FLUTTER_SKIA_ARCH.md)
+- 控件需求索引：[`README.md`](./README.md)
 - 驱动 gpui kit：`button`
 
 ---

@@ -1,8 +1,9 @@
-# Ant Design 6.5.x → gpui kit 控件规格文档
+# Ant Design 6.5.x → gpui 控件规格文档
 
 > 依据 [Ant Design 6.5.x](https://ant.design/components/overview) 官方文档整理。  
-> **每个控件一份 Markdown**，细度对齐 `button.md`（外观 / 功能 / 完整 API / kit 实现要点）。  
-> 用于开发 **gpui kit** 控件时的功能规格与验收清单。
+> **每个控件一份 Markdown**，细度对齐 `button.md`（外观 / 功能 / 完整 API / 实现要点）。  
+> 用于产品控件的功能规格与验收清单。  
+> **渲染架构**见上级 [`ENGINE_FLUTTER_SKIA_ARCH.md`](../ENGINE_FLUTTER_SKIA_ARCH.md)（控件实现后置 P7，禁止绕过 Layer/直触 GPU）。
 
 ## 文档结构（与 Button 同级）
 
