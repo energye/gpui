@@ -60,7 +60,7 @@ func TestCatalogConstructorsLayout(t *testing.T) {
 	}())
 	must("Layout", kit.NewLayout(kit.NewHeader(kit.NewText("h").Node()).Node(), kit.NewContent(kit.NewText("c").Node()).Node()).Node())
 	must("Splitter", kit.NewSplitterNodes(kit.NewText("a").Node(), kit.NewText("b").Node()).Node())
-	must("Breadcrumb", kit.NewBreadcrumb("a", "b").Node())
+	must("Breadcrumb", kit.NewBreadcrumb(kit.BreadcrumbTitles("a", "b")...).Node())
 	must("Steps", kit.NewSteps(kit.StepTitles("a", "b")...).Node())
 	must("Anchor", kit.NewAnchor(kit.AnchorItem{Key: "a", Href: "#a", Title: "A"}).Node())
 	must("Pagination", func() core.Node { p := kit.NewPagination(); p.SetTotal(30); return p.Node() }())

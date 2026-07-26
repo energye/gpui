@@ -79,7 +79,7 @@ func TestStepsBreadcrumbBadgeAvatar(t *testing.T) {
 	st := kit.NewSteps(kit.StepTitles("A", "B", "C")...)
 	st.SetCurrent(1)
 	_ = st.Node().Layout(core.Loose(500, 40))
-	bc := kit.NewBreadcrumb("Home", "List", "Detail")
+	bc := kit.NewBreadcrumb(kit.BreadcrumbTitles("Home", "List", "Detail")...)
 	_ = bc.Node().Layout(core.Loose(400, 30))
 	av := kit.NewAvatar("U")
 	_ = av.Node().Layout(core.Loose(40, 40))

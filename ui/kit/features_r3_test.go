@@ -278,16 +278,16 @@ func TestFeatures_ThreeRounds(t *testing.T) {
 		},
 		"Breadcrumb": {
 			{"R1 items", func(t *testing.T) {
-				if kit.NewBreadcrumb("A", "B").Node() == nil {
+				if kit.NewBreadcrumb(kit.BreadcrumbTitles("A", "B")...).Node() == nil {
 					t.Fatal()
 				}
 			}},
 			{"R2 setItems", func(t *testing.T) {
-				b := kit.NewBreadcrumb("A")
-				b.SetItems([]string{"X", "Y"})
+				b := kit.NewBreadcrumb(kit.BreadcrumbItem{Title: "A"})
+				b.SetItems(kit.BreadcrumbTitles("X", "Y"))
 			}},
 			{"R3 separator", func(t *testing.T) {
-				b := kit.NewBreadcrumb("A", "B")
+				b := kit.NewBreadcrumb(kit.BreadcrumbTitles("A", "B")...)
 				b.SetSeparator(">")
 				if b.Separator != ">" {
 					t.Fatal(b.Separator)

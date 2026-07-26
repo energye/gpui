@@ -49,7 +49,7 @@ func TestVisual_SpaceAvatarBadge(t *testing.T) {
 func TestVisual_StepsBreadcrumb(t *testing.T) {
 	st := kit.NewSteps(kit.StepTitles("A", "B", "C")...)
 	st.SetCurrent(1)
-	bc := kit.NewBreadcrumb("Home", "List")
+	bc := kit.NewBreadcrumb(kit.BreadcrumbTitles("Home", "List")...)
 	col := primitive.Column(st.Node(), bc.Node())
 	col.Gap = 12
 	captureAssert(t, "catalog_steps_breadcrumb", frame(col, 360, 100), 360, 100)

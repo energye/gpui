@@ -310,32 +310,33 @@ import { Breadcrumb } from 'antd';
 
 ### 6.2 度量与 Design Token（L2 基线）
 
-数值以 **Ant Design 默认算法 + 本库 Theme 默认** 为准（`scale=1`，常用种子：`controlHeight=32`、`fontSize=14`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。
+数值以 **Ant Design Breadcrumb componentToken + 本库 Theme 默认** 为准（`scale=1`，种子：`fontSize=14`、`marginXS=8`）。实现必须通过 Token 读取；下表为 Token 未覆盖时的回落。源码：`components/breadcrumb/style/index.ts` `prepareComponentToken`。
 
 #### 6.2.1 几何与组件 Token
 
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
-| 控件高度 middle | **32** | `controlHeight` |
-| 控件高度 small | **24** | `controlHeightSM` |
-| 控件高度 large | **40** | `controlHeightLG` |
-| 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
-| 边框线宽 | **1** | `lineWidth` |
+| 字号 | **14** | `fontSize` |
+| 图标字号 | **14** | `iconFontSize` ← `fontSize` |
+| 分隔符左右间距 | **8** | `separatorMargin` ← antd `marginXS`（kit 回落 `TokenMarginSM`/8；**非** kit `TokenMarginXS`=4） |
+| 链接水平内边距 | **4** | `paddingXXS` |
+| 链接圆角 | **4** | `borderRadiusSM` |
+| 链接行高盒 | ≈ **fontHeight**（≈22） | 行盒；P0 以字号+pad 近似 |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
-#### 6.2.2 颜色 Token（语义）
+> Breadcrumb **无** size 阶梯（small/middle/large）；§6 通用模板的 controlHeight 不适用本控件。
 
-| 用途 | Token 建议 | 备注 |
+#### 6.2.2 颜色 Token（语义 · Breadcrumb）
+
+| 用途 | Token / 组件 Token | 备注 |
 | --- | --- | --- |
-| 主色 / hover / active | `colorPrimary` + 变体 | 强调、选中、开态 |
-| 错误 / 成功 / 警告 | `colorError` / `Success` / `Warning` | status 与反馈 |
-| 文本 / 次级文本 | `colorText` / `colorTextSecondary` | |
-| 边框 / 分割 / 容器底 | `colorBorder` / `colorSplit` / `colorBgContainer` | |
-| 禁用 | `colorDisabledBg` / `colorDisabledText` | 无 hover 高亮 |
-| 浮层阴影 / 遮罩 | `boxShadowSecondary` / `colorBgMask` | 适用者 |
+| 项文字 / 链接默认 | `itemColor` / `linkColor` ← `colorTextDescription`（kit：`colorTextSecondary`） | 非主色 |
+| 链接 hover | `linkHoverColor` ← `colorText` | 背景 `colorBgTextHover` |
+| 末项 | `lastItemColor` ← `colorText` | 强调当前页 |
+| 分隔符 | `separatorColor` ← `colorTextDescription` | 与项同级次 |
+| 禁用（适用者） | `colorTextDisabled` | 无 hover 高亮 |
 
-禁止硬编码品牌色作为唯一默认皮。
+禁止硬编码品牌色（如 `#1890ff`）作为唯一默认皮；链接色走 description/text，**不是** `colorPrimary`。
 
 ### 6.3 关键配置与语义
 
@@ -373,12 +374,14 @@ href/项点击 ──► 导航/回调
 
 | 规则 ID | 规则 | 期望 |
 | --- | --- | --- |
-| BC-S1 | 三项 | 两 separator |
-| BC-S2 | 自定义 separator | 可见 |
-| BC-S3 | 链接项点击 | 回调/路由 |
-| BC-S4 | 末项 | 非链接强调 |
-| BC-S5 | 带 menu 的项 | 可下拉（P0/P1） |
-| BC-S6 | separator 间距 | ≈8 |
+| BC-S1 | 三项普通项 | 两 separator（项间自动插入） |
+| BC-S2 | 自定义 separator（根 `separator`） | 可见且替换默认 `/` |
+| BC-S3 | 链接项点击（`href`/`path`/`Link`/`OnClick`） | 回调/路由 |
+| BC-S4 | 末项 | 非链接强调（`lastItemColor`）；无自动 separator 尾随 |
+| BC-S5 | 带 `menu` 的项 | 可下拉（P0，组合 Dropdown） |
+| BC-S6 | separator 间距 | ≈8（`separatorMargin`） |
+| BC-S7 | `type: 'separator'` 独立分隔项 | 使用项级 `separator` 文案；根 `separator=""` 时不自动插 sep |
+| BC-S8 | `params` 替换 title/path 中 `:key` | 展示替换后文案 |
 ### 6.5 视觉 chrome 规则（L2 摘要）
 
 | 态 | 规则 |
@@ -418,24 +421,31 @@ href/项点击 ──► 导航/回调
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| `onClick` | 必须 |
-| `type` | 必须 |
-| `items` | 必须 |
-| `title` | 必须 |
-| 官方主路径示例 | 基本、带有图标的、带有参数的、分隔符、带下拉菜单的面包屑、独立的分隔符、Debug Routes、自定义语义结构的样式和类 |
-| 度量 §6.2 | Token 断言 |
-| a11y §6.6 | 最低要求 |
-| §6.9 中 L1/L2 用例 | 测试通过 |
+| `items` / `title` | 数据驱动路由栈（`BreadcrumbItem`） |
+| `type: 'separator'` | 独立分隔项（`SeparatorType`） |
+| `separator` | 根级分隔符，默认 `/`；可设空串关闭自动 sep |
+| `params` | title/path 中 `:key` 替换 |
+| `href` / `path` / `Link` | 链接项；path 逐层拼接为 `#/a/b` |
+| `onClick` | 项级 + 根级回调 |
+| `menu` | 项级下拉（组合 kit.Dropdown，hover 触发） |
+| `dropdownIcon` | 自定义下拉图标（默认 chevron-down） |
+| `itemRender` | 自定义项内容钩子（浏览器History 映射） |
+| 图标项 | `Icon` / `IconNode` / `TitleNode` |
+| 官方主路径示例 | **基本**、**带有图标的**、**带有参数的**、**分隔符**、**带下拉菜单的面包屑**、**独立的分隔符**、**Debug Routes**（legacy `routes`→items+menu 映射） |
+| 度量 §6.2 | Token 断言（字号 14、separatorMargin 8、色走 Token） |
+| a11y §6.6 | `role=navigation`；末项 `aria-current=page`；链接可聚焦/键盘激活 |
+| §6.9 中 L1/L2 **非 P1** 用例 | 测试通过 |
 
 #### P1（可 later，须在 coverage Notes 写明）
 
 | 配置 / 能力 | 说明 |
 | --- | --- |
-| semantic classNames/styles 深度 | 分期 |
-| 动画像素级 / 复杂虚拟列表 | 分期 |
+| semantic `classNames` / `styles` 深度 | 官方 `style-class.tsx` / `_semantic.tsx` |
+| `dropdownProps` 全量透传 | 分期 |
+| 动画像素级 / 链接色 transition | 分期 |
 | 浏览器-only API 或桌面无等价项 | 分期 |
-| debug 示例与官网逐像素哈希 | 分期 |
-| 其余示例 | _semantic.tsx |
+| component-token / 官网逐像素哈希 | 分期 |
+| ConfigProvider 全局 breadcrumb 默认 | 分期 |
 
 ### 6.9 验收用例表（可测）
 
@@ -444,63 +454,89 @@ href/项点击 ──► 导航/回调
 
 | ID | 级别 | 步骤 | 期望 |
 | --- | --- | --- | --- |
-| BC-01 | L1 | NewBreadcrumb 默认创建 | 不崩溃；默认值符合 §6.10 / antd |
-| BC-02 | L1 | 三项 | 两 separator |
-| BC-03 | L1 | 自定义 separator | 可见 |
-| BC-04 | L1 | 链接项点击 | 回调/路由 |
-| BC-05 | L1 | 末项 | 非链接强调 |
-| BC-06 | L1 | 带 menu 的项 | 可下拉（P0/P1） |
-| BC-07 | L1 | separator 间距 | ≈8 |
-| BC-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BC-09 | L1 | 复现官方示例「带有图标的」（`withIcon.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BC-10 | L1 | 复现官方示例「带有参数的」（`withParams.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BC-11 | L1 | 复现官方示例「分隔符」（`separator.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BC-12 | L1 | 复现官方示例「带下拉菜单的面包屑」（`overlay.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BC-13 | L1 | 复现官方示例「独立的分隔符」（`separator-component.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BC-14 | L1 | 复现官方示例「Debug Routes」（`debug-routes.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BC-15 | L1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | 交互与主视觉符合文档；无控制台级错误 |
-| BC-16 | L2 | 读取 §6.2 关键尺寸/间距 | 与表内数字一致（±0.5px，或文档写明容差） |
-| BC-17 | L2 | 默认皮颜色 | 无硬编码品牌色；走 Theme Token |
-| BC-18 | L2 | disabled 外观（适用者） | 禁用色；无 hover 高亮 |
-| BC-19 | L1 | 键盘/焦点主路径（适用者） | 可聚焦者 Focus ring 可见；激活键有效 |
-| BC-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差） |
+| BC-01 | L1 | NewBreadcrumb 默认创建 | 不崩溃；separator=`/`；role=navigation |
+| BC-02 | L1 | 三项普通项 | 两 separator（BC-S1） |
+| BC-03 | L1 | 自定义 separator `>` | 可见（BC-S2） |
+| BC-04 | L1 | 链接项点击 | OnClick 回调（BC-S3） |
+| BC-05 | L1 | 末项 | 非链接；`aria-current=page`；lastItem 色（BC-S4） |
+| BC-06 | L1 | 带 menu 的项 | Dropdown 可开（BC-S5） |
+| BC-07 | L1 | separator 间距 | ≈8（BC-S6） |
+| BC-08 | L1 | 复现官方示例「基本」（`basic.tsx`） | 四项；中间链接可点；末项非链接 |
+| BC-09 | L1 | 复现官方示例「带有图标的」（`withIcon.tsx`） | Icon/Title 混排；链接可点 |
+| BC-10 | L1 | 复现官方示例「带有参数的」（`withParams.tsx`） | `:id` → 替换后标题（BC-S8） |
+| BC-11 | L1 | 复现官方示例「分隔符」（`separator.tsx`） | 根 separator=`>` |
+| BC-12 | L1 | 复现官方示例「带下拉菜单的面包屑」（`overlay.tsx`） | menu 项可开下拉 |
+| BC-13 | L1 | 复现官方示例「独立的分隔符」（`separator-component.tsx`） | type=separator；根 separator 空（BC-S7） |
+| BC-14 | L1 | 复现官方示例「Debug Routes」（`debug-routes.tsx`） | routes→items；children→menu |
+| BC-15 | P1 | 复现官方示例「自定义语义结构的样式和类」（`style-class.tsx`） | semantic classNames/styles（§6.8 P1） |
+| BC-16 | L2 | 读取 §6.2 关键尺寸/间距 | fontSize=14、separatorMargin=8（±0.5） |
+| BC-17 | L2 | 默认皮颜色 | item/link/last/sep 走 Theme Token；无硬编码品牌色 |
+| BC-18 | L2 | 项 Disabled（适用者） | 禁用色；不可点；无 hover 高亮 |
+| BC-19 | L1 | 键盘/焦点主路径 | 链接可聚焦；Enter/Space 激活；Focus ring 可见 |
+| BC-20 | L3 | 关键态 golden 截图 | 与仓库基线一致（AA 容差；可另测） |
 | BC-21 | L4 | 与 ant.design 并排 | 人眼签字记录 |
 | BC-22 | P1 | §6.8 P1 任一能力（若做） | 单独用例；Notes 标明 |
+
 ### 6.10 产品 API 契约（Go kit 侧）
 
-> 允许 breaking 旧 API；以下为 **产品需求层** 建议契约，实现可微调命名但语义不可丢。
+> 允许 breaking 旧 API；以下为 **产品需求层** 契约。旧 `NewBreadcrumb(...string)` / `Items []string` **删除**。
 
 ```text
-NewBreadcrumb(...) *Breadcrumb
+type BreadcrumbItem struct {
+  Type      string      // "" | "separator"
+  Title     string
+  TitleNode core.Node   // 优先于 Title（图标混排）
+  Icon      string      // registry 名
+  IconNode  core.Node
+  Href      string
+  Path      string
+  Link      bool        // antd href:'' → 显式链接（空串仍是链接）
+  Menu      []MenuItem
+  OnClick   func()
+  Separator string      // type=separator 时的文案；空 → 根 separator 或 "/"
+  Key       string
+  Disabled  bool
+}
 
-// 配置：对 §6.3 / §3 中 P0 字段提供 SetXxx
-// 回调：OnChange / OnClick / OnOpenChange / OnConfirm … 按 API
-// 状态：SetDisabled / SetLoading（适用者）
-// 主题：SetTheme(*Theme)；Style 可选覆盖
-// a11y：SetAriaLabel / 焦点与键盘
-// 挂树：Node() core.Node
+NewBreadcrumb(items ...BreadcrumbItem) *Breadcrumb
+BreadcrumbTitles(titles ...string) []BreadcrumbItem   // 便捷：纯文案项
+BreadcrumbFromRoutes(routes ...BreadcrumbItem) []BreadcrumbItem // legacy routes：children→menu、breadcrumbName→title
+
+// 配置
+SetItems / SetSeparator / SetParams / SetDropdownIcon / SetDropdownIconNode
+SetItemRender / SetOnClick / SetOnMenuClick
+SetFace / SetTheme / SetAriaLabel
+// 查询（测试 / a11y）
+Node / ChromeNode
+SeparatorCount / ItemCount / ResolvedSeparator / ResolvedSeparatorMargin
+ResolvedFontSize / ItemColor / LinkColor / LastItemColor / SeparatorColor
+ItemPressable(i) / ItemDropdown(i) / DisplayTitle(i)
+// a11y：root role=navigation；末项 aria-current=page
 ```
 
 **默认值（未 Set 时）：**
 
 | 字段 | 默认 |
 | --- | --- |
-| Disabled | false |
-| Size（适用者） | middle / 控件默认 |
-| 受控值 | 未 Set 时用 default* 或零值 |
+| Separator | `/`（`SetSeparator("")` 显式空 → 关闭自动 sep） |
+| Params | nil / 空 map |
+| DropdownIcon | `chevron-down` |
 | 其余 | 对齐 antd 6.5 §3 表 |
 
 ### 6.11 结构与绘制分层（实现提示）
 
 ```text
-Nav root
-  └─ items / panels / connectors
+nav (Flex, role=navigation)
+  └─ ol (Flex row wrap, gap via separator margin)
+       ├─ item (Text | Pressable link | Dropdown+overlay-link)
+       ├─ separator (Text, marginInline=separatorMargin)
+       └─ …
 ```
 
-- 组合 `ui/primitive` + `ui/core`，禁止第二套事件/帧循环。  
-- 浮层统一 Portal / z-index；`rebuild()` 只读 Default/字段/Token。  
+- 组合 `ui/primitive` + `ui/core` + 既有 `kit.Dropdown`/`kit.Icon`，禁止第二套事件/帧循环。  
+- 浮层统一 Portal / z-index（menu 走 Dropdown）；`rebuild()` 只读 Default/字段/Token。  
 - 命中区域与布局盒一致（`hit == layout == paint`）。  
-- 动画跟随 Host Tick；尊重 reduced-motion。  
+- 动画跟随 Host Tick；尊重 reduced-motion（P0 瞬时开合即可）。
 
 ### 6.12 完成定义（DoD）
 

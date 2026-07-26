@@ -182,8 +182,12 @@ func TestBehavior_AllAntControls(t *testing.T) {
 		}},
 		{"Breadcrumb", func(t *testing.T) {
 			got := -1
-			b := kit.NewBreadcrumb("A", "B", "C")
-			b.OnClick = func(i int, s string) { got = i }
+			b := kit.NewBreadcrumb(
+				kit.BreadcrumbItem{Title: "A", Link: true},
+				kit.BreadcrumbItem{Title: "B", Link: true},
+				kit.BreadcrumbItem{Title: "C"},
+			)
+			b.SetOnClick(func(i int, _ kit.BreadcrumbItem) { got = i })
 			_ = b.Node().Layout(core.Loose(300, 40))
 			// Invoke first pressable click if present
 			var pr *primitive.Pressable

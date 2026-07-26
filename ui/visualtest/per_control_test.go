@@ -118,7 +118,7 @@ func perControlSpecs() []ctlSpec {
 			return padRoot(s.Node(), 320, 48)
 		}},
 		{"ctl_breadcrumb", 240, 40, func() core.Node {
-			return padRoot(kit.NewBreadcrumb("Home", "List").Node(), 240, 40)
+			return padRoot(kit.NewBreadcrumb(kit.BreadcrumbTitles("Home", "List")...).Node(), 240, 40)
 		}},
 		{"ctl_progress", 220, 32, func() core.Node { return padRoot(kit.NewProgress(65).Node(), 220, 32) }},
 		{"ctl_spin", 80, 80, func() core.Node { return padRoot(kit.NewSpin(nil).Node(), 80, 80) }},
