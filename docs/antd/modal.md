@@ -780,8 +780,11 @@ SetMask(bool)                   // 默认 true
 SetMaskClosable(bool)           // 默认 true（≡ mask.closable）
 SetKeyboard(bool)               // 默认 true
 SetCentered(bool)               // 默认 false
-SetWidth(float64)               // 0→520
-SetTop(float64)                 // 非居中 top；0→DefaultModalTop(100)
+SetWidth(float64)               // 显式宽度（含 0）；未 Set 时默认 520
+SetTop(float64)                 // 非居中 top（含显式 0）；未 Set 时默认 100
+SetTitleFontSize(float64)       // 显式标题字号（含 0）；未 Set 时默认 16
+SetBodyGap(float64)             // 标题/正文间距（含 0）；未 Set 时默认 8
+SetFooterGap(float64)           // 底栏按钮间距（含 0）；未 Set 时默认 8
 SetLoading(bool)                // 内容骨架
 SetDestroyOnHidden(bool)
 

@@ -347,8 +347,8 @@ func TestBrushFromGG_SweepGradient(t *testing.T) {
 }
 
 func TestBrushFromGG_CustomBrush(t *testing.T) {
-	// Create a custom brush via gg.CustomBrush
-	// Note: gg.CustomBrush implements gg.Brush interface
+	// Create a custom brush via render.CustomBrush
+	// Note: render.CustomBrush implements render.Brush interface
 	custom := render.CustomBrush{
 		Func: func(x, y float64) render.RGBA {
 			return render.Blue

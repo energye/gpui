@@ -62,12 +62,12 @@ func (r *Recorder) Restore() {
 	r.commands = append(r.commands, RestoreCommand{})
 }
 
-// Push is an alias for Save, matching gg.Context API.
+// Push is an alias for Save, matching render.Context API.
 func (r *Recorder) Push() {
 	r.Save()
 }
 
-// Pop is an alias for Restore, matching gg.Context API.
+// Pop is an alias for Restore, matching render.Context API.
 func (r *Recorder) Pop() {
 	r.Restore()
 }

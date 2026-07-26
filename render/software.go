@@ -100,7 +100,7 @@ func (r *SoftwareRenderer) SetDeviceScale(scale float32) {
 	}
 }
 
-// convertGGPathToCorePath converts a gg.Path to raster.PathLike.
+// convertGGPathToCorePath converts a render.Path to raster.PathLike.
 func convertGGPathToCorePath(p *Path) raster.PathLike {
 	verbs := make([]raster.PathVerb, 0, p.NumVerbs())
 	points := make([]float32, 0, len(p.Coords())*2) //nolint:mnd // preallocate for float64→float32
@@ -406,7 +406,7 @@ func (r *SoftwareRenderer) Fill(pixmap *Pixmap, p *Path, paint *Paint) error {
 
 	// Build edges from the path directly from float64 coords (zero-alloc).
 	// PathVerb values match between gg and raster packages (both 0-4 iota).
-	// gg.PathVerb is byte, so []PathVerb has identical memory layout to []byte.
+	// render.PathVerb is byte, so []PathVerb has identical memory layout to []byte.
 	verbs := p.Verbs()
 	if len(verbs) > 0 {
 		verbBytes := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(verbs))), len(verbs))
@@ -1035,7 +1035,7 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 		pathToDraw = dashPath(p, dash)
 	}
 
-	// Convert gg.PathVerb to stroke.PathVerb (same layout, just cast)
+	// Convert render.PathVerb to stroke.PathVerb (same layout, just cast)
 	strokeVerbs := convertVerbsToStroke(pathToDraw.Verbs())
 
 	// Create stroke style from paint
@@ -1066,7 +1066,7 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 	// Expand stroke to fill path (SOA: verb+coords in, verb+coords out)
 	outVerbs, outCoords := expander.Expand(strokeVerbs, pathToDraw.Coords())
 
-	// Convert back to gg.Path (reuse scratch to avoid per-stroke allocation).
+	// Convert back to render.Path (reuse scratch to avoid per-stroke allocation).
 	if r.scratchStrokePath == nil {
 		r.scratchStrokePath = NewPath()
 	}
@@ -1086,7 +1086,7 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 	return err
 }
 
-// convertVerbsToStroke converts gg.PathVerb slice to stroke.PathVerb slice.
+// convertVerbsToStroke converts render.PathVerb slice to stroke.PathVerb slice.
 // Both types have identical byte values, so this is a simple cast.
 func convertVerbsToStroke(verbs []PathVerb) []stroke.PathVerb {
 	result := make([]stroke.PathVerb, len(verbs))
@@ -1121,7 +1121,7 @@ func strokeResultToPath(dst *Path, verbs []stroke.PathVerb, coords []float64) {
 	}
 }
 
-// convertLineCap converts gg.LineCap to stroke.LineCap.
+// convertLineCap converts render.LineCap to stroke.LineCap.
 func convertLineCap(c LineCap) stroke.LineCap {
 	switch c {
 	case LineCapButt:
@@ -1135,7 +1135,7 @@ func convertLineCap(c LineCap) stroke.LineCap {
 	}
 }
 
-// convertLineJoin converts gg.LineJoin to stroke.LineJoin.
+// convertLineJoin converts render.LineJoin to stroke.LineJoin.
 func convertLineJoin(join LineJoin) stroke.LineJoin {
 	switch join {
 	case LineJoinMiter:

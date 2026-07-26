@@ -31,7 +31,7 @@ func makeSquarePath() *render.Path {
 	return p
 }
 
-// makeCirclePath returns a circle using gg.Path.Circle.
+// makeCirclePath returns a circle using render.Path.Circle.
 func makeCirclePath(cx, cy, r float64) *render.Path {
 	p := render.NewPath()
 	p.Circle(cx, cy, r)
@@ -455,7 +455,7 @@ func makeStrokeExpandedSineWavePath() *render.Path {
 		amp *= dampFactor
 	}
 
-	// Convert to stroke verbs/coords, expand, convert back to gg.Path.
+	// Convert to stroke verbs/coords, expand, convert back to render.Path.
 	verbs := srcPath.Verbs()
 	coords := srcPath.Coords()
 

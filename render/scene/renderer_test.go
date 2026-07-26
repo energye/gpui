@@ -760,7 +760,7 @@ func TestRenderer_TransformPixels(t *testing.T) {
 	}
 }
 
-// TestConvertPath verifies path conversion from scene.Path (float32) to gg.Path (float64).
+// TestConvertPath verifies path conversion from scene.Path (float32) to render.Path (float64).
 func TestConvertPath(t *testing.T) {
 	sp := NewPath()
 	sp.MoveTo(10, 20)

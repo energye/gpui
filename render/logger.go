@@ -42,10 +42,10 @@ func init() {
 // Example:
 //
 //	// Enable info-level logging to stderr:
-//	gg.SetLogger(slog.Default())
+//	render.SetLogger(slog.Default())
 //
 //	// Enable debug-level logging for full diagnostics:
-//	gg.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+//	render.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 //	    Level: slog.LevelDebug,
 //	})))
 func SetLogger(l *slog.Logger) {
@@ -63,7 +63,7 @@ func SetLogger(l *slog.Logger) {
 	}
 }
 
-// Logger returns the current logger used by gg.
+// Logger returns the current logger used by render.
 // Sub-packages (gpu/, integration/ggcanvas/) call this to share the same
 // logger configuration without introducing import cycles.
 //

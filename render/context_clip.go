@@ -144,7 +144,7 @@ func (c *Context) initClipStack() {
 	c.clipStack = clip.NewClipStack(bounds)
 }
 
-// convertPathToClipVerbs converts a gg.Path to clip.PathVerb + coords slices.
+// convertPathToClipVerbs converts a render.Path to clip.PathVerb + coords slices.
 // Both PathVerb types have identical byte values, so this is a simple cast.
 func convertPathToClipVerbs(p *Path) ([]clip.PathVerb, []float64) {
 	verbs := p.Verbs()

@@ -48,12 +48,12 @@ func (r *Recorder) SetStrokeStyle(brush Brush) {
 	r.commands = append(r.commands, SetStrokeStyleCommand{Brush: brushRef})
 }
 
-// SetFillBrush sets the fill brush from a gg.Brush.
+// SetFillBrush sets the fill brush from a render.Brush.
 func (r *Recorder) SetFillBrush(brush render.Brush) {
 	r.SetFillStyle(BrushFromGG(brush))
 }
 
-// SetStrokeBrush sets the stroke brush from a gg.Brush.
+// SetStrokeBrush sets the stroke brush from a render.Brush.
 func (r *Recorder) SetStrokeBrush(brush render.Brush) {
 	r.SetStrokeStyle(BrushFromGG(brush))
 }
@@ -94,7 +94,7 @@ func (r *Recorder) SetLineCap(lc LineCap) {
 	r.commands = append(r.commands, SetLineCapCommand{Cap: lc})
 }
 
-// SetLineCapGG sets the line cap style from gg.LineCap.
+// SetLineCapGG sets the line cap style from render.LineCap.
 func (r *Recorder) SetLineCapGG(lc render.LineCap) {
 	// #nosec G115 -- LineCap enum values are within uint8 range
 	r.SetLineCap(LineCap(lc))
@@ -106,7 +106,7 @@ func (r *Recorder) SetLineJoin(join LineJoin) {
 	r.commands = append(r.commands, SetLineJoinCommand{Join: join})
 }
 
-// SetLineJoinGG sets the line join style from gg.LineJoin.
+// SetLineJoinGG sets the line join style from render.LineJoin.
 func (r *Recorder) SetLineJoinGG(join render.LineJoin) {
 	// #nosec G115 -- LineJoin enum values are within uint8 range
 	r.SetLineJoin(LineJoin(join))
@@ -153,7 +153,7 @@ func (r *Recorder) SetFillRule(rule FillRule) {
 	r.commands = append(r.commands, SetFillRuleCommand{Rule: rule})
 }
 
-// SetFillRuleGG sets the fill rule from gg.FillRule.
+// SetFillRuleGG sets the fill rule from render.FillRule.
 func (r *Recorder) SetFillRuleGG(rule render.FillRule) {
 	// #nosec G115 -- FillRule enum values are within uint8 range
 	r.SetFillRule(FillRule(rule))

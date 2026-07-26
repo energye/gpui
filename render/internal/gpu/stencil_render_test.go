@@ -75,7 +75,7 @@ func TestRenderPathCircle(t *testing.T) {
 	sr := NewStencilRenderer(device, queue, 4)
 	defer sr.Destroy()
 
-	// Build a circle path using gg.Path.Circle.
+	// Build a circle path using render.Path.Circle.
 	path := render.NewPath()
 	path.Circle(50, 50, 30)
 

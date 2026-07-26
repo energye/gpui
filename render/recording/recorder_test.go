@@ -196,7 +196,7 @@ func TestRecorderSetFillStrokeStyle(t *testing.T) {
 		t.Error("SetStrokeStyle did not set stroke brush correctly")
 	}
 
-	// Test SetFillBrush (from gg.Brush)
+	// Test SetFillBrush (from render.Brush)
 	rec.SetFillBrush(render.Solid(render.Green))
 	if rec.fillBrush.(SolidBrush).Color != render.Green {
 		t.Error("SetFillBrush did not set fill brush correctly")

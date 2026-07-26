@@ -45,13 +45,13 @@ func (d *Document) RenderWithColor(width, height int, c color.Color) *image.RGBA
 	return dc.Image().(*image.RGBA)
 }
 
-// RenderTo renders the document into an existing [gg.Context] at the specified
+// RenderTo renders the document into an existing [render.Context] at the specified
 // position and size. The SVG viewBox is scaled to fit (x, y, width, height).
 func (d *Document) RenderTo(dc *render.Context, x, y, width, height float64) {
 	d.renderInternal(dc, x, y, width, height, nil)
 }
 
-// RenderToWithColor renders the document into an existing [gg.Context] with
+// RenderToWithColor renders the document into an existing [render.Context] with
 // all non-"none" colors replaced by the given override color.
 func (d *Document) RenderToWithColor(dc *render.Context, x, y, width, height float64, c color.Color) {
 	d.renderInternal(dc, x, y, width, height, c)

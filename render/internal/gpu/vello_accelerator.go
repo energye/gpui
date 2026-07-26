@@ -24,7 +24,7 @@ import (
 )
 
 // VelloAccelerator provides GPU-accelerated scene rendering using the Vello-style
-// compute pipeline. It implements gg.GPUAccelerator and gg.ComputePipelineAware.
+// compute pipeline. It implements render.GPUAccelerator and render.ComputePipelineAware.
 //
 // Unlike SDFAccelerator which uses render passes (vertex/fragment shaders),
 // VelloAccelerator uses 8 compute shader stages to rasterize entire scenes:
@@ -106,7 +106,7 @@ func (a *VelloAccelerator) Close() {
 }
 
 // SetLogger sets the logger for the GPU accelerator and its internal packages.
-// Called by gg.SetLogger to propagate logging configuration.
+// Called by render.SetLogger to propagate logging configuration.
 func (a *VelloAccelerator) SetLogger(l *slog.Logger) {
 	setLogger(l)
 }
@@ -257,7 +257,7 @@ func (a *VelloAccelerator) StrokePath(target render.GPURenderTarget, path *rende
 		return nil
 	}
 
-	// Build a gg.Path from the expanded outline.
+	// Build a render.Path from the expanded outline.
 	fillPath := strokeResultToPath(outVerbs, outCoords)
 
 	// EvenOdd correctly handles both stroke topologies:
@@ -309,7 +309,7 @@ func (a *VelloAccelerator) StrokeShape(target render.GPURenderTarget, shape rend
 		return render.ErrFallbackToCPU
 	}
 
-	// Build a gg.Path from the shape, then route through StrokePath.
+	// Build a render.Path from the shape, then route through StrokePath.
 	path := render.NewPath()
 	switch shape.Kind {
 	case render.ShapeCircle:

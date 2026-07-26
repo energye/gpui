@@ -42,8 +42,11 @@ type PaintContext struct {
 	// Clip is the active absolute clip in logical pixels (optional advisory).
 	// Used by DefaultPaintChildren to skip fully off-screen subtrees (scroll cull).
 	Clip Rect
-	// prevClips + clipDepth restore Clip across PushClipLocal/Pop without heap.
-	prevClips [6]Rect
+	// prevClips + clipDepth restore Clip across PushClipLocal/Pop.
+	// Growable so nested clips beyond a fixed depth still update advisory culling
+	// (Modal > Scroll > Form > Tabs > Card > …). Child contexts clone the active
+	// prefix so DFS paint cannot corrupt a parent's saved stack via shared backing.
+	prevClips []Rect
 	clipDepth int
 	// CompositeOnly: retained frame — skip clean non-boundary subtrees; RepaintBoundary
 	// nodes blit cached layers. Requires prior full frame + LoadOpLoad-capable present
@@ -69,14 +72,34 @@ type PaintContext struct {
 	LayerBand LayerBand
 }
 
+// clonePaintContext copies pc and isolates the advisory clip stack so child
+// PushClipLocal/Pop cannot mutate the parent's saved clips through a shared slice.
+func clonePaintContext(pc *PaintContext) *PaintContext {
+	out := *pc
+	out.prevClips = cloneClipStack(pc.prevClips, pc.clipDepth)
+	return &out
+}
+
+func cloneClipStack(stack []Rect, depth int) []Rect {
+	if depth <= 0 {
+		return nil
+	}
+	if depth > len(stack) {
+		depth = len(stack)
+	}
+	out := make([]Rect, depth)
+	copy(out, stack[:depth])
+	return out
+}
+
 // WithOrigin returns a child paint context with a new absolute origin.
 func (pc *PaintContext) WithOrigin(origin Point) *PaintContext {
 	if pc == nil {
 		return &PaintContext{Origin: origin, Scale: 1}
 	}
-	out := *pc
+	out := clonePaintContext(pc)
 	out.Origin = origin
-	return &out
+	return out
 }
 
 // WithForceFullPaint returns a paint context that paints all children (no skip).
@@ -84,10 +107,10 @@ func (pc *PaintContext) WithForceFullPaint() *PaintContext {
 	if pc == nil {
 		return &PaintContext{ForceFullPaint: true, Scale: 1}
 	}
-	out := *pc
+	out := clonePaintContext(pc)
 	out.ForceFullPaint = true
 	out.CompositeOnly = false
-	return &out
+	return out
 }
 
 // WithClip returns a paint context with an updated advisory clip.
@@ -95,13 +118,13 @@ func (pc *PaintContext) WithClip(clip Rect) *PaintContext {
 	if pc == nil {
 		return &PaintContext{Clip: clip, Scale: 1}
 	}
-	out := *pc
+	out := clonePaintContext(pc)
 	if !pc.Clip.Empty() {
 		out.Clip = pc.Clip.Intersect(clip)
 	} else {
 		out.Clip = clip
 	}
-	return &out
+	return out
 }
 
 // FillRect draws an axis-aligned filled rectangle at absolute logical coords.
@@ -141,6 +164,9 @@ func clampCornerRadius(w, h, radius float64) float64 {
 // PushClipLocal clips to a local rect (relative to Origin) via render.Context
 // and updates the advisory Clip for subtree paint culling.
 // Caller must Pop after painting children.
+//
+// Unlike a fixed-depth stack, the advisory clip is always updated — deep nesting
+// (Modal/Scroll/Form/Tabs/…) must not silently keep a stale cull rect.
 func (pc *PaintContext) PushClipLocal(x, y, w, h float64) {
 	if pc == nil {
 		return
@@ -149,16 +175,17 @@ func (pc *PaintContext) PushClipLocal(x, y, w, h float64) {
 		pc.DC.Push()
 		pc.DC.ClipRect(pc.Origin.X+x, pc.Origin.Y+y, w, h)
 	}
-	// Advisory cull stack (fixed depth — no heap on the scroll hot path).
 	if pc.clipDepth < len(pc.prevClips) {
 		pc.prevClips[pc.clipDepth] = pc.Clip
-		pc.clipDepth++
-		r := NewRect(pc.Origin.X+x, pc.Origin.Y+y, w, h)
-		if pc.Clip.Empty() {
-			pc.Clip = r
-		} else {
-			pc.Clip = pc.Clip.Intersect(r)
-		}
+	} else {
+		pc.prevClips = append(pc.prevClips, pc.Clip)
+	}
+	pc.clipDepth++
+	r := NewRect(pc.Origin.X+x, pc.Origin.Y+y, w, h)
+	if pc.Clip.Empty() {
+		pc.Clip = r
+	} else {
+		pc.Clip = pc.Clip.Intersect(r)
 	}
 }
 
@@ -174,4 +201,12 @@ func (pc *PaintContext) Pop() {
 		pc.clipDepth--
 		pc.Clip = pc.prevClips[pc.clipDepth]
 	}
+}
+
+// ClipDepth reports the current PushClipLocal nesting (tests / diagnostics).
+func (pc *PaintContext) ClipDepth() int {
+	if pc == nil {
+		return 0
+	}
+	return pc.clipDepth
 }

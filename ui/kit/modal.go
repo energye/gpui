@@ -47,8 +47,8 @@ type Modal struct {
 
 	Open            bool
 	Title           string
-	Width           float64 // 0 → DefaultModalWidth
-	Top             float64 // 0 → DefaultModalTop when !Centered
+	Width           float64 // unset → DefaultModalWidth; SetWidth(0) keeps 0 (widthSet)
+	Top             float64 // unset → DefaultModalTop when !Centered; SetTop(0) keeps 0 (topSet)
 	Centered        bool
 	Closable        bool
 	Mask            bool
@@ -64,9 +64,9 @@ type Modal struct {
 
 	// Padding uniform panel inset (0 → contentPadding via XY defaults). SetPaddingInsets for sides.
 	Padding       float64
-	TitleFontSize float64 // 0 → DefaultModalTitleFont
-	BodyGap       float64 // 0 → DefaultModalBodyGap
-	FooterGap     float64 // 0 → DefaultModalFooterGap
+	TitleFontSize float64 // unset → DefaultModalTitleFont; SetTitleFontSize(0) keeps 0
+	BodyGap       float64 // unset → DefaultModalBodyGap; SetBodyGap(0) keeps 0
+	FooterGap     float64 // unset → DefaultModalFooterGap; SetFooterGap(0) keeps 0
 	Face          text.Face
 	Theme         *core.Theme
 	Viewport      core.Size
@@ -84,6 +84,11 @@ type Modal struct {
 	trap         overlayFocusTrap
 	pad          primitive.EdgeInsets
 	padSet       bool
+	widthSet     bool // true after SetWidth — distinguishes unset vs explicit 0
+	topSet       bool // true after SetTop
+	titleFontSet bool // true after SetTitleFontSize
+	bodyGapSet   bool // true after SetBodyGap
+	footerGapSet bool // true after SetFooterGap
 	life         tickerLifecycle
 	okGuard      bool // true while ConfirmLoading swallows extra OK clicks
 }
@@ -355,24 +360,64 @@ func (m *Modal) SetCentered(v bool) {
 	}
 }
 
-// SetWidth sets dialog width (0 → DefaultModalWidth on next rebuild).
+// SetWidth sets dialog width. Marks width as explicit so 0 is not replaced by
+// DefaultModalWidth on rebuild (antd-style: unset uses default; set keeps value).
 func (m *Modal) SetWidth(w float64) {
 	if m == nil {
 		return
 	}
 	m.Width = w
+	m.widthSet = true
 	m.rebuild()
 }
 
-// SetTop sets the non-centered top offset (0 → DefaultModalTop).
+// SetTop sets the non-centered top offset. Marks top as explicit so 0 is kept
+// (flush to viewport top) instead of falling back to DefaultModalTop.
 func (m *Modal) SetTop(top float64) {
 	if m == nil {
 		return
 	}
 	m.Top = top
+	m.topSet = true
 	if m.layer != nil {
 		m.layer.MarkNeedsLayout()
 	}
+}
+
+// SetTitleFontSize sets the title font size in px. Explicit 0 is kept (no default).
+func (m *Modal) SetTitleFontSize(px float64) {
+	if m == nil {
+		return
+	}
+	m.TitleFontSize = px
+	m.titleFontSet = true
+	if m.titleNode != nil {
+		m.titleNode.SetFontSize(m.titleFont())
+	} else {
+		m.rebuild()
+	}
+}
+
+// SetBodyGap sets the vertical gap between title row and body (and footer stack).
+// Explicit 0 is kept instead of DefaultModalBodyGap.
+func (m *Modal) SetBodyGap(px float64) {
+	if m == nil {
+		return
+	}
+	m.BodyGap = px
+	m.bodyGapSet = true
+	m.rebuild()
+}
+
+// SetFooterGap sets the gap between default footer buttons.
+// Explicit 0 is kept instead of DefaultModalFooterGap.
+func (m *Modal) SetFooterGap(px float64) {
+	if m == nil {
+		return
+	}
+	m.FooterGap = px
+	m.footerGapSet = true
+	m.rebuild()
 }
 
 // SetLoading toggles body skeleton. Animates through Tree ticker while open.
@@ -590,35 +635,65 @@ func (m *Modal) panelPadding() primitive.EdgeInsets {
 }
 
 func (m *Modal) titleFont() float64 {
-	if m != nil && m.TitleFontSize > 0 {
+	if m == nil {
+		return DefaultModalTitleFont
+	}
+	if m.titleFontSet {
+		return m.TitleFontSize
+	}
+	if m.TitleFontSize > 0 {
 		return m.TitleFontSize
 	}
 	return DefaultModalTitleFont
 }
 
 func (m *Modal) bodyGap() float64 {
-	if m != nil && m.BodyGap > 0 {
+	if m == nil {
+		return DefaultModalBodyGap
+	}
+	if m.bodyGapSet {
+		return m.BodyGap
+	}
+	if m.BodyGap > 0 {
 		return m.BodyGap
 	}
 	return DefaultModalBodyGap
 }
 
 func (m *Modal) footerGap() float64 {
-	if m != nil && m.FooterGap > 0 {
+	if m == nil {
+		return DefaultModalFooterGap
+	}
+	if m.footerGapSet {
+		return m.FooterGap
+	}
+	if m.FooterGap > 0 {
 		return m.FooterGap
 	}
 	return DefaultModalFooterGap
 }
 
 func (m *Modal) resolvedWidth() float64 {
-	if m != nil && m.Width > 0 {
+	if m == nil {
+		return DefaultModalWidth
+	}
+	if m.widthSet {
+		return m.Width
+	}
+	if m.Width > 0 {
 		return m.Width
 	}
 	return DefaultModalWidth
 }
 
 func (m *Modal) resolvedTop() float64 {
-	if m != nil && m.Top > 0 {
+	if m == nil {
+		return DefaultModalTop
+	}
+	if m.topSet {
+		return m.Top
+	}
+	if m.Top > 0 {
 		return m.Top
 	}
 	return DefaultModalTop
@@ -698,9 +773,8 @@ func (m *Modal) rebuild() {
 		return
 	}
 	th := m.theme()
-	if m.Width <= 0 {
-		m.Width = DefaultModalWidth
-	}
+	// Width/Top/TitleFont/BodyGap/FooterGap: never overwrite explicit 0.
+	// Unset values resolve via resolvedWidth/titleFont/… helpers (not field mutation).
 	if m.OkText == "" {
 		m.OkText = "OK"
 	}

@@ -32,7 +32,7 @@ var (
 // Typical usage via blank import in the gpu package:
 //
 //	func init() {
-//	    gg.RegisterCoverageFiller(&gpuimpl.SparseStripsFiller{})
+//	    render.RegisterCoverageFiller(&gpuimpl.SparseStripsFiller{})
 //	}
 func RegisterCoverageFiller(f CoverageFiller) {
 	coverageMu.Lock()

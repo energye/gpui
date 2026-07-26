@@ -7,11 +7,11 @@
 // This package enables drawing 2D UI elements directly in GPU-accelerated windows
 // by managing the CPU-to-GPU pipeline automatically. The data flow is:
 //
-//	gg.Context (draw) -> Pixmap (CPU) -> GPU Texture -> Window
+//	render.Context (draw) -> Pixmap (CPU) -> GPU Texture -> Window
 //
 // # Architecture
 //
-// Canvas wraps a gg.Context and manages the texture upload pipeline:
+// Canvas wraps a render.Context and manages the texture upload pipeline:
 //
 //   - Draw operations use the familiar gg API
 //   - Flush() uploads pixel data to GPU texture

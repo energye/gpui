@@ -16,8 +16,8 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
-// GPURenderContext holds per-gg.Context GPU state: pending draw commands,
-// clip state, frame tracking, and its own render session. Each gg.Context
+// GPURenderContext holds per-render.Context GPU state: pending draw commands,
+// clip state, frame tracking, and its own render session. Each render.Context
 // lazily creates one GPURenderContext, ensuring isolated pending command
 // queues and independent LoadOp tracking.
 //

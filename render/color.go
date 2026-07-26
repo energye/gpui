@@ -14,7 +14,7 @@ type RGBA struct {
 
 // RGBA implements the color.Color interface.
 // Returns premultiplied alpha values scaled to [0, 65535] as required by the interface.
-// This allows gg.RGBA to be used directly with dc.SetColor(gg.Black).
+// This allows render.RGBA to be used directly with dc.SetColor(render.Black).
 func (c RGBA) RGBA() (r, g, b, a uint32) {
 	a = uint32(clamp65535(c.A * 65535))
 	r = uint32(clamp65535(c.R * c.A * 65535))
@@ -25,7 +25,7 @@ func (c RGBA) RGBA() (r, g, b, a uint32) {
 
 // Color converts RGBA to the standard color.Color interface.
 //
-// Deprecated: gg.RGBA now implements color.Color directly.
+// Deprecated: render.RGBA now implements color.Color directly.
 // Use the value itself instead of calling .Color().
 func (c RGBA) Color() color.Color {
 	return color.NRGBA{

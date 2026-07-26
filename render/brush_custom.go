@@ -15,11 +15,11 @@ type ColorFunc func(x, y float64) RGBA
 // Example:
 //
 //	// Create a checkerboard pattern
-//	checker := gg.NewCustomBrush(func(x, y float64) gg.RGBA {
+//	checker := render.NewCustomBrush(func(x, y float64) render.RGBA {
 //	    if (int(x/10)+int(y/10))%2 == 0 {
-//	        return gg.Black
+//	        return render.Black
 //	    }
-//	    return gg.White
+//	    return render.White
 //	})
 type CustomBrush struct {
 	// Func is the color function that determines the color at each point.
@@ -45,9 +45,9 @@ func (b CustomBrush) ColorAt(x, y float64) RGBA {
 // Example:
 //
 //	// Horizontal gradient from red to blue
-//	gradient := gg.NewCustomBrush(func(x, y float64) gg.RGBA {
+//	gradient := render.NewCustomBrush(func(x, y float64) render.RGBA {
 //	    t := x / 100.0 // Assuming 100px width
-//	    return gg.Red.Lerp(gg.Blue, t)
+//	    return render.Red.Lerp(render.Blue, t)
 //	})
 func NewCustomBrush(fn ColorFunc) CustomBrush {
 	return CustomBrush{Func: fn}
@@ -58,7 +58,7 @@ func NewCustomBrush(fn ColorFunc) CustomBrush {
 //
 // Example:
 //
-//	brush := gg.NewCustomBrush(myFunc).WithName("myPattern")
+//	brush := render.NewCustomBrush(myFunc).WithName("myPattern")
 func (b CustomBrush) WithName(name string) CustomBrush {
 	return CustomBrush{
 		Func: b.Func,
@@ -71,7 +71,7 @@ func (b CustomBrush) WithName(name string) CustomBrush {
 //
 // Example:
 //
-//	gradient := gg.HorizontalGradient(gg.Red, gg.Blue, 0, 100)
+//	gradient := render.HorizontalGradient(render.Red, render.Blue, 0, 100)
 func HorizontalGradient(c0, c1 RGBA, x0, x1 float64) CustomBrush {
 	return CustomBrush{
 		Func: func(x, _ float64) RGBA {
@@ -88,7 +88,7 @@ func HorizontalGradient(c0, c1 RGBA, x0, x1 float64) CustomBrush {
 //
 // Example:
 //
-//	gradient := gg.VerticalGradient(gg.White, gg.Black, 0, 100)
+//	gradient := render.VerticalGradient(render.White, render.Black, 0, 100)
 func VerticalGradient(c0, c1 RGBA, y0, y1 float64) CustomBrush {
 	return CustomBrush{
 		Func: func(_, y float64) RGBA {
@@ -106,7 +106,7 @@ func VerticalGradient(c0, c1 RGBA, y0, y1 float64) CustomBrush {
 // Example:
 //
 //	// Diagonal gradient from top-left to bottom-right
-//	gradient := gg.LinearGradient(gg.Red, gg.Blue, 0, 0, 100, 100)
+//	gradient := render.LinearGradient(render.Red, render.Blue, 0, 0, 100, 100)
 func LinearGradient(c0, c1 RGBA, x0, y0, x1, y1 float64) CustomBrush {
 	dx := x1 - x0
 	dy := y1 - y0
@@ -139,7 +139,7 @@ func LinearGradient(c0, c1 RGBA, x0, y0, x1, y1 float64) CustomBrush {
 // Example:
 //
 //	// White center fading to black at radius 50
-//	gradient := gg.RadialGradient(gg.White, gg.Black, 50, 50, 50)
+//	gradient := render.RadialGradient(render.White, render.Black, 50, 50, 50)
 func RadialGradient(c0, c1 RGBA, cx, cy, r float64) CustomBrush {
 	if r <= 0 {
 		return Solid(c0).toCustomBrush()
@@ -163,7 +163,7 @@ func RadialGradient(c0, c1 RGBA, cx, cy, r float64) CustomBrush {
 //
 // Example:
 //
-//	checker := gg.Checkerboard(gg.Black, gg.White, 10)
+//	checker := render.Checkerboard(render.Black, render.White, 10)
 func Checkerboard(c0, c1 RGBA, size float64) CustomBrush {
 	if size <= 0 {
 		size = 1
@@ -188,10 +188,10 @@ func Checkerboard(c0, c1 RGBA, size float64) CustomBrush {
 // Example:
 //
 //	// Vertical stripes
-//	stripes := gg.Stripes(gg.Red, gg.White, 10, 0)
+//	stripes := render.Stripes(render.Red, render.White, 10, 0)
 //
 //	// Diagonal stripes (45 degrees)
-//	diag := gg.Stripes(gg.Blue, gg.Yellow, 10, math.Pi/4)
+//	diag := render.Stripes(render.Blue, render.Yellow, 10, math.Pi/4)
 func Stripes(c0, c1 RGBA, width, angle float64) CustomBrush {
 	if width <= 0 {
 		width = 1

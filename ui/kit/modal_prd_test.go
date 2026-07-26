@@ -558,6 +558,61 @@ func TestModal_PRD_25_KeyboardFocusPath(t *testing.T) {
 	}
 }
 
+// Explicit zero values must survive rebuild (widthSet / topSet / gap flags).
+func TestModal_ExplicitZeroWidthAndGaps(t *testing.T) {
+	m := kit.NewModal("Z")
+	m.SetContent(kit.NewText("body").Node())
+
+	m.SetWidth(0)
+	if m.Width != 0 {
+		t.Fatalf("SetWidth(0): Width=%v want 0", m.Width)
+	}
+	// rebuild via theme must not clobber explicit 0
+	m.SetTheme(core.DefaultTheme())
+	if m.Width != 0 {
+		t.Fatalf("after rebuild Width=%v want 0 (was overwritten to default)", m.Width)
+	}
+	if m.Panel() == nil {
+		t.Fatal("panel nil")
+	}
+	if m.Panel().MinWidth != 0 {
+		t.Fatalf("panel MinWidth=%v want 0", m.Panel().MinWidth)
+	}
+
+	// Non-zero explicit width still works and survives rebuild.
+	m.SetWidth(360)
+	m.SetTheme(nil)
+	if m.Width != 360 {
+		t.Fatalf("Width=%v want 360", m.Width)
+	}
+
+	m.SetBodyGap(0)
+	m.SetFooterGap(0)
+	m.SetTitleFontSize(0)
+	m.SetTop(0)
+	m.SetTheme(core.DefaultTheme())
+	if m.BodyGap != 0 || m.FooterGap != 0 || m.TitleFontSize != 0 || m.Top != 0 {
+		t.Fatalf("explicit zeros lost: body=%v footer=%v titleFont=%v top=%v",
+			m.BodyGap, m.FooterGap, m.TitleFontSize, m.Top)
+	}
+
+	// Unset width (fresh modal) still resolves to default without SetWidth.
+	m2 := kit.NewModal("D")
+	if m2.Width != kit.DefaultModalWidth {
+		t.Fatalf("NewModal Width=%v want default %v", m2.Width, kit.DefaultModalWidth)
+	}
+	// Direct field 0 without SetWidth → default on resolution (widthSet false).
+	m2.Width = 0
+	m2.SetContent(kit.NewText("x").Node())
+	m2.SetTheme(core.DefaultTheme())
+	if m2.Panel() == nil {
+		t.Fatal("m2 panel nil")
+	}
+	if m2.Panel().MinWidth != kit.DefaultModalWidth {
+		t.Fatalf("unset Width=0 → panel MinWidth=%v want default %v", m2.Panel().MinWidth, kit.DefaultModalWidth)
+	}
+}
+
 func mountedModal(title string) (*kit.Modal, *core.Tree) {
 	m := kit.NewModal(title)
 	m.SetContent(kit.NewText("body").Node())

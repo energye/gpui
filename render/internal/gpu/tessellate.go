@@ -62,7 +62,7 @@ func (ft *FanTessellator) Reset() {
 	ft.hasBounds = false
 }
 
-// TessellatePath converts a gg.Path into triangle fan vertices.
+// TessellatePath converts a render.Path into triangle fan vertices.
 //
 // For each contour (started by MoveTo), the first vertex becomes the fan center.
 // Subsequent line/curve segments are flattened and triangulated as fan triangles

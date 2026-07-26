@@ -1,4 +1,4 @@
-// Package main demonstrates image drawing capabilities in gg.
+// Package main demonstrates image drawing capabilities in render.
 package main
 
 import (

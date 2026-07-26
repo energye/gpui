@@ -25,7 +25,7 @@ type DropShadowFilter struct {
 }
 
 // NewDropShadowFilter creates a new drop shadow filter.
-// Common usage: NewDropShadowFilter(3, 3, 5, gg.RGBA2(0, 0, 0, 0.5))
+// Common usage: NewDropShadowFilter(3, 3, 5, render.RGBA2(0, 0, 0, 0.5))
 func NewDropShadowFilter(offsetX, offsetY, blurRadius float64, color render.RGBA) *DropShadowFilter {
 	return &DropShadowFilter{
 		OffsetX:    offsetX,

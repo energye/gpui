@@ -12,9 +12,9 @@ import "github.com/energye/gpui/render/text"
 // Example:
 //
 //	scene := NewScene()
-//	scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(gg.Red), circle)
+//	scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(render.Red), circle)
 //	scene.PushLayer(BlendMultiply, 0.5, nil)
-//	scene.Stroke(DefaultStrokeStyle(), IdentityAffine(), SolidBrush(gg.Blue), rect)
+//	scene.Stroke(DefaultStrokeStyle(), IdentityAffine(), SolidBrush(render.Blue), rect)
 //	scene.PopLayer()
 //	enc := scene.Encoding()
 type Scene struct {
@@ -475,9 +475,9 @@ func (s *Scene) Encoding() *Encoding {
 // Example:
 //
 //	scene := NewScene()
-//	scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(gg.Red), rect)
+//	scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(render.Red), rect)
 //	scene.PushLayer(BlendMultiply, 0.5, nil)
-//	scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(gg.Blue), circle)
+//	scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(render.Blue), circle)
 //	flat := scene.Flatten()
 //	// flat contains both shapes with layer compositing applied
 func (s *Scene) Flatten() *Encoding {

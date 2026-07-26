@@ -12,11 +12,11 @@ import (
 )
 
 // SDFAccelerator provides GPU-accelerated rendering using wgpu/hal render
-// pipelines. It implements the gg.GPUAccelerator interface.
+// pipelines. It implements the render.GPUAccelerator interface.
 //
 // Internally, SDFAccelerator holds a GPUShared (shared device, pipelines,
 // atlas engines) and a default GPURenderContext (for backward-compatible
-// single-context usage). Each gg.Context creates its own GPURenderContext
+// single-context usage). Each render.Context creates its own GPURenderContext
 // via Shared().NewRenderContext() for isolated pending command queues.
 //
 // This architecture follows the enterprise pattern (Skia GrContext, Vello
@@ -29,7 +29,7 @@ type SDFAccelerator struct {
 	shared *GPUShared
 
 	// Default render context for backward-compatible single-context usage.
-	// When gg.Context does not have its own GPURenderContext (legacy path),
+	// When render.Context does not have its own GPURenderContext (legacy path),
 	// operations are routed through this default context.
 	defaultCtx *GPURenderContext
 }
@@ -52,7 +52,7 @@ var _ render.MaskAware = (*SDFAccelerator)(nil)
 func (a *SDFAccelerator) Name() string { return "sdf-gpu" }
 
 // Shared returns the GPUShared instance for creating per-context
-// GPURenderContexts. This is the primary integration point for gg.Context.
+// GPURenderContexts. This is the primary integration point for render.Context.
 func (a *SDFAccelerator) Shared() *GPUShared {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -86,7 +86,7 @@ func (a *SDFAccelerator) IsSoftwareAdapter() bool {
 }
 
 // NewGPURenderContext creates a new per-context GPU render context.
-// Implements gg.GPURenderContextProvider.
+// Implements render.GPURenderContextProvider.
 func (a *SDFAccelerator) NewGPURenderContext() any {
 	a.mu.Lock()
 	if a.shared == nil {

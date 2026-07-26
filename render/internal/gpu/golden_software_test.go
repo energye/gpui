@@ -232,7 +232,7 @@ func TestGoldenSoftware_GPUvsCPU(t *testing.T) {
 // Rendering helpers
 // =============================================================================
 
-// renderWithCPU renders a test scene using gg.Context without any GPU
+// renderWithCPU renders a test scene using render.Context without any GPU
 // accelerator. This uses the SoftwareRenderer with AnalyticFiller — the
 // default CPU path and our ground truth.
 func renderWithCPU(tc goldenSoftwareTest) *image.RGBA {
@@ -245,7 +245,7 @@ func renderWithCPU(tc goldenSoftwareTest) *image.RGBA {
 	return dc.Image().(*image.RGBA)
 }
 
-// renderWithCPUSDF renders a test scene using gg.Context with the CPU SDF
+// renderWithCPUSDF renders a test scene using render.Context with the CPU SDF
 // accelerator. This simulates the software adapter fallback path (BUG-SW-002):
 // circles and rounded rects go through SDF, other shapes fall back to
 // AnalyticFiller via ErrFallbackToCPU.

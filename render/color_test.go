@@ -55,14 +55,14 @@ func TestRGBA_ColorInterface(t *testing.T) {
 
 func TestRGBA_SetColor(t *testing.T) {
 	dc := NewContext(10, 10)
-	// This must compile — proves gg.RGBA implements color.Color
+	// This must compile — proves render.RGBA implements color.Color
 	dc.SetColor(Black)
 	dc.SetColor(Red)
 	dc.SetColor(Hex("#3498db"))
 }
 
 func TestRGBA_Roundtrip(t *testing.T) {
-	// gg.RGBA → color.Color → FromColor → gg.RGBA
+	// render.RGBA → color.Color → FromColor → render.RGBA
 	original := RGBA{0.8, 0.3, 0.5, 0.9}
 	r, g, b, a := original.RGBA()
 	roundtripped := FromColor(color.NRGBA64{

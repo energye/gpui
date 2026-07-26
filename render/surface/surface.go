@@ -112,26 +112,30 @@ type BlendableSurface interface {
 }
 
 // BlendMode specifies how source and destination colors are combined.
+//
+// Numeric values match the paint-level render.BlendMode / internal/image.BlendMode
+// subset so the same constants can cross package boundaries without silent remapping.
+// Clear/Copy are explicit (not iota) because paint-level HSL modes occupy 4..7.
 type BlendMode uint8
 
 const (
-	// BlendModeSourceOver is the default Porter-Duff source-over mode.
-	BlendModeSourceOver BlendMode = iota
+	// BlendModeSourceOver is source-over (render.BlendNormal = 0).
+	BlendModeSourceOver BlendMode = 0
 
-	// BlendModeMultiply multiplies source and destination colors.
-	BlendModeMultiply
+	// BlendModeMultiply multiplies source and destination colors (render.BlendMultiply).
+	BlendModeMultiply BlendMode = 1
 
-	// BlendModeScreen is the inverse of multiply.
-	BlendModeScreen
+	// BlendModeScreen is the inverse of multiply (render.BlendScreen).
+	BlendModeScreen BlendMode = 2
 
-	// BlendModeOverlay combines multiply and screen.
-	BlendModeOverlay
+	// BlendModeOverlay combines multiply and screen (render.BlendOverlay).
+	BlendModeOverlay BlendMode = 3
 
-	// BlendModeClear clears the destination.
-	BlendModeClear
+	// BlendModeClear clears the destination (render.BlendClear = 8).
+	BlendModeClear BlendMode = 8
 
-	// BlendModeCopy replaces destination with source.
-	BlendModeCopy
+	// BlendModeCopy replaces destination with source (render.BlendCopy = 9).
+	BlendModeCopy BlendMode = 9
 )
 
 // Capabilities describes the optional features a surface supports.

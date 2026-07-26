@@ -105,7 +105,7 @@ func NewGPUTextEngine() *GPUTextEngine {
 //   - face: font face (provides glyph iteration and metrics)
 //   - s: the string to render
 //   - x, y: baseline origin in user-space coordinates
-//   - color: text color as gg.RGBA
+//   - color: text color as render.RGBA
 //   - viewportW, viewportH: viewport dimensions for building the ortho projection
 //   - matrix: the context's current transformation matrix (CTM)
 //

@@ -10,7 +10,7 @@ import (
 )
 
 // applyTransform parses an SVG transform attribute string and applies
-// the transforms to the given gg.Context. Multiple transforms are
+// the transforms to the given render.Context. Multiple transforms are
 // applied left-to-right (as specified by SVG).
 //
 // Supported transform functions:

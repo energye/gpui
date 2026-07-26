@@ -1,6 +1,6 @@
 //go:build !nogpu
 
-// Package main demonstrates GPU-accelerated 2D rendering with gg.
+// Package main demonstrates GPU-accelerated 2D rendering with render.
 //
 // This example shows how to:
 //   - Enable GPU acceleration via blank import of gg/gpu

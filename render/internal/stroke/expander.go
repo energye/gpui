@@ -159,7 +159,7 @@ func DefaultStroke() Stroke {
 }
 
 // PathVerb represents a path construction command.
-// Values match gg.PathVerb for zero-cost conversion.
+// Values match render.PathVerb for zero-cost conversion.
 type PathVerb byte
 
 const (

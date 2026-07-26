@@ -82,13 +82,13 @@
 //	      ┌────────────────┼────────────────┐
 //	      │                │                │
 //	      ▼                ▼                ▼
-//	 gogpu.App       gg.Context         gg.Scene
+//	     App       render.Context         render.Scene
 //	 (windowing)     (immediate)        (retained)
 //	      │                │                │
 //	      └────────────────┼────────────────┘
 //	                       │
 //	                       ▼
-//	               gg/render package
+//	                 render package
 //	      ┌────────────────┼────────────────┐
 //	      │                │                │
 //	      ▼                ▼                ▼
@@ -98,7 +98,7 @@
 //	      └────────────────┼────────────────┘
 //	                       │
 //	                       ▼
-//	               gg/core package
+//	                 core package
 //	               (CPU rasterization)
 //
 // # Thread Safety

@@ -307,11 +307,11 @@ func (eb *EdgeBuilder) BuildFromPath(path PathLike, transform Transform) {
 // ScenePathAdapter) that convertGGPathToCorePath would create.
 //
 // Parameters:
-//   - verbs: path verb bytes (gg.PathVerb values: 0=MoveTo, 1=LineTo, 2=QuadTo, 3=CubicTo, 4=Close)
+//   - verbs: path verb bytes (render.PathVerb values: 0=MoveTo, 1=LineTo, 2=QuadTo, 3=CubicTo, 4=Close)
 //   - coords: float64 coordinate pairs (x,y for each point)
 //
 // The verb values must match raster.PathVerb constants (MoveTo=0, LineTo=1, etc.).
-// Since gg.PathVerb is byte and raster.PathVerb is uint8, this is guaranteed.
+// Since render.PathVerb is byte and raster.PathVerb is uint8, this is guaranteed.
 func (eb *EdgeBuilder) BuildFromPathF64(verbs []byte, coords []float64) {
 	if len(verbs) == 0 {
 		return

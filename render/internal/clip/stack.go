@@ -212,7 +212,7 @@ func (cs *ClipStack) Coverage(x, y float64) byte {
 
 // rrectSDF computes the signed distance from point (px, py) to the rounded
 // rectangle defined by rr. Negative values are inside, positive outside.
-// Uses the same formula as gg.sdfRRect (Inigo Quilez box SDF).
+// Uses the same formula as render.sdfRRect (Inigo Quilez box SDF).
 func rrectSDF(px, py float64, rr *RRectClip) float64 {
 	cx := rr.Rect.X + rr.Rect.W/2
 	cy := rr.Rect.Y + rr.Rect.H/2

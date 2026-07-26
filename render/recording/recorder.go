@@ -6,7 +6,7 @@ import (
 )
 
 // Recorder captures drawing operations as commands.
-// It mirrors the gg.Context drawing API but generates commands
+// It mirrors the render.Context drawing API but generates commands
 // instead of rasterizing pixels. Use FinishRecording to obtain
 // an immutable Recording that can be replayed to different backends.
 //

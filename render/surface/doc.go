@@ -64,9 +64,9 @@
 //	// Get the result
 //	img := s.Snapshot()
 //
-// # Integration with gg.Context
+// # Integration with render.Context
 //
-// The surface package is designed to integrate with gg.Context (see INT-001).
+// The surface package is designed to integrate with render.Context (see INT-001).
 // Context will use Surface as its rendering target, allowing backend switching.
 //
 // # References

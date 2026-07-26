@@ -1,4 +1,4 @@
-// Package recording provides a command-based drawing recording system for gg.
+// Package recording provides a command-based drawing recording system for render.
 //
 // The recording system captures drawing operations as commands that can be
 // played back to different backends, enabling vector export (PDF, SVG) and
@@ -110,8 +110,8 @@
 // Example gradient usage:
 //
 //	grad := recording.NewLinearGradientBrush(0, 0, 200, 200).
-//	    AddColorStop(0, gg.RGBA{R: 1, G: 0, B: 0, A: 1}).
-//	    AddColorStop(1, gg.RGBA{R: 0, G: 0, B: 1, A: 1})
+//	    AddColorStop(0, render.RGBA{R: 1, G: 0, B: 0, A: 1}).
+//	    AddColorStop(1, render.RGBA{R: 0, G: 0, B: 1, A: 1})
 //
 //	rec.SetFillStyle(grad)
 //	rec.Fill()
@@ -126,10 +126,10 @@
 //	    Save()
 //	    Restore()
 //	    SetTransform(m Matrix)
-//	    SetClip(path *gg.Path, rule FillRule)
+//	    SetClip(path *render.Path, rule FillRule)
 //	    ClearClip()
-//	    FillPath(path *gg.Path, brush Brush, rule FillRule)
-//	    StrokePath(path *gg.Path, brush Brush, stroke Stroke)
+//	    FillPath(path *render.Path, brush Brush, rule FillRule)
+//	    StrokePath(path *render.Path, brush Brush, stroke Stroke)
 //	    FillRect(rect Rect, brush Brush)
 //	    DrawImage(img image.Image, src, dst Rect, opts ImageOptions)
 //	    DrawText(s string, x, y float64, face text.Face, brush Brush)
@@ -157,6 +157,6 @@
 //   - Efficient resource deduplication via pooling
 //   - Fast playback with direct command dispatch
 //
-// For real-time rendering, prefer direct gg.Context usage. Use recording
+// For real-time rendering, prefer direct render.Context usage. Use recording
 // when you need vector export or command inspection.
 package recording

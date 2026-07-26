@@ -141,7 +141,7 @@ type DeviceProviderAware interface {
 
 // GPURenderContextProvider is an optional interface for accelerators that
 // support per-context GPU rendering. When the accelerator implements this
-// interface, each gg.Context lazily creates its own GPURenderContext for
+// interface, each render.Context lazily creates its own GPURenderContext for
 // isolated pending command queues, clip state, and frame tracking.
 //
 // This follows the Skia GrContext pattern: shared device/pipelines/atlas,
@@ -149,7 +149,7 @@ type DeviceProviderAware interface {
 // render context (backward compatible, single-context behavior).
 type GPURenderContextProvider interface {
 	// NewGPURenderContext creates a new per-context GPU render context.
-	// The returned value should be stored on the gg.Context and closed
+	// The returned value should be stored on the render.Context and closed
 	// when the Context is closed.
 	NewGPURenderContext() any
 }
@@ -263,7 +263,7 @@ var (
 // Typical usage via blank import in GPU backend packages:
 //
 //	func init() {
-//	    gg.RegisterAccelerator(NewWGPUAccelerator())
+//	    render.RegisterAccelerator(NewWGPUAccelerator())
 //	}
 func RegisterAccelerator(a GPUAccelerator) error {
 	if a == nil {
@@ -305,7 +305,7 @@ func Accelerator() GPUAccelerator {
 //
 // Example:
 //
-//	defer gg.CloseAccelerator()
+//	defer render.CloseAccelerator()
 func CloseAccelerator() {
 	accelMu.Lock()
 	a := accel

@@ -19,7 +19,7 @@ func flushCubics(lines []tilecompute.LineSoup, cubics []tilecompute.CubicBezier)
 	return lines
 }
 
-// convertPathToPathDef converts a gg.Path with paint info to a tilecompute.PathDef.
+// convertPathToPathDef converts a render.Path with paint info to a tilecompute.PathDef.
 // It iterates path elements, flattens curves using Euler spiral subdivision,
 // and extracts color and fill rule from the paint.
 //
@@ -139,7 +139,7 @@ func clampU8(v float64) uint8 {
 	return uint8(x)
 }
 
-// convertPathVerbsToStroke converts gg.PathVerb slice to stroke.PathVerb slice.
+// convertPathVerbsToStroke converts render.PathVerb slice to stroke.PathVerb slice.
 // Both types have identical byte values.
 func convertPathVerbsToStroke(verbs []render.PathVerb) []stroke.PathVerb {
 	result := make([]stroke.PathVerb, len(verbs))
@@ -149,7 +149,7 @@ func convertPathVerbsToStroke(verbs []render.PathVerb) []stroke.PathVerb {
 	return result
 }
 
-// strokeResultToPath converts stroke output (verbs+coords) back to gg.Path.
+// strokeResultToPath converts stroke output (verbs+coords) back to render.Path.
 func strokeResultToPath(verbs []stroke.PathVerb, coords []float64) *render.Path {
 	p := render.NewPath()
 	ci := 0
@@ -175,7 +175,7 @@ func strokeResultToPath(verbs []stroke.PathVerb, coords []float64) *render.Path 
 }
 
 // convertShapeToPathDef converts a detected shape (circle, rect, rrect, ellipse)
-// to a tilecompute.PathDef by building a gg.Path and then converting it.
+// to a tilecompute.PathDef by building a render.Path and then converting it.
 func convertShapeToPathDef(shape render.DetectedShape, paint *render.Paint) tilecompute.PathDef {
 	path := render.NewPath()
 

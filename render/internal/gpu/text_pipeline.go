@@ -809,7 +809,7 @@ func (p *TextPipeline) IsInitialized() bool {
 //   - quads: Text quads to render (position and UV for each glyph)
 //   - atlasIndex: Index of the MSDF atlas texture to use
 //   - color: Text color (RGBA, will be premultiplied)
-//   - transform: 2D affine transform matrix (gg.Matrix)
+//   - transform: 2D affine transform matrix (render.Matrix)
 func (p *TextPipeline) RenderText(
 	_ *RenderPass,
 	quads []TextQuad,

@@ -1,8 +1,8 @@
-// Package gg provides a simple 2D graphics library for Go.
+// Package render provides a simple 2D graphics library for Go.
 //
 // # Overview
 //
-// gg is a Pure Go 2D graphics library inspired by fogleman/gg and designed
+// render is a Pure Go 2D graphics library inspired by fogleman/gg and designed
 // to integrate with the GoGPU ecosystem. It provides an immediate-mode drawing
 // API similar to HTML Canvas, with both software and GPU rendering backends.
 //
@@ -11,7 +11,7 @@
 //	import "github.com/energye/gpui/render"
 //
 //	// Create a drawing context (dc = drawing context convention)
-//	dc := gg.NewContext(512, 512)
+//	dc := render.NewContext(512, 512)
 //
 //	// Draw shapes
 //	dc.SetRGB(1, 0, 0)
@@ -24,7 +24,7 @@
 // # API Compatibility
 //
 // The API is designed to be compatible with fogleman/gg for easy migration.
-// Most fogleman/gg code should work with minimal changes.
+// Most fogleman/gg code should work with minimal changes (package name render).
 //
 // # Renderers
 //

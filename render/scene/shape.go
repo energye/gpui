@@ -331,8 +331,8 @@ func NewPathShape(path *Path) *PathShape {
 	return &PathShape{path: path}
 }
 
-// NewGGPathShape creates a PathShape from a gg.Path (float64 → float32 conversion).
-// Use this when working with paths from gg APIs (e.g., gg.ParseSVGPath).
+// NewGGPathShape creates a PathShape from a render.Path (float64 → float32 conversion).
+// Use this when working with paths from gg APIs (e.g., render.ParseSVGPath).
 func NewGGPathShape(ggPath *render.Path) *PathShape {
 	if ggPath == nil || ggPath.NumVerbs() == 0 {
 		return &PathShape{path: NewPath()}

@@ -28,7 +28,7 @@ const (
 //
 // Usage:
 //
-//	gg.RegisterAccelerator(&gg.SDFAccelerator{})
+//	render.RegisterAccelerator(&render.SDFAccelerator{})
 type SDFAccelerator struct {
 	forceSDF bool // bypass sdfMinSize check for RasterizerSDF mode
 }

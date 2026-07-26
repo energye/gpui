@@ -13,7 +13,7 @@ type renderState struct {
 	parentStroke  string      // inherited stroke from parent <g>
 }
 
-// renderElements renders a list of elements into the given gg.Context.
+// renderElements renders a list of elements into the given render.Context.
 func renderElements(dc *render.Context, elements []Element, state *renderState) {
 	for _, elem := range elements {
 		renderElement(dc, elem, state)

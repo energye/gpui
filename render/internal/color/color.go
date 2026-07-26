@@ -1,4 +1,4 @@
-// Package color provides color space types and conversions for gg.
+// Package color provides color space types and conversions for render.
 package color
 
 // ColorF32 represents a color with float32 components in [0,1].

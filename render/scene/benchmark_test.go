@@ -286,7 +286,7 @@ func BenchmarkLayerCache_PutGet(b *testing.B) {
 func BenchmarkEncoding_EncodePath(b *testing.B) {
 	enc := NewEncoding()
 
-	// Create gg.Path for encoding
+	// Create render.Path for encoding
 	ggPath := render.NewPath()
 	ggPath.MoveTo(0, 0)
 	ggPath.LineTo(100, 0)

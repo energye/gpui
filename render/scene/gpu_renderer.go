@@ -8,7 +8,7 @@ import (
 )
 
 // GPUSceneRenderer provides GPU-accelerated scene rendering by decoding
-// scene commands into gg.Context draw calls. The gg.Context handles
+// scene commands into render.Context draw calls. The render.Context handles
 // GPU/CPU dispatch automatically via its accelerator system.
 //
 // This follows the Vello pattern: scene encoding is stateless, and
@@ -29,13 +29,13 @@ type GPUSceneRenderer struct {
 }
 
 // NewGPUSceneRenderer creates a GPU scene renderer that renders through
-// the given gg.Context. The context's GPU accelerator (if registered)
+// the given render.Context. The context's GPU accelerator (if registered)
 // will handle shape rendering; CPU fallback is automatic.
 func NewGPUSceneRenderer(dc *render.Context) *GPUSceneRenderer {
 	return &GPUSceneRenderer{dc: dc}
 }
 
-// RenderScene decodes scene commands and renders them through the gg.Context.
+// RenderScene decodes scene commands and renders them through the render.Context.
 // The decoder walks the binary encoding tag-by-tag, building paths and
 // dispatching fill/stroke calls that route through the GPU accelerator.
 //
@@ -163,7 +163,7 @@ func (r *GPUSceneRenderer) RenderScene(scene *Scene) error { //nolint:gocyclo,cy
 
 		case TagPushLayer:
 			blend, alpha := dec.PushLayer()
-			dc.PushLayer(render.BlendMode(blend), float64(alpha))
+			dc.PushLayer(blend.ToPaintBlendMode(), float64(alpha))
 
 		case TagPopLayer:
 			dc.PopLayer()
@@ -294,7 +294,7 @@ func (r *GPUSceneRenderer) resolveImage(scene *Scene, imageIndex uint32, transfo
 	})
 }
 
-// applySceneBrush sets the gg.Context color from a scene.Brush.
+// applySceneBrush sets the render.Context color from a scene.Brush.
 func applySceneBrush(dc *render.Context, brush Brush) {
 	if brush.Kind == BrushSolid {
 		dc.SetRGBA(brush.Color.R, brush.Color.G, brush.Color.B, brush.Color.A)

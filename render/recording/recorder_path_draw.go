@@ -658,7 +658,7 @@ func recorderSplitLines(s string) []string {
 // --------------------------------------------------------------------------
 
 // Clear resets the entire canvas to transparent (zero alpha),
-// matching [gg.Context.Clear] semantics. To fill with a specific
+// matching [render.Context.Clear] semantics. To fill with a specific
 // background color, use [Recorder.ClearWithColor].
 func (r *Recorder) Clear() {
 	r.ClearWithColor(render.Transparent)

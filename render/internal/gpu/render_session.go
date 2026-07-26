@@ -20,7 +20,7 @@ import (
 // diagnose text quality issues downstream of the (verified-correct) masks.
 var glyphMaskDebugCount int
 
-// gg.Matrix convention (see makeGlyphMaskUniform): x' = A*x + B*y + C,
+// render.Matrix convention (see makeGlyphMaskUniform): x' = A*x + B*y + C,
 // y' = D*x + E*y + F. A,E carry scale; C,F carry translation.
 func glyphMaskDebugLog(viewportW, viewportH, batchIdx int, b GlyphMaskBatch) {
 	if glyphMaskDebugCount >= 20 {
@@ -212,7 +212,7 @@ const (
 //
 // The session supports two render modes:
 //   - Offscreen (default): renders to an internal resolve texture, then reads
-//     back pixels to CPU via staging buffer. Used for standalone gg.
+//     back pixels to CPU via staging buffer. Used for standalone render.
 //   - Surface: renders directly to a caller-provided surface texture view.
 //     No readback occurs. Used when gg runs inside gogpu (ggcanvas).
 //
@@ -478,7 +478,7 @@ type GPURenderSession struct {
 	antiAlias bool
 
 	// lastView tracks the most recent per-pass view used for rendering.
-	// When the view changes between Flush calls (e.g., two gg.Context
+	// When the view changes between Flush calls (e.g., two render.Context
 	// instances rendering to different targets), frameRendered is reset
 	// so the new view gets a LoadOpClear on its first render pass.
 	lastView *webgpu.TextureView
@@ -4343,7 +4343,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	}()
 
 	// Per-view frame tracking: when the view changes between flushes
-	// (e.g., two gg.Context instances rendering to different targets),
+	// (e.g., two render.Context instances rendering to different targets),
 	// reset frameRendered so the new view gets LoadOpClear on its first
 	// pass. This prevents shapes from one Context leaking into another.
 	if view != s.lastView {

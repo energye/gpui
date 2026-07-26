@@ -61,7 +61,7 @@ func (s gpuRenderStrategy) String() string {
 	}
 }
 
-// GPUShared holds GPU resources that are shared across all gg.Context instances.
+// GPUShared holds GPU resources that are shared across all render.Context instances.
 // This includes the device, queue, pipelines, and atlas engines — expensive to
 // create, immutable or append-only after initialization.
 //
@@ -70,7 +70,7 @@ func (s gpuRenderStrategy) String() string {
 // shared device + pipelines + glyph atlas, per-context pending commands.
 //
 // GPUShared is created once per application via RegisterAccelerator and
-// accessed by all gg.Context instances through the global singleton.
+// accessed by all render.Context instances through the global singleton.
 type GPUShared struct {
 	mu sync.Mutex
 
@@ -159,7 +159,7 @@ func NewGPUShared() *GPUShared {
 }
 
 // NewRenderContext creates a new per-context GPU render context that references
-// this shared resource holder. Each gg.Context should have its own
+// this shared resource holder. Each render.Context should have its own
 // GPURenderContext for isolated pending command queues and frame tracking.
 func (s *GPUShared) NewRenderContext() *GPURenderContext {
 	// GPU initialization is deferred to first Flush() or SetDeviceProvider().

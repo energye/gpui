@@ -1,5 +1,5 @@
 // Package raster provides a raster backend for the recording system.
-// It renders recordings to pixel images using gg.Context.
+// It renders recordings to pixel images using render.Context.
 //
 // The raster backend serves multiple purposes:
 //   - Architecture validation for the recording system
@@ -19,7 +19,7 @@
 // # Limitations
 //
 // Gradient brushes (linear, radial, sweep) are correctly translated to gg
-// brush types, but the underlying gg.SoftwareRenderer currently only supports
+// brush types, but the underlying render.SoftwareRenderer currently only supports
 // solid colors. Gradients will render as black until the gg library implements
 // gradient support in its software renderer.
 //
@@ -58,7 +58,7 @@ func init() {
 	})
 }
 
-// Backend renders recordings to a pixel image using gg.Context.
+// Backend renders recordings to a pixel image using render.Context.
 // It implements recording.Backend, recording.WriterBackend,
 // recording.FileBackend, and recording.PixmapBackend interfaces.
 type Backend struct {
@@ -108,7 +108,7 @@ func (b *Backend) Restore() {
 
 // SetTransform sets the current transformation matrix.
 func (b *Backend) SetTransform(m recording.Matrix) {
-	// Convert recording.Matrix to gg.Matrix
+	// Convert recording.Matrix to render.Matrix
 	b.ctx.SetTransform(render.Matrix{
 		A: m.A, B: m.B, C: m.C,
 		D: m.D, E: m.E, F: m.F,
@@ -125,13 +125,13 @@ func (b *Backend) SetClip(path *render.Path, rule recording.FillRule) {
 	b.ctx.ClearPath()
 	b.setPathFromElements(path)
 	b.ctx.SetFillRule(convertFillRule(rule))
-	// Note: gg.Context doesn't have a direct Clip method, so we use ClipPreserve behavior
+	// Note: render.Context doesn't have a direct Clip method, so we use ClipPreserve behavior
 	// by setting path and letting fill/stroke respect it
 }
 
 // ClearClip removes any clipping region.
 func (b *Backend) ClearClip() {
-	// gg.Context doesn't expose ResetClip directly
+	// render.Context doesn't expose ResetClip directly
 	// We handle this by pushing/popping state around clip operations
 }
 
@@ -201,7 +201,7 @@ func (b *Backend) DrawImage(img image.Image, src, dst recording.Rect, _ recordin
 	b.ctx.Translate(-src.MinX, -src.MinY)
 
 	// Draw the image at origin (transform handles positioning)
-	// Note: gg.Context.DrawImage takes int coordinates
+	// Note: render.Context.DrawImage takes int coordinates
 	// We need to handle the source rect cropping if specified
 	// For now, draw the full image and let the transform handle it
 	bounds := img.Bounds()
@@ -213,13 +213,13 @@ func (b *Backend) DrawImage(img image.Image, src, dst recording.Rect, _ recordin
 
 // DrawText draws text at the given position with the specified font face and brush.
 // Note: Text rendering is not fully implemented in this backend.
-// gg.Context doesn't have SetFontFace with text.Face interface.
+// render.Context doesn't have SetFontFace with text.Face interface.
 // A full implementation would need font handling integration.
 func (b *Backend) DrawText(_ string, _, _ float64, _ text.Face, brush recording.Brush) {
 	// Apply brush for text color
 	b.applyBrush(brush, true)
 
-	// TODO: Implement text rendering when gg.Context supports text.Face
+	// TODO: Implement text rendering when render.Context supports text.Face
 	// For now, we only apply the brush but don't render text
 }
 
@@ -237,7 +237,7 @@ func (b *Backend) SaveToFile(path string) error {
 
 // Pixmap returns the rendered pixmap.
 func (b *Backend) Pixmap() *render.Pixmap {
-	// gg.Context doesn't expose Pixmap directly
+	// render.Context doesn't expose Pixmap directly
 	// We need to convert from image
 	img := b.ctx.Image()
 	return render.FromImage(img)
@@ -378,7 +378,7 @@ func (b *Backend) applyStroke(stroke recording.Stroke) {
 	}
 }
 
-// convertFillRule converts recording.FillRule to gg.FillRule.
+// convertFillRule converts recording.FillRule to render.FillRule.
 func convertFillRule(rule recording.FillRule) render.FillRule {
 	switch rule {
 	case recording.FillRuleEvenOdd:
@@ -388,7 +388,7 @@ func convertFillRule(rule recording.FillRule) render.FillRule {
 	}
 }
 
-// convertLineCap converts recording.LineCap to gg.LineCap.
+// convertLineCap converts recording.LineCap to render.LineCap.
 func convertLineCap(lineCap recording.LineCap) render.LineCap {
 	switch lineCap {
 	case recording.LineCapRound:
@@ -400,7 +400,7 @@ func convertLineCap(lineCap recording.LineCap) render.LineCap {
 	}
 }
 
-// convertLineJoin converts recording.LineJoin to gg.LineJoin.
+// convertLineJoin converts recording.LineJoin to render.LineJoin.
 func convertLineJoin(join recording.LineJoin) render.LineJoin {
 	switch join {
 	case recording.LineJoinRound:

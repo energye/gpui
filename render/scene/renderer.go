@@ -16,12 +16,12 @@ import (
 // SoftwareRenderers, Pixmaps, Decoders, Paths, Paints, and clip masks are
 // expensive to allocate, so we reuse them across tiles and frames via sync.Pool.
 type tilePool struct {
-	renderers  sync.Pool // *gg.SoftwareRenderer
-	pixmaps    sync.Pool // *gg.Pixmap
+	renderers  sync.Pool // *render.SoftwareRenderer
+	pixmaps    sync.Pool // *render.Pixmap
 	decoders   sync.Pool // *Decoder
 	scenePaths sync.Pool // *Path (scene.Path for decode loop)
-	ggPaths    sync.Pool // *gg.Path (for convertPath)
-	fillPaints sync.Pool // *gg.Paint (for convertFillPaint)
+	ggPaths    sync.Pool // *render.Path (for convertPath)
+	fillPaints sync.Pool // *render.Paint (for convertFillPaint)
 	clipMasks  sync.Pool // *[]byte (for clip mask buffers)
 }
 
@@ -88,7 +88,7 @@ func (p *tilePool) putScenePath(sp *Path) {
 	p.scenePaths.Put(sp)
 }
 
-// getGGPath returns a gg.Path from the pool, cleared for reuse.
+// getGGPath returns a render.Path from the pool, cleared for reuse.
 func (p *tilePool) getGGPath() *render.Path {
 	if v := p.ggPaths.Get(); v != nil {
 		gp := v.(*render.Path)
@@ -98,7 +98,7 @@ func (p *tilePool) getGGPath() *render.Path {
 	return render.NewPath()
 }
 
-// putGGPath returns a gg.Path to the pool for reuse.
+// putGGPath returns a render.Path to the pool for reuse.
 func (p *tilePool) putGGPath(gp *render.Path) {
 	p.ggPaths.Put(gp)
 }
@@ -268,7 +268,7 @@ func NewRenderer(width, height int, opts ...RendererOption) *Renderer {
 }
 
 // renderGPU renders the scene through the GPU accelerator via GPUSceneRenderer.
-// Creates a temporary gg.Context backed by the target pixmap, renders the scene
+// Creates a temporary render.Context backed by the target pixmap, renders the scene
 // through it (GPU shapes → FlushGPU → readback to pixmap), returns nil on success.
 func (r *Renderer) renderGPU(target *render.Pixmap, scene *Scene) error {
 	dc := render.NewContextForPixmap(target)
@@ -310,8 +310,8 @@ func (r *Renderer) RenderWithContext(ctx context.Context, target *render.Pixmap,
 	}
 
 	// GPU fast path: if a GPU accelerator is registered, render through
-	// GPUSceneRenderer which decodes scene commands into gg.Context GPU calls.
-	// The gg.Context handles GPU→CPU fallback automatically per-shape.
+	// GPUSceneRenderer which decodes scene commands into render.Context GPU calls.
+	// The render.Context handles GPU→CPU fallback automatically per-shape.
 	if render.Accelerator() != nil {
 		if err := r.renderGPU(target, scene); err == nil {
 			return nil
@@ -590,7 +590,7 @@ func (r *Renderer) renderTile(tile *parallel.Tile, enc *Encoding, _ *render.Pixm
 	sr := r.pool.getRenderer(tileW, tileH)
 	dec := r.pool.getDecoder(enc)
 
-	// Render commands using gg.SoftwareRenderer
+	// Render commands using render.SoftwareRenderer
 	r.executeEncodingOnTile(dec, tile, pm, sr, images)
 
 	// Copy rendered pixmap data into the tile buffer.
@@ -615,7 +615,7 @@ type tileClipState struct {
 }
 
 // executeEncodingOnTile executes encoding commands on a single tile, delegating
-// rasterization to gg.SoftwareRenderer for analytic anti-aliased output.
+// rasterization to render.SoftwareRenderer for analytic anti-aliased output.
 //
 //nolint:gocyclo,cyclop,gocognit,funlen // Command interpreter with multiple cases is inherently complex
 func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *render.Pixmap, sr *render.SoftwareRenderer, images []*Image) { //nolint:maintidx // tag dispatch across all scene command types
@@ -635,7 +635,7 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 	// clipStack tracks nested clip states for BeginClip/EndClip pairs.
 	var clipStack []tileClipState
 
-	// Reusable gg.Path for convertPath — avoids per-fill/stroke allocation.
+	// Reusable render.Path for convertPath — avoids per-fill/stroke allocation.
 	ggPath := r.pool.getGGPath()
 	defer r.pool.putGGPath(ggPath)
 
@@ -1182,7 +1182,7 @@ func blitImageToTile(img *Image, transform Affine, tileX, tileY int, pm *render.
 }
 
 // convertPathInto converts a scene.Path (float32, canvas space) into an existing
-// gg.Path (float64, tile-local space), avoiding allocation. The gg.Path is cleared
+// render.Path (float64, tile-local space), avoiding allocation. The render.Path is cleared
 // first, then populated with the scene path data offset by the tile origin.
 func convertPathInto(scenePath *Path, tileOffsetX, tileOffsetY int, p *render.Path) {
 	p.Clear()
@@ -1232,7 +1232,7 @@ func resetFillPaint(paint *render.Paint, brush Brush, style FillStyle) {
 	paint.Stroke = nil
 }
 
-// convertPath converts a scene.Path to a new gg.Path. This allocates a new gg.Path
+// convertPath converts a scene.Path to a new render.Path. This allocates a new render.Path
 // and is kept for compatibility. The renderer hot path uses convertPathInto instead.
 func convertPath(scenePath *Path, tileOffsetX, tileOffsetY int) *render.Path {
 	p := render.NewPath()
@@ -1240,7 +1240,7 @@ func convertPath(scenePath *Path, tileOffsetX, tileOffsetY int) *render.Path {
 	return p
 }
 
-// convertFillPaint converts a scene.Brush and FillStyle to a new gg.Paint.
+// convertFillPaint converts a scene.Brush and FillStyle to a new render.Paint.
 // This allocates a new Paint and is kept for compatibility. The renderer hot path
 // uses resetFillPaint instead.
 func convertFillPaint(brush Brush, style FillStyle) *render.Paint {
@@ -1258,8 +1258,8 @@ func extractAlphaMask(pm *render.Pixmap) []byte {
 	return mask
 }
 
-// convertStrokePaint converts a scene.Brush and StrokeStyle to a gg.Paint
-// suitable for gg.SoftwareRenderer.Stroke.
+// convertStrokePaint converts a scene.Brush and StrokeStyle to a render.Paint
+// suitable for render.SoftwareRenderer.Stroke.
 func convertStrokePaint(brush Brush, style *StrokeStyle) *render.Paint {
 	if style == nil {
 		style = DefaultStrokeStyle()
@@ -1270,7 +1270,7 @@ func convertStrokePaint(brush Brush, style *StrokeStyle) *render.Paint {
 		paint.SetBrush(render.Solid(brush.Color))
 	}
 
-	// Build a gg.Stroke using the non-deprecated API
+	// Build a render.Stroke using the non-deprecated API
 	s := render.Stroke{
 		Width:      float64(style.Width),
 		MiterLimit: float64(style.MiterLimit),

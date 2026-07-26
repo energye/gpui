@@ -355,7 +355,7 @@ func (a Affine) IsIdentity() bool {
 		a.D == 0 && a.E == 1 && a.F == 0
 }
 
-// AffineFromMatrix converts a gg.Matrix to an Affine.
+// AffineFromMatrix converts a render.Matrix to an Affine.
 func AffineFromMatrix(m render.Matrix) Affine {
 	return Affine{
 		A: float32(m.A),
@@ -491,12 +491,12 @@ func (e *Encoding) EncodeTransform(t Affine) {
 	e.transforms = append(e.transforms, t)
 }
 
-// EncodeTransformFromMatrix adds a transform from a gg.Matrix.
+// EncodeTransformFromMatrix adds a transform from a render.Matrix.
 func (e *Encoding) EncodeTransformFromMatrix(m render.Matrix) {
 	e.EncodeTransform(AffineFromMatrix(m))
 }
 
-// EncodePath encodes a complete path from a gg.Path.
+// EncodePath encodes a complete path from a render.Path.
 func (e *Encoding) EncodePath(p *render.Path) {
 	if p == nil {
 		return

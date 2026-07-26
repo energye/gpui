@@ -14,11 +14,11 @@ package render
 // Example usage:
 //
 //	// Using convenience constructors
-//	ctx.SetFillBrush(gg.Solid(gg.Red))
-//	ctx.SetStrokeBrush(gg.SolidRGB(0.5, 0.5, 0.5))
+//	ctx.SetFillBrush(render.Solid(render.Red))
+//	ctx.SetStrokeBrush(render.SolidRGB(0.5, 0.5, 0.5))
 //
 //	// Using hex colors
-//	brush := gg.SolidHex("#FF5733")
+//	brush := render.SolidHex("#FF5733")
 type Brush interface {
 	// brushMarker is an unexported method that seals this interface.
 	// Only types in this package can implement Brush.
@@ -49,8 +49,8 @@ func (b SolidBrush) ColorAt(_, _ float64) RGBA {
 //
 // Example:
 //
-//	brush := gg.Solid(gg.Red)
-//	brush := gg.Solid(gg.RGBA{R: 1, G: 0, B: 0, A: 1})
+//	brush := render.Solid(render.Red)
+//	brush := render.Solid(render.RGBA{R: 1, G: 0, B: 0, A: 1})
 func Solid(c RGBA) SolidBrush {
 	return SolidBrush{Color: c}
 }
@@ -60,8 +60,8 @@ func Solid(c RGBA) SolidBrush {
 //
 // Example:
 //
-//	brush := gg.SolidRGB(1, 0, 0) // Red
-//	brush := gg.SolidRGB(0.5, 0.5, 0.5) // Gray
+//	brush := render.SolidRGB(1, 0, 0) // Red
+//	brush := render.SolidRGB(0.5, 0.5, 0.5) // Gray
 func SolidRGB(r, g, b float64) SolidBrush {
 	return SolidBrush{Color: RGB(r, g, b)}
 }
@@ -70,7 +70,7 @@ func SolidRGB(r, g, b float64) SolidBrush {
 //
 // Example:
 //
-//	brush := gg.SolidRGBA(1, 0, 0, 0.5) // Semi-transparent red
+//	brush := render.SolidRGBA(1, 0, 0, 0.5) // Semi-transparent red
 func SolidRGBA(r, g, b, a float64) SolidBrush {
 	return SolidBrush{Color: RGBA2(r, g, b, a)}
 }
@@ -80,9 +80,9 @@ func SolidRGBA(r, g, b, a float64) SolidBrush {
 //
 // Example:
 //
-//	brush := gg.SolidHex("#FF5733")
-//	brush := gg.SolidHex("FF5733")
-//	brush := gg.SolidHex("#F53")
+//	brush := render.SolidHex("#FF5733")
+//	brush := render.SolidHex("FF5733")
+//	brush := render.SolidHex("#F53")
 func SolidHex(hex string) SolidBrush {
 	return SolidBrush{Color: Hex(hex)}
 }
@@ -92,7 +92,7 @@ func SolidHex(hex string) SolidBrush {
 //
 // Example:
 //
-//	opaqueBrush := gg.Solid(gg.Red)
+//	opaqueBrush := render.Solid(render.Red)
 //	semiBrush := opaqueBrush.WithAlpha(0.5)
 func (b SolidBrush) WithAlpha(alpha float64) SolidBrush {
 	return SolidBrush{
@@ -120,8 +120,8 @@ func (b SolidBrush) Transparent() SolidBrush {
 //
 // Example:
 //
-//	red := gg.Solid(gg.Red)
-//	blue := gg.Solid(gg.Blue)
+//	red := render.Solid(render.Red)
+//	blue := render.Solid(render.Blue)
 //	purple := red.Lerp(blue, 0.5)
 func (b SolidBrush) Lerp(other SolidBrush, t float64) SolidBrush {
 	return SolidBrush{Color: b.Color.Lerp(other.Color, t)}

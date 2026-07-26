@@ -1,7 +1,7 @@
 // Copyright 2026 The gogpu Authors
 // SPDX-License-Identifier: MIT
 
-// Package raster provides CPU-based rasterization primitives for gg.
+// Package raster provides CPU-based rasterization primitives for render.
 //
 // This package contains the core algorithms for scanline conversion,
 // edge processing, and anti-aliased filling. It is independent of any

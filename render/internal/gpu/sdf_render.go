@@ -723,7 +723,7 @@ type SDFRenderShape struct {
 	ColorA     float32 // Premultiplied alpha.
 }
 
-// DetectedShapeToRenderShape converts a gg.DetectedShape and paint into an
+// DetectedShapeToRenderShape converts a render.DetectedShape and paint into an
 // SDFRenderShape ready for the render pipeline.
 func DetectedShapeToRenderShape(shape render.DetectedShape, paint *render.Paint, stroked bool) (SDFRenderShape, bool) {
 	var rs SDFRenderShape

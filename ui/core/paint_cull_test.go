@@ -59,3 +59,53 @@ func (b *countingBox) Paint(pc *core.PaintContext) {
 	}
 	b.Box.Paint(pc)
 }
+
+// Deep PushClipLocal must keep updating advisory Clip past the old fixed depth of 6.
+func TestPushClipLocal_DeepNestingUpdatesClip(t *testing.T) {
+	pc := &core.PaintContext{
+		Clip:  core.NewRect(0, 0, 1000, 1000),
+		Scale: 1,
+	}
+	const depth = 12
+	for i := 0; i < depth; i++ {
+		// Shrink by 1px each side so the final clip is strictly nested.
+		pc.PushClipLocal(float64(i), float64(i), 1000-2*float64(i), 1000-2*float64(i))
+		if pc.ClipDepth() != i+1 {
+			t.Fatalf("depth after push %d: got %d", i+1, pc.ClipDepth())
+		}
+	}
+	want := core.NewRect(float64(depth-1), float64(depth-1), 1000-2*float64(depth-1), 1000-2*float64(depth-1))
+	// After depth nested clips from origin 0, Clip Min should be (depth-1, depth-1)
+	// only if each push used absolute origin 0 — PushClipLocal is origin-relative,
+	// and Origin stays 0, so successive local (i,i) are absolute (i,i). Intersect
+	// of [0,1000] ∩ [0,1000] ∩ [1,999] ∩ … ends at last rect when nested properly.
+	got := pc.Clip
+	if got.Min.X != want.Min.X || got.Min.Y != want.Min.Y {
+		t.Fatalf("deep clip Min=%v want %v (stale cull would keep earlier Min)", got.Min, want.Min)
+	}
+	if got.Width() != want.Width() || got.Height() != want.Height() {
+		t.Fatalf("deep clip size=%vx%v want %vx%v", got.Width(), got.Height(), want.Width(), want.Height())
+	}
+
+	// Child context must not share clip-stack backing with parent.
+	child := pc.WithOrigin(core.Point{X: 10, Y: 10})
+	child.PushClipLocal(0, 0, 50, 50)
+	if pc.ClipDepth() != depth {
+		t.Fatalf("parent depth mutated by child push: %d want %d", pc.ClipDepth(), depth)
+	}
+	child.Pop()
+	if child.ClipDepth() != depth {
+		t.Fatalf("child depth after pop: %d want %d", child.ClipDepth(), depth)
+	}
+
+	for i := depth; i > 0; i-- {
+		pc.Pop()
+	}
+	if pc.ClipDepth() != 0 {
+		t.Fatalf("depth after full pop: %d", pc.ClipDepth())
+	}
+	// Restored outermost saved clip was the initial 0,0,1000,1000.
+	if pc.Clip.Min.X != 0 || pc.Clip.Min.Y != 0 || pc.Clip.Width() != 1000 || pc.Clip.Height() != 1000 {
+		t.Fatalf("restored clip=%v want 1000x1000 at origin", pc.Clip)
+	}
+}

@@ -7,7 +7,7 @@ import (
 // Brush represents a fill/stroke style for recording commands.
 // This is a sealed interface - only types in this package implement it.
 //
-// Unlike gg.Brush which is designed for immediate-mode rendering with ColorAt,
+// Unlike render.Brush which is designed for immediate-mode rendering with ColorAt,
 // recording.Brush stores the brush definition for later playback to different
 // backends (raster, PDF, SVG).
 type Brush interface {
@@ -225,7 +225,7 @@ const (
 	RepeatNone
 )
 
-// BrushFromGG converts a gg.Brush to a recording.Brush.
+// BrushFromGG converts a render.Brush to a recording.Brush.
 // This extracts the brush definition for storage in a recording.
 func BrushFromGG(b render.Brush) Brush {
 	switch brush := b.(type) {
@@ -245,7 +245,7 @@ func BrushFromGG(b render.Brush) Brush {
 	}
 }
 
-// linearGradientFromGG converts a gg.LinearGradientBrush to recording.LinearGradientBrush.
+// linearGradientFromGG converts a render.LinearGradientBrush to recording.LinearGradientBrush.
 func linearGradientFromGG(g *render.LinearGradientBrush) *LinearGradientBrush {
 	stops := make([]GradientStop, len(g.Stops))
 	for i, stop := range g.Stops {
@@ -259,7 +259,7 @@ func linearGradientFromGG(g *render.LinearGradientBrush) *LinearGradientBrush {
 	}
 }
 
-// radialGradientFromGG converts a gg.RadialGradientBrush to recording.RadialGradientBrush.
+// radialGradientFromGG converts a render.RadialGradientBrush to recording.RadialGradientBrush.
 func radialGradientFromGG(g *render.RadialGradientBrush) *RadialGradientBrush {
 	stops := make([]GradientStop, len(g.Stops))
 	for i, stop := range g.Stops {
@@ -275,7 +275,7 @@ func radialGradientFromGG(g *render.RadialGradientBrush) *RadialGradientBrush {
 	}
 }
 
-// sweepGradientFromGG converts a gg.SweepGradientBrush to recording.SweepGradientBrush.
+// sweepGradientFromGG converts a render.SweepGradientBrush to recording.SweepGradientBrush.
 func sweepGradientFromGG(g *render.SweepGradientBrush) *SweepGradientBrush {
 	stops := make([]GradientStop, len(g.Stops))
 	for i, stop := range g.Stops {

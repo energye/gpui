@@ -61,10 +61,10 @@ const (
 	FormatBGRAPremul = intImage.FormatBGRAPremul
 )
 
-// BlendMode defines how source pixels are blended with destination pixels.
-type BlendMode = intImage.BlendMode
+// Paint-level BlendMode type lives in blendmode.go (alias of internal/image).
+// Constants are re-exported here next to DrawImage for discoverability.
 
-// Blend modes.
+// Blend modes (canonical paint API — see blendmode.go).
 const (
 	// BlendNormal performs standard alpha blending (source over destination).
 	BlendNormal = intImage.BlendNormal
@@ -178,7 +178,7 @@ func IsAdvancedBlendMode(mode BlendMode) bool {
 //
 // Example:
 //
-//	img, _ := gg.LoadImage("photo.png")
+//	img, _ := render.LoadImage("photo.png")
 //	dc.DrawImage(img, 100, 100)
 func (c *Context) DrawImage(img *ImageBuf, x, y float64) {
 	c.syncPublishedFilterBeforeDraw()
@@ -199,14 +199,14 @@ func (c *Context) DrawImage(img *ImageBuf, x, y float64) {
 //
 // Example:
 //
-//	dc.DrawImageEx(img, gg.DrawImageOptions{
+//	dc.DrawImageEx(img, render.DrawImageOptions{
 //	    X:             100,
 //	    Y:             100,
 //	    DstWidth:      200,
 //	    DstHeight:     150,
-//	    Interpolation: gg.InterpBicubic,
+//	    Interpolation: render.InterpBicubic,
 //	    Opacity:       0.8,
-//	    BlendMode:     gg.BlendNormal,
+//	    BlendMode:     render.BlendNormal,
 //	})
 func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	c.syncPublishedFilterBeforeDraw()
@@ -384,7 +384,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 //
 // Example:
 //
-//	img, _ := gg.LoadImage("texture.png")
+//	img, _ := render.LoadImage("texture.png")
 //	pattern := dc.CreateImagePattern(img, 0, 0, 100, 100)
 //	dc.SetFillPattern(pattern)
 //	dc.DrawRectangle(0, 0, 400, 300)

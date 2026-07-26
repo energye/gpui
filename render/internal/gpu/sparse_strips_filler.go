@@ -7,7 +7,7 @@ import (
 	"github.com/energye/gpui/render/scene"
 )
 
-// SparseStripsFiller implements gg.CoverageFiller using the SparseStrips
+// SparseStripsFiller implements render.CoverageFiller using the SparseStrips
 // rasterizer (4x4 tiles). This is the default filler, optimized for CPU
 // with SIMD-friendly tile sizes.
 type SparseStripsFiller struct{}
@@ -22,7 +22,7 @@ func (f *SparseStripsFiller) FillCoverage(
 		return
 	}
 
-	// 1. Convert gg.Path → scene.Path
+	// 1. Convert render.Path → scene.Path
 	scenePath := convertGGToScenePath(path)
 	if scenePath.IsEmpty() {
 		return
@@ -61,7 +61,7 @@ func (f *SparseStripsFiller) FillCoverage(
 	})
 }
 
-// convertGGToScenePath converts a gg.Path (float64) to a scene.Path (float32).
+// convertGGToScenePath converts a render.Path (float64) to a scene.Path (float32).
 func convertGGToScenePath(p *render.Path) *scene.Path {
 	sp := scene.NewPath()
 	p.Iterate(func(verb render.PathVerb, coords []float64) {
@@ -88,7 +88,7 @@ func convertGGToScenePath(p *render.Path) *scene.Path {
 	return sp
 }
 
-// convertToSceneFillRule converts gg.FillRule to scene.FillStyle.
+// convertToSceneFillRule converts render.FillRule to scene.FillStyle.
 func convertToSceneFillRule(rule render.FillRule) scene.FillStyle {
 	if rule == render.FillRuleEvenOdd {
 		return scene.FillEvenOdd

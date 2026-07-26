@@ -1,4 +1,4 @@
-// Package text provides text rendering for gg.
+// Package text provides text rendering for render.
 // It implements a modern text API inspired by Ebitengine text/v2.
 //
 // The text rendering pipeline follows a separation of concerns:
@@ -20,8 +20,8 @@
 //	// Create face at specific size (lightweight)
 //	face := source.Face(24)
 //
-//	// Use with gg.Context
-//	ctx := gg.NewContext(800, 600)
+//	// Use with render.Context
+//	ctx := render.NewContext(800, 600)
 //	ctx.SetFont(face)
 //	ctx.DrawString("Hello, GoGPU!", 100, 100)
 //

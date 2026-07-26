@@ -15,7 +15,7 @@ import (
 // and Chrome "Paint flashing" developer tools.
 //
 // Flash-and-fade effect (400ms): Android SurfaceFlinger doDebugFlashRegions pattern.
-// Draws via gg.Context (Fill/Stroke) — works on ALL backends (Vulkan/DX12/Metal/GLES/Software).
+// Draws via render.Context (Fill/Stroke) — works on ALL backends (Vulkan/DX12/Metal/GLES/Software).
 // Damage tracking suppressed during overlay draw to avoid self-inflating damage.
 //
 // Zero overhead when disabled — env var checked once at init.
@@ -78,7 +78,7 @@ func (s *damageOverlayState) update(rects []image.Rectangle) {
 	}
 }
 
-// drawAll renders green flash-and-fade overlay via gg.Context.
+// drawAll renders green flash-and-fade overlay via render.Context.
 // Works on all backends. Caller must SetDamageTracking(false) before calling.
 func (s *damageOverlayState) drawAll(cc *render.Context) {
 	now := time.Now()

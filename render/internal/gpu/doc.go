@@ -70,11 +70,11 @@
 // Build and render a scene:
 //
 //	builder := scene.NewSceneBuilder()
-//	builder.FillRect(0, 0, 800, 600, scene.SolidBrush(gg.White))
-//	builder.FillCircle(400, 300, 100, scene.SolidBrush(gg.Red))
+//	builder.FillRect(0, 0, 800, 600, scene.SolidBrush(render.White))
+//	builder.FillCircle(400, 300, 100, scene.SolidBrush(render.Red))
 //	s := builder.Build()
 //
-//	pm := gg.NewPixmap(800, 600)
+//	pm := render.NewPixmap(800, 600)
 //	if err := b.RenderScene(pm, s); err != nil {
 //	    log.Printf("Render error: %v", err)
 //	}

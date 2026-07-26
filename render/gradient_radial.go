@@ -14,15 +14,15 @@ import "math"
 // Example:
 //
 //	// Simple radial gradient
-//	gradient := gg.NewRadialGradientBrush(50, 50, 0, 50).
-//	    AddColorStop(0, gg.White).
-//	    AddColorStop(1, gg.Black)
+//	gradient := render.NewRadialGradientBrush(50, 50, 0, 50).
+//	    AddColorStop(0, render.White).
+//	    AddColorStop(1, render.Black)
 //
 //	// Focal gradient (spotlight effect)
-//	spotlight := gg.NewRadialGradientBrush(50, 50, 0, 50).
+//	spotlight := render.NewRadialGradientBrush(50, 50, 0, 50).
 //	    SetFocus(30, 30).
-//	    AddColorStop(0, gg.White).
-//	    AddColorStop(1, gg.Black)
+//	    AddColorStop(0, render.White).
+//	    AddColorStop(1, render.Black)
 type RadialGradientBrush struct {
 	Center      Point       // Center of the gradient circle
 	Focus       Point       // Focal point (can differ from center)

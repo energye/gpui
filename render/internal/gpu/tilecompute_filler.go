@@ -8,7 +8,7 @@ import (
 	"github.com/energye/gpui/render/scene"
 )
 
-// TileComputeFiller implements gg.CoverageFiller using the tilecompute
+// TileComputeFiller implements render.CoverageFiller using the tilecompute
 // rasterizer (16x16 tiles). This is an alternative filler optimized for
 // GPU workgroup-sized tiles.
 type TileComputeFiller struct{}
@@ -23,7 +23,7 @@ func (f *TileComputeFiller) FillCoverage(
 		return
 	}
 
-	// 1. Convert gg.Path → scene.Path → flatten → LineSoup
+	// 1. Convert render.Path → scene.Path → flatten → LineSoup
 	scenePath := convertGGToScenePath(path)
 	if scenePath.IsEmpty() {
 		return

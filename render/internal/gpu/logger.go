@@ -31,8 +31,8 @@ func init() {
 func slogger() *slog.Logger { return loggerPtr.Load() }
 
 // setLogger updates the package-level logger and propagates to the wgpu stack.
-// Called from SDFAccelerator.SetLogger when gg.SetLogger propagates.
-// This ensures a single gg.SetLogger() call enables logging across the
+// Called from SDFAccelerator.SetLogger when render.SetLogger propagates.
+// This ensures a single render.SetLogger() call enables logging across the
 // entire stack: gg → internal/gpu → wgpu → core → hal → GPU backends.
 func setLogger(l *slog.Logger) {
 	if l == nil {

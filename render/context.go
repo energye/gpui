@@ -220,13 +220,13 @@ var _ io.Closer = (*Context)(nil)
 // Optional ContextOption arguments can be used for dependency injection:
 //
 //	// Default software rendering (uses analytic anti-aliasing)
-//	dc := gg.NewContext(800, 600)
+//	dc := render.NewContext(800, 600)
 //
 //	// Custom GPU renderer (dependency injection)
-//	dc := gg.NewContext(800, 600, gg.WithRenderer(gpuRenderer))
+//	dc := render.NewContext(800, 600, render.WithRenderer(gpuRenderer))
 //
 //	// HiDPI/Retina rendering (logical 800x600, physical 1600x1200)
-//	dc := gg.NewContext(800, 600, gg.WithDeviceScale(2.0))
+//	dc := render.NewContext(800, 600, render.WithDeviceScale(2.0))
 //
 // When WithDeviceScale is used, the internal pixmap is allocated at physical
 // resolution (width*scale x height*scale) while Width/Height return the
@@ -349,14 +349,14 @@ func NewContextForImage(img image.Image, opts ...ContextOption) *Context {
 // NewContextWithScale creates a new drawing context with the given logical
 // dimensions and device scale factor. This is a convenience wrapper for:
 //
-//	gg.NewContext(w, h, gg.WithDeviceScale(scale))
+//	render.NewContext(w, h, render.WithDeviceScale(scale))
 //
 // The internal pixmap is allocated at physical resolution (w*scale x h*scale).
 // All drawing operations use logical coordinates (w x h).
 //
 // Example (macOS Retina 2x):
 //
-//	dc := gg.NewContextWithScale(800, 600, 2.0)
+//	dc := render.NewContextWithScale(800, 600, 2.0)
 //	dc.Width()      // 800 (logical)
 //	dc.PixelWidth() // 1600 (physical)
 //	dc.DrawCircle(400, 300, 100) // logical coordinates
@@ -889,9 +889,9 @@ func (c *Context) SetHexColor(hex string) {
 //
 // Example:
 //
-//	ctx.SetFillBrush(gg.Solid(gg.Red))
-//	ctx.SetFillBrush(gg.SolidHex("#FF5733"))
-//	ctx.SetFillBrush(gg.HorizontalGradient(gg.Red, gg.Blue, 0, 100))
+//	ctx.SetFillBrush(render.Solid(render.Red))
+//	ctx.SetFillBrush(render.SolidHex("#FF5733"))
+//	ctx.SetFillBrush(render.HorizontalGradient(render.Red, render.Blue, 0, 100))
 func (c *Context) SetFillBrush(b Brush) {
 	c.paint.SetBrush(b)
 }
@@ -902,8 +902,8 @@ func (c *Context) SetFillBrush(b Brush) {
 //
 // Example:
 //
-//	ctx.SetStrokeBrush(gg.Solid(gg.Black))
-//	ctx.SetStrokeBrush(gg.SolidRGB(0.5, 0.5, 0.5))
+//	ctx.SetStrokeBrush(render.Solid(render.Black))
+//	ctx.SetStrokeBrush(render.SolidRGB(0.5, 0.5, 0.5))
 func (c *Context) SetStrokeBrush(b Brush) {
 	c.paint.SetBrush(b)
 }
@@ -962,8 +962,8 @@ func (c *Context) SetMiterLimit(limit float64) {
 //
 // Example:
 //
-//	ctx.SetStroke(gg.DefaultStroke().WithWidth(2).WithCap(gg.LineCapRound))
-//	ctx.SetStroke(gg.DashedStroke(5, 3))
+//	ctx.SetStroke(render.DefaultStroke().WithWidth(2).WithCap(render.LineCapRound))
+//	ctx.SetStroke(render.DashedStroke(5, 3))
 func (c *Context) SetStroke(stroke Stroke) {
 	c.paint.SetStroke(stroke)
 }
@@ -1069,7 +1069,7 @@ func (c *Context) ClearPath() {
 // The path is copied — subsequent modifications to p do not affect the context.
 // Use this to render pre-built paths (e.g., from ParseSVGPath):
 //
-//	path, _ := gg.ParseSVGPath("M10,10 L90,10 L90,90 Z")
+//	path, _ := render.ParseSVGPath("M10,10 L90,10 L90,90 Z")
 //	dc.SetPath(path)
 //	dc.Fill()
 func (c *Context) SetPath(p *Path) {
@@ -1097,7 +1097,7 @@ func (c *Context) AppendPath(p *Path) {
 // This is the correct way to render pre-built paths (e.g., from ParseSVGPath)
 // with transforms:
 //
-//	path, _ := gg.ParseSVGPath("M10,10 L90,10 L90,90 Z")
+//	path, _ := render.ParseSVGPath("M10,10 L90,10 L90,90 Z")
 //	dc.Push()
 //	dc.Translate(x, y)
 //	dc.Scale(0.5, 0.5)
@@ -1731,7 +1731,7 @@ func (c *Context) SetSharedEncoder(encoder gpucontext.CommandEncoder) {
 }
 
 // CreateSharedEncoder creates a command encoder for single-command-buffer
-// frames (ADR-017). Multiple gg.Contexts record render passes into this
+// frames (ADR-017). Multiple render.Contexts record render passes into this
 // encoder via SetSharedEncoder. Call SubmitSharedEncoder after all contexts
 // have flushed to submit in one GPU call.
 // Returns a zero-value CommandEncoder (IsNil() == true) if GPU is not available.
@@ -2587,6 +2587,7 @@ func (c *Context) tryGPUStrokeWithMode(mode RasterizerMode) (bool, RasterizerMod
 		c.setForceSDF(false)
 		if err == nil {
 			c.recordGPUOp()
+			c.takeBrushBootstrapIfAny()
 			return true, mode
 		}
 		mode = RasterizerAuto
@@ -2594,6 +2595,7 @@ func (c *Context) tryGPUStrokeWithMode(mode RasterizerMode) (bool, RasterizerMod
 	if mode == RasterizerAuto {
 		if err := c.tryGPUStroke(); err == nil {
 			c.recordGPUOp()
+			c.takeBrushBootstrapIfAny()
 			return true, mode
 		} else if c.gpuPathAvailable() {
 			reason := "stroke"

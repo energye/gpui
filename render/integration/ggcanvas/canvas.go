@@ -44,7 +44,7 @@ type resourceTracker interface {
 	UntrackResource(io.Closer)
 }
 
-// Canvas wraps gg.Context with gogpu integration.
+// Canvas wraps render.Context with gogpu integration.
 // It manages the CPU-to-GPU pipeline automatically.
 //
 // Canvas is NOT safe for concurrent use. Create one Canvas per goroutine,
@@ -270,7 +270,7 @@ func (c *Canvas) PixmapTextureView() gpucontext.TextureView {
 }
 
 // SetDeviceScale changes the device scale factor on the canvas.
-// This delegates to the gg.Context and marks the canvas for re-upload.
+// This delegates to the render.Context and marks the canvas for re-upload.
 // Scale must be > 0; values <= 0 are ignored.
 func (c *Canvas) SetDeviceScale(scale float64) {
 	if c.closed || c.ctx == nil || scale <= 0 {
@@ -533,7 +533,7 @@ func (c *Canvas) FlushPixmap() (any, error) {
 // Example:
 //
 //	app.OnDraw(func(dc *gogpu.Context) {
-//	    canvas.Draw(func(cc *gg.Context) { ... })
+//	    canvas.Draw(func(cc *render.Context) { ... })
 //	    w, h := dc.SurfaceSize()
 //	    canvas.RenderDirect(dc.RenderTarget().SurfaceView(), w, h)
 //	})
@@ -649,7 +649,7 @@ type SurfacePixelWriter interface {
 //
 // This is the recommended way to present canvas content — one call, all backends.
 //
-//	canvas.Draw(func(cc *gg.Context) { ... })
+//	canvas.Draw(func(cc *render.Context) { ... })
 //	canvas.Render(dc) // dc is *gogpu.Context
 func (c *Canvas) Render(dc RenderTarget) error {
 	if c.closed {

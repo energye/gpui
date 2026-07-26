@@ -14,14 +14,14 @@ import "math"
 // Example:
 //
 //	// Color wheel
-//	wheel := gg.NewSweepGradientBrush(50, 50, 0).
-//	    AddColorStop(0, gg.Red).
-//	    AddColorStop(0.166, gg.Yellow).
-//	    AddColorStop(0.333, gg.Green).
-//	    AddColorStop(0.5, gg.Cyan).
-//	    AddColorStop(0.666, gg.Blue).
-//	    AddColorStop(0.833, gg.Magenta).
-//	    AddColorStop(1, gg.Red)
+//	wheel := render.NewSweepGradientBrush(50, 50, 0).
+//	    AddColorStop(0, render.Red).
+//	    AddColorStop(0.166, render.Yellow).
+//	    AddColorStop(0.333, render.Green).
+//	    AddColorStop(0.5, render.Cyan).
+//	    AddColorStop(0.666, render.Blue).
+//	    AddColorStop(0.833, render.Magenta).
+//	    AddColorStop(1, render.Red)
 type SweepGradientBrush struct {
 	Center     Point       // Center of the sweep
 	StartAngle float64     // Start angle in radians

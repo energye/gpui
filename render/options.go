@@ -6,10 +6,10 @@ package render
 // Example:
 //
 //	// Default software rendering
-//	dc := gg.NewContext(800, 600)
+//	dc := render.NewContext(800, 600)
 //
 //	// Custom GPU renderer (dependency injection)
-//	dc := gg.NewContext(800, 600, gg.WithRenderer(gpuRenderer))
+//	dc := render.NewContext(800, 600, render.WithRenderer(gpuRenderer))
 type ContextOption func(*contextOptions)
 
 // contextOptions holds optional configuration for Context creation.
@@ -37,7 +37,7 @@ func defaultOptions() contextOptions {
 //
 //	// Using a custom renderer
 //	customRenderer := mypackage.NewRenderer()
-//	dc := gg.NewContext(800, 600, gg.WithRenderer(customRenderer))
+//	dc := render.NewContext(800, 600, render.WithRenderer(customRenderer))
 //
 // For GPU-accelerated rendering, see gg's gpu backend (internal/gpu/)
 // which uses gogpu/wgpu directly.
@@ -52,8 +52,8 @@ func WithRenderer(r Renderer) ContextOption {
 //
 // Example:
 //
-//	pm := gg.NewPixmap(800, 600)
-//	dc := gg.NewContext(800, 600, gg.WithPixmap(pm))
+//	pm := render.NewPixmap(800, 600)
+//	dc := render.NewContext(800, 600, render.WithPixmap(pm))
 func WithPixmap(pm *Pixmap) ContextOption {
 	return func(o *contextOptions) {
 		o.pixmap = pm
@@ -66,7 +66,7 @@ func WithPixmap(pm *Pixmap) ContextOption {
 // Example:
 //
 //	// Force compute pipeline
-//	dc := gg.NewContext(800, 600, gg.WithPipelineMode(gg.PipelineModeCompute))
+//	dc := render.NewContext(800, 600, render.WithPipelineMode(render.PipelineModeCompute))
 func WithPipelineMode(mode PipelineMode) ContextOption {
 	return func(o *contextOptions) {
 		o.pipelineMode = mode
@@ -80,7 +80,7 @@ func WithPipelineMode(mode PipelineMode) ContextOption {
 // For example, on a macOS Retina display with 2x scaling:
 //
 //	// Logical size: 800x600, Physical pixmap: 1600x1200
-//	dc := gg.NewContext(800, 600, gg.WithDeviceScale(2.0))
+//	dc := render.NewContext(800, 600, render.WithDeviceScale(2.0))
 //	dc.Width()      // 800 (logical)
 //	dc.PixelWidth() // 1600 (physical)
 //

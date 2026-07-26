@@ -248,7 +248,7 @@ func (b *Backend) Queue() *webgpu.Queue {
 }
 
 // GPURenderer is a GPU-backed renderer for immediate mode drawing.
-// It implements the gg.Renderer interface.
+// It implements the render.Renderer interface.
 //
 // Note: This is a stub implementation. The actual GPU rendering
 // will be implemented in TASK-110.

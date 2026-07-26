@@ -9,10 +9,10 @@ package render
 //
 // Example:
 //
-//	gradient := gg.NewLinearGradientBrush(0, 0, 100, 0).
-//	    AddColorStop(0, gg.Red).
-//	    AddColorStop(0.5, gg.Yellow).
-//	    AddColorStop(1, gg.Blue)
+//	gradient := render.NewLinearGradientBrush(0, 0, 100, 0).
+//	    AddColorStop(0, render.Red).
+//	    AddColorStop(0.5, render.Yellow).
+//	    AddColorStop(1, render.Blue)
 //	ctx.SetFillBrush(gradient)
 type LinearGradientBrush struct {
 	Start  Point       // Start point of the gradient

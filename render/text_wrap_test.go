@@ -44,7 +44,7 @@ func findTestFont() string {
 // --------------------------------------------------------------------------
 
 func TestAlignConstants(t *testing.T) {
-	// Verify gg.AlignLeft/Center/Right match text package values
+	// Verify render.AlignLeft/Center/Right match text package values
 	if AlignLeft != text.AlignLeft {
 		t.Errorf("AlignLeft mismatch: gg=%d text=%d", AlignLeft, text.AlignLeft)
 	}

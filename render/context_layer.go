@@ -84,7 +84,7 @@ func (c *Context) ResetLayerPoolStats() {
 //
 // Example:
 //
-//	dc.PushLayer(gg.BlendMultiply, 0.5)
+//	dc.PushLayer(render.BlendMultiply, 0.5)
 //	dc.SetRGB(1, 0, 0)
 //	dc.DrawCircle(100, 100, 50)
 //	dc.Fill()
@@ -176,7 +176,7 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 //
 // Example:
 //
-//	dc.PushLayer(gg.BlendScreen, 1.0)
+//	dc.PushLayer(render.BlendScreen, 1.0)
 //	// ... draw operations ...
 //	dc.PopLayer() // Composite layer onto parent
 func (c *Context) PopLayer() {
@@ -414,7 +414,7 @@ func (c *Context) PopLayer() {
 //
 // Example:
 //
-//	mask := gg.NewMaskFromAlpha(maskImage)
+//	mask := render.NewMaskFromAlpha(maskImage)
 //	dc.PushMaskLayer(mask)
 //	dc.DrawCircle(100, 100, 50)
 //	dc.Fill()
@@ -481,7 +481,7 @@ func (c *Context) applyMaskToPixmap(pm *Pixmap, mask *Mask) {
 //
 // Example:
 //
-//	dc.SetBlendMode(gg.BlendMultiply)
+//	dc.SetBlendMode(render.BlendMultiply)
 //	dc.Fill() // Future: will use multiply blend mode
 func (c *Context) SetBlendMode(mode BlendMode) {
 

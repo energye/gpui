@@ -13,7 +13,7 @@ import "math"
 //	x' = A*x + B*y + C
 //	y' = D*x + E*y + F
 //
-// The Matrix type is designed to be compatible with gg.Matrix
+// The Matrix type is designed to be compatible with render.Matrix
 // for seamless integration with the gg graphics library.
 type Matrix struct {
 	A, B, C float64
