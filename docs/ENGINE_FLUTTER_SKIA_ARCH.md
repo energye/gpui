@@ -1,12 +1,12 @@
 # UI 引擎架构真源 — Flutter 管线 × Skia 光栅（`render`）
 
-> **版本：3.0** | 日期：2026-07-26  
-> **状态：已批准 · 待实现**  
-> **仓库现状：** 仅保留 `ui/`（空，待建）、`render/`、`gpu/`、依赖；旧 UI/examples 已清理。  
+> **版本：3.1** | 日期：2026-07-27  
+> **状态：已批准 · L1 P0–P3 已实现**（收口见 [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)）  
+> **仓库：** `ui/`（引擎）· `render/` · `gpu/`  
 > **图示：** [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)  
-> **P0–P3 任务计划：** [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md)  
-> **P4–P7 大纲 + L1 手感验收：** [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md)  
-> **控件需求（后置 L3）：** [`antd/`](./antd/)
+> **P0–P3 任务：** [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md)  
+> **P4–P7 大纲：** [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md)  
+> **控件需求（后置）：** [`antd/`](./antd/)
 
 ---
 
@@ -14,6 +14,7 @@
 
 | 问题 | 章节 |
 |------|------|
+| **L1 做到哪了？** | [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md) |
 | 模块怎么依赖？ | **§1** |
 | 四层谁先做？ | **§2** |
 | 窗口句柄怎么进 GPU？ | **§3** |
@@ -21,7 +22,7 @@
 | 线程与一帧？ | **§5** |
 | 脏区 / Layer / 滚动？ | **§6** |
 | Flutter 体验契约 F01–F18？ | **§7** |
-| 分期与门禁？ | **§8** + 任务计划文 |
+| 分期与门禁？ | **§8** + 任务/收口文 |
 
 ---
 
@@ -427,12 +428,25 @@ ui/
 | 版本 | 说明 |
 |------|------|
 | 3.0 | 适配清仓后仓库：`ui>render>gpu`；句柄 SPI；§4 逻辑/物理/Y 轴；任务计划外链；废弃 engine/ 命名 |
+| 3.1 | L1 P0–P3 实现后：状态改为已实现；挂链 ENGINE_L1_CLOSEOUT |
 
 ---
 
-## §11 立即下一步
+## §11 状态与下一步
 
-1. 本文 + 总览 + **P0–P3 任务计划** 为真源  
-2. 按任务计划 **P0** 在空 `ui/` 建包  
-3. 新示例 `examples/ui_l1_blank`  
-4. §7.1 未勾完不做控件库  
+**已完成：** L1 P0–P3（见 [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)）。
+
+**下一步（可选）：**
+
+1. 存真窗 JSON 为 baseline  
+2. **P4** 滚动协议 / 虚拟化 / IO（大纲）  
+3. L2 / L3 仍后置；不做控件主线直到需要  
+
+**验收：**
+
+```bash
+go test ./ui/... -count=1
+go run ./examples/ui_l1_blank
+go run ./examples/ui_l1_spinner
+```
+

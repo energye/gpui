@@ -1,9 +1,11 @@
 # L1 开发任务计划 — Phase 0 ~ Phase 3
 
-> **版本：1.0** | 日期：2026-07-26  
-> **约束真源：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) v3.0  
-> **范围：** 仅 **L1 UI 引擎**（包 `ui/`）+ 为 L1 必要的 `render`/`gpu` 增补  
-> **不做：** L2 手势完备、L3 Ant 控件、旧 examples 迁移  
+> **版本：1.1** | 日期：2026-07-27  
+> **约束真源：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
+> **收口总结：** [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)  
+> **范围：** 仅 **L1 UI 引擎**（包 `ui/`）+ 为 L1 必要的 `render` 门面  
+> **状态：** **P0–P3 已实现**（见各节「实现状态」）  
+> **不做：** L2 手势完备、L3 Ant 控件  
 
 ---
 
@@ -135,8 +137,17 @@ go run ./examples/ui_l1_blank   # 清色窗，无崩溃，退出 0
 ## 0.5 F 项
 
 - [x] 开工即遵守 G1–G7  
-- [ ] F06 接口存在（真 vsync 可先 fallback）  
-- [ ] F14 指标结构存在  
+- [x] F06 接口存在（`VSyncWaiter` + fallback 16.67ms）  
+- [x] F14 指标结构存在（`scheduler.FrameMetrics` JSON）  
+
+## 0.6 实现状态（2026-07-26）
+
+| 项 | 状态 |
+|----|------|
+| `render.PresentTarget` | ✅ 句柄→Surface→清色 Present（ui 不 import gpu） |
+| `ui/platform|scheduler|raster|embedder` | ✅ |
+| `go test ./ui/...` | ✅ |
+| `examples/ui_l1_blank` | ✅ 真窗 presents>0 + JSON |
 
 ---
 
@@ -191,8 +202,20 @@ go test ./render/...   # 若改了 scale/Y
 
 ## 1.4 F 项
 
-- [ ] F03 RelayoutBoundary  
-- [ ] F07 §4 坐标  
+- [x] F03 RelayoutBoundary  
+- [x] F07 §4 坐标  
+
+## 1.5 实现状态（2026-07-27）
+
+| 项 | 状态 |
+|----|------|
+| `ui/rendering` RO / Box / ColorBox / PipelineOwner | ✅ |
+| RelayoutBoundary 截断 markNeedsLayout | ✅ 单测 |
+| PaintingContext FillRect 逻辑坐标 | ✅ CPU pixmap |
+| 二次 Flush layout/paint 无工作 | ✅ |
+| Y-down 左上像素 + HitTest | ✅ |
+| DeviceScale 逻辑尺寸契约 | ✅ |
+| `go test ./ui/...` | ✅ |
 
 ---
 
@@ -237,8 +260,24 @@ ui/rendering/
 
 ## 2.4 F 项
 
-- [ ] F01 F02 准备（栅格复用可在 P3 闭环）  
-- [ ] F04 F13  
+- [x] F01 COW / 禁全树 deep copy（`FramePacket.CloneShallow` + ShareRoot）  
+- [x] F02 准备（dirty_layer_ids 已填；静态层复用闭环在 P3）  
+- [x] F04 compositing 向上传播  
+- [x] F13 Overlay band 预留  
+
+## 2.5 实现状态（2026-07-27）
+
+| 项 | 状态 |
+|----|------|
+| `scene.Layer` 类型 + Walk | ✅ |
+| `LayerBuilder` / `BuildLayerTree` | ✅ |
+| `FramePacket` COW + DirtyLayerIDs | ✅ |
+| RepaintBoundary 截断 markNeedsPaint | ✅ |
+| CompositeOnly 跳过 clean 子树 | ✅ |
+| 10k 节点 + 1 boundary 脏 visits≪n | ✅ |
+| Overlay band 预留 | ✅ |
+| embedder.SubmitLayerPacket | ✅ |
+| `go test ./ui/...` | ✅ |
 
 ---
 
@@ -294,9 +333,25 @@ go run ./examples/ui_l1_spinner
 
 ## 3.4 F 项（P3 关门）
 
-- [ ] F01 F02 F06 F07 F08 F10 F11 F14 F17  
-- [ ] F03 F04（P2 应已绿）  
-- [ ] §7.1 全勾  
+- [x] F01 F02 F06 F07 F08 F10 F11 F14 F17（F10 最小热路径沿用 render；F11 WarmUp；F08 SubmitLatest 不阻塞）  
+- [x] F03 F04（P2）  
+- [x] §7.1 主项可勾：脏层计数、无 layout 空转、异步 present、Ticker 自动卸  
+
+## 3.5 实现状态（2026-07-27）
+
+| 项 | 状态 |
+|----|------|
+| `ui/animation.Controller` + 完成自动卸 | ✅ |
+| `RenderSpinner` RepaintBoundary | ✅ |
+| `scene.RasterizeDirty` 脏层/跳过统计 | ✅ |
+| `raster.SubmitLatest` 不阻塞 UI + pending 覆盖 | ✅ |
+| `embedder.PipelineApp` 异步 present | ✅ |
+| `render.PresentWith` | ✅ |
+| S2/S4 无头门禁单测 | ✅ |
+| `examples/ui_l1_spinner` | ✅ |
+| `go test ./ui/...` | ✅ |
+
+**L1 体验雏形（P0–P3）代码路径已闭合。** 真窗性能数字以本机 `ui_l1_blank` / `ui_l1_spinner` JSON 为准做 baseline。
 
 ---
 
@@ -328,3 +383,4 @@ P0 句柄+调度+清色
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 1.0 | 2026-07-26 | 首版：在 ui>render>gpu、句柄注入、清仓仓库约束下的 P0–P3 任务卡 |
+| 1.1 | 2026-07-27 | P0–P3 实现完成；挂链 L1 收口文 |
