@@ -20,6 +20,9 @@ type Flex struct {
 	// kit.Flex (Ant Design Flex) sets this; internal tool rows (Button chrome)
 	// leave it false so they hug content.
 	ExpandMax bool
+	// SkinType when non-empty is the Theme.Skin painter key used in Paint
+	// (e.g. "kit.Breadcrumb"). Empty → children only (no skin hook).
+	SkinType string
 }
 
 // NewFlex constructs a Flex along axis with optional children.
@@ -84,6 +87,13 @@ func (f *Flex) Layout(c core.Constraints) core.Size {
 
 // Paint implements core.Node.
 func (f *Flex) Paint(pc *core.PaintContext) {
+	if pc != nil && f.SkinType != "" && pc.Theme != nil {
+		if p := pc.Theme.Painter(f.SkinType); p != nil {
+			p(pc, f)
+			f.ClearPaintDirty()
+			return
+		}
+	}
 	f.DefaultPaintChildren(pc)
 	if pc != nil {
 		f.ClearPaintDirty()

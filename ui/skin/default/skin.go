@@ -10,9 +10,11 @@ import (
 )
 
 // Product typeIDs as string literals to avoid importing ui/kit (cycle).
-// Must stay equal to kit.TypeButton etc.
+// Must stay equal to kit.TypeButton / kit.TypeBreadcrumb etc.
 const (
-	typeButton = "kit.Button"
+	typeButton     = "kit.Button"
+	typeBreadcrumb = "kit.Breadcrumb"
+	typeInput      = "kit.Input"
 )
 
 // Tokens returns a clone of the Ant light token table.
@@ -23,8 +25,10 @@ func Tokens() *core.TokenSet {
 // NewSkin builds the default map skin with painters for common primitives
 // and product chrome hooks.
 //
-//	TypeDecorated — generic box chrome
-//	kit.Button    — Button Decorated chrome (default = PaintDecorated; overridable)
+//	TypeDecorated  — generic box chrome
+//	kit.Button     — Button Decorated chrome (default = PaintDecorated)
+//	kit.Breadcrumb — Breadcrumb Flex root (default = paint children)
+//	kit.Input      — Input Decorated chrome
 //
 // Decorated chrome is delegated to primitive.PaintDecorated (single source of truth).
 func NewSkin() *core.MapSkin {
@@ -38,6 +42,13 @@ func NewSkin() *core.MapSkin {
 	// Button tags its Decorated with SkinType=kit.Button so product skins can
 	// override only buttons without replacing all Decorated chrome.
 	s.Set(typeButton, paintDeco)
+	// Breadcrumb root is a Flex tagged SkinType=kit.Breadcrumb.
+	s.Set(typeBreadcrumb, func(pc *core.PaintContext, n core.Node) {
+		if f, ok := n.(*primitive.Flex); ok {
+			f.DefaultPaintChildren(pc)
+		}
+	})
+	s.Set(typeInput, paintDeco)
 	return s
 }
 

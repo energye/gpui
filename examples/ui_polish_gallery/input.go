@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -227,9 +228,46 @@ func (c *catalogCtx) registerInput() {
 		"Validation status, allowClear and disabled chrome.",
 		spaceWrap(8, stErr.Node(), stWarn.Node(), clr.Node(), dis.Node()))
 
+	// Lifecycle (#9)
+	life := track(kit.NewInput("lifecycle"))
+	life.SetAllowClear(true)
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusError)
+	life.SetValue("structure → chrome")
+	life.SetFixedSize(260, 0)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (AllowClear/Size) then chromeChange (Status) — editor tree stable, chrome updates.",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeInput, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "input-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#722ED1")
+		}
+		if p := baseSkin.Painter(kit.TypeInput); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinIn := track(kit.NewInput("skin override"))
+	skinIn.SetFixedSize(260, 0)
+	if dec, ok := skinIn.ChromeNode().(*primitive.Decorated); ok {
+		dec.Base().Key = "input-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Decorated.SkinType=kit.Input. Key=input-skin-demo → purple 2px border via Theme.Skin Override.",
+		skinIn.Node())
+
 	page := demoPage(face, "Input",
 		"A basic widget for getting the user input is a text field. Keyboard and mouse can be used for providing or changing data.",
-		secBasic, secSize, secVariant, secCompact, secSearch, secLoad, secTA, secAuto, secStatus,
+		secBasic, secSize, secVariant, secCompact, secSearch, secLoad, secTA, secAuto, secStatus, secLife, secSkin,
 	)
 	c.addPage("input", "Input", page)
 }

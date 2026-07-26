@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -132,11 +133,59 @@ func (c *catalogCtx) registerBreadcrumb() {
 		"antd debug-routes.tsx：legacy routes 映射 — path 拼接 + children→menu。",
 		debugRoutes.Node())
 
+	// Lifecycle (#9) — structureChange order (items → separator → theme).
+	life := wire(kit.NewBreadcrumb(
+		kit.BreadcrumbItem{Title: "Home", Link: true},
+		kit.BreadcrumbItem{Title: "Temp"},
+	), "life")
+	life.SetItems([]kit.BreadcrumbItem{
+		{Title: "Home", Link: true},
+		{Title: "Docs", Link: true},
+		{Title: "Breadcrumb"},
+	})
+	life.SetSeparator("›")
+	life.SetTheme(th)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：SetItems → SetSeparator → SetTheme；ensureBuilt 保 Root 稳定。",
+		life.Node())
+
+	// Skin (#6) — Theme.Skin Override for kit.Breadcrumb (Flex.SkinType).
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeBreadcrumb, func(pc *core.PaintContext, n core.Node) {
+		f, ok := n.(*primitive.Flex)
+		if !ok || f == nil {
+			return
+		}
+		if f.Base().Key == "bc-skin-demo" {
+			sz := f.Size()
+			if pc != nil && sz.Width > 0 && sz.Height > 0 {
+				pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, 4, render.Hex("#FFF0F6"))
+			}
+		}
+		if p := baseSkin.Painter(kit.TypeBreadcrumb); p != nil {
+			p(pc, f)
+			return
+		}
+		f.DefaultPaintChildren(pc)
+	})
+	skinBC := wire(kit.NewBreadcrumb(
+		kit.BreadcrumbItem{Title: "Skin", Link: true},
+		kit.BreadcrumbItem{Title: "Trail", Link: true},
+		kit.BreadcrumbItem{Title: "Demo"},
+	), "skin")
+	if flex, ok := skinBC.ChromeNode().(*primitive.Flex); ok {
+		flex.Base().Key = "bc-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root Flex.SkinType=kit.Breadcrumb。Key=bc-skin-demo 时 Override 画粉底；其它 Breadcrumb 不受影响。",
+		skinBC.Node())
+
 	c.addPage("breadcrumb", "Breadcrumb",
 		demoPage(face, "Breadcrumb",
 			"Ant Design Breadcrumb · docs/antd/breadcrumb.md §6 P0\n"+
 				"items / title / type=separator / separator / params / href|path|Link / menu / onClick / dropdownIcon\n"+
+				"Also verifies #9 lifecycle + #6 Skin.\n"+
 				"P1 未展：semantic classNames/styles、style-class、component-token。",
-			col(secBasic, secIcon, secParams, secSep, secOverlay, secSepComp, secRoutes),
+			col(secBasic, secIcon, secParams, secSep, secOverlay, secSepComp, secRoutes, secLife, secSkin),
 		))
 }

@@ -66,8 +66,17 @@ func (it BreadcrumbItem) isSeparator() bool {
 
 // Breadcrumb is Ant Design Breadcrumb (navigation trail).
 //
-//	nav Flex (role=navigation)
+//	nav Flex (role=navigation)  SkinType = kit.Breadcrumb
 //	  item | separator | item | … | last
+//
+// # Lifecycle (#9, Button pattern)
+//
+// NewBreadcrumb always builds once. After that:
+//
+//   - structureChange() — items / separator / params / icons / face / theme
+//   - chromeChange()    — reserved for pure color refresh (currently rebuilds;
+//     colors are applied during structure rebuild from tokens)
+//   - ensureBuilt()     — Node/ChromeNode and chrome path
 //
 // Product contract: docs/antd/breadcrumb.md §6 (P0 DoD).
 // Root identity is stable across rebuild (ClearChildren).
@@ -167,14 +176,41 @@ func NewBreadcrumb(items ...BreadcrumbItem) *Breadcrumb {
 	return b
 }
 
+// ensureBuilt materializes the nav Flex if missing.
+func (b *Breadcrumb) ensureBuilt() {
+	if b == nil {
+		return
+	}
+	if b.Root == nil {
+		b.rebuild()
+	}
+}
+
+// structureChange rebuilds the item/separator tree from product state.
+func (b *Breadcrumb) structureChange() {
+	if b == nil {
+		return
+	}
+	b.rebuild()
+}
+
+// chromeChange refreshes token-driven colors. Breadcrumb colors are applied
+// while rebuilding slots, so this currently aliases structureChange; callers
+// still use chromeChange for "style only" intent (symmetric with Button).
+func (b *Breadcrumb) chromeChange() {
+	if b == nil {
+		return
+	}
+	b.ensureBuilt()
+	b.rebuild()
+}
+
 // Node returns the stable navigation root.
 func (b *Breadcrumb) Node() core.Node {
 	if b == nil {
 		return nil
 	}
-	if b.Root == nil {
-		b.rebuild()
-	}
+	b.ensureBuilt()
 	return b.Root
 }
 
@@ -339,13 +375,13 @@ func (b *Breadcrumb) IsLastRouteItem(i int) bool {
 	return true
 }
 
-// SetItems replaces the trail.
+// SetItems replaces the trail (structure).
 func (b *Breadcrumb) SetItems(items []BreadcrumbItem) {
 	if b == nil {
 		return
 	}
 	b.Items = append([]BreadcrumbItem(nil), items...)
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetSeparator sets the root separator. Empty string disables automatic seps.
@@ -355,10 +391,10 @@ func (b *Breadcrumb) SetSeparator(sep string) {
 	}
 	b.Separator = sep
 	b.separatorSet = true
-	b.rebuild()
+	b.structureChange()
 }
 
-// SetParams sets route params for :key substitution.
+// SetParams sets route params for :key substitution (structure; titles re-resolve).
 func (b *Breadcrumb) SetParams(params map[string]string) {
 	if b == nil {
 		return
@@ -371,34 +407,34 @@ func (b *Breadcrumb) SetParams(params map[string]string) {
 			b.Params[k] = v
 		}
 	}
-	b.rebuild()
+	b.structureChange()
 }
 
-// SetDropdownIcon sets the overlay chevron registry name.
+// SetDropdownIcon sets the overlay chevron registry name (structure).
 func (b *Breadcrumb) SetDropdownIcon(name string) {
 	if b == nil {
 		return
 	}
 	b.DropdownIcon = name
-	b.rebuild()
+	b.structureChange()
 }
 
-// SetDropdownIconNode sets a custom dropdown icon node.
+// SetDropdownIconNode sets a custom dropdown icon node (structure).
 func (b *Breadcrumb) SetDropdownIconNode(n core.Node) {
 	if b == nil {
 		return
 	}
 	b.DropdownIconNode = n
-	b.rebuild()
+	b.structureChange()
 }
 
-// SetItemRender sets the custom item content hook.
+// SetItemRender sets the custom item content hook (structure).
 func (b *Breadcrumb) SetItemRender(fn func(item BreadcrumbItem, params map[string]string, items []BreadcrumbItem, paths []string) core.Node) {
 	if b == nil {
 		return
 	}
 	b.ItemRender = fn
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetOnClick sets the root click callback.
@@ -417,22 +453,22 @@ func (b *Breadcrumb) SetOnMenuClick(fn func(itemIndex int, key string)) {
 	b.OnMenuClick = fn
 }
 
-// SetFace sets the font face.
+// SetFace sets the font face (structure; labels recreated with face).
 func (b *Breadcrumb) SetFace(face text.Face) {
 	if b == nil {
 		return
 	}
 	b.Face = face
-	b.rebuild()
+	b.structureChange()
 }
 
-// SetTheme sets an explicit theme override.
+// SetTheme sets an explicit theme override (chrome/structure via rebuild).
 func (b *Breadcrumb) SetTheme(th *core.Theme) {
 	if b == nil {
 		return
 	}
 	b.Theme = th
-	b.rebuild()
+	b.chromeChange()
 }
 
 // SetAriaLabel sets the accessible name on the nav root.
@@ -441,6 +477,7 @@ func (b *Breadcrumb) SetAriaLabel(label string) {
 		return
 	}
 	b.AriaLabel = label
+	b.ensureBuilt()
 	if b.Root != nil {
 		b.Root.Base().Label = label
 	}
@@ -507,12 +544,14 @@ func (b *Breadcrumb) rebuild() {
 		b.Root = primitive.Row()
 		b.Root.Base().SetThemeHook(func(th *core.Theme) {
 			if b.Theme == nil {
-				b.rebuild()
+				b.structureChange()
 			}
 		})
 	} else {
 		b.Root.ClearChildren()
 	}
+	// Product skin key so Theme.Skin can override Breadcrumb chrome only (#6).
+	b.Root.SkinType = TypeBreadcrumb
 	b.Root.Gap = 0
 	b.Root.CrossAlign = core.CrossCenter
 	b.Root.MainAlign = core.MainStart

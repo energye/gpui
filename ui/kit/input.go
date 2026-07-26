@@ -28,9 +28,17 @@ const (
 
 // Input is a single-line text field composed from Decorated + Flex + EditableText.
 //
-//	Decorated
+//	Decorated  (SkinType = kit.Input)
 //	  └─ Flex(Row) CrossStretch
 //	       prefix? · Flexible(EditableText) · clear? · suffix? · search/eye?
+//
+// # Lifecycle (#9, Button pattern)
+//
+// NewInput always builds once. After that:
+//
+//   - structureChange() — size/type/affix/clear/password/search/textarea layout
+//   - chromeChange()    — variant/status/disabled/colors (applyChrome)
+//   - ensureBuilt()     — Node/ChromeNode/Editor paths
 //
 // Product contract: docs/antd/input.md §6 (P0 DoD).
 // Subtypes: Search (NewSearch), Password (NewPassword), TextArea (NewTextArea).
@@ -141,14 +149,39 @@ func NewInputWithDefault(placeholder, defaultValue string) *Input {
 	return in
 }
 
+// ensureBuilt materializes Decorated + editor if missing.
+func (in *Input) ensureBuilt() {
+	if in == nil {
+		return
+	}
+	if in.Root == nil || in.editor == nil {
+		in.rebuild()
+	}
+}
+
+// structureChange rebuilds affix/layout tree (size, type, clear, password, search…).
+func (in *Input) structureChange() {
+	if in == nil {
+		return
+	}
+	in.rebuild()
+}
+
+// chromeChange refreshes borders/fills without tearing down the editor when built.
+func (in *Input) chromeChange() {
+	if in == nil {
+		return
+	}
+	in.ensureBuilt()
+	in.applyChrome()
+}
+
 // Node returns the root core.Node for tree attachment.
 func (in *Input) Node() core.Node {
 	if in == nil {
 		return nil
 	}
-	if in.Root == nil {
-		in.rebuild()
-	}
+	in.ensureBuilt()
 	if in.host != nil {
 		return in.host
 	}
@@ -160,9 +193,7 @@ func (in *Input) ChromeNode() core.Node {
 	if in == nil {
 		return nil
 	}
-	if in.Root == nil {
-		in.rebuild()
-	}
+	in.ensureBuilt()
 	return in.Root
 }
 
@@ -171,9 +202,7 @@ func (in *Input) Editor() *primitive.EditableText {
 	if in == nil {
 		return nil
 	}
-	if in.editor == nil {
-		in.rebuild()
-	}
+	in.ensureBuilt()
 	return in.editor
 }
 
@@ -250,7 +279,7 @@ func (in *Input) SetSize(s InputSize) {
 		return
 	}
 	in.Size = s
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetVariant updates visual variant.
@@ -259,7 +288,7 @@ func (in *Input) SetVariant(v InputVariant) {
 		return
 	}
 	in.Variant = v
-	in.applyChrome()
+	in.chromeChange()
 }
 
 // SetStatus updates validation chrome (error/warning/none).
@@ -268,7 +297,7 @@ func (in *Input) SetStatus(s InputStatus) {
 		return
 	}
 	in.Status = s
-	in.applyChrome()
+	in.chromeChange()
 	in.applyA11y()
 }
 
@@ -279,7 +308,7 @@ func (in *Input) SetType(t InputType) {
 	}
 	in.Type = t
 	in.passwordMode = t == InputTypePassword
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetDisabled toggles disabled (no edit, no onChange from input).
@@ -303,7 +332,7 @@ func (in *Input) SetDisabled(d bool) {
 	if in.searchEnterBtn != nil {
 		in.searchEnterBtn.SetDisabled(d || in.loading)
 	}
-	in.applyChrome()
+	in.chromeChange()
 	in.applyA11y()
 }
 
@@ -338,7 +367,7 @@ func (in *Input) SetAllowClear(v bool) {
 		return
 	}
 	in.AllowClear = v
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetPrefix sets a leading node (icon/text). nil clears.
@@ -405,7 +434,7 @@ func (in *Input) SetTheme(th *core.Theme) {
 		return
 	}
 	in.Theme = th
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetFace sets the font face.
@@ -430,10 +459,10 @@ func (in *Input) SetStyle(st Style) {
 		in.SetFace(st.Face)
 	}
 	if st.FontSize > 0 || st.Height > 0 || st.Width > 0 {
-		in.rebuild()
+		in.structureChange()
 		return
 	}
-	in.applyChrome()
+	in.chromeChange()
 }
 
 // SetBackground overrides fill (Style helper).
@@ -442,7 +471,7 @@ func (in *Input) SetBackground(c render.RGBA) {
 		return
 	}
 	in.Style.Background = c
-	in.applyChrome()
+	in.chromeChange()
 }
 
 // SetTextColor overrides editor text color.
@@ -451,7 +480,7 @@ func (in *Input) SetTextColor(c render.RGBA) {
 		return
 	}
 	in.Style.Text = c
-	in.applyChrome()
+	in.chromeChange()
 }
 
 // SetFontSize overrides editor font size.
@@ -460,7 +489,7 @@ func (in *Input) SetFontSize(px float64) {
 		return
 	}
 	in.Style.FontSize = px
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetFixedSize forces outer chrome size (forms / gallery).
@@ -471,7 +500,7 @@ func (in *Input) SetFixedSize(w, h float64) {
 	}
 	in.fixedW, in.fixedH = w, h
 	if in.Root == nil {
-		in.rebuild()
+		in.structureChange()
 		return
 	}
 	if w > 0 {
@@ -491,6 +520,7 @@ func (in *Input) SetAriaLabel(s string) {
 		return
 	}
 	in.AriaLabel = s
+	in.ensureBuilt()
 	in.applyA11y()
 }
 
@@ -533,7 +563,7 @@ func (in *Input) SetLoading(v bool) {
 		return
 	}
 	in.loading = v
-	in.rebuild()
+	in.structureChange()
 	if in.boundTree != nil {
 		if v {
 			in.boundTree.AddTicker(in)
@@ -552,7 +582,7 @@ func (in *Input) SetEnterButton(v bool) {
 	if v {
 		in.searchMode = true
 	}
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetEnterButtonText sets enterButton label (non-empty implies enterButton).
@@ -565,7 +595,7 @@ func (in *Input) SetEnterButtonText(s string) {
 		in.enterButton = true
 		in.searchMode = true
 	}
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetOnSearch sets the Search callback.
@@ -584,7 +614,7 @@ func (in *Input) SetVisibilityToggle(v bool) {
 	}
 	in.visibilityToggle = v
 	if in.passwordMode {
-		in.rebuild()
+		in.structureChange()
 	}
 }
 
@@ -613,7 +643,7 @@ func (in *Input) SetRows(n int) {
 	}
 	in.rows = n
 	in.multiline = true
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetAutoSize enables free auto-grow (min 1 row).
@@ -626,7 +656,7 @@ func (in *Input) SetAutoSize(v bool) {
 	if v && in.minRows < 1 {
 		in.minRows = 1
 	}
-	in.rebuild()
+	in.structureChange()
 }
 
 // SetAutoSizeRange enables autoSize with min/max rows (antd autoSize object).
@@ -644,7 +674,7 @@ func (in *Input) SetAutoSizeRange(minRows, maxRows int) {
 	in.minRows = minRows
 	in.maxRows = maxRows
 	in.multiline = true
-	in.rebuild()
+	in.structureChange()
 }
 
 // ---------------------------------------------------------------------------
@@ -868,6 +898,8 @@ func (in *Input) rebuild() {
 		in.Root.ClearChildren()
 		in.Root.AddChild(body)
 	}
+	// Product skin key so Theme.Skin can override Input chrome only (#6).
+	in.Root.SkinType = TypeInput
 	in.Root.Padding = primitive.Symmetric(padH, padV)
 	in.Root.Radius = radius
 	in.Root.BorderWidth = lineW
@@ -893,7 +925,7 @@ func (in *Input) rebuild() {
 		in.Root.Height = in.fixedH
 		in.Root.MinHeight = in.fixedH
 	}
-	in.Root.SetThemeHook(func(*core.Theme) { in.rebuild() })
+	in.Root.SetThemeHook(func(*core.Theme) { in.structureChange() })
 	in.applyA11y()
 
 	// Search enterButton → outer Flex(field, button)

@@ -47,6 +47,8 @@ import (
 // Type IDs for plugin/skin hooks.
 const (
 	TypeButton     = "kit.Button"
+	TypeBreadcrumb = "kit.Breadcrumb"
+	TypeInput      = "kit.Input"
 	TypeText       = "kit.Text"
 	TypeTypography = "kit.Typography"
 	TypeIcon       = "kit.Icon"
