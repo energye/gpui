@@ -42,6 +42,10 @@ type Decorated struct {
 	// (Ant control label alignment). Default false = top-left (Flutter Align.topLeft).
 	// Opt in via SetCenterContent(true) for Button/Input/Select chrome only.
 	CenterContent bool
+	// SkinType when non-empty is the Theme.Skin painter key used in Paint
+	// (e.g. "kit.Button"). Empty → TypeDecorated. Lets product controls plug
+	// chrome drawing without changing the node type hierarchy.
+	SkinType string
 }
 
 // SetCenterContent enables/disables vertical content centering.
@@ -201,7 +205,15 @@ func (d *Decorated) Paint(pc *core.PaintContext) {
 	if paintChrome && pc != nil {
 		var p core.Painter
 		if pc.Theme != nil {
-			p = pc.Theme.Painter(TypeDecorated)
+			typeID := TypeDecorated
+			if d.SkinType != "" {
+				typeID = d.SkinType
+			}
+			p = pc.Theme.Painter(typeID)
+			// Fall back to generic Decorated painter when product type is unregistered.
+			if p == nil && typeID != TypeDecorated {
+				p = pc.Theme.Painter(TypeDecorated)
+			}
 		}
 		if p != nil {
 			p(pc, d)

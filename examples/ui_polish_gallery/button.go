@@ -181,8 +181,60 @@ func (c *catalogCtx) registerButton() {
 		"Solid=fill · Outlined=border · Dashed=dashed border · Filled=light wash · Text/Link=no chrome. Same Type「Primary」≈ Solid+primary.",
 		varCol)
 
+	// Lifecycle (#9) — setter order must not drop chrome (structure then type/color).
+	bLife1 := c.trackBtn(kit.NewButton("Icon then Type"))
+	bLife1.SetIcon("search")
+	bLife1.SetType(kit.ButtonPrimary)
+	bLife2 := c.trackBtn(kit.NewButton("BG then Large"))
+	bLife2.SetBackground(render.Hex("#722ED1"))
+	bLife2.SetTextColor(render.Hex("#FFFFFF"))
+	bLife2.SetSize(kit.ButtonLarge)
+	bLife3 := c.trackBtn(kit.NewButton("Danger after Icon"))
+	bLife3.SetIcon("close")
+	bLife3.SetDanger(true)
+	bLife3.SetType(kit.ButtonDefault)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange (Icon/Size) then chromeChange (Type/Danger/Background) — order-safe; no lost colors after rebuild.",
+		spaceWrap(8, bLife1.Node(), bLife2.Node(), bLife3.Node()))
+
+	// Skin (#6) — Theme.Skin painter for kit.Button (Decorated.SkinType).
+	// Override is Key-gated so only this demo row changes (other buttons stay default).
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeButton, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "btn-skin-demo" {
+			if d.BorderWidth < 2 {
+				d.BorderWidth = 2
+			}
+			d.BorderColor = render.Hex("#EB2F96")
+		}
+		// Always paint through default chrome (tokens already on fields).
+		if p := baseSkin.Painter(kit.TypeButton); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	mkSkinBtn := func(label string, typ kit.ButtonType) *kit.Button {
+		b := kit.NewButton(label)
+		b.SetType(typ)
+		if dec, ok := b.ChromeNode().(*primitive.Decorated); ok {
+			dec.Base().Key = "btn-skin-demo"
+		}
+		return c.trackBtn(b)
+	}
+	bSkinP := mkSkinBtn("Skin Primary", kit.ButtonPrimary)
+	bSkinD := mkSkinBtn("Skin Default", kit.ButtonDefault)
+	bSkinT := mkSkinBtn("Skin Dashed", kit.ButtonDashed)
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"Decorated.SkinType=kit.Button. This row sets Key=btn-skin-demo; Theme.Skin Override draws a pink 2px border only for those nodes.",
+		spaceWrap(8, bSkinP.Node(), bSkinD.Node(), bSkinT.Node()))
+
 	c.items = append(c.items, ctlTab("btn", "Button"))
 	c.contents["btn"] = demoPage(c.face, "Button",
-		"To trigger an operation. Aligns Ant Design Button demos (type/size/icon/disabled/loading/danger/block/ghost/variant).",
-		secType, secIcon, secIconEnd, secSize, secDisabled, secLoading, secMultiple, secDanger, secBlock, secGhost, secVariant)
+		"To trigger an operation. Aligns Ant Design Button demos (type/size/icon/disabled/loading/danger/block/ghost/variant). Also verifies #9 lifecycle + #6 Skin.",
+		secType, secIcon, secIconEnd, secSize, secDisabled, secLoading, secMultiple, secDanger, secBlock, secGhost, secVariant, secLife, secSkin)
 }

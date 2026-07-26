@@ -9,20 +9,35 @@ import (
 	"github.com/energye/gpui/ui/primitive"
 )
 
+// Product typeIDs as string literals to avoid importing ui/kit (cycle).
+// Must stay equal to kit.TypeButton etc.
+const (
+	typeButton = "kit.Button"
+)
+
 // Tokens returns a clone of the Ant light token table.
 func Tokens() *core.TokenSet {
 	return core.AntLightTokens()
 }
 
-// NewSkin builds the default map skin with painters for common primitives.
+// NewSkin builds the default map skin with painters for common primitives
+// and product chrome hooks.
+//
+//	TypeDecorated — generic box chrome
+//	kit.Button    — Button Decorated chrome (default = PaintDecorated; overridable)
+//
 // Decorated chrome is delegated to primitive.PaintDecorated (single source of truth).
 func NewSkin() *core.MapSkin {
 	s := core.NewMapSkin()
-	s.Set(primitive.TypeDecorated, func(pc *core.PaintContext, n core.Node) {
+	paintDeco := func(pc *core.PaintContext, n core.Node) {
 		if d, ok := n.(*primitive.Decorated); ok {
 			primitive.PaintDecorated(pc, d)
 		}
-	})
+	}
+	s.Set(primitive.TypeDecorated, paintDeco)
+	// Button tags its Decorated with SkinType=kit.Button so product skins can
+	// override only buttons without replacing all Decorated chrome.
+	s.Set(typeButton, paintDeco)
 	return s
 }
 

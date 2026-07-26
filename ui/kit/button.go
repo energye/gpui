@@ -12,12 +12,20 @@ import (
 // Button is a product-level control composed from Pressable + Decorated + Flex + Text/Icon.
 //
 //	Pressable
-//	  └─ Decorated
+//	  └─ Decorated  (SkinType = kit.Button for Theme.Skin painters)
 //	       └─ Flex(Row)
 //	            Spinner? · Icon? · Text(label) · Icon?   (icon start or end)
 //
-// Hover/press chrome tracks PressableState automatically via OnStateChange.
-// SyncState() remains for explicit host loops that want a manual refresh.
+// # Lifecycle (#9)
+//
+// NewButton always builds once. After that:
+//
+//   - structureChange() — child list / metrics layout (Size, Icon, Shape, Loading, Block, …)
+//   - chromeChange()    — colors / borders only (Type, Danger, Ghost, Variant, Color, …)
+//   - ensureBuilt()     — used by Node/ChromeNode and chrome path so nil Root never skips updates
+//
+// Prefer Set* methods over poking fields then hoping rebuild order is right.
+// Hover/press chrome tracks PressableState via OnStateChange; SyncState() is optional.
 //
 // Metrics follow docs/antd/button.md §6.2 (middle: h=32, font=14, paddingInline=15, radius=6).
 // Product contract: docs/antd/button.md §6 (P0 DoD).
@@ -80,19 +88,44 @@ func NewButton(label string) *Button {
 	return b
 }
 
-// Node returns the root core.Node for tree attachment.
-func (b *Button) Node() core.Node {
-	if b.Root == nil {
+// ensureBuilt materializes the Pressable/Decorated tree if missing.
+// NewButton always builds; this covers defensive paths and chromeChange.
+func (b *Button) ensureBuilt() {
+	if b == nil {
+		return
+	}
+	if b.Root == nil || b.decorated == nil {
 		b.rebuild()
 	}
+}
+
+// structureChange rebuilds the child tree (icon/spinner/metrics/shape/block).
+func (b *Button) structureChange() {
+	if b == nil {
+		return
+	}
+	b.rebuild()
+}
+
+// chromeChange refreshes fill/border/label colors without tearing down the tree
+// when already built. Ensures a tree exists so SetType-before-mount still applies.
+func (b *Button) chromeChange() {
+	if b == nil {
+		return
+	}
+	b.ensureBuilt()
+	b.applyChrome()
+}
+
+// Node returns the root core.Node for tree attachment.
+func (b *Button) Node() core.Node {
+	b.ensureBuilt()
 	return b.Root
 }
 
 // ChromeNode returns the Decorated chrome (for visual tests / composition).
 func (b *Button) ChromeNode() core.Node {
-	if b.decorated == nil {
-		b.rebuild()
-	}
+	b.ensureBuilt()
 	return b.decorated
 }
 
@@ -102,7 +135,7 @@ func (b *Button) SetLabel(s string) {
 	b.Label = s
 	// Child list / circle padding depends on whether label is empty.
 	if prevEmpty != (s == "") || b.Shape == ButtonShapeCircle {
-		b.rebuild()
+		b.structureChange()
 		return
 	}
 	if b.label != nil {
@@ -110,28 +143,29 @@ func (b *Button) SetLabel(s string) {
 		b.applyA11yName()
 		return
 	}
-	b.rebuild()
+	b.structureChange()
 }
 
-// SetType updates visual type and recolors.
+// SetType updates visual type and recolors (chrome only; no tree rebuild).
 func (b *Button) SetType(t ButtonType) {
 	b.Type = t
-	b.applyChrome()
+	b.chromeChange()
 }
 
-// SetSize updates control size and rebuilds metrics.
+// SetSize updates control size and rebuilds metrics (structure).
 func (b *Button) SetSize(s ButtonSize) {
 	b.Size = s
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetDisabled toggles disabled.
 func (b *Button) SetDisabled(d bool) {
 	b.Disabled = d
+	b.ensureBuilt()
 	if b.Root != nil {
 		b.Root.SetDisabled(d || b.Loading)
 	}
-	b.applyChrome()
+	b.chromeChange()
 }
 
 // SetLoading toggles loading (disables press, shows spinner).
@@ -140,11 +174,11 @@ func (b *Button) SetLoading(v bool) {
 		return
 	}
 	b.Loading = v
+	// Spinner presence changes the child list — structure rebuild.
+	b.structureChange()
 	if b.Root != nil {
 		b.Root.SetDisabled(b.Disabled || b.Loading)
 	}
-	// Spinner presence changes the child list — rebuild chrome.
-	b.rebuild()
 	if b.boundTree != nil {
 		if v {
 			b.boundTree.AddTicker(b)
@@ -180,10 +214,10 @@ func (b *Button) Tick(dt float64) bool {
 	return b.Loading
 }
 
-// SetDanger toggles danger styling.
+// SetDanger toggles danger styling (chrome only).
 func (b *Button) SetDanger(v bool) {
 	b.Danger = v
-	b.applyChrome()
+	b.chromeChange()
 }
 
 // SetBlock makes the button expand to the parent max width when bounded
@@ -193,7 +227,7 @@ func (b *Button) SetBlock(v bool) {
 		return
 	}
 	b.Block = v
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetGhost toggles Ant ghost styling (transparent fill).
@@ -202,7 +236,7 @@ func (b *Button) SetGhost(v bool) {
 		return
 	}
 	b.Ghost = v
-	b.applyChrome()
+	b.chromeChange()
 }
 
 // SetVariant sets Ant 5.21+ visual variant (Auto → derive from Type).
@@ -211,7 +245,7 @@ func (b *Button) SetVariant(v ButtonVariant) {
 		return
 	}
 	b.Variant = v
-	b.applyChrome()
+	b.chromeChange()
 }
 
 // SetColor sets Ant 5.21+ semantic color for variants (Default → Type/Danger).
@@ -220,13 +254,13 @@ func (b *Button) SetColor(c ButtonColor) {
 		return
 	}
 	b.Color = c
-	b.applyChrome()
+	b.chromeChange()
 }
 
 // SetIcon sets an optional icon name (empty clears). Placement via SetIconPlacement.
 func (b *Button) SetIcon(name string) {
 	b.IconName = name
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetIconPlacement places the icon at start (default) or end of the label.
@@ -235,7 +269,7 @@ func (b *Button) SetIconPlacement(p ButtonIconPlacement) {
 		return
 	}
 	b.IconPlacement = p
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetShape sets Ant shape: default rectangle, circle (w=h), or round (capsule).
@@ -244,20 +278,20 @@ func (b *Button) SetShape(s ButtonShape) {
 		return
 	}
 	b.Shape = s
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetAriaLabel sets the accessible name. Required when Label is empty (icon-only).
 func (b *Button) SetAriaLabel(name string) {
 	b.AriaLabel = name
-	if b.Root != nil {
-		b.applyA11yName()
-	}
+	b.ensureBuilt()
+	b.applyA11yName()
 }
 
 // SetOnClick sets the click handler.
 func (b *Button) SetOnClick(fn func()) {
 	b.OnClick = fn
+	b.ensureBuilt()
 	if b.Root != nil {
 		b.Root.Click = b.fireClick
 	}
@@ -291,9 +325,10 @@ func (b *Button) SetStyle(st Style) {
 		b.Face = st.Face
 	}
 	if st.FontSize > 0 || st.Height > 0 || st.hasRadius() {
-		b.rebuild()
+		b.structureChange()
 		return
 	}
+	b.ensureBuilt()
 	if b.label != nil {
 		if st.Face != nil {
 			b.label.Face = st.Face
@@ -302,33 +337,31 @@ func (b *Button) SetStyle(st Style) {
 			b.label.FontSize = st.FontSize
 		}
 	}
-	b.applyChrome()
+	b.chromeChange()
 }
 
 // SetBackground overrides idle fill color.
 func (b *Button) SetBackground(c render.RGBA) {
 	b.Style.Background = c
-	b.applyChrome()
+	b.chromeChange()
 }
 
 // SetTextColor overrides label color.
 func (b *Button) SetTextColor(c render.RGBA) {
 	b.Style.Text = c
-	b.applyChrome()
+	b.chromeChange()
 }
 
 // SetFontSize overrides label size (rebuilds metrics-sensitive layout).
 func (b *Button) SetFontSize(px float64) {
 	b.Style.FontSize = px
-	b.rebuild()
+	b.structureChange()
 }
 
 // SetFixedSize forces outer chrome to a fixed size (0 clears width/height force).
 // Used by visual scenarios for stable 120×40 chrome blocks.
 func (b *Button) SetFixedSize(w, h float64) {
-	if b.decorated == nil {
-		b.rebuild()
-	}
+	b.ensureBuilt()
 	b.decorated.Width = w
 	b.decorated.Height = h
 	if h > 0 {
@@ -343,6 +376,9 @@ func (b *Button) SetFixedSize(w, h float64) {
 // SyncState copies Pressable hover/press into Decorated background.
 // Prefer automatic OnStateChange; this remains for explicit host loops.
 func (b *Button) SyncState() {
+	if b == nil {
+		return
+	}
 	if b.Root == nil || b.decorated == nil {
 		return
 	}
@@ -436,6 +472,8 @@ func (b *Button) rebuild() {
 		b.decorated.ClearChildren()
 		b.decorated.AddChild(b.row)
 	}
+	// Product skin key so Theme.Skin can override Button chrome only (#6).
+	b.decorated.SkinType = TypeButton
 	// Circle icon-only: no horizontal padding so w≈h; content centered.
 	if b.Shape == ButtonShapeCircle && !hasLabel {
 		b.decorated.Padding = primitive.Symmetric(0, 0)
@@ -482,7 +520,7 @@ func (b *Button) rebuild() {
 	b.Root.SetDisabled(b.Disabled || b.Loading)
 	b.Root.Base().Role = "button"
 	b.applyA11yName()
-	b.Root.SetThemeHook(func(*core.Theme) { b.rebuild() })
+	b.Root.SetThemeHook(func(*core.Theme) { b.structureChange() })
 
 	b.lastHovered, b.lastPressed, b.lastFocused = false, false, false
 	b.applyChrome()
