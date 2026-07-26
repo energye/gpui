@@ -1,5 +1,7 @@
 package core
 
+import "sort"
+
 // OverlayEntry is one floating layer above the main tree (C-Overlay / C-PortalHost).
 type OverlayEntry struct {
 	ID   string
@@ -11,8 +13,12 @@ type OverlayEntry struct {
 }
 
 // OverlayHost is a root-level stack of portal contents.
+//
+// entries is kept sorted by ZOrder ascending (stable for equal Z) on every Push
+// so hot-path Entries() is a plain snapshot — layout/paint/hit call it many times
+// per frame while Push/Remove are rare (open/close portals).
 type OverlayHost struct {
-	entries []OverlayEntry
+	entries []OverlayEntry // invariant: sorted by ZOrder ascending, stable
 	seq     int
 }
 
@@ -21,25 +27,20 @@ func NewOverlayHost() *OverlayHost {
 	return &OverlayHost{}
 }
 
-// Entries returns a snapshot sorted by ZOrder ascending.
+// Entries returns a snapshot in ZOrder ascending (already maintained by Push).
+// The slice is a copy; mutating it does not affect the host.
 func (h *OverlayHost) Entries() []OverlayEntry {
-	if h == nil {
+	if h == nil || len(h.entries) == 0 {
 		return nil
 	}
 	out := make([]OverlayEntry, len(h.entries))
 	copy(out, h.entries)
-	// simple insertion order is enough if ZOrder set; stable sort by ZOrder
-	for i := 1; i < len(out); i++ {
-		j := i
-		for j > 0 && out[j-1].ZOrder > out[j].ZOrder {
-			out[j-1], out[j] = out[j], out[j-1]
-			j--
-		}
-	}
 	return out
 }
 
 // Push adds or replaces an entry by ID. Empty ID gets an auto id.
+// After mutation the stack is re-sorted stably by ZOrder so equal-Z relative
+// order matches the historical "in-place update then stable sort" behavior.
 func (h *OverlayHost) Push(e OverlayEntry) string {
 	if h == nil {
 		return ""
@@ -51,14 +52,26 @@ func (h *OverlayHost) Push(e OverlayEntry) string {
 	for i := range h.entries {
 		if h.entries[i].ID == e.ID {
 			h.entries[i] = e
+			h.keepSorted()
 			return e.ID
 		}
 	}
 	h.entries = append(h.entries, e)
+	h.keepSorted()
 	return e.ID
 }
 
-// Remove drops an entry by ID.
+// keepSorted restores ZOrder ascending with stable ties (equal Z keep relative order).
+func (h *OverlayHost) keepSorted() {
+	if len(h.entries) < 2 {
+		return
+	}
+	sort.SliceStable(h.entries, func(i, j int) bool {
+		return h.entries[i].ZOrder < h.entries[j].ZOrder
+	})
+}
+
+// Remove drops an entry by ID. Remaining entries stay sorted.
 func (h *OverlayHost) Remove(id string) {
 	if h == nil || id == "" {
 		return

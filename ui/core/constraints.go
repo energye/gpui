@@ -27,8 +27,9 @@ func TightWidth(w, maxH float64) Constraints {
 	return Constraints{MinWidth: w, MaxWidth: w, MaxHeight: maxH}
 }
 
-// TightHeight locks height and leaves width loose up to maxW.
-func TightWidthHeight(maxW, h float64) Constraints {
+// TightHeight locks height and leaves width loose up to maxW
+// (MinWidth=0, MaxWidth=maxW, MinHeight=MaxHeight=h).
+func TightHeight(maxW, h float64) Constraints {
 	return Constraints{MaxWidth: maxW, MinHeight: h, MaxHeight: h}
 }
 
