@@ -10,9 +10,15 @@
 // GPU surfaces are opened only through render.PresentTarget (native handles in,
 // present out).
 //
+// FFI rule (hard, whole repo including examples):
+//
+//	NO cgo (import "C"). Use purego for native libraries.
+//	See docs/ENGINE_CODING_RULES.md.
+//
 // Docs:
 //
 //	docs/ENGINE_L1_CLOSEOUT.md      — status, verify commands, limits
+//	docs/ENGINE_CODING_RULES.md     — no-CGO / purego / dependency rules
 //	docs/ENGINE_FLUTTER_SKIA_ARCH.md — architecture
 //	docs/ENGINE_PHASE_P0_P3.md      — phase tasks
 //

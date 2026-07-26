@@ -82,24 +82,22 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		scale = 1
 	}
 
-	// Wayland vs X11: gpu/webgpu CreateSurface uses WAYLAND_DISPLAY env on Linux.
-	// Callers should still set Platform correctly for documentation / future use.
-	_ = ns.Platform
-
 	inst, err := webgpu.CreateInstance(&webgpu.InstanceDescriptor{Backends: webgpu.BackendsPrimary})
 	if err != nil {
 		return nil, fmt.Errorf("render: CreateInstance: %w", err)
 	}
 
-	surf, err := inst.CreateSurface(ns.Display, ns.Window)
+	// Surface backend MUST match handle types (Xlib Display*/Window vs wl_*).
+	// Driven by PresentNativeSurface.Platform — never guess from env alone.
+	backend := surfaceBackendFor(ns.Platform)
+	surf, err := inst.CreateSurfaceFor(backend, ns.Display, ns.Window)
 	if err != nil {
 		inst.Release()
-		return nil, fmt.Errorf("render: CreateSurface: %w", err)
+		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
 	}
 
 	adapter, err := inst.RequestAdapter(&webgpu.RequestAdapterOptions{
-		PowerPreference:   webgpu.PowerPreferenceHighPerformance,
-		CompatibleSurface: surf,
+		PowerPreference: webgpu.PowerPreferenceHighPerformance,
 	})
 	if err != nil {
 		surf.Release()
@@ -146,6 +144,19 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		sc:      sc,
 		dc:      dc,
 	}, nil
+}
+
+func surfaceBackendFor(p PresentPlatform) webgpu.SurfaceBackend {
+	switch p {
+	case PresentPlatformWayland:
+		return webgpu.SurfaceBackendWayland
+	case PresentPlatformWin32:
+		return webgpu.SurfaceBackendWin32
+	case PresentPlatformAppKit:
+		return webgpu.SurfaceBackendMetal
+	default:
+		return webgpu.SurfaceBackendXlib
+	}
 }
 
 func physicalSize(logicalW, logicalH int, scale float64) (uint32, uint32) {

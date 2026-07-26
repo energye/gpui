@@ -3,8 +3,8 @@
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	go run ./examples/ui_l1_spinner
 //
-// Duration: default 60s; override with RUN_SECONDS (e.g. RUN_SECONDS=180).
-// No MaxFrames cap — time-limited only, for hitch observation.
+// Auto window backend: Wayland or X11 (see examples/exhost, GPUI_DISPLAY=wayland|x11|auto).
+// Duration: default 60s; override with RUN_SECONDS.
 package main
 
 import (
@@ -12,9 +12,8 @@ import (
 	"os"
 	"strconv"
 	"time"
-	"unsafe"
 
-	"github.com/ebitengine/purego"
+	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/animation"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
@@ -25,21 +24,18 @@ import (
 )
 
 func main() {
-	if os.Getenv("DISPLAY") == "" {
-		fmt.Fprintln(os.Stderr, "ui_l1_spinner: DISPLAY not set")
-		os.Exit(2)
-	}
 	secs := runSeconds(60)
-	fmt.Fprintf(os.Stderr, "ui_l1_spinner: running %ds (RUN_SECONDS to override, e.g. 180)\n", secs)
+	fmt.Fprintf(os.Stderr, "ui_l1_spinner: running %ds (RUN_SECONDS / GPUI_DISPLAY=wayland|x11|auto); close window to exit safely\n", secs)
 	const winW, winH = 480, 320
-	xw, err := openX11(winW, winH, "gpui L1 spinner (P3)")
+
+	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui L1 spinner (P3)"})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "x11:", err)
+		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)
 	}
-	defer xw.close()
+	// GPU must be released before native window destroy.
+	defer win.Close()
 
-	// Static chrome + spinner boundary.
 	spin := rendering.NewRenderSpinner(48)
 	root := rendering.NewRenderBox(spin)
 	root.FixedWidth, root.FixedHeight = float64(winW), float64(winH)
@@ -47,19 +43,17 @@ func main() {
 		c := rendering.NewRenderColorBox(12, 12, 0.25, 0.28, 0.32, 1)
 		root.AddChild(c)
 	}
-	// Position spinner roughly center via offset after layout in first frame —
-	// for demo, pad root and let spinner at (0,0); add a spacer box first.
 	spin.SetOffset(rendering.Point{X: float64(winW)/2 - 24, Y: float64(winH)/2 - 24})
 
-	host := &x11Host{xw: xw, w: winW, h: winH, scale: 1}
-	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
-		ClearR: 0.10,
-		ClearG: 0.12,
-		ClearB: 0.16,
-		ClearA: 1,
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
+		ClearR: 0.10, ClearG: 0.12, ClearB: 0.16, ClearA: 1,
 		RunFor: time.Duration(secs) * time.Second,
-		// MaxFrames: 0 = unlimited
 		WarmUp: true,
+		OnEvent: func(ev platform.Event) {
+			if ev.Type == platform.EventClose {
+				fmt.Fprintf(os.Stderr, "ui_l1_spinner: window close (%s) — stopping GPU before destroy\n", win.Backend())
+			}
+		},
 	})
 
 	ctrl := animation.NewController(1.0)
@@ -74,20 +68,26 @@ func main() {
 		fmt.Fprintln(os.Stderr, "open:", err)
 		os.Exit(1)
 	}
+	t0 := time.Now()
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "run:", err)
 		os.Exit(1)
 	}
 	ctrl.Stop()
+	app.Close()
 
+	elapsed := time.Since(t0).Seconds()
+	if elapsed < 0.001 {
+		elapsed = 0.001
+	}
 	if app.PresentCount() < 1 {
 		fmt.Fprintln(os.Stderr, "no frames")
 		os.Exit(1)
 	}
 	m := app.Metrics().Snapshot()
-	fps := float64(app.PresentCount()) / float64(secs)
-	fmt.Fprintf(os.Stderr, "ui_l1_spinner: presents=%d ~%.1f fps over %ds layout_flushes=%d raster_layers=%d\n",
-		app.PresentCount(), fps, secs, app.LayoutFlushCount(), app.LastRasterStats().RasterLayerCount)
+	fps := float64(app.PresentCount()) / elapsed
+	fmt.Fprintf(os.Stderr, "ui_l1_spinner: backend=%s presents=%d ~%.1f fps over %.1fs (cap %ds) layout_flushes=%d raster_layers=%d\n",
+		win.Backend(), app.PresentCount(), fps, elapsed, secs, app.LayoutFlushCount(), app.LastRasterStats().RasterLayerCount)
 	fmt.Fprintf(os.Stderr, "ui_l1_spinner: avg=%.2fms max=%.2fms last=%.2fms hitches(>%.1fms)=%d\n",
 		m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.LastFrameIntervalMs, scheduler.HitchThresholdMs, m.HitchCount)
 	if b, err := app.Metrics().JSON(); err == nil {
@@ -107,121 +107,3 @@ func runSeconds(def int) int {
 	}
 	return def
 }
-
-// --- minimal X11 (same pattern as ui_l1_blank) ---
-
-type x11Win struct {
-	display, window uintptr
-	close, flush    func()
-}
-
-func openX11(w, h int, title string) (*x11Win, error) {
-	lib, err := purego.Dlopen("libX11.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
-	if err != nil {
-		lib, err = purego.Dlopen("libX11.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
-	}
-	if err != nil {
-		return nil, err
-	}
-	var (
-		xOpenDisplay   func(name *byte) uintptr
-		xCloseDisplay  func(dpy uintptr) int
-		xDefaultScreen func(dpy uintptr) int
-		xRootWindow    func(dpy uintptr, screen int) uintptr
-		xCreateSimple  func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
-		xMapWindow     func(dpy uintptr, win uintptr) int
-		xFlush         func(dpy uintptr) int
-		xDestroyWindow func(dpy uintptr, win uintptr) int
-		xStoreName     func(dpy uintptr, win uintptr, name *byte) int
-	)
-	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
-	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
-	purego.RegisterLibFunc(&xDefaultScreen, lib, "XDefaultScreen")
-	purego.RegisterLibFunc(&xRootWindow, lib, "XRootWindow")
-	purego.RegisterLibFunc(&xCreateSimple, lib, "XCreateSimpleWindow")
-	purego.RegisterLibFunc(&xMapWindow, lib, "XMapWindow")
-	purego.RegisterLibFunc(&xFlush, lib, "XFlush")
-	purego.RegisterLibFunc(&xDestroyWindow, lib, "XDestroyWindow")
-	purego.RegisterLibFunc(&xStoreName, lib, "XStoreName")
-
-	dpy := xOpenDisplay(nil)
-	if dpy == 0 {
-		return nil, errStr("XOpenDisplay failed")
-	}
-	screen := xDefaultScreen(dpy)
-	root := xRootWindow(dpy, screen)
-	win := xCreateSimple(dpy, root, 80, 80, uint(w), uint(h), 1, 0, 0x001a2030)
-	if win == 0 {
-		xCloseDisplay(dpy)
-		return nil, errStr("XCreateSimpleWindow failed")
-	}
-	t := append([]byte(title), 0)
-	xStoreName(dpy, win, &t[0])
-	xMapWindow(dpy, win)
-	xFlush(dpy)
-	time.Sleep(50 * time.Millisecond)
-	xw := &x11Win{display: dpy, window: win}
-	xw.flush = func() { xFlush(dpy) }
-	xw.close = func() {
-		xDestroyWindow(dpy, win)
-		xCloseDisplay(dpy)
-	}
-	return xw, nil
-}
-
-type strErr struct{ s string }
-
-func errStr(s string) error     { return &strErr{s} }
-func (e *strErr) Error() string { return e.s }
-
-type x11Host struct {
-	xw    *x11Win
-	w, h  int
-	scale float64
-	wake  chan struct{}
-}
-
-func (h *x11Host) NativeSurface() platform.NativeSurface {
-	return platform.NativeSurface{Kind: platform.PlatformX11, Display: h.xw.display, Window: h.xw.window}
-}
-func (h *x11Host) Size() (int, int) { return h.w, h.h }
-func (h *x11Host) ScaleFactor() float64 {
-	if h.scale <= 0 {
-		return 1
-	}
-	return h.scale
-}
-func (h *x11Host) WaitEvents(timeout time.Duration) []platform.Event {
-	if h.wake == nil {
-		h.wake = make(chan struct{}, 1)
-	}
-	if timeout < 0 {
-		timeout = 16 * time.Millisecond
-	}
-	if timeout == 0 {
-		if h.xw.flush != nil {
-			h.xw.flush()
-		}
-		return nil
-	}
-	select {
-	case <-h.wake:
-		return []platform.Event{{Type: platform.EventWake}}
-	case <-time.After(timeout):
-		if h.xw.flush != nil {
-			h.xw.flush()
-		}
-		return nil
-	}
-}
-func (h *x11Host) WakeUp() {
-	if h.wake == nil {
-		h.wake = make(chan struct{}, 1)
-	}
-	select {
-	case h.wake <- struct{}{}:
-	default:
-	}
-}
-
-var _ = unsafe.Pointer(nil)

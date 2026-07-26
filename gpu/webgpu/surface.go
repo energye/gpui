@@ -107,13 +107,22 @@ type Surface struct {
 }
 
 // CreateSurface creates a rendering surface from platform-specific handles.
-// On the wgpu-native backend, dispatches to the platform-appropriate creation method.
+// On Linux this uses SurfaceBackendAuto (env heuristic). Prefer CreateSurfaceFor
+// when the window system is already known (X11 vs Wayland handles must match).
+//
 // displayHandle and windowHandle are platform-specific:
 //   - Windows: displayHandle=HINSTANCE (can be 0), windowHandle=HWND
 //   - macOS: displayHandle=0, windowHandle=CAMetalLayer*
 //   - Linux/X11: displayHandle=Display*, windowHandle=Window
 //   - Linux/Wayland: displayHandle=wl_display*, windowHandle=wl_surface*
 func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface, error) {
+	return i.CreateSurfaceFor(SurfaceBackendAuto, displayHandle, windowHandle)
+}
+
+// CreateSurfaceFor creates a surface using an explicit window-system backend.
+// On Linux, backend must match the handle types (Xlib vs Wayland); mismatch
+// causes native SIGSEGV in Configure/GetCapabilities.
+func (i *Instance) CreateSurfaceFor(backend SurfaceBackend, displayHandle, windowHandle uintptr) (*Surface, error) {
 	if i == nil {
 		return nil, fmt.Errorf("wgpu: instance is nil")
 	}
@@ -121,18 +130,11 @@ func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface,
 		return nil, ErrReleased
 	}
 	// Native wgpu aborts on null platform pointers (Vulkan "Display pointer is not set").
-	// Reject early so callers get a Go error instead of process abort.
 	if windowHandle == 0 {
 		return nil, fmt.Errorf("wgpu: CreateSurface requires a non-zero window handle")
 	}
-	// X11/Wayland need a display; Windows may pass 0 HINSTANCE, macOS passes 0 display.
-	// Platform create functions may still require display on Linux.
-	if displayHandle == 0 {
-		// Linux X11/Wayland require display; allow zero only on platforms that ignore it.
-		// createPlatformSurface will re-check for Linux.
-	}
 
-	rs, err := createPlatformSurface(i.r, displayHandle, windowHandle)
+	rs, err := createPlatformSurfaceFor(i.r, backend, displayHandle, windowHandle)
 	if err != nil {
 		return nil, fmt.Errorf("wgpu: failed to create surface: %w", err)
 	}

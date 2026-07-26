@@ -1,6 +1,6 @@
 # L1 UI 引擎收口说明（P0–P3）
 
-> **版本：1.1** | 日期：2026-07-27  
+> **版本：1.4** | 日期：2026-07-27  
 > **状态：✅ 已收口 · P0–P3 已实现 · 可验收**  
 > **范围：** L1（`ui/` + `render.PresentTarget`）  
 > **不在本收口：** P4 滚动/IO、L2 手势焦点、L3 Ant 控件  
@@ -120,10 +120,12 @@ go run ./examples/ui_l1_spinner
 | 文档 | 改什么时候 |
 |------|------------|
 | **本文** | L1 状态、验收、限制（**日常入口**） |
+| `ENGINE_CODING_RULES` | **禁止 CGO / purego / 全局纪律** |
 | `ENGINE_FLUTTER_SKIA_ARCH` | 架构条款变更 |
 | `ENGINE_ARCH_OVERVIEW` | 图示/白话 |
 | `ENGINE_PHASE_P0_P3` | 已完成任务考古 |
-| `ENGINE_PHASE_P4` | **P4 执行细卡** |
+| `ENGINE_PHASE_P4` | P4 执行细卡（已实现） |
+| `ENGINE_PHASE_P5` | **P5 执行细卡（L2 手势/焦点/Overlay）** |
 | `ENGINE_PHASE_P4_P7_OUTLINE` | P4–P7 大纲 |
 
 **L1 冻结：** 除非修 bug 或 P4 回头改契约，否则以本文状态为准，不再扩 L1 范围冒充完成。
@@ -136,7 +138,8 @@ go run ./examples/ui_l1_spinner
 |------|------|
 | 1 | （可选）存 blank/spinner JSON baseline |
 | 2 | P4 ✅ 已实现 |
-| 3 | **P5** L2 框架壳 → P7 Ant（后置） |
+| 3 | **P5** L2 框架壳 — 细卡 [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md) |
+| 4 | P7 Ant（后置，P5 基本齐后） |
 
 ---
 
@@ -148,3 +151,4 @@ go run ./examples/ui_l1_spinner
 | 1.1 | 2026-07-27 | 文档收尾定稿：职责表、冻结说明、单测确认 |
 | 1.2 | 2026-07-27 | 挂链 ENGINE_PHASE_P4 细卡 |
 | 1.3 | 2026-07-27 | P4 实现完成：限制与下一步更新 |
+| 1.4 | 2026-07-27 | 挂链 ENGINE_PHASE_P5 细卡 |

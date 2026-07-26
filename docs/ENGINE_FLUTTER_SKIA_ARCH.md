@@ -5,8 +5,9 @@
 > **仓库：** `ui/`（引擎）· `render/` · `gpu/`  
 > **图示：** [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)  
 > **P0–P3 任务：** [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md)  
+> **P4 细卡：** [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md) · **P5 细卡：** [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md)  
 > **P4–P7 大纲：** [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md)  
-> **控件需求（后置）：** [`antd/`](./antd/)
+> **控件需求（后置 P7）：** [`antd/`](./antd/)
 
 ---
 
@@ -65,13 +66,23 @@ Go module 根：`github.com/energye/gpui`（见 `go.mod`）。
 | **ui 禁止 import gpu** | 编译期纪律；句柄经 render 或 ui/platform→render 规定路径进入 Surface |
 | **功能不够** | 在 **`render` 或 `gpu` 对应位置** 增/删/改，不在 ui 里复制一套 GPU |
 
+### 1.2.1 禁止 CGO（硬）
+
+> 全文细则：[`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md)
+
+| 规则 | 说明 |
+|------|------|
+| **禁止 `import "C"` / `#cgo`** | `ui` / `render` / `gpu` / `examples` **全部**适用 |
+| **原生 FFI 只用 purego** | `Dlopen` · `RegisterLibFunc` · `NewCallback`（X11 / Wayland / wgpu-native） |
+| **`CGO_ENABLED=0` 可构建** | 不得依赖 cgo 才能编译 |
+
 ### 1.3 职责切分
 
 | 包 | 做 | 不做 |
 |----|----|------|
-| **ui** | 帧调度、RO 树、脏区、Layer 描述、HitTest、Ticker、把帧交给 render | 直接 cgo wgpu、自己管 Device |
-| **render** | Skia 式 2D、离屏 RT、文字/图、PresentFrame*、（按需）Picture 回放 | 控件树、业务状态 |
-| **gpu** | Instance/Device/Queue、**由原生句柄建 Surface**、纹理、提交 | UI 语义 |
+| **ui** | 帧调度、RO 树、脏区、Layer 描述、HitTest、Ticker、把帧交给 render | **cgo**、直触 gpu、自己管 Device |
+| **render** | Skia 式 2D、离屏 RT、文字/图、PresentFrame*、（按需）Picture 回放 | 控件树、业务状态、**cgo** |
+| **gpu** | Instance/Device/Queue、**由原生句柄建 Surface**、纹理、提交（**purego** 绑 wgpu） | UI 语义、**cgo** |
 
 ---
 
@@ -429,6 +440,7 @@ ui/
 |------|------|
 | 3.0 | 适配清仓后仓库：`ui>render>gpu`；句柄 SPI；§4 逻辑/物理/Y 轴；任务计划外链；废弃 engine/ 命名 |
 | 3.1 | L1 P0–P3 实现后：状态改为已实现；挂链 ENGINE_L1_CLOSEOUT |
+| 3.2 | 挂链 P4/P5 细卡；下一步改为 P5 |
 
 ---
 
@@ -439,8 +451,9 @@ ui/
 **下一步（可选）：**
 
 1. 存真窗 JSON 为 baseline  
-2. **P4 细卡** → [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md)  
-3. L2 / L3 仍后置
+2. P4 ✅ → [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md)  
+3. **P5 L2 细卡** → [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md)（手势/焦点/Overlay；排除 antd）  
+4. L3 Ant 仍后置（P7）
 
 **验收：**
 

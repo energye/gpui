@@ -1,10 +1,12 @@
 # UI 架构总览 — 一看就懂
 
-> **版本：3.2** | 日期：2026-07-27  
+> **版本：3.4** | 日期：2026-07-27  
+> **编码纪律：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md)（**禁止 CGO**）  
 > **L1 收口（状态 / 命令）：** [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)  
 > **架构真源：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
 > **P0–P3 任务：** [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md)（已完成）  
 > **P4 细卡：** [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md)  
+> **P5 细卡：** [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md)  
 > **P4+ 大纲：** [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md)
 
 ---
@@ -43,6 +45,8 @@ L1（ui/）P0–P3  ✅  体验雏形可验收
 ```
 
 功能不够 → 改 **render** 或 **gpu**，不在 ui 复制 GPU。
+
+**禁止 CGO：** 全仓库（含 examples）不得 `import "C"`；原生库一律 **purego**。详见 [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md)。
 
 ---
 
@@ -116,7 +120,8 @@ vsync/fallback → Tick → layout(脏) → paint(脏) → FramePacket
 |------|------|------|
 | P0–P3 | L1 体验雏形 | ✅ |
 | P4 | 滚动 / 文本 / IO | ✅ |
-| P5–P7 | L2 / 增强 / Ant | ⬜ |
+| P5 | L2 手势 / 焦点 / Overlay | ⬜ 细卡已开 |
+| P6–P7 | 增强 / Ant | ⬜ |
 
 **验收命令与限制 →** [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)
 
@@ -138,3 +143,5 @@ examples/ui_l1_blank | ui_l1_spinner
 |------|------|
 | 3.0–3.1 | 清仓架构；P0–P3 状态 |
 | **3.2** | **L1 文档收尾：总览与收口对齐；L1 标完成** |
+| 3.3 | 挂链 P5 细卡 |
+| 3.4 | 挂链禁止 CGO 纪律 |
