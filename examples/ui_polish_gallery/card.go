@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -195,8 +196,52 @@ func (c *catalogCtx) registerCard() {
 		"inner.tsx：外层 Card 嵌套 type=inner 子卡片。",
 		outer.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewCard("Lifecycle"))
+	life.SetContent(bodyLines())
+	life.SetSize(kit.CardSmall)
+	life.SetHoverable(true)
+	life.SetWidth(300)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Title/Content → Size → Hoverable；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeCard, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "card-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeCard); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeCard); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinC := wire(kit.NewCard("Skin"))
+	skinC.SetContent(txt("TypeID=kit.Card"))
+	skinC.SetWidth(300)
+	skinNode := skinC.Node()
+	if d, ok := skinC.ChromeNode().(*primitive.Decorated); ok && d != nil {
+		d.Base().Key = "card-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Card 已注册。Key=card-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	c.addPage("card", "Card", demoPage(face, "Card 卡片",
-		"数据展示 · docs/antd/card.md §6 P0（basic/border-less/simple/flexible-content/in-column/loading/grid-card/inner）。P1：tabs、semantic classNames/styles、boxShadow 像素级、ConfigProvider。",
-		secBasic, secBL, secSimple, secFlex, secInCol, secLoad, secGrid, secInner,
+		"数据展示 · docs/antd/card.md §6 P0（basic/border-less/simple/flexible-content/in-column/loading/grid-card/inner）。P1：tabs、semantic classNames/styles、boxShadow 像素级、ConfigProvider。Also #9 lifecycle + #6 Skin.",
+		secBasic, secBL, secSimple, secFlex, secInCol, secLoad, secGrid, secInner, secLife, secSkin,
 	))
 }

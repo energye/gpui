@@ -139,9 +139,35 @@ func (c *catalogCtx) registerTabs() {
 		"size small / medium / large (size.tsx).",
 		sizeCol)
 
+	// Lifecycle (#9)
+	life := wire(kit.NewTabs(
+		kit.TabItem{Key: "1", Label: "Old", Children: pane("old content")},
+	))
+	life.SetItems([]kit.TabItem{
+		{Key: "1", Label: "Tab 1", Children: pane("Lifecycle Tab 1")},
+		{Key: "2", Label: "Tab 2", Children: pane("Lifecycle Tab 2")},
+		{Key: "3", Label: "Tab 3", Children: pane("Lifecycle Tab 3")},
+	})
+	life.SetSize(kit.TabsSmall)
+	life.SetCentered(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：SetItems → chromeChange：SetSize/SetCentered；ensureBuilt 懒构建。",
+		box(life.Node(), 520, 120))
+
+	// Skin (#6) — host embeds ScrollViewport (RepaintBoundary): do not Override
+	// the host Paint path; TypeID/SkinType=kit.TypeTabs registered on Root.
+	skinT := wire(kit.NewTabs(
+		kit.TabItem{Key: "1", Label: "Skin", Children: pane("TypeID=kit.Tabs")},
+		kit.TabItem{Key: "2", Label: "Demo", Children: pane("registered")},
+	))
+	skinT.SetTheme(th)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"SkinType=kit.TypeTabs 已注册；宿主内嵌 ScrollViewport(RepaintBoundary)，不拦截 Paint。",
+		box(skinT.Node(), 520, 120))
+
 	c.addPage("tabs", "Tabs", demoPage(face,
 		"Tabs",
-		"选项卡切换 · docs/antd/tabs.md §6 P0（basic/disabled/centered/icon/indicator/slide/extra/size）。P1：placement 全页、card/editable 全页、自定义触发器。",
-		secBasic, secDisabled, secCentered, secIcon, secInd, secSlide, secExtra, secSize,
+		"选项卡切换 · docs/antd/tabs.md §6 P0（basic/disabled/centered/icon/indicator/slide/extra/size）+ #9 lifecycle + #6 Skin。P1：placement 全页、card/editable 全页、自定义触发器。",
+		secBasic, secDisabled, secCentered, secIcon, secInd, secSlide, secExtra, secSize, secLife, secSkin,
 	))
 }

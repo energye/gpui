@@ -309,8 +309,38 @@ func (c *catalogCtx) registerTransfer() {
 		"status=error / warning 边框语义色。",
 		col(stErr.Node(), stWarn.Node()))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewTransfer(), "lifecycle")
+	life.SetDataSource(mockData(8))
+	life.SetTargetKeys([]string{"1", "3"})
+	life.SetShowSearch(true)
+	life.SetTitles("Source", "Target")
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (ShowSearch/DataSource) then chromeChange (TargetKeys)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTransfer, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeTransfer); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinT := wire(kit.NewTransfer(), "skin")
+	skinT.SetDataSource(mockData(6))
+	if f, ok := skinT.Node().(*primitive.Flex); ok {
+		f.SkinType = kit.TypeTransfer
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root Flex SkinType=kit.Transfer；Theme.Skin Override 可命中（default walk）。",
+		skinT.Node())
+
 	c.addPage("transfer", "Transfer",
 		demoPage(face, "Transfer",
 			"双栏穿梭选择框。P0 对齐 docs/antd/transfer.md §6：dataSource/targetKeys、showSearch、oneWay、pagination、ListBody、status。",
-			secBasic, secOne, secSearch, secAdv, secCustom, secAct, secPage, secTable, secStatus))
+			secBasic, secOne, secSearch, secAdv, secCustom, secAct, secPage, secTable, secStatus, secLife, secSkin))
 }

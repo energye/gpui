@@ -188,11 +188,51 @@ func (c *catalogCtx) registerColorPicker() {
 		"allowClear with controlled value.",
 		clr.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewColorPicker(), "lifecycle")
+	life.SetDefaultValue(kit.ColorFromHex("#722ED1"))
+	life.SetSize(kit.InputLarge)
+	life.SetShowText(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size/ShowText) then chromeChange；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeColorPicker, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "color-picker-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeColorPicker); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinCP := wire(kit.NewColorPicker(), "skin")
+	skinCP.SetDefaultValue(kit.ColorFromHex("#EB2F96"))
+	skinNode := skinCP.Node()
+	if shell := skinCP.TriggerShell(); shell != nil {
+		if kids := shell.Children(); len(kids) > 0 {
+			if dec, ok := kids[0].(*primitive.Decorated); ok {
+				dec.Base().Key = "color-picker-skin-demo"
+			}
+		}
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"decor.SkinType=kit.ColorPicker。Key=color-picker-skin-demo → 蓝色 2px 边框 Override。",
+		skinNode)
+
 	c.addPage("color_picker", "ColorPicker",
 		demoPage(face, "ColorPicker",
 			"Color selection trigger + panel. P0 aligns docs/antd/color-picker.md §6 "+
 				"(value/defaultValue/onChange/onChangeComplete, open, size, mode, showText, "+
 				"disabled, disabledAlpha, allowClear, format hex).",
-			secBase, secSize, secCtrl, secGrad, secText, secDis, secNoA, secClr,
+			secBase, secSize, secCtrl, secGrad, secText, secDis, secNoA, secClr, secLife, secSkin,
 		))
 }

@@ -176,6 +176,53 @@ func (c *catalogCtx) registerPopconfirm() {
 	promise.SetTriggerNode(promiseTrig.Node())
 	c.trackTicker(promise)
 
+	// Lifecycle (#9)
+	life := track(kit.NewPopconfirm("Lifecycle (#9)"))
+	life.SetDescription("structureChange: Title → Description → OkText")
+	life.SetOkText("Yes")
+	life.SetCancelText("No")
+	lifeTrig := c.trackBtn(kit.NewButton("Lifecycle"))
+	life.SetTriggerNode(lifeTrig.Node())
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange：Title → Description → OkText/CancelText；ensureBuilt 懒构建 Wrap。",
+		life.Node())
+
+	// Skin (#6) — panel chrome comes from embedded Popover (SkinType=kit.Popover);
+	// TypeID=kit.Popconfirm is registered in the default skin.
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypePopover, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "popconfirm-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypePopover); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypePopover); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinPC := track(kit.NewPopconfirm("Skin painter (#6)"))
+	skinPC.SetDescription("panel.SkinType=kit.Popover (shared chrome)")
+	skinTrig := c.trackBtn(kit.NewButton("Skin popconfirm"))
+	skinPC.SetTriggerNode(skinTrig.Node())
+	skinNode := skinPC.Node()
+	if panel := skinPC.Panel(); panel != nil {
+		panel.Base().Key = "popconfirm-skin-demo"
+	}
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"TypeID=kit.Popconfirm 已注册；panel 共用 kit.Popover chrome，Key=popconfirm-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	page := demoPage(c.face, "Popconfirm", "Feedback / Popconfirm",
 		demoSection(c.face, c.theme, "Basic", "title + description + Yes/No", basic.Node()),
 		demoSection(c.face, c.theme, "Locale", "custom okText / cancelText", locale.Node()),
@@ -185,6 +232,7 @@ func (c *catalogCtx) registerPopconfirm() {
 		demoSection(c.face, c.theme, "Custom icon", "SetIconNode", iconPC.Node()),
 		demoSection(c.face, c.theme, "Async close", "controlled open + ConfirmLoading", asyncPC.Node()),
 		demoSection(c.face, c.theme, "Promise close", "OnConfirmAsync finish", promise.Node()),
+		secLife, secSkin,
 	)
 	c.addPage("popconfirm", "Popconfirm", page)
 }

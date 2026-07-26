@@ -462,9 +462,47 @@ func (c *catalogCtx) registerLayout() {
 		"antd responsive.tsx：breakpoint=lg + collapsedWidth=0；按钮模拟视口。",
 		playground(responsive.Node(), 300))
 
-	c.add("layout", "Layout", "Layout · 页面级布局",
+	// Lifecycle (#9)
+	life := kit.NewLayout()
+	life.SetChildren(
+		func() core.Node {
+			h := kit.NewHeader(region("Header", hdrBlue, 0))
+			h.SetBackground(hdrBlue)
+			return h.Node()
+		}(),
+		func() core.Node {
+			ct := kit.NewContent(region("Content", cntBlue, 60))
+			ct.SetBackground(cntBlue)
+			return ct.Node()
+		}(),
+	)
+	life.SetHasSider(false)
+	life.SetTheme(th)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：SetChildren → SetHasSider → chromeChange：SetTheme；ensureBuilt 懒构建。",
+		playground(life.Node(), 140))
+
+	// Skin (#6) — layoutRoot 自绘 Paint（不走 Theme.Skin 拦截）；TypeID=kit.Layout 已注册。
+	skinL := kit.NewLayout(
+		func() core.Node {
+			h := kit.NewHeader(region("TypeID=kit.Layout", hdrBlue, 0))
+			h.SetBackground(hdrBlue)
+			return h.Node()
+		}(),
+		func() core.Node {
+			ct := kit.NewContent(region("registered", cntBlue, 60))
+			ct.SetBackground(cntBlue)
+			return ct.Node()
+		}(),
+	)
+	skinL.SetTheme(th)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root TypeID=kit.Layout 已注册（Header/Footer/Content/Sider 各有 TypeID）；宿主自绘背景，不拦截 Paint。",
+		playground(skinL.Node(), 140))
+
+	c.add("layout", "Layout", "Layout · 页面级布局 · #9 lifecycle + #6 Skin",
 		secBasic, secTop, secTopSide, secTopSide2,
-		secSide, secCustom, secOverlay, secResponsive,
+		secSide, secCustom, secOverlay, secResponsive, secLife, secSkin,
 	)
 }
 

@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -206,9 +207,46 @@ func (c *catalogCtx) registerMentions() {
 		"Suggestion panel opens above the field (antd placement.tsx).",
 		top.Node())
 
+	// Lifecycle (#9)
+	life := track(kit.NewMentions("Lifecycle"))
+	life.SetOptions(defaultOpts)
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusWarning)
+	life.SetFixedWidth(360)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size) then chromeChange (Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeMentions, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "mentions-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeMentions); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinM := track(kit.NewMentions("skin override — type @ to open panel"))
+	skinM.SetOptions(defaultOpts)
+	skinM.SetFixedWidth(360)
+	if panel := skinM.Panel(); panel != nil {
+		panel.Base().Key = "mentions-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"panel.SkinType=kit.Mentions。Key=mentions-skin-demo → 蓝色 2px 边框 Override（展开面板可见）。",
+		skinM.Node())
+
 	page := demoPage(face, "Mentions",
 		"Mention people or tags in text. P0 aligns docs/antd/mentions.md §6 — basic, size, variant, async, form, prefix, readonly, placement.",
-		secBasic, secSize, secVariant, secAsync, secForm, secPrefix, secRO, secPlace,
+		secBasic, secSize, secVariant, secAsync, secForm, secPrefix, secRO, secPlace, secLife, secSkin,
 	)
 	c.addPage("mentions", "Mentions", page)
 }

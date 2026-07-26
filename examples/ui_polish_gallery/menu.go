@@ -229,9 +229,59 @@ func (c *catalogCtx) registerMenu() {
 		*status = fmt.Sprintf("submenu theme dark=%v", subThemeDark)
 	})
 
+	// Lifecycle (#9)
+	life := track(kit.NewMenu(
+		kit.MenuItem{Key: "old", Label: "Old"},
+	))
+	life.SetItems(
+		kit.MenuItem{Key: "1", Label: "Lifecycle 1", Icon: "info"},
+		kit.MenuItem{Key: "2", Label: "Lifecycle 2", Icon: "star"},
+		kit.MenuItem{Key: "3", Label: "Lifecycle 3"},
+	)
+	life.SetMode(kit.MenuModeInline)
+	life.SetSelectedKeys("2")
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：SetItems → SetMode → chromeChange：SetSelectedKeys；ensureBuilt 懒构建。",
+		playground(life.Node(), 256, 0))
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeMenu, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "menu-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeMenu); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeMenu); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinM := track(kit.NewMenu(
+		kit.MenuItem{Key: "1", Label: "Skin Item 1", Icon: "info"},
+		kit.MenuItem{Key: "2", Label: "Skin Item 2"},
+	))
+	skinM.SetMode(kit.MenuModeInline)
+	if root, ok := skinM.ChromeNode().(*primitive.Decorated); ok {
+		root.Base().Key = "menu-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Menu。Key=menu-skin-demo → 蓝边框 Override；其它 Menu 不受影响。",
+		playground(skinM.Node(), 256, 0))
+
 	c.addPage("menu", "Menu", demoPage(face,
 		"Menu 导航菜单",
-		"为页面和功能提供导航的菜单列表。P0 对齐 docs/antd/menu.md §6（mode / items / selectedKeys / openKeys / theme / inlineCollapsed / onClick / onOpenChange）。",
+		"为页面和功能提供导航的菜单列表。P0 对齐 docs/antd/menu.md §6（mode / items / selectedKeys / openKeys / theme / inlineCollapsed / onClick / onOpenChange）+ #9 lifecycle + #6 Skin。",
 		demoSection(face, th, "顶部导航 horizontal",
 			"mode=horizontal；disabled 项；SubMenu 分组弹出。",
 			playground(mHoriz.Node(), 0, 56)),
@@ -256,5 +306,6 @@ func (c *catalogCtx) registerMenu() {
 		demoSection(face, th, "子菜单主题 submenu-theme",
 			"根 dark；SubMenu ColorTheme 覆盖，按钮切换子菜单 light/dark。",
 			primitive.Column(btnSubTheme.Node(), playground(mSubTheme.Node(), 256, 0))),
+		secLife, secSkin,
 	))
 }

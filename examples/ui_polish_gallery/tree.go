@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -342,8 +343,61 @@ func (c *catalogCtx) registerTree() {
 		"directory.tsx：DirectoryTree（directory 选中主色底）+ multiple + draggable。",
 		dir.Node())
 
+	// Lifecycle (#9)
+	lifeData := []kit.TreeNode{
+		{Title: "parent", Key: "l-0", Children: []kit.TreeNode{
+			{Title: "leaf a", Key: "l-0-0"},
+			{Title: "leaf b", Key: "l-0-1"},
+		}},
+	}
+	life := wire(kit.NewTree(lifeData...), "life")
+	life.SetDefaultExpandAll(true)
+	life.SetCheckable(true)
+	life.SetShowLine(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：TreeData → Checkable → ShowLine；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTree, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "tree-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeTree); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeTree); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinData := []kit.TreeNode{
+		{Title: "skin parent", Key: "s-0", Children: []kit.TreeNode{
+			{Title: "skin leaf", Key: "s-0-0"},
+		}},
+	}
+	skinTr := wire(kit.NewTree(skinData...), "skin")
+	skinTr.SetDefaultExpandAll(true)
+	skinNode := skinTr.Node()
+	if d, ok := skinTr.ChromeNode().(*primitive.Decorated); ok && d != nil {
+		d.Base().Key = "tree-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Tree 已注册。Key=tree-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	page := demoPage(face, "Tree 树形控件",
-		"多层次的结构列表。P0 对齐 docs/antd/tree.md §6（官方 basic / controlled / draggable / dynamic / search / line / customized-icon / directory）。",
-		secBasic, secCtrl, secDrag, secAsync, secSearch, secLine, secIcon, secDir)
+		"多层次的结构列表。P0 对齐 docs/antd/tree.md §6（官方 basic / controlled / draggable / dynamic / search / line / customized-icon / directory）。Also #9 lifecycle + #6 Skin.",
+		secBasic, secCtrl, secDrag, secAsync, secSearch, secLine, secIcon, secDir, secLife, secSkin)
 	c.addPage("tree", "Tree", page)
 }

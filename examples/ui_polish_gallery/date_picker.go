@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -222,9 +223,48 @@ func (c *catalogCtx) registerDatePicker() {
 			dis.Node(),
 		))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewDatePicker(), "lifecycle")
+	life.SetDefaultValue(kit.DateOf(2026, 7, 26))
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusWarning)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size) then chromeChange (Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeDatePicker, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "date-picker-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeDatePicker); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinDP := wire(kit.NewDatePicker(), "skin")
+	skinNode := skinDP.Node()
+	if shell := skinDP.TriggerShell(); shell != nil {
+		if kids := shell.Children(); len(kids) > 0 {
+			if dec, ok := kids[0].(*primitive.Decorated); ok {
+				dec.Base().Key = "date-picker-skin-demo"
+			}
+		}
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"decor.SkinType=kit.DatePicker。Key=date-picker-skin-demo → 蓝色 2px 边框 Override。",
+		skinNode)
+
 	c.addPage("date_picker", "DatePicker",
 		demoPage(face, "DatePicker",
 			"输入或选择日期的控件。P0 对齐 docs/antd/date-picker.md §6。",
-			secBasic, secRange, secMulti, secNeed, secSwitch, secFormat, secTime, secMask, secExtra,
+			secBasic, secRange, secMulti, secNeed, secSwitch, secFormat, secTime, secMask, secExtra, secLife, secSkin,
 		))
 }

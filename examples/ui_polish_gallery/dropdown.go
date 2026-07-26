@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -172,9 +173,52 @@ func (c *catalogCtx) registerDropdown() {
 	btnOpen.SetOnClick(func() { ddCtrl.SetOpen(true); *status = "controlled opened" })
 	ctrlRow := spaceWrap(8, ddCtrl.Node(), btnOpen.Node(), btnClose.Node())
 
+	// Lifecycle (#9)
+	ddLife := track(kit.NewDropdown("Old label",
+		kit.MenuItem{Key: "old", Label: "old item"},
+	))
+	ddLife.SetItems(
+		kit.MenuItem{Key: "1", Label: "Lifecycle 1"},
+		kit.MenuItem{Key: "2", Label: "Lifecycle 2"},
+	)
+	ddLife.SetTriggerLabel("Lifecycle")
+	ddLife.SetTrigger(kit.DropdownTriggerClick)
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeDropdown, func(pc *core.PaintContext, n core.Node) {
+		if f, ok := n.(*primitive.Flex); ok && f != nil {
+			if f.Base().Key == "dropdown-skin-demo" {
+				sz := f.Size()
+				if pc != nil && sz.Width > 0 && sz.Height > 0 {
+					pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, 4, render.Hex("#E6F4FF"))
+				}
+			}
+			if p := baseSkin.Painter(kit.TypeDropdown); p != nil {
+				p(pc, f)
+				return
+			}
+			f.DefaultPaintChildren(pc)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeDropdown); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	ddSkin := track(kit.NewDropdown("Skin Dropdown", placeItems...))
+	ddSkin.SetTrigger(kit.DropdownTriggerClick)
+	if wrap, ok := ddSkin.Node().(*primitive.Flex); ok {
+		wrap.SkinType = kit.TypeDropdown
+		wrap.Base().Key = "dropdown-skin-demo"
+	}
+
 	c.items = append(c.items, ctlTab("dropdown", "Dropdown"))
 	c.contents["dropdown"] = demoPage(face, "Dropdown",
-		"向下弹出的列表。P0 对齐 docs/antd/dropdown.md §6（trigger hover|click|contextMenu、placement 12 向、arrow、open/onOpenChange、menu items danger/extra/divider、Token）。",
+		"向下弹出的列表。P0 对齐 docs/antd/dropdown.md §6（trigger hover|click|contextMenu、placement 12 向、arrow、open/onOpenChange、menu items danger/extra/divider、Token）+ #9 lifecycle + #6 Skin。",
 		demoSection(face, th, "基本", "最简单的下拉菜单。默认 trigger=hover（antd basic.tsx）。",
 			ddBasic.Node()),
 		demoSection(face, th, "额外节点", "菜单项可带 extra 快捷键与 icon（antd extra.tsx）。",
@@ -195,5 +239,11 @@ func (c *catalogCtx) registerDropdown() {
 			ddDis.Node()),
 		demoSection(face, th, "受控 open", "SetOpen + OnOpenChange（antd open / onOpenChange）。",
 			ctrlRow),
+		demoSection(face, th, "Lifecycle (#9)",
+			"structureChange：SetItems → chromeChange：SetTriggerLabel/SetTrigger；ensureBuilt 懒构建。",
+			ddLife.Node()),
+		demoSection(face, th, "Skin painter (#6)",
+			"Wrap.SkinType=kit.Dropdown。Key=dropdown-skin-demo → 浅蓝底 Override；其它 Dropdown 不受影响。",
+			ddSkin.Node()),
 	)
 }

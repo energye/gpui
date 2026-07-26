@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -204,9 +205,46 @@ func (c *catalogCtx) registerInputNumber() {
 		"Variants of InputNumber: outlined, filled, borderless, underlined.",
 		varCol)
 
+	// Lifecycle (#9)
+	life := track(kit.NewInputNumberValue(5))
+	life.SetMin(0)
+	life.SetMax(10)
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusError)
+	life.SetFixedSize(160, 0)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size) then chromeChange (Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeInputNumber, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "input-number-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeInputNumber); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinN := track(kit.NewInputNumberValue(8))
+	skinN.SetFixedSize(160, 0)
+	if dec, ok := skinN.ChromeNode().(*primitive.Decorated); ok {
+		dec.Base().Key = "input-number-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.InputNumber。Key=input-number-skin-demo → 蓝色 2px 边框 Override。",
+		skinN.Node())
+
 	c.addPage("input_number", "InputNumber",
 		demoPage(face, "InputNumber",
 			"Enter a number within certain range with keyboard, wheel, or handlers.",
-			secBasic, secSize, secDisabled, secDigit, secFmt, secKB, secWheel, secVariant,
+			secBasic, secSize, secDisabled, secDigit, secFmt, secKB, secWheel, secVariant, secLife, secSkin,
 		))
 }

@@ -58,11 +58,39 @@ func (c *catalogCtx) registerScrollbar() {
 	hBar.Overlay = false
 	hScroll.SetScrollbar(hBar)
 
+	// Lifecycle (#9)
+	life := kit.NewScroll(c.mkScrollLines("Lifecycle", 12))
+	life.SetSize(200, 96)
+	life.SetScrollbarVisibility(primitive.ScrollbarAlways)
+	life.SetOverlay(false)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange/chromeChange 均走 ensureBuilt（Root ScrollViewport 稳定）。",
+		life.Node())
+
+	// Skin (#6) — Root 是 ScrollViewport；TypeID=kit.Scroll 已注册，Override 证明挂接点存在。
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeScroll, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeScroll); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinSc := kit.NewScroll(c.mkScrollLines("Skin", 12))
+	skinSc.SetSize(200, 96)
+	skinSc.SetScrollbarVisibility(primitive.ScrollbarAlways)
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"TypeID=kit.Scroll 已注册；Theme.Skin Override 可挂接（ScrollViewport 自绘 bar chrome）。",
+		skinSc.Node())
+
 	c.add("scrollbar", "Scrollbar", "Other · Scrollbar 策略对照",
 		sec(c.face, "同一溢出内容 · 四种显示策略并排"),
 		samples,
 		sec(c.face, "水平滚动 · Horizontal=Auto"),
 		hScroll.Node(),
 		sec(c.face, "配置项: Enabled / Visibility(Never·Auto·Always·Hover) / Overlay / Thickness / HoverThickness / MinThumb / AutoHideDelay / DragThumb / TrackClick / WheelStep / Colors"),
+		secLife, secSkin,
 	)
 }

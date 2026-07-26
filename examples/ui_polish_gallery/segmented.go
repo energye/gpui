@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -160,9 +161,43 @@ func (c *catalogCtx) registerSegmented() {
 		"SetOptions 动态追加选项。",
 		col(dyn.Node(), loadBtn.Node()))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewSegmented("One", "Two", "Three"), "lifecycle")
+	life.SetSize(kit.SegmentedLarge)
+	life.SetShape(kit.SegmentedShapeRound)
+	life.SetValue("Two")
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size/Shape) then chromeChange (Value)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeSegmented, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "segmented-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeSegmented); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinSeg := wire(kit.NewSegmented("Skin", "Painter", "Demo"), "skin")
+	if dec, ok := skinSeg.ChromeNode().(*primitive.Decorated); ok {
+		dec.Base().Key = "segmented-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Segmented。Key=segmented-skin-demo → 蓝色 2px 边框 Override。",
+		skinSeg.Node())
+
 	c.addPage("segmented", "Segmented",
 		demoPage(face, "Segmented 分段控制器",
 			"用于展示多个选项并允许用户选择其中单个选项。P0：value/defaultValue/onChange、options、disabled、size、block、orientation/vertical、shape、icon/LabelNode、动态 SetOptions。\n"+
 				"P1：name、tooltip 完整、三种大小/图标/with-name 完整页、thumb 滑动动画、semantic classNames/styles。",
-			secBasic, secVert, secBlock, secShape, secDis, secCtrl, secCustom, secDyn))
+			secBasic, secVert, secBlock, secShape, secDis, secCtrl, secCustom, secDyn, secLife, secSkin))
 }

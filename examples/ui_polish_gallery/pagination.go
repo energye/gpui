@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -161,10 +162,54 @@ func (c *catalogCtx) registerPagination() {
 		"current + onChange (parent SetCurrent).",
 		controlled.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewPagination(), "life")
+	life.SetTotal(100)
+	life.SetCurrent(2)
+	life.SetSize(kit.PaginationSmall)
+	life.SetAlign(kit.PaginationAlignCenter)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：SetTotal/SetCurrent → chromeChange：SetSize/SetAlign；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypePagination, func(pc *core.PaintContext, n core.Node) {
+		if f, ok := n.(*primitive.Flex); ok && f != nil {
+			if f.Base().Key == "pagination-skin-demo" {
+				sz := f.Size()
+				if pc != nil && sz.Width > 0 && sz.Height > 0 {
+					pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, 4, render.Hex("#E6F4FF"))
+				}
+			}
+			if p := baseSkin.Painter(kit.TypePagination); p != nil {
+				p(pc, f)
+				return
+			}
+			f.DefaultPaintChildren(pc)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypePagination); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinP := wire(kit.NewPagination(), "skin")
+	skinP.SetTotal(50)
+	if root, ok := skinP.ChromeNode().(*primitive.Flex); ok {
+		root.Base().Key = "pagination-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Pagination。Key=pagination-skin-demo → 浅蓝底 Override；其它 Pagination 不受影响。",
+		skinP.Node())
+
 	page := demoPage(face,
 		"Pagination",
-		"A long list can be divided into several pages using Pagination, and only one page will be loaded at a time.",
-		secBasic, secAlign, secMore, secChanger, secJump, secSize, secSimple, secControlled,
+		"A long list can be divided into several pages using Pagination, and only one page will be loaded at a time. Also verifies #9+#6.",
+		secBasic, secAlign, secMore, secChanger, secJump, secSize, secSimple, secControlled, secLife, secSkin,
 	)
 	c.addPage("pagination", "Pagination", page)
 }

@@ -170,6 +170,50 @@ func (c *catalogCtx) registerPopover() {
 	popStyle.SetArrow(false)
 	popStyle.SetPanelBackground(render.RGBA{R: 0.93, G: 0.93, B: 0.93, A: 1})
 
+	// Lifecycle (#9)
+	life := track(kit.NewPopover("Lifecycle"))
+	life.SetTitle("Lifecycle (#9)")
+	life.SetContent("structureChange: Title → Content → Trigger")
+	life.SetTrigger(kit.PopoverTriggerClick)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Title → Content → Trigger；ensureBuilt 懒构建 Wrap。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypePopover, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "popover-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypePopover); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypePopover); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinP := track(kit.NewPopover("Skin popover"))
+	skinP.SetTitle("Skin painter (#6)")
+	skinP.SetContent("panel.SkinType=kit.Popover")
+	skinP.SetTrigger(kit.PopoverTriggerClick)
+	skinNode := skinP.Node()
+	if panel := skinP.Panel(); panel != nil {
+		panel.Base().Key = "popover-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"panel.SkinType=kit.Popover 已注册；Key=popover-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	c.items = append(c.items, ctlTab("popover", "Popover"))
 	c.contents["popover"] = demoPage(face, "Popover",
 		"气泡卡片。P0 对齐 docs/antd/popover.md §6（title/content、trigger hover|click|focus、placement 12 向、arrow、open/onOpenChange、autoAdjustOverflow、Token）。",
@@ -191,5 +235,6 @@ func (c *catalogCtx) registerPopover() {
 			popDis.Node()),
 		demoSection(face, th, "面板底色（P1 近似）", "SetPanelBackground；完整 classNames/styles 属 P1。",
 			popStyle.Node()),
+		secLife, secSkin,
 	)
 }

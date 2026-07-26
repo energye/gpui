@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -276,10 +277,46 @@ func (c *catalogCtx) registerTreeSelect() {
 		"status：error / warning 边框语义色。",
 		spaceWrap(12, stErr.Node(), stWarn.Node()))
 
+	// Lifecycle (#9)
+	life := track(kit.NewTreeSelect("Lifecycle", basicData...))
+	life.SetDefaultValue("leaf1")
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusWarning)
+	life.SetFixedWidth(240)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size) then chromeChange (Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTreeSelect, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "tree-select-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeTreeSelect); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinTS := track(kit.NewTreeSelect("skin override", basicData...))
+	skinTS.SetFixedWidth(240)
+	if dec, ok := skinTS.ChromeNode().(*primitive.Decorated); ok {
+		dec.Base().Key = "tree-select-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"decor.SkinType=kit.TreeSelect。Key=tree-select-skin-demo → 蓝色 2px 边框 Override。",
+		skinTS.Node())
+
 	page := primitive.Column(
 		secBasic, secMulti, secData, secCheck,
 		secAsync, secLine, secPlace, secVariant,
-		secSize, secStatus,
+		secSize, secStatus, secLife, secSkin,
 	)
 	page.Gap = 24
 	page.CrossAlign = core.CrossStart

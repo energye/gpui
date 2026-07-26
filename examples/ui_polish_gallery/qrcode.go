@@ -259,9 +259,40 @@ func (c *catalogCtx) registerQRCode() {
 		"Popover.tsx：bordered=false 的 QR 作为 Popover content。",
 		pop.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewQRCode("https://ant.design/#lifecycle"))
+	life.SetSize(120)
+	life.SetBordered(true)
+	life.SetErrorLevel(kit.QRErrorLevelQ)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Value → Size → ErrorLevel/Bordered；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6) — Root 是 qrcodeHost（内嵌 Decorated，TypeID=kit.QRCode）；
+	// Override 证明挂接点存在（默认委托，不改变视觉）。
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeQRCode, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeQRCode); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinQ := wire(kit.NewQRCode("https://ant.design/#skin"))
+	skinQ.SetSize(120)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root TypeID=kit.QRCode 已注册；Theme.Skin Override 可挂接（host 内嵌 Decorated 链）。",
+		skinQ.Node())
+
 	page := demoPage(face, "QRCode 二维码",
-		"将文本编码为二维码。P0：value/size/color/bgColor/bordered/errorLevel/marginSize/icon/status/onRefresh/statusRender/type。\n"+
+		"将文本编码为二维码。P0：value/size/color/bgColor/bordered/errorLevel/marginSize/icon/status/onRefresh/statusRender/type。Also #9 lifecycle + #6 Skin.\n"+
 			"P1：下载导出、boostLevel、HTTP icon、string[] value、ConfigProvider、styles 函数形态。",
-		secBase, secIcon, secStatus, secCustomStatus, secType, secSize, secColor, secLevel, secPop)
+		secBase, secIcon, secStatus, secCustomStatus, secType, secSize, secColor, secLevel, secPop, secLife, secSkin)
 	c.addPage("qrcode", "QRCode", page)
 }

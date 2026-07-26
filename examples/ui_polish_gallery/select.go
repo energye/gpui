@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -238,9 +239,46 @@ func (c *catalogCtx) registerSelect() {
 		"filterSort 按 label 字典序排序过滤结果。",
 		sortSel.Node())
 
+	// Lifecycle (#9)
+	life := track(kit.NewSelect("Lifecycle", basicOpts...))
+	life.SetDefaultValue("jack")
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusWarning)
+	life.SetFixedWidth(200)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size) then chromeChange (Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeSelect, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "select-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeSelect); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinSel := track(kit.NewSelect("skin override", basicOpts...))
+	skinSel.SetDefaultValue("lucy")
+	skinSel.SetFixedWidth(200)
+	if dec, ok := skinSel.ChromeNode().(*primitive.Decorated); ok {
+		dec.Base().Key = "select-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"decor.SkinType=kit.Select。Key=select-skin-demo → 蓝色 2px 边框 Override。",
+		skinSel.Node())
+
 	c.addPage("select", "Select", demoPage(face,
 		"Select",
 		"下拉选择器。对齐 Ant Design Select 主路径（docs/antd/select.md §6 P0）。",
-		secBasic, secSearch, secFilter, secMultiField, secMultiple, secSize, secOptRender, secSort,
+		secBasic, secSearch, secFilter, secMultiField, secMultiple, secSize, secOptRender, secSort, secLife, secSkin,
 	))
 }

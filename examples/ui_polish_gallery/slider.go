@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -255,8 +256,52 @@ func (c *catalogCtx) registerSlider() {
 		"tooltip.open=true 常显当前值。",
 		fullWidth(showTip.Node()))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewSlider(40), "lifecycle")
+	life.SetMin(0)
+	life.SetMax(100)
+	life.SetStep(5)
+	life.SetDots(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Range/Marks) then chromeChange (Step/Dots)；ensureBuilt 懒构建。",
+		fullWidth(life.Node()))
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeSlider, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "slider-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeSlider); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeSlider); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinS := wire(kit.NewSlider(60), "skin")
+	skinHost := primitive.NewDecorated(skinS.Node())
+	skinHost.ExpandWidth = true
+	skinHost.StretchChild = true
+	skinHost.SkinType = kit.TypeSlider
+	skinHost.Base().Key = "slider-skin-demo"
+	skinHost.Padding = primitive.All(4)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"sliderHost TypeID=kit.Slider；宿主 Decorated SkinType=kit.Slider → 蓝色 2px 边框 Override。",
+		skinHost)
+
 	c.add("slider", "Slider", "Data Entry · Slider",
 		demoPage(face, "Slider",
 			"滑动输入器。P0: value/defaultValue/onChange/onChangeComplete、min/max/step、range、marks/included/dots、disabled、keyboard、orientation/vertical、tooltip open/formatter、官方 basic/input-number/icon/tip-formatter/event/mark/vertical/show-tooltip。",
-			secBasic, secInput, secIcon, secTip, secEvent, secMark, secVert, secShowTip))
+			secBasic, secInput, secIcon, secTip, secEvent, secMark, secVert, secShowTip, secLife, secSkin))
 }

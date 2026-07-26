@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -402,8 +403,50 @@ func (c *catalogCtx) registerTable() {
 	extraCol.Gap = 24
 	extraCol.CrossAlign = core.CrossStretch
 
+	// Lifecycle (#9)
+	life := wire(kit.NewTableWith(rsCols, people[:2]))
+	life.SetPaginationEnabled(false)
+	life.SetSize(kit.TableSmall)
+	life.SetBordered(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Columns/DataSource → Size → Bordered；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTable, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "table-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeTable); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeTable); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinT := wire(kit.NewTableWith(rsCols, people[:2]))
+	skinT.SetPaginationEnabled(false)
+	skinNode := skinT.Node()
+	if fr := skinT.Frame(); fr != nil {
+		fr.Base().Key = "table-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"frame.SkinType=kit.Table。Key=table-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	page := demoPage(face, "Table 表格",
-		"Ant Design Table P0 — docs/antd/table.md §6。数据展示：分页 / 选择 / 排序 / 筛选 / 展开 / 滚动。",
-		secBasic, secJSX, secRS, secOp, secCustom, secHead, secTree, secSearch, extraCol)
+		"Ant Design Table P0 — docs/antd/table.md §6。数据展示：分页 / 选择 / 排序 / 筛选 / 展开 / 滚动。Also #9 lifecycle + #6 Skin.",
+		secBasic, secJSX, secRS, secOp, secCustom, secHead, secTree, secSearch, extraCol, secLife, secSkin)
 	c.addPage("table", "Table", page)
 }

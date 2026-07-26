@@ -6,7 +6,9 @@ import (
 	"fmt"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
+	"github.com/energye/gpui/ui/primitive"
 )
 
 func (c *catalogCtx) registerMessage() {
@@ -143,6 +145,45 @@ func (c *catalogCtx) registerMessage() {
 		*c.status = "message update"
 	})
 
+	// Lifecycle (#9)
+	lifeHost := kit.NewMessage()
+	lifeHost.SetFace(c.face)
+	if c.theme != nil {
+		lifeHost.SetTheme(c.theme)
+	}
+	lifeHost.SetDuration(3)
+	lifeHost.SetTop(64)
+	c.trackTicker(lifeHost)
+	lifeBtn := btn("Open on lifecycle host", true, func() {
+		lifeHost.Info("Lifecycle host message")
+		*c.status = "message lifecycle host"
+	})
+	lifeRow := spaceWrap(8, lifeBtn.Node(), lifeHost.Node())
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeMessage, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if p := baseSkin.Painter(kit.TypeMessage); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeMessage); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinBtn := btn("Open skin message", false, func() {
+		c.msgHost.Success("Item Decorated SkinType=kit.Message")
+		*c.status = "message skin demo"
+	})
+
 	page := demoPage(c.face, "Message", "反馈 · docs/antd/message.md §6 P0",
 		demoSection(c.face, c.theme, "Hooks 调用（推荐）",
 			"message.useMessage 主路径：contextHolder 挂在 app root，按钮触发 info。",
@@ -168,6 +209,12 @@ func (c *catalogCtx) registerMessage() {
 		demoSection(c.face, c.theme, "更新消息内容",
 			"同 key=open 后替换内容与类型，仍保持一条消息。",
 			update.Node()),
+		demoSection(c.face, c.theme, "Lifecycle (#9)",
+			"独立 host：structureChange（Duration/Top）后 ensureBuilt 懒构建 Portal。",
+			lifeRow),
+		demoSection(c.face, c.theme, "Skin painter (#6)",
+			"消息项 Decorated.SkinType=kit.Message 已注册；Override 委托 base painter。",
+			skinBtn.Node()),
 	)
 
 	c.addPage("message", "Message", page)

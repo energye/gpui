@@ -109,12 +109,30 @@ func (c *catalogCtx) registerScroll() {
 	})
 	*c.buttons = append(*c.buttons, btnHover, btnAuto, btnAlways, btnNever, btnThick, btnTrack, btnHoverGrow, btnColor)
 
-	c.add("scroll", "Scroll", "Other · Scroll 容器（启用滚动）",
+	// Lifecycle (#9)
+	life := kit.NewScroll(c.mkScrollLines("life", 12))
+	life.SetSize(420, 100)
+	life.SetAxis(true, false)
+	life.SetScrollbarVisibility(primitive.ScrollbarAlways)
+	*c.tickers = append(*c.tickers, life)
+
+	// Skin (#6) — Root 是 ScrollViewport（RepaintBoundary）：不拦截 Paint；
+	// TypeID=kit.ScrollViewport 已注册，正常实例展示。
+	skinS := kit.NewScroll(c.mkScrollLines("skin", 12))
+	skinS.SetSize(420, 100)
+	skinS.SetShowScrollbar(true)
+	*c.tickers = append(*c.tickers, skinS)
+
+	c.add("scroll", "Scroll", "Other · Scroll 容器（启用滚动）· #9 lifecycle + #6 Skin",
 		sec(c.face, "垂直溢出 · 默认 Auto 条（内容区已减去条宽）"),
 		live.Node(),
 		policyLab.Node(),
 		sec(c.face, "切换 Scrollbar 策略（独立控件配置）"),
 		primitive.Row(btnHover.Node(), btnAuto.Node(), btnAlways.Node(), btnNever.Node()),
 		primitive.Row(btnThick.Node(), btnTrack.Node(), btnHoverGrow.Node(), btnColor.Node()),
+		sec(c.face, "Lifecycle (#9) · ensureBuilt 懒构建 → SetSize/SetAxis/SetScrollbarVisibility"),
+		life.Node(),
+		sec(c.face, "Skin painter (#6) · RepaintBoundary 宿主：TypeID 已注册，不拦截 Paint"),
+		skinS.Node(),
 	)
 }

@@ -28,7 +28,8 @@
 4. 主 chrome `SkinType` 或 host `TypeID` + `Paint` 查 Skin  
 5. 回归：`TestAllKit_SkinPaintersRegistered` + `TestWave*` / 抽样 `Node()`  
 
-**说明：** 早期 Wave 0–1 含完整 lifecycle 单测 + gallery 小节；Wave 2 后半至 Wave 7 以批量 Skin 管道 + ensureBuilt + 注册表测试为主（gallery 小节可按需补）。
+**说明：** 早期 Wave 0–1 含完整 lifecycle 单测 + gallery 小节；Wave 2 后半至 Wave 7 以批量 Skin 管道 + ensureBuilt + 注册表测试为主。  
+**Gallery（2026-07-26）：** `examples/ui_polish_gallery` 全部组件页（70 页，不含 main/helpers/catalog/app 壳）均已增加 **Lifecycle (#9)** 与 **Skin painter (#6)** 小节。
 
 ---
 
@@ -190,7 +191,7 @@
 [ ] 单测：setter 顺序不丢样式；Node() 可 ensureBuilt
 [ ] #6 SkinType（或 TypeID）+ skin/default 注册
 [ ] 单测：Override painter 可命中
-[ ] gallery：Lifecycle + Skin 小节小节（若该控件有页）
+[x] gallery：Lifecycle + Skin 小节小节（若该控件有页）— 全量 2026-07-26
 [ ] 本表状态 → done + 日期
 ```
 
@@ -198,6 +199,7 @@
 
 ```text
 → #9+#6 控件 Skin 推广：全部完成 ✅
+→ gallery Lifecycle/Skin 小节：全部完成 ✅（70 组件页）
 ```
 
 ---
@@ -223,5 +225,6 @@
 
 ### #9 / #6 验证入口
 
-- 单测：`ui/kit/button_lifecycle_skin_test.go`  
-- 示例：`examples/ui_polish_gallery` → Button 页 → **Lifecycle (#9)** / **Skin painter (#6)**  
+- 单测：`ui/kit/*_lifecycle_skin_test.go`、`wave*_skin_lifecycle_test.go`、`TestAllKit_SkinPaintersRegistered`  
+- 示例：`examples/ui_polish_gallery` → 各组件页底部 **Lifecycle (#9)** / **Skin painter (#6)**  
+- 注意：Icon/Spin/Skeleton/Statistic 等内嵌 `RepaintBoundary` 的 host **不** 用 Skin 拦截 `Paint`（会断 glyph/layer）；gallery 仅展示 TypeID 注册。

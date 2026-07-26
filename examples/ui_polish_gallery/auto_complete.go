@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -270,10 +271,45 @@ func (c *catalogCtx) registerAutoComplete() {
 		"Variants of AutoComplete, there are four variants: outlined, filled, borderless and underlined.",
 		varCol)
 
+	// Lifecycle (#9)
+	life := track(kit.NewAutoComplete("Lifecycle", "aaa", "bbb", "ccc"))
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusWarning)
+	life.SetFixedWidth(240)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size) then chromeChange (Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeAutoComplete, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "ac-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeAutoComplete); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinAC := track(kit.NewAutoComplete("skin override — type to open panel", "aaa", "bbb", "ccc"))
+	skinAC.SetFixedWidth(240)
+	if panel := skinAC.Panel(); panel != nil {
+		panel.Base().Key = "ac-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"panel.SkinType=kit.AutoComplete。Key=ac-skin-demo → 蓝色 2px 边框 Override（展开面板可见）。",
+		skinAC.Node())
+
 	// Page
 	page := primitive.Column(
 		secBasic, secOptions, secCustom, secCase,
-		secCertain, secUncertain, secStatus, secVariant,
+		secCertain, secUncertain, secStatus, secVariant, secLife, secSkin,
 	)
 	page.Gap = 16
 	page.CrossAlign = core.CrossStretch

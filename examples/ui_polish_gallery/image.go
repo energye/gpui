@@ -227,10 +227,60 @@ func (c *catalogCtx) registerImage() {
 		"toolbarRender.tsx：ActionsRender 自定义 prev/next/zoom/rotate/flip/reset。",
 		tbGroup.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewImage())
+	life.SetWidth(160)
+	life.SetHeight(100)
+	life.SetAlt("lifecycle")
+	life.SetSrc("lifecycle.png")
+	fill(life, 120, 170, 220)
+	life.SetPreview(false)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Src/Pixels → Width/Height → Preview；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeImage, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "image-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeImage); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeImage); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinIm := wire(kit.NewImage())
+	skinIm.SetWidth(160)
+	skinIm.SetHeight(100)
+	skinIm.SetAlt("skin")
+	skinIm.SetSrc("skin.png")
+	fill(skinIm, 220, 170, 120)
+	skinNode := skinIm.Node()
+	if d, ok := skinIm.ChromeNode().(*primitive.Decorated); ok && d != nil {
+		d.Base().Key = "image-skin-demo"
+		d.SkinType = kit.TypeImage // route thumb chrome through kit.Image painter
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"thumb Decorated + TypeID=kit.Image 已注册。Key=image-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	page := demoPage(face, "Image 图片",
-		"可预览的图片。P0：src/fallback/placeholder·percent/preview open·src/PreviewGroup items·onChange/工具栏。\n"+
+		"可预览的图片。P0：src/fallback/placeholder·percent/preview open·src/PreviewGroup items·onChange/工具栏。Also #9 lifecycle + #6 Skin.\n"+
 			"P1：imageRender、mask/cover 高级、nested、真 HTTP 解码、semantic styles 深度。",
-		secBasic, secPH, secFB, secGroup, secAlbum, secPS, secCtrl, secTB)
+		secBasic, secPH, secFB, secGroup, secAlbum, secPS, secCtrl, secTB, secLife, secSkin)
 	c.addPage("image", "Image", page)
 }
 

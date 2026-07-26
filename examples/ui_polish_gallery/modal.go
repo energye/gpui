@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -84,6 +85,51 @@ func (c *catalogCtx) registerModal() {
 		// hosts + no-mask modal are mounted inside their demo rows
 	}
 
+	// Lifecycle (#9)
+	life := c.newGalleryModal("Lifecycle Modal", simpleModalContent("structureChange body", 2))
+	life.SetTitle("Lifecycle (#9)")
+	life.SetWidth(420)
+	life.SetOkText("OK")
+	life.SetCancelText("Cancel")
+	life.OnOk = func() { life.SetOpen(false) }
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange：Title → Width → OkText/CancelText；ensureBuilt 懒构建 Portal。",
+		modalOpenRow(c, life, "Open lifecycle modal"))
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeModal, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "modal-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeModal); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeModal); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinM := c.newGalleryModal("Skin Modal", simpleModalContent("Panel.SkinType=kit.Modal", 2))
+	skinM.OnOk = func() { skinM.SetOpen(false) }
+	if panel := skinM.Panel(); panel != nil {
+		panel.Base().Key = "modal-skin-demo"
+	}
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"Panel.SkinType=kit.Modal 已注册；Key=modal-skin-demo → 蓝边框 Override。",
+		modalOpenRow(c, skinM, "Open skin modal"))
+
+	modals = append(modals, life.Node(), skinM.Node())
+
 	page := demoPage(c.face, "Modal", "Feedback / Modal",
 		demoSection(c.face, c.theme, "Basic", "Controlled open · title · default footer OK/Cancel.",
 			modalOpenRow(c, basic, "Open Modal")),
@@ -101,6 +147,7 @@ func (c *catalogCtx) registerModal() {
 			modalHooksRow(c, hooksHost)),
 		demoSection(c.face, c.theme, "Internationalization", "okText/cancelText 确认/取消.",
 			modalLocaleRow(c, locale, localeHost)),
+		secLife, secSkin,
 	)
 	if col, ok := page.(*primitive.Flex); ok {
 		for _, n := range modals {

@@ -229,11 +229,38 @@ func (c *catalogCtx) registerBorderBeam() {
 		"line-width.tsx：lineWidth=2。",
 		lwBB.Node())
 
+	// Lifecycle (#9)
+	lifeCard := cardBody("Lifecycle", "structureChange: Child → Duration → LineWidth.", 300)
+	life := wire(kit.NewBorderBeam(lifeCard.Node()))
+	life.SetDuration(4)
+	life.SetLineWidth(2)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Child → Duration → LineWidth；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6) — Root 是 borderBeamHost（TypeID=kit.BorderBeam）；Override 证明挂接点存在。
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeBorderBeam, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeBorderBeam); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinCard := cardBody("Skin", "TypeID=kit.BorderBeam · Theme.Skin Override 可挂接.", 300)
+	skinBB := wire(kit.NewBorderBeam(skinCard.Node()))
+	skinBB.SetColor(render.Hex("#1677FF"))
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root TypeID=kit.BorderBeam 已注册；host 默认委托子节点绘制（含 beam layer）。",
+		skinBB.Node())
+
 	c.addPage("border-beam", "BorderBeam", demoPage(face,
 		"BorderBeam 边框流光",
 		"为容器边框提供持续流动的装饰性高亮。P0 对齐 docs/antd/border-beam.md §6；"+
 			"官方 basic / hover / custom-container / customized-color / duration / size / line-width。"+
-			"P1：semantic classNames、offset-path 像素级、ConfigProvider 全局、debug。",
-		secBasic, secHover, secCustom, secGrad, secDur, secSize, secLW,
+			"P1：semantic classNames、offset-path 像素级、ConfigProvider 全局、debug。Also #9 lifecycle + #6 Skin.",
+		secBasic, secHover, secCustom, secGrad, secDur, secSize, secLW, secLife, secSkin,
 	))
 }

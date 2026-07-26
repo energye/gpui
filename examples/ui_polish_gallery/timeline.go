@@ -177,8 +177,40 @@ func (c *catalogCtx) registerTimeline() {
 		"title.tsx：item.title + mode 切换；vertical 含 title 启用双侧槽。",
 		titleCol)
 
+	// Lifecycle (#9)
+	life := wire(kit.NewTimeline(
+		kit.TimelineItem{Content: "structureChange: items"},
+		kit.TimelineItem{Content: "chromeChange: variant/mode"},
+	))
+	life.SetVariant(kit.TimelineFilled)
+	life.SetMode(kit.TimelineModeStart)
+	life.SetReverse(false)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Items → Variant → Mode/Reverse；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6) — Root 是 timelineHost（RepaintBoundary，TypeID=kit.Timeline）；
+	// Override 证明挂接点存在（默认委托，不改变视觉）。
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTimeline, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeTimeline); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinTL := wire(kit.NewTimeline(
+		kit.TimelineItem{Content: "TypeID=kit.Timeline"},
+		kit.TimelineItem{Content: "Theme.Skin Override 可挂接"},
+	))
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root TypeID=kit.Timeline 已注册；host 内嵌 RepaintBoundary，Paint 走默认子节点绘制。",
+		skinTL.Node())
+
 	page := demoPage(face, "Timeline",
-		"垂直/水平时间流。P0：items content/title/color/icon/loading/placement、mode、orientation、variant、reverse；loading 走 Ticker。",
-		secBasic, secVariant, secPending, secAlt, secHoriz, secCustom, secEnd, secTitle)
+		"垂直/水平时间流。P0：items content/title/color/icon/loading/placement、mode、orientation、variant、reverse；loading 走 Ticker。Also #9 lifecycle + #6 Skin.",
+		secBasic, secVariant, secPending, secAlt, secHoriz, secCustom, secEnd, secTitle, secLife, secSkin)
 	c.addPage("timeline", "Timeline", page)
 }

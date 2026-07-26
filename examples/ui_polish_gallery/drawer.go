@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -53,6 +54,63 @@ func (c *catalogCtx) registerDrawer() {
 	}
 	c.trackTicker(loading)
 
+	// Lifecycle (#9)
+	life := c.newGalleryDrawer("Lifecycle Drawer", simpleDrawerContent("structureChange body", 2))
+	life.SetTitle("Lifecycle (#9)")
+	life.SetSizePx(320)
+	life.SetClosable(true)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange：Title → SizePx → Closable；ensureBuilt 懒构建 Portal。",
+		drawerOpenRow(c, life, "Open lifecycle drawer"))
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeDrawer, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "drawer-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeDrawer); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeDrawer); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinD := c.newGalleryDrawer("Skin Drawer", simpleDrawerContent("panel.SkinType=kit.Drawer", 2))
+	// Tag the panel Decorated (SkinType=kit.Drawer) so the Override hits only this drawer.
+	var tagPanel func(n core.Node)
+	tagPanel = func(n core.Node) {
+		if n == nil {
+			return
+		}
+		if d, ok := n.(*primitive.Decorated); ok && d.SkinType == kit.TypeDrawer {
+			d.Base().Key = "drawer-skin-demo"
+			return
+		}
+		if p, ok := n.(*primitive.OverlayPortal); ok {
+			tagPanel(p.Content)
+		}
+		for _, ch := range n.Children() {
+			tagPanel(ch)
+		}
+	}
+	tagPanel(skinD.Node())
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"panel.SkinType=kit.Drawer 已注册；Key=drawer-skin-demo → 蓝边框 Override。",
+		drawerOpenRow(c, skinD, "Open skin drawer"))
+
+	drawers = append(drawers, life.Node(), skinD.Node())
+
 	page := demoPage(c.face, "Drawer", "Feedback / Drawer",
 		demoSection(c.face, c.theme, "Basic Drawer", "", drawerOpenRow(c, basic, "Open")),
 		demoSection(c.face, c.theme, "Custom Placement", "", drawerPlacementRow(c, placement)),
@@ -61,6 +119,7 @@ func (c *catalogCtx) registerDrawer() {
 		demoSection(c.face, c.theme, "Extra Actions", "", drawerPlacementRow(c, extra)),
 		demoSection(c.face, c.theme, "Form In Drawer", "", drawerOpenRow(c, form, "New account")),
 		demoSection(c.face, c.theme, "User Profile", "", drawerOpenRow(c, profile, "View Profile")),
+		secLife, secSkin,
 	)
 	if col, ok := page.(*primitive.Flex); ok {
 		for _, n := range drawers {

@@ -255,10 +255,45 @@ func (c *catalogCtx) registerForm() {
 			sizeForm.Node(),
 		))
 
+	// Lifecycle (#9)
+	life := wireFace(kit.NewForm())
+	life.SetName("lifecycle")
+	life.SetLayout(kit.FormVertical)
+	life.SetSize(kit.FormSmall)
+	life.SetRequiredMark(kit.FormRequiredMarkOptional)
+	life.AddItem(kit.NewFormItemName("field", "Lifecycle field").
+		SetRules(kit.FormRule{Required: true}).
+		BindInput(kit.NewInput("structure → chrome")))
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Layout/Size) then chromeChange (RequiredMark)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeForm, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeForm); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinF := wireFace(kit.NewForm())
+	skinF.SetName("skin")
+	skinF.SetLayout(kit.FormVertical)
+	skinF.AddItem(kit.NewFormItemName("skin", "Skin field").BindInput(kit.NewInput("skin override")))
+	if f, ok := skinF.Node().(*primitive.Flex); ok {
+		f.SkinType = kit.TypeForm
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root Flex SkinType/TypeID=kit.Form 已注册；Theme.Skin Override 可命中（default walk）。",
+		skinF.Node())
+
 	c.add("form", "Form", "Data Entry · Form",
 		demoPage(face, "Form",
 			"High-performance form with data store. P0: layout/size/variant/disabled/requiredMark/rules/List/instance methods + official basic demos.",
-			secBasic, secHooks, secLayout, secMix, secDis, secVar, secReq, secSize))
+			secBasic, secHooks, secLayout, secMix, secDis, secVar, secReq, secSize, secLife, secSkin))
 }
 
 func colForm(kids ...core.Node) core.Node {

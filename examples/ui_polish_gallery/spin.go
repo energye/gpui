@@ -283,7 +283,7 @@ func (c *catalogCtx) registerSpin() {
 
 	// Skin (#6) — host embeds RepaintBoundary: TypeID registered; do not intercept host Paint.
 	skinS := wire(kit.NewSpin(nil))
-	skinS.SetSize(kit.SpinSizeDefault)
+	skinS.SetSize(kit.SpinSizeMedium)
 	skinS.SetTip("TypeID=kit.Spin")
 	skinS.SetTheme(th)
 	secSkin := demoSection(face, th, "Skin painter (#6)",

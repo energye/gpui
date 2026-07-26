@@ -371,8 +371,45 @@ func (c *catalogCtx) registerCalendar() {
 		"headerRender 替换默认年/月 Select；保留 mode 切换与切月。",
 		customWrap)
 
+	// Lifecycle (#9)
+	life := track(kit.NewCalendar())
+	life.SetFullscreen(false)
+	life.SetShowWeek(true)
+	life.SetMode(kit.CalendarMonth)
+	lifeWrap := primitive.NewDecorated(life.Node())
+	lifeWrap.Width = 300
+	lifeWrap.BorderWidth = 1
+	if th != nil {
+		lifeWrap.BorderColor = th.Color(core.TokenColorBorder)
+	}
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Fullscreen → ShowWeek → Mode；ensureBuilt 懒构建。",
+		lifeWrap)
+
+	// Skin (#6) — Root 是 Flex（无 SkinType 标记）；TypeID=kit.Calendar 已注册，
+	// Override 证明挂接点存在（默认委托，不改变视觉）。
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeCalendar, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeCalendar); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinCal := track(kit.NewCalendar())
+	skinCal.SetFullscreen(false)
+	skinWrap := primitive.NewDecorated(skinCal.Node())
+	skinWrap.Width = 300
+	skinWrap.BorderWidth = 2
+	skinWrap.BorderColor = render.Hex("#1677FF")
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"TypeID=kit.Calendar 已注册；Theme.Skin Override 可挂接（Root Flex 不带 SkinType，边框由 demo 包裹示意）。",
+		skinWrap)
+
 	page := demoPage(face, "Calendar 日历",
-		"按照日历形式展示数据的容器。P0 对齐 docs/antd/calendar.md §6（value/defaultValue/onChange/onSelect/onPanelChange、mode、fullscreen、showWeek、disabledDate、cellRender/fullCellRender、headerRender、loading Ticker）。",
-		secBasic, secNotice, secEvent, secCard, secSelect, secLunar, secWeek, secCustom)
+		"按照日历形式展示数据的容器。P0 对齐 docs/antd/calendar.md §6（value/defaultValue/onChange/onSelect/onPanelChange、mode、fullscreen、showWeek、disabledDate、cellRender/fullCellRender、headerRender、loading Ticker）。Also #9 lifecycle + #6 Skin.",
+		secBasic, secNotice, secEvent, secCard, secSelect, secLunar, secWeek, secCustom, secLife, secSkin)
 	c.addPage("calendar", "Calendar", page)
 }

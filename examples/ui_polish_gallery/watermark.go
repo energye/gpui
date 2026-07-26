@@ -270,8 +270,36 @@ func (c *catalogCtx) registerWatermark() {
 		"portal.tsx：inherit 时 Wrap 到 Modal/Drawer 内容；第三钮模拟 inherit=false。",
 		col(btnRow, portals))
 
+	// Lifecycle (#9)
+	lifeBody := area(160)
+	life := wire(kit.NewWatermark(lifeBody))
+	life.SetContent("Lifecycle")
+	life.SetRotate(-15)
+	life.SetGap(80, 80)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Child/Content → Rotate → Gap；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6) — Root 是 watermarkHost（TypeID=kit.Watermark）；Override 证明挂接点存在。
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeWatermark, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeWatermark); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinBody := area(160)
+	skinW := wire(kit.NewWatermark(skinBody))
+	skinW.SetContent("TypeID=kit.Watermark")
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root TypeID=kit.Watermark 已注册；host 自带 clip Paint，默认委托子节点绘制。",
+		skinW.Node())
+
 	c.addPage("watermark", "Watermark",
 		demoPage(face, "Watermark 水印",
-			"给页面的某个区域加上水印。P0 对齐 docs/antd/watermark.md §6（basic / multi-line / image / custom / portal）。",
-			secBasic, secML, secImg, secCustom, secPortal))
+			"给页面的某个区域加上水印。P0 对齐 docs/antd/watermark.md §6（basic / multi-line / image / custom / portal）。Also #9 lifecycle + #6 Skin.",
+			secBasic, secML, secImg, secCustom, secPortal, secLife, secSkin))
 }

@@ -199,10 +199,40 @@ func (c *catalogCtx) registerUpload() {
 		"disabled；picture-card + maxCount=1 触顶隐藏触发器。",
 		spaceWrap(16, dis.Node(), max1.Node()))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewUpload("Lifecycle"), "lifecycle")
+	life.SetMultiple(true)
+	life.SetMaxCount(3)
+	life.SetDefaultFileList([]kit.UploadFile{
+		{UID: "l1", Name: "life.png", Status: kit.UploadStatusDone},
+	})
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (fileList/listType) then chromeChange；ensureBuilt 懒构建。",
+		spaceWrap(12, life.Node()))
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeUpload, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeUpload); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinU := wire(kit.NewUpload("Skin upload"), "skin")
+	if f, ok := skinU.Node().(*primitive.Flex); ok {
+		f.SkinType = kit.TypeUpload
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root Flex SkinType/TypeID=kit.Upload 已注册；Theme.Skin Override 可命中（default walk）。",
+		spaceWrap(12, skinU.Node()))
+
 	c.add("upload", "Upload", "Data Entry · Upload",
 		demoPage(face, "Upload",
 			"文件选择上传与拖拽上传。P0：fileList/onChange/customRequest/beforeUpload/listType/drag/paste/maxCount/accept/disabled/status/percent。",
-			secBasic, secAvatar, secDef, secPC, secPCirc, secCtrl, secDrag, secPaste, secExtra))
+			secBasic, secAvatar, secDef, secPC, secPCirc, secCtrl, secDrag, secPaste, secExtra, secLife, secSkin))
 }
 
 // galleryUploadPicker is a deterministic CapFile stand-in for gallery demos.

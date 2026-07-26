@@ -331,9 +331,73 @@ func (c *catalogCtx) registerTour() {
 		"浅 styles.mask / styles.section + next/prevButtonProps（style-class.tsx；函数形态 P1）。",
 		styleBody)
 
+	// Lifecycle (#9)
+	life := wire(kit.NewTour(
+		kit.TourStep{Title: "Lifecycle (#9)", Description: "structureChange: steps → type → mask.", Target: t1},
+		kit.TourStep{Title: "Step 2", Description: "ensureBuilt 懒构建 Portal/Scope.", Target: t2},
+	))
+	life.SetType(kit.TourTypeDefault)
+	life.SetMask(true)
+	life.SetOnClose(func() { *status = "tour lifecycle closed" })
+	beginLife := c.trackBtn(kit.NewButton("Begin lifecycle Tour"))
+	beginLife.SetType(kit.ButtonPrimary)
+	beginLife.SetOnClick(func() {
+		life.Current = 0
+		life.Index = 0
+		life.SetOpen(true)
+		*status = "tour lifecycle open"
+	})
+	lifeBody := primitive.Column(beginLife.Node(), life.Node())
+	lifeBody.Gap = 12
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange（steps/type/mask）→ chromeChange；ensureBuilt 懒构建。",
+		lifeBody)
+
+	// Skin (#6) — panel is rebuilt per open; Override delegates to base painter,
+	// panel.SkinType=kit.Tour 命中即加蓝边框。
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTour, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "tour-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeTour); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeTour); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinT := wire(kit.NewTour(
+		kit.TourStep{Title: "Skin painter (#6)", Description: "panel.SkinType=kit.Tour.", Target: t2},
+	))
+	skinT.SetOnClose(func() { *status = "tour skin closed" })
+	beginSkin := c.trackBtn(kit.NewButton("Begin skin Tour"))
+	beginSkin.SetOnClick(func() {
+		skinT.SetOpen(true)
+		if d, ok := skinT.Panel().(*primitive.Decorated); ok && d != nil {
+			d.Base().Key = "tour-skin-demo"
+		}
+		*status = "tour skin open"
+	})
+	skinBody := primitive.Column(beginSkin.Node(), skinT.Node())
+	skinBody.Gap = 12
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"panel.SkinType=kit.Tour 已注册；打开后 Key=tour-skin-demo → 蓝边框 Override。",
+		skinBody)
+
 	page := demoPage(face, "Tour 漫游式引导",
 		"用于分步引导用户了解产品功能的气泡组件。P0 对齐 docs/antd/tour.md §6；P1 见 coverage Notes。",
-		secBasic, secNonModal, secPlace, secMask, secInd, secAct, secGap, secStyle,
+		secBasic, secNonModal, secPlace, secMask, secInd, secAct, secGap, secStyle, secLife, secSkin,
 	)
 	c.addPage("tour", "Tour", page)
 }

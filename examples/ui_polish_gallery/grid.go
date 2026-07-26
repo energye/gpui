@@ -295,9 +295,30 @@ func (c *catalogCtx) registerGrid() {
 		"antd flex-stretch.tsx：flex 数字 / auto / 定宽 / 三值 / wrap=false。",
 		playground(stretchBody))
 
+	// Lifecycle (#9)
+	lifeRow := kit.NewRow(mkCol(24, "old", 0).Node())
+	lifeRow.SetChildren(
+		mkCol(8, "life-8", 0).Node(),
+		mkCol(8, "life-8", 1).Node(),
+		mkCol(8, "life-8", 2).Node(),
+	)
+	lifeRow.SetGutter(16)
+	lifeRow.SetJustify(kit.RowJustifyCenter)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange：SetChildren → chromeChange：SetGutter/SetJustify；Node() 懒构建 root。",
+		playground(lifeRow.Node()))
+
+	// Skin (#6) — gridRow/gridCol 自绘 DefaultPaintChildren；TypeID=kit.Row / kit.Col 已注册，不拦截 Paint。
+	skinRow := rowOf(mkCol(12, "TypeID=kit.Row", 0), mkCol(12, "TypeID=kit.Col", 1))
+	skinRow.SetGutter(8)
+	skinRow.SetTheme(c.theme)
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"Root TypeID=kit.Row、Col TypeID=kit.Col 已注册；纯布局宿主，不拦截 Paint。",
+		playground(skinRow.Node()))
+
 	page := primitive.Column(
 		secBasic, secGutter, secOffset, secSort,
-		secFlex, secAlign, secOrder, secStretch,
+		secFlex, secAlign, secOrder, secStretch, secLife, secSkin,
 	)
 	page.Gap = 16
 	page.MainAlign = core.MainStart

@@ -211,9 +211,56 @@ func (c *catalogCtx) registerDescriptions() {
 		"block.tsx：span=filled 铺满当前行剩余列。",
 		block.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewDescriptions(
+		kit.DescriptionsItem{Label: "Field A", Children: "value a"},
+		kit.DescriptionsItem{Label: "Field B", Children: "value b"},
+	))
+	life.SetTitle("Lifecycle")
+	life.SetBordered(true)
+	life.SetSize(kit.DescriptionsSmall)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Items/Title → Bordered → Size；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeDescriptions, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "descriptions-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeDescriptions); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeDescriptions); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinD := wire(kit.NewDescriptions(
+		kit.DescriptionsItem{Label: "Skin", Children: "TypeID=kit.Descriptions"},
+	))
+	skinD.SetTitle("Skin")
+	skinNode := skinD.Node()
+	if d, ok := skinD.ChromeNode().(*primitive.Decorated); ok && d != nil {
+		d.Base().Key = "descriptions-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Descriptions 已注册。Key=descriptions-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	page := primitive.Column(
 		secBasic, secBorder, secSize, secResp,
-		secVert, secVertB, secStyle, secBlock,
+		secVert, secVertB, secStyle, secBlock, secLife, secSkin,
 	)
 	page.Gap = 24
 	page.CrossAlign = core.CrossStretch

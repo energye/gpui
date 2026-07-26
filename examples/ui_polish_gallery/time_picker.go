@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -176,9 +177,48 @@ func (c *catalogCtx) registerTimePicker() {
 			row(filled.Node(), under.Node()),
 		))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewTimePicker(), "lifecycle")
+	life.SetDefaultValue(kit.TimeOf(12, 8, 23))
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusWarning)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size) then chromeChange (Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTimePicker, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "time-picker-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeTimePicker); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinTP := wire(kit.NewTimePicker(), "skin")
+	skinNode := skinTP.Node()
+	if shell := skinTP.TriggerShell(); shell != nil {
+		if kids := shell.Children(); len(kids) > 0 {
+			if dec, ok := kids[0].(*primitive.Decorated); ok {
+				dec.Base().Key = "time-picker-skin-demo"
+			}
+		}
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"decor.SkinType=kit.TimePicker。Key=time-picker-skin-demo → 蓝色 2px 边框 Override。",
+		skinNode)
+
 	c.addPage("time_picker", "TimePicker",
 		demoPage(face, "TimePicker",
 			"输入或选择时间的控件。P0 对齐 docs/antd/time-picker.md §6。",
-			secBasic, secCtrl, secSize, secNeed, secDis, secHM, secStep, secAddon, secExtra,
+			secBasic, secCtrl, secSize, secNeed, secDis, secHM, secStep, secAddon, secExtra, secLife, secSkin,
 		))
 }

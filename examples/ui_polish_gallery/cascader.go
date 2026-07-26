@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -224,10 +225,49 @@ func (c *catalogCtx) registerCascader() {
 		"showSearch 路径过滤。对象形态 filter/limit 等为 P1。",
 		searchCol)
 
+	// Lifecycle (#9)
+	life := track(kit.NewCascader("Lifecycle", sample...))
+	life.SetDefaultValue([]string{"zhejiang", "hangzhou", "xihu"})
+	life.SetSize(kit.InputLarge)
+	life.SetStatus(kit.InputStatusWarning)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Size) then chromeChange (Status)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeCascader, func(pc *core.PaintContext, n core.Node) {
+		d, ok := n.(*primitive.Decorated)
+		if !ok || d == nil {
+			return
+		}
+		if d.Base().Key == "cascader-skin-demo" {
+			d.BorderWidth = 2
+			d.BorderColor = render.Hex("#1677FF")
+		}
+		if p := baseSkin.Painter(kit.TypeCascader); p != nil {
+			p(pc, d)
+			return
+		}
+		primitive.PaintDecorated(pc, d)
+	})
+	skinC := track(kit.NewCascader("skin override", sample...))
+	skinNode := skinC.Node()
+	if shell := skinC.TriggerShell(); shell != nil {
+		if kids := shell.Children(); len(kids) > 0 {
+			if dec, ok := kids[0].(*primitive.Decorated); ok {
+				dec.Base().Key = "cascader-skin-demo"
+			}
+		}
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"decor.SkinType=kit.Cascader。Key=cascader-skin-demo → 蓝色 2px 边框 Override。",
+		skinNode)
+
 	page := demoPage(face,
 		"Cascader 级联选择",
 		"级联选择框。P0 对齐 docs/antd/cascader.md §6；P1 见 coverage Notes。",
-		secBasic, secDefault, secCustom, secHover, secDisabled, secCOS, secMulti, secStrategy, secSearch,
+		secBasic, secDefault, secCustom, secHover, secDisabled, secCOS, secMulti, secStrategy, secSearch, secLife, secSkin,
 	)
 	c.addPage("cascader", "Cascader", page)
 }

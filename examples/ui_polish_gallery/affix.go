@@ -190,6 +190,35 @@ func (c *catalogCtx) registerAffix() {
 	note := kit.NewParagraph("P0：offsetTop/offsetBottom/onChange/SetScrollTarget + 占位不跳变。P1：semantic classNames、ConfigProvider、真 fixed 出流、debug/官网逐像素。")
 	note.SetFace(face)
 
-	page := col(secBasic, secChange, secTarget, note.Node())
+	// Lifecycle (#9)
+	lifeTxt := kit.NewText("Affix lifecycle content")
+	lifeTxt.SetFace(face)
+	life := wire(kit.NewAffix(lifeTxt.Node()))
+	life.SetOffsetTop(10)
+	life.SetContentTop(0)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Content → OffsetTop/ContentTop；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6) — Root 是 affixHost（TypeID=kit.Affix）；Override 证明挂接点存在。
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeAffix, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeAffix); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinTxt := kit.NewText("TypeID=kit.Affix · Theme.Skin Override 可挂接")
+	skinTxt.SetFace(face)
+	skinAf := wire(kit.NewAffix(skinTxt.Node()))
+	skinAf.SetContentTop(0)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root TypeID=kit.Affix 已注册；host 自带 stickDY 平移 Paint，默认委托子节点绘制。",
+		skinAf.Node())
+
+	page := col(secBasic, secChange, secTarget, secLife, secSkin, note.Node())
 	c.add("affix", "Affix", "Other · Affix", page)
 }

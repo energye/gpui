@@ -3,6 +3,7 @@
 package main
 
 import (
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -199,8 +200,49 @@ func (c *catalogCtx) registerTooltip() {
 		"包装自定义触发节点（须可接收指针事件）。",
 		wrap.Node())
 
+	// Lifecycle (#9)
+	life := track(kit.NewTooltip("Lifecycle (#9)"))
+	life.SetTriggerLabel("Lifecycle")
+	life.SetPlacement(kit.TooltipTop)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Title → TriggerLabel → Placement；ensureBuilt 懒构建 Wrap。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeTooltip, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "tooltip-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeTooltip); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeTooltip); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinT := track(kit.NewTooltip("panel.SkinType=kit.Tooltip"))
+	skinT.SetTriggerLabel("Skin tooltip")
+	skinNode := skinT.Node()
+	if panel := skinT.Panel(); panel != nil {
+		panel.Base().Key = "tooltip-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"panel.SkinType=kit.Tooltip 已注册；Key=tooltip-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	c.addPage("tooltip", "Tooltip", demoPage(face, "Tooltip",
 		"简单的文字提示气泡框。P0 对齐 docs/antd/tooltip.md §6。",
-		secBasic, secSmooth, secPlace, secArrow, secShift, secColor, secDis, secWrap,
+		secBasic, secSmooth, secPlace, secArrow, secShift, secColor, secDis, secWrap, secLife, secSkin,
 	))
 }

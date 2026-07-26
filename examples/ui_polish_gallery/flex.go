@@ -313,9 +313,52 @@ func (c *catalogCtx) registerFlex() {
 		"antd combination.tsx：左图 273×273；右栏宽 347、高与图相同、pad 32；vertical + align=end + space-between → 标题右上、Get Started 右下且中间大间距。",
 		cardShell)
 
+	// Lifecycle (#9)
+	life := kit.NewFlex(mkBar(true))
+	life.SetChildren(mkBar(false), mkBar(true), mkBar(false))
+	life.SetGapSize(kit.FlexGapMedium)
+	life.SetJustify(kit.FlexJustifyCenter)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange：SetChildren → chromeChange：SetGapSize/SetJustify；ensureBuilt 懒构建。",
+		playground(life.Node(), 54, render.RGBA{}))
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeKitFlex, func(pc *core.PaintContext, n core.Node) {
+		if f, ok := n.(*primitive.Flex); ok && f != nil {
+			if f.Base().Key == "flex-skin-demo" {
+				sz := f.Size()
+				if pc != nil && sz.Width > 0 && sz.Height > 0 {
+					pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, 4, render.Hex("#E6F4FF"))
+				}
+			}
+			if p := baseSkin.Painter(kit.TypeKitFlex); p != nil {
+				p(pc, f)
+				return
+			}
+			f.DefaultPaintChildren(pc)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeKitFlex); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinF := kit.NewFlex(mkBar(false), mkBar(true))
+	skinF.SetGapSize(kit.FlexGapSmall)
+	if root, ok := skinF.ChromeNode().(*primitive.Flex); ok {
+		root.Base().Key = "flex-skin-demo"
+	}
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"Root.SkinType=kit.Flex。Key=flex-skin-demo → 浅蓝底 Override；其它 Flex 不受影响。",
+		playground(skinF.Node(), 54, render.RGBA{}))
+
 	c.items = append(c.items, ctlTab("flex", "Flex"))
 	c.contents["flex"] = demoPage(c.face, "Flex",
-		"用于对齐的弹性布局容器。示例对齐 antd 6.5 官方非 debug demo。交互改 props 后立即重排；宿主随窗口宽度收缩，子项 wrap/均分，不溢出父容器。",
-		secFlexBasic, secFlexAlign, secFlexGap, secFlexWrap, secFlexCombo,
+		"用于对齐的弹性布局容器。示例对齐 antd 6.5 官方非 debug demo。交互改 props 后立即重排；宿主随窗口宽度收缩，子项 wrap/均分，不溢出父容器。Also verifies #9+#6.",
+		secFlexBasic, secFlexAlign, secFlexGap, secFlexWrap, secFlexCombo, secLife, secSkin,
 	)
 }

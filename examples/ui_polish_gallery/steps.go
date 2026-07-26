@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -170,9 +171,52 @@ func (c *catalogCtx) registerSteps() {
 		"maxCount=5 collapses 7 steps with disabled ellipsis (max-count.tsx).",
 		sMax.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewSteps(kit.StepItem{Title: "Old"}), "life")
+	life.SetItems(simpleItems)
+	life.SetCurrent(1)
+	life.SetSize(kit.StepsSmall)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：SetItems → chromeChange：SetCurrent/SetSize；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeSteps, func(pc *core.PaintContext, n core.Node) {
+		if f, ok := n.(*primitive.Flex); ok && f != nil {
+			if f.Base().Key == "steps-skin-demo" {
+				sz := f.Size()
+				if pc != nil && sz.Width > 0 && sz.Height > 0 {
+					pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, 4, render.Hex("#E6F4FF"))
+				}
+			}
+			if p := baseSkin.Painter(kit.TypeSteps); p != nil {
+				p(pc, f)
+				return
+			}
+			f.DefaultPaintChildren(pc)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeSteps); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinS := wire(kit.NewSteps(simpleItems...), "skin")
+	skinS.SetCurrent(1)
+	if root, ok := skinS.ChromeNode().(*primitive.Flex); ok {
+		root.Base().Key = "steps-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Steps。Key=steps-skin-demo → 浅蓝底 Override；其它 Steps 不受影响。",
+		skinS.Node())
+
 	c.addPage("steps", "Steps",
 		demoPage(face, "Steps",
-			"Navigation · Steps — antd v6.5 P0 demos (docs/antd/steps.md §6.8).",
-			secSimple, secError, secVertical, secClick, secPanel, secIcon, secTP, secMax,
+			"Navigation · Steps — antd v6.5 P0 demos (docs/antd/steps.md §6.8). Also verifies #9+#6.",
+			secSimple, secError, secVertical, secClick, secPanel, secIcon, secTP, secMax, secLife, secSkin,
 		))
 }

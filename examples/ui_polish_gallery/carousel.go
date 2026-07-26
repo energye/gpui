@@ -134,10 +134,36 @@ func (c *catalogCtx) registerCarousel() {
 		"draggable=true：舞台拖拽超过阈值切换；可与 arrows 并用。",
 		drag.Node())
 
+	// Lifecycle (#9)
+	life := wire(kit.NewCarousel(four()...))
+	life.SetArrows(true)
+	life.SetDots(true)
+	life.SetSpeed(300)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Slides → Arrows/Dots → Speed；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6) — Root 是 Stack；TypeID=kit.Carousel 已注册，Override 证明挂接点存在。
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeCarousel, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeCarousel); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinCar := wire(kit.NewCarousel(four()...))
+	skinCar.SetArrows(true)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"TypeID=kit.Carousel 已注册；Theme.Skin Override 可挂接（Root Stack 走默认子节点绘制）。",
+		skinCar.Node())
+
 	page := demoPage(face, "Carousel 走马灯",
 		"Ant Design Carousel — docs/antd/carousel.md §6.8 P0。"+
-			"一组轮播区域：dots / arrows / autoplay / fade / placement / dotDuration。",
-		secBasic, secPlace, secAP, secFade, secArrows, secDur, secDrag)
+			"一组轮播区域：dots / arrows / autoplay / fade / placement / dotDuration。Also #9 lifecycle + #6 Skin.",
+		secBasic, secPlace, secAP, secFade, secArrows, secDur, secDrag, secLife, secSkin)
 
 	c.addPage("carousel", "Carousel", page)
 }

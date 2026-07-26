@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
 	"github.com/energye/gpui/ui/primitive"
@@ -198,8 +199,50 @@ it can be found as a welcome guest in many households across the world.`
 		"extra.tsx：item.extra（点击不折叠）+ expandIconPlacement start|end。",
 		extraCol)
 
+	// Lifecycle (#9)
+	life := wire(kit.NewCollapse(mkItems()...))
+	life.SetDefaultActiveKey("1")
+	life.SetSize(kit.CollapseSmall)
+	life.SetBordered(true)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：Items/ActiveKey → Size → Bordered；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeCollapse, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "collapse-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeCollapse); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeCollapse); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinCol := wire(kit.NewCollapse(mkItems()...))
+	skinCol.SetDefaultActiveKey("1")
+	skinNode := skinCol.Node()
+	if d, ok := skinNode.(*primitive.Decorated); ok && d != nil {
+		d.Base().Key = "collapse-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root.SkinType=kit.Collapse 已注册。Key=collapse-skin-demo → 蓝边框 Override。",
+		skinNode)
+
 	page := demoPage(face, "Collapse 折叠面板",
-		"可以折叠/展开的内容区域。P0 对齐 docs/antd/collapse.md §6（items / activeKey / accordion / size / bordered / showArrow / extra / expandIcon）。",
-		secBasic, secSize, secAcc, secMix, secBL, secCustom, secNoArrow, secExtra)
+		"可以折叠/展开的内容区域。P0 对齐 docs/antd/collapse.md §6（items / activeKey / accordion / size / bordered / showArrow / extra / expandIcon）。Also #9 lifecycle + #6 Skin.",
+		secBasic, secSize, secAcc, secMix, secBL, secCustom, secNoArrow, secExtra, secLife, secSkin)
 	c.addPage("collapse", "Collapse", page)
 }

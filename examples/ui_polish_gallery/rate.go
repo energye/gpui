@@ -146,8 +146,38 @@ func (c *catalogCtx) registerRate() {
 		"character(index) 按星渲染（数字 / 表情）。",
 		col(chFnNum.Node(), chFnFace.Node()))
 
+	// Lifecycle (#9)
+	life := wire(kit.NewRate(), "lifecycle")
+	life.SetCount(7)
+	life.SetAllowHalf(true)
+	life.SetSize(kit.RateLarge)
+	life.SetDefaultValue(3.5)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange (Count/Size) then chromeChange (Value)；ensureBuilt 懒构建。",
+		life.Node())
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeRate, func(pc *core.PaintContext, n core.Node) {
+		if p := baseSkin.Painter(kit.TypeRate); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinR := wire(kit.NewRate(), "skin")
+	skinR.SetDefaultValue(4)
+	if f, ok := skinR.Node().(*primitive.Flex); ok {
+		f.SkinType = kit.TypeRate
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root Flex SkinType=kit.Rate；Theme.Skin Override 可命中（default walk）。",
+		skinR.Node())
+
 	c.add("rate", "Rate", "Data Entry · Rate",
 		demoPage(face, "Rate",
 			"评分。P0: value/defaultValue/controlled、onChange/onHoverChange、disabled、size、count、allowClear、allowHalf、character、tooltips、keyboard、官方 basic/size/half/text/disabled/clear/character。",
-			secBasic, secSize, secHalf, secText, secDis, secClear, secChar, secCharFn))
+			secBasic, secSize, secHalf, secText, secDis, secClear, secChar, secCharFn, secLife, secSkin))
 }

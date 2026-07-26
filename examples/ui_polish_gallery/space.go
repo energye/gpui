@@ -301,9 +301,51 @@ func (c *catalogCtx) registerSpace() {
 	// tag row kept for quick visual of default small gap
 	_ = kit.NewSpace(mkTag("Tag"), mkTag("Tag"), mkTag("Tag"), mkTag("Tag"))
 
+	// Lifecycle (#9)
+	life := kit.NewSpace(mkTag("Old"))
+	life.SetChildren(mkTag("Life 1"), mkTag("Life 2"), mkTag("Life 3"))
+	life.SetSize(kit.SpaceSizeMiddle)
+	life.SetAlign(kit.SpaceAlignCenter)
+	secLife := demoSection(c.face, c.theme, "Lifecycle (#9)",
+		"structureChange：SetChildren → chromeChange：SetSize/SetAlign；ensureBuilt 懒构建。",
+		playground(life.Node()))
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeSpace, func(pc *core.PaintContext, n core.Node) {
+		if f, ok := n.(*primitive.Flex); ok && f != nil {
+			if f.Base().Key == "space-skin-demo" {
+				sz := f.Size()
+				if pc != nil && sz.Width > 0 && sz.Height > 0 {
+					pc.FillLocalRoundRect(0, 0, sz.Width, sz.Height, 4, render.Hex("#E6F4FF"))
+				}
+			}
+			if p := baseSkin.Painter(kit.TypeSpace); p != nil {
+				p(pc, f)
+				return
+			}
+			f.DefaultPaintChildren(pc)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeSpace); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinSp := kit.NewSpace(mkTag("Skin"), mkTag("Space"), mkTag("Demo"))
+	if root, ok := skinSp.ChromeNode().(*primitive.Flex); ok {
+		root.Base().Key = "space-skin-demo"
+	}
+	secSkin := demoSection(c.face, c.theme, "Skin painter (#6)",
+		"Root.SkinType=kit.Space。Key=space-skin-demo → 浅蓝底 Override；其它 Space 不受影响。",
+		playground(skinSp.Node()))
+
 	c.items = append(c.items, ctlTab("space", "Space"))
 	c.contents["space"] = demoPage(c.face, "Space",
-		"Ant Design Space · docs/antd/space.md §6 P0：size / orientation / align / wrap / separator / Compact。",
+		"Ant Design Space · docs/antd/space.md §6 P0：size / orientation / align / wrap / separator / Compact。Also verifies #9+#6.",
 		secBase,
 		secVert,
 		secSize,
@@ -312,5 +354,7 @@ func (c *catalogCtx) registerSpace() {
 		secSep,
 		secCompact,
 		secCompactBtns,
+		secLife,
+		secSkin,
 	)
 }

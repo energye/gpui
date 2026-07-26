@@ -265,6 +265,29 @@ func (c *catalogCtx) registerSplitter() {
 		"antd lazy.tsx：拖中预览线、松手提交；水平 + 垂直。",
 		lazyStack.Node())
 
+	// Lifecycle (#9)
+	lifeSp := kit.NewSplitter(kit.NewSplitterPanel(desc("Old")))
+	lifeSp.SetPanels(
+		kit.NewSplitterPanel(desc("Life A")),
+		kit.NewSplitterPanel(desc("Life B")),
+	)
+	lifeSp.SetHeight(120)
+	lifeSp.SetTheme(th)
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：SetPanels → chromeChange：SetHeight/SetTheme；ensureBuilt 懒构建。",
+		playground(lifeSp.Node(), 120))
+
+	// Skin (#6) — splitterRoot 自绘 Paint（预览线等）；TypeID=kit.Splitter 已注册。
+	skinSp := kit.NewSplitter(
+		kit.NewSplitterPanel(desc("TypeID=kit.Splitter")),
+		kit.NewSplitterPanel(desc("registered")),
+	)
+	skinSp.SetHeight(120)
+	skinSp.SetTheme(th)
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"Root TypeID=kit.Splitter（Panel/Bar 各有 TypeID）；宿主自绘拖拽预览，不拦截 Paint。",
+		playground(skinSp.Node(), 120))
+
 	page := kit.NewSpace(
 		secBasic,
 		secCtrl,
@@ -274,10 +297,12 @@ func (c *catalogCtx) registerSplitter() {
 		secMulti,
 		secGroup,
 		secLazy,
+		secLife,
+		secSkin,
 	)
 	page.SetOrientation(kit.SpaceVertical)
 	page.SetSize(kit.SpaceSizeLarge)
 	page.SetExpandMax(true)
 
-	c.add("splitter", "Splitter", "Layout · Splitter", page.Node())
+	c.add("splitter", "Splitter", "Layout · Splitter · #9 lifecycle + #6 Skin", page.Node())
 }

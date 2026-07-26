@@ -209,8 +209,56 @@ func (c *catalogCtx) registerAnchor() {
 	note.SetFace(face)
 	secNote := demoSection(face, th, "说明", "", note.Node())
 
+	// Lifecycle (#9)
+	lifeA := kit.NewAnchor(kit.AnchorItem{Key: "old", Href: "#old", Title: "Old"})
+	lifeA.SetFace(face)
+	lifeA.SetTheme(th)
+	lifeA.SetItems(items3)
+	lifeA.SetAffix(false)
+	lifeA.SetShowInkInFixed(true)
+	lifeA.SetActiveLink("#part-2")
+	secLife := demoSection(face, th, "Lifecycle (#9)",
+		"structureChange：SetItems → SetAffix → chromeChange：SetActiveLink；ensureBuilt 懒构建。",
+		playground(lifeA.Node()))
+
+	// Skin (#6)
+	baseSkin := th.Skin
+	th.Skin = core.Override(baseSkin, kit.TypeAnchor, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if d.Base().Key == "anchor-skin-demo" {
+				d.BorderWidth = 2
+				d.BorderColor = render.Hex("#1677FF")
+			}
+			if p := baseSkin.Painter(kit.TypeAnchor); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeAnchor); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinA := kit.NewAnchor(items3...)
+	skinA.SetFace(face)
+	skinA.SetTheme(th)
+	skinA.SetAffix(false)
+	skinA.SetShowInkInFixed(true)
+	if wrap, ok := skinA.ChromeNode().(*primitive.Decorated); ok {
+		wrap.SkinType = kit.TypeAnchor
+		wrap.Base().Key = "anchor-skin-demo"
+	}
+	secSkin := demoSection(face, th, "Skin painter (#6)",
+		"chrome TypeID=kit.Anchor；wrapper SkinType=kit.Anchor + Key=anchor-skin-demo → 蓝边框 Override。",
+		playground(skinA.Node()))
+
 	c.addPage("anchor", "Anchor", demoPage(face, "Anchor 锚点",
-		"用于跳转到页面指定位置。P0 对齐 docs/antd/anchor.md §6 / antd 6.5。",
-		secBasic, secHoriz, secStatic, secClick, secHL, secTO, secChg, secRep, secNote,
+		"用于跳转到页面指定位置。P0 对齐 docs/antd/anchor.md §6 / antd 6.5 + #9 lifecycle + #6 Skin。",
+		secBasic, secHoriz, secStatic, secClick, secHL, secTO, secChg, secRep, secNote, secLife, secSkin,
 	))
 }

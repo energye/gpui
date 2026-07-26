@@ -6,7 +6,9 @@ import (
 	"fmt"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/ui/core"
 	"github.com/energye/gpui/ui/kit"
+	"github.com/energye/gpui/ui/primitive"
 )
 
 func (c *catalogCtx) registerNotification() {
@@ -210,6 +212,51 @@ func (c *catalogCtx) registerNotification() {
 	})
 	stackRow := spaceWrap(8, stackOpen.Node(), stackDestroy.Node())
 
+	// Lifecycle (#9)
+	lifeHost := kit.NewNotification()
+	lifeHost.SetFace(c.face)
+	if c.theme != nil {
+		lifeHost.SetTheme(c.theme)
+	}
+	lifeHost.SetDuration(3)
+	lifeHost.SetPlacement(kit.NotificationTopRight)
+	c.trackTicker(lifeHost)
+	lifeBtn := btn("Open on lifecycle host", true, func() {
+		lifeHost.Info(kit.NotificationConfig{
+			Title:       "Lifecycle (#9)",
+			Description: "structureChange (Duration/Placement)；ensureBuilt 懒构建 Portal。",
+		})
+		*c.status = "notification lifecycle host"
+	})
+	lifeRow := spaceWrap(8, lifeBtn.Node(), lifeHost.Node())
+
+	// Skin (#6)
+	baseSkin := c.theme.Skin
+	c.theme.Skin = core.Override(baseSkin, kit.TypeNotification, func(pc *core.PaintContext, n core.Node) {
+		if d, ok := n.(*primitive.Decorated); ok && d != nil {
+			if p := baseSkin.Painter(kit.TypeNotification); p != nil {
+				p(pc, d)
+				return
+			}
+			primitive.PaintDecorated(pc, d)
+			return
+		}
+		if p := baseSkin.Painter(kit.TypeNotification); p != nil {
+			p(pc, n)
+			return
+		}
+		if base, ok := n.(interface{ DefaultPaintChildren(*core.PaintContext) }); ok {
+			base.DefaultPaintChildren(pc)
+		}
+	})
+	skinBtn := btn("Open skin notification", false, func() {
+		c.ntfHost.Success(kit.NotificationConfig{
+			Title:       "Skin painter (#6)",
+			Description: "卡片 Decorated.SkinType=kit.Notification。",
+		})
+		*c.status = "notification skin demo"
+	})
+
 	page := demoPage(c.face, "Notification", "反馈 · docs/antd/notification.md §6 P0",
 		demoSection(c.face, c.theme, "Hooks 调用（推荐）",
 			"useNotification 主路径：contextHolder 挂 app root；四角 placement 打开 info。",
@@ -235,6 +282,12 @@ func (c *catalogCtx) registerNotification() {
 		demoSection(c.face, c.theme, "堆叠",
 			"stack threshold=3；超过阈值折叠为最新一条 +N。",
 			stackRow),
+		demoSection(c.face, c.theme, "Lifecycle (#9)",
+			"独立 host：structureChange（Duration/Placement）后 ensureBuilt 懒构建 Portal。",
+			lifeRow),
+		demoSection(c.face, c.theme, "Skin painter (#6)",
+			"卡片 Decorated.SkinType=kit.Notification 已注册；Override 委托 base painter。",
+			skinBtn.Node()),
 	)
 	c.addPage("notification", "Notification", page)
 }
