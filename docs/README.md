@@ -1,45 +1,40 @@
 # docs/ — 文档索引
 
 > 日期：2026-07-26  
-> **先读架构总览（四层图）：** [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)  
-> **架构文字真源（详细条款）：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
-> 与代码冲突时：架构以本文档集为准；实现落地后以 `engine/` 代码为准。
+> **仓库：** `ui/`（L1 待建）· `render/`（Skia 式）· `gpu/`（wgpu）  
+> **依赖：** `ui → render → gpu`（禁止跨层）
 
 ---
 
-## 架构怎么读
+## 阅读顺序
 
 | 顺序 | 文档 | 内容 |
 |------|------|------|
-| 1 | [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md) | **四层总图** · 第一目标 · 线程/一帧简图 · 分期 |
-| 2 | [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) | **真源全文**：L0–L4 边界 · 线程/脏区/F01–F18 · 阶段门禁 · 包结构 |
-
-### 四层（一句话）
-
-| 层 | 是什么 | 何时 |
-|----|--------|------|
-| **L1 UI 引擎** | 对齐 Flutter Engine + rendering | **当前第一目标** |
-| **L2 框架壳** | 手势/焦点/Overlay/滚动视口（不是 Ant 控件） | 控件前 |
-| **L3 产品控件** | Ant Kit | 后置（P7） |
-| **L4 用户业务** | 页面组合控件 | 最后 |
+| 1 | [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md) | 总览图 · 逻辑/物理/Y 白话 · 四层 |
+| 2 | [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) | **架构真源** v3 |
+| 3 | [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md) | **P0–P3 详细任务计划** |
+| 4 | [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md) | **P4–P7 大纲** + **L1 原生手感如何验收** |
+| — | [`antd/`](./antd/) | L3 控件需求（后置） |
 
 ---
 
-## 文档清单
+## 关键约定（摘要）
 
-| 文档 | 用途 |
-|------|------|
-| [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md) | 总览图（一看就懂） |
-| [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) | 详细真源 |
-| [`antd/`](./antd/) | Ant 组件**需求**（L3 后置用；不绑旧 ui/kit 实现） |
-| [`README.md`](./README.md) | 本索引 |
+| 项 | 约定 |
+|----|------|
+| 第一目标 | L1 UI 引擎（Flutter 管线丝滑） |
+| 包 | `github.com/energye/gpui/ui` |
+| 光栅 | `render`（不够就改 render） |
+| GPU | `gpu` + wgpu-native（不够就改 gpu）；**ui 不 import gpu** |
+| 窗口 | 宿主建窗，注入 `NativeSurface` 句柄 |
+| 坐标 | 布局/点击=逻辑像素 Y-down；纹理=物理像素 × dpr |
+| 示例 | 新建 `examples/ui_l1_*` |
 
 ---
 
-## 维护规则
+## 维护
 
-1. **架构变更**改 `ENGINE_FLUTTER_SKIA_ARCH.md`，图示同步 `ENGINE_ARCH_OVERVIEW.md`。  
-2. **组件需求**只写在 `antd/`。  
-3. **禁止**再写「在旧 ui 全树 Paint 上打补丁」的性能卡。  
-4. 实现目录：`engine/`（L1/L2）、后置 `kit/`（L3）。  
-5. **L1 真源 §5.1 未勾完，不得以 L3 控件库为主线。**
+1. 架构变更 → 真源 + 总览  
+2. 阶段任务 → `ENGINE_PHASE_P0_P3.md`（P4+ 另文）  
+3. 控件需求 → `antd/`  
+4. L1 §7.1 未勾完 → 不开 L3 控件主线  
