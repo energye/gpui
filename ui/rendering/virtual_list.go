@@ -1,7 +1,5 @@
 package rendering
 
-import "github.com/energye/gpui/ui/painting"
-
 // ItemBuilder creates a row RenderObject for a logical index.
 type ItemBuilder func(index int) RenderObject
 
@@ -190,7 +188,7 @@ func (v *VirtualList) Layout(c Constraints) Size {
 }
 
 // Paint implements RenderObject.
-func (v *VirtualList) Paint(pc *painting.Context) {
+func (v *VirtualList) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}

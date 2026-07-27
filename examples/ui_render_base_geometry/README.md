@@ -20,10 +20,13 @@
 | Fill circle | `FillCircle` | FC-DRAW-CIRCLE |
 | Stroke circle | `StrokeCircle` | FC-DRAW-CIRCLE stroke |
 | Clip rrect | `PushClipRoundRect` / `PopClip` | FC-CLIP-RRECT |
+| Radial gradient | `FillRadialGradient2` | FS-RADIAL (**P1**) |
+| Path triangle | `FillPath` / `StrokePath` | FC-DRAW-PATH (**P1**) |
+| Oval + Arc | `FillOval` / `StrokeArc` | FC-DRAW-OVAL / ARC (**P1**) |
 
-## 明确不在本示例（母表 B/D）
+## 明确不在本示例（母表仍后置）
 
-- Path 任意路径、Arc/Oval 的 **ui 封装**、DRRect、Vertices/Atlas  
+- 完整 Paragraph 富文本、Path.computeMetrics、TransformLayer 场景树  
 - P6 dirty-rect Present / Picture 显示列表  
 
 ## 运行

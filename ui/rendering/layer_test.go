@@ -3,7 +3,6 @@ package rendering_test
 import (
 	"testing"
 
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scene"
 )
@@ -16,8 +15,8 @@ func TestRepaintBoundary_StopsPaintBubble(t *testing.T) {
 	_ = rendering.NewPipelineOwner(root)
 	root.Layout(rendering.Tight(100, 100))
 	// Clear paint dirty from layout marks.
-	leaf.Paint(&painting.Context{})
-	root.Paint(&painting.Context{})
+	leaf.Paint(&rendering.PaintContext{})
+	root.Paint(&rendering.PaintContext{})
 
 	leaf.MarkNeedsPaint()
 	if !leaf.NeedsPaint() {
@@ -46,7 +45,7 @@ func TestCompositeOnly_SkipsCleanLeaves(t *testing.T) {
 
 	// Full paint once to clear dirty flags.
 	var visits int64
-	pc := &painting.Context{CompositeOnly: false, PaintVisits: &visits}
+	pc := &rendering.PaintContext{CompositeOnly: false, PaintVisits: &visits}
 	owner.FlushPaint(pc, true)
 	fullVisits := visits
 	if fullVisits < int64(n) {
@@ -56,7 +55,7 @@ func TestCompositeOnly_SkipsCleanLeaves(t *testing.T) {
 	// Dirty only spinner boundary.
 	spinner.MarkNeedsPaint()
 	visits = 0
-	pc2 := &painting.Context{PaintVisits: &visits}
+	pc2 := &rendering.PaintContext{PaintVisits: &visits}
 	// force=false enables CompositeOnly inside FlushPaint
 	if !owner.FlushPaint(pc2, false) {
 		t.Fatal("expected partial paint")
@@ -86,12 +85,12 @@ func TestCompositeOnly_10kBoundary(t *testing.T) {
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: 4000, Height: 4000}, true)
 	var visits int64
-	pc := &painting.Context{PaintVisits: &visits}
+	pc := &rendering.PaintContext{PaintVisits: &visits}
 	owner.FlushPaint(pc, true)
 
 	hot.MarkNeedsPaint()
 	visits = 0
-	pc2 := &painting.Context{PaintVisits: &visits}
+	pc2 := &rendering.PaintContext{PaintVisits: &visits}
 	owner.FlushPaint(pc2, false)
 	// Root visited + hot boundary; clean siblings skipped.
 	if visits > 20 {
@@ -109,7 +108,7 @@ func TestBuildLayerTree_BoundaryDirtyIDs(t *testing.T) {
 	owner.FlushLayout(rendering.Size{Width: 64, Height: 64}, true)
 	// Clear paint then dirty leaf only.
 	var v int64
-	owner.FlushPaint(&painting.Context{PaintVisits: &v}, true)
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &v}, true)
 	leaf.MarkNeedsPaint()
 
 	b := rendering.BuildLayerTree(root)

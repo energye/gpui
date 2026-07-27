@@ -40,6 +40,9 @@
 
 ## 2. 模块依赖（硬，摘要）
 
+> **`ui/painting` 已删除：** UI 直接 `import render`。树遍历游标为 `rendering.PaintContext`（`DC *render.Context`、Origin、CompositeOnly）；**怎么画由 UI 调用 `pc.DC.*` 控制**，render 负责执行。
+
+
 ```text
 ui → render → gpu → libwgpu_native / 系统句柄
 禁止 ui → gpu

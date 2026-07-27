@@ -8,7 +8,9 @@
 //
 // This package must NEVER import github.com/energye/gpui/gpu or any subpackage.
 // GPU surfaces are opened only through render.PresentTarget (native handles in,
-// present out).
+// present out). Drawing uses render.Context directly from UI code; the paint-walk
+// cursor is rendering.PaintContext (Origin, CompositeOnly, PaintVisits).
+// There is no separate ui/painting package.
 //
 // FFI rule (hard, whole repo including examples):
 //
@@ -23,6 +25,7 @@
 //	docs/ENGINE_L1_CLOSEOUT.md      — status, verify commands, limits
 //	docs/ENGINE_CODING_RULES.md     — no-CGO / purego / dependency / examples boundary
 //	docs/ENGINE_FLUTTER_SKIA_ARCH.md — architecture
+//	docs/ENGINE_UI_RENDER_BASE.md   — capability matrix
 //	docs/ENGINE_PHASE_P0_P3.md      — phase tasks
 //
 // Subpackages:
@@ -31,8 +34,7 @@
 //	ui/scheduler  — frame modes, ticker registry, metrics
 //	ui/raster     — raster thread queue (SubmitLatest, pending)
 //	ui/embedder   — App (clear) · PipelineApp (tree + async present)
-//	ui/rendering  — RenderObject, PipelineOwner, Spinner, BuildLayerTree
-//	ui/painting   — PaintingContext (logical px, Y-down, CompositeOnly)
+//	ui/rendering  — RenderObject, PipelineOwner, PaintContext, Spinner, BuildLayerTree
 //	ui/scene      — Layer tree, FramePacket COW, RasterizeDirty
 //	ui/animation  — Controller · Curve · AnimatedOpacity (P3/P5e)
 //	ui/semantics  — role/label skeleton (P5e)

@@ -1,7 +1,5 @@
 package rendering
 
-import "github.com/energye/gpui/ui/painting"
-
 // RenderBox is a minimal box with optional fixed size and children stacked from top-left.
 // Y-down: first child at (pad, pad), subsequent children not auto-positioned (caller SetOffset).
 type RenderBox struct {
@@ -11,7 +9,7 @@ type RenderBox struct {
 	// Pad is logical padding when laying out a single expanding child.
 	Pad float64
 	// OnPaint optional custom paint under children.
-	OnPaint func(pc *painting.Context, size Size)
+	OnPaint func(pc *PaintContext, size Size)
 }
 
 // NewRenderBox constructs a box.
@@ -81,7 +79,7 @@ func (b *RenderBox) Layout(c Constraints) Size {
 //  2. If this node NeedsPaint: draw self and all children except clean RepaintBoundaries
 //     (scroll/offset dirties parent → children must redraw).
 //  3. If only descendants need paint: do not draw self; recurse only into dirty paths.
-func (b *RenderBox) Paint(pc *painting.Context) {
+func (b *RenderBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
@@ -166,13 +164,13 @@ func (c *RenderColorBox) Layout(cons Constraints) Size {
 // If Paint is invoked, always draw — CompositeOnly skipping is the caller's job
 // (parent omits clean RepaintBoundary children). Leaves must redraw when a
 // scrolling ancestor repaints.
-func (c *RenderColorBox) Paint(pc *painting.Context) {
+func (c *RenderColorBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
 	pc.NotePaintVisit()
 	sz := c.size
-	pc.FillRect(0, 0, sz.Width, sz.Height, c.R, c.G, c.B, c.A)
+	fillRect(pc, 0, 0, sz.Width, sz.Height, c.R, c.G, c.B, c.A)
 	c.clearPaintDirty()
 }
 

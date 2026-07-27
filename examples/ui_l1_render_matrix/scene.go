@@ -4,7 +4,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/energye/gpui/ui/painting"
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -123,16 +123,23 @@ func buildMatrixScene(winW, winH float64) *matrixScene {
 	s.Grad = rendering.NewRenderBox()
 	s.Grad.FixedWidth, s.Grad.FixedHeight = 280, 120
 	s.Grad.SetRepaintBoundary(true)
-	s.Grad.OnPaint = func(pc *painting.Context, size rendering.Size) {
-		// phase-tinted gradient endpoints for slow visual change when MarkNeedsPaint.
-		pc.FillLinearGradient2(0, 0, size.Width, size.Height,
-			0, 0, size.Width, size.Height,
-			0.12, 0.35, 0.85, 1,
-			0.90, 0.25+0.2*s.phase, 0.35, 1,
-		)
-		pc.FillRoundRect(16, 24, size.Width-32, size.Height-48, 12,
-			0.08, 0.09, 0.11, 0.75)
-		pc.DrawTextColored("FillLinearGradient + FillRoundRect", 28, 64, 0.92, 0.94, 0.98, 1)
+	s.Grad.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.OriginX, pc.OriginY
+		w, h := size.Width, size.Height
+		br := render.NewLinearGradientBrush(ax, ay, ax+w, ay+h).
+			AddColorStop(0, render.RGBA{R: 0.12, G: 0.35, B: 0.85, A: 1}).
+			AddColorStop(1, render.RGBA{R: 0.90, G: 0.25 + 0.2*s.phase, B: 0.35, A: 1})
+		pc.DC.SetFillBrush(br)
+		pc.DC.DrawRectangle(ax, ay, w, h)
+		_ = pc.DC.Fill()
+		pc.DC.SetRGBA(0.08, 0.09, 0.11, 0.75)
+		pc.DC.DrawRoundedRectangle(ax+16, ay+24, w-32, h-48, 12)
+		_ = pc.DC.Fill()
+		pc.DC.SetRGBA(0.92, 0.94, 0.98, 1)
+		pc.DC.DrawString("linear gradient + round rect", ax+28, ay+64)
 	}
 	root.Place(s.Grad, 400, 192)
 

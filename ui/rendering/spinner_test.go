@@ -3,7 +3,6 @@ package rendering_test
 import (
 	"testing"
 
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scene"
 )
@@ -27,7 +26,7 @@ func TestS2_Spinner_DirtyLayerAndNoLayout(t *testing.T) {
 
 	// Full paint once to clear dirty.
 	var visits int64
-	owner.FlushPaint(&painting.Context{PaintVisits: &visits}, true)
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, true)
 
 	// Animate phase only (start at 0.1 so SetPhase always changes from 0).
 	for i := 1; i <= 10; i++ {
@@ -48,7 +47,7 @@ func TestS2_Spinner_DirtyLayerAndNoLayout(t *testing.T) {
 			t.Fatalf("frame %d raster layers=%d too many (want small, spinner boundary)", i, st.RasterLayerCount)
 		}
 		var v2 int64
-		owner.FlushPaint(&painting.Context{PaintVisits: &v2}, false)
+		owner.FlushPaint(&rendering.PaintContext{PaintVisits: &v2}, false)
 		if v2 > 20 {
 			t.Fatalf("paint visits=%d too high for partial frame", v2)
 		}
@@ -70,7 +69,7 @@ func TestS4_StaticTree_SpinnerOnlyRaster(t *testing.T) {
 	}
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: 800, Height: 600}, true)
-	owner.FlushPaint(&painting.Context{}, true)
+	owner.FlushPaint(&rendering.PaintContext{}, true)
 
 	// Static packet: nothing dirty after full paint.
 	pkt0 := rendering.BuildFramePacket(root, 1, 1, 800, 600)

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -71,8 +70,8 @@ func TestMarkNeedsPaint_Bubbles(t *testing.T) {
 	_ = rendering.NewPipelineOwner(root)
 	root.Layout(rendering.Tight(100, 100))
 	// After layout paint may still be dirty from mark; clear paint on both.
-	leaf.Paint(&painting.Context{})
-	root.Paint(&painting.Context{})
+	leaf.Paint(&rendering.PaintContext{})
+	root.Paint(&rendering.PaintContext{})
 	if leaf.NeedsPaint() || root.NeedsPaint() {
 		t.Fatal("expected clean paint")
 	}
@@ -104,7 +103,7 @@ func TestPipeline_SecondFlushNoWork(t *testing.T) {
 
 	dc := render.NewContext(20, 20)
 	defer dc.Close()
-	pc := painting.New(dc, 1)
+	pc := rendering.NewPaintContext(dc, 1)
 	dc.BeginFrame()
 	if !owner.FlushPaint(pc, true) {
 		t.Fatal("expected paint")

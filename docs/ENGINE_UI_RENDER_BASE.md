@@ -1,6 +1,6 @@
 # UI 渲染基座能力总表 — Flutter 母表 × gpui 映射
 
-> **版本：1.2** | 日期：2026-07-27  
+> **版本：1.4** | 日期：2026-07-27  
 > **性质：能力真源（盘点）** — 以 **Flutter UI 渲染基座** 为母表；gpui **不支持也必须保留行**  
 > **范围：** Canvas / Paint / Path / Text / Picture / PaintingContext / Layer / RenderObject / Scheduler / 滚动协议 / **正向性能指标**  
 > **非范围：** P6 dirty-rect Present 冒充完成、Ant 控件皮肤（P7）、完整 a11y 生态  
@@ -406,23 +406,20 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 ---
 
 
-## §17 gpui 现状快照 — `ui/painting` 实际 API
+## §17 gpui 现状快照 — 绘制入口（无独立 painting 包）
 
-| API | 文件 | 对应 Flutter | 状态 |
-|-----|------|--------------|------|
-| `Context` / `New` / `WithOrigin` / `Scale` / `DC` | context.go | PaintingContext 子集 | A |
-| `CompositeOnly` / `PaintVisits` / `NotePaintVisit` | context.go | retained paint | A |
-| `FillRect` / `FillRectCPU` | context.go | drawRect fill | A |
-| `FillRoundRect` | shapes.go | drawRRect fill | A |
-| `FillLinearGradient` / `FillLinearGradient2` / `GradientStop` | gradient.go | Gradient.linear | A |
-| `PushClipRect` / `PopClip` | clip_text.go | pushClipRect | A |
-| `DrawText` / `DrawTextColored` | clip_text.go | 弱版 drawParagraph | C |
-| `DrawImageBuf` | clip_text.go | drawImageRect 简化 | A |
-| `SaveLayerBudget` | clip_text.go | saveLayer 纪律 | C |
+> **2026-07-27：** `ui/painting` **已删除**。
 
-**未暴露（见 §2–§10 中 B/D）：** Stroke*、Path、Circle/Oval/Arc、ClipRRect/Path、Radial/Sweep、MeasureText、PushLayer、Transform、Blur…
+| 入口 | 路径 | 说明 |
+|------|------|------|
+| 绘制游标 | `ui/rendering.PaintContext` | `DC *render.Context`、Origin、CompositeOnly、PaintVisits |
+| 真画布 | `render.Context` | Fill/Stroke/Path/Text/Gradient/Clip/Layer… |
+| 树 Paint | `RenderObject.Paint(*PaintContext)` | UI 控制怎么画；render 执行 |
+| 字体辅助 | `rendering.TryLoadDefaultFace` | 示例用 |
+| 文本估宽 | `rendering.EstimateTextSize` | 无 face 时 |
+| F16 预算 | `rendering.SaveLayerBudget` | 可选 |
 
----
+**禁止：** `ui → gpu`。**允许：** `ui → render`。
 
 ## §18 gpui 现状 — RenderObject / scene
 
@@ -713,20 +710,24 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 ## §23 补齐 Wave
 
-**P0：已收尾（2026-07-27）**
+**P0：已收尾（2026-07-27）** — 见前：Stroke/Circle/ClipRRect、Measure、RSS/CPU、Geometry 轴。
 
-已实现：
-- `ui/painting`：Stroke*/Circle/ClipRoundRect、MeasureText、EstimateTextSize、`TryLoadDefaultFace`（`GPUI_UI_FONT`）
-- `RenderText`：rune 估算 + optional Face
-- `FrameMetrics`：layout/paint 计数、p50/p99、`vsync_source`
-- **进程资源：** `ProcessTracker` + `ReadRSSKB` → JSON `rss_start/end/peak/after_close_kb`、`cpu_pct_avg`
-- 示例接线：`ui_l1_spinner` / `ui_l1_scroll` / `ui_l1_render_matrix`（含默认字体尝试）
+**P1：主路径已落地（2026-07-27）**
 
-说明：`rss_after_close` 可能因驱动/分配器延迟仍接近 peak，作观察字段而非硬释放证明。
+已实现（`ui/painting` + `RenderText`）：
+- `FillRadialGradient` / `FillSweepGradient`（+2 便利）
+- `DrawTextWrapped` / `WordWrap` / `TextAlign*`
+- `NewPath` + `FillPath` / `StrokePath`（局部坐标 + Translate）
+- `FillOval` / `StrokeOval` / `FillArc` / `StrokeArc`
+- `PushLayer` / `PopLayer`（可选 `SaveLayerBudget`）
+- `RenderText.MaxWidth` / `LineSpacing` / `Align` 换行布局与绘制
+- Geometry 窗测第 4 行：radial / path / oval+arc
+- 单测：`TestP1_*`、`TestRenderText_MaxWidthWrapLayout`
 
-**P1：** 径向/扫掠渐变、DrawTextWrapped、Font 体系、TransformLayer、预算内 PushLayer、exhost 真 VSync、Path 封装。  
-**P2：** ellipsis/maxLines、path metrics、可变高、Backdrop/Filter 层。  
-**P3：** 窗测矩阵扩展、soak 入库。  
+P1 仍后置（本波未做完）：`TransformLayer` 场景树、exhost **真 VSync**、完整 Font 体系、Paragraph 富文本。
+
+**P2：** ellipsis/maxLines、path metrics、可变高、Backdrop/Filter 场景层、九宫/圆角图 RO、TransformLayer。  
+**P3：** 窗测矩阵扩展（Text 轴等）、soak 入库。  
 **P6（单列）：** dirty-rect Present、Picture 录制、层 RT、HUD。
 
 ## §24 窗口专项测试程序设计
@@ -766,6 +767,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.4 | 2026-07-27 | **删除 ui/painting**；PaintContext∈rendering；UI 直调 render |
+| 1.3 | 2026-07-27 | **P1** painting：径向/扫掠/Path/Oval/Arc/TextWrapped/PushLayer |
 | 1.2 | 2026-07-27 | **§20 指标全景补全**（A–J 族）；修正 P0 已落地状态；用户三项→全表映射 |
 | 1.1 | 2026-07-27 | **§0.5** 明文：指标与能力并行；§20/§24 对齐 P0 实况与合入纪律 |
 | 1.0 | 2026-07-27 | 首版：Flutter 母表全量 × gpui 映射 + 正向指标 + Wave + 窗测设计 |

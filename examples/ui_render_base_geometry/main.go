@@ -1,7 +1,7 @@
 // Command ui_render_base_geometry is the Geometry-axis window smoke for
 // docs/ENGINE_UI_RENDER_BASE.md §2 (FC-DRAW-*) / §24.
 //
-// Covers P0 ui/painting surface:
+// Covers P0 render via PaintContext surface:
 //
 //	FillRect, FillRoundRect, FillLinearGradient,
 //	StrokeRect, StrokeRoundRect, StrokeLine,
@@ -21,8 +21,8 @@ import (
 
 	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/embedder"
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/platform"
+	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
 
 	_ "github.com/energye/gpui/render/gpu"
@@ -31,12 +31,12 @@ import (
 func main() {
 	secs := runSeconds(30)
 	fmt.Fprintf(os.Stderr, "ui_render_base_geometry: Geometry axis (FC-DRAW-*) — %ds\n", secs)
-	fmt.Fprintln(os.Stderr, "ui_render_base_geometry: P0 painting only; Path/Arc ui = B; not P6 present")
+	fmt.Fprintln(os.Stderr, "ui_render_base_geometry: P0+P1 draw via render (radial/path/oval/arc); not P6 present")
 
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	const winW, winH = 660, 520
+	const winW, winH = 660, 620
 	win, err := exhost.Open(exhost.Options{
 		Width:  winW,
 		Height: winH,
@@ -48,7 +48,7 @@ func main() {
 	}
 
 	sc := buildGeometryScene(float64(winW), float64(winH))
-	if face, path, err := painting.TryLoadDefaultFace(12); err != nil {
+	if face, path, err := rendering.TryLoadDefaultFace(12); err != nil {
 		fmt.Fprintf(os.Stderr, "ui_render_base_geometry: font skipped: %v\n", err)
 	} else {
 		fmt.Fprintf(os.Stderr, "ui_render_base_geometry: font %s\n", path)

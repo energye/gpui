@@ -1,12 +1,13 @@
 package rendering
 
 import (
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
-	"github.com/energye/gpui/ui/painting"
 )
 
-// RenderText draws a single-line (or raw) string via render.DrawString.
+// RenderText draws text via render.DrawString / DrawStringWrapped.
 // Layout prefers Face.Measure when Face is set; otherwise EstimateTextSize (rune-based).
+// When MaxWidth > 0, layout/paint use wrapped multiline (P1).
 type RenderText struct {
 	Base
 	Text       string
@@ -16,6 +17,12 @@ type RenderText struct {
 	ApproxCharW float64
 	// Face optional shaped face for true Measure (from render/text).
 	Face text.Face
+	// MaxWidth > 0 enables word-wrap layout/paint (logical px).
+	MaxWidth float64
+	// LineSpacing multiplier for wrapped lines (default 1.2).
+	LineSpacing float64
+	// Align for wrapped text (render.Align*).
+	Align render.Align
 }
 
 // NewRenderText creates a text node.
@@ -24,6 +31,8 @@ func NewRenderText(textStr string) *RenderText {
 		Text: textStr, FontSize: 14,
 		R: 0.9, G: 0.9, B: 0.9, A: 1,
 		ApproxCharW: 0.55,
+		LineSpacing: 1.2,
+		Align:       render.AlignLeft,
 	}
 	t.Init(t)
 	return t
@@ -58,6 +67,16 @@ func (t *RenderText) SetFace(face text.Face) {
 	t.MarkNeedsPaint()
 }
 
+// SetMaxWidth enables (>0) or disables (≤0) wrap; dirties layout+paint.
+func (t *RenderText) SetMaxWidth(w float64) {
+	if t == nil || t.MaxWidth == w {
+		return
+	}
+	t.MaxWidth = w
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
 func (t *RenderText) measureSize() (w, h float64) {
 	fs := t.FontSize
 	if fs <= 0 {
@@ -67,10 +86,60 @@ func (t *RenderText) measureSize() (w, h float64) {
 	if aw <= 0 {
 		aw = 0.55
 	}
+	ls := t.LineSpacing
+	if ls <= 0 {
+		ls = 1.2
+	}
+
+	if t.MaxWidth > 0 {
+		// Wrapped: width capped; height ≈ lines * lineHeight.
+		if t.Face != nil && t.Text != "" {
+			// Approximate line count via face line height + measure each line would need DC;
+			// use Measure on full string width clamp: height from soft estimate.
+			mw, _ := text.Measure(t.Text, t.Face)
+			if mw > t.MaxWidth {
+				// crude line count from char estimate
+				avg := aw * fs
+				if avg < 1 {
+					avg = 1
+				}
+				charsPerLine := t.MaxWidth / avg
+				if charsPerLine < 1 {
+					charsPerLine = 1
+				}
+				// rune count
+				n := float64(len([]rune(t.Text)))
+				lines := n / charsPerLine
+				if lines < 1 {
+					lines = 1
+				}
+				lh := fs * ls * 1.25
+				return t.MaxWidth, lines * lh
+			}
+			_, mh := text.Measure(t.Text, t.Face)
+			return t.MaxWidth, mh
+		}
+		// No face: estimate wrapped height
+		n := float64(len([]rune(t.Text)))
+		avg := aw * fs
+		if avg < 1 {
+			avg = 1
+		}
+		charsPerLine := t.MaxWidth / avg
+		if charsPerLine < 1 {
+			charsPerLine = 1
+		}
+		lines := n / charsPerLine
+		if lines < 1 {
+			lines = 1
+		}
+		return t.MaxWidth, lines * fs * 1.25 * ls
+	}
+
 	if t.Face != nil && t.Text != "" {
 		return text.Measure(t.Text, t.Face)
 	}
-	return painting.EstimateTextSize(t.Text, fs, aw)
+	return EstimateTextSize(t.Text, fs, aw)
 }
 
 // Layout implements RenderObject.
@@ -87,7 +156,7 @@ func (t *RenderText) Layout(c Constraints) Size {
 }
 
 // Paint implements RenderObject.
-func (t *RenderText) Paint(pc *painting.Context) {
+func (t *RenderText) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
@@ -96,7 +165,6 @@ func (t *RenderText) Paint(pc *painting.Context) {
 	}
 	pc.NotePaintVisit()
 	if t.Text != "" {
-		// Y uses FontSize as a simple baseline offset (engine MVP, not full TextPainter).
 		a := t.A
 		if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
 			a = 1
@@ -104,7 +172,17 @@ func (t *RenderText) Paint(pc *painting.Context) {
 		if t.Face != nil && pc.DC != nil {
 			pc.DC.SetFont(t.Face)
 		}
-		pc.DrawTextColored(t.Text, 0, t.FontSize, t.R, t.G, t.B, a)
+		if t.MaxWidth > 0 {
+			ls := t.LineSpacing
+			if ls <= 0 {
+				ls = 1.2
+			}
+			align := t.Align
+			drawTextWrapped(pc, t.Text, 0, 0, t.MaxWidth, ls, align, t.R, t.G, t.B, a)
+		} else {
+			// Y uses FontSize as a simple baseline offset (single-line MVP).
+			drawTextColored(pc, t.Text, 0, t.FontSize, t.R, t.G, t.B, a)
+		}
 	}
 	t.clearPaintDirty()
 }

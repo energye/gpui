@@ -7,7 +7,6 @@ import (
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/overlay"
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/raster"
 	"github.com/energye/gpui/ui/rendering"
@@ -363,7 +362,7 @@ func presentTree(target *render.PresentTarget, pipe *rendering.PipelineOwner, ro
 		dc.SetRGBA(cr, cg, cb, ca)
 		dc.DrawRectangle(0, 0, float64(dc.Width()), float64(dc.Height()))
 		_ = dc.Fill()
-		pc := painting.New(dc, dc.DeviceScale())
+		pc := rendering.NewPaintContext(dc, dc.DeviceScale())
 		pipe.FlushPaint(pc, force)
 		// Overlay band above main (P5d).
 		if ov != nil {

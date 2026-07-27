@@ -3,7 +3,8 @@ package rendering_test
 import (
 	"testing"
 
-	"github.com/energye/gpui/ui/painting"
+	"github.com/energye/gpui/render"
+
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scene"
 )
@@ -52,7 +53,7 @@ func TestM2_MultiBoundary_DirtyLocality(t *testing.T) {
 		t.Fatal("initial layout")
 	}
 	var visits int64
-	owner.FlushPaint(&painting.Context{PaintVisits: &visits}, true)
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, true)
 	layouts0 := owner.LayoutCount
 
 	// Dirty only the first dirtyN boundaries.
@@ -75,7 +76,7 @@ func TestM2_MultiBoundary_DirtyLocality(t *testing.T) {
 	}
 
 	visits = 0
-	if !owner.FlushPaint(&painting.Context{PaintVisits: &visits}, false) {
+	if !owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, false) {
 		t.Fatal("expected partial paint")
 	}
 	// Full tree would visit k+nStatic+root; partial must be much smaller.
@@ -113,7 +114,7 @@ func TestM4_Text_DirtyLocality(t *testing.T) {
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: vpW, Height: vpH}, true)
 	var visits int64
-	owner.FlushPaint(&painting.Context{PaintVisits: &visits}, true)
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, true)
 	layouts0 := owner.LayoutCount
 
 	// After full paint, a clean packet should not re-raster everything as dirty.
@@ -148,7 +149,7 @@ func TestM4_Text_DirtyLocality(t *testing.T) {
 	}
 
 	visits = 0
-	owner.FlushPaint(&painting.Context{PaintVisits: &visits}, false)
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, false)
 	if visits > 15 {
 		t.Fatalf("PaintVisits=%d too high for single text color dirty", visits)
 	}
@@ -178,13 +179,21 @@ func TestM5_GradientBoundary_DirtyLocality(t *testing.T) {
 	grad := rendering.NewRenderBox()
 	grad.FixedWidth, grad.FixedHeight = 120, 40
 	grad.SetRepaintBoundary(true)
-	grad.OnPaint = func(pc *painting.Context, size rendering.Size) {
-		pc.FillLinearGradient2(0, 0, size.Width, size.Height,
-			0, 0, size.Width, 0,
-			0.15, 0.45, 0.95, 1,
-			0.95, 0.35, 0.2, 1,
-		)
-		pc.FillRoundRect(8, 8, size.Width-16, size.Height-16, 6, 0.1, 0.1, 0.12, 0.85)
+	grad.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.OriginX, pc.OriginY
+		w, h := size.Width, size.Height
+		gradBrush := render.NewLinearGradientBrush(ax, ay, ax+w, ay).
+			AddColorStop(0, render.RGBA{R: 0.15, G: 0.45, B: 0.95, A: 1}).
+			AddColorStop(1, render.RGBA{R: 0.95, G: 0.35, B: 0.2, A: 1})
+		pc.DC.SetFillBrush(gradBrush)
+		pc.DC.DrawRectangle(ax, ay, w, h)
+		_ = pc.DC.Fill()
+		pc.DC.SetRGBA(0.1, 0.1, 0.12, 0.85)
+		pc.DC.DrawRoundedRectangle(ax+8, ay+8, w-16, h-16, 6)
+		_ = pc.DC.Fill()
 	}
 
 	static := rendering.NewRenderColorBox(80, 40, 0.3, 0.32, 0.36, 1)
@@ -196,7 +205,7 @@ func TestM5_GradientBoundary_DirtyLocality(t *testing.T) {
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: vpW, Height: vpH}, true)
 	var visits int64
-	owner.FlushPaint(&painting.Context{PaintVisits: &visits}, true)
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, true)
 	layouts0 := owner.LayoutCount
 
 	grad.MarkNeedsPaint()
@@ -220,7 +229,7 @@ func TestM5_GradientBoundary_DirtyLocality(t *testing.T) {
 	}
 
 	visits = 0
-	owner.FlushPaint(&painting.Context{PaintVisits: &visits}, false)
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, false)
 	if visits > 12 {
 		t.Fatalf("PaintVisits=%d too high for one gradient boundary", visits)
 	}

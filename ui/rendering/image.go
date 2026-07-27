@@ -2,7 +2,6 @@ package rendering
 
 import (
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/ui/painting"
 )
 
 // ImageState is the async image load state.
@@ -83,7 +82,7 @@ func (im *RenderImage) Layout(c Constraints) Size {
 }
 
 // Paint implements RenderObject — never decodes images here.
-func (im *RenderImage) Paint(pc *painting.Context) {
+func (im *RenderImage) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
@@ -95,14 +94,14 @@ func (im *RenderImage) Paint(pc *painting.Context) {
 	switch im.State {
 	case ImageReady:
 		if im.Img != nil {
-			pc.DrawImageBuf(im.Img, 0, 0, sz.Width, sz.Height)
+			drawImageBuf(pc, im.Img, 0, 0, sz.Width, sz.Height)
 		} else {
-			pc.FillRect(0, 0, sz.Width, sz.Height, 0.8, 0.2, 0.2, 1)
+			fillRect(pc, 0, 0, sz.Width, sz.Height, 0.8, 0.2, 0.2, 1)
 		}
 	case ImageError:
-		pc.FillRect(0, 0, sz.Width, sz.Height, 0.6, 0.15, 0.15, 1)
+		fillRect(pc, 0, 0, sz.Width, sz.Height, 0.6, 0.15, 0.15, 1)
 	default:
-		pc.FillRect(0, 0, sz.Width, sz.Height, im.PR, im.PG, im.PB, 1)
+		fillRect(pc, 0, 0, sz.Width, sz.Height, im.PR, im.PG, im.PB, 1)
 	}
 	im.clearPaintDirty()
 }

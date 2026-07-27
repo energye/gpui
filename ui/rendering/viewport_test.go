@@ -3,7 +3,6 @@ package rendering_test
 import (
 	"testing"
 
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
 )
@@ -85,7 +84,7 @@ func TestViewport_PaintVisits(t *testing.T) {
 	owner := rendering.NewPipelineOwner(vp)
 	owner.FlushLayout(rendering.Size{Width: 80, Height: 100}, true)
 	var visits int64
-	pc := &painting.Context{PaintVisits: &visits}
+	pc := &rendering.PaintContext{PaintVisits: &visits}
 	owner.FlushPaint(pc, true)
 	if visits < 1 {
 		t.Fatal("expected paint visits")

@@ -2,8 +2,6 @@ package rendering
 
 import (
 	"sync"
-
-	"github.com/energye/gpui/ui/painting"
 )
 
 // PipelineOwner flushes layout and paint for a root RenderObject (Flutter subset).
@@ -112,7 +110,7 @@ func (o *PipelineOwner) FlushLayout(viewport Size, force bool) bool {
 // When force is false and the tree is only partially dirty, CompositeOnly is set
 // so clean subtrees are skipped (P2 retained paint).
 // Returns whether paint ran.
-func (o *PipelineOwner) FlushPaint(pc *painting.Context, force bool) bool {
+func (o *PipelineOwner) FlushPaint(pc *PaintContext, force bool) bool {
 	if o == nil || pc == nil {
 		return false
 	}

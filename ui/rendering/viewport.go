@@ -1,7 +1,5 @@
 package rendering
 
-import "github.com/energye/gpui/ui/painting"
-
 // ScrollAware is implemented by content that must rebinding when the viewport scrolls
 // (e.g. VirtualList). Called with content-space scroll offset and viewport height.
 type ScrollAware interface {
@@ -167,7 +165,7 @@ func (v *RenderViewport) Layout(c Constraints) Size {
 }
 
 // Paint implements RenderObject.
-func (v *RenderViewport) Paint(pc *painting.Context) {
+func (v *RenderViewport) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
@@ -179,7 +177,7 @@ func (v *RenderViewport) Paint(pc *painting.Context) {
 	sz := v.size
 	// Always clip when drawing content; scroll dirties the viewport so paintSelf is true.
 	if ch := v.Content(); ch != nil && (paintSelf || ch.NeedsPaint() || SubtreeNeedsPaint(ch)) {
-		pc.PushClipRect(0, 0, sz.Width, sz.Height)
+		pushClipRect(pc, 0, 0, sz.Width, sz.Height)
 		// Content origin: -scroll so positive scrollY moves content up.
 		ox := pc.OriginX - v.scrollX
 		oy := pc.OriginY - v.scrollY
@@ -191,7 +189,7 @@ func (v *RenderViewport) Paint(pc *painting.Context) {
 			childPC.CompositeOnly = false
 		}
 		ch.Paint(childPC)
-		pc.PopClip()
+		popClip(pc)
 	}
 	if paintSelf {
 		v.clearPaintDirty()

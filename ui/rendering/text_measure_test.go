@@ -4,7 +4,6 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -29,7 +28,7 @@ func TestRenderText_SetColorNoLayout(t *testing.T) {
 	root.FixedWidth, root.FixedHeight = 100, 40
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: 100, Height: 40}, true)
-	owner.FlushPaint(&painting.Context{}, true)
+	owner.FlushPaint(&rendering.PaintContext{}, true)
 	n := owner.LayoutCount
 	txt.SetColor(1, 0, 0, 1)
 	if owner.FlushLayout(rendering.Size{Width: 100, Height: 40}, false) {
@@ -40,5 +39,19 @@ func TestRenderText_SetColorNoLayout(t *testing.T) {
 	}
 	if !txt.NeedsPaint() {
 		t.Fatal("needs paint")
+	}
+}
+
+func TestRenderText_MaxWidthWrapLayout(t *testing.T) {
+	txt := rendering.NewRenderText("hello wrapped world from gpui")
+	txt.FontSize = 12
+	txt.ApproxCharW = 0.55
+	txt.SetMaxWidth(80)
+	sz := txt.Layout(rendering.Loose(400, 400))
+	if sz.Width > 80.1 {
+		t.Fatalf("width=%v want ≤80", sz.Width)
+	}
+	if sz.Height <= 12*1.2 {
+		t.Fatalf("height=%v want multi-line taller", sz.Height)
 	}
 }

@@ -19,8 +19,8 @@ import (
 
 	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/embedder"
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/platform"
+	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
 
 	_ "github.com/energye/gpui/render/gpu"
@@ -48,7 +48,7 @@ func main() {
 	// Explicit close after app for after_close RSS (no defer).
 
 	sc := buildMatrixScene(float64(winW), float64(winH))
-	if face, path, err := painting.TryLoadDefaultFace(16); err != nil {
+	if face, path, err := rendering.TryLoadDefaultFace(16); err != nil {
 		fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: default font skipped: %v\n", err)
 	} else {
 		fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: default font %s\n", path)

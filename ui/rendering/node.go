@@ -1,7 +1,5 @@
 package rendering
 
-import "github.com/energye/gpui/ui/painting"
-
 // RenderObject is the L1 layout/paint/hit unit (Flutter RenderObject subset).
 type RenderObject interface {
 	// Parent / Children form the tree.
@@ -11,7 +9,7 @@ type RenderObject interface {
 	// Layout computes size under constraints; must set Size and clear needsLayout.
 	Layout(c Constraints) Size
 	// Paint draws this node and children using logical origin.
-	Paint(pc *painting.Context)
+	Paint(pc *PaintContext)
 	// HitTest returns the deepest object containing p in parent-local logical coords.
 	HitTest(p Point) RenderObject
 

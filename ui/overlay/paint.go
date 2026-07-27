@@ -1,14 +1,13 @@
 package overlay
 
 import (
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/rendering"
 )
 
 // Paint draws overlay entries (bottom → top) in window coordinates.
 // Does not paint the main band. Clears NeedsPaint on entries after paint when
 // the child does not report NeedsPaint.
-func (s *State) Paint(pc *painting.Context) {
+func (s *State) Paint(pc *rendering.PaintContext) {
 	if s == nil || pc == nil {
 		return
 	}
@@ -29,7 +28,7 @@ func (s *State) Paint(pc *painting.Context) {
 }
 
 // LayoutAndPaint is a convenience for tests: layout then paint.
-func (s *State) LayoutAndPaint(pc *painting.Context, viewportW, viewportH float64) {
+func (s *State) LayoutAndPaint(pc *rendering.PaintContext, viewportW, viewportH float64) {
 	s.Layout(viewportW, viewportH)
 	s.Paint(pc)
 }

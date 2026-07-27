@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -40,7 +39,7 @@ func TestS5_VirtualList_BindCap(t *testing.T) {
 			t.Fatalf("mounted all %d rows — virtualization broken", count)
 		}
 		var visits int64
-		owner.FlushPaint(&painting.Context{PaintVisits: &visits}, false)
+		owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, false)
 	}
 	// visible ≈ 10, cache ≈ 2+2 → expect ≤ 16 with slack
 	const cap = 20

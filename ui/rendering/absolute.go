@@ -1,7 +1,5 @@
 package rendering
 
-import "github.com/energye/gpui/ui/painting"
-
 // AbsoluteBox is a fixed-size container that **preserves** each child's Offset
 // during Layout (unlike RenderBox, which resets children to Pad).
 //
@@ -74,7 +72,7 @@ func (a *AbsoluteBox) Layout(c Constraints) Size {
 }
 
 // Paint implements RenderObject.
-func (a *AbsoluteBox) Paint(pc *painting.Context) {
+func (a *AbsoluteBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
@@ -86,7 +84,7 @@ func (a *AbsoluteBox) Paint(pc *painting.Context) {
 	if paintSelf {
 		if a.Background != nil {
 			bg := a.Background
-			pc.FillRect(0, 0, a.size.Width, a.size.Height, bg.R, bg.G, bg.B, bg.A)
+			fillRect(pc, 0, 0, a.size.Width, a.size.Height, bg.R, bg.G, bg.B, bg.A)
 		}
 		for _, ch := range a.children {
 			off := ch.Offset()

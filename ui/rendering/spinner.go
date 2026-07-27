@@ -2,8 +2,6 @@ package rendering
 
 import (
 	"math"
-
-	"github.com/energye/gpui/ui/painting"
 )
 
 // RenderSpinner is a test/demo spinner (not a product kit control).
@@ -59,7 +57,7 @@ func (s *RenderSpinner) Layout(c Constraints) Size {
 }
 
 // Paint draws 4 dots around a circle; phase rotates which is brightest.
-func (s *RenderSpinner) Paint(pc *painting.Context) {
+func (s *RenderSpinner) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
@@ -91,7 +89,7 @@ func (s *RenderSpinner) Paint(pc *painting.Context) {
 		if op > 1 {
 			op = 1
 		}
-		pc.FillRect(cx+dx-dot/2, cy+dy-dot/2, dot, dot, s.R, s.G, s.B, s.A*op)
+		fillRect(pc, cx+dx-dot/2, cy+dy-dot/2, dot, dot, s.R, s.G, s.B, s.A*op)
 	}
 	s.clearPaintDirty()
 }
