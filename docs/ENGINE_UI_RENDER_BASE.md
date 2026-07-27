@@ -736,8 +736,8 @@ P1 仍后置（本波未做完）：`TransformLayer` 场景树、exhost **真 VS
 
 | 轴 | 覆盖 | 验证 | 与指标关系 |
 |----|------|------|------------|
-| Geometry | FC-DRAW-* | 视觉 | 已带 p50/RSS/CPU JSON（P0） |
-| Text | FT-* | 布局+字形 | 合入时同步看 layout/p99 |
+| Geometry | FC-DRAW-* | 视觉 | `examples/ui_render_base_geometry` ✅ |
+| Text | FT-* | 布局+字形 | `examples/ui_render_base_text` ✅ |
 | Image | FImg-* | 异步不堵 | IO 不堵 UI；RSS 观察 |
 | ClipLayer | Clip/Opacity/Boundary | 脏局部 | raster_layer / PaintVisits |
 | Scroll | FScroll-* | bind 上界 | S5/S6 + layout |

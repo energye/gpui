@@ -1,16 +1,16 @@
 package rendering
 
 import (
-	"fmt"
-	"os"
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 )
 
 // PaintContext is the UI tree paint-walk cursor (not a second 2D engine).
 // Drawing goes through DC (*render.Context); UI controls order, origin, and CompositeOnly.
+//
+// Default fonts live in render/text (LoadDefaultFace / SystemFontCandidates),
+// not here — see default_font.go for the thin UI wrapper.
 type PaintContext struct {
 	DC               *render.Context
 	OriginX, OriginY float64
@@ -164,41 +164,4 @@ func (b *SaveLayerBudget) Allow(w, h float64) bool {
 	b.ops++
 	b.area += a
 	return true
-}
-
-var defaultFontCandidates = []string{
-	"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-	"/usr/share/fonts/TTF/DejaVuSans.ttf",
-	"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-	"/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-	"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-	"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-	"/usr/share/fonts/truetype/arphic/uming.ttc",
-}
-
-// TryLoadDefaultFace loads a system UI font. Override with GPUI_UI_FONT.
-func TryLoadDefaultFace(points float64) (text.Face, string, error) {
-	if points <= 0 {
-		points = 14
-	}
-	candidates := defaultFontCandidates
-	if p := os.Getenv("GPUI_UI_FONT"); p != "" {
-		candidates = append([]string{p}, candidates...)
-	}
-	var lastErr error
-	for _, path := range candidates {
-		if _, err := os.Stat(path); err != nil {
-			continue
-		}
-		src, err := text.NewFontSourceFromFile(path)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		return src.Face(points), path, nil
-	}
-	if lastErr != nil {
-		return nil, "", fmt.Errorf("rendering: no default font (last err: %w)", lastErr)
-	}
-	return nil, "", fmt.Errorf("rendering: no default font found (set GPUI_UI_FONT)")
 }
