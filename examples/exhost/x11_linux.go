@@ -13,10 +13,17 @@ import (
 )
 
 const (
-	xDestroyNotify   = 17
-	xClientMessage   = 33
-	xConfigureNotify = 22
-	xExpose          = 12
+	xDestroyNotify    = 17
+	xClientMessage    = 33
+	xConfigureNotify  = 22
+	xExpose           = 12
+	xNone             = 0
+	xNorthWestGravity = 1
+	xWhenMapped       = 1
+	xCWBackPixmap     = 1 << 0
+	xCWBitGravity     = 1 << 4
+	xCWWinGravity     = 1 << 5
+	xCWBackingStore   = 1 << 6
 	// StructureNotifyMask | ExposureMask
 	xEventMask = (1 << 17) | (1 << 15)
 )
@@ -73,6 +80,8 @@ func openX11(w, h int, title string) (*Window, error) {
 		xDefaultScreen  func(dpy uintptr) int
 		xRootWindow     func(dpy uintptr, screen int) uintptr
 		xCreateSimple   func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
+		xSetBgPixmap    func(dpy uintptr, win uintptr, pixmap uintptr) int
+		xChangeAttr     func(dpy uintptr, win uintptr, valueMask uint64, attrs unsafe.Pointer) int
 		xMapWindow      func(dpy uintptr, win uintptr) int
 		xFlush          func(dpy uintptr) int
 		xDestroyWindow  func(dpy uintptr, win uintptr) int
@@ -92,6 +101,8 @@ func openX11(w, h int, title string) (*Window, error) {
 	purego.RegisterLibFunc(&xDefaultScreen, lib, "XDefaultScreen")
 	purego.RegisterLibFunc(&xRootWindow, lib, "XRootWindow")
 	purego.RegisterLibFunc(&xCreateSimple, lib, "XCreateSimpleWindow")
+	purego.RegisterLibFunc(&xSetBgPixmap, lib, "XSetWindowBackgroundPixmap")
+	purego.RegisterLibFunc(&xChangeAttr, lib, "XChangeWindowAttributes")
 	purego.RegisterLibFunc(&xMapWindow, lib, "XMapWindow")
 	purego.RegisterLibFunc(&xFlush, lib, "XFlush")
 	purego.RegisterLibFunc(&xDestroyWindow, lib, "XDestroyWindow")
@@ -117,6 +128,15 @@ func openX11(w, h int, title string) (*Window, error) {
 		xCloseDisplay(dpy)
 		return nil, fmt.Errorf("XCreateSimpleWindow failed")
 	}
+	// Zero-flash live resize: do not let X fill newly exposed regions with a
+	// solid background while the GPU surface is resizing. Keep existing pixels
+	// anchored at the top-left until the next full present catches up.
+	xSetBgPixmap(dpy, win, uintptr(xNone))
+	attrs := make([]byte, 128)
+	*(*int32)(unsafe.Pointer(&attrs[32])) = int32(xNorthWestGravity) // bit_gravity
+	*(*int32)(unsafe.Pointer(&attrs[36])) = int32(xNorthWestGravity) // win_gravity
+	*(*int32)(unsafe.Pointer(&attrs[40])) = int32(xWhenMapped)       // backing_store
+	xChangeAttr(dpy, win, uint64(xCWBackPixmap|xCWBitGravity|xCWWinGravity|xCWBackingStore), unsafe.Pointer(&attrs[0]))
 	tb := append([]byte(title), 0)
 	xStoreName(dpy, win, &tb[0])
 
