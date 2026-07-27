@@ -23,10 +23,20 @@ func (c *Context) PopClip() {
 }
 
 // DrawText draws s at local logical (x,y) baseline-ish top-left via render.DrawString.
+// Color is whatever is currently set on the underlying DC.
 func (c *Context) DrawText(s string, x, y float64) {
 	if c == nil || c.DC == nil || s == "" {
 		return
 	}
+	c.DC.DrawString(s, c.OriginX+x, c.OriginY+y)
+}
+
+// DrawTextColored sets the DC color then draws s at local logical (x,y).
+func (c *Context) DrawTextColored(s string, x, y, r, g, b, a float64) {
+	if c == nil || c.DC == nil || s == "" {
+		return
+	}
+	c.DC.SetRGBA(r, g, b, a)
 	c.DC.DrawString(s, c.OriginX+x, c.OriginY+y)
 }
 

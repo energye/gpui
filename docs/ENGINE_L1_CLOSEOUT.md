@@ -57,7 +57,7 @@ ui/
 
 render/present_target.go   ← ui 唯一 GPU 入口（内部调 gpu）
 
-examples/ui_l1_blank | ui_l1_spinner
+examples/ui_l1_blank | ui_l1_spinner | ui_l1_scroll | ui_l1_render_matrix
 ```
 
 ```text
@@ -121,6 +121,7 @@ go run ./examples/ui_l1_spinner
 |------|------------|
 | **本文** | L1 状态、验收、限制（**日常入口**） |
 | `ENGINE_CODING_RULES` | **禁止 CGO / purego / 全局纪律** |
+| `ENGINE_UI_RENDER_BASE` | **Flutter 母表能力总表 · 指标 · 补齐 Wave（非 P6 宣称）** |
 | `ENGINE_FLUTTER_SKIA_ARCH` | 架构条款变更 |
 | `ENGINE_ARCH_OVERVIEW` | 图示/白话 |
 | `ENGINE_PHASE_P0_P3` | 已完成任务考古 |
@@ -139,7 +140,8 @@ go run ./examples/ui_l1_spinner
 | 1 | （可选）存 blank/spinner JSON baseline |
 | 2 | P4 ✅ 已实现 |
 | 3 | P5 L2 框架壳 ✅ — [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md) · `examples/ui_l2_shell` |
-| 4 | **P7** Ant（后置，P5 A+C+D 已可用） |
+| 4 | **多轴渲染验证** — `examples/ui_l1_render_matrix` + `ui/rendering/render_matrix_test.go`（**PARTIAL** Flutter 契约；非 P6 dirty-rect） |
+| 5 | **P7** Ant（后置，P5 A+C+D 已可用） |
 
 ---
 

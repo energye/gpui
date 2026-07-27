@@ -46,6 +46,25 @@ func (t *RenderText) Layout(c Constraints) Size {
 	return out
 }
 
+// SetText updates the string and dirties layout+paint when changed.
+func (t *RenderText) SetText(s string) {
+	if t == nil || t.Text == s {
+		return
+	}
+	t.Text = s
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// SetColor updates RGBA and dirties paint only (no layout).
+func (t *RenderText) SetColor(r, g, b, a float64) {
+	if t == nil {
+		return
+	}
+	t.R, t.G, t.B, t.A = r, g, b, a
+	t.MarkNeedsPaint()
+}
+
 // Paint implements RenderObject.
 func (t *RenderText) Paint(pc *painting.Context) {
 	if pc == nil {
@@ -56,9 +75,12 @@ func (t *RenderText) Paint(pc *painting.Context) {
 	}
 	pc.NotePaintVisit()
 	if t.Text != "" {
-		// DrawString uses current color on DC — set via Fill path: approximate with rect if no font.
-		// Prefer DrawText; color may be default black unless render face set by host.
-		pc.DrawText(t.Text, 0, t.FontSize)
+		// Y uses FontSize as a simple baseline offset (engine MVP, not full TextPainter).
+		a := t.A
+		if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
+			a = 1
+		}
+		pc.DrawTextColored(t.Text, 0, t.FontSize, t.R, t.G, t.B, a)
 	}
 	t.clearPaintDirty()
 }

@@ -8,6 +8,7 @@
 |--------|------|------|
 | **1** | [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md) | **L1 状态 · 验收命令 · 限制 · 下一步** |
 | **1b** | [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) | **全局纪律：禁止 CGO · purego · 依赖 · 架构/示例边界** |
+| **1c** | [`ENGINE_UI_RENDER_BASE.md`](./ENGINE_UI_RENDER_BASE.md) | **Flutter 渲染基座能力总表（母表全量×gpui 映射）· 正向指标 · Wave** |
 | 2 | [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md) | 架构图（四层 / 依赖 / 坐标） |
 | 3 | [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) | 架构条款全文 |
 | 4 | [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md) | P0–P3 任务考古（已完成） |
@@ -29,10 +30,12 @@ L3 Ant                ⬜  后置（P7）
 
 ```bash
 go test ./ui/... -count=1
+go test ./ui/rendering -run 'TestS2_|TestS4_|TestS5_|TestS6_|TestM' -count=1  # 脏区/矩阵门禁
 go test ./examples/ui_l2_shell -count=1   # 示例场景测（非 ui 库）
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 go run ./examples/ui_l1_blank
 go run ./examples/ui_l1_spinner
+go run ./examples/ui_l1_render_matrix   # 多轴渲染矩阵（PARTIAL；非 P6）
 go run ./examples/ui_l2_shell   # P5 L2 机制烟囱
 ```
 
