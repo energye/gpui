@@ -1,11 +1,23 @@
 # UI 渲染基座能力总表 — Flutter 母表 × gpui 映射
 
-> **版本：1.4** | 日期：2026-07-27  
+> **版本：1.5** | 日期：2026-07-28  
+> **施工入口（推荐）：** **[`docs/ui_render_base/`](./ui_render_base/README.md)** — 按依赖组拆分的分册 + 实施顺序 + 指标挂钩 + DoD  
+> **本文件：** 单页全表 **归档 / 全文检索**（与分册同步维护；冲突时以分册施工状态 + 代码为准）  
 > **性质：能力真源（盘点）** — 以 **Flutter UI 渲染基座** 为母表；gpui **不支持也必须保留行**  
 > **范围：** Canvas / Paint / Path / Text / Picture / PaintingContext / Layer / RenderObject / Scheduler / 滚动协议 / **正向性能指标**  
 > **非范围：** P6 dirty-rect Present 冒充完成、Ant 控件皮肤（P7）、完整 a11y 生态  
 > **硬纪律：** 正向指标与能力 Wave **并行**（见 §0.5）— **禁止**等母表全部实现后再做 CPU/内存/60fps  
 > **交叉：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) · [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md) · [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md)
+
+### 分册导航（2.1-split · 施工真源）
+
+| 序 | 分册 |
+|----|------|
+| **总集** | [`ui_render_base/README`](./ui_render_base/README.md) |
+| **顺序+§覆盖** | [`91_wave_order`](./ui_render_base/91_wave_order.md) |
+| 指标 | [`90_metrics`](./ui_render_base/90_metrics.md) |
+| 元规则 | [`00_meta`](./ui_render_base/00_meta.md) |
+| 已落地清单 | README「已落地工作清单」 |
 
 ---
 
@@ -81,7 +93,7 @@ ui → render → gpu    禁止 ui→gpu    禁止 CGO（purego）
 | `dart:ui.Paint` | `SetRGBA` / Stroke / Brush / Blend… | 多在 render（B） |
 | `PaintingContext` | `ui/painting.Context` | **C** 子集 |
 | `RenderObject` | `ui/rendering` | **A** 子集 |
-| `Layer` 树 | `ui/scene` | Offset/Opacity/ClipRect/Picture/Boundary **A**；Transform 等 **D** |
+| `Layer` 树 | `ui/scene` | Offset/Opacity/ClipRect/Boundary/Transform **A/C**；Picture **C**；Filter/Texture… **D** |
 | `PipelineOwner` | `rendering.PipelineOwner` | **A** |
 | `SchedulerBinding` / Vsync | `scheduler` + `VSyncWaiter` | 接口 **A**；真 VSync 多 **C** |
 | Raster 线程 | `ui/raster.Loop` + `SubmitLatest` | **A**（F08） |
@@ -108,8 +120,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | FC-SAVELAYER | 离屏层+Paint | Canvas.saveLayer(bounds,paint) | 半透明组、滤镜、阴影组 | SaveLayerBudget 仅预算 | PushLayer/PopLayer | — | C+B | ui/painting · context_layer.go | 预算 C；真 saveLayer 在 render B | P1 |
 | FC-SAVELAYER-NULL | 全画布 saveLayer | saveLayer(null,…) | 极重；默认应禁 | 预算 MaxArea 可拦 | PushLayer 全幅 | — | C | SaveLayerBudget | F16 纪律 | P1 |
 | FC-TRANSLATE | 平移 CTM | Canvas.translate | 局部坐标系 | WithOrigin 绝对偏移 | Translate | OffsetLayer | A/B | painting.Context · scene | UI 用 origin 模型非完整 CTM | P1 |
-| FC-SCALE | 缩放 CTM | Canvas.scale | 缩放动画/适配 | — | Scale | 无 TransformLayer | B/D | render/context.go | scene 无 TransformLayer=D | P1 |
-| FC-ROTATE | 旋转 CTM | Canvas.rotate | 旋转图标/翻牌 | — | Rotate/RotateAbout | 无 TransformLayer | B/D | render/context.go | 需 TransformLayer | P1 |
+| FC-SCALE | 缩放 CTM | Canvas.scale | 缩放动画/适配 | RenderTransform.SetScale | Scale | TransformLayer | A/B | transform.go | RO 已接；任意 CTM 仍 B | P1 |
+| FC-ROTATE | 旋转 CTM | Canvas.rotate | 旋转图标/翻牌 | RenderTransform.SetRotation | Rotate/RotateAbout | TransformLayer | A/B | transform.go | 命中 AABB | P1 |
 | FC-SKEW | 错切 CTM | Canvas.skew | 少见 UI 效果 | — | Shear | — | B | render/context.go | — | P2 |
 | FC-TRANSFORM | 任意 Matrix4 | Canvas.transform | 通用仿射 | — | Transform/SetTransform | — | B | render/context.go | UI 未暴露 | P1 |
 | FC-GET-TRANSFORM | 读取 CTM | Canvas.getTransform | 命中反变换/调试 | — | GetTransform | — | B | render/context.go | — | P2 |
@@ -208,7 +220,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 | Wave |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|------|
 | FX-OFFSET-LAYER | 位移层 | OffsetLayer | 滚动、定位 | — | Translate | OffsetLayer **A** | A | ui/scene/layer.go | — | — |
-| FX-TRANSFORM-LAYER | 变换层 | TransformLayer | 旋转/缩放不重绘子树 | — | CTM B | **无 TransformLayer** | D | — | 场景树关键缺口 | P1 |
+| FX-TRANSFORM-LAYER | 变换层 | TransformLayer | 旋转/缩放 | RenderTransform | CTM B | **TransformLayer A/C** | A/C | scene · transform.go | 命中 AABB；非 P6 | P1 |
 | FX-OPACITY-LAYER | 透明度层 | OpacityLayer | 淡入淡出 | AnimatedOpacity 分类 | 层 opacity | OpacityLayer **A** | A/C | animation/implicit.go | 分类 compositor；Present 仍全画 | P1 |
 | FX-CTM-FULL | 完整 CTM 栈 | Canvas transform 族 | 自定义绘制 | WithOrigin 仅平移语义 | 完整 CTM B | — | B | render | — | P0 |
 
@@ -305,7 +317,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | FPC-CLIP-PATH | pushClipPath | pushClipPath | 异形 | — | Clip path | — | B/D | — | — | P1 |
 | FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | — | 滤镜 API | — | B/D | — | — | P2 |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 | P1 |
-| FPC-TRANSFORM | pushTransform | pushTransform | 子树变换 | — | CTM | 无 TransformLayer | B/D | — | — | P1 |
+| FPC-TRANSFORM | pushTransform | pushTransform | 子树变换 | RenderTransform | CTM | TransformLayer | A/C | transform.go · layer_build | 非通用 pushTransform API | P1 |
 | FPC-LAYER | pushLayer/addLayer | pushLayer | 自定义层 | — | — | LayerBuilder 有限 | C | scene/build.go | — | P1 |
 | FPC-COMPLEX-HINT | setIsComplexHint | setIsComplexHint | 光栅缓存提示 | — | — | — | D | — | RasterCache P6 | P6 |
 | FPC-WILL-CHANGE | setWillChangeHint | setWillChangeHint | 动画提示 | — | — | — | D | — | P6 | P6 |
@@ -319,7 +331,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|------|
 | FL-CONTAINER | 容器层 | ContainerLayer | 树节点 | — | — | ContainerLayer | A | scene/layer.go | — | — |
 | FL-OFFSET | 位移层 | OffsetLayer | 滚动 | — | — | OffsetLayer | A | layer.go | — | — |
-| FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | — | CTM only | **无** | D | — | 关键 | P1 |
+| FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | A/C | scene/layer.go · transform.go | 命中 AABB；Present 全画 | P1 |
 | FL-OPACITY | 透明层 | OpacityLayer | 淡入 | MutSetOpacity | — | OpacityLayer | A/C | compositing.go | 真合成未接到 Present | P1 |
 | FL-CLIP-RECT | 裁剪层 | ClipRectLayer | 溢出 | — | — | ClipRectLayer | A | layer.go | Build 使用有限 | — |
 | FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | — | — | **无** | D | — | — | P1 |
@@ -443,8 +455,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 | 类型 | 状态 |
 |------|------|
-| Container / Offset / Opacity / ClipRect / Picture / Boundary | A 或 C(Picture) |
-| Transform / ClipRRect / ClipPath / Texture / Backdrop / Filter / Leader… | **D** |
+| Container / Offset / Opacity / ClipRect / Picture / Boundary / **Transform** | A 或 C(Picture/Opacity 合成) |
+| ClipRRect / ClipPath / Texture / Backdrop / Filter / Leader… | **D** |
 
 ### 18.3 Present 诚实条款
 
@@ -768,6 +780,7 @@ P1 仍后置（部分）：exhost **真 VSync**、完整 Font 族/Paragraph 富�
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.5 | 2026-07-28 | **拆分** `docs/ui_render_base/` 分册施工真源；本文件保留全表归档 |
 | 1.4 | 2026-07-27 | **删除 ui/painting**；PaintContext∈rendering；UI 直调 render |
 | 1.3 | 2026-07-27 | **P1** painting：径向/扫掠/Path/Oval/Arc/TextWrapped/PushLayer |
 | 1.2 | 2026-07-27 | **§20 指标全景补全**（A–J 族）；修正 P0 已落地状态；用户三项→全表映射 |
