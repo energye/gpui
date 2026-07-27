@@ -38,6 +38,7 @@ go run ./examples/ui_l1_spinner
 go run ./examples/ui_l1_render_matrix   # 多轴渲染矩阵（PARTIAL；非 P6）
 go run ./examples/ui_render_base_geometry  # Geometry 轴（§2 FC-DRAW-*）
 go run ./examples/ui_render_base_text      # Text 轴（§8 FT-*）
+go run ./examples/ui_render_base_image     # Image 轴（FImg-*）
 go run ./examples/ui_l2_shell   # P5 L2 机制烟囱
 ```
 

@@ -738,7 +738,7 @@ P1 仍后置（本波未做完）：`TransformLayer` 场景树、exhost **真 VS
 |----|------|------|------------|
 | Geometry | FC-DRAW-* | 视觉 | `examples/ui_render_base_geometry` ✅ |
 | Text | FT-* | 布局+字形 | `examples/ui_render_base_text` ✅ |
-| Image | FImg-* | 异步不堵 | IO 不堵 UI；RSS 观察 |
+| Image | FImg-* | 异步不堵 | `examples/ui_render_base_image` ✅ · IO 不堵 UI；RSS |
 | ClipLayer | Clip/Opacity/Boundary | 脏局部 | raster_layer / PaintVisits |
 | Scroll | FScroll-* | bind 上界 | S5/S6 + layout |
 | **PerfSoak** | §20 | 60fps+、CPU、RSS、hitch、close | **贯穿各波**，非全部能力做完才开（§0.5） |
