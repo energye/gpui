@@ -12,6 +12,8 @@ const (
 	MutSetOpacity
 	// MutSetOffset updates offset (compositor-only).
 	MutSetOffset
+	// MutSetTransform updates transform attributes (compositor-only candidate).
+	MutSetTransform
 	// MutAddChild / MutRemoveChild are structural (rare).
 	MutAddChild
 	MutRemoveChild
@@ -24,6 +26,9 @@ type Mutation struct {
 	// Optional payload
 	Opacity float64
 	DX, DY  float64
+	// Transform payload (MutSetTransform)
+	Rotation float64
+	SX, SY   float64
 }
 
 // LayerBand selects main vs overlay stacking (F13).

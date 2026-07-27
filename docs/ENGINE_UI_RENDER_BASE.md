@@ -724,7 +724,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 - Geometry 窗测第 4 行：radial / path / oval+arc
 - 单测：`TestP1_*`、`TestRenderText_MaxWidthWrapLayout`
 
-P1 仍后置（本波未做完）：`TransformLayer` 场景树、exhost **真 VSync**、完整 Font 体系、Paragraph 富文本。
+P1 仍后置（部分）：exhost **真 VSync**、完整 Font 族/Paragraph 富文本。  
+**TransformLayer：** `ui/scene.TransformLayer` + `rendering.RenderTransform` + ClipLayer 窗测 ✅（2026-07-28）。
 
 **P2：** ellipsis/maxLines、path metrics、可变高、Backdrop/Filter 场景层、九宫/圆角图 RO、TransformLayer。  
 **P3：** 窗测矩阵扩展（Text 轴等）、soak 入库。  
@@ -739,9 +740,9 @@ P1 仍后置（本波未做完）：`TransformLayer` 场景树、exhost **真 VS
 | Geometry | FC-DRAW-* | 视觉 | `examples/ui_render_base_geometry` ✅ |
 | Text | FT-* | 布局+字形 | `examples/ui_render_base_text` ✅ |
 | Image | FImg-* | 异步不堵 | `examples/ui_render_base_image` ✅ · IO 不堵 UI；RSS |
-| ClipLayer | Clip/Opacity/Boundary | 脏局部 | raster_layer / PaintVisits |
+| ClipLayer | Clip/Opacity/Boundary/Transform | 脏局部 | `examples/ui_render_base_cliplayer` ✅ · raster_layer |
 | Scroll | FScroll-* | bind 上界 | S5/S6 + layout |
-| **PerfSoak** | §20 | 60fps+、CPU、RSS、hitch、close | **贯穿各波**，非全部能力做完才开（§0.5） |
+| **PerfSoak** | §20 | 60fps+、CPU、RSS、hitch、close | `examples/ui_render_base_perfsoak` ✅ |
 
 环境：`RUN_SECONDS`、`AXIS=`、`GPUI_DISPLAY`；stdout JSON + 可选 baseline。  
 **每轴合入 = 能力验收 + 指标不回退**；禁止「只合 API、不跑 JSON」。

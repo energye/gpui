@@ -109,6 +109,46 @@ func NewClipRectLayer(x, y, w, h float64) *ClipRectLayer {
 
 func (c *ClipRectLayer) Kind() string { return "clip_rect" }
 
+// TransformLayer applies a 2D similarity transform to children (Flutter TransformLayer subset).
+// Order when applied at paint/composite: translate (TX,TY) → rotate about local origin → scale.
+// SX/SY default to 1 when zero is stored as "unset" — callers should set SX=SY=1 explicitly.
+type TransformLayer struct {
+	ContainerLayer
+	TX, TY   float64 // translation (logical px, Y-down)
+	Rotation float64 // radians, clockwise in Y-down canvas matches render.Rotate
+	SX, SY   float64 // scale; treat 0 as 1 when applying
+}
+
+// NewTransformLayer creates a transform layer. Pass sx,sy=1 for pure rotate/translate.
+func NewTransformLayer(tx, ty, rotation, sx, sy float64) *TransformLayer {
+	if sx == 0 {
+		sx = 1
+	}
+	if sy == 0 {
+		sy = 1
+	}
+	t := &TransformLayer{TX: tx, TY: ty, Rotation: rotation, SX: sx, SY: sy}
+	t.id = NextLayerID()
+	return t
+}
+
+func (t *TransformLayer) Kind() string { return "transform" }
+
+// EffectiveScale returns SX,SY with 0 treated as 1.
+func (t *TransformLayer) EffectiveScale() (sx, sy float64) {
+	if t == nil {
+		return 1, 1
+	}
+	sx, sy = t.SX, t.SY
+	if sx == 0 {
+		sx = 1
+	}
+	if sy == 0 {
+		sy = 1
+	}
+	return sx, sy
+}
+
 // PictureLayer holds a retained picture (or a re-record flag for P3 raster).
 type PictureLayer struct {
 	id      uint64

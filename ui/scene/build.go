@@ -61,6 +61,22 @@ func (b *LayerBuilder) PushOpacity(opacity float64) *OpacityLayer {
 	return o
 }
 
+// PushClipRect pushes a clip-rect layer.
+func (b *LayerBuilder) PushClipRect(x, y, w, h float64) *ClipRectLayer {
+	c := NewClipRectLayer(x, y, w, h)
+	b.current().Add(c)
+	b.stack = append(b.stack, &c.ContainerLayer)
+	return c
+}
+
+// PushTransform pushes a 2D transform layer (translate / rotate / scale).
+func (b *LayerBuilder) PushTransform(tx, ty, rotation, sx, sy float64) *TransformLayer {
+	t := NewTransformLayer(tx, ty, rotation, sx, sy)
+	b.current().Add(t)
+	b.stack = append(b.stack, &t.ContainerLayer)
+	return t
+}
+
 // AddPicture appends a picture layer to the current container.
 func (b *LayerBuilder) AddPicture(needsRaster bool) *PictureLayer {
 	p := NewPictureLayer()

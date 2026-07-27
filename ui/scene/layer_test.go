@@ -52,13 +52,38 @@ func TestClassifyDirty(t *testing.T) {
 		{Kind: scene.MutReplacePicture, LayerID: 1},
 		{Kind: scene.MutSetOpacity, LayerID: 2, Opacity: 0.5},
 		{Kind: scene.MutSetOffset, LayerID: 3, DX: 1},
+		{Kind: scene.MutSetTransform, LayerID: 4, Rotation: 0.1, SX: 1, SY: 1},
 	}
 	r, c := scene.ClassifyDirty(muts)
 	if len(r) != 1 || r[0] != 1 {
 		t.Fatalf("raster=%v", r)
 	}
-	if len(c) != 2 {
+	if len(c) != 3 {
 		t.Fatalf("compositor=%v", c)
+	}
+}
+
+func TestTransformLayer_Builder(t *testing.T) {
+	scene.ResetLayerIDGen()
+	b := scene.NewLayerBuilder()
+	tr := b.PushTransform(5, 6, 0.25, 1.5, 1.5)
+	b.AddPicture(true)
+	b.Pop()
+	if tr.Kind() != "transform" {
+		t.Fatalf("kind=%s", tr.Kind())
+	}
+	sx, sy := tr.EffectiveScale()
+	if sx != 1.5 || sy != 1.5 {
+		t.Fatalf("scale %v %v", sx, sy)
+	}
+	var found bool
+	scene.Walk(b.Root(), func(l scene.Layer) {
+		if l.Kind() == "transform" {
+			found = true
+		}
+	})
+	if !found {
+		t.Fatal("transform not in tree")
 	}
 }
 

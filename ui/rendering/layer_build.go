@@ -19,6 +19,34 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		return
 	}
 	off := n.Offset()
+
+	// Transform nodes push scene.TransformLayer (P1).
+	if tr, ok := n.(*RenderTransform); ok {
+		rot, sx, sy := tr.TransformParams()
+		if n.IsRepaintBoundary() {
+			b.PushBoundary(off.X, off.Y, "transform", n.NeedsPaint() || SubtreeNeedsPaint(n))
+			b.PushTransform(0, 0, rot, sx, sy)
+			for _, ch := range n.Children() {
+				appendNode(ch, b)
+			}
+			if len(n.Children()) == 0 {
+				b.AddPicture(n.NeedsPaint())
+			}
+			b.Pop() // transform
+			b.Pop() // boundary
+			return
+		}
+		b.PushTransform(off.X, off.Y, rot, sx, sy)
+		if len(n.Children()) == 0 {
+			b.AddPicture(n.NeedsPaint())
+		}
+		for _, ch := range n.Children() {
+			appendNode(ch, b)
+		}
+		b.Pop()
+		return
+	}
+
 	if n.IsRepaintBoundary() {
 		b.PushBoundary(off.X, off.Y, typeName(n), n.NeedsPaint() || SubtreeNeedsPaint(n))
 		for _, ch := range n.Children() {
@@ -47,6 +75,8 @@ func typeName(n RenderObject) string {
 		return "color"
 	case *RenderBox:
 		return "box"
+	case *RenderTransform:
+		return "transform"
 	default:
 		return "node"
 	}

@@ -21,7 +21,7 @@ func ClassifyDirty(muts []Mutation) (rasterIDs, compositorIDs []uint64) {
 				seenR[m.LayerID] = struct{}{}
 				rasterIDs = append(rasterIDs, m.LayerID)
 			}
-		case MutSetOpacity, MutSetOffset:
+		case MutSetOpacity, MutSetOffset, MutSetTransform:
 			if _, ok := seenC[m.LayerID]; !ok {
 				seenC[m.LayerID] = struct{}{}
 				compositorIDs = append(compositorIDs, m.LayerID)
