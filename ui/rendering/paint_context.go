@@ -109,7 +109,7 @@ func pushClipRect(pc *PaintContext, x, y, w, h float64) { pc.PushClipRect(x, y, 
 func popClip(pc *PaintContext)                          { pc.PopClip() }
 
 func drawImageBuf(pc *PaintContext, img *render.ImageBuf, x, y, dstW, dstH float64) {
-	if pc == nil || pc.DC == nil || img == nil {
+	if pc == nil || pc.DC == nil || img == nil || img.Disposed() {
 		return
 	}
 	ax, ay := pc.Abs(x, y)

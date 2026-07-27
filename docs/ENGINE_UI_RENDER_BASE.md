@@ -237,7 +237,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | FImg-CIRCLE | 圆形图 | DecorationImage | 头像 | — | DrawImageCircular | — | B | context_image.go | — | P0 |
 | FImg-QUAD | 四角映射 | 自定义 | 透视广告 | — | DrawImageQuad | — | B | m4_extensions.go | — | P2 |
 | FImg-CODEC | 解码 | instantiateImageCodec | 加载图 | ui/io.Pool DecodeFile | ImageBuf | RenderImage 状态机 | A | ui/io/decode.go | F12；多帧 GIF 弱 | P1 |
-| FImg-DISPOSE | 释放图像 | image.dispose | 防泄漏 | — | ImageBuf 生命周期 | — | C | — | 需规范 Release | P1 |
+| FImg-DISPOSE | 释放图像 | image.dispose | 防泄漏 | SetImage 所有权 | ImageBuf.Dispose | RenderImage | A | buf · image_dispose_test | 幂等 | — |
 | FImg-TO-BYTES | 读回像素 | toByteData | 截图/测试 | — | ExportImageBuf/Image/SavePNG | — | B | context_image.go | — | P2 |
 | FImg-GPU-TEX | 外部纹理 | Texture | 视频帧 | — | DrawGPUTexture* | 无 TextureLayer | B/D | context_image.go | FL-TEXTURE 关联 | P2 |
 | FImg-ATLAS | 图集 | drawAtlas | 合批图标 | — | DrawAtlas | — | B | vertices.go | — | P2 |

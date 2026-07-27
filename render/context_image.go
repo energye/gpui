@@ -210,6 +210,9 @@ func (c *Context) DrawImage(img *ImageBuf, x, y float64) {
 //	})
 func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	c.syncPublishedFilterBeforeDraw()
+	if img == nil || img.Disposed() {
+		return
+	}
 	// Default values. InterpNearest starts at 1 so zero means unspecified, not nearest.
 	if opts.Interpolation == 0 {
 		opts.Interpolation = InterpBilinear

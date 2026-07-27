@@ -54,10 +54,43 @@ type ImageBuf struct {
 	// new cache entry (prevents VRAM growth on continuous offscreen export).
 	gpuDirty bool
 
+	// disposed: true after Dispose(); buffer must not be drawn or re-filled as live.
+	// Idempotent Dispose is required for UI image ownership (FImg-DISPOSE).
+	disposed bool
+
 	// Lazy premultiplication cache
 	premulMu    sync.RWMutex
 	premulReady bool
 	premulData  []byte
+}
+
+// Dispose releases pixel storage and marks the buffer unusable for draw.
+// Safe on nil; idempotent (second call is a no-op). After Dispose, Bounds are
+// empty, Data is nil, and Disposed() reports true. Callers that own a buffer
+// (e.g. RenderImage after SetImage) must Dispose when replacing or clearing.
+//
+// This does not return the buffer to a pool; it drops CPU backing so GC can
+// reclaim and so accidental draws after release fail closed (no-op / empty).
+func (b *ImageBuf) Dispose() {
+	if b == nil || b.disposed {
+		return
+	}
+	b.disposed = true
+	b.data = nil
+	b.width = 0
+	b.height = 0
+	b.stride = 0
+	b.genID = 0
+	b.gpuDirty = false
+	b.premulMu.Lock()
+	b.premulReady = false
+	b.premulData = nil
+	b.premulMu.Unlock()
+}
+
+// Disposed reports whether Dispose has been called (or b is nil).
+func (b *ImageBuf) Disposed() bool {
+	return b == nil || b.disposed
 }
 
 // NewImageBuf creates a new image buffer with the given dimensions and format.
@@ -157,13 +190,19 @@ func (b *ImageBuf) Clone() *ImageBuf {
 	}
 }
 
-// Width returns the image width in pixels.
+// Width returns the image width in pixels (0 if disposed/nil).
 func (b *ImageBuf) Width() int {
+	if b == nil || b.disposed {
+		return 0
+	}
 	return b.width
 }
 
-// Height returns the image height in pixels.
+// Height returns the image height in pixels (0 if disposed/nil).
 func (b *ImageBuf) Height() int {
+	if b == nil || b.disposed {
+		return 0
+	}
 	return b.height
 }
 
@@ -240,15 +279,21 @@ func (b *ImageBuf) Format() Format {
 	return b.format
 }
 
-// Bounds returns the image dimensions as (width, height).
+// Bounds returns the image dimensions as (width, height) (0,0 if disposed).
 func (b *ImageBuf) Bounds() (int, int) {
+	if b == nil || b.disposed {
+		return 0, 0
+	}
 	return b.width, b.height
 }
 
-// Data returns the raw pixel data slice.
+// Data returns the raw pixel data slice (nil if disposed).
 // Modifying this data will affect the image; call InvalidatePremulCache()
 // after modifications if premultiplied data may have been cached.
 func (b *ImageBuf) Data() []byte {
+	if b == nil || b.disposed {
+		return nil
+	}
 	return b.data
 }
 
@@ -364,7 +409,11 @@ func (b *ImageBuf) SetRGBA(x, y int, r, g, bl, a uint8) error {
 }
 
 // Clear sets all pixels to zero (transparent black for RGBA formats).
+// No-op if disposed or nil.
 func (b *ImageBuf) Clear() {
+	if b == nil || b.disposed || b.data == nil {
+		return
+	}
 	clear(b.data)
 	b.InvalidatePremulCache()
 }

@@ -67,9 +67,9 @@ func (p *Pool) Get(width, height int, format Format) *ImageBuf {
 
 // Put returns an image buffer to the pool for reuse.
 // The buffer will be cleared before being stored.
-// If buf is nil or the pool bucket is at max capacity, the buffer is discarded.
+// If buf is nil, disposed, or the pool bucket is at max capacity, the buffer is discarded.
 func (p *Pool) Put(buf *ImageBuf) {
-	if buf == nil {
+	if buf == nil || buf.Disposed() {
 		return
 	}
 

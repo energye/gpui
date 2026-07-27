@@ -15,7 +15,7 @@
 | 6 | [04_path_clip_savelayer](./04_path_clip_savelayer.md) | A/B/C | ClipRRect ✅ · metrics/nest 文档 |
 | 7 | [08_scene_picture](./08_scene_picture.md) | A/C/D | P6 picture/damage |
 | 8 | [05_transform](./05_transform.md) | A/C ✅部分 | 逆 hit · 真合成 |
-| 9 | [06_image](./06_image.md) | A/B ✅窗测 | Dispose 规范 |
+| 9 | [06_image](./06_image.md) | A/B · Dispose✅ | Atlas/JSON 解码字段 |
 | 10 | [07_text](./07_text.md) | C/A · ellipsis✅ | Paragraph · BiDi |
 | 11 | [10_scroll_viewport](./10_scroll_viewport.md) | A/D | 可变高 · base 轴 |
 | 12 | [12_filter_shadow](./12_filter_shadow.md) | B/D | 按需 |
@@ -69,7 +69,7 @@
 | P1 | ParagraphBuilder（富文本） | P1 |
 | P1 | ~~ellipsis / maxLines~~ ✅ | — |
 | P1 | ~~ClipRRect UI/层~~ ✅ | — |
-| P1 | Image dispose 规范 | P1 |
+| P1 | ~~Image dispose 规范~~ ✅ | — |
 | P2 | path metrics · 可变行高 · Backdrop Layer | P2 |
 | P6 | Picture 显示列表 · dirty Present · HUD | P6 |
 | 远期 | PlatformView · FragmentShader · IME | 远期 |

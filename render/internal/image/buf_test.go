@@ -579,3 +579,62 @@ func BenchmarkImageBuf_Clone(b *testing.B) {
 		_ = buf.Clone()
 	}
 }
+
+func TestImageBuf_Dispose_Idempotent(t *testing.T) {
+	buf, err := NewImageBuf(8, 8, FormatRGBA8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if buf.Disposed() {
+		t.Fatal("fresh buffer must not be disposed")
+	}
+	if buf.ByteSize() == 0 {
+		t.Fatal("expected pixel storage")
+	}
+	buf.Dispose()
+	if !buf.Disposed() {
+		t.Fatal("Disposed() after Dispose")
+	}
+	w, h := buf.Bounds()
+	if w != 0 || h != 0 {
+		t.Fatalf("bounds after dispose = %d,%d", w, h)
+	}
+	if buf.Data() != nil {
+		t.Fatal("Data must be nil after dispose")
+	}
+	if buf.Width() != 0 || buf.Height() != 0 {
+		t.Fatal("Width/Height must be 0 after dispose")
+	}
+	// Idempotent + nil-safe.
+	buf.Dispose()
+	buf.Dispose()
+	var nilBuf *ImageBuf
+	nilBuf.Dispose()
+	if !nilBuf.Disposed() {
+		t.Fatal("nil Disposed")
+	}
+	// Mutators must not panic after dispose.
+	buf.Clear()
+	buf.InvalidatePremulCache()
+}
+
+func TestImageBuf_Dispose_RejectsPoolPut(t *testing.T) {
+	buf, err := NewImageBuf(4, 4, FormatRGBA8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf.Dispose()
+	// Must not reintroduce disposed buffer into the pool.
+	p := NewPool(4)
+	p.Put(buf)
+	got := p.Get(4, 4, FormatRGBA8)
+	if got == nil {
+		t.Fatal("Get should allocate fresh")
+	}
+	if got.Disposed() {
+		t.Fatal("pool must not hand out disposed buffers")
+	}
+	if got == buf {
+		t.Fatal("pool returned the disposed instance")
+	}
+}

@@ -155,9 +155,10 @@ func buildImageScene(winW, winH float64, face text.Face) (*imageScene, error) {
 
 	s.SyncRO = rendering.NewRenderImage(96, 96)
 	s.SyncRO.SetRepaintBoundary(true)
-	s.SyncRO.SetImage(src)
+	// Shared with s.src (DC demos); scene owns Dispose of src, not the RO.
+	s.SyncRO.SetImageShared(src)
 	root.Place(s.SyncRO, 12, 68)
-	root.Place(label("sync SetImage", 10, 0.6, 0.65, 0.7, face), 12, 168)
+	root.Place(label("sync SetImageShared", 10, 0.6, 0.65, 0.7, face), 12, 168)
 
 	s.AsyncRO = rendering.NewRenderImage(96, 96)
 	s.AsyncRO.SetRepaintBoundary(true)
