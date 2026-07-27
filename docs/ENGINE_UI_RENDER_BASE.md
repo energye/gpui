@@ -378,7 +378,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 | Wave |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|------|
-| FSch-VSYNC | 垂直同步 | SchedulerBinding/vsync | 稳帧 | VSyncWaiter 接口 | — | Host 可选 | C | platform/host.go · vsync.go | exhost 多无 WaitVSync；fallback 16ms | P1 |
+| FSch-VSYNC | 垂直同步 | SchedulerBinding/vsync | 稳帧 | VSyncWaiter + DRM | — | Host 可选 | A/C | vsync_drm_linux · exhost | 无 DRM→fallback；禁锁 60Hz | — |
 | FSch-TRANSIENT | 短暂帧回调 | scheduleFrameCallback | 动画 | Mode TRANSIENT | — | FrameScheduler | A | scheduler.go | — | — |
 | FSch-PERSISTENT | 每帧回调 | persistent frame callbacks | 连续动画 | Mode PERSISTENT + Ticker | — | — | A | scheduler.go | — | — |
 | FSch-IDLE | 空闲阻塞 | 无事不转 | 省电 | Mode IDLE + WaitEvents | — | — | A | scheduler.go | S0 | — |

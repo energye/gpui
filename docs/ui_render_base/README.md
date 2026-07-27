@@ -25,7 +25,7 @@
 | 06 | [图像](./06_image.md) | A/B · Dispose✅ | —/P1 | §7 · image 轴 |
 | 07 | [文本/Font](./07_text.md) | C/A · ellipsis✅ | P0–P2 | §8 · 字体+maxLines/ellipsis |
 | 08 | [Layer/Picture](./08_scene_picture.md) | A/C/D | —/P6 | §12 §9 |
-| 09 | [调度/Vsync](./09_scheduler_vsync.md) | A/C | —/P1 | §14 |
+| 09 | [调度/Vsync](./09_scheduler_vsync.md) | A/C · 真VSync✅ | —/P1 | §14 · DRM WaitVSync |
 | 10 | [滚动](./10_scroll_viewport.md) | A/D | —/P2 | §15 |
 | 11 | [坐标/Hit](./11_coords_hittest.md) | A | — | §16 |
 | 12 | [滤镜/阴影](./12_filter_shadow.md) | B/D | P1–P2 | §10 |
@@ -49,6 +49,7 @@
 | **ClipRRect** UI `PushClipRRect` + `scene.ClipRRectLayer` | 04 · 02 · 08 |
 | PerfSoak 轴 | 90 · 91 |
 | 指标并行纪律 | 00 · 90 |
+| **exhost 真 VSync**（DRM `WaitDRMVBlank` + 诚实 vsync_source） | 09 · platform · exhost |
 | 本拆分 2.1（全文母表入分册 + 覆盖表） | README · 91 |
 
 ## 窗测

@@ -313,6 +313,12 @@ func (h *x11Host) ScaleFactor() float64 {
 	return h.st.scale
 }
 
+// WaitVSync implements platform.VSyncWaiter using DRM vblank when available.
+// On failure the scheduler falls back to a software ~16.67ms tick.
+func (h *x11Host) WaitVSync() error {
+	return platform.WaitDRMVBlank()
+}
+
 func (h *x11Host) setSize(w, ht int) bool {
 	if w < 1 {
 		w = 1

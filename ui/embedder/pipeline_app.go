@@ -319,11 +319,8 @@ func (a *PipelineApp) Run() error {
 				m.SetLayoutCount(a.pipe.LayoutCount)
 				m.SetPaintCount(a.pipe.PaintCount)
 			}
-			if platform.HostVSync(a.host) != nil {
-				m.SetVSyncSource("true")
-			} else {
-				m.SetVSyncSource("fallback")
-			}
+			// vsync_source is set honestly by FrameScheduler.WaitFramePace
+			// (true only after a successful WaitVSync, else fallback).
 		}
 
 		target := a.target

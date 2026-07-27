@@ -151,6 +151,11 @@ func (s *FrameScheduler) WaitTimeout() time.Duration {
 
 // WaitFramePace blocks for vsync or fallback tick when animating.
 // Call after WaitEvents when ModePersistent / need steady cadence.
+//
+// When host implements platform.VSyncWaiter and WaitVSync succeeds, pacing uses
+// the true display path and metrics vsync_source is set to "true".
+// On missing waiter or WaitVSync error, increments missed_vsync (on error),
+// sets vsync_source to "fallback", and sleeps animTick (~16.67ms).
 func (s *FrameScheduler) WaitFramePace(host platform.Host) {
 	if s == nil {
 		return
@@ -160,9 +165,13 @@ func (s *FrameScheduler) WaitFramePace(host platform.Host) {
 	}
 	if v := platform.HostVSync(host); v != nil {
 		if err := v.WaitVSync(); err == nil {
+			s.metrics.SetVSyncSource("true")
 			return
 		}
 		s.metrics.NoteMissedVSync()
+		s.metrics.SetVSyncSource("fallback")
+	} else {
+		s.metrics.SetVSyncSource("fallback")
 	}
 	s.mu.Lock()
 	d := s.animTick

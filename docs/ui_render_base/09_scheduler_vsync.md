@@ -1,6 +1,6 @@
 # 09 · 调度 · Vsync · 帧管道
 
-> **状态（组级）：** A/C · **Wave：** — / P1 · 修订：2026-07-28  
+> **状态（组级）：** A/C · 真 VSync 宿主路径 ✅ · **Wave：** — / P1 · 修订：2026-07-28  
 > 拆自 `ENGINE_UI_RENDER_BASE`；状态码见 [00_meta](./00_meta.md)  
 > **施工真源分册** — 改状态先改本文件，再同步 [README](./README.md)
 
@@ -8,7 +8,11 @@
 
 **目标：** IDLE/TRANSIENT/PERSISTENT、Ticker、WarmUp、帧指标可观测。  
 **非目标：** 无真 VSync 时宣称锁屏 60Hz；PerformanceOverlay（P6）。  
-**已落地：** FrameScheduler 模式；PipelineApp WarmUp/JSON；p50/p99；vsync_source；ProcessTracker RSS/CPU。
+**已落地：** FrameScheduler 模式；PipelineApp WarmUp/JSON；p50/p99；vsync_source；ProcessTracker RSS/CPU。  
+**已落地真 VSync（FSch-VSYNC / F06）：**  
+- `examples/exhost` X11/Wayland `Host.WaitVSync` → `platform.WaitDRMVBlank`（libdrm `drmWaitVBlank`，purego）  
+- `FrameScheduler.WaitFramePace`：成功 → `vsync_source=true`；失败/无 waiter → `fallback` +（失败时）`missed_vsync++`  
+- 单测：假 waiter 优先；错误回退；DRM API 不 panic
 
 ## 2. 依赖（交叉关联）
 
@@ -24,7 +28,7 @@
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 | Wave |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|------|
-| FSch-VSYNC | 垂直同步 | SchedulerBinding/vsync | 稳帧 | VSyncWaiter 接口 | — | Host 可选 | C | platform/host.go · vsync.go | exhost 多无 WaitVSync；fallback 16ms | P1 |
+| FSch-VSYNC | 垂直同步 | SchedulerBinding/vsync | 稳帧 | **VSyncWaiter + DRM Wait** | — | Host 可选 | A/C | vsync_drm_linux · exhost · WaitFramePace | 无 DRM 时诚实 fallback；禁锁 60Hz 宣称 | — |
 | FSch-TRANSIENT | 短暂帧回调 | scheduleFrameCallback | 动画 | Mode TRANSIENT | — | FrameScheduler | A | scheduler.go | — | — |
 | FSch-PERSISTENT | 每帧回调 | persistent frame callbacks | 连续动画 | Mode PERSISTENT + Ticker | — | — | A | scheduler.go | — | — |
 | FSch-IDLE | 空闲阻塞 | 无事不转 | 省电 | Mode IDLE + WaitEvents | — | — | A | scheduler.go | S0 | — |
@@ -45,7 +49,7 @@
 |----|------|
 | scheduler | `ui/scheduler/*.go` |
 | embedder | `pipeline_app.go` |
-| platform | `VSyncWaiter` · exhost |
+| platform | `VSyncWaiter` · **`WaitDRMVBlank`**（linux）· exhost X11/WL `WaitVSync` |
 | metrics | `ui/scheduler/metrics.go` · ProcessTracker |
 
 ## 5. 指标挂钩
@@ -64,7 +68,7 @@
 
 - [x] 三模式 + Ticker  
 - [x] 示例 JSON 指标  
-- [ ] exhost **真** WaitVSync（C→A）  
+- [x] exhost **真** WaitVSync（DRM vblank；失败 → fallback + 诚实 `vsync_source`）  
 - [ ] p95 / hitch_rate 字段（P1）  
 - [ ] UI/Raster CPU 分轨（P1）
 

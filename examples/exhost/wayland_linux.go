@@ -681,6 +681,11 @@ func (h *wlHost) ScaleFactor() float64 {
 	return h.scale
 }
 
+// WaitVSync implements platform.VSyncWaiter using DRM vblank when available.
+func (h *wlHost) WaitVSync() error {
+	return platform.WaitDRMVBlank()
+}
+
 func (h *wlHost) WaitEvents(timeout time.Duration) []platform.Event {
 	if h.wake == nil {
 		h.wake = make(chan struct{}, 1)
