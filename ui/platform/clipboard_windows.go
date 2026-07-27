@@ -41,6 +41,3 @@ func (windowsClipPrimary) WriteText(s string) error {
 	cmd2.Stdin = bytes.NewReader([]byte(s))
 	return cmd2.Run()
 }
-
-// NewXClipClipboard is a cross-build alias (Linux name) → system clipboard.
-func NewXClipClipboard() Clipboard { return NewSystemClipboard() }

@@ -1,8 +1,12 @@
 //go:build linux && !nogpu
 
-// Package exboot shares GPU bootstrap for examples (device policy, X11 instance,
-// auto-recover wiring). Keeps mem_anim / PKS / capability_matrix aligned with
-// device_lost_redraw so recover does not OOM on 1GB GPUs.
+// Package exboot shares GPU bootstrap for examples (device policy, instance,
+// surface, auto-recover wiring). Keeps mem_anim / PKS / capability_matrix aligned
+// with device_lost_redraw so recover does not OOM on 1GB GPUs.
+//
+// Linux display: uses ui/platform (X11 or Wayland). Selection:
+//
+//	GPUI_DISPLAY=wayland|x11|auto   (default auto)
 package exboot
 
 import (
@@ -14,6 +18,7 @@ import (
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
 	rendgpu "github.com/energye/gpui/render/gpu"
+	"github.com/energye/gpui/ui/platform"
 )
 
 // InitEnv sets native lib / display defaults when unset.
@@ -41,19 +46,85 @@ func InitEnv() {
 			}
 		}
 	}
-	if os.Getenv("DISPLAY") == "" {
+	if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
 		_ = os.Setenv("DISPLAY", ":1")
 	}
 }
 
-// NewInstanceX11 creates a wgpu instance associated with the X11 display
-// (required for GL backends; harmless for Vulkan).
+// OpenHost opens a Linux window via platform (X11 or Wayland).
+// Honors GPUI_DISPLAY and opts.Backend; falls back across backends like exhost.
+func OpenHost(opts platform.LinuxOptions) (*platform.LinuxHost, error) {
+	InitEnv()
+	return platform.NewLinuxHost(opts)
+}
+
+// NewInstanceForHost creates a wgpu instance matched to the host backend.
+// X11 passes XlibDisplay (needed for GL); Wayland omits it.
+func NewInstanceForHost(h platform.Host) (*webgpu.Instance, error) {
+	InitEnv()
+	ns, ok := platform.SurfaceOf(h)
+	if !ok {
+		return nil, fmt.Errorf("exboot: host has no native surface")
+	}
+	switch ns.Kind {
+	case platform.PlatformWayland:
+		webgpu.SetLinuxSurfaceBackend("wayland")
+		return webgpu.CreateInstance(nil)
+	default:
+		webgpu.SetLinuxSurfaceBackend("x11")
+		screen := 0
+		if lh, ok := h.(*platform.LinuxHost); ok {
+			screen = lh.Screen()
+		}
+		return webgpu.CreateInstance(&webgpu.InstanceDescriptor{
+			XlibDisplay: ns.Display,
+			XlibScreen:  int32(screen), //nolint:gosec
+		})
+	}
+}
+
+// NewInstanceX11 creates a wgpu instance associated with the display backend.
+// Prefer NewInstanceForHost when a platform.Host is available.
+//
+// When display is a Wayland wl_display* (caller already on Wayland path) or
+// GPUI_DISPLAY/session selects Wayland, XlibDisplay is omitted.
 func NewInstanceX11(display uintptr, screen int) (*webgpu.Instance, error) {
 	InitEnv()
+	// Prefer explicit process backend / GPUI_DISPLAY over raw env.
+	if isWaylandSurfacePath() {
+		webgpu.SetLinuxSurfaceBackend("wayland")
+		return webgpu.CreateInstance(nil)
+	}
+	webgpu.SetLinuxSurfaceBackend("x11")
 	return webgpu.CreateInstance(&webgpu.InstanceDescriptor{
 		XlibDisplay: display,
 		XlibScreen:  int32(screen), //nolint:gosec
 	})
+}
+
+func isWaylandSurfacePath() bool {
+	// Align with platform.DetectDisplayBackend / NewLinuxHost selection.
+	return platform.DetectDisplayBackend() == platform.DisplayWayland
+}
+
+// CreateSurfaceForHost creates a wgpu surface from platform.Host handles.
+// Uses NativeSurface.Kind so X11 works even when WAYLAND_DISPLAY is also set.
+func CreateSurfaceForHost(inst *webgpu.Instance, h platform.Host) (*webgpu.Surface, error) {
+	if inst == nil {
+		return nil, fmt.Errorf("exboot: nil instance")
+	}
+	ns, ok := platform.SurfaceOf(h)
+	if !ok {
+		return nil, fmt.Errorf("exboot: host has no native surface")
+	}
+	switch ns.Kind {
+	case platform.PlatformWayland:
+		webgpu.SetLinuxSurfaceBackend("wayland")
+		return inst.CreateSurfaceWayland(ns.Display, ns.Window)
+	default:
+		webgpu.SetLinuxSurfaceBackend("x11")
+		return inst.CreateSurfaceX11(ns.Display, ns.Window)
+	}
 }
 
 // OpenDevice requests adapter+device with the shared policy

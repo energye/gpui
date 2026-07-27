@@ -21,36 +21,28 @@ import (
 // special keys → EventKey + EventText.
 
 const (
-	xKeyPress         = 2
-	xKeyRelease       = 3
-	xButtonPress      = 4
-	xButtonRelease    = 5
-	xMotionNotify     = 6
-	xFocusIn          = 9
-	xFocusOut         = 10
-	xExpose           = 12
-	xVisibilityNotify = 15
-	xConfigureNotify  = 22
-	xClientMessage    = 33
+	xKeyPress        = 2
+	xKeyRelease      = 3
+	xButtonPress     = 4
+	xButtonRelease   = 5
+	xMotionNotify    = 6
+	xFocusIn         = 9
+	xFocusOut        = 10
+	xExpose          = 12
+	xConfigureNotify = 22
+	xClientMessage   = 33
 
-	xKeyPressMask         = int64(1 << 0)
-	xKeyReleaseMask       = int64(1 << 1)
-	xButtonPressMask      = int64(1 << 2)
-	xButtonReleaseMask    = int64(1 << 3)
-	xPointerMotionMask    = int64(1 << 6)
-	xExposureMask         = int64(1 << 15)
-	xVisibilityChangeMask = int64(1 << 16)
-	xStructureNotifyMask  = int64(1 << 17)
-	xFocusChangeMask      = int64(1 << 21)
-
-	// X11 modifier masks (X.h) for XKeyEvent/XButtonEvent/XMotionEvent.state.
-	xShiftMask   = uint32(1 << 0)
-	xLockMask    = uint32(1 << 1)
-	xControlMask = uint32(1 << 2)
-	xMod1Mask    = uint32(1 << 3) // typically Alt
-	xMod4Mask    = uint32(1 << 6) // typically Super/Meta
+	xKeyPressMask        = int64(1 << 0)
+	xKeyReleaseMask      = int64(1 << 1)
+	xButtonPressMask     = int64(1 << 2)
+	xButtonReleaseMask   = int64(1 << 3)
+	xPointerMotionMask   = int64(1 << 6)
+	xExposureMask        = int64(1 << 15)
+	xStructureNotifyMask = int64(1 << 17)
+	xFocusChangeMask     = int64(1 << 21)
 
 	// Zero-flash live resize (device_lost_redraw / Skia / Flutter).
+	// Modifier bits: see modifiers.go ParseModifierState (X.h Shift/Ctrl/Mod1/Mod4).
 	xNone             = 0
 	xNorthWestGravity = 1
 	xWhenMapped       = 1
@@ -61,6 +53,10 @@ const (
 )
 
 // LinuxHost is a minimal X11 window Host.
+//
+// When Wayland is detected, NewLinuxHost returns a LinuxHost wrapper that
+// delegates to a WaylandHost (wlBackend). The struct is shared for both
+// backends so callers always use the *LinuxHost type.
 //
 // Threading: the UI app runs WaitEvents/XNextEvent on the main goroutine and
 // may call Flush/SetCursor from the render thread after Present. Xlib requires
@@ -99,6 +95,13 @@ type LinuxHost struct {
 
 	// System text clipboard (xclip/xsel + memory fallback). CapClipboard always set.
 	clip Clipboard
+
+	// wlBackend is set when NewLinuxHost selected Wayland.
+	// When non-nil, the host delegates all lifecycle/event methods to this backend.
+	wlBackend *WaylandHost
+
+	// backend is the selected display backend (X11 or Wayland).
+	backend DisplayBackend
 }
 
 // LinuxOptions configures NewLinuxHost.
@@ -106,10 +109,96 @@ type LinuxOptions struct {
 	Width, Height int
 	Title         string
 	Scale         float64
+	// Backend overrides detection when not DisplayAuto.
+	// Also honored via GPUI_DISPLAY when left at DisplayAuto.
+	Backend DisplayBackend
 }
 
-// NewLinuxHost opens a simple X11 window. Requires DISPLAY.
+// NewLinuxHost opens a native Linux window (X11 or Wayland).
+//
+// Selection order matches the exhost reference:
+//
+//	GPUI_DISPLAY / opts.Backend → try preferred → fall back to the other when available
+//
+// Close order for callers: stop GPU present before Host.Close.
 func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
+	if opts.Width <= 0 {
+		opts.Width = 640
+	}
+	if opts.Height <= 0 {
+		opts.Height = 480
+	}
+	if opts.Title == "" {
+		opts.Title = "gpui"
+	}
+
+	want := opts.Backend
+	if want == DisplayAuto {
+		want = DetectDisplayBackend()
+	}
+
+	var errs []error
+	tryX11 := HasX11Display() && (want == DisplayX11 || want == DisplayAuto || want == DisplayWayland)
+	tryWayland := HasWaylandDisplay() && (want == DisplayWayland || want == DisplayAuto)
+	if want == DisplayX11 {
+		tryWayland = false
+	}
+
+	// Prefer X11 first for normal WM decorations when requested/detected as x11.
+	if tryX11 && want != DisplayWayland {
+		h, err := newX11Host(opts)
+		if err == nil {
+			return h, nil
+		}
+		errs = append(errs, fmt.Errorf("x11: %w", err))
+	}
+	if tryWayland {
+		h, err := newWaylandLinuxHost(opts)
+		if err == nil {
+			return h, nil
+		}
+		errs = append(errs, fmt.Errorf("wayland: %w", err))
+	}
+	// Wayland-forced but failed: try X11 if available and not already tried.
+	if tryX11 && want == DisplayWayland {
+		h, err := newX11Host(opts)
+		if err == nil {
+			return h, nil
+		}
+		errs = append(errs, fmt.Errorf("x11: %w", err))
+	}
+	if len(errs) == 0 {
+		return nil, fmt.Errorf("platform/linux: no display (set WAYLAND_DISPLAY and/or DISPLAY, or GPUI_DISPLAY=x11|wayland)")
+	}
+	return nil, fmt.Errorf("platform/linux: open failed: %v", errs)
+}
+
+// newWaylandLinuxHost wraps WaylandHost as *LinuxHost so callers keep one type.
+func newWaylandLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
+	wlHost, err := NewWaylandHost(WaylandOptions{
+		Width:  opts.Width,
+		Height: opts.Height,
+		Title:  opts.Title,
+		Scale:  opts.Scale,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &LinuxHost{
+		display:   wlHost.Display(),
+		window:    wlHost.Window(),
+		width:     opts.Width,
+		height:    opts.Height,
+		scale:     opts.Scale,
+		title:     opts.Title,
+		wlBackend: wlHost,
+		backend:   DisplayWayland,
+		clip:      NewSystemClipboard(),
+	}, nil
+}
+
+// newX11Host opens a simple X11 window. Requires DISPLAY.
+func newX11Host(opts LinuxOptions) (*LinuxHost, error) {
 	if opts.Width <= 0 {
 		opts.Width = 640
 	}
@@ -148,6 +237,22 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		return nil, fmt.Errorf("platform/linux: dlopen libX11: %w", err)
 	}
 
+	// XSizeHints / XClassHint subsets (Xutil.h) for normal decorated top-level.
+	type xSizeHints struct {
+		Flags                                          int64
+		X, Y                                           int32
+		Width, Height                                  int32
+		MinWidth, MinHeight                            int32
+		MaxWidth, MaxHeight                            int32
+		WidthInc, HeightInc                            int32
+		MinAspectN, MinAspectD, MaxAspectN, MaxAspectD int32
+		BaseWidth, BaseHeight                          int32
+		WinGravity                                     int32
+	}
+	type xClassHint struct {
+		ResName, ResClass *byte
+	}
+
 	var (
 		xInitThreads      func() int
 		xOpenDisplay      func(name *byte) uintptr
@@ -170,6 +275,9 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		xCreateFontCursor func(dpy uintptr, shape uint) uintptr
 		xDefineCursor     func(dpy, win, cursor uintptr) int
 		xFreeCursor       func(dpy, cursor uintptr) int
+		xSetWMNormalHints func(dpy uintptr, win uintptr, hints *xSizeHints) int
+		xSetClassHint     func(dpy uintptr, win uintptr, hint *xClassHint) int
+		xChangeProperty   func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
 	)
 	// MUST be first Xlib call: render thread may XFlush while main drains events.
 	purego.RegisterLibFunc(&xInitThreads, lib, "XInitThreads")
@@ -196,6 +304,9 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	purego.RegisterLibFunc(&xFreeCursor, lib, "XFreeCursor")
 	purego.RegisterLibFunc(&xSetBgPixmap, lib, "XSetWindowBackgroundPixmap")
 	purego.RegisterLibFunc(&xChangeAttr, lib, "XChangeWindowAttributes")
+	purego.RegisterLibFunc(&xSetWMNormalHints, lib, "XSetWMNormalHints")
+	purego.RegisterLibFunc(&xSetClassHint, lib, "XSetClassHint")
+	purego.RegisterLibFunc(&xChangeProperty, lib, "XChangeProperty")
 
 	dpy := xOpenDisplay(nil)
 	if dpy == 0 {
@@ -204,9 +315,9 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	}
 	screen := xDefaultScreen(dpy)
 	root := xRootWindow(dpy, screen)
-	// Background 0 + None pixmap: X must not fill new regions solid mid-drag
-	// (main cause of continuous flash). Aligns with device_lost_redraw/x11.go.
-	win := xCreateSimple(dpy, root, 80, 60, uint(opts.Width), uint(opts.Height), 1, 0, 0)
+	// borderWidth=0: border drawn by WM title bar, not a client black rim.
+	// Background None pixmap: X must not fill new regions solid mid-drag.
+	win := xCreateSimple(dpy, root, 80, 60, uint(opts.Width), uint(opts.Height), 0, 0, 0)
 	if win == 0 {
 		xCloseDisplay(dpy)
 		_ = purego.Dlclose(lib)
@@ -223,7 +334,51 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	name := append([]byte(opts.Title), 0)
 	xStoreName(dpy, win, &name[0])
 
-	mask := xStructureNotifyMask | xExposureMask | xVisibilityChangeMask |
+	// UTF-8 title for modern WMs (GNOME/KDE title bar text).
+	utf8AtomName := append([]byte("UTF8_STRING"), 0)
+	netName := append([]byte("_NET_WM_NAME"), 0)
+	atomUTF8 := xInternAtom(dpy, &utf8AtomName[0], 0)
+	atomNetName := xInternAtom(dpy, &netName[0], 0)
+	if atomUTF8 != 0 && atomNetName != 0 {
+		xChangeProperty(dpy, win, atomNetName, atomUTF8, 8, 0, &name[0], len(opts.Title))
+	}
+
+	// WM_CLASS — required by many WMs for normal frame / taskbar grouping.
+	resName := append([]byte("gpui"), 0)
+	resClass := append([]byte("gpui"), 0)
+	ch := xClassHint{ResName: &resName[0], ResClass: &resClass[0]}
+	xSetClassHint(dpy, win, &ch)
+
+	// Size hints so the WM maps us as a normal resizable top-level.
+	const (
+		pSize     = 1 << 3
+		pMinSize  = 1 << 4
+		pBaseSize = 1 << 8
+	)
+	hints := xSizeHints{
+		Flags:      pSize | pMinSize | pBaseSize,
+		Width:      int32(opts.Width),
+		Height:     int32(opts.Height),
+		MinWidth:   160,
+		MinHeight:  120,
+		BaseWidth:  160,
+		BaseHeight: 120,
+	}
+	xSetWMNormalHints(dpy, win, &hints)
+
+	// _NET_WM_WINDOW_TYPE_NORMAL — ask for standard decorated frame.
+	typeName := append([]byte("_NET_WM_WINDOW_TYPE"), 0)
+	normalName := append([]byte("_NET_WM_WINDOW_TYPE_NORMAL"), 0)
+	atomType := xInternAtom(dpy, &typeName[0], 0)
+	atomNormal := xInternAtom(dpy, &normalName[0], 0)
+	atomAtomName := append([]byte("ATOM"), 0)
+	atomAtom := xInternAtom(dpy, &atomAtomName[0], 0)
+	if atomType != 0 && atomNormal != 0 && atomAtom != 0 {
+		var v uint64 = uint64(atomNormal)
+		xChangeProperty(dpy, win, atomType, atomAtom, 32, 0, (*byte)(unsafe.Pointer(&v)), 1)
+	}
+
+	mask := xStructureNotifyMask | xExposureMask |
 		xFocusChangeMask | xButtonPressMask | xButtonReleaseMask |
 		xPointerMotionMask | xKeyPressMask | xKeyReleaseMask
 	xSelectInput(dpy, win, mask)
@@ -239,6 +394,12 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 	xFlush(dpy)
 	time.Sleep(30 * time.Millisecond)
 
+	// Drain map noise so first WaitEvents sees real input/resize.
+	var buf [256]byte
+	for xPending(dpy) > 0 {
+		xNextEvent(dpy, &buf[0])
+	}
+
 	h := &LinuxHost{
 		lib: lib, display: dpy, window: win, screen: screen,
 		width: opts.Width, height: opts.Height, scale: opts.Scale, title: opts.Title,
@@ -249,6 +410,7 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 		xCreateFontCursor: xCreateFontCursor, xDefineCursor: xDefineCursor, xFreeCursor: xFreeCursor,
 		cursors: make(map[CursorKind]uintptr),
 		clip:    NewSystemClipboard(),
+		backend: DisplayX11,
 	}
 	return h, nil
 }
@@ -261,6 +423,9 @@ func NewLinuxHost(opts LinuxOptions) (*LinuxHost, error) {
 // Latin/special keys emit EventKey/EventText via XLookupString.
 // CapClipboard is set; backend is OS clipboard (xclip/xsel) + memory fallback.
 func (h *LinuxHost) Caps() Caps {
+	if h.wlBackend != nil {
+		return h.wlBackend.Caps()
+	}
 	return CapWindow | CapPointer | CapKeyboard | CapTextInput | CapPresent | CapSurfaceLifecycle | CapCursor | CapClipboard
 }
 
@@ -280,6 +445,9 @@ func (h *LinuxHost) Size() (int, int) {
 	if h == nil {
 		return 0, 0
 	}
+	if h.wlBackend != nil {
+		return h.wlBackend.Size()
+	}
 	h.xmu.Lock()
 	defer h.xmu.Unlock()
 	return h.width, h.height
@@ -287,6 +455,9 @@ func (h *LinuxHost) Size() (int, int) {
 
 // ScaleFactor implements Host.
 func (h *LinuxHost) ScaleFactor() float64 {
+	if h.wlBackend != nil {
+		return h.wlBackend.ScaleFactor()
+	}
 	if h.scale <= 0 {
 		return 1
 	}
@@ -294,10 +465,63 @@ func (h *LinuxHost) ScaleFactor() float64 {
 }
 
 // Display implements NativeHandles.
-func (h *LinuxHost) Display() uintptr { return h.display }
+func (h *LinuxHost) Display() uintptr {
+	if h == nil {
+		return 0
+	}
+	if h.wlBackend != nil {
+		return h.wlBackend.Display()
+	}
+	return h.display
+}
 
 // Window implements NativeHandles.
-func (h *LinuxHost) Window() uintptr { return h.window }
+func (h *LinuxHost) Window() uintptr {
+	if h == nil {
+		return 0
+	}
+	if h.wlBackend != nil {
+		return h.wlBackend.Window()
+	}
+	return h.window
+}
+
+// Backend reports the selected display backend (X11 or Wayland).
+func (h *LinuxHost) Backend() DisplayBackend {
+	if h == nil {
+		return DisplayAuto
+	}
+	if h.backend != DisplayAuto {
+		return h.backend
+	}
+	if h.wlBackend != nil {
+		return DisplayWayland
+	}
+	return DisplayX11
+}
+
+// NativeSurface implements SurfaceProvider for wgpu CreateSurface.
+func (h *LinuxHost) NativeSurface() NativeSurface {
+	if h == nil {
+		return NativeSurface{}
+	}
+	if h.wlBackend != nil {
+		return h.wlBackend.NativeSurface()
+	}
+	return NativeSurface{
+		Kind:    PlatformX11,
+		Display: h.display,
+		Window:  h.window,
+	}
+}
+
+// Screen returns the X11 screen index (0 on Wayland).
+func (h *LinuxHost) Screen() int {
+	if h == nil || h.wlBackend != nil {
+		return 0
+	}
+	return h.screen
+}
 
 // SetCursor implements CursorHost (X11 font cursors).
 func (h *LinuxHost) SetCursor(kind CursorKind) {
@@ -355,7 +579,13 @@ func (h *LinuxHost) SetCursor(kind CursorKind) {
 // Flush flushes the X connection.
 // Safe to call from the render thread after Present (XInitThreads + xmu).
 func (h *LinuxHost) Flush() {
-	if h == nil || h.xFlush == nil {
+	if h == nil {
+		return
+	}
+	if h.wlBackend != nil {
+		return // Wayland host handles flush internally
+	}
+	if h.xFlush == nil {
 		return
 	}
 	h.xmu.Lock()
@@ -368,6 +598,9 @@ func (h *LinuxHost) Flush() {
 
 // PumpEvents implements Host (non-blocking).
 func (h *LinuxHost) PumpEvents() []Event {
+	if h.wlBackend != nil {
+		return h.wlBackend.PumpEvents()
+	}
 	return h.WaitEvents(0)
 }
 
@@ -379,6 +612,9 @@ func (h *LinuxHost) PumpEvents() []Event {
 func (h *LinuxHost) WaitEvents(timeout time.Duration) []Event {
 	if h == nil {
 		return nil
+	}
+	if h.wlBackend != nil {
+		return h.wlBackend.WaitEvents(timeout)
 	}
 	h.xmu.Lock()
 	if h.closed {
@@ -467,9 +703,13 @@ func (h *LinuxHost) takeQueueLocked() []Event {
 	return out
 }
 
-// WakeUp implements Host. X11 wait is connection-driven; no-op until self-pipe.
-// Same-thread RequestRedraw already enqueues events for the next WaitEvents slice.
-func (h *LinuxHost) WakeUp() {}
+// WakeUp implements Host.
+func (h *LinuxHost) WakeUp() {
+	if h.wlBackend != nil {
+		h.wlBackend.WakeUp()
+		return
+	}
+}
 
 func (h *LinuxHost) handleRaw(raw *[192]byte) {
 	typ := int(*(*int32)(unsafe.Pointer(&raw[0])))
@@ -659,6 +899,10 @@ func (h *LinuxHost) RequestRedraw() {
 	if h == nil {
 		return
 	}
+	if h.wlBackend != nil {
+		h.wlBackend.RequestRedraw()
+		return
+	}
 	h.xmu.Lock()
 	defer h.xmu.Unlock()
 	if h.closed {
@@ -672,6 +916,9 @@ func (h *LinuxHost) RequestRedraw() {
 func (h *LinuxHost) Close() error {
 	if h == nil {
 		return nil
+	}
+	if h.wlBackend != nil {
+		return h.wlBackend.Close()
 	}
 	h.xmu.Lock()
 	defer h.xmu.Unlock()
@@ -701,6 +948,8 @@ func (h *LinuxHost) Close() error {
 }
 
 var (
-	_ Host          = (*LinuxHost)(nil)
-	_ NativeHandles = (*LinuxHost)(nil)
+	_ Host            = (*LinuxHost)(nil)
+	_ NativeHandles   = (*LinuxHost)(nil)
+	_ SurfaceProvider = (*LinuxHost)(nil)
+	_ BackendProvider = (*LinuxHost)(nil)
 )

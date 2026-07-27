@@ -77,3 +77,39 @@ func TestHeadlessIMEInjectAndPosition(t *testing.T) {
 		t.Fatalf("ime pos x=%v y=%v n=%d", x, y, n)
 	}
 }
+
+func TestDetectDisplayBackendGPUI(t *testing.T) {
+	t.Setenv("GPUI_DISPLAY", "x11")
+	if platform.DetectDisplayBackend() != platform.DisplayX11 {
+		t.Fatalf("GPUI_DISPLAY=x11 → want X11 got %v", platform.DetectDisplayBackend())
+	}
+	t.Setenv("GPUI_DISPLAY", "wayland")
+	if platform.DetectDisplayBackend() != platform.DisplayWayland {
+		t.Fatalf("GPUI_DISPLAY=wayland → want Wayland")
+	}
+	t.Setenv("GPUI_DISPLAY", "auto")
+	// auto falls through to session env — just ensure it doesn't panic
+	_ = platform.DetectDisplayBackend()
+}
+
+func TestParseDisplayBackend(t *testing.T) {
+	cases := map[string]platform.DisplayBackend{
+		"x11": platform.DisplayX11, "X": platform.DisplayX11,
+		"wayland": platform.DisplayWayland, "wl": platform.DisplayWayland,
+		"auto": platform.DisplayAuto, "": platform.DisplayAuto,
+	}
+	for in, want := range cases {
+		if got := platform.ParseDisplayBackend(in); got != want {
+			t.Fatalf("Parse(%q)=%v want %v", in, got, want)
+		}
+	}
+}
+
+func TestPlatformKindString(t *testing.T) {
+	if platform.PlatformX11.String() != "x11" {
+		t.Fatal(platform.PlatformX11.String())
+	}
+	if platform.PlatformWayland.String() != "wayland" {
+		t.Fatal(platform.PlatformWayland.String())
+	}
+}

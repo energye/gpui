@@ -16,6 +16,7 @@ const (
 	CapDarkMode
 	CapReduceMotion
 	CapFontScale
+	// CapFile is defined in file_pick.go (1<<20) so older Caps stay stable.
 )
 
 // Has reports whether all bits in c are set.
@@ -42,6 +43,7 @@ func (c Caps) String() string {
 		{CapDarkMode, "DarkMode"},
 		{CapReduceMotion, "ReduceMotion"},
 		{CapFontScale, "FontScale"},
+		{CapFile, "File"},
 	}
 	out := "Caps("
 	first := true

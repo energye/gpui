@@ -15,6 +15,8 @@ const (
 	EventRedraw
 	EventScroll
 	EventIME
+	// EventWake is a synthetic event from WakeUp (no window state change).
+	EventWake
 )
 
 // PointerKind mirrors core pointer types without importing core (SPI boundary).
@@ -65,6 +67,8 @@ type Event struct {
 	// Window fields.
 	Width, Height int
 	Focused       bool
+	// Scale is the DPI scale factor for Resize events (0 = unchanged).
+	Scale float64
 }
 
 // Host is the SPI surface apps and core frame loops consume.

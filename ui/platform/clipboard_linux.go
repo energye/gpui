@@ -70,6 +70,3 @@ func XClipAvailable() bool {
 	}
 	return false
 }
-
-// NewXClipClipboard is an alias for NewSystemClipboard (compat with older call sites).
-func NewXClipClipboard() Clipboard { return NewSystemClipboard() }

@@ -36,6 +36,3 @@ func (darwinClipPrimary) WriteText(s string) error {
 	}
 	return nil
 }
-
-// NewXClipClipboard is a cross-build alias (Linux name) → system clipboard.
-func NewXClipClipboard() Clipboard { return NewSystemClipboard() }

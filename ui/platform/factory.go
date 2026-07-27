@@ -12,10 +12,14 @@ type HostOptions struct {
 	Scale         float64
 	// PreferHeadless forces Headless even on Linux (CI).
 	PreferHeadless bool
+	// Backend selects Linux display backend (DisplayAuto honors GPUI_DISPLAY).
+	// Ignored on non-Linux.
+	Backend DisplayBackend
 }
 
 // NewHost picks the best host for GOOS.
-// Linux → real X11 thin adapter; Windows/Darwin → API-complete stubs;
+// Linux → Wayland (when available) or X11 thin adapter;
+// Windows/Darwin → API-complete stubs;
 // PreferHeadless or unknown OS → Headless.
 func NewHost(opts HostOptions) (Host, error) {
 	if opts.PreferHeadless {
@@ -23,9 +27,11 @@ func NewHost(opts HostOptions) (Host, error) {
 	}
 	switch runtime.GOOS {
 	case "linux":
+		// NewLinuxHost auto-detects Wayland vs X11 (GPUI_DISPLAY / opts.Backend).
 		return NewLinuxHost(LinuxOptions{
 			Width: opts.Width, Height: opts.Height,
 			Title: opts.Title, Scale: opts.Scale,
+			Backend: opts.Backend,
 		})
 	case "windows":
 		return NewWindowsHost(WindowsOptions{
@@ -43,11 +49,14 @@ func NewHost(opts HostOptions) (Host, error) {
 }
 
 // GPUPresentReady reports whether this host can drive PresentFrame* today.
-// Only Linux X11 host is ready; Win/mac stubs are API-shaped only.
+// Linux X11 and Wayland hosts are ready; Win/mac stubs are API-shaped only.
 func GPUPresentReady(h Host) bool {
 	if h == nil {
 		return false
 	}
-	_, ok := h.(*LinuxHost)
-	return ok
+	switch h.(type) {
+	case *LinuxHost, *WaylandHost:
+		return true
+	}
+	return false
 }

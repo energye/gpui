@@ -17,7 +17,8 @@
 //
 //  6. 开一次 Modal — 点 “Open Modal”；遮罩/OK/Cancel
 //
-//     export DISPLAY=:1 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+//     export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+//     # optional: GPUI_DISPLAY=x11|wayland|auto  (default auto)
 //     go run ./examples/ui_polish_gallery
 package main
 
@@ -49,23 +50,25 @@ func main() {
 		}
 	}
 
-	host, err := platform.NewLinuxHost(platform.LinuxOptions{
+	host, err := exboot.OpenHost(platform.LinuxOptions{
 		Width: winW, Height: winH, Title: "gpui ui_polish_gallery · 1024×768",
 		// Scale left 0 → LinuxHost reads GPUI_SCALE / GDK_SCALE (default 1).
+		// Backend: GPUI_DISPLAY=x11|wayland|auto (default auto).
 	})
 	if err != nil {
 		log.Fatalf("host: %v", err)
 	}
 	defer host.Close()
-	log.Printf("host caps=%s CapIME=%v (CJK composition needs CapIME; see README)",
-		host.Caps(), host.Caps().Has(platform.CapIME))
+	ns := host.NativeSurface()
+	log.Printf("host backend=%s caps=%s CapIME=%v (CJK composition needs CapIME; see README)",
+		ns.Kind, host.Caps(), host.Caps().Has(platform.CapIME))
 
-	inst, err := exboot.NewInstanceX11(host.Display(), 0)
+	inst, err := exboot.NewInstanceForHost(host)
 	if err != nil {
 		log.Fatalf("instance: %v", err)
 	}
 	defer inst.Release()
-	surf, err := inst.CreateSurface(host.Display(), host.Window())
+	surf, err := exboot.CreateSurfaceForHost(inst, host)
 	if err != nil {
 		log.Fatalf("surface: %v", err)
 	}

@@ -15,6 +15,7 @@ type LinuxOptions struct {
 	Width, Height int
 	Title         string
 	Scale         float64
+	Backend       DisplayBackend
 }
 
 // NewLinuxHost returns an error on non-Linux builds (use WindowsHost/DarwinHost/Headless).
@@ -33,3 +34,6 @@ func (h *LinuxHost) Close() error                             { return nil }
 func (h *LinuxHost) Display() uintptr                         { return 0 }
 func (h *LinuxHost) Window() uintptr                          { return 0 }
 func (h *LinuxHost) Flush()                                   {}
+func (h *LinuxHost) Backend() DisplayBackend                  { return DisplayAuto }
+func (h *LinuxHost) NativeSurface() NativeSurface             { return NativeSurface{} }
+func (h *LinuxHost) Screen() int                              { return 0 }

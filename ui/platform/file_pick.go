@@ -13,5 +13,6 @@ type FilePicker interface {
 	PickOpen(title string, filters []string) (res FilePickResult, ok bool)
 }
 
-// Caps bit for file dialogs (reserved for hosts that implement FilePicker).
+// CapFile is the capability bit for host file dialogs (FilePicker).
+// High bit keeps older Caps values stable if ever serialized.
 const CapFile Caps = 1 << 20

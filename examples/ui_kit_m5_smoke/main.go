@@ -163,7 +163,7 @@ func main() {
 		}
 	}
 
-	host, err := platform.NewLinuxHost(platform.LinuxOptions{
+	host, err := exboot.OpenHost(platform.LinuxOptions{
 		Width: winW, Height: winH, Title: "gpui ui_kit_m5_smoke (M5 demand + anim demos)",
 	})
 	if err != nil {
@@ -171,12 +171,12 @@ func main() {
 	}
 	defer host.Close()
 
-	inst, err := exboot.NewInstanceX11(host.Display(), 0)
+	inst, err := exboot.NewInstanceForHost(host)
 	if err != nil {
 		log.Fatalf("instance: %v", err)
 	}
 	defer inst.Release()
-	surf, err := inst.CreateSurface(host.Display(), host.Window())
+	surf, err := exboot.CreateSurfaceForHost(inst, host)
 	if err != nil {
 		log.Fatalf("surface: %v", err)
 	}

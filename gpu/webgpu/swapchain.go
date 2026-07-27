@@ -446,9 +446,11 @@ func (sc *Swapchain) ForceRecoverHealthy() error {
 	oldSurf := sc.Surface
 	var disp, win uintptr
 	var inst *Instance
+	var linuxKindSet, linuxWayland bool
 	if oldSurf != nil {
 		disp, win = oldSurf.displayHandle, oldSurf.windowHandle
 		inst = oldSurf.instance
+		linuxKindSet, linuxWayland = oldSurf.linuxKindSet, oldSurf.linuxWayland
 	}
 	canRecreateSurf := inst != nil && win != 0
 
@@ -514,7 +516,7 @@ func (sc *Swapchain) ForceRecoverHealthy() error {
 	}
 	sc.Device = dev
 	if canRecreateSurf {
-		ns, err := inst.CreateSurface(disp, win)
+		ns, err := recreateSurfaceForRecover(inst, disp, win, linuxKindSet, linuxWayland)
 		if err != nil {
 			return fmt.Errorf("ForceRecoverHealthy CreateSurface: %w", err)
 		}
@@ -568,9 +570,11 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	oldSurf := sc.Surface
 	var disp, win uintptr
 	var inst *Instance
+	var linuxKindSet, linuxWayland bool
 	if oldSurf != nil {
 		disp, win = oldSurf.displayHandle, oldSurf.windowHandle
 		inst = oldSurf.instance
+		linuxKindSet, linuxWayland = oldSurf.linuxKindSet, oldSurf.linuxWayland
 	}
 	// Always drop+recreate Surface when platform handles are known.
 	// Measured on this libwgpu_native:
@@ -640,7 +644,7 @@ func (sc *Swapchain) tryRecoverDeviceLocked() error {
 	sc.Device = dev
 
 	if canRecreateSurf {
-		ns, err := inst.CreateSurface(disp, win)
+		ns, err := recreateSurfaceForRecover(inst, disp, win, linuxKindSet, linuxWayland)
 		if err != nil {
 			return fmt.Errorf("%w: recreate surface: %v", ErrDeviceLost, err)
 		}

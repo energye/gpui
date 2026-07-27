@@ -95,6 +95,11 @@ type Surface struct {
 	displayHandle uintptr
 	windowHandle  uintptr
 
+	// linuxKindSet / linuxWayland pin X11 vs Wayland for device-lost recreate
+	// (env alone is wrong when GPUI_DISPLAY=x11 while WAYLAND_DISPLAY is set).
+	linuxKindSet bool
+	linuxWayland bool
+
 	// current is the last acquired surface texture not yet Released/Presented.
 	// Used by DiscardTexture so Configure never runs with a live SurfaceOutput
 	// (native: "SurfaceOutput must be dropped before a new Surface is made").
@@ -137,12 +142,16 @@ func (i *Instance) CreateSurface(displayHandle, windowHandle uintptr) (*Surface,
 		return nil, fmt.Errorf("wgpu: failed to create surface: %w", err)
 	}
 
-	return &Surface{
+	s := &Surface{
 		r:             rs,
 		instance:      i,
 		displayHandle: displayHandle,
 		windowHandle:  windowHandle,
-	}, nil
+	}
+	// Pin Linux backend from process override / env so device-lost recreate
+	// does not flip X11↔Wayland when both DISPLAY and WAYLAND_DISPLAY are set.
+	s.pinLinuxKindFromDefault()
+	return s, nil
 }
 
 // Configure configures the surface for presentation.

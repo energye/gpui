@@ -3,8 +3,17 @@
 //
 // Hosts:
 //   - Headless: CI / unit tests (all Caps needed for kit tests)
-//   - LinuxHost: thin X11 (GPU present ready); CapIME deferred (XIM)
+//   - LinuxHost: X11 and/or Wayland (purego, no cgo); CapIME deferred (XIM)
 //   - WindowsHost / DarwinHost: API-complete stubs (+ CapClipboard); real HWND/AppKit later
+//
+// Linux display selection (mirrors examples/exhost reference):
+//
+//	GPUI_DISPLAY=wayland|x11|auto   (default auto)
+//	Auto: prefer Wayland when WAYLAND_DISPLAY is set; fall back to X11 (DISPLAY)
+//
+// Native handles for wgpu:
+//
+//	ns, ok := platform.SurfaceOf(host)  // Kind + Display + Window
 //
 // Clipboard (CapClipboard): NewSystemClipboard()
 //   - Linux: xclip/xsel + memory fallback

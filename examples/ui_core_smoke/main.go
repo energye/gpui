@@ -37,23 +37,24 @@ func main() {
 		}
 	}
 
-	host, err := platform.NewLinuxHost(platform.LinuxOptions{
+	host, err := exboot.OpenHost(platform.LinuxOptions{
 		Width: winW, Height: winH, Title: "gpui ui_core_smoke (M0)",
 	})
 	if err != nil {
 		log.Fatalf("LinuxHost: %v", err)
 	}
 	defer host.Close()
-	log.Printf("host display=%#x window=%#x caps=%s", host.Display(), host.Window(), host.Caps())
+	ns := host.NativeSurface()
+	log.Printf("host backend=%s display=%#x window=%#x caps=%s", ns.Kind, ns.Display, ns.Window, host.Caps())
 
 	// GPU bootstrap (same device as swapchain — exboot policy).
-	inst, err := exboot.NewInstanceX11(host.Display(), 0)
+	inst, err := exboot.NewInstanceForHost(host)
 	if err != nil {
 		log.Fatalf("CreateInstance: %v", err)
 	}
 	defer inst.Release()
 
-	surf, err := inst.CreateSurface(host.Display(), host.Window())
+	surf, err := exboot.CreateSurfaceForHost(inst, host)
 	if err != nil {
 		log.Fatalf("CreateSurface: %v", err)
 	}

@@ -36,7 +36,7 @@ func main() {
 		}
 	}
 
-	host, err := platform.NewHost(platform.HostOptions{
+	host, err := exboot.OpenHost(platform.LinuxOptions{
 		Width: winW, Height: winH, Title: "gpui ui_kit_shell (M6)",
 	})
 	if err != nil {
@@ -46,14 +46,13 @@ func main() {
 	if !platform.GPUPresentReady(host) {
 		log.Fatalf("GPU present requires Linux host (got %T)", host)
 	}
-	lh := host.(*platform.LinuxHost)
 
-	inst, err := exboot.NewInstanceX11(lh.Display(), 0)
+	inst, err := exboot.NewInstanceForHost(host)
 	if err != nil {
 		log.Fatalf("instance: %v", err)
 	}
 	defer inst.Release()
-	surf, err := inst.CreateSurface(lh.Display(), lh.Window())
+	surf, err := exboot.CreateSurfaceForHost(inst, host)
 	if err != nil {
 		log.Fatalf("surface: %v", err)
 	}
@@ -231,10 +230,10 @@ func main() {
 	last := status
 
 	res := exboot.RunUIDemand(exboot.UIDemandConfig{
-		Host: lh, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
+		Host: host, Tree: tree, SC: sc, DC: dc, Device: device, Theme: theme,
 		Clear:   theme.Color(core.TokenColorBgLayout),
 		Seconds: seconds,
-		Flush:   lh.Flush,
+		Flush:   host.Flush,
 		OnResize: func(w, h int) {
 			winW, winH = w, h
 			vp = core.Size{Width: float64(w), Height: float64(h)}

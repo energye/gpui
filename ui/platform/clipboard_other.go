@@ -6,6 +6,3 @@ package platform
 func NewSystemClipboard() Clipboard {
 	return NewMemoryClipboard()
 }
-
-// NewXClipClipboard is a cross-build alias.
-func NewXClipClipboard() Clipboard { return NewSystemClipboard() }
