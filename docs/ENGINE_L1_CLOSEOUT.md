@@ -138,8 +138,8 @@ go run ./examples/ui_l1_spinner
 |------|------|
 | 1 | （可选）存 blank/spinner JSON baseline |
 | 2 | P4 ✅ 已实现 |
-| 3 | **P5** L2 框架壳 — 细卡 [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md) |
-| 4 | P7 Ant（后置，P5 基本齐后） |
+| 3 | P5 L2 框架壳 ✅ — [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md) · `examples/ui_l2_shell` |
+| 4 | **P7** Ant（后置，P5 A+C+D 已可用） |
 
 ---
 

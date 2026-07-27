@@ -1,6 +1,6 @@
-// Package ui is the L1 UI engine (Flutter-style pipeline) for gpui.
+// Package ui is the L1/L2 UI engine (Flutter-style pipeline) for gpui.
 //
-// Status: P0–P4 implemented (L1 prototype + scroll/IO). See docs/ENGINE_L1_CLOSEOUT.md.
+// Status: P0–P5 implemented. See docs/ENGINE_L1_CLOSEOUT.md / ENGINE_PHASE_P5.md.
 //
 // Dependency rule (hard):
 //
@@ -15,10 +15,13 @@
 //	NO cgo (import "C"). Use purego for native libraries.
 //	See docs/ENGINE_CODING_RULES.md.
 //
+// Boundary (hard): demo/smoke scenes live under examples/, never as ui/* packages.
+// See docs/ENGINE_CODING_RULES.md §5 (architecture vs examples).
+//
 // Docs:
 //
 //	docs/ENGINE_L1_CLOSEOUT.md      — status, verify commands, limits
-//	docs/ENGINE_CODING_RULES.md     — no-CGO / purego / dependency rules
+//	docs/ENGINE_CODING_RULES.md     — no-CGO / purego / dependency / examples boundary
 //	docs/ENGINE_FLUTTER_SKIA_ARCH.md — architecture
 //	docs/ENGINE_PHASE_P0_P3.md      — phase tasks
 //
@@ -31,8 +34,13 @@
 //	ui/rendering  — RenderObject, PipelineOwner, Spinner, BuildLayerTree
 //	ui/painting   — PaintingContext (logical px, Y-down, CompositeOnly)
 //	ui/scene      — Layer tree, FramePacket COW, RasterizeDirty
-//	ui/animation  — Controller (auto-unregister ticker)
+//	ui/animation  — Controller · Curve · AnimatedOpacity (P3/P5e)
+//	ui/semantics  — role/label skeleton (P5e)
+//	ui/theme      — Tokens · Provider (P5e)
 //	ui/io         — async image decode pool (F12)
+//	ui/gestures   — GestureArena · Tap/Pan (P5a)
+//	ui/focus      — FocusManager · Tab · key route (P5c)
+//	ui/overlay    — Overlay band insert/hit (P5d)
 //
 // Coordinates: layout/hit/pointer = logical pixels, Y-down; GPU = physical × dpr.
 package ui

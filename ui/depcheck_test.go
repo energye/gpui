@@ -57,6 +57,16 @@ func TestUISubpackagesDoNotImportGPU(t *testing.T) {
 		"scheduler",
 		"raster",
 		"embedder",
+		"gestures",
+		"focus",
+		"overlay",
+		"animation",
+		"semantics",
+		"theme",
+		"rendering",
+		"painting",
+		"scene",
+		"io",
 	}
 	fset := token.NewFileSet()
 	for _, dir := range dirs {

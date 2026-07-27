@@ -53,7 +53,18 @@ func typeName(n RenderObject) string {
 }
 
 // BuildFramePacket layouts are assumed already flushed; builds a packet for raster.
+// Overlay band is an empty F13 reserve; use overlay.State.AttachToPacket to fill it.
 func BuildFramePacket(root RenderObject, frameID uint64, dpr, w, h float64) *scene.FramePacket {
 	b := BuildLayerTree(root)
 	return b.BuildPacket(frameID, dpr, w, h)
+}
+
+// BuildFramePacketOverlay builds the main packet then attaches ov to pkt.Overlay.
+// ov may be nil (empty band). Main DirtyLayerIDs are preserved and overlay dirties appended.
+func BuildFramePacketOverlay(root RenderObject, frameID uint64, dpr, w, h float64, attach func(pkt *scene.FramePacket)) *scene.FramePacket {
+	pkt := BuildFramePacket(root, frameID, dpr, w, h)
+	if attach != nil && pkt != nil {
+		attach(pkt)
+	}
+	return pkt
 }

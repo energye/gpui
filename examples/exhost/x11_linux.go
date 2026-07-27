@@ -13,10 +13,15 @@ import (
 )
 
 const (
-	xDestroyNotify    = 17
-	xClientMessage    = 33
-	xConfigureNotify  = 22
+	xKeyPress         = 2
+	xKeyRelease       = 3
+	xButtonPress      = 4
+	xButtonRelease    = 5
+	xMotionNotify     = 6
 	xExpose           = 12
+	xDestroyNotify    = 17
+	xConfigureNotify  = 22
+	xClientMessage    = 33
 	xNone             = 0
 	xNorthWestGravity = 1
 	xWhenMapped       = 1
@@ -24,15 +29,41 @@ const (
 	xCWBitGravity     = 1 << 4
 	xCWWinGravity     = 1 << 5
 	xCWBackingStore   = 1 << 6
-	// StructureNotifyMask | ExposureMask
-	xEventMask = (1 << 17) | (1 << 15)
+
+	// Input + lifecycle masks (X.h).
+	xKeyPressMask        = 1 << 0
+	xKeyReleaseMask      = 1 << 1
+	xButtonPressMask     = 1 << 2
+	xButtonReleaseMask   = 1 << 3
+	xPointerMotionMask   = 1 << 6
+	xExposureMask        = 1 << 15
+	xStructureNotifyMask = 1 << 17
+
+	// StructureNotify | Exposure | Button | Motion | Key
+	xEventMask = xStructureNotifyMask | xExposureMask |
+		xButtonPressMask | xButtonReleaseMask | xPointerMotionMask |
+		xKeyPressMask | xKeyReleaseMask
 )
 
+// XButtonEvent / XKeyEvent / XMotionEvent field offsets (linux amd64 Xlib).
 const (
 	xevTypeOff        = 0
-	xevWidthOff       = 56
+	xevWidthOff       = 56 // XConfigureEvent
 	xevHeightOff      = 60
-	xevClientData0Off = 56
+	xevClientData0Off = 56 // XClientMessageEvent.data.l[0]
+	xevPointerXOff    = 64
+	xevPointerYOff    = 68
+	xevButtonOff      = 84 // button (press/release) or keycode (key)
+	xevKeycodeOff     = 84
+)
+
+// Common X11 keysyms used by ui/focus and example key routes.
+const (
+	xkTab    = 0xff09
+	xkReturn = 0xff0d
+	xkSpace  = 0x0020
+	xkShiftL = 0xffe1
+	xkShiftR = 0xffe2
 )
 
 // XSizeHints subset (Xutil.h) — enough for PSize|PMinSize|PBaseSize.
@@ -75,23 +106,24 @@ func openX11(w, h int, title string) (*Window, error) {
 		return nil, err
 	}
 	var (
-		xInitThreads    func() int
-		xOpenDisplay    func(name *byte) uintptr
-		xCloseDisplay   func(dpy uintptr) int
-		xDefaultScreen  func(dpy uintptr) int
-		xRootWindow     func(dpy uintptr, screen int) uintptr
-		xCreateSimple   func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
-		xSetBgPixmap    func(dpy uintptr, win uintptr, pixmap uintptr) int
-		xChangeAttr     func(dpy uintptr, win uintptr, valueMask uint64, attrs unsafe.Pointer) int
-		xMapWindow      func(dpy uintptr, win uintptr) int
-		xFlush          func(dpy uintptr) int
-		xDestroyWindow  func(dpy uintptr, win uintptr) int
-		xStoreName      func(dpy uintptr, win uintptr, name *byte) int
-		xSelectInput    func(dpy uintptr, win uintptr, mask int64) int
-		xPending        func(dpy uintptr) int
-		xNextEvent      func(dpy uintptr, ev *byte) int
-		xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int) uintptr
-		xSetWMProtocols func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+		xInitThreads     func() int
+		xOpenDisplay     func(name *byte) uintptr
+		xCloseDisplay    func(dpy uintptr) int
+		xDefaultScreen   func(dpy uintptr) int
+		xRootWindow      func(dpy uintptr, screen int) uintptr
+		xCreateSimple    func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
+		xSetBgPixmap     func(dpy uintptr, win uintptr, pixmap uintptr) int
+		xChangeAttr      func(dpy uintptr, win uintptr, valueMask uint64, attrs unsafe.Pointer) int
+		xMapWindow       func(dpy uintptr, win uintptr) int
+		xFlush           func(dpy uintptr) int
+		xDestroyWindow   func(dpy uintptr, win uintptr) int
+		xStoreName       func(dpy uintptr, win uintptr, name *byte) int
+		xSelectInput     func(dpy uintptr, win uintptr, mask int64) int
+		xPending         func(dpy uintptr) int
+		xNextEvent       func(dpy uintptr, ev *byte) int
+		xInternAtom      func(dpy uintptr, name *byte, onlyIfExists int) uintptr
+		xSetWMProtocols  func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+		xKeycodeToKeysym func(dpy uintptr, keycode uint, index int) uintptr
 		// ICCCM / EWMH so WMs treat us as a normal decorated top-level.
 		xSetWMNormalHints func(dpy uintptr, win uintptr, hints *xSizeHints) int
 		xSetClassHint     func(dpy uintptr, win uintptr, hint *xClassHint) int
@@ -114,6 +146,7 @@ func openX11(w, h int, title string) (*Window, error) {
 	purego.RegisterLibFunc(&xNextEvent, lib, "XNextEvent")
 	purego.RegisterLibFunc(&xInternAtom, lib, "XInternAtom")
 	purego.RegisterLibFunc(&xSetWMProtocols, lib, "XSetWMProtocols")
+	purego.RegisterLibFunc(&xKeycodeToKeysym, lib, "XKeycodeToKeysym")
 	purego.RegisterLibFunc(&xSetWMNormalHints, lib, "XSetWMNormalHints")
 	purego.RegisterLibFunc(&xSetClassHint, lib, "XSetClassHint")
 	purego.RegisterLibFunc(&xChangeProperty, lib, "XChangeProperty")
@@ -219,6 +252,9 @@ func openX11(w, h int, title string) (*Window, error) {
 		pending:   func() int { return xPending(dpy) },
 		nextEvent: func(ev *byte) int { return xNextEvent(dpy, ev) },
 		flush:     func() { xFlush(dpy) },
+		keycodeToKeysym: func(keycode uint, index int) uintptr {
+			return xKeycodeToKeysym(dpy, keycode, index)
+		},
 	}
 	closed := false
 	host := &x11Host{st: xw}
@@ -246,6 +282,7 @@ type x11State struct {
 	pending         func() int
 	nextEvent       func(ev *byte) int
 	flush           func()
+	keycodeToKeysym func(keycode uint, index int) uintptr
 }
 
 type x11Host struct {
@@ -292,34 +329,80 @@ func (h *x11Host) setSize(w, ht int) bool {
 	return true
 }
 
+// WaitEvents drains X11 events, including pointer/key input.
+//
+// PipelineApp may pass a large positive timeout when RunFor caps IDLE (-1).
+// We must still poll the X connection while waiting — otherwise mouse/key
+// events sit unread until the deadline or WakeUp (clicks appear dead).
+//
+// Expose is always stripped: this host owns a GPU-backed buffer; Present→Expose
+// thrashing is not architectural IDLE (S0). Resize / input / close still flow.
 func (h *x11Host) WaitEvents(timeout time.Duration) []platform.Event {
 	if h.wake == nil {
 		h.wake = make(chan struct{}, 1)
 	}
-	if evs := h.drainX(); len(evs) > 0 {
-		return evs
-	}
-	if timeout < 0 {
-		timeout = 16 * time.Millisecond
-	}
+	// Non-blocking poll.
 	if timeout == 0 {
-		if h.st.flush != nil {
-			h.st.flush()
-		}
-		return h.drainX()
-	}
-	select {
-	case <-h.wake:
-		if evs := h.drainX(); len(evs) > 0 {
+		if evs := filterXNoise(h.drainX()); len(evs) > 0 {
 			return evs
 		}
-		return []platform.Event{{Type: platform.EventWake}}
-	case <-time.After(timeout):
 		if h.st.flush != nil {
 			h.st.flush()
 		}
-		return h.drainX()
+		return filterXNoise(h.drainX())
 	}
+
+	var deadline time.Time
+	if timeout > 0 {
+		deadline = time.Now().Add(timeout)
+	}
+	const pollSlice = 16 * time.Millisecond
+	for {
+		if evs := filterXNoise(h.drainX()); len(evs) > 0 {
+			return evs
+		}
+		wait := pollSlice
+		if !deadline.IsZero() {
+			left := time.Until(deadline)
+			if left <= 0 {
+				if h.st.flush != nil {
+					h.st.flush()
+				}
+				return filterXNoise(h.drainX())
+			}
+			if left < wait {
+				wait = left
+			}
+		}
+		select {
+		case <-h.wake:
+			if evs := filterXNoise(h.drainX()); len(evs) > 0 {
+				return evs
+			}
+			return []platform.Event{{Type: platform.EventWake}}
+		case <-time.After(wait):
+			if h.st.flush != nil {
+				h.st.flush()
+			}
+		}
+	}
+}
+
+// filterXNoise drops Expose (GPU present owns pixels). Keep input/lifecycle.
+func filterXNoise(evs []platform.Event) []platform.Event {
+	var out []platform.Event
+	for _, e := range evs {
+		if e.Type == platform.EventExpose {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// filterIdleXEvents is kept for tests / callers; same as filterXNoise.
+func filterIdleXEvents(evs []platform.Event) []platform.Event {
+	return filterXNoise(evs)
 }
 
 func (h *x11Host) drainX() []platform.Event {
@@ -342,6 +425,14 @@ func (h *x11Host) drainX() []platform.Event {
 			}
 		case xExpose:
 			out = append(out, platform.Event{Type: platform.EventExpose})
+		case xButtonPress, xButtonRelease, xMotionNotify:
+			if ev, ok := h.decodePointer(t, buf[:]); ok {
+				out = append(out, ev)
+			}
+		case xKeyPress, xKeyRelease:
+			if ev, ok := h.decodeKey(t, buf[:]); ok {
+				out = append(out, ev)
+			}
 		case xClientMessage:
 			data0 := readU64(buf[:], xevClientData0Off)
 			if h.st.wmDelete != 0 && uintptr(data0) == h.st.wmDelete {
@@ -352,6 +443,74 @@ func (h *x11Host) drainX() []platform.Event {
 		}
 	}
 	return out
+}
+
+func (h *x11Host) decodePointer(t int, buf []byte) (platform.Event, bool) {
+	x := float64(readI32(buf, xevPointerXOff))
+	y := float64(readI32(buf, xevPointerYOff))
+	ev := platform.Event{Type: platform.EventPointer, X: x, Y: y}
+	switch t {
+	case xMotionNotify:
+		ev.Pointer = platform.PointerMove
+		return ev, true
+	case xButtonPress, xButtonRelease:
+		btn := int(readU32(buf, xevButtonOff))
+		// X11 buttons 4/5 are vertical scroll wheel.
+		if btn == 4 || btn == 5 {
+			ev.Pointer = platform.PointerScroll
+			if btn == 4 {
+				ev.ScrollY = -1
+			} else {
+				ev.ScrollY = 1
+			}
+			return ev, true
+		}
+		ev.Button = btn
+		if t == xButtonPress {
+			ev.Pointer = platform.PointerDown
+		} else {
+			ev.Pointer = platform.PointerUp
+		}
+		return ev, true
+	}
+	return platform.Event{}, false
+}
+
+func (h *x11Host) decodeKey(t int, buf []byte) (platform.Event, bool) {
+	keycode := uint(readU32(buf, xevKeycodeOff))
+	ev := platform.Event{
+		Type:    platform.EventKey,
+		Pressed: t == xKeyPress,
+		KeyCode: int(keycode),
+	}
+	if h.st.keycodeToKeysym != nil && keycode != 0 {
+		// index 0 = unshifted keysym (ASCII letters, Tab, Return, …).
+		ks := h.st.keycodeToKeysym(keycode, 0)
+		ev.KeyCode = int(ks)
+		if ks >= 0x20 && ks <= 0x7e {
+			ev.Rune = rune(ks)
+		}
+		// Lowercase latin when shift not applied is already fine for 'o'.
+		switch ks {
+		case xkTab:
+			ev.KeyCode = int(xkTab)
+		case xkReturn:
+			ev.KeyCode = int(xkReturn)
+		case xkSpace:
+			ev.KeyCode = int(xkSpace)
+			ev.Rune = ' '
+		case xkShiftL, xkShiftR:
+			// keep keysym as KeyCode for focus.IsShift
+		}
+	}
+	return ev, true
+}
+
+func readU32(b []byte, off int) uint32 {
+	if off+4 > len(b) {
+		return 0
+	}
+	return uint32(b[off]) | uint32(b[off+1])<<8 | uint32(b[off+2])<<16 | uint32(b[off+3])<<24
 }
 
 func (h *x11Host) WakeUp() {

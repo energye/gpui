@@ -55,8 +55,8 @@ L1（ui/）P0–P3  ✅  体验雏形可验收
 ```text
 L4 业务          后置
 L3 Ant 控件      后置（docs/antd）
-L2 手势/焦点壳   后置（P5）
-L1 UI 引擎       ✅ P0–P3 已落地（包 ui/）
+L2 手势/焦点壳   ✅ P5（gestures/focus/overlay/…）
+L1 UI 引擎       ✅ P0–P4（包 ui/）
 L0 句柄+gpu      platform + gpu（经 render）
 ```
 
@@ -120,7 +120,7 @@ vsync/fallback → Tick → layout(脏) → paint(脏) → FramePacket
 |------|------|------|
 | P0–P3 | L1 体验雏形 | ✅ |
 | P4 | 滚动 / 文本 / IO | ✅ |
-| P5 | L2 手势 / 焦点 / Overlay | ⬜ 细卡已开 |
+| P5 | L2 手势 / 焦点 / Overlay | ✅ A–F（ui_l2_shell） |
 | P6–P7 | 增强 / Ant | ⬜ |
 
 **验收命令与限制 →** [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md)

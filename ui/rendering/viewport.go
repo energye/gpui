@@ -94,7 +94,7 @@ func (v *RenderViewport) ScrollBy(dx, dy float64) {
 	v.SetScrollOffset(v.scrollX+dx, v.scrollY+dy)
 }
 
-// SetMaxScrollY clamps vertical scroll; <0 means no explicit clamp.
+// SetMaxScrollY clamps vertical scroll; <0 means no explicit clamp (until Layout sets one).
 func (v *RenderViewport) SetMaxScrollY(max float64) {
 	if v == nil {
 		return
@@ -103,6 +103,20 @@ func (v *RenderViewport) SetMaxScrollY(max float64) {
 	if max >= 0 && v.scrollY > max {
 		v.SetScrollOffset(v.scrollX, max)
 	}
+}
+
+// MaxScrollY returns the vertical clamp. <0 means unset / unlimited for clamping purposes
+// until Layout derives content-based max.
+func (v *RenderViewport) MaxScrollY() float64 {
+	if v == nil {
+		return -1
+	}
+	return v.maxScrollY
+}
+
+// MaxScrollX is reserved; MVP vertical nesting only (always 0 clamp unless extended).
+func (v *RenderViewport) MaxScrollX() float64 {
+	return 0
 }
 
 func (v *RenderViewport) notifyContentScroll() {

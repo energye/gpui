@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/raster"
@@ -24,6 +25,8 @@ type PipelineOptions struct {
 	OnEvent func(ev platform.Event)
 	// WarmUp runs one full paint before the loop (F11).
 	WarmUp bool
+	// Overlay is the optional F13 overlay stack (P5d). Hit-test is overlay-first.
+	Overlay *overlay.State
 }
 
 // PipelineApp runs layout/paint → FramePacket → async raster present.
@@ -44,6 +47,22 @@ type PipelineApp struct {
 	lastStats scene.RasterStats
 	// layoutFrames counts flushes that actually laid out (for S2 gate).
 	layoutFrames atomic.Int64
+}
+
+// Overlay returns the overlay stack (may be nil).
+func (a *PipelineApp) Overlay() *overlay.State {
+	if a == nil {
+		return nil
+	}
+	return a.opts.Overlay
+}
+
+// SetOverlay attaches an overlay stack (P5d).
+func (a *PipelineApp) SetOverlay(st *overlay.State) {
+	if a == nil {
+		return
+	}
+	a.opts.Overlay = st
 }
 
 // NewPipelineApp builds a tree-driven app. Call Open then Run.
@@ -211,6 +230,16 @@ func (a *PipelineApp) Run() error {
 			a.sched.SetMode(scheduler.ModePersistent)
 			timeout = a.sched.WaitTimeout()
 		}
+		// Cap wait by RunFor deadline so IDLE does not block past exit time.
+		if !deadline.IsZero() {
+			left := time.Until(deadline)
+			if left < 0 {
+				break
+			}
+			if timeout < 0 || timeout > left {
+				timeout = left
+			}
+		}
 
 		evs := a.host.WaitEvents(timeout)
 		for _, ev := range evs {
@@ -238,7 +267,11 @@ func (a *PipelineApp) Run() error {
 					a.ScheduleFrame()
 				}
 			case platform.EventExpose:
-				a.ScheduleFrame()
+				// Present path already full-clears + redraws on demand. Reacting to
+				// every Expose after Present causes a busy loop on X11.
+				if !a.sched.Pending() {
+					a.ScheduleFrame()
+				}
 			}
 		}
 
@@ -262,6 +295,9 @@ func (a *PipelineApp) Run() error {
 		if a.pipe.FlushLayout(vp, false) {
 			a.layoutFrames.Add(1)
 		}
+		if a.opts.Overlay != nil {
+			a.opts.Overlay.Layout(float64(w), float64(h))
+		}
 
 		t0 := time.Now()
 		a.sched.Metrics().NoteFrameInterval(t0)
@@ -271,6 +307,9 @@ func (a *PipelineApp) Run() error {
 			scale = 1
 		}
 		pkt := rendering.BuildFramePacket(a.root, frameID, scale, float64(w), float64(h))
+		if a.opts.Overlay != nil {
+			a.opts.Overlay.AttachToPacket(pkt)
+		}
 		stats := scene.RasterizeDirty(pkt)
 		a.lastStats = stats
 		a.sched.Metrics().NoteBuildMs(time.Since(t0).Seconds() * 1000)
@@ -285,10 +324,14 @@ func (a *PipelineApp) Run() error {
 		target := a.target
 		root := a.root
 		pipe := a.pipe
+		ov := a.opts.Overlay
 		clearR, clearG, clearB, clearA := a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA
+		// force=true: PresentWith clears the full swapchain each frame; CompositeOnly
+		// partial paint would leave only dirty widgets (static chrome vanishes).
+		// True damage/partial present is a P6 concern.
 		job := raster.FrameJob{
 			Run: func() error {
-				return presentTree(target, pipe, root, clearR, clearG, clearB, clearA, false)
+				return presentTree(target, pipe, root, ov, clearR, clearG, clearB, clearA, true)
 			},
 		}
 		// Async: never block UI on Present.
@@ -304,7 +347,7 @@ func (a *PipelineApp) Run() error {
 	return nil
 }
 
-func presentTree(target *render.PresentTarget, pipe *rendering.PipelineOwner, root rendering.RenderObject, cr, cg, cb, ca float64, force bool) error {
+func presentTree(target *render.PresentTarget, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) error {
 	if target == nil || pipe == nil || root == nil {
 		return errors.New("embedder: presentTree nil")
 	}
@@ -316,6 +359,10 @@ func presentTree(target *render.PresentTarget, pipe *rendering.PipelineOwner, ro
 		_ = dc.Fill()
 		pc := painting.New(dc, dc.DeviceScale())
 		pipe.FlushPaint(pc, force)
+		// Overlay band above main (P5d).
+		if ov != nil {
+			ov.Paint(pc)
+		}
 	})
 }
 
@@ -323,6 +370,14 @@ func (a *PipelineApp) presentSyncFull() {
 	if a.target == nil {
 		return
 	}
-	_ = presentTree(a.target, a.pipe, a.root, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true)
+	_ = presentTree(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true)
 	a.presents.Add(1)
+}
+
+// HitTestPointer runs overlay-first then main hit testing (logical coords).
+func (a *PipelineApp) HitTestPointer(x, y float64) (overlay.Band, rendering.RenderObject, *overlay.Entry) {
+	if a == nil {
+		return overlay.BandNone, nil, nil
+	}
+	return overlay.HitTestStack(a.root, a.opts.Overlay, rendering.Point{X: x, Y: y})
 }

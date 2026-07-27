@@ -13,7 +13,7 @@
 ```text
 P0–P3  L1 体验雏形  ✅ 已实现 / 可验收
 P4     L1 加深：滚动 / 文本 / 图 IO     ✅
-P5     L2 框架壳：手势 / 焦点 / Overlay     ← 细卡已开
+P5     L2 框架壳：手势 / 焦点 / Overlay     ✅ 已实现
 P6     L1 增强：细 damage / 缓存 / 多窗 / HUD
 P7     L3 产品控件：Ant（docs/antd）
 ```
@@ -21,9 +21,9 @@ P7     L3 产品控件：Ant（docs/antd）
 | 阶段 | 层级 | 何时写细任务 |
 |------|------|----------------|
 | P4 | L1 加深 | ✅ 细卡已实现 |
-| P5 | L2 | ✅ **细卡已开**（P4 主门禁后） |
+| P5 | L2 | ✅ **已实现**（细卡 A–F） |
 | P6 | L1 增强 | 有瓶颈数据再拆 |
-| P7 | L3 | P5 基本齐后 |
+| P7 | L3 | P5 基本齐后（A+C+D 可用） |
 
 ---
 
@@ -107,9 +107,9 @@ Ant Modal/Button 皮肤与产品 API（那是 P7）；完整 a11y 生态。
 
 ## 细任务
 
-✅ **已开细卡：** [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md)（轨 A–F：GestureArena / 嵌套滚动 / Focus / Overlay / 动画完备 / 示例）
+✅ **已实现：** [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md)（轨 A–F）· 示例 [`examples/ui_l2_shell`](../examples/ui_l2_shell)
 
-> 排除 `docs/antd` 产品控件；P7 再按波次开卡。
+> 排除 `docs/antd` 产品控件；P7 再按波次开卡（A+C+D 已可用）。
 
 ---
 

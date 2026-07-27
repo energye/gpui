@@ -1,7 +1,7 @@
 # L2 框架壳任务计划 — Phase 5（手势 · 焦点 · Overlay · 动画完备）
 
-> **版本：1.0** | 日期：2026-07-27  
-> **状态：待实现**  
+> **版本：1.6** | 日期：2026-07-27  
+> **状态：✅ P5a–P5f 已实现 · 可验收**  
 > **前置：** P4 主门禁已通过 — [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md)  
 > **真源：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) §2 L2 · F09 / F13 / F17  
 > **大纲父页：** [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md) Phase 5  
@@ -374,12 +374,12 @@ P3 已有 `animation.Controller`（0..1、Ticker、完成卸注册）。P5 补�
 
 | # | 任务 | DoD |
 |---|------|-----|
-| F1 | `examples/ui_l2_shell`：Tap/Pan 区 + Tab 焦点环 + 一键 Insert Overlay | 真窗可跑（有 DISPLAY） |
-| F2 | 指标（可选 JSON 字段）：`gesture_arena_depth`、`focus_id`、`overlay_count` | 字段稳定或测试计数 |
-| F3 | 回归：`go test ./ui/...`；S0/S2/S5/S6 相关不挂 | 全绿 |
-| F4 | 更新 CLOSEOUT / OUTLINE / README：P5 细卡链接与状态 | 文档 |
-| F5 | depcheck：新包均无 import gpu | `TestNoGPUImport` 绿 |
-| F6 | （可选）程序化无窗：shell 场景的 arena+focus+overlay 集成测 | 单测 |
+| F1 | `examples/ui_l2_shell`：Tap/Pan 区 + Tab 焦点环 + 一键 Insert Overlay | ✅ |
+| F2 | 指标（可选 JSON 字段）：`gesture_arena_depth`、`focus_id`、`overlay_count` | ✅ `l2shell.Metrics` |
+| F3 | 回归：`go test ./ui/...`；S0/S2/S5/S6 相关不挂 | ✅ |
+| F4 | 更新 CLOSEOUT / OUTLINE / README：P5 细卡链接与状态 | ✅ |
+| F5 | depcheck：新包均无 import gpu | ✅ |
+| F6 | （可选）程序化无窗：shell 场景的 arena+focus+overlay 集成测 | ✅ `ui/l2shell` |
 
 ---
 
@@ -413,14 +413,14 @@ go run ./examples/ui_l1_scroll    # 回归
 
 | ID | 内容 | 轨 | 状态 |
 |----|------|-----|------|
-| **F09** | 动画默认 compositor-only（完备） | E | ⬜ |
-| **F13** | Overlay band **填满**（不再仅预留） | D | ⬜ |
-| **F17** | Ticker/Animation 结束卸注册（加深） | E | ⬜ |
-| 手势竞技 | GestureArena + 矩阵 | A | ⬜ |
-| 嵌套滚动 | 竞争规则 | B | ⬜ |
-| 焦点壳 | Focus 树 + Tab | C | ⬜ |
-| Semantics/Theme | 最小骨架 | E | ⬜ |
-| 回归 F01–F08/F14 等 | 不回退 | F | ⬜ |
+| **F09** | 动画默认 compositor-only（完备） | E | ✅ P5e |
+| **F13** | Overlay band **填满**（不再仅预留） | D | ✅ P5d |
+| **F17** | Ticker/Animation 结束卸注册（加深） | E | ✅ P5e |
+| 手势竞技 | GestureArena + 矩阵 | A | ✅ P5a |
+| 嵌套滚动 | 竞争规则 | B | ✅ P5b |
+| 焦点壳 | Focus 树 + Tab | C | ✅ P5c |
+| Semantics/Theme | 最小骨架 | E | ✅ P5e |
+| 回归 F01–F08/F14 等 | 不回退 | F | ✅ P5f |
 
 ---
 
@@ -428,12 +428,12 @@ go run ./examples/ui_l1_scroll    # 回归
 
 | PR | 内容 | 合并前提 |
 |----|------|----------|
-| **P5a** | 轨 A GestureArena + Tap/Pan 矩阵 | `TestArena_*` 绿 |
-| **P5b** | 轨 B 嵌套滚动 + Scrollable 迁 arena | 嵌套测 + S6 绿 |
-| **P5c** | 轨 C Focus | `TestFocus_*` 绿 |
-| **P5d** | 轨 D Overlay 机制 + packet 真 band | overlay 测绿 |
-| **P5e** | 轨 E Curve/Status/隐式动画 + semantics/theme | F09 相关测绿 |
-| **P5f** | 轨 F 示例 + 文档勾选 + 全量回归 | `go test ./ui/...` + 烟囱 |
+| **P5a** | 轨 A GestureArena + Tap/Pan 矩阵 | ✅ `TestArena_*` 绿 |
+| **P5b** | 轨 B 嵌套滚动 + Scrollable 迁 arena | ✅ 嵌套测 + S5/S6 绿 |
+| **P5c** | 轨 C Focus | ✅ `TestFocus_*` 绿 |
+| **P5d** | 轨 D Overlay 机制 + packet 真 band | ✅ overlay 测绿 |
+| **P5e** | 轨 E Curve/Status/隐式动画 + semantics/theme | ✅ F09 相关测绿 |
+| **P5f** | 轨 F 示例 + 文档勾选 + 全量回归 | ✅ `ui_l2_shell` + `go test ./ui/...` |
 
 **禁止：**
 
@@ -459,27 +459,27 @@ go run ./examples/ui_l1_scroll    # 回归
 
 ## 6. 完成定义（P5 Done）
 
-- [ ] 轨 A–F 主路径（可选真窗键鼠细节可后补，但单测矩阵必须齐）  
-- [ ] G-TapPan / G-Focus / G-Overlay / G-Anim 单测硬断言绿  
-- [ ] 嵌套滚动默认规则有测（B）  
-- [ ] `go test ./ui/...` 绿；ui 无 gpu import  
-- [ ] S0/S2/S5/S6 回归绿  
-- [ ] `examples/ui_l2_shell` 可演示三件套（手势/焦点/浮层）  
-- [ ] 文档勾选；OUTLINE 挂「P5 细卡已开」  
-- [ ] **无** antd 控件合入本阶段 Done 条件  
+- [x] 轨 A–F 主路径（可选真窗键鼠细节可后补，但单测矩阵必须齐）  
+- [x] G-TapPan / G-Focus / G-Overlay / G-Anim 单测硬断言绿  
+- [x] 嵌套滚动默认规则有测（B）  
+- [x] `go test ./ui/...` 绿；ui 无 gpu import  
+- [x] S0/S2/S5/S6 回归绿  
+- [x] `examples/ui_l2_shell` 可演示三件套（手势/焦点/浮层）  
+- [x] 文档勾选；OUTLINE 挂「P5 已实现」  
+- [x] **无** antd 控件合入本阶段 Done 条件  
 
-## 6.1 实现状态（开工后维护）
+## 6.1 实现状态（2026-07-27）
 
 | 项 | 状态 |
 |----|------|
-| GestureArena + Tap/Pan | ⬜ |
-| 嵌套滚动竞争 | ⬜ |
-| FocusManager + Tab | ⬜ |
-| OverlayState 真 band | ⬜ |
-| Curve / 隐式 compositor 动画 | ⬜ |
-| Semantics / Theme 骨架 | ⬜ |
-| ui_l2_shell | ⬜ |
-| 回归 P0–P4 门禁 | ⬜ |
+| GestureArena + Tap/Pan | ✅ P5a |
+| 嵌套滚动竞争 | ✅ P5b |
+| FocusManager + Tab | ✅ P5c |
+| OverlayState 真 band | ✅ P5d |
+| Curve / 隐式 compositor 动画 | ✅ P5e |
+| Semantics / Theme 骨架 | ✅ P5e |
+| ui_l2_shell | ✅ P5f |
+| 回归 P0–P4 门禁 | ✅ |
 
 ---
 
@@ -500,3 +500,9 @@ P7 触发条件（大纲原句）：L2 手势 / 焦点 / Overlay **至少可用*
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 1.0 | 2026-07-27 | 首版 P5 细卡：A–F 分轨、手势矩阵、Overlay 机制、排除 antd |
+| 1.1 | 2026-07-27 | P5a：`ui/gestures` Arena/Tap/Pan/Dispatcher；Scrollable 迁 Pan |
+| 1.2 | 2026-07-27 | P5b：Scrollable.Parent 残差移交；嵌套测 + 滚轮冒泡 |
+| 1.3 | 2026-07-27 | P5c：FocusManager / Tab / OnKey / FocusRingRect |
+| 1.4 | 2026-07-27 | P5d：overlay.State Insert/Hit/AttachToPacket；PipelineApp 接线 |
+| 1.5 | 2026-07-27 | P5e：Curve/Status/AnimatedOpacity；semantics；theme |
+| 1.6 | 2026-07-27 | P5f：l2shell + ui_l2_shell 示例；文档收口；P5 Done |
