@@ -313,12 +313,18 @@ func (a *PipelineApp) Run() error {
 		stats := scene.RasterizeDirty(pkt)
 		a.lastStats = stats
 		a.sched.Metrics().NoteBuildMs(time.Since(t0).Seconds() * 1000)
-		// Record raster_layer_count into metrics store via direct field update.
 		if m := a.sched.Metrics(); m != nil {
-			snap := m.Snapshot()
-			_ = snap
-			// use helper
 			m.SetRasterLayerCount(int64(stats.RasterLayerCount))
+			// Wave P0: wire cumulative layout/paint flush counters into JSON metrics.
+			if a.pipe != nil {
+				m.SetLayoutCount(a.pipe.LayoutCount)
+				m.SetPaintCount(a.pipe.PaintCount)
+			}
+			if platform.HostVSync(a.host) != nil {
+				m.SetVSyncSource("true")
+			} else {
+				m.SetVSyncSource("fallback")
+			}
 		}
 
 		target := a.target

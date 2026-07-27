@@ -5,6 +5,7 @@
 //
 // Auto window backend: Wayland or X11 (see examples/exhost, GPUI_DISPLAY=wayland|x11|auto).
 // Duration: default 60s; override with RUN_SECONDS.
+// P0 closeout: RSS/CPU process samples in JSON (rss_*_kb, cpu_pct_avg).
 package main
 
 import (
@@ -28,13 +29,15 @@ func main() {
 	fmt.Fprintf(os.Stderr, "ui_l1_spinner: running %ds (RUN_SECONDS / GPUI_DISPLAY=wayland|x11|auto); close window to exit safely\n", secs)
 	const winW, winH = 480, 320
 
+	var proc scheduler.ProcessTracker
+	proc.Start()
+
 	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui L1 spinner (P3)"})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)
 	}
-	// GPU must be released before native window destroy.
-	defer win.Close()
+	// Closed explicitly after app.Close so RSS-after-close is meaningful.
 
 	spin := rendering.NewRenderSpinner(48)
 	root := rendering.NewRenderBox(spin)
@@ -61,6 +64,7 @@ func main() {
 	ctrl.OnValue(func(v float64) {
 		spin.SetPhase(v)
 		app.ScheduleFrame()
+		proc.Sample()
 	})
 	ctrl.Start(app.Scheduler().Tickers())
 
@@ -74,7 +78,11 @@ func main() {
 		os.Exit(1)
 	}
 	ctrl.Stop()
+	proc.Stop()
 	app.Close()
+	win.Close()
+	proc.NoteAfterClose()
+	proc.Apply(app.Metrics())
 
 	elapsed := time.Since(t0).Seconds()
 	if elapsed < 0.001 {
@@ -88,8 +96,10 @@ func main() {
 	fps := float64(app.PresentCount()) / elapsed
 	fmt.Fprintf(os.Stderr, "ui_l1_spinner: backend=%s presents=%d ~%.1f fps over %.1fs (cap %ds) layout_flushes=%d raster_layers=%d\n",
 		win.Backend(), app.PresentCount(), fps, elapsed, secs, app.LayoutFlushCount(), app.LastRasterStats().RasterLayerCount)
-	fmt.Fprintf(os.Stderr, "ui_l1_spinner: avg=%.2fms max=%.2fms last=%.2fms hitches(>%.1fms)=%d\n",
-		m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.LastFrameIntervalMs, scheduler.HitchThresholdMs, m.HitchCount)
+	fmt.Fprintf(os.Stderr, "ui_l1_spinner: avg=%.2fms max=%.2fms p50=%.2f p99=%.2f hitches=%d vsync=%s\n",
+		m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.P50FrameIntervalMs, m.P99FrameIntervalMs, m.HitchCount, m.VSyncSource)
+	fmt.Fprintf(os.Stderr, "ui_l1_spinner: rss start=%d end=%d peak=%d after_close=%d KB cpu_avg=%.1f%%\n",
+		m.RSSStartKB, m.RSSEndKB, m.RSSPeakKB, m.RSSAfterCloseKB, m.CPUPctAvg)
 	if b, err := app.Metrics().JSON(); err == nil {
 		fmt.Println(string(b))
 	}

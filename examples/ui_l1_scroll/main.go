@@ -31,12 +31,15 @@ func main() {
 	const itemExtent = 40.0
 	const itemCount = 1000
 
+	var proc scheduler.ProcessTracker
+	proc.Start()
+
 	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui L1 scroll (P4) — resize me"})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)
 	}
-	defer win.Close()
+	// Explicit close after app for after_close RSS.
 
 	host := win.Host()
 	list := rendering.NewVirtualList(itemCount, itemExtent, func(i int) rendering.RenderObject {
@@ -77,6 +80,7 @@ func main() {
 			}
 			vp.SetScrollOffset(0, scrollY)
 			app.ScheduleFrame()
+			proc.Sample()
 		},
 	})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
@@ -90,7 +94,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "run:", err)
 		os.Exit(1)
 	}
+	proc.Stop()
 	app.Close()
+	win.Close()
+	proc.NoteAfterClose()
+	proc.Apply(app.Metrics())
 
 	elapsed := time.Since(t0).Seconds()
 	if elapsed < 0.001 {
@@ -101,8 +109,10 @@ func main() {
 	fw, fh := host.Size()
 	fmt.Fprintf(os.Stderr, "ui_l1_scroll: backend=%s presents=%d ~%.1f fps over %.1fs layout_flushes=%d bind=%d scrollY=%.0f size=%dx%d\n",
 		win.Backend(), app.PresentCount(), fps, elapsed, app.LayoutFlushCount(), list.BindCount, vp.ScrollOffset().Y, fw, fh)
-	fmt.Fprintf(os.Stderr, "ui_l1_scroll: avg=%.2fms max=%.2fms last=%.2fms hitches(>%.1fms)=%d\n",
-		m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.LastFrameIntervalMs, scheduler.HitchThresholdMs, m.HitchCount)
+	fmt.Fprintf(os.Stderr, "ui_l1_scroll: avg=%.2fms max=%.2fms p50=%.2f p99=%.2f hitches=%d vsync=%s\n",
+		m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.P50FrameIntervalMs, m.P99FrameIntervalMs, m.HitchCount, m.VSyncSource)
+	fmt.Fprintf(os.Stderr, "ui_l1_scroll: rss start=%d end=%d peak=%d after_close=%d KB cpu_avg=%.1f%%\n",
+		m.RSSStartKB, m.RSSEndKB, m.RSSPeakKB, m.RSSAfterCloseKB, m.CPUPctAvg)
 	if list.BindCount >= itemCount {
 		fmt.Fprintln(os.Stderr, "FAIL: virtualization mounted all rows")
 		os.Exit(1)

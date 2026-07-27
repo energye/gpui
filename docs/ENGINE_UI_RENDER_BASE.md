@@ -565,13 +565,21 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 ## §23 补齐 Wave
 
-**P0：** StrokeRect/Line/RoundRect、FillCircle、PushClipRoundRect、MeasureText→RO、Metrics 分位+layout/paint 接线、示例 CPU/RSS JSON。  
-**P1：** 径向/扫掠渐变、DrawTextWrapped、Font、TransformLayer、预算内 PushLayer、exhost VSync、Path 封装。  
-**P2：** ellipsis/maxLines、path metrics、可变高、Backdrop/Filter 层、九宫/圆角图 RO。  
-**P3：** 窗测扩展、soak 入库。  
-**P6（单列）：** 取消 force 全清、Damage present、Picture 录制、层 RT、HUD。
+**P0：已收尾（2026-07-27）**
 
----
+已实现：
+- `ui/painting`：Stroke*/Circle/ClipRoundRect、MeasureText、EstimateTextSize、`TryLoadDefaultFace`（`GPUI_UI_FONT`）
+- `RenderText`：rune 估算 + optional Face
+- `FrameMetrics`：layout/paint 计数、p50/p99、`vsync_source`
+- **进程资源：** `ProcessTracker` + `ReadRSSKB` → JSON `rss_start/end/peak/after_close_kb`、`cpu_pct_avg`
+- 示例接线：`ui_l1_spinner` / `ui_l1_scroll` / `ui_l1_render_matrix`（含默认字体尝试）
+
+说明：`rss_after_close` 可能因驱动/分配器延迟仍接近 peak，作观察字段而非硬释放证明。
+
+**P1：** 径向/扫掠渐变、DrawTextWrapped、Font 体系、TransformLayer、预算内 PushLayer、exhost 真 VSync、Path 封装。  
+**P2：** ellipsis/maxLines、path metrics、可变高、Backdrop/Filter 层。  
+**P3：** 窗测矩阵扩展、soak 入库。  
+**P6（单列）：** dirty-rect Present、Picture 录制、层 RT、HUD。
 
 ## §24 窗口专项测试程序设计
 

@@ -7,6 +7,7 @@
 // DirtyLayerIDs, async present, virtual list). NOT full Engine parity — true dirty-RECT
 // present / Picture display lists / per-layer GPU RT are P6 and intentionally unclaimed.
 //
+// P0 closeout: optional default font on text nodes; RSS/CPU in metrics JSON.
 // See README.md in this directory for metric interpretation.
 package main
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/embedder"
+	"github.com/energye/gpui/ui/painting"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/scheduler"
 
@@ -30,6 +32,9 @@ func main() {
 	fmt.Fprintln(os.Stderr, "ui_l1_render_matrix: axes M1 spinner | M2 multi-BD | M3 list | M4 text | M5 gradient")
 	fmt.Fprintln(os.Stderr, "ui_l1_render_matrix: does NOT claim P6 dirty-rect partial present")
 
+	var proc scheduler.ProcessTracker
+	proc.Start()
+
 	const winW, winH = 720, 400
 	win, err := exhost.Open(exhost.Options{
 		Width:  winW,
@@ -40,11 +45,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)
 	}
-	defer win.Close()
+	// Explicit close after app for after_close RSS (no defer).
 
 	sc := buildMatrixScene(float64(winW), float64(winH))
-	host := win.Host()
+	if face, path, err := painting.TryLoadDefaultFace(16); err != nil {
+		fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: default font skipped: %v\n", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: default font %s\n", path)
+		if sc.Latin != nil {
+			sc.Latin.SetFace(face)
+		}
+		if sc.CJK != nil {
+			// same face may lack CJK glyphs; still better than no face for Latin measure.
+			sc.CJK.SetFace(face)
+		}
+	}
 
+	host := win.Host()
 	app := embedder.NewPipelineApp(host, sc.Root, embedder.PipelineOptions{
 		ClearR: 0.07, ClearG: 0.08, ClearB: 0.10, ClearA: 1,
 		RunFor: time.Duration(secs) * time.Second,
@@ -59,6 +76,7 @@ func main() {
 	app.Scheduler().Tickers().Add(&matrixTicker{
 		on: func(dt float64) {
 			sc.onTick(dt, app.ScheduleFrame)
+			proc.Sample()
 		},
 	})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
@@ -72,7 +90,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "run:", err)
 		os.Exit(1)
 	}
+	proc.Stop()
 	app.Close()
+	win.Close()
+	proc.NoteAfterClose()
+	proc.Apply(app.Metrics())
 
 	elapsed := time.Since(t0).Seconds()
 	if elapsed < 0.001 {
@@ -91,8 +113,10 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: backend=%s presents=%d ~%.1f fps over %.1fs layout_flushes=%d raster_layers=%d bind=%d scrollY=%.0f\n",
 		win.Backend(), presents, fps, elapsed, app.LayoutFlushCount(), app.LastRasterStats().RasterLayerCount, bind, sc.scrollY)
-	fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: avg=%.2fms max=%.2fms last=%.2fms hitches(>%.1fms)=%d\n",
-		m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.LastFrameIntervalMs, scheduler.HitchThresholdMs, m.HitchCount)
+	fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: avg=%.2fms max=%.2fms p50=%.2f p99=%.2f hitches=%d vsync=%s\n",
+		m.AvgFrameIntervalMs, m.MaxFrameIntervalMs, m.P50FrameIntervalMs, m.P99FrameIntervalMs, m.HitchCount, m.VSyncSource)
+	fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: rss start=%d end=%d peak=%d after_close=%d KB cpu_avg=%.1f%%\n",
+		m.RSSStartKB, m.RSSEndKB, m.RSSPeakKB, m.RSSAfterCloseKB, m.CPUPctAvg)
 	fmt.Fprintln(os.Stderr, "ui_l1_render_matrix: note raster_layer_count is DirtyLayer stats — present path is still full clear+paint (P6)")
 
 	if sc.List != nil && sc.List.BindCount >= sc.itemCount {

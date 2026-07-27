@@ -27,3 +27,23 @@ func (c *Context) FillRoundRect(x, y, w, h, radius, r, g, b, a float64) {
 	}
 	_ = c.DC.Fill()
 }
+
+// FillCircle fills a circle centered at local logical (cx, cy).
+func (c *Context) FillCircle(cx, cy, radius, r, g, b, a float64) {
+	if c == nil || c.DC == nil || radius <= 0 {
+		return
+	}
+	c.DC.SetRGBA(r, g, b, a)
+	c.DC.DrawCircle(c.OriginX+cx, c.OriginY+cy, radius)
+	_ = c.DC.Fill()
+}
+
+// StrokeCircle strokes a circle centered at local logical (cx, cy).
+func (c *Context) StrokeCircle(cx, cy, radius, lineWidth, r, g, b, a float64) {
+	if c == nil || c.DC == nil || radius <= 0 {
+		return
+	}
+	c.applyStroke(lineWidth, r, g, b, a)
+	c.DC.DrawCircle(c.OriginX+cx, c.OriginY+cy, radius)
+	_ = c.DC.Stroke()
+}

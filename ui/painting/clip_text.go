@@ -14,7 +14,32 @@ func (c *Context) PushClipRect(x, y, w, h float64) {
 	c.DC.ClipRect(c.OriginX+x, c.OriginY+y, w, h)
 }
 
-// PopClip restores clip/transform state from PushClipRect.
+// PushClipRoundRect clips subsequent draws to a local logical rounded rect.
+// Pair with PopClip. Uses render.Push + ClipRoundRect.
+func (c *Context) PushClipRoundRect(x, y, w, h, radius float64) {
+	if c == nil || c.DC == nil || w <= 0 || h <= 0 {
+		return
+	}
+	if radius < 0 {
+		radius = 0
+	}
+	maxR := w
+	if h < maxR {
+		maxR = h
+	}
+	maxR *= 0.5
+	if radius > maxR {
+		radius = maxR
+	}
+	c.DC.Push()
+	if radius <= 0 {
+		c.DC.ClipRect(c.OriginX+x, c.OriginY+y, w, h)
+	} else {
+		c.DC.ClipRoundRect(c.OriginX+x, c.OriginY+y, w, h, radius)
+	}
+}
+
+// PopClip restores clip/transform state from PushClipRect / PushClipRoundRect.
 func (c *Context) PopClip() {
 	if c == nil || c.DC == nil {
 		return
