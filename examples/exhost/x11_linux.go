@@ -75,6 +75,7 @@ func openX11(w, h int, title string) (*Window, error) {
 		return nil, err
 	}
 	var (
+		xInitThreads    func() int
 		xOpenDisplay    func(name *byte) uintptr
 		xCloseDisplay   func(dpy uintptr) int
 		xDefaultScreen  func(dpy uintptr) int
@@ -96,6 +97,7 @@ func openX11(w, h int, title string) (*Window, error) {
 		xSetClassHint     func(dpy uintptr, win uintptr, hint *xClassHint) int
 		xChangeProperty   func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
 	)
+	purego.RegisterLibFunc(&xInitThreads, lib, "XInitThreads")
 	purego.RegisterLibFunc(&xOpenDisplay, lib, "XOpenDisplay")
 	purego.RegisterLibFunc(&xCloseDisplay, lib, "XCloseDisplay")
 	purego.RegisterLibFunc(&xDefaultScreen, lib, "XDefaultScreen")
@@ -115,7 +117,10 @@ func openX11(w, h int, title string) (*Window, error) {
 	purego.RegisterLibFunc(&xSetWMNormalHints, lib, "XSetWMNormalHints")
 	purego.RegisterLibFunc(&xSetClassHint, lib, "XSetClassHint")
 	purego.RegisterLibFunc(&xChangeProperty, lib, "XChangeProperty")
-
+	ok := xInitThreads()
+	if ok == 0 {
+		return nil, fmt.Errorf("XInitThreads failed, X11 multi-thread unsupported")
+	}
 	dpy := xOpenDisplay(nil)
 	if dpy == 0 {
 		return nil, fmt.Errorf("XOpenDisplay failed")
