@@ -109,6 +109,23 @@ func NewClipRectLayer(x, y, w, h float64) *ClipRectLayer {
 
 func (c *ClipRectLayer) Kind() string { return "clip_rect" }
 
+// ClipRRectLayer clips children to a rounded rect (uniform corner radius, logical px).
+// Radius <= 0 is treated as a hard rect at composite/paint apply time.
+type ClipRRectLayer struct {
+	ContainerLayer
+	X, Y, W, H float64
+	Radius     float64
+}
+
+// NewClipRRectLayer creates a rounded-rect clip layer.
+func NewClipRRectLayer(x, y, w, h, radius float64) *ClipRRectLayer {
+	c := &ClipRRectLayer{X: x, Y: y, W: w, H: h, Radius: radius}
+	c.id = NextLayerID()
+	return c
+}
+
+func (c *ClipRRectLayer) Kind() string { return "clip_rrect" }
+
 // TransformLayer applies a 2D similarity transform to children (Flutter TransformLayer subset).
 // Order when applied at paint/composite: translate (TX,TY) → rotate about local origin → scale.
 // SX/SY default to 1 when zero is stored as "unset" — callers should set SX=SY=1 explicitly.

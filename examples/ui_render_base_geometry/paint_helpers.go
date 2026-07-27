@@ -148,22 +148,17 @@ func strokeArc(pc *rendering.PaintContext, cx, cy, radius, a1, a2, lw, r, g, b, 
 	_ = pc.DC.Stroke()
 }
 
+// pushClipRound / popClip delegate to library UI helpers (not ad-hoc DC.ClipRoundRect).
 func pushClipRound(pc *rendering.PaintContext, x, y, w, h, radius float64) {
-	if pc == nil || pc.DC == nil || w <= 0 || h <= 0 {
+	if pc == nil {
 		return
 	}
-	ax, ay := pc.OriginX+x, pc.OriginY+y
-	pc.DC.Push()
-	if radius <= 0 {
-		pc.DC.ClipRect(ax, ay, w, h)
-	} else {
-		pc.DC.ClipRoundRect(ax, ay, w, h, radius)
-	}
+	pc.PushClipRRect(x, y, w, h, radius)
 }
 
 func popClip(pc *rendering.PaintContext) {
-	if pc != nil && pc.DC != nil {
-		pc.DC.Pop()
+	if pc != nil {
+		pc.PopClip()
 	}
 }
 

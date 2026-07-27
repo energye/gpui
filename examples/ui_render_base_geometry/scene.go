@@ -136,7 +136,7 @@ func buildGeometryScene(winW, winH float64) *geoScene {
 		fillRect(pc, -10+off, 20, sz.Width, 36, 0.95, 0.55, 0.2, 1)
 		fillRect(pc, 20, 50+off*0.3, 80, 40, 0.3, 0.6, 0.95, 1)
 		popClip(pc)
-		drawText(pc, "PushClipRoundRect", 16, 100, 0.9, 0.9, 0.92, 1)
+		drawText(pc, "PushClipRRect", 16, 100, 0.9, 0.9, 0.92, 1)
 	})
 	root.Place(s.ClipPulse, 12+2*(pw+gap), row3+18)
 

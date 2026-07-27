@@ -126,7 +126,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | FC-TRANSFORM | 任意 Matrix4 | Canvas.transform | 通用仿射 | — | Transform/SetTransform | — | B | render/context.go | UI 未暴露 | P1 |
 | FC-GET-TRANSFORM | 读取 CTM | Canvas.getTransform | 命中反变换/调试 | — | GetTransform | — | B | render/context.go | — | P2 |
 | FC-CLIP-RECT | 矩形裁剪 | Canvas.clipRect+ClipOp | 列表视口、溢出隐藏 | PushClipRect/PopClip | ClipRect/ClipRectOp | ClipRectLayer | A | ui/painting/clip_text.go | ClipOp 差异在 render | — |
-| FC-CLIP-RRECT | 圆角裁剪 | Canvas.clipRRect | 卡片/头像裁切 | — | ClipRoundRect | 无 ClipRRectLayer | B/D | render/context_clip.go | 高频 UI 缺口 | P0 |
+| FC-CLIP-RRECT | 圆角裁剪 | Canvas.clipRRect | 卡片/头像裁切 | PushClipRRect | ClipRoundRect | ClipRRectLayer | A | paint_context · scene | 均匀圆角 | — |
 | FC-CLIP-PATH | 路径裁剪 | Canvas.clipPath | 异形遮罩 | — | Clip/ClipPathOp | 无 ClipPathLayer | B/D | render/context_clip.go | — | P1 |
 | FC-CLIP-BOUNDS-LOCAL | 本地裁剪界 | getLocalClipBounds | 优化/命中 | — | 内部 clip 栈 | — | C | context_clip*.go | 未 UI 暴露 | P2 |
 | FC-CLIP-BOUNDS-DEST | 设备裁剪界 | getDestinationClipBounds | damage 对齐 | — | — | — | D | — | 可与 P6 damage 联动 | P6 |
@@ -262,8 +262,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | FT-STRUT | StrutStyle | StrutStyle | 多行稳定行盒 | — | — | — | D | — | — | P2 |
 | FT-ALIGN | 对齐 | TextAlign | 标题居中 | — | Align @ Wrapped | — | B | DrawStringWrapped | 单行 RO 无 | P1 |
 | FT-DIRECTION | 文本方向 | TextDirection | RTL | — | BiDi shaping 路径 | — | B/C | render/text | 未 UI 文档化 | P1 |
-| FT-MAXLINES | 最大行数 | maxLines | 列表副标题 | — | — | — | D | — | — | P1 |
-| FT-OVERFLOW | 溢出省略 | TextOverflow.ellipsis | 长文案 | — | — | — | D | — | 高频列表需求 | P1 |
+| FT-MAXLINES | 最大行数 | maxLines | 列表副标题 | MaxLines/SetMaxLines | — | RenderText | A | text.go | 0=不限 | — |
+| FT-OVERFLOW | 溢出省略 | TextOverflow.ellipsis | 长文案 | Overflow Ellipsis/Clip | — | RenderText | A | DisplayLines | “…” | — |
 | FT-LOCALE | locale | locale | 断行/字体 | — | — | — | D | — | — | P2 |
 | FT-DECORATION | 下划线等 | TextDecoration | 链接 | — | text decoration 若有 | — | B/D | render | 需核对 | P1 |
 | FT-SHADOW | 文字阴影 | shadows | 标题质感 | — | — | — | D | — | 滤镜近似 | P2 |
@@ -313,7 +313,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | FPC-CANVAS | 取 Canvas | PaintingContext.canvas | 底层绘制 | DC *render.Context | Context | — | A | painting/context.go | — | — |
 | FPC-PAINT-CHILD | 绘子节点 | paintChild | 树遍历 | 子 Paint+WithOrigin | — | Box/Absolute 遍历 | A | box.go | — | — |
 | FPC-CLIP-RECT | pushClipRect | PaintingContext.pushClipRect | 视口 | PushClipRect | ClipRect | ClipRectLayer | A | clip_text.go | — | — |
-| FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | — | ClipRoundRect | 无层 | B/D | — | 高频缺口 | P0 |
+| FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | PushClipRRect | ClipRoundRect | ClipRRectLayer | A | paint_context · clip_rrect_test | 均匀圆角 | — |
 | FPC-CLIP-PATH | pushClipPath | pushClipPath | 异形 | — | Clip path | — | B/D | — | — | P1 |
 | FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | — | 滤镜 API | — | B/D | — | — | P2 |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 | P1 |
@@ -334,7 +334,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | A/C | scene/layer.go · transform.go | 命中 AABB；Present 全画 | P1 |
 | FL-OPACITY | 透明层 | OpacityLayer | 淡入 | MutSetOpacity | — | OpacityLayer | A/C | compositing.go | 真合成未接到 Present | P1 |
 | FL-CLIP-RECT | 裁剪层 | ClipRectLayer | 溢出 | — | — | ClipRectLayer | A | layer.go | Build 使用有限 | — |
-| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | — | — | **无** | D | — | — | P1 |
+| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | — | — | **ClipRRectLayer** | A | layer.go · build.go | PushClipRRect | — |
 | FL-CLIP-PATH | 路径裁剪层 | ClipPathLayer | 异形 | — | — | **无** | D | — | — | P2 |
 | FL-PICTURE | 图层层 | PictureLayer | 录制内容 | — | — | PictureLayer+NeedsRaster | C | picture.go | 无 op 缓冲 | P6 |
 | FL-TEXTURE | 纹理层 | TextureLayer | 视频 | — | DrawGPUTexture | **无** | D | — | — | P2 |
@@ -711,10 +711,10 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 |--------|------|------|------|
 | P0 | Stroke* + line style → painting | B | P0 |
 | P0 | MeasureText → RenderText | B/C | P0 |
-| P0 | FillCircle；ClipRRect UI | B | P0 |
+| P0 | FillCircle；ClipRRect UI | A（ClipRRect 已接） | — |
 | P0 | layout/paint 计数接线；分位；CPU/RSS | C/D | P0 |
 | P1 | Radial/Sweep；Wrap 文本；Font；TransformLayer；saveLayer UI；真 VSync | B/C/D | P1 |
-| P2 | Path metrics；可变行高；ellipsis；Backdrop 场景层 | D/B | P2 |
+| P2 | Path metrics；可变行高；Backdrop 场景层 | D/B | P2 |
 | P6 | Picture 显示列表；dirty-rect Present；层 RT；HUD | D/C | **P6 单列** |
 | 远期 | PlatformView；FragmentShader；IME 选区 | D | 远期 |
 
@@ -739,7 +739,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 P1 仍后置（部分）：exhost **真 VSync**、完整 Font 族/Paragraph 富文本。  
 **TransformLayer：** `ui/scene.TransformLayer` + `rendering.RenderTransform` + ClipLayer 窗测 ✅（2026-07-28）。
 
-**P2：** ellipsis/maxLines、path metrics、可变高、Backdrop/Filter 场景层、九宫/圆角图 RO、TransformLayer。  
+**P2：** path metrics、可变高、Backdrop/Filter 场景层、九宫/圆角图 RO（ellipsis/maxLines 已在 P1 落地）。  
 **P3：** 窗测矩阵扩展（Text 轴等）、soak 入库。  
 **P6（单列）：** dirty-rect Present、Picture 录制、层 RT、HUD。
 

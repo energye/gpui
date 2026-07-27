@@ -69,6 +69,14 @@ func (b *LayerBuilder) PushClipRect(x, y, w, h float64) *ClipRectLayer {
 	return c
 }
 
+// PushClipRRect pushes a rounded-rect clip layer (uniform radius).
+func (b *LayerBuilder) PushClipRRect(x, y, w, h, radius float64) *ClipRRectLayer {
+	c := NewClipRRectLayer(x, y, w, h, radius)
+	b.current().Add(c)
+	b.stack = append(b.stack, &c.ContainerLayer)
+	return c
+}
+
 // PushTransform pushes a 2D transform layer (translate / rotate / scale).
 func (b *LayerBuilder) PushTransform(tx, ty, rotation, sx, sy float64) *TransformLayer {
 	t := NewTransformLayer(tx, ty, rotation, sx, sy)

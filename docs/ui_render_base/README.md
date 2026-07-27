@@ -20,10 +20,10 @@
 | 01 | [Pipeline/脏区](./01_pipeline_dirty.md) | A/C | —/P1 | §13 §18 · S2/S4 |
 | 02 | [PaintContext](./02_paint_context.md) | A ✅ | — | §11 §17 · 无 painting |
 | 03 | [几何+Paint/Shader](./03_draw_geometry.md) | A/B | P0✅ | §2 §3 · geometry |
-| 04 | [Path/Clip/saveLayer](./04_path_clip_savelayer.md) | B/C | P0–P2 | §4 §5 · cliplayer |
+| 04 | [Path/Clip/saveLayer](./04_path_clip_savelayer.md) | A/B/C · ClipRRect✅ | P0–P2 | §4 §5 · cliplayer/geometry |
 | 05 | [Transform](./05_transform.md) | A/C ✅部分 | P1 | §6 · TransformLayer |
 | 06 | [图像](./06_image.md) | A/B | —/P1 | §7 · image 轴 |
-| 07 | [文本/Font](./07_text.md) | C | P0–P2 | §8 · 字体策略+text 轴 |
+| 07 | [文本/Font](./07_text.md) | C/A · ellipsis✅ | P0–P2 | §8 · 字体+maxLines/ellipsis |
 | 08 | [Layer/Picture](./08_scene_picture.md) | A/C/D | —/P6 | §12 §9 |
 | 09 | [调度/Vsync](./09_scheduler_vsync.md) | A/C | —/P1 | §14 |
 | 10 | [滚动](./10_scroll_viewport.md) | A/D | —/P2 | §15 |
@@ -41,9 +41,11 @@
 | P0/P1 几何 + Geometry 窗测 | 03 · 91 |
 | 默认**一副**系统 UI 字体；`FontResolver`/`SetDefaultFontPath`；**无 env**；`LoadMultiFace` | 07 |
 | Text 多语示例 | 07 · `ui_render_base_text` |
+| **Text maxLines + ellipsis** | 07 · `RenderText` / text_measure_test |
 | Image 轴 async + Draw 变体 | 06 |
 | TransformLayer + RenderTransform + 测 + cliplayer | 05 · 08 |
 | ClipLayer 轴 Boundary/Clip/Opacity/Transform | 04 · 05 · 91 |
+| **ClipRRect** UI `PushClipRRect` + `scene.ClipRRectLayer` | 04 · 02 · 08 |
 | PerfSoak 轴 | 90 · 91 |
 | 指标并行纪律 | 00 · 90 |
 | 本拆分 2.1（全文母表入分册 + 覆盖表） | README · 91 |

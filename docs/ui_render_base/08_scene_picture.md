@@ -8,7 +8,7 @@
 
 **目标：** 层类型盘点完整；Boundary/Offset/Opacity/ClipRect/Transform 可用；Picture 诚实为旗标直至 P6。  
 **非目标：** 现在宣称 dirty-rect Present 或 GPU 层 RT。  
-**已落地：** Container/Offset/Opacity/ClipRect/Picture/Boundary/**Transform**；Overlay band；COW FramePacket；RasterizeDirty **统计**；Transform 接入 layer_build。
+**已落地：** Container/Offset/Opacity/ClipRect/**ClipRRect**/Picture/Boundary/**Transform**；Overlay band；COW FramePacket；RasterizeDirty **统计**；Transform 接入 layer_build。
 
 ## 2. 依赖（交叉关联）
 
@@ -29,7 +29,7 @@
 | FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | A/C | scene/layer.go · transform.go | 命中 AABB；Present 全画 | P1 |
 | FL-OPACITY | 透明层 | OpacityLayer | 淡入 | MutSetOpacity | — | OpacityLayer | A/C | compositing.go | 真合成未接到 Present | P1 |
 | FL-CLIP-RECT | 裁剪层 | ClipRectLayer | 溢出 | — | — | ClipRectLayer | A | layer.go | Build 使用有限 | — |
-| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | — | — | **无** | D | — | — | P1 |
+| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | — | — | **ClipRRectLayer** | A | layer.go · build.go | PushClipRRect；Present 仍全画 | — |
 | FL-CLIP-PATH | 路径裁剪层 | ClipPathLayer | 异形 | — | — | **无** | D | — | — | P2 |
 | FL-PICTURE | 图层层 | PictureLayer | 录制内容 | — | — | PictureLayer+NeedsRaster | C | picture.go | 无 op 缓冲 | P6 |
 | FL-TEXTURE | 纹理层 | TextureLayer | 视频 | — | DrawGPUTexture | **无** | D | — | — | P2 |

@@ -127,10 +127,38 @@ func buildTextScene(winW, winH float64, face text.Face, fontPath string) *textSc
 		placeLangCard(root, face, x, y, cw, ch, samp.tag, samp.sample, samp.r, samp.g, samp.b)
 	}
 
-	// Bottom band: color pulse + DC multi-script
+	// Bottom band: ellipsis demos + color pulse + DC multi-script
 	nRows := (len(samples) + cols - 1) / cols
 	bandY := top0 + float64(nRows)*(ch+gy+14) + 8
-	root.Place(label("Color pulse (paint-only) · pc.DC multi-script line", 11, 0.95, 0.75, 0.4, face), 12, bandY)
+	root.Place(label("FT-MAXLINES / FT-OVERFLOW ellipsis (RenderText)", 11, 0.95, 0.75, 0.4, face), 12, bandY)
+
+	ellip1 := rendering.NewRenderText("Single-line ellipsis: The quick brown fox jumps over the lazy dog — 超长单行省略号演示文本")
+	ellip1.FontSize = 13
+	ellip1.ApproxCharW = 0.55
+	ellip1.SetMaxWidth(360)
+	ellip1.SetMaxLines(1)
+	ellip1.SetOverflow(rendering.TextOverflowEllipsis)
+	ellip1.SetRepaintBoundary(true)
+	if face != nil {
+		ellip1.SetFace(face)
+	}
+	root.Place(ellip1, 12, bandY+18)
+
+	ellip2 := rendering.NewRenderText("Two-line maxLines=2 ellipsis wraps then cuts: English 中文 日本語 mixed script sample for list subtitles and table cells that must not grow unbounded in height when content is long.")
+	ellip2.FontSize = 12
+	ellip2.ApproxCharW = 0.55
+	ellip2.LineSpacing = 1.25
+	ellip2.SetMaxWidth(520)
+	ellip2.SetMaxLines(2)
+	ellip2.SetOverflow(rendering.TextOverflowEllipsis)
+	ellip2.SetRepaintBoundary(true)
+	if face != nil {
+		ellip2.SetFace(face)
+	}
+	root.Place(ellip2, 12, bandY+42)
+
+	pulseY := bandY + 78
+	root.Place(label("Color pulse (paint-only) · pc.DC multi-script line", 11, 0.95, 0.75, 0.4, face), 12, pulseY)
 
 	s.ColorPulse = rendering.NewRenderText("Color · 颜色 · 色 · 색 · Цвет · لون")
 	s.ColorPulse.FontSize = 15
@@ -157,10 +185,10 @@ func buildTextScene(winW, winH float64, face text.Face, fontPath string) *textSc
 			pc.OriginX+12, pc.OriginY+48, 0, 0, sz.Width-28, 1.3, render.AlignLeft,
 		)
 	})
-	root.Place(s.DCPanel, 12, bandY+18)
-	root.Place(s.ColorPulse, 24, bandY+18+8)
+	root.Place(s.DCPanel, 12, pulseY+18)
+	root.Place(s.ColorPulse, 24, pulseY+18+8)
 
-	noteY := bandY + 130
+	noteY := pulseY + 130
 	if noteY > winH-20 {
 		noteY = winH - 20
 	}

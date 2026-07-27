@@ -1,6 +1,6 @@
 # 07 · 文本 / Font / Paragraph
 
-> **状态（组级）：** C 为主（RO 子集可用） · **Wave：** P0–P2 / 远期 IME · 修订：2026-07-28  
+> **状态（组级）：** C/A 混（wrap·ellipsis·maxLines ✅；Paragraph 仍 D） · **Wave：** P0–P2 / 远期 IME · 修订：2026-07-28  
 > 拆自 `ENGINE_UI_RENDER_BASE`；状态码见 [00_meta](./00_meta.md)  
 > **施工真源分册** — 改状态先改本文件，再同步 [README](./README.md)
 
@@ -16,7 +16,13 @@
 - 多语可选：`LoadMultiFace` / `FontResolver.SetChain`（示例 `ui_render_base_text` 使用）  
 - UI 薄封装：`rendering.TryLoadDefaultFace` / `TryLoadDefaultFaceWith`  
 
-**组内顺序：** Measure→RO → Wrap → Font 策略 ✅ → Paragraph → ellipsis/maxLines → BiDi UI → IME。
+**已落地溢出（2026-07-28）：**  
+- `RenderText.MaxLines` / `SetMaxLines`  
+- `RenderText.Overflow` = `TextOverflowClip` | `TextOverflowEllipsis`（`SetOverflow`）  
+- `DisplayLines` / `DisplayText`：layout 与 paint 共用截断结果  
+- 单测：`TestRenderText_SingleLineEllipsis_*` · `TestRenderText_MaxLines_*`  
+
+**组内顺序：** Measure→RO → Wrap → Font 策略 ✅ → **ellipsis/maxLines ✅** → Paragraph → BiDi UI → IME。
 
 ## 2. 依赖（交叉关联）
 
@@ -46,8 +52,8 @@
 | FT-STRUT | StrutStyle | StrutStyle | 多行稳定行盒 | — | — | — | D | — | — | P2 |
 | FT-ALIGN | 对齐 | TextAlign | 标题居中 | — | Align @ Wrapped | — | B | DrawStringWrapped | 单行 RO 无 | P1 |
 | FT-DIRECTION | 文本方向 | TextDirection | RTL | — | BiDi shaping 路径 | — | B/C | render/text | 未 UI 文档化 | P1 |
-| FT-MAXLINES | 最大行数 | maxLines | 列表副标题 | — | — | — | D | — | — | P1 |
-| FT-OVERFLOW | 溢出省略 | TextOverflow.ellipsis | 长文案 | — | — | — | D | — | 高频列表需求 | P1 |
+| FT-MAXLINES | 最大行数 | maxLines | 列表副标题 | **MaxLines/SetMaxLines** | — | RenderText | A | text.go · text_measure_test | 0=不限 | — |
+| FT-OVERFLOW | 溢出省略 | TextOverflow.ellipsis | 长文案 | **Overflow Ellipsis/Clip** | — | RenderText | A | text.go · DisplayLines | “…” 截断 | — |
 | FT-LOCALE | locale | locale | 断行/字体 | — | — | — | D | — | — | P2 |
 | FT-DECORATION | 下划线等 | TextDecoration | 链接 | — | text decoration 若有 | — | B/D | render | 需核对 | P1 |
 | FT-SHADOW | 文字阴影 | shadows | 标题质感 | — | — | — | D | — | 滤镜近似 | P2 |
@@ -57,7 +63,7 @@
 | FT-POS-FOR-OFFSET | 点击定位 | getPositionForOffset | 光标 | — | — | — | D | — | IME 后置 | 远期 |
 | FT-LINE-METRICS | 行度量 | computeLineMetrics | 排版调试 | — | MeasureMultiline 部分 | — | B/C | render/text.go | — | P1 |
 | FT-CJK | CJK 与回退 | 字体 fallback | 中日韩 | DrawText 可绘 | isCJKText/GPU/MultiFace | RenderText | C | render/text.go | 系统字体策略 | P0 |
-| FT-WRAP | 自动换行 | softWrap | 段落 | — | WordWrap/DrawStringWrapped | — | B | render/text.go | RO 未用 | P0 |
+| FT-WRAP | 自动换行 | softWrap | 段落 | MaxWidth + DisplayLines | WordWrap/WrapText | RenderText | A/B | text.go | 无 Face 时估计折行 | — |
 | FT-SHAPED | 已整形 glyph | shaped glyphs | 性能/复杂文种 | — | DrawShapedGlyphs | — | B | render/text.go | — | P1 |
 | FT-STROKE-TEXT | 描边字 | foreground stroke | 描边标题 | — | StrokeString* | — | B | render/text.go | — | P1 |
 | FT-ANCHOR | 锚点绘制 | 对齐锚 | 居中标签 | — | DrawStringAnchored | — | B | render/text.go | — | P1 |
@@ -71,12 +77,12 @@
 
 | 层 | 路径 |
 |----|------|
-| RO | `ui/rendering/text.go`（Face/MaxWidth/Align/SetColor paint-only） |
+| RO | `ui/rendering/text.go`（Face/MaxWidth/**MaxLines/Overflow**/DisplayLines/SetColor paint-only） |
 | 默认字体 UI | `ui/rendering/default_font.go` |
 | 系统字体 | `render/text/system_font.go` + `system_font_{linux,windows,darwin,other}.go` |
 | shaper/MultiFace | `render/text/*` |
-| 窗测 | `examples/ui_render_base_text`（多语 Multiface **示例侧**） |
-| 测 | `system_font_test.go` · `font_multiface_test.go` · text measure 测 |
+| 窗测 | `examples/ui_render_base_text`（多语 + **ellipsis 演示格**） |
+| 测 | `text_measure_test.go`（含 ellipsis/maxLines）· font 测 |
 
 ## 5. 指标挂钩
 
@@ -93,8 +99,8 @@
 - [x] 单系统默认字体 + 函数配置  
 - [x] Text 轴多语示例（LoadMultiFace）  
 - [x] RenderText MaxWidth wrap  
+- [x] **ellipsis / maxLines**（`TextOverflowEllipsis` + `MaxLines`；layout=paint）  
 - [ ] ParagraphBuilder（D/P1）  
-- [ ] ellipsis / maxLines（D/P1）  
 - [ ] 完整 BiDi 排版 UI  
 - [ ] 选区/IME（远期）
 

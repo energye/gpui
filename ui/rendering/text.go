@@ -1,13 +1,28 @@
 package rendering
 
 import (
+	"strings"
+	"unicode/utf8"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
 
-// RenderText draws text via render.DrawString / DrawStringWrapped.
+// TextOverflow controls how RenderText handles content that exceeds MaxWidth / MaxLines.
+type TextOverflow int
+
+const (
+	// TextOverflowClip truncates extra lines/width without a visual marker (default).
+	TextOverflowClip TextOverflow = iota
+	// TextOverflowEllipsis truncates and appends "…" so layout stays within the budget.
+	TextOverflowEllipsis
+)
+
+const textEllipsis = "…"
+
+// RenderText draws text via render.DrawString / per-line paint.
 // Layout prefers Face.Measure when Face is set; otherwise EstimateTextSize (rune-based).
-// When MaxWidth > 0, layout/paint use wrapped multiline (P1).
+// When MaxWidth > 0, layout/paint wrap. MaxLines + Overflow cap the visible content.
 type RenderText struct {
 	Base
 	Text       string
@@ -21,8 +36,12 @@ type RenderText struct {
 	MaxWidth float64
 	// LineSpacing multiplier for wrapped lines (default 1.2).
 	LineSpacing float64
-	// Align for wrapped text (render.Align*).
+	// Align for wrapped text (render.Align*); multi-line paint uses left for MVP.
 	Align render.Align
+	// MaxLines caps visible lines; 0 = unlimited.
+	MaxLines int
+	// Overflow is applied when content exceeds MaxWidth and/or MaxLines.
+	Overflow TextOverflow
 }
 
 // NewRenderText creates a text node.
@@ -33,6 +52,7 @@ func NewRenderText(textStr string) *RenderText {
 		ApproxCharW: 0.55,
 		LineSpacing: 1.2,
 		Align:       render.AlignLeft,
+		Overflow:    TextOverflowClip,
 	}
 	t.Init(t)
 	return t
@@ -77,69 +97,332 @@ func (t *RenderText) SetMaxWidth(w float64) {
 	t.MarkNeedsPaint()
 }
 
-func (t *RenderText) measureSize() (w, h float64) {
-	fs := t.FontSize
-	if fs <= 0 {
-		fs = 14
+// SetMaxLines caps visible lines (0 = unlimited); dirties layout+paint.
+func (t *RenderText) SetMaxLines(n int) {
+	if t == nil {
+		return
 	}
-	aw := t.ApproxCharW
-	if aw <= 0 {
-		aw = 0.55
+	if n < 0 {
+		n = 0
 	}
-	ls := t.LineSpacing
-	if ls <= 0 {
-		ls = 1.2
+	if t.MaxLines == n {
+		return
+	}
+	t.MaxLines = n
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// SetOverflow sets clip vs ellipsis overflow; dirties layout+paint.
+func (t *RenderText) SetOverflow(o TextOverflow) {
+	if t == nil || t.Overflow == o {
+		return
+	}
+	t.Overflow = o
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+func (t *RenderText) fontSize() float64 {
+	if t == nil || t.FontSize <= 0 {
+		return 14
+	}
+	return t.FontSize
+}
+
+func (t *RenderText) approxCharW() float64 {
+	if t == nil || t.ApproxCharW <= 0 {
+		return 0.55
+	}
+	return t.ApproxCharW
+}
+
+func (t *RenderText) lineSpacing() float64 {
+	if t == nil || t.LineSpacing <= 0 {
+		return 1.2
+	}
+	return t.LineSpacing
+}
+
+// lineHeightLogical is the per-line advance used for layout height and multi-line paint.
+func (t *RenderText) lineHeightLogical() float64 {
+	fs := t.fontSize()
+	ls := t.lineSpacing()
+	if t.Face != nil {
+		m := t.Face.Metrics()
+		lh := m.LineHeight()
+		if lh > 0 {
+			return lh * ls
+		}
+	}
+	return fs * 1.25 * ls
+}
+
+func (t *RenderText) measureLine(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	if t.Face != nil {
+		w, _ := text.Measure(s, t.Face)
+		return w
+	}
+	fs := t.fontSize()
+	return float64(utf8.RuneCountInString(s)) * fs * t.approxCharW()
+}
+
+// wrapLines produces soft-wrapped lines for the full source text (no maxLines yet).
+func (t *RenderText) wrapLines() []string {
+	s := ""
+	if t != nil {
+		s = t.Text
+	}
+	if s == "" {
+		return nil
+	}
+	maxW := 0.0
+	if t != nil {
+		maxW = t.MaxWidth
+	}
+	if maxW <= 0 {
+		// No wrap width: hard breaks only.
+		s = strings.ReplaceAll(s, "\r\n", "\n")
+		s = strings.ReplaceAll(s, "\r", "\n")
+		return strings.Split(s, "\n")
+	}
+	if t.Face != nil {
+		res := text.WrapText(s, t.Face, maxW, text.WrapWord)
+		out := make([]string, len(res))
+		for i, r := range res {
+			out[i] = r.Text
+		}
+		if len(out) == 0 {
+			return []string{""}
+		}
+		return out
+	}
+	return estimateWrapLines(s, maxW, t.fontSize(), t.approxCharW())
+}
+
+// DisplayLines returns the visible lines after wrap + maxLines + overflow.
+// Layout and paint both use this so measured size matches what is drawn.
+func (t *RenderText) DisplayLines() []string {
+	if t == nil {
+		return nil
+	}
+	lines := t.wrapLines()
+	if len(lines) == 0 {
+		return nil
+	}
+	maxL := t.MaxLines
+	maxW := t.MaxWidth
+	overflow := t.Overflow
+
+	truncated := false
+	if maxL > 0 && len(lines) > maxL {
+		lines = append([]string(nil), lines[:maxL]...)
+		truncated = true
 	}
 
-	if t.MaxWidth > 0 {
-		// Wrapped: width capped; height ≈ lines * lineHeight.
-		if t.Face != nil && t.Text != "" {
-			// Approximate line count via face line height + measure each line would need DC;
-			// use Measure on full string width clamp: height from soft estimate.
-			mw, _ := text.Measure(t.Text, t.Face)
-			if mw > t.MaxWidth {
-				// crude line count from char estimate
-				avg := aw * fs
-				if avg < 1 {
-					avg = 1
-				}
-				charsPerLine := t.MaxWidth / avg
-				if charsPerLine < 1 {
-					charsPerLine = 1
-				}
-				// rune count
-				n := float64(len([]rune(t.Text)))
-				lines := n / charsPerLine
-				if lines < 1 {
-					lines = 1
-				}
-				lh := fs * ls * 1.25
-				return t.MaxWidth, lines * lh
+	// Single-line (or last visible line) may still exceed MaxWidth — ellipsize/clip width.
+	if maxW > 0 && len(lines) > 0 {
+		last := len(lines) - 1
+		if t.measureLine(lines[last]) > maxW+0.5 {
+			truncated = true
+			if overflow == TextOverflowEllipsis {
+				lines[last] = ellipsizeToWidth(lines[last], maxW, t)
+			} else {
+				lines[last] = clipToWidth(lines[last], maxW, t)
 			}
-			_, mh := text.Measure(t.Text, t.Face)
-			return t.MaxWidth, mh
+		} else if truncated && overflow == TextOverflowEllipsis {
+			// Dropped lines below: mark last visible line with ellipsis.
+			lines[last] = ellipsizeToWidth(lines[last], maxW, t)
 		}
-		// No face: estimate wrapped height
-		n := float64(len([]rune(t.Text)))
-		avg := aw * fs
-		if avg < 1 {
-			avg = 1
+	} else if truncated && overflow == TextOverflowEllipsis && len(lines) > 0 {
+		// No MaxWidth: still append ellipsis to last line (may grow width slightly).
+		last := len(lines) - 1
+		if !strings.HasSuffix(lines[last], textEllipsis) {
+			lines[last] = lines[last] + textEllipsis
 		}
-		charsPerLine := t.MaxWidth / avg
-		if charsPerLine < 1 {
-			charsPerLine = 1
-		}
-		lines := n / charsPerLine
-		if lines < 1 {
-			lines = 1
-		}
-		return t.MaxWidth, lines * fs * 1.25 * ls
 	}
 
-	if t.Face != nil && t.Text != "" {
-		return text.Measure(t.Text, t.Face)
+	// Also: MaxLines==1 with MaxWidth, wrap produced 1 long line that fits measure
+	// only after ellipsize — handled above via measureLine > maxW.
+
+	return lines
+}
+
+// DisplayText joins DisplayLines with newlines (for debugging / tests).
+func (t *RenderText) DisplayText() string {
+	return strings.Join(t.DisplayLines(), "\n")
+}
+
+func estimateWrapLines(s string, maxW, fs, aw float64) []string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	paras := strings.Split(s, "\n")
+	avg := aw * fs
+	if avg < 1 {
+		avg = 1
 	}
-	return EstimateTextSize(t.Text, fs, aw)
+	var out []string
+	for _, para := range paras {
+		if para == "" {
+			out = append(out, "")
+			continue
+		}
+		// Greedy word pack; break overlong words by rune.
+		words := strings.Fields(para)
+		if len(words) == 0 {
+			out = append(out, "")
+			continue
+		}
+		var line string
+		for _, w := range words {
+			ww := float64(utf8.RuneCountInString(w)) * avg
+			if ww > maxW {
+				// Flush current line, then break word.
+				if line != "" {
+					out = append(out, line)
+					line = ""
+				}
+				runes := []rune(w)
+				for len(runes) > 0 {
+					n := int(maxW / avg)
+					if n < 1 {
+						n = 1
+					}
+					if n > len(runes) {
+						n = len(runes)
+					}
+					// Prefer leaving room if more remains.
+					chunk := string(runes[:n])
+					if float64(utf8.RuneCountInString(chunk))*avg > maxW && n > 1 {
+						n--
+						chunk = string(runes[:n])
+					}
+					out = append(out, chunk)
+					runes = runes[n:]
+				}
+				continue
+			}
+			cand := w
+			if line != "" {
+				cand = line + " " + w
+			}
+			cw := float64(utf8.RuneCountInString(cand)) * avg
+			if line != "" && cw > maxW {
+				out = append(out, line)
+				line = w
+			} else {
+				line = cand
+			}
+		}
+		if line != "" {
+			out = append(out, line)
+		}
+	}
+	if len(out) == 0 {
+		return []string{""}
+	}
+	return out
+}
+
+func ellipsizeToWidth(s string, maxW float64, t *RenderText) string {
+	if maxW <= 0 {
+		if strings.HasSuffix(s, textEllipsis) {
+			return s
+		}
+		return s + textEllipsis
+	}
+	if t.measureLine(s) <= maxW {
+		if !strings.HasSuffix(s, textEllipsis) {
+			// Caller wants a marker because lower lines were dropped.
+			cand := s + textEllipsis
+			if t.measureLine(cand) <= maxW {
+				return cand
+			}
+			// Need to shrink to fit ellipsis.
+			s = s // fall through to binary search on s+ellipsis
+		} else {
+			return s
+		}
+	}
+	runes := []rune(s)
+	// Remove existing trailing ellipsis runes before re-fitting.
+	for strings.HasSuffix(string(runes), textEllipsis) {
+		runes = runes[:len(runes)-utf8.RuneCountInString(textEllipsis)]
+	}
+	lo, hi := 0, len(runes)
+	best := textEllipsis
+	if t.measureLine(best) > maxW {
+		return ""
+	}
+	for lo <= hi {
+		mid := (lo + hi) / 2
+		cand := string(runes[:mid]) + textEllipsis
+		if t.measureLine(cand) <= maxW {
+			best = cand
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	return best
+}
+
+func clipToWidth(s string, maxW float64, t *RenderText) string {
+	if t.measureLine(s) <= maxW {
+		return s
+	}
+	runes := []rune(s)
+	lo, hi := 0, len(runes)
+	best := ""
+	for lo <= hi {
+		mid := (lo + hi) / 2
+		cand := string(runes[:mid])
+		if t.measureLine(cand) <= maxW {
+			best = cand
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	return best
+}
+
+func (t *RenderText) measureSize() (w, h float64) {
+	lines := t.DisplayLines()
+	if len(lines) == 0 {
+		fs := t.fontSize()
+		return 0, fs * 1.25
+	}
+	lh := t.lineHeightLogical()
+	h = float64(len(lines)) * lh
+
+	var longest float64
+	for _, line := range lines {
+		lw := t.measureLine(line)
+		if lw > longest {
+			longest = lw
+		}
+	}
+
+	maxW := t.MaxWidth
+	if maxW > 0 {
+		// Budgeted width: never exceed MaxWidth; use MaxWidth when content fills the box
+		// (wrap / ellipsis / multi-line), else shrink to longest line for short labels.
+		if longest >= maxW-0.5 || len(lines) > 1 || t.MaxLines > 0 || t.Overflow == TextOverflowEllipsis {
+			w = maxW
+		} else {
+			w = longest
+		}
+		if w > maxW {
+			w = maxW
+		}
+		return w, h
+	}
+
+	return longest, h
 }
 
 // Layout implements RenderObject.
@@ -164,7 +447,8 @@ func (t *RenderText) Paint(pc *PaintContext) {
 		return
 	}
 	pc.NotePaintVisit()
-	if t.Text != "" {
+	lines := t.DisplayLines()
+	if len(lines) > 0 {
 		a := t.A
 		if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
 			a = 1
@@ -172,16 +456,15 @@ func (t *RenderText) Paint(pc *PaintContext) {
 		if t.Face != nil && pc.DC != nil {
 			pc.DC.SetFont(t.Face)
 		}
-		if t.MaxWidth > 0 {
-			ls := t.LineSpacing
-			if ls <= 0 {
-				ls = 1.2
+		fs := t.fontSize()
+		lh := t.lineHeightLogical()
+		// Y uses FontSize as first baseline (single-line MVP convention); subsequent lines step by lh.
+		for i, line := range lines {
+			if line == "" {
+				continue
 			}
-			align := t.Align
-			drawTextWrapped(pc, t.Text, 0, 0, t.MaxWidth, ls, align, t.R, t.G, t.B, a)
-		} else {
-			// Y uses FontSize as a simple baseline offset (single-line MVP).
-			drawTextColored(pc, t.Text, 0, t.FontSize, t.R, t.G, t.B, a)
+			y := fs + float64(i)*lh
+			drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
 		}
 	}
 	t.clearPaintDirty()

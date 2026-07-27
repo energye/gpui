@@ -12,11 +12,11 @@
 | 3 | [11_coords_hittest](./11_coords_hittest.md) | A | 逆 CTM hit 后置 |
 | 4 | [09_scheduler_vsync](./09_scheduler_vsync.md) | A/C | **真 VSync** |
 | 5 | [03_draw_geometry](./03_draw_geometry.md) | A/B ✅窗测 | P2 vertices |
-| 6 | [04_path_clip_savelayer](./04_path_clip_savelayer.md) | B/C | ClipRRect UI · metrics |
+| 6 | [04_path_clip_savelayer](./04_path_clip_savelayer.md) | A/B/C | ClipRRect ✅ · metrics/nest 文档 |
 | 7 | [08_scene_picture](./08_scene_picture.md) | A/C/D | P6 picture/damage |
 | 8 | [05_transform](./05_transform.md) | A/C ✅部分 | 逆 hit · 真合成 |
 | 9 | [06_image](./06_image.md) | A/B ✅窗测 | Dispose 规范 |
-| 10 | [07_text](./07_text.md) | C ✅策略/窗测 | Paragraph · ellipsis |
+| 10 | [07_text](./07_text.md) | C/A · ellipsis✅ | Paragraph · BiDi |
 | 11 | [10_scroll_viewport](./10_scroll_viewport.md) | A/D | 可变高 · base 轴 |
 | 12 | [12_filter_shadow](./12_filter_shadow.md) | B/D | 按需 |
 | ∞ | [90_metrics](./90_metrics.md) | 并行 | 每 PR |
@@ -55,8 +55,8 @@
 | Wave | 内容 | 2026-07-28 |
 |------|------|------------|
 | P0 | 几何/指标/Geometry | ✅ |
-| P1 | wrap/path/layer/**TransformLayer**/Image·Text 轴 | 主路径 ✅；VSync/Paragraph 后置 |
-| P2 | ellipsis、path metrics、可变高、Filter 层 | ⬜ |
+| P1 | wrap/path/layer/**TransformLayer**/Image·Text 轴 · **ellipsis/maxLines** | 主路径 ✅；VSync/Paragraph 后置 |
+| P2 | path metrics、可变高、Filter 层 | ⬜ |
 | P3 | soak 体系/baseline 库 | 窗测有 · 库未自动化 |
 | P6 | damage Present · Picture 录制 · HUD | ⬜ |
 | P7/远期 | Ant · PlatformView · IME | ⬜ |
@@ -66,8 +66,9 @@
 | 优先级 | 缺口 | Wave |
 |--------|------|------|
 | P1 | exhost 真 VSync | P1 |
-| P1 | Paragraph / ellipsis / maxLines | P1 |
-| P1 | ClipRRect UI/层 | P0–P1 |
+| P1 | ParagraphBuilder（富文本） | P1 |
+| P1 | ~~ellipsis / maxLines~~ ✅ | — |
+| P1 | ~~ClipRRect UI/层~~ ✅ | — |
 | P1 | Image dispose 规范 | P1 |
 | P2 | path metrics · 可变行高 · Backdrop Layer | P2 |
 | P6 | Picture 显示列表 · dirty Present · HUD | P6 |

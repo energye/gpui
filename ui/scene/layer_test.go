@@ -87,6 +87,57 @@ func TestTransformLayer_Builder(t *testing.T) {
 	}
 }
 
+func TestClipRRectLayer_Builder(t *testing.T) {
+	scene.ResetLayerIDGen()
+	b := scene.NewLayerBuilder()
+	cr := b.PushClipRRect(2, 4, 100, 80, 12)
+	b.AddPicture(true)
+	b.Pop()
+	if cr.Kind() != "clip_rrect" {
+		t.Fatalf("kind=%s want clip_rrect (distinct from clip_rect)", cr.Kind())
+	}
+	if cr.X != 2 || cr.Y != 4 || cr.W != 100 || cr.H != 80 || cr.Radius != 12 {
+		t.Fatalf("fields %+v", cr)
+	}
+	// Kind must differ from plain clip_rect.
+	plain := scene.NewClipRectLayer(0, 0, 10, 10)
+	if plain.Kind() == cr.Kind() {
+		t.Fatalf("clip_rrect kind must not equal clip_rect (%q)", plain.Kind())
+	}
+	var foundRRect, foundRect bool
+	scene.Walk(b.Root(), func(l scene.Layer) {
+		switch l.Kind() {
+		case "clip_rrect":
+			foundRRect = true
+			if rr, ok := l.(*scene.ClipRRectLayer); !ok || rr.Radius != 12 {
+				t.Fatalf("walk type/radius: %T %+v", l, l)
+			}
+		case "clip_rect":
+			foundRect = true
+		}
+	})
+	if !foundRRect {
+		t.Fatal("clip_rrect not in tree after PushClipRRect")
+	}
+	if foundRect {
+		t.Fatal("unexpected clip_rect in rrect-only tree")
+	}
+	// Nested push/pop stack integrity.
+	b2 := scene.NewLayerBuilder()
+	b2.PushClipRect(0, 0, 50, 50)
+	inner := b2.PushClipRRect(5, 5, 40, 40, 8)
+	b2.AddPicture(false)
+	b2.Pop() // rrect
+	b2.Pop() // rect
+	if inner.Kind() != "clip_rrect" {
+		t.Fatalf("inner kind=%s", inner.Kind())
+	}
+	n := scene.Walk(b2.Root(), nil)
+	if n < 3 {
+		t.Fatalf("walk count=%d want >=3 (container+rect+rrect+pic)", n)
+	}
+}
+
 func TestEnsureOverlayBand(t *testing.T) {
 	o := scene.EnsureOverlayBand(nil)
 	if o == nil || o.Kind() != "container" {

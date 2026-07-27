@@ -27,7 +27,7 @@
 | FPC-CANVAS | 取 Canvas | PaintingContext.canvas | 底层绘制 | DC *render.Context | Context | — | A | paint_context.go | — | — |
 | FPC-PAINT-CHILD | 绘子节点 | paintChild | 树遍历 | 子 Paint+WithOrigin | — | Box/Absolute 遍历 | A | box.go | — | — |
 | FPC-CLIP-RECT | pushClipRect | PaintingContext.pushClipRect | 视口 | PushClipRect | ClipRect | ClipRectLayer | A | paint_context.go · viewport | — | — |
-| FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | — | ClipRoundRect | 无层 | B/D | — | 高频缺口 | P0 |
+| FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | **PushClipRRect** | ClipRoundRect | **ClipRRectLayer** | A | paint_context.go · clip_rrect_test | 均匀圆角 | — |
 | FPC-CLIP-PATH | pushClipPath | pushClipPath | 异形 | — | Clip path | — | B/D | — | — | P1 |
 | FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | — | 滤镜 API | — | B/D | — | — | P2 |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 | P1 |

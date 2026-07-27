@@ -4,7 +4,7 @@
 
 - **§2** `dart:ui.Canvas` 几何绘制（`FC-DRAW-*`）
 - **§3** 描边样式（`StrokeStyle`）
-- **§5** `PushClipRoundRect`（`FC-CLIP-RRECT` 的 UI 子集）
+- **§5** `PaintContext.PushClipRRect`（`FC-CLIP-RRECT` 库 API）
 - **§24** 窗测轴 `Geometry`
 
 ## 覆盖（P0 `ui/painting` = 状态 A）
@@ -19,7 +19,7 @@
 | Lines | `StrokeLine` | FC-DRAW-LINE |
 | Fill circle | `FillCircle` | FC-DRAW-CIRCLE |
 | Stroke circle | `StrokeCircle` | FC-DRAW-CIRCLE stroke |
-| Clip rrect | `PushClipRoundRect` / `PopClip` | FC-CLIP-RRECT |
+| Clip rrect | `PushClipRRect` / `PopClip` | FC-CLIP-RRECT |
 | Radial gradient | `FillRadialGradient2` | FS-RADIAL (**P1**) |
 | Path triangle | `FillPath` / `StrokePath` | FC-DRAW-PATH (**P1**) |
 | Oval + Arc | `FillOval` / `StrokeArc` | FC-DRAW-OVAL / ARC (**P1**) |

@@ -1,6 +1,6 @@
 # 04 · Path 构建 · Clip · saveLayer
 
-> **状态（组级）：** B/C 为主（部分 A） · **Wave：** P0–P2 · 修订：2026-07-28  
+> **状态（组级）：** A/B/C（ClipRRect UI+层 ✅） · **Wave：** P0–P2 · 修订：2026-07-28  
 > 拆自 `ENGINE_UI_RENDER_BASE`；状态码见 [00_meta](./00_meta.md)  
 > **施工真源分册** — 改状态先改本文件，再同步 [README](./README.md)
 
@@ -8,7 +8,7 @@
 
 **目标：** Path 原语、裁剪栈、saveLayer 预算；Clip 窗测可见。  
 **非目标：** Path metrics 动画（P2）；全画布 saveLayer 滥用。  
-**已落地：** render Path/ClipOp；`SaveLayerBudget`；cliplayer **ClipRect 溢出滚动** 面板。  
+**已落地：** render Path/ClipOp；`SaveLayerBudget`；cliplayer **ClipRect 溢出滚动** 面板；**`PaintContext.PushClipRRect` / `PopClip`**；**`scene.ClipRRectLayer` + `PushClipRRect`**；geometry 窗测走库 API。  
 **组内顺序：** Path 原语 → Clip rect/op → nest depth → saveLayer 预算 → metrics/conic。
 
 ## 2. 依赖（交叉关联）
@@ -50,7 +50,7 @@
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 | Wave |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|------|
-| FClip-SAVE-PAIR | save/restore 裁剪栈 | 与 Canvas save | 嵌套裁剪 | PushClipRect/PopClip | Push/Pop+Clip* | — | A/B | paint_context.go · viewport | 仅 rect 友好封装 | P0 |
+| FClip-SAVE-PAIR | save/restore 裁剪栈 | 与 Canvas save | 嵌套裁剪 | PushClipRect/**PushClipRRect**/PopClip | Push/Pop+Clip* | ClipRect/ClipRRect Layer | A/B | paint_context.go · layer.go | rrect UI 已接 | — |
 | FClip-OP-INTERSECT | ClipOp.intersect | ClipOp | 默认相交 | — | ClipOpIntersect | — | B | clip_op.go | — | P1 |
 | FClip-OP-DIFFERENCE | ClipOp.difference | ClipOp | 挖洞 | — | ClipOpDifference | — | B | clip_op.go | — | P1 |
 | FClip-NEST-DEPTH | 深层嵌套 clip | 实现限制 | 复杂卡片 | 有限 | clip 栈+测试 | — | C | context_clip_depth_test.go | 需文档化上限 | P1 |
@@ -64,10 +64,11 @@
 | 层 | 路径 |
 |----|------|
 | Path | `render/path.go` · `path_boolean.go` |
-| Clip | `render/context_clip*.go` · `paint_context` pushClipRect |
+| Clip | `render/context_clip*.go` · `paint_context.PushClipRect` / **`PushClipRRect`** / `PopClip` |
 | saveLayer | render `PushLayer`/`PopLayer` · `SaveLayerBudget` |
-| 窗测 | `examples/ui_render_base_cliplayer` clip 面板 |
-| scene | `ClipRectLayer` · `PushClipRect` |
+| 窗测 | `examples/ui_render_base_cliplayer` clip 面板 · `ui_render_base_geometry` rrect |
+| scene | `ClipRectLayer` · **`ClipRRectLayer`** · `PushClipRect` / **`PushClipRRect`** |
+| 测 | `ui/rendering/clip_rrect_test.go` · `ui/scene` `TestClipRRectLayer_Builder` |
 
 ## 5. 指标挂钩
 
@@ -83,7 +84,7 @@
 
 - [x] Path/clip render 单测存在  
 - [x] cliplayer clip 面板  
-- [ ] ClipRRect **UI/层** 友好封装（仍 B/D）  
+- [x] ClipRRect **UI/层** 友好封装（`PushClipRRect` + `ClipRRectLayer`；测绿）  
 - [ ] Path.computeMetrics（D/P2）  
 - [ ] 文档化 clip 嵌套上限
 

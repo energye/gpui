@@ -69,7 +69,9 @@ func fillRect(pc *PaintContext, x, y, w, h, r, g, b, a float64) {
 	_ = pc.DC.Fill()
 }
 
-func pushClipRect(pc *PaintContext, x, y, w, h float64) {
+// PushClipRect clips subsequent draws to a logical-axis-aligned rect (Y-down),
+// origin-relative. Pairs with PopClip (render.Push/Pop).
+func (pc *PaintContext) PushClipRect(x, y, w, h float64) {
 	if pc == nil || pc.DC == nil || w <= 0 || h <= 0 {
 		return
 	}
@@ -78,12 +80,33 @@ func pushClipRect(pc *PaintContext, x, y, w, h float64) {
 	pc.DC.ClipRect(ax, ay, w, h)
 }
 
-func popClip(pc *PaintContext) {
+// PushClipRRect clips subsequent draws to a rounded rect in logical coordinates
+// (uniform corner radius). radius<=0 falls back to a hard rect clip.
+// Origin-aware like PushClipRect; pairs with PopClip.
+func (pc *PaintContext) PushClipRRect(x, y, w, h, radius float64) {
+	if pc == nil || pc.DC == nil || w <= 0 || h <= 0 {
+		return
+	}
+	ax, ay := pc.Abs(x, y)
+	pc.DC.Push()
+	if radius <= 0 {
+		pc.DC.ClipRect(ax, ay, w, h)
+		return
+	}
+	pc.DC.ClipRoundRect(ax, ay, w, h, radius)
+}
+
+// PopClip restores the clip/transform stack after PushClipRect or PushClipRRect.
+func (pc *PaintContext) PopClip() {
 	if pc == nil || pc.DC == nil {
 		return
 	}
 	pc.DC.Pop()
 }
+
+// Package-level aliases used by RO paint paths in this package.
+func pushClipRect(pc *PaintContext, x, y, w, h float64) { pc.PushClipRect(x, y, w, h) }
+func popClip(pc *PaintContext)                          { pc.PopClip() }
 
 func drawImageBuf(pc *PaintContext, img *render.ImageBuf, x, y, dstW, dstH float64) {
 	if pc == nil || pc.DC == nil || img == nil {
