@@ -166,6 +166,59 @@ func (t *TransformLayer) EffectiveScale() (sx, sy float64) {
 	return sx, sy
 }
 
+// ColorFilterLayer applies a 4×5 color matrix to descendants at composite time
+// (Flutter ColorFilterLayer subset). Matrix is row-major [20]float32 like
+// render.ApplyColorMatrix. Identity leaves colors unchanged.
+// Present-time application is still limited (full-frame Present); this type
+// retains the filter intent in the scene tree.
+type ColorFilterLayer struct {
+	ContainerLayer
+	Matrix [20]float32
+}
+
+// NewColorFilterLayer creates a color-filter layer. Pass grayscale/sepia/etc. matrix.
+func NewColorFilterLayer(matrix [20]float32) *ColorFilterLayer {
+	c := &ColorFilterLayer{Matrix: matrix}
+	c.id = NextLayerID()
+	return c
+}
+
+// NewGrayscaleColorFilterLayer builds a standard luminance grayscale matrix layer.
+func NewGrayscaleColorFilterLayer() *ColorFilterLayer {
+	// ITU-R BT.601 luma → R=G=B.
+	const (
+		lr = float32(0.299)
+		lg = float32(0.587)
+		lb = float32(0.114)
+	)
+	return NewColorFilterLayer([20]float32{
+		lr, lg, lb, 0, 0,
+		lr, lg, lb, 0, 0,
+		lr, lg, lb, 0, 0,
+		0, 0, 0, 1, 0,
+	})
+}
+
+func (c *ColorFilterLayer) Kind() string { return "color_filter" }
+
+// ImageFilterLayer applies a blur (or future image filter) to descendants
+// (Flutter ImageFilterLayer subset — blur radius first). Radius <= 0 is a no-op
+// at apply time. Not a full BackdropFilterLayer (no live background sampling).
+type ImageFilterLayer struct {
+	ContainerLayer
+	// BlurRadius is the Gaussian blur sigma/radius in logical px (uniform).
+	BlurRadius float64
+}
+
+// NewImageFilterLayer creates an image-filter layer with uniform blur radius.
+func NewImageFilterLayer(blurRadius float64) *ImageFilterLayer {
+	i := &ImageFilterLayer{BlurRadius: blurRadius}
+	i.id = NextLayerID()
+	return i
+}
+
+func (i *ImageFilterLayer) Kind() string { return "image_filter" }
+
 // PictureLayer holds a retained picture (or a re-record flag for P3 raster).
 type PictureLayer struct {
 	id      uint64

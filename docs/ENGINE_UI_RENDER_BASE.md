@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.14** | 日期：2026-07-28  
+> **版本：1.15** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -175,8 +175,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FP-SHADER | 着色器 | Paint.shader | 渐变/图着色 | FillLinear/Radial/Sweep | SetFillBrush 等 | — | **A**/B | draw.go | 图着色 ImageShader 仍 B |
 | FP-BLEND | 混合模式 | Paint.blendMode | 叠加/遮罩 | — | SetBlendMode / PushLayer blend | — | B | context_layer.go | UI 未暴露 |
 | FP-MASK-FILTER | 遮罩模糊 | Paint.maskFilter | 软阴影感 | — | ApplyBlur 等 | — | B | filter_ops.go | 非 Paint 绑定模型 |
-| FP-COLOR-FILTER | 颜色滤镜 | Paint.colorFilter | 置灰禁用图标 | — | ApplyColorMatrix 等 | — | B | filter_ops.go | — |
-| FP-IMAGE-FILTER | 图像滤镜 | Paint.imageFilter | 模糊背景 | — | ApplyImageFilterGraph/Blur | — | B | filter_ops.go | — |
+| FP-COLOR-FILTER | 颜色滤镜 | Paint.colorFilter | 置灰禁用图标 | **ApplyGrayscale/ColorMatrix** | ApplyColorMatrix 等 | ColorFilterLayer | **A/B** | filter_draw.go · filter_ops | UI 全画布 apply；非 Paint 对象绑定 |
+| FP-IMAGE-FILTER | 图像滤镜 | Paint.imageFilter | 模糊背景 | **ApplyBlur** | ApplyImageFilterGraph/Blur | ImageFilterLayer | **A/B** | filter_draw.go · filter_ops | UI 全画布 blur；非图滤镜图 DAG 产品 |
 | FP-FILTER-QUALITY | 采样质量 | Paint.filterQuality | 缩放图锐利度 | — | DrawImageEx 选项部分 | — | C | context_image.go | 对齐不完全 |
 | FP-INVERT | 反色 | Paint.invertColors | 无障碍高对比 | — | ApplyInvert 类 | — | B/D | filter_ops.go | 核对实现 |
 | FS-LINEAR | 线性渐变 | Gradient.linear | AppBar/按钮 | FillLinearGradient | NewLinearGradientBrush | — | **A** | draw.go | 两 stop 便利 API |
@@ -306,8 +306,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
 | FF-SHADOW-PATH | 路径阴影 | Canvas.drawShadow | 卡片海拔 | — | ApplyDropShadow 近似 | — | B | filter_ops.go | — |
-| FF-BLUR | 高斯模糊 | ImageFilter.blur | 毛玻璃 | — | ApplyBlur/ApplyBlurXY | 无 Backdrop Layer 场景 | B | filter_ops.go | — |
-| FF-COLOR-MATRIX | 颜色矩阵 | ColorFilter.matrix | 置灰 | — | ApplyColorMatrix | — | B | filter_ops.go | — |
+| FF-BLUR | 高斯模糊 | ImageFilter.blur | 毛玻璃 | **ApplyBlur** | ApplyBlur/ApplyBlurXY | **ImageFilterLayer** | **A/C** | filter_draw · scene/layer · filter_*_test | 场景层+UI apply；Backdrop 产品仍开；Present 全画 |
+| FF-COLOR-MATRIX | 颜色矩阵 | ColorFilter.matrix | 置灰 | **ApplyGrayscale/ColorMatrix** | ApplyColorMatrix | **ColorFilterLayer** | **A/C** | filter_draw · scene · filter_*_test | 场景层+UI apply；Present 合成仍开 |
 | FF-BLEND-LAYER | 混合合成 | saveLayer+blend | 叠色 | — | SetBlendMode/PushLayer | — | B | context_layer.go | — |
 | FF-MASK | 遮罩层 | ShaderMask/saveLayer mask | 渐变淡出 | — | PushMaskLayer | — | B | context_layer.go | — |
 | FF-BACKDROP | 背景滤镜 | BackdropFilter | 毛玻璃导航 | — | PushBackdropLayer | 无 FL-BACKDROP 场景层 | B/D | m4_extensions.go | — |
@@ -324,7 +324,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FPC-CLIP-RECT | pushClipRect | PaintingContext.pushClipRect | 视口 | PushClipRect | ClipRect | ClipRectLayer | A | paint_context.go | 层接线有限 |
 | FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | PushClipRRect · RenderClipRRect | ClipRoundRect | ClipRRectLayer RO 接线 | **A** | clip_rrect.go · layer_build · clip_rrect_layer_test | 均匀圆角；Present 仍全画 |
 | FPC-CLIP-PATH | pushClipPath | pushClipPath | 异形 | — | Clip path | — | B/D | — | — |
-| FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | — | 滤镜 API | — | B/D | — | — |
+| FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | Apply* 全画布 | 滤镜 API | ColorFilterLayer Builder | **C** | scene/build · filter_draw | 层类型有；RO push 子树隔离仍 C |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 |
 | FPC-TRANSFORM | pushTransform | pushTransform | 子树变换 | RenderTransform | CTM | TransformLayer | A/C | transform.go · layer_build · transform_hit_test | 逆 hit 已接；**非**通用 pushTransform/Matrix4 API |
 | FPC-LAYER | pushLayer/addLayer | pushLayer | 自定义层 | — | — | LayerBuilder 有限 | C | scene/build.go | — |
@@ -349,9 +349,9 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FL-TEXTURE | 纹理层 | TextureLayer | 视频 | — | DrawGPUTexture | **无** | D | — | — |
 | FL-PLATFORM-VIEW | 平台视图 | PlatformViewLayer | WebView/地图 | — | — | **无** | D | — | — |
 | FL-SHADER-MASK | 着色遮罩 | ShaderMaskLayer | 渐变淡出列表 | — | Mask 近似 | **无** | D | — | — |
-| FL-BACKDROP | 背景滤镜层 | BackdropFilterLayer | 毛玻璃 | — | PushBackdropLayer | **无** | D | — | — |
-| FL-COLOR-FILTER | 颜色滤镜层 | ColorFilterLayer | 子树置灰 | — | ApplyColorMatrix | **无** | D | — | — |
-| FL-IMAGE-FILTER | 图像滤镜层 | ImageFilterLayer | 模糊子树 | — | ApplyBlur | **无** | D | — | — |
+| FL-BACKDROP | 背景滤镜层 | BackdropFilterLayer | 毛玻璃 | — | PushBackdropLayer | **无** | D | — | 真背景采样产品仍开 |
+| FL-COLOR-FILTER | 颜色滤镜层 | ColorFilterLayer | 子树置灰 | ApplyGrayscale | ApplyColorMatrix | **ColorFilterLayer** | **A/C** | scene/layer.go · build · layer_test | 类型+Builder；Present 全画/无真子树合成 |
+| FL-IMAGE-FILTER | 图像滤镜层 | ImageFilterLayer | 模糊子树 | ApplyBlur | ApplyBlur | **ImageFilterLayer** | **A/C** | scene/layer.go · build · layer_test | blur radius；非 Backdrop；Present 全画 |
 | FL-LEADER | LeaderLayer | LeaderLayer | 跟随定位锚点 | — | — | **无** | D | — | Overlay 高级 |
 | FL-FOLLOWER | FollowerLayer | FollowerLayer | Tooltip 跟随 | — | — | **无** | D | — | — |
 | FL-ANNOTATED | 注解层 | AnnotatedRegionLayer | 语义/系统 UI | semantics 薄 | — | — | C | ui/semantics | 非 Layer 实现 |
@@ -668,7 +668,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 8 | Transform 层 §6 | 3,7 | ✅/🔄 | 逆 CTM hit；TransformLayer | 同 7；旋转 hitch 可解释 | **cliplayer** |
 | 9 | 图像 §7 | 3,7 | ✅/🔄 | Nine/Round UI；dispose | RSS/Dispose；解码不堵 UI | **image** |
 | 10 | 文本/Paragraph §8 | 3,5 | ✅/🔄 | Font→RO；maxLines/ellipsis | 文本帧时；(有则) atlas | **text** |
-| 11 | 滤镜/阴影层 §10§12 | 7,8 | ⬜ | 滤镜/层测 | CPU/RSS；saveLayer 预算 | cliplayer 或新轴 |
+| 11 | 滤镜/阴影层 §10§12 | 7,8 | ✅/🔄 | Color/ImageFilter 层+Apply | CPU/RSS；saveLayer 预算 | **cliplayer** |
 | 12 | 滚动/视口 §15 | 3,7 | 🔄 | virtual_list；S5/S6 | **bind** 上界；layout 不风暴 | **scroll** |
 | 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ⬜ | picture/damage 契约 | damage 面积等；禁全清冒充 | 专用/PerfSoak |
 | — | 指标骨架本身 §20 | — | 🔄 | scheduler metrics | 全表逐步接线 | **perfsoak** |
@@ -685,7 +685,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 8 | **逆 CTM hit ✅**；仍开：通用 pushTransform/Matrix4；Present 层合成 |
 | 9 | **Nine/Round UI ✅**；仍开：Atlas；Circular UI 门面；精细 SrcRect UI |
 | 10 | **Font 接通 RO ✅**；仍开：**全量 Paragraph**；族名字符串 API；装饰/strut/locale |
-| 11 | Backdrop/Filter **场景层** |
+| 11 | **ColorFilter/ImageFilter 场景层+UI Apply ✅**；仍开：Backdrop 产品；Present 滤镜合成；真 saveLayer 隔离；drop-shadow UI |
 | 12 | 完整可变 sliver；Physics |
 | 13 | 显示列表；dirty-rect Present |
 | 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
@@ -701,6 +701,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | TransformLayer + RenderTransform + **逆 CTM hit** | transform.go · transform_hit_test · layer_build · cliplayer | 中心 rotate+scale 逆 hit；**非** Matrix4/通用 pushTransform；Present 全画 |
 | Text maxLines/ellipsis；最小多 span | text · paragraph | ≠ 全量 Paragraph |
 | **Font 接通 RenderText（序10）** | `SetFace` · `SetFontSize` · `effectiveFace` · `text_font_ro_test` | 有 Face 真测+DC.SetFont；全量 ParagraphBuilder 仍 C |
+| **Filter 场景层+UI Apply（序11）** | `ColorFilterLayer` · `ImageFilterLayer` · `ApplyGrayscale/Blur` · filter_*_test | Backdrop/Present 合成/saveLayer 隔离仍开 |
 | Image Dispose 所有权 | image_dispose_test | — |
 | **Image Nine/Round UI（序9）** | `image_draw.go` · `image_draw_test` · image 轴 | Atlas/Circular UI 仍开；per-corner 圆角图仍开 |
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
@@ -729,7 +730,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.14** | **序10** Font 接通 RenderText：SetFontSize + faceForSize/effectiveFace 测绘同路径 + text_font_ro_test；全量 Paragraph 仍开 |
+| **1.15** | **序11** ColorFilterLayer/ImageFilterLayer + LayerBuilder；UI ApplyGrayscale/Blur/ColorMatrix + 像素单测；Backdrop/Present 合成仍开 |
+| 1.14 | **序10** Font 接通 RenderText：SetFontSize + faceForSize/effectiveFace 测绘同路径 + text_font_ro_test；全量 Paragraph 仍开 |
 | 1.13 | **序9** DrawImageRounded/DrawImageNine/DrawImageBuf UI 门面 + image_draw_test + image 轴接线；Atlas 仍开 |
 | 1.12 | **序8** RenderTransform 逆 CTM hit（中心 rotate+scale）+ transform_hit_test；通用 pushTransform/Present 合成仍开 |
 | 1.11 | **序7** ClipRRectLayer RO→BuildLayerTree：RenderClipRRect + layer_build + 单测 + cliplayer；FL-CLIP-RRECT→A/C；ClipPath/saveLayer 仍开 |

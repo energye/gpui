@@ -85,6 +85,30 @@ func (b *LayerBuilder) PushTransform(tx, ty, rotation, sx, sy float64) *Transfor
 	return t
 }
 
+// PushColorFilter pushes a ColorFilterLayer (4×5 matrix on descendants).
+func (b *LayerBuilder) PushColorFilter(matrix [20]float32) *ColorFilterLayer {
+	c := NewColorFilterLayer(matrix)
+	b.current().Add(c)
+	b.stack = append(b.stack, &c.ContainerLayer)
+	return c
+}
+
+// PushGrayscaleFilter pushes a ColorFilterLayer with a standard grayscale matrix.
+func (b *LayerBuilder) PushGrayscaleFilter() *ColorFilterLayer {
+	c := NewGrayscaleColorFilterLayer()
+	b.current().Add(c)
+	b.stack = append(b.stack, &c.ContainerLayer)
+	return c
+}
+
+// PushImageFilter pushes an ImageFilterLayer with uniform blur radius.
+func (b *LayerBuilder) PushImageFilter(blurRadius float64) *ImageFilterLayer {
+	i := NewImageFilterLayer(blurRadius)
+	b.current().Add(i)
+	b.stack = append(b.stack, &i.ContainerLayer)
+	return i
+}
+
 // AddPicture appends a picture layer to the current container.
 func (b *LayerBuilder) AddPicture(needsRaster bool) *PictureLayer {
 	p := NewPictureLayer()

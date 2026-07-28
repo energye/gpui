@@ -87,6 +87,81 @@ func TestTransformLayer_Builder(t *testing.T) {
 	}
 }
 
+func TestColorFilterLayer_Builder(t *testing.T) {
+	scene.ResetLayerIDGen()
+	b := scene.NewLayerBuilder()
+	cf := b.PushGrayscaleFilter()
+	b.AddPicture(true)
+	b.Pop()
+	if cf.Kind() != "color_filter" {
+		t.Fatalf("kind=%s want color_filter", cf.Kind())
+	}
+	// Grayscale matrix: R row luma coeffs non-zero and equal across RGB rows for R/G/B out.
+	if cf.Matrix[0] < 0.2 || cf.Matrix[1] < 0.4 || cf.Matrix[2] < 0.05 {
+		t.Fatalf("grayscale matrix unexpected: %+v", cf.Matrix)
+	}
+	// Not identity (identity has 1 on diagonal R/G/B).
+	if cf.Matrix[0] == 1 && cf.Matrix[6] == 1 && cf.Matrix[12] == 1 {
+		t.Fatal("grayscale matrix must not be identity")
+	}
+	var found bool
+	var nested bool
+	scene.Walk(b.Root(), func(l scene.Layer) {
+		if l.Kind() == "color_filter" {
+			found = true
+			if len(l.Children()) > 0 {
+				nested = true
+			}
+		}
+	})
+	if !found {
+		t.Fatal("color_filter not in tree after PushGrayscaleFilter")
+	}
+	if !nested {
+		t.Fatal("color_filter must nest children (picture under it)")
+	}
+}
+
+func TestImageFilterLayer_Builder(t *testing.T) {
+	scene.ResetLayerIDGen()
+	b := scene.NewLayerBuilder()
+	im := b.PushImageFilter(4.5)
+	b.AddPicture(false)
+	b.Pop()
+	if im.Kind() != "image_filter" {
+		t.Fatalf("kind=%s want image_filter", im.Kind())
+	}
+	if im.BlurRadius != 4.5 {
+		t.Fatalf("BlurRadius=%v want 4.5", im.BlurRadius)
+	}
+	var found bool
+	scene.Walk(b.Root(), func(l scene.Layer) {
+		if f, ok := l.(*scene.ImageFilterLayer); ok {
+			found = true
+			if f.BlurRadius != 4.5 {
+				t.Fatalf("walk BlurRadius=%v", f.BlurRadius)
+			}
+		}
+	})
+	if !found {
+		t.Fatal("image_filter not in tree")
+	}
+	// Nested with color filter stack integrity.
+	b2 := scene.NewLayerBuilder()
+	b2.PushColorFilter([20]float32{1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0})
+	inner := b2.PushImageFilter(2)
+	b2.AddPicture(true)
+	b2.Pop()
+	b2.Pop()
+	if inner.Kind() != "image_filter" {
+		t.Fatalf("inner kind=%s", inner.Kind())
+	}
+	n := scene.Walk(b2.Root(), nil)
+	if n < 3 {
+		t.Fatalf("walk count=%d want >=3", n)
+	}
+}
+
 func TestClipRRectLayer_Builder(t *testing.T) {
 	scene.ResetLayerIDGen()
 	b := scene.NewLayerBuilder()
