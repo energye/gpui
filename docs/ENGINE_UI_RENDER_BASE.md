@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.9** | 日期：2026-07-28  
+> **版本：1.10** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -204,7 +204,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FPath-CLOSE | close | Path.close | 闭合填充 | — | Close | — | B | path.go | — |
 | FPath-FILLTYPE | fillType | Path.fillType | evenOdd 镂空 | — | SetFillRule | — | B | render | UI 未暴露 |
 | FPath-TRANSFORM | 路径变换 | Path.transform | 图标旋转缩放 | — | 矩阵作用于 path/CTM | — | B | — | — |
-| FPath-METRICS | 路径度量 | Path.computeMetrics | 虚线动画/沿路径字 | — | — | — | D | — | 重要动效缺口 |
+| FPath-METRICS | 路径度量 | Path.computeMetrics | 虚线动画/沿路径字 | ComputePathMetrics / PathPositionAt / PathTangentAt | ComputeMetrics · TotalLength · PositionAt · TangentAt | — | **A** | path_metrics.go · path_metrics_test | 每轮廓；Close 计入；conic 仍无；非全量 getSegment |
 | FPath-COMBINE | 路径布尔 | Path.combine/op | 镂空合并 | — | Path.Op 布尔 | — | B | path_boolean.go | — |
 | FPath-BOUNDS | 包围盒 | Path.getBounds | layout/damage | — | Bounds() | — | B | path.go | — |
 | FPath-RESET | reset/clear | Path.reset | 复用 path | — | Clear/Reset | — | B | path.go | — |
@@ -663,7 +663,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 3 | PaintContext 基础 §11 | 2 | ✅ | RO/PaintContext | 同 2；PaintVisits | — |
 | 4 | 调度/VSync §14 | 2 | ✅/🔄 | scheduler/vsync | interval·hitch·vsync_source·cpu 分轨 | PerfSoak |
 | 5 | 几何+Paint/Shader §2§3 | 3 | ✅ 主路径 | `TestDraw_*` | geometry/PerfSoak 帧指标 | **geometry** |
-| 6 | Path §4 | 5 | 🔄 | path 测；FillPath 已有 | metrics/conic 仍开 | **geometry** |
+| 6 | Path §4 | 5 | ✅ 主路径 | `TestPathMetrics_*` · FillPath | geometry 帧指标 | **geometry** |
 | 7 | Clip/saveLayer §5 | 3,6 | 🔄 | clip_rrect 等 | raster/skip；无层泄漏 | **cliplayer** |
 | 8 | Transform 层 §6 | 3,7 | 🔄 | TransformLayer | 同 7；旋转 hitch 可解释 | **cliplayer** |
 | 9 | 图像 §7 | 3,7 | 🔄 | dispose 等 | RSS/Dispose；解码不堵 UI | **image** |
@@ -680,7 +680,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 序 | 还缺什么（摘要） |
 |----|------------------|
 | 5 | 主路径 ✅；仍开：Vertices/Atlas/Points、ImageShader、DRRect、不等圆角 RRect |
-| 6 | Path **metrics** / conic；布尔 UI 文档化（Fill/StrokePath 已随序5） |
+| 6 | **metrics ✅**；仍开：conic、fillType UI、布尔 UI 文档、Path 构建动词 UI 门面（现经 NewPath→render.Path） |
 | 7 | ClipPath 层；**ClipRRectLayer RO→BuildLayerTree**；真 saveLayer；通用 save/restore |
 | 8 | 逆 CTM hit；通用 pushTransform；Present 层合成 |
 | 9 | Nine/Round UI；Atlas |
@@ -696,6 +696,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 |------|------|----------|
 | PaintContext + DC | `paint_context.go` | 无独立 painting 包 |
 | **几何 draw UI（序5）** | `draw.go` · `draw_test` · geometry 轴 | Vertices/Atlas/Points 仍 B |
+| **Path metrics（序6）** | `render/path_metrics.go` · `ui/rendering/path_metrics*` | conic 仍 D；非全量 PathMetric.getSegment |
 | ClipRRect **paint** | `PushClipRRect` · clip_rrect_test | **层 FL-CLIP-RRECT=C**（RO 未发层） |
 | TransformLayer + RenderTransform | transform · layer_build · cliplayer | 命中 AABB；Present 全画 → 序8 |
 | Text maxLines/ellipsis；最小多 span | text · paragraph | ≠ 全量 Paragraph |
@@ -726,6 +727,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.9** | 核查已落地：FL-CLIP-RRECT→C；证据路径修正；**序5** draw.go UI 几何主路径 A + 单测 |
+| **1.10** | **序6** FPath-METRICS：ComputeMetrics/PositionAt/TangentAt + UI 门面 + 单测 |
+| 1.9 | 核查已落地；FL-CLIP-RRECT→C；**序5** draw.go 几何主路径 |
 | 1.8 | 流程闭环/实现未闭环；删 Wave/分册叙事 |
 | ≤1.7 | 母表三项验收；分册已删 |

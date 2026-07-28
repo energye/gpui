@@ -603,7 +603,8 @@ func (p *Path) Length(accuracy float64) float64 {
 			length += cubicLength(current, ctrl1, ctrl2, pt, accuracy)
 			current = pt
 		case Close:
-			// Close doesn't add length (already computed if there's a closing line)
+			// Historical Length() does not add the closing edge (callers that need
+			// closed perimeter use TotalLength / ComputeMetrics).
 		}
 	})
 
