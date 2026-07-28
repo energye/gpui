@@ -6,10 +6,12 @@
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-RUN_SECONDS=5 go run ./examples/ui_wr_c0_smoke
+RUN_SECONDS=5 go run ./examples/ui_wr_c0_smoke     # close C0
+RUN_SECONDS=15 go run ./examples/ui_wr_c0_smoke    # optional longer sample
 ```
 
-**Window:** **1200×800**. **RUN_SECONDS &lt; 5 → FAIL.**
+**Window:** client **1200×800** (U15, fixed). **RUN_SECONDS &lt; 5 → FAIL.**  
+**Close duration:** **5s** (WIDGET_RENDER §2.5 C0).
 
 ## Visible effects
 

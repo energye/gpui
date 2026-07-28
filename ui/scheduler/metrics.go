@@ -95,6 +95,14 @@ type FrameMetrics struct {
 	CPUFallbackOps        int64  `json:"cpu_fallback_ops,omitempty"`
 	FrameFlushes          int64  `json:"frame_flushes,omitempty"`
 	LastCPUFallbackReason string `json:"last_cpu_fallback,omitempty"`
+
+	// Boundary cache counters (W1 R3; cumulative across NoteBoundaryFrame calls).
+	BoundaryRerecord int64 `json:"boundary_rerecord,omitempty"`
+	BoundarySkip     int64 `json:"boundary_skip,omitempty"`
+	// BoundaryCount is last reported tree boundary count (R3b; optional).
+	BoundaryCount int64 `json:"boundary_count,omitempty"`
+	// BoundaryMaxDepth is max nesting depth of repaint boundaries (R3b).
+	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
 }
 
 // MetricsStore is a concurrency-safe metrics accumulator.
@@ -379,6 +387,29 @@ func (s *MetricsStore) NoteGPUPathStats(gpuOps, cpuFallbackOps, frameFlushes int
 	s.m.CPUFallbackOps = int64(cpuFallbackOps)
 	s.m.FrameFlushes = int64(frameFlushes)
 	s.m.LastCPUFallbackReason = lastFallbackReason
+	s.mu.Unlock()
+}
+
+// NoteBoundaryFrame accumulates per-frame RepaintBoundary cache stats (W1 R3).
+// rerecord/skip are typically that frame's FrameRerecord/FrameSkip from BoundaryCache.
+func (s *MetricsStore) NoteBoundaryFrame(rerecord, skip int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.BoundaryRerecord += rerecord
+	s.m.BoundarySkip += skip
+	s.mu.Unlock()
+}
+
+// SetBoundaryDiscovery records R3b compositing-bits / boundary walk counts.
+func (s *MetricsStore) SetBoundaryDiscovery(count, maxDepth int) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.BoundaryCount = int64(count)
+	s.m.BoundaryMaxDepth = int64(maxDepth)
 	s.mu.Unlock()
 }
 

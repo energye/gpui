@@ -28,6 +28,15 @@ type PipelineOptions struct {
 	Overlay *overlay.State
 }
 
+// boundaryFrameSnap is the last paintPresentTree frame's boundary cache counters.
+type boundaryFrameSnap struct {
+	Rerecord int64
+	Skip     int64
+}
+
+// lastBoundaryFrame is published by paintPresentTree for metrics pickup.
+var lastBoundaryFrame atomic.Value // stores boundaryFrameSnap
+
 // PipelineApp runs layout/paint → FramePacket → async raster present.
 // UI never blocks on Present (SubmitLatest).
 type PipelineApp struct {
@@ -48,6 +57,27 @@ type PipelineApp struct {
 	layoutFrames atomic.Int64
 	// forceFullPresent is set on warm-up/resize so the next present full-clears.
 	forceFullPresent atomic.Bool
+}
+
+// LastBoundaryFrame returns the most recent paintPresentTree boundary skip/rerecord.
+func LastBoundaryFrame() (rerecord, skip int64) {
+	v := lastBoundaryFrame.Load()
+	if v == nil {
+		return 0, 0
+	}
+	s, ok := v.(boundaryFrameSnap)
+	if !ok {
+		return 0, 0
+	}
+	return s.Rerecord, s.Skip
+}
+
+// BoundaryCache returns the PipelineOwner's long-lived boundary Picture cache.
+func (a *PipelineApp) BoundaryCache() *rendering.BoundaryCache {
+	if a == nil || a.pipe == nil {
+		return nil
+	}
+	return a.pipe.BoundaryCache()
 }
 
 // Overlay returns the overlay stack (may be nil).
@@ -354,6 +384,13 @@ func (a *PipelineApp) Run() error {
 						st := dc.RenderPathStats()
 						metrics.NoteGPUPathStats(st.GPUOps, st.CPUFallbackOps, st.FrameFlushes, st.LastCPUFallbackReason)
 					}
+					// W1 R3: accumulate boundary skip/rerecord from last paint walk.
+					rr, sk := LastBoundaryFrame()
+					metrics.NoteBoundaryFrame(rr, sk)
+					if cache := pipe.BoundaryCache(); cache != nil {
+						// Lifetime totals also available; frame note uses last snap.
+						_ = cache
+					}
 				}
 				return err
 			},
@@ -408,6 +445,15 @@ func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root re
 		dc.MarkFullRedraw()
 	}
 	pc := rendering.NewPaintContext(dc, dc.DeviceScale())
+	// W1: reuse PipelineOwner's long-lived Picture cache so clean boundaries
+	// skip re-record across frames (Replay still draws — GPU Clear safe).
+	cache := pipe.BoundaryCache()
+	if cache == nil {
+		cache = rendering.NewBoundaryCache()
+	}
+	pc.BoundaryCache = cache
+	pc.UseBoundaryCache = true
+	cache.BeginFrame()
 	// force clear path always full-paints; steady path full-paints unless
 	// compositeOnly (test/Retained experiment).
 	paintForce := force || !compositeOnly
@@ -415,6 +461,11 @@ func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root re
 	if ov != nil {
 		ov.Paint(pc)
 	}
+	// Publish per-frame boundary stats for metrics pickup (NoteBoundaryFrame).
+	lastBoundaryFrame.Store(boundaryFrameSnap{
+		Rerecord: cache.FrameRerecord,
+		Skip:     cache.FrameSkip,
+	})
 }
 
 // PaintPresentLayerTree clears (when force) then composites a retained layer

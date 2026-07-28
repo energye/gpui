@@ -16,15 +16,36 @@ type PipelineOwner struct {
 
 	layoutDirty bool
 	paintDirty  bool
+
+	// boundaryCache is the process-lifetime Picture cache for RepaintBoundary
+	// nodes on this tree (W1 R3). Shared across presents so skip is observable.
+	boundaryCache *BoundaryCache
 }
 
 // NewPipelineOwner creates an owner with optional root.
 func NewPipelineOwner(root RenderObject) *PipelineOwner {
-	o := &PipelineOwner{root: root}
+	o := &PipelineOwner{
+		root:          root,
+		boundaryCache: NewBoundaryCache(),
+	}
 	if root != nil {
 		attachOwner(root, o)
 	}
 	return o
+}
+
+// BoundaryCache returns the tree's Picture-backed RepaintBoundary cache (never nil
+// for a non-nil owner). Survives across frames so clean boundaries can skip.
+func (o *PipelineOwner) BoundaryCache() *BoundaryCache {
+	if o == nil {
+		return nil
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.boundaryCache == nil {
+		o.boundaryCache = NewBoundaryCache()
+	}
+	return o.boundaryCache
 }
 
 // SetRoot replaces the root and attaches owner.

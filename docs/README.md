@@ -23,7 +23,7 @@
 ```text
 L1 P0–P3 / P4 / P5     ✅
 渲染基座 §22 主路径     ✅  ENGINE_UI_RENDER_BASE §25
-自定义控件渲染基座      🔄  W0✅ r0+c0 真窗；W1–W6 ⬜（ENGINE_UI_WIDGET_RENDER v2.5）
+自定义控件渲染基座      🔄  W0✅；W1 核心 R3/R3b+C1✅；W1 余/W2–W6 ⬜（WIDGET v2.8）
 L3 Kit / 桌面深做 / IME ⏸
 ```
 
@@ -33,9 +33,13 @@ L3 Kit / 桌面深做 / IME ⏸
 go test ./ui/... -count=1
 go test ./examples/wrgate -count=1
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-# 真窗统一：1200×800，RUN_SECONDS≥5（见 ENGINE_UI_WIDGET_RENDER §2.5）
-RUN_SECONDS=5 go run ./examples/ui_wr_r0_fullpaint   # W0 R0
-RUN_SECONDS=5 go run ./examples/ui_wr_c0_smoke       # W0 C0
+# 真窗统一硬规格：客户区 1200×800；RUN_SECONDS≥5；关闭用时长按主能力加长
+# 全表见 ENGINE_UI_WIDGET_RENDER §2 主表 + §2.5
+RUN_SECONDS=5  go run ./examples/ui_wr_r0_fullpaint   # W0 R0
+RUN_SECONDS=5  go run ./examples/ui_wr_c0_smoke       # W0 C0
+RUN_SECONDS=10 go run ./examples/ui_wr_r3_boundary    # W1 R3  Boundary skip
+RUN_SECONDS=8  go run ./examples/ui_wr_r3b_compbits   # W1 R3b nest/bits
+RUN_SECONDS=10 go run ./examples/ui_wr_c1_boundary_nest  # W1 C1 combo
 ```
 
 ## 约定

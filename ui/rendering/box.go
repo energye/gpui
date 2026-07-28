@@ -164,14 +164,30 @@ func (c *RenderColorBox) Layout(cons Constraints) Size {
 // If Paint is invoked, always draw — CompositeOnly skipping is the caller's job
 // (parent omits clean RepaintBoundary children). Leaves must redraw when a
 // scrolling ancestor repaints.
+//
+// W1: with UseBoundaryCache, a clean RepaintBoundary ColorBox Replays its
+// Picture instead of re-recording (boundary_skip); dirty path re-records.
 func (c *RenderColorBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
+	if pc.BoundaryCache != nil && pc.BoundaryCache.tryReplay(pc, c) {
+		return
+	}
 	pc.NotePaintVisit()
 	sz := c.size
-	fillRect(pc, 0, 0, sz.Width, sz.Height, c.R, c.G, c.B, c.A)
+	w, h := sz.Width, sz.Height
+	if w <= 0 {
+		w = c.Width
+	}
+	if h <= 0 {
+		h = c.Height
+	}
+	fillRect(pc, 0, 0, w, h, c.R, c.G, c.B, c.A)
 	c.clearPaintDirty()
+	if pc.BoundaryCache != nil && c.IsRepaintBoundary() {
+		pc.BoundaryCache.storeColorBox(pc, c)
+	}
 }
 
 // SubtreeNeedsPaint reports whether n or any descendant needs paint.

@@ -76,11 +76,16 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
+	// W1: fully-clean AbsoluteBox repaint boundary may Replay a recorded Picture.
+	if pc.BoundaryCache != nil && a.IsRepaintBoundary() && pc.BoundaryCache.tryReplay(pc, a) {
+		return
+	}
 	if pc.CompositeOnly && !a.NeedsPaint() && !SubtreeNeedsPaint(a) {
 		return
 	}
 	pc.NotePaintVisit()
-	paintSelf := !pc.CompositeOnly || a.NeedsPaint()
+	selfDirty := a.NeedsPaint()
+	paintSelf := !pc.CompositeOnly || selfDirty
 	if paintSelf {
 		if a.Background != nil {
 			bg := a.Background
@@ -94,8 +99,16 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 			ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
 		}
 		a.clearPaintDirty()
+		// Re-store outer Picture only when this boundary itself was dirty or had no entry.
+		// Inner-only dirty must not bump outer boundary_rerecord (R3 nested rule).
+		if pc.BoundaryCache != nil && a.IsRepaintBoundary() && (selfDirty || !pc.BoundaryCache.HasValid(a)) {
+			pc.BoundaryCache.storeAbsoluteColorChildren(pc, a)
+		}
 		return
 	}
+	// Only descendants dirty: walk dirty paths; do not re-store outer cache.
+	// CompositeOnly: skip fully-clean children (including clean boundaries).
+	// FullPaint never takes this branch (paintSelf is always true when !CompositeOnly).
 	for _, ch := range a.children {
 		if !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
 			continue

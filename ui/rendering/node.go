@@ -58,6 +58,9 @@ type Base struct {
 	needsCompositing       bool
 	alwaysNeedsCompositing bool
 
+	// cacheID is a stable BoundaryCache map key (assigned lazily).
+	cacheID uint64
+
 	// lastConstraints for ShouldRelayout early-out.
 	lastConstraints Constraints
 	hasLast         bool
@@ -246,6 +249,8 @@ func baseOf(n RenderObject) (*Base, bool) {
 	case *RenderBox:
 		return &t.Base, true
 	case *RenderColorBox:
+		return &t.Base, true
+	case *AbsoluteBox:
 		return &t.Base, true
 	case *RenderSpinner:
 		return &t.Base, true

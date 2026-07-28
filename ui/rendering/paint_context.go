@@ -21,6 +21,10 @@ type PaintContext struct {
 	LayerBudget *SaveLayerBudget
 	// saveLayerDepth tracks unmatched SaveLayer pushes (Restore pairs).
 	saveLayerDepth int
+	// BoundaryCache enables W1 Picture-backed RepaintBoundary reuse (R3).
+	BoundaryCache *BoundaryCache
+	// UseBoundaryCache gates tryReplay/store on repaint boundaries.
+	UseBoundaryCache bool
 }
 
 // NewPaintContext roots a paint walk at (0,0).
@@ -38,14 +42,16 @@ func (pc *PaintContext) WithOrigin(absX, absY float64) *PaintContext {
 		return &PaintContext{OriginX: absX, OriginY: absY, Scale: 1}
 	}
 	return &PaintContext{
-		DC:             pc.DC,
-		OriginX:        absX,
-		OriginY:        absY,
-		Scale:          pc.Scale,
-		CompositeOnly:  pc.CompositeOnly,
-		PaintVisits:    pc.PaintVisits,
-		LayerBudget:    pc.LayerBudget,
-		saveLayerDepth: pc.saveLayerDepth,
+		DC:               pc.DC,
+		OriginX:          absX,
+		OriginY:          absY,
+		Scale:            pc.Scale,
+		CompositeOnly:    pc.CompositeOnly,
+		PaintVisits:      pc.PaintVisits,
+		LayerBudget:      pc.LayerBudget,
+		saveLayerDepth:   pc.saveLayerDepth,
+		BoundaryCache:    pc.BoundaryCache,
+		UseBoundaryCache: pc.UseBoundaryCache,
 	}
 }
 

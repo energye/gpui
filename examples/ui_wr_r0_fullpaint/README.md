@@ -6,11 +6,12 @@
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-RUN_SECONDS=5 go run ./examples/ui_wr_r0_fullpaint    # minimum (U16)
-RUN_SECONDS=15 go run ./examples/ui_wr_r0_fullpaint   # better CPU/RSS sample
+RUN_SECONDS=5 go run ./examples/ui_wr_r0_fullpaint    # close R0 (U16 min)
+RUN_SECONDS=15 go run ./examples/ui_wr_r0_fullpaint   # observe CPU/RSS (recommended)
 ```
 
-**Window:** client **1200×800** (U15). **RUN_SECONDS &lt; 5 → FAIL** (cannot close R0).
+**Window:** client **1200×800** (U15, fixed). **RUN_SECONDS &lt; 5 → FAIL** (cannot close R0).  
+**Close duration:** **5s** min; **15s** for better CPU/RSS observation (WIDGET_RENDER §2.5).
 
 ## Visible effects
 

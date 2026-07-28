@@ -463,7 +463,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 ## §20 正向性能与资源指标
 
 > **每实现一项能力就采**（§0.6 第 2 项）。定义全表如下；合入时取**相关** M-\* + 通用帧/CPU/RSS，相对 baseline 不无故回退。  
-> **自定义控件真窗硬门禁（FPS/CPU/RSS + 全族必采）：** [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md) **§0 U12–U14 · §2.2**（对齐本 §20.0 族 A–J）。
+> **自定义控件真窗硬门禁（FPS/CPU/RSS + 全族必采）：** [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md) **§0 U12–U16 · §2.2 · §2.5**（对齐本 §20.0 族 A–J）。  
+> **真窗几何与时长：** 客户区 **1200×800**；**`RUN_SECONDS ≥ 5`**；按主能力加长（Boundary 8–10s、动画 30s、列表/压力 60s、soak 300s 等，见 WIDGET_RENDER §2.5 全表）。
 
 ### 20.0 指标族
 
@@ -744,6 +745,19 @@ go run ./examples/ui_l1_scroll              # 滚动
 | `ui_render_base_cliplayer` | 7–8 | Clip/Transform |
 | `ui_l1_scroll` | 12 | 滚动/虚拟列表 |
 | `ui_render_base_perfsoak` | 每项建议 | §20 回归 |
+
+### 23.1 自定义控件主能力真窗（`ui_wr_*`）
+
+> 完整 SoT：[`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md) **§2 / §3 / §2.5**。  
+> 本表只钉 **几何与时长**，避免与 WIDGET 主能力表漂移。
+
+| 项 | 硬规格 |
+|----|--------|
+| **客户区** | **1200 × 800** 逻辑像素（所有 `ui_wr_r*` / `ui_wr_c*`） |
+| **最小运行** | **`RUN_SECONDS ≥ 5`**（&lt;5 不得关闭 R/W/C；实现侧 FAIL） |
+| **按能力加长** | 关闭用时长见 WIDGET §2 主表与 §2.5：正确性 5s · Boundary 8–10s · 层/DPR 15s · 动画 30s · 列表/压力 60s · soak **300s** |
+| **指标** | 结束输出 §20.0 族 A–J + 能力专用字段；不达标 `FAIL:` + `exit 1` |
+| **路径** | `examples/ui_wr_<id>/` only（禁止放进 `ui/`） |
 
 ---
 

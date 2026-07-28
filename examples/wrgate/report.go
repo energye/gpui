@@ -56,6 +56,11 @@ type Report struct {
 	LastCPUFallback  string  `json:"last_cpu_fallback,omitempty"`
 	Warmup           bool    `json:"warmup"`
 	ElapsedSec       float64 `json:"elapsed_sec"`
+	// W1 boundary cache (from MetricsStore; also mirrored in ability_extra).
+	BoundaryRerecord int64 `json:"boundary_rerecord"`
+	BoundarySkip     int64 `json:"boundary_skip"`
+	BoundaryCount    int64 `json:"boundary_count,omitempty"`
+	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
 	// AbilityExtra holds R-specific keys (optional).
 	AbilityExtra map[string]any `json:"ability_extra,omitempty"`
 }
@@ -130,6 +135,10 @@ func BuildReport(in BuildInput) Report {
 		LastCPUFallback:  in.Snap.LastCPUFallbackReason,
 		Warmup:           in.Warmup,
 		ElapsedSec:       el,
+		BoundaryRerecord: in.Snap.BoundaryRerecord,
+		BoundarySkip:     in.Snap.BoundarySkip,
+		BoundaryCount:    in.Snap.BoundaryCount,
+		BoundaryMaxDepth: in.Snap.BoundaryMaxDepth,
 		AbilityExtra:     in.Extra,
 	}
 	if r.RSSStartKB == 0 && r.RSSEndKB == 0 && r.RSSPeakKB == 0 {
@@ -191,6 +200,14 @@ type GateOptions struct {
 	MaxP95Ms float64
 	// SchemaOnly only checks schema (R12); skips present/FPS gates when true.
 	SchemaOnly bool
+	// MinBoundarySkip fails when boundary_skip < N (R3; 0 = off).
+	MinBoundarySkip int64
+	// MinBoundaryRerecord fails when boundary_rerecord < N (dirty path must record; 0 = off).
+	MinBoundaryRerecord int64
+	// MinBoundaryCount fails when boundary_count < N (R3b; 0 = off).
+	MinBoundaryCount int64
+	// MinBoundaryMaxDepth fails when boundary_max_depth < N (R3b nest; 0 = off).
+	MinBoundaryMaxDepth int64
 }
 
 // EvaluateGates returns a FAIL error or nil. Pure: no I/O.
@@ -238,6 +255,18 @@ func EvaluateGates(r Report, opt GateOptions) error {
 		if opt.MaxP95Ms > 0 && r.IntervalP95Ms > opt.MaxP95Ms && r.IntervalP95Ms > 0 {
 			return fmt.Errorf("FAIL: interval_p95_ms=%.2f > %.2f", r.IntervalP95Ms, opt.MaxP95Ms)
 		}
+	}
+	if opt.MinBoundarySkip > 0 && r.BoundarySkip < opt.MinBoundarySkip {
+		return fmt.Errorf("FAIL: boundary_skip=%d want >=%d (clean boundary must Replay)", r.BoundarySkip, opt.MinBoundarySkip)
+	}
+	if opt.MinBoundaryRerecord > 0 && r.BoundaryRerecord < opt.MinBoundaryRerecord {
+		return fmt.Errorf("FAIL: boundary_rerecord=%d want >=%d (dirty boundary must re-record)", r.BoundaryRerecord, opt.MinBoundaryRerecord)
+	}
+	if opt.MinBoundaryCount > 0 && r.BoundaryCount < opt.MinBoundaryCount {
+		return fmt.Errorf("FAIL: boundary_count=%d want >=%d", r.BoundaryCount, opt.MinBoundaryCount)
+	}
+	if opt.MinBoundaryMaxDepth > 0 && r.BoundaryMaxDepth < opt.MinBoundaryMaxDepth {
+		return fmt.Errorf("FAIL: boundary_max_depth=%d want >=%d", r.BoundaryMaxDepth, opt.MinBoundaryMaxDepth)
 	}
 	return nil
 }
