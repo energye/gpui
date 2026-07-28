@@ -46,6 +46,12 @@ type FrameMetrics struct {
 	RasterLayerCount    int64 `json:"raster_layer_count"`
 	CompositeLayerCount int64 `json:"composite_layer_count"`
 
+	// Present locality (序13 dirty-rect path; 0/empty when unavailable).
+	// DamageAreaPx is physical-pixel area of the last present's FrameDamage union.
+	DamageAreaPx   int64  `json:"damage_area_px,omitempty"`
+	PresentMode    string `json:"present_mode,omitempty"` // full|damage_union|damage_multi|idle
+	DamageAreaLast int64  `json:"damage_area_last_px,omitempty"`
+
 	// VSyncSource is "true" | "fallback" | "" (unknown).
 	VSyncSource string `json:"vsync_source,omitempty"`
 
@@ -143,6 +149,20 @@ func (s *MetricsStore) NotePresent() {
 	}
 	s.mu.Lock()
 	s.m.PresentCount++
+	s.mu.Unlock()
+}
+
+// NotePresentOutcome records present mode + damage area for the last frame (M-DAMAGE-AREA).
+// mode should be render.PresentMode.String(); areaPx is physical dirty union area.
+func (s *MetricsStore) NotePresentOutcome(mode string, areaPx int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.PresentCount++
+	s.m.PresentMode = mode
+	s.m.DamageAreaPx = areaPx
+	s.m.DamageAreaLast = areaPx
 	s.mu.Unlock()
 }
 

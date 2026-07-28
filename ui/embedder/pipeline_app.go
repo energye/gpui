@@ -46,6 +46,8 @@ type PipelineApp struct {
 	lastStats scene.RasterStats
 	// layoutFrames counts flushes that actually laid out (for S2 gate).
 	layoutFrames atomic.Int64
+	// forceFullPresent is set on warm-up/resize so the next present full-clears.
+	forceFullPresent atomic.Bool
 }
 
 // Overlay returns the overlay stack (may be nil).
@@ -205,8 +207,10 @@ func (a *PipelineApp) Run() error {
 	if a.pipe.FlushLayout(vp, true) {
 		a.layoutFrames.Add(1)
 	}
+	a.forceFullPresent.Store(true) // first present after open is always full
 	if a.opts.WarmUp {
 		a.presentSyncFull()
+		a.forceFullPresent.Store(false) // warm-up already full-cleared swapchain
 	}
 	a.ScheduleFrame()
 
@@ -263,11 +267,12 @@ func (a *PipelineApp) Run() error {
 					if a.root != nil {
 						a.root.MarkNeedsPaint()
 					}
+					a.forceFullPresent.Store(true) // resize → full clear + full paint
 					a.ScheduleFrame()
 				}
 			case platform.EventExpose:
-				// Present path already full-clears + redraws on demand. Reacting to
-				// every Expose after Present causes a busy loop on X11.
+				// Damage/full present redraws on demand. Reacting to every Expose
+				// after Present causes a busy loop on X11.
 				if !a.sched.Pending() {
 					a.ScheduleFrame()
 				}
@@ -328,12 +333,18 @@ func (a *PipelineApp) Run() error {
 		pipe := a.pipe
 		ov := a.opts.Overlay
 		clearR, clearG, clearB, clearA := a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA
-		// force=true: PresentWith clears the full swapchain each frame; CompositeOnly
-		// partial paint would leave only dirty widgets (static chrome vanishes).
-		// True damage/partial present is a P6 concern.
+		// Steady frames: force=false → no full clear, CompositeOnly paint, PresentFrameAuto.
+		// Warm-up / resize / open: force=true → full clear + full paint + PresentFrameFull.
+		// Static chrome survives via LoadOpLoad when only dirty widgets repaint.
+		force := a.forceFullPresent.Swap(false)
+		metrics := a.sched.Metrics()
 		job := raster.FrameJob{
 			Run: func() error {
-				return presentTree(target, pipe, root, ov, clearR, clearG, clearB, clearA, true)
+				out, err := presentTree(target, pipe, root, ov, clearR, clearG, clearB, clearA, force)
+				if metrics != nil && target != nil {
+					metrics.NotePresentOutcome(out.Mode.String(), target.LastDamageAreaPx())
+				}
+				return err
 			},
 		}
 		// Async: never block UI on Present.
@@ -349,30 +360,89 @@ func (a *PipelineApp) Run() error {
 	return nil
 }
 
-func presentTree(target *render.PresentTarget, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) error {
-	if target == nil || pipe == nil || root == nil {
-		return errors.New("embedder: presentTree nil")
+// PaintPresentTree draws the RO tree into dc for present.
+//
+//	force=true  → full-surface clear + FlushPaint(true); marks full redraw damage.
+//	force=false → no full clear (LoadOpLoad keeps prior pixels); FlushPaint(false)
+//	              CompositeOnly paints only dirty subtrees; damage tracks those draws.
+//
+// Exported for unit tests that assert damage area without a GPU PresentTarget.
+//
+// Layer-tree Present walk lives in scene.CompositeToContext / CompositeFramePacket
+// (stage B). PipelineApp still paints via the RO path here until dirty ROs are
+// recorded into PictureLayers each frame (stage B/G3 wire-up).
+func PaintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) {
+	if dc == nil || pipe == nil || root == nil {
+		return
 	}
-	// Use PresentClear path with tree paint into DC then present.
-	// PresentTarget.PresentClear does clear+present; we need custom draw.
-	return target.PresentWith(func(dc *render.Context) {
+	if force {
 		dc.SetRGBA(cr, cg, cb, ca)
 		dc.DrawRectangle(0, 0, float64(dc.Width()), float64(dc.Height()))
 		_ = dc.Fill()
-		pc := rendering.NewPaintContext(dc, dc.DeviceScale())
-		pipe.FlushPaint(pc, force)
-		// Overlay band above main (P5d).
-		if ov != nil {
-			ov.Paint(pc)
-		}
-	})
+		dc.MarkFullRedraw()
+	}
+	pc := rendering.NewPaintContext(dc, dc.DeviceScale())
+	pipe.FlushPaint(pc, force)
+	if ov != nil {
+		ov.Paint(pc)
+	}
+}
+
+// PaintPresentLayerTree clears (when force) then composites a retained layer
+// tree via scene.CompositeToContext. Use when the frame is already recorded into
+// PictureLayers (tests / future PipelineApp packet path).
+func PaintPresentLayerTree(dc *render.Context, root scene.Layer, cr, cg, cb, ca float64, force bool) scene.CompositeStats {
+	if dc == nil {
+		return scene.CompositeStats{}
+	}
+	if force {
+		dc.SetRGBA(cr, cg, cb, ca)
+		dc.DrawRectangle(0, 0, float64(dc.Width()), float64(dc.Height()))
+		_ = dc.Fill()
+		dc.MarkFullRedraw()
+	}
+	return scene.CompositeToContext(root, dc)
+}
+
+// DamageAreaLogical returns the area (px²) of dc.FrameDamageUnion in logical pixels.
+func DamageAreaLogical(dc *render.Context) int64 {
+	if dc == nil {
+		return 0
+	}
+	u := dc.FrameDamageUnion()
+	if u.Empty() {
+		return 0
+	}
+	return int64(u.Dx()) * int64(u.Dy())
+}
+
+// SurfaceAreaLogical is width*height of the drawing surface.
+func SurfaceAreaLogical(dc *render.Context) int64 {
+	if dc == nil {
+		return 0
+	}
+	return int64(dc.Width()) * int64(dc.Height())
+}
+
+func presentTree(target *render.PresentTarget, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) (render.PresentOutcome, error) {
+	if target == nil || pipe == nil || root == nil {
+		return render.PresentOutcome{}, errors.New("embedder: presentTree nil")
+	}
+	draw := func(dc *render.Context) {
+		PaintPresentTree(dc, pipe, root, ov, cr, cg, cb, ca, force)
+	}
+	if force {
+		err := target.PresentWith(draw)
+		return target.LastPresentOutcome(), err
+	}
+	return target.PresentWithAuto(draw)
 }
 
 func (a *PipelineApp) presentSyncFull() {
 	if a.target == nil {
 		return
 	}
-	_ = presentTree(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true)
+	_, _ = presentTree(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true)
 	a.presents.Add(1)
 }
 

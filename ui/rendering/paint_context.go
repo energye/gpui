@@ -17,6 +17,10 @@ type PaintContext struct {
 	Scale            float64
 	CompositeOnly    bool
 	PaintVisits      *int64
+	// LayerBudget limits SaveLayer ops this frame (F16). Nil = unlimited.
+	LayerBudget *SaveLayerBudget
+	// saveLayerDepth tracks unmatched SaveLayer pushes (Restore pairs).
+	saveLayerDepth int
 }
 
 // NewPaintContext roots a paint walk at (0,0).
@@ -28,17 +32,20 @@ func NewPaintContext(dc *render.Context, scale float64) *PaintContext {
 }
 
 // WithOrigin returns a child cursor with absolute origin (logical Y-down).
+// Shares LayerBudget and saveLayerDepth with the parent walk.
 func (pc *PaintContext) WithOrigin(absX, absY float64) *PaintContext {
 	if pc == nil {
 		return &PaintContext{OriginX: absX, OriginY: absY, Scale: 1}
 	}
 	return &PaintContext{
-		DC:            pc.DC,
-		OriginX:       absX,
-		OriginY:       absY,
-		Scale:         pc.Scale,
-		CompositeOnly: pc.CompositeOnly,
-		PaintVisits:   pc.PaintVisits,
+		DC:             pc.DC,
+		OriginX:        absX,
+		OriginY:        absY,
+		Scale:          pc.Scale,
+		CompositeOnly:  pc.CompositeOnly,
+		PaintVisits:    pc.PaintVisits,
+		LayerBudget:    pc.LayerBudget,
+		saveLayerDepth: pc.saveLayerDepth,
 	}
 }
 
@@ -90,12 +97,80 @@ func (pc *PaintContext) PushClipRRect(x, y, w, h, radius float64) {
 	pc.DC.ClipRoundRect(ax, ay, w, h, radius)
 }
 
-// PopClip restores the clip/transform stack after PushClipRect or PushClipRRect.
+// PushClipPath clips subsequent draws to path in local coordinates (origin
+// applied by translating a clone — caller path is not mutated). Pairs with PopClip.
+// CTM is not left translated; FillRect/etc. still use Abs() as usual.
+func (pc *PaintContext) PushClipPath(path *render.Path) {
+	if pc == nil || pc.DC == nil || path == nil || path.IsEmpty() {
+		return
+	}
+	pc.DC.Push()
+	abs := path.Clone()
+	if pc.OriginX != 0 || pc.OriginY != 0 {
+		abs.Transform(render.Translate(pc.OriginX, pc.OriginY))
+	}
+	pc.DC.ClearPath()
+	pc.DC.AppendPath(abs)
+	pc.DC.Clip()
+}
+
+// PopClip restores the clip/transform stack after PushClipRect, PushClipRRect,
+// or PushClipPath.
 func (pc *PaintContext) PopClip() {
 	if pc == nil || pc.DC == nil {
 		return
 	}
 	pc.DC.Pop()
+}
+
+// SaveLayer begins an isolated offscreen layer (Flutter Canvas.saveLayer subset).
+//
+//	boundsW/H — logical size used for SaveLayerBudget area accounting (must be >0
+//	             when a budget is set; full-surface isolation is still used by render).
+//	opacity   — group opacity 0..1 when compositing back (≤0 treated as 1).
+//
+// Returns false if LayerBudget rejects the op (no layer pushed). Pair with Restore.
+// Uses render.PushLayerIsolated (true offscreen, not F1 opacity-group).
+func (pc *PaintContext) SaveLayer(boundsW, boundsH, opacity float64) bool {
+	if pc == nil || pc.DC == nil {
+		return false
+	}
+	if boundsW < 0 {
+		boundsW = 0
+	}
+	if boundsH < 0 {
+		boundsH = 0
+	}
+	if opacity <= 0 {
+		opacity = 1
+	}
+	if opacity > 1 {
+		opacity = 1
+	}
+	if pc.LayerBudget != nil && !pc.LayerBudget.Allow(boundsW, boundsH) {
+		return false
+	}
+	pc.DC.PushLayerIsolated(opacity)
+	pc.saveLayerDepth++
+	return true
+}
+
+// Restore ends the most recent successful SaveLayer (PopLayer).
+// No-op if depth is 0.
+func (pc *PaintContext) Restore() {
+	if pc == nil || pc.DC == nil || pc.saveLayerDepth <= 0 {
+		return
+	}
+	pc.DC.PopLayer()
+	pc.saveLayerDepth--
+}
+
+// SaveLayerDepth returns unmatched SaveLayer count (tests / diagnostics).
+func (pc *PaintContext) SaveLayerDepth() int {
+	if pc == nil {
+		return 0
+	}
+	return pc.saveLayerDepth
 }
 
 // Package-level aliases used by RO paint paths in this package.

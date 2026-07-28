@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.17** | 日期：2026-07-28  
+> **版本：1.19** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -48,8 +48,9 @@
 允许：L1 retained-paint 契约（Boundary/CompositeOnly/DirtyLayerIDs）；render Skia 式 2D 能力丰富；
       帧间隔/hitch/管道可观测；虚拟列表 bind 上界等已测门禁。
 
-禁止：已完成 dirty-RECT 局部 Present；Picture 显示列表与 Flutter 对等；
+禁止：在无 damage 证据时宣称 dirty-RECT 局部 Present；Picture 显示列表与 Flutter 对等；
       锁显示 60Hz（无真 VSync 时）；无 baseline 的「最优/更顺」。
+允许（有证据）：PipelineApp 稳态 force=false + PresentFrameAuto + FrameDamage 面积 ≪ 全屏（§18）。
 ```
 
 ### 0.3 列定义
@@ -109,12 +110,12 @@ go run ./examples/ui_l1_scroll              # 滚动
 | Layer | `ui/scene` | 常用层 A/C；Filter/Texture D |
 | Scheduler / Vsync | `ui/scheduler` | 接口 A；DRM 真 VSync A/C |
 | 帧/资源指标 | `MetricsStore` + 示例 JSON | 分位/hitch/RSS/CPU 部分 A |
-| dirty-rect Present | render 有；UI 仍全清全画 | **未完成（序13）** |
+| dirty-rect Present | render + **PipelineApp 稳态 Auto** | **A/C（序13）** 首帧/resize 仍 full；OS damage 可忽略 |
 | Picture 显示列表 | scene PictureRecorder/Replay | **A/C（序13 主项；≠ partial Present）** |
 
 ```text
 一帧：ScheduleFrame → layout → paint → FramePacket → RasterizeDirty
-    → SubmitLatest → Present（当前全清 + 全量 paint）
+    → SubmitLatest → Present（稳态 damage/Auto；首帧/resize 全清）
 ```
 
 ---
@@ -331,7 +332,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FPC-LAYER | pushLayer/addLayer | pushLayer | 自定义层 | — | — | LayerBuilder 有限 | C | scene/build.go | — |
 | FPC-COMPLEX-HINT | setIsComplexHint | setIsComplexHint | 光栅缓存提示 | — | — | — | D | — | 光栅缓存（序13） |
 | FPC-WILL-CHANGE | setWillChangeHint | setWillChangeHint | 动画提示 | — | — | — | D | — | 序13 |
-| FPC-COMPOSITE-ONLY | retained 跳过 | 实现细节 | 脏区局部 paint | CompositeOnly+PaintVisits | — | FlushPaint(false) | A | pipeline.go | 真窗 force 全画 |
+| FPC-COMPOSITE-ONLY | retained 跳过 | 实现细节 | 脏区局部 paint | CompositeOnly+PaintVisits | — | FlushPaint(false) | **A** | pipeline.go · present_damage_test | 稳态 force=false；首帧/resize full |
 
 ---
 
@@ -341,18 +342,18 @@ go run ./examples/ui_l1_scroll              # 滚动
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
 | FL-CONTAINER | 容器层 | ContainerLayer | 树节点 | — | — | ContainerLayer | A | scene/layer.go | — |
 | FL-OFFSET | 位移层 | OffsetLayer | 滚动 | — | — | OffsetLayer | A | layer.go | — |
-| FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | A/C | scene/layer.go · transform.go · transform_hit_test | **逆 CTM hit**；Present 全画；非 Matrix4 |
-| FL-OPACITY | 透明层 | OpacityLayer | 淡入 | MutSetOpacity | — | OpacityLayer | A/C | compositing.go | 真合成未接到 Present |
+| FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | **A/C** | transform · **composite.go** · composite_test | 逆 hit + **CompositeToContext walk**；PipelineApp 仍 RO paint |
+| FL-OPACITY | 透明层 | OpacityLayer | 淡入 | MutSetOpacity | PushLayer | OpacityLayer | **A/C** | compositing · **composite.go** | CompositeToContext PushLayer；PipelineApp 未默走层路径 |
 | FL-CLIP-RECT | 裁剪层 | ClipRectLayer | 溢出 | — | — | ClipRectLayer | A | layer.go | Build 使用有限 |
-| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | **RenderClipRRect** | — | **ClipRRectLayer** RO→BuildLayerTree | **A/C** | clip_rrect.go · layer_build · clip_rrect_layer_test · cliplayer | **RO 主路径 A**；Present 仍全画 → C 边界；无 per-corner |
+| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | **RenderClipRRect** | — | **ClipRRectLayer** | **A/C** | clip_rrect · layer_build · **composite_test** | RO→层 + **Composite walk**；PipelineApp 仍 RO paint |
 | FL-CLIP-PATH | 路径裁剪层 | ClipPathLayer | 异形 | — | — | **无** | D | — | — |
-| FL-PICTURE | 图层层 | PictureLayer | 录制内容 | Record/SetPicture | Replay | **PictureLayer+Ops+NeedsRaster** | **A/C** | picture.go · layer · picture_test | 显示列表有；Present 仍全清 |
+| FL-PICTURE | 图层层 | PictureLayer | 录制内容 | Record/SetPicture | Replay | **PictureLayer+Ops** | **A/C** | picture · **composite.go** · composite_test | Composite Replay；PipelineApp 仍 RO 至 Record 接线 |
 | FL-TEXTURE | 纹理层 | TextureLayer | 视频 | — | DrawGPUTexture | **无** | D | — | — |
 | FL-PLATFORM-VIEW | 平台视图 | PlatformViewLayer | WebView/地图 | — | — | **无** | D | — | — |
 | FL-SHADER-MASK | 着色遮罩 | ShaderMaskLayer | 渐变淡出列表 | — | Mask 近似 | **无** | D | — | — |
 | FL-BACKDROP | 背景滤镜层 | BackdropFilterLayer | 毛玻璃 | — | PushBackdropLayer | **无** | D | — | 真背景采样产品仍开 |
-| FL-COLOR-FILTER | 颜色滤镜层 | ColorFilterLayer | 子树置灰 | ApplyGrayscale | ApplyColorMatrix | **ColorFilterLayer** | **A/C** | scene/layer.go · build · layer_test | 类型+Builder；Present 全画/无真子树合成 |
-| FL-IMAGE-FILTER | 图像滤镜层 | ImageFilterLayer | 模糊子树 | ApplyBlur | ApplyBlur | **ImageFilterLayer** | **A/C** | scene/layer.go · build · layer_test | blur radius；非 Backdrop；Present 全画 |
+| FL-COLOR-FILTER | 颜色滤镜层 | ColorFilterLayer | 子树置灰 | ApplyGrayscale | ApplyColorMatrix | **ColorFilterLayer** | **A/C** | layer · **composite.go** | Composite 子树 PushLayer+Apply；PipelineApp 未默走 |
+| FL-IMAGE-FILTER | 图像滤镜层 | ImageFilterLayer | 模糊子树 | ApplyBlur | ApplyBlur | **ImageFilterLayer** | **A/C** | layer · **composite.go** | Composite 子树 blur；非 Backdrop |
 | FL-LEADER | LeaderLayer | LeaderLayer | 跟随定位锚点 | — | — | **无** | D | — | Overlay 高级 |
 | FL-FOLLOWER | FollowerLayer | FollowerLayer | Tooltip 跟随 | — | — | **无** | D | — | — |
 | FL-ANNOTATED | 注解层 | AnnotatedRegionLayer | 语义/系统 UI | semantics 薄 | — | — | C | ui/semantics | 非 Layer 实现 |
@@ -446,8 +447,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 项 | 状态 |
 |----|------|
 | `render.PresentFrameDamage*` | B（render 有） |
-| UI `PipelineApp` 每帧 force 全清 + 全 paint | **C** |
-| 真 dirty-rect Present | **D（§22 序13 仍开）** |
+| UI `PipelineApp` 稳态 force=false + PresentFrameAuto | **A/C** | 首帧/resize/warm-up 仍 full |
+| 真 dirty-rect Present（UI 稳态） | **A/C** PresentWithAuto + force=false + damage 指标；首帧/resize full |
 | Picture 显示列表 record/replay | **A/C（序13 主项）** 见 FPic-* |
 
 细能力状态以 §2–§16 为准，不在此重复 RO/Layer 清单。
@@ -538,7 +539,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | M-SKIP-LAYER | skipped layers | 静态复用统计 | RasterStats | count | A 内部 | S4 >0 |
 | M-COMPOSITE-LAYER | composite_layer_count | 合成-only | 占位 | count | C | opacity 动画 |
 | M-BIND | virtual bind | sliver children | VirtualList.BindCount | count | A | ≪ itemCount |
-| M-DAMAGE-AREA | 脏像素面积 | partial present | 未接（序13） | px | D | 随脏降 |
+| M-DAMAGE-AREA | 脏像素面积 | partial present | **damage_area_px** | px | **A/C** | present_damage_test；随脏降 |
 | M-UPLOAD-BYTES | 上传字节/帧 | — | **无** | B | D | 随脏降 |
 
 #### D. CPU
@@ -672,7 +673,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 10 | 文本/Paragraph §8 | 3,5 | ✅/🔄 | Font→RO；maxLines/ellipsis | 文本帧时；(有则) atlas | **text** |
 | 11 | 滤镜/阴影层 §10§12 | 7,8 | ✅/🔄 | Color/ImageFilter 层+Apply | CPU/RSS；saveLayer 预算 | **cliplayer** |
 | 12 | 滚动/视口 §15 | 3,7 | ✅/🔄 | index↔offset；ScrollToIndex；S5 | **bind** 上界；layout 不风暴 | **scroll** |
-| 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ✅/🔄 | 显示列表 record/replay | damage 面积等；禁全清冒充 | 专用/PerfSoak |
+| 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ✅/🔄 | 显示列表 + **dirty Present 稳态** | damage_area_px；禁全清冒充 | 专用/PerfSoak |
 | — | 指标骨架本身 §20 | — | 🔄 | scheduler metrics | 全表逐步接线 | **perfsoak** |
 
 **不在本表、不挡渲染基座收口：** Ant 控件、完整 IME 编辑器、PlatformView 产品态等（母表可留 D 行，标远期）。
@@ -684,12 +685,12 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 5 | 主路径 ✅；仍开：Vertices/Atlas/Points、ImageShader、DRRect、不等圆角 RRect |
 | 6 | **metrics ✅**；仍开：conic、fillType UI、布尔 UI 文档、Path 构建动词 UI 门面（现经 NewPath→render.Path） |
 | 7 | **ClipRRectLayer RO→BuildLayerTree ✅**；仍开：ClipPath 层；真 saveLayer；通用 save/restore |
-| 8 | **逆 CTM hit ✅**；仍开：通用 pushTransform/Matrix4；Present 层合成 |
+| 8 | **逆 CTM hit ✅**；**CompositeToContext 层 walk ✅**；仍开：通用 pushTransform/Matrix4；PipelineApp 默走层 Present |
 | 9 | **Nine/Round UI ✅**；仍开：Atlas；Circular UI 门面；精细 SrcRect UI |
 | 10 | **Font 接通 RO ✅**；仍开：**全量 Paragraph**；族名字符串 API；装饰/strut/locale |
-| 11 | **ColorFilter/ImageFilter 场景层+UI Apply ✅**；仍开：Backdrop 产品；Present 滤镜合成；真 saveLayer 隔离；drop-shadow UI |
+| 11 | **Filter 层+Apply ✅**；**Composite 滤镜子树 ✅**；仍开：Backdrop 产品；真 saveLayer UI；drop-shadow UI；PipelineApp 默走层 |
 | 12 | **可变 index↔offset/ScrollToIndex ✅**；仍开：完整 multi-sliver；**Physics** |
-| 13 | **显示列表 record/replay ✅**；仍开：**dirty-rect Present**；M-DAMAGE-AREA；GPU picture 缓存 |
+| 13 | **显示列表 ✅**；**dirty-rect Present 稳态 ✅**（PresentWithAuto/force=false）；仍开：GPU picture 缓存；层树 Present 合成 |
 | 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
 
 ### 22.3 已落地（勿回退）
@@ -709,7 +710,9 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
 | p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
 | VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；Physics/完整 multi-sliver 仍开 |
-| **Picture 显示列表（序13）** | `PictureRecorder` · `Picture.Replay` · `RasterizeDirtyToContext` · picture_test | rect 子集；**非** dirty-rect Present；PipelineApp 仍全清 |
+| **Picture 显示列表（序13）** | `PictureRecorder` · `Picture.Replay` · `RasterizeDirtyToContext` · picture_test | rect 子集；非全量 Flutter recorder |
+| **dirty-rect Present 稳态（序13）** | `PresentWithAuto` · `PaintPresentTree(force=false)` · `present_damage_test` · `damage_area_px` | 首帧/resize 仍 full；LoadOpLoad 保静态 |
+| **层 Composite walk（序8/11/13）** | `scene.CompositeToContext` · `composite_test` · Offset/Clip/Transform/Picture/Opacity/Filter | 单测像素；**PipelineApp 仍 RO paint**（待 Record 接线） |
 | 窗测轴 | `examples/ui_render_base_*` | — |
 
 ---
@@ -733,7 +736,9 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.17** | **序13** Picture 显示列表：PictureRecorder Fill/StrokeRect + Replay + RasterizeDirtyToContext；dirty-rect Present 仍开 |
+| **1.19** | **阶段 B** CompositeToContext：Offset/Clip/Transform/Picture/Opacity/Filter 层 walk + composite_test；PipelineApp 仍 RO paint |
+| 1.18 | **序13** dirty-rect Present 稳态：PresentWithAuto + force=false CompositeOnly + damage_area_px 指标 + present_damage_test；首帧/resize full |
+| 1.17 | **序13** Picture 显示列表：PictureRecorder Fill/StrokeRect + Replay + RasterizeDirtyToContext；dirty-rect Present 仍开 |
 | 1.16 | **序12** VirtualList OffsetOfIndex/IndexAtOffset/ScrollToIndex（前缀和）+ virtual_list_scroll_test；Physics/完整 multi-sliver 仍开 |
 | 1.15 | **序11** ColorFilterLayer/ImageFilterLayer + LayerBuilder；UI ApplyGrayscale/Blur/ColorMatrix + 像素单测；Backdrop/Present 合成仍开 |
 | 1.14 | **序10** Font 接通 RenderText：SetFontSize + faceForSize/effectiveFace 测绘同路径 + text_font_ro_test；全量 Paragraph 仍开 |

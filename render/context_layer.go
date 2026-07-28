@@ -91,12 +91,21 @@ func (c *Context) ResetLayerPoolStats() {
 //	dc.PopLayer() // Composite circle onto canvas with multiply blend at 50% opacity
 func (c *Context) PushLayer(blendMode BlendMode, opacity float64) {
 
-	c.pushLayerSurface(blendMode, opacity, true)
+	c.pushLayerSurface(blendMode, opacity, true, false)
+}
+
+// PushLayerIsolated is like PushLayer(BlendNormal, opacity) but always allocates
+// an offscreen isolation surface (Flutter Canvas.saveLayer semantics).
+// Use for overlapping draws within a group; prefer PushLayer(Normal) for cheap
+// non-overlapping opacity cards.
+func (c *Context) PushLayerIsolated(opacity float64) {
+	c.pushLayerSurface(BlendNormal, opacity, true, true)
 }
 
 // pushLayerSurface is the shared PushLayer implementation.
 // clear=true for normal layers; false when the caller will fully overwrite (backdrop).
-func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear bool) {
+// forceIsolated skips the F1 opacity-group fast path (true saveLayer).
+func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear, forceIsolated bool) {
 	// Clamp opacity to valid range
 	if opacity < 0 {
 		opacity = 0
@@ -124,13 +133,12 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear b
 	// F1 Normal/Copy opacity-group: skip isolation RT and multiply paint alpha
 	// (layerOpacityMul). Matches CSS-style group opacity for non-overlapping
 	// SourceOver UI cards (PKS MULTI_LAYER). Overlapping multi-draw groups that
-	// need Skia SaveLayer isolation should use an advanced blend mode or a future
-	// PushLayerIsolated API — full-window RT×N was ~30fps on this path.
+	// need Skia SaveLayer isolation use PushLayerIsolated (forceIsolated).
 	//
 	// Backdrop layers (clear=false) always need an isolation surface so the
 	// parent snapshot can be copied; opacity-group would skip the pool and break
 	// PushBackdropLayer.
-	if clear && (blendMode == BlendNormal || blendMode == BlendCopy) {
+	if clear && !forceIsolated && (blendMode == BlendNormal || blendMode == BlendCopy) {
 		layer.opacityGroup = true
 		c.layerStack.layers = append(c.layerStack.layers, layer)
 		return

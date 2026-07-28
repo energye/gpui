@@ -64,6 +64,10 @@ type PresentTarget struct {
 	dc      *Context
 
 	closed bool
+
+	// lastOutcome / lastDamageArea are set by PresentWith / PresentWithAuto for metrics.
+	lastOutcome    PresentOutcome
+	lastDamageArea int64 // physical px² of last FrameDamage union (0 if idle/empty)
 }
 
 // NewPresentTarget creates a GPU present path from native window handles.
@@ -238,19 +242,56 @@ func (t *PresentTarget) PresentClear(r, g, b, a float64) error {
 	})
 }
 
-// PresentWith begins a frame, runs draw (logical coords on dc), and presents.
+// PresentWith begins a frame, runs draw (logical coords on dc), and presents
+// via PresentFrameFull (explicit full-surface path). Prefer PresentWithAuto for
+// steady retained UI frames that accumulate FrameDamage during draw.
 // Safe to call from the raster thread only.
 func (t *PresentTarget) PresentWith(draw func(dc *Context)) error {
+	_, err := t.present(draw, true)
+	return err
+}
+
+// PresentWithAuto begins a frame, runs draw, then presents via PresentFrameAuto
+// so idle/damage/full modes follow FrameDamage from the draw callback.
+// Bootstrap/resize callers that must force a full path should use PresentWith.
+// Returns the PresentOutcome for metrics (damage mode, rect count).
+func (t *PresentTarget) PresentWithAuto(draw func(dc *Context)) (PresentOutcome, error) {
+	return t.present(draw, false)
+}
+
+// LastPresentOutcome returns the outcome of the most recent present call.
+func (t *PresentTarget) LastPresentOutcome() PresentOutcome {
 	if t == nil {
-		return errors.New("render: nil PresentTarget")
+		return PresentOutcome{}
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastOutcome
+}
+
+// LastDamageAreaPx returns physical-pixel area of the last frame's damage union
+// (0 when idle / unknown). Used for M-DAMAGE-AREA style metrics.
+func (t *PresentTarget) LastDamageAreaPx() int64 {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastDamageArea
+}
+
+func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (PresentOutcome, error) {
+	out := PresentOutcome{}
+	if t == nil {
+		return out, errors.New("render: nil PresentTarget")
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.closed {
-		return errors.New("render: PresentTarget closed")
+		return out, errors.New("render: PresentTarget closed")
 	}
 	if t.dc == nil || t.sc == nil || t.device == nil {
-		return errors.New("render: PresentTarget not initialized")
+		return out, errors.New("render: PresentTarget not initialized")
 	}
 
 	if t.device != nil {
@@ -262,17 +303,36 @@ func (t *PresentTarget) PresentWith(draw func(dc *Context)) error {
 		draw(t.dc)
 	}
 
+	// Snapshot damage for metrics before PresentFrameAuto consumes the plan.
+	union := t.dc.FrameDamageUnion()
+	t.lastDamageArea = int64(union.Dx()) * int64(union.Dy())
+	if t.lastDamageArea < 0 {
+		t.lastDamageArea = 0
+	}
+
 	frame, err := t.sc.BeginFrame()
 	if err != nil {
-		return fmt.Errorf("render: BeginFrame: %w", err)
+		return out, fmt.Errorf("render: BeginFrame: %w", err)
 	}
-	if err := t.dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, func() error {
+	presentFn := func() error {
 		return t.sc.EndFrame(frame)
-	}); err != nil {
-		t.sc.DiscardFrame(frame)
-		return fmt.Errorf("render: PresentFrameFull: %w", err)
 	}
-	return nil
+	if forceFull {
+		if err := t.dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, presentFn); err != nil {
+			t.sc.DiscardFrame(frame)
+			return out, fmt.Errorf("render: PresentFrameFull: %w", err)
+		}
+		out = PresentOutcome{Mode: PresentModeFull, Rects: 1}
+		t.lastOutcome = out
+		return out, nil
+	}
+	out, err = t.dc.PresentFrameAuto(frame.Handle, frame.Width, frame.Height, presentFn)
+	if err != nil {
+		t.sc.DiscardFrame(frame)
+		return out, fmt.Errorf("render: PresentFrameAuto: %w", err)
+	}
+	t.lastOutcome = out
+	return out, nil
 }
 
 // Close releases GPU resources. Safe to call multiple times.
