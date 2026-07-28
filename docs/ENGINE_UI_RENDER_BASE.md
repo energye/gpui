@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.19** | 日期：2026-07-28  
+> **版本：1.20** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -128,7 +128,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-RESTORE | 画布状态出栈 | Canvas.restore | 与 save 配对 | PopClip 仅 clip 对 | Pop | — | B | render/context.go | 通用 restore 未暴露 |
 | FC-RESTORE-N | 恢复到指定深度 | Canvas.restoreToCount | 错误恢复/多层一次性弹出 | — | — | — | D | — | Flutter 有；gpui 无对等 API |
 | FC-SAVECOUNT | 查询 save 深度 | Canvas.getSaveCount | 调试/断言 | — | clipStackDepth 内部 | — | C | context_clip*.go | 未作 UI 公开 API |
-| FC-SAVELAYER | 离屏层+Paint | Canvas.saveLayer(bounds,paint) | 半透明组、滤镜、阴影组 | SaveLayerBudget 仅预算 | PushLayer/PopLayer | — | C+B | rendering · render/context_layer.go | 预算 C；真 saveLayer 在 render B |
+| FC-SAVELAYER | 离屏层+Paint | Canvas.saveLayer(bounds,paint) | 半透明组、滤镜、阴影组 | **SaveLayer/Restore** + Budget | **PushLayerIsolated** | — | **A/C** | paint_context · save_layer_test · context_layer | 全幅隔离 RT；bounds 仅预算；非 paint 全参 |
 | FC-SAVELAYER-NULL | 全画布 saveLayer | saveLayer(null,…) | 极重；默认应禁 | 预算 MaxArea 可拦 | PushLayer 全幅 | — | C | SaveLayerBudget | F16 纪律 |
 | FC-TRANSLATE | 平移 CTM | Canvas.translate | 局部坐标系 | WithOrigin 绝对偏移 | Translate | OffsetLayer | A/B | PaintContext · scene | UI 用 origin 模型非完整 CTM |
 | FC-SCALE | 缩放 CTM | Canvas.scale | 缩放动画/适配 | RenderTransform.SetScale | Scale | TransformLayer | A/B | transform.go | RO 已接；任意 CTM 仍 B |
@@ -138,7 +138,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-GET-TRANSFORM | 读取 CTM | Canvas.getTransform | 命中反变换/调试 | — | GetTransform | — | B | render/context.go | — |
 | FC-CLIP-RECT | 矩形裁剪 | Canvas.clipRect+ClipOp | 列表视口、溢出隐藏 | PushClipRect/PopClip | ClipRect/ClipRectOp | ClipRectLayer | A | rendering/paint_context.go | ClipOp 差异在 render |
 | FC-CLIP-RRECT | 圆角裁剪 | Canvas.clipRRect | 卡片/头像裁切 | PushClipRRect · **RenderClipRRect** | ClipRoundRect | ClipRRectLayer RO→Build | **A** | paint_context · clip_rrect · layer_build | 均匀圆角；Present 仍全画 |
-| FC-CLIP-PATH | 路径裁剪 | Canvas.clipPath | 异形遮罩 | — | Clip/ClipPathOp | 无 ClipPathLayer | B/D | render/context_clip.go | — |
+| FC-CLIP-PATH | 路径裁剪 | Canvas.clipPath | 异形遮罩 | **PushClipPath** | Clip | 无 ClipPathLayer 仍 D | **A/B** | paint_context · save_layer_test | UI paint 可裁；场景层仍无 |
 | FC-CLIP-BOUNDS-LOCAL | 本地裁剪界 | getLocalClipBounds | 优化/命中 | — | 内部 clip 栈 | — | C | context_clip*.go | 未 UI 暴露 |
 | FC-CLIP-BOUNDS-DEST | 设备裁剪界 | getDestinationClipBounds | damage 对齐 | — | — | — | D | — | 可与序13 damage 联动 |
 | FC-DRAW-COLOR | 整幅着色 | Canvas.drawColor | 清屏/遮罩 | 清色在 Present 路径 | Clear/ClearWithColor | — | B | render/context.go | PipelineApp 清屏 |
@@ -219,7 +219,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FClip-SAVE-PAIR | save/restore 裁剪栈 | 与 Canvas save | 嵌套裁剪 | PushClipRect/PopClip | Push/Pop+Clip* | — | A/B | paint_context.go | 仅 clip 友好封装；通用 save 仍 B |
+| FClip-SAVE-PAIR | save/restore 裁剪栈 | 与 Canvas save | 嵌套裁剪 | PushClip*/PopClip · **SaveLayer/Restore** | Push/Pop+Clip*+Layer | — | **A/B** | paint_context.go | clip+layer 对；通用任意 CTM save 仍 B |
 | FClip-OP-INTERSECT | ClipOp.intersect | ClipOp | 默认相交 | — | ClipOpIntersect | — | B | clip_op.go | — |
 | FClip-OP-DIFFERENCE | ClipOp.difference | ClipOp | 挖洞 | — | ClipOpDifference | — | B | clip_op.go | — |
 | FClip-NEST-DEPTH | 深层嵌套 clip | 实现限制 | 复杂卡片 | 有限 | clip 栈+测试 | — | C | context_clip_depth_test.go | 需文档化上限 |
@@ -313,7 +313,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FF-BLEND-LAYER | 混合合成 | saveLayer+blend | 叠色 | — | SetBlendMode/PushLayer | — | B | context_layer.go | — |
 | FF-MASK | 遮罩层 | ShaderMask/saveLayer mask | 渐变淡出 | — | PushMaskLayer | — | B | context_layer.go | — |
 | FF-BACKDROP | 背景滤镜 | BackdropFilter | 毛玻璃导航 | — | PushBackdropLayer | 无 FL-BACKDROP 场景层 | B/D | m4_extensions.go | — |
-| FF-BUDGET | saveLayer 预算 | 工程纪律 | 防滥用 | SaveLayerBudget | — | — | C | paint_context.go | F16 |
+| FF-BUDGET | saveLayer 预算 | 工程纪律 | 防滥用 | **SaveLayerBudget+Allow** | — | — | **A** | paint_context · save_layer_test | MaxOps/MaxArea 门禁 |
 
 ---
 
@@ -684,11 +684,11 @@ go run ./examples/ui_l1_scroll              # 滚动
 |----|------------------|
 | 5 | 主路径 ✅；仍开：Vertices/Atlas/Points、ImageShader、DRRect、不等圆角 RRect |
 | 6 | **metrics ✅**；仍开：conic、fillType UI、布尔 UI 文档、Path 构建动词 UI 门面（现经 NewPath→render.Path） |
-| 7 | **ClipRRectLayer RO→BuildLayerTree ✅**；仍开：ClipPath 层；真 saveLayer；通用 save/restore |
+| 7 | **ClipRRect RO→层 ✅**；**SaveLayer+Budget ✅**；**PushClipPath paint ✅**；仍开：ClipPath **场景层**；通用任意 CTM save |
 | 8 | **逆 CTM hit ✅**；**CompositeToContext 层 walk ✅**；仍开：通用 pushTransform/Matrix4；PipelineApp 默走层 Present |
 | 9 | **Nine/Round UI ✅**；仍开：Atlas；Circular UI 门面；精细 SrcRect UI |
 | 10 | **Font 接通 RO ✅**；仍开：**全量 Paragraph**；族名字符串 API；装饰/strut/locale |
-| 11 | **Filter 层+Apply ✅**；**Composite 滤镜子树 ✅**；仍开：Backdrop 产品；真 saveLayer UI；drop-shadow UI；PipelineApp 默走层 |
+| 11 | **Filter 层+Apply ✅**；**Composite 滤镜 ✅**；**SaveLayer UI ✅**；仍开：Backdrop 产品；drop-shadow UI；PipelineApp 默走层 |
 | 12 | **可变 index↔offset/ScrollToIndex ✅**；仍开：完整 multi-sliver；**Physics** |
 | 13 | **显示列表 ✅**；**dirty-rect Present 稳态 ✅**（PresentWithAuto/force=false）；仍开：GPU picture 缓存；层树 Present 合成 |
 | 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
@@ -713,6 +713,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **Picture 显示列表（序13）** | `PictureRecorder` · `Picture.Replay` · `RasterizeDirtyToContext` · picture_test | rect 子集；非全量 Flutter recorder |
 | **dirty-rect Present 稳态（序13）** | `PresentWithAuto` · `PaintPresentTree(force=false)` · `present_damage_test` · `damage_area_px` | 首帧/resize 仍 full；LoadOpLoad 保静态 |
 | **层 Composite walk（序8/11/13）** | `scene.CompositeToContext` · `composite_test` · Offset/Clip/Transform/Picture/Opacity/Filter | 单测像素；**PipelineApp 仍 RO paint**（待 Record 接线） |
+| **SaveLayer + ClipPath paint（序7）** | `SaveLayer/Restore` · `PushClipPath` · `PushLayerIsolated` · save_layer_test | 预算门禁；全幅隔离；无 ClipPathLayer |
 | 窗测轴 | `examples/ui_render_base_*` | — |
 
 ---
@@ -736,7 +737,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.19** | **阶段 B** CompositeToContext：Offset/Clip/Transform/Picture/Opacity/Filter 层 walk + composite_test；PipelineApp 仍 RO paint |
+| **1.20** | **阶段 C** SaveLayer/Restore+Budget + PushLayerIsolated + PushClipPath + save_layer_test；ClipPath 场景层仍开 |
+| 1.19 | **阶段 B** CompositeToContext：Offset/Clip/Transform/Picture/Opacity/Filter 层 walk + composite_test；PipelineApp 仍 RO paint |
 | 1.18 | **序13** dirty-rect Present 稳态：PresentWithAuto + force=false CompositeOnly + damage_area_px 指标 + present_damage_test；首帧/resize full |
 | 1.17 | **序13** Picture 显示列表：PictureRecorder Fill/StrokeRect + Replay + RasterizeDirtyToContext；dirty-rect Present 仍开 |
 | 1.16 | **序12** VirtualList OffsetOfIndex/IndexAtOffset/ScrollToIndex（前缀和）+ virtual_list_scroll_test；Physics/完整 multi-sliver 仍开 |

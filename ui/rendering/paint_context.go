@@ -101,7 +101,7 @@ func (pc *PaintContext) PushClipRRect(x, y, w, h, radius float64) {
 // applied by translating a clone — caller path is not mutated). Pairs with PopClip.
 // CTM is not left translated; FillRect/etc. still use Abs() as usual.
 func (pc *PaintContext) PushClipPath(path *render.Path) {
-	if pc == nil || pc.DC == nil || path == nil || path.IsEmpty() {
+	if pc == nil || pc.DC == nil || path == nil || path.NumVerbs() == 0 {
 		return
 	}
 	pc.DC.Push()

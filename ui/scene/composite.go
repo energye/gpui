@@ -161,6 +161,8 @@ func compositeLayer(l Layer, dc *render.Context, st *CompositeStats) {
 		if op <= 1e-9 {
 			return // fully transparent
 		}
+		// Cheap opacity-group for non-overlapping UI; isolation via PushLayerIsolated
+		// is available for filter layers below.
 		dc.PushLayer(render.BlendNormal, op)
 		for _, ch := range t.Children() {
 			compositeLayer(ch, dc, st)
@@ -169,8 +171,8 @@ func compositeLayer(l Layer, dc *render.Context, st *CompositeStats) {
 		return
 
 	case *ColorFilterLayer:
-		// Isolate subtree, draw, apply matrix, composite back.
-		dc.PushLayer(render.BlendNormal, 1)
+		// True offscreen isolation so ApplyColorMatrix hits only the subtree.
+		dc.PushLayerIsolated(1)
 		for _, ch := range t.Children() {
 			compositeLayer(ch, dc, st)
 		}
@@ -180,7 +182,7 @@ func compositeLayer(l Layer, dc *render.Context, st *CompositeStats) {
 		return
 
 	case *ImageFilterLayer:
-		dc.PushLayer(render.BlendNormal, 1)
+		dc.PushLayerIsolated(1)
 		for _, ch := range t.Children() {
 			compositeLayer(ch, dc, st)
 		}
