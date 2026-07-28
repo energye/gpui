@@ -169,3 +169,88 @@ func TestDraw_SetStrokeStyle_RoundCap(t *testing.T) {
 		t.Fatal("nil image")
 	}
 }
+
+// TestDraw_DrawPoints_OriginAware: points land at Abs positions.
+func TestDraw_DrawPoints_OriginAware(t *testing.T) {
+	dc := render.NewContext(60, 60)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pc := rendering.NewPaintContext(dc, 1).WithOrigin(10, 10)
+	// Local (20,20) → abs (30,30)
+	rendering.DrawPoints(pc, []float64{20, 20}, 4, 1, 0, 0, 1)
+	img := dc.Image()
+	r, g, b := sampleAt(img, 30, 30)
+	if r < 0xC000 || g > 0x4000 {
+		t.Fatalf("point (30,30)=#%04x%04x%04x want red", r, g, b)
+	}
+	or, og, ob := sampleAt(img, 5, 5)
+	if or < 0xC000 || og < 0xC000 || ob < 0xC000 {
+		t.Fatalf("far (5,5) want white got #%04x%04x%04x", or, og, ob)
+	}
+}
+
+// TestDraw_DrawVertices_Triangle fills a solid-color triangle.
+func TestDraw_DrawVertices_Triangle(t *testing.T) {
+	dc := render.NewContext(80, 80)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pc := rendering.NewPaintContext(dc, 1).WithOrigin(5, 5)
+	// Local triangle covering center; solid blue via DC fill color path (no per-vert colors).
+	pos := []rendering.Point{
+		{X: 10, Y: 10},
+		{X: 60, Y: 10},
+		{X: 35, Y: 55},
+	}
+	pc.DC.SetRGBA(0, 0, 1, 1)
+	rendering.DrawVertices(pc, pos, nil, rendering.VertexModeTriangles)
+	img := dc.Image()
+	// Centroid-ish abs ~(5+35, 5+25)=(40,30)
+	r, g, b := sampleAt(img, 40, 30)
+	if b < 0x8000 {
+		t.Fatalf("triangle interior #%04x%04x%04x want blue-ish", r, g, b)
+	}
+}
+
+// TestDraw_FillDRRect_RingHasHole: outer red ring, inner hole stays near-white.
+func TestDraw_FillDRRect_RingHasHole(t *testing.T) {
+	dc := render.NewContext(100, 100)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pc := rendering.NewPaintContext(dc, 1)
+	rendering.FillDRRect(pc,
+		10, 10, 80, 80, 8,
+		30, 30, 40, 40, 4,
+		1, 0, 0, 1,
+	)
+	img := dc.Image()
+	// Outer band (15,50) should be red.
+	rr, rg, rb := sampleAt(img, 15, 50)
+	if rr < 0xA000 {
+		t.Fatalf("outer ring (15,50)=#%04x%04x%04x want red", rr, rg, rb)
+	}
+	// Hole center (50,50) near-white.
+	hr, hg, hb := sampleAt(img, 50, 50)
+	if hr < 0xA000 || hg < 0xA000 || hb < 0xA000 {
+		t.Fatalf("DRRect hole (50,50)=#%04x%04x%04x want near-white", hr, hg, hb)
+	}
+}
+
+// TestDraw_PathAddHelpers_BuildAndFill: PathAddRect/RRect produce fillable geometry.
+func TestDraw_PathAddHelpers_BuildAndFill(t *testing.T) {
+	dc := render.NewContext(60, 60)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pc := rendering.NewPaintContext(dc, 1)
+	p := rendering.NewPath()
+	rendering.PathAddRect(p, 10, 10, 20, 20)
+	rendering.FillPath(pc, p, 0, 0.7, 0, 1)
+	img := dc.Image()
+	r, g, b := sampleAt(img, 20, 20)
+	if g < 0x8000 {
+		t.Fatalf("PathAddRect fill #%04x%04x%04x want green", r, g, b)
+	}
+}

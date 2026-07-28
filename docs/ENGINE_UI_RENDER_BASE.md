@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.20** | 日期：2026-07-28  
+> **版本：1.22** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -145,18 +145,18 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-DRAW-PAINT | 用 Paint 填当前 clip | Canvas.drawPaint | 全 clip 填着色器 | — | SetFillBrush+大 rect Fill | — | B | render/context.go | 无 1:1 API |
 | FC-DRAW-RECT | 矩形 | Canvas.drawRect | 色块/背景 | FillRect / StrokeRect | DrawRectangle+Fill/Stroke | ColorBox | **A** | rendering/draw.go | fill+stroke；无持久 Paint 对象 |
 | FC-DRAW-RRECT | 圆角矩形 | Canvas.drawRRect | 按钮/卡片 | FillRoundRect / StrokeRoundRect | DrawRoundedRectangle* | — | **A** | draw.go · geometry 轴 | 均匀圆角；XY 不等圆角仍 B |
-| FC-DRAW-DRRECT | 双 RRect 环 | Canvas.drawDRRect | 环形进度/边框环 | — | 两 path 差或 stroke 近似 | — | D/B | — | 无 1:1 |
+| FC-DRAW-DRRECT | 双 RRect 环 | Canvas.drawDRRect | 环形进度/边框环 | **FillDRRect** | EvenOdd 双 RRect path | — | **A/C** | draw.go · draw_test | 均匀圆角 even-odd 近似；非 per-corner |
 | FC-DRAW-OVAL | 椭圆 | Canvas.drawOval | 头像底/高亮 | FillOval / StrokeOval | DrawEllipse | — | **A** | draw.go | — |
 | FC-DRAW-CIRCLE | 圆 | Canvas.drawCircle | 头像/点/涟漪 | FillCircle / StrokeCircle | DrawCircle | Spinner 仍可用 rect 点 | **A** | draw.go | — |
 | FC-DRAW-ARC | 弧/扇形 | Canvas.drawArc | 进度环 | FillArc / StrokeArc | DrawArc/DrawEllipticalArc | — | **A** | draw.go | 椭圆弧 API 仍可加深 |
-| FC-DRAW-PATH | 任意路径 | Canvas.drawPath | 图标/波浪/自定义 | NewPath+FillPath/StrokePath | DrawPath/Fill/Stroke+Path | — | **A** | draw.go | 构建仍用 render.Path；metrics 见序6 |
+| FC-DRAW-PATH | 任意路径 | Canvas.drawPath | 图标/波浪/自定义 | NewPath+**PathAdd***+FillPath · **SetFillRule** | Path/Fill | — | **A** | draw.go | PathAddRect/RRect/Oval；fillType UI |
 | FC-DRAW-LINE | 线段 | Canvas.drawLine | 分割线/刻度 | StrokeLine | DrawLine | — | **A** | draw.go | — |
-| FC-DRAW-POINTS | 点列 | Canvas.drawPoints/RawPoints | sparklines | — | DrawPoint 等 | — | B | render/context.go | Raw 批量弱于 Flutter |
-| FC-DRAW-VERTICES | 顶点网格 | Canvas.drawVertices | 扭曲图/网格渐变 | — | DrawVertices/DrawMesh | — | B | render/vertices.go | — |
-| FC-DRAW-ATLAS | 图集精灵 | Canvas.drawAtlas | 图标合批、粒子 | — | DrawAtlas | — | B | render/vertices.go | — |
+| FC-DRAW-POINTS | 点列 | Canvas.drawPoints/RawPoints | sparklines | **DrawPoints** | DrawPoint | — | **A** | draw.go · draw_test | 圆点半径；非 PointMode 枚举全量 |
+| FC-DRAW-VERTICES | 顶点网格 | Canvas.drawVertices | 扭曲图/网格渐变 | **DrawVertices** | DrawVertices | — | **A/C** | draw.go · vertices.go · draw_test | Triangles/Fan；CPU 均色 |
+| FC-DRAW-ATLAS | 图集精灵 | Canvas.drawAtlas | 图标合批、粒子 | **DrawAtlas** | DrawAtlas | — | **A** | image_draw.go · vertices.go | UI 门面 |
 | FC-DRAW-SHADOW | 路径阴影 | Canvas.drawShadow | Material 海拔阴影 | — | ApplyDropShadow（全幅滤镜向） | — | B/C | render/filter_ops.go | 非 1:1 path shadow |
 | FC-DRAW-IMAGE | 绘图像 | Canvas.drawImage | 图标/位图 | **DrawImageBuf** | DrawImage | RenderImage | A | image_draw.go · RenderImage | 公开 UI 门面 |
-| FC-DRAW-IMAGE-RECT | 源/目标矩形 | Canvas.drawImageRect | 裁剪缩放 | DrawImageBuf dst | DrawImageEx | RenderImage | A/B | context_image.go | 精细 src 矩形部分 B |
+| FC-DRAW-IMAGE-RECT | 源/目标矩形 | Canvas.drawImageRect | 裁剪缩放 | **DrawImageRect** / DrawImageBuf | DrawImageEx | RenderImage | **A** | image_draw.go | |
 | FC-DRAW-IMAGE-NINE | 九宫格 | Canvas.drawImageNine | 可拉伸边框 | **DrawImageNine** | DrawImageNine | — | **A** | image_draw.go · image_draw_test | 均匀 center 矩形；Atlas UI 仍开 |
 | FC-DRAW-PARAGRAPH | 绘段落 | Canvas.drawParagraph | 所有正式文本 | DrawText/Colored 子集 | DrawString* | RenderText | C | ui/rendering/text.go | 非 Paragraph 模型 |
 | FC-DRAW-PICTURE | 回放 Picture | Canvas.drawPicture | 层缓存回放 | Picture.Replay | Context 绘 | PictureLayer+Ops | **A/C** | scene/picture.go · picture_test | 显示列表 rect 子集；**非** dirty-rect Present |
@@ -242,16 +242,16 @@ go run ./examples/ui_l1_scroll              # 滚动
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
 | FImg-DRAW | 绘 Image | drawImage | 位图 | **DrawImageBuf** | DrawImage | RenderImage | A | image_draw.go · image.go | — |
-| FImg-RECT | 源矩形采样 | drawImageRect | 精灵/裁剪 | 部分 via Ex | DrawImageEx | — | A/B | context_image.go | 精细 src 矩形 UI 仍部分 B |
+| FImg-RECT | 源矩形采样 | drawImageRect | 精灵/裁剪 | **DrawImageRect** | DrawImageEx | — | **A** | image_draw.go · image_draw_test | SrcRect 门面 |
 | FImg-NINE | 九宫格 | drawImageNine | 气泡边框 | **DrawImageNine** | DrawImageNine | — | **A** | image_draw.go · image_draw_test · image 轴 | center 拉伸语义单测 |
 | FImg-ROUND | 圆角图 | ClipRRect+image | 头像 | **DrawImageRounded** | DrawImageRounded | — | **A** | image_draw.go · image_draw_test | 均匀圆角；per-corner 仍开 |
-| FImg-CIRCLE | 圆形图 | DecorationImage | 头像 | — | DrawImageCircular | — | B | context_image.go | — |
+| FImg-CIRCLE | 圆形图 | DecorationImage | 头像 | **DrawImageCircular** | DrawImageCircular | — | **A** | image_draw.go · image_draw_test | |
 | FImg-QUAD | 四角映射 | 自定义 | 透视广告 | — | DrawImageQuad | — | B | m4_extensions.go | — |
 | FImg-CODEC | 解码 | instantiateImageCodec | 加载图 | ui/io.Pool DecodeFile | ImageBuf | RenderImage 状态机 | A | ui/io/decode.go | F12；多帧 GIF 弱 |
 | FImg-DISPOSE | 释放图像 | image.dispose | 防泄漏 | SetImage 所有权 | ImageBuf.Dispose | RenderImage | A | buf · image_dispose_test | 幂等 |
 | FImg-TO-BYTES | 读回像素 | toByteData | 截图/测试 | — | ExportImageBuf/Image/SavePNG | — | B | context_image.go | — |
 | FImg-GPU-TEX | 外部纹理 | Texture | 视频帧 | — | DrawGPUTexture* | 无 TextureLayer | B/D | context_image.go | FL-TEXTURE 关联 |
-| FImg-ATLAS | 图集 | drawAtlas | 合批图标 | — | DrawAtlas | — | B | vertices.go | — |
+| FImg-ATLAS | 图集 | drawAtlas | 合批图标 | **DrawAtlas** | DrawAtlas | — | **A** | image_draw.go · image_draw_test · vertices.go | UI 门面；原点偏移 sprites |
 
 ---
 
@@ -682,11 +682,11 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 序 | 还缺什么（摘要） |
 |----|------------------|
-| 5 | 主路径 ✅；仍开：Vertices/Atlas/Points、ImageShader、DRRect、不等圆角 RRect |
+| 5 | 主路径 ✅；**Points/Vertices/DRRect/PathAdd/Atlas ✅**；仍开：ImageShader、不等圆角 RRect、真 Gouraud |
 | 6 | **metrics ✅**；仍开：conic、fillType UI、布尔 UI 文档、Path 构建动词 UI 门面（现经 NewPath→render.Path） |
 | 7 | **ClipRRect RO→层 ✅**；**SaveLayer+Budget ✅**；**PushClipPath paint ✅**；仍开：ClipPath **场景层**；通用任意 CTM save |
 | 8 | **逆 CTM hit ✅**；**CompositeToContext 层 walk ✅**；仍开：通用 pushTransform/Matrix4；PipelineApp 默走层 Present |
-| 9 | **Nine/Round UI ✅**；仍开：Atlas；Circular UI 门面；精细 SrcRect UI |
+| 9 | **Nine/Round/Circular/SrcRect/Atlas UI ✅**；仍开：per-corner 圆角图；GPU atlas 产品化 |
 | 10 | **Font 接通 RO ✅**；仍开：**全量 Paragraph**；族名字符串 API；装饰/strut/locale |
 | 11 | **Filter 层+Apply ✅**；**Composite 滤镜 ✅**；**SaveLayer UI ✅**；仍开：Backdrop 产品；drop-shadow UI；PipelineApp 默走层 |
 | 12 | **可变 index↔offset/ScrollToIndex ✅**；仍开：完整 multi-sliver；**Physics** |
@@ -698,7 +698,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 能力 | 证据 | 诚实边界 |
 |------|------|----------|
 | PaintContext + DC | `paint_context.go` | 无独立 painting 包 |
-| **几何 draw UI（序5）** | `draw.go` · `draw_test` · geometry 轴 | Vertices/Atlas/Points 仍 B |
+| **几何 draw UI（序5/D2）** | `draw.go` · `draw_test` · Points/Vertices/DRRect/PathAdd | ImageShader/不等圆角仍开；Vertices CPU 均色 |
 | **Path metrics（序6）** | `render/path_metrics.go` · `ui/rendering/path_metrics*` | conic 仍 D；非全量 PathMetric.getSegment |
 | ClipRRect **paint + 层** | `PushClipRRect` · **RenderClipRRect** · `clip_rrect_layer_test` · cliplayer | **FL-CLIP-RRECT A/C**（RO→Build 主路径）；Present 全画；ClipPath/saveLayer 仍开 |
 | TransformLayer + RenderTransform + **逆 CTM hit** | transform.go · transform_hit_test · layer_build · cliplayer | 中心 rotate+scale 逆 hit；**非** Matrix4/通用 pushTransform；Present 全画 |
@@ -706,7 +706,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **Font 接通 RenderText（序10）** | `SetFace` · `SetFontSize` · `effectiveFace` · `text_font_ro_test` | 有 Face 真测+DC.SetFont；全量 ParagraphBuilder 仍 C |
 | **Filter 场景层+UI Apply（序11）** | `ColorFilterLayer` · `ImageFilterLayer` · `ApplyGrayscale/Blur` · filter_*_test | Backdrop/Present 合成/saveLayer 隔离仍开 |
 | Image Dispose 所有权 | image_dispose_test | — |
-| **Image Nine/Round UI（序9）** | `image_draw.go` · `image_draw_test` · image 轴 | Atlas/Circular UI 仍开；per-corner 圆角图仍开 |
+| **Image Nine/Round/Circular/SrcRect/Atlas UI（序9/D1）** | `image_draw.go` · `image_draw_test` · image 轴 | per-corner 仍开 |
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
 | p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
 | VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；Physics/完整 multi-sliver 仍开 |
@@ -737,7 +737,9 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.20** | **阶段 C** SaveLayer/Restore+Budget + PushLayerIsolated + PushClipPath + save_layer_test；ClipPath 场景层仍开 |
+| **1.22** | **阶段 D2** DrawPoints/DrawVertices/FillDRRect/PathAdd*/SetFillRule + draw_test |
+| 1.21 | **阶段 D1** DrawImageCircular/DrawImageRect/DrawAtlas UI 门面 + image_draw_test + image 轴接线 |
+| 1.20 | **阶段 C** SaveLayer/Restore+Budget + PushLayerIsolated + PushClipPath + save_layer_test；ClipPath 场景层仍开 |
 | 1.19 | **阶段 B** CompositeToContext：Offset/Clip/Transform/Picture/Opacity/Filter 层 walk + composite_test；PipelineApp 仍 RO paint |
 | 1.18 | **序13** dirty-rect Present 稳态：PresentWithAuto + force=false CompositeOnly + damage_area_px 指标 + present_damage_test；首帧/resize full |
 | 1.17 | **序13** Picture 显示列表：PictureRecorder Fill/StrokeRect + Replay + RasterizeDirtyToContext；dirty-rect Present 仍开 |

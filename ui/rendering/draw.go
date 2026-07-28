@@ -176,6 +176,42 @@ func StrokeArc(pc *PaintContext, cx, cy, radius, angle1, angle2, lineWidth, r, g
 // NewPath creates a render.Path for UI CustomPaint-style drawing (FC-DRAW-PATH).
 func NewPath() *render.Path { return render.NewPath() }
 
+// PathAddRect appends an axis-aligned rect to p in local coordinates (Path.addRect).
+func PathAddRect(p *render.Path, x, y, w, h float64) {
+	if p == nil || w <= 0 || h <= 0 {
+		return
+	}
+	p.Rectangle(x, y, w, h)
+}
+
+// PathAddRRect appends a uniform rounded rect to p (Path.addRRect subset).
+func PathAddRRect(p *render.Path, x, y, w, h, radius float64) {
+	if p == nil || w <= 0 || h <= 0 {
+		return
+	}
+	if radius <= 0 {
+		p.Rectangle(x, y, w, h)
+		return
+	}
+	p.RoundedRectangle(x, y, w, h, radius)
+}
+
+// PathAddOval appends an ellipse in bounding box (x,y,w,h) (Path.addOval).
+func PathAddOval(p *render.Path, x, y, w, h float64) {
+	if p == nil || w <= 0 || h <= 0 {
+		return
+	}
+	p.Ellipse(x+w/2, y+h/2, w/2, h/2)
+}
+
+// SetFillRule sets non-zero / even-odd fill for subsequent FillPath (Path.fillType UI).
+func SetFillRule(pc *PaintContext, rule render.FillRule) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.DC.SetFillRule(rule)
+}
+
 // FillPath fills a path in local coordinates (origin applied via CTM translate).
 func FillPath(pc *PaintContext, p *render.Path, r, g, b, a float64) {
 	if pc == nil || pc.DC == nil || p == nil {
@@ -201,6 +237,68 @@ func StrokePath(pc *PaintContext, p *render.Path, lineWidth, r, g, b, a float64)
 	pc.DC.SetRGBA(r, g, b, a)
 	pc.DC.SetLineWidth(lineWidth)
 	_ = pc.DC.StrokePath(p)
+	pc.DC.Pop()
+}
+
+// --- Points / Vertices / DRRect ---
+
+// DrawPoints draws filled circular points at local (x,y) pairs (FC-DRAW-POINTS).
+// pts is [x0,y0, x1,y1, ...]; odd trailing coordinate is ignored. radius is logical px.
+func DrawPoints(pc *PaintContext, pts []float64, radius, r, g, b, a float64) {
+	if pc == nil || pc.DC == nil || len(pts) < 2 || radius <= 0 {
+		return
+	}
+	pc.DC.SetRGBA(r, g, b, a)
+	for i := 0; i+1 < len(pts); i += 2 {
+		ax, ay := pc.Abs(pts[i], pts[i+1])
+		pc.DC.DrawPoint(ax, ay, radius)
+		_ = pc.DC.Fill()
+	}
+}
+
+// VertexMode re-exports render triangle modes for DrawVertices.
+type VertexMode = render.VertexMode
+
+const (
+	VertexModeTriangles   = render.VertexModeTriangles
+	VertexModeTriangleFan = render.VertexModeTriangleFan
+)
+
+// ColorRGBA is a 0..1 float color (alias of render.RGBA) for per-vertex colors.
+type ColorRGBA = render.RGBA
+
+// DrawVertices draws a triangle mesh in local coordinates (FC-DRAW-VERTICES).
+// positions use package Point (logical); when len(colors)==len(positions), per-vertex
+// colors are used (CPU averages triangle color). mode is Triangles or TriangleFan.
+func DrawVertices(pc *PaintContext, positions []Point, colors []ColorRGBA, mode VertexMode) {
+	if pc == nil || pc.DC == nil || len(positions) < 3 {
+		return
+	}
+	ox, oy := pc.OriginX, pc.OriginY
+	pos := make([]render.Point, len(positions))
+	for i, p := range positions {
+		pos[i] = render.Point{X: p.X + ox, Y: p.Y + oy}
+	}
+	pc.DC.DrawVertices(pos, colors, mode)
+}
+
+// FillDRRect fills the ring between an outer and inner rounded rect (FC-DRAW-DRRECT).
+// Uses even-odd fill on outer∪inner paths. Inner must lie inside outer; degenerate
+// sizes are no-ops. Uniform corner radii only (not per-corner).
+func FillDRRect(pc *PaintContext, ox, oy, ow, oh, oRad, ix, iy, iw, ih, iRad, r, g, b, a float64) {
+	if pc == nil || pc.DC == nil || ow <= 0 || oh <= 0 || iw <= 0 || ih <= 0 {
+		return
+	}
+	p := NewPath()
+	PathAddRRect(p, ox, oy, ow, oh, oRad)
+	PathAddRRect(p, ix, iy, iw, ih, iRad)
+	pc.DC.Push()
+	pc.DC.Translate(pc.OriginX, pc.OriginY)
+	// Even-odd so the inner RRect punches a hole; restore non-zero after.
+	pc.DC.SetFillRule(render.FillRuleEvenOdd)
+	pc.DC.SetRGBA(r, g, b, a)
+	_ = pc.DC.FillPath(p)
+	pc.DC.SetFillRule(render.FillRuleNonZero)
 	pc.DC.Pop()
 }
 

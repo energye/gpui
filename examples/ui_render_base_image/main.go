@@ -5,8 +5,7 @@
 //
 //	RenderImage state machine (loading → ready / error)
 //	ui/io.Pool async decode (not on Layout/Paint)
-//	UI DrawImageBuf / DrawImageRounded / DrawImageNine (+ DC Ex/SrcRect/Circular)
-//	SrcRect crop sample
+//	UI DrawImageBuf / Rect / Rounded / Circular / Nine / Atlas
 //	paint-only image swap (no layout storm) + RSS metrics
 //
 // Does NOT claim GIF multi-frame, TextureLayer, or P6 present.

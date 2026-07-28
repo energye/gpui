@@ -175,3 +175,109 @@ func TestDrawImageBuf_Basic(t *testing.T) {
 		t.Fatalf("DrawImageBuf 1:1 (16,16)=#%04x%04x%04x want green", gr, gg, gb)
 	}
 }
+
+// TestDrawImageCircular_ClipsOutsideCircle: red image under circular clip leaves
+// hard-rect corner void near-white (not red).
+func TestDrawImageCircular_ClipsOutsideCircle(t *testing.T) {
+	dc := render.NewContext(100, 100)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+
+	img := solidImage(t, 60, 60, 255, 0, 0, 255)
+	defer img.Dispose()
+
+	pc := rendering.NewPaintContext(dc, 1).WithOrigin(10, 10)
+	// Local center (30,30) → abs (40,40), radius 25.
+	rendering.DrawImageCircular(pc, img, 30, 30, 25)
+
+	out := dc.Image()
+	cr, cg, cb := sampleRGB(out.At(40, 40))
+	if cr < 0xC000 || cg > 0x4000 {
+		t.Fatalf("circle center (40,40)=#%04x%04x%04x want red", cr, cg, cb)
+	}
+	// Corner of bounding box of circle (abs 40-25=15) is outside the disk.
+	tr, tg, tb := sampleRGB(out.At(16, 16))
+	if tg < 0xA000 || tb < 0xA000 {
+		t.Fatalf("outside circle (16,16)=#%04x%04x%04x want near-white", tr, tg, tb)
+	}
+}
+
+// TestDrawImageRect_SrcCrop: left half of a red|blue split image stretched to
+// dest must sample red only (not blue from the right half).
+func TestDrawImageRect_SrcCrop(t *testing.T) {
+	img, err := render.NewImageBuf(40, 20, render.FormatRGBA8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer img.Dispose()
+	for y := 0; y < 20; y++ {
+		for x := 0; x < 40; x++ {
+			if x < 20 {
+				_ = img.SetRGBA(x, y, 255, 0, 0, 255)
+			} else {
+				_ = img.SetRGBA(x, y, 0, 0, 255, 255)
+			}
+		}
+	}
+
+	dc := render.NewContext(80, 60)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+
+	pc := rendering.NewPaintContext(dc, 1).WithOrigin(5, 5)
+	// Crop left half (red) into a 40×40 dest at local (10,10) → abs (15,15).
+	src := image.Rect(0, 0, 20, 20)
+	rendering.DrawImageRect(pc, img, src, 10, 10, 40, 40)
+
+	out := dc.Image()
+	// Center of dest abs (15+20, 15+20)=(35,35) must be red, not blue.
+	rr, rg, rb := sampleRGB(out.At(35, 35))
+	if rr < 0xC000 || rb > 0x4000 {
+		t.Fatalf("SrcRect crop center (35,35)=#%04x%04x%04x want red (not blue right half)", rr, rg, rb)
+	}
+}
+
+// TestDrawAtlas_TwoSprites: atlas with red left / green right tiles drawn to
+// two destinations via DrawAtlas.
+func TestDrawAtlas_TwoSprites(t *testing.T) {
+	img, err := render.NewImageBuf(20, 10, render.FormatRGBA8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer img.Dispose()
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 20; x++ {
+			if x < 10 {
+				_ = img.SetRGBA(x, y, 255, 0, 0, 255)
+			} else {
+				_ = img.SetRGBA(x, y, 0, 255, 0, 255)
+			}
+		}
+	}
+
+	dc := render.NewContext(80, 40)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+
+	pc := rendering.NewPaintContext(dc, 1).WithOrigin(4, 4)
+	sprites := []rendering.AtlasSprite{
+		{SrcX: 0, SrcY: 0, SrcW: 10, SrcH: 10, DstX: 0, DstY: 0, DstW: 20, DstH: 20, Opacity: 1},
+		{SrcX: 10, SrcY: 0, SrcW: 10, SrcH: 10, DstX: 30, DstY: 0, DstW: 20, DstH: 20, Opacity: 1},
+	}
+	rendering.DrawAtlas(pc, img, sprites)
+
+	out := dc.Image()
+	// First sprite abs center ~ (4+10, 4+10)=(14,14) red.
+	rr, rg, rb := sampleRGB(out.At(14, 14))
+	if rr < 0xC000 || rg > 0x4000 {
+		t.Fatalf("atlas sprite0 (14,14)=#%04x%04x%04x want red", rr, rg, rb)
+	}
+	// Second sprite abs center ~ (4+30+10, 4+10)=(44,14) green.
+	gr, gg, gb := sampleRGB(out.At(44, 14))
+	if gg < 0xA000 || gr > 0x4000 {
+		t.Fatalf("atlas sprite1 (44,14)=#%04x%04x%04x want green", gr, gg, gb)
+	}
+}

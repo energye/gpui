@@ -187,17 +187,14 @@ func buildImageScene(winW, winH float64, face text.Face) (*imageScene, error) {
 		rendering.DrawImageBuf(pc, img, 16, 24, 0, 0)
 		// 2) DrawImageBuf scaled
 		rendering.DrawImageBuf(pc, img, 130, 24, 72, 72)
-		// 3) SrcRect crop still via DC Ex (no UI src-rect façade yet)
+		// 3) SrcRect crop — UI façade (序9/D1)
 		srcR := image.Rect(0, 0, 48, 48)
-		pc.DC.DrawImageEx(img, render.DrawImageOptions{
-			X: ox + 220, Y: oy + 24, DstWidth: 72, DstHeight: 72,
-			SrcRect: &srcR, Opacity: 1,
-		})
-		// 4) Rounded — UI façade (序9)
+		rendering.DrawImageRect(pc, img, srcR, 220, 24, 72, 72)
+		// 4) Rounded — UI façade
 		rendering.DrawImageRounded(pc, img, 320, 24, 16)
-		// 5) Circular (center + radius) still DC until circular UI lands
-		pc.DC.DrawImageCircular(img, ox+460, oy+24+48, 40)
-		// 6) Nine-patch — UI façade (序9)
+		// 5) Circular — UI façade (D1)
+		rendering.DrawImageCircular(pc, img, 460, 24+48, 40)
+		// 6) Nine-patch — UI façade
 		center := image.Rect(24, 24, 72, 72)
 		rendering.DrawImageNine(pc, img, center, 530, 24, 160, 96)
 
