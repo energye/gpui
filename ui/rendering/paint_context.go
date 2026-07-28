@@ -155,15 +155,20 @@ func (pc *PaintContext) SaveLayer(boundsW, boundsH, opacity float64) bool {
 	return true
 }
 
-// Restore ends the most recent successful SaveLayer (PopLayer).
-// No-op if depth is 0.
-func (pc *PaintContext) Restore() {
+// RestoreLayer ends the most recent successful SaveLayer (PopLayer).
+// No-op if depth is 0. Prefer this name over Restore to avoid confusion with
+// canvas Save/Restore (CTM+clip stack).
+func (pc *PaintContext) RestoreLayer() {
 	if pc == nil || pc.DC == nil || pc.saveLayerDepth <= 0 {
 		return
 	}
 	pc.DC.PopLayer()
 	pc.saveLayerDepth--
 }
+
+// Restore is an alias of RestoreLayer for Flutter-like saveLayer/restore pairing.
+// Does not pop CTM/clip — use RestoreCanvas for that.
+func (pc *PaintContext) Restore() { pc.RestoreLayer() }
 
 // SaveLayerDepth returns unmatched SaveLayer count (tests / diagnostics).
 func (pc *PaintContext) SaveLayerDepth() int {
@@ -172,6 +177,123 @@ func (pc *PaintContext) SaveLayerDepth() int {
 	}
 	return pc.saveLayerDepth
 }
+
+// --- CTM / transform (FC-TRANSLATE / SCALE / ROTATE / SKEW / TRANSFORM) ---
+
+// Matrix is a 2D affine matrix alias (render.Matrix: x'=ax+by+c, y'=dx+ey+f).
+type Matrix = render.Matrix
+
+// Save pushes canvas state (CTM + clip + paint bits) — Canvas.save.
+// Pair with RestoreCanvas. Does not push a saveLayer.
+func (pc *PaintContext) Save() {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.DC.Push()
+}
+
+// RestoreCanvas pops the last Save() (CTM+clip). No-op if stack empty.
+func (pc *PaintContext) RestoreCanvas() {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.DC.Pop()
+}
+
+// localToAbsMatrix maps a local-space affine M so Abs-based draws transform as
+// if M were applied in local coordinates about the paint origin:
+//
+//	M_abs = T(origin) · M · T(-origin)
+func (pc *PaintContext) localToAbsMatrix(m render.Matrix) render.Matrix {
+	ox, oy := float64(0), float64(0)
+	if pc != nil {
+		ox, oy = pc.OriginX, pc.OriginY
+	}
+	if ox == 0 && oy == 0 {
+		return m
+	}
+	return render.Translate(ox, oy).Multiply(m).Multiply(render.Translate(-ox, -oy))
+}
+
+// Concat multiplies the CTM by m in local paint space (Canvas.transform subset).
+// 2D affine only — not full Matrix4 / perspective.
+func (pc *PaintContext) Concat(m render.Matrix) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.DC.Transform(pc.localToAbsMatrix(m))
+}
+
+// PushTransform saves CTM then Concats m (local space). Pair with PopTransform.
+func (pc *PaintContext) PushTransform(m render.Matrix) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.DC.Push()
+	pc.DC.Transform(pc.localToAbsMatrix(m))
+}
+
+// PopTransform restores CTM after PushTransform (same as RestoreCanvas).
+func (pc *PaintContext) PopTransform() {
+	pc.RestoreCanvas()
+}
+
+// Translate applies a local-space translation (Canvas.translate).
+func (pc *PaintContext) Translate(dx, dy float64) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.Concat(render.Translate(dx, dy))
+}
+
+// ScaleXY applies local-space scale about the paint origin (Canvas.scale).
+// Named ScaleXY to avoid clashing with the DPR Scale field on PaintContext.
+func (pc *PaintContext) ScaleXY(sx, sy float64) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.Concat(render.Scale(sx, sy))
+}
+
+// Rotate applies local-space rotation in radians about the paint origin (Canvas.rotate).
+func (pc *PaintContext) Rotate(radians float64) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.Concat(render.Rotate(radians))
+}
+
+// RotateAbout rotates about a local-space point (cx,cy).
+func (pc *PaintContext) RotateAbout(radians, cx, cy float64) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.Concat(render.Translate(cx, cy).Multiply(render.Rotate(radians)).Multiply(render.Translate(-cx, -cy)))
+}
+
+// Shear applies local-space shear (Canvas.skew subset via Shear).
+func (pc *PaintContext) Shear(shx, shy float64) {
+	if pc == nil || pc.DC == nil {
+		return
+	}
+	pc.Concat(render.Shear(shx, shy))
+}
+
+// GetTransform returns the current DC user matrix (copy).
+func (pc *PaintContext) GetTransform() render.Matrix {
+	if pc == nil || pc.DC == nil {
+		return render.Identity()
+	}
+	return pc.DC.GetTransform()
+}
+
+// IdentityMatrix returns the 2D identity matrix.
+func IdentityMatrix() render.Matrix { return render.Identity() }
+
+// TranslateMatrix / ScaleMatrix / RotateMatrix build common affines.
+func TranslateMatrix(dx, dy float64) render.Matrix { return render.Translate(dx, dy) }
+func ScaleMatrix(sx, sy float64) render.Matrix     { return render.Scale(sx, sy) }
+func RotateMatrix(radians float64) render.Matrix   { return render.Rotate(radians) }
 
 // Package-level aliases used by RO paint paths in this package.
 func pushClipRect(pc *PaintContext, x, y, w, h float64) { pc.PushClipRect(x, y, w, h) }

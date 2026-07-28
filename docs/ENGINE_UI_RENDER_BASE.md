@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.25** | 日期：2026-07-28  
+> **版本：1.26** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -124,18 +124,18 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FC-SAVE | 画布状态压栈 | Canvas.save | 嵌套 clip/transform | —（经 PushClip 间接） | Push | — | B | render/context.go | UI 无通用 Save |
-| FC-RESTORE | 画布状态出栈 | Canvas.restore | 与 save 配对 | PopClip 仅 clip 对 | Pop | — | B | render/context.go | 通用 restore 未暴露 |
+| FC-SAVE | 画布状态压栈 | Canvas.save | 嵌套 clip/transform | **Save** | Push | — | **A** | paint_context.go · transform_ctm_test | CTM+clip 栈 |
+| FC-RESTORE | 画布状态出栈 | Canvas.restore | 与 save 配对 | **RestoreCanvas** / PopTransform | Pop | — | **A** | paint_context.go | 与 SaveLayer.Restore 分离 |
 | FC-RESTORE-N | 恢复到指定深度 | Canvas.restoreToCount | 错误恢复/多层一次性弹出 | — | — | — | D | — | Flutter 有；gpui 无对等 API |
 | FC-SAVECOUNT | 查询 save 深度 | Canvas.getSaveCount | 调试/断言 | — | clipStackDepth 内部 | — | C | context_clip*.go | 未作 UI 公开 API |
 | FC-SAVELAYER | 离屏层+Paint | Canvas.saveLayer(bounds,paint) | 半透明组、滤镜、阴影组 | **SaveLayer/Restore** + Budget | **PushLayerIsolated** | — | **A/C** | paint_context · save_layer_test · context_layer | 全幅隔离 RT；bounds 仅预算；非 paint 全参 |
 | FC-SAVELAYER-NULL | 全画布 saveLayer | saveLayer(null,…) | 极重；默认应禁 | 预算 MaxArea 可拦 | PushLayer 全幅 | — | C | SaveLayerBudget | F16 纪律 |
-| FC-TRANSLATE | 平移 CTM | Canvas.translate | 局部坐标系 | WithOrigin 绝对偏移 | Translate | OffsetLayer | A/B | PaintContext · scene | UI 用 origin 模型非完整 CTM |
-| FC-SCALE | 缩放 CTM | Canvas.scale | 缩放动画/适配 | RenderTransform.SetScale | Scale | TransformLayer | A/B | transform.go | RO 已接；任意 CTM 仍 B |
-| FC-ROTATE | 旋转 CTM | Canvas.rotate | 旋转图标/翻牌 | RenderTransform.SetRotation | Rotate/RotateAbout | TransformLayer | A/B | transform.go · transform_hit_test | **逆 CTM hit**（中心旋转+缩放）；非通用 Matrix4 |
-| FC-SKEW | 错切 CTM | Canvas.skew | 少见 UI 效果 | — | Shear | — | B | render/context.go | — |
-| FC-TRANSFORM | 任意 Matrix4 | Canvas.transform | 通用仿射 | — | Transform/SetTransform | — | B | render/context.go | UI 未暴露 |
-| FC-GET-TRANSFORM | 读取 CTM | Canvas.getTransform | 命中反变换/调试 | — | GetTransform | — | B | render/context.go | — |
+| FC-TRANSLATE | 平移 CTM | Canvas.translate | 局部坐标系 | **Translate** + WithOrigin | Translate | OffsetLayer | **A** | paint_context · transform_ctm_test | 本地空间经 origin 共轭 |
+| FC-SCALE | 缩放 CTM | Canvas.scale | 缩放动画/适配 | **ScaleXY** · RenderTransform | Scale | TransformLayer | **A** | paint_context · transform | 2D；非透视 |
+| FC-ROTATE | 旋转 CTM | Canvas.rotate | 旋转图标/翻牌 | **Rotate/RotateAbout** · RenderTransform | Rotate* | TransformLayer | **A** | paint_context · transform_hit_test | 2D；非 Matrix4 |
+| FC-SKEW | 错切 CTM | Canvas.skew | 少见 UI 效果 | **Shear** | Shear | — | **A** | paint_context · transform_ctm_test | |
+| FC-TRANSFORM | 任意 Matrix4 | Canvas.transform | 通用仿射 | **Concat/PushTransform** | Transform | — | **A/C** | paint_context · transform_ctm_test | **2D 仿射**；非透视 Matrix4 |
+| FC-GET-TRANSFORM | 读取 CTM | Canvas.getTransform | 命中反变换/调试 | **GetTransform** | GetTransform | — | **A** | paint_context.go | 返回 user matrix 副本 |
 | FC-CLIP-RECT | 矩形裁剪 | Canvas.clipRect+ClipOp | 列表视口、溢出隐藏 | PushClipRect/PopClip | ClipRect/ClipRectOp | ClipRectLayer | A | rendering/paint_context.go | ClipOp 差异在 render |
 | FC-CLIP-RRECT | 圆角裁剪 | Canvas.clipRRect | 卡片/头像裁切 | PushClipRRect · **RenderClipRRect** | ClipRoundRect | ClipRRectLayer RO→Build | **A** | paint_context · clip_rrect · layer_build | 均匀圆角；Present 仍全画 |
 | FC-CLIP-PATH | 路径裁剪 | Canvas.clipPath | 异形遮罩 | **PushClipPath** | Clip | 无 ClipPathLayer 仍 D | **A/B** | paint_context · save_layer_test | UI paint 可裁；场景层仍无 |
@@ -328,7 +328,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FPC-CLIP-PATH | pushClipPath | pushClipPath | 异形 | — | Clip path | — | B/D | — | — |
 | FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | Apply* 全画布 | 滤镜 API | ColorFilterLayer Builder | **C** | scene/build · filter_draw | 层类型有；RO push 子树隔离仍 C |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 |
-| FPC-TRANSFORM | pushTransform | pushTransform | 子树变换 | RenderTransform | CTM | TransformLayer | A/C | transform.go · layer_build · transform_hit_test | 逆 hit 已接；**非**通用 pushTransform/Matrix4 API |
+| FPC-TRANSFORM | pushTransform | pushTransform | 子树变换 | **PushTransform** · RenderTransform | CTM | TransformLayer | **A/C** | paint_context · transform · layer_build | 2D PushTransform；非 Matrix4 |
 | FPC-LAYER | pushLayer/addLayer | pushLayer | 自定义层 | — | — | LayerBuilder 有限 | C | scene/build.go | — |
 | FPC-COMPLEX-HINT | setIsComplexHint | setIsComplexHint | 光栅缓存提示 | — | — | — | D | — | 光栅缓存（序13） |
 | FPC-WILL-CHANGE | setWillChangeHint | setWillChangeHint | 动画提示 | — | — | — | D | — | 序13 |
@@ -685,7 +685,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 5 | 主路径 ✅；**Points/Vertices/DRRect/PathAdd/Atlas ✅**；仍开：ImageShader、不等圆角 RRect、真 Gouraud |
 | 6 | **metrics ✅**；仍开：conic、fillType UI、布尔 UI 文档、Path 构建动词 UI 门面（现经 NewPath→render.Path） |
 | 7 | **ClipRRect RO→层 ✅**；**SaveLayer+Budget ✅**；**PushClipPath paint ✅**；仍开：ClipPath **场景层**；通用任意 CTM save |
-| 8 | **逆 CTM hit ✅**；**CompositeToContext 层 walk ✅**；仍开：通用 pushTransform/Matrix4；PipelineApp 默走层 Present |
+| 8 | **逆 hit ✅**；**Composite walk ✅**；**2D PushTransform/Concat ✅**；仍开：透视 Matrix4；PipelineApp 默走层 Present |
 | 9 | **Nine/Round/Circular/SrcRect/Atlas UI ✅**；仍开：per-corner 圆角图；GPU atlas 产品化 |
 | 10 | **Font+族名+装饰+样式栈 ✅**；仍开：strut/locale/选区/placeholder；全量 TextStyle |
 | 11 | **Filter/SaveLayer/DropShadow/Backdrop ✅**；仍开：clip 局部毛玻璃产品；PipelineApp 默走层 Present |
@@ -717,6 +717,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **层 Composite walk（序8/11/13）** | `scene.CompositeToContext` · `composite_test` · Offset/Clip/Transform/Picture/Opacity/Filter | 单测像素；**PipelineApp 仍 RO paint**（待 Record 接线） |
 | **SaveLayer + ClipPath paint（序7）** | `SaveLayer/Restore` · `PushClipPath` · `PushLayerIsolated` · save_layer_test | 预算门禁；全幅隔离；无 ClipPathLayer |
 | **DropShadow + Backdrop（序11/D5）** | `ApplyDropShadow` · `PushBackdrop` · `BackdropFilterLayer` · filter_draw_test · composite_test | 全幅 alpha 阴影；全幅 backdrop 快照 |
+| **2D CTM PushTransform（序8/D6）** | `Save`/`PushTransform`/`Concat`/`ScaleXY`/`Rotate`/`Shear` · transform_ctm_test | 非透视 Matrix4 |
 | 窗测轴 | `examples/ui_render_base_*` | — |
 
 ---
@@ -740,7 +741,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.25** | **阶段 D5** ApplyDropShadow + PushBackdrop/BackdropFilterLayer + composite walk + tests |
+| **1.26** | **阶段 D6** PaintContext Save/Concat/PushTransform/Translate/ScaleXY/Rotate/Shear/GetTransform + transform_ctm_test |
+| 1.25 | **阶段 D5** ApplyDropShadow + PushBackdrop/BackdropFilterLayer + composite walk + tests |
 | 1.24 | **阶段 D4** ClampingScrollPhysics + Viewport Fling/TickPhysics + Scrollable pan-end fling + scroll_physics_test |
 | 1.23 | **阶段 D3** LoadFaceByFamily/SetFontFamily、TextDecoration、ParagraphBuilder PushStyle + paragraph_style_test |
 | 1.22 | **阶段 D2** DrawPoints/DrawVertices/FillDRRect/PathAdd*/SetFillRule + draw_test |
