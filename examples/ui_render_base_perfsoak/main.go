@@ -82,7 +82,6 @@ func main() {
 	}
 	m := app.Metrics().Snapshot()
 	fps := float64(presents) / elapsed
-	hitchRate := float64(m.HitchCount) / elapsed
 
 	// RSS slope approx KB/s over run (positive = growth).
 	rssSlope := 0.0
@@ -92,8 +91,9 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: backend=%s presents=%d ~%.1f fps layout_flushes=%d\n",
 		win.Backend(), presents, fps, app.LayoutFlushCount())
-	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: avg=%.2f p50=%.2f p99=%.2f hitches=%d hitch_rate=%.2f/s vsync=%s\n",
-		m.AvgFrameIntervalMs, m.P50FrameIntervalMs, m.P99FrameIntervalMs, m.HitchCount, hitchRate, m.VSyncSource)
+	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: avg=%.2f p50=%.2f p95=%.2f p99=%.2f hitches=%d hitch_rate=%.2f/min vsync=%s\n",
+		m.AvgFrameIntervalMs, m.P50FrameIntervalMs, m.P95FrameIntervalMs, m.P99FrameIntervalMs,
+		m.HitchCount, m.HitchRatePerMin, m.VSyncSource)
 	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: rss start=%d end=%d peak=%d after_close=%d KB slope=%.1f KB/s cpu=%.1f%%\n",
 		m.RSSStartKB, m.RSSEndKB, m.RSSPeakKB, m.RSSAfterCloseKB, rssSlope, m.CPUPctAvg)
 

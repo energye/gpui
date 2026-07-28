@@ -23,6 +23,9 @@ const textEllipsis = "…"
 // RenderText draws text via render.DrawString / per-line paint.
 // Layout prefers Face.Measure when Face is set; otherwise EstimateTextSize (rune-based).
 // When MaxWidth > 0, layout/paint wrap. MaxLines + Overflow cap the visible content.
+//
+// Multi-run (minimal Paragraph): when Runs is non-empty, layout/paint use per-run
+// style (color/face/size). Single-string Text path remains the default when Runs is empty.
 type RenderText struct {
 	Base
 	Text       string
@@ -42,6 +45,9 @@ type RenderText struct {
 	MaxLines int
 	// Overflow is applied when content exceeds MaxWidth and/or MaxLines.
 	Overflow TextOverflow
+	// Runs holds multi-span content from ParagraphBuilder / SetRuns.
+	// When len(Runs) > 0, Text is treated as a cache of concatenated plain text.
+	Runs []TextRun
 }
 
 // NewRenderText creates a text node.
@@ -59,13 +65,54 @@ func NewRenderText(textStr string) *RenderText {
 }
 
 // SetText updates the string and dirties layout+paint when changed.
+// Clears multi-run content so the single-string path is used.
 func (t *RenderText) SetText(s string) {
-	if t == nil || t.Text == s {
+	if t == nil {
+		return
+	}
+	if t.Text == s && len(t.Runs) == 0 {
 		return
 	}
 	t.Text = s
+	t.Runs = nil
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
+}
+
+// SetRuns installs multi-span content (minimal paragraph). Copies runs.
+// Updates Text to the concatenation of run texts for debugging / DisplayText.
+func (t *RenderText) SetRuns(runs []TextRun) {
+	if t == nil {
+		return
+	}
+	if len(runs) == 0 {
+		t.Runs = nil
+		t.Text = ""
+		t.MarkNeedsLayout()
+		t.MarkNeedsPaint()
+		return
+	}
+	cp := make([]TextRun, len(runs))
+	copy(cp, runs)
+	t.Runs = cp
+	var b strings.Builder
+	for i, r := range cp {
+		if i > 0 {
+			// no separator — runs are adjacent spans
+		}
+		b.WriteString(r.Text)
+	}
+	t.Text = b.String()
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// RunCount returns the number of styled runs (0 = single-string mode).
+func (t *RenderText) RunCount() int {
+	if t == nil {
+		return 0
+	}
+	return len(t.Runs)
 }
 
 // SetColor updates RGBA and dirties paint only (no layout).
@@ -205,9 +252,25 @@ func (t *RenderText) wrapLines() []string {
 
 // DisplayLines returns the visible lines after wrap + maxLines + overflow.
 // Layout and paint both use this so measured size matches what is drawn.
+// For multi-run content, each line is the concatenation of that line's span texts.
 func (t *RenderText) DisplayLines() []string {
 	if t == nil {
 		return nil
+	}
+	if t.hasRuns() {
+		rlines := t.layoutRunLines()
+		if len(rlines) == 0 {
+			return nil
+		}
+		out := make([]string, len(rlines))
+		for i, ln := range rlines {
+			var b strings.Builder
+			for _, sp := range ln.Spans {
+				b.WriteString(sp.Text)
+			}
+			out[i] = b.String()
+		}
+		return out
 	}
 	lines := t.wrapLines()
 	if len(lines) == 0 {
@@ -391,6 +454,9 @@ func clipToWidth(s string, maxW float64, t *RenderText) string {
 }
 
 func (t *RenderText) measureSize() (w, h float64) {
+	if t.hasRuns() {
+		return t.measureRunsSize()
+	}
 	lines := t.DisplayLines()
 	if len(lines) == 0 {
 		fs := t.fontSize()
@@ -447,27 +513,56 @@ func (t *RenderText) Paint(pc *PaintContext) {
 		return
 	}
 	pc.NotePaintVisit()
-	lines := t.DisplayLines()
-	if len(lines) > 0 {
-		a := t.A
-		if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
-			a = 1
-		}
-		if t.Face != nil && pc.DC != nil {
-			pc.DC.SetFont(t.Face)
-		}
-		fs := t.fontSize()
-		lh := t.lineHeightLogical()
-		// Y uses FontSize as first baseline (single-line MVP convention); subsequent lines step by lh.
-		for i, line := range lines {
-			if line == "" {
-				continue
+	if t.hasRuns() {
+		t.paintRuns(pc)
+	} else {
+		lines := t.DisplayLines()
+		if len(lines) > 0 {
+			a := t.A
+			if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
+				a = 1
 			}
-			y := fs + float64(i)*lh
-			drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
+			if t.Face != nil && pc.DC != nil {
+				pc.DC.SetFont(t.Face)
+			}
+			fs := t.fontSize()
+			lh := t.lineHeightLogical()
+			// Y uses FontSize as first baseline (single-line MVP convention); subsequent lines step by lh.
+			for i, line := range lines {
+				if line == "" {
+					continue
+				}
+				y := fs + float64(i)*lh
+				drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
+			}
 		}
 	}
 	t.clearPaintDirty()
+}
+
+func (t *RenderText) paintRuns(pc *PaintContext) {
+	lines := t.layoutRunLines()
+	if len(lines) == 0 {
+		return
+	}
+	// First baseline uses parent FontSize (same convention as single-string path).
+	baseline := t.fontSize()
+	for i, ln := range lines {
+		if i > 0 {
+			baseline += lines[i-1].Height
+		}
+		for _, sp := range ln.Spans {
+			if sp.Text == "" {
+				continue
+			}
+			if sp.Face != nil && pc.DC != nil {
+				pc.DC.SetFont(sp.Face)
+			} else if t.Face != nil && pc.DC != nil {
+				pc.DC.SetFont(t.Face)
+			}
+			drawTextColored(pc, sp.Text, sp.X, baseline, sp.R, sp.G, sp.B, sp.A)
+		}
+	}
 }
 
 // HitTest implements RenderObject.

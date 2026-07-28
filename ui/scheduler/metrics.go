@@ -22,6 +22,10 @@ type FrameMetrics struct {
 	MissedVSync  int64 `json:"missed_vsync"`
 	HitchCount   int64 `json:"hitch_count"` // intervals > HitchThresholdMs
 
+	// HitchRatePerMin is hitch_count / wall minutes between first and last
+	// NoteFrameInterval (0 until at least one interval sample exists).
+	HitchRatePerMin float64 `json:"hitch_rate_per_min,omitempty"`
+
 	// Pipeline
 	PipelineDepth int `json:"pipeline_depth"`
 	PipelineMax   int `json:"pipeline_max"`
@@ -31,6 +35,7 @@ type FrameMetrics struct {
 	MaxFrameIntervalMs  float64 `json:"max_frame_interval_ms"`
 	AvgFrameIntervalMs  float64 `json:"avg_frame_interval_ms"`
 	P50FrameIntervalMs  float64 `json:"frame_interval_p50_ms,omitempty"`
+	P95FrameIntervalMs  float64 `json:"frame_interval_p95_ms,omitempty"`
 	P99FrameIntervalMs  float64 `json:"frame_interval_p99_ms,omitempty"`
 	LastBuildMs         float64 `json:"frame_build_ms"`
 	LastRasterMs        float64 `json:"frame_raster_ms"`
@@ -56,6 +61,7 @@ type FrameMetrics struct {
 type MetricsStore struct {
 	mu          sync.Mutex
 	m           FrameMetrics
+	firstAt     time.Time // wall clock of first NoteFrameInterval
 	lastAt      time.Time
 	intervalSum float64
 	intervalN   int64
@@ -64,7 +70,7 @@ type MetricsStore struct {
 	ringI       int
 }
 
-// Snapshot returns a copy of current metrics (includes p50/p99 from the interval ring).
+// Snapshot returns a copy of current metrics (includes p50/p95/p99 and hitch rate).
 func (s *MetricsStore) Snapshot() FrameMetrics {
 	if s == nil {
 		return FrameMetrics{}
@@ -72,7 +78,8 @@ func (s *MetricsStore) Snapshot() FrameMetrics {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := s.m
-	out.P50FrameIntervalMs, out.P99FrameIntervalMs = s.percentilesLocked()
+	out.P50FrameIntervalMs, out.P95FrameIntervalMs, out.P99FrameIntervalMs = s.percentilesLocked()
+	out.HitchRatePerMin = s.hitchRatePerMinLocked()
 	return out
 }
 
@@ -83,13 +90,16 @@ func (s *MetricsStore) JSON() ([]byte, error) {
 }
 
 // NoteFrameInterval records wall time since previous frame note.
-// Tracks max/avg interval, hitch count, and a ring for p50/p99.
+// Tracks max/avg interval, hitch count, and a ring for p50/p95/p99.
 func (s *MetricsStore) NoteFrameInterval(now time.Time) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.firstAt.IsZero() {
+		s.firstAt = now
+	}
 	if !s.lastAt.IsZero() {
 		ms := now.Sub(s.lastAt).Seconds() * 1000
 		s.m.LastFrameIntervalMs = ms
@@ -217,18 +227,18 @@ func (s *MetricsStore) SetProcessStats(startKB, endKB, peakKB, afterCloseKB int6
 	s.mu.Unlock()
 }
 
-// percentilesLocked returns p50 and p99 of the interval ring. Caller holds s.mu.
-func (s *MetricsStore) percentilesLocked() (p50, p99 float64) {
+// percentilesLocked returns p50, p95, and p99 of the interval ring. Caller holds s.mu.
+func (s *MetricsStore) percentilesLocked() (p50, p95, p99 float64) {
 	n := s.ringN
 	if n == 0 {
-		return 0, 0
+		return 0, 0, 0
 	}
 	tmp := make([]float64, n)
 	// ring is filled [0,n) until full, then ringI wraps; always copy last n samples.
 	if n < intervalRingCap {
 		copy(tmp, s.ring[:n])
 	} else {
-		// oldest is ringI % cap
+		// oldest is at ringI % cap when full
 		start := s.ringI % intervalRingCap
 		for i := 0; i < n; i++ {
 			tmp[i] = s.ring[(start+i)%intervalRingCap]
@@ -245,6 +255,21 @@ func (s *MetricsStore) percentilesLocked() (p50, p99 float64) {
 		tmp[j] = v
 	}
 	p50 = tmp[(n-1)*50/100]
+	p95 = tmp[(n-1)*95/100]
 	p99 = tmp[(n-1)*99/100]
-	return p50, p99
+	return p50, p95, p99
+}
+
+// hitchRatePerMinLocked is hitch_count / elapsed minutes (first→last NoteFrameInterval).
+// Zero when wall span is missing or negligible. Caller holds s.mu.
+func (s *MetricsStore) hitchRatePerMinLocked() float64 {
+	if s.m.HitchCount <= 0 || s.firstAt.IsZero() || s.lastAt.IsZero() {
+		return 0
+	}
+	elapsed := s.lastAt.Sub(s.firstAt).Minutes()
+	if elapsed <= 1e-9 {
+		// Sub-millisecond span: treat as "not enough wall time" rather than inf.
+		return 0
+	}
+	return float64(s.m.HitchCount) / elapsed
 }

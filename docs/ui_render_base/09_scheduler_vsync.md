@@ -8,7 +8,7 @@
 
 **目标：** IDLE/TRANSIENT/PERSISTENT、Ticker、WarmUp、帧指标可观测。  
 **非目标：** 无真 VSync 时宣称锁屏 60Hz；PerformanceOverlay（P6）。  
-**已落地：** FrameScheduler 模式；PipelineApp WarmUp/JSON；p50/p99；vsync_source；ProcessTracker RSS/CPU。  
+**已落地：** FrameScheduler 模式；PipelineApp WarmUp/JSON；**p50/p95/p99**；**hitch_rate_per_min**；vsync_source；ProcessTracker RSS/CPU。  
 **已落地真 VSync（FSch-VSYNC / F06）：**  
 - `examples/exhost` X11/Wayland `Host.WaitVSync` → `platform.WaitDRMVBlank`（libdrm `drmWaitVBlank`，purego）  
 - `FrameScheduler.WaitFramePace`：成功 → `vsync_source=true`；失败/无 waiter → `fallback` +（失败时）`missed_vsync++`  
@@ -56,9 +56,9 @@
 
 | 指标 | 说明 |
 |------|------|
-| M-INTERVAL-P50/P99 | 环 256 |
+| M-INTERVAL-P50/P95/P99 | 环 256 |
 | M-VSYNC-SOURCE | true\|fallback |
-| M-HITCH* | jank |
+| M-HITCH* / M-HITCH-RATE | jank 计数 + **hitches/min** |
 | M-PIPE-DEPTH | ≤2 |
 | M-CPU-PROCESS / M-RSS-* | ProcessTracker |
 
@@ -69,7 +69,7 @@
 - [x] 三模式 + Ticker  
 - [x] 示例 JSON 指标  
 - [x] exhost **真** WaitVSync（DRM vblank；失败 → fallback + 诚实 `vsync_source`）  
-- [ ] p95 / hitch_rate 字段（P1）  
+- [x] **p95 / hitch_rate_per_min** 字段（`frame_interval_p95_ms` · JSON；测绿）  
 - [ ] UI/Raster CPU 分轨（P1）
 
 ## 7. 风险与非宣称

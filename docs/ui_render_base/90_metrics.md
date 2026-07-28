@@ -18,7 +18,8 @@
 | M-LAYOUT-COUNT · M-PAINT-COUNT · M-RASTER-LAYER | A |
 | M-RSS-START/END/PEAK/AFTER-CLOSE · M-CPU-PROCESS | A（示例 ProcessTracker） |
 | M-PIPE-DEPTH · M-BUILD-MS · M-RASTER-MS | A/C |
-| M-RSS-SLOPE / hitch_rate 自动字段 | D（soak 可派生打印） |
+| M-RSS-SLOPE 自动字段 | D（soak 可派生打印） |
+| hitch_rate_per_min / p95 | **A**（MetricsStore Snapshot/JSON） |
 
 ## §20 正向性能与资源指标全表
 
@@ -54,7 +55,7 @@
 
 | 指标族 | Flutter / 工程 | gpui 现状（P0 收尾后） |
 |--------|----------------|------------------------|
-| A 帧时 / 流畅 | FrameTiming、60Hz、jank | avg/max/last + **p50/p99**；hitch；vsync_source；缺 p95 字段、hitch 率派生 |
+| A 帧时 / 流畅 | FrameTiming、60Hz、jank | avg/max/last + **p50/p95/p99**；hitch_count + **hitch_rate_per_min**；vsync_source |
 | B 管线 / 跟手 | pipeline、build/raster span | depth/max、build/raster **last**；present 提交/完成易混；输入延迟少示例门禁 |
 | C 脏区局部 | RepaintBoundary、dev tools | layout/paint **已接线**；raster_layer；PaintVisits 测内；damage 面积 **P6** |
 | D CPU | DevTools CPU | **进程** cpu_pct_avg；无 UI/Raster 分轨 |
@@ -82,13 +83,13 @@
 | M-INTERVAL-AVG | 平均间隔 | — | metrics | ms | A | ~16.7 | — |
 | M-INTERVAL-MAX | 最大间隔 | — | metrics | ms | A | 观察尖峰 | — |
 | M-INTERVAL-P50 | 分位 p50 | DevTools | 环形 256 | ms | **A** | ≈16.7 | P0 ✅ |
-| M-INTERVAL-P95 | 分位 p95 | — | **未单独导出** | ms | D | 预算 | P1 |
+| M-INTERVAL-P95 | 分位 p95 | — | 环形 256 | ms | **A** | 预算/尖峰 | P1 ✅ |
 | M-INTERVAL-P99 | 分位 p99 | — | 环形 256 | ms | **A** | 轻场景 < hitch 阈 | P0 ✅ |
 | M-FPS-WALL | wall fps | — | presents/elapsed 示例 | Hz | A | 动画 ≥55 | — |
 | M-FPS-COMPLETE | 完成帧 fps | — | complete/elapsed | Hz | C | 诚实 FPS | P1 |
 | M-TARGET-HZ | 目标刷新 | 60/120 | 文档 + DefaultAnimTick | Hz | C | JSON 标明 | P1 |
 | M-HITCH | hitch_count | jank>≈2frame | >33.4ms | count | A | soak 低 | — |
-| M-HITCH-RATE | hitches/min | SLO | 派生 | /min | D | 预算 | P1 |
+| M-HITCH-RATE | hitches/min | SLO | hitch_count÷墙钟分钟 | /min | **A** | soak 低 | P1 ✅ |
 | M-JANK-33 | >33.4ms | =hitch | hitch | count | A | — | — |
 | M-JANK-50 | >50ms | 严重卡顿 | **无** | count | D | 趋 0 | P1 |
 | M-MISSED-VSYNC | missed_vsync | vsync miss | Wait 错误时 | count | C | 真 vsync 后 | P1 |
@@ -195,7 +196,7 @@
 ### 20.3 采集建议与合入纪律
 
 - Linux RSS/CPU：`scheduler.ReadRSSKB` / `ProcessTracker` → 示例 JSON  
-- 帧分位：MetricsStore 环 256 → p50/p99；**补 p95 / hitch_rate / jank50 为 P1**  
+- 帧分位：MetricsStore 环 256 → **p50/p95/p99**；**hitch_rate_per_min** = hitch_count / (first→last NoteFrameInterval 分钟)；jank50 仍 P1  
 - build/raster：**先 last，再补 p99**  
 - GPU/atlas：从 render 统计 **上浮到 UI JSON**（P1–P3），避免只活在 render 单测  
 - 无真 vsync：`vsync_source=fallback` + 软件 ~16ms；**禁止**宣称锁显示 60Hz  

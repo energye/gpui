@@ -130,7 +130,19 @@ func buildTextScene(winW, winH float64, face text.Face, fontPath string) *textSc
 	// Bottom band: ellipsis demos + color pulse + DC multi-script
 	nRows := (len(samples) + cols - 1) / cols
 	bandY := top0 + float64(nRows)*(ch+gy+14) + 8
-	root.Place(label("FT-MAXLINES / FT-OVERFLOW ellipsis (RenderText)", 11, 0.95, 0.75, 0.4, face), 12, bandY)
+	root.Place(label("FT-MAXLINES / FT-OVERFLOW ellipsis · FT-PARAGRAPH multi-run", 11, 0.95, 0.75, 0.4, face), 12, bandY)
+
+	// Minimal ParagraphBuilder: two colored runs (not single-style string).
+	para := rendering.NewParagraphBuilder()
+	para.SetDefaultStyle(face, 13, 0.95, 0.55, 0.35, 1, 0.55)
+	para.AddText("Paragraph ")
+	para.SetDefaultStyle(face, 13, 0.45, 0.85, 1.0, 1, 0.55)
+	para.AddText("multi-run")
+	para.SetDefaultStyle(face, 13, 0.85, 0.9, 0.75, 1, 0.55)
+	para.AddText(" · 色/字号分 span")
+	paraRT := para.Build()
+	paraRT.SetRepaintBoundary(true)
+	root.Place(paraRT, 400, bandY+18)
 
 	ellip1 := rendering.NewRenderText("Single-line ellipsis: The quick brown fox jumps over the lazy dog — 超长单行省略号演示文本")
 	ellip1.FontSize = 13

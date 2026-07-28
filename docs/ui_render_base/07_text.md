@@ -1,6 +1,6 @@
 # 07 · 文本 / Font / Paragraph
 
-> **状态（组级）：** C/A 混（wrap·ellipsis·maxLines ✅；Paragraph 仍 D） · **Wave：** P0–P2 / 远期 IME · 修订：2026-07-28  
+> **状态（组级）：** C/A 混（wrap·ellipsis·maxLines·最小Paragraph ✅；全量富文本/BiDi 仍后） · **Wave：** P0–P2 / 远期 IME · 修订：2026-07-28  
 > 拆自 `ENGINE_UI_RENDER_BASE`；状态码见 [00_meta](./00_meta.md)  
 > **施工真源分册** — 改状态先改本文件，再同步 [README](./README.md)
 
@@ -22,7 +22,14 @@
 - `DisplayLines` / `DisplayText`：layout 与 paint 共用截断结果  
 - 单测：`TestRenderText_SingleLineEllipsis_*` · `TestRenderText_MaxLines_*`  
 
-**组内顺序：** Measure→RO → Wrap → Font 策略 ✅ → **ellipsis/maxLines ✅** → Paragraph → BiDi UI → IME。
+**已落地最小 Paragraph（多 span，2026-07-28）：**  
+- `TextRun` · `ParagraphBuilder`（`AddRun` / `AddText` / `Build` / `Apply`）  
+- `RenderText.SetRuns` / `RunCount`：多 run 时 per-run 色/字号/Face；layout=paint  
+- MaxWidth 折行 + MaxLines/ellipsis 仍可用  
+- 单测：`paragraph_test.go`  
+- **非目标仍开：** 完整 Flutter Paragraph 对等、BiDi UI、IME/选区  
+
+**组内顺序：** Measure→RO → Wrap → Font 策略 ✅ → ellipsis/maxLines ✅ → **最小 Paragraph ✅** → 完整富文本/BiDi → IME。
 
 ## 2. 依赖（交叉关联）
 
@@ -38,9 +45,9 @@
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 | Wave |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|------|
-| FT-PARAGRAPH-BUILD | 构建段落 | ParagraphBuilder | 富文本 | — | 无 ParagraphBuilder | RenderText 单串 | D | — | 富文本基座缺口 | P1 |
-| FT-PARAGRAPH-LAYOUT | 段落布局 | Paragraph.layout | 换行高度 | 近似宽高 | MeasureString/Multiline | RenderText.Layout 启发式 | C/B | text.go · render/text.go | 接通 Measure 到 RO=P0 | P0 |
-| FT-PARAGRAPH-PAINT | 绘段落 | drawParagraph | 正文 | DrawTextColored | DrawString* | RenderText.Paint | C | rendering/text.go | — | P0 |
+| FT-PARAGRAPH-BUILD | 构建段落 | ParagraphBuilder | 富文本 | **ParagraphBuilder/TextRun** | — | RenderText.Runs | A/C | paragraph.go | 最小多 span；非全对等 | — |
+| FT-PARAGRAPH-LAYOUT | 段落布局 | Paragraph.layout | 换行高度 | 多 run layoutRunLines | MeasureString/Multiline | RenderText | A/C | paragraph.go · text.go | 单串+多 run | — |
+| FT-PARAGRAPH-PAINT | 绘段落 | drawParagraph | 正文 | per-span DrawString | DrawString* | RenderText.Paint | A/C | text.go paintRuns | 与 layout 一致 | — |
 | FT-PAINTER | TextPainter | TextPainter | 通用测量绘 | — | Measure+Draw 组合 | — | B | render/text.go | 可做 ui 门面 | P0 |
 | FT-STYLE-SIZE | 字号 | TextStyle.fontSize | 层级 | FontSize 字段 | LoadFontFace points | RenderText | C | text.go | 未可靠设到 DC 字体 | P0 |
 | FT-STYLE-FAMILY | 字体族 | fontFamily | 品牌/CJK | — | SetFont/LoadFontFace | — | B | render/text.go | RO 未接通 | P0 |
@@ -77,7 +84,7 @@
 
 | 层 | 路径 |
 |----|------|
-| RO | `ui/rendering/text.go`（Face/MaxWidth/**MaxLines/Overflow**/DisplayLines/SetColor paint-only） |
+| RO | `ui/rendering/text.go` + **`paragraph.go`**（TextRun/ParagraphBuilder/SetRuns） |
 | 默认字体 UI | `ui/rendering/default_font.go` |
 | 系统字体 | `render/text/system_font.go` + `system_font_{linux,windows,darwin,other}.go` |
 | shaper/MultiFace | `render/text/*` |
@@ -100,9 +107,10 @@
 - [x] Text 轴多语示例（LoadMultiFace）  
 - [x] RenderText MaxWidth wrap  
 - [x] **ellipsis / maxLines**（`TextOverflowEllipsis` + `MaxLines`；layout=paint）  
-- [ ] ParagraphBuilder（D/P1）  
+- [x] **最小 ParagraphBuilder**（多 TextRun 色/字号；layout=paint；非全量富文本）  
 - [ ] 完整 BiDi 排版 UI  
-- [ ] 选区/IME（远期）
+- [ ] 选区/IME（远期）  
+- [ ] Flutter 级 strut/decoration/letter-spacing 等（仍非目标）
 
 ## 7. 风险与非宣称
 

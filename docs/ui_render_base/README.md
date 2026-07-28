@@ -23,7 +23,7 @@
 | 04 | [Path/Clip/saveLayer](./04_path_clip_savelayer.md) | A/B/C · ClipRRect✅ | P0–P2 | §4 §5 · cliplayer/geometry |
 | 05 | [Transform](./05_transform.md) | A/C ✅部分 | P1 | §6 · TransformLayer |
 | 06 | [图像](./06_image.md) | A/B · Dispose✅ | —/P1 | §7 · image 轴 |
-| 07 | [文本/Font](./07_text.md) | C/A · ellipsis✅ | P0–P2 | §8 · 字体+maxLines/ellipsis |
+| 07 | [文本/Font](./07_text.md) | C/A · ellipsis·Paragraph✅ | P0–P2 | §8 · 多 span 最小 |
 | 08 | [Layer/Picture](./08_scene_picture.md) | A/C/D | —/P6 | §12 §9 |
 | 09 | [调度/Vsync](./09_scheduler_vsync.md) | A/C · 真VSync✅ | —/P1 | §14 · DRM WaitVSync |
 | 10 | [滚动](./10_scroll_viewport.md) | A/D | —/P2 | §15 |
@@ -42,6 +42,7 @@
 | 默认**一副**系统 UI 字体；`FontResolver`/`SetDefaultFontPath`；**无 env**；`LoadMultiFace` | 07 |
 | Text 多语示例 | 07 · `ui_render_base_text` |
 | **Text maxLines + ellipsis** | 07 · `RenderText` / text_measure_test |
+| **最小 ParagraphBuilder（多 TextRun）** | 07 · paragraph.go / paragraph_test |
 | Image 轴 async + Draw 变体 | 06 |
 | **ImageBuf Dispose + RenderImage 所有权** | 06 |
 | TransformLayer + RenderTransform + 测 + cliplayer | 05 · 08 |
@@ -50,6 +51,7 @@
 | PerfSoak 轴 | 90 · 91 |
 | 指标并行纪律 | 00 · 90 |
 | **exhost 真 VSync**（DRM `WaitDRMVBlank` + 诚实 vsync_source） | 09 · platform · exhost |
+| **p95 + hitch_rate_per_min** 帧指标 | 09 · 90 · MetricsStore |
 | 本拆分 2.1（全文母表入分册 + 覆盖表） | README · 91 |
 
 ## 窗测
