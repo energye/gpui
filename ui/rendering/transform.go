@@ -1,11 +1,14 @@
 package rendering
 
+import "math"
+
 // RenderTransform applies a 2D transform around its children during paint
 // (translate to center → rotate → scale → translate back).
 // Maps to scene.TransformLayer when building the retained layer tree.
 //
 // Rotation is radians (Y-down canvas, matches render.Context.Rotate).
-// Does not claim Matrix4 / perspective or inverse hit-testing.
+// HitTest applies the inverse of the same center-based rotate+scale (not pure AABB).
+// Does not claim Matrix4 / perspective or nested arbitrary CTM stacks.
 type RenderTransform struct {
 	Base
 	FixedWidth, FixedHeight float64
@@ -132,20 +135,61 @@ func (t *RenderTransform) Paint(pc *PaintContext) {
 	t.clearPaintDirty()
 }
 
-// HitTest uses the untransformed AABB (inverse CTM later).
+// HitTest maps p through the inverse of the paint CTM, then hits children in
+// local space. Paint order is T(c)·R(θ)·S·T(-c); inverse is T(c)·S⁻¹·R(-θ)·T(-c).
+// A parent-local point inside the untransformed AABB can miss after rotation/scale,
+// and a point outside that AABB can still hit the painted geometry.
 func (t *RenderTransform) HitTest(p Point) RenderObject {
-	sz := t.size
-	if p.X >= 0 && p.Y >= 0 && p.X < sz.Width && p.Y < sz.Height {
-		for i := len(t.children) - 1; i >= 0; i-- {
-			ch := t.children[i]
-			off := ch.Offset()
-			if hit := ch.HitTest(Point{X: p.X - off.X, Y: p.Y - off.Y}); hit != nil {
-				return hit
-			}
-		}
-		return t
+	if t == nil {
+		return nil
 	}
-	return nil
+	local := t.inverseMapPoint(p)
+	sz := t.size
+	// After inverse, only the local content box (and children) are hittable.
+	if local.X < 0 || local.Y < 0 || local.X >= sz.Width || local.Y >= sz.Height {
+		return nil
+	}
+	for i := len(t.children) - 1; i >= 0; i-- {
+		ch := t.children[i]
+		off := ch.Offset()
+		if hit := ch.HitTest(Point{X: local.X - off.X, Y: local.Y - off.Y}); hit != nil {
+			return hit
+		}
+	}
+	return t
+}
+
+// inverseMapPoint applies the inverse of the paint transform to a parent-local point.
+// Identity (rot=0, scale=1) returns p unchanged.
+func (t *RenderTransform) inverseMapPoint(p Point) Point {
+	sx, sy := t.effectiveScale()
+	cx := t.size.Width * 0.5
+	cy := t.size.Height * 0.5
+	// 1) T(-c)
+	x := p.X - cx
+	y := p.Y - cy
+	// 2) R(-θ)
+	if t.Rotation != 0 {
+		c := math.Cos(t.Rotation)
+		s := math.Sin(t.Rotation)
+		// R(-θ): [c s; -s c] applied to (x,y)  (same as transpose of R(θ))
+		x, y = x*c+y*s, -x*s+y*c
+	}
+	// 3) S⁻¹
+	if sx != 1 {
+		if sx == 0 {
+			return Point{X: math.Inf(1), Y: math.Inf(1)} // degenerate → miss
+		}
+		x /= sx
+	}
+	if sy != 1 {
+		if sy == 0 {
+			return Point{X: math.Inf(1), Y: math.Inf(1)}
+		}
+		y /= sy
+	}
+	// 4) T(c)
+	return Point{X: x + cx, Y: y + cy}
 }
 
 // TransformParams for scene.TransformLayer (TX/TY come from RO offset).

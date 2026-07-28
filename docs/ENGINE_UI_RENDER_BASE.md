@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.11** | 日期：2026-07-28  
+> **版本：1.12** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -130,7 +130,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-SAVELAYER-NULL | 全画布 saveLayer | saveLayer(null,…) | 极重；默认应禁 | 预算 MaxArea 可拦 | PushLayer 全幅 | — | C | SaveLayerBudget | F16 纪律 |
 | FC-TRANSLATE | 平移 CTM | Canvas.translate | 局部坐标系 | WithOrigin 绝对偏移 | Translate | OffsetLayer | A/B | PaintContext · scene | UI 用 origin 模型非完整 CTM |
 | FC-SCALE | 缩放 CTM | Canvas.scale | 缩放动画/适配 | RenderTransform.SetScale | Scale | TransformLayer | A/B | transform.go | RO 已接；任意 CTM 仍 B |
-| FC-ROTATE | 旋转 CTM | Canvas.rotate | 旋转图标/翻牌 | RenderTransform.SetRotation | Rotate/RotateAbout | TransformLayer | A/B | transform.go | 命中 AABB |
+| FC-ROTATE | 旋转 CTM | Canvas.rotate | 旋转图标/翻牌 | RenderTransform.SetRotation | Rotate/RotateAbout | TransformLayer | A/B | transform.go · transform_hit_test | **逆 CTM hit**（中心旋转+缩放）；非通用 Matrix4 |
 | FC-SKEW | 错切 CTM | Canvas.skew | 少见 UI 效果 | — | Shear | — | B | render/context.go | — |
 | FC-TRANSFORM | 任意 Matrix4 | Canvas.transform | 通用仿射 | — | Transform/SetTransform | — | B | render/context.go | UI 未暴露 |
 | FC-GET-TRANSFORM | 读取 CTM | Canvas.getTransform | 命中反变换/调试 | — | GetTransform | — | B | render/context.go | — |
@@ -229,7 +229,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
 | FX-OFFSET-LAYER | 位移层 | OffsetLayer | 滚动、定位 | — | Translate | OffsetLayer **A** | A | ui/scene/layer.go | — |
-| FX-TRANSFORM-LAYER | 变换层 | TransformLayer | 旋转/缩放 | RenderTransform | CTM B | **TransformLayer A/C** | A/C | scene · transform.go | 命中 AABB；非 dirty-rect Present |
+| FX-TRANSFORM-LAYER | 变换层 | TransformLayer | 旋转/缩放 | RenderTransform | CTM B | **TransformLayer A/C** | A/C | scene · transform.go · transform_hit_test | **逆 CTM hit**（rotate+scale）；通用 pushTransform/Present 层合成仍开 |
 | FX-OPACITY-LAYER | 透明度层 | OpacityLayer | 淡入淡出 | AnimatedOpacity 分类 | 层 opacity | OpacityLayer **A** | A/C | animation/implicit.go | 分类 compositor；Present 仍全画 |
 | FX-CTM-FULL | 完整 CTM 栈 | Canvas transform 族 | 自定义绘制 | WithOrigin 仅平移语义 | 完整 CTM B | — | B | render | — |
 
@@ -326,7 +326,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FPC-CLIP-PATH | pushClipPath | pushClipPath | 异形 | — | Clip path | — | B/D | — | — |
 | FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | — | 滤镜 API | — | B/D | — | — |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 |
-| FPC-TRANSFORM | pushTransform | pushTransform | 子树变换 | RenderTransform | CTM | TransformLayer | A/C | transform.go · layer_build | 非通用 pushTransform API |
+| FPC-TRANSFORM | pushTransform | pushTransform | 子树变换 | RenderTransform | CTM | TransformLayer | A/C | transform.go · layer_build · transform_hit_test | 逆 hit 已接；**非**通用 pushTransform/Matrix4 API |
 | FPC-LAYER | pushLayer/addLayer | pushLayer | 自定义层 | — | — | LayerBuilder 有限 | C | scene/build.go | — |
 | FPC-COMPLEX-HINT | setIsComplexHint | setIsComplexHint | 光栅缓存提示 | — | — | — | D | — | 光栅缓存（序13） |
 | FPC-WILL-CHANGE | setWillChangeHint | setWillChangeHint | 动画提示 | — | — | — | D | — | 序13 |
@@ -340,7 +340,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
 | FL-CONTAINER | 容器层 | ContainerLayer | 树节点 | — | — | ContainerLayer | A | scene/layer.go | — |
 | FL-OFFSET | 位移层 | OffsetLayer | 滚动 | — | — | OffsetLayer | A | layer.go | — |
-| FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | A/C | scene/layer.go · transform.go | 命中 AABB；Present 全画 |
+| FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | A/C | scene/layer.go · transform.go · transform_hit_test | **逆 CTM hit**；Present 全画；非 Matrix4 |
 | FL-OPACITY | 透明层 | OpacityLayer | 淡入 | MutSetOpacity | — | OpacityLayer | A/C | compositing.go | 真合成未接到 Present |
 | FL-CLIP-RECT | 裁剪层 | ClipRectLayer | 溢出 | — | — | ClipRectLayer | A | layer.go | Build 使用有限 |
 | FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | **RenderClipRRect** | — | **ClipRRectLayer** RO→BuildLayerTree | **A/C** | clip_rrect.go · layer_build · clip_rrect_layer_test · cliplayer | **RO 主路径 A**；Present 仍全画 → C 边界；无 per-corner |
@@ -665,7 +665,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 5 | 几何+Paint/Shader §2§3 | 3 | ✅ 主路径 | `TestDraw_*` | geometry/PerfSoak 帧指标 | **geometry** |
 | 6 | Path §4 | 5 | ✅ 主路径 | `TestPathMetrics_*` · FillPath | geometry 帧指标 | **geometry** |
 | 7 | Clip/saveLayer §5 | 3,6 | ✅/🔄 | ClipRRect RO→层；clip_rrect_test | raster/skip；无层泄漏 | **cliplayer** |
-| 8 | Transform 层 §6 | 3,7 | 🔄 | TransformLayer | 同 7；旋转 hitch 可解释 | **cliplayer** |
+| 8 | Transform 层 §6 | 3,7 | ✅/🔄 | 逆 CTM hit；TransformLayer | 同 7；旋转 hitch 可解释 | **cliplayer** |
 | 9 | 图像 §7 | 3,7 | 🔄 | dispose 等 | RSS/Dispose；解码不堵 UI | **image** |
 | 10 | 文本/Paragraph §8 | 3,5 | 🔄 | text/paragraph | 文本帧时；(有则) atlas | **text** |
 | 11 | 滤镜/阴影层 §10§12 | 7,8 | ⬜ | 滤镜/层测 | CPU/RSS；saveLayer 预算 | cliplayer 或新轴 |
@@ -682,7 +682,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 5 | 主路径 ✅；仍开：Vertices/Atlas/Points、ImageShader、DRRect、不等圆角 RRect |
 | 6 | **metrics ✅**；仍开：conic、fillType UI、布尔 UI 文档、Path 构建动词 UI 门面（现经 NewPath→render.Path） |
 | 7 | **ClipRRectLayer RO→BuildLayerTree ✅**；仍开：ClipPath 层；真 saveLayer；通用 save/restore |
-| 8 | 逆 CTM hit；通用 pushTransform；Present 层合成 |
+| 8 | **逆 CTM hit ✅**；仍开：通用 pushTransform/Matrix4；Present 层合成 |
 | 9 | Nine/Round UI；Atlas |
 | 10 | **全量 Paragraph**；Font 接通 RO |
 | 11 | Backdrop/Filter **场景层** |
@@ -698,7 +698,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **几何 draw UI（序5）** | `draw.go` · `draw_test` · geometry 轴 | Vertices/Atlas/Points 仍 B |
 | **Path metrics（序6）** | `render/path_metrics.go` · `ui/rendering/path_metrics*` | conic 仍 D；非全量 PathMetric.getSegment |
 | ClipRRect **paint + 层** | `PushClipRRect` · **RenderClipRRect** · `clip_rrect_layer_test` · cliplayer | **FL-CLIP-RRECT A/C**（RO→Build 主路径）；Present 全画；ClipPath/saveLayer 仍开 |
-| TransformLayer + RenderTransform | transform · layer_build · cliplayer | 命中 AABB；Present 全画 → 序8 |
+| TransformLayer + RenderTransform + **逆 CTM hit** | transform.go · transform_hit_test · layer_build · cliplayer | 中心 rotate+scale 逆 hit；**非** Matrix4/通用 pushTransform；Present 全画 |
 | Text maxLines/ellipsis；最小多 span | text · paragraph | ≠ 全量 Paragraph |
 | Image Dispose 所有权 | image_dispose_test | — |
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
@@ -727,7 +727,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.11** | **序7** ClipRRectLayer RO→BuildLayerTree：RenderClipRRect + layer_build + 单测 + cliplayer；FL-CLIP-RRECT→A/C；ClipPath/saveLayer 仍开 |
+| **1.12** | **序8** RenderTransform 逆 CTM hit（中心 rotate+scale）+ transform_hit_test；通用 pushTransform/Present 合成仍开 |
+| 1.11 | **序7** ClipRRectLayer RO→BuildLayerTree：RenderClipRRect + layer_build + 单测 + cliplayer；FL-CLIP-RRECT→A/C；ClipPath/saveLayer 仍开 |
 | 1.10 | **序6** FPath-METRICS：ComputeMetrics/PositionAt/TangentAt + UI 门面 + 单测 |
 | 1.9 | 核查已落地；FL-CLIP-RRECT→C；**序5** draw.go 几何主路径 |
 | 1.8 | 流程闭环/实现未闭环；删 Wave/分册叙事 |
