@@ -208,6 +208,12 @@ type GateOptions struct {
 	MinBoundaryCount int64
 	// MinBoundaryMaxDepth fails when boundary_max_depth < N (R3b nest; 0 = off).
 	MinBoundaryMaxDepth int64
+	// RequireRetainedPolicy fails when present_policy != retained (W2 R4).
+	RequireRetainedPolicy bool
+	// MaxDamageRatio fails when DamageRatio > threshold (W2; 0 = off). Use steady-state ratio.
+	MaxDamageRatio float64
+	// MinDirtyLayerIDs fails when ability_extra dirty_layer_id_max < N (0 = off); checked via Extra if set.
+	// Prefer calling EvaluateRetainedExtras from examples for dirty id gates.
 }
 
 // EvaluateGates returns a FAIL error or nil. Pure: no I/O.
@@ -233,6 +239,14 @@ func EvaluateGates(r Report, opt GateOptions) error {
 		if r.PresentPolicy != scheduler.PresentPolicyFullPaint {
 			return fmt.Errorf("FAIL: present_policy=%q want %q", r.PresentPolicy, scheduler.PresentPolicyFullPaint)
 		}
+	}
+	if opt.RequireRetainedPolicy {
+		if r.PresentPolicy != scheduler.PresentPolicyRetained {
+			return fmt.Errorf("FAIL: present_policy=%q want %q", r.PresentPolicy, scheduler.PresentPolicyRetained)
+		}
+	}
+	if opt.MaxDamageRatio > 0 && r.DamageRatio > opt.MaxDamageRatio {
+		return fmt.Errorf("FAIL: damage_ratio=%.4f > max %.4f (retained must not full-screen damage)", r.DamageRatio, opt.MaxDamageRatio)
 	}
 	minEl := opt.MinFPSElapsed
 	if minEl <= 0 {

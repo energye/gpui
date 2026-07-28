@@ -61,6 +61,9 @@ type Base struct {
 	// cacheID is a stable BoundaryCache map key (assigned lazily).
 	cacheID uint64
 
+	// debugName is a stable hit-test identity tag (R13); empty = unnamed.
+	debugName string
+
 	// lastConstraints for ShouldRelayout early-out.
 	lastConstraints Constraints
 	hasLast         bool
@@ -118,6 +121,33 @@ func (b *Base) SetRelayoutBoundary(v bool) { b.relayoutBoundary = v }
 
 // SetRepaintBoundary marks paint isolation (P2).
 func (b *Base) SetRepaintBoundary(v bool) { b.repaintBoundary = v }
+
+// DebugName returns the hit-test identity tag (R13).
+func (b *Base) DebugName() string {
+	if b == nil {
+		return ""
+	}
+	return b.debugName
+}
+
+// SetDebugName sets the hit-test identity tag (R13).
+func (b *Base) SetDebugName(name string) {
+	if b == nil {
+		return
+	}
+	b.debugName = name
+}
+
+// HitDebugName returns n.DebugName() when n embeds Base, else "".
+func HitDebugName(n RenderObject) string {
+	if n == nil {
+		return ""
+	}
+	if b, ok := baseOf(n); ok && b != nil {
+		return b.debugName
+	}
+	return ""
+}
 
 // NeedsCompositing reports whether this node or descendants require a compositing layer.
 func (b *Base) NeedsCompositing() bool { return b.needsCompositing }

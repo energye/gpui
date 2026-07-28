@@ -23,7 +23,7 @@
 ```text
 L1 P0–P3 / P4 / P5     ✅
 渲染基座 §22 主路径     ✅  ENGINE_UI_RENDER_BASE §25
-自定义控件渲染基座      🔄  W0✅ W1✅；W2–W6 ⬜（ENGINE_UI_WIDGET_RENDER v2.9）
+自定义控件渲染基座      🔄  W0✅ W1✅ W2✅；W3–W6 ⬜（ENGINE_UI_WIDGET_RENDER v3.1）
 L3 Kit / 桌面深做 / IME ⏸
 ```
 
@@ -34,14 +34,11 @@ go test ./ui/... -count=1
 go test ./examples/wrgate -count=1
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 # 真窗：1200×800 · RUN_SECONDS≥5 · 时长见 §2.5
-RUN_SECONDS=5  go run ./examples/ui_wr_r0_fullpaint
-RUN_SECONDS=5  go run ./examples/ui_wr_r2_paint
-RUN_SECONDS=10 go run ./examples/ui_wr_r3_boundary
-RUN_SECONDS=8  go run ./examples/ui_wr_r3b_compbits
-RUN_SECONDS=5  go run ./examples/ui_wr_r5_picture
-RUN_SECONDS=5  go run ./examples/ui_wr_r9_text_cache
-RUN_SECONDS=8  go run ./examples/ui_wr_r12b_debug_repaint
-RUN_SECONDS=10 go run ./examples/ui_wr_c1_boundary_nest
+RUN_SECONDS=15 go run ./examples/ui_wr_r4_composite
+RUN_SECONDS=15 go run ./examples/ui_wr_r11_dpr
+RUN_SECONDS=5  go run ./examples/ui_wr_r13_hit
+RUN_SECONDS=10 go run ./examples/ui_wr_r18_savelayer
+RUN_SECONDS=15 go run ./examples/ui_wr_c7_resize_dpr
 ```
 
 ## 约定

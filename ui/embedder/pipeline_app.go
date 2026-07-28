@@ -2,6 +2,7 @@ package embedder
 
 import (
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -61,6 +62,19 @@ type PipelineApp struct {
 	debugRepaint atomic.Bool
 	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
 	debugRepaintDraws atomic.Int64
+	// useRetained: steady frames use CompositeOnly paint + PresentWithAuto damage
+	// (W2 R4). Warm-up/resize still full-paint. Default false = full_paint (W0).
+	useRetained atomic.Bool
+
+	// W2 damage / dirty-layer accumulators (steady presents).
+	damageMu        sync.Mutex
+	damageSumArea   int64
+	damageMaxArea   int64
+	damageSamples   int64
+	damageMultiN    int64 // frames with present_mode damage_multi
+	lastDirtyIDs    []uint64
+	maxDirtyIDCount int
+	lastPresentMode string
 }
 
 // SetDebugRepaint toggles R12b repaint visualization for subsequent presents.
@@ -77,6 +91,94 @@ func (a *PipelineApp) DebugRepaintDraws() int64 {
 		return 0
 	}
 	return a.debugRepaintDraws.Load()
+}
+
+// SetPresentPolicy sets window present strategy and metrics present_policy.
+// Use scheduler.PresentPolicyRetained for W2 R4/R4b/C2 (CompositeOnly steady frames).
+// Default remains full_paint until W6 makes retained the global default.
+func (a *PipelineApp) SetPresentPolicy(policy string) {
+	if a == nil || policy == "" {
+		return
+	}
+	if m := a.Metrics(); m != nil {
+		m.SetPresentPolicy(policy)
+	}
+	a.useRetained.Store(policy == scheduler.PresentPolicyRetained || policy == scheduler.PresentPolicyHybrid)
+}
+
+// DamageStats returns cumulative present damage samples (physical px² from PresentTarget).
+// samples is the number of steady presents that reported area≥0.
+func (a *PipelineApp) DamageStats() (sumArea, maxArea, samples, multiModeFrames int64) {
+	if a == nil {
+		return 0, 0, 0, 0
+	}
+	a.damageMu.Lock()
+	defer a.damageMu.Unlock()
+	return a.damageSumArea, a.damageMaxArea, a.damageSamples, a.damageMultiN
+}
+
+// LastDirtyLayerIDs returns a copy of the most recent frame's DirtyLayerIDs.
+func (a *PipelineApp) LastDirtyLayerIDs() []uint64 {
+	if a == nil {
+		return nil
+	}
+	a.damageMu.Lock()
+	defer a.damageMu.Unlock()
+	if len(a.lastDirtyIDs) == 0 {
+		return nil
+	}
+	out := make([]uint64, len(a.lastDirtyIDs))
+	copy(out, a.lastDirtyIDs)
+	return out
+}
+
+// MaxDirtyLayerIDCount is the peak len(DirtyLayerIDs) observed in one frame.
+func (a *PipelineApp) MaxDirtyLayerIDCount() int {
+	if a == nil {
+		return 0
+	}
+	a.damageMu.Lock()
+	defer a.damageMu.Unlock()
+	return a.maxDirtyIDCount
+}
+
+// LastPresentMode is the last PresentOutcome mode string (full|damage_union|damage_multi|idle).
+func (a *PipelineApp) LastPresentMode() string {
+	if a == nil {
+		return ""
+	}
+	a.damageMu.Lock()
+	defer a.damageMu.Unlock()
+	return a.lastPresentMode
+}
+
+func (a *PipelineApp) noteDamage(area int64, mode string) {
+	if a == nil {
+		return
+	}
+	a.damageMu.Lock()
+	defer a.damageMu.Unlock()
+	a.damageSamples++
+	a.damageSumArea += area
+	if area > a.damageMaxArea {
+		a.damageMaxArea = area
+	}
+	a.lastPresentMode = mode
+	if mode == "damage_multi" || mode == render.PresentModeDamageMulti.String() {
+		a.damageMultiN++
+	}
+}
+
+func (a *PipelineApp) noteDirtyIDs(ids []uint64) {
+	if a == nil {
+		return
+	}
+	a.damageMu.Lock()
+	defer a.damageMu.Unlock()
+	a.lastDirtyIDs = append([]uint64(nil), ids...)
+	if n := len(ids); n > a.maxDirtyIDCount {
+		a.maxDirtyIDCount = n
+	}
 }
 
 // LastBoundaryFrame returns the most recent paintPresentTree boundary skip/rerecord.
@@ -315,6 +417,10 @@ func (a *PipelineApp) Run() error {
 					if a.pipe.FlushLayout(vp, true) {
 						a.layoutFrames.Add(1)
 					}
+					// R11: size/DPR change invalidates all boundary Pictures (one rerecord wave).
+					if cache := a.pipe.BoundaryCache(); cache != nil {
+						cache.Clear()
+					}
 					// Size change must repaint even when layout early-outs (e.g. height-only).
 					if a.root != nil {
 						a.root.MarkNeedsPaint()
@@ -366,6 +472,9 @@ func (a *PipelineApp) Run() error {
 		if a.opts.Overlay != nil {
 			a.opts.Overlay.AttachToPacket(pkt)
 		}
+		if pkt != nil {
+			a.noteDirtyIDs(pkt.DirtyLayerIDs)
+		}
 		stats := scene.RasterizeDirty(pkt)
 		a.lastStats = stats
 		a.sched.Metrics().NoteBuildMs(time.Since(t0).Seconds() * 1000)
@@ -385,27 +494,37 @@ func (a *PipelineApp) Run() error {
 		pipe := a.pipe
 		ov := a.opts.Overlay
 		clearR, clearG, clearB, clearA := a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA
-		// Steady frames: force=false → no full clear, CompositeOnly paint, PresentFrameAuto.
-		// Warm-up / resize / open: force=true → full clear + full paint + PresentFrameFull.
-		// Static chrome survives via LoadOpLoad when only dirty widgets repaint.
+		// Steady frames: force=false → PresentWithAuto.
+		// full_paint (W0 default): full tree paint every frame (GPU Clear safe).
+		// retained (W2): CompositeOnly paint — only dirty paths; LoadOpLoad keeps static.
+		// Warm-up / resize / open: force=true → full clear + full paint.
 		force := a.forceFullPresent.Swap(false)
 		metrics := a.sched.Metrics()
-		// W0: keep policy visible on every frame path (default full_paint until W6).
+		// Keep policy visible; default full_paint until caller SetPresentPolicy(retained).
 		if metrics != nil && metrics.PresentPolicy() == "" {
 			metrics.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
 		}
 		dbgOn := a.debugRepaint.Load()
 		dbgAccum := &a.debugRepaintDraws
+		// Retained steady frames: compositeOnly=true (skip clean boundaries).
+		compositeOnly := a.useRetained.Load() && !force
 		job := raster.FrameJob{
 			Run: func() error {
 				var frameDraws int64
-				opts := paintPresentTreeOpts{debugRepaint: dbgOn, debugDraws: &frameDraws}
+				opts := paintPresentTreeOpts{
+					debugRepaint:  dbgOn,
+					debugDraws:    &frameDraws,
+					compositeOnly: compositeOnly,
+				}
 				out, err := presentTreeOpts(target, pipe, root, ov, clearR, clearG, clearB, clearA, force, opts)
 				if frameDraws > 0 {
 					dbgAccum.Add(frameDraws)
 				}
 				if metrics != nil && target != nil {
-					metrics.NotePresentOutcome(out.Mode.String(), target.LastDamageAreaPx())
+					mode := out.Mode.String()
+					area := target.LastDamageAreaPx()
+					metrics.NotePresentOutcome(mode, area)
+					a.noteDamage(area, mode)
 					// M-GPU-*: float render path routing into UI JSON (no ui→gpu).
 					if dc := target.Context(); dc != nil {
 						st := dc.RenderPathStats()
@@ -457,10 +576,11 @@ func PaintPresentTreeCompositeOnly(dc *render.Context, pipe *rendering.PipelineO
 	paintPresentTree(dc, pipe, root, ov, cr, cg, cb, ca, force, true)
 }
 
-// paintPresentTreeOpts optional flags from PipelineApp (debug repaint).
+// paintPresentTreeOpts optional flags from PipelineApp (debug repaint / retained).
 type paintPresentTreeOpts struct {
-	debugRepaint bool
-	debugDraws   *int64 // per-frame; nil = no count
+	debugRepaint  bool
+	debugDraws    *int64 // per-frame; nil = no count
+	compositeOnly bool   // W2 retained steady: skip clean boundaries (LoadOpLoad keeps pixels)
 }
 
 func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force, compositeOnly bool) {
@@ -547,8 +667,10 @@ func presentTreeOpts(target *render.PresentTarget, pipe *rendering.PipelineOwner
 	if target == nil || pipe == nil || root == nil {
 		return render.PresentOutcome{}, errors.New("embedder: presentTree nil")
 	}
+	// force always full-paints; retained steady uses opts.compositeOnly.
+	co := opts.compositeOnly && !force
 	draw := func(dc *render.Context) {
-		paintPresentTreeWithOpts(dc, pipe, root, ov, cr, cg, cb, ca, force, false, opts)
+		paintPresentTreeWithOpts(dc, pipe, root, ov, cr, cg, cb, ca, force, co, opts)
 	}
 	if force {
 		err := target.PresentWith(draw)
@@ -574,4 +696,20 @@ func (a *PipelineApp) HitTestPointer(x, y float64) (overlay.Band, rendering.Rend
 		return overlay.BandNone, nil, nil
 	}
 	return overlay.HitTestStack(a.root, a.opts.Overlay, rendering.Point{X: x, Y: y})
+}
+
+// InvalidateBoundaryCache drops all Picture-backed boundary caches (R11).
+// Call after programmatic size/DPR changes that do not go through EventResize.
+func (a *PipelineApp) InvalidateBoundaryCache() {
+	if a == nil || a.pipe == nil {
+		return
+	}
+	if cache := a.pipe.BoundaryCache(); cache != nil {
+		cache.Clear()
+	}
+	if a.root != nil {
+		a.root.MarkNeedsPaint()
+	}
+	a.forceFullPresent.Store(true)
+	a.ScheduleFrame()
 }

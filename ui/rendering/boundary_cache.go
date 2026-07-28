@@ -71,6 +71,22 @@ func (b *Base) CacheID() uint64 {
 	return b.cacheID
 }
 
+// Clear drops all Picture entries (resize / DPR change — R11).
+func (c *BoundaryCache) Clear() {
+	if c == nil {
+		return
+	}
+	c.entries = make(map[uint64]*boundaryEntry)
+}
+
+// Len returns the number of cached boundary entries.
+func (c *BoundaryCache) Len() int {
+	if c == nil {
+		return 0
+	}
+	return len(c.entries)
+}
+
 // Invalidate drops the Picture for this node (size/content change).
 func (c *BoundaryCache) Invalidate(n RenderObject) {
 	if c == nil || n == nil {
