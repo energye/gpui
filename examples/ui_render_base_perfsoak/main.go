@@ -9,6 +9,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -83,10 +84,14 @@ func main() {
 	m := app.Metrics().Snapshot()
 	fps := float64(presents) / elapsed
 
-	// RSS slope approx KB/s over run (positive = growth).
-	rssSlope := 0.0
-	if m.RSSEndKB > 0 && m.RSSStartKB > 0 {
-		rssSlope = float64(m.RSSEndKB-m.RSSStartKB) / elapsed
+	// M-RSS-SLOPE is KB/min from ProcessTracker.Apply (also in JSON).
+	// KB/s kept for human stderr only.
+	rssSlopePerMin := m.RSSSlopeKBPerMin
+	rssSlopePerSec := 0.0
+	if m.RSSElapsedSec > 0 {
+		rssSlopePerSec = float64(m.RSSEndKB-m.RSSStartKB) / m.RSSElapsedSec
+	} else if elapsed > 0 && m.RSSEndKB > 0 && m.RSSStartKB > 0 {
+		rssSlopePerSec = float64(m.RSSEndKB-m.RSSStartKB) / elapsed
 	}
 
 	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: backend=%s presents=%d ~%.1f fps layout_flushes=%d\n",
@@ -94,8 +99,35 @@ func main() {
 	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: avg=%.2f p50=%.2f p95=%.2f p99=%.2f hitches=%d hitch_rate=%.2f/min vsync=%s\n",
 		m.AvgFrameIntervalMs, m.P50FrameIntervalMs, m.P95FrameIntervalMs, m.P99FrameIntervalMs,
 		m.HitchCount, m.HitchRatePerMin, m.VSyncSource)
-	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: rss start=%d end=%d peak=%d after_close=%d KB slope=%.1f KB/s cpu=%.1f%% (ui=%.1f raster=%.1f path-proxy)\n",
-		m.RSSStartKB, m.RSSEndKB, m.RSSPeakKB, m.RSSAfterCloseKB, rssSlope, m.CPUPctAvg, m.CPUUIPct, m.CPURasterPct)
+	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: rss start=%d end=%d peak=%d after_close=%d KB slope=%.1f KB/min (%.1f KB/s) cpu=%.1f%% (ui=%.1f raster=%.1f path-proxy)\n",
+		m.RSSStartKB, m.RSSEndKB, m.RSSPeakKB, m.RSSAfterCloseKB, rssSlopePerMin, rssSlopePerSec, m.CPUPctAvg, m.CPUUIPct, m.CPURasterPct)
+	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: gpu_ops=%d cpu_fallback_ops=%d last_cpu_fb=%q frame_flushes=%d damage_px=%d mode=%s\n",
+		m.GPUOps, m.CPUFallbackOps, m.LastCPUFallbackReason, m.FrameFlushes, m.DamageAreaPx, m.PresentMode)
+
+	// Optional: BASELINE_JSON=path compares against a saved metrics snapshot (M-BASELINE-DELTA).
+	if bp := os.Getenv("BASELINE_JSON"); bp != "" {
+		base, err := scheduler.LoadBaseline(bp)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL: load baseline %s: %v\n", bp, err)
+			os.Exit(1)
+		}
+		delta := scheduler.CompareToBaseline(m, base, scheduler.DefaultBaselineTolerance())
+		if b, err := json.Marshal(delta); err == nil {
+			fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: baseline_delta %s\n", b)
+		}
+		if !delta.OK {
+			fmt.Fprintf(os.Stderr, "FAIL: baseline regression: %v\n", delta.Failures)
+			os.Exit(1)
+		}
+	}
+	// Optional: write this run as a new baseline artifact.
+	if sp := os.Getenv("SAVE_BASELINE_JSON"); sp != "" {
+		if err := scheduler.SaveBaseline(sp, m); err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL: save baseline: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: wrote baseline %s\n", sp)
+	}
 
 	// Gates (soft for short runs; stricter when long)
 	if app.LayoutFlushCount() > presents/2 && presents > 30 {
@@ -107,8 +139,9 @@ func main() {
 		os.Exit(1)
 	}
 	// Huge RSS growth on short smoke is often GPU init; only flag extreme slope on long soak.
-	if secs >= 60 && rssSlope > 500 {
-		fmt.Fprintf(os.Stderr, "FAIL: RSS slope %.1f KB/s too high over %ds\n", rssSlope, secs)
+	// Gate uses KB/min (M-RSS-SLOPE): 500 KB/s ≈ 30000 KB/min.
+	if secs >= 60 && rssSlopePerMin > 30000 {
+		fmt.Fprintf(os.Stderr, "FAIL: RSS slope %.1f KB/min too high over %ds\n", rssSlopePerMin, secs)
 		os.Exit(1)
 	}
 	if b, err := app.Metrics().JSON(); err == nil {

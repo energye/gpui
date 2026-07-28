@@ -343,6 +343,11 @@ func (a *PipelineApp) Run() error {
 				out, err := presentTree(target, pipe, root, ov, clearR, clearG, clearB, clearA, force)
 				if metrics != nil && target != nil {
 					metrics.NotePresentOutcome(out.Mode.String(), target.LastDamageAreaPx())
+					// M-GPU-*: float render path routing into UI JSON (no ui→gpu).
+					if dc := target.Context(); dc != nil {
+						st := dc.RenderPathStats()
+						metrics.NoteGPUPathStats(st.GPUOps, st.CPUFallbackOps, st.FrameFlushes, st.LastCPUFallbackReason)
+					}
 				}
 				return err
 			},

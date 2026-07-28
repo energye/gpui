@@ -56,11 +56,16 @@ type FrameMetrics struct {
 	VSyncSource string `json:"vsync_source,omitempty"`
 
 	// Process resource samples (Wave P0 closeout; Linux /proc; 0 = unavailable).
-	RSSStartKB      int64   `json:"rss_start_kb,omitempty"`
-	RSSEndKB        int64   `json:"rss_end_kb,omitempty"`
-	RSSPeakKB       int64   `json:"rss_peak_kb,omitempty"`
-	RSSAfterCloseKB int64   `json:"rss_after_close_kb,omitempty"`
-	CPUPctAvg       float64 `json:"cpu_pct_avg,omitempty"`
+	RSSStartKB      int64 `json:"rss_start_kb,omitempty"`
+	RSSEndKB        int64 `json:"rss_end_kb,omitempty"`
+	RSSPeakKB       int64 `json:"rss_peak_kb,omitempty"`
+	RSSAfterCloseKB int64 `json:"rss_after_close_kb,omitempty"`
+	// RSSSlopeKBPerMin is (end-start)/elapsed_minutes (M-RSS-SLOPE). Positive = growth.
+	// Zero when wall span is missing/negligible or RSS samples unavailable.
+	RSSSlopeKBPerMin float64 `json:"rss_slope_kb_per_min,omitempty"`
+	// RSSElapsedSec is wall seconds used for slope (honest denominator).
+	RSSElapsedSec float64 `json:"rss_elapsed_sec,omitempty"`
+	CPUPctAvg     float64 `json:"cpu_pct_avg,omitempty"`
 
 	// CPUUIPct / CPURasterPct are **path work-share proxies**, not OS-thread DevTools %.
 	// They split cumulative NoteBuildMs vs NoteRasterMs wall work:
@@ -70,6 +75,14 @@ type FrameMetrics struct {
 	// Zero/omitted when no build/raster notes yet (honest unavailable).
 	CPUUIPct     float64 `json:"cpu_ui_pct,omitempty"`
 	CPURasterPct float64 `json:"cpu_raster_pct,omitempty"`
+
+	// GPU path routing (from render.Context.RenderPathStats; M-GPU-* UI JSON).
+	// GPUOps / CPUFallbackOps are cumulative on the present Context for the run
+	// (not reset each frame). FrameFlushes is last-frame (BeginFrame clears it).
+	GPUOps                int64  `json:"gpu_ops,omitempty"`
+	CPUFallbackOps        int64  `json:"cpu_fallback_ops,omitempty"`
+	FrameFlushes          int64  `json:"frame_flushes,omitempty"`
+	LastCPUFallbackReason string `json:"last_cpu_fallback,omitempty"`
 }
 
 // MetricsStore is a concurrency-safe metrics accumulator.
@@ -301,6 +314,38 @@ func (s *MetricsStore) SetProcessStats(startKB, endKB, peakKB, afterCloseKB int6
 	s.m.RSSPeakKB = peakKB
 	s.m.RSSAfterCloseKB = afterCloseKB
 	s.m.CPUPctAvg = cpuPctAvg
+	s.mu.Unlock()
+}
+
+// SetRSSSlope records M-RSS-SLOPE (KB/min) and the wall seconds used as denominator.
+// slope may be negative (RSS dropped). elapsedSec ≤0 clears slope to 0.
+func (s *MetricsStore) SetRSSSlope(slopeKBPerMin, elapsedSec float64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if elapsedSec <= 1e-9 {
+		s.m.RSSSlopeKBPerMin = 0
+		s.m.RSSElapsedSec = 0
+	} else {
+		s.m.RSSSlopeKBPerMin = slopeKBPerMin
+		s.m.RSSElapsedSec = elapsedSec
+	}
+	s.mu.Unlock()
+}
+
+// NoteGPUPathStats records render path routing counters into UI JSON (M-GPU-SUBMIT /
+// M-GPU-FALLBACK / M-GPU-FALLBACK-N). Values are typically cumulative Context stats
+// snapshotted after Present (gpu_ops, cpu_fallback_ops) plus last-frame flushes.
+func (s *MetricsStore) NoteGPUPathStats(gpuOps, cpuFallbackOps, frameFlushes int, lastFallbackReason string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.GPUOps = int64(gpuOps)
+	s.m.CPUFallbackOps = int64(cpuFallbackOps)
+	s.m.FrameFlushes = int64(frameFlushes)
+	s.m.LastCPUFallbackReason = lastFallbackReason
 	s.mu.Unlock()
 }
 

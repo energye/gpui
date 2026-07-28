@@ -1,11 +1,12 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.27** | 日期：2026-07-28  
+> **版本：1.29** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
-> **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
+> **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
+> **收口：** §22 主路径 + D1–D8 **已收口**（见 **§25**）。全表仍有 B/C/D → **不得** 宣称「已对齐 Flutter 全量渲染」。
 
-### 闭环（流程已闭合 · 实现未完成）
+### 闭环（流程已闭合 · §22 主路径已收口 · 全表对照未清零）
 
 ```text
 §2–§16 能力清单  →  §22 依赖序实现  →  §0.6 三项验收
@@ -17,16 +18,16 @@
 
 | | 含义 |
 |--|------|
-| **流程闭环** | 有清单、有顺序、有验收、有回写；「下一个」只看 §22 |
-| **实现未闭环** | 多行仍为 B/C/D；§22 开项未清零前 **不得** 宣称「已对齐 Flutter 渲染基座」 |
+| **流程闭环** | 有清单、有顺序、有验收、有回写 |
+| **§22 主路径收口** | 序 1–13 主项 + 指标 D8 已达「可画 / 可滚 / 可调度 / 可观测」；细项 A/C 边界见各 § |
+| **全表未清零** | 母表仍有 B/C/D（Flutter 对照全集）；**清 D ≠ 基座目标**；下一刀看产品场景或 §25 残项 |
 
-### 施工
+### 施工（收口后）
 
 ```text
-1. §22 取下一未完成项（前驱已满足）
-2. 按对应 § 表 ID 实现对齐 Flutter（不改目标行，只改状态/证据）
-3. §0.6 三项全过 → 更新状态
-4. 重复
+1. 新产品缺口 → 对照母表 ID → 单独立项（勿无场景清 D）
+2. 仍按 §0.6 三项验收；只改状态/证据/§22.2 残项
+3. 加深项优先：产品会踩到的 A/C 边界，而非 PlatformView/IME/SkSL
 ```
 
 ---
@@ -46,11 +47,14 @@
 
 ```text
 允许：L1 retained-paint 契约（Boundary/CompositeOnly/DirtyLayerIDs）；render Skia 式 2D 能力丰富；
-      帧间隔/hitch/管道可观测；虚拟列表 bind 上界等已测门禁。
+      帧间隔/hitch/RSS slope/GPU path/管道可观测；虚拟列表 bind 上界等已测门禁；
+      §22 主路径收口（§25）— 仍须带诚实边界。
 
-禁止：在无 damage 证据时宣称 dirty-RECT 局部 Present；Picture 显示列表与 Flutter 对等；
-      锁显示 60Hz（无真 VSync 时）；无 baseline 的「最优/更顺」。
-允许（有证据）：PipelineApp 稳态 force=false + PresentFrameAuto + FrameDamage 面积 ≪ 全屏（§18）。
+禁止：宣称「已对齐 Flutter 全量渲染」；Picture/Canvas/Paragraph 与 Flutter 对等；
+      在无 damage 证据时宣称 dirty-RECT 局部 Present；锁显示 60Hz（vsync_source≠true）；
+      无同机 baseline 的「最优/更顺」；把母表 D 行当施工失败。
+允许（有证据）：PipelineApp 稳态 force=false + PresentFrameAuto + FrameDamage 面积 ≪ 全屏（§18）；
+      BASELINE_JSON 对比（容差内）谈回归。
 ```
 
 ### 0.3 列定义
@@ -109,9 +113,9 @@ go run ./examples/ui_l1_scroll              # 滚动
 | RenderObject / Pipeline | `ui/rendering` | 主路径 A |
 | Layer | `ui/scene` | 常用层 A/C；Filter/Texture D |
 | Scheduler / Vsync | `ui/scheduler` | 接口 A；DRM 真 VSync A/C |
-| 帧/资源指标 | `MetricsStore` + 示例 JSON | 分位/hitch/RSS/CPU 部分 A |
+| 帧/资源指标 | `MetricsStore` + 示例 JSON | 分位/hitch/RSS/**slope**/GPU path/baseline **A/C（D8）** |
 | dirty-rect Present | render + **PipelineApp 稳态 Auto** | **A/C（序13）** 首帧/resize 仍 full；OS damage 可忽略 |
-| Picture 显示列表 | scene PictureRecorder/Replay | **A/C（序13 主项；≠ partial Present）** |
+| Picture 显示列表 | scene PictureRecorder/Replay | **A/C（序13/D7）** rect/path/text/image；≠ Flutter 全量；≠ partial Present |
 
 ```text
 一帧：ScheduleFrame → layout → paint → FramePacket → RasterizeDirty
@@ -480,11 +484,12 @@ go run ./examples/ui_l1_scroll              # 滚动
 |----|------|
 | A | p50/p95/p99、hitch_rate、vsync_source **已接** |
 | B | build/raster **last**；分位仍缺 |
-| C | layout/paint/raster_layer **已接**；damage **未接** |
+| C | layout/paint/raster_layer **已接**；**damage_area_px 已接** |
 | D | 进程 CPU + **ui/raster 路径 proxy 已接** |
-| E | RSS 起止峰/after_close **已接**；slope 自动字段仍弱 |
-| F/G/H | 部分在 render/示例，未系统进 UI JSON |
-| I | 手存 JSON；无自动对比 |
+| E | RSS 起止峰/after_close **已接**；**rss_slope_kb_per_min 自动字段 ✅** |
+| F | **gpu_ops / cpu_fallback_ops / last_cpu_fallback 进 UI JSON ✅**（PipelineApp Present 后采样）；atlas/VRAM 仍开 |
+| G/H | 部分在 render/示例；首帧统一字段仍开 |
+| I | **CompareToBaseline + Load/SaveBaseline ✅**；CI 机器基线仍手配 |
 | J | depcheck + 门禁测 |
 
 ### 20.2 指标 ID 全表
@@ -559,7 +564,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | M-RSS-START | 起始 VmRSS | 内存 | ProcessTracker | KB | **A** | — |
 | M-RSS-END | 结束 VmRSS | — | ProcessTracker | KB | **A** | — |
 | M-RSS-PEAK | 峰值 RSS | — | ProcessTracker | KB | **A** | 有解释 |
-| M-RSS-SLOPE | 斜率 KB/min | 泄漏 | **未自动字段** | KB/min | D | soak ≈0 |
+| M-RSS-SLOPE | 斜率 KB/min | 泄漏 | **rss_slope_kb_per_min** · ProcessTracker.Apply | KB/min | **A** | soak ≈0；非 Linux stub=0 |
 | M-RSS-AFTER-CLOSE | 关闭后 RSS | 释放 | ProcessTracker | KB | **A** 观察 | 可解释下降 |
 | M-HEAP | HeapAlloc | runtime | 未进 UI JSON | B | C | soak |
 | M-NUM-GC | GC 次数 | — | **无** | count | D | 稳定 |
@@ -570,9 +575,9 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | 指标 | 对照 | 来源现状 | 单位 | 状态 | 正向门禁方向 |
 |----|------|------|----------|------|------|--------------|
-| M-GPU-SUBMIT | 提交次数/帧 | batching | render 统计未上浮 | count | B | 勿碎提交 |
-| M-GPU-FALLBACK | CPU 回退原因 | — | LastCPUFallbackReason | string | B | 可诊断 |
-| M-GPU-FALLBACK-N | 回退次数 | — | **无** | count | D | 热路径趋 0 |
+| M-GPU-SUBMIT | 提交/GPU 路径 ops | batching | **gpu_ops** ← RenderPathStats（累计） | count | **A/C** | 累计非每帧；勿碎提交 |
+| M-GPU-FALLBACK | CPU 回退原因 | — | **last_cpu_fallback** | string | **A** | 可诊断 |
+| M-GPU-FALLBACK-N | 回退次数 | — | **cpu_fallback_ops** | count | **A** | 热路径趋 0 |
 | M-LAYER-POOL | 层池命中 | saveLayer | LayerPoolStats | — | B | 命中率 |
 | M-TEX-CREATE | 纹理创建次数 | — | **无** | count | D | soak 稳定 |
 
@@ -602,7 +607,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | M-META-BACKEND | backend | x11/wayland | A stderr |
 | M-META-SCALE | dpr | Host.ScaleFactor | C |
 | M-META-MACHINE | 机器/GPU 备注 | 文档/手记 | C |
-| M-BASELINE-DELTA | 相对 baseline | 工具 | D |
+| M-BASELINE-DELTA | 相对 baseline | **CompareToBaseline** · Load/SaveBaseline · perfsoak `BASELINE_JSON` | **A/C** |
 
 #### J. 正确性相邻（与性能并列，防止假绿）
 
@@ -674,24 +679,26 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 11 | 滤镜/阴影层 §10§12 | 7,8 | ✅/🔄 | Color/ImageFilter 层+Apply | CPU/RSS；saveLayer 预算 | **cliplayer** |
 | 12 | 滚动/视口 §15 | 3,7 | ✅/🔄 | index↔offset；ScrollToIndex；S5 | **bind** 上界；layout 不风暴 | **scroll** |
 | 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ✅/🔄 | 显示列表 + **dirty Present 稳态** | damage_area_px；禁全清冒充 | 专用/PerfSoak |
-| — | 指标骨架本身 §20 | — | 🔄 | scheduler metrics | 全表逐步接线 | **perfsoak** |
+| — | 指标骨架本身 §20 | — | ✅/🔄 | slope·GPU JSON·baseline 对比 | 全表逐步接线；p99/VRAM 仍开 | **perfsoak** |
 
 **不在本表、不挡渲染基座收口：** Ant 控件、完整 IME 编辑器、PlatformView 产品态等（母表可留 D 行，标远期）。
 
-### 22.2 当前开项（随做随改）
+### 22.2 收口后残项（非阻塞 · 产品驱动再开）
 
-| 序 | 还缺什么（摘要） |
-|----|------------------|
-| 5 | 主路径 ✅；**Points/Vertices/DRRect/PathAdd/Atlas ✅**；仍开：ImageShader、不等圆角 RRect、真 Gouraud |
-| 6 | **metrics ✅**；仍开：conic、fillType UI、布尔 UI 文档、Path 构建动词 UI 门面（现经 NewPath→render.Path） |
-| 7 | **ClipRRect RO→层 ✅**；**SaveLayer+Budget ✅**；**PushClipPath paint ✅**；仍开：ClipPath **场景层**；通用任意 CTM save |
-| 8 | **逆 hit ✅**；**Composite walk ✅**；**2D PushTransform/Concat ✅**；仍开：透视 Matrix4；PipelineApp 默走层 Present |
-| 9 | **Nine/Round/Circular/SrcRect/Atlas UI ✅**；仍开：per-corner 圆角图；GPU atlas 产品化 |
-| 10 | **Font+族名+装饰+样式栈 ✅**；仍开：strut/locale/选区/placeholder；全量 TextStyle |
-| 11 | **Filter/SaveLayer/DropShadow/Backdrop ✅**；仍开：clip 局部毛玻璃产品；PipelineApp 默走层 Present |
-| 12 | **可变 index↔offset/ScrollToIndex ✅**；**Clamping Physics+Fling ✅**；仍开：完整 multi-sliver；BouncingPhysics |
-| 13 | **显示列表 ✅**（rect/path/text/image）；**dirty-rect Present 稳态 ✅**（PresentWithAuto/force=false）；仍开：GPU picture 缓存；列表内 clip/saveLayer；层树 Present 合成 |
-| 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
+> §22 主路径已收口。下表是 **加深/产品** 残项，**不** 表示基座「还没做完主项」。
+
+| 序 | 主项 | 残项（摘要） | 优先级建议 |
+|----|------|--------------|------------|
+| 5 | ✅ | ImageShader、不等圆角 RRect、真 Gouraud | 场景需要再开 |
+| 6 | ✅ | conic；Path 动词 UI 文档化 | 低 |
+| 7 | ✅ | ClipPath **场景层**；任意 CTM save 产品化 | 中（异形 UI） |
+| 8 | ✅ | 透视 Matrix4；**PipelineApp 默走层 Present** | 中（合成架构） |
+| 9 | ✅ | per-corner 圆角图；GPU atlas 产品化 | 低–中 |
+| 10 | ✅ | strut/locale/选区/placeholder；全量 TextStyle | 编辑器后置 |
+| 11 | ✅ | clip 局部毛玻璃；层 Present 默走 | 中（质感） |
+| 12 | ✅ | multi-sliver；BouncingPhysics | 产品滚动手感 |
+| 13 | ✅ | GPU picture 缓存；列表内 clip/saveLayer；层树 Present 合成 | 中（性能结构） |
+| 指标 | ✅ D8 | build/raster p99、VRAM、atlas 命中、CI 基线库 | 可观测加深 |
 
 ### 22.3 已落地（勿回退）
 
@@ -710,6 +717,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **Image Nine/Round/Circular/SrcRect/Atlas UI（序9/D1）** | `image_draw.go` · `image_draw_test` · image 轴 | per-corner 仍开 |
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
 | p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
+| **指标 D8（§20）** | `rss_slope_kb_per_min` · `gpu_ops`/`cpu_fallback_ops` · `CompareToBaseline` · baseline_test · perfsoak | 非 VRAM/atlas；baseline 容差松；GPU ops 为 Context 累计 |
 | VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；完整 multi-sliver 仍开 |
 | **ScrollPhysics clamp+fling（序12/D4）** | `ClampingScrollPhysics` · `Viewport.Fling/TickPhysics` · Scrollable pan end · scroll_physics_test | 无 bounce/glow；需 App 每帧 TickPhysics |
 | **Picture 显示列表（序13/D7）** | `PictureRecorder` Fill/StrokeRect+Path · DrawString · DrawImage · `Replay` · picture_test | path clone + image 引用 + text Face；非全量 Canvas recorder；非 GPU picture 缓存 |
@@ -737,11 +745,86 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 ---
 
+## §25 基座收口终审（阶段 E · v1.29）
+
+> **日期：** 2026-07-28  
+> **范围：** 仅 UI **渲染基座**（§22 序 1–13 + §20 指标主骨架）。不含 Ant、完整 IME、PlatformView、SkSL。  
+> **抽查：** `go test ./ui/...` 绿（终审当日）。
+
+### 25.1 结论（可对外说的话）
+
+| 可宣称 | 不可宣称 |
+|--------|----------|
+| §22 **主路径已收口**：画 / 排 / 合（能力）/ 滚 / 调度 / dirty Present / Picture 子集 / 指标主字段可测 | **已对齐 Flutter 全量渲染基座** |
+| L1 retained-paint 契约可用（Boundary / CompositeOnly / DirtyLayerIDs） | Picture / Canvas / Paragraph **与 Flutter 对等** |
+| 稳态 dirty-rect Present **有证据路径**（force=false + Auto + damage_area_px） | 无 DRM 时 **锁显示 60Hz** |
+| 轻量 2D UI **可以**做到流畅（场景/环境依赖） | **已达原生全场景丝滑** / 无 baseline 的「更顺」 |
+| 指标：p50/p95/p99、hitch、RSS slope、GPU path、baseline 对比 **骨架可用** | 指标全表 M-\* 已 A；VRAM/atlas/首帧统一字段已完备 |
+
+### 25.2 §22 主路径判定
+
+| 序 | 判定 | 三项验收（摘要） |
+|----|------|------------------|
+| 1–4 | **收口** | Hit/Pipeline/PaintContext/VSync 单测 + 指标 +（4）PerfSoak |
+| 5–6 | **收口（主路径）** | draw/path 单测 + geometry 轴；ImageShader/conic 等残 |
+| 7–8 | **收口（主路径）** | ClipRRect/SaveLayer/CTM/Composite 单测 + cliplayer；场景 ClipPath 层 / 默走层 Present 残 |
+| 9–11 | **收口（主路径）** | image/text/filter 单测 + 对应窗测；编辑器/局部毛玻璃残 |
+| 12 | **收口（主路径）** | VirtualList+Physics 单测 + scroll 轴；bounce/multi-sliver 残 |
+| 13 | **收口（主路径）** | Picture D7 + dirty Present + damage；GPU picture 缓存 / 默走 Composite 残 |
+| 指标 | **收口（D8）** | slope + GPU JSON + baseline 骨架；p99/VRAM/CI 库残 |
+
+### 25.3 母表状态分布（约，终审快照）
+
+| 码 | 约数 | 读法 |
+|----|------|------|
+| A / A/C / A/B | ~140+ | 主路径与大量 UI 可测项 |
+| B | ~50 | render 有、UI 未暴露或未接场景 |
+| C | ~25 | 半成品 / 内部有未公开 |
+| D | ~37 | **故意远期** 或 Flutter 对照缺失（非施工失败） |
+
+**D 的主要桶（勿当欠债清零）：**  
+PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader / 编辑选区与 IME 定位 / conic / 部分指标字段（jank50、VRAM、GC…）/ PerformanceOverlay。
+
+### 25.4 架构诚实点（最易误读）
+
+```text
+1. PipelineApp 默认仍 RO 直绘 Present（PaintPresentTree）
+   → CompositeToContext / Picture 能力在，但是「可选/测试路径」，非默认 compositor。
+2. Picture 显示列表 = rect+path+text+image 子集；无列表内 clip/saveLayer；无 GPU 纹理缓存。
+3. Backdrop / DropShadow / 部分 SaveLayer = 全幅或大区域成本，产品慎用。
+4. VSync：有 DRM 可为 true；否则 fallback — JSON vsync_source 为准。
+5. cpu_ui/raster = 路径 proxy，≠ OS 线程 DevTools %。
+6. gpu_ops = Present Context 累计路由计数，≠ 严格「每帧 GPU submit 次数」。
+```
+
+### 25.5 建议的下一步（收口之后）
+
+| 优先级 | 方向 | 说明 |
+|--------|------|------|
+| **1 产品** | 真实 App / 控件场景 | 用场景驱动开残项，禁止无目标清 D |
+| **2 可选架构** | Record→Composite 双路径（flag） | 要层缓存/静态跳过再做；不默认替换 |
+| **3 可观测** | 同机 baseline 入库 + soak 门禁收紧 | D8 骨架已有；CI 机器绑定 |
+| **4 质感** | 局部 backdrop、bounce 滚动 | 纯产品体验 |
+
+### 25.6 终审签字栏（工程）
+
+| 项 | 状态 |
+|----|------|
+| §22 主路径 + D1–D8 | **收口** |
+| 母表诚实（A/C 边界、禁止宣称） | **已回写本 §** |
+| `go test ./ui/...` | **绿（终审抽查）** |
+| 全表 B/C/D 清零 | **不做**（非目标） |
+| 「对齐 Flutter 渲染」对外口径 | **仅主路径子集 + 本 § 边界** |
+
+---
+
 ## §24 修订
 
 | 版本 | 说明 |
 |------|------|
-| **1.27** | **阶段 D7** Picture 显示列表扩展：Fill/StrokePath · DrawString · DrawImage + picture_test 像素回放；非 GPU picture 缓存 |
+| **1.29** | **阶段 E 终审**：§25 基座收口声明；§22.2 改为收口后残项；文首闭环口径更新；抽查 `go test ./ui/...` |
+| 1.28 | **阶段 D8** 指标：rss_slope_kb_per_min；gpu_ops/cpu_fallback 进 UI JSON；CompareToBaseline+Load/Save；perfsoak BASELINE_JSON |
+| 1.27 | **阶段 D7** Picture 显示列表扩展：Fill/StrokePath · DrawString · DrawImage + picture_test 像素回放；非 GPU picture 缓存 |
 | 1.26 | **阶段 D6** PaintContext Save/Concat/PushTransform/Translate/ScaleXY/Rotate/Shear/GetTransform + transform_ctm_test |
 | 1.25 | **阶段 D5** ApplyDropShadow + PushBackdrop/BackdropFilterLayer + composite walk + tests |
 | 1.24 | **阶段 D4** ClampingScrollPhysics + Viewport Fling/TickPhysics + Scrollable pan-end fling + scroll_physics_test |
