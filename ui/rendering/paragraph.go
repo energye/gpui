@@ -142,10 +142,14 @@ func (t *RenderText) runApprox(r TextRun) float64 {
 }
 
 func (t *RenderText) runFace(r TextRun) text.Face {
-	if r.Face != nil {
-		return r.Face
+	base := r.Face
+	if base == nil {
+		base = t.Face
 	}
-	return t.Face
+	if base == nil {
+		return nil
+	}
+	return faceForSize(base, t.runFontSize(r))
 }
 
 func (t *RenderText) measureRunString(r TextRun, s string) float64 {

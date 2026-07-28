@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.13** | 日期：2026-07-28  
+> **版本：1.14** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -258,11 +258,11 @@ go run ./examples/ui_l1_scroll              # 滚动
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
 | FT-PARAGRAPH-BUILD | 构建段落 | ParagraphBuilder | 富文本 | ParagraphBuilder/TextRun | — | RenderText.Runs | **C** | paragraph.go | 最小多 span；全量仍缺 |
-| FT-PARAGRAPH-LAYOUT | 段落布局 | Paragraph.layout | 换行高度 | 近似宽高 | MeasureString/Multiline | RenderText.Layout 启发式 | C/B | text.go · render/text.go | 接通 Measure 到 RO |
-| FT-PARAGRAPH-PAINT | 绘段落 | drawParagraph | 正文 | DrawTextColored | DrawString* | RenderText.Paint | C | rendering/text.go | — |
+| FT-PARAGRAPH-LAYOUT | 段落布局 | Paragraph.layout | 换行高度 | Face.Measure 当有 Face | MeasureString/Multiline | RenderText.Layout | **A/C** | text.go · text_font_ro_test | 有 Face→真测；无 Face 仍启发式；全量 Paragraph 仍 C |
+| FT-PARAGRAPH-PAINT | 绘段落 | drawParagraph | 正文 | SetFont+DrawTextColored | DrawString* | RenderText.Paint | **A/C** | text.go · text_font_ro_test | 有 Face 时 DC.SetFont(size-synced)；非 drawParagraph 全量 |
 | FT-PAINTER | TextPainter | TextPainter | 通用测量绘 | — | Measure+Draw 组合 | — | B | render/text.go | 可做 ui 门面 |
-| FT-STYLE-SIZE | 字号 | TextStyle.fontSize | 层级 | FontSize 字段 | LoadFontFace points | RenderText | C | text.go | 未可靠设到 DC 字体 |
-| FT-STYLE-FAMILY | 字体族 | fontFamily | 品牌/CJK | — | SetFont/LoadFontFace | — | B | render/text.go | RO 未接通 |
+| FT-STYLE-SIZE | 字号 | TextStyle.fontSize | 层级 | **SetFontSize** · effectiveFace | Face/Source.Face(pts) | RenderText | **A** | text.go · text_font_ro_test | FontSize 与 Face 尺寸同步；改 size 重测 |
+| FT-STYLE-FAMILY | 字体族 | fontFamily | 品牌/CJK | **SetFace** | SetFont/LoadFontFace | RenderText | **A/B** | SetFace · TryLoadDefaultFace | 族名字符串 API 仍 B；Face 指针已通 |
 | FT-STYLE-WEIGHT | 字重 | fontWeight | 强调 | — | Face/variations 部分 | — | B | LoadFontFaceWithVariations | — |
 | FT-STYLE-STYLE | italic | fontStyle | 斜体 | — | — | — | C/D | — | 依赖字体文件 |
 | FT-LETTER-SPACING | 字距 | letterSpacing | 标题微调 | — | — | — | D | — | — |
@@ -286,7 +286,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FT-SHAPED | 已整形 glyph | shaped glyphs | 性能/复杂文种 | — | DrawShapedGlyphs | — | B | render/text.go | — |
 | FT-STROKE-TEXT | 描边字 | foreground stroke | 描边标题 | — | StrokeString* | — | B | render/text.go | — |
 | FT-ANCHOR | 锚点绘制 | 对齐锚 | 居中标签 | — | DrawStringAnchored | — | B | render/text.go | — |
-| FT-MEASURE | 测量宽高 | TextPainter.width/height | layout 真值 | — | MeasureString | RenderText 启发式 | B | render/text.go | 接通 RO |
+| FT-MEASURE | 测量宽高 | TextPainter.width/height | layout 真值 | **effectiveFace+Measure** | MeasureString | RenderText | **A/B** | text.go · text_font_ro_test | 有 Face→真测；无 Face 仍启发式 |
 
 ---
 
@@ -667,7 +667,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 7 | Clip/saveLayer §5 | 3,6 | ✅/🔄 | ClipRRect RO→层；clip_rrect_test | raster/skip；无层泄漏 | **cliplayer** |
 | 8 | Transform 层 §6 | 3,7 | ✅/🔄 | 逆 CTM hit；TransformLayer | 同 7；旋转 hitch 可解释 | **cliplayer** |
 | 9 | 图像 §7 | 3,7 | ✅/🔄 | Nine/Round UI；dispose | RSS/Dispose；解码不堵 UI | **image** |
-| 10 | 文本/Paragraph §8 | 3,5 | 🔄 | text/paragraph | 文本帧时；(有则) atlas | **text** |
+| 10 | 文本/Paragraph §8 | 3,5 | ✅/🔄 | Font→RO；maxLines/ellipsis | 文本帧时；(有则) atlas | **text** |
 | 11 | 滤镜/阴影层 §10§12 | 7,8 | ⬜ | 滤镜/层测 | CPU/RSS；saveLayer 预算 | cliplayer 或新轴 |
 | 12 | 滚动/视口 §15 | 3,7 | 🔄 | virtual_list；S5/S6 | **bind** 上界；layout 不风暴 | **scroll** |
 | 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ⬜ | picture/damage 契约 | damage 面积等；禁全清冒充 | 专用/PerfSoak |
@@ -684,7 +684,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 7 | **ClipRRectLayer RO→BuildLayerTree ✅**；仍开：ClipPath 层；真 saveLayer；通用 save/restore |
 | 8 | **逆 CTM hit ✅**；仍开：通用 pushTransform/Matrix4；Present 层合成 |
 | 9 | **Nine/Round UI ✅**；仍开：Atlas；Circular UI 门面；精细 SrcRect UI |
-| 10 | **全量 Paragraph**；Font 接通 RO |
+| 10 | **Font 接通 RO ✅**；仍开：**全量 Paragraph**；族名字符串 API；装饰/strut/locale |
 | 11 | Backdrop/Filter **场景层** |
 | 12 | 完整可变 sliver；Physics |
 | 13 | 显示列表；dirty-rect Present |
@@ -700,6 +700,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | ClipRRect **paint + 层** | `PushClipRRect` · **RenderClipRRect** · `clip_rrect_layer_test` · cliplayer | **FL-CLIP-RRECT A/C**（RO→Build 主路径）；Present 全画；ClipPath/saveLayer 仍开 |
 | TransformLayer + RenderTransform + **逆 CTM hit** | transform.go · transform_hit_test · layer_build · cliplayer | 中心 rotate+scale 逆 hit；**非** Matrix4/通用 pushTransform；Present 全画 |
 | Text maxLines/ellipsis；最小多 span | text · paragraph | ≠ 全量 Paragraph |
+| **Font 接通 RenderText（序10）** | `SetFace` · `SetFontSize` · `effectiveFace` · `text_font_ro_test` | 有 Face 真测+DC.SetFont；全量 ParagraphBuilder 仍 C |
 | Image Dispose 所有权 | image_dispose_test | — |
 | **Image Nine/Round UI（序9）** | `image_draw.go` · `image_draw_test` · image 轴 | Atlas/Circular UI 仍开；per-corner 圆角图仍开 |
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
@@ -728,7 +729,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.13** | **序9** DrawImageRounded/DrawImageNine/DrawImageBuf UI 门面 + image_draw_test + image 轴接线；Atlas 仍开 |
+| **1.14** | **序10** Font 接通 RenderText：SetFontSize + faceForSize/effectiveFace 测绘同路径 + text_font_ro_test；全量 Paragraph 仍开 |
+| 1.13 | **序9** DrawImageRounded/DrawImageNine/DrawImageBuf UI 门面 + image_draw_test + image 轴接线；Atlas 仍开 |
 | 1.12 | **序8** RenderTransform 逆 CTM hit（中心 rotate+scale）+ transform_hit_test；通用 pushTransform/Present 合成仍开 |
 | 1.11 | **序7** ClipRRectLayer RO→BuildLayerTree：RenderClipRRect + layer_build + 单测 + cliplayer；FL-CLIP-RRECT→A/C；ClipPath/saveLayer 仍开 |
 | 1.10 | **序6** FPath-METRICS：ComputeMetrics/PositionAt/TangentAt + UI 门面 + 单测 |

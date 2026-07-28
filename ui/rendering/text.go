@@ -125,11 +125,31 @@ func (t *RenderText) SetColor(r, g, b, a float64) {
 }
 
 // SetFace sets an optional font face for measure/draw alignment with render text.
+// Layout and paint use Face scaled to FontSize when the face size differs
+// (via Source().Face or MultiFace.AtSize).
 func (t *RenderText) SetFace(face text.Face) {
 	if t == nil {
 		return
 	}
 	t.Face = face
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// SetFontSize updates logical font size and dirties layout+paint.
+// When Face is set, measure/paint re-derive a face at this size so layout
+// tracks FontSize (not only the size baked into the Face at SetFace time).
+func (t *RenderText) SetFontSize(points float64) {
+	if t == nil {
+		return
+	}
+	if points <= 0 {
+		points = 14
+	}
+	if t.FontSize == points {
+		return
+	}
+	t.FontSize = points
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
@@ -191,12 +211,60 @@ func (t *RenderText) lineSpacing() float64 {
 	return t.LineSpacing
 }
 
+// faceForSize returns a Face usable at points for measure/paint.
+// Single faces are re-derived from Source(); MultiFace uses AtSize.
+// If size already matches (within 0.25pt) the input face is returned as-is.
+func faceForSize(face text.Face, points float64) text.Face {
+	if face == nil {
+		return nil
+	}
+	if points <= 0 {
+		points = 14
+	}
+	cur := face.Size()
+	if cur > 0 {
+		d := cur - points
+		if d < 0 {
+			d = -d
+		}
+		if d < 0.25 {
+			return face
+		}
+	}
+	if mf, ok := face.(*text.MultiFace); ok {
+		return mf.AtSize(points)
+	}
+	src := face.Source()
+	if src == nil {
+		return face
+	}
+	var opts []text.FaceOption
+	if feats := face.Features(); len(feats) > 0 {
+		opts = append(opts, text.WithFeatures(feats...))
+	}
+	if vars := face.Variations(); len(vars) > 0 {
+		opts = append(opts, text.WithVariations(vars...))
+	}
+	if lang := face.Language(); lang != "" {
+		opts = append(opts, text.WithLanguage(lang))
+	}
+	return src.Face(points, opts...)
+}
+
+// effectiveFace is Face scaled to FontSize for single-string measure/paint.
+func (t *RenderText) effectiveFace() text.Face {
+	if t == nil || t.Face == nil {
+		return nil
+	}
+	return faceForSize(t.Face, t.fontSize())
+}
+
 // lineHeightLogical is the per-line advance used for layout height and multi-line paint.
 func (t *RenderText) lineHeightLogical() float64 {
 	fs := t.fontSize()
 	ls := t.lineSpacing()
-	if t.Face != nil {
-		m := t.Face.Metrics()
+	if face := t.effectiveFace(); face != nil {
+		m := face.Metrics()
 		lh := m.LineHeight()
 		if lh > 0 {
 			return lh * ls
@@ -209,8 +277,8 @@ func (t *RenderText) measureLine(s string) float64 {
 	if s == "" {
 		return 0
 	}
-	if t.Face != nil {
-		w, _ := text.Measure(s, t.Face)
+	if face := t.effectiveFace(); face != nil {
+		w, _ := text.Measure(s, face)
 		return w
 	}
 	fs := t.fontSize()
@@ -236,8 +304,8 @@ func (t *RenderText) wrapLines() []string {
 		s = strings.ReplaceAll(s, "\r", "\n")
 		return strings.Split(s, "\n")
 	}
-	if t.Face != nil {
-		res := text.WrapText(s, t.Face, maxW, text.WrapWord)
+	if face := t.effectiveFace(); face != nil {
+		res := text.WrapText(s, face, maxW, text.WrapWord)
 		out := make([]string, len(res))
 		for i, r := range res {
 			out[i] = r.Text
@@ -522,8 +590,9 @@ func (t *RenderText) Paint(pc *PaintContext) {
 			if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
 				a = 1
 			}
-			if t.Face != nil && pc.DC != nil {
-				pc.DC.SetFont(t.Face)
+			// Apply size-synced face before DrawString (DrawString no-ops without Font).
+			if face := t.effectiveFace(); face != nil && pc.DC != nil {
+				pc.DC.SetFont(face)
 			}
 			fs := t.fontSize()
 			lh := t.lineHeightLogical()
@@ -555,10 +624,19 @@ func (t *RenderText) paintRuns(pc *PaintContext) {
 			if sp.Text == "" {
 				continue
 			}
-			if sp.Face != nil && pc.DC != nil {
-				pc.DC.SetFont(sp.Face)
-			} else if t.Face != nil && pc.DC != nil {
-				pc.DC.SetFont(t.Face)
+			// Prefer span face at span size; fall back to parent effective face.
+			var face text.Face
+			if sp.Face != nil {
+				fs := sp.FontSize
+				if fs <= 0 {
+					fs = t.fontSize()
+				}
+				face = faceForSize(sp.Face, fs)
+			} else {
+				face = t.effectiveFace()
+			}
+			if face != nil && pc.DC != nil {
+				pc.DC.SetFont(face)
 			}
 			drawTextColored(pc, sp.Text, sp.X, baseline, sp.R, sp.G, sp.B, sp.A)
 		}
