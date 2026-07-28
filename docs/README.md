@@ -8,7 +8,7 @@
 |--------|------|------|
 | **1** | [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md) | **L1 状态 · 验收命令 · 限制 · 下一步** |
 | **1b** | [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) | **全局纪律：禁止 CGO · purego · 依赖 · 架构/示例边界** |
-| **1c** | [`ENGINE_UI_RENDER_BASE.md`](./ENGINE_UI_RENDER_BASE.md) | **渲染基座唯一施工真源**（Flutter 能力 · 依赖序 · 单测+指标+窗测） |
+| **1c** | [`ENGINE_UI_RENDER_BASE.md`](./ENGINE_UI_RENDER_BASE.md) | **渲染基座**（流程闭环：清单·依赖序·单测+指标+窗测；**实现未完成**） |
 | 2 | [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md) | 架构图（四层 / 依赖 / 坐标） |
 | 3 | [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) | 架构条款全文 |
 | 4 | [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md) | P0–P3 任务考古（已完成） |
