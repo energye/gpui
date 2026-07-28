@@ -47,6 +47,37 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		return
 	}
 
+	// ClipRRect nodes push scene.ClipRRectLayer (Flutter ClipRRectLayer / pushClipRRect).
+	// Offset establishes local origin; clip is (0,0,w,h) in that space so children nest under it.
+	if cr, ok := n.(*RenderClipRRect); ok {
+		w, h, radius := cr.ClipRRectParams()
+		dirty := n.NeedsPaint() || SubtreeNeedsPaint(n)
+		if n.IsRepaintBoundary() {
+			b.PushBoundary(off.X, off.Y, "clip_rrect", dirty)
+			b.PushClipRRect(0, 0, w, h, radius)
+			for _, ch := range n.Children() {
+				appendNode(ch, b)
+			}
+			if len(n.Children()) == 0 {
+				b.AddPicture(n.NeedsPaint())
+			}
+			b.Pop() // clip_rrect
+			b.Pop() // boundary
+			return
+		}
+		b.PushOffset(off.X, off.Y)
+		b.PushClipRRect(0, 0, w, h, radius)
+		if len(n.Children()) == 0 {
+			b.AddPicture(n.NeedsPaint())
+		}
+		for _, ch := range n.Children() {
+			appendNode(ch, b)
+		}
+		b.Pop() // clip_rrect
+		b.Pop() // offset
+		return
+	}
+
 	if n.IsRepaintBoundary() {
 		b.PushBoundary(off.X, off.Y, typeName(n), n.NeedsPaint() || SubtreeNeedsPaint(n))
 		for _, ch := range n.Children() {
@@ -77,6 +108,8 @@ func typeName(n RenderObject) string {
 		return "box"
 	case *RenderTransform:
 		return "transform"
+	case *RenderClipRRect:
+		return "clip_rrect"
 	default:
 		return "node"
 	}

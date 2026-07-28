@@ -13,6 +13,7 @@ type clipScene struct {
 	Hot        *rendering.RenderBox
 	OpacityBox *rendering.RenderBox
 	ClipInner  *rendering.RenderBox
+	ClipRRect  *rendering.RenderClipRRect
 	Xform      *rendering.RenderTransform
 	phase      float64
 	clipOff    float64
@@ -61,8 +62,8 @@ func buildClipLayerScene(winW, winH float64, face text.Face) *clipScene {
 	root.Background = &rendering.Color{R: 0.09, G: 0.10, B: 0.12, A: 1}
 	s.Root = root
 
-	root.Place(lbl("ClipLayer axis — Boundary · Clip · Opacity · Transform", 13, 0.75, 0.78, 0.85, face), 12, 8)
-	root.Place(lbl("static boundaries skip · hot anim only · TransformLayer in scene tree", 10, 0.5, 0.55, 0.6, face), 12, 28)
+	root.Place(lbl("ClipLayer axis — Boundary · Clip · ClipRRect · Opacity · Transform", 13, 0.75, 0.78, 0.85, face), 12, 8)
+	root.Place(lbl("static boundaries skip · hot anim · ClipRRectLayer + TransformLayer in scene tree", 10, 0.5, 0.55, 0.6, face), 12, 28)
 
 	// Static RepaintBoundary cards
 	for i := 0; i < 6; i++ {
@@ -98,6 +99,15 @@ func buildClipLayerScene(winW, winH float64, face text.Face) *clipScene {
 	})
 	root.Place(s.ClipInner, 12, 220)
 	root.Place(lbl("ClipRect overflow (paint scroll)", 11, 0.95, 0.75, 0.4, face), 12, 346)
+
+	// RenderClipRRect → scene.ClipRRectLayer via BuildLayerTree (序7 main path).
+	rrectChild := rendering.NewRenderColorBox(120, 72, 0.85, 0.35, 0.55, 1)
+	s.ClipRRect = rendering.NewRenderClipRRect(rrectChild)
+	s.ClipRRect.FixedWidth, s.ClipRRect.FixedHeight = 120, 72
+	s.ClipRRect.SetRadius(18)
+	s.ClipRRect.SetRepaintBoundary(true)
+	root.Place(s.ClipRRect, 12, 370)
+	root.Place(lbl("ClipRRectLayer RO→scene", 11, 0.95, 0.75, 0.4, face), 12, 448)
 
 	s.OpacityBox = panel(160, 120, func(pc *rendering.PaintContext, sz rendering.Size) {
 		fill(pc, 0, 0, sz.Width, sz.Height, 0.12, 0.14, 0.18, 1)
@@ -149,6 +159,10 @@ func (s *clipScene) onTick(dt float64, schedule func()) {
 	}
 	if s.Xform != nil {
 		s.Xform.SetRotation(s.phase * 2 * math.Pi)
+	}
+	// Pulse radius so ClipRRect RO stays on the hot paint path (layer params update).
+	if s.ClipRRect != nil {
+		s.ClipRRect.SetRadius(10 + 12*s.phase)
 	}
 	if schedule != nil {
 		schedule()

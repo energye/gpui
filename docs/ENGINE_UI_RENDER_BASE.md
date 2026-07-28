@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.10** | 日期：2026-07-28  
+> **版本：1.11** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -135,7 +135,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-TRANSFORM | 任意 Matrix4 | Canvas.transform | 通用仿射 | — | Transform/SetTransform | — | B | render/context.go | UI 未暴露 |
 | FC-GET-TRANSFORM | 读取 CTM | Canvas.getTransform | 命中反变换/调试 | — | GetTransform | — | B | render/context.go | — |
 | FC-CLIP-RECT | 矩形裁剪 | Canvas.clipRect+ClipOp | 列表视口、溢出隐藏 | PushClipRect/PopClip | ClipRect/ClipRectOp | ClipRectLayer | A | rendering/paint_context.go | ClipOp 差异在 render |
-| FC-CLIP-RRECT | 圆角裁剪 | Canvas.clipRRect | 卡片/头像裁切 | PushClipRRect | ClipRoundRect | 类型有/RO 未接 | **A**（paint） | paint_context · clip_rrect_test | 均匀圆角；**层路径见 FL-CLIP-RRECT=C** |
+| FC-CLIP-RRECT | 圆角裁剪 | Canvas.clipRRect | 卡片/头像裁切 | PushClipRRect · **RenderClipRRect** | ClipRoundRect | ClipRRectLayer RO→Build | **A** | paint_context · clip_rrect · layer_build | 均匀圆角；Present 仍全画 |
 | FC-CLIP-PATH | 路径裁剪 | Canvas.clipPath | 异形遮罩 | — | Clip/ClipPathOp | 无 ClipPathLayer | B/D | render/context_clip.go | — |
 | FC-CLIP-BOUNDS-LOCAL | 本地裁剪界 | getLocalClipBounds | 优化/命中 | — | 内部 clip 栈 | — | C | context_clip*.go | 未 UI 暴露 |
 | FC-CLIP-BOUNDS-DEST | 设备裁剪界 | getDestinationClipBounds | damage 对齐 | — | — | — | D | — | 可与序13 damage 联动 |
@@ -322,7 +322,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FPC-CANVAS | 取 Canvas | PaintingContext.canvas | 底层绘制 | DC *render.Context | Context | — | A | rendering/paint_context.go | — |
 | FPC-PAINT-CHILD | 绘子节点 | paintChild | 树遍历 | 子 Paint+WithOrigin | — | Box/Absolute 遍历 | A | box.go | — |
 | FPC-CLIP-RECT | pushClipRect | PaintingContext.pushClipRect | 视口 | PushClipRect | ClipRect | ClipRectLayer | A | paint_context.go | 层接线有限 |
-| FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | PushClipRRect | ClipRoundRect | 类型有/RO 未接 | **A**（paint） | paint_context · clip_rrect_test | 均匀圆角；FL-CLIP-RRECT=C |
+| FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | PushClipRRect · RenderClipRRect | ClipRoundRect | ClipRRectLayer RO 接线 | **A** | clip_rrect.go · layer_build · clip_rrect_layer_test | 均匀圆角；Present 仍全画 |
 | FPC-CLIP-PATH | pushClipPath | pushClipPath | 异形 | — | Clip path | — | B/D | — | — |
 | FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | — | 滤镜 API | — | B/D | — | — |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 |
@@ -343,7 +343,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | A/C | scene/layer.go · transform.go | 命中 AABB；Present 全画 |
 | FL-OPACITY | 透明层 | OpacityLayer | 淡入 | MutSetOpacity | — | OpacityLayer | A/C | compositing.go | 真合成未接到 Present |
 | FL-CLIP-RECT | 裁剪层 | ClipRectLayer | 溢出 | — | — | ClipRectLayer | A | layer.go | Build 使用有限 |
-| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | — | — | **ClipRRectLayer** 类型+Builder | **C** | scene/layer.go · build.go | **BuildLayerTree 未从 RO 发出**；Present 仍全画 |
+| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | **RenderClipRRect** | — | **ClipRRectLayer** RO→BuildLayerTree | **A/C** | clip_rrect.go · layer_build · clip_rrect_layer_test · cliplayer | **RO 主路径 A**；Present 仍全画 → C 边界；无 per-corner |
 | FL-CLIP-PATH | 路径裁剪层 | ClipPathLayer | 异形 | — | — | **无** | D | — | — |
 | FL-PICTURE | 图层层 | PictureLayer | 录制内容 | — | — | PictureLayer+NeedsRaster | C | picture.go | 无 op 缓冲 |
 | FL-TEXTURE | 纹理层 | TextureLayer | 视频 | — | DrawGPUTexture | **无** | D | — | — |
@@ -664,7 +664,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 4 | 调度/VSync §14 | 2 | ✅/🔄 | scheduler/vsync | interval·hitch·vsync_source·cpu 分轨 | PerfSoak |
 | 5 | 几何+Paint/Shader §2§3 | 3 | ✅ 主路径 | `TestDraw_*` | geometry/PerfSoak 帧指标 | **geometry** |
 | 6 | Path §4 | 5 | ✅ 主路径 | `TestPathMetrics_*` · FillPath | geometry 帧指标 | **geometry** |
-| 7 | Clip/saveLayer §5 | 3,6 | 🔄 | clip_rrect 等 | raster/skip；无层泄漏 | **cliplayer** |
+| 7 | Clip/saveLayer §5 | 3,6 | ✅/🔄 | ClipRRect RO→层；clip_rrect_test | raster/skip；无层泄漏 | **cliplayer** |
 | 8 | Transform 层 §6 | 3,7 | 🔄 | TransformLayer | 同 7；旋转 hitch 可解释 | **cliplayer** |
 | 9 | 图像 §7 | 3,7 | 🔄 | dispose 等 | RSS/Dispose；解码不堵 UI | **image** |
 | 10 | 文本/Paragraph §8 | 3,5 | 🔄 | text/paragraph | 文本帧时；(有则) atlas | **text** |
@@ -681,7 +681,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 |----|------------------|
 | 5 | 主路径 ✅；仍开：Vertices/Atlas/Points、ImageShader、DRRect、不等圆角 RRect |
 | 6 | **metrics ✅**；仍开：conic、fillType UI、布尔 UI 文档、Path 构建动词 UI 门面（现经 NewPath→render.Path） |
-| 7 | ClipPath 层；**ClipRRectLayer RO→BuildLayerTree**；真 saveLayer；通用 save/restore |
+| 7 | **ClipRRectLayer RO→BuildLayerTree ✅**；仍开：ClipPath 层；真 saveLayer；通用 save/restore |
 | 8 | 逆 CTM hit；通用 pushTransform；Present 层合成 |
 | 9 | Nine/Round UI；Atlas |
 | 10 | **全量 Paragraph**；Font 接通 RO |
@@ -697,7 +697,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | PaintContext + DC | `paint_context.go` | 无独立 painting 包 |
 | **几何 draw UI（序5）** | `draw.go` · `draw_test` · geometry 轴 | Vertices/Atlas/Points 仍 B |
 | **Path metrics（序6）** | `render/path_metrics.go` · `ui/rendering/path_metrics*` | conic 仍 D；非全量 PathMetric.getSegment |
-| ClipRRect **paint** | `PushClipRRect` · clip_rrect_test | **层 FL-CLIP-RRECT=C**（RO 未发层） |
+| ClipRRect **paint + 层** | `PushClipRRect` · **RenderClipRRect** · `clip_rrect_layer_test` · cliplayer | **FL-CLIP-RRECT A/C**（RO→Build 主路径）；Present 全画；ClipPath/saveLayer 仍开 |
 | TransformLayer + RenderTransform | transform · layer_build · cliplayer | 命中 AABB；Present 全画 → 序8 |
 | Text maxLines/ellipsis；最小多 span | text · paragraph | ≠ 全量 Paragraph |
 | Image Dispose 所有权 | image_dispose_test | — |
@@ -727,7 +727,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.10** | **序6** FPath-METRICS：ComputeMetrics/PositionAt/TangentAt + UI 门面 + 单测 |
+| **1.11** | **序7** ClipRRectLayer RO→BuildLayerTree：RenderClipRRect + layer_build + 单测 + cliplayer；FL-CLIP-RRECT→A/C；ClipPath/saveLayer 仍开 |
+| 1.10 | **序6** FPath-METRICS：ComputeMetrics/PositionAt/TangentAt + UI 门面 + 单测 |
 | 1.9 | 核查已落地；FL-CLIP-RRECT→C；**序5** draw.go 几何主路径 |
 | 1.8 | 流程闭环/实现未闭环；删 Wave/分册叙事 |
 | ≤1.7 | 母表三项验收；分册已删 |
