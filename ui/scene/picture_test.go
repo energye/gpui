@@ -83,6 +83,7 @@ func TestPicture_Replay_FillRectPixels(t *testing.T) {
 }
 
 // TestPictureLayer_RecordAndReplay attaches display list to PictureLayer.
+// Record must leave NeedsRaster true so RasterizeDirty will apply the new ops.
 func TestPictureLayer_RecordAndReplay(t *testing.T) {
 	scene.ResetLayerIDGen()
 	pl := scene.NewPictureLayer()
@@ -92,8 +93,8 @@ func TestPictureLayer_RecordAndReplay(t *testing.T) {
 	pl.Record(func(r *scene.PictureRecorder) {
 		r.FillRect(8, 8, 24, 24, 0, 0.8, 0, 1)
 	})
-	if pl.NeedsRaster {
-		t.Fatal("after Record with ops, NeedsRaster should be false")
+	if !pl.NeedsRaster {
+		t.Fatal("after Record, NeedsRaster must stay true until RasterizeDirty applies")
 	}
 	if !pl.Picture.Valid || pl.Picture.OpCount() != 1 {
 		t.Fatalf("layer picture Valid=%v ops=%d", pl.Picture.Valid, pl.Picture.OpCount())
@@ -112,17 +113,24 @@ func TestPictureLayer_RecordAndReplay(t *testing.T) {
 	}
 }
 
-// TestRasterizeDirty_ReplaysDirtyPictureAndSkipsClean keeps reuse stats green
-// and proves dirty path can apply display-list ops via RasterizeDirtyToContext.
+// TestRasterizeDirty_ReplaysDirtyPictureAndSkipsClean drives the natural path:
+// AddPicture → Record (no manual NeedsRaster flip) → BuildPacket →
+// RasterizeDirtyToContext must Replay ops (ReplayedOps>0, blue pixels).
+// A second clean frame skips re-raster.
 func TestRasterizeDirty_ReplaysDirtyPictureAndSkipsClean(t *testing.T) {
 	scene.ResetLayerIDGen()
 	b := scene.NewLayerBuilder()
-	pl := b.AddPicture(true) // NeedsRaster
+	pl := b.AddPicture(true)
 	pl.Record(func(r *scene.PictureRecorder) {
 		r.FillRect(10, 10, 20, 20, 0, 0, 1, 1)
 	})
-	// Record cleared NeedsRaster; mark dirty via packet IDs for first pass.
-	pl.NeedsRaster = true
+	// Natural path: Record alone must leave the layer dirty for first apply.
+	if !pl.NeedsRaster {
+		t.Fatal("Record must leave NeedsRaster true (no test-only re-dirty)")
+	}
+	if pl.Picture.OpCount() < 1 {
+		t.Fatal("Record must install non-empty Ops before RasterizeDirty")
+	}
 	pkt := b.BuildPacket(1, 1, 64, 64)
 
 	dc := render.NewContext(64, 64)
@@ -130,12 +138,19 @@ func TestRasterizeDirty_ReplaysDirtyPictureAndSkipsClean(t *testing.T) {
 	dc.BeginFrame()
 	dc.ClearWithColor(render.White)
 
+	// Precondition: surface still white before raster (proves Replay did the paint).
+	pre := dc.Image()
+	pr, pg, pb := sampleRGB(pre.At(20, 20))
+	if pr < 0xC000 || pg < 0xC000 || pb < 0xC000 {
+		t.Fatalf("pre-raster (20,20)=#%04x%04x%04x want white", pr, pg, pb)
+	}
+
 	st := scene.RasterizeDirtyToContext(pkt, dc)
 	if st.RasterLayerCount < 1 {
 		t.Fatalf("expected re-raster, stats=%+v", st)
 	}
 	if st.ReplayedOps < 1 {
-		t.Fatalf("expected replayed ops, stats=%+v", st)
+		t.Fatalf("natural Record→RasterizeDirtyToContext must replay ops, stats=%+v", st)
 	}
 	if pl.NeedsRaster {
 		t.Fatal("NeedsRaster should clear after RasterizeDirty")
@@ -159,6 +174,9 @@ func TestRasterizeDirty_ReplaysDirtyPictureAndSkipsClean(t *testing.T) {
 	}
 	if st2.SkippedLayerCount < 1 {
 		t.Fatalf("clean frame should skip picture, got %+v", st2)
+	}
+	if st2.ReplayedOps != 0 {
+		t.Fatalf("clean frame must not replay ops, got %+v", st2)
 	}
 }
 

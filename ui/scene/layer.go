@@ -239,21 +239,21 @@ func (p *PictureLayer) LayerID() uint64   { return p.id }
 func (p *PictureLayer) Children() []Layer { return nil }
 func (p *PictureLayer) Kind() string      { return "picture" }
 
-// SetPicture installs a recorded Picture and clears NeedsRaster when Valid
-// with a non-empty display list.
+// SetPicture installs a recorded Picture. Any new display list (or empty/invalid
+// install) marks NeedsRaster so the next RasterizeDirty / RasterizeDirtyToContext
+// will apply or re-apply content. NeedsRaster is cleared only by RasterizeDirty*
+// after a successful dirty pass — not here — so AddPicture→Record→BuildPacket→
+// RasterizeDirtyToContext replays without a manual dirty workaround.
 func (p *PictureLayer) SetPicture(pic Picture) {
 	if p == nil {
 		return
 	}
 	p.Picture = pic
-	if pic.Valid && len(pic.Ops) > 0 {
-		p.NeedsRaster = false
-	} else {
-		p.NeedsRaster = true
-	}
+	p.NeedsRaster = true
 }
 
-// Record replaces the layer's Picture via a recorder callback.
+// Record replaces the layer's Picture via a recorder callback and dirties
+// NeedsRaster (see SetPicture).
 func (p *PictureLayer) Record(fn func(*PictureRecorder)) {
 	if p == nil {
 		return
