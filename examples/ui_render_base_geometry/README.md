@@ -1,52 +1,34 @@
 # ui_render_base_geometry
 
-**Geometry 轴**真窗专项 — 对应 [`docs/ENGINE_UI_RENDER_BASE.md`](../../docs/ENGINE_UI_RENDER_BASE.md)：
+**Geometry 轴**真窗专项 — [`docs/ENGINE_UI_RENDER_BASE.md`](../../docs/ENGINE_UI_RENDER_BASE.md) **§22 序5** / §2–§3 / §23。
 
-- **§2** `dart:ui.Canvas` 几何绘制（`FC-DRAW-*`）
-- **§3** 描边样式（`StrokeStyle`）
-- **§5** `PaintContext.PushClipRRect`（`FC-CLIP-RRECT` 库 API）
-- **§24** 窗测轴 `Geometry`
+实现入口：`ui/rendering` 的 `FillRect` / `Stroke*` / `FillCircle` / …（`draw.go`），**不是**示例私有重实现。
 
-## 覆盖（P0 `ui/painting` = 状态 A）
+## 覆盖
 
-| 面板 | API | 母表 ID |
-|------|-----|---------|
-| Fill rect | `FillRect` | FC-DRAW-RECT |
-| Fill rrect | `FillRoundRect` | FC-DRAW-RRECT |
-| Linear gradient | `FillLinearGradient2` | FS-LINEAR |
-| Stroke rect | `StrokeRect` + `SetStrokeStyle` | FC-DRAW-RECT stroke / FP-STROKE-* |
-| Stroke rrect | `StrokeRoundRect` | FC-DRAW-RRECT stroke |
+| 面板 | API（`ui/rendering`） | 母表 ID |
+|------|----------------------|---------|
+| Fill/Stroke rect | `FillRect` / `StrokeRect` | FC-DRAW-RECT |
+| Fill/Stroke rrect | `FillRoundRect` / `StrokeRoundRect` | FC-DRAW-RRECT |
+| Linear gradient | `FillLinearGradient` | FS-LINEAR |
 | Lines | `StrokeLine` | FC-DRAW-LINE |
-| Fill circle | `FillCircle` | FC-DRAW-CIRCLE |
-| Stroke circle | `StrokeCircle` | FC-DRAW-CIRCLE stroke |
-| Clip rrect | `PushClipRRect` / `PopClip` | FC-CLIP-RRECT |
-| Radial gradient | `FillRadialGradient2` | FS-RADIAL (**P1**) |
-| Path triangle | `FillPath` / `StrokePath` | FC-DRAW-PATH (**P1**) |
-| Oval + Arc | `FillOval` / `StrokeArc` | FC-DRAW-OVAL / ARC (**P1**) |
+| Circle | `FillCircle` / `StrokeCircle` | FC-DRAW-CIRCLE |
+| Clip rrect | `PaintContext.PushClipRRect` | FC-CLIP-RRECT（paint） |
+| Radial | `FillRadialGradient` | FS-RADIAL |
+| Path | `NewPath` + `FillPath` / `StrokePath` | FC-DRAW-PATH |
+| Oval + Arc | `FillOval` / `StrokeArc` | FC-DRAW-OVAL / ARC |
 
-## 明确不在本示例（母表仍后置）
+## 不在本轴
 
-- 完整 Paragraph 富文本、Path.computeMetrics、TransformLayer 场景树  
-- P6 dirty-rect Present / Picture 显示列表  
+- Path.computeMetrics、全量 Paragraph、Transform 逆 hit  
+- dirty-rect Present / Picture 显示列表（序13）  
+- ClipRRect **Layer** RO 接线（FL-CLIP-RRECT 仍 C）
 
 ## 运行
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 RUN_SECONDS=15 go run ./examples/ui_render_base_geometry
-
-# 可选字体
-GPUI_UI_FONT=/path/to.ttf
 ```
 
-## 指标读法
-
-- stderr：fps、layout_flushes、p50/p99、RSS/CPU、`vsync_source`  
-- stdout：`FrameMetrics` JSON（含 P0 收尾字段）  
-- **layout_flushes 应 ≪ presents**（仅三块动画 Boundary 脉动）  
-- `raster_layer_count` = 脏层统计，**≠** GPU 局部 Present  
-
-## 纪律
-
-- 场景只在 `examples/`，不进 `ui/`  
-- 禁止 CGO；`ui → render → gpu`  
+单测：`go test ./ui/rendering -run TestDraw_ -count=1`

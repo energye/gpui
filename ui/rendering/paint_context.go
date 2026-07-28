@@ -57,16 +57,10 @@ func (pc *PaintContext) Abs(x, y float64) (ax, ay float64) {
 	return pc.OriginX + x, pc.OriginY + y
 }
 
-// --- unexported draw helpers (same package only; call render, keep RO readable) ---
+// --- unexported aliases (RO paint paths; public API is FillRect etc. in draw.go) ---
 
 func fillRect(pc *PaintContext, x, y, w, h, r, g, b, a float64) {
-	if pc == nil || pc.DC == nil || w <= 0 || h <= 0 {
-		return
-	}
-	ax, ay := pc.Abs(x, y)
-	pc.DC.SetRGBA(r, g, b, a)
-	pc.DC.DrawRectangle(ax, ay, w, h)
-	_ = pc.DC.Fill()
+	FillRect(pc, x, y, w, h, r, g, b, a)
 }
 
 // PushClipRect clips subsequent draws to a logical-axis-aligned rect (Y-down),

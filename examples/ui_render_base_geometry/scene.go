@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -42,7 +41,7 @@ func buildGeometryScene(winW, winH float64) *geoScene {
 	s.Root = root
 
 	root.Place(label("Geometry axis — ENGINE_UI_RENDER_BASE §2 FC-DRAW-* (PaintContext + render)", 13, 0.75, 0.78, 0.85), 12, 8)
-	root.Place(label("A: FillRect/RRect/Gradient · Stroke* · Circle · ClipRoundRect | B/D Path/Arc/Oval ui 未暴露", 11, 0.55, 0.58, 0.62), 12, 28)
+	root.Place(label("ui/rendering draw: Fill/Stroke Rect·RRect·Circle·Oval·Arc·Path · Linear/Radial · ClipRRect", 11, 0.55, 0.58, 0.62), 12, 28)
 
 	const (
 		pw, ph = 200.0, 120.0
@@ -142,7 +141,7 @@ func buildGeometryScene(winW, winH float64) *geoScene {
 
 	// --- Row 4 (P1): Radial · Path triangle · Oval/Arc ---
 	row4 := row3 + 18 + ph + 28
-	root.Place(label("FS-RADIAL / PATH / OVAL (P1)", 11, 0.95, 0.75, 0.4), 12, row4)
+	root.Place(label("FS-RADIAL / PATH / OVAL+ARC（序5 UI）", 11, 0.95, 0.75, 0.4), 12, row4)
 
 	root.Place(panel(pw, ph, func(pc *rendering.PaintContext, sz rendering.Size) {
 		fillRect(pc, 0, 0, sz.Width, sz.Height, 0.14, 0.15, 0.18, 1)
@@ -156,7 +155,7 @@ func buildGeometryScene(winW, winH float64) *geoScene {
 
 	root.Place(panel(pw, ph, func(pc *rendering.PaintContext, sz rendering.Size) {
 		fillRect(pc, 0, 0, sz.Width, sz.Height, 0.14, 0.15, 0.18, 1)
-		tri := render.NewPath()
+		tri := rendering.NewPath()
 		tri.MoveTo(sz.Width*0.5, 18)
 		tri.LineTo(sz.Width-24, sz.Height-22)
 		tri.LineTo(24, sz.Height-22)
@@ -175,7 +174,7 @@ func buildGeometryScene(winW, winH float64) *geoScene {
 
 	// Footnote
 	note := label(fmt.Sprintf(
-		"dirty locality: only StrokePulse/CirclePulse/ClipPulse animate | P1: radial/path/oval/arc | not P6 present",
+		"dirty locality: only StrokePulse/CirclePulse/ClipPulse animate | draw via ui/rendering | not dirty-rect Present",
 	), 11, 0.5, 0.52, 0.55)
 	root.Place(note, 12, winH-24)
 

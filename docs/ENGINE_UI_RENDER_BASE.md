@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.8** | 日期：2026-07-28  
+> **版本：1.9** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -135,20 +135,20 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-TRANSFORM | 任意 Matrix4 | Canvas.transform | 通用仿射 | — | Transform/SetTransform | — | B | render/context.go | UI 未暴露 |
 | FC-GET-TRANSFORM | 读取 CTM | Canvas.getTransform | 命中反变换/调试 | — | GetTransform | — | B | render/context.go | — |
 | FC-CLIP-RECT | 矩形裁剪 | Canvas.clipRect+ClipOp | 列表视口、溢出隐藏 | PushClipRect/PopClip | ClipRect/ClipRectOp | ClipRectLayer | A | rendering/paint_context.go | ClipOp 差异在 render |
-| FC-CLIP-RRECT | 圆角裁剪 | Canvas.clipRRect | 卡片/头像裁切 | PushClipRRect | ClipRoundRect | ClipRRectLayer | A | paint_context · scene | 均匀圆角 |
+| FC-CLIP-RRECT | 圆角裁剪 | Canvas.clipRRect | 卡片/头像裁切 | PushClipRRect | ClipRoundRect | 类型有/RO 未接 | **A**（paint） | paint_context · clip_rrect_test | 均匀圆角；**层路径见 FL-CLIP-RRECT=C** |
 | FC-CLIP-PATH | 路径裁剪 | Canvas.clipPath | 异形遮罩 | — | Clip/ClipPathOp | 无 ClipPathLayer | B/D | render/context_clip.go | — |
 | FC-CLIP-BOUNDS-LOCAL | 本地裁剪界 | getLocalClipBounds | 优化/命中 | — | 内部 clip 栈 | — | C | context_clip*.go | 未 UI 暴露 |
 | FC-CLIP-BOUNDS-DEST | 设备裁剪界 | getDestinationClipBounds | damage 对齐 | — | — | — | D | — | 可与序13 damage 联动 |
 | FC-DRAW-COLOR | 整幅着色 | Canvas.drawColor | 清屏/遮罩 | 清色在 Present 路径 | Clear/ClearWithColor | — | B | render/context.go | PipelineApp 清屏 |
 | FC-DRAW-PAINT | 用 Paint 填当前 clip | Canvas.drawPaint | 全 clip 填着色器 | — | SetFillBrush+大 rect Fill | — | B | render/context.go | 无 1:1 API |
-| FC-DRAW-RECT | 矩形 | Canvas.drawRect | 色块/背景 | FillRect（fill） | DrawRectangle+Fill/Stroke | ColorBox | A/B | rendering/paint_context.go | 描边 rect 仅 B |
-| FC-DRAW-RRECT | 圆角矩形 | Canvas.drawRRect | 按钮/卡片 | FillRoundRect | DrawRoundedRectangle* | — | A/B | rendering（FillRoundRect 等） | stroke rrect=B；XY 圆角=B |
+| FC-DRAW-RECT | 矩形 | Canvas.drawRect | 色块/背景 | FillRect / StrokeRect | DrawRectangle+Fill/Stroke | ColorBox | **A** | rendering/draw.go | fill+stroke；无持久 Paint 对象 |
+| FC-DRAW-RRECT | 圆角矩形 | Canvas.drawRRect | 按钮/卡片 | FillRoundRect / StrokeRoundRect | DrawRoundedRectangle* | — | **A** | draw.go · geometry 轴 | 均匀圆角；XY 不等圆角仍 B |
 | FC-DRAW-DRRECT | 双 RRect 环 | Canvas.drawDRRect | 环形进度/边框环 | — | 两 path 差或 stroke 近似 | — | D/B | — | 无 1:1 |
-| FC-DRAW-OVAL | 椭圆 | Canvas.drawOval | 头像底/高亮 | — | DrawEllipse | — | B | render/context.go | — |
-| FC-DRAW-CIRCLE | 圆 | Canvas.drawCircle | 头像/点/涟漪 | — | DrawCircle | Spinner 用 rect 点 | B | render/context.go | Spinner 可升级 |
-| FC-DRAW-ARC | 弧/扇形 | Canvas.drawArc | 进度环 | — | DrawArc/DrawEllipticalArc | — | B | render/context.go | — |
-| FC-DRAW-PATH | 任意路径 | Canvas.drawPath | 图标/波浪/自定义 | — | DrawPath/Fill/Stroke+Path | — | B | render/context.go · path.go | UI CustomPaint 急需 |
-| FC-DRAW-LINE | 线段 | Canvas.drawLine | 分割线/刻度 | — | DrawLine | Divider 将来 | B | render/context.go | — |
+| FC-DRAW-OVAL | 椭圆 | Canvas.drawOval | 头像底/高亮 | FillOval / StrokeOval | DrawEllipse | — | **A** | draw.go | — |
+| FC-DRAW-CIRCLE | 圆 | Canvas.drawCircle | 头像/点/涟漪 | FillCircle / StrokeCircle | DrawCircle | Spinner 仍可用 rect 点 | **A** | draw.go | — |
+| FC-DRAW-ARC | 弧/扇形 | Canvas.drawArc | 进度环 | FillArc / StrokeArc | DrawArc/DrawEllipticalArc | — | **A** | draw.go | 椭圆弧 API 仍可加深 |
+| FC-DRAW-PATH | 任意路径 | Canvas.drawPath | 图标/波浪/自定义 | NewPath+FillPath/StrokePath | DrawPath/Fill/Stroke+Path | — | **A** | draw.go | 构建仍用 render.Path；metrics 见序6 |
+| FC-DRAW-LINE | 线段 | Canvas.drawLine | 分割线/刻度 | StrokeLine | DrawLine | — | **A** | draw.go | — |
 | FC-DRAW-POINTS | 点列 | Canvas.drawPoints/RawPoints | sparklines | — | DrawPoint 等 | — | B | render/context.go | Raw 批量弱于 Flutter |
 | FC-DRAW-VERTICES | 顶点网格 | Canvas.drawVertices | 扭曲图/网格渐变 | — | DrawVertices/DrawMesh | — | B | render/vertices.go | — |
 | FC-DRAW-ATLAS | 图集精灵 | Canvas.drawAtlas | 图标合批、粒子 | — | DrawAtlas | — | B | render/vertices.go | — |
@@ -165,23 +165,23 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FP-COLOR | 纯色 | Paint.color | 控件填色 | Fill* 参数 RGBA | SetRGBA/SetColor/SetHexColor | — | A/B | painting + render | 无持久 Paint 对象 |
-| FP-STYLE | fill/stroke | Paint.style | 描边按钮 | — | Fill vs Stroke 路径 | — | B | render | UI 无 Stroke* 封装 |
-| FP-STROKE-W | 描边宽 | Paint.strokeWidth | 分割线粗细 | — | SetLineWidth | — | B | render | — |
-| FP-STROKE-CAP | 线帽 | Paint.strokeCap | 圆角线端 | — | SetLineCap | — | B | render | — |
-| FP-STROKE-JOIN | 线接 | Paint.strokeJoin | 折线拐角 | — | SetLineJoin | — | B | render | — |
+| FP-COLOR | 纯色 | Paint.color | 控件填色 | Fill*/Stroke* 参数 RGBA | SetRGBA/SetColor/SetHexColor | — | **A** | draw.go | 无持久 Paint 对象 |
+| FP-STYLE | fill/stroke | Paint.style | 描边按钮 | Fill* / Stroke* 分函数 | Fill vs Stroke 路径 | — | **A** | draw.go | 非单一 Paint.style 枚举 |
+| FP-STROKE-W | 描边宽 | Paint.strokeWidth | 分割线粗细 | lineWidth 参数 / SetStrokeStyle | SetLineWidth | — | **A** | draw.go | — |
+| FP-STROKE-CAP | 线帽 | Paint.strokeCap | 圆角线端 | SetStrokeStyle | SetLineCap | — | **A** | draw.go | — |
+| FP-STROKE-JOIN | 线接 | Paint.strokeJoin | 折线拐角 | SetStrokeStyle | SetLineJoin | — | **A** | draw.go | — |
 | FP-STROKE-MITER | 斜接限制 | Paint.strokeMiterLimit | 尖角 | — | Miter 相关 | — | B | render/stroke | — |
 | FP-AA | 抗锯齿 | Paint.isAntiAlias | 边缘质量 | — | SetAntiAlias | — | B | render/context.go | — |
-| FP-SHADER | 着色器 | Paint.shader | 渐变/图着色 | 线性渐变 Fill | SetFillBrush 等 | — | A/B | gradient.go | 径向/扫掠/图=B |
+| FP-SHADER | 着色器 | Paint.shader | 渐变/图着色 | FillLinear/Radial/Sweep | SetFillBrush 等 | — | **A**/B | draw.go | 图着色 ImageShader 仍 B |
 | FP-BLEND | 混合模式 | Paint.blendMode | 叠加/遮罩 | — | SetBlendMode / PushLayer blend | — | B | context_layer.go | UI 未暴露 |
 | FP-MASK-FILTER | 遮罩模糊 | Paint.maskFilter | 软阴影感 | — | ApplyBlur 等 | — | B | filter_ops.go | 非 Paint 绑定模型 |
 | FP-COLOR-FILTER | 颜色滤镜 | Paint.colorFilter | 置灰禁用图标 | — | ApplyColorMatrix 等 | — | B | filter_ops.go | — |
 | FP-IMAGE-FILTER | 图像滤镜 | Paint.imageFilter | 模糊背景 | — | ApplyImageFilterGraph/Blur | — | B | filter_ops.go | — |
 | FP-FILTER-QUALITY | 采样质量 | Paint.filterQuality | 缩放图锐利度 | — | DrawImageEx 选项部分 | — | C | context_image.go | 对齐不完全 |
 | FP-INVERT | 反色 | Paint.invertColors | 无障碍高对比 | — | ApplyInvert 类 | — | B/D | filter_ops.go | 核对实现 |
-| FS-LINEAR | 线性渐变 | Gradient.linear | AppBar/按钮 | FillLinearGradient* | NewLinearGradientBrush | — | A | rendering（FillLinearGradient*） | — |
-| FS-RADIAL | 径向渐变 | Gradient.radial | 光晕 | — | NewRadialGradientBrush | — | B | gradient_radial.go | — |
-| FS-SWEEP | 扫掠渐变 | Gradient.sweep | 圆锥/色轮 | — | NewSweepGradientBrush | — | B | gradient_sweep.go | — |
+| FS-LINEAR | 线性渐变 | Gradient.linear | AppBar/按钮 | FillLinearGradient | NewLinearGradientBrush | — | **A** | draw.go | 两 stop 便利 API |
+| FS-RADIAL | 径向渐变 | Gradient.radial | 光晕 | FillRadialGradient | NewRadialGradientBrush | — | **A** | draw.go | 两 stop 便利 API |
+| FS-SWEEP | 扫掠渐变 | Gradient.sweep | 圆锥/色轮 | FillSweepGradient | NewSweepGradientBrush | — | **A** | draw.go | 两 stop 便利 API |
 | FS-IMAGE | 图像着色 | ImageShader | 图案填充 | — | CreateImagePattern/SetFillPattern | — | B | context_image.go | — |
 | FS-FRAGMENT | 片元着色器 | FragmentShader | 自定义特效 | — | — | — | D | — | Impeller/SkSL 级 |
 
@@ -217,7 +217,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FClip-SAVE-PAIR | save/restore 裁剪栈 | 与 Canvas save | 嵌套裁剪 | PushClipRect/PopClip | Push/Pop+Clip* | — | A/B | clip_text.go | 仅 rect 友好封装 |
+| FClip-SAVE-PAIR | save/restore 裁剪栈 | 与 Canvas save | 嵌套裁剪 | PushClipRect/PopClip | Push/Pop+Clip* | — | A/B | paint_context.go | 仅 clip 友好封装；通用 save 仍 B |
 | FClip-OP-INTERSECT | ClipOp.intersect | ClipOp | 默认相交 | — | ClipOpIntersect | — | B | clip_op.go | — |
 | FClip-OP-DIFFERENCE | ClipOp.difference | ClipOp | 挖洞 | — | ClipOpDifference | — | B | clip_op.go | — |
 | FClip-NEST-DEPTH | 深层嵌套 clip | 实现限制 | 复杂卡片 | 有限 | clip 栈+测试 | — | C | context_clip_depth_test.go | 需文档化上限 |
@@ -311,7 +311,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FF-BLEND-LAYER | 混合合成 | saveLayer+blend | 叠色 | — | SetBlendMode/PushLayer | — | B | context_layer.go | — |
 | FF-MASK | 遮罩层 | ShaderMask/saveLayer mask | 渐变淡出 | — | PushMaskLayer | — | B | context_layer.go | — |
 | FF-BACKDROP | 背景滤镜 | BackdropFilter | 毛玻璃导航 | — | PushBackdropLayer | 无 FL-BACKDROP 场景层 | B/D | m4_extensions.go | — |
-| FF-BUDGET | saveLayer 预算 | 工程纪律 | 防滥用 | SaveLayerBudget | — | — | C | clip_text.go | F16 |
+| FF-BUDGET | saveLayer 预算 | 工程纪律 | 防滥用 | SaveLayerBudget | — | — | C | paint_context.go | F16 |
 
 ---
 
@@ -319,10 +319,10 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FPC-CANVAS | 取 Canvas | PaintingContext.canvas | 底层绘制 | DC *render.Context | Context | — | A | painting/context.go | — |
+| FPC-CANVAS | 取 Canvas | PaintingContext.canvas | 底层绘制 | DC *render.Context | Context | — | A | rendering/paint_context.go | — |
 | FPC-PAINT-CHILD | 绘子节点 | paintChild | 树遍历 | 子 Paint+WithOrigin | — | Box/Absolute 遍历 | A | box.go | — |
-| FPC-CLIP-RECT | pushClipRect | PaintingContext.pushClipRect | 视口 | PushClipRect | ClipRect | ClipRectLayer | A | clip_text.go | — |
-| FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | PushClipRRect | ClipRoundRect | ClipRRectLayer | A | paint_context · clip_rrect_test | 均匀圆角 |
+| FPC-CLIP-RECT | pushClipRect | PaintingContext.pushClipRect | 视口 | PushClipRect | ClipRect | ClipRectLayer | A | paint_context.go | 层接线有限 |
+| FPC-CLIP-RRECT | pushClipRRect | pushClipRRect | 圆角裁子树 | PushClipRRect | ClipRoundRect | 类型有/RO 未接 | **A**（paint） | paint_context · clip_rrect_test | 均匀圆角；FL-CLIP-RRECT=C |
 | FPC-CLIP-PATH | pushClipPath | pushClipPath | 异形 | — | Clip path | — | B/D | — | — |
 | FPC-COLOR-FILTER | pushColorFilter | pushColorFilter | 子树滤镜 | — | 滤镜 API | — | B/D | — | — |
 | FPC-OPACITY | pushOpacity | pushOpacity | 子树透明 | — | Opacity 层/CTM | OpacityLayer | A/C | scene | Present 全画 |
@@ -343,7 +343,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FL-TRANSFORM | 变换层 | TransformLayer | 旋转缩放合成 | RenderTransform | CTM | **TransformLayer** | A/C | scene/layer.go · transform.go | 命中 AABB；Present 全画 |
 | FL-OPACITY | 透明层 | OpacityLayer | 淡入 | MutSetOpacity | — | OpacityLayer | A/C | compositing.go | 真合成未接到 Present |
 | FL-CLIP-RECT | 裁剪层 | ClipRectLayer | 溢出 | — | — | ClipRectLayer | A | layer.go | Build 使用有限 |
-| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | — | — | **ClipRRectLayer** | A | layer.go · build.go | PushClipRRect |
+| FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | — | — | **ClipRRectLayer** 类型+Builder | **C** | scene/layer.go · build.go | **BuildLayerTree 未从 RO 发出**；Present 仍全画 |
 | FL-CLIP-PATH | 路径裁剪层 | ClipPathLayer | 异形 | — | — | **无** | D | — | — |
 | FL-PICTURE | 图层层 | PictureLayer | 录制内容 | — | — | PictureLayer+NeedsRaster | C | picture.go | 无 op 缓冲 |
 | FL-TEXTURE | 纹理层 | TextureLayer | 视频 | — | DrawGPUTexture | **无** | D | — | — |
@@ -662,8 +662,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 2 | Pipeline/脏区/RO §13 | 1 | ✅/🔄 | `TestS2/S4/M*` | layout/paint/raster/skip | — / matrix |
 | 3 | PaintContext 基础 §11 | 2 | ✅ | RO/PaintContext | 同 2；PaintVisits | — |
 | 4 | 调度/VSync §14 | 2 | ✅/🔄 | scheduler/vsync | interval·hitch·vsync_source·cpu 分轨 | PerfSoak |
-| 5 | 几何+Paint/Shader §2§3 | 3 | 🔄 | `TestP1_*` 等 | 帧间隔/CPU 不回退 | **geometry** |
-| 6 | Path §4 | 5 | 🔄 | path 测 | 同 5；复杂 path 可解释 | **geometry** |
+| 5 | 几何+Paint/Shader §2§3 | 3 | ✅ 主路径 | `TestDraw_*` | geometry/PerfSoak 帧指标 | **geometry** |
+| 6 | Path §4 | 5 | 🔄 | path 测；FillPath 已有 | metrics/conic 仍开 | **geometry** |
 | 7 | Clip/saveLayer §5 | 3,6 | 🔄 | clip_rrect 等 | raster/skip；无层泄漏 | **cliplayer** |
 | 8 | Transform 层 §6 | 3,7 | 🔄 | TransformLayer | 同 7；旋转 hitch 可解释 | **cliplayer** |
 | 9 | 图像 §7 | 3,7 | 🔄 | dispose 等 | RSS/Dispose；解码不堵 UI | **image** |
@@ -679,10 +679,10 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 序 | 还缺什么（摘要） |
 |----|------------------|
-| 5 | 几何等 **B→A**（Stroke/Circle/Oval UI…） |
-| 6 | Path metrics；UI 门面 |
-| 7 | ClipPath 层；真 saveLayer；save/restore UI |
-| 8 | 逆 CTM hit；通用 pushTransform |
+| 5 | 主路径 ✅；仍开：Vertices/Atlas/Points、ImageShader、DRRect、不等圆角 RRect |
+| 6 | Path **metrics** / conic；布尔 UI 文档化（Fill/StrokePath 已随序5） |
+| 7 | ClipPath 层；**ClipRRectLayer RO→BuildLayerTree**；真 saveLayer；通用 save/restore |
+| 8 | 逆 CTM hit；通用 pushTransform；Present 层合成 |
 | 9 | Nine/Round UI；Atlas |
 | 10 | **全量 Paragraph**；Font 接通 RO |
 | 11 | Backdrop/Filter **场景层** |
@@ -692,17 +692,18 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 ### 22.3 已落地（勿回退）
 
-| 能力 | 证据 |
-|------|------|
-| PaintContext + DC（无独立 painting 包） | `ui/rendering` |
-| ClipRRect UI + 层 | paint_context · scene · 测 |
-| TransformLayer + RenderTransform | scene · transform · cliplayer |
-| Text maxLines/ellipsis；最小多 span | text · paragraph（≠ 全量 Paragraph） |
-| Image Dispose 所有权 | image_dispose_test |
-| 真 VSync（DRM）+ 诚实 vsync_source | platform · exhost |
-| p95、hitch_rate、cpu_ui/raster proxy | MetricsStore |
-| VirtualList 可变高前缀和 | virtual_list（完整 sliver 仍开） |
-| 窗测轴 geometry/text/image/cliplayer/perfsoak | `examples/ui_render_base_*` |
+| 能力 | 证据 | 诚实边界 |
+|------|------|----------|
+| PaintContext + DC | `paint_context.go` | 无独立 painting 包 |
+| **几何 draw UI（序5）** | `draw.go` · `draw_test` · geometry 轴 | Vertices/Atlas/Points 仍 B |
+| ClipRRect **paint** | `PushClipRRect` · clip_rrect_test | **层 FL-CLIP-RRECT=C**（RO 未发层） |
+| TransformLayer + RenderTransform | transform · layer_build · cliplayer | 命中 AABB；Present 全画 → 序8 |
+| Text maxLines/ellipsis；最小多 span | text · paragraph | ≠ 全量 Paragraph |
+| Image Dispose 所有权 | image_dispose_test | — |
+| 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
+| p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
+| VirtualList 可变高前缀和 | virtual_list | **C**；完整 sliver 仍开 |
+| 窗测轴 | `examples/ui_render_base_*` | — |
 
 ---
 
@@ -725,6 +726,6 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.8** | 确认**流程闭环 / 实现未闭环**；删 Wave 列、空节、F01–F18 冗表、过时 painting 路径；指标节去 P0/P1 话术 |
-| 1.7 | 只做渲染基座；三项验收；删分册目录 |
-| ≤1.6 | 母表与指标初建；分册已废止 |
+| **1.9** | 核查已落地：FL-CLIP-RRECT→C；证据路径修正；**序5** draw.go UI 几何主路径 A + 单测 |
+| 1.8 | 流程闭环/实现未闭环；删 Wave/分册叙事 |
+| ≤1.7 | 母表三项验收；分册已删 |
