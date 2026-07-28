@@ -55,6 +55,15 @@ type FrameMetrics struct {
 	RSSPeakKB       int64   `json:"rss_peak_kb,omitempty"`
 	RSSAfterCloseKB int64   `json:"rss_after_close_kb,omitempty"`
 	CPUPctAvg       float64 `json:"cpu_pct_avg,omitempty"`
+
+	// CPUUIPct / CPURasterPct are **path work-share proxies**, not OS-thread DevTools %.
+	// They split cumulative NoteBuildMs vs NoteRasterMs wall work:
+	//   share = pathSum / (buildSum+rasterSum) * 100  (sums to ~100 when both sides fed)
+	// When cpu_pct_avg > 0, values are further scaled: processCPU * share
+	// so UI+Raster ≈ process CPU and still diverge when work is one-sided.
+	// Zero/omitted when no build/raster notes yet (honest unavailable).
+	CPUUIPct     float64 `json:"cpu_ui_pct,omitempty"`
+	CPURasterPct float64 `json:"cpu_raster_pct,omitempty"`
 }
 
 // MetricsStore is a concurrency-safe metrics accumulator.
@@ -68,9 +77,13 @@ type MetricsStore struct {
 	ring        [intervalRingCap]float64
 	ringN       int
 	ringI       int
+
+	// Cumulative UI-build and Raster-present wall times (ms) for path CPU split.
+	buildSumMs  float64
+	rasterSumMs float64
 }
 
-// Snapshot returns a copy of current metrics (includes p50/p95/p99 and hitch rate).
+// Snapshot returns a copy of current metrics (includes p50/p95/p99, hitch rate, path CPU).
 func (s *MetricsStore) Snapshot() FrameMetrics {
 	if s == nil {
 		return FrameMetrics{}
@@ -80,6 +93,7 @@ func (s *MetricsStore) Snapshot() FrameMetrics {
 	out := s.m
 	out.P50FrameIntervalMs, out.P95FrameIntervalMs, out.P99FrameIntervalMs = s.percentilesLocked()
 	out.HitchRatePerMin = s.hitchRatePerMinLocked()
+	out.CPUUIPct, out.CPURasterPct = s.pathCPULocked()
 	return out
 }
 
@@ -153,24 +167,67 @@ func (s *MetricsStore) SetPipeline(depth, max int) {
 	s.mu.Unlock()
 }
 
-// NoteBuildMs records UI frame build duration.
+// NoteBuildMs records UI frame build duration and accumulates path work for cpu_ui_pct.
 func (s *MetricsStore) NoteBuildMs(ms float64) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	s.m.LastBuildMs = ms
+	if ms > 0 {
+		s.buildSumMs += ms
+	}
 	s.mu.Unlock()
 }
 
-// NoteRasterMs records raster duration.
+// NoteRasterMs records raster duration and accumulates path work for cpu_raster_pct.
 func (s *MetricsStore) NoteRasterMs(ms float64) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	s.m.LastRasterMs = ms
+	if ms > 0 {
+		s.rasterSumMs += ms
+	}
 	s.mu.Unlock()
+}
+
+// pathCPULocked returns UI/Raster CPU proxies from cumulative build/raster ms.
+// Caller holds s.mu.
+func (s *MetricsStore) pathCPULocked() (ui, raster float64) {
+	total := s.buildSumMs + s.rasterSumMs
+	if total <= 1e-12 {
+		return 0, 0
+	}
+	uiShare := s.buildSumMs / total
+	raShare := s.rasterSumMs / total
+	if s.m.CPUPctAvg > 0 {
+		// Attribute process CPU across paths by work share (sums ≈ process %).
+		return s.m.CPUPctAvg * uiShare, s.m.CPUPctAvg * raShare
+	}
+	// No process sample: report pure work-share percentages (sum ≈ 100).
+	return uiShare * 100, raShare * 100
+}
+
+// BuildSumMs returns cumulative UI build wall ms (tests / diagnostics).
+func (s *MetricsStore) BuildSumMs() float64 {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buildSumMs
+}
+
+// RasterSumMs returns cumulative raster wall ms (tests / diagnostics).
+func (s *MetricsStore) RasterSumMs() float64 {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.rasterSumMs
 }
 
 // SetRasterLayerCount records dirty-layer re-raster count for this frame (F02).

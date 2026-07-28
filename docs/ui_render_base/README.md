@@ -52,6 +52,7 @@
 | 指标并行纪律 | 00 · 90 |
 | **exhost 真 VSync**（DRM `WaitDRMVBlank` + 诚实 vsync_source） | 09 · platform · exhost |
 | **p95 + hitch_rate_per_min** 帧指标 | 09 · 90 · MetricsStore |
+| **UI/Raster CPU 路径分轨**（cpu_ui/raster_pct proxy） | 09 · 90 · MetricsStore |
 | 本拆分 2.1（全文母表入分册 + 覆盖表） | README · 91 |
 
 ## 窗测

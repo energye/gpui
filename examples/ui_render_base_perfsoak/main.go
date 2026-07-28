@@ -94,8 +94,8 @@ func main() {
 	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: avg=%.2f p50=%.2f p95=%.2f p99=%.2f hitches=%d hitch_rate=%.2f/min vsync=%s\n",
 		m.AvgFrameIntervalMs, m.P50FrameIntervalMs, m.P95FrameIntervalMs, m.P99FrameIntervalMs,
 		m.HitchCount, m.HitchRatePerMin, m.VSyncSource)
-	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: rss start=%d end=%d peak=%d after_close=%d KB slope=%.1f KB/s cpu=%.1f%%\n",
-		m.RSSStartKB, m.RSSEndKB, m.RSSPeakKB, m.RSSAfterCloseKB, rssSlope, m.CPUPctAvg)
+	fmt.Fprintf(os.Stderr, "ui_render_base_perfsoak: rss start=%d end=%d peak=%d after_close=%d KB slope=%.1f KB/s cpu=%.1f%% (ui=%.1f raster=%.1f path-proxy)\n",
+		m.RSSStartKB, m.RSSEndKB, m.RSSPeakKB, m.RSSAfterCloseKB, rssSlope, m.CPUPctAvg, m.CPUUIPct, m.CPURasterPct)
 
 	// Gates (soft for short runs; stricter when long)
 	if app.LayoutFlushCount() > presents/2 && presents > 30 {

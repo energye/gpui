@@ -8,7 +8,7 @@
 
 **目标：** IDLE/TRANSIENT/PERSISTENT、Ticker、WarmUp、帧指标可观测。  
 **非目标：** 无真 VSync 时宣称锁屏 60Hz；PerformanceOverlay（P6）。  
-**已落地：** FrameScheduler 模式；PipelineApp WarmUp/JSON；**p50/p95/p99**；**hitch_rate_per_min**；vsync_source；ProcessTracker RSS/CPU。  
+**已落地：** FrameScheduler 模式；PipelineApp WarmUp/JSON；**p50/p95/p99**；**hitch_rate_per_min**；vsync_source；ProcessTracker RSS/CPU；**cpu_ui_pct / cpu_raster_pct**（build/raster 墙钟份额 proxy）。  
 **已落地真 VSync（FSch-VSYNC / F06）：**  
 - `examples/exhost` X11/Wayland `Host.WaitVSync` → `platform.WaitDRMVBlank`（libdrm `drmWaitVBlank`，purego）  
 - `FrameScheduler.WaitFramePace`：成功 → `vsync_source=true`；失败/无 waiter → `fallback` +（失败时）`missed_vsync++`  
@@ -61,6 +61,7 @@
 | M-HITCH* / M-HITCH-RATE | jank 计数 + **hitches/min** |
 | M-PIPE-DEPTH | ≤2 |
 | M-CPU-PROCESS / M-RSS-* | ProcessTracker |
+| M-CPU-UI / M-CPU-RASTER | `cpu_ui_pct` / `cpu_raster_pct`（NoteBuildMs÷NoteRasterMs 份额；有进程 CPU 时再加权） |
 
 完整定义 → [90_metrics](./90_metrics.md)。**无 baseline 的优化无效**（[00_meta](./00_meta.md)）。
 
@@ -70,11 +71,12 @@
 - [x] 示例 JSON 指标  
 - [x] exhost **真** WaitVSync（DRM vblank；失败 → fallback + 诚实 `vsync_source`）  
 - [x] **p95 / hitch_rate_per_min** 字段（`frame_interval_p95_ms` · JSON；测绿）  
-- [ ] UI/Raster CPU 分轨（P1）
+- [x] **UI/Raster CPU 分轨**（`cpu_ui_pct` / `cpu_raster_pct` 路径 proxy；非 OS 线程 DevTools）
 
 ## 7. 风险与非宣称
 
-`vsync_source=fallback` 时软件 ~16ms，**禁止**锁显示 60Hz 宣称。
+`vsync_source=fallback` 时软件 ~16ms，**禁止**锁显示 60Hz 宣称。  
+`cpu_ui_pct` / `cpu_raster_pct` 是 **NoteBuildMs / NoteRasterMs 墙钟工作份额**（可选 × 进程 CPU%），**不是** /proc 逐线程采样；勿与 DevTools 线程剖析对等宣称。
 
 ## 8. 相关分册
 

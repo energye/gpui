@@ -600,8 +600,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 |----|------|------|----------|------|------|--------------|------|
 | M-CPU-PROCESS | 进程 CPU% | DevTools | ProcessTracker cpu_pct_avg | % | **A** 示例 | S0 低；动画有上界 | P0 ✅ |
 | M-CPU-PROCESS-P95 | 进程 CPU p95 | — | **无** | % | D | 尖峰 | P2 |
-| M-CPU-UI | UI 线程 % | — | **无** | % | D | S2 上界 | P1 |
-| M-CPU-RASTER | Raster 线程 % | — | **无** | % | D | — | P1 |
+| M-CPU-UI | UI 路径 % | — | build 份额 cpu_ui_pct | % | **A** | 路径 proxy | P1 ✅ |
+| M-CPU-RASTER | Raster 路径 % | — | raster 份额 cpu_raster_pct | % | **A** | 路径 proxy | P1 ✅ |
 | M-CPU-IDLE | 空闲 CPU | — | 派生/采样 | % | D | S0 ≈0 | P1 |
 
 #### E. 内存与释放

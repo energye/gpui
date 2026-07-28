@@ -10,7 +10,7 @@
 | 1 | [01_pipeline_dirty](./01_pipeline_dirty.md) | A/C | 加深 compositing |
 | 2 | [02_paint_context](./02_paint_context.md) | A ✅ | 维持无 painting |
 | 3 | [11_coords_hittest](./11_coords_hittest.md) | A | 逆 CTM hit 后置 |
-| 4 | [09_scheduler_vsync](./09_scheduler_vsync.md) | A/C · 真VSync·p95✅ | 分轨 CPU |
+| 4 | [09_scheduler_vsync](./09_scheduler_vsync.md) | A/C · 真VSync·p95·分轨CPU✅ | — |
 | 5 | [03_draw_geometry](./03_draw_geometry.md) | A/B ✅窗测 | P2 vertices |
 | 6 | [04_path_clip_savelayer](./04_path_clip_savelayer.md) | A/B/C | ClipRRect ✅ · metrics/nest 文档 |
 | 7 | [08_scene_picture](./08_scene_picture.md) | A/C/D | P6 picture/damage |

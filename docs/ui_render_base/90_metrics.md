@@ -34,7 +34,7 @@
 | **A 帧时与流畅** | 是否稳 60/120、卡在哪 | 间隔 last/avg/max/**p50/p95/p99**、hitch 率、jank>50ms、FPS wall/complete、目标 Hz、missed_vsync、vsync_source | **P0** 骨架；真 VSync→P1 |
 | **B 管线与跟手** | 是否堵在 Present/排队 | pipeline depth/峰值、present 提交 vs 完成、build/raster ms（及分位）、输入→状态延迟、排队时长 | P0 部分；输入延迟门禁加深 P1 |
 | **C 脏区局部性** | 成本是否 ∝ 脏而非全树 | layout/paint 计数、PaintVisits、raster/skip/composite layer、compositor-only vs re-raster、bind_count、**(P6) damage 面积/上传字节** | **P0** 计数；damage **P6** |
-| **D CPU** | 谁吃 CPU、空闲是否 0 | 进程 CPU% avg/p95、**UI 线程%**、**Raster 线程%**、IDLE CPU、（可选）按场景分档 | 进程级 **P0**；分轨 P1–P2 |
+| **D CPU** | 谁吃 CPU、空闲是否 0 | 进程 CPU% avg；**路径 proxy** UI/Raster %；IDLE；可选 p95 | 进程 **P0**；路径分轨 **P1✅** |
 | **E 内存与释放** | 是否漏、关是否放 | RSS start/end/**peak**/**slope KB/min**、after_close、HeapAlloc、NumGC、Goroutines、（可选）显存/驱动池 | RSS **P0**；斜率 soak P0–P3；VRAM 后波 |
 | **F GPU / 提交 / 回退** | 是否碎提交、是否掉 CPU 路径 | gpu_submit 次数/帧、batch 大小、CPU fallback 原因与次数、layer pool hit、纹理创建/销毁 | 诊断 P1；门禁 P2–P6 |
 | **G 文本 / 图资源** | 热路径是否打中缓存 | glyph **atlas hit/miss**、shape 缓存、图片解码是否离 UI、解码队列深度、上传次数 | 文本/图 Wave 同步；上浮 P1–P3 |
@@ -58,7 +58,7 @@
 | A 帧时 / 流畅 | FrameTiming、60Hz、jank | avg/max/last + **p50/p95/p99**；hitch_count + **hitch_rate_per_min**；vsync_source |
 | B 管线 / 跟手 | pipeline、build/raster span | depth/max、build/raster **last**；present 提交/完成易混；输入延迟少示例门禁 |
 | C 脏区局部 | RepaintBoundary、dev tools | layout/paint **已接线**；raster_layer；PaintVisits 测内；damage 面积 **P6** |
-| D CPU | DevTools CPU | **进程** cpu_pct_avg；无 UI/Raster 分轨 |
+| D CPU | DevTools CPU | **进程** cpu_pct_avg + **路径 proxy** cpu_ui/raster_pct（build/raster 墙钟份额；非 OS 线程） |
 | E 内存 | Observatory / RSS | rss_start/end/peak/after_close；缺 slope 自动字段、Heap/GC 未进 JSON |
 | F GPU | 提交/缓存 | render 有 path stats / fallback / layer pool — **未系统进 UI JSON** |
 | G 文本/图 | atlas、codec | render 内部；UI 示例未导出 hit 率 |
@@ -128,8 +128,8 @@
 |----|------|------|----------|------|------|--------------|------|
 | M-CPU-PROCESS | 进程 CPU% | DevTools | ProcessTracker cpu_pct_avg | % | **A** 示例 | S0 低；动画有上界 | P0 ✅ |
 | M-CPU-PROCESS-P95 | 进程 CPU p95 | — | **无** | % | D | 尖峰 | P2 |
-| M-CPU-UI | UI 线程 % | — | **无** | % | D | S2 上界 | P1 |
-| M-CPU-RASTER | Raster 线程 % | — | **无** | % | D | — | P1 |
+| M-CPU-UI | UI 路径 % | — | build_ms 份额 → `cpu_ui_pct` | % | **A** | S2 上界；**非** OS 线程 DevTools | P1 ✅ |
+| M-CPU-RASTER | Raster 路径 % | — | raster_ms 份额 → `cpu_raster_pct` | % | **A** | 同上 proxy | P1 ✅ |
 | M-CPU-IDLE | 空闲 CPU | — | 派生/采样 | % | D | S0 ≈0 | P1 |
 
 #### E. 内存与释放

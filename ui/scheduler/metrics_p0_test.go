@@ -145,3 +145,73 @@ func containsAll(s, sub string) bool {
 		return false
 	})()
 }
+
+func TestMetrics_PathCPU_DivergesWhenOneSided(t *testing.T) {
+	s := scheduler.New().Metrics()
+	// Only UI build work → cpu_ui high, cpu_raster ~0 (work-share mode, no process CPU).
+	for i := 0; i < 10; i++ {
+		s.NoteBuildMs(5)
+	}
+	snap := s.Snapshot()
+	if snap.CPUUIPct < 99 {
+		t.Fatalf("UI-only: cpu_ui_pct=%v want ~100", snap.CPUUIPct)
+	}
+	if snap.CPURasterPct > 1 {
+		t.Fatalf("UI-only: cpu_raster_pct=%v want ~0", snap.CPURasterPct)
+	}
+	if s.BuildSumMs() < 49 || s.RasterSumMs() != 0 {
+		t.Fatalf("sums build=%v raster=%v", s.BuildSumMs(), s.RasterSumMs())
+	}
+
+	// Feed heavy raster → both non-zero and raster dominates.
+	for i := 0; i < 10; i++ {
+		s.NoteRasterMs(20)
+	}
+	snap = s.Snapshot()
+	if snap.CPUUIPct <= 0 || snap.CPURasterPct <= 0 {
+		t.Fatalf("both sides: ui=%v raster=%v", snap.CPUUIPct, snap.CPURasterPct)
+	}
+	if snap.CPURasterPct <= snap.CPUUIPct {
+		t.Fatalf("raster should dominate: ui=%v raster=%v", snap.CPUUIPct, snap.CPURasterPct)
+	}
+	// Shares should sum to ~100 in work-share mode.
+	sum := snap.CPUUIPct + snap.CPURasterPct
+	if sum < 99 || sum > 101 {
+		t.Fatalf("work-share sum=%v want ~100", sum)
+	}
+
+	b, err := s.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	if !containsAll(js, `"cpu_ui_pct"`) || !containsAll(js, `"cpu_raster_pct"`) {
+		t.Fatalf("JSON missing path CPU keys: %s", js)
+	}
+}
+
+func TestMetrics_PathCPU_ScalesWithProcessCPU(t *testing.T) {
+	s := scheduler.New().Metrics()
+	s.NoteBuildMs(10)
+	s.NoteRasterMs(30)                // 25% UI / 75% raster of work
+	s.SetProcessStats(0, 0, 0, 0, 40) // process 40%
+	snap := s.Snapshot()
+	// Expect ~10 and ~30 (40 * 0.25 / 0.75)
+	if snap.CPUUIPct < 8 || snap.CPUUIPct > 12 {
+		t.Fatalf("cpu_ui_pct=%v want ~10", snap.CPUUIPct)
+	}
+	if snap.CPURasterPct < 28 || snap.CPURasterPct > 32 {
+		t.Fatalf("cpu_raster_pct=%v want ~30", snap.CPURasterPct)
+	}
+	if snap.CPUUIPct == snap.CPURasterPct {
+		t.Fatal("UI and Raster must diverge under uneven work")
+	}
+}
+
+func TestMetrics_PathCPU_ZeroWithoutNotes(t *testing.T) {
+	s := scheduler.New().Metrics()
+	snap := s.Snapshot()
+	if snap.CPUUIPct != 0 || snap.CPURasterPct != 0 {
+		t.Fatalf("unavailable must be zero: ui=%v raster=%v", snap.CPUUIPct, snap.CPURasterPct)
+	}
+}
