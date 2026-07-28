@@ -1,6 +1,8 @@
 package rendering
 
 import (
+	"time"
+
 	"github.com/energye/gpui/ui/gestures"
 	"github.com/energye/gpui/ui/platform"
 )
@@ -47,6 +49,11 @@ type Scrollable struct {
 	mgr *gestures.GestureArenaManager
 
 	// LayoutDuringDrag counts layout flushes observed by tests (external).
+
+	// lastPan sample for fling velocity (scroll-space py/s).
+	lastPanAt time.Time
+	lastPanDY float64 // finger dy of last update
+	velY      float64 // estimated scroll velocity (px/s), finger→scroll already negated in apply
 }
 
 // NewScrollable wraps a viewport with default nested-handoff enabled.
@@ -79,7 +86,24 @@ func (s *Scrollable) wirePan() {
 	}
 	s.pan.OnPanUpdate = func(e gestures.PointerEvent, dx, dy float64) {
 		// Finger dy>0 (down) → content follows → scrollY decreases → ScrollBy(0,-dy).
+		now := time.Now()
+		if !s.lastPanAt.IsZero() {
+			dt := now.Sub(s.lastPanAt).Seconds()
+			if dt > 1e-4 && dt < 0.1 {
+				// Scroll-space velocity: applyFingerDrag uses -dy.
+				s.velY = (-dy) / dt
+			}
+		}
+		s.lastPanAt = now
+		s.lastPanDY = dy
 		s.applyFingerDrag(dx, dy)
+	}
+	s.pan.OnPanEnd = func(e gestures.PointerEvent) {
+		if s.Viewport != nil && s.Viewport.Physics != nil && s.velY != 0 {
+			s.Viewport.Fling(s.velY)
+		}
+		s.lastPanAt = time.Time{}
+		s.velY = 0
 	}
 }
 

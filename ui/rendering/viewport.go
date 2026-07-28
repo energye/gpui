@@ -1,5 +1,7 @@
 package rendering
 
+import "math"
+
 // ScrollAware is implemented by content that must rebinding when the viewport scrolls
 // (e.g. VirtualList). Called with content-space scroll offset and viewport height.
 type ScrollAware interface {
@@ -15,11 +17,18 @@ type ScrollAware interface {
 //
 // SetScrollOffset / ScrollBy mark paint only (not layout), unless content's
 // OnViewportScroll triggers a bind-window layout (VirtualList).
+//
+// Optional Physics (FScroll-PHYSICS) clamps and drives Fling/TickPhysics ballistic
+// motion. Nil Physics keeps the historical hard clamp with no fling.
 type RenderViewport struct {
 	Base
 	scrollX, scrollY float64
 	// maxScrollY optional clamp; if < 0, derived from content height when known.
 	maxScrollY float64
+	// Physics applies boundary + ballistic fling (nil = hard clamp only).
+	Physics ScrollPhysics
+	// ballistic is the active fling simulation (vertical); nil when idle.
+	ballistic BallisticSimulation
 }
 
 // NewRenderViewport creates a viewport with optional content child.
@@ -63,19 +72,41 @@ func (v *RenderViewport) ScrollOffset() Point {
 }
 
 // SetScrollOffset sets scroll offset (paint-only path for viewport itself).
+// Applies Physics.AdjustPosition when set; otherwise hard-clamps to [0, maxScrollY].
+// User-driven SetScrollOffset cancels an active ballistic fling.
 func (v *RenderViewport) SetScrollOffset(x, y float64) {
+	v.setScrollOffset(x, y, true)
+}
+
+func (v *RenderViewport) setScrollOffset(x, y float64, cancelBallistic bool) {
 	if v == nil {
 		return
 	}
-	if y < 0 {
-		y = 0
+	if cancelBallistic {
+		v.ballistic = nil
+	}
+	minY, maxY := 0.0, v.maxScrollY
+	if maxY < 0 {
+		// Unset max: still prevent negative; allow any positive until layout.
+		if v.Physics != nil {
+			y = v.Physics.AdjustPosition(y, 0, math.Inf(1))
+		} else if y < 0 {
+			y = 0
+		}
+	} else if v.Physics != nil {
+		y = v.Physics.AdjustPosition(y, minY, maxY)
+	} else {
+		if y < 0 {
+			y = 0
+		}
+		if y > maxY {
+			y = maxY
+		}
 	}
 	if x < 0 {
 		x = 0
 	}
-	if v.maxScrollY >= 0 && y > v.maxScrollY {
-		y = v.maxScrollY
-	}
+	// X: hard clamp only (MVP vertical nesting).
 	if x == v.scrollX && y == v.scrollY {
 		return
 	}
@@ -90,6 +121,53 @@ func (v *RenderViewport) ScrollBy(dx, dy float64) {
 		return
 	}
 	v.SetScrollOffset(v.scrollX+dx, v.scrollY+dy)
+}
+
+// SetPhysics installs scroll physics (may be nil to restore hard clamp only).
+func (v *RenderViewport) SetPhysics(p ScrollPhysics) {
+	if v == nil {
+		return
+	}
+	v.Physics = p
+	v.ballistic = nil
+	// Re-clamp current offset under new physics.
+	v.setScrollOffset(v.scrollX, v.scrollY, true)
+}
+
+// Fling starts a vertical ballistic simulation from velocityY (px/s in scroll space).
+// No-op without Physics or when CreateBallistic returns nil. Cancels prior fling.
+func (v *RenderViewport) Fling(velocityY float64) {
+	if v == nil || v.Physics == nil {
+		return
+	}
+	maxY := v.maxScrollY
+	if maxY < 0 {
+		maxY = math.Inf(1)
+	}
+	v.ballistic = v.Physics.CreateBallistic(velocityY, v.scrollY, 0, maxY)
+}
+
+// TickPhysics advances an active fling by dt seconds.
+// Returns true if a ballistic simulation is still running (caller should schedule frames).
+func (v *RenderViewport) TickPhysics(dt float64) bool {
+	if v == nil || v.ballistic == nil {
+		return false
+	}
+	if dt < 0 {
+		dt = 0
+	}
+	pos, done := v.ballistic.Step(dt)
+	v.setScrollOffset(v.scrollX, pos, false)
+	if done {
+		v.ballistic = nil
+		return false
+	}
+	return true
+}
+
+// HasBallistic reports whether a fling is in progress.
+func (v *RenderViewport) HasBallistic() bool {
+	return v != nil && v.ballistic != nil
 }
 
 // ScrollToIndex scrolls so item index sits at the top of the viewport when content

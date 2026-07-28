@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.22** | 日期：2026-07-28  
+> **版本：1.24** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -259,12 +259,12 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FT-PARAGRAPH-BUILD | 构建段落 | ParagraphBuilder | 富文本 | ParagraphBuilder/TextRun | — | RenderText.Runs | **C** | paragraph.go | 最小多 span；全量仍缺 |
+| FT-PARAGRAPH-BUILD | 构建段落 | ParagraphBuilder | 富文本 | **ParagraphBuilder**+PushStyle | — | RenderText.Runs | **A/C** | paragraph.go · paragraph_style_test | 多 span+样式栈；无 locale/strut/placeholder |
 | FT-PARAGRAPH-LAYOUT | 段落布局 | Paragraph.layout | 换行高度 | Face.Measure 当有 Face | MeasureString/Multiline | RenderText.Layout | **A/C** | text.go · text_font_ro_test | 有 Face→真测；无 Face 仍启发式；全量 Paragraph 仍 C |
 | FT-PARAGRAPH-PAINT | 绘段落 | drawParagraph | 正文 | SetFont+DrawTextColored | DrawString* | RenderText.Paint | **A/C** | text.go · text_font_ro_test | 有 Face 时 DC.SetFont(size-synced)；非 drawParagraph 全量 |
 | FT-PAINTER | TextPainter | TextPainter | 通用测量绘 | — | Measure+Draw 组合 | — | B | render/text.go | 可做 ui 门面 |
 | FT-STYLE-SIZE | 字号 | TextStyle.fontSize | 层级 | **SetFontSize** · effectiveFace | Face/Source.Face(pts) | RenderText | **A** | text.go · text_font_ro_test | FontSize 与 Face 尺寸同步；改 size 重测 |
-| FT-STYLE-FAMILY | 字体族 | fontFamily | 品牌/CJK | **SetFace** | SetFont/LoadFontFace | RenderText | **A/B** | SetFace · TryLoadDefaultFace | 族名字符串 API 仍 B；Face 指针已通 |
+| FT-STYLE-FAMILY | 字体族 | fontFamily | 品牌/CJK | **SetFontFamily** / LoadFaceByFamily | LoadFontFace | RenderText | **A** | default_font.go · paragraph_style_test | sans/serif/mono + 路径；非完整 CSS 族匹配 |
 | FT-STYLE-WEIGHT | 字重 | fontWeight | 强调 | — | Face/variations 部分 | — | B | LoadFontFaceWithVariations | — |
 | FT-STYLE-STYLE | italic | fontStyle | 斜体 | — | — | — | C/D | — | 依赖字体文件 |
 | FT-LETTER-SPACING | 字距 | letterSpacing | 标题微调 | — | — | — | D | — | — |
@@ -276,7 +276,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FT-MAXLINES | 最大行数 | maxLines | 列表副标题 | MaxLines/SetMaxLines | — | RenderText | A | text.go | 0=不限 |
 | FT-OVERFLOW | 溢出省略 | TextOverflow.ellipsis | 长文案 | Overflow Ellipsis/Clip | — | RenderText | A | DisplayLines | “…” |
 | FT-LOCALE | locale | locale | 断行/字体 | — | — | — | D | — | — |
-| FT-DECORATION | 下划线等 | TextDecoration | 链接 | — | text decoration 若有 | — | B/D | render | 需核对 |
+| FT-DECORATION | 下划线等 | TextDecoration | 链接 | **SetDecoration** | SetTextDecoration | RenderText | **A/C** | text.go · render/text_decoration · paragraph_style_test | underline/lineThrough/overline；无 thickness 样式 |
 | FT-SHADOW | 文字阴影 | shadows | 标题质感 | — | — | — | D | — | 滤镜近似 |
 | FT-FG-BG | 前景/背景 Paint | foreground/background | 镂空字 | — | StrokeString / 底 rect | — | B | StrokeString | — |
 | FT-BIDI | 双向文本 | BiDi | 阿语/混排 | — | shaper BiDi | — | B | render/text | — |
@@ -412,7 +412,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FScroll-CACHE | cacheExtent | cacheExtent | 预创建窗外 | CacheExtent | — | VirtualList | A | virtual_list.go | — |
 | FScroll-NEST | 嵌套滚动 | NestedScroll/竞技 | 父子列表 | Scrollable.Parent 移交 | — | gestures+scrollable | A | nested_scroll_test.go | — |
 | FScroll-VAR-EXTENT | 可变行高 | Sliver 可变 | 聊天列表 | ItemExtentAt · **OffsetOfIndex/IndexAtOffset/ScrollToIndex** | — | VirtualList | **A/C** | virtual_list.go · virtual_list_scroll_test | 前缀和 index↔offset + 跳转；**非**完整 multi-sliver；Physics 仍 D |
-| FScroll-PHYSICS | 物理回弹 | ScrollPhysics | iOS/Android 感 | — | — | — | D | — | 产品感后置 |
+| FScroll-PHYSICS | 物理回弹 | ScrollPhysics | iOS/Android 感 | **ClampingScrollPhysics** · Fling/TickPhysics | — | Viewport | **A/C** | scroll_physics.go · scroll_physics_test | clamp+摩擦 fling；**无** bounce/glow |
 
 ---
 
@@ -687,9 +687,9 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 7 | **ClipRRect RO→层 ✅**；**SaveLayer+Budget ✅**；**PushClipPath paint ✅**；仍开：ClipPath **场景层**；通用任意 CTM save |
 | 8 | **逆 CTM hit ✅**；**CompositeToContext 层 walk ✅**；仍开：通用 pushTransform/Matrix4；PipelineApp 默走层 Present |
 | 9 | **Nine/Round/Circular/SrcRect/Atlas UI ✅**；仍开：per-corner 圆角图；GPU atlas 产品化 |
-| 10 | **Font 接通 RO ✅**；仍开：**全量 Paragraph**；族名字符串 API；装饰/strut/locale |
+| 10 | **Font+族名+装饰+样式栈 ✅**；仍开：strut/locale/选区/placeholder；全量 TextStyle |
 | 11 | **Filter 层+Apply ✅**；**Composite 滤镜 ✅**；**SaveLayer UI ✅**；仍开：Backdrop 产品；drop-shadow UI；PipelineApp 默走层 |
-| 12 | **可变 index↔offset/ScrollToIndex ✅**；仍开：完整 multi-sliver；**Physics** |
+| 12 | **可变 index↔offset/ScrollToIndex ✅**；**Clamping Physics+Fling ✅**；仍开：完整 multi-sliver；BouncingPhysics |
 | 13 | **显示列表 ✅**；**dirty-rect Present 稳态 ✅**（PresentWithAuto/force=false）；仍开：GPU picture 缓存；层树 Present 合成 |
 | 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
 
@@ -703,13 +703,15 @@ go run ./examples/ui_l1_scroll              # 滚动
 | ClipRRect **paint + 层** | `PushClipRRect` · **RenderClipRRect** · `clip_rrect_layer_test` · cliplayer | **FL-CLIP-RRECT A/C**（RO→Build 主路径）；Present 全画；ClipPath/saveLayer 仍开 |
 | TransformLayer + RenderTransform + **逆 CTM hit** | transform.go · transform_hit_test · layer_build · cliplayer | 中心 rotate+scale 逆 hit；**非** Matrix4/通用 pushTransform；Present 全画 |
 | Text maxLines/ellipsis；最小多 span | text · paragraph | ≠ 全量 Paragraph |
-| **Font 接通 RenderText（序10）** | `SetFace` · `SetFontSize` · `effectiveFace` · `text_font_ro_test` | 有 Face 真测+DC.SetFont；全量 ParagraphBuilder 仍 C |
+| **Font 接通 RenderText（序10）** | `SetFace` · `SetFontSize` · `effectiveFace` · `text_font_ro_test` | 有 Face 真测+DC.SetFont |
+| **Paragraph 加深（序10/D3）** | `LoadFaceByFamily` · `SetFontFamily` · `SetDecoration` · `PushStyle/PopStyle` · paragraph_style_test | 非 strut/locale/IME；非全量 Flutter Paragraph |
 | **Filter 场景层+UI Apply（序11）** | `ColorFilterLayer` · `ImageFilterLayer` · `ApplyGrayscale/Blur` · filter_*_test | Backdrop/Present 合成/saveLayer 隔离仍开 |
 | Image Dispose 所有权 | image_dispose_test | — |
 | **Image Nine/Round/Circular/SrcRect/Atlas UI（序9/D1）** | `image_draw.go` · `image_draw_test` · image 轴 | per-corner 仍开 |
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
 | p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
-| VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；Physics/完整 multi-sliver 仍开 |
+| VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；完整 multi-sliver 仍开 |
+| **ScrollPhysics clamp+fling（序12/D4）** | `ClampingScrollPhysics` · `Viewport.Fling/TickPhysics` · Scrollable pan end · scroll_physics_test | 无 bounce/glow；需 App 每帧 TickPhysics |
 | **Picture 显示列表（序13）** | `PictureRecorder` · `Picture.Replay` · `RasterizeDirtyToContext` · picture_test | rect 子集；非全量 Flutter recorder |
 | **dirty-rect Present 稳态（序13）** | `PresentWithAuto` · `PaintPresentTree(force=false)` · `present_damage_test` · `damage_area_px` | 首帧/resize 仍 full；LoadOpLoad 保静态 |
 | **层 Composite walk（序8/11/13）** | `scene.CompositeToContext` · `composite_test` · Offset/Clip/Transform/Picture/Opacity/Filter | 单测像素；**PipelineApp 仍 RO paint**（待 Record 接线） |
@@ -737,7 +739,9 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.22** | **阶段 D2** DrawPoints/DrawVertices/FillDRRect/PathAdd*/SetFillRule + draw_test |
+| **1.24** | **阶段 D4** ClampingScrollPhysics + Viewport Fling/TickPhysics + Scrollable pan-end fling + scroll_physics_test |
+| 1.23 | **阶段 D3** LoadFaceByFamily/SetFontFamily、TextDecoration、ParagraphBuilder PushStyle + paragraph_style_test |
+| 1.22 | **阶段 D2** DrawPoints/DrawVertices/FillDRRect/PathAdd*/SetFillRule + draw_test |
 | 1.21 | **阶段 D1** DrawImageCircular/DrawImageRect/DrawAtlas UI 门面 + image_draw_test + image 轴接线 |
 | 1.20 | **阶段 C** SaveLayer/Restore+Budget + PushLayerIsolated + PushClipPath + save_layer_test；ClipPath 场景层仍开 |
 | 1.19 | **阶段 B** CompositeToContext：Offset/Clip/Transform/Picture/Opacity/Filter 层 walk + composite_test；PipelineApp 仍 RO paint |

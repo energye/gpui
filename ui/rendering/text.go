@@ -48,6 +48,11 @@ type RenderText struct {
 	// Runs holds multi-span content from ParagraphBuilder / SetRuns.
 	// When len(Runs) > 0, Text is treated as a cache of concatenated plain text.
 	Runs []TextRun
+	// Decoration is a render.TextDecoration bitset for the single-string path
+	// (and default when a run has Decoration=0 and inherits — see paintRuns).
+	Decoration render.TextDecoration
+	// FontFamily is the last family string passed to SetFontFamily (diagnostics).
+	FontFamily string
 }
 
 // NewRenderText creates a text node.
@@ -151,6 +156,30 @@ func (t *RenderText) SetFontSize(points float64) {
 	}
 	t.FontSize = points
 	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// SetFontFamily resolves family via LoadFaceByFamily and SetFace (FT-STYLE-FAMILY).
+// Returns the load error (caller may ignore and keep heuristic layout).
+func (t *RenderText) SetFontFamily(family string) error {
+	if t == nil {
+		return nil
+	}
+	face, _, err := LoadFaceByFamily(family, t.fontSize())
+	if err != nil {
+		return err
+	}
+	t.FontFamily = family
+	t.SetFace(face)
+	return nil
+}
+
+// SetDecoration sets text decorations for the single-string paint path (FT-DECORATION).
+func (t *RenderText) SetDecoration(d render.TextDecoration) {
+	if t == nil {
+		return
+	}
+	t.Decoration = d
 	t.MarkNeedsPaint()
 }
 
@@ -594,6 +623,9 @@ func (t *RenderText) Paint(pc *PaintContext) {
 			if face := t.effectiveFace(); face != nil && pc.DC != nil {
 				pc.DC.SetFont(face)
 			}
+			if pc.DC != nil {
+				pc.DC.SetTextDecoration(t.Decoration)
+			}
 			fs := t.fontSize()
 			lh := t.lineHeightLogical()
 			// Y uses FontSize as first baseline (single-line MVP convention); subsequent lines step by lh.
@@ -603,6 +635,9 @@ func (t *RenderText) Paint(pc *PaintContext) {
 				}
 				y := fs + float64(i)*lh
 				drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
+			}
+			if pc.DC != nil {
+				pc.DC.SetTextDecoration(render.TextDecorationNone)
 			}
 		}
 	}
@@ -638,7 +673,17 @@ func (t *RenderText) paintRuns(pc *PaintContext) {
 			if face != nil && pc.DC != nil {
 				pc.DC.SetFont(face)
 			}
+			dec := sp.Decoration
+			if dec == 0 {
+				dec = t.Decoration
+			}
+			if pc.DC != nil {
+				pc.DC.SetTextDecoration(dec)
+			}
 			drawTextColored(pc, sp.Text, sp.X, baseline, sp.R, sp.G, sp.B, sp.A)
+			if pc.DC != nil {
+				pc.DC.SetTextDecoration(render.TextDecorationNone)
+			}
 		}
 	}
 }

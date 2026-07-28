@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
 
@@ -15,10 +16,22 @@ type TextRun struct {
 	FontSize    float64 // 0 → inherit parent FontSize
 	R, G, B, A  float64
 	ApproxCharW float64 // 0 → inherit parent
+	// Decoration is a render.TextDecoration bitset (underline etc.); 0 = none.
+	Decoration render.TextDecoration
+}
+
+// paragraphStyle is one stack frame for PushStyle / PopStyle.
+type paragraphStyle struct {
+	Face        text.Face
+	FontSize    float64
+	R, G, B, A  float64
+	ApproxCharW float64
+	Decoration  render.TextDecoration
 }
 
 // ParagraphBuilder assembles ordered TextRuns for RenderText.SetRuns.
-// This is a minimal multi-span path (not full Flutter ParagraphBuilder parity).
+// Supports a small style stack (PushStyle/PopStyle) for nested span styling.
+// Not full Flutter ParagraphBuilder parity (no locale/strut/placeholder).
 type ParagraphBuilder struct {
 	runs []TextRun
 	// Defaults applied when AddText is used without an explicit run style.
@@ -26,6 +39,8 @@ type ParagraphBuilder struct {
 	FontSize    float64
 	R, G, B, A  float64
 	ApproxCharW float64
+	Decoration  render.TextDecoration
+	styleStack  []paragraphStyle
 }
 
 // NewParagraphBuilder creates an empty builder with neutral defaults.
@@ -49,6 +64,56 @@ func (b *ParagraphBuilder) SetDefaultStyle(face text.Face, fontSize, r, g, bl, a
 	return b
 }
 
+// SetDecoration sets the current text decoration bitset for subsequent AddText.
+func (b *ParagraphBuilder) SetDecoration(d render.TextDecoration) *ParagraphBuilder {
+	if b == nil {
+		return nil
+	}
+	b.Decoration = d
+	return b
+}
+
+// PushStyle saves the current default style and optionally overrides fields.
+// Zero fontSize / nil face / negative alpha keep the previous value for that field.
+// Colors: pass useColor=true to replace RGBA.
+func (b *ParagraphBuilder) PushStyle(face text.Face, fontSize float64, useColor bool, r, g, bl, a float64, dec render.TextDecoration) *ParagraphBuilder {
+	if b == nil {
+		return nil
+	}
+	b.styleStack = append(b.styleStack, paragraphStyle{
+		Face: b.Face, FontSize: b.FontSize,
+		R: b.R, G: b.G, B: b.B, A: b.A,
+		ApproxCharW: b.ApproxCharW, Decoration: b.Decoration,
+	})
+	if face != nil {
+		b.Face = face
+	}
+	if fontSize > 0 {
+		b.FontSize = fontSize
+	}
+	if useColor {
+		b.R, b.G, b.B, b.A = r, g, bl, a
+	}
+	// dec is always applied (caller can re-SetDecoration after pop).
+	b.Decoration = dec
+	return b
+}
+
+// PopStyle restores the style saved by the last PushStyle. No-op if stack empty.
+func (b *ParagraphBuilder) PopStyle() *ParagraphBuilder {
+	if b == nil || len(b.styleStack) == 0 {
+		return b
+	}
+	top := b.styleStack[len(b.styleStack)-1]
+	b.styleStack = b.styleStack[:len(b.styleStack)-1]
+	b.Face = top.Face
+	b.FontSize = top.FontSize
+	b.R, b.G, b.B, b.A = top.R, top.G, top.B, top.A
+	b.ApproxCharW = top.ApproxCharW
+	b.Decoration = top.Decoration
+	return b
+}
+
 // AddRun appends a fully specified run.
 func (b *ParagraphBuilder) AddRun(run TextRun) *ParagraphBuilder {
 	if b == nil {
@@ -69,6 +134,7 @@ func (b *ParagraphBuilder) AddText(s string) *ParagraphBuilder {
 	return b.AddRun(TextRun{
 		Text: s, Face: b.Face, FontSize: b.FontSize,
 		R: b.R, G: b.G, B: b.B, A: b.A, ApproxCharW: b.ApproxCharW,
+		Decoration: b.Decoration,
 	})
 }
 
@@ -94,6 +160,7 @@ func (b *ParagraphBuilder) Build() *RenderText {
 		if b.Face != nil {
 			t.Face = b.Face
 		}
+		t.Decoration = b.Decoration
 	}
 	return t
 }
@@ -104,6 +171,12 @@ func (b *ParagraphBuilder) Apply(t *RenderText) {
 		return
 	}
 	t.SetRuns(b.Runs())
+	if b.Face != nil {
+		t.SetFace(b.Face)
+	}
+	if b.FontSize > 0 {
+		t.SetFontSize(b.FontSize)
+	}
 }
 
 // displaySpan is one painted fragment on a line after multi-run layout.
@@ -115,6 +188,7 @@ type displaySpan struct {
 	ApproxCharW float64
 	X           float64
 	Width       float64
+	Decoration  render.TextDecoration
 }
 
 // displayLine is one visual line of spans.
@@ -262,7 +336,7 @@ func (t *RenderText) layoutRunLines() []displayLine {
 				cur.Spans = append(cur.Spans, displaySpan{
 					Text: chunk, Face: t.runFace(run), FontSize: t.runFontSize(run),
 					R: rr, G: gg, B: bb, A: a, ApproxCharW: t.runApprox(run),
-					X: x, Width: w,
+					X: x, Width: w, Decoration: run.Decoration,
 				})
 				x += w
 				remain = rest
