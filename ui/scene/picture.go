@@ -1,7 +1,10 @@
 // Package scene holds retained scene types for L1 (Layer tree, FramePacket, Picture).
 package scene
 
-import "github.com/energye/gpui/render"
+import (
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
+)
 
 // PictureOpKind identifies a recorded draw command in a Picture display list.
 type PictureOpKind int
@@ -11,6 +14,14 @@ const (
 	OpFillRect PictureOpKind = iota + 1
 	// OpStrokeRect strokes an axis-aligned rectangle.
 	OpStrokeRect
+	// OpFillPath fills a retained vector path (cloned at record time).
+	OpFillPath
+	// OpStrokePath strokes a retained vector path.
+	OpStrokePath
+	// OpDrawString draws a text run at baseline (X,Y); Face optional (else DC.Font).
+	OpDrawString
+	// OpDrawImage draws an ImageBuf at (X,Y); DstW/DstH >0 scales, else 1:1.
+	OpDrawImage
 )
 
 // PictureOp is one retained draw command (Flutter Picture display-list subset).
@@ -19,8 +30,18 @@ type PictureOp struct {
 	Kind       PictureOpKind
 	X, Y, W, H float64
 	R, G, B, A float64
-	// LineWidth is used by OpStrokeRect (≤0 → 1 at replay).
+	// LineWidth is used by OpStrokeRect / OpStrokePath (≤0 → 1 at replay).
 	LineWidth float64
+	// Path is a deep-cloned path for OpFillPath / OpStrokePath (nil otherwise).
+	Path *render.Path
+	// Text is the UTF-8 run for OpDrawString.
+	Text string
+	// Face is an optional font for OpDrawString; if nil, replay uses dc.Font().
+	Face text.Face
+	// Image is a retained buffer for OpDrawImage (not cloned; caller owns lifetime).
+	Image *render.ImageBuf
+	// DstW, DstH scale destination for OpDrawImage when both >0; else 1:1 DrawImage.
+	DstW, DstH float64
 }
 
 // Picture is a retained draw-ops handle (display list).
@@ -80,26 +101,76 @@ func (p *Picture) Replay(dc *render.Context) {
 }
 
 func applyPictureOp(dc *render.Context, op *PictureOp) {
-	if dc == nil || op == nil || op.W <= 0 || op.H <= 0 {
+	if dc == nil || op == nil {
 		return
 	}
 	a := op.A
 	if a == 0 && (op.R != 0 || op.G != 0 || op.B != 0) {
 		a = 1
 	}
-	dc.SetRGBA(op.R, op.G, op.B, a)
 	switch op.Kind {
 	case OpFillRect:
+		if op.W <= 0 || op.H <= 0 {
+			return
+		}
+		dc.SetRGBA(op.R, op.G, op.B, a)
 		dc.DrawRectangle(op.X, op.Y, op.W, op.H)
 		_ = dc.Fill()
 	case OpStrokeRect:
+		if op.W <= 0 || op.H <= 0 {
+			return
+		}
 		lw := op.LineWidth
 		if lw <= 0 {
 			lw = 1
 		}
+		dc.SetRGBA(op.R, op.G, op.B, a)
 		dc.SetLineWidth(lw)
 		dc.DrawRectangle(op.X, op.Y, op.W, op.H)
 		_ = dc.Stroke()
+	case OpFillPath:
+		if op.Path == nil || op.Path.NumVerbs() == 0 {
+			return
+		}
+		dc.SetRGBA(op.R, op.G, op.B, a)
+		_ = dc.FillPath(op.Path)
+	case OpStrokePath:
+		if op.Path == nil || op.Path.NumVerbs() == 0 {
+			return
+		}
+		lw := op.LineWidth
+		if lw <= 0 {
+			lw = 1
+		}
+		dc.SetRGBA(op.R, op.G, op.B, a)
+		dc.SetLineWidth(lw)
+		_ = dc.StrokePath(op.Path)
+	case OpDrawString:
+		if op.Text == "" {
+			return
+		}
+		if op.Face != nil {
+			dc.SetFont(op.Face)
+		}
+		if dc.Font() == nil {
+			return
+		}
+		dc.SetRGBA(op.R, op.G, op.B, a)
+		dc.DrawString(op.Text, op.X, op.Y)
+	case OpDrawImage:
+		if op.Image == nil || op.Image.Disposed() {
+			return
+		}
+		if op.DstW > 0 && op.DstH > 0 {
+			dc.DrawImageEx(op.Image, render.DrawImageOptions{
+				X:         op.X,
+				Y:         op.Y,
+				DstWidth:  op.DstW,
+				DstHeight: op.DstH,
+			})
+		} else {
+			dc.DrawImage(op.Image, op.X, op.Y)
+		}
 	}
 }
 
@@ -136,6 +207,63 @@ func (r *PictureRecorder) StrokeRect(x, y, w, h, lineWidth, red, gre, blu, a flo
 		X:    x, Y: y, W: w, H: h,
 		R: red, G: gre, B: blu, A: a,
 		LineWidth: lineWidth,
+	})
+}
+
+// FillPath records a filled path. The path is deep-cloned so later mutation of
+// the caller's path does not affect the retained display list.
+func (r *PictureRecorder) FillPath(p *render.Path, red, gre, blu, a float64) {
+	if r == nil || p == nil || p.NumVerbs() == 0 {
+		return
+	}
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpFillPath,
+		Path: p.Clone(),
+		R:    red, G: gre, B: blu, A: a,
+	})
+}
+
+// StrokePath records a stroked path (path is deep-cloned).
+func (r *PictureRecorder) StrokePath(p *render.Path, lineWidth, red, gre, blu, a float64) {
+	if r == nil || p == nil || p.NumVerbs() == 0 {
+		return
+	}
+	r.ops = append(r.ops, PictureOp{
+		Kind:      OpStrokePath,
+		Path:      p.Clone(),
+		LineWidth: lineWidth,
+		R:         red, G: gre, B: blu, A: a,
+	})
+}
+
+// DrawString records a text run at baseline (x,y). face may be nil: replay then
+// requires the target Context to already have a font via SetFont.
+func (r *PictureRecorder) DrawString(s string, x, y float64, face text.Face, red, gre, blu, a float64) {
+	if r == nil || s == "" {
+		return
+	}
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpDrawString,
+		X:    x, Y: y,
+		Text: s,
+		Face: face,
+		R:    red, G: gre, B: blu, A: a,
+	})
+}
+
+// DrawImage records an image draw at (x,y). If dstW and dstH are both >0 the
+// image is scaled into that box; otherwise it is drawn 1:1. The ImageBuf is
+// retained by reference (not pixel-copied); dispose only after pictures that
+// reference it are dropped.
+func (r *PictureRecorder) DrawImage(img *render.ImageBuf, x, y, dstW, dstH float64) {
+	if r == nil || img == nil || img.Disposed() {
+		return
+	}
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpDrawImage,
+		X:    x, Y: y,
+		Image: img,
+		DstW:  dstW, DstH: dstH,
 	})
 }
 

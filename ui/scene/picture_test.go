@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/scene"
 )
 
@@ -198,5 +199,214 @@ func TestPicture_Invalidate_ClearsValid(t *testing.T) {
 	pic.Clear()
 	if pic.OpCount() != 0 || pic.Valid {
 		t.Fatal("Clear must drop ops")
+	}
+}
+
+// TestPicture_Replay_FillPathPixels records a triangle path and proves Replay
+// paints interior blue (display-list path subset beyond rects).
+func TestPicture_Replay_FillPathPixels(t *testing.T) {
+	p := render.NewPath()
+	p.MoveTo(40, 10)
+	p.LineTo(70, 55)
+	p.LineTo(10, 55)
+	p.Close()
+
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.FillPath(p, 0, 0, 1, 1)
+	})
+	if pic.OpCount() != 1 || !pic.Valid {
+		t.Fatalf("record path failed: ops=%d valid=%v", pic.OpCount(), pic.Valid)
+	}
+	if pic.Ops[0].Kind != scene.OpFillPath || pic.Ops[0].Path == nil {
+		t.Fatalf("want OpFillPath with path, got %+v", pic.Ops[0])
+	}
+	// Mutate caller path after record — retained clone must stay intact.
+	p.Clear()
+	if pic.Ops[0].Path.NumVerbs() == 0 {
+		t.Fatal("recorded path must be a clone independent of caller Clear")
+	}
+
+	dc := render.NewContext(80, 70)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pic.Replay(dc)
+
+	img := dc.Image()
+	if img == nil {
+		t.Fatal("nil image")
+	}
+	// Centroid of triangle ≈ (40, 40).
+	cr, cg, cb := sampleRGB(img.At(40, 40))
+	if cb < 0xA000 || cr > 0x4000 {
+		t.Fatalf("path interior (40,40)=#%04x%04x%04x want blue", cr, cg, cb)
+	}
+	// Outside stays white.
+	or, og, ob := sampleRGB(img.At(2, 2))
+	if or < 0xC000 || og < 0xC000 || ob < 0xC000 {
+		t.Fatalf("outside (2,2)=#%04x%04x%04x want white", or, og, ob)
+	}
+}
+
+// TestPicture_Replay_StrokePathPixels records a stroked path and samples near the edge.
+func TestPicture_Replay_StrokePathPixels(t *testing.T) {
+	p := render.NewPath()
+	// Horizontal line mid-canvas via closed thin rect path for stable fill-of-stroke pixels.
+	p.MoveTo(10, 30)
+	p.LineTo(70, 30)
+	p.LineTo(70, 34)
+	p.LineTo(10, 34)
+	p.Close()
+
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.StrokePath(p, 3, 1, 0, 0, 1)
+	})
+	if pic.OpCount() != 1 || pic.Ops[0].Kind != scene.OpStrokePath {
+		t.Fatalf("want OpStrokePath, got ops=%d kind=%v", pic.OpCount(), pic.Ops)
+	}
+
+	dc := render.NewContext(80, 60)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pic.Replay(dc)
+
+	img := dc.Image()
+	// Sample on the stroke band around y=30–34.
+	found := false
+	for y := 28; y <= 36 && !found; y++ {
+		for x := 20; x <= 60; x++ {
+			cr, cg, cb := sampleRGB(img.At(x, y))
+			if cr > 0xA000 && cg < 0x6000 && cb < 0x6000 {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected red stroke pixels after Replay StrokePath")
+	}
+}
+
+// TestPicture_Replay_DrawStringPixels records text with a system face and
+// asserts non-white ink after Replay (skips when no face available).
+func TestPicture_Replay_DrawStringPixels(t *testing.T) {
+	face, desc, err := text.LoadDefaultFace(18)
+	if err != nil || face == nil {
+		t.Skipf("no system face for picture text: %v", err)
+	}
+	t.Log("face:", desc)
+
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.DrawString("Hi", 8, 28, face, 1, 0, 0, 1)
+	})
+	if pic.OpCount() != 1 || pic.Ops[0].Kind != scene.OpDrawString {
+		t.Fatalf("want OpDrawString, got ops=%d", pic.OpCount())
+	}
+	if pic.Ops[0].Text != "Hi" || pic.Ops[0].Face == nil {
+		t.Fatalf("text op fields %+v", pic.Ops[0])
+	}
+
+	dc := render.NewContext(80, 48)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pic.Replay(dc)
+
+	img := dc.Image()
+	if img == nil {
+		t.Fatal("nil image")
+	}
+	found := false
+	for y := 0; y < 48 && !found; y++ {
+		for x := 0; x < 80; x++ {
+			cr, cg, cb := sampleRGB(img.At(x, y))
+			if cr > 0x8000 && cg < 0x6000 && cb < 0x6000 {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected red text pixels after Replay DrawString")
+	}
+}
+
+// TestPicture_Replay_DrawImagePixels records a solid ImageBuf and proves Replay
+// blits it (1:1 and scaled).
+func TestPicture_Replay_DrawImagePixels(t *testing.T) {
+	src, err := render.NewImageBuf(16, 16, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	defer src.Dispose()
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			_ = src.SetRGBA(x, y, 0, 200, 0, 255)
+		}
+	}
+
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.DrawImage(src, 10, 10, 0, 0)   // 1:1
+		r.DrawImage(src, 40, 10, 32, 32) // scaled 2×
+	})
+	if pic.OpCount() != 2 {
+		t.Fatalf("want 2 image ops, got %d", pic.OpCount())
+	}
+	if pic.Ops[0].Kind != scene.OpDrawImage || pic.Ops[1].DstW != 32 {
+		t.Fatalf("image op kinds/fields %+v %+v", pic.Ops[0], pic.Ops[1])
+	}
+
+	dc := render.NewContext(90, 50)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pic.Replay(dc)
+
+	img := dc.Image()
+	// 1:1 blit interior.
+	cr, cg, cb := sampleRGB(img.At(18, 18))
+	if cg < 0xA000 || cr > 0x4000 {
+		t.Fatalf("1:1 image (18,18)=#%04x%04x%04x want green", cr, cg, cb)
+	}
+	// Scaled blit interior (40+16, 10+16).
+	sr, sg, sb := sampleRGB(img.At(56, 26))
+	if sg < 0xA000 || sr > 0x4000 {
+		t.Fatalf("scaled image (56,26)=#%04x%04x%04x want green", sr, sg, sb)
+	}
+	// Outside stays white.
+	or, og, ob := sampleRGB(img.At(2, 2))
+	if or < 0xC000 || og < 0xC000 || ob < 0xC000 {
+		t.Fatalf("outside (2,2)=#%04x%04x%04x want white", or, og, ob)
+	}
+}
+
+// TestPictureRecorder_MixedOps records rect+path+image in one list.
+func TestPictureRecorder_MixedOps(t *testing.T) {
+	p := render.NewPath()
+	p.Rectangle(50, 10, 20, 20)
+	src, err := render.NewImageBuf(4, 4, render.FormatRGBA8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer src.Dispose()
+	_ = src.SetRGBA(0, 0, 255, 0, 0, 255)
+
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.FillRect(0, 0, 10, 10, 0, 0, 1, 1)
+		r.FillPath(p, 0, 1, 0, 1)
+		r.DrawImage(src, 0, 20, 0, 0)
+		r.DrawString("x", 0, 40, nil, 0, 0, 0, 1) // face nil ok at record
+	})
+	if pic.OpCount() != 4 {
+		t.Fatalf("mixed OpCount=%d want 4", pic.OpCount())
+	}
+	want := []scene.PictureOpKind{
+		scene.OpFillRect, scene.OpFillPath, scene.OpDrawImage, scene.OpDrawString,
+	}
+	for i, k := range want {
+		if pic.Ops[i].Kind != k {
+			t.Fatalf("op[%d] kind=%v want %v", i, pic.Ops[i].Kind, k)
+		}
 	}
 }
