@@ -5,6 +5,7 @@
 //
 // Auto window backend: Wayland or X11 (GPUI_DISPLAY=wayland|x11|auto).
 // Duration: default 60s; override with RUN_SECONDS.
+// GPUI_VAR_EXTENT=1 enables mixed row heights (FScroll-VAR-EXTENT MVP).
 // Window is resizable; list + viewport follow client size.
 package main
 
@@ -25,8 +26,12 @@ import (
 
 func main() {
 	secs := runSeconds(60)
+	varExtent := os.Getenv("GPUI_VAR_EXTENT") == "1" || os.Getenv("GPUI_VAR_EXTENT") == "true"
 	fmt.Fprintf(os.Stderr, "ui_l1_scroll: running %ds (RUN_SECONDS / GPUI_DISPLAY); close window to exit safely\n", secs)
 	fmt.Fprintln(os.Stderr, "ui_l1_scroll: window is resizable — list tracks client size")
+	if varExtent {
+		fmt.Fprintln(os.Stderr, "ui_l1_scroll: GPUI_VAR_EXTENT=1 — variable row heights")
+	}
 	const winW, winH = 400, 480
 	const itemExtent = 40.0
 	const itemCount = 1000
@@ -34,7 +39,11 @@ func main() {
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui L1 scroll (P4) — resize me"})
+	title := "gpui L1 scroll (P4) — resize me"
+	if varExtent {
+		title = "gpui L1 scroll — variable extent"
+	}
+	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: title})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)
@@ -42,13 +51,38 @@ func main() {
 	// Explicit close after app for after_close RSS.
 
 	host := win.Host()
-	list := rendering.NewVirtualList(itemCount, itemExtent, func(i int) rendering.RenderObject {
-		r, g, b := 0.35, 0.38, 0.42
-		if i%2 == 0 {
-			r, g, b = 0.25, 0.55, 0.85
+	extentAt := func(i int) float64 {
+		switch i % 3 {
+		case 0:
+			return 28
+		case 1:
+			return 40
+		default:
+			return 56
 		}
-		return rendering.NewRenderColorBox(0, itemExtent, r, g, b, 1)
-	})
+	}
+	var list *rendering.VirtualList
+	if varExtent {
+		list = rendering.NewVariableVirtualList(itemCount, itemExtent, extentAt, func(i int) rendering.RenderObject {
+			h := extentAt(i)
+			r, g, b := 0.35, 0.38, 0.42
+			if i%2 == 0 {
+				r, g, b = 0.25, 0.55, 0.85
+			}
+			if i%3 == 2 {
+				r, g, b = 0.55, 0.35, 0.75
+			}
+			return rendering.NewRenderColorBox(0, h, r, g, b, 1)
+		})
+	} else {
+		list = rendering.NewVirtualList(itemCount, itemExtent, func(i int) rendering.RenderObject {
+			r, g, b := 0.35, 0.38, 0.42
+			if i%2 == 0 {
+				r, g, b = 0.25, 0.55, 0.85
+			}
+			return rendering.NewRenderColorBox(0, itemExtent, r, g, b, 1)
+		})
+	}
 	list.CacheExtent = itemExtent * 2
 	vp := rendering.NewRenderViewport(list)
 
@@ -71,7 +105,7 @@ func main() {
 		on: func(dt float64) {
 			scrollY += 80 * dt
 			_, h := host.Size()
-			max := float64(itemCount)*itemExtent - float64(h)
+			max := list.ContentHeight() - float64(h)
 			if max < 0 {
 				max = 0
 			}

@@ -3,16 +3,24 @@ package rendering
 // ItemBuilder creates a row RenderObject for a logical index.
 type ItemBuilder func(index int) RenderObject
 
-// VirtualList is a fixed-extent vertical list that only mounts children in the
-// visible window (+ cache). It is ScrollAware for use under RenderViewport.
+// ItemExtentFunc returns the logical height of row index (must be > 0).
+// Used for variable-height virtualization (FScroll-VAR-EXTENT).
+type ItemExtentFunc func(index int) float64
+
+// VirtualList is a vertical list that only mounts children in the visible
+// window (+ cache). It is ScrollAware for use under RenderViewport.
 //
-// Content height = ItemCount * ItemExtent (logical px).
+// Fixed path: ItemExtentAt == nil → ContentHeight = ItemCount * ItemExtent.
+// Variable path: ItemExtentAt provides per-index heights via a prefix-sum cache
+// (does not mount all rows to measure).
 type VirtualList struct {
 	Base
-	ItemCount   int
-	ItemExtent  float64
-	Builder     ItemBuilder
-	CacheExtent float64 // extra logical px above/below viewport
+	ItemCount  int
+	ItemExtent float64 // fixed-row height, or fallback when ItemExtentAt returns ≤0
+	// ItemExtentAt when non-nil enables variable-height mode (P2).
+	ItemExtentAt ItemExtentFunc
+	Builder      ItemBuilder
+	CacheExtent  float64 // extra logical px above/below viewport
 
 	// Scroll window (updated via OnViewportScroll).
 	scrollY   float64
@@ -26,9 +34,14 @@ type VirtualList struct {
 
 	// BindCount is the number of currently mounted children (test metric).
 	BindCount int
+
+	// prefix[i] = Y offset of item i; prefix[ItemCount] = total content height.
+	// Only used when ItemExtentAt != nil.
+	prefix      []float64
+	prefixValid bool
 }
 
-// NewVirtualList creates a virtual list. extent must be > 0.
+// NewVirtualList creates a fixed-extent virtual list. extent must be > 0.
 func NewVirtualList(count int, extent float64, builder ItemBuilder) *VirtualList {
 	if extent <= 0 {
 		extent = 40
@@ -46,6 +59,137 @@ func NewVirtualList(count int, extent float64, builder ItemBuilder) *VirtualList
 	}
 	v.Init(v)
 	return v
+}
+
+// NewVariableVirtualList creates a variable-height list.
+// extentAt must return > 0 for each index; fallbackExtent is used if it returns ≤0
+// and as the default CacheExtent basis.
+func NewVariableVirtualList(count int, fallbackExtent float64, extentAt ItemExtentFunc, builder ItemBuilder) *VirtualList {
+	v := NewVirtualList(count, fallbackExtent, builder)
+	v.ItemExtentAt = extentAt
+	v.prefixValid = false
+	return v
+}
+
+// SetItemExtentAt enables or disables variable-height mode and invalidates caches.
+func (v *VirtualList) SetItemExtentAt(fn ItemExtentFunc) {
+	if v == nil {
+		return
+	}
+	v.ItemExtentAt = fn
+	v.InvalidateExtents()
+}
+
+// InvalidateExtents drops the prefix cache (call after extentAt results change).
+func (v *VirtualList) InvalidateExtents() {
+	if v == nil {
+		return
+	}
+	v.prefixValid = false
+	v.prefix = nil
+	v.MarkNeedsLayout()
+}
+
+func (v *VirtualList) variable() bool {
+	return v != nil && v.ItemExtentAt != nil
+}
+
+func (v *VirtualList) extentAt(i int) float64 {
+	if v.ItemExtentAt != nil {
+		if e := v.ItemExtentAt(i); e > 0 {
+			return e
+		}
+	}
+	if v.ItemExtent > 0 {
+		return v.ItemExtent
+	}
+	return 40
+}
+
+func (v *VirtualList) ensurePrefix() {
+	if !v.variable() {
+		return
+	}
+	n := v.ItemCount
+	if n < 0 {
+		n = 0
+	}
+	if v.prefixValid && len(v.prefix) == n+1 {
+		return
+	}
+	pref := make([]float64, n+1)
+	for i := 0; i < n; i++ {
+		pref[i+1] = pref[i] + v.extentAt(i)
+	}
+	v.prefix = pref
+	v.prefixValid = true
+}
+
+// offsetOf returns the Y origin of item index (0-based).
+func (v *VirtualList) offsetOf(index int) float64 {
+	if !v.variable() {
+		return float64(index) * v.ItemExtent
+	}
+	v.ensurePrefix()
+	if index < 0 {
+		return 0
+	}
+	if index >= len(v.prefix) {
+		return v.prefix[len(v.prefix)-1]
+	}
+	return v.prefix[index]
+}
+
+// indexContaining returns the item index whose vertical span contains y
+// (prefix[i] <= y < prefix[i+1]). Clamped to [0, count-1].
+func (v *VirtualList) indexContaining(y float64) int {
+	v.ensurePrefix()
+	n := v.ItemCount
+	if n <= 0 {
+		return 0
+	}
+	if y <= 0 {
+		return 0
+	}
+	total := v.prefix[n]
+	if y >= total {
+		return n - 1
+	}
+	lo, hi := 0, n-1
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if v.prefix[mid+1] <= y {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	return lo
+}
+
+// indexAtOrAfter returns the smallest index with offset >= y (exclusive end helper).
+func (v *VirtualList) indexAtOrAfter(y float64) int {
+	v.ensurePrefix()
+	n := v.ItemCount
+	if n <= 0 {
+		return 0
+	}
+	if y <= 0 {
+		return 0
+	}
+	if y >= v.prefix[n] {
+		return n
+	}
+	lo, hi := 0, n
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if v.prefix[mid] < y {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	return lo
 }
 
 // OnViewportScroll implements ScrollAware.
@@ -73,16 +217,23 @@ func (v *VirtualList) OnViewportScroll(offsetY, viewportH float64) {
 
 // rebindWindow updates mounted children. Returns true if set of indices changed.
 func (v *VirtualList) rebindWindow() bool {
-	if v.ItemExtent <= 0 || v.ItemCount == 0 {
+	if v.ItemCount == 0 {
 		return v.clearMounted()
 	}
+	if !v.variable() && v.ItemExtent <= 0 {
+		return v.clearMounted()
+	}
+
 	vh := v.viewportH
 	if vh <= 0 {
-		// Do NOT use v.size.Height — that is content height (count×extent).
-		// Until OnViewportScroll, bind a provisional page (~12 rows).
-		vh = v.ItemExtent * 12
-		if vh < 100 {
+		// Provisional page until OnViewportScroll — do not use content height.
+		if v.variable() {
 			vh = 400
+		} else {
+			vh = v.ItemExtent * 12
+			if vh < 100 {
+				vh = 400
+			}
 		}
 	}
 	cache := v.CacheExtent
@@ -94,17 +245,32 @@ func (v *VirtualList) rebindWindow() bool {
 		startY = 0
 	}
 	endY := v.scrollY + vh + cache
-	first := int(startY / v.ItemExtent)
-	last := int(endY/v.ItemExtent) + 1
-	if first < 0 {
-		first = 0
+
+	var first, last int
+	if v.variable() {
+		v.ensurePrefix()
+		first = v.indexContaining(startY)
+		last = v.indexAtOrAfter(endY)
+		if last < first {
+			last = first
+		}
+		if last > v.ItemCount {
+			last = v.ItemCount
+		}
+	} else {
+		first = int(startY / v.ItemExtent)
+		last = int(endY/v.ItemExtent) + 1
+		if first < 0 {
+			first = 0
+		}
+		if last > v.ItemCount {
+			last = v.ItemCount
+		}
+		if first > last {
+			first = last
+		}
 	}
-	if last > v.ItemCount {
-		last = v.ItemCount
-	}
-	if first > last {
-		first = last
-	}
+
 	if first == v.first && last == v.last && len(v.mounted) == last-first {
 		v.BindCount = len(v.mounted)
 		return false
@@ -134,7 +300,7 @@ func (v *VirtualList) rebindWindow() bool {
 	v.BindCount = len(v.mounted)
 	// Position children
 	for idx, ch := range v.mounted {
-		ch.SetOffset(Point{X: 0, Y: float64(idx) * v.ItemExtent})
+		ch.SetOffset(Point{X: 0, Y: v.offsetOf(idx)})
 	}
 	return true
 }
@@ -157,29 +323,36 @@ func (v *VirtualList) ContentHeight() float64 {
 	if v == nil {
 		return 0
 	}
+	if v.variable() {
+		v.ensurePrefix()
+		if len(v.prefix) == 0 {
+			return 0
+		}
+		return v.prefix[len(v.prefix)-1]
+	}
 	return float64(v.ItemCount) * v.ItemExtent
 }
 
 // Layout implements RenderObject.
 func (v *VirtualList) Layout(c Constraints) Size {
 	if sz, ok := v.LayoutSkipIfClean(c); ok {
-		// Still ensure offsets if bind window set.
 		return sz
 	}
 	w := c.MaxWidth
 	if w >= Unbounded/2 {
 		w = c.MinWidth
 	}
+	// Prefix rebuilds lazily in ensurePrefix; call InvalidateExtents after extentAt changes.
 	h := v.ContentHeight()
 	out := c.Tighten(Size{Width: w, Height: h})
 	v.setSize(out)
-	// viewportH comes from OnViewportScroll (parent Viewport); do not infer from Unbounded max.
 	v.rebindWindow()
-	// Layout mounted children tightly to row size.
-	rowC := Tight(out.Width, v.ItemExtent)
+	// Layout mounted children tightly to each row's height.
 	for idx, ch := range v.mounted {
+		ext := v.extentAt(idx)
+		rowC := Tight(out.Width, ext)
 		_ = ch.Layout(rowC)
-		ch.SetOffset(Point{X: 0, Y: float64(idx) * v.ItemExtent})
+		ch.SetOffset(Point{X: 0, Y: v.offsetOf(idx)})
 	}
 	v.BindCount = len(v.mounted)
 	v.RememberConstraints(c)
@@ -199,9 +372,19 @@ func (v *VirtualList) Paint(pc *PaintContext) {
 	paintSelf := !pc.CompositeOnly || v.NeedsPaint()
 	for _, ch := range v.children {
 		off := ch.Offset()
+		rowH := v.ItemExtent
+		// Prefer actual mounted index height when variable.
+		if v.variable() {
+			for idx, m := range v.mounted {
+				if m == ch {
+					rowH = v.extentAt(idx)
+					break
+				}
+			}
+		}
 		if v.viewportH > 0 {
 			top := off.Y
-			bot := off.Y + v.ItemExtent
+			bot := off.Y + rowH
 			visTop := v.scrollY
 			visBot := v.scrollY + v.viewportH
 			if bot < visTop || top > visBot {
@@ -209,14 +392,12 @@ func (v *VirtualList) Paint(pc *PaintContext) {
 			}
 		}
 		if paintSelf {
-			// List itself dirty (e.g. scroll): redraw visible rows.
 			if pc.CompositeOnly && ch.IsRepaintBoundary() && !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
 				continue
 			}
 			ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
 			continue
 		}
-		// Only descendant dirty: walk dirty paths only.
 		if ch.NeedsPaint() || SubtreeNeedsPaint(ch) {
 			ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
 		}

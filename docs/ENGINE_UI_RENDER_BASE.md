@@ -1,23 +1,28 @@
-# UI 渲染基座能力总表 — Flutter 母表 × gpui 映射
+# UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.5** | 日期：2026-07-28  
-> **施工入口（推荐）：** **[`docs/ui_render_base/`](./ui_render_base/README.md)** — 按依赖组拆分的分册 + 实施顺序 + 指标挂钩 + DoD  
-> **本文件：** 单页全表 **归档 / 全文检索**（与分册同步维护；冲突时以分册施工状态 + 代码为准）  
-> **性质：能力真源（盘点）** — 以 **Flutter UI 渲染基座** 为母表；gpui **不支持也必须保留行**  
-> **范围：** Canvas / Paint / Path / Text / Picture / PaintingContext / Layer / RenderObject / Scheduler / 滚动协议 / **正向性能指标**  
-> **非范围：** P6 dirty-rect Present 冒充完成、Ant 控件皮肤（P7）、完整 a11y 生态  
-> **硬纪律：** 正向指标与能力 Wave **并行**（见 §0.5）— **禁止**等母表全部实现后再做 CPU/内存/60fps  
-> **交叉：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) · [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md) · [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md)
+> **版本：1.7** | 日期：2026-07-28  
+> **范围（唯一）：渲染基座** — 对标 Flutter 的画/排/合/滚/调度/帧与资源指标；**不是** 整站 Flutter、不是 Ant 控件（P7）  
+> **施工真源：本文件** — 能力清单（§2–§16）· 依赖序（§22）· 指标定义（§20）· 每项三项验收（§0.6）  
+> **不分册** — 施工与指标定义均在本文件（§20 · §22 · §0.6）  
+> **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
 
-### 分册导航（2.1-split · 施工真源）
+### 需求（一句话）
 
-| 序 | 分册 |
-|----|------|
-| **总集** | [`ui_render_base/README`](./ui_render_base/README.md) |
-| **顺序+§覆盖** | [`91_wave_order`](./ui_render_base/91_wave_order.md) |
-| 指标 | [`90_metrics`](./ui_render_base/90_metrics.md) |
-| 元规则 | [`00_meta`](./ui_render_base/00_meta.md) |
-| 已落地清单 | README「已落地工作清单」 |
+```text
+在 gpui 实现 Flutter 渲染基座全部能力（本表行）
+  → 理清依赖顺序（§22）
+  → 按序实现
+  → 每项完成须过三项验收：单元测试 · 正向性能指标（§20）· 窗口测试
+```
+
+### 怎么施工
+
+```text
+1. §22 找下一未完成能力（前驱已满足）
+2. 实现该能力（对齐 Flutter；进度只改状态/证据，不改目标）
+3. 三项验收全过（§0.6）→ 状态更新为 A（或诚实的 B/C）
+4. 「下一个」= 再看 §22，不看聊天、不分册
+```
 
 ---
 
@@ -27,7 +32,7 @@
 
 | 码 | 含义 |
 |----|------|
-| **A** | **UI 场景路径已可用**：经 `ui/painting` 或 RO/scene 已接，可测 |
+| **A** | **UI 场景路径已可用**：经 `PaintContext` / RO / scene 已接，可测 |
 | **B** | **仅 `render/` 具备**，UI 未暴露给控件/场景 paint |
 | **C** | **半成品**：接口/字段/预算有，语义不全、未接线、或仅统计无 GPU 证明 |
 | **D** | **相对 Flutter 缺失**（母表有、gpui 无；或明确 P6/P7/远期） |
@@ -44,44 +49,48 @@
 
 ### 0.3 列定义
 
-每能力表统一 11 列。**Wave：** `—` 已 A；`P0`/`P1`/`P2`/`P3` 基座补齐；`P6` Present/层缓存；`P7` 控件；`远期` 进阶。
+能力表统一列。**Wave 列**仅历史检索；**实现顺序只看 §22 依赖**。
 
-### 0.4 依赖纪律
+### 0.4 工程纪律
 
 ```text
 ui → render → gpu    禁止 ui→gpu    禁止 CGO（purego）
 架构在 ui/ · 示例在 examples/    见 ENGINE_CODING_RULES
 ```
 
-### 0.5 正向指标与能力补齐 **并行**（硬）
+### 0.5 指标何时采
 
-> 对应决策：**不要等「全部能力实现完」才处理正向优化指标。**
+**每实现一项能力就采**，不要等基座全做完。指标清单与门禁方向见 **§20**。  
+无同机、同场景 baseline 的「变快/更顺」无效。
 
-| 规则 | 说明 |
-|------|------|
-| **并行** | 能力 Wave（P0→P3）与帧时/hitch/layout/脏层/CPU/RSS 等指标 **同时推进** |
-| **每波必带** | 合入一波能力或窗测轴时：stdout/JSON 可观测；相对同场景 baseline **不无故回退**（或可解释权衡） |
-| **禁止后置** | **禁止** 等母表行全部变为 A 后，才开始采 60fps / CPU / 内存 / hitch |
-| **P0 已起点** | 指标接线、p50/p99、RSS/CPU 采样、Geometry 轴门禁 **已在 P0 启动**（见 §23） |
-| **PerfSoak 贯穿** | §24 `PerfSoak` 轴贯穿 P0–P3，不是「能力全做完后的最后一章」 |
-| **P3 体系化** | 长 soak、多场景 baseline 入库、门禁矩阵收紧 — 在并行采集 **之上** 加深，不是第一次碰指标 |
-| **P6 非起点** | dirty-rect Present / 层 RT 是 Present **极限**优化；**不是** 正向指标工作的起点 |
-| **无 baseline 无效** | 没有同机器、同场景 JSON 对比的「优化」，不算正向优化（与大纲 §L1 一致） |
+### 0.6 每项能力验收（硬 · 三项全过才算完成）
+
+| # | 验收 | 必须 | 说明 |
+|---|------|------|------|
+| **1** | **单元测试** | `go test` 相关包绿 | 新行为至少 1 条测；可复用 S2/S4/S5 等门禁 |
+| **2** | **正向性能指标** | 采到 §20 相关 M-\*，不无故回退 | 通用：帧间隔/hitch、CPU、RSS；专项见 §22 该行「指标」列 |
+| **3** | **窗口测试** | 对应 `examples/ui_render_base_*` 或滚动/门禁场景可跑 | 无轴则为本项补最小窗测后再标完成；禁止只合 API |
+
+同时：母表 **状态列诚实**（仅 render→B；UI 可测→A；半成品→C；未做→D）。
 
 ```text
-能力 Wave（P1→P3）  ──并行──  每波指标不回退（§20 / §21）
-        │
-        ▼
-   基座能力「可宣称够用」+ 测量体系已在跑
-        │
-        ▼
-   P3 PerfSoak 体系化（长 soak / 基线库）
-        │
-        ▼
-   P6 局部 Present / 层缓存（有瓶颈数据再拆）
+禁止：缺任一项验收就标完成。
+禁止：用 MVP 改写 Flutter 目标；进度只改状态/证据/§22。
 ```
 
-交叉：[`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md) §L1 验收（baseline 流程、持续正向优化）。
+**常用命令：**
+
+```bash
+go test ./ui/... -count=1
+go test ./ui/rendering -run 'TestS2_|TestS4_|TestS5_|TestS6_|TestM' -count=1
+export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+go run ./examples/ui_render_base_geometry   # 几何
+go run ./examples/ui_render_base_text       # 文本
+go run ./examples/ui_render_base_image       # 图像
+go run ./examples/ui_render_base_cliplayer  # Clip/Layer
+go run ./examples/ui_render_base_perfsoak   # 指标回归（每项建议）
+go run ./examples/ui_l1_scroll              # 滚动
+```
 
 ---
 
@@ -248,7 +257,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 | Wave |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|------|
-| FT-PARAGRAPH-BUILD | 构建段落 | ParagraphBuilder | 富文本 | ParagraphBuilder/TextRun | — | RenderText.Runs | A/C | paragraph.go | 最小多 span | — |
+| FT-PARAGRAPH-BUILD | 构建段落 | ParagraphBuilder | 富文本 | ParagraphBuilder/TextRun | — | RenderText.Runs | **C** | paragraph.go | 最小多 span；全量仍缺 | P1 |
 | FT-PARAGRAPH-LAYOUT | 段落布局 | Paragraph.layout | 换行高度 | 近似宽高 | MeasureString/Multiline | RenderText.Layout 启发式 | C/B | text.go · render/text.go | 接通 Measure 到 RO=P0 | P0 |
 | FT-PARAGRAPH-PAINT | 绘段落 | drawParagraph | 正文 | DrawTextColored | DrawString* | RenderText.Paint | C | rendering/text.go | — | P0 |
 | FT-PAINTER | TextPainter | TextPainter | 通用测量绘 | — | Measure+Draw 组合 | — | B | render/text.go | 可做 ui 门面 | P0 |
@@ -400,7 +409,7 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | FScroll-VIRTUAL | 虚拟化 | SliverChild | 长列表 | VirtualList 固定行高 | — | — | A | virtual_list.go | 可变高 D | P2 |
 | FScroll-CACHE | cacheExtent | cacheExtent | 预创建窗外 | CacheExtent | — | VirtualList | A | virtual_list.go | — | — |
 | FScroll-NEST | 嵌套滚动 | NestedScroll/竞技 | 父子列表 | Scrollable.Parent 移交 | — | gestures+scrollable | A | nested_scroll_test.go | P5 | — |
-| FScroll-VAR-EXTENT | 可变行高 | Sliver 可变 | 聊天列表 | — | — | — | D | — | — | P2 |
+| FScroll-VAR-EXTENT | 可变行高 | Sliver 可变 | 聊天列表 | ItemExtentAt | — | VirtualList | **C** | virtual_list.go | 前缀和 MVP；完整 sliver 仍缺 | P2 |
 | FScroll-PHYSICS | 物理回弹 | ScrollPhysics | iOS/Android 感 | — | — | — | D | — | 产品感后置 | P2 |
 
 ---
@@ -455,8 +464,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 | 类型 | 状态 |
 |------|------|
-| Container / Offset / Opacity / ClipRect / Picture / Boundary / **Transform** | A 或 C(Picture/Opacity 合成) |
-| ClipRRect / ClipPath / Texture / Backdrop / Filter / Leader… | **D** |
+| Container / Offset / Opacity / ClipRect / **ClipRRect** / Picture / Boundary / **Transform** | A 或 C(Picture/Opacity 合成) |
+| ClipPath / Texture / Backdrop / Filter / Leader… | **D** |
 
 ### 18.3 Present 诚实条款
 
@@ -476,8 +485,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 | F02 | 静态层复用/脏 re-raster | A/C | FL-PICTURE RasterizeDirty | 非 GPU RT |
 | F03 | RelayoutBoundary | A | FRO-RELAYOUT-B | — |
 | F04 | compositing 传播 | A/C | FRO-MARK-COMP | 加深 |
-| F05 | 滚动协议 | A | FScroll-* | 可变高 D |
-| F06 | 真 vsync | C | FSch-VSYNC | exhost |
+| F05 | 滚动协议 | A/C | FScroll-* | 可变高前缀和 C；完整 sliver 仍开 |
+| F06 | 真 vsync | A/C | FSch-VSYNC | 有 DRM 时 WaitVBlank；否则 fallback |
 | F07 | 逻辑/物理/Y-down | A | FCoord-* | — |
 | F08 | 输入不等 Present | A | SubmitLatest | — |
 | F09 | 动画 compositor-only | C | FX-OPACITY FL-OPACITY | Present 全画 |
@@ -495,9 +504,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 ## §20 正向性能与资源指标全表
 
-> **时机（硬）：** 本表不是「能力全 A 之后的附录」。指标与 §23 能力 Wave **并行**（§0.5）。  
-> 每波实现/窗测合入时更新采集与门禁；P3 做 soak **体系化**；P6 只加深 Present，不重新发明指标。  
-> **范围说明：** 用户常提 CPU / 内存 / 60fps——**必要但不完整**。下列为渲染基座 **正向指标全景**（可测、可回归）；实现可分波，**清单不可删项装窄**。
+> **时机（硬）：** 每实现一项渲染基座能力就按本表采指标（§0.5 / §0.6 第 2 项），不是全做完再测。  
+> **范围：** 渲染基座正向指标全景（可测、可回归）。用户常提 CPU/内存/60fps——必要但不完整；清单不删项装窄。
 
 ### 20.0 指标族总览（补全清单）
 
@@ -600,8 +608,8 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 |----|------|------|----------|------|------|--------------|------|
 | M-CPU-PROCESS | 进程 CPU% | DevTools | ProcessTracker cpu_pct_avg | % | **A** 示例 | S0 低；动画有上界 | P0 ✅ |
 | M-CPU-PROCESS-P95 | 进程 CPU p95 | — | **无** | % | D | 尖峰 | P2 |
-| M-CPU-UI | UI 路径 % | — | build 份额 cpu_ui_pct | % | **A** | 路径 proxy | P1 ✅ |
-| M-CPU-RASTER | Raster 路径 % | — | raster 份额 cpu_raster_pct | % | **A** | 路径 proxy | P1 ✅ |
+| M-CPU-UI | UI 路径 %（proxy） | — | build 份额 cpu_ui_pct | % | **C**/A | 非 OS 线程 | P1 |
+| M-CPU-RASTER | Raster 路径 %（proxy） | — | raster 份额 cpu_raster_pct | % | **C**/A | 非 OS 线程 | P1 |
 | M-CPU-IDLE | 空闲 CPU | — | 派生/采样 | % | D | S0 ≈0 | P1 |
 
 #### E. 内存与释放
@@ -705,73 +713,111 @@ ScheduleFrame → layout(脏) → paint(CompositeOnly 可跳)
 
 ---
 
-## §22 缺口注册表（按优先级）
+## §22 依赖序与施工表（真源）
 
-| 优先级 | 缺口 | 状态 | Wave |
-|--------|------|------|------|
-| P0 | Stroke* + line style → painting | B | P0 |
-| P0 | MeasureText → RenderText | B/C | P0 |
-| P0 | FillCircle；ClipRRect UI | A（ClipRRect 已接） | — |
-| P0 | layout/paint 计数接线；分位；CPU/RSS | C/D | P0 |
-| P1 | Radial/Sweep；Wrap 文本；Font；TransformLayer；saveLayer UI；真 VSync | B/C/D | P1 |
-| P2 | Path metrics；可变行高；Backdrop 场景层 | D/B | P2 |
-| P6 | Picture 显示列表；dirty-rect Present；层 RT；HUD | D/C | **P6 单列** |
-| 远期 | PlatformView；FragmentShader；IME 选区 | D | 远期 |
+> 下面每一行 = 一批可一起推进的能力（对应 §2–§16 的 ID）。  
+> **前驱未完成不要跳。** 同层可并行。细行状态以各 § 表为准。  
+> **完成定义：** 该行相关母表 ID 达目标状态 **且** §0.6 三项验收全过。
 
----
-
-## §23 补齐 Wave
-
-**P0：已收尾（2026-07-27）** — 见前：Stroke/Circle/ClipRRect、Measure、RSS/CPU、Geometry 轴。
-
-**P1：主路径已落地（2026-07-27）**
-
-已实现（`ui/painting` + `RenderText`）：
-- `FillRadialGradient` / `FillSweepGradient`（+2 便利）
-- `DrawTextWrapped` / `WordWrap` / `TextAlign*`
-- `NewPath` + `FillPath` / `StrokePath`（局部坐标 + Translate）
-- `FillOval` / `StrokeOval` / `FillArc` / `StrokeArc`
-- `PushLayer` / `PopLayer`（可选 `SaveLayerBudget`）
-- `RenderText.MaxWidth` / `LineSpacing` / `Align` 换行布局与绘制
-- Geometry 窗测第 4 行：radial / path / oval+arc
-- 单测：`TestP1_*`、`TestRenderText_MaxWidthWrapLayout`
-
-P1 仍后置（部分）：exhost **真 VSync**、完整 Font 族/Paragraph 富文本。  
-**TransformLayer：** `ui/scene.TransformLayer` + `rendering.RenderTransform` + ClipLayer 窗测 ✅（2026-07-28）。
-
-**P2：** path metrics、可变高、Backdrop/Filter 场景层、九宫/圆角图 RO（ellipsis/maxLines 已在 P1 落地）。  
-**P3：** 窗测矩阵扩展（Text 轴等）、soak 入库。  
-**P6（单列）：** dirty-rect Present、Picture 录制、层 RT、HUD。
-
-## §24 窗口专项测试程序设计
-
-**路径：** `examples/ui_render_base_geometry/`（Geometry 轴已落地）· 后续 `ui_render_base_*` 按轴扩展（**禁止** `ui/` demo 包）
-
-| 轴 | 覆盖 | 验证 | 与指标关系 |
-|----|------|------|------------|
-| Geometry | FC-DRAW-* | 视觉 | `examples/ui_render_base_geometry` ✅ |
-| Text | FT-* | 布局+字形 | `examples/ui_render_base_text` ✅ |
-| Image | FImg-* | 异步不堵 | `examples/ui_render_base_image` ✅ · IO 不堵 UI；RSS |
-| ClipLayer | Clip/Opacity/Boundary/Transform | 脏局部 | `examples/ui_render_base_cliplayer` ✅ · raster_layer |
-| Scroll | FScroll-* | bind 上界 | S5/S6 + layout |
-| **PerfSoak** | §20 | 60fps+、CPU、RSS、hitch、close | `examples/ui_render_base_perfsoak` ✅ |
-
-环境：`RUN_SECONDS`、`AXIS=`、`GPUI_DISPLAY`；stdout JSON + 可选 baseline。  
-**每轴合入 = 能力验收 + 指标不回退**；禁止「只合 API、不跑 JSON」。
-
----
-
-## §25 文档完备性清单
+### 22.0 依赖（谁先谁后）
 
 ```text
-[x] Flutter Canvas / Paint / Path / Text / Picture / PaintingContext / Layer / RO / Scheduler 母表
-[x] 不支持项保留为 D/B/C
-[x] 指标含 CPU/RSS/泄漏/释放/60fps/hitch/分位
-[x] §20 指标全景 A–J 族（不仅用户口头三项）
-[x] §0.5 正向指标与能力 Wave 并行（禁止等全表实现再优化）
-[x] Present force 与 P6 诚实
-[x] F01–F18 · Wave · 窗测
-[x] README 挂链
+① 坐标/Hit
+② Pipeline/脏区/RO  ── ③ PaintContext ──┬─ ⑤ 几何+Paint/Shader ─ ⑥ Path
+④ 调度/VSync        ─────────────────────┤
+                                         ├─ ⑦ Clip/saveLayer ─ ⑧ Transform
+                                         ├─ ⑨ 图像
+                                         ├─ ⑩ 文本
+                                         ├─ ⑪ 滤镜/阴影层
+                                         └─ ⑫ 滚动/视口
+指标采集（§20）∥ 每一项都做，不是最后再做
+⑬ Picture/局部 Present ← 基座主路径之后、有数据再加深（仍属渲染基座）
+```
+
+### 22.1 施工表（顺序 · 前驱 · 三项验收）
+
+| 序 | 能力（母表） | 前驱 | 状态 | ① 单测 | ② 指标（§20） | ③ 窗测 |
+|----|--------------|------|------|--------|---------------|--------|
+| 1 | 坐标/DPR/Hit §16 | — | ✅ | Hit/embedder | 不破坏 S2/S4 | — |
+| 2 | Pipeline/脏区/RO §13 | 1 | ✅/🔄 | `TestS2/S4/M*` | layout/paint/raster/skip | — / matrix |
+| 3 | PaintContext 基础 §11 | 2 | ✅ | RO/PaintContext | 同 2；PaintVisits | — |
+| 4 | 调度/VSync §14 | 2 | ✅/🔄 | scheduler/vsync | interval·hitch·vsync_source·cpu 分轨 | PerfSoak |
+| 5 | 几何+Paint/Shader §2§3 | 3 | 🔄 | `TestP1_*` 等 | 帧间隔/CPU 不回退 | **geometry** |
+| 6 | Path §4 | 5 | 🔄 | path 测 | 同 5；复杂 path 可解释 | **geometry** |
+| 7 | Clip/saveLayer §5 | 3,6 | 🔄 | clip_rrect 等 | raster/skip；无层泄漏 | **cliplayer** |
+| 8 | Transform 层 §6 | 3,7 | 🔄 | TransformLayer | 同 7；旋转 hitch 可解释 | **cliplayer** |
+| 9 | 图像 §7 | 3,7 | 🔄 | dispose 等 | RSS/Dispose；解码不堵 UI | **image** |
+| 10 | 文本/Paragraph §8 | 3,5 | 🔄 | text/paragraph | 文本帧时；(有则) atlas | **text** |
+| 11 | 滤镜/阴影层 §10§12 | 7,8 | ⬜ | 滤镜/层测 | CPU/RSS；saveLayer 预算 | cliplayer 或新轴 |
+| 12 | 滚动/视口 §15 | 3,7 | 🔄 | virtual_list；S5/S6 | **bind** 上界；layout 不风暴 | **scroll** |
+| 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ⬜ | picture/damage 契约 | damage 面积等；禁全清冒充 | 专用/PerfSoak |
+| — | 指标骨架本身 §20 | — | 🔄 | scheduler metrics | 全表逐步接线 | **perfsoak** |
+
+**不在本表、不挡渲染基座收口：** Ant 控件、完整 IME 编辑器、PlatformView 产品态等（母表可留 D 行，标远期）。
+
+### 22.2 当前开项（随做随改）
+
+| 序 | 还缺什么（摘要） |
+|----|------------------|
+| 5 | 几何等 **B→A**（Stroke/Circle/Oval UI…） |
+| 6 | Path metrics；UI 门面 |
+| 7 | ClipPath 层；真 saveLayer；save/restore UI |
+| 8 | 逆 CTM hit；通用 pushTransform |
+| 9 | Nine/Round UI；Atlas |
+| 10 | **全量 Paragraph**；Font 接通 RO |
+| 11 | Backdrop/Filter **场景层** |
+| 12 | 完整可变 sliver；Physics |
+| 13 | 显示列表；dirty-rect Present |
+| 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
+
+### 22.3 已落地（勿回退）
+
+| 能力 | 证据 |
+|------|------|
+| PaintContext + DC（无独立 painting 包） | `ui/rendering` |
+| ClipRRect UI + 层 | paint_context · scene · 测 |
+| TransformLayer + RenderTransform | scene · transform · cliplayer |
+| Text maxLines/ellipsis；最小多 span | text · paragraph（≠ 全量 Paragraph） |
+| Image Dispose 所有权 | image_dispose_test |
+| 真 VSync（DRM）+ 诚实 vsync_source | platform · exhost |
+| p95、hitch_rate、cpu_ui/raster proxy | MetricsStore |
+| VirtualList 可变高前缀和 | virtual_list（完整 sliver 仍开） |
+| 窗测轴 geometry/text/image/cliplayer/perfsoak | `examples/ui_render_base_*` |
+
+---
+
+## §23 （空）
+
+> 旧 Wave/P0–P6 叙事已取消；顺序只认 §22。母表各行 Wave 列可忽略。
+
+---
+
+## §24 窗口测试程序
+
+路径：`examples/ui_render_base_*`（**禁止**放进 `ui/`）。
+
+| 程序 | 覆盖施工序 | 作用 |
+|------|------------|------|
+| `ui_render_base_geometry` | 5–6 | 几何/Path + JSON |
+| `ui_render_base_text` | 10 | 文本 + JSON |
+| `ui_render_base_image` | 9 | 图/异步/RSS |
+| `ui_render_base_cliplayer` | 7–8 | Clip/Transform 层 |
+| `ui_l1_scroll` | 12 | 滚动/虚拟列表 |
+| `ui_render_base_perfsoak` | 每项建议 | §20 指标回归 |
+
+环境：`RUN_SECONDS`、`GPUI_DISPLAY` 等；stdout JSON + 可选 baseline。
+
+---
+
+## §25 清单
+
+```text
+[x] 范围 = 渲染基座（Flutter 母表），非整站 Flutter / 非 Ant
+[x] 能力行保留（含 D）
+[x] §22 依赖序 + 三项验收列
+[x] §20 正向指标全表
+[x] 不分册（目录已删）
+[x] Present/P6 诚实
 ```
 
 ---
@@ -780,12 +826,11 @@ P1 仍后置（部分）：exhost **真 VSync**、完整 Font 族/Paragraph 富�
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| 1.5 | 2026-07-28 | **拆分** `docs/ui_render_base/` 分册施工真源；本文件保留全表归档 |
-| 1.4 | 2026-07-27 | **删除 ui/painting**；PaintContext∈rendering；UI 直调 render |
-| 1.3 | 2026-07-27 | **P1** painting：径向/扫掠/Path/Oval/Arc/TextWrapped/PushLayer |
-| 1.2 | 2026-07-27 | **§20 指标全景补全**（A–J 族）；修正 P0 已落地状态；用户三项→全表映射 |
-| 1.1 | 2026-07-27 | **§0.5** 明文：指标与能力并行；§20/§24 对齐 P0 实况与合入纪律 |
-| 1.0 | 2026-07-27 | 首版：Flutter 母表全量 × gpui 映射 + 正向指标 + Wave + 窗测设计 |
+| **1.7** | 2026-07-28 | 锁定「只做渲染基座」；施工=依赖序+三项验收；**删除** `docs/ui_render_base/` 分册 |
+| 1.6 | 2026-07-28 | 母表施工；分册曾降归档 |
+| 1.5 | 2026-07-28 | 曾拆分册（已删除） |
+| 1.4 | 2026-07-27 | 删除 ui/painting；PaintContext∈rendering |
+| 1.3–1.0 | 2026-07-27 | 母表/指标/Wave 初版 |
 
 ---
 
@@ -798,4 +843,4 @@ P1 仍后置（部分）：exhost **真 VSync**、完整 Font 族/Paragraph 富�
 - [PaintingContext](https://api.flutter.dev/flutter/rendering/PaintingContext-class.html)
 - [RenderObject](https://api.flutter.dev/flutter/rendering/RenderObject-class.html)
 - [Layer](https://api.flutter.dev/flutter/rendering/Layer-class.html)
-- 本仓库：`ui/painting` · `ui/rendering` · `ui/scene` · `render/*` · `docs/ENGINE_FLUTTER_SKIA_ARCH.md`
+- 本仓库：`ui/rendering` · `ui/scene` · `ui/scheduler` · `render/*` · `docs/ENGINE_FLUTTER_SKIA_ARCH.md`
