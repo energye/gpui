@@ -8,7 +8,8 @@
 |--------|------|------|
 | **1** | [`ENGINE_L1_CLOSEOUT.md`](./ENGINE_L1_CLOSEOUT.md) | **L1 状态 · 验收命令 · 限制 · 下一步** |
 | **1b** | [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) | **全局纪律：禁止 CGO · purego · 依赖 · 架构/示例边界** |
-| **1c** | [`ENGINE_UI_RENDER_BASE.md`](./ENGINE_UI_RENDER_BASE.md) | **渲染基座**（流程闭环：清单·依赖序·单测+指标+窗测；**实现未完成**） |
+| **1c** | [`ENGINE_UI_RENDER_BASE.md`](./ENGINE_UI_RENDER_BASE.md) | **渲染基座**（画什么：清单·§22 主路径收口·§25 终审） |
+| **1d** | [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md) | **控件工业级渲染基座**（怎么画得省：Flutter 对齐·六域·W0–W6·门禁；IME 后置） |
 | 2 | [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md) | 架构图（四层 / 依赖 / 坐标） |
 | 3 | [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) | 架构条款全文 |
 | 4 | [`ENGINE_PHASE_P0_P3.md`](./ENGINE_PHASE_P0_P3.md) | P0–P3 任务考古（已完成） |
@@ -23,7 +24,9 @@
 L1 体验雏形（P0–P3）  ✅  已收口
 P4 滚动/文本/IO       ✅  细卡已实现
 P5 L2 机制            ✅  gestures/focus/overlay/… + 示例 ui_l2_shell
-L3 Ant                ⬜  后置（P7）
+渲染基座 §22 主路径   ✅  收口（见 ENGINE_UI_RENDER_BASE §25）
+控件工业级渲染        ⬜  设计真源 ENGINE_UI_WIDGET_RENDER（W0–W6 待实现）
+L3 Ant                ⬜  后置（P7；依赖控件渲染底座）
 ```
 
 ## 验收

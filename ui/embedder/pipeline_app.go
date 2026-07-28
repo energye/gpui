@@ -365,18 +365,33 @@ func (a *PipelineApp) Run() error {
 	return nil
 }
 
-// PaintPresentTree draws the RO tree into dc for present.
+// PaintPresentTree draws the RO tree into dc for window/GPU present (W0 FullPaint).
 //
-//	force=true  → full-surface clear + FlushPaint(true); marks full redraw damage.
-//	force=false → no full clear (LoadOpLoad keeps prior pixels); FlushPaint(false)
-//	              CompositeOnly paints only dirty subtrees; damage tracks those draws.
+//	force=true  → full-surface clear + full tree paint; MarkFullRedraw (bootstrap/resize).
+//	force=false → no UI-side full clear; still **full tree paint** (CompositeOnly=false).
 //
-// Exported for unit tests that assert damage area without a GPU PresentTarget.
+// Why full paint on steady frames: GPU vector Present commonly LoadOpClears the
+// surface. CompositeOnly would skip clean RepaintBoundaries and those pixels are
+// gone after clear — static chrome/labels vanish in examples. True retained
+// (Boundary → RT/Picture + blit Composite) is ENGINE_UI_WIDGET_RENDER W1–W2;
+// until then window present must repaint the whole tree every frame for
+// correctness. Partial CompositeOnly is available as PaintPresentTreeCompositeOnly
+// for unit tests and future Retained policy.
 //
-// Layer-tree Present walk lives in scene.CompositeToContext / CompositeFramePacket
-// (stage B). PipelineApp still paints via the RO path here until dirty ROs are
-// recorded into PictureLayers each frame (stage B/G3 wire-up).
+// Layer-tree Present walk: scene.CompositeToContext / PaintPresentLayerTree.
 func PaintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) {
+	paintPresentTree(dc, pipe, root, ov, cr, cg, cb, ca, force, false /* compositeOnly */)
+}
+
+// PaintPresentTreeCompositeOnly is the experimental partial-paint path:
+// force=false uses FlushPaint CompositeOnly (skip clean boundaries). Safe on CPU
+// pixmap tests; **unsafe** as default GPU window present until layer textures
+// exist (LoadOpClear drops skipped content). Prefer PaintPresentTree for apps.
+func PaintPresentTreeCompositeOnly(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) {
+	paintPresentTree(dc, pipe, root, ov, cr, cg, cb, ca, force, true)
+}
+
+func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force, compositeOnly bool) {
 	if dc == nil || pipe == nil || root == nil {
 		return
 	}
@@ -387,7 +402,10 @@ func PaintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root re
 		dc.MarkFullRedraw()
 	}
 	pc := rendering.NewPaintContext(dc, dc.DeviceScale())
-	pipe.FlushPaint(pc, force)
+	// force clear path always full-paints; steady path full-paints unless
+	// compositeOnly (test/Retained experiment).
+	paintForce := force || !compositeOnly
+	pipe.FlushPaint(pc, paintForce)
 	if ov != nil {
 		ov.Paint(pc)
 	}

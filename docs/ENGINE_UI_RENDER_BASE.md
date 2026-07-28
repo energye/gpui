@@ -4,7 +4,8 @@
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
-> **收口：** §22 主路径 + D1–D8 **已收口**（见 **§25**）。全表仍有 B/C/D → **不得** 宣称「已对齐 Flutter 全量渲染」。
+> **收口：** §22 主路径 + D1–D8 **已收口**（见 **§25**）。全表仍有 B/C/D → **不得** 宣称「已对齐 Flutter 全量渲染」。  
+> **下一层（控件工业级渲染性能）：** [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（Flutter 帧语义 · Boundary 缓存 · 层 Present · 六域门禁；**非** 本表画 API 清零）。
 
 ### 闭环（流程已闭合 · §22 主路径已收口 · 全表对照未清零）
 
@@ -721,7 +722,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；完整 multi-sliver 仍开 |
 | **ScrollPhysics clamp+fling（序12/D4）** | `ClampingScrollPhysics` · `Viewport.Fling/TickPhysics` · Scrollable pan end · scroll_physics_test | 无 bounce/glow；需 App 每帧 TickPhysics |
 | **Picture 显示列表（序13/D7）** | `PictureRecorder` Fill/StrokeRect+Path · DrawString · DrawImage · `Replay` · picture_test | path clone + image 引用 + text Face；非全量 Canvas recorder；非 GPU picture 缓存 |
-| **dirty-rect Present 稳态（序13）** | `PresentWithAuto` · `PaintPresentTree(force=false)` · `present_damage_test` · `damage_area_px` | 首帧/resize 仍 full；LoadOpLoad 保静态 |
+| **dirty-rect Present 稳态（序13）** | `PresentWithAuto` · `PaintPresentTree` · `present_damage_test` · `damage_area_px` | 首帧/resize full clear；**W0：稳态全树 paint**（防 GPU Clear 丢静态）；CompositeOnly 仅测试 API；真 retained 见 WIDGET_RENDER |
 | **层 Composite walk（序8/11/13）** | `scene.CompositeToContext` · `composite_test` · Offset/Clip/Transform/Picture/Opacity/Filter | 单测像素；**PipelineApp 仍 RO paint**（待 Record 接线） |
 | **SaveLayer + ClipPath paint（序7）** | `SaveLayer/Restore` · `PushClipPath` · `PushLayerIsolated` · save_layer_test | 预算门禁；全幅隔离；无 ClipPathLayer |
 | **DropShadow + Backdrop（序11/D5）** | `ApplyDropShadow` · `PushBackdrop` · `BackdropFilterLayer` · filter_draw_test · composite_test | 全幅 alpha 阴影；全幅 backdrop 快照 |
@@ -822,7 +823,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 
 | 版本 | 说明 |
 |------|------|
-| **1.29** | **阶段 E 终审**：§25 基座收口声明；§22.2 改为收口后残项；文首闭环口径更新；抽查 `go test ./ui/...` |
+| **1.29** | **阶段 E 终审**：§25 基座收口声明；§22.2 改为收口后残项；文首闭环口径更新；抽查 `go test ./ui/...`；链出 **ENGINE_UI_WIDGET_RENDER**（控件工业级渲染设计） |
 | 1.28 | **阶段 D8** 指标：rss_slope_kb_per_min；gpu_ops/cpu_fallback 进 UI JSON；CompareToBaseline+Load/Save；perfsoak BASELINE_JSON |
 | 1.27 | **阶段 D7** Picture 显示列表扩展：Fill/StrokePath · DrawString · DrawImage + picture_test 像素回放；非 GPU picture 缓存 |
 | 1.26 | **阶段 D6** PaintContext Save/Concat/PushTransform/Translate/ScaleXY/Rotate/Shear/GetTransform + transform_ctm_test |
