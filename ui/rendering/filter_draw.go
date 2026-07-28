@@ -40,8 +40,9 @@ func ApplyBlur(pc *PaintContext, radius float64) {
 // (FC-DRAW-SHADOW / FF filter path). offset is in logical px (Y-down);
 // blurRadius is the shadow soft radius; color is 0..1 RGBA.
 //
-// This is a full-surface filter (same as render.ApplyDropShadow), not a
-// path-bound Material elevation API. Prefer drawing content first, then shadow.
+// Flushes pending GPU draws first so the filter sees painted content on the
+// CPU/GPU surface (same discipline as PushBackdrop). Full-surface filter —
+// not a path-bound Material elevation API.
 func ApplyDropShadow(pc *PaintContext, offsetX, offsetY, blurRadius, r, g, b, a float64) {
 	if pc == nil || pc.DC == nil {
 		return
@@ -49,6 +50,7 @@ func ApplyDropShadow(pc *PaintContext, offsetX, offsetY, blurRadius, r, g, b, a 
 	if a <= 0 {
 		a = 1
 	}
+	_ = pc.DC.FlushGPU()
 	pc.DC.ApplyDropShadow(offsetX, offsetY, blurRadius, render.RGBA{R: r, G: g, B: b, A: a})
 }
 

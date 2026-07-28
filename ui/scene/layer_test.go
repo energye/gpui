@@ -122,6 +122,32 @@ func TestColorFilterLayer_Builder(t *testing.T) {
 	}
 }
 
+func TestBackdropFilterLayer_Builder(t *testing.T) {
+	scene.ResetLayerIDGen()
+	b := scene.NewLayerBuilder()
+	bd := b.PushBackdropFilter(3.5, 0.9)
+	b.AddPicture(true)
+	b.Pop()
+	if bd.Kind() != "backdrop_filter" {
+		t.Fatalf("kind=%s want backdrop_filter", bd.Kind())
+	}
+	if bd.BlurRadius != 3.5 || bd.Opacity != 0.9 {
+		t.Fatalf("fields %+v", bd)
+	}
+	var found bool
+	scene.Walk(b.Root(), func(l scene.Layer) {
+		if l.Kind() == "backdrop_filter" {
+			found = true
+			if len(l.Children()) == 0 {
+				t.Fatal("backdrop must nest children")
+			}
+		}
+	})
+	if !found {
+		t.Fatal("backdrop_filter not in tree")
+	}
+}
+
 func TestImageFilterLayer_Builder(t *testing.T) {
 	scene.ResetLayerIDGen()
 	b := scene.NewLayerBuilder()

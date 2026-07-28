@@ -180,3 +180,41 @@ func TestCompositeToContext_OpacityDimsContent(t *testing.T) {
 		t.Fatalf("looks fully opaque red #%04x%04x%04x — opacity layer ineffective", rr, rg, rb)
 	}
 }
+
+// TestCompositeToContext_BackdropFilter applies backdrop blur over a blue bar
+// and paints a child picture on top.
+func TestCompositeToContext_BackdropFilter(t *testing.T) {
+	scene.ResetLayerIDGen()
+	// Background bar as a picture under root, then backdrop sibling? Structure:
+	// container: [picture blue bar, backdrop{picture red patch}]
+	b := scene.NewLayerBuilder()
+	bg := b.AddPicture(true)
+	bg.Record(func(r *scene.PictureRecorder) {
+		r.FillRect(28, 4, 8, 56, 0, 0, 1, 1)
+	})
+	bd := b.PushBackdropFilter(2.5, 1)
+	child := b.AddPicture(true)
+	child.Record(func(r *scene.PictureRecorder) {
+		r.FillRect(10, 10, 44, 44, 1, 0, 0, 0.35)
+	})
+	b.Pop()
+	_ = bd
+
+	dc := render.NewContext(64, 64)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	st := scene.CompositeToContext(b.Root(), dc)
+	if st.FiltersApplied < 1 || st.PicturesDrawn < 1 {
+		t.Fatalf("stats=%+v want backdrop+pictures", st)
+	}
+	img := dc.Image()
+	if img == nil {
+		t.Fatal("nil image")
+	}
+	// Center should not be pure white after composite.
+	rr, rg, rb := sampleAt(img, 32, 32)
+	if rr > 0xF800 && rg > 0xF800 && rb > 0xF800 {
+		t.Fatalf("center still white #%04x%04x%04x", rr, rg, rb)
+	}
+}

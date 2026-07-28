@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.24** | 日期：2026-07-28  
+> **版本：1.25** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -154,7 +154,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-DRAW-POINTS | 点列 | Canvas.drawPoints/RawPoints | sparklines | **DrawPoints** | DrawPoint | — | **A** | draw.go · draw_test | 圆点半径；非 PointMode 枚举全量 |
 | FC-DRAW-VERTICES | 顶点网格 | Canvas.drawVertices | 扭曲图/网格渐变 | **DrawVertices** | DrawVertices | — | **A/C** | draw.go · vertices.go · draw_test | Triangles/Fan；CPU 均色 |
 | FC-DRAW-ATLAS | 图集精灵 | Canvas.drawAtlas | 图标合批、粒子 | **DrawAtlas** | DrawAtlas | — | **A** | image_draw.go · vertices.go | UI 门面 |
-| FC-DRAW-SHADOW | 路径阴影 | Canvas.drawShadow | Material 海拔阴影 | — | ApplyDropShadow（全幅滤镜向） | — | B/C | render/filter_ops.go | 非 1:1 path shadow |
+| FC-DRAW-SHADOW | 路径阴影 | Canvas.drawShadow | Material 海拔阴影 | **ApplyDropShadow** | ApplyDropShadow | — | **A/C** | filter_draw.go · filter_draw_test | 全幅 alpha 阴影；非 path-bound elevation |
 | FC-DRAW-IMAGE | 绘图像 | Canvas.drawImage | 图标/位图 | **DrawImageBuf** | DrawImage | RenderImage | A | image_draw.go · RenderImage | 公开 UI 门面 |
 | FC-DRAW-IMAGE-RECT | 源/目标矩形 | Canvas.drawImageRect | 裁剪缩放 | **DrawImageRect** / DrawImageBuf | DrawImageEx | RenderImage | **A** | image_draw.go | |
 | FC-DRAW-IMAGE-NINE | 九宫格 | Canvas.drawImageNine | 可拉伸边框 | **DrawImageNine** | DrawImageNine | — | **A** | image_draw.go · image_draw_test | 均匀 center 矩形；Atlas UI 仍开 |
@@ -312,7 +312,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FF-COLOR-MATRIX | 颜色矩阵 | ColorFilter.matrix | 置灰 | **ApplyGrayscale/ColorMatrix** | ApplyColorMatrix | **ColorFilterLayer** | **A/C** | filter_draw · scene · filter_*_test | 场景层+UI apply；Present 合成仍开 |
 | FF-BLEND-LAYER | 混合合成 | saveLayer+blend | 叠色 | — | SetBlendMode/PushLayer | — | B | context_layer.go | — |
 | FF-MASK | 遮罩层 | ShaderMask/saveLayer mask | 渐变淡出 | — | PushMaskLayer | — | B | context_layer.go | — |
-| FF-BACKDROP | 背景滤镜 | BackdropFilter | 毛玻璃导航 | — | PushBackdropLayer | 无 FL-BACKDROP 场景层 | B/D | m4_extensions.go | — |
+| FF-BACKDROP | 背景滤镜 | BackdropFilter | 毛玻璃导航 | **PushBackdrop/PopBackdrop** | PushBackdropLayer | **BackdropFilterLayer** | **A/C** | filter_draw · scene · composite_test | 全幅快照+blur；非 clip 局部产品 |
 | FF-BUDGET | saveLayer 预算 | 工程纪律 | 防滥用 | **SaveLayerBudget+Allow** | — | — | **A** | paint_context · save_layer_test | MaxOps/MaxArea 门禁 |
 
 ---
@@ -351,7 +351,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FL-TEXTURE | 纹理层 | TextureLayer | 视频 | — | DrawGPUTexture | **无** | D | — | — |
 | FL-PLATFORM-VIEW | 平台视图 | PlatformViewLayer | WebView/地图 | — | — | **无** | D | — | — |
 | FL-SHADER-MASK | 着色遮罩 | ShaderMaskLayer | 渐变淡出列表 | — | Mask 近似 | **无** | D | — | — |
-| FL-BACKDROP | 背景滤镜层 | BackdropFilterLayer | 毛玻璃 | — | PushBackdropLayer | **无** | D | — | 真背景采样产品仍开 |
+| FL-BACKDROP | 背景滤镜层 | BackdropFilterLayer | 毛玻璃 | PushBackdrop | PushBackdropLayer | **BackdropFilterLayer** | **A/C** | layer.go · build · composite · layer_test | Composite walk；全幅快照 |
 | FL-COLOR-FILTER | 颜色滤镜层 | ColorFilterLayer | 子树置灰 | ApplyGrayscale | ApplyColorMatrix | **ColorFilterLayer** | **A/C** | layer · **composite.go** | Composite 子树 PushLayer+Apply；PipelineApp 未默走 |
 | FL-IMAGE-FILTER | 图像滤镜层 | ImageFilterLayer | 模糊子树 | ApplyBlur | ApplyBlur | **ImageFilterLayer** | **A/C** | layer · **composite.go** | Composite 子树 blur；非 Backdrop |
 | FL-LEADER | LeaderLayer | LeaderLayer | 跟随定位锚点 | — | — | **无** | D | — | Overlay 高级 |
@@ -688,7 +688,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 8 | **逆 CTM hit ✅**；**CompositeToContext 层 walk ✅**；仍开：通用 pushTransform/Matrix4；PipelineApp 默走层 Present |
 | 9 | **Nine/Round/Circular/SrcRect/Atlas UI ✅**；仍开：per-corner 圆角图；GPU atlas 产品化 |
 | 10 | **Font+族名+装饰+样式栈 ✅**；仍开：strut/locale/选区/placeholder；全量 TextStyle |
-| 11 | **Filter 层+Apply ✅**；**Composite 滤镜 ✅**；**SaveLayer UI ✅**；仍开：Backdrop 产品；drop-shadow UI；PipelineApp 默走层 |
+| 11 | **Filter/SaveLayer/DropShadow/Backdrop ✅**；仍开：clip 局部毛玻璃产品；PipelineApp 默走层 Present |
 | 12 | **可变 index↔offset/ScrollToIndex ✅**；**Clamping Physics+Fling ✅**；仍开：完整 multi-sliver；BouncingPhysics |
 | 13 | **显示列表 ✅**；**dirty-rect Present 稳态 ✅**（PresentWithAuto/force=false）；仍开：GPU picture 缓存；层树 Present 合成 |
 | 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
@@ -716,6 +716,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **dirty-rect Present 稳态（序13）** | `PresentWithAuto` · `PaintPresentTree(force=false)` · `present_damage_test` · `damage_area_px` | 首帧/resize 仍 full；LoadOpLoad 保静态 |
 | **层 Composite walk（序8/11/13）** | `scene.CompositeToContext` · `composite_test` · Offset/Clip/Transform/Picture/Opacity/Filter | 单测像素；**PipelineApp 仍 RO paint**（待 Record 接线） |
 | **SaveLayer + ClipPath paint（序7）** | `SaveLayer/Restore` · `PushClipPath` · `PushLayerIsolated` · save_layer_test | 预算门禁；全幅隔离；无 ClipPathLayer |
+| **DropShadow + Backdrop（序11/D5）** | `ApplyDropShadow` · `PushBackdrop` · `BackdropFilterLayer` · filter_draw_test · composite_test | 全幅 alpha 阴影；全幅 backdrop 快照 |
 | 窗测轴 | `examples/ui_render_base_*` | — |
 
 ---
@@ -739,7 +740,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.24** | **阶段 D4** ClampingScrollPhysics + Viewport Fling/TickPhysics + Scrollable pan-end fling + scroll_physics_test |
+| **1.25** | **阶段 D5** ApplyDropShadow + PushBackdrop/BackdropFilterLayer + composite walk + tests |
+| 1.24 | **阶段 D4** ClampingScrollPhysics + Viewport Fling/TickPhysics + Scrollable pan-end fling + scroll_physics_test |
 | 1.23 | **阶段 D3** LoadFaceByFamily/SetFontFamily、TextDecoration、ParagraphBuilder PushStyle + paragraph_style_test |
 | 1.22 | **阶段 D2** DrawPoints/DrawVertices/FillDRRect/PathAdd*/SetFillRule + draw_test |
 | 1.21 | **阶段 D1** DrawImageCircular/DrawImageRect/DrawAtlas UI 门面 + image_draw_test + image 轴接线 |
