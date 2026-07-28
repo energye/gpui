@@ -10,6 +10,14 @@ import (
 // Clean boundaries Replay the stored Picture (skip re-record); dirty ones
 // re-paint and re-record. Works under FullPaint so skip is observable without
 // Retained Present (ENGINE_UI_WIDGET_RENDER R3).
+//
+// Nested model (Flutter-like layers, Picture MVP):
+//   - Each RepaintBoundary owns its Picture of **own content only**.
+//   - Nested IsRepaintBoundary children are NOT baked into the parent Picture.
+//   - After a container tryReplay, AbsoluteBox still walks nested RB children
+//     so each child can tryReplay/rerecord independently.
+//   - Therefore only-inner-dirty does not force outer rerecord, and clean
+//     outer Replay cannot show stale child colors.
 type BoundaryCache struct {
 	entries map[uint64]*boundaryEntry
 	// Cumulative counters (process lifetime of this cache).
@@ -63,7 +71,7 @@ func (b *Base) CacheID() uint64 {
 	return b.cacheID
 }
 
-// InvalidateBoundaryCache drops the Picture for this node (size/content change).
+// Invalidate drops the Picture for this node (size/content change).
 func (c *BoundaryCache) Invalidate(n RenderObject) {
 	if c == nil || n == nil {
 		return
@@ -88,13 +96,14 @@ func (c *BoundaryCache) HasValid(n RenderObject) bool {
 	return e != nil && e.valid && e.pic.Valid && !e.pic.IsEmpty()
 }
 
-// tryReplay returns true if a clean repaint boundary was drawn from cache.
+// tryReplay returns true if this boundary's **own** Picture was drawn from cache.
 //
-// Leaf boundaries (no children): skip when !NeedsPaint and entry valid.
-// Container boundaries: full-picture Replay only when the entire subtree is clean
-// (!NeedsPaint && !SubtreeNeedsPaint). When only an inner descendant is dirty,
-// returns false so the container can walk children without counting as a skip;
-// callers must not re-store the outer Picture in that case (see AbsoluteBox.Paint).
+// Own content only: nested IsRepaintBoundary children are not in the Picture
+// (see recordAbsoluteOwnContent). Callers of container boundaries must still
+// paint nested RB children after a successful tryReplay (AbsoluteBox.Paint).
+//
+// Self NeedsPaint → miss. Descendant dirtiness does **not** block own Replay
+// (outer can skip while inner rerecords).
 func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	if c == nil || pc == nil || pc.DC == nil || n == nil || !pc.UseBoundaryCache {
 		return false
@@ -103,10 +112,6 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 		return false
 	}
 	if n.NeedsPaint() {
-		return false
-	}
-	// Container: cannot full-replay while a descendant still needs paint.
-	if len(n.Children()) > 0 && SubtreeNeedsPaint(n) {
 		return false
 	}
 	b, ok := baseOf(n)
@@ -160,9 +165,12 @@ func (c *BoundaryCache) storeColorBox(pc *PaintContext, box *RenderColorBox) {
 	}
 	c.Rerecord++
 	c.FrameRerecord++
+	// No ancestor invalidate: parents do not bake nested RB children.
 }
 
-// storeAbsoluteColorChildren records bg + ColorBox children for an AbsoluteBox boundary.
+// storeAbsoluteColorChildren records an AbsoluteBox boundary Picture of **own
+// content only** (bg + non-RepaintBoundary descendants). Nested RB children keep
+// their own cache entries; parent skip does not freeze their pixels.
 func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *AbsoluteBox) {
 	if c == nil || pc == nil || a == nil || !pc.UseBoundaryCache || !a.IsRepaintBoundary() {
 		return
@@ -172,25 +180,7 @@ func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *Absolute
 	sz := a.Size()
 	ox, oy := pc.OriginX, pc.OriginY
 	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		if a.Background != nil {
-			bg := a.Background
-			r.FillRect(ox, oy, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
-		}
-		for _, ch := range a.children {
-			cb, ok := ch.(*RenderColorBox)
-			if !ok {
-				continue
-			}
-			off := ch.Offset()
-			cw, chh := cb.Size().Width, cb.Size().Height
-			if cw <= 0 {
-				cw = cb.Width
-			}
-			if chh <= 0 {
-				chh = cb.Height
-			}
-			r.FillRect(ox+off.X, oy+off.Y, cw, chh, cb.R, cb.G, cb.B, cb.A)
-		}
+		recordAbsoluteOwnContent(r, a, ox, oy)
 	})
 	c.entries[id] = &boundaryEntry{
 		pic: pic, ox: ox, oy: oy, w: sz.Width, h: sz.Height,
@@ -198,6 +188,42 @@ func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *Absolute
 	}
 	c.Rerecord++
 	c.FrameRerecord++
+}
+
+// recordAbsoluteOwnContent draws AbsoluteBox bg + non-RepaintBoundary children
+// into a PictureRecorder. IsRepaintBoundary children are omitted (own cache).
+func recordAbsoluteOwnContent(r *scene.PictureRecorder, a *AbsoluteBox, ox, oy float64) {
+	if r == nil || a == nil {
+		return
+	}
+	sz := a.Size()
+	if a.Background != nil {
+		bg := a.Background
+		r.FillRect(ox, oy, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
+	}
+	for _, ch := range a.children {
+		if ch == nil || ch.IsRepaintBoundary() {
+			continue
+		}
+		off := ch.Offset()
+		ax, ay := ox+off.X, oy+off.Y
+		switch t := ch.(type) {
+		case *RenderColorBox:
+			cw, chh := t.Size().Width, t.Size().Height
+			if cw <= 0 {
+				cw = t.Width
+			}
+			if chh <= 0 {
+				chh = t.Height
+			}
+			r.FillRect(ax, ay, cw, chh, t.R, t.G, t.B, t.A)
+		case *AbsoluteBox:
+			// Non-RB AbsoluteBox: bake its own content; still skip its RB kids.
+			recordAbsoluteOwnContent(r, t, ax, ay)
+		default:
+			// Other RO types not in AbsoluteBox Picture MVP.
+		}
+	}
 }
 
 func colorKey(r, g, b, a, w, h float64) uint64 {

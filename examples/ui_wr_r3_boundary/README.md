@@ -31,3 +31,5 @@ RUN_SECONDS=10 go run ./examples/ui_wr_r3_boundary
 ## Implementation note
 
 Picture-backed `BoundaryCache` on `PipelineOwner`, enabled under FullPaint present so skip is observable without Retained Present (Replay still draws after GPU Clear).
+
+**Nested model:** each RepaintBoundary caches **own content only**; nested RB children are not baked into the parent Picture. After parent `tryReplay`, nested RB children are still walked so only-inner-dirty does not force outer `boundary_rerecord`.

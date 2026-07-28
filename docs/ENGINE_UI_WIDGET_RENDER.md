@@ -369,8 +369,10 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | 项 | 状态 |
 |----|------|
 | `BoundaryCache` Picture Replay（`PipelineOwner` 跨帧） | ✅ |
+| 嵌套 RB **不**烘焙进父 Picture；tryReplay 后 walk 子 RB | ✅ own-content + `paintNestedRepaintBoundaries` |
+| 仅 inner dirty → outer **不** rerecord；leaf 变色 clean 仍新 | ✅ NestedOuterNoRerecord + InnerChange 像素单测 |
 | `CountRepaintBoundaries` + `UpdateCompositingBits` | ✅ |
-| 单测 skip vs rerecord + 嵌套 outer 不误 rerecord | ✅ `boundary_cache_test.go` |
+| 单测 skip vs rerecord + 嵌套 outer 不误 rerecord + mid 像素 | ✅ `boundary_cache_test.go` |
 | Metrics：`boundary_skip` / `boundary_rerecord` / `boundary_count` | ✅ `NoteBoundaryFrame` / `SetBoundaryDiscovery` |
 | **`ui_wr_r3_boundary`** 1200×800 ≥8s | ✅ GPU PASS（skip>0 + rr>0 + fps） |
 | **`ui_wr_r3b_compbits`** 1200×800 ≥8s | ✅ GPU PASS（count/depth + skip） |

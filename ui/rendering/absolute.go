@@ -76,8 +76,11 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
 	}
-	// W1: fully-clean AbsoluteBox repaint boundary may Replay a recorded Picture.
+	// W1: own-content Picture Replay. Nested RepaintBoundary children are not
+	// baked into this Picture — always walk them after a successful tryReplay
+	// so each child can skip/rerecord independently (no stale outer bake).
 	if pc.BoundaryCache != nil && a.IsRepaintBoundary() && pc.BoundaryCache.tryReplay(pc, a) {
+		a.paintNestedRepaintBoundaries(pc)
 		return
 	}
 	if pc.CompositeOnly && !a.NeedsPaint() && !SubtreeNeedsPaint(a) {
@@ -99,22 +102,62 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 			ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
 		}
 		a.clearPaintDirty()
-		// Re-store outer Picture only when this boundary itself was dirty or had no entry.
-		// Inner-only dirty must not bump outer boundary_rerecord (R3 nested rule).
+		// Re-store own-content Picture only when this boundary itself was dirty
+		// or had no entry. Inner-only dirty must not bump outer boundary_rerecord.
 		if pc.BoundaryCache != nil && a.IsRepaintBoundary() && (selfDirty || !pc.BoundaryCache.HasValid(a)) {
 			pc.BoundaryCache.storeAbsoluteColorChildren(pc, a)
 		}
 		return
 	}
-	// Only descendants dirty: walk dirty paths; do not re-store outer cache.
-	// CompositeOnly: skip fully-clean children (including clean boundaries).
-	// FullPaint never takes this branch (paintSelf is always true when !CompositeOnly).
+	// Only descendants dirty (CompositeOnly): walk dirty paths; do not re-store.
 	for _, ch := range a.children {
 		if !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
 			continue
 		}
 		off := ch.Offset()
 		ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
+	}
+}
+
+// paintNestedRepaintBoundaries paints IsRepaintBoundary children (and RB
+// descendants under non-RB wrappers) after this box's own content was Replayed.
+// Non-RB visual content is already in the parent Picture and must not be redrawn.
+func (a *AbsoluteBox) paintNestedRepaintBoundaries(pc *PaintContext) {
+	if a == nil || pc == nil {
+		return
+	}
+	for _, ch := range a.children {
+		if ch == nil {
+			continue
+		}
+		off := ch.Offset()
+		childPC := pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y)
+		if ch.IsRepaintBoundary() {
+			ch.Paint(childPC)
+			continue
+		}
+		// Non-RB wrapper: do not re-paint its own content; only reach nested RBs.
+		paintRepaintBoundaryDescendants(ch, childPC)
+	}
+}
+
+// paintRepaintBoundaryDescendants walks n without painting n itself, invoking
+// Paint on every IsRepaintBoundary descendant (for post-tryReplay of parents).
+func paintRepaintBoundaryDescendants(n RenderObject, pc *PaintContext) {
+	if n == nil || pc == nil {
+		return
+	}
+	for _, ch := range n.Children() {
+		if ch == nil {
+			continue
+		}
+		off := ch.Offset()
+		childPC := pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y)
+		if ch.IsRepaintBoundary() {
+			ch.Paint(childPC)
+			continue
+		}
+		paintRepaintBoundaryDescendants(ch, childPC)
 	}
 }
 
