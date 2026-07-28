@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -53,6 +54,11 @@ type RenderText struct {
 	Decoration render.TextDecoration
 	// FontFamily is the last family string passed to SetFontFamily (diagnostics).
 	FontFamily string
+
+	// measureCache maps measureLine keys → width (R9). Invalidated on text/face/size change.
+	measureCache map[string]float64
+	measureHits  int64
+	measureMiss  int64
 }
 
 // NewRenderText creates a text node.
@@ -80,6 +86,7 @@ func (t *RenderText) SetText(s string) {
 	}
 	t.Text = s
 	t.Runs = nil
+	t.invalidateMeasureCache()
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
@@ -108,6 +115,7 @@ func (t *RenderText) SetRuns(runs []TextRun) {
 		b.WriteString(r.Text)
 	}
 	t.Text = b.String()
+	t.invalidateMeasureCache()
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
@@ -137,6 +145,7 @@ func (t *RenderText) SetFace(face text.Face) {
 		return
 	}
 	t.Face = face
+	t.invalidateMeasureCache()
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
@@ -155,6 +164,7 @@ func (t *RenderText) SetFontSize(points float64) {
 		return
 	}
 	t.FontSize = points
+	t.invalidateMeasureCache()
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
@@ -189,6 +199,8 @@ func (t *RenderText) SetMaxWidth(w float64) {
 		return
 	}
 	t.MaxWidth = w
+	// Wrap budget changed; line splits change — drop width cache for safety.
+	t.invalidateMeasureCache()
 	t.MarkNeedsLayout()
 	t.MarkNeedsPaint()
 }
@@ -306,12 +318,63 @@ func (t *RenderText) measureLine(s string) float64 {
 	if s == "" {
 		return 0
 	}
-	if face := t.effectiveFace(); face != nil {
-		w, _ := text.Measure(s, face)
-		return w
+	key := t.measureCacheKey(s)
+	if t.measureCache != nil {
+		if w, ok := t.measureCache[key]; ok {
+			t.measureHits++
+			return w
+		}
 	}
+	t.measureMiss++
+	var w float64
+	if face := t.effectiveFace(); face != nil {
+		w, _ = text.Measure(s, face)
+	} else {
+		fs := t.fontSize()
+		w = float64(utf8.RuneCountInString(s)) * fs * t.approxCharW()
+	}
+	if t.measureCache == nil {
+		t.measureCache = make(map[string]float64)
+	}
+	t.measureCache[key] = w
+	return w
+}
+
+func (t *RenderText) measureCacheKey(s string) string {
+	// Include size + approx factor so cache does not cross style changes.
 	fs := t.fontSize()
-	return float64(utf8.RuneCountInString(s)) * fs * t.approxCharW()
+	aw := t.approxCharW()
+	// Face identity is not stable as a pointer string; invalidateMeasureCache
+	// on SetFace covers face changes. Key is content+size+approx.
+	return s + "\x00" + formatMeasureKey(fs, aw)
+}
+
+func formatMeasureKey(fs, aw float64) string {
+	return strconv.FormatInt(int64(fs*100+0.5), 10) + "/" + strconv.FormatInt(int64(aw*1000+0.5), 10)
+}
+
+// invalidateMeasureCache drops width cache (text/face/size change).
+func (t *RenderText) invalidateMeasureCache() {
+	if t == nil {
+		return
+	}
+	t.measureCache = nil
+}
+
+// MeasureCacheStats returns R9 hit/miss counters (cumulative since last reset).
+func (t *RenderText) MeasureCacheStats() (hits, misses int64) {
+	if t == nil {
+		return 0, 0
+	}
+	return t.measureHits, t.measureMiss
+}
+
+// ResetMeasureCacheStats zeroes hit/miss counters (keeps cached widths).
+func (t *RenderText) ResetMeasureCacheStats() {
+	if t == nil {
+		return
+	}
+	t.measureHits, t.measureMiss = 0, 0
 }
 
 // wrapLines produces soft-wrapped lines for the full source text (no maxLines yet).

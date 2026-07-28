@@ -57,6 +57,26 @@ type PipelineApp struct {
 	layoutFrames atomic.Int64
 	// forceFullPresent is set on warm-up/resize so the next present full-clears.
 	forceFullPresent atomic.Bool
+	// debugRepaint enables R12b overlay on live paints (not cache Replay).
+	debugRepaint atomic.Bool
+	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
+	debugRepaintDraws atomic.Int64
+}
+
+// SetDebugRepaint toggles R12b repaint visualization for subsequent presents.
+func (a *PipelineApp) SetDebugRepaint(on bool) {
+	if a == nil {
+		return
+	}
+	a.debugRepaint.Store(on)
+}
+
+// DebugRepaintDraws returns cumulative debug overlay strokes.
+func (a *PipelineApp) DebugRepaintDraws() int64 {
+	if a == nil {
+		return 0
+	}
+	return a.debugRepaintDraws.Load()
 }
 
 // LastBoundaryFrame returns the most recent paintPresentTree boundary skip/rerecord.
@@ -374,9 +394,16 @@ func (a *PipelineApp) Run() error {
 		if metrics != nil && metrics.PresentPolicy() == "" {
 			metrics.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
 		}
+		dbgOn := a.debugRepaint.Load()
+		dbgAccum := &a.debugRepaintDraws
 		job := raster.FrameJob{
 			Run: func() error {
-				out, err := presentTree(target, pipe, root, ov, clearR, clearG, clearB, clearA, force)
+				var frameDraws int64
+				opts := paintPresentTreeOpts{debugRepaint: dbgOn, debugDraws: &frameDraws}
+				out, err := presentTreeOpts(target, pipe, root, ov, clearR, clearG, clearB, clearA, force, opts)
+				if frameDraws > 0 {
+					dbgAccum.Add(frameDraws)
+				}
 				if metrics != nil && target != nil {
 					metrics.NotePresentOutcome(out.Mode.String(), target.LastDamageAreaPx())
 					// M-GPU-*: float render path routing into UI JSON (no ui→gpu).
@@ -387,10 +414,6 @@ func (a *PipelineApp) Run() error {
 					// W1 R3: accumulate boundary skip/rerecord from last paint walk.
 					rr, sk := LastBoundaryFrame()
 					metrics.NoteBoundaryFrame(rr, sk)
-					if cache := pipe.BoundaryCache(); cache != nil {
-						// Lifetime totals also available; frame note uses last snap.
-						_ = cache
-					}
 				}
 				return err
 			},
@@ -434,7 +457,17 @@ func PaintPresentTreeCompositeOnly(dc *render.Context, pipe *rendering.PipelineO
 	paintPresentTree(dc, pipe, root, ov, cr, cg, cb, ca, force, true)
 }
 
+// paintPresentTreeOpts optional flags from PipelineApp (debug repaint).
+type paintPresentTreeOpts struct {
+	debugRepaint bool
+	debugDraws   *int64 // per-frame; nil = no count
+}
+
 func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force, compositeOnly bool) {
+	paintPresentTreeWithOpts(dc, pipe, root, ov, cr, cg, cb, ca, force, compositeOnly, paintPresentTreeOpts{})
+}
+
+func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force, compositeOnly bool, opts paintPresentTreeOpts) {
 	if dc == nil || pipe == nil || root == nil {
 		return
 	}
@@ -453,6 +486,8 @@ func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root re
 	}
 	pc.BoundaryCache = cache
 	pc.UseBoundaryCache = true
+	pc.DebugRepaint = opts.debugRepaint
+	pc.DebugRepaintDraws = opts.debugDraws
 	cache.BeginFrame()
 	// force clear path always full-paints; steady path full-paints unless
 	// compositeOnly (test/Retained experiment).
@@ -505,11 +540,15 @@ func SurfaceAreaLogical(dc *render.Context) int64 {
 }
 
 func presentTree(target *render.PresentTarget, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool) (render.PresentOutcome, error) {
+	return presentTreeOpts(target, pipe, root, ov, cr, cg, cb, ca, force, paintPresentTreeOpts{})
+}
+
+func presentTreeOpts(target *render.PresentTarget, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool, opts paintPresentTreeOpts) (render.PresentOutcome, error) {
 	if target == nil || pipe == nil || root == nil {
 		return render.PresentOutcome{}, errors.New("embedder: presentTree nil")
 	}
 	draw := func(dc *render.Context) {
-		PaintPresentTree(dc, pipe, root, ov, cr, cg, cb, ca, force)
+		paintPresentTreeWithOpts(dc, pipe, root, ov, cr, cg, cb, ca, force, false, opts)
 	}
 	if force {
 		err := target.PresentWith(draw)
@@ -522,7 +561,10 @@ func (a *PipelineApp) presentSyncFull() {
 	if a.target == nil {
 		return
 	}
-	_, _ = presentTree(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true)
+	var frameDraws int64
+	opts := paintPresentTreeOpts{debugRepaint: a.debugRepaint.Load(), debugDraws: &frameDraws}
+	_, _ = presentTreeOpts(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, opts)
+	a.debugRepaintDraws.Add(frameDraws)
 	a.presents.Add(1)
 }
 

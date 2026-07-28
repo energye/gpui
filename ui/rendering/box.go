@@ -172,7 +172,7 @@ func (c *RenderColorBox) Paint(pc *PaintContext) {
 		return
 	}
 	if pc.BoundaryCache != nil && pc.BoundaryCache.tryReplay(pc, c) {
-		return
+		return // clean Replay is not a "repaint" for R12b overlay
 	}
 	pc.NotePaintVisit()
 	sz := c.size
@@ -184,6 +184,8 @@ func (c *RenderColorBox) Paint(pc *PaintContext) {
 		h = c.Height
 	}
 	fillRect(pc, 0, 0, w, h, c.R, c.G, c.B, c.A)
+	// R12b: mark live re-paints (dirty path / first record), not cache hits.
+	pc.NoteDebugRepaint(w, h)
 	c.clearPaintDirty()
 	if pc.BoundaryCache != nil && c.IsRepaintBoundary() {
 		pc.BoundaryCache.storeColorBox(pc, c)

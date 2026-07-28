@@ -25,6 +25,11 @@ type PaintContext struct {
 	BoundaryCache *BoundaryCache
 	// UseBoundaryCache gates tryReplay/store on repaint boundaries.
 	UseBoundaryCache bool
+	// DebugRepaint (R12b): after a live (non-Replay) paint of a node, draw a
+	// translucent overlay so humans can see who is re-painting this frame.
+	DebugRepaint bool
+	// DebugRepaintDraws counts overlay strokes this walk (optional metrics).
+	DebugRepaintDraws *int64
 }
 
 // NewPaintContext roots a paint walk at (0,0).
@@ -42,16 +47,32 @@ func (pc *PaintContext) WithOrigin(absX, absY float64) *PaintContext {
 		return &PaintContext{OriginX: absX, OriginY: absY, Scale: 1}
 	}
 	return &PaintContext{
-		DC:               pc.DC,
-		OriginX:          absX,
-		OriginY:          absY,
-		Scale:            pc.Scale,
-		CompositeOnly:    pc.CompositeOnly,
-		PaintVisits:      pc.PaintVisits,
-		LayerBudget:      pc.LayerBudget,
-		saveLayerDepth:   pc.saveLayerDepth,
-		BoundaryCache:    pc.BoundaryCache,
-		UseBoundaryCache: pc.UseBoundaryCache,
+		DC:                pc.DC,
+		OriginX:           absX,
+		OriginY:           absY,
+		Scale:             pc.Scale,
+		CompositeOnly:     pc.CompositeOnly,
+		PaintVisits:       pc.PaintVisits,
+		LayerBudget:       pc.LayerBudget,
+		saveLayerDepth:    pc.saveLayerDepth,
+		BoundaryCache:     pc.BoundaryCache,
+		UseBoundaryCache:  pc.UseBoundaryCache,
+		DebugRepaint:      pc.DebugRepaint,
+		DebugRepaintDraws: pc.DebugRepaintDraws,
+	}
+}
+
+// NoteDebugRepaint draws a translucent magenta overlay at the current origin
+// covering w×h (logical). Used by R12b to mark live re-paints. No-op when
+// DebugRepaint is false or size non-positive.
+func (pc *PaintContext) NoteDebugRepaint(w, h float64) {
+	if pc == nil || !pc.DebugRepaint || pc.DC == nil || w <= 0 || h <= 0 {
+		return
+	}
+	// Magenta flash, semi-transparent — visible over both light and dark fills.
+	fillRect(pc, 0, 0, w, h, 0.95, 0.15, 0.85, 0.35)
+	if pc.DebugRepaintDraws != nil {
+		*pc.DebugRepaintDraws++
 	}
 }
 

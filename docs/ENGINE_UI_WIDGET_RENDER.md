@@ -1,6 +1,6 @@
 # 自定义控件渲染基座 — Flutter 对齐（统一真源）
 
-> **版本：2.8** | 日期：2026-07-28  
+> **版本：2.9** | 日期：2026-07-28  
 > **地位：** 自定义控件 **渲染基座 + 排期 + 真窗验收** 唯一真源。  
 > **并读：** [`ENGINE_UI_RENDER_BASE.md`](./ENGINE_UI_RENDER_BASE.md)（画什么 · **§20 指标族**）· [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) · [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md)  
 > **真窗统一规格（硬）：** 客户区 **1200×800** · **`RUN_SECONDS ≥ 5`** · 按主能力加长（**§2.5** 全表）。
@@ -66,21 +66,21 @@ L3–L5 Kit                       ← 暂缓
 |----|------|----------------|----------|----------------------|--------------------|-------------------------|------|------|
 | **R0** | **FullPaint 正确性**（静+动同屏，防 Clear 丢静态） | `ui_wr_r0_fullpaint` | **1200×800** | **5**（观察 15） | **§2.2 全族** + policy + 静/动存在；持续 tick 则 **fps 门禁** | 静色块始终在；动块持续变 | **W0** | **✅** |
 | **R1** | 局部 NeedsLayout | `ui_wr_r1_layout` | **1200×800** | **5** | `layout_count` 符合「只脏子树」约定 | 仅目标子节点高度变，邻域不抖 | W1+ | ⬜ |
-| **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | **1200×800** | **5** | `paint_count`/visits 可解释 | 仅目标节点变色 | W1 | ⬜ |
+| **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | **1200×800** | **5** | `paint_count`/visits 可解释 | 仅目标节点变色 | **W1** | **✅** |
 | **R3** | Boundary 真缓存 | `ui_wr_r3_boundary` | **1200×800** | **10** | `boundary_rerecord` 仅脏；**`boundary_skip>0`** | 静 boundary 不动；脏每帧变 | **W1** | **✅** |
 | **R3b** | Compositing bits / 边界发现 | `ui_wr_r3b_compbits` | **1200×800** | **8** | `boundary_count`；合成链深度 | 嵌套 boundary 只重约定层 | **W1** | **✅** |
 | **R4** | 层 Composite Present | `ui_wr_r4_composite` | **1200×800** | **15** | `present_policy`；`damage_ratio` 门禁 | Retained 下静在、damage≪全屏 | **W2** | ⬜ |
 | **R4b** | DirtyLayerID + 多 damage | `ui_wr_r4b_multidamage` | **1200×800** | **15** | `dirty_layer_ids`；rects/并集 | 两远离脏点更新，中间静在 | **W2** | ⬜ |
-| **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；可选像素差 | 回放区≡直绘区 | W1–W2 | ⬜ |
+| **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；可选像素差 | 回放区≡直绘区 | **W1** | **✅** |
 | **R6** | Opacity/Transform/Clip **层**动画 | `ui_wr_r6_layer_anim` | **1200×800** | **30** | `paint_count` 稳；`hitch_rate`；**fps≥55** | 转/淡/裁流畅；静背景不闪 | **W5** | ⬜ |
 | **R7** | 虚拟化宿主 | `ui_wr_r7_virtlist` | **1200×800** | **60** | **`bind_count≪item_count`**；p95/hitch；RSS | 仅视口 cell；快滑约定 | **W3** | ⬜ |
 | **R7b** | 滚动少重录 cell | `ui_wr_r7b_scroll_reuse` | **1200×800** | **60** | **`scroll_rerecord` 上限**；fps | 静 cell 保持；新入视口才重录 | **W3** | ⬜ |
 | **R8** | Overlay 独立合成 | `ui_wr_r8_overlay` | **1200×800** | **15** | 开浮层后主树 `paint_count` 不涨 | 面板盖上；底静仍在 | **W4** | ⬜ |
-| **R9** | 文本 measure 缓存 | `ui_wr_r9_text_cache` | **1200×800** | **5** | `measure_cache_hit`（可先打桩再严） | 同文同 style 宽高稳、不抖 | W1+ | ⬜ |
+| **R9** | 文本 measure 缓存 | `ui_wr_r9_text_cache` | **1200×800** | **5** | `measure_cache_hit`（可先打桩再严） | 同文同 style 宽高稳、不抖 | **W1** | **✅** |
 | **R10** | 图异步→局部脏 | `ui_wr_r10_async_image` | **1200×800** | **30** | 出图后 rerecord **仅一格** | 占位→图仅该格变 | **W3** | ⬜ |
 | **R11** | DPR/尺寸缓存失效 | `ui_wr_r11_dpr` | **1200×800** | **15** | 变更后 rerecord **一波**再回稳 | 无残影、不错位 | W1–W2 | ⬜ |
 | **R12** | 帧指标字段完备 | `ui_wr_r12_metrics` | **1200×800** | **5** | **公共字段全集存在**否则 FAIL | stderr/JSON 可读 | 全程 | ⬜ |
-| **R12b** | 重绘调试可视化 | `ui_wr_r12b_debug_repaint` | **1200×800** | **8** | `debug_repaint=1` 时有叠加标志 | **人眼见谁在重绘** | **W1** | ⬜ |
+| **R12b** | 重绘调试可视化 | `ui_wr_r12b_debug_repaint` | **1200×800** | **8** | `debug_repaint=1` 时有叠加标志 | **人眼见谁在重绘** | **W1** | **✅** |
 | **R13** | Hit ≡ 绘 | `ui_wr_r13_hit` | **1200×800** | **5** | 点击→命中 ID（脚本或日志断言） | 点哪高亮哪 | W2+ | ⬜ |
 | **R14** | 缓存预算/淘汰 | `ui_wr_r14_cache_budget` | **1200×800** | **60** | `cache_entries`、**RSS slope FAIL** | 超预算仍正确 | **W6** | ⬜ |
 | **R15** | UI/raster 所有权·长跑 | `ui_wr_r15_soak` | **1200×800** | **300** | 时长、无崩、无读回；hitch/CPU/RSS | soak 不挂 | W2+ | ⬜ |
@@ -364,22 +364,23 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 ---
 
-## 4b. W1 进度（2026-07-28 · Boundary 核心）
+## 4b. W1 关闭清单（2026-07-28）
 
 | 项 | 状态 |
 |----|------|
-| `BoundaryCache` Picture Replay（`PipelineOwner` 跨帧） | ✅ |
-| 嵌套 RB **不**烘焙进父 Picture；tryReplay 后 walk 子 RB | ✅ own-content + `paintNestedRepaintBoundaries` |
-| 仅 inner dirty → outer **不** rerecord；leaf 变色 clean 仍新 | ✅ NestedOuterNoRerecord + InnerChange 像素单测 |
-| `CountRepaintBoundaries` + `UpdateCompositingBits` | ✅ |
-| 单测 skip vs rerecord + 嵌套 outer 不误 rerecord + mid 像素 | ✅ `boundary_cache_test.go` |
-| Metrics：`boundary_skip` / `boundary_rerecord` / `boundary_count` | ✅ `NoteBoundaryFrame` / `SetBoundaryDiscovery` |
-| **`ui_wr_r3_boundary`** 1200×800 ≥8s | ✅ GPU PASS（skip>0 + rr>0 + fps） |
-| **`ui_wr_r3b_compbits`** 1200×800 ≥8s | ✅ GPU PASS（count/depth + skip） |
-| **`ui_wr_c1_boundary_nest`** 组合 | ✅ GPU PASS（**不**单独关 R2/R12b） |
-| R2 / R5 / R9 / R12b 独立真窗 | ⬜ 未关；W1 全波未 ✅ |
+| `BoundaryCache` own-content + 嵌套 walk | ✅ |
+| `CountRepaintBoundaries` + compositing bits | ✅ |
+| Metrics `boundary_*` + wrgate 门禁 | ✅ |
+| **R2** `ui_wr_r2_paint` | ✅ GPU PASS（static clean ticks + skip） |
+| **R3** `ui_wr_r3_boundary` | ✅ GPU PASS |
+| **R3b** `ui_wr_r3b_compbits` | ✅ GPU PASS |
+| **R5** `ui_wr_r5_picture` | ✅ GPU PASS（ops≥3, replay_frames） |
+| **R9** `ui_wr_r9_text_cache` | ✅ GPU PASS（measure hits≫miss） |
+| **R12b** `ui_wr_r12b_debug_repaint` | ✅ GPU PASS（debug draws≥1） |
+| **C1** `ui_wr_c1_boundary_nest` | ✅ 组合窗 |
+| R19 1px snap | 可选，未关（不挡 W1） |
 
-**W1 全波关闭条件：** 上表剩余单能力窗全部绿后，才可将 §5 W1 标 ✅。
+**状态：✅ W1 主能力真窗闭环**（R19 可选后置）。
 
 ---
 
@@ -388,7 +389,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | W | 状态 | 必须绿的 **单能力窗** | 必须绿的 **组合窗** |
 |---|------|----------------------|---------------------|
 | **W0** | **✅** | R0、R12（经 C0 schema）、R16 子集 | C0 |
-| **W1** | 🔄 核心 R3/R3b+C1 ✅；R2/R5/R9/R12b ⬜ | R2、**R3✅**、**R3b✅**、R5、R9、R12b、R19(可) | **C1✅** |
+| **W1** | **✅** | **R2✅ R3✅ R3b✅ R5✅ R9✅ R12b✅** · R19(可) | **C1✅** |
 | **W2** | ⬜ | R4、R4b、R5、R11、R13、R18(可)、R21(可) | C2、C7(可) |
 | **W3** | ⬜ | R7、R7b、R10 | C3 |
 | **W4** | ⬜ | R8、R21(若未做) | C4、C8(可) |
@@ -450,7 +451,8 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
-| **2.8** | **W1 核心**：R3/R3b/C1 真窗 ✅；`BoundaryCache` + metrics `boundary_*`；W1 全波仍 🔄（R2/R5/R9/R12b 未关） |
+| **2.9** | **W1 ✅ 全波**：R2/R5/R9/R12b 真窗 + measure cache + debug repaint；R19 仍可选 |
+| 2.8 | **W1 核心**：R3/R3b/C1；`BoundaryCache` own-content 嵌套 |
 | 2.7 | **主表落地时长**：§2 / §3 每行 **窗口 1200×800** + **推荐 RUN_SECONDS**；§2.5 关闭用全表 |
 | 2.6 | **真窗规格**：U15 **1200×800**；U16 **RUN_SECONDS≥5** + §2.5 分类加长；W0 示例同步 |
 | 2.5 | **W0 ✅ 闭环**：`present_policy`；r0 + c0；wrgate |
@@ -465,4 +467,4 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 ## 11. 一句话
 
 > **每个主能力真窗：1200×800 · RUN_SECONDS≥5 · 按能力加长观察指标（§2 主表 + §2.5 全表）。**  
-> **W0 ✅**；**W1 核心 R3/R3b+C1 ✅**（Picture BoundaryCache）；全波 W1 待 R2/R5/R9/R12b 单窗。
+> **W0 ✅ · W1 ✅**（Boundary / paint 隔离 / Picture / measure cache / debug repaint）。**下一步 W2** Retained 层 Present。
