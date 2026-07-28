@@ -8,7 +8,7 @@
 > **P4 细卡：** [`ENGINE_PHASE_P4.md`](./ENGINE_PHASE_P4.md) · **P5 细卡：** [`ENGINE_PHASE_P5.md`](./ENGINE_PHASE_P5.md)  
 > **P4–P7 大纲：** [`ENGINE_PHASE_P4_P7_OUTLINE.md`](./ENGINE_PHASE_P4_P7_OUTLINE.md)  
 > **控件需求（后置 P7）：** [`antd/`](./antd/)  
-> **控件工业级渲染基座（设计）：** [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)
+> **自定义控件渲染基座（统一真源 · 含域地图/L0 预留/排期）：** [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)
 
 ---
 

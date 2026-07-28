@@ -5,7 +5,7 @@
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)  
 > **收口：** §22 主路径 + D1–D8 **已收口**（见 **§25**）。全表仍有 B/C/D → **不得** 宣称「已对齐 Flutter 全量渲染」。  
-> **下一层（控件工业级渲染性能）：** [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（Flutter 帧语义 · Boundary 缓存 · 层 Present · 六域门禁；**非** 本表画 API 清零）。
+> **下一层（自定义控件渲染基座 · 统一真源）：** [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（§R · 域/L0 地图 · W0–W6；**非** 本表画 API 清零）。
 
 ### 闭环（流程已闭合 · §22 主路径已收口 · 全表对照未清零）
 
