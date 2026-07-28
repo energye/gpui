@@ -220,6 +220,9 @@ func NewImageFilterLayer(blurRadius float64) *ImageFilterLayer {
 func (i *ImageFilterLayer) Kind() string { return "image_filter" }
 
 // PictureLayer holds a retained picture (or a re-record flag for P3 raster).
+// When Picture.Ops is non-empty, the display list can be Replay'd onto a Context
+// without re-walking the RO tree. NeedsRaster still tracks dirty vs static reuse
+// in RasterizeDirty (flag/stats path — not dirty-rect Present).
 type PictureLayer struct {
 	id      uint64
 	Picture Picture
@@ -235,6 +238,28 @@ func NewPictureLayer() *PictureLayer {
 func (p *PictureLayer) LayerID() uint64   { return p.id }
 func (p *PictureLayer) Children() []Layer { return nil }
 func (p *PictureLayer) Kind() string      { return "picture" }
+
+// SetPicture installs a recorded Picture and clears NeedsRaster when Valid
+// with a non-empty display list.
+func (p *PictureLayer) SetPicture(pic Picture) {
+	if p == nil {
+		return
+	}
+	p.Picture = pic
+	if pic.Valid && len(pic.Ops) > 0 {
+		p.NeedsRaster = false
+	} else {
+		p.NeedsRaster = true
+	}
+}
+
+// Record replaces the layer's Picture via a recorder callback.
+func (p *PictureLayer) Record(fn func(*PictureRecorder)) {
+	if p == nil {
+		return
+	}
+	p.SetPicture(RecordPicture(fn))
+}
 
 // BoundaryLayer is a repaint-boundary root: independent dirty / raster unit.
 type BoundaryLayer struct {

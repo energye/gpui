@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.16** | 日期：2026-07-28  
+> **版本：1.17** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -110,6 +110,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | Scheduler / Vsync | `ui/scheduler` | 接口 A；DRM 真 VSync A/C |
 | 帧/资源指标 | `MetricsStore` + 示例 JSON | 分位/hitch/RSS/CPU 部分 A |
 | dirty-rect Present | render 有；UI 仍全清全画 | **未完成（序13）** |
+| Picture 显示列表 | scene PictureRecorder/Replay | **A/C（序13 主项；≠ partial Present）** |
 
 ```text
 一帧：ScheduleFrame → layout → paint → FramePacket → RasterizeDirty
@@ -157,7 +158,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-DRAW-IMAGE-RECT | 源/目标矩形 | Canvas.drawImageRect | 裁剪缩放 | DrawImageBuf dst | DrawImageEx | RenderImage | A/B | context_image.go | 精细 src 矩形部分 B |
 | FC-DRAW-IMAGE-NINE | 九宫格 | Canvas.drawImageNine | 可拉伸边框 | **DrawImageNine** | DrawImageNine | — | **A** | image_draw.go · image_draw_test | 均匀 center 矩形；Atlas UI 仍开 |
 | FC-DRAW-PARAGRAPH | 绘段落 | Canvas.drawParagraph | 所有正式文本 | DrawText/Colored 子集 | DrawString* | RenderText | C | ui/rendering/text.go | 非 Paragraph 模型 |
-| FC-DRAW-PICTURE | 回放 Picture | Canvas.drawPicture | 层缓存回放 | — | 无 UI Picture 显示列表 | PictureLayer 仅 Valid | C/D | ui/scene/picture.go | 序13 显示列表 |
+| FC-DRAW-PICTURE | 回放 Picture | Canvas.drawPicture | 层缓存回放 | Picture.Replay | Context 绘 | PictureLayer+Ops | **A/C** | scene/picture.go · picture_test | 显示列表 rect 子集；**非** dirty-rect Present |
 
 ---
 
@@ -294,8 +295,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FPic-RECORDER | Picture 录制 | PictureRecorder+Canvas | 层缓存 | — | 无完整 recorder 对 UI | Picture Valid 旗 | C/D | ui/scene/picture.go | 显示列表 序13 |
-| FPic-PLAYBACK | 回放 | drawPicture | 静态层复用 | RasterizeDirty 统计复用 | — | NeedsRaster 旗 | C | scene/rasterize.go | 非 GPU 纹理复用证明 |
+| FPic-RECORDER | Picture 录制 | PictureRecorder+Canvas | 层缓存 | **PictureRecorder** | — | Picture.Ops | **A/C** | scene/picture.go · picture_test | Fill/StrokeRect 子集；非全量 Canvas recorder |
+| FPic-PLAYBACK | 回放 | drawPicture | 静态层复用 | **Picture.Replay** · RasterizeDirtyToContext | Context | NeedsRaster+Ops | **A/C** | picture.go · rasterize.go · picture_test | CPU 回放+脏跳过；非 GPU 纹理缓存；非 dirty Present |
 | FPic-TO-IMAGE | 栅格化 | Picture.toImage | 截图 | — | Export/Image | — | B | context | — |
 | FPic-DISPOSE | 释放 | dispose | 防泄漏 | — | — | — | C | — | 规范待补 |
 
@@ -345,7 +346,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FL-CLIP-RECT | 裁剪层 | ClipRectLayer | 溢出 | — | — | ClipRectLayer | A | layer.go | Build 使用有限 |
 | FL-CLIP-RRECT | 圆角裁剪层 | ClipRRectLayer | 卡片 | **RenderClipRRect** | — | **ClipRRectLayer** RO→BuildLayerTree | **A/C** | clip_rrect.go · layer_build · clip_rrect_layer_test · cliplayer | **RO 主路径 A**；Present 仍全画 → C 边界；无 per-corner |
 | FL-CLIP-PATH | 路径裁剪层 | ClipPathLayer | 异形 | — | — | **无** | D | — | — |
-| FL-PICTURE | 图层层 | PictureLayer | 录制内容 | — | — | PictureLayer+NeedsRaster | C | picture.go | 无 op 缓冲 |
+| FL-PICTURE | 图层层 | PictureLayer | 录制内容 | Record/SetPicture | Replay | **PictureLayer+Ops+NeedsRaster** | **A/C** | picture.go · layer · picture_test | 显示列表有；Present 仍全清 |
 | FL-TEXTURE | 纹理层 | TextureLayer | 视频 | — | DrawGPUTexture | **无** | D | — | — |
 | FL-PLATFORM-VIEW | 平台视图 | PlatformViewLayer | WebView/地图 | — | — | **无** | D | — | — |
 | FL-SHADER-MASK | 着色遮罩 | ShaderMaskLayer | 渐变淡出列表 | — | Mask 近似 | **无** | D | — | — |
@@ -446,7 +447,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 |----|------|
 | `render.PresentFrameDamage*` | B（render 有） |
 | UI `PipelineApp` 每帧 force 全清 + 全 paint | **C** |
-| 真 dirty-rect Present / Picture 显示列表 | **D（§22 序13）** |
+| 真 dirty-rect Present | **D（§22 序13 仍开）** |
+| Picture 显示列表 record/replay | **A/C（序13 主项）** 见 FPic-* |
 
 细能力状态以 §2–§16 为准，不在此重复 RO/Layer 清单。
 
@@ -670,7 +672,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 10 | 文本/Paragraph §8 | 3,5 | ✅/🔄 | Font→RO；maxLines/ellipsis | 文本帧时；(有则) atlas | **text** |
 | 11 | 滤镜/阴影层 §10§12 | 7,8 | ✅/🔄 | Color/ImageFilter 层+Apply | CPU/RSS；saveLayer 预算 | **cliplayer** |
 | 12 | 滚动/视口 §15 | 3,7 | ✅/🔄 | index↔offset；ScrollToIndex；S5 | **bind** 上界；layout 不风暴 | **scroll** |
-| 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ⬜ | picture/damage 契约 | damage 面积等；禁全清冒充 | 专用/PerfSoak |
+| 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ✅/🔄 | 显示列表 record/replay | damage 面积等；禁全清冒充 | 专用/PerfSoak |
 | — | 指标骨架本身 §20 | — | 🔄 | scheduler metrics | 全表逐步接线 | **perfsoak** |
 
 **不在本表、不挡渲染基座收口：** Ant 控件、完整 IME 编辑器、PlatformView 产品态等（母表可留 D 行，标远期）。
@@ -687,7 +689,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 10 | **Font 接通 RO ✅**；仍开：**全量 Paragraph**；族名字符串 API；装饰/strut/locale |
 | 11 | **ColorFilter/ImageFilter 场景层+UI Apply ✅**；仍开：Backdrop 产品；Present 滤镜合成；真 saveLayer 隔离；drop-shadow UI |
 | 12 | **可变 index↔offset/ScrollToIndex ✅**；仍开：完整 multi-sliver；**Physics** |
-| 13 | 显示列表；dirty-rect Present |
+| 13 | **显示列表 record/replay ✅**；仍开：**dirty-rect Present**；M-DAMAGE-AREA；GPU picture 缓存 |
 | 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
 
 ### 22.3 已落地（勿回退）
@@ -707,6 +709,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
 | p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
 | VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；Physics/完整 multi-sliver 仍开 |
+| **Picture 显示列表（序13）** | `PictureRecorder` · `Picture.Replay` · `RasterizeDirtyToContext` · picture_test | rect 子集；**非** dirty-rect Present；PipelineApp 仍全清 |
 | 窗测轴 | `examples/ui_render_base_*` | — |
 
 ---
@@ -730,7 +733,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.16** | **序12** VirtualList OffsetOfIndex/IndexAtOffset/ScrollToIndex（前缀和）+ virtual_list_scroll_test；Physics/完整 multi-sliver 仍开 |
+| **1.17** | **序13** Picture 显示列表：PictureRecorder Fill/StrokeRect + Replay + RasterizeDirtyToContext；dirty-rect Present 仍开 |
+| 1.16 | **序12** VirtualList OffsetOfIndex/IndexAtOffset/ScrollToIndex（前缀和）+ virtual_list_scroll_test；Physics/完整 multi-sliver 仍开 |
 | 1.15 | **序11** ColorFilterLayer/ImageFilterLayer + LayerBuilder；UI ApplyGrayscale/Blur/ColorMatrix + 像素单测；Backdrop/Present 合成仍开 |
 | 1.14 | **序10** Font 接通 RenderText：SetFontSize + faceForSize/effectiveFace 测绘同路径 + text_font_ro_test；全量 Paragraph 仍开 |
 | 1.13 | **序9** DrawImageRounded/DrawImageNine/DrawImageBuf UI 门面 + image_draw_test + image 轴接线；Atlas 仍开 |
