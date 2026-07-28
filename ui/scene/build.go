@@ -109,6 +109,14 @@ func (b *LayerBuilder) PushImageFilter(blurRadius float64) *ImageFilterLayer {
 	return i
 }
 
+// PushBackdropFilter pushes a BackdropFilterLayer (snapshot + optional blur).
+func (b *LayerBuilder) PushBackdropFilter(blurRadius, opacity float64) *BackdropFilterLayer {
+	bl := NewBackdropFilterLayer(blurRadius, opacity)
+	b.current().Add(bl)
+	b.stack = append(b.stack, &bl.ContainerLayer)
+	return bl
+}
+
 // AddPicture appends a picture layer to the current container.
 func (b *LayerBuilder) AddPicture(needsRaster bool) *PictureLayer {
 	p := NewPictureLayer()

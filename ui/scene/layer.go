@@ -219,6 +219,29 @@ func NewImageFilterLayer(blurRadius float64) *ImageFilterLayer {
 
 func (i *ImageFilterLayer) Kind() string { return "image_filter" }
 
+// BackdropFilterLayer snapshots the parent canvas, optionally blurs it, then
+// paints children on top (Flutter BackdropFilterLayer subset / FF-BACKDROP).
+// Not a clip-local product backdrop; composite uses full-surface PushBackdropLayer.
+type BackdropFilterLayer struct {
+	ContainerLayer
+	// BlurRadius is Gaussian blur applied to the backdrop snapshot (0 = no blur).
+	BlurRadius float64
+	// Opacity is layer composite opacity (0..1; ≤0 treated as 1 at apply time).
+	Opacity float64
+}
+
+// NewBackdropFilterLayer creates a backdrop filter layer.
+func NewBackdropFilterLayer(blurRadius, opacity float64) *BackdropFilterLayer {
+	if opacity <= 0 {
+		opacity = 1
+	}
+	b := &BackdropFilterLayer{BlurRadius: blurRadius, Opacity: opacity}
+	b.id = NextLayerID()
+	return b
+}
+
+func (b *BackdropFilterLayer) Kind() string { return "backdrop_filter" }
+
 // PictureLayer holds a retained picture (or a re-record flag for P3 raster).
 // When Picture.Ops is non-empty, the display list can be Replay'd onto a Context
 // without re-walking the RO tree. NeedsRaster still tracks dirty vs static reuse

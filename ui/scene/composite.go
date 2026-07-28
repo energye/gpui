@@ -193,6 +193,26 @@ func compositeLayer(l Layer, dc *render.Context, st *CompositeStats) {
 		st.FiltersApplied++
 		return
 
+	case *BackdropFilterLayer:
+		op := t.Opacity
+		if op <= 0 {
+			op = 1
+		}
+		if op > 1 {
+			op = 1
+		}
+		// Snapshot parent → optional blur → children on top → composite.
+		dc.PushBackdropLayer(render.BlendNormal, op)
+		if t.BlurRadius > 0 {
+			dc.ApplyBlur(t.BlurRadius)
+		}
+		for _, ch := range t.Children() {
+			compositeLayer(ch, dc, st)
+		}
+		dc.PopLayer()
+		st.FiltersApplied++
+		return
+
 	case *ContainerLayer:
 		// bare container
 		for _, ch := range t.Children() {
