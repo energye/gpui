@@ -172,7 +172,7 @@ func buildImageScene(winW, winH float64, face text.Face) (*imageScene, error) {
 	root.Place(s.StatusTxt, 250, 100)
 
 	// --- Row 2: DC draw variants ---
-	root.Place(label("pc.DC: DrawImage · Ex scale · SrcRect · Rounded · Circular · Nine", 11, 0.95, 0.75, 0.4, face), 12, 196)
+	root.Place(label("UI: DrawImageBuf · Ex/SrcRect · Rounded · Circular · Nine", 11, 0.95, 0.75, 0.4, face), 12, 196)
 
 	s.DCPanel = panelBox(winW-24, 280, func(pc *rendering.PaintContext, sz rendering.Size) {
 		fillRect(pc, 0, 0, sz.Width, sz.Height, 0.12, 0.14, 0.18, 1)
@@ -183,32 +183,30 @@ func buildImageScene(winW, winH float64, face text.Face) (*imageScene, error) {
 		img := s.src
 		ox, oy := pc.OriginX, pc.OriginY
 
-		// 1) DrawImage 1:1
-		pc.DC.DrawImage(img, ox+16, oy+24)
-		// 2) DrawImageEx scaled
-		pc.DC.DrawImageEx(img, render.DrawImageOptions{
-			X: ox + 130, Y: oy + 24, DstWidth: 72, DstHeight: 72, Opacity: 1,
-		})
-		// 3) SrcRect crop (top-left 48×48 → 72×72)
+		// 1) DrawImageBuf 1:1 (UI façade)
+		rendering.DrawImageBuf(pc, img, 16, 24, 0, 0)
+		// 2) DrawImageBuf scaled
+		rendering.DrawImageBuf(pc, img, 130, 24, 72, 72)
+		// 3) SrcRect crop still via DC Ex (no UI src-rect façade yet)
 		srcR := image.Rect(0, 0, 48, 48)
 		pc.DC.DrawImageEx(img, render.DrawImageOptions{
 			X: ox + 220, Y: oy + 24, DstWidth: 72, DstHeight: 72,
 			SrcRect: &srcR, Opacity: 1,
 		})
-		// 4) Rounded
-		pc.DC.DrawImageRounded(img, ox+320, oy+24, 16)
-		// 5) Circular (center + radius)
+		// 4) Rounded — UI façade (序9)
+		rendering.DrawImageRounded(pc, img, 320, 24, 16)
+		// 5) Circular (center + radius) still DC until circular UI lands
 		pc.DC.DrawImageCircular(img, ox+460, oy+24+48, 40)
-		// 6) Nine-patch stretch
+		// 6) Nine-patch — UI façade (序9)
 		center := image.Rect(24, 24, 72, 72)
-		pc.DC.DrawImageNine(img, center, ox+530, oy+24, 160, 96)
+		rendering.DrawImageNine(pc, img, center, 530, 24, 160, 96)
 
 		// captions via DC text if font available
 		if s.face != nil {
 			pc.DC.SetFont(s.face)
 		}
 		pc.DC.SetRGBA(0.65, 0.7, 0.75, 1)
-		pc.DC.DrawString("DrawImage", ox+16, oy+140)
+		pc.DC.DrawString("DrawImageBuf", ox+8, oy+140)
 		pc.DC.DrawString("Ex scale", ox+130, oy+140)
 		pc.DC.DrawString("SrcRect", ox+220, oy+140)
 		pc.DC.DrawString("Rounded", ox+320, oy+140)

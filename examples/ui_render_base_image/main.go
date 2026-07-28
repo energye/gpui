@@ -5,7 +5,7 @@
 //
 //	RenderImage state machine (loading → ready / error)
 //	ui/io.Pool async decode (not on Layout/Paint)
-//	pc.DC DrawImage / DrawImageEx / DrawImageRounded / DrawImageCircular / DrawImageNine
+//	UI DrawImageBuf / DrawImageRounded / DrawImageNine (+ DC Ex/SrcRect/Circular)
 //	SrcRect crop sample
 //	paint-only image swap (no layout storm) + RSS metrics
 //

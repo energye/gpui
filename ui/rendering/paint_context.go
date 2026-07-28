@@ -102,18 +102,9 @@ func (pc *PaintContext) PopClip() {
 func pushClipRect(pc *PaintContext, x, y, w, h float64) { pc.PushClipRect(x, y, w, h) }
 func popClip(pc *PaintContext)                          { pc.PopClip() }
 
+// drawImageBuf is the unexported alias used by RenderImage.Paint.
 func drawImageBuf(pc *PaintContext, img *render.ImageBuf, x, y, dstW, dstH float64) {
-	if pc == nil || pc.DC == nil || img == nil || img.Disposed() {
-		return
-	}
-	ax, ay := pc.Abs(x, y)
-	if dstW <= 0 || dstH <= 0 {
-		pc.DC.DrawImage(img, ax, ay)
-		return
-	}
-	pc.DC.DrawImageEx(img, render.DrawImageOptions{
-		X: ax, Y: ay, DstWidth: dstW, DstHeight: dstH,
-	})
+	DrawImageBuf(pc, img, x, y, dstW, dstH)
 }
 
 func drawTextColored(pc *PaintContext, s string, x, y, r, g, b, a float64) {
