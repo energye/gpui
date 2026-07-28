@@ -23,8 +23,10 @@
 ```text
 L1 P0–P3 / P4 / P5     ✅
 渲染基座 §22 主路径     ✅  ENGINE_UI_RENDER_BASE §25
-自定义控件渲染基座      🔄  W0 主路径有、真窗门禁未闭环（先做 WIDGET_RENDER §2.4）；W1–W6 ⬜
-                        每能力 = 真窗 + 指标可 FAIL + 可见效果（v2.1）
+自定义控件渲染基座      🔄  ENGINE_UI_WIDGET_RENDER v2.4
+                        · 每 R 独立真窗 + 组合窗
+                        · 真窗硬指标：§20 族 A–J + FPS≥55@60 + CPU + RSS/slope
+                        · W0 须 r0+c0 带齐指标后才 ✅
 L3 Kit / 桌面深做 / IME ⏸
 ```
 

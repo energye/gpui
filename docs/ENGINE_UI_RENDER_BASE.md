@@ -462,7 +462,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 ## §20 正向性能与资源指标
 
-> **每实现一项能力就采**（§0.6 第 2 项）。定义全表如下；合入时取**相关** M-\* + 通用帧/CPU/RSS，相对 baseline 不无故回退。
+> **每实现一项能力就采**（§0.6 第 2 项）。定义全表如下；合入时取**相关** M-\* + 通用帧/CPU/RSS，相对 baseline 不无故回退。  
+> **自定义控件真窗硬门禁（FPS/CPU/RSS + 全族必采）：** [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md) **§0 U12–U14 · §2.2**（对齐本 §20.0 族 A–J）。
 
 ### 20.0 指标族
 
