@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.26** | 日期：2026-07-28  
+> **版本：1.27** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -159,7 +159,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-DRAW-IMAGE-RECT | 源/目标矩形 | Canvas.drawImageRect | 裁剪缩放 | **DrawImageRect** / DrawImageBuf | DrawImageEx | RenderImage | **A** | image_draw.go | |
 | FC-DRAW-IMAGE-NINE | 九宫格 | Canvas.drawImageNine | 可拉伸边框 | **DrawImageNine** | DrawImageNine | — | **A** | image_draw.go · image_draw_test | 均匀 center 矩形；Atlas UI 仍开 |
 | FC-DRAW-PARAGRAPH | 绘段落 | Canvas.drawParagraph | 所有正式文本 | DrawText/Colored 子集 | DrawString* | RenderText | C | ui/rendering/text.go | 非 Paragraph 模型 |
-| FC-DRAW-PICTURE | 回放 Picture | Canvas.drawPicture | 层缓存回放 | Picture.Replay | Context 绘 | PictureLayer+Ops | **A/C** | scene/picture.go · picture_test | 显示列表 rect 子集；**非** dirty-rect Present |
+| FC-DRAW-PICTURE | 回放 Picture | Canvas.drawPicture | 层缓存回放 | Picture.Replay | Context 绘 | PictureLayer+Ops | **A/C** | scene/picture.go · picture_test | rect/path/text/image 回放；**非** dirty-rect Present；非 GPU picture 缓存 |
 
 ---
 
@@ -296,8 +296,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FPic-RECORDER | Picture 录制 | PictureRecorder+Canvas | 层缓存 | **PictureRecorder** | — | Picture.Ops | **A/C** | scene/picture.go · picture_test | Fill/StrokeRect 子集；非全量 Canvas recorder |
-| FPic-PLAYBACK | 回放 | drawPicture | 静态层复用 | **Picture.Replay** · RasterizeDirtyToContext | Context | NeedsRaster+Ops | **A/C** | picture.go · rasterize.go · picture_test | CPU 回放+脏跳过；非 GPU 纹理缓存；非 dirty Present |
+| FPic-RECORDER | Picture 录制 | PictureRecorder+Canvas | 层缓存 | **PictureRecorder** | — | Picture.Ops | **A/C** | scene/picture.go · picture_test | rect+path+text+image；非全量 Canvas recorder（无 saveLayer/clip 进列表） |
+| FPic-PLAYBACK | 回放 | drawPicture | 静态层复用 | **Picture.Replay** · RasterizeDirtyToContext | Context | NeedsRaster+Ops | **A/C** | picture.go · rasterize.go · picture_test | CPU 回放 path/text/image+脏跳过；非 GPU 纹理缓存；非 dirty Present |
 | FPic-TO-IMAGE | 栅格化 | Picture.toImage | 截图 | — | Export/Image | — | B | context | — |
 | FPic-DISPOSE | 释放 | dispose | 防泄漏 | — | — | — | C | — | 规范待补 |
 
@@ -690,7 +690,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 10 | **Font+族名+装饰+样式栈 ✅**；仍开：strut/locale/选区/placeholder；全量 TextStyle |
 | 11 | **Filter/SaveLayer/DropShadow/Backdrop ✅**；仍开：clip 局部毛玻璃产品；PipelineApp 默走层 Present |
 | 12 | **可变 index↔offset/ScrollToIndex ✅**；**Clamping Physics+Fling ✅**；仍开：完整 multi-sliver；BouncingPhysics |
-| 13 | **显示列表 ✅**；**dirty-rect Present 稳态 ✅**（PresentWithAuto/force=false）；仍开：GPU picture 缓存；层树 Present 合成 |
+| 13 | **显示列表 ✅**（rect/path/text/image）；**dirty-rect Present 稳态 ✅**（PresentWithAuto/force=false）；仍开：GPU picture 缓存；列表内 clip/saveLayer；层树 Present 合成 |
 | 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
 
 ### 22.3 已落地（勿回退）
@@ -712,7 +712,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
 | VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；完整 multi-sliver 仍开 |
 | **ScrollPhysics clamp+fling（序12/D4）** | `ClampingScrollPhysics` · `Viewport.Fling/TickPhysics` · Scrollable pan end · scroll_physics_test | 无 bounce/glow；需 App 每帧 TickPhysics |
-| **Picture 显示列表（序13）** | `PictureRecorder` · `Picture.Replay` · `RasterizeDirtyToContext` · picture_test | rect 子集；非全量 Flutter recorder |
+| **Picture 显示列表（序13/D7）** | `PictureRecorder` Fill/StrokeRect+Path · DrawString · DrawImage · `Replay` · picture_test | path clone + image 引用 + text Face；非全量 Canvas recorder；非 GPU picture 缓存 |
 | **dirty-rect Present 稳态（序13）** | `PresentWithAuto` · `PaintPresentTree(force=false)` · `present_damage_test` · `damage_area_px` | 首帧/resize 仍 full；LoadOpLoad 保静态 |
 | **层 Composite walk（序8/11/13）** | `scene.CompositeToContext` · `composite_test` · Offset/Clip/Transform/Picture/Opacity/Filter | 单测像素；**PipelineApp 仍 RO paint**（待 Record 接线） |
 | **SaveLayer + ClipPath paint（序7）** | `SaveLayer/Restore` · `PushClipPath` · `PushLayerIsolated` · save_layer_test | 预算门禁；全幅隔离；无 ClipPathLayer |
@@ -741,7 +741,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.26** | **阶段 D6** PaintContext Save/Concat/PushTransform/Translate/ScaleXY/Rotate/Shear/GetTransform + transform_ctm_test |
+| **1.27** | **阶段 D7** Picture 显示列表扩展：Fill/StrokePath · DrawString · DrawImage + picture_test 像素回放；非 GPU picture 缓存 |
+| 1.26 | **阶段 D6** PaintContext Save/Concat/PushTransform/Translate/ScaleXY/Rotate/Shear/GetTransform + transform_ctm_test |
 | 1.25 | **阶段 D5** ApplyDropShadow + PushBackdrop/BackdropFilterLayer + composite walk + tests |
 | 1.24 | **阶段 D4** ClampingScrollPhysics + Viewport Fling/TickPhysics + Scrollable pan-end fling + scroll_physics_test |
 | 1.23 | **阶段 D3** LoadFaceByFamily/SetFontFamily、TextDecoration、ParagraphBuilder PushStyle + paragraph_style_test |
