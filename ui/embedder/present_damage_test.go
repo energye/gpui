@@ -101,10 +101,11 @@ func TestPaintPresentTreeCompositeOnly_PartialOnlyDirtiesHotWidget(t *testing.T)
 	}
 }
 
-// TestPaintPresentTree_SteadyFullPaintKeepsStatic: default window path (W0) must
-// repaint clean static boundaries on force=false so content survives a "clearing"
-// present (GPU LoadOpClear). After bootstrap, only hot is marked dirty; steady
-// PaintPresentTree still paints static green-ish box.
+// TestPaintPresentTree_SteadyFullPaintKeepsStatic is a CPU-context regression for
+// W0 FullPaint paint-walk behavior (static still painted when only hot is dirty).
+//
+// It does NOT close W0 by itself: ENGINE_UI_WIDGET_RENDER requires real GPU
+// window examples ui_wr_r0_fullpaint + ui_wr_c0_smoke with §2.2 metrics gates.
 func TestPaintPresentTree_SteadyFullPaintKeepsStatic(t *testing.T) {
 	const W, H = 200, 100
 	static := rendering.NewRenderColorBox(80, 80, 0, 0.7, 0, 1)

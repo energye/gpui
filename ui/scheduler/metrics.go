@@ -13,6 +13,13 @@ const HitchThresholdMs = 33.4
 // intervalRingCap is the sample window for p50/p99 frame intervals.
 const intervalRingCap = 256
 
+// Present-policy names for Metrics JSON (ENGINE_UI_WIDGET_RENDER W0+).
+const (
+	PresentPolicyFullPaint = "full_paint"
+	PresentPolicyRetained  = "retained"
+	PresentPolicyHybrid    = "hybrid"
+)
+
 // FrameMetrics is the L1 observability snapshot (F14).
 // JSON field names are stable for baseline tooling.
 type FrameMetrics struct {
@@ -51,6 +58,11 @@ type FrameMetrics struct {
 	DamageAreaPx   int64  `json:"damage_area_px,omitempty"`
 	PresentMode    string `json:"present_mode,omitempty"` // full|damage_union|damage_multi|idle
 	DamageAreaLast int64  `json:"damage_area_last_px,omitempty"`
+
+	// PresentPolicy is the window paint/present strategy name (W0+).
+	// Values: PresentPolicyFullPaint | PresentPolicyRetained | PresentPolicyHybrid.
+	// Default for PipelineApp is full_paint until W6 Retained gates pass.
+	PresentPolicy string `json:"present_policy,omitempty"`
 
 	// VSyncSource is "true" | "fallback" | "" (unknown).
 	VSyncSource string `json:"vsync_source,omitempty"`
@@ -301,6 +313,27 @@ func (s *MetricsStore) SetVSyncSource(src string) {
 	s.mu.Lock()
 	s.m.VSyncSource = src
 	s.mu.Unlock()
+}
+
+// SetPresentPolicy records the window present/paint strategy (present_policy JSON).
+// Empty policy is ignored; use PresentPolicyFullPaint / Retained / Hybrid.
+func (s *MetricsStore) SetPresentPolicy(policy string) {
+	if s == nil || policy == "" {
+		return
+	}
+	s.mu.Lock()
+	s.m.PresentPolicy = policy
+	s.mu.Unlock()
+}
+
+// PresentPolicy returns the current present_policy string (may be empty if unset).
+func (s *MetricsStore) PresentPolicy() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m.PresentPolicy
 }
 
 // SetProcessStats records RSS (KiB) and average process CPU% for JSON baselines.

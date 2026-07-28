@@ -23,10 +23,7 @@
 ```text
 L1 P0–P3 / P4 / P5     ✅
 渲染基座 §22 主路径     ✅  ENGINE_UI_RENDER_BASE §25
-自定义控件渲染基座      🔄  ENGINE_UI_WIDGET_RENDER v2.4
-                        · 每 R 独立真窗 + 组合窗
-                        · 真窗硬指标：§20 族 A–J + FPS≥55@60 + CPU + RSS/slope
-                        · W0 须 r0+c0 带齐指标后才 ✅
+自定义控件渲染基座      🔄  W0✅ r0+c0 真窗；W1–W6 ⬜（ENGINE_UI_WIDGET_RENDER v2.5）
 L3 Kit / 桌面深做 / IME ⏸
 ```
 
@@ -34,11 +31,11 @@ L3 Kit / 桌面深做 / IME ⏸
 
 ```bash
 go test ./ui/... -count=1
-go test ./ui/rendering -run 'TestS2_|TestS4_|TestS5_|TestS6_|TestM' -count=1
+go test ./examples/wrgate -count=1
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-go run ./examples/ui_render_base_geometry   # 等 ui_render_base_* ；W0 静态应可见
-go run ./examples/ui_l1_scroll
-go run ./examples/ui_render_base_perfsoak
+# 真窗统一：1200×800，RUN_SECONDS≥5（见 ENGINE_UI_WIDGET_RENDER §2.5）
+RUN_SECONDS=5 go run ./examples/ui_wr_r0_fullpaint   # W0 R0
+RUN_SECONDS=5 go run ./examples/ui_wr_c0_smoke       # W0 C0
 ```
 
 ## 约定

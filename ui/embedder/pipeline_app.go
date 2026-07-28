@@ -67,11 +67,13 @@ func (a *PipelineApp) SetOverlay(st *overlay.State) {
 }
 
 // NewPipelineApp builds a tree-driven app. Call Open then Run.
+// W0 default present policy is full_paint (steady frames repaint the whole tree).
 func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts PipelineOptions) *PipelineApp {
 	if opts.ClearA == 0 && opts.ClearR == 0 && opts.ClearG == 0 && opts.ClearB == 0 {
 		opts.ClearR, opts.ClearG, opts.ClearB, opts.ClearA = 0.10, 0.12, 0.16, 1
 	}
 	s := scheduler.New()
+	s.Metrics().SetPresentPolicy(scheduler.PresentPolicyFullPaint)
 	return &PipelineApp{
 		host:  host,
 		sched: s,
@@ -338,6 +340,10 @@ func (a *PipelineApp) Run() error {
 		// Static chrome survives via LoadOpLoad when only dirty widgets repaint.
 		force := a.forceFullPresent.Swap(false)
 		metrics := a.sched.Metrics()
+		// W0: keep policy visible on every frame path (default full_paint until W6).
+		if metrics != nil && metrics.PresentPolicy() == "" {
+			metrics.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+		}
 		job := raster.FrameJob{
 			Run: func() error {
 				out, err := presentTree(target, pipe, root, ov, clearR, clearG, clearB, clearA, force)

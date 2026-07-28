@@ -1,6 +1,6 @@
 # 自定义控件渲染基座 — Flutter 对齐（统一真源）
 
-> **版本：2.4** | 日期：2026-07-28  
+> **版本：2.6** | 日期：2026-07-28  
 > **地位：** 自定义控件 **渲染基座 + 排期 + 真窗验收** 唯一真源。  
 > **并读：** [`ENGINE_UI_RENDER_BASE.md`](./ENGINE_UI_RENDER_BASE.md)（画什么 · **§20 指标族**）· [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) · [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md)
 
@@ -29,8 +29,10 @@
 | U8 | CPU/`NewContext` 单测可作回归，**不能单独** 将任一 §R 或 W 标为完成。 |
 | U9 | 关闭某一 W / 某一 R：代码 + **对应单能力真窗绿** +（若该 W 含组合）**相关组合窗绿** + 回写本文状态。 |
 | **U12** | **每个真窗必须对齐母表 §20.0 指标族 A–J**（全族必采，见 **§2.2**）；禁止只报业务字段、省略 CPU/RSS/FPS。 |
-| **U13** | **流畅：动画/滚动类真窗稳态 wall FPS 按 60Hz 档门禁（默认 `fps_wall≥55`，见 §2.2.2）**；必须输出 `vsync_source`（fallback 禁止宣称锁 60Hz）。 |
+| **U13** | **流畅：动画/滚动类真窗稳态 FPS 按 60Hz 档门禁（默认 `fps_interval≥55` 或等价，见 §2.2.2）**；必须输出 `vsync_source`（fallback 禁止宣称锁 60Hz）。 |
 | **U14** | **CPU + 内存硬观测：** `cpu_pct_avg` / `cpu_ui_pct` / `cpu_raster_pct`；`rss_start/end/peak/slope(/after_close)`；长跑/压力窗 slope 与 CPU 有 **FAIL 线**（§2.2.3–2.2.4）。 |
+| **U15** | **真窗统一几何：客户区 `1200×800` 逻辑像素**（所有单能力窗与组合窗默认；禁止用更小窗关闭能力，除非 README 声明且仅限调试、**不得**标 ✅）。 |
+| **U16** | **真窗最小运行时间 `RUN_SECONDS≥5`**（默认 5）；**按主能力延长** 以便观察 FPS/CPU/RSS/hitch（见 **§2.5 推荐时长表**）。短于 5s 的跑法只允许本地调试，**不得**用于关闭 R/W。 |
 
 ### 0.3 施工节奏
 
@@ -54,12 +56,14 @@ L3–L5 Kit                       ← 暂缓
 
 ## 2. 主能力 §R 与 **单能力真窗**（1 : 1）
 
-> **规则（U5）：** 下表每一行 **必须** 有独立目录 `examples/ui_wr_<solo>/`，禁止「多项挤一个 main 就关闭多项」。  
-> 组合窗见 **§3**，只做集成，**不替代** 本表。
+> **规则（U5 + U15 + U16）：**  
+> - 每一行 **必须** 有独立目录 `examples/ui_wr_<solo>/`，禁止「多项挤一个 main 就关闭多项」。  
+> - 默认 **窗口 1200×800**、**运行 ≥5s**；时长按 §2.5 加长。  
+> - 组合窗见 **§3**，只做集成，**不替代** 本表。
 
 | ID | 能力 | 单能力真窗包名 | 指标门禁（须 FAIL） | 可见效果（README 必写） | 波次 | 状态 |
 |----|------|----------------|--------------------|-------------------------|------|------|
-| **R0** | **FullPaint 正确性**（静+动同屏，防 Clear 丢静态） | `ui_wr_r0_fullpaint` | **§2.2 全族** + policy + 静/动存在；持续 tick 则 **fps 门禁** | 静色块始终在；动块持续变 | **W0** | 🔄 代码有路径，本窗未闭环 |
+| **R0** | **FullPaint 正确性**（静+动同屏，防 Clear 丢静态） | `ui_wr_r0_fullpaint` | **§2.2 全族** + policy + 静/动存在；持续 tick 则 **fps 门禁** | 静色块始终在；动块持续变 | **W0** | **✅** |
 | **R1** | 局部 NeedsLayout | `ui_wr_r1_layout` | `layout_count` 符合「只脏子树」约定 | 仅目标子节点高度变，邻域不抖 | W1+ | ⬜ |
 | **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | `paint_count`/visits 可解释 | 仅目标节点变色 | W1 | ⬜ |
 | **R3** | Boundary 真缓存 | `ui_wr_r3_boundary` | `boundary_rerecord` 仅脏；**`boundary_skip>0`** | 静 boundary 不动；脏每帧变 | **W1** | ⬜ |
@@ -79,7 +83,7 @@ L3–L5 Kit                       ← 暂缓
 | **R13** | Hit ≡ 绘 | `ui_wr_r13_hit` | 点击→命中 ID（脚本或日志断言） | 点哪高亮哪 | W2+ | ⬜ |
 | **R14** | 缓存预算/淘汰 | `ui_wr_r14_cache_budget` | `cache_entries`、RSS 可控 | 超预算仍正确 | **W6** | ⬜ |
 | **R15** | UI/raster 所有权·长跑 | `ui_wr_r15_soak` | 时长、无崩、无读回 | soak 不挂 | W2+ | ⬜ |
-| **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup` | 首帧 full；policy | 首帧有内容；恢复不黑 | **W0** | 🔄 部分有代码 |
+| **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup`（W0 由 C0 `warmup:true` 覆盖子集） | 首帧 full；policy | 首帧有内容；恢复不黑 | **W0** 子集 ✅ · 完整窗 ⬜ |
 | **R17** | 不可见降频 | `ui_wr_r17_bg_throttle` | 后台 interval 明显变大 | 后置 | 后置 | ⬜ |
 | **R18** | SaveLayer+预算 | `ui_wr_r18_savelayer` | `savelayer_count`/reject | 组内半透明对；超预算可观测 | W2/W5 | ⬜ |
 | **R19** | 1px/设备像素对齐 | `ui_wr_r19_snap` | 约定 scale 下采样或截图门禁 | 1px 线清晰不糊 | W1–W2 | ⬜ |
@@ -124,14 +128,16 @@ L3–L5 Kit                       ← 暂缓
 
 | 窗类型 | `target_hz` | **硬 FAIL** | 说明 |
 |--------|-------------|-------------|------|
-| **动画 / 滚动 / 持续 tick**（R6、R7、R7b、C3、C5、C10 等） | 60 | **`fps_wall < 55`** 或 **`interval_p95_ms > 22`**（约 1.3×16.7） | 目标 60fps 档；55 为同机抖动余量 |
-| **同上 · 长 soak ≥60s** | 60 | 另：**`hitch_rate_per_min` 超 README 预算**（默认建议 ≤5，可场景收紧） | 与母表 hitch 方向一致 |
-| **静态 / 正确性为主**（R0 静+慢动、R13 点击、R19 snap） | 60 或标明 | **`fps_wall < 30`** 仅当持续 schedule 时；或只要求 presents 与内容门禁 | 静态可不强刷 60；若 ModePersistent 空转仍应 ≥55 |
-| **任意窗** | — | **必须输出 `vsync_source`** | `fallback` 时 **禁止** 文案宣称「锁 60Hz」；FPS 门禁仍按上表（软件 tick 也要可测） |
+| **动画 / 滚动 / 持续 tick**（R6、R7、R7b、C3、C5、C10 等） | 60 | **有效 FPS &lt; 55**（优先 `fps_interval`，否则 `fps_wall`）或 **`interval_p95_ms > 22`** | 目标 60fps 档；须 **§2.5 推荐时长** 再判 |
+| **同上 · 长 soak**（表内 ≥60s） | 60 | 另：**`hitch_rate_per_min` 超 README 预算**（默认建议 ≤5） | 与母表 hitch 一致 |
+| **正确性 + 持续 tick**（R0 等） | 60 | 运行 **≥5s** 后：有效 FPS ≥55（同 60 档） | 短于 5s **不得**关 R |
+| **任意窗** | — | **必须输出 `vsync_source`** | `fallback` 禁止宣称锁 60Hz |
 
 ```text
-fps_wall = present_count / elapsed_sec   // 或 complete 帧若可区分，须在 JSON 标明公式
-interval_* 来自 MetricsStore 环形分位（已接）
+fps_wall     = present_count / elapsed_sec   // 含开关窗，仅参考
+fps_interval = 1000 / interval_avg_ms        // 稳态帧率，门禁优先
+窗口默认     = 1200×800 逻辑像素（U15）
+最小 RUN_SECONDS = 5（U16）；更长见 §2.5
 ```
 
 #### 2.2.3 CPU 硬门禁（族 D）
@@ -191,8 +197,44 @@ interval_* 来自 MetricsStore 环形分位（已接）
 
 #### 2.2.6 与旧「公共字段」关系
 
-原只写了 interval/hitch/rss 部分 → **不足**。  
-现 **U12–U14 + §2.2.1–2.2.5** 为硬要求；§2 各 R 行「指标」列 = **在全族必采之上的附加门禁**。
+**U12–U16 + §2.2.1–2.2.5 + §2.5** 为硬要求；§2 各 R 行「指标」列 = **在全族必采之上的附加门禁**。
+
+### 2.5 真窗几何与运行时长（U15 / U16）
+
+#### 统一规格
+
+| 项 | 值 | 说明 |
+|----|-----|------|
+| **客户区大小** | **1200 × 800** 逻辑像素 | 单能力窗与组合窗默认；HiDPI 下物理 = 1200×scale × 800×scale |
+| **最小运行** | **`RUN_SECONDS ≥ 5`** | 默认 5；环境变量可加大、**不可**用 &lt;5 关闭能力 |
+| **采样** | 全程 `ProcessTracker.Sample` + 帧间隔环 | 结束时打 §2.2 JSON |
+| **标题** | 含 ability id | 如 `gpui ui_wr_r3_boundary` |
+
+```bash
+# 标准跑法（所有 ui_wr_*）
+export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+RUN_SECONDS=5 go run ./examples/ui_wr_<id>     # 最低
+RUN_SECONDS=30 go run ./examples/ui_wr_<id>    # 推荐观察 CPU/RSS
+```
+
+#### 按主能力 / 组合 **推荐最小时长**（可加长，勿缩短关闭）
+
+| 类别 | 适用 ID（例） | **推荐 RUN_SECONDS** | 观察重点 |
+|------|---------------|----------------------|----------|
+| 正确性 / 策略 / 命中 / snap | R0, R1, R2, R5, R13, R19, R22, C0 | **5**（默认） | 内容对、policy、schema、fps_interval |
+| Boundary / 合成位 / debug 重绘 | R3, R3b, R12b, C1 | **8–10** | skip/rerecord 稳定、可视化 |
+| 层 Present / 多 damage / DPR | R4, R4b, R11, R21, C2, C7 | **10–15** | damage_ratio、双脏、resize 一波 |
+| SaveLayer / Filter | R18, R20, C6 | **10** | 层计数、拒批、局部脏 |
+| **动画层** | R6, C5 | **15–30** | fps≥55、p95、hitch、静背景 |
+| **虚拟列表 / 滚复用 / 异步图** | R7, R7b, R10, C3 | **30–60** | bind、scroll_rerecord、fps、RSS slope |
+| Overlay / 壳 | R8, C4, C8 | **10–15** | 主 paint 不涨、命中 |
+| **预算 / 压力** | R14, C9 | **60** | cache_entries、RSS slope FAIL |
+| **Soak 长跑** | R15, C10 | **120–300** | 无崩、hitch_rate、CPU/RSS |
+| 指标 schema 专用 | R12 | **5** | 字段全集 |
+| 后台降频 | R17 | **30**（含最小化段） | interval 变大 |
+| 策略切换 | C11 | **15** | policy 切换后静不丢 |
+
+**原则：** 需要看 **RSS slope / hitch_rate / 滚动复用** 的，默认就按上表加长，不要用 5s 蒙混。
 
 ### 2.3 作者纪律
 
@@ -206,8 +248,8 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 ## 3. 组合真窗口测试（多主能力 · 不替代 §2）
 
-> **规则（U6）：** 组合窗验证 **交互与回归**；关闭 W 时，除单能力窗外，还须跑通该 W 列出的组合窗。  
-> 组合窗 **不能** 用来把未单测的 R 标绿。
+> **规则（U6 + U15 + U16）：** 组合窗同样 **1200×800**、**≥5s**（时长跟所覆盖最重能力走 §2.5）。  
+> 只做集成回归；**不能** 用组合窗代替单能力窗关闭 R。
 
 | 组合 ID | 覆盖的主能力（至少） | 真窗包名 | 要证明的集成效果 | 指标要点 | 波次 |
 |---------|----------------------|----------|------------------|----------|------|
@@ -226,29 +268,32 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 ---
 
-## 4. W0 重评与关闭清单
+## 4. W0 关闭清单（2026-07-28 落地）
 
 ### 4.1 结论
 
 | 项 | 状态 |
 |----|------|
-| 稳态全树 paint 代码 | 有 |
-| CPU 单测 | 有（**不足**） |
-| **`ui_wr_r0_fullpaint` / `ui_wr_c0_smoke` 真窗门禁** | **无 → W0 不得标 ✅** |
+| 稳态全树 paint 代码 | ✅ |
+| `present_policy=full_paint` → Metrics/JSON | ✅ `scheduler` + `NewPipelineApp` |
+| CPU 单测（不单独关闭 W0） | ✅ 已标注 |
+| **`ui_wr_r0_fullpaint` 真窗门禁** | ✅ PASS（GPU X11；§2.2 JSON + policy + presents + fps_interval） |
+| **`ui_wr_c0_smoke` 组合门禁** | ✅ PASS（schema + warmup + policy） |
+| 共享 `examples/wrgate` 门禁/报告 | ✅ 含 unit 测 FAIL 路径 |
 
-**状态：🔄 主路径已改 · 真窗未闭环。**
+**状态：✅ W0 真窗门禁闭环**（R16 独立完整窗仍可后补；C0 已覆盖 WarmUp 子集）。
 
-### 4.2 W0 必须完成
+### 4.2 关闭项对照
 
-| # | 内容 |
-|---|------|
-| W0.1 | Metrics：`present_policy=full_paint` |
-| W0.2 | 落地 **`examples/ui_wr_r0_fullpaint`**（U5） |
-| W0.3 | 落地 **`examples/ui_wr_c0_smoke`**（U6） |
-| W0.4 | 两窗均：§2.2 **全族指标** + FPS/CPU/RSS 硬门禁 + README 效果 |
-| W0.5 | resize/首帧：`ui_wr_r16_warmup` 或并入 R0 的明确子门禁 |
-| W0.6 | 单测注明不能替代真窗 |
-| W0.7 | JSON 含 `fps_wall`、`cpu_pct_avg`、`rss_slope_kb_per_min`、`present_policy`（§2.2 模板） |
+| # | 内容 | 状态 |
+|---|------|------|
+| W0.1 | Metrics：`present_policy=full_paint` | ✅ |
+| W0.2 | **`examples/ui_wr_r0_fullpaint`** | ✅ |
+| W0.3 | **`examples/ui_wr_c0_smoke`** | ✅ |
+| W0.4 | 两窗：§2.2 全族 + FPS/CPU/RSS + README | ✅ |
+| W0.5 | 首帧/WarmUp：C0 `warmup:true` + R0 WarmUp | ✅ 子集 |
+| W0.6 | 单测注明不单独关闭 W0 | ✅ |
+| W0.7 | JSON：`fps_wall`/`fps_interval`/`cpu_*`/`rss_*`/`present_policy` | ✅ |
 
 ---
 
@@ -256,7 +301,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 | W | 状态 | 必须绿的 **单能力窗** | 必须绿的 **组合窗** |
 |---|------|----------------------|---------------------|
-| **W0** | 🔄 | R0、R12（字段）、R16 | C0 |
+| **W0** | **✅** | R0、R12（经 C0 schema）、R16 子集 | C0 |
 | **W1** | ⬜ | R2、R3、R3b、R5、R9、R12b、R19(可) | C1 |
 | **W2** | ⬜ | R4、R4b、R5、R11、R13、R18(可)、R21(可) | C2、C7(可) |
 | **W3** | ⬜ | R7、R7b、R10 | C3 |
@@ -319,7 +364,9 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
-| **2.4** | **补齐真窗硬指标**：对齐母表 §20.0 族 A–J；**FPS≥55@60 档、CPU、RSS/slope 硬门禁**（U12–U14·§2.2）；修正此前未写全 |
+| **2.6** | **真窗规格**：U15 **1200×800**；U16 **RUN_SECONDS≥5** + §2.5 分能力加长表；W0 示例同步 |
+| 2.5 | **W0 ✅ 闭环**：`present_policy`；r0 + c0；wrgate |
+| 2.4 | 真窗硬指标 §20.0 / FPS/CPU/RSS（U12–U14） |
 | 2.3 | U1–U11；每 R 独立真窗；组合 C0–C11 |
 | 2.2 | R3b…R22 补强 |
 | 2.1 | 真窗硬规则；W0 降 🔄 |
@@ -329,7 +376,5 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 ## 11. 一句话
 
-> **以前：真窗要求有，但 CPU / 内存 / FPS60+ / §20 全族 未写成硬门禁。**  
-> **现在：§0 U12–U14 + §2.2 已对齐母表 §20.0，并给出 FPS/CPU/RSS 默认 FAIL 线。**  
-> **每个 `ui_wr_*` 都必须打出全族 JSON；动画/滚动窗 wall FPS 按 60 档门禁。**  
-> **下一步仍是 W0：`ui_wr_r0_fullpaint` + `ui_wr_c0_smoke` 带齐指标。**
+> **真窗规格：1200×800、RUN_SECONDS≥5，按能力加长（§2.5）。**  
+> **W0 ✅** 已按该规格；**下一步 W1** Boundary。

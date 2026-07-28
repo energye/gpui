@@ -7,6 +7,29 @@ import (
 	"github.com/energye/gpui/ui/scheduler"
 )
 
+func TestMetrics_PresentPolicy_JSONKey(t *testing.T) {
+	s := scheduler.New().Metrics()
+	if s.PresentPolicy() != "" {
+		t.Fatalf("fresh store policy=%q want empty", s.PresentPolicy())
+	}
+	s.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	if s.PresentPolicy() != scheduler.PresentPolicyFullPaint {
+		t.Fatalf("policy=%q", s.PresentPolicy())
+	}
+	snap := s.Snapshot()
+	if snap.PresentPolicy != scheduler.PresentPolicyFullPaint {
+		t.Fatalf("snapshot policy=%q", snap.PresentPolicy)
+	}
+	b, err := s.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	if !containsAll(js, `"present_policy"`) || !containsAll(js, `full_paint`) {
+		t.Fatalf("JSON missing present_policy full_paint: %s", js)
+	}
+}
+
 func TestMetrics_PaintCountAndPercentiles(t *testing.T) {
 	s := scheduler.New().Metrics()
 	s.SetPaintCount(42)
