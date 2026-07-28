@@ -92,6 +92,23 @@ func (v *RenderViewport) ScrollBy(dx, dy float64) {
 	v.SetScrollOffset(v.scrollX+dx, v.scrollY+dy)
 }
 
+// ScrollToIndex scrolls so item index sits at the top of the viewport when content
+// is a *VirtualList (fixed or variable extent). Uses VirtualList.ScrollOffsetForIndex
+// (prefix-sum for variable rows — not index×fixedExtent). Returns false if content
+// is not a VirtualList. Clamping uses the viewport max scroll after layout.
+func (v *RenderViewport) ScrollToIndex(index int) bool {
+	if v == nil {
+		return false
+	}
+	list, ok := v.Content().(*VirtualList)
+	if !ok || list == nil {
+		return false
+	}
+	y := list.ScrollOffsetForIndex(index)
+	v.SetScrollOffset(v.scrollX, y)
+	return true
+}
+
 // SetMaxScrollY clamps vertical scroll; <0 means no explicit clamp (until Layout sets one).
 func (v *RenderViewport) SetMaxScrollY(max float64) {
 	if v == nil {

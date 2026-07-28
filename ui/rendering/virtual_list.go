@@ -128,7 +128,14 @@ func (v *VirtualList) ensurePrefix() {
 // offsetOf returns the Y origin of item index (0-based).
 func (v *VirtualList) offsetOf(index int) float64 {
 	if !v.variable() {
-		return float64(index) * v.ItemExtent
+		if index < 0 {
+			return 0
+		}
+		ext := v.ItemExtent
+		if ext <= 0 {
+			ext = 40
+		}
+		return float64(index) * ext
 	}
 	v.ensurePrefix()
 	if index < 0 {
@@ -138,6 +145,71 @@ func (v *VirtualList) offsetOf(index int) float64 {
 		return v.prefix[len(v.prefix)-1]
 	}
 	return v.prefix[index]
+}
+
+// OffsetOfIndex returns the content-space Y of the top of item index.
+// Variable lists use the same prefix-sum extents as layout (not index×fixedExtent).
+// Indices are clamped: <0 → 0; ≥ItemCount → total content height (end sentinel).
+func (v *VirtualList) OffsetOfIndex(index int) float64 {
+	if v == nil {
+		return 0
+	}
+	if index < 0 {
+		return 0
+	}
+	if index >= v.ItemCount {
+		return v.ContentHeight()
+	}
+	return v.offsetOf(index)
+}
+
+// IndexAtOffset returns the item index whose vertical span contains content Y
+// (offset[i] ≤ y < offset[i]+extent[i]). Clamped to [0, ItemCount-1].
+// Uses the same prefix (variable) or fixed-extent arithmetic as rebind.
+func (v *VirtualList) IndexAtOffset(y float64) int {
+	if v == nil || v.ItemCount <= 0 {
+		return 0
+	}
+	if !v.variable() {
+		ext := v.ItemExtent
+		if ext <= 0 {
+			ext = 40
+		}
+		if y <= 0 {
+			return 0
+		}
+		idx := int(y / ext)
+		if idx >= v.ItemCount {
+			return v.ItemCount - 1
+		}
+		return idx
+	}
+	return v.indexContaining(y)
+}
+
+// ScrollOffsetForIndex returns the scrollY that places item index at the top of
+// the viewport window (content offset of that row). Callers typically pass this
+// to RenderViewport.SetScrollOffset / ScrollToIndex. Clamped to valid indices.
+func (v *VirtualList) ScrollOffsetForIndex(index int) float64 {
+	if v == nil || v.ItemCount <= 0 {
+		return 0
+	}
+	if index < 0 {
+		index = 0
+	}
+	if index >= v.ItemCount {
+		index = v.ItemCount - 1
+	}
+	return v.offsetOf(index)
+}
+
+// BoundRange returns the currently mounted index window [first, lastExclusive).
+// Empty list or no bind → (0, 0).
+func (v *VirtualList) BoundRange() (first, lastExclusive int) {
+	if v == nil {
+		return 0, 0
+	}
+	return v.first, v.last
 }
 
 // indexContaining returns the item index whose vertical span contains y

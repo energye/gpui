@@ -1,6 +1,6 @@
 # UI 渲染基座 — Flutter 母表 × gpui
 
-> **版本：1.15** | 日期：2026-07-28  
+> **版本：1.16** | 日期：2026-07-28  
 > **范围：** 渲染基座（画 / 排 / 合 / 滚 / 调度 + 帧与资源指标）。**不是** 整站 Flutter、不是 Ant 控件。  
 > **唯一文档：** 本文件。  
 > **交叉：** [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md) · [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)
@@ -406,10 +406,10 @@ go run ./examples/ui_l1_scroll              # 滚动
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
 | FScroll-OFFSET | 滚动偏移 | Viewport offset | 列表 | SetScrollOffset/ScrollBy | — | Viewport+Offset | A | viewport.go | 默认只 MarkNeedsPaint |
 | FScroll-CLIP | 视口裁剪 | clip canvas | 离屏不画 | PushClip 于 Viewport.Paint | — | — | A | viewport.go | — |
-| FScroll-VIRTUAL | 虚拟化 | SliverChild | 长列表 | VirtualList 固定行高 | — | — | A | virtual_list.go | 固定行高 A；可变高见 FScroll-VAR-EXTENT C |
+| FScroll-VIRTUAL | 虚拟化 | SliverChild | 长列表 | VirtualList 固定行高 | — | — | A | virtual_list.go | 固定行高 A；可变高见 FScroll-VAR-EXTENT |
 | FScroll-CACHE | cacheExtent | cacheExtent | 预创建窗外 | CacheExtent | — | VirtualList | A | virtual_list.go | — |
 | FScroll-NEST | 嵌套滚动 | NestedScroll/竞技 | 父子列表 | Scrollable.Parent 移交 | — | gestures+scrollable | A | nested_scroll_test.go | — |
-| FScroll-VAR-EXTENT | 可变行高 | Sliver 可变 | 聊天列表 | ItemExtentAt | — | VirtualList | **C** | virtual_list.go | 前缀和 MVP；完整 sliver 仍缺 |
+| FScroll-VAR-EXTENT | 可变行高 | Sliver 可变 | 聊天列表 | ItemExtentAt · **OffsetOfIndex/IndexAtOffset/ScrollToIndex** | — | VirtualList | **A/C** | virtual_list.go · virtual_list_scroll_test | 前缀和 index↔offset + 跳转；**非**完整 multi-sliver；Physics 仍 D |
 | FScroll-PHYSICS | 物理回弹 | ScrollPhysics | iOS/Android 感 | — | — | — | D | — | 产品感后置 |
 
 ---
@@ -669,7 +669,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 9 | 图像 §7 | 3,7 | ✅/🔄 | Nine/Round UI；dispose | RSS/Dispose；解码不堵 UI | **image** |
 | 10 | 文本/Paragraph §8 | 3,5 | ✅/🔄 | Font→RO；maxLines/ellipsis | 文本帧时；(有则) atlas | **text** |
 | 11 | 滤镜/阴影层 §10§12 | 7,8 | ✅/🔄 | Color/ImageFilter 层+Apply | CPU/RSS；saveLayer 预算 | **cliplayer** |
-| 12 | 滚动/视口 §15 | 3,7 | 🔄 | virtual_list；S5/S6 | **bind** 上界；layout 不风暴 | **scroll** |
+| 12 | 滚动/视口 §15 | 3,7 | ✅/🔄 | index↔offset；ScrollToIndex；S5 | **bind** 上界；layout 不风暴 | **scroll** |
 | 13 | Picture/局部 Present §9§18.3 | 2,8,11 | ⬜ | picture/damage 契约 | damage 面积等；禁全清冒充 | 专用/PerfSoak |
 | — | 指标骨架本身 §20 | — | 🔄 | scheduler metrics | 全表逐步接线 | **perfsoak** |
 
@@ -686,7 +686,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 9 | **Nine/Round UI ✅**；仍开：Atlas；Circular UI 门面；精细 SrcRect UI |
 | 10 | **Font 接通 RO ✅**；仍开：**全量 Paragraph**；族名字符串 API；装饰/strut/locale |
 | 11 | **ColorFilter/ImageFilter 场景层+UI Apply ✅**；仍开：Backdrop 产品；Present 滤镜合成；真 saveLayer 隔离；drop-shadow UI |
-| 12 | 完整可变 sliver；Physics |
+| 12 | **可变 index↔offset/ScrollToIndex ✅**；仍开：完整 multi-sliver；**Physics** |
 | 13 | 显示列表；dirty-rect Present |
 | 指标 | RSS slope 字段；GPU 提交进 JSON；baseline 自动对比 |
 
@@ -706,7 +706,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **Image Nine/Round UI（序9）** | `image_draw.go` · `image_draw_test` · image 轴 | Atlas/Circular UI 仍开；per-corner 圆角图仍开 |
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
 | p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
-| VirtualList 可变高前缀和 | virtual_list | **C**；完整 sliver 仍开 |
+| VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；Physics/完整 multi-sliver 仍开 |
 | 窗测轴 | `examples/ui_render_base_*` | — |
 
 ---
@@ -730,7 +730,8 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 版本 | 说明 |
 |------|------|
-| **1.15** | **序11** ColorFilterLayer/ImageFilterLayer + LayerBuilder；UI ApplyGrayscale/Blur/ColorMatrix + 像素单测；Backdrop/Present 合成仍开 |
+| **1.16** | **序12** VirtualList OffsetOfIndex/IndexAtOffset/ScrollToIndex（前缀和）+ virtual_list_scroll_test；Physics/完整 multi-sliver 仍开 |
+| 1.15 | **序11** ColorFilterLayer/ImageFilterLayer + LayerBuilder；UI ApplyGrayscale/Blur/ColorMatrix + 像素单测；Backdrop/Present 合成仍开 |
 | 1.14 | **序10** Font 接通 RenderText：SetFontSize + faceForSize/effectiveFace 测绘同路径 + text_font_ro_test；全量 Paragraph 仍开 |
 | 1.13 | **序9** DrawImageRounded/DrawImageNine/DrawImageBuf UI 门面 + image_draw_test + image 轴接线；Atlas 仍开 |
 | 1.12 | **序8** RenderTransform 逆 CTM hit（中心 rotate+scale）+ transform_hit_test；通用 pushTransform/Present 合成仍开 |
