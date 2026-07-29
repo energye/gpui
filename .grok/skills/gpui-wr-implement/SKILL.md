@@ -71,6 +71,19 @@ disable_model_invocation: false
 - `WAVE`（波次，如 W3）
 - 当前 `状态`（⬜ / ✅ / 🔄）
 
+### 0.1b 读 WIDGET_RENDER §3 组合表（若该 R 被组合窗覆盖）
+
+`read_file docs/ENGINE_UI_WIDGET_RENDER.md` §3 组合真窗口测试表，**按该 R id 筛「覆盖的主能力」列**——若该 R 出现在某组合窗的覆盖列表里（如 R7 出现在 C3 的「R4+R7+R7b+R10」），取：
+
+- `COMPOSITE_ID`（如 C3）
+- `COMPOSITE_PACKAGE`（如 `ui_wr_c3_list_scroll`）
+- 组合窗「指标要点」列（如 C3 = `bind、scroll_rerecord、p95`）——**这是组合窗专属指标字段**
+- 组合窗「要证明的集成效果」列（如 C3 = 「虚拟列表 + 滚复用 + 异步图格」）
+
+**⚠ 组合窗专属指标字段（如 C3 的 `scroll_rerecord`）也要在本 skill 第 4 步「指标接线」里接**——否则 wr-close 模式 1 写组合窗时会发现字段没接，又得回流 wr-implement 补。§3 组合表是该 R 会被集成进哪些组合窗的权威来源，**禁止跳过本步**（即使该 R 当前没组合窗，也要 筛一遍 §3 确认）。
+
+**若该 R 不在任何组合窗覆盖列表里**：本步输出「无组合窗覆盖」，继续 §0.2。
+
 ### 0.2 读 RENDER_BASE §22.1 施工表该 R 对应的序
 
 `read_file docs/ENGINE_UI_RENDER_BASE.md`，定位 §22.1 施工表，按该 R 能力找对应序（如 R7 虚拟化宿主 → 序 12 滚动/视口）：

@@ -64,7 +64,7 @@ L3–L5 Kit                       ← 暂缓
 
 | ID | 能力 | 单能力真窗包名 | **窗口** | **推荐 RUN_SECONDS** | 指标门禁（须 FAIL） | 可见效果（README 必写） | 波次 | 状态 |
 |----|------|----------------|----------|----------------------|--------------------|-------------------------|------|------|
-| **R0** | **FullPaint 正确性**（静+动同屏，防 Clear 丢静态） | `ui_wr_r0_fullpaint` | **1200×800** | **5**（观察 15） | **§2.2 全族** + policy + 静/动存在；持续 tick 则 **fps 门禁** | 静色块始终在；动块持续变 | **W0** | **✅** |
+| **R0** | **FullPaint 正确性**（静+动同屏，防 Clear 丢静态） | `ui_wr_r0_fullpaint` | **1200×800** | **5**（观察 15） | **§2.2 全族** + policy + 静/动存在；持续 tick 则 **fps 门禁** | 静色块始终在；动块持续变 | **W0** | **🔄** |
 | **R1** | 局部 NeedsLayout | `ui_wr_r1_layout` | **1200×800** | **5** | `layout_count` 符合「只脏子树」约定 | 仅目标子节点高度变，邻域不抖 | W1+ | ⬜ |
 | **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | **1200×800** | **5** | `paint_count`/visits 可解释 | 仅目标节点变色 | **W1** | **✅** |
 | **R3** | Boundary 真缓存 | `ui_wr_r3_boundary` | **1200×800** | **10** | `boundary_rerecord` 仅脏；**`boundary_skip>0`** | 静 boundary 不动；脏每帧变 | **W1** | **✅** |
@@ -84,7 +84,7 @@ L3–L5 Kit                       ← 暂缓
 | **R13** | Hit ≡ 绘 | `ui_wr_r13_hit` | **1200×800** | **5** | 点击→命中 ID（脚本或日志断言） | 点哪高亮哪 | **W2** | **✅** |
 | **R14** | 缓存预算/淘汰 | `ui_wr_r14_cache_budget` | **1200×800** | **60** | `cache_entries`、**RSS slope FAIL** | 超预算仍正确 | **W6** | ⬜ |
 | **R15** | UI/raster 所有权·长跑 | `ui_wr_r15_soak` | **1200×800** | **300** | 时长、无崩、无读回；hitch/CPU/RSS | soak 不挂 | W2+ | ⬜ |
-| **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup`（W0 由 C0 覆盖子集） | **1200×800** | **5** | 首帧 full；policy | 首帧有内容；恢复不黑 | **W0** 子集 ✅ · 完整窗 ⬜ |
+| **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup`（W0 由 C0 覆盖子集） | **1200×800** | **5** | 首帧 full；policy | 首帧有内容；恢复不黑 | **W0** 子集 🔄 · 完整窗 ⬜ |
 | **R17** | 不可见降频 | `ui_wr_r17_bg_throttle` | **1200×800** | **30** | 后台 interval 明显变大 | 后置 | 后置 | ⬜ |
 | **R18** | SaveLayer+预算 | `ui_wr_r18_savelayer` | **1200×800** | **10** | `savelayer_count`/reject | 组内半透明对；超预算可观测 | **W2** | **✅** |
 | **R19** | 1px/设备像素对齐 | `ui_wr_r19_snap` | **1200×800** | **5** | 约定 scale 下采样或截图门禁 | 1px 线清晰不糊 | W1–W2 | ⬜ |
@@ -342,26 +342,26 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 | 项 | 状态 |
 |----|------|
-| 稳态全树 paint 代码 | ✅ |
-| `present_policy=full_paint` → Metrics/JSON | ✅ `scheduler` + `NewPipelineApp` |
-| CPU 单测（不单独关闭 W0） | ✅ 已标注 |
-| **`ui_wr_r0_fullpaint` 真窗门禁** | ✅ PASS（GPU X11；§2.2 JSON + policy + presents + fps_interval） |
-| **`ui_wr_c0_smoke` 组合门禁** | ✅ PASS（schema + warmup + policy） |
-| 共享 `examples/wrgate` 门禁/报告 | ✅ 含 unit 测 FAIL 路径 |
+| 稳态全树 paint 代码 | 🔄 |
+| `present_policy=full_paint` → Metrics/JSON | 🔄 |
+| CPU 单测（不单独关闭 W0） | 🔄 |
+| **`ui_wr_r0_fullpaint` 真窗门禁** | 🔄 PASS（GPU X11；§2.2 JSON + policy + presents + fps_interval） |
+| **`ui_wr_c0_smoke` 组合门禁** | 🔄 PASS（schema + warmup + policy） |
+| 共享 `examples/wrgate` 门禁/报告 | 🔄 含 unit 测 FAIL 路径 |
 
-**状态：✅ W0 真窗门禁闭环**（R16 独立完整窗仍可后补；C0 已覆盖 WarmUp 子集）。
+**状态：🔄 W0 推翻重写**（R16 独立完整窗仍可后补；C0 已覆盖 WarmUp 子集）。
 
 ### 4.2 关闭项对照
 
 | # | 内容 | 状态 |
 |---|------|------|
-| W0.1 | Metrics：`present_policy=full_paint` | ✅ |
-| W0.2 | **`examples/ui_wr_r0_fullpaint`** | ✅ |
-| W0.3 | **`examples/ui_wr_c0_smoke`** | ✅ |
-| W0.4 | 两窗：§2.2 全族 + FPS/CPU/RSS + README | ✅ |
-| W0.5 | 首帧/WarmUp：C0 `warmup:true` + R0 WarmUp | ✅ 子集 |
-| W0.6 | 单测注明不单独关闭 W0 | ✅ |
-| W0.7 | JSON：`fps_wall`/`fps_interval`/`cpu_*`/`rss_*`/`present_policy` | ✅ |
+| W0.1 | Metrics：`present_policy=full_paint` | 🔄 |
+| W0.2 | **`examples/ui_wr_r0_fullpaint`** | 🔄 |
+| W0.3 | **`examples/ui_wr_c0_smoke`** | 🔄 |
+| W0.4 | 两窗：§2.2 全族 + FPS/CPU/RSS + README | 🔄 |
+| W0.5 | 首帧/WarmUp：C0 `warmup:true` + R0 WarmUp | 🔄 |
+| W0.6 | 单测注明不单独关闭 W0 | 🔄 |
+| W0.7 | JSON：`fps_wall`/`fps_interval`/`cpu_*`/`rss_*`/`present_policy` | 🔄 |
 
 ---
 
@@ -409,7 +409,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 | W | 状态 | 必须绿的 **单能力窗** | 必须绿的 **组合窗** |
 |---|------|----------------------|---------------------|
-| **W0** | **✅** | R0、R12（经 C0 schema）、R16 子集 | C0 |
+| **W0** | **🔄 W0 推翻重写** | R0、R12（经 C0 schema）、R16 子集 | C0 |
 | **W1** | **✅** | **R2✅ R3✅ R3b✅ R5✅ R9✅ R12b✅** · R19(可) | **C1✅** |
 | **W2** | **✅** | **R4✅ R4b✅ R5✅ R11✅ R13✅ R18✅** · R21(可) R19(可) | **C2✅ C7✅** |
 | **W3** | ⬜ | R7、R7b、R10 | C3 |
@@ -473,6 +473,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 | 版本 | 说明 |
 |------|------|
 | **3.1** | **W2 ✅ 全波主路径**：R11/R13/R18 + C7；R21/R19 独立窗仍可选 |
+| 3.2 | **W0 推翻重写**：R0 / C0 全波状态降级（进行中） |
 | 3.0 | **W2 核心**：R4/R4b/C2 retained Present（CompositeOnly + damage_multi） |
 | 2.9 | **W1 ✅ 全波**：R2/R5/R9/R12b 真窗 + measure cache + debug repaint；R19 仍可选 |
 | 2.8 | **W1 核心**：R3/R3b/C1；`BoundaryCache` own-content 嵌套 |

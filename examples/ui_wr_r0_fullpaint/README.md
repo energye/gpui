@@ -11,7 +11,7 @@ RUN_SECONDS=15 go run ./examples/ui_wr_r0_fullpaint   # observe CPU/RSS (recomme
 ```
 
 **Window:** client **1200×800** (U15, fixed). **RUN_SECONDS &lt; 5 → FAIL** (cannot close R0).  
-**Close duration:** **5s** min; **15s** for better CPU/RSS observation (WIDGET_RENDER §2.5).
+**Close duration:** **5s** min; **15s** for better CPU/RSS observation (WIDGET_RENDER §2.5). **推翻重写中** — 全波状态降级。
 
 ## Visible effects
 
