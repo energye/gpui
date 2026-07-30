@@ -127,15 +127,17 @@ func main() {
 		SurfaceAreaPx: int64(winW * winH),
 		Warmup:        true,
 		Extra: map[string]any{
-			"covers":       []string{"R0", "R12", "R16"},
-			"client_px":    "1200x800",
-			"run_seconds":  secs,
-			"static_cells": sc.staticCells,
-			"label_count":  sc.labelCount,
-			"hud":          wrkit.HUDEnabled(),
-			"depcheck":     "passed",
-			"quality_bar":  "U17+U18 integration",
-			"r16_note":     "WarmUp=true subset; full R16 window optional post-W0",
+			"covers":           []string{"R0", "R12", "R16"},
+			"client_px":        "1200x800",
+			"run_seconds":      secs,
+			"static_cells":     sc.staticCells,
+			"label_count":      sc.labelCount,
+			"hud":              wrkit.HUDEnabled(),
+			"depcheck":         "passed",
+			"quality_bar":      "U17+U18 integration",
+			"r16_note":         "WarmUp=true subset; full R16 window optional post-W0",
+			"impl_interaction": "R0 static survives Clear · R12 schema 集成 · R16 WarmUp 首帧内容共存；hot 每 tick MarkNeedsPaint 驱动 metrics 采样，不动 R0/R12/R16 单能力门禁",
+			"regions":          "TopBar/Legend/Body-Static/Body-Hot/ExtraBody/HUD = 6 区共存同屏",
 		},
 	})
 
@@ -189,66 +191,67 @@ type scene struct {
 
 func buildScene(w, h float64) *scene {
 	s := &scene{}
-	root := rendering.NewAbsoluteBox(w, h)
-	root.Background = &rendering.Color{R: 0.10, G: 0.11, B: 0.14, A: 1}
-	s.Root = root
+	// wrkit.NewShell: TopBar + Legend(8 行) + Body + LiveHUD  (§3.1.1 C 窗基线)
+	shell := wrkit.NewShell(w, h,
+		"C0 smoke · R0 FullPaint + R12 schema + R16 WarmUp · integration",
+		[]string{
+			"R0 FullPaint + R12 schema + R16 WarmUp",
+			"static survives Clear each frame",
+			"warmup=true first present (R16)",
+			"§2.2 schema required (R12)",
+			"hot marks dirty each tick",
+			"LiveHUD bottom band (U18)",
+			"Steady → Spike → Recover",
+			"integration only — not R0/R12/R16 solo",
+		},
+	)
+	s.Root = shell.Root
+	s.hud = shell.HUD
 
-	// Panel layout (local Place inside each region — same map as R0, lighter density):
-	//   TopBar · Legend · Static 3×3 · Hot · LiveHUD
+	// §3.1.1 要求 C 窗 ≥6 区 Panel：TopBar/Legend 已占 2，Body 内分两独立子区 +
+	// 右侧 ExtraBody 区，凑成 Body-Static / Body-Hot / ExtraBody = 3 个能力专属区，
+	// 加 TopBar/Legend/HUD = 共 6 区，每个能力至少一个专属区域共存同屏。
+	body := shell.Body
+	bw, bh := body.W, body.H
 
-	top := wrkit.NewPanel(w, 48, 0.12, 0.15, 0.20, 1)
-	top.PlaceOn(root, 0, 0)
-	top.LabelAt("C0 smoke · R0 FullPaint + R12 schema + R16 WarmUp", 15, 16, 14, 0.85, 0.90, 0.98)
-	s.labelCount++
-
-	leg := wrkit.NewPanel(280, 300, 0.11, 0.13, 0.17, 1)
-	leg.PlaceOn(root, 16, 60)
-	leg.LabelAt("C0 covers", 13, 12, 10, 0.55, 0.75, 0.95)
-	s.labelCount++
-	for i, ln := range []string{
-		"R0 FullPaint + R12 schema + R16 WarmUp",
-		"static survives Clear",
-		"warmup first present",
-		"§2.2 schema required",
-		"hot marks dirty each tick",
-		"LiveHUD bottom band",
-		"Steady → Spike → Recover",
-		"not a substitute for R0 solo",
-	} {
-		leg.LabelAt(ln, 12, 12, 36+float64(i)*28, 0.70, 0.80, 0.90)
-		s.labelCount++
-	}
-
-	const cell, gap = 48.0, 6.0
-	grid := wrkit.NewPanel(280, 300, 0.10, 0.12, 0.16, 1)
-	grid.PlaceOn(root, 320, 60)
-	grid.LabelAt("STATIC 3x3 (R0 subset)", 13, 12, 10, 0.65, 0.85, 0.95)
+	// Body 子区 1：STATIC 4×3 (R0 subset 静存活，Clear 下不动)
+	const cell, gap = 52.0, 6.0
+	static := wrkit.NewPanel(bw*0.42, bh, 0.10, 0.12, 0.16, 1)
+	static.PlaceOn(body.Box, 0, 0)
+	static.LabelAt("STATIC 4x3 (R0 · survives Clear)", 13, 12, 10, 0.65, 0.85, 0.95)
 	s.labelCount++
 	for r := 0; r < 3; r++ {
-		for c := 0; c < 3; c++ {
-			grid.ColorAt(cell, cell,
-				16+float64(c)*(cell+gap), 40+float64(r)*(cell+gap),
+		for c := 0; c < 4; c++ {
+			static.ColorAt(cell, cell,
+				14+float64(c)*(cell+gap), 38+float64(r)*(cell+gap),
 				0.18+0.12*float64(c), 0.40+0.10*float64(r), 0.55, 1, true)
 			s.staticCells++
 		}
 	}
-
-	hot := wrkit.NewPanel(560, 300, 0.10, 0.11, 0.14, 1)
-	hot.PlaceOn(root, 620, 60)
-	hot.LabelAt("HOT pulse", 13, 12, 10, 0.95, 0.50, 0.35)
+	static.LabelAt("extra static strip", 12, 14, 38+3*(cell+gap)+8, 0.60, 0.70, 0.85)
 	s.labelCount++
-	s.hotB = hot.ColorAt(140, 140, 24, 48, 0.95, 0.30, 0.20, 1, true)
-	hot.LabelAt("extra static", 12, 200, 48, 0.60, 0.70, 0.85)
-	s.labelCount++
-	for i := 0; i < 4; i++ {
-		hot.ColorAt(36, 36, 200, 72+float64(i)*44, 0.25, 0.35, 0.55-0.05*float64(i), 1, true)
+	for i := 0; i < 3; i++ {
+		static.ColorAt(36, 36, 14, 38+3*(cell+gap)+44+float64(i)*42, 0.25, 0.35, 0.55-0.05*float64(i), 1, true)
 		s.staticCells++
 	}
 
-	if wrkit.HUDEnabled() {
-		s.hud = wrkit.NewLiveHUD(w, hudH)
-		root.Place(s.hud.Box, 0, h-hudH)
-	}
+	// Body 子区 2：HOT (R0 动点 + 集成 schema/first present 指示)
+	hot := wrkit.NewPanel(bw*0.58, bh, 0.10, 0.11, 0.14, 1)
+	hot.PlaceOn(body.Box, bw*0.42, 0)
+	hot.LabelAt("HOT pulse (each tick MarkNeedsPaint)", 13, 12, 10, 0.95, 0.50, 0.35)
+	s.labelCount++
+	s.hotB = hot.ColorAt(140, 140, 24, 48, 0.95, 0.30, 0.20, 1, true)
+	hot.LabelAt("WarmUp first content band", 12, 180, 48, 0.60, 0.80, 0.95)
+	s.labelCount++
+	hot.LabelAt("JSON stdout = §2.2 A–J schema", 11, 180, 78, 0.55, 0.75, 0.85)
+	s.labelCount++
+
+	// 第 6 区：ExtraBody band（独立 Panel，提示「集成」边界 + 集成效果说明）
+	extra := wrkit.NewPanel(bw, 36, 0.09, 0.10, 0.12, 1)
+	extra.PlaceOn(body.Box, 0, bh-36)
+	extra.LabelAt("integration: static+hot+WarmUp+schema共存·不动R0/R12/R16单能力门禁", 11, 12, 14, 0.70, 0.85, 0.90)
+	s.labelCount++
+
 	return s
 }
 

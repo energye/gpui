@@ -1,19 +1,29 @@
 // Command ui_wr_r4b_multidamage is the R4b gate: two distant dirty hotspots;
 // DirtyLayerIDs lists both; middle static stays; damage not full-screen.
 //
+// Quality bar (wr-close 模式 2 · §2.6 · U17/U18/U20):
+//
+//	wrkit Shell + Legend≥5 + LiveHUD + PhaseClock + EnsureUIFace + multi-region Panel
+//	distant dual hots (TL+BR) + middle static survives + damage_multi independent scissors
+//
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=15 go run ./examples/ui_wr_r4b_multidamage
+//
+// Gates: present_policy=retained, fps_interval≥55, dirty_layer_id_max≥2,
+// damage_multi_frames≥1, static_cells≥8; §2.2 full family A–J.
+// NOTE: retained/CompositeOnly 下 boundary_skip=0 是引擎正确语义——静态靠
+// GPU LoadOpLoad 保像素，不靠 Picture 缓存重放；故不对 boundary_skip 设门禁。
 package main
 
 import (
 	"fmt"
 	"math"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/examples/wrgate"
+	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
@@ -22,20 +32,29 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 )
 
+const (
+	winW, winH = 1200, 800
+	hudD       = 72.0
+	closeSecs  = 15
+)
+
 func main() {
-	secs := runSeconds(15)
-	if secs < 5 {
-		fmt.Fprintln(os.Stderr, "FAIL: RUN_SECONDS must be >= 5 to close R4b (U16)")
-		os.Exit(1)
+	secs := wrkit.RunSeconds(closeSecs)
+	wrkit.RequireMinRun(secs, "R4b")
+	fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: R4b multi damage quality bar — %ds @ 1200x800\n", secs)
+
+	if _, path, err := wrkit.EnsureUIFace(); err != nil {
+		fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: WARN font: %v — labels may be blank\n", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: font ready (%s)\n", path)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: R4b multi damage — %ds @ 1200x800\n", secs)
 
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	const winW, winH = 1200, 800
 	win, err := exhost.Open(exhost.Options{
-		Width: winW, Height: winH, Title: "gpui ui_wr_r4b_multidamage",
+		Width: winW, Height: winH,
+		Title: "gpui ui_wr_r4b_multidamage",
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "FAIL: window open (needs_gpu_window): %v\n", err)
@@ -55,9 +74,42 @@ func main() {
 	})
 	app.SetPresentPolicy(scheduler.PresentPolicyRetained)
 
+	phases := wrkit.NewPhaseClock(4.0, 8.0) // Steady 0–4 · Spike 4–8 · Recover
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) {
-		sc.onTick(dt)
+		ph := phases.Advance(dt)
+		sc.onTick(dt, ph)
 		proc.Sample()
+		if wrkit.HUDEnabled() && sc.hud != nil {
+			sc.hud.NoteTick(dt)
+			snap := app.Metrics().Snapshot()
+			fps := 0.0
+			if snap.AvgFrameIntervalMs > 1e-6 {
+				fps = 1000.0 / snap.AvgFrameIntervalMs
+			}
+			policy := snap.PresentPolicy
+			if policy == "" {
+				policy = scheduler.PresentPolicyRetained
+			}
+			_, _, _, multiN := app.DamageStats()
+			maxDirty := app.MaxDirtyLayerIDCount()
+			gateOK := fps >= 55 || phases.Elapsed() < 2
+			if snap.P95FrameIntervalMs > 22 && phases.Elapsed() >= 2 {
+				gateOK = false
+			}
+			sc.hud.Update(wrkit.Snap{
+				AbilityID:   "R4b",
+				Phase:       ph,
+				FPS:         fps,
+				P95Ms:       snap.P95FrameIntervalMs,
+				Policy:      policy,
+				PresentMode: snap.PresentMode,
+				PaintCount:  snap.PaintCount,
+				Presents:    app.PresentCount(),
+				Core:        fmt.Sprintf("dirty_max=%d multi=%d cells=%d", maxDirty, multiN, sc.staticCells),
+				GateOK:      gateOK,
+				Extra:       "TL+BR distant hots · mid static survives · damage_multi independent scissors",
+			})
+		}
 		app.ScheduleFrame()
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
@@ -105,7 +157,17 @@ func main() {
 			"damage_multi_frames":  multiN,
 			"dirty_layer_id_max":   maxDirty,
 			"last_dirty_layer_ids": lastIDs,
-			"hotspots":             "TL orange + BR cyan; mid gray static",
+			"hotspots":             "TL orange + BR cyan; mid gray static band",
+			"static_cells":         sc.staticCells,
+			"label_count":          sc.labelCount,
+			"phases":               "Steady/Spike/Recover",
+			"regions":              "TopBar/Legend/TLHot/MidStatic/BRHot/HUD",
+			"impl_correctness":     "retained dual distant hots keep independent DirtyLayerIDs; union AABB may be large but damage_multi keeps scissors separate",
+			"impl_dirty":           "TL+BR each MarkNeedsPaint every tick; mid static never dirty",
+			"impl_cache":           "retained/CompositeOnly下静态靠GPU LoadOpLoad保像素；boundary_skip=0是正确语义",
+			"impl_edge":            "Spike doubles TL+BR pulse rate; Recover returns to Steady pace",
+			"impl_fail":            "policy≠retained / dirty_max<2 / multi<1 / fps<55 / static blanks",
+			"impl_visible":         "LiveHUD dirty_max/multi/cells; TL orange + BR cyan pulse; mid gray static",
 		},
 	})
 	rep.DamageRatio = avgRatio
@@ -139,17 +201,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: damage_multi_frames=%d want ≥1 (independent scissors for distant dirties)\n", multiN)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: PASS dirty_max=%d multi_frames=%d union_dmg_avg=%.4f\n",
-		maxDirty, multiN, avgRatio)
-}
-
-func runSeconds(def int) int {
-	if v := os.Getenv("RUN_SECONDS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
-		}
+	if sc.staticCells < 8 {
+		fmt.Fprintf(os.Stderr, "FAIL: static_cells=%d want ≥8 (mid static proof)\n", sc.staticCells)
+		os.Exit(1)
 	}
-	return def
+	fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: PASS dirty_max=%d multi_frames=%d union_dmg_avg=%.4f cells=%d labels=%d\n",
+		maxDirty, multiN, avgRatio, sc.staticCells, sc.labelCount)
 }
 
 type tick struct{ on func(dt float64) }
@@ -161,47 +218,111 @@ func (t *tick) Tick(dt float64) bool {
 	return true
 }
 
-type demoScene struct {
-	Root  *rendering.AbsoluteBox
-	mid   *rendering.RenderColorBox
-	hotTL *rendering.RenderColorBox
-	hotBR *rendering.RenderColorBox
-	phase float64
+type scene4b struct {
+	Root        *rendering.AbsoluteBox
+	hotTL       *rendering.RenderColorBox
+	hotBR       *rendering.RenderColorBox
+	hud         *wrkit.LiveHUD
+	phaseTL     float64
+	phaseBR     float64
+	staticCells int
+	labelCount  int
 }
 
-func buildScene(w, h float64) *demoScene {
-	s := &demoScene{}
-	root := rendering.NewAbsoluteBox(w, h)
-	root.Background = &rendering.Color{R: 0.07, G: 0.08, B: 0.10, A: 1}
-	s.Root = root
+func buildScene(w, h float64) *scene4b {
+	s := &scene4b{}
+	shell := wrkit.NewShell(w, h,
+		"R4b retained · distant dual hots · DirtyLayerIDs · mid static survives",
+		[]string{
+			"retained policy · CompositeOnly + damage",
+			"TL orange hot — MarkNeedsPaint each tick",
+			"BR cyan hot — MarkNeedsPaint each tick",
+			"mid gray static — never dirty between hots",
+			"damage_multi independent scissors (not union)",
+			"dirty_layer_id_max ≥ 2 (two distant hots)",
+			"Spike accelerates both hots; Recover steady",
+			"LiveHUD: dirty_max / multi / cells",
+		},
+	)
+	s.Root = shell.Root
+	s.hud = shell.HUD
+	body := shell.Body
+	s.labelCount = 8 // legend lines
 
-	// Large mid static — must not dirty when only TL/BR pulse.
-	s.mid = rendering.NewRenderColorBox(400, 300, 0.22, 0.24, 0.28, 1)
-	s.mid.SetRepaintBoundary(true)
-	root.Place(s.mid, 400, 250)
+	// Body layout: TL hot | mid static | BR hot (three regions side by side).
+	regionW := body.W / 3.0
+	// --- TL hot region (left) ---
+	tlPanel := wrkit.NewPanel(regionW-8, body.H-16, 0.20, 0.12, 0.10, 1)
+	tlPanel.PlaceOn(body.Box, 6, 8)
+	tlPanel.LabelAt("TL HOT (dirty · damage source)", 12, 10, 8, 0.95, 0.55, 0.30)
+	s.labelCount++
+	s.hotTL = tlPanel.ColorAt(120, 120, 24, 36, 0.95, 0.45, 0.10, 1, true)
+	tlPanel.LabelAt("orange pulse — DirtyLayerID", 11, 24, 168, 0.90, 0.70, 0.55)
+	s.labelCount++
+	for i := 0; i < 3; i++ {
+		tlPanel.ColorAt(36, 36, 156, 60+float64(i)*40, 0.30, 0.20, 0.15, 1, true)
+		s.staticCells++
+	}
+	tlPanel.LabelAt("static corners — survive retained", 11, 12, 200, 0.55, 0.65, 0.70)
+	s.labelCount++
 
-	s.hotTL = rendering.NewRenderColorBox(100, 100, 0.95, 0.45, 0.1, 1)
-	s.hotTL.SetRepaintBoundary(true)
-	root.Place(s.hotTL, 40, 40)
+	// --- Mid static region (center, never dirty) ---
+	midPanel := wrkit.NewPanel(regionW-8, body.H-16, 0.22, 0.24, 0.28, 1)
+	midPanel.PlaceOn(body.Box, regionW+2, 8)
+	midPanel.LabelAt("MID STATIC (never dirty)", 12, 10, 8, 0.65, 0.80, 0.90)
+	s.labelCount++
+	// Dense mid static grid 3×3 to prove retained preserves pixels between distant hots.
+	const cell, gap = 40.0, 6.0
+	for r := 0; r < 3; r++ {
+		for c := 0; c < 3; c++ {
+			midPanel.ColorAt(cell, cell,
+				16+float64(c)*(cell+gap), 32+float64(r)*(cell+gap),
+				0.40+0.05*float64(c), 0.45+0.05*float64(r), 0.50, 1, true)
+			s.staticCells++
+		}
+	}
+	midPanel.LabelAt("static band between hots — retained keeps", 11, 12, 32+3*(cell+gap)+8, 0.55, 0.75, 0.80)
+	s.labelCount++
 
-	s.hotBR = rendering.NewRenderColorBox(100, 100, 0.15, 0.75, 0.85, 1)
-	s.hotBR.SetRepaintBoundary(true)
-	root.Place(s.hotBR, 1050, 650)
+	// --- BR hot region (right) ---
+	brPanel := wrkit.NewPanel(regionW-8, body.H-16, 0.10, 0.16, 0.20, 1)
+	brPanel.PlaceOn(body.Box, 2*regionW+6, 8)
+	brPanel.LabelAt("BR HOT (dirty · damage source)", 12, 10, 8, 0.30, 0.75, 0.85)
+	s.labelCount++
+	s.hotBR = brPanel.ColorAt(120, 120, 24, 36, 0.15, 0.75, 0.85, 1, true)
+	brPanel.LabelAt("cyan pulse — DirtyLayerID", 11, 24, 168, 0.55, 0.85, 0.90)
+	s.labelCount++
+	for i := 0; i < 3; i++ {
+		brPanel.ColorAt(36, 36, 156, 60+float64(i)*40, 0.15, 0.20, 0.30, 1, true)
+		s.staticCells++
+	}
+	brPanel.LabelAt("static corners — survive retained", 11, 12, 200, 0.55, 0.65, 0.70)
+	s.labelCount++
+
 	return s
 }
 
-func (s *demoScene) onTick(dt float64) {
-	if s == nil {
+func (s *scene4b) onTick(dt float64, phase string) {
+	if s == nil || (s.hotTL == nil && s.hotBR == nil) {
 		return
 	}
-	s.phase += dt
-	o := 0.5 + 0.5*math.Sin(s.phase*4)
+	rate := 4.0
+	switch phase {
+	case wrkit.PhaseSpike:
+		rate = 10.0
+	case wrkit.PhaseRecover:
+		rate = 3.0
+	}
+	s.phaseTL += dt * rate
+	s.phaseBR += dt * (rate + 1.5) // slightly off-phase to keep independent DirtyLayerIDs
+	oTL := 0.5 + 0.5*math.Sin(s.phaseTL)
+	oBR := 0.5 + 0.5*math.Sin(s.phaseBR)
 	if s.hotTL != nil {
-		s.hotTL.R, s.hotTL.G, s.hotTL.B = 0.95, 0.3+0.4*o, 0.1
+		s.hotTL.R, s.hotTL.G, s.hotTL.B = 0.95, 0.30+0.40*oTL, 0.10+0.10*math.Cos(s.phaseTL*0.7)
 		s.hotTL.MarkNeedsPaint()
 	}
 	if s.hotBR != nil {
-		s.hotBR.R, s.hotBR.G, s.hotBR.B = 0.1, 0.5+0.3*o, 0.85
+		s.hotBR.R, s.hotBR.G, s.hotBR.B = 0.10+0.10*math.Cos(s.phaseBR*0.7), 0.55+0.30*oBR, 0.85
 		s.hotBR.MarkNeedsPaint()
 	}
 }

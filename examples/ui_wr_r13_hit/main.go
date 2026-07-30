@@ -1,19 +1,27 @@
 // Command ui_wr_r13_hit is the R13 gate: hit test ≡ paint identity (DebugName).
 // Scripted probes at known centers (no reliance on manual click alone).
 //
+// Quality bar (wr-close 模式 2 · §2.6 · U17/U18/U20):
+//
+//	wrkit Shell + Legend≥5 + LiveHUD + PhaseClock + EnsureUIFace + multi-region Panel
+//	multi-color/shape hit targets + empty area + scripted probes + live pointer highlight
+//
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=5 go run ./examples/ui_wr_r13_hit
+//
+// Gates: present_policy=full_paint, fps_interval≥55, scripted_ok==scripted_total,
+// §2.2 full family A–J.
 package main
 
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/examples/wrgate"
+	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
@@ -22,20 +30,29 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 )
 
+const (
+	winW, winH = 1200, 800
+	hudD       = 72.0
+	closeSecs  = 5
+)
+
 func main() {
-	secs := runSeconds(5)
-	if secs < 5 {
-		fmt.Fprintln(os.Stderr, "FAIL: RUN_SECONDS must be >= 5 to close R13 (U16)")
-		os.Exit(1)
+	secs := wrkit.RunSeconds(closeSecs)
+	wrkit.RequireMinRun(secs, "R13")
+	fmt.Fprintf(os.Stderr, "ui_wr_r13_hit: R13 hit ≡ paint quality bar — %ds @ 1200x800\n", secs)
+
+	if _, path, err := wrkit.EnsureUIFace(); err != nil {
+		fmt.Fprintf(os.Stderr, "ui_wr_r13_hit: WARN font: %v — labels may be blank\n", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "ui_wr_r13_hit: font ready (%s)\n", path)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r13_hit: R13 hit ≡ paint — %ds @ 1200x800\n", secs)
 
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	const winW, winH = 1200, 800
 	win, err := exhost.Open(exhost.Options{
-		Width: winW, Height: winH, Title: "gpui ui_wr_r13_hit",
+		Width: winW, Height: winH,
+		Title: "gpui ui_wr_r13_hit",
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "FAIL: window open (needs_gpu_window): %v\n", err)
@@ -52,7 +69,7 @@ func main() {
 
 	var app *embedder.PipelineApp
 	app = embedder.NewPipelineApp(win.Host(), sc.Root, embedder.PipelineOptions{
-		ClearR: 0.07, ClearG: 0.08, ClearB: 0.10, ClearA: 1,
+		ClearR: 0.06, ClearG: 0.07, ClearB: 0.09, ClearA: 1,
 		RunFor: time.Duration(secs) * time.Second,
 		WarmUp: true,
 		OnEvent: func(ev platform.Event) {
@@ -79,18 +96,26 @@ func main() {
 	})
 
 	// Scripted probes after layout (deterministic gate; pointer optional extra).
+	// Targets placed body-local by buildScene; probe window coords computed from
+	// wrkit.NewShell body origin (bodyX=12+260+12=284, bodyY=48+12=60) + hotPanel
+	// offset (6,8) → hotPanel origin (290,68). box centers:
+	//   green box1 @(24,36) 200×200 → (414,204)
+	//   red   box2 @(260,80) 160×160 → (630,228)
+	//   cyan  box3 @(180,260) 140×140 → (540,398)
 	probes := []struct {
 		x, y float64
 		want string
 	}{
-		{180, 200, "green"}, // box1 center ~ (80+100, 100+100)
-		{780, 360, "red"},   // box2 @ (700,280) 160×160 → center (780,360)
-		{570, 570, "cyan"},  // box3 @ (500,500) 140×140 → center (570,570)
-		{50, 50, ""},        // empty background
+		{414, 204, "green"},
+		{630, 228, "red"},
+		{540, 398, "cyan"},
+		{50, 50, ""}, // empty background (top bar area)
 	}
 
+	phases := wrkit.NewPhaseClock(1.5, 3.0) // Steady 0–1.5 · Spike 1.5–3 · Recover
 	probed := false
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) {
+		ph := phases.Advance(dt)
 		if !probed && app.PresentCount() >= 2 {
 			probed = true
 			for _, p := range probes {
@@ -104,7 +129,44 @@ func main() {
 				}
 			}
 		}
+		// Phase-driven hit feedback: Spike cycles highlight of green to prove
+		// hit ≡ paint identity under varied paint pressure.
+		if ph == wrkit.PhaseSpike && app.PresentCount()%8 == 0 {
+			sc.highlight("green")
+		}
 		proc.Sample()
+		if wrkit.HUDEnabled() && sc.hud != nil {
+			sc.hud.NoteTick(dt)
+			snap := app.Metrics().Snapshot()
+			fps := 0.0
+			if snap.AvgFrameIntervalMs > 1e-6 {
+				fps = 1000.0 / snap.AvgFrameIntervalMs
+			}
+			policy := snap.PresentPolicy
+			if policy == "" {
+				policy = scheduler.PresentPolicyFullPaint
+			}
+			mu.Lock()
+			nLive := len(liveHits)
+			mu.Unlock()
+			gateOK := fps >= 55 || phases.Elapsed() < 2
+			if snap.P95FrameIntervalMs > 22 && phases.Elapsed() >= 2 {
+				gateOK = false
+			}
+			sc.hud.Update(wrkit.Snap{
+				AbilityID:   "R13",
+				Phase:       ph,
+				FPS:         fps,
+				P95Ms:       snap.P95FrameIntervalMs,
+				Policy:      policy,
+				PresentMode: snap.PresentMode,
+				PaintCount:  snap.PaintCount,
+				Presents:    app.PresentCount(),
+				Core:        fmt.Sprintf("probes=%d/%d live=%d", probesOK, probesN, nLive),
+				GateOK:      gateOK,
+				Extra:       "scripted probes hit DebugName ≡ paint identity",
+			})
+		}
 		app.ScheduleFrame()
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
@@ -139,12 +201,22 @@ func main() {
 		SurfaceAreaPx: int64(winW * winH),
 		Warmup:        true,
 		Extra: map[string]any{
-			"client_px":      "1200x800",
-			"run_seconds":    secs,
-			"scripted_ok":    probesOK,
-			"scripted_total": probesN,
-			"pointer_hits":   hitsCopy,
-			"targets":        []string{"green@ (80,100)", "red@ (700,280)", "cyan@ (500,500)"},
+			"client_px":        "1200x800",
+			"run_seconds":      secs,
+			"scripted_ok":      probesOK,
+			"scripted_total":   probesN,
+			"pointer_hits":     hitsCopy,
+			"targets":          []string{"green@ body(180,100)", "red@ (700,280)", "cyan@ (500,500)"},
+			"static_cells":     sc.staticCells,
+			"label_count":      sc.labelCount,
+			"phases":           "Steady/Spike/Recover",
+			"regions":          "TopBar/Legend/HitTargets/EmptyZone/HUD",
+			"impl_correctness": "HitTestPointer DebugName ≡ paint identity; scripted probes at known centers all hit",
+			"impl_dirty":       "pointer down + Spike highlight MarkNeedsPaint on hit target",
+			"impl_cache":       "N/A for R13 (hit test uses tree, not BoundaryCache)",
+			"impl_edge":        "empty background probe returns \"\"; Spike cycles green highlight",
+			"impl_fail":        "policy≠full_paint / probes ok<total / fps<55 / target blanks",
+			"impl_visible":     "LiveHUD probes/live; 3 colored hit boxes + empty zone; highlight on hit",
 		},
 	})
 	b, err := wrgate.Marshal(rep)
@@ -156,8 +228,11 @@ func main() {
 	fmt.Println(string(b))
 
 	if err := wrgate.EvaluateGates(rep, wrgate.GateOptions{
-		MinPresents: 1, RequireFullPaintPolicy: true,
-		RequirePersistentFPS: true, MinFPSWall: 55, MinFPSElapsed: 5,
+		MinPresents:            1,
+		RequireFullPaintPolicy: true,
+		RequirePersistentFPS:   true,
+		MinFPSWall:             55,
+		MinFPSElapsed:          5,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -166,17 +241,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: scripted hit probes ok=%d/%d\n", probesOK, probesN)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r13_hit: PASS probes=%d/%d pointer_hits=%d\n",
-		probesOK, probesN, len(hitsCopy))
-}
-
-func runSeconds(def int) int {
-	if v := os.Getenv("RUN_SECONDS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
-		}
+	if sc.staticCells < 8 {
+		fmt.Fprintf(os.Stderr, "FAIL: static_cells=%d want ≥8 (dense static proof)\n", sc.staticCells)
+		os.Exit(1)
 	}
-	return def
+	fmt.Fprintf(os.Stderr, "ui_wr_r13_hit: PASS probes=%d/%d pointer_hits=%d cells=%d labels=%d\n",
+		probesOK, probesN, len(hitsCopy), sc.staticCells, sc.labelCount)
 }
 
 type tick struct{ on func(dt float64) }
@@ -188,37 +258,74 @@ func (t *tick) Tick(dt float64) bool {
 	return true
 }
 
-type demoScene struct {
-	Root *rendering.AbsoluteBox
-	box1 *rendering.RenderColorBox
-	box2 *rendering.RenderColorBox
-	box3 *rendering.RenderColorBox
+type scene13 struct {
+	Root        *rendering.AbsoluteBox
+	box1        *rendering.RenderColorBox
+	box2        *rendering.RenderColorBox
+	box3        *rendering.RenderColorBox
+	hud         *wrkit.LiveHUD
+	staticCells int
+	labelCount  int
 }
 
-func buildScene(w, h float64) *demoScene {
-	s := &demoScene{}
-	root := rendering.NewAbsoluteBox(w, h)
-	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
-	s.Root = root
+func buildScene(w, h float64) *scene13 {
+	s := &scene13{}
+	shell := wrkit.NewShell(w, h,
+		"R13 hit ≡ paint identity · scripted probes · DebugName",
+		[]string{
+			"full_paint policy · HitTestPointer tree walk",
+			"green target — DebugName=\"green\"",
+			"red target — DebugName=\"red\"",
+			"cyan target — DebugName=\"cyan\"",
+			"empty background — probe returns \"\"",
+			"scripted probes at known centers",
+			"pointer down highlight target (visible)",
+			"Spike cycles green highlight feedback",
+		},
+	)
+	s.Root = shell.Root
+	s.hud = shell.HUD
+	body := shell.Body
+	s.labelCount = 8 // legend lines
 
-	s.box1 = rendering.NewRenderColorBox(200, 200, 0.2, 0.55, 0.3, 1)
-	s.box1.SetRepaintBoundary(true)
+	// --- Hit targets region (left/center, three colored DebugName boxes) ---
+	hotPanel := wrkit.NewPanel(body.W*0.55, body.H-16, 0.10, 0.11, 0.14, 1)
+	hotPanel.PlaceOn(body.Box, 6, 8)
+	hotPanel.LabelAt("HIT TARGETS (DebugName ≡ paint identity)", 12, 10, 8, 0.95, 0.55, 0.40)
+	s.labelCount++
+	s.box1 = hotPanel.ColorAt(200, 200, 24, 36, 0.2, 0.55, 0.3, 1, true)
 	s.box1.SetDebugName("green")
-	root.Place(s.box1, 80, 100)
-
-	s.box2 = rendering.NewRenderColorBox(160, 160, 0.9, 0.25, 0.15, 1)
-	s.box2.SetRepaintBoundary(true)
+	s.box2 = hotPanel.ColorAt(160, 160, 260, 80, 0.9, 0.25, 0.15, 1, true)
 	s.box2.SetDebugName("red")
-	root.Place(s.box2, 700, 280)
-
-	s.box3 = rendering.NewRenderColorBox(140, 140, 0.15, 0.75, 0.85, 1)
-	s.box3.SetRepaintBoundary(true)
+	s.box3 = hotPanel.ColorAt(140, 140, 180, 260, 0.15, 0.75, 0.85, 1, true)
 	s.box3.SetDebugName("cyan")
-	root.Place(s.box3, 500, 500)
+	hotPanel.LabelAt("green · red · cyan — probes hit each DebugName", 11, 16, 410, 0.55, 0.75, 0.85)
+	s.labelCount++
+
+	// --- Empty zone region (right, static + empty background proof) ---
+	emptyPanel := wrkit.NewPanel(body.W*0.42, body.H-16, 0.20, 0.22, 0.26, 1)
+	emptyPanel.PlaceOn(body.Box, body.W*0.57, 8)
+	emptyPanel.LabelAt("EMPTY ZONE (probe returns \"\")", 12, 10, 8, 0.65, 0.80, 0.90)
+	s.labelCount++
+	// Dense static grid 4×4 to prove hit ≡ paint under FullPaint dense static.
+	const cell, gap = 36.0, 6.0
+	for r := 0; r < 4; r++ {
+		for c := 0; c < 4; c++ {
+			emptyPanel.ColorAt(cell, cell,
+				12+float64(c)*(cell+gap), 32+float64(r)*(cell+gap),
+				0.20+0.08*float64(c), 0.35+0.08*float64(r), 0.50, 1, true)
+			s.staticCells++
+		}
+	}
+	emptyPanel.LabelAt("static grid — no DebugName → hit \"\"", 11, 12, 32+4*(cell+gap)+8, 0.55, 0.70, 0.80)
+	s.labelCount++
+	emptyPanel.LabelAt("pointer optional — scripted probes determinate", 11, 12, 32+4*(cell+gap)+28, 0.55, 0.65, 0.70)
+	s.labelCount++
+
 	return s
 }
 
-func (s *demoScene) highlight(name string) {
+func (s *scene13) highlight(name string) {
 	if s == nil {
 		return
 	}

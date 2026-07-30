@@ -1,8 +1,8 @@
 # ui_wr_r3_boundary — R3 Boundary true cache
 
 **Ability:** R3 (W1)  
-**Window:** **1200×800** (U15)  
-**Close duration:** **`RUN_SECONDS=10`** (≥5 hard min, U16 / §2.5)
+**Window:** **1200×800**  
+**Close duration:** **`RUN_SECONDS=10`**
 
 ## Run
 
@@ -11,25 +11,38 @@ export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 RUN_SECONDS=10 go run ./examples/ui_wr_r3_boundary
 ```
 
-`RUN_SECONDS < 5` → **FAIL** (cannot close R3).
-
 ## Visible effect
 
-| Region | What you should see |
-|--------|---------------------|
-| Green box @ (48,48) 180×180 | **Static** — stays put every frame (Picture Replay / `boundary_skip`) |
-| Red box @ (700,280) 140×140 | **Pulsing** — color changes every tick (`boundary_rerecord`) |
+| Region | Effect |
+|--------|--------|
+| Outer hot RB (red) @ (280,80) 420×320 | Pulsing red ~4 Hz, re-records each tick |
+| Inner-static RB (green) @ (300,140) 180×180 | Frozen — `NeedsPaint()` always false |
+| Inner-hot RB (blue) @ (500,140) 180×180 | Pulsing blue ~6 Hz, re-records each tick |
+| Static text inside outer @ (300,100) | Frozen — text in boundary can skip |
+| Dense static grid (6×2) @ (740,80) | Frozen — outer/inner pulsing does not dirty these |
+| LiveHUD band @ y=728 | R3 + phase + fps + p95 + skip + rr + cnt + depth |
+| Legend @ (12,60) | 9 color-block + text rows explaining each region |
 
-## Gates (FAIL + exit 1)
+## Gates
 
-- `present_count >= 1`, `present_policy=full_paint`
-- §2.2 metrics schema (CPU/RSS/FPS family)
-- **`boundary_skip >= 1`** (clean static must Replay)
-- **`boundary_rerecord >= 1`** (hot dirty re-records)
-- Steady FPS ≥55 when run ≥5s (`fps_interval` preferred)
+- `RequireFullPaintPolicy` (default present_policy under W1)
+- `RequirePersistentFPS` + `MinFPSWall=55` + `MinFPSElapsed=5`
+- `MaxP95Ms=22`
+- `MinPresents=1`
+- `MinBoundarySkip=1` (clean static layer Replays at least once)
+- `MinBoundaryRerecord=1` (hot layer re-records)
+- `boundary_count ≥ 3` (multi-level nesting: root + outer + inner-static + inner-hot)
+- `boundary_max_depth ≥ 2` (nested RB)
+- `outer_clean_ticks ≥ 10` (outer boundary isolation invariant)
+- `inner_static_clean ≥ 10` (inner static boundary stays clean)
 
-## Implementation note
+## U20 实现点六维
 
-Picture-backed `BoundaryCache` on `PipelineOwner`, enabled under FullPaint present so skip is observable without Retained Present (Replay still draws after GPU Clear).
-
-**Nested model:** each RepaintBoundary caches **own content only**; nested RB children are not baked into the parent Picture. After parent `tryReplay`, nested RB children are still walked so only-inner-dirty does not force outer `boundary_rerecord`.
+| 维度 | R3 说明 |
+|------|---------|
+| 正确性 | nested RB: inner hot dirty re-records only inner; outer hot dirty re-records only outer; static layers Replay (skip) |
+| 脏区 | boundary_skip accumulates from clean static Replays; boundary_rerecord only from dirty boundary; FullPaint redraws all but cache hits still skip |
+| 缓存 | BoundaryCache: text + nested static in boundary can skip via Replay; dirty boundary forces re-record |
+| 边界条件 | 3-level nesting (root→outer RB→inner RB); outer + inner independent dirty cycles; empty subtree handled |
+| 失败模式 | boundary_count=0 (no RB discovered) / cache miss all paths / inner dirty leaks to outer Picture = FAIL |
+| 窗内如何看出 | outer=red pulsing re-records; inner-static=green frozen; inner-hot=blue pulsing; HUD shows skip↑/rr↑ |

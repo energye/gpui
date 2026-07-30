@@ -69,25 +69,25 @@ L3–L5 Kit                       ← 暂缓
 | **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | **1200×800** | **5** | `paint_count`/visits 可解释 | 仅目标节点变色 | **W1** | **✅v2** |
 | **R3** | Boundary 真缓存 | `ui_wr_r3_boundary` | **1200×800** | **10** | `boundary_rerecord` 仅脏；**`boundary_skip>0`** | 静 boundary 不动；脏每帧变 | **W1** | **✅v2** |
 | **R3b** | Compositing bits / 边界发现 | `ui_wr_r3b_compbits` | **1200×800** | **8** | `boundary_count`；合成链深度 | 嵌套 boundary 只重约定层 | **W1** | **✅v2** |
-| **R4** | 层 Composite Present | `ui_wr_r4_composite` | **1200×800** | **15** | `present_policy`；`damage_ratio` 门禁 | Retained 下静在、damage≪全屏 | **W2** | **✅** |
-| **R4b** | DirtyLayerID + 多 damage | `ui_wr_r4b_multidamage` | **1200×800** | **15** | `dirty_layer_ids`；rects/并集 | 两远离脏点更新，中间静在 | **W2** | **✅** |
-| **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；可选像素差 | 回放区≡直绘区 | **W1** | **✅v2** |
+| **R4** | 层 Composite Present | `ui_wr_r4_composite` | **1200×800** | **15** | `present_policy`；`damage_ratio` 门禁 | Retained 下静在、damage≪全屏 | **W2** | **✅v2** |
+| **R4b** | DirtyLayerID + 多 damage | `ui_wr_r4b_multidamage` | **1200×800** | **15** | `dirty_layer_ids`；rects/并集 | 两远离脏点更新，中间静在 | **W2** | **✅v2** |
+| **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；可选像素差 | 回放区≡直绘区 | **W1–W2** | **✅v2** |
 | **R6** | Opacity/Transform/Clip **层**动画 | `ui_wr_r6_layer_anim` | **1200×800** | **30** | `paint_count` 稳；`hitch_rate`；**fps≥55** | 转/淡/裁流畅；静背景不闪 | **W5** | ⬜ |
 | **R7** | 虚拟化宿主 | `ui_wr_r7_virtlist` | **1200×800** | **60** | **`bind_count≪item_count`**；p95/hitch；RSS | 仅视口 cell；快滑约定 | **W3** | ⬜ |
 | **R7b** | 滚动少重录 cell | `ui_wr_r7b_scroll_reuse` | **1200×800** | **60** | **`scroll_rerecord` 上限**；fps | 静 cell 保持；新入视口才重录 | **W3** | ⬜ |
 | **R8** | Overlay 独立合成 | `ui_wr_r8_overlay` | **1200×800** | **15** | 开浮层后主树 `paint_count` 不涨 | 面板盖上；底静仍在 | **W4** | ⬜ |
 | **R9** | 文本 measure 缓存 | `ui_wr_r9_text_cache` | **1200×800** | **5** | `measure_cache_hit`（可先打桩再严） | 同文同 style 宽高稳、不抖 | **W1** | **✅v2** |
 | **R10** | 图异步→局部脏 | `ui_wr_r10_async_image` | **1200×800** | **30** | 出图后 rerecord **仅一格** | 占位→图仅该格变 | **W3** | ⬜ |
-| **R11** | DPR/尺寸缓存失效 | `ui_wr_r11_dpr` | **1200×800** | **15** | 变更后 rerecord **一波**再回稳 | 无残影、不错位 | **W2** | **✅** |
-| **R12** | 帧指标字段完备 | `ui_wr_r12_metrics` | **1200×800** | **5** | **公共字段全集存在**否则 FAIL（可 `schema_only` 主判，仍须真窗 Present） | stderr/JSON 可读；字段齐 | **W0** | **✅** |
+| **R11** | DPR/尺寸缓存失效 | `ui_wr_r11_dpr` | **1200×800** | **15** | 变更后 rerecord **一波**再回稳 | 无残影、不错位 | **W2** | **✅v2** |
+| **R12** | 帧指标字段完备 | `ui_wr_r12_metrics` | **1200×800** | **5** | **公共字段全集存在**否则 FAIL（可 `schema_only` 主判，仍须真窗 Present） | stderr/JSON 可读；字段齐 | **W0** | **✅v2** |
 | **R12b** | 重绘调试可视化 | `ui_wr_r12b_debug_repaint` | **1200×800** | **8** | `debug_repaint=1` 时有叠加标志 | **人眼见谁在重绘** | **W1** | **✅v2** |
-| **R13** | Hit ≡ 绘 | `ui_wr_r13_hit` | **1200×800** | **5** | 点击→命中 ID（脚本或日志断言） | 点哪高亮哪 | **W2** | **✅** |
+| **R13** | Hit ≡ 绘 | `ui_wr_r13_hit` | **1200×800** | **5** | 点击→命中 ID（脚本或日志断言） | 点哪高亮哪 | **W2** | **✅v2** |
 | **R14** | 缓存预算/淘汰 | `ui_wr_r14_cache_budget` | **1200×800** | **60** | `cache_entries`、**RSS slope FAIL** | 超预算仍正确 | **W6** | ⬜ |
 | **R15** | UI/raster 所有权·长跑 | `ui_wr_r15_soak` | **1200×800** | **300** | 时长、无崩、无读回；hitch/CPU/RSS | soak 不挂 | W2+ | ⬜ |
-| **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup` | **1200×800** | **5** | 首帧 full；`warmup:true`；policy；首帧有内容 | 首帧有内容；恢复不黑 | **W0** | **✅** |
+| **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup` | **1200×800** | **5** | 首帧 full；`warmup:true`；policy；首帧有内容 | 首帧有内容；恢复不黑 | **W0** | **✅v2** |
 | **R17** | 不可见降频 | `ui_wr_r17_bg_throttle` | **1200×800** | **30** | 后台 interval 明显变大 | 后置 | 后置 | ⬜ |
-| **R18** | SaveLayer+预算 | `ui_wr_r18_savelayer` | **1200×800** | **10** | `savelayer_count`/reject | 组内半透明对；超预算可观测 | **W2** | **✅** |
-| **R19** | 1px/设备像素对齐 | `ui_wr_r19_snap` | **1200×800** | **5** | 约定 scale 下采样或截图门禁 | 1px 线清晰不糊 | W1–W2 | ⬜ |
+| **R18** | SaveLayer+预算 | `ui_wr_r18_savelayer` | **1200×800** | **10** | `savelayer_count`/reject | 组内半透明对；超预算可观测 | **W2** | **✅v2** |
+| **R19** | 1px/设备像素对齐 | `ui_wr_r19_snap` | **1200×800** | **5** | 约定 scale 下采样或截图门禁 | 1px 线清晰不糊 | W1–W2 | **✅v2** |
 | **R20** | Filter 层（可选） | `ui_wr_r20_filter` | **1200×800** | **10** | 局部 rerecord | 子树灰/糊，外不变 | 可选 | ⬜ |
 | **R21** | 壳/内容分层 | `ui_wr_r21_shell` | **1200×800** | **15** | 滚体时顶栏 `rerecord=0` | 顶栏静、体滚 | W2–W4 | ⬜ |
 | **R22** | 选区/光标局部脏预留 | `ui_wr_r22_selection_stub` | **1200×800** | **5** | 字段可 0；API 存在 | stub 可空跑；防将来全窗刷 | 预留 | ⬜ |
@@ -393,12 +393,12 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 |---------|----------------------|----------|----------|----------------------|------------------|----------|------|
 | **C0** | R0+R12+R16 | `ui_wr_c0_smoke` | **1200×800** | **5** | 开机即见静+动；指标字段齐（**集成**；**不能**代替 R0/R12/R16 单窗） | policy、presents、首帧 | **W0** ✅v2 |
 | **C1** | R2+R3+R3b+R12b | `ui_wr_c1_boundary_nest` | **1200×800** | **10** | 嵌套 boundary + 可开关 debug 重绘色 | rerecord/skip/boundary_count | **W1** ✅v2 |
-| **C2** | R3+R4+R4b+R5 | `ui_wr_c2_retained_scene` | **1200×800** | **15** | Retained 整场景：多 boundary + Picture | damage_ratio、dirty_layers | **W2** 🔄（覆盖 R5 未绿） |
+| **C2** | R3+R4+R4b+R5 | `ui_wr_c2_retained_scene` | **1200×800** | **15** | Retained 整场景：多 boundary + Picture | damage_ratio、dirty_layers | **W2** ✅v2 |
 | **C3** | R4+R7+R7b+R10 | `ui_wr_c3_list_scroll` | **1200×800** | **60** | 虚拟列表 + 滚复用 + 异步图格 | bind、scroll_rerecord、p95 | **W3** |
 | **C4** | R3+R8+R21 | `ui_wr_c4_shell_overlay` | **1200×800** | **15** | 顶栏静 + 体内容 + 浮层面板 | 顶栏 rerecord=0；开 overlay 主 paint | **W4** |
 | **C5** | R6+R3+R4 | `ui_wr_c5_anim_over_static` | **1200×800** | **30** | 层动画盖在静态缓存上 | hitch；静不闪 | **W5** |
 | **C6** | R18+R3 | `ui_wr_c6_savelayer_group` | **1200×800** | **10** | 离屏组 + boundary | savelayer_* | W2/W5 |
-| **C7** | R11+R19+R3 | `ui_wr_c7_resize_dpr` | **1200×800** | **15** | 改尺寸/DPR 后缓存与 1px 线 | 一波 rerecord；线清晰 | **W2** ✅ 组合窗 |
+| **C7** | R11+R19+R3 | `ui_wr_c7_resize_dpr` | **1200×800** | **15** | 改尺寸/DPR 后缓存与 1px 线 | 一波 rerecord；线清晰 | **W2** ✅v2 组合窗 |
 | **C8** | R13+R6+R8 | `ui_wr_c8_hit_overlay_xf` | **1200×800** | **15** | 变换/浮层下命中 | 命中 ID | W4+ |
 | **C9** | R14+R3+R7 | `ui_wr_c9_stress_cache` | **1200×800** | **60** | 多 boundary + 列表压缓存 | cache_entries、RSS | **W6** |
 | **C10** | R15+全主路径 | `ui_wr_c10_soak` | **1200×800** | **300** | 长跑组合 | 无崩；hitch 可报 | W2+ |
@@ -462,9 +462,9 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 | W | 状态 | 必须绿的 **单能力窗** | 必须绿的 **组合窗** |
 |---|------|----------------------|---------------------|
-| **W0** | **✅v2** | **R0✅v2 · R12✅ · R16✅**（各独立 `ui_wr_*` 真窗） | C0✅v2（仅集成） |
-| **W1** | **✅v2（推翻重写后）** | R2✅v2 R3✅v2 R3b✅v2 R5✅v2 R9✅v2 R12b✅v2 · R19(可) | C1✅v2 |
-| **W2** | **🔄（R5 未绿）** | **R4✅ R4b✅ R5🔄 R11✅ R13✅ R18✅** · R21(可) R19(可) | **C2🔄 C7✅** |
+| **W0** | **✅v2（推翻重写后）** | **R0✅v2 · R12✅v2 · R16✅v2**（各独立 `ui_wr_*` 真窗） | C0✅v2（仅集成） |
+| **W1** | **✅v2（推翻重写后）** | R2✅v2 R3✅v2 R3b✅v2 R5✅v2 R9✅v2 R12b✅v2 R19✅v2（各独立 `ui_wr_*` 真窗） | C1✅v2 |
+| **W2** | **✅v2（推翻重写后）** | **R4✅v2 R4b✅v2 R5✅v2 R11✅v2 R13✅v2 R18✅v2** · R21(可) R19(可) | **C2✅v2 C7✅v2 组合窗** |
 | **W3** | ⬜ | R7、R7b、R10 | C3 |
 | **W4** | ⬜ | R8、R21(若未做) | C4、C8(可) |
 | **W5** | ⬜ | R6、R20(可) | C5、C6(可) |
@@ -525,6 +525,17 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
+| **3.20** | **C1 反攻重关 ✅v2**：`ui_wr_c1_boundary_nest` 推翻重写对齐 §3.1.2 C1 集成加强质条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra+**impl_interaction**），集成 R2（局部 NeedsPaint）+R3（boundary skip/rerecord）+R3b（compositing bits）+R12b（debug overlay）四能力同树。真嵌套 3 级（root→outer AbsoluteBox RB→mid AbsoluteBox RB→{static leaf ColorBox RB, hot leaf ColorBox RB}+outer-side sibling RB，boundary_count=5≥3·boundary_max_depth=3≥2）+ 内脏只内 rerecord（inner_static_clean=600≥10）+ 外脏只外 rerecord（outer_side_clean=600≥10）+ UpdateCompositingBits 后 outer+mid 均 NeedsCompositing=true + debug=1 时 hot 闪 magenta、static 不闪（debug_repaint_draws=5411≥1）。GPU PASS `RUN_SECONDS=10`·DEBUG_REPAINT=1·fps_interval=59.92·vsync=true·p95=17.11<22·hitch=0·policy=full_paint·paint_count=600·boundary_skip=1800·boundary_rerecord=1200·cpu_ui=0.84/raster=31.05 非双 0·无降画质·全族 A–J 齐备（族 G 标 skipped+原因）·metrics-audit 串审诚实 PASS·场景达 wr-close U17+§3.1.1 impl_interaction（EARNED 非 SCENE_CHEAT） |
+| **3.19** | **R19 首建独立真窗 ✅v2**：`ui_wr_r19_snap` 原可选（§5 标「(可)」无独立包）本轮纳入建独立真窗对齐 §2.6 R19 质量条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra），1px hairline 网格（StrokeRect 边框+StrokeLine 分割线 SetLineWidth(1.0)·外框+60px 横分+80px 竖分+3×2 cell 边框）+ DPR 1.0/1.5/2.0 wobble 跨 Spike 测 crispness。GPU PASS `RUN_SECONDS=5`·fps_interval=59.93·vsync=true·p95=17.81<22·hitch=0·policy=full_paint·paint_count=300·line_draws=6321≥10·dpr_changes=5·boundary_skip=0/rr=0（R19 非缓存能力，hairline RenderBox 唯一 RB 每帧重录无静区可 skip 合规）·cpu_ui=0.13/raster=27.21 非双 0·无降画质·全族 A–J 齐备（族 G 标 skipped+原因）·metrics-audit 串审诚实 PASS·场景达 wr-close U17（EARNED 非 SCENE_CHEAT）。注：C7 ✅v2 已集成 R19 1px 场景但按 AGENTS.md「禁止用组合窗代替单 R」仍需独立真窗，本轮补建 |
+| **3.18** | **R12b 反攻重关 ✅v2**：`ui_wr_r12b_debug_repaint` 推翻重写对齐 §2.6.2 R12b 质量条（wrkit Shell+Legend9+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra），3 个独立 RepaintBoundary 热区（A=红~4Hz/B=绿~3Hz/C=蓝~5Hz）+ debug_repaint=1 时 magenta overlay 染脏区、静区不染 + 染色≡脏区 + off 路径（DEBUG_REPAINT=0）0 overlay。GPU PASS `RUN_SECONDS=8`·debug=true·debug_repaint_draws=5773≥1·fps_interval=59.93·vsync=true·p95=17.03<22·hitch=0·policy=full_paint·paint_count=480·boundary_skip=480·boundary_rerecord=1440·cpu_ui=1.12/raster=41.66 非双 0·无降画质·全族 A–J 齐备（族 G 标 skipped+原因）·metrics-audit 串审诚实 PASS·场景达 wr-close U17（EARNED 非 SCENE_CHEAT） |
+| **3.17** | **R9 反攻重关 ✅v2**：`ui_wr_r9_text_cache` 推翻重写对齐 §2.6.2 R9 质量条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra），4 种文字样式（FontSize 14/18/24 + 颜色变体）+ 每 tick MarkNeedsLayout 但文字不变触发 MeasureCache 命中。GPU PASS `RUN_SECONDS=5`·fps_interval=59.93·vsync=true·p95=17.46<22·hitch=0·policy=full_paint·paint_count=299·measure_cache_hit=299≥1·hits=1196≥miss=4·layout_passes=299·cpu_ui=0.80/raster=34.37 非双 0·无降画质·全族 A–J 齐备·metrics-audit 串审诚实 PASS·场景达 wr-close U17（EARNED 非 SCENE_CHEAT） |
+| **3.16** | **R5 认原绿 ✅v2**：`ui_wr_r5_picture` 在 W2 推翻重写时已升维 ✅v2(§3.10)，本轮 wr-rewrite 推翻重写 W1 时 R5 已对齐 §2.6 R5 质量条(FillRect×4+FillPath×2+StrokePath+StrokeRect+DrawString×2=10ops·直绘≡回放并排·Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra)。用户决策跳过反攻重关认原绿，只回写 §2 R5 行 🔄→✅v2。原证据:GPU PASS fps_interval=59.93·vsync=true·ops=10·replays=301·direct=301·cpu_ui/raster 非双 0·full_paint·无降画质 |
+| **3.15** | **R3b 反攻重关 ✅v2**：`ui_wr_r3b_compbits` 推翻重写对齐 §2.6.2 R3b 质量条（wrkit Shell+Legend9+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra），真嵌套 4 级（root→outer AbsoluteBox RB→mid AbsoluteBox RB→{static leaf ColorBox RB, hot leaf ColorBox RB}，boundary_count=4≥3·boundary_max_depth=3≥2）+ UpdateCompositingBits 后 outer+mid 均 NeedsCompositing=true 传播证明。GPU PASS `RUN_SECONDS=8`·fps_interval=59.93·vsync=true·p95=17.28<22·hitch=0·policy=full_paint·paint_count=459·boundary_skip=1403·boundary_rerecord=437·cpu_ui=0.40/raster=40.83 非双 0·无降画质·全族 A–J 齐备（族 G 标 skipped+原因）·metrics-audit 串审诚实 PASS·场景达 wr-close U17（EARNED 非 SCENE_CHEAT） |
+| **3.14** | **R3 反攻重关 ✅v2**：`ui_wr_r3_boundary` 推翻重写对齐 §2.6.2 R3 质量条（wrkit Shell+Legend9+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra），真嵌套 3 级（root→outer AbsoluteBox RB→{inner-static ColorBox RB, inner-hot ColorBox RB}，boundary_count=3≥3·boundary_max_depth=2≥2）+ 外层脏只外层 rerecord / 内层脏只内层 rerecord 隔离证明 + 静态 text-in-RB 可 skip。GPU PASS `RUN_SECONDS=10`·fps_interval=59.93·vsync=true·p95=17.03<22·hitch=0·policy=full_paint·paint_count=599·boundary_skip=599·boundary_rerecord=1198·cpu_ui=0.87/raster=33.74 非双 0·无降画质·全族 A–J 齐备（族 G 标 skipped+原因）·metrics-audit 串审诚实 PASS·场景达 wr-close U17（EARNED 非 SCENE_CHEAT） |
+| **3.13** | **R2 反攻重关 ✅v2**：`ui_wr_r2_paint` 推翻重写对齐 §2.6 R2 质量条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+8区 Panel+详尽 Extra），3 个独立 RepaintBoundary 热区（A=红~5Hz/B=绿~3Hz/C=蓝~7Hz）+ 静态 boundary 隔离不变量（static_clean_ticks=299≥10）+ 邻格不脏证明。GPU PASS `RUN_SECONDS=5`·fps_interval=59.93·vsync=true·p95=16.93<22·hitch=0·policy=full_paint·paint_count=299·boundary_skip=299·boundary_rerecord=897·cpu_ui=1.11/raster=43.97 非双 0·无降画质·全族 A–J 齐备（族 G 标 skipped+原因）·metrics-audit 串审诚实 PASS·场景达 wr-close U17（EARNED 非 SCENE_CHEAT） |
+| **3.11** | **W2 推翻重写 ✅v2**：涉及 R=R4/R4b/R5/R11/R13/R18（各独立真窗）+ C=C2/C7（各独立真窗）全波降级后逐个回流收口；**R4 ✅v2**：场景层定点修 gate `MinBoundarySkip:0`（retained/CompositeOnly 下静态靠 GPU LoadOpLoad 保像素、boundary_skip=0 是引擎正确语义，不靠 Picture 缓存重放），保留 `damage_ratio≤0.35`+`present_mode≠full`+`policy=retained`+`fps≥55` 绿线。GPU PASS `RUN_SECONDS=15`·fps_interval=59.93·vsync=true·policy=retained·mode=damage_union·dmg_avg=0.1892·skip=0(off)·cells=20·boundary_count=21·cpu_ui=1.19/raster=17.89 非双 0·无降画质·全族 A–J 齐备。wr-engine 诊断定底「(A) 场景层 bug 非 render/gpu 洞」。**R4b ✅v2**：推翻重写对齐 §2.6 质量条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+6区 Panel+详尽 Extra），保留原门禁（dirty_layer_id_max≥2+damage_multi_frames≥1+retained+fps≥55+static_cells≥8）。GPU PASS `RUN_SECONDS=15`·fps_interval=59.93·vsync=true·mode=damage_multi·dirty_max=5·multi_frames=749·cells=15·labels=16·cpu_ui=1.14/raster=17.31 非双 0·无降画质·全族 A–J 齐备。**R11 ✅v2**：推翻重写对齐 §2.6 质量条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra），保留原 invalidation 触发逻辑与门禁（cache_invalidations≥1+boundary_rerecord≥1+boundary_skip≥1+full_paint+fps≥55+static_cells≥8）。GPU PASS `RUN_SECONDS=15`·fps_interval=57.13·vsync=true·policy=full_paint·inval=2·rr=629·skip=13940·cells=16·labels=13·cpu_ui=0.51/raster=28.86 非双 0·无降画质·全族 A–J 齐备（hitch=14 由 resize 波引入，p95=16.93<22）。**R13 ✅v2**：推翻重写对齐 §2.6 质量条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra），保留原 scripted probes 与门禁（scripted_ok==scripted_total+full_paint+fps≥55+static_cells≥8）。GPU PASS `RUN_SECONDS=5`·fps_interval=59.92·vsync=true·policy=full_paint·probes=4/4·cells=16·labels=13·cpu_ui=0.50/raster=30.30 非双 0·无降画质·全族 A–J 齐备（probes 命中 DebugName ≡ paint identity）。**R18 ✅v2**：推翻重写对齐 §2.6 质量条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+多区域 Panel+详尽 Extra），保留原 SaveLayer budget 触发逻辑与门禁（savelayer_allow≥1+savelayer_reject≥1+full_paint+fps≥55+static_cells≥8）。GPU PASS `RUN_SECONDS=10`·fps_interval=59.93·vsync=true·policy=full_paint·allow=594·reject=594·cells=16·labels=12·cpu_ui=0.41/raster=47.10 非双 0·无降画质·全族 A–J 齐备。**C2 ✅v2**：场景层定点修 gate `MinBoundarySkip:0`（与 R4 solo 同源——retained/CompositeOnly 下静 RB 被引擎正确跳过、靠 GPU LoadOpLoad 保像素），保留 `damage_ratio<0.45`+`boundary_count≥3`+`boundary_max_depth≥2`+`dirty_layer_id_max≥2`+`damage_multi_frames≥1`+`picture_op_count≥5`+`retained`+`fps≥55` 集成门禁。GPU PASS `RUN_SECONDS=15`·fps_interval=59.93·vsync=true·policy=retained·mode=damage_multi·cnt=29·depth=3·dirty_max=5·multi=749·ops=8·dmg_avg=0.3103·cells=24·cpu_ui=1.86/raster=22.36 非双 0·无降画质·全族 A–J 齐备·§3.1 集成加强质条齐（impl_interaction R3 nest+R4 retained+R4b dual-hot+R5 Picture）。**C7 ✅v2**：推翻重写对齐 §3.1 集成加强质条（wrkit Shell+Legend8+LiveHUD+PhaseClock+EnsureUIFace+≥6 Panel+详尽 Extra+impl_interaction），保留原 R11 resize invalidation+R3 boundary skip recovery+R19 1px line 集成场景与门禁（full_paint 下 `MinBoundarySkip:1` 适用+`MinBoundaryCount:2`+cache_invalidations≥1+rerecord≥1+fps≥55）。GPU PASS `RUN_SECONDS=15`·fps_interval=59.93·vsync=true·policy=full_paint·inval=2·skip=16146·rr=36·cnt=18·depth=1·cells=16·labels=14·cpu_ui=0.59/raster=20.65 非双 0·无降画质·全族 A–J 齐备
+| **3.10** | **R5 质量升维 ✅v2**：`ui_wr_r5_picture` 按 §2.6 反攻重关（FillRect×4+FillPath×2+StrokePath+StrokeRect+DrawString×2=10ops · 直绘≡回放并排 · Shell+Legend8+LiveHUD+Steady/Spike/Recover）；GPU PASS fps_interval=59.93·vsync=true·ops=10·replays=301·direct=301·cpu_ui/raster 非双 0·full_paint·无降画质；W1 恢复 ✅v2；W2 单窗 R5 绿，剩 C2🔄；证据 `/tmp/w2_r5_rewrite_evidence/` |
+| **3.9** | **W0 推翻重写**：R0 ✅v2（fps_interval=59.90·vsync=true·全族A–J·static_cells=20·labels=15·HUD+相位+4×4静格）；R12 ✅v2（fps_interval=59.94·vsync=true·schema_keys=29·全族A–J·HUD+相位）；R16 ✅v2（fps_interval=59.93·vsync=true·warmup=true·first_present=651ms·全族A–J·HUD+相位）；C0 ✅v2（fps_interval=59.93·vsync=true·warmup=true·6区共存·impl_interaction·全族A–J·HUD+相位）；基线 v3.8 §2.6 质量条 |
 | **3.8** | **§2.6 + §3.1 每个 R/C 窗口复杂度标准**：所有 R/C 窗口必须达到 R0 wrkit 质量条（Shell+LiveHUD+PhaseClock+多区域+Legend+详尽 Extra）；逐 R 22 项 + 逐 C 12 项列出视觉内容/交互/边界/控件支撑意义；C 窗加强：≥6 区+≥8 行 Legend+能力间交互场景+门禁取并集；质量检查清单；支撑后续控件实现 |
 | **3.7** | **W1 推翻重写 ✅v2**：R2/R3/R3b/R5/R9/R12b 各独立 `ui_wr_*` 真窗 GPU PASS（fps_interval 58.13–59.94·vsync_source=true·全族 A–J 齐备·boundary skip/rerecord·measure cache hit·picture replay·debug draws·cpu_ui/raster 非双 0·无降画质·无门禁偷放）；C1 独立组合窗 PASS（skip=2396 count=5 depth=3 仅集成）；无底层洞（未触发 wr-engine）；metrics-audit 复审诚实 PASS。证据归档 `/tmp/w1_rewrite_evidence/` |
 | **3.6** | **§5 自洽**：W2 不得在必修 R5=🔄 时标全 ✅ → 改为 **🔄（R5 未绿）**；C2 同步 🔄（覆盖 R5）；C7 仍 ✅ |
@@ -550,4 +561,4 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 ## 11. 一句话
 
 > **每个主能力真窗：1200×800 · RUN_SECONDS≥5 · 按能力加长观察指标（§2 主表 + §2.5 全表）。**  
-> **状态以 §2 主表 + §3 组合表 + §5 分期 + §10 修订为准。** W0 ✅v2 · W1 ✅v2（推翻重写后） · W2 🔄（R5 未绿，C2 随 R5）。默认 Present 仍 full_paint 至 W6。
+> **状态以 §2 主表 + §3 组合表 + §5 分期 + §10 修订为准。** W0 ✅v2 · W1 ✅v2（推翻重写后）· W2 ✅v2。默认 Present 仍 full_paint 至 W6。
