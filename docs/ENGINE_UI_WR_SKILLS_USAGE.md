@@ -1,9 +1,15 @@
 # gpui 真窗 Skill 使用手册（6 skill 收敛版）
 
-> **版本：** 3.0 | 日期：2026-07-30
-> **范围：** 本手册说明 `.atomcode/skills/` 下 6 个 skill 的**使用方法、触发词、串联闭环**。
-> **真源：** `docs/ENGINE_UI_WIDGET_RENDER.md` v3.1 + `docs/ENGINE_UI_RENDER_BASE.md` v1.29 + `AGENTS.md`（分层风险与修复规则）。skill 是真源的执行骨架，若 skill 与真源矛盾，以真源为准。
-> **配套：** 6 个 skill 的完整定义见 `.atomcode/skills/<skill-name>/SKILL.md`。
+> **版本：** 3.5 | 日期：2026-07-30
+> **范围：** 本手册说明 `.grok/skills/` 下 6 个 skill 的**使用方法、触发词、串联闭环**。
+> **真源：** `docs/ENGINE_UI_WIDGET_RENDER.md` v3.5（状态：§2/§3/§5/§10）+ `docs/ENGINE_UI_RENDER_BASE.md` + `AGENTS.md`。skill 是真源的执行骨架，若 skill 与真源矛盾，以真源为准。
+> **配套：** 6 个 skill 的完整定义见 `.grok/skills/<skill-name>/SKILL.md`（或项目内 skill 目录）。
+
+**真窗硬规则：**
+
+- 状态只写 **§2 主表（R）+ §3 组合表（C）+ §5 分期（W）+ §10 修订**
+- 每个 W 的**每一个主能力 R** 必须有独立 `examples/ui_wr_r*` 真窗（U5）；禁止用组合窗代替单 R
+- 每个 W 的**每一个组合窗 C** 必须有独立 `examples/ui_wr_c*` 真窗（U6）；C 只做集成
 
 **v2.0 → v3.0 升级摘要：** 新增 `gpui-wr-debug`（§R 真窗 bug 修复调度入口），解决「指定窗口出现 bug 时缺统一入口」断层。原 5 skill 职责不变，`wr-debug` 作为**调度入口层**接入，按 AGENTS.md 分层风险规则回流到对应 skill 闭环。
 
@@ -15,7 +21,7 @@
 |---|-------|------|----------|------|
 | 1 | `gpui-wr-debug` | 指定窗口 bug 修复调度入口（强制复现 → 定位层 → 分层回流） | 修 bug | **调度入口层** + ui 低风险自修 |
 | 2 | `gpui-wr-implement` | 能力实现回流（ui/ 里实现 + 单测 + 指标接线） | 实现 | 能力实现层 |
-| 3 | `gpui-wr-close` | 关 R 完整生命周期（3 模式：首次关闭 / 反攻重关 / 优化重关） | 关 | 关 R 生命周期层 |
+| 3 | `gpui-wr-close` | 关 **R 与 C** 完整生命周期（各独立真窗；3 模式） | 关 | 关 R/C 生命周期层 |
 | 4 | `gpui-metrics-audit` | 指标族 A–J 正误审查与 bug 修复（指标层） | 审 | 指标横切层 |
 | 5 | `gpui-wr-engine` | 底层修复回流（render/gpu/ui-scene 谨慎改 + 跨层影响面评估） | 修底层 | 底层修复层 |
 | 6 | `gpui-wr-rewrite` | W 矩阵级调度（推翻 W<n> 重写，批量调度 + W 矩阵级状态治理） | 调度 | W 矩阵调度层 |
@@ -24,7 +30,7 @@
 
 - `wr-debug`：**调度入口层**——指定窗口出现 bug 时强制复现 + 定位 bug 所在层，按 AGENTS.md 分层风险规则回流对应 skill；ui/rendering / ui/embedder / ui/scene / ui/io 低风险本 skill 自修
 - `wr-implement`：能力实现层（ui/ 里实现 + 单测 + 指标接线）
-- `wr-close`：关 R 完整生命周期（3 模式吸收了原 wr-quality + wr-rework 类 B + wr-optimize）
+- `wr-close`：关 R/C 完整生命周期（3 模式；含定标准 / FAIL 回流 / 优化）
 - `metrics-audit`：横切层，审指标诚实性，串在 wr-close 判门禁时
 - `wr-engine`：底层修复层（render/gpu 谨慎改 + 跨层影响面评估）
 - `wr-rewrite`：W 矩阵级调度层（推翻整波重写，调度上面 5 个 skill）
@@ -216,7 +222,7 @@ v2.0 的 5 skill 覆盖了「正向写、反向修、横向优化、底层穿透
     - ui/scheduler/metrics.go 的 FrameMetrics struct 是否有 bind_count
   → wr-implement §2 实现/补全能力（只动 ui/rendering/）
   → wr-implement §3 跑单测：go test ./ui/rendering -run TestVirtualList -count=1
-  → wr-implement §4 指标接线：bind_count 接 metrics.go + pipeline_app.go
+  → wr-implement 第 4 步 指标接线：bind_count 接 metrics.go + pipeline_app.go
   → wr-implement §5 能力就绪 → 交 wr-close 模式 1
 
 你: 关闭 R7（wr-implement 自动串接，或你显式说）
@@ -293,11 +299,9 @@ v2.0 的 5 skill 覆盖了「正向写、反向修、横向优化、底层穿透
   → wr-rewrite §0 读真源 + W 矩阵定位
     - §5 分期表 W2 行（当前 ✅）
     - §2 主表 W2 涉及的 R（R4/R4b/R11/R13/R18）
-    - §4c 关闭清单
-    - §10 修订表当前版本号
+        - §10 修订表当前版本号
   → wr-rewrite §1 W 矩阵级状态降级
     - §5 分期表 W2 行：✅ → 🔄 W2 推翻重写
-    - §4c 关闭清单：✅ → 🔄 推翻重写中
     - §2 主表 W2 所有 R 行：✅ → 🔄
     - §10 修订表：加占位行
   → wr-rewrite §2 逐个 R 回流（调度 wr-implement / wr-close 3 模式 / wr-engine）
@@ -322,9 +326,8 @@ v2.0 的 5 skill 覆盖了「正向写、反向修、横向优化、底层穿透
     - 批量重跑 W2 所有 R 真窗
     - 批量重跑 W2 组合窗
     - 批量审指标（调度 metrics-audit 逐个 R 审）
-  → wr-rewrite §4 W 矩阵级状态升维
+  → wr-rewrite 第 4 步 W 矩阵级状态升维
     - §5 分期表 W2 行：🔄 → ✅v2（推翻重写后）
-    - §4c 关闭清单：🔄 → ✅v2
     - §2 主表 W2 所有 R 行：🔄 → ✅v2
     - §10 修订表：占位行改为正式版本说明
 ```
@@ -347,7 +350,7 @@ v2.0 的 5 skill 覆盖了「正向写、反向修、横向优化、底层穿透
     跑改动单测：go test ./ui/rendering -run TestBoundaryCache -count=1
     跑全 ui 包回归：go test ./ui/... -count=1
     重跑该 R 真窗验证 bug 已修：RUN_SECONDS=15 go run ./examples/ui_wr_r3_boundary
-  → wr-debug §4 回写 docs/ENGINE_UI_WIDGET_RENDER.md §10 修订表
+  → wr-debug 第 4 步 回写 docs/ENGINE_UI_WIDGET_RENDER.md §10 修订表
     「<版本号> | R3 bug 修复：boundary 文不 skip → 扩 record 类型 in ui/rendering/boundary_cache.go」
 ```
 
@@ -456,39 +459,37 @@ v2.0 的 5 skill 覆盖了「正向写、反向修、横向优化、底层穿透
 | docs 章节 | 原状态 | 降级后 |
 |-----------|--------|--------|
 | §5 分期表该 W 行 | `✅` | `🔄 W<n> 推翻重写` |
-| §4/§4b/§4c 该 W 关闭清单 | `✅` | `🔄 推翻重写中` |
+| §3 组合表该 W 的 C | `✅` | `🔄 推翻重写中` |
 | §2 主表该 W 所有 R 行 | `✅` | `🔄` |
 | §10 修订表 | — | 加占位行 `<版本号> | W<n> 推翻重写：<原因摘要>（进行中）` |
 
-### 8.2 逐个 R 回流（第 2 步，调度现有 4 个 skill）
+### 8.2 逐个 R **与** C 回流（第 2 步）
+
+**硬：** §5 该 W 列出的 **每一个 R**、**每一个 C** 都必须有独立 `examples/ui_wr_*` 包；目录空 = 模式 1 建窗。
 
 ```
-for each R in 该 W 的 R 列表:
-  ├─ R 能力是否就绪？
-  │   ├─ 否 → 调度 wr-implement 实现能力
-  │   │       └─ wr-implement 发现底层不满足 → 调度 wr-engine 修底层
-  │   └─ 是 → 进下一步
-  ├─ R 真窗是否要写/重写？
-  │   ├─ R 当前 ⬜ + 真窗未建 → 调度 wr-close 模式 1（首次关闭）
-  │   ├─ R 当前 ✅ + 要推翻重写升维 → 调度 wr-close 模式 2（反攻重关）
-  │   ├─ R 当前 ✅ + 要优化/增量 → 调度 wr-close 模式 3（优化重关）
-  │   └─ R 当前 🔄 + 重写中 → 调度 wr-close 模式 2 继续重关
-  ├─ 跑 GPU 时发现底层不满足？
-  │   └─ 是 → 调度 wr-engine 修底层
-  └─ 跑完 + 判门禁时审指标？
-      └─ 是 → 调度 metrics-audit 审指标诚实性
+for each R in 该 W 的 R 列表:   # 各 ui_wr_r* 独立真窗
+  ├─ 能力就绪？否 → wr-implement（必要时 wr-engine）
+  ├─ ⬜/空目录 → wr-close 模式 1；✅/🔄 推翻 → 模式 2；优化 → 模式 3
+  ├─ GPU 洞 → wr-engine；指标 → metrics-audit
+  └─ **禁止**用任何 C 的绿代替本 R
+
+for each C in 该 W 的 C 列表:   # 各 ui_wr_c* 独立真窗（不可省）
+  ├─ 空目录/未关 → wr-close 模式 1 建组合窗
+  ├─ 推翻 → wr-close 模式 2
+  ├─ 只做集成，不重判所覆盖 R 的单能力门禁
+  └─ **绝不**因 C 绿而把未建/未绿的 R 标 ✅
 ```
 
-**底层洞批量收集（关键）：** 逐个 R 回流过程中，收集所有底层洞到 `HOLE_LIST`（去重）。多个 R 可能撞同一个底层洞（如 R4/R11/R18 都需要 BoundaryCache 文 skip），批量收集后一次修，避免重复修。
-
-**底层洞批量定点修：** `HOLE_LIST` 收集完后，逐个底层洞调度 wr-engine 修。修完底层后，重新跑该 W 所有相关 R 的真窗，确认底层修复后这些 R 都能过门禁。
+**底层洞：** 回流中收集 `HOLE_LIST` 去重 → 逐个 wr-engine → 修完重跑该 W **全部 R 与 C**。
 
 ### 8.3 批量重跑验证（第 3 步）
 
 ```
-批量重跑该 W 所有 R 的真窗
-批量重跑该 W 的组合窗
-批量审指标（调度 metrics-audit 逐个 R 审）
+批量重跑该 W **全部** R 的独立真窗
+批量重跑该 W **全部** C 的独立真窗
+批量 metrics-audit（各 R；C 按集成字段）
+任一缺包或 FAIL → 不得 W 升维
 ```
 
 ### 8.4 W 矩阵级状态升维（第 4 步）
@@ -498,7 +499,7 @@ W 矩阵级重写完真绿，docs 状态升维：
 | docs 章节 | 原状态 | 升维后 |
 |-----------|--------|--------|
 | §5 分期表该 W 行 | `🔄 W<n> 推翻重写` | `✅v2（推翻重写后）` |
-| §4/§4b/§4c 该 W 关闭清单 | `🔄 推翻重写中` | `✅v2` |
+| §3 组合表该 W 的 C | `🔄` | `✅v2` |
 | §2 主表该 W 所有 R 行 | `🔄` | `✅v2（推翻重写后）` |
 | §10 修订表 | 占位行 | 改为正式版本说明 |
 
@@ -540,7 +541,8 @@ W 矩阵级重写完真绿，docs 状态升维：
 | 2 | 不降 README 阈值过门禁 | metrics-audit §3 |
 | 3 | 不在示例里绕引擎洞 | wr-close 模式 2 §2.2.2 + wr-engine |
 | 4 | 不用 CPU stub 或单测单独关 R | wr-close U8 |
-| 5 | 不用组合窗代替单能力窗关 R | wr-close U5 |
+| 5 | 每个 R/C 独立 ui_wr_* 包；不用组合窗代替单 R | wr-close U5/U6 |
+| 5b | 状态只写 §2/§3/§5/§10 | wr-rewrite / wr-close |
 | 6 | 窗口必须 1200×800 不是更小 | wr-close U15 |
 | 7 | RUN_SECONDS ≥ 推荐关闭用值，至少 ≥5 | wr-close U16 |
 | 8 | JSON 含全族 A–J 字段，无默默省略 | wr-close U12 |
@@ -563,7 +565,7 @@ W 矩阵级重写完真绿，docs 状态升维：
 | 25 | wr-debug 强制复现——不跑真窗就凭描述改代码 = 绕洞 | wr-debug §1 |
 | 26 | wr-debug 不凭 BUG_DESC 猜层——对照 §2.2 FAIL 线 + §6 模块落点定位 | wr-debug §2 |
 | 27 | wr-debug ui 低风险自修后必须重跑该 R 真窗验证 bug 已修（不只靠单测绿） | wr-debug §3.2 |
-| 28 | wr-debug 不改 §2 主表「状态」列（升维归被回流的 skill），只回写 §10 修订表 | wr-debug §4 |
+| 28 | wr-debug 不改 §2 主表「状态」列（升维归被回流的 skill），只回写 §10 修订表 | wr-debug 第 4 步 |
 
 ---
 
@@ -579,7 +581,7 @@ W 矩阵级重写完真绿，docs 状态升维：
      - ui/scheduler/metrics.go 的 FrameMetrics struct 是否有 bind_count
    → wr-implement §2 实现/补全（只动 ui/rendering/）
    → wr-implement §3 跑单测：go test ./ui/rendering -run TestVirtualList -count=1
-   → wr-implement §4 指标接线：bind_count 接 metrics.go + pipeline_app.go
+   → wr-implement 第 4 步 指标接线：bind_count 接 metrics.go + pipeline_app.go
    → wr-implement §5 能力就绪 → 交 wr-close 模式 1
 
 2. 你: 关闭 R7（wr-implement 自动串接，或你显式说）
@@ -641,11 +643,10 @@ W 矩阵级重写完真绿，docs 状态升维：
    → wr-rewrite §0 读真源 + W 矩阵定位
      - §5 分期表 W2 行（当前 ✅）
      - §2 主表 W2 涉及的 R（R4/R4b/R11/R13/R18）
-     - §4c 关闭清单 + §10 修订表
+     - §3 组合表 + §10 修订表
    → wr-rewrite §1 W 矩阵级状态降级
      - §5 分期表 W2 行：✅ → 🔄 W2 推翻重写
-     - §4c 关闭清单：✅ → 🔄 推翻重写中
-     - §2 主表 W2 所有 R 行：✅ → 🔄
+      - §2 主表 W2 所有 R 行：✅ → 🔄
      - §10 修订表：加占位行
    → wr-rewrite §2 逐个 R 回流（调度 wr-implement / wr-close 3 模式 / wr-engine / metrics-audit）
      - R4：wr-close 模式 2（反攻重关）→ ✅v2
@@ -660,10 +661,9 @@ W 矩阵级重写完真绿，docs 状态升维：
      - 批量重跑 W2 所有 R 真窗
      - 批量重跑 W2 组合窗
      - 批量审指标（调度 metrics-audit 逐个 R 审）
-   → wr-rewrite §4 W 矩阵级状态升维
+   → wr-rewrite 第 4 步 W 矩阵级状态升维
      - §5 分期表 W2 行：🔄 → ✅v2（推翻重写后）
-     - §4c 关闭清单：🔄 → ✅v2
-     - §2 主表 W2 所有 R 行：🔄 → ✅v2
+      - §2 主表 W2 所有 R 行：🔄 → ✅v2
      - §10 修订表：占位行改为正式版本说明
 ```
 
@@ -684,7 +684,7 @@ W 矩阵级重写完真绿，docs 状态升维：
          └─ 用户不确认 / 建议绕过 → 改 render 层绕过，或停下不修
    → wr-engine §2 定点修底层
    → wr-engine §3 跑回归（go test ./ui/... + 若改 gpu/ 跑 gpu 单测）
-   → wr-engine §4 交回 wr-close 第 3 步重跑真窗
+   → wr-engine 第 4 步 交回 wr-close 第 3 步重跑真窗
 ```
 
 ### 11.6 指定窗口出现 bug 的修复流程（v3.0 新增）
@@ -718,7 +718,7 @@ W 矩阵级重写完真绿，docs 状态升维：
     ├─ 若定位层 = 已关 ✅ 真窗代码层 bug → 交 wr-close 模式 2
     ├─ 若定位层 = 已关 ✅ 优化增量 → 交 wr-close 模式 3
     └─ 若定位层 = 能力根本没实现 → 交 wr-implement
-  → wr-debug §4 回写 docs §10 修订表
+  → wr-debug 第 4 步 回写 docs §10 修订表
     「<版本号> | R3 bug 修复：boundary 文不 skip → 扩 record 类型」
 ```
 
