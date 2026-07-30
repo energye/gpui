@@ -1,6 +1,6 @@
 ---
 name: gpui-wr-implement
-description: §R 主能力的**能力实现回流**——在写 R 真窗**之前**，先在 `ui/rendering/`（或 `ui/embedder/` / `ui/scene/` / `ui/io/`）里实现或补全该 R 的能力，走 RENDER_BASE §0.6 三项验收的 **① 单测 + ② 指标接线**，然后才交 `gpui-wr-quality` 写真窗（③ 窗测）。当用户说「实现 R7 能力」「实现 R7」「先做 R7 能力」「把 R7 能力实现了」「implement R7」「R7 能力开发」「先实现再写真窗」时触发。与 `gpui-wr-quality`（写真窗）、`gpui-wr-close`（执行关闭）、`gpui-metrics-audit`（指标审查）、`gpui-wr-rework`（反攻修复）、`gpui-wr-optimize`（优化增量）互补，专门接「能力未实现/不完整 → 实现 + 单测 + 指标接线」这条回流。
+description: §R 主能力的**能力实现回流**——在写 R 真窗**之前**，先在 `ui/rendering/`（或 `ui/embedder/` / `ui/scene/` / `ui/io/`）里实现或补全该 R 的能力，走 RENDER_BASE §0.6 的 **① 单测 + ② 指标接线**，然后交 `gpui-wr-close` 写真窗与关窗（③ 窗测）。触发词：「实现 R7 能力」「implement R7」「先实现再写真窗」等。
 user_invocable: true
 disable_model_invocation: false
 ---
@@ -8,12 +8,12 @@ disable_model_invocation: false
 # gpui-wr-implement — §R 主能力实现回流（能力 → 单测 → 指标接线）
 
 > **与现有 skill 的分工：**
-> - `gpui-wr-quality` = 关 R **前**的真窗质量标准（场景矩阵 + HUD + 实现点六维）——**写真窗前**
-> - `gpui-wr-close` = 关 R 的**执行流程**（建窗/跑/判门禁/回写 docs §2）——**写完真窗后**
-> - `gpui-metrics-audit` = 指标族 A–J 的**正误审查与 bug 修复**——**指标层**
-> - `gpui-wr-rework` = 门禁 FAIL / 指标装绿的**反攻/修复回流**——**代码层 + 引擎层**（修 bug）
-> - `gpui-wr-optimize` = 已关 R（✅）的**优化/增量回流**——**性能 + 场景 + HUD + 指标**（加深）
-> - **本 skill** = 写 R 真窗**之前**，先在 `ui/` 里**实现或补全**该 R 的能力，走 **① 单测 + ② 指标接线**，然后才交 `wr-quality` 写真窗——**能力实现层**
+> - **本 skill** = 写真窗**前**在 `ui/` 实现/补全能力 + 单测 + 指标接线
+> - `wr-close` = 定标准（U17/U18/U20）+ 写真窗 + 跑 GPU + 判门禁 + 回写 §2/§3/§5/§10（含原 quality/rework/optimize）
+> - `metrics-audit` = 指标族诚实性
+> - `wr-engine` = 底层洞
+> - `wr-debug` = 已有真窗 bug 入口
+> - `wr-rewrite` = W 矩阵调度
 >
 > **真源：** `docs/ENGINE_UI_RENDER_BASE.md` §0.6「每项能力验收（硬 · 三项全过才算完成）」+ §22.1 施工表（序 1–13 + 指标骨架）+ §22.2「收口后残项」+ §15 滚动/视口母表；`docs/ENGINE_UI_WIDGET_RENDER.md` §2 主表（该 R 行的能力定义 + 指标门禁）+ §6 模块落点。若本 skill 与真源矛盾，以真源为准——发现矛盾停下报告，不要自决。
 
@@ -28,15 +28,15 @@ disable_model_invocation: false
   ③ 写 examples/ui_wr_*/ 真窗，跑 GPU，判 §2.2 全族门禁，回写 docs §2
 
 现有 skill 的覆盖：
-  wr-quality + wr-close + metrics-audit + wr-rework + wr-optimize
-  全都从 ③ 开始（写真窗），① ② 这段没有 skill 接
+  wr-close + metrics-audit + wr-debug + wr-engine + wr-rewrite
+  原先从 ③ 开始（写真窗），① ② 由本 skill 补齐
 ```
 
 **断层表现：**
 
-- 用户说「写 R7 真窗」，命中的 `wr-quality` 第 3 步「先写场景设计」**假设 R7 能力（VirtualList）已实现**
-- 若 VirtualList 还没实现或不完整，`wr-quality` 没有「能力未实现该怎么办」分支
-- 结果可能是：写一个**简陋真窗**（用普通列表冒充虚拟列表），跑出来 `bind_count = item_count`（虚拟化失效），门禁 FAIL，走 `wr-rework` 反攻——**绕一大圈才回到「该实现能力」这个根本问题**
+- 用户说「写 R7 真窗」，若直接走 `wr-close` 写真窗，会**假设 R 能力已实现**
+- 若 VirtualList 还没实现或不完整，`wr-close` 不会先实现能力
+- 结果可能是：写一个**简陋真窗**（用普通列表冒充虚拟列表），跑出来 `bind_count = item_count`（虚拟化失效），门禁 FAIL，门禁 FAIL 再反攻——**绕一大圈才回到「该实现能力」**
 
 本 skill 把「能力现状审查 → 实现/补全 → 单测 → 指标接线」这条回流**固化**，确保真窗写之前能力已就绪。
 
@@ -47,7 +47,7 @@ disable_model_invocation: false
 用户可能给：
 
 - 一个 R/C id + 「实现」请求（如「实现 R7 能力」「先做 R7 能力」「implement R7」）→ 能力实现回流
-- 一个 R/C id + 「先实现再写真窗」请求 → 本 skill 实现 + 交 wr-quality 写真窗
+- 一个 R/C id + 「先实现再写真窗」请求 → 本 skill 实现 + 交 wr-close 写真窗
 - 一个「能力不完整」怀疑（如「R7 的 VirtualList 好像缺 BindCount」「R10 异步图没接 worker」）→ 定向审查 + 补全
 
 从输入解析：
@@ -95,7 +95,7 @@ disable_model_invocation: false
 | 前驱 | 该序的前驱序（如序 12 前驱 = 3,7）——前驱没做完不要跳 |
 | ① 单测 | 该序要写的单测（如序 12 = `index↔offset；ScrollToIndex；S5`） |
 | ② 指标 | 该序要接的指标（如序 12 = `bind 上界；layout 不风暴`） |
-| ③ 窗测 | 该序要写的窗测（如序 12 = `scroll`）——本 skill **不做** ③，交 wr-quality |
+| ③ 窗测 | 该序要写的窗测（如序 12 = `scroll`）——本 skill **不做** ③，交 wr-close |
 
 ### 0.3 读 RENDER_BASE §22.2 收口后残项（若该序已收口）
 
@@ -134,7 +134,7 @@ disable_model_invocation: false
 | 指标 | `ui/scheduler` |
 | **全部真窗** | `examples/ui_wr_*` only |
 
-**关键边界：** 能力实现落 `ui/`，真窗落 `examples/`。本 skill 只动 `ui/`，**不**动 `examples/`（真窗归 wr-quality）。
+**关键边界：** 能力实现落 `ui/`，真窗落 `examples/`。本 skill 只动 `ui/`，**不**动 `examples/`（真窗归 wr-close）。
 
 ## 第 1 步：能力现状审查
 
@@ -216,7 +216,7 @@ grep -n "BindCount\|ItemCount\|OffsetOfIndex\|IndexAtOffset\|ScrollToIndex\|Cach
 
 ### 2.2 实现纪律
 
-- **只动 `ui/`，不**动 `examples/`（真窗归 wr-quality）
+- **只动 `ui/`，不**动 `examples/`（真窗归 wr-close）
 - **禁止 ui→gpu 依赖**（CODING_RULES §5：架构 vs 示例边界 + §0.4 工程纪律）
 - **禁止 CGO**（purego）
 - 字段名取自 `ui/scheduler/metrics.go` 的 `FrameMetrics` struct，**禁止自创字段名**
@@ -323,7 +323,7 @@ go test ./ui/... -count=1
 
 **metrics-audit 审通过** → `edit_file ui/scheduler/metrics.go` 加字段，`edit_file ui/embedder/pipeline_app.go` 接线，交第 5 步。
 
-## 第 5 步：交 wr-quality 写真窗
+## 第 5 步：交 wr-close 写真窗
 
 ### 5.1 能力就绪判定
 
@@ -333,31 +333,30 @@ go test ./ui/... -count=1
 |--------|------|
 | ① 能力实现 | §0.4 能力清单逐项已实现，`grep` 关键函数/字段全命中 |
 | ① 单测绿 | `go test ./ui/rendering -run Test<Func>` 绿 + `go test ./ui/...` 全绿无回归 |
-| ② 指标接线 | §4.1 能力专用字段已在 `FrameMetrics` struct 且已接 `pipeline_app.go` |
+| ② 指标接线 | 指标接线步骤：能力专用字段已在 `FrameMetrics` struct 且已接 `pipeline_app.go` |
 
-**三项全过 → 能力就绪，交 wr-quality 写真窗。**
+**三项全过 → 能力就绪，交 wr-close 写真窗。**
 
-### 5.2 交接 wr-quality
+### 5.2 交接 wr-close
 
-`use_skill` 加载 `gpui-wr-quality`，告知：
+`use_skill` 加载 `gpui-wr-close`，告知：
 
 - 该 R 能力已实现（`ui/rendering/<file>.go` 的 `<func>` 已就绪）
 - 单测已绿（`Test<Func>` 全过）
 - 指标字段已接（`<field>` 已在 `FrameMetrics` struct 且已接 `pipeline_app.go`）
-- **请按 wr-quality §5 流程写 `examples/ui_wr_<package>/` 真窗（③ 窗测）**
+- **请按 wr-close 模式 1：定标准（U17/U18/U20）→ 写 `examples/ui_wr_<package>/` → 跑 GPU → 判门禁 → 回写 docs**
 
-wr-quality 写完真窗后，交 `wr-close` 跑 GPU + 判门禁 + 回写 docs §2。
+wr-close 模式 1 内部完成写真窗 + 跑 GPU + 判门禁 + 回写 §2/§3/§5/§10。
 
 ### 5.3 若用户请求是「先实现再写真窗」
 
-本 skill 走完第 1–4 步，**自动串接** wr-quality 写真窗（§5.2），再串 wr-close 关闭——完整一条龙：
+本 skill 走完第 1–4 步，**自动串接** wr-close 模式 1——完整一条龙：
 
 ```
 wr-implement（能力实现 + 单测 + 指标接线）
-  → wr-quality（写真窗 + 场景矩阵 + HUD + 实现点六维）
-  → wr-close（跑 GPU + 判门禁 + 回写 docs §2）
-  → metrics-audit（审指标诚实性，串在 wr-close 判门禁时）
-  → 若 FAIL → wr-rework（反攻修复）
+  → wr-close 模式 1（定标准 U17/U18/U20 + 写真窗 + 跑 GPU + 判门禁 + 回写 docs）
+  → metrics-audit（串在 wr-close 判门禁时）
+  → 若 FAIL → wr-close 内置回流 / 底层洞交 wr-engine
 ```
 
 ## 输出格式
@@ -384,9 +383,9 @@ wr-implement（能力实现 + 单测 + 指标接线）
   ...
 
 能力就绪：三项全过（能力实现 + 单测绿 + 指标接线）
-→ 交 wr-quality 写真窗
+→ 交 wr-close 写真窗
 
-下一步：wr-quality 写 examples/ui_wr_<package>/ 真窗
+下一步：wr-close 模式 1 写 examples/ui_wr_<package>/ 真窗
 ```
 
 若有任一 FAIL：
@@ -404,7 +403,7 @@ FAIL 原因：<具体>
 
 ## 禁令自检（每次结束前过一遍）
 
-- [ ] **只动了 `ui/`，没动 `examples/`**（真窗归 wr-quality）
+- [ ] **只动了 `ui/`，没动 `examples/`**（真窗归 wr-close）
 - [ ] **没引入 ui→gpu 依赖**（CODING_RULES §5）
 - [ ] **没用 CGO**（purego）
 - [ ] 字段名取自 `FrameMetrics` struct，**没自创字段名**
@@ -425,14 +424,14 @@ FAIL 原因：<具体>
 | 接口方向 | 内容 |
 |----------|------|
 | **入：用户实现请求** | R id + 「实现」/「先实现再写真窗」/「能力不完整」 → 第 0 步 |
-| **出：交 wr-quality 写真窗** | 第 5 步能力就绪后，交 wr-quality 按 §5 流程写 `examples/ui_wr_*/` 真窗 |
+| **出：交 wr-close 模式 1** | 第 5 步能力就绪后，交 wr-close 定标准 + 写真窗 + 关窗 |
 | **出：交 metrics-audit 审字段名** | 第 4 步要新增字段时，交 metrics-audit 第 4 步审字段名一致性 |
-| **不接：真窗测试** | 真窗的写/跑/判门禁归 wr-quality + wr-close |
+| **不接：真窗测试** | 真窗的写/跑/判门禁归 wr-close + wr-close |
 | **不接：指标层 JSON marshal bug** | 字段缺/null 无原因/JSON 字段名不一致 → 交 metrics-audit |
-| **不接：门禁 FAIL 反攻修复** | 门禁 FAIL 反攻归 wr-rework（本 skill 是「写真窗前」的能力实现，wr-rework 是「写完真窗后门禁 FAIL」的反攻） |
-| **不接：已关 R 优化/增量** | 已关 R（✅）优化/增量归 wr-optimize |
+| **不接：门禁 FAIL 反攻** | 归 wr-close 内置回流 / 模式 2 |
+| **不接：已关 R 优化/增量** | 归 wr-close 模式 3 |
 
-**关键边界：** 本 skill 只接「**写 R 真窗之前**的能力实现 + 单测 + 指标接线」。6 个 skill 各管一段：能力实现（wr-implement）→ 写真窗（wr-quality）→ 跑指标（wr-close 串 metrics-audit）→ 反攻修复（wr-rework）→ 优化增量（wr-optimize），全闭环。
+**关键边界：** 本 skill 只接「**写 R 真窗之前**的能力实现 + 单测 + 指标接线」。闭环：wr-implement → wr-close（定标准+窗+门禁）→ metrics-audit；洞交 wr-engine；bug 入口 wr-debug；整波 wr-rewrite。
 
 ---
 
@@ -455,4 +454,4 @@ FAIL 原因：<具体>
 | 13 | Picture/局部 Present §9§18.3 | R5/R10/R21 | `ui/scene` + rendering |
 | 指标骨架 | §20 | 所有 R | `ui/scheduler` + embedder |
 
-**本 skill 适用所有施工序**——只要该 R 能力还没实现或不完整，都走本 skill 实现 + 单测 + 指标接线，再交 wr-quality 写真窗。
+**本 skill 适用所有施工序**——只要该 R 能力还没实现或不完整，都走本 skill 实现 + 单测 + 指标接线，再交 wr-close 写真窗。

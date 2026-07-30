@@ -7,8 +7,8 @@ disable_model_invocation: false
 
 # gpui-metrics-audit — 指标族正误审查与 bug 修复（防假绿）
 
-> **与 wr-quality / wr-close 的分工：**
-> - `gpui-wr-quality` = 关 R 前的**质量标准**（场景复杂度 / HUD 可见 / 实现点六维）——写代码**前**
+> **与 wr-close 的分工：**
+> - `gpui-wr-close`（定标准 U17） = 关 R 前的**质量标准**（场景复杂度 / HUD 可见 / 实现点六维）——写代码**前**
 > - `gpui-wr-close` = 关 R 的**执行流程**（建窗/跑/判门禁/回写）——写代码**后**
 > - 本 skill = 指标族本身的**正误审查**——可独立跑（查已有窗的 JSON/代码），也可串在 wr-close 第 3 步判门禁时跑
 >
@@ -147,27 +147,27 @@ disable_model_invocation: false
 | 降画质模式 | 检测 |
 |------------|------|
 | fps 靠静帧刷高 | 查窗是否有持续 tick（动画/滚动）；若仅静帧却 fps>55 = 静帧刷高（动帧实际掉） |
-| damage_ratio 靠简陋场景刷低 | 查场景是否「两色块」级（wr-quality §3 场景矩阵会拦）；简陋场景下 damage 自然≪1 = 不证明复杂 UI 下正确 |
+| damage_ratio 靠简陋场景刷低 | 查场景是否「两色块」级（wr-close §3 场景矩阵会拦）；简陋场景下 damage 自然≪1 = 不证明复杂 UI 下正确 |
 | slope 靠短时窗刷低 | 查 `RUN_SECONDS` 是否 ≥该 R 关闭用值；短于关闭用值刷低 slope = 假稳 |
 | hitch 靠短时窗刷低 | 同上；hitch_rate 按 /min，短时窗 hitch_count=0 自然 hitch_rate=0 |
 | cpu 靠 idle 刷低 | 查窗是否有动画；若 idle 空转 cpu=0 = 不证明动画窗 CPU 可控 |
-| boundary_skip 靠纯色块刷高 | 查静区是否纯 `RenderColorBox`（wr-quality 禁止）；色块 skip 容易，文/嵌套 skip 才是真 |
+| boundary_skip 靠纯色块刷高 | 查静区是否纯 `RenderColorBox`（wr-close 禁止）；色块 skip 容易，文/嵌套 skip 才是真 |
 
 **审查方法：**
-1. 查 wr-quality 的场景矩阵该 R 行——若场景未达 U17 复杂度，**所有**门禁值都存疑（降场景刷出来的）
+1. 查 wr-close 的场景矩阵该 R 行——若场景未达 U17 复杂度，**所有**门禁值都存疑（降场景刷出来的）
 2. 查 `RUN_SECONDS` 实跑值 vs §2.5 关闭用值——短于关闭用值 = 刷低时窗类指标
 3. 查是否有持续 tick——无 tick 却 fps 门禁过 = 静帧刷高
 
 **输出：** 每类标 `EARNED（靠复杂场景+关闭用时长刷出来的）` / `SCENE_CHEAT（靠简陋场景）` / `TIME_CHEAT（靠短时窗）` / `IDLE_CHEAT（靠空转）`。
 
-**bug 修复：** 降画质装绿 = 回 wr-quality 升场景，**不许**降门禁。本步与 wr-quality 的 §5「引擎若挂必修」联通——若复杂场景下指标炸，报引擎洞定点修。
+**bug 修复：** 降画质装绿 = 回 wr-close 升场景，**不许**降门禁。本步与 wr-close 的 §5「引擎若挂必修」联通——若复杂场景下指标炸，报引擎洞定点修。
 
-## 第 6 步：串接 wr-close / wr-quality
+## 第 6 步：串接 wr-close / wr-close
 
 本 skill 可独立跑（查已有窗），也可串在 wr-close 第 3 步：
 
-- **串 wr-close：** wr-close 判 JSON 族门禁时，同时跑本 skill 的第 1–5 步。任一假绿类发现 → 综合 FAIL，不得标 ✅，回 wr-quality 升场景或回代码修观测
-- **串 wr-quality：** 本 skill 第 5 步的降画质检测，若场景未达 U17，直接交 wr-quality 升场景
+- **串 wr-close：** wr-close 判 JSON 族门禁时，同时跑本 skill 的第 1–5 步。任一假绿类发现 → 综合 FAIL，不得标 ✅，回 wr-close 升场景或回代码修观测
+- **串 wr-close：** 本 skill 第 5 步的降画质检测，若场景未达 U17，直接交 wr-close 升场景
 - **独立跑：** 用户给「audit R3」即审已有窗，输出审查报告 + bug 清单
 
 ## 输出格式
@@ -209,12 +209,12 @@ disable_model_invocation: false
 
 第 5 步 降画质检测：
   fps>55：IDLE_CHEAT — 窗无持续 tick，静帧刷高 → FAIL
-  damage_ratio≪1：SCENE_CHEAT — 场景仅两色块（wr-quality §3 未达）→ FAIL
+  damage_ratio≪1：SCENE_CHEAT — 场景仅两色块（wr-close §3 未达）→ FAIL
 
 综合：FAIL（3 处需修）
   1. 族 D `cpu_ui_pct=0` 补 unavailable_reason 或修观测
   2. README cpu 阈值降回 85%（偷放）
-  3. 场景升维加持续 tick（fps 靠静帧刷高）→ 交 wr-quality
+  3. 场景升维加持续 tick（fps 靠静帧刷高）→ 交 wr-close
 ```
 
 若全 PASS：
@@ -239,8 +239,8 @@ disable_model_invocation: false
 - [ ] `slope_gate=off`/`fps_gate=off` 仅短于 15s 正确性窗用（没滥用）
 - [ ] `gpu_ops` 当累计读（没误读每帧 submit）
 - [ ] JSON 字段名与 `FrameMetrics` struct 一致（没自创）
-- [ ] 场景达 wr-quality U17（没靠简陋场景刷 damage/skip）
+- [ ] 场景达 wr-close U17（没靠简陋场景刷 damage/skip）
 - [ ] `RUN_SECONDS` ≥ 该 R 关闭用值（没靠短时窗刷 slope/hitch）
 - [ ] 没为过门禁删场景降复杂度（降画质装绿）
 
-任一项未过 → 报告 bug，回代码或回 wr-quality 修。
+任一项未过 → 报告 bug，回代码或回 wr-close 修。
