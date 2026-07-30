@@ -404,6 +404,58 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | **C10** | R15+全主路径 | `ui_wr_c10_soak` | **1200×800** | **300** | 长跑组合 | 无崩；hitch 可报 | W2+ |
 | **C11** | R0→R4 策略切换 | `ui_wr_c11_policy_switch` | **1200×800** | **15** | full_paint↔retained 切换正确 | policy 字段；切换后静不丢 | **W6** |
 
+### 3.1 每个 C 窗口复杂度标准（与 R 同级 · 硬）
+
+> **原则：C 窗口是多主能力的集成压测**，必须比单 R 窗口更复杂 — 多能力同时在线、相互作用、暴露跨能力边界问题。  
+> **禁止：** 把多个 R 的色块拼在一起就宣称集成。必须有**能力间的交互场景**。
+
+#### 3.1.1 所有 C 窗口通用基线（与 §2.6.1 一致 + 集成加强）
+
+| 项 | 要求 | 说明 |
+|----|------|------|
+| **wrkit.NewShell** | TopBar + Legend(≥8行) + Body + LiveHUD | C 窗 Legend 要比 R 更多行（覆盖多能力说明） |
+| **LiveHUD** | 实时 fps/p95/policy/paint/presents/core | core 字段展示所有覆盖能力的关键指标 |
+| **PhaseClock** | Steady→Spike→Recover | 阶段变化必须同时影响多个能力（不只是一个） |
+| **EnsureUIFace** | 字体加载 + 文字标签可见 | 同 §2.6.1 |
+| **多区域 Panel** | ≥6 区（比 R 更多：每个能力至少一个专属区域） | 能力区域必须**共存同屏**，不是切换显示 |
+| **Legend 内容** | 每个覆盖能力的色块+说明 + 集成效果说明 | ≥8 行 |
+| **Extra 描述** | `covers` + 每个能力的集成验证 + `impl_interaction` | 必须描述能力间如何交互、为什么集成有意义 |
+| **wrgate.BuildReport** | §2.2 全族 A–J JSON | 同 R |
+| **wrgate.EvaluateGates** | 所有覆盖能力的门禁取并集 | C 的 GateOptions = ∪(各 R 门禁) |
+| **1200×800 + RUN_SECONDS≥5** | U15/U16 | 同 R |
+
+#### 3.1.2 各 C 窗口复杂度要求（集成压测）
+
+| C | 包名 | **覆盖能力** | **必须包含的集成场景** | **必须同时在线的能力** | **必须证明的跨能力边界** | **控件集成意义** |
+|---|------|-------------|----------------------|---------------------|----------------------|----------------|
+| **C0** | `ui_wr_c0_smoke` | R0+R12+R16 | 密集静态网格 + 热脉冲 + 首帧 WarmUp + 指标 schema 验证 | FullPaint 静态存活 + 首帧有内容 + 字段齐 | 首帧内容不黑 + 指标全族存在 + 静态每帧存活 | 证明控件开机即完整可用 |
+| **C1** | `ui_wr_c1_boundary_nest` | R2+R3+R3b+R12b | 多层嵌套 boundary（≥3层）+ 内层脏不外溢 + 外层脏不内传 + debug 重绘色可视化 | boundary skip/rerecord + NeedsPaint 隔离 + compositing bits + debug overlay | 内脏→只内 rerecord；外脏→只外 rerecord；debug 色只在脏区闪 | 证明控件嵌套缓存+脏隔离+调试可视化同时工作 |
+| **C2** | `ui_wr_c2_retained_scene` | R3+R4+R4b+R5 | retained 模式下：多 boundary + Picture 回放 + 远离脏点 + damage present | boundary 缓存 + retained composite + multi-damage + Picture replay | damage ratio≪1 + dirty_layer_id≥2 + Picture 回放正确 + boundary skip>0 | 证明控件 retained 场景完整闭环 |
+| **C3** | `ui_wr_c3_list_scroll` | R4+R7+R7b+R10 | 虚拟列表（1000+项）+ 滚动复用 + 异步图片格 + retained damage | VirtualList 绑定 + scroll reuse + async image + composite | bind≪N + scroll_rerecord 有上限 + 图片只脏一格 + damage≪全屏 | 证明控件长列表+图片+滚动+retained 共存 |
+| **C4** | `ui_wr_c4_shell_overlay` | R3+R8+R21 | 顶栏（壳）+ 可滚动体内容 + 浮层面板叠加 | boundary 缓存 + overlay 独立合成 + 壳/内容分层 | 顶栏 rerecord=0 + 开 overlay 后主 paint 不涨 + 体滚不影响顶栏 | 证明控件壳+内容+浮层三层独立 |
+| **C5** | `ui_wr_c5_anim_over_static` | R6+R3+R4 | 层动画（Opacity/Transform/Clip）盖在静态 boundary 缓存上 | 层动画 + boundary 缓存 + retained composite | 静背景不闪 + fps≥55 + hitch 合理 + damage 只在动画区 | 证明控件动画层不影响静态缓存 |
+| **C6** | `ui_wr_c6_savelayer_group` | R18+R3 | SaveLayer 离屏组 + boundary 缓存 + 超预算拒批 | SaveLayer 预算 + boundary 缓存 | savelayer_allow≥1 + savelayer_reject≥1 + boundary skip>0 | 证明控件离屏合成+缓存+预算共存 |
+| **C7** | `ui_wr_c7_resize_dpr` | R11+R19+R3 | 两次尺寸变更 + boundary 缓存失效/重建 + 1px 线清晰度 | DPR 缓存失效 + boundary rerecord/snap + 1px 对齐 | 一波 rerecord 后回 skip + 1px 线不糊 + 缓存正确重建 | 证明控件 DPR 变更后完整恢复 |
+| **C8** | `ui_wr_c8_hit_overlay_xf` | R13+R6+R8 | 变换/裁剪下的 hit 目标 + 浮层叠加 + 层动画 | hit 测试 + overlay + transform | 变换下命中正确 + 浮层下命中正确 + 动画不影响命中 | 证明控件交互在变换+浮层下正确 |
+| **C9** | `ui_wr_c9_stress_cache` | R14+R3+R7 | 大量 boundary + 虚拟列表滚动 + 缓存预算压测 | 缓存预算 + boundary 缓存 + VirtualList | cache_entries 有上限 + RSS slope 不失控 + bind≪N | 证明控件缓存+虚拟化压力下不泄漏 |
+| **C10** | `ui_wr_c10_soak` | R15+全主路径 | 全能力组合长跑（静态+动画+滚动+浮层+图片）300s | 所有主能力同时在线 | 无崩 + hitch_rate 合理 + CPU/RSS 稳定 + 无渐进退化 | 证明控件全能力长跑不泄漏不崩溃 |
+| **C11** | `ui_wr_c11_policy_switch` | R0→R4 | full_paint↔retained 策略切换 + 静态内容不丢失 | 策略切换 + 静态存活 + damage present | 切换后静态不丢 + policy 字段正确 + 切换无闪烁 | 证明控件策略热切换正确 |
+
+#### 3.1.3 C 窗口质量检查清单
+
+```text
+□ §2.6.3 所有 R 基线项（Shell/LiveHUD/PhaseClock/字体/Legend/Panel/Extra/BuildReport/EvaluateGates）
+□ Legend ≥8 行（每个覆盖能力有独立说明 + 集成效果说明）
+□ ≥6 区 Panel 布局（每个能力至少一个专属区域）
+□ 能力间交互场景（不是简单拼接）
+□ PhaseClock 同时影响多个能力
+□ Extra.covers 明确列出覆盖能力
+□ Extra.impl_interaction 描述能力间交互方式
+□ GateOptions = ∪(各 R 门禁取并集)
+□ 集成边界验证（跨能力的脏传播/缓存/合成不互相干扰）
+□ 控件集成意义明确（Extra 中记录）
+```
+
 ---
 
 ## 5. 分期（W 关闭 = 单窗全集 + 组合窗）
@@ -473,7 +525,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
-| **3.8** | **§2.6 每个 R 窗口复杂度标准**：所有 R 窗口必须达到 R0 wrkit 质量条（Shell+LiveHUD+PhaseClock+多区域+Legend+详尽 Extra）；逐 R 列出视觉内容/交互/边界/控件支撑意义；质量检查清单；支撑后续控件实现 |
+| **3.8** | **§2.6 + §3.1 每个 R/C 窗口复杂度标准**：所有 R/C 窗口必须达到 R0 wrkit 质量条（Shell+LiveHUD+PhaseClock+多区域+Legend+详尽 Extra）；逐 R 22 项 + 逐 C 12 项列出视觉内容/交互/边界/控件支撑意义；C 窗加强：≥6 区+≥8 行 Legend+能力间交互场景+门禁取并集；质量检查清单；支撑后续控件实现 |
 | **3.7** | **W1 推翻重写 ✅v2**：R2/R3/R3b/R5/R9/R12b 各独立 `ui_wr_*` 真窗 GPU PASS（fps_interval 58.13–59.94·vsync_source=true·全族 A–J 齐备·boundary skip/rerecord·measure cache hit·picture replay·debug draws·cpu_ui/raster 非双 0·无降画质·无门禁偷放）；C1 独立组合窗 PASS（skip=2396 count=5 depth=3 仅集成）；无底层洞（未触发 wr-engine）；metrics-audit 复审诚实 PASS。证据归档 `/tmp/w1_rewrite_evidence/` |
 | **3.6** | **§5 自洽**：W2 不得在必修 R5=🔄 时标全 ✅ → 改为 **🔄（R5 未绿）**；C2 同步 🔄（覆盖 R5）；C7 仍 ✅ |
 | **3.5** | **W0 独立真窗齐全**：R0/R12/R16 各 `ui_wr_*` + C0 仅集成；状态以 §2/§3/§5/§10 为准；落地 `ui_wr_r12_metrics` + `ui_wr_r16_warmup` GPU PASS |

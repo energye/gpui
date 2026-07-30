@@ -13,8 +13,8 @@
 ## 真窗与状态真源（硬）
 
 - **状态只认** `docs/ENGINE_UI_WIDGET_RENDER.md` 的 **§2 主表（R）+ §3 组合表（C）+ §5 分期（W）+ §10 修订**。
-- 每个 W 的**每一个主能力 R** 必须有独立 `examples/ui_wr_r*` 真窗（U5）；**禁止**用组合窗代替单 R。
-- 每个 W 的**每一个组合窗 C** 必须有独立 `examples/ui_wr_c*` 真窗（U6）；C 只做集成，**不能**代替任何 R。
+- 每个 W 的**每一个主能力 R** 必须有独立 `examples/ui_wr_r*` 真窗（U5）；**禁止**用组合窗代替单 R; R 对应的 example 以`docs/ENGINE_UI_WIDGET_RENDER.md` 的 2.6 为实现标准。
+- 每个 W 的**每一个组合窗 C** 必须有独立 `examples/ui_wr_c*` 真窗（U6）；C 只做集成，**不能**代替任何 R; C 对应的 example 以`docs/ENGINE_UI_WIDGET_RENDER.md` 的 3 为实现标准。
 - 空目录（无 main.go）= 未建，不得标 ✅。
 
 ## 修复流程纪律
