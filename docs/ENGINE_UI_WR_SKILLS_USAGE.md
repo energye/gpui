@@ -1,29 +1,33 @@
-# gpui 真窗 Skill 使用手册（5 skill 收敛版）
+# gpui 真窗 Skill 使用手册（6 skill 收敛版）
 
-> **版本：** 2.0 | 日期：2026-07-29
-> **范围：** 本手册说明 `.atomcode/skills/` 下 5 个 skill 的**使用方法、触发词、串联闭环**。
-> **真源：** `docs/ENGINE_UI_WIDGET_RENDER.md` v3.1 + `docs/ENGINE_UI_RENDER_BASE.md` v1.29。skill 是真源的执行骨架，若 skill 与真源矛盾，以真源为准。
-> **配套：** 5 个 skill 的完整定义见 `.atomcode/skills/<skill-name>/SKILL.md`。
+> **版本：** 3.0 | 日期：2026-07-30
+> **范围：** 本手册说明 `.atomcode/skills/` 下 6 个 skill 的**使用方法、触发词、串联闭环**。
+> **真源：** `docs/ENGINE_UI_WIDGET_RENDER.md` v3.1 + `docs/ENGINE_UI_RENDER_BASE.md` v1.29 + `AGENTS.md`（分层风险与修复规则）。skill 是真源的执行骨架，若 skill 与真源矛盾，以真源为准。
+> **配套：** 6 个 skill 的完整定义见 `.atomcode/skills/<skill-name>/SKILL.md`。
+
+**v2.0 → v3.0 升级摘要：** 新增 `gpui-wr-debug`（§R 真窗 bug 修复调度入口），解决「指定窗口出现 bug 时缺统一入口」断层。原 5 skill 职责不变，`wr-debug` 作为**调度入口层**接入，按 AGENTS.md 分层风险规则回流到对应 skill 闭环。
 
 ---
 
-## 1. 5 个 skill 一览（收敛后）
+## 1. 6 个 skill 一览（收敛后）
 
-| # | Skill | 职责 | 核心动词 |
-|---|-------|------|----------|
-| 1 | `gpui-wr-implement` | 能力实现回流（ui/ 里实现 + 单测 + 指标接线） | 实现 |
-| 2 | `gpui-wr-close` | 关 R 完整生命周期（3 模式：首次关闭 / 反攻重关 / 优化重关） | 关 |
-| 3 | `gpui-metrics-audit` | 指标族 A–J 正误审查与 bug 修复（指标层） | 审 |
-| 4 | `gpui-wr-engine` | 底层修复回流（render/gpu/ui-scene 谨慎改 + 跨层影响面评估） | 修底层 |
-| 5 | `gpui-wr-rewrite` | W 矩阵级调度（推翻 W<n> 重写，批量调度 + W 矩阵级状态治理） | 调度 |
+| # | Skill | 职责 | 核心动词 | 属性 |
+|---|-------|------|----------|------|
+| 1 | `gpui-wr-debug` | 指定窗口 bug 修复调度入口（强制复现 → 定位层 → 分层回流） | 修 bug | **调度入口层** + ui 低风险自修 |
+| 2 | `gpui-wr-implement` | 能力实现回流（ui/ 里实现 + 单测 + 指标接线） | 实现 | 能力实现层 |
+| 3 | `gpui-wr-close` | 关 R 完整生命周期（3 模式：首次关闭 / 反攻重关 / 优化重关） | 关 | 关 R 生命周期层 |
+| 4 | `gpui-metrics-audit` | 指标族 A–J 正误审查与 bug 修复（指标层） | 审 | 指标横切层 |
+| 5 | `gpui-wr-engine` | 底层修复回流（render/gpu/ui-scene 谨慎改 + 跨层影响面评估） | 修底层 | 底层修复层 |
+| 6 | `gpui-wr-rewrite` | W 矩阵级调度（推翻 W<n> 重写，批量调度 + W 矩阵级状态治理） | 调度 | W 矩阵调度层 |
 
 **核心分工边界：**
 
+- `wr-debug`：**调度入口层**——指定窗口出现 bug 时强制复现 + 定位 bug 所在层，按 AGENTS.md 分层风险规则回流对应 skill；ui/rendering / ui/embedder / ui/scene / ui/io 低风险本 skill 自修
 - `wr-implement`：能力实现层（ui/ 里实现 + 单测 + 指标接线）
 - `wr-close`：关 R 完整生命周期（3 模式吸收了原 wr-quality + wr-rework 类 B + wr-optimize）
 - `metrics-audit`：横切层，审指标诚实性，串在 wr-close 判门禁时
 - `wr-engine`：底层修复层（render/gpu 谨慎改 + 跨层影响面评估）
-- `wr-rewrite`：W 矩阵级调度层（推翻整波重写，调度上面 4 个 skill）
+- `wr-rewrite`：W 矩阵级调度层（推翻整波重写，调度上面 5 个 skill）
 
 **收敛说明（v1.0 → v2.0）：**
 
@@ -35,11 +39,76 @@
 | `wr-rework` 类 C（引擎洞定点修） | 独立成 `wr-engine`（底层修复回流） |
 | `wr-implement` / `metrics-audit` | 保持独立不变 |
 
+**v3.0 新增 `wr-debug` 的断层背景：**
+
+v2.0 的 5 skill 覆盖了「正向写、反向修、横向优化、底层穿透、W 矩阵级调度」，但**缺一个「指定窗口出现 bug 时的统一入口」**。用户说「修 R3 的 bug——boundary 文不 skip」时，没有 skill 直接接：
+
+- 凭描述直接改 `examples/ui_wr_r3_boundary/main.go` = 绕洞（bug 可能在 `ui/rendering/boundary_cache.go`）
+- 不强制复现就改代码 = 改完不知道修没修
+- `render/` `gpu/` 不停下确认擅自改 = 违反 AGENTS.md，可能破坏所有 R 的 Present
+
+`wr-debug` 把「指定窗口 bug → 强制复现取 JSON → 对照 §2.2 FAIL 线定位层 → 按 AGENTS.md 分层风险规则回流」这条回流**固化**，是**调度入口层** + ui 低风险自修层，不替代被回流的 skill 的内部闭环。
+
 ---
 
 ## 2. 触发词速查表
 
-### 2.1 `gpui-wr-implement`（能力实现回流）
+### 2.1 `gpui-wr-debug`（指定窗口 bug 修复调度入口 · v3.0 新增）
+
+| 触发词 | 场景 | 自动回流哪个 skill |
+|--------|------|--------------------|
+| 「修 R3 的 bug」「debug R7」「R4 渲染错」 | 指定窗口出现 bug，定位修复 | 见下方回流决策树 |
+| 「R12 闪屏 fix」「R11 boundary 漏 skip」 | 现象 + 能力点 | 同上 |
+| 「R14 slope 偷放」「R9 measure_cache 假值」「R4 fps 假值」 | 指标假/偷放怀疑 | 交 `metrics-audit` |
+| 「指定窗口 $Rn 出现 $现象定位修复」 | 综合请求 | 强制复现 → 定位层 → 分层回流 |
+
+**`wr-debug` 回流决策树（按 AGENTS.md 分层风险规则）：**
+
+```
+指定窗口 bug
+  ↓
+第 1 步：强制复现——跑该 R 真窗取 §2.2 全族 JSON（不跑就凭描述改 = 绕洞）
+  ↓
+第 2 步：定位 bug 所在层（对照 §2.2 FAIL 线 + §6 模块落点，不凭 BUG_DESC 猜层）
+  ↓
+第 3 步：分层回流
+  ├─ ui/rendering / ui/embedder / ui/scene / ui/io（低风险）+ 能力实现缺陷
+  │   → 本 skill 第 3.2 步 ui 低风险自修（edit_file + 单测 + 重跑真窗验证）
+  │
+  ├─ render/（高风险）
+  │   → 停下 question 确认（AGENTS.md：render/ 必须 question 确认后修）
+  │   └─ 用户确认 → 交 wr-engine
+  │
+  ├─ gpu/（最高风险）
+  │   → 停下 question 确认（AGENTS.md：gpu/ 最高风险，必须 question 确认后修）
+  │   └─ 用户确认 → 交 wr-engine
+  │
+  ├─ 指标层（不诚实 / 门禁偷放 / 字段名不一致 / null 无原因）
+  │   → 交 metrics-audit 审指标诚实性
+  │
+  ├─ 已关 ✅ 真窗代码层 bug（U17 场景简陋 / HUD 不见 / 相位缺 / 实现点缺）
+  │   → 交 wr-close 模式 2（反攻重关）
+  │
+  ├─ 已关 ✅ 性能 / 场景 / HUD / 指标 优化增量
+  │   → 交 wr-close 模式 3（优化重关）
+  │
+  └─ 能力根本没实现（如 R7 VirtualList 文件不存在）
+      → 交 wr-implement（能力实现回流）
+```
+
+**`wr-debug` 输入校验（硬）：**
+
+1. `ABILITY_ID` 必给。没给 → 停下问用户「要修哪个窗口的 bug？（R<C><id>）」
+2. 该 R 当前状态：
+   - `⬜`（未关）→ 停下问用户「R<id> 还没关，bug 修复前提是「已有真窗可复现」。要先首次关闭（走 wr-close 模式 1）吗？」
+   - `✅` / `🔄` / `✅v2` / `✅🔄` → 继续
+
+**`wr-debug` 不接的范围：**
+
+- W 矩阵级批量调度（归 `wr-rewrite`）
+- 状态升维（§2 主表该 R 行「状态」列升维归被回流的 skill 改，本 skill 只回写 §10 修订表）
+
+### 2.2 `gpui-wr-implement`（能力实现回流）
 
 | 触发词 | 场景 |
 |--------|------|
@@ -115,15 +184,23 @@
                 │                                    R 关闭 ✅ / ✅v2
                 │
                 │   ┌── [wr-rewrite] W 矩阵级调度 ─────────────────┐
-                │   │   (推翻 W<n> 重写，批量调度下面 4 个 skill)    │
-                └──►│   调度 wr-implement / wr-close 3 模式 /         │
-                    │           wr-engine / metrics-audit             │
-                    └─────────────────────────────────────────────────┘
+                │   │   (推翻 W<n> 重写，批量调度下面 5 个 skill)    │
+   已关 R bug ─►│   │   调度 wr-implement / wr-close 3 模式 /         │
+                │   │           wr-engine / metrics-audit             │
+                │   └─────────────────────────────────────────────────┘
+                │
+                │   ┌── [wr-debug] 指定窗口 bug 修复调度入口 ────────┐
+                │   │   (强制复现 → 定位层 → 按 AGENTS.md 分层回流)   │
+        bug  ──►│   │   ui/* 低风险自修 / render+gpu 停下确认交       │
+                │   │   wr-engine / 指标层交 metrics-audit /          │
+                │   │   已关 ✅ 交 wr-close 模式 2/3 / 能力没实现     │
+                │   │   交 wr-implement                                │
+                │   └─────────────────────────────────────────────────┘
 
-横切层：[metrics-audit] 审指标（串在 wr-close 第 4.3 步判门禁时）
+横切层：[metrics-audit] 审指标（串在 wr-close 第 4.3 步判门禁时 / wr-debug 指标层回流时）
 ```
 
-**5 个 skill 各管一段：能力实现 → 关 R 生命周期 → 审指标 → 修底层 → W 矩阵级调度，全闭环。**
+**6 个 skill 各管一段：bug 修复调度入口 → 能力实现 → 关 R 生命周期 → 审指标 → 修底层 → W 矩阵级调度，全闭环。**
 
 ---
 
@@ -252,14 +329,39 @@
     - §10 修订表：占位行改为正式版本说明
 ```
 
+### 4.7 场景 G：已关的 R3 出现「boundary 文不 skip」bug（v3.0 新增）
+
+```
+你: 修 R3 的 bug——boundary 文不 skip
+  → wr-debug §0 读真源（AGENTS.md + §2 R3 行 + §2.2 FAIL 线 + §2.5 关闭用时长 + §22.1 序 3 前驱）
+  → wr-debug §1 强制复现
+    RUN_SECONDS=15 go run ./examples/ui_wr_r3_boundary
+    取 stderr + JSON
+  → wr-debug §2 定位 bug 所在层
+    族 C 脏区 FAIL（boundary_skip=0 但场景有静文）
+    对照 §6 模块落点 → ui/rendering/boundary_cache.go
+    风险等级：低（ui/rendering 是能力实现层）
+  → wr-debug §3.2 ui 低风险自修
+    read_symbol ui/rendering/boundary_cache.go FrameSkip
+    edit_file 定点修（扩 record 类型支持文/自定义 OnPaint 静区）
+    跑改动单测：go test ./ui/rendering -run TestBoundaryCache -count=1
+    跑全 ui 包回归：go test ./ui/... -count=1
+    重跑该 R 真窗验证 bug 已修：RUN_SECONDS=15 go run ./examples/ui_wr_r3_boundary
+  → wr-debug §4 回写 docs/ENGINE_UI_WIDGET_RENDER.md §10 修订表
+    「<版本号> | R3 bug 修复：boundary 文不 skip → 扩 record 类型 in ui/rendering/boundary_cache.go」
+```
+
+**关键：** `wr-debug` 不改 §2 主表 R3 行的「状态」列——状态升维归被回流的 skill 改。本 skill 只回写 §10 修订表。若 R3 当前 ✅，bug 修完后状态保持 ✅（不升维，只是 bug 修了）；若要升维到 ✅v2，那归 `wr-close` 模式 2 反攻重关，不归 `wr-debug`。
+
 ---
 
-## 5. 5 个 skill 的分工边界
+## 5. 6 个 skill 的分工边界
 
 ### 5.1 谁管什么
 
 | 动作 | 归哪个 skill |
 |------|--------------|
+| 指定窗口 bug 修复（强制复现 → 定位层 → 分层回流） | `wr-debug` |
 | 写真窗**前**的能力实现（ui/ 里实现 + 单测 + 指标接线） | `wr-implement` |
 | 关 R 完整生命周期（3 模式：首次关闭 / 反攻重关 / 优化重关） | `wr-close` |
 | 指标族 A–J 字段完备性/诚实性/阈值防偷放/观测一致性/降画质检测 | `metrics-audit` |
@@ -404,10 +506,16 @@ W 矩阵级重写完真绿，docs 状态升维：
 
 ## 9. 共享接口约定
 
-5 个 skill 之间的数据传递接口：
+6 个 skill 之间的数据传递接口：
 
 | 接口方向 | 内容 |
 |----------|------|
+| `wr-debug` → `wr-engine` | bug 定位到 render/gpu，停下 question 确认后交 wr-engine 修底层 |
+| `wr-debug` → `metrics-audit` | bug 定位到指标层（不诚实/偷放/字段名不一致），交 metrics-audit 审指标诚实性 |
+| `wr-debug` → `wr-close` 模式 2 | bug 是「已关 ✅ 真窗代码层 bug」，交 wr-close 模式 2 反攻重关 |
+| `wr-debug` → `wr-close` 模式 3 | bug 是「已关 ✅ 优化增量」，交 wr-close 模式 3 优化重关 |
+| `wr-debug` → `wr-implement` | bug 是「能力根本没实现」，交 wr-implement 实现能力 |
+| `wr-debug` → `wr-debug` §3.5 | wr-engine 修完底层 + 跑回归全绿，交回 wr-debug 重跑真窗验证 bug 已修 |
 | `wr-implement` → `wr-close` | 能力已实现 + 单测绿 + 指标字段已接，交 wr-close 模式 1 写真窗 |
 | `wr-close` → `wr-engine` | 跑 GPU 发现底层不满足，交 wr-engine 修底层 |
 | `wr-engine` → `wr-close` | 底层修完 + 跑回归全绿，交回 wr-close 第 3 步重跑真窗 |
@@ -418,7 +526,7 @@ W 矩阵级重写完真绿，docs 状态升维：
 | `wr-rewrite` → `metrics-audit` | W 矩阵重写批量审指标时，调度 metrics-audit 审 JSON |
 | `wr-implement` → `wr-engine` | 实现能力时发现底层不满足，交 wr-engine 修底层 |
 
-**关键：** 5 个 skill 通过 docs §2 状态列 + §10 修订表 + JSON 文件 + FrameMetrics struct 传递状态，不通过共享内存或全局变量。
+**关键：** 6 个 skill 通过 docs §2 状态列 + §10 修订表 + JSON 文件 + FrameMetrics struct 传递状态，不通过共享内存或全局变量。`wr-debug` 不改 §2 主表「状态」列（升维归被回流的 skill），只回写 §10 修订表。
 
 ---
 
@@ -452,6 +560,10 @@ W 矩阵级重写完真绿，docs 状态升维：
 | 22 | wr-rewrite 是调度层，不直接写代码 | wr-rewrite §0 |
 | 23 | wr-rewrite 底层洞批量收集（去重，避免重复修） | wr-rewrite §2.3 |
 | 24 | 引擎洞修完跑 go test ./ui/... 确认没回归 | wr-engine 第 3 步 |
+| 25 | wr-debug 强制复现——不跑真窗就凭描述改代码 = 绕洞 | wr-debug §1 |
+| 26 | wr-debug 不凭 BUG_DESC 猜层——对照 §2.2 FAIL 线 + §6 模块落点定位 | wr-debug §2 |
+| 27 | wr-debug ui 低风险自修后必须重跑该 R 真窗验证 bug 已修（不只靠单测绿） | wr-debug §3.2 |
+| 28 | wr-debug 不改 §2 主表「状态」列（升维归被回流的 skill），只回写 §10 修订表 | wr-debug §4 |
 
 ---
 
@@ -575,8 +687,43 @@ W 矩阵级重写完真绿，docs 状态升维：
    → wr-engine §4 交回 wr-close 第 3 步重跑真窗
 ```
 
+### 11.6 指定窗口出现 bug 的修复流程（v3.0 新增）
+
+```
+你: 修 R3 的 bug——boundary 文不 skip
+  → wr-debug §0 读真源
+    - AGENTS.md 分层风险规则
+    - docs/ENGINE_UI_WIDGET_RENDER.md §2 R3 行（PACKAGE / WINDOW / CLOSE_SECONDS / 状态）
+    - §2.2 全族 FAIL 线 + §2.5 关闭用时长 + §6 模块落点 + §10 修订表
+    - docs/ENGINE_UI_RENDER_BASE.md §22.1 序 3 前驱
+  → wr-debug §1 强制复现
+    RUN_SECONDS=15 go run ./examples/ui_wr_r3_boundary
+    取 stderr + JSON（不跑就凭描述改 = 绕洞）
+  → wr-debug §2 定位 bug 所在层
+    族 C 脏区 FAIL（boundary_skip=0 但场景有静文）
+    对照 §6 模块落点 → ui/rendering/boundary_cache.go
+    风险等级：低（ui/rendering 是能力实现层）
+  → wr-debug §3 分层回流
+    ├─ 定位层 = ui/rendering（低风险）+ 能力实现缺陷
+    │   → wr-debug §3.2 ui 低风险自修
+    │     - read_symbol ui/rendering/boundary_cache.go FrameSkip
+    │     - edit_file 定点修（扩 record 类型支持文/自定义 OnPaint 静区）
+    │     - 跑改动单测：go test ./ui/rendering -run TestBoundaryCache -count=1
+    │     - 跑全 ui 包回归：go test ./ui/... -count=1
+    │     - 重跑该 R 真窗验证 bug 已修
+    │
+    ├─ 若定位层 = render/（高风险）→ 停下 question 确认 → 交 wr-engine
+    ├─ 若定位层 = gpu/（最高风险）→ 停下 question 确认 → 交 wr-engine
+    ├─ 若定位层 = 指标层 → 交 metrics-audit 审指标诚实性
+    ├─ 若定位层 = 已关 ✅ 真窗代码层 bug → 交 wr-close 模式 2
+    ├─ 若定位层 = 已关 ✅ 优化增量 → 交 wr-close 模式 3
+    └─ 若定位层 = 能力根本没实现 → 交 wr-implement
+  → wr-debug §4 回写 docs §10 修订表
+    「<版本号> | R3 bug 修复：boundary 文不 skip → 扩 record 类型」
+```
+
 ---
 
 ## 12. 一句话总结
 
-> **5 个 skill 各管一段：wr-implement（能力实现）→ wr-close（关 R 完整生命周期，3 模式）→ metrics-audit（指标层审查）→ wr-engine（底层修复回流，render/gpu 谨慎改）→ wr-rewrite（W 矩阵级调度，推翻整波重写）。正向写、反向修、横向优化、底层穿透、W 矩阵级调度都有 skill 接，docs §2 状态列 + §10 修订表贯穿全流程，闭环。**
+> **6 个 skill 各管一段：wr-debug（指定窗口 bug 修复调度入口，强制复现 → 定位层 → 分层回流）→ wr-implement（能力实现）→ wr-close（关 R 完整生命周期，3 模式）→ metrics-audit（指标层审查）→ wr-engine（底层修复回流，render/gpu 谨慎改）→ wr-rewrite（W 矩阵级调度，推翻整波重写）。bug 修复入口、正向写、反向修、横向优化、底层穿透、W 矩阵级调度都有 skill 接，docs §2 状态列 + §10 修订表贯穿全流程，闭环。**
