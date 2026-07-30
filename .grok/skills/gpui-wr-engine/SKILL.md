@@ -14,7 +14,7 @@ disable_model_invocation: false
 > - **本 skill** = 底层修复回流（render / gpu / ui-scene / ui-embedder / ui-rendering 跨层谨慎改 + 影响面评估）
 > - `wr-rewrite` = W 矩阵级调度（推翻 W<n> 重写，批量调度 + W 矩阵级状态治理）
 >
-> **真源：** `docs/ENGINE_CODING_RULES.md` §0.4「ui → render → gpu，禁止 ui→gpu，禁止 CGO（purego）」+ §5「架构 vs 示例边界」；`docs/ENGINE_UI_RENDER_BASE.md` §1 架构对照 + §25.4 架构诚实点 6 条；`docs/ENGINE_UI_WIDGET_RENDER.md` §6 模块落点 + wr-quality（已并入 wr-close）§5「高概率洞表」。若本 skill 与真源矛盾，以真源为准——发现矛盾停下报告，不要自决。
+> **真源：** `docs/ENGINE_CODING_RULES.md` §0.4「ui → render → gpu，禁止 ui→gpu，禁止 CGO（purego）」+ §5「架构 vs 示例边界」；`docs/ENGINE_UI_RENDER_BASE.md` §1 架构对照 + §25.4 架构诚实点 6 条；`docs/ENGINE_UI_WIDGET_RENDER.md` §6 模块落点 + wr-close§5「高概率洞表」。若本 skill 与真源矛盾，以真源为准——发现矛盾停下报告，不要自决。
 
 ## 0. 为什么要这个 skill
 
@@ -73,7 +73,7 @@ disable_model_invocation: false
 | 指标 | `ui/scheduler` |
 | **全部真窗** | `examples/ui_wr_*` only |
 
-`read_file .atomcode/skills/gpui-wr-close/SKILL.md`（若已收敛）取其模式 1 第 0 步「高概率洞表」——这是底层洞的定位基准。
+`read_file .grok/skills/gpui-wr-close/SKILL.md`（若已收敛）取其模式 1 第 0 步「高概率洞表」——这是底层洞的定位基准。
 
 ### 0.4 定位底层洞文件
 
