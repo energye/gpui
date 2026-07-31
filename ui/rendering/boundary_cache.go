@@ -144,16 +144,89 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 		e.valid = false
 		return false
 	}
-	// Origin must match record-time absolute origin (FullPaint tree is stable).
-	if abs64(e.ox-pc.OriginX) > 0.01 || abs64(e.oy-pc.OriginY) > 0.01 {
+	// Content fingerprint must match (content changed → invalidate).
+	// Origin shift is allowed: scroll reuse (R7b) moves the cell without changing
+	// its Picture content. We replay translated to the current origin instead of
+	// invalidating. Static trees (R3/R3b) have zero shift → behavior unchanged.
+	curKey := currentContentKey(n, sz.Width, sz.Height)
+	if curKey != 0 && e.contentKey != 0 && curKey != e.contentKey {
 		e.valid = false
 		return false
 	}
-	e.pic.Replay(pc.DC)
+	if e.ox != pc.OriginX || e.oy != pc.OriginY {
+		// Translate replay to current origin (scroll reuse / layout pan).
+		// e.ox/e.oy stay frozen at record-time origin so each replay translates
+		// by the FULL record→current delta (correct total displacement), not a
+		// per-frame delta that would drift and misposition the cached Picture.
+		pc.DC.Push()
+		pc.DC.Translate(pc.OriginX-e.ox, pc.OriginY-e.oy)
+		e.pic.Replay(pc.DC)
+		pc.DC.Pop()
+	} else {
+		e.pic.Replay(pc.DC)
+	}
 	c.Skip++
 	c.FrameSkip++
 	pc.NotePaintVisit()
 	return true
+}
+
+// currentContentKey fingerprints a boundary node's **current** own content
+// (the same scope storeColorBox / storeAbsoluteColorChildren record). Returns 0
+// when the node type has no MVP recorder (caller treats 0 as "no fingerprint
+// available" and skips the content-match gate — origin/size already gate it).
+func currentContentKey(n RenderObject, w, h float64) uint64 {
+	if n == nil {
+		return 0
+	}
+	switch t := n.(type) {
+	case *RenderColorBox:
+		return colorKey(t.R, t.G, t.B, t.A, w, h)
+	case *AbsoluteBox:
+		return absoluteOwnContentKey(t, w, h)
+	default:
+		return 0
+	}
+}
+
+// absoluteOwnContentKey fingerprints an AbsoluteBox boundary's own content
+// (background + non-RepaintBoundary descendants). Mirrors recordAbsoluteOwnContent
+// selection so scroll reuse (R7b) detects content change without re-recording.
+func absoluteOwnContentKey(a *AbsoluteBox, w, h float64) uint64 {
+	if a == nil {
+		return 0
+	}
+	var key uint64
+	if a.Background != nil {
+		bg := a.Background
+		key = colorKey(bg.R, bg.G, bg.B, bg.A, w, h)
+	}
+	for _, ch := range a.children {
+		if ch == nil || ch.IsRepaintBoundary() {
+			continue
+		}
+		off := ch.Offset()
+		switch t := ch.(type) {
+		case *RenderColorBox:
+			cw, chh := t.Size().Width, t.Size().Height
+			if cw <= 0 {
+				cw = t.Width
+			}
+			if chh <= 0 {
+				chh = t.Height
+			}
+			key ^= colorKey(t.R, t.G, t.B, t.A, cw, chh) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
+		case *AbsoluteBox:
+			// Non-RB nested AbsoluteBox: fold its own-content key in.
+			key ^= absoluteOwnContentKey(t, t.Size().Width, t.Size().Height) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
+		default:
+			// Other RO types not in MVP recorder: any such child forces a miss
+			// by returning 0 (no fingerprint → caller skips content gate, origin
+			// shift still allowed but content change not detected → conservative).
+			return 0
+		}
+	}
+	return key
 }
 
 // storeColorBox records a solid color boundary Picture after a live paint.
@@ -198,9 +271,12 @@ func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *Absolute
 	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
 		recordAbsoluteOwnContent(r, a, ox, oy)
 	})
+	// contentKey fingerprints own content (bg + non-RB descendants) so tryReplay
+	// can detect scroll-shift cells whose content is unchanged (R7b scroll reuse).
+	key := absoluteOwnContentKey(a, sz.Width, sz.Height)
 	c.entries[id] = &boundaryEntry{
 		pic: pic, ox: ox, oy: oy, w: sz.Width, h: sz.Height,
-		valid: pic.Valid && !pic.IsEmpty(),
+		contentKey: key, valid: pic.Valid && !pic.IsEmpty(),
 	}
 	c.Rerecord++
 	c.FrameRerecord++
@@ -233,6 +309,11 @@ func recordAbsoluteOwnContent(r *scene.PictureRecorder, a *AbsoluteBox, ox, oy f
 				chh = t.Height
 			}
 			r.FillRect(ax, ay, cw, chh, t.R, t.G, t.B, t.A)
+		case *RenderText:
+			// Bake label text into own-content Picture (DrawString baseline at ay+FontSize).
+			// Without this case, labels fall through to default → skipped → not drawn
+			// (R7b cells had invisible labels). face may be nil (replay needs SetFont on dc).
+			r.DrawString(t.Text, ax, ay+t.FontSize, t.Face, t.R, t.G, t.B, t.A)
 		case *AbsoluteBox:
 			// Non-RB AbsoluteBox: bake its own content; still skip its RB kids.
 			recordAbsoluteOwnContent(r, t, ax, ay)

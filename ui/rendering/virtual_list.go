@@ -370,9 +370,36 @@ func (v *VirtualList) rebindWindow() bool {
 	}
 	v.first, v.last = first, last
 	v.BindCount = len(v.mounted)
-	// Position children
+	// Track which indices were freshly mounted this rebind (new objects that
+	// must record once). Others are already-mounted cells whose Picture cache
+	// stays valid across scroll offset changes (R7b scroll reuse).
+	freshlyMounted := make(map[int]bool, len(v.mounted))
+	var freshlyMountedCount int
+	// Mount missing
+	if v.Builder != nil {
+		for idx := first; idx < last; idx++ {
+			if _, ok := v.mounted[idx]; ok {
+				continue
+			}
+			ch := v.Builder(idx)
+			if ch == nil {
+				continue
+			}
+			v.AddChild(ch)
+			v.mounted[idx] = ch
+			freshlyMounted[idx] = true
+			freshlyMountedCount++
+		}
+	}
+	// Position children. For already-mounted cells (not fresh this rebind),
+	// SetOffset + MarkNeedsLayout would set needsPaint=true and invalidate the
+	// BoundaryCache entry (scroll reuse R7b). Clear needsPaint on those cells so
+	// their cached Picture replays (translated) instead of re-recording each frame.
 	for idx, ch := range v.mounted {
 		ch.SetOffset(Point{X: 0, Y: v.offsetOf(idx)})
+		if !freshlyMounted[idx] {
+			ch.clearPaintDirty()
+		}
 	}
 	return true
 }
