@@ -397,7 +397,8 @@ func buildScene(w, h float64) *sceneC3 {
 			im = prev
 		} else {
 			im = rendering.NewRenderImage(48, ext-8)
-			im.PR, im.PG, im.PB = 0.20, 0.20, 0.25 // placeholder chrome
+			// 鲜明占位色（与行背景 0.10/0.11/0.14 强对比，人眼可见 image 格存在）。
+			im.PR, im.PG, im.PB = 0.55, 0.42, 0.18 // 暖橙占位
 			im.SetRepaintBoundary(true)
 			s.images[idx] = im
 		}
