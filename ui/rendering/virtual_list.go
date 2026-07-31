@@ -1,5 +1,7 @@
 package rendering
 
+import "sync"
+
 // ItemBuilder creates a row RenderObject for a logical index.
 type ItemBuilder func(index int) RenderObject
 
@@ -29,8 +31,15 @@ type VirtualList struct {
 	first int // inclusive
 	last  int // exclusive
 
-	// mounted maps index → child
+	// mounted maps index → child. Guarded by mu (see below).
 	mounted map[int]RenderObject
+
+	// mu protects mounted (and the children slice mutated via AddChild/RemoveChild
+	// during rebind) against concurrent read/write. The raster loop reads
+	// mounted/children in Paint/Layout while a ticker goroutine may trigger
+	// OnViewportScroll → rebindWindow which mutates the same map/slice. Without
+	// serialization this panics with "concurrent map iteration and map write".
+	mu sync.Mutex
 
 	// BindCount is the number of currently mounted children (test metric).
 	BindCount int
@@ -269,6 +278,7 @@ func (v *VirtualList) OnViewportScroll(offsetY, viewportH float64) {
 	if v == nil {
 		return
 	}
+	v.mu.Lock()
 	if offsetY < 0 {
 		offsetY = 0
 	}
@@ -278,22 +288,26 @@ func (v *VirtualList) OnViewportScroll(offsetY, viewportH float64) {
 	changed := offsetY != v.scrollY || viewportH != v.viewportH
 	v.scrollY, v.viewportH = offsetY, viewportH
 	if !changed && len(v.mounted) > 0 {
+		v.mu.Unlock()
 		return
 	}
-	if v.rebindWindow() {
+	rebound := v.rebindWindowLocked()
+	v.mu.Unlock()
+	if rebound {
 		v.MarkNeedsLayout()
 	} else {
 		v.MarkNeedsPaint()
 	}
 }
 
-// rebindWindow updates mounted children. Returns true if set of indices changed.
-func (v *VirtualList) rebindWindow() bool {
+// rebindWindowLocked updates mounted children. Returns true if set of indices
+// changed. Caller must hold v.mu.
+func (v *VirtualList) rebindWindowLocked() bool {
 	if v.ItemCount == 0 {
-		return v.clearMounted()
+		return v.clearMountedLocked()
 	}
 	if !v.variable() && v.ItemExtent <= 0 {
-		return v.clearMounted()
+		return v.clearMountedLocked()
 	}
 
 	vh := v.viewportH
@@ -404,7 +418,7 @@ func (v *VirtualList) rebindWindow() bool {
 	return true
 }
 
-func (v *VirtualList) clearMounted() bool {
+func (v *VirtualList) clearMountedLocked() bool {
 	if len(v.mounted) == 0 {
 		return false
 	}
@@ -445,7 +459,8 @@ func (v *VirtualList) Layout(c Constraints) Size {
 	h := v.ContentHeight()
 	out := c.Tighten(Size{Width: w, Height: h})
 	v.setSize(out)
-	v.rebindWindow()
+	v.mu.Lock()
+	v.rebindWindowLocked()
 	// Layout mounted children tightly to each row's height.
 	for idx, ch := range v.mounted {
 		ext := v.extentAt(idx)
@@ -454,6 +469,7 @@ func (v *VirtualList) Layout(c Constraints) Size {
 		ch.SetOffset(Point{X: 0, Y: v.offsetOf(idx)})
 	}
 	v.BindCount = len(v.mounted)
+	v.mu.Unlock()
 	v.RememberConstraints(c)
 	v.clearLayoutDirty()
 	return out
@@ -469,10 +485,18 @@ func (v *VirtualList) Paint(pc *PaintContext) {
 	}
 	pc.NotePaintVisit()
 	paintSelf := !pc.CompositeOnly || v.NeedsPaint()
+	// Snapshot children + per-child rowH under the lock so the raster loop
+	// never races a ticker-driven rebind (concurrent map/slice read-write).
+	v.mu.Lock()
+	type paintedChild struct {
+		ch   RenderObject
+		off  Point
+		rowH float64
+	}
+	pcs := make([]paintedChild, 0, len(v.children))
 	for _, ch := range v.children {
 		off := ch.Offset()
 		rowH := v.ItemExtent
-		// Prefer actual mounted index height when variable.
 		if v.variable() {
 			for idx, m := range v.mounted {
 				if m == ch {
@@ -481,6 +505,13 @@ func (v *VirtualList) Paint(pc *PaintContext) {
 				}
 			}
 		}
+		pcs = append(pcs, paintedChild{ch: ch, off: off, rowH: rowH})
+	}
+	v.mu.Unlock()
+	for _, p := range pcs {
+		ch := p.ch
+		off := p.off
+		rowH := p.rowH
 		if v.viewportH > 0 {
 			top := off.Y
 			bot := off.Y + rowH
@@ -508,8 +539,12 @@ func (v *VirtualList) Paint(pc *PaintContext) {
 
 // HitTest implements RenderObject.
 func (v *VirtualList) HitTest(p Point) RenderObject {
-	for i := len(v.children) - 1; i >= 0; i-- {
-		ch := v.children[i]
+	v.mu.Lock()
+	children := make([]RenderObject, len(v.children))
+	copy(children, v.children)
+	v.mu.Unlock()
+	for i := len(children) - 1; i >= 0; i-- {
+		ch := children[i]
 		off := ch.Offset()
 		local := Point{X: p.X - off.X, Y: p.Y - off.Y}
 		if hit := ch.HitTest(local); hit != nil {
