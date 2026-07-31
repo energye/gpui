@@ -129,7 +129,7 @@ func main() {
 			if bind > 60 || frameRR > 10 || dirtyPerImg > 1 {
 				gateOK = false
 			}
-			core := fmt.Sprintf("bind=%d/%1000 rr=%d/frame dirty/img=%d scrollY=%.0f", bind, itemCount, frameRR, dirtyPerImg, scrollY)
+			core := fmt.Sprintf("bind=%d/%d rr=%d/frame dirty/img=%d scrollY=%.0f", bind, itemCount, frameRR, dirtyPerImg, scrollY)
 			extra := fmt.Sprintf("phase=%s dmg=%.2f flings=%d p95=%.0f", ph, damageRatio, sc.flingCount.Load(), snap.P95FrameIntervalMs)
 			sc.shell.UpdateHUD("C3", ph, app, gateOK, core, extra)
 		}
@@ -216,7 +216,7 @@ func main() {
 			"impl_edge":                 "1000 items variable 60/80/100; clamp [0, maxScrollY]; fling ballistic decel; recover scrolls to 0; async image SetImage interleaved with scroll; FullPaint policy damage_ratio near 1 is correct semantic (NOT冒充 retained)",
 			"impl_fail":                 "bind_peak>60 = FAIL (R7); scroll_rerecord_per_frame>10 = FAIL (R7b); dirty_per_img>1 = FAIL (R10); boundary_skip<1 = FAIL (R4 scope: per-cell cache replay must occur); fps<55 scroll phase = FAIL; RSS true-leak gate (peak>200MB + slope>300000)",
 			"impl_visible":              "viewport shows only ~22-30 cells with variable heights; cells have left image thumbnail (placeholder→decoded on load) + right text label; scrolling shows fling deceleration; HUD shows bind=X/1000 rr=Y/frame dirty/img=1 skip=Y; only freshly-loaded image cell flickers, other cells static cache-replay",
-			"rss_baseline_note":         "cold-start GPU backend+atlas+font one-shot alloc (R3/R4/R7/R7b/R10/R11 green windows same-host baseline 472990-690728 KB/min, peak≈130MB, after_close==peak); C3 cold/warm peak stable confirms not progressive leak; slope>300000+peak>200MB gate catches true leak",
+			"rss_baseline_note":         "wr-debug 修复 C3 RSS 渐进泄漏：真窗 HUD core 字符串 fmt.Sprintf 用了非法动词 %1000（当宽度 1000 处理→每帧生成 ~1088B 唯一超长字符串→数字占比被空格稀释致 IsHighChurnLabel 判定失效→shapeResultCache 每帧全 miss 新增 ~89KB 条目→60s 涨 ~300MB），已改 %d。修复后 RSS 平线 129→133MB（5s→55s），slope=123840 KB/min 为本机冷启动一次性分配共性（R3/R4/R7/R7b/R10/R11 已绿真窗同机基线 472990-690728 KB/min，peak≈130MB，after_close==peak），peak=133MB<200MB 且 slope<300000 凭真实阈值 PASS 不再依赖豁免；真渐进泄漏（peak>200MB + slope>300000 且 after_close!=peak）仍 FAIL",
 		},
 	})
 
@@ -280,13 +280,12 @@ func main() {
 		os.Exit(1)
 	}
 	// C3 RSS slope true-leak gate (same honest baseline as R7/R7b/R10).
-	// Honest baseline note (metrics-audit裁定): 本机 GPU 后端 + atlas + 字体冷启一次性分配共性,
-	// 已绿真窗 R3/R4/R7/R7b/R10/R11 同机同窗 RSS slope 基线 472990-690728 KB/min（peak≈130MB,
-	// after_close==peak）。C3 集成场景（VirtualList 1000 项 + fling 35s + async image 24 格）
-	// 触发更频繁的 GPU buffer 分配/回收链，cold-start peak 更高（~300-610MB），但 after_close==peak
-	// 证实是 GPU 驱动延迟回收，非渐进泄漏。门禁不删（AGENTS硬）：after_close==peak 时判为
-	// cold-start 基线共性（peak 稳定不爬升），豁免 FAIL；真渐进泄漏（peak>200MB + slope>300000
-	// 且 after_close!=peak，即 close 后仍在爬升）仍 FAIL。
+	// wr-debug 2026-07-31: 修复 C3 RSS 渐进泄漏——真窗 HUD core 字符串 fmt 非法动词 %1000
+	// （当宽度 1000 处理→每帧 ~1088B 唯一超长字符串→数字占比稀释致 IsHighChurnLabel 失效→
+	// shapeResultCache 每帧 miss 新增 ~89KB 条目）已改 %d。修复后 peak=133MB<200MB、
+	// slope=123840 KB/min<300000，凭真实阈值 PASS，不再依赖 after_close==peak 豁免。
+	// 门禁不删（AGENTS硬）：真渐进泄漏（peak>200MB + slope>300000 且 after_close!=peak，
+	// 即 close 后仍在爬升）仍 FAIL。
 	rssPeakKB := rep.RSSPeakKB
 	rssSlope := rep.RSSSlopeKBPerMin
 	coldStartBaseline := rep.RSSAfterCloseKB == rssPeakKB
