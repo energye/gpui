@@ -73,6 +73,11 @@ func main() {
 			}
 		},
 	})
+
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	app.SetPictureTextureCache(true)
 	app.SetDebugRepaint(debugOn)
 
 	phases := wrkit.NewPhaseClock(1.5, 4.0) // Steady 0–1.5 · Spike 1.5–4 · Recover
@@ -140,6 +145,8 @@ func main() {
 	hotDirty := sc.hotDirtyTicks.Load()
 	staticClean := sc.staticCleanTicks.Load()
 
+	texRasterize, texHit := app.PictureTextureCacheStats()
+
 	rep := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R12b",
 		Scenario:      "ui_wr_r12b_debug_repaint",
@@ -149,6 +156,9 @@ func main() {
 		SurfaceAreaPx: int64(winW * winH),
 		Warmup:        true,
 		Extra: map[string]any{
+			"tex_rasterize":       texRasterize,
+			"tex_hit":             texHit,
+			"tex_impl":            "B1: per-cell boundary Pictures rasterized to GPU textures once (scroll cell reuse blits instead of re-replaying commands); rasterize>0 proves texture path active",
 			"client_px":           "1200x800",
 			"run_seconds":         secs,
 			"debug_repaint":       debugOn,
@@ -180,6 +190,11 @@ func main() {
 		RequirePersistentFPS: true, MinFPSWall: 55, MinFPSElapsed: 5,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	// B1 gate: texture path must have rasterized at least once (mechanism active).
+	if texRasterize < 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want â¥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
 	// R12b overlay invariants.

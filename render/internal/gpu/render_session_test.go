@@ -1200,31 +1200,6 @@ func TestReadbackGrouped_NilTexturesReturnsError(t *testing.T) {
 		t.Error("encodeSubmitReadbackGrouped with nil textures should return error, not crash")
 	}
 }
-
-// TestReadback_NilTexturesReturnsError verifies the non-grouped readback
-// path also returns an error when textures are nil.
-func TestReadback_NilTexturesReturnsError(t *testing.T) {
-	device, queue, cleanup := createNativeDevice(t)
-	defer cleanup()
-
-	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
-	defer s.Destroy()
-
-	target := render.GPURenderTarget{
-		Data:   make([]byte, 100*100*4),
-		Width:  100,
-		Height: 100,
-		Stride: 400,
-	}
-
-	err := s.encodeSubmitReadback(100, 100, nil, nil, nil, nil, nil, nil, nil, target)
-	if err == nil {
-		t.Error("encodeSubmitReadback with nil textures should return error, not crash")
-	}
-}
-
-// TestCopySubmitAndReadback_NilResolveTexReturnsError verifies
-// copySubmitAndReadback returns an error when resolveTex is nil.
 func TestCopySubmitAndReadback_NilResolveTexReturnsError(t *testing.T) {
 	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()

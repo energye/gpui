@@ -66,6 +66,11 @@ func (b *RenderBox) Layout(c Constraints) Size {
 		pref.Height = maxH + 2*b.Pad
 	}
 	out := c.Tighten(pref)
+	if out != b.size {
+		// Size changed → own content (OnPaint bg/border) must repaint even under
+		// CompositeOnly (bubbled-only dirt would otherwise skip it).
+		b.MarkNeedsPaint()
+	}
 	b.setSize(out)
 	b.RememberConstraints(c)
 	b.clearLayoutDirty()
@@ -87,7 +92,9 @@ func (b *RenderBox) Paint(pc *PaintContext) {
 		return
 	}
 	pc.NotePaintVisit()
-	paintSelf := !pc.CompositeOnly || b.NeedsPaint()
+	// Own-content dirt only: bubbled descendant dirt must not re-run OnPaint
+	// (same R4 static-loss guard as AbsoluteBox.Paint).
+	paintSelf := !pc.CompositeOnly || b.NeedsPaintSelf()
 	if paintSelf {
 		if b.OnPaint != nil {
 			b.OnPaint(pc, b.size)
@@ -110,6 +117,8 @@ func (b *RenderBox) Paint(pc *PaintContext) {
 		off := ch.Offset()
 		ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
 	}
+	// Walked every dirty path; clear the bubbled flag so steady frames early-out.
+	b.clearPaintDirty()
 }
 
 // HitTest implements RenderObject (Y-down local coords relative to this box).

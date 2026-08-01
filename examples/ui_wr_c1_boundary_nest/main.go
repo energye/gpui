@@ -79,6 +79,11 @@ func main() {
 			}
 		},
 	})
+
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	app.SetPictureTextureCache(true)
 	app.SetDebugRepaint(debugRepaint)
 	app.Metrics().SetBoundaryDiscovery(cnt, depth)
 	// R3b: force compositing-bits walk so outer+mid become NeedsCompositing.
@@ -169,6 +174,8 @@ func main() {
 	outerDirty := sc.outerDirty.Load()
 	draws := app.DebugRepaintDraws()
 
+	texRasterize, texHit := app.PictureTextureCacheStats()
+
 	rep := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "C1",
 		Scenario:      "ui_wr_c1_boundary_nest",
@@ -178,6 +185,9 @@ func main() {
 		SurfaceAreaPx: int64(winW * winH),
 		Warmup:        true,
 		Extra: map[string]any{
+			"tex_rasterize":           texRasterize,
+			"tex_hit":                 texHit,
+			"tex_impl":                "B1: per-cell boundary Pictures rasterized to GPU textures once (scroll cell reuse blits instead of re-replaying commands); rasterize>0 proves texture path active",
 			"client_px":               "1200x800",
 			"run_seconds":             secs,
 			"covers":                  "R2+R3+R3b+R12b",
@@ -225,6 +235,11 @@ func main() {
 	}
 	if err := wrgate.EvaluateGates(rep, opt); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	// B1 gate: texture path must have rasterized at least once (mechanism active).
+	if texRasterize < 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want ≥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
 	// C1 integration invariants.

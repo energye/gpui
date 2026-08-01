@@ -145,7 +145,11 @@ func NewLiveHUD(width, height float64) *LiveHUD {
 	box := rendering.NewRenderBox()
 	box.FixedWidth = width
 	box.FixedHeight = height
-	// Not a RepaintBoundary: when dirty, HUD repaints with fresh numbers.
+	// RepaintBoundary isolates the HUD band: a dirty HUD (10Hz refresh) must not
+	// invalidate the parent boundary's own-content Picture. A non-RB HUD is
+	// baked into the root picture, so every HUD refresh forces a full-surface
+	// rerecord + full present (flicker/drops on slow GPUs, R4 regression).
+	box.SetRepaintBoundary(true)
 	box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		h.paint(pc, size)
 	}

@@ -54,10 +54,6 @@ type Swapchain struct {
 	lastAcquireNs  int64
 	lastPresentNs  int64
 
-	// lastReconfig rate-limits native Surface.Configure. Continuous reconfigure
-	// under long stress (S14) can abort wgpu-native ("failed to initiate panic").
-	lastReconfig time.Time
-
 	// frameOpen is true between a successful BeginFrame and EndFrame/DiscardFrame.
 	// Enforces one-in-flight pairing: BeginFrame while open is an error.
 	// Protected by frameMu for concurrent BeginFrame/EndFrame/DiscardFrame.
@@ -322,8 +318,13 @@ func pickPresentMode(available []PresentMode, prefer []PresentMode) PresentMode 
 	return available[0]
 }
 
-// Resize updates extent and reconfigures when the size actually changes.
-// Same-size calls are no-ops to avoid Surface.Configure thrash (black flash).
+// Resize updates extent and defers the native reconfiguration to the next
+// BeginFrame (frame boundary). Same-size calls are no-ops to avoid
+// Surface.Configure thrash (black flash).
+//
+// Deferred semantics match Flutter/Impeller: resize events are coalesced by
+// the WM and the surface is reconfigured once per frame, before acquire —
+// the only point wgpu allows Configure (no in-flight surface output).
 //
 // Callers should draw + Present a full frame immediately after a successful
 // size-changing Resize (Skia/Flutter: first frame after surface recreate must
@@ -340,9 +341,11 @@ func (sc *Swapchain) Resize(width, height uint32) error {
 	}
 	sc.Width = width
 	sc.Height = height
-	// Configure() marks suboptHandled for this extent so the first suboptimal
-	// present after resize does not immediately reconfigure again (double flash).
-	return sc.Configure()
+	// Configure() at the next BeginFrame marks suboptHandled for this extent so
+	// the first suboptimal present after resize does not immediately reconfigure
+	// again (double flash).
+	sc.pendingReconfigure = true
+	return nil
 }
 
 // MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame (S6.8).
@@ -714,7 +717,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	}
 
 	if sc.pendingReconfigure || !sc.configured {
-		if err := sc.reconfigureThrottled(); err != nil {
+		if err := sc.configureIfNeeded(); err != nil {
 			return nil, err
 		}
 	}
@@ -764,7 +767,6 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 					return nil, fmt.Errorf("%w (reconfigure: %v)", err, cfgErr)
 				}
 			} else {
-				sc.lastReconfig = time.Now()
 				sc.acquireRetries++
 				st, suboptimal, err = sc.Surface.GetCurrentTexture()
 				if err != nil {
@@ -814,19 +816,25 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	}, nil
 }
 
-// reconfigureThrottled runs Configure at most once per 500ms to avoid native
-// Surface.Configure thrash under long multi-module stress (S14 soak crash).
-func (sc *Swapchain) reconfigureThrottled() error {
-	const minInterval = 500 * time.Millisecond
+// configureIfNeeded reconfigures at the frame boundary (BeginFrame), at most
+// once per frame. Idempotent: skips when the surface is already configured at
+// the current extent and no reconfigure is pending.
+//
+// This replaces the previous 500ms timer throttle (S14 soak crash guard) with
+// Flutter-style structural guarantees — frame-boundary execution, once-per-
+// frame, idempotent skip — which make native Surface.Configure thrash
+// structurally impossible (the timer was a band-aid; the crash came from
+// repeated Configure storms, and BeginFrame runs at most once per frame).
+func (sc *Swapchain) configureIfNeeded() error {
 	if sc == nil {
 		return fmt.Errorf("wgpu: swapchain is nil")
 	}
 	if err := sc.ensureDeviceLocked(); err != nil {
 		return err
 	}
-	if !sc.lastReconfig.IsZero() && time.Since(sc.lastReconfig) < minInterval {
-		sc.pendingReconfigure = true
-		return fmt.Errorf("wgpu: surface reconfigure rate-limited")
+	if !sc.pendingReconfigure && sc.configured &&
+		sc.suboptHandledW == sc.Width && sc.suboptHandledH == sc.Height {
+		return nil
 	}
 	// Best-effort drop of any dangling surface output before reconfigure.
 	if sc.Surface != nil {
@@ -835,7 +843,6 @@ func (sc *Swapchain) reconfigureThrottled() error {
 	if err := sc.Configure(); err != nil {
 		return err
 	}
-	sc.lastReconfig = time.Now()
 	return nil
 }
 

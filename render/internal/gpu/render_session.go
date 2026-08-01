@@ -844,6 +844,9 @@ func (s *GPURenderSession) EnsureTextures(w, h uint32) error {
 //
 // Returns nil if all command slices are empty. Pipelines are lazily
 // created on first use.
+// RenderFrame renders all draw commands in a single render pass with no
+// scissor grouping. It is a thin convenience wrapper over RenderFrameGrouped
+// (a single group with no scissor/clip), so all frames share one code path.
 func (s *GPURenderSession) RenderFrame(
 	target render.GPURenderTarget,
 	sdfShapes []SDFRenderShape,
@@ -855,82 +858,14 @@ func (s *GPURenderSession) RenderFrame(
 	if len(sdfShapes) == 0 && len(convexCommands) == 0 && len(stencilPaths) == 0 && len(textBatches) == 0 && len(glyphMaskBatches) == 0 {
 		return nil
 	}
-
-	// Determine render target view: per-pass target.View takes priority
-	// over session-level surfaceView (backward compat).
-	activeView := s.resolveActiveView(target)
-
-	slogger().Debug("RenderFrame",
-		"sdf", len(sdfShapes), "convex", len(convexCommands),
-		"stencil", len(stencilPaths), "text", len(textBatches),
-		"glyphMask", len(glyphMaskBatches),
-		"surface", activeView != nil)
-
-	w, h := s.effectiveDimensions(target, activeView)
-	slogger().Debug("RenderFrame dimensions",
-		"target_w", target.Width, "target_h", target.Height,
-		"effective_w", w, "effective_h", h,
-		"surface", activeView != nil,
-	)
-	// Record the frame dimensions so flush-time ortho projection (Tier 4/6
-	// text) divides by the real viewport size. Without this the glyph-mask /
-	// MSDF ortho computed 2.0/0 and produced NaN/Inf clip positions, so text
-	// vanished on the non-grouped path. RenderFrameGrouped already does this.
-	s.frameW, s.frameH = int(w), int(h)
-	if err := s.ensureTexturesForView(activeView, w, h); err != nil {
-		return fmt.Errorf("ensure textures: %w", err)
-	}
-
-	// Clip bind layout must be created BEFORE pipelines, because pipeline
-	// layout creation includes the clip layout at @group(1).
-	if err := s.ensureClipBindLayout(); err != nil {
-		return fmt.Errorf("ensure clip bind layout: %w", err)
-	}
-	if err := s.ensurePipelines(); err != nil {
-		return fmt.Errorf("ensure pipelines: %w", err)
-	}
-	if err := s.ensureStagePipelines(len(stencilPaths) > 0, false, false); err != nil {
-		return err
-	}
-
-	// Build per-frame GPU resources using persistent buffers.
-	var sdfResources *sdfFrameResources
-	if len(sdfShapes) > 0 {
-		var err error
-		sdfResources, err = s.buildSDFResources(sdfShapes, w, h)
-		if err != nil {
-			return fmt.Errorf("build SDF resources: %w", err)
-		}
-	}
-
-	var convexRes *convexFrameResources
-	if len(convexCommands) > 0 {
-		var err error
-		convexRes, err = s.buildConvexResources(convexCommands, w, h)
-		if err != nil {
-			return fmt.Errorf("build convex resources: %w", err)
-		}
-	}
-
-	stencilResources, err := s.buildStencilResourcesBatch(stencilPaths, w, h)
-	if err != nil {
-		return err
-	}
-
-	textRes, err := s.prepareTextResources(textBatches)
-	if err != nil {
-		return err
-	}
-
-	glyphMaskRes, err := s.prepareGlyphMaskResources(glyphMaskBatches)
-	if err != nil {
-		return err
-	}
-
-	if activeView != nil {
-		return s.encodeSubmitSurface(activeView, w, h, sdfResources, sdfShapes, convexRes, stencilResources, stencilPaths, textRes, glyphMaskRes)
-	}
-	return s.encodeSubmitReadback(w, h, sdfResources, sdfShapes, convexRes, stencilResources, stencilPaths, textRes, glyphMaskRes, target)
+	groups := []ScissorGroup{{
+		SDFShapes:        sdfShapes,
+		ConvexCommands:   convexCommands,
+		StencilPaths:     stencilPaths,
+		TextBatches:      textBatches,
+		GlyphMaskBatches: glyphMaskBatches,
+	}}
+	return s.RenderFrameGrouped(target, groups, nil, nil)
 }
 
 // groupResources holds pre-built GPU resources for a single ScissorGroup.
@@ -950,13 +885,6 @@ type groupResources struct {
 	glyphMaskRes  *glyphMaskFrameResources
 }
 
-// RenderFrameGrouped renders multiple scissor groups in a single render pass.
-// Each group's draw commands are rendered with the group's scissor rect applied,
-// then the scissor is changed for the next group. This eliminates multiple
-// render pass submissions when clipping is used.
-//
-// For frames with no scissor changes (single group with nil rect), this
-// behaves identically to the original RenderFrame.
 func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, groups []ScissorGroup, baseLayer *GPUTextureDrawCommand, sharedEncoder *webgpu.CommandEncoder) error { //nolint:gocognit,gocyclo,cyclop,funlen,maintidx // sequential resource setup + group dispatch
 	// opt21: deferred layer RT CBs share this session's MSAA/depth textures.
 	// Drain them before encoding a new pass that reuses those attachments
@@ -4089,121 +4017,6 @@ func (s *GPURenderSession) materializeGlyphMaskBindGroups() {
 	}
 	s.glyphMaskPendingViews = nil
 }
-
-// encodeSubmitReadback encodes the unified render pass, copies the resolve
-// texture to a staging buffer, submits, waits, and reads back pixels.
-func (s *GPURenderSession) encodeSubmitReadback(
-	w, h uint32,
-	sdfRes *sdfFrameResources,
-	sdfShapes []SDFRenderShape,
-	convexRes *convexFrameResources,
-	stencilRes []*stencilCoverBuffers,
-	stencilPaths []StencilPathCommand,
-	textRes *textFrameResources,
-	glyphMaskRes *glyphMaskFrameResources,
-	target render.GPURenderTarget,
-) error {
-	if s.textures.resolveTex == nil || s.textures.resolveView == nil ||
-		s.textures.stencilView == nil ||
-		(s.sampleCount > 1 && s.textures.msaaView == nil) {
-		return fmt.Errorf("offscreen textures destroyed (concurrent resize?)")
-	}
-
-	encoder, err := s.device.CreateCommandEncoder(sessionEncoderDesc)
-	s.lastSubmitStats.EncodersCreated++
-	if err != nil {
-		return fmt.Errorf("create command encoder: %w", err)
-	}
-	// BUG-GG-ENCODER-LIFECYCLE-001: defer-based safety net ensures the encoder
-	// is always finalized even if a panic or unexpected error path is hit.
-	// DiscardEncoding is idempotent (no-op if already released by Finish).
-	encoderConsumed := false
-	defer func() {
-		if !encoderConsumed {
-			encoder.DiscardEncoding()
-		}
-	}()
-
-	// Unified render pass descriptor with MSAA color + stencil + resolve.
-	rpDesc := &webgpu.RenderPassDescriptor{
-		Label:            "session_unified_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{s.colorAttachment(s.textures.resolveView, types.LoadOpClear)},
-		DepthStencilAttachment: &webgpu.RenderPassDepthStencilAttachment{
-			View:              s.textures.stencilView,
-			DepthLoadOp:       types.LoadOpClear,
-			DepthStoreOp:      types.StoreOpDiscard,
-			DepthClearValue:   1.0,
-			StencilLoadOp:     types.LoadOpClear,
-			StencilStoreOp:    types.StoreOpStore,
-			StencilClearValue: 0,
-		},
-	}
-
-	rp, rpErr := encoder.BeginRenderPass(rpDesc)
-	if rpErr != nil {
-		return fmt.Errorf("begin render pass: %w", rpErr)
-	}
-	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
-	s.applyScissorRect(rp)
-
-	// Bind no-clip at @group(1) for non-grouped path (no RRect clip).
-	// Clip bind group is passed to each RecordDraws (must be bound AFTER
-	// SetPipeline due to Vulkan pipeline layout requirement).
-	clipBG := s.noClipBindGroup
-
-	// Tier 1: SDF shapes (no stencil interaction).
-	if sdfRes != nil && len(sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG, s.frameMaskBindGroup())
-	}
-
-	// Tier 2a: Convex polygon fast-path (no stencil interaction).
-	if convexRes != nil {
-		s.convexRenderer.RecordDraws(rp, convexRes, clipBG, s.frameMaskBindGroup())
-	}
-
-	// Tier 2b: Stencil-then-cover paths.
-	for i, bufs := range stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG, s.frameMaskBindGroup(), stencilPaths[i].BlendMode)
-	}
-
-	// Tier 4: MSDF text (rendered after shapes).
-	if textRes != nil && len(textRes.drawCalls) > 0 {
-		s.textPipeline.RecordDraws(rp, textRes, clipBG)
-	}
-
-	// Tier 6: Glyph mask text (rendered last, on top of all other geometry).
-	if glyphMaskRes != nil && len(glyphMaskRes.drawCalls) > 0 {
-		s.glyphMaskPipeline.RecordDraws(rp, glyphMaskRes, clipBG)
-	}
-
-	if endErr := rp.End(); endErr != nil {
-		slogger().Warn("render pass End failed", "err", endErr)
-	}
-
-	// VK-LAYOUT-001: After MSAA resolve the texture is in
-	// COLOR_ATTACHMENT_OPTIMAL layout. CopyTextureToBuffer requires
-	// TRANSFER_SRC_OPTIMAL. Insert an explicit barrier to transition.
-	// This is a no-op on Metal, GLES, software, and native backends.
-	encoder.TransitionTextures([]webgpu.TextureBarrier{{
-		Texture: s.textures.resolveTex,
-		Usage: webgpu.TextureUsageTransition{
-			OldUsage: types.TextureUsageRenderAttachment,
-			NewUsage: types.TextureUsageCopySrc,
-		},
-	}})
-
-	// Mark encoder as consumed before handing to copySubmitAndReadback,
-	// which calls Finish() internally.
-	encoderConsumed = true
-
-	// Encode copy and submit, then read back pixels to the target.
-	return s.copySubmitAndReadback(encoder, w, h, target)
-}
-
-// copySubmitAndReadback creates a staging buffer, encodes the texture-to-buffer
-// copy, submits the command buffer, waits for the GPU, and reads back pixels
-// into the render target. This is the second half of encodeSubmitReadback,
-// extracted for readability.
 func (s *GPURenderSession) copySubmitAndReadback(
 	encoder *webgpu.CommandEncoder, w, h uint32, target render.GPURenderTarget,
 ) error {
@@ -4308,137 +4121,6 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	}
 	return nil
 }
-
-// encodeSubmitSurface encodes the unified render pass with the given view
-// as the resolve target, then submits without readback. The MSAA color
-// attachment resolves directly to the provided texture view.
-//
-// This is the zero-copy path for windowed rendering: no staging buffer, no
-// CopyTextureToBuffer, no ReadBuffer, no fence wait (presentation handles
-// synchronization).
-func (s *GPURenderSession) encodeSubmitSurface(
-	view *webgpu.TextureView,
-	w, h uint32,
-	sdfRes *sdfFrameResources,
-	sdfShapes []SDFRenderShape,
-	convexRes *convexFrameResources,
-	stencilRes []*stencilCoverBuffers,
-	stencilPaths []StencilPathCommand,
-	textRes *textFrameResources,
-	glyphMaskRes *glyphMaskFrameResources,
-) error {
-	encoder, err := s.device.CreateCommandEncoder(sessionSurfaceEncoderDesc)
-	if err != nil {
-		return fmt.Errorf("create command encoder: %w", err)
-	}
-	s.lastSubmitStats.EncodersCreated++
-	// BUG-GG-ENCODER-LIFECYCLE-001: defer-based safety net ensures the encoder
-	// is always finalized even if a panic or unexpected error path is hit.
-	// DiscardEncoding is idempotent (no-op if already released by Finish).
-	encoderConsumed := false
-	defer func() {
-		if !encoderConsumed {
-			encoder.DiscardEncoding()
-		}
-	}()
-
-	// Per-view frame tracking: when the view changes between flushes
-	// (e.g., two render.Context instances rendering to different targets),
-	// reset frameRendered so the new view gets LoadOpClear on its first
-	// pass. This prevents shapes from one Context leaking into another.
-	if view != s.lastView {
-		s.frameRendered = false
-		s.lastView = view
-	}
-
-	// Surface render pass LoadOp: first pass clears, subsequent passes
-	// preserve existing content. This handles mid-frame flushes caused by
-	// CPU fallback operations (e.g., DrawImage between GPU draw calls).
-	// Without this, each flush would wipe previously rendered shapes.
-	colorLoadOp := types.LoadOpClear
-	stencilLoadOp := types.LoadOpClear
-	if s.frameRendered {
-		colorLoadOp = types.LoadOpLoad
-		stencilLoadOp = types.LoadOpLoad
-	}
-	// Depth is ALWAYS cleared — never loaded. DepthStoreOp=Discard means
-	// depth content is undefined after each render pass, so LoadOpLoad would
-	// read garbage on subsequent passes. The depth clip pipeline (GPU-CLIP-003a)
-	// writes Z=0.0 inside clip regions fresh each pass, so clearing to 1.0 is
-	// always the correct initial state.
-	depthLoadOp := types.LoadOpClear
-
-	rpDesc := s.surfaceRenderPassDesc("session_surface_pass", view, colorLoadOp, stencilLoadOp, depthLoadOp)
-
-	rp, rpErr := encoder.BeginRenderPass(rpDesc)
-	if rpErr != nil {
-		return fmt.Errorf("begin render pass: %w", rpErr)
-	}
-	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
-	s.applyScissorRect(rp)
-
-	// Clip bind group is passed to each RecordDraws (must be bound AFTER
-	// SetPipeline due to Vulkan pipeline layout requirement).
-	clipBG := s.noClipBindGroup
-
-	// Tier 1: SDF shapes (no stencil interaction).
-	if sdfRes != nil && len(sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG, s.frameMaskBindGroup())
-	}
-
-	// Tier 2a: Convex polygon fast-path (no stencil interaction).
-	if convexRes != nil {
-		s.convexRenderer.RecordDraws(rp, convexRes, clipBG, s.frameMaskBindGroup())
-	}
-
-	// Tier 2b: Stencil-then-cover paths.
-	for i, bufs := range stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, stencilPaths[i].FillRule, clipBG, s.frameMaskBindGroup(), stencilPaths[i].BlendMode)
-	}
-
-	// Tier 4: MSDF text (rendered after shapes).
-	if textRes != nil && len(textRes.drawCalls) > 0 {
-		s.textPipeline.RecordDraws(rp, textRes, clipBG)
-	}
-
-	// Tier 6: Glyph mask text (rendered last, on top of all other geometry).
-	if glyphMaskRes != nil && len(glyphMaskRes.drawCalls) > 0 {
-		s.glyphMaskPipeline.RecordDraws(rp, glyphMaskRes, clipBG)
-	}
-
-	if endErr := rp.End(); endErr != nil {
-		slogger().Warn("render pass End failed", "err", endErr)
-	}
-
-	// No CopyTextureToBuffer -- the surface is the resolve target.
-	cmdBuf, err := encoder.Finish()
-	if err != nil {
-		return fmt.Errorf("end encoding: %w", err)
-	}
-	encoderConsumed = true
-
-	// Submit the command buffer. Do NOT free any previous command buffers
-	// here — multiple FlushGPUWithView calls per frame each produce a
-	// command buffer. Freeing one mid-frame would vkResetCommandPool on a
-	// pool whose command buffer is still in-flight (undefined behavior,
-	// manifests as trail artifacts from incomplete MSAA resolve).
-	// All command buffers are freed at the start of the NEXT frame
-	// (BeginFrame) when VSync guarantees the GPU is done.
-	// R7.3: coalesce deferred dual-tex multi CB when present.
-	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
-		return fmt.Errorf("submit: %w", err)
-	}
-
-	// Mark that at least one render pass has been submitted this frame.
-	// Subsequent mid-frame flushes will use LoadOpLoad to preserve content.
-	s.frameRendered = true
-
-	return nil
-}
-
-// recordGroupDraws records all tier draw commands for a single group into
-// the given render pass encoder. This is the inner loop of the grouped
-// encode methods — called once per scissor group within a single render pass.
 func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *groupResources) {
 	// Clip bind group is passed to each RecordDraws so it is bound at @group(1)
 	// AFTER SetPipeline and BEFORE Draw. Vulkan requires a valid pipeline
@@ -4773,6 +4455,38 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 		}
 	}()
 
+	if err := s.recordBlitPass(encoder, "session_blit_pass", view, w, h, grpRes, baseLayerRes, damageRects); err != nil {
+		return err
+	}
+
+	cmdBuf, err := encoder.Finish()
+	if err != nil {
+		return fmt.Errorf("end blit encoding: %w", err)
+	}
+	encoderConsumed = true
+
+	// R7.3: coalesce deferred dual-tex multi CB with blit CB.
+	// Do NOT free previous command buffers mid-frame — see encodeSubmitSurface.
+	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
+		return fmt.Errorf("submit blit: %w", err)
+	}
+
+	return nil
+}
+
+// recordBlitPass records a non-MSAA blit render pass body into the given
+// encoder: load-op decision (retained frame vs damage), base-layer draws
+// scissored per damage rect, and GPU texture overlays. Shared by
+// encodeBlitOnlyPass (self-submitting) and encodeBlitToEncoder (external
+// shared encoder) so both paths keep identical semantics.
+func (s *GPURenderSession) recordBlitPass(
+	encoder *webgpu.CommandEncoder,
+	label string,
+	view *webgpu.TextureView, w, h uint32,
+	grpRes []groupResources,
+	baseLayerRes *imageFrameResources,
+	damageRects []image.Rectangle,
+) error {
 	// Preserve prior content when this view already has a resolved frame.
 	// Damage rects force LoadOpLoad (partial update). F1 advanced-blend
 	// resolve also needs LoadOpLoad: base+HUD were already painted into
@@ -4789,7 +4503,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	}
 
 	rp, err := encoder.BeginRenderPass(&webgpu.RenderPassDescriptor{
-		Label: "session_blit_pass",
+		Label: label,
 		ColorAttachments: []webgpu.RenderPassColorAttachment{{
 			View:       view,
 			LoadOp:     loadOp,
@@ -4832,20 +4546,8 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 		slogger().Warn("blit render pass End failed", "err", endErr)
 	}
 
-	cmdBuf, err := encoder.Finish()
-	if err != nil {
-		return fmt.Errorf("end blit encoding: %w", err)
-	}
-	encoderConsumed = true
-
-	// R7.3: coalesce deferred dual-tex multi CB with blit CB.
-	// Do NOT free previous command buffers mid-frame — see encodeSubmitSurface.
-	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
-		return fmt.Errorf("submit blit: %w", err)
-	}
 	s.frameRendered = true
 	s.lastView = view
-
 	return nil
 }
 
@@ -5025,62 +4727,7 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 	if err := s.ensureImageBlitPipeline(); err != nil {
 		return fmt.Errorf("ensure blit pipeline: %w", err)
 	}
-
-	// opt32/F1: match encodeBlitOnlyPass LoadOp. Shared-encoder composite
-	// onto frameScratch must LoadOpLoad so base+HUD survive dual-tex overlays.
-	if view != s.lastView {
-		s.frameRendered = false
-		s.lastView = view
-	}
-	hasDamage := len(damageRects) > 0
-	loadOp := types.LoadOpClear
-	if s.frameRendered || hasDamage {
-		loadOp = types.LoadOpLoad
-	}
-
-	rp, err := encoder.BeginRenderPass(&webgpu.RenderPassDescriptor{
-		Label: "session_shared_blit_pass",
-		ColorAttachments: []webgpu.RenderPassColorAttachment{{
-			View:       view,
-			LoadOp:     loadOp,
-			StoreOp:    types.StoreOpStore,
-			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 1},
-		}},
-	})
-	if err != nil {
-		return fmt.Errorf("begin shared blit pass: %w", err)
-	}
-	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
-
-	// ADR-028: base layer per-rect scissor (same as encodeBlitOnlyPass).
-	if hasDamage {
-		for _, dr := range damageRects {
-			dx, dy, dw, dh, valid := computeDamageScissor(nil, w, h, dr)
-			if valid {
-				rp.SetScissorRect(dx, dy, dw, dh)
-				s.imagePipeline.RecordBlitDraws(rp, baseLayerRes)
-			}
-		}
-	} else {
-		s.imagePipeline.RecordBlitDraws(rp, baseLayerRes)
-	}
-
-	// R7.4: overlay scissor uses group-relevant damage (same as encodeBlitOnlyPass).
-	for i := range grpRes {
-		gr := &grpRes[i]
-		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
-			if s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
-				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes)
-			}
-		}
-	}
-
-	if endErr := rp.End(); endErr != nil {
-		slogger().Warn("shared blit pass End failed", "err", endErr)
-	}
-
-	s.frameRendered = true
-	return nil
+	return s.recordBlitPass(encoder, "session_shared_blit_pass", view, w, h, grpRes, baseLayerRes, damageRects)
 }
 
 // SDFPipeline returns the SDF render pipeline.

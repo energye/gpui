@@ -77,6 +77,11 @@ func main() {
 		},
 	})
 
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	app.SetPictureTextureCache(true)
+
 	tStart := time.Now()
 	phases := wrkit.NewPhaseClock(3.0, 7.0) // Steady 0–3 · Spike 3–7 (inval waves) · Recover
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) {
@@ -169,6 +174,8 @@ func main() {
 	rr := postInvalRR.Load()
 	sk := postInvalSkip.Load()
 
+	texRasterize, texHit := app.PictureTextureCacheStats()
+
 	rep := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R11",
 		Scenario:      "ui_wr_r11_dpr",
@@ -178,6 +185,9 @@ func main() {
 		SurfaceAreaPx: int64(winW * winH),
 		Warmup:        true,
 		Extra: map[string]any{
+			"tex_rasterize":       texRasterize,
+			"tex_hit":             texHit,
+			"tex_impl":            "B1: per-cell boundary Pictures rasterized to GPU textures once (scroll cell reuse blits instead of re-replaying commands); rasterize>0 proves texture path active",
 			"client_px":           "1200x800",
 			"run_seconds":         secs,
 			"cache_invalidations": invN,
@@ -213,6 +223,11 @@ func main() {
 		MinFPSElapsed:          5,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	// B1 gate: texture path must have rasterized at least once (mechanism active).
+	if texRasterize < 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want â¥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
 	if invN < 1 {

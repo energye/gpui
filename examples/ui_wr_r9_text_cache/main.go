@@ -73,6 +73,14 @@ func main() {
 		},
 	})
 
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	// B1 note: picture-texture cache NOT active here — this window never
+	// replays static boundaries (r9 forces MarkNeedsLayout every frame;
+	// r10/r19 have no RepaintBoundary replay nodes), so the texture path
+	// has no trigger surface (same rationale as R4/C2 retained windows).
+
 	// Warm measure cache once, then repeatedly MarkNeedsLayout on the same text
 	// so measureLine hits the cache (R9).
 	for _, t := range sc.texts {

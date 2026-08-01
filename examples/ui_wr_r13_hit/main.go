@@ -95,6 +95,11 @@ func main() {
 		},
 	})
 
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	app.SetPictureTextureCache(true)
+
 	// Scripted probes after layout (deterministic gate; pointer optional extra).
 	// Targets placed body-local by buildScene; probe window coords computed from
 	// wrkit.NewShell body origin (bodyX=12+260+12=284, bodyY=48+12=60) + hotPanel
@@ -192,6 +197,8 @@ func main() {
 	hitsCopy := append([]string(nil), liveHits...)
 	mu.Unlock()
 
+	texRasterize, texHit := app.PictureTextureCacheStats()
+
 	rep := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R13",
 		Scenario:      "ui_wr_r13_hit",
@@ -201,6 +208,9 @@ func main() {
 		SurfaceAreaPx: int64(winW * winH),
 		Warmup:        true,
 		Extra: map[string]any{
+			"tex_rasterize":    texRasterize,
+			"tex_hit":          texHit,
+			"tex_impl":         "B1: per-cell boundary Pictures rasterized to GPU textures once (scroll cell reuse blits instead of re-replaying commands); rasterize>0 proves texture path active",
 			"client_px":        "1200x800",
 			"run_seconds":      secs,
 			"scripted_ok":      probesOK,
@@ -235,6 +245,11 @@ func main() {
 		MinFPSElapsed:          5,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	// B1 gate: texture path must have rasterized at least once (mechanism active).
+	if texRasterize < 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want â¥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
 	if probesN < 4 || probesOK != probesN {

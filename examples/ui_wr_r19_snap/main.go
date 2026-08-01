@@ -70,6 +70,14 @@ func main() {
 		},
 	})
 
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	// B1 note: picture-texture cache NOT active here — this window never
+	// replays static boundaries (r9 forces MarkNeedsLayout every frame;
+	// r10/r19 have no RepaintBoundary replay nodes), so the texture path
+	// has no trigger surface (same rationale as R4/C2 retained windows).
+
 	phases := wrkit.NewPhaseClock(1.2, 3.0) // Steady 0–1.2 · Spike 1.2–3 · Recover
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) {
 		ph := phases.Advance(dt)

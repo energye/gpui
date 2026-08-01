@@ -74,6 +74,13 @@ func main() {
 			}
 		},
 	})
+
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	// B1 pilot: full_paint replays static boundary Pictures every frame —
+	// rasterize them to GPU textures once, then blit (Flutter RasterCache).
+	app.SetPictureTextureCache(true)
 	// Publish boundary discovery for JSON (leaf count + max depth).
 	cnt, depth := rendering.CountRepaintBoundaries(sc.Root)
 	app.Metrics().SetBoundaryDiscovery(cnt, depth)
@@ -160,6 +167,7 @@ func main() {
 	innerStaticClean := sc.innerStaticClean.Load()
 	outerDirtyOK := sc.outerDirtyTicks.Load()
 	innerHotDirtyOK := sc.innerHotDirtyTicks.Load()
+	texRasterize, texHit := app.PictureTextureCacheStats()
 
 	rep := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R3",
@@ -189,6 +197,9 @@ func main() {
 			"impl_edge":             "3-level nesting (root→outer RB→inner RB); outer + inner independent dirty cycles; empty subtree handled",
 			"impl_fail":             "boundary_count=0 (no RB discovered) / cache miss all paths / inner dirty leaks to outer Picture = FAIL",
 			"impl_visible":          "outer=red pulsing @ (48,48) re-records; inner-static=green @ nested re-records; inner-hot=blue @ nested re-records; HUD shows skip↑/rr↑",
+			"tex_rasterize":         texRasterize,
+			"tex_hit":               texHit,
+			"tex_impl":              "B1 pilot: static boundary pictures rasterized to GPU textures once, blit on later frames (Flutter RasterCache); rasterize>0 proves texture path active, skip preserved",
 		},
 	})
 
@@ -221,6 +232,12 @@ func main() {
 	}
 	if depth < 2 {
 		fmt.Fprintf(os.Stderr, "FAIL: boundary_max_depth=%d want ≥2 (nested RB)\n", depth)
+		os.Exit(1)
+	}
+	// B1 pilot gate: the picture-texture cache must have rasterized at least
+	// once (texture path active) while skip still accumulates (Replay-free).
+	if texRasterize < 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want ≥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
 	if outerClean < 10 {

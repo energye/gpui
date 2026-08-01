@@ -135,6 +135,11 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 	})
 
 	dc := NewContext(logicalW, logicalH, WithDeviceScale(scale))
+	// Window/surface contexts render directly to the swapchain at 1x so the
+	// surface pass can LoadOpLoad-preserve static content across steady
+	// frames (ADR-021: MSAA resolve cannot preserve; damage scissor would
+	// wipe all non-damaged pixels every frame — R4 real-window black bug).
+	dc.SetSurfacePreserve(true)
 
 	return &PresentTarget{
 		ns:      ns,
@@ -310,6 +315,19 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		t.lastDamageArea = 0
 	}
 
+	// Idle frames (no dirty pixels) must NOT acquire a swapchain frame: an
+	// acquired frame that is neither EndFrame'd nor DiscardFrame'd leaves the
+	// swapchain "in flight", and every later BeginFrame fails with
+	// ErrFrameInFlight → permanent freeze (observed on R4 retained steady).
+	if !forceFull {
+		plan := t.dc.PlanPresent(int(t.sc.Width), int(t.sc.Height))
+		if plan.Mode == PresentModeIdle {
+			out = PresentOutcome{Mode: PresentModeIdle, Idle: true, Rects: 0}
+			t.lastOutcome = out
+			return out, nil
+		}
+	}
+
 	frame, err := t.sc.BeginFrame()
 	if err != nil {
 		return out, fmt.Errorf("render: BeginFrame: %w", err)
@@ -330,6 +348,14 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	if err != nil {
 		t.sc.DiscardFrame(frame)
 		return out, fmt.Errorf("render: PresentFrameAuto: %w", err)
+	}
+	if out.Idle {
+		// Defensive: the pre-plan above already excluded idle, but if a
+		// reconfigure changed the surface between plan and PresentFrameAuto
+		// (or any future path returns idle), release the acquired frame so
+		// the swapchain never stays "in flight" across presents.
+		t.sc.DiscardFrame(frame)
+		out.Idle = true
 	}
 	t.lastOutcome = out
 	return out, nil

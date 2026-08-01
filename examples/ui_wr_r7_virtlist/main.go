@@ -74,6 +74,11 @@ func main() {
 		},
 	})
 
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	app.SetPictureTextureCache(true)
+
 	// PhaseClock drives scroll velocity — Steady slow ~30px/s, Spike fast ~400px/s
 	// + two inertial flings, Recover clamp-back to top. Long 60s window: Steady 0–10,
 	// Spike 10–25, Recover 25+.
@@ -133,6 +138,8 @@ func main() {
 	flingCount := sc.flingCount.Load()
 	varExtentChanges := sc.varExtentChanges.Load()
 
+	texRasterize, texHit := app.PictureTextureCacheStats()
+
 	rep := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R7",
 		Scenario:      "ui_wr_r7_virtlist",
@@ -142,6 +149,9 @@ func main() {
 		SurfaceAreaPx: int64(winW * winH),
 		Warmup:        true,
 		Extra: map[string]any{
+			"tex_rasterize":      texRasterize,
+			"tex_hit":            texHit,
+			"tex_impl":           "B1: per-cell boundary Pictures rasterized to GPU textures once (scroll cell reuse blits instead of re-replaying commands); rasterize>0 proves texture path active",
 			"client_px":          "1200x800",
 			"run_seconds":        secs,
 			"item_count":         itemCount,
@@ -184,6 +194,11 @@ func main() {
 	}
 	if err := wrgate.EvaluateGates(rep, opt); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	// B1 gate: texture path must have rasterized at least once (mechanism active).
+	if texRasterize < 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want ≥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
 	// R7 ability-specific: bind_count≪item_count.

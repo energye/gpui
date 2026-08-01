@@ -74,6 +74,14 @@ func main() {
 		},
 	})
 
+	// W6: retained is the engine default; this window's capability is
+	// defined on the full_paint path, so opt back in explicitly.
+	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	// B1 note: picture-texture cache NOT active here — this window never
+	// replays static boundaries (r9 forces MarkNeedsLayout every frame;
+	// r10/r19 have no RepaintBoundary replay nodes), so the texture path
+	// has no trigger surface (same rationale as R4/C2 retained windows).
+
 	// PhaseClock drives async load: Steady 0-5s all SetLoading (placeholder chrome),
 	// Spike 5-25s SetImage one cell every ~0.8s (load-complete, local dirty one cell),
 	// Recover 25s+ Clear all back to placeholder.

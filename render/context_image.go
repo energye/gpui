@@ -841,6 +841,16 @@ func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y 
 	c.recordGPUOp()
 }
 
+// DrawCachedTexture composites a picture-texture cache handle (B1) at the
+// given logical position, using the current CTM. The handle hides the gpu
+// layer from ui callers (G1: ui → render → gpu).
+func (c *Context) DrawCachedTexture(t *TextureView, x, y float64, width, height int) {
+	if c == nil || t == nil || t.view.IsNil() {
+		return
+	}
+	c.DrawGPUTextureWithOpacityUV(t.view, x, y, width, height, 1.0, 0, 0, 1, 1)
+}
+
 // DrawGPUTextureBase composites a GPU texture view as the compositor base layer.
 // The base layer is drawn BEFORE all GPU tiers (SDF, convex, stencil, text) in
 // the render pass, making it the background for zero-readback rendering.

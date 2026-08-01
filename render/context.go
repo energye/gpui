@@ -49,6 +49,9 @@ type Context struct {
 	// layerGPUReleases holds deferred GPU layer texture releases until after
 	// Flush completes the DrawGPUTexture composite that samples them (P0-1).
 	layerGPUReleases []func()
+	// picCache is an active picture-texture recording session (Flutter
+	// RasterCache: rasterize a display list once, blit after). Nil when idle.
+	picCache *picCacheState
 
 	// Mask support
 	mask      *Mask   // Current alpha mask
@@ -510,6 +513,26 @@ func (c *Context) SetEffectSurface(enabled bool) {
 		return
 	}
 	c.effectSurface = enabled
+	c.ensureGPUCtx()
+	if rc := c.gpuCtxOps(); rc != nil {
+		type sc1 interface{ SetPreferSampleCount1(bool) }
+		if s, ok := rc.(sc1); ok {
+			s.SetPreferSampleCount1(enabled)
+		}
+	}
+}
+
+// SetSurfacePreserve marks this Context as a window/surface context that must
+// preserve static content across steady frames (retained-mode damage
+// economics: only damaged regions redraw). Forces 1x GPU samples so the
+// surface pass renders directly to the swapchain view and can use
+// LoadOpLoad + damage scissor — MSAA resolve (ADR-021) cannot preserve, so
+// without this every steady frame would LoadOpClear the whole surface and
+// wipe all content outside the damage rect.
+func (c *Context) SetSurfacePreserve(enabled bool) {
+	if c == nil {
+		return
+	}
 	c.ensureGPUCtx()
 	if rc := c.gpuCtxOps(); rc != nil {
 		type sc1 interface{ SetPreferSampleCount1(bool) }
@@ -2027,12 +2050,21 @@ func (c *Context) gpuCtxOps() gpuContextOps {
 // gpuRenderTarget returns the current context's pixel buffer as a GPU render target.
 // When the top PushLayer has a GPU offscreen RT (P0-1), View is set so queued
 // fills/strokes resolve into the layer texture instead of the CPU pixmap.
+// During a picture-texture recording (B1 BeginPictureCache) the recording
+// view wins: queued commands must resolve into the recording texture so the
+// End flush matches view size (mismatched sizes fail the wgpu submit).
 func (c *Context) gpuRenderTarget() GPURenderTarget {
 	t := GPURenderTarget{
 		Data:   c.pixmap.Data(),
 		Width:  c.pixmap.Width(),
 		Height: c.pixmap.Height(),
 		Stride: c.pixmap.Width() * 4,
+	}
+	if c.picCache != nil {
+		t.View = c.picCache.view
+		t.ViewWidth = uint32(c.picCache.w)  //nolint:gosec // recording dims bounded
+		t.ViewHeight = uint32(c.picCache.h) //nolint:gosec // recording dims bounded
+		return t
 	}
 	if c.layerStack != nil && len(c.layerStack.layers) > 0 {
 		top := c.layerStack.layers[len(c.layerStack.layers)-1]
@@ -2424,6 +2456,12 @@ func (c *Context) isClipActive() bool {
 	return c.clipStack != nil && c.clipStack.Depth() > 0
 }
 
+// ClipIsRectOnly reports whether the active clip is a plain rectangle. The UI
+// layer uses this to refuse picture-texture rasterization for non-rect clips.
+func (c *Context) ClipIsRectOnly() bool {
+	return c.clipStack == nil || c.clipStack.IsRectOnly()
+}
+
 // setGPUClipRect sets the GPU scissor rect, RRect clip, or depth clip path if a
 // clip region is active. Returns a cleanup function that must be deferred to
 // clear the clip state. Handles three cases:
@@ -2445,6 +2483,36 @@ func (c *Context) setGPUClipRect() func() {
 	// later unclipped HUD/FPS text inherited the layer clip and vanished.
 	if rc := c.gpuCtxOps(); rc != nil {
 		_ = rc.PrepareTarget(c.gpuRenderTarget())
+	}
+	// B1 recording session: the live clip bounds are in main-surface
+	// coordinates, but the recording target is the offscreen texture.
+	// Translate by the recording origin and clamp to the texture rect so the
+	// scissor never overflows the recording target (wgpu submit would fail).
+	if c.picCache != nil {
+		b := c.clipStack.Bounds()
+		x0 := math.Floor(b.X - c.picCache.ox)
+		y0 := math.Floor(b.Y - c.picCache.oy)
+		x1 := math.Ceil(b.X + b.W - c.picCache.ox)
+		y1 := math.Ceil(b.Y + b.H - c.picCache.oy)
+		texW := float64(c.picCache.w)
+		texH := float64(c.picCache.h)
+		if x0 < 0 {
+			x0 = 0
+		}
+		if y0 < 0 {
+			y0 = 0
+		}
+		if x1 > texW {
+			x1 = texW
+		}
+		if y1 > texH {
+			y1 = texH
+		}
+		if rc2 := c.gpuCtxOps(); rc2 != nil && x1 > x0 && y1 > y0 {
+			rc2.SetClipRect(uint32(x0), uint32(y0), uint32(x1-x0), uint32(y1-y0))
+			return func() { rc2.ClearClipRect() }
+		}
+		return func() {}
 	}
 	rectOnly := c.clipStack.IsRectOnly()
 	rrectOnly := c.clipStack.IsRRectOnly()
@@ -2527,6 +2595,12 @@ func (c *Context) setGPUClipPath() func() {
 	}
 	rc := c.gpuCtxOps()
 	if rc == nil {
+		return func() {}
+	}
+	// B1 recording: never use depth-clip on the offscreen texture; the UI
+	// layer refuses to rasterize non-rect clips, so the coarse local scissor
+	// from setGPUClipRect is the only clip applied while recording.
+	if c.picCache != nil {
 		return func() {}
 	}
 	// Set scissor rect to clip bounding box (coarse clip, free).

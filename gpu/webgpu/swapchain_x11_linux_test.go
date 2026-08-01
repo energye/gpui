@@ -203,7 +203,9 @@ func TestS68_Swapchain_X11_MultiFramePresent(t *testing.T) {
 			t.Fatalf("EndFrame %d: %v", i, err)
 		}
 		if i == 5 {
-			if err := sc.Resize(160, 120); err != nil {
+			// Size change must reconfigure on the next BeginFrame (frame
+			// boundary, deferred semantics). Same-size Resize is a no-op.
+			if err := sc.Resize(161, 121); err != nil {
 				t.Fatalf("Resize: %v", err)
 			}
 		}

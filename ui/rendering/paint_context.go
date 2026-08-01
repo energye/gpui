@@ -25,6 +25,10 @@ type PaintContext struct {
 	BoundaryCache *BoundaryCache
 	// UseBoundaryCache gates tryReplay/store on repaint boundaries.
 	UseBoundaryCache bool
+	// UsePictureTextureCache (B1) rasterizes clean boundary Pictures into a
+	// GPU texture once, then blits it on later hits (Flutter RasterCache).
+	// Off by default; opt-in per window via PipelineApp.SetPictureTextureCache.
+	UsePictureTextureCache bool
 	// DebugRepaint (R12b): after a live (non-Replay) paint of a node, draw a
 	// translucent overlay so humans can see who is re-painting this frame.
 	DebugRepaint bool
@@ -47,18 +51,19 @@ func (pc *PaintContext) WithOrigin(absX, absY float64) *PaintContext {
 		return &PaintContext{OriginX: absX, OriginY: absY, Scale: 1}
 	}
 	return &PaintContext{
-		DC:                pc.DC,
-		OriginX:           absX,
-		OriginY:           absY,
-		Scale:             pc.Scale,
-		CompositeOnly:     pc.CompositeOnly,
-		PaintVisits:       pc.PaintVisits,
-		LayerBudget:       pc.LayerBudget,
-		saveLayerDepth:    pc.saveLayerDepth,
-		BoundaryCache:     pc.BoundaryCache,
-		UseBoundaryCache:  pc.UseBoundaryCache,
-		DebugRepaint:      pc.DebugRepaint,
-		DebugRepaintDraws: pc.DebugRepaintDraws,
+		DC:                     pc.DC,
+		OriginX:                absX,
+		OriginY:                absY,
+		Scale:                  pc.Scale,
+		CompositeOnly:          pc.CompositeOnly,
+		PaintVisits:            pc.PaintVisits,
+		LayerBudget:            pc.LayerBudget,
+		saveLayerDepth:         pc.saveLayerDepth,
+		BoundaryCache:          pc.BoundaryCache,
+		UseBoundaryCache:       pc.UseBoundaryCache,
+		UsePictureTextureCache: pc.UsePictureTextureCache,
+		DebugRepaint:           pc.DebugRepaint,
+		DebugRepaintDraws:      pc.DebugRepaintDraws,
 	}
 }
 

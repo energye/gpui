@@ -50,6 +50,11 @@ type Base struct {
 
 	needsLayout bool
 	needsPaint  bool
+	// needsPaintSelf marks own-content dirt only (background, size, OnPaint
+	// output). needsPaint additionally bubbles ancestor dirt from descendants;
+	// containers must not repaint their own opaque content for bubbled-only dirt
+	// (R4 static loss fix: CompositeOnly would cover LoadOpLoad-preserved pixels).
+	needsPaintSelf bool
 
 	relayoutBoundary bool
 	repaintBoundary  bool
@@ -77,6 +82,7 @@ func (b *Base) Init(self RenderObject) {
 	b.Self = self
 	b.needsLayout = true
 	b.needsPaint = true
+	b.needsPaintSelf = true
 }
 
 // SetOwner attaches a pipeline owner (for metrics / future schedule).
@@ -107,8 +113,13 @@ func (b *Base) NeedsLayout() bool { return b.needsLayout }
 // NeedsPaint implements RenderObject.
 func (b *Base) NeedsPaint() bool { return b.needsPaint }
 
+// NeedsPaintSelf reports whether this node's own content is dirty (as opposed
+// to dirt bubbled from descendants). Containers use it to decide whether to
+// repaint their own opaque content under CompositeOnly.
+func (b *Base) NeedsPaintSelf() bool { return b.needsPaintSelf }
+
 func (b *Base) clearLayoutDirty() { b.needsLayout = false }
-func (b *Base) clearPaintDirty()  { b.needsPaint = false }
+func (b *Base) clearPaintDirty()  { b.needsPaint = false; b.needsPaintSelf = false }
 
 // IsRelayoutBoundary implements RenderObject.
 func (b *Base) IsRelayoutBoundary() bool { return b.relayoutBoundary }
@@ -217,6 +228,7 @@ func (b *Base) selfOr(fallback RenderObject) RenderObject {
 func (b *Base) MarkNeedsLayout() {
 	b.needsLayout = true
 	b.needsPaint = true
+	b.needsPaintSelf = true
 	if b.owner != nil {
 		b.owner.noteLayoutDirty()
 	}
@@ -227,6 +239,8 @@ func (b *Base) MarkNeedsLayout() {
 		if pb, ok := baseOf(p); ok {
 			pb.needsLayout = true
 			pb.needsPaint = true
+			// Ancestors get bubbled paint dirt only; own-content dirt is not
+			// propagated (their background/size did not change).
 			if pb.owner != nil {
 				pb.owner.noteLayoutDirty()
 			}
@@ -244,6 +258,7 @@ func (b *Base) MarkNeedsLayout() {
 // MarkNeedsPaint dirties paint. P1 bubbles to root (or repaint boundary if set).
 func (b *Base) MarkNeedsPaint() {
 	b.needsPaint = true
+	b.needsPaintSelf = true
 	if b.owner != nil {
 		b.owner.notePaintDirty()
 	}

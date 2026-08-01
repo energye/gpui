@@ -58,6 +58,25 @@ type PipelineApp struct {
 	layoutFrames atomic.Int64
 	// forceFullPresent is set on warm-up/resize so the next present full-clears.
 	forceFullPresent atomic.Bool
+	// lastResizeW/H/scale: last handled logical size for EventResize coalescing.
+	// Position-only / repeated ConfigureNotify (WM resize hints, drag acks) with
+	// unchanged size must not re-clear the boundary cache or force full paints.
+	lastResizeW, lastResizeH int
+	lastResizeScale          float64
+	lastResizeHandled        bool
+	// Drag decimation: interactive WM drags emit a continuous stream of distinct
+	// sizes. Applying every one costs a full-surface re-render each (~10-20ms on
+	// weak iGPUs) → dragged frame rate collapses to ~50fps. The stream is
+	// coalesced: the latest size is parked in pendingResize* and applied at most
+	// once per resizeCoalesceWindow, plus once more when the stream goes quiet
+	// (correct final size guaranteed). Between applies the compositor stretches
+	// the previous frame (GNOME/mutter standard, same as Flutter/Chromium).
+	pendingResizeW, pendingResizeH int
+	pendingResizeScale             float64
+	pendingResizeAt                time.Time
+	pendingResizeSet               bool
+	lastResizeAppliedAt            time.Time
+	lastResizeScaleApplied         float64
 	// debugRepaint enables R12b overlay on live paints (not cache Replay).
 	debugRepaint atomic.Bool
 	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
@@ -95,7 +114,8 @@ func (a *PipelineApp) DebugRepaintDraws() int64 {
 
 // SetPresentPolicy sets window present strategy and metrics present_policy.
 // Use scheduler.PresentPolicyRetained for W2 R4/R4b/C2 (CompositeOnly steady frames).
-// Default remains full_paint until W6 makes retained the global default.
+// Retained is the engine default; callers that need full repaints may
+// opt back into full_paint explicitly.
 func (a *PipelineApp) SetPresentPolicy(policy string) {
 	if a == nil || policy == "" {
 		return
@@ -104,6 +124,32 @@ func (a *PipelineApp) SetPresentPolicy(policy string) {
 		m.SetPresentPolicy(policy)
 	}
 	a.useRetained.Store(policy == scheduler.PresentPolicyRetained || policy == scheduler.PresentPolicyHybrid)
+}
+
+// SetPictureTextureCache toggles the B1 picture-texture cache (Flutter
+// RasterCache): clean boundary Pictures rasterize to a GPU texture once,
+// then blit on later frames. Default off (experimental, B1 pilot).
+func (a *PipelineApp) SetPictureTextureCache(enabled bool) {
+	if a == nil {
+		return
+	}
+	cache := a.pipe.BoundaryCache()
+	if cache == nil {
+		return
+	}
+	cache.SetTextureCacheEnabled(enabled)
+}
+
+// PictureTextureCacheStats returns cumulative rasterize/hit counters (B1 metrics).
+func (a *PipelineApp) PictureTextureCacheStats() (rasterize, hit int64) {
+	if a == nil {
+		return 0, 0
+	}
+	cache := a.pipe.BoundaryCache()
+	if cache == nil {
+		return 0, 0
+	}
+	return cache.TextureCacheStats()
 }
 
 // DamageStats returns cumulative present damage samples (physical px² from PresentTarget).
@@ -219,14 +265,15 @@ func (a *PipelineApp) SetOverlay(st *overlay.State) {
 }
 
 // NewPipelineApp builds a tree-driven app. Call Open then Run.
-// W0 default present policy is full_paint (steady frames repaint the whole tree).
+// W2 retained is the default present policy (steady frames composite only
+// dirty paths; full_paint is opt-in via SetPresentPolicy).
 func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts PipelineOptions) *PipelineApp {
 	if opts.ClearA == 0 && opts.ClearR == 0 && opts.ClearG == 0 && opts.ClearB == 0 {
 		opts.ClearR, opts.ClearG, opts.ClearB, opts.ClearA = 0.10, 0.12, 0.16, 1
 	}
 	s := scheduler.New()
-	s.Metrics().SetPresentPolicy(scheduler.PresentPolicyFullPaint)
-	return &PipelineApp{
+	s.Metrics().SetPresentPolicy(scheduler.PresentPolicyRetained)
+	app := &PipelineApp{
 		host:  host,
 		sched: s,
 		loop:  raster.NewLoop(raster.DefaultPipelineDepth, s.Metrics()),
@@ -234,6 +281,8 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 		root:  root,
 		opts:  opts,
 	}
+	app.useRetained.Store(true)
+	return app
 }
 
 // Scheduler returns the frame scheduler (for AddTicker / AnimationController).
@@ -412,20 +461,20 @@ func (a *PipelineApp) Run() error {
 					if sc <= 0 {
 						sc = a.host.ScaleFactor()
 					}
-					_ = a.target.Resize(ev.Width, ev.Height, sc)
-					vp = rendering.Size{Width: float64(ev.Width), Height: float64(ev.Height)}
-					if a.pipe.FlushLayout(vp, true) {
-						a.layoutFrames.Add(1)
+					// Coalesce WM resize notifications: repeated ConfigureNotify
+					// with the same size (position-only moves, drag acks) must not
+					// re-clear the boundary cache / force full paints (flicker +
+					// dropped frames during interactive resize).
+					if ev.Width == a.lastResizeW && ev.Height == a.lastResizeH && sc == a.lastResizeScale && a.lastResizeHandled {
+						break
 					}
-					// R11: size/DPR change invalidates all boundary Pictures (one rerecord wave).
-					if cache := a.pipe.BoundaryCache(); cache != nil {
-						cache.Clear()
-					}
-					// Size change must repaint even when layout early-outs (e.g. height-only).
-					if a.root != nil {
-						a.root.MarkNeedsPaint()
-					}
-					a.forceFullPresent.Store(true) // resize → full clear + full paint
+					a.lastResizeW, a.lastResizeH, a.lastResizeScale, a.lastResizeHandled = ev.Width, ev.Height, sc, true
+					// Drag decimation: park the latest size; applyPendingResize runs
+					// it at the coalesce cadence (loop, below) so a 60Hz interactive
+					// drag does not turn into 60 full-surface re-renders.
+					a.pendingResizeW, a.pendingResizeH, a.pendingResizeScale = ev.Width, ev.Height, sc
+					a.pendingResizeAt = time.Now()
+					a.pendingResizeSet = true
 					a.ScheduleFrame()
 				}
 			case platform.EventExpose:
@@ -439,6 +488,19 @@ func (a *PipelineApp) Run() error {
 
 		if a.sched.Mode() == scheduler.ModePersistent || a.sched.Tickers().HasActive() {
 			a.sched.WaitFramePace(a.host)
+		}
+
+		// Apply a parked resize once the coalesce window elapsed since the latest
+		// event (quiet drag end / final size) or since the previous apply (stream
+		// still flowing → bounded full-frame rate). The first event applies
+		// immediately (lastResizeAppliedAt zero).
+		if a.pendingResizeSet {
+			now := time.Now()
+			if now.Sub(a.pendingResizeAt) >= resizeCoalesceWindow ||
+				a.lastResizeAppliedAt.IsZero() ||
+				now.Sub(a.lastResizeAppliedAt) >= resizeCoalesceWindow {
+				a.applyPendingResize()
+			}
 		}
 
 		// Advance animations → may MarkNeedsPaint on spinner only.
@@ -500,9 +562,9 @@ func (a *PipelineApp) Run() error {
 		// Warm-up / resize / open: force=true → full clear + full paint.
 		force := a.forceFullPresent.Swap(false)
 		metrics := a.sched.Metrics()
-		// Keep policy visible; default full_paint until caller SetPresentPolicy(retained).
+		// Keep policy visible; retained is the engine default.
 		if metrics != nil && metrics.PresentPolicy() == "" {
-			metrics.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+			metrics.SetPresentPolicy(scheduler.PresentPolicyRetained)
 		}
 		dbgOn := a.debugRepaint.Load()
 		dbgAccum := &a.debugRepaintDraws
@@ -568,6 +630,43 @@ func PaintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root re
 	paintPresentTree(dc, pipe, root, ov, cr, cg, cb, ca, force, false /* compositeOnly */)
 }
 
+// resizeCoalesceWindow bounds full-surface re-renders during interactive WM
+// drags (see pendingResize* fields).
+const resizeCoalesceWindow = 100 * time.Millisecond
+
+// applyPendingResize performs the actual resize work for the latest parked
+// size: target resize (deferred swapchain reconfigure), forced layout, scale
+// change → boundary cache clear, and a forced full present.
+func (a *PipelineApp) applyPendingResize() {
+	w, h, sc := a.pendingResizeW, a.pendingResizeH, a.pendingResizeScale
+	a.pendingResizeSet = false
+	a.lastResizeAppliedAt = time.Now()
+	scaleChanged := sc != a.lastResizeScaleApplied
+	a.lastResizeScaleApplied = sc
+	_ = a.target.Resize(w, h, sc)
+	vp := rendering.Size{Width: float64(w), Height: float64(h)}
+	if a.pipe.FlushLayout(vp, true) {
+		a.layoutFrames.Add(1)
+	}
+	// Pure size changes need no cache.Clear(): BoundaryCache.tryReplay
+	// self-invalidates stale pictures via its size check, so retained frames
+	// between resize events replay unchanged boundaries instead of re-recording
+	// everything (the old Clear() forced a second full-surface rerecord wave per
+	// event → dropped frames during interactive resize). DPR changes still
+	// invalidate all pictures: text atlas glyphs are rasterized per scale.
+	if scaleChanged {
+		if cache := a.pipe.BoundaryCache(); cache != nil {
+			cache.Clear()
+		}
+	}
+	// Size change must repaint even when layout early-outs (e.g. height-only).
+	if a.root != nil {
+		a.root.MarkNeedsPaint()
+	}
+	a.forceFullPresent.Store(true) // resize → full clear + full paint
+	a.ScheduleFrame()
+}
+
 // PaintPresentTreeCompositeOnly is the experimental partial-paint path:
 // force=false uses FlushPaint CompositeOnly (skip clean boundaries). Safe on CPU
 // pixmap tests; **unsafe** as default GPU window present until layer textures
@@ -606,6 +705,7 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 	}
 	pc.BoundaryCache = cache
 	pc.UseBoundaryCache = true
+	pc.UsePictureTextureCache = cache.TextureCacheEnabled()
 	pc.DebugRepaint = opts.debugRepaint
 	pc.DebugRepaintDraws = opts.debugDraws
 	cache.BeginFrame()

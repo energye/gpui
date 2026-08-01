@@ -79,9 +79,9 @@ func main() {
 			}
 			policy := snap.PresentPolicy
 			if policy == "" {
-				policy = scheduler.PresentPolicyFullPaint
+				policy = scheduler.PresentPolicyRetained
 			}
-			gateOK := (fps >= 55 || phases.Elapsed() < 2) && policy == scheduler.PresentPolicyFullPaint
+			gateOK := (fps >= 55 || phases.Elapsed() < 2) && policy == scheduler.PresentPolicyRetained
 			sc.hud.Update(wrkit.Snap{
 				AbilityID:   "C0",
 				Phase:       ph,
@@ -150,11 +150,11 @@ func main() {
 	fmt.Println(string(b))
 
 	if err := wrgate.EvaluateGates(rep, wrgate.GateOptions{
-		MinPresents:            1,
-		RequireFullPaintPolicy: true,
-		RequirePersistentFPS:   true,
-		MinFPSWall:             55,
-		MinFPSElapsed:          5,
+		MinPresents:           1,
+		RequireRetainedPolicy: true,
+		RequirePersistentFPS:  true,
+		MinFPSWall:            55,
+		MinFPSElapsed:         5,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)

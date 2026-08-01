@@ -76,6 +76,9 @@ func main() {
 			}
 		},
 	})
+	// B1: texture-cache the per-cell Pictures — scroll reuse blits the
+	// rasterized texture instead of re-replaying commands each frame.
+	app.SetPictureTextureCache(true)
 	// R4 retained scope: C3 uses FullPaint policy (default). R4's damage-scope proof
 	// here = BoundaryCache caches per-cell Picture; scroll reuse skip > 0 means most
 	// cells replay from cache (scope) rather than re-record (full redraw). damage_ratio
@@ -182,6 +185,7 @@ func main() {
 	// R4 retained: damage ratio should be ≪1 (scoped to viewport scroll delta,
 	// NOT full-screen). FullPaint would force damage_ratio=1; retained keeps it scoped.
 	damageRatioPeak := float64(sc.maxDamageRatio.Load()) / 1000.0 // fixed-point → float
+	texRasterize, texHit := app.PictureTextureCacheStats()
 
 	rep := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "C3",
@@ -206,6 +210,9 @@ func main() {
 			"max_dirty_per_img_load":    maxDirtyPerImg,
 			"damage_ratio":              damageRatio,
 			"damage_ratio_peak":         damageRatioPeak,
+			"tex_rasterize":             texRasterize,
+			"tex_hit":                   texHit,
+			"tex_impl":                  "B1: per-cell boundary Pictures rasterized to GPU textures once (scroll cell reuse blits instead of re-replaying commands); rasterize>0 proves texture path active",
 			"g_metrics":                 "skipped",
 			"g_metrics_reason":          "C3 is composite (R4+R7+R7b+R10 integration); each ability's own gate proven in its ui_wr_r* true window; g_metrics not in scope for composite",
 			"phase_script":              "Steady→Spike→Recover (cache warm 100px/s + image loads → flings 35s scroll reuse + async image stress → clamp-back)",
@@ -238,6 +245,11 @@ func main() {
 	}
 	if err := wrgate.EvaluateGates(rep, opt); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	// B1 gate: texture path must have rasterized at least once (mechanism active).
+	if texRasterize < 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want ≥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
 	// R7: bind_peak≪item_count.

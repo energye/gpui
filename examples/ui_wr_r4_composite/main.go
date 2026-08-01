@@ -72,6 +72,10 @@ func main() {
 	})
 	// R4 core: retained CompositeOnly + damage Present.
 	app.SetPresentPolicy(scheduler.PresentPolicyRetained)
+	// B1 note: the picture-texture cache is NOT active here — retained static
+	// boundaries are never replayed (skip=0 is the correct engine semantic,
+	// pixels persist via LoadOpLoad damage). Texture caching targets windows
+	// that replay static pictures every frame (R3/R7b/C3 pilot).
 	cnt, depth := rendering.CountRepaintBoundaries(sc.Root)
 	app.Metrics().SetBoundaryDiscovery(cnt, depth)
 

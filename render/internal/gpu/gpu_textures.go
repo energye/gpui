@@ -20,6 +20,9 @@ import (
 //   - MSAA color: 4x samples, BGRA8Unorm, RenderAttachment
 //   - Depth/stencil: 4x samples, Depth24PlusStencil8, RenderAttachment
 //   - Resolve: 1x sample, BGRA8Unorm, RenderAttachment | CopySrc
+//   - Surface cache: 1x sample, BGRA8Unorm, RenderAttachment | TextureBinding
+//     (R4 retained: persistent off-swapchain target blitted to the swapchain
+//     each frame — LoadOpLoad preserves static content across steady frames)
 type textureSet struct {
 	msaaTex     *webgpu.Texture
 	msaaView    *webgpu.TextureView
@@ -27,6 +30,9 @@ type textureSet struct {
 	stencilView *webgpu.TextureView
 	resolveTex  *webgpu.Texture
 	resolveView *webgpu.TextureView
+	cacheTex    *webgpu.Texture
+	cacheView   *webgpu.TextureView
+	cacheGen    uint64
 	width       uint32
 	height      uint32
 }
@@ -207,6 +213,9 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 				ts.msaaTex = nil
 			}
 		}
+		if err := ts.ensureSurfaceCache(device, w, h, labelPrefix); err != nil {
+			return err
+		}
 		return nil
 	}
 	ts.destroyTextures()
@@ -286,6 +295,12 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	}
 	ts.stencilView = stencilView
 
+	if !needMSAA {
+		if err := ts.ensureSurfaceCache(device, w, h, labelPrefix); err != nil {
+			return err
+		}
+	}
+
 	// No resolve texture -- surface view is the resolve target.
 	ts.width = w
 	ts.height = h
@@ -294,8 +309,61 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 		"width", w, "height", h,
 		"msaa_samples", sc,
 		"msaa_color", needMSAA,
+		"surface_cache", !needMSAA,
 	)
 	return nil
+}
+
+// ensureSurfaceCache creates (or keeps) the persistent 1x surface cache texture
+// used by the R4 retained path: content is rendered into this texture with
+// LoadOpLoad across steady frames, then blitted to the swapchain each frame.
+// The swapchain image content is undefined after present, so LoadOpLoad directly
+// on the swapchain cannot preserve static content.
+func (ts *textureSet) ensureSurfaceCache(device *webgpu.Device, w, h uint32, labelPrefix string) error {
+	if ts.cacheTex != nil && ts.cacheView != nil && ts.width == w && ts.height == h {
+		return nil
+	}
+	ts.destroySurfaceCache()
+	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
+	cacheTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+		Label:         labelPrefix + "_surface_cache",
+		Size:          size,
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatBGRA8Unorm,
+		Usage:         types.TextureUsageRenderAttachment | types.TextureUsageTextureBinding | types.TextureUsageCopySrc,
+	})
+	if err != nil {
+		return fmt.Errorf("create surface cache texture: %w", err)
+	}
+	ts.cacheTex = cacheTex
+
+	cacheView, err := device.CreateTextureView(cacheTex, &webgpu.TextureViewDescriptor{
+		Label:         labelPrefix + "_surface_cache_view",
+		Format:        types.TextureFormatBGRA8Unorm,
+		Dimension:     types.TextureViewDimension2D,
+		Aspect:        types.TextureAspectAll,
+		MipLevelCount: 1,
+	})
+	if err != nil {
+		ts.destroySurfaceCache()
+		return fmt.Errorf("create surface cache view: %w", err)
+	}
+	ts.cacheView = cacheView
+	ts.cacheGen++
+	return nil
+}
+
+func (ts *textureSet) destroySurfaceCache() {
+	if ts.cacheView != nil {
+		ts.cacheView.Release()
+		ts.cacheView = nil
+	}
+	if ts.cacheTex != nil {
+		ts.cacheTex.Release()
+		ts.cacheTex = nil
+	}
 }
 
 func (ts *textureSet) destroyTextures() {
@@ -323,6 +391,7 @@ func (ts *textureSet) destroyTextures() {
 		ts.msaaTex.Release()
 		ts.msaaTex = nil
 	}
+	ts.destroySurfaceCache()
 	ts.width = 0
 	ts.height = 0
 }

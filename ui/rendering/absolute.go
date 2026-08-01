@@ -87,8 +87,12 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 		return
 	}
 	pc.NotePaintVisit()
-	selfDirty := a.NeedsPaint()
-	paintSelf := !pc.CompositeOnly || selfDirty
+	// Own-content dirt (background/own size) vs bubbled descendant dirt: only
+	// own dirt must repaint the opaque Background over CompositeOnly-preserved
+	// pixels (R4 static loss: HUD MarkNeedsPaint bubbled to root, root repainted
+	// its full-surface bg, covering LoadOpLoad-preserved statics).
+	ownDirty := a.NeedsPaintSelf()
+	paintSelf := !pc.CompositeOnly || ownDirty
 	if paintSelf {
 		if a.Background != nil {
 			bg := a.Background
@@ -104,18 +108,26 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 		a.clearPaintDirty()
 		// Re-store own-content Picture only when this boundary itself was dirty
 		// or had no entry. Inner-only dirty must not bump outer boundary_rerecord.
-		if pc.BoundaryCache != nil && a.IsRepaintBoundary() && (selfDirty || !pc.BoundaryCache.HasValid(a)) {
+		if pc.BoundaryCache != nil && a.IsRepaintBoundary() && (ownDirty || !pc.BoundaryCache.HasValid(a)) {
 			pc.BoundaryCache.storeAbsoluteColorChildren(pc, a)
 		}
 		return
 	}
 	// Only descendants dirty (CompositeOnly): walk dirty paths; do not re-store.
+	bubbled := a.NeedsPaint()
 	for _, ch := range a.children {
 		if !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
 			continue
 		}
 		off := ch.Offset()
 		ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
+	}
+	// Walked every dirty path; clear the bubbled flag so steady frames early-out.
+	a.clearPaintDirty()
+	// Non-RB descendants are baked into this boundary's own-content Picture, so
+	// bubbled repaints must refresh the Picture too (kept for RB AbsoluteBoxes).
+	if bubbled && pc.BoundaryCache != nil && a.IsRepaintBoundary() {
+		pc.BoundaryCache.storeAbsoluteColorChildren(pc, a)
 	}
 }
 

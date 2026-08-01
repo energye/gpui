@@ -3,6 +3,7 @@ package rendering
 import (
 	"sync/atomic"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/scene"
 )
 
@@ -26,6 +27,58 @@ type BoundaryCache struct {
 	// Per root paint-walk frame counters (reset by BeginFrame).
 	FrameRerecord int64
 	FrameSkip     int64
+	// B1 picture-texture cache (Flutter RasterCache): clean boundary Pictures
+	// rasterized to a GPU texture once, then blitted on later hits.
+	texEnabled bool
+	tex        map[uint64]*texEntry
+	// TexRasterize / TexHit are cumulative texture-cache counters (metrics).
+	TexRasterize int64
+	TexHit       int64
+}
+
+// texEntry holds a rasterized boundary Picture GPU texture (B1).
+type texEntry struct {
+	view *render.TextureView
+	w, h int // device-pixel texture size
+}
+
+// SetTextureCacheEnabled toggles the B1 picture-texture cache (Flutter
+// RasterCache). Default off; opt-in per window. Disabling releases all
+// cached textures.
+func (c *BoundaryCache) SetTextureCacheEnabled(enabled bool) {
+	if c == nil {
+		return
+	}
+	c.texEnabled = enabled
+	if !enabled {
+		c.releaseTextures()
+	}
+}
+
+// TextureCacheEnabled reports whether the B1 picture-texture cache is on.
+func (c *BoundaryCache) TextureCacheEnabled() bool {
+	return c != nil && c.texEnabled
+}
+
+// TextureCacheStats returns cumulative rasterize/hit counters (metrics).
+func (c *BoundaryCache) TextureCacheStats() (rasterize, hit int64) {
+	if c == nil {
+		return 0, 0
+	}
+	return c.TexRasterize, c.TexHit
+}
+
+// releaseTextures drops all cached boundary textures (GPU resources).
+func (c *BoundaryCache) releaseTextures() {
+	if c == nil {
+		return
+	}
+	for id, te := range c.tex {
+		if te != nil && te.view != nil {
+			te.view.Release()
+		}
+		delete(c.tex, id)
+	}
 }
 
 type boundaryEntry struct {
@@ -40,7 +93,7 @@ var nextBoundaryCacheID uint64
 
 // NewBoundaryCache creates an empty cache.
 func NewBoundaryCache() *BoundaryCache {
-	return &BoundaryCache{entries: make(map[uint64]*boundaryEntry)}
+	return &BoundaryCache{entries: make(map[uint64]*boundaryEntry), tex: make(map[uint64]*texEntry)}
 }
 
 // BeginFrame resets per-frame skip/rerecord counters (call once per present paint).
@@ -71,12 +124,14 @@ func (b *Base) CacheID() uint64 {
 	return b.cacheID
 }
 
-// Clear drops all Picture entries (resize / DPR change — R11).
+// Clear drops all Picture entries and rasterized textures (resize / DPR change — R11).
 func (c *BoundaryCache) Clear() {
 	if c == nil {
 		return
 	}
 	c.entries = make(map[uint64]*boundaryEntry)
+	c.releaseTextures()
+	c.tex = make(map[uint64]*texEntry)
 }
 
 // Len returns the number of cached boundary entries.
@@ -87,7 +142,7 @@ func (c *BoundaryCache) Len() int {
 	return len(c.entries)
 }
 
-// Invalidate drops the Picture for this node (size/content change).
+// Invalidate drops the Picture and rasterized texture for this node (size/content change).
 func (c *BoundaryCache) Invalidate(n RenderObject) {
 	if c == nil || n == nil {
 		return
@@ -97,6 +152,12 @@ func (c *BoundaryCache) Invalidate(n RenderObject) {
 		return
 	}
 	delete(c.entries, b.cacheID)
+	if te, ok := c.tex[b.cacheID]; ok {
+		if te != nil && te.view != nil {
+			te.view.Release()
+		}
+		delete(c.tex, b.cacheID)
+	}
 }
 
 // HasValid reports whether n currently has a reusable Picture entry.
@@ -153,6 +214,42 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 		e.valid = false
 		return false
 	}
+	// B1 picture-texture cache (Flutter RasterCache): blit the rasterized
+	// texture when present; otherwise rasterize once (record → flush → blit
+	// in the same frame, so there is no blank frame) then keep blitting.
+	// Non-rect clips refuse rasterization: the recording clip localizer only
+	// handles plain scissor rects, so path/RRect-clipped content replays.
+	if c.texEnabled && pc.UsePictureTextureCache && pc.DC.ClipIsRectOnly() {
+		if te, ok := c.tex[id]; ok && te != nil {
+			c.blitTex(pc, te, pc.OriginX, pc.OriginY, e.w, e.h)
+			c.Skip++
+			c.FrameSkip++
+			c.TexHit++
+			pc.NotePaintVisit()
+			return true
+		}
+		texW, texH := int(e.w*pc.Scale), int(e.h*pc.Scale)
+		beginOK := pc.DC.BeginPictureCache(texW, texH, e.ox, e.oy)
+		if beginOK {
+			pc.DC.Push()
+			pc.DC.Translate(-e.ox, -e.oy)
+			e.pic.Replay(pc.DC)
+			pc.DC.Pop()
+			view := pc.DC.EndPictureCache()
+			if view != nil {
+				te := &texEntry{view: view, w: texW, h: texH}
+				c.tex[id] = te
+				c.TexRasterize++
+				c.blitTex(pc, te, pc.OriginX, pc.OriginY, e.w, e.h)
+				c.Skip++
+				c.FrameSkip++
+				pc.NotePaintVisit()
+				return true
+			}
+			// Rasterize failed (empty recording / GPU hiccup): fall through to
+			// the normal command-level Replay below.
+		}
+	}
 	if e.ox != pc.OriginX || e.oy != pc.OriginY {
 		// Translate replay to current origin (scroll reuse / layout pan).
 		// e.ox/e.oy stay frozen at record-time origin so each replay translates
@@ -169,6 +266,16 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	c.FrameSkip++
 	pc.NotePaintVisit()
 	return true
+}
+
+// blitTex composites a rasterized boundary texture at the given logical
+// position (origin-shift aware: blit follows the current origin, matching
+// scroll-reuse cell displacement without re-rasterizing).
+func (c *BoundaryCache) blitTex(pc *PaintContext, te *texEntry, ox, oy, w, h float64) {
+	if pc == nil || pc.DC == nil || te == nil {
+		return
+	}
+	pc.DC.DrawCachedTexture(te.view, ox, oy, int(w), int(h))
 }
 
 // currentContentKey fingerprints a boundary node's **current** own content

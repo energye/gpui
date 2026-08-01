@@ -786,7 +786,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | 7–8 | **收口（主路径）** | ClipRRect/SaveLayer/CTM/Composite 单测 + cliplayer；场景 ClipPath 层 / 默走层 Present 残 |
 | 9–11 | **收口（主路径）** | image/text/filter 单测 + 对应窗测；编辑器/局部毛玻璃残 |
 | 12 | **收口（主路径）** | VirtualList+Physics 单测 + scroll 轴；bounce/multi-sliver 残 |
-| 13 | **收口（主路径）** | Picture D7 + dirty Present + damage；GPU picture 缓存 / 默走 Composite 残 |
+| 13 | **收口（主路径）** | Picture D7 + dirty Present + damage；GPU picture 缓存 **B1 推广完成**（C3 + 13 个 full_paint 窗全绿·默认关 opt-in；C2/R4/R9/R10/R19 无重放面不接线·见 WIDGET_RENDER §10 3.29）/ 默走 Composite 残 |
 | 指标 | **收口（D8）** | slope + GPU JSON + baseline 骨架；p99/VRAM/CI 库残 |
 
 ### 25.3 母表状态分布（约，终审快照）
@@ -804,9 +804,9 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 ### 25.4 架构诚实点（最易误读）
 
 ```text
-1. PipelineApp 默认仍 RO 直绘 Present（PaintPresentTree）
-   → CompositeToContext / Picture 能力在，但是「可选/测试路径」，非默认 compositor。
-2. Picture 显示列表 = rect+path+text+image 子集；无列表内 clip/saveLayer；无 GPU 纹理缓存。
+1. PipelineApp 默认 retained 合成（W6 翻转）：steady 帧 CompositeOnly + PresentWithAuto；
+   full_paint 是 opt-in（能力窗显式 SetPresentPolicy(full_paint) 保持其路径语境）。
+2. Picture 显示列表 = rect+path+text+image 子集；无列表内 clip/saveLayer；GPU 纹理缓存 B1 **推广完成**（机制闭环，默认关 opt-in，C3 + 13 个 full_paint 窗全绿，见 WIDGET_RENDER §10 3.29）。
 3. Backdrop / DropShadow / 部分 SaveLayer = 全幅或大区域成本，产品慎用。
 4. VSync：有 DRM 可为 true；否则 fallback — JSON vsync_source 为准。
 5. cpu_ui/raster = 路径 proxy，≠ OS 线程 DevTools %。
