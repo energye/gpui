@@ -111,13 +111,7 @@ func (t *RenderTransform) Paint(pc *PaintContext) {
 			pc.DC.Scale(sx, sy)
 		}
 		pc.DC.Translate(-cx, -cy)
-		childPC := &PaintContext{
-			DC:          pc.DC,
-			OriginX:     0,
-			OriginY:     0,
-			Scale:       pc.Scale,
-			PaintVisits: pc.PaintVisits,
-		}
+		childPC := pc.WithOrigin(0, 0)
 		for _, ch := range t.children {
 			if pc.CompositeOnly && ch.IsRepaintBoundary() && !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
 				continue

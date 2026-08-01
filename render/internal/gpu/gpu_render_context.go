@@ -104,7 +104,7 @@ type GPURenderContext struct {
 	preferSampleCount1 bool
 	// surfaceCacheMode: persistent 1x cache render target (A2 retained
 	// compositing). Survives session rebuilds; applied to fresh sessions.
-	
+	surfaceCacheMode bool
 
 	// Shared command encoder for single-command-buffer frames (ADR-017).
 	// When set, Flush records render passes into this encoder instead of
@@ -200,10 +200,6 @@ func (rc *GPURenderContext) SetPreferSampleCount1(enabled bool) {
 	if rc.session != nil {
 		rc.session.Destroy()
 		rc.session = nil
-	}
-}
-
-.session = nil
 	}
 }
 
@@ -1941,13 +1937,12 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			rc.session.SetConvexRenderer(convexRend)
 			rc.session.SetStencilRenderer(stencilRend)
 		}
+		if rc.surfaceCacheMode {
+			rc.session.SetSurfaceCacheMode(true)
+		}
 	} else if !rc.preferSampleCount1 {
 		// Same device: re-bind only when GPUShared replaced pipeline objects
 		// (avoids pipelinesReady=false every frame).
-se {
-			rc.session.SetSDFPipeline(sdfPipeline)
-			rc.session.SetConvexRenderer(convexRend)
-			rc.session.SetSten
 		if sdfPipeline != nil && rc.session.sdfPipeline != sdfPipeline {
 			rc.session.SetSDFPipeline(sdfPipeline)
 		}
@@ -2142,16 +2137,16 @@ se {
 		}
 		blitTarget := target
 		blitTarget.View = surfaceView
+		// A2 retained: cache mode composites into the persistent cache texture,
+		// not the swapchain (which is cleared/wiped by present each frame).
+		// The final cache → swapchain blit happens at Context present time.
+		if rc.session != nil && rc.session.SurfaceCacheMode() {
+			if cv := rc.session.SurfaceCacheView(); cv != nil {
+				blitTarget.View = gpucontext.NewTextureView(unsafe.Pointer(cv)) //nolint:gosec
+			}
+		}
 		rc.frameRendered = false
 		rc.lastView = nil
-		vpH := uint32(target.Height) //nolint:gosec
-		if target.ViewWidth > 0 && target.ViewHeight > 0 {
-			vpW, vpH = target.ViewWidth, target.ViewHeight
-		}
-		blitTarget := target
-		blitTarget.View = surfaceView
-		// A2 retained: cache mode composites into the persistent cache texture,
-		// not the swapchain (which is cleared/wiped by
 		if rc.session != nil {
 			rc.session.SetFrameState(false, nil)
 		}

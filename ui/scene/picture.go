@@ -22,6 +22,13 @@ const (
 	OpDrawString
 	// OpDrawImage draws an ImageBuf at (X,Y); DstW/DstH >0 scales, else 1:1.
 	OpDrawImage
+	// OpPushTransform pushes a center-based 2D CTM around subsequent ops:
+	// T(CX,CY)·R(Rot)·S(SX,SY)·T(-CX,-CY) — same semantics as
+	// RenderTransform.Paint / render.Context Push+Rotate+Scale. Pair with
+	// OpPopTransform (recorded coords are absolute on the parent CTM).
+	OpPushTransform
+	// OpPopTransform restores the CTM pushed by the matching OpPushTransform.
+	OpPopTransform
 )
 
 // PictureOp is one retained draw command (Flutter Picture display-list subset).
@@ -42,6 +49,12 @@ type PictureOp struct {
 	Image *render.ImageBuf
 	// DstW, DstH scale destination for OpDrawImage when both >0; else 1:1 DrawImage.
 	DstW, DstH float64
+	// CX, CY are the center of rotation/scale for OpPushTransform.
+	CX, CY float64
+	// Rot is the rotation (radians, Y-down) for OpPushTransform.
+	Rot float64
+	// SX, SY are the scale factors for OpPushTransform (0 → 1 at replay).
+	SX, SY float64
 }
 
 // Picture is a retained draw-ops handle (display list).
@@ -171,6 +184,25 @@ func applyPictureOp(dc *render.Context, op *PictureOp) {
 		} else {
 			dc.DrawImage(op.Image, op.X, op.Y)
 		}
+	case OpPushTransform:
+		dc.Push()
+		dc.Translate(op.CX, op.CY)
+		if op.Rot != 0 {
+			dc.Rotate(op.Rot)
+		}
+		sx, sy := op.SX, op.SY
+		if sx == 0 {
+			sx = 1
+		}
+		if sy == 0 {
+			sy = 1
+		}
+		if sx != 1 || sy != 1 {
+			dc.Scale(sx, sy)
+		}
+		dc.Translate(-op.CX, -op.CY)
+	case OpPopTransform:
+		dc.Pop()
 	}
 }
 
@@ -273,6 +305,29 @@ func (r *PictureRecorder) OpCount() int {
 		return 0
 	}
 	return len(r.ops)
+}
+
+// PushTransform records a center-based 2D CTM push (T(CX,CY)·R(Rot)·S(SX,SY)·
+// T(-CX,-CY)) that applies to subsequent ops until PopTransform. Same semantics
+// as RenderTransform.Paint — recorded coords are absolute on the parent CTM.
+func (r *PictureRecorder) PushTransform(cx, cy, rot, sx, sy float64) {
+	if r == nil {
+		return
+	}
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpPushTransform,
+		CX:   cx, CY: cy,
+		Rot: rot,
+		SX:  sx, SY: sy,
+	})
+}
+
+// PopTransform records a CTM pop matching the nearest PushTransform.
+func (r *PictureRecorder) PopTransform() {
+	if r == nil {
+		return
+	}
+	r.ops = append(r.ops, PictureOp{Kind: OpPopTransform})
 }
 
 // EndRecording finishes the session and returns a Valid Picture with a copy of ops.

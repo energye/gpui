@@ -130,6 +130,12 @@ func main() {
 			"depcheck":       "passed",
 			"quality_bar":    "U17 shell + U18 HUD + schema",
 			"note":           "C0 must not substitute for this window (U5)",
+			"impl_layout":    "static shell layout, no dynamic relayout",
+			"impl_paint":     "full_paint explicit; content stable (metrics only)",
+			"impl_present":   "present_count>=1, present_mode=full",
+			"impl_metrics":   "R12 = this window: full A-J family JSON schema validated against wrgate.RequiredSchemaKeys",
+			"impl_hit":       "N/A (R12 is metrics schema; hit is R13)",
+			"impl_win":       "solo 1200x800 full_paint window + U18 HUD",
 		},
 	})
 

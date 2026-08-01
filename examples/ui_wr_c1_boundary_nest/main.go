@@ -231,7 +231,7 @@ func main() {
 		MinBoundarySkip:        1,
 		MinBoundaryRerecord:    1,
 		MinBoundaryCount:       3,
-		MinBoundaryMaxDepth:    2,
+		MinBoundaryMaxDepth:    3, // root→outer→mid→leaf 链（R3 嵌套 ≥3 层）
 	}
 	if err := wrgate.EvaluateGates(rep, opt); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -301,9 +301,13 @@ type sceneC1 struct {
 	Hot   *rendering.RenderColorBox
 	hud   *wrkit.LiveHUD
 
-	// Isolation invariant counters.
-	innerStaticClean atomic.Int64 // inner-static stays clean while inner-hot pulses
-	outerSideClean   atomic.Int64 // outer-side stays clean while outer pulses
+	// Real isolation probes (C1 invariants).
+	staticLeaf *rendering.RenderColorBox // inner-static under mid (内脏不外溢 probe)
+	sideLeaf   *rendering.RenderColorBox // outer-side sibling RB (外脏不内传 probe)
+
+	// Isolation invariant counters (real NeedsPaint probes on pulse frames).
+	innerStaticClean atomic.Int64 // staticLeaf.NeedsPaint()==false while inner-hot pulses
+	outerSideClean   atomic.Int64 // sideLeaf.NeedsPaint()==false while outer pulses
 	innerHotDirty    atomic.Int64 // inner-hot MarkNeedsPaint each tick
 	outerDirty       atomic.Int64 // outer MarkNeedsPaint each tick (outer pulse)
 
@@ -360,6 +364,7 @@ func buildScene(w, h float64, debugRepaint bool) *sceneC1 {
 	staticLeaf := rendering.NewRenderColorBox(100, 100, 0.15, 0.65, 0.3, 1)
 	staticLeaf.SetRepaintBoundary(true)
 	mid.Place(staticLeaf, 30, 30)
+	s.staticLeaf = staticLeaf
 
 	hot := rendering.NewRenderColorBox(110, 110, 0.9, 0.2, 0.15, 1)
 	hot.SetRepaintBoundary(true)
@@ -370,6 +375,7 @@ func buildScene(w, h float64, debugRepaint bool) *sceneC1 {
 	side := rendering.NewRenderColorBox(70, 200, 0.35, 0.40, 0.70, 1)
 	side.SetRepaintBoundary(true)
 	outer.Place(side, 400, 40)
+	s.sideLeaf = side
 
 	outer.Place(mid, 24, 40)
 	root.Place(outer, 280, 90)
@@ -438,16 +444,17 @@ func (s *sceneC1) onTick(dt float64, phase string) {
 	s.Outer.MarkNeedsPaint()
 	s.outerDirty.Add(1)
 
-	// C1 isolation invariants:
-	// - inner-static stays clean while inner-hot pulses (内脏不外溢)
-	// - outer-side stays clean while outer pulses (外脏不内传)
-	// We count frames where each static sibling stays NeedsPaint=false.
-	// (inner-static is leaf under mid; outer-side is sibling under outer)
-	// We can't directly query inner-static here without a handle, but
-	// CountRepaintBoundaries + BoundaryCache skip count proves it indirectly.
-	// For explicit invariant, check outer-side via the side handle we saved
-	// implicitly through outer's children — use a direct NeedsPaint probe.
-	// Simpler: count boundary_skip frames (static Replay = skip).
-	s.innerStaticClean.Add(1) // proxy: each tick static layer Replays (skip)
-	s.outerSideClean.Add(1)   // proxy: outer-side Replays while outer dirty
+	// C1 isolation invariants (real probes on this pulse frame):
+	// - inner-static stays clean while inner-hot pulses (内脏不外溢):
+	//   staticLeaf (sibling of Hot under mid) must NOT be paint-dirty just
+	//   because Hot was MarkNeedsPaint'd — hot dirty must not leak outward.
+	// - outer-side stays clean while outer pulses (外脏不内传):
+	//   sideLeaf (sibling of mid under outer) must NOT be paint-dirty just
+	//   because Outer was MarkNeedsPaint'd — outer dirty must not leak inward.
+	if !s.staticLeaf.NeedsPaint() {
+		s.innerStaticClean.Add(1)
+	}
+	if !s.sideLeaf.NeedsPaint() {
+		s.outerSideClean.Add(1)
+	}
 }

@@ -175,7 +175,7 @@ func main() {
 			"impl_cache":         "N/A for R2 (BoundaryCache is R3); R2 proves local repaint isolation, not cache hits",
 			"impl_edge":          "3 hot boundaries at different frequencies; static neighbors with text labels; deep nesting via panel-in-panel",
 			"impl_fail":          "static boundary becomes NeedsPaint=true after hot MarkNeedsPaint = isolation leak = FAIL",
-			"impl_visible":       "3 colored hot regions (A=red, B=green, C=blue) pulse at different rates; static text labels and color blocks stay frozen",
+			"impl_visible":       "3 colored hot regions (A=red, B=green, C=blue) pulse at different rates; static text labels and color blocks stay frozen; FS-LINEAR gradient panel static (渐变内容)",
 		},
 	})
 
@@ -250,6 +250,10 @@ type scene2 struct {
 
 	// Static boundary that must stay clean (NeedsPaint=false) while hots pulse.
 	staticB *rendering.RenderColorBox
+
+	// Gradient content box (FS-LINEAR 渐变增强).
+	gradBox   *rendering.RenderBox
+	gradDraws atomic.Int64
 
 	// Counters for R2 isolation invariants.
 	staticClean atomic.Int64
@@ -361,6 +365,28 @@ func buildScene(w, h float64) *scene2 {
 			cell.LabelAt(fmt.Sprintf("static %d-%d", row, col), 11, 8, 16, 0.70, 0.75, 0.85)
 		}
 	}
+
+	// --- 渐变内容 (R2 能力增强): 静态线性渐变面板 ---
+	// FillLinearGradient (FS-LINEAR) — 每帧由 FullPaint 重画，内容含渐变
+	// 证明渐变绘制在 hot 脉冲旁保持稳定。
+	gradW, gradH := 200.0, 100.0
+	s.gradBox = rendering.NewRenderBox()
+	s.gradBox.FixedWidth, s.gradBox.FixedHeight = gradW, gradH
+	s.gradBox.SetRepaintBoundary(true)
+	s.gradBox.OnPaint = func(pc *rendering.PaintContext, sz rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		rendering.FillLinearGradient(pc, 0, 0, gradW, gradH,
+			0, 0, gradW, gradH, // (x0,y0)→(x1,y1) 对角渐变
+			0.30, 0.55, 0.90, 1, // 蓝 →
+			0.95, 0.45, 0.25, 1) // 橙
+		s.gradDraws.Add(1)
+	}
+	root.Place(s.gradBox, 740, 540)
+	gradLbl := wrkit.NewPanel(gradW, 22, 0.10, 0.11, 0.13, 0.9)
+	gradLbl.PlaceOn(root, 740, 540-24)
+	gradLbl.LabelAt("GRADIENT (FS-LINEAR) — static content", 11, 6, 14, 0.70, 0.80, 0.90)
 
 	// --- LiveHUD (U18 窗内可见指标) ---
 	if wrkit.HUDEnabled() {

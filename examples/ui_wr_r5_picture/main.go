@@ -161,11 +161,11 @@ func main() {
 			"picture_op_count": opCount,
 			"replay_frames":    replays,
 			"direct_frames":    sc.directFrames,
-			"op_types":         "FillRect,FillPath,StrokePath,StrokeRect,DrawString",
+			"op_types":         "FillRect,FillPath,StrokePath,StrokeRect,DrawString,PushTransform,PopTransform",
 			"direct_region":    "left  panel — live DC draw each frame",
 			"replay_region":    "right panel — Record once, Replay each frame",
 			"phases":           "Steady/Spike/Recover",
-			"impl_correctness": "Picture Replay ops produce identical pixels as direct DC draw",
+			"impl_correctness": "Picture Replay ops produce identical pixels as direct DC draw (incl. PushTransform/PopTransform CTM block)",
 			"impl_dirty":       "both sides MarkNeedsPaint every tick; FullPaint redraws all",
 			"impl_cache":       "N/A for R5 (BoundaryCache is R3); Picture is display-list, not cache",
 			"impl_edge":        "Spike doubles paint rate; path clone isolation; empty text no-op",
@@ -345,14 +345,18 @@ func drawContent(dc *render.Context, ox, oy float64) {
 		_ = dc.Fill()
 	}
 
-	// --- 2. FillPath: triangle ---
+	// --- 2. Transform: rotated+scaled rect (R5 变换 op: Push/Pop CTM) ---
+	// direct 与 replay 必须像素一致：直接 DC Push+Rotate+Scale vs Picture
+	// PushTransform+PopTransform（ui/scene/picture.go OpPushTransform）。
+	dc.Push()
+	dc.Translate(ox+320, oy+70)
+	dc.Rotate(-0.45) // ≈ -25.8°
+	dc.Scale(1.15, 0.85)
+	dc.Translate(-40, -40)
 	dc.SetRGBA(0.40, 0.80, 0.55, 1)
-	p := render.NewPath()
-	p.MoveTo(ox+320, oy+30)
-	p.LineTo(ox+400, oy+110)
-	p.LineTo(ox+240, oy+110)
-	p.Close()
-	_ = dc.FillPath(p)
+	dc.DrawRectangle(0, 0, 80, 80)
+	_ = dc.Fill()
+	dc.Pop()
 
 	// --- 3. StrokePath: rounded rect outline ---
 	dc.SetRGBA(0.30, 0.50, 0.90, 1)
@@ -400,13 +404,10 @@ func recordContent() scene.Picture {
 		r.FillRect(ox+20, oy+140, 120, 100, 0.25, 0.40, 0.90, 1)
 		r.FillRect(ox+160, oy+140, 120, 100, 0.90, 0.75, 0.20, 1)
 
-		// 2. FillPath: triangle
-		tp := render.NewPath()
-		tp.MoveTo(ox+320, oy+30)
-		tp.LineTo(ox+400, oy+110)
-		tp.LineTo(ox+240, oy+110)
-		tp.Close()
-		r.FillPath(tp, 0.40, 0.80, 0.55, 1)
+		// 2. Transform: rotated+scaled rect (must match direct DC CTM exactly)
+		r.PushTransform(ox+320, oy+70, -0.45, 1.15, 0.85)
+		r.FillRect(280, 30, 80, 80, 0.40, 0.80, 0.55, 1)
+		r.PopTransform()
 
 		// 3. StrokePath: rounded rect
 		sp := render.NewPath()

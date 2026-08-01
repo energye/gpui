@@ -45,7 +45,15 @@ func NewShell(winW, winH float64, abilityTitle string, legendLines []string) *Sh
 		if i >= 12 {
 			break
 		}
-		s.Legend.LabelAt(ln, 11, 12, 36+float64(i)*22, 0.70, 0.78, 0.88)
+		// §2.6.1: 每行「色块 + 文字」——ColorAt 色块 + LabelAt 文本。
+		c := [12][3]float64{
+			{0.90, 0.85, 0.50}, {0.55, 0.80, 0.95}, {0.30, 0.50, 0.90},
+			{0.25, 0.75, 0.40}, {0.90, 0.30, 0.25}, {0.65, 0.68, 0.72},
+			{0.90, 0.30, 0.80}, {0.55, 0.75, 0.85}, {0.75, 0.60, 0.35},
+			{0.45, 0.70, 0.60}, {0.85, 0.55, 0.90}, {0.60, 0.65, 0.80},
+		}
+		s.Legend.ColorAt(14, 14, 12, 36+float64(i)*22, c[i][0], c[i][1], c[i][2], 1, false)
+		s.Legend.LabelAt(ln, 11, 30, 36+float64(i)*22, 0.70, 0.78, 0.88)
 	}
 
 	bodyX := gap + legendW + gap

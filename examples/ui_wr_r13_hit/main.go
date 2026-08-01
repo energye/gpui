@@ -15,6 +15,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -107,6 +108,9 @@ func main() {
 	//   green box1 @(24,36) 200×200 → (414,204)
 	//   red   box2 @(260,80) 160×160 → (630,228)
 	//   cyan  box3 @(180,260) 140×140 → (540,398)
+	//   rotated tf @(24,430) 140×140, 45° — center (384,568);
+	//   AABB-outside-painted point tf-local (160,70) → window (474,568):
+	//   160>140 (untransformed AABB) but inverse-mapped into painted geometry.
 	probes := []struct {
 		x, y float64
 		want string
@@ -114,7 +118,9 @@ func main() {
 		{414, 204, "green"},
 		{630, 228, "red"},
 		{540, 398, "cyan"},
-		{50, 50, ""}, // empty background (top bar area)
+		{384, 568, "rotated"}, // transform center (any rotation)
+		{474, 568, "rotated"}, // outside untransformed AABB, inside painted geometry
+		{50, 50, ""},          // empty background (top bar area)
 	}
 
 	phases := wrkit.NewPhaseClock(1.5, 3.0) // Steady 0–1.5 · Spike 1.5–3 · Recover
@@ -224,9 +230,9 @@ func main() {
 			"impl_correctness": "HitTestPointer DebugName ≡ paint identity; scripted probes at known centers all hit",
 			"impl_dirty":       "pointer down + Spike highlight MarkNeedsPaint on hit target",
 			"impl_cache":       "N/A for R13 (hit test uses tree, not BoundaryCache)",
-			"impl_edge":        "empty background probe returns \"\"; Spike cycles green highlight",
+			"impl_edge":        "empty background probe returns \"\"; Spike cycles green highlight; 45°-rotated target hit via inverse map (AABB-outside point hits painted geometry)",
 			"impl_fail":        "policy≠full_paint / probes ok<total / fps<55 / target blanks",
-			"impl_visible":     "LiveHUD probes/live; 3 colored hit boxes + empty zone; highlight on hit",
+			"impl_visible":     "LiveHUD probes/live; 3 colored hit boxes + rotated 45° target + empty zone; highlight on hit",
 		},
 	})
 	b, err := wrgate.Marshal(rep)
@@ -252,7 +258,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want â¥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
-	if probesN < 4 || probesOK != probesN {
+	if probesN < 6 || probesOK != probesN {
 		fmt.Fprintf(os.Stderr, "FAIL: scripted hit probes ok=%d/%d\n", probesOK, probesN)
 		os.Exit(1)
 	}
@@ -278,6 +284,7 @@ type scene13 struct {
 	box1        *rendering.RenderColorBox
 	box2        *rendering.RenderColorBox
 	box3        *rendering.RenderColorBox
+	tfBox       *rendering.RenderColorBox
 	hud         *wrkit.LiveHUD
 	staticCells int
 	labelCount  int
@@ -315,6 +322,19 @@ func buildScene(w, h float64) *scene13 {
 	s.box3 = hotPanel.ColorAt(140, 140, 180, 260, 0.15, 0.75, 0.85, 1, true)
 	s.box3.SetDebugName("cyan")
 	hotPanel.LabelAt("green · red · cyan — probes hit each DebugName", 11, 16, 410, 0.55, 0.75, 0.85)
+	s.labelCount++
+
+	// --- Transform hit target (R13 变换下 hit): 45°-rotated box ---
+	// The paint transform maps a parent-local point outside the untransformed
+	// AABB into the painted geometry; HitTest must apply the inverse map and
+	// still return the DebugName target (transform.go inverseMapPoint).
+	tf := rendering.NewRenderTransform()
+	tf.SetRotation(math.Pi / 4)
+	s.tfBox = rendering.NewRenderColorBox(140, 140, 0.85, 0.65, 0.25, 1)
+	s.tfBox.SetDebugName("rotated")
+	tf.AddChild(s.tfBox)
+	hotPanel.Place(tf, 24, 430)
+	hotPanel.LabelAt("ROTATED 45° target — probe inside painted geometry (outside AABB)", 11, 12, 584, 0.85, 0.65, 0.25)
 	s.labelCount++
 
 	// --- Empty zone region (right, static + empty background proof) ---

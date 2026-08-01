@@ -88,9 +88,12 @@ func main() {
 		_ = t.Layout(rendering.Loose(460, 200))
 	}
 	phases := wrkit.NewPhaseClock(1.2, 3.0) // Steady 0–1.2 · Spike 1.2–3 · Recover
+	layoutAcc := 0.0
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) {
 		ph := phases.Advance(dt)
-		// Force layout each tick without changing text → measure cache hits.
+		// PhaseClock drives the LAYOUT RATE (not a dead variable): Spike
+		// doubles layout passes per second, Recover slows them — text content
+		// stays identical, so every forced layout must hit the measure cache.
 		rate := 1.0
 		switch ph {
 		case wrkit.PhaseSpike:
@@ -98,12 +101,15 @@ func main() {
 		case wrkit.PhaseRecover:
 			rate = 0.7
 		}
-		_ = rate
-		for _, t := range sc.texts {
-			t.MarkNeedsLayout()
-		}
-		if app.Pipeline().FlushLayout(rendering.Size{Width: float64(winW), Height: float64(winH)}, false) {
-			layoutPasses.Add(1)
+		layoutAcc += rate * dt
+		for layoutAcc >= 1 {
+			layoutAcc -= 1
+			for _, t := range sc.texts {
+				t.MarkNeedsLayout()
+			}
+			if app.Pipeline().FlushLayout(rendering.Size{Width: float64(winW), Height: float64(winH)}, false) {
+				layoutPasses.Add(1)
+			}
 		}
 		for _, p := range sc.panels {
 			p.MarkNeedsPaint()
@@ -189,7 +195,7 @@ func main() {
 			"measure_cache_miss": miss,
 			"layout_passes":      layoutPasses.Load(),
 			"text_styles":        4,
-			"phase_script":       "Steady→Spike→Recover (layout rate doubles in Spike)",
+			"phase_script":       "Steady→Spike→Recover (layout rate 1.0/2.0/0.7×/s — rate really drives layout passes)",
 			"impl_correctness":   "same text + same style under repeated MarkNeedsLayout → width/height stable, cache hits dominate",
 			"impl_dirty":         "MarkNeedsLayout forces layout each tick but text content unchanged → MeasureCache hits",
 			"impl_cache":         "MeasureCache hits≥1 + hits≥miss; cache keyed by (text, face, size, maxWidth)",

@@ -194,7 +194,7 @@ func main() {
 			"impl_correctness":      "nested RB: inner hot dirty re-records only inner; outer hot dirty re-records only outer; static layers Replay (skip)",
 			"impl_dirty":            "boundary_skip accumulates from clean static Replays; boundary_rerecord only from dirty boundary; FullPaint redraws all but cache hits still skip",
 			"impl_cache":            "BoundaryCache: text + nested static in boundary can skip via Replay; dirty boundary forces re-record",
-			"impl_edge":             "3-level nesting (root→outer RB→inner RB); outer + inner independent dirty cycles; empty subtree handled",
+			"impl_edge":             "3-level RB nesting (root→outer RB→mid RB→leaf RB); outer + inner independent dirty cycles; empty subtree handled",
 			"impl_fail":             "boundary_count=0 (no RB discovered) / cache miss all paths / inner dirty leaks to outer Picture = FAIL",
 			"impl_visible":          "outer=red pulsing @ (48,48) re-records; inner-static=green @ nested re-records; inner-hot=blue @ nested re-records; HUD shows skip↑/rr↑",
 			"tex_rasterize":         texRasterize,
@@ -230,8 +230,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: boundary_count=%d want ≥3 (multi-level nesting)\n", cnt)
 		os.Exit(1)
 	}
-	if depth < 2 {
-		fmt.Fprintf(os.Stderr, "FAIL: boundary_max_depth=%d want ≥2 (nested RB)\n", depth)
+	if depth < 3 {
+		fmt.Fprintf(os.Stderr, "FAIL: boundary_max_depth=%d want ≥3 (nested RB)\n", depth)
 		os.Exit(1)
 	}
 	// B1 pilot gate: the picture-texture cache must have rasterized at least
@@ -281,14 +281,17 @@ type scene3 struct {
 	// Outer RB container — AbsoluteBox, hot, pulses each tick (re-records).
 	outerAbsolute *rendering.AbsoluteBox
 
-	// Inner-static RB — green, frozen inside outer (Replay skip).
+	// Mid RB — middle nest level (depth 2 of 3) between outer and leaves.
+	midAbsolute *rendering.AbsoluteBox
+
+	// Inner-static RB — green, frozen inside mid (Replay skip).
 	innerStatic *rendering.RenderColorBox
 
 	// Inner-hot RB — blue, pulses each tick at different rate (re-records).
 	innerHot *rendering.RenderColorBox
 
 	// Isolation invariant counters.
-	outerCleanTicks    atomic.Int64 // outer RB needs paint only via its own dirty
+	outerCleanTicks    atomic.Int64 // inner-hot dirty does NOT leak up to outer
 	innerStaticClean   atomic.Int64 // inner-static stays NeedsPaint=false
 	outerDirtyTicks    atomic.Int64 // outer hot MarkNeedsPaint each tick
 	innerHotDirtyTicks atomic.Int64 // inner hot MarkNeedsPaint each tick
@@ -332,7 +335,7 @@ func buildScene(w, h float64) *scene3 {
 	}
 
 	// --- Outer RB: AbsoluteBox container (Place + traverses Children), hot pulsing red ---
-	// depth 2 chain: root → outer RB → {inner-static RB, inner-hot RB}.
+	// depth 3 chain: root → outer RB → mid RB → {inner-static RB, inner-hot RB}.
 	// AbsoluteBox.Paint遍历children，inner真嵌套进outer。
 	// 脉冲红底由 onTick 每帧改 outer.Background.R 实现。
 	outerX, outerY := 280.0, 80.0
@@ -349,22 +352,32 @@ func buildScene(w, h float64) *scene3 {
 	outerText.PlaceOn(root, outerX+20, outerY+20)
 	outerText.LabelAt("static text in outer RB — frozen", 11, 6, 16, 0.90, 0.85, 0.50)
 
-	// --- Inner-static RB: green, frozen — true child of outer (depth 2) ---
+	// --- Mid RB (depth 2 of 3): nest container between outer and leaves ---
+	mid := rendering.NewAbsoluteBox(400, 280)
+	mid.Background = &rendering.Color{R: 0.16, G: 0.18, B: 0.26, A: 1}
+	mid.SetRepaintBoundary(true)
+	outer.Place(mid, 10, 28)
+	s.midAbsolute = mid
+	midLbl := wrkit.NewPanel(400, 22, 0.12, 0.14, 0.18, 0.9)
+	midLbl.PlaceOn(root, outerX+10, outerY+28-24)
+	midLbl.LabelAt("MID RB (depth 2) — nest container", 11, 6, 14, 0.60, 0.85, 0.70)
+
+	// --- Inner-static RB: green, frozen — true child of mid (depth 3) ---
 	innerStaticW, innerStaticH := 180.0, 180.0
 	s.innerStatic = rendering.NewRenderColorBox(innerStaticW, innerStaticH, 0.12, 0.72, 0.28, 1)
 	s.innerStatic.SetRepaintBoundary(true)
-	outer.Place(s.innerStatic, 20, 60) // depth 2: root→outer→inner-static
+	mid.Place(s.innerStatic, 20, 60) // depth 3: root→outer→mid→inner-static
 	innerStaticLbl := wrkit.NewPanel(innerStaticW, 22, 0.12, 0.14, 0.18, 0.9)
-	innerStaticLbl.PlaceOn(root, outerX+20, outerY+60-24)
+	innerStaticLbl.PlaceOn(root, outerX+10+20, outerY+28+60-24)
 	innerStaticLbl.LabelAt("INNER-STATIC (green) — Replay skip", 11, 4, 14, 0.60, 0.85, 0.70)
 
-	// --- Inner-hot RB: blue, pulses — true child of outer (depth 2) ---
+	// --- Inner-hot RB: blue, pulses — true child of mid (depth 3) ---
 	innerHotW, innerHotH := 180.0, 180.0
 	s.innerHot = rendering.NewRenderColorBox(innerHotW, innerHotH, 0.18, 0.32, 0.85, 1)
 	s.innerHot.SetRepaintBoundary(true)
-	outer.Place(s.innerHot, 220, 60) // depth 2: root→outer→inner-hot
+	mid.Place(s.innerHot, 220, 60) // depth 3: root→outer→mid→inner-hot
 	innerHotLbl := wrkit.NewPanel(innerHotW, 22, 0.12, 0.14, 0.18, 0.9)
-	innerHotLbl.PlaceOn(root, outerX+220, outerY+60-24)
+	innerHotLbl.PlaceOn(root, outerX+10+220, outerY+28+60-24)
 	innerHotLbl.LabelAt("INNER-HOT (blue ~6Hz) — re-records", 11, 4, 14, 0.60, 0.75, 0.90)
 
 	// outer pulses via MarkNeedsPaint on itself each tick (see onTick).
@@ -405,6 +418,20 @@ func (s *scene3) onTick(dt float64, phase string) {
 	s.phaseOuter += dt * rateOuter
 	s.phaseInner += dt * rateInner
 
+	// Inner-hot pulse FIRST: blue pulse (different frequency, proves independent re-record).
+	// MarkNeedsPaint on inner-hot stops at its own RepaintBoundary (node.go:271) —
+	// it must NOT leak up to mid/outer. Probe outer right after to prove it.
+	bInner := 0.55 + 0.35*math.Sin(s.phaseInner+1.0)
+	s.innerHot.R, s.innerHot.G, s.innerHot.B = 0.18, 0.32, bInner
+	s.innerHot.MarkNeedsPaint()
+	s.innerHotDirtyTicks.Add(1)
+
+	// R3 nest isolation (real probe): inner-hot dirty must not leak up to outer —
+	// outer must still be NeedsPaint=false after inner-hot was marked dirty.
+	if !s.outerAbsolute.NeedsPaint() {
+		s.outerCleanTicks.Add(1)
+	}
+
 	// Outer hot: red pulse via Background.R mutation each tick.
 	// MarkNeedsPaint forces outer re-record.
 	if s.outerAbsolute.Background != nil {
@@ -413,20 +440,10 @@ func (s *scene3) onTick(dt float64, phase string) {
 	s.outerAbsolute.MarkNeedsPaint()
 	s.outerDirtyTicks.Add(1)
 
-	// Inner-hot: blue pulse (different frequency, proves independent re-record).
-	bInner := 0.55 + 0.35*math.Sin(s.phaseInner+1.0)
-	s.innerHot.R, s.innerHot.G, s.innerHot.B = 0.18, 0.32, bInner
-	s.innerHot.MarkNeedsPaint()
-	s.innerHotDirtyTicks.Add(1)
-
 	// R3 isolation invariants:
 	// - inner-static must stay NeedsPaint=false while outer+inner-hot pulse
-	// - outer needs paint only via its own dirty (inner dirty does NOT leak up)
+	// - outer's own dirty must not leak down to inner-static (sibling leaves)
 	if !s.innerStatic.NeedsPaint() {
 		s.innerStaticClean.Add(1)
 	}
-	// Outer clean check: when inner-hot pulses, outer's NeedsPaint must reflect
-	// only outer's own dirty state (R3 nest isolation). We count frames where
-	// outer is dirty via its own MarkNeedsPaint (already done above).
-	s.outerCleanTicks.Add(1) // outer is dirty by its own pulse — count frame
 }

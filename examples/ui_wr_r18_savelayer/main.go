@@ -79,10 +79,19 @@ func main() {
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) {
 		ph := phases.Advance(dt)
 		if sc.panel != nil {
-			// Spike: repaint faster to exercise SaveLayer budget under load.
-			if ph == wrkit.PhaseSpike || app.PresentCount()%2 == 0 {
-				sc.panel.MarkNeedsPaint()
-			} else {
+			// Real 3-phase behavioral difference:
+			//  Steady — MaxOps=1, repaint every other frame (light)
+			//  Spike  — MaxOps=0 (1st SaveLayer rejected too), repaint every frame
+			//  Recover— MaxOps=1 restored, repaint every other frame
+			mo := int64(1)
+			paintNow := app.PresentCount()%2 == 0
+			switch ph {
+			case wrkit.PhaseSpike:
+				mo = 0
+				paintNow = true
+			}
+			sc.maxOps.Store(mo)
+			if paintNow {
 				sc.panel.MarkNeedsPaint()
 			}
 		}
@@ -166,7 +175,7 @@ func main() {
 			"impl_correctness": "1st SaveLayer allow (semi-transparent group); 2nd SaveLayer budget reject observable",
 			"impl_dirty":       "panel MarkNeedsPaint each tick; Spike accelerates repaint pressure",
 			"impl_cache":       "SaveLayerBudget MaxOps=1 per paint → 2nd SaveLayer rejected",
-			"impl_edge":        "Spike exercises SaveLayer budget under load; Recover returns to Steady pace",
+			"impl_edge":        "Spike tightens budget MaxOps=0 (1st SaveLayer rejected too) + repaint every frame; Steady/Recover MaxOps=1 repaint every other frame — three phases behaviorally distinct",
 			"impl_fail":        "policy≠full_paint / allow<1 / reject<1 / fps<55 / static blanks",
 			"impl_visible":     "LiveHUD allow/reject; semi-transparent red group over light bg; yellow contrast",
 			"budget":           "MaxOps=1 per paint (2nd SaveLayer rejected)",
@@ -227,6 +236,10 @@ type scene18 struct {
 	hud         *wrkit.LiveHUD
 	staticCells int
 	labelCount  int
+	// maxOps 是当前阶段的 SaveLayer 预算（原子，paint 期读取）：
+	// Steady/Recover = 1（1st allow, 2nd reject）· Spike = 0（1st 也 reject）。
+	maxOps  atomic.Int64
+	repaint atomic.Int64 // Spike 时每帧重绘；其余隔帧
 }
 
 func buildScene(w, h float64, allow, reject *atomic.Int64) *scene18 {
@@ -264,8 +277,14 @@ func buildScene(w, h float64, allow, reject *atomic.Int64) *scene18 {
 		if pc == nil {
 			return
 		}
-		// Tight budget: only one SaveLayer allowed per paint.
-		pc.LayerBudget = &rendering.SaveLayerBudget{MaxOps: 1, MaxArea: 1e9}
+		// Phase-driven budget (real 3-phase behavioral difference):
+		// Steady/Recover MaxOps=1 → 1st allow + 2nd reject;
+		// Spike MaxOps=0 → 1st also rejected (budget tightens under load).
+		mo := s.maxOps.Load()
+		if mo < 0 {
+			mo = 1
+		}
+		pc.LayerBudget = &rendering.SaveLayerBudget{MaxOps: int(mo), MaxArea: 1e9}
 		if pc.SaveLayer(sz.Width, sz.Height, 0.45) {
 			if allow != nil {
 				allow.Add(1)

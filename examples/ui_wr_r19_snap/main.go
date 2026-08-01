@@ -10,7 +10,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"strconv"
 	"sync/atomic"
@@ -81,7 +80,7 @@ func main() {
 	phases := wrkit.NewPhaseClock(1.2, 3.0) // Steady 0–1.2 · Spike 1.2–3 · Recover
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) {
 		ph := phases.Advance(dt)
-		sc.onTick(dt, ph)
+		sc.onTick(dt, ph, win)
 		proc.Sample()
 		if wrkit.HUDEnabled() && sc.hud != nil {
 			sc.hud.NoteTick(dt)
@@ -100,7 +99,7 @@ func main() {
 				gateOK = false
 			}
 			lineCount := sc.lineDraws.Load()
-			dprVal := sc.dpr.Load()
+			realScale := win.Host().ScaleFactor()
 			sc.hud.Update(wrkit.Snap{
 				AbilityID:   "R19",
 				Phase:       ph,
@@ -110,9 +109,9 @@ func main() {
 				PresentMode: snap.PresentMode,
 				PaintCount:  snap.PaintCount,
 				Presents:    app.PresentCount(),
-				Core:        fmt.Sprintf("lines=%d dpr=%.2f", lineCount, math.Round(float64(dprVal)/100)/100),
+				Core:        fmt.Sprintf("lines=%d dpr=%.2f", lineCount, realScale),
 				GateOK:      gateOK,
-				Extra:       "1px hairline grid · crisp across DPR · snap-to-pixel",
+				Extra:       "1px hairline grid · real DPR wobble (SetScale) · snap-to-pixel",
 			})
 		}
 		app.ScheduleFrame()
@@ -154,14 +153,15 @@ func main() {
 			"run_seconds":      secs,
 			"line_draws":       lineDraws,
 			"dpr_changes":      dprChanges,
+			"dpr_path":         "real: host.SetScale → EventResize(Scale) → PresentTarget.Resize → SetDeviceScale → physical realloc + boundary cache clear",
 			"hairline_width":   "1px (SetLineWidth 1.0)",
 			"g_metrics":        "skipped",
 			"g_metrics_reason": "R19 is not R9/R10; text/measure cache not in scope",
-			"phase_script":     "Steady→Spike→Recover (DPR scale wobble in Spike tests crispness)",
+			"phase_script":     "Steady→Spike→Recover (Spike cycles real device scale 1.0/1.5/2.0 via SetScale)",
 			"impl_correctness": "约定 scale 下 1px 线不糊; StrokeRect/StrokeLine with SetLineWidth(1.0) produce crisp 1px hairlines",
 			"impl_dirty":       "line_draws 累计每帧 1px stroke 调用数; FullPaint redraws all hairlines each tick",
 			"impl_cache":       "N/A for R19 (BoundaryCache is R3); R19 proves 1px pixel snap, not cache hits",
-			"impl_edge":        "1px hairline grid (StrokeRect 边框 + StrokeLine 分割线); DPR wobble across Spike; 咍素对齐坐标",
+			"impl_edge":        "1px hairline grid (StrokeRect 边框 + StrokeLine 分割线); DPR wobble across Spike; 像素对齐坐标",
 			"impl_fail":        "1px 线糊/断 (antialiasing 沤开) / line_draws=0 (hairline 未画) = FAIL",
 			"impl_visible":     "1px hairline 网格清晰不糊; DPR box 对比区域; HUD shows lines/dpr",
 		},
@@ -221,13 +221,11 @@ type scene19 struct {
 	// Counters for R19 invariants.
 	lineDraws  atomic.Int64
 	dprChanges atomic.Int64
-	dpr        atomic.Int64 // DPR × 100 (e.g. 100 = 1.0, 150 = 1.5)
 	phaseT     float64
 }
 
 func buildScene(w, h float64) *scene19 {
 	s := &scene19{}
-	s.dpr.Store(100) // default DPR 1.0
 	root := rendering.NewAbsoluteBox(w, h)
 	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
 	s.Root = root
@@ -326,35 +324,32 @@ func buildScene(w, h float64) *scene19 {
 	return s
 }
 
-func (s *scene19) onTick(dt float64, phase string) {
+func (s *scene19) onTick(dt float64, phase string, win *exhost.Window) {
 	if s == nil || s.hairlineBox == nil {
 		return
 	}
 	s.phaseT += dt
-	// PhaseClock drives DPR wobble — Spike cycles DPR to test crispness.
+	// PhaseClock drives REAL DPR wobble — Spike cycles the host device scale
+	// (SetScale → EventResize → PresentTarget.Resize → SetDeviceScale →
+	// physical reallocation + boundary cache clear) to test crispness.
 	if phase == wrkit.PhaseSpike {
-		// Cycle DPR 1.0 → 1.5 → 2.0 → 1.0 every 0.4s in Spike.
 		cycle := int(s.phaseT / 0.4)
+		var next float64
 		switch cycle % 3 {
 		case 0:
-			if s.dpr.Load() != 100 {
-				s.dpr.Store(100)
-				s.dprChanges.Add(1)
-			}
+			next = 1.0
 		case 1:
-			if s.dpr.Load() != 150 {
-				s.dpr.Store(150)
-				s.dprChanges.Add(1)
-			}
+			next = 1.5
 		case 2:
-			if s.dpr.Load() != 200 {
-				s.dpr.Store(200)
-				s.dprChanges.Add(1)
-			}
+			next = 2.0
 		}
-	} else if s.dpr.Load() != 100 {
-		s.dpr.Store(100)
-		s.dprChanges.Add(1)
+		if win.SetScale(next) {
+			s.dprChanges.Add(1)
+		}
+	} else {
+		if win.SetScale(1.0) {
+			s.dprChanges.Add(1)
+		}
 	}
 	// Force hairline repaint each tick (1px grid redraw).
 	s.hairlineBox.MarkNeedsPaint()

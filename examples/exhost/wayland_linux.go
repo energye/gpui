@@ -652,6 +652,8 @@ type wlHost struct {
 	wake  chan struct{}
 	mu    sync.Mutex
 	scale float64
+	// injected holds synthetic events (SetScale DPR injection) for WaitEvents.
+	injected []platform.Event
 }
 
 func (h *wlHost) NativeSurface() platform.NativeSurface {
@@ -681,6 +683,31 @@ func (h *wlHost) ScaleFactor() float64 {
 	return h.scale
 }
 
+// SetScale changes the device scale and injects an EventResize carrying the new
+// scale so the embedder reallocates the present target at the new physical
+// resolution (real DPR path). Used by R19 to prove 1px crispness across DPR.
+func (h *wlHost) SetScale(scale float64) {
+	if h == nil || scale <= 0 {
+		return
+	}
+	h.mu.Lock()
+	changed := h.scale != scale
+	h.scale = scale
+	if changed {
+		w, hh := 1, 1
+		if h.win != nil {
+			w, hh = h.win.width, h.win.height
+		}
+		h.injected = append(h.injected, platform.Event{
+			Type: platform.EventResize, Width: w, Height: hh, Scale: scale,
+		})
+	}
+	h.mu.Unlock()
+	if changed {
+		h.WakeUp()
+	}
+}
+
 // WaitVSync implements platform.VSyncWaiter using DRM vblank when available.
 func (h *wlHost) WaitVSync() error {
 	return platform.WaitDRMVBlank()
@@ -689,6 +716,9 @@ func (h *wlHost) WaitVSync() error {
 func (h *wlHost) WaitEvents(timeout time.Duration) []platform.Event {
 	if h.wake == nil {
 		h.wake = make(chan struct{}, 1)
+	}
+	if evs := h.drainInjected(); len(evs) > 0 {
+		return evs
 	}
 	if evs := h.poll(); len(evs) > 0 {
 		return evs
@@ -727,6 +757,19 @@ func (h *wlHost) poll() []platform.Event {
 			Type: platform.EventResize, Width: w.width, Height: w.height, Scale: h.ScaleFactor(),
 		})
 	}
+	return out
+}
+
+// drainInjected returns synthetic events (SetScale DPR injection) queued by
+// host methods outside the native event stream.
+func (h *wlHost) drainInjected() []platform.Event {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.injected) == 0 {
+		return nil
+	}
+	out := h.injected
+	h.injected = nil
 	return out
 }
 

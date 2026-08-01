@@ -565,7 +565,7 @@ func ellipsizeToWidth(s string, maxW float64, t *RenderText) string {
 				return cand
 			}
 			// Need to shrink to fit ellipsis.
-			s = s // fall through to binary search on s+ellipsis
+			// fall through to binary search on s+ellipsis
 		} else {
 			return s
 		}

@@ -136,7 +136,8 @@ func main() {
 			"depcheck":         "passed",
 			"quality_bar":      "U17+U18 integration",
 			"r16_note":         "WarmUp=true subset; full R16 window optional post-W0",
-			"impl_interaction": "R0 static survives Clear · R12 schema 集成 · R16 WarmUp 首帧内容共存；hot 每 tick MarkNeedsPaint 驱动 metrics 采样，不动 R0/R12/R16 单能力门禁",
+			"impl_interaction": "R0 static survives Clear · R12 schema 集成 · R16 WarmUp 首帧内容共存；PhaseClock 驱动多能力：hotB 全程脉冲（速率随阶段），hotA 仅 Spike 脉冲（Steady/Recover 冻结证明 R0 静态存活）；不动 R0/R12/R16 单能力门禁",
+			"policy_note":      "C0 集成窗跑 retained（引擎默认，C 不代替 R）；R0/R16 的 full_paint 门禁由各自 solo 窗证明（U5/U6）",
 			"regions":          "TopBar/Legend/Body-Static/Body-Hot/ExtraBody/HUD = 6 区共存同屏",
 		},
 	})
@@ -182,6 +183,7 @@ func (t *tick) Tick(dt float64) bool {
 
 type scene struct {
 	Root        *rendering.AbsoluteBox
+	hotA        *rendering.RenderColorBox
 	hotB        *rendering.RenderColorBox
 	hud         *wrkit.LiveHUD
 	phase       float64
@@ -245,6 +247,9 @@ func buildScene(w, h float64) *scene {
 	s.labelCount++
 	hot.LabelAt("JSON stdout = §2.2 A–J schema", 11, 180, 78, 0.55, 0.75, 0.85)
 	s.labelCount++
+	// hotA：Steady/Recover 冻结（R0 静态存活证明），Spike 时随 hotB 一起脉冲
+	// （PhaseClock 驱动多能力同树——审计修复：不再只有 hotB 单热区）。
+	s.hotA = hot.ColorAt(140, 140, 24, 210, 0.20, 0.65, 0.35, 1, true)
 
 	// 第 6 区：ExtraBody band（独立 Panel，提示「集成」边界 + 集成效果说明）
 	extra := wrkit.NewPanel(bw, 36, 0.09, 0.10, 0.12, 1)
@@ -269,4 +274,13 @@ func (s *scene) onTick(dt float64, phase string) {
 	g := 0.20 + 0.35*(0.5+0.5*math.Sin(s.phase))
 	s.hotB.R, s.hotB.G, s.hotB.B, s.hotB.A = 0.95, g, 0.18, 1
 	s.hotB.MarkNeedsPaint()
+	// hotA：Spike 时随 hotB 一起脉冲；Steady/Recover 冻结（R0 静态存活）。
+	if s.hotA != nil {
+		if phase == wrkit.PhaseSpike {
+			s.hotA.R, s.hotA.G, s.hotA.B, s.hotA.A = 0.25, 0.85, 0.40, 1
+			s.hotA.MarkNeedsPaint()
+		} else {
+			s.hotA.R, s.hotA.G, s.hotA.B, s.hotA.A = 0.20, 0.65, 0.35, 1
+		}
+	}
 }

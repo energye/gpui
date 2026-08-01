@@ -219,6 +219,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: tex_rasterize=%d want â¥1 (B1 texture path inactive)\n", texRasterize)
 		os.Exit(1)
 	}
+	// C7 特有集成不变式（GateOptions 并集的补充，非代替）：
+	// B1 纹理路径激活 + 失效后重录 + 密集静态证明。能力门禁（skip/rr/cnt/depth）
+	// 已在 GateOptions 并集中。
 	if inval.Load() < 1 {
 		fmt.Fprintf(os.Stderr, "FAIL: cache_invalidations=%d\n", inval.Load())
 		os.Exit(1)

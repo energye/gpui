@@ -279,6 +279,7 @@ type x11State struct {
 	mu              sync.Mutex
 	w, h            int
 	scale           float64
+	injected        []platform.Event
 	pending         func() int
 	nextEvent       func(ev *byte) int
 	flush           func()
@@ -304,6 +305,7 @@ func (h *x11Host) Size() (int, int) {
 	return h.st.w, h.st.h
 }
 
+// ScaleFactor returns the current device scale (logical→physical px ratio).
 func (h *x11Host) ScaleFactor() float64 {
 	h.st.mu.Lock()
 	defer h.st.mu.Unlock()
@@ -311,6 +313,28 @@ func (h *x11Host) ScaleFactor() float64 {
 		return 1
 	}
 	return h.st.scale
+}
+
+// SetScale changes the device scale and injects an EventResize carrying the new
+// scale so the embedder reallocates the present target at the new physical
+// resolution (real DPR path: PresentTarget.Resize → SetDeviceScale → boundary
+// cache clear). Used by R19 to prove 1px crispness across real DPR changes.
+func (h *x11Host) SetScale(scale float64) {
+	if h == nil || h.st == nil || scale <= 0 {
+		return
+	}
+	h.st.mu.Lock()
+	changed := h.st.scale != scale
+	h.st.scale = scale
+	if changed {
+		h.st.injected = append(h.st.injected, platform.Event{
+			Type: platform.EventResize, Width: h.st.w, Height: h.st.h, Scale: scale,
+		})
+	}
+	h.st.mu.Unlock()
+	if changed {
+		h.WakeUp()
+	}
 }
 
 // WaitVSync implements platform.VSyncWaiter using DRM vblank when available.
@@ -347,6 +371,10 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []platform.Event {
 	if h.wake == nil {
 		h.wake = make(chan struct{}, 1)
 	}
+	// Synthetic events (e.g. SetScale DPR injection) take priority over X queue.
+	if evs := h.drainInjected(); len(evs) > 0 {
+		return evs
+	}
 	// Non-blocking poll.
 	if timeout == 0 {
 		if evs := filterXNoise(h.drainX()); len(evs) > 0 {
@@ -364,6 +392,9 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []platform.Event {
 	}
 	const pollSlice = 16 * time.Millisecond
 	for {
+		if evs := h.drainInjected(); len(evs) > 0 {
+			return evs
+		}
 		if evs := filterXNoise(h.drainX()); len(evs) > 0 {
 			return evs
 		}
@@ -403,6 +434,19 @@ func filterXNoise(evs []platform.Event) []platform.Event {
 		}
 		out = append(out, e)
 	}
+	return out
+}
+
+// drainInjected returns synthetic events (SetScale DPR injection) queued by
+// host methods outside the X event stream.
+func (h *x11Host) drainInjected() []platform.Event {
+	h.st.mu.Lock()
+	defer h.st.mu.Unlock()
+	if len(h.st.injected) == 0 {
+		return nil
+	}
+	out := h.st.injected
+	h.st.injected = nil
 	return out
 }
 

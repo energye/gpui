@@ -184,7 +184,7 @@ func main() {
 			"impl_dirty":           "damage ∝ two hot rects (+ HUD band ~10Hz); center static not in damage",
 			"impl_cache":           "nested RB skip; Picture host RB caches first Replay",
 			"impl_edge":            "Spike dual-hot rate↑; multi vs union damage; deep nest skip",
-			"impl_fail":            "policy≠retained / skip=0 / dirty_ids<2 / ops<5 / dmg≥0.45 / fps<55",
+			"impl_fail":            "policy≠retained / dirty_ids<2 / ops<5 / dmg≥0.45 / fps<55 (retained 下 boundary_skip=0 是正确语义——静 RB 靠 GPU LoadOpLoad 保像素，不设 skip 门禁)",
 			"impl_visible":         "LiveHUD skip/dmg/dirty/ops; nest left static; TL+BR hots pulse; Picture mid static",
 		},
 	})

@@ -31,6 +31,27 @@ func (w *Window) Host() platform.Host {
 	return w.host
 }
 
+// SetScale changes the device scale factor on the live host and injects an
+// EventResize carrying the new scale, so the embedder reallocates the present
+// target at the new physical resolution (real DPR path). 0/negative is ignored.
+// Returns true when the scale actually changed.
+func (w *Window) SetScale(scale float64) bool {
+	if w == nil || w.host == nil || scale <= 0 {
+		return false
+	}
+	switch h := w.host.(type) {
+	case *x11Host:
+		before := h.ScaleFactor()
+		h.SetScale(scale)
+		return h.ScaleFactor() != before
+	case *wlHost:
+		before := h.ScaleFactor()
+		h.SetScale(scale)
+		return h.ScaleFactor() != before
+	}
+	return false
+}
+
 // Kind is PlatformX11 or PlatformWayland.
 func (w *Window) Kind() platform.PlatformKind {
 	if w == nil {

@@ -156,6 +156,12 @@ func main() {
 			"quality_bar":              "U17 shell + WarmUp + content",
 			"note":                     "C0 must not substitute for this window (U5)",
 			"first_content":            "bright static panel + labels after WarmUp",
+			"impl_layout":              "static AbsoluteBox layout; 8 color boxes + labels placed once, no relayout churn",
+			"impl_paint":               "first paint via WarmUp presentSyncFull (surface not black); fade-in animates alpha 0→1 over 1.5s then stable",
+			"impl_present":             "WarmUp full present before loop; time_to_first_present_ms measured from Run start",
+			"impl_metrics":             "time_to_first_present_ms + max_first_present_ms + full A-J family JSON",
+			"impl_hit":                 "N/A (no interaction targets; R13 covers hit)",
+			"impl_win":                 "solo 1200x800 full_paint window, WarmUp true, HUD bottom band",
 		},
 	})
 
@@ -210,8 +216,10 @@ func (t *tick) Tick(dt float64) bool {
 type scene struct {
 	Root  *rendering.AbsoluteBox
 	hot   *rendering.RenderColorBox
+	boxes []*rendering.RenderColorBox
 	hud   *wrkit.LiveHUD
 	phase float64
+	age   float64
 }
 
 func buildScene(w, h float64) *scene {
@@ -235,9 +243,12 @@ func buildScene(w, h float64) *scene {
 	// Bright static content — human eye / gate: not a black surface after WarmUp.
 	body.LabelAt("FIRST CONTENT (must survive WarmUp Clear)", 14, 12, 12, 0.95, 0.95, 0.70)
 	for i := 0; i < 8; i++ {
-		body.ColorAt(64, 64,
+		b := body.ColorAt(64, 64,
 			16+float64(i%4)*72, 48+float64(i/4)*72,
 			0.15+0.1*float64(i%4), 0.55, 0.35+0.05*float64(i/4), 1, true)
+		// 渐入动画 (R16): 开场 1.5s 内 alpha 0→1 淡入，证明动画逐帧更新。
+		b.A = 0
+		s.boxes = append(s.boxes, b)
 	}
 	body.LabelAt("HOT after steady (optional motion)", 12, 320, 48, 0.95, 0.50, 0.35)
 	s.hot = body.ColorAt(100, 100, 320, 72, 0.90, 0.35, 0.25, 1, true)
@@ -248,6 +259,15 @@ func buildScene(w, h float64) *scene {
 func (s *scene) onTick(dt float64, phase string) {
 	if s == nil || s.hot == nil {
 		return
+	}
+	s.age += dt
+	// 开场渐入动画 (R16 能力): 前 1.5s 静态色块 alpha 0→1 淡入，Steady 后保持 1。
+	if s.age < 1.5 {
+		a := s.age / 1.5
+		for _, b := range s.boxes {
+			b.A = a
+			b.MarkNeedsPaint()
+		}
 	}
 	rate := 3.0
 	if phase == wrkit.PhaseSpike {

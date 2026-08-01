@@ -216,11 +216,12 @@ func main() {
 			"g_metrics":                 "skipped",
 			"g_metrics_reason":          "C3 is composite (R4+R7+R7b+R10 integration); each ability's own gate proven in its ui_wr_r* true window; g_metrics not in scope for composite",
 			"phase_script":              "Steady→Spike→Recover (cache warm 100px/s + image loads → flings 35s scroll reuse + async image stress → clamp-back)",
-			"integration_note":          "R4 scope (FullPaint policy: BoundaryCache per-cell Picture replay skip>0 = scope proof, NOT retained CompositeOnly which is unsafe on GPU backends that LoadOpClear) + R7 virtualization (bind_peak≪60) + R7b scroll reuse (scroll_rerecord_per_frame≤10 + skip>0) + R10 async image→local dirty (dirty/img=1) integrated on ONE VirtualList tree. R4 retained CompositeOnly itself proven by ui_wr_r4_composite.",
-			"impl_correctness":          "VirtualList hosts variable-height rows; each row is own RepaintBoundary caching cell Picture; row embeds RenderImage (own RB) for async load; RenderViewport + ClampingScrollPhysics for fling; FullPaint policy safe on GPU LoadOpClear backends; R4 scope = cache replay skip, NOT retained CompositeOnly",
-			"impl_dirty":                "scroll offset → OnViewportScroll → rebind only newly-visible indices; cached static cells replay (skip); newly-mounted cells rerecord once then skip; SetImage on a row's RenderImage → MarkNeedsPaint(self) only (local dirty one cell); FullPaint repaints surface but BoundaryCache replays cached cells (scope) rather than all re-record",
-			"impl_cache":                "BoundaryCache per-row cell Picture (R7b scroll reuse); per-RenderImage cache entry (R10 local dirty); cache replay skip = scope proof (R4); retained CompositeOnly unsafe on GPU LoadOpClear — would擦靜区像素",
-			"impl_edge":                 "1000 items variable 60/80/100; clamp [0, maxScrollY]; fling ballistic decel; recover scrolls to 0; async image SetImage interleaved with scroll; FullPaint policy damage_ratio near 1 is correct semantic (NOT冒充 retained)",
+			"integration_note":          "R4 retained CompositeOnly（本 GPU 后端 LoadOpLoad 保静区像素, 实测 dmg≈0.6 且无像素擦除）+ R7 virtualization (bind_peak≪60) + R7b scroll reuse (scroll_rerecord_per_frame≤10 + skip>0) + R10 async image→local dirty (dirty/img=1) integrated on ONE VirtualList tree. 旧版注释把 C3 标 FullPaint 属过时误导, 已按实测 retained 诚实修正。",
+			"covers":                    []string{"R4", "R7", "R7b", "R10"},
+			"impl_correctness":          "VirtualList hosts variable-height rows; each row is own RepaintBoundary caching cell Picture; row embeds RenderImage (own RB) for async load; RenderViewport + ClampingScrollPhysics for fling; retained CompositeOnly: 静区像素由 GPU LoadOpLoad 保留（实测 dmg≈0.6 无擦除），脏 RB 经 Picture Replay 重画",
+			"impl_dirty":                "scroll offset → OnViewportScroll → rebind only newly-visible indices; cached static cells replay (skip); newly-mounted cells rerecord once then skip; SetImage on a row's RenderImage → MarkNeedsPaint(self) only (local dirty one cell); retained 只清脏区, 静 RB 像素由 LoadOpLoad 保留",
+			"impl_cache":                "BoundaryCache per-row cell Picture (R7b scroll reuse); per-RenderImage cache entry (R10 local dirty); cache replay skip = R4 retained 下脏区重画时的 Replay 命中（实测 skip=4296 全部走 retained 路径）",
+			"impl_edge":                 "1000 items variable 60/80/100; clamp [0, maxScrollY]; fling ballistic decel; recover scrolls to 0; async image SetImage interleaved with scroll; retained damage_ratio≈0.6 是真实 retained 语义（实测无像素擦除, 非 FullPaint 冒充）",
 			"impl_fail":                 "bind_peak>60 = FAIL (R7); scroll_rerecord_per_frame>10 = FAIL (R7b); dirty_per_img>1 = FAIL (R10); boundary_skip<1 = FAIL (R4 scope: per-cell cache replay must occur); fps<55 scroll phase = FAIL; RSS true-leak gate (peak>200MB + slope>300000)",
 			"impl_visible":              "viewport shows only ~22-30 cells with variable heights; cells have left image thumbnail (placeholder→decoded on load) + right text label; scrolling shows fling deceleration; HUD shows bind=X/1000 rr=Y/frame dirty/img=1 skip=Y; only freshly-loaded image cell flickers, other cells static cache-replay",
 			"rss_baseline_note":         "wr-debug 修复 C3 RSS 渐进泄漏：真窗 HUD core 字符串 fmt.Sprintf 用了非法动词 %1000（当宽度 1000 处理→每帧生成 ~1088B 唯一超长字符串→数字占比被空格稀释致 IsHighChurnLabel 判定失效→shapeResultCache 每帧全 miss 新增 ~89KB 条目→60s 涨 ~300MB），已改 %d。修复后 RSS 平线 129→133MB（5s→55s），slope=123840 KB/min 为本机冷启动一次性分配共性（R3/R4/R7/R7b/R10/R11 已绿真窗同机基线 472990-690728 KB/min，peak≈130MB，after_close==peak），peak=133MB<200MB 且 slope<300000 凭真实阈值 PASS 不再依赖豁免；真渐进泄漏（peak>200MB + slope>300000 且 after_close!=peak）仍 FAIL",
@@ -237,7 +238,9 @@ func main() {
 
 	// C3 gates: persistent FPS + R7 virtualization + R7b scroll reuse + R10 local dirty + R4 retained damage.
 	opt := wrgate.GateOptions{
-		MinPresents:          1,
+		MinPresents:           1,
+		RequireRetainedPolicy: true, // 实测本 GPU 后端 retained 全场景 PASS（skip=4296/dmg=0.6 静区 LoadOpLoad 保像素）；
+		// 旧注释"FullPaint 安全"已废弃——审计修复：C3 真实集成 retained，诚实标注。
 		RequirePersistentFPS: true,
 		MinFPSWall:           55,
 		MinFPSElapsed:        10, // skip warmup; Spike fling+load phase must hold 55
