@@ -260,6 +260,18 @@ type GPURenderSession struct {
 	surfaceWidth  uint32
 	surfaceHeight uint32
 
+	// A2 retained compositing: persistent surface-cache target + damage preserve.
+	// When surfaceCacheMode is true, steady retained frames render into the
+	// persistent 1x cache texture (textures.cacheView) with LoadOpLoad + damage
+	// scissor, and present blits cacheView → swapchain each frame. The swapchain
+	// image content is undefined after present, so LoadOpLoad directly on the
+	// swapchain cannot preserve statics (R4 real-window black bug). cacheHasContent
+	// tracks whether the cache texture holds a resolved frame (survives BeginFrame,
+	// unlike frameRendered) so steady frames LoadOpLoad instead of LoadOpClear.
+	surfaceCacheMode bool
+	cacheHasContent  bool
+	cacheGenSeen     uint64
+
 	// Effective render target dimensions for the current frame (ADR-025).
 	// Set at flush time from effectiveDimensions(). Used by text pipelines
 	// (Tier 4/6) to compute ortho projection at flush time, not draw time.
@@ -579,11 +591,149 @@ func (s *GPURenderSession) SetSurfaceTarget(view *webgpu.TextureView, width, hei
 	}
 }
 
-// BeginFrame resets per-frame state. Call this at the start of each frame
-// before any drawing operations. In surface mode, this ensures the first
-// render pass clears the surface while subsequent mid-frame flushes
-// preserve previously drawn content (LoadOpLoad instead of LoadOpClear).
-//
+// SetSurfaceCacheMode enables or disables the persistent surface-cache target
+// (A2 retained compositing). When enabled, steady damage frames render into the
+// persistent cache texture with LoadOpLoad + scissor; present must call
+// BlitCacheToView to composite the cache onto the swapchain.
+func (s *GPURenderSession) SetSurfaceCacheMode(enabled bool) {
+	if s == nil {
+		return
+	}
+	if s.surfaceCacheMode == enabled {
+		return
+	}
+	s.surfaceCacheMode = enabled
+	if !enabled {
+		s.cacheHasContent = false
+		s.cacheGenSeen = 0
+	}
+}
+
+// SurfaceCacheMode reports whether the persistent surface-cache target is active.
+func (s *GPURenderSession) SurfaceCacheMode() bool {
+	return s != nil && s.surfaceCacheMode
+}
+
+// SurfaceCacheView returns the persistent 1x cache texture view used as the
+// retained render target, or nil when cache mode is off or textures are missing.
+func (s *GPURenderSession) SurfaceCacheView() *webgpu.TextureView {
+	if s == nil || !s.surfaceCacheMode {
+		return nil
+	}
+	if s.textures.cacheView == nil {
+		return nil
+	}
+	return s.textures.cacheView
+}
+
+// cacheLoadOp computes the color load op for the given surface pass view.
+// In surface-cache mode the persistent cache texture survives across frames
+// (cacheHasContent), so steady frames LoadOpLoad instead of LoadOpClear —
+// damage scissor then preserves statics outside the dirty region. Outside
+// cache mode the legacy per-frame frameRendered logic applies.
+func (s *GPURenderSession) cacheLoadOp(view *webgpu.TextureView) types.LoadOp {
+	// Texture rebuild (resize/mode change) invalidates prior content.
+	if s.cacheGenSeen != s.textures.cacheGen {
+		s.cacheHasContent = false
+		s.cacheGenSeen = s.textures.cacheGen
+	}
+	if s.surfaceCacheMode && view != nil && view == s.textures.cacheView {
+		if s.cacheHasContent {
+			return types.LoadOpLoad
+		}
+		return types.LoadOpClear
+	}
+	if s.frameRendered {
+		return types.LoadOpLoad
+	}
+	return types.LoadOpClear
+}
+
+// markCacheContentRendered records that the surface cache now holds a resolved
+// frame, so subsequent steady frames LoadOpLoad (preserving statics).
+func (s *GPURenderSession) markCacheContentRendered() {
+	if s.surfaceCacheMode {
+		s.cacheHasContent = true
+	}
+}
+
+// BlitCacheToView composites the persistent surface cache texture onto the
+// given swapchain view in one full-screen blit pass (LoadOpClear). Must be
+// called after the frame's render passes and before Swapchain.EndFrame.
+// No-op (with nil error) when cache mode is off or the cache texture is absent.
+func (s *GPURenderSession) BlitCacheToView(swapchainView *webgpu.TextureView, w, h uint32) error {
+	if s == nil || !s.surfaceCacheMode || swapchainView == nil {
+		return nil
+	}
+	cacheView := s.textures.cacheView
+	if cacheView == nil {
+		return fmt.Errorf("BlitCacheToView: surface cache texture missing")
+	}
+	if err := s.ensureImageBlitPipeline(); err != nil {
+		return fmt.Errorf("ensure blit pipeline: %w", err)
+	}
+
+	encoder, err := s.device.CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{
+		Label: "session_cache_blit",
+	})
+	s.lastSubmitStats.EncodersCreated++
+	if err != nil {
+		return fmt.Errorf("create cache blit encoder: %w", err)
+	}
+	encoderConsumed := false
+	defer func() {
+		if !encoderConsumed {
+			encoder.DiscardEncoding()
+		}
+	}()
+
+	// One full-screen textured quad from cacheView to swapchainView.
+	cmds := []GPUTextureDrawCommand{{
+		View:           gpucontext.NewTextureView(unsafe.Pointer(cacheView)),
+		DstX:           0,
+		DstY:           0,
+		DstW:           float32(w),
+		DstH:           float32(h),
+		Opacity:        1,
+		ViewportWidth:  w,
+		ViewportHeight: h,
+	}}
+	res, err := s.buildGPUTextureResources(cmds, w, h, true, nil)
+	if err != nil {
+		return fmt.Errorf("build cache blit resources: %w", err)
+	}
+
+	rp, err := encoder.BeginRenderPass(&webgpu.RenderPassDescriptor{
+		Label: "session_cache_blit_pass",
+		ColorAttachments: []webgpu.RenderPassColorAttachment{{
+			View:       swapchainView,
+			LoadOp:     types.LoadOpClear,
+			StoreOp:    types.StoreOpStore,
+			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 1},
+		}},
+	})
+	if err != nil {
+		return fmt.Errorf("begin cache blit pass: %w", err)
+	}
+	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
+	s.imagePipeline.RecordBlitDraws(rp, res)
+	if endErr := rp.End(); endErr != nil {
+		slogger().Warn("cache blit pass End failed", "err", endErr)
+	}
+
+	cmdBuf, err := encoder.Finish()
+	if err != nil {
+		return fmt.Errorf("finish cache blit: %w", err)
+	}
+	encoderConsumed = true
+	if err := s.finishSurfaceSubmit(cmdBuf); err != nil {
+		return fmt.Errorf("submit cache blit: %w", err)
+	}
+	s.frameRendered = true
+	s.lastView = swapchainView
+	return nil
+}
+
 // For offscreen mode this is a no-op — offscreen readback composites via
 // Porter-Duff "over", so LoadOpClear is always safe there.
 func (s *GPURenderSession) BeginFrame() {
@@ -923,6 +1073,14 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	s.frameW, s.frameH = int(w), int(h)
 	if err := s.ensureTexturesForView(activeView, w, h); err != nil {
 		return fmt.Errorf("ensure textures: %w", err)
+	}
+	// A2 retained compositing: the persistent 1x cache texture must exist
+	// whenever cache mode is on, even when this pass itself is MSAA — the
+	// cache is the retained render target for the present-time blit.
+	if s.surfaceCacheMode && s.textures.cacheView == nil {
+		if err := s.textures.ensureSurfaceCache(s.device, w, h, "session"); err != nil {
+			return fmt.Errorf("ensure surface cache: %w", err)
+		}
 	}
 	// Clip bind layout must be created BEFORE pipelines, because pipeline
 	// layout creation includes the clip layout at @group(1).
@@ -4497,8 +4655,10 @@ func (s *GPURenderSession) recordBlitPass(
 		s.lastView = view
 	}
 	hasDamage := len(damageRects) > 0
-	loadOp := types.LoadOpClear
-	if s.frameRendered || hasDamage {
+	// A2 retained: cache mode decides LoadOpLoad from cross-frame
+	// cacheHasContent (not per-frame frameRendered); damage still loads.
+	loadOp := s.cacheLoadOp(view)
+	if !s.surfaceCacheMode && hasDamage {
 		loadOp = types.LoadOpLoad
 	}
 
@@ -4585,12 +4745,10 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	// Surface render pass LoadOp: first pass clears, subsequent passes
 	// preserve existing content. This handles mid-frame flushes caused by
 	// CPU fallback operations (e.g., DrawImage between GPU draw calls).
-	colorLoadOp := types.LoadOpClear
-	stencilLoadOp := types.LoadOpClear
-	if s.frameRendered {
-		colorLoadOp = types.LoadOpLoad
-		stencilLoadOp = types.LoadOpLoad
-	}
+	// A2 retained: cache mode decides LoadOpLoad from cross-frame
+	// cacheHasContent instead of the per-frame reset frameRendered.
+	colorLoadOp := s.cacheLoadOp(view)
+	stencilLoadOp := colorLoadOp
 	// Depth is ALWAYS cleared — never loaded. DepthStoreOp=Discard means
 	// depth content is undefined after each render pass, so LoadOpLoad would
 	// read garbage on subsequent passes. The depth clip pipeline (GPU-CLIP-003a)
@@ -4667,12 +4825,8 @@ func (s *GPURenderSession) encodeToEncoder(
 		s.lastView = view
 	}
 
-	colorLoadOp := types.LoadOpClear
-	stencilLoadOp := types.LoadOpClear
-	if s.frameRendered {
-		colorLoadOp = types.LoadOpLoad
-		stencilLoadOp = types.LoadOpLoad
-	}
+	colorLoadOp := s.cacheLoadOp(view)
+	stencilLoadOp := colorLoadOp
 	// Depth always cleared (see encodeSubmitSurfaceGrouped comment).
 	depthLoadOp := types.LoadOpClear
 

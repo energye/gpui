@@ -102,6 +102,9 @@ type GPURenderContext struct {
 	// preferSampleCount1 forces the per-context session to use 1x samples.
 	// Effect RTs (glow/filter offscreens) do not need 4x MSAA resolve every frame.
 	preferSampleCount1 bool
+	// surfaceCacheMode: persistent 1x cache render target (A2 retained
+	// compositing). Survives session rebuilds; applied to fresh sessions.
+	
 
 	// Shared command encoder for single-command-buffer frames (ADR-017).
 	// When set, Flush records render passes into this encoder instead of
@@ -200,6 +203,58 @@ func (rc *GPURenderContext) SetPreferSampleCount1(enabled bool) {
 	}
 }
 
+.session = nil
+	}
+}
+
+// SetSurfaceCacheMode enables the persistent surface-cache target (A2 retained
+// compositing): steady damage frames render into the persistent 1x cache
+// texture (LoadOpLoad + damage scissor) and present blits cache → swapchain.
+// Window surface contexts enable this via Context.SetSurfaceCacheMode.
+func (rc *GPURenderContext) SetSurfaceCacheMode(enabled bool) {
+	if rc == nil {
+		return
+	}
+	if rc.session == nil {
+		// Session is rebuilt lazily on next flush; remember the mode so
+		// BuildSession applies it to the fresh session.
+		rc.surfaceCacheMode = enabled
+		return
+	}
+	rc.session.SetSurfaceCacheMode(enabled)
+	rc.surfaceCacheMode = enabled
+}
+
+// SurfaceCacheMode reports whether the persistent surface-cache target is
+// active for this context.
+func (rc *GPURenderContext) SurfaceCacheMode() bool {
+	if rc == nil {
+		return false
+	}
+	if rc.session != nil && rc.session.SurfaceCacheMode() {
+		return true
+	}
+	return rc.surfaceCacheMode
+}
+
+// SurfaceCacheView returns the persistent cache texture view as an opaque
+// gpucontext.TextureView (zero value when cache mode is off / texture absent).
+// The render.Context present layer substitutes this view for the swapchain
+// view during flush so steady frames render into the persistent cache.
+func (rc *GPURenderContext) SurfaceCacheView() gpucontext.TextureView {
+	if rc == nil || rc.session == nil {
+		return gpucontext.TextureView{}
+	}
+	v := rc.session.SurfaceCacheView()
+	if v == nil {
+		return gpucontext.TextureView{}
+	}
+	return gpucontext.NewTextureView(unsafe.Pointer(v)) //nolint:gosec // Go spec Rule 1 (ADR-018)
+}
+
+// BlitCacheToView composites the persistent surface cache onto the given
+// swapchain view. Must run after the frame's render pass and before the
+// pres
 // SetClipRect records a scissor rect change for this context.
 func (rc *GPURenderContext) SetClipRect(x, y, w, h uint32) {
 	rect := [4]uint32{x, y, w, h}
@@ -1889,6 +1944,10 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	} else if !rc.preferSampleCount1 {
 		// Same device: re-bind only when GPUShared replaced pipeline objects
 		// (avoids pipelinesReady=false every frame).
+se {
+			rc.session.SetSDFPipeline(sdfPipeline)
+			rc.session.SetConvexRenderer(convexRend)
+			rc.session.SetSten
 		if sdfPipeline != nil && rc.session.sdfPipeline != sdfPipeline {
 			rc.session.SetSDFPipeline(sdfPipeline)
 		}
@@ -2085,6 +2144,14 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		blitTarget.View = surfaceView
 		rc.frameRendered = false
 		rc.lastView = nil
+		vpH := uint32(target.Height) //nolint:gosec
+		if target.ViewWidth > 0 && target.ViewHeight > 0 {
+			vpW, vpH = target.ViewWidth, target.ViewHeight
+		}
+		blitTarget := target
+		blitTarget.View = surfaceView
+		// A2 retained: cache mode composites into the persistent cache texture,
+		// not the swapchain (which is cleared/wiped by
 		if rc.session != nil {
 			rc.session.SetFrameState(false, nil)
 		}

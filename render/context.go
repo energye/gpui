@@ -542,6 +542,42 @@ func (c *Context) SetSurfacePreserve(enabled bool) {
 	}
 }
 
+// SetSurfaceCacheMode enables the persistent surface-cache render target (A2
+// retained compositing). When enabled, every present renders into a persistent
+// 1x cache texture (LoadOpLoad + damage scissor across steady frames) and then
+// blits the cache onto the swapchain before the present callback. This keeps
+// statics intact even though swapchain image content is undefined after
+// present — LoadOpLoad directly on the swapchain cannot preserve content
+// (R4 real-window black/flicker bug). Requires SetSurfacePreserve(true).
+func (c *Context) SetSurfaceCacheMode(enabled bool) {
+	if c == nil {
+		return
+	}
+	c.ensureGPUCtx()
+	if rc := c.gpuCtxOps(); rc != nil {
+		type scm interface{ SetSurfaceCacheMode(bool) }
+		if s, ok := rc.(scm); ok {
+			s.SetSurfaceCacheMode(enabled)
+		}
+	}
+}
+
+// SurfaceCacheMode reports whether this Context presents through the
+// persistent surface-cache target.
+func (c *Context) SurfaceCacheMode() bool {
+	if c == nil {
+		return false
+	}
+	c.ensureGPUCtx()
+	if rc := c.gpuCtxOps(); rc != nil {
+		type scm interface{ SurfaceCacheMode() bool }
+		if s, ok := rc.(scm); ok {
+			return s.SurfaceCacheMode()
+		}
+	}
+	return false
+}
+
 // acquireEffectPublishView allocates a pooled TextureBinding RT for F14 effect
 // FlushGPU publish. Caller must pass release to attachFilterGPUResult (or call it).
 func (c *Context) acquireEffectPublishView() (view gpucontext.TextureView, w, h int, release func(), ok bool) {

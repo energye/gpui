@@ -140,6 +140,12 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 	// frames (ADR-021: MSAA resolve cannot preserve; damage scissor would
 	// wipe all non-damaged pixels every frame — R4 real-window black bug).
 	dc.SetSurfacePreserve(true)
+	// A2 retained compositing: present renders into a persistent 1x cache
+	// texture (LoadOpLoad + damage scissor across steady frames) and blits
+	// the cache onto the swapchain before EndFrame. The swapchain image
+	// content is undefined after present, so LoadOpLoad directly on the
+	// swapchain cannot preserve statics — the cache is the retained target.
+	dc.SetSurfaceCacheMode(true)
 
 	return &PresentTarget{
 		ns:      ns,
