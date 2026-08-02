@@ -2,9 +2,6 @@ package embedder
 
 import (
 	"errors"
-	"fmt"
-	"image"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -602,9 +599,6 @@ func (a *PipelineApp) Run() error {
 				if metrics != nil && target != nil {
 					mode := out.Mode.String()
 					area := target.LastDamageAreaPx()
-					if os.Getenv("WR_DIAG") == "1" {
-						fmt.Fprintf(os.Stderr, "WR_DIAG2 area=%d mode=%s\n", area, mode)
-					}
 					metrics.NotePresentOutcome(mode, area)
 					metrics.SetPaintVisits(frameVisits)
 					a.noteDamage(area, mode)
@@ -775,11 +769,6 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 			// union path.
 			d.TrackDamageRect(r)
 		}
-		if os.Getenv("WR_DIAG") == "1" {
-			fmt.Fprintf(os.Stderr, "WR_DIAG t=%d dirty=%v raster=%d skip=%d rects=%v first=%d createnil=%d flusherr=%d blitfail=%d fd=%v\n",
-				time.Now().UnixMilli(), pkt.DirtyLayerIDs, st.RasterLayerCount, tex.FrameSkip.Load(), st.DamageRects, tex.Len(),
-				tex.DiagCreateNil.Load(), tex.DiagFlushErr.Load(), tex.DiagBlitFail.Load(), d.FrameDamage())
-		}
 		// Boundary metrics: texture re-record = rerecord, cached blit = skip.
 		lastBoundaryFrame.Store(boundaryFrameSnap{
 			Rerecord: tex.FrameRerecord.Load(),
@@ -787,33 +776,6 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 		})
 		// Paint-dirty marks are consumed by the layer tree (no live paint).
 		pipe.ConsumeNeedsPaint()
-		if os.Getenv("WR_FULLDAMAGE") == "1" {
-			// Diagnostic: damage the full window every frame so the damage
-			// path runs with a full-surface scissor — isolates small-scissor
-			// issues.
-			d.TrackDamageRect(image.Rect(0, 0, d.Width(), d.Height()))
-		}
-		if os.Getenv("WR_PROBE") == "1" {
-			// Probe: flush the queued composite quads into an offscreen copy and
-			// read it back to CPU — pixel truth of the composed scene (public
-			// render API only; no swapchain readback needed).
-			if pv, prel := d.CreateOffscreenTexture(d.Width(), d.Height()); !pv.IsNil() && prel != nil {
-				if perr := d.FlushGPUWithView(pv, uint32(d.Width()), uint32(d.Height())); perr != nil { //nolint:gosec
-					fmt.Fprintf(os.Stderr, "WR_PROBE flush err: %v\n", perr)
-				}
-				if serr := d.SavePNG("/tmp/wr_probe_scene.png"); serr != nil {
-					fmt.Fprintf(os.Stderr, "WR_PROBE save err: %v\n", serr)
-				}
-				prel()
-			}
-		}
-	}
-	if os.Getenv("WR_FORCEFULL") == "1" {
-		// Diagnostic: force a full present of the textured composite so blits
-		// are drawn unscissored — distinguishes composite bugs from the
-		// LoadOpLoad/scissor damage-plan.
-		err := target.PresentWith(draw)
-		return target.LastPresentOutcome(), err
 	}
 	return target.PresentWithAuto(draw)
 }

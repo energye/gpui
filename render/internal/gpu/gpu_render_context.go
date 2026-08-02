@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"os"
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -1135,9 +1134,6 @@ func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, v
 		slogger().Warn("auto-flush failed", "err", err)
 	}
 	rc.ensureDrawOrder(drawTierGPUTex)
-	if os.Getenv("WR_DIAG") == "1" {
-		fmt.Fprintf(os.Stderr, "GDRAW dstX=%v dstY=%v dstW=%v dstH=%v vp=%dx%d\n", dstX, dstY, dstW, dstH, vpW, vpH)
-	}
 	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
 		View: view, DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: 0, V0: 0, U1: 1, V1: 1,

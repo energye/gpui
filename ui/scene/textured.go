@@ -60,10 +60,6 @@ type PictureTextureCache struct {
 	// (UI thread) resets them while the raster thread may still be reading.
 	FrameRerecord atomic.Int64
 	FrameSkip     atomic.Int64
-	// DiagCreateNil / DiagFlushErr / DiagBlitFail count record/blit failures.
-	DiagCreateNil atomic.Int64
-	DiagFlushErr  atomic.Int64
-	DiagBlitFail  atomic.Int64
 }
 
 type pictureTextureEntry struct {
@@ -121,9 +117,6 @@ func (c *PictureTextureCache) Resize(w, h int) {
 func (c *PictureTextureCache) Clear() {
 	if c == nil {
 		return
-	}
-	if os.Getenv("WR_DIAG") == "1" {
-		fmt.Fprintf(os.Stderr, "WR_DIAG CLEAR entries=%d\n", c.Len())
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -214,6 +207,44 @@ func (c *PictureTextureCache) EndFrame() {
 	c.FrameSkip.Store(0)
 }
 
+// allocEntry returns a usable cache entry for id at size (w, h), allocating a
+// fresh texture on every call. Re-records (dirty layers) must never reuse the
+// previous view: an earlier submission may still be sampling it (blit
+// RESOURCE) while the re-record takes it as COLOR_TARGET — wgpu rejects
+// conflicting exclusive usages within one usage scope (observed as submit
+// failures whenever frame submission outpaces queue drain, e.g. a per-frame
+// animated layer under a 2-deep frame pipeline). The old view is
+// deferred-released, so it stays alive until every in-flight submission that
+// references it has completed.
+func (c *PictureTextureCache) allocEntry(id uint64, w, h int) *pictureTextureEntry {
+	if e := c.entries[id]; e != nil {
+		if e.w != w || e.h != h {
+			c.releaseDeferred(e.release, c.recordFrame)
+			delete(c.entries, id)
+			e = nil
+		} else {
+			view, release := c.dc.CreateOffscreenTexture(w, h)
+			if view.IsNil() || release == nil {
+				return nil // keep old entry; blit serves the stale texture this frame
+			}
+			c.releaseDeferred(e.release, c.recordFrame)
+			e.view = view
+			e.release = release
+			return e
+		}
+	}
+	if !c.evictForNew() {
+		return nil
+	}
+	view, release := c.dc.CreateOffscreenTexture(w, h)
+	if view.IsNil() || release == nil {
+		return nil // no GPU: caller falls back to direct replay
+	}
+	e := &pictureTextureEntry{view: view, release: release, w: w, h: h}
+	c.entries[id] = e
+	return e
+}
+
 // record re-records picture content into the cached texture for id (or creates
 // the texture on first use). Returns the picture geometry bounds. Degrades to a
 // no-op returning false when GPU textures are unavailable.
@@ -230,25 +261,9 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	e := c.entries[id]
-	if e != nil && (e.w != c.width || e.h != c.height) {
-		// Surface/texture-budget size changed (resize without cache clear):
-		// the old full-window view no longer matches — rebuild at the new size.
-		c.releaseDeferred(e.release, c.recordFrame)
-		delete(c.entries, id)
-		e = nil
-	}
+	e := c.allocEntry(id, c.width, c.height)
 	if e == nil {
-		if !c.evictForNew() {
-			return image.Rectangle{}, false
-		}
-		view, release := c.dc.CreateOffscreenTexture(c.width, c.height)
-		if view.IsNil() || release == nil {
-			c.DiagCreateNil.Add(1) // no GPU: caller falls back to direct replay
-			return image.Rectangle{}, false
-		}
-		e = &pictureTextureEntry{view: view, release: release, w: c.width, h: c.height}
-		c.entries[id] = e
+		return image.Rectangle{}, false
 	}
 	// Replay into the offscreen RT (FlushGPUWithView resolves queued ops and
 	// offscreen RTs LoadOpClear first — stale content is replaced). The replay
@@ -267,8 +282,11 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	err := c.dc.FlushGPUWithView(e.view, uint32(c.width), uint32(c.height)) //nolint:gosec
 	c.dc.SetDamageTracking(true)
 	if err != nil {
-		c.DiagFlushErr.Add(1)
 		fmt.Fprintf(os.Stderr, "TXFLUSHERR id=%d w=%d h=%d err=%#v\n", id, c.width, c.height, err)
+		// The fresh view may hold undefined content; drop the entry so later
+		// blits replay vector instead of showing garbage.
+		c.releaseDeferred(e.release, c.recordFrame)
+		delete(c.entries, id)
 		return image.Rectangle{}, false
 	}
 	if pic != nil {
@@ -316,23 +334,9 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	e := c.entries[id]
-	if e != nil && (e.w != w || e.h != h) {
-		c.releaseDeferred(e.release, c.recordFrame)
-		delete(c.entries, id)
-		e = nil
-	}
+	e := c.allocEntry(id, w, h)
 	if e == nil {
-		if !c.evictForNew() {
-			return image.Rectangle{}, false
-		}
-		view, release := c.dc.CreateOffscreenTexture(w, h)
-		if view.IsNil() || release == nil {
-			c.DiagCreateNil.Add(1)
-			return image.Rectangle{}, false
-		}
-		e = &pictureTextureEntry{view: view, release: release, w: w, h: h}
-		c.entries[id] = e
+		return image.Rectangle{}, false
 	}
 	// Cancel the layer-local origin (device coords → user translate by /scale)
 	// and shift by -b.Min so the picture replays into the RT starting at (0,0).
@@ -341,10 +345,6 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 		scale = 1
 	}
 	ox, oy := c.dc.TransformPoint(0, 0)
-	if os.Getenv("WR_DIAG") == "1" {
-		fmt.Fprintf(os.Stderr, "TXREPLAY id=%d b.Min=%v ox=%v oy=%v scale=%v tx=%v ty=%v w=%d h=%d\n",
-			id, b.Min, ox, oy, scale, -ox/scale-float64(b.Min.X), -oy/scale-float64(b.Min.Y), w, h)
-	}
 	c.dc.Push()
 	c.dc.Translate(-ox/scale-float64(b.Min.X), -oy/scale-float64(b.Min.Y))
 	c.dc.SetDamageTracking(false)
@@ -358,8 +358,11 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	c.dc.SetDamageTracking(true)
 	c.dc.Pop()
 	if err != nil {
-		c.DiagFlushErr.Add(1)
 		fmt.Fprintf(os.Stderr, "TXFLUSHERR id=%d w=%d h=%d err=%v\n", id, w, h, err)
+		// The fresh view may hold undefined content; drop the entry so later
+		// blits replay vector instead of showing garbage.
+		c.releaseDeferred(e.release, c.recordFrame)
+		delete(c.entries, id)
 		return image.Rectangle{}, false
 	}
 	e.bounds = b
@@ -457,24 +460,13 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 	if c == nil || id == 0 || c.dc == nil {
 		return false
 	}
-	if os.Getenv("WR_DIAG") == "2" {
-		return false // A/B: force vector replay fallback
-	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.entries[id]
 	if e == nil || e.view.IsNil() {
-		c.DiagBlitFail.Add(1)
-		if os.Getenv("WR_DIAG") == "1" {
-			fmt.Fprintf(os.Stderr, "TXBLITFAIL id=%d nil=%v\n", id, e == nil)
-		}
-		return false
+		return false // cache miss: caller replays vector
 	}
 	c.dc.DrawGPUTexture(e.view, float64(e.off.X), float64(e.off.Y), e.w, e.h)
-	if os.Getenv("WR_DIAG") == "1" {
-		wx, wy := c.dc.TransformPoint(float64(e.off.X), float64(e.off.Y))
-		fmt.Fprintf(os.Stderr, "TXBLIT id=%d off=(%d,%d) world=(%.0f,%.0f) w=%d h=%d\n", id, e.off.X, e.off.Y, wx, wy, e.w, e.h)
-	}
 	e.lastUse = c.stamp
 	c.usedNow[id] = struct{}{}
 	c.FrameSkip.Add(1)
@@ -625,13 +617,8 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		if pl, ok := l.(*PictureLayer); ok {
 			if len(pl.Picture.Ops) > 0 || pl.RasterExtra != nil {
-				if pl.CacheKey != 0 && tex.blit(pl.CacheKey) {
-					// cached texture blit — no vector ops
-				} else {
-					if pl.CacheKey != 0 && os.Getenv("WR_DIAG") == "1" {
-						fmt.Fprintf(os.Stderr, "TXFALLBACK key=%d layerID=%d needsRaster=%v dirtyID=%v has=%v ops=%d\n",
-							pl.CacheKey, pl.LayerID(), pl.NeedsRaster, dirty[pl.LayerID()], tex.Has(pl.CacheKey), pl.Picture.OpCount())
-					}
+				if pl.CacheKey == 0 || !tex.blit(pl.CacheKey) {
+					// cache miss / no cache key: vector replay fallback
 					n := pl.Picture.OpCount()
 					pl.Picture.Replay(dc)
 					st.ReplayedOps += n
