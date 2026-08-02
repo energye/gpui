@@ -65,6 +65,16 @@ type PresentTarget struct {
 
 	closed bool
 
+	// postResizeFull counts full frames still owed to swapchain buffers after a
+	// physical reconfigure. Reconfiguring a swapchain leaves every buffer's
+	// content undefined (Vulkan VK_IMAGE_LAYOUT_UNDEFINED semantics; Skia
+	// requires a full repaint after surface recreate). Retained damage frames
+	// LoadOpLoad their surface, so any buffer that was not fully written since
+	// the reconfigure shows stale/black pixels. The count is decremented only
+	// after a successful EndFrame (failed/timeout BeginFrames do not consume
+	// budget), and is 3 to cover double/triple buffering.
+	postResizeFull int
+
 	// lastOutcome / lastDamageArea are set by PresentWith / PresentWithAuto for metrics.
 	lastOutcome    PresentOutcome
 	lastDamageArea int64 // physical px² of last FrameDamage union (0 if idle/empty)
@@ -228,7 +238,13 @@ func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 	}
 	pw, ph := physicalSize(logicalW, logicalH, scale)
 	if t.sc != nil {
-		return t.sc.Resize(pw, ph)
+		if err := t.sc.Resize(pw, ph); err != nil {
+			return err
+		}
+		// Swapchain reconfigured → every buffer is undefined. Owe full frames
+		// so each buffer is fully written before retained LoadOpLoad frames
+		// read it again (otherwise resize storms leave black regions).
+		t.postResizeFull = 3
 	}
 	return nil
 }
@@ -240,6 +256,19 @@ func (t *PresentTarget) PresentClear(r, g, b, a float64) error {
 		dc.DrawRectangle(0, 0, float64(t.logicW), float64(t.logicH))
 		_ = dc.Fill()
 	})
+}
+
+// InFullRecovery reports whether the swapchain was reconfigured and full
+// frames are still owed to its buffers. Callers that would skip work for
+// retained steady frames (e.g. compositeOnly) must disable that path while
+// this is true so every new buffer gets fully written.
+func (t *PresentTarget) InFullRecovery() bool {
+	if t == nil {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.postResizeFull > 0
 }
 
 // PresentWith begins a frame, runs draw (logical coords on dc), and presents
@@ -294,6 +323,12 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		return out, errors.New("render: PresentTarget not initialized")
 	}
 
+	// Reconfigured swapchain buffers are undefined until each is fully
+	// written; owed full frames force the full path (Skia recreate semantics).
+	if t.postResizeFull > 0 {
+		forceFull = true
+	}
+
 	if t.device != nil {
 		t.device.FlushCallbacks()
 	}
@@ -314,8 +349,16 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	if err != nil {
 		return out, fmt.Errorf("render: BeginFrame: %w", err)
 	}
+	// Failed/timeout BeginFrames above return early and do NOT consume the
+	// post-resize full budget: the next frame still owes a full write.
 	presentFn := func() error {
-		return t.sc.EndFrame(frame)
+		if err := t.sc.EndFrame(frame); err != nil {
+			return err
+		}
+		if t.postResizeFull > 0 {
+			t.postResizeFull--
+		}
+		return nil
 	}
 	if forceFull {
 		if err := t.dc.PresentFrameFull(frame.Handle, frame.Width, frame.Height, presentFn); err != nil {
@@ -330,6 +373,14 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	if err != nil {
 		t.sc.DiscardFrame(frame)
 		return out, fmt.Errorf("render: PresentFrameAuto: %w", err)
+	}
+	if out.Idle {
+		// Idle drew nothing and PresentFrameAuto does not call the present
+		// callback, so the acquired swapchain frame would stay in-flight and
+		// poison the next BeginFrame ("frame already in flight" → black
+		// screen after resize storms / full-static retained frames). Release
+		// the acquire explicitly to keep BeginFrame/Present paired.
+		t.sc.DiscardFrame(frame)
 	}
 	t.lastOutcome = out
 	return out, nil

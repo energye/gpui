@@ -61,6 +61,57 @@ func NewShell(winW, winH float64, abilityTitle string, legendLines []string) *Sh
 	return s
 }
 
+// Resize re-lays the shell for a new window size (responsive layout): the root
+// tracks the window, top/legend/body panels re-size, and the HUD is pinned to
+// the new bottom edge. Call from the example's EventResize handler. Nodes whose
+// size actually changed mark themselves dirty via MarkNeedsLayout, so only the
+// affected panels re-layout/re-paint (no blanket full repaint).
+func (s *ShellChrome) Resize(winW, winH float64) {
+	if s == nil || s.Root == nil {
+		return
+	}
+	const topH, legendW, hudH, gap = 48.0, 260.0, 72.0, 12.0
+	if winW < legendW+3*gap {
+		winW = legendW + 3*gap
+	}
+	if winH < topH+hudH+3*gap {
+		winH = topH + hudH + 3*gap
+	}
+	s.WinW, s.WinH = winW, winH
+
+	legH := winH - topH - hudH - gap*2
+	if legH < 200 {
+		legH = 200
+	}
+	bodyX := gap + legendW + gap
+	bodyW := winW - bodyX - gap
+	if bodyW < 100 {
+		bodyW = 100
+	}
+
+	s.Root.FixedWidth, s.Root.FixedHeight = winW, winH
+	s.Root.MarkNeedsLayout()
+
+	s.Top.W, s.Top.H = winW, topH
+	s.Top.Box.FixedWidth, s.Top.Box.FixedHeight = winW, topH
+	s.Top.Box.MarkNeedsLayout()
+
+	s.Legend.W, s.Legend.H = legendW, legH
+	s.Legend.Box.FixedWidth, s.Legend.Box.FixedHeight = legendW, legH
+	s.Legend.Box.MarkNeedsLayout()
+
+	s.Body.W, s.Body.H = bodyW, legH
+	s.Body.Box.FixedWidth, s.Body.Box.FixedHeight = bodyW, legH
+	s.Body.Box.MarkNeedsLayout()
+
+	if s.HUD != nil {
+		s.HUD.Width, s.HUD.Height = winW, hudH
+		s.HUD.Box.FixedWidth = winW
+		s.Root.Place(s.HUD.Box, 0, winH-hudH)
+		s.HUD.Box.MarkNeedsLayout()
+	}
+}
+
 // UpdateHUD fills LiveHUD from a metrics snapshot + phase (no-op if HUD off).
 func (s *ShellChrome) UpdateHUD(ability, phase string, app *embedder.PipelineApp, gateOK bool, core, extra string) {
 	if s == nil || s.HUD == nil || app == nil {

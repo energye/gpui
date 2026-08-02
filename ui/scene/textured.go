@@ -20,6 +20,20 @@ import (
 // frame therefore contains only textured-quad draws → GPU blit-only path →
 // LoadOpLoad + per-rect scissor for the dirty layer rects.
 //
+// Persistent double-buffered layer surfaces (skia / Flutter raster-thread
+// pattern): each entry owns TWO texture slots that are reused across frames.
+// Every re-record alternates the write slot, so a texture is never both
+// sampled (blit RESOURCE) and re-recorded (COLOR_TARGET) within the same
+// usage scope — wgpu rejects exclusive-usage conflicts inside one render
+// pass (observed as TXFLUSHERR "submit failed … conflicting usages
+// RESOURCE/COLOR_TARGET" whenever a re-record coalesced with a stashed blit
+// of the same texture). The other slot keeps serving blits while the written
+// slot is refreshed; slots are reallocated only when their size changes
+// (resize / recordLocal↔recordWith switch), which keeps animated layers at
+// zero GPU allocations per frame (no RSS slope from per-frame churn). The
+// released view stays deferred a couple of frames so in-flight command
+// buffers never see a destroyed texture.
+//
 // Textures are normally bounds-sized (picture geometry + AA pad) for the
 // common pure-translate case, so a large grid of small layers stays far below
 // the GPU's texture budget; layers under clips / transforms / rotation or with
@@ -51,6 +65,10 @@ type PictureTextureCache struct {
 	// re-recorded in so damage rects cover exactly the refreshed layers
 	// (blit also bumps lastUse, which must not count as a re-record).
 	recordFrame uint64
+	// slotAlloc is the slot texture factory; defaultSlotAlloc allocates a
+	// real offscreen texture. Injectable in package-internal tests to observe
+	// ring alternation / reallocation without a GPU.
+	slotAlloc func(c *PictureTextureCache, w, h int) (*pictureTextureSlot, bool)
 	// deferred holds release closures held back for a few frames so a view is
 	// never destroyed while earlier frames' command buffers (and the render
 	// session's view→bind-group slot cache) may still reference it.
@@ -62,16 +80,26 @@ type PictureTextureCache struct {
 	FrameSkip     atomic.Int64
 }
 
-type pictureTextureEntry struct {
+type pictureTextureSlot struct {
 	view    render.TextureView
 	release func()
-	lastUse uint64
-	bounds  image.Rectangle
-	// recordedIn is the recordFrame in which the texture was last re-recorded.
-	recordedIn uint64
 	// w, h are the texture extent in LOGICAL pixels (blit size at identity).
 	// The backing texture is w×h physical (deviceScale applied at creation).
 	w, h int
+	// lastWriteFrame is the recordFrame of the slot's most recent write
+	// (ring alternation — the write target must not be in flight).
+	lastWriteFrame uint64
+}
+
+type pictureTextureEntry struct {
+	// slots are the layer's persistent GPU surfaces (double-buffer ring).
+	slots [2]pictureTextureSlot
+	// contentSlot is the slot holding the current content for blit.
+	contentSlot int
+	lastUse     uint64
+	bounds      image.Rectangle
+	// recordedIn is the recordFrame in which the texture was last re-recorded.
+	recordedIn uint64
 	// off is the layer-local blit offset (bounds.Min of the recorded geometry,
 	// nonzero for text bounds whose Min may be negative above the baseline).
 	off image.Point
@@ -87,7 +115,7 @@ func NewPictureTextureCache(dc *render.Context, max int) *PictureTextureCache {
 	if dc != nil {
 		w, h = dc.Width(), dc.Height()
 	}
-	return &PictureTextureCache{
+	c := &PictureTextureCache{
 		dc:      dc,
 		max:     max,
 		width:   w,
@@ -95,6 +123,19 @@ func NewPictureTextureCache(dc *render.Context, max int) *PictureTextureCache {
 		entries: make(map[uint64]*pictureTextureEntry),
 		usedNow: make(map[uint64]struct{}),
 	}
+	if dc != nil {
+		c.slotAlloc = defaultSlotAlloc
+	}
+	return c
+}
+
+// defaultSlotAlloc allocates a fresh offscreen texture via the render context.
+func defaultSlotAlloc(c *PictureTextureCache, w, h int) (*pictureTextureSlot, bool) {
+	view, release := c.dc.CreateOffscreenTexture(w, h)
+	if view.IsNil() || release == nil {
+		return nil, false
+	}
+	return &pictureTextureSlot{view: view, release: release, w: w, h: h}, true
 }
 
 // Resize updates the full-window texture budget. Entries are NOT cleared:
@@ -126,7 +167,7 @@ func (c *PictureTextureCache) Clear() {
 func (c *PictureTextureCache) ClearLocked() {
 	for id, e := range c.entries {
 		if e != nil {
-			c.releaseDeferred(e.release, c.recordFrame)
+			c.releaseEntryLocked(e)
 		}
 		delete(c.entries, id)
 	}
@@ -198,7 +239,7 @@ func (c *PictureTextureCache) EndFrame() {
 			continue
 		}
 		if _, used := c.usedNow[id]; !used {
-			c.releaseDeferred(e.release, c.recordFrame)
+			c.releaseEntryLocked(e)
 			delete(c.entries, id)
 		}
 	}
@@ -207,42 +248,75 @@ func (c *PictureTextureCache) EndFrame() {
 	c.FrameSkip.Store(0)
 }
 
-// allocEntry returns a usable cache entry for id at size (w, h), allocating a
-// fresh texture on every call. Re-records (dirty layers) must never reuse the
-// previous view: an earlier submission may still be sampling it (blit
-// RESOURCE) while the re-record takes it as COLOR_TARGET — wgpu rejects
-// conflicting exclusive usages within one usage scope (observed as submit
-// failures whenever frame submission outpaces queue drain, e.g. a per-frame
-// animated layer under a 2-deep frame pipeline). The old view is
-// deferred-released, so it stays alive until every in-flight submission that
-// references it has completed.
+// allocEntry returns a usable cache entry for id at size (w, h), reusing the
+// entry's persistent double-buffered slots. Re-records (dirty layers) must
+// never target a texture that is still referenced by in-flight or stashed
+// commands: an earlier submission may be sampling it (blit RESOURCE) while
+// the re-record takes it as COLOR_TARGET — wgpu rejects conflicting exclusive
+// usages within one usage scope (observed as TXFLUSHERR "submit failed …
+// conflicting usages" whenever a re-record coalesced with a stashed blit of
+// the same texture). The ring alternates the write slot per frame, so the
+// write target is by construction the slot last written two frames ago —
+// never the one the previous submission sampled. Slots are reallocated only
+// when their size changes; the replaced view is deferred-released, so it
+// stays alive until every in-flight submission referencing it has completed.
 func (c *PictureTextureCache) allocEntry(id uint64, w, h int) *pictureTextureEntry {
-	if e := c.entries[id]; e != nil {
-		if e.w != w || e.h != h {
-			c.releaseDeferred(e.release, c.recordFrame)
-			delete(c.entries, id)
-			e = nil
-		} else {
-			view, release := c.dc.CreateOffscreenTexture(w, h)
-			if view.IsNil() || release == nil {
-				return nil // keep old entry; blit serves the stale texture this frame
-			}
-			c.releaseDeferred(e.release, c.recordFrame)
-			e.view = view
-			e.release = release
-			return e
+	e := c.entries[id]
+	if e == nil {
+		if !c.evictForNew() {
+			return nil
+		}
+		e = &pictureTextureEntry{contentSlot: -1}
+		c.entries[id] = e
+	}
+	// Ring selection: any slot not written this frame; among those the one
+	// with the oldest lastWriteFrame (the least likely to be in flight).
+	slot := -1
+	for i := range e.slots {
+		if e.slots[i].lastWriteFrame == c.recordFrame {
+			continue
+		}
+		if slot < 0 || e.slots[i].lastWriteFrame < e.slots[slot].lastWriteFrame {
+			slot = i
 		}
 	}
-	if !c.evictForNew() {
-		return nil
+	if slot < 0 {
+		// Pathological double-record within one frame (both slots written):
+		// reuse slot 0 — two writes of the same texture are both COLOR_TARGET
+		// (same usage, no blit between them), so no conflict.
+		slot = 0
 	}
-	view, release := c.dc.CreateOffscreenTexture(w, h)
-	if view.IsNil() || release == nil {
-		return nil // no GPU: caller falls back to direct replay
+	s := &e.slots[slot]
+	if s.w != w || s.h != h {
+		if s.release != nil {
+			c.releaseDeferred(s.release, c.recordFrame)
+		}
+		ns, ok := c.slotAlloc(c, w, h)
+		if !ok {
+			// no GPU (or alloc failure): keep the slot's stale content and let
+			// callers fall back to direct vector replay this frame
+			return nil
+		}
+		*s = *ns
 	}
-	e := &pictureTextureEntry{view: view, release: release, w: w, h: h}
-	c.entries[id] = e
+	s.lastWriteFrame = c.recordFrame
+	e.contentSlot = slot
 	return e
+}
+
+// releaseEntryLocked deferred-releases every slot view of an entry. The
+// caller must already hold mu.
+func (c *PictureTextureCache) releaseEntryLocked(e *pictureTextureEntry) {
+	if e == nil {
+		return
+	}
+	for i := range e.slots {
+		if e.slots[i].release != nil {
+			c.releaseDeferred(e.slots[i].release, c.recordFrame)
+			e.slots[i].view = render.TextureView{}
+			e.slots[i].release = nil
+		}
+	}
 }
 
 // record re-records picture content into the cached texture for id (or creates
@@ -279,13 +353,13 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 		extra(c.dc)
 		c.dc.Pop()
 	}
-	err := c.dc.FlushGPUWithView(e.view, uint32(c.width), uint32(c.height)) //nolint:gosec
+	err := c.dc.FlushGPUWithView(e.slots[e.contentSlot].view, uint32(c.width), uint32(c.height)) //nolint:gosec
 	c.dc.SetDamageTracking(true)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "TXFLUSHERR id=%d w=%d h=%d err=%#v\n", id, c.width, c.height, err)
 		// The fresh view may hold undefined content; drop the entry so later
 		// blits replay vector instead of showing garbage.
-		c.releaseDeferred(e.release, c.recordFrame)
+		c.releaseEntryLocked(e)
 		delete(c.entries, id)
 		return image.Rectangle{}, false
 	}
@@ -354,14 +428,14 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	if extra != nil {
 		extra(c.dc)
 	}
-	err := c.dc.FlushGPUWithView(e.view, uint32(w), uint32(h)) //nolint:gosec
+	err := c.dc.FlushGPUWithView(e.slots[e.contentSlot].view, uint32(w), uint32(h)) //nolint:gosec
 	c.dc.SetDamageTracking(true)
 	c.dc.Pop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "TXFLUSHERR id=%d w=%d h=%d err=%v\n", id, w, h, err)
 		// The fresh view may hold undefined content; drop the entry so later
 		// blits replay vector instead of showing garbage.
-		c.releaseDeferred(e.release, c.recordFrame)
+		c.releaseEntryLocked(e)
 		delete(c.entries, id)
 		return image.Rectangle{}, false
 	}
@@ -447,7 +521,7 @@ func (c *PictureTextureCache) evictForNew() bool {
 	}
 	if victim != 0 {
 		if e := c.entries[victim]; e != nil {
-			c.releaseDeferred(e.release, c.recordFrame)
+			c.releaseEntryLocked(e)
 		}
 		delete(c.entries, victim)
 	}
@@ -463,10 +537,14 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.entries[id]
-	if e == nil || e.view.IsNil() {
+	if e == nil || e.contentSlot < 0 {
 		return false // cache miss: caller replays vector
 	}
-	c.dc.DrawGPUTexture(e.view, float64(e.off.X), float64(e.off.Y), e.w, e.h)
+	s := &e.slots[e.contentSlot]
+	if s.view.IsNil() {
+		return false
+	}
+	c.dc.DrawGPUTexture(s.view, float64(e.off.X), float64(e.off.Y), s.w, s.h)
 	e.lastUse = c.stamp
 	c.usedNow[id] = struct{}{}
 	c.FrameSkip.Add(1)
@@ -494,7 +572,7 @@ func (c *PictureTextureCache) Has(id uint64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.entries[id]
-	return e != nil && !e.view.IsNil()
+	return e != nil && e.contentSlot >= 0 && !e.slots[e.contentSlot].view.IsNil()
 }
 
 // RecordedThisFrame reports whether id was re-recorded in the current frame

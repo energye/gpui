@@ -92,6 +92,11 @@ func main() {
 			if ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_wr_r4_composite: close (%s)\n", win.Backend())
 			}
+			// Responsive shell layout: HUD re-pins to the new bottom, panels
+			// re-size (PipelineApp still does the surface/viewport work).
+			if ev.Type == platform.EventResize && ev.Width > 0 && ev.Height > 0 {
+				shell.Resize(float64(ev.Width), float64(ev.Height))
+			}
 		},
 	})
 	// W2 R4: retained 稳态（首帧仍 full，稳态 compositeOnly + damage present）。
@@ -114,6 +119,23 @@ func main() {
 		default:
 			hot.R, hot.G, hot.B = 0.2, 0.7, 0.95
 			hotX, hotY = 700, 640
+		}
+		// Keep the animated block fully inside the body band after window
+		// resizes (fixed placement would fall below the window on small sizes
+		// and the region would look frozen / off-screen).
+		if bW, bH := shell.Body.W, shell.Body.H; bW > 0 && bH > 0 {
+			if hotX+100 > bW {
+				hotX = bW - 100
+			}
+			if hotY+100 > bH {
+				hotY = bH - 100
+			}
+			if hotX < 0 {
+				hotX = 0
+			}
+			if hotY < 0 {
+				hotY = 0
+			}
 		}
 		// 相位切换才重录标签层（稳态保持纹理 blit，损伤=文本矩形）。
 		if phase != lastPhase {

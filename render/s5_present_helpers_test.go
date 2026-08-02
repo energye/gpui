@@ -435,3 +435,19 @@ func s5Scenes() []s5Scene {
 		},
 	}
 }
+
+// compMakeImage builds a solid RGBA8 image of the given color (shared by
+// s6_7_resources_test; formerly defined with the archived P1 matrix tests).
+func compMakeImage(t *testing.T, w, h int, r, g, b uint8) *render.ImageBuf {
+	t.Helper()
+	img, err := render.NewImageBuf(w, h, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			_ = img.SetRGBA(x, y, r, g, b, 255)
+		}
+	}
+	return img
+}

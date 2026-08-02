@@ -57,11 +57,20 @@ type PipelineApp struct {
 	// layoutFrames counts flushes that actually laid out (for S2 gate).
 	layoutFrames atomic.Int64
 	// forceFullPresent is set on warm-up/resize so the next present full-clears.
-	forceFullPresent atomic.Bool
+	// A counter (not bool): a swapchain rebuild (resize) leaves every buffer
+	// undefined except the one written by the first full frame; retained frames
+	// LoadOpLoad the other buffers → black artifacts. Full-present for several
+	// consecutive frames covers all swapchain buffers (observed black bursts
+	// after min/max resize cycles until a second full frame landed).
+	forceFullPresent atomic.Int64
 	// lastResizeScale tracks the last DPR seen in EventResize; boundary
 	// Pictures are only invalidated when the DPR actually changes (pure size
 	// changes rely on tryReplay's size/fingerprint checks instead).
 	lastResizeScale float64
+	// lastResizeW/H track the last effective size seen in EventResize. WM
+	// resize-drag floods many coalesced requests with the same final size;
+	// skipping those avoids a full relayout + full-present storm per request.
+	lastResizeW, lastResizeH int
 	// debugRepaint enables R12b overlay on live paints (not cache Replay).
 	debugRepaint atomic.Bool
 	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
@@ -390,11 +399,11 @@ func (a *PipelineApp) Run() error {
 	if a.pipe.FlushLayout(vp, true) {
 		a.layoutFrames.Add(1)
 	}
-	a.forceFullPresent.Store(true) // first present after open is always full
+	a.forceFullPresent.Store(3) // first presents after open are always full
 	a.firstPresentT0 = time.Now()
 	if a.opts.WarmUp {
 		a.presentSyncFull()
-		a.forceFullPresent.Store(false) // warm-up already full-cleared swapchain
+		a.forceFullPresent.Store(0) // warm-up already full-cleared swapchain
 	}
 	a.ScheduleFrame()
 
@@ -436,12 +445,20 @@ func (a *PipelineApp) Run() error {
 			switch ev.Type {
 			case platform.EventClose:
 				a.quit.Store(true)
-				case platform.EventResize:
+			case platform.EventResize:
 				if ev.Width > 0 && ev.Height > 0 {
 					sc := ev.Scale
 					if sc <= 0 {
 						sc = a.host.ScaleFactor()
 					}
+					// Coalesced WM resize requests repeat the final size many
+					// times while dragging; a full relayout + full present per
+					// request collapses fps (measured ~4x on X11/Mutter). Skip
+					// requests where neither size nor DPR actually changed.
+					if ev.Width == a.lastResizeW && ev.Height == a.lastResizeH && sc == a.lastResizeScale {
+						continue
+					}
+					a.lastResizeW, a.lastResizeH = ev.Width, ev.Height
 					_ = a.target.Resize(ev.Width, ev.Height, sc)
 					vp = rendering.Size{Width: float64(ev.Width), Height: float64(ev.Height)}
 					if a.pictureTex != nil {
@@ -469,7 +486,9 @@ func (a *PipelineApp) Run() error {
 					// root.MarkNeedsPaint here — that would re-record all 58
 					// layers per resize step (each layer = one wgpu submit,
 					// re-record frames stall 60ms–1.5s while dragging).
-					a.forceFullPresent.Store(true) // resize → full clear + full paint
+					// PresentTarget.Resize arms its own post-resize full budget
+					// (render/present_target.go) so the next 3 frames are full
+					// writes; no cross-thread counter needed here.
 					a.ScheduleFrame()
 				}
 			case platform.EventExpose:
@@ -555,7 +574,7 @@ func (a *PipelineApp) Run() error {
 		// full_paint (W0 default): full tree paint every frame (GPU Clear safe).
 		// retained (W2): CompositeOnly paint — only dirty paths; LoadOpLoad keeps static.
 		// Warm-up / resize / open: force=true → full clear + full paint.
-		force := a.forceFullPresent.Swap(false)
+		force := a.forceFullPresent.Swap(0) > 0
 		metrics := a.sched.Metrics()
 		// Keep policy visible; default full_paint until caller SetPresentPolicy(retained).
 		if metrics != nil && metrics.PresentPolicy() == "" {
@@ -564,7 +583,10 @@ func (a *PipelineApp) Run() error {
 		dbgOn := a.debugRepaint.Load()
 		dbgAccum := &a.debugRepaintDraws
 		// Retained steady frames: compositeOnly=true (skip clean boundaries).
-		compositeOnly := a.useRetained.Load() && !force
+		// Disable during target post-resize full recovery: the new swapchain
+		// buffers are undefined until fully written (render/present_target.go),
+		// and compositeOnly skips clean boundaries → black regions.
+		compositeOnly := a.useRetained.Load() && !force && !a.inFullRecovery()
 		// Retained textured path: drop stale layer textures on force frames
 		// (bootstrap/resize) so the next retained frame re-records everything.
 		if compositeOnly && a.pictureTex != nil && a.target != nil {
@@ -808,6 +830,12 @@ func presentTreeOpts(target *render.PresentTarget, pipe *rendering.PipelineOwner
 	return target.PresentWithAuto(draw)
 }
 
+// inFullRecovery mirrors PresentTarget.InFullRecovery for the compositeOnly
+// decision (lock-protected; same effective thread as target.Resize).
+func (a *PipelineApp) inFullRecovery() bool {
+	return a.target != nil && a.target.InFullRecovery()
+}
+
 func (a *PipelineApp) presentSyncFull() {
 	if a.target == nil {
 		return
@@ -861,6 +889,6 @@ func (a *PipelineApp) InvalidateBoundaryCache() {
 	if a.root != nil {
 		a.root.MarkNeedsPaint()
 	}
-	a.forceFullPresent.Store(true)
+	a.forceFullPresent.Store(3)
 	a.ScheduleFrame()
 }
