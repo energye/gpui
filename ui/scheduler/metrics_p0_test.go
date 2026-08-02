@@ -283,3 +283,34 @@ func TestMetrics_FirstPresent_WarmupFalse(t *testing.T) {
 		t.Fatalf("time=%v want 50", snap.TimeToFirstPresentMs)
 	}
 }
+
+// TestMetrics_DirtyLayerIDs_DamageMulti: R4b — dirty_layer_ids 末帧列表 + 累计
+// damage_multi 帧数进 JSON，两脏点 → 两 id。
+func TestMetrics_DirtyLayerIDs_DamageMulti(t *testing.T) {
+	s := scheduler.New().Metrics()
+	fresh := s.Snapshot()
+	if fresh.DirtyLayerIDs != nil || fresh.DamageMultiFrames != 0 {
+		t.Fatalf("fresh store dirty state: %+v", fresh)
+	}
+	s.SetDirtyLayerIDs([]uint64{7, 9})
+	for i := 0; i < 3; i++ {
+		s.NoteDamageMultiFrame()
+	}
+	snap := s.Snapshot()
+	if len(snap.DirtyLayerIDs) != 2 || snap.DirtyLayerIDs[0] != 7 || snap.DirtyLayerIDs[1] != 9 {
+		t.Fatalf("dirty_layer_ids=%v want [7 9]", snap.DirtyLayerIDs)
+	}
+	if snap.DamageMultiFrames != 3 {
+		t.Fatalf("damage_multi_frames=%d want 3", snap.DamageMultiFrames)
+	}
+	b, err := s.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	for _, k := range []string{`"dirty_layer_ids"`, `"damage_multi_frames"`} {
+		if !containsAll(js, k) {
+			t.Fatalf("JSON missing %s: %s", k, js)
+		}
+	}
+}

@@ -60,6 +60,13 @@ type FrameMetrics struct {
 	PresentMode    string `json:"present_mode,omitempty"` // full|damage_union|damage_multi|idle
 	DamageAreaLast int64  `json:"damage_area_last_px,omitempty"`
 
+	// DirtyLayerIDs is the last frame's dirty layer/boundary id list (R4b; the
+	// C-family dirty_layer_ids). Two distant hot spots → two ids. Empty/omitted
+	// when the window path does not collect them. DamageMultiFrames is the
+	// cumulative count of damage_multi presents (multi-rect independent scissors).
+	DirtyLayerIDs    []uint64 `json:"dirty_layer_ids,omitempty"`
+	DamageMultiFrames int64   `json:"damage_multi_frames,omitempty"`
+
 	// PresentPolicy is the window paint/present strategy name (W0+).
 	// Values: PresentPolicyFullPaint | PresentPolicyRetained | PresentPolicyHybrid.
 	// Default for PipelineApp is full_paint until W6 Retained gates pass.
@@ -212,9 +219,39 @@ func (s *MetricsStore) NotePresentOutcome(mode string, areaPx int64) {
 	}
 	s.mu.Lock()
 	s.m.PresentCount++
-	s.m.PresentMode = mode
+	// Idle presents carry no drawing and are not the retained steady-state
+	// mode (e.g. an X11 Expose-triggered frame with nothing dirty). Keep the
+	// last real present mode so JSON/gates observe the true retained
+	// incremental mode (damage_union/damage_multi) instead of event-noise.
+	if mode != "idle" {
+		s.m.PresentMode = mode
+	}
 	s.m.DamageAreaPx = areaPx
 	s.m.DamageAreaLast = areaPx
+	s.mu.Unlock()
+}
+
+// NoteDamageMultiFrame increments the cumulative damage_multi present count (R4b).
+func (s *MetricsStore) NoteDamageMultiFrame() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.DamageMultiFrames++
+	s.mu.Unlock()
+}
+
+// SetDirtyLayerIDs records the last frame's dirty layer/boundary id list (R4b).
+func (s *MetricsStore) SetDirtyLayerIDs(ids []uint64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if ids == nil {
+		s.m.DirtyLayerIDs = nil
+	} else {
+		s.m.DirtyLayerIDs = append([]uint64(nil), ids...)
+	}
 	s.mu.Unlock()
 }
 

@@ -101,7 +101,17 @@ func (b *Base) setParent(p RenderObject) { b.parent = p }
 // Size implements RenderObject.
 func (b *Base) Size() Size { return b.size }
 
-func (b *Base) setSize(s Size) { b.size = s }
+// setSize records the laid-out size. When the size actually changes, the
+// node needs to repaint (its pixels changed) — mark it so the layer tree
+// rebuild re-records exactly the affected nodes (Flutter: performLayout
+// signals paint via markNeedsPaint; without this, viewport changes repaint
+// the whole tree because nothing marks paint except the root).
+func (b *Base) setSize(s Size) {
+	if s != b.size {
+		b.size = s
+		b.MarkNeedsPaint()
+	}
+}
 
 // Offset implements RenderObject.
 func (b *Base) Offset() Point { return b.offset }

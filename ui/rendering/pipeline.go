@@ -168,6 +168,33 @@ func (o *PipelineOwner) UpdateCompositingBits() {
 	}
 }
 
+// ConsumeNeedsPaint clears all paint-dirty flags without drawing. Used by the
+// retained textured-composite path (W2 R4): content is captured into the layer
+// tree (BuildLayerTree records leaf display lists) and rasterized to cached
+// textures, so no live FlushPaint runs and the needs-paint marks must not keep
+// scheduling frames forever.
+func (o *PipelineOwner) ConsumeNeedsPaint() {
+	if o == nil || o.root == nil {
+		return
+	}
+	o.mu.Lock()
+	o.paintDirty = false
+	o.mu.Unlock()
+	var walk func(n RenderObject)
+	walk = func(n RenderObject) {
+		if n == nil {
+			return
+		}
+		if b, ok := baseOf(n); ok {
+			b.clearPaintDirty()
+		}
+		for _, c := range n.Children() {
+			walk(c)
+		}
+	}
+	walk(o.root)
+}
+
 // NeedsFrame reports layout or paint dirty.
 func (o *PipelineOwner) NeedsFrame() bool {
 	if o == nil {

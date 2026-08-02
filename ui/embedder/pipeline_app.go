@@ -2,6 +2,9 @@ package embedder
 
 import (
 	"errors"
+	"fmt"
+	"image"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,6 +61,10 @@ type PipelineApp struct {
 	layoutFrames atomic.Int64
 	// forceFullPresent is set on warm-up/resize so the next present full-clears.
 	forceFullPresent atomic.Bool
+	// lastResizeScale tracks the last DPR seen in EventResize; boundary
+	// Pictures are only invalidated when the DPR actually changes (pure size
+	// changes rely on tryReplay's size/fingerprint checks instead).
+	lastResizeScale float64
 	// debugRepaint enables R12b overlay on live paints (not cache Replay).
 	debugRepaint atomic.Bool
 	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
@@ -65,6 +72,11 @@ type PipelineApp struct {
 	// useRetained: steady frames use CompositeOnly paint + PresentWithAuto damage
 	// (W2 R4). Warm-up/resize still full-paint. Default false = full_paint (W0).
 	useRetained atomic.Bool
+
+	// pictureTex is the cross-frame layer texture cache for the retained
+	// textured-composite path (scene.CompositeFramePacketTextured). Lazy-created
+	// on the raster thread; only touched by serialized FrameJobs.
+	pictureTex *scene.PictureTextureCache
 
 	// W2 damage / dirty-layer accumulators (steady presents).
 	damageMu        sync.Mutex
@@ -168,9 +180,20 @@ func (a *PipelineApp) noteDamage(area int64, mode string) {
 	if area > a.damageMaxArea {
 		a.damageMaxArea = area
 	}
-	a.lastPresentMode = mode
+	// Idle presents carry no drawing and are not the retained steady-state
+	// mode (e.g. an X11 Expose-triggered frame with nothing dirty). Keep the
+	// last real present mode so LastPresentMode/gates observe the true
+	// retained incremental mode (damage_union/damage_multi) instead of the
+	// event-noise idle frame.
+	if mode != render.PresentModeIdle.String() {
+		a.lastPresentMode = mode
+	}
 	if mode == "damage_multi" || mode == render.PresentModeDamageMulti.String() {
 		a.damageMultiN++
+		// R4b: cumulative damage_multi presents into metrics JSON.
+		if m := a.sched.Metrics(); m != nil {
+			m.NoteDamageMultiFrame()
+		}
 	}
 }
 
@@ -183,6 +206,10 @@ func (a *PipelineApp) noteDirtyIDs(ids []uint64) {
 	a.lastDirtyIDs = append([]uint64(nil), ids...)
 	if n := len(ids); n > a.maxDirtyIDCount {
 		a.maxDirtyIDCount = n
+	}
+	// R4b: last-frame dirty layer ids into metrics JSON.
+	if m := a.sched.Metrics(); m != nil {
+		m.SetDirtyLayerIDs(ids)
 	}
 }
 
@@ -412,7 +439,7 @@ func (a *PipelineApp) Run() error {
 			switch ev.Type {
 			case platform.EventClose:
 				a.quit.Store(true)
-			case platform.EventResize:
+				case platform.EventResize:
 				if ev.Width > 0 && ev.Height > 0 {
 					sc := ev.Scale
 					if sc <= 0 {
@@ -420,17 +447,31 @@ func (a *PipelineApp) Run() error {
 					}
 					_ = a.target.Resize(ev.Width, ev.Height, sc)
 					vp = rendering.Size{Width: float64(ev.Width), Height: float64(ev.Height)}
+					if a.pictureTex != nil {
+						a.pictureTex.Resize(ev.Width, ev.Height)
+					}
 					if a.pipe.FlushLayout(vp, true) {
 						a.layoutFrames.Add(1)
 					}
-					// R11: size/DPR change invalidates all boundary Pictures (one rerecord wave).
-					if cache := a.pipe.BoundaryCache(); cache != nil {
-						cache.Clear()
+					// Boundary Pictures survive a pure size change: tryReplay
+					// re-checks each boundary's current size and content
+					// fingerprint (boundary_cache.go) and only mismatches
+					// re-record. Clearing here would force a full rerecord
+					// wave on EVERY resize step while dragging. DPR change is
+					// the exception (physical pixels differ → old textures
+					// stale) → invalidate then.
+					if sc != a.lastResizeScale {
+						if cache := a.pipe.BoundaryCache(); cache != nil {
+							cache.Clear()
+						}
+						a.lastResizeScale = sc
 					}
-					// Size change must repaint even when layout early-outs (e.g. height-only).
-					if a.root != nil {
-						a.root.MarkNeedsPaint()
-					}
+					// Repaint is scoped by layout: nodes whose size actually
+					// changed mark themselves paint-dirty (Base.setSize), and
+					// TextureCache entries rebuild on size mismatch. No blanket
+					// root.MarkNeedsPaint here — that would re-record all 58
+					// layers per resize step (each layer = one wgpu submit,
+					// re-record frames stall 60ms–1.5s while dragging).
 					a.forceFullPresent.Store(true) // resize → full clear + full paint
 					a.ScheduleFrame()
 				}
@@ -527,6 +568,17 @@ func (a *PipelineApp) Run() error {
 		dbgAccum := &a.debugRepaintDraws
 		// Retained steady frames: compositeOnly=true (skip clean boundaries).
 		compositeOnly := a.useRetained.Load() && !force
+		// Retained textured path: drop stale layer textures on force frames
+		// (bootstrap/resize) so the next retained frame re-records everything.
+		if compositeOnly && a.pictureTex != nil && a.target != nil {
+			a.pictureTex.EndFrame()
+		}
+		// Force frames (bootstrap/resize) paint the whole tree directly and do
+		// NOT clear the texture cache: layer views survive a resize (each entry
+		// rebuilds itself on size mismatch) and unchanged layers blit their old
+		// texture on the next retained frame. Clearing here would force a full
+		// 58-layer re-record wave per resize step while dragging — re-record
+		// frames stall 60ms–1.5s because every layer submits independently.
 		job := raster.FrameJob{
 			Run: func() error {
 				var frameDraws int64
@@ -537,13 +589,22 @@ func (a *PipelineApp) Run() error {
 					paintVisits:   &frameVisits,
 					compositeOnly: compositeOnly,
 				}
-				out, err := presentTreeOpts(target, pipe, root, ov, clearR, clearG, clearB, clearA, force, opts)
+				var out render.PresentOutcome
+				var err error
+				if compositeOnly && pkt != nil {
+					out, err = presentPacketTextured(target, pkt, a, clearR, clearG, clearB, clearA, opts)
+				} else {
+					out, err = presentTreeOpts(target, pipe, root, ov, clearR, clearG, clearB, clearA, force, opts)
+				}
 				if frameDraws > 0 {
 					dbgAccum.Add(frameDraws)
 				}
 				if metrics != nil && target != nil {
 					mode := out.Mode.String()
 					area := target.LastDamageAreaPx()
+					if os.Getenv("WR_DIAG") == "1" {
+						fmt.Fprintf(os.Stderr, "WR_DIAG2 area=%d mode=%s\n", area, mode)
+					}
 					metrics.NotePresentOutcome(mode, area)
 					metrics.SetPaintVisits(frameVisits)
 					a.noteDamage(area, mode)
@@ -679,6 +740,82 @@ func DamageAreaLogical(dc *render.Context) int64 {
 		return 0
 	}
 	return int64(u.Dx()) * int64(u.Dy())
+}
+
+// presentPacketTextured is the W2 R4 retained steady-frame present: composite
+// the already-built FramePacket via cached layer textures (blit-only frame →
+// GPU LoadOpLoad + per-rect scissor) instead of live FlushPaint. Dirty layer
+// bounds become TrackDamageRect entries so PresentWithAuto reports a damage
+// plan (damage_union / damage_multi) far smaller than the surface.
+//
+// Degrades to the plain present path when the packet/target is unavailable or
+// textures cannot be created (no GPU) — frame content stays correct, damage
+// reporting is honest (falls back to vector replay + MSAA full clear).
+func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket, a *PipelineApp, cr, cg, cb, ca float64, opts paintPresentTreeOpts) (render.PresentOutcome, error) {
+	if target == nil || pkt == nil || a == nil || a.pipe == nil {
+		return render.PresentOutcome{}, errors.New("embedder: presentPacketTextured nil")
+	}
+	dc := target.Context()
+	if dc == nil {
+		return render.PresentOutcome{}, errors.New("embedder: presentPacketTextured no context")
+	}
+	tex := a.pictureTex
+	if tex == nil {
+		tex = scene.NewPictureTextureCache(dc, 0)
+		a.pictureTex = tex
+	}
+	pipe := a.pipe
+	draw := func(d *render.Context) {
+		// Clear: retained steady frames do not clear (LoadOpLoad keeps pixels);
+		// only force frames (handled by presentTreeOpts) full-clear.
+		st := scene.CompositeFramePacketTextured(pkt, d, tex)
+		for _, r := range st.DamageRects {
+			// Dirty layer geometry → damage rects (logical coords; dc scales
+			// to physical via deviceScale). Overlay-band dirties share the
+			// union path.
+			d.TrackDamageRect(r)
+		}
+		if os.Getenv("WR_DIAG") == "1" {
+			fmt.Fprintf(os.Stderr, "WR_DIAG t=%d dirty=%v raster=%d skip=%d rects=%v first=%d createnil=%d flusherr=%d blitfail=%d fd=%v\n",
+				time.Now().UnixMilli(), pkt.DirtyLayerIDs, st.RasterLayerCount, tex.FrameSkip.Load(), st.DamageRects, tex.Len(),
+				tex.DiagCreateNil.Load(), tex.DiagFlushErr.Load(), tex.DiagBlitFail.Load(), d.FrameDamage())
+		}
+		// Boundary metrics: texture re-record = rerecord, cached blit = skip.
+		lastBoundaryFrame.Store(boundaryFrameSnap{
+			Rerecord: tex.FrameRerecord.Load(),
+			Skip:     tex.FrameSkip.Load(),
+		})
+		// Paint-dirty marks are consumed by the layer tree (no live paint).
+		pipe.ConsumeNeedsPaint()
+		if os.Getenv("WR_FULLDAMAGE") == "1" {
+			// Diagnostic: damage the full window every frame so the damage
+			// path runs with a full-surface scissor — isolates small-scissor
+			// issues.
+			d.TrackDamageRect(image.Rect(0, 0, d.Width(), d.Height()))
+		}
+		if os.Getenv("WR_PROBE") == "1" {
+			// Probe: flush the queued composite quads into an offscreen copy and
+			// read it back to CPU — pixel truth of the composed scene (public
+			// render API only; no swapchain readback needed).
+			if pv, prel := d.CreateOffscreenTexture(d.Width(), d.Height()); !pv.IsNil() && prel != nil {
+				if perr := d.FlushGPUWithView(pv, uint32(d.Width()), uint32(d.Height())); perr != nil { //nolint:gosec
+					fmt.Fprintf(os.Stderr, "WR_PROBE flush err: %v\n", perr)
+				}
+				if serr := d.SavePNG("/tmp/wr_probe_scene.png"); serr != nil {
+					fmt.Fprintf(os.Stderr, "WR_PROBE save err: %v\n", serr)
+				}
+				prel()
+			}
+		}
+	}
+	if os.Getenv("WR_FORCEFULL") == "1" {
+		// Diagnostic: force a full present of the textured composite so blits
+		// are drawn unscissored — distinguishes composite bugs from the
+		// LoadOpLoad/scissor damage-plan.
+		err := target.PresentWith(draw)
+		return target.LastPresentOutcome(), err
+	}
+	return target.PresentWithAuto(draw)
 }
 
 // SurfaceAreaLogical is width*height of the drawing surface.

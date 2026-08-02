@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"os"
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -1134,6 +1135,9 @@ func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, v
 		slogger().Warn("auto-flush failed", "err", err)
 	}
 	rc.ensureDrawOrder(drawTierGPUTex)
+	if os.Getenv("WR_DIAG") == "1" {
+		fmt.Fprintf(os.Stderr, "GDRAW dstX=%v dstY=%v dstW=%v dstH=%v vp=%dx%d\n", dstX, dstY, dstW, dstH, vpW, vpH)
+	}
 	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
 		View: view, DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: 0, V0: 0, U1: 1, V1: 1,
@@ -2788,16 +2792,15 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 	if bucket := rc.offscreenPool[key]; len(bucket) > 0 {
 		item := bucket[len(bucket)-1]
 		rc.offscreenPool[key] = bucket[:len(bucket)-1]
+		// NOTE: pooled reuse is disabled on purpose. A pooled texture may still
+		// be referenced by an earlier command buffer in the same submission
+		// (blit-sampled as RESOURCE) while a re-record takes it as COLOR_TARGET;
+		// wgpu rejects that as conflicting exclusive usages within the same
+		// usage scope (observed as TXFLUSHERR "submit: wgpu: submit failed"
+		// on every re-record frame after a resize). Fresh allocations are only
+		// ever used once per frame (attachment, then sampled), which wgpu
+		// transitions cleanly. Re-enable only with a per-frame usage tracker.
 		release := func() {
-			// return to pool (cap 4 per size)
-			if rc.offscreenPool == nil {
-				rc.offscreenPool = make(map[[2]int][]offscreenPooled)
-			}
-			b := rc.offscreenPool[key]
-			if len(b) < 8 {
-				rc.offscreenPool[key] = append(b, item)
-				return
-			}
 			item.view.Release()
 			item.tex.Release()
 		}
@@ -2834,16 +2837,11 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		return gpucontext.TextureView{}, nil
 	}
 
-	item := offscreenPooled{tex: tex, view: view}
 	release := func() {
-		if rc.offscreenPool == nil {
-			rc.offscreenPool = make(map[[2]int][]offscreenPooled)
-		}
-		b := rc.offscreenPool[key]
-		if len(b) < 8 {
-			rc.offscreenPool[key] = append(b, item)
-			return
-		}
+		// No pooling (see note in the reuse branch above): a re-used offscreen
+		// texture can be sampled (RESOURCE) by an earlier command buffer and
+		// then taken as COLOR_TARGET by a re-record in the same usage scope,
+		// which wgpu rejects. Each allocation is used once per frame only.
 		view.Release()
 		tex.Release()
 	}

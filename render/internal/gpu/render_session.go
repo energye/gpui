@@ -4804,7 +4804,16 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 
 	// ADR-028: base layer drawn once per damage rect (per-draw dynamic scissor).
 	// Multi-rect: N small scissors. Single rect: 1 scissor. No rects: full surface.
-	if hasDamage {
+	//
+	// Fresh/unknown target: when frameRendered is false the target image has
+	// never been fully composited (first frame, swapchain image rotation with
+	// per-frame views, resize). Scissoring to damage rects then leaves the
+	// untouched areas with stale/absent content (black window, single-block
+	// artifact). Composite the full frame so every image carries the complete
+	// scene (skia/flutter composite-pass semantics); the damage scissor is
+	// only safe once the same image already holds the full composite.
+	fullSurface := !s.frameRendered
+	if hasDamage && !fullSurface {
 		for _, dr := range damageRects {
 			dx, dy, dw, dh, valid := computeDamageScissor(nil, w, h, dr)
 			if valid {
@@ -4822,7 +4831,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	for i := range grpRes {
 		gr := &grpRes[i]
 		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
-			if s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
+			if fullSurface || s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
 				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes)
 			}
 		}

@@ -157,7 +157,11 @@ func NewLiveHUD(width, height float64) *LiveHUD {
 	box := rendering.NewRenderBox()
 	box.FixedWidth = width
 	box.FixedHeight = height
-	// Not a RepaintBoundary: when dirty, HUD repaints with fresh numbers.
+	// RepaintBoundary: HUD refreshes must stay inside the band — without a
+	// boundary, MarkNeedsPaint bubbles to the window root and re-records the
+	// root background layer (full-surface damage → present_mode full).
+	// When dirty, the HUD repaints with fresh numbers inside its own layer.
+	box.SetRepaintBoundary(true)
 	box.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		h.paint(pc, size)
 	}

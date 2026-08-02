@@ -1,5 +1,11 @@
 package scene
 
+import (
+	"image"
+
+	"github.com/energye/gpui/render"
+)
+
 // Layer is a retained scene-graph node (Flutter Layer subset).
 // Layers are shared across frames when unchanged (COW / pointer reuse).
 type Layer interface {
@@ -251,11 +257,34 @@ type PictureLayer struct {
 	Picture Picture
 	// NeedsRaster is true when the picture content must be re-drawn (dirty).
 	NeedsRaster bool
+	// CacheKey is a stable cross-frame identity for retained texture caching
+	// (boundary cacheID / RO identity). LayerID is per-tree (rebuilt every
+	// frame) so texture caches must key on CacheKey. 0 = not cacheable.
+	CacheKey uint64
+	// RasterExtra is an optional raster-thread paint callback for node content
+	// the UI-thread PictureRecorder cannot capture (RenderBox.OnPaint). It is
+	// executed during texture record (phase 1) in layer-local coordinates,
+	// either alone (empty Picture) or after Picture replay. Flutter's
+	// RenderBox.paint semantics: every node's own paint enters the display
+	// list — callbacks that need a live DC are deferred to the raster thread.
+	RasterExtra func(dc *render.Context)
+	// ExtraBounds is the layer-local geometry of RasterExtra content (paint
+	// size). Empty = unconstrained (full-surface record); non-empty enables
+	// bounds-sized recordLocal for cheap OnPaint layers (e.g. HUD band).
+	ExtraBounds image.Rectangle
 }
 
 // NewPictureLayer creates a picture layer.
 func NewPictureLayer() *PictureLayer {
 	return &PictureLayer{id: NextLayerID(), NeedsRaster: true}
+}
+
+// SetCacheKey binds a stable cross-frame identity (see CacheKey).
+func (p *PictureLayer) SetCacheKey(k uint64) {
+	if p == nil {
+		return
+	}
+	p.CacheKey = k
 }
 
 func (p *PictureLayer) LayerID() uint64   { return p.id }

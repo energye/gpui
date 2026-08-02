@@ -38,6 +38,9 @@ type Report struct {
 	DamageAreaPx     int64   `json:"damage_area_px"`
 	DamageRatio      float64 `json:"damage_ratio"`
 	PresentMode      string  `json:"present_mode"`
+	// R4b: last-frame dirty layer/boundary ids + cumulative damage_multi presents.
+	DirtyLayerIDs    []uint64 `json:"dirty_layer_ids,omitempty"`
+	DamageMultiFrames int64   `json:"damage_multi_frames,omitempty"`
 	PresentCount     int64   `json:"present_count"`
 	FrameCount       int64   `json:"frame_count"`
 	CPUPctAvg        float64 `json:"cpu_pct_avg"`
@@ -129,6 +132,8 @@ func BuildReport(in BuildInput) Report {
 		DamageAreaPx:     in.Snap.DamageAreaPx,
 		DamageRatio:      dmgRatio,
 		PresentMode:      in.Snap.PresentMode,
+		DirtyLayerIDs:    in.Snap.DirtyLayerIDs,
+		DamageMultiFrames: in.Snap.DamageMultiFrames,
 		PresentCount:     in.PresentCount,
 		FrameCount:       in.Snap.FrameCount,
 		CPUPctAvg:        in.Snap.CPUPctAvg,

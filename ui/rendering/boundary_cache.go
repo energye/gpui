@@ -81,6 +81,13 @@ func (b *Base) CacheID() uint64 {
 	return b.cacheID
 }
 
+// EnsureCacheID assigns a stable identity on first call and returns it.
+// Any RenderObject may hold an identity (texture cache keys, debug tags);
+// BoundaryCache keys are a subset of these ids.
+func (b *Base) EnsureCacheID() uint64 {
+	return b.ensureCacheID()
+}
+
 // Clear drops all Picture entries (resize / DPR change — R11).
 func (c *BoundaryCache) Clear() {
 	if c == nil {

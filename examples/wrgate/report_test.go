@@ -151,3 +151,36 @@ func TestBuildReport_FirstPresentObservations(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildReport_DirtyLayerIDs: R4b — dirty_layer_ids 列表 + damage_multi_frames
+// 从快照流入 JSON 壳（末帧两脏点 → 两 id）。
+func TestBuildReport_DirtyLayerIDs(t *testing.T) {
+	snap := scheduler.FrameMetrics{
+		PresentPolicy:       scheduler.PresentPolicyFullPaint,
+		VSyncSource:         "fallback",
+		DirtyLayerIDs:       []uint64{11, 22},
+		DamageMultiFrames:   4,
+		RSSStartKB:          1,
+		RSSEndKB:            1,
+		RSSPeakKB:           1,
+	}
+	r := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: "R4b", Scenario: "ui_wr_r4b_multidamage", Snap: snap, PresentCount: 1, ElapsedSec: 0.1,
+	})
+	if len(r.DirtyLayerIDs) != 2 || r.DirtyLayerIDs[0] != 11 || r.DirtyLayerIDs[1] != 22 {
+		t.Fatalf("dirty_layer_ids=%v want [11 22]", r.DirtyLayerIDs)
+	}
+	if r.DamageMultiFrames != 4 {
+		t.Fatalf("damage_multi_frames=%d want 4", r.DamageMultiFrames)
+	}
+	b, err := wrgate.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	for _, k := range []string{`"dirty_layer_ids"`, `"damage_multi_frames"`} {
+		if !strings.Contains(js, k) {
+			t.Fatalf("JSON missing %s: %s", k, js)
+		}
+	}
+}

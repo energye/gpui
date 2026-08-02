@@ -2,6 +2,8 @@
 package scene
 
 import (
+	"image"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
@@ -57,6 +59,10 @@ type Picture struct {
 	Valid bool
 	// Ops is the retained display list (nil/empty = no recorded content).
 	Ops []PictureOp
+	// Bounds is the union of op geometry in logical coordinates (retained
+	// compositing damage rects). Empty = unknown (text-only / no geometry) —
+	// callers fall back to a conservative surface rect.
+	Bounds image.Rectangle
 }
 
 // OpCount returns the number of recorded draw ops.
@@ -177,7 +183,8 @@ func applyPictureOp(dc *render.Context, op *PictureOp) {
 // PictureRecorder builds a Picture display list (Flutter PictureRecorder subset).
 // Call drawing methods then EndRecording / Finish.
 type PictureRecorder struct {
-	ops []PictureOp
+	ops    []PictureOp
+	bounds image.Rectangle
 }
 
 // NewPictureRecorder starts an empty recording session.
@@ -185,11 +192,26 @@ func NewPictureRecorder() *PictureRecorder {
 	return &PictureRecorder{}
 }
 
+// noteGeometry unions an op rect (logical coords) into the recorded bounds.
+// Text ops have unknown extent and are skipped (bounds stay conservative-unknown).
+func (r *PictureRecorder) noteGeometry(x, y, w, h float64) {
+	if r == nil || w <= 0 || h <= 0 {
+		return
+	}
+	b := image.Rect(int(x), int(y), int(x+w), int(y+h))
+	if r.bounds.Empty() {
+		r.bounds = b
+		return
+	}
+	r.bounds = r.bounds.Union(b)
+}
+
 // FillRect records a filled rectangle (R,G,B,A in 0..1).
 func (r *PictureRecorder) FillRect(x, y, w, h, red, gre, blu, a float64) {
 	if r == nil || w <= 0 || h <= 0 {
 		return
 	}
+	r.noteGeometry(x, y, w, h)
 	r.ops = append(r.ops, PictureOp{
 		Kind: OpFillRect,
 		X:    x, Y: y, W: w, H: h,
@@ -202,6 +224,7 @@ func (r *PictureRecorder) StrokeRect(x, y, w, h, lineWidth, red, gre, blu, a flo
 	if r == nil || w <= 0 || h <= 0 {
 		return
 	}
+	r.noteGeometry(x, y, w, h)
 	r.ops = append(r.ops, PictureOp{
 		Kind: OpStrokeRect,
 		X:    x, Y: y, W: w, H: h,
@@ -283,9 +306,12 @@ func (r *PictureRecorder) EndRecording() Picture {
 	}
 	ops := append([]PictureOp(nil), r.ops...)
 	r.ops = nil
+	b := r.bounds
+	r.bounds = image.Rectangle{}
 	return Picture{
-		Valid: len(ops) > 0,
-		Ops:   ops,
+		Valid:  len(ops) > 0,
+		Ops:    ops,
+		Bounds: b,
 	}
 }
 
@@ -298,6 +324,7 @@ func (r *PictureRecorder) Finish(dst *Picture) {
 	}
 	dst.Ops = pic.Ops
 	dst.Valid = pic.Valid
+	dst.Bounds = pic.Bounds
 }
 
 // RecordInto records via fn into an existing Picture (clears previous ops).

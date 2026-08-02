@@ -859,6 +859,12 @@ func (c *Context) DrawGPUTextureBase(view gpucontext.TextureView, x, y float64, 
 	c.recordGPUOp()
 }
 
+// TextureView is an opaque GPU texture handle (wgpu texture view) re-exported
+// for ui-layer retained compositing (picture/layer texture caches). ui/ must
+// not import gpu/ directly; this alias is the ui → render boundary for
+// CreateOffscreenTexture / DrawGPUTexture* handles.
+type TextureView = gpucontext.TextureView
+
 // CreateOffscreenTexture allocates a GPU texture for offscreen rendering.
 // The texture can be rendered to via FlushGPUWithView and composited via
 // DrawGPUTexture. Returns (nil, nil) if GPU is not available.
