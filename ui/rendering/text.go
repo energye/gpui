@@ -377,6 +377,30 @@ func (t *RenderText) ResetMeasureCacheStats() {
 	t.measureHits, t.measureMiss = 0, 0
 }
 
+// TreeMeasureCacheStats sums cumulative measure hit/miss over every RenderText
+// in the render tree (R9 measure_cache_hit sampling).
+func TreeMeasureCacheStats(root RenderObject) (hits, misses int64) {
+	if root == nil {
+		return 0, 0
+	}
+	var walk func(n RenderObject)
+	walk = func(n RenderObject) {
+		if n == nil {
+			return
+		}
+		if t, ok := n.(*RenderText); ok {
+			h, m := t.MeasureCacheStats()
+			hits += h
+			misses += m
+		}
+		for _, ch := range n.Children() {
+			walk(ch)
+		}
+	}
+	walk(root)
+	return hits, misses
+}
+
 // wrapLines produces soft-wrapped lines for the full source text (no maxLines yet).
 func (t *RenderText) wrapLines() []string {
 	s := ""

@@ -50,6 +50,7 @@ type FrameMetrics struct {
 	// Layout/paint flush counters (cumulative; wired by PipelineApp)
 	LayoutCount         int64 `json:"layout_count"`
 	PaintCount          int64 `json:"paint_count"`
+	PaintVisits         int64 `json:"paint_visits,omitempty"` // last frame node visits (R2)
 	RasterLayerCount    int64 `json:"raster_layer_count"`
 	CompositeLayerCount int64 `json:"composite_layer_count"`
 
@@ -103,6 +104,14 @@ type FrameMetrics struct {
 	BoundaryCount int64 `json:"boundary_count,omitempty"`
 	// BoundaryMaxDepth is max nesting depth of repaint boundaries (R3b).
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
+
+	// PictureOpCount is last-frame display-list op count (W1 R5).
+	PictureOpCount int64 `json:"picture_op_count,omitempty"`
+
+	// MeasureCacheHit is cumulative text-measure cache hits since last reset
+	// (W1 R9). MeasureCacheMiss is the miss counterpart for hits≥miss proof.
+	MeasureCacheHit  int64 `json:"measure_cache_hit,omitempty"`
+	MeasureCacheMiss int64 `json:"measure_cache_miss,omitempty"`
 }
 
 // MetricsStore is a concurrency-safe metrics accumulator.
@@ -313,6 +322,16 @@ func (s *MetricsStore) SetPaintCount(n int64) {
 	s.mu.Unlock()
 }
 
+// SetPaintVisits records the last frame's node paint visits (R2 locality proof).
+func (s *MetricsStore) SetPaintVisits(n int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.PaintVisits = n
+	s.mu.Unlock()
+}
+
 // SetVSyncSource records whether pacing uses true vsync or software fallback.
 func (s *MetricsStore) SetVSyncSource(src string) {
 	if s == nil {
@@ -410,6 +429,27 @@ func (s *MetricsStore) SetBoundaryDiscovery(count, maxDepth int) {
 	s.mu.Lock()
 	s.m.BoundaryCount = int64(count)
 	s.m.BoundaryMaxDepth = int64(maxDepth)
+	s.mu.Unlock()
+}
+
+// SetPictureOpCount records last-frame display-list op count (R5).
+func (s *MetricsStore) SetPictureOpCount(n int) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.PictureOpCount = int64(n)
+	s.mu.Unlock()
+}
+
+// SetMeasureCacheStats records cumulative text measure hit/miss (R9).
+func (s *MetricsStore) SetMeasureCacheStats(hits, misses int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.MeasureCacheHit = hits
+	s.m.MeasureCacheMiss = misses
 	s.mu.Unlock()
 }
 

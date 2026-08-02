@@ -218,3 +218,26 @@ func TestCompositeToContext_BackdropFilter(t *testing.T) {
 		t.Fatalf("center still white #%04x%04x%04x", rr, rg, rb)
 	}
 }
+
+func TestCountPictureOps_PacketSum(t *testing.T) {
+	scene.ResetLayerIDGen()
+	b := scene.NewLayerBuilder()
+	p1 := b.AddPicture(true)
+	p1.Record(func(r *scene.PictureRecorder) {
+		r.FillRect(0, 0, 10, 10, 1, 0, 0, 1)
+		r.StrokeRect(0, 0, 10, 10, 2, 0, 0, 1, 1)
+		r.DrawString("pic", 1, 1, nil, 0, 0, 1, 1)
+	})
+	b.PushBoundary(0, 0, "nest", true)
+	p2 := b.AddPicture(true)
+	p2.Record(func(r *scene.PictureRecorder) {
+		r.FillRect(20, 20, 5, 5, 0, 1, 0, 1)
+	})
+	b.Pop()
+
+	pkt := b.BuildPacket(1, 1, 100, 100)
+	n := scene.CountPictureOps(pkt)
+	if n != 4 {
+		t.Fatalf("picture_op_count=%d want 4 (3+1)", n)
+	}
+}

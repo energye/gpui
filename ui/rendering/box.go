@@ -74,11 +74,16 @@ func (b *RenderBox) Layout(c Constraints) Size {
 
 // Paint implements RenderObject.
 //
-// CompositeOnly rules (Flutter-like):
-//  1. Skip node if neither it nor any descendant needs paint.
-//  2. If this node NeedsPaint: draw self and all children except clean RepaintBoundaries
-//     (scroll/offset dirties parent → children must redraw).
-//  3. If only descendants need paint: do not draw self; recurse only into dirty paths.
+// Flutter PaintingContext paintChild walk (FPC-COMPOSITE-ONLY, FRO-REPAINT-B):
+//  1. Skip node entirely if neither it nor any descendant needs paint.
+//  2. If this node NeedsPaint: draw self and recurse into ALL children that
+//     are not clean RepaintBoundaries (a dirty ancestor repaints its
+//     non-isolated children; clean boundaries replay/skip).
+//  3. If only descendants need paint (self clean): do not draw self; recurse
+//     only into dirty paths (paint isolation — sibling subtrees untouched).
+//
+// The walk never re-paints a clean RepaintBoundary subtree unless the
+// boundary itself is dirty, so paint_count/visits stay explainable (R2).
 func (b *RenderBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
@@ -87,22 +92,43 @@ func (b *RenderBox) Paint(pc *PaintContext) {
 		return
 	}
 	pc.NotePaintVisit()
-	paintSelf := !pc.CompositeOnly || b.NeedsPaint()
-	if paintSelf {
+	if !pc.CompositeOnly || b.NeedsPaint() {
+		// Self dirty (or full paint): draw self, then children.
 		if b.OnPaint != nil {
-			b.OnPaint(pc, b.size)
-		}
-		for _, ch := range b.children {
-			off := ch.Offset()
-			if pc.CompositeOnly && ch.IsRepaintBoundary() && !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
-				continue
+			if pc.DC != nil {
+				// OnPaint is a leaf drawing callback: isolate its DC state
+				// (CTM/clip) so a Transform/Translate inside the callback does
+				// not leak into sibling paints drawn afterwards (R5 picture
+				// replay regression: Translate leaked to grid + labels).
+				pc.DC.Push()
 			}
-			ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
+			b.OnPaint(pc, b.size)
+			if pc.DC != nil {
+				pc.DC.Pop()
+			}
 		}
+		b.paintChildren(pc)
 		b.clearPaintDirty()
 		return
 	}
-	// Descend only into dirty subtrees / dirty boundaries.
+	// Self clean, descendants dirty: descend only into dirty paths.
+	b.paintDirtyDescendants(pc)
+}
+
+// paintChildren paints every child; clean RepaintBoundary children are
+// skipped when in CompositeOnly mode (their Picture replays elsewhere).
+func (b *RenderBox) paintChildren(pc *PaintContext) {
+	for _, ch := range b.children {
+		off := ch.Offset()
+		if pc.CompositeOnly && ch.IsRepaintBoundary() && !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
+			continue
+		}
+		ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
+	}
+}
+
+// paintDirtyDescendants recurses only into paths that actually need paint.
+func (b *RenderBox) paintDirtyDescendants(pc *PaintContext) {
 	for _, ch := range b.children {
 		if !ch.NeedsPaint() && !SubtreeNeedsPaint(ch) {
 			continue

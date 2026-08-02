@@ -468,7 +468,20 @@ func (a *PipelineApp) Run() error {
 		if scale <= 0 {
 			scale = 1
 		}
+		// R3b compositing-bits flush (Flutter updateCompositingBits runs before
+		// paint): propagate needsCompositing bottom-up and sample boundary
+		// discovery so boundary_count / boundary_max_depth are honest JSON.
+		a.pipe.UpdateCompositingBits()
+		if m := a.sched.Metrics(); m != nil {
+			bc, bd := rendering.CountRepaintBoundaries(a.root)
+			m.SetBoundaryDiscovery(bc, bd)
+		}
 		pkt := rendering.BuildFramePacket(a.root, frameID, scale, float64(w), float64(h))
+		if m := a.sched.Metrics(); m != nil {
+			m.SetPictureOpCount(scene.CountPictureOps(pkt))
+			mh, mm := rendering.TreeMeasureCacheStats(a.root)
+			m.SetMeasureCacheStats(mh, mm)
+		}
 		if a.opts.Overlay != nil {
 			a.opts.Overlay.AttachToPacket(pkt)
 		}
@@ -511,9 +524,11 @@ func (a *PipelineApp) Run() error {
 		job := raster.FrameJob{
 			Run: func() error {
 				var frameDraws int64
+				var frameVisits int64
 				opts := paintPresentTreeOpts{
 					debugRepaint:  dbgOn,
 					debugDraws:    &frameDraws,
+					paintVisits:   &frameVisits,
 					compositeOnly: compositeOnly,
 				}
 				out, err := presentTreeOpts(target, pipe, root, ov, clearR, clearG, clearB, clearA, force, opts)
@@ -524,6 +539,7 @@ func (a *PipelineApp) Run() error {
 					mode := out.Mode.String()
 					area := target.LastDamageAreaPx()
 					metrics.NotePresentOutcome(mode, area)
+					metrics.SetPaintVisits(frameVisits)
 					a.noteDamage(area, mode)
 					// M-GPU-*: float render path routing into UI JSON (no ui→gpu).
 					if dc := target.Context(); dc != nil {
@@ -580,6 +596,7 @@ func PaintPresentTreeCompositeOnly(dc *render.Context, pipe *rendering.PipelineO
 type paintPresentTreeOpts struct {
 	debugRepaint  bool
 	debugDraws    *int64 // per-frame; nil = no count
+	paintVisits   *int64 // per-frame node visits (R2); nil = no count
 	compositeOnly bool   // W2 retained steady: skip clean boundaries (LoadOpLoad keeps pixels)
 }
 
@@ -608,6 +625,9 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 	pc.UseBoundaryCache = true
 	pc.DebugRepaint = opts.debugRepaint
 	pc.DebugRepaintDraws = opts.debugDraws
+	if opts.paintVisits != nil {
+		pc.PaintVisits = opts.paintVisits
+	}
 	cache.BeginFrame()
 	// force clear path always full-paints; steady path full-paints unless
 	// compositeOnly (test/Retained experiment).

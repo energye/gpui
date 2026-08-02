@@ -85,6 +85,18 @@ func RunSeconds(def int) int {
 	return def
 }
 
+// RunSecondsOpt returns (secs, set): RUN_SECONDS set & valid → (n, true);
+// unset/invalid → (0, false). When set=false the example runs indefinitely
+// and only closes on user action (window X / close event).
+func RunSecondsOpt() (int, bool) {
+	if v := os.Getenv("RUN_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
 // RequireMinRun fails (stderr + exit 1) when secs < 5 (U16).
 func RequireMinRun(secs int, abilityID string) {
 	if secs < 5 {

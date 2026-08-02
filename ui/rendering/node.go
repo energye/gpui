@@ -58,6 +58,11 @@ type Base struct {
 	needsCompositing       bool
 	alwaysNeedsCompositing bool
 
+	// needsCompositingBitsUpdate marks this subtree for the R3b compositing-bits
+	// flush (Flutter markNeedsCompositingBitsUpdate). Dirty structure/visibility
+	// changes set it; PipelineOwner.UpdateCompositingBits clears it.
+	needsCompositingBitsUpdate bool
+
 	// cacheID is a stable BoundaryCache map key (assigned lazily).
 	cacheID uint64
 
@@ -77,6 +82,9 @@ func (b *Base) Init(self RenderObject) {
 	b.Self = self
 	b.needsLayout = true
 	b.needsPaint = true
+	// Fresh nodes have no computed compositing bits yet: the first
+	// UpdateCompositingBits flush must recompute this subtree (R3b).
+	b.needsCompositingBitsUpdate = true
 }
 
 // SetOwner attaches a pipeline owner (for metrics / future schedule).
@@ -120,7 +128,13 @@ func (b *Base) IsRepaintBoundary() bool { return b.repaintBoundary }
 func (b *Base) SetRelayoutBoundary(v bool) { b.relayoutBoundary = v }
 
 // SetRepaintBoundary marks paint isolation (P2).
-func (b *Base) SetRepaintBoundary(v bool) { b.repaintBoundary = v }
+func (b *Base) SetRepaintBoundary(v bool) {
+	if b.repaintBoundary == v {
+		return
+	}
+	b.repaintBoundary = v
+	b.MarkNeedsCompositingBitsUpdate()
+}
 
 // DebugName returns the hit-test identity tag (R13).
 func (b *Base) DebugName() string {
@@ -154,20 +168,39 @@ func (b *Base) NeedsCompositing() bool { return b.needsCompositing }
 
 // SetAlwaysNeedsCompositing forces compositing (opacity/transform/filter style).
 func (b *Base) SetAlwaysNeedsCompositing(v bool) {
+	if b.alwaysNeedsCompositing == v {
+		return
+	}
 	b.alwaysNeedsCompositing = v
 	if v {
 		b.needsCompositing = true
 	}
+	b.MarkNeedsCompositingBitsUpdate()
 }
 
-// UpdateCompositingBits recomputes needsCompositing from children (F04).
-// Call bottom-up after tree changes. Returns whether this node needs compositing.
+// UpdateCompositingBits recomputes needsCompositing from children (F04 / R3b).
+// Flutter semantics: needsCompositing is a bottom-up union — a node needs a
+// compositing layer if it always does (opacity/transform/filter/boundary) OR
+// any descendant does. Propagation skips clean subtrees (no needsCompositingBitsUpdate
+// marker) so the flush stays O(changed), not O(tree) every frame.
+// Returns whether this node needs compositing.
 func (b *Base) UpdateCompositingBits() bool {
 	need := b.alwaysNeedsCompositing || b.repaintBoundary
+	// Recompute only when this subtree was marked dirty (or always) to keep the
+	// R3b flush proportional to structural changes.
+	if !b.needsCompositingBitsUpdate {
+		return b.needsCompositing
+	}
+	b.needsCompositingBitsUpdate = false
 	for _, ch := range b.children {
 		if pb, ok := baseOf(ch); ok {
-			if pb.UpdateCompositingBits() {
-				need = true
+			if pb.needsCompositingBitsUpdate || pb.alwaysNeedsCompositing || pb.repaintBoundary {
+				if pb.UpdateCompositingBits() {
+					need = true
+				}
+			} else {
+				// Clean child: keep its previously computed bit.
+				need = need || pb.needsCompositing
 			}
 		} else if ch.IsRepaintBoundary() {
 			need = true
@@ -177,7 +210,32 @@ func (b *Base) UpdateCompositingBits() bool {
 	return need
 }
 
-// AddChild appends a child and dirties layout.
+// MarkNeedsCompositingBitsUpdate dirties this node and all ancestors up to the
+// root for the next UpdateCompositingBits flush (Flutter markNeedsCompositingBitsUpdate).
+// Call after structural / visibility-affecting changes (opacity, transform,
+// filter, clip, boundary add/remove).
+func (b *Base) MarkNeedsCompositingBitsUpdate() {
+	if b == nil {
+		return
+	}
+	b.needsCompositingBitsUpdate = true
+	for p := b.parent; p != nil; p = p.Parent() {
+		if pb, ok := baseOf(p); ok {
+			pb.needsCompositingBitsUpdate = true
+		}
+	}
+}
+
+// NeedsCompositingBitsUpdate reports whether this subtree is dirty for the
+// compositing-bits flush (diagnostics / R3b).
+func (b *Base) NeedsCompositingBitsUpdate() bool {
+	if b == nil {
+		return false
+	}
+	return b.needsCompositingBitsUpdate
+}
+
+// AddChild appends a child and dirties layout + compositing bits.
 func (b *Base) AddChild(child RenderObject) {
 	if child == nil {
 		return
@@ -188,6 +246,7 @@ func (b *Base) AddChild(child RenderObject) {
 		child.setParent(b.Self)
 	}
 	b.MarkNeedsLayout()
+	b.MarkNeedsCompositingBitsUpdate()
 }
 
 // RemoveChild detaches child if present.
@@ -200,6 +259,7 @@ func (b *Base) RemoveChild(child RenderObject) {
 			b.children = append(b.children[:i], b.children[i+1:]...)
 			child.setParent(nil)
 			b.MarkNeedsLayout()
+			b.MarkNeedsCompositingBitsUpdate()
 			return
 		}
 	}
@@ -241,8 +301,18 @@ func (b *Base) MarkNeedsLayout() {
 	}
 }
 
-// MarkNeedsPaint dirties paint. P1 bubbles to root (or repaint boundary if set).
+// MarkNeedsPaint dirties paint. Flutter-aligned: a node's own paint dirt
+// bubbles up through ancestors and STOPS at the nearest RepaintBoundary —
+// the boundary itself is marked dirty (its subtree must re-record), but
+// nothing above it is. A node that IS a repaint boundary only dirties itself.
+//
+// Rationale (Flutter PaintingContext): the RepaintBoundary is the isolation
+// unit — repainting below it must not invalidate siblings or ancestors above.
+// MarkNeedsPaint is idempotent: already-dirty nodes skip redundant marking.
 func (b *Base) MarkNeedsPaint() {
+	if b.needsPaint {
+		return
+	}
 	b.needsPaint = true
 	if b.owner != nil {
 		b.owner.notePaintDirty()
@@ -255,8 +325,13 @@ func (b *Base) MarkNeedsPaint() {
 		if !ok {
 			break
 		}
-		if pb.needsPaint && !pb.repaintBoundary {
-			// continue marking until boundary
+		if pb.needsPaint {
+			// Ancestor already dirty; if it is (or is above) a boundary the
+			// remaining chain is already correct — stop walking.
+			if pb.repaintBoundary {
+				break
+			}
+			continue
 		}
 		pb.needsPaint = true
 		if pb.owner != nil {
@@ -266,6 +341,15 @@ func (b *Base) MarkNeedsPaint() {
 			break
 		}
 	}
+}
+
+// NeedsCompositingOf reports the compositing bit of any render object (R3b
+// diagnostics / real-window gates). False when the node has no Base.
+func NeedsCompositingOf(n RenderObject) bool {
+	if b, ok := baseOf(n); ok && b != nil {
+		return b.needsCompositing
+	}
+	return false
 }
 
 func baseOf(n RenderObject) (*Base, bool) {

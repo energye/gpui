@@ -27,6 +27,77 @@ func TestRepaintBoundary_StopsPaintBubble(t *testing.T) {
 	}
 }
 
+// TestMarkNeedsPaint_NestedBoundaryIsolation (R2 strict Flutter semantics):
+// dirtying a node inside a nested RepaintBoundary dirties only up to that
+// boundary — neither the outer boundary nor the root may become dirty, and
+// idempotent re-marking must not extend the dirty chain.
+func TestMarkNeedsPaint_NestedBoundaryIsolation(t *testing.T) {
+	inner := rendering.NewRenderColorBox(4, 4, 1, 0, 0, 1)
+	inner.SetRepaintBoundary(true)
+	outer := rendering.NewRenderBox(inner)
+	outer.FixedWidth, outer.FixedHeight = 20, 20
+	outer.SetRepaintBoundary(true)
+	root := rendering.NewRenderBox(outer)
+	root.FixedWidth, root.FixedHeight = 100, 100
+	_ = rendering.NewPipelineOwner(root)
+	root.Layout(rendering.Tight(100, 100))
+	root.Paint(&rendering.PaintContext{})
+	outer.Paint(&rendering.PaintContext{})
+	inner.Paint(&rendering.PaintContext{})
+
+	inner.MarkNeedsPaint()
+	if !inner.NeedsPaint() {
+		t.Fatal("inner should be paint dirty")
+	}
+	if outer.NeedsPaint() {
+		t.Fatal("outer boundary must not be dirtied by inner child paint")
+	}
+	if root.NeedsPaint() {
+		t.Fatal("root must not be dirtied through outer boundary")
+	}
+}
+
+// TestCompositeOnly_OnlyDirtyPathVisits (R2): with several isolated
+// boundaries, dirtying one must produce visits proportional to that path —
+// static siblings stay at NeedsPaint()==false and are never visited.
+func TestCompositeOnly_OnlyDirtyPathVisits(t *testing.T) {
+	const n = 50
+	root := rendering.NewRenderBox()
+	root.FixedWidth, root.FixedHeight = 800, 400
+	var hot *rendering.RenderColorBox
+	for i := 0; i < n; i++ {
+		c := rendering.NewRenderColorBox(8, 8, 0.5, 0.5, 0.5, 1)
+		c.SetRepaintBoundary(true)
+		root.AddChild(c)
+		if i == 7 {
+			hot = c
+		}
+	}
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: 800, Height: 400}, true)
+	var visits int64
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, true)
+
+	// All static boundaries must be clean after full paint.
+	for _, c := range root.Children() {
+		if c.NeedsPaint() {
+			t.Fatal("static boundary must be clean after full paint")
+		}
+	}
+	hot.MarkNeedsPaint()
+	visits = 0
+	if !owner.FlushPaint(&rendering.PaintContext{PaintVisits: &visits}, false) {
+		t.Fatal("expected partial paint")
+	}
+	// Root + hot path only; 48 static siblings skipped.
+	if visits > 5 {
+		t.Fatalf("visits=%d want ≤5 (root+hot path)", visits)
+	}
+	if hot.NeedsPaint() {
+		t.Fatal("hot boundary must be cleaned after its partial paint")
+	}
+}
+
 func TestCompositeOnly_SkipsCleanLeaves(t *testing.T) {
 	const n = 200 // enough to prove skip; 10k is fine too but slower in -race
 	root := rendering.NewRenderBox()

@@ -1,23 +1,29 @@
 package rendering
 
 import (
+	"reflect"
 	"sync/atomic"
 
 	"github.com/energye/gpui/ui/scene"
 )
 
-// BoundaryCache holds Picture-backed caches for RepaintBoundary nodes (W1).
+// BoundaryCache holds Picture-backed caches for RepaintBoundary nodes (R3).
 // Clean boundaries Replay the stored Picture (skip re-record); dirty ones
 // re-paint and re-record. Works under FullPaint so skip is observable without
 // Retained Present (ENGINE_UI_WIDGET_RENDER R3).
 //
-// Nested model (Flutter-like layers, Picture MVP):
-//   - Each RepaintBoundary owns its Picture of **own content only**.
-//   - Nested IsRepaintBoundary children are NOT baked into the parent Picture.
-//   - After a container tryReplay, AbsoluteBox still walks nested RB children
-//     so each child can tryReplay/rerecord independently.
-//   - Therefore only-inner-dirty does not force outer rerecord, and clean
-//     outer Replay cannot show stale child colors.
+// Nested model (Flutter layers, Picture MVP):
+//   - Each RepaintBoundary owns a Picture of **own content only**.
+//   - Nested IsRepaintBoundary children are NEVER baked into the parent Picture;
+//     after a container tryReplay the caller still walks nested RB children so
+//     each child can tryReplay/rerecord independently.
+//   - Therefore only-inner-dirty never forces an outer rerecord, and a clean
+//     outer Replay cannot show stale child colors (R3 内脏不外溢).
+//
+// Cacheability (correctness-first): a boundary whose own content contains RO
+// types the MVP recorder cannot faithfully capture (e.g. Viewport) is marked
+// not-cacheable — tryReplay/store are no-ops for it, so the subtree always
+// live-paints and stale-frame content loss is impossible.
 type BoundaryCache struct {
 	entries map[uint64]*boundaryEntry
 	// Cumulative counters (process lifetime of this cache).
@@ -26,6 +32,8 @@ type BoundaryCache struct {
 	// Per root paint-walk frame counters (reset by BeginFrame).
 	FrameRerecord int64
 	FrameSkip     int64
+	// FrameMiss counts boundaries that wanted a Replay but had none (diagnostics).
+	FrameMiss int64
 }
 
 type boundaryEntry struct {
@@ -34,6 +42,7 @@ type boundaryEntry struct {
 	w, h       float64
 	contentKey uint64
 	valid      bool
+	cacheable  bool
 }
 
 var nextBoundaryCacheID uint64
@@ -43,13 +52,14 @@ func NewBoundaryCache() *BoundaryCache {
 	return &BoundaryCache{entries: make(map[uint64]*boundaryEntry)}
 }
 
-// BeginFrame resets per-frame skip/rerecord counters (call once per present paint).
+// BeginFrame resets per-frame skip/rerecord/miss counters (call once per present paint).
 func (c *BoundaryCache) BeginFrame() {
 	if c == nil {
 		return
 	}
 	c.FrameRerecord = 0
 	c.FrameSkip = 0
+	c.FrameMiss = 0
 }
 
 // ensureID assigns a stable cache id on Base.
@@ -109,17 +119,17 @@ func (c *BoundaryCache) HasValid(n RenderObject) bool {
 		return false
 	}
 	e := c.entries[b.cacheID]
-	return e != nil && e.valid && e.pic.Valid && !e.pic.IsEmpty()
+	return e != nil && e.valid && e.cacheable && e.pic.Valid && !e.pic.IsEmpty()
 }
 
 // tryReplay returns true if this boundary's **own** Picture was drawn from cache.
 //
 // Own content only: nested IsRepaintBoundary children are not in the Picture
-// (see recordAbsoluteOwnContent). Callers of container boundaries must still
-// paint nested RB children after a successful tryReplay (AbsoluteBox.Paint).
+// (see recordOwnContent). Callers of container boundaries must still paint
+// nested RB children after a successful tryReplay (AbsoluteBox.Paint).
 //
 // Self NeedsPaint → miss. Descendant dirtiness does **not** block own Replay
-// (outer can skip while inner rerecords).
+// (outer can skip while inner rerecords). Non-cacheable boundaries always miss.
 func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	if c == nil || pc == nil || pc.DC == nil || n == nil || !pc.UseBoundaryCache {
 		return false
@@ -136,21 +146,26 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	}
 	id := b.ensureCacheID()
 	e := c.entries[id]
-	if e == nil || !e.valid || !e.pic.Valid || e.pic.IsEmpty() {
+	if e == nil || !e.valid || !e.cacheable || !e.pic.Valid || e.pic.IsEmpty() {
+		if e != nil {
+			c.FrameMiss++
+		}
 		return false
 	}
 	sz := n.Size()
 	if e.w != sz.Width || e.h != sz.Height {
 		e.valid = false
+		c.FrameMiss++
 		return false
 	}
 	// Content fingerprint must match (content changed → invalidate).
 	// Origin shift is allowed: scroll reuse (R7b) moves the cell without changing
 	// its Picture content. We replay translated to the current origin instead of
 	// invalidating. Static trees (R3/R3b) have zero shift → behavior unchanged.
-	curKey := currentContentKey(n, sz.Width, sz.Height)
+	curKey := contentKeyOf(n, sz.Width, sz.Height)
 	if curKey != 0 && e.contentKey != 0 && curKey != e.contentKey {
 		e.valid = false
+		c.FrameMiss++
 		return false
 	}
 	if e.ox != pc.OriginX || e.oy != pc.OriginY {
@@ -171,28 +186,115 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	return true
 }
 
-// currentContentKey fingerprints a boundary node's **current** own content
-// (the same scope storeColorBox / storeAbsoluteColorChildren record). Returns 0
-// when the node type has no MVP recorder (caller treats 0 as "no fingerprint
-// available" and skips the content-match gate — origin/size already gate it).
-func currentContentKey(n RenderObject, w, h float64) uint64 {
+// Store records n's own content into the cache after a live paint. No-op for
+// non-boundaries, non-cacheable content, or when caching is disabled.
+// Callers call this only when the boundary itself was dirty (or unrecorded).
+func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
+	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache || !n.IsRepaintBoundary() {
+		return
+	}
+	if !boundaryCacheable(n) {
+		return
+	}
+	b, ok := baseOf(n)
+	if !ok {
+		return
+	}
+	id := b.ensureCacheID()
+	sz := n.Size()
+	ox, oy := pc.OriginX, pc.OriginY
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		recordOwnContent(r, n, ox, oy)
+	})
+	c.entries[id] = &boundaryEntry{
+		pic: pic,
+		ox:  ox, oy: oy,
+		w: sz.Width, h: sz.Height,
+		contentKey: contentKeyOf(n, sz.Width, sz.Height),
+		valid:      pic.Valid && !pic.IsEmpty(),
+		cacheable:  true,
+	}
+	c.Rerecord++
+	c.FrameRerecord++
+	// No ancestor invalidate: parents do not bake nested RB children.
+}
+
+// storeColorBox is the legacy-specific entry point used by RenderColorBox.Paint.
+func (c *BoundaryCache) storeColorBox(pc *PaintContext, box *RenderColorBox) {
+	c.Store(pc, box)
+}
+
+// storeAbsoluteColorChildren is the legacy entry point used by AbsoluteBox.Paint.
+func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *AbsoluteBox) {
+	c.Store(pc, a)
+}
+
+// boundaryCacheable reports whether this boundary's own content can be
+// faithfully recorded + fingerprinted by the MVP recorder. Anything else
+// (Viewport, VirtualList, custom RO) must never be cached — Replaying an
+// incomplete Picture would drop live content (stale-frame bug).
+func boundaryCacheable(n RenderObject) bool {
+	if n == nil {
+		return false
+	}
+	switch t := n.(type) {
+	case *RenderColorBox, *RenderText, *RenderImage:
+		return true
+	case *AbsoluteBox:
+		return absoluteContentCacheable(t)
+	default:
+		return false
+	}
+}
+
+func absoluteContentCacheable(a *AbsoluteBox) bool {
+	if a == nil {
+		return false
+	}
+	for _, ch := range a.children {
+		if ch == nil || ch.IsRepaintBoundary() {
+			continue // nested boundaries keep their own caches
+		}
+		switch t := ch.(type) {
+		case *RenderColorBox, *RenderText, *RenderImage:
+			continue
+		case *AbsoluteBox:
+			if !absoluteContentCacheable(t) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// contentKeyOf fingerprints a boundary node's **current** own content (the same
+// scope recordOwnContent captures). Returns 0 when the node type has no MVP
+// fingerprint (caller treats 0 as "no fingerprint available" and skips the
+// content-match gate — origin/size already gate it).
+func contentKeyOf(n RenderObject, w, h float64) uint64 {
 	if n == nil {
 		return 0
 	}
 	switch t := n.(type) {
 	case *RenderColorBox:
 		return colorKey(t.R, t.G, t.B, t.A, w, h)
+	case *RenderText:
+		return textContentKey(t, w, h)
+	case *RenderImage:
+		return imageContentKey(t, w, h)
 	case *AbsoluteBox:
-		return absoluteOwnContentKey(t, w, h)
+		return absoluteContentKey(t, w, h)
 	default:
 		return 0
 	}
 }
 
-// absoluteOwnContentKey fingerprints an AbsoluteBox boundary's own content
-// (background + non-RepaintBoundary descendants). Mirrors recordAbsoluteOwnContent
+// absoluteContentKey fingerprints an AbsoluteBox boundary's own content
+// (background + non-RepaintBoundary descendants). Mirrors recordOwnContent
 // selection so scroll reuse (R7b) detects content change without re-recording.
-func absoluteOwnContentKey(a *AbsoluteBox, w, h float64) uint64 {
+func absoluteContentKey(a *AbsoluteBox, w, h float64) uint64 {
 	if a == nil {
 		return 0
 	}
@@ -216,70 +318,124 @@ func absoluteOwnContentKey(a *AbsoluteBox, w, h float64) uint64 {
 				chh = t.Height
 			}
 			key ^= colorKey(t.R, t.G, t.B, t.A, cw, chh) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
+		case *RenderText:
+			key ^= textContentKey(t, t.Size().Width, t.Size().Height) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
+		case *RenderImage:
+			key ^= imageContentKey(t, t.Size().Width, t.Size().Height) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
 		case *AbsoluteBox:
-			// Non-RB nested AbsoluteBox: fold its own-content key in.
-			key ^= absoluteOwnContentKey(t, t.Size().Width, t.Size().Height) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
+			key ^= absoluteContentKey(t, t.Size().Width, t.Size().Height) ^ uint64(off.X)<<3 ^ uint64(off.Y)<<13
 		default:
-			// Other RO types not in MVP recorder: any such child forces a miss
-			// by returning 0 (no fingerprint → caller skips content gate, origin
-			// shift still allowed but content change not detected → conservative).
 			return 0
 		}
 	}
 	return key
 }
 
-// storeColorBox records a solid color boundary Picture after a live paint.
-func (c *BoundaryCache) storeColorBox(pc *PaintContext, box *RenderColorBox) {
-	if c == nil || pc == nil || box == nil || !pc.UseBoundaryCache || !box.IsRepaintBoundary() {
-		return
+// textContentKey fingerprints a RenderText's visible glyph identity:
+// text content, size, face identity, color, wrap/overflow settings.
+func textContentKey(t *RenderText, w, h float64) uint64 {
+	if t == nil {
+		return 0
 	}
-	b := &box.Base
-	id := b.ensureCacheID()
-	sz := box.Size()
-	if sz.Width <= 0 {
-		sz.Width = box.Width
+	faceID := uint64(0)
+	if t.Face != nil {
+		faceID = uint64(reflectValuePointer(t.Face.Source())) ^ uint64(t.Face.Size()*16)
 	}
-	if sz.Height <= 0 {
-		sz.Height = box.Height
+	k := uint64(0)
+	for i := 0; i < len(t.Text) && i < 64; i++ {
+		k = k*31 + uint64(t.Text[i])
 	}
-	ox, oy := pc.OriginX, pc.OriginY
-	key := colorKey(box.R, box.G, box.B, box.A, sz.Width, sz.Height)
-	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		r.FillRect(ox, oy, sz.Width, sz.Height, box.R, box.G, box.B, box.A)
-	})
-	c.entries[id] = &boundaryEntry{
-		pic: pic, ox: ox, oy: oy, w: sz.Width, h: sz.Height,
-		contentKey: key, valid: pic.Valid && !pic.IsEmpty(),
+	k ^= faceID << 12
+	k ^= uint64(t.FontSize*16) << 24
+	k ^= uint64(t.R*255) << 32
+	k ^= uint64(t.G*255) << 40
+	k ^= uint64(t.B*255) << 48
+	k ^= uint64(t.A * 255)
+	k ^= uint64(w)<<20 ^ uint64(h)<<36
+	if t.MaxWidth > 0 {
+		k ^= uint64(t.MaxWidth*4) << 8
 	}
-	c.Rerecord++
-	c.FrameRerecord++
-	// No ancestor invalidate: parents do not bake nested RB children.
+	if len(t.Runs) > 0 {
+		k ^= uint64(len(t.Runs)) << 52
+	}
+	return k
 }
 
-// storeAbsoluteColorChildren records an AbsoluteBox boundary Picture of **own
-// content only** (bg + non-RepaintBoundary descendants). Nested RB children keep
-// their own cache entries; parent skip does not freeze their pixels.
-func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *AbsoluteBox) {
-	if c == nil || pc == nil || a == nil || !pc.UseBoundaryCache || !a.IsRepaintBoundary() {
+// imageContentKey fingerprints a RenderImage's visible state: image pointer,
+// state, placeholder color, size.
+func imageContentKey(im *RenderImage, w, h float64) uint64 {
+	if im == nil {
+		return 0
+	}
+	ptr := uint64(0)
+	if im.Img != nil {
+		ptr = uint64(reflectValuePointer(im.Img))
+	}
+	k := uint64(im.State)<<8 ^ ptr ^ uint64(w)<<20 ^ uint64(h)<<36
+	k ^= uint64(im.PR*255)<<40 ^ uint64(im.PG*255)<<48 ^ uint64(im.PB*255)
+	return k
+}
+
+// reflectValuePointer converts a pointer to a stable uint64 identity (no deref).
+func reflectValuePointer(p interface{}) uintptr {
+	if p == nil {
+		return 0
+	}
+	v := reflect.ValueOf(p)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return 0
+	}
+	return v.Pointer()
+}
+
+// recordOwnContent draws n's own content (background + non-RepaintBoundary
+// descendants) into a PictureRecorder at absolute origin (ox, oy).
+// IsRepaintBoundary children are omitted (own cache).
+func recordOwnContent(r *scene.PictureRecorder, n RenderObject, ox, oy float64) {
+	if r == nil || n == nil {
 		return
 	}
-	b := &a.Base
-	id := b.ensureCacheID()
-	sz := a.Size()
-	ox, oy := pc.OriginX, pc.OriginY
-	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		recordAbsoluteOwnContent(r, a, ox, oy)
-	})
-	// contentKey fingerprints own content (bg + non-RB descendants) so tryReplay
-	// can detect scroll-shift cells whose content is unchanged (R7b scroll reuse).
-	key := absoluteOwnContentKey(a, sz.Width, sz.Height)
-	c.entries[id] = &boundaryEntry{
-		pic: pic, ox: ox, oy: oy, w: sz.Width, h: sz.Height,
-		contentKey: key, valid: pic.Valid && !pic.IsEmpty(),
+	switch t := n.(type) {
+	case *RenderColorBox:
+		sz := t.Size()
+		cw, chh := sz.Width, sz.Height
+		if cw <= 0 {
+			cw = t.Width
+		}
+		if chh <= 0 {
+			chh = t.Height
+		}
+		r.FillRect(ox, oy, cw, chh, t.R, t.G, t.B, t.A)
+	case *RenderText:
+		sz := t.Size()
+		r.DrawString(t.Text, ox, oy+fontBaselineY(t), t.Face, t.R, t.G, t.B, t.A)
+		_ = sz
+	case *RenderImage:
+		sz := t.Size()
+		dw, dh := sz.Width, sz.Height
+		if dw <= 0 {
+			dw = t.Width
+		}
+		if dh <= 0 {
+			dh = t.Height
+		}
+		if t.Img != nil && !t.Img.Disposed() {
+			r.DrawImage(t.Img, ox, oy, dw, dh)
+		} else {
+			r.FillRect(ox, oy, dw, dh, t.PR, t.PG, t.PB, 1)
+		}
+	case *AbsoluteBox:
+		recordAbsoluteOwnContent(r, t, ox, oy)
 	}
-	c.Rerecord++
-	c.FrameRerecord++
+}
+
+// fontBaselineY maps RenderText's logical baseline convention to the absolute
+// DrawString baseline used by Paint (see RenderText.Paint).
+func fontBaselineY(t *RenderText) float64 {
+	if t == nil {
+		return 0
+	}
+	return t.FontSize
 }
 
 // recordAbsoluteOwnContent draws AbsoluteBox bg + non-RepaintBoundary children
@@ -310,15 +466,24 @@ func recordAbsoluteOwnContent(r *scene.PictureRecorder, a *AbsoluteBox, ox, oy f
 			}
 			r.FillRect(ax, ay, cw, chh, t.R, t.G, t.B, t.A)
 		case *RenderText:
-			// Bake label text into own-content Picture (DrawString baseline at ay+FontSize).
-			// Without this case, labels fall through to default → skipped → not drawn
-			// (R7b cells had invisible labels). face may be nil (replay needs SetFont on dc).
 			r.DrawString(t.Text, ax, ay+t.FontSize, t.Face, t.R, t.G, t.B, t.A)
+		case *RenderImage:
+			dw, dh := t.Size().Width, t.Size().Height
+			if dw <= 0 {
+				dw = t.Width
+			}
+			if dh <= 0 {
+				dh = t.Height
+			}
+			if t.Img != nil && !t.Img.Disposed() {
+				r.DrawImage(t.Img, ax, ay, dw, dh)
+			} else {
+				r.FillRect(ax, ay, dw, dh, t.PR, t.PG, t.PB, 1)
+			}
 		case *AbsoluteBox:
-			// Non-RB AbsoluteBox: bake its own content; still skip its RB kids.
 			recordAbsoluteOwnContent(r, t, ax, ay)
 		default:
-			// Other RO types not in AbsoluteBox Picture MVP.
+			// Unreachable after boundaryCacheable gate; keep safe no-op.
 		}
 	}
 }

@@ -61,6 +61,12 @@ type Report struct {
 	BoundarySkip     int64 `json:"boundary_skip"`
 	BoundaryCount    int64 `json:"boundary_count,omitempty"`
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
+	// W1 R5 / R9 / R12b counters.
+	PictureOpCount    int64 `json:"picture_op_count,omitempty"`
+	MeasureCacheHit   int64 `json:"measure_cache_hit,omitempty"`
+	MeasureCacheMiss  int64 `json:"measure_cache_miss,omitempty"`
+	DebugRepaintDraws int64 `json:"debug_repaint_draws,omitempty"`
+	DebugRepaintOn    bool  `json:"debug_repaint_on,omitempty"`
 	// AbilityExtra holds R-specific keys (optional).
 	AbilityExtra map[string]any `json:"ability_extra,omitempty"`
 }
@@ -139,6 +145,9 @@ func BuildReport(in BuildInput) Report {
 		BoundarySkip:     in.Snap.BoundarySkip,
 		BoundaryCount:    in.Snap.BoundaryCount,
 		BoundaryMaxDepth: in.Snap.BoundaryMaxDepth,
+		PictureOpCount:   in.Snap.PictureOpCount,
+		MeasureCacheHit:  in.Snap.MeasureCacheHit,
+		MeasureCacheMiss: in.Snap.MeasureCacheMiss,
 		AbilityExtra:     in.Extra,
 	}
 	if r.RSSStartKB == 0 && r.RSSEndKB == 0 && r.RSSPeakKB == 0 {
@@ -208,6 +217,14 @@ type GateOptions struct {
 	MinBoundaryCount int64
 	// MinBoundaryMaxDepth fails when boundary_max_depth < N (R3b nest; 0 = off).
 	MinBoundaryMaxDepth int64
+	// MinPictureOpCount fails when picture_op_count < N (R5; 0 = off).
+	MinPictureOpCount int64
+	// MinMeasureCacheHit fails when measure_cache_hit < N (R9; 0 = off).
+	MinMeasureCacheHit int64
+	// RequireHitsGEMiss fails when measure_cache_hit < measure_cache_miss (R9; false = off).
+	RequireHitsGEMMiss bool
+	// DebugRepaintOnGate fails when debug_repaint_on is false and RequireDebugOn (R12b).
+	RequireDebugOn bool
 	// RequireRetainedPolicy fails when present_policy != retained (W2 R4).
 	RequireRetainedPolicy bool
 	// MaxDamageRatio fails when DamageRatio > threshold (W2; 0 = off). Use steady-state ratio.
@@ -281,6 +298,18 @@ func EvaluateGates(r Report, opt GateOptions) error {
 	}
 	if opt.MinBoundaryMaxDepth > 0 && r.BoundaryMaxDepth < opt.MinBoundaryMaxDepth {
 		return fmt.Errorf("FAIL: boundary_max_depth=%d want >=%d", r.BoundaryMaxDepth, opt.MinBoundaryMaxDepth)
+	}
+	if opt.MinPictureOpCount > 0 && r.PictureOpCount < opt.MinPictureOpCount {
+		return fmt.Errorf("FAIL: picture_op_count=%d want >=%d (display list must hold ops)", r.PictureOpCount, opt.MinPictureOpCount)
+	}
+	if opt.MinMeasureCacheHit > 0 && r.MeasureCacheHit < opt.MinMeasureCacheHit {
+		return fmt.Errorf("FAIL: measure_cache_hit=%d want >=%d", r.MeasureCacheHit, opt.MinMeasureCacheHit)
+	}
+	if opt.RequireHitsGEMMiss && r.MeasureCacheHit < r.MeasureCacheMiss {
+		return fmt.Errorf("FAIL: measure_cache_hit=%d < miss=%d (cache must pay off)", r.MeasureCacheHit, r.MeasureCacheMiss)
+	}
+	if opt.RequireDebugOn && !r.DebugRepaintOn {
+		return fmt.Errorf("FAIL: debug_repaint_on=false want true (R12b overlay active)")
 	}
 	return nil
 }

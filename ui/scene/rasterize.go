@@ -77,3 +77,25 @@ func RasterizeDirtyToContext(pkt *FramePacket, dc *render.Context) RasterStats {
 	}
 	return st
 }
+
+// CountPictureOps sums display-list op counts of every PictureLayer in the
+// packet (R5 picture_op_count metric). Replay-free: walks the tree only.
+func CountPictureOps(pkt *FramePacket) int {
+	if pkt == nil {
+		return 0
+	}
+	n := 0
+	Walk(pkt.Root, func(l Layer) {
+		if pl, ok := l.(*PictureLayer); ok {
+			n += pl.Picture.OpCount()
+		}
+	})
+	if pkt.Overlay != nil {
+		Walk(pkt.Overlay, func(l Layer) {
+			if pl, ok := l.(*PictureLayer); ok {
+				n += pl.Picture.OpCount()
+			}
+		})
+	}
+	return n
+}

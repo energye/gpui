@@ -368,3 +368,91 @@ func TestPipelineOwner_BoundaryCachePersists(t *testing.T) {
 		t.Fatal("BoundaryCache must be stable across calls")
 	}
 }
+
+// TestBoundaryCache_NonCacheableNeverReplays: a boundary whose own content
+// contains RO types the MVP recorder cannot capture (here a Viewport) must not
+// be cached — tryReplay must always miss so live content is never dropped from
+// a stale-frame Replay (correctness-first R3 rewrite).
+func TestBoundaryCache_NonCacheableNeverReplays(t *testing.T) {
+	inner := rendering.NewRenderColorBox(10, 10, 1, 0, 0, 1)
+	vp := rendering.NewRenderViewport(inner)
+	outer := rendering.NewAbsoluteBox(50, 50)
+	outer.SetRepaintBoundary(true)
+	outer.Place(vp, 5, 5)
+	root := rendering.NewAbsoluteBox(100, 100)
+	root.Place(outer, 0, 0)
+
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
+	cache := owner.BoundaryCache()
+
+	_, _ = paintWithCache(t, root, cache, 100, 100)
+	if cache.HasValid(outer) {
+		t.Fatal("viewport-containing boundary must never be cached (would replay stale)")
+	}
+	// Every subsequent frame must still live-paint (no cache Replay ever).
+	rr, sk := paintWithCache(t, root, cache, 100, 100)
+	if sk != 0 {
+		t.Fatalf("non-cacheable boundary skip=%d want 0 (always live)", sk)
+	}
+	if rr != 0 {
+		t.Fatalf("non-cacheable boundary rerecord=%d want 0 (nothing cached)", rr)
+	}
+}
+
+func TestCompositingBits_IncrementalFlush(t *testing.T) {
+	// root → outer(boundary) → mid(boundary) → leaf(boundary): depth 3, count 3
+	leaf := rendering.NewRenderColorBox(8, 8, 1, 0, 0, 1)
+	leaf.SetRepaintBoundary(true)
+	mid := rendering.NewAbsoluteBox(40, 40)
+	mid.SetRepaintBoundary(true)
+	mid.Place(leaf, 4, 4)
+	outer := rendering.NewAbsoluteBox(80, 80)
+	outer.SetRepaintBoundary(true)
+	outer.Place(mid, 4, 4)
+	root := rendering.NewAbsoluteBox(100, 100)
+	root.Place(outer, 0, 0)
+
+	owner := rendering.NewPipelineOwner(root)
+
+	// First flush: everything fresh, bits must propagate (R3b boundary_count).
+	count, depth := rendering.CountRepaintBoundaries(root)
+	if count != 3 || depth != 3 {
+		t.Fatalf("boundary_count=%d depth=%d want 3/3", count, depth)
+	}
+	owner.UpdateCompositingBits()
+	if !leaf.NeedsCompositing() || !mid.NeedsCompositing() || !outer.NeedsCompositing() {
+		t.Fatal("all boundaries must need compositing after first flush")
+	}
+	if !root.NeedsCompositing() {
+		t.Fatal("root must need compositing (nested boundaries)")
+	}
+
+	// Second flush with no changes: clean, no recompute needed (bits stable).
+	if root.NeedsCompositingBitsUpdate() || outer.NeedsCompositingBitsUpdate() {
+		t.Fatal("no structural change: compositing bits must be clean")
+	}
+	owner.UpdateCompositingBits()
+	if !outer.NeedsCompositing() {
+		t.Fatal("clean flush must not clear bits")
+	}
+
+	// New child added to mid: MarkNeedsCompositingBitsUpdate dirties chain to root.
+	extra := rendering.NewRenderColorBox(6, 6, 0, 0, 1, 1)
+	extra.SetRepaintBoundary(true)
+	mid.AddChild(extra)
+	if !mid.NeedsCompositingBitsUpdate() || !outer.NeedsCompositingBitsUpdate() || !root.NeedsCompositingBitsUpdate() {
+		t.Fatal("child add must mark compositing bits dirty up the chain")
+	}
+	count, _ = rendering.CountRepaintBoundaries(root)
+	if count != 4 {
+		t.Fatalf("boundary_count after add=%d want 4", count)
+	}
+	owner.UpdateCompositingBits()
+	if !extra.NeedsCompositing() {
+		t.Fatal("new boundary must need compositing after flush")
+	}
+	if root.NeedsCompositingBitsUpdate() {
+		t.Fatal("flush must clear dirty markers")
+	}
+}
