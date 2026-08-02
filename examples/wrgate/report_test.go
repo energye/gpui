@@ -111,3 +111,43 @@ func TestEvaluateGates_PassMinimal(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestBuildReport_FirstPresentObservations: R16 H-family — observed
+// warmup/time/first-paint from the snapshot must flow into the JSON shell
+// (observation wins over the BuildInput legacy fallback).
+func TestBuildReport_FirstPresentObservations(t *testing.T) {
+	snap := scheduler.FrameMetrics{
+		PresentPolicy:          scheduler.PresentPolicyFullPaint,
+		VSyncSource:            "fallback",
+		Warmup:                 true,
+		TimeToFirstPresentMs:   88.4,
+		FirstPresentPaintCount: 25,
+		PaintCount:             25,
+		RSSStartKB:             1,
+		RSSEndKB:               1,
+		RSSPeakKB:              1,
+	}
+	r := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: "R16", Scenario: "ui_wr_r16_warmup", Snap: snap, PresentCount: 1, ElapsedSec: 0.1,
+		Warmup: false, // legacy fallback must NOT override the observation
+	})
+	if !r.Warmup {
+		t.Fatal("observed warmup=true lost (legacy false overrode)")
+	}
+	if r.TimeToFirstPresentMs != 88.4 {
+		t.Fatalf("time_to_first_present_ms=%v want 88.4", r.TimeToFirstPresentMs)
+	}
+	if r.FirstPresentPaintCount != 25 {
+		t.Fatalf("first_present_paint_count=%d want 25", r.FirstPresentPaintCount)
+	}
+	b, err := wrgate.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	for _, k := range []string{`"warmup"`, `"time_to_first_present_ms"`, `"first_present_paint_count"`} {
+		if !strings.Contains(js, k) {
+			t.Fatalf("JSON missing %s: %s", k, js)
+		}
+	}
+}

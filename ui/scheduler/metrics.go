@@ -110,8 +110,18 @@ type FrameMetrics struct {
 
 	// MeasureCacheHit is cumulative text-measure cache hits since last reset
 	// (W1 R9). MeasureCacheMiss is the miss counterpart for hits≥miss proof.
-	MeasureCacheHit  int64 `json:"measure_cache_hit,omitempty"`
-	MeasureCacheMiss int64 `json:"measure_cache_miss,omitempty"`
+	MeasureCacheHit  int64 `json:"measure_cache_hit"`
+	MeasureCacheMiss int64 `json:"measure_cache_miss"`
+
+	// H-family first-present observation (R16 M-WARMUP / M-TIME-TO-FIRST-PRESENT).
+	// Warmup is true when the Open-time warm-up full paint actually ran before
+	// the first loop present. TimeToFirstPresentMs is wall ms from Open to the
+	// first present completing. FirstPresentPaintCount is the pipe paint count
+	// at that moment (>0 proves the first frame has content, not a black/empty
+	// boot). All three are set once by SetFirstPresent; zero/empty when never.
+	Warmup                 bool    `json:"warmup,omitempty"`
+	TimeToFirstPresentMs   float64 `json:"time_to_first_present_ms,omitempty"`
+	FirstPresentPaintCount int64   `json:"first_present_paint_count,omitempty"`
 }
 
 // MetricsStore is a concurrency-safe metrics accumulator.
@@ -451,6 +461,21 @@ func (s *MetricsStore) SetMeasureCacheStats(hits, misses int64) {
 	s.m.MeasureCacheHit = hits
 	s.m.MeasureCacheMiss = misses
 	s.mu.Unlock()
+}
+
+// SetFirstPresent records the H-family first-present observation (R16):
+// warmup = Open-time warm-up full paint ran; ms = wall ms from Open to first
+// present completing; paintCount = pipe paint count at that moment (>0 =
+// first frame has content). Call exactly once at the first present.
+func (s *MetricsStore) SetFirstPresent(ms float64, warmup bool, paintCount int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m.Warmup = warmup
+	s.m.TimeToFirstPresentMs = ms
+	s.m.FirstPresentPaintCount = paintCount
 }
 
 // percentilesLocked returns p50, p95, and p99 of the interval ring. Caller holds s.mu.

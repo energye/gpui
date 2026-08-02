@@ -53,9 +53,13 @@ type Report struct {
 	GPUOps           int64   `json:"gpu_ops"`
 	CPUFallbackOps   int64   `json:"cpu_fallback_ops"`
 	FrameFlushes     int64   `json:"frame_flushes,omitempty"`
-	LastCPUFallback  string  `json:"last_cpu_fallback,omitempty"`
-	Warmup           bool    `json:"warmup"`
-	ElapsedSec       float64 `json:"elapsed_sec"`
+	LastCPUFallback  string  `json:"last_cpu_fallback"`
+	// H-family first-present (R16): Warmup is observed by PipelineApp (first
+	// present); TimeToFirstPresentMs / FirstPresentPaintCount are observations.
+	Warmup                 bool    `json:"warmup"`
+	TimeToFirstPresentMs   float64 `json:"time_to_first_present_ms,omitempty"`
+	FirstPresentPaintCount int64   `json:"first_present_paint_count,omitempty"`
+	ElapsedSec             float64 `json:"elapsed_sec"`
 	// W1 boundary cache (from MetricsStore; also mirrored in ability_extra).
 	BoundaryRerecord int64 `json:"boundary_rerecord"`
 	BoundarySkip     int64 `json:"boundary_skip"`
@@ -63,8 +67,8 @@ type Report struct {
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
 	// W1 R5 / R9 / R12b counters.
 	PictureOpCount    int64 `json:"picture_op_count,omitempty"`
-	MeasureCacheHit   int64 `json:"measure_cache_hit,omitempty"`
-	MeasureCacheMiss  int64 `json:"measure_cache_miss,omitempty"`
+	MeasureCacheHit   int64 `json:"measure_cache_hit"`
+	MeasureCacheMiss  int64 `json:"measure_cache_miss"`
 	DebugRepaintDraws int64 `json:"debug_repaint_draws,omitempty"`
 	DebugRepaintOn    bool  `json:"debug_repaint_on,omitempty"`
 	// AbilityExtra holds R-specific keys (optional).
@@ -139,16 +143,20 @@ func BuildReport(in BuildInput) Report {
 		CPUFallbackOps:   in.Snap.CPUFallbackOps,
 		FrameFlushes:     in.Snap.FrameFlushes,
 		LastCPUFallback:  in.Snap.LastCPUFallbackReason,
-		Warmup:           in.Warmup,
-		ElapsedSec:       el,
-		BoundaryRerecord: in.Snap.BoundaryRerecord,
-		BoundarySkip:     in.Snap.BoundarySkip,
-		BoundaryCount:    in.Snap.BoundaryCount,
-		BoundaryMaxDepth: in.Snap.BoundaryMaxDepth,
-		PictureOpCount:   in.Snap.PictureOpCount,
-		MeasureCacheHit:  in.Snap.MeasureCacheHit,
-		MeasureCacheMiss: in.Snap.MeasureCacheMiss,
-		AbilityExtra:     in.Extra,
+		// R16: observed warm-up/first-present wins; BuildInput.Warmup is the
+		// legacy fallback for callers without PipelineApp observation.
+		Warmup:                 in.Snap.Warmup || in.Warmup,
+		TimeToFirstPresentMs:   in.Snap.TimeToFirstPresentMs,
+		FirstPresentPaintCount: in.Snap.FirstPresentPaintCount,
+		ElapsedSec:             el,
+		BoundaryRerecord:       in.Snap.BoundaryRerecord,
+		BoundarySkip:           in.Snap.BoundarySkip,
+		BoundaryCount:          in.Snap.BoundaryCount,
+		BoundaryMaxDepth:       in.Snap.BoundaryMaxDepth,
+		PictureOpCount:         in.Snap.PictureOpCount,
+		MeasureCacheHit:        in.Snap.MeasureCacheHit,
+		MeasureCacheMiss:       in.Snap.MeasureCacheMiss,
+		AbilityExtra:           in.Extra,
 	}
 	if r.RSSStartKB == 0 && r.RSSEndKB == 0 && r.RSSPeakKB == 0 {
 		r.RSSUnavailable = true

@@ -64,7 +64,7 @@ L3–L5 Kit                       ← 暂缓
 
 | ID | 能力 | 单能力真窗包名 | **窗口** | **推荐 RUN_SECONDS** | 指标门禁（须 FAIL） | 可见效果（README 必写） | 波次 | 状态 |
 |----|------|----------------|----------|----------------------|--------------------|-------------------------|------|------|
-| **R0** | **FullPaint 正确性**（静+动同屏，防 Clear 丢静态） | `ui_wr_r0_fullpaint` | **1200×800** | **5**（观察 15） | **§2.2 全族** + policy + 静/动存在；持续 tick 则 **fps 门禁** | 静网+文+动；LiveHUD；相位 | **W0** | **⬜** |
+| **R0** | **FullPaint 正确性**（静+动同屏，防 Clear 丢静态） | `ui_wr_r0_fullpaint` | **1200×800** | **5**（观察 15） | **§2.2 全族** + policy + 静/动存在；持续 tick 则 **fps 门禁** | 静网+文+动；LiveHUD；相位 | **W0** | **✅** |
 | **R1** | 局部 NeedsLayout | `ui_wr_r1_layout` | **1200×800** | **5** | `layout_count` 符合「只脏子树」约定 | 仅目标子节点高度变，邻域不抖 | W1+ | ⬜ |
 | **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | **1200×800** | **5** | `paint_count`/visits 可解释 | 仅目标节点变色 | **W1** | **✅** |
 | **R3** | Boundary 真缓存 | `ui_wr_r3_boundary` | **1200×800** | **10** | `boundary_rerecord` 仅脏；**`boundary_skip>0`** | 静 boundary 不动；脏每帧变 | **W1** | **✅** |
@@ -79,12 +79,12 @@ L3–L5 Kit                       ← 暂缓
 | **R9** | 文本 measure 缓存 | `ui_wr_r9_text_cache` | **1200×800** | **5** | `measure_cache_hit`（可先打桩再严） | 同文同 style 宽高稳、不抖 | **W1** | **✅** |
 | **R10** | 图异步→局部脏 | `ui_wr_r10_async_image` | **1200×800** | **30** | 出图后 rerecord **仅一格** | 占位→图仅该格变 | **W3** | **⬜** |
 | **R11** | DPR/尺寸缓存失效 | `ui_wr_r11_dpr` | **1200×800** | **15** | 变更后 rerecord **一波**再回稳 | 无残影、不错位 | **W2** | **⬜** |
-| **R12** | 帧指标字段完备 | `ui_wr_r12_metrics` | **1200×800** | **5** | **公共字段全集存在**否则 FAIL（可 `schema_only` 主判，仍须真窗 Present） | stderr/JSON 可读；字段齐 | **W0** | **⬜** |
+| **R12** | 帧指标字段完备 | `ui_wr_r12_metrics` | **1200×800** | **5** | **公共字段全集存在**否则 FAIL（可 `schema_only` 主判，仍须真窗 Present） | stderr/JSON 可读；字段齐 | **W0** | **✅** |
 | **R12b** | 重绘调试可视化 | `ui_wr_r12b_debug_repaint` | **1200×800** | **8** | `debug_repaint=1` 时有叠加标志 | **人眼见谁在重绘** | **W1** | **✅** |
 | **R13** | Hit ≡ 绘 | `ui_wr_r13_hit` | **1200×800** | **5** | 点击→命中 ID（脚本或日志断言） | 点哪高亮哪 | **W2** | **⬜** |
 | **R14** | 缓存预算/淘汰 | `ui_wr_r14_cache_budget` | **1200×800** | **60** | `cache_entries`、**RSS slope FAIL** | 超预算仍正确 | **W6** | ⬜ |
 | **R15** | UI/raster 所有权·长跑 | `ui_wr_r15_soak` | **1200×800** | **300** | 时长、无崩、无读回；hitch/CPU/RSS | soak 不挂 | W2+ | ⬜ |
-| **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup` | **1200×800** | **5** | 首帧 full；`warmup:true`；policy；首帧有内容 | 首帧有内容；恢复不黑 | **W0** | **⬜** |
+| **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup` | **1200×800** | **5** | 首帧 full；`warmup:true`；policy；首帧有内容 | 首帧有内容；恢复不黑 | **W0** | **✅** |
 | **R17** | 不可见降频 | `ui_wr_r17_bg_throttle` | **1200×800** | **30** | 后台 interval 明显变大 | 后置 | 后置 | ⬜ |
 | **R18** | SaveLayer+预算 | `ui_wr_r18_savelayer` | **1200×800** | **10** | `savelayer_count`/reject | 组内半透明对；超预算可观测 | **W2** | **⬜** |
 | **R19** | 1px/设备像素对齐 | `ui_wr_r19_snap` | **1200×800** | **5** | 约定 scale 下采样或截图门禁 | 1px 线清晰不糊 | W1–W2 | **✅** |
@@ -391,7 +391,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 | 组合 ID | 覆盖的主能力（至少） | 真窗包名 | **窗口** | **推荐 RUN_SECONDS** | 要证明的集成效果 | 指标要点 | 波次 |
 |---------|----------------------|----------|----------|----------------------|------------------|----------|------|
-| **C0** | R0+R12+R16 | `ui_wr_c0_smoke` | **1200×800** | **5** | 开机即见静+动；指标字段齐（**集成**；**不能**代替 R0/R12/R16 单窗） | policy、presents、首帧 | **W0** ⬜ |
+| **C0** | R0+R12+R16 | `ui_wr_c0_smoke` | **1200×800** | **5** | 开机即见静+动；指标字段齐（**集成**；**不能**代替 R0/R12/R16 单窗） | policy、presents、首帧 | **W0** ✅ |
 | **C1** | R2+R3+R3b+R12b | `ui_wr_c1_boundary_nest` | **1200×800** | **10** | 嵌套 boundary + 可开关 debug 重绘色 | rerecord/skip/boundary_count | **W1** ✅ |
 | **C2** | R3+R4+R4b+R5 | `ui_wr_c2_retained_scene` | **1200×800** | **15** | Retained 整场景：多 boundary + Picture | damage_ratio、dirty_layers | **W2** ⬜ |
 | **C3** | R4+R7+R7b+R10 | `ui_wr_c3_list_scroll` | **1200×800** | **60** | 虚拟列表 + 滚复用 + 异步图格 | bind、scroll_rerecord、p95 | **W3** ⬜ |
@@ -462,7 +462,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 
 | W | 状态 | 必须绿的 **单能力窗** | 必须绿的 **组合窗** |
 |---|------|----------------------|---------------------|
-| **W0** | ⬜ | **R0⬜ · R12⬜ · R16⬜**（各独立 `ui_wr_*` 真窗） | C0⬜（仅集成） |
+| **W0** | **✅** | **R0✅ · R12✅ · R16✅**（各独立 `ui_wr_*` 真窗） | C0✅（仅集成） |
 | **W1** | **✅** | R2✅ R3✅ R3b✅ R5✅ R9✅ R12b✅ R19✅（各独立 `ui_wr_*` 真窗） | C1✅ |
 | **W2** | ⬜ | **R4⬜ R4b⬜ R5⬜ R11⬜ R13⬜ R18⬜** · R21(可) R19(可) | **C2⬜ C7⬜ 组合窗** |
 | **W3** | **⬜** | R7⬜ · R7b⬜ · R10⬜（各独立 `ui_wr_*` 真窗） | C3⬜ |
@@ -528,10 +528,18 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 | （初始） | 修订记录已清除；全部 R/C/W 状态回退初始 ⬜。待彻查收敛后重新关闭。 |
 | （重写中） | W1–W3 推翻重写（进行中）：ui 层 R 能力代码按文档全部删除重实现，对齐 skia/flutter 工业级控件基座。涉及 R= R2/R3/R3b/R4/R4b/R5/R7/R7b/R9/R10/R11/R12b/R13/R18/R19/R21，C= C1/C2/C3/C7。逐波执行：W1 → W2 → W3。 |
 | W1 波收口 | **W1 整波 GPU PASS**：ui 层重写 R2（局部 NeedsPaint + paint_visits）/ R3（BoundaryCache 通用录制 + non-cacheable 门禁 + tryReplay 位移）/ R3b（compositing bits 增量传播 + boundary_count/max_depth）/ R5（CountPictureOps + picture_op_count）/ R9（measure_cache_hit/miss 接线）/ R12b（debug repaint 接线）/ R19（snap.go 1px 对齐）；7 独立真窗 + C1 组合窗 GPU 全绿（fps≈60、skip/rerecord、hits≥miss、debug on/off）。 |
+| R0 真窗 | **R0 FullPaint 正确性 独立真窗 GPU PASS**（`ui_wr_r0_fullpaint` 1200×800·5s）：6×4 静色格 + 12 静文 + 相位驱动动块同屏；fps_interval=59.9（≥55）、paint_count≈presents（每帧全树）、damage_ratio=1（full_paint 语义非 Retained）、warmup=true、全族 A–J 字段齐。 |
+| R0 指标审计 | **metrics-audit R0 通过**：族 A–E/H/I 字段全 PRESENT；诚实性全绿（vsync_source=true 真实、cpu_ui+raster≈cpu_pct_avg、rss 短窗 slope 已声明）；无阈值偷放；无降画质装绿。修复 wrgate 指标层 1 处：`last_cpu_fallback` 空值被 omitempty 静默省略（违反 §2.2.1 禁止默默省略）→ 已去 omitempty 并重跑确认。 |
+| R12 真窗 | **R12 帧指标字段完备 独立真窗 GPU PASS**（`ui_wr_r12_metrics` 1200×800·5s）：`gate=schema_only`（R12 唯一允许）+ 真窗 Present=301（静态 4×3 色格 + 8 文 + 相位动块）；wrgate 30 RequiredSchemaKeys + §2.2.1 A–J 全族 42 键逐一核对全存在；fps_interval=59.9 如实输出不做硬门禁；顺带修复 wrgate `measure_cache_hit` 同款 omitempty 省略。 |
+| R16 能力 | **R16 H 族观测接线**（wr-implement）：FrameMetrics 加 `warmup`/`time_to_first_present_ms`/`first_present_paint_count`（取自 §2.2.1 H 族 M-WARMUP/M-TIME-TO-FIRST-PRESENT）；PipelineApp `recordFirstPresent` 首帧一次性发布（WarmUp presentSyncFull 或主循环首帧，互斥首次赢）；wrgate BuildReport 观测优先于旧 Warmup 兜底；单测 `TestMetrics_FirstPresent_*` + `TestBuildReport_FirstPresentObservations` 绿 + `go test ./ui/...` 无回归。 |
+| R16 真窗 | **R16 首帧/WarmUp/恢复 独立真窗 GPU PASS**（`ui_wr_r16_warmup` 1200×800·5s）：WarmUp=true 首帧全清全画（warmup 观测=true）；首帧有内容 first_present_paint_count>0；time_to_first_present_ms=89.6ms（Open→首 Present 墙钟观测）；fps_interval=59.9（≥55 持续 tick）；中段 InvalidateBoundaryCache 模拟遮挡恢复 → recovery_repaint_ok=true（恢复后全树重画继续、不黑）；policy=full_paint。 |
+| W0 三窗视觉区分 | **wr-close 模式 3 视觉优化**（R0/R12/R16 肉眼可区分）：R0 加相位横幅大字（PHASE: STEADY/SPIKE/RECOVER 随相位变字变色，相位驱动可见）；R12 加 SCHEMA 大字实时滚动核对字段名（`SCHEMA: 42 FIELDS · <key>`，schema 核对可视化）；R16 恢复瞬间动块大跳到右下变白 + 大字横幅 `RECOVERY OK`（约 1s），恢复动作肉眼可见。三窗重跑 GPU 全绿（R0 fps=59.9 / R12 schema_only OK / R16 recovery=true·t2f=101ms）。 |
+| C0 真窗 | **C0 R0+R12+R16 集成窗 GPU PASS**（`ui_wr_c0_smoke` 1200×800·5s）：开机即见静+动（6×4 色格 + 12 文 + 相位动块 + SCHEMA 滚动大字 + 首帧横幅）；policy=full_paint、首帧不黑（warmup=true + first_present_paint_count=1）、静态每帧存活（paint=300≈presents=301）、§2.2.1 全族 42 键 + wrgate 30 键全在、fps_interval=59.9、t2f=110ms。集成窗不代单窗。 |
+| **W0 波收口** | **W0 整波 GPU PASS**：R0（FullPaint 正确性）/ R12（指标字段完备）/ R16（首帧/WarmUp/恢复）3 独立真窗 + C0 集成窗全绿；顺带 wrgate 指标层修复（last_cpu_fallback / measure_cache_hit 禁止 omitempty 静默省略）+ H 族观测接线（warmup / time_to_first_present_ms / first_present_paint_count）+ R0 指标审计通过 + 三窗视觉区分。默认 Present 仍 full_paint 至 W6。 |
 
 ---
 
 ## 11. 一句话
 
 > **每个主能力真窗：1200×800 · RUN_SECONDS≥5 · 按能力加长观察指标（§2 主表 + §2.5 全表）。**  
-> **状态以 §2 主表 + §3 组合表 + §5 分期 + §10 修订为准。** W0–W3 全部 ⬜（初始）。默认 Present 仍 full_paint 至 W6。
+> **状态以 §2 主表 + §3 组合表 + §5 分期 + §10 修订为准。** W0 ✅ · W1 ✅ · W2–W3 ⬜。默认 Present 仍 full_paint 至 W6。

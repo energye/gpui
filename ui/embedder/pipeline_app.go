@@ -75,6 +75,11 @@ type PipelineApp struct {
 	lastDirtyIDs    []uint64
 	maxDirtyIDCount int
 	lastPresentMode string
+
+	// R16 H-family first-present observation: wall start of Open; recorded once
+	// at the first present (warm-up full paint or first loop present).
+	firstPresentT0       time.Time
+	firstPresentRecorded atomic.Bool
 }
 
 // SetDebugRepaint toggles R12b repaint visualization for subsequent presents.
@@ -362,6 +367,7 @@ func (a *PipelineApp) Run() error {
 		a.layoutFrames.Add(1)
 	}
 	a.forceFullPresent.Store(true) // first present after open is always full
+	a.firstPresentT0 = time.Now()
 	if a.opts.WarmUp {
 		a.presentSyncFull()
 		a.forceFullPresent.Store(false) // warm-up already full-cleared swapchain
@@ -549,6 +555,10 @@ func (a *PipelineApp) Run() error {
 					// W1 R3: accumulate boundary skip/rerecord from last paint walk.
 					rr, sk := LastBoundaryFrame()
 					metrics.NoteBoundaryFrame(rr, sk)
+					// R16 H-family: first loop present (warm-up path already recorded).
+					if a.presents.Load() == 0 {
+						a.recordFirstPresent()
+					}
 				}
 				return err
 			},
@@ -708,6 +718,28 @@ func (a *PipelineApp) presentSyncFull() {
 	_, _ = presentTreeOpts(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, opts)
 	a.debugRepaintDraws.Add(frameDraws)
 	a.presents.Add(1)
+	a.recordFirstPresent()
+}
+
+// recordFirstPresent publishes the H-family first-present observation exactly
+// once (R16): wall ms from Open, whether the warm-up full paint ran, and the
+// pipe paint count at that moment (>0 = first frame has content). The first
+// caller wins; later frames are ignored.
+func (a *PipelineApp) recordFirstPresent() {
+	if a == nil || a.firstPresentRecorded.Swap(true) {
+		return
+	}
+	ms := 0.0
+	if !a.firstPresentT0.IsZero() {
+		ms = time.Since(a.firstPresentT0).Seconds() * 1000
+	}
+	if m := a.sched.Metrics(); m != nil {
+		var paintCount int64
+		if p := a.pipe; p != nil {
+			paintCount = p.PaintCount
+		}
+		m.SetFirstPresent(ms, a.opts.WarmUp, paintCount)
+	}
 }
 
 // HitTestPointer runs overlay-first then main hit testing (logical coords).

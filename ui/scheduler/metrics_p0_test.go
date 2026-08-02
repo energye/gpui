@@ -238,3 +238,48 @@ func TestMetrics_PathCPU_ZeroWithoutNotes(t *testing.T) {
 		t.Fatalf("unavailable must be zero: ui=%v raster=%v", snap.CPUUIPct, snap.CPURasterPct)
 	}
 }
+
+// TestMetrics_FirstPresent_HFamily: R16 H-family observation — SetFirstPresent
+// publishes warmup + time-to-first-present + first-frame content proof, and
+// JSON emits all three keys (never silently omitted).
+func TestMetrics_FirstPresent_HFamily(t *testing.T) {
+	s := scheduler.New().Metrics()
+	fresh := s.Snapshot()
+	if fresh.Warmup || fresh.TimeToFirstPresentMs != 0 || fresh.FirstPresentPaintCount != 0 {
+		t.Fatalf("fresh store must have zero H-family: %+v", fresh)
+	}
+	s.SetFirstPresent(123.5, true, 87)
+	snap := s.Snapshot()
+	if !snap.Warmup {
+		t.Fatal("warmup=false want true")
+	}
+	if snap.TimeToFirstPresentMs != 123.5 {
+		t.Fatalf("time_to_first_present_ms=%v want 123.5", snap.TimeToFirstPresentMs)
+	}
+	if snap.FirstPresentPaintCount != 87 {
+		t.Fatalf("first_present_paint_count=%d want 87", snap.FirstPresentPaintCount)
+	}
+	b, err := s.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	for _, k := range []string{`"warmup"`, `"time_to_first_present_ms"`, `"first_present_paint_count"`} {
+		if !containsAll(js, k) {
+			t.Fatalf("JSON missing %s: %s", k, js)
+		}
+	}
+}
+
+// TestMetrics_FirstPresent_WarmupFalse: R16 非预热路径 warmup 观测为 false。
+func TestMetrics_FirstPresent_WarmupFalse(t *testing.T) {
+	s := scheduler.New().Metrics()
+	s.SetFirstPresent(50, false, 10)
+	snap := s.Snapshot()
+	if snap.Warmup {
+		t.Fatal("warmup=true want false (no warm-up ran)")
+	}
+	if snap.TimeToFirstPresentMs != 50 {
+		t.Fatalf("time=%v want 50", snap.TimeToFirstPresentMs)
+	}
+}
