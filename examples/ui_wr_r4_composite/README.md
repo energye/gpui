@@ -20,7 +20,7 @@ RUN_SECONDS=15 go run ./examples/ui_wr_r4_composite
 | TopBar 标题/相位 | 标题 "R4 retained composite"，相位文字随脚本切换（STEADY/SPIKE/RECOVER） |
 | 左图例 legend | 静态，不随帧重绘 |
 | Body 网格 16 格（4×4） | 静态色块，含嵌套 boundary；网格外右下角 PhaseLabel（`PHASE: STEADY` 等）仅相位切换时变化 |
-| Body 动态热点 hot | 红块 @(700,560) 稳态 / 黄块 @(760,560) SPIKE / 蓝块 @(700,640) RECOVER，相位切换时移动/变色 |
+| Body 动态热点 hot | 红块 稳态（align 0.78,0.86）/ 黄块 SPIKE（0.84,0.86）/ 蓝块 RECOVER（0.78,0.97）；**Align 布局驱动**：位置 = (body−hot)×比例，相位切换移动/变色；resize 时 Layout 自动重算 offset（无 clamp、无固定坐标） |
 | 底栏 HUD | 实时 `dmg=.. mode=.. skip=..` + PASS/FAIL 预览色；`WR_HUD=0` 可关 |
 
 ## Gates（§2 主表 R4 + §2.2 全族 FAIL 线）
@@ -48,6 +48,7 @@ RUN_SECONDS=15 go run ./examples/ui_wr_r4_composite
 
 ## 引擎实现（本次修复）
 
+- `ui/rendering/align.go`（新）：`RenderAlignBox`（Flutter Align 语义）——填满父约束、child 宽松布局、offset=(父−子)×比例；`SetAlignment` 脏 layout+child paint；`node.go` baseOf 注册。示例经 `wrkit.Panel.Align` 使用（布局驱动，resize 自动跟随）。
 - `ui/scene/textured.go`（新）：`PictureTextureCache`（record/recordLocal/evictForNew/BeginFrame/recordFrame/releaseDeferred/drainDeferred/restrictive/transformBounds/measureTextBounds）+ `CompositeFramePacketTextured`。
 - `ui/embedder/pipeline_app.go`：`presentPacketTextured`（逐脏矩形 TrackDamageRect、boundaryFrameSnap、ConsumeNeedsPaint）。
 - `render/context_image.go`：`TextureView` 别名（ui→render 边界，禁止 ui→gpu）。

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -75,6 +76,17 @@ type PresentTarget struct {
 	// budget), and is 3 to cover double/triple buffering.
 	postResizeFull int
 
+	// resizeStormWindow / lastResizeAt implement storm-aware full recovery:
+	// while a resize storm is active (each step arrives faster than the window,
+	// e.g. continuous drag-resize), the fixed 3-frame budget can be exhausted
+	// between steps and a retained damage frame then LoadOpLoads a buffer that
+	// was never fully written at the new size → black/aliased edges. The window
+	// forces the full path for every present while the last resize is fresher
+	// than resizeStormWindow, so a storm stays fully written; after the storm
+	// ends, the last resize re-armed postResizeFull=3 covers the tail.
+	resizeStormWindow time.Duration
+	lastResizeAt      time.Time
+
 	// lastOutcome / lastDamageArea are set by PresentWith / PresentWithAuto for metrics.
 	lastOutcome    PresentOutcome
 	lastDamageArea int64 // physical px² of last FrameDamage union (0 if idle/empty)
@@ -132,11 +144,11 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 	sc.Usage = types.TextureUsageRenderAttachment
 	sc.SetPreferVSync()
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
+		surf.Release()
 		device.Release()
 		adapter.Release()
-		surf.Release()
 		inst.Release()
-		return nil, fmt.Errorf("render: Configure swapchain: %w", err)
+		return nil, fmt.Errorf("render: ConfigureFromCapabilities: %w", err)
 	}
 
 	// Bind shared device for GPU-accelerated draws (blank clear still works if this fails).
@@ -157,6 +169,9 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		surf:    surf,
 		sc:      sc,
 		dc:      dc,
+		// Default storm window: 300ms ≈ 18 frames @60Hz — a drag-resize step
+		// arriving faster than this keeps the full path active continuously.
+		resizeStormWindow: 300 * time.Millisecond,
 	}, nil
 }
 
@@ -209,6 +224,19 @@ func (t *PresentTarget) Scale() float64 {
 	return t.scale
 }
 
+// SetResizeStormWindow configures the storm window used by InFullRecovery /
+// the full-path forcing (see resizeStormWindow). <=0 disables storm awareness
+// (fixed postResizeFull budget only). Tests shrink the window to exercise the
+// storm boundary without waiting.
+func (t *PresentTarget) SetResizeStormWindow(d time.Duration) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.resizeStormWindow = d
+}
+
 // Resize updates logical size / scale and reconfigures the swapchain.
 func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 	if t == nil {
@@ -243,8 +271,11 @@ func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 		}
 		// Swapchain reconfigured → every buffer is undefined. Owe full frames
 		// so each buffer is fully written before retained LoadOpLoad frames
-		// read it again (otherwise resize storms leave black regions).
+		// read it again (otherwise resize storms leave black regions). Also
+		// arm the storm window so every present while the resize storm is
+		// active stays full even if the 3-frame budget is spent between steps.
 		t.postResizeFull = 3
+		t.lastResizeAt = time.Now()
 	}
 	return nil
 }
@@ -259,16 +290,27 @@ func (t *PresentTarget) PresentClear(r, g, b, a float64) error {
 }
 
 // InFullRecovery reports whether the swapchain was reconfigured and full
-// frames are still owed to its buffers. Callers that would skip work for
-// retained steady frames (e.g. compositeOnly) must disable that path while
-// this is true so every new buffer gets fully written.
+// frames are still owed to its buffers — either by the fixed post-resize
+// budget (postResizeFull) or by an active resize storm (lastResizeAt within
+// the storm window). Callers that would skip work for retained steady frames
+// (e.g. compositeOnly) must disable that path while this is true so every new
+// buffer gets fully written.
 func (t *PresentTarget) InFullRecovery() bool {
 	if t == nil {
 		return false
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.postResizeFull > 0
+	return t.postResizeFull > 0 || t.inResizeStormLocked()
+}
+
+// inResizeStormLocked reports whether a resize storm is active: the most
+// recent physical resize is fresher than resizeStormWindow. Caller holds mu.
+func (t *PresentTarget) inResizeStormLocked() bool {
+	if t.resizeStormWindow <= 0 {
+		return false
+	}
+	return !t.lastResizeAt.IsZero() && time.Since(t.lastResizeAt) < t.resizeStormWindow
 }
 
 // PresentWith begins a frame, runs draw (logical coords on dc), and presents
@@ -325,7 +367,9 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 
 	// Reconfigured swapchain buffers are undefined until each is fully
 	// written; owed full frames force the full path (Skia recreate semantics).
-	if t.postResizeFull > 0 {
+	// During an active resize storm every present stays full too, so a buffer
+	// at an intermediate size is never LoadOpLoad'd half-written.
+	if t.postResizeFull > 0 || t.inResizeStormLocked() {
 		forceFull = true
 	}
 

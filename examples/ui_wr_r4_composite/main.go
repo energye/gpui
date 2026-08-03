@@ -7,6 +7,10 @@
 // Gates: present_policy=retained; 稳态 damage_ratio<=0.35（远小于全屏）;
 // present_mode 非 full（damage_union/multi）; boundary_skip>0（静态区不重绘）;
 // 持续 tick fps>=55。Retained 下静态区域每帧不重绘、局部动画区持续变化。
+//
+// Flutter 对齐用法：hot 块不手算坐标，由 wrkit.Panel.Align 布局驱动——
+// 位置 = (父尺寸 - 子尺寸) × 对齐比例，resize 时 Layout 自动重算 offset，
+// 无 clamp 跳变（对齐 Flutter Align/FractionallySizedBox 语义）。
 package main
 
 import (
@@ -51,6 +55,7 @@ func main() {
 		"damage_ratio<=0.35（≪全屏）",
 		"present_mode 非 full（局部损伤）",
 		"静态区 boundary_skip>0",
+		"HOT 块 Align 布局驱动（Flutter 对齐）",
 	})
 
 	// 大面积静态背景：8x5 色格平铺左区（多 boundary 区域，retained 下不重绘）。
@@ -72,11 +77,11 @@ func main() {
 		staticCount++
 	}
 	// 局部动画区（右下）：HOT 动块 + 相位横幅（唯一持续变化区域）。
-	// body (700,500) 起 → surface (984,560) 起，全部落在 1200 宽窗口内。
+	// HOT 块用 Flutter 式 Align 布局驱动：位置 = (body - hot) × 比例，
+	// resize 时 Layout 自动重算 offset —— 无 clamp、无固定坐标。
 	hot := rendering.NewRenderColorBox(100, 100, 0.95, 0.2, 0.2, 1)
 	hot.SetRepaintBoundary(true)
-	shell.Body.Place(hot, 700, 560)
-	hotX, hotY := 700.0, 560.0
+	hotAlign := shell.Body.Align(hot, 0.78, 0.86)
 	phaseLabel := wrkit.Label("PHASE: STEADY", 16, 0.95, 0.95, 0.4)
 	// Phase text changes at phase flips — isolate it in its own layer so the
 	// MarkNeedsPaint bubble stops here instead of reaching the window root
@@ -109,33 +114,17 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
 		hotTick++
+		// 相位 → 对齐比例（布局驱动：Layout 时按 body 当前尺寸求 offset）。
 		switch phase {
 		case wrkit.PhaseSteady:
 			hot.R, hot.G, hot.B = 0.95, 0.2, 0.2
-			hotX, hotY = 700, 560
+			hotAlign.SetAlignment(0.78, 0.86)
 		case wrkit.PhaseSpike:
 			hot.R, hot.G, hot.B = 1.0, 0.85, 0.2
-			hotX, hotY = 760, 560
+			hotAlign.SetAlignment(0.84, 0.86)
 		default:
 			hot.R, hot.G, hot.B = 0.2, 0.7, 0.95
-			hotX, hotY = 700, 640
-		}
-		// Keep the animated block fully inside the body band after window
-		// resizes (fixed placement would fall below the window on small sizes
-		// and the region would look frozen / off-screen).
-		if bW, bH := shell.Body.W, shell.Body.H; bW > 0 && bH > 0 {
-			if hotX+100 > bW {
-				hotX = bW - 100
-			}
-			if hotY+100 > bH {
-				hotY = bH - 100
-			}
-			if hotX < 0 {
-				hotX = 0
-			}
-			if hotY < 0 {
-				hotY = 0
-			}
+			hotAlign.SetAlignment(0.78, 0.97)
 		}
 		// 相位切换才重录标签层（稳态保持纹理 blit，损伤=文本矩形）。
 		if phase != lastPhase {
@@ -153,7 +142,6 @@ func main() {
 			}
 			phaseLabel.MarkNeedsPaint()
 		}
-		shell.Body.Box.Place(hot, hotX, hotY)
 		hot.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
@@ -215,6 +203,7 @@ func main() {
 			"last_present_mode":   lastMode,
 			"static_visible":      staticCount,
 			"hot_repaints":        hotTick,
+			"hot_aligned":         "align_layout_driven",
 			"boundary_skip":       snap.BoundarySkip,
 			"boundary_rerecord":   snap.BoundaryRerecord,
 		},

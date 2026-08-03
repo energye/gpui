@@ -110,6 +110,9 @@ func TestPresentResize_FullRecoveryWritesEveryBuffer(t *testing.T) {
 	xw := openResizeX11(t, 320, 240)
 	t.Cleanup(xw.close)
 	pt := newResizeTarget(t, xw, 320, 240)
+	// Disable the storm window: this test exercises the fixed 3-frame budget
+	// in isolation (the steady frame below must be allowed to go idle).
+	pt.SetResizeStormWindow(0)
 
 	// Baseline full present.
 	if err := pt.PresentWith(drawFill); err != nil {
@@ -169,5 +172,84 @@ func TestPresentResize_FullRecoveryWritesEveryBuffer(t *testing.T) {
 	}
 	if out2.Mode != render.PresentModeFull {
 		t.Fatalf("empty draw during recovery must still be full, got %v", out2.Mode)
+	}
+}
+
+// TestPresentResize_StormWindowCoversBudgetGap verifies storm-aware recovery:
+// after the fixed 3-frame budget is spent, an active resize storm (default
+// window, 300ms) still forces full presents — the gap between storm steps must
+// never see a retained damage frame LoadOpLoad a half-written buffer. Once the
+// window is disabled (storm over), the target returns to steady behavior.
+func TestPresentResize_StormWindowCoversBudgetGap(t *testing.T) {
+	if os.Getenv("GPUI_FORCE_NO_X11") == "1" {
+		t.Skip("GPUI_FORCE_NO_X11=1")
+	}
+	if os.Getenv("DISPLAY") == "" {
+		t.Skip("no DISPLAY")
+	}
+
+	xw := openResizeX11(t, 320, 240)
+	t.Cleanup(xw.close)
+	pt := newResizeTarget(t, xw, 320, 240)
+
+	// Baseline full present arms nothing.
+	if err := pt.PresentWith(drawFill); err != nil {
+		t.Fatalf("baseline present: %v", err)
+	}
+	if pt.InFullRecovery() {
+		t.Fatalf("fresh target must not be in full recovery")
+	}
+
+	// Resize arms both the 3-frame budget and the storm window.
+	if err := pt.Resize(200, 150, 1.0); err != nil {
+		t.Fatalf("Resize: %v", err)
+	}
+	if !pt.InFullRecovery() {
+		t.Fatalf("Resize must arm full recovery")
+	}
+
+	// Spend the fixed 3-frame budget.
+	for i := 0; i < 3; i++ {
+		out, err := pt.PresentWithAuto(func(dc *render.Context) {})
+		if err != nil {
+			t.Fatalf("budget present %d: %v", i, err)
+		}
+		if out.Mode != render.PresentModeFull {
+			t.Fatalf("budget present %d: want full, got %v", i, out.Mode)
+		}
+	}
+
+	// Budget spent, but the storm window (default 300ms) must still be active:
+	// recovery stays on and the next present is full, not a damage frame.
+	if !pt.InFullRecovery() {
+		t.Fatal("storm window must keep full recovery after budget is spent")
+	}
+	out, err := pt.PresentWithAuto(func(dc *render.Context) {
+		dc.SetRGBA(0.2, 0.4, 0.6, 1)
+		dc.DrawRectangle(5, 5, 10, 10)
+		_ = dc.Fill()
+	})
+	if err != nil {
+		t.Fatalf("storm present: %v", err)
+	}
+	if out.Mode != render.PresentModeFull {
+		t.Fatalf("storm window present: want full, got %v", out.Mode)
+	}
+
+	// Storm over (window disabled): steady behavior returns immediately.
+	pt.SetResizeStormWindow(0)
+	if pt.InFullRecovery() {
+		t.Fatal("storm window disabled must end full recovery")
+	}
+	out, err = pt.PresentWithAuto(func(dc *render.Context) {
+		dc.SetRGBA(0.2, 0.4, 0.6, 1)
+		dc.DrawRectangle(5, 5, 10, 10)
+		_ = dc.Fill()
+	})
+	if err != nil {
+		t.Fatalf("post-storm present: %v", err)
+	}
+	if out.Mode == render.PresentModeFull {
+		t.Fatalf("post-storm present must not be forced full, got %v", out.Mode)
 	}
 }

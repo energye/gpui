@@ -46,6 +46,20 @@ func (p *Panel) LabelAt(text string, size, x, y, r, g, b float64) *rendering.Ren
 	return t
 }
 
+// Align places child inside this panel with Flutter Align semantics: the
+// wrapper fills the panel and offsets child by fractional alignment of the
+// leftover space (0=left/top, 0.5=center, 1=right/bottom). Positioning is
+// layout-driven — on panel resize Layout recomputes the offset automatically,
+// so the child follows the size without imperative coordinates or clamping.
+func (p *Panel) Align(child rendering.RenderObject, ax, ay float64) *rendering.RenderAlignBox {
+	if p == nil || p.Box == nil {
+		return nil
+	}
+	a := rendering.NewRenderAlignBox(child, ax, ay)
+	p.Box.Place(a, 0, 0)
+	return a
+}
+
 // ColorAt places a solid color box at panel-local coords (optional boundary).
 func (p *Panel) ColorAt(w, h, x, y, r, g, b, a float64, boundary bool) *rendering.RenderColorBox {
 	c := rendering.NewRenderColorBox(w, h, r, g, b, a)

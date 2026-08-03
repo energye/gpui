@@ -69,7 +69,7 @@ L3–L5 Kit                       ← 暂缓
 | **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | **1200×800** | **5** | `paint_count`/visits 可解释 | 仅目标节点变色 | **W1** | **✅** |
 | **R3** | Boundary 真缓存 | `ui_wr_r3_boundary` | **1200×800** | **10** | `boundary_rerecord` 仅脏；**`boundary_skip>0`** | 静 boundary 不动；脏每帧变 | **W1** | **✅** |
 | **R3b** | Compositing bits / 边界发现 | `ui_wr_r3b_compbits` | **1200×800** | **8** | `boundary_count`；合成链深度 | 嵌套 boundary 只重约定层 | **W1** | **✅** |
-| **R4** | 层 Composite Present | `ui_wr_r4_composite` | **1200×800** | **15** | `present_policy`；`damage_ratio` 门禁 | Retained 下静在、damage≪全屏 | **W2** | **⬜** |
+| **R4** | 层 Composite Present | `ui_wr_r4_composite` | **1200×800** | **15** | `present_policy`；`damage_ratio` 门禁 | Retained 下静在、damage≪全屏 | **W2** | **✅** |
 | **R4b** | DirtyLayerID + 多 damage | `ui_wr_r4b_multidamage` | **1200×800** | **15** | `dirty_layer_ids`；rects/并集 | 两远离脏点更新，中间静在 | **W2** | **⬜** |
 | **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；可选像素差 | 回放区≡直绘区 | **W1–W2** | **✅** |
 | **R6** | Opacity/Transform/Clip **层**动画 | `ui_wr_r6_layer_anim` | **1200×800** | **30** | `paint_count` 稳；`hitch_rate`；**fps≥55** | 转/淡/裁流畅；静背景不闪 | **W5** | ⬜ |
@@ -464,7 +464,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 |---|------|----------------------|---------------------|
 | **W0** | **✅** | **R0✅ · R12✅ · R16✅**（各独立 `ui_wr_*` 真窗） | C0✅（仅集成） |
 | **W1** | **✅** | R2✅ R3✅ R3b✅ R5✅ R9✅ R12b✅ R19✅（各独立 `ui_wr_*` 真窗） | C1✅ |
-| **W2** | ⬜ | **R4⬜ R4b⬜ R5⬜ R11⬜ R13⬜ R18⬜** · R21(可) R19(可) | **C2⬜ C7⬜ 组合窗** |
+| **W2** | ⬜ | **R4✅ R4b⬜ R5⬜ R11⬜ R13⬜ R18⬜** · R21(可) R19(可) | **C2⬜ C7⬜ 组合窗** |
 | **W3** | **⬜** | R7⬜ · R7b⬜ · R10⬜（各独立 `ui_wr_*` 真窗） | C3⬜ |
 | **W4** | ⬜ | R8、R21(若未做) | C4、C8(可) |
 | **W5** | ⬜ | R6、R20(可) | C5、C6(可) |
@@ -539,6 +539,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 | W2 R4 修 bug | **R4 拖拽 resize 停止渲染修复**（GPU 层）：① offscreen 纹理池释放路径取消 pool 归还（`gpu_render_context.go`），release 回调直接 `view.Release(); tex.Release()`；② 新增 `PictureTextureCache.allocEntry`：脏层每次重录分配全新 offscreen 纹理并延迟 2 帧释放旧视图——前一帧提交可能仍在采样旧视图（blit RESOURCE）而重录取其 COLOR_TARGET，wgpu 拒绝同 usage scope 冲突（残留 TXFLUSHERR 883 次/30s → 0）；真窗多轮干净运行全绿（fps≈59.9、dmg_avg≤0.04、present_mode=damage_union/damage_multi、boundary_skip>0）；resize 后像素验证动画存活（热块相位不同位置）+ 几何正确（格阵 304–1183）。 |
 | R4 错位排查 | **「画面错位」结论为像素解析假象，引擎无此 bug**：XWD 像素解析脚本头部字节序错误（big-endian 头按 LE 读）导致坐标错读（误判格阵在 0–751）；修正解析后全部历史截图（pre/ctrl/c2/c6/c7/c9/c13/b1/b2/c1 等）格阵均在 x=304–1183、热块相位位置精确（SPIKE(1044,620)黄 / RECOVER(984,700)蓝），与 `ui_wr_r4_composite` 期望布局完全一致；引擎坐标路径（顶点构建/CTM/uniform/viewport/绘制 pass）本就正确，无需修底层。随附诊断全清：移除全部 WR_DIAG/WR_FULLDAMAGE/WR_PROBE/WR_FORCEFULL 分支与打印及 Diag* 计数器（稳态偶发 blit nil 为纹理缓存 miss→向量重放兜底，视觉无影响，非 bug），仅保留 TXFLUSHERR 真实错误日志。 |
 | R4 resize 黑帧 | **R4 min/max 风暴黑帧根治（对齐 Skia swapchain recreate 语义，洞 A–D 全收口）**：① 洞 A（Idle 不配对 BeginFrame→永久黑屏）先前已修（present() Idle 分支 DiscardFrame + `TestP14` 双向验证）；② **洞 B/C/D 统一进 `render/present_target.go`**：新增 `postResizeFull` 状态机——`Resize()` 物理尺寸真变化置 3（覆盖双/三缓冲），`present()` 内 `postResizeFull>0` 强制全量路径，**仅 EndFrame 成功才递减**（BeginFrame timeout 帧不消耗预算，天然修复「timeout 吃额度」）；③ embedder 删 `forceFullPresent` 跨线程计数器与 resize 分支 Store(3)，`compositeOnly` 改由 `target.InFullRecovery()` 决定（同锁查询无竞态），app.go 旧路径自动受益；④ 新增 GPU 单测 `TestPresentResize_FullRecoveryWritesEveryBuffer`（render 包，X11+wgpu，Resize→3 帧 full→稳态 idle→再 Resize 重武装，禁用状态机必 FAIL 已双向验证）；⑤ **render 测试包断链修复**：旧架构 `p1_composition_matrix_*`（依赖已删 standardtest + 已删 P1 文档）删除，`compMakeImage` 迁入 s5 helpers，`go vet ./render/` 恢复干净。**像素回归**：6 循环 260×170↔1200×800 风暴中 2 次截图均 0.0% 黑（修复前 mm4 36.1% 黑）；日志 0 in-flight、每次 apply 后连续 3 帧 full、timeout 帧跳过且不消耗预算、恢复 retained 稳态；全量 `go build ./...` + `go test ./ui/...`（14 包）+ 双 GPU 单测绿；R4DIAG/diagf 探针移除。 |
+| R4 首次关闭 | **R4 层 Composite Present 独立真窗首次关闭（`ui_wr_r4_composite` 1200×800·15s·GPU PASS）**：① 示例层 Hot 块改 **Flutter 式布局驱动**（新增 `ui/rendering/align.go` `RenderAlignBox`——Align 语义，Layout 按 (父−子)×比例求 offset，resize 自动跟随、无固定坐标/clamp；`wrkit.Panel.Align` 暴露；单测 `TestAlignBox_*` 绿）；② **引擎洞风暴窗口**：`postResizeFull` 3 帧固定预算在拖边风暴中 step 间隙 >3 帧时耗尽→新尺寸 retained 帧 LoadOpLoad 半写缓冲→黑/错乱；新增 **storm-aware 窗口**（render/present_target.go：`resizeStormWindow=300ms`，Resize 记 `lastResizeAt`，`InFullRecovery`/`present()` 风暴活跃期强制全程 full；新 GPU 单测 `TestPresentResize_StormWindowCoversBudgetGap`）；③ 真窗 JSON：fps_interval=59.9（≥55）、damage_ratio_avg=0.057（≤0.35）、present_mode=damage_union 非 full、boundary_skip=52982>0、vsync_source=true、hitch=1/min、slope=短窗 off（§2.2.4 <15s 允许）、全族 A–J 字段齐。§2 R4 ⬜→✅；§5 W2 行 R4✅（整波仍 ⬜ 待 R4b/R11/R13/R18）。 |
 
 ---
 
