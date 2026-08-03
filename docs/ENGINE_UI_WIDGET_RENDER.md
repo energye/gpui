@@ -70,7 +70,7 @@ L3–L5 Kit                       ← 暂缓
 | **R3** | Boundary 真缓存 | `ui_wr_r3_boundary` | **1200×800** | **10** | `boundary_rerecord` 仅脏；**`boundary_skip>0`** | 静 boundary 不动；脏每帧变 | **W1** | **✅** |
 | **R3b** | Compositing bits / 边界发现 | `ui_wr_r3b_compbits` | **1200×800** | **8** | `boundary_count`；合成链深度 | 嵌套 boundary 只重约定层 | **W1** | **✅** |
 | **R4** | 层 Composite Present | `ui_wr_r4_composite` | **1200×800** | **15** | `present_policy`；`damage_ratio` 门禁 | Retained 下静在、damage≪全屏 | **W2** | **✅** |
-| **R4b** | DirtyLayerID + 多 damage | `ui_wr_r4b_multidamage` | **1200×800** | **15** | `dirty_layer_ids`；rects/并集 | 两远离脏点更新，中间静在 | **W2** | **⬜** |
+| **R4b** | DirtyLayerID + 多 damage | `ui_wr_r4b_multidamage` | **1200×800** | **15** | `dirty_layer_ids`；rects/并集 | 两远离脏点更新，中间静在 | **W2** | **✅** |
 | **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；可选像素差 | 回放区≡直绘区 | **W1–W2** | **✅** |
 | **R6** | Opacity/Transform/Clip **层**动画 | `ui_wr_r6_layer_anim` | **1200×800** | **30** | `paint_count` 稳；`hitch_rate`；**fps≥55** | 转/淡/裁流畅；静背景不闪 | **W5** | ⬜ |
 | **R7** | 虚拟化宿主 | `ui_wr_r7_virtlist` | **1200×800** | **60** | **`bind_count≪item_count`**；p95/hitch；RSS | 仅视口 cell；快滑约定 | **W3** | **⬜** |
@@ -315,6 +315,7 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak        # soak
 | 项 | 要求 | 说明 |
 |----|------|------|
 | **wrkit.NewShell** | TopBar + Legend(≥5行色块) + Body + LiveHUD | 每个 R 必须有完整壳；禁止裸 root |
+| **布局驱动（Flutter 对齐）** | 动态热点/能力元素定位一律走 **布局驱动**，禁止手算固定坐标 + clamp | 对标 R4：`shell.Body.Align(hot, ax, ay)`（`RenderAlignBox`，Flutter Align/FractionallySizedBox 语义——Layout 按 (父−子)×比例求 offset，resize 自动重算、无跳变）；相位切换用 `SetAlignment` 而非改坐标。**W2–W6 全部 R 窗口必用**（R4/R4b 已落地）；静态壳元素（色格阵/标签）可 `Place`。**内容不变：窗口展示的仍是该 R 能力自己的场景**（如 R7 虚拟列表、R10 异步图），本行只约束「定位手段」，不改变「能力展示内容」 |
 | **LiveHUD** | 实时 fps/p95/policy/paint/presents/core | `wrkit.NewLiveHUD` + `hud.Update(Snap{...})` |
 | **PhaseClock** | Steady→Spike→Recover 三阶段 | 能力行为随阶段变化（不只是动画频率） |
 | **EnsureUIFace** | 字体加载 + 文字标签可见 | `wrkit.EnsureUIFace()` 在 buildScene 前调用 |
@@ -361,6 +362,7 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak        # soak
 
 ```text
 □ wrkit.NewShell 完整壳（TopBar + Legend + Body + LiveHUD）
+□ 动态热点/能力元素用布局驱动（Panel.Align + SetAlignment，Flutter 对齐；禁止固定坐标+clamp）
 □ PhaseClock 三阶段驱动能力行为变化
 □ EnsureUIFace 字体加载 + 文字标签可见
 □ ≥5 行 Legend（色块 + 文字说明）
@@ -464,7 +466,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 |---|------|----------------------|---------------------|
 | **W0** | **✅** | **R0✅ · R12✅ · R16✅**（各独立 `ui_wr_*` 真窗） | C0✅（仅集成） |
 | **W1** | **✅** | R2✅ R3✅ R3b✅ R5✅ R9✅ R12b✅ R19✅（各独立 `ui_wr_*` 真窗） | C1✅ |
-| **W2** | ⬜ | **R4✅ R4b⬜ R5⬜ R11⬜ R13⬜ R18⬜** · R21(可) R19(可) | **C2⬜ C7⬜ 组合窗** |
+| **W2** | ⬜ | **R4✅ R4b✅ R5⬜ R11⬜ R13⬜ R18⬜** · R21(可) R19(可) | **C2⬜ C7⬜ 组合窗** |
 | **W3** | **⬜** | R7⬜ · R7b⬜ · R10⬜（各独立 `ui_wr_*` 真窗） | C3⬜ |
 | **W4** | ⬜ | R8、R21(若未做) | C4、C8(可) |
 | **W5** | ⬜ | R6、R20(可) | C5、C6(可) |
@@ -540,6 +542,8 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 | R4 错位排查 | **「画面错位」结论为像素解析假象，引擎无此 bug**：XWD 像素解析脚本头部字节序错误（big-endian 头按 LE 读）导致坐标错读（误判格阵在 0–751）；修正解析后全部历史截图（pre/ctrl/c2/c6/c7/c9/c13/b1/b2/c1 等）格阵均在 x=304–1183、热块相位位置精确（SPIKE(1044,620)黄 / RECOVER(984,700)蓝），与 `ui_wr_r4_composite` 期望布局完全一致；引擎坐标路径（顶点构建/CTM/uniform/viewport/绘制 pass）本就正确，无需修底层。随附诊断全清：移除全部 WR_DIAG/WR_FULLDAMAGE/WR_PROBE/WR_FORCEFULL 分支与打印及 Diag* 计数器（稳态偶发 blit nil 为纹理缓存 miss→向量重放兜底，视觉无影响，非 bug），仅保留 TXFLUSHERR 真实错误日志。 |
 | R4 resize 黑帧 | **R4 min/max 风暴黑帧根治（对齐 Skia swapchain recreate 语义，洞 A–D 全收口）**：① 洞 A（Idle 不配对 BeginFrame→永久黑屏）先前已修（present() Idle 分支 DiscardFrame + `TestP14` 双向验证）；② **洞 B/C/D 统一进 `render/present_target.go`**：新增 `postResizeFull` 状态机——`Resize()` 物理尺寸真变化置 3（覆盖双/三缓冲），`present()` 内 `postResizeFull>0` 强制全量路径，**仅 EndFrame 成功才递减**（BeginFrame timeout 帧不消耗预算，天然修复「timeout 吃额度」）；③ embedder 删 `forceFullPresent` 跨线程计数器与 resize 分支 Store(3)，`compositeOnly` 改由 `target.InFullRecovery()` 决定（同锁查询无竞态），app.go 旧路径自动受益；④ 新增 GPU 单测 `TestPresentResize_FullRecoveryWritesEveryBuffer`（render 包，X11+wgpu，Resize→3 帧 full→稳态 idle→再 Resize 重武装，禁用状态机必 FAIL 已双向验证）；⑤ **render 测试包断链修复**：旧架构 `p1_composition_matrix_*`（依赖已删 standardtest + 已删 P1 文档）删除，`compMakeImage` 迁入 s5 helpers，`go vet ./render/` 恢复干净。**像素回归**：6 循环 260×170↔1200×800 风暴中 2 次截图均 0.0% 黑（修复前 mm4 36.1% 黑）；日志 0 in-flight、每次 apply 后连续 3 帧 full、timeout 帧跳过且不消耗预算、恢复 retained 稳态；全量 `go build ./...` + `go test ./ui/...`（14 包）+ 双 GPU 单测绿；R4DIAG/diagf 探针移除。 |
 | R4 首次关闭 | **R4 层 Composite Present 独立真窗首次关闭（`ui_wr_r4_composite` 1200×800·15s·GPU PASS）**：① 示例层 Hot 块改 **Flutter 式布局驱动**（新增 `ui/rendering/align.go` `RenderAlignBox`——Align 语义，Layout 按 (父−子)×比例求 offset，resize 自动跟随、无固定坐标/clamp；`wrkit.Panel.Align` 暴露；单测 `TestAlignBox_*` 绿）；② **引擎洞风暴窗口**：`postResizeFull` 3 帧固定预算在拖边风暴中 step 间隙 >3 帧时耗尽→新尺寸 retained 帧 LoadOpLoad 半写缓冲→黑/错乱；新增 **storm-aware 窗口**（render/present_target.go：`resizeStormWindow=300ms`，Resize 记 `lastResizeAt`，`InFullRecovery`/`present()` 风暴活跃期强制全程 full；新 GPU 单测 `TestPresentResize_StormWindowCoversBudgetGap`）；③ 真窗 JSON：fps_interval=59.9（≥55）、damage_ratio_avg=0.057（≤0.35）、present_mode=damage_union 非 full、boundary_skip=52982>0、vsync_source=true、hitch=1/min、slope=短窗 off（§2.2.4 <15s 允许）、全族 A–J 字段齐。§2 R4 ⬜→✅；§5 W2 行 R4✅（整波仍 ⬜ 待 R4b/R11/R13/R18）。 |
+| R4b 首次关闭 | **R4b DirtyLayerID + 多 damage 独立真窗首次关闭（`ui_wr_r4b_multidamage` 1200×800·15s·GPU PASS）**：① **wr-implement 能力审查**——能力层已就绪（`ui/scene/build.go` PushBoundary(paintDirty)→DirtyBoundaryIDs 收集、BuildPacket→DirtyLayerIDs、`rasterize.go` 仅 id 命中重录、`render/frame.go` waste-ratio 1.35→PresentModeDamageMulti）；补齐 **wrgate 门禁接线**（`EvaluateRetainedExtras`：`dirty_layer_id_max`+`damage_multi_frames` 从 ability_extra 判定，`EvaluateGates` 自动调用；单测 `TestEvaluateRetainedExtras_DirtyLayerIDGates` 三态）；② **真窗场景**：左上+右下两远离脏点（90×90）每帧同帧变脏 → 两独立 dirty layer id，中央 6×5 色格+8 标签大面积静态（boundary 不重绘），相位脚本 STEADY/SPIKE/RECOVER；HUD 实时 ids/multi/dmg/mode/skip；③ **门禁**：dirty_layer_id_max=10≥2、damage_multi_frames=886≥1、present_mode=damage_multi 非 full、boundary_skip=48114>0、damage_ratio_sum=0.026（**sum of rects 真实重绘像素**——两对角脏点 union bbox 0.49 为几何必然，frame.go 升格决策用 sum，README 已注诚实边界）、fps_interval=59.4≥55、p95=17.0≤22、vsync_source=true、fallback=0、slope_gate=off（<15s 正确性窗 §2.2.4）；metrics-audit 串审全 PASS（10 族 PRESENT、诚实性 11 项 HONEST、阈值 AT_DEFAULT/STRICT、一致性 CONSISTENT、降画质 EARNED）。§2 R4b ⬜→✅；§5 W2 行 R4b✅（整波仍 ⬜ 待 R5/R11/R13/R18）。 |
+| 布局驱动规则（§2.6.1） | **新增 U 规则：W2–W6 全部 R 窗口动态热点/能力元素定位一律 Flutter 式布局驱动**（`Panel.Align` + `SetAlignment`，`RenderAlignBox` 语义：offset=(父−子)×比例，resize 自动重算无跳变；禁止固定坐标+clamp，对标 R4）；§2.6.1 通用基线表加「布局驱动」行 + §2.6.3 检查清单加项。**R4b 同步改造**：两远离热点由 `Place(20,20)/(W-150,H-150)` 改为 `Body.Align(0.0246,0.0353)/(0.926,0.894)`（几何精确还原：offset=(20.0,20.0)/(753.8,506.0)，resize 自动跟随），相位切换 SetAlignment 微移保持对角远离；重跑真窗全绿（dirty_layer_id_max=10、damage_multi_frames=888、mode=damage_multi、skip=48222、fps=59.5、fallback=0）。 |
 
 ---
 

@@ -21,42 +21,42 @@ type Report struct {
 	// FPSWall is present_count/elapsed_sec (includes open/close overhead — often low).
 	FPSWall float64 `json:"fps_wall"`
 	// FPSInterval is 1000/interval_avg_ms when samples exist (honest steady-frame rate).
-	FPSInterval      float64 `json:"fps_interval,omitempty"`
-	IntervalAvgMs    float64 `json:"interval_avg_ms"`
-	IntervalP50Ms    float64 `json:"interval_p50_ms"`
-	IntervalP95Ms    float64 `json:"interval_p95_ms"`
-	IntervalP99Ms    float64 `json:"interval_p99_ms"`
-	HitchCount       int64   `json:"hitch_count"`
-	HitchRatePerMin  float64 `json:"hitch_rate_per_min"`
-	VSyncSource      string  `json:"vsync_source"`
-	FrameBuildMs     float64 `json:"frame_build_ms"`
-	FrameRasterMs    float64 `json:"frame_raster_ms"`
-	PipelineDepth    int     `json:"pipeline_depth"`
-	PipelineMax      int     `json:"pipeline_max"`
-	LayoutCount      int64   `json:"layout_count"`
-	PaintCount       int64   `json:"paint_count"`
-	DamageAreaPx     int64   `json:"damage_area_px"`
-	DamageRatio      float64 `json:"damage_ratio"`
-	PresentMode      string  `json:"present_mode"`
+	FPSInterval     float64 `json:"fps_interval,omitempty"`
+	IntervalAvgMs   float64 `json:"interval_avg_ms"`
+	IntervalP50Ms   float64 `json:"interval_p50_ms"`
+	IntervalP95Ms   float64 `json:"interval_p95_ms"`
+	IntervalP99Ms   float64 `json:"interval_p99_ms"`
+	HitchCount      int64   `json:"hitch_count"`
+	HitchRatePerMin float64 `json:"hitch_rate_per_min"`
+	VSyncSource     string  `json:"vsync_source"`
+	FrameBuildMs    float64 `json:"frame_build_ms"`
+	FrameRasterMs   float64 `json:"frame_raster_ms"`
+	PipelineDepth   int     `json:"pipeline_depth"`
+	PipelineMax     int     `json:"pipeline_max"`
+	LayoutCount     int64   `json:"layout_count"`
+	PaintCount      int64   `json:"paint_count"`
+	DamageAreaPx    int64   `json:"damage_area_px"`
+	DamageRatio     float64 `json:"damage_ratio"`
+	PresentMode     string  `json:"present_mode"`
 	// R4b: last-frame dirty layer/boundary ids + cumulative damage_multi presents.
-	DirtyLayerIDs    []uint64 `json:"dirty_layer_ids,omitempty"`
-	DamageMultiFrames int64   `json:"damage_multi_frames,omitempty"`
-	PresentCount     int64   `json:"present_count"`
-	FrameCount       int64   `json:"frame_count"`
-	CPUPctAvg        float64 `json:"cpu_pct_avg"`
-	CPUUIPct         float64 `json:"cpu_ui_pct"`
-	CPURasterPct     float64 `json:"cpu_raster_pct"`
-	CPUUnavailable   bool    `json:"cpu_unavailable,omitempty"`
-	RSSStartKB       int64   `json:"rss_start_kb"`
-	RSSEndKB         int64   `json:"rss_end_kb"`
-	RSSPeakKB        int64   `json:"rss_peak_kb"`
-	RSSSlopeKBPerMin float64 `json:"rss_slope_kb_per_min"`
-	RSSAfterCloseKB  int64   `json:"rss_after_close_kb,omitempty"`
-	RSSUnavailable   bool    `json:"rss_unavailable,omitempty"`
-	GPUOps           int64   `json:"gpu_ops"`
-	CPUFallbackOps   int64   `json:"cpu_fallback_ops"`
-	FrameFlushes     int64   `json:"frame_flushes,omitempty"`
-	LastCPUFallback  string  `json:"last_cpu_fallback"`
+	DirtyLayerIDs     []uint64 `json:"dirty_layer_ids,omitempty"`
+	DamageMultiFrames int64    `json:"damage_multi_frames,omitempty"`
+	PresentCount      int64    `json:"present_count"`
+	FrameCount        int64    `json:"frame_count"`
+	CPUPctAvg         float64  `json:"cpu_pct_avg"`
+	CPUUIPct          float64  `json:"cpu_ui_pct"`
+	CPURasterPct      float64  `json:"cpu_raster_pct"`
+	CPUUnavailable    bool     `json:"cpu_unavailable,omitempty"`
+	RSSStartKB        int64    `json:"rss_start_kb"`
+	RSSEndKB          int64    `json:"rss_end_kb"`
+	RSSPeakKB         int64    `json:"rss_peak_kb"`
+	RSSSlopeKBPerMin  float64  `json:"rss_slope_kb_per_min"`
+	RSSAfterCloseKB   int64    `json:"rss_after_close_kb,omitempty"`
+	RSSUnavailable    bool     `json:"rss_unavailable,omitempty"`
+	GPUOps            int64    `json:"gpu_ops"`
+	CPUFallbackOps    int64    `json:"cpu_fallback_ops"`
+	FrameFlushes      int64    `json:"frame_flushes,omitempty"`
+	LastCPUFallback   string   `json:"last_cpu_fallback"`
 	// H-family first-present (R16): Warmup is observed by PipelineApp (first
 	// present); TimeToFirstPresentMs / FirstPresentPaintCount are observations.
 	Warmup                 bool    `json:"warmup"`
@@ -110,44 +110,44 @@ func BuildReport(in BuildInput) Report {
 		pol = scheduler.PresentPolicyFullPaint
 	}
 	r := Report{
-		AbilityID:        in.AbilityID,
-		Scenario:         in.Scenario,
-		PresentPolicy:    pol,
-		TargetHz:         60,
-		FPSWall:          fpsWall,
-		FPSInterval:      fpsInterval,
-		IntervalAvgMs:    in.Snap.AvgFrameIntervalMs,
-		IntervalP50Ms:    in.Snap.P50FrameIntervalMs,
-		IntervalP95Ms:    in.Snap.P95FrameIntervalMs,
-		IntervalP99Ms:    in.Snap.P99FrameIntervalMs,
-		HitchCount:       in.Snap.HitchCount,
-		HitchRatePerMin:  in.Snap.HitchRatePerMin,
-		VSyncSource:      in.Snap.VSyncSource,
-		FrameBuildMs:     in.Snap.LastBuildMs,
-		FrameRasterMs:    in.Snap.LastRasterMs,
-		PipelineDepth:    in.Snap.PipelineDepth,
-		PipelineMax:      in.Snap.PipelineMax,
-		LayoutCount:      in.Snap.LayoutCount,
-		PaintCount:       in.Snap.PaintCount,
-		DamageAreaPx:     in.Snap.DamageAreaPx,
-		DamageRatio:      dmgRatio,
-		PresentMode:      in.Snap.PresentMode,
-		DirtyLayerIDs:    in.Snap.DirtyLayerIDs,
+		AbilityID:         in.AbilityID,
+		Scenario:          in.Scenario,
+		PresentPolicy:     pol,
+		TargetHz:          60,
+		FPSWall:           fpsWall,
+		FPSInterval:       fpsInterval,
+		IntervalAvgMs:     in.Snap.AvgFrameIntervalMs,
+		IntervalP50Ms:     in.Snap.P50FrameIntervalMs,
+		IntervalP95Ms:     in.Snap.P95FrameIntervalMs,
+		IntervalP99Ms:     in.Snap.P99FrameIntervalMs,
+		HitchCount:        in.Snap.HitchCount,
+		HitchRatePerMin:   in.Snap.HitchRatePerMin,
+		VSyncSource:       in.Snap.VSyncSource,
+		FrameBuildMs:      in.Snap.LastBuildMs,
+		FrameRasterMs:     in.Snap.LastRasterMs,
+		PipelineDepth:     in.Snap.PipelineDepth,
+		PipelineMax:       in.Snap.PipelineMax,
+		LayoutCount:       in.Snap.LayoutCount,
+		PaintCount:        in.Snap.PaintCount,
+		DamageAreaPx:      in.Snap.DamageAreaPx,
+		DamageRatio:       dmgRatio,
+		PresentMode:       in.Snap.PresentMode,
+		DirtyLayerIDs:     in.Snap.DirtyLayerIDs,
 		DamageMultiFrames: in.Snap.DamageMultiFrames,
-		PresentCount:     in.PresentCount,
-		FrameCount:       in.Snap.FrameCount,
-		CPUPctAvg:        in.Snap.CPUPctAvg,
-		CPUUIPct:         in.Snap.CPUUIPct,
-		CPURasterPct:     in.Snap.CPURasterPct,
-		RSSStartKB:       in.Snap.RSSStartKB,
-		RSSEndKB:         in.Snap.RSSEndKB,
-		RSSPeakKB:        in.Snap.RSSPeakKB,
-		RSSSlopeKBPerMin: in.Snap.RSSSlopeKBPerMin,
-		RSSAfterCloseKB:  in.Snap.RSSAfterCloseKB,
-		GPUOps:           in.Snap.GPUOps,
-		CPUFallbackOps:   in.Snap.CPUFallbackOps,
-		FrameFlushes:     in.Snap.FrameFlushes,
-		LastCPUFallback:  in.Snap.LastCPUFallbackReason,
+		PresentCount:      in.PresentCount,
+		FrameCount:        in.Snap.FrameCount,
+		CPUPctAvg:         in.Snap.CPUPctAvg,
+		CPUUIPct:          in.Snap.CPUUIPct,
+		CPURasterPct:      in.Snap.CPURasterPct,
+		RSSStartKB:        in.Snap.RSSStartKB,
+		RSSEndKB:          in.Snap.RSSEndKB,
+		RSSPeakKB:         in.Snap.RSSPeakKB,
+		RSSSlopeKBPerMin:  in.Snap.RSSSlopeKBPerMin,
+		RSSAfterCloseKB:   in.Snap.RSSAfterCloseKB,
+		GPUOps:            in.Snap.GPUOps,
+		CPUFallbackOps:    in.Snap.CPUFallbackOps,
+		FrameFlushes:      in.Snap.FrameFlushes,
+		LastCPUFallback:   in.Snap.LastCPUFallbackReason,
 		// R16: observed warm-up/first-present wins; BuildInput.Warmup is the
 		// legacy fallback for callers without PipelineApp observation.
 		Warmup:                 in.Snap.Warmup || in.Warmup,
@@ -244,6 +244,57 @@ type GateOptions struct {
 	MaxDamageRatio float64
 	// MinDirtyLayerIDs fails when ability_extra dirty_layer_id_max < N (0 = off); checked via Extra if set.
 	// Prefer calling EvaluateRetainedExtras from examples for dirty id gates.
+	MinDirtyLayerIDs int64
+	// MinDamageMultiFrames fails when ability_extra damage_multi_frames < N (R4b; 0 = off).
+	MinDamageMultiFrames int64
+}
+
+// EvaluateRetainedExtras checks R4b dirty-id gates against AbilityExtra:
+//   - MinDirtyLayerIDs: dirty_layer_id_max (peak len of dirty_layer_ids in one
+//     frame) must be >= N — two distant hot spots → two ids.
+//   - MinDamageMultiFrames: damage_multi_frames (cumulative multi-rect present
+//     count) must be >= N.
+//
+// Thresholds are read from GateOptions; values are read from Extra so each
+// window decides what it reports. Returns a FAIL error or nil.
+func EvaluateRetainedExtras(r Report, opt GateOptions) error {
+	if opt.MinDirtyLayerIDs > 0 {
+		v, ok := numExtra(r.AbilityExtra, "dirty_layer_id_max")
+		if !ok || v < opt.MinDirtyLayerIDs {
+			return fmt.Errorf("FAIL: dirty_layer_id_max=%v want >=%d (two distant dirty spots must yield two ids)", v, opt.MinDirtyLayerIDs)
+		}
+	}
+	if opt.MinDamageMultiFrames > 0 {
+		v, ok := numExtra(r.AbilityExtra, "damage_multi_frames")
+		if !ok || v < opt.MinDamageMultiFrames {
+			return fmt.Errorf("FAIL: damage_multi_frames=%v want >=%d (multi-rect independent scissors must occur)", v, opt.MinDamageMultiFrames)
+		}
+	}
+	return nil
+}
+
+// numExtra reads a numeric value from AbilityExtra, accepting int/uint/float
+// encodings (handles both direct Go maps and re-marshaled JSON decodes).
+func numExtra(extra map[string]any, key string) (int64, bool) {
+	if extra == nil {
+		return 0, false
+	}
+	v, ok := extra[key]
+	if !ok || v == nil {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case int:
+		return int64(n), true
+	case int64:
+		return n, true
+	case uint64:
+		return int64(n), true
+	case float64:
+		return int64(n), true
+	default:
+		return 0, false
+	}
 }
 
 // EvaluateGates returns a FAIL error or nil. Pure: no I/O.
@@ -323,6 +374,9 @@ func EvaluateGates(r Report, opt GateOptions) error {
 	}
 	if opt.RequireDebugOn && !r.DebugRepaintOn {
 		return fmt.Errorf("FAIL: debug_repaint_on=false want true (R12b overlay active)")
+	}
+	if err := EvaluateRetainedExtras(r, opt); err != nil {
+		return err
 	}
 	return nil
 }
