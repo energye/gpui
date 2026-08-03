@@ -98,6 +98,10 @@ type PipelineApp struct {
 	// at the first present (warm-up full paint or first loop present).
 	firstPresentT0       time.Time
 	firstPresentRecorded atomic.Bool
+
+	// cacheInvalidations counts programmatic boundary-cache invalidations
+	// issued via InvalidateBoundaryCache (R11 cache_invalidations metric).
+	cacheInvalidations atomic.Int64
 }
 
 // SetDebugRepaint toggles R12b repaint visualization for subsequent presents.
@@ -886,9 +890,19 @@ func (a *PipelineApp) InvalidateBoundaryCache() {
 	if cache := a.pipe.BoundaryCache(); cache != nil {
 		cache.Clear()
 	}
+	a.cacheInvalidations.Add(1)
 	if a.root != nil {
 		a.root.MarkNeedsPaint()
 	}
 	a.forceFullPresent.Store(3)
 	a.ScheduleFrame()
+}
+
+// CacheInvalidations returns the cumulative number of programmatic
+// boundary-cache invalidations (R11 cache_invalidations metric).
+func (a *PipelineApp) CacheInvalidations() int64 {
+	if a == nil {
+		return 0
+	}
+	return a.cacheInvalidations.Load()
 }

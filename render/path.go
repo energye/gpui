@@ -392,10 +392,15 @@ func (p *Path) RoundedRectangle(x, y, w, h, r float64) {
 // Clone creates a deep copy of the path.
 func (p *Path) Clone() *Path {
 	result := &Path{
-		verbs:   make([]PathVerb, len(p.verbs)),
-		coords:  make([]float64, len(p.coords)),
-		start:   p.start,
-		current: p.current,
+		verbs:       make([]PathVerb, len(p.verbs)),
+		coords:      make([]float64, len(p.coords)),
+		start:       p.start,
+		current:     p.current,
+		boundsMinX:  p.boundsMinX,
+		boundsMinY:  p.boundsMinY,
+		boundsMaxX:  p.boundsMaxX,
+		boundsMaxY:  p.boundsMaxY,
+		boundsValid: p.boundsValid,
 	}
 	copy(result.verbs, p.verbs)
 	copy(result.coords, p.coords)

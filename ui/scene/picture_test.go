@@ -1,6 +1,7 @@
 package scene_test
 
 import (
+	"image"
 	"image/color"
 	"testing"
 
@@ -408,5 +409,80 @@ func TestPictureRecorder_MixedOps(t *testing.T) {
 		if pic.Ops[i].Kind != k {
 			t.Fatalf("op[%d] kind=%v want %v", i, pic.Ops[i].Kind, k)
 		}
+	}
+}
+
+// TestPicture_Bounds_IncludesPathAndImage proves the rewritten recorder folds
+// path geometry and image destination rects into Picture.Bounds (previously
+// only rects were noted — path/image ops were invisible to damage rects).
+func TestPicture_Bounds_IncludesPathAndImage(t *testing.T) {
+	p := render.NewPath()
+	p.Rectangle(50, 10, 20, 20) // covers (50,10)-(70,30)
+	src, err := render.NewImageBuf(16, 16, render.FormatRGBA8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer src.Dispose()
+
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.FillRect(0, 0, 10, 10, 1, 0, 0, 1) // covers (0,0)-(10,10)
+		r.FillPath(p, 0, 1, 0, 1)            // covers (50,10)-(70,30)
+		r.DrawImage(src, 80, 40, 0, 0)       // 1:1 covers (80,40)-(96,56)
+	})
+	if pic.Bounds.Empty() {
+		t.Fatal("Bounds must include path and image geometry")
+	}
+	want := image.Rect(0, 0, 96, 56)
+	if pic.Bounds != want {
+		t.Fatalf("Bounds=%v want %v", pic.Bounds, want)
+	}
+}
+
+// TestPicture_Bounds_StrokeInflates verifies StrokePath inflates bounds by half
+// the line width so the stroke band is inside the damage rect.
+func TestPicture_Bounds_StrokeInflates(t *testing.T) {
+	p := render.NewPath()
+	p.Rectangle(10, 10, 20, 20)
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.StrokePath(p, 6, 1, 0, 0, 1)
+	})
+	if pic.Bounds.Empty() {
+		t.Fatal("stroke path must contribute bounds")
+	}
+	if pic.Bounds.Min.X > 7 || pic.Bounds.Min.Y > 7 {
+		t.Fatalf("stroke bounds not inflated by half line width: %v", pic.Bounds)
+	}
+}
+
+// TestPicture_Replay_ZeroAlphaDrawsNothing proves strict SkPaint alpha semantics
+// after rewrite: A==0 paints nothing (no implicit opaque fallback).
+func TestPicture_Replay_ZeroAlphaDrawsNothing(t *testing.T) {
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.FillRect(10, 10, 40, 30, 1, 0, 0, 0)
+	})
+	if pic.OpCount() != 1 {
+		t.Fatalf("zero-alpha op must still be recorded, got %d", pic.OpCount())
+	}
+	dc := render.NewContext(60, 50)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	pic.Replay(dc)
+	img := dc.Image()
+	cr, cg, cb := sampleRGB(img.At(30, 25))
+	if cr < 0xC000 || cg < 0xC000 || cb < 0xC000 {
+		t.Fatalf("zero-alpha replay (30,25)=#%04x%04x%04x want white", cr, cg, cb)
+	}
+}
+
+// TestPictureRecorder_ClampsPaint verifies record-time normalization keeps
+// color channels in [0,1] (defensive paint state in the display list).
+func TestPictureRecorder_ClampsPaint(t *testing.T) {
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		r.FillRect(0, 0, 10, 10, 1.7, -0.2, 0.5, 1.4)
+	})
+	op := pic.Ops[0]
+	if op.R != 1 || op.G != 0 || op.B != 0.5 || op.A != 1 {
+		t.Fatalf("clamped paint=%+v want R=1 G=0 B=0.5 A=1", op)
 	}
 }

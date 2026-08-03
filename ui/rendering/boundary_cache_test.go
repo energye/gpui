@@ -400,6 +400,51 @@ func TestBoundaryCache_NonCacheableNeverReplays(t *testing.T) {
 	}
 }
 
+// TestBoundaryCache_DPRInvalidateReRecords: R11 — programmatic full
+// invalidation (DPR change path, PipelineApp.InvalidateBoundaryCache → Clear)
+// must drop all entries: next frame re-records (no skip), then steady frames
+// replay again (skip resumes). Mirrors TestBoundaryCache_SizeChangeInvalidates
+// for the Clear path.
+func TestBoundaryCache_DPRInvalidateReRecords(t *testing.T) {
+	box := rendering.NewRenderColorBox(20, 20, 0.3, 0.8, 0.2, 1)
+	box.SetRepaintBoundary(true)
+	root := rendering.NewAbsoluteBox(100, 100)
+	root.Place(box, 0, 0)
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
+	cache := owner.BoundaryCache()
+
+	// Frame 1 records; steady skip accumulates from frame 2.
+	if rr, _ := paintWithCache(t, root, cache, 100, 100); rr < 1 {
+		t.Fatalf("initial frame rerecord=%d want ≥1", rr)
+	}
+	if _, sk := paintWithCache(t, root, cache, 100, 100); sk < 1 {
+		t.Fatalf("steady skip=%d want ≥1 before invalidation", sk)
+	}
+	if !cache.HasValid(box) {
+		t.Fatal("expected valid cache before invalidation")
+	}
+
+	// DPR change → Clear() (InvalidateBoundaryCache path): one wave re-record.
+	cache.Clear()
+	if cache.HasValid(box) {
+		t.Fatal("Clear must drop entries")
+	}
+	rr, sk := paintWithCache(t, root, cache, 100, 100)
+	if sk != 0 {
+		t.Fatalf("invalidation frame skip=%d want 0", sk)
+	}
+	if rr < 1 {
+		t.Fatalf("invalidation frame rerecord=%d want ≥1 (one wave)", rr)
+	}
+
+	// Back to steady: replay resumes.
+	_, sk2 := paintWithCache(t, root, cache, 100, 100)
+	if sk2 < 1 {
+		t.Fatalf("post-invalidation steady skip=%d want ≥1", sk2)
+	}
+}
+
 func TestCompositingBits_IncrementalFlush(t *testing.T) {
 	// root → outer(boundary) → mid(boundary) → leaf(boundary): depth 3, count 3
 	leaf := rendering.NewRenderColorBox(8, 8, 1, 0, 0, 1)

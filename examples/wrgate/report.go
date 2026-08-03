@@ -247,6 +247,8 @@ type GateOptions struct {
 	MinDirtyLayerIDs int64
 	// MinDamageMultiFrames fails when ability_extra damage_multi_frames < N (R4b; 0 = off).
 	MinDamageMultiFrames int64
+	// MinCacheInvalidations fails when ability_extra cache_invalidations < N (R11; 0 = off).
+	MinCacheInvalidations int64
 }
 
 // EvaluateRetainedExtras checks R4b dirty-id gates against AbilityExtra:
@@ -268,6 +270,12 @@ func EvaluateRetainedExtras(r Report, opt GateOptions) error {
 		v, ok := numExtra(r.AbilityExtra, "damage_multi_frames")
 		if !ok || v < opt.MinDamageMultiFrames {
 			return fmt.Errorf("FAIL: damage_multi_frames=%v want >=%d (multi-rect independent scissors must occur)", v, opt.MinDamageMultiFrames)
+		}
+	}
+	if opt.MinCacheInvalidations > 0 {
+		v, ok := numExtra(r.AbilityExtra, "cache_invalidations")
+		if !ok || v < opt.MinCacheInvalidations {
+			return fmt.Errorf("FAIL: cache_invalidations=%v want >=%d (DPR/size invalidation must fire)", v, opt.MinCacheInvalidations)
 		}
 	}
 	return nil

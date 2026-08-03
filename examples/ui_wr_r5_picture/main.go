@@ -1,4 +1,6 @@
-// Command ui_wr_r5_picture is the W1 R5 real-window: Picture record/replay.
+// Command ui_wr_r5_picture is the W1-W2 R5 real-window: Picture record/replay
+// (rewritten for the R5 quality-rework wave — Skia/Flutter display-list
+// semantics: immutable ops, normalized paint, strict alpha, full Bounds).
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=5 go run ./examples/ui_wr_r5_picture
@@ -37,6 +39,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "wrkit: font:", errFace)
 	}
 
+	// Shared image source for the OpDrawImage contrast (green 16x16).
+	src, err := render.NewImageBuf(16, 16, render.FormatRGBA8)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: image buf:", err)
+		os.Exit(1)
+	}
+	defer src.Dispose()
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			_ = src.SetRGBA(x, y, 51, 191, 89, 255)
+		}
+	}
+
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
@@ -50,11 +65,12 @@ func main() {
 	shell := wrkit.NewShell(winW, winH, "R5 Picture录/回放 — 直绘≡回放", []string{
 		"LEFT=direct paint (每帧直绘)",
 		"RIGHT=Picture replay (缓存回放)",
-		"path fill + stroke + text + rect",
-		"picture_op_count in HUD",
+		"path fill + stroke + rect + text",
+		"+ image 1:1 / scaled (8 ops)",
+		"picture_op_count + Bounds in HUD",
 	})
 
-	// Build the recorded Picture ONCE (retained display list).
+	// Build the recorded Picture ONCE (retained display list, 8 ops).
 	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
 		// Path fill (triangle).
 		p := render.NewPath()
@@ -63,7 +79,7 @@ func main() {
 		p.LineTo(55, 80)
 		p.Close()
 		r.FillPath(p, 0.9, 0.3, 0.2, 1)
-		// Path stroke (circle-ish quad).
+		// Path stroke (quad).
 		p2 := render.NewPath()
 		p2.MoveTo(20, 120)
 		p2.LineTo(90, 120)
@@ -73,8 +89,11 @@ func main() {
 		r.StrokePath(p2, 3, 0.2, 0.6, 0.9, 1)
 		// Filled rect.
 		r.FillRect(20, 190, 80, 40, 0.3, 0.8, 0.4, 1)
-		// Stroke rect (2 ops).
+		// Stroke rect.
 		r.StrokeRect(120, 190, 60, 40, 2, 0.9, 0.8, 0.3, 1)
+		// Image 1:1 and scaled (both folded into Bounds by the recorder).
+		r.DrawImage(src, 150, 20, 0, 0)
+		r.DrawImage(src, 150, 100, 32, 32)
 		// Text.
 		if face != nil {
 			r.DrawString("PIC-REPLAY", 20, 260, face, 0.9, 0.9, 0.95, 1)
@@ -82,6 +101,11 @@ func main() {
 		}
 	})
 	opCount := pic.OpCount()
+	picBounds := pic.Bounds
+	boundsTxt := "no-bounds"
+	if !picBounds.Empty() {
+		boundsTxt = fmt.Sprintf("(%d,%d %dx%d)", picBounds.Min.X, picBounds.Min.Y, picBounds.Dx(), picBounds.Dy())
+	}
 
 	// Left: direct-paint box replays the same commands fresh each frame.
 	direct := rendering.NewRenderBox()
@@ -114,6 +138,9 @@ func main() {
 		pc.DC.SetRGBA(0.9, 0.8, 0.3, 1)
 		pc.DC.DrawRectangle(ox+120, oy+190, 60, 40)
 		_ = pc.DC.Stroke()
+		// Direct image draws (1:1 + scaled).
+		pc.DC.DrawImage(src, ox+150, oy+20)
+		pc.DC.DrawImageEx(src, render.DrawImageOptions{X: ox + 150, Y: oy + 100, DstWidth: 32, DstHeight: 32})
 		if face != nil {
 			pc.DC.SetFont(face)
 			pc.DC.SetRGBA(0.9, 0.9, 0.95, 1)
@@ -122,7 +149,8 @@ func main() {
 			pc.DC.DrawString("v2", ox+120, oy+260)
 		}
 	}
-	shell.Body.Place(direct, 20, 20)
+	// §2.6.1: capability elements are positioned layout-driven (Align).
+	shell.Body.Align(direct, 0.10, 0.10)
 
 	// Right: picture-replay box replays the retained Picture each frame.
 	replay := rendering.NewRenderBox()
@@ -134,17 +162,17 @@ func main() {
 		pc.DC.Translate(pc.OriginX, pc.OriginY)
 		pic.Replay(pc.DC)
 	}
-	shell.Body.Place(replay, 260, 20)
+	shell.Body.Align(replay, 0.55, 0.10)
 
-	// Labels under each region.
-	shell.Body.Place(wrkit.Label("DIRECT (直绘)", 12, 0.8, 0.85, 0.9), 20, 330)
-	shell.Body.Place(wrkit.Label("REPLAY (回放)", 12, 0.8, 0.85, 0.9), 260, 330)
+	// Labels under each region (Align, follow the boxes).
+	shell.Body.Align(wrkit.Label("DIRECT (直绘)", 12, 0.8, 0.85, 0.9), 0.10, 0.75)
+	shell.Body.Align(wrkit.Label("REPLAY (回放)", 12, 0.8, 0.85, 0.9), 0.55, 0.75)
 
 	// Static dense grid to keep the frame busy (not part of picture).
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 3; j++ {
 			c := rendering.NewRenderColorBox(40, 40, 0.25, 0.5, 0.7, 1)
-			shell.Body.Place(c, 520+float64(i)*55, 20+float64(j)*55)
+			shell.Body.Place(c, 680+float64(i)*55, 20+float64(j)*55)
 		}
 	}
 
@@ -175,12 +203,13 @@ func main() {
 		app.ScheduleFrame()
 		proc.Sample()
 
-		// U18: live HUD (recorded op count is the R5 proof on screen).
+		// U18: live HUD (op count + recorded Bounds are the R5 proof on screen).
 		shell.NoteHUDTick(dt)
 		snapH := app.Metrics().Snapshot()
 		gateOK := snapH.PictureOpCount >= 3 || opCount >= 3
 		shell.UpdateHUD("R5", phase, app, gateOK,
-			fmt.Sprintf("picture_ops=%d", opCount), "")
+			fmt.Sprintf("picture_ops=%d", opCount),
+			fmt.Sprintf("bounds=%s", boundsTxt))
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
@@ -212,6 +241,7 @@ func main() {
 		Warmup:        true,
 		Extra: map[string]any{
 			"recorded_ops":     opCount,
+			"picture_bounds":   boundsTxt,
 			"direct_replay_eq": true,
 		},
 	})
@@ -230,8 +260,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL:", errG)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r5_picture: OK ops=%d presents=%d elapsed=%.1fs\n",
-		opCount, app.PresentCount(), elapsed)
+	fmt.Fprintf(os.Stderr, "ui_wr_r5_picture: OK ops=%d bounds=%s presents=%d elapsed=%.1fs\n",
+		opCount, boundsTxt, app.PresentCount(), elapsed)
 }
 
 type ticker struct{ on func(dt float64) }

@@ -9,6 +9,7 @@ import (
 )
 
 // PictureOpKind identifies a recorded draw command in a Picture display list.
+// Mirrors the Skia/Flutter draw-op taxonomy subset this engine records.
 type PictureOpKind int
 
 const (
@@ -26,8 +27,10 @@ const (
 	OpDrawImage
 )
 
-// PictureOp is one retained draw command (Flutter Picture display-list subset).
+// PictureOp is one retained draw command (SkPicture draw-op subset).
 // Coordinates are absolute on the target Context at replay time (Y-down).
+// Color components (R,G,B,A) are premultiplied-style 0..1 paint values; the
+// recorder normalizes them at record time so replay is a pure forward pass.
 type PictureOp struct {
 	Kind       PictureOpKind
 	X, Y, W, H float64
@@ -46,22 +49,24 @@ type PictureOp struct {
 	DstW, DstH float64
 }
 
-// Picture is a retained draw-ops handle (display list).
-// Zero value means "no retained picture" (empty ops, invalid).
+// Picture is a retained, immutable display list (SkPicture analogue).
+// After EndRecording the ops slice must be treated as read-only: the recorder
+// hands over a detached copy, so no aliasing with caller-owned slices remains.
 //
-// Valid is false when the picture must be re-recorded.
-// Ops holds the recorded display list (may be non-empty while Valid is false
-// until the next successful EndRecording replaces them).
+// Valid is NOT part of the display list; it is a cache flag owned by the layer
+// / boundary that hosts the picture (true = ops may be replayed without a
+// re-record). Zero value means "no retained picture" (empty ops, invalid).
 type Picture struct {
 	// ID is stable identity for cache keys (optional).
 	ID uint64
-	// Valid is false when the picture must be re-recorded.
+	// Valid is the host-side re-record flag (not display-list state).
 	Valid bool
 	// Ops is the retained display list (nil/empty = no recorded content).
+	// Read-only after recording.
 	Ops []PictureOp
 	// Bounds is the union of op geometry in logical coordinates (retained
-	// compositing damage rects). Empty = unknown (text-only / no geometry) —
-	// callers fall back to a conservative surface rect.
+	// compositing damage rects). Text-only pictures keep this empty (unknown
+	// extent) — callers fall back to a conservative surface rect.
 	Bounds image.Rectangle
 }
 
@@ -95,8 +100,10 @@ func (p *Picture) Clear() {
 	p.Valid = false
 }
 
-// Replay applies recorded ops onto dc (CPU/GPU Context). No-op if p is nil/empty
-// or dc is nil. Does not change Valid/NeedsRaster flags.
+// Replay applies the display list onto dc (CPU/GPU Context). This is the
+// SkPicture::playback analogue: a pure forward pass — ops carry normalized
+// paint state recorded earlier, replay never re-derives color semantics.
+// No-op if p is nil/empty or dc is nil. Does not change Valid/NeedsRaster flags.
 func (p *Picture) Replay(dc *render.Context) {
 	if p == nil || dc == nil || len(p.Ops) == 0 {
 		return
@@ -106,53 +113,52 @@ func (p *Picture) Replay(dc *render.Context) {
 	}
 }
 
+// applyPictureOp forwards one recorded op onto the Context. Alpha semantics are
+// strict (SkPaint): A==0 paints nothing; callers pass explicit alpha at record
+// time — there is no implicit opaque fallback.
 func applyPictureOp(dc *render.Context, op *PictureOp) {
 	if dc == nil || op == nil {
 		return
 	}
-	a := op.A
-	if a == 0 && (op.R != 0 || op.G != 0 || op.B != 0) {
-		a = 1
-	}
 	switch op.Kind {
 	case OpFillRect:
-		if op.W <= 0 || op.H <= 0 {
+		if op.W <= 0 || op.H <= 0 || op.A == 0 {
 			return
 		}
-		dc.SetRGBA(op.R, op.G, op.B, a)
+		dc.SetRGBA(op.R, op.G, op.B, op.A)
 		dc.DrawRectangle(op.X, op.Y, op.W, op.H)
 		_ = dc.Fill()
 	case OpStrokeRect:
-		if op.W <= 0 || op.H <= 0 {
+		if op.W <= 0 || op.H <= 0 || op.A == 0 {
 			return
 		}
 		lw := op.LineWidth
 		if lw <= 0 {
 			lw = 1
 		}
-		dc.SetRGBA(op.R, op.G, op.B, a)
+		dc.SetRGBA(op.R, op.G, op.B, op.A)
 		dc.SetLineWidth(lw)
 		dc.DrawRectangle(op.X, op.Y, op.W, op.H)
 		_ = dc.Stroke()
 	case OpFillPath:
-		if op.Path == nil || op.Path.NumVerbs() == 0 {
+		if op.Path == nil || op.Path.NumVerbs() == 0 || op.A == 0 {
 			return
 		}
-		dc.SetRGBA(op.R, op.G, op.B, a)
+		dc.SetRGBA(op.R, op.G, op.B, op.A)
 		_ = dc.FillPath(op.Path)
 	case OpStrokePath:
-		if op.Path == nil || op.Path.NumVerbs() == 0 {
+		if op.Path == nil || op.Path.NumVerbs() == 0 || op.A == 0 {
 			return
 		}
 		lw := op.LineWidth
 		if lw <= 0 {
 			lw = 1
 		}
-		dc.SetRGBA(op.R, op.G, op.B, a)
+		dc.SetRGBA(op.R, op.G, op.B, op.A)
 		dc.SetLineWidth(lw)
 		_ = dc.StrokePath(op.Path)
 	case OpDrawString:
-		if op.Text == "" {
+		if op.Text == "" || op.A == 0 {
 			return
 		}
 		if op.Face != nil {
@@ -161,7 +167,7 @@ func applyPictureOp(dc *render.Context, op *PictureOp) {
 		if dc.Font() == nil {
 			return
 		}
-		dc.SetRGBA(op.R, op.G, op.B, a)
+		dc.SetRGBA(op.R, op.G, op.B, op.A)
 		dc.DrawString(op.Text, op.X, op.Y)
 	case OpDrawImage:
 		if op.Image == nil || op.Image.Disposed() {
@@ -180,11 +186,17 @@ func applyPictureOp(dc *render.Context, op *PictureOp) {
 	}
 }
 
-// PictureRecorder builds a Picture display list (Flutter PictureRecorder subset).
-// Call drawing methods then EndRecording / Finish.
+// PictureRecorder builds a Picture display list (SkPictureRecorder subset).
+// Lifecycle: draw ops onto the recorder, then EndRecording / Finish freezes a
+// detached display list and resets the recorder (it may be reused for the next
+// recording session — Flutter beginRecording semantics).
 type PictureRecorder struct {
 	ops    []PictureOp
-	bounds image.Rectangle
+	minX   float64
+	minY   float64
+	maxX   float64
+	maxY   float64
+	hasBnd bool
 }
 
 // NewPictureRecorder starts an empty recording session.
@@ -192,21 +204,45 @@ func NewPictureRecorder() *PictureRecorder {
 	return &PictureRecorder{}
 }
 
-// noteGeometry unions an op rect (logical coords) into the recorded bounds.
+// clamp01 normalizes a color channel to [0,1] at record time so replay ops
+// carry well-formed paint state.
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
+}
+
+// noteGeometry unions an op rect (logical coords) into the recorded bounds
+// using float64 accumulation (no int truncation until EndRecording).
 // Text ops have unknown extent and are skipped (bounds stay conservative-unknown).
 func (r *PictureRecorder) noteGeometry(x, y, w, h float64) {
 	if r == nil || w <= 0 || h <= 0 {
 		return
 	}
-	b := image.Rect(int(x), int(y), int(x+w), int(y+h))
-	if r.bounds.Empty() {
-		r.bounds = b
+	if !r.hasBnd {
+		r.minX, r.minY, r.maxX, r.maxY = x, y, x+w, y+h
+		r.hasBnd = true
 		return
 	}
-	r.bounds = r.bounds.Union(b)
+	if x < r.minX {
+		r.minX = x
+	}
+	if y < r.minY {
+		r.minY = y
+	}
+	if x+w > r.maxX {
+		r.maxX = x + w
+	}
+	if y+h > r.maxY {
+		r.maxY = y + h
+	}
 }
 
-// FillRect records a filled rectangle (R,G,B,A in 0..1).
+// FillRect records a filled rectangle (R,G,B,A in 0..1, alpha strict).
 func (r *PictureRecorder) FillRect(x, y, w, h, red, gre, blu, a float64) {
 	if r == nil || w <= 0 || h <= 0 {
 		return
@@ -215,7 +251,7 @@ func (r *PictureRecorder) FillRect(x, y, w, h, red, gre, blu, a float64) {
 	r.ops = append(r.ops, PictureOp{
 		Kind: OpFillRect,
 		X:    x, Y: y, W: w, H: h,
-		R: red, G: gre, B: blu, A: a,
+		R: clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
 	})
 }
 
@@ -228,39 +264,57 @@ func (r *PictureRecorder) StrokeRect(x, y, w, h, lineWidth, red, gre, blu, a flo
 	r.ops = append(r.ops, PictureOp{
 		Kind: OpStrokeRect,
 		X:    x, Y: y, W: w, H: h,
-		R: red, G: gre, B: blu, A: a,
+		R: clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
 		LineWidth: lineWidth,
 	})
 }
 
 // FillPath records a filled path. The path is deep-cloned so later mutation of
-// the caller's path does not affect the retained display list.
+// the caller's path does not affect the retained display list. The path bounds
+// are folded into the recorded Bounds for damage rects.
 func (r *PictureRecorder) FillPath(p *render.Path, red, gre, blu, a float64) {
 	if r == nil || p == nil || p.NumVerbs() == 0 {
 		return
 	}
+	clone := p.Clone()
+	if !clone.Bounds().Empty() {
+		b := clone.Bounds()
+		r.noteGeometry(float64(b.Min.X), float64(b.Min.Y), float64(b.Dx()), float64(b.Dy()))
+	}
 	r.ops = append(r.ops, PictureOp{
 		Kind: OpFillPath,
-		Path: p.Clone(),
-		R:    red, G: gre, B: blu, A: a,
+		Path: clone,
+		R:    clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
 	})
 }
 
-// StrokePath records a stroked path (path is deep-cloned).
+// StrokePath records a stroked path (path is deep-cloned; bounds inflated by
+// half the line width to cover the stroke band).
 func (r *PictureRecorder) StrokePath(p *render.Path, lineWidth, red, gre, blu, a float64) {
 	if r == nil || p == nil || p.NumVerbs() == 0 {
 		return
 	}
+	clone := p.Clone()
+	if !clone.Bounds().Empty() {
+		b := clone.Bounds()
+		inflate := lineWidth / 2
+		if inflate < 0 {
+			inflate = 0
+		}
+		r.noteGeometry(float64(b.Min.X)-inflate, float64(b.Min.Y)-inflate,
+			float64(b.Dx())+2*inflate, float64(b.Dy())+2*inflate)
+	}
 	r.ops = append(r.ops, PictureOp{
 		Kind:      OpStrokePath,
-		Path:      p.Clone(),
+		Path:      clone,
 		LineWidth: lineWidth,
-		R:         red, G: gre, B: blu, A: a,
+		R:         clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
 	})
 }
 
 // DrawString records a text run at baseline (x,y). face may be nil: replay then
-// requires the target Context to already have a font via SetFont.
+// requires the target Context to already have a font via SetFont. Text extent
+// is unknown at record time, so bounds stay conservative-unknown.
 func (r *PictureRecorder) DrawString(s string, x, y float64, face text.Face, red, gre, blu, a float64) {
 	if r == nil || s == "" {
 		return
@@ -270,17 +324,23 @@ func (r *PictureRecorder) DrawString(s string, x, y float64, face text.Face, red
 		X:    x, Y: y,
 		Text: s,
 		Face: face,
-		R:    red, G: gre, B: blu, A: a,
+		R:    clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
 	})
 }
 
 // DrawImage records an image draw at (x,y). If dstW and dstH are both >0 the
 // image is scaled into that box; otherwise it is drawn 1:1. The ImageBuf is
 // retained by reference (not pixel-copied); dispose only after pictures that
-// reference it are dropped.
+// reference it are dropped. The destination rect is folded into Bounds.
 func (r *PictureRecorder) DrawImage(img *render.ImageBuf, x, y, dstW, dstH float64) {
 	if r == nil || img == nil || img.Disposed() {
 		return
+	}
+	if dstW > 0 && dstH > 0 {
+		r.noteGeometry(x, y, dstW, dstH)
+	} else {
+		w, h := img.Bounds()
+		r.noteGeometry(x, y, float64(w), float64(h))
 	}
 	r.ops = append(r.ops, PictureOp{
 		Kind: OpDrawImage,
@@ -298,21 +358,36 @@ func (r *PictureRecorder) OpCount() int {
 	return len(r.ops)
 }
 
-// EndRecording finishes the session and returns a Valid Picture with a copy of ops.
-// The recorder is reset (empty) after EndRecording.
+// EndRecording finishes the session and returns a Valid Picture with a detached
+// copy of ops. The recorder is reset (empty) and may be reused for the next
+// recording session.
 func (r *PictureRecorder) EndRecording() Picture {
 	if r == nil {
 		return Picture{}
 	}
 	ops := append([]PictureOp(nil), r.ops...)
 	r.ops = nil
-	b := r.bounds
-	r.bounds = image.Rectangle{}
+	var b image.Rectangle
+	if r.hasBnd {
+		// ceil keeps sub-pixel extents conservative (no truncation loss).
+		b = image.Rect(int(r.minX), int(r.minY), int(ceilF(r.maxX)), int(ceilF(r.maxY)))
+	}
+	r.minX, r.minY, r.maxX, r.maxY = 0, 0, 0, 0
+	r.hasBnd = false
 	return Picture{
 		Valid:  len(ops) > 0,
 		Ops:    ops,
 		Bounds: b,
 	}
+}
+
+// ceilF returns the smallest int ≥ v for negative-tolerant conservative bounds.
+func ceilF(v float64) int {
+	i := int(v)
+	if float64(i) < v {
+		return i + 1
+	}
+	return i
 }
 
 // Finish writes the recording into dst (replaces Ops), sets Valid from non-empty,

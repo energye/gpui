@@ -222,3 +222,42 @@ func TestEvaluateRetainedExtras_DirtyLayerIDGates(t *testing.T) {
 		t.Fatalf("zero thresholds must be off: %v", err)
 	}
 }
+
+// TestEvaluateRetainedExtras_CacheInvalidationGate: R11 — ability_extra
+// cache_invalidations 门禁判定（EvaluateGates 内自动调用）。
+func TestEvaluateRetainedExtras_CacheInvalidationGate(t *testing.T) {
+	base := scheduler.FrameMetrics{
+		PresentPolicy: scheduler.PresentPolicyRetained,
+		VSyncSource:   "fallback",
+		RSSStartKB:    1,
+		RSSEndKB:      1,
+		RSSPeakKB:     1,
+	}
+	mk := func(extra map[string]any) wrgate.Report {
+		return wrgate.BuildReport(wrgate.BuildInput{
+			AbilityID: "R11", Scenario: "ui_wr_r11_dpr", Snap: base,
+			PresentCount: 10, ElapsedSec: 15, Warmup: true, Extra: extra,
+		})
+	}
+	passExtra := map[string]any{
+		"cache_invalidations": int64(2), "rerecord_waves": int64(2),
+	}
+	if err := wrgate.EvaluateGates(mk(passExtra), wrgate.GateOptions{
+		MinCacheInvalidations: 1,
+	}); err != nil {
+		t.Fatalf("pass case failed: %v", err)
+	}
+	if err := wrgate.EvaluateGates(mk(map[string]any{"cache_invalidations": int64(0)}), wrgate.GateOptions{
+		MinCacheInvalidations: 1,
+	}); err == nil {
+		t.Fatal("want FAIL for cache_invalidations=0 < 1")
+	}
+	if err := wrgate.EvaluateGates(mk(nil), wrgate.GateOptions{
+		MinCacheInvalidations: 1,
+	}); err == nil {
+		t.Fatal("want FAIL for missing cache_invalidations")
+	}
+	if err := wrgate.EvaluateGates(mk(passExtra), wrgate.GateOptions{}); err != nil {
+		t.Fatalf("zero thresholds must be off: %v", err)
+	}
+}
