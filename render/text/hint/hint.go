@@ -23,14 +23,16 @@ import (
 // Mode 是目标 FreeType 渲染模式。
 //
 // FreeType 的 FT_LOAD_TARGET_LIGHT 对不同字体走不同引擎：
-//   - CJK 等无 bytecode hint 程序的字体 → autohinter 的 afcjk 脚本，
-//     只做纵轴（Y 方向）网格拟合；
-//   - Latin 等带 fpgm/prep 指令的字体 → TrueType 解释器以 light 模式运行
+//   - CFF 轮廓字体（OpenType OTTO，如系统 Noto Sans CJK）→ pshinter 的
+//     light 模式（pshalgo.c），只做纵轴（Y 方向）网格拟合；
+//   - TrueType glyf 轮廓字体（无 bytecode hint 程序）→ autohinter 的
+//     afcjk 脚本（Y-only grid-fit）；
+//   - Latin 等带 fpgm/prep 指令的字体 → TrueType 解释器 light 模式
 //     （只保留 Y 方向调整，跳过 X 方向指令）。
 type Mode uint8
 
 const (
-	// ModeLightCJK 对应 FreeType autohinter afcjk（Y-only grid-fit）。
+	// ModeLightCJK 对应 pshinter light / afcjk（CFF→psh_light.go，glyf→afcjk 兜底）。
 	ModeLightCJK Mode = iota
 
 	// ModeLightLatin 对应 TrueType 解释器 light 模式（bytecode Y-only）。
