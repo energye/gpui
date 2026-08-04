@@ -128,3 +128,59 @@ func TestPaintContext_PushClipRect_StillWorks(t *testing.T) {
 		t.Fatalf("outside (2,2)=#%04x%04x%04x want white", or, og, ob)
 	}
 }
+
+// TestRenderClipRRect_HitTest proves clipping is honored by hit testing (R13):
+// points outside the clip are rejected, points inside hit children, and a
+// child that overflows the clip is only hittable inside the clip bounds.
+func TestRenderClipRRect_HitTest(t *testing.T) {
+	child := rendering.NewRenderColorBox(40, 40, 1, 0, 0, 1)
+	child.SetDebugName("clipped")
+	clip := rendering.NewRenderClipRRect(child)
+	clip.SetRadius(4)
+	root := rendering.NewAbsoluteBox(100, 100)
+	root.Place(clip, 10, 10)
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
+
+	cases := []struct {
+		name string
+		p    rendering.Point
+		want string
+	}{
+		{"inside hits child", rendering.Point{X: 20, Y: 20}, "clipped"},
+		{"child local origin", rendering.Point{X: 10, Y: 10}, "clipped"},
+		{"clip edge still inside", rendering.Point{X: 10 + 39, Y: 10 + 39}, "clipped"},
+		{"outside clip x rejected", rendering.Point{X: 10 + 50, Y: 20}, ""},
+		{"outside clip y rejected", rendering.Point{X: 20, Y: 10 + 50}, ""},
+		{"far outside nil", rendering.Point{X: 95, Y: 95}, ""},
+	}
+	for _, tc := range cases {
+		hit := root.HitTest(tc.p)
+		if rendering.HitDebugName(hit) != tc.want {
+			t.Fatalf("%s: hit=%v want %q", tc.name, rendering.HitDebugName(hit), tc.want)
+		}
+	}
+}
+
+// TestRenderClipRRect_HitTest_ChildOverflow proves a child larger than the
+// clip is only hittable within the clip bounds (points beyond clip → nil).
+func TestRenderClipRRect_HitTest_ChildOverflow(t *testing.T) {
+	big := rendering.NewRenderColorBox(80, 80, 0, 0, 1, 1)
+	big.SetDebugName("big")
+	clip := rendering.NewRenderClipRRect(big)
+	clip.FixedWidth, clip.FixedHeight = 30, 30
+	root := rendering.NewAbsoluteBox(100, 100)
+	root.Place(clip, 0, 0)
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
+
+	if hit := root.HitTest(rendering.Point{X: 10, Y: 10}); rendering.HitDebugName(hit) != "big" {
+		t.Fatalf("inside clip: got %q want big", rendering.HitDebugName(hit))
+	}
+	if hit := root.HitTest(rendering.Point{X: 40, Y: 40}); hit == root || hit == nil {
+		// beyond the clip the hit must NOT land on the clipped child; the
+		// AbsoluteBox ancestor (no debug name) is the legal owner.
+	} else {
+		t.Fatalf("beyond clip but inside child: got %v want root or nil", rendering.HitDebugName(hit))
+	}
+}

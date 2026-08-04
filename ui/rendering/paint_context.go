@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render"
@@ -19,6 +20,9 @@ type PaintContext struct {
 	PaintVisits      *int64
 	// LayerBudget limits SaveLayer ops this frame (F16). Nil = unlimited.
 	LayerBudget *SaveLayerBudget
+	// LayerStats accumulates SaveLayer allow/reject outcomes (W2 R18).
+	// Nil = no counting. Lifetime owned by the embedder (PipelineApp).
+	LayerStats *SaveLayerStats
 	// saveLayerDepth tracks unmatched SaveLayer pushes (Restore pairs).
 	saveLayerDepth int
 	// BoundaryCache enables W1 Picture-backed RepaintBoundary reuse (R3).
@@ -41,7 +45,7 @@ func NewPaintContext(dc *render.Context, scale float64) *PaintContext {
 }
 
 // WithOrigin returns a child cursor with absolute origin (logical Y-down).
-// Shares LayerBudget and saveLayerDepth with the parent walk.
+// Shares LayerBudget, LayerStats and saveLayerDepth with the parent walk.
 func (pc *PaintContext) WithOrigin(absX, absY float64) *PaintContext {
 	if pc == nil {
 		return &PaintContext{OriginX: absX, OriginY: absY, Scale: 1}
@@ -54,6 +58,7 @@ func (pc *PaintContext) WithOrigin(absX, absY float64) *PaintContext {
 		CompositeOnly:     pc.CompositeOnly,
 		PaintVisits:       pc.PaintVisits,
 		LayerBudget:       pc.LayerBudget,
+		LayerStats:        pc.LayerStats,
 		saveLayerDepth:    pc.saveLayerDepth,
 		BoundaryCache:     pc.BoundaryCache,
 		UseBoundaryCache:  pc.UseBoundaryCache,
@@ -175,10 +180,16 @@ func (pc *PaintContext) SaveLayer(boundsW, boundsH, opacity float64) bool {
 		opacity = 1
 	}
 	if pc.LayerBudget != nil && !pc.LayerBudget.Allow(boundsW, boundsH) {
+		if pc.LayerStats != nil {
+			pc.LayerStats.Reject.Add(1)
+		}
 		return false
 	}
 	pc.DC.PushLayerIsolated(opacity)
 	pc.saveLayerDepth++
+	if pc.LayerStats != nil {
+		pc.LayerStats.Allow.Add(1)
+	}
 	return true
 }
 
@@ -370,6 +381,14 @@ type SaveLayerBudget struct {
 	MaxArea float64
 	ops     int
 	area    float64
+}
+
+// SaveLayerStats accumulates SaveLayer budget outcomes (W2 R18): Allow counts
+// accepted pushes, Reject counts budget-refused ones. Shared across frames by
+// the embedder; atomics keep paint-thread increments safe for main-thread reads.
+type SaveLayerStats struct {
+	Allow  atomic.Int64
+	Reject atomic.Int64
 }
 
 // Reset clears per-frame counters.

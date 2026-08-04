@@ -144,3 +144,77 @@ func TestSaveLayer_NestedDepth(t *testing.T) {
 		t.Fatal("depth leak")
 	}
 }
+
+// TestSaveLayer_StatsCountsAllowReject: LayerStats accumulates SaveLayer
+// budget outcomes — accepted pushes count Allow, budget refusals count Reject
+// (W2 R18 savelayer_allow / savelayer_reject observation source).
+func TestSaveLayer_StatsCountsAllowReject(t *testing.T) {
+	dc := render.NewContext(40, 40)
+	defer dc.Close()
+	pc := rendering.NewPaintContext(dc, 1)
+	stats := &rendering.SaveLayerStats{}
+	pc.LayerStats = stats
+	pc.LayerBudget = &rendering.SaveLayerBudget{MaxOps: 1, MaxArea: 1e9}
+
+	if !pc.SaveLayer(20, 20, 1) {
+		t.Fatal("first SaveLayer should be allowed")
+	}
+	if pc.SaveLayer(20, 20, 1) {
+		t.Fatal("second SaveLayer must be rejected by MaxOps=1")
+	}
+	pc.Restore()
+	if got := stats.Allow.Load(); got != 1 {
+		t.Fatalf("Allow=%d want 1", got)
+	}
+	if got := stats.Reject.Load(); got != 1 {
+		t.Fatalf("Reject=%d want 1", got)
+	}
+}
+
+// TestSaveLayer_StatsAllowNoBudget: without a budget every SaveLayer is
+// allowed and counted as Allow (unlimited path still observable).
+func TestSaveLayer_StatsAllowNoBudget(t *testing.T) {
+	dc := render.NewContext(40, 40)
+	defer dc.Close()
+	pc := rendering.NewPaintContext(dc, 1)
+	stats := &rendering.SaveLayerStats{}
+	pc.LayerStats = stats
+
+	if !pc.SaveLayer(10, 10, 1) {
+		t.Fatal("no budget: SaveLayer should be allowed")
+	}
+	if !pc.SaveLayer(10, 10, 1) {
+		t.Fatal("no budget: second SaveLayer should be allowed")
+	}
+	pc.Restore()
+	pc.Restore()
+	if got := stats.Allow.Load(); got != 2 {
+		t.Fatalf("Allow=%d want 2", got)
+	}
+	if got := stats.Reject.Load(); got != 0 {
+		t.Fatalf("Reject=%d want 0", got)
+	}
+}
+
+// TestWithOrigin_SharesLayerStats: WithOrigin children must keep counting
+// SaveLayer outcomes — Align/offset paints walk through pc.WithOrigin and a
+// missing LayerStats link would silently drop savelayer_allow/reject.
+func TestWithOrigin_SharesLayerStats(t *testing.T) {
+	dc := render.NewContext(40, 40)
+	defer dc.Close()
+	pc := rendering.NewPaintContext(dc, 1)
+	stats := &rendering.SaveLayerStats{}
+	pc.LayerStats = stats
+
+	child := pc.WithOrigin(10, 10)
+	if child.LayerStats != stats {
+		t.Fatal("WithOrigin must share LayerStats with the parent walk")
+	}
+	if !child.SaveLayer(10, 10, 1) {
+		t.Fatal("SaveLayer through WithOrigin child should be allowed")
+	}
+	child.Restore()
+	if got := stats.Allow.Load(); got != 1 {
+		t.Fatalf("Allow=%d want 1 (counted through WithOrigin child)", got)
+	}
+}

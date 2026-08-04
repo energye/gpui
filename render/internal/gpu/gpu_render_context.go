@@ -448,8 +448,11 @@ type presentPendingStash struct {
 	gpuTex           []GPUTextureDrawCommand
 	text             []TextBatch
 	glyph            []GlyphMaskBatch
-	scissorSegments  []scissorSegment
-	baseLayer        *GPUTextureDrawCommand
+	// Owned quad payload for stashed glyph batches: rc.glyphMaskQuadStore is
+	// truncated by the layer flush, so the stash must own a copy (opt22 pattern).
+	glyphQuads      []GlyphMaskQuad
+	scissorSegments []scissorSegment
+	baseLayer       *GPUTextureDrawCommand
 }
 
 // relocateConvexMeshData copies PackedVerts/Indices into dstPacked/dstIdx and
@@ -500,6 +503,14 @@ func (rc *GPURenderContext) stashPresentPending() {
 	s.gpuTex = append(s.gpuTex, rc.pendingGPUTextureCommands...)
 	s.text = append(s.text, rc.pendingTextBatches...)
 	s.glyph = append(s.glyph, rc.pendingGlyphMaskBatches...)
+	// Rehome stashed quads into stash-owned storage — the component store is
+	// truncated below and reused by layer draws (opt22 pattern).
+	for i := baseGlyph; i < len(s.glyph); i++ {
+		g := &s.glyph[i]
+		qb := len(s.glyphQuads)
+		s.glyphQuads = append(s.glyphQuads, g.Quads...)
+		g.Quads = s.glyphQuads[qb : qb+len(g.Quads)]
+	}
 	if len(rc.scissorSegments) > 0 {
 		if baseSDF|baseConvex|baseStencil|baseImage|baseGPUTex|baseText|baseGlyph == 0 {
 			s.scissorSegments = append(s.scissorSegments, rc.scissorSegments...)
@@ -634,6 +645,7 @@ func (rc *GPURenderContext) unstashPresentPending() {
 	s.gpuTex = s.gpuTex[:0]
 	s.text = s.text[:0]
 	s.glyph = s.glyph[:0]
+	s.glyphQuads = s.glyphQuads[:0]
 	s.scissorSegments = s.scissorSegments[:0]
 	s.baseLayer = nil
 }

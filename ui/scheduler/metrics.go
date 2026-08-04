@@ -64,8 +64,8 @@ type FrameMetrics struct {
 	// C-family dirty_layer_ids). Two distant hot spots → two ids. Empty/omitted
 	// when the window path does not collect them. DamageMultiFrames is the
 	// cumulative count of damage_multi presents (multi-rect independent scissors).
-	DirtyLayerIDs    []uint64 `json:"dirty_layer_ids,omitempty"`
-	DamageMultiFrames int64   `json:"damage_multi_frames,omitempty"`
+	DirtyLayerIDs     []uint64 `json:"dirty_layer_ids,omitempty"`
+	DamageMultiFrames int64    `json:"damage_multi_frames,omitempty"`
 
 	// PresentPolicy is the window paint/present strategy name (W0+).
 	// Values: PresentPolicyFullPaint | PresentPolicyRetained | PresentPolicyHybrid.
@@ -111,6 +111,11 @@ type FrameMetrics struct {
 	BoundaryCount int64 `json:"boundary_count,omitempty"`
 	// BoundaryMaxDepth is max nesting depth of repaint boundaries (R3b).
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
+
+	// SaveLayer budget outcome counters (W2 R18; cumulative per NoteSaveLayer
+	// call — Allow = push accepted, Reject = SaveLayerBudget refused the op).
+	SaveLayerAllow  int64 `json:"savelayer_allow,omitempty"`
+	SaveLayerReject int64 `json:"savelayer_reject,omitempty"`
 
 	// PictureOpCount is last-frame display-list op count (W1 R5).
 	PictureOpCount int64 `json:"picture_op_count,omitempty"`
@@ -465,6 +470,18 @@ func (s *MetricsStore) NoteBoundaryFrame(rerecord, skip int64) {
 	s.mu.Lock()
 	s.m.BoundaryRerecord += rerecord
 	s.m.BoundarySkip += skip
+	s.mu.Unlock()
+}
+
+// NoteSaveLayer accumulates per-frame SaveLayer budget outcomes (W2 R18).
+// allow/reject are that frame's accepted / budget-refused SaveLayer pushes.
+func (s *MetricsStore) NoteSaveLayer(allow, reject int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.SaveLayerAllow += allow
+	s.m.SaveLayerReject += reject
 	s.mu.Unlock()
 }
 

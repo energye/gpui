@@ -27,6 +27,10 @@ type PipelineOptions struct {
 	WarmUp bool
 	// Overlay is the optional F13 overlay stack (P5d). Hit-test is overlay-first.
 	Overlay *overlay.State
+	// SaveLayerMaxOps / SaveLayerMaxArea configure the per-frame SaveLayerBudget
+	// (F16, W2 R18). 0 = unlimited. Rejections are counted in savelayer_reject.
+	SaveLayerMaxOps  int
+	SaveLayerMaxArea float64
 }
 
 // boundaryFrameSnap is the last paintPresentTree frame's boundary cache counters.
@@ -78,6 +82,16 @@ type PipelineApp struct {
 	// useRetained: steady frames use CompositeOnly paint + PresentWithAuto damage
 	// (W2 R4). Warm-up/resize still full-paint. Default false = full_paint (W0).
 	useRetained atomic.Bool
+
+	// saveStats / saveBudget wire SaveLayer budget accounting (W2 R18):
+	// saveStats accumulates allow/reject outcomes; saveBudget (nil = unlimited)
+	// is reset every paint frame and injected into the paint PaintContext.
+	saveStats  *rendering.SaveLayerStats
+	saveBudget *rendering.SaveLayerBudget
+	// lastSaveAllow/Reject deltas from the previous sampling (raster thread)
+	// turn the cumulative stats into per-frame increments for NoteSaveLayer.
+	lastSaveAllow  int64
+	lastSaveReject int64
 
 	// pictureTex is the cross-frame layer texture cache for the retained
 	// textured-composite path (scene.CompositeFramePacketTextured). Lazy-created
@@ -268,7 +282,7 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 	}
 	s := scheduler.New()
 	s.Metrics().SetPresentPolicy(scheduler.PresentPolicyFullPaint)
-	return &PipelineApp{
+	app := &PipelineApp{
 		host:  host,
 		sched: s,
 		loop:  raster.NewLoop(raster.DefaultPipelineDepth, s.Metrics()),
@@ -276,6 +290,22 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 		root:  root,
 		opts:  opts,
 	}
+	app.saveStats = &rendering.SaveLayerStats{}
+	if opts.SaveLayerMaxOps > 0 || opts.SaveLayerMaxArea > 0 {
+		app.saveBudget = &rendering.SaveLayerBudget{
+			MaxOps:  opts.SaveLayerMaxOps,
+			MaxArea: opts.SaveLayerMaxArea,
+		}
+	}
+	return app
+}
+
+// SaveLayerStats returns the cumulative SaveLayer allow/reject outcomes (W2 R18).
+func (a *PipelineApp) SaveLayerStats() (allow, reject int64) {
+	if a == nil || a.saveStats == nil {
+		return 0, 0
+	}
+	return a.saveStats.Allow.Load(), a.saveStats.Reject.Load()
 }
 
 // Scheduler returns the frame scheduler (for AddTicker / AnimationController).
@@ -611,6 +641,8 @@ func (a *PipelineApp) Run() error {
 					debugDraws:    &frameDraws,
 					paintVisits:   &frameVisits,
 					compositeOnly: compositeOnly,
+					layerStats:    a.saveStats,
+					layerBudget:   a.saveBudget,
 				}
 				var out render.PresentOutcome
 				var err error
@@ -636,6 +668,13 @@ func (a *PipelineApp) Run() error {
 					// W1 R3: accumulate boundary skip/rerecord from last paint walk.
 					rr, sk := LastBoundaryFrame()
 					metrics.NoteBoundaryFrame(rr, sk)
+					// W2 R18: accumulate SaveLayer budget outcomes this frame
+					// (per-frame delta of the cumulative stats).
+					if a.saveStats != nil {
+						al, rj := a.saveStats.Allow.Load(), a.saveStats.Reject.Load()
+						metrics.NoteSaveLayer(al-a.lastSaveAllow, rj-a.lastSaveReject)
+						a.lastSaveAllow, a.lastSaveReject = al, rj
+					}
 					// R16 H-family: first loop present (warm-up path already recorded).
 					if a.presents.Load() == 0 {
 						a.recordFirstPresent()
@@ -686,9 +725,11 @@ func PaintPresentTreeCompositeOnly(dc *render.Context, pipe *rendering.PipelineO
 // paintPresentTreeOpts optional flags from PipelineApp (debug repaint / retained).
 type paintPresentTreeOpts struct {
 	debugRepaint  bool
-	debugDraws    *int64 // per-frame; nil = no count
-	paintVisits   *int64 // per-frame node visits (R2); nil = no count
-	compositeOnly bool   // W2 retained steady: skip clean boundaries (LoadOpLoad keeps pixels)
+	debugDraws    *int64                     // optional: accumulate debug repaint draws (R12b)
+	paintVisits   *int64                     // per-frame node visits (R2); nil = no count
+	compositeOnly bool                       // W2 retained steady: skip clean boundaries (LoadOpLoad keeps pixels)
+	layerStats    *rendering.SaveLayerStats  // W2 R18: allow/reject outcomes
+	layerBudget   *rendering.SaveLayerBudget // W2 R18: per-frame SaveLayer limit (nil = unlimited)
 }
 
 func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force, compositeOnly bool) {
@@ -706,6 +747,12 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 		dc.MarkFullRedraw()
 	}
 	pc := rendering.NewPaintContext(dc, dc.DeviceScale())
+	// W2 R18: per-frame SaveLayer budget + allow/reject outcome counting.
+	if opts.layerBudget != nil {
+		opts.layerBudget.Reset()
+	}
+	pc.LayerBudget = opts.layerBudget
+	pc.LayerStats = opts.layerStats
 	// W1: reuse PipelineOwner's long-lived Picture cache so clean boundaries
 	// skip re-record across frames (Replay still draws — GPU Clear safe).
 	cache := pipe.BoundaryCache()
@@ -845,7 +892,7 @@ func (a *PipelineApp) presentSyncFull() {
 		return
 	}
 	var frameDraws int64
-	opts := paintPresentTreeOpts{debugRepaint: a.debugRepaint.Load(), debugDraws: &frameDraws}
+	opts := paintPresentTreeOpts{debugRepaint: a.debugRepaint.Load(), debugDraws: &frameDraws, layerStats: a.saveStats, layerBudget: a.saveBudget}
 	_, _ = presentTreeOpts(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, opts)
 	a.debugRepaintDraws.Add(frameDraws)
 	a.presents.Add(1)

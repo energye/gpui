@@ -3,6 +3,8 @@ package render
 import (
 	"fmt"
 	"hash/fnv"
+	"image"
+	"math"
 	"os"
 	"strings"
 
@@ -381,6 +383,7 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 	}
 	if rc := c.gpuCtxOps(); rc != nil {
 		if rc.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+			c.trackTextDamage(s, x, y)
 			c.recordGPUOp()
 			return true
 		}
@@ -398,11 +401,50 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 		return false
 	}
 	if gma.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale) == nil {
+		c.trackTextDamage(s, x, y)
 		c.recordGPUOp()
 		return true
 	}
 	c.recordCPUFallbackReason("text:glyphmask-draw")
 	return false
+}
+
+// trackTextDamage registers the ink bounds of a GPU-queued text draw into the
+// current frame + layer damage. Fill/Stroke record c.path.Bounds() inside
+// Context.Fill/Stroke, so rectangle/vector draws always contribute to damage;
+// GPU glyph-mask/MSDF text paths bypass Context.Fill and therefore must record
+// their own bounds. Without this, an isolation layer's damage (which becomes
+// the layer-RT scissor in FlushGPUWithViewDamage) only covers shape draws and
+// silently clips CJK runs that extend past the last FillRect edge — the
+// "合成残影" bug in ui_wr_r18_savelayer.
+func (c *Context) trackTextDamage(s string, x, y float64) {
+	if c.face == nil || s == "" {
+		return
+	}
+	m := c.face.Metrics()
+	ascent := m.Ascent
+	if ascent < 0 {
+		ascent = -ascent
+	}
+	descent := m.Descent
+	if descent < 0 {
+		descent = -descent
+	}
+	width := c.face.Advance(s)
+	if width <= 0 {
+		width = m.XHeight * float64(len(s)) //nolint:mnd // conservative fallback
+	}
+	// x is the text baseline origin in user space (Y-down baseline, ascent above).
+	bounds := image.Rect(
+		int(math.Floor(x))-1,
+		int(math.Floor(y-ascent))-1,
+		int(math.Ceil(x+width))+1,
+		int(math.Ceil(y+descent))+1,
+	)
+	if bounds.Empty() {
+		return
+	}
+	c.trackDamage(bounds)
 }
 
 // tryGPUGlyphMaskTextAliased attempts to render aliased text via the GPU glyph

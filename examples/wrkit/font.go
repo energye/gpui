@@ -22,9 +22,13 @@ var (
 // EnsureUIFace loads a system UI font once (size 14 base). Safe to call often.
 // Returns (face, path, err). On err, text will still layout by rune estimate
 // but will not paint — callers should log and avoid relying on invisible labels.
+//
+// Uses a MultiFace chain (UI + CJK + …) so Chinese labels in wr_* chrome
+// (TopBar titles, legends) actually paint — LoadDefaultFace alone resolves
+// only a Latin font whose glyphs lack CJK coverage (drawString skips them).
 func EnsureUIFace() (text.Face, string, error) {
 	uiFaceOnce.Do(func() {
-		uiFace, uiFacePath, uiFaceErr = rendering.TryLoadDefaultFace(14)
+		uiFace, uiFacePath, uiFaceErr = text.LoadMultiFace(14)
 		if uiFaceErr != nil {
 			fmt.Fprintf(os.Stderr, "wrkit: UI font load failed: %v (text will be invisible)\n", uiFaceErr)
 		} else {
