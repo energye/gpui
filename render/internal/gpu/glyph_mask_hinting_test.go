@@ -10,14 +10,20 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
-// TestGlyphMaskFullHintingForLatin guards the hinting choice: small axis-aligned
-// Latin text uses FULL hinting so stems are grid-fit and crisp. layoutGlyphs
-// then places fully-hinted glyphs on integer device pixels (so the grid-fit
-// stems are not displaced and faded) using rounded advances (so spacing stays
-// even). Skewed text disables hinting.
-func TestGlyphMaskFullHintingForLatin(t *testing.T) {
-	if h := selectGlyphMaskHinting(13, render.Identity(), false, 1.0); h != text.HintingFull {
-		t.Fatalf("small Latin text hinting = %v, want HintingFull", h)
+// TestGlyphMaskUnhintedFromFreeType guards the hinting choice: small axis-aligned
+// Latin/CJK text uses NO hinting so glyphs rasterize pixel-identical to
+// FreeType's FT_LOAD_NO_HINTING (verified per-glyph at 8–16px). The self-own
+// Vertical/Full engines diverged structurally from FreeType light hinting,
+// which is why the window previously rendered "completely different" glyphs
+// from a browser. LCD subpixel rendering is orthogonal and unchanged.
+func TestGlyphMaskUnhintedFromFreeType(t *testing.T) {
+	for _, size := range []float64{8, 10, 11, 13, 16} {
+		if h := selectGlyphMaskHinting(size, render.Identity(), false, 1.0); h != text.HintingNone {
+			t.Fatalf("Latin text at %vpx hinting = %v, want HintingNone", size, h)
+		}
+		if h := selectGlyphMaskHinting(size, render.Identity(), true, 1.0); h != text.HintingNone {
+			t.Fatalf("CJK text at %vpx hinting = %v, want HintingNone", size, h)
+		}
 	}
 	if h := selectGlyphMaskHinting(13, render.Matrix{A: 1, B: 0.3, D: 0.3, E: 1}, false, 1.0); h != text.HintingNone {
 		t.Fatalf("skewed text hinting = %v, want HintingNone", h)
@@ -29,7 +35,9 @@ func TestGlyphMaskFullHintingForLatin(t *testing.T) {
 //
 //  1. Fully-hinted glyphs must land on integer device pixels (else the grid-fit
 //     stems are displaced and render faded). So every quad's left edge is an
-//     integer.
+//     integer. Since R21 switched the mask pipeline to unhinted rendering
+//     (FreeType-identical), sub-pixel placement is now legal AA — this
+//     assertion only applies while a hinting mode is selected.
 //  2. Spacing must stay even: rounding each glyph's ABSOLUTE position
 //     independently makes adjacent advances jitter by ±1px and opens visible
 //     gaps inside words ("anyway" -> "an yway"). Using rounded ADVANCES instead
@@ -56,11 +64,6 @@ func TestGlyphMaskEvenSpacing(t *testing.T) {
 		}
 		out := make([]float64, 0, len(b.Quads))
 		for i := range b.Quads {
-			// Fully hinted glyphs must land on integer device pixels, or the
-			// grid-fit stems are displaced and render faded.
-			if d := b.Quads[i].X0 - float32(math.Round(float64(b.Quads[i].X0))); math.Abs(float64(d)) > 0.01 {
-				t.Errorf("quad[%d].X0 = %.3f not integer-aligned", i, b.Quads[i].X0)
-			}
 			if i+1 < len(b.Quads) {
 				out = append(out, float64(b.Quads[i+1].X0-b.Quads[i].X0))
 			}

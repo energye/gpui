@@ -95,6 +95,13 @@ func main() {
 	btn2.SetRepaintBoundary(true)
 	btn2.Place(wrkit.Label("按钮-2", 11, 1, 1, 1), 10, 7)
 	bar.Place(btn2, 414, 18)
+	// Font-size samples (8/10/12/14/16): static text inside the shell band,
+	// must keep rerecord=0 while the body scrolls.
+	sx := 530.0
+	for _, s := range []float64{8, 10, 12, 14, 16} {
+		bar.Place(wrkit.Label(fmt.Sprintf("%dpx 样张", int(s)), s, 0.92, 0.95, 1), sx, 44)
+		sx += 28 + s*3.0
+	}
 	shell.Root.Place(bar, 10, 6)
 
 	// The phase chip lives OUTSIDE the shell boundary: it changes every frame

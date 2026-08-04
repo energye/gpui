@@ -98,11 +98,22 @@ func drawGlyphs(
 	src := image.NewUniform(col)
 
 	advanceX := 0.0
+	// Hinted text must be placed at integer device pixels (Skia pattern,
+	// matches GPU glyphPlacement): fractional X splits 1px vertical stems
+	// into two half-coverage columns in the rasterizer (FreeType shows the
+	// same break at fracX=0.5), and hinted outlines are already grid-fitted
+	// so Y must never be re-shifted. X snaps to the rounded-advance grid so
+	// stems stay crisp while spacing stays even.
+	snapPen := math.Round(x)
 	for glyph := range sf.Glyphs(text) {
+		adv := hintedOrRawAdvance(ttCache, glyph, ppem)
 		if glyph.GID == 0 {
 			// Space and other no-outline glyphs: use unhinted advance.
 			// These have no TT bytecode and phantom points would be trivial.
-			advanceX += glyph.Advance
+			advanceX += adv
+			if hinting != HintingNone {
+				snapPen += math.Round(adv)
+			}
 			continue
 		}
 
@@ -114,10 +125,18 @@ func drawGlyphs(
 		intY := math.Floor(glyphY)
 		subpixelX := glyphX - intX
 		subpixelY := glyphY - intY
+		if hinting != HintingNone {
+			intX = snapPen
+			subpixelX = 0
+			subpixelY = 0
+		}
 
 		result, err := rasterize(rast, parsed, glyph.GID, ppem, subpixelX, subpixelY, hinting)
 		if err != nil || result == nil {
-			advanceX += hintedOrRawAdvance(ttCache, glyph, ppem)
+			advanceX += adv
+			if hinting != HintingNone {
+				snapPen += math.Round(adv)
+			}
 			continue
 		}
 
@@ -134,7 +153,10 @@ func drawGlyphs(
 		draw.DrawMask(dst, destRect, src, image.Point{}, maskImg, image.Point{}, draw.Over)
 
 		// Advance cursor using hinted advance when TT hinting is active.
-		advanceX += hintedOrRawAdvance(ttCache, glyph, ppem)
+		advanceX += adv
+		if hinting != HintingNone {
+			snapPen += math.Round(adv)
+		}
 	}
 }
 
@@ -191,6 +213,8 @@ func drawGlyphsVariable(
 	extractor := &OutlineExtractor{}
 
 	advanceX := 0.0
+	// Hinted variable text: integer device placement (matches drawGlyphs).
+	snapPen := math.Round(x)
 	for _, r := range text {
 		if r < 0x20 && r != '\t' {
 			continue
@@ -214,6 +238,11 @@ func drawGlyphsVariable(
 		intY := math.Floor(glyphY)
 		subpixelX := glyphX - intX
 		subpixelY := glyphY - intY
+		if hinting != HintingNone {
+			intX = snapPen
+			subpixelX = 0
+			subpixelY = 0
+		}
 
 		// Unified gvar + hinting path (skrifa load_simple parity).
 		// ExtractOutlineHintedVar applies gvar deltas THEN hinting in one pass.
@@ -251,6 +280,9 @@ func drawGlyphsVariable(
 		draw.DrawMask(dst, destRect, src, image.Point{}, maskImg, image.Point{}, draw.Over)
 
 		advanceX += float64(outline.Advance)
+		if hinting != HintingNone {
+			snapPen += math.Round(float64(outline.Advance))
+		}
 	}
 }
 

@@ -210,16 +210,16 @@ func TestSelectGlyphMaskHinting(t *testing.T) {
 	}{
 		{
 			name: "latin_small_identity", fontSize: 12, matrix: render.Identity(),
-			want: text.HintingFull,
+			want: text.HintingNone,
 		},
 		{
 			name: "latin_small_translation", fontSize: 16,
 			matrix: render.Matrix{A: 1, B: 0, C: 50, D: 0, E: 1, F: 30},
-			want:   text.HintingFull,
+			want:   text.HintingNone,
 		},
 		{
 			name: "latin_threshold_48px", fontSize: 48, matrix: render.Identity(),
-			want: text.HintingFull,
+			want: text.HintingNone,
 		},
 		{
 			name: "latin_above_threshold", fontSize: 49, matrix: render.Identity(),
@@ -242,13 +242,13 @@ func TestSelectGlyphMaskHinting(t *testing.T) {
 		{
 			name: "latin_uniform_scale", fontSize: 12,
 			matrix: render.Matrix{A: 2, B: 0, C: 0, D: 0, E: 2, F: 0},
-			want:   text.HintingFull,
+			want:   text.HintingNone,
 		},
 		// ADR-027: CJK script-aware hinting
 		{
 			name: "cjk_small_1x_vertical_only", fontSize: 14, matrix: render.Identity(),
 			isCJK: true, deviceScale: 1.0,
-			want: text.HintingVertical,
+			want: text.HintingNone,
 		},
 		{
 			name: "cjk_small_2x_none", fontSize: 14, matrix: render.Identity(),

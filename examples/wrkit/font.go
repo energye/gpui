@@ -47,9 +47,11 @@ func FaceAt(points float64) text.Face {
 	if points <= 0 {
 		points = 14
 	}
-	// Prefer Source re-face when available so size tracks points.
+	// Prefer Source re-face when available so size tracks points. Explicit
+	// None hinting keeps the CPU fallback identical to the GPU mask pipeline
+	// (R21: unhinted renders pixel-identical to FreeType no-hint).
 	if src := base.Source(); src != nil {
-		if f := src.Face(points); f != nil {
+		if f := src.Face(points, text.WithHinting(text.HintingNone)); f != nil {
 			return f
 		}
 	}

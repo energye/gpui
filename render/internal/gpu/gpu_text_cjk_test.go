@@ -119,14 +119,14 @@ func TestSelectGlyphMaskHinting_CJKEnterprise(t *testing.T) {
 		reason      string
 	}{
 		{
-			name: "cjk_1x_vertical", isCJK: true, deviceScale: 1.0,
-			want:   text.HintingVertical,
-			reason: "FreeType afcjk: Y-direction only for CJK",
+			name: "cjk_1x_none", isCJK: true, deviceScale: 1.0,
+			want:   text.HintingNone,
+			reason: "unhinted = FT_LOAD_NO_HINTING: CJK glyphs match FreeType pixel-for-pixel",
 		},
 		{
-			name: "cjk_1.5x_vertical", isCJK: true, deviceScale: 1.5,
-			want:   text.HintingVertical,
-			reason: "150% scale: still benefits from vertical hinting",
+			name: "cjk_1.5x_none", isCJK: true, deviceScale: 1.5,
+			want:   text.HintingNone,
+			reason: "150% scale: same unhinted guarantee",
 		},
 		{
 			name: "cjk_2x_none", isCJK: true, deviceScale: 2.0,
@@ -139,14 +139,14 @@ func TestSelectGlyphMaskHinting_CJKEnterprise(t *testing.T) {
 			reason: "HiDPI: pixel density makes hinting unnecessary",
 		},
 		{
-			name: "latin_1x_full", isCJK: false, deviceScale: 1.0,
-			want:   text.HintingFull,
-			reason: "Latin: full grid-fitting for crisp stems (integer rounded-advance placement keeps spacing even)",
+			name: "latin_1x_none", isCJK: false, deviceScale: 1.0,
+			want:   text.HintingNone,
+			reason: "Latin unhinted matches FT_LOAD_NO_HINTING ink exactly (Full stems were ~40% lighter than FT light)",
 		},
 		{
-			name: "latin_2x_full", isCJK: false, deviceScale: 2.0,
-			want:   text.HintingFull,
-			reason: "Latin on Retina: full hinting; rounded-advance placement keeps spacing even",
+			name: "latin_2x_none", isCJK: false, deviceScale: 2.0,
+			want:   text.HintingNone,
+			reason: "Latin on Retina: same unhinted guarantee",
 		},
 	}
 	for _, tt := range tests {

@@ -364,20 +364,20 @@ func snapXGrid(glyphs []text.ShapedGlyph, x, deviceScale float64) []float64 {
 
 // glyphPlacement computes the device-space position (returned in user space as
 // absX/absY) and sub-pixel fraction for one glyph, applying hinting
-// pixel-snapping. Y is snapped for any hinting (baseline / horizontal stems
-// grid-fit to the pixel grid). X is snapped to the precomputed rounded-advance
-// grid (snappedDevX) when snapX is set, so vertical stems stay crisp while
-// spacing remains even. The fraction MUST be measured in device space: the mask
-// is rasterized at device size and the quad is scaled by deviceScale at flush.
+// pixel-snapping. Y is always snapped to the pixel grid (FreeType renders on
+// an integer baseline for every mode, including no-hint). X is snapped to the
+// precomputed rounded-advance grid (snappedDevX) when snapX is set, so vertical
+// stems stay crisp while spacing remains even; LCD leaves X fractional to pick
+// the RGB subpixel phase. The fraction MUST be measured in device space: the
+// mask is rasterized at device size and the quad is scaled by deviceScale at
+// flush.
 func glyphPlacement(absX, absY, deviceScale float64, hinting text.Hinting, snappedDevX float64, snapX bool) (px, py, fracX, fracY float64) {
 	devX := absX * deviceScale
 	devY := absY * deviceScale
 	fracX = devX - math.Floor(devX)
 	fracY = devY - math.Floor(devY)
-	if hinting != text.HintingNone {
-		fracY = 0
-		absY = math.Round(devY) / deviceScale
-	}
+	fracY = 0
+	absY = math.Round(devY) / deviceScale
 	if snapX {
 		fracX = 0
 		absX = snappedDevX / deviceScale
@@ -411,10 +411,15 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	quads := e.quadScratch[:0]
 	var batchIsLCD bool
 
-	// Full hinting grid-fits stems to the integer pixel grid, so fully hinted
-	// glyphs must be placed at integer device pixels (snapXGrid). LCD keeps
-	// sub-pixel X (it selects the R/G/B phase), so it is excluded.
-	snapX := hinting == text.HintingFull && !useLCD
+	// Non-LCD masks render on an integer pixel grid (FreeType no-hint style):
+	// placement snaps X to the rounded-advance grid and Y to the baseline, so
+	// advance spacing never jitters with the text origin's sub-pixel fraction
+	// and unhinted glyphs match FreeType's integer-grid rasterization. LCD
+	// keeps the X sub-pixel phase (RGB subpixel coverage) and only Y snaps.
+	// Full/Vertical hinting also snapped X (ADR-027 follow-up): fractional X
+	// placement splits 1px vertical CJK stems into two half-coverage columns
+	// in the rasterizer, which produced broken/uneven strokes on CJK labels.
+	snapX := !useLCD
 	var snappedDevX []float64
 	if snapX && len(glyphs) > 0 {
 		snappedDevX = snapXGrid(glyphs, x, deviceScale)
@@ -850,25 +855,19 @@ func stringContainsCJK(s string) bool {
 }
 
 func selectGlyphMaskHinting(fontSize float64, matrix render.Matrix, isCJK bool, deviceScale float64) text.Hinting {
-	if matrix.B != 0 || matrix.D != 0 {
-		return text.HintingNone
-	}
-
-	if fontSize > glyphMaskHintingMaxSize {
-		return text.HintingNone
-	}
-
-	if isCJK {
-		if deviceScale >= 2.0 {
-			return text.HintingNone
-		}
-		return text.HintingVertical
-	}
-
-	// Full hinting grid-fits stems for crisp rendering. layoutGlyphs places
-	// fully hinted glyphs on integer device pixels using rounded advances, so
-	// the grid-fit stems stay pixel-aligned (crisp) while spacing stays even.
-	return text.HintingFull
+	// 生产级 text quality (R21 Bug2 follow-up): self-verified against the
+	// system libfreetype measurement harness. The self-own Vertical/Full hint
+	// engines produce CJK/Latin glyph structures that differ substantially
+	// from FreeType (vertical CJK strokes misplaced, Latin Full stems ~40%
+	// less ink than FT light), so a user comparing the window against browser
+	// /FreeType output saw "completely different" glyphs.
+	//
+	// Unhinted (HintingNone) rasterization is pixel-identical to
+	// FreeType's FT_LOAD_NO_HINTING (verified per-glyph across
+	// 8/10/11/12/16px Latin+CJK), which matches the reference output the
+	// user accepted. Rotated/skewed text and large sizes above already
+	// resolve to none. LCD subpixel rendering is orthogonal and unchanged.
+	return text.HintingNone
 }
 
 // glyphMaskLCDMaxSize is the maximum font size in device pixels for which
