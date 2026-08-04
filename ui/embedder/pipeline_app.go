@@ -37,6 +37,9 @@ type PipelineOptions struct {
 type boundaryFrameSnap struct {
 	Rerecord int64
 	Skip     int64
+	// Shell partitioning (W2 R21): shell-tagged boundaries counted separately.
+	ShellRerecord int64
+	ShellSkip     int64
 }
 
 // lastBoundaryFrame is published by paintPresentTree for metrics pickup.
@@ -248,6 +251,20 @@ func LastBoundaryFrame() (rerecord, skip int64) {
 		return 0, 0
 	}
 	return s.Rerecord, s.Skip
+}
+
+// LastShellBoundaryFrame returns the last frame's shell-tagged boundary
+// skip/rerecord (W2 R21). A scrolling body must keep the shell rerecord at 0.
+func LastShellBoundaryFrame() (shellRerecord, shellSkip int64) {
+	v := lastBoundaryFrame.Load()
+	if v == nil {
+		return 0, 0
+	}
+	s, ok := v.(boundaryFrameSnap)
+	if !ok {
+		return 0, 0
+	}
+	return s.ShellRerecord, s.ShellSkip
 }
 
 // BoundaryCache returns the PipelineOwner's long-lived boundary Picture cache.
@@ -654,20 +671,15 @@ func (a *PipelineApp) Run() error {
 				if frameDraws > 0 {
 					dbgAccum.Add(frameDraws)
 				}
-				if metrics != nil && target != nil {
-					mode := out.Mode.String()
-					area := target.LastDamageAreaPx()
-					metrics.NotePresentOutcome(mode, area)
-					metrics.SetPaintVisits(frameVisits)
-					a.noteDamage(area, mode)
-					// M-GPU-*: float render path routing into UI JSON (no ui→gpu).
-					if dc := target.Context(); dc != nil {
-						st := dc.RenderPathStats()
-						metrics.NoteGPUPathStats(st.GPUOps, st.CPUFallbackOps, st.FrameFlushes, st.LastCPUFallbackReason)
-					}
-					// W1 R3: accumulate boundary skip/rerecord from last paint walk.
+				if metrics != nil {
+					// Boundary/shell/save-stats accumulation does not depend on a
+					// resolved PresentTarget: bootstrap warm-up frames paint into
+					// the surface but may not have issued a present yet. Sampling
+					// here keeps the very first cold shell record (R21) honest.
 					rr, sk := LastBoundaryFrame()
 					metrics.NoteBoundaryFrame(rr, sk)
+					srr, ssk := LastShellBoundaryFrame()
+					metrics.NoteShellBoundaryFrame(srr, ssk)
 					// W2 R18: accumulate SaveLayer budget outcomes this frame
 					// (per-frame delta of the cumulative stats).
 					if a.saveStats != nil {
@@ -678,6 +690,18 @@ func (a *PipelineApp) Run() error {
 					// R16 H-family: first loop present (warm-up path already recorded).
 					if a.presents.Load() == 0 {
 						a.recordFirstPresent()
+					}
+				}
+				if metrics != nil && target != nil {
+					mode := out.Mode.String()
+					area := target.LastDamageAreaPx()
+					metrics.NotePresentOutcome(mode, area)
+					metrics.SetPaintVisits(frameVisits)
+					a.noteDamage(area, mode)
+					// M-GPU-*: float render path routing into UI JSON (no ui→gpu).
+					if dc := target.Context(); dc != nil {
+						st := dc.RenderPathStats()
+						metrics.NoteGPUPathStats(st.GPUOps, st.CPUFallbackOps, st.FrameFlushes, st.LastCPUFallbackReason)
 					}
 				}
 				return err
@@ -776,8 +800,10 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 	}
 	// Publish per-frame boundary stats for metrics pickup (NoteBoundaryFrame).
 	lastBoundaryFrame.Store(boundaryFrameSnap{
-		Rerecord: cache.FrameRerecord,
-		Skip:     cache.FrameSkip,
+		Rerecord:      cache.FrameRerecord,
+		Skip:          cache.FrameSkip,
+		ShellRerecord: cache.FrameShellRerecord,
+		ShellSkip:     cache.FrameShellSkip,
 	})
 }
 
@@ -843,6 +869,9 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 			d.TrackDamageRect(r)
 		}
 		// Boundary metrics: texture re-record = rerecord, cached blit = skip.
+		// Shell partitioning (R21) is reported by the vector paintPresentTree
+		// path (full_paint with BoundaryCache); the retained texture path has
+		// no shell ancestry on its ids and intentionally leaves shell=0.
 		lastBoundaryFrame.Store(boundaryFrameSnap{
 			Rerecord: tex.FrameRerecord.Load(),
 			Skip:     tex.FrameSkip.Load(),
@@ -895,6 +924,19 @@ func (a *PipelineApp) presentSyncFull() {
 	opts := paintPresentTreeOpts{debugRepaint: a.debugRepaint.Load(), debugDraws: &frameDraws, layerStats: a.saveStats, layerBudget: a.saveBudget}
 	_, _ = presentTreeOpts(a.target, a.pipe, a.root, a.opts.Overlay, a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, opts)
 	a.debugRepaintDraws.Add(frameDraws)
+	// Warm-up full paint also produces boundary/shell cache stats (its very
+	// first Store is the cold shell record R21 must report honestly).
+	if m := a.sched.Metrics(); m != nil {
+		rr, sk := LastBoundaryFrame()
+		m.NoteBoundaryFrame(rr, sk)
+		srr, ssk := LastShellBoundaryFrame()
+		m.NoteShellBoundaryFrame(srr, ssk)
+		if a.saveStats != nil {
+			al, rj := a.saveStats.Allow.Load(), a.saveStats.Reject.Load()
+			m.NoteSaveLayer(al-a.lastSaveAllow, rj-a.lastSaveReject)
+			a.lastSaveAllow, a.lastSaveReject = al, rj
+		}
+	}
 	a.presents.Add(1)
 	a.recordFirstPresent()
 }

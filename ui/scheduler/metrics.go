@@ -111,6 +111,11 @@ type FrameMetrics struct {
 	BoundaryCount int64 `json:"boundary_count,omitempty"`
 	// BoundaryMaxDepth is max nesting depth of repaint boundaries (R3b).
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
+	// Shell partitioning of the boundary caches (R21 shell/content layering;
+	// cumulative across NoteShellBoundaryFrame calls). A scrolling body must
+	// keep ShellRerecord == 0 while the shell Picture cache Replays.
+	ShellRerecord int64 `json:"shell_rerecord,omitempty"`
+	ShellSkip     int64 `json:"shell_skip,omitempty"`
 
 	// SaveLayer budget outcome counters (W2 R18; cumulative per NoteSaveLayer
 	// call — Allow = push accepted, Reject = SaveLayerBudget refused the op).
@@ -470,6 +475,19 @@ func (s *MetricsStore) NoteBoundaryFrame(rerecord, skip int64) {
 	s.mu.Lock()
 	s.m.BoundaryRerecord += rerecord
 	s.m.BoundarySkip += skip
+	s.mu.Unlock()
+}
+
+// NoteShellBoundaryFrame accumulates the shell-tagged boundary cache stats
+// (R21 shell/content layering). A scrolling body must keep shellRerecord == 0
+// while its shell Picture cache Replays.
+func (s *MetricsStore) NoteShellBoundaryFrame(shellRerecord, shellSkip int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.ShellRerecord += shellRerecord
+	s.m.ShellSkip += shellSkip
 	s.mu.Unlock()
 }
 

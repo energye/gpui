@@ -501,3 +501,79 @@ func TestCompositingBits_IncrementalFlush(t *testing.T) {
 		t.Fatal("flush must clear dirty markers")
 	}
 }
+
+// TestBoundaryCache_ShellBodyPartition: shell-tagged boundaries count in the
+// shell bucket separately from body boundaries (R21 shell/content layering).
+// Frame 1 cold-records both; frame 2 dirties ONLY the body — the shell boundary
+// Replays (shell skip +1) with shell rerecord staying 0.
+func TestBoundaryCache_ShellBodyPartition(t *testing.T) {
+	shellB := rendering.NewRenderColorBox(400, 50, 0.2, 0.4, 0.9, 1)
+	shellB.SetRepaintBoundary(true)
+	shellB.SetShellBoundary(true)
+	bodyB := rendering.NewRenderColorBox(400, 300, 0.9, 0.6, 0.2, 1)
+	bodyB.SetRepaintBoundary(true)
+
+	root := rendering.NewAbsoluteBox(600, 400)
+	root.Place(shellB, 0, 0)
+	root.Place(bodyB, 0, 60)
+
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: 200, Height: 200}, true)
+	cache := owner.BoundaryCache()
+
+	// Frame 1: both dirty → 2 rerecords, 1 of them shell.
+	paintWithCache(t, root, cache, 200, 400)
+	srr, ssk := cache.ShellFrameCounts()
+	if srr != 1 {
+		t.Fatalf("frame1 shell_rerecord=%d want 1", srr)
+	}
+	if ssk != 0 {
+		t.Fatalf("frame1 shell_skip=%d want 0", ssk)
+	}
+	if cache.ShellRerecord != 1 || cache.ShellSkip != 0 {
+		t.Fatalf("lifetime shell rr/sk=%d/%d want 1/0", cache.ShellRerecord, cache.ShellSkip)
+	}
+
+	// Frame 2: body scrolls (changes color) → body rerecords, shell Replays.
+	bodyB.R, bodyB.G = 0.1, 0.3
+	bodyB.MarkNeedsPaint()
+	if shellB.NeedsPaint() {
+		t.Fatal("shell must stay clean when the body (sibling boundary) dirties")
+	}
+	paintWithCache(t, root, cache, 200, 400)
+	srr, ssk = cache.ShellFrameCounts()
+	if srr != 0 {
+		t.Fatalf("frame2 shell_rerecord=%d want 0 (body scroll must not re-record shell)", srr)
+	}
+	if ssk != 1 {
+		t.Fatalf("frame2 shell_skip=%d want 1 (shell Picture replays)", ssk)
+	}
+	if cache.FrameRerecord < 1 {
+		t.Fatalf("frame2 body rerecord=%d want ≥1", cache.FrameRerecord)
+	}
+	// Global counters still include shell (backward compat with R3/R4b gates).
+	if cache.ShellRerecord != 1 {
+		t.Fatalf("lifetime shell_rerecord=%d want 1", cache.ShellRerecord)
+	}
+}
+
+// TestBase_SetShellBoundary_Toggle: the tag survives toggling and reports false
+// by default; re-tagging is idempotent (R21).
+func TestBase_SetShellBoundary_Toggle(t *testing.T) {
+	b := rendering.NewRenderColorBox(10, 10, 1, 0, 0, 1)
+	if b.IsShellBoundary() {
+		t.Fatal("untagged boundary must not be shell")
+	}
+	b.SetShellBoundary(true)
+	if !b.IsShellBoundary() {
+		t.Fatal("SetShellBoundary(true) must tag the boundary")
+	}
+	b.SetShellBoundary(true)
+	if !b.IsShellBoundary() {
+		t.Fatal("re-tagging must stay applied")
+	}
+	b.SetShellBoundary(false)
+	if b.IsShellBoundary() {
+		t.Fatal("SetShellBoundary(false) must clear the tag")
+	}
+}

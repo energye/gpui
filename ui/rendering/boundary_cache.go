@@ -34,6 +34,14 @@ type BoundaryCache struct {
 	FrameSkip     int64
 	// FrameMiss counts boundaries that wanted a Replay but had none (diagnostics).
 	FrameMiss int64
+	// Shell/content partitioning (W2 R21): boundaries tagged with
+	// SetShellBoundary are counted separately, so a scrolling body can prove
+	// the shell's Picture cache is never re-recorded (shell rerecord == 0).
+	// Global counters above still include shell boundaries (backward compat).
+	ShellRerecord      int64
+	ShellSkip          int64
+	FrameShellRerecord int64
+	FrameShellSkip     int64
 }
 
 type boundaryEntry struct {
@@ -60,6 +68,8 @@ func (c *BoundaryCache) BeginFrame() {
 	c.FrameRerecord = 0
 	c.FrameSkip = 0
 	c.FrameMiss = 0
+	c.FrameShellRerecord = 0
+	c.FrameShellSkip = 0
 }
 
 // ensureID assigns a stable cache id on Base.
@@ -189,6 +199,10 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	}
 	c.Skip++
 	c.FrameSkip++
+	if shellOf(n) {
+		c.ShellSkip++
+		c.FrameShellSkip++
+	}
 	pc.NotePaintVisit()
 	return true
 }
@@ -223,7 +237,31 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 	}
 	c.Rerecord++
 	c.FrameRerecord++
+	if shellOf(n) {
+		c.ShellRerecord++
+		c.FrameShellRerecord++
+	}
 	// No ancestor invalidate: parents do not bake nested RB children.
+}
+
+// shellOf reports whether n was tagged as window-shell content (R21). A node
+// without a Base (or a non-boundary node) is never shell.
+func shellOf(n RenderObject) bool {
+	if n == nil || !n.IsRepaintBoundary() {
+		return false
+	}
+	if b, ok := baseOf(n); ok && b != nil {
+		return b.shellBoundary
+	}
+	return false
+}
+
+// ShellFrameCounts returns the current frame's shell skip/rerecord (R21).
+func (c *BoundaryCache) ShellFrameCounts() (rerecord, skip int64) {
+	if c == nil {
+		return 0, 0
+	}
+	return c.FrameShellRerecord, c.FrameShellSkip
 }
 
 // storeColorBox is the legacy-specific entry point used by RenderColorBox.Paint.
@@ -415,7 +453,11 @@ func recordOwnContent(r *scene.PictureRecorder, n RenderObject, ox, oy float64) 
 		r.FillRect(ox, oy, cw, chh, t.R, t.G, t.B, t.A)
 	case *RenderText:
 		sz := t.Size()
-		r.DrawString(t.Text, ox, oy+fontBaselineY(t), t.Face, t.R, t.G, t.B, t.A)
+		f := t.Face
+		if ef := t.effectiveFace(); ef != nil {
+			f = ef
+		}
+		r.DrawString(t.Text, ox, oy+fontBaselineY(t), f, t.R, t.G, t.B, t.A)
 		_ = sz
 	case *RenderImage:
 		sz := t.Size()
@@ -473,7 +515,11 @@ func recordAbsoluteOwnContent(r *scene.PictureRecorder, a *AbsoluteBox, ox, oy f
 			}
 			r.FillRect(ax, ay, cw, chh, t.R, t.G, t.B, t.A)
 		case *RenderText:
-			r.DrawString(t.Text, ax, ay+t.FontSize, t.Face, t.R, t.G, t.B, t.A)
+			f := t.Face
+			if ef := t.effectiveFace(); ef != nil {
+				f = ef
+			}
+			r.DrawString(t.Text, ax, ay+t.FontSize, f, t.R, t.G, t.B, t.A)
 		case *RenderImage:
 			dw, dh := t.Size().Width, t.Size().Height
 			if dw <= 0 {

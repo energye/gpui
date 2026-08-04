@@ -23,6 +23,12 @@ type ScrollAware interface {
 type RenderViewport struct {
 	Base
 	scrollX, scrollY float64
+	// FixedWidth/FixedHeight are optional exact sizes that override the
+	// constraint-derived size when > 0. An unset height grows the viewport to
+	// the constraint max (full window under an AbsoluteBox), which can overlap
+	// bands placed below it — fixed sizes keep scrolled content inside bounds.
+	FixedWidth  float64
+	FixedHeight float64
 	// maxScrollY optional clamp; if < 0, derived from content height when known.
 	maxScrollY float64
 	// Physics applies boundary + ballistic fling (nil = hard clamp only).
@@ -228,6 +234,12 @@ func (v *RenderViewport) Layout(c Constraints) Size {
 		return sz
 	}
 	out := c.Tighten(Size{Width: c.MaxWidth, Height: c.MaxHeight})
+	if v.FixedWidth > 0 {
+		out.Width = v.FixedWidth
+	}
+	if v.FixedHeight > 0 {
+		out.Height = v.FixedHeight
+	}
 	if out.Width >= Unbounded/2 {
 		out.Width = c.MinWidth
 	}

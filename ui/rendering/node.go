@@ -54,6 +54,12 @@ type Base struct {
 	relayoutBoundary bool
 	repaintBoundary  bool
 
+	// shellBoundary marks this RepaintBoundary as part of the window shell
+	// (W2 R21 shell/content layering): shell boundaries are counted separately
+	// in BoundaryCache so a scrolling body can prove the shell's rerecord
+	// stays 0 (Flutter: the AppBar layer never re-records on body scroll).
+	shellBoundary bool
+
 	// Compositing bits (F04). alwaysNeedsCompositing forces needsCompositing.
 	needsCompositing       bool
 	alwaysNeedsCompositing bool
@@ -144,6 +150,21 @@ func (b *Base) SetRepaintBoundary(v bool) {
 	}
 	b.repaintBoundary = v
 	b.MarkNeedsCompositingBitsUpdate()
+}
+
+// SetShellBoundary tags this RepaintBoundary as window-shell content (W2 R21).
+// BoundaryCache then partitions rerecord/skip counters so a scrolling body can
+// prove the shell Picture cache is never re-recorded (shell_rerecord == 0).
+// The tag is only meaningful on a RepaintBoundary node; setting it on a
+// non-boundary is a no-op for cache partitioning.
+func (b *Base) SetShellBoundary(v bool) { b.shellBoundary = v }
+
+// IsShellBoundary reports whether this node was tagged as shell content (R21).
+func (b *Base) IsShellBoundary() bool {
+	if b == nil {
+		return false
+	}
+	return b.shellBoundary
 }
 
 // DebugName returns the hit-test identity tag (R13).
@@ -385,6 +406,8 @@ func baseOf(n RenderObject) (*Base, bool) {
 	case *RenderText:
 		return &t.Base, true
 	case *RenderImage:
+		return &t.Base, true
+	case *RenderAlignBox:
 		return &t.Base, true
 	default:
 		return nil, false
