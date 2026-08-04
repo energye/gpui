@@ -1,6 +1,6 @@
 # ENGINE_TEXT_HINT_LIGHT_PLAN — 自研移植 FreeType light 渲染模式
 
-**状态**: M0 完成（2026-08-04）；**M1 机制破译完成（cf2 实锤）**——CJK CFF 字体的 light 模式走 **cf2（psaux）引擎**而非 afcjk/pshinter（afcjk 仅 TrueType glyf 的 CJK autohinter）；cf2 hintmap 算法已从源码+TRACE 完全解码并数值级复现（见 §13）；**M1 charstring 解释器完成（cffcs.go，2026-08-04 验证）**——日/田/目 12px 共 60 点 26.6 与 FT-nohint 逐点零误差。M2–M3（cf2Blues+cf2Hintmap / hintmask 多区）+ L0–L1（Latin）待做
+**状态**: M0 完成（2026-08-04）；**M1 机制破译完成（cf2 实锤）**——CJK CFF 字体的 light 模式走 **cf2（psaux）引擎**而非 afcjk/pshinter（afcjk 仅 TrueType glyf 的 CJK autohinter）；cf2 hintmap 算法已从源码+TRACE 完全解码并数值级复现（见 §13）；**M1 charstring 解释器完成（cffcs.go，2026-08-04 验证）**——日/田/目 12px 共 60 点 26.6 与 FT-nohint 逐点零误差。**M2 cf2Blues+cf2HintMap 完成（2026-08-05）**——含 X 轴 vstem；对照线 = ftexp `FT_LOAD_NO_STEM_DARKENING`（实证 FT 2.14.3 默认不暗化，darken=0）；单区字 25 个 × 10/12/14/16/18/20/22/24px 共 200 项逐点全绿。M3（hintmask 多区，明 1 字）+ L0–L1（Latin）待做
 **日期**: 2026-08-04（M1 认知更新同日）
 **触发**: R21 验收后用户选定路线——自研 Vertical/Full hint 规则与 FreeType 不一致，放弃原自研 hint，改为**纯自研移植 FreeType light 渲染模式**（运行时零依赖 libfreetype，独立包 + 逐字 diff 验证闭环）
 **关联**: docs/ENGINE_TEXT_FREETYPE_PLAN.md §9（None 化决策：本轮验收基准）、AGENTS.md（render/ 高风险，实现层改动无须逐段确认但影响面须评估）
@@ -104,7 +104,7 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, pxSize float64, mo
 |---|---|---|---|
 | **M0** | **顶横蓝线锚定**（816 经验式，M0 全量基线 1108 项已记录） | 主蓝字 12–16px 88–96% 归零 | ✅ 完成（2026-08-04） |
 | **M1** | **Type 2 charstring 解释器**（`cffcs.go`）：数值(1–5字节)/转义/路径操作符/hstem·vstem·hstemhm·vstemhm/hintmask·cntrmask/callsubr·callgsubr/subrs 递归/width 规则；**cff.go 补 LanguageGroup(12 17)/Subrs(19)/defaultWidthX(20)/nominalWidthX(21)**。产出：精确 cs hstem 对 + cs 轮廓（消除 26.6 反推的 ±1.3FU 误差） | 日/田/目 12px：解释器 cs 轮廓 = FT-nohint 26.6 反推 ±0 误差；hstem 对 = TRACE 数值一致 | ✅ 完成（2026-08-04，cffcs_test.go） |
-| **M2** | **cf2Blues + cf2HintMap 完整移植**（`psh_light.go` 重写）：<br>① cf2Blues：语言组判定 → emBox 幽灵区启发式（ICF −120/880，MIN_COUNTER 0.5px，dummy 蓝区即启用）或真实区（zone/boost/suppressOvershoot/blueScale 修正/family blues）→ capture 三态（flat/overshoot/round）<br>② cf2HintMap：初始图（幽灵区优先+合成0）→ 逐区图（插入 midpoint+halfWidth/重叠丢弃/ghost 单边）→ adjustHints（1px 双向拟合+0.5px 防重叠+二遍上移）→ map 分段线性插值<br>③ **X 轴 vstem 同构移植**（用户确认 M2 含 X：日字 X 577 vs 578 的 1/64 对齐）<br>④ 全轮廓点映射（cs→ds，Y/X 独立） | 单区字（无 hintmask）全字集 10/12/14/16px 轮廓级 diff 归零（主蓝字 100%，全部字 ≥90%）；**对照线 = §13 已解码数值**（日 12px：-120→-1.5px、772→10.0、352→5.0 等 8 边） | 待做 |
+| **M2** | **cf2Blues + cf2HintMap 完整移植**（`psh_light.go` 重写）：<br>① cf2Blues：语言组判定 → emBox 幽灵区启发式（ICF −120/880，MIN_COUNTER 0.5px，dummy 蓝区即启用）或真实区（zone/boost/suppressOvershoot/blueScale 修正/family blues）→ capture 三态（flat/overshoot/round）<br>② cf2HintMap：初始图（幽灵区优先+合成0）→ 逐区图（插入 midpoint+halfWidth/重叠丢弃/ghost 单边）→ adjustHints（1px 双向拟合+0.5px 防重叠+二遍上移）→ map 分段线性插值<br>③ **X 轴 vstem 同构移植**（用户确认 M2 含 X：日字 X 577 vs 578 的 1/64 对齐）<br>④ 全轮廓点映射（cs→ds，Y/X 独立） | 单区字（无 hintmask）全字集 10/12/14/16px 轮廓级 diff 归零（主蓝字 100%，全部字 ≥90%）；**对照线 = §13 已解码数值**（日 12px：-120→-1.5px、772→10.0、352→5.0 等 8 边） | ✅ 完成（2026-08-05） |
 | **M3** | **hintmask 多区 + 收尾**：多 mask 分区逐区建图映射；16.16 舍入对齐；边界字号（9/13/18px）；验证集扩韩文/泰文 CFF（Noto Sans KR/TH 的 TTC）；3000 常用字全量回归 | 649 字（+韩/泰 CFF 扩集）全尺寸 fdiff；目标：基线字号 xcorr ≥0.97（从 0.69） | 待做 |
 | **M5** | **CFF2 可变字体**：blend/vsindex 支持（cf2 语义顺带），可变 CFF 字体实例化 | 可选对照（Noto Sans CJK VF 默认实例） | 待做（本轮后） |
 
@@ -131,12 +131,12 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, pxSize float64, mo
 | # | 功能模块 | 引擎 | 内容 | 状态 |
 |---|---|---|---|---|
 | 1 | CFF 表解析 | cf2 | INDEX/DICT/FDSelect/FDArray/蓝区值/TTC 绝对偏移 | ✅ 完成 |
-| 2 | LanguageGroup/Subrs | cf2 | Private DICT op 12 17 / 19 | ❌ M1 |
-| 3 | Type 2 charstring | cf2 | 解释器 + hint 收集 + subrs + width | ❌ M1 |
-| 4 | emBox 幽灵区 | cf2 | ICF ±120/880 + MIN_COUNTER 0.5px + dummy 判定 | ❌ M2 |
-| 5 | 真实蓝区/capture | cf2 | boost/suppressOvershoot/blueScale/family/三态 capture | ❌ M2 |
-| 6 | hintmap 核心 | cf2 | 插入/adjustHints/map/二遍上移 | ❌ M2 |
-| 7 | X 轴 vstem | cf2 | 与 Y 同构 | ❌ M2（用户确认含 X） |
+| 2 | LanguageGroup/Subrs | cf2 | Private DICT op 12 17 / 19 | ✅ 完成（M1，cff.go） |
+| 3 | Type 2 charstring | cf2 | 解释器 + hint 收集 + subrs + width | ✅ 完成（M1，cffcs.go；M2 修 callgsubr/255 号语义 + INDEX 偏移） |
+| 4 | emBox 幽灵区 | cf2 | ICF ±120/880 + MIN_COUNTER 0.5px + dummy 判定 | ✅ 完成（M2，psh_light.go） |
+| 5 | 真实蓝区/capture | cf2 | boost/suppressOvershoot/blueScale/family/三态 capture | ✅ 完成（M2，psh_light.go） |
+| 6 | hintmap 核心 | cf2 | 插入/adjustHints/map/二遍上移 | ✅ 完成（M2，psh_light.go） |
+| 7 | X 轴 vstem | cf2 | 与 Y 同构 | ✅ 完成（M2，psh_light.go） |
 | 8 | hintmask 多区 | cf2 | 多 mask 分区 | ❌ M3 |
 | 9 | seac/非 1000-upem | cf2 | 顺带支持不验证（用户确认） | ❌ 随 M2 |
 | 10 | CFF2 blend | cf2 | 可变字体 | ❌ M5 |
@@ -194,7 +194,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 | M0 Blue/baseline 顶横锚定 | ✅ 完成 | 主蓝直线顶横域 12–16px 归零 88–96%；全量 1108 项已记录；anchor=round(816×px/upem) 为 M0 经验式 |
 | M1 机制破译（cf2 实锤） | ✅ 完成 | CFF light = cf2(psaux)，非 afcjk/pshinter；TRACE 单位解码（ds=printed×scale/65536）；adjustHints 全部数值复现（见 §13） |
 | M1 charstring 解释器 | ✅ 完成（2026-08-04） | cffcs.go + LanguageGroup/Subrs/width；日/田/目 12px 60 点逐点零误差；26.6 转换链见 §13.6 |
-| M2 cf2Blues+cf2HintMap（含 X 轴） | 待做 | psh_light.go 重写；日 12px 8 边数值对照线已采 |
+| M2 cf2Blues+cf2HintMap（含 X 轴） | ✅ 完成（2026-08-05） | psh_light.go 重写完成；单区字 25 个 × 6 字号（10–24px）逐点 vs ftexp light（暗化实证关）全绿；暗化移植保留备用（psf_light.go 按 psfont.c 移植，当前 darken=0） |
 | M3 hintmask 多区 + 收尾 + 验证集扩 | 待做 | 韩/泰 CFF 扩集；3000 常用字全量回归 |
 | M4 autofit light 化（无字节码 glyf） | 待做 | 本轮后 |
 | M5 CFF2 可变（blend） | 待做 | 本轮后；注：`extractCFF2Outline` 已有 fvar/avar/blend（cff_outline.go），M5 仅为 cf2 语义融合 |

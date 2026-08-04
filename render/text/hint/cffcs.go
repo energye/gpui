@@ -36,6 +36,9 @@ type csOutline struct {
 	width    float64  // 字体单位宽度（width 参数 + nominalWidthX）
 	hasWidth bool
 	seac     *csSeac
+	// hintmaskCount 是 charstring 中 hintmask/cntrmask 操作符出现次数。
+	// 0 = 单区（全 stem 一直激活，M2 验证线）；>0 = 多区（M3 hintmask 分区）。
+	hintmaskCount int
 }
 
 // csInterp 是单字形 charstring 解释器。
@@ -111,26 +114,14 @@ func (ip *csInterp) run() error {
 			ip.stack = append(ip.stack, v)
 			ip.pos += 2
 			continue
-		case b == 29:
-			if ip.pos+4 > len(ip.data) {
-				return fmt.Errorf("cs: int32 truncated")
-			}
-			v := float64(int32(int(ip.data[ip.pos])<<24 | int(ip.data[ip.pos+1])<<16 |
-				int(ip.data[ip.pos+2])<<8 | int(ip.data[ip.pos+3])))
-			ip.stack = append(ip.stack, v)
-			ip.pos += 4
-			continue
-		case b == 30:
-			v, n := cffReal(ip.data[ip.pos:])
-			ip.stack = append(ip.stack, v)
-			ip.pos += n
-			continue
 		case b == 255:
 			if ip.pos+4 > len(ip.data) {
 				return fmt.Errorf("cs: fixed truncated")
 			}
+			// FT cffdecode.c:589-600：charstring_type==2 时 shift=0，
+			// 255 是原始 int32（非 16.16）。
 			ip.stack = append(ip.stack, float64(int32(int(ip.data[ip.pos])<<24|int(ip.data[ip.pos+1])<<16|
-				int(ip.data[ip.pos+2])<<8|int(ip.data[ip.pos+3])))/65536)
+				int(ip.data[ip.pos+2])<<8|int(ip.data[ip.pos+3]))))
 			ip.pos += 4
 			continue
 		case b == 12:
@@ -206,6 +197,7 @@ func (ip *csInterp) exec(op int) error {
 		}
 		ip.curMask = ip.data[ip.pos : ip.pos+maskLen]
 		ip.pos += maskLen
+		ip.out.hintmaskCount++
 		ip.stack = nil
 	case 21: // rmoveto
 		if numArgs > 0 && !ip.out.hasWidth && numArgs&1 == 1 {
@@ -220,7 +212,7 @@ func (ip *csInterp) exec(op int) error {
 		ip.y += ip.stack[len(ip.stack)-1]
 		ip.stack = nil
 	case 22: // hmoveto
-		if numArgs > 0 && !ip.out.hasWidth && numArgs&1 == 0 {
+		if numArgs > 0 && !ip.out.hasWidth && numArgs&2 != 0 {
 			ip.takeWidth()
 		}
 		if len(ip.stack) < 1 {
@@ -231,7 +223,7 @@ func (ip *csInterp) exec(op int) error {
 		ip.x += ip.stack[len(ip.stack)-1]
 		ip.stack = nil
 	case 4: // vmoveto
-		if numArgs > 0 && !ip.out.hasWidth && numArgs&1 == 0 {
+		if numArgs > 0 && !ip.out.hasWidth && numArgs&2 != 0 {
 			ip.takeWidth()
 		}
 		if len(ip.stack) < 1 {
@@ -549,11 +541,9 @@ func (ip *csInterp) mixedPairs(op int) error {
 // curves 处理 rrcurveto(8) / vvcurveto(26) / hhcurveto(27)（FT 语义）。
 func (ip *csInterp) curves(op int) error {
 	args := ip.stack
-	if op == 8 { // rrcurveto
-		if len(args)%6 != 0 {
-			return fmt.Errorf("cs: rrcurveto odd args %d", len(args))
-		}
-		for i := 0; i < len(args); i += 6 {
+	if op == 8 { // rrcurveto：消费 6n，余数丢弃（cffdecode.c:1135-1163）
+		nargs := len(args) - len(args)%6
+		for i := 0; i < nargs; i += 6 {
 			ip.curve6(args[i : i+6])
 		}
 		ip.stack = nil
@@ -594,8 +584,8 @@ func (ip *csInterp) curves(op int) error {
 	return nil
 }
 
-// alternating 处理 vhcurveto(30) / hvcurveto(31)（FT 语义：每组 4 参数，
-// phase 交替；nargs==1 时该组多消费 1 个参数）。
+// alternating 处理 vhcurveto(30) / hvcurveto(31)（FT cffdecode.c 语义：
+// 每组 4 参数，phase 交替；nargs==1 时该组多消费 args[i+4]，args 每组合推进 4）。
 func (ip *csInterp) alternating(op int) error {
 	args := ip.stack
 	nargs := len(args) &^ 2
@@ -615,11 +605,6 @@ func (ip *csInterp) alternating(op int) error {
 				nargs = 0
 			}
 			ip.addPt(ip.x, ip.y, true)
-			i += 4
-			if nargs == 0 {
-				break
-			}
-			i++
 		} else { // vh
 			ip.y += args[i]
 			ip.addPt(ip.x, ip.y, false)
@@ -632,12 +617,8 @@ func (ip *csInterp) alternating(op int) error {
 				nargs = 0
 			}
 			ip.addPt(ip.x, ip.y, true)
-			i += 4
-			if nargs == 0 {
-				break
-			}
-			i++
 		}
+		i += 4
 		phase = !phase
 	}
 	ip.stack = nil

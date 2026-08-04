@@ -17,6 +17,8 @@ import (
 type cffBlues struct {
 	blueValues    []float64 // op 6：成对的 [bottom,top] 区
 	otherBlues    []float64 // op 7：下沉区（descender 方向）
+	familyBlues   []float64 // op 8：族蓝区（跨字号对齐，一般 CJK 无）
+	familyOtherBlues []float64 // op 9
 	blueScale     float64   // 12/9
 	blueShift     float64   // 12/10
 	blueFuzz      float64   // 12/11
@@ -120,13 +122,14 @@ func parseCFFBlues(cff []byte, unitsPerEm int, gid uint16) (*cffBlues, error) {
 		return nil, err
 	}
 	// TOP DICT INDEX
-	topDicts, _, err := readIndex(cff, p)
+	topDicts, next, err := readIndex(cff, p)
 	if err != nil {
 		return nil, err
 	}
 	if len(topDicts) == 0 {
 		return nil, fmt.Errorf("no top dict")
 	}
+	p = next
 	// STRING INDEX：跳过
 	p, err = skipIndex(cff, p)
 	if err != nil {
@@ -346,9 +349,9 @@ func indexOff(data []byte, p, offSize int) int {
 
 // topDictPrivate 已由 dictPrivate（operand 顺序 [size, offset]）取代。
 
+type dictOp struct {
 	op       int
 	operands []float64
-	operands  []float64
 }
 
 // dictOps 解析 CFF DICT 数据为 operator 列表（含 operand 栈）。
@@ -503,7 +506,9 @@ func parsePrivateDict(dict []byte, unitsPerEm int) (*cffBlues, error) {
 		case 7: // OtherBlues（delta）
 			b.otherBlues = accum(op.operands)
 		case 8: // FamilyBlues（delta，CJK 一般无）
+			b.familyBlues = accum(op.operands)
 		case 9: // FamilyOtherBlues（delta，CJK 一般无）
+			b.familyOtherBlues = accum(op.operands)
 		case 10: // StdHW
 			if len(op.operands) > 0 {
 				b.stdHW = op.operands[0]
@@ -555,10 +560,10 @@ type cffFD struct {
 
 // cffFontData 是 CFF 表的完整解析（M1 charstring 解释器的数据源）。
 // 一次解析得到：CharStrings INDEX、GlobalSubrs、每 FD 的 Subrs 与蓝区。
+type cffFontData struct {
 	charStrings [][]byte                      // 每 gid 一条 charstring
 	globalSubrs [][]byte                      // Global Subrs INDEX
 	fds         []cffFD                       // 非 CID：单 FD；CID：FDArray 每 FD 一项
-	fds         []cffFD   // 非 CID：单 FD；CID：FDArray 每 FD 一项
 	fdSelect    func(gid uint16) (int, error) // 非 CID 时为 nil
 	unitsPerEm  float64
 }
@@ -580,13 +585,14 @@ func cffParseAll(cff []byte, unitsPerEm int) (*cffFontData, error) {
 		return nil, err
 	}
 	// TOP DICT INDEX
-	topDicts, _, err := readIndex(cff, p)
+	topDicts, next, err := readIndex(cff, p)
 	if err != nil {
 		return nil, err
 	}
 	if len(topDicts) == 0 {
 		return nil, fmt.Errorf("no top dict")
 	}
+	p = next
 	// STRING INDEX：跳过
 	p, err = skipIndex(cff, p)
 	if err != nil {
