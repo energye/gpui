@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/energye/gpui/examples/exhost"
@@ -206,6 +207,13 @@ func main() {
 		al, rj := app.SaveLayerStats()
 		slBanner.SetText(fmt.Sprintf("SL: allow=%d reject=%d (MaxOps=1)", al, rj))
 		slBanner.MarkNeedsPaint()
+
+		if os.Getenv("GOMEM_DIAG") != "" && int(elapsed)%5 == 0 {
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+			slog.Debug("mem_diag", "t", int(elapsed),
+				"heap_alloc_kb", m.HeapAlloc/1024, "heap_objs", m.HeapObjects, "heap_inuse_kb", m.HeapInuse/1024)
+		}
 
 		app.ScheduleFrame()
 		proc.Sample()

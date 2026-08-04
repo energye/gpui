@@ -1687,6 +1687,13 @@ func (c *Context) Resize(width, height int) error {
 	// Reallocate pixmap at physical resolution
 	c.pixmap = NewPixmap(pw, ph)
 
+	// Single-slot replacement (Skia layer cache semantics): the context only
+	// ever requests layers at the current window size, so stale sizes held by
+	// the layer pool are dropped at once instead of being retained forever.
+	if c.layerStack != nil {
+		c.layerStack.pool.EvictExcept(width, height)
+	}
+
 	// Resize renderer if it supports resizing
 	if sr, ok := c.renderer.(*SoftwareRenderer); ok {
 		sr.Resize(pw, ph)
