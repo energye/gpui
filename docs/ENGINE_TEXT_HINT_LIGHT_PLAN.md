@@ -1,6 +1,6 @@
 # ENGINE_TEXT_HINT_LIGHT_PLAN — 自研移植 FreeType light 渲染模式
 
-**状态**: M0 完成（2026-08-04）；**M1 机制破译完成（cf2 实锤）**——CJK CFF 字体的 light 模式走 **cf2（psaux）引擎**而非 afcjk/pshinter（afcjk 仅 TrueType glyf 的 CJK autohinter）；cf2 hintmap 算法已从源码+TRACE 完全解码并数值级复现（见 §13）；**M1 charstring 解释器完成（cffcs.go，2026-08-04 验证）**——日/田/目 12px 共 60 点 26.6 与 FT-nohint 逐点零误差。**M2 cf2Blues+cf2HintMap 完成（2026-08-05）**——含 X 轴 vstem；对照线 = ftexp `FT_LOAD_NO_STEM_DARKENING`（实证 FT 2.14.3 默认不暗化，darken=0）；单区字 25 个 × 10/12/14/16/18/20/22/24px 共 200 项逐点全绿。M3（hintmask 多区，明 1 字）+ L0–L1（Latin）待做
+**状态**: M0 完成（2026-08-04）；**M1 机制破译完成（cf2 实锤）**——CJK CFF 字体的 light 模式走 **cf2（psaux）引擎**而非 afcjk/pshinter（afcjk 仅 TrueType glyf 的 CJK autohinter）；cf2 hintmap 算法已从源码+TRACE 完全解码并数值级复现（见 §13）；**M1 charstring 解释器完成（cffcs.go，2026-08-04 验证）**——日/田/目 12px 共 60 点 26.6 与 FT-nohint 逐点零误差。**M2 cf2Blues+cf2HintMap 完成（2026-08-05）**——含 X 轴 vstem；对照线 = ftexp `FT_LOAD_NO_STEM_DARKENING`（实证 FT 2.14.3 默认不暗化，darken=0）；单区字 25 个 × 10/12/14/16/18/20/22/24px 共 200 项逐点全绿。**M3 hintmask 多区完成（2026-08-05）**——多 mask 分区逐区建图（明 1 字 × 6 字号逐点全绿）；修复 initial 图只建一次各区共享（FT isValid 复用）+ 首事件 atPt==0 跳过全 1 区。L0–L1（Latin）待做
 **日期**: 2026-08-04（M1 认知更新同日）
 **触发**: R21 验收后用户选定路线——自研 Vertical/Full hint 规则与 FreeType 不一致，放弃原自研 hint，改为**纯自研移植 FreeType light 渲染模式**（运行时零依赖 libfreetype，独立包 + 逐字 diff 验证闭环）
 **关联**: docs/ENGINE_TEXT_FREETYPE_PLAN.md §9（None 化决策：本轮验收基准）、AGENTS.md（render/ 高风险，实现层改动无须逐段确认但影响面须评估）
@@ -137,7 +137,7 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, pxSize float64, mo
 | 5 | 真实蓝区/capture | cf2 | boost/suppressOvershoot/blueScale/family/三态 capture | ✅ 完成（M2，psh_light.go） |
 | 6 | hintmap 核心 | cf2 | 插入/adjustHints/map/二遍上移 | ✅ 完成（M2，psh_light.go） |
 | 7 | X 轴 vstem | cf2 | 与 Y 同构 | ✅ 完成（M2，psh_light.go） |
-| 8 | hintmask 多区 | cf2 | 多 mask 分区 | ❌ M3 |
+| 8 | hintmask 多区 | cf2 | 多 mask 分区（初始图唯一/首事件 atPt==0 语义/区共享 DS 锁定） | ✅ 完成（M3，2026-08-05，明 1 字 × 6 字号全绿） |
 | 9 | seac/非 1000-upem | cf2 | 顺带支持不验证（用户确认） | ❌ 随 M2 |
 | 10 | CFF2 blend | cf2 | 可变字体 | ❌ M5 |
 | 11 | autofit light | autofit | 自研 autohint 改 light（cjk/latin/indic） | ❌ M4 |
@@ -195,7 +195,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 | M1 机制破译（cf2 实锤） | ✅ 完成 | CFF light = cf2(psaux)，非 afcjk/pshinter；TRACE 单位解码（ds=printed×scale/65536）；adjustHints 全部数值复现（见 §13） |
 | M1 charstring 解释器 | ✅ 完成（2026-08-04） | cffcs.go + LanguageGroup/Subrs/width；日/田/目 12px 60 点逐点零误差；26.6 转换链见 §13.6 |
 | M2 cf2Blues+cf2HintMap（含 X 轴） | ✅ 完成（2026-08-05） | psh_light.go 重写完成；单区字 25 个 × 6 字号（10–24px）逐点 vs ftexp light（暗化实证关）全绿；暗化移植保留备用（psf_light.go 按 psfont.c 移植，当前 darken=0） |
-| M3 hintmask 多区 + 收尾 + 验证集扩 | 待做 | 韩/泰 CFF 扩集；3000 常用字全量回归 |
+| M3 hintmask 多区 + 收尾 + 验证集扩 | ✅ 完成（2026-08-05，M3 主项） | 多 mask 分区逐区建图（明 1 字 × 6 字号逐点全绿）；修复：initial 图只建一次各区共享（FT isValid 复用语义，否则后区重建把已 used stem 以 Locked 插入初始图）+ 首事件 atPt==0 跳过全 1 区（moveTo 语义）；待做：晴+更多多 mask 字、韩/泰 CFF 扩集、3000 常用字回归 |
 | M4 autofit light 化（无字节码 glyf） | 待做 | 本轮后 |
 | M5 CFF2 可变（blend） | 待做 | 本轮后；注：`extractCFF2Outline` 已有 fvar/avar/blend（cff_outline.go），M5 仅为 cf2 语义融合 |
 | M6 CJK 竖排（vhea/vmtx/vrt2） | 待做 | 本轮后；gpui 现无竖排支持 |

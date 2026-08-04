@@ -39,6 +39,17 @@ type csOutline struct {
 	// hintmaskCount 是 charstring 中 hintmask/cntrmask 操作符出现次数。
 	// 0 = 单区（全 stem 一直激活，M2 验证线）；>0 = 多区（M3 hintmask 分区）。
 	hintmaskCount int
+	// maskEvents 记录每个 hintmask/cntrmask 事件（M3 分区依据）：
+	// 事件后产出的路径点（pts[atPt:]）用该 mask 的 hintmap。
+	maskEvents []csMaskEvent
+}
+
+// csMaskEvent 是一次 hintmask/cntrmask 事件（cf2 语义：psintrp.c HINTMASK 分支）。
+type csMaskEvent struct {
+	cntr     bool   // true = cntrmask（counter 语义，psintrp.c:2609-2650）
+	mask     []byte // 原始 mask 字节，位序 = hints[0]（MSB-first，pshints.c:897）
+	numHints int    // 事件时的 hint 总数（hstem 先 vstem 后）
+	atPt     int    // 事件前已产出的点数
 }
 
 // csInterp 是单字形 charstring 解释器。
@@ -198,6 +209,12 @@ func (ip *csInterp) exec(op int) error {
 		ip.curMask = ip.data[ip.pos : ip.pos+maskLen]
 		ip.pos += maskLen
 		ip.out.hintmaskCount++
+		ip.out.maskEvents = append(ip.out.maskEvents, csMaskEvent{
+			cntr:     op == 20,
+			mask:     append([]byte(nil), ip.curMask...),
+			numHints: ip.numHints,
+			atPt:     len(ip.out.pts),
+		})
 		ip.stack = nil
 	case 21: // rmoveto
 		if numArgs > 0 && !ip.out.hasWidth && numArgs&1 == 1 {

@@ -82,9 +82,43 @@ func TestM2VerifyGrid(t *testing.T) {
 		t.Logf("单区字 %d × %d 字号全部逐点一致", len(single), len(pixes))
 	}
 
-	// 多 mask 字：M3 任务，本测试不覆盖，仅记录在案。
-	if len(multi) > 0 {
-		t.Logf("M3 待办：多 mask 字 hintmask 分区逐区建图映射（%d 字）", len(multi))
+	// 多 mask 字：M3 分区验证（明/晴 mask=2 等）
+	totalBad2 := 0
+	badRunes2 := map[rune][]string{}
+	for _, px := range pixes {
+		scale := m2HintScale(px, upem)
+		for _, e := range multi {
+			r := e.r
+			gid := uint16(f.GlyphIndex(r))
+			out, fd, err := m2Interp(cd, gid)
+			if err != nil {
+				t.Fatalf("%c: %v", r, err)
+			}
+			res := hintCFFLight(out, fd, scale, 0, 0)
+			ft := ftContour26Light(t, r, px)
+			if len(ft) != len(res.pts) {
+				badRunes2[r] = append(badRunes2[r], fmt.Sprintf("%.0fpx(npt %d!=%d)", px, len(res.pts), len(ft)))
+				totalBad2++
+				continue
+			}
+			bad := 0
+			for i, p := range res.pts {
+				if int64(p[0]>>10) != ft[i][0] || int64(p[1]>>10) != ft[i][1] {
+					bad++
+				}
+			}
+			if bad > 0 {
+				badRunes2[r] = append(badRunes2[r], fmt.Sprintf("%.0fpx(%d/%d)", px, bad, len(ft)))
+				totalBad2++
+			}
+		}
+	}
+	if totalBad2 > 0 {
+		for r, ms := range badRunes2 {
+			t.Errorf("%c: %s", r, strings.Join(ms, " "))
+		}
+	} else if len(multi) > 0 {
+		t.Logf("多 mask 字 %d × %d 字号全部逐点一致", len(multi), len(pixes))
 	}
 }
 

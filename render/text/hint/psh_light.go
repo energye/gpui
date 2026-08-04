@@ -820,8 +820,11 @@ func (m *cf2HintMap) build(blues *cf2Blues, hStems, vStems []cf2StemHint, mask *
 	m.edges = nil
 	m.lastIdx = 0
 
-	// 初始图未建 → 递归建（pshints.c:820-838）
-	if !initial && (m.initial == nil || len(m.initial.edges) == 0) {
+	// 初始图未建 → 递归建（pshints.c:820-838）。注意：FT 只在首次
+	// build 时构建 initialHintMap，后续区复用（isValid 检查）；因此
+	// hintCFFLight 须先构建共享 initial 图赋给各区，否则后续区重建时
+	// 会把已 used（被前区锁定 DS）的 stem 以 Locked 状态插入初始图。
+	if !initial && m.initial == nil {
 		m.initial = &cf2HintMap{}
 		m.initial.build(blues, hStems, vStems, nil, scale, darkenY, true)
 	}
@@ -926,8 +929,12 @@ type cf2HintResult struct {
 	contours []int
 }
 
-// hintCFFLight：M2 主入口。对 cs 轮廓施加 cf2 语义的 Y 轴 hintmap
-// （hStem 集 + 蓝区捕获），X 轴按 scale 直通（cf2 的 pt.x 不经 hintmap）。
+// hintCFFLight：M2/M3 主入口。对 cs 轮廓施加 cf2 语义的 Y 轴 hintmap
+// （hStem 集 + 蓝区捕获），X 轴按 scale 直通（cf2 build 只用 hStem 位，
+// vStem 仅贡献 mask 位宽，pshints.c:847-850）。
+// 单区（无 hintmask）= 全 1 mask 一张图；多区 = 每个 hintmask 事件一张图，
+// 路径点按「产生时最新 mask」归属（pshints.c:1705-1720 moveTo/lineTo
+// 的 cf2_hintmask_isNew 触发 rebuild 语义）。
 // 返回 DS 16.16 坐标。
 func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2Fixed) *cf2HintResult {
 	hStems := cf2StemSlice(cs.hstems)
@@ -936,12 +943,53 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 	var blues cf2Blues
 	cf2BluesInit(&blues, fd.blues, scale, darkenY, true)
 
-	// 逐区图：全激活 mask（日 无 hintmask 字节 → 单区）；build 内部
-	// 先递归建初始图（hintmap->initialHintMap）。
-	hintMap := &cf2HintMap{}
-	var curMask cf2HintMask
-	curMask.setAll(len(hStems) + len(vStems))
-	hintMap.build(&blues, hStems, vStems, &curMask, scale, darkenY, false)
+	// 建 zone 序列：zone0 = 全 1 初始图；其后每 mask 事件一区。
+	// 各区共享 hStems/vStems（build 末尾保存 DS 供跨区锁定，pshints.c:1062-1085）。
+	type hintZone struct {
+		atPt int
+	}
+	var zones []hintZone
+	// FT 语义（pshints.c:1705-1712 + 840-850）：hintMask 无效（无任何
+	// hintmask 事件）→ setAll 全 1 建图；若首个事件发生在首点之前
+	// （atPt==0），moveTo 时 mask 已有效 → 直接建事件图，无全 1 图
+	// （全 1 图会错误锁定全部 stem 的 DS，污染后续区）。
+	startZones := 0
+	if len(cs.maskEvents) == 0 || cs.maskEvents[0].atPt > 0 {
+		zones = append(zones, hintZone{atPt: 0})
+		startZones = 1
+	}
+	for _, ev := range cs.maskEvents {
+		zones = append(zones, hintZone{atPt: ev.atPt})
+	}
+	var masks []cf2HintMask
+	if startZones == 1 {
+		all := cf2HintMask{}
+		all.setAll(len(hStems) + len(vStems))
+		masks = append(masks, all)
+	}
+	for _, ev := range cs.maskEvents {
+		masks = append(masks, cf2HintMask{isValid: true, isNew: true, bitCount: ev.numHints, mask: ev.mask})
+	}
+	maps := make([]*cf2HintMap, len(zones))
+	// initial 图只建一次（首次全 1 状态，stems 未 used），各区共享
+	// （pshints.c:820-838：isValid 后复用，不重建）。
+	initMap := &cf2HintMap{}
+	initMap.build(&blues, hStems, vStems, nil, scale, darkenY, true)
+	for i := range zones {
+		hm := &cf2HintMap{initial: initMap}
+		hm.build(&blues, hStems, vStems, &masks[i], scale, darkenY, false)
+		maps[i] = hm
+	}
+
+	zoneOf := func(k int) *cf2HintMap {
+		z := maps[0]
+		for i := 1; i < len(zones); i++ {
+			if zones[i].atPt <= k {
+				z = maps[i]
+			}
+		}
+		return z
+	}
 
 	out := &cf2HintResult{contours: cs.contours}
 	off := 0
@@ -949,7 +997,7 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 		for k := 0; k < n; k++ {
 			p := cs.pts[off+k]
 			x := cf2MulFix(cf2IntToFixed(int64(math.Round(p.x))), scale)
-			y := hintMap.mapCS(cf2IntToFixed(int64(math.Round(p.y))))
+			y := zoneOf(off + k).mapCS(cf2IntToFixed(int64(math.Round(p.y))))
 			out.pts = append(out.pts, [2]cf2Fixed{x, y})
 		}
 		off += n
