@@ -2251,8 +2251,17 @@ func TestAutoHint_Edges_VsSkrifaRust_FullParity(t *testing.T) {
 	scale := 16.0 / float64(font.UnitsPerEm())
 	points := buildHintPointsFromContours(contours, scale, font.UnitsPerEm())
 
-	unscaled := computeUnscaledMetrics(font)
-	scaled := unscaled.scale(scale)
+	// Metrics must use the glyph's script (glyph-level), matching both the
+	// production path (autoHintContourPoints) and skrifa's glyph-style
+	// metrics. Font-level (detectFontScript) metrics would pick Latin for
+	// this font, giving the wrong standard widths and breaking the V-axis
+	// descender serif linking below.
+	script := scriptForGlyph(font, GlyphID(9))
+	unscaled := computeUnscaledMetricsForScript(font, script)
+	if unscaled == nil {
+		t.Fatalf("computeUnscaledMetricsForScript(%s) failed", script.name)
+	}
+	scaled := unscaled.scaleWithUPM(scale, font.UnitsPerEm())
 
 	// Hebrew blue set has no ADJUSTMENT zone → no y-scale correction.
 	scaled.axes[dimVertical].scale = scale
