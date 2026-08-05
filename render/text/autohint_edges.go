@@ -412,7 +412,7 @@ func computeBlueEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGr
 //
 // See FreeType aflatin.c:4220 af_latin_hint_edges.
 // See skrifa hint/edges.rs hint_edges.
-func hintEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup, topToBottom bool) {
+func hintEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup, topToBottom bool, dim hintDimension) {
 	if len(edges) == 0 {
 		return
 	}
@@ -422,7 +422,7 @@ func hintEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup, to
 
 	// Pass 2: Stem edges.
 	serifCount := 0
-	anchorIdx = alignStemEdges(edges, axis, anchorIdx, &serifCount, group, topToBottom)
+	anchorIdx = alignStemEdges(edges, axis, anchorIdx, &serifCount, group, topToBottom, dim)
 
 	// Pass 3: Remaining edges (serifs, singles).
 	if serifCount > 0 || anchorIdx < 0 {
@@ -481,7 +481,7 @@ func alignEdgesToBlues(edges []*hintEdge, axis *scaledAxisMetrics, group scriptG
 // See skrifa hint/edges.rs align_stem_edges.
 //
 //nolint:gocognit,nestif // FreeType aflatin.c port — algorithmic complexity is inherent
-func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, serifCount *int, group scriptGroup, topToBottom bool) int {
+func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, serifCount *int, group scriptGroup, topToBottom bool, dim hintDimension) int {
 	var lastStemPos int32 = -1000000 // sentinel
 	var delta int32
 
@@ -561,7 +561,7 @@ func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, s
 				continue
 			}
 
-			stemDelta := hintNormalStemCJK(edges, axis, i, edge2Idx, delta)
+			stemDelta := hintNormalStemCJK(edges, axis, i, edge2Idx, delta, dim)
 			// CJK: only accumulate delta for the first stem (anchor not yet set).
 			// Matches skrifa: delta accumulates only when axis.dim != Vertical &&
 			// anchor_ix.is_none(). Since vertical typically has anchor from blues,
@@ -894,18 +894,22 @@ func findBoundingDoneEdges(edges []*hintEdge, idx int) (int, int) {
 // See skrifa hint/edges.rs:947-1050 hint_normal_stem_cjk.
 //
 //nolint:gocognit,gocyclo,cyclop,nestif // FreeType afcjk.c port — algorithmic complexity is inherent
-func hintNormalStemCJK(edges []*hintEdge, axis *scaledAxisMetrics, edgeIdx, edge2Idx int, anchor int32) int32 {
+func hintNormalStemCJK(edges []*hintEdge, axis *scaledAxisMetrics, edgeIdx, edge2Idx int, anchor int32, dim hintDimension) int32 {
 	edge := edges[edgeIdx]
 	edge2 := edges[edge2Idx]
 
-	// Threshold for stem adjustment.
-	// When do_stem_adjust is false, we have a non-zero threshold delta.
-	// In our smooth hinting path, stem_adjust is always active (ScaleFlags::STEM_ADJUST).
-	// Match skrifa: do_stem_adjust = true for standard hinting.
-	const doStemAdjust = true
+	// do_stem_adjust is off in FT light mode (afcjk.c:1419-1422): the stem
+	// width is NOT quantized and the delta is clamped to
+	// AF_LIGHT_MODE_MAX_DELTA_ABS (14/64 px). The stem-width threshold also
+	// changes (afcjk.c:1661-1671): MAX_HORZ_GAP=9 for the vertical dimension,
+	// MAX_VERT_GAP=15 for the horizontal dimension.
+	doStemAdjust := axis.doStemAdjust
 	var thresholdDelta int32
 	if !doStemAdjust {
-		maxGap := int32(15) // MAX_VERTICAL_GAP for horizontal stems
+		maxGap := int32(15) // AF_LIGHT_MODE_MAX_VERT_GAP (horizontal dimension)
+		if dim == dimVertical {
+			maxGap = 9 // AF_LIGHT_MODE_MAX_HORZ_GAP (vertical dimension)
+		}
 		if (edge.flags&edgeFlagRound) != 0 && (edge2.flags&edgeFlagRound) != 0 {
 			thresholdDelta = maxGap
 		} else {
@@ -915,7 +919,12 @@ func hintNormalStemCJK(edges []*hintEdge, axis *scaledAxisMetrics, edgeIdx, edge
 	threshold := int32(64) - thresholdDelta
 
 	originalLen := edge2.opos - edge.opos
-	curLen := computeStemWidthCJK(axis, originalLen)
+	var curLen int32
+	if !doStemAdjust {
+		curLen = originalLen // FT light: af_cjk_compute_stem_width returns width unchanged
+	} else {
+		curLen = computeStemWidthCJK(axis, originalLen)
+	}
 
 	originalCenter := (edge.opos+edge2.opos)/2 + anchor
 	curPos1 := originalCenter - curLen/2

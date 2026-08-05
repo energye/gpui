@@ -485,7 +485,7 @@ func TestHintEdges_BluAnchored(t *testing.T) {
 		widths: []scaledWidth{{scaled: f26dot6FromFloat(1.0), fitted: f26dot6FromFloat(1.0)}},
 	}
 
-	hintEdges(edges, axis, scriptGroupDefault, false)
+	hintEdges(edges, axis, scriptGroupDefault, false, dimVertical)
 
 	// First edge should snap to blue zone fitted value.
 	wantPos := f26dot6FromFloat(11.0)
@@ -510,7 +510,7 @@ func TestHintEdges_StemPair(t *testing.T) {
 		widths: []scaledWidth{{scaled: f26dot6FromFloat(1.2), fitted: f26dot6FromFloat(1.2)}},
 	}
 
-	hintEdges(edges, axis, scriptGroupDefault, false)
+	hintEdges(edges, axis, scriptGroupDefault, false, dimVertical)
 
 	// Both edges should be done.
 	if (edges[0].flags & edgeFlagDone) == 0 {
@@ -2449,7 +2449,7 @@ func TestAutoHint_HintEdges_VsSkrifaGolden_Horizontal(t *testing.T) {
 	linkSegments(hSegs, axisMetrics, scriptGroupDefault)
 	edges := computeEdges(hSegs, axisMetrics, dimHorizontal, scriptGroupDefault)
 	// No blue edge matching for horizontal dimension (only vertical gets blues).
-	hintEdges(edges, axisMetrics, scriptGroupDefault, false)
+	hintEdges(edges, axisMetrics, scriptGroupDefault, false, dimVertical)
 
 	// Skrifa golden: pos after hint_edges (26.6 fixed-point).
 	type hintGolden struct {
@@ -2564,7 +2564,7 @@ func TestAutoHint_HintEdges_VsSkrifaGolden_Vertical(t *testing.T) {
 		edges[2].blueEdge = &skrifaBlue2
 	}
 
-	hintEdges(edges, axisMetrics, scriptGroupDefault, false)
+	hintEdges(edges, axisMetrics, scriptGroupDefault, false, dimVertical)
 
 	// Skrifa golden: pos after hint_edges (26.6 fixed-point).
 	type hintGolden struct {
@@ -2673,7 +2673,7 @@ func TestAutoHint_FullPipeline_VsSkrifaGolden(t *testing.T) {
 	adjustSegmentHeights(&points, hSegs, dimHorizontal)
 	linkSegments(hSegs, hAxis, scriptGroupDefault)
 	hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
-	hintEdges(hEdges, hAxis, scriptGroupDefault, false)
+	hintEdges(hEdges, hAxis, scriptGroupDefault, false, dimVertical)
 	alignEdgePoints(&points, hSegs, hEdges, dimHorizontal, scriptGroupDefault)
 	alignStrongPoints(&points, hEdges, dimHorizontal)
 	alignWeakPoints(&points, dimHorizontal)
@@ -2692,7 +2692,7 @@ func TestAutoHint_FullPipeline_VsSkrifaGolden(t *testing.T) {
 		vEdges[2].blueEdge = &blueEdge2
 	}
 
-	hintEdges(vEdges, vAxis, scriptGroupDefault, false)
+	hintEdges(vEdges, vAxis, scriptGroupDefault, false, dimVertical)
 	alignEdgePoints(&points, vSegs, vEdges, dimVertical, scriptGroupDefault)
 	alignStrongPoints(&points, vEdges, dimVertical)
 	alignWeakPoints(&points, dimVertical)
@@ -2773,7 +2773,7 @@ func TestAutoHint_AlignEdgePoints_VsSkrifaGolden(t *testing.T) {
 	adjustSegmentHeights(&points, hSegs, dimHorizontal)
 	linkSegments(hSegs, hAxis, scriptGroupDefault)
 	hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
-	hintEdges(hEdges, hAxis, scriptGroupDefault, false)
+	hintEdges(hEdges, hAxis, scriptGroupDefault, false, dimVertical)
 	alignEdgePoints(&points, hSegs, hEdges, dimHorizontal, scriptGroupDefault)
 
 	// Skrifa golden: dim=Horizontal after align_edge_points (lines 51-83).

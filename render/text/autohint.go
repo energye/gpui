@@ -477,7 +477,7 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 		// top-to-bottom scripts (Devanagari, Bengali, Gurmukhi, Gothic,
 		// Mongolian) reverse the adjust_link order checks.
 		topToBottom := dim == dimVertical && script.hintTopToBottom
-		hintEdges(edges, axisMetrics, group, topToBottom)
+		hintEdges(edges, axisMetrics, group, topToBottom, dim)
 
 		// Propagate edge positions to points.
 		alignEdgePoints(&points, segments, edges, dim, group)
