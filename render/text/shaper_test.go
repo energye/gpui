@@ -144,12 +144,12 @@ func TestSetShaperNil(t *testing.T) {
 		SetShaper(original)
 	})
 
-	// Set to nil should reset to OwnShaper (default, ADR-048 Phase 6).
+	// Set to nil should reset to default (HbShaper, ENGINE_TEXT_SHAPING_PLAN M1).
 	SetShaper(nil)
 
 	current := GetShaper()
-	if _, ok := current.(*OwnShaper); !ok {
-		t.Errorf("GetShaper() after SetShaper(nil) should be *OwnShaper, got %T", current)
+	if _, ok := current.(*HbShaper); !ok {
+		t.Errorf("GetShaper() after SetShaper(nil) should be *HbShaper, got %T", current)
 	}
 }
 
@@ -160,9 +160,9 @@ func TestGetShaper(t *testing.T) {
 		t.Error("GetShaper() returned nil")
 	}
 
-	// Default should be OwnShaper (ADR-048 Phase 6).
-	if _, ok := shaper.(*OwnShaper); !ok {
-		t.Errorf("default shaper should be *OwnShaper, got %T", shaper)
+	// Default should be HbShaper (HarfBuzz Go port, ENGINE_TEXT_SHAPING_PLAN M1).
+	if _, ok := shaper.(*HbShaper); !ok {
+		t.Errorf("default shaper should be *HbShaper, got %T", shaper)
 	}
 }
 

@@ -14,13 +14,15 @@ type Shaper interface {
 	Shape(text string, face Face) []ShapedGlyph
 }
 
-// defaultShaper is initialized to OwnShaper in shaper_own.go init().
+// defaultShaper is initialized to HbShaper (HarfBuzz Go port) per
+// ENGINE_TEXT_SHAPING_PLAN M1: the shaping layer (A class) runs on
+// HarfBuzz; the pixel layer (hint/rasterization) stays self-developed.
 // This variable is set before any concurrent access (during init).
-var defaultOwnShaper = NewOwnShaper()
+var defaultShaper = NewHbShaper()
 
 var (
 	shaperMu     sync.RWMutex
-	globalShaper Shaper = defaultOwnShaper
+	globalShaper Shaper = defaultShaper
 )
 
 // SetShaper sets the global shaper used by Shape().
@@ -34,7 +36,7 @@ func SetShaper(s Shaper) {
 	shaperMu.Lock()
 	defer shaperMu.Unlock()
 	if s == nil {
-		s = defaultOwnShaper
+		s = defaultShaper
 	}
 	globalShaper = s
 }
