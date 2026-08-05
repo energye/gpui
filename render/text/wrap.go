@@ -3,6 +3,8 @@ package text
 import (
 	"strings"
 	"unicode"
+
+	"github.com/go-text/typesetting/segmenter"
 )
 
 // WrapMode specifies how text is wrapped when it exceeds the maximum width.
@@ -122,6 +124,10 @@ const (
 // findBreakOpportunities analyzes text and returns break opportunities.
 // Returns a slice where index i indicates break opportunity BEFORE character i.
 // The first element (index 0) is always BreakNo (can't break before first char).
+//
+// Word modes (WrapWord / WrapWordChar) use the full UAX #14 line breaking
+// rules via typesetting/segmenter (M3: C-class segmenter integration).
+// WrapChar keeps per-character breaks (UAX #14 does not apply to it).
 func findBreakOpportunities(text string, mode WrapMode) []BreakOpportunity {
 	if text == "" {
 		return nil
@@ -139,15 +145,36 @@ func findBreakOpportunities(text string, mode WrapMode) []BreakOpportunity {
 		return breaks
 	}
 
-	// Classify all runes
-	classes := make([]BreakClass, n)
-	for i, r := range runes {
-		classes[i] = classifyRune(r)
+	if mode == WrapChar {
+		// Character mode: break anywhere except special cases.
+		// UAX #14 is not applicable here; keep the established per-char rules.
+		classes := make([]BreakClass, n)
+		for i, r := range runes {
+			classes[i] = classifyRune(r)
+		}
+		for i := 1; i < n; i++ {
+			breaks[i] = computeBreak(runes, classes, i, mode)
+		}
+		return breaks
 	}
 
-	// Apply break rules based on mode
-	for i := 1; i < n; i++ {
-		breaks[i] = computeBreak(runes, classes, i, mode)
+	// UAX #14 line breaking via typesetting/segmenter.
+	// Line.Offset (i > 0) is a break point; IsMandatoryBreak of a line
+	// describes the boundary at its end, consumed by the next line's Offset.
+	var sg segmenter.Segmenter
+	sg.InitWithString(text)
+	it := sg.LineIterator()
+	pendingMandatory := false
+	for it.Next() {
+		line := it.Line()
+		if line.Offset > 0 {
+			if pendingMandatory {
+				breaks[line.Offset] = BreakMandatory
+			} else {
+				breaks[line.Offset] = BreakAllowed
+			}
+		}
+		pendingMandatory = line.IsMandatoryBreak
 	}
 
 	return breaks

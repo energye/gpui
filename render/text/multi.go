@@ -216,12 +216,17 @@ func (m *MultiFace) Variations() []FontVariation {
 func (m *MultiFace) private() {}
 
 // faceForRune returns the first face that has the glyph for the rune.
-// If no face has the glyph, returns the first face as fallback.
+// If no face has the glyph, falls back to the system font index
+// (fontscan, M3) and then to the first face.
 func (m *MultiFace) faceForRune(r rune) Face {
 	for _, face := range m.faces {
 		if face.HasGlyph(r) {
 			return face
 		}
+	}
+	// M3: missing-glyph fallback against the system font index.
+	if fc := globalFallback.resolveFace(r, m.Size()); fc != nil {
+		return fc
 	}
 	// Fallback to first face if no face has the glyph
 	return m.faces[0]
