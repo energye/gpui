@@ -316,12 +316,14 @@ bitmap_left @ slot+192, bitmap_top @ slot+196
 - **GPU=CPU 一致性**：同一 `GlyphMaskRasterizer` None 光栅 + 整数网格（GPU `snapXGrid` = CPU round-advance 网格）→ 字形光栅化代码链路同一。
 - **回归**：`go test ./render/internal/gpu/ ./render/text/` 仅剩 `TestSDFAccelerator_SceneStats_ResetOnFlush` = stash 基线既有失败（零新增）。
 
-### 9.4 后续里程碑（非本次范围）
+### 9.4 后续里程碑（非本次范围，大白话版）
 
-- advance 精度（16.16 定点 / 小数 advance 保留）；
-- Latin 字节码字体兼容面（Noto Sans/Ubuntu 等 hint 程序差异）；
-- LCD 亚像素渲染（`selectGlyphMaskLCD` 保留，与 None 正交）；
-- 阿拉伯语/泰文等复杂 shaping（HarfBuzz 对齐）。
+以下四件是 text 引擎未来的升级方向，目前都没做、也不阻塞验收：
+
+- **advance 精度**（16.16 定点 / 小数 advance 保留）：现在每个字的宽度是按整数像素算的，字宽带小数时（比如 16px 下 advance=16.3px）会四舍五入。做完后字距更接近 FreeType。**中风险**。
+- **Latin 字节码字体兼容面**（Noto Sans/Ubuntu 等 hint 程序差异）：TT 字节码引擎能跑通大多数字体，但个别字体的 hint 程序写法特殊，可能跑出不理想结果。做完后覆盖面更大。**高风险**（直接动 TT 引擎）。
+- **LCD 亚像素渲染**：现在渲染是灰度抗锯齿，LCD 屏的红绿蓝子像素相位没利用。做完后小字号更锐利（但和 hinting 有互斥，需按 §8.2 的 LCD 相位逻辑处理）。**中风险**。
+- **阿拉伯语/泰文等复杂 shaping**（HarfBuzz 对齐）：这些文字要做连字/变形/位置微调，现在支持不全。做完后这些语种排版正确。**高风险**。
 
 ### 9.6 autohint 脚本蓝区（2026-08-05 追加，非本次 9.x 范围）
 
@@ -351,7 +353,42 @@ skrifa 数值：Thai/Bengali/Tamil 完全一致、Gujarati 大部分一致。已
   根因是 Go 与 skrifa 既有 stem 对齐引擎差（同基线 hint 坐标 145 差，独立任务）。
 - 探针产物：`/tmp/opencode/skrifa-0.31.1`（Rust 源 + 蓝区探针测试）。
 
-### 9.5 遗留注意
+### 9.7 render/ 既有失败清单（不是本次改动引入，需单独修）
+
+下面这些失败**早就有**（stash 基线对比 = 零新增，和 autohint/蓝区/t2b 全部无关），
+但一直没修。列在这里当正式待办：
+
+| 项 | 现象 | 位置 | 备注 |
+|---|---|---|---|
+| C1a | `pipeline_wiring` 重置相关测试失败 | `render/internal/gpu/` | 历史基线失败 |
+| C1b | dash 矩形渲染测试失败 | `render/internal/gpu/` | 历史基线失败 |
+| C1c | hairline 测试失败 | `render/internal/gpu/` | 历史基线失败 |
+| C1d | SDF stats（`SceneStats_ResetOnFlush`）测试失败 | `render/internal/gpu/` | 历史基线失败 |
+| C2 | U05 KitchenSink 性能浮动：p50 ≈ 8.17ms vs 门禁 7.87ms | `render/` | 性能抖动，疑似机器噪声，需重跑确认 |
+
+**建议顺序**：先重跑确认 C2 是不是机器噪声；再逐个修 C1a–C1d（GPU 管线层，按
+AGENTS.md 属 render/ 高风险，动手前先停下确认方案）。
+
+### 9.8 待办总清单（2026-08-05 整理，大白话版）
+
+按「该不该做、做了有什么好处」排序：
+
+| # | 任务 | 是啥 | 该不该做 | 状态 |
+|---|------|------|----------|------|
+| A1 | 补 6 个脚本的实物验证 | Khmer/Malayalam/Sinhala/Mongolian/Chakma/Kayah Li 本机没字体，只靠"同一代码路径"推断一致 | 低优先（逻辑已等价，只差实物证据） | 未做 |
+| A2 | stem 对齐 parity（145 差） | 同样一个字，我们算的 hint 坐标和 skrifa 差 2.3px 左右 | **可不做**（§8.4 已声明像素级 diff 暂缓） | 已记录，未做 |
+| C1 | 修 render/internal/gpu 4 个失败测试 | GPU 管线层 4 个测试挂了 | 该做（真坏了） | 未做 |
+| C2 | 确认/修复 U05 性能浮动 | 性能测试偶尔超门禁 | 该做但先重跑确认是否机器噪声 | 未做 |
+| B1 | advance 精度 | 字宽带小数时四舍五入，做完字距更准 | 该做（里程碑） | 未做 |
+| B2 | Latin 字节码兼容面 | 个别字体 hint 程序跑不顺 | 该做（里程碑） | 未做 |
+| B3 | LCD 亚像素 | 小字号更锐利 | 该做（里程碑） | 未做 |
+| B4 | 阿拉伯/泰文 shaping | 复杂语种排版 | 该做（里程碑） | 未做 |
+| D1 | UI 真窗关闭流程 | 各 R/C 能力点的真窗验收与状态回写 | 硬规则（AGENTS.md），与 text 引擎独立 | 按 ENGINE_UI_WIDGET_RENDER.md 走 |
+
+**经验教训（本次）**：怀疑"skrifa 走 GSUB"时先读源码确认——实际是 Nominal 模式
+直接拒绝多码元 cluster，一行修复就对齐了，省掉一整块 GSUB 接入工作。
+
+### 9.9 遗留注意（真窗抓屏相关）
 
 - 真窗抓屏：`xwd -id` 在 GNOME 合成器下存在 **+769px 循环 x 偏移**（OLD/NEW 一致，非渲染问题）；分析时左移恢复；用户实际视角无偏移。
 - 真窗 build 需长 run（>120s）再抓屏，滚动期间早抓会拿到未完成帧（大面积黑）。
