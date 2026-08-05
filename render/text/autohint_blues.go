@@ -142,12 +142,17 @@ func computeDefaultBlues(font ParsedFont, script *scriptClass) []blueZone {
 		descender := int32(math.MaxInt32)
 		isTop := spec.flags.isTopLike()
 
-		// Split the blue character string into individual characters.
+		// Split the blue character string into space-delimited clusters.
 		chars := strings.Fields(spec.chars)
 
 		for _, ch := range chars {
 			r := []rune(ch)
-			if len(r) == 0 {
+			// Reject multi-codepoint clusters. Skrifa measures blues in
+			// ShaperMode::Nominal, which empties clusters with more than one
+			// glyph (see skrifa shape.rs, mirroring FreeType afshaper.c:639).
+			// Without this, complex Indic clusters (e.g. "લી") would be
+			// measured from their first codepoint only, skewing zones.
+			if len(r) != 1 {
 				continue
 			}
 
@@ -694,7 +699,8 @@ func computeCJKBlues(font ParsedFont, script *scriptClass) []blueZone {
 
 		for _, ch := range fillChars {
 			r := []rune(ch)
-			if len(r) == 0 {
+			// Reject multi-codepoint clusters (skrifa ShaperMode::Nominal).
+			if len(r) != 1 {
 				continue
 			}
 			gid := font.GlyphIndex(r[0])
@@ -708,7 +714,8 @@ func computeCJKBlues(font ParsedFont, script *scriptClass) []blueZone {
 
 		for _, ch := range flatChars {
 			r := []rune(ch)
-			if len(r) == 0 {
+			// Reject multi-codepoint clusters (skrifa ShaperMode::Nominal).
+			if len(r) != 1 {
 				continue
 			}
 			gid := font.GlyphIndex(r[0])

@@ -329,11 +329,13 @@ bitmap_left @ slot+192, bitmap_top @ slot+196
 并修复两个引擎/生成器 bug（LONG 检测条件、union 链首 flags 丢失）。探针比对
 skrifa 数值：Thai/Bengali/Tamil 完全一致、Gujarati 大部分一致。已知差异：
 
-- **复合 cluster / GSUB shaping**：Gujarati、Khmer、Kannada、Malayalam、Sinhala、
-  Mongolian、Chakma、Kayah Li 8 个脚本的蓝区字符表含多码元串（coeng ligature、
-  元音组合、ZWJ 序列等）。skrifa 走 GSUB 整形后测 ligature 字形；Go 目前取首
-  码元单字形（无 GSUB 接入）→ 这些 zone 的蓝区数值可能偏差。需 Go 接入 GSUB
-  cluster shaping 后对齐（独立任务）。
+- **复合 cluster（已修复，2026-08-05 晚）**：skrifa 蓝区测量在 ShaperMode::Nominal
+  下**拒绝多码元 cluster**（shape.rs 引用 FreeType afshaper.c:639）——并非走 GSUB
+  整形。Go `computeDefaultBlues`/`computeCJKBlues` 已同步跳过多码元字段
+  （`len(rune) != 1`），无需 GSUB 接入。修复后探针验证：Gujarati（Kalapi）5/5
+  zones、Kannada（Gubbi）2/2 zones 与 skrifa 全一致（pos/over/asc/desc/flags，
+  含 Gujarati zone2=1166）。Khmer/Malayalam/Sinhala/Mongolian/Chakma/Kayah Li
+  本机无字体，未实测（同一代码路径，逻辑等价）。
 - **hint_top_to_bottom**：Bengali/Devanagari/Gothic/Gurmukhi/Mongolian 5 个脚本
   的 t2b 数据已生成（scriptClass.hintTopToBottom），但 autohint_edges.go 的
   蓝区匹配算法未接入（需对照 skrifa topo/edges.rs 实现）。
