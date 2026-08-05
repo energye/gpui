@@ -67,6 +67,12 @@ type scriptClass struct {
 	// The first character with a glyph in the font is used.
 	stdChars []rune
 
+	// hintTopToBottom marks scripts whose blues are measured top-to-bottom
+	// (skrifa ScriptClass.hint_top_to_bottom: Bengali, Devanagari, Gothic,
+	// Gurmukhi, Mongolian). Data is generated; the algorithm is not yet
+	// wired into autohint_edges.go (known difference, see docs).
+	hintTopToBottom bool
+
 	// uniranges lists Unicode code point ranges covered by this script.
 	// Used for per-glyph script detection (FreeType afglobal.c
 	// af_face_globals_compute_style_coverage): each glyph is assigned
@@ -248,14 +254,10 @@ var scriptCJK = scriptClass{
 // Unicode ranges are mutually exclusive between scripts, so priority only
 // matters for glyphs addressable by multiple code points in different
 // scripts (rare; first wins in FreeType too).
-var scriptClasses = []*scriptClass{
-	&scriptHebrew,
-	&scriptCyrillic,
-	&scriptGreek,
-	&scriptArabic,
-	&scriptCJK,
-	&scriptLatin, // default fallback
-}
+//
+// The list is generated in autohint_scripts_gen.go (skrifa SCRIPT_CLASSES
+// order; Latin/Hebrew/Cyrillic/Greek/Arabic and CJK are defined here and
+// referenced there).
 
 // glyphScriptCache caches the per-glyph script assignment for each font.
 // Matches FreeType's AF_FaceGlobals.glyph_styles array.

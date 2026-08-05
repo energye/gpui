@@ -1,0 +1,2051 @@
+[
+ {
+  "name": "Adlam",
+  "group": "Default",
+  "tag": "Adlm",
+  "hint_top_to_bottom": false,
+  "std_chars": "𞤌 𞤮",
+  "blues": [
+   {
+    "chars": "𞤌 𞤅 𞤈 𞤏 𞤔 𞤚",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𞤂 𞤖",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𞤬 𞤮 𞤻 𞤼 𞤾",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "𞤤 𞤨 𞤩 𞤭 𞤴 𞤸 𞤺 𞥀",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    125184,
+    125279
+   ]
+  ]
+ },
+ {
+  "name": "Arabic",
+  "group": "Default",
+  "tag": "Arab",
+  "hint_top_to_bottom": false,
+  "std_chars": "ل ح ـ",
+  "blues": [
+   {
+    "chars": "ا إ ل ك ط ظ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ت ث ط ظ ك",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ـ",
+    "zones": "NEUTRAL"
+   }
+  ],
+  "uniranges": [
+   [
+    1536,
+    1791
+   ],
+   [
+    1872,
+    2047
+   ],
+   [
+    2208,
+    2303
+   ],
+   [
+    64336,
+    65023
+   ],
+   [
+    65136,
+    65279
+   ],
+   [
+    126464,
+    126719
+   ]
+  ]
+ },
+ {
+  "name": "Armenian",
+  "group": "Default",
+  "tag": "Armn",
+  "hint_top_to_bottom": false,
+  "std_chars": "ս Ս",
+  "blues": [
+   {
+    "chars": "Ա Մ Ւ Ս Բ Գ Դ Օ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "Ւ Ո Դ Ճ Շ Ս Տ Օ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ե է ի մ վ ֆ ճ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ա յ ւ ս գ շ ր օ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "հ ո ճ ա ե ծ ս օ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "բ ը ի լ ղ պ փ ց",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    1328,
+    1423
+   ],
+   [
+    64275,
+    64279
+   ]
+  ]
+ },
+ {
+  "name": "Avestan",
+  "group": "Default",
+  "tag": "Avst",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐬚",
+  "blues": [
+   {
+    "chars": "𐬀 𐬁 𐬐 𐬛",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐬀 𐬁",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    68352,
+    68415
+   ]
+  ]
+ },
+ {
+  "name": "Bamum",
+  "group": "Default",
+  "tag": "Bamu",
+  "hint_top_to_bottom": false,
+  "std_chars": "ꛁ ꛯ",
+  "blues": [
+   {
+    "chars": "ꚧ ꚨ ꛛ ꛉ ꛁ ꛈ ꛫ ꛯ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ꚭ ꚳ ꚶ ꛬ ꚢ ꚽ ꛯ ꛲",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    42656,
+    42751
+   ]
+  ]
+ },
+ {
+  "name": "Bengali",
+  "group": "Default",
+  "tag": "Beng",
+  "hint_top_to_bottom": true,
+  "std_chars": "০ ৪",
+  "blues": [
+   {
+    "chars": "ই ট ঠ ি ী ৈ ৗ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ও এ ড ত ন ব ল ক",
+    "zones": "TOP"
+   },
+   {
+    "chars": "অ ড ত ন ব ভ ল ক",
+    "zones": "TOP.union(BlueZones::NEUTRAL).union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "অ ড ত ন ব ভ ল ক",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    2432,
+    2559
+   ]
+  ]
+ },
+ {
+  "name": "Buhid",
+  "group": "Default",
+  "tag": "Buhd",
+  "hint_top_to_bottom": false,
+  "std_chars": "ᝋ ᝏ",
+  "blues": [
+   {
+    "chars": "ᝐ ᝈ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ᝅ ᝊ ᝎ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ᝂ ᝃ ᝉ ᝌ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ᝀ ᝃ ᝆ ᝉ ᝋ ᝏ ᝑ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    5952,
+    5983
+   ]
+  ]
+ },
+ {
+  "name": "Chakma",
+  "group": "Default",
+  "tag": "Cakm",
+  "hint_top_to_bottom": false,
+  "std_chars": "𑄤 𑄉 𑄛",
+  "blues": [
+   {
+    "chars": "𑄃 𑄅 𑄉 𑄙 𑄗",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𑄅 𑄛 𑄝 𑄗 𑄓",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𑄖𑄳𑄢 𑄘𑄳𑄢 𑄙𑄳𑄢 𑄤𑄳𑄢 𑄥𑄳𑄢",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    69888,
+    69967
+   ]
+  ]
+ },
+ {
+  "name": "Canadian Syllabics",
+  "group": "Default",
+  "tag": "Cans",
+  "hint_top_to_bottom": false,
+  "std_chars": "ᑌ ᓚ",
+  "blues": [
+   {
+    "chars": "ᗜ ᖴ ᐁ ᒣ ᑫ ᑎ ᔑ ᗰ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ᗶ ᖵ ᒧ ᐃ ᑌ ᒍ ᔑ ᗢ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ᓓ ᓕ ᓀ ᓂ ᓄ ᕄ ᕆ ᘣ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ᕃ ᓂ ᓀ ᕂ ᓗ ᓚ ᕆ ᘣ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ᐪ ᙆ ᣘ ᐢ ᒾ ᣗ ᔆ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ᙆ ᗮ ᒻ ᐞ ᔆ ᒡ ᒢ ᓑ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    5120,
+    5759
+   ],
+   [
+    6320,
+    6399
+   ]
+  ]
+ },
+ {
+  "name": "Carian",
+  "group": "Default",
+  "tag": "Cari",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐊫 𐋉",
+  "blues": [
+   {
+    "chars": "𐊧 𐊫 𐊬 𐊭 𐊱 𐊺 𐊼 𐊿",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐊣 𐊧 𐊷 𐋀 𐊫 𐊸 𐋉",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    66208,
+    66271
+   ]
+  ]
+ },
+ {
+  "name": "Cherokee",
+  "group": "Default",
+  "tag": "Cher",
+  "hint_top_to_bottom": false,
+  "std_chars": "Ꭴ Ꮕ ꮕ",
+  "blues": [
+   {
+    "chars": "Ꮖ Ꮋ Ꭼ Ꮓ Ꭴ Ꮳ Ꭶ Ꮥ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "Ꮖ Ꮋ Ꭼ Ꮓ Ꭴ Ꮳ Ꭶ Ꮥ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ꮒ ꮤ ꮶ ꭴ ꭾ ꮗ ꮝ ꮿ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ꮖ ꭼ ꮓ ꮠ ꮳ ꭶ ꮥ ꮻ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ꮖ ꭼ ꮓ ꮠ ꮳ ꭶ ꮥ ꮻ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ᏸ ꮐ ꭹ ꭻ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    5024,
+    5119
+   ],
+   [
+    43888,
+    43967
+   ]
+  ]
+ },
+ {
+  "name": "Coptic",
+  "group": "Default",
+  "tag": "Copt",
+  "hint_top_to_bottom": false,
+  "std_chars": "Ⲟ ⲟ",
+  "blues": [
+   {
+    "chars": "Ⲍ Ⲏ Ⲡ Ⳟ Ⲟ Ⲑ Ⲥ Ⳋ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "Ⳑ Ⳙ Ⳟ Ⲏ Ⲟ Ⲑ Ⳝ Ⲱ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ⲍ ⲏ ⲡ ⳟ ⲟ ⲑ ⲥ ⳋ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ⳑ ⳙ ⳟ ⲏ ⲟ ⲑ ⳝ Ⳓ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    11392,
+    11519
+   ]
+  ]
+ },
+ {
+  "name": "Cypriot",
+  "group": "Default",
+  "tag": "Cprt",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐠅 𐠣",
+  "blues": [
+   {
+    "chars": "𐠍 𐠙 𐠳 𐠱 𐠅 𐠓 𐠣 𐠦",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐠃 𐠊 𐠛 𐠣 𐠳 𐠵 𐠐",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𐠈 𐠏 𐠖",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐠈 𐠏 𐠖",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    67584,
+    67647
+   ]
+  ]
+ },
+ {
+  "name": "Cyrillic",
+  "group": "Default",
+  "tag": "Cyrl",
+  "hint_top_to_bottom": false,
+  "std_chars": "о О",
+  "blues": [
+   {
+    "chars": "Б В Е П З О С Э",
+    "zones": "TOP"
+   },
+   {
+    "chars": "Б В Е Ш З О С Э",
+    "zones": "NONE"
+   },
+   {
+    "chars": "х п н ш е з о с",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "х п н ш е з о с",
+    "zones": "NONE"
+   },
+   {
+    "chars": "р у ф",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    1024,
+    1327
+   ],
+   [
+    7296,
+    7311
+   ],
+   [
+    11744,
+    11775
+   ],
+   [
+    42560,
+    42655
+   ]
+  ]
+ },
+ {
+  "name": "Devanagari",
+  "group": "Default",
+  "tag": "Deva",
+  "hint_top_to_bottom": true,
+  "std_chars": "ठ व ट",
+  "blues": [
+   {
+    "chars": "ई ऐ ओ औ ि ी ो ौ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "क म अ आ थ ध भ श",
+    "zones": "TOP"
+   },
+   {
+    "chars": "क न म उ छ ट ठ ड",
+    "zones": "TOP.union(BlueZones::NEUTRAL).union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "क न म उ छ ट ठ ड",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ु ृ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    2304,
+    2363
+   ],
+   [
+    2365,
+    2384
+   ],
+   [
+    2387,
+    2403
+   ],
+   [
+    2406,
+    2431
+   ],
+   [
+    8377,
+    8377
+   ],
+   [
+    43232,
+    43263
+   ]
+  ]
+ },
+ {
+  "name": "Deseret",
+  "group": "Default",
+  "tag": "Dsrt",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐐄 𐐬",
+  "blues": [
+   {
+    "chars": "𐐂 𐐄 𐐋 𐐗 𐐑",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐐀 𐐂 𐐄 𐐗 𐐛",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𐐪 𐐬 𐐳 𐐿 𐐹",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "𐐨 𐐪 𐐬 𐐿 𐑃",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    66560,
+    66639
+   ]
+  ]
+ },
+ {
+  "name": "Ethiopic",
+  "group": "Default",
+  "tag": "Ethi",
+  "hint_top_to_bottom": false,
+  "std_chars": "ዐ",
+  "blues": [
+   {
+    "chars": "ሀ ሃ ዘ ፐ ማ በ ዋ ዐ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ለ ሐ በ ዘ ሀ ሪ ዐ ጨ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    4608,
+    5023
+   ],
+   [
+    11648,
+    11743
+   ],
+   [
+    43776,
+    43823
+   ]
+  ]
+ },
+ {
+  "name": "Georgian (Mkhedruli)",
+  "group": "Default",
+  "tag": "Geor",
+  "hint_top_to_bottom": false,
+  "std_chars": "ი ე ა Ჿ",
+  "blues": [
+   {
+    "chars": "გ დ ე ვ თ ი ო ღ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ა ზ მ ს შ ძ ხ პ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ს ხ ქ ზ მ შ ჩ წ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ე ვ ჟ ტ უ ფ ქ ყ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "Ნ Ჟ Ჳ Ჸ Გ Ე Ო Ჴ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "Ი Ჲ Ო Ჩ Მ Შ Ჯ Ჽ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    4304,
+    4351
+   ],
+   [
+    7312,
+    7359
+   ]
+  ]
+ },
+ {
+  "name": "Georgian (Khutsuri)",
+  "group": "Default",
+  "tag": "Geok",
+  "hint_top_to_bottom": false,
+  "std_chars": "Ⴖ Ⴑ ⴙ",
+  "blues": [
+   {
+    "chars": "Ⴑ Ⴇ Ⴙ Ⴜ Ⴄ Ⴅ Ⴓ Ⴚ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "Ⴄ Ⴅ Ⴇ Ⴈ Ⴆ Ⴑ Ⴊ Ⴋ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ⴁ ⴗ ⴂ ⴄ ⴅ ⴇ ⴔ ⴖ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ⴈ ⴌ ⴖ ⴎ ⴃ ⴆ ⴋ ⴢ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ⴐ ⴑ ⴓ ⴕ ⴙ ⴛ ⴡ ⴣ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ⴄ ⴅ ⴔ ⴕ ⴁ ⴂ ⴘ ⴝ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    4256,
+    4301
+   ],
+   [
+    11520,
+    11565
+   ]
+  ]
+ },
+ {
+  "name": "Glagolitic",
+  "group": "Default",
+  "tag": "Glag",
+  "hint_top_to_bottom": false,
+  "std_chars": "Ⱅ ⱅ",
+  "blues": [
+   {
+    "chars": "Ⰵ Ⱄ Ⱚ Ⰴ Ⰲ Ⰺ Ⱛ Ⰻ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "Ⰵ Ⰴ Ⰲ Ⱚ Ⱎ Ⱑ Ⰺ Ⱄ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ⰵ ⱄ ⱚ ⰴ ⰲ ⰺ ⱛ ⰻ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ⰵ ⰴ ⰲ ⱚ ⱎ ⱑ ⰺ ⱄ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    11264,
+    11359
+   ],
+   [
+    122880,
+    122927
+   ]
+  ]
+ },
+ {
+  "name": "Gothic",
+  "group": "Default",
+  "tag": "Goth",
+  "hint_top_to_bottom": true,
+  "std_chars": "𐌴 𐌾 𐍃",
+  "blues": [
+   {
+    "chars": "𐌲 𐌶 𐍀 𐍄 𐌴 𐍃 𐍈 𐌾",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐌶 𐌴 𐍃 𐍈",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    66352,
+    66383
+   ]
+  ]
+ },
+ {
+  "name": "Greek",
+  "group": "Default",
+  "tag": "Grek",
+  "hint_top_to_bottom": false,
+  "std_chars": "ο Ο",
+  "blues": [
+   {
+    "chars": "Γ Β Ε Ζ Θ Ο Ω",
+    "zones": "TOP"
+   },
+   {
+    "chars": "Β Δ Ζ Ξ Θ Ο",
+    "zones": "NONE"
+   },
+   {
+    "chars": "β θ δ ζ λ ξ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "α ε ι ο π σ τ ω",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "α ε ι ο π σ τ ω",
+    "zones": "NONE"
+   },
+   {
+    "chars": "β γ η μ ρ φ χ ψ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    880,
+    1023
+   ],
+   [
+    7936,
+    8191
+   ]
+  ]
+ },
+ {
+  "name": "Gujarati",
+  "group": "Default",
+  "tag": "Gujr",
+  "hint_top_to_bottom": false,
+  "std_chars": "ટ ૦",
+  "blues": [
+   {
+    "chars": "ત ન ઋ ઌ છ ટ ર ૦",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ખ ગ ઘ ઞ ઇ ઈ ઠ જ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ઈ ઊ િ ી લી શ્ચિ જિ સી",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ુ ૃ ૄ ખુ છૃ છૄ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "૦ ૧ ૨ ૩ ૭",
+    "zones": "TOP"
+   }
+  ],
+  "uniranges": [
+   [
+    2688,
+    2815
+   ]
+  ]
+ },
+ {
+  "name": "Gurmukhi",
+  "group": "Default",
+  "tag": "Guru",
+  "hint_top_to_bottom": true,
+  "std_chars": "ਠ ਰ ੦",
+  "blues": [
+   {
+    "chars": "ਇ ਈ ਉ ਏ ਓ ੳ ਿ ੀ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ਕ ਗ ਙ ਚ ਜ ਤ ਧ ਸ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ਕ ਗ ਙ ਚ ਜ ਤ ਧ ਸ",
+    "zones": "TOP.union(BlueZones::NEUTRAL).union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ਅ ਏ ਓ ਗ ਜ ਠ ਰ ਸ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "੦ ੧ ੨ ੩ ੭",
+    "zones": "TOP"
+   }
+  ],
+  "uniranges": [
+   [
+    2560,
+    2687
+   ]
+  ]
+ },
+ {
+  "name": "Hebrew",
+  "group": "Default",
+  "tag": "Hebr",
+  "hint_top_to_bottom": false,
+  "std_chars": "ם",
+  "blues": [
+   {
+    "chars": "ב ד ה ח ך כ ם ס",
+    "zones": "TOP.union(BlueZones::LONG)"
+   },
+   {
+    "chars": "ב ט כ ם ס צ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ק ך ן ף ץ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    1424,
+    1535
+   ],
+   [
+    64285,
+    64335
+   ]
+  ]
+ },
+ {
+  "name": "Kayah Li",
+  "group": "Default",
+  "tag": "Kali",
+  "hint_top_to_bottom": false,
+  "std_chars": "ꤍ ꤀",
+  "blues": [
+   {
+    "chars": "꤅ ꤏ ꤁ ꤋ ꤀ ꤍ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "꤈ ꤘ ꤀ ꤍ ꤢ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ꤖ ꤡ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ꤑ ꤜ ꤞ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ꤑ꤬ ꤜ꤭ ꤔ꤬",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    43264,
+    43311
+   ]
+  ]
+ },
+ {
+  "name": "Khmer",
+  "group": "Default",
+  "tag": "Khmr",
+  "hint_top_to_bottom": false,
+  "std_chars": "០",
+  "blues": [
+   {
+    "chars": "ខ ទ ន ឧ ឩ ា",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ក្ក ក្ខ ក្គ ក្ថ",
+    "zones": "SUB_TOP"
+   },
+   {
+    "chars": "ខ ឃ ច ឋ ប ម យ ឲ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ត្រ រៀ ឲ្យ អឿ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ន្ត្រៃ ង្ខ្យ ក្បៀ ច្រៀ ន្តឿ ល្បឿ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    6016,
+    6143
+   ]
+  ]
+ },
+ {
+  "name": "Khmer Symbols",
+  "group": "Default",
+  "tag": "Khms",
+  "hint_top_to_bottom": false,
+  "std_chars": "᧡ ᧪",
+  "blues": [
+   {
+    "chars": "᧠ ᧡",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "᧶ ᧹",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    6624,
+    6655
+   ]
+  ]
+ },
+ {
+  "name": "Kannada",
+  "group": "Default",
+  "tag": "Knda",
+  "hint_top_to_bottom": false,
+  "std_chars": "೦ ಬ",
+  "blues": [
+   {
+    "chars": "ಇ ಊ ಐ ಣ ಸಾ ನಾ ದಾ ರಾ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ಅ ಉ ಎ ಲ ೦ ೨ ೬ ೭",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    3200,
+    3327
+   ]
+  ]
+ },
+ {
+  "name": "Lao",
+  "group": "Default",
+  "tag": "Laoo",
+  "hint_top_to_bottom": false,
+  "std_chars": "໐",
+  "blues": [
+   {
+    "chars": "າ ດ ອ ມ ລ ວ ຣ ງ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "າ ອ ບ ຍ ຣ ຮ ວ ຢ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ປ ຢ ຟ ຝ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ໂ ໄ ໃ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ງ ຊ ຖ ຽ ໆ ຯ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    3712,
+    3839
+   ]
+  ]
+ },
+ {
+  "name": "Latin",
+  "group": "Default",
+  "tag": "Latn",
+  "hint_top_to_bottom": false,
+  "std_chars": "o O 0",
+  "blues": [
+   {
+    "chars": "T H E Z O C Q S",
+    "zones": "TOP"
+   },
+   {
+    "chars": "H E Z L O C U S",
+    "zones": "NONE"
+   },
+   {
+    "chars": "f i j k d b h",
+    "zones": "TOP"
+   },
+   {
+    "chars": "u v x z o e s c",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "n r x z o e s c",
+    "zones": "NONE"
+   },
+   {
+    "chars": "p q g j y",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    32,
+    127
+   ],
+   [
+    160,
+    169
+   ],
+   [
+    171,
+    177
+   ],
+   [
+    180,
+    184
+   ],
+   [
+    187,
+    687
+   ],
+   [
+    697,
+    735
+   ],
+   [
+    741,
+    879
+   ],
+   [
+    6832,
+    6846
+   ],
+   [
+    7424,
+    7467
+   ],
+   [
+    7531,
+    7543
+   ],
+   [
+    7545,
+    7578
+   ],
+   [
+    7616,
+    7935
+   ],
+   [
+    8192,
+    8303
+   ],
+   [
+    8352,
+    8376
+   ],
+   [
+    8378,
+    8399
+   ],
+   [
+    8528,
+    8591
+   ],
+   [
+    11360,
+    11387
+   ],
+   [
+    11390,
+    11391
+   ],
+   [
+    11776,
+    11903
+   ],
+   [
+    42784,
+    42863
+   ],
+   [
+    42865,
+    42999
+   ],
+   [
+    43002,
+    43007
+   ],
+   [
+    43824,
+    43867
+   ],
+   [
+    43872,
+    43887
+   ],
+   [
+    64256,
+    64262
+   ],
+   [
+    119808,
+    120831
+   ]
+  ]
+ },
+ {
+  "name": "Latin Subscript Fallback",
+  "group": "Default",
+  "tag": "Latb",
+  "hint_top_to_bottom": false,
+  "std_chars": "ₒ ₀",
+  "blues": [
+   {
+    "chars": "₀ ₃ ₅ ₇ ₈",
+    "zones": "TOP"
+   },
+   {
+    "chars": "₀ ₁ ₂ ₃ ₈",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ᵢ ⱼ ₕ ₖ ₗ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ₐ ₑ ₒ ₓ ₙ ₛ ᵥ ᵤ ᵣ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ₐ ₑ ₒ ₓ ₙ ₛ ᵥ ᵤ ᵣ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ᵦ ᵧ ᵨ ᵩ ₚ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    7522,
+    7530
+   ],
+   [
+    8320,
+    8348
+   ],
+   [
+    11388,
+    11388
+   ]
+  ]
+ },
+ {
+  "name": "Latin Superscript Fallback",
+  "group": "Default",
+  "tag": "Latp",
+  "hint_top_to_bottom": false,
+  "std_chars": "ᵒ ᴼ ⁰",
+  "blues": [
+   {
+    "chars": "⁰ ³ ⁵ ⁷ ᵀ ᴴ ᴱ ᴼ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "⁰ ¹ ² ³ ᴱ ᴸ ᴼ ᵁ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ᵇ ᵈ ᵏ ʰ ʲ ᶠ ⁱ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ᵉ ᵒ ʳ ˢ ˣ ᶜ ᶻ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ᵉ ᵒ ʳ ˢ ˣ ᶜ ᶻ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ᵖ ʸ ᵍ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    170,
+    170
+   ],
+   [
+    178,
+    179
+   ],
+   [
+    185,
+    186
+   ],
+   [
+    688,
+    696
+   ],
+   [
+    736,
+    740
+   ],
+   [
+    7468,
+    7521
+   ],
+   [
+    7544,
+    7544
+   ],
+   [
+    7579,
+    7615
+   ],
+   [
+    8304,
+    8319
+   ],
+   [
+    11389,
+    11389
+   ],
+   [
+    42864,
+    42864
+   ],
+   [
+    43000,
+    43001
+   ],
+   [
+    43868,
+    43871
+   ]
+  ]
+ },
+ {
+  "name": "Lisu",
+  "group": "Default",
+  "tag": "Lisu",
+  "hint_top_to_bottom": false,
+  "std_chars": "ꓳ",
+  "blues": [
+   {
+    "chars": "ꓡ ꓧ ꓱ ꓶ ꓩ ꓚ ꓵ ꓳ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ꓕ ꓜ ꓞ ꓡ ꓛ ꓢ ꓳ ꓴ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    42192,
+    42239
+   ]
+  ]
+ },
+ {
+  "name": "Malayalam",
+  "group": "Default",
+  "tag": "Mlym",
+  "hint_top_to_bottom": false,
+  "std_chars": "ഠ റ",
+  "blues": [
+   {
+    "chars": "ഒ ട ഠ റ ച പ ച്ച പ്പ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ട ഠ ധ ശ ഘ ച ഥ ല",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    3328,
+    3455
+   ]
+  ]
+ },
+ {
+  "name": "Medefaidrin",
+  "group": "Default",
+  "tag": "Medf",
+  "hint_top_to_bottom": false,
+  "std_chars": "𖹡 𖹛 𖹯",
+  "blues": [
+   {
+    "chars": "𖹀 𖹁 𖹂 𖹃 𖹏 𖹚 𖹟",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𖹀 𖹁 𖹂 𖹃 𖹏 𖹚 𖹒 𖹓",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𖹤 𖹬 𖹧 𖹴 𖹶 𖹾",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𖹠 𖹡 𖹢 𖹹 𖹳 𖹮",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "𖹠 𖹡 𖹢 𖹳 𖹭 𖹽",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𖹥 𖹨 𖹩",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𖺀 𖺅 𖺈 𖺄 𖺍",
+    "zones": "TOP"
+   }
+  ],
+  "uniranges": [
+   [
+    93760,
+    93855
+   ]
+  ]
+ },
+ {
+  "name": "Mongolian",
+  "group": "Default",
+  "tag": "Mong",
+  "hint_top_to_bottom": true,
+  "std_chars": "ᡂ ᠪ",
+  "blues": [
+   {
+    "chars": "ᠳ ᠴ ᠶ ᠽ ᡂ ᡊ ‍ᡡ‍ ‍ᡳ‍",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ᡃ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    6144,
+    6319
+   ],
+   [
+    71264,
+    71295
+   ]
+  ]
+ },
+ {
+  "name": "Myanmar",
+  "group": "Default",
+  "tag": "Mymr",
+  "hint_top_to_bottom": false,
+  "std_chars": "ဝ င ဂ",
+  "blues": [
+   {
+    "chars": "ခ ဂ င ဒ ဝ ၥ ၊ ။",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "င ဎ ဒ ပ ဗ ဝ ၊ ။",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ဩ ြ ၍ ၏ ၆ ါ ိ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ဉ ည ဥ ဩ ဨ ၂ ၅ ၉",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    4096,
+    4255
+   ],
+   [
+    43488,
+    43519
+   ],
+   [
+    43616,
+    43647
+   ]
+  ]
+ },
+ {
+  "name": "N'Ko",
+  "group": "Default",
+  "tag": "Nkoo",
+  "hint_top_to_bottom": false,
+  "std_chars": "ߋ ߀",
+  "blues": [
+   {
+    "chars": "ߐ ߉ ߒ ߟ ߖ ߜ ߠ ߥ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "߀ ߘ ߡ ߠ ߥ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ߏ ߛ ߋ",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "ߎ ߏ ߛ ߋ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": []
+ },
+ {
+  "name": "no script",
+  "group": "Default",
+  "tag": "None",
+  "hint_top_to_bottom": false,
+  "std_chars": "",
+  "blues": [],
+  "uniranges": []
+ },
+ {
+  "name": "Ol Chiki",
+  "group": "Default",
+  "tag": "Olck",
+  "hint_top_to_bottom": false,
+  "std_chars": "ᱛ",
+  "blues": [
+   {
+    "chars": "ᱛ ᱜ ᱝ ᱡ ᱢ ᱥ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ᱛ ᱜ ᱝ ᱡ ᱢ ᱥ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    7248,
+    7295
+   ]
+  ]
+ },
+ {
+  "name": "Old Turkic",
+  "group": "Default",
+  "tag": "Orkh",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐰗",
+  "blues": [
+   {
+    "chars": "𐰗 𐰘 𐰧",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐰉 𐰗 𐰦 𐰧",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    68608,
+    68687
+   ]
+  ]
+ },
+ {
+  "name": "Osage",
+  "group": "Default",
+  "tag": "Osge",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐓂 𐓪",
+  "blues": [
+   {
+    "chars": "𐒾 𐓍 𐓒 𐓓 𐒻 𐓂 𐒵 𐓆",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐒰 𐓍 𐓂 𐒿 𐓎 𐒹",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𐒼 𐒽 𐒾",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𐓵 𐓶 𐓺 𐓻 𐓝 𐓣 𐓪 𐓮",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "𐓘 𐓚 𐓣 𐓵 𐓡 𐓧 𐓪 𐓶",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𐓤 𐓦 𐓸 𐓹 𐓛",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐓤 𐓥 𐓦",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    66736,
+    66815
+   ]
+  ]
+ },
+ {
+  "name": "Osmanya",
+  "group": "Default",
+  "tag": "Osma",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐒆 𐒠",
+  "blues": [
+   {
+    "chars": "𐒆 𐒉 𐒐 𐒒 𐒘 𐒛 𐒠 𐒣",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐒀 𐒂 𐒆 𐒈 𐒊 𐒒 𐒠 𐒩",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    66688,
+    66735
+   ]
+  ]
+ },
+ {
+  "name": "Hanifi Rohingya",
+  "group": "Default",
+  "tag": "Rohg",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐴰",
+  "blues": [
+   {
+    "chars": "𐴃 𐴀 𐴆 𐴖 𐴕",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐴔 𐴖 𐴕 𐴑 𐴐",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ـ",
+    "zones": "NEUTRAL"
+   }
+  ],
+  "uniranges": [
+   [
+    68864,
+    68927
+   ]
+  ]
+ },
+ {
+  "name": "Saurashtra",
+  "group": "Default",
+  "tag": "Saur",
+  "hint_top_to_bottom": false,
+  "std_chars": "ꢝ ꣐",
+  "blues": [
+   {
+    "chars": "ꢜ ꢞ ꢳ ꢂ ꢖ ꢒ ꢝ ꢛ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ꢂ ꢨ ꢺ ꢤ ꢎ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    43136,
+    43231
+   ]
+  ]
+ },
+ {
+  "name": "Shavian",
+  "group": "Default",
+  "tag": "Shaw",
+  "hint_top_to_bottom": false,
+  "std_chars": "𐑴",
+  "blues": [
+   {
+    "chars": "𐑕 𐑙",
+    "zones": "TOP"
+   },
+   {
+    "chars": "𐑔 𐑖 𐑗 𐑹 𐑻",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𐑟 𐑣",
+    "zones": "NONE"
+   },
+   {
+    "chars": "𐑱 𐑲 𐑳 𐑴 𐑸 𐑺 𐑼",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "𐑴 𐑻 𐑹",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    66640,
+    66687
+   ]
+  ]
+ },
+ {
+  "name": "Sinhala",
+  "group": "Default",
+  "tag": "Sinh",
+  "hint_top_to_bottom": false,
+  "std_chars": "ට",
+  "blues": [
+   {
+    "chars": "ඉ ක ඝ ඳ ප ය ල ෆ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "එ ඔ ඝ ජ ට ථ ධ ර",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ද ඳ උ ල තූ තු බු දු",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    3456,
+    3583
+   ]
+  ]
+ },
+ {
+  "name": "Sundanese",
+  "group": "Default",
+  "tag": "Sund",
+  "hint_top_to_bottom": false,
+  "std_chars": "᮰",
+  "blues": [
+   {
+    "chars": "ᮋ ᮞ ᮮ ᮽ ᮰ ᮈ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ᮄ ᮔ ᮕ ᮗ ᮰ ᮆ ᮈ ᮉ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ᮼ ᳄",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    7040,
+    7103
+   ],
+   [
+    7360,
+    7375
+   ]
+  ]
+ },
+ {
+  "name": "Tamil",
+  "group": "Default",
+  "tag": "Taml",
+  "hint_top_to_bottom": false,
+  "std_chars": "௦",
+  "blues": [
+   {
+    "chars": "உ ஒ ஓ ற ஈ க ங ச",
+    "zones": "TOP"
+   },
+   {
+    "chars": "க ச ல ஶ உ ங ட ப",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    2944,
+    3071
+   ]
+  ]
+ },
+ {
+  "name": "Tai Viet",
+  "group": "Default",
+  "tag": "Tavt",
+  "hint_top_to_bottom": false,
+  "std_chars": "ꪒ ꪫ",
+  "blues": [
+   {
+    "chars": "ꪆ ꪔ ꪒ ꪖ ꪫ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ꪉ ꪫ ꪮ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    43648,
+    43743
+   ]
+  ]
+ },
+ {
+  "name": "Telugu",
+  "group": "Default",
+  "tag": "Telu",
+  "hint_top_to_bottom": false,
+  "std_chars": "౦ ౧",
+  "blues": [
+   {
+    "chars": "ఇ ఌ ఙ ఞ ణ ఱ ౯",
+    "zones": "TOP"
+   },
+   {
+    "chars": "అ క చ ర ఽ ౨ ౬",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    3072,
+    3199
+   ]
+  ]
+ },
+ {
+  "name": "Tifinagh",
+  "group": "Default",
+  "tag": "Tfng",
+  "hint_top_to_bottom": false,
+  "std_chars": "ⵔ",
+  "blues": [
+   {
+    "chars": "ⵔ ⵙ ⵛ ⵞ ⴵ ⴼ ⴹ ⵎ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ⵔ ⵙ ⵛ ⵞ ⴵ ⴼ ⴹ ⵎ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    11568,
+    11647
+   ]
+  ]
+ },
+ {
+  "name": "Thai",
+  "group": "Default",
+  "tag": "Thai",
+  "hint_top_to_bottom": false,
+  "std_chars": "า ๅ ๐",
+  "blues": [
+   {
+    "chars": "บ เ แ อ ก า",
+    "zones": "TOP.union(BlueZones::X_HEIGHT)"
+   },
+   {
+    "chars": "บ ป ษ ฯ อ ย ฮ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ป ฝ ฟ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "โ ใ ไ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ฎ ฏ ฤ ฦ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "ญ ฐ",
+    "zones": "NONE"
+   },
+   {
+    "chars": "๐ ๑ ๓",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    3584,
+    3711
+   ]
+  ]
+ },
+ {
+  "name": "Vai",
+  "group": "Default",
+  "tag": "Vaii",
+  "hint_top_to_bottom": false,
+  "std_chars": "ꘓ ꖜ ꖴ",
+  "blues": [
+   {
+    "chars": "ꗍ ꘖ ꘙ ꘜ ꖜ ꖝ ꔅ ꕢ",
+    "zones": "TOP"
+   },
+   {
+    "chars": "ꗍ ꘖ ꘙ ꗞ ꔅ ꕢ ꖜ ꔆ",
+    "zones": "NONE"
+   }
+  ],
+  "uniranges": [
+   [
+    42240,
+    42559
+   ]
+  ]
+ },
+ {
+  "name": "Limbu",
+  "group": "Indic",
+  "tag": "Limb",
+  "hint_top_to_bottom": false,
+  "std_chars": "o",
+  "blues": [],
+  "uniranges": [
+   [
+    6400,
+    6479
+   ]
+  ]
+ },
+ {
+  "name": "Oriya",
+  "group": "Indic",
+  "tag": "Orya",
+  "hint_top_to_bottom": false,
+  "std_chars": "o",
+  "blues": [],
+  "uniranges": [
+   [
+    2816,
+    2943
+   ]
+  ]
+ },
+ {
+  "name": "Syloti Nagri",
+  "group": "Indic",
+  "tag": "Sylo",
+  "hint_top_to_bottom": false,
+  "std_chars": "o",
+  "blues": [],
+  "uniranges": [
+   [
+    43008,
+    43055
+   ]
+  ]
+ },
+ {
+  "name": "Tibetan",
+  "group": "Indic",
+  "tag": "Tibt",
+  "hint_top_to_bottom": false,
+  "std_chars": "o",
+  "blues": [],
+  "uniranges": [
+   [
+    3840,
+    4095
+   ]
+  ]
+ },
+ {
+  "name": "CJKV ideographs",
+  "group": "Cjk",
+  "tag": "Hani",
+  "hint_top_to_bottom": false,
+  "std_chars": "田 囗",
+  "blues": [
+   {
+    "chars": "他 们 你 來 們 到 和 地 对 對 就 席 我 时 時 會 来 為 能 舰 說 说 这 這 齊 | 军 同 已 愿 既 星 是 景 民 照 现 現 理 用 置 要 軍 那 配 里 開 雷 露 面 顾",
+    "zones": "TOP"
+   },
+   {
+    "chars": "个 为 人 他 以 们 你 來 個 們 到 和 大 对 對 就 我 时 時 有 来 為 要 說 说 | 主 些 因 它 想 意 理 生 當 看 着 置 者 自 著 裡 过 还 进 進 過 道 還 里 面",
+    "zones": "NONE"
+   },
+   {
+    "chars": " 些 们 你 來 們 到 和 地 她 将 將 就 年 得 情 最 样 樣 理 能 說 说 这 這 通 | 即 吗 吧 听 呢 品 响 嗎 师 師 收 断 斷 明 眼 間 间 际 陈 限 除 陳 随 際 隨",
+    "zones": "HORIZONTAL"
+   },
+   {
+    "chars": "事 前 學 将 將 情 想 或 政 斯 新 样 樣 民 沒 没 然 特 现 現 球 第 經 谁 起 | 例 別 别 制 动 動 吗 嗎 增 指 明 朝 期 构 物 确 种 調 调 費 费 那 都 間 间",
+    "zones": "HORIZONTAL.union(BlueZones::RIGHT)"
+   }
+  ],
+  "uniranges": [
+   [
+    4352,
+    4607
+   ],
+   [
+    11904,
+    12255
+   ],
+   [
+    12272,
+    12799
+   ],
+   [
+    13056,
+    40959
+   ],
+   [
+    43360,
+    43391
+   ],
+   [
+    44032,
+    55295
+   ],
+   [
+    63744,
+    64255
+   ],
+   [
+    65040,
+    65055
+   ],
+   [
+    65072,
+    65103
+   ],
+   [
+    65280,
+    65519
+   ],
+   [
+    110592,
+    110895
+   ],
+   [
+    119552,
+    119647
+   ],
+   [
+    131072,
+    173791
+   ],
+   [
+    173824,
+    191471
+   ],
+   [
+    194560,
+    195103
+   ]
+  ]
+ }
+]
