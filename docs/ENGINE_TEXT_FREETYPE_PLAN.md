@@ -364,10 +364,17 @@ skrifa 数值：Thai/Bengali/Tamil 完全一致、Gujarati 大部分一致。已
 | C1b | dash 矩形渲染测试失败 | `render/internal/gpu/` | 历史基线失败 |
 | C1c | hairline 测试失败 | `render/internal/gpu/` | 历史基线失败 |
 | C1d | SDF stats（`SceneStats_ResetOnFlush`）测试失败 | `render/internal/gpu/` | 历史基线失败 |
-| C2 | U05 KitchenSink 性能浮动：p50 ≈ 8.17ms vs 门禁 7.87ms | `render/` | 性能抖动，疑似机器噪声，需重跑确认 |
+| C2 | U05 KitchenSink 性能浮动：p50 ≈ 8.17ms vs 门禁 7.87ms | `render/` | **已确认 = 机器状态**（见下） |
 
-**建议顺序**：先重跑确认 C2 是不是机器噪声；再逐个修 C1a–C1d（GPU 管线层，按
-AGENTS.md 属 render/ 高风险，动手前先停下确认方案）。
+**C2 重跑结论（2026-08-05）**：重跑两次（iters=3 与 6）——U05 一次 PASS
+（7.10ms）一次 FAIL（13.73ms），且**全场景同时系统性慢 2-3×**（H01/H04/H05/
+H06/H03 全部超基线），绝非 U05 单项浮动。机器检查：**CPU governor=powersave
+（省电低频）+ load average 2.31（4 核机半忙）**。冻结 JSON（全 PASS）是空闲态
+测得。→ 非代码回归，无需改代码；门禁验证需在干净环境（performance governor +
+无负载）重跑基线。
+
+**建议顺序**：C1a–C1d（GPU 管线层，按 AGENTS.md 属 render/ 高风险，动手前先停下
+确认方案）；C2 已结案（机器状态，非代码问题）。
 
 ### 9.8 待办总清单（2026-08-05 整理，大白话版）
 
