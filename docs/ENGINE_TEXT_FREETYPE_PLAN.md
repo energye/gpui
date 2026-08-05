@@ -364,17 +364,18 @@ skrifa 数值：Thai/Bengali/Tamil 完全一致、Gujarati 大部分一致。已
 | C1b | dash 矩形渲染测试失败 | `render/internal/gpu/` | 历史基线失败 |
 | C1c | hairline 测试失败 | `render/internal/gpu/` | 历史基线失败 |
 | C1d | SDF stats（`SceneStats_ResetOnFlush`）测试失败 | `render/internal/gpu/` | 历史基线失败 |
-| C2 | U05 KitchenSink 性能浮动：p50 ≈ 8.17ms vs 门禁 7.87ms | `render/` | **已确认 = 机器状态**（见下） |
+| C2 | U05 KitchenSink 性能：p50 8.17–8.58ms vs 门禁 7.87ms | `render/` | **冻结 JSON 即 FAIL**（见下） |
 
-**C2 重跑结论（2026-08-05）**：重跑两次（iters=3 与 6）——U05 一次 PASS
-（7.10ms）一次 FAIL（13.73ms），且**全场景同时系统性慢 2-3×**（H01/H04/H05/
-H06/H03 全部超基线），绝非 U05 单项浮动。机器检查：**CPU governor=powersave
-（省电低频）+ load average 2.31（4 核机半忙）**。冻结 JSON（全 PASS）是空闲态
-测得。→ 非代码回归，无需改代码；门禁验证需在干净环境（performance governor +
-无负载）重跑基线。
+**C2 重跑结论（2026-08-05，修正版）**：冻结 JSON（`tmp/s6_9_heavy_budget.json`）
+里 **U05 本来就是 FAIL**（8.17 vs 7.87）、H01 冻结时也是 FAIL（0.90 vs 0.81）——
+不是"偶尔浮动"。重跑验证：负载 2.3 时 13.73（最差）、空闲时 8.58（≈ 基线 8.55，
+改进仅 2-4%），**从未达到 must-improve 8% 门禁（7.87）**。秒级场景（H04/H05/
+H03/H06）冻结时 PASS、现在 FAIL = 机器状态敏感（present 固定开销占比大），用户
+切性能模式后部分仍擦线。→ **U05 结构性未达标**：需真优化（8% 改进）或重定门禁/
+更新 S6.0 基线；H01 为既有失败，与 C1 一并排期。
 
-**建议顺序**：C1a–C1d（GPU 管线层，按 AGENTS.md 属 render/ 高风险，动手前先停下
-确认方案）；C2 已结案（机器状态，非代码问题）。
+**建议顺序**：C1a–C1d + C2-U05（GPU 管线层，按 AGENTS.md 属 render/ 高风险，动手前
+先停下确认方案）；秒级场景 FAIL 视作机器状态敏感，重跑采样即可。
 
 ### 9.8 待办总清单（2026-08-05 整理，大白话版）
 
