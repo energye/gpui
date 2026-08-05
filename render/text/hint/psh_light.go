@@ -1028,6 +1028,7 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 	out := &cf2HintResult{contours: cs.contours}
 	off := 0
 	for _, n := range cs.contours {
+		firstOut := len(out.pts)
 		var lastX, lastY cf2Fixed
 		hasNext := false
 		for k := 0; k < n; k++ {
@@ -1048,6 +1049,12 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 			}
 			hasNext = true
 			lastX, lastY = x, y
+		}
+		// ps_builder_close_contour（psobjs.c:2336-2338）：
+		// 轮廓闭合时，末点与轮廓起点重合的 on 点被删除（FT outline
+		// 不保留闭合重合点；cs#11 型闭合点在此被丢）。
+		if len(out.pts) >= firstOut+2 && out.pts[firstOut] == out.pts[len(out.pts)-1] {
+			out.pts = out.pts[:len(out.pts)-1]
 		}
 		off += n
 	}
