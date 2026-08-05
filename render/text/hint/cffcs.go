@@ -7,7 +7,10 @@ package hint
 // 输出字体单位（cs）精确轮廓与 hstem/vstem 对，供 cf2HintMap（M2）使用，
 // 消除从 26.6 像素反推的 ±1.3FU 误差（§13.4）。
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // csStem 是 charstring 中的横/竖笔（cs，Y-up 字体单位）。
 type csStem struct {
@@ -18,6 +21,11 @@ type csStem struct {
 type csPt struct {
 	x, y float64
 	on   bool
+	// maskIdx 是该点产出时生效的 hintmask 事件索引：
+	//   -1 = 无事件（单区：全 1 图）；k 对应 csMaskEvent[k] 的图。
+	// FT 语义（pshints.c:1705-1720/1817）：move 起点用 moveTo 时刻
+	// （rmoveto）的图，line/curve 终点用产出时最新 mask 的图。
+	maskIdx int
 }
 
 // csSeac 记录 endchar 5 参数（seac 复合）信息（顺带支持不验证）。
@@ -65,6 +73,9 @@ type csInterp struct {
 	out           csOutline
 	numHints      int
 	curMask       []byte // 最近 hintmask/cntrmask 的位
+	curMaskIdx    int    // 最近 hintmask 事件索引（-1 = 无事件）
+	moveMaskIdx   int    // 最近 rmoveto（moveTo）时刻的 mask 事件索引
+	maskSincePath bool   // 自上次 path op 后是否读过 mask（FT isNew）
 	depth         int
 }
 
@@ -85,7 +96,7 @@ func csBias(n int) int {
 // interpretCharstring 解释一条 charstring，返回 cs 轮廓与 stem 表。
 // nominalWidthX 来自 FD Private DICT op 21（cf2_getNominalWidthX）。
 func interpretCharstring(data []byte, subrs, gsubrs [][]byte, nominalWidthX float64) (*csOutline, error) {
-	ip := &csInterp{data: data, subrs: subrs, gsubrs: gsubrs, nominalWidthX: nominalWidthX}
+	ip := &csInterp{data: data, subrs: subrs, gsubrs: gsubrs, nominalWidthX: nominalWidthX, curMaskIdx: -1, moveMaskIdx: -1}
 	if err := ip.run(); err != nil {
 		return nil, err
 	}
@@ -129,10 +140,11 @@ func (ip *csInterp) run() error {
 			if ip.pos+4 > len(ip.data) {
 				return fmt.Errorf("cs: fixed truncated")
 			}
-			// FT cffdecode.c:589-600：charstring_type==2 时 shift=0，
-			// 255 是原始 int32（非 16.16）。
+			// FT psintrp.c:2965-3020 <cf2_cmd255>：cf2 栈是 16.16 定点，
+			// 255 压入原始 int32 当 16.16，其余整数压入 int<<16。
+			// 浮点 cs 栈等价：除以 65536。
 			ip.stack = append(ip.stack, float64(int32(int(ip.data[ip.pos])<<24|int(ip.data[ip.pos+1])<<16|
-				int(ip.data[ip.pos+2])<<8|int(ip.data[ip.pos+3]))))
+				int(ip.data[ip.pos+2])<<8|int(ip.data[ip.pos+3])))/65536.0)
 			ip.pos += 4
 			continue
 		case b == 12:
@@ -172,6 +184,9 @@ func (ip *csInterp) exec(op int) error {
 	numArgs := len(ip.stack)
 	switch op {
 	case 1, 3, 18, 23: // hstem/vstem/hstemvm/hstemhm
+		if os.Getenv("CSDBG") != "" {
+			fmt.Printf("stem op=%d numArgs=%d hasWidth=%v stack=%v\n", op, numArgs, ip.out.hasWidth, ip.stack)
+		}
 		if numArgs > 0 && !ip.out.hasWidth && numArgs&1 == 1 {
 			ip.takeWidth()
 		}
@@ -199,9 +214,36 @@ func (ip *csInterp) exec(op int) error {
 		ip.numHints += len(args) / 2
 		ip.stack = nil
 	case 19, 20: // hintmask / cntrmask
+		// FT psintrp.c:2608-2613：mask 已有效且栈上有隐含参数时，
+		// 直接 break——不再处理栈、不再消费 mask 字节（参数留给
+		// 后续操作符；字节流错位是 FT 原样行为，须对齐）。
+		if numArgs > 1 && ip.curMask != nil {
+			if os.Getenv("CSDBG") != "" {
+				fmt.Printf("mask-break atPos=%d numArgs=%d\n", ip.pos, numArgs)
+			}
+			break
+		}
+		if os.Getenv("CSDBG") != "" {
+			fmt.Printf("mask atPos=%d numArgs=%d numHints=%d hstems=%d vstems=%d stack=%v\n",
+				ip.pos, numArgs, ip.numHints, len(ip.out.hstems), len(ip.out.vstems), ip.stack)
+		}
+		// 栈上参数 = 隐含 vstemhm（psintrp.c:2615-2619 cf2_doStems）。
 		if numArgs > 0 && !ip.out.hasWidth && numArgs&1 == 1 {
 			ip.takeWidth()
 		}
+		var pos float64
+		for i := 0; i+1 < len(ip.stack); i += 2 {
+			lo := pos + ip.stack[i]
+			hi := lo + ip.stack[i+1]
+			pos = hi
+			if hi < lo {
+				lo, hi = hi, lo
+			}
+			ip.out.vstems = append(ip.out.vstems, csStem{lo: lo, hi: hi})
+		}
+		ip.numHints += len(ip.stack) / 2
+		ip.stack = nil
+		// mask 字节数 = (hStem + vStem + 7) >> 3（psintrp.c:2622-2625）
 		maskLen := (ip.numHints + 7) / 8
 		if ip.pos+maskLen > len(ip.data) {
 			return fmt.Errorf("cs: hintmask truncated")
@@ -215,6 +257,8 @@ func (ip *csInterp) exec(op int) error {
 			numHints: ip.numHints,
 			atPt:     len(ip.out.pts),
 		})
+		ip.curMaskIdx = len(ip.out.maskEvents) - 1
+		ip.maskSincePath = true
 		ip.stack = nil
 	case 21: // rmoveto
 		if numArgs > 0 && !ip.out.hasWidth && numArgs&1 == 1 {
@@ -225,6 +269,8 @@ func (ip *csInterp) exec(op int) error {
 		}
 		ip.closeContour()
 		ip.pathBegun = false
+		ip.moveMaskIdx = ip.curMaskIdx
+		ip.maskSincePath = false
 		ip.x += ip.stack[len(ip.stack)-2]
 		ip.y += ip.stack[len(ip.stack)-1]
 		ip.stack = nil
@@ -237,6 +283,8 @@ func (ip *csInterp) exec(op int) error {
 		}
 		ip.closeContour()
 		ip.pathBegun = false
+		ip.moveMaskIdx = ip.curMaskIdx
+		ip.maskSincePath = false
 		ip.x += ip.stack[len(ip.stack)-1]
 		ip.stack = nil
 	case 4: // vmoveto
@@ -248,6 +296,8 @@ func (ip *csInterp) exec(op int) error {
 		}
 		ip.closeContour()
 		ip.pathBegun = false
+		ip.moveMaskIdx = ip.curMaskIdx
+		ip.maskSincePath = false
 		ip.y += ip.stack[len(ip.stack)-1]
 		ip.stack = nil
 	case 5, 24, 25: // rlineto / rcurveline / rlinecurve
@@ -261,12 +311,13 @@ func (ip *csInterp) exec(op int) error {
 		}
 		phase := op == 6
 		for _, v := range ip.stack {
+			nx, ny := ip.x, ip.y
 			if phase {
-				ip.x += v
+				nx += v
 			} else {
-				ip.y += v
+				ny += v
 			}
-			ip.addPt(ip.x, ip.y, true)
+			ip.lineTo(nx, ny)
 			phase = !phase
 		}
 		ip.stack = nil
@@ -293,6 +344,9 @@ func (ip *csInterp) exec(op int) error {
 			bias = csBias(len(ip.gsubrs))
 		}
 		idx := raw + bias
+		if os.Getenv("CSDBG") != "" {
+			fmt.Printf("call op=%d raw=%d idx=%d stackBefore=%v\n", op, raw, idx, ip.stack)
+		}
 		if ip.depth >= maxCSDepth {
 			return fmt.Errorf("cs: call depth exceeded")
 		}
@@ -309,6 +363,9 @@ func (ip *csInterp) exec(op int) error {
 			y:             ip.y,
 			pathBegun:     ip.pathBegun,
 			numHints:      ip.numHints,
+			curMaskIdx:    ip.curMaskIdx,
+			moveMaskIdx:   ip.moveMaskIdx,
+			maskSincePath: ip.maskSincePath,
 			depth:         ip.depth + 1,
 			out:           ip.out,
 		}
@@ -319,6 +376,9 @@ func (ip *csInterp) exec(op int) error {
 		ip.x, ip.y = sub.x, sub.y
 		ip.pathBegun = sub.pathBegun
 		ip.numHints = sub.numHints
+		ip.curMaskIdx = sub.curMaskIdx
+		ip.moveMaskIdx = sub.moveMaskIdx
+		ip.maskSincePath = sub.maskSincePath
 		ip.stack = sub.stack
 	case 11: // return
 		return errCSReturn
@@ -468,18 +528,35 @@ func (ip *csInterp) takeWidth() {
 }
 
 // startPoint 若路径未开始，先记录当前点为 on 起点（FT cff_builder_start_point）。
+// move 起点用 moveTo（rmoveto）时刻的 mask 事件索引（pshints.c:1735-1740：
+// 新 hint 延迟到 pushPrevElem 之后应用）。
 func (ip *csInterp) startPoint() error {
 	if ip.pathBegun {
 		return nil
 	}
 	ip.pathBegun = true
-	ip.addPt(ip.x, ip.y, true)
+	ip.out.pts = append(ip.out.pts, csPt{x: ip.x, y: ip.y, on: true, maskIdx: ip.moveMaskIdx})
 	return nil
 }
 
-// addPt 追加一个点。
+// addPt 追加一个点（非 move 起点：用产出时最新 mask 事件）。
 func (ip *csInterp) addPt(x, y float64, on bool) {
-	ip.out.pts = append(ip.out.pts, csPt{x: x, y: y, on: on})
+	ip.out.pts = append(ip.out.pts, csPt{x: x, y: y, on: on, maskIdx: ip.curMaskIdx})
+}
+
+// lineTo 直线段终点：zero-length 且 hint 图未变更时忽略
+// （cf2_glyphpath_lineTo，pshints.c:1743-1765）。
+func (ip *csInterp) lineTo(nx, ny float64) {
+	if ip.pathBegun && !ip.maskSincePath && nx == ip.x && ny == ip.y {
+		if os.Getenv("CSDBG") != "" {
+			fmt.Printf("zero-lineto ignored at x=%.0f y=%.0f pos=%d\n", nx, ny, ip.pos)
+		}
+		return
+	}
+	ip.x = nx
+	ip.y = ny
+	ip.addPt(ip.x, ip.y, true)
+	ip.maskSincePath = false
 }
 
 // closeContour 闭合当前轮廓（FT cff_builder_close_contour：重复首点的 on 尾点删除；
@@ -521,9 +598,7 @@ func (ip *csInterp) mixedPairs(op int) error {
 	switch op {
 	case 5: // rlineto：全部直线对
 		for i := 0; i+1 < len(args); i += 2 {
-			ip.x += args[i]
-			ip.y += args[i+1]
-			ip.addPt(ip.x, ip.y, true)
+			ip.lineTo(ip.x+args[i], ip.y+args[i+1])
 		}
 	case 24: // rcurveline：n 组曲线 + 最后 1 条线（nargs = len-2 向下取 6 倍数 +2）
 		if len(args) < 8 {
@@ -535,9 +610,7 @@ func (ip *csInterp) mixedPairs(op int) error {
 		for i := 0; i < lineStart; i += 6 {
 			ip.curve6(args[i : i+6])
 		}
-		ip.x += args[lineStart]
-		ip.y += args[lineStart+1]
-		ip.addPt(ip.x, ip.y, true)
+		ip.lineTo(ip.x+args[lineStart], ip.y+args[lineStart+1])
 	case 25: // rlinecurve：n 条线 + 最后 1 组曲线（nargs = len&~1）
 		if len(args) < 8 {
 			return fmt.Errorf("cs: rlinecurve underflow")
@@ -545,9 +618,7 @@ func (ip *csInterp) mixedPairs(op int) error {
 		nargs := len(args) &^ 1
 		numLines := (nargs - 6) / 2
 		for i := 0; i < numLines*2; i += 2 {
-			ip.x += args[i]
-			ip.y += args[i+1]
-			ip.addPt(ip.x, ip.y, true)
+			ip.lineTo(ip.x+args[i], ip.y+args[i+1])
 		}
 		ip.curve6(args[numLines*2:])
 	}

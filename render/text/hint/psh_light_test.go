@@ -84,11 +84,13 @@ func TestM2Ri12pxEightEdges(t *testing.T) {
 		t.Fatal("fd12 未走 emBox 幽灵区路径，对照线失效")
 	}
 
-	// 逐区图（全激活）
-	hintMap := &cf2HintMap{}
+	// 逐区图（全激活）——与 hintCFFLight 相同：未锁定边经 initial 图定位。
 	var mask cf2HintMask
 	mask.setAll(len(out.hstems) + len(out.vstems))
-	hintMap.build(&blues, hStems, cf2StemSlice(out.vstems), &mask, scale, 12, false)
+	initMap := &cf2HintMap{}
+	initMap.build(&blues, hStems, cf2StemSlice(out.vstems), nil, scale, 0, true)
+	hintMap := &cf2HintMap{initial: initMap}
+	hintMap.build(&blues, hStems, cf2StemSlice(out.vstems), &mask, scale, 0, false)
 
 	// §13.5 对照线：cs → ds（px，16.16 转 float）
 	type wantEdge struct {

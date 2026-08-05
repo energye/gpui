@@ -9,7 +9,11 @@ package hint
 // 定点全为 16.16（FT 的 CF2_Fixed）。FT_MulFix 用 2.14.3 内联 64 位版
 // （ftcalc.h:90-100）：ab += 0x8000 + (ab>>63)，负数向 -∞。
 
-import "math"
+import (
+	"os"
+	"fmt"
+	"math"
+)
 
 // ---------------------------------------------------------------------------
 // 定点原语（FT ftcalc.h / psfixed.h）
@@ -30,6 +34,8 @@ func cf2IntToFixed(i int64) cf2Fixed { return cf2Fixed(i) << 16 }
 func cf2DoubleToFixed(f float64) cf2Fixed {
 	return cf2Fixed(f*65536.0 + 0.5)
 }
+// cf2ExactFixed：csStem 值由 16.16 整数演出（0.5 精度），乘以 65536 精确还原。
+func cf2ExactFixed(f float64) cf2Fixed { return cf2Fixed(f * 65536.0) }
 func cf2FixedAbs(x cf2Fixed) cf2Fixed {
 	if x < 0 {
 		return -x
@@ -609,6 +615,10 @@ func (m *cf2HintMap) mapCS(cs cf2Fixed) cf2Fixed {
 	for i > 0 && cs < m.edges[i].csCoord {
 		i--
 	}
+	if os.Getenv("CSDBG4") != "" && cs != 0 && (cs > -7864321 && cs < 83886080) {
+		fmt.Printf("    mapCS cs=%d i=%d baseCs=%d baseDs=%d scale=%d\n",
+			cs>>16, i, m.edges[i].csCoord>>16, m.edges[i].dsCoord>>10, m.edges[i].scale)
+	}
 	m.lastIdx = i
 	if i == 0 && cs < m.edges[0].csCoord {
 		return cf2MulFix(cs-m.edges[0].csCoord, m.scale) + m.edges[0].dsCoord
@@ -780,7 +790,6 @@ func (m *cf2HintMap) insertHint(bottomHintEdge, topHintEdge *cf2Hint) {
 			first.dsCoord = m.initial.mapCS(first.csCoord)
 		}
 	}
-
 	if indexInsert > 0 {
 		if first.dsCoord < m.edges[indexInsert-1].dsCoord {
 			return
@@ -820,14 +829,9 @@ func (m *cf2HintMap) build(blues *cf2Blues, hStems, vStems []cf2StemHint, mask *
 	m.edges = nil
 	m.lastIdx = 0
 
-	// 初始图未建 → 递归建（pshints.c:820-838）。注意：FT 只在首次
-	// build 时构建 initialHintMap，后续区复用（isValid 检查）；因此
-	// hintCFFLight 须先构建共享 initial 图赋给各区，否则后续区重建时
-	// 会把已 used（被前区锁定 DS）的 stem 以 Locked 状态插入初始图。
-	if !initial && m.initial == nil {
-		m.initial = &cf2HintMap{}
-		m.initial.build(blues, hStems, vStems, nil, scale, darkenY, true)
-	}
+	// 初始图由 hintCFFLight 显式管理（startZones==1 时先构建共享）。
+	// FT 的 initialHintMap 只在实际构建过时才参与定位（pshints.c:685），
+	// 首事件在 atPt==0 时不存在，此处不得自动补建。
 
 	bitCount := len(hStems)
 	maskPtr := mask
@@ -915,8 +919,8 @@ func cf2StemSlice(stems []csStem) []cf2StemHint {
 	out := make([]cf2StemHint, len(stems))
 	for i, s := range stems {
 		out[i] = cf2StemHint{
-			min:   cf2IntToFixed(int64(math.Round(s.lo))),
-			max:   cf2IntToFixed(int64(math.Round(s.hi))),
+			min:   cf2ExactFixed(s.lo),
+			max:   cf2ExactFixed(s.hi),
 			index: i,
 		}
 	}
@@ -971,34 +975,79 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 		masks = append(masks, cf2HintMask{isValid: true, isNew: true, bitCount: ev.numHints, mask: ev.mask})
 	}
 	maps := make([]*cf2HintMap, len(zones))
-	// initial 图只建一次（首次全 1 状态，stems 未 used），各区共享
-	// （pshints.c:820-838：isValid 后复用，不重建）。
-	initMap := &cf2HintMap{}
-	initMap.build(&blues, hStems, vStems, nil, scale, darkenY, true)
+	// initial 图各区共享（pshints.c:831-842 递归全 1）。内容由
+	// startZones 决定：首事件在 atPt>0（或无事件）时初始图在首点
+	// 时构建，含当时已收集的全量 stems；首事件在 atPt==0 时初始图
+	// 于首事件图 build 前递归构建，FT 中此时 stems 数组为空，只有
+	// ghost 边（实证：黩 528 定位值 6.96 = 空图 mapCS，非 MulFix）。
+	var initMap *cf2HintMap
+	initMap = &cf2HintMap{}
+	if startZones == 1 {
+		initMap.build(&blues, hStems, vStems, nil, scale, darkenY, true)
+	} else {
+		initMap.build(&blues, nil, nil, nil, scale, darkenY, true)
+	}
 	for i := range zones {
 		hm := &cf2HintMap{initial: initMap}
 		hm.build(&blues, hStems, vStems, &masks[i], scale, darkenY, false)
 		maps[i] = hm
 	}
-
-	zoneOf := func(k int) *cf2HintMap {
-		z := maps[0]
-		for i := 1; i < len(zones); i++ {
-			if zones[i].atPt <= k {
-				z = maps[i]
+	if os.Getenv("CSDBG") != "" {
+		if initMap != nil {
+			fmt.Printf("initMap count=%d\n", len(initMap.edges))
+			for e, ed := range initMap.edges {
+				fmt.Printf("  ie%d cs=%d ds=%d scale=%d flags=%d\n", e, ed.csCoord, ed.dsCoord, ed.scale, ed.flags)
 			}
 		}
-		return z
+		for i, hm := range maps {
+			fmt.Printf("map[%d] count=%d\n", i, len(hm.edges))
+			for e, ed := range hm.edges {
+				fmt.Printf("  e%d cs=%d ds=%d scale=%d flags=%d\n", e, ed.csCoord, ed.dsCoord, ed.scale, ed.flags)
+			}
+		}
+	}
+
+	zoneOf := func(k int) *cf2HintMap {
+		idx := cs.pts[k].maskIdx
+		if idx < 0 || len(cs.maskEvents) == 0 {
+			// 无事件（单区）或事件前产出的点 → 全 1 图
+			if startZones == 1 {
+				return maps[0]
+			}
+			// 首事件 atPt==0（无明显全 1 区）：事件前的 move 起点用
+			// 首事件图（FT：moveTo 时 mask 已有效 → 直接建事件图）。
+			return maps[0]
+		}
+		zone := idx + startZones
+		if zone < len(maps) {
+			return maps[zone]
+		}
+		return maps[len(maps)-1]
 	}
 
 	out := &cf2HintResult{contours: cs.contours}
 	off := 0
 	for _, n := range cs.contours {
+		var lastX, lastY cf2Fixed
+		hasNext := false
 		for k := 0; k < n; k++ {
 			p := cs.pts[off+k]
 			x := cf2MulFix(cf2IntToFixed(int64(math.Round(p.x))), scale)
 			y := zoneOf(off + k).mapCS(cf2IntToFixed(int64(math.Round(p.y))))
+			// cf2_glyphpath_pushPrevElem（pshints.c:1409-1416）：
+			// 每条线独立判断——前一点与当前点均为 on（line 段）且映射
+			// 后 DS 相同则省略本点（与上一输入点比较，不受已跳过点影响）。
+			if hasNext && p.on && cs.pts[off+k-1].on && lastX == x && lastY == y {
+				lastX, lastY = x, y
+				continue
+			}
 			out.pts = append(out.pts, [2]cf2Fixed{x, y})
+			if os.Getenv("CSDBG3") != "" {
+				fmt.Printf("  out#%d m=%d cs=(%.2f,%.2f) ds=(%d,%d) 26=(%d,%d)\n",
+					off+k, p.maskIdx, p.x, p.y, x, y, x>>10, y>>10)
+			}
+			hasNext = true
+			lastX, lastY = x, y
 		}
 		off += n
 	}
