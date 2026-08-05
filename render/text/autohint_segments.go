@@ -1015,10 +1015,14 @@ func linkSegmentsDefault(segments []hintSegment, axis *scaledAxisMetrics) {
 	}
 
 	// Compare each segment to all others (O(n^2)).
-	// Skrifa only iterates seg1 in the major direction, but FreeType iterates all.
-	// We follow FreeType/skrifa default: seg1 must have opposing dir to seg2.
+	// FreeType only initiates links from segments with the major direction
+	// (aflatin.c:2019 "if seg1->dir != axis->major_dir continue"); without
+	// this filter a closer wrong-direction stem can steal a segment.
 	for i := range segments {
 		seg1 := &segments[i]
+		if axis.majorDir != dirNone && seg1.dir != axis.majorDir {
+			continue
+		}
 		pos1 := int32(seg1.pos)
 
 		for j := range segments {

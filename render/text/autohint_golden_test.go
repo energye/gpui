@@ -68,7 +68,12 @@ func loadGoldenFontAndData(t *testing.T, filename string) (ParsedFont, []byte) {
 // overrideHebrewMetrics replaces Latin-detected metrics with skrifa's Hebrew values.
 // Our computeUnscaledMetrics detects Latin chars; skrifa detects Hebrew for this font.
 // The hinting algorithm is identical — only the input metrics differ by script.
-func overrideHebrewMetrics(scaled *scaledStyleMetrics) {
+//
+// rawScale is the uncorrected px/unit scale: Hebrew blue sets contain no
+// ADJUSTMENT zone (skrifa blues.rs hebrew_long_blues: 3 zones), so the
+// x-height y-scale correction never applies to Hebrew glyphs. Restore the
+// raw scale that scale() may have corrected against the Latin blue set.
+func overrideHebrewMetrics(scaled *scaledStyleMetrics, rawScale float64) {
 	hAxis := &scaled.axes[dimHorizontal]
 	hAxis.widths = []scaledWidth{{scaled: 55, fitted: 55}}
 	hAxis.standardWidth = 52
@@ -76,6 +81,8 @@ func overrideHebrewMetrics(scaled *scaledStyleMetrics) {
 	vAxis := &scaled.axes[dimVertical]
 	vAxis.widths = []scaledWidth{{scaled: 113, fitted: 113}}
 	vAxis.standardWidth = 108
+	vAxis.scale = rawScale
+	vAxis.scale16dot16 = computeScale16dot16(rawScale)
 }
 
 // overrideHebrewBlueEdges injects skrifa-equivalent blue zone assignments
@@ -218,7 +225,7 @@ func TestGolden_HintedCoords_NotoSerifHebrew_Default(t *testing.T) {
 	scaled := unscaled.scaleWithUPM(scale, font.UnitsPerEm())
 
 	// Override to skrifa Hebrew metrics (our Latin detection differs).
-	overrideHebrewMetrics(scaled)
+	overrideHebrewMetrics(scaled, scale)
 
 	// Run full pipeline with Hebrew blue zone overrides.
 	runFullPipelineWithBlueOverride(&points, scaled)
@@ -654,7 +661,7 @@ func TestGolden_Edges_NotoSerifHebrew_Default(t *testing.T) {
 
 	unscaled := computeUnscaledMetrics(font)
 	scaled := unscaled.scaleWithUPM(scale, font.UnitsPerEm())
-	overrideHebrewMetrics(scaled)
+	overrideHebrewMetrics(scaled, scale)
 
 	// H-dimension: segments → adjust → link → edges.
 	hAxis := &scaled.axes[dimHorizontal]
@@ -786,7 +793,7 @@ func TestGolden_FullPipeline_NotoSerifHebrew_Glyph9(t *testing.T) {
 
 	unscaled := computeUnscaledMetrics(font)
 	scaled := unscaled.scaleWithUPM(scale, font.UnitsPerEm())
-	overrideHebrewMetrics(scaled)
+	overrideHebrewMetrics(scaled, scale)
 	runFullPipelineWithBlueOverride(&points, scaled)
 
 	mismatches := 0
@@ -1193,7 +1200,7 @@ func TestGolden_EdgeHinting_NotoSerifHebrew(t *testing.T) {
 
 	unscaled := computeUnscaledMetrics(font)
 	scaled := unscaled.scaleWithUPM(scale, font.UnitsPerEm())
-	overrideHebrewMetrics(scaled)
+	overrideHebrewMetrics(scaled, scale)
 
 	// Run H-dimension pipeline up to hintEdges.
 	hAxis := &scaled.axes[dimHorizontal]
@@ -1324,7 +1331,7 @@ func TestGolden_HintedMetrics_NotoSerifHebrew_Values(t *testing.T) {
 
 	unscaled := computeUnscaledMetrics(font)
 	scaled := unscaled.scaleWithUPM(scale, font.UnitsPerEm())
-	overrideHebrewMetrics(scaled)
+	overrideHebrewMetrics(scaled, scale)
 
 	// Run H-dimension pipeline.
 	hAxis := &scaled.axes[dimHorizontal]
@@ -1581,7 +1588,7 @@ func TestGolden_MultiSize_NotoSerifHebrew(t *testing.T) {
 
 			unscaled := computeUnscaledMetrics(font)
 			scaled := unscaled.scaleWithUPM(scale, font.UnitsPerEm())
-			overrideHebrewMetrics(scaled)
+			overrideHebrewMetrics(scaled, scale)
 			runFullPipelineWithBlueOverride(&points, scaled)
 
 			// Sanity checks for all sizes.

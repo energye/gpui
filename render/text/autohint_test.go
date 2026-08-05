@@ -166,7 +166,7 @@ func TestScaleBlueZones(t *testing.T) {
 
 	// Scale at 16px with 1000 UPM → scale = 0.016.
 	scale := 16.0 / 1000.0
-	scaled := scaleBlueZones(zones, scale)
+	scaled, _ := scaleBlueZones(zones, scale, 1000)
 
 	if len(scaled) != 2 {
 		t.Fatalf("expected 2 scaled zones, got %d", len(scaled))
@@ -353,6 +353,7 @@ func TestComputeStemWidth_Table(t *testing.T) {
 			{scaled: f26dot6FromFloat(1.2), fitted: f26dot6FromFloat(1.2)},
 		},
 		isExtraLight: false,
+		doStemAdjust: true,
 	}
 
 	tests := []struct {
@@ -399,6 +400,7 @@ func TestComputeStemWidth_Consistency(t *testing.T) {
 			{scaled: f26dot6FromFloat(1.3), fitted: f26dot6FromFloat(1.3)},
 		},
 		isExtraLight: false,
+		doStemAdjust: true,
 	}
 
 	// Simulate stem widths from different glyphs (slight variation).
@@ -440,7 +442,8 @@ func TestComputeStemWidth_ExtraLight(t *testing.T) {
 
 func TestComputeStemWidth_Negative(t *testing.T) {
 	axis := &scaledAxisMetrics{
-		widths: []scaledWidth{{scaled: f26dot6FromFloat(1.2), fitted: f26dot6FromFloat(1.2)}},
+		widths:       []scaledWidth{{scaled: f26dot6FromFloat(1.2), fitted: f26dot6FromFloat(1.2)}},
+		doStemAdjust: true,
 	}
 
 	got := computeStemWidth(axis, f26dot6FromFloat(-1.0), 0, 0)
@@ -451,7 +454,8 @@ func TestComputeStemWidth_Negative(t *testing.T) {
 
 func TestComputeStemWidth_Serif(t *testing.T) {
 	axis := &scaledAxisMetrics{
-		widths: []scaledWidth{{scaled: f26dot6FromFloat(1.0), fitted: f26dot6FromFloat(1.0)}},
+		widths:       []scaledWidth{{scaled: f26dot6FromFloat(1.0), fitted: f26dot6FromFloat(1.0)}},
+		doStemAdjust: true,
 	}
 
 	// Serif stems < 3px should be left alone.
@@ -2107,6 +2111,9 @@ func TestAutoHint_Edges_VsSkrifaGolden_Vertical(t *testing.T) {
 	unscaled := computeUnscaledMetrics(font)
 	scaled := unscaled.scale(scale)
 	axisMetrics := &scaled.axes[dimVertical]
+	// Hebrew blue set has no ADJUSTMENT zone → no y-scale correction.
+	axisMetrics.scale = scale
+	axisMetrics.scale16dot16 = computeScale16dot16(scale)
 
 	// Run segment detection.
 	vSegs := computeSegments(&points, dimVertical)
@@ -2246,6 +2253,10 @@ func TestAutoHint_Edges_VsSkrifaRust_FullParity(t *testing.T) {
 
 	unscaled := computeUnscaledMetrics(font)
 	scaled := unscaled.scale(scale)
+
+	// Hebrew blue set has no ADJUSTMENT zone → no y-scale correction.
+	scaled.axes[dimVertical].scale = scale
+	scaled.axes[dimVertical].scale16dot16 = computeScale16dot16(scale)
 
 	// --- Horizontal edges ---
 	hSegs := computeSegments(&points, dimHorizontal)
@@ -2521,6 +2532,9 @@ func TestAutoHint_HintEdges_VsSkrifaGolden_Vertical(t *testing.T) {
 	skrifaVStdWidth := int32(113) // skrifa 26.6 value: 113/64 = 1.765625px
 	axisMetrics.widths = []scaledWidth{{scaled: skrifaVStdWidth, fitted: skrifaVStdWidth}}
 	axisMetrics.standardWidth = 108
+	// Hebrew blue set has no ADJUSTMENT zone → no y-scale correction.
+	axisMetrics.scale = scale
+	axisMetrics.scale16dot16 = computeScale16dot16(scale)
 
 	// Full pipeline: segments → link → edges.
 	vSegs := computeSegments(&points, dimVertical)
@@ -2641,6 +2655,9 @@ func TestAutoHint_FullPipeline_VsSkrifaGolden(t *testing.T) {
 	vAxis := &scaled.axes[dimVertical]
 	vAxis.widths = []scaledWidth{{scaled: 113, fitted: 113}} // skrifa 26.6 value
 	vAxis.standardWidth = 108
+	// Hebrew blue set has no ADJUSTMENT zone → no y-scale correction.
+	vAxis.scale = scale
+	vAxis.scale16dot16 = computeScale16dot16(scale)
 
 	// Process horizontal dimension.
 	hSegs := computeSegments(&points, dimHorizontal)

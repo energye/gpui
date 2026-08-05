@@ -295,7 +295,7 @@ func autoHintViaContours(outline *GlyphOutline, fontData []byte, font ParsedFont
 	}
 
 	// Apply auto-hinting on raw contour points.
-	hinted, edgeMetrics := autoHintContourPoints(contours, font, ppem, hinting)
+	hinted, edgeMetrics := autoHintContourPoints(contours, font, outline.GID, ppem, hinting)
 	if hinted == nil {
 		return false
 	}
@@ -344,7 +344,7 @@ func autoHintViaContoursPreloaded(outline *GlyphOutline, contours *GlyfContours,
 	}
 
 	// Apply auto-hinting on the (possibly gvar-varied) contour points.
-	hinted, edgeMetrics := autoHintContourPoints(contours, font, ppem, hinting)
+	hinted, edgeMetrics := autoHintContourPoints(contours, font, outline.GID, ppem, hinting)
 	if hinted == nil {
 		return false
 	}
@@ -393,15 +393,16 @@ func autoHintViaContoursPreloaded(outline *GlyphOutline, contours *GlyfContours,
 // Returns the hinted contours (coordinates in PIXEL space, 26.6) and the
 // horizontal edge metrics for advance width adjustment. The caller uses the
 // edge metrics to compute the adjusted advance per skrifa instance.rs:127-183.
-func autoHintContourPoints(contours *GlyfContours, font ParsedFont, ppem float64, hinting Hinting) (*GlyfContours, hintedEdgeMetrics) {
+func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID, ppem float64, hinting Hinting) (*GlyfContours, hintedEdgeMetrics) {
 	var metrics hintedEdgeMetrics
 
 	if contours == nil || len(contours.Points) == 0 {
 		return contours, metrics
 	}
 
-	// Get or compute font-level metrics (cached per font).
-	unscaled := getAutoHintMetrics(font)
+	// Get or compute metrics for this glyph's script (cached per font+script).
+	script := scriptForGlyph(font, gid)
+	unscaled := getAutoHintMetricsForScript(font, script)
 	if unscaled == nil {
 		return contours, metrics
 	}
@@ -418,6 +419,16 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, ppem float64
 		return contours, metrics
 	}
 
+	// The x-height correction rewrites the Y scale (aflatin.c:1225-1298);
+	// all vertical coordinates must be rescaled with the corrected scale.
+	if corrScale := scaled.axes[dimVertical].scale; corrScale != scale {
+		for i := range points.pts {
+			sy := f26dot6FromFloat(float64(points.pts[i].fy) * corrScale)
+			points.pts[i].y = sy
+			points.pts[i].oy = sy
+		}
+	}
+
 	// Process each dimension (same logic as autoHintOutline).
 	dims := []hintDimension{dimVertical}
 	if hinting == HintingFull {
@@ -428,6 +439,13 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, ppem float64
 
 	for _, dim := range dims {
 		axisMetrics := &scaled.axes[dim]
+
+		// FT light mode: NO_HORIZONTAL hinting with STEM_ADJUST disabled
+		// (aflatin.c:2637-2644). We map HintingVertical to FT light: only the
+		// vertical dimension is processed and stem widths are not adjusted.
+		if hinting == HintingVertical {
+			axisMetrics.doStemAdjust = false
+		}
 
 		// Detect segments along this axis.
 		segments := computeSegments(&points, dim)
@@ -688,6 +706,7 @@ const (
 type autoHintMetricsKey struct {
 	fontName   string
 	unitsPerEm int
+	script     string
 }
 
 // autoHintCache caches computed metrics per font.
@@ -703,9 +722,18 @@ func init() {
 // getAutoHintMetrics returns cached auto-hint metrics for a font,
 // computing them if necessary. Thread-safe.
 func getAutoHintMetrics(font ParsedFont) *unscaledStyleMetrics {
+	return getAutoHintMetricsForScript(font, detectFontScript(font))
+}
+
+// getAutoHintMetricsForScript returns cached auto-hint metrics for a font
+// and a specific script, computing them if necessary. Thread-safe.
+// Per-glyph script detection (perGlyphScripts) may yield different scripts
+// for different glyphs of the same font, so metrics are cached per script.
+func getAutoHintMetricsForScript(font ParsedFont, script *scriptClass) *unscaledStyleMetrics {
 	key := autoHintMetricsKey{
 		fontName:   font.FullName(),
 		unitsPerEm: font.UnitsPerEm(),
+		script:     script.name,
 	}
 
 	// Fast path: read lock.
@@ -725,7 +753,7 @@ func getAutoHintMetrics(font ParsedFont) *unscaledStyleMetrics {
 		return m
 	}
 
-	m = computeUnscaledMetrics(font)
+	m = computeUnscaledMetricsForScript(font, script)
 	autoHintCache.cache[key] = m
 	return m
 }
@@ -742,8 +770,9 @@ func ClearAutoHintCache() {
 // unscaledStyleMetrics holds per-font unscaled metrics.
 // This is computed once per font and cached.
 type unscaledStyleMetrics struct {
-	axes  [2]unscaledAxisMetrics // [dimHorizontal, dimVertical]
-	group scriptGroup            // script group (Default, CJK, Indic)
+	axes       [2]unscaledAxisMetrics // [dimHorizontal, dimVertical]
+	group      scriptGroup            // script group (Default, CJK, Indic)
+	unitsPerEm int                    // font UPM (for Y-scale blue adjustment)
 }
 
 // unscaledAxisMetrics holds unscaled metrics for one axis.
@@ -771,6 +800,7 @@ type scaledAxisMetrics struct {
 	unitsPerEm        int     // font UPM (for derived constants in segment linking)
 	blues             []scaledBlue
 	isExtraLight      bool
+	doStemAdjust      bool          // FT AF_LATIN_HINTS_STEM_ADJUST; off for FT light mode
 	majorDir          hintDirection // major direction for blue edge matching
 }
 
@@ -781,21 +811,24 @@ type scaledWidth struct {
 	fitted int32 // grid-fitted, 26.6 fixed-point
 }
 
-// computeUnscaledMetrics computes the unscaled style metrics for a font.
-// This detects the font's primary script, then uses script-specific
-// reference characters for stem width and blue zone computation.
-//
-// Script detection: Hebrew > Cyrillic > Greek > Arabic > CJK > Latin (default).
+// computeUnscaledMetrics computes the unscaled style metrics for a font
+// using its primary (most-covered) script.
 func computeUnscaledMetrics(font ParsedFont) *unscaledStyleMetrics {
+	return computeUnscaledMetricsForScript(font, detectFontScript(font))
+}
+
+// computeUnscaledMetricsForScript computes the unscaled style metrics for a
+// font and a specific script, using script-specific reference characters
+// for stem width and blue zone computation.
+func computeUnscaledMetricsForScript(font ParsedFont, script *scriptClass) *unscaledStyleMetrics {
 	m := &unscaledStyleMetrics{}
 	upm := font.UnitsPerEm()
 	if upm <= 0 {
 		return m
 	}
 
-	// Detect the font's primary script.
-	script := detectFontScript(font)
 	m.group = script.group
+	m.unitsPerEm = upm
 
 	// Compute standard widths from script-specific reference glyph.
 	m.axes[dimHorizontal] = computeStandardWidths(font, dimHorizontal, script)
@@ -825,8 +858,13 @@ func (m *unscaledStyleMetrics) scale(scaleFactor float64) *scaledStyleMetrics {
 		for dim := range 2 {
 			sm.axes[dim] = m.axes[dim].scaleTo(scaleFactor)
 		}
-		// Scale blue zones with possible Y-scale adjustment.
-		sm.axes[dimVertical].blues = scaleBlueZones(m.axes[dimVertical].blues, scaleFactor)
+		// Scale blue zones with possible Y-scale adjustment. The corrected
+		// scale must be applied to ALL vertical coordinates (FreeType rewrites
+		// y_scale itself in af_latin_metrics_scale_dim, aflatin.c:1225-1298).
+		blues, corrScale16 := scaleBlueZones(m.axes[dimVertical].blues, scaleFactor, int32(m.unitsPerEm))
+		sm.axes[dimVertical].blues = blues
+		sm.axes[dimVertical].scale16dot16 = corrScale16
+		sm.axes[dimVertical].scale = float64(corrScale16) / (64 * 65536)
 	}
 	return sm
 }
@@ -854,6 +892,7 @@ func (a *unscaledAxisMetrics) scaleTo(scale float64) scaledAxisMetrics {
 		edgeDistThreshold: float32(float64(a.edgeDistThreshold) * scale),
 		scale:             scale,
 		scale16dot16:      computeScale16dot16(scale),
+		doStemAdjust:      true, // FT normal mode default; FT light clears it
 	}
 
 	// Set max width from unscaled widths.
@@ -892,6 +931,7 @@ func (a *unscaledAxisMetrics) scaleToCJK(scale float64) scaledAxisMetrics {
 		edgeDistThreshold: float32(float64(a.edgeDistThreshold) * scale),
 		scale:             scale,
 		scale16dot16:      computeScale16dot16(scale),
+		doStemAdjust:      true,
 	}
 
 	// Set max width from unscaled widths.

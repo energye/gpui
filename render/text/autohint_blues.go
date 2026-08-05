@@ -41,6 +41,8 @@ import (
 type blueZone struct {
 	position  int32         // flat feature median (font units)
 	overshoot int32         // round feature median (font units)
+	ascender  int32         // max Y seen while measuring reference chars
+	descender int32         // min Y seen while measuring reference chars
 	flags     blueZoneFlags // TOP, LONG, X_HEIGHT, ADJUSTMENT, etc.
 }
 
@@ -127,6 +129,8 @@ func computeDefaultBlues(font ParsedFont, script *scriptClass) []blueZone {
 
 	for _, spec := range script.blues {
 		var flats, rounds []int32
+		ascender := int32(math.MinInt32)
+		descender := int32(math.MaxInt32)
 		isTop := spec.flags.isTopLike()
 
 		// Split the blue character string into individual characters.
@@ -144,7 +148,7 @@ func computeDefaultBlues(font ParsedFont, script *scriptClass) []blueZone {
 			}
 
 			// Measure blue character using raw contour points.
-			bestY, isRound, measured := measureBlueCharContour(rawFontData, GlyphID(gid), isTop, flatThreshold, int32(upm))
+			bestY, isRound, asc, desc, measured := measureBlueCharContour(rawFontData, GlyphID(gid), isTop, flatThreshold, int32(upm))
 			if !measured {
 				continue
 			}
@@ -152,6 +156,14 @@ func computeDefaultBlues(font ParsedFont, script *scriptClass) []blueZone {
 				rounds = append(rounds, bestY)
 			} else {
 				flats = append(flats, bestY)
+			}
+			// Collect ascender/descender (max/min Y) across all reference
+			// characters for this zone. See aflatin.c:533-550.
+			if asc > ascender {
+				ascender = asc
+			}
+			if desc < descender {
+				descender = desc
 			}
 		}
 
@@ -185,6 +197,8 @@ func computeDefaultBlues(font ParsedFont, script *scriptClass) []blueZone {
 		zones = append(zones, blueZone{
 			position:  blueRef,
 			overshoot: blueShoot,
+			ascender:  ascender,
+			descender: descender,
 			flags:     zoneFlags,
 		})
 	}
@@ -227,11 +241,17 @@ func computeBlueMedians(flats, rounds []int32) (blueRef, blueShoot int32) {
 // See FreeType aflatin.c:641 long segment detection.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // FreeType/skrifa long segment detection — algorithmic complexity is inherent
-func measureBlueCharContour(fontData []byte, gid GlyphID, isTop bool, flatThreshold, upm int32) (int32, bool, bool) {
+func measureBlueCharContour(fontData []byte, gid GlyphID, isTop bool, flatThreshold, upm int32) (int32, bool, int32, int32, bool) {
 	contours, err := ParseGlyfContours(fontData, gid)
 	if err != nil || contours == nil || len(contours.Points) <= 2 {
-		return 0, false, false
+		return 0, false, 0, 0, false
 	}
+
+	// Track ascender/descender across all contours while scanning.
+	// See aflatin.c:533-550: top blue chars update ascender at each
+	// new contour extremum, bottom blue chars update descender.
+	ascender := int32(math.MinInt32)
+	descender := int32(math.MaxInt32)
 
 	// Find the extremum point and its contour.
 	bestContourIdx := -1
@@ -255,19 +275,29 @@ func measureBlueCharContour(fontData []byte, gid GlyphID, isTop bool, flatThresh
 					bestYVal = y
 					bestContourIdx = ci
 					bestPointIdx = pi
+					if y > ascender {
+						ascender = y
+					}
+				} else if y < descender {
+					descender = y
 				}
 			} else {
 				if y < bestYVal {
 					bestYVal = y
 					bestContourIdx = ci
 					bestPointIdx = pi
+					if y < descender {
+						descender = y
+					}
+				} else if y > ascender {
+					ascender = y
 				}
 			}
 		}
 	}
 
 	if bestContourIdx < 0 {
-		return 0, false, false
+		return 0, false, 0, 0, false
 	}
 
 	bestContour := contours.ContourPoints(bestContourIdx)
@@ -364,7 +394,7 @@ func measureBlueCharContour(fontData []byte, gid GlyphID, isTop bool, flatThresh
 	isRound := classifyRoundFlatContour(bestContour, onPointFirst, onPointLast,
 		segmentFirst, segmentLast, onPointFirstSet, onPointLastSet, flatThreshold)
 
-	return bestY, isRound, true
+	return bestY, isRound, ascender, descender, true
 }
 
 // longSegmentResult holds the output of the long segment detection algorithm.
@@ -807,8 +837,51 @@ func adjustBlueZonesByIndex(zones []blueZone) {
 // scaleBlueZones scales blue zones to pixel coordinates and applies
 // grid-fitting. Only zones with height < 3/4 pixel are activated.
 //
+// Mirrors skrifa metrics/scale.rs scale_default_axis_metrics: the Y scale
+// is first corrected so the ADJUSTMENT (x-height) blue zone's overshoot
+// aligns to the pixel grid, then zones are scaled and discretized.
+//
+// Returns the corrected Y scale as 16.16 fixed-point; the caller must use it
+// for ALL vertical coordinates (point scaling), matching FreeType where the
+// x-height correction rewrites y_scale itself (aflatin.c:1225-1298).
+//
 // See FreeType aflatin.c:1168 and skrifa metrics/scale.rs.
-func scaleBlueZones(zones []blueZone, scale float64) []scaledBlue {
+func scaleBlueZones(zones []blueZone, scale float64, upm int32) ([]scaledBlue, int32) {
+	scale16 := computeScale16dot16(scale)
+
+	// Correct Y scale to optimize alignment.
+	// See skrifa scale_default_axis_metrics and aflatin.c:1225-1298.
+	for _, z := range zones {
+		if z.flags&blueZoneAdjustment == 0 {
+			continue
+		}
+		scaled := fixedMul26dot6(scale16, z.overshoot)
+		fitted := (scaled + 40) & ^63
+		if scaled != fitted {
+			newScale := fixedMulDiv26dot6(scale16, fitted, scaled)
+			// Scaling should not adjust by more than two pixels.
+			maxHeight := upm
+			for _, zz := range zones {
+				if zz.ascender > maxHeight {
+					maxHeight = zz.ascender
+				}
+				if -zz.descender > maxHeight {
+					maxHeight = -zz.descender
+				}
+			}
+			dist := fixedMul26dot6(maxHeight, newScale-scale16)
+			if dist < 0 {
+				dist = -dist
+			}
+			dist &= ^int32(127)
+			if dist == 0 {
+				scale16 = newScale
+			}
+		}
+		break
+	}
+	scale = float64(scale16) / (64 * 65536)
+
 	result := make([]scaledBlue, 0, len(zones))
 
 	for _, z := range zones {
@@ -852,7 +925,7 @@ func scaleBlueZones(zones []blueZone, scale float64) []scaledBlue {
 		result = append(result, blue)
 	}
 
-	return result
+	return result, scale16
 }
 
 // scaleBlueZonesCJK scales blue zones using the CJK-specific algorithm.

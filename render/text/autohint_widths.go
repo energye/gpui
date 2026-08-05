@@ -149,7 +149,7 @@ func sortAndQuantizeWidths(widths *[]int32, threshold int32) {
 //
 //nolint:gocognit,nestif // FreeType aflatin.c port — algorithmic complexity is inherent
 func computeStemWidth(axis *scaledAxisMetrics, width int32, edgeFlags, stemFlags uint32) int32 {
-	if axis.isExtraLight {
+	if axis.isExtraLight || !axis.doStemAdjust {
 		return width
 	}
 
