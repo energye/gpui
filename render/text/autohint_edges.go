@@ -132,14 +132,17 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 
 	// First pass: create edges from segments.
 	for si, seg := range segments {
-		// Both groups skip directionless segments in the first pass.
-		if seg.dir == dirNone {
-			continue
-		}
-		// Default: also filter out short and wide segments.
+		// Default: skip directionless segments (and short/wide ones).
 		// CJK: include ALL directional segments, no height/width filtering.
-		if group == scriptGroupDefault && (seg.height < segLenThreshold || seg.delta > segWidthThreshold) {
-			continue
+		// Matches skrifa edges.rs:71-86 (the @deprecated filter is Default-only).
+		if group == scriptGroupDefault {
+			if seg.dir == dirNone || seg.height < segLenThreshold || seg.delta > segWidthThreshold {
+				continue
+			}
+			// Ignore serif edges that are smaller than 1.5 pixels.
+			if seg.serifIdx >= 0 && 2*seg.height < 3*segLenThreshold {
+				continue
+			}
 		}
 
 		// Look for an existing edge at a nearby position with same direction.

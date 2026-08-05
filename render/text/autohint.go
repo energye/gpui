@@ -561,6 +561,12 @@ func contoursToOutline(contours *GlyfContours) *GlyphOutline {
 		}
 		n := end - start + 1
 		if n < 2 {
+			// Single-point contour (common in composite glyphs, e.g. the
+			// direction-less curve-apex segments of CJK auto-hinting).
+			// These must be preserved — they carry hinted coordinates that
+			// participate in the glyph bounds (skrifa to_path keeps them).
+			pts := contours.Points[start : end+1]
+			decomposeContour(outline, pts)
 			start = end + 1
 			continue
 		}

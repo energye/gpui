@@ -722,10 +722,9 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 	}
 
 	for _, cr := range pa.contours {
-		contourLen := cr.end - cr.start + 1
-		if contourLen < 3 {
-			continue
-		}
+		// Note: no contour length filtering here — single-point contours
+		// (common in composite glyphs) must still produce a direction-less
+		// segment (skrifa segments.rs:422-460).
 
 		// Check if the contour starts on an edge and if so, back up to
 		// find the starting point. This handles segments that wrap around
@@ -859,7 +858,12 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 			}
 
 			// Try to start a new segment.
-			if !onEdge && isSameAxis(pa.pts[pointIdx].outDir) {
+			// Skrifa: !on_edge && (point.out_dir.is_same_axis(major_dir)
+			//                  || is_single_point_contour)
+			// Single-point contours (common in composite glyphs) always form
+			// a direction-less segment (skrifa segments.rs:422-460).
+			isSinglePointContour := cr.end == cr.start
+			if !onEdge && (isSameAxis(pa.pts[pointIdx].outDir) || isSinglePointContour) {
 				if len(segments) > 1000 {
 					return nil
 				}
@@ -881,6 +885,32 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 					maxOnCoord = v
 				}
 				onEdge = true
+
+				if isSinglePointContour {
+					// Single-point segment: no direction, finalized immediately.
+					// Skrifa segments.rs:444-458.
+					segFlags := uint32(0)
+					if (pa.pts[pointIdx].flags & pointFlagControl) != 0 {
+						segFlags |= edgeFlagRound
+					}
+					seg := hintSegment{
+						pos:      u,
+						delta:    0,
+						minCoord: v,
+						maxCoord: v,
+						height:   0,
+						dir:      dirNone,
+						flags:    segFlags,
+						linkIdx:  -1,
+						serifIdx: -1,
+						edgeIdx:  -1,
+						score:    32000,
+						firstPt:  pointIdx,
+						lastPt:   pointIdx,
+					}
+					segments = append(segments, seg)
+					onEdge = false
+				}
 			}
 
 			// Advance to next point in contour.
