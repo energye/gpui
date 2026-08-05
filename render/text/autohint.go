@@ -472,7 +472,12 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 		}
 
 		// Grid-fit edges.
-		hintEdges(edges, axisMetrics, group)
+		// hint_top_to_bottom only applies to the vertical axis
+		// (skrifa hint/edges.rs:26, SFNT_script hint_top_to_bottom);
+		// top-to-bottom scripts (Devanagari, Bengali, Gurmukhi, Gothic,
+		// Mongolian) reverse the adjust_link order checks.
+		topToBottom := dim == dimVertical && script.hintTopToBottom
+		hintEdges(edges, axisMetrics, group, topToBottom)
 
 		// Propagate edge positions to points.
 		alignEdgePoints(&points, segments, edges, dim, group)

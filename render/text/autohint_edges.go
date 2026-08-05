@@ -412,7 +412,7 @@ func computeBlueEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGr
 //
 // See FreeType aflatin.c:4220 af_latin_hint_edges.
 // See skrifa hint/edges.rs hint_edges.
-func hintEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup) {
+func hintEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup, topToBottom bool) {
 	if len(edges) == 0 {
 		return
 	}
@@ -422,11 +422,11 @@ func hintEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup) {
 
 	// Pass 2: Stem edges.
 	serifCount := 0
-	anchorIdx = alignStemEdges(edges, axis, anchorIdx, &serifCount, group)
+	anchorIdx = alignStemEdges(edges, axis, anchorIdx, &serifCount, group, topToBottom)
 
 	// Pass 3: Remaining edges (serifs, singles).
 	if serifCount > 0 || anchorIdx < 0 {
-		alignRemainingEdges(edges, anchorIdx, group)
+		alignRemainingEdges(edges, anchorIdx, group, topToBottom)
 	}
 }
 
@@ -481,7 +481,7 @@ func alignEdgesToBlues(edges []*hintEdge, axis *scaledAxisMetrics, group scriptG
 // See skrifa hint/edges.rs align_stem_edges.
 //
 //nolint:gocognit,nestif // FreeType aflatin.c port — algorithmic complexity is inherent
-func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, serifCount *int, group scriptGroup) int {
+func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, serifCount *int, group scriptGroup, topToBottom bool) int {
 	var lastStemPos int32 = -1000000 // sentinel
 	var delta int32
 
@@ -531,16 +531,23 @@ func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, s
 			edge.flags |= edgeFlagDone
 			edge2.flags |= edgeFlagDone
 
-			// Bound check.
-			if i > 0 && edge.pos < edges[i-1].pos {
-				if edge.linkIdx >= 0 {
-					linkPos := edges[edge.linkIdx].pos
-					d := linkPos - edges[i-1].pos
-					if d < 0 {
-						d = -d
-					}
-					if d > 16 {
-						edge.pos = edges[i-1].pos
+			// Bound check. Matches skrifa edges.rs adjust_link (LinkDir::Prev);
+			// top_to_bottom reverses the order check (edges.rs:454).
+			if i > 0 {
+				orderBroken := edge.pos < edges[i-1].pos
+				if topToBottom {
+					orderBroken = edge.pos > edges[i-1].pos
+				}
+				if orderBroken {
+					if edge.linkIdx >= 0 {
+						linkPos := edges[edge.linkIdx].pos
+						d := linkPos - edges[i-1].pos
+						if d < 0 {
+							d = -d
+						}
+						if d > 16 {
+							edge.pos = edges[i-1].pos
+						}
 					}
 				}
 			}
@@ -718,7 +725,7 @@ func alignLinkedEdge(edges []*hintEdge, axis *scaledAxisMetrics, baseIdx, stemId
 // See skrifa hint/edges.rs align_remaining_edges.
 //
 //nolint:gocognit // FreeType aflatin.c port — algorithmic complexity is inherent
-func alignRemainingEdges(edges []*hintEdge, anchorIdx int, group scriptGroup) {
+func alignRemainingEdges(edges []*hintEdge, anchorIdx int, group scriptGroup, topToBottom bool) {
 	if group != scriptGroupDefault {
 		alignRemainingEdgesCJK(edges)
 		return
@@ -756,28 +763,41 @@ func alignRemainingEdges(edges []*hintEdge, anchorIdx int, group scriptGroup) {
 
 		edge.flags |= edgeFlagDone
 
-		// Bound checks. 0.25px = 16 in 26.6.
-		if i > 0 && edge.pos < edges[i-1].pos { //nolint:nestif // FreeType aflatin.c port
-			if edge.linkIdx >= 0 {
-				linkPos := edges[edge.linkIdx].pos
-				d := linkPos - edges[i-1].pos
-				if d < 0 {
-					d = -d
-				}
-				if d > 16 {
-					edge.pos = edges[i-1].pos
+		// Bound checks. 0.25px = 16 in 26.6. Matches skrifa edges.rs
+		// adjust_link: top_to_bottom reverses both order checks (edges.rs:454).
+		if i > 0 {
+			orderBroken := edge.pos < edges[i-1].pos
+			if topToBottom {
+				orderBroken = edge.pos > edges[i-1].pos
+			}
+			if orderBroken {
+				if edge.linkIdx >= 0 {
+					linkPos := edges[edge.linkIdx].pos
+					d := linkPos - edges[i-1].pos
+					if d < 0 {
+						d = -d
+					}
+					if d > 16 {
+						edge.pos = edges[i-1].pos
+					}
 				}
 			}
 		}
-		if i+1 < len(edges) && (edges[i+1].flags&edgeFlagDone) != 0 && edge.pos > edges[i+1].pos { //nolint:nestif // FreeType aflatin.c port
-			if edge.linkIdx >= 0 {
-				linkPos := edges[edge.linkIdx].pos
-				d := linkPos - edges[i-1].pos
-				if d < 0 {
-					d = -d
-				}
-				if d > 16 {
-					edge.pos = edges[i+1].pos
+		if i+1 < len(edges) && (edges[i+1].flags&edgeFlagDone) != 0 {
+			orderBroken := edge.pos > edges[i+1].pos
+			if topToBottom {
+				orderBroken = edge.pos < edges[i+1].pos
+			}
+			if orderBroken {
+				if edge.linkIdx >= 0 {
+					linkPos := edges[edge.linkIdx].pos
+					d := linkPos - edges[i-1].pos
+					if d < 0 {
+						d = -d
+					}
+					if d > 16 {
+						edge.pos = edges[i+1].pos
+					}
 				}
 			}
 		}

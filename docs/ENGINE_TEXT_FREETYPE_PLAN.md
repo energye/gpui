@@ -341,9 +341,14 @@ skrifa 数值：Thai/Bengali/Tamil 完全一致、Gujarati 大部分一致。已
   zones（pos/over/asc/desc/flags 全等）。Oriya（Lohit-Odia）双方均空 ✓。
   Khmer/Malayalam/Sinhala/Mongolian/Chakma/Kayah Li 本机无字体，未实测（同一
   代码路径，逻辑等价）。
-- **hint_top_to_bottom**：Bengali/Devanagari/Gothic/Gurmukhi/Mongolian 5 个脚本
-  的 t2b 数据已生成（scriptClass.hintTopToBottom），但 autohint_edges.go 的
-  蓝区匹配算法未接入（需对照 skrifa topo/edges.rs 实现）。
+- **hint_top_to_bottom（已接入，2026-08-05）**：Bengali/Devanagari/Gothic/Gurmukhi/
+  Mongolian 5 脚本。对照 skrifa hint/edges.rs 完成接入——4 处触点全部映射：
+  `hintEdges` 加参数 + 调用点（autohint.go:475，仅 dimVertical 生效，edges.rs:26）+
+  `alignStemEdges` ADJUST_link Prev（edges.rs:209）+ `alignRemainingEdges` Prev/Next
+  （edges.rs:372-373），order_check 反转（edges.rs:454）。真实触发验证：
+  Lohit-Devanagari 116 glyph、Lohit-Gurmukhi 57、Lohit-Bengali 60 走 t2b 分支。
+  差量方向与 skrifa 一致（同号）；响应面差异（skrifa 翻转后 -37 平移 vs Go 局部）
+  根因是 Go 与 skrifa 既有 stem 对齐引擎差（同基线 hint 坐标 145 差，独立任务）。
 - 探针产物：`/tmp/opencode/skrifa-0.31.1`（Rust 源 + 蓝区探针测试）。
 
 ### 9.5 遗留注意

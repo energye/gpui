@@ -114,7 +114,7 @@ func runFullPipeline(points *hintPointArray, scaled *scaledStyleMetrics, group s
 		if dim == dimVertical || group == scriptGroupCJK {
 			computeBlueEdges(edges, axisMetrics, group)
 		}
-		hintEdges(edges, axisMetrics, group)
+		hintEdges(edges, axisMetrics, group, false)
 		alignEdgePoints(points, segments, edges, dim, group)
 		alignStrongPoints(points, edges, dim)
 		alignWeakPoints(points, dim)
@@ -131,7 +131,7 @@ func runFullPipelineWithBlueOverride(points *hintPointArray, scaled *scaledStyle
 		linkSegments(hSegs, hAxis, scriptGroupDefault)
 		hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
 		if len(hEdges) > 0 {
-			hintEdges(hEdges, hAxis, scriptGroupDefault)
+			hintEdges(hEdges, hAxis, scriptGroupDefault, false)
 			alignEdgePoints(points, hSegs, hEdges, dimHorizontal, scriptGroupDefault)
 			alignStrongPoints(points, hEdges, dimHorizontal)
 			alignWeakPoints(points, dimHorizontal)
@@ -147,7 +147,7 @@ func runFullPipelineWithBlueOverride(points *hintPointArray, scaled *scaledStyle
 		vEdges := computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault)
 		if len(vEdges) > 0 {
 			overrideHebrewBlueEdges(vEdges)
-			hintEdges(vEdges, vAxis, scriptGroupDefault)
+			hintEdges(vEdges, vAxis, scriptGroupDefault, false)
 			alignEdgePoints(points, vSegs, vEdges, dimVertical, scriptGroupDefault)
 			alignStrongPoints(points, vEdges, dimVertical)
 			alignWeakPoints(points, dimVertical)
@@ -1211,7 +1211,7 @@ func TestGolden_EdgeHinting_NotoSerifHebrew(t *testing.T) {
 		linkSegments(hSegs, hAxis, scriptGroupDefault)
 		hEdges = computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
 		if len(hEdges) > 0 {
-			hintEdges(hEdges, hAxis, scriptGroupDefault)
+			hintEdges(hEdges, hAxis, scriptGroupDefault, false)
 		}
 	}
 
@@ -1225,7 +1225,7 @@ func TestGolden_EdgeHinting_NotoSerifHebrew(t *testing.T) {
 		vEdges = computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault)
 		if len(vEdges) > 0 {
 			overrideHebrewBlueEdges(vEdges)
-			hintEdges(vEdges, vAxis, scriptGroupDefault)
+			hintEdges(vEdges, vAxis, scriptGroupDefault, false)
 		}
 	}
 
@@ -1342,7 +1342,7 @@ func TestGolden_HintedMetrics_NotoSerifHebrew_Values(t *testing.T) {
 		linkSegments(hSegs, hAxis, scriptGroupDefault)
 		hEdges = computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
 		if len(hEdges) > 0 {
-			hintEdges(hEdges, hAxis, scriptGroupDefault)
+			hintEdges(hEdges, hAxis, scriptGroupDefault, false)
 		}
 	}
 
