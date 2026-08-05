@@ -100,7 +100,7 @@ var groupGo = map[string]string{
 	"Cjk":     "scriptGroupCJK",
 }
 
-var unionRe = regexp.MustCompile(`BlueZones::([A-Z_]+)`)
+var unionRe = regexp.MustCompile(`(?:BlueZones::)?([A-Z_]+)`)
 
 func goVarName(name string) string {
 	if v, ok := specialNames[name]; ok {

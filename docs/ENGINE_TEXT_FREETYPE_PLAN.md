@@ -323,6 +323,22 @@ bitmap_left @ slot+192, bitmap_top @ slot+196
 - LCD 亚像素渲染（`selectGlyphMaskLCD` 保留，与 None 正交）；
 - 阿拉伯语/泰文等复杂 shaping（HarfBuzz 对齐）。
 
+### 9.6 autohint 脚本蓝区（2026-08-05 追加，非本次 9.x 范围）
+
+2026-08-05 已导入 skrifa 全量脚本（`autohint_scripts_gen.go`，51 脚本 + t2b 字段），
+并修复两个引擎/生成器 bug（LONG 检测条件、union 链首 flags 丢失）。探针比对
+skrifa 数值：Thai/Bengali/Tamil 完全一致、Gujarati 大部分一致。已知差异：
+
+- **复合 cluster / GSUB shaping**：Gujarati、Khmer、Kannada、Malayalam、Sinhala、
+  Mongolian、Chakma、Kayah Li 8 个脚本的蓝区字符表含多码元串（coeng ligature、
+  元音组合、ZWJ 序列等）。skrifa 走 GSUB 整形后测 ligature 字形；Go 目前取首
+  码元单字形（无 GSUB 接入）→ 这些 zone 的蓝区数值可能偏差。需 Go 接入 GSUB
+  cluster shaping 后对齐（独立任务）。
+- **hint_top_to_bottom**：Bengali/Devanagari/Gothic/Gurmukhi/Mongolian 5 个脚本
+  的 t2b 数据已生成（scriptClass.hintTopToBottom），但 autohint_edges.go 的
+  蓝区匹配算法未接入（需对照 skrifa topo/edges.rs 实现）。
+- 探针产物：`/tmp/opencode/skrifa-0.31.1`（Rust 源 + 蓝区探针测试）。
+
 ### 9.5 遗留注意
 
 - 真窗抓屏：`xwd -id` 在 GNOME 合成器下存在 **+769px 循环 x 偏移**（OLD/NEW 一致，非渲染问题）；分析时左移恢复；用户实际视角无偏移。

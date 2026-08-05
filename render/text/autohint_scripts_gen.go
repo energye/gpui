@@ -16,9 +16,9 @@ var scriptAdlam = scriptClass{
 		uniRange(0x1E900, 0x1E95F),
 	},
 	blues: []blueSpec{
-		{chars: "\U0001E90C \U0001E905 \U0001E908 \U0001E90F \U0001E914 \U0001E91A", flags: 0},
+		{chars: "\U0001E90C \U0001E905 \U0001E908 \U0001E90F \U0001E914 \U0001E91A", flags: blueZoneTop},
 		{chars: "\U0001E902 \U0001E916", flags: 0},
-		{chars: "\U0001E92C \U0001E92E \U0001E93B \U0001E93C \U0001E93E", flags: blueZoneXHeight},
+		{chars: "\U0001E92C \U0001E92E \U0001E93B \U0001E93C \U0001E93E", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\U0001E924 \U0001E928 \U0001E929 \U0001E92D \U0001E934 \U0001E938 \U0001E93A \U0001E940", flags: 0},
 	},
 }
@@ -33,10 +33,10 @@ var scriptArmenian = scriptClass{
 		uniRange(0xFB13, 0xFB17),
 	},
 	blues: []blueSpec{
-		{chars: "\u0531 \u0544 \u0552 \u054D \u0532 \u0533 \u0534 \u0555", flags: 0},
+		{chars: "\u0531 \u0544 \u0552 \u054D \u0532 \u0533 \u0534 \u0555", flags: blueZoneTop},
 		{chars: "\u0552 \u0548 \u0534 \u0543 \u0547 \u054D \u054F \u0555", flags: 0},
-		{chars: "\u0565 \u0567 \u056B \u0574 \u057E \u0586 \u0573", flags: 0},
-		{chars: "\u0561 \u0575 \u0582 \u057D \u0563 \u0577 \u0580 \u0585", flags: blueZoneXHeight},
+		{chars: "\u0565 \u0567 \u056B \u0574 \u057E \u0586 \u0573", flags: blueZoneTop},
+		{chars: "\u0561 \u0575 \u0582 \u057D \u0563 \u0577 \u0580 \u0585", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u0570 \u0578 \u0573 \u0561 \u0565 \u056E \u057D \u0585", flags: 0},
 		{chars: "\u0562 \u0568 \u056B \u056C \u0572 \u057A \u0583 \u0581", flags: 0},
 	},
@@ -51,7 +51,7 @@ var scriptAvestan = scriptClass{
 		uniRange(0x10B00, 0x10B3F),
 	},
 	blues: []blueSpec{
-		{chars: "\U00010B00 \U00010B01 \U00010B10 \U00010B1B", flags: 0},
+		{chars: "\U00010B00 \U00010B01 \U00010B10 \U00010B1B", flags: blueZoneTop},
 		{chars: "\U00010B00 \U00010B01", flags: 0},
 	},
 }
@@ -65,7 +65,7 @@ var scriptBamum = scriptClass{
 		uniRange(0xA6A0, 0xA6FF),
 	},
 	blues: []blueSpec{
-		{chars: "\uA6A7 \uA6A8 \uA6DB \uA6C9 \uA6C1 \uA6C8 \uA6EB \uA6EF", flags: 0},
+		{chars: "\uA6A7 \uA6A8 \uA6DB \uA6C9 \uA6C1 \uA6C8 \uA6EB \uA6EF", flags: blueZoneTop},
 		{chars: "\uA6AD \uA6B3 \uA6B6 \uA6EC \uA6A2 \uA6BD \uA6EF \uA6F2", flags: 0},
 	},
 }
@@ -79,9 +79,9 @@ var scriptBengali = scriptClass{
 		uniRange(0x980, 0x9FF),
 	},
 	blues: []blueSpec{
-		{chars: "\u0987 \u099F \u09A0 \u09BF \u09C0 \u09C8 \u09D7", flags: 0},
-		{chars: "\u0993 \u098F \u09A1 \u09A4 \u09A8 \u09AC \u09B2 \u0995", flags: 0},
-		{chars: "\u0985 \u09A1 \u09A4 \u09A8 \u09AC \u09AD \u09B2 \u0995", flags: blueZoneNeutral | blueZoneXHeight},
+		{chars: "\u0987 \u099F \u09A0 \u09BF \u09C0 \u09C8 \u09D7", flags: blueZoneTop},
+		{chars: "\u0993 \u098F \u09A1 \u09A4 \u09A8 \u09AC \u09B2 \u0995", flags: blueZoneTop},
+		{chars: "\u0985 \u09A1 \u09A4 \u09A8 \u09AC \u09AD \u09B2 \u0995", flags: blueZoneTop | blueZoneNeutral | blueZoneXHeight},
 		{chars: "\u0985 \u09A1 \u09A4 \u09A8 \u09AC \u09AD \u09B2 \u0995", flags: 0},
 	},
 }
@@ -95,9 +95,9 @@ var scriptBuhid = scriptClass{
 		uniRange(0x1740, 0x175F),
 	},
 	blues: []blueSpec{
-		{chars: "\u1750 \u1748", flags: 0},
-		{chars: "\u1745 \u174A \u174E", flags: 0},
-		{chars: "\u1742 \u1743 \u1749 \u174C", flags: blueZoneXHeight},
+		{chars: "\u1750 \u1748", flags: blueZoneTop},
+		{chars: "\u1745 \u174A \u174E", flags: blueZoneTop},
+		{chars: "\u1742 \u1743 \u1749 \u174C", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u1740 \u1743 \u1746 \u1749 \u174B \u174F \u1751", flags: 0},
 	},
 }
@@ -111,7 +111,7 @@ var scriptChakma = scriptClass{
 		uniRange(0x11100, 0x1114F),
 	},
 	blues: []blueSpec{
-		{chars: "\U00011103 \U00011105 \U00011109 \U00011119 \U00011117", flags: 0},
+		{chars: "\U00011103 \U00011105 \U00011109 \U00011119 \U00011117", flags: blueZoneTop},
 		{chars: "\U00011105 \U0001111B \U0001111D \U00011117 \U00011113", flags: 0},
 		{chars: "\U00011116\U00011133\U00011122 \U00011118\U00011133\U00011122 \U00011119\U00011133\U00011122 \U00011124\U00011133\U00011122 \U00011125\U00011133\U00011122", flags: 0},
 	},
@@ -127,11 +127,11 @@ var scriptCanadianSyllabics = scriptClass{
 		uniRange(0x18B0, 0x18FF),
 	},
 	blues: []blueSpec{
-		{chars: "\u15DC \u15B4 \u1401 \u14A3 \u146B \u144E \u1511 \u15F0", flags: 0},
+		{chars: "\u15DC \u15B4 \u1401 \u14A3 \u146B \u144E \u1511 \u15F0", flags: blueZoneTop},
 		{chars: "\u15F6 \u15B5 \u14A7 \u1403 \u144C \u148D \u1511 \u15E2", flags: 0},
-		{chars: "\u14D3 \u14D5 \u14C0 \u14C2 \u14C4 \u1544 \u1546 \u1623", flags: blueZoneXHeight},
+		{chars: "\u14D3 \u14D5 \u14C0 \u14C2 \u14C4 \u1544 \u1546 \u1623", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u1543 \u14C2 \u14C0 \u1542 \u14D7 \u14DA \u1546 \u1623", flags: 0},
-		{chars: "\u142A \u1646 \u18D8 \u1422 \u14BE \u18D7 \u1506", flags: 0},
+		{chars: "\u142A \u1646 \u18D8 \u1422 \u14BE \u18D7 \u1506", flags: blueZoneTop},
 		{chars: "\u1646 \u15EE \u14BB \u141E \u1506 \u14A1 \u14A2 \u14D1", flags: 0},
 	},
 }
@@ -145,7 +145,7 @@ var scriptCarian = scriptClass{
 		uniRange(0x102A0, 0x102DF),
 	},
 	blues: []blueSpec{
-		{chars: "\U000102A7 \U000102AB \U000102AC \U000102AD \U000102B1 \U000102BA \U000102BC \U000102BF", flags: 0},
+		{chars: "\U000102A7 \U000102AB \U000102AC \U000102AD \U000102B1 \U000102BA \U000102BC \U000102BF", flags: blueZoneTop},
 		{chars: "\U000102A3 \U000102A7 \U000102B7 \U000102C0 \U000102AB \U000102B8 \U000102C9", flags: 0},
 	},
 }
@@ -160,10 +160,10 @@ var scriptCherokee = scriptClass{
 		uniRange(0xAB70, 0xABBF),
 	},
 	blues: []blueSpec{
+		{chars: "\u13C6 \u13BB \u13AC \u13C3 \u13A4 \u13E3 \u13A6 \u13D5", flags: blueZoneTop},
 		{chars: "\u13C6 \u13BB \u13AC \u13C3 \u13A4 \u13E3 \u13A6 \u13D5", flags: 0},
-		{chars: "\u13C6 \u13BB \u13AC \u13C3 \u13A4 \u13E3 \u13A6 \u13D5", flags: 0},
-		{chars: "\uAB92 \uABA4 \uABB6 \uAB74 \uAB7E \uAB97 \uAB9D \uABBF", flags: 0},
-		{chars: "\uAB96 \uAB7C \uAB93 \uABA0 \uABB3 \uAB76 \uABA5 \uABBB", flags: blueZoneXHeight},
+		{chars: "\uAB92 \uABA4 \uABB6 \uAB74 \uAB7E \uAB97 \uAB9D \uABBF", flags: blueZoneTop},
+		{chars: "\uAB96 \uAB7C \uAB93 \uABA0 \uABB3 \uAB76 \uABA5 \uABBB", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\uAB96 \uAB7C \uAB93 \uABA0 \uABB3 \uAB76 \uABA5 \uABBB", flags: 0},
 		{chars: "\u13F8 \uAB90 \uAB79 \uAB7B", flags: 0},
 	},
@@ -178,9 +178,9 @@ var scriptCoptic = scriptClass{
 		uniRange(0x2C80, 0x2CFF),
 	},
 	blues: []blueSpec{
-		{chars: "\u2C8C \u2C8E \u2CA0 \u2CDE \u2C9E \u2C90 \u2CA4 \u2CCA", flags: 0},
+		{chars: "\u2C8C \u2C8E \u2CA0 \u2CDE \u2C9E \u2C90 \u2CA4 \u2CCA", flags: blueZoneTop},
 		{chars: "\u2CD0 \u2CD8 \u2CDE \u2C8E \u2C9E \u2C90 \u2CDC \u2CB0", flags: 0},
-		{chars: "\u2C8D \u2C8F \u2CA1 \u2CDF \u2C9F \u2C91 \u2CA5 \u2CCB", flags: blueZoneXHeight},
+		{chars: "\u2C8D \u2C8F \u2CA1 \u2CDF \u2C9F \u2C91 \u2CA5 \u2CCB", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u2CD1 \u2CD9 \u2CDF \u2C8F \u2C9F \u2C91 \u2CDD \u2CD2", flags: 0},
 	},
 }
@@ -194,9 +194,9 @@ var scriptCypriot = scriptClass{
 		uniRange(0x10800, 0x1083F),
 	},
 	blues: []blueSpec{
-		{chars: "\U0001080D \U00010819 \U00010833 \U00010831 \U00010805 \U00010813 \U00010823 \U00010826", flags: 0},
+		{chars: "\U0001080D \U00010819 \U00010833 \U00010831 \U00010805 \U00010813 \U00010823 \U00010826", flags: blueZoneTop},
 		{chars: "\U00010803 \U0001080A \U0001081B \U00010823 \U00010833 \U00010835 \U00010810", flags: 0},
-		{chars: "\U00010808 \U0001080F \U00010816", flags: 0},
+		{chars: "\U00010808 \U0001080F \U00010816", flags: blueZoneTop},
 		{chars: "\U00010808 \U0001080F \U00010816", flags: 0},
 	},
 }
@@ -215,9 +215,9 @@ var scriptDevanagari = scriptClass{
 		uniRange(0xA8E0, 0xA8FF),
 	},
 	blues: []blueSpec{
-		{chars: "\u0908 \u0910 \u0913 \u0914 \u093F \u0940 \u094B \u094C", flags: 0},
-		{chars: "\u0915 \u092E \u0905 \u0906 \u0925 \u0927 \u092D \u0936", flags: 0},
-		{chars: "\u0915 \u0928 \u092E \u0909 \u091B \u091F \u0920 \u0921", flags: blueZoneNeutral | blueZoneXHeight},
+		{chars: "\u0908 \u0910 \u0913 \u0914 \u093F \u0940 \u094B \u094C", flags: blueZoneTop},
+		{chars: "\u0915 \u092E \u0905 \u0906 \u0925 \u0927 \u092D \u0936", flags: blueZoneTop},
+		{chars: "\u0915 \u0928 \u092E \u0909 \u091B \u091F \u0920 \u0921", flags: blueZoneTop | blueZoneNeutral | blueZoneXHeight},
 		{chars: "\u0915 \u0928 \u092E \u0909 \u091B \u091F \u0920 \u0921", flags: 0},
 		{chars: "\u0941 \u0943", flags: 0},
 	},
@@ -232,9 +232,9 @@ var scriptDeseret = scriptClass{
 		uniRange(0x10400, 0x1044F),
 	},
 	blues: []blueSpec{
-		{chars: "\U00010402 \U00010404 \U0001040B \U00010417 \U00010411", flags: 0},
+		{chars: "\U00010402 \U00010404 \U0001040B \U00010417 \U00010411", flags: blueZoneTop},
 		{chars: "\U00010400 \U00010402 \U00010404 \U00010417 \U0001041B", flags: 0},
-		{chars: "\U0001042A \U0001042C \U00010433 \U0001043F \U00010439", flags: blueZoneXHeight},
+		{chars: "\U0001042A \U0001042C \U00010433 \U0001043F \U00010439", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\U00010428 \U0001042A \U0001042C \U0001043F \U00010443", flags: 0},
 	},
 }
@@ -250,7 +250,7 @@ var scriptEthiopic = scriptClass{
 		uniRange(0xAB00, 0xAB2F),
 	},
 	blues: []blueSpec{
-		{chars: "\u1200 \u1203 \u12D8 \u1350 \u121B \u1260 \u12CB \u12D0", flags: 0},
+		{chars: "\u1200 \u1203 \u12D8 \u1350 \u121B \u1260 \u12CB \u12D0", flags: blueZoneTop},
 		{chars: "\u1208 \u1210 \u1260 \u12D8 \u1200 \u122A \u12D0 \u1328", flags: 0},
 	},
 }
@@ -265,11 +265,11 @@ var scriptGeorgianMkhedruli = scriptClass{
 		uniRange(0x1C90, 0x1CBF),
 	},
 	blues: []blueSpec{
-		{chars: "\u10D2 \u10D3 \u10D4 \u10D5 \u10D7 \u10D8 \u10DD \u10E6", flags: blueZoneXHeight},
+		{chars: "\u10D2 \u10D3 \u10D4 \u10D5 \u10D7 \u10D8 \u10DD \u10E6", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u10D0 \u10D6 \u10DB \u10E1 \u10E8 \u10EB \u10EE \u10DE", flags: 0},
-		{chars: "\u10E1 \u10EE \u10E5 \u10D6 \u10DB \u10E8 \u10E9 \u10EC", flags: 0},
+		{chars: "\u10E1 \u10EE \u10E5 \u10D6 \u10DB \u10E8 \u10E9 \u10EC", flags: blueZoneTop},
 		{chars: "\u10D4 \u10D5 \u10DF \u10E2 \u10E3 \u10E4 \u10E5 \u10E7", flags: 0},
-		{chars: "\u1C9C \u1C9F \u1CB3 \u1CB8 \u1C92 \u1C94 \u1C9D \u1CB4", flags: 0},
+		{chars: "\u1C9C \u1C9F \u1CB3 \u1CB8 \u1C92 \u1C94 \u1C9D \u1CB4", flags: blueZoneTop},
 		{chars: "\u1C98 \u1CB2 \u1C9D \u1CA9 \u1C9B \u1CA8 \u1CAF \u1CBD", flags: 0},
 	},
 }
@@ -284,11 +284,11 @@ var scriptGeorgianKhutsuri = scriptClass{
 		uniRange(0x2D00, 0x2D2D),
 	},
 	blues: []blueSpec{
-		{chars: "\u10B1 \u10A7 \u10B9 \u10BC \u10A4 \u10A5 \u10B3 \u10BA", flags: 0},
+		{chars: "\u10B1 \u10A7 \u10B9 \u10BC \u10A4 \u10A5 \u10B3 \u10BA", flags: blueZoneTop},
 		{chars: "\u10A4 \u10A5 \u10A7 \u10A8 \u10A6 \u10B1 \u10AA \u10AB", flags: 0},
-		{chars: "\u2D01 \u2D17 \u2D02 \u2D04 \u2D05 \u2D07 \u2D14 \u2D16", flags: blueZoneXHeight},
+		{chars: "\u2D01 \u2D17 \u2D02 \u2D04 \u2D05 \u2D07 \u2D14 \u2D16", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u2D08 \u2D0C \u2D16 \u2D0E \u2D03 \u2D06 \u2D0B \u2D22", flags: 0},
-		{chars: "\u2D10 \u2D11 \u2D13 \u2D15 \u2D19 \u2D1B \u2D21 \u2D23", flags: 0},
+		{chars: "\u2D10 \u2D11 \u2D13 \u2D15 \u2D19 \u2D1B \u2D21 \u2D23", flags: blueZoneTop},
 		{chars: "\u2D04 \u2D05 \u2D14 \u2D15 \u2D01 \u2D02 \u2D18 \u2D1D", flags: 0},
 	},
 }
@@ -303,9 +303,9 @@ var scriptGlagolitic = scriptClass{
 		uniRange(0x1E000, 0x1E02F),
 	},
 	blues: []blueSpec{
-		{chars: "\u2C05 \u2C14 \u2C2A \u2C04 \u2C02 \u2C0A \u2C2B \u2C0B", flags: 0},
+		{chars: "\u2C05 \u2C14 \u2C2A \u2C04 \u2C02 \u2C0A \u2C2B \u2C0B", flags: blueZoneTop},
 		{chars: "\u2C05 \u2C04 \u2C02 \u2C2A \u2C1E \u2C21 \u2C0A \u2C14", flags: 0},
-		{chars: "\u2C35 \u2C44 \u2C5A \u2C34 \u2C32 \u2C3A \u2C5B \u2C3B", flags: blueZoneXHeight},
+		{chars: "\u2C35 \u2C44 \u2C5A \u2C34 \u2C32 \u2C3A \u2C5B \u2C3B", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u2C35 \u2C34 \u2C32 \u2C5A \u2C4E \u2C51 \u2C3A \u2C44", flags: 0},
 	},
 }
@@ -319,7 +319,7 @@ var scriptGothic = scriptClass{
 		uniRange(0x10330, 0x1034F),
 	},
 	blues: []blueSpec{
-		{chars: "\U00010332 \U00010336 \U00010340 \U00010344 \U00010334 \U00010343 \U00010348 \U0001033E", flags: 0},
+		{chars: "\U00010332 \U00010336 \U00010340 \U00010344 \U00010334 \U00010343 \U00010348 \U0001033E", flags: blueZoneTop},
 		{chars: "\U00010336 \U00010334 \U00010343 \U00010348", flags: 0},
 	},
 }
@@ -333,11 +333,11 @@ var scriptGujarati = scriptClass{
 		uniRange(0xA80, 0xAFF),
 	},
 	blues: []blueSpec{
-		{chars: "\u0AA4 \u0AA8 \u0A8B \u0A8C \u0A9B \u0A9F \u0AB0 \u0AE6", flags: blueZoneXHeight},
+		{chars: "\u0AA4 \u0AA8 \u0A8B \u0A8C \u0A9B \u0A9F \u0AB0 \u0AE6", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u0A96 \u0A97 \u0A98 \u0A9E \u0A87 \u0A88 \u0AA0 \u0A9C", flags: 0},
-		{chars: "\u0A88 \u0A8A \u0ABF \u0AC0 \u0AB2\u0AC0 \u0AB6\u0ACD\u0A9A\u0ABF \u0A9C\u0ABF \u0AB8\u0AC0", flags: 0},
+		{chars: "\u0A88 \u0A8A \u0ABF \u0AC0 \u0AB2\u0AC0 \u0AB6\u0ACD\u0A9A\u0ABF \u0A9C\u0ABF \u0AB8\u0AC0", flags: blueZoneTop},
 		{chars: "\u0AC1 \u0AC3 \u0AC4 \u0A96\u0AC1 \u0A9B\u0AC3 \u0A9B\u0AC4", flags: 0},
-		{chars: "\u0AE6 \u0AE7 \u0AE8 \u0AE9 \u0AED", flags: 0},
+		{chars: "\u0AE6 \u0AE7 \u0AE8 \u0AE9 \u0AED", flags: blueZoneTop},
 	},
 }
 
@@ -350,11 +350,11 @@ var scriptGurmukhi = scriptClass{
 		uniRange(0xA00, 0xA7F),
 	},
 	blues: []blueSpec{
-		{chars: "\u0A07 \u0A08 \u0A09 \u0A0F \u0A13 \u0A73 \u0A3F \u0A40", flags: 0},
-		{chars: "\u0A15 \u0A17 \u0A19 \u0A1A \u0A1C \u0A24 \u0A27 \u0A38", flags: 0},
-		{chars: "\u0A15 \u0A17 \u0A19 \u0A1A \u0A1C \u0A24 \u0A27 \u0A38", flags: blueZoneNeutral | blueZoneXHeight},
+		{chars: "\u0A07 \u0A08 \u0A09 \u0A0F \u0A13 \u0A73 \u0A3F \u0A40", flags: blueZoneTop},
+		{chars: "\u0A15 \u0A17 \u0A19 \u0A1A \u0A1C \u0A24 \u0A27 \u0A38", flags: blueZoneTop},
+		{chars: "\u0A15 \u0A17 \u0A19 \u0A1A \u0A1C \u0A24 \u0A27 \u0A38", flags: blueZoneTop | blueZoneNeutral | blueZoneXHeight},
 		{chars: "\u0A05 \u0A0F \u0A13 \u0A17 \u0A1C \u0A20 \u0A30 \u0A38", flags: 0},
-		{chars: "\u0A66 \u0A67 \u0A68 \u0A69 \u0A6D", flags: 0},
+		{chars: "\u0A66 \u0A67 \u0A68 \u0A69 \u0A6D", flags: blueZoneTop},
 	},
 }
 
@@ -367,9 +367,9 @@ var scriptKayahLi = scriptClass{
 		uniRange(0xA900, 0xA92F),
 	},
 	blues: []blueSpec{
-		{chars: "\uA905 \uA90F \uA901 \uA90B \uA900 \uA90D", flags: blueZoneXHeight},
+		{chars: "\uA905 \uA90F \uA901 \uA90B \uA900 \uA90D", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\uA908 \uA918 \uA900 \uA90D \uA922", flags: 0},
-		{chars: "\uA916 \uA921", flags: 0},
+		{chars: "\uA916 \uA921", flags: blueZoneTop},
 		{chars: "\uA911 \uA91C \uA91E", flags: 0},
 		{chars: "\uA911\uA92C \uA91C\uA92D \uA914\uA92C", flags: 0},
 	},
@@ -384,8 +384,8 @@ var scriptKhmer = scriptClass{
 		uniRange(0x1780, 0x17FF),
 	},
 	blues: []blueSpec{
-		{chars: "\u1781 \u1791 \u1793 \u17A7 \u17A9 \u17B6", flags: blueZoneXHeight},
-		{chars: "\u1780\u17D2\u1780 \u1780\u17D2\u1781 \u1780\u17D2\u1782 \u1780\u17D2\u1790", flags: 0},
+		{chars: "\u1781 \u1791 \u1793 \u17A7 \u17A9 \u17B6", flags: blueZoneTop | blueZoneXHeight},
+		{chars: "\u1780\u17D2\u1780 \u1780\u17D2\u1781 \u1780\u17D2\u1782 \u1780\u17D2\u1790", flags: blueZoneSubTop},
 		{chars: "\u1781 \u1783 \u1785 \u178B \u1794 \u1798 \u1799 \u17B2", flags: 0},
 		{chars: "\u178F\u17D2\u179A \u179A\u17C0 \u17B2\u17D2\u1799 \u17A2\u17BF", flags: 0},
 		{chars: "\u1793\u17D2\u178F\u17D2\u179A\u17C3 \u1784\u17D2\u1781\u17D2\u1799 \u1780\u17D2\u1794\u17C0 \u1785\u17D2\u179A\u17C0 \u1793\u17D2\u178F\u17BF \u179B\u17D2\u1794\u17BF", flags: 0},
@@ -401,7 +401,7 @@ var scriptKhmerSymbols = scriptClass{
 		uniRange(0x19E0, 0x19FF),
 	},
 	blues: []blueSpec{
-		{chars: "\u19E0 \u19E1", flags: blueZoneXHeight},
+		{chars: "\u19E0 \u19E1", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u19F6 \u19F9", flags: 0},
 	},
 }
@@ -415,7 +415,7 @@ var scriptKannada = scriptClass{
 		uniRange(0xC80, 0xCFF),
 	},
 	blues: []blueSpec{
-		{chars: "\u0C87 \u0C8A \u0C90 \u0CA3 \u0CB8\u0CBE \u0CA8\u0CBE \u0CA6\u0CBE \u0CB0\u0CBE", flags: 0},
+		{chars: "\u0C87 \u0C8A \u0C90 \u0CA3 \u0CB8\u0CBE \u0CA8\u0CBE \u0CA6\u0CBE \u0CB0\u0CBE", flags: blueZoneTop},
 		{chars: "\u0C85 \u0C89 \u0C8E \u0CB2 \u0CE6 \u0CE8 \u0CEC \u0CED", flags: 0},
 	},
 }
@@ -429,10 +429,10 @@ var scriptLao = scriptClass{
 		uniRange(0xE80, 0xEFF),
 	},
 	blues: []blueSpec{
-		{chars: "\u0EB2 \u0E94 \u0EAD \u0EA1 \u0EA5 \u0EA7 \u0EA3 \u0E87", flags: blueZoneXHeight},
+		{chars: "\u0EB2 \u0E94 \u0EAD \u0EA1 \u0EA5 \u0EA7 \u0EA3 \u0E87", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u0EB2 \u0EAD \u0E9A \u0E8D \u0EA3 \u0EAE \u0EA7 \u0EA2", flags: 0},
-		{chars: "\u0E9B \u0EA2 \u0E9F \u0E9D", flags: 0},
-		{chars: "\u0EC2 \u0EC4 \u0EC3", flags: 0},
+		{chars: "\u0E9B \u0EA2 \u0E9F \u0E9D", flags: blueZoneTop},
+		{chars: "\u0EC2 \u0EC4 \u0EC3", flags: blueZoneTop},
 		{chars: "\u0E87 \u0E8A \u0E96 \u0EBD \u0EC6 \u0EAF", flags: 0},
 	},
 }
@@ -446,7 +446,7 @@ var scriptLisu = scriptClass{
 		uniRange(0xA4D0, 0xA4FF),
 	},
 	blues: []blueSpec{
-		{chars: "\uA4E1 \uA4E7 \uA4F1 \uA4F6 \uA4E9 \uA4DA \uA4F5 \uA4F3", flags: 0},
+		{chars: "\uA4E1 \uA4E7 \uA4F1 \uA4F6 \uA4E9 \uA4DA \uA4F5 \uA4F3", flags: blueZoneTop},
 		{chars: "\uA4D5 \uA4DC \uA4DE \uA4E1 \uA4DB \uA4E2 \uA4F3 \uA4F4", flags: 0},
 	},
 }
@@ -460,7 +460,7 @@ var scriptMalayalam = scriptClass{
 		uniRange(0xD00, 0xD7F),
 	},
 	blues: []blueSpec{
-		{chars: "\u0D12 \u0D1F \u0D20 \u0D31 \u0D1A \u0D2A \u0D1A\u0D4D\u0D1A \u0D2A\u0D4D\u0D2A", flags: 0},
+		{chars: "\u0D12 \u0D1F \u0D20 \u0D31 \u0D1A \u0D2A \u0D1A\u0D4D\u0D1A \u0D2A\u0D4D\u0D2A", flags: blueZoneTop},
 		{chars: "\u0D1F \u0D20 \u0D27 \u0D36 \u0D18 \u0D1A \u0D25 \u0D32", flags: 0},
 	},
 }
@@ -474,13 +474,13 @@ var scriptMedefaidrin = scriptClass{
 		uniRange(0x16E40, 0x16E9F),
 	},
 	blues: []blueSpec{
-		{chars: "\U00016E40 \U00016E41 \U00016E42 \U00016E43 \U00016E4F \U00016E5A \U00016E5F", flags: 0},
+		{chars: "\U00016E40 \U00016E41 \U00016E42 \U00016E43 \U00016E4F \U00016E5A \U00016E5F", flags: blueZoneTop},
 		{chars: "\U00016E40 \U00016E41 \U00016E42 \U00016E43 \U00016E4F \U00016E5A \U00016E52 \U00016E53", flags: 0},
-		{chars: "\U00016E64 \U00016E6C \U00016E67 \U00016E74 \U00016E76 \U00016E7E", flags: 0},
-		{chars: "\U00016E60 \U00016E61 \U00016E62 \U00016E79 \U00016E73 \U00016E6E", flags: blueZoneXHeight},
+		{chars: "\U00016E64 \U00016E6C \U00016E67 \U00016E74 \U00016E76 \U00016E7E", flags: blueZoneTop},
+		{chars: "\U00016E60 \U00016E61 \U00016E62 \U00016E79 \U00016E73 \U00016E6E", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\U00016E60 \U00016E61 \U00016E62 \U00016E73 \U00016E6D \U00016E7D", flags: 0},
 		{chars: "\U00016E65 \U00016E68 \U00016E69", flags: 0},
-		{chars: "\U00016E80 \U00016E85 \U00016E88 \U00016E84 \U00016E8D", flags: 0},
+		{chars: "\U00016E80 \U00016E85 \U00016E88 \U00016E84 \U00016E8D", flags: blueZoneTop},
 	},
 }
 
@@ -494,7 +494,7 @@ var scriptMongolian = scriptClass{
 		uniRange(0x11660, 0x1167F),
 	},
 	blues: []blueSpec{
-		{chars: "\u1833 \u1834 \u1836 \u183D \u1842 \u184A \u200D\u1861\u200D \u200D\u1873\u200D", flags: 0},
+		{chars: "\u1833 \u1834 \u1836 \u183D \u1842 \u184A \u200D\u1861\u200D \u200D\u1873\u200D", flags: blueZoneTop},
 		{chars: "\u1843", flags: 0},
 	},
 }
@@ -510,9 +510,9 @@ var scriptMyanmar = scriptClass{
 		uniRange(0xAA60, 0xAA7F),
 	},
 	blues: []blueSpec{
-		{chars: "\u1001 \u1002 \u1004 \u1012 \u101D \u1065 \u104A \u104B", flags: blueZoneXHeight},
+		{chars: "\u1001 \u1002 \u1004 \u1012 \u101D \u1065 \u104A \u104B", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u1004 \u100E \u1012 \u1015 \u1017 \u101D \u104A \u104B", flags: 0},
-		{chars: "\u1029 \u103C \u104D \u104F \u1046 \u102B \u102D", flags: 0},
+		{chars: "\u1029 \u103C \u104D \u104F \u1046 \u102B \u102D", flags: blueZoneTop},
 		{chars: "\u1009 \u100A \u1025 \u1029 \u1028 \u1042 \u1045 \u1049", flags: 0},
 	},
 }
@@ -524,9 +524,9 @@ var scriptNKo = scriptClass{
 	stdChars:        []rune{'\u07CB', '\u07C0'},
 	uniranges:       nil,
 	blues: []blueSpec{
-		{chars: "\u07D0 \u07C9 \u07D2 \u07DF \u07D6 \u07DC \u07E0 \u07E5", flags: 0},
+		{chars: "\u07D0 \u07C9 \u07D2 \u07DF \u07D6 \u07DC \u07E0 \u07E5", flags: blueZoneTop},
 		{chars: "\u07C0 \u07D8 \u07E1 \u07E0 \u07E5", flags: 0},
-		{chars: "\u07CF \u07DB \u07CB", flags: blueZoneXHeight},
+		{chars: "\u07CF \u07DB \u07CB", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u07CE \u07CF \u07DB \u07CB", flags: 0},
 	},
 }
@@ -540,7 +540,7 @@ var scriptOlChiki = scriptClass{
 		uniRange(0x1C50, 0x1C7F),
 	},
 	blues: []blueSpec{
-		{chars: "\u1C5B \u1C5C \u1C5D \u1C61 \u1C62 \u1C65", flags: 0},
+		{chars: "\u1C5B \u1C5C \u1C5D \u1C61 \u1C62 \u1C65", flags: blueZoneTop},
 		{chars: "\u1C5B \u1C5C \u1C5D \u1C61 \u1C62 \u1C65", flags: 0},
 	},
 }
@@ -554,7 +554,7 @@ var scriptOldTurkic = scriptClass{
 		uniRange(0x10C00, 0x10C4F),
 	},
 	blues: []blueSpec{
-		{chars: "\U00010C17 \U00010C18 \U00010C27", flags: 0},
+		{chars: "\U00010C17 \U00010C18 \U00010C27", flags: blueZoneTop},
 		{chars: "\U00010C09 \U00010C17 \U00010C26 \U00010C27", flags: 0},
 	},
 }
@@ -568,12 +568,12 @@ var scriptOsage = scriptClass{
 		uniRange(0x104B0, 0x104FF),
 	},
 	blues: []blueSpec{
-		{chars: "\U000104BE \U000104CD \U000104D2 \U000104D3 \U000104BB \U000104C2 \U000104B5 \U000104C6", flags: 0},
+		{chars: "\U000104BE \U000104CD \U000104D2 \U000104D3 \U000104BB \U000104C2 \U000104B5 \U000104C6", flags: blueZoneTop},
 		{chars: "\U000104B0 \U000104CD \U000104C2 \U000104BF \U000104CE \U000104B9", flags: 0},
 		{chars: "\U000104BC \U000104BD \U000104BE", flags: 0},
-		{chars: "\U000104F5 \U000104F6 \U000104FA \U000104FB \U000104DD \U000104E3 \U000104EA \U000104EE", flags: blueZoneXHeight},
+		{chars: "\U000104F5 \U000104F6 \U000104FA \U000104FB \U000104DD \U000104E3 \U000104EA \U000104EE", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\U000104D8 \U000104DA \U000104E3 \U000104F5 \U000104E1 \U000104E7 \U000104EA \U000104F6", flags: 0},
-		{chars: "\U000104E4 \U000104E6 \U000104F8 \U000104F9 \U000104DB", flags: 0},
+		{chars: "\U000104E4 \U000104E6 \U000104F8 \U000104F9 \U000104DB", flags: blueZoneTop},
 		{chars: "\U000104E4 \U000104E5 \U000104E6", flags: 0},
 	},
 }
@@ -587,7 +587,7 @@ var scriptOsmanya = scriptClass{
 		uniRange(0x10480, 0x104AF),
 	},
 	blues: []blueSpec{
-		{chars: "\U00010486 \U00010489 \U00010490 \U00010492 \U00010498 \U0001049B \U000104A0 \U000104A3", flags: 0},
+		{chars: "\U00010486 \U00010489 \U00010490 \U00010492 \U00010498 \U0001049B \U000104A0 \U000104A3", flags: blueZoneTop},
 		{chars: "\U00010480 \U00010482 \U00010486 \U00010488 \U0001048A \U00010492 \U000104A0 \U000104A9", flags: 0},
 	},
 }
@@ -601,9 +601,9 @@ var scriptHanifiRohingya = scriptClass{
 		uniRange(0x10D00, 0x10D3F),
 	},
 	blues: []blueSpec{
-		{chars: "\U00010D03 \U00010D00 \U00010D06 \U00010D16 \U00010D15", flags: 0},
+		{chars: "\U00010D03 \U00010D00 \U00010D06 \U00010D16 \U00010D15", flags: blueZoneTop},
 		{chars: "\U00010D14 \U00010D16 \U00010D15 \U00010D11 \U00010D10", flags: 0},
-		{chars: "\u0640", flags: 0},
+		{chars: "\u0640", flags: blueZoneNeutral},
 	},
 }
 
@@ -616,7 +616,7 @@ var scriptSaurashtra = scriptClass{
 		uniRange(0xA880, 0xA8DF),
 	},
 	blues: []blueSpec{
-		{chars: "\uA89C \uA89E \uA8B3 \uA882 \uA896 \uA892 \uA89D \uA89B", flags: 0},
+		{chars: "\uA89C \uA89E \uA8B3 \uA882 \uA896 \uA892 \uA89D \uA89B", flags: blueZoneTop},
 		{chars: "\uA882 \uA8A8 \uA8BA \uA8A4 \uA88E", flags: 0},
 	},
 }
@@ -630,10 +630,10 @@ var scriptShavian = scriptClass{
 		uniRange(0x10450, 0x1047F),
 	},
 	blues: []blueSpec{
-		{chars: "\U00010455 \U00010459", flags: 0},
+		{chars: "\U00010455 \U00010459", flags: blueZoneTop},
 		{chars: "\U00010454 \U00010456 \U00010457 \U00010479 \U0001047B", flags: 0},
 		{chars: "\U0001045F \U00010463", flags: 0},
-		{chars: "\U00010471 \U00010472 \U00010473 \U00010474 \U00010478 \U0001047A \U0001047C", flags: blueZoneXHeight},
+		{chars: "\U00010471 \U00010472 \U00010473 \U00010474 \U00010478 \U0001047A \U0001047C", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\U00010474 \U0001047B \U00010479", flags: 0},
 	},
 }
@@ -647,7 +647,7 @@ var scriptSinhala = scriptClass{
 		uniRange(0xD80, 0xDFF),
 	},
 	blues: []blueSpec{
-		{chars: "\u0D89 \u0D9A \u0D9D \u0DB3 \u0DB4 \u0DBA \u0DBD \u0DC6", flags: 0},
+		{chars: "\u0D89 \u0D9A \u0D9D \u0DB3 \u0DB4 \u0DBA \u0DBD \u0DC6", flags: blueZoneTop},
 		{chars: "\u0D91 \u0D94 \u0D9D \u0DA2 \u0DA7 \u0DAE \u0DB0 \u0DBB", flags: 0},
 		{chars: "\u0DAF \u0DB3 \u0D8B \u0DBD \u0DAD\u0DD6 \u0DAD\u0DD4 \u0DB6\u0DD4 \u0DAF\u0DD4", flags: 0},
 	},
@@ -663,7 +663,7 @@ var scriptSundanese = scriptClass{
 		uniRange(0x1CC0, 0x1CCF),
 	},
 	blues: []blueSpec{
-		{chars: "\u1B8B \u1B9E \u1BAE \u1BBD \u1BB0 \u1B88", flags: 0},
+		{chars: "\u1B8B \u1B9E \u1BAE \u1BBD \u1BB0 \u1B88", flags: blueZoneTop},
 		{chars: "\u1B84 \u1B94 \u1B95 \u1B97 \u1BB0 \u1B86 \u1B88 \u1B89", flags: 0},
 		{chars: "\u1BBC \u1CC4", flags: 0},
 	},
@@ -678,7 +678,7 @@ var scriptTamil = scriptClass{
 		uniRange(0xB80, 0xBFF),
 	},
 	blues: []blueSpec{
-		{chars: "\u0B89 \u0B92 \u0B93 \u0BB1 \u0B88 \u0B95 \u0B99 \u0B9A", flags: 0},
+		{chars: "\u0B89 \u0B92 \u0B93 \u0BB1 \u0B88 \u0B95 \u0B99 \u0B9A", flags: blueZoneTop},
 		{chars: "\u0B95 \u0B9A \u0BB2 \u0BB6 \u0B89 \u0B99 \u0B9F \u0BAA", flags: 0},
 	},
 }
@@ -692,7 +692,7 @@ var scriptTaiViet = scriptClass{
 		uniRange(0xAA80, 0xAADF),
 	},
 	blues: []blueSpec{
-		{chars: "\uAA86 \uAA94 \uAA92 \uAA96 \uAAAB", flags: 0},
+		{chars: "\uAA86 \uAA94 \uAA92 \uAA96 \uAAAB", flags: blueZoneTop},
 		{chars: "\uAA89 \uAAAB \uAAAE", flags: 0},
 	},
 }
@@ -706,7 +706,7 @@ var scriptTelugu = scriptClass{
 		uniRange(0xC00, 0xC7F),
 	},
 	blues: []blueSpec{
-		{chars: "\u0C07 \u0C0C \u0C19 \u0C1E \u0C23 \u0C31 \u0C6F", flags: 0},
+		{chars: "\u0C07 \u0C0C \u0C19 \u0C1E \u0C23 \u0C31 \u0C6F", flags: blueZoneTop},
 		{chars: "\u0C05 \u0C15 \u0C1A \u0C30 \u0C3D \u0C68 \u0C6C", flags: 0},
 	},
 }
@@ -720,7 +720,7 @@ var scriptTifinagh = scriptClass{
 		uniRange(0x2D30, 0x2D7F),
 	},
 	blues: []blueSpec{
-		{chars: "\u2D54 \u2D59 \u2D5B \u2D5E \u2D35 \u2D3C \u2D39 \u2D4E", flags: 0},
+		{chars: "\u2D54 \u2D59 \u2D5B \u2D5E \u2D35 \u2D3C \u2D39 \u2D4E", flags: blueZoneTop},
 		{chars: "\u2D54 \u2D59 \u2D5B \u2D5E \u2D35 \u2D3C \u2D39 \u2D4E", flags: 0},
 	},
 }
@@ -734,10 +734,10 @@ var scriptThai = scriptClass{
 		uniRange(0xE00, 0xE7F),
 	},
 	blues: []blueSpec{
-		{chars: "\u0E1A \u0E40 \u0E41 \u0E2D \u0E01 \u0E32", flags: blueZoneXHeight},
+		{chars: "\u0E1A \u0E40 \u0E41 \u0E2D \u0E01 \u0E32", flags: blueZoneTop | blueZoneXHeight},
 		{chars: "\u0E1A \u0E1B \u0E29 \u0E2F \u0E2D \u0E22 \u0E2E", flags: 0},
-		{chars: "\u0E1B \u0E1D \u0E1F", flags: 0},
-		{chars: "\u0E42 \u0E43 \u0E44", flags: 0},
+		{chars: "\u0E1B \u0E1D \u0E1F", flags: blueZoneTop},
+		{chars: "\u0E42 \u0E43 \u0E44", flags: blueZoneTop},
 		{chars: "\u0E0E \u0E0F \u0E24 \u0E26", flags: 0},
 		{chars: "\u0E0D \u0E10", flags: 0},
 		{chars: "\u0E50 \u0E51 \u0E53", flags: 0},
@@ -753,7 +753,7 @@ var scriptVai = scriptClass{
 		uniRange(0xA500, 0xA63F),
 	},
 	blues: []blueSpec{
-		{chars: "\uA5CD \uA616 \uA619 \uA61C \uA59C \uA59D \uA505 \uA562", flags: 0},
+		{chars: "\uA5CD \uA616 \uA619 \uA61C \uA59C \uA59D \uA505 \uA562", flags: blueZoneTop},
 		{chars: "\uA5CD \uA616 \uA619 \uA5DE \uA505 \uA562 \uA59C \uA506", flags: 0},
 	},
 }

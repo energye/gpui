@@ -26,7 +26,16 @@ import (
 // For LONG-flagged zones (Hebrew), the algorithm uses raw TrueType contour
 // points to detect long horizontal segments, avoiding being fooled by
 // vertical serifs. This is ported from skrifa metrics/blues.rs
-// compute_default_blues (lines 306-449).
+// compute_default_blues (lines 306-449). The LONG search only runs for
+// zones with the LONG flag (matching skrifa blues.rs:295 is_long check) —
+// running it unconditionally corrupted blue zone positions for all
+// non-LONG scripts (e.g. Thai tops snapped to Y≈0).
+//
+// Known deviation: blue character strings with multi-codepoint clusters
+// (e.g. Gujarati લી/શ્ચિ, Khmer coeng pairs) are measured per first
+// codepoint only; skrifa shapes the cluster (GSUB, ligatures) first. See
+// docs/ENGINE_TEXT_FREETYPE_PLAN.md §9.6. Thai/Bengali/Tamil probe
+// comparisons match skrifa exactly.
 //
 // References:
 //   - FreeType aflatin.c:311  af_latin_metrics_init_blues
@@ -148,7 +157,7 @@ func computeDefaultBlues(font ParsedFont, script *scriptClass) []blueZone {
 			}
 
 			// Measure blue character using raw contour points.
-			bestY, isRound, asc, desc, measured := measureBlueCharContour(rawFontData, GlyphID(gid), isTop, flatThreshold, int32(upm))
+			bestY, isRound, asc, desc, measured := measureBlueCharContour(rawFontData, GlyphID(gid), isTop, spec.flags&blueZoneLong != 0, flatThreshold, int32(upm))
 			if !measured {
 				continue
 			}
@@ -234,14 +243,15 @@ func computeBlueMedians(flats, rounds []int32) (blueRef, blueShoot int32) {
 //  1. Find the Y-extremum point and its contour
 //  2. Walk backward/forward from the extremum to find the segment span
 //  3. For LONG zones: if the segment is too short, search for adjacent
-//     long segments to avoid being fooled by vertical serifs
+//     long segments to avoid being fooled by vertical serifs (only runs
+//     for LONG-flagged zones, matching skrifa blues.rs is_long check)
 //  4. Classify the segment as round (off-curve endpoints) or flat
 //
 // See skrifa metrics/blues.rs compute_default_blues, lines 200-470.
 // See FreeType aflatin.c:641 long segment detection.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // FreeType/skrifa long segment detection — algorithmic complexity is inherent
-func measureBlueCharContour(fontData []byte, gid GlyphID, isTop bool, flatThreshold, upm int32) (int32, bool, int32, int32, bool) {
+func measureBlueCharContour(fontData []byte, gid GlyphID, isTop, isLong bool, flatThreshold, upm int32) (int32, bool, int32, int32, bool) {
 	contours, err := ParseGlyfContours(fontData, gid)
 	if err != nil || contours == nil || len(contours.Points) <= 2 {
 		return 0, false, 0, 0, false
@@ -376,19 +386,25 @@ func measureBlueCharContour(fontData []byte, gid GlyphID, isTop bool, flatThresh
 	}
 
 	// LONG segment detection (Hebrew).
-	// If the initial segment at the extremum is short, search for a longer
-	// adjacent segment to avoid being fooled by vertical serifs.
+	// Only runs for LONG-flagged zones (matching skrifa blues.rs:295
+	// `if blue_zones.is_long()`). For other scripts, the extremum segment
+	// itself is authoritative: running the LONG search unconditionally
+	// rewrote bestY to unrelated contour segments (e.g. Thai tops to Y≈0),
+	// corrupting blue zone positions for all non-LONG scripts.
 	// See skrifa metrics/blues.rs:306-449.
 	// See FreeType aflatin.c:641.
-	longResult := longSegmentDetection(bestContour, n, bestPointIdx, bestX, bestY, nextIx,
-		segmentFirst, segmentLast, onPointFirst, onPointLast, onPointFirstSet, onPointLastSet, upm)
-	bestY = longResult.bestY
-	segmentFirst = longResult.segmentFirst
-	segmentLast = longResult.segmentLast
-	onPointFirst = longResult.onPointFirst
-	onPointLast = longResult.onPointLast
-	onPointFirstSet = longResult.onPointFirstSet
-	onPointLastSet = longResult.onPointLastSet
+	longResult := longSegmentResult{}
+	if isLong {
+		longResult = longSegmentDetection(bestContour, n, bestPointIdx, bestX, bestY, nextIx,
+			segmentFirst, segmentLast, onPointFirst, onPointLast, onPointFirstSet, onPointLastSet, upm)
+		bestY = longResult.bestY
+		segmentFirst = longResult.segmentFirst
+		segmentLast = longResult.segmentLast
+		onPointFirst = longResult.onPointFirst
+		onPointLast = longResult.onPointLast
+		onPointFirstSet = longResult.onPointFirstSet
+		onPointLastSet = longResult.onPointLastSet
+	}
 
 	// Classify round vs flat.
 	isRound := classifyRoundFlatContour(bestContour, onPointFirst, onPointLast,
