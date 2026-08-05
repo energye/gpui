@@ -1,10 +1,10 @@
 # ENGINE_TEXT_HINT_LIGHT_PLAN — 自研移植 FreeType light 渲染模式
 
-**状态**: M0 完成（2026-08-04）；**M1 机制破译完成（cf2 实锤）**——CJK CFF 字体的 light 模式走 **cf2（psaux）引擎**而非 afcjk/pshinter（afcjk 仅 TrueType glyf 的 CJK autohinter）；cf2 hintmap 算法已从源码+TRACE 完全解码并数值级复现（见 §13）；**M1 charstring 解释器完成（cffcs.go，2026-08-04 验证）**——日/田/目 12px 共 60 点 26.6 与 FT-nohint 逐点零误差。**M2 cf2Blues+cf2HintMap 完成（2026-08-05）**——含 X 轴 vstem；对照线 = ftexp `FT_LOAD_NO_STEM_DARKENING`（实证 FT 2.14.3 默认不暗化，darken=0）；单区字 25 个 × 10/12/14/16/18/20/22/24px 共 200 项逐点全绿。**M3 hintmask 多区完成（2026-08-05）**——多 mask 分区逐区建图；verifier 多 mask 字 128 个 × 6 字号（10–24px）对照 ftexp light 逐点：**10/12/14/16/20/24px 全部 bad=0**；**3000 常用字 + 韩文 11172 音节 + 泰文 87 字全量回归 bad=0**（修复 vmoveto/hmoveto 的 moveMaskIdx 归属 + 半身 stem 精度 + lineTo 每段独立跳过 + ps_builder_close_contour 闭合重合点去重 + cff.go dictPrivate 支持非 CID 字体）。L0–L1（Latin）待做
+**状态**: M0 完成（2026-08-04）；**M1 机制破译完成（cf2 实锤）**——CJK CFF 字体的 light 模式走 **cf2（psaux）引擎**而非 afcjk/pshinter（afcjk 仅 TrueType glyf 的 CJK autohinter）；cf2 hintmap 算法已从源码+TRACE 完全解码并数值级复现（见 §13）；**M1 charstring 解释器完成（cffcs.go，2026-08-04 验证）**——日/田/目 12px 共 60 点 26.6 与 FT-nohint 逐点零误差。**M2 cf2Blues+cf2HintMap 完成（2026-08-05）**——含 X 轴 vstem；对照线 = ftexp `FT_LOAD_NO_STEM_DARKENING`（实证 FT 2.11.1 默认不暗化，darken=0）；单区字 25 个 × 10/12/14/16/18/20/22/24px 共 200 项逐点全绿。**M3 hintmask 多区完成（2026-08-05）**——多 mask 分区逐区建图；verifier 多 mask 字 128 个 × 6 字号（10–24px）对照 ftexp light 逐点：**10/12/14/16/20/24px 全部 bad=0**；**3000 常用字 + 韩文 11172 音节 + 泰文 87 字全量回归 bad=0**（修复 vmoveto/hmoveto 的 moveMaskIdx 归属 + 半身 stem 精度 + lineTo 每段独立跳过 + ps_builder_close_contour 闭合重合点去重 + cff.go dictPrivate 支持非 CID 字体）。L0–L1（Latin）待做
 **日期**: 2026-08-04（M1 认知更新同日）
 **触发**: R21 验收后用户选定路线——自研 Vertical/Full hint 规则与 FreeType 不一致，放弃原自研 hint，改为**纯自研移植 FreeType light 渲染模式**（运行时零依赖 libfreetype，独立包 + 逐字 diff 验证闭环）
 **关联**: docs/ENGINE_TEXT_FREETYPE_PLAN.md §9（None 化决策：本轮验收基准）、AGENTS.md（render/ 高风险，实现层改动无须逐段确认但影响面须评估）
-**参考**: FreeType 2.14.3 源码本地镜像 `/home/yanghy/app/projects/gogpu/freetype-2.14.3/`（用户提供，见 §11）
+**参考**: FreeType 2.11.1 源码本地镜像 `/home/yanghy/app/projects/gogpu/freetype-2.11.1/`（**系统 libfreetype 实际版本 2.11.1，ftexp 对照的运行库**；2026-08-05 由 2.14.3 切换，cf2 语义两版本已由 M2/M3 全绿实证一致，TT 解释器以 2.11.1 为准，见 §11）
 **用户确认**: 「先不管 shaping，先把自研 freetype 做好」；go-text/typesetting 仅列为 shaping 里程碑候选（见 §9）
 
 ---
@@ -281,7 +281,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 
 ## 13. M1 机制破译（cf2 实锤，2026-08-04，TRACE + 源码对照）
 
-**来源**：freetype-2.14.3 `src/psaux/pshints.c`（cf2 hint map）+ `psblues.c`（蓝区）+ `psfixed.h`（定点宏）+ `FT_DEBUG_LEVEL_TRACE` 日志 `/tmp/opencode/ft12.log`（修复 ftcheck 后 12px 正确数据）。
+**来源**：freetype-2.11.1 `src/psaux/pshints.c`（cf2 hint map）+ `psblues.c`（蓝区）+ `psfixed.h`（定点宏）+ `FT_DEBUG_LEVEL_TRACE` 日志 `/tmp/opencode/ft12.log`（修复 ftcheck 后 12px 正确数据）。
 
 ### 13.1 引擎身份
 
@@ -331,7 +331,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 ### 13.6 FT 定点链公式（M1 实测破译，2026-08-04，cffcs_test.go 逐点验证）
 
 - **x_scale（16.16）** = `FT_DivFix(charWidth26_6, upem)`（ftcalc.h）：`q = (|a|<<16 + |b|/2) / |b|`。例：12px/upem 1000 → `FT_DivFix(768, 1000) = 50332`（非 786.432 类浮点值！）。
-- **cs → 26.6**（unhinted：cf2 以 unity 渲染，cff_slot_load 后乘 x_scale，cffgload.c:707-713）= `FT_MulFix(cs, x_scale)`，**2.14.3 内联 64 位版**（ftcalc.h:90-100，FT_INT64 默认开）：
+- **cs → 26.6**（unhinted：cf2 以 unity 渲染，cff_slot_load 后乘 x_scale，cffgload.c:707-713）= `FT_MulFix(cs, x_scale)`，**2.11.1 内联 64 位版**（ftcalc.h:90-100，FT_INT64 默认开）：
   ```
   ab = cs * scale
   ab += 0x8000 + (ab >> 63)   // 正数 +0x8000（half-up）；负数 +0x7FFF（向 -∞ 偏移）
@@ -347,9 +347,9 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 
 ---
 
-## 11. FreeType 源码参考（用户提供，2026-08-04）
+## 11. FreeType 源码参考（2026-08-04 用户提供；2026-08-05 更新为系统实际版本）
 
-**本地镜像**：`/home/yanghy/app/projects/gogpu/freetype-2.14.3/`（FreeType 2.14.3 官方源码，用户指定作为移植实现的对照蓝本）。
+**本地镜像**：`/home/yanghy/app/projects/gogpu/freetype-2.11.1/`（**FreeType 2.11.1 官方源码，与系统 libfreetype.so.6（2.11.1，ftexp 对照实际运行库）同版本**，作为移植实现的对照蓝本）。原 2.14.3 镜像（`freetype-2.14.3/`）的 cf2 语义已由 M2/M3 全绿实证与 2.11.1 一致；**TT 解释器（L0–L1）以 2.11.1 为准**。
 
 **定位与用途**：
 
