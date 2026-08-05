@@ -29,6 +29,9 @@ func TestScanCJK3000(t *testing.T) {
 	for _, px := range []float64{10, 12, 14, 16, 20, 24} {
 		scale := m2HintScale(px, upem)
 		ft := batchContour26Light(t, chars, px)
+		if len(ft) < 2900 {
+			t.Fatalf("cjk3000: only %d glyphs parsed, want ≥2900 (parser regression)", len(ft))
+		}
 		bad := 0
 		npt := 0
 		var badR, nptR []rune
@@ -74,13 +77,18 @@ func TestScanCJK3000(t *testing.T) {
 // batchContour26Light 一次 exec 批量取 FT-light 26.6 轮廓（mode l），
 // 返回 rune → 点表。缺失/加载失败的字不在 map 中。
 func batchContour26Light(t *testing.T, chars []rune, px float64) map[rune][][3]int64 {
+	return batchContour26LightFont(t, "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", chars, px)
+}
+
+// batchContour26LightFont 同 batchContour26Light，但可指定字体文件。
+func batchContour26LightFont(t *testing.T, fontPath string, chars []rune, px float64) map[rune][][3]int64 {
 	t.Helper()
 	list := "/tmp/opencode/cjk3000_runes.txt"
 	if err := os.WriteFile(list, []byte(string(chars)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command("/tmp/opencode/ftexp/ftexp", "bcontour",
-		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", strconv.Itoa(int(px)), "l", list)
+		fontPath, strconv.Itoa(int(px)), "l", list)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Skipf("ftexp bcontour unavailable: %v", err)
@@ -114,9 +122,6 @@ func batchContour26Light(t *testing.T, chars []rune, px float64) map[rune][][3]i
 		}
 		res[r] = pts
 		i++
-	}
-	if len(res) < 2900 {
-		t.Fatalf("bcontour parsed only %d/%d glyphs, want ≥2900 (parser regression)", len(res), len(chars))
 	}
 	return res
 }

@@ -181,9 +181,12 @@ func dictPrivate(ops []dictOp) (size, offset int, ok bool) {
 	// DICT 操作符的 operand 逆序入栈：ops 里最后一个 = 第一个 operand。
 	// 这里保存原始 operand 顺序，取 operands[0]=size, operands[1]=offset
 	// （CFF 规定 Private 的 operands 顺序为 [size, offset]）。
-	last := ops[len(ops)-1]
-	if last.op == 18 && len(last.operands) >= 2 {
-		return int(last.operands[0]), int(last.operands[1]), true
+	// 注意：Private 不一定在 DICT 末尾（Noto Sans Thai 顺序为
+	// ..., Private, CharStrings），须全表查找而非只查最后一项。
+	for i := len(ops) - 1; i >= 0; i-- {
+		if ops[i].op == 18 && len(ops[i].operands) >= 2 {
+			return int(ops[i].operands[0]), int(ops[i].operands[1]), true
+		}
 	}
 	return 0, 0, false
 }
