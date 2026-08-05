@@ -334,8 +334,13 @@ skrifa 数值：Thai/Bengali/Tamil 完全一致、Gujarati 大部分一致。已
   整形。Go `computeDefaultBlues`/`computeCJKBlues` 已同步跳过多码元字段
   （`len(rune) != 1`），无需 GSUB 接入。修复后探针验证：Gujarati（Kalapi）5/5
   zones、Kannada（Gubbi）2/2 zones 与 skrifa 全一致（pos/over/asc/desc/flags，
-  含 Gujarati zone2=1166）。Khmer/Malayalam/Sinhala/Mongolian/Chakma/Kayah Li
-  本机无字体，未实测（同一代码路径，逻辑等价）。
+  含 Gujarati zone2=1166）。**批量扩验证（2026-08-05）**：10 脚本 × 12 字体组合
+  全部精确匹配——Gujarati（Kalapi/Lohit/Samyak）×3、Kannada（Gubbi）、Gurmukhi
+  （Lohit）、Telugu（Lohit）、Devanagari（Lohit）、Bengali（Lohit）、Ethiopic
+  （AbyssinicaSIL）、Lao（Phetsarath_OT）、Thai（Garuda）、Tamil（Samyak）共 42
+  zones（pos/over/asc/desc/flags 全等）。Oriya（Lohit-Odia）双方均空 ✓。
+  Khmer/Malayalam/Sinhala/Mongolian/Chakma/Kayah Li 本机无字体，未实测（同一
+  代码路径，逻辑等价）。
 - **hint_top_to_bottom**：Bengali/Devanagari/Gothic/Gurmukhi/Mongolian 5 个脚本
   的 t2b 数据已生成（scriptClass.hintTopToBottom），但 autohint_edges.go 的
   蓝区匹配算法未接入（需对照 skrifa topo/edges.rs 实现）。
