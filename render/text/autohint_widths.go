@@ -47,26 +47,62 @@ func computeStandardWidths(font ParsedFont, dim hintDimension, script *scriptCla
 		return result
 	}
 
-	// Extract outline at design size (1:1 font units → pixels).
-	extractor := NewOutlineExtractor()
-	outline, err := extractor.ExtractOutline(font, GlyphID(gid), float64(upm))
-	if err != nil || outline == nil || len(outline.Segments) == 0 {
-		result.standardWidth = derivedConstant(upm)
-		result.edgeDistThreshold = result.standardWidth / 5
-		return result
+	// Parse the reference glyph contours and build hint points at design
+	// size (1:1 scale). This mirrors the main hinting path
+	// (autoHintViaContoursPreloaded, autohint.go:433) which uses
+	// ParseGlyfContours + buildHintPointsFromContours; the outline
+	// orientation needed for the major direction comes from the same
+	// contours.
+	var rawFontData []byte
+	if provider, ok := font.(RawFontDataProvider); ok {
+		rawFontData = provider.RawFontData()
 	}
-
-	// Build point array at 1:1 scale.
-	points := buildHintPoints(outline)
+	var points hintPointArray
+	var majorDir hintDirection
+	if rawFontData != nil {
+		contours, err := ParseGlyfContours(rawFontData, GlyphID(gid))
+		if err == nil && contours != nil && len(contours.Points) > 0 {
+			points = buildHintPointsFromContours(contours, 1.0, upm)
+			majorDir = dirUp
+			if dim == dimVertical {
+				majorDir = dirLeft
+			}
+			if outlineHasPSOrientation(contours) {
+				if dim == dimHorizontal {
+					majorDir = dirDown
+				} else {
+					majorDir = dirRight
+				}
+			}
+		}
+	}
 	if len(points.pts) == 0 {
-		result.standardWidth = derivedConstant(upm)
-		result.edgeDistThreshold = result.standardWidth / 5
-		return result
+		// Fallback to the legacy path (extracted outline segments).
+		extractor := NewOutlineExtractor()
+		outline, err := extractor.ExtractOutline(font, GlyphID(gid), float64(upm))
+		if err != nil || outline == nil || len(outline.Segments) == 0 {
+			result.standardWidth = derivedConstant(upm)
+			result.edgeDistThreshold = result.standardWidth / 5
+			return result
+		}
+		points = buildHintPoints(outline)
+		if len(points.pts) == 0 {
+			result.standardWidth = derivedConstant(upm)
+			result.edgeDistThreshold = result.standardWidth / 5
+			return result
+		}
 	}
 
 	// Compute segments and link them.
 	segments := computeSegments(&points, dim)
-	dummyAxis := scaledAxisMetrics{scale: 1.0}
+
+	// FreeType computes the standard widths with the latin segment linking
+	// (af_cjk_metrics_init_widths uses af_latin_hints_link_segments) and the
+	// major direction follows the glyph outline orientation
+	// (af_glyph_hints_reload, afhints.c:940-949): PostScript-oriented
+	// (counter-clockwise) outlines flip the major directions. wqy's
+	// counter-clockwise CJK outlines therefore link DOWN/RIGHT.
+	dummyAxis := scaledAxisMetrics{scale: 1.0, majorDir: majorDir, unitsPerEm: upm}
 	linkSegments(segments, &dummyAxis, scriptGroupDefault)
 
 	// Extract stem widths from linked segment pairs.

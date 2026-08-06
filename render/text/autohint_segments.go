@@ -771,6 +771,16 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 		var minFlags, maxFlags hintPointFlags
 		var minOnCoord, maxOnCoord float32
 
+		// Previous segment state for spike merging
+		// (FreeType aflatin.c:1664-1680). When a new segment's start point is
+		// identical to the previous segment's end point, the two are merged:
+		// same direction unifies into one segment, opposite directions keep
+		// the longer one (see aflatin.c:1707-1790).
+		prevSegIdx := -1
+		var prevMinPos, prevMaxPos, prevMinCoord, prevMaxCoord float32
+		var prevMinFlags, prevMaxFlags hintPointFlags
+		var prevMinOnCoord, prevMaxOnCoord float32
+
 		const maxScoreF = float32(32000)
 		const minScoreF = float32(-32000)
 
@@ -809,42 +819,150 @@ func computeSegments(pa *hintPointArray, dim hintDimension) []hintSegment {
 				// Check if the segment ends here.
 				// Skrifa: point.out_dir != segment_dir || point_ix == last_ix
 				if pa.pts[pointIdx].outDir != segDir || pointIdx == lastIdx {
-					// Finalize the segment. Note: skrifa has complex merging
-					// logic for segments that share an endpoint (prev_segment_ix).
-					// For now we use the simpler "just create the segment" path
-					// which matches the non-merging case.
-					// Position and delta use integer right-shift to match
-					// skrifa's (min_pos + max_pos) >> 1 arithmetic.
-					// Using float division would give 481.5 → rounds to 482,
-					// but skrifa truncates to 481. The >> 1 is equivalent to
-					// floor((a+b)/2) for non-negative sums.
-					iMinPos := int(minPos)
-					iMaxPos := int(maxPos)
-					var segFlags uint32
-					// A segment is round if either end point is a control
-					// (off-curve) and the on-curve span is within the flat
-					// threshold. Matches skrifa State::apply_to_segment.
-					minIsControl := (minFlags & pointFlagControl) != 0
-					maxIsControl := (maxFlags & pointFlagControl) != 0
-					if (minIsControl || maxIsControl) && (maxOnCoord-minOnCoord) < flatThreshold {
-						segFlags |= edgeFlagRound
+					if prevSegIdx < 0 || segFirstIdx != segments[prevSegIdx].lastPt {
+						// Points are different: we are just leaving an edge,
+						// thus record a new segment.
+						// Position and delta use integer right-shift to match
+						// skrifa's (min_pos + max_pos) >> 1 arithmetic.
+						iMinPos := int(minPos)
+						iMaxPos := int(maxPos)
+						var segFlags uint32
+						// A segment is round if either end point is a control
+						// (off-curve) and the on-curve span is within the flat
+						// threshold. Matches skrifa State::apply_to_segment.
+						minIsControl := (minFlags & pointFlagControl) != 0
+						maxIsControl := (maxFlags & pointFlagControl) != 0
+						if (minIsControl || maxIsControl) && (maxOnCoord-minOnCoord) < flatThreshold {
+							segFlags |= edgeFlagRound
+						}
+						seg := hintSegment{
+							pos:      float32((iMinPos + iMaxPos) >> 1),
+							delta:    float32((iMaxPos - iMinPos) >> 1),
+							minCoord: minCoord,
+							maxCoord: maxCoord,
+							height:   maxCoord - minCoord,
+							dir:      segDir,
+							flags:    segFlags,
+							linkIdx:  -1,
+							serifIdx: -1,
+							edgeIdx:  -1,
+							score:    32000,
+							firstPt:  segFirstIdx,
+							lastPt:   pointIdx,
+						}
+						segments = append(segments, seg)
+						prevSegIdx = len(segments) - 1
+						prevMinPos = minPos
+						prevMaxPos = maxPos
+						prevMinCoord = minCoord
+						prevMaxCoord = maxCoord
+						prevMinFlags = minFlags
+						prevMaxFlags = maxFlags
+						prevMinOnCoord = minOnCoord
+						prevMaxOnCoord = maxOnCoord
+					} else {
+						// Points are the same: we don't create a new segment but
+						// merge the current segment with the previous one (i.e.
+						// the previous segment is a single-point spike whose
+						// last point is this segment's first point).
+						// See FreeType aflatin.c:1707-1790.
+						if pa.pts[segments[prevSegIdx].lastPt].inDir == pa.pts[pointIdx].inDir {
+							// Identical directions: unify segments.
+							if prevMinPos < minPos {
+								minPos = prevMinPos
+							}
+							if prevMaxPos > maxPos {
+								maxPos = prevMaxPos
+							}
+							if prevMinCoord < minCoord {
+								minCoord = prevMinCoord
+								minFlags = prevMinFlags
+							}
+							if prevMaxCoord > maxCoord {
+								maxCoord = prevMaxCoord
+								maxFlags = prevMaxFlags
+							}
+							if prevMinOnCoord < minOnCoord {
+								minOnCoord = prevMinOnCoord
+							}
+							if prevMaxOnCoord > maxOnCoord {
+								maxOnCoord = prevMaxOnCoord
+							}
+							prev := &segments[prevSegIdx]
+							prev.lastPt = pointIdx
+							prev.pos = float32((int(minPos) + int(maxPos)) >> 1)
+							prev.delta = float32((int(maxPos) - int(minPos)) >> 1)
+							if (minFlags&pointFlagControl) != 0 || (maxFlags&pointFlagControl) != 0 {
+								if (maxOnCoord - minOnCoord) < flatThreshold {
+									prev.flags |= edgeFlagRound
+								} else {
+									prev.flags &^= edgeFlagRound
+								}
+							}
+							prev.minCoord = minCoord
+							prev.maxCoord = maxCoord
+							prev.height = maxCoord - minCoord
+						} else {
+							// Different directions: use the properties of the
+							// longer segment and discard the other one.
+							if segments[prevSegIdx].maxCoord-segments[prevSegIdx].minCoord >
+								maxCoord-minCoord {
+								// Discard the current (shorter) segment: extend
+								// the previous one with the current end point.
+								if minPos < prevMinPos {
+									prevMinPos = minPos
+								}
+								if maxPos > prevMaxPos {
+									prevMaxPos = maxPos
+								}
+								prev := &segments[prevSegIdx]
+								prev.lastPt = pointIdx
+								prev.pos = float32((int(prevMinPos) + int(prevMaxPos)) >> 1)
+								prev.delta = float32((int(prevMaxPos) - int(prevMinPos)) >> 1)
+							} else {
+								// Discard the previous (shorter) segment: replace
+								// it with the current segment's properties.
+								if prevMinPos < minPos {
+									minPos = prevMinPos
+								}
+								if prevMaxPos > maxPos {
+									maxPos = prevMaxPos
+								}
+								iMinPos := int(minPos)
+								iMaxPos := int(maxPos)
+								var segFlags uint32
+								minIsControl := (minFlags & pointFlagControl) != 0
+								maxIsControl := (maxFlags & pointFlagControl) != 0
+								if (minIsControl || maxIsControl) && (maxOnCoord-minOnCoord) < flatThreshold {
+									segFlags |= edgeFlagRound
+								}
+								seg := hintSegment{
+									pos:      float32((iMinPos + iMaxPos) >> 1),
+									delta:    float32((iMaxPos - iMinPos) >> 1),
+									minCoord: minCoord,
+									maxCoord: maxCoord,
+									height:   maxCoord - minCoord,
+									dir:      segDir,
+									flags:    segFlags,
+									linkIdx:  -1,
+									serifIdx: -1,
+									edgeIdx:  -1,
+									score:    32000,
+									firstPt:  segFirstIdx,
+									lastPt:   pointIdx,
+								}
+								segments[prevSegIdx] = seg
+								prevMinPos = minPos
+								prevMaxPos = maxPos
+								prevMinCoord = minCoord
+								prevMaxCoord = maxCoord
+								prevMinFlags = minFlags
+								prevMaxFlags = maxFlags
+								prevMinOnCoord = minOnCoord
+								prevMaxOnCoord = maxOnCoord
+							}
+						}
 					}
-					seg := hintSegment{
-						pos:      float32((iMinPos + iMaxPos) >> 1),
-						delta:    float32((iMaxPos - iMinPos) >> 1),
-						minCoord: minCoord,
-						maxCoord: maxCoord,
-						height:   maxCoord - minCoord,
-						dir:      segDir,
-						flags:    segFlags,
-						linkIdx:  -1,
-						serifIdx: -1,
-						edgeIdx:  -1,
-						score:    32000,
-						firstPt:  segFirstIdx,
-						lastPt:   pointIdx,
-					}
-					segments = append(segments, seg)
 					onEdge = false
 				}
 			}

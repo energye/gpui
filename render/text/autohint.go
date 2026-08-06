@@ -945,13 +945,28 @@ func (sm *scaledStyleMetrics) applyOutlineOrientation(contours *GlyfContours) {
 	if contours == nil || len(contours.EndPts) == 0 {
 		return
 	}
+	if !outlineHasPSOrientation(contours) {
+		return
+	}
+	sm.axes[dimHorizontal].majorDir = dirDown
+	sm.axes[dimVertical].majorDir = dirRight
+}
+
+// outlineHasPSOrientation reports whether the glyph outline is drawn
+// counter-clockwise (PostScript orientation), which makes horizontal stems
+// face RIGHT and vertical stems face UP, flipping both blue-zone matching
+// and segment linking in FreeType af_glyph_hints_reload (afhints.c:940-949).
+//
+// area >  0  -> counter-clockwise (PostScript orientation)
+// area <= 0  -> clockwise / degenerate  (TrueType default)
+func outlineHasPSOrientation(contours *GlyfContours) bool {
 	var area int64
 	start := 0
 	for _, end := range contours.EndPts {
 		first := start
 		last := int(end)
 		if last >= len(contours.Points) {
-			return
+			return false
 		}
 		prev := contours.Points[last]
 		for i := first; i <= last; i++ {
@@ -961,10 +976,7 @@ func (sm *scaledStyleMetrics) applyOutlineOrientation(contours *GlyfContours) {
 		}
 		start = last + 1
 	}
-	if area > 0 {
-		sm.axes[dimHorizontal].majorDir = dirDown
-		sm.axes[dimVertical].majorDir = dirRight
-	}
+	return area > 0
 }
 
 // scaleTo scales axis metrics to the given scale factor.

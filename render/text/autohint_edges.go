@@ -293,16 +293,51 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 			}
 
 			// Link edges based on segment links.
+			// FreeType af_cjk_hints_compute_edges (afcjk.c:1229-1245): when the
+			// edge already has a link, only switch to the new candidate if the
+			// segment pair is strictly closer than the edge pair (seg_delta <
+			// edge_delta). This keeps the first stem link (e.g. 528->680) from
+			// being clobbered by a later serif segment link (560->712).
 			if seg.linkIdx >= 0 {
 				linkedSeg := &segments[seg.linkIdx]
 				if linkedSeg.edgeIdx >= 0 {
-					edge.linkIdx = linkedSeg.edgeIdx
+					newLink := int(linkedSeg.edgeIdx)
+					if edge.linkIdx >= 0 {
+						edgeDelta := edge.fpos - edges[edge.linkIdx].fpos
+						if edgeDelta < 0 {
+							edgeDelta = -edgeDelta
+						}
+						segDelta := seg.pos - linkedSeg.pos
+						if segDelta < 0 {
+							segDelta = -segDelta
+						}
+						if segDelta < edgeDelta {
+							edge.linkIdx = int16(newLink)
+						}
+					} else {
+						edge.linkIdx = int16(newLink)
+					}
 				}
 			}
 			if seg.serifIdx >= 0 {
 				serifSeg := &segments[seg.serifIdx]
 				if serifSeg.edgeIdx >= 0 {
-					edge.serifIdx = serifSeg.edgeIdx
+					newSerif := int(serifSeg.edgeIdx)
+					if edge.serifIdx >= 0 {
+						edgeDelta := edge.fpos - edges[edge.serifIdx].fpos
+						if edgeDelta < 0 {
+							edgeDelta = -edgeDelta
+						}
+						segDelta := seg.pos - serifSeg.pos
+						if segDelta < 0 {
+							segDelta = -segDelta
+						}
+						if segDelta < edgeDelta {
+							edge.serifIdx = int16(newSerif)
+						}
+					} else {
+						edge.serifIdx = int16(newSerif)
+					}
 				}
 			}
 		}
