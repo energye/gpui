@@ -239,8 +239,17 @@ type hintedEdgeMetrics struct {
 // References:
 //   - skrifa instance.rs:127-183 (advance adjustment)
 //   - FreeType afloader.c:422 (FT_PIX_ROUND adjustment)
-func computeAdjustedAdvance(fontUnitAdvance int32, xScale16dot16 int32, metrics hintedEdgeMetrics) (advance int32, pp1x int32) {
+func computeAdjustedAdvance(fontUnitAdvance int32, xScale16dot16 int32, metrics hintedEdgeMetrics, light bool) (advance int32, pp1x int32) {
 	pp2x := fixedMul26dot6(fontUnitAdvance, xScale16dot16)
+
+	// FT light mode skips the phantom-point adjustment entirely
+	// (afloader.c:422 `scaler.render_mode != FT_RENDER_MODE_LIGHT`;
+	// skrifa instance.rs:126-159 `is_light` branch): pp1.x stays 0 and the
+	// glyph outline is NOT translated. Only non-light (full) hinting adjusts
+	// the side bearings from the hinted left/right edges.
+	if light {
+		return f26dot6Round(pp2x), 0
+	}
 
 	if !metrics.hasEdges {
 		// No H-edges: just round the scaled advance.
@@ -307,7 +316,7 @@ func autoHintViaContours(outline *GlyphOutline, fontData []byte, font ParsedFont
 	fontUnitAdvance := int32(math.Round(font.GlyphAdvance(uint16(outline.GID), float64(upm))))
 	xScale := computeScale16dot16(ppem / float64(upm))
 
-	adjustedAdvance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, edgeMetrics)
+	adjustedAdvance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, edgeMetrics, hinting == HintingVertical)
 
 	// Translate outline points by -pp1x if the left phantom shifted.
 	// This matches skrifa instance.rs:165-168.
@@ -354,7 +363,7 @@ func autoHintViaContoursPreloaded(outline *GlyphOutline, contours *GlyfContours,
 	fontUnitAdvance := int32(math.Round(font.GlyphAdvance(uint16(outline.GID), float64(upm))))
 	xScale := computeScale16dot16(ppem / float64(upm))
 
-	adjustedAdvance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, edgeMetrics)
+	adjustedAdvance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, edgeMetrics, hinting == HintingVertical)
 
 	// Translate outline points by -pp1x if the left phantom shifted.
 	if pp1x != 0 {

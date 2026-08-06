@@ -1438,7 +1438,7 @@ func TestGolden_AdjustedAdvance_NotoSerifHebrew_GID9(t *testing.T) {
 		hasEdges:  true,
 	}
 
-	advance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, metrics)
+	advance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, metrics, false)
 	adjustedPx := f26dot6ToFloat(f26dot6Round(advance))
 
 	t.Logf("fontUnitAdvance: %d", fontUnitAdvance)
@@ -1480,7 +1480,7 @@ func TestGolden_AdjustedAdvance_NoEdges(t *testing.T) {
 
 	metrics := hintedEdgeMetrics{hasEdges: false}
 
-	advance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, metrics)
+	advance, pp1x := computeAdjustedAdvance(fontUnitAdvance, xScale, metrics, false)
 	adjustedPx := f26dot6ToFloat(f26dot6Round(advance))
 
 	// pp2x = fixedMul26dot6(500, xScale)
