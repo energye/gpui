@@ -112,9 +112,31 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, pxSize float64, mo
 
 | 阶段 | 内容 | 验证线 |
 |---|---|---|
-| **M4** | **glyf 无字节码 → autofit light 化**：现有自研 autohint_*.go（Full 语义）改 light 模式——afcjk light（旧 §13 破译有效）/ aflatin light / afindic；其余脚本（阿拉伯/希伯来/泰文等）light 下**透传不 hint** | 无字节码 TTF（Noto Sans TTF 版/DejaVu 无字节码样本）× 各脚本族 diff |
+| **M4** | **glyf 无字节码 → autofit light 化**：现有自研 autohint_*.go（Full 语义）改 light 模式——afcjk light（旧 §13 破译有效）/ aflatin light / afindic；其余脚本（阿拉伯/希伯来/泰文等）light 下**透传不 hint** | 无字节码 TTF（Noto Sans TTF 版/DejaVu 无字节码样本）× 各脚本族 diff；**M4a 进行中（见 §5.2a）** |
 | **L0** | **tt_engine light 模式**：`InterpLight`（HarfBuzz semantics：网格对齐减弱、不发 drop-out、强 keeper）；不改现有解释器默认分支（render/ 高风险，改前 question） | E/H/L/`1`/`i`/`0`/`l` 8–16px 逐字 diff → 0 |
 | **L1** | **Latin 全集归零**：ASCII 95 + accent 29 + confusable 17 + 西里尔 66 + 希腊 48 = 255 字 | 全 Latin 字集 12px diff → 0 |
+
+### 5.2a M4 收尾清单（2026-08-06 立，wqy-microhei-nohint.ttf = glyf 无字节码 CJK 对照主字体）
+
+**已完成（M4a，3 个 commit：af46494 / b64b94c / 1e871b2）**：
+
+| # | 项 | 内容 | 验证 |
+|---|---|---|---|
+| M4a-1 | stem light 语义 | doStemAdjust 从 axis 读、light 不量化宽度、dim 区分 MAX_HORZ/VERT_GAP threshold、delta clamp 14 | commit af46494 |
+| M4a-2 | 单点 contour 段 + dirNone 边 | computeSegments 补 is_single_point_contour 分支（skrifa segments.rs:424）、移除 contourLen<3 过滤、computeEdges dir=None 过滤仅限 Default 组、contoursToOutline 保留 n<2 contour | commit b64b94c；好/永/目/日/二 全字号顶锚 0 差 |
+| M4a-3 | 蓝区中位对齐 | findBestYContour 镜像 FT afcjk：≤2 点整字跳过 + 逐轮廓扫描 + 单点轮廓跳过 + off-curve 全扫 | commit 1e871b2；fills+flats 49 逐字 = FT_TRACE；顶蓝 1656/1592；目/日 16px 768=12px |
+
+**未完成（M4 门禁前必做）**：
+
+| # | 项 | 现象/目标 | 备注 |
+|---|---|---|---|
+| M4b-1 | **田字顶锚残余** | 田 10/14/16px 顶 466/672/738 vs FT 478/645/766（16px 差 28/64） | **edge capture / stem 传播差异**，非蓝区中位问题；先 TRACE 定位 田 被哪条蓝捕获再修 |
+| M4b-2 | 二字顶锚残余 | 二 12/16px 顶 534/712 vs FT 538/713（±1~4/64） | stem light 传播边界 |
+| M4b-3 | wqy 全字集回归窗 | 以 FT afcjk 为参照，wqy-microhei-nohint 全常用字 × 10/12/14/16px 逐字 diff 基线 | 参考 M3 的 zz_scan_3000 模式（ftexp bcontour 批量对照），未归零字数与最大偏差记录不偷放 |
+| M4b-4 | aflatin light | 无字节码 Latin TTF（DejaVu 无字节码样本/自造）light 化 | 未开始 |
+| M4b-5 | afindic light | 无字节码 Indic TTF light 化 | 未开始 |
+| M4b-6 | 其余脚本透传判定 | 阿拉伯/希伯来/泰文等 light 下透传不 hint（afdummy 语义） | 未开始 |
+| M4b-7 | M4 门禁 | 全 M4 字集各字号 diff 归零（或既定允许差记录） | 未开始 |
 
 ### 5.3 skia/flutter 能力对齐（工业级缺口，2026-08-04 用户「工业级控件/对齐底层库能力」确认）
 
@@ -196,7 +218,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 | M1 charstring 解释器 | ✅ 完成（2026-08-04） | cffcs.go + LanguageGroup/Subrs/width；日/田/目 12px 60 点逐点零误差；26.6 转换链见 §13.6 |
 | M2 cf2Blues+cf2HintMap（含 X 轴） | ✅ 完成（2026-08-05） | psh_light.go 重写完成；单区字 25 个 × 6 字号（10–24px）逐点 vs ftexp light（暗化实证关）全绿；暗化移植保留备用（psf_light.go 按 psfont.c 移植，当前 darken=0） |
 | M3 hintmask 多区 + 收尾 + 验证集扩 | ✅ 完成（2026-08-05，M3 主项） | 多 mask 分区逐区建图；修复：initial 图只建一次各区共享（FT isValid 复用语义）+ 首事件 atPt==0 跳过全 1 区（moveTo 语义）+ **vmoveto/hmoveto 补设 moveMaskIdx**（新轮廓起点不再用旧 mask 图）+ **cf2StemSlice 精确转换保留半身 stem**（-55.5/231.5 不四舍五入，消 8 字 ±1/64 恒偏）+ **lineTo 每段独立跳过**（对齐 pushPrevElem，不受先前省略点影响）+ **ps_builder_close_contour 闭合重合点去重**（末点与轮廓起点 DS 重合则丢，矗屭 10px 点数对齐 psobjs.c:2336-2338）；**结果：128 多 mask 字 × 10/12/14/16/20/24px 对照 ftexp light 全部 bad=0；3000 常用字（《通用规范汉字表》一级表前 3000，testdata/cjk3000.txt）× 6 字号全量回归 bad=0（TestScanCJK3000，ftexp bcontour 批量对照 ≈5s，map 覆盖断言 ≥2900 防假绿）；韩文 11172 Hangul 音节（U+AC00–D7A3）× 6 字号 bad=0（TestScanKR ≈13s）；泰文 87 有字形码位（U+0E01–0E5B，Noto Sans Thai CFF testdata 内置，顺带修 cff.go dictPrivate 全表查找支持 Private 不在 DICT 末尾的非 CID 字体）× 6 字号 bad=0（TestScanTH）** |
-| M4 autofit light 化（无字节码 glyf） | 待做 | 本轮后 |
+| M4 autofit light 化（无字节码 glyf） | ⚠️ M4a 进行中（2026-08-06） | 见 §5.2a 清单：M4a-1/2/3 完成（stem light + 单点 contour + 蓝区中位对齐 FT）；M4b-1 田字顶锚、M4b-2 二顶锚、M4b-3 wqy 全字集回归窗、M4b-4/5/6 aflatin/afindic/其余脚本、M4b-7 门禁待做 |
 | M5 CFF2 可变（blend） | 待做 | 本轮后；注：`extractCFF2Outline` 已有 fvar/avar/blend（cff_outline.go），M5 仅为 cf2 语义融合 |
 | M6 CJK 竖排（vhea/vmtx/vrt2） | 待做 | 本轮后；gpui 现无竖排支持 |
 | M7 系统字体发现（FontMgr 等价） | 待做 | 本轮后 |
