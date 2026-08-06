@@ -99,7 +99,7 @@ func computeEdgeDistThreshold(axis *scaledAxisMetrics, group scriptGroup) float3
 // See skrifa topo/edges.rs compute_edges.
 //
 //nolint:gocognit,gocyclo,cyclop,funlen // FreeType aflatin.c port — algorithmic complexity is inherent
-func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimension, group scriptGroup) []*hintEdge {
+func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimension, group scriptGroup, topToBottom bool) []*hintEdge {
 	if len(segments) == 0 {
 		return nil
 	}
@@ -213,11 +213,12 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 
 	// Sort edges by position, matching FreeType af_axis_hints_new_edge
 	// (afhints.c:197-253) and skrifa Axis::insert_edge (topo/mod.rs): ascending
-	// fpos. Within equal fpos, a new edge with the minor direction keeps
-	// shifting left past same-position edges while one with the major
-	// direction stops, so minor-direction edges come first in reverse
-	// detection order, then major-direction edges in detection order. Major
-	// dirs: HORZ=UP, VERT=LEFT (afhints.c:942-948).
+	// fpos, or descending for hint_top_to_bottom scripts (Devanagari, Bengali,
+	// Gurmukhi, Gothic, Mongolian — afhints.c:257-268). Within equal fpos, a
+	// new edge with the minor direction keeps shifting left past same-position
+	// edges while one with the major direction stops, so minor-direction edges
+	// come first in reverse detection order, then major-direction edges in
+	// detection order. Major dirs: HORZ=UP, VERT=LEFT (afhints.c:942-948).
 	majorDir := dirUp
 	if dim == dimVertical {
 		majorDir = dirLeft
@@ -229,6 +230,9 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 	sort.SliceStable(edgeOrder, func(i, j int) bool {
 		a, b := edges[edgeOrder[i]], edges[edgeOrder[j]]
 		if a.fpos != b.fpos {
+			if topToBottom {
+				return a.fpos > b.fpos
+			}
 			return a.fpos < b.fpos
 		}
 		am := a.dir == majorDir
@@ -706,7 +710,7 @@ func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, s
 //nolint:nestif // FreeType aflatin.c port — algorithmic complexity is inherent
 func positionFirstStem(edge, edge2 *hintEdge, orgLen, curLen int32) {
 	if curLen < 96 { // < 1.5px in 26.6
-		orgCenter := edge.opos + orgLen/2
+		orgCenter := edge.opos + (orgLen >> 1)
 		curPos := f26dot6Round(orgCenter)
 
 		var uOff, dOff int32
@@ -750,7 +754,7 @@ func positionFirstStem(edge, edge2 *hintEdge, orgLen, curLen int32) {
 //nolint:nestif // FreeType aflatin.c port — algorithmic complexity is inherent
 func positionSubsequentStem(edge, edge2, anchor *hintEdge, orgLen, curLen int32) {
 	orgPos := anchor.pos + (edge.opos - anchor.opos)
-	orgCenter := orgPos + orgLen/2
+	orgCenter := orgPos + (orgLen >> 1)
 
 	if edge2.flags&edgeFlagDone != 0 {
 		// Edge2 already done (e.g., blue zone) — adjust edge.

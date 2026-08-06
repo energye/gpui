@@ -107,7 +107,7 @@ func runFullPipeline(points *hintPointArray, scaled *scaledStyleMetrics, group s
 		}
 		adjustSegmentHeights(points, segments, dim)
 		linkSegments(segments, axisMetrics, group)
-		edges := computeEdges(segments, axisMetrics, dim, group)
+		edges := computeEdges(segments, axisMetrics, dim, group, false)
 		if len(edges) == 0 {
 			continue
 		}
@@ -129,7 +129,7 @@ func runFullPipelineWithBlueOverride(points *hintPointArray, scaled *scaledStyle
 	if len(hSegs) > 0 {
 		adjustSegmentHeights(points, hSegs, dimHorizontal)
 		linkSegments(hSegs, hAxis, scriptGroupDefault)
-		hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
+		hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault, false)
 		if len(hEdges) > 0 {
 			hintEdges(hEdges, hAxis, scriptGroupDefault, false, dimVertical)
 			alignEdgePoints(points, hSegs, hEdges, dimHorizontal, scriptGroupDefault)
@@ -144,7 +144,7 @@ func runFullPipelineWithBlueOverride(points *hintPointArray, scaled *scaledStyle
 	if len(vSegs) > 0 {
 		adjustSegmentHeights(points, vSegs, dimVertical)
 		linkSegments(vSegs, vAxis, scriptGroupDefault)
-		vEdges := computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault)
+		vEdges := computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault, false)
 		if len(vEdges) > 0 {
 			overrideHebrewBlueEdges(vEdges)
 			hintEdges(vEdges, vAxis, scriptGroupDefault, false, dimVertical)
@@ -670,7 +670,7 @@ func TestGolden_Edges_NotoSerifHebrew_Default(t *testing.T) {
 	if len(hSegs) > 0 {
 		adjustSegmentHeights(&points, hSegs, dimHorizontal)
 		linkSegments(hSegs, hAxis, scriptGroupDefault)
-		hEdges = computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
+		hEdges = computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault, false)
 	}
 
 	// V-dimension: segments → adjust → link → edges.
@@ -680,7 +680,7 @@ func TestGolden_Edges_NotoSerifHebrew_Default(t *testing.T) {
 	if len(vSegs) > 0 {
 		adjustSegmentHeights(&points, vSegs, dimVertical)
 		linkSegments(vSegs, vAxis, scriptGroupDefault)
-		vEdges = computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault)
+		vEdges = computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault, false)
 	}
 
 	// Compare H-edges.
@@ -1209,7 +1209,7 @@ func TestGolden_EdgeHinting_NotoSerifHebrew(t *testing.T) {
 	if len(hSegs) > 0 {
 		adjustSegmentHeights(&points, hSegs, dimHorizontal)
 		linkSegments(hSegs, hAxis, scriptGroupDefault)
-		hEdges = computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
+		hEdges = computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault, false)
 		if len(hEdges) > 0 {
 			hintEdges(hEdges, hAxis, scriptGroupDefault, false, dimVertical)
 		}
@@ -1222,7 +1222,7 @@ func TestGolden_EdgeHinting_NotoSerifHebrew(t *testing.T) {
 	if len(vSegs) > 0 {
 		adjustSegmentHeights(&points, vSegs, dimVertical)
 		linkSegments(vSegs, vAxis, scriptGroupDefault)
-		vEdges = computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault)
+		vEdges = computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault, false)
 		if len(vEdges) > 0 {
 			overrideHebrewBlueEdges(vEdges)
 			hintEdges(vEdges, vAxis, scriptGroupDefault, false, dimVertical)
@@ -1340,7 +1340,7 @@ func TestGolden_HintedMetrics_NotoSerifHebrew_Values(t *testing.T) {
 	if len(hSegs) > 0 {
 		adjustSegmentHeights(&points, hSegs, dimHorizontal)
 		linkSegments(hSegs, hAxis, scriptGroupDefault)
-		hEdges = computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
+		hEdges = computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault, false)
 		if len(hEdges) > 0 {
 			hintEdges(hEdges, hAxis, scriptGroupDefault, false, dimVertical)
 		}

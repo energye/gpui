@@ -482,14 +482,19 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 		linkSegments(segments, axisMetrics, group)
 
 		// Group segments into edges.
-		edges := computeEdges(segments, axisMetrics, dim, group)
+		edges := computeEdges(segments, axisMetrics, dim, group, script.hintTopToBottom)
 		if len(edges) == 0 {
 			continue
 		}
 
 		// Match edges to blue zones.
 		// Default: vertical dimension only. CJK: both dimensions.
-		if dim == dimVertical || group == scriptGroupCJK {
+		// Non-base glyphs (combining marks, vowel signs) get NO blue
+		// zones, matching FreeType af_latin_hints_apply: blue zones are
+		// only computed for base characters (glyph_styles & AF_NONBASE
+		// checked); the CJK pipeline (afcjk.c) does not honor NONBASE.
+		isNonbase := group != scriptGroupCJK && glyphIsNonbase(font, gid)
+		if (dim == dimVertical || group == scriptGroupCJK) && !isNonbase {
 			computeBlueEdges(edges, axisMetrics, group)
 		}
 

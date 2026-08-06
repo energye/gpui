@@ -81,6 +81,15 @@ type scriptClass struct {
 	// coverage (fallback only).
 	uniranges []runePair
 
+	// nonbase lists the script's non-base character ranges (vowel signs,
+	// combining marks, etc.). Matches FreeType afranges.c
+	// af_<script>_nonbase_uniranges. Glyphs whose cmap code points fall
+	// in these ranges AND belong to this script are treated as non-base:
+	// like FreeType (aflatin.c af_latin_hints_apply), blue zones are NOT
+	// computed for them (af_latin_hints_compute_blue_edges skipped when
+	// glyph_styles & AF_NONBASE). Base glyphs still get blue zones.
+	nonbase []runePair
+
 	// blues defines blue zone specifications for this script.
 	blues []blueSpec
 }
@@ -268,6 +277,11 @@ var glyphScriptCache struct {
 
 func init() {
 	glyphScriptCache.cache = make(map[string][]*scriptClass)
+
+	// Wire FreeType nonbase ranges into the script classes.
+	for _, sc := range scriptClasses {
+		sc.nonbase = scriptNonbaseRanges[sc.name]
+	}
 }
 
 // glyphScriptKey identifies a font for the per-glyph script cache.
@@ -325,13 +339,59 @@ func perGlyphScripts(font ParsedFont) []*scriptClass {
 		}
 	}
 
+	// Scan each script's non-base ranges, marking glyphs whose cmap code
+	// points fall in the ranges AND that belong to this script. Matches
+	// FreeType afglobal.c:214-232 (AF_NONBASE set only when the glyph was
+	// already assigned to this script style).
+	nb := make([]bool, numGlyphs)
+	for _, sc := range scriptClasses {
+		if len(sc.nonbase) == 0 {
+			continue
+		}
+		for _, r := range sc.nonbase {
+			for cp := r.first; cp <= r.last; cp++ {
+				gid := int(font.GlyphIndex(cp))
+				if gid > 0 && gid < numGlyphs && s[gid] == sc {
+					nb[gid] = true
+				}
+			}
+		}
+	}
+
 	// NOTE: a glyph already assigned to a non-CJK script is never
 	// overwritten, even if a later range of a higher-priority script
 	// covers it — this matches FreeType's "first style wins" (styles
 	// are scanned in order, glyphs assigned once) and leaves genuinely
 	// uncovered glyphs on the hani_dflt fallback, exactly like FreeType.
 	glyphScriptCache.cache[key] = s
+	glyphNonbaseCache.cache[key] = nb
 	return s
+}
+
+// glyphNonbaseCache caches per-glyph non-base flags for each font
+// (parallel to glyphScriptCache; filled by perGlyphScripts).
+var glyphNonbaseCache struct {
+	mu    sync.RWMutex
+	cache map[string][]bool
+}
+
+func init() {
+	glyphNonbaseCache.cache = make(map[string][]bool)
+}
+
+// glyphIsNonbase reports whether the glyph is a non-base character
+// (combining mark / vowel sign) for auto-hinting purposes. Mirrors
+// FreeType's AF_NONBASE glyph style flag.
+func glyphIsNonbase(font ParsedFont, gid GlyphID) bool {
+	perGlyphScripts(font)
+	key := glyphScriptKey(font)
+	glyphNonbaseCache.mu.RLock()
+	nb, ok := glyphNonbaseCache.cache[key]
+	glyphNonbaseCache.mu.RUnlock()
+	if !ok || int(gid) >= len(nb) {
+		return false
+	}
+	return nb[gid]
 }
 
 // scriptForGlyph returns the auto-hint script for a glyph, using

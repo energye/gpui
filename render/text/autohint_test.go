@@ -305,7 +305,7 @@ func TestComputeEdges_BasicStemPair(t *testing.T) {
 		edgeDistThreshold: 0.25,
 	}
 
-	edges := computeEdges(segments, axis, dimHorizontal, scriptGroupDefault)
+	edges := computeEdges(segments, axis, dimHorizontal, scriptGroupDefault, false)
 
 	if len(edges) != 2 {
 		t.Fatalf("expected 2 edges, got %d", len(edges))
@@ -334,7 +334,7 @@ func TestComputeEdges_SegmentMerging(t *testing.T) {
 		edgeDistThreshold: 0.25,
 	}
 
-	edges := computeEdges(segments, axis, dimHorizontal, scriptGroupDefault)
+	edges := computeEdges(segments, axis, dimHorizontal, scriptGroupDefault, false)
 
 	// The first two segments should merge into one edge.
 	if len(edges) != 2 {
@@ -2010,7 +2010,7 @@ func TestAutoHint_Edges_VsSkrifaGolden_Horizontal(t *testing.T) {
 		axisMetrics.scale, axisMetrics.edgeDistThreshold, axisMetrics.widths)
 
 	// Compute edges.
-	edges := computeEdges(hSegs, axisMetrics, dimHorizontal, scriptGroupDefault)
+	edges := computeEdges(hSegs, axisMetrics, dimHorizontal, scriptGroupDefault, false)
 
 	// Skrifa golden: 4 horizontal edges.
 	wantH := []skrifaEdgeGolden{
@@ -2125,7 +2125,7 @@ func TestAutoHint_Edges_VsSkrifaGolden_Vertical(t *testing.T) {
 	linkSegments(vSegs, axisMetrics, scriptGroupDefault)
 
 	// Compute edges.
-	edges := computeEdges(vSegs, axisMetrics, dimVertical, scriptGroupDefault)
+	edges := computeEdges(vSegs, axisMetrics, dimVertical, scriptGroupDefault, false)
 
 	// Skrifa golden: 4 vertical edges.
 	wantV := []skrifaEdgeGolden{
@@ -2271,7 +2271,7 @@ func TestAutoHint_Edges_VsSkrifaRust_FullParity(t *testing.T) {
 	hSegs := computeSegments(&points, dimHorizontal)
 	adjustSegmentHeights(&points, hSegs, dimHorizontal)
 	linkSegments(hSegs, &scaled.axes[dimHorizontal], scriptGroupDefault)
-	hEdges := computeEdges(hSegs, &scaled.axes[dimHorizontal], dimHorizontal, scriptGroupDefault)
+	hEdges := computeEdges(hSegs, &scaled.axes[dimHorizontal], dimHorizontal, scriptGroupDefault, false)
 
 	type edgeGoldenFull struct {
 		fpos     int
@@ -2339,7 +2339,7 @@ func TestAutoHint_Edges_VsSkrifaRust_FullParity(t *testing.T) {
 	vSegs := computeSegments(&points, dimVertical)
 	adjustSegmentHeights(&points, vSegs, dimVertical)
 	linkSegments(vSegs, &scaled.axes[dimVertical], scriptGroupDefault)
-	vEdges := computeEdges(vSegs, &scaled.axes[dimVertical], dimVertical, scriptGroupDefault)
+	vEdges := computeEdges(vSegs, &scaled.axes[dimVertical], dimVertical, scriptGroupDefault, false)
 
 	// V edge[0] serifIdx: with script-aware width detection (Hebrew
 	// standard chars), segment linking now correctly produces serifIdx=1
@@ -2447,7 +2447,7 @@ func TestAutoHint_HintEdges_VsSkrifaGolden_Horizontal(t *testing.T) {
 	hSegs := computeSegments(&points, dimHorizontal)
 	adjustSegmentHeights(&points, hSegs, dimHorizontal)
 	linkSegments(hSegs, axisMetrics, scriptGroupDefault)
-	edges := computeEdges(hSegs, axisMetrics, dimHorizontal, scriptGroupDefault)
+	edges := computeEdges(hSegs, axisMetrics, dimHorizontal, scriptGroupDefault, false)
 	// No blue edge matching for horizontal dimension (only vertical gets blues).
 	hintEdges(edges, axisMetrics, scriptGroupDefault, false, dimVertical)
 
@@ -2549,7 +2549,7 @@ func TestAutoHint_HintEdges_VsSkrifaGolden_Vertical(t *testing.T) {
 	vSegs := computeSegments(&points, dimVertical)
 	adjustSegmentHeights(&points, vSegs, dimVertical)
 	linkSegments(vSegs, axisMetrics, scriptGroupDefault)
-	edges := computeEdges(vSegs, axisMetrics, dimVertical, scriptGroupDefault)
+	edges := computeEdges(vSegs, axisMetrics, dimVertical, scriptGroupDefault, false)
 
 	// Manually inject skrifa-equivalent blue zone assignments.
 	// From skrifa Rust test golden (edges.rs edges_default):
@@ -2672,7 +2672,7 @@ func TestAutoHint_FullPipeline_VsSkrifaGolden(t *testing.T) {
 	hSegs := computeSegments(&points, dimHorizontal)
 	adjustSegmentHeights(&points, hSegs, dimHorizontal)
 	linkSegments(hSegs, hAxis, scriptGroupDefault)
-	hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
+	hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault, false)
 	hintEdges(hEdges, hAxis, scriptGroupDefault, false, dimVertical)
 	alignEdgePoints(&points, hSegs, hEdges, dimHorizontal, scriptGroupDefault)
 	alignStrongPoints(&points, hEdges, dimHorizontal)
@@ -2682,7 +2682,7 @@ func TestAutoHint_FullPipeline_VsSkrifaGolden(t *testing.T) {
 	vSegs := computeSegments(&points, dimVertical)
 	adjustSegmentHeights(&points, vSegs, dimVertical)
 	linkSegments(vSegs, vAxis, scriptGroupDefault)
-	vEdges := computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault)
+	vEdges := computeEdges(vSegs, vAxis, dimVertical, scriptGroupDefault, false)
 
 	// Inject skrifa-equivalent blue zone assignments for vertical edges.
 	blueEdge0 := scaledWidth{scaled: -246, fitted: -256}
@@ -2772,7 +2772,7 @@ func TestAutoHint_AlignEdgePoints_VsSkrifaGolden(t *testing.T) {
 	hSegs := computeSegments(&points, dimHorizontal)
 	adjustSegmentHeights(&points, hSegs, dimHorizontal)
 	linkSegments(hSegs, hAxis, scriptGroupDefault)
-	hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault)
+	hEdges := computeEdges(hSegs, hAxis, dimHorizontal, scriptGroupDefault, false)
 	hintEdges(hEdges, hAxis, scriptGroupDefault, false, dimVertical)
 	alignEdgePoints(&points, hSegs, hEdges, dimHorizontal, scriptGroupDefault)
 
