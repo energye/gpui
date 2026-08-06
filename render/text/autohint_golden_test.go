@@ -114,7 +114,7 @@ func runFullPipeline(points *hintPointArray, scaled *scaledStyleMetrics, group s
 		if dim == dimVertical || group == scriptGroupCJK {
 			computeBlueEdges(edges, axisMetrics, group)
 		}
-		hintEdges(edges, axisMetrics, group, false, dimVertical)
+		hintEdges(edges, axisMetrics, group, false, dim)
 		alignEdgePoints(points, segments, edges, dim, group)
 		alignStrongPoints(points, edges, dim)
 		alignWeakPoints(points, dim)

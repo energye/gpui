@@ -412,6 +412,13 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 	scale := ppem / float64(upm)
 	scaled := unscaled.scaleWithUPM(scale, upm)
 
+	// Recompute per-axis major direction from the actual outline winding.
+	// FreeType/skrifa do this per glyph (FT: FT_Outline_Get_Orientation;
+	// skrifa: Axis::reset with outline.orientation). Most TrueType fonts are
+	// clockwise (defaults above); counter-clockwise outlines (some CJK fonts,
+	// e.g. wqy) flip the V-axis major from LEFT to RIGHT.
+	scaled.applyOutlineOrientation(contours)
+
 	// Build the point array from raw contour points.
 	// Stores font-unit coords (fx/fy) and scaled coords (ox/oy/x/y).
 	points := buildHintPointsFromContours(contours, scale, upm)
@@ -430,19 +437,25 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 	}
 
 	// Process each dimension (same logic as autoHintOutline).
+	// HintingVertical maps to FT light: STEM_ADJUST disabled (aflatin.c:2637-2644)
+	// and, for Latin, only the vertical dimension is processed (NO_HORIZONTAL).
+	// For CJK, FreeType's light mode still runs BOTH dimensions through the
+	// afcjk pipeline (af_cjk_hints_apply processes every dimension; only
+	// stem-width adjustment is skipped) — verified against FT 2.11 trace
+	// ("cjk vertical edge hinting" + "cjk horizontal edge hinting" both run
+	// under FT_LOAD_TARGET_LIGHT) and against wqy light outlines, where FT
+	// moves X coordinates (e.g. 刚 588->574) that a vertical-only pass leaves
+	// untouched. So for CJK we process both axes in light mode too.
+	group := unscaled.group
 	dims := []hintDimension{dimVertical}
-	if hinting == HintingFull {
+	if hinting == HintingFull || group == scriptGroupCJK {
 		dims = append([]hintDimension{dimHorizontal}, dims...)
 	}
-
-	group := unscaled.group
 
 	for _, dim := range dims {
 		axisMetrics := &scaled.axes[dim]
 
-		// FT light mode: NO_HORIZONTAL hinting with STEM_ADJUST disabled
-		// (aflatin.c:2637-2644). We map HintingVertical to FT light: only the
-		// vertical dimension is processed and stem widths are not adjusted.
+		// FT light mode: STEM_ADJUST disabled (aflatin.c:2637-2644).
 		if hinting == HintingVertical {
 			axisMetrics.doStemAdjust = false
 		}
@@ -894,6 +907,55 @@ func (m *unscaledStyleMetrics) scaleWithUPM(scaleFactor float64, upm int) *scale
 	sm.axes[dimHorizontal].majorDir = dirUp
 	sm.axes[dimVertical].majorDir = dirLeft
 	return sm
+}
+
+// applyOutlineOrientation recomputes the per-axis major direction from the
+// actual winding of the glyph outline (FreeType/skrifa do this once per glyph).
+//
+// FreeType afhints.c:942-949 sets the axes' major directions from the outline
+// orientation detected in FT_Outline_Get_Orientation:
+//
+//	TrueType (clockwise): H major = UP,    V major = LEFT
+//	PostScript (counter-clockwise): H major = DOWN, V major = RIGHT
+//
+// skrifa topo/mod.rs Axis::reset performs the same mapping keyed on
+// Orientation::Clockwise. The orientation is computed from the shoelace area
+// over each contour's points (skrifa outline.rs compute_orientation, same
+// polygon formula as FT_Outline_Get_Orientation):
+//
+//	area >  0  -> counter-clockwise (PostScript orientation)
+//	area <= 0  -> clockwise / degenerate  (TrueType default)
+//
+// Glyphs from TrueType fonts are normally clockwise, so the TrueType default
+// set in scaleWithUPM is correct for most fonts. Some CJK fonts (e.g. the
+// wqy family) are rendered with counter-clockwise outlines; their horizontal
+// (V-axis) stems then face RIGHT instead of LEFT, which flips both the blue
+// zone matching and the segment linking. Missing this flip made bottom-edge
+// blue matching and horizontal stem links disagree with FreeType/skrifa.
+func (sm *scaledStyleMetrics) applyOutlineOrientation(contours *GlyfContours) {
+	if contours == nil || len(contours.EndPts) == 0 {
+		return
+	}
+	var area int64
+	start := 0
+	for _, end := range contours.EndPts {
+		first := start
+		last := int(end)
+		if last >= len(contours.Points) {
+			return
+		}
+		prev := contours.Points[last]
+		for i := first; i <= last; i++ {
+			p := contours.Points[i]
+			area += (int64(p.Y) - int64(prev.Y)) * (int64(p.X) + int64(prev.X))
+			prev = p
+		}
+		start = last + 1
+	}
+	if area > 0 {
+		sm.axes[dimHorizontal].majorDir = dirDown
+		sm.axes[dimVertical].majorDir = dirRight
+	}
 }
 
 // scaleTo scales axis metrics to the given scale factor.

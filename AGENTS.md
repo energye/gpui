@@ -30,6 +30,8 @@
 
 ## 测试数据与阶段回归（硬）
 
+> **适用范围**：仅针对 `render/text` 下 Go 自研文本渲染功能的**阶段完成验收**（M0–Mx 各阶段）。其他功能的开发/验收**不需要走本流程**。
+
 - **测试数据一律入 `testdata/`**（各包 `xxx/testdata/`）：字体、字表（如 cjk3000.txt）、FT 对照工具等；`/tmp` 下仅允许 `t.TempDir()` 的进程级临时文件，禁止把外部路径（如 `/tmp/opencode`）写死在测试代码里。
 - **各语言标准测试字表文件**（`render/text/hint/testdata/`）：`cjk3000.txt`（3000 常用字）、`kr_all.txt`（韩文 11172 音节）、`th_all.txt`（泰文 128 码位）、`latin_all.txt`（L1 255 字 = ASCII 95 + accent 29 + confusable 17 + 西里尔 66 + 希腊 48）；测试一律读文件，**禁止在测试代码里用 range 循环/硬编码生成字表**；新增语言测试子集必须先落字表文件。
 - FT 度量衡二进制 = `render/text/hint/testdata/ftexp/`（源码 main.go + go.mod module ftexp，**不提交二进制**）；测试经 `ftexpBin(t)`（hint 包）解析：`$FTEXP_BIN` → 已构建产物 → 拷贝源码到 `t.TempDir()` 自动 `go build` 重建（需 go + purego 依赖）。禁止把 `/tmp/opencode/ftexp` 硬编码进测试。

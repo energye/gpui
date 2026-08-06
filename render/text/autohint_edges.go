@@ -158,6 +158,28 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 					bestEdgeIdx = ei
 					break // Default: first match wins
 				}
+				// CJK: check whether all linked segments of the candidate edge
+				// can make a single edge (FreeType afcjk.c:1073-1091).
+				// If this segment has a link, its link must be close to the
+				// links of the segments already attached to the candidate edge,
+				// otherwise the edge cannot be shared.
+				if seg.linkIdx >= 0 {
+					linkOk := true
+					for _, existingIdx := range edge.segmentIndices {
+						existing := segments[existingIdx]
+						if existing.linkIdx < 0 {
+							continue
+						}
+						dist2 := segLinkDist(segments, int(seg.linkIdx), int(existing.linkIdx))
+						if dist2 >= edgeDistThreshold {
+							linkOk = false
+							break
+						}
+					}
+					if !linkOk {
+						continue
+					}
+				}
 				// CJK: don't break, pick closest.
 				bestDist = dist
 				bestEdgeIdx = ei
@@ -189,10 +211,44 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 		}
 	}
 
-	// Sort edges by position.
-	sort.Slice(edges, func(i, j int) bool {
-		return edges[i].fpos < edges[j].fpos
+	// Sort edges by position, matching FreeType af_axis_hints_new_edge
+	// (afhints.c:197-253) and skrifa Axis::insert_edge (topo/mod.rs): ascending
+	// fpos. Within equal fpos, a new edge with the minor direction keeps
+	// shifting left past same-position edges while one with the major
+	// direction stops, so minor-direction edges come first in reverse
+	// detection order, then major-direction edges in detection order. Major
+	// dirs: HORZ=UP, VERT=LEFT (afhints.c:942-948).
+	majorDir := dirUp
+	if dim == dimVertical {
+		majorDir = dirLeft
+	}
+	edgeOrder := make([]int, len(edges))
+	for i := range edges {
+		edgeOrder[i] = i
+	}
+	sort.SliceStable(edgeOrder, func(i, j int) bool {
+		a, b := edges[edgeOrder[i]], edges[edgeOrder[j]]
+		if a.fpos != b.fpos {
+			return a.fpos < b.fpos
+		}
+		am := a.dir == majorDir
+		bm := b.dir == majorDir
+		if am != bm {
+			// Minor-direction edges precede major-direction ones.
+			return bm
+		}
+		if am {
+			// Major direction: detection order.
+			return edgeOrder[i] < edgeOrder[j]
+		}
+		// Minor direction: reverse detection order.
+		return edgeOrder[i] > edgeOrder[j]
 	})
+	sorted := make([]*hintEdge, len(edges))
+	for i, oi := range edgeOrder {
+		sorted[i] = edges[oi]
+	}
+	edges = sorted
 
 	// Update segment->edge mappings after sort.
 	for ei, edge := range edges {
@@ -267,8 +323,21 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 }
 
 // edgeIndex returns the index of an edge in the edges slice.
-func edgeIndex(edges []*hintEdge, target *hintEdge) int {
-	for i, e := range edges {
+// segLinkDist returns the absolute distance between the linked segments
+// of two segments. Matches FreeType AF_SEGMENT_DIST(link, link1) in
+// afcjk.c af_cjk_hints_compute_edges.
+func segLinkDist(segments []hintSegment, linkIdx1, linkIdx2 int) float32 {
+	if linkIdx1 < 0 || linkIdx2 < 0 || linkIdx1 >= len(segments) || linkIdx2 >= len(segments) {
+		return float32(1e10)
+	}
+	d := segments[linkIdx1].pos - segments[linkIdx2].pos
+	if d < 0 {
+		d = -d
+	}
+	return d
+}
+
+func edgeIndex(edges []*hintEdge, target *hintEdge) int {	for i, e := range edges {
 		if e == target {
 			return i
 		}
@@ -427,6 +496,15 @@ func hintEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGroup, to
 	serifCount := 0
 	anchorIdx = alignStemEdges(edges, axis, anchorIdx, &serifCount, group, topToBottom, dim)
 
+	// Pass 2.5: Symmetry correction for m-shaped glyphs (FreeType
+	// af_cjk_hint_edges, afcjk.c:2078-2116). CJK glyphs with exactly 6 or 12
+	// vertical edges whose three stems are evenly spaced (< 8/64px apart in
+	// span) get their third stem and trailing serifs shifted so the glyph
+	// stays symmetric about the second stem.
+	if group != scriptGroupDefault && dim == dimHorizontal {
+		applyMSymmetryCJK(edges)
+	}
+
 	// Pass 3: Remaining edges (serifs, singles).
 	if serifCount > 0 || anchorIdx < 0 {
 		alignRemainingEdges(edges, anchorIdx, group, topToBottom)
@@ -565,11 +643,12 @@ func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, s
 			}
 
 			stemDelta := hintNormalStemCJK(edges, axis, i, edge2Idx, delta, dim)
-			// CJK: only accumulate delta for the first stem (anchor not yet set).
-			// Matches skrifa: delta accumulates only when axis.dim != Vertical &&
-			// anchor_ix.is_none(). Since vertical typically has anchor from blues,
-			// and we process dims separately, checking anchorIdx < 0 is equivalent.
-			if anchorIdx < 0 {
+			// Only accumulate delta for the first stem on the HORIZONTAL axis.
+			// FreeType af_cjk_hint_edges (afcjk.c:1963-1966): the return value
+			// of af_cjk_hint_normal_stem is assigned to delta only when
+			// `dim != AF_DIMENSION_VERT && !anchor`. For the VERTICAL axis the
+			// return value is discarded, so delta stays 0 for all stems.
+			if dim == dimHorizontal && anchorIdx < 0 {
 				delta = stemDelta
 			}
 			anchorIdx = i
@@ -728,6 +807,62 @@ func alignLinkedEdge(edges []*hintEdge, axis *scaledAxisMetrics, baseIdx, stemId
 // See skrifa hint/edges.rs align_remaining_edges.
 //
 //nolint:gocognit // FreeType aflatin.c port — algorithmic complexity is inherent
+// applyMSymmetryCJK applies FreeType's lowercase-m symmetry correction
+// (af_cjk_hint_edges, afcjk.c:2078-2116): for glyphs with exactly 6 or 12
+// vertical edges where the three stems are consecutive-linked edges with
+// nearly equal spacing (span < 8 in 26.6 = 1/8px), the third stem is shifted
+// so that it is symmetric about the second stem.
+//
+//	n_edges == 6:  edge1 = edges[0], edge2 = edges[2], edge3 = edges[4]
+//	n_edges == 12: edge1 = edges[1], edge2 = edges[5], edge3 = edges[9]
+//
+// The delta is the deviation of edge3 from the symmetric position:
+// delta = edge3.pos - (2*edge2.pos - edge1.pos). edge3 and its link are
+// moved by -delta; for 12 edges, edges[8] and edges[11] (serifs) follow.
+func applyMSymmetryCJK(edges []*hintEdge) {
+	n := len(edges)
+	if n != 6 && n != 12 {
+		return
+	}
+
+	var e1, e2, e3 int
+	if n == 6 {
+		e1, e2, e3 = 0, 2, 4
+	} else {
+		e1, e2, e3 = 1, 5, 9
+	}
+
+	dist1 := edges[e2].opos - edges[e1].opos
+	dist2 := edges[e3].opos - edges[e2].opos
+	span := dist1 - dist2
+	if span < 0 {
+		span = -span
+	}
+
+	if edges[e1].linkIdx != int16(e1+1) ||
+		edges[e2].linkIdx != int16(e2+1) ||
+		edges[e3].linkIdx != int16(e3+1) ||
+		span >= 8 {
+		return
+	}
+
+	delta := edges[e3].pos - (2*edges[e2].pos - edges[e1].pos)
+	edges[e3].pos -= delta
+	if edges[e3].linkIdx >= 0 {
+		edges[edges[e3].linkIdx].pos -= delta
+	}
+
+	if n == 12 {
+		edges[8].pos -= delta
+		edges[11].pos -= delta
+	}
+
+	edges[e3].flags |= edgeFlagDone
+	if edges[e3].linkIdx >= 0 {
+		edges[edges[e3].linkIdx].flags |= edgeFlagDone
+	}
+}
+
 func alignRemainingEdges(edges []*hintEdge, anchorIdx int, group scriptGroup, topToBottom bool) {
 	if group != scriptGroupDefault {
 		alignRemainingEdgesCJK(edges)
