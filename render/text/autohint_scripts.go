@@ -278,8 +278,9 @@ func glyphScriptKey(font ParsedFont) string {
 
 // perGlyphScripts returns the per-glyph script assignment for a font,
 // computing it once and caching. The returned slice has one entry per
-// glyph index. Glyphs covered by no unirange fall back to scriptLatin
-// (FreeType: default style = the module's default script, Latin).
+// glyph index. Glyphs covered by no unirange fall back to the flexible
+// CJK script (FreeType: fallback style = AF_STYLE_HANI_DFLT when CJK is
+// enabled, i.e. the standard build — NOT a Latin or dummy passthrough).
 //
 // See FreeType afglobal.c:126 af_face_globals_compute_style_coverage.
 func perGlyphScripts(font ParsedFont) []*scriptClass {
@@ -300,9 +301,15 @@ func perGlyphScripts(font ParsedFont) []*scriptClass {
 
 	numGlyphs := font.NumGlyphs()
 	s = make([]*scriptClass, numGlyphs)
-	// Default assignment: Latin (fallback style for uncovered glyphs).
+	// Fallback assignment: FreeType sets every glyph not covered by any
+	// script unirange to the module's `fallback_style`. In the standard
+	// build AF_CONFIG_OPTION_CJK is enabled, making the fallback style
+	// AF_STYLE_HANI_DFLT (the CJK writing system); only when CJK is
+	// compiled out does it become AF_STYLE_NONE_DFLT (afdummy passthrough).
+	// See afglobal.h AF_STYLE_FALLBACK. We therefore default to CJK and let
+	// the scan below override covered glyphs.
 	for i := range s {
-		s[i] = &scriptLatin
+		s[i] = &scriptCJK
 	}
 
 	// Scan each script's unicode ranges, assigning the FIRST script that
@@ -311,29 +318,30 @@ func perGlyphScripts(font ParsedFont) []*scriptClass {
 		for _, r := range sc.uniranges {
 			for cp := r.first; cp <= r.last; cp++ {
 				gid := int(font.GlyphIndex(cp))
-				if gid > 0 && gid < numGlyphs && s[gid] == &scriptLatin {
+				if gid > 0 && gid < numGlyphs && s[gid] == &scriptCJK {
 					s[gid] = sc
 				}
 			}
 		}
 	}
 
-	// NOTE: a glyph already assigned to a non-Latin script is never
+	// NOTE: a glyph already assigned to a non-CJK script is never
 	// overwritten, even if a later range of a higher-priority script
 	// covers it — this matches FreeType's "first style wins" (styles
-	// are scanned in order, glyphs assigned once).
+	// are scanned in order, glyphs assigned once) and leaves genuinely
+	// uncovered glyphs on the hani_dflt fallback, exactly like FreeType.
 	glyphScriptCache.cache[key] = s
 	return s
 }
 
 // scriptForGlyph returns the auto-hint script for a glyph, using
-// per-glyph detection with Latin fallback.
+// per-glyph detection with the CJK fallback style.
 func scriptForGlyph(font ParsedFont, gid GlyphID) *scriptClass {
 	s := perGlyphScripts(font)
 	if int(gid) < len(s) {
 		return s[gid]
 	}
-	return &scriptLatin
+	return &scriptCJK
 }
 
 // detectFontScript returns the primary script for a font for legacy
