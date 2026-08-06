@@ -201,7 +201,7 @@ func batchWqyContour26(t *testing.T, fontPath string, chars []rune, px float64) 
 			var x, y int64
 			var tag int
 			fmt.Sscanf(lines[i], "%d %d %d", &x, &y, &tag)
-			pts = append(pts, [2]int64{y, x})
+			pts = append(pts, [2]int64{x, y})
 		}
 		res[r] = pts
 		i++
