@@ -338,8 +338,18 @@ func (e *OutlineExtractor) ExtractOutlineHinted(parsedFont ParsedFont, gid Glyph
 	// This produces professionally hinted outlines matching the font designer's
 	// intent. Fonts like Arial, Times New Roman, Segoe UI rely on TT instructions
 	// for quality rendering at screen sizes.
-	if ttOutline := tryTTBytecodeHintingGeneric(parsedFont, gid, size); ttOutline != nil && len(ttOutline.Segments) > 0 {
-		return ttOutline, nil
+	//
+	// FreeType light (FT_LOAD_TARGET_LIGHT) semantics: the loader routes to
+	// the auto-hinter even for TTF fonts that carry a bytecode program, because
+	// the TrueType driver does not advertise FT_MODULE_DRIVER_HINTS_LIGHTLY
+	// (ftobjs.c:940 — `mode == LIGHT && !FT_DRIVER_HINTS_LIGHTLY(driver)`).
+	// Verified on 2.11.1: LIGHT output == FORCE_AUTOHINT output for DejaVu/
+	// FreeSans/TlwgTypo (which all have fpgm+prep). So light (HintingVertical)
+	// must NOT take this run-the-bytecode path.
+	if hinting != HintingVertical {
+		if ttOutline := tryTTBytecodeHintingGeneric(parsedFont, gid, size); ttOutline != nil && len(ttOutline.Segments) > 0 {
+			return ttOutline, nil
+		}
 	}
 
 	// Priority 2: Auto-hinter (contour-based, Y-UP convention).
@@ -423,8 +433,12 @@ func (e *OutlineExtractor) ExtractOutlineHintedVar(
 	// Priority 1: TT bytecode hinting with gvar-varied unscaled points.
 	// This runs gvar deltas on unscaled points, then scales to 26.6,
 	// then runs the TT interpreter — exactly matching skrifa load_simple.
-	if ttOutline := tryTTBytecodeHintingVar(parsedFont, gid, size, variations); ttOutline != nil && len(ttOutline.Segments) > 0 {
-		return ttOutline, nil
+	// Skipped for HintingVertical (FT light), which routes to the auto-hinter:
+	// see the static path comment re ftobjs.c LIGHT dispatch.
+	if hinting != HintingVertical {
+		if ttOutline := tryTTBytecodeHintingVar(parsedFont, gid, size, variations); ttOutline != nil && len(ttOutline.Segments) > 0 {
+			return ttOutline, nil
+		}
 	}
 
 	// Priority 2: Auto-hinter on the gvar-varied outline.

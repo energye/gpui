@@ -1,6 +1,6 @@
 # ENGINE_TEXT_HINT_LIGHT_PLAN — 自研移植 FreeType light 渲染模式
 
-**状态**: **M0–M3 完成**——M1 机制破译（CJK CFF 的 light 走 **cf2/psaux**，非 afcjk/pshinter；hintmap 算法已从源码+TRACE 数值级复现，见 §12）+ Type 2 charstring 解释器（cffcs.go）；M2 cf2Blues+cf2HintMap（含 X 轴 vstem）完成；**M3 hintmask 多区完成：128 多 mask 字 + 3000 常用字 + 韩文 11172 音节 + 泰文 87 字 × 6 字号对照 ftexp light 全部 bad=0**（cf2 主线闭环）。**M4a 完成（2026-08-06，glyf 无字节码 CJK autofit light：stem light + 单点 contour + 蓝区中位对齐 FT afcjk，commit af46494/b64b94c/1e871b2）**；**M4b 进行中**（2026-08-06 补充：绕向翻转 + 边缘排序 + m-sym 后 **田/二顶锚 diff=0 归零（commit eb8376b）**、**wqy 全字集 px10/12/14/16 bad=0/3000 全部归零（M4b-3 ✅，尖刺合并 + 边链接 delta 两轮修复）**、**aflatin light M4b-4 ✅：254 字 Latin 字集 × px10-16 bad=0（j 单点轮廓 weak + SERIF_LINK2 四分之一网格 + 蓝区跳过单点轮廓三处修复，见 §5.2a）**、**其余脚本判定 M4b-6 ✅：全脚本归 aflatin 模块（非透传）＋未覆盖 fallback=hani（Go 修正 fallback Latin→CJK），窗 arab/ethi/mymr/gujr/fallback bad=0，见 §5.2a**、**afindic light M4b-5 ✅：deva/beng/taml × px12/16 全部 bad=0（top_to_bottom edge 降序排序 + stem 中心 >>1 舍入 + nonbase 跳过蓝区 + positionFirstStem typo，见 §5.2a）**、**M4b-7 M4 门禁 ✅（2026-08-07）**：四扇扫描窗全绿 —— wqy 全字集 / Latin / afindic / 分派窗全 bad=0，唯一允许差 = gujr px12 ઑ 的 0.2px；本批另修 STEM 蓝锚 anchor=循环边 i（SERIF_LINK2 偏 24px 修复），见 §5.2a）。L0–L1（Latin）、M5+ 待做。
+**状态**: **M0–M3 完成**——M1 机制破译（CJK CFF 的 light 走 **cf2/psaux**，非 afcjk/pshinter；hintmap 算法已从源码+TRACE 数值级复现，见 §12）+ Type 2 charstring 解释器（cffcs.go）；M2 cf2Blues+cf2HintMap（含 X 轴 vstem）完成；**M3 hintmask 多区完成：128 多 mask 字 + 3000 常用字 + 韩文 11172 音节 + 泰文 87 字 × 6 字号对照 ftexp light 全部 bad=0**（cf2 主线闭环）。**M4a 完成（2026-08-06，glyf 无字节码 CJK autofit light：stem light + 单点 contour + 蓝区中位对齐 FT afcjk，commit af46494/b64b94c/1e871b2）**；**M4b 进行中**（2026-08-06 补充：绕向翻转 + 边缘排序 + m-sym 后 **田/二顶锚 diff=0 归零（commit eb8376b）**、**wqy 全字集 px10/12/14/16 bad=0/3000 全部归零（M4b-3 ✅，尖刺合并 + 边链接 delta 两轮修复）**、**aflatin light M4b-4 ✅：254 字 Latin 字集 × px10-16 bad=0（j 单点轮廓 weak + SERIF_LINK2 四分之一网格 + 蓝区跳过单点轮廓三处修复，见 §5.2a）**、**其余脚本判定 M4b-6 ✅：全脚本归 aflatin 模块（非透传）＋未覆盖 fallback=hani（Go 修正 fallback Latin→CJK），窗 arab/ethi/mymr/gujr/fallback bad=0，见 §5.2a**、**afindic light M4b-5 ✅：deva/beng/taml × px12/16 全部 bad=0（top_to_bottom edge 降序排序 + stem 中心 >>1 舍入 + nonbase 跳过蓝区 + positionFirstStem typo，见 §5.2a）**、**M4b-7 M4 门禁 ✅（2026-08-07）**：四扇扫描窗全绿 —— wqy 全字集 / Latin / afindic / 分派窗全 bad=0，唯一允许差 = gujr px12 ઑ 的 0.2px；本批另修 STEM 蓝锚 anchor=循环边 i（SERIF_LINK2 偏 24px 修复），见 §5.2a）。**L0–L1 ✅ 完成（2026-08-07）**：实证 FT 2.11.1 的 LIGHT 对 glyf（含字节码）一律走 autohinter —— truetype 驱动不声明 `FT_MODULE_DRIVER_HINTS_LIGHTLY`（ftobjs.c:940），ftexp 实测 DejaVuSans/FreeSans/TlwgTypo 的 LIGHT == `LIGHT|FORCE_AUTOHINT`；L0 不实现 bytecode InterpLight 分支，改判 HintingVertical 跳过 TT bytecode、字节码字体交 autofit light（glyph_outline.go）；窗 zz_light_bytecode_scan_test.go 用真字节码字体对照 ftexp light：L0 六字 × 8-16px + L1 Latin 254 字 × 12px 全 bad=0，见 §3 行。M5+ 待做。
 **日期**: 2026-08-04（M1 认知更新同日）
 **触发**: R21 验收后用户选定路线——自研 Vertical/Full hint 规则与 FreeType 不一致，放弃原自研 hint，改为**纯自研移植 FreeType light 渲染模式**（运行时零依赖 libfreetype，独立包 + 逐字 diff 验证闭环）
 **关联**: docs/ENGINE_TEXT_FREETYPE_PLAN.md §9（None 化决策：本轮验收基准）、AGENTS.md（render/ 高风险，实现层改动无须逐段确认但影响面须评估）
@@ -66,7 +66,7 @@ render/text/hint/
 ├── psh_light.go     M2：cf2 移植——cf2Blues（emBox 幽灵区 ICF±120/880 + 真实区 boost/capture）
 │                    + cf2HintMap（初始图/插入/adjustHints 双向 1px 拟合/map 插值）→ 全轮廓映射
 ├── autohint_*.go    自研 autofit（Full 语义，现有）——M4 改 light 语义，不删
-├── tt_engine.go     自研 TT 字节码解释器（现有）——L0 加 InterpLight 分支
+├── tt_engine.go     自研 TT 字节码解释器（现有）——L0 实证判定：light 下不补 InterpLight，跳过 bytecode 交 autofit（ftobjs.c LIGHT 路由）
 ├── testset.go       VerifierSet() []VerifierGroup（分组/描述/示例字，649 字符，M3 扩韩文/泰文 CFF）
 └── hint_test.go     接口单测（已过）
 ```
@@ -113,8 +113,8 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, size float64, mode
 | 阶段 | 内容 | 验证线 |
 |---|---|---|
 | **M4** | **glyf 无字节码 → autofit light 化**：现有自研 autohint_*.go（Full 语义）改 light 模式——afcjk light（旧 §12 破译有效）/ aflatin light / afindic；其余脚本（阿拉伯/希伯来/泰文等）light 下**透传不 hint**。**M4a 已完成，收尾项见 §5.2a** | 无字节码 TTF（Noto Sans TTF 版/DejaVu 无字节码样本）× 各脚本族 diff |
-| **L0** | **tt_engine light 模式**：`InterpLight`（HarfBuzz semantics：网格对齐减弱、不发 drop-out、强 keeper）；不改现有解释器默认分支（render/ 高风险，改前 question） | E/H/L/`1`/`i`/`0`/`l` 8–16px 逐字 diff → 0 |
-| **L1** | **Latin 全集归零**：ASCII 95 + accent 29 + confusable 17 + 西里尔 66 + 希腊 48 = 255 字（字表 testdata/latin_all.txt） | 全 Latin 字集 12px diff → 0 |
+| **L0** | **tt_engine light 分派判定**：**实证（2026-08-07，FT 2.11.1）= LIGHT 对 glyf 一律走 autohinter**——truetype 驱动不声明 `FT_MODULE_DRIVER_HINTS_LIGHTLY`（ftobjs.c:940 `mode==LIGHT && !HINTS_LIGHTLY → autohint=TRUE`），ftexp bcontour 实测 DejaVuSans/FreeSans/TlwgTypo（均带 fpgm+prep）下的 LIGHT 输出 == `LIGHT|FORCE_AUTOHINT`；**故不实现 bytecode InterpLight 分支**，改为修正分派：`HintingVertical`（= FT light）下**跳过 TT bytecode 解释器**，字节码字体交 autofit light（glyph_outline.go ExtractOutlineHinted/Var，bytecode 保留给 HintingFull/NORMAL） | `render/text/zz_light_bytecode_scan_test.go`：DejaVuSans/FreeSans 真字节码字体 E/H/L/`1`/`i`/`0`/`l` × 8/12/16px 逐字对照 ftexp light **bad=0** ✅ |
+| **L1** | **Latin 全集归零**：ASCII 95 + accent 29 + confusable 17 + 西里尔 66 + 希腊 48（`hint/testdata/latin_all.txt` 254 字） | 同窗 L1：两真字节码字体 × 12px 全字集 **bad=0/254** ✅ |
 
 ### 5.2a M4 收尾清单（2026-08-06 立，wqy-microhei-nohint.ttf = glyf 无字节码 CJK 对照主字体）
 
@@ -164,7 +164,7 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, size float64, mode
 | 9 | seac/非 1000-upem | cf2 | 顺带支持不验证（用户确认） | ❌ 随 M2 |
 | 10 | CFF2 blend | cf2 | 可变字体 | ❌ M5 |
 | 11 | autofit light | autofit | 自研 autohint 改 light（cjk/latin/indic） | ❌ M4 |
-| 12 | TT 解释器 light | tt_engine | InterpLight | ❌ L0 |
+| 12 | TT light 分派 | 判NOTTT | 实证 light→autofit，bytecode 拦截仅 Full/NORMAL（glyph_outline.go）；不实现 bytecode 解释器分支 | ✅ L0 |
 
 ---
 
@@ -219,13 +219,13 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 | M1 charstring 解释器 | ✅ 完成（2026-08-04） | cffcs.go + LanguageGroup/Subrs/width；日/田/目 12px 60 点逐点零误差；26.6 转换链见 §12.6 |
 | M2 cf2Blues+cf2HintMap（含 X 轴） | ✅ 完成（2026-08-05） | psh_light.go 重写完成；单区字 25 个 × 6 字号（10–24px）逐点 vs ftexp light（暗化实证关）全绿；暗化移植保留备用（当前 darken=0） |
 | M3 hintmask 多区 + 收尾 + 验证集扩 | ✅ 完成（2026-08-05，M3 主项） | 多 mask 分区逐区建图；修复：initial 图只建一次各区共享（FT isValid 复用语义）+ 首事件 atPt==0 跳过全 1 区（moveTo 语义）+ **vmoveto/hmoveto 补设 moveMaskIdx**（新轮廓起点不再用旧 mask 图）+ **cf2StemSlice 精确转换保留半身 stem**（-55.5/231.5 不四舍五入，消 8 字 ±1/64 恒偏）+ **lineTo 每段独立跳过**（对齐 pushPrevElem，不受先前省略点影响）+ **ps_builder_close_contour 闭合重合点去重**（末点与轮廓起点 DS 重合则丢，矗屭 10px 点数对齐 psobjs.c:2336-2338）；**结果：128 多 mask 字 × 10/12/14/16/20/24px 对照 ftexp light 全部 bad=0；3000 常用字（《通用规范汉字表》一级表前 3000，testdata/cjk3000.txt）× 6 字号全量回归 bad=0（TestScanCJK3000，ftexp bcontour 批量对照 ≈5s，map 覆盖断言 ≥2900 防假绿）；韩文 11172 Hangul 音节（U+AC00–D7A3）× 6 字号 bad=0（TestScanKR ≈13s）；泰文 87 有字形码位（U+0E01–0E5B，Noto Sans Thai CFF testdata 内置，顺带修 cff.go dictPrivate 全表查找支持 Private 不在 DICT 末尾的非 CID 字体）× 6 字号 bad=0（TestScanTH）** |
-| M4 autofit light 化（无字节码 glyf） | ⚠️ M4a 完成（2026-08-06）、M4b 进行中 | M4a-1/2/3 完成（stem light + 单点 contour + 蓝区中位对齐 FT，commit af46494/b64b94c/1e871b2）；**M4b-1 田、M4b-2 二顶锚 ✅ 完成（diff=0，eb8376b）**；**M4b-3 wqy 全字集回归窗 ✅ 完成：px10/12/14/16 bad=0/3000（尖刺合并 + 边链接 delta 两轮修复，见 §5.2a）**；**M4b-4 aflatin light ✅ 完成：254 字 × px10-16 bad=0（j 单点 weak + SERIF_LINK2 四分之一网格 + 蓝区跳过单点轮廓三处修复 + ftexpBin rebuild 缓存，见 §5.2a）**；**M4b-6 其余脚本判定 ✅ 完成：FT 2.11.1 全部非 hani/非 indic 四脚本走 aflatin 模块（**非透传**），未覆盖 glyph fallback=hani_dflt；Go 修正 fallback Latin→CJK（autohint_scripts.go），窗 arab/ethi/mymr/gujr(px16)/fallback bad=0，见 §5.2a**；**M4b-5 afindic ✅ 完成：deva/beng/taml × px12/16 全部 bad=0（top_to_bottom 降序排序 + stem 中心 >>1 + nonbase 跳过蓝区 + positionFirstStem typo 四修，窗 zz_afindic_scan_test.go，见 §5.2a）**；**M4b-7 M4 门禁 ✅ 完成（2026-08-07）：四窗全绿，唯一允许差 = gujr px12 0.2px，另修 STEM 蓝锚 anchor=loop 边 i，见 §5.2a）**；L0–L1（Latin）、M5+ 待做 |
+| M4 autofit light 化（无字节码 glyf） | ⚠️ M4a 完成（2026-08-06）、M4b 进行中 | M4a-1/2/3 完成（stem light + 单点 contour + 蓝区中位对齐 FT，commit af46494/b64b94c/1e871b2）；**M4b-1 田、M4b-2 二顶锚 ✅ 完成（diff=0，eb8376b）**；**M4b-3 wqy 全字集回归窗 ✅ 完成：px10/12/14/16 bad=0/3000（尖刺合并 + 边链接 delta 两轮修复，见 §5.2a）**；**M4b-4 aflatin light ✅ 完成：254 字 × px10-16 bad=0（j 单点 weak + SERIF_LINK2 四分之一网格 + 蓝区跳过单点轮廓三处修复 + ftexpBin rebuild 缓存，见 §5.2a）**；**M4b-6 其余脚本判定 ✅ 完成：FT 2.11.1 全部非 hani/非 indic 四脚本走 aflatin 模块（**非透传**），未覆盖 glyph fallback=hani_dflt；Go 修正 fallback Latin→CJK（autohint_scripts.go），窗 arab/ethi/mymr/gujr(px16)/fallback bad=0，见 §5.2a**；**M4b-5 afindic ✅ 完成：deva/beng/taml × px12/16 全部 bad=0（top_to_bottom 降序排序 + stem 中心 >>1 + nonbase 跳过蓝区 + positionFirstStem typo 四修，窗 zz_afindic_scan_test.go，见 §5.2a）**；**M4b-7 M4 门禁 ✅ 完成（2026-08-07）：四窗全绿，唯一允许差 = gujr px12 0.2px，另修 STEM 蓝锚 anchor=loop 边 i，见 §5.2a）**；L0–L1、M5+ 待做 |
 | M5 CFF2 可变（blend） | 待做 | 本轮后；注：`extractCFF2Outline` 已有 fvar/avar/blend（cff_outline.go），M5 仅为 cf2 语义融合 |
 | M6 CJK 竖排（vhea/vmtx/vrt2） | 待做 | 本轮后；gpui 现无竖排支持 |
 | M7 系统字体发现（FontMgr 等价） | 待做 | 本轮后 |
 | S1 shaping 复杂脚本 HarfBuzz audit | 待做 | 本轮后；OwnShaper 表驱动核心已就位 |
-| L0 tt_engine light 模式 | 待做 | 解释器加固分支，改前 question（render/ 高风险） |
-| L1 Latin 全集归零 | 待做 | 255 字 diff→0 |
+| L0 tt_engine light 分派判定 | ✅ 完成（2026-08-07） | **不建议做 bytecode 解释器 InterpLight**：实证 FT 2.11.1 LIGHT 对 glyf（含字节码）一律走 autohinter（见 §3 L0 行），分派改为 HintingVertical 跳过 TT bytecode、交 autofit light；真字节码字体 DejaVuSans/FreeSans 对照 ftexp light bad=0 |
+| L1 Latin 全集归零 | ✅ 完成 | latin_all.txt 254 字 × 12px bad=0（窗 zz_light_bytecode_scan_test.go） |
 | 切换决策 | 待做 | 全绿后 question 确认再进管线 |
 
 - **M0 结论（已由 M1–M3 演进而非代，过程数据归档不再记录数值）**：M0 完成顶横蓝线锚定（12–16px 主蓝直线字 88–96% 归零，1108 项基线）；三类残留（gap 蓝→M1 / 曲线顶→M2 / 1/64 微调→M3）均已在后续阶段归零；M0 的 816 经验式 = 幽灵区+拟合的 12px 净效果（§12.5 完整数值是最终对照线），M1 起由 cf2 精确语义取代。
@@ -263,7 +263,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 
 - **目标范围**：不只 CJK+Latin，覆盖全世界语言与现代字体库。FT light 的分派天然语言无关（cf2 / TT 解释器 / autofit 三模块 + dummy 透传），语言差异主要影响验证集。
 - **本轮主线**（用户确认）：cf2 移植（M1–M3），验证集 M3 扩韩文/泰文 CFF（Noto Sans KR/TH TTC）。
-- **本轮后**：M4 autofit light 化（无字节码 glyf）、M5 CFF2 可变（blend）、L0–L1 tt_engine light。
+- **本轮后**：M4 autofit light 化（无字节码 glyf）、M5 CFF2 可变（blend）、L0–L1 tt_engine light（**L0–L1 已于 2026-08-07 完成：NOTTT 判定——字节码字体在 light 下交 autofit，见 §3/§22**）。
 - **顺带支持不验证**（用户确认）：seac 复合字、非 1000-upem 的 CFF 字体。
 - **M2 含 X 轴 vstem**（用户确认）：日字 X 的 1/64 对齐（577 vs 578）需要像素级归零。
 
@@ -275,7 +275,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 |---|---|---|
 | cf2 语义边界（hintmask 多区/暗化开关/非 1000-upem）与 Noto CJK 实测漂移 | 中 | M2 从 TRACE 数值级对照校准（§12 解码线）；hintmask 区 M3 单独验证 |
 | autofit light 化（M4）影响既有自研 autohint Full 语义 | 高（render/ 层） | 独立 light 分支不改 Full 默认路径；改前评估 + question 确认 |
-| tt_engine light 分支影响既有 Full 行为 | 高（render/ 层） | L0 用独立 `InterpLight` 路径，不改现有解释器默认分支；改前评估 + question 确认 |
+| tt_engine light 分派影响既有 Full 行为 | 高（render/ 层） | L0 仅让 HintingVertical 跳过 bytecode 拦截（轻门控），不影响 HintingFull/NORMAL 现有解释器路径；已走 question 确认后再改 |
 | 3000 常用字运行时长 | 低 | ≈1 min/全量，按组缓存 diff |
 | CFF2/go-text 默认实例与 FT cf2 的实例化差异 | 中 | M5 阶段单独对照，不混入 M1–M3 |
 | 骨架期/空字形错误分支 | 低 | 已单测覆盖（TestHintNilFont/TestUnknownMode） |
