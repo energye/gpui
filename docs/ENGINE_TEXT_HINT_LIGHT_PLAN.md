@@ -1,6 +1,6 @@
 # ENGINE_TEXT_HINT_LIGHT_PLAN — 自研移植 FreeType light 渲染模式
 
-**状态**: **M0–M3 完成**——M1 机制破译（CJK CFF 的 light 走 **cf2/psaux**，非 afcjk/pshinter；hintmap 算法已从源码+TRACE 数值级复现，见 §12）+ Type 2 charstring 解释器（cffcs.go）；M2 cf2Blues+cf2HintMap（含 X 轴 vstem）完成；**M3 hintmask 多区完成：128 多 mask 字 + 3000 常用字 + 韩文 11172 音节 + 泰文 87 字 × 6 字号对照 ftexp light 全部 bad=0**（cf2 主线闭环）。**M4a 完成（2026-08-06，glyf 无字节码 CJK autofit light：stem light + 单点 contour + 蓝区中位对齐 FT afcjk，commit af46494/b64b94c/1e871b2）**；**M4b 进行中**（2026-08-06 补充：绕向翻转 + 边缘排序 + m-sym 后 **田/二顶锚 diff=0 归零（commit eb8376b）**、**wqy 全字集 px10/12/14/16 bad=0/3000 全部归零（M4b-3 ✅，尖刺合并 + 边链接 delta 两轮修复）**、aflatin/afindic/透传、门禁，见 §5.2a）。L0–L1（Latin）、M5+ 待做。
+**状态**: **M0–M3 完成**——M1 机制破译（CJK CFF 的 light 走 **cf2/psaux**，非 afcjk/pshinter；hintmap 算法已从源码+TRACE 数值级复现，见 §12）+ Type 2 charstring 解释器（cffcs.go）；M2 cf2Blues+cf2HintMap（含 X 轴 vstem）完成；**M3 hintmask 多区完成：128 多 mask 字 + 3000 常用字 + 韩文 11172 音节 + 泰文 87 字 × 6 字号对照 ftexp light 全部 bad=0**（cf2 主线闭环）。**M4a 完成（2026-08-06，glyf 无字节码 CJK autofit light：stem light + 单点 contour + 蓝区中位对齐 FT afcjk，commit af46494/b64b94c/1e871b2）**；**M4b 进行中**（2026-08-06 补充：绕向翻转 + 边缘排序 + m-sym 后 **田/二顶锚 diff=0 归零（commit eb8376b）**、**wqy 全字集 px10/12/14/16 bad=0/3000 全部归零（M4b-3 ✅，尖刺合并 + 边链接 delta 两轮修复）**、**aflatin light M4b-4 ✅：254 字 Latin 字集 × px10-16 bad=0（j 单点轮廓 weak + SERIF_LINK2 四分之一网格 + 蓝区跳过单点轮廓三处修复，见 §5.2a）**、afindic/透传、门禁，见 §5.2a）。L0–L1（Latin）、M5+ 待做。
 **日期**: 2026-08-04（M1 认知更新同日）
 **触发**: R21 验收后用户选定路线——自研 Vertical/Full hint 规则与 FreeType 不一致，放弃原自研 hint，改为**纯自研移植 FreeType light 渲染模式**（运行时零依赖 libfreetype，独立包 + 逐字 diff 验证闭环）
 **关联**: docs/ENGINE_TEXT_FREETYPE_PLAN.md §9（None 化决策：本轮验收基准）、AGENTS.md（render/ 高风险，实现层改动无须逐段确认但影响面须评估）
@@ -133,7 +133,7 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, size float64, mode
 | M4b-1 | ~~田字顶锚残余~~ **✅ 完成** | ~~田 10/14/16px 顶 466/672/738 vs FT 478/645/766（16px 差 28/64）~~ 归零：田 10/12/14/16px 顶 = FT（478/564/645/766，diff=0，commit eb8376b） | 根因：轮廓绕向未翻转（wqy 逆时针 → V 轴 major 应 RIGHT）+ 边缘排序未对齐 FT，随 eb8376b 一并修复 |
 | M4b-2 | ~~二字顶锚残余~~ **✅ 完成** | ~~二 12/16px 顶 534/712 vs FT 538/713（±1~4/64）~~ 归零：二 10/12/14/16px 顶 = FT（445/538/623/713，diff=0，commit eb8376b） | 同上 |
 | M4b-3 | wqy 全字集回归窗 | 以 FT afcjk 为参照，wqy-microhei-nohint 全常用字 × 10/12/14/16px 逐字 diff 基线 | **✅ 完成（2026-08-06）**：基建已提交（`render/text/zz_wqy_scan_test.go`：cjk3000 字表 × ftexp bcontour 批量对照，贪心最近邻匹配）；eb8376b 后 px16 bad=0、px10/12/14=81/57/38 → **两轮修复归零：①尖刺合并（autohint_segments.go computeSegments 切段三分支，移植 aflatin.c:1707-1790）②边链接 delta 比较（autohint_edges.go computeEdges，移植 afcjk.c:1229-1245）** → **px10/12/14/16 全部 bad=0/3000**（TestScanWqyCJK3000） |
-| M4b-4 | aflatin light | 无字节码 Latin TTF（DejaVu 无字节码样本/自造）light 化 | 未开始 |
+| M4b-4 | aflatin light | 无字节码 Latin TTF（wqy Latin 字形 light 化） | **✅ 完成（2026-08-06）**：基建 = `render/text/zz_freesans_scan_test.go`（hint/testdata/latin_all.txt 254 字 = ASCII 95 + 重音 29 + confusable 17 + 西里尔 66 + 希腊 48 × px10-16，ftexp bcontour 对照）；三处修复归零：**①j 单点轮廓 weak 标记（autohint_segments.go computePointProperties，移植 afhints.c:1140-1144 弱插值——FT 对单点轮廓累加向量为 0 标 AF_FLAG_WEAK_INTERPOLATION，强点对齐跳过仅 IUP 可动）②interpolateEdge 兜底改 SERIF_LINK2 四分之一网格（autohint_edges.go，移植 aflatin.c:3477-3479 `(opos-anchor+16)&~31`）③蓝区提取跳过单点轮廓（autohint_blues.go measureBlueCharContour，移植 aflatin.c:518-520——单点轮廓是 mark 附着点，不参与 best 选择；否则 Β/β 被单点轮廓 (199,1462)/(631,1567) 误判 flat 导致 Greek CAPITAL_TOP 蓝区 ref 错为 1462 → fit 640 vs FT 1485→704）**；连带：hint 包 ftexpBin 每次调用全量 rebuild 导致 TestM2VerifyGrid 超时（~1.1s×156 次），加包级 sync.Once 缓存（ftexp_test.go）；**结果：px10/12/14/16 全部 bad=0/254**（TestScanFreeSansLatin），hint 包 M0-M3 全量回归绿 |
 | M4b-5 | afindic light | 无字节码 Indic TTF light 化 | 未开始 |
 | M4b-6 | 其余脚本透传判定 | 阿拉伯/希伯来/泰文等 light 下透传不 hint（afdummy 语义） | 未开始 |
 | M4b-7 | M4 门禁 | 全 M4 字集各字号 diff 归零（或既定允许差记录） | 未开始 |
@@ -184,7 +184,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 → 墨量差 / 连通块 / xcorr
 ```
 
-- 工具链：`render/text/hint/testdata/ftexp/`（FT 参考：位图 PGM / contour 26.6 顶点 / metrics 字体度量；**只存源码 main.go + go.mod module ftexp，不提交二进制**，测试经 `hint.ftexpBin` 自动 `go build` 重建到 `t.TempDir()`，可用 `$FTEXP_BIN` 指向已构建产物）、`render/text/hint/cmd/fdiff`（对照器：`-contour` 轮廓级，默认像素级）。
+- 工具链：`render/text/hint/testdata/ftexp/`（FT 参考：位图 PGM / contour 26.6 顶点 / metrics 字体度量；**只存源码 main.go + go.mod module ftexp，不提交二进制**，测试经 `hint.ftexpBin` 自动 `go build` 重建——进程内只重建一次（包级 once 缓存），可用 `$FTEXP_BIN` 指向已构建产物）、`render/text/hint/cmd/fdiff`（对照器：`-contour` 轮廓级，默认像素级）。
 - **fdiff 基建经验**（2026-08-04）：自研光栅带 1px AA margin + 4x 亚像素网格，FT 位图为精确 ink 区 → 逐像素 diff 带系统偏移（none=nohint 墨量全等但 mismatch 70%）→ 判定 hint 语义差异必须用**轮廓级**对照；像素级只看墨量/连通块。
 
 ### 6.2 验证字集（VerifierSet 内置 649 字符 + 外部扩展）
@@ -218,7 +218,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 | M1 charstring 解释器 | ✅ 完成（2026-08-04） | cffcs.go + LanguageGroup/Subrs/width；日/田/目 12px 60 点逐点零误差；26.6 转换链见 §12.6 |
 | M2 cf2Blues+cf2HintMap（含 X 轴） | ✅ 完成（2026-08-05） | psh_light.go 重写完成；单区字 25 个 × 6 字号（10–24px）逐点 vs ftexp light（暗化实证关）全绿；暗化移植保留备用（当前 darken=0） |
 | M3 hintmask 多区 + 收尾 + 验证集扩 | ✅ 完成（2026-08-05，M3 主项） | 多 mask 分区逐区建图；修复：initial 图只建一次各区共享（FT isValid 复用语义）+ 首事件 atPt==0 跳过全 1 区（moveTo 语义）+ **vmoveto/hmoveto 补设 moveMaskIdx**（新轮廓起点不再用旧 mask 图）+ **cf2StemSlice 精确转换保留半身 stem**（-55.5/231.5 不四舍五入，消 8 字 ±1/64 恒偏）+ **lineTo 每段独立跳过**（对齐 pushPrevElem，不受先前省略点影响）+ **ps_builder_close_contour 闭合重合点去重**（末点与轮廓起点 DS 重合则丢，矗屭 10px 点数对齐 psobjs.c:2336-2338）；**结果：128 多 mask 字 × 10/12/14/16/20/24px 对照 ftexp light 全部 bad=0；3000 常用字（《通用规范汉字表》一级表前 3000，testdata/cjk3000.txt）× 6 字号全量回归 bad=0（TestScanCJK3000，ftexp bcontour 批量对照 ≈5s，map 覆盖断言 ≥2900 防假绿）；韩文 11172 Hangul 音节（U+AC00–D7A3）× 6 字号 bad=0（TestScanKR ≈13s）；泰文 87 有字形码位（U+0E01–0E5B，Noto Sans Thai CFF testdata 内置，顺带修 cff.go dictPrivate 全表查找支持 Private 不在 DICT 末尾的非 CID 字体）× 6 字号 bad=0（TestScanTH）** |
-| M4 autofit light 化（无字节码 glyf） | ⚠️ M4a 完成（2026-08-06）、M4b 进行中 | M4a-1/2/3 完成（stem light + 单点 contour + 蓝区中位对齐 FT，commit af46494/b64b94c/1e871b2）；**M4b-1 田、M4b-2 二顶锚 ✅ 完成（diff=0，eb8376b）**；**M4b-3 wqy 全字集回归窗 ✅ 完成：px10/12/14/16 bad=0/3000（尖刺合并 + 边链接 delta 两轮修复，见 §5.2a）**；M4b-4/5/6 aflatin/afindic/其余脚本、M4b-7 门禁待做，见 §5.2a |
+| M4 autofit light 化（无字节码 glyf） | ⚠️ M4a 完成（2026-08-06）、M4b 进行中 | M4a-1/2/3 完成（stem light + 单点 contour + 蓝区中位对齐 FT，commit af46494/b64b94c/1e871b2）；**M4b-1 田、M4b-2 二顶锚 ✅ 完成（diff=0，eb8376b）**；**M4b-3 wqy 全字集回归窗 ✅ 完成：px10/12/14/16 bad=0/3000（尖刺合并 + 边链接 delta 两轮修复，见 §5.2a）**；**M4b-4 aflatin light ✅ 完成：254 字 × px10-16 bad=0（j 单点 weak + SERIF_LINK2 四分之一网格 + 蓝区跳过单点轮廓三处修复 + ftexpBin rebuild 缓存，见 §5.2a）**；M4b-5/6 afindic/其余脚本、M4b-7 门禁待做，见 §5.2a |
 | M5 CFF2 可变（blend） | 待做 | 本轮后；注：`extractCFF2Outline` 已有 fvar/avar/blend（cff_outline.go），M5 仅为 cf2 语义融合 |
 | M6 CJK 竖排（vhea/vmtx/vrt2） | 待做 | 本轮后；gpui 现无竖排支持 |
 | M7 系统字体发现（FontMgr 等价） | 待做 | 本轮后 |

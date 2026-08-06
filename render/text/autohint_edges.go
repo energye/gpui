@@ -1254,8 +1254,11 @@ func interpolateEdge(edges []*hintEdge, edgeIdx, anchorIdx int) int32 {
 	}
 
 	// Fall back to anchor-relative positioning.
+	// FreeType SERIF_LINK2 (aflatin.c:3477-3479): the offset is snapped to a
+	// quarter-pixel grid, not rounded to whole pixels:
+	//   edge->pos = anchor->pos + ( ( edge->opos - anchor->opos + 16 ) & ~31 );
 	anchor := edges[anchorIdx]
-	return anchor.pos + f26dot6Round(edge.opos-anchor.opos)
+	return anchor.pos + int32((edge.opos-anchor.opos+16)&^31)
 }
 
 // Note: old float32 fixedDiv/fixedMul removed — the pipeline now uses

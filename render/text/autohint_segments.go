@@ -375,6 +375,18 @@ func computePointProperties(pa *hintPointArray) {
 	}
 	for _, cr := range pa.contours {
 		if cr.end-cr.start < 2 {
+			// Single-point contours get no directions (in/out = dirNone),
+			// matching FreeType afhints.c:1140-1144 where the accumulated
+			// vector of a single-point contour is zero and the point is
+			// tagged AF_FLAG_WEAK_INTERPOLATION.  That flag makes strong
+			// point alignment skip the point (afhints.c:1423-1424); only
+			// IUP weak alignment may move it.  Without this tag, the point
+			// would be snapped to the first edge delta, which FreeType
+			// does not do (e.g. 'j' descender dot in wqy: FT keeps the
+			// original y, Go moved it to first-edge delta).
+			if cr.end == cr.start {
+				pa.pts[cr.start].flags |= pointFlagWeak
+			}
 			continue // Need at least 3 points.
 		}
 		computeDirectionsPass(pa.pts, cr, nl)

@@ -283,6 +283,12 @@ func measureBlueCharContour(fontData []byte, gid GlyphID, isTop, isLong bool, fl
 		if pts == nil {
 			continue
 		}
+		// Avoid single-point contours since they are never rasterized.
+		// In some fonts, they correspond to mark attachment points that are
+		// way outside of the glyph's real outline (FreeType aflatin.c:518-520).
+		if len(pts) <= 1 {
+			continue
+		}
 		for pi, pt := range pts {
 			y := int32(pt.Y) // raw glyf Y-up coordinates (font units)
 			if isTop {
