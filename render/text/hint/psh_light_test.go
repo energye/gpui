@@ -167,7 +167,7 @@ func TestM2ContourLight(t *testing.T) {
 // ftContour26Light 调 ftexp 取 FT-light 轮廓 26.6（mode l）。
 func ftContour26Light(t *testing.T, r rune, px float64) [][3]int64 {
 	t.Helper()
-	cmd := exec.Command("/tmp/opencode/ftexp/ftexp", "contour",
+	cmd := exec.Command(ftexpBin(t), "contour",
 		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", string(r), strconv.Itoa(int(px)), "l")
 	out, err := cmd.CombinedOutput()
 	if err != nil {

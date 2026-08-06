@@ -206,6 +206,14 @@ func runeToPGM(e *hint.Engine, parsed text.ParsedFont, r rune, px float64, mode 
 	return vals, res.Width, res.Height, nil
 }
 
+// ftexpBin 返回 ftexp 度量衡二进制：优先 $FTEXP_BIN，否则仓库内 testdata 版本。
+func ftexpBin() string {
+	if p := os.Getenv("FTEXP_BIN"); p != "" {
+		return p
+	}
+	return "render/text/hint/testdata/ftexp/ftexp"
+}
+
 func main() {
 	contour := flag.Bool("contour", false, "outline-level compare (FT 26.6 hinted outline vs self)")
 	flag.Parse()
@@ -284,7 +292,7 @@ func main() {
 				ftHint = "n"
 			}
 			ftPgm := filepath.Join(outdir, fmt.Sprintf("ft_%d_%d_%s.pgm", r, int(px), tag))
-			cmd := exec.Command("/tmp/opencode/ftexp/ftexp", fontPath, string(r), strconv.Itoa(int(px)), ftHint, ftPgm)
+			cmd := exec.Command(ftexpBin(), fontPath, string(r), strconv.Itoa(int(px)), ftHint, ftPgm)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				fmt.Printf("FAIL  %q px=%.0f ft: %v %s\n", r, px, err, string(out))
 				continue
@@ -334,7 +342,7 @@ func runFTContour(fontPath string, r rune, px float64, light bool) (*ftContour, 
 	if !light {
 		hintArg = "n"
 	}
-	cmd := exec.Command("/tmp/opencode/ftexp/ftexp", "contour", fontPath, string(r), strconv.Itoa(int(px)), hintArg)
+	cmd := exec.Command(ftexpBin(), "contour", fontPath, string(r), strconv.Itoa(int(px)), hintArg)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("ftexp: %v %s", err, out)

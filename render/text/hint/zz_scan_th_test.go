@@ -3,6 +3,7 @@ package hint
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/energye/gpui/render/text"
@@ -11,8 +12,8 @@ import (
 // TestScanTH：泰文 CFF 扩集（docs §5.1 M3 收尾项）。
 //
 // 字体 = Noto Sans Thai Regular（CFF OTF，testdata/ 下）；
-// 验证 U+0E00–U+0E7F 全泰文块（87 个有字形码位）对照 ftexp bcontour
-// 批量模式（FT-light 26.6）。
+// 验证 U+0E00–U+0E7F 全泰文块（字表文件 testdata/th_all.txt）对照 ftexp
+// bcontour 批量模式（FT-light 26.6）。
 func TestScanTH(t *testing.T) {
 	thaiFont := "testdata/NotoSansThai-Regular.otf"
 	src, err := text.NewFontSourceFromFile(thaiFont)
@@ -34,11 +35,15 @@ func TestScanTH(t *testing.T) {
 		t.Fatal(err)
 	}
 	upem := f.UnitsPerEm()
-	var chars []rune
-	for cp := 0x0E00; cp < 0x0E80; cp++ {
-		chars = append(chars, rune(cp))
+	rawTxt, err := os.ReadFile("testdata/th_all.txt")
+	if err != nil {
+		t.Skipf("th_all.txt unavailable: %v", err)
 	}
-	list := "/tmp/opencode/th_all.txt"
+	chars := []rune(strings.TrimSpace(string(rawTxt)))
+	if len(chars) != 128 {
+		t.Fatalf("th_all.txt = %d chars, want 128", len(chars))
+	}
+	list := t.TempDir() + "/th_all.txt"
 	if err := os.WriteFile(list, []byte(string(chars)), 0o644); err != nil {
 		t.Fatal(err)
 	}

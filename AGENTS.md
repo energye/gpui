@@ -27,3 +27,11 @@
 
 - 先读 AGENTS.md（本文），再读 `docs/` 真源，再执行。
 - 所有状态以真源为准，不凭记忆。
+
+## 测试数据与阶段回归（硬）
+
+- **测试数据一律入 `testdata/`**（各包 `xxx/testdata/`）：字体、字表（如 cjk3000.txt）、FT 对照工具等；`/tmp` 下仅允许 `t.TempDir()` 的进程级临时文件，禁止把外部路径（如 `/tmp/opencode`）写死在测试代码里。
+- **各语言标准测试字表文件**（`render/text/hint/testdata/`）：`cjk3000.txt`（3000 常用字）、`kr_all.txt`（韩文 11172 音节）、`th_all.txt`（泰文 128 码位）、`latin_all.txt`（L1 255 字 = ASCII 95 + accent 29 + confusable 17 + 西里尔 66 + 希腊 48）；测试一律读文件，**禁止在测试代码里用 range 循环/硬编码生成字表**；新增语言测试子集必须先落字表文件。
+- FT 度量衡二进制 = `render/text/hint/testdata/ftexp/`（源码 main.go + go.mod module ftexp，**不提交二进制**）；测试经 `ftexpBin(t)`（hint 包）解析：`$FTEXP_BIN` → 已构建产物 → 拷贝源码到 `t.TempDir()` 自动 `go build` 重建（需 go + purego 依赖）。禁止把 `/tmp/opencode/ftexp` 硬编码进测试。
+- 每阶段开发/验收必须回归**之前所有已完结阶段**：跑全量 `go test ./render/text/...`（含 M0–M3 各阶段全字集扫描对照，确保不破坏旧阶段），新阶段扫描坏字数不得回退。
+- 测试长跑（全字集 scan）与 require 外部字体（系统 Noto CJK/TTC）的用例，字体缺失时用 `t.Skipf` 提示原因，**禁止静默假绿**。

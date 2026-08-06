@@ -83,11 +83,11 @@ func batchContour26Light(t *testing.T, chars []rune, px float64) map[rune][][3]i
 // batchContour26LightFont 同 batchContour26Light，但可指定字体文件。
 func batchContour26LightFont(t *testing.T, fontPath string, chars []rune, px float64) map[rune][][3]int64 {
 	t.Helper()
-	list := "/tmp/opencode/cjk3000_runes.txt"
+	list := t.TempDir() + "/runes.txt"
 	if err := os.WriteFile(list, []byte(string(chars)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("/tmp/opencode/ftexp/ftexp", "bcontour",
+	cmd := exec.Command(ftexpBin(t), "bcontour",
 		fontPath, strconv.Itoa(int(px)), "l", list)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

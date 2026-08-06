@@ -3,21 +3,27 @@ package hint
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 )
 
 // TestScanKR：韩文 CFF 扩集（docs §5.1 M3 收尾项）。
 //
-// 全 11172 个 Hangul 音节（U+AC00–U+D7A3）对照 ftexp bcontour 批量模式
-// （FT-light 26.6，face 0 与 m2Font Face(14) 同一 TTC 的 CFF 数据）。
+// 全 11172 个 Hangul 音节（U+AC00–U+D7A3，字表文件 testdata/kr_all.txt）
+// 对照 ftexp bcontour 批量模式（FT-light 26.6，face 0 与 m2Font Face(14)
+// 同一 TTC 的 CFF 数据）。
 func TestScanKR(t *testing.T) {
 	f, cd := m2Font(t)
 	upem := f.UnitsPerEm()
-	var chars []rune
-	for cp := 0xAC00; cp < 0xD7A4; cp++ {
-		chars = append(chars, rune(cp))
+	raw, err := os.ReadFile("testdata/kr_all.txt")
+	if err != nil {
+		t.Skipf("kr_all.txt unavailable: %v", err)
 	}
-	list := "/tmp/opencode/kr_all.txt"
+	chars := []rune(strings.TrimSpace(string(raw)))
+	if len(chars) != 11172 {
+		t.Fatalf("kr_all.txt = %d chars, want 11172", len(chars))
+	}
+	list := t.TempDir() + "/kr_all.txt"
 	if err := os.WriteFile(list, []byte(string(chars)), 0o644); err != nil {
 		t.Fatal(err)
 	}

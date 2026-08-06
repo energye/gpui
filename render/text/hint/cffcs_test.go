@@ -94,7 +94,7 @@ func m1Interp(cd *cffFontData, gid uint16) (*csOutline, int, error) {
 // 返回逐点 (x26, y26, on)，point 顺序 = FT 解释顺序。
 func ftContour26(t *testing.T, r rune, px float64) [][3]int64 {
 	t.Helper()
-	cmd := exec.Command("/tmp/opencode/ftexp/ftexp", "contour",
+	cmd := exec.Command(ftexpBin(t), "contour",
 		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", string(r), strconv.Itoa(int(px)), "n")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
