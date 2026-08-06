@@ -769,26 +769,48 @@ func findBestYContour(fontData []byte, gid GlyphID, isTop bool) (int32, bool) {
 		return 0, false
 	}
 
+	// FT skips the whole character when its loaded outline has two or fewer
+	// points ("U+%04lX contains no (usable) outlines").
+	if len(contours.Points) <= 2 {
+		return 0, false
+	}
+
+	// FreeType af_cjk_metrics_init_blues (afcjk.c:431-477) walks the loaded
+	// glyph's contours individually. Single-point contours (last <= first)
+	// are skipped before extremum search, and every point in a kept contour
+	// is scanned (on- and off-curve alike; FT has no on-curve filter here).
+	// Mirroring both keeps the blue zone medians aligned with FreeType for
+	// fonts whose garbage/mark glyphs expose isolated points.
 	bestY := int32(0)
 	hasPoints := false
 
-	for _, pt := range contours.Points {
-		if !pt.OnCurve {
-			continue // Only on-curve points, matching findBestY behavior.
+	first := 0
+	for _, last := range contours.EndPts {
+		end := int(last)
+		if end <= first {
+			first = end + 1
+			continue // single-point contour — skip (FT `if last<=first continue`)
 		}
-		y := int32(pt.Y) // Y-UP font units (same as sfnt path after negation+div64)
-		switch {
-		case !hasPoints:
-			bestY = y
-			hasPoints = true
-		case isTop && y > bestY:
-			bestY = y
-		case !isTop && y < bestY:
-			bestY = y
+		for i := first; i <= end && i < len(contours.Points); i++ {
+			pt := contours.Points[i]
+			y := int32(pt.Y) // Y-UP font units
+			switch {
+			case !hasPoints:
+				bestY = y
+				hasPoints = true
+			case isTop && y > bestY:
+				bestY = y
+			case !isTop && y < bestY:
+				bestY = y
+			}
 		}
+		first = end + 1
 	}
 
-	return bestY, hasPoints
+	if !hasPoints {
+		return 0, false
+	}
+	return bestY, true
 }
 
 // adjustBlueZonesByIndex adjusts overlapping blue zones using an index-based
