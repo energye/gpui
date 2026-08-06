@@ -21,9 +21,9 @@ import (
 //
 // 本窗用系统真字体做 Go:FT 逐点对照确认这些路径一致：
 //   - arab/ethi/mymr：latin 模块各脚本蓝区，断言 bad=0
-//   - gujr：px16 断言 bad=0；px12 的 જ/ઑ 仍有 ±0.2~0.4px 的 x-height 带细差
-//     （蓝区 ref/scale 修正值均与 FT 数值一致，残差在 edge 对齐），记录为
-//     既定允许差（docs §5.2a），不设断言
+//   - gujr：px16 断言 bad=0；px12 的 ઑ 仍有 +0.2px x-height 顶部带差
+//     （M4b-5 修复了 STEM 蓝锚 anchor 语义后 જ 已归零，ઑ 残差在 edge
+//     对齐 rounding，±0.2px 在文档记录既定允许差内），不入断言，见 c.allow
 //   - fallback（FreeSans 未覆盖符号：箭头/数学）：断言 bad=0
 //
 // deva/beng/taml（Samyak/Lohit）复杂组合字形（क/ँ/ु 等）当前有残余差异，
@@ -32,17 +32,19 @@ import (
 // 语义），由 afglobal trace 判定其归 aflatin 模块，不做逐点对照。
 func TestScanScriptDispatch(t *testing.T) {
 	type chk struct {
-		name string
-		font string
-		dat  string
-		pxs  []int
+		name  string
+		font  string
+		dat   string
+		pxs   []int
+		allow map[int][]rune // 既定允许差：某 px 下允许仍不归零的字符
 	}
 	cases := []chk{
-		{"arab", "KacstOne.ttf", "arab_sample.txt", []int{12, 16}},
-		{"ethi", "AbyssinicaSIL-Regular.ttf", "ethi_sample.txt", []int{12, 16}},
-		{"mymr", "Padauk-Regular.ttf", "mymr_sample.txt", []int{16}},
-		{"gujr", "Samyak-Gujarati.ttf", "gujr_sample.txt", []int{16}},
-		{"fallback", "FreeSans.ttf", "fallback_sample.txt", []int{16}},
+		{"arab", "KacstOne.ttf", "arab_sample.txt", []int{12, 16}, nil},
+		{"ethi", "AbyssinicaSIL-Regular.ttf", "ethi_sample.txt", []int{12, 16}, nil},
+		{"mymr", "Padauk-Regular.ttf", "mymr_sample.txt", []int{12, 16}, nil},
+		{"gujr", "Samyak-Gujarati.ttf", "gujr_sample.txt", []int{12, 16},
+			map[int][]rune{12: {'ઑ'}}},
+		{"fallback", "FreeSans.ttf", "fallback_sample.txt", []int{16}, nil},
 	}
 	for _, c := range cases {
 		fp := findSystemFont(t, c.font)
@@ -114,7 +116,23 @@ func TestScanScriptDispatch(t *testing.T) {
 				}
 			}
 			if bad > 0 {
-				t.Errorf("%s px%d: bad=%d/%d first=%v", c.name, px, bad, len(chars), runes8(badR))
+				allowed := true
+				for _, r := range badR {
+					found := false
+					for _, a := range c.allow[px] {
+						if a == r {
+							found = true
+						}
+					}
+					if !found {
+						allowed = false
+					}
+				}
+				if !allowed {
+					t.Errorf("%s px%d: bad=%d/%d first=%v", c.name, px, bad, len(chars), runes8(badR))
+				} else {
+					t.Logf("%s px%d: bad=%d/%d (all in allowed tolerance %q)", c.name, px, bad, len(chars), runes8(badR))
+				}
 			} else {
 				t.Logf("%s px%d: bad=0/%d", c.name, px, len(chars))
 			}

@@ -376,7 +376,8 @@ func segLinkDist(segments []hintSegment, linkIdx1, linkIdx2 int) float32 {
 	return d
 }
 
-func edgeIndex(edges []*hintEdge, target *hintEdge) int {	for i, e := range edges {
+func edgeIndex(edges []*hintEdge, target *hintEdge) int {
+	for i, e := range edges {
 		if e == target {
 			return i
 		}
@@ -564,21 +565,41 @@ func alignEdgesToBlues(edges []*hintEdge, axis *scaledAxisMetrics, group scriptG
 			continue
 		}
 
-		if edge.blueEdge == nil {
+		// FreeType aflatin.c:3028-3112. The blue zone may sit on this edge
+		// OR on its stem partner. FT scans edges in order and treats the
+		// scanned edge as the anchor (`anchor = edge`, line 3111) even when
+		// the partner holds the blue zone. Using the wrong anchor changes
+		// subsequent SERIF_LINK2 offsets, so mirror the flip logic.
+		blueIdx := -1
+		if edge.blueEdge != nil {
+			blueIdx = i
+		} else if edge.linkIdx >= 0 {
+			link := edges[edge.linkIdx]
+			if link.blueEdge != nil {
+				blueIdx = int(edge.linkIdx)
+			}
+		}
+		if blueIdx < 0 {
 			continue
 		}
 
-		blue := edge.blueEdge
-		edge.pos = blue.fitted // 26.6 fixed-point
-		edge.flags |= edgeFlagDone
+		blueEdge := edges[blueIdx]
+		blue := blueEdge.blueEdge
+		blueEdge.pos = blue.fitted // 26.6 fixed-point
+		blueEdge.flags |= edgeFlagDone
 
-		// Also align the linked edge (stem partner).
-		if edge.linkIdx >= 0 {
-			link := edges[edge.linkIdx]
-			if link.blueEdge == nil {
-				alignLinkedEdge(edges, axis, i, int(edge.linkIdx), group)
-				link.flags |= edgeFlagDone
+		// Align the stem partner if it does not carry its own blue zone.
+		if blueIdx == i {
+			if edge.linkIdx >= 0 {
+				link := edges[edge.linkIdx]
+				if link.blueEdge == nil {
+					alignLinkedEdge(edges, axis, i, int(edge.linkIdx), group)
+					link.flags |= edgeFlagDone
+				}
 			}
+		} else {
+			alignLinkedEdge(edges, axis, blueIdx, i, group)
+			edge.flags |= edgeFlagDone
 		}
 
 		if anchorIdx < 0 {
@@ -845,7 +866,6 @@ func alignLinkedEdge(edges []*hintEdge, axis *scaledAxisMetrics, baseIdx, stemId
 // See FreeType aflatin.c:4635-4830.
 // See skrifa hint/edges.rs align_remaining_edges.
 //
-//nolint:gocognit // FreeType aflatin.c port — algorithmic complexity is inherent
 // applyMSymmetryCJK applies FreeType's lowercase-m symmetry correction
 // (af_cjk_hint_edges, afcjk.c:2078-2116): for glyphs with exactly 6 or 12
 // vertical edges where the three stems are consecutive-linked edges with
@@ -858,6 +878,8 @@ func alignLinkedEdge(edges []*hintEdge, axis *scaledAxisMetrics, baseIdx, stemId
 // The delta is the deviation of edge3 from the symmetric position:
 // delta = edge3.pos - (2*edge2.pos - edge1.pos). edge3 and its link are
 // moved by -delta; for 12 edges, edges[8] and edges[11] (serifs) follow.
+//
+//nolint:gocognit // FreeType aflatin.c port — algorithmic complexity is inherent
 func applyMSymmetryCJK(edges []*hintEdge) {
 	n := len(edges)
 	if n != 6 && n != 12 {

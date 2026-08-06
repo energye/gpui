@@ -29,7 +29,7 @@ func TestFindBestYFTAlign(t *testing.T) {
 
 	// FT trace: "blue zone 0 (top)" -> [overshoot values] group (fills).
 	pairs := map[rune]int32{
-		'他': 0,           // FT: no usable outlines
+		'他': 0, // FT: no usable outlines
 		'们': 1584, '你': 1608, '來': 1656, '們': 1616, '到': 1656,
 		'和': 1488, '地': 0, // FT: no usable
 		'对': 1656, '對': 1656, '就': 1656, '席': 1664, '我': 1664,
