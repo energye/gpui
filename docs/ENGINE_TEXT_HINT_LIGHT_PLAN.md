@@ -132,7 +132,7 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, pxSize float64, mo
 |---|---|---|---|
 | M4b-1 | **田字顶锚残余** | 田 10/14/16px 顶 466/672/738 vs FT 478/645/766（16px 差 28/64） | **edge capture / stem 传播差异**，非蓝区中位问题；先 TRACE 定位 田 被哪条蓝捕获再修 |
 | M4b-2 | 二字顶锚残余 | 二 12/16px 顶 534/712 vs FT 538/713（±1~4/64） | stem light 传播边界 |
-| M4b-3 | wqy 全字集回归窗 | 以 FT afcjk 为参照，wqy-microhei-nohint 全常用字 × 10/12/14/16px 逐字 diff 基线 | 参考 M3 的 zz_scan_3000 模式（ftexp bcontour 批量对照），未归零字数与最大偏差记录不偷放 |
+| M4b-3 | wqy 全字集回归窗 | 以 FT afcjk 为参照，wqy-microhei-nohint 全常用字 × 10/12/14/16px 逐字 diff 基线 | 基建已提交（`render/text/zz_wqy_scan_test.go`：cjk3000 字表 × ftexp bcontour 批量对照，贪心最近邻匹配）；**当前 bad=2989/3000 系统性偏差（Go 顶 738 vs FT 766，待修坐标语义），归零前不标 ✅** |
 | M4b-4 | aflatin light | 无字节码 Latin TTF（DejaVu 无字节码样本/自造）light 化 | 未开始 |
 | M4b-5 | afindic light | 无字节码 Indic TTF light 化 | 未开始 |
 | M4b-6 | 其余脚本透传判定 | 阿拉伯/希伯来/泰文等 light 下透传不 hint（afdummy 语义） | 未开始 |
@@ -184,7 +184,7 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 → 墨量差 / 连通块 / xcorr
 ```
 
-- 工具链：`/tmp/opencode/ftexp`（FT 参考：位图 PGM / contour 26.6 顶点 / metrics 字体度量）、`render/text/hint/cmd/fdiff`（对照器：`-contour` 轮廓级，默认像素级）。
+- 工具链：`render/text/hint/testdata/ftexp/`（FT 参考：位图 PGM / contour 26.6 顶点 / metrics 字体度量；**只存源码 main.go + go.mod module ftexp，不提交二进制**，测试经 `hint.ftexpBin` 自动 `go build` 重建到 `t.TempDir()`，可用 `$FTEXP_BIN` 指向已构建产物）、`render/text/hint/cmd/fdiff`（对照器：`-contour` 轮廓级，默认像素级）。
 - **fdiff 基建经验**（2026-08-04）：自研光栅带 1px AA margin + 4x 亚像素网格，FT 位图为精确 ink 区 → 逐像素 diff 带系统偏移（none=nohint 墨量全等但 mismatch 70%）→ 判定 hint 语义差异必须用**轮廓级**对照；像素级只看墨量/连通块。
 
 ### 6.2 验证字集（VerifierSet 内置 649 字符 + 外部扩展）

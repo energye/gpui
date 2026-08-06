@@ -11,7 +11,7 @@
 ## 0. 最终结论（2026-08-04 更新）
 
 - **运行时保持零依赖**（不捆绑 libfreetype）：Bug2 的断笔已在 `render/internal/gpu/glyph_mask_engine.go` + `render/text/draw.go` 修复（rsnapshot 整数 X 定位，见 §8）。
-- **libfreetype 仅作开发期度量衡**：`/tmp/opencode/ftexp` 在开发/CI 机用系统 freetype 生成同字形像素 golden 与连通块基线，用于对照验证；不进入运行时。
+- **libfreetype 仅作开发期度量衡**：`render/text/hint/testdata/ftexp/`（源码入库、自动重建）在开发/CI 机用系统 freetype 生成同字形像素 golden 与连通块基线，用于对照验证；不进入运行时。
 - 像素对照工具：`/tmp/opencode/rastercmp`（自研侧 dump PGM + 连通块），两侧同参数 diff。
 
 ## 1. 背景与目标
@@ -50,7 +50,7 @@
 
 ### 1.4 探针验证（已完成，2026-08-04）
 
-`/tmp/opencode/ftexp/`（module ftexp，github.com/ebitengine/purego v0.10.2）已证明可行：
+`render/text/hint/testdata/ftexp/`（module ftexp，github.com/ebitengine/purego v0.10.2；**源码入库、二进制不提交**，测试 `ftexpBin` 自动重建/`$FTEXP_BIN` 覆盖）已证明可行：
 
 - 绑定 6 个符号：FT_Init_FreeType / FT_New_Memory_Face / FT_Set_Char_Size /
   FT_Get_Char_Index / FT_Load_Glyph / FT_Render_Glyph，全部调用成功；
