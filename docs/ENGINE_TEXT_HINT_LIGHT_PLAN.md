@@ -1,6 +1,6 @@
 # ENGINE_TEXT_HINT_LIGHT_PLAN — 自研移植 FreeType light 渲染模式
 
-**状态**: **M0–M3 完成**——M1 机制破译（CJK CFF 的 light 走 **cf2/psaux**，非 afcjk/pshinter；hintmap 算法已从源码+TRACE 数值级复现，见 §12）+ Type 2 charstring 解释器（cffcs.go）；M2 cf2Blues+cf2HintMap（含 X 轴 vstem）完成；**M3 hintmask 多区完成：128 多 mask 字 + 3000 常用字 + 韩文 11172 音节 + 泰文 87 字 × 6 字号对照 ftexp light 全部 bad=0**（cf2 主线闭环）。**M4a 完成（2026-08-06，glyf 无字节码 CJK autofit light：stem light + 单点 contour + 蓝区中位对齐 FT afcjk，commit af46494/b64b94c/1e871b2）**；**M4b 进行中**（2026-08-06 补充：绕向翻转 + 边缘排序 + m-sym 后 **田/二顶锚 diff=0 归零（commit eb8376b）**、**wqy 全字集 px10/12/14/16 bad=0/3000 全部归零（M4b-3 ✅，尖刺合并 + 边链接 delta 两轮修复）**、**aflatin light M4b-4 ✅：254 字 Latin 字集 × px10-16 bad=0（j 单点轮廓 weak + SERIF_LINK2 四分之一网格 + 蓝区跳过单点轮廓三处修复，见 §5.2a）**、**其余脚本判定 M4b-6 ✅：全脚本归 aflatin 模块（非透传）＋未覆盖 fallback=hani（Go 修正 fallback Latin→CJK），窗 arab/ethi/mymr/gujr/fallback bad=0，见 §5.2a**、**afindic light M4b-5 ✅：deva/beng/taml × px12/16 全部 bad=0（top_to_bottom edge 降序排序 + stem 中心 >>1 舍入 + nonbase 跳过蓝区 + positionFirstStem typo，见 §5.2a）**、**M4b-7 M4 门禁 ✅（2026-08-07）**：四扇扫描窗全绿 —— wqy 全字集 / Latin / afindic / 分派窗全 bad=0，唯一允许差 = gujr px12 ઑ 的 0.2px；本批另修 STEM 蓝锚 anchor=循环边 i（SERIF_LINK2 偏 24px 修复），见 §5.2a）。**L0–L1 ✅ 完成（2026-08-07）**：实证 FT 2.11.1 的 LIGHT 对 glyf（含字节码）一律走 autohinter —— truetype 驱动不声明 `FT_MODULE_DRIVER_HINTS_LIGHTLY`（ftobjs.c:940），ftexp 实测 DejaVuSans/FreeSans/TlwgTypo 的 LIGHT == `LIGHT|FORCE_AUTOHINT`；L0 不实现 bytecode InterpLight 分支，改判 HintingVertical 跳过 TT bytecode、字节码字体交 autofit light（glyph_outline.go）；窗 zz_light_bytecode_scan_test.go 用真字节码字体对照 ftexp light：L0 六字 × 8-16px + L1 Latin 254 字 × 12px 全 bad=0，见 §3 行。M5+ 待做。
+**状态**: **M0–M3 完成**——M1 机制破译（CJK CFF 的 light 走 **cf2/psaux**，非 afcjk/pshinter；hintmap 算法已从源码+TRACE 数值级复现，见 §12）+ Type 2 charstring 解释器（cffcs.go）；M2 cf2Blues+cf2HintMap（含 X 轴 vstem）完成；**M3 hintmask 多区完成：128 多 mask 字 + 3000 常用字 + 韩文 11172 音节 + 泰文 87 字 × 6 字号对照 ftexp light 全部 bad=0**（cf2 主线闭环）。**M4a 完成（2026-08-06，glyf 无字节码 CJK autofit light：stem light + 单点 contour + 蓝区中位对齐 FT afcjk，commit af46494/b64b94c/1e871b2）**；**M4b 进行中**（2026-08-06 补充：绕向翻转 + 边缘排序 + m-sym 后 **田/二顶锚 diff=0 归零（commit eb8376b）**、**wqy 全字集 px10/12/14/16 bad=0/3000 全部归零（M4b-3 ✅，尖刺合并 + 边链接 delta 两轮修复）**、**aflatin light M4b-4 ✅：254 字 Latin 字集 × px10-16 bad=0（j 单点轮廓 weak + SERIF_LINK2 四分之一网格 + 蓝区跳过单点轮廓三处修复，见 §5.2a）**、**其余脚本判定 M4b-6 ✅：全脚本归 aflatin 模块（非透传）＋未覆盖 fallback=hani（Go 修正 fallback Latin→CJK），窗 arab/ethi/mymr/gujr/fallback bad=0，见 §5.2a**、**afindic light M4b-5 ✅：deva/beng/taml × px12/16 全部 bad=0（top_to_bottom edge 降序排序 + stem 中心 >>1 舍入 + nonbase 跳过蓝区 + positionFirstStem typo，见 §5.2a）**、**M4b-7 M4 门禁 ✅（2026-08-07）**：四扇扫描窗全绿 —— wqy 全字集 / Latin / afindic / 分派窗全 bad=0，唯一允许差 = gujr px12 ઑ 的 0.2px；本批另修 STEM 蓝锚 anchor=循环边 i（SERIF_LINK2 偏 24px 修复），见 §5.2a）。**L0–L1 ✅ 完成（2026-08-07）**：实证 FT 2.11.1 的 LIGHT 对 glyf（含字节码）一律走 autohinter —— truetype 驱动不声明 `FT_MODULE_DRIVER_HINTS_LIGHTLY`（ftobjs.c:940），ftexp 实测 DejaVuSans/FreeSans/TlwgTypo 的 LIGHT == `LIGHT|FORCE_AUTOHINT`；L0 不实现 bytecode InterpLight 分支，改判 HintingVertical 跳过 TT bytecode、字节码字体交 autofit light（glyph_outline.go）；窗 zz_light_bytecode_scan_test.go 用真字节码字体对照 ftexp light：L0 六字 × 8-16px + L1 Latin 254 字 × 12px 全 bad=0，见 §3 行。**L2 ✅ 完成（2026-08-07）**：复合字（Composite）子组件 bytecode hint 对齐——FT 对带 `we_have_instr` 的子组件先跑子组件程序再合并父轮廓（14031 素子组件 bytecode `31 30` = IUP[x]/IUP[y]），Go 旧实现只合并几何不跑子组件 bytecode，全字集 trace 4 处 DIFF；`tt_glyph.go` 加 `hintComponent` 回调（合并前先 hint 子组件）+ `tt_integrate.go` 两处 wire + `tt_opnames.go` opcode 名表按 FT 源码重建，全字集 **3000 gids trace 逐条 diff = 0 bad**（像素效应为 0，只能靠 trace 序列抓），见 §9.5。M5+ 待做。
 **日期**: 2026-08-04（M1 认知更新同日）
 **触发**: R21 验收后用户选定路线——自研 Vertical/Full hint 规则与 FreeType 不一致，放弃原自研 hint，改为**纯自研移植 FreeType light 渲染模式**（运行时零依赖 libfreetype，独立包 + 逐字 diff 验证闭环）
 **关联**: docs/ENGINE_TEXT_FREETYPE_PLAN.md §9（None 化决策：本轮验收基准）、AGENTS.md（render/ 高风险，实现层改动无须逐段确认但影响面须评估）
@@ -115,6 +115,7 @@ func (e *Engine) Hint(font text.ParsedFont, gid text.GlyphID, size float64, mode
 | **M4** | **glyf 无字节码 → autofit light 化**：现有自研 autohint_*.go（Full 语义）改 light 模式——afcjk light（旧 §12 破译有效）/ aflatin light / afindic；其余脚本（阿拉伯/希伯来/泰文等）light 下**透传不 hint**。**M4a 已完成，收尾项见 §5.2a** | 无字节码 TTF（Noto Sans TTF 版/DejaVu 无字节码样本）× 各脚本族 diff |
 | **L0** | **tt_engine light 分派判定**：**实证（2026-08-07，FT 2.11.1）= LIGHT 对 glyf 一律走 autohinter**——truetype 驱动不声明 `FT_MODULE_DRIVER_HINTS_LIGHTLY`（ftobjs.c:940 `mode==LIGHT && !HINTS_LIGHTLY → autohint=TRUE`），ftexp bcontour 实测 DejaVuSans/FreeSans/TlwgTypo（均带 fpgm+prep）下的 LIGHT 输出 == `LIGHT|FORCE_AUTOHINT`；**故不实现 bytecode InterpLight 分支**，改为修正分派：`HintingVertical`（= FT light）下**跳过 TT bytecode 解释器**，字节码字体交 autofit light（glyph_outline.go ExtractOutlineHinted/Var，bytecode 保留给 HintingFull/NORMAL） | `render/text/zz_light_bytecode_scan_test.go`：DejaVuSans/FreeSans 真字节码字体 E/H/L/`1`/`i`/`0`/`l` × 8/12/16px 逐字对照 ftexp light **bad=0** ✅ |
 | **L1** | **Latin 全集归零**：ASCII 95 + accent 29 + confusable 17 + 西里尔 66 + 希腊 48（`hint/testdata/latin_all.txt` 254 字） | 同窗 L1：两真字节码字体 × 12px 全字集 **bad=0/254** ✅ |
+| **L2** | **复合字（Composite）子组件 bytecode hint 对齐（Full 路径）**：FT 对带 `we_have_instr` 的子组件先跑子组件程序再合并父轮廓（`ttGlyphLoader.hintComponent`）；Go 旧实现只合并几何、不跑子组件 bytecode → 全字集 trace 4 处 DIFF。修复 = `tt_glyph.go` 加 `hintComponent` 回调（合并前先 hint 子组件）+ `tt_integrate.go` 两处 wire | 全字集 **3000 gids trace 逐条 diff = 0 bad**（14031 素 FT `IUP[x]→IUP[y]`、Go `opIUP→opIUP` 对齐；opcode 名表 `tt_opnames.go` 按 FT 源码重建）；像素反证：IUP 无被打点→像素效应 0，`zz_tt_full_scan_test.go`（cjk3000 × px12/16）即使 stash 修复也 0 bad，此洞只能靠 trace 序列抓 | ✅ 完成（2026-08-07，见 §9.5） |
 
 ### 5.2a M4 收尾清单（2026-08-06 立，wqy-microhei-nohint.ttf = glyf 无字节码 CJK 对照主字体）
 
@@ -266,6 +267,40 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 - **本轮后**：M4 autofit light 化（无字节码 glyf）、M5 CFF2 可变（blend）、L0–L1 tt_engine light（**L0–L1 已于 2026-08-07 完成：NOTTT 判定——字节码字体在 light 下交 autofit，见 §3/§22**）。
 - **顺带支持不验证**（用户确认）：seac 复合字、非 1000-upem 的 CFF 字体。
 - **M2 含 X 轴 vstem**（用户确认）：日字 X 的 1/64 对齐（577 vs 578）需要像素级归零。
+
+### 9.4 FT 与 Go 完整 hint 字节码 trace 对齐（2026-08-07，gid=6 `#`，Full 路径）
+
+**背景**：此前的 L0 实证判定 light 下字节码字体交 autofit。但在 Full/NORMAL 下 Go 自研 `tt_engine` 仍走 TT 字节码 —— 本轮用带 trace 的 FT 2.11.1 对照验证 Go 解释器 fpgm/prep/glyph 三段执行序列与 FT 是否一致。
+
+**方法**：本地 FT 2.11.1 源码 `ttinterp.c` 打两处补丁重新编译 —— ① `loopcall_counter_max`/`neg_jump_counter_max` 放开为 `0x7FFFFFFFL`（别外 trace 因 LOOPCALL 上限中途截断，白数据不可比）；② 主循环每条指令前 `FT_TRACE6` 打印 `GPUI-RANGE-<curRange>`（1=font/2=cvt/3=glyph）。`FT2_DEBUG=ttinterp:7 ./ttconv wqy-microhei.ttf 16 6` 抓完整执行；Go 侧用 `zz_tt_trace_probe_test.go`（`GPUI_TT_TRACE=1`，trace 落 `/tmp/opencode/gt2.txt`）导出同字形执行序列。
+
+**结论：Go 引擎无需复刻 FT 的 prep 双跑**，两边最终状态完全对齐：
+
+| FT 段 | 条数 | 含义 | Go 对应 | 判定 |
+|---|---|---|---|---|
+| seg1 | 70 | fpgm 顶层 | F 段顶 70 | ✅ 一致 |
+| seg2 | 655 | prep 首跑（**状态未就绪**，`IF`(52) 直接 `EIF`(53) 跳过分支体） | —（Go 不跑这次无效首跑） | — |
+| seg3 | 692 | prep 终跑（grayscale 状态变化触发 FT `reexecute` 重跑，见 ttgload.c:2705-2723，最终生效） | P 顶 213 + fpgm 子函数体 479 = **692** | ✅ **逐条一致 692/692** |
+| seg4 | 64 | glyph | G 段 64 | ✅ 逐条一致 64/64 |
+
+- **FT 为什么跑两遍 prep**：`tt_loader_init` 里首次 glyph 加载检测到 subpixel/grayscale 状态与上次不同 → `reexecute=TRUE` → `tt_size_run_prep` 重跑 CVT 程序；**Go 引擎没有这套状态缓存机制，单跑一次**，结果与 FT 最终生效的 seg3 逐条相同。
+- **此前"Go P 段 213 ≪ FT prep 655/692"是假警报**：FT 的 trace 把 fpgm 里被调子函数体（CALL 进 FDEF）也计入同一段（range 交替 2→1→2），Go 则把子函数体标成 F；合并口径 Go prep+F = 692 与 FT seg3 完全一致。
+- **旧文件误导**：`/tmp/opencode/sec3.txt` 只有 691 条、尾部缺 `SDB`，是上次被截断的残缺 trace；完整 seg3=692 尾部为 `EDEF/RTG/SDB`，Go 一条不少。
+- **验证基建**：trace 对照脚本见 `/tmp/opencode/`（`ft6_tag.txt` 原始 FT trace、`gt2.txt` Go trace、分类/逐条比对 python 段）。**不提交 FT 打补丁源码/二进制**，仅保留对照脚本与 trace 文本于本地。
+
+**结论一句**：Go 引擎单跑 prep 就等价 FT 两次跑后的最终状态（FT 首跑是它自己的冗余），无需为对齐 FT 复刻双跑；gid=6 已 trace 级完全对齐，无需改代码。
+
+### 9.5 L2 复合字子组件 hint trace 对齐（2026-08-07，composite bytecode，Full 路径）
+
+**背景**：§9.4 只验证了单个简单字（gid=6）。wqy 全字集里复合字（Composite）带**子组件 bytecode**——FT 的 Hint 流程对每个有 `we_have_instr` 的子组件先跑子组件 bytecode（`ttGlyphLoader.hintComponent`），再合并回父轮廓跑 parent 程序。Go 旧实现只合并子组件几何、从不跑子组件 bytecode（子组件全部解析成点集合并）。全字集 trace 逐条对不上。
+
+**4 个字节码子组件复合字**（wqy，rune→gid 反查工具确认）：gid 14031=素(U+7D20)、14009=綊(U+7D0A)、14046=累(U+7D2F)、4366=坟(U+575F)。子字形（如 14031 的子组件 42863，TTFW-computed）numContours=3、instrLen=2、bytecode=`31 30`（0x31=IUP[x]，0x30=IUP[y]）。
+
+**修复**（render/ 层洞，走 wr-engine 式定点修）：`tt_glyph.go` 加 `ttGlyphLoader.hintComponent` 回调——每次 `glyf` 子组件解析前若有 instr，先 `hintGlyphOutline`（is_composite=0）跑一遍子组件程序，再叠加组件变换合入父轮廓；`tt_integrate.go` 两处 wire 回调（`hintGlyphOutline`/`hintGlyphOutlineVar`）。FT 侧补丁 §9.4 已放开 LOOPCALL/回跳上限，trace 三段带 `GPUI-RANGE` 可覆盖子组件加载（`GPUI-RANGE-3` 段即子组件 bytecode）。
+
+**验证**（trace 级全字集 3000 gids）：FT 全字集 trace 与 Go `zz_tt_trace_batch_test.go` 导出的 G 段逐条 diff：14031 FT `IUP[x]`(000000)→`IUP[y]`(000001)、Go `G 0 opIUP`→`G 1 opIUP`，完全对齐；**`== 3000 gids, 0 bad ==`**（修复前这 4 个 gid 的 G 段为 0 条）。像素级反证：IUP 不移动未被打点轮廓 → 子组件 bytecode 像素效应为 0，`zz_tt_full_scan_test.go`（cjk3000 × px12/16 = 12000 样本）即使 stash 修复也全 bad=0——**像素测试无法抓此洞，真抓洞靠 trace 序列**（依赖补丁 FT 二进制，不入库）。
+
+**opcode 名表**（`tt_opnames.go`，trace 专用，规范名轴无关）：散列字节→指令名，供 trace 比较器屏幕端；0x2E/0x2F=MDAP、0x30/0x31=IUP、0x32/0x33=SHP 等按 FT 源码（ttinterp.c:8128-8200）重建，曾一度偏移一格导致 `IUP` 打成 `SHP`/错位（全字集 4 bad），修正后 0 bad 恢复。
 
 ---
 

@@ -117,6 +117,12 @@ func (c *ttHintCache) hintGlyphOutline(glyphID uint16, ppem int32) (*ttGlyphOutl
 	// Compute scale: ppem * 64 / upem in 16.16 fixed-point.
 	scale := instance.scale
 
+	// Wire composite component hinting: each component carrying its own
+	// bytecode is hinted (in its own coordinate space) before being merged,
+	// exactly as FreeType recursively hints subglyphs during composite load.
+	// Reference: ttgload.c TT_Hint_Glyph with is_composite=0 per subglyph.
+	c.loader.hintComponent = func(o *ttGlyphOutline) error { return instance.hintGlyph(o) }
+
 	// Load glyph outline with phantom points.
 	outline, err := c.loader.loadGlyphOutline(glyphID, scale)
 	if err != nil {
@@ -187,6 +193,9 @@ func (c *ttHintCache) hintGlyphOutlineVar(
 	}
 
 	scale := instance.scale
+
+	// Wire composite component hinting for the variable-font path as well.
+	c.loader.hintComponent = func(o *ttGlyphOutline) error { return instance.hintGlyph(o) }
 
 	// Load glyph outline with gvar deltas applied to unscaled points.
 	outline, err := c.loader.loadGlyphOutlineVar(glyphID, scale, font, variations)

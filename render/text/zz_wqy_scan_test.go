@@ -163,15 +163,22 @@ func wqyFTExpBin(t *testing.T) string {
 	return bin
 }
 
-// batchWqyContour26 调 ftexp bcontour 取 wqy FT-light 26.6 轮廓（批量，一次启动）。
+// batchWqyContour26 调 ftexp bcontour 取 wqy FT 26.6 轮廓（批量，一次启动）。
+// hint 参数：l=light, n=no-hint, f=full(FT_LOAD_TARGET_NORMAL)。
 func batchWqyContour26(t *testing.T, fontPath string, chars []rune, px float64) map[rune][][2]int64 {
+	t.Helper()
+	return batchWqyContour26Hint(t, fontPath, chars, px, "l")
+}
+
+// batchWqyContour26Hint 是 batchWqyContour26 的可指定 hint 模式版本。
+func batchWqyContour26Hint(t *testing.T, fontPath string, chars []rune, px float64, hint string) map[rune][][2]int64 {
 	t.Helper()
 	list := t.TempDir() + "/wqy_runes.txt"
 	if err := os.WriteFile(list, []byte(string(chars)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(wqyFTExpBin(t), "bcontour",
-		fontPath, strconv.Itoa(int(px)), "l", list)
+		fontPath, strconv.Itoa(int(px)), hint, list)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Skipf("ftexp bcontour unavailable: %v", err)

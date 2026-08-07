@@ -82,6 +82,18 @@ type ttGlyphLoader struct {
 	hmtxAdv []uint16     // horizontal advance widths from hmtx
 	hmtxLSB []int16      // left side bearings from hmtx
 	numHMtx int          // number of long horizontal metrics
+
+	// hintComponent, when set, is invoked on each composite component
+	// outline (that carries its own bytecode) BEFORE it is merged into the
+	// parent glyph. FreeType hints each subglyph individually during
+	// composite loading (ttgload.c TT_Process_Simple_Glyph), then runs the
+	// composite's own program on the merged outline. Without this, a
+	// composite whose own instructions are empty but whose components have
+	// bytecode (e.g. IUP-only CJK Ext-B glyphs) would skip all hinting,
+	// diverging from FreeType.
+	//
+	// Nil means "no component hinting" (pure outline loading).
+	hintComponent func(outline *ttGlyphOutline) error
 }
 
 // glyfOffset holds the offset and length of a glyph within the glyf table.
@@ -389,6 +401,17 @@ func (l *ttGlyphLoader) loadCompositeGlyphOutlineGuarded(glyphID uint16, scale i
 		}
 		if componentOutline == nil {
 			continue
+		}
+
+		// Hint the component in its own coordinate space BEFORE merging,
+		// matching FreeType's recursive subglyph hinting
+		// (ttgload.c TT_Process_Simple_Glyph during composite load).
+		// Only components carrying their own bytecode get hinted; the
+		// composite's own program (if any) runs later on the merged outline.
+		// Non-pedantic: a failing component hint degrades to the unhinted
+		// component outline, mirroring hintGlyph's error tolerance.
+		if l.hintComponent != nil && len(componentOutline.bytecode) > 0 {
+			_ = l.hintComponent(componentOutline)
 		}
 
 		// Extract component's contour points (exclude phantom points).

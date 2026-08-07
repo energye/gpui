@@ -8,7 +8,52 @@
 // Reference: skrifa/src/outline/glyf/hint/engine/mod.rs
 package text
 
-import "errors"
+import (
+	"errors"
+	"os"
+	"strconv"
+	"strings"
+)
+
+var ttTraceEnabled = os.Getenv("GPUI_TT_TRACE") != ""
+
+// doTrace prints the current instruction to stderr for FT-trace comparison.
+func (e *ttEngine) doTrace(pc int, opcode byte) {
+	prog := byte('?')
+	switch e.program.current {
+	case ttProgramFont:
+		prog = 'F'
+	case ttProgramControlValue:
+		prog = 'P'
+	case ttProgramGlyph:
+		prog = 'G'
+	}
+	var sb strings.Builder
+	sb.WriteByte(prog)
+	sb.WriteByte(' ')
+	sb.WriteString(strconv.Itoa(pc))
+	sb.WriteByte(' ')
+	sb.WriteString(ttOpcodeName(opcode))
+	sb.WriteString(" :: ")
+	vs := e.valueStack.activeValues()
+	top := len(vs)
+	for i := 0; i < top && i < 8; i++ {
+		if i > 0 {
+			sb.WriteByte(' ')
+		}
+		sb.WriteString(strconv.FormatInt(int64(vs[top-1-i]), 10))
+	}
+	sb.WriteByte('\n')
+	os.Stderr.WriteString(sb.String())
+}
+
+// ttOpcodeName returns a short name for an opcode (debug/trace helper).
+func ttOpcodeName(opcode byte) string {
+	if n, ok := ttOpcodeNames[opcode]; ok {
+		return n
+	}
+	return "OP_" + strconv.Itoa(int(opcode))
+}
 
 // ttMaxRunInstructions is the maximum number of instructions executed
 // in a single run. Prevents infinite loops.
@@ -133,6 +178,10 @@ func (e *ttEngine) run() error {
 			break
 		}
 		pc := e.program.decoder.pc - 1
+
+		if ttTraceEnabled {
+			e.doTrace(pc, opcode)
+		}
 
 		if err := e.dispatch(opcode); err != nil {
 			var kind ttHintErrorKind
