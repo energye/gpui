@@ -933,6 +933,14 @@ type cf2HintResult struct {
 	contours []int
 }
 
+// hintCFF2Light：M5 入口。对 CFF2 cs 轮廓施加 cf2 语义的 Y 轴 hintmap。
+// 语义与 hintCFFLight 完全相同（cf2 引擎与 CFF 版本无关），区别仅在：
+//   - CFF2 解释走 interpretCharstring2（无 width、支持 vsindex/blend）。
+//   - fd 蓝区来自自解析的 CFF2 FDArray（cff2.go）。
+func hintCFF2Light(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2Fixed) *cf2HintResult {
+	return hintCFFLight(cs, fd, scale, darkenX, darkenY)
+}
+
 // hintCFFLight：M2/M3 主入口。对 cs 轮廓施加 cf2 语义的 Y 轴 hintmap
 // （hStem 集 + 蓝区捕获），X 轴按 scale 直通（cf2 build 只用 hStem 位，
 // vStem 仅贡献 mask 位宽，pshints.c:847-850）。

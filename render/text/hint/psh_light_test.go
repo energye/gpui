@@ -7,31 +7,21 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/energye/gpui/render/text"
 )
 
 // M2 验证（docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md §5.1 M2）：
 // cf2Blues + cf2HintMap 移植，对照线 = §13.5 日 12px 8 边数值 + ftexp light
 // 逐点 26.6。
 
-func m2Font(t *testing.T) (text.ParsedFont, *cffFontData) {
+func m2Font(t *testing.T) (*testFont, *cffFontData) {
 	t.Helper()
-	src, err := text.NewFontSourceFromFile("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
-	if err != nil {
-		t.Skipf("CJK font unavailable: %v", err)
-	}
-	f := src.Face(14).Source().Parsed()
-	provider, ok := f.(text.RawFontDataProvider)
-	if !ok {
-		t.Fatal("font lacks RawFontDataProvider")
-	}
-	raw := provider.RawFontData()
+	f := openTestFont(t, "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+	raw := f.raw
 	start, ln, err := cffTableData(raw, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cd, err := cffParseAll(raw[start:start+ln], f.UnitsPerEm())
+	cd, err := cffParseAll(raw[start:start+ln], f.unitsPerEm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +58,7 @@ func TestM2Ri12pxEightEdges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	upem := f.UnitsPerEm()
+	upem := f.unitsPerEm
 	scale := m2HintScale(12.0, upem)
 	if scale != 786 {
 		t.Fatalf("hinted scale = %d, want 786", scale)
@@ -124,7 +114,7 @@ func TestM2Ri12pxEightEdges(t *testing.T) {
 // TestM2ContourLight：日/田/目 12px light 轮廓逐点 26.6 == ftexp contour l。
 func TestM2ContourLight(t *testing.T) {
 	f, cd := m2Font(t)
-	upem := f.UnitsPerEm()
+	upem := f.unitsPerEm
 	px := 12.0
 	scale := m2HintScale(px, upem)
 	// cf2_computeDarkening 12px：darkenX = darkenY = 12（16.16，0.0002px）

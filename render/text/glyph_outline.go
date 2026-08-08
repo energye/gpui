@@ -352,6 +352,17 @@ func (e *OutlineExtractor) ExtractOutlineHinted(parsedFont ParsedFont, gid Glyph
 		}
 	}
 
+	// Priority 1.5: CFF/CFF2 轮廓字体的 light 拟合（自研 cf2 引擎，
+	// 已逐点对齐 FT-light 26.6，见 hint/light_api.go）。
+	// FT_LOAD_TARGET_LIGHT 对 PostScript 字体走 pshinter light ——
+	// 与 autohinter 互斥（CFF 无 glyf，也进不了 Priority 2。
+	// 引擎失败 → 落 gridFit 兜底，不阻塞渲染。
+	if own, ok := parsedFont.(*ownParsedFont); ok && own.hasPostScriptOutlines() {
+		if lo, ok := e.cffLightHintOutline(own, gid, size); ok {
+			return lo, nil
+		}
+	}
+
 	// Priority 2: Auto-hinter (contour-based, Y-UP convention).
 	// Prefer preloaded contours from extract (ownParsedFont path).
 	if contours != nil && len(contours.Points) > 0 {
@@ -403,6 +414,12 @@ func (e *OutlineExtractor) ExtractOutlineHintedVar(
 	// CFF2 variable fonts store deltas in charstrings (not gvar). Blend via
 	// go-text LoadGlyph coords; no glyf contours for TT/auto-hint.
 	if ownFont.hasCFF2Table() && !ownFont.hasCFFTable() {
+		if hinting != HintingNone {
+			// CFF2 light 拟合（自研 cf2 引擎 + 变体坐标），与静态 CFF 一致。
+			if lo, ok := e.cffLightHintOutlineVar(ownFont, gid, size, variations); ok {
+				return lo, nil
+			}
+		}
 		outline, err := ownFont.extractCFF2Outline(gid, size, variations)
 		if err != nil {
 			return nil, err

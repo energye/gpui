@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/energye/gpui/render/text"
 )
 
 // M1 验证（docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md §5.1 M1）：
@@ -52,23 +50,15 @@ func csTo26_6(cs float64, scale int64) int64 {
 }
 
 // m1Font 加载 CJK TTC（face 0）并解析 CFF。
-func m1Font(t *testing.T) (text.ParsedFont, *cffFontData, []byte) {
+func m1Font(t *testing.T) (*testFont, *cffFontData, []byte) {
 	t.Helper()
-	src, err := text.NewFontSourceFromFile("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
-	if err != nil {
-		t.Skipf("CJK font unavailable: %v", err)
-	}
-	f := src.Face(14).Source().Parsed()
-	provider, ok := f.(text.RawFontDataProvider)
-	if !ok {
-		t.Fatal("font lacks RawFontDataProvider")
-	}
-	raw := provider.RawFontData()
+	f := openTestFont(t, "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+	raw := f.raw
 	start, ln, err := cffTableData(raw, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cd, err := cffParseAll(raw[start:start+ln], f.UnitsPerEm())
+	cd, err := cffParseAll(raw[start:start+ln], f.unitsPerEm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +162,7 @@ func TestM1HStemsTRACE(t *testing.T) {
 // （±0 误差；FT 转换链 = MulFix(cs, FT_DivFix(768,upem))，见 csTo26_6）。
 func TestM1Outline26_6(t *testing.T) {
 	f, cd, _ := m1Font(t)
-	upem := int64(f.UnitsPerEm())
+	upem := int64(f.unitsPerEm)
 	px := 12.0
 	scale := ftScale(px, upem)
 	if scale != 50332 {
@@ -231,9 +221,9 @@ func TestM1Width(t *testing.T) {
 	if want == 0 {
 		t.Skip("fd defaultWidthX = 0，无法验证宽度")
 	}
-	gotPx := out.width * 12.0 / float64(f.UnitsPerEm())
+	gotPx := out.width * 12.0 / float64(f.unitsPerEm)
 	if !out.hasWidth {
-		gotPx = want * 12.0 / float64(f.UnitsPerEm())
+		gotPx = want * 12.0 / float64(f.unitsPerEm)
 	}
 	if d := gotPx - 12.0; d < -0.02 || d > 0.02 {
 		t.Errorf("advance = %.3fpx, want 12.0 (±1/64)", gotPx)

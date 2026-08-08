@@ -1,10 +1,80 @@
-package hint
+package text
 
 import (
-	"github.com/energye/gpui/render/text"
+	"errors"
 )
 
-// afcjk.go —— FreeType autohinter「afcjk」脚本的移植区（CJK light 拟合）。
+// light_engine.go —— FreeType light 渲染模式的消费者侧骨架（模式选择+轮廓
+// 壳），基于 render/text 已有的轮廓提取与自研 hint 引擎。
+//
+// 背景：FT_LOAD_TARGET_LIGHT 对不同字体走不同引擎：
+//   - CFF/CFF2 轮廓字体（OpenType OTTO，如系统 Noto Sans CJK）→ pshinter
+//     light（Y 方向网格拟合），由 render/text/hint 包（cffcs/cff2/psh_light）
+//     实现，逐字对照 FT 已闭环（见 docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md §5）。
+//   - TrueType glyf 轮廓（无 bytecode）→ autohinter afcjk（render/text
+//     autohint*.go 已实现全管线）。
+//   - Latin 等带 fpgm/prep 的字体 → TrueType 解释器 light（tt_engine.go
+//     已实现全量执行；light 语义 Y-only 在 L0/L1）。
+//
+// 本文件保留早期隔离验证用的 Engine/Mode 壳（fdiff / hint_test 依赖），
+// 通过 text.OutlineExtractor 提取轮廓后按 mode 分派。
+
+// Mode 是目标 FreeType 渲染模式。
+type Mode uint8
+
+const (
+	// ModeLightCJK 对应 pshinter light / afcjk（CFF→cffcs+psh_light，glyf→afcjk）。
+	ModeLightCJK Mode = iota
+
+	// ModeLightLatin 对应 TrueType 解释器 light 模式（bytecode Y-only）。
+	ModeLightLatin
+)
+
+// ErrUnsupportedFont 表示字体类型不被 light 引擎支持。
+var ErrUnsupportedFont = errors.New("text: unsupported font type for FT-light port")
+
+// Engine 是 FT-light 拟合的独立实现壳。
+type Engine struct {
+	extractor *OutlineExtractor
+}
+
+// New 创建 light 引擎壳。
+func New() *Engine {
+	return &Engine{extractor: NewOutlineExtractor()}
+}
+
+// Hint 对 glyph 执行 light 网格拟合，返回拟合后的轮廓。
+func (e *Engine) Hint(font ParsedFont, gid GlyphID, size float64, mode Mode) (*GlyphOutline, error) {
+	if font == nil {
+		return nil, errors.New("text: nil font")
+	}
+	if e == nil || e.extractor == nil {
+		return nil, errors.New("text: nil engine")
+	}
+
+	outline, err := e.extractor.ExtractOutline(font, gid, size)
+	if err != nil {
+		return nil, err
+	}
+	if outline == nil {
+		return nil, nil // 空字形（空格等）
+	}
+
+	switch mode {
+	case ModeLightCJK:
+		return e.hintAfcjk(font, gid, size, outline)
+	case ModeLightLatin:
+		return e.hintLatinLight(gid, size, outline)
+	default:
+		return nil, errors.New("text: unknown mode")
+	}
+}
+
+// hintLatinLight 是 bytecode light 模式骨架入口（L0/L1 待接入 tt_engine
+// 的 light 渲染 flag；当前返回原始轮廓）。
+func (e *Engine) hintLatinLight(gid GlyphID, size float64, outline *GlyphOutline) (*GlyphOutline, error) {
+	return outline, nil
+}// afcjk.go —— FreeType autohinter「afcjk」脚本的移植区（CJK light 拟合）。
 //
 // 对齐目标：FT_LOAD_TARGET_LIGHT 下对无 bytecode hint 程序的字体
 // （CJK 主字体如 Noto Sans CJK 不带 fpgm/prep）走 autohinter，
@@ -76,7 +146,7 @@ func closeY(a, b float32) bool {
 //
 // 注意：OutlineSegment 是连续折线——LineTo 段只用 Points[0]（新端点），
 // 段跨度 = (上一端点 → Points[0])。水平检测必须用相邻点对。
-func (e *Engine) hintAfcjk(font text.ParsedFont, gid text.GlyphID, size float64, outline *text.GlyphOutline) (*text.GlyphOutline, error) {
+func (e *Engine) hintAfcjk(font ParsedFont, gid GlyphID, size float64, outline *GlyphOutline) (*GlyphOutline, error) {
 	if outline == nil || outline.IsEmpty() {
 		return outline, nil
 	}
@@ -93,10 +163,10 @@ func (e *Engine) hintAfcjk(font text.ParsedFont, gid text.GlyphID, size float64,
 	for i := range outline.Segments {
 		s := &outline.Segments[i]
 		switch s.Op {
-		case text.OutlineOpMoveTo:
+		case OutlineOpMoveTo:
 			prev = pt{x: s.Points[0].X, y: s.Points[0].Y, seg: i}
 			prevSet = true
-		case text.OutlineOpLineTo:
+		case OutlineOpLineTo:
 			cur := pt{x: s.Points[0].X, y: s.Points[0].Y, seg: i}
 			if prevSet && edgeOf(prev, cur) {
 				edges = append(edges, he{y: float64(prev.y), idxs: []int{prev.seg, i}})
@@ -104,7 +174,7 @@ func (e *Engine) hintAfcjk(font text.ParsedFont, gid text.GlyphID, size float64,
 			pts = append(pts, cur)
 			prev = cur
 			prevSet = true
-		case text.OutlineOpQuadTo, text.OutlineOpCubicTo:
+		case OutlineOpQuadTo, OutlineOpCubicTo:
 			// 曲线段：三个点 (c1, c2, end)，水平检测只对直线段做（M0 范围）。
 			cur := pt{x: s.Points[2].X, y: s.Points[2].Y, seg: i}
 			pts = append(pts, cur)
@@ -170,7 +240,7 @@ func (e *Engine) hintAfcjk(font text.ParsedFont, gid text.GlyphID, size float64,
 			continue
 		}
 		switch s.Op {
-		case text.OutlineOpMoveTo, text.OutlineOpLineTo:
+		case OutlineOpMoveTo, OutlineOpLineTo:
 			s.Points[0].Y += float32(dy)
 		}
 	}

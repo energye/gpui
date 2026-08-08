@@ -4,8 +4,8 @@
 //
 //	fdiff <font> <mode> <px> <runes|@group> [outdir]
 //
-//	mode: cjk   = hint.ModeLightCJK（afcjk 移植，M0 起）
-//	      latin = hint.ModeLightLatin（tt_engine light，L0 起）
+//	mode: cjk   = text.ModeLightCJK（afcjk 移植，M0 起）
+//	      latin = text.ModeLightLatin（tt_engine light，L0 起）
 //	      none  = 原始轮廓（骨架期/基线对照）
 //	px:   字号，可逗号分隔多档（如 12,14,16）
 //	runes:直接字符序列，或 @分组名（VerifierSet 组名）
@@ -169,7 +169,7 @@ func max(a, b int) int {
 	return b
 }
 
-func runeToPGM(e *hint.Engine, parsed text.ParsedFont, r rune, px float64, mode string) ([]int, int, int, error) {
+func runeToPGM(e *text.Engine, parsed text.ParsedFont, r rune, px float64, mode string) ([]int, int, int, error) {
 	var outline *text.GlyphOutline
 	var err error
 	switch mode {
@@ -180,11 +180,11 @@ func runeToPGM(e *hint.Engine, parsed text.ParsedFont, r rune, px float64, mode 
 			return nil, 0, 0, err
 		}
 	default:
-		var m hint.Mode
+		var m text.Mode
 		if mode == "latin" {
-			m = hint.ModeLightLatin
+			m = text.ModeLightLatin
 		} else {
-			m = hint.ModeLightCJK
+			m = text.ModeLightCJK
 		}
 		outline, err = e.Hint(parsed, text.GlyphID(parsed.GlyphIndex(r)), px, m)
 		if err != nil {
@@ -263,7 +263,7 @@ func main() {
 		os.Exit(1)
 	}
 	parsed := src.Parsed()
-	e := hint.New()
+	e := text.New()
 
 	if *contour {
 		runContourCompare(fontPath, parsed, e, mode, pxes, runes)
@@ -414,7 +414,7 @@ func outlineMetrics(o *text.GlyphOutline) (top, bottom, left, right float64) {
 	return
 }
 
-func runContourCompare(fontPath string, parsed text.ParsedFont, e *hint.Engine, mode string, pxes []float64, runes []rune) {
+func runContourCompare(fontPath string, parsed text.ParsedFont, e *text.Engine, mode string, pxes []float64, runes []rune) {
 	fmt.Printf("== contour %s mode=%s\n", fontPath, mode)
 	for _, px := range pxes {
 		for _, r := range runes {
@@ -452,11 +452,11 @@ func runContourCompare(fontPath string, parsed text.ParsedFont, e *hint.Engine, 
 			case "vert":
 				outline, err = text.NewOutlineExtractor().ExtractOutlineHinted(parsed, text.GlyphID(gid), px, text.HintingVertical)
 			default:
-				var m hint.Mode
+				var m text.Mode
 				if mode == "latin" {
-					m = hint.ModeLightLatin
+					m = text.ModeLightLatin
 				} else {
-					m = hint.ModeLightCJK
+					m = text.ModeLightCJK
 				}
 				outline, err = e.Hint(parsed, text.GlyphID(gid), px, m)
 			}

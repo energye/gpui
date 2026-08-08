@@ -72,11 +72,18 @@ type csInterp struct {
 	pathBegun     bool
 	out           csOutline
 	numHints      int
-	curMask       []byte // 最近 hintmask/cntrmask 的位
+	curMask       []byte // 最近一次 mask/cntrmask 的位
 	curMaskIdx    int    // 最近 hintmask 事件索引（-1 = 无事件）
 	moveMaskIdx   int    // 最近 rmoveto（moveTo）时刻的 mask 事件索引
-	maskSincePath bool   // 自上次 path op 后是否读过 mask（FT isNew）
+	maskSincePath bool   // 最近一次 path op 后是否读到过 mask（FT isNew）
 	depth         int
+
+	// CFF2 模式（M5）：可变字体 charstring 支持 vsindex/blend。
+	// vsIndex 是当前生效的 ItemVariationData 下标（op 15 更新，初始 = Private
+	// DICT op 22 的 vsindex）；blend 是字体的变体数据（见 cff2.go）。
+	isCFF2  bool
+	vsIndex int
+	blend   *cff2BlendData
 }
 
 const maxCSDepth = 10 // FT 的 CFF_MAX_OPERANDS 对应递归上限
@@ -97,6 +104,34 @@ func csBias(n int) int {
 // nominalWidthX 来自 FD Private DICT op 21（cf2_getNominalWidthX）。
 func interpretCharstring(data []byte, subrs, gsubrs [][]byte, nominalWidthX float64) (*csOutline, error) {
 	ip := &csInterp{data: data, subrs: subrs, gsubrs: gsubrs, nominalWidthX: nominalWidthX, curMaskIdx: -1, moveMaskIdx: -1}
+	if err := ip.run(); err != nil {
+		return nil, err
+	}
+	ip.out.hints = append(ip.out.hints, ip.out.hstems...)
+	ip.out.hints = append(ip.out.hints, ip.out.vstems...)
+	return &ip.out, nil
+}
+
+// interpretCharstring2 解释一条 CFF2 charstring（M5）。
+// CFF2 语义差异（psintrp.c:570-598）：
+//   - charstring 无 width 参数（haveWidth 始终 TRUE，width = defaultWidthX）。
+//   - 支持 vsindex(15) / blend(16) 变体指令。
+//
+// blend 数据 = 变体坐标 + VariationStore（见 cff2.go cff2ParseAll）。
+func interpretCharstring2(data []byte, subrs, gsubrs [][]byte, nominalWidthX float64,
+	vsIndex int, blend *cff2BlendData) (*csOutline, error) {
+	if blend != nil {
+		blend.setScalars(vsIndex, blend.coords)
+	}
+	ip := &csInterp{
+		data: data, subrs: subrs, gsubrs: gsubrs,
+		nominalWidthX: 0, // CFF2 无 nominal width
+		curMaskIdx:    -1, moveMaskIdx: -1,
+		isCFF2: true, vsIndex: vsIndex, blend: blend,
+	}
+	// CFF2 起始即 haveWidth=true（不消费栈首为 width），但 hstem/vstem
+	// 等路径检查 !hasWidth 才尝试 takeWidth —— 直接置 hasWidth。
+	ip.out.hasWidth = true
 	if err := ip.run(); err != nil {
 		return nil, err
 	}
@@ -176,12 +211,23 @@ func (ip *csInterp) run() error {
 			return err
 		}
 	}
+	// FT 语义：charstring 解析到流尾后（无论是否有 endchar）都通过
+	// cf2_outline_close → ps_builder_close_contour 闭合最后轮廓
+	//（psft.c:553, psobjs.c:2340）。缺 endchar 的字形（如 CFF2 H
+	// 以 blend+hlineto 结束）也必须闭合。仅顶层（非 subr）闭合：
+	// subr 返回时不需要也不会 close（FT 在 callsubr 后继续原轮廓）。
+	if ip.depth == 0 {
+		ip.closeContour()
+	}
 	return nil
 }
 
 // exec 执行一个 operator（含 width 判定，语义同 FT cffdecode.c:884-945）。
 func (ip *csInterp) exec(op int) error {
 	numArgs := len(ip.stack)
+	if os.Getenv("CSDBG") != "" {
+		fmt.Printf("op=%d pos=%d numArgs=%d depth=%d\n", op, ip.pos, numArgs, ip.depth)
+	}
 	switch op {
 	case 1, 3, 18, 23: // hstem/vstem/hstemvm/hstemhm
 		if os.Getenv("CSDBG") != "" {
@@ -368,6 +414,9 @@ func (ip *csInterp) exec(op int) error {
 			maskSincePath: ip.maskSincePath,
 			depth:         ip.depth + 1,
 			out:           ip.out,
+			isCFF2:        ip.isCFF2,
+			vsIndex:       ip.vsIndex,
+			blend:         ip.blend,
 		}
 		if err := sub.run(); err != nil && err != errCSReturn {
 			return err
@@ -380,6 +429,7 @@ func (ip *csInterp) exec(op int) error {
 		ip.moveMaskIdx = sub.moveMaskIdx
 		ip.maskSincePath = sub.maskSincePath
 		ip.stack = sub.stack
+		ip.vsIndex = sub.vsIndex
 	case 11: // return
 		return errCSReturn
 	case 14: // endchar
@@ -509,8 +559,57 @@ func (ip *csInterp) exec(op int) error {
 		}
 		ip.addPt(ip.x, ip.y, true)
 		ip.stack = nil
-	case 12, 1201: // dotsection / vsindex：忽略
-	case 1202: // blend：非可变 CFF 不应出现，忽略
+	case 12, 1201: // dotsection / vsindex（escape 形式）：忽略
+	case 15: // vsindex（CFF2；CFF1 未定义）
+		if !ip.isCFF2 {
+			return fmt.Errorf("cs: vsindex in non-CFF2")
+		}
+		if len(ip.stack) < 1 {
+			return fmt.Errorf("cs: vsindex underflow")
+		}
+		idx := int(ip.stack[len(ip.stack)-1])
+		ip.stack = nil
+		if idx < 0 || idx >= len(ip.blend.vstore.variationData) {
+			return fmt.Errorf("cs: vsindex %d out of range", idx)
+		}
+		ip.vsIndex = idx
+		ip.blend.setScalars(idx, ip.blend.coords)
+	case 16: // blend（CFF2；CFF1 未定义）
+		if !ip.isCFF2 {
+			return fmt.Errorf("cs: blend in non-CFF2")
+		}
+		if ip.blend == nil {
+			return fmt.Errorf("cs: blend without variation data")
+		}
+		if len(ip.stack) < 1 {
+			return fmt.Errorf("cs: blend underflow")
+		}
+		n := int(ip.stack[len(ip.stack)-1])
+		k := len(ip.blend.scalars)
+		if k == 0 {
+			// 无变体激活（default master）：blend 只消费 n 参数，
+			// 栈上剩余 n*(k+1) = n 个参数（k=0 时 deltas 为空）。
+			ip.stack = ip.stack[:len(ip.stack)-1]
+			break
+		}
+		need := n*(k+1) + 1
+		if len(ip.stack) < need {
+			return fmt.Errorf("cs: blend underflow need %d have %d", need, len(ip.stack))
+		}
+		// 栈尾 n*(k+1) 个 = n 个 base + n*k 个 delta（组序：base[i] 后跟 k 个
+		// delta[i][0..k)，FT psintrp.c:418-468 cf2_doBlend）。
+		args := ip.stack[len(ip.stack)-need : len(ip.stack)-1]
+		for i := 0; i < n; i++ {
+			base := args[i]
+			for j := 0; j < k; j++ {
+				base += ip.blend.scalars[j] * args[n+i*k+j]
+			}
+			args[i] = base
+		}
+		// 保留 n 个 blended 结果，丢弃 n*k 个 delta 与 n 参数
+		copy(ip.stack[len(ip.stack)-need:], args[:n])
+		ip.stack = ip.stack[:len(ip.stack)-need+n]
+	case 1202: // blend（escape 形式）：非可变 CFF 不应出现，忽略
 		return fmt.Errorf("cs: blend not supported (variable CFF2)")
 	default:
 		return fmt.Errorf("cs: unsupported op %d", op)
@@ -562,6 +661,9 @@ func (ip *csInterp) lineTo(nx, ny float64) {
 // closeContour 闭合当前轮廓（FT cff_builder_close_contour：重复首点的 on 尾点删除；
 // 单点轮廓丢弃）。
 func (ip *csInterp) closeContour() {
+	if os.Getenv("CSDBG") != "" {
+		fmt.Printf("closeContour at pos=%d pathBegun=%v pts=%d\n", ip.pos, ip.pathBegun, len(ip.out.pts))
+	}
 	if !ip.pathBegun || len(ip.out.pts) == 0 {
 		ip.pathBegun = false
 		return

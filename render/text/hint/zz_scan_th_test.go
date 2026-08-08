@@ -5,8 +5,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/energye/gpui/render/text"
 )
 
 // TestScanTH：泰文 CFF 扩集（docs §5.1 M3 收尾项）。
@@ -16,25 +14,17 @@ import (
 // bcontour 批量模式（FT-light 26.6）。
 func TestScanTH(t *testing.T) {
 	thaiFont := "testdata/NotoSansThai-Regular.otf"
-	src, err := text.NewFontSourceFromFile(thaiFont)
-	if err != nil {
-		t.Skipf("thai font unavailable: %v", err)
-	}
-	f := src.Face(0).Source().Parsed()
-	provider, ok := f.(text.RawFontDataProvider)
-	if !ok {
-		t.Fatal("font lacks RawFontDataProvider")
-	}
-	raw := provider.RawFontData()
+	f := openTestFont(t, thaiFont)
+	raw := f.raw
 	start, ln, err := cffTableData(raw, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cd, err := cffParseAll(raw[start:start+ln], f.UnitsPerEm())
+	cd, err := cffParseAll(raw[start:start+ln], f.unitsPerEm)
 	if err != nil {
 		t.Fatal(err)
 	}
-	upem := f.UnitsPerEm()
+	upem := f.unitsPerEm
 	rawTxt, err := os.ReadFile("testdata/th_all.txt")
 	if err != nil {
 		t.Skipf("th_all.txt unavailable: %v", err)
