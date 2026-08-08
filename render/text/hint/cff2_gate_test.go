@@ -54,26 +54,7 @@ func TestCFF2VarBlendMatchGT(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%c gt load wght=%v: %v", r, wght, err)
 			}
-			var gtPts [][]float64
-			var curStart [2]float64
-			for i, s := range gtSeq {
-				if s.Op == opentype.SegmentOpMoveTo {
-					p := s.Args[0]
-					curStart = [2]float64{float64(p.X), float64(p.Y)}
-					gtPts = append(gtPts, []float64{curStart[0], curStart[1]})
-					continue
-				}
-				args := s.ArgsSlice()
-				isContourLast := i == len(gtSeq)-1 || (i+1 < len(gtSeq) && gtSeq[i+1].Op == opentype.SegmentOpMoveTo)
-				for j, p := range args {
-					isEnd := j == len(args)-1
-					if isContourLast && isEnd && float64(p.X) == curStart[0] && float64(p.Y) == curStart[1] {
-						continue
-					}
-					gtPts = append(gtPts, []float64{float64(p.X), float64(p.Y)})
-				}
-			}
-			gtPts = dropClosePoints(gtPts)
+			gtPts := expandGTSegs(gtSeq)
 			blend := &cff2BlendData{vstore: cd.vstore, coords: []cff2Coord{{axis: 0, value: wght}}}
 			cs, err := interpretCharstring2(cd.charStrings[gid], fd.subrs, cd.globalSubrs, 0, 0, blend)
 			if err != nil {
@@ -131,9 +112,50 @@ func f2dot14(v float64) tables.Coord {
 	return tables.Coord(int32(v * 16384))
 }
 
+func q32(v float64) int64 { return int64(math.Round(v * 64)) }
+
 func abs32(v int32) int32 {
 	if v < 0 {
 		return -v
 	}
 	return v
 }
+
+// expandGTSegs 把 go-text 段序列展开为完整点列：MoveTo 起点 + 各段全部点
+// （quad/cubic 控制点不可丢），并按轮廓删除闭合冗余点（闭合段终点 = 轮廓
+// 起点；blend 后 float32 两次运算有微差，量化 1/64 判定）。
+func expandGTSegs(gtSeq []opentype.Segment) [][]float64 {
+	var gtPts [][]float64
+	var curStart [2]float64
+	for i, s := range gtSeq {
+		if s.Op == opentype.SegmentOpMoveTo {
+			p := s.Args[0]
+			curStart = [2]float64{float64(p.X), float64(p.Y)}
+			gtPts = append(gtPts, []float64{curStart[0], curStart[1]})
+			continue
+		}
+		args := s.ArgsSlice()
+		isContourLast := i == len(gtSeq)-1 || (i+1 < len(gtSeq) && gtSeq[i+1].Op == opentype.SegmentOpMoveTo)
+		for j, p := range args {
+			isEnd := j == len(args)-1
+			if isContourLast && isEnd && q32(float64(p.X)) == q32(curStart[0]) && q32(float64(p.Y)) == q32(curStart[1]) {
+				continue
+			}
+			gtPts = append(gtPts, []float64{float64(p.X), float64(p.Y)})
+		}
+	}
+	return dropClosePoints(gtPts)
+}
+
+// hasOp15 判断 charstring 是否含 vsindex(15) 指令（M5 vsindex 语义扫描）。
+func hasOp15(b []byte) bool {
+	for _, x := range b {
+		if x == 15 {
+			return true
+		}
+	}
+	return false
+}
+
+// osStat 包装 os.Stat（供各扫描窗统一字体存在性判定）。
+func osStat(p string) (os.FileInfo, error) { return os.Stat(p) }
