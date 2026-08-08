@@ -71,5 +71,8 @@ func TestScanKR(t *testing.T) {
 		if len(nptR) > 0 {
 			fmt.Printf("  npt: %s\n", string(nptR))
 		}
+		if bad > 0 {
+			t.Errorf("kr @%.0fpx: bad=%d (must be 0)", px, bad)
+		}
 	}
 }

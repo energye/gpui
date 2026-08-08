@@ -102,15 +102,14 @@ func TestScanWqyCJKFullComposite(t *testing.T) {
 			}
 		}
 		t.Logf("composite full px%d: bad=%d/%d badR=%v", px, bad, len(chars), runes8(badR))
-		// 4 个复合字是本次修复核心：必须 0 bad。全字集仅允许极少量 diff
-		// （逐像素 merge/segment 重建噪声），>1 判回归。
+		// 4 个复合字是本次修复核心：必须 0 bad。全字集同样 0 bad。
 		for r := range compRunes {
 			if compSeen[r] && compBad[r] > 0 {
 				t.Errorf("full px%d: composite %q bad=%d (must be 0)", px, r, compBad[r])
 			}
 		}
-		if bad > 1 {
-			t.Errorf("full px%d: bad=%d/%d (>1)", px, bad, len(chars))
+		if bad > 0 {
+			t.Errorf("full px%d: bad=%d/%d (must be 0)", px, bad, len(chars))
 		}
 	}
 }

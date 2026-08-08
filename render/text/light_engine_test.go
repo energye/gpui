@@ -86,18 +86,25 @@ func outlineLightTop(t *testing.T, out *GlyphOutline) float64 {
 	return top
 }
 
-// TestLightM0TopBlueAnchor M0：有顶横字（日/田/目）顶横锚定蓝线（12px→10.0px）。
+// TestLightM0TopBlueAnchor M0：有顶横字（日/田/目）顶横锚定蓝线。
+// 覆盖 12–16px（§M0：主蓝字 12–16px 88–96% 归零；anchor=round(816×px/upem)
+// 经验式，NotoSansCJK upem=1000 → 12px=10.0 / 14px=11.0 / 16px=13.0）。
 func TestLightM0TopBlueAnchor(t *testing.T) {
 	cjk, _ := reproLightFont(t)
 	e := New()
-	for _, r := range []rune{'日', '田', '目'} {
-		gid := cjk.GlyphIndex(r)
-		out, err := e.Hint(cjk, GlyphID(gid), 12, ModeLightCJK)
-		if err != nil {
-			t.Fatalf("Hint %q: %v", r, err)
-		}
-		if got := outlineLightTop(t, out); got != 10.0 {
-			t.Errorf("%q M0 top = %.3f, want 10.0", r, got)
+	for _, tc := range []struct {
+		px   float64
+		want float64
+	}{{12, 10.0}, {14, 11.0}, {16, 13.0}} {
+		for _, r := range []rune{'日', '田', '目'} {
+			gid := cjk.GlyphIndex(r)
+			out, err := e.Hint(cjk, GlyphID(gid), tc.px, ModeLightCJK)
+			if err != nil {
+				t.Fatalf("Hint %q @%.0fpx: %v", r, tc.px, err)
+			}
+			if got := outlineLightTop(t, out); got != tc.want {
+				t.Errorf("%q @%.0fpx M0 top = %.3f, want %.1f", r, tc.px, got, tc.want)
+			}
 		}
 	}
 }

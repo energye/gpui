@@ -82,8 +82,8 @@ func TestScanLightBytecodeLatin(t *testing.T) {
 				}
 			}
 			t.Logf("%s L0 px%d: bad=%d/%d badR=%v", f.name, px, bad, len(lr), runes8(badR))
-			if bad > 1 {
-				t.Errorf("%s L0 px%d: bad=%d/%d (>1)", f.name, px, bad, len(lr))
+			if bad > 0 {
+				t.Errorf("%s L0 px%d: bad=%d/%d (must be 0)", f.name, px, bad, len(lr))
 			}
 		}
 
@@ -121,5 +121,8 @@ func TestScanLightBytecodeLatin(t *testing.T) {
 			}
 		}
 		t.Logf("%s L1 12px: bad=%d/%d glyphs matched=%d badR=%v", f.name, bad, len(chars), nft, runes8(badR))
+		if bad > 0 {
+			t.Errorf("%s L1 12px: bad=%d/%d (must be 0)", f.name, bad, len(chars))
+		}
 	}
 }

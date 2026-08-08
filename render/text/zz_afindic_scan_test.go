@@ -60,6 +60,9 @@ func TestScanM4b5Indic(t *testing.T) {
 				}
 			}
 			t.Logf("%s px%d: bad=%d/%d %v", name, px, len(bad), len(chars), bad)
+			if len(bad) > 0 {
+				t.Errorf("%s px%d: bad=%d/%d (must be 0)", name, px, len(bad), len(chars))
+			}
 		}
 		src.Close()
 	}

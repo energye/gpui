@@ -9,6 +9,7 @@ package hint
 
 import (
 	"fmt"
+	"math"
 	"os"
 )
 
@@ -643,10 +644,13 @@ func (ip *csInterp) addPt(x, y float64, on bool) {
 	ip.out.pts = append(ip.out.pts, csPt{x: x, y: y, on: on, maskIdx: ip.curMaskIdx})
 }
 
+// q64 把浮点坐标量化到 1/64 单位（FT F26Dot6 语义），消除 blend 浮点微差。
+func q64(v float64) int64 { return int64(math.Round(v * 64)) }
+
 // lineTo 直线段终点：zero-length 且 hint 图未变更时忽略
 // （cf2_glyphpath_lineTo，pshints.c:1743-1765）。
 func (ip *csInterp) lineTo(nx, ny float64) {
-	if ip.pathBegun && !ip.maskSincePath && nx == ip.x && ny == ip.y {
+	if ip.pathBegun && !ip.maskSincePath && q64(nx) == q64(ip.x) && q64(ny) == q64(ip.y) {
 		if os.Getenv("CSDBG") != "" {
 			fmt.Printf("zero-lineto ignored at x=%.0f y=%.0f pos=%d\n", nx, ny, ip.pos)
 		}
@@ -680,7 +684,7 @@ func (ip *csInterp) closeContour() {
 	if n > 1 {
 		last := ip.out.pts[n-1]
 		fp := ip.out.pts[first]
-		if last.x == fp.x && last.y == fp.y && last.on {
+		if q64(last.x) == q64(fp.x) && q64(last.y) == q64(fp.y) && last.on {
 			ip.out.pts = ip.out.pts[:n-1]
 			n--
 		}

@@ -178,7 +178,7 @@ func glyphIndexForRune(raw []byte, faceIndex int, r rune) (uint16, error) {
 			if idRO == 0 {
 				return uint16(int32(cp) + int32(delta)), nil
 			}
-			addr := sub + 16 + 3*segX2 + idRO + int(cp-start)*2
+			addr := sub + 16 + 3*segX2 + i*2 + idRO + int(cp-start)*2
 			if addr+2 > len(raw) {
 				return 0, fmt.Errorf("cmap4 idRange out of range")
 			}

@@ -70,5 +70,8 @@ func TestScanM3(t *testing.T) {
 		if len(nptR) > 0 {
 			fmt.Printf("  npt: %s\n", string(nptR))
 		}
+		if bad > 0 {
+			t.Errorf("m3 multi-mask @%.0fpx: bad=%d (must be 0)", px, bad)
+		}
 	}
 }

@@ -80,5 +80,8 @@ func TestScanFreeSansLatin(t *testing.T) {
 		}
 		t.Logf("freesans px%d: bad=%d/%d npt=%d nptR=%d first=%v", px, bad, len(chars), npt, len(nptR), runes8(nptR))
 		t.Logf("freesans px%d: badR=%v", px, runes8(badR))
+		if bad > 0 {
+			t.Errorf("freesans px%d: bad=%d/%d (must be 0)", px, bad, len(chars))
+		}
 	}
 }
