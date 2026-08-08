@@ -124,6 +124,12 @@ func abs32(v int32) int32 {
 // expandGTSegs 把 go-text 段序列展开为完整点列：MoveTo 起点 + 各段全部点
 // （quad/cubic 控制点不可丢），并按轮廓删除闭合冗余点（闭合段终点 = 轮廓
 // 起点；blend 后 float32 两次运算有微差，量化 1/64 判定）。
+//
+// 另按 FT 语义合并零长直线段：go-text 保留 charstring 中的 zero-length
+// lineto（如 CJK 字形的「回笔」），FT cf2 的 lineTo 忽略零长段
+// （cf2_glyphpath_lineTo，pshints.c:1743-1765，我们 cffcs.go lineTo 同义）
+// 且量化相等才判零长——段内层合并避免跨轮廓误并；删除闭合冗余点后
+// 结束。
 func expandGTSegs(gtSeq []opentype.Segment) [][]float64 {
 	var gtPts [][]float64
 	var curStart [2]float64
@@ -140,6 +146,14 @@ func expandGTSegs(gtSeq []opentype.Segment) [][]float64 {
 			isEnd := j == len(args)-1
 			if isContourLast && isEnd && q32(float64(p.X)) == q32(curStart[0]) && q32(float64(p.Y)) == q32(curStart[1]) {
 				continue
+			}
+			// FT 零长段：直线段（单参数段）终点与前一点量化相等则忽略
+			// （曲线段控制点即使与起点重合也必须保留，否则形变）。
+			if len(args) == 1 && len(gtPts) > 0 {
+				prev := gtPts[len(gtPts)-1]
+				if q32(float64(p.X)) == q32(prev[0]) && q32(float64(p.Y)) == q32(prev[1]) {
+					continue
+				}
 			}
 			gtPts = append(gtPts, []float64{float64(p.X), float64(p.Y)})
 		}
