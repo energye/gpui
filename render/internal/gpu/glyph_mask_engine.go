@@ -855,19 +855,41 @@ func stringContainsCJK(s string) bool {
 }
 
 func selectGlyphMaskHinting(fontSize float64, matrix render.Matrix, isCJK bool, deviceScale float64) text.Hinting {
-	// 生产级 text quality (R21 Bug2 follow-up): self-verified against the
-	// system libfreetype measurement harness. The self-own Vertical/Full hint
-	// engines produce CJK/Latin glyph structures that differ substantially
-	// from FreeType (vertical CJK strokes misplaced, Latin Full stems ~40%
-	// less ink than FT light), so a user comparing the window against browser
-	// /FreeType output saw "completely different" glyphs.
+	// 生产级 text quality (M0–M5 light 引擎切换，2026-08-08)：自研 light
+	// 引擎（CFF cf2 + glyf autofit + bytecode 复合字 + CFF2 可变）已逐点
+	// 对齐 FreeType light（hint 包 M1–M5 对照全绿），R21 时期的
+	// None 硬编码（当时自研 Vertical/Full 结构与 FT 不一致，差 40% 墨量）
+	// 解除，轴对齐小字号正式启用 HintingVertical（= FT_LOAD_TARGET_LIGHT）。
 	//
-	// Unhinted (HintingNone) rasterization is pixel-identical to
-	// FreeType's FT_LOAD_NO_HINTING (verified per-glyph across
-	// 8/10/11/12/16px Latin+CJK), which matches the reference output the
-	// user accepted. Rotated/skewed text and large sizes above already
-	// resolve to none. LCD subpixel rendering is orthogonal and unchanged.
-	return text.HintingNone
+	// 规则：
+	//   - 旋转/倾斜矩阵 → None（grid-fit 要求像素网格轴对齐）
+	//   - >48px 大字号 → None（像素足够，hinting 无收益）
+	//   - CJK HiDPI（deviceScale≥2）→ None（ADR-027：HiDPI 下 CJK 像素
+	//     密度足够，hinting 反而压缩细笔画）
+	//   - 其余（含非 CJK 小字号、CJK SDR）→ HintingVertical
+	//
+	// 回退开关：GOGPU_TEXT_NO_HINT 强制 None（与 GOGPU_TEXT_NO_LCD 同模式）。
+	if os.Getenv("GOGPU_TEXT_NO_HINT") != "" {
+		return text.HintingNone
+	}
+
+	// Rotated/skewed text: grid-fitting requires an axis-aligned pixel grid.
+	if matrix.B != 0 || matrix.D != 0 {
+		return text.HintingNone
+	}
+
+	// Large text: hinting provides no benefit once stems are several px wide.
+	if fontSize > glyphMaskHintingMaxSize {
+		return text.HintingNone
+	}
+
+	// CJK HiDPI: pixel density is enough, hinting would collapse thin strokes.
+	if isCJK && deviceScale >= 2.0 {
+		return text.HintingNone
+	}
+
+	// Light hinting (FT_LOAD_TARGET_LIGHT parity): M1–M5 自研引擎全绿链。
+	return text.HintingVertical
 }
 
 // glyphMaskLCDMaxSize is the maximum font size in device pixels for which

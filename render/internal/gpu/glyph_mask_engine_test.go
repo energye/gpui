@@ -210,16 +210,16 @@ func TestSelectGlyphMaskHinting(t *testing.T) {
 	}{
 		{
 			name: "latin_small_identity", fontSize: 12, matrix: render.Identity(),
-			want: text.HintingNone,
+			want: text.HintingVertical,
 		},
 		{
 			name: "latin_small_translation", fontSize: 16,
 			matrix: render.Matrix{A: 1, B: 0, C: 50, D: 0, E: 1, F: 30},
-			want:   text.HintingNone,
+			want:   text.HintingVertical,
 		},
 		{
 			name: "latin_threshold_48px", fontSize: 48, matrix: render.Identity(),
-			want: text.HintingNone,
+			want: text.HintingVertical,
 		},
 		{
 			name: "latin_above_threshold", fontSize: 49, matrix: render.Identity(),
@@ -242,13 +242,14 @@ func TestSelectGlyphMaskHinting(t *testing.T) {
 		{
 			name: "latin_uniform_scale", fontSize: 12,
 			matrix: render.Matrix{A: 2, B: 0, C: 0, D: 0, E: 2, F: 0},
-			want:   text.HintingNone,
+			want:   text.HintingVertical,
 		},
-		// ADR-027: CJK script-aware hinting
+		// ADR-027: CJK script-aware hinting（light 引擎全绿后，SDR 走
+		// HintingVertical=FT light；HiDPI 保持 None）
 		{
-			name: "cjk_small_1x_vertical_only", fontSize: 14, matrix: render.Identity(),
+			name: "cjk_small_1x_light", fontSize: 14, matrix: render.Identity(),
 			isCJK: true, deviceScale: 1.0,
-			want: text.HintingNone,
+			want: text.HintingVertical,
 		},
 		{
 			name: "cjk_small_2x_none", fontSize: 14, matrix: render.Identity(),

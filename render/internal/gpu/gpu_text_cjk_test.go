@@ -110,7 +110,9 @@ func TestIsCJKRune_TextRendering(t *testing.T) {
 }
 
 func TestSelectGlyphMaskHinting_CJKEnterprise(t *testing.T) {
-	// Enterprise validation: CJK hinting matches platform behaviors.
+	// Enterprise validation: light hinting (FT_LOAD_TARGET_LIGHT parity) after
+	// M0–M5 自研引擎全绿（2026-08-08 切换决策）。CJK SDR 走 light；
+	// CJK HiDPI（≥2x）与旋转/大字号走 None（现行规则见 selectGlyphMaskHinting）。
 	tests := []struct {
 		name        string
 		isCJK       bool
@@ -119,19 +121,19 @@ func TestSelectGlyphMaskHinting_CJKEnterprise(t *testing.T) {
 		reason      string
 	}{
 		{
-			name: "cjk_1x_none", isCJK: true, deviceScale: 1.0,
-			want:   text.HintingNone,
-			reason: "unhinted = FT_LOAD_NO_HINTING: CJK glyphs match FreeType pixel-for-pixel",
+			name: "cjk_1x_light", isCJK: true, deviceScale: 1.0,
+			want:   text.HintingVertical,
+			reason: "CJK SDR light: cf2/autofit light 引擎已逐点对齐 FT light (M1–M5 全绿)",
 		},
 		{
-			name: "cjk_1.5x_none", isCJK: true, deviceScale: 1.5,
-			want:   text.HintingNone,
-			reason: "150% scale: same unhinted guarantee",
+			name: "cjk_1.5x_light", isCJK: true, deviceScale: 1.5,
+			want:   text.HintingVertical,
+			reason: "150% scale: still SDR, same light guarantee",
 		},
 		{
 			name: "cjk_2x_none", isCJK: true, deviceScale: 2.0,
 			want:   text.HintingNone,
-			reason: "macOS Core Text: ignores hinting on Retina",
+			reason: "HiDPI CJK: pixel density enough, hinting collapses thin strokes (ADR-027)",
 		},
 		{
 			name: "cjk_3x_none", isCJK: true, deviceScale: 3.0,
@@ -139,14 +141,14 @@ func TestSelectGlyphMaskHinting_CJKEnterprise(t *testing.T) {
 			reason: "HiDPI: pixel density makes hinting unnecessary",
 		},
 		{
-			name: "latin_1x_none", isCJK: false, deviceScale: 1.0,
-			want:   text.HintingNone,
-			reason: "Latin unhinted matches FT_LOAD_NO_HINTING ink exactly (Full stems were ~40% lighter than FT light)",
+			name: "latin_1x_light", isCJK: false, deviceScale: 1.0,
+			want:   text.HintingVertical,
+			reason: "Latin light: FT light 语义（全绿链），弃 R21 时期的 Full/None",
 		},
 		{
-			name: "latin_2x_none", isCJK: false, deviceScale: 2.0,
-			want:   text.HintingNone,
-			reason: "Latin on Retina: same unhinted guarantee",
+			name: "latin_2x_light", isCJK: false, deviceScale: 2.0,
+			want:   text.HintingVertical,
+			reason: "Latin HiDPI keeps light (light ≠ Full, 无 40% 墨量问题)",
 		},
 	}
 	for _, tt := range tests {
