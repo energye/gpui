@@ -61,10 +61,7 @@ func TestCFF2VarBlendMatchGT(t *testing.T) {
 				t.Fatalf("%c my load wght=%v: %v", r, wght, err)
 			}
 			var myPts [][]float64
-			for _, p := range cs.pts {
-				myPts = append(myPts, []float64{float64(p.x), float64(p.y)})
-			}
-			myPts = dropClosePoints(myPts)
+			myPts = dropPerContour(cs, 0)
 			if len(gtPts) != len(myPts) {
 				t.Errorf("%c wght=%v: gt %d pts vs my %d", r, wght, len(gtPts), len(myPts))
 				continue
@@ -86,6 +83,30 @@ func TestCFF2VarBlendMatchGT(t *testing.T) {
 			}
 		}
 	}
+}
+
+// dropPerContour 把 cs.pts 按轮廓删闭合冗余点（cs.pts 含每轮廓闭合点，
+// psh_light 映射层才删，FT ps_builder_close_contour 语义；门禁是解释器级
+// 对照，按轮廓删闭合冗余点，同 gt 侧 expandGTSegs 的 q32 判定）。
+func dropPerContour(cs *csOutline, _ uint16) [][]float64 {
+	var out [][]float64
+	off := 0
+	for _, cnt := range cs.contours {
+		if cnt >= 2 {
+			last := cs.pts[off+cnt-1]
+			first := cs.pts[off]
+			end := cnt
+			if q32(last.x) == q32(first.x) && q32(last.y) == q32(first.y) {
+				end--
+			}
+			for i := 0; i < end; i++ {
+				p := cs.pts[off+i]
+				out = append(out, []float64{float64(p.x), float64(p.y)})
+			}
+		}
+		off += cnt
+	}
+	return out
 }
 
 func dropClosePoints(pts [][]float64) [][]float64 {

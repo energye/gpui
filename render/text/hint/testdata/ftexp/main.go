@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"runtime"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -40,6 +41,10 @@ var (
 	ftRender    func(slot uintptr, mode int32) int
 	ftSetTrans  func(face uintptr, matrix, delta uintptr)
 	ftGetAdv    func(face uintptr, gid uint32, flags int32, adv *int64) int
+	ftSetVarD   func(face uintptr, numCoords uint32, coords *int64) int
+	ftSetVarB   func(face uintptr, numCoords uint32, coords *int64) int
+	ftGetVarD   func(face uintptr, numCoords uint32, coords *int64) int
+	ftGetVarB   func(face uintptr, numCoords uint32, coords *int64) int
 )
 
 func main() {
@@ -47,9 +52,10 @@ func main() {
 		fmt.Println("usage: ftexp <ttf|ttc> [rune] [sizePx] [hint] [pgmOut]")
 		fmt.Println("       ftexp line <ttf> <sizePx> <hint> <pgmOut> <text>")
 		fmt.Println("       ftexp contour <ttf> <rune> <sizePx> <hint:l|n>")
-		fmt.Println("       ftexp bcontour <ttf> <sizePx> <hint:l|n> <listFile>")
+		fmt.Println("       ftexp bcontour <ttf> <sizePx> <hint:l|n> <listFile> [blend]")
 		fmt.Println("       ftexp bpgm <ttf> <sizePx> <hint:l|n> <listFile>")
 		fmt.Println("  hint: l=light (default), n=nohint")
+		fmt.Println("  bcontour 可选第 6 参数 blend：归一化坐标（2.14），0/缺省 = 默认实例")
 		os.Exit(1)
 	}
 	if os.Args[1] == "metrics" {
@@ -62,6 +68,10 @@ func main() {
 	}
 	if os.Args[1] == "bcontour" {
 		runBatchContour()
+		return
+	}
+	if os.Args[1] == "fvar" {
+		runFvar()
 		return
 	}
 	if os.Args[1] == "line" {
@@ -156,7 +166,6 @@ func main() {
 	// ints+ptrs(24) + generic(16) + bbox 4×FT_Pos(32) + 8 shorts(16)
 	// → glyph slot ptr at offset 152.
 	slot := *(*uintptr)(unsafe.Pointer(face + 152))
-	fmt.Printf("DBG face=%x slot=%x\n", face, slot)
 	if slot == 0 {
 		fmt.Println("FAIL slot nil")
 		os.Exit(1)
@@ -229,6 +238,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	runtime.KeepAlive(data)
 }
 
 // runLine renders a full text line with FreeType (hinted advances), composing
@@ -283,7 +293,6 @@ func runLine() {
 		var ha int64
 		ftGetAdv(face, gid, loadFlags, &ha)
 		horiAdv := ha
-		fmt.Printf("DBG adv %q = %d (%gpx)\n", r, horiAdv, float64(horiAdv)/65536)
 		totalAdv += horiAdv
 	}
 
@@ -340,6 +349,96 @@ func runLine() {
 		os.Exit(1)
 	}
 	fmt.Printf("OK line px=%.0f %dx%d adv=%d\n", px, rowW, rowH, totalAdv)
+	runtime.KeepAlive(data)
+}
+
+// runFvar prints the font's fvar axes plus FreeType's default design and
+// normalized blend coordinates. Usage:
+//
+//	ftexp fvar <font>
+func runFvar() {
+	if len(os.Args) < 3 {
+		fmt.Fprintln(os.Stderr, "usage: ftexp fvar <font>")
+		os.Exit(2)
+	}
+	path := os.Args[2]
+	libft, _ = purego.Dlopen("libfreetype.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	if libft == 0 {
+		fmt.Fprintln(os.Stderr, "FAIL dlopen libfreetype.so.6")
+		os.Exit(1)
+	}
+	purego.RegisterLibFunc(&ftInit, libft, "FT_Init_FreeType")
+	purego.RegisterLibFunc(&ftNewFace, libft, "FT_New_Memory_Face")
+	purego.RegisterLibFunc(&ftGetVarD, libft, "FT_Get_Var_Design_Coordinates")
+	purego.RegisterLibFunc(&ftGetVarB, libft, "FT_Get_Var_Blend_Coordinates")
+
+	var lib uintptr
+	if err := ftInit(&lib); err != 0 {
+		fmt.Fprintln(os.Stderr, "FAIL init")
+		os.Exit(1)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL read:", err)
+		os.Exit(1)
+	}
+	var face uintptr
+	if err := ftNewFace(lib, &data[0], int64(len(data)), 0, &face); err != 0 {
+		fmt.Fprintln(os.Stderr, "FAIL face")
+		os.Exit(1)
+	}
+	// fvar 轴数直接解析字体 fvar 表（FT_Get_Num_MM_Axes 已废弃移除）。
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL read:", err)
+		os.Exit(1)
+	}
+	numTables := int(raw[4])<<8 | int(raw[5])
+	var n int
+	for i := 0; i < numTables; i++ {
+		off := 12 + i*16
+		if string(raw[off:off+4]) == "fvar" {
+			to := int(uint32(raw[off+8])<<24 | uint32(raw[off+9])<<16 | uint32(raw[off+10])<<8 | uint32(raw[off+11]))
+			n = int(raw[to+8]<<8 | raw[to+9])
+			break
+		}
+	}
+	if n <= 0 {
+		n = 1
+	}
+	design := make([]int64, n)
+	blend := make([]int64, n)
+	ftGetVarD(face, uint32(n), &design[0])
+	ftGetVarB(face, uint32(n), &blend[0])
+	fmt.Printf("axes=%d\n", n)
+	fmt.Printf("design:")
+	for _, c := range design {
+		fmt.Printf(" %g", float64(c)/65536)
+	}
+	fmt.Printf("\nblend:")
+	for _, c := range blend {
+		fmt.Printf(" %g", float64(c)/65536)
+	}
+	fmt.Printf("\n")
+	// 可选第 4 参数：设置该 design 坐标后读 blend（验证 design→blend 转换）。
+	if len(os.Args) >= 4 {
+		var w float64
+		fmt.Sscanf(os.Args[3], "%g", &w)
+		purego.RegisterLibFunc(&ftSetVarD, libft, "FT_Set_Var_Design_Coordinates")
+		d := int64(w * 65536)
+		ftSetVarD(face, 1, &d)
+		ftGetVarB(face, uint32(n), &blend[0])
+		fmt.Printf("set design=%g → blend:", w)
+		for _, c := range blend {
+			fmt.Printf(" %g", float64(c)/65536)
+		}
+		fmt.Printf("\n")
+	}
+	runtime.KeepAlive(data)
+}
+
+func toff16(raw []byte, at int) int {
+	return int(raw[at])<<8 | int(raw[at+1])
 }
 
 // runBatchContour processes a whole character list per FreeType process,
@@ -350,6 +449,79 @@ func runLine() {
 // Output uses the same format as runContour per rune, with a leading line
 // "# R <rune> <np> <nc> <adv>" before each glyph block so the caller can
 // associate blocks to runes without per-rune exec.
+// outlineHeuristicOK 判断 slot 偏移 off 处是否像 FT_Outline（n_contours/
+// n_points/points/tags/contours 五字段 + ends 严格递增且末项 == n_points-1）。
+// 所有指针解引用都在 recover 保护下：陈旧/垃圾指针可能指向未映射内存，
+// Go 运行时会把它转成可恢复 panic，恢复后按「不匹配」处理，避免整个进程
+// 崩溃（旧的逐候选扫描曾因此整进程 panic）。
+func outlineHeuristicOK(slot uintptr, off int) (ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+	nc := *(*int16)(unsafe.Pointer(slot + uintptr(off)))
+	np := *(*int16)(unsafe.Pointer(slot + uintptr(off) + 2))
+	if nc <= 0 || nc > 100 || np <= 0 || np > 10000 {
+		return false
+	}
+	pts := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 8))
+	tags := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 16))
+	ends := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 24))
+	if pts == 0 || tags == 0 || ends == 0 {
+		return false
+	}
+	prev := int16(-1)
+	for c := 0; c < int(nc); c++ {
+		e := *(*int16)(unsafe.Pointer(ends + uintptr(c)*2))
+		if e < prev || e < 0 || e >= np {
+			return false
+		}
+		prev = e
+	}
+	return prev == np-1
+}
+
+// scanOutlineOffset 是旧式「首个命中」扫描，仅作固定偏移对某字形失效时的
+// 兜底。它仍可能偶发命中陈旧数据，但只影响单个字形（不再是批量级错误）。
+func scanOutlineOffset(slot uintptr) int {
+	for off := 0; off < 256; off += 8 {
+		if outlineHeuristicOK(slot, off) {
+			return off
+		}
+	}
+	return -1
+}
+
+// probeOutlineOffset 加载 probeGids 中的字形，统计每个通过启发式校验的 slot
+// 偏移的出现次数，返回众数——即真实 FT_Outline 偏移（对 FT 版本无关）。
+// 垃圾命中只覆盖个别字形，无法超越真实偏移的接近 100% 命中率。无任何命中
+// 时返回 -1，调用方退回 scanOutlineOffset。
+func probeOutlineOffset(face uintptr, loadFlags int32, probeGids []uint32) int {
+	tally := make(map[int]int)
+	for _, gid := range probeGids {
+		if err := ftLoadGlyph(face, gid, loadFlags); err != 0 {
+			continue
+		}
+		slot := *(*uintptr)(unsafe.Pointer(face + 152))
+		if slot == 0 {
+			continue
+		}
+		for off := 0; off < 256; off += 8 {
+			if outlineHeuristicOK(slot, off) {
+				tally[off]++
+			}
+		}
+	}
+	best, bestN := -1, 0
+	for off, n := range tally {
+		if n > bestN {
+			best, bestN = off, n
+		}
+	}
+	return best
+}
+
 func runBatchContour() {
 	if len(os.Args) < 6 {
 		fmt.Fprintln(os.Stderr, "usage: ftexp bcontour <ttf|ttc> <sizePx> <hint:l|n> <runestring>")
@@ -385,6 +557,8 @@ func runBatchContour() {
 	purego.RegisterLibFunc(&ftCharIdx, libft, "FT_Get_Char_Index")
 	purego.RegisterLibFunc(&ftLoadGlyph, libft, "FT_Load_Glyph")
 	purego.RegisterLibFunc(&ftGetAdv, libft, "FT_Get_Advance")
+	purego.RegisterLibFunc(&ftSetVarB, libft, "FT_Set_MM_Blend_Coordinates")
+	purego.RegisterLibFunc(&ftSetVarD, libft, "FT_Set_Var_Design_Coordinates")
 
 	var lib uintptr
 	if err := ftInit(&lib); err != 0 {
@@ -406,10 +580,54 @@ func runBatchContour() {
 		fmt.Fprintln(os.Stderr, "FAIL chsize")
 		os.Exit(1)
 	}
+	// 可选第 6 参数 variant：变体坐标。
+	// 缺省/0 = 默认实例；第 7 参数 "d" = design 模式（FT_Set_Var_Design_Coordinates，
+	// w 为设计坐标，FT 自算归一化+avar），否则 = blend 模式
+	// （FT_Set_MM_Blend_Coordinates，w 为 avar 后归一化坐标，2.14 定点，
+	// 即引擎 LightHintVar 的 coords 值）。
+	if len(os.Args) >= 7 {
+		var w float64
+		fmt.Sscanf(os.Args[6], "%g", &w)
+		if w != 0 {
+			design := len(os.Args) >= 8 && os.Args[7] == "d"
+			if design {
+				d := int64(w * 65536)
+				if err := ftSetVarD(face, 1, &d); err != 0 {
+					fmt.Fprintf(os.Stderr, "FAIL var design err=%d\n", err)
+					os.Exit(1)
+				}
+			} else {
+				blendC := int64(w * 65536)
+				if err := ftSetVarB(face, 1, &blendC); err != 0 {
+					fmt.Fprintf(os.Stderr, "FAIL var blend err=%d\n", err)
+					os.Exit(1)
+				}
+			}
+		}
+	}
 
 	bw := bufio.NewWriter(os.Stdout)
 	defer bw.Flush()
-	for _, r := range []rune(string(rawText)) {
+	runes := []rune(string(rawText))
+	// 先探针定 FT_Outline 偏移（众数）：slot 内存暴力扫描会偶发命中陈旧/
+	// 未初始化字节（ASLR 相关，逐进程不同），旧式「首个命中」会让个别字形
+	// 读到垃圾轮廓（点数、坐标全错）。真实 outline 每字形 100% 命中启发式，
+	// 众数即真实偏移，且与 FT 版本无关。
+	outlineOff := -1
+	if len(runes) > 0 {
+		probeN := len(runes)
+		if probeN > 128 {
+			probeN = 128
+		}
+		probeGids := make([]uint32, 0, probeN)
+		for _, r := range runes[:probeN] {
+			if gid := ftCharIdx(face, r); gid != 0 {
+				probeGids = append(probeGids, gid)
+			}
+		}
+		outlineOff = probeOutlineOffset(face, loadFlags, probeGids)
+	}
+	for _, r := range runes {
 		gid := ftCharIdx(face, r)
 		if gid == 0 {
 			fmt.Fprintf(bw, "# R %U MISSING\n", r)
@@ -424,38 +642,15 @@ func runBatchContour() {
 			fmt.Fprintf(bw, "# R %U SLOTFAIL\n", r)
 			continue
 		}
-		outline := uintptr(0)
-		for off := 0; off < 256; off += 8 {
-			nc := *(*int16)(unsafe.Pointer(slot + uintptr(off)))
-			np := *(*int16)(unsafe.Pointer(slot + uintptr(off) + 2))
-			if nc <= 0 || nc > 100 || np <= 0 || np > 10000 {
-				continue
-			}
-			pts := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 8))
-			tags := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 16))
-			ends := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 24))
-			if pts == 0 || tags == 0 || ends == 0 {
-				continue
-			}
-			ok := true
-			prev := int16(-1)
-			for c := 0; c < int(nc); c++ {
-				e := *(*int16)(unsafe.Pointer(ends + uintptr(c)*2))
-				if e < prev || e < 0 || e >= np {
-					ok = false
-					break
-				}
-				prev = e
-			}
-			if ok && prev == np-1 {
-				outline = slot + uintptr(off)
-				break
-			}
+		off := outlineOff
+		if off < 0 || !outlineHeuristicOK(slot, off) {
+			off = scanOutlineOffset(slot)
 		}
-		if outline == 0 {
+		if off < 0 {
 			fmt.Fprintf(bw, "# R %U FAIL\n", r)
 			continue
 		}
+		outline := slot + uintptr(off)
 		np := int(*(*int16)(unsafe.Pointer(outline + 2)))
 		nc := int(*(*int16)(unsafe.Pointer(outline)))
 		pts := *(*uintptr)(unsafe.Pointer(outline + 8))
@@ -480,6 +675,7 @@ func runBatchContour() {
 		}
 		bw.WriteByte('\n')
 	}
+	runtime.KeepAlive(data)
 }
 
 // runBatchPGM renders each rune of a character list into its own PGM and
@@ -589,6 +785,7 @@ func runBatchPGM() {
 			bw.WriteByte('\n')
 		}
 	}
+	runtime.KeepAlive(data)
 }
 
 // runContour loads a glyph with the given hint flags and dumps the hinted
@@ -658,6 +855,14 @@ func runContour() {
 		fmt.Fprintln(os.Stderr, "FAIL no glyph")
 		os.Exit(1)
 	}
+	// 先探针定 FT_Outline 偏移（众数，理由同 bcontour）：用 gid 1..128 探测，
+	// 与目标字形无关，避免「首个命中」扫描偶发读到陈旧数据。探测会覆盖 slot
+	// 状态，所以必须在加载目标字形之前执行。
+	var probeGids []uint32
+	for g := uint32(1); g <= 128; g++ {
+		probeGids = append(probeGids, g)
+	}
+	outlineOff := probeOutlineOffset(face, loadFlags, probeGids)
 	if err := ftLoadGlyph(face, gid, loadFlags); err != 0 {
 		fmt.Fprintln(os.Stderr, "FAIL loadglyph")
 		os.Exit(1)
@@ -667,40 +872,15 @@ func runContour() {
 		fmt.Fprintln(os.Stderr, "FAIL slot nil")
 		os.Exit(1)
 	}
-	// Probe FT_Outline location: scan slot for {n_contours,n_points,points,tags,contours}
-	// with contours strictly increasing ending at n_points-1.
-	outline := uintptr(0)
-	for off := 0; off < 256; off += 8 {
-		nc := *(*int16)(unsafe.Pointer(slot + uintptr(off)))
-		np := *(*int16)(unsafe.Pointer(slot + uintptr(off) + 2))
-		if nc <= 0 || nc > 100 || np <= 0 || np > 10000 {
-			continue
-		}
-		pts := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 8))
-		tags := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 16))
-		ends := *(*uintptr)(unsafe.Pointer(slot + uintptr(off) + 24))
-		if pts == 0 || tags == 0 || ends == 0 {
-			continue
-		}
-		ok := true
-		prev := int16(-1)
-		for c := 0; c < int(nc); c++ {
-			e := *(*int16)(unsafe.Pointer(ends + uintptr(c)*2))
-			if e < prev || e < 0 || e >= np {
-				ok = false
-				break
-			}
-			prev = e
-		}
-		if ok && prev == np-1 {
-			outline = slot + uintptr(off)
-			break
-		}
+	off := outlineOff
+	if off < 0 || !outlineHeuristicOK(slot, off) {
+		off = scanOutlineOffset(slot)
 	}
-	if outline == 0 {
+	if off < 0 {
 		fmt.Fprintln(os.Stderr, "FAIL outline probe")
 		os.Exit(1)
 	}
+	outline := slot + uintptr(off)
 	np := int(*(*int16)(unsafe.Pointer(outline + 2)))
 	nc := int(*(*int16)(unsafe.Pointer(outline)))
 	pts := *(*uintptr)(unsafe.Pointer(outline + 8))
@@ -724,6 +904,7 @@ func runContour() {
 		fmt.Printf("%d", *(*int16)(unsafe.Pointer(ends + uintptr(c)*2)))
 	}
 	fmt.Println()
+	runtime.KeepAlive(data)
 }
 
 // runMetrics dumps face-level metrics from FT_FaceRec (loaded at index 0):
@@ -762,4 +943,5 @@ func runMetrics() {
 	desc := *(*int16)(unsafe.Pointer(face + 140))
 	height := *(*int16)(unsafe.Pointer(face + 142))
 	fmt.Printf("upem=%d ascender=%d descender=%d height=%d\n", int(units), int(asc), int(desc), int(height))
+	runtime.KeepAlive(data)
 }

@@ -81,14 +81,15 @@ func TestCFF2CJKVFBlendMatchGT(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%c my load wght=%v: %v", r, wght, err)
 			}
-			if len(gtPts) != len(cs.pts) {
-				t.Errorf("%c wght=%v: gt %d pts vs my %d", r, wght, len(gtPts), len(cs.pts))
+			myPts := dropPerContour(cs, gid)
+			if len(gtPts) != len(myPts) {
+				t.Errorf("%c wght=%v: gt %d pts vs my %d", r, wght, len(gtPts), len(myPts))
 				bad++
 				continue
 			}
 			for i := range gtPts {
-				dx := int32(math.Round(gtPts[i][0]*64)) - int32(math.Round(cs.pts[i].x*64))
-				dy := int32(math.Round(gtPts[i][1]*64)) - int32(math.Round(cs.pts[i].y*64))
+				dx := int32(math.Round(gtPts[i][0]*64)) - int32(math.Round(myPts[i][0]*64))
+				dy := int32(math.Round(gtPts[i][1]*64)) - int32(math.Round(myPts[i][1]*64))
 				if abs32(dx) > 1 || abs32(dy) > 1 {
 					bad++
 				}

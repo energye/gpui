@@ -599,13 +599,19 @@ func (ip *csInterp) exec(op int) error {
 		}
 		// 栈尾 n*(k+1) 个 = n 个 base + n*k 个 delta（组序：base[i] 后跟 k 个
 		// delta[i][0..k)，FT psintrp.c:418-468 cf2_doBlend）。
+		// 计算语义对齐 FT 2.11 cf2_doBlend：16.16 定点累加，
+		// sum = base16 + Σ FT_MulFix(BV_j, delta_j)，结果保留 16.16 小数
+		// （不 round 回整数——FT CF2 栈值全程 16.16，hint:n 下 unity 输出
+		// sum16>>10，四舍五入回整数 FUnit 会引入 0.5 FUnit 级误差）。
 		args := ip.stack[len(ip.stack)-need : len(ip.stack)-1]
 		for i := 0; i < n; i++ {
-			base := args[i]
+			sum := int64(args[i]*65536)
 			for j := 0; j < k; j++ {
-				base += ip.blend.scalars[j] * args[n+i*k+j]
+				// FT_MulFix(BV_j, delta16_j) = (BV_j*delta16_j + 0x8000)>>16
+				// （FT psintrp.c cf2_doBlend：BV 与 delta 均 16.16，乘积回 16.16）。
+				sum += (int64(args[n+i*k+j]*65536)*ip.blend.scalars[j] + 0x8000) >> 16
 			}
-			args[i] = base
+			args[i] = float64(sum) / 65536
 		}
 		// 保留 n 个 blended 结果，丢弃 n*k 个 delta 与 n 参数
 		copy(ip.stack[len(ip.stack)-need:], args[:n])
@@ -681,14 +687,13 @@ func (ip *csInterp) closeContour() {
 	}
 	// 起点 = 本轮廓第一点（contours 累计 + 当前 pts 段起点）
 	n := len(ip.out.pts)
-	if n > 1 {
-		last := ip.out.pts[n-1]
-		fp := ip.out.pts[first]
-		if q64(last.x) == q64(fp.x) && q64(last.y) == q64(fp.y) && last.on {
-			ip.out.pts = ip.out.pts[:n-1]
-			n--
-		}
-	}
+	// 注意：闭合重合点**不在此处删除**——FT 的删除判定在
+	// ps_builder_close_contour（psobjs.c:2360-2374），用的是**映射后**
+	// 26.6 坐标（p1==p2 且末点 on）。charstring 原始坐标下重合的点映射
+	// 后可能不重合（痹 8px 实测：首点 (14,123) vs 末点 (14,141)，
+	// 原始坐标重合但映射后相差 18/64）——cs 层若删，psh_light 映射层
+	// 就无法补回。删除统一由 psh_light.go 的 out 构建（映射后判定）
+	// 负责，此处只做单点轮廓丢弃。
 	if n-first <= 1 {
 		// 单点轮廓：丢弃
 		ip.out.pts = ip.out.pts[:first]

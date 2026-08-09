@@ -31,6 +31,10 @@ const (
 )
 
 func cf2IntToFixed(i int64) cf2Fixed { return cf2Fixed(i) << 16 }
+
+// cf2F16 把 float（FUnit 空间）转为 16.16 定点，round-half-away
+// （对齐 FT FT_MulFix 的 +0x8000 舍入；负值用 math.Round 保证对称）。
+func cf2F16(v float64) cf2Fixed { return cf2Fixed(math.Round(v * 65536)) }
 func cf2DoubleToFixed(f float64) cf2Fixed {
 	return cf2Fixed(f*65536.0 + 0.5)
 }
@@ -1042,8 +1046,11 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 		hasNext := false
 		for k := 0; k < n; k++ {
 			p := cs.pts[off+k]
-			x := cf2MulFix(cf2IntToFixed(int64(math.Round(p.x))), scale)
-			y := zoneOf(off + k).mapCS(cf2IntToFixed(int64(math.Round(p.y))))
+			// blend 后 cs.pts 带 16.16 小数（cf2_doBlend 保留定点），
+			// 不能 math.Round 抹掉（89.696→90 会造成 26.6 差 1）；
+			// float→16.16 用 round-half-away（FT FT_MulFix 语义）。
+			x := cf2MulFix(cf2F16(float64(p.x)), scale)
+			y := zoneOf(off + k).mapCS(cf2F16(float64(p.y)))
 			// cf2_glyphpath_pushPrevElem（pshints.c:1409-1416）：
 			// 每条线独立判断——前一点与当前点均为 on（line 段）且映射
 			// 后 DS 相同则省略本点（与上一输入点比较，不受已跳过点影响）。
@@ -1060,10 +1067,13 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 			hasNext = true
 			lastX, lastY = x, y
 		}
-		// ps_builder_close_contour（psobjs.c:2336-2338）：
-		// 轮廓闭合时，末点与轮廓起点重合的 on 点被删除（FT outline
-		// 不保留闭合重合点；cs#11 型闭合点在此被丢）。
-		if len(out.pts) >= firstOut+2 && out.pts[firstOut] == out.pts[len(out.pts)-1] {
+		// ps_builder_close_contour（psobjs.c:2360-2374）：
+		// 末点与轮廓首点重合的 on 点被删除（`delete' last point only if
+		// it coincides with the first point and it is not a control point
+		// (which can happen)`——p1==p2 且末点必须是 ON 才删，末点为 off
+		// 控制点时 FT **保留**（痹 8px 末轮廓实测：FT 71 点 vs 误删 70
+		// 点，B1 四维度扫描捕获）。
+		if len(out.pts) >= firstOut+2 && out.pts[firstOut] == out.pts[len(out.pts)-1] && out.on[len(out.on)-1] {
 			out.pts = out.pts[:len(out.pts)-1]
 			out.on = out.on[:len(out.on)-1]
 		}

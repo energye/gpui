@@ -59,7 +59,7 @@ type cff2VarData struct {
 type cff2BlendData struct {
 	vstore  *cff2VarStore
 	coords  []cff2Coord
-	scalars []float64 // 当前 vsIndex 下各 region 的标量
+	scalars []int64 // 当前 vsIndex 下各 region 的标量（16.16 定点，FT 语义）
 }
 
 // setScalars 计算当前 vsIndex（vsindex 指令）下的 region 标量。
@@ -74,48 +74,65 @@ func (b *cff2BlendData) setScalars(vsIndex int, coords []cff2Coord) {
 		return
 	}
 	vd := b.vstore.variationData[vsIndex]
-	b.scalars = make([]float64, len(vd.regionIndexes))
+	b.scalars = make([]int64, len(vd.regionIndexes))
 	for i, ri := range vd.regionIndexes {
 		if ri < 0 || ri >= len(b.vstore.regions) {
 			b.scalars[i] = 0
 			continue
 		}
-		b.scalars[i] = b.vstore.regions[ri].evaluate(coords)
+		b.scalars[i] = b.vstore.regions[ri].evaluate16(coords)
 	}
 }
 
-// evaluate 计算该 region 在给定坐标下的标量（区间外 0，区间内插值，
-// 负区间取反——OpenType spec「Region scalar」）。
-func (r cff2Region) evaluate(coords []cff2Coord) float64 {
-	var s float64 = 1
+// cff2F16 把归一化 float 坐标转 16.16 定点（四舍五入；协调在
+// F2Dot14/16.16 量化边界的行为，语义同 FT 的 avar 归一化）。
+func cff2F16(v float64) int64 {
+	if v >= 0 {
+		return int64(v*65536 + 0.5)
+	}
+	return int64(v*65536 - 0.5)
+}
+
+// evaluate16 计算该 region 在给定坐标下的标量（16.16 定点）。
+// 语义完全对齐 FT 2.11 cff_blend_build_vector：非法区间/跨 0 区间/
+// peak==0 忽略（标量 1）；区间外 0；区间内 FT_DivFix（截断）插值；
+// 多轴 FT_MulFix（四舍五入）连乘。
+func (r cff2Region) evaluate16(coords []cff2Coord) int64 {
+	var s int64 = 0x10000
 	for _, c := range coords {
 		if c.axis >= len(r.starts) {
 			continue
 		}
-		start, peak, end := r.starts[c.axis], r.peaks[c.axis], r.ends[c.axis]
-		v := c.value
-		if start == peak && peak == end {
+		start, peak, end := cff2F16(r.starts[c.axis]), cff2F16(r.peaks[c.axis]), cff2F16(r.ends[c.axis])
+		v := cff2F16(c.value)
+		if start > peak || peak > end {
+			continue // 非法区间，FT 忽略
+		}
+		if start < 0 && end > 0 && peak != 0 {
+			continue // 跨 0 区间，FT 忽略
+		}
+		if peak == 0 {
 			continue // 该轴无效果
 		}
-		var t float64
-		if start > peak || (start == peak && end != peak) {
-			// 负区间：v <= peak 或 v >= end 时 0
-			if v > peak && v < end {
-				t = (end - v) / (end - peak)
-			} else if v == peak {
-				t = 1
-			}
-		} else {
-			// 正区间
-			if v >= start && v < peak {
-				t = (v - start) / (peak - start)
-			} else if v == peak {
-				t = 1
-			} else if v > peak && v <= end {
-				t = (end - v) / (end - peak)
-			}
+		if v < start || v > end {
+			s = 0
+			break
 		}
-		s *= t
+		var t int64
+		switch {
+		case v == peak:
+			t = 0x10000
+		case v < peak:
+			// FT_DivFix 语义 = ((a<<16) + (b>>1)) / b（四舍五入，ftcalc.c:266）；
+			// 纯截断会让标量差 1 个 16.16 单位 → delta 放大后偶发跨 26.6
+			// 边界差 1（CFF2 才有 blend，CFF1 无此路径）。
+			num, den := (v-start)<<16, peak-start
+			t = (num + (den>>1)) / den
+		default:
+			num, den := (end-v)<<16, end-peak
+			t = (num + (den>>1)) / den
+		}
+		s = (s*t + 0x8000) >> 16
 	}
 	return s
 }

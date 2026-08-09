@@ -1,6 +1,6 @@
 # 文本渲染 FT 全对齐计划（Raster-FT-ALIGN）
 
-**状态**: **阶段 A 完成**（2026-08-09 立；2026-08-09 A1–A4 全绿，A3 直通已接入生产路径）
+**状态**: **阶段 B 进行中**（2026-08-09 阶段 A 完成；B1a CFF 扫描升级 → B1b autohint 26.6 直通 → B1c TTF 矩阵 → B2 位图矩阵）
 **目标**: ①光栅器与 FT `smooth/ftgrays.c` **逐字节一致**；②8–72px 全字号 × 全字集 × 全字体验证矩阵；③M0–M5 实现方式源码级审计（不信文档）。
 **对照基准**: 本地 FT 2.11.1 源码 `/home/yanghy/app/projects/gogpu/freetype-2.11.1/` + `ftexp` 二进制（purego 调系统 libfreetype 2.11.1）。
 
@@ -77,21 +77,44 @@
 
 ### 阶段 B：8–72px 全字集全字体矩阵
 
-**B1 轮廓级矩阵**（快，先铺）
-- 字号：8–72 **每 1px 一档**（65 档）。
-- 字集/字体（复用现有 testdata + 系统字体）：
-  - CJK：cjk3000.txt × Noto Sans CJK TTC / wqy-microhei-nohint.ttf / wqy-microhei.ttf(bytecode)
-  - 韩：kr_all.txt × Noto Sans KR；泰：th_all.txt × NotoSansThai
-  - Latin：latin_all.txt × FreeSans / DejaVuSans
-  - Indic：deva/beng/taml × Samyak/Mukti/Samyak-Tamil
-  - 脚本：arab/ethi/mymr/gujr/fallback × KacstOne/AbyssinicaSIL/Padauk/Samyak-Gujarati
-  - VF：SourceSans3VF × 4 wght；Noto Sans SC VF × 4 wght
-- 对照维度升级：**坐标 + 点数 + on/off 标记 + contours 分组**（补 1.3 盲区）。
-- 允许差清单：唯一已知 = gujr px12 U+0A91 +0.2px（文档记录）。
+**B 前置盘点（2026-08-09 实测，阶段 A 收口时补查）**
+- CFF 扫描现状（hint 包 zz_scan_3000/kr/th）：仅 6 档（10/12/14/16/20/24），只对照**坐标+点数**；ftexp bcontour 已输出 tag（`x26 y26 tag`）但解析后丢弃——**on/off 标记与 contours 分组对照缺失**（1.3 盲区未补）。
+- TTF 扫描现状（zz_wqy_scan / zz_light_bytecode_scan）：`matchPointSets` 贪心最近邻 ±64（0.5px）容差模糊匹配，**非逐点精确**——因 autohint 输出链 `26.6 定点 → contoursToOutline float32 → 重建 26.6` 存在固有精度损失（autohint 内部本来就是 26.6：`hintPoint.x/y`、`hintEdge.opos/pos`，丢精度只在 `contoursToOutline` float32 转换）。
+- 引擎能力边界：`hint.LightHintVar`（自研 cf2 light）**只支持 CFF1/CFF2**；TTF/glyf 走 render/text 层 autohint（`autoHintContourPoints` → `GlyfContours` 26.6 Y-up，`pp1x` 平移后写回）。
+- 字体资源：wqy-microhei-nohint.ttf / wqy-microhei.ttf（testdata）；系统有 DejaVuSans / FreeSans / Samyak-Devanagari / Samyak-Tamil / Samyak-Gujarati / Mukti / KacstOne / AbyssinicaSIL / PadaukBook；testdata 有 NotoSansThai-Regular.otf、NotoSansSC-VF.otf、source-sans/VF/（SourceSans3VF-Upright.otf CFF2）。**缺 Noto Sans KR/Thai 独立字体 → KR 用 NotoSansCJK TTC 的 KR face（m2Font Face(14)，已有先例）**。
 
-**B2 位图级矩阵**（逐字节）
+**B 决策（2026-08-09 用户确认）**
+1. **TTF 也逐点 26.6 精确对照**：改造 autohint 输出保留 26.6 定点（类比 CFF 的 lightPtsToFT26 直通思路），不再用 ±0.5px 模糊匹配。
+2. **全矩阵 65 档所有字体全跑**：8–72 每 1px，CJK 全量、其余按文档字集全跑（接受 30–60 分钟长时）。
+
+**B1 轮廓级矩阵（坐标 + 点数 + on/off 标记 + contours 分组，四维度）**
+- **B1a CFF 扫描升级**（快，纯测试层）：
+  - ftexp bcontour 解析保留 tag（已输出）与 contours 分组（`NCONTOURS` 头 + 每点 tag 已齐，需解析末点索引序列）；hint 侧 `LightPt.On` + `res.contours`（点数制）对齐 FT `ends`（末点制）。
+  - 对照规则：CFF off 点 = FT tag2（cubic）；on 点 = tag1。点数、on/off 逐点、contours 分组逐轮廓，任一不符 = bad。
+  - 档位：8–72 每 1px（65 档）× cjk3000 × Noto CJK TTC；kr_all 11172 × Noto CJK TTC KR face；th_all 128 × NotoSansThai。
+  - VF：NotoSansSC-VF.otf × 4 wght（200/400/600/800）、SourceSans3VF-Upright.otf × 4 wght，抽样字集（CJK 300 常用 + latin_all）。
+
+**B1a 状态（2026-08-09 收口）**:
+- ✅ `zz_b1_scan_test.go`（hint 包）三测试全绿：`TestB1ScanCJK3000`（cjk3000 65 档）、`TestB1ScanKR`（kr_all 11172 × 65 档，11172×65 ≈ 72.6 万字形四维度对照）、`TestB1ScanThai`（th_all 128 × 65 档）——坐标 + 点数 + on/off + contours 分组四维度 bad=0。空块仅大规模 exec 偶发，小批量重试语义（禁止静默假绿）；长跑单文件给足超时。
+- ✅ `zz_b1_vf_test.go`（render/text）两测试全绿：`TestB1VFNotoSansSC` / `TestB1VFSourceSans`（65 档 × 4 wght × CJK300 常用 + latin_all）——此前 SourceSans 矩阵累计 266 bad 集中于 66–72px 大字号，**坐标差 1（26.6）**，根因与修复见下：
+  - **修复 ①（TestScanKR 偶发 FAIL 根因）**：ftexp（Go+purego+libfreetype）把 `os.ReadFile` 的字体字节 `&data[0]` 传 `FT_New_Memory_Face`——uintptr 不建 GC 引用，data 最后一次使用后底层数组被 GC 回收，FT 持有悬垂指针偶发读到被覆盖的字体内存 → 个别字形轮廓输出「混合」数据（np 漂移、坐标命中其他字形）。原版同矩阵 bad=49530，修复（各函数末尾 `runtime.KeepAlive(data)`）后 50/50 全一致。
+  - **修复 ②（SourceSans 变体 266 bad 根因）**：`cff2Region.evaluate16`（cff2.go）区间插值用纯截断除法 `(v-start)<<16/(peak-start)`；FT 的 `cff_blend_build_vector`（cffload.c:1526-1530）用 `FT_DivFix` = `((a<<16)+(b>>1))/b`（**四舍五入**，ftcalc.c:266）。标量差 1 个 16.16 单位，经 delta 放大后偶发跨 26.6 边界 → 坐标差 1。CFF1 无 blend 故此前全对齐 —— 与「CFF1 全绿、CFF2 偶发差 1」现象自洽。修复后 SourceSans 全矩阵 bad=0（509s），NotoSansSC 588s 全绿。
+- 遗留清理：`b1_dbg3_test.go` / `b1_dbg4_test.go`（单字形调试打印，无断言）已删除。
+- **B1b autohint 26.6 输出改造**（引擎层，类比 A3 直通）：
+  - `autoHintContourPoints` 已产出 26.6 定点（`GlyfContours.Points` 存 26.6 Y-up int16）；新增直通出口：hint 后不转 `contoursToOutline` float32，直接输出 26.6 点列 + on/off（`OnCurve`）+ 分组（`EndPts`）→ 喂 RasterizeFT26 或对照 ftexp。
+  - 对照方：TTF 字体的 FT-light 轮廓（ftexp bcontour，tag0=conic off / tag1=on）；conic 隐含 on 中点规则与 FT 一致（glyf 双 off 拆中点，与 FT_Outline 输出点列相同）。
+- **B1c TTF 矩阵**：65 档 × 字集 × 字体——
+  - wqy-microhei-nohint.ttf × cjk3000；wqy-microhei.ttf（字节码字体，light 仍走 autofit）× cjk3000 抽样 300；
+  - latin_all 254 × FreeSans / DejaVuSans / SourceSans3VF；
+  - deva_sample × Samyak-Devanagari；beng_sample × Mukti；taml_sample × Samyak-Tamil；
+  - arab_sample × KacstOne；ethi_sample × AbyssinicaSIL；mymr_sample × PadaukBook；gujr_sample × Samyak-Gujarati。
+- **允许差清单**：唯一已知 = gujr px12 U+0A91 +0.2px（保持记录，其余必须 bad=0）。
+
+**B2 位图级矩阵（逐字节）**
 - 字号：8/10/12/14/16/18/20/24/28/32/40/48/56/64/72 阶梯（15 档）× 全字集。
-- 逐字节 bad=0（新光栅器）。
+- 逐字节 bad=0（新光栅器 RasterizeFT26；CFF 直通 + TTF 26.6 直通均喂同一光栅器）。
+- CFF：cjk3000 × Noto CJK；kr_all × Noto CJK KR face；th_all × NotoSansThai。
+- TTF：wqy-microhei-nohint × cjk3000 抽样 300（B2 全量 TTF 位图时长不可控，抽样 + latin_all × FreeSans/DejaVu 全量）。
 
 **B 验收**: B1/B2 全矩阵 bad=0（含 on/off、分组维度）；允许差仅 gujr px12 U+0A91。
 

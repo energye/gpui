@@ -62,14 +62,15 @@ func TestCFF2VSIndexBlendMatchGT(t *testing.T) {
 			if err != nil {
 				t.Fatalf("gid %d my load wght=%v: %v", gid, wght, err)
 			}
-			if len(gtPts) != len(my.pts) {
-				t.Errorf("gid %d wght=%v: gt %d pts vs my %d", gid, wght, len(gtPts), len(my.pts))
+			myPts := dropPerContour(my, gid)
+			if len(gtPts) != len(myPts) {
+				t.Errorf("gid %d wght=%v: gt %d pts vs my %d", gid, wght, len(gtPts), len(myPts))
 				continue
 			}
 			bad := 0
 			for i := range gtPts {
-				dx := int32(math.Round(gtPts[i][0]*64)) - int32(math.Round(my.pts[i].x*64))
-				dy := int32(math.Round(gtPts[i][1]*64)) - int32(math.Round(my.pts[i].y*64))
+				dx := int32(math.Round(gtPts[i][0]*64)) - int32(math.Round(myPts[i][0]*64))
+				dy := int32(math.Round(gtPts[i][1]*64)) - int32(math.Round(myPts[i][1]*64))
 				if abs32(dx) > 1 || abs32(dy) > 1 {
 					bad++
 				}
