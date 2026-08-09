@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	ftLoadNoHinting = 0x0002
+	ftLoadNoHinting    = 0x0002
 	ftLoadNoStemDarken = 0x0040
-	ftLoadTargetLight = 1 << 16
-	ftRenderNormal    = 0
-	ftPixelModeGray   = 2
+	ftLoadTargetLight  = 1 << 16
+	ftRenderNormal     = 0
+	ftPixelModeGray    = 2
 )
 
 type ftBitmap struct {
@@ -47,6 +47,8 @@ func main() {
 		fmt.Println("usage: ftexp <ttf|ttc> [rune] [sizePx] [hint] [pgmOut]")
 		fmt.Println("       ftexp line <ttf> <sizePx> <hint> <pgmOut> <text>")
 		fmt.Println("       ftexp contour <ttf> <rune> <sizePx> <hint:l|n>")
+		fmt.Println("       ftexp bcontour <ttf> <sizePx> <hint:l|n> <listFile>")
+		fmt.Println("       ftexp bpgm <ttf> <sizePx> <hint:l|n> <listFile>")
 		fmt.Println("  hint: l=light (default), n=nohint")
 		os.Exit(1)
 	}
@@ -64,6 +66,10 @@ func main() {
 	}
 	if os.Args[1] == "line" {
 		runLine()
+		return
+	}
+	if os.Args[1] == "bpgm" {
+		runBatchPGM()
 		return
 	}
 	path := os.Args[1]
@@ -473,6 +479,115 @@ func runBatchContour() {
 			fmt.Fprintf(bw, "%d", *(*int16)(unsafe.Pointer(ends + uintptr(c)*2)))
 		}
 		bw.WriteByte('\n')
+	}
+}
+
+// runBatchPGM renders each rune of a character list into its own PGM and
+// prints one block per rune so the caller can compare without per-rune exec.
+//
+//	ftexp bpgm <ttc> <sizePx> <hint:l|n> <runestring>
+//
+// Block format (per rune):
+//
+//	# B <rune> <w> <h> <left> <top>   (w=0,h=0 when MISSING/FAIL)
+//	<w*h gray values, one row per line>
+func runBatchPGM() {
+	if len(os.Args) < 6 {
+		fmt.Fprintln(os.Stderr, "usage: ftexp bpgm <ttf|ttc> <sizePx> <hint:l|n> <runestring>")
+		os.Exit(2)
+	}
+	path := os.Args[2]
+	px := float64(16)
+	fmt.Sscanf(os.Args[3], "%g", &px)
+	loadFlags := int32(ftLoadTargetLight)
+	if os.Args[4] == "n" {
+		loadFlags = ftLoadNoHinting
+	}
+	if os.Args[4] == "d" {
+		loadFlags = ftLoadTargetLight | ftLoadNoStemDarken
+	}
+	if os.Args[4] == "f" {
+		loadFlags = 0 // FT_LOAD_TARGET_NORMAL = full hint
+	}
+	rawText, err := os.ReadFile(os.Args[5])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL read list:", err)
+		os.Exit(1)
+	}
+
+	libft, _ = purego.Dlopen("libfreetype.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	if libft == 0 {
+		fmt.Fprintln(os.Stderr, "FAIL dlopen libfreetype.so.6")
+		os.Exit(1)
+	}
+	purego.RegisterLibFunc(&ftInit, libft, "FT_Init_FreeType")
+	purego.RegisterLibFunc(&ftNewFace, libft, "FT_New_Memory_Face")
+	purego.RegisterLibFunc(&ftSetCharSz, libft, "FT_Set_Char_Size")
+	purego.RegisterLibFunc(&ftCharIdx, libft, "FT_Get_Char_Index")
+	purego.RegisterLibFunc(&ftLoadGlyph, libft, "FT_Load_Glyph")
+	purego.RegisterLibFunc(&ftRender, libft, "FT_Render_Glyph")
+
+	var lib uintptr
+	if err := ftInit(&lib); err != 0 {
+		fmt.Fprintln(os.Stderr, "FAIL init")
+		os.Exit(1)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL read:", err)
+		os.Exit(1)
+	}
+	var face uintptr
+	if err := ftNewFace(lib, &data[0], int64(len(data)), 0, &face); err != 0 {
+		fmt.Fprintln(os.Stderr, "FAIL face")
+		os.Exit(1)
+	}
+	sz := int64(px * 64)
+	if err := ftSetCharSz(face, sz, sz, 0, 0); err != 0 {
+		fmt.Fprintln(os.Stderr, "FAIL chsize")
+		os.Exit(1)
+	}
+
+	bw := bufio.NewWriter(os.Stdout)
+	defer bw.Flush()
+	for _, r := range []rune(string(rawText)) {
+		gid := ftCharIdx(face, r)
+		if gid == 0 {
+			fmt.Fprintf(bw, "# B %U 0 0 0 0\n", r)
+			continue
+		}
+		if err := ftLoadGlyph(face, gid, loadFlags); err != 0 {
+			fmt.Fprintf(bw, "# B %U 0 0 0 0\n", r)
+			continue
+		}
+		slot := *(*uintptr)(unsafe.Pointer(face + 152))
+		if slot == 0 {
+			fmt.Fprintf(bw, "# B %U 0 0 0 0\n", r)
+			continue
+		}
+		if err := ftRender(slot, ftRenderNormal); err != 0 {
+			fmt.Fprintf(bw, "# B %U 0 0 0 0\n", r)
+			continue
+		}
+		bmp := *(*ftBitmap)(unsafe.Pointer(slot + 152))
+		left := *(*int32)(unsafe.Pointer(slot + 192))
+		top := *(*int32)(unsafe.Pointer(slot + 196))
+		rows, width, pitch := int(bmp.rows), int(bmp.width), int(bmp.pitch)
+		if bmp.pixelMode != ftPixelModeGray || width <= 0 || rows <= 0 {
+			fmt.Fprintf(bw, "# B %U 0 0 0 0\n", r)
+			continue
+		}
+		fmt.Fprintf(bw, "# B %U %d %d %d %d\n", r, width, rows, left, top)
+		for y := 0; y < rows; y++ {
+			src := (*[1 << 20]byte)(unsafe.Pointer(bmp.buffer))[y*pitch : y*pitch+width]
+			for i := 0; i < width; i++ {
+				if i > 0 {
+					bw.WriteByte(' ')
+				}
+				fmt.Fprintf(bw, "%d", src[i])
+			}
+			bw.WriteByte('\n')
+		}
 	}
 }
 
