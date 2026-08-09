@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/energye/gpui/render/internal/raster"
+	"github.com/energye/gpui/render/text/hint"
 )
 
 // GlyphMaskRasterizer renders glyph outlines into R8 alpha masks using the
@@ -55,6 +56,71 @@ type GlyphMaskResult struct {
 	// BearingY is the vertical offset from the baseline to the top edge
 	// of the mask bounding box, in pixels. Positive = above baseline.
 	BearingY float32
+}
+
+// RasterizeHintedFT26 renders a glyph through the FT-aligned rasterizer
+// (RasterizeFT26) using the 26.6 fixed-point outline from the CFF light
+// hinting engine, bypassing the float32 intermediate (A3 方案 A).
+//
+// This path is used for CFF/CFF2 outline fonts with hinting enabled
+// (HintingVertical / HintingFull), where hint.LightHintVar already produces
+// 26.6 fixed-point points aligned with FT_LOAD_TARGET_LIGHT. The outline is
+// fed directly to the ftgrays port for byte-exact parity with
+// FT_Render_Glyph.
+//
+// Returns nil when the direct path is not applicable (non-CFF font, no
+// hinting, engine failure) — callers fall back to RasterizeHinted.
+func (r *GlyphMaskRasterizer) RasterizeHintedFT26(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	hinting Hinting,
+	variations []FontVariation,
+) (*GlyphMaskResult, bool, error) {
+	if hinting == HintingNone {
+		return nil, false, nil
+	}
+	own, ok := font.(*ownParsedFont)
+	if !ok || !own.hasPostScriptOutlines() {
+		return nil, false, nil
+	}
+	raw := own.RawFontData()
+	if len(raw) == 0 {
+		return nil, false, nil
+	}
+	isCFF2 := own.hasCFF2Table() && !own.hasCFFTable()
+	var coords []float32
+	if isCFF2 && len(variations) > 0 {
+		for _, c := range own.cff2VariationCoords(variations) {
+			coords = append(coords, float32(c)/16384.0)
+		}
+	}
+	pts, contours, _, err := hint.LightHintVar(raw, own.collectionIndex, isCFF2, uint16(gid), size, coords)
+	if err != nil {
+		return nil, false, nil //nolint:nilerr // engine failure → fallback
+	}
+	if len(pts) == 0 || len(contours) == 0 {
+		return nil, false, nil
+	}
+	ftPts, tags, ends := lightPtsToFT26(pts, contours)
+	if len(ftPts) == 0 {
+		return nil, false, nil
+	}
+
+	mask, left, top, width, height, err := RasterizeFT26(ftPts, tags, ends, false)
+	if err != nil {
+		return nil, true, err
+	}
+	if mask == nil {
+		return nil, true, nil //nolint:nilnil // empty glyph
+	}
+	return &GlyphMaskResult{
+		Mask:     mask,
+		Width:    int(width),
+		Height:   int(height),
+		BearingX: float32(left),
+		BearingY: float32(top),
+	}, true, nil
 }
 
 // Rasterize renders a single glyph into an R8 alpha mask.

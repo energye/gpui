@@ -611,21 +611,21 @@ func presetBitmap(cbox ftGraysBBox) (xLeft, yTop, width, height int32) {
 //
 // 输入：26.6 定点轮廓点（Y-up）+ 每点 tag + 轮廓末点索引（inclusive）。
 // 输出：256 级灰度位图（行序从上到下）+ bitmap_left/bitmap_top（FT 语义）。
-func RasterizeFT26(pts []ftVec26, tags []ftOutlineTag, contours []int32, evenOdd bool) (mask []byte, left, top int32, err error) {
+func RasterizeFT26(pts []ftVec26, tags []ftOutlineTag, contours []int32, evenOdd bool) (mask []byte, left, top, width, height int32, err error) {
 	if len(pts) == 0 || len(contours) == 0 {
-		return nil, 0, 0, nil
+		return nil, 0, 0, 0, 0, nil
 	}
 	if len(pts) != len(tags) {
-		return nil, 0, 0, errors.New("ftgrays: pts/tags mismatch")
+		return nil, 0, 0, 0, 0, errors.New("ftgrays: pts/tags mismatch")
 	}
 	if int(contours[len(contours)-1]) != len(pts)-1 {
-		return nil, 0, 0, errors.New("ftgrays: contours last != n_points-1")
+		return nil, 0, 0, 0, 0, errors.New("ftgrays: contours last != n_points-1")
 	}
 
 	cbox := outlineCBox(pts)
 	xLeft, yTop, width, height := presetBitmap(cbox)
 	if width <= 0 || height <= 0 {
-		return nil, xLeft, yTop, nil
+		return nil, xLeft, yTop, 0, 0, nil
 	}
 
 	// ft_smooth_render：x_shift = 64*-left, y_shift = 64*-top + 64*rows
@@ -660,8 +660,8 @@ func RasterizeFT26(pts []ftVec26, tags []ftOutlineTag, contours []int32, evenOdd
 	}
 
 	if err := w.decompose(shifted, tags, contours); err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, 0, 0, err
 	}
 	w.sweep()
-	return w.line, xLeft, yTop, nil
+	return w.line, xLeft, yTop, width, height, nil
 }

@@ -139,7 +139,7 @@ func TestDbgFTGraysScanCJK3000(t *testing.T) {
 					ends = append(ends, int32(v))
 				}
 			}
-			mask, gLeft, gTop, err := RasterizeFT26(tagPts, tags, ends, false)
+			mask, gLeft, gTop, _, _, err := RasterizeFT26(tagPts, tags, ends, false)
 			if err != nil {
 				t.Fatalf("%c %.0fpx: RasterizeFT26: %v", r, px, err)
 			}

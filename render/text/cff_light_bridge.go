@@ -60,6 +60,47 @@ func (e *OutlineExtractor) cffLightHintOutlineVar(f *ownParsedFont, gid GlyphID,
 	return outline, true
 }
 
+// lightPtsToFT26 把 hint.LightHintVar 的 LightPt（26.6 定点 Y-up）直通为
+// RasterizeFT26 的输入，跳过 float32 中转（方案 A：避免 26.6→float32→
+// 26.6 两次转换的精度损失）。
+//
+// 注意两个 contours 语义不同：
+//   - hint 返回的 contours []int = 每个轮廓的**点数**（rebuildSegments 用
+//     `end := first + n`）；
+//   - RasterizeFT26 要的 contours []int32 = 每个轮廓的**末点索引 inclusive**
+//     （`contours[last] == len(pts)-1`）。
+//
+// 返回的 tags 为 RasterizeFT26 语义：on → ftTagOn，off → ftTagCubic。
+// CFF charstring 曲线是**三次贝塞尔**（curveto：两个 off 控制点 + on
+// 终点），FT_Outline 对 CFF 字体的 off 点标 FT_CURVE_TAG_CUBIC（2）；
+// light 引擎的 LightPt.On 只有 bool，丢失了曲线类型——直通时补回
+// cubic 语义（与 ftexp contour 输出实测一致：CFF 字体 off 点全 tag2）。
+func lightPtsToFT26(pts []hint.LightPt, contours []int) ([]ftVec26, []ftOutlineTag, []int32) {
+	if len(pts) == 0 || len(contours) == 0 {
+		return nil, nil, nil
+	}
+	out := make([]ftVec26, len(pts))
+	tags := make([]ftOutlineTag, len(pts))
+	for i, p := range pts {
+		out[i] = ftVec26{x: p.X, y: p.Y}
+		if p.On {
+			tags[i] = ftTagOn
+		} else {
+			tags[i] = ftTagCubic
+		}
+	}
+	ends := make([]int32, len(contours))
+	idx := int32(0)
+	for i, n := range contours {
+		if n <= 0 || int(idx)+n > len(pts) {
+			return nil, nil, nil
+		}
+		idx += int32(n)
+		ends[i] = idx - 1
+	}
+	return out, tags, ends
+}
+
 // rebuildSegmentsFromLightPts 把 LightPt（26.6 定点 Y-up）重建为
 // OutlineSegments（Y-down 像素）。
 //

@@ -1,6 +1,6 @@
 # 文本渲染 FT 全对齐计划（Raster-FT-ALIGN）
 
-**状态**: **阶段 A 收口中**（2026-08-09 立；A1/A2/A4 已绿，A3 生产接入待办）
+**状态**: **阶段 A 完成**（2026-08-09 立；2026-08-09 A1–A4 全绿，A3 直通已接入生产路径）
 **目标**: ①光栅器与 FT `smooth/ftgrays.c` **逐字节一致**；②8–72px 全字号 × 全字集 × 全字体验证矩阵；③M0–M5 实现方式源码级审计（不信文档）。
 **对照基准**: 本地 FT 2.11.1 源码 `/home/yanghy/app/projects/gogpu/freetype-2.11.1/` + `ftexp` 二进制（purego 调系统 libfreetype 2.11.1）。
 
@@ -73,7 +73,7 @@
 - **A2 ✅** `render/text/ftgrays.go` 移植完成（新文件，旧 raster 包不动，可并存切换）：
   - `RasterizeFT26` 与 FT_Render_Glyph **逐字节一致**（bad=0），关键修复：cubic tag 解析（此前 tag=2 误判 conic 致 renderCubic 从未真跑）、UPSCALE 移到回调层（vMiddle 语义对齐）、splitCubic 7 元素视图、yShift 补 +64*rows（ftsmooth.c:480）、FT_UDIV 乘法移位近似、四方向 renderLine 带符号条件。
 - **A4 ✅** 矩阵：Noto Sans CJK 静/每/合/日/田 × 8/12/16/24/32/48/72px **bad=0**；cjk3000 全字集 × 8/12/16/24/32px **15000 字全绿**；latin_all 254 / th_all 87 / kr_all 11172 **全绿**（`zz_dbg_ftgrays_*_test.go`）；wqy-microhei（TTF/conic 路径）17 字 × 7 字号 **119 组合 bad=0**（`zz_dbg_ftgrays_wqy_test.go`）。ftexp 新增 `bpgm` 批量位图模式（与 bcontour 对称，一次进程取全字集）。
-- **A3 ⬜ 待办**：`GlyphMaskRasterizer` 光栅段由自研 raster 切到 ftgrays 移植（同 26.6 定点输入）——A3 未做，阶段 A 不标完成，A2/A4 部分已收口。
+- **A3 ✅ 2026-08-09 完成**：`GlyphMaskRasterizer.RasterizeHintedFT26` 直通方法——CFF light 引擎 `hint.LightHintVar` 的 26.6 定点输出直接喂 `RasterizeFT26`（跳过 float32 中转，方案 A）。关键修复：**CFF off 控制点必须映射 ftTagCubic**（CFF charstring 曲线是三次贝塞尔 curveto，FT_Outline 对 CFF 字体 off 点标 FT_CURVE_TAG_CUBIC；LightPt.On 只有 bool 丢失曲线类型，标 conic 会按二次渲染致错）。CFF2 变体坐标经 `cff2VariationCoords` 传入。验证：直通 vs FT-light 位图逐字节一致——48 组合（8 字 × 6 字号）+ cjk3000 × 12/16px = 6000 字全绿。生产接入：draw.go 在 hint 非 None + AA 模式优先走直通，不可用回退老 float32 路径。全量 `go test ./render/text/...` 回归绿。
 
 ### 阶段 B：8–72px 全字集全字体矩阵
 

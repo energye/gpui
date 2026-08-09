@@ -48,7 +48,7 @@ func TestDbgFTGraysByteExactWqy(t *testing.T) {
 			pts, tags, contours := ftContour26(t, bin, fontPath, r, px)
 
 			// 3) Go 移植光栅器
-			mask, gLeft, gTop, err := RasterizeFT26(pts, tags, contours, false)
+			mask, gLeft, gTop, _, _, err := RasterizeFT26(pts, tags, contours, false)
 			if err != nil {
 				t.Fatalf("%c %.0fpx: RasterizeFT26: %v", r, px, err)
 			}

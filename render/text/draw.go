@@ -254,13 +254,28 @@ func drawGlyphsVariable(
 			continue
 		}
 
+		// A3 直通：hint 非 None 时优先走 hint.LightHintVar 26.6 定点 → ftgrays
+		// 移植（RasterizeFT26），与 FT_Render_Glyph(light) 逐字节一致；不可用
+		// 时回退老 float32 路径。CFF2 变体坐标经 variations 传入。
 		var result *GlyphMaskResult
 		var rErr error
-		switch mode {
-		case rasterModeAliased:
-			result, rErr = rast.RasterizeOutlineAliased(outline, subpixelX, subpixelY)
-		default:
-			result, rErr = rast.RasterizeOutline(outline, subpixelX, subpixelY)
+		if mode == rasterModeAA && hinting != HintingNone {
+			directRes, direct, dErr := rast.RasterizeHintedFT26(parsed, gid, ppem, hinting, variations)
+			if dErr != nil {
+				advanceX += float64(outline.Advance)
+				continue
+			}
+			if direct {
+				result = directRes
+			}
+		}
+		if result == nil {
+			switch mode {
+			case rasterModeAliased:
+				result, rErr = rast.RasterizeOutlineAliased(outline, subpixelX, subpixelY)
+			default:
+				result, rErr = rast.RasterizeOutline(outline, subpixelX, subpixelY)
+			}
 		}
 		if rErr != nil || result == nil {
 			advanceX += float64(outline.Advance)
