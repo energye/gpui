@@ -1,6 +1,6 @@
 # 文本渲染 FT 全对齐计划（Raster-FT-ALIGN）
 
-**状态**: **计划中**（2026-08-09 立）
+**状态**: **阶段 A 收口中**（2026-08-09 立；A1/A2/A4 已绿，A3 生产接入待办）
 **目标**: ①光栅器与 FT `smooth/ftgrays.c` **逐字节一致**；②8–72px 全字号 × 全字集 × 全字体验证矩阵；③M0–M5 实现方式源码级审计（不信文档）。
 **对照基准**: 本地 FT 2.11.1 源码 `/home/yanghy/app/projects/gogpu/freetype-2.11.1/` + `ftexp` 二进制（purego 调系统 libfreetype 2.11.1）。
 
@@ -67,6 +67,13 @@
 - 全量 `go test ./render/text/...` 回归（不破坏 M0–M5 轮廓层对照）。
 
 **A 验收**: 阶段 A 结束 = FT 轮廓喂新光栅器 vs FT 位图逐字节 bad=0（矩阵覆盖以上字号 × 抽样字符）。
+
+**阶段 A 状态（2026-08-09）**：
+- **A1 ✅** `TestDbgRasterByteExact` 基线已建（zz_dbg_raster_byteexact_test.go）。
+- **A2 ✅** `render/text/ftgrays.go` 移植完成（新文件，旧 raster 包不动，可并存切换）：
+  - `RasterizeFT26` 与 FT_Render_Glyph **逐字节一致**（bad=0），关键修复：cubic tag 解析（此前 tag=2 误判 conic 致 renderCubic 从未真跑）、UPSCALE 移到回调层（vMiddle 语义对齐）、splitCubic 7 元素视图、yShift 补 +64*rows（ftsmooth.c:480）、FT_UDIV 乘法移位近似、四方向 renderLine 带符号条件。
+- **A4 ✅** 矩阵：Noto Sans CJK 静/每/合/日/田 × 8/12/16/24/32/48/72px **bad=0**；cjk3000 全字集 × 8/12/16/24/32px **15000 字全绿**；latin_all 254 / th_all 87 / kr_all 11172 **全绿**（`zz_dbg_ftgrays_*_test.go`）；wqy-microhei（TTF/conic 路径）17 字 × 7 字号 **119 组合 bad=0**（`zz_dbg_ftgrays_wqy_test.go`）。ftexp 新增 `bpgm` 批量位图模式（与 bcontour 对称，一次进程取全字集）。
+- **A3 ⬜ 待办**：`GlyphMaskRasterizer` 光栅段由自研 raster 切到 ftgrays 移植（同 26.6 定点输入）——A3 未做，阶段 A 不标完成，A2/A4 部分已收口。
 
 ### 阶段 B：8–72px 全字集全字体矩阵
 

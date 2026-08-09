@@ -20,7 +20,7 @@ func TestDbgFTGraysByteExact(t *testing.T) {
 	}
 	bin := ftexpLocal(t)
 
-	for _, px := range []float64{8, 12, 16, 24, 32, 48} {
+	for _, px := range []float64{8, 12, 16, 24, 32, 48, 72} {
 		for _, r := range []rune("静每合日田") {
 			// 1) FT 位图 + left/top
 			ftPgm := filepath.Join(t.TempDir(), "ft.pgm")
