@@ -930,7 +930,8 @@ func cf2StemSlice(stems []csStem) []cf2StemHint {
 // cf2HintResult 是 M2 的输出：每轮廓的 DS 点（16.16 px）。
 type cf2HintResult struct {
 	pts      [][2]cf2Fixed // 与 cs 轮廓同序（不含重复首点）
-	contours []int
+	on       []bool        // 与 pts 一一对应的 on/off 标志
+	contours []int         // 实际输出的轮廓分组（省略点后已同步）
 }
 
 // hintCFF2Light：M5 入口。对 CFF2 cs 轮廓施加 cf2 语义的 Y 轴 hintmap。
@@ -1033,7 +1034,7 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 		return maps[len(maps)-1]
 	}
 
-	out := &cf2HintResult{contours: cs.contours}
+	out := &cf2HintResult{}
 	off := 0
 	for _, n := range cs.contours {
 		firstOut := len(out.pts)
@@ -1051,6 +1052,7 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 				continue
 			}
 			out.pts = append(out.pts, [2]cf2Fixed{x, y})
+			out.on = append(out.on, p.on)
 			if os.Getenv("CSDBG3") != "" {
 				fmt.Printf("  out#%d m=%d cs=(%.2f,%.2f) ds=(%d,%d) 26=(%d,%d)\n",
 					off+k, p.maskIdx, p.x, p.y, x, y, x>>10, y>>10)
@@ -1063,7 +1065,9 @@ func hintCFFLight(cs *csOutline, fd *cffFD, scale cf2Fixed, darkenX, darkenY cf2
 		// 不保留闭合重合点；cs#11 型闭合点在此被丢）。
 		if len(out.pts) >= firstOut+2 && out.pts[firstOut] == out.pts[len(out.pts)-1] {
 			out.pts = out.pts[:len(out.pts)-1]
+			out.on = out.on[:len(out.on)-1]
 		}
+		out.contours = append(out.contours, len(out.pts)-firstOut)
 		off += n
 	}
 	return out

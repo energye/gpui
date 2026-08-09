@@ -133,3 +133,64 @@ func TestLightUnknownMode(t *testing.T) {
 		t.Fatal("unknown mode should error")
 	}
 }
+
+// TestCFFLightBridgeTrailingOff 回归：CFF charstring 轮廓允许以 off 点结束
+// （闭合段以轮廓起点 on 为隐式终点）。此前 rebuildSegmentsFromLightPts 遇
+// 尾部 off 直接 return nil，导致 cffLightHintOutline 静默失败 → 生产路径
+// 落 auto-hint/gridFit 兜底（整数网格），「合」16px 底横线整条消失。
+func TestCFFLightBridgeTrailingOff(t *testing.T) {
+	cjk, _ := reproLightFont(t)
+	f, ok := cjk.(*ownParsedFont)
+	if !ok || !f.hasPostScriptOutlines() {
+		t.Skip("font not CFF, bridge path not used")
+	}
+	ext := NewOutlineExtractor()
+	for _, tc := range []struct {
+		r  rune
+		px float64
+	}{
+		{'合', 12}, {'合', 16}, {'合', 24}, {'合', 48},
+		{'静', 12}, {'静', 16}, {'每', 12}, {'每', 16},
+	} {
+		gid := f.GlyphIndex(tc.r)
+		lo, ok := ext.cffLightHintOutline(f, GlyphID(gid), tc.px)
+		if !ok {
+			t.Fatalf("%q %.0fpx: cffLightHintOutline failed (trailing-off contour rejected)", tc.r, tc.px)
+		}
+		if len(lo.Segments) == 0 {
+			t.Fatalf("%q %.0fpx: zero segments", tc.r, tc.px)
+		}
+	}
+}
+
+// TestCFFLightBridgeKeepsSubpixel 回归：light 引擎输出的亚像素 Y
+// 不得被兜底路径吸成整数。此前「合」16px 底边 Y 从 1.83 变成 1.00，
+// 底横线落在像素边界零覆盖消失。断言 ExtractOutlineHinted(HintVertical)
+// 保持亚像素底边（与 FT-light 26.6 一致）。
+func TestCFFLightBridgeKeepsSubpixel(t *testing.T) {
+	cjk, _ := reproLightFont(t)
+	f, ok := cjk.(*ownParsedFont)
+	if !ok || !f.hasPostScriptOutlines() {
+		t.Skip("font not CFF, bridge path not used")
+	}
+	ext := NewOutlineExtractor()
+	r := '合'
+	gid := f.GlyphIndex(r)
+	o, err := ext.ExtractOutlineHinted(f, GlyphID(gid), 16, HintingVertical)
+	if err != nil || o == nil {
+		t.Fatalf("ExtractOutlineHinted: %v", err)
+	}
+	maxY := float32(-1e9)
+	for _, s := range o.Segments {
+		for _, p := range s.Points {
+			if p.X != 0 || p.Y != 0 {
+				if p.Y > maxY {
+					maxY = p.Y
+				}
+			}
+		}
+	}
+	if maxY < 1.5 {
+		t.Errorf("合 16px bottom Y = %.2f, want ≈1.83 (subpixel preserved, FT-light match)", maxY)
+	}
+}

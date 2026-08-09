@@ -110,13 +110,9 @@ func LightHintVar(raw []byte, faceIdx int, isCFF2 bool, gid uint16, px float64, 
 
 	out := make([]LightPt, len(res.pts))
 	for i, p := range res.pts {
-		on := false
-		if i < len(cs.pts) {
-			on = cs.pts[i].on
-		}
-		out[i] = LightPt{X: int64(p[0]) >> 10, Y: int64(p[1]) >> 10, On: on}
+		out[i] = LightPt{X: int64(p[0]) >> 10, Y: int64(p[1]) >> 10, On: res.on[i]}
 	}
-	return out, append([]int(nil), cs.contours...), cs.width, nil
+	return out, append([]int(nil), res.contours...), cs.width, nil
 }
 
 // cff2VarCoords 合并用户坐标与默认（全 0）坐标。

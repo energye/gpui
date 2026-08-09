@@ -120,6 +120,32 @@ func rebuildSegmentsFromLightPts(pts []hint.LightPt, contours []int) []OutlineSe
 				i += 2
 				continue
 			}
+			// 轮廓尾部闭合语义（FT CFF charstring 允许轮廓以 off 结束，
+			// 闭合段以轮廓起点 on 为隐式终点）：
+			//   - 单 off 结尾 → QuadTo(off, start)
+			//   - 双 off 结尾 → 中点拆两段，第二段终点 = start
+			if i+1 >= end || !pts[i+1].On {
+				startPt := start
+				if i+1 < end {
+					midX := (p.X + pts[i+1].X) / 2
+					midY := (p.Y + pts[i+1].Y) / 2
+					segs = append(segs, OutlineSegment{
+						Op:     OutlineOpQuadTo,
+						Points: [3]OutlinePoint{{X: xPx(p.X), Y: yPx(p.Y)}, {X: xPx(midX), Y: yPx(midY)}},
+					})
+					segs = append(segs, OutlineSegment{
+						Op:     OutlineOpQuadTo,
+						Points: [3]OutlinePoint{{X: xPx(pts[i+1].X), Y: yPx(pts[i+1].Y)}, {X: xPx(startPt.X), Y: yPx(startPt.Y)}},
+					})
+				} else {
+					segs = append(segs, OutlineSegment{
+						Op:     OutlineOpQuadTo,
+						Points: [3]OutlinePoint{{X: xPx(p.X), Y: yPx(p.Y)}, {X: xPx(startPt.X), Y: yPx(startPt.Y)}},
+					})
+				}
+				i = end
+				continue
+			}
 			return nil
 		}
 		first = end
