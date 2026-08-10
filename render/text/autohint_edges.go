@@ -78,11 +78,25 @@ func computeEdgeDistThreshold(axis *scaledAxisMetrics, group scriptGroup) float3
 		return float32(float64(scaledThreshold) / axis.scale)
 	}
 	// CJK: different computation.
-	scaled := axis.edgeDistThreshold
-	if scaled > 0.25 {
-		return float32(0.25 / axis.scale)
+	// FreeType afcjk.c:1067-1072 / skrifa edges.rs:57-64:
+	//   thresh = edt*scale; if > 16 (0.25px) → threshold = 0.25px
+	//   (16/scale in font units); else keep the unscaled edt (font units).
+	// scaledAxisMetrics.edgeDistThreshold is ALREADY multiplied by scale
+	// (scaleTo), so divide back to font units for the comparison below.
+	//
+	// The cap is computed with FT_DivFix(16, scale), whose integer division
+	// rounds to nearest (it adds scale/2 before dividing): e.g. 12px yields
+	// 16*65536/24576 = 42.67 → 43, while a float 0.25/scale gives 42.67 and
+	// truncation gives 42. Emulate the exact integer semantics with 16.16
+	// arithmetic so boundary distances (dist == thresh) match FreeType.
+	if axis.edgeDistThreshold > 0.25 {
+		if axis.scale16dot16 > 0 {
+			q := (int64(16)<<16 + int64(axis.scale16dot16)>>1) / int64(axis.scale16dot16)
+			return float32(q)
+		}
+		return float32(int32(0.25/axis.scale + 0.5))
 	}
-	return float32(float64(axis.edgeDistThreshold) / axis.scale)
+	return float32(int32(axis.edgeDistThreshold / float32(axis.scale)))
 }
 
 // computeEdges groups segments into edges.
@@ -153,7 +167,22 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 			if dist < 0 {
 				dist = -dist
 			}
-			if dist < edgeDistThreshold && edge.dir == seg.dir && dist < bestDist {
+			if dist < edgeDistThreshold && edge.dir == seg.dir {
+				// FreeType afcjk.c:1095 keeps the first edge in its sorted
+				// table when distances tie (dist < best is strict), so the
+				// edge with the smaller fpos wins. The engine's edges are in
+				// detection order at this point, so break ties by fpos.
+				better := false
+				if bestEdgeIdx < 0 {
+					better = true
+				} else if dist < bestDist {
+					better = true
+				} else if dist == bestDist && edge.fpos < edges[bestEdgeIdx].fpos {
+					better = true
+				}
+				if !better {
+					continue
+				}
 				if group == scriptGroupDefault {
 					bestEdgeIdx = ei
 					break // Default: first match wins
@@ -218,11 +247,10 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 	// new edge with the minor direction keeps shifting left past same-position
 	// edges while one with the major direction stops, so minor-direction edges
 	// come first in reverse detection order, then major-direction edges in
-	// detection order. Major dirs: HORZ=UP, VERT=LEFT (afhints.c:942-948).
-	majorDir := dirUp
-	if dim == dimVertical {
-		majorDir = dirLeft
-	}
+	// detection order. The major direction is per-glyph: FT afhints.c:942-949
+	// derives it from the outline orientation (UP/LEFT for clockwise,
+	// DOWN/RIGHT for counter-clockwise outlines), matching axis.majorDir.
+	majorDir := axis.majorDir
 	edgeOrder := make([]int, len(edges))
 	for i := range edges {
 		edgeOrder[i] = i
@@ -283,7 +311,7 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 	}
 
 	// Second pass: compute edge properties from their segments.
-	for _, edge := range edges {
+	for ei, edge := range edges {
 		roundCount := 0
 		straightCount := 0
 
@@ -323,9 +351,13 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 					}
 				}
 			}
+			// FreeType af_cjk_hints_compute_edges (afcjk.c:1248-1300): a serif
+			// segment whose edge is the current edge itself (seg->serif->edge
+			// == edge) is NOT treated as a serif — is_serif is false and the
+			// segment falls through to the link branch (or is skipped).
 			if seg.serifIdx >= 0 {
 				serifSeg := &segments[seg.serifIdx]
-				if serifSeg.edgeIdx >= 0 {
+				if serifSeg.edgeIdx >= 0 && int(serifSeg.edgeIdx) != ei {
 					newSerif := int(serifSeg.edgeIdx)
 					if edge.serifIdx >= 0 {
 						edgeDelta := edge.fpos - edges[edge.serifIdx].fpos

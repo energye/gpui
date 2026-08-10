@@ -136,6 +136,50 @@ func alignStrongPoints(pa *hintPointArray, edges []*hintEdge, dim hintDimension)
 		}
 
 		// Find enclosing edges and interpolate.
+		// FT afhints.c:1471-1537: linear search when num_edges <= 8,
+		// binary search otherwise. The two searches can snap to different
+		// edges when fpos values repeat (linear: first, binary: middle).
+		if len(edges) > 8 {
+			lo, hi := 0, len(edges)
+			snapped := false
+			for lo < hi {
+				mid := (hi + lo) >> 1
+				f := edges[mid].fpos
+				if u < f {
+					hi = mid
+				} else if u > f {
+					lo = mid + 1
+				} else {
+					storePoint26dot6(pt, dim, edges[mid].pos)
+					pt.flags |= touchFlag
+					snapped = true
+					break
+				}
+			}
+			if snapped {
+				continue
+			}
+			if lo == 0 || lo >= len(edges) {
+				continue
+			}
+			before := edges[lo-1]
+			after := edges[lo]
+
+			denom := after.fpos - before.fpos
+			if denom == 0 {
+				storePoint26dot6(pt, dim, before.pos)
+			} else {
+				// Matches FT afhints.c: scale computed fresh per (before,after)
+				// pair; caching on the edge is wrong because an edge can pair
+				// with different neighbors.
+				scale := fixedDiv26dot6(after.pos-before.pos, int32(denom))
+				fposInt := int32(u - before.fpos) // font unit delta as integer
+				storePoint26dot6(pt, dim, before.pos+fixedMul26dot6(fposInt, scale))
+			}
+			pt.flags |= touchFlag
+			continue
+		}
+
 		// Linear search for small edge counts (most common case).
 		// Note: this is critical for matching FreeType in cases where we have
 		// more than one edge with the same fpos. Linear and binary searches
@@ -163,13 +207,7 @@ func alignStrongPoints(pa *hintPointArray, edges []*hintEdge, dim hintDimension)
 				if denom == 0 {
 					storePoint26dot6(pt, dim, before.pos)
 				} else {
-					// Use cached scale if available, otherwise compute and cache.
-					scale := before.scale
-					if scale == 0 {
-						scale = fixedDiv26dot6(after.pos-before.pos, int32(denom))
-						before.scale = scale
-						edges[j].scale = scale
-					}
+					scale := fixedDiv26dot6(after.pos-before.pos, int32(denom))
 					fposInt := int32(u - before.fpos) // font unit delta as integer
 					storePoint26dot6(pt, dim, before.pos+fixedMul26dot6(fposInt, scale))
 				}

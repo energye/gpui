@@ -269,6 +269,14 @@ func computeStemWidth(axis *scaledAxisMetrics, width int32, edgeFlags, stemFlags
 func computeStemWidthCJK(axis *scaledAxisMetrics, width int32) int32 {
 	// CJK is never extra light — skip that check.
 
+	// FT light mode: af_cjk_compute_stem_width returns the width unchanged
+	// when do_stem_adjust is off (afcjk.c:1547-1548). Without this early
+	// return, narrow stems (e.g. 48/64px) get quantized
+	// (dist += (54-dist)/2) and shift linked edges off FT positions.
+	if !axis.doStemAdjust {
+		return width
+	}
+
 	dist := width
 	sign := false
 	if dist < 0 {
