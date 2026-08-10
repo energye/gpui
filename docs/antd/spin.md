@@ -292,7 +292,7 @@ import { Spin } from 'antd';
 | **dotSizeSM**（small） | **14** | `controlHeightLG * 0.35` |
 | **dotSizeLG**（large） | **32** | `controlHeight` |
 | **contentHeight** | **400** | 组件 token（嵌套空态最小高参考） |
-| section 指示↔文案 gap | **8** | `paddingSM` / `TokenPaddingSM` |
+| section 指示↔文案 gap | **12** | `paddingSM` / `TokenPaddingSM` |
 | description 字号 | **14** | `fontSize` / `TokenFontSize` |
 | 4-dot 单项边长 | `(dotSize − marginXXS/2) / 2` | antd CSS var `dot-item-size` |
 | 进度环 viewBox | 100；stroke = 20；r = 40 | `Indicator/Progress.tsx` |
@@ -444,7 +444,7 @@ fullscreen（P1）──► 视口 mask + section
 | SPN-14 | L1 | 官方 custom-indicator | Indicator 非空且优先于 4-dot |
 | SPN-15 | L1 | 官方 percent | SetPercent / SetPercentAuto；EffectivePercent 合理 |
 | SPN-16 | L1 | 官方 style-class | 浅层 ClassNames/Styles 可设且不崩 |
-| SPN-17 | L2 | §6.2 尺寸 | DotSize medium=20、gap=8、font=14（±0.5） |
+| SPN-17 | L2 | §6.2 尺寸 | DotSize medium=20、gap=12、font=14（±0.5） |
 | SPN-18 | L2 | 默认皮颜色 | 指示色走 `colorPrimary` Token |
 | SPN-19 | L2 **N/A** | disabled | Spin 无 disabled API |
 | SPN-20 | L1 **N/A** | 键盘/焦点 | Spin 非焦点控件 |

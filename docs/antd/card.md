@@ -356,7 +356,7 @@ import { Card } from 'antd';
 | 边框线宽 | **1** | **1** | `lineWidth` |
 | body 内边距 | **24**（`paddingLG`） | **12**（固定） | `bodyPadding` / `bodyPaddingSM` |
 | header 水平 pad | **24** | **12** | `headerPadding` / `headerPaddingSM` |
-| header 最小高 | **≈56**（`fontSizeLG×lineHeightLG + padding×2`） | **≈30** | `headerHeight` / `headerHeightSM` |
+| header 最小高 | **≈56**（`fontSizeLG×lineHeightLG + padding×2`） | **≈38**（`fontSize×lineHeight + paddingXS×2`） | `headerHeight` / `headerHeightSM` |
 | actions 行上下 margin | **12**（`paddingSM`） | 同 | `actionsLiMargin` |
 | Meta 标题字号 | **16**（`fontSizeLG`） | 同 | Meta style |
 | Meta avatar 右 pad | **16**（`padding`） | 同 | Meta style |

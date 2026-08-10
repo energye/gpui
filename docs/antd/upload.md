@@ -514,7 +514,7 @@ import { Upload } from 'antd';
 | 触发按钮高度 large | **40** | `controlHeightLG` |
 | 字号 middle | **14** | `fontSize` |
 | 大字号（drag 文案） | **16** | `fontSizeLG` |
-| 圆角（列表项 / 触发） | **6** | `borderRadius` |
+| 圆角（列表项 / 触发） | **4 / 6** | `borderRadiusSM` / `borderRadius` |
 | 大圆角（drag / picture-card） | **8** | `borderRadiusLG` |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |

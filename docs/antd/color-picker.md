@@ -519,7 +519,7 @@ import { ColorPicker } from 'antd';
 | 滑条高度 | **8** | `colorPickerSliderHeight` |
 | 滑条手柄 | **12** / **16** | `colorPickerHandlerSizeSM` / `HandlerSize` |
 | 面板圆角 | **8** | `borderRadiusLG` |
-| 面板内边距 | **8** | `paddingSM` 回落 |
+| 面板内边距 | **12** | `paddingSM` 回落 |
 
 #### 6.2.2 颜色 Token（语义）
 

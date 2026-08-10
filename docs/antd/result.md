@@ -239,7 +239,7 @@ import { Result } from 'antd';
 | 异常图宽高 | **250 × 295** | Result component token `imageWidth` / `imageHeight` |
 | icon margin-bottom | **24** | `paddingLG` |
 | title 字号 | **24** | `fontSizeHeading3`；kit 回落 `fontSizeLG * 1.5` |
-| title margin-block | **4** | `marginXS` |
+| title margin-block | **8** | `marginXS` |
 | subTitle 字号 | **14** | `fontSize` |
 | extra margin-top | **24** | `paddingLG` |
 | extra 子项水平间距 | **8** | `paddingXS * 2` |

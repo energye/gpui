@@ -466,7 +466,7 @@ import { Button } from 'antd';
 | 项 | 默认 | Token / 说明 |
 | --- | --- | --- |
 | 边框线宽 | **1** | `lineWidth`；`solid` 主按钮可无描边（fill 即边界） |
-| 图标与文字间距 | **8** 左右 | 约 `marginXS(4)+4`；small 可 4 |
+| 图标与文字间距 | **8** | `iconGap`=`marginXS`（默认 8）；small 可 4 |
 | 仅图标 + `shape=circle` | 宽=高=h | 内容水平垂直居中 |
 | `shape=round` | 胶囊 | 圆角 ≈ h/2（或 token 大圆角） |
 | `block=true` | 宽=父容器 | 高度仍按 size |

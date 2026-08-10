@@ -330,7 +330,7 @@ import { Segmented } from 'antd';
 | item / thumb 圆角 large | **6** | `borderRadius` |
 | item / thumb 圆角 small | **2** | `borderRadiusXS`（回落 2） |
 | shape=round 圆角 | **9999** | 胶囊（track + item） |
-| icon↔label 间距 | **4** | `marginSM / 2` |
+| icon↔label 间距 | **6** | `marginSM / 2` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 
 #### 6.2.2 颜色 Token（语义）

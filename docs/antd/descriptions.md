@@ -315,7 +315,7 @@ import { Descriptions } from 'antd';
 | 非边框 item 右间距 | **16** | 16 | 16 | `itemPaddingEnd` = `padding` |
 | 边框格 padding 竖 | **16** | **12** | **8** | `padding` / antd `paddingSM` / `paddingXS` |
 | 边框格 padding 横 | **24** | **24** | **16** | `paddingLG` / `paddingLG` / `padding` |
-| 冒号左/右间距 | **2 / 4** | 同 | 同 | `colonMarginLeft`=`marginXXS/2`，`colonMarginRight`=`marginXS` |
+| 冒号左/右间距 | **2 / 8** | 同 | 同 | `colonMarginLeft`=`marginXXS/2`，`colonMarginRight`=`marginXS` |
 | 圆角（view） | **8** | 8 | 8 | `borderRadiusLG` |
 | 边框线宽 | **1** | 1 | 1 | `lineWidth` |
 | 默认 column | **3** | — | — | 未设时 `DEFAULT_COLUMN_MAP` 在 md+ 为 3 |

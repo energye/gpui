@@ -341,7 +341,7 @@ import { Alert } from 'antd';
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | 默认内边距（无 description） | **8 × 12** | `defaultPadding` = `paddingContentVerticalSM(8)` + 固定水平 **12** |
-| 有 description 内边距 | **16 × 24** | `withDescriptionPadding` = `paddingMD(16)` × `paddingContentHorizontalLG(24)` |
+| 有 description 内边距 | **20 × 24** | `withDescriptionPadding` = `paddingMD(20)` × `paddingContentHorizontalLG(24)` |
 | 标题字号（无 description） | **14** | `fontSize` |
 | 标题字号（有 description） | **16** | `fontSizeLG`；`colorTextHeading` |
 | description 字号 | **14** | `fontSize`；色 `colorText` |
@@ -423,7 +423,7 @@ closable ──► 点关闭 ──► onClose ──► Hidden(不可见) ─�
 | default | 符合 §6.2 Token；outlined 有 type 边 |
 | filled | 同底色、无边 |
 | banner | 无边、radius=0；常作顶栏宽铺满 |
-| with-description | padding 16×24；图标 24；title 16 |
+| with-description | padding 20×24；图标 24；title 16 |
 | close hover/focus | close 可点；focus ring 可见 |
 | 主题切换 | 色与间距随 Theme 更新 |
 
@@ -503,7 +503,7 @@ closable ──► 点关闭 ──► onClose ──► Hidden(不可见) ─�
 | ALT-13 | L1 | 复现官方示例「图标」（`icon.tsx`） | showIcon ± description ± closable |
 | ALT-14 | L1 | 复现官方示例「顶部公告」（`banner.tsx`） | banner 组合 |
 | ALT-15 | L1 | 复现官方示例「轮播的公告」（`loop-banner.tsx`） | banner + TitleNode/长标题可布局 |
-| ALT-16 | L2 | 读取 §6.2 关键尺寸/间距 | pad 8×12 / 有 desc 16×24；radius 8；字号 14/16；容差 ±0.5 |
+| ALT-16 | L2 | 读取 §6.2 关键尺寸/间距 | pad 8×12 / 有 desc 20×24；radius 8；字号 14/16；容差 ±0.5 |
 | ALT-17 | L2 | 默认皮颜色 | 语义色走 Theme；非唯一硬编码品牌皮 |
 | ALT-18 | L2 | disabled 外观（适用者） | **N/A**：antd Alert 无 disabled；用例断言不适用即可 |
 | ALT-19 | L1 | 键盘/焦点主路径（适用者） | close 可聚焦；Enter/Space 可触发关闭 |

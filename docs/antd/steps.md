@@ -459,7 +459,7 @@ import { Steps } from 'antd';
 | 正文字号 / content | **14** | `fontSize` |
 | 子标题字号 | **14** | `fontSize`；色 `colorTextSecondary` |
 | 图标内数字字号 middle | **14** | `fontSize` |
-| 图标内数字字号 small | **12** | `fontSizeSM` |
+| 图标内数字字号 small | **14** | `fontSize`（sm 档仅容器缩小，字号不缩） |
 | 圆角 | **6** | `borderRadius` |
 | 边框线宽 / rail | **1** | `lineWidth` |
 | 步骤间距 gap（水平 rail 区） | **8+** | 实现可读；rail 可 flex 填充 |

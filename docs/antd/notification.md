@@ -478,7 +478,7 @@ import { Notification } from 'antd';
 | 标题字号 | **16** | `fontSizeLG` |
 | 圆角 | **8** | `borderRadiusLG` |
 | 边框线宽 | **1** | `lineWidth`（默认皮可 0 边框 + 阴影语义） |
-| 内边距 | **16 × 24** | `paddingMD` × `paddingContentHorizontalLG` / `paddingLG` |
+| 内边距 | **20 × 24** | `paddingMD` × `paddingContentHorizontalLG` / `paddingLG` |
 | 图标尺寸 | **24** | `fontSizeLG × lineHeightLG` |
 | 关闭钮约 | **22** | `controlHeightLG × 0.55` |
 | 列表项间距 | **16** | `margin`（notificationMarginBottom） |

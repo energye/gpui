@@ -423,7 +423,7 @@ import { Message } from 'antd';
 | --- | --- | --- |
 | duration 默认 | **3s** | API |
 | 字号 middle | **14** | `fontSize` |
-| 圆角 | **6** | `borderRadius` |
+| 圆角 | **8** | `borderRadiusLG`（notice 共享样式） |
 | 边框线宽 | **1** | `lineWidth` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 |
 

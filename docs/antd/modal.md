@@ -564,7 +564,7 @@ import { Modal } from 'antd';
 | 非居中 top 偏移 | **100** | style `top: 100`（`centered=false`） |
 | 标题字号 | **16** | `titleFontSize` ← `fontSizeHeading5` |
 | 正文字号 | **14** | `fontSize` |
-| 内容区内边距 | **16** 上下 / **24** 左右 | `contentPadding` ← `paddingMD` + `paddingContentHorizontalLG` |
+| 内容区内边距 | **20** 上下 / **24** 左右 | `contentPadding` ← `paddingMD` + `paddingContentHorizontalLG` |
 | 标题下间距 | **8** | `headerMarginBottom` ← `marginXS` |
 | 页脚上间距 | **12** | `footerMarginTop` ← `marginSM` |
 | 圆角 | **8** | `borderRadiusLG`（面板，非 `borderRadius=6`） |

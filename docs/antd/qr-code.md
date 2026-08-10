@@ -343,7 +343,7 @@ import { QRCode } from 'antd';
 | 项 | 默认值 | Token / 来源 |
 | --- | --- | --- |
 | 默认边长 `size` | **160** | API 默认（外框宽高） |
-| 内边距（有边框） | **8** | `paddingSM` |
+| 内边距（有边框） | **12** | `paddingSM` |
 | 内边距（borderless） | **0** | 无边框时清零 |
 | 圆角 | **8** | `borderRadiusLG`（非 `borderRadius=6`） |
 | 边框线宽 | **1** | `lineWidth` |
@@ -479,7 +479,7 @@ statusRender 非空 ──► cover 内容替换为自定义 Node（仍占满 co
 | `onRefresh` | expired 刷新 |
 | `statusRender` | 自定义 cover 内容 |
 | `type` canvas\|svg 标签 | 存储并影响语义；绘制同路径 |
-| Theme Token / §6.2 度量 | paddingSM8 / radiusLG8 / lineW1 / size160 |
+| Theme Token / §6.2 度量 | paddingSM12 / radiusLG8 / lineW1 / size160 |
 | a11y §6.6 | 根名 + 刷新可聚焦 |
 | 官方主路径示例 | base / icon / status / customStatusRender / type / customSize / customColor / errorlevel / Popover(borderless) |
 | §6.9 L1/L2 P0 用例 | 测试通过 |
@@ -524,7 +524,7 @@ statusRender 非空 ──► cover 内容替换为自定义 Node（仍占满 co
 | QR-15 | L1 | 复现 customSize.tsx | size 48–300；iconSize=size/4 |
 | QR-16 | L1 | 复现 customStatusRender | StatusRender 覆盖默认 |
 | QR-17 | L1 | bordered=false（Popover 示例） | 无边框；pad=0 |
-| QR-18 | L2 | §6.2 度量 | size160 / pad8 / radius8 / lineW1（±0.5） |
+| QR-18 | L2 | §6.2 度量 | size160 / pad12 / radius8 / lineW1（±0.5） |
 | QR-19 | L2 | 默认皮颜色 | 前景≠硬编码品牌 primary；走 colorText / colorSplit |
 | QR-20 | L2 | N/A disabled | QRCode 无 disabled；跳过或 Notes |
 | QR-21 | L1 | 刷新按钮焦点/键盘 | expired+OnRefresh 可点（按钮路径） |

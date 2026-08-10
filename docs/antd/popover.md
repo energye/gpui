@@ -349,7 +349,7 @@ import { Popover } from 'antd';
 | 边框线宽 | **1** | `lineWidth` | |
 | 面板内边距（非 wireframe） | **12** | 组件 token `innerPadding` | `DefaultPopoverInnerPadding` |
 | 标题最小宽度 | **177** | 组件 token `titleMinWidth` | `DefaultPopoverTitleMinWidth` |
-| 标题下间距 | **4** | `marginXS`（kit 映射） | `DefaultPopoverTitleMarginBottom` |
+| 标题下间距 | **8** | `marginXS`（kit 映射） | `DefaultPopoverTitleMarginBottom` |
 | 触发器↔面板间距 | **8** | 约 `sizePopupArrow` 量级 | `DefaultPopoverGap` |
 | 箭头边长（示意） | **8** | `sizePopupArrow` 近似 | `DefaultPopoverArrowSize` |
 | Focus ring outset | ≈ **1.5px** 可见 | 可调，必须可见 | |
