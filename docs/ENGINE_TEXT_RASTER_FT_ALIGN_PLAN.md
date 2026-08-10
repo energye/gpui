@@ -103,6 +103,12 @@
 - **B1b autohint 26.6 输出改造**（引擎层，类比 A3 直通）：
   - `autoHintContourPoints` 已产出 26.6 定点（`GlyfContours.Points` 存 26.6 Y-up int16）；新增直通出口：hint 后不转 `contoursToOutline` float32，直接输出 26.6 点列 + on/off（`OnCurve`）+ 分组（`EndPts`）→ 喂 RasterizeFT26 或对照 ftexp。
   - 对照方：TTF 字体的 FT-light 轮廓（ftexp bcontour，tag0=conic off / tag1=on）；conic 隐含 on 中点规则与 FT 一致（glyf 双 off 拆中点，与 FT_Outline 输出点列相同）。
+
+**B1b 状态（2026-08-10 收口）**:
+- ✅ `zz_b1_ttf_scan_test.go`（render/text）`TestB1TTFWqyCJK` 全绿：wqy-microhei-nohint × cjk3000 × 10/12/16/24px，四维度（点数/坐标/on-off/分组）bad=0（26s）。此前 bad 2→1→0 的调试链：FT trace 补丁（ZZWEAK/ZZEDGE/ZZSEG/ZZSTAGE/ZZPOINTF/ZZCONTOUR/ZZSEGS，afcjk.c/afhints.c，stdbuf -o0 解 Go os.Exit 不 flush C stdout）逐阶段对照 weak 分类（一致）、IUP 公式（af_iup_interp 手算复现 p02=473/p05=82/p09=-55/p14=87/p17=288）、段级 link/serif（引擎与 FT 完全一致）、边级 serif 转换——**根因**：
+- **修复（菊 12px d1 e4 根因）**：`computeEdges` 边级 serif 转换缺 FT `is_serif` 语义（afcjk.c:1248：`seg->serif && seg->serif->edge != edge`，serif 段指向**自己所在边**不算 serif）。菊 e4（fpos=936）的 s08 段 serif 指向同边 s06 段，引擎误把 e4.serif 设为**自环**（serif=4），pass1 对齐 `pos = serifEdge.pos + (opos-serifEdge.opos)` 对自环恒等 → e4 停在 351；FT 忽略 s08 后 e4.serif=e3（193+144=337）。连锁 IUP 锚点 p18=229 vs 226 → pt17 290 vs 288。修复后全矩阵 bad=0。
+- B1b 期间附带修复（均回归全绿）：`computeEdgeDistThreshold` 补 FT_DivFix 四舍五入（幅24 清零）；`computeEdges` 段-边距离 tie-break 按 fpos（afcjk.c:1095）；边排序 major_dir 按字形轮廓方向（afhints.c:942-949，wqy 逆时针翻转 V 轴）；`alignStrongPoints` 边搜索精确二分（fpos 重复 linear=首条/binary=中条，afhints.c:1471-1537）；`computeStemWidthCJK` 无 STEM_ADJUST 原样返回（afcjk.c:1547）。
+- FT 调试补丁已全部回退（freetype-2.11.1 干净重建），ftexp 走 testdata 源码在 TempDir 重建（链接当前库）。
 - **B1c TTF 矩阵**：65 档 × 字集 × 字体——
   - wqy-microhei-nohint.ttf × cjk3000；wqy-microhei.ttf（字节码字体，light 仍走 autofit）× cjk3000 抽样 300；
   - latin_all 254 × FreeSans / DejaVuSans / SourceSans3VF；
