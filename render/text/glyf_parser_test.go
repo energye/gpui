@@ -415,12 +415,12 @@ func TestParseGlyfContours_CoordinatesInBBox(t *testing.T) {
 			// Points should be within or near the glyph bbox.
 			// Some fonts have control points slightly outside the bbox,
 			// but they should not be wildly outside.
-			margin := int16(50) // generous margin for control points
-			if pt.X < contours.XMin-margin || pt.X > contours.XMax+margin {
+			margin := int32(50) // generous margin for control points
+			if pt.X < int32(contours.XMin)-margin || pt.X > int32(contours.XMax)+margin {
 				t.Errorf("'%c' point[%d].X=%d outside bbox [%d,%d] +/- %d",
 					ch, i, pt.X, contours.XMin, contours.XMax, margin)
 			}
-			if pt.Y < contours.YMin-margin || pt.Y > contours.YMax+margin {
+			if pt.Y < int32(contours.YMin)-margin || pt.Y > int32(contours.YMax)+margin {
 				t.Errorf("'%c' point[%d].Y=%d outside bbox [%d,%d] +/- %d",
 					ch, i, pt.Y, contours.YMin, contours.YMax, margin)
 			}

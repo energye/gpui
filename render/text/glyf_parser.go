@@ -27,7 +27,7 @@ import (
 // ContourPoint represents a raw TrueType glyph contour point.
 // Coordinates are in font units (unscaled design space).
 type ContourPoint struct {
-	X, Y    int16 // coordinates in font units (unscaled)
+	X, Y    int32 // coordinates in font units (unscaled)
 	OnCurve bool  // true = on-curve point, false = off-curve control point
 }
 
@@ -221,8 +221,8 @@ func extractGlyfContourOwn(glyfData, locaData []byte, glyphIndex int, isLong boo
 	}
 
 	// Parse X coordinates.
-	xs := make([]int16, numPoints)
-	var prevX int16
+	xs := make([]int32, numPoints)
+	var prevX int32
 	for i := range numPoints {
 		f := flags[i]
 		xShort := f&0x02 != 0
@@ -231,7 +231,7 @@ func extractGlyfContourOwn(glyfData, locaData []byte, glyphIndex int, isLong boo
 			if pos >= len(data) {
 				return nil, fmt.Errorf("text: glyf parser: glyph %d: X coord overflow", glyphIndex)
 			}
-			val := int16(data[pos])
+			val := int32(data[pos])
 			pos++
 			if !xSame {
 				val = -val
@@ -241,7 +241,7 @@ func extractGlyfContourOwn(glyfData, locaData []byte, glyphIndex int, isLong boo
 			if pos+2 > len(data) {
 				return nil, fmt.Errorf("text: glyf parser: glyph %d: X coord overflow", glyphIndex)
 			}
-			prevX += int16(binary.BigEndian.Uint16(data[pos : pos+2]))
+			prevX += int32(int16(binary.BigEndian.Uint16(data[pos : pos+2])))
 			pos += 2
 		}
 		// else: xSame && !xShort → same as previous
@@ -249,8 +249,8 @@ func extractGlyfContourOwn(glyfData, locaData []byte, glyphIndex int, isLong boo
 	}
 
 	// Parse Y coordinates.
-	ys := make([]int16, numPoints)
-	var prevY int16
+	ys := make([]int32, numPoints)
+	var prevY int32
 	for i := range numPoints {
 		f := flags[i]
 		yShort := f&0x04 != 0
@@ -259,7 +259,7 @@ func extractGlyfContourOwn(glyfData, locaData []byte, glyphIndex int, isLong boo
 			if pos >= len(data) {
 				return nil, fmt.Errorf("text: glyf parser: glyph %d: Y coord overflow", glyphIndex)
 			}
-			val := int16(data[pos])
+			val := int32(data[pos])
 			pos++
 			if !ySame {
 				val = -val
@@ -269,7 +269,7 @@ func extractGlyfContourOwn(glyfData, locaData []byte, glyphIndex int, isLong boo
 			if pos+2 > len(data) {
 				return nil, fmt.Errorf("text: glyf parser: glyph %d: Y coord overflow", glyphIndex)
 			}
-			prevY += int16(binary.BigEndian.Uint16(data[pos : pos+2]))
+			prevY += int32(int16(binary.BigEndian.Uint16(data[pos : pos+2])))
 			pos += 2
 		}
 		ys[i] = prevY
@@ -532,8 +532,8 @@ func extractCompositeContoursGuarded(
 			y += comp.dy
 
 			allPoints = append(allPoints, ContourPoint{
-				X:       int16(x),
-				Y:       int16(y),
+				X:       int32(x),
+				Y:       int32(y),
 				OnCurve: pt.OnCurve,
 			})
 		}

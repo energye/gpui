@@ -857,8 +857,8 @@ func (e *OutlineExtractor) extractFromOwnVariableImpl(
 
 		// Write modified points back to contours.
 		for i := range contours.Points {
-			contours.Points[i].X = int16(points[i][0])
-			contours.Points[i].Y = int16(points[i][1])
+			contours.Points[i].X = int32(points[i][0])
+			contours.Points[i].Y = int32(points[i][1])
 		}
 	}
 

@@ -71,11 +71,33 @@ func computeEdgeDistThreshold(axis *scaledAxisMetrics, group scriptGroup) float3
 		return edt
 	}
 	if group == scriptGroupDefault {
-		scaledThreshold := axis.edgeDistThreshold
-		if scaledThreshold > 0.25 {
-			scaledThreshold = 0.25
+		// FreeType aflatin.c:2208-2215:
+		//   edge_distance_threshold = FT_MulFix( edt, scale );   // 26.6
+		//   if ( > 64/4 ) edge_distance_threshold = 64/4;        // cap 0.25px
+		//   edge_distance_threshold = FT_DivFix( t, scale );     // font units
+		// Both steps are rounded 16.16 integer arithmetic. Float
+		// 0.25/scale or edt/scale truncate and flip boundary distances:
+		// freesans σ @8px needs 15 (14 < 15 keeps the 458 segment) and
+		// @20px needs 12, not 12.25 (12 < 12 does not merge).
+		if axis.scale16dot16 > 0 && axis.edgeDistThresholdUnscaled > 0 {
+			t1 := (int64(axis.edgeDistThresholdUnscaled)*int64(axis.scale16dot16) + 0x8000) >> 16
+			if t1 > 16 {
+				t1 = 16
+			}
+			q := (t1<<16 + int64(axis.scale16dot16)>>1) / int64(axis.scale16dot16)
+			return float32(q)
 		}
-		return float32(float64(scaledThreshold) / axis.scale)
+		// Legacy/synthetic path (no 16.16 scale): keep float division —
+		// the fixed-point branches above need real scaled metrics, while
+		// unit-test axes (scale=1, no scale16dot16) expect float semantics.
+		edt := axis.edgeDistThreshold
+		if edt > 0.25 {
+			edt = 0.25
+		}
+		if axis.scale > 0 {
+			return edt / float32(axis.scale)
+		}
+		return edt
 	}
 	// CJK: different computation.
 	// FreeType afcjk.c:1067-1072 / skrifa edges.rs:57-64:
@@ -136,13 +158,24 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 	}
 
 	// Segment width threshold: ignore segments wider than 0.5px.
-	// Skrifa: fixed_div(32, scale) — converts 0.5px to font units.
+	// FreeType aflatin.c:2186-2191: FT_DivFix(32, scale) — integer 16.16
+	// arithmetic (((32<<16) + scale/2) / scale). Float 0.5/scale rounds
+	// down (freesans $ @72px: 6.91 vs FT's 7), flipping the
+	// delta > threshold filter and dropping the segment (and its edge).
 	var segWidthThreshold float32
-	if axis.scale > 0 {
-		segWidthThreshold = float32(0.5 / axis.scale)
+	if axis.scale16dot16 > 0 {
+		q := (int64(32)<<16 + int64(axis.scale16dot16)>>1) / int64(axis.scale16dot16)
+		segWidthThreshold = float32(q)
 	}
 
 	var edges []*hintEdge
+
+	// The major direction is per-glyph: FT afhints.c:942-949 derives it from
+	// the outline orientation (UP/LEFT for clockwise, DOWN/RIGHT for
+	// counter-clockwise outlines), matching axis.majorDir. It orders edges
+	// that share a position (minor-direction edges first, in reverse
+	// detection order, then major-direction in detection order).
+	majorDir := axis.majorDir
 
 	// First pass: create edges from segments.
 	for si, seg := range segments {
@@ -160,59 +193,79 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 		}
 
 		// Look for an existing edge at a nearby position with same direction.
+		//
+		// FreeType inserts every new edge into a position-sorted table
+		// (af_axis_hints_new_edge), so the merge search scans edges in table
+		// order — not detection order. This matters when two edges share a
+		// position (both at distance 0 from the segment): the first edge in
+		// table order wins (afcjk.c:1095 `dist < best` is strict; aflatin.c
+		// breaks on the first match). For wqy-microhei 凰 the pos=8 double
+		// line has two edges; the unlinked serif segment must join the
+		// later-created minor-direction edge, and only table-order scanning
+		// reproduces that.
+		searchOrder := make([]int, len(edges))
+		for i := range searchOrder {
+			searchOrder[i] = i
+		}
+		sort.SliceStable(searchOrder, func(i, j int) bool {
+			a, b := edges[searchOrder[i]], edges[searchOrder[j]]
+			if a.fpos != b.fpos {
+				if topToBottom {
+					return a.fpos > b.fpos
+				}
+				return a.fpos < b.fpos
+			}
+			am := a.dir == majorDir
+			bm := b.dir == majorDir
+			if am != bm {
+				return bm
+			}
+			if am {
+				return searchOrder[i] < searchOrder[j]
+			}
+			return searchOrder[i] > searchOrder[j]
+		})
 		bestDist := float32(1e10)
 		bestEdgeIdx := -1
-		for ei, edge := range edges {
+		for _, ei := range searchOrder {
+			edge := edges[ei]
 			dist := seg.pos - edge.fpos
 			if dist < 0 {
 				dist = -dist
 			}
-			if dist < edgeDistThreshold && edge.dir == seg.dir {
-				// FreeType afcjk.c:1095 keeps the first edge in its sorted
-				// table when distances tie (dist < best is strict), so the
-				// edge with the smaller fpos wins. The engine's edges are in
-				// detection order at this point, so break ties by fpos.
-				better := false
-				if bestEdgeIdx < 0 {
-					better = true
-				} else if dist < bestDist {
-					better = true
-				} else if dist == bestDist && edge.fpos < edges[bestEdgeIdx].fpos {
-					better = true
-				}
-				if !better {
-					continue
-				}
-				if group == scriptGroupDefault {
-					bestEdgeIdx = ei
-					break // Default: first match wins
-				}
-				// CJK: check whether all linked segments of the candidate edge
-				// can make a single edge (FreeType afcjk.c:1073-1091).
-				// If this segment has a link, its link must be close to the
-				// links of the segments already attached to the candidate edge,
-				// otherwise the edge cannot be shared.
-				if seg.linkIdx >= 0 {
-					linkOk := true
-					for _, existingIdx := range edge.segmentIndices {
-						existing := segments[existingIdx]
-						if existing.linkIdx < 0 {
-							continue
-						}
-						dist2 := segLinkDist(segments, int(seg.linkIdx), int(existing.linkIdx))
-						if dist2 >= edgeDistThreshold {
-							linkOk = false
-							break
-						}
-					}
-					if !linkOk {
+			if dist >= edgeDistThreshold || edge.dir != seg.dir {
+				continue
+			}
+			if group == scriptGroupDefault {
+				// Latin (aflatin.c): first match in table order wins.
+				bestEdgeIdx = ei
+				break
+			}
+			// CJK: scan the whole table, keep the strict minimum distance
+			// (afcjk.c:1058-1108). A candidate edge whose linked segments are
+			// incompatible is skipped without updating the best so far.
+			if dist >= bestDist {
+				continue
+			}
+			if seg.linkIdx >= 0 {
+				linkOk := true
+				for _, existingIdx := range edge.segmentIndices {
+					existing := segments[existingIdx]
+					if existing.linkIdx < 0 {
 						continue
 					}
+					dist2 := segLinkDist(segments, int(seg.linkIdx), int(existing.linkIdx))
+					if dist2 >= edgeDistThreshold {
+						linkOk = false
+						break
+					}
 				}
-				// CJK: don't break, pick closest.
-				bestDist = dist
-				bestEdgeIdx = ei
+				if !linkOk {
+					continue
+				}
 			}
+			bestDist = dist
+			bestEdgeIdx = ei
 		}
 
 		if bestEdgeIdx < 0 {
@@ -247,10 +300,9 @@ func computeEdges(segments []hintSegment, axis *scaledAxisMetrics, dim hintDimen
 	// new edge with the minor direction keeps shifting left past same-position
 	// edges while one with the major direction stops, so minor-direction edges
 	// come first in reverse detection order, then major-direction edges in
-	// detection order. The major direction is per-glyph: FT afhints.c:942-949
-	// derives it from the outline orientation (UP/LEFT for clockwise,
-	// DOWN/RIGHT for counter-clockwise outlines), matching axis.majorDir.
-	majorDir := axis.majorDir
+	// detection order. The major direction (majorDir, declared above) is
+	// per-glyph: FT afhints.c:942-949 derives it from the outline orientation
+	// (UP/LEFT for clockwise, DOWN/RIGHT for counter-clockwise outlines).
 	edgeOrder := make([]int, len(edges))
 	for i := range edges {
 		edgeOrder[i] = i
@@ -696,13 +748,18 @@ func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, s
 			if anchorIdx < 0 {
 				positionFirstStem(edge, edge2, orgLen, curLen)
 				anchorIdx = i
+				edge.flags |= edgeFlagDone
+				// FreeType does NOT mark the anchor's partner (edge2) done
+				// here (aflatin.c:3228-3236) — a later stem sharing edge2
+				// repositions it via its own subsequent-stem code (e.g.
+				// д 70px: e0 anchor sets e2=296, e1's subsequent handling
+				// then re-derives e1=0 / e2=320).
 			} else {
 				anchor := edges[anchorIdx]
 				positionSubsequentStem(edge, edge2, anchor, orgLen, curLen)
+				edge.flags |= edgeFlagDone
+				edge2.flags |= edgeFlagDone
 			}
-
-			edge.flags |= edgeFlagDone
-			edge2.flags |= edgeFlagDone
 
 			// Bound check. Matches skrifa edges.rs adjust_link (LinkDir::Prev);
 			// top_to_bottom reverses the order check (edges.rs:454).
@@ -1305,8 +1362,18 @@ func interpolateEdge(edges []*hintEdge, edgeIdx, anchorIdx int) int32 {
 		denom := after.opos - before.opos
 		if denom != 0 {
 			// Fixed-point interpolation: before.pos + (edge.opos - before.opos) * (after.pos - before.pos) / denom
+			// Round to nearest (FT_MulDiv semantics), not truncation: 110.66 -> 111.
 			num := int64(edge.opos-before.opos) * int64(after.pos-before.pos)
-			return before.pos + int32(num/int64(denom))
+			q := num / int64(denom)
+			r := num % int64(denom)
+			if r != 0 && 2*abs64i(r) >= abs64i(int64(denom)) {
+				if (num > 0) == (denom > 0) {
+					q++
+				} else {
+					q--
+				}
+			}
+			return before.pos + int32(q)
 		}
 		return before.pos
 	}
@@ -1317,6 +1384,14 @@ func interpolateEdge(edges []*hintEdge, edgeIdx, anchorIdx int) int32 {
 	//   edge->pos = anchor->pos + ( ( edge->opos - anchor->opos + 16 ) & ~31 );
 	anchor := edges[anchorIdx]
 	return anchor.pos + int32((edge.opos-anchor.opos+16)&^31)
+}
+
+// abs64i returns the absolute value of a 64-bit integer.
+func abs64i(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // Note: old float32 fixedDiv/fixedMul removed — the pipeline now uses

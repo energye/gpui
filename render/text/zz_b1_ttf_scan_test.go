@@ -317,3 +317,117 @@ func TestB1TTFWqyCJK(t *testing.T) {
 	b1TTFRunScan(t, "wqy-nohint", path, "hint/testdata/cjk3000.txt", 3000,
 		[]float64{10, 12, 16, 24})
 }
+
+// b1cFontDef 是 B1c 矩阵的一个字体组合。
+type b1cFontDef struct {
+	name     string // 报告名
+	fontPath string // 字体路径（testdata 相对或系统绝对路径）
+	listPath string // 字表文件（hint/testdata 相对路径）
+	want     int    // 字表字数（0 = 读文件后按实际计）
+	expect   string // 预期结论：match=引擎能力内应全绿；gap=已知脚本缺口（仅统计）
+}
+
+// b1c65pxs 是 B1c 档位：8–72 每 1px（65 档）。
+func b1c65pxs() []float64 {
+	pxs := make([]float64, 65)
+	for i := range pxs {
+		pxs[i] = float64(8 + i)
+	}
+	return pxs
+}
+
+// b1cSampleCount 返回字表实际字符数（不足打印用）。
+func b1cSampleCount(t *testing.T, listPath string) int {
+	t.Helper()
+	raw, err := os.ReadFile(listPath)
+	if err != nil {
+		t.Skipf("list unavailable: %v", err)
+	}
+	return len([]rune(strings.TrimSpace(string(raw))))
+}
+
+// TestB1TTFProbe：B1c 单档探路（12px）——全字体 bad 分布，
+// 验证框架 + 量化脚本缺口（expect=gap 仅统计不判 FAIL）。
+func TestB1TTFProbe(t *testing.T) {
+	defs := []b1cFontDef{
+		{"wqy-nohint", "testdata/wqy-microhei-nohint.ttf", "hint/testdata/cjk3000.txt", 3000, "match"},
+		{"wqy-microhei", "testdata/wqy-microhei.ttf", "hint/testdata/cjk3000.txt", 3000, "match"},
+		{"freesans", "/usr/share/fonts/truetype/freefont/FreeSans.ttf", "hint/testdata/latin_all.txt", 0, "match"},
+		{"dejavu", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "hint/testdata/latin_all.txt", 0, "match"},
+		{"samyak-deva", "/usr/share/fonts/truetype/samyak/Samyak-Devanagari.ttf", "hint/testdata/deva_sample.txt", 0, "gap"},
+		{"mukti-beng", "/usr/share/fonts/truetype/fonts-beng-extra/Mukti.ttf", "hint/testdata/beng_sample.txt", 0, "gap"},
+		{"samyak-taml", "/usr/share/fonts/truetype/samyak-fonts/Samyak-Tamil.ttf", "hint/testdata/taml_sample.txt", 0, "gap"},
+		{"samyak-gujr", "/usr/share/fonts/truetype/samyak-fonts/Samyak-Gujarati.ttf", "hint/testdata/gujr_sample.txt", 0, "gap"},
+		{"kacst-arab", "/usr/share/fonts/truetype/kacst-one/KacstOne.ttf", "hint/testdata/arab_sample.txt", 0, "gap"},
+		{"abyssinica-ethi", "/usr/share/fonts/truetype/abyssinica/AbyssinicaSIL-Regular.ttf", "hint/testdata/ethi_sample.txt", 0, "gap"},
+		{"padauk-mymr", "/usr/share/fonts/truetype/padauk/PadaukBook-Regular.ttf", "hint/testdata/mymr_sample.txt", 0, "match"},
+	}
+	totalGap := 0
+	for _, d := range defs {
+		if _, err := os.Stat(d.fontPath); err != nil {
+			t.Logf("skip %s: %v", d.name, err)
+			continue
+		}
+		want := d.want
+		if want == 0 {
+			want = b1cSampleCount(t, d.listPath)
+		}
+		bad := b1TTFRunScan(t, d.name, d.fontPath, d.listPath, want, []float64{12})
+		if d.expect == "gap" {
+			totalGap++
+			t.Logf("GAP-EXPECTED %s bad=%d（引擎脚本缺口，待实现）", d.name, bad)
+		}
+	}
+	if totalGap > 0 {
+		t.Logf("探路完成：%d 个字体为已知引擎脚本缺口（deva/beng/taml/gujr/arab/ethi），其余须全绿", totalGap)
+	}
+}
+
+// TestB1TTFWqyCJKFull：B1c 主体——wqy-nohint × cjk3000 × 65 档（8–72）。
+func TestB1TTFWqyCJKFull(t *testing.T) {
+	path := "testdata/wqy-microhei-nohint.ttf"
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("%s unavailable: %v", path, err)
+	}
+	b1TTFRunScan(t, "wqy-nohint", path, "hint/testdata/cjk3000.txt", 3000, b1c65pxs())
+}
+
+// TestB1TTFWqyMicroheiFull：B1c 主体——wqy-microhei（带字节码，但 FT light
+// 走 autofit；原始轮廓与 nohint 版不同，45↔75 点，独立对照）× 65 档。
+func TestB1TTFWqyMicroheiFull(t *testing.T) {
+	path := "testdata/wqy-microhei.ttf"
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("%s unavailable: %v", path, err)
+	}
+	b1TTFRunScan(t, "wqy-microhei", path, "hint/testdata/cjk3000.txt", 3000, b1c65pxs())
+}
+
+// TestB1TTFLatin：B1c Latin 矩阵——FreeSans/DejaVuSans（带字节码，FT light
+// 仍走 autofit 实测）× latin_all 254 字 × 65 档，四维度全绿。
+func TestB1TTFLatin(t *testing.T) {
+	defs := []b1cFontDef{
+		{"freesans", "/usr/share/fonts/truetype/freefont/FreeSans.ttf", "hint/testdata/latin_all.txt", 0, "match"},
+		{"dejavu", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "hint/testdata/latin_all.txt", 0, "match"},
+	}
+	for _, d := range defs {
+		if _, err := os.Stat(d.fontPath); err != nil {
+			t.Logf("skip %s: %v", d.name, err)
+			continue
+		}
+		want := d.want
+		if want == 0 {
+			want = b1cSampleCount(t, d.listPath)
+		}
+		b1TTFRunScan(t, d.name, d.fontPath, d.listPath, want, b1c65pxs())
+	}
+}
+
+// TestB1TTFMyanmar：B1c 缅文矩阵——PadaukBook（无脚本→FT CJK fallback）
+// × mymr_sample × 65 档，四维度全绿。
+func TestB1TTFMyanmar(t *testing.T) {
+	path := "/usr/share/fonts/truetype/padauk/PadaukBook-Regular.ttf"
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("PadaukBook unavailable: %v", err)
+	}
+	b1TTFRunScan(t, "padauk-mymr", path, "hint/testdata/mymr_sample.txt", b1cSampleCount(t, "hint/testdata/mymr_sample.txt"), b1c65pxs())
+}

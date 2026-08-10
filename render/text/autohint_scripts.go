@@ -285,9 +285,11 @@ func init() {
 }
 
 // glyphScriptKey identifies a font for the per-glyph script cache.
-// FullName+UPM matches autoHintMetricsKey conventions.
+// FullName+UPM can collide across sibling builds of the same family
+// (wqy-microhei vs wqy-microhei-nohint share name and UPM), so a content
+// digest of the raw font bytes is part of the key (0 when unavailable).
 func glyphScriptKey(font ParsedFont) string {
-	return fmt.Sprintf("%s@%d", font.FullName(), font.UnitsPerEm())
+	return fmt.Sprintf("%s@%d@%x", font.FullName(), font.UnitsPerEm(), fontDigest(font))
 }
 
 // perGlyphScripts returns the per-glyph script assignment for a font,

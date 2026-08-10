@@ -19,6 +19,7 @@
 package text
 
 import (
+	"hash/fnv"
 	"math"
 	"sync"
 )
@@ -131,6 +132,31 @@ type RawFontDataProvider interface {
 	// RawFontData returns the raw font file bytes. Returns nil if the raw
 	// data is not available (e.g., font was parsed from a stream).
 	RawFontData() []byte
+}
+
+// fontDigest returns a content fingerprint for a font, used to disambiguate
+// cache keys. FullName+UPM collide for sibling builds of the same family
+// (e.g. WenQuanYi Micro Hei vs its no-hint build), so the raw font bytes
+// must be part of the key. Returns 0 when raw data is unavailable (legacy
+// path falls back to the previous name+UPM key).
+//
+// The digest is memoized per font object — recomputing a 4.6MB FNV hash on
+// every key construction (per glyph, per hint call) dominated the scan
+// cost otherwise.
+var fontDigestCache sync.Map // ParsedFont (interface) → uint64
+
+func fontDigest(font ParsedFont) uint64 {
+	if p, ok := font.(RawFontDataProvider); ok {
+		if v, ok := fontDigestCache.Load(font); ok {
+			return v.(uint64)
+		}
+		h := fnv.New64a()
+		_, _ = h.Write(p.RawFontData())
+		d := h.Sum64()
+		fontDigestCache.Store(font, d)
+		return d
+	}
+	return 0
 }
 
 // autoHintOutline applies the full FreeType-level auto-hinting pipeline
@@ -322,7 +348,7 @@ func autoHintViaContours(outline *GlyphOutline, fontData []byte, font ParsedFont
 	// This matches skrifa instance.rs:165-168.
 	if pp1x != 0 {
 		for i := range hinted.Points {
-			hinted.Points[i].X -= int16(pp1x)
+			hinted.Points[i].X -= int32(pp1x)
 		}
 	}
 
@@ -368,7 +394,7 @@ func autoHintViaContoursPreloaded(outline *GlyphOutline, contours *GlyfContours,
 	// Translate outline points by -pp1x if the left phantom shifted.
 	if pp1x != 0 {
 		for i := range hinted.Points {
-			hinted.Points[i].X -= int16(pp1x)
+			hinted.Points[i].X -= int32(pp1x)
 		}
 	}
 
@@ -437,9 +463,9 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 
 	// The x-height correction rewrites the Y scale (aflatin.c:1225-1298);
 	// all vertical coordinates must be rescaled with the corrected scale.
-	if corrScale := scaled.axes[dimVertical].scale; corrScale != scale {
+	if corrScale16 := scaled.axes[dimVertical].scale16dot16; corrScale16 != computeScale16dot16(scale) {
 		for i := range points.pts {
-			sy := f26dot6FromFloat(float64(points.pts[i].fy) * corrScale)
+			sy := fixedMul26dot6(int32(points.pts[i].fy), corrScale16)
 			points.pts[i].y = sy
 			points.pts[i].oy = sy
 		}
@@ -543,8 +569,8 @@ func autoHintContourPoints(contours *GlyfContours, font ParsedFont, gid GlyphID,
 	// downstream contoursToOutline converts to float32 pixels.
 	for i := range result.Points {
 		result.Points[i] = ContourPoint{
-			X:       int16(points.pts[i].x),
-			Y:       int16(points.pts[i].y),
+			X:       points.pts[i].x,
+			Y:       points.pts[i].y,
 			OnCurve: contours.Points[i].OnCurve,
 		}
 	}
@@ -640,9 +666,9 @@ func decomposeContour(outline *GlyphOutline, pts []ContourPoint) {
 	var startIdx int
 
 	// contourPtX converts a 26.6 fixed-point X to float32 pixels.
-	contourPtX := func(x int16) float32 { return float32(x) / 64.0 }
+	contourPtX := func(x int32) float32 { return float32(x) / 64.0 }
 	// contourPtY converts a 26.6 fixed-point Y-UP to rendering Y-DOWN pixels.
-	contourPtY := func(y int16) float32 { return -float32(y) / 64.0 }
+	contourPtY := func(y int32) float32 { return -float32(y) / 64.0 }
 
 	if firstOnIdx >= 0 {
 		startX = contourPtX(pts[firstOnIdx].X)
@@ -714,7 +740,7 @@ func decomposeContour(outline *GlyphOutline, pts []ContourPoint) {
 // TrueType implicit midpoint rule is applied.
 // Returns (endX, endY, advanceExtra) where advanceExtra indicates that the
 // caller should skip the next point (because it was consumed as the endpoint).
-func resolveQuadEndpoint(pts []ContourPoint, currI int, nextI int, xConvert, yConvert func(int16) float32) (float32, float32, bool) {
+func resolveQuadEndpoint(pts []ContourPoint, currI int, nextI int, xConvert, yConvert func(int32) float32) (float32, float32, bool) {
 	curr := &pts[currI]
 	next := &pts[nextI]
 
@@ -741,9 +767,12 @@ const (
 )
 
 // autoHintMetricsKey is the cache key for auto-hint metrics.
+// fontDigest disambiguates sibling fonts that share FullName+UPM
+// (e.g. WenQuanYi Micro Hei and its no-hint build collide on name).
 type autoHintMetricsKey struct {
 	fontName   string
 	unitsPerEm int
+	fontDigest uint64
 	script     string
 }
 
@@ -771,6 +800,7 @@ func getAutoHintMetricsForScript(font ParsedFont, script *scriptClass) *unscaled
 	key := autoHintMetricsKey{
 		fontName:   font.FullName(),
 		unitsPerEm: font.UnitsPerEm(),
+		fontDigest: fontDigest(font),
 		script:     script.name,
 	}
 
@@ -832,7 +862,8 @@ type scaledAxisMetrics struct {
 	widths            []scaledWidth
 	standardWidth     int32   // standard width in font units
 	maxWidth          int32   // maximum width in font units (for segment linking)
-	edgeDistThreshold float32 // in font units (for edge grouping threshold)
+	edgeDistThreshold float32 // scaled: font-units edt × scale (px)
+	edgeDistThresholdUnscaled int32 // unscaled edt in font units (for the FT_DivFix(FT_MulFix(...)) edge grouping threshold)
 	scale             float64 // ppem / unitsPerEm
 	scale16dot16      int32   // scale as 16.16 fixed-point
 	unitsPerEm        int     // font UPM (for derived constants in segment linking)
@@ -903,6 +934,10 @@ func (m *unscaledStyleMetrics) scale(scaleFactor float64) *scaledStyleMetrics {
 		sm.axes[dimVertical].blues = blues
 		sm.axes[dimVertical].scale16dot16 = corrScale16
 		sm.axes[dimVertical].scale = float64(corrScale16) / (64 * 65536)
+		// FreeType rescales edge_distance_threshold with the corrected scale
+		// at hint time (aflatin.c:2208 FT_MulFix(edt, scale)); scaleTo() above
+		// multiplied by the un-corrected scale, so recompute to match.
+		sm.axes[dimVertical].edgeDistThreshold = float32(float64(m.axes[dimVertical].edgeDistThreshold) * sm.axes[dimVertical].scale)
 	}
 	return sm
 }
@@ -987,11 +1022,12 @@ func outlineHasPSOrientation(contours *GlyfContours) bool {
 // scaleTo scales axis metrics to the given scale factor.
 func (a *unscaledAxisMetrics) scaleTo(scale float64) scaledAxisMetrics {
 	sa := scaledAxisMetrics{
-		standardWidth:     a.standardWidth,
-		edgeDistThreshold: float32(float64(a.edgeDistThreshold) * scale),
-		scale:             scale,
-		scale16dot16:      computeScale16dot16(scale),
-		doStemAdjust:      true, // FT normal mode default; FT light clears it
+		standardWidth:            a.standardWidth,
+		edgeDistThreshold:        float32(float64(a.edgeDistThreshold) * scale),
+		edgeDistThresholdUnscaled: a.edgeDistThreshold,
+		scale:                    scale,
+		scale16dot16:             computeScale16dot16(scale),
+		doStemAdjust:             true, // FT normal mode default; FT light clears it
 	}
 
 	// Set max width from unscaled widths.
@@ -1026,11 +1062,12 @@ func (a *unscaledAxisMetrics) scaleTo(scale float64) scaledAxisMetrics {
 // "FreeType never seems to compute scaled width values."
 func (a *unscaledAxisMetrics) scaleToCJK(scale float64) scaledAxisMetrics {
 	sa := scaledAxisMetrics{
-		standardWidth:     a.standardWidth,
-		edgeDistThreshold: float32(float64(a.edgeDistThreshold) * scale),
-		scale:             scale,
-		scale16dot16:      computeScale16dot16(scale),
-		doStemAdjust:      true,
+		standardWidth:            a.standardWidth,
+		edgeDistThreshold:        float32(float64(a.edgeDistThreshold) * scale),
+		edgeDistThresholdUnscaled: a.edgeDistThreshold,
+		scale:                    scale,
+		scale16dot16:             computeScale16dot16(scale),
+		doStemAdjust:             true,
 	}
 
 	// Set max width from unscaled widths.
@@ -1082,7 +1119,13 @@ func pixRound(x float32) float32 {
 // We receive scale = ppem/upm, so we compute: int(scale * 64 * 65536) with
 // truncation toward zero (not rounding) to match skrifa/FreeType.
 func computeScale16dot16(scale float64) int32 {
-	return int32(scale * 64 * 65536)
+	// FT computes the axis scale as FT_DivFix(ppem << 6, upm), i.e.
+	// ((ppem << 22) + upm/2) / upm — rounded. Our float `scale` is ppem/upm,
+	// so scale*64*65536 = ppem*4194304/upm; round to nearest to match.
+	// Plain truncation differs by 1 for many ppem/upm pairs (e.g. 12px/1000:
+	// 50331 truncated vs 50332 rounded), which x-height correction then
+	// amplifies into 26.6 coordinate mismatches.
+	return int32(math.Round(scale * 64 * 65536))
 }
 
 // derivedConstant computes a scaled constant from units_per_em.

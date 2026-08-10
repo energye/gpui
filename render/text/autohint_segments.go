@@ -200,6 +200,10 @@ func buildHintPointsFromContours(contours *GlyfContours, scale float64, unitsPer
 	//   ox, oy / x, y = scaled to 26.6 fixed-point (for edge hinting, point alignment)
 	//
 	// Y-UP convention throughout (matching FreeType/skrifa).
+	// 26.6 = fixed_mul(font_unit, scale16) mirrors FT_MulFix; float
+	// scale*64 misfires on rounding boundaries for non-power-of-2 UPM
+	// (e.g. 24px/1000: 889 units → 1366 float vs 1365 FT fixed).
+	scale16 := computeScale16dot16(scale)
 	for i, cp := range contours.Points {
 		// Font-unit coordinates (unscaled, Y-UP).
 		// Matches skrifa point.fx/fy = font units.
@@ -208,8 +212,8 @@ func buildHintPointsFromContours(contours *GlyfContours, scale float64, unitsPer
 
 		// Scaled pixel coordinates in 26.6 fixed-point.
 		// Matches skrifa Outline::scale: ox = fixed_mul(fx, x_scale).
-		sx := f26dot6FromFloat(float64(cp.X) * scale)
-		sy := f26dot6FromFloat(float64(cp.Y) * scale)
+		sx := fixedMul26dot6(cp.X, scale16)
+		sy := fixedMul26dot6(cp.Y, scale16)
 
 		result.pts[i] = hintPoint{
 			fx:      fxUnit,
@@ -1283,11 +1287,14 @@ func linkSegmentsCJK(segments []hintSegment, axis *scaledAxisMetrics) {
 	}
 
 	// dist_threshold for serif detection: fixed_div(64*3, scale)
-	// scale is the axis scale in 16.16 fixed-point.
-	// fixed_div(a, b) = (a << 16) / b
+	// FT: dist_threshold = FT_DivFix(64*3, y_scale), where y_scale is
+	// ppem/upm << 22 (26.6-scaled 16.16), the same domain as our
+	// scale16dot16 field (computeScale16dot16 = scale * 64 * 65536).
+	// FT_DivFix(a, b) = (a<<16 + b/2) / b  (rounded) — the +b/2 rounding
+	// term matters: e.g. @45px it yields 137 vs 136 with plain truncation.
 	var distThreshold int32
 	if axis.scale16dot16 > 0 {
-		distThreshold = int32((int64(64*3) << 16) / int64(axis.scale16dot16))
+		distThreshold = int32(((int64(64*3) << 16) + int64(axis.scale16dot16)/2) / int64(axis.scale16dot16))
 	} else {
 		distThreshold = 32000 // effectively disabled
 	}
@@ -1336,7 +1343,8 @@ func linkSegmentsCJK(segments []hintSegment, axis *scaledAxisMetrics) {
 			// Accept if: (dist*8 < seg.score*9) && (dist*8 < seg.score*7 || seg.segLen < overlapLen)
 			checkAndUpdate := func(seg *hintSegment, linkIdx int) {
 				score := int32(seg.score)
-				if (dist*8 < score*9) && (dist*8 < score*7 || seg.segLen < overlapLen) {
+				ok := (dist*8 < score*9) && (dist*8 < score*7 || seg.segLen < overlapLen)
+				if ok {
 					seg.score = float32(dist)
 					seg.segLen = overlapLen
 					seg.linkIdx = int16(linkIdx)

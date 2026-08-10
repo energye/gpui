@@ -949,22 +949,29 @@ func scaleBlueZones(zones []blueZone, scale float64, upm int32) ([]scaledBlue, i
 		}
 
 		// Only activate zones where |ref - shoot| < 3/4 pixel = 48 in 26.6.
-		dist := scaledRef - scaledShoot
-		if dist < 0 {
+		// FreeType computes the zone height in fixed point directly from the
+		// unscaled org difference (aflatin.c:1387: FT_MulFix(ref.org -
+		// shoot.org, scale)); the float-based ref/shoot positions can round
+		// the height down and flip the 0.5px discretization step. DejaVuSans
+		// cap zone @37px: FT_MulFix gives 32 (delta 32 → shoot.fit=ref.fit+32),
+		// while float gives 31 (delta 0) — engine must match FT.
+		dist := fixedMul26dot6(scale16, int32(z.position)-int32(z.overshoot))
+		distNeg := dist < 0
+		if distNeg {
 			dist = -dist
 		}
 
 		if dist <= 48 { //nolint:nestif // FreeType aflatin.c port — algorithmic complexity is inherent
 			// Discretize the overshoot delta in 26.6.
 			var delta int32
-			if dist < 32 { //nolint:gocritic // FreeType aflatin.c port — value range if-else chain // < 0.5px
+			if dist < 32 { //nolint:gocritic // FreeType port — value range if-else chain // < 0.5px
 				delta = 0
 			} else if dist < 48 { // < 0.75px
 				delta = 32 // 0.5px
 			} else {
 				delta = 64 // 1.0px
 			}
-			if scaledRef-scaledShoot < 0 {
+			if distNeg {
 				delta = -delta
 			}
 
