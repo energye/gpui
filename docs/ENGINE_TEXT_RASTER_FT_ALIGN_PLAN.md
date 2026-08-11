@@ -1,6 +1,6 @@
 # 文本渲染 FT 全对齐计划（Raster-FT-ALIGN）
 
-**状态**: **阶段 B 进行中**（2026-08-09 阶段 A 完成；B1a CFF 扫描升级 → B1b autohint 26.6 直通 → B1c TTF 矩阵 → B2 位图矩阵）
+**状态**: **阶段 B 完成**（2026-08-09 阶段 A 完成；B1a CFF 扫描升级 → B1b autohint 26.6 直通 → B1c TTF 矩阵 ✅ → B2 位图矩阵 ✅，2026-08-11 B 验收全矩阵 bad=0）
 **目标**: ①光栅器与 FT `smooth/ftgrays.c` **逐字节一致**；②8–72px 全字号 × 全字集 × 全字体验证矩阵；③M0–M5 实现方式源码级审计（不信文档）。
 **对照基准**: 本地 FT 2.11.1 源码 `/home/yanghy/app/projects/gogpu/freetype-2.11.1/` + `ftexp` 二进制（purego 调系统 libfreetype 2.11.1）。
 
@@ -111,10 +111,20 @@
 - FT 调试补丁已全部回退（freetype-2.11.1 干净重建），ftexp 走 testdata 源码在 TempDir 重建（链接当前库）。
 - **B1c TTF 矩阵**：65 档 × 字集 × 字体——
   - wqy-microhei-nohint.ttf × cjk3000；wqy-microhei.ttf（字节码字体，light 仍走 autofit）× cjk3000 抽样 300；
-  - latin_all 254 × FreeSans / DejaVuSans / SourceSans3VF；
+  - latin_all 254 × FreeSans / DejaVuSans（SourceSans3VF 为 CFF2，归属 B1a VF 矩阵 `TestB1VFSourceSans`，不重复进 TTF 矩阵）；
   - deva_sample × Samyak-Devanagari；beng_sample × Mukti；taml_sample × Samyak-Tamil；
   - arab_sample × KacstOne；ethi_sample × AbyssinicaSIL；mymr_sample × PadaukBook；gujr_sample × Samyak-Gujarati。
-- **允许差清单**：唯一已知 = gujr px12 U+0A91 +0.2px（保持记录，其余必须 bad=0）。
+
+**B1c 状态（2026-08-11 收口）**:
+- ✅ 全部 11 个字体 65 档（8–72px 每 1px）四维度（点数/坐标/on-off/分组）bad=0：`TestB1TTFWqyCJKFull` / `TestB1TTFWqyMicroheiFull` / `TestB1TTFLatin` / `TestB1TTFMyanmar` / `TestB1TTFIndicScripts`（deva/beng/taml/gujr/arab/ethi，373s）。
+- ✅ **6 脚本缺口转正**：deva/beng/taml/gujr/arab/ethi 此前为 gap 期待（仅统计不判红），2026-08-11 起撤 gap 进正式矩阵。根因修复：
+  - **sameSign（autohint_segments.go）负数×0 象限判定**：FT pass2 用 C `(in^out)>=0`（负^0 符号位保留 → 判异象限），引擎旧实现把 (负,0) 判同象限 → arab `ف` pt11（in=(-203,360)、out=(0,0)）被误判 weak（FT 判 STRONG），连锁 8 个坐标差 1–11。改为 `b < 0` 后 arab/ethi/gujr probe 0 DIFF、全矩阵 bad=0。
+  - **neutral 蓝区例外（autohint_edges.go computeBlueEdges）**：FT aflatin.c:2548-2558 对 `isTop ^ isMajorDir || isNeutral` 判候选，neutral 区无视方向恒为候选；旧实现漏掉 neutral 例外 → deva 基座区（ref 682, Top|Neutral）没吸到 fpos=673 的 serif 边，停在 opos 505（FT 蓝线吸附 512）。
+  - **首 stem 豁免 bound check（autohint_edges.go alignStemEdges）**：FT aflatin.c:3356-3375 的越界回退只在非锚点分支（positionSubsequentStem）执行，首 stem（positionFirstStem）豁免；旧实现无条件执行 → ethi `ሠ` 12px 锚点边 1 落到 81（低于未 hint 的 serif 边 0 的 87）后被强行回退。
+  - **空宽度表 zero-width 复刻（autohint_widths.go computeStandardWidths）**：FT afhints.c af_sort_and_quantize_widths 空表也把 count 提为 1、读首个清零条目 → stdw=0、edt=0；旧实现用 derivedConstant 兜底（edt=5）→ gujr `ટ` 竖直轴两条顶边被错误合并。复刻 zero 后边合并与 extra-light 标记（0*scale<0.625）均与 FT 一致。
+  - **允许差清空**：此前唯一允许差 gujr px12 U+0A91 +0.2px 随 sameSign 修复消失（U+0A91 在 gujr_sample.txt，65 档实测 bad=0）。
+- ✅ `TestB1TTFProbe` 转正为 12px 单档健康检查（11 字体全 match 判红）。
+- ✅ 回归：`PASS=96 FAIL=0 SKIP=0`（render/text 逐文件，2026-08-11）。
 
 **B2 位图级矩阵（逐字节）**
 - 字号：8/10/12/14/16/18/20/24/28/32/40/48/56/64/72 阶梯（15 档）× 全字集。
@@ -122,7 +132,15 @@
 - CFF：cjk3000 × Noto CJK；kr_all × Noto CJK KR face；th_all × NotoSansThai。
 - TTF：wqy-microhei-nohint × cjk3000 抽样 300（B2 全量 TTF 位图时长不可控，抽样 + latin_all × FreeSans/DejaVu 全量）。
 
-**B 验收**: B1/B2 全矩阵 bad=0（含 on/off、分组维度）；允许差仅 gujr px12 U+0A91。
+**B2 状态（2026-08-11 收口）**: `zz_b2_bitmap_scan_test.go`，四组全矩阵逐字节 bad=0
+- ✅ CJK：NotoSansCJK-Regular.ttc face0(JP) × cjk3000 × 15 档 45000 字逐字节 bad=0（267s）。
+- ✅ TTF：wqy-microhei-nohint × cjk3000 抽样 300 + latin_all × FreeSans/DejaVuSans 全量 × 15 档 bad=0（61s）。
+- ✅ Thai：hint/testdata/NotoSansThai-Regular.otf × th_all 128（有效 87）× 15 档 bad=0（7.3s，2026-08-11 修正字体路径假绿：原引用顶层 testdata 不存在走 t.Skipf，改为 hint/testdata 后真跑全绿）。
+- ✅ KR：NotoSansCJK-Regular.ttc face1(KR) × kr_all 11172 × 15 档逐字节 bad=0（826s 重跑，含 faceIdx 对照；首跑 1345s）。
+- ✅ 回归：`PASS=95 FAIL=0 SKIP=0`（render/text 逐文件，2026-08-11，含 zz_b2_bitmap_scan_test 全部 4 组；另清理 zz_dirrepro/zz_probe_gap 两个无断言探针，不计入）。
+- ftexp 新增：bcontour/bpgm 可选 faceIdx（TTC face 序号，KR face = index 1，`ftexp faces` 枚举）；纯 CFF CFF2 位图对照沿用既有 bpgm 模式。
+
+**B 验收（2026-08-11 达成）**: B1/B2 全矩阵 bad=0（含 on/off、分组维度），允许差已清空（原 gujr px12 U+0A91 随 sameSign 修复消失，2026-08-11）。
 
 ### 阶段 C：M0–M5 源码级审计
 

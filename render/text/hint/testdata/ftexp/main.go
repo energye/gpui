@@ -52,10 +52,12 @@ func main() {
 		fmt.Println("usage: ftexp <ttf|ttc> [rune] [sizePx] [hint] [pgmOut]")
 		fmt.Println("       ftexp line <ttf> <sizePx> <hint> <pgmOut> <text>")
 		fmt.Println("       ftexp contour <ttf> <rune> <sizePx> <hint:l|n>")
-		fmt.Println("       ftexp bcontour <ttf> <sizePx> <hint:l|n> <listFile> [blend]")
-		fmt.Println("       ftexp bpgm <ttf> <sizePx> <hint:l|n> <listFile>")
+		fmt.Println("       ftexp bcontour <ttf> <sizePx> <hint:l|n> <listFile> [blend] [faceIdx]")
+		fmt.Println("       ftexp bpgm <ttf> <sizePx> <hint:l|n> <listFile> [faceIdx]")
+		fmt.Println("       ftexp faces <ttf>")
 		fmt.Println("  hint: l=light (default), n=nohint")
 		fmt.Println("  bcontour 可选第 6 参数 blend：归一化坐标（2.14），0/缺省 = 默认实例")
+		fmt.Println("  bcontour/bpgm 可选 faceIdx：TTC 集合内 face 序号，缺省 0；faces 模式枚举")
 		os.Exit(1)
 	}
 	if os.Args[1] == "metrics" {
@@ -80,6 +82,10 @@ func main() {
 	}
 	if os.Args[1] == "bpgm" {
 		runBatchPGM()
+		return
+	}
+	if os.Args[1] == "faces" {
+		runFaces()
 		return
 	}
 	path := os.Args[1]
@@ -570,8 +576,13 @@ func runBatchContour() {
 		fmt.Fprintln(os.Stderr, "FAIL read:", err)
 		os.Exit(1)
 	}
+	// 可选 faceIdx（TTC 集合内 face 序号，缺省 0）。
+	faceIdx := int64(0)
+	if len(os.Args) >= 9 {
+		fmt.Sscanf(os.Args[8], "%d", &faceIdx)
+	}
 	var face uintptr
-	if err := ftNewFace(lib, &data[0], int64(len(data)), 0, &face); err != 0 {
+	if err := ftNewFace(lib, &data[0], int64(len(data)), faceIdx, &face); err != 0 {
 		fmt.Fprintln(os.Stderr, "FAIL face")
 		os.Exit(1)
 	}
@@ -733,8 +744,13 @@ func runBatchPGM() {
 		fmt.Fprintln(os.Stderr, "FAIL read:", err)
 		os.Exit(1)
 	}
+	// 可选 faceIdx（TTC 集合内 face 序号，缺省 0）。
+	faceIdx := int64(0)
+	if len(os.Args) >= 7 {
+		fmt.Sscanf(os.Args[6], "%d", &faceIdx)
+	}
 	var face uintptr
-	if err := ftNewFace(lib, &data[0], int64(len(data)), 0, &face); err != 0 {
+	if err := ftNewFace(lib, &data[0], int64(len(data)), faceIdx, &face); err != 0 {
 		fmt.Fprintln(os.Stderr, "FAIL face")
 		os.Exit(1)
 	}
@@ -944,4 +960,60 @@ func runMetrics() {
 	height := *(*int16)(unsafe.Pointer(face + 142))
 	fmt.Printf("upem=%d ascender=%d descender=%d height=%d\n", int(units), int(asc), int(desc), int(height))
 	runtime.KeepAlive(data)
+}
+
+// runFaces enumerates TTC collection faces: prints index + family/style name.
+// Usage: ftexp faces <ttf|ttc>
+func runFaces() {
+	if len(os.Args) < 3 {
+		fmt.Fprintln(os.Stderr, "usage: ftexp faces <ttf|ttc>")
+		os.Exit(2)
+	}
+	path := os.Args[2]
+	libft, _ = purego.Dlopen("libfreetype.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	if libft == 0 {
+		fmt.Fprintln(os.Stderr, "FAIL dlopen libfreetype.so.6")
+		os.Exit(1)
+	}
+	purego.RegisterLibFunc(&ftInit, libft, "FT_Init_FreeType")
+	purego.RegisterLibFunc(&ftNewFace, libft, "FT_New_Memory_Face")
+	var lib uintptr
+	if err := ftInit(&lib); err != 0 {
+		fmt.Fprintln(os.Stderr, "FAIL init")
+		os.Exit(1)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL read:", err)
+		os.Exit(1)
+	}
+	defer runtime.KeepAlive(data)
+	for i := int64(0); i < 16; i++ {
+		var face uintptr
+		if err := ftNewFace(lib, &data[0], int64(len(data)), i, &face); err != 0 {
+			break
+		}
+		// FT_FaceRec (x86_64): family_name@40 (const char*), style_name@48.
+		fam := *(*unsafe.Pointer)(unsafe.Pointer(face + 40))
+		sty := *(*unsafe.Pointer)(unsafe.Pointer(face + 48))
+		family, style := "", ""
+		if fam != nil {
+			family = goString((*byte)(fam))
+		}
+		if sty != nil {
+			style = goString((*byte)(sty))
+		}
+		fmt.Printf("face %d: %s %s\n", i, family, style)
+	}
+}
+
+func goString(p *byte) string {
+	if p == nil {
+		return ""
+	}
+	n := 0
+	for *( *byte)(unsafe.Pointer(uintptr(unsafe.Pointer(p)) + uintptr(n))) != 0 {
+		n++
+	}
+	return string(unsafe.Slice(p, n))
 }
