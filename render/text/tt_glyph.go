@@ -82,6 +82,8 @@ type ttGlyphLoader struct {
 	hmtxAdv []uint16     // horizontal advance widths from hmtx
 	hmtxLSB []int16      // left side bearings from hmtx
 	numHMtx int          // number of long horizontal metrics
+	vmtxAdv []uint16     // vertical advance heights from vmtx (0 if vmtx absent)
+	vmtxTSB []int16      // top side bearings from vmtx (0 if vmtx absent)
 
 	// hintComponent, when set, is invoked on each composite component
 	// outline (that carries its own bytecode) BEFORE it is merged into the
@@ -157,6 +159,24 @@ func newTTGlyphLoader(fontData []byte, font *ttFontProgram) (*ttGlyphLoader, err
 		return nil, fmt.Errorf("tt: glyph loader: %w", err)
 	}
 
+	// Parse vmtx table for vertical advances and TSBs (optional — many
+	// fonts lack vmtx; the phantom-point path falls back to OS/2-derived
+	// values when absent, matching FreeType's tt_face_load_metrics when the
+	// vertical table is missing).
+	var vmtxAdv []uint16
+	var vmtxTSB []int16
+	if vheaData, ok := tables["vhea"]; ok && len(vheaData) >= 36 {
+		numVMtx := int(binary.BigEndian.Uint16(vheaData[34:36]))
+		if numVMtx > 0 {
+			if vmtxData, ok := tables["vmtx"]; ok {
+				if adv, ts, verr := parseVmtx(vmtxData, numVMtx, font.numGlyphs); verr == nil {
+					vmtxAdv = adv
+					vmtxTSB = ts
+				}
+			}
+		}
+	}
+
 	return &ttGlyphLoader{
 		font:    font,
 		tables:  tables,
@@ -164,6 +184,8 @@ func newTTGlyphLoader(fontData []byte, font *ttFontProgram) (*ttGlyphLoader, err
 		hmtxAdv: advances,
 		hmtxLSB: lsbs,
 		numHMtx: numHMtx,
+		vmtxAdv: vmtxAdv,
+		vmtxTSB: vmtxTSB,
 	}, nil
 }
 
@@ -285,12 +307,11 @@ func (l *ttGlyphLoader) loadGlyphOutline(glyphID uint16, scale int32) (*ttGlyphO
 	var phantomFU [ttPhantomPointCount][2]int32
 	ascent := int32(l.font.os2Ascender)
 	descent := int32(l.font.os2Descender)
-	tsb := ascent - int32(yMax)
-	vadvance := ascent - descent
+	tsb, vadvance := l.verticalPhantomMetrics(glyphID, int32(yMax), ascent, descent)
 	phantomFU[0] = [2]int32{int32(xMin) - int32(lsb), 0}
 	phantomFU[1] = [2]int32{phantomFU[0][0] + int32(advance), 0}
-	phantomFU[2] = [2]int32{0, int32(yMax) + tsb}          // = ascent
-	phantomFU[3] = [2]int32{0, phantomFU[2][1] - vadvance} // = descent
+	phantomFU[2] = [2]int32{0, int32(yMax) + tsb}          // = vertical origin
+	phantomFU[3] = [2]int32{0, phantomFU[2][1] - vadvance} // = vertical advance
 
 	totalPoints := numPoints + ttPhantomPointCount
 
@@ -472,8 +493,7 @@ func (l *ttGlyphLoader) loadCompositeGlyphOutlineGuarded(glyphID uint16, scale i
 	var phantomFU [ttPhantomPointCount][2]int32
 	ascent := int32(l.font.os2Ascender)
 	descent := int32(l.font.os2Descender)
-	tsb := ascent - int32(yMax)
-	vadvance := ascent - descent
+	tsb, vadvance := l.verticalPhantomMetrics(glyphID, int32(yMax), ascent, descent)
 	phantomFU[0] = [2]int32{int32(xMin) - int32(lsb), 0}
 	phantomFU[1] = [2]int32{phantomFU[0][0] + int32(advance), 0}
 	phantomFU[2] = [2]int32{0, int32(yMax) + tsb}
@@ -701,8 +721,7 @@ func (l *ttGlyphLoader) loadGlyphOutlineVar(
 	var phantomFU [ttPhantomPointCount][2]int32
 	ascent := int32(l.font.os2Ascender)
 	descent := int32(l.font.os2Descender)
-	tsb := ascent - int32(yMax)
-	vadvance := ascent - descent
+	tsb, vadvance := l.verticalPhantomMetrics(glyphID, int32(yMax), ascent, descent)
 	phantomFU[0] = [2]int32{int32(xMin) - int32(lsb), 0}
 	phantomFU[1] = [2]int32{phantomFU[0][0] + int32(advance), 0}
 	phantomFU[2] = [2]int32{0, int32(yMax) + tsb}
@@ -806,12 +825,11 @@ func (l *ttGlyphLoader) loadEmptyGlyphOutline(glyphID uint16, scale int32) *ttGl
 	var phantomFU [ttPhantomPointCount][2]int32
 	ascent := int32(l.font.os2Ascender)
 	descent := int32(l.font.os2Descender)
-	tsb := ascent // tsb = ascent - yMax, yMax=0 for empty glyph
-	vadvance := ascent - descent
+	tsb, vadvance := l.verticalPhantomMetrics(glyphID, 0, ascent, descent)
 	phantomFU[0] = [2]int32{-int32(lsb), 0}                  // xMin(0) - lsb
 	phantomFU[1] = [2]int32{-int32(lsb) + int32(advance), 0} // phantom[0].x + advance
-	phantomFU[2] = [2]int32{0, tsb}                          // yMax(0) + tsb = ascent
-	phantomFU[3] = [2]int32{0, tsb - vadvance}               // phantom[2].y - vadvance = descent
+	phantomFU[2] = [2]int32{0, tsb}                          // yMax(0) + tsb
+	phantomFU[3] = [2]int32{0, tsb - vadvance}               // phantom[2].y - vadvance
 
 	totalPoints := ttPhantomPointCount // 0 contour points + 4 phantoms
 
@@ -868,8 +886,7 @@ func (l *ttGlyphLoader) loadEmptyGlyphOutlineVar(
 	var phantomFU [ttPhantomPointCount][2]int32
 	ascent := int32(l.font.os2Ascender)
 	descent := int32(l.font.os2Descender)
-	tsb := ascent
-	vadvance := ascent - descent
+	tsb, vadvance := l.verticalPhantomMetrics(glyphID, 0, ascent, descent)
 	phantomFU[0] = [2]int32{-int32(lsb), 0}
 	phantomFU[1] = [2]int32{-int32(lsb) + int32(advance), 0}
 	phantomFU[2] = [2]int32{0, tsb}
@@ -932,6 +949,40 @@ func (l *ttGlyphLoader) glyphMetrics(glyphID uint16) (advance uint16, lsb int16)
 		return lastAdv, l.hmtxLSB[gid]
 	}
 	return lastAdv, 0
+}
+
+// glyphVerticalMetrics returns the vertical advance height and top side
+// bearing for a glyph, from vmtx if present. When vmtx is absent (or this
+// loader didn't find one), ok is false and the caller falls back to
+// OS/2-derived values — matching FreeType, which loads vmtx only when the
+// font provides it (ttmtx.c tt_face_load_metrics, vertical branch).
+func (l *ttGlyphLoader) glyphVerticalMetrics(glyphID uint16) (advHeight uint16, tsb int16, ok bool) {
+	if len(l.vmtxAdv) == 0 {
+		return 0, 0, false
+	}
+	gid := int(glyphID)
+	if gid >= len(l.vmtxAdv) {
+		// Beyond numVMtx: reuse last advanceHeight, TSB from tail array.
+		lastAdv := l.vmtxAdv[len(l.vmtxAdv)-1]
+		if gid < len(l.vmtxTSB) {
+			return lastAdv, l.vmtxTSB[gid], true
+		}
+		return lastAdv, 0, true
+	}
+	return l.vmtxAdv[gid], l.vmtxTSB[gid], true
+}
+
+// verticalPhantomMetrics returns the top side bearing and vertical advance
+// (advance height) in font units for a glyph's vertical phantom points.
+// Prefers the vmtx table when present; otherwise falls back to the OS/2
+// derivation performed by FreeType's TT_Get_VMetrics (ttgload.c:110-169)
+// when vertical_info is absent: tsb = os2Ascender - yMax and
+// vadvance = |os2Ascender - os2Descender|.
+func (l *ttGlyphLoader) verticalPhantomMetrics(glyphID uint16, yMax, ascender, descender int32) (tsb, vadvance int32) {
+	if adv, t, ok := l.glyphVerticalMetrics(glyphID); ok {
+		return int32(t), int32(adv)
+	}
+	return ascender - yMax, ascender - descender
 }
 
 // parseLocaOffsets parses the loca table into per-glyph offsets.
@@ -1000,6 +1051,45 @@ func parseHmtx(data []byte, numHMtx, numGlyphs int) ([]uint16, []int16, error) {
 	}
 
 	return advances, lsbs, nil
+}
+
+// parseVmtx parses the vmtx (Vertical Metrics) table, the vertical
+// counterpart of hmtx. Layout: numVMtx long metrics (advanceHeight uint16
+// + topSideBearing int16), then topSideBearings for the remaining glyphs
+// (without advanceHeight — those reuse the last long advance).
+//
+// Reference: https://learn.microsoft.com/en-us/typography/opentype/spec/vmtx
+// Reference: FreeType ttmtx.c tt_face_get_metrics (vertical branch)
+func parseVmtx(data []byte, numVMtx, numGlyphs int) ([]uint16, []int16, error) {
+	longSize := numVMtx * 4
+	if len(data) < longSize {
+		return nil, nil, errors.New("vmtx table too short for long metrics")
+	}
+
+	advHeights := make([]uint16, numVMtx)
+	tsbs := make([]int16, numGlyphs)
+
+	// Parse long vertical metrics (advanceHeight + topSideBearing).
+	for i := range numVMtx {
+		advHeights[i] = binary.BigEndian.Uint16(data[i*4 : i*4+2])
+		tsbs[i] = int16(binary.BigEndian.Uint16(data[i*4+2 : i*4+4]))
+	}
+
+	// Parse leftover TSBs for glyphs beyond numVMtx.
+	remaining := numGlyphs - numVMtx
+	if remaining > 0 {
+		tsbStart := longSize
+		need := tsbStart + remaining*2
+		if len(data) < need {
+			// Tolerate truncated vmtx — remaining TSBs default to 0.
+			return advHeights, tsbs, nil
+		}
+		for i := range remaining {
+			tsbs[numVMtx+i] = int16(binary.BigEndian.Uint16(data[tsbStart+i*2 : tsbStart+i*2+2]))
+		}
+	}
+
+	return advHeights, tsbs, nil
 }
 
 // parseGlyfFlags parses the TrueType simple glyph point flags.

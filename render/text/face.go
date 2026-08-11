@@ -74,13 +74,20 @@ func (f *sourceFace) Metrics() Metrics {
 	if descent < 0 {
 		descent = -descent
 	}
+	vDescent := fontMetrics.VerticalDescent
+	if vDescent < 0 {
+		vDescent = -vDescent
+	}
 
 	return Metrics{
-		Ascent:    fontMetrics.Ascent,
-		Descent:   descent,
-		LineGap:   fontMetrics.LineGap,
-		XHeight:   fontMetrics.XHeight,
-		CapHeight: fontMetrics.CapHeight,
+		Ascent:           fontMetrics.Ascent,
+		Descent:          descent,
+		LineGap:          fontMetrics.LineGap,
+		XHeight:          fontMetrics.XHeight,
+		CapHeight:        fontMetrics.CapHeight,
+		VerticalAscent:   fontMetrics.VerticalAscent,
+		VerticalDescent:  vDescent,
+		VerticalLineGap:  fontMetrics.VerticalLineGap,
 	}
 }
 

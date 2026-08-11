@@ -114,7 +114,7 @@ func parseOS2Table(data []byte) (os2Metrics, bool) {
 //   - Falls back to hhea ascent/descent if OS/2 values are zero.
 //   - xHeight and capHeight from OS/2 version 2+.
 //   - LineGap from OS/2 sTypoLineGap (or hhea lineGap as fallback).
-func computeFontMetrics(hhea hheaMetrics, os2 os2Metrics, upem int, ppem float64) FontMetrics {
+func computeFontMetrics(hhea hheaMetrics, os2 os2Metrics, upem int, ppem float64, vhea vheaMetrics, vheaOK bool) FontMetrics {
 	if upem == 0 {
 		return FontMetrics{}
 	}
@@ -135,12 +135,24 @@ func computeFontMetrics(hhea hheaMetrics, os2 os2Metrics, upem int, ppem float64
 	xHeight := float64(os2.sxHeight)
 	capHeight := float64(os2.sCapHeight)
 
+	// Vertical metrics from vhea (absent → 0, so callers can distinguish
+	// "no vertical layout support" from a real zero).
+	var vAscent, vDescent, vGap float64
+	if vheaOK && (vhea.ascender != 0 || vhea.descender != 0) {
+		vAscent = float64(vhea.ascender) * scale
+		vDescent = float64(vhea.descender) * scale
+		vGap = float64(vhea.lineGap) * scale
+	}
+
 	return FontMetrics{
-		Ascent:    ascent * scale,
-		Descent:   descent * scale,
-		LineGap:   lineGap * scale,
-		XHeight:   xHeight * scale,
-		CapHeight: capHeight * scale,
+		Ascent:           ascent * scale,
+		Descent:          descent * scale,
+		LineGap:          lineGap * scale,
+		XHeight:          xHeight * scale,
+		CapHeight:        capHeight * scale,
+		VerticalAscent:   vAscent,
+		VerticalDescent:  vDescent,
+		VerticalLineGap:  vGap,
 	}
 }
 
@@ -158,4 +170,40 @@ func hmtxAdvance(advances []uint16, numHMetrics int, glyphID uint16) uint16 {
 		return advances[numHMetrics-1]
 	}
 	return 0
+}
+
+// vheaMetrics holds relevant fields from the vhea table.
+//
+// vhea is the vertical counterpart of hhea: it carries the vertical
+// typographic ascender/descender/gap and the number of long vertical
+// metrics (advanceHeight + TSB pairs) in vmtx. Layout is identical to
+// hhea's 36-byte header.
+type vheaMetrics struct {
+	ascender         int16
+	descender        int16
+	lineGap          int16
+	numberOfVMetrics int
+}
+
+// parseVheaTable parses the vhea (Vertical Header) table.
+//
+// Layout (36 bytes, same as hhea):
+//
+//	uint16  majorVersion (1)
+//	uint16  minorVersion (0)
+//	int16   vertTypoAscender          [offset 4]
+//	int16   vertTypoDescender         [offset 6]
+//	int16   vertTypoLineGap           [offset 8]
+//	...     (remaining fields unused by this parser)
+//	uint16  numberOfVMetrics          [offset 34]
+func parseVheaTable(data []byte) (vheaMetrics, bool) {
+	if len(data) < 36 {
+		return vheaMetrics{}, false
+	}
+	return vheaMetrics{
+		ascender:         int16(binary.BigEndian.Uint16(data[4:6])),
+		descender:        int16(binary.BigEndian.Uint16(data[6:8])),
+		lineGap:          int16(binary.BigEndian.Uint16(data[8:10])),
+		numberOfVMetrics: int(binary.BigEndian.Uint16(data[34:36])),
+	}, true
 }

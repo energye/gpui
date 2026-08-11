@@ -88,6 +88,10 @@ func main() {
 		runFaces()
 		return
 	}
+	if os.Args[1] == "vadv" {
+		runBatchVAdv()
+		return
+	}
 	path := os.Args[1]
 	r := '标'
 	if len(os.Args) > 2 {
@@ -959,6 +963,86 @@ func runMetrics() {
 	desc := *(*int16)(unsafe.Pointer(face + 140))
 	height := *(*int16)(unsafe.Pointer(face + 142))
 	fmt.Printf("upem=%d ascender=%d descender=%d height=%d\n", int(units), int(asc), int(desc), int(height))
+	runtime.KeepAlive(data)
+}
+
+// runBatchVAdv dumps the vertical advance (advance height) for every rune
+// in a list file, using FT_Get_Advance with FT_LOAD_VERTICAL_LAYOUT.
+// Output: "# V U+XXXX <advance26.6>" per rune (missing → "# V U+XXXX -").
+// The reported value is in 26.6 fixed-point at the given size, matching
+// what FT returns for a vertical-layout advance; used as the reference for
+// render/text vertical metrics (vmtx) alignment tests.
+//
+// Usage: ftexp vadv <ttf|ttc> <sizePx> <listFile> [faceIdx]
+//   sizePx in pixels (ppem); faceIdx optional for TTC collections (default 0).
+func runBatchVAdv() {
+	if len(os.Args) < 5 {
+		fmt.Fprintln(os.Stderr, "usage: ftexp vadv <ttf|ttc> <sizePx> <listFile> [faceIdx]")
+		os.Exit(2)
+	}
+	path := os.Args[2]
+	px := float64(16)
+	fmt.Sscanf(os.Args[3], "%g", &px)
+	rawText, err := os.ReadFile(os.Args[4])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL read list:", err)
+		os.Exit(1)
+	}
+	faceIdx := int64(0)
+	if len(os.Args) >= 6 {
+		fmt.Sscanf(os.Args[5], "%d", &faceIdx)
+	}
+
+	libft, _ = purego.Dlopen("libfreetype.so.6", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	if libft == 0 {
+		fmt.Fprintln(os.Stderr, "FAIL dlopen libfreetype.so.6")
+		os.Exit(1)
+	}
+	purego.RegisterLibFunc(&ftInit, libft, "FT_Init_FreeType")
+	purego.RegisterLibFunc(&ftNewFace, libft, "FT_New_Memory_Face")
+	purego.RegisterLibFunc(&ftSetCharSz, libft, "FT_Set_Char_Size")
+	purego.RegisterLibFunc(&ftCharIdx, libft, "FT_Get_Char_Index")
+	purego.RegisterLibFunc(&ftGetAdv, libft, "FT_Get_Advance")
+
+	var lib uintptr
+	if err := ftInit(&lib); err != 0 {
+		os.Exit(1)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL read:", err)
+		os.Exit(1)
+	}
+	var face uintptr
+	if err := ftNewFace(lib, &data[0], int64(len(data)), faceIdx, &face); err != 0 {
+		fmt.Fprintln(os.Stderr, "FAIL face")
+		os.Exit(1)
+	}
+	units := *(*int16)(unsafe.Pointer(face + 136))
+	sz := int64(px * 64)
+	if err := ftSetCharSz(face, sz, sz, 0, 0); err != 0 {
+		fmt.Fprintln(os.Stderr, "FAIL chsize")
+		os.Exit(1)
+	}
+
+	// FT_LOAD_VERTICAL_LAYOUT = 0x0004.
+	flags := int32(0x0004)
+	bw := bufio.NewWriter(os.Stdout)
+	defer bw.Flush()
+	for _, r := range []rune(string(rawText)) {
+		gid := ftCharIdx(face, r)
+		if gid == 0 {
+			fmt.Fprintf(bw, "# V %U -\n", r)
+			continue
+		}
+		var adv int64
+		if err := ftGetAdv(face, gid, flags, &adv); err != 0 {
+			fmt.Fprintf(bw, "# V %U -\n", r)
+			continue
+		}
+		_ = units
+		fmt.Fprintf(bw, "# V %U %d\n", r, adv)
+	}
 	runtime.KeepAlive(data)
 }
 

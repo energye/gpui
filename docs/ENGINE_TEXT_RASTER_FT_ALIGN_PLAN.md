@@ -1,6 +1,6 @@
 # 文本渲染 FT 全对齐计划（Raster-FT-ALIGN）
 
-**状态**: **阶段 C 完成**（2026-08-11：C1 五组源码审计 + C2 修订表落 ENGINE_TEXT_HINT_LIGHT_PLAN.md §13 + C3 单 mask 扫描窗；四洞修复 cf2DivFix/DELTAC/RTHG/SHZ；回归 PASS=110/0/0 含 hint 子包）
+**状态**: **阶段 C 完成，M6 竖排完成**（2026-08-11：C1 五组源码审计 + C2 修订表落 ENGINE_TEXT_HINT_LIGHT_PLAN.md §13 + C3 单 mask 扫描窗；四洞修复 cf2DivFix/DELTAC/RTHG/SHZ；M6 vhea/vmtx+竖排度量+vert/vrt2 全链路 ✅；回归 PASS=110/0/0 含 hint 子包）
 **目标**: ①光栅器与 FT `smooth/ftgrays.c` **逐字节一致**；②8–72px 全字号 × 全字集 × 全字体验证矩阵；③M0–M5 实现方式源码级审计（不信文档）。
 **对照基准**: 本地 FT 2.11.1 源码 `/home/yanghy/app/projects/gogpu/freetype-2.11.1/` + `ftexp` 二进制（purego 调系统 libfreetype 2.11.1）。
 

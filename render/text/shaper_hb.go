@@ -91,7 +91,7 @@ func (s *HbShaper) Shape(text string, face Face) []ShapedGlyph {
 		}
 	}
 
-	buf.Shape(hbf.hbf, hbFeatures(face.Features()))
+	buf.Shape(hbf.hbf, hbFeatures(face.Features(), !face.Direction().IsHorizontal()))
 
 	return hbToShapedGlyphs(buf, runes, size, tabClusters)
 }
@@ -159,10 +159,10 @@ func hbDirection(dir Direction) hb.Direction {
 	switch dir {
 	case DirectionRTL:
 		return hb.RightToLeft
-	case DirectionBTT:
-		return hb.TopToBottom
-	case DirectionTTB:
+	case DirectionBTT: // bottom-to-top
 		return hb.BottomToTop
+	case DirectionTTB: // top-to-bottom
+		return hb.TopToBottom
 	default:
 		return hb.LeftToRight
 	}
@@ -183,8 +183,9 @@ func detectHBScript(runes []rune) language.Script {
 // hbFeatures converts user + default features to HarfBuzz features.
 // Default feature set matches OwnShaper's collectDesiredFeatures so the
 // two backends agree on which OpenType features are active (M0 parity).
-func hbFeatures(userFeatures []FontFeature) []hb.Feature {
-	gsubTags, gposTags := collectDesiredFeatures(userFeatures)
+// vertical enables the vert/vrt2 vertical alternates for TTB/BTT direction.
+func hbFeatures(userFeatures []FontFeature, vertical bool) []hb.Feature {
+	gsubTags, gposTags := collectDesiredFeatures(userFeatures, vertical)
 	features := make([]hb.Feature, 0, len(gsubTags)+len(gposTags)+len(userFeatures))
 	enable := func(t [4]byte) {
 		features = append(features, hb.Feature{

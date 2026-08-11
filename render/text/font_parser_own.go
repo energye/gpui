@@ -89,6 +89,13 @@ type ownParsedFont struct {
 	numHMetrics int      // from hhea.numberOfHMetrics
 	hmtxParsed  bool     // true if hmtx was parsed successfully
 
+	vmtxOnce    sync.Once
+	vmtxAdv     []uint16 // advance heights from vmtx
+	vmtxTSB     []int16  // top side bearings from vmtx
+	vmtxParsed  bool     // true if vmtx was parsed successfully
+	vhea        vheaMetrics
+	vheaOK      bool // true if vhea was parsed successfully
+
 	nameOnce   sync.Once
 	familyName string
 	fullName   string
@@ -176,6 +183,63 @@ func (f *ownParsedFont) GlyphAdvance(glyphIndex uint16, ppem float64) float64 {
 	return float64(advFU) * ppem / float64(f.upem)
 }
 
+// GlyphVerticalAdvance returns the vertical advance height in pixels for a
+// glyph, from the vmtx table when present. Falls back to OS/2-derived
+// values (|sTypoAscender - sTypoDescender|) when vmtx is absent, matching
+// FreeType's TT_Get_VMetrics fallback (ttgload.c:110-169).
+func (f *ownParsedFont) GlyphVerticalAdvance(glyphIndex uint16, ppem float64) float64 {
+	f.ensureVmtx()
+	if f.upem == 0 {
+		return 0
+	}
+	if f.vmtxParsed && len(f.vmtxAdv) > 0 {
+		advFU := hmtxAdvance(f.vmtxAdv, len(f.vmtxAdv), glyphIndex)
+		return float64(advFU) * ppem / float64(f.upem)
+	}
+	// Fallback: OS/2-derived advance height (same as FreeType when the
+	// vertical table is missing).
+	f.ensureMetrics()
+	asc := int32(f.os2.sTypoAscender)
+	desc := int32(f.os2.sTypoDescender)
+	if asc == 0 && desc == 0 {
+		asc = int32(f.hhea.ascent)
+		desc = int32(f.hhea.descent)
+	}
+	adv := asc - desc
+	if adv < 0 {
+		adv = -adv
+	}
+	return float64(adv) * ppem / float64(f.upem)
+}
+
+// ensureVmtx lazily parses the vhea and vmtx tables for vertical metrics.
+func (f *ownParsedFont) ensureVmtx() {
+	f.vmtxOnce.Do(func() {
+		vheaData, ok := f.tables["vhea"]
+		if !ok {
+			return
+		}
+		vhea, ok := parseVheaTable(vheaData)
+		if !ok || vhea.numberOfVMetrics == 0 {
+			return
+		}
+		f.vhea = vhea
+		f.vheaOK = true
+
+		vmtxData, ok := f.tables["vmtx"]
+		if !ok {
+			return
+		}
+		adv, tsb, err := parseVmtx(vmtxData, vhea.numberOfVMetrics, f.numGlyphs)
+		if err != nil {
+			return
+		}
+		f.vmtxAdv = adv
+		f.vmtxTSB = tsb
+		f.vmtxParsed = true
+	})
+}
+
 // GlyphBounds implements ParsedFont.GlyphBounds.
 // Returns the glyph bounding box scaled from font units to pixels.
 //
@@ -247,7 +311,8 @@ func (f *ownParsedFont) Metrics(ppem float64) FontMetrics {
 	if !f.hheaOK && !f.os2OK {
 		return FontMetrics{}
 	}
-	return computeFontMetrics(f.hhea, f.os2, f.upem, ppem)
+	f.ensureVmtx()
+	return computeFontMetrics(f.hhea, f.os2, f.upem, ppem, f.vhea, f.vheaOK)
 }
 
 // --- RawFontDataProvider ---

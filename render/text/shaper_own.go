@@ -129,7 +129,7 @@ func (s *OwnShaper) Shape(text string, face Face) []ShapedGlyph {
 	langTag := parseLangTag(face.Language())
 
 	// Step 3: Determine which features to apply.
-	desiredGSUB, desiredGPOS := collectDesiredFeatures(face.Features())
+	desiredGSUB, desiredGPOS := collectDesiredFeatures(face.Features(), !face.Direction().IsHorizontal())
 
 	// Step 4: Apply GSUB substitutions.
 	// Script-aware staging (ENGINE_GAPS G1.c):
@@ -415,7 +415,12 @@ func reorderIndicGlyphsWithAdjFont(glyphs []shapingGlyph, adj []gposAdjustment, 
 // explicitly with text.NoDLigatures.
 //
 // Default GPOS features: kern, mark, mkmk, curs.
-func collectDesiredFeatures(userFeatures []FontFeature) (gsubTags, gposTags [][4]byte) {
+//
+// vertical forces the OpenType vertical alternates features (vert, vrt2):
+// when true they are added to GSUB defaults so e.g. CJK punctuation
+// rotates to its vertical form. Matches HarfBuzz's direction-driven
+// feature set for horizontal/vertical shaping.
+func collectDesiredFeatures(userFeatures []FontFeature, vertical bool) (gsubTags, gposTags [][4]byte) {
 	// Default features.
 	ccmp := [4]byte{'c', 'c', 'm', 'p'}
 	liga := [4]byte{'l', 'i', 'g', 'a'}
@@ -469,6 +474,14 @@ func collectDesiredFeatures(userFeatures []FontFeature) (gsubTags, gposTags [][4
 		pref: true, blwf: true, abvf: true, half: true, pstf: true,
 		vatu: true, cjct: true,
 		pres: true, abvs: true, blws: true, psts: true, haln: true,
+	}
+	// Vertical alternates: only in vertical layout (HarfBuzz enables
+	// vert/vrt2 for TTB/BTT direction, disabled for horizontal).
+	if vertical {
+		vert := [4]byte{'v', 'e', 'r', 't'}
+		vrt2 := [4]byte{'v', 'r', 't', '2'}
+		gsubEnabled[vert] = true
+		gsubEnabled[vrt2] = true
 	}
 
 	// GPOS defaults.

@@ -73,6 +73,18 @@ type FontMetrics struct {
 
 	// CapHeight is the height of uppercase letters.
 	CapHeight float64
+
+	// VerticalAscent is the vertical typographic ascender (from vhea),
+	// positive; 0 when the font has no vhea table.
+	VerticalAscent float64
+
+	// VerticalDescent is the vertical typographic descender (from vhea),
+	// negative below the baseline; 0 when the font has no vhea table.
+	VerticalDescent float64
+
+	// VerticalLineGap is the vertical typographic line gap (from vhea);
+	// 0 when the font has no vhea table.
+	VerticalLineGap float64
 }
 
 // Height returns the total line height (ascent - descent + line gap).

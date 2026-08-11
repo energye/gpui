@@ -148,7 +148,7 @@ func TestGSUB_NoDLigatures(t *testing.T) {
 
 // TestGSUB_DefaultFeatures verifies the default feature set.
 func TestGSUB_DefaultFeatures(t *testing.T) {
-	gsubTags, gposTags := collectDesiredFeatures(nil)
+	gsubTags, gposTags := collectDesiredFeatures(nil, false)
 
 	// GSUB must include ccmp, liga, clig, rlig, dlig.
 	wantGSUB := map[[4]byte]bool{
@@ -186,7 +186,7 @@ func TestGSUB_DefaultFeatures(t *testing.T) {
 // TestGSUB_FeatureDisable verifies that user features can disable defaults.
 func TestGSUB_FeatureDisable(t *testing.T) {
 	// Disable liga.
-	gsubTags, _ := collectDesiredFeatures([]FontFeature{NoLigatures})
+	gsubTags, _ := collectDesiredFeatures([]FontFeature{NoLigatures}, false)
 	ligaTag := [4]byte{'l', 'i', 'g', 'a'}
 	for _, tag := range gsubTags {
 		if tag == ligaTag {
@@ -195,7 +195,7 @@ func TestGSUB_FeatureDisable(t *testing.T) {
 	}
 
 	// Disable dlig.
-	gsubTags, _ = collectDesiredFeatures([]FontFeature{NoDLigatures})
+	gsubTags, _ = collectDesiredFeatures([]FontFeature{NoDLigatures}, false)
 	dligTag := [4]byte{'d', 'l', 'i', 'g'}
 	for _, tag := range gsubTags {
 		if tag == dligTag {
