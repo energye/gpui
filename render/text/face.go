@@ -130,11 +130,32 @@ func (f *sourceFace) HasGlyph(r rune) bool {
 	return gid != 0
 }
 
+// glyphAdvance returns the per-glyph advance for the current direction:
+// horizontal (LTR/RTL) uses hmtx advance width; vertical (TTB/BTT) uses the
+// vmtx advance height (M6 vertical metrics). Returns (advance, isVertical).
+func (f *sourceFace) glyphAdvance(parsed ParsedFont, gid uint16, varProvider VariableAdvanceProvider) (float64, bool) {
+	isVertical := f.config.direction.IsVertical()
+	if isVertical {
+		if vp, ok := parsed.(interface{ GlyphVerticalAdvance(uint16, float64) float64 }); ok {
+			return vp.GlyphVerticalAdvance(gid, f.size), true
+		}
+		return parsed.GlyphAdvance(gid, f.size), true // 无 vmtx 时退化为水平 advance
+	}
+	if varProvider != nil {
+		return varProvider.GlyphAdvanceVar(gid, f.size, f.config.variations), false
+	}
+	return parsed.GlyphAdvance(gid, f.size), false
+}
+
 // Glyphs implements Face.Glyphs.
 func (f *sourceFace) Glyphs(text string) iter.Seq[Glyph] {
 	return func(yield func(Glyph) bool) {
 		parsed := f.source.Parsed()
+		// 方向：横排沿 X 推进；竖排（TTB/BTT）沿 Y 推进（vmtx 高度），
+		// X 恒定 0（M6 竖排对齐：glyph.Y 携带垂直位置）。
 		x := 0.0
+		y := 0.0
+		isVertical := f.config.direction.IsVertical()
 		byteIndex := 0
 
 		// Check for variable advance provider (HVAR) when variations are set.
@@ -160,11 +181,7 @@ func (f *sourceFace) Glyphs(text string) iter.Seq[Glyph] {
 				// Space bounds are empty — no visual rendering.
 			} else {
 				gid = parsed.GlyphIndex(r)
-				if varProvider != nil {
-					advance = varProvider.GlyphAdvanceVar(gid, f.size, f.config.variations)
-				} else {
-					advance = parsed.GlyphAdvance(gid, f.size)
-				}
+				advance, _ = f.glyphAdvance(parsed, gid, varProvider)
 				bounds = parsed.GlyphBounds(gid, f.size)
 			}
 
@@ -172,9 +189,9 @@ func (f *sourceFace) Glyphs(text string) iter.Seq[Glyph] {
 				Rune:    r,
 				GID:     GlyphID(gid),
 				X:       x,
-				Y:       0,
+				Y:       y,
 				OriginX: x,
-				OriginY: 0,
+				OriginY: y,
 				Advance: advance,
 				Bounds:  bounds,
 				Index:   byteIndex,
@@ -185,7 +202,11 @@ func (f *sourceFace) Glyphs(text string) iter.Seq[Glyph] {
 				return
 			}
 
-			x += advance
+			if isVertical {
+				y += advance
+			} else {
+				x += advance
+			}
 			byteIndex += utf8.RuneLen(r)
 		}
 	}
@@ -195,6 +216,8 @@ func (f *sourceFace) Glyphs(text string) iter.Seq[Glyph] {
 func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
 	parsed := f.source.Parsed()
 	x := 0.0
+	y := 0.0
+	isVertical := f.config.direction.IsVertical()
 	byteIndex := 0
 
 	// Check for variable advance provider (HVAR) when variations are set.
@@ -218,11 +241,7 @@ func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
 			gid, advance = tabAdvance(parsed, f.size)
 		} else {
 			gid = parsed.GlyphIndex(r)
-			if varProvider != nil {
-				advance = varProvider.GlyphAdvanceVar(gid, f.size, f.config.variations)
-			} else {
-				advance = parsed.GlyphAdvance(gid, f.size)
-			}
+			advance, _ = f.glyphAdvance(parsed, gid, varProvider)
 			bounds = parsed.GlyphBounds(gid, f.size)
 		}
 
@@ -230,9 +249,9 @@ func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
 			Rune:    r,
 			GID:     GlyphID(gid),
 			X:       x,
-			Y:       0,
+			Y:       y,
 			OriginX: x,
-			OriginY: 0,
+			OriginY: y,
 			Advance: advance,
 			Bounds:  bounds,
 			Index:   byteIndex,
@@ -240,7 +259,11 @@ func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
 		}
 
 		dst = append(dst, glyph)
-		x += advance
+		if isVertical {
+			y += advance
+		} else {
+			x += advance
+		}
 		byteIndex += utf8.RuneLen(r)
 	}
 

@@ -110,6 +110,47 @@ func TestM6MetricsVerticalFields(t *testing.T) {
 	}
 }
 
+// TestM6VerticalGlyphIteration：TTB 方向 Glyphs 迭代应沿 Y 推进（X=0），
+// LTR 保持 X 推进——钉住引擎竖排布局（2026-08-11 补，face.go 竖排修复）。
+func TestM6VerticalGlyphIteration(t *testing.T) {
+	src, err := NewFontSourceFromFile("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+		WithParser("own"), WithCollectionIndex(0))
+	if err != nil {
+		t.Skipf("NotoSansCJK unavailable: %v", err)
+	}
+	defer src.Close()
+
+	vf := src.Face(16, WithDirection(DirectionTTB))
+	var ys []float64
+	var xs []float64
+	for g := range vf.Glyphs("你好世界") {
+		xs = append(xs, g.X)
+		ys = append(ys, g.Y)
+	}
+	if len(ys) != 4 {
+		t.Fatalf("竖排 glyph 数=%d want 4", len(ys))
+	}
+	for i, y := range ys {
+		if y != float64(16*i) {
+			t.Errorf("竖排 Y[%d]=%v want %d（应沿 Y 逐字下行）", i, y, 16*i)
+		}
+		if xs[i] != 0 {
+			t.Errorf("竖排 X[%d]=%v want 0（竖排 X 恒 0）", i, xs[i])
+		}
+	}
+
+	lf := src.Face(16) // LTR 对照
+	var ly []float64
+	var lx []float64
+	for g := range lf.Glyphs("你好") {
+		lx = append(lx, g.X)
+		ly = append(ly, g.Y)
+	}
+	if lx[1] != 16 || ly[1] != 0 {
+		t.Errorf("LTR 应 X 推进 Y 恒 0：X=[%v] Y=[%v]", lx, ly)
+	}
+}
+
 // M6-3 vert/vrt2 竖排特性验证：TTB/BTT 方向激活 vertical alternates。
 //
 // 对照字体 = Noto Sans CJK (face0 JP)，其 GSUB 带 vert/vrt2（多语言系统

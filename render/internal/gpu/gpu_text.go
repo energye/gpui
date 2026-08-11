@@ -229,8 +229,8 @@ func (e *GPUTextEngine) LayoutText(
 
 		qx0 := float32(x + glyph.X + float64(region.PlaneMinX)*ratio)
 		qx1 := float32(x + glyph.X + float64(region.PlaneMaxX)*ratio)
-		qy0 := float32(y + float64(region.PlaneMinY)*ratio)
-		qy1 := float32(y + float64(region.PlaneMaxY)*ratio)
+		qy0 := float32(y + glyph.Y + float64(region.PlaneMinY)*ratio)
+		qy1 := float32(y + glyph.Y + float64(region.PlaneMaxY)*ratio)
 
 		quads = append(quads, TextQuad{
 			X0: qx0, Y0: qy0,
