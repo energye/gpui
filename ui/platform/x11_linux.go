@@ -134,7 +134,7 @@ type xClassHint struct {
 type x11Lib struct {
 	lib uintptr
 	// dynamic funcs (set per open to keep the struct small)
-	keycodeToKeysym func(keycode uint, index int) uintptr
+	keycodeToKeysym func(dpy uintptr, keycode uint, index int) uintptr
 	closeDisplay    func(dpy uintptr) int
 }
 
@@ -299,11 +299,11 @@ func x11Create(w, h int, title string) (*Window, error) {
 		pending:   func() int { return xPending(dpy) },
 		nextEvent: func(ev *byte) int { return xNextEvent(dpy, ev) },
 		flush:     func() { xFlush(dpy) },
-		keycodeToKeysym: func(keycode uint, index int) uintptr {
+		keycodeToKeysym: func(dpy2 uintptr, keycode uint, index int) uintptr {
 			if lib.keycodeToKeysym == nil {
 				return 0
 			}
-			return lib.keycodeToKeysym(keycode, index)
+			return lib.keycodeToKeysym(dpy, keycode, index)
 		},
 	}
 	// Re-resolve wmDelete after drain (atom still valid).
@@ -346,7 +346,7 @@ type x11State struct {
 	pending         func() int
 	nextEvent       func(ev *byte) int
 	flush           func()
-	keycodeToKeysym func(keycode uint, index int) uintptr
+	keycodeToKeysym func(dpy uintptr, keycode uint, index int) uintptr
 }
 
 // x11Host implements Host for an X11 window (event pump). Destroying the
@@ -640,7 +640,7 @@ func (h *x11Host) decodeKey(t int, buf []byte) (Event, bool) {
 	keycode := uint(readU32(buf, xevKeycodeOff))
 	ev := Event{Type: EventKey, Pressed: t == xKeyPress, KeyCode: int(keycode)}
 	if st != nil && st.keycodeToKeysym != nil && keycode != 0 {
-		ks := st.keycodeToKeysym(keycode, 0)
+		ks := st.keycodeToKeysym(st.display, keycode, 0)
 		ev.KeyCode = int(ks)
 		if ks >= 0x20 && ks <= 0x7e {
 			ev.Rune = rune(ks)
@@ -662,7 +662,7 @@ func (h *x11Host) decodeKey(t int, buf []byte) (Event, bool) {
 
 // --- geometry probe (Adopt) ---
 
-func x11KeycodeToKeysym(lib *x11Lib) func(keycode uint, index int) uintptr {
+func x11KeycodeToKeysym(lib *x11Lib) func(dpy uintptr, keycode uint, index int) uintptr {
 	if lib == nil {
 		return nil
 	}

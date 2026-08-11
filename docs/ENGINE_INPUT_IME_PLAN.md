@@ -1,4 +1,4 @@
-# 跨平台输入 / IME 分层方案（草案 v0.9）
+# 跨平台输入 / IME 分层方案（草案 v1.0）
 
 > **性质：DRAFT** — 方向收敛中，待确认后转真源。不参与 §R/§W 关闭。  
 > **并读：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)（§3 Host 注入）· [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（§0.3 U3 IME 暂缓可预留 SPI）  
@@ -7,8 +7,8 @@
 > ② 事件抽象出独立层 **`ui/input`** —— 各平台事件类型归一为跨平台一致的统一事件给上层；  
 > ③ 多窗口：入口 **`application.New()`** + **`app.NewWindow()`**；kit 只做控件不建窗口；  
 > ④ 控件层由 **框架统一事件绑定管理**（InputRouter），自定义控件实现统一回调接口即自动接线。  
-> **v0.3–v0.8（方案 A 第 1–6 步落地）：** `ui/input` · `ui/platform` · `ui/application` · `InputRouter` · `gestures` 多点 · `textinput` + Wayland `zwp_text_input_v3`，均已实现。  
-> **v0.9（反攻强化 2：X11 XIM 绑定实证）：** `ui/platform` X11 后端加 **XIM（X Input Method）真实绑定**——`XOpenIM`（前置 `XSetLocaleModifiers("")`，Go 无默认 locale 必调）+ `XCreateIC`（**变参经 amd64 SysV ABI 固定参数模拟**：`XCreateIC(im, n1, v1, n2, v2, 0)`）+ `XFilterEvent`/`Xutf8LookupString`（组合时消费按键、提交时产出 UTF-8 commit → `platform.Event{EventIME}`）+ `XSetICFocus`/`XUnsetICFocus`；`XIMPreeditNothing|XIMStatusNothing` 模式（候选框归输入法，客户端只收 commit）。**实证（真 X11 窗 + ibus + libpinyin）：`IME capability AVAILABLE`、`EnableIME` 无协议错误**。修复两处：① 缺 `XSetLocaleModifiers` 致 `XOpenIM` 返回 0；② XIM 常量值错误（`PreeditNothing=0x0002`/`StatusNothing=0x0010`，误写为 None 组合致 `XCreateIC` 返回 0）。
+> **v0.3–v0.9（方案 A 第 1–6 步 + XIM 反攻）：** `ui/input` · `ui/platform` · `ui/application` · `InputRouter` · `gestures` 多点 · `textinput` + Wayland `zwp_text_input_v3` + X11 `XIM`，均已实现。  
+> **v1.0（反攻复测 1：真桌面候选交互探索 + 存量 bug 修复）：** 修 probe `XKeyEvent` 结构体布局（serial 为 8 字节 `unsigned long`，@24 display/@32 window 正确对齐）→ **合成按键终于到达窗口**；暴露并修复 **存量引擎 bug：`XKeycodeToKeysym` 注册缺 `dpy` 参数**（真实签名 3 参 `(Display*, keycode, index)`，注册成 2 参致 C 层把 keycode 当 display 指针解引用 → 真实键盘输入崩溃/错误解码）；`EnableIME` 后实证 **`XFilterEvent=1`（ibus 接管按键进入组合状态）**——XIM 引擎链路完整激活。诚实边界：headless Xvfb 无物理显示/候选窗交互，拼音候选→上屏 commit 无法自动化验证，需真桌面复测。
 
 ---
 
@@ -297,6 +297,7 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | 6 | `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3` 实证 | 高（真 IME 才算数） | **协议握手真窗 PASS**（IME AVAILABLE + EnableIME 无错）；完整候选交互留真桌面 | ✅ v0.8（协议层） |
 | 7 | Win/mac 后端 + TSF/InputMethod（接口已预留） | 高 | 后置 | ⬜ |
 | 8 | **反攻 2：X11 XIM 绑定**（XOpenIM/XCreateIC/XFilterEvent/Xutf8LookupString，PreeditNothing 模式） | 中 | **真窗 PASS**（ibus+libpinyin：IME AVAILABLE + EnableIME 无错） | ✅ v0.9（协议层） |
+| 9 | **反攻复测 1：完整候选交互探索**（修 XKeyEvent 布局 + **XKeycodeToKeysym dpy 存量 bug** + XFilterEvent=1 激活实证） | 中 | 引擎链路激活 PASS；候选→上屏需真桌面 | ✅ v1.0（引擎层，候选留真桌面） |
 
 第 6 步 Linux 真跑通 IME = 方案成败证明；X11 XIM 为备选。
 
@@ -323,3 +324,4 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | **v0.7** | **方案 A 第 5 步落地（方案 B：删 FromPlatform）**：`ui/gestures` 完整迁移到 `input` 类型——`PointerEvent = input.PointerEvent`（别名）、`FromPlatform`/`EffectivePointerID` 删除、`PrimaryPointerID=0`（鼠标主指针）对齐 input；新增 `FromInput(input.Event)`（Pointer/Scroll 直映射、Touch 携 ID/X/Y）；多指并行 = 每 PointerID 独立 Arena（ID 0=鼠标，≥1=触摸槽）；`ui/rendering/Scrollable` 同步迁移；L2 shell 适配（FromInput + 2 处 input 常量）。新增双指并行单测（双指独立 Tap / 一指 Tap 一指 Pan 并行不干扰）+ FromInput 单测。gestures 8 项 + 全 ui 15 包 + L2 shell 回归全绿。下一步：第 6 步 `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3`。 |
 | **v0.8** | **方案 A 第 6 步落地（协议层实证）**：① `ui/textinput` 编辑控制器（`editor.go`）——UTF-8 字节偏移缓冲/光标/选区/剪贴板/IME 预编辑生命周期（BeginCompose/Update/Commit/Cancel），`ApplyText`/`ApplyIME` 消费归一事件，15 项单测全绿；② `platform.Event` 加 `EventIME` + `IMEKind/IMEText/IMEStart/IMEEnd` 载荷，`input.FromPlatform` 归一；③ **Wayland `zwp_text_input_v3` 真实绑定**（`wayland_textinput_linux.go`）——registry 识别 `zwp_text_input_manager_v3` + `wl_seat`，`get_text_input(id, seat)`（**修复：协议签名 "no" 需要 seat，初版漏参致 `invalid arguments`**），preedit_string/commit_string/delete_surrounding_text 事件 → `platform.Event{EventIME}` → `wlHost.poll` 队列；`wlIme` 实现 `platform.IME`（EnableIME/SetComposing/Commit/DisableIME）；④ `InputRouter.TextEditor` 自动路由 Text/IME → 聚焦编辑器；`PipelineApp.SetInputRouter` + `application.Window.SetInput` 接线；⑤ **实证**：`examples/ui_ime_probe` 真 Wayland 窗（GNOME）——`IME capability AVAILABLE`、`EnableIME sent`、无协议错误（修复前后对照：修复前 mutter 报 `invalid arguments for ...get_text_input`）。`examples/ui_textinput_ime` 完整示例（GPU 无头环境 surface 配置受限，输入链路已由 probe 验证）。全 ui 16 包回归全绿。下一步：第 7 步 Win/mac 后端 + TSF/InputMethod（接口已预留），或反攻：X11 XIM 绑定 + 真桌面候选交互实证。 |
 | **v0.9** | **反攻强化 2：X11 XIM 绑定实证（协议层）**：`ui/platform/x11_xim_linux.go`——`XOpenIM`（**前置 `XSetLocaleModifiers("")`：Go 无默认 locale，缺它 XOpenIM 恒返回 0**）+ `XCreateIC`（**变参经 amd64 SysV ABI 固定参数模拟**：`XCreateIC(im, n1, v1, n2, v2, 0)` 恰 6 寄存器参数）+ `XFilterEvent`/`Xutf8LookupString`（组合时消费按键跳过 plain key、提交时产出 UTF-8 commit → `platform.Event{EventIME}`，可打印键同时发 Key+Rune 供快捷键与 textinput 双通道）+ `XSetICFocus`/`XUnsetICFocus`；`XIMPreeditNothing(0x0002)|XIMStatusNothing(0x0010)` 模式（**修复：初版误用 None 位 0x0001/0x0002 致 XCreateIC 返回 0**）；`x11Ime` 实现 `platform.IME`，`ximForX11` 静默降级。**实证（真 X11 窗 + ibus + libpinyin）：`probe: IME capability AVAILABLE (x11)`、`EnableIME sent`、无协议错误**。诚实边界：完整候选交互（拼音候选 → 上屏）需真桌面 + 交互式键盘，headless Xvfb 下 XTest/XSendEvent 合成事件投递不可靠（焦点已确认 OUR-WINDOW），未虚标。XIM 单测 4 项 + 全 ui 16 包回归全绿。下一步：真桌面候选交互实证 / Win+mac TSF+InputMethod / 或转入 kit 层。 |
+| **v1.0** | **反攻复测 1：真桌面候选交互探索（headless 自动化到极限）**：① 修 `ui_ime_probe` 的 `XKeyEvent` 结构体布局（`serial` 是 8 字节 `unsigned long` @8，`display` @24、`window` @32——初版按 4 字节写 offset 16/24 全错，合成事件从未投递）→ **合成按键终于到达窗口**；② 修复**存量引擎 bug：`XKeycodeToKeysym` 注册缺 `dpy` 参数**（真实签名 3 参 `(Display*, keycode, index)`，`x11Lib.keycodeToKeysym`/`x11State` 字段/闭包/decodeKey 调用点全改，初版注册 2 参致 C 层把 keycode 当 display 指针解引用 → 真实键盘输入崩溃或错误 keysym；headless 之前无真实键事件未触发）；③ **XIM 引擎链路激活实证**：`EnableIME`（XSetICFocus）后 `XFilterEvent=1`——按键被 ibus 输入法接管进入组合状态，KEY 事件正确解码（`KEY code=97 rune='a'`）；④ 拼音序列 `nihao ` + 空格投递：headless Xvfb 无物理显示/候选窗交互，commit 未产出（诚实边界：完整候选→上屏需真桌面）。`XKeycodeToKeysym` 修复经全 ui 16 包回归验证零回归。下一步：真桌面（有显示+交互键盘）复测完整候选交互。 |

@@ -81,16 +81,18 @@ func sendKey(dpy, win uintptr, r rune) {
 	if kc == 0 {
 		return
 	}
-	// XKeyEvent layout (linux amd64): type(0), serial(4), send_event(8),
-	// display(16), window(24), root(32), subwindow(40), time(48), x(56),
-	// y(60), x_root(64), y_root(68), state(72), keycode(76), same_screen(80).
+	// XKeyEvent layout (linux amd64, 96 bytes):
+	//   type(0,int)=KeyPress(2) serial(8,ulong) send_event(16,Bool)
+	//   display(24,*) window(32) root(40) subwindow(48)
+	//   time(56,ulong) x(64) y(68) x_root(72) y_root(76)
+	//   state(80,uint) keycode(84,uint) same_screen(88,Bool)
 	ev := make([]byte, 96)
 	*(*int32)(unsafe.Pointer(&ev[0])) = 2 // KeyPress
-	*(*uintptr)(unsafe.Pointer(&ev[16])) = dpy
-	*(*uintptr)(unsafe.Pointer(&ev[24])) = win
-	*(*uintptr)(unsafe.Pointer(&ev[32])) = win // root placeholder
-	*(*uint32)(unsafe.Pointer(&ev[76])) = uint32(kc)
-	*(*int32)(unsafe.Pointer(&ev[80])) = 1 // same_screen
+	*(*uintptr)(unsafe.Pointer(&ev[24])) = dpy
+	*(*uintptr)(unsafe.Pointer(&ev[32])) = win
+	*(*uintptr)(unsafe.Pointer(&ev[40])) = win // root placeholder
+	*(*uint32)(unsafe.Pointer(&ev[84])) = uint32(kc)
+	*(*int32)(unsafe.Pointer(&ev[88])) = 1 // same_screen
 	// KeyPressMask = 1<<0
 	xSendEvent(dpy, win, 1 /*True*/, 1<<0, &ev[0])
 	xFlush(dpy)
