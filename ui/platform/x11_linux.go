@@ -312,11 +312,27 @@ func x11Create(w, h int, title string) (*Window, error) {
 		st.wmDelete = xInternAtom(dpy, &delName[0], 0)
 	}
 	host := &x11Host{st: st, lib: lib}
+	// Optional IME capability via XIM (ibus/fcitx). Silent degrade when the
+	// input method server is absent.
+	host.xim = ximOpen(dpy, win)
 	host.destroyFn = func() {
+		if host.xim != nil {
+			host.xim.close()
+			host.xim = nil
+		}
 		xDestroyWindow(dpy, win)
 		lib.closeDisplay(dpy)
 	}
-	return newWindow(host, PlatformX11, nil, nil, host.destroy), nil
+	return newWindow(host, PlatformX11, imeForX11(host), nil, host.destroy), nil
+}
+
+// imeForX11 returns the XIM-based IME capability, or nil when no input
+// method is available (silent degrade).
+func imeForX11(h *x11Host) IME {
+	if h == nil || h.xim == nil {
+		return nil
+	}
+	return &x11Ime{h: h}
 }
 
 // --- window state ---
@@ -340,6 +356,37 @@ type x11Host struct {
 	lib       *x11Lib
 	wake      chan struct{}
 	destroyFn func()
+	xim       *ximState
+
+	// imeMu guards the pending IME event queue drained by WaitEvents.
+	imeMu     sync.Mutex
+	imeEvents []Event
+}
+
+// ximFocus activates/deactivates the XIM input context.
+func (h *x11Host) ximFocus(on bool) {
+	if h == nil || h.xim == nil {
+		return
+	}
+	f := loadXIMFuncs()
+	if f == nil {
+		return
+	}
+	if on {
+		h.xim.setFocus(f)
+	} else {
+		h.xim.unsetFocus(f)
+	}
+}
+
+// pushIME queues an IME event for the next WaitEvents (thread-safe).
+func (h *x11Host) pushIME(ev Event) {
+	if h == nil {
+		return
+	}
+	h.imeMu.Lock()
+	h.imeEvents = append(h.imeEvents, ev)
+	h.imeMu.Unlock()
 }
 
 func (h *x11Host) destroy() {
@@ -401,9 +448,24 @@ func (h *x11Host) setSize(w, ht int) bool {
 	return true
 }
 
-// WaitEvents drains X11 events (pointer/key/configure/close). Expose is
-// always stripped: the GPU backend owns pixels; Expose is not architectural
-// IDLE. Resize / input / close still flow.
+// drain combines native event drain with the pending IME queue.
+func (h *x11Host) drain() []Event {
+	if h == nil {
+		return nil
+	}
+	out := h.drainX()
+	h.imeMu.Lock()
+	if len(h.imeEvents) > 0 {
+		out = append(out, h.imeEvents...)
+		h.imeEvents = nil
+	}
+	h.imeMu.Unlock()
+	return out
+}
+
+// WaitEvents drains X11 events (pointer/key/configure/close) plus queued IME
+// events. Expose is always stripped: the GPU backend owns pixels; Expose is
+// not architectural IDLE. Resize / input / close still flow.
 func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 	if h == nil || h.st == nil {
 		return nil
@@ -412,13 +474,13 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 		h.wake = make(chan struct{}, 1)
 	}
 	if timeout == 0 {
-		if evs := filterXNoise(h.drainX()); len(evs) > 0 {
+		if evs := filterXNoise(h.drain()); len(evs) > 0 {
 			return evs
 		}
 		if h.st.flush != nil {
 			h.st.flush()
 		}
-		return filterXNoise(h.drainX())
+		return filterXNoise(h.drain())
 	}
 
 	var deadline time.Time
@@ -427,7 +489,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 	}
 	const pollSlice = 16 * time.Millisecond
 	for {
-		if evs := filterXNoise(h.drainX()); len(evs) > 0 {
+		if evs := filterXNoise(h.drain()); len(evs) > 0 {
 			return evs
 		}
 		wait := pollSlice
@@ -437,7 +499,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 				if h.st.flush != nil {
 					h.st.flush()
 				}
-				return filterXNoise(h.drainX())
+				return filterXNoise(h.drain())
 			}
 			if left < wait {
 				wait = left
@@ -445,7 +507,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 		}
 		select {
 		case <-h.wake:
-			if evs := filterXNoise(h.drainX()); len(evs) > 0 {
+			if evs := filterXNoise(h.drain()); len(evs) > 0 {
 				return evs
 			}
 			return []Event{{Type: EventWake}}
@@ -508,8 +570,28 @@ func (h *x11Host) drainX() []Event {
 				out = append(out, ev)
 			}
 		case xKeyPress, xKeyRelease:
-			if ev, ok := h.decodeKey(t, buf[:]); ok {
-				out = append(out, ev)
+			// Route through the IME first (XIM). If the input method consumed
+			// the key (composing), skip it as a plain key. If it committed
+			// text, surface that as an IME event too — consumers split the
+			// payloads: textinput inserts the commit, focus/keys use the
+			// key event for shortcuts (a printable char still yields both).
+			skipKey := false
+			if h.xim != nil {
+				handled, committed := h.xim.filter(loadXIMFuncs(), &buf[0], h.st.window)
+				if handled {
+					skipKey = true // IME is composing; not a plain key
+				}
+				if committed != "" {
+					out = append(out, Event{
+						Type: EventIME, IMEKind: 1, // commit
+						IMEText: committed, IMEStart: -1, IMEEnd: -1,
+					})
+				}
+			}
+			if !skipKey {
+				if ev, ok := h.decodeKey(t, buf[:]); ok {
+					out = append(out, ev)
+				}
 			}
 		case xClientMessage:
 			data0 := readU64(buf[:], xevClientData0Off)
