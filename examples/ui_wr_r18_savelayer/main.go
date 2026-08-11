@@ -170,8 +170,17 @@ func main() {
 		// Per-frame SaveLayer budget: exactly one group may composite offscreen.
 		SaveLayerMaxOps: 1,
 		OnEvent: func(ev platform.Event) {
-			if ev.Type == platform.EventClose {
+			switch ev.Type {
+			case platform.EventClose:
 				fmt.Fprintf(os.Stderr, "ui_wr_r18_savelayer: close (%s)\n", win.Backend())
+			case platform.EventResize:
+				// Responsive layout: re-lay the shell to the new window size
+				// (same wiring as ui_wr_r4b_multidamage). Without this the
+				// content stays at the initial 1200x800 layout while the
+				// surface clears at the new size (observed: right/bottom slack).
+				if ev.Width > 0 && ev.Height > 0 {
+					shell.Resize(float64(ev.Width), float64(ev.Height))
+				}
 			}
 		},
 	})
