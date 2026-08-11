@@ -4,20 +4,19 @@
 // GPU 走 Tier6 glyph-mask/MSDF 管线）把所有支持的语言/脚本样本渲染进
 // 大图，按「字号 + 字体样式」命名输出 PNG。
 //
+// 每个语言样本渲染五种样式变体（字体样式展示）：
+//   1) Regular 常规
+//   2) Bold 粗体（同族 Bold 变体，无则回退 Regular）
+//   3) Oblique 斜体（同族 Oblique 变体，无则 Shear 变换合成）
+//   4) Color 带颜色（绿色着色）
+//   5) Vertical 竖排（TTB 方向，中/日/韩等按语言序号分列不重叠）
+//
 // 渲染路径（render.Context.DrawString 自动调度）：
-//   - GPU：空引入 render/gpu 注册 VelloAccelerator（headless Vulkan，
-//     Intel/NVIDIA/lavapipe 均可），DrawString 走 GPU glyph-mask/MSDF
-//     （GOGPU_DISABLE_GPU=1 可强制 CPU 降级对照）
-//   - CPU 降级：无 GPU/设备失败时自动回落 freetype 像素路径
+//   - GPU：空引入 render/gpu 注册 VelloAccelerator（headless Vulkan）
+//   - CPU 降级：无 GPU/设备失败自动回落
 //
-// 每个「样式」= 主字体 + 全套脚本 fallback 的 MultiFace 链（缺字自动
-// 回退），一张图内所有语言真正显示。竖排样本用 TTB 方向 MultiFace。
-//
-// 命名: samples_<字号>px_<样式>.png（例 samples_16px_NotoSansCJK.png）
-// 输出目录: ./out/（可用 $OUT_DIR 覆盖）。
-//
-// 覆盖：Latin（连字/kern）/Cyrillic/Greek/CJK（中/日/韩 + 竖排）/
-// Thai/Devanagari/Bengali/Tamil/Arabic(RTL)/Hebrew(RTL)/Myanmar/Lao。
+// 每个「样式」= 主字体（Regular）+/Bold/Oblique + 脚本 fallback 链。
+// 命名: samples_<字号>px_<样式>.png；输出 ./out/（$OUT_DIR 覆盖）。
 package main
 
 import (
@@ -34,13 +33,16 @@ import (
 
 type langSample struct {
 	label string
-	text  string
-	vert  string
+	text  string // 主文本（Regular/Bold/Oblique/Color 共用）
+	vert  string // 竖排样本（空 = 无竖排变体行）
 }
 
+// styleDef 一个样式 = 主字体（Regular）+ 可选 Bold/Oblique + fallback 链。
 type styleDef struct {
 	name    string
-	primary string
+	regular string
+	bold    string
+	oblique string
 	chain   []string
 }
 
@@ -55,53 +57,30 @@ func main() {
 	}
 
 	styles := []styleDef{
-		{name: "NotoSansCJK", primary: "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", chain: chainCjk()},
-		{name: "FreeSans", primary: "/usr/share/fonts/truetype/freefont/FreeSans.ttf", chain: chainFree()},
-		{name: "DejaVuSans", primary: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", chain: chainFree()},
+		{name: "NotoSansCJK",
+			regular: "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+			bold:    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+			chain:   chainCjk()},
+		{name: "FreeSans",
+			regular: "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+			bold:    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+			oblique: "/usr/share/fonts/truetype/freefont/FreeSansOblique.ttf",
+			chain:   chainFree()},
+		{name: "DejaVuSans",
+			regular: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+			bold:    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+			chain:   chainFree()},
 	}
 	sizes := []float64{16, 24, 32}
 	samples := langSamples()
 
 	for _, st := range styles {
-		primary, err := text.NewFontSourceFromFile(st.primary, text.WithParser("own"))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "font %s: %v\n", st.primary, err)
+		srcs, ok := loadStyleFonts(st)
+		if !ok {
 			continue
 		}
-		var fallbacks []*text.FontSource
-		for _, p := range st.chain {
-			if p == st.primary {
-				continue
-			}
-			s, err := text.NewFontSourceFromFile(p, text.WithParser("own"))
-			if err != nil {
-				continue
-			}
-			fallbacks = append(fallbacks, s)
-			defer s.Close()
-		}
-
 		for _, size := range sizes {
-			faces := []text.Face{primary.Face(size)}
-			for _, s := range fallbacks {
-				faces = append(faces, s.Face(size))
-			}
-			mf, err := text.NewMultiFace(faces...)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "style %s %.0fpx: %v\n", st.name, size, err)
-				continue
-			}
-			all := append([]*text.FontSource{primary}, fallbacks...)
-			var vfaces []text.Face
-			for _, s := range all {
-				vfaces = append(vfaces, s.Face(size, text.WithDirection(text.DirectionTTB)))
-			}
-			vmf, verr := text.NewMultiFace(vfaces...)
-			if verr != nil {
-				vmf = nil // 竖排不可用则跳过竖排区
-			}
-
-			img := renderGrid(mf, vmf, samples, size)
+			img := renderStyleGrid(srcs, st, samples, size)
 			fname := fmt.Sprintf("samples_%dpx_%s.png", int(size), st.name)
 			if err := img.SavePNG(filepath.Join(outDir, fname)); err != nil {
 				fmt.Fprintln(os.Stderr, "save "+fname+":", err)
@@ -110,60 +89,178 @@ func main() {
 			img.Close()
 			fmt.Fprintf(os.Stderr, "wrote %s/%s\n", outDir, fname)
 		}
-		primary.Close()
+		srcs.regular.Close()
+		if srcs.bold != nil {
+			srcs.bold.Close()
+		}
+		if srcs.oblique != nil {
+			srcs.oblique.Close()
+		}
+		for _, c := range srcs.chain {
+			c.Close()
+		}
 	}
 	fmt.Fprintln(os.Stderr, "done. 输出目录:", outDir)
 }
 
-// renderGrid 用 GPU 优先的 render.Context 排版：左列标签 + 主文本 + 竖排。
-func renderGrid(mf text.Face, vmf text.Face, samples []langSample, size float64) *render.Context {
-	const (
-		width  = 1800
-		rowH   = 130
-		labelW = 230
-		margin = 20
-		vertW  = 120
-	)
-	height := margin*2 + rowH*len(samples)
+// styleFonts 一个样式加载后的字体源集合。
+type styleFonts struct {
+	regular  *text.FontSource
+	bold     *text.FontSource // 可能 nil
+	oblique  *text.FontSource // 可能 nil
+	chain    []*text.FontSource
+}
 
-	ctx := render.NewContext(width, height)
-	defer ctx.Close()
-	ctx.SetFont(mf)
-
-	ink := color.RGBA{20, 20, 20, 255}
-	labelCol := color.RGBA{90, 90, 90, 255}
-	missing := color.RGBA{200, 90, 90, 255}
-
-	ctx.ClearWithColor(render.RGBA{R: 250, G: 250, B: 250, A: 255})
-
-	for i, s := range samples {
-		rowTop := margin + i*rowH
-		baseline := float64(rowTop) + float64(rowH)*0.5 + size*0.35
-
-		ctx.SetFont(mf)
-		col := ink
-		if !faceCovers(mf, s.text) {
-			col = missing
-		}
-		ctx.SetColor(labelCol)
-		ctx.DrawString(s.label, margin, baseline)
-		ctx.SetColor(col)
-		ctx.DrawString(s.text, margin+labelW, baseline)
-
-		if s.vert != "" && vmf != nil {
-			ctx.SetFont(vmf)
-			vcol := ink
-			if !faceCovers(vmf, s.vert) {
-				vcol = missing
-			}
-			ctx.SetColor(vcol)
-			vx := float64(width - margin - vertW)
-			y := float64(rowTop) + float64(rowH)*0.5 - size*1.2
-			ctx.DrawString(s.vert, vx, y)
+func loadStyleFonts(st styleDef) (styleFonts, bool) {
+	var sf styleFonts
+	r, err := text.NewFontSourceFromFile(st.regular, text.WithParser("own"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "font %s: %v\n", st.regular, err)
+		return sf, false
+	}
+	sf.regular = r
+	if st.bold != "" {
+		if b, err := text.NewFontSourceFromFile(st.bold, text.WithParser("own")); err == nil {
+			sf.bold = b
 		}
 	}
+	if st.oblique != "" {
+		if o, err := text.NewFontSourceFromFile(st.oblique, text.WithParser("own")); err == nil {
+			sf.oblique = o
+		}
+	}
+	for _, p := range st.chain {
+		if p == st.regular {
+			continue
+		}
+		s, err := text.NewFontSourceFromFile(p, text.WithParser("own"))
+		if err != nil {
+			continue
+		}
+		sf.chain = append(sf.chain, s)
+	}
+	return sf, true
+}
 
-	// SavePNG 内部 FlushGPU + GPU→CPU 回读。
+// variantFace 构建一个样式链 MultiFace：base 字体可能被 variant 替换（Bold/
+// Oblique），其后跟 fallback chain。dir 指定方向（LTR 或 TTB）。
+func (sf styleFonts) variantFace(variant string, size float64, dir text.Direction) (text.Face, bool) {
+	base := sf.regular
+	switch variant {
+	case "bold":
+		if sf.bold != nil {
+			base = sf.bold
+		}
+	case "oblique":
+		if sf.oblique != nil {
+			base = sf.oblique
+		}
+	}
+	opts := faceDirOpts(dir)
+	faces := []text.Face{base.Face(size, opts...)}
+	for _, c := range sf.chain {
+		faces = append(faces, c.Face(size, opts...))
+	}
+	mf, err := text.NewMultiFace(faces...)
+	if err != nil {
+		return nil, false
+	}
+	return mf, true
+}
+
+func faceDirOpts(dir text.Direction) []text.FaceOption {
+	if dir == 0 || dir == text.DirectionLTR {
+		return nil
+	}
+	return []text.FaceOption{text.WithDirection(dir)}
+}
+
+// renderStyleGrid 渲染一个样式一整张大图。
+// 布局：每语言一个模块块（模高 modH），内含 5 个变体行。
+// 竖排变体按语言序号分列（X 递增，避免中/日重叠）。
+func renderStyleGrid(sf styleFonts, st styleDef, samples []langSample, size float64) *render.Context {
+	const (
+		width  = 2200
+		modH   = 400 // 每语言模块高（容纳 5 变体行）
+		rowH   = 60  // 每变体行高
+		labelW = 240
+		margin = 20
+	)
+	height := margin*2 + modH*len(samples)
+	ctx := render.NewContext(width, height)
+	defer ctx.Close()
+	ctx.ClearWithColor(render.RGBA{R: 250, G: 250, B: 250, A: 255})
+
+	regCol := color.RGBA{20, 20, 20, 255}
+	boldCol := color.RGBA{180, 30, 30, 255}
+	oblCol := color.RGBA{30, 60, 180, 255}
+	colorCol := color.RGBA{30, 140, 40, 255}
+	vertCol := color.RGBA{120, 40, 140, 255}
+	labelCol := color.RGBA{90, 90, 90, 255}
+
+	for i, s := range samples {
+		modTop := margin + i*modH
+
+		// 1) Regular
+		mf, _ := sf.variantFace("regular", size, 0)
+		ctx.SetFont(mf)
+		ctx.SetColor(labelCol)
+		ctx.DrawString(s.label+" Regular", margin, float64(modTop+rowH*0+26))
+		ctx.SetColor(regCol)
+		ctx.DrawString(s.text, labelW, float64(modTop+rowH*0+26))
+
+		// 2) Bold
+		bmf, _ := sf.variantFace("bold", size, 0)
+		ctx.SetFont(bmf)
+		ctx.SetColor(labelCol)
+		ctx.DrawString(s.label+" Bold", margin, float64(modTop+rowH*1+26))
+		ctx.SetColor(boldCol)
+		ctx.DrawString(s.text, labelW, float64(modTop+rowH*1+26))
+
+		// 3) Oblique（有 Oblique 字体用之；无则 Shear 合成并恢复矩阵）
+		omf, _ := sf.variantFace("oblique", size, 0)
+		ctx.SetFont(omf)
+		tag := "Oblique"
+		if sf.oblique == nil {
+			tag = "Oblique(sheared)"
+			// 标签必须先画（Shear 只应作用于主文本，否则斜切的标签灰色
+			// 会扩散覆盖文本区形成「灰块」）。
+			ctx.SetColor(labelCol)
+			ctx.DrawString(s.label+" "+tag, margin, float64(modTop+rowH*2+26))
+			prev := ctx.GetTransform()
+			ctx.Shear(0.3, 0)
+			ctx.SetColor(oblCol)
+			ctx.DrawString(s.text, labelW, float64(modTop+rowH*2+26))
+			ctx.SetTransform(prev)
+		} else {
+			ctx.SetColor(labelCol)
+			ctx.DrawString(s.label+" "+tag, margin, float64(modTop+rowH*2+26))
+			ctx.SetColor(oblCol)
+			ctx.DrawString(s.text, labelW, float64(modTop+rowH*2+26))
+		}
+
+		// 4) Color（绿色常规）
+		cmf, _ := sf.variantFace("regular", size, 0)
+		ctx.SetFont(cmf)
+		ctx.SetColor(labelCol)
+		ctx.DrawString(s.label+" Color", margin, float64(modTop+rowH*3+26))
+		ctx.SetColor(colorCol)
+		ctx.DrawString(s.text, labelW, float64(modTop+rowH*3+26))
+
+		// 5) Vertical（TTB，分列 + 截长防溢出）
+		if s.vert != "" {
+			vmf, _ := sf.variantFace("regular", size, text.DirectionTTB)
+			if vmf != nil {
+				ctx.SetFont(vmf)
+				ctx.SetColor(labelCol)
+				ctx.DrawString(s.label+" Vertical", margin, float64(modTop+rowH*4+26))
+				ctx.SetColor(vertCol)
+				// 分列 X：每语言一列（语言序号递增），列间距 = size*2。
+				colX := float64(1500 + i*int(size)*2)
+				ctx.DrawString(vertClamp(s.vert, size), colX, float64(modTop+rowH*4+26))
+			}
+		}
+	}
 	return ctx
 }
 
@@ -196,32 +293,39 @@ func chainFree() []string {
 
 func langSamples() []langSample {
 	return []langSample{
-		{"Latin", "Hello World — The quick brown fox jumps over 13 lazy dogs", ""},
-		{"Latin ligatures", "Fidelity office — fi ffi fl fft — AVATAR To", ""},
-		{"Cyrillic", "Привет мир — Съешь ещё этих мягких французских булок", ""},
-		{"Greek", "Καλημέρα κόσμε — Ξεσκεπάζω την ψυχοφθόρα βδελυγμία", ""},
-		{"Chinese", "你好，世界。文本渲染引擎支持汉字提示与竖排。", "你好世界，文本渲染！"},
-		{"Japanese", "こんにちは世界 — 漢字かな交じり、ひらがなとカタカナ。", "こんにちは世界。"},
-		{"Korean", "안녕하세요 세계 — 한글 음절 완성형 11172", ""},
-		{"Thai", "สวัสดีชาวโลก — ภาษาไทย ระบบการเขียน", ""},
-		{"Devanagari", "नमस्ते दुनिया — हिन्दी भाषा", ""},
-		{"Bengali", "নমস্কার বিশ্ব — বাংলা ভাষা", ""},
-		{"Tamil", "வணக்கம் உலகம் — தமிழ் மொழி", ""},
-		{"Arabic RTL", "مرحبا بالعالم — اللغة العربية", ""},
-		{"Hebrew RTL", "שלום עולם — עברית", ""},
-		{"Myanmar", "မင်္ဂလာပါ ကမ္ဘာ — မြန်မာစာ", ""},
-		{"Lao", "ສະບາຍດີ ໂລກ — ພາສາລາວ", ""},
+		{"Latin", "Hello World — The quick brown fox", ""},
+		{"Cyrillic", "Привет мир — Съешь ещё булок", ""},
+		{"Greek", "Καλημέρα κόσμε — Ξεσκεπάζω", ""},
+		{"Chinese", "你好，世界。文本渲染引擎。", "你好世界，文本渲染！"},
+		{"Japanese", "こんにちは世界 — かな交じり文", "こんにちは世界。"},
+		{"Korean", "안녕하세요 세계 — 완성형", "안녕하세요 세계"},
+		{"Thai", "สวัสดีชาวโลก — ภาษาไทย", "สวัสดี"},
+		{"Devanagari", "नमस्ते दुनिया — हिन्दी", "हिन्दी"},
+		{"Bengali", "নমস্কার বিশ্ব — বাংলা", "বাংলা"},
+		{"Tamil", "வணக்கம் உலகம் — தமிழ்", "தமிழ்"},
+		{"Arabic", "مرحبا بالعالم — العربية", "مرحبا"},
+		{"Hebrew", "שלום עולם — עברית", "שלום"},
+		{"Myanmar", "မင်္ဂလာပါ — မြန်မာ", "မြန်မာ"},
+		{"Lao", "ສະບາຍດີ — ພາສາລາວ", "ພາສາ"},
 	}
 }
 
-func faceCovers(f text.Face, s string) bool {
-	for _, r := range s {
-		if r == ' ' || r == '\t' || r == '\n' {
-			continue
-		}
-		if !f.HasGlyph(r) {
-			return false
-		}
+// vertClamp 将竖排样本截到模块内能放下的字符数，防止竖排文本纵向溢出
+// 侵入下一模块。可用高 = modH - 竖排行基线偏移；每字高 = size（T TB
+// advance 为 vmtx 高度 ≈ em）。
+func vertClamp(s string, size float64) string {
+	const (
+		modH     = 400
+		rowBaselineOffset = 26
+	)
+	availH := modH - rowBaselineOffset - int(size*1.5)
+	maxChars := availH / int(size)
+	if maxChars < 1 {
+		maxChars = 1
 	}
-	return true
+	runes := []rune(s)
+	if len(runes) <= maxChars {
+		return s
+	}
+	return string(runes[:maxChars])
 }
