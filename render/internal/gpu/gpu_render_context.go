@@ -1888,6 +1888,10 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// deviceGen bumps. Session still holds the released *Device + stale pipeline
 	// pointers → CreateShaderModule "resource already released". Rebuild session.
 	if rc.session != nil && (rc.deviceGen != sharedGen || rc.session.device != device) {
+		// P6/§3.5: device lost / provider switched — drop all resource
+		// bookkeeping without touching native (abandon flow owns teardown),
+		// then destroy the session for a clean rebuild.
+		rc.session.InvalidateForDeviceLoss()
 		rc.session.Destroy()
 		rc.session = nil
 		rc.frameRendered = false

@@ -16,6 +16,21 @@ type Queue struct {
 	released bool
 }
 
+// OnSubmittedWorkDone registers a callback that fires once all GPU work
+// submitted before this call has completed (P6, Skia command-buffer refs).
+// The returned rwgpu Future must be polled (Device.Poll /
+// rwgpu.WaitForFuture) for the callback to fire; the frame path uses the
+// existing BeginFrame vsync/drainQueue sync points instead of blocking.
+func (q *Queue) OnSubmittedWorkDone() (rwgpu.Future, error) {
+	if q == nil || q.released {
+		return rwgpu.Future{}, ErrReleased
+	}
+	if q.r == nil {
+		return rwgpu.Future{}, nil
+	}
+	return q.r.OnSubmittedWorkDone()
+}
+
 // Submit submits command buffers for execution.
 // Returns a submission index that can be used to track completion.
 //

@@ -39,6 +39,9 @@ func (b *Buffer) Label() string {
 	return ""
 }
 
+// Released reports whether Release has been called (diagnostics/tests).
+func (b *Buffer) Released() bool { return b != nil && b.released }
+
 // Release destroys the buffer.
 func (b *Buffer) Release() {
 	if b.released {

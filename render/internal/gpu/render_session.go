@@ -129,6 +129,39 @@ func (q *pendingTexRetire) PendingCount() int {
 	return len(q.views) + len(q.texs)
 }
 
+// pendingBufRetire mirrors pendingTexRetire for buffers retired during
+// grow-only rebuilds: an old buffer may still be referenced by the previous
+// frame's command buffers, so it is released only at the next safe point
+// (BeginFrame / drainQueue), never immediately (P6, v0.4 grow fix).
+type pendingBufRetire struct {
+	bufs []*webgpu.Buffer
+}
+
+// Add queues a retired buffer for deferred release.
+func (q *pendingBufRetire) Add(b *webgpu.Buffer) {
+	if b != nil {
+		q.bufs = append(q.bufs, b)
+	}
+}
+
+// Drain releases every queued buffer (call only when the GPU is done).
+func (q *pendingBufRetire) Drain() {
+	for _, b := range q.bufs {
+		if b != nil {
+			b.Release()
+		}
+	}
+	q.bufs = q.bufs[:0]
+}
+
+// PendingCount returns the number of queued buffers (diagnostics).
+func (q *pendingBufRetire) PendingCount() int {
+	if q == nil {
+		return 0
+	}
+	return len(q.bufs)
+}
+
 // SubmitPathStats records per-frame encode/submit CPU-path counters (S6.2).
 type SubmitPathStats struct {
 	Groups          int
@@ -293,6 +326,18 @@ type GPURenderSession struct {
 	// Resource registry for command views (P3): view registration at queue
 	// time and deferred SourceKey resolution at flush time.
 	resReg *res.Registry
+
+	// Submission tracks in-flight resources until the GPU finishes the
+	// submission (P6). SubmitDone fires at the existing sync points
+	// (BeginFrame vsync/drainQueue; readback Map), never blocking the frame.
+	sub *res.Submission
+	// lastSubmissionIndex is the WGPUSubmissionIndex of the most recent
+	// submit (diagnostics / future fence alignment).
+	lastSubmissionIndex uint64
+
+	// Buffers retired during grow-only rebuilds (P6, v0.4 grow fix):
+	// released at the next safe point, not immediately.
+	pendingBufRetire pendingBufRetire
 
 	// Shape pipelines may be injected from GPUShared (not owned) or created
 	// lazily by ensurePipelines (owned). ownsShapePipelines tracks which.
@@ -584,6 +629,9 @@ func NewGPURenderSession(device *webgpu.Device, queue *webgpu.Queue, sampleCount
 		antiAlias:   true,
 		resReg:      res.NewRegistry(),
 	}
+	// P6: submission-tracked deferred release (in-flight resources survive
+	// until the GPU finishes the submit).
+	s.sub = res.NewSubmission(s.resReg)
 	// P4: rebuild must not immediately destroy old texture views — commands
 	// queued earlier in the frame may still reference them. Route retired
 	// session textures through the deferred-release queue instead.
@@ -591,6 +639,35 @@ func NewGPURenderSession(device *webgpu.Device, queue *webgpu.Queue, sampleCount
 		s.pendingTexRetire.Add(view, tex)
 	}
 	return s
+}
+
+// RetireBuffer hands a buffer to the deferred-release queue (P6 grow fix);
+// released once the GPU has finished the frame that may still reference it.
+func (s *GPURenderSession) RetireBuffer(b *webgpu.Buffer) {
+	if s == nil || b == nil {
+		return
+	}
+	s.pendingBufRetire.Add(b)
+}
+
+// InvalidateForDeviceLoss discards all resource bookkeeping WITHOUT touching
+// native resources (device lost / AutoRecover: the abandon flow owns native
+// teardown, and releaseNativeHandle skips on a sticky-lost device). Mirrors
+// Registry/Cache/Submission.Invalidate (§3.5). Call before Destroy on the
+// device-loss path so no stale bookkeeping outlives the abandoned device.
+func (s *GPURenderSession) InvalidateForDeviceLoss() {
+	if s == nil {
+		return
+	}
+	if s.resReg != nil {
+		s.resReg.InvalidateAll()
+	}
+	if s.sub != nil {
+		s.sub.Invalidate()
+	}
+	s.pendingTexRetire.views = s.pendingTexRetire.views[:0]
+	s.pendingTexRetire.texs = s.pendingTexRetire.texs[:0]
+	s.pendingBufRetire.bufs = s.pendingBufRetire.bufs[:0]
 }
 
 // Reg returns the session's resource registry (P3: view registration and
@@ -770,6 +847,12 @@ func (s *GPURenderSession) BeginFrame() {
 	// barrier or the drainQueue above) — release textures retired by that
 	// frame's rebuilds.
 	s.pendingTexRetire.Drain()
+	// P6: same for buffers retired by grow-only rebuilds, and resolve the
+	// submission's in-flight bookkeeping (fence reached).
+	s.pendingBufRetire.Drain()
+	if s.sub != nil {
+		s.sub.SubmitDone()
+	}
 
 	s.frameRendered = false
 	s.lastView = nil
@@ -2454,7 +2537,7 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 			s.sdfBindGroup = nil
 		}
 		if s.sdfVertBuf != nil {
-			s.sdfVertBuf.Release()
+			s.RetireBuffer(s.sdfVertBuf) // P6 grow fix: previous frame's CBs may still reference it
 		}
 		allocSize := vertSize * 2
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
@@ -2871,7 +2954,7 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 	if s.textVertBuf == nil || s.textVertBufCap < vertSize {
 		s.invalidateTextBindGroups()
 		if s.textVertBuf != nil {
-			s.textVertBuf.Release()
+			s.RetireBuffer(s.textVertBuf) // P6 grow fix
 		}
 		allocSize := vertSize * 2
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
@@ -2896,7 +2979,7 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 	if s.textIdxBuf == nil || s.textIdxBufCap < idxSize {
 		s.invalidateTextBindGroups()
 		if s.textIdxBuf != nil {
-			s.textIdxBuf.Release()
+			s.RetireBuffer(s.textIdxBuf) // P6 grow fix
 		}
 		allocSize := idxSize * 2
 		if allocSize < 256 {
@@ -3123,7 +3206,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	needed := uint64(totalVertBytes) //nolint:gosec // bounded by command count
 	if s.imageVertBuf == nil || s.imageVertBufCap < needed {
 		if s.imageVertBuf != nil {
-			s.imageVertBuf.Release()
+			s.RetireBuffer(s.imageVertBuf) // P6 grow fix
 		}
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
 			Label: "image_vert_buf",
@@ -3197,7 +3280,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	slabRecreated := false
 	if nSlot > 0 && (s.imageUniformSlab == nil || s.imageUniformSlabCap < needSlab) {
 		if s.imageUniformSlab != nil {
-			s.imageUniformSlab.Release()
+			s.RetireBuffer(s.imageUniformSlab) // P6 grow fix (old BG cache dropped below)
 			s.imageUniformSlab = nil
 		}
 		// Grow with headroom so opacity-unique atlas runs do not realloc every frame.
@@ -3455,10 +3538,16 @@ func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
 	}
 	s.lastSubmitStats.Submits++
 	s.lastSubmitStats.CoalescedCBs = len(all)
+	var subIdx uint64
 	err := s.withSubmitErrorScope("submitWithLeading", func() error {
-		_, serr := s.queue.Submit(all...)
+		idx, serr := s.queue.Submit(all...)
+		subIdx = idx
 		return serr
 	})
+	if subIdx > 0 {
+		// P6: retain the submission index for fence alignment / diagnostics.
+		s.lastSubmissionIndex = subIdx
+	}
 	// Free leading CBs immediately (not tracked in prevCmdBufs).
 	for _, c := range leads {
 		if c != nil {
@@ -3754,7 +3843,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	}
 	if *vertBufPtr == nil || *vertCapPtr < needed {
 		if *vertBufPtr != nil {
-			(*vertBufPtr).Release()
+			s.RetireBuffer(*vertBufPtr) // P6 grow fix
 		}
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
 			Label: label,
@@ -3824,7 +3913,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	slabRecreated := false
 	if nSlot > 0 && (s.gpuTexUniformSlab == nil || s.gpuTexUniformSlabCap < needSlab) {
 		if s.gpuTexUniformSlab != nil {
-			s.gpuTexUniformSlab.Release()
+			s.RetireBuffer(s.gpuTexUniformSlab) // P6 grow fix (old BG cache dropped below)
 			s.gpuTexUniformSlab = nil
 		}
 		alloc := needSlab * 2
@@ -4032,7 +4121,7 @@ func (s *GPURenderSession) buildGlyphMaskResources(batches []GlyphMaskBatch) (*g
 		// Note: no bind group invalidation needed here — glyph mask bind groups
 		// reference (uniform, atlas texture, sampler), not vertex/index buffers.
 		if s.glyphMaskVertBuf != nil {
-			s.glyphMaskVertBuf.Release()
+			s.RetireBuffer(s.glyphMaskVertBuf) // P6 grow fix
 		}
 		allocSize := vertSize * 2
 		buf, err := s.device.CreateBuffer(&webgpu.BufferDescriptor{
@@ -4056,7 +4145,7 @@ func (s *GPURenderSession) buildGlyphMaskResources(batches []GlyphMaskBatch) (*g
 	idxSize := uint64(totalQuads * 6 * 2) //nolint:gosec // bounded
 	if s.glyphMaskIdxBuf == nil || s.glyphMaskIdxBufCap < idxSize {
 		if s.glyphMaskIdxBuf != nil {
-			s.glyphMaskIdxBuf.Release()
+			s.RetireBuffer(s.glyphMaskIdxBuf) // P6 grow fix
 		}
 		allocSize := idxSize * 2
 		if allocSize < 256 {
@@ -4483,6 +4572,11 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	// frame (their views were referenced by the submitted command buffer).
 	if s.imageCache != nil {
 		s.imageCache.ReleaseEphemeral()
+	}
+	// P6: the synchronous Map below is a completion barrier; resolve the
+	// submission's in-flight bookkeeping here (readback is done).
+	if s.sub != nil {
+		s.sub.SubmitDone()
 	}
 
 	// Map the staging buffer. Map blocks until the GPU finishes the copy
