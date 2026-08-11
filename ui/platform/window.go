@@ -89,6 +89,16 @@ func newWindow(host Host, kind PlatformKind, ime IME, clip Clipboard, closeFn fu
 	return &Window{host: host, kind: kind, ime: ime, clip: clip, closeFn: closeFn}
 }
 
+// WrapHost wraps an already-implemented Host into a Window, using the host's
+// native surface kind. No capability probing (IME/Clipboard stay nil).
+// Useful for tests and embedding hosts that already implement Host.
+func WrapHost(host Host) *Window {
+	if host == nil {
+		return nil
+	}
+	return newWindow(host, host.NativeSurface().Kind, nil, nil, nil)
+}
+
 // Host returns the window's Host (event pump / size / scale). Never nil for a
 // successfully opened/adopted window.
 func (w *Window) Host() Host {

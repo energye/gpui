@@ -1,4 +1,4 @@
-# 跨平台输入 / IME 分层方案（草案 v0.4）
+# 跨平台输入 / IME 分层方案（草案 v0.5）
 
 > **性质：DRAFT** — 方向收敛中，待确认后转真源。不参与 §R/§W 关闭。  
 > **并读：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)（§3 Host 注入）· [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（§0.3 U3 IME 暂缓可预留 SPI）  
@@ -7,8 +7,9 @@
 > ② 事件抽象出独立层 **`ui/input`** —— 各平台事件类型归一为跨平台一致的统一事件给上层；  
 > ③ 多窗口：入口 **`application.New()`** + **`app.NewWindow()`**；kit 只做控件不建窗口；  
 > ④ 控件层由 **框架统一事件绑定管理**（InputRouter），自定义控件实现统一回调接口即自动接线。  
-> **v0.3（方案 A 第 1 步落地）：** `ui/input` 包已实现（Event/Key 逻辑键表/PointerEvent/Touch/Text/IME/FromPlatform），单测全绿，ui 层编译零回归。  
-> **v0.4（方案 A 第 2 步落地）：** `ui/platform` 后端重写完成——`Window`/`Open`/`Adopt`/后端注册表 + x11/wayland 三分离后端（init 自注册）+ win32/appkit stub 注册 + 能力接口（IME/Clipboard）。示例保持原样（exhost 未动）。
+> **v0.3（方案 A 第 1 步落地）：** `ui/input` 包已实现。  
+> **v0.4（方案 A 第 2 步落地）：** `ui/platform` 后端重写完成（`Window`/`Open`/`Adopt`/注册表 + x11/wayland 三分离 + win32/appkit stub + 能力接口）。  
+> **v0.5（方案 A 第 3 步落地）：** `ui/application` 多窗口应用层已实现——`application.New(Config)` + `app.NewWindow(opts)` + `win.SetRoot(root)` + `app.Run()`/`Quit()`/`Close()`；每窗 = `platform.Window` + `embedder.PipelineApp`（独立 goroutine 事件泵，X11/Wayland/Win 每窗独立连接天然线程安全）；主窗（首个）关闭 → 全部退出；`Config.NewHost` 注入点供测试/嵌入。
 
 ---
 
@@ -26,10 +27,10 @@ L0  platform             平台窗口 + 原生事件采集 + vsync + 能力接�
 
 ---
 
-## 1. 应用模型（多窗口）
+## 1. 应用模型（多窗口，v0.5 已实现）
 
 ```go
-// ui/application（新包）—— 建议入口
+// ui/application（已实现）
 app := application.New(application.Config{
     Name:    "myapp",
     Backend: platform.DisplayAuto,   // x11/wayland/auto；win32/appkit 后置
@@ -39,17 +40,18 @@ winA, err := app.NewWindow(application.WindowOptions{Title: "A", Width: 1200, He
 winB, err := app.NewWindow(application.WindowOptions{Title: "B", Width: 800, Height: 600})
 
 winA.SetRoot(kit.App(/* 控件树，含 Input / ListView … */)) // kit 内容根
-app.Run() // 运行全部窗口事件循环；主窗关闭 → 退出
+app.Run() // 每窗独立事件泵；主窗（首个）关闭 → 全部退出
 ```
 
 | API | 职责 | 说明 |
 |---|---|---|
-| `application.New(cfg)` | 应用级初始化 | 平台后端注册、GPU device 共享策略、全局配置（多窗口共享） |
-| `app.NewWindow(opts)` | **引擎窗口** | 建原生窗 → PresentTarget → RO 根 → InputRouter 自动接线 |
-| `win.SetRoot(root)` | 挂控件树 | kit 控件树作为窗口内容 |
-| `app.Run()` / `app.Quit()` | 多窗口事件泵 | 各窗口 WaitEvents → FromPlatform 归一 → 各窗 InputRouter |
+| `application.New(cfg)` | 应用级初始化 | 后端注册（platform init 已自动）、Clear 色/WarmUp/事件回调等全局配置 |
+| `app.NewWindow(opts)` | **引擎窗口** | platform.Open 建原生窗（或 `Config.NewHost` 注入 host，测试/嵌入）→ 注册 → 首个为主窗 |
+| `win.SetRoot(root)` | 挂控件树 | 构建 embedder.PipelineApp（渲染管线）；Run 前必调 |
+| `win.Host()` / `IME()` / `Clipboard()` | 能力透传 | 经 platform.Window 暴露 |
+| `app.Run()` / `app.Quit()` / `app.Close()` | 多窗口生命周期 | 每窗独立 goroutine 事件泵；主窗关闭 → Quit 全部；Close 幂等 |
 
-**决策：kit 不提供 `kit.NewWindow`。** 理由：窗口 = 平台 + 引擎事务（句柄、PresentTarget、事件泵）；kit 若建窗必然 import `platform`，违反 `kit 永不碰原生` 纪律。kit 提供 `kit.App` 组件作窗口内控件根（对齐 `docs/antd/app.md` 的 message/notification 上下文语义）。
+**决策：kit 不提供 `kit.NewWindow`。** 窗口 = 平台 + 引擎事务；kit 提供 `kit.App` 组件作窗口内控件根（对齐 `docs/antd/app.md`）。
 
 ---
 
@@ -280,7 +282,7 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 |---|---|---|---|---|
 | 1 | `ui/input` 包：统一 Event/逻辑键表/PointerEvent/FromPlatform | 低（纯新类型+转换，不动渲染） | 单测：FromPlatform 各平台→同一语义 | ✅ v0.3 |
 | 2 | `ui/platform` 重写：`Window`/`Open`/`Adopt`/后端注册表（x11/wayland 三分离，win32/appkit stub） | 中（碰原生） | 单测路由全绿；示例未动仍跑 exhost | ✅ v0.4 |
-| 3 | `ui/application` + `app.NewWindow` 多窗口 | 中 | 双窗同跑无串扰 | ⬜ |
+| 3 | `ui/application` + `app.NewWindow` 多窗口 | 中 | 生命周期/主窗/guard 单测绿；GPU 双窗真窗留真窗里程碑 | ✅ v0.5 |
 | 4 | `embedder.InputRouter`：自动路由，示例删手写 HandleEvent | 中 | L2 shell 行为等价 | ⬜ |
 | 5 | `ui/gestures` 多点 + `Event` 触摸归一 | 中 | 双指并行单测 | ⬜ |
 | 6 | `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3` 实证 | 高（真 IME 才算数） | Linux 真跑通 IME | ⬜ |
@@ -306,3 +308,4 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | **v0.2** | **推翻 exhost 演进思路**：① 新增事件抽象层 `ui/input`（平台事件统一跨平台一致给上层）；② 多窗口应用模型 `application.New()` + `app.NewWindow()`，kit 不建窗口只出 `kit.App` 内容根；③ `ui/platform` 持后端起**重写**为注册表 + 三分离（建窗/事件/能力）；④ `ui/gestures`/`ui/focus` 改消费 `input` 统一类型。 |
 | **v0.3** | **方案 A 第 1 步落地**：`ui/input` 包实现（`event.go`/`keys.go`/`pointer.go`/`ime.go`/`fromplatform.go`），单测 16 项全绿，`go build ./ui/...` + 相关包回归零失败。下一步：第 2 步 `ui/platform` 重写。 |
 | **v0.4** | **方案 A 第 2 步落地**：`ui/platform` 后端重写——`Window`/`Open`/`Adopt`（`window.go`）+ 后端注册表（`backend.go`）+ x11/wayland 三分离后端（`init()` 自注册）+ win32/appkit stub 注册 + `IME`/`Clipboard` 能力接口（`ime.go`）。`PlatformNone=-1` 独立 const 不扰动 iota，`TestPlatformKindValuesStable` 锁 ABI。示例保持原样（exhost 未动）。ui 层 14 包回归全绿。下一步：第 3 步 `ui/application` 多窗口。 |
+| **v0.5** | **方案 A 第 3 步落地**：`ui/application` 多窗口应用层——`New(Config)`/`NewWindow(opts)`/`SetRoot(root)`/`Run()`/`Quit()`/`Close()`；每窗 = `platform.Window` + `embedder.PipelineApp` 独立 goroutine 事件泵；主窗关闭 → 全部退出；`Config.NewHost` 注入点（测试/嵌入）。`platform.WrapHost` 供宿主复用。生命周期/主窗/guard 单测全绿，ui 层 14 包回归全绿。GPU 双窗真窗验证留真窗里程碑。下一步：第 4 步 `embedder.InputRouter`。 |
