@@ -1,3 +1,9 @@
+## git 提交纪律（硬）
+
+- **只提交自己本次改动的文件**：用 `git status` 对照改动清单，只 `git add` 本次会话我创建/修改的文件；工作区里其他线的工作（其他会话/他人遗留的未提交改动）**禁止一并提交**、禁止 `git add .` / `git add -A` / `git commit -am`。
+- 提交前先 `git diff --stat` 确认清单，若发现无关改动，分文件提交并向用户说明哪些留给了哪条线。
+- 未推送的本地提交不算完成同步；推送动作需用户确认。
+
 ## 技能执行规则
 
 - 所有 skill（wr-debug / wr-engine / wr-close / wr-rewrite / wr-implement / metrics-audit）的「停下报告」节点必须停，用 `question` 工具问用户确认方向后再继续，禁止跳过或自决。
