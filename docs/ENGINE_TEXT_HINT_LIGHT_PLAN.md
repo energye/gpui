@@ -408,4 +408,44 @@ ftexp（FT_LOAD_TARGET_LIGHT）位图 vs 自研 GlyphMaskRasterizer 位图
 
 ---
 
+## 13. C 阶段源码级审计修订表（2026-08-11，全函数逐行对照 FT 2.11.1）
+
+> Raster-FT-ALIGN 阶段 C：C1 逐文件审计 → C2 结论落本表 → C3 单 mask 扫描。
+> 审计方式：8 个只读子代理并行逐行对照 + 关键偏差手工复核；行号经 grep -n 核实。
+> 判定：✅一致 / ⚠️偏差（含 `未验证`=现有矩阵未暴露）/ ❌缺失。
+
+### 13.1 总体结论（一段话）
+
+主渲染路径（cf2 Bluse/HintMap、Type2 解释器合法字形、autofit 弱标记三 pass/段/链接/对齐/IUP、TT 全部分派与 opcode 组、接线路由与 26.6 直通）与 FT 2.11.1 **语义一致**，且被 M0–M5 + B1/B2 全矩阵 bad=0 实证。审计发现的偏差集中在**边角分支、畸形字体路径、非默认模式**，其中 4 项影响明确的潜伏洞已修复（§13.2），其余记录在案（§13.3）。
+
+### 13.2 已修复（2026-08-11，均实证对照 + 回归全绿）
+
+| # | 洞 | Go 位置 | FT 行 | 差异 | 修复 | 回归 |
+|---|---|---|---|---|---|---|
+| F1 | cf2DivFix 符号丢失 | psh_light.go `cf2DivFix` | ftcalc.c:252-271 | FT_MOVE_SIGN 保留符号（负负得正）、b==0 返 0x7FFFFFFF；Go 取绝对值**不复号**、0 除返 0。现调用点恒非负未触发 | 加 s 符号恢复 + 0 除哨兵 | hint 包 M2/M3/CFF2 全窗 PASS |
+| F2 | DELTAC 弹出顺序反转 | tt_ops_flow.go `opDeltac` | ttinterp.c:7317-7320 | FT 栈顶=cvtIdx、下层=arg（DELTAP 是栈顶=point 的反向布局）；Go 先弹 arg 后弹 cvtIdx，两变量互换 | 先弹 cvtIdx 再弹 arg | wqy full composite px12/16 bad=0、B1 B2 全绿 |
+| F3 | RTHG 负值钳位 | tt_round.go `ttRoundHalfGrid` | ttinterp.c:2042-2066 | FT HalfGrid 钳 ±32，Go 钳 0（其他模式才钳 0）。FT 2.11 compensation 恒 0（ttobjs.c:1172-1175）→ 现不可达，语义对齐 | 钳位改 ±32 | TT golden + full scan PASS |
+| F4 | SHZ 移 phantom 点 | tt_ops_outline.go `opShz` | ttinterp.c:5695-5720 | FT 对 glyph zone 只移 `contours[last]+1`（不动度量 phantom）、twilight 移全部；Go 无差别全移 | 按 zone 限位 | full composite bad=0 |
+
+### 13.3 记录在案的偏差（未修，按组）
+
+**autofit（③）— A 类（主链路可疑）**：A1 computeDirectionsPass 全 near 提前返回 vs FT 顺移 first 继续（afhints.c:1104-1168）；A2 跳过 2 点 contour（afhints.c:1125-1170）；A3 unify 分支 round 清位条件（aflatin.c:1768-1773）；A4 discard 长度用合并后 vs 陈旧 prev（aflatin.c:1782）；A5 segLenThreshold 用 x_scale 非 y_scale + 浮点截断（aflatin.c:2183-2185）；A6 computeBlueEdges round overshoot 缺 `!is_neutral`（aflatin.c:2618-2621）；A7/A8 不设 AF_EDGE_NEUTRAL + 缺双蓝区丢中性（aflatin.c:2645-2648/3089-3104）；A9 Default 组缺 lowercase-m 对称（aflatin.c:3398-3446）；A10 computeDefaultBlues 缺 NEUTRAL round 跳过（aflatin.c:869-878）；A11 computeCJKBlues 缺 overshoot 校正（afcjk.c:529-548）；A12 宽度量化簇均值 vs 首值（afhints.c:92-118）；A13 computeStemWidth serif 豁免缺 vertical（aflatin.c:2814）。
+**autofit（③）— B 类（light 无影响/条件）**：score 浮点 vs 整数除法平局翻转（aflatin.c:2099）、段>1000 return nil、FT_Short 截断未模拟、edgeFlagSerif 从不设、alignLinkedEdge 不传 base_delta、LONG 退化方向、satisfiesMinLongSegmentLen 回绕。
+**autofit（③）— C 类（数据/设计）**：scriptCJK 缺 Ext B–F 6 段（结果等价）、latb/latp 脚本缺失（上/下标落 CJK fallback，FT 走 latin 独立蓝区）、N'Ko 表空（先被 arab 占）、AF_DIGIT 缺失、detectFontScript 死代码 + 0-glyph 返 Adlam、scriptForGlyph 越界返 CJK vs FT 错误、生成脚本蓝区数据源为 skrifa JSON 未逐条核对 afblue.c（≈40 脚本待核）。
+**CFF Type2（①）**：maxCSDepth 10 vs FT 16（CFF_MAX_SUBRS_CALLS，注释错引 CFF_MAX_OPERANDS）；mask-break 保留栈 vs FT 清栈（psintrp.c:3029）；Type2 算术/逻辑操作符 12 3-30 整组缺失（畸形字报错 vs FT 实现）；curMask 不跨 subr；endchar 后继续解释；width 无 defaultWidthX 兜底；blend 负 n panic + 无栈/指令上限；非 CFF2 vsindex/blend 行为；lineTo 零长 1/64 量化 vs 16.16 精确；M5 门禁对照源为 go-text 非 FT。
+**cf2（②）**：cf2F16 负数 half-away（CFF2 blend 差 1/65536）；emBox 判定 float vs fixed（非整数 BlueValues 可反）；hintInit 缺 seac hintOrigin；insertHint 缺 192 边上限（pshints.c:763-766）；initial 图起建时机；暗化休眠差异；X 轴缺 scaleC/亚像素 + degenerate 单点轮廓保留。
+**TT（④）**：SHC 不跳参考点（ttinterp.c:5671）；ALIGNPTS zone 互换（:6648-6651，跨 zone 才错）；AA 不弹栈（Pop_Push_Count[0x7F]）；SCANCTRL/SCANTYPE/INSTCTRL 简化；GETINFO 缺 bit5；GETVARIATION 推 16.16 vs FT 2.14；JMPR/SLOOP 边界；错误回退（FT 保部分 hint vs Go 整字回退）；fdotp 0x400 钳制；twilight 点数不截断；loop `100*numGlyphs` 上限。
+**路由（⑤）**：CJK+HintingFull（无字节码）advance 调 H 边 vs FT 无条件 NO_ADVANCE（afcjk.c:1424）；斜体面无 NO_HORIZONTAL；tricky 字体无检测；静态 draw 路径 CFF 未接 26.6 直通（仅变体接）；建议 ftexp 窗加 libfreetype 版本探针。
+
+### 13.4 文档与代码不符项（C2 点名内容）
+
+1. **`render/text/hint/hint.go` 不存在**：文档多处引用 hint 包 `Engine.Hint`——实际是 `render/text/light_engine.go:37` 的早期验证壳（`hintLatinLight` 是 stub 原样返回、`hintAfcjk` 仍是 M0 硬编码 816），生产链不走它，仅 fdiff/hint_test 用。
+2. **light_engine.go:10-18 头注释陈旧**：「TT 字节码 light 走 tt 解释器 light 语义」与 2.11.1 实测矛盾（LIGHT→autohinter，见 §3 L0 行）。
+3. **cffcs.go 头注释写 2.14.3/cffdecode.c**：实际对照/运行库 2.11.1，且默认 CFF 引擎是 Adobe cf2（psintrp.c），cffdecode.c 仅旧引擎。
+4. **psh_light.go 头注释写 2.14.3**：同 ③，行号引用应改为 2.11.1 实测。
+5. **Go 注释中 FT 行号普遍偏旧**（更像 skrifa/新版 FT）：如 autohint_edges.go 引 aflatin.c:2154/4220/3111/3356/3477 在 2.11.1 实为 2138/3036/3150/3364/3518；cf2DivFix 注释「向零舍入」实为符号恢复。
+6. **autohint 文件位置**：文档 §3 架构写 autohint_*.go 在 `hint/` 下，实际在 `render/text/` 顶层。
+
+---
+
 

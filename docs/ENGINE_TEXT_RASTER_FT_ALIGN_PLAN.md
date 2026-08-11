@@ -1,6 +1,6 @@
 # 文本渲染 FT 全对齐计划（Raster-FT-ALIGN）
 
-**状态**: **阶段 B 完成**（2026-08-09 阶段 A 完成；B1a CFF 扫描升级 → B1b autohint 26.6 直通 → B1c TTF 矩阵 ✅ → B2 位图矩阵 ✅，2026-08-11 B 验收全矩阵 bad=0）
+**状态**: **阶段 C 完成**（2026-08-11：C1 五组源码审计 + C2 修订表落 ENGINE_TEXT_HINT_LIGHT_PLAN.md §13 + C3 单 mask 扫描窗；四洞修复 cf2DivFix/DELTAC/RTHG/SHZ；回归 PASS=110/0/0 含 hint 子包）
 **目标**: ①光栅器与 FT `smooth/ftgrays.c` **逐字节一致**；②8–72px 全字号 × 全字集 × 全字体验证矩阵；③M0–M5 实现方式源码级审计（不信文档）。
 **对照基准**: 本地 FT 2.11.1 源码 `/home/yanghy/app/projects/gogpu/freetype-2.11.1/` + `ftexp` 二进制（purego 调系统 libfreetype 2.11.1）。
 
@@ -153,7 +153,7 @@
 - C2：审计结论落 `docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md` 修订表（含与文档不符的修正）。
 - C3：扫描补单 mask 字形集（hintmaskCount≤1 也进扫描）。
 
-**C 验收**: 审计逐项结论 + 修订表；单 mask 扫描窗 bad=0。
+**C 验收（2026-08-11 达成）**: 审计逐项结论 + 修订表（`docs/ENGINE_TEXT_HINT_LIGHT_PLAN.md` §13，含四修复 F1–F4 与全部未验项）；单 mask 扫描窗 bad=0（`zz_scan_m3_singlemask_test`，786 字 × 6 字号）；全量回归 `PASS=110 FAIL=0 SKIP=0`（扩展脚本覆盖 hint 子包）。
 
 ---
 
