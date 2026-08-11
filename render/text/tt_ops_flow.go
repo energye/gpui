@@ -665,11 +665,16 @@ func (e *ttEngine) opDeltac(opcode byte) error {
 		return err
 	}
 	for i := 0; i < count; i++ {
-		arg, err := e.valueStack.pop()
+		// FreeType Ins_DELTAC (ttinterp.c:7317-7320) reads the top of
+		// stack as the CVT index and the value below it as the delta
+		// arg — i.e. fonts push (arg, cvtIdx) with cvtIdx on top,
+		// opposite to DELTAP's (arg, point) layout. The old code popped
+		// arg first, swapping the two.
+		cvtIdx, err := e.valueStack.popUsize()
 		if err != nil {
 			return err
 		}
-		cvtIdx, err := e.valueStack.popUsize()
+		arg, err := e.valueStack.pop()
 		if err != nil {
 			return err
 		}

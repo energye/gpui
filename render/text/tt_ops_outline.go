@@ -1073,7 +1073,17 @@ func (e *ttEngine) opShz(opcode byte) error {
 	}
 	displacement := e.graphics.project(rpPt[0], rpPt[1], rpOrig[0], rpOrig[1])
 	z := e.zone(zp)
-	for i := 0; i < len(z.points); i++ {
+	// FreeType Ins_SHZ (ttinterp.c:5695-5720) does NOT move the
+	// phantom points: for a glyph-zone target it shifts only
+	// contours[last]+1 points (the real outline), for the twilight
+	// zone it shifts all n_points, and otherwise nothing.
+	var limit int
+	if zp == ttZoneTwilight {
+		limit = len(z.points)
+	} else if zp == ttZoneGlyph && len(z.contours) > 0 {
+		limit = int(z.contours[len(z.contours)-1]) + 1
+	}
+	for i := 0; i < limit; i++ {
 		if err := z.movePoint(&e.graphics, i, displacement); err != nil {
 			return err
 		}

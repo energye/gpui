@@ -70,17 +70,22 @@ func (rs *ttRoundState) round(distance int32) int32 {
 		return r
 
 	case ttRoundHalfGrid:
-		// Reference: skrifa hint/round.rs:79-85
+		// Reference: skrifa hint/round.rs:79-85; FreeType
+		// Round_To_Half_Grid (ttinterp.c:2042-2066) clamps the
+		// near-zero result to ±32 (half grid), not 0 — the other
+		// round modes clamp to 0. FT 2.11 sets all compensations to
+		// 0 (ttobjs.c:1172-1175) so the clamp branch is unreachable
+		// in practice, but keep FT semantics for correctness.
 		if distance >= 0 {
 			r := ttFloor26Dot6(distance) + 32
 			if r < 0 {
-				return 0
+				return 32
 			}
 			return r
 		}
 		r := -(ttFloor26Dot6(-distance) + 32)
 		if r > 0 {
-			return 0
+			return -32
 		}
 		return r
 

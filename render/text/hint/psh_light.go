@@ -54,18 +54,30 @@ func cf2MulFix(a, b cf2Fixed) cf2Fixed {
 	return cf2Fixed(ab >> 16)
 }
 
-// cf2DivFix：FT_DivFix（ftcalc.h，向零舍入）。
+// cf2DivFix：FT_DivFix（ftcalc.c:252-271，符号恢复 + 0 除哨兵）。
+// FT_MOVE_SIGN 在取绝对值时翻转符号（负负得正），最终结果带符号；
+// b==0 时 FT 返回 0x7FFFFFFF（负 s 下取负）。旧实现丢符号且 0 除返 0，
+// 当前调用点分子均非负未触发，但语义与 FT 不符，按 FT 修正。
 func cf2DivFix(a, b cf2Fixed) cf2Fixed {
+	s := 1
 	if a < 0 {
 		a = -a
+		s = -s
 	}
 	if b < 0 {
 		b = -b
+		s = -s
 	}
 	if b == 0 {
-		return 0
+		if s < 0 {
+			return -cf2Fixed(0x7FFFFFFF)
+		}
+		return cf2Fixed(0x7FFFFFFF)
 	}
 	q := (int64(a)<<16 + int64(b)/2) / int64(b)
+	if s < 0 {
+		return -cf2Fixed(q)
+	}
 	return cf2Fixed(q)
 }
 
