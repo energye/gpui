@@ -187,13 +187,17 @@ type bindGroupEntryWire struct {
 	TextureView uintptr // WGPUTextureView (nullable)
 }
 
-// validateBindGroupEntries returns an error when any non-nil entry references
-// a released resource (handle == 0). Passing such an entry to wgpu-native
-// panics in conv.rs ("invalid bind group entry") instead of surfacing a
-// catchable validation error; this check turns that into a Go error (P2).
+// validateBindGroupEntries returns an error when any entry declares a binding
+// with no resource at all, or references a released resource (handle == 0).
+// Passing such entries to wgpu-native panics in conv.rs ("invalid bind group
+// entry") instead of surfacing a catchable validation error; this check turns
+// that into a Go error (P2).
 func validateBindGroupEntries(entries []BindGroupEntry) error {
 	for i := range entries {
 		e := &entries[i]
+		if e.Buffer == nil && e.Sampler == nil && e.TextureView == nil {
+			return &WGPUError{Op: "CreateBindGroup", Message: fmt.Sprintf("entry %d (binding %d): no resource bound", i, e.Binding)}
+		}
 		switch {
 		case e.Buffer != nil && e.Buffer.handle == 0:
 			return &WGPUError{Op: "CreateBindGroup", Message: fmt.Sprintf("entry %d (binding %d): buffer handle is 0 (released/stale)", i, e.Binding)}

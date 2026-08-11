@@ -11,11 +11,14 @@
 //
 // The package is pure Go: it never touches wgpu directly. Native resources
 // are abstracted behind the [Native] interface so everything is unit-testable
-// without a GPU.
+// without a GPU. View.Raw is the only opaque-pointer escape hatch, used for
+// queue-time fallback registration.
 //
 // Concurrency: instances are NOT thread-safe, matching the serialized
 // GPU render path (one GPURenderContext at a time).
 package res
+
+import "unsafe"
 
 // Kind identifies the kind of GPU resource a handle refers to.
 type Kind uint8
@@ -68,26 +71,34 @@ func (k SourceKey) IsNil() bool {
 	return k.Kind == 0 && k.Role == 0 && k.Index == 0
 }
 
-// View is the texture reference carried by draw commands. It has two states,
+// View is the texture reference carried by draw commands. It has three states,
 // mirroring GrSurfaceProxy's deferred vs instantiated forms:
 //   - Deferred: Key is set → the view is resolved at flush time to the
 //     current active instance (never a stale snapshot).
 //   - Direct: Key is nil and Ref is set → a strong reference to a specific
 //     resource (rc-owned temporaries); the resource is guaranteed alive
 //     through the command's lifetime.
+//   - Raw (queue-time fallback): Key and Ref are nil but Raw carries the
+//     opaque view pointer captured when no registry existed yet (first frame
+//     / after a device rebuild). The consumer registers it at flush time.
 //
 // Commands must Release any Direct Ref after consumption (frame end).
 type View struct {
-	Key SourceKey // nonzero → deferred resolution
-	Ref Ref       // used when Key is nil
+	Key SourceKey     // nonzero → deferred resolution
+	Ref Ref           // used when Key is nil
+	Raw unsafe.Pointer // used when both Key and Ref are nil (queue-time fallback)
 }
 
 // IsNil reports whether the View is the zero value (no texture).
-func (v View) IsNil() bool { return v.Key.IsNil() && v.Ref.IsNil() }
+func (v View) IsNil() bool { return v.Key.IsNil() && v.Ref.IsNil() && v.Raw == nil }
 
 // Equals reports whether two Views reference the same logical texture:
-// identical deferred keys or identical direct registry ids.
+// identical deferred keys, identical direct registry ids, or the same raw
+// pointer (queue-time fallback).
 func (v View) Equals(o View) bool {
+	if v.Raw != nil || o.Raw != nil {
+		return v.Raw == o.Raw
+	}
 	if !v.Key.IsNil() || !o.Key.IsNil() {
 		return v.Key == o.Key
 	}
@@ -97,7 +108,7 @@ func (v View) Equals(o View) bool {
 	return v.Ref.id == o.Ref.id && v.Ref.reg == o.Ref.reg
 }
 
-// RefID returns the direct-reference registry id (0 for deferred/nil views).
+// RefID returns the direct-reference registry id (0 for deferred/raw views).
 func (v View) RefID() uint32 {
 	if v.Ref.IsNil() {
 		return 0
@@ -110,3 +121,7 @@ func ViewFromKey(k SourceKey) View { return View{Key: k} }
 
 // ViewFromRef builds a direct (strongly referenced) View.
 func ViewFromRef(r Ref) View { return View{Ref: r} }
+
+// ViewFromRaw builds a queue-time fallback View carrying the opaque view
+// pointer; the consumer registers it once a registry is available.
+func ViewFromRaw(p unsafe.Pointer) View { return View{Raw: p} }

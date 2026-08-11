@@ -1073,9 +1073,17 @@ func (rc *GPURenderContext) queueImageCmd(target render.GPURenderTarget, cmd Ima
 // registry and returns a strong res.View (P3). The registered Ref is released
 // by the consumer (buildGPUTextureResources) once the command is drawn, so
 // the view stays alive from queue time to flush — never a bare pointer.
+//
+// When the session does not exist yet (first frame, or right after a device
+// rebuild where the session is re-created inside Flush), registration is
+// deferred: the raw view pointer is carried in the View and registered by
+// the consumer at resolution time (BUG fix: never drop the draw).
 func (rc *GPURenderContext) viewToResView(view gpucontext.TextureView) res.View {
-	if rc == nil || view.IsNil() || rc.session == nil || rc.session.Reg() == nil {
+	if rc == nil || view.IsNil() {
 		return res.View{}
+	}
+	if rc.session == nil || rc.session.Reg() == nil {
+		return res.ViewFromRaw(view.Pointer())
 	}
 	if v := extractTextureView(view); v != nil {
 		return res.ViewFromRef(rc.session.Reg().Register(&texViewNative{v}))

@@ -14,6 +14,7 @@ func TestValidateBindGroupEntriesRejectsZeroHandles(t *testing.T) {
 		{"buffer handle 0", []BindGroupEntry{{Binding: 0, Buffer: &Buffer{}}}},
 		{"sampler handle 0", []BindGroupEntry{{Binding: 2, Sampler: &Sampler{}}}},
 		{"texture view handle 0", []BindGroupEntry{{Binding: 1, TextureView: &TextureView{}}}},
+		{"no resource bound", []BindGroupEntry{{Binding: 3}}},
 		{"mixed with one stale view", []BindGroupEntry{
 			{Binding: 0, Buffer: &Buffer{handle: 0x1234}},
 			{Binding: 1, TextureView: &TextureView{}}, // released → 0

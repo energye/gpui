@@ -698,6 +698,17 @@ func (s *GPURenderSession) ResolveCommandView(view *res.View) (*webgpu.TextureVi
 		defer s.resReg.Release(ref)
 		return s.commandViewOf(ref), true
 	}
+	if view.Raw != nil {
+		// Queue-time fallback (session was nil at queue time): register now
+		// that the session exists, resolve, and release the transient ref.
+		tv := (*webgpu.TextureView)(view.Raw)
+		if tv == nil {
+			return nil, false
+		}
+		ref := s.resReg.Register(&texViewNative{tv})
+		defer s.resReg.Release(ref)
+		return s.commandViewOf(ref), true
+	}
 	return s.commandViewOf(view.Ref), true
 }
 
@@ -772,8 +783,9 @@ func (s *GPURenderSession) SetSurfaceTarget(view *webgpu.TextureView, width, hei
 		}
 		s.textures.destroyTextures()
 		// GPU was drained above (or nothing in flight): safe to release the
-		// textures retired by this rebuild immediately (P4).
+		// textures and grow-retired buffers immediately (P4/P6).
 		s.pendingTexRetire.Drain()
+		s.pendingBufRetire.Drain()
 	}
 
 	// Detect new frame: swapchain creates a new TextureView each frame
@@ -1671,8 +1683,9 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
 	s.textures.destroyTextures()
-	// GPU drained above: release anything retired by this purge now (P4).
+	// GPU drained above: release anything retired by this purge now (P4/P6).
 	s.pendingTexRetire.Drain()
+	s.pendingBufRetire.Drain()
 	s.surfaceView = nil
 	s.surfaceWidth = 0
 	s.surfaceHeight = 0
@@ -1748,8 +1761,9 @@ func (s *GPURenderSession) Destroy() {
 		s.textPipeline = nil
 	}
 	s.textures.destroyTextures()
-	// GPU drained above: release anything retired during teardown now (P4).
+	// GPU drained above: release anything retired during teardown now (P4/P6).
 	s.pendingTexRetire.Drain()
+	s.pendingBufRetire.Drain()
 	// P3: drop command-view registry entries (idempotent; device-loss teardown
 	// goes through abandon → InvalidateAll, not here).
 	if s.resReg != nil {

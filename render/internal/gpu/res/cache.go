@@ -123,8 +123,11 @@ func (c *Cache) OnSubmissionFinished() {
 			continue
 		}
 		if s.refs == 0 && s.inflight == 0 && !s.retire {
-			key, _ := c.keyOf[id]
-			c.repool(id, key)
+			if key, ok := c.keyOf[id]; ok {
+				c.repool(id, key)
+			}
+			// Defensive: entry without a cache key stays in the registry
+			// (its owner decides lifetime); nothing to pool here.
 		}
 	}
 	c.pending = c.pending[:0]
