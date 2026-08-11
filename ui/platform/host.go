@@ -7,6 +7,9 @@ import "time"
 // PlatformKind identifies the window system used for NativeSurface handles.
 type PlatformKind int
 
+// PlatformNone is the unset PlatformKind (not a real window system).
+const PlatformNone PlatformKind = -1
+
 const (
 	// PlatformX11 is Linux Xlib (Display* + Window).
 	PlatformX11 PlatformKind = iota
@@ -21,6 +24,8 @@ const (
 // String implements fmt.Stringer.
 func (k PlatformKind) String() string {
 	switch k {
+	case PlatformNone:
+		return "none"
 	case PlatformX11:
 		return "x11"
 	case PlatformWayland:

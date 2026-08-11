@@ -1,4 +1,4 @@
-# 跨平台输入 / IME 分层方案（草案 v0.3）
+# 跨平台输入 / IME 分层方案（草案 v0.4）
 
 > **性质：DRAFT** — 方向收敛中，待确认后转真源。不参与 §R/§W 关闭。  
 > **并读：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)（§3 Host 注入）· [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（§0.3 U3 IME 暂缓可预留 SPI）  
@@ -7,7 +7,8 @@
 > ② 事件抽象出独立层 **`ui/input`** —— 各平台事件类型归一为跨平台一致的统一事件给上层；  
 > ③ 多窗口：入口 **`application.New()`** + **`app.NewWindow()`**；kit 只做控件不建窗口；  
 > ④ 控件层由 **框架统一事件绑定管理**（InputRouter），自定义控件实现统一回调接口即自动接线。  
-> **v0.3（方案 A 第 1 步落地）：** `ui/input` 包已实现（Event/Key 逻辑键表/PointerEvent/Touch/Text/IME/FromPlatform），单测 16 项全绿，ui 层编译零回归。
+> **v0.3（方案 A 第 1 步落地）：** `ui/input` 包已实现（Event/Key 逻辑键表/PointerEvent/Touch/Text/IME/FromPlatform），单测全绿，ui 层编译零回归。  
+> **v0.4（方案 A 第 2 步落地）：** `ui/platform` 后端重写完成——`Window`/`Open`/`Adopt`/后端注册表 + x11/wayland 三分离后端（init 自注册）+ win32/appkit stub 注册 + 能力接口（IME/Clipboard）。示例保持原样（exhost 未动）。
 
 ---
 
@@ -201,19 +202,23 @@ type Event struct {
 }
 ```
 
-### 3.3 后端重写落点
+### 3.3 后端重写落点（v0.4 已实现）
 
-| 文件 | 内容 |
-|---|---|
-| `ui/platform/window.go` | 新增：`Window`/`Open`/`Adopt`/注册表 |
-| `ui/platform/x11_linux.go` | **重写**（非搬 exhost）：建窗与读事件分离、事件解析独立函数、XIM 能力探测 |
-| `ui/platform/wayland_linux.go` | **重写**：wl 事件循环 + `zwp_text_input_v3` 绑定 |
-| `ui/platform/win32_windows.go` | stub（接口齐） |
-| `ui/platform/appkit_darwin.go` | stub（接口齐） |
-| `ui/platform/ime.go` | 能力接口定义 |
-| `ui/platform/stub_host.go` | 保留（测试宿主） |
+| 文件 | 内容 | 状态 |
+|---|---|---|
+| `ui/platform/window.go` | `Window`/`Open`/`Adopt`（默认尺寸、Close 幂等、能力 getter） | ✅ |
+| `ui/platform/backend.go` | `Backend` 接口 + `Register`/`backendFor`/`registeredKinds` + `toPlatformKind` | ✅ |
+| `ui/platform/x11_linux.go` | X11 后端重写：`x11Backend.Create/Adopt` + `x11Host` 事件泵 + 事件解析独立函数，`init()` 自注册 | ✅ |
+| `ui/platform/wayland_linux.go` | Wayland 后端重写：`waylandBackend.Create`（Adopt 明确不支持，嵌入里程碑）+ `wlHost` 事件泵，`init()` 自注册 | ✅ |
+| `ui/platform/win32_windows.go` | stub 注册（Create/Adopt 报 not implemented） | ✅ |
+| `ui/platform/appkit_darwin.go` | stub 注册（Create/Adopt 报 not implemented） | ✅ |
+| `ui/platform/ime.go` | `IME`/`Clipboard`/`Rect` 能力接口 | ✅ |
+| `ui/platform/host.go` | `PlatformNone=-1` 独立 const（不扰动 iota；`PlatformX11==0` ABI 锁定） | ✅ |
+| `ui/platform/stub_host.go` | 保留（测试宿主） | ✅ |
 
-`examples/exhost` 作废（删除或退化薄转发壳，22 窗迁 `application.New`，方式待定）。
+`examples/exhost` **未动**（用户指示示例保持原样）；作废/迁移留到 application 里程碑。
+
+**验证：** `TestPlatformKindValuesStable` 锁 PlatformX11==0 等 ABI；`TestRegister*`/`TestOpen*`/`TestAdopt*`/`TestWindow*` 覆盖注册表路由、Open/Adopt 分发、Close 幂等、能力 nil 降级。ui 层 14 包回归全绿。
 
 ---
 
@@ -274,7 +279,7 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | 步 | 内容 | 风险 | 判定 | 状态 |
 |---|---|---|---|---|
 | 1 | `ui/input` 包：统一 Event/逻辑键表/PointerEvent/FromPlatform | 低（纯新类型+转换，不动渲染） | 单测：FromPlatform 各平台→同一语义 | ✅ v0.3 |
-| 2 | `ui/platform` 重写：`Window`/`Open`/`Adopt`/后端注册表（x11/wayland 重写，三分离） | 中（碰原生） | 22 窗跑通即可回退 | ⬜ |
+| 2 | `ui/platform` 重写：`Window`/`Open`/`Adopt`/后端注册表（x11/wayland 三分离，win32/appkit stub） | 中（碰原生） | 单测路由全绿；示例未动仍跑 exhost | ✅ v0.4 |
 | 3 | `ui/application` + `app.NewWindow` 多窗口 | 中 | 双窗同跑无串扰 | ⬜ |
 | 4 | `embedder.InputRouter`：自动路由，示例删手写 HandleEvent | 中 | L2 shell 行为等价 | ⬜ |
 | 5 | `ui/gestures` 多点 + `Event` 触摸归一 | 中 | 双指并行单测 | ⬜ |
@@ -300,3 +305,4 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | v0.1 | DRAFT：`ui/platform` 统一管窗口+事件；控件层框架统一事件绑定（InputRouter）；四类输入分层；IME 能力接口。 |
 | **v0.2** | **推翻 exhost 演进思路**：① 新增事件抽象层 `ui/input`（平台事件统一跨平台一致给上层）；② 多窗口应用模型 `application.New()` + `app.NewWindow()`，kit 不建窗口只出 `kit.App` 内容根；③ `ui/platform` 持后端起**重写**为注册表 + 三分离（建窗/事件/能力）；④ `ui/gestures`/`ui/focus` 改消费 `input` 统一类型。 |
 | **v0.3** | **方案 A 第 1 步落地**：`ui/input` 包实现（`event.go`/`keys.go`/`pointer.go`/`ime.go`/`fromplatform.go`），单测 16 项全绿，`go build ./ui/...` + 相关包回归零失败。下一步：第 2 步 `ui/platform` 重写。 |
+| **v0.4** | **方案 A 第 2 步落地**：`ui/platform` 后端重写——`Window`/`Open`/`Adopt`（`window.go`）+ 后端注册表（`backend.go`）+ x11/wayland 三分离后端（`init()` 自注册）+ win32/appkit stub 注册 + `IME`/`Clipboard` 能力接口（`ime.go`）。`PlatformNone=-1` 独立 const 不扰动 iota，`TestPlatformKindValuesStable` 锁 ABI。示例保持原样（exhost 未动）。ui 层 14 包回归全绿。下一步：第 3 步 `ui/application` 多窗口。 |
