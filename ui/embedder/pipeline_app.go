@@ -23,6 +23,11 @@ type PipelineOptions struct {
 	RunFor    time.Duration
 	// OnEvent optional.
 	OnEvent func(ev platform.Event)
+	// Input is the optional unified event router (plan §4). When set,
+	// pointer/key events are normalized and routed automatically via the
+	// router; the per-example OnEvent input handling is not needed. Windows
+	// without Input keep the existing OnEvent path unchanged.
+	Input *InputRouter
 	// WarmUp runs one full paint before the loop (F11).
 	WarmUp bool
 	// Overlay is the optional F13 overlay stack (P5d). Hit-test is overlay-first.
@@ -314,6 +319,10 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 			MaxArea: opts.SaveLayerMaxArea,
 		}
 	}
+	// Wire the unified input router to this app's hit-test (plan §4).
+	if opts.Input != nil {
+		opts.Input.SetHitTest(app.HitTestPointer)
+	}
 	return app
 }
 
@@ -490,6 +499,13 @@ func (a *PipelineApp) Run() error {
 
 		evs := a.host.WaitEvents(timeout)
 		for _, ev := range evs {
+			// Unified input routing (plan §4): when an InputRouter is
+			// attached, pointer/key events are normalized and dispatched by
+			// the framework; per-example OnEvent input handling is skipped.
+			if a.opts.Input != nil && (ev.Type == platform.EventPointer || ev.Type == platform.EventKey) {
+				a.opts.Input.RoutePlatform(ev)
+				continue
+			}
 			if a.opts.OnEvent != nil {
 				a.opts.OnEvent(ev)
 			}

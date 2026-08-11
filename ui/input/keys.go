@@ -207,8 +207,9 @@ func itoa(n int) string {
 
 // KeyEvent is a keyboard press/release in logical key space.
 type KeyEvent struct {
-	Key     Key    // logical key (KeyNone if only Rune is meaningful)
-	Rune    rune   // printable character produced by this key (0 if none)
-	Pressed bool   // true = press, false = release
-	Repeat  bool   // true = auto-repeat from OS
+	Key     Key       // logical key (KeyNone if only Rune is meaningful)
+	Rune    rune      // printable character produced by this key (0 if none)
+	Pressed bool      // true = press, false = release
+	Repeat  bool      // true = auto-repeat from OS
+	Mods    Modifiers // modifier state at event time (not including this key)
 }

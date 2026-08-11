@@ -1,4 +1,4 @@
-# 跨平台输入 / IME 分层方案（草案 v0.5）
+# 跨平台输入 / IME 分层方案（草案 v0.6）
 
 > **性质：DRAFT** — 方向收敛中，待确认后转真源。不参与 §R/§W 关闭。  
 > **并读：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)（§3 Host 注入）· [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（§0.3 U3 IME 暂缓可预留 SPI）  
@@ -7,9 +7,8 @@
 > ② 事件抽象出独立层 **`ui/input`** —— 各平台事件类型归一为跨平台一致的统一事件给上层；  
 > ③ 多窗口：入口 **`application.New()`** + **`app.NewWindow()`**；kit 只做控件不建窗口；  
 > ④ 控件层由 **框架统一事件绑定管理**（InputRouter），自定义控件实现统一回调接口即自动接线。  
-> **v0.3（方案 A 第 1 步落地）：** `ui/input` 包已实现。  
-> **v0.4（方案 A 第 2 步落地）：** `ui/platform` 后端重写完成（`Window`/`Open`/`Adopt`/注册表 + x11/wayland 三分离 + win32/appkit stub + 能力接口）。  
-> **v0.5（方案 A 第 3 步落地）：** `ui/application` 多窗口应用层已实现——`application.New(Config)` + `app.NewWindow(opts)` + `win.SetRoot(root)` + `app.Run()`/`Quit()`/`Close()`；每窗 = `platform.Window` + `embedder.PipelineApp`（独立 goroutine 事件泵，X11/Wayland/Win 每窗独立连接天然线程安全）；主窗（首个）关闭 → 全部退出；`Config.NewHost` 注入点供测试/嵌入。
+> **v0.3–v0.5（方案 A 第 1–3 步落地）：** `ui/input` 事件抽象层 · `ui/platform` 后端注册表/重写 · `ui/application` 多窗口应用层，均已实现。  
+> **v0.6（方案 A 第 4 步落地）：** `embedder.InputRouter` 统一事件绑定已实现——`PipelineOptions.Input` 可选挂载；挂载后 pointer/key 事件自动归一（`input.FromPlatform`）并路由：hit 路径上的控件实现 `input.PointerHandler/KeyHandler/TextHandler/IMEHandler` 即自动接线；修饰键跨事件跟踪；focus 桥接（Tab/Enter/激活键）；未挂载的窗口保持原 OnEvent 路径字节不变（示例零影响）。
 
 ---
 
@@ -224,28 +223,34 @@ type Event struct {
 
 ---
 
-## 4. L1：控件层框架统一事件绑定（InputRouter）
+## 4. L1：控件层框架统一事件绑定（InputRouter，v0.6 已实现）
 
 ```go
-// ui/rendering（或 ui/input）：自定义控件的统一交互回调接口 —— 实现即自动接线
-type EventTarget interface {
-    OnPointer(ev input.PointerEvent)
-    OnKey(ev input.KeyEvent)
-    OnText(ev input.TextEvent)
-    OnIME(ev input.IMEEvent)
-}
+// ui/input/eventtarget.go —— 自定义控件的统一交互回调接口，实现即自动接线
+type PointerHandler interface { OnPointer(ev input.PointerEvent) }
+type KeyHandler     interface { OnKey(ev input.KeyEvent) }
+type TextHandler    interface { OnText(ev input.TextEvent) }
+type IMEHandler     interface { OnIME(ev input.IMEEvent) }
+type EventTarget    = interface { PointerHandler; KeyHandler; TextHandler; IMEHandler }
 
-// ui/embedder/input.go —— 每窗口一个，PipelineApp 生命周期内自动运行
+// ui/embedder/input_router.go —— 每窗口一个，PipelineApp 生命周期内自动运行
 type InputRouter struct {
-    hit   func(x, y float64) (overlay.Band, rendering.RenderObject, *overlay.Entry)
-    focus *focus.Manager
-    ime   platform.IME // nil = 无 IME
+    hit      HitTestFunc // = PipelineApp.HitTestPointer（构造时自动接线）
+    focus    *focus.FocusManager
+    OnPointer func(ev input.PointerEvent, target rendering.RenderObject)
+    OnKey     func(ev input.KeyEvent)
+    OnText    func(ev input.TextEvent)
+    OnIME     func(ev input.IMEEvent)
 }
+func NewInputRouter(hit HitTestFunc, f *focus.FocusManager) *InputRouter
+func (r *InputRouter) RoutePlatform(ev platform.Event) // 归一 + 分发
+func (r *InputRouter) Route(ev input.Event)
 
-func (r *InputRouter) Route(ev input.Event) // 统一分发：
-//   Pointer/Touch → HitTest → gestures 竞技场 → 命中 RO.OnPointer
-//   Key → focus.HandleKey → 聚焦 RO.OnKey
-//   Text/IME → textinput（聚焦控件）→ RO.OnText/OnIME
+// PipelineOptions.Input *InputRouter —— 挂载后 Run 自动路由：
+//   Pointer/Touch → HitTest → 命中 RO 实现 PointerHandler 即 OnPointer
+//   Key → 修饰键跨事件跟踪 → OnKey + focus 桥（Tab/Enter/激活）
+//   Text/IME → OnText / OnIME（textinput 里程碑消费）
+// 未挂载 Input 的窗口保持原 OnEvent 路径字节不变（示例零影响）
 ```
 
 - `PipelineApp.Run` 不再把事件丢给示例 `OnEvent` 手写分发；改为：`platform.WaitEvents → input.FromPlatform → InputRouter.Route`。
@@ -283,7 +288,7 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | 1 | `ui/input` 包：统一 Event/逻辑键表/PointerEvent/FromPlatform | 低（纯新类型+转换，不动渲染） | 单测：FromPlatform 各平台→同一语义 | ✅ v0.3 |
 | 2 | `ui/platform` 重写：`Window`/`Open`/`Adopt`/后端注册表（x11/wayland 三分离，win32/appkit stub） | 中（碰原生） | 单测路由全绿；示例未动仍跑 exhost | ✅ v0.4 |
 | 3 | `ui/application` + `app.NewWindow` 多窗口 | 中 | 生命周期/主窗/guard 单测绿；GPU 双窗真窗留真窗里程碑 | ✅ v0.5 |
-| 4 | `embedder.InputRouter`：自动路由，示例删手写 HandleEvent | 中 | L2 shell 行为等价 | ⬜ |
+| 4 | `embedder.InputRouter`：自动路由，示例删手写 HandleEvent | 中 | 路由/modifier/hit 单测绿；未挂载窗口字节不变（示例零影响） | ✅ v0.6 |
 | 5 | `ui/gestures` 多点 + `Event` 触摸归一 | 中 | 双指并行单测 | ⬜ |
 | 6 | `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3` 实证 | 高（真 IME 才算数） | Linux 真跑通 IME | ⬜ |
 | 7 | Win/mac 后端 + TSF/InputMethod（接口已预留） | 高 | 后置 | ⬜ |
@@ -309,3 +314,4 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | **v0.3** | **方案 A 第 1 步落地**：`ui/input` 包实现（`event.go`/`keys.go`/`pointer.go`/`ime.go`/`fromplatform.go`），单测 16 项全绿，`go build ./ui/...` + 相关包回归零失败。下一步：第 2 步 `ui/platform` 重写。 |
 | **v0.4** | **方案 A 第 2 步落地**：`ui/platform` 后端重写——`Window`/`Open`/`Adopt`（`window.go`）+ 后端注册表（`backend.go`）+ x11/wayland 三分离后端（`init()` 自注册）+ win32/appkit stub 注册 + `IME`/`Clipboard` 能力接口（`ime.go`）。`PlatformNone=-1` 独立 const 不扰动 iota，`TestPlatformKindValuesStable` 锁 ABI。示例保持原样（exhost 未动）。ui 层 14 包回归全绿。下一步：第 3 步 `ui/application` 多窗口。 |
 | **v0.5** | **方案 A 第 3 步落地**：`ui/application` 多窗口应用层——`New(Config)`/`NewWindow(opts)`/`SetRoot(root)`/`Run()`/`Quit()`/`Close()`；每窗 = `platform.Window` + `embedder.PipelineApp` 独立 goroutine 事件泵；主窗关闭 → 全部退出；`Config.NewHost` 注入点（测试/嵌入）。`platform.WrapHost` 供宿主复用。生命周期/主窗/guard 单测全绿，ui 层 14 包回归全绿。GPU 双窗真窗验证留真窗里程碑。下一步：第 4 步 `embedder.InputRouter`。 |
+| **v0.6** | **方案 A 第 4 步落地**：`embedder.InputRouter` 统一事件绑定——`input.EventTarget` 接口族（PointerHandler/KeyHandler/TextHandler/IMEHandler）；`PipelineOptions.Input` 可选挂载，Run 中 pointer/key 自动 `input.FromPlatform` 归一 + 路由（命中控件实现 handler 即自动接线）；修饰键跨事件跟踪（事件时语义：shift 按下事件本身 Mods.Shift=false）；focus 桥接（mapFocusKeyCode 兼容 focus 键码空间）；`input.KeyEvent` 增 `Mods` 字段。未挂载 Input 的窗口字节不变（示例零影响）。单测 7 项全绿，ui 层 14 包回归全绿。下一步：第 5 步 `ui/gestures` 多点 + 触摸归一。 |

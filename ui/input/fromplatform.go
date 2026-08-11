@@ -87,6 +87,7 @@ func fromKey(ev platform.Event, mods Modifiers) Event {
 			Key:     mapKey(ev.KeyCode),
 			Rune:    ev.Rune,
 			Pressed: ev.Pressed,
+			Mods:    mods,
 		},
 	}
 }
