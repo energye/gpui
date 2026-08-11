@@ -21,6 +21,12 @@ type textureKey struct {
 // It follows the Flutter RenderTargetCache pattern: Acquire during flush,
 // Release at frame end, EndFrame frees unused entries.
 //
+// Deprecated (P5): production paths never call Acquire/Release/EndFrame —
+// only DestroyAll/SetBudget/Stats are used for telemetry. Session textures go
+// through textureSet + pendingTexRetire (P4), and the res.Cache (P1) is the
+// long-term pooling home. Stats remain for the S6.x memory-budget metrics;
+// the allocation path is effectively inert and kept only for tests/metrics.
+//
 // This avoids creating expensive GPU textures (MSAA, depth/stencil) per context
 // per frame when multiple contexts share the same dimensions.
 type TexturePool struct {
