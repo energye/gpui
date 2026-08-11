@@ -3,16 +3,32 @@
 package gpu
 
 import (
-	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/gpu/res"
 )
+
+// texViewNative adapts a *webgpu.TextureView to res.Native (P3). Release is
+// idempotent at the webgpu layer (released-guard), so registering the same
+// view for multiple commands is safe.
+type texViewNative struct{ v *webgpu.TextureView }
+
+func (n texViewNative) Release() {
+	if n.v != nil {
+		n.v.Release()
+	}
+}
 
 // GPUTextureDrawCommand represents a GPU-to-GPU texture compositing command.
 // Unlike ImageDrawCommand (CPU pixel upload), this draws a pre-existing GPU
 // texture view directly — zero CPU readback, zero re-upload.
-// Follows the Skia GrSurfaceProxyView direct-bind pattern.
+//
+// The View is a res.View (P3): either a SourceKey resolved at flush time to
+// the current active instance (deferred, never a stale snapshot) or a strong
+// Ref to a direct resource. This mirrors the Skia GrSurfaceProxyView
+// direct-bind pattern with deferred/instantiated forms.
 type GPUTextureDrawCommand struct {
-	View       gpucontext.TextureView // type-safe, asserted to *wgpu.TextureView internally
+	View       res.View
 	DstX, DstY float32
 	DstW, DstH float32
 	// Optional source UV rect in normalized texture space. Zero U1/V1 means full

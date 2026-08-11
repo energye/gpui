@@ -4,11 +4,10 @@ package gpu
 
 import (
 	"testing"
-	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
 func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
@@ -144,16 +143,22 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 		v2.Release()
 		t2.Release()
 	})
+	// P3: register test views under deferred SourceKeys so build resolution
+	// succeeds (each build re-resolves and releases its transient ref).
+	keyA := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 1}
+	keyB := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 2}
+	s.Reg().Bind(keyA, s.Reg().Register(&texViewNative{v1}))
+	s.Reg().Bind(keyB, s.Reg().Register(&texViewNative{v2}))
 
 	cmdA := GPUTextureDrawCommand{
 		DstX: 0, DstY: 0, DstW: 8, DstH: 8,
 		Opacity: 1, ViewportWidth: 64, ViewportHeight: 64,
-		View: gpucontext.NewTextureView(unsafe.Pointer(v1)),
+		View: res.ViewFromKey(keyA),
 	}
 	cmdB := GPUTextureDrawCommand{
 		DstX: 8, DstY: 0, DstW: 8, DstH: 8,
 		Opacity: 1, ViewportWidth: 64, ViewportHeight: 64,
-		View: gpucontext.NewTextureView(unsafe.Pointer(v2)),
+		View: res.ViewFromKey(keyB),
 	}
 
 	// Alternating single-cmd builds (glow publish ping-pong on poolIdx 0).

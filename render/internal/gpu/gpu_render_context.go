@@ -12,6 +12,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/gpu/res"
 	"github.com/energye/gpui/render/internal/stroke"
 	"github.com/energye/gpui/render/text"
 )
@@ -1068,6 +1069,22 @@ func (rc *GPURenderContext) queueImageCmd(target render.GPURenderTarget, cmd Ima
 // QueueBaseLayer sets the compositor base layer — a textured quad drawn BEFORE
 // all tiers in the render pass. Last call wins. Used for CPU pixmap compositing
 // in zero-readback rendering (ADR-015, Flutter OffsetLayer pattern).
+// viewToResView registers a concrete texture view with the session's resource
+// registry and returns a strong res.View (P3). The registered Ref is released
+// by the consumer (buildGPUTextureResources) once the command is drawn, so
+// the view stays alive from queue time to flush — never a bare pointer.
+func (rc *GPURenderContext) viewToResView(view gpucontext.TextureView) res.View {
+	if rc == nil || view.IsNil() || rc.session == nil || rc.session.Reg() == nil {
+		return res.View{}
+	}
+	if v := extractTextureView(view); v != nil {
+		return res.ViewFromRef(rc.session.Reg().Register(&texViewNative{v}))
+	}
+	return res.View{}
+}
+
+// QueueBaseLayer queues the full-surface base layer (background blit / LCD
+// base) as a GPU texture draw.
 func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view gpucontext.TextureView,
 	dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32,
 ) {
@@ -1075,7 +1092,7 @@ func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view g
 		slogger().Warn("auto-flush failed", "err", err)
 	}
 	rc.baseLayer = &GPUTextureDrawCommand{
-		View: view, DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
 	}
 }
@@ -1147,7 +1164,7 @@ func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, v
 	}
 	rc.ensureDrawOrder(drawTierGPUTex)
 	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
-		View: view, DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: 0, V0: 0, U1: 1, V1: 1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
 	})
@@ -1169,7 +1186,7 @@ func (rc *GPURenderContext) QueueGPUTextureDrawUV(target render.GPURenderTarget,
 		u0, v0, u1, v1 = 0, 0, 1, 1
 	}
 	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
-		View: view, DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
 		U0: u0, V0: v0, U1: u1, V1: v1,
 		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
 	})
@@ -1781,7 +1798,7 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 		return nil
 	}
 	rc.baseLayer = &GPUTextureDrawCommand{
-		View:           gpucontext.NewTextureView(unsafe.Pointer(view)), //nolint:gosec
+		View:           rc.viewToResView(gpucontext.NewTextureView(unsafe.Pointer(view))), //nolint:gosec
 		DstX:           0,
 		DstY:           0,
 		DstW:           float32(tw),
@@ -2286,12 +2303,21 @@ func (rc *GPURenderContext) ensureFrameScratch(w, h int) error {
 	if rc.frameScratchTex != nil && rc.frameScratchW == w && rc.frameScratchH == h && rc.frameScratchView != nil {
 		return nil
 	}
-	if rc.frameScratchView != nil {
-		rc.frameScratchView.Release()
+	if rc.frameScratchView != nil || rc.frameScratchTex != nil {
+		// P4: defer the release — the old scratch may still be referenced by
+		// commands queued this frame; the session releases it at the next safe
+		// point (BeginFrame / drainQueue), same as prevCmdBufs.
+		if rc.session != nil {
+			rc.session.RetireTexture(rc.frameScratchTex, rc.frameScratchView)
+		} else {
+			if rc.frameScratchView != nil {
+				rc.frameScratchView.Release()
+			}
+			if rc.frameScratchTex != nil {
+				rc.frameScratchTex.Release()
+			}
+		}
 		rc.frameScratchView = nil
-	}
-	if rc.frameScratchTex != nil {
-		rc.frameScratchTex.Release()
 		rc.frameScratchTex = nil
 	}
 	rc.shared.mu.Lock()

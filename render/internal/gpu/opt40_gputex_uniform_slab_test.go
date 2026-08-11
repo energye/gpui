@@ -5,11 +5,10 @@ package gpu
 import (
 	"os"
 	"testing"
-	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
 // TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot packs N gpu-tex uniforms
@@ -45,16 +44,21 @@ func TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot(t *testing.T) {
 		return v
 	}
 	v1, v2 := mkView("opt40a"), mkView("opt40b")
-	cmd := func(v *webgpu.TextureView, op float32, x float32) GPUTextureDrawCommand {
+	// P3: register test views under deferred SourceKeys for build resolution.
+	k1 := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 1}
+	k2 := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 2}
+	s.Reg().Bind(k1, s.Reg().Register(&texViewNative{v1}))
+	s.Reg().Bind(k2, s.Reg().Register(&texViewNative{v2}))
+	cmd := func(k res.SourceKey, op float32, x float32) GPUTextureDrawCommand {
 		return GPUTextureDrawCommand{
-			View: gpucontext.NewTextureView(unsafe.Pointer(v)),
+			View: res.ViewFromKey(k),
 			DstX: x, DstY: 0, DstW: 10, DstH: 10, Opacity: op,
 			ViewportWidth: 64, ViewportHeight: 64,
 			U0: 0, V0: 0, U1: 1, V1: 1,
 		}
 	}
 	// Different views → cannot merge; two uniform slots.
-	cmds := []GPUTextureDrawCommand{cmd(v1, 0.5, 0), cmd(v2, 0.8, 12)}
+	cmds := []GPUTextureDrawCommand{cmd(k1, 0.5, 0), cmd(k2, 0.8, 12)}
 	w0 := s.lastSubmitStats.WriteBuffers
 	res, err := s.buildGPUTextureResources(cmds, 64, 64, false, nil)
 	if err != nil || res == nil {

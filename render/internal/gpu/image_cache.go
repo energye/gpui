@@ -63,6 +63,12 @@ type ImageCache struct {
 
 	// gen==0 textures live for one frame then must be released (S6.7 leak fix).
 	ephemeral []*imageCacheEntry
+
+	// pending holds entries retired by eviction / size-replace during encode.
+	// Their views may still be referenced by this frame's already-encoded
+	// commands (shared-encoder path encodes before the final Submit), so the
+	// native release is deferred to a submission-completion point (P4).
+	pending []*imageCacheEntry
 }
 
 // stagingScratch reuses CPU packing buffers for non-contiguous image uploads.
@@ -173,10 +179,14 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (*webgpu.TextureView, er
 	return entry.view, nil
 }
 
-// ReleaseEphemeral frees gen==0 textures from the previous frame.
-// Safe to call even when none exist. Call after GPU submit for that frame.
+// ReleaseEphemeral frees textures whose frame lifetime is over: gen==0
+// uploads (ephemeral) and entries retired by eviction / size-replace
+// (pending). Must be called AFTER the GPU has finished the frame (submit
+// completion), never mid-encode — a retired view may still be referenced by
+// this frame's encoded commands (P4; previously this ran before Submit on
+// the shared-encoder path and could release a view still in use).
 func (c *ImageCache) ReleaseEphemeral() {
-	if c == nil || len(c.ephemeral) == 0 {
+	if c == nil {
 		return
 	}
 	for _, entry := range c.ephemeral {
@@ -188,6 +198,15 @@ func (c *ImageCache) ReleaseEphemeral() {
 		}
 	}
 	c.ephemeral = c.ephemeral[:0]
+	for _, entry := range c.pending {
+		if entry.view != nil {
+			entry.view.Release()
+		}
+		if entry.texture != nil {
+			entry.texture.Release()
+		}
+	}
+	c.pending = c.pending[:0]
 }
 
 // rewriteImage uploads new pixels into an existing cache entry texture (in-place).
@@ -344,8 +363,10 @@ func (c *ImageCache) removeEntry(key uint64, entry *imageCacheEntry) {
 	if entry == nil {
 		return
 	}
-	entry.view.Release()
-	entry.texture.Release()
+	// P4: defer the native release to a submission-completion point. The view
+	// may still be referenced by this frame's already-encoded commands; the
+	// entry stays in `pending` until ReleaseEphemeral runs post-submit.
+	c.pending = append(c.pending, entry)
 	c.usedBytes -= entry.bytes
 	if c.usedBytes < 0 {
 		c.usedBytes = 0

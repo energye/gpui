@@ -13,6 +13,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
 // glyphMaskDebugCount caps the GOGPU_TEXT_DEBUG dump to the first handful of
@@ -83,6 +84,51 @@ var (
 	sessionBlitEncoderDesc    = &webgpu.CommandEncoderDescriptor{Label: "session_blit_encoder"}
 )
 
+// pendingTexRetire holds textures/views retired during a rebuild. They are
+// released at the next safe point (after the GPU has finished the frame that
+// may still reference them) — aligned with prevCmdBufs semantics (P4:
+// rebuild must not immediately destroy old views still referenced by queued
+// commands; that was the resize-crash root cause).
+type pendingTexRetire struct {
+	views []*webgpu.TextureView
+	texs  []*webgpu.Texture
+}
+
+// Add queues a retired texture and/or view for deferred release.
+func (q *pendingTexRetire) Add(view *webgpu.TextureView, tex *webgpu.Texture) {
+	if view != nil {
+		q.views = append(q.views, view)
+	}
+	if tex != nil {
+		q.texs = append(q.texs, tex)
+	}
+}
+
+// Drain releases every queued resource (call only when the GPU is done).
+// Idempotent; safe to call with an empty queue.
+func (q *pendingTexRetire) Drain() {
+	for _, v := range q.views {
+		if v != nil {
+			v.Release()
+		}
+	}
+	for _, t := range q.texs {
+		if t != nil {
+			t.Release()
+		}
+	}
+	q.views = q.views[:0]
+	q.texs = q.texs[:0]
+}
+
+// PendingCount returns the number of queued resources (diagnostics).
+func (q *pendingTexRetire) PendingCount() int {
+	if q == nil {
+		return 0
+	}
+	return len(q.views) + len(q.texs)
+}
+
 // SubmitPathStats records per-frame encode/submit CPU-path counters (S6.2).
 type SubmitPathStats struct {
 	Groups          int
@@ -94,6 +140,10 @@ type SubmitPathStats struct {
 	// CoalescedCBs is the number of command buffers in the last Submit call
 	// (R7.3: dual-tex multi + blit may share one Queue.Submit).
 	CoalescedCBs int
+	// ErrorScopeErrors counts wgpu validation/device errors captured by the
+	// per-submit error scope (P2). Zero on healthy frames; >0 means a GPU-side
+	// error was caught instead of crashing the process.
+	ErrorScopeErrors int
 }
 
 // BatchDrawStats records per-tier draw/quad counts after coalescing (S6.3).
@@ -106,7 +156,9 @@ type imageUniformLastKey struct {
 }
 
 // gpuTexBGSlotCache holds up to 4 view→bind-group pairs for one uniform slot
-// (opt27). Size matches filter publish free-list cadence.
+// (opt27). Size matches filter publish free-list cadence. The key is the
+// resolved native view identity — a texture rebuilt mid-frame resolves to a
+// different view, invalidating the entry naturally (P3).
 type gpuTexBGSlotCache struct {
 	entries [4]struct {
 		view *webgpu.TextureView
@@ -231,6 +283,16 @@ type GPURenderSession struct {
 
 	// Shared textures (MSAA 4x color + depth/stencil + 1x resolve).
 	textures textureSet
+
+	// Deferred-release queue for textures retired during rebuild (P4).
+	// Old views may still be referenced by commands queued this frame, so
+	// they are released only after the GPU has finished (BeginFrame /
+	// drainQueue points), never immediately on rebuild.
+	pendingTexRetire pendingTexRetire
+
+	// Resource registry for command views (P3): view registration at queue
+	// time and deferred SourceKey resolution at flush time.
+	resReg *res.Registry
 
 	// Shape pipelines may be injected from GPUShared (not owned) or created
 	// lazily by ensurePipelines (owned). ownsShapePipelines tracks which.
@@ -515,12 +577,92 @@ type GPURenderSession struct {
 // queue, and MSAA sample count. Textures and pipelines are not allocated
 // until RenderFrame is called.
 func NewGPURenderSession(device *webgpu.Device, queue *webgpu.Queue, sampleCount uint32) *GPURenderSession {
-	return &GPURenderSession{
+	s := &GPURenderSession{
 		device:      device,
 		queue:       queue,
 		sampleCount: sampleCount,
 		antiAlias:   true,
+		resReg:      res.NewRegistry(),
 	}
+	// P4: rebuild must not immediately destroy old texture views — commands
+	// queued earlier in the frame may still reference them. Route retired
+	// session textures through the deferred-release queue instead.
+	s.textures.retireFn = func(tex *webgpu.Texture, view *webgpu.TextureView) {
+		s.pendingTexRetire.Add(view, tex)
+	}
+	return s
+}
+
+// Reg returns the session's resource registry (P3: view registration and
+// deferred resolution for command views).
+func (s *GPURenderSession) Reg() *res.Registry {
+	if s == nil {
+		return nil
+	}
+	return s.resReg
+}
+
+// ResolveCommandView resolves a command View to its concrete texture view at
+// flush time (P3, GrSurfaceProxy instantiation timing):
+//   - deferred SourceKey → current active instance for the role (retry after
+//     rebuild); the transient ref is released before returning;
+//   - direct Ref → the registered resource, still owned by the command.
+//
+// Returns (nil, false) when the view cannot be resolved (skip the draw).
+func (s *GPURenderSession) ResolveCommandView(view *res.View) (*webgpu.TextureView, bool) {
+	if s == nil || view == nil || view.IsNil() || s.resReg == nil {
+		return nil, false
+	}
+	if !view.Key.IsNil() {
+		ref, ok := s.resReg.Resolve(view.Key)
+		if !ok {
+			return nil, false
+		}
+		defer s.resReg.Release(ref)
+		return s.commandViewOf(ref), true
+	}
+	return s.commandViewOf(view.Ref), true
+}
+
+// commandViewOf unwraps a registered resource to its *webgpu.TextureView.
+func (s *GPURenderSession) commandViewOf(ref res.Ref) *webgpu.TextureView {
+	if s == nil || s.resReg == nil || ref.IsNil() {
+		return nil
+	}
+	n := s.resReg.NativeOf(ref)
+	if n == nil {
+		return nil
+	}
+	if tv, ok := n.(*texViewNative); ok {
+		return tv.v
+	}
+	return nil
+}
+
+// RetireTexture hands a texture/view to the deferred-release queue; it is
+// released once the GPU has finished the frame that may still reference it
+// (next BeginFrame / after a drainQueue). With a nil receiver the resources
+// are released immediately (fallback).
+func (s *GPURenderSession) RetireTexture(tex *webgpu.Texture, view *webgpu.TextureView) {
+	if s == nil {
+		if view != nil {
+			view.Release()
+		}
+		if tex != nil {
+			tex.Release()
+		}
+		return
+	}
+	s.pendingTexRetire.Add(view, tex)
+}
+
+// PendingTexRetireCount returns the deferred-release queue depth (S6.x
+// diagnostics; 0 on healthy steady-state frames).
+func (s *GPURenderSession) PendingTexRetireCount() int {
+	if s == nil {
+		return 0
+	}
+	return s.pendingTexRetire.PendingCount()
 }
 
 // SetSurfaceTarget configures the session to render directly to the given
@@ -552,6 +694,9 @@ func (s *GPURenderSession) SetSurfaceTarget(view *webgpu.TextureView, width, hei
 			s.prevCmdBufs = s.prevCmdBufs[:0]
 		}
 		s.textures.destroyTextures()
+		// GPU was drained above (or nothing in flight): safe to release the
+		// textures retired by this rebuild immediately (P4).
+		s.pendingTexRetire.Drain()
 	}
 
 	// Detect new frame: swapchain creates a new TextureView each frame
@@ -621,6 +766,10 @@ func (s *GPURenderSession) BeginFrame() {
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
 	s.lastSubmitUsedSurface = false
+	// P4: the previous frame's GPU work has completed at this point (vsync
+	// barrier or the drainQueue above) — release textures retired by that
+	// frame's rebuilds.
+	s.pendingTexRetire.Drain()
 
 	s.frameRendered = false
 	s.lastView = nil
@@ -1333,9 +1482,6 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	defer s.releaseDepthClipResources(grpRes)
 	defer func() {
 		s.releasePendingBindGroups()
-		if s.imageCache != nil {
-			s.imageCache.ReleaseEphemeral()
-		}
 	}()
 
 	if activeView == nil {
@@ -1442,6 +1588,8 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	}
 	s.prevCmdBufs = s.prevCmdBufs[:0]
 	s.textures.destroyTextures()
+	// GPU drained above: release anything retired by this purge now (P4).
+	s.pendingTexRetire.Drain()
 	s.surfaceView = nil
 	s.surfaceWidth = 0
 	s.surfaceHeight = 0
@@ -1517,6 +1665,14 @@ func (s *GPURenderSession) Destroy() {
 		s.textPipeline = nil
 	}
 	s.textures.destroyTextures()
+	// GPU drained above: release anything retired during teardown now (P4).
+	s.pendingTexRetire.Drain()
+	// P3: drop command-view registry entries (idempotent; device-loss teardown
+	// goes through abandon → InvalidateAll, not here).
+	if s.resReg != nil {
+		s.resReg.ReleaseAll()
+		s.resReg = nil
+	}
 	s.surfaceView = nil
 	s.surfaceWidth = 0
 	s.surfaceHeight = 0
@@ -3237,6 +3393,28 @@ func (s *GPURenderSession) EnqueueLeadingSubmit(cmd *webgpu.CommandBuffer, clean
 	}
 }
 
+// withSubmitErrorScope wraps a queue submit in a validation error scope (P2).
+// WGPU validation/device errors become catchable Go errors reported through
+// slogger + SubmitPathStats instead of an uncaptured abort. The scope is
+// push/pop'd strictly around the closure; PushErrorScope/PopErrorScope are
+// synchronous single calls (never PopErrorScopeAsync on the hot path).
+func (s *GPURenderSession) withSubmitErrorScope(label string, fn func() error) error {
+	if s == nil || s.device == nil || s.queue == nil {
+		if fn != nil {
+			return fn()
+		}
+		return nil
+	}
+	s.device.PushErrorScope(webgpu.ErrorFilterValidation)
+	err := fn()
+	if gerr := s.device.PopErrorScope(); gerr != nil {
+		s.lastSubmitStats.ErrorScopeErrors++
+		slogger().Warn("wgpu submit error scope",
+			"label", label, "type", gerr.Type.String(), "msg", gerr.Message, "opErr", err)
+	}
+	return err
+}
+
 // submitWithLeading submits optional leading CBs then cmd in one Queue.Submit.
 // Leading CBs are Released after submit; cmd is retained in prevCmdBufs on success
 // (same as encodeSubmitSurface). On failure cmd is FreeCommandBuffer'd.
@@ -3255,6 +3433,11 @@ func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
 				c()
 			}
 		}
+		// P4: ImageCache retirements (evict/size-replace/gen==0) release only
+		// AFTER the submit — their views may be referenced by this submit.
+		if s.imageCache != nil {
+			s.imageCache.ReleaseEphemeral()
+		}
 	}
 	var all []*webgpu.CommandBuffer
 	if len(leads) == 0 {
@@ -3272,7 +3455,10 @@ func (s *GPURenderSession) submitWithLeading(cmd *webgpu.CommandBuffer) error {
 	}
 	s.lastSubmitStats.Submits++
 	s.lastSubmitStats.CoalescedCBs = len(all)
-	_, err := s.queue.Submit(all...)
+	err := s.withSubmitErrorScope("submitWithLeading", func() error {
+		_, serr := s.queue.Submit(all...)
+		return serr
+	})
 	// Free leading CBs immediately (not tracked in prevCmdBufs).
 	for _, c := range leads {
 		if c != nil {
@@ -3507,6 +3693,19 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	if len(cmds) == 0 {
 		return nil, nil //nolint:nilnil // no GPU texture commands
 	}
+	// P3: release the strong refs registered at queue time once the commands
+	// have been consumed (all return paths). The webgpu view release is
+	// idempotent, so shared registration across commands is safe.
+	defer func() {
+		if s == nil || s.resReg == nil {
+			return
+		}
+		for i := range cmds {
+			if r := cmds[i].View.Ref; !r.IsNil() {
+				s.resReg.Release(r)
+			}
+		}
+	}()
 	if err := s.ensureImagePipeline(); err != nil {
 		return nil, fmt.Errorf("ensure image pipeline: %w", err)
 	}
@@ -3604,9 +3803,16 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			j++
 		}
 		cmd := &cmds[i]
+		texView, ok := s.ResolveCommandView(&cmd.View)
+		if !ok {
+			// P3: view unresolvable (rebuild mid-frame / stale key) — skip the
+			// batch instead of feeding a released handle to wgpu.
+			i = j
+			continue
+		}
 		slots = append(slots, gpuTexSlot{
 			opacity:     cmd.Opacity,
-			texView:     (*webgpu.TextureView)(cmd.View.Pointer()),
+			texView:     texView,
 			firstVertex: uint32(i * 6),       //nolint:gosec
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
 		})
@@ -4267,8 +4473,16 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	defer cmdBuf.Release()
 
 	// Submit (auto-polls pending maps at tail).
-	if _, err := s.queue.Submit(cmdBuf); err != nil {
+	if err := s.withSubmitErrorScope("copySubmitAndReadback", func() error {
+		_, serr := s.queue.Submit(cmdBuf)
+		return serr
+	}); err != nil {
 		return fmt.Errorf("submit: %w", err)
+	}
+	// P4: submission is complete — release image-cache retirements from this
+	// frame (their views were referenced by the submitted command buffer).
+	if s.imageCache != nil {
+		s.imageCache.ReleaseEphemeral()
 	}
 
 	// Map the staging buffer. Map blocks until the GPU finishes the copy

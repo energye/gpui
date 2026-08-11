@@ -1,6 +1,7 @@
 package rwgpu
 
 import (
+	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -186,6 +187,25 @@ type bindGroupEntryWire struct {
 	TextureView uintptr // WGPUTextureView (nullable)
 }
 
+// validateBindGroupEntries returns an error when any non-nil entry references
+// a released resource (handle == 0). Passing such an entry to wgpu-native
+// panics in conv.rs ("invalid bind group entry") instead of surfacing a
+// catchable validation error; this check turns that into a Go error (P2).
+func validateBindGroupEntries(entries []BindGroupEntry) error {
+	for i := range entries {
+		e := &entries[i]
+		switch {
+		case e.Buffer != nil && e.Buffer.handle == 0:
+			return &WGPUError{Op: "CreateBindGroup", Message: fmt.Sprintf("entry %d (binding %d): buffer handle is 0 (released/stale)", i, e.Binding)}
+		case e.Sampler != nil && e.Sampler.handle == 0:
+			return &WGPUError{Op: "CreateBindGroup", Message: fmt.Sprintf("entry %d (binding %d): sampler handle is 0 (released/stale)", i, e.Binding)}
+		case e.TextureView != nil && e.TextureView.handle == 0:
+			return &WGPUError{Op: "CreateBindGroup", Message: fmt.Sprintf("entry %d (binding %d): texture view handle is 0 (released/stale)", i, e.Binding)}
+		}
+	}
+	return nil
+}
+
 // toWire converts a BindGroupEntry to its FFI wire representation.
 func (e *BindGroupEntry) toWire() bindGroupEntryWire {
 	wire := bindGroupEntryWire{
@@ -300,6 +320,10 @@ func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error) 
 	}
 	if desc.Layout == nil {
 		return nil, &WGPUError{Op: "CreateBindGroup", Message: "layout is nil"}
+	}
+	// P2: refuse stale/released handles before they reach wgpu-native (panic).
+	if err := validateBindGroupEntries(desc.Entries); err != nil {
+		return nil, err
 	}
 
 	// Convert Go-idiomatic entries to FFI wire entries.

@@ -529,7 +529,7 @@ func canMergeGPUTextureDraw(a, b *GPUTextureDrawCommand) bool {
 	if a.View.IsNil() || b.View.IsNil() {
 		return false
 	}
-	if a.View.Pointer() != b.View.Pointer() {
+	if !a.View.Equals(b.View) {
 		return false
 	}
 	if a.Opacity != b.Opacity {

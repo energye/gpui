@@ -16,6 +16,9 @@ type Texture struct {
 // Format returns the texture format.
 func (t *Texture) Format() TextureFormat { return t.format }
 
+// Released reports whether Release has been called (diagnostics/tests).
+func (t *Texture) Released() bool { return t != nil && t.released }
+
 // Release frees the texture. On native this maps to wgpuTextureDestroy +
 // Release so GPU memory is reclaimed immediately (WebGPU texture.destroy).
 // Release-only left device heaps pinned across AutoRecover on libwgpu_native
@@ -43,6 +46,9 @@ type TextureView struct {
 // Texture returns the parent Texture that this view was created from.
 // Returns nil if the view has been released.
 func (v *TextureView) Texture() *Texture { return v.texture }
+
+// Released reports whether Release has been called (diagnostics/tests).
+func (v *TextureView) Released() bool { return v != nil && v.released }
 
 // Release marks the texture view for destruction.
 func (v *TextureView) Release() {

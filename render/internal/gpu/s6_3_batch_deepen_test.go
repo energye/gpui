@@ -5,10 +5,9 @@ package gpu
 import (
 	"os"
 	"testing"
-	"unsafe"
 
-	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
 func TestS63_CanMergeGPUTextureDraw(t *testing.T) {
@@ -18,16 +17,13 @@ func TestS63_CanMergeGPUTextureDraw(t *testing.T) {
 		t.Fatal("nil views must not merge")
 	}
 
-	p1 := unsafe.Pointer(uintptr(0x1000))
-	p2 := unsafe.Pointer(uintptr(0x2000))
-	va := gpucontext.NewTextureView(p1)
-	vb := gpucontext.NewTextureView(p1)
-	vc := gpucontext.NewTextureView(p2)
+	vKey1 := res.ViewFromKey(res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 1})
+	vKey2 := res.ViewFromKey(res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 2})
 
-	a := &GPUTextureDrawCommand{View: va, Opacity: 1, ViewportWidth: 100, ViewportHeight: 80}
-	b := &GPUTextureDrawCommand{View: vb, Opacity: 1, ViewportWidth: 100, ViewportHeight: 80}
+	a := &GPUTextureDrawCommand{View: vKey1, Opacity: 1, ViewportWidth: 100, ViewportHeight: 80}
+	b := &GPUTextureDrawCommand{View: vKey1, Opacity: 1, ViewportWidth: 100, ViewportHeight: 80}
 	if !canMergeGPUTextureDraw(a, b) {
-		t.Fatal("same view ptr/opacity/viewport should merge")
+		t.Fatal("same view identity/opacity/viewport should merge")
 	}
 	b.Opacity = 0.5
 	if canMergeGPUTextureDraw(a, b) {
@@ -38,15 +34,14 @@ func TestS63_CanMergeGPUTextureDraw(t *testing.T) {
 	if canMergeGPUTextureDraw(a, b) {
 		t.Fatal("different viewport must not merge")
 	}
-	b = &GPUTextureDrawCommand{View: vc, Opacity: 1, ViewportWidth: 100, ViewportHeight: 80}
+	b = &GPUTextureDrawCommand{View: vKey2, Opacity: 1, ViewportWidth: 100, ViewportHeight: 80}
 	if canMergeGPUTextureDraw(a, b) {
-		t.Fatal("different view ptr must not merge")
+		t.Fatal("different view identity must not merge")
 	}
 }
 
 func TestS63_GPUTexture_MultiQuadLogic(t *testing.T) {
-	p := unsafe.Pointer(uintptr(0x3000))
-	v := gpucontext.NewTextureView(p)
+	v := res.ViewFromKey(res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 7})
 	cmds := make([]GPUTextureDrawCommand, 8)
 	for i := range cmds {
 		cmds[i] = GPUTextureDrawCommand{

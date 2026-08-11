@@ -29,6 +29,13 @@ type textureSet struct {
 	resolveView *webgpu.TextureView
 	width       uint32
 	height      uint32
+
+	// retireFn decides how retired textures are handled (P4): nil = release
+	// immediately (default); the session injects a deferred-release queue —
+	// on rebuild the old views may still be referenced by commands queued
+	// earlier in the frame, so releasing them right away leaves dangling
+	// handles (the resize-crash root cause).
+	retireFn func(tex *webgpu.Texture, view *webgpu.TextureView)
 }
 
 // ensureTextures creates or recreates textures if the requested dimensions
@@ -300,31 +307,46 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 
 func (ts *textureSet) destroyTextures() {
 	if ts.resolveView != nil {
-		ts.resolveView.Release()
+		ts.releaseOrRetire(nil, ts.resolveView)
 		ts.resolveView = nil
 	}
 	if ts.resolveTex != nil {
-		ts.resolveTex.Release()
+		ts.releaseOrRetire(ts.resolveTex, nil)
 		ts.resolveTex = nil
 	}
 	if ts.stencilView != nil {
-		ts.stencilView.Release()
+		ts.releaseOrRetire(nil, ts.stencilView)
 		ts.stencilView = nil
 	}
 	if ts.stencilTex != nil {
-		ts.stencilTex.Release()
+		ts.releaseOrRetire(ts.stencilTex, nil)
 		ts.stencilTex = nil
 	}
 	if ts.msaaView != nil {
-		ts.msaaView.Release()
+		ts.releaseOrRetire(nil, ts.msaaView)
 		ts.msaaView = nil
 	}
 	if ts.msaaTex != nil {
-		ts.msaaTex.Release()
+		ts.releaseOrRetire(ts.msaaTex, nil)
 		ts.msaaTex = nil
 	}
 	ts.width = 0
 	ts.height = 0
+}
+
+// releaseOrRetire releases the resource immediately, or hands it to the
+// retire callback when one is installed (deferred release on rebuild).
+func (ts *textureSet) releaseOrRetire(tex *webgpu.Texture, view *webgpu.TextureView) {
+	if ts.retireFn != nil {
+		ts.retireFn(tex, view)
+		return
+	}
+	if view != nil {
+		view.Release()
+	}
+	if tex != nil {
+		tex.Release()
+	}
 }
 
 // createTextureRetryOOM creates a texture; on OOM-like errors flushes and retries.
