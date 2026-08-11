@@ -3,7 +3,7 @@ package gestures
 import (
 	"math"
 
-	"github.com/energye/gpui/ui/platform"
+	"github.com/energye/gpui/ui/input"
 )
 
 // TapGestureRecognizer wins if pointer up occurs within kTouchSlop of down.
@@ -41,7 +41,7 @@ func (t *TapGestureRecognizer) AddPointer(pointerID int, e PointerEvent) {
 	if t == nil || t.disposed {
 		return
 	}
-	if e.Kind != platform.PointerDown {
+	if e.Kind != input.PointerDown {
 		return
 	}
 	t.tracking = true
@@ -50,10 +50,7 @@ func (t *TapGestureRecognizer) AddPointer(pointerID int, e PointerEvent) {
 	t.fired = false
 	t.accepted = false
 	t.rejected = false
-	if t.a == nil && pointerID != 0 {
-		// Arena should Add us externally; if already set, fine.
-	}
-	_ = pointerID
+	_ = pointerID // ID travels in the PointerEvent (input vocabulary)
 }
 
 // HandleEvent implements GestureRecognizer.
@@ -62,11 +59,11 @@ func (t *TapGestureRecognizer) HandleEvent(e PointerEvent) {
 		return
 	}
 	switch e.Kind {
-	case platform.PointerMove:
+	case input.PointerMove:
 		if dist(t.downX, t.downY, e.X, e.Y) > t.slop() {
 			t.rejectSelf()
 		}
-	case platform.PointerUp:
+	case input.PointerUp:
 		if dist(t.downX, t.downY, e.X, e.Y) > t.slop() {
 			t.rejectSelf()
 			return

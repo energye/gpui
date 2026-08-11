@@ -1,6 +1,6 @@
 package gestures
 
-import "github.com/energye/gpui/ui/platform"
+import "github.com/energye/gpui/ui/input"
 
 // PointerTarget can join an arena on pointer down (deepest-first path order).
 type PointerTarget interface {
@@ -29,7 +29,7 @@ func (d *Dispatcher) HandleDown(e PointerEvent, path []PointerTarget) {
 	if d == nil || d.Manager == nil {
 		return
 	}
-	id := e.EffectivePointerID()
+	id := e.ID
 	_ = d.Manager.Arena(id) // ensure open
 	for _, t := range path {
 		if t != nil {
@@ -46,13 +46,13 @@ func (d *Dispatcher) HandleEvent(e PointerEvent) {
 	if d == nil || d.Manager == nil {
 		return
 	}
-	if e.Kind == platform.PointerScroll {
+	if e.Kind == input.PointerScroll {
 		ApplyScrollWheel(e, d.OnScroll)
 		return
 	}
-	if e.Kind == platform.PointerDown {
+	if e.Kind == input.PointerDown {
 		// Without path, still open empty arena — callers should use HandleDown.
-		id := e.EffectivePointerID()
+		id := e.ID
 		_ = d.Manager.Arena(id)
 		d.Manager.Route(e)
 		d.Manager.CloseArena(id)
@@ -77,14 +77,14 @@ func (d *Dispatcher) HandleBatch(evs []PointerEvent, downPath func(e PointerEven
 	for i := range evs {
 		e := evs[i]
 		switch e.Kind {
-		case platform.PointerMove:
+		case input.PointerMove:
 			// keep only latest
 			cp := e
 			lastMove = &cp
-		case platform.PointerScroll:
+		case input.PointerScroll:
 			flushMove()
 			ApplyScrollWheel(e, d.OnScroll)
-		case platform.PointerDown:
+		case input.PointerDown:
 			flushMove()
 			var path []PointerTarget
 			if downPath != nil {

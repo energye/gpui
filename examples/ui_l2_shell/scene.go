@@ -11,6 +11,7 @@ import (
 
 	"github.com/energye/gpui/ui/focus"
 	"github.com/energye/gpui/ui/gestures"
+	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
@@ -270,9 +271,12 @@ func (s *Scene) handlePointer(ev platform.Event) {
 		}
 	}
 
-	ge := gestures.FromPlatform(ev)
+	ge, ok := gestures.FromInput(input.FromPlatform(ev, input.Modifiers{}))
+	if !ok {
+		return
+	}
 	switch ge.Kind {
-	case platform.PointerDown:
+	case input.PointerDown:
 		if containsBox(s.FocusBoxA, p) {
 			s.Focus.FocusFromHit(s.focusNodeA)
 		} else if containsBox(s.FocusBoxB, p) {
@@ -284,7 +288,7 @@ func (s *Scene) handlePointer(ev platform.Event) {
 		}
 		path := s.gesturePath(p)
 		s.disp.HandleDown(ge, path)
-	case platform.PointerMove, platform.PointerUp, platform.PointerScroll:
+	case input.PointerMove, input.PointerUp, input.PointerScroll:
 		s.disp.HandleEvent(ge)
 	}
 	s.Metrics.FocusLabel = s.focusLabel()

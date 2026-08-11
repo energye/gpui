@@ -1,36 +1,34 @@
 package gestures
 
-import "github.com/energye/gpui/ui/platform"
+import "github.com/energye/gpui/ui/input"
 
-// PointerEvent is a pointer sample in logical coordinates (Y-down).
-type PointerEvent struct {
-	Kind      platform.PointerKind
-	X, Y      float64
-	ScrollX   float64
-	ScrollY   float64
-	Button    int
-	PointerID int // 0 → PrimaryPointerID
-}
+// PointerEvent is the unified pointer/touch sample consumed by the gesture
+// arena. It is an alias of input.PointerEvent — the cross-platform normalized
+// pointer type — so gestures and the rest of the UI speak one vocabulary:
+//
+//	ID = 0 → mouse primary cursor
+//	ID ≥ 1 → touch slot (multi-touch)
+//
+// (Plan §5: gestures consume input.PointerEvent; the old platform-derived
+// FromPlatform/EffectivePointerID helpers are gone.)
+type PointerEvent = input.PointerEvent
 
-// FromPlatform converts a platform event. Non-pointer events yield Kind=-1
-// style zero with invalid Kind; callers should check ev.Type first.
-func FromPlatform(ev platform.Event) PointerEvent {
-	id := PrimaryPointerID
-	return PointerEvent{
-		Kind:      ev.Pointer,
-		X:         ev.X,
-		Y:         ev.Y,
-		ScrollX:   ev.ScrollX,
-		ScrollY:   ev.ScrollY,
-		Button:    ev.Button,
-		PointerID: id,
+// FromInput extracts a PointerEvent from a normalized input event.
+// Pointer/Scroll map straight to the pointer sample; Touch maps to its
+// PointerEvent-equivalent fields (Kind/ID/X/Y). Non-pointer events (key,
+// text, ime, lifecycle) yield ok=false.
+func FromInput(in input.Event) (PointerEvent, bool) {
+	switch in.Kind {
+	case input.KindPointer, input.KindScroll:
+		return in.Pointer, true
+	case input.KindTouch:
+		return PointerEvent{
+			Kind: in.Touch.Kind,
+			ID:   in.Touch.ID,
+			X:    in.Touch.X,
+			Y:    in.Touch.Y,
+		}, true
+	default:
+		return PointerEvent{}, false
 	}
-}
-
-// EffectivePointerID returns PointerID or PrimaryPointerID.
-func (e PointerEvent) EffectivePointerID() int {
-	if e.PointerID == 0 {
-		return PrimaryPointerID
-	}
-	return e.PointerID
 }

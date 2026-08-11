@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/ui/gestures"
+	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/platform"
 )
 
@@ -203,25 +204,28 @@ func (s *Scrollable) HandlePointer(ev platform.Event) bool {
 	if s == nil || s.Viewport == nil || ev.Type != platform.EventPointer {
 		return false
 	}
-	e := gestures.FromPlatform(ev)
+	e, ok := gestures.FromInput(input.FromPlatform(ev, input.Modifiers{}))
+	if !ok {
+		return false
+	}
 	switch e.Kind {
-	case platform.PointerScroll:
+	case input.PointerScroll:
 		s.applyWheel(e.ScrollX, e.ScrollY)
 		return true
-	case platform.PointerDown:
+	case input.PointerDown:
 		if s.mgr == nil {
 			s.mgr = gestures.NewManager()
 		}
 		s.pan = gestures.NewPan()
 		s.wirePan()
-		id := e.EffectivePointerID()
+		id := e.ID
 		a := s.mgr.Arena(id)
 		a.Add(s.pan)
 		s.pan.AddPointer(id, e)
 		s.mgr.Route(e)
 		s.mgr.CloseArena(id)
 		return true
-	case platform.PointerMove, platform.PointerUp:
+	case input.PointerMove, input.PointerUp:
 		if s.mgr == nil {
 			return false
 		}

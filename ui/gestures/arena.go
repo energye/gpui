@@ -1,6 +1,6 @@
 package gestures
 
-import "github.com/energye/gpui/ui/platform"
+import "github.com/energye/gpui/ui/input"
 
 // entryState is the resolution state of one arena member.
 type entryState int
@@ -177,9 +177,6 @@ func (m *GestureArenaManager) Arena(pointerID int) *GestureArena {
 	if m == nil {
 		return nil
 	}
-	if pointerID == 0 {
-		pointerID = PrimaryPointerID
-	}
 	if m.arenas == nil {
 		m.arenas = make(map[int]*GestureArena)
 	}
@@ -196,9 +193,6 @@ func (m *GestureArenaManager) Get(pointerID int) *GestureArena {
 	if m == nil || m.arenas == nil {
 		return nil
 	}
-	if pointerID == 0 {
-		pointerID = PrimaryPointerID
-	}
 	return m.arenas[pointerID]
 }
 
@@ -214,8 +208,7 @@ func (m *GestureArenaManager) Route(e PointerEvent) {
 	if m == nil {
 		return
 	}
-	id := e.EffectivePointerID()
-	a := m.Get(id)
+	a := m.Get(e.ID)
 	if a == nil {
 		return
 	}
@@ -229,8 +222,8 @@ func (m *GestureArenaManager) Route(e PointerEvent) {
 		}
 		ent.rec.HandleEvent(e)
 	}
-	if e.Kind == platform.PointerUp {
-		m.finish(id)
+	if e.Kind == input.PointerUp {
+		m.finish(e.ID)
 	}
 }
 

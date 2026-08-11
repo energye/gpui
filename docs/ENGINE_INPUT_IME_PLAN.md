@@ -1,4 +1,4 @@
-# 跨平台输入 / IME 分层方案（草案 v0.6）
+# 跨平台输入 / IME 分层方案（草案 v0.7）
 
 > **性质：DRAFT** — 方向收敛中，待确认后转真源。不参与 §R/§W 关闭。  
 > **并读：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)（§3 Host 注入）· [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（§0.3 U3 IME 暂缓可预留 SPI）  
@@ -7,8 +7,8 @@
 > ② 事件抽象出独立层 **`ui/input`** —— 各平台事件类型归一为跨平台一致的统一事件给上层；  
 > ③ 多窗口：入口 **`application.New()`** + **`app.NewWindow()`**；kit 只做控件不建窗口；  
 > ④ 控件层由 **框架统一事件绑定管理**（InputRouter），自定义控件实现统一回调接口即自动接线。  
-> **v0.3–v0.5（方案 A 第 1–3 步落地）：** `ui/input` 事件抽象层 · `ui/platform` 后端注册表/重写 · `ui/application` 多窗口应用层，均已实现。  
-> **v0.6（方案 A 第 4 步落地）：** `embedder.InputRouter` 统一事件绑定已实现——`PipelineOptions.Input` 可选挂载；挂载后 pointer/key 事件自动归一（`input.FromPlatform`）并路由：hit 路径上的控件实现 `input.PointerHandler/KeyHandler/TextHandler/IMEHandler` 即自动接线；修饰键跨事件跟踪；focus 桥接（Tab/Enter/激活键）；未挂载的窗口保持原 OnEvent 路径字节不变（示例零影响）。
+> **v0.3–v0.6（方案 A 第 1–4 步落地）：** `ui/input` · `ui/platform` · `ui/application` · `embedder.InputRouter` 均已实现。  
+> **v0.7（方案 A 第 5 步落地，方案 B：删 FromPlatform）：** `ui/gestures` 完整迁移到 `input` 类型——`PointerEvent = input.PointerEvent`（别名），`FromPlatform`/`EffectivePointerID`/`PrimaryPointerID=1` 删除，`PrimaryPointerID=0`（鼠标主指针）对齐 input；新增 `FromInput(input.Event)` 统一入口（Pointer/Scroll 直映射，Touch 携带 ID/X/Y）；多指并行 = 每 PointerID 一个独立 Arena（ID 0=鼠标，ID≥1=触摸槽）；`ui/rendering/Scrollable` 同步迁移；L2 shell 适配（2 处常量 + FromInput）。新增双指并行单测（双指独立 Tap / 一指 Tap 一指 Pan 并行不干扰）。
 
 ---
 
@@ -116,7 +116,7 @@ type KeyEvent struct {
 
 现状 `ui/focus/keys.go` 只有 4 个硬编码键 → 后续迁移为 `ui/input` 的逻辑键位表；`ui/focus.KeyEvent` 消费 `input.KeyEvent` 并携带 `Modifiers`。
 
-### 2.3 统一指针（鼠标 + 触摸归一，v0.3 已实现）
+### 2.3 统一指针（鼠标 + 触摸归一，v0.3 类型 + v0.7 gestures 消费）
 
 ```go
 // ui/input/pointer.go —— 鼠标 = ID 0 的单指触摸；触摸 = TouchID 多槽
@@ -132,6 +132,8 @@ type PointerEvent struct {
 }
 type TouchEvent struct { Kind; ID; X, Y float64 } // 多点触摸样本
 ```
+
+**消费端（v0.7）：** `ui/gestures` 直接消费 `input.PointerEvent`（`type PointerEvent = input.PointerEvent` 别名），`FromInput(input.Event)` 统一入口；多指并行 = 每 PointerID 一个独立 GestureArena。
 
 `ui/gestures` 只消费 `input.PointerEvent`（竞技场一套，多指并行）——现状 `gestures.FromPlatform` 直接删，改为吃 `input.Event`。
 
@@ -260,12 +262,13 @@ func (r *InputRouter) Route(ev input.Event)
 
 ## 5. L2 / L3 消费端改动
 
-| 层 | 现状 | 改后 |
-|---|---|---|
-| `ui/gestures` | `FromPlatform(platform.Event)` | 直接消费 `input.PointerEvent`；`FromPlatform` 删除；多指并行 |
-| `ui/focus` | `keys.go` 4 个硬编码键 | 键位表迁 `ui/input`；`KeyEvent` 带 `Modifiers` |
-| `ui/textinput`（新增） | — | 编辑缓冲 + 光标/选区 + IME 预编辑 + 剪贴板 |
-| `ui/kit`（未建，P7） | — | 控件实现 `EventTarget` 或依赖 kit 包装；`kit.App` 窗口内容根 |
+| 层 | 现状 | 改后 | 状态 |
+|---|---|---|---|
+| `ui/gestures` | `FromPlatform(platform.Event)` | 直接消费 `input.PointerEvent`（alias）；`FromInput` 入口；多指并行 Arena | ✅ v0.7 |
+| `ui/focus` | `keys.go` 4 个硬编码键 | 键位表迁 `ui/input`；`KeyEvent` 带 `Modifiers` | 🔄 键位表迁移待做（focus 已经 InputRouter 桥接消费 input） |
+| `ui/textinput`（新增） | — | 编辑缓冲 + 光标/选区 + IME 预编辑 + 剪贴板 | ⬜ |
+| `ui/rendering/Scrollable` | `gestures.FromPlatform` | `FromInput` + `input` 常量 | ✅ v0.7 |
+| `ui/kit`（未建，P7） | — | 控件实现 `EventTarget` 或依赖 kit 包装；`kit.App` 窗口内容根 | ⬜ |
 
 ---
 
@@ -289,7 +292,7 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | 2 | `ui/platform` 重写：`Window`/`Open`/`Adopt`/后端注册表（x11/wayland 三分离，win32/appkit stub） | 中（碰原生） | 单测路由全绿；示例未动仍跑 exhost | ✅ v0.4 |
 | 3 | `ui/application` + `app.NewWindow` 多窗口 | 中 | 生命周期/主窗/guard 单测绿；GPU 双窗真窗留真窗里程碑 | ✅ v0.5 |
 | 4 | `embedder.InputRouter`：自动路由，示例删手写 HandleEvent | 中 | 路由/modifier/hit 单测绿；未挂载窗口字节不变（示例零影响） | ✅ v0.6 |
-| 5 | `ui/gestures` 多点 + `Event` 触摸归一 | 中 | 双指并行单测 | ⬜ |
+| 5 | `ui/gestures` 多点 + `Event` 触摸归一（方案 B：删 FromPlatform） | 中 | 双指并行单测（双指独立 Tap / Tap+Pan 并行） | ✅ v0.7 |
 | 6 | `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3` 实证 | 高（真 IME 才算数） | Linux 真跑通 IME | ⬜ |
 | 7 | Win/mac 后端 + TSF/InputMethod（接口已预留） | 高 | 后置 | ⬜ |
 
@@ -315,3 +318,4 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | **v0.4** | **方案 A 第 2 步落地**：`ui/platform` 后端重写——`Window`/`Open`/`Adopt`（`window.go`）+ 后端注册表（`backend.go`）+ x11/wayland 三分离后端（`init()` 自注册）+ win32/appkit stub 注册 + `IME`/`Clipboard` 能力接口（`ime.go`）。`PlatformNone=-1` 独立 const 不扰动 iota，`TestPlatformKindValuesStable` 锁 ABI。示例保持原样（exhost 未动）。ui 层 14 包回归全绿。下一步：第 3 步 `ui/application` 多窗口。 |
 | **v0.5** | **方案 A 第 3 步落地**：`ui/application` 多窗口应用层——`New(Config)`/`NewWindow(opts)`/`SetRoot(root)`/`Run()`/`Quit()`/`Close()`；每窗 = `platform.Window` + `embedder.PipelineApp` 独立 goroutine 事件泵；主窗关闭 → 全部退出；`Config.NewHost` 注入点（测试/嵌入）。`platform.WrapHost` 供宿主复用。生命周期/主窗/guard 单测全绿，ui 层 14 包回归全绿。GPU 双窗真窗验证留真窗里程碑。下一步：第 4 步 `embedder.InputRouter`。 |
 | **v0.6** | **方案 A 第 4 步落地**：`embedder.InputRouter` 统一事件绑定——`input.EventTarget` 接口族（PointerHandler/KeyHandler/TextHandler/IMEHandler）；`PipelineOptions.Input` 可选挂载，Run 中 pointer/key 自动 `input.FromPlatform` 归一 + 路由（命中控件实现 handler 即自动接线）；修饰键跨事件跟踪（事件时语义：shift 按下事件本身 Mods.Shift=false）；focus 桥接（mapFocusKeyCode 兼容 focus 键码空间）；`input.KeyEvent` 增 `Mods` 字段。未挂载 Input 的窗口字节不变（示例零影响）。单测 7 项全绿，ui 层 14 包回归全绿。下一步：第 5 步 `ui/gestures` 多点 + 触摸归一。 |
+| **v0.7** | **方案 A 第 5 步落地（方案 B：删 FromPlatform）**：`ui/gestures` 完整迁移到 `input` 类型——`PointerEvent = input.PointerEvent`（别名）、`FromPlatform`/`EffectivePointerID` 删除、`PrimaryPointerID=0`（鼠标主指针）对齐 input；新增 `FromInput(input.Event)`（Pointer/Scroll 直映射、Touch 携 ID/X/Y）；多指并行 = 每 PointerID 独立 Arena（ID 0=鼠标，≥1=触摸槽）；`ui/rendering/Scrollable` 同步迁移；L2 shell 适配（FromInput + 2 处 input 常量）。新增双指并行单测（双指独立 Tap / 一指 Tap 一指 Pan 并行不干扰）+ FromInput 单测。gestures 8 项 + 全 ui 15 包 + L2 shell 回归全绿。下一步：第 6 步 `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3`。 |

@@ -1,8 +1,6 @@
 package gestures
 
-import (
-	"github.com/energye/gpui/ui/platform"
-)
+import "github.com/energye/gpui/ui/input"
 
 // PanGestureRecognizer wins when movement exceeds touch slop, then tracks drag.
 //
@@ -41,7 +39,7 @@ func (p *PanGestureRecognizer) AddPointer(pointerID int, e PointerEvent) {
 	if p == nil || p.disposed {
 		return
 	}
-	if e.Kind != platform.PointerDown {
+	if e.Kind != input.PointerDown {
 		return
 	}
 	p.tracking = true
@@ -59,7 +57,7 @@ func (p *PanGestureRecognizer) HandleEvent(e PointerEvent) {
 		return
 	}
 	switch e.Kind {
-	case platform.PointerMove:
+	case input.PointerMove:
 		if !p.accepted {
 			if dist(p.downX, p.downY, e.X, e.Y) > p.slop() {
 				if p.a != nil {
@@ -85,7 +83,7 @@ func (p *PanGestureRecognizer) HandleEvent(e PointerEvent) {
 				p.OnPanUpdate(e, dx, dy)
 			}
 		}
-	case platform.PointerUp:
+	case input.PointerUp:
 		if p.accepted {
 			if p.OnPanEnd != nil {
 				p.OnPanEnd(e)
