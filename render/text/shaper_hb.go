@@ -181,12 +181,21 @@ func detectHBScript(runes []rune) language.Script {
 }
 
 // hbFeatures converts user + default features to HarfBuzz features.
-// Default feature set matches OwnShaper's collectDesiredFeatures so the
-// two backends agree on which OpenType features are active (M0 parity).
+//
+// We intentionally do NOT pass OwnShaper's collectDesiredFeatures default set
+// (ccmp/liga/rlig/clig/dlig/calt/locl/init/medi/fina/isol/…). HarfBuzz already
+// enables its own proper default feature set internally, and the complex
+// shapers (Arabic init/fina/medi/isol, Indic half/pref/rphf/…) manage those
+// features with their own staged logic. Passing them here as "user" features
+// overrides the shaper's staging and produces WRONG output (observed:
+// Arabic `السلام` gave presentation-form glyphs instead of the font's GSUB
+// forms; liga/rlig/kern go duplicated or skipped). Only pass:
+//   - user-specified features (enable or disable: Value 0 disables),
+//   - vert/vrt2 for vertical direction (HarfBuzz does not auto-enable them).
+//
 // vertical enables the vert/vrt2 vertical alternates for TTB/BTT direction.
 func hbFeatures(userFeatures []FontFeature, vertical bool) []hb.Feature {
-	gsubTags, gposTags := collectDesiredFeatures(userFeatures, vertical)
-	features := make([]hb.Feature, 0, len(gsubTags)+len(gposTags)+len(userFeatures))
+	features := make([]hb.Feature, 0, len(userFeatures)+2)
 	enable := func(t [4]byte) {
 		features = append(features, hb.Feature{
 			Tag:   font.Tag(binary.BigEndian.Uint32(t[:])),
@@ -195,23 +204,18 @@ func hbFeatures(userFeatures []FontFeature, vertical bool) []hb.Feature {
 			End:   hb.FeatureGlobalEnd,
 		})
 	}
-	for _, t := range gsubTags {
-		enable(t)
+	if vertical {
+		enable([4]byte{'v', 'e', 'r', 't'})
+		enable([4]byte{'v', 'r', 't', '2'})
 	}
-	for _, t := range gposTags {
-		enable(t)
-	}
-	// User-disabled features: explicitly disable so HarfBuzz's own default
-	// set is overridden (parity with OwnShaper's delete-from-default).
+	// User-specified features: enable (Value 1) or disable (Value 0).
 	for _, f := range userFeatures {
-		if f.Value == 0 {
-			features = append(features, hb.Feature{
-				Tag:   font.Tag(binary.BigEndian.Uint32(f.Tag[:])),
-				Value: 0,
-				Start: hb.FeatureGlobalStart,
-				End:   hb.FeatureGlobalEnd,
-			})
-		}
+		features = append(features, hb.Feature{
+			Tag:   font.Tag(binary.BigEndian.Uint32(f.Tag[:])),
+			Value: f.Value,
+			Start: hb.FeatureGlobalStart,
+			End:   hb.FeatureGlobalEnd,
+		})
 	}
 	return features
 }
