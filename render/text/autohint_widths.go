@@ -128,8 +128,17 @@ func computeStandardWidths(font ParsedFont, dim hintDimension, script *scriptCla
 	sortAndQuantizeWidths(&widths, int32(upm/100))
 
 	if len(widths) == 0 {
-		// Fallback.
-		result.standardWidth = derivedConstant(upm)
+		// FreeType quirk (afhints.c af_sort_and_quantize_widths): with an
+		// empty width list the routine still promotes *count to 1 and reads
+		// the (freshly zeroed) first table entry, so an existing standard
+		// char with no stem pairs on this axis yields standardWidth=0 and
+		// edgeDistThreshold=0. Example: Gujarati ટ vertical axis in
+		// Samyak-Gujarati (FT: widths=[0] stdw=0 edt=0; a NaN-avoiding
+		// fallback here would instead produce edt=5 and wrongly merge the
+		// two top edges). Replicate the zero width so edge merging and the
+		// extra-light flag (0*scale < 0.625 → true) match FreeType.
+		result.widths = []int32{0}
+		result.standardWidth = 0
 	} else {
 		result.widths = widths
 		result.standardWidth = widths[0]

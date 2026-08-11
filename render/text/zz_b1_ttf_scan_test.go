@@ -232,14 +232,17 @@ func b1TTFRunScan(t *testing.T, name, fontPath, listPath string, wantCount int, 
 					bad++
 					badR = append(badR, r)
 					offBad = true
-					if dbgN < 3 {
-						dbgN++
-						fmt.Printf("  DBGC %U @%.0fpx pt%d: engine(%d,%d) ft(%d,%d) tag %d vs %d\n",
-							r, px, i, p.x, p.y, ftG.pts[i][0], ftG.pts[i][1],
-							int(tags[i]), ftG.pts[i][2])
-					}
-					if r == 0x513F {
-						fmt.Printf("  DBGFULL %U @%.0fpx:\n", r, px)
+				if dbgN < 3 {
+					dbgN++
+					fmt.Printf("  DBGC %U @%.0fpx pt%d: engine(%d,%d) ft(%d,%d) tag %d vs %d\n",
+						r, px, i, p.x, p.y, ftG.pts[i][0], ftG.pts[i][1],
+						int(tags[i]), ftG.pts[i][2])
+					fmt.Printf("  DBGH %U @%.0fpx: hinted[0]=(%d,%d) len=%d upm=%d scale=%v\n",
+						r, px, int32(hinted.Points[0].X), int32(hinted.Points[0].Y),
+						len(hinted.Points), face.UnitsPerEm(), px/float64(face.UnitsPerEm()))
+				}
+				if r == 0x513F {
+					fmt.Printf("  DBGFULL %U @%.0fpx:\n", r, px)
 						for j := range pts {
 							fmt.Printf("    pt%d engine(%d,%d) ft(%d,%d)\n",
 								j, pts[j].x, pts[j].y, ftG.pts[j][0], ftG.pts[j][1])
@@ -346,20 +349,21 @@ func b1cSampleCount(t *testing.T, listPath string) int {
 	return len([]rune(strings.TrimSpace(string(raw))))
 }
 
-// TestB1TTFProbe：B1c 单档探路（12px）——全字体 bad 分布，
-// 验证框架 + 量化脚本缺口（expect=gap 仅统计不判 FAIL）。
+// TestB1TTFProbe：B1c 快速健康检查（12px 单档）——全字体 bad 分布。
+// 全部字体均已转正为 match（2026-08-11：sameSign 修复后 6 个 Indic/
+// Arabic/Ethiopic 脚本字体 12px bad=0，gap 期待撤销）。
 func TestB1TTFProbe(t *testing.T) {
 	defs := []b1cFontDef{
 		{"wqy-nohint", "testdata/wqy-microhei-nohint.ttf", "hint/testdata/cjk3000.txt", 3000, "match"},
 		{"wqy-microhei", "testdata/wqy-microhei.ttf", "hint/testdata/cjk3000.txt", 3000, "match"},
 		{"freesans", "/usr/share/fonts/truetype/freefont/FreeSans.ttf", "hint/testdata/latin_all.txt", 0, "match"},
 		{"dejavu", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "hint/testdata/latin_all.txt", 0, "match"},
-		{"samyak-deva", "/usr/share/fonts/truetype/samyak/Samyak-Devanagari.ttf", "hint/testdata/deva_sample.txt", 0, "gap"},
-		{"mukti-beng", "/usr/share/fonts/truetype/fonts-beng-extra/Mukti.ttf", "hint/testdata/beng_sample.txt", 0, "gap"},
-		{"samyak-taml", "/usr/share/fonts/truetype/samyak-fonts/Samyak-Tamil.ttf", "hint/testdata/taml_sample.txt", 0, "gap"},
-		{"samyak-gujr", "/usr/share/fonts/truetype/samyak-fonts/Samyak-Gujarati.ttf", "hint/testdata/gujr_sample.txt", 0, "gap"},
-		{"kacst-arab", "/usr/share/fonts/truetype/kacst-one/KacstOne.ttf", "hint/testdata/arab_sample.txt", 0, "gap"},
-		{"abyssinica-ethi", "/usr/share/fonts/truetype/abyssinica/AbyssinicaSIL-Regular.ttf", "hint/testdata/ethi_sample.txt", 0, "gap"},
+		{"samyak-deva", "/usr/share/fonts/truetype/samyak/Samyak-Devanagari.ttf", "hint/testdata/deva_sample.txt", 0, "match"},
+		{"mukti-beng", "/usr/share/fonts/truetype/fonts-beng-extra/Mukti.ttf", "hint/testdata/beng_sample.txt", 0, "match"},
+		{"samyak-taml", "/usr/share/fonts/truetype/samyak-fonts/Samyak-Tamil.ttf", "hint/testdata/taml_sample.txt", 0, "match"},
+		{"samyak-gujr", "/usr/share/fonts/truetype/samyak-fonts/Samyak-Gujarati.ttf", "hint/testdata/gujr_sample.txt", 0, "match"},
+		{"kacst-arab", "/usr/share/fonts/truetype/kacst-one/KacstOne.ttf", "hint/testdata/arab_sample.txt", 0, "match"},
+		{"abyssinica-ethi", "/usr/share/fonts/truetype/abyssinica/AbyssinicaSIL-Regular.ttf", "hint/testdata/ethi_sample.txt", 0, "match"},
 		{"padauk-mymr", "/usr/share/fonts/truetype/padauk/PadaukBook-Regular.ttf", "hint/testdata/mymr_sample.txt", 0, "match"},
 	}
 	totalGap := 0
@@ -430,4 +434,30 @@ func TestB1TTFMyanmar(t *testing.T) {
 		t.Skipf("PadaukBook unavailable: %v", err)
 	}
 	b1TTFRunScan(t, "padauk-mymr", path, "hint/testdata/mymr_sample.txt", b1cSampleCount(t, "hint/testdata/mymr_sample.txt"), b1c65pxs())
+}
+
+// TestB1TTFIndicScripts：B1c 印地/阿拉伯/埃塞俄比亚矩阵——6 个脚本字体
+// × 各自字表 × 65 档（8–72px），四维度全绿。
+// 2026-08-11 转正：sameSign（autohint_segments.go）负数×0 象限判定与
+// FT (in^out)>=0 对齐后，12px 探路 bad=0，撤销 gap 期待，进正式矩阵。
+// 允许差清空：此前唯一允许差 gujr px12 U+0A91 +0.2px 随修复消失。
+func TestB1TTFIndicScripts(t *testing.T) {
+	defs := []b1cFontDef{
+		{"samyak-deva", "/usr/share/fonts/truetype/samyak/Samyak-Devanagari.ttf", "hint/testdata/deva_sample.txt", 0, "match"},
+		{"mukti-beng", "/usr/share/fonts/truetype/fonts-beng-extra/Mukti.ttf", "hint/testdata/beng_sample.txt", 0, "match"},
+		{"samyak-taml", "/usr/share/fonts/truetype/samyak-fonts/Samyak-Tamil.ttf", "hint/testdata/taml_sample.txt", 0, "match"},
+		{"samyak-gujr", "/usr/share/fonts/truetype/samyak-fonts/Samyak-Gujarati.ttf", "hint/testdata/gujr_sample.txt", 0, "match"},
+		{"kacst-arab", "/usr/share/fonts/truetype/kacst-one/KacstOne.ttf", "hint/testdata/arab_sample.txt", 0, "match"},
+		{"abyssinica-ethi", "/usr/share/fonts/truetype/abyssinica/AbyssinicaSIL-Regular.ttf", "hint/testdata/ethi_sample.txt", 0, "match"},
+	}
+	for _, d := range defs {
+		if _, err := os.Stat(d.fontPath); err != nil {
+			t.Skipf("%s unavailable: %v", d.name, err)
+		}
+		want := d.want
+		if want == 0 {
+			want = b1cSampleCount(t, d.listPath)
+		}
+		b1TTFRunScan(t, d.name, d.fontPath, d.listPath, want, b1c65pxs())
+	}
 }

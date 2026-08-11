@@ -521,12 +521,17 @@ func computeBlueEdges(edges []*hintEdge, axis *scaledAxisMetrics, group scriptGr
 
 			// For top blue zones, check edges going against the major direction.
 			// For bottom blue zones, check edges going in the major direction.
-			// Skrifa: is_top ^ is_major_dir (XOR — match when they differ).
+			// FreeType aflatin.c:2548-2558: match when
+			//   (is_top_blue ^ is_major_dir) || is_neutral_blue
+			// — neutral zones are always candidates regardless of direction.
+			// Skipping the neutral exception dropped deva's base zone
+			// (ref 682, Top|Neutral) from the fpos=673 serif edge, leaving
+			// it at opos 505 instead of FT's blue-snapped 512.
 			isTopBlue := blue.flags.isTopLike()
 			isMajorDir := edge.dir == majorDir
+			isNeutral := (blue.flags & blueZoneNeutral) != 0
 
-			// Top zones match non-major edges, bottom zones match major edges.
-			if isTopBlue == isMajorDir {
+			if isTopBlue == isMajorDir && !isNeutral {
 				continue
 			}
 
@@ -759,24 +764,28 @@ func alignStemEdges(edges []*hintEdge, axis *scaledAxisMetrics, anchorIdx int, s
 				positionSubsequentStem(edge, edge2, anchor, orgLen, curLen)
 				edge.flags |= edgeFlagDone
 				edge2.flags |= edgeFlagDone
-			}
 
-			// Bound check. Matches skrifa edges.rs adjust_link (LinkDir::Prev);
-			// top_to_bottom reverses the order check (edges.rs:454).
-			if i > 0 {
-				orderBroken := edge.pos < edges[i-1].pos
-				if topToBottom {
-					orderBroken = edge.pos > edges[i-1].pos
-				}
-				if orderBroken {
-					if edge.linkIdx >= 0 {
-						linkPos := edges[edge.linkIdx].pos
-						d := linkPos - edges[i-1].pos
-						if d < 0 {
-							d = -d
-						}
-						if d > 16 {
-							edge.pos = edges[i-1].pos
+				// Bound check, subsequent stems only. FreeType aflatin.c
+				// applies this only inside the else (non-anchor) branch of
+				// the main stem loop (aflatin.c:3356-3375); the first stem
+				// (positionFirstStem) is exempt — e.g. Ethiopic ሠ 12px:
+				// anchor edge 1 lands at 81 (below the still-unhinted
+				// serif edge 0 at 87) and stays there.
+				if i > 0 {
+					orderBroken := edge.pos < edges[i-1].pos
+					if topToBottom {
+						orderBroken = edge.pos > edges[i-1].pos
+					}
+					if orderBroken {
+						if edge.linkIdx >= 0 {
+							linkPos := edges[edge.linkIdx].pos
+							d := linkPos - edges[i-1].pos
+							if d < 0 {
+								d = -d
+							}
+							if d > 16 {
+								edge.pos = edges[i-1].pos
+							}
 						}
 					}
 				}

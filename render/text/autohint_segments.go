@@ -483,7 +483,13 @@ func computeDirectionsPass(pts []hintPoint, cr contourRange, nl float32) {
 		pts[nextIdx].inDir = d
 		pts[nextIdx].v = int32(currIdx) // v = prev non-near
 
-		pts[currIdx].u = int32(nextIdx) // u = next non-near
+		// (A) curr->u = next - curr — store next-non-near delta on the
+		// previous non-near point.  Written before (C) on the *next* point,
+		// so each non-near point's final u is its own next non-near point,
+		// except first (u = itself) and last (u = first).  Matches FreeType
+		// afhints.c:1146-1162.
+		pts[currIdx].u = int32(nextIdx)
+
 		pts[currIdx].outDir = d
 
 		// Set directions for all intermediate (near) points.
@@ -629,13 +635,16 @@ func classifyVector(dx, dy float32) (dir hintDirection, ll, ss float32) {
 	return dirDown, -dy, dx
 }
 
-// sameSign returns true if both values have the same sign (or either is zero).
-// Matches FreeType's (in_x ^ out_x) >= 0 check for floats.
+// sameSign returns true if both values have the same sign, matching FreeType's
+// (in_x ^ out_x) >= 0 integer check.  For integers, 0 shares the sign bit with
+// positive numbers only: (a ^ b) >= 0 is true for (+,+), (+/0,+/0), (-,-) and
+// false for (-,0) and (0,-) because a negative number XORed with zero keeps its
+// sign bit set.
 func sameSign(a, b float32) bool {
 	if a >= 0 {
 		return b >= 0
 	}
-	return b <= 0
+	return b < 0
 }
 
 // isCornerFlat determines if an in-vector and out-vector form a "flat" corner
