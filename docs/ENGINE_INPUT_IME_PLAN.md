@@ -1,4 +1,4 @@
-# 跨平台输入 / IME 分层方案（草案 v0.7）
+# 跨平台输入 / IME 分层方案（草案 v0.8）
 
 > **性质：DRAFT** — 方向收敛中，待确认后转真源。不参与 §R/§W 关闭。  
 > **并读：** [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md)（§3 Host 注入）· [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（§0.3 U3 IME 暂缓可预留 SPI）  
@@ -7,8 +7,8 @@
 > ② 事件抽象出独立层 **`ui/input`** —— 各平台事件类型归一为跨平台一致的统一事件给上层；  
 > ③ 多窗口：入口 **`application.New()`** + **`app.NewWindow()`**；kit 只做控件不建窗口；  
 > ④ 控件层由 **框架统一事件绑定管理**（InputRouter），自定义控件实现统一回调接口即自动接线。  
-> **v0.3–v0.6（方案 A 第 1–4 步落地）：** `ui/input` · `ui/platform` · `ui/application` · `embedder.InputRouter` 均已实现。  
-> **v0.7（方案 A 第 5 步落地，方案 B：删 FromPlatform）：** `ui/gestures` 完整迁移到 `input` 类型——`PointerEvent = input.PointerEvent`（别名），`FromPlatform`/`EffectivePointerID`/`PrimaryPointerID=1` 删除，`PrimaryPointerID=0`（鼠标主指针）对齐 input；新增 `FromInput(input.Event)` 统一入口（Pointer/Scroll 直映射，Touch 携带 ID/X/Y）；多指并行 = 每 PointerID 一个独立 Arena（ID 0=鼠标，ID≥1=触摸槽）；`ui/rendering/Scrollable` 同步迁移；L2 shell 适配（2 处常量 + FromInput）。新增双指并行单测（双指独立 Tap / 一指 Tap 一指 Pan 并行不干扰）。
+> **v0.3–v0.7（方案 A 第 1–5 步落地）：** `ui/input` · `ui/platform` · `ui/application` · `InputRouter` · `gestures` 多点迁移，均已实现。  
+> **v0.8（方案 A 第 6 步落地）：** `ui/textinput` 编辑控制器（缓冲/光标/选区/IME 预编辑生命周期，UTF-8 字节偏移对齐 Wayland 协议）+ `platform.IME` 的 **Wayland `zwp_text_input_v3` 真实绑定**（registry 识别 manager+seat → `get_text_input(id, seat)` → preedit_string/commit_string 事件 → `platform.Event{EventIME}`）+ `InputRouter.TextEditor` 自动路由 + `PipelineApp`/`application.Window` 接线。**实证：真 Wayland 窗（GNOME）IME capability AVAILABLE、EnableIME 协议发送无错误**。修复 `get_text_input` 缺 `seat` 参数（协议签名 "no"）。
 
 ---
 
@@ -293,7 +293,7 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | 3 | `ui/application` + `app.NewWindow` 多窗口 | 中 | 生命周期/主窗/guard 单测绿；GPU 双窗真窗留真窗里程碑 | ✅ v0.5 |
 | 4 | `embedder.InputRouter`：自动路由，示例删手写 HandleEvent | 中 | 路由/modifier/hit 单测绿；未挂载窗口字节不变（示例零影响） | ✅ v0.6 |
 | 5 | `ui/gestures` 多点 + `Event` 触摸归一（方案 B：删 FromPlatform） | 中 | 双指并行单测（双指独立 Tap / Tap+Pan 并行） | ✅ v0.7 |
-| 6 | `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3` 实证 | 高（真 IME 才算数） | Linux 真跑通 IME | ⬜ |
+| 6 | `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3` 实证 | 高（真 IME 才算数） | **协议握手真窗 PASS**（IME AVAILABLE + EnableIME 无错）；完整候选交互留真桌面 | ✅ v0.8（协议层） |
 | 7 | Win/mac 后端 + TSF/InputMethod（接口已预留） | 高 | 后置 | ⬜ |
 
 第 6 步 Linux 真跑通 IME = 方案成败证明；X11 XIM 为备选。
@@ -319,3 +319,4 @@ examples     → application 入口；禁止在示例里写原生事件解析（
 | **v0.5** | **方案 A 第 3 步落地**：`ui/application` 多窗口应用层——`New(Config)`/`NewWindow(opts)`/`SetRoot(root)`/`Run()`/`Quit()`/`Close()`；每窗 = `platform.Window` + `embedder.PipelineApp` 独立 goroutine 事件泵；主窗关闭 → 全部退出；`Config.NewHost` 注入点（测试/嵌入）。`platform.WrapHost` 供宿主复用。生命周期/主窗/guard 单测全绿，ui 层 14 包回归全绿。GPU 双窗真窗验证留真窗里程碑。下一步：第 4 步 `embedder.InputRouter`。 |
 | **v0.6** | **方案 A 第 4 步落地**：`embedder.InputRouter` 统一事件绑定——`input.EventTarget` 接口族（PointerHandler/KeyHandler/TextHandler/IMEHandler）；`PipelineOptions.Input` 可选挂载，Run 中 pointer/key 自动 `input.FromPlatform` 归一 + 路由（命中控件实现 handler 即自动接线）；修饰键跨事件跟踪（事件时语义：shift 按下事件本身 Mods.Shift=false）；focus 桥接（mapFocusKeyCode 兼容 focus 键码空间）；`input.KeyEvent` 增 `Mods` 字段。未挂载 Input 的窗口字节不变（示例零影响）。单测 7 项全绿，ui 层 14 包回归全绿。下一步：第 5 步 `ui/gestures` 多点 + 触摸归一。 |
 | **v0.7** | **方案 A 第 5 步落地（方案 B：删 FromPlatform）**：`ui/gestures` 完整迁移到 `input` 类型——`PointerEvent = input.PointerEvent`（别名）、`FromPlatform`/`EffectivePointerID` 删除、`PrimaryPointerID=0`（鼠标主指针）对齐 input；新增 `FromInput(input.Event)`（Pointer/Scroll 直映射、Touch 携 ID/X/Y）；多指并行 = 每 PointerID 独立 Arena（ID 0=鼠标，≥1=触摸槽）；`ui/rendering/Scrollable` 同步迁移；L2 shell 适配（FromInput + 2 处 input 常量）。新增双指并行单测（双指独立 Tap / 一指 Tap 一指 Pan 并行不干扰）+ FromInput 单测。gestures 8 项 + 全 ui 15 包 + L2 shell 回归全绿。下一步：第 6 步 `ui/textinput` + `platform.IME` + Wayland `zwp_text_input_v3`。 |
+| **v0.8** | **方案 A 第 6 步落地（协议层实证）**：① `ui/textinput` 编辑控制器（`editor.go`）——UTF-8 字节偏移缓冲/光标/选区/剪贴板/IME 预编辑生命周期（BeginCompose/Update/Commit/Cancel），`ApplyText`/`ApplyIME` 消费归一事件，15 项单测全绿；② `platform.Event` 加 `EventIME` + `IMEKind/IMEText/IMEStart/IMEEnd` 载荷，`input.FromPlatform` 归一；③ **Wayland `zwp_text_input_v3` 真实绑定**（`wayland_textinput_linux.go`）——registry 识别 `zwp_text_input_manager_v3` + `wl_seat`，`get_text_input(id, seat)`（**修复：协议签名 "no" 需要 seat，初版漏参致 `invalid arguments`**），preedit_string/commit_string/delete_surrounding_text 事件 → `platform.Event{EventIME}` → `wlHost.poll` 队列；`wlIme` 实现 `platform.IME`（EnableIME/SetComposing/Commit/DisableIME）；④ `InputRouter.TextEditor` 自动路由 Text/IME → 聚焦编辑器；`PipelineApp.SetInputRouter` + `application.Window.SetInput` 接线；⑤ **实证**：`examples/ui_ime_probe` 真 Wayland 窗（GNOME）——`IME capability AVAILABLE`、`EnableIME sent`、无协议错误（修复前后对照：修复前 mutter 报 `invalid arguments for ...get_text_input`）。`examples/ui_textinput_ime` 完整示例（GPU 无头环境 surface 配置受限，输入链路已由 probe 验证）。全 ui 16 包回归全绿。下一步：第 7 步 Win/mac 后端 + TSF/InputMethod（接口已预留），或反攻：X11 XIM 绑定 + 真桌面候选交互实证。 |

@@ -59,6 +59,7 @@ type PipelineApp struct {
 	pipe  *rendering.PipelineOwner
 	root  rendering.RenderObject
 	opts  PipelineOptions
+	input *InputRouter
 
 	target *render.PresentTarget
 
@@ -322,8 +323,22 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 	// Wire the unified input router to this app's hit-test (plan §4).
 	if opts.Input != nil {
 		opts.Input.SetHitTest(app.HitTestPointer)
+		app.input = opts.Input
 	}
 	return app
+}
+
+// SetInputRouter attaches (or replaces) the unified input router after
+// construction. The router's hit-test is bound to this app's HitTestPointer.
+// Pass nil to detach (fall back to OnEvent input handling).
+func (a *PipelineApp) SetInputRouter(r *InputRouter) {
+	if a == nil {
+		return
+	}
+	if r != nil {
+		r.SetHitTest(a.HitTestPointer)
+	}
+	a.input = r
 }
 
 // SaveLayerStats returns the cumulative SaveLayer allow/reject outcomes (W2 R18).
@@ -502,8 +517,8 @@ func (a *PipelineApp) Run() error {
 			// Unified input routing (plan §4): when an InputRouter is
 			// attached, pointer/key events are normalized and dispatched by
 			// the framework; per-example OnEvent input handling is skipped.
-			if a.opts.Input != nil && (ev.Type == platform.EventPointer || ev.Type == platform.EventKey) {
-				a.opts.Input.RoutePlatform(ev)
+			if a.input != nil && (ev.Type == platform.EventPointer || ev.Type == platform.EventKey || ev.Type == platform.EventIME) {
+				a.input.RoutePlatform(ev)
 				continue
 			}
 			if a.opts.OnEvent != nil {

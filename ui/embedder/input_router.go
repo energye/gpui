@@ -8,6 +8,7 @@ import (
 	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
+	"github.com/energye/gpui/ui/textinput"
 )
 
 // HitTestFunc returns the top-most render object at logical (x, y) plus the
@@ -45,6 +46,11 @@ type InputRouter struct {
 	OnText func(ev input.TextEvent)
 	// OnIME receives in-progress IME events.
 	OnIME func(ev input.IMEEvent)
+
+	// TextEditor is the focused editable control (if any). When set, KindText
+	// and KindIME events are routed to it automatically (plan §6), in addition
+	// to the OnText/OnIME callbacks.
+	TextEditor *textinput.Editor
 
 	mu   sync.Mutex
 	mods input.Modifiers
@@ -108,10 +114,16 @@ func (r *InputRouter) Route(ev input.Event) {
 	case input.KindKey:
 		r.routeKey(ev)
 	case input.KindText:
+		if r.TextEditor != nil {
+			r.TextEditor.ApplyText(ev.Text)
+		}
 		if r.OnText != nil {
 			r.OnText(ev.Text)
 		}
 	case input.KindIME:
+		if r.TextEditor != nil {
+			r.TextEditor.ApplyIME(ev.IME)
+		}
 		if r.OnIME != nil {
 			r.OnIME(ev.IME)
 		}

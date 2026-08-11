@@ -9,6 +9,7 @@ import (
 	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
+	"github.com/energye/gpui/ui/textinput"
 )
 
 // testTarget implements input.PointerHandler + input.KeyHandler for
@@ -164,5 +165,43 @@ func TestRouterEventTargetOnPath(t *testing.T) {
 	})
 	if tgt.pointerCalls.Load() != 1 {
 		t.Fatalf("handler not auto-wired: %d", tgt.pointerCalls.Load())
+	}
+}
+
+func TestRouterRoutesTextToEditor(t *testing.T) {
+	ed := textinput.New()
+	r := NewInputRouter(nil, nil)
+	r.TextEditor = ed
+	r.Route(input.FromText("你好", input.Modifiers{}))
+	if ed.Text() != "你好" {
+		t.Fatalf("editor text = %q", ed.Text())
+	}
+}
+
+func TestRouterRoutesIMEToEditor(t *testing.T) {
+	ed := textinput.New()
+	r := NewInputRouter(nil, nil)
+	r.TextEditor = ed
+	// Compose → pre-edit inserted; commit → finalized.
+	r.Route(input.FromIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"}, input.Modifiers{}))
+	if !ed.ComposeActive() {
+		t.Fatal("compose not started in editor")
+	}
+	r.Route(input.FromIME(input.IMEEvent{Kind: input.IMECommit, Text: "你"}, input.Modifiers{}))
+	if ed.Text() != "你" {
+		t.Fatalf("editor text = %q", ed.Text())
+	}
+	if ed.ComposeActive() {
+		t.Fatal("compose should be done after commit")
+	}
+}
+
+func TestRouterIMEWithoutEditorStillCallsOnIME(t *testing.T) {
+	var imeGot atomic.Value
+	r := NewInputRouter(nil, nil)
+	r.OnIME = func(ev input.IMEEvent) { imeGot.Store(ev.Text) }
+	r.Route(input.FromIME(input.IMEEvent{Kind: input.IMECommit, Text: "x"}, input.Modifiers{}))
+	if imeGot.Load() != "x" {
+		t.Fatalf("OnIME not called: %v", imeGot.Load())
 	}
 }

@@ -227,6 +227,7 @@ type Window struct {
 	mu      sync.Mutex
 	pipe    *embedder.PipelineApp
 	root    rendering.RenderObject
+	input   *embedder.InputRouter
 	closed  bool
 }
 
@@ -300,6 +301,7 @@ func (w *Window) SetRoot(root rendering.RenderObject) error {
 		WarmUp:    cfg.WarmUp,
 		MaxFrames: cfg.MaxFrames,
 		RunFor:    cfg.RunFor,
+		Input:     w.input,
 		OnEvent: func(ev platform.Event) {
 			if cfg.OnEvent != nil {
 				cfg.OnEvent(ev)
@@ -311,6 +313,21 @@ func (w *Window) SetRoot(root rendering.RenderObject) error {
 		},
 	})
 	return nil
+}
+
+// SetInput attaches the unified input router (plan §4/§6). Call before
+// SetRoot so the pipeline is wired with it. The router's hit-test is bound
+// to this window's HitTestPointer automatically by NewPipelineApp.
+func (w *Window) SetInput(r *embedder.InputRouter) {
+	if w == nil {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.pipe != nil {
+		w.pipe.SetInputRouter(r)
+	}
+	w.input = r
 }
 
 // ScheduleFrame requests a frame on this window.

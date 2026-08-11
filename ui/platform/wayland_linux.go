@@ -102,6 +102,7 @@ type wlLib struct {
 	ifaceCompositor uintptr
 	ifaceSurface    uintptr
 	ifaceRegistry   uintptr
+	ifaceSeat       uintptr
 }
 
 func loadWayland() (*wlLib, error) {
@@ -132,6 +133,7 @@ func loadWayland() (*wlLib, error) {
 		{"wl_compositor_interface", &l.ifaceCompositor},
 		{"wl_surface_interface", &l.ifaceSurface},
 		{"wl_registry_interface", &l.ifaceRegistry},
+		{"wl_seat_interface", &l.ifaceSeat},
 	} {
 		p, err := purego.Dlsym(lib, pair.name)
 		if err != nil || p == 0 {
@@ -299,11 +301,20 @@ type wlWin struct {
 	decoName, decoVer uint32
 	decoMgr           uintptr
 	decoTop           uintptr
+	tiMgrName         uint32 // zwp_text_input_manager_v3 global name (0 = absent)
+	seatName          uint32 // wl_seat global name (0 = absent)
+	seat              uintptr // bound wl_seat proxy
 
 	width, height int
 	configured    bool
 	closed        bool
 	resized       bool
+
+	// text-input (IME) optional capability.
+	ti *wlTIState
+	// imeMu guards the pending IME event queue drained by poll.
+	imeMu     sync.Mutex
+	imeEvents []Event
 
 	regListener [2]uintptr
 	wmListener  [1]uintptr
@@ -449,8 +460,29 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 	}
 	runtime.KeepAlive(win)
 
+	// Optional IME capability: bind zwp_text_input_v3 when advertised.
+	if win.tiMgrName != 0 && win.seatName != 0 {
+		// Bind wl_seat (get_text_input needs the seat object).
+		win.seat = win.bind(win.registry, win.seatName, lib.ifaceSeat, 1)
+		initTIInterfaces(lib.ifaceSurface, lib.ifaceSeat)
+		win.ti = win.bindTextInput()
+		if win.ti == nil && win.seat != 0 {
+			lib.proxyDestroy(win.seat)
+			win.seat = 0
+		}
+	}
+
 	host := &wlHost{win: win}
-	return newWindow(host, PlatformWayland, nil, nil, host.destroy), nil
+	return newWindow(host, PlatformWayland, imeFor(host), nil, host.destroy), nil
+}
+
+// imeFor returns the IME capability for a wayland host, or nil when the
+// compositor does not support zwp_text_input_v3 (silent degrade).
+func imeFor(h *wlHost) IME {
+	if h == nil || h.win == nil || h.win.ti == nil {
+		return nil
+	}
+	return &wlIme{h: h}
 }
 
 func (w *wlWin) bind(registry uintptr, name uint32, iface uintptr, version uint32) uintptr {
@@ -474,6 +506,14 @@ func (w *wlWin) destroyNative() {
 	lib := w.lib
 	if lib == nil {
 		return
+	}
+	if w.ti != nil {
+		w.ti.destroy()
+		w.ti = nil
+	}
+	if w.seat != 0 {
+		lib.proxyDestroy(w.seat)
+		w.seat = 0
 	}
 	if w.decoTop != 0 {
 		lib.proxyDestroy(w.decoTop)
@@ -543,6 +583,10 @@ func wlRegistryGlobal(data, registry, name, iface, version uintptr) {
 		w.wmName, w.wmVer = n, v
 	case "zxdg_decoration_manager_v1":
 		w.decoName, w.decoVer = n, v
+	case "zwp_text_input_manager_v3":
+		w.tiMgrName = n
+	case "wl_seat":
+		w.seatName = n
 	}
 	_ = registry
 }
@@ -711,6 +755,13 @@ func (h *wlHost) poll() []Event {
 			Type: EventResize, Width: w.width, Height: w.height, Scale: h.ScaleFactor(),
 		})
 	}
+	// IME events queued by the text-input callbacks.
+	w.imeMu.Lock()
+	if len(w.imeEvents) > 0 {
+		out = append(out, w.imeEvents...)
+		w.imeEvents = nil
+	}
+	w.imeMu.Unlock()
 	return out
 }
 

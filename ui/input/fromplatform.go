@@ -27,8 +27,29 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 		return fromPointer(ev, mods)
 	case platform.EventKey:
 		return fromKey(ev, mods)
+	case platform.EventIME:
+		return fromIME(ev, mods)
 	default:
 		return Event{Kind: KindNone}
+	}
+}
+
+// fromIME maps a platform IME event into the normalized IME event. The
+// platform IMEKind (0=compose, 1=commit, 2=caret) aligns with input.IMEKind.
+func fromIME(ev platform.Event, mods Modifiers) Event {
+	kind := IMEKind(ev.IMEKind)
+	if kind < IMECompose || kind > IMECaretMove {
+		kind = IMECompose
+	}
+	return Event{
+		Kind:      KindIME,
+		Modifiers: mods,
+		IME: IMEEvent{
+			Kind:  kind,
+			Text:  ev.IMEText,
+			Start: ev.IMEStart,
+			End:   ev.IMEEnd,
+		},
 	}
 }
 

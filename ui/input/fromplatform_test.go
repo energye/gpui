@@ -190,6 +190,29 @@ func TestFromIME(t *testing.T) {
 	}
 }
 
+func TestFromPlatform_IME(t *testing.T) {
+	// platform.Event{Type: platform.EventIME} → normalized input.Event{Kind: IME}.
+	ev := FromPlatform(platform.Event{
+		Type: platform.EventIME, IMEKind: 0, IMEText: "ni", IMEStart: 5, IMEEnd: 7,
+	}, Modifiers{})
+	if ev.Kind != KindIME {
+		t.Fatalf("kind = %s, want ime", ev.Kind)
+	}
+	if ev.IME.Kind != IMECompose || ev.IME.Text != "ni" || ev.IME.Start != 5 || ev.IME.End != 7 {
+		t.Fatalf("ime = %+v", ev.IME)
+	}
+	// Commit kind.
+	ev2 := FromPlatform(platform.Event{Type: platform.EventIME, IMEKind: 1, IMEText: "你"}, Modifiers{})
+	if ev2.IME.Kind != IMECommit || ev2.IME.Text != "你" {
+		t.Fatalf("ime commit = %+v", ev2.IME)
+	}
+	// Out-of-range kind clamps to compose.
+	ev3 := FromPlatform(platform.Event{Type: platform.EventIME, IMEKind: 99, IMEText: "x"}, Modifiers{})
+	if ev3.IME.Kind != IMECompose {
+		t.Fatalf("out-of-range kind = %+v", ev3.IME)
+	}
+}
+
 func TestKeySingleLetter(t *testing.T) {
 	if KeyA == KeyB {
 		t.Fatal("letters must be distinct")

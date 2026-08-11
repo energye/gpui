@@ -57,6 +57,7 @@ const (
 	EventExpose
 	EventPointer
 	EventKey
+	EventIME  // input-method session event (compose/commit/caret)
 	EventWake // WakeUp from another goroutine
 )
 
@@ -91,6 +92,12 @@ type Event struct {
 	KeyCode int
 	Rune    rune
 	Pressed bool
+
+	// IME (EventIME): pre-edit / commit / caret events from the input method.
+	IMEKind  int    // 0 = compose (pre-edit), 1 = commit, 2 = caret move
+	IMEText  string // compose pre-edit / commit text
+	IMEStart int    // affected range start (bytes); -1 = whole buffer
+	IMEEnd   int    // affected range end (bytes); -1 = whole buffer
 }
 
 // Host is the cross-platform window/input SPI.
