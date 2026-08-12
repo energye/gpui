@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
+	"strings"
 )
 
 // Draw renders text to a destination image.
@@ -350,100 +351,111 @@ func drawSourceFace(dst draw.Image, text string, sf *sourceFace, x, y float64, c
 	drawGlyphs(dst, sf, text, x, y, col, rasterizeHintedGlyph)
 }
 
-// drawMultiFace renders text using a MultiFace, selecting the appropriate font for each rune.
+// drawMultiFace renders text using a MultiFace, selecting the appropriate
+// font for each rune. Consecutive runes resolved to the same face are merged
+// into one draw call (mf.Runs), so mixed-script text does one rasterization
+// pass per contiguous font run instead of one per rune (P5).
 func drawMultiFace(dst draw.Image, text string, mf *MultiFace, x, y float64, col color.Color) {
+	// Vertical (TTB/BTT): runs stack along Y (glyph.Y carries vmtx heights,
+	// matching drawGlyphs); X stays fixed at the origin.
+	vertical := mf.Direction().IsVertical()
+
 	currentX := x
+	currentY := y
 
 	// Tabs already expanded to spaces by Draw() via expandTabs().
-	for _, r := range text {
-		runeStr := string(r)
-
-		// Find the face that has this glyph
-		var faceToUse Face
-		for _, f := range mf.faces {
-			if f.HasGlyph(r) {
-				faceToUse = f
-				break
-			}
-		}
-
-		// Fallback to first face if no face has the glyph
-		if faceToUse == nil {
-			faceToUse = mf.faces[0]
-		}
-
-		// Get advance for this rune (prefer hinted advance if available).
-		advance := faceGlyphAdvance(faceToUse, runeStr)
-
-		// Render based on face type
-		switch f := faceToUse.(type) {
+	for _, run := range mf.Runs(text) {
+		switch f := run.Face.(type) {
 		case *sourceFace:
-			drawSourceFace(dst, runeStr, f, currentX, y, col)
+			drawSourceFace(dst, run.Text, f, currentX, currentY, col)
 		case *FilteredFace:
-			drawFilteredFace(dst, runeStr, f, currentX, y, col)
+			drawFilteredFace(dst, run.Text, f, currentX, currentY, col)
 		case *MultiFace:
 			// Nested MultiFace (rare but possible)
-			drawMultiFace(dst, runeStr, f, currentX, y, col)
+			drawMultiFace(dst, run.Text, f, currentX, currentY, col)
 		}
 
-		currentX += advance
+		if vertical {
+			currentY += runAdvance(run.Face, run.Text)
+		} else {
+			currentX += runAdvance(run.Face, run.Text)
+		}
 	}
 }
 
-// drawFilteredFace renders text using a FilteredFace.
+// drawFilteredFace renders text using a FilteredFace. Consecutive in-range
+// runes are merged into one draw call; filtered-out runes break the run and
+// contribute no advance (same layout as the previous per-rune loop).
 func drawFilteredFace(dst draw.Image, text string, ff *FilteredFace, x, y float64, col color.Color) {
-	// FilteredFace wraps another face - extract and use it
-	// Only render runes that pass the filter
+	vertical := ff.Direction().IsVertical()
+
 	currentX := x
+	currentY := y
+
+	var b strings.Builder
+	flush := func() {
+		if b.Len() == 0 {
+			return
+		}
+		seg := b.String()
+
+		// Render the segment at the current cursor position.
+		switch f := ff.face.(type) {
+		case *sourceFace:
+			drawSourceFace(dst, seg, f, currentX, currentY, col)
+		case *FilteredFace:
+			drawFilteredFace(dst, seg, f, currentX, currentY, col)
+		case *MultiFace:
+			drawMultiFace(dst, seg, f, currentX, currentY, col)
+		}
+
+		if vertical {
+			currentY += runAdvance(ff.face, seg)
+		} else {
+			currentX += runAdvance(ff.face, seg)
+		}
+		b.Reset()
+	}
 
 	// Tabs already expanded to spaces by Draw() via expandTabs().
 	for _, r := range text {
 		if !ff.inRanges(r) {
-			continue // Skip filtered runes
+			flush() // Filtered rune: no draw, no advance, split the run.
+			continue
 		}
-
-		runeStr := string(r)
-
-		// Get advance for this rune (prefer hinted advance if available).
-		advance := faceGlyphAdvance(ff.face, runeStr)
-
-		// Render using the underlying face
-		switch f := ff.face.(type) {
-		case *sourceFace:
-			drawSourceFace(dst, runeStr, f, currentX, y, col)
-		case *FilteredFace:
-			drawFilteredFace(dst, runeStr, f, currentX, y, col)
-		case *MultiFace:
-			drawMultiFace(dst, runeStr, f, currentX, y, col)
-		}
-
-		currentX += advance
+		b.WriteRune(r)
 	}
+	flush()
 }
 
-// faceGlyphAdvance returns the advance width for a single-rune string,
-// using TT hinted advances when available. This is used by drawMultiFace
-// and drawFilteredFace which render one rune at a time and need consistent
-// cursor advancement matching the hinted glyph outlines.
-func faceGlyphAdvance(face Face, runeStr string) float64 {
+// runAdvance returns the total advance of text on face, matching how
+// drawGlyphs moves the cursor: TT hinted advances when the face is a
+// sourceFace with active horizontal hinting; otherwise the plain Glyphs
+// iterator advances (vertical text carries vmtx heights in glyph.Advance).
+func runAdvance(face Face, text string) float64 {
 	sf, ok := face.(*sourceFace)
 	if !ok {
-		return unhintedGlyphAdvance(face, runeStr)
+		return advanceFromGlyphs(face, text)
 	}
-
+	// Vertical (TTB/BTT): drawGlyphs positions via glyph.Y (vmtx heights);
+	// the TT hint cache only holds horizontal widths, so use raw advances.
+	if sf.Direction().IsVertical() {
+		return advanceFromGlyphs(face, text)
+	}
 	cache := loadFaceTTCache(sf)
 	if cache == nil {
-		return unhintedGlyphAdvance(face, runeStr)
+		return advanceFromGlyphs(face, text)
 	}
-
 	ppem := sf.size
-	for glyph := range sf.Glyphs(runeStr) {
+	total := 0.0
+	for glyph := range sf.Glyphs(text) {
 		if adv, hintOK := cache.hintedAdvanceWidth(uint16(glyph.GID), int32(ppem)); hintOK {
-			return adv
+			total += adv
+		} else {
+			total += glyph.Advance
 		}
-		return glyph.Advance
 	}
-	return 0
+	return total
 }
 
 // loadFaceTTCache returns the TT hint cache for a sourceFace, or nil if
@@ -459,12 +471,13 @@ func loadFaceTTCache(sf *sourceFace) *ttHintCache {
 	return ownFont.loadTTHintCache()
 }
 
-// unhintedGlyphAdvance returns the advance from the Glyphs iterator (unhinted).
-func unhintedGlyphAdvance(face Face, runeStr string) float64 {
-	for glyph := range face.Glyphs(runeStr) {
-		return glyph.Advance
+// advanceFromGlyphs sums the Glyphs iterator advances (unhinted, direction-aware).
+func advanceFromGlyphs(face Face, text string) float64 {
+	total := 0.0
+	for glyph := range face.Glyphs(text) {
+		total += glyph.Advance
 	}
-	return 0
+	return total
 }
 
 // Measure returns the dimensions of text.

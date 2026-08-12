@@ -11,6 +11,7 @@
 | P2 autohintCache 无上限 | ✅ 静态确认（无 maxEntries） | ✅ 加 256 上限 + 满时重置 | ✅ 221 PASS 0 FAIL |
 | P3 OwnShaper cache 无上限 | ✅ 静态确认 | ✅ 加 64 上限 + 满时重置 | ✅ 221 PASS 0 FAIL |
 | P4 Glyphs/AppendGlyphs 重复 | ✅ 静态确认（130 行重复） | ✅ 抽 iterGlyphs 公共迭代器 | ✅ 221 PASS 0 FAIL |
+| P5 MultiFace/FilteredFace 逐字绘制 | ✅ 像素探针（见下） | ✅ 改按 FaceRun 连续 run 合并绘制 + 竖排修正 | ✅ Draw 路径 8 文件全绿 |
 
 ## 其它候选问题
 
@@ -23,7 +24,7 @@
   Y、未直连 Draw 像素路径。
 - 性能面：drawMultiFace 逐 rune 调 drawSourceFace（每字独立光栅+线性扫 faces）。
 - 修复：drawGlyphs 判断方向——竖排不累加 advanceX（Y 由 glyph.Y 驱动）；
-  drawMultiFace 改按 face 连续 run 合并绘制。
+  drawMultiFace 改按 face 连续 run 合并绘制（已随 P5 完成，见下）。
 
 ### P2. autohintCache 无上限（内存 ⚠️ 已确认）
 - `render/text/autohint.go:782` `map[autoHintMetricsKey]*unscaledStyleMetrics` 只增
@@ -38,10 +39,30 @@
 - `render/text/face.go:151-280` 两函数核心循环几乎相同（yield vs append）。
 - 修复：抽 `iterGlyphs` 公共迭代器。
 
-### P5. drawMultiFace / drawFilteredFace 逐字线性扫 faces（性能，P1 的一部分）
-- 位置：`render/text/draw.go:351-361 / 388-400`
-- 现象：每个 rune 对 `mf.faces` 线性 `HasGlyph` 扫描。faces 多（M7 链可 8+）时
-  O(n×m)。可改为按 rune 一次定位 face + 连续 run 合并（FaceRun 已有基建）。
+### P5. drawMultiFace / drawFilteredFace 逐字线性扫 faces（性能 ✅ 已修，2026-08-12）
+- 位置：`render/text/draw.go`（drawMultiFace / drawFilteredFace / runAdvance）
+- 现象：每个 rune 对 `mf.faces` 线性 `HasGlyph` 扫描（faces 多时 O(n×m)）+ 每个
+  rune 单独调 drawSourceFace（每字独立光栅）+ `string(r)` 分配。
+- 验证（临时像素探针，已删）：① 单 face MultiFace 画 "Hello, World!" 与直接
+  sourceFace 逐字节一致（hinting=Full 生效，说明 run 合并后 snapPen 与直绘收敛）；
+  ② TTB MultiFace 竖排 3 字 "日月目" 墨 x=[51,69] 单列、与直接竖排逐字节一致
+  （旧实现逐字 currentX += vmtx 高度 → 每字斜移一格，属 P1 同族 bug，现已修正）；
+  ③ 混合脚本 "Hello世界" 两 run，run2 起点 = runAdvance("Hello") 累计，与手工
+  分段直绘逐字节一致。
+- 修复：
+  - `drawMultiFace` 改用 `mf.Runs(text)`（FaceRun 复用，含 M3 系统回退；S6.5 缓存
+    命中免重算），按 run 一次 dispatch 绘制；竖排时 run 沿 Y 堆叠（X 恒为原点，
+    glyph.Y 驱动），横排沿 X 累计 `runAdvance`。
+  - `drawFilteredFace` 把连续 in-range rune 用 strings.Builder 合并为段，滤掉的
+    rune 断段且不推进（布局与旧逐字一致）。
+  - `faceGlyphAdvance`/`unhintedGlyphAdvance`（逐字）收敛为 `runAdvance`/
+    `advanceFromGlyphs`（整段）：横排 sourceFace 走 TT hinted 宽度（与 drawGlyphs
+    内部推进一致，run 边界 = drawGlyphs 光标落点），竖排/其他 face 走 Glyphs 原值。
+- 行为收敛说明：单 face 文本 MultiFace 绘制 = 直接 sourceFace 绘制（此前每字
+  snapPen 重基导致相位漂移）；M3 系统字体回退现与 Glyphs/Advance 度量一致。
+- 回归：draw_test / draw_aliased_test / multi_test / filtered_test /
+  shape_result_cache_test / zz_m6_vertical_test / system_font_test / varfont_test
+  / zz_dbg_png_test 全绿。
 
 ### P6. ownParsedFont 14 个 sync.Once 模式分散（可读性，低）
 - 位置：`render/text/font_parser_own.go:83-140`
@@ -69,8 +90,8 @@
 
 ## 三、修改方案（验证后按序实施，每步回归）
 
-1. **P1/P5 合并修**：drawMultiFace 改为「按 rune 用 Glyphs 迭代一次 + 同 face 连续
-   run 合并绘制」（FaceRun 复用），消除逐字光栅与线性扫描；顺带用 glyph.Y 修正竖排。
+1. **P1/P5 合并修**（✅ 已完成）：drawMultiFace 改为「按 rune 用 Glyphs 迭代一次 + 同 face
+   连续 run 合并绘制」（FaceRun 复用），消除逐字光栅与线性扫描；顺带用 glyph.Y 修正竖排。
 2. **P4**：抽 `iterGlyphs` 公共迭代器，Glyphs/AppendGlyphs 共用。
 3. **P2**：autohintCache 加 maxEntries + 简单淘汰（如容量超限重置/清除最旧）。
 4. **P3**：OwnShaper cache 加容量上限（如 64 源）+ 超限清空；保持 ClearCache 语义。
