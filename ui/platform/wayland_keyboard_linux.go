@@ -31,12 +31,17 @@ import (
 // format); libxkbcommon parses it and converts keycodes → keysyms → utf8.
 // Wayland keycodes are evdev codes; xkb uses keycode+8.
 
-// wl_seat request opcodes.
+// wl_seat request opcodes (wayland.xml authoritative order:
+// get_pointer=0, get_keyboard=1, get_touch=2, release=3[v5+]).
+// NOTE: these MUST match the compositor's interface table. Reversing
+// them (e.g. get_keyboard=2) makes the compositor dispatch get_touch,
+// and with no touch device seat->touch==NULL -> wl_list_insert crash
+// in mutter (gnome-shell SEGV / session restart).
 const (
-	wlSeatRelease     = 0
-	wlSeatGetPointer  = 1
-	wlSeatGetKeyboard = 2
-	wlSeatGetTouch    = 3
+	wlSeatGetPointer  = 0
+	wlSeatGetKeyboard = 1
+	wlSeatGetTouch    = 2
+	wlSeatRelease     = 3
 )
 
 // wl_keyboard event opcodes.
