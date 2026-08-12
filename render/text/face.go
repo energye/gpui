@@ -147,74 +147,13 @@ func (f *sourceFace) glyphAdvance(parsed ParsedFont, gid uint16, varProvider Var
 	return parsed.GlyphAdvance(gid, f.size), false
 }
 
-// Glyphs implements Face.Glyphs.
-func (f *sourceFace) Glyphs(text string) iter.Seq[Glyph] {
-	return func(yield func(Glyph) bool) {
-		parsed := f.source.Parsed()
-		// 方向：横排沿 X 推进；竖排（TTB/BTT）沿 Y 推进（vmtx 高度），
-		// X 恒定 0（M6 竖排对齐：glyph.Y 携带垂直位置）。
-		x := 0.0
-		y := 0.0
-		isVertical := f.config.direction.IsVertical()
-		byteIndex := 0
-
-		// Check for variable advance provider (HVAR) when variations are set.
-		var varProvider VariableAdvanceProvider
-		if len(f.config.variations) > 0 {
-			varProvider, _ = parsed.(VariableAdvanceProvider)
-		}
-
-		for i, r := range text {
-			// Skip non-tab control characters.
-			if r < 0x20 && r != '\t' {
-				byteIndex += utf8.RuneLen(r)
-				continue
-			}
-
-			var gid uint16
-			var advance float64
-			var bounds Rect
-
-			if r == '\t' {
-				// Tab: use space GID (empty outline) with tab-stop advance.
-				gid, advance = tabAdvance(parsed, f.size)
-				// Space bounds are empty — no visual rendering.
-			} else {
-				gid = parsed.GlyphIndex(r)
-				advance, _ = f.glyphAdvance(parsed, gid, varProvider)
-				bounds = parsed.GlyphBounds(gid, f.size)
-			}
-
-			glyph := Glyph{
-				Rune:    r,
-				GID:     GlyphID(gid),
-				X:       x,
-				Y:       y,
-				OriginX: x,
-				OriginY: y,
-				Advance: advance,
-				Bounds:  bounds,
-				Index:   byteIndex,
-				Cluster: i,
-			}
-
-			if !yield(glyph) {
-				return
-			}
-
-			if isVertical {
-				y += advance
-			} else {
-				x += advance
-			}
-			byteIndex += utf8.RuneLen(r)
-		}
-	}
-}
-
-// AppendGlyphs implements Face.AppendGlyphs.
-func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
+// iterGlyphs walks text with the face's configured direction, invoking visit
+// for each produced Glyph (advance already selected for horizontal/vertical).
+// Shared by Glyphs (iterator) and AppendGlyphs (append) to avoid divergence.
+func (f *sourceFace) iterGlyphs(text string, visit func(g Glyph) bool) {
 	parsed := f.source.Parsed()
+	// 方向：横排沿 X 推进；竖排（TTB/BTT）沿 Y 推进（vmtx 高度），
+	// X 恒定 0（M6 竖排对齐：glyph.Y 携带垂直位置）。
 	x := 0.0
 	y := 0.0
 	isVertical := f.config.direction.IsVertical()
@@ -238,7 +177,9 @@ func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
 		var bounds Rect
 
 		if r == '\t' {
+			// Tab: use space GID (empty outline) with tab-stop advance.
 			gid, advance = tabAdvance(parsed, f.size)
+			// Space bounds are empty — no visual rendering.
 		} else {
 			gid = parsed.GlyphIndex(r)
 			advance, _ = f.glyphAdvance(parsed, gid, varProvider)
@@ -258,7 +199,10 @@ func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
 			Cluster: i,
 		}
 
-		dst = append(dst, glyph)
+		if !visit(glyph) {
+			return
+		}
+
 		if isVertical {
 			y += advance
 		} else {
@@ -266,7 +210,21 @@ func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
 		}
 		byteIndex += utf8.RuneLen(r)
 	}
+}
 
+// Glyphs implements Face.Glyphs.
+func (f *sourceFace) Glyphs(text string) iter.Seq[Glyph] {
+	return func(yield func(Glyph) bool) {
+		f.iterGlyphs(text, yield)
+	}
+}
+
+// AppendGlyphs implements Face.AppendGlyphs.
+func (f *sourceFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
+	f.iterGlyphs(text, func(g Glyph) bool {
+		dst = append(dst, g)
+		return true
+	})
 	return dst
 }
 

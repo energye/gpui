@@ -66,6 +66,10 @@ func NewOwnShaper() *OwnShaper {
 	}
 }
 
+// ownShaperMaxCachedSources bounds the per-shaper font cache: GSUB/GPOS
+// tables can be large, and sources are created/destroyed dynamically.
+const ownShaperMaxCachedSources = 64
+
 // indicFontPos returns cached per-font positional classes for script/lang.
 func (sc *ownShaperCache) indicFontPos(scriptTag, langTag [4]byte) *indicFontPosClasses {
 	if sc == nil || sc.gsub == nil {
@@ -208,6 +212,13 @@ func (s *OwnShaper) getOrCreateCache(source *FontSource) *ownShaperCache {
 	// Double-check.
 	if sc, ok := s.cache[source]; ok {
 		return sc
+	}
+
+	// Bound the cache: when full, reset rather than growing unboundedly.
+	// Font sources are closed dynamically (tests / dynamic HUD labels); a
+	// stale entry holds GSUB/GPOS tables that can be large.
+	if len(s.cache) >= ownShaperMaxCachedSources {
+		s.cache = make(map[*FontSource]*ownShaperCache)
 	}
 
 	sc := buildShaperCache(source)

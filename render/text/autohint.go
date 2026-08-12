@@ -777,6 +777,10 @@ type autoHintMetricsKey struct {
 }
 
 // autoHintCache caches computed metrics per font.
+// Bounded to avoid unbounded growth under many fonts × scripts
+// (HUD / test seals create sources dynamically).
+const autoHintCacheMaxEntries = 256
+
 var autoHintCache struct {
 	mu    sync.RWMutex
 	cache map[autoHintMetricsKey]*unscaledStyleMetrics
@@ -819,6 +823,12 @@ func getAutoHintMetricsForScript(font ParsedFont, script *scriptClass) *unscaled
 	// Double-check after acquiring write lock.
 	if m, ok := autoHintCache.cache[key]; ok {
 		return m
+	}
+
+	// Bound the cache: when full, reset to a fresh map rather than growing
+	// unboundedly (dynamic font sources / scripts accumulate).
+	if len(autoHintCache.cache) >= autoHintCacheMaxEntries {
+		autoHintCache.cache = make(map[autoHintMetricsKey]*unscaledStyleMetrics)
 	}
 
 	m = computeUnscaledMetricsForScript(font, script)

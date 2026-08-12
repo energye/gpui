@@ -97,6 +97,11 @@ func drawGlyphs(
 	rast := NewGlyphMaskRasterizer()
 	src := image.NewUniform(col)
 
+	// Vertical text (TTB/BTT): the face iterator already carries the vertical
+	// position in glyph.Y (advance = vmtx height); adding the same advance to
+	// advanceX would shift each glyph diagonally. Only horizontal runs advance X.
+	isVertical := sf.Direction().IsVertical()
+
 	advanceX := 0.0
 	// Hinted text must be placed at integer device pixels (Skia pattern,
 	// matches GPU glyphPlacement): fractional X splits 1px vertical stems
@@ -110,9 +115,11 @@ func drawGlyphs(
 		if glyph.GID == 0 {
 			// Space and other no-outline glyphs: use unhinted advance.
 			// These have no TT bytecode and phantom points would be trivial.
-			advanceX += adv
-			if hinting != HintingNone {
-				snapPen += math.Round(adv)
+			if !isVertical {
+				advanceX += adv
+				if hinting != HintingNone {
+					snapPen += math.Round(adv)
+				}
 			}
 			continue
 		}
@@ -125,7 +132,7 @@ func drawGlyphs(
 		intY := math.Floor(glyphY)
 		subpixelX := glyphX - intX
 		subpixelY := glyphY - intY
-		if hinting != HintingNone {
+		if hinting != HintingNone && !isVertical {
 			intX = snapPen
 			subpixelX = 0
 			subpixelY = 0
@@ -133,9 +140,11 @@ func drawGlyphs(
 
 		result, err := rasterize(rast, parsed, glyph.GID, ppem, subpixelX, subpixelY, hinting)
 		if err != nil || result == nil {
-			advanceX += adv
-			if hinting != HintingNone {
-				snapPen += math.Round(adv)
+			if !isVertical {
+				advanceX += adv
+				if hinting != HintingNone {
+					snapPen += math.Round(adv)
+				}
 			}
 			continue
 		}
@@ -153,9 +162,11 @@ func drawGlyphs(
 		draw.DrawMask(dst, destRect, src, image.Point{}, maskImg, image.Point{}, draw.Over)
 
 		// Advance cursor using hinted advance when TT hinting is active.
-		advanceX += adv
-		if hinting != HintingNone {
-			snapPen += math.Round(adv)
+		if !isVertical {
+			advanceX += adv
+			if hinting != HintingNone {
+				snapPen += math.Round(adv)
+			}
 		}
 	}
 }

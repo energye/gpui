@@ -1,0 +1,83 @@
+# render/text 正向优化清单（2026-08-12）
+
+> 原则：**保证现有功能正确性**（全量回归不破坏），做正向优化——找潜在问题、
+> 收敛代码、优化性能/内存、提高可读性。先列清单，再逐项验证真实性，最后逐步修改。
+
+## 验证与修改进度
+
+| 项 | 验证 | 修改 | 回归 |
+|---|---|---|---|
+| P1 竖排斜移（正确性） | ✅ 实锤（x-spans 94px→修复后单列 30px，3 字 3 垂直段） | ✅ drawGlyphs 竖排不累加 advanceX | ✅ 183 PASS 0 FAIL |
+| P2 autohintCache 无上限 | ✅ 静态确认（无 maxEntries） | ✅ 加 256 上限 + 满时重置 | ✅ 221 PASS 0 FAIL |
+| P3 OwnShaper cache 无上限 | ✅ 静态确认 | ✅ 加 64 上限 + 满时重置 | ✅ 221 PASS 0 FAIL |
+| P4 Glyphs/AppendGlyphs 重复 | ✅ 静态确认（130 行重复） | ✅ 抽 iterGlyphs 公共迭代器 | ✅ 221 PASS 0 FAIL |
+
+## 其它候选问题
+
+### P1. drawMultiFace 逐 rune 单独绘制 + drawGlyphs 竖排斜移（正确性 bug + 性能 ⚠️⚠️）
+- 位置：`render/text/draw.go:100-160`（drawGlyphs）+ `:343-381`（drawMultiFace）
+- **已实锤正确性 bug**（2026-08-12 实测）：TTB 竖排 3 字 → x-spans `[50,144]`
+  （94px 应为单列 ~34px）+ y 连续——`advanceX += adv` 无条件水平累加，而
+  `face.Glyphs` 的 TTB 版已把 vmtx 高度放进 glyph.Y（正确），drawGlyphs 又把
+  同一 vertical advance 误加进水平 X → **每字斜移一格**。此前只在 face 层验证
+  Y、未直连 Draw 像素路径。
+- 性能面：drawMultiFace 逐 rune 调 drawSourceFace（每字独立光栅+线性扫 faces）。
+- 修复：drawGlyphs 判断方向——竖排不累加 advanceX（Y 由 glyph.Y 驱动）；
+  drawMultiFace 改按 face 连续 run 合并绘制。
+
+### P2. autohintCache 无上限（内存 ⚠️ 已确认）
+- `render/text/autohint.go:782` `map[autoHintMetricsKey]*unscaledStyleMetrics` 只增
+  不减，仅手动 ClearAutoHintCache 清空。多字体×多脚本累积。
+- 修复：加 maxEntries + 超限清空（或 LRU）。
+
+### P3. OwnShaper cache 无上限（内存 ⚠️ 已确认）
+- `render/text/shaper_own.go:195` `map[*FontSource]*ownShaperCache` 只增不减。
+- 修复：加容量上限 + 超限逐出。
+
+### P4. face.go Glyphs / AppendGlyphs 重复 130 行（可读性 ✅ 已确认）
+- `render/text/face.go:151-280` 两函数核心循环几乎相同（yield vs append）。
+- 修复：抽 `iterGlyphs` 公共迭代器。
+
+### P5. drawMultiFace / drawFilteredFace 逐字线性扫 faces（性能，P1 的一部分）
+- 位置：`render/text/draw.go:351-361 / 388-400`
+- 现象：每个 rune 对 `mf.faces` 线性 `HasGlyph` 扫描。faces 多（M7 链可 8+）时
+  O(n×m)。可改为按 rune 一次定位 face + 连续 run 合并（FaceRun 已有基建）。
+
+### P6. ownParsedFont 14 个 sync.Once 模式分散（可读性，低）
+- 位置：`render/text/font_parser_own.go:83-140`
+- 现象：每个表一个 Once+缓存字段+ensure 函数，重复样板；虽有收益（懒解析），
+  但 14 份拷贝维护成本高。可收敛为「表加载器」辅助或统一 err/ok 模式。
+
+### P7. string(r) 与逐字分配（性能小）
+- `draw.go:348/394` `runeStr := string(r)` 每字分配；`runeToGlyphs` 等处同理。
+
+### P8. glyph_cache.go / cache.go 是否有空表/退化路径
+- 探索：GlyphCache 有 LRU+分片+上限（4096），Cache[K,V] 有 evict——先复核是否
+  真的按 maxEntries 淘汰（验证时补内存测试）。
+
+## 二、验证计划（每项如何证明「真实存在」）
+
+| 项 | 验证方法 | 判定标准 |
+|---|---|---|
+| P1 | 写 CPU 路径基准：单 face 串 vs MultiFace 串，逐字 drawSourceFace 次数用临时计数 | 逐字调用次数 = 字符数（证明无批量） |
+| P1 竖排 | 渲染 TTB MultiFace 一段文字到像素，测墨量 Y 分布 | 若 Y 恒 0 = 竖排 MultiFace 仍横排（真 bug） |
+| P2 | 加载多字体跑 autohint，观察 cache map 长度（临时探针） | 加载 N 字体后 len(cache) 增长且无回收 |
+| P3 | 动态 NewFontSource 多次，观察 ownShaperCache 计数 | 只增不减 |
+| P4 | 代码差异 diff（静态） | Glyphs/AppendGlyphs 核心重复段落 ≥30 行 |
+| P5 | MultiFace 链 8 faces × N 字，HasGlyph 调用计数 | 每字扫全链 |
+| P7 | `go test -bench` 或临时探针计数 string(r) 分配 | 每字 1 次分配 |
+
+## 三、修改方案（验证后按序实施，每步回归）
+
+1. **P1/P5 合并修**：drawMultiFace 改为「按 rune 用 Glyphs 迭代一次 + 同 face 连续
+   run 合并绘制」（FaceRun 复用），消除逐字光栅与线性扫描；顺带用 glyph.Y 修正竖排。
+2. **P4**：抽 `iterGlyphs` 公共迭代器，Glyphs/AppendGlyphs 共用。
+3. **P2**：autohintCache 加 maxEntries + 简单淘汰（如容量超限重置/清除最旧）。
+4. **P3**：OwnShaper cache 加容量上限（如 64 源）+ 超限清空；保持 ClearCache 语义。
+5. **P6**：ownParsedFont 懒解析收敛（低优先，若回归风险大则仅整理注释）。
+6. **P7**：逐字 string(r) 改 range 直接传 rune（小改）。
+
+## 四、约束
+- 每次修改后跑对应测试窗回归；全量回归放最后。
+- 不改变公共 API 语义；不破坏 M0–M7 + B/C/S1 已验证行为。
+- 纯性能/可读性改动必须有「修改前后行为等价」的测试证据。
