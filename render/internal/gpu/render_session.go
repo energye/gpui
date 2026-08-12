@@ -4591,21 +4591,23 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	}); err != nil {
 		return fmt.Errorf("submit: %w", err)
 	}
-	// P4: submission is complete — release image-cache retirements from this
-	// frame (their views were referenced by the submitted command buffer).
-	if s.imageCache != nil {
-		s.imageCache.ReleaseEphemeral()
-	}
-	// P6: the synchronous Map below is a completion barrier; resolve the
-	// submission's in-flight bookkeeping here (readback is done).
-	if s.sub != nil {
-		s.sub.SubmitDone()
-	}
-
 	// Map the staging buffer. Map blocks until the GPU finishes the copy
 	// via Device.Poll-driven submission tracking (no manual WaitIdle needed).
 	if err := stagingBuf.Map(context.Background(), webgpu.MapModeRead, 0, stagingBufSize); err != nil {
 		return fmt.Errorf("map staging: %w", err)
+	}
+	// P4/P6: the synchronous Map is the completion barrier — the GPU has
+	// actually finished, so release this frame's retirements (textures,
+	// buffers, image-cache pending) and resolve the submission. Critical for
+	// offscreen readback paths that may never reach BeginFrame: without this
+	// the retire queues accumulate across resize/rebuild cycles (VRAM leak).
+	s.pendingTexRetire.Drain()
+	s.pendingBufRetire.Drain()
+	if s.imageCache != nil {
+		s.imageCache.ReleaseEphemeral()
+	}
+	if s.sub != nil {
+		s.sub.SubmitDone()
 	}
 	rng, err := stagingBuf.MappedRange(0, stagingBufSize)
 	if err != nil {
