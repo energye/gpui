@@ -230,15 +230,16 @@ func wlKbEnterCB(data, kbd, serial, surface, keys uintptr) {}
 func wlKbLeaveCB(data, kbd, serial, surface uintptr)       {}
 
 // wlKbKeyCB handles key(serial, time, keycode, state): translates the
-// Wayland keycode (already xkb-range, 8+) into a keysym + utf8 via xkb and
-// pushes a platform key event.
+// Wayland keycode into a keysym + utf8 via xkb and pushes a platform key
+// event.
 func wlKbKeyCB(data, kbd, serial, time, key, state uintptr) {
 	st := kbFrom(data)
 	if st == nil || st.xkb == nil || st.state == 0 {
 		return
 	}
-	// Wayland key events carry xkb keycodes directly (no +8 offset).
-	kc := key & 0xffff
+	// Wayland sends evdev keycodes; xkbcommon expects X11 keycodes
+	// (evdev + 8) — see XKBEvdevOffset in gogpu internal/platform/xkb.
+	kc := (key & 0xffff) + 8
 	// state: 0 = released, 1 = pressed.
 	action := uintptr(xkbKeyUp)
 	if state&0xff == 1 {
