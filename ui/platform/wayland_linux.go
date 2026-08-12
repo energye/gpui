@@ -4,7 +4,6 @@ package platform
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -105,6 +104,7 @@ type wlLib struct {
 	ifaceRegistry   uintptr
 	ifaceSeat       uintptr
 	ifaceKeyboard   uintptr
+	ifacePointer    uintptr
 }
 
 func loadWayland() (*wlLib, error) {
@@ -137,6 +137,7 @@ func loadWayland() (*wlLib, error) {
 		{"wl_registry_interface", &l.ifaceRegistry},
 		{"wl_seat_interface", &l.ifaceSeat},
 		{"wl_keyboard_interface", &l.ifaceKeyboard},
+		{"wl_pointer_interface", &l.ifacePointer},
 	} {
 		p, err := purego.Dlsym(lib, pair.name)
 		if err != nil || p == 0 {
@@ -317,12 +318,17 @@ type wlWin struct {
 	ti *wlTIState
 	// keyboard (wl_keyboard + xkb) optional capability.
 	kbd *wlKeyboardState
+	// pointer (wl_pointer) standard mouse input.
+	ptr *wlPointerState
 	// imeMu guards the pending IME event queue drained by poll.
 	imeMu     sync.Mutex
 	imeEvents []Event
 	// keyMu guards the pending key event queue drained by poll.
 	keyMu     sync.Mutex
 	keyEvents []Event
+	// ptrMu guards the pending pointer event queue drained by poll.
+	ptrMu     sync.Mutex
+	ptrEvents []Event
 
 	regListener [2]uintptr
 	wmListener  [1]uintptr
@@ -468,23 +474,23 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 	}
 	runtime.KeepAlive(win)
 
-	// Optional IME capability: bind zwp_text_input_v3 when advertised.
-	// ⚠️ DISABLED BY DEFAULT: text-input binding + GPU rendering has been
-	// observed to crash GNOME Shell (mutter signal 11) on this machine.
-	// Keep opt-in (GPUI_WL_TEXTINPUT=1) until root-caused.
-	if win.tiMgrName != 0 && win.seatName != 0 && os.Getenv("GPUI_WL_TEXTINPUT") == "1" {
-		// Bind wl_seat (get_text_input needs the seat object).
+	// Standard Wayland input: bind wl_seat unconditionally (keyboard + pointer
+	// are the base input channel; IME rides on keyboard focus).
+	if win.seatName != 0 {
 		win.seat = win.bind(win.registry, win.seatName, lib.ifaceSeat, 1)
-		initTIInterfaces(lib.ifaceSurface, lib.ifaceSeat)
-		win.ti = win.bindTextInput()
-		if win.ti == nil && win.seat != 0 {
-			lib.proxyDestroy(win.seat)
-			win.seat = 0
-		}
 	}
-	// Keyboard (wl_keyboard + xkb) — drives plain text and IME focus.
+	// Keyboard (wl_keyboard + xkb) — standard, drives plain text + IME focus.
 	if win.seat != 0 && lib.ifaceKeyboard != 0 {
 		win.kbd = win.bindKeyboard()
+	}
+	// Pointer (wl_pointer) — standard mouse events.
+	if win.seat != 0 && lib.ifacePointer != 0 {
+		win.ptr = win.bindPointer()
+	}
+	// Optional IME capability: zwp_text_input_v3 when advertised.
+	if win.seat != 0 && win.tiMgrName != 0 {
+		initTIInterfaces(lib.ifaceSurface, lib.ifaceSeat)
+		win.ti = win.bindTextInput()
 	}
 
 	host := &wlHost{win: win}
@@ -529,6 +535,10 @@ func (w *wlWin) destroyNative() {
 	if w.kbd != nil {
 		w.kbd.destroy()
 		w.kbd = nil
+	}
+	if w.ptr != nil {
+		w.ptr.destroy()
+		w.ptr = nil
 	}
 	if w.seat != 0 {
 		lib.proxyDestroy(w.seat)
@@ -788,6 +798,13 @@ func (h *wlHost) poll() []Event {
 		w.keyEvents = nil
 	}
 	w.keyMu.Unlock()
+	// Pointer events queued by the wl_pointer callback.
+	w.ptrMu.Lock()
+	if len(w.ptrEvents) > 0 {
+		out = append(out, w.ptrEvents...)
+		w.ptrEvents = nil
+	}
+	w.ptrMu.Unlock()
 	return out
 }
 

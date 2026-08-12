@@ -3,7 +3,6 @@
 package platform
 
 import (
-	"os"
 	"syscall"
 	"unsafe"
 
@@ -114,17 +113,9 @@ type wlKeyboardState struct {
 }
 
 // bindKeyboard creates a wl_keyboard from the seat and adds the listener.
-// Returns nil when the seat/interface is unavailable (silent degrade: no
-// keyboard events reach the app).
-//
-// ⚠️ DISABLED BY DEFAULT: binding wl_keyboard has been observed to crash
-// GNOME Shell (mutter, signal 11) on this machine — the protocol interaction
-// or the xkb keymap handling is not yet safe. Keep it opt-in
-// (GPUI_WL_KEYBOARD=1) until the crash is root-caused and fixed.
+// Standard Wayland client behavior: enabled by default when the seat exists.
+// Returns nil when the seat/interface is unavailable (silent degrade).
 func (w *wlWin) bindKeyboard() *wlKeyboardState {
-	if os.Getenv("GPUI_WL_KEYBOARD") != "1" {
-		return nil
-	}
 	if w == nil || w.lib == nil || w.seat == 0 || w.lib.ifaceKeyboard == 0 {
 		return nil
 	}
