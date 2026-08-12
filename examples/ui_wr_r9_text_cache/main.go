@@ -86,8 +86,15 @@ func main() {
 		RunFor: time.Duration(secs) * time.Second,
 		WarmUp: true,
 		OnEvent: func(ev platform.Event) {
-			if ev.Type == platform.EventClose {
+			switch ev.Type {
+			case platform.EventClose:
 				fmt.Fprintf(os.Stderr, "ui_wr_r9_text_cache: close (%s)\n", win.Backend())
+			case platform.EventResize:
+				// Responsive layout: re-lay the shell to the new window size
+				// (standard wiring, same as ui_wr_r4b_multidamage / r18).
+				if ev.Width > 0 && ev.Height > 0 {
+					shell.Resize(float64(ev.Width), float64(ev.Height))
+				}
 			}
 		},
 	})

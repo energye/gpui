@@ -84,6 +84,15 @@ type PipelineApp struct {
 	// resize-drag floods many coalesced requests with the same final size;
 	// skipping those avoids a full relayout + full-present storm per request.
 	lastResizeW, lastResizeH int
+	// pendingResize defers the actual swapchain reconfigure + relayout from
+	// the event loop to the render frame boundary (applied in Run's frame
+	// step). Flutter/Skia-style: resize events only record state; the frame
+	// driven by the scheduler applies the latest size once per frame, so a
+	// resize-drag event storm never monopolizes the event loop and rendering
+	// keeps its pace while tracking the final size exactly.
+	pendingResizeW, pendingResizeH int
+	pendingResizeScale             float64
+	pendingResize                  bool
 	// debugRepaint enables R12b overlay on live paints (not cache Replay).
 	debugRepaint atomic.Bool
 	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
@@ -540,37 +549,28 @@ func (a *PipelineApp) Run() error {
 					if ev.Width == a.lastResizeW && ev.Height == a.lastResizeH && sc == a.lastResizeScale {
 						continue
 					}
-					a.lastResizeW, a.lastResizeH = ev.Width, ev.Height
-					_ = a.target.Resize(ev.Width, ev.Height, sc)
-					vp = rendering.Size{Width: float64(ev.Width), Height: float64(ev.Height)}
-					if a.pictureTex != nil {
-						a.pictureTex.Resize(ev.Width, ev.Height)
-					}
-					if a.pipe.FlushLayout(vp, true) {
-						a.layoutFrames.Add(1)
-					}
 					// Boundary Pictures survive a pure size change: tryReplay
 					// re-checks each boundary's current size and content
 					// fingerprint (boundary_cache.go) and only mismatches
-					// re-record. Clearing here would force a full rerecord
-					// wave on EVERY resize step while dragging. DPR change is
-					// the exception (physical pixels differ → old textures
-					// stale) → invalidate then.
+					// re-record. DPR change is the exception (physical pixels
+					// differ → old textures stale) → invalidate then.
 					if sc != a.lastResizeScale {
 						if cache := a.pipe.BoundaryCache(); cache != nil {
 							cache.Clear()
 						}
-						a.lastResizeScale = sc
 					}
-					// Repaint is scoped by layout: nodes whose size actually
-					// changed mark themselves paint-dirty (Base.setSize), and
-					// TextureCache entries rebuild on size mismatch. No blanket
-					// root.MarkNeedsPaint here — that would re-record all 58
-					// layers per resize step (each layer = one wgpu submit,
-					// re-record frames stall 60ms–1.5s while dragging).
-					// PresentTarget.Resize arms its own post-resize full budget
-					// (render/present_target.go) so the next 3 frames are full
-					// writes; no cross-thread counter needed here.
+					a.lastResizeW, a.lastResizeH = ev.Width, ev.Height
+					a.lastResizeScale = sc
+					// Defer the actual swapchain reconfigure + relayout to the
+					// render frame boundary (applyPendingResize). A resize drag
+					// storm floods ConfigureNotify events; applying each one
+					// synchronously here monopolizes the event loop and stalls
+					// rendering until the mouse is released (observed: ~0 fps
+					// during the drag). One application per rendered frame
+					// tracks the latest size while keeping frame pacing.
+					a.pendingResizeW, a.pendingResizeH = ev.Width, ev.Height
+					a.pendingResizeScale = sc
+					a.pendingResize = true
 					a.ScheduleFrame()
 				}
 			case platform.EventExpose:
@@ -597,6 +597,29 @@ func (a *PipelineApp) Run() error {
 		}
 
 		// Layout only if dirty (S2: spinner phase must not layout).
+		// Apply a deferred resize at the frame boundary, exactly once per
+		// frame (Flutter/Skia model): the drag storm only records the latest
+		// size; the actual swapchain reconfigure + relayout happen here so
+		// event processing never monopolizes the loop and rendering keeps its
+		// pace during the drag.
+		if a.pendingResize {
+			// Flutter/Skia model: the frame applies the pending size exactly
+			// once per frame. Events only recorded the latest size, so the
+			// swapchain reconfigure + relayout here never monopolize the event
+			// loop; the render loop keeps its pace while tracking the final
+			// size. The surface was reconfigured, so this frame fully
+			// re-records content — the cost is inherent and bounded by the
+			// frame budget (vsync).
+			a.pendingResize = false
+			_ = a.target.Resize(a.pendingResizeW, a.pendingResizeH, a.pendingResizeScale)
+			if a.pictureTex != nil {
+				a.pictureTex.Resize(a.pendingResizeW, a.pendingResizeH)
+			}
+			vpPending := rendering.Size{Width: float64(a.pendingResizeW), Height: float64(a.pendingResizeH)}
+			if a.pipe.FlushLayout(vpPending, true) {
+				a.layoutFrames.Add(1)
+			}
+		}
 		w, h = a.host.Size()
 		vp = rendering.Size{Width: float64(w), Height: float64(h)}
 		if a.pipe.FlushLayout(vp, false) {
