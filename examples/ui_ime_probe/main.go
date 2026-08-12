@@ -168,6 +168,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "probe: no display backend (got %s)\n", backend)
 		return
 	}
+	fmt.Fprintf(os.Stderr, "probe: bindings keyboard=%s pointer=%s textinput=%s\n",
+		envOn("GPUI_WL_KEYBOARD"), envOn("GPUI_WL_POINTER"), envOn("GPUI_WL_TEXTINPUT"))
 	win, err := platform.Open(platform.Options{
 		Width: 480, Height: 320, Title: "ime-probe", Backend: backend,
 	})
@@ -220,4 +222,11 @@ func main() {
 		}
 	}
 	fmt.Fprintf(os.Stderr, "probe: done (no protocol error)\n")
+}
+
+func envOn(k string) string {
+	if os.Getenv(k) == "1" {
+		return "ON "
+	}
+	return "off"
 }

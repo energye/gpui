@@ -4,6 +4,7 @@ package platform
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -478,7 +479,10 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 
 	// Standard Wayland input: bind wl_seat unconditionally (keyboard + pointer
 	// are the base input channel; IME rides on keyboard focus).
-	if win.seatName != 0 {
+	// ⚠️ Each binding is an independent opt-in so a crash can be bisected:
+	//   GPUI_WL_KEYBOARD=1  GPIO_WL_POINTER=1  GPUI_WL_TEXTINPUT=1
+	// All are OFF by default (proven-stable window+render path).
+	if win.seatName != 0 && (os.Getenv("GPUI_WL_KEYBOARD") == "1" || os.Getenv("GPUI_WL_POINTER") == "1" || os.Getenv("GPUI_WL_TEXTINPUT") == "1") {
 		win.seat = win.bind(win.registry, win.seatName, lib.ifaceSeat, 1)
 		// Seat listener (2 events: capabilities, name) — required so the seat
 		// proxy can dispatch; without it events accumulate and capabilities
@@ -491,15 +495,15 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 		}
 	}
 	// Keyboard (wl_keyboard + xkb) — standard, drives plain text + IME focus.
-	if win.seat != 0 && lib.ifaceKeyboard != 0 {
+	if win.seat != 0 && lib.ifaceKeyboard != 0 && os.Getenv("GPUI_WL_KEYBOARD") == "1" {
 		win.kbd = win.bindKeyboard()
 	}
 	// Pointer (wl_pointer) — standard mouse events.
-	if win.seat != 0 && lib.ifacePointer != 0 {
+	if win.seat != 0 && lib.ifacePointer != 0 && os.Getenv("GPUI_WL_POINTER") == "1" {
 		win.ptr = win.bindPointer()
 	}
 	// Optional IME capability: zwp_text_input_v3 when advertised.
-	if win.seat != 0 && win.tiMgrName != 0 {
+	if win.seat != 0 && win.tiMgrName != 0 && os.Getenv("GPUI_WL_TEXTINPUT") == "1" {
 		initTIInterfaces(lib.ifaceSurface, lib.ifaceSeat)
 		win.ti = win.bindTextInput()
 	}
