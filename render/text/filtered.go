@@ -69,21 +69,13 @@ func (f *FilteredFace) Metrics() Metrics {
 
 // Advance implements Face.Advance.
 // Only includes runes that are in the allowed ranges.
+// Iterates the wrapped face's whole-text Glyphs once (filtered), instead of
+// building a per-rune string (P7).
 func (f *FilteredFace) Advance(text string) float64 {
 	totalAdvance := 0.0
-
-	for _, r := range text {
-		if f.inRanges(r) {
-			// Get glyph advance from the wrapped face
-			glyphAdvance := 0.0
-			for glyph := range f.face.Glyphs(string(r)) {
-				glyphAdvance = glyph.Advance
-				break // Only one glyph for a single rune
-			}
-			totalAdvance += glyphAdvance
-		}
+	for glyph := range f.Glyphs(text) {
+		totalAdvance += glyph.Advance
 	}
-
 	return totalAdvance
 }
 
@@ -117,6 +109,16 @@ func (f *FilteredFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
 		dst = append(dst, glyph)
 	}
 	return dst
+}
+
+// glyphForRune builds the single Glyph for r (zero position) when it passes
+// the filter — the per-rune companion of Advance/Glyphs for composite faces
+// (P7, no per-rune string allocation).
+func (f *FilteredFace) glyphForRune(r rune, byteIndex, cluster int) (Glyph, bool) {
+	if !f.inRanges(r) {
+		return Glyph{}, false
+	}
+	return glyphForRune(f.face, r, byteIndex, cluster)
 }
 
 // Direction implements Face.Direction.

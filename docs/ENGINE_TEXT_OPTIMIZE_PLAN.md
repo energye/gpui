@@ -13,6 +13,7 @@
 | P4 Glyphs/AppendGlyphs 重复 | ✅ 静态确认（130 行重复） | ✅ 抽 iterGlyphs 公共迭代器 | ✅ 221 PASS 0 FAIL |
 | P5 MultiFace/FilteredFace 逐字绘制 | ✅ 像素探针（见下） | ✅ 改按 FaceRun 连续 run 合并绘制 + 竖排修正 | ✅ Draw 路径 8 文件全绿 |
 | P6 ownParsedFont 懒解析模式 | ✅ 静态确认（13 个 sync.Once + 哨兵字段） | ✅ 泛型 lazySlot[T] 收敛 + typed 值结构 | ✅ 摘要探针前后一致 + 24 窗 PASS |
+| P7 逐字 string(r) 分配 | ✅ 探针实测（MultiFace.Advance 64→0 allocs） | ✅ glyphForRune 免分配单字 + MultiFace iterGlyphs 收敛 | ✅ 摘要探针前后一致 + 17 窗 PASS |
 
 ## 其它候选问题
 
@@ -88,12 +89,41 @@
   tt_engine/glyph_outline/draw/draw_aliased/multi/filtered/m6_vertical/shape_cache/
   cache/face/wrap_tab）PASS=24 FAIL=0。
 
-### P7. string(r) 与逐字分配（性能小）
-- `draw.go:348/394` `runeStr := string(r)` 每字分配；`runeToGlyphs` 等处同理。
+### P7. 逐字 string(r) 分配（性能 ✅ 已修，2026-08-12）
+- 原记录位置 `draw.go:348/394`（drawMultiFace/drawFilteredFace 逐字 `string(r)`）
+  **已被 P5 消除**；`runeToGlyphs` 查证本就 rune 直传、无分配。P7 实际落点：
+  `multi.go`（MultiFace.Advance/Glyphs/AppendGlyphs 每 rune `face.Glyphs(string(r))`
+  + 嵌套迭代器）与 `filtered.go`（FilteredFace.Advance 同模式）。
+- 验证（临时探针，已删）：testing.AllocsPerRun 于 17-rune 混合串（含 CJK），
+  改前/改后（git stash push 我的文件对比）：
 
-### P8. glyph_cache.go / cache.go 是否有空表/退化路径
-- 探索：GlyphCache 有 LRU+分片+上限（4096），Cache[K,V] 有 evict——先复核是否
-  真的按 maxEntries 淘汰（验证时补内存测试）。
+  | 路径 | 改前 | 改后 |
+  |---|---|---|
+  | MultiFace.Advance | 64 | **0** |
+  | MultiFace.Glyphs | 67 | **0** |
+  | FilteredFace.Advance | 144 | **5**（整串迭代固有开销）|
+  | sourceFace.Advance | 0 | 0（本就无分配）|
+- 修复：
+  - 新增 `sourceFace.glyphForRune(r, byteIndex, cluster)`：单字位置中性 Glyph、
+    免分配，是 iterGlyphs 逐字主体的等价物（iterGlyphs 本身不动，保热路径零风险）；
+  - `MultiFace.Advance/Glyphs/AppendGlyphs` 收敛到共享 `MultiFace.iterGlyphs`
+    （faceForRune + glyphForRune），消除每 rune `string(r)` + 嵌套 Glyphs 迭代器；
+  - `FilteredFace.Advance` 改走 `f.Glyphs(text)` 整串迭代（过滤语义不变）；
+  - 包级 `glyphForRune` 分派：sourceFace/FilteredFace/MultiFace 走免分配路径，
+    未知 Face 实现（测试 mock/自定义）回退单字 Glyphs 迭代器，保持任意 Face
+    实现可用（此兜底是回归时抓到的洞：首版分派对 mock 返回 0 glyphs）。
+- 刻意不动：`multi.go` runsUncached 的 `face.Advance(string(r))`（仅缓存 miss
+  热一次，且其 X 记账对 TTB face 的语义与 glyphForRune 不同，改则动 S6.5
+  布局）；`wrap.go:545 measureRune` 的 `Shape(string(r), face)`（shaping 开销
+  占绝对大头，string 分配可忽略）。
+- 回归：摘要探针（Glyphs 全字段/Advance/AppendGlyphs/Measure × sourceFace/变体/
+  MultiFace/FilteredFace/TTB，重构前后 sha256 一致 `143b7d6f...0fa`）+ 17 窗
+  PASS=17 FAIL=0。
+
+### P8. glyph_cache.go / cache.go 上限复核（验证项，暂未动）
+- GlyphCache（4096 默认、分片）+ Cache[K,V] 的 evict 逻辑均已有实现与测试
+  （TestGlyphCache_LRUEviction / TestCacheLRUEviction / TestCacheLRUAccessUpdate），
+  复核结论：容量淘汰真实生效。可选补一个显式占用/上限内存测试收口（待确认）。
 
 ## 二、验证计划（每项如何证明「真实存在」）
 
@@ -115,7 +145,8 @@
 3. **P2**（✅ 已完成）：autohintCache 加 maxEntries + 简单淘汰（如容量超限重置/清除最旧）。
 4. **P3**（✅ 已完成）：OwnShaper cache 加容量上限（如 64 源）+ 超限清空；保持 ClearCache 语义。
 5. **P6**（✅ 已完成）：ownParsedFont 懒解析收敛为泛型 lazySlot[T]（摘要探针证明前后等价）。
-6. **P7**：逐字 string(r) 改 range 直接传 rune（小改）。
+6. **P7**（✅ 已完成）：新增 glyphForRune 免分配单字路径 + MultiFace iterGlyphs 收敛
+   （分配探针 64/67/144 → 0/0/5）。
 
 ## 四、约束
 - 每次修改后跑对应测试窗回归；全量回归放最后。

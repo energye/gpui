@@ -212,6 +212,41 @@ func (f *sourceFace) iterGlyphs(text string, visit func(g Glyph) bool) {
 	}
 }
 
+// glyphForRune builds the Glyph for a single rune at zero position (X/Y and
+// OriginX/OriginY are zero; the caller applies its own cursor). It is the
+// per-rune equivalent of the iterGlyphs body, kept separate so composite
+// faces (MultiFace/FilteredFace) can resolve one rune without allocating a
+// per-rune string. ok=false for skipped control characters (r < 0x20, r != '\t').
+func (f *sourceFace) glyphForRune(r rune, byteIndex, cluster int) (Glyph, bool) {
+	if r < 0x20 && r != '\t' {
+		return Glyph{}, false
+	}
+	parsed := f.source.Parsed()
+	var varProvider VariableAdvanceProvider
+	if len(f.config.variations) > 0 {
+		varProvider, _ = parsed.(VariableAdvanceProvider)
+	}
+	var gid uint16
+	var advance float64
+	var bounds Rect
+	if r == '\t' {
+		// Tab: use space GID (empty outline) with tab-stop advance.
+		gid, advance = tabAdvance(parsed, f.size)
+	} else {
+		gid = parsed.GlyphIndex(r)
+		advance, _ = f.glyphAdvance(parsed, gid, varProvider)
+		bounds = parsed.GlyphBounds(gid, f.size)
+	}
+	return Glyph{
+		Rune:    r,
+		GID:     GlyphID(gid),
+		Advance: advance,
+		Bounds:  bounds,
+		Index:   byteIndex,
+		Cluster: cluster,
+	}, true
+}
+
 // Glyphs implements Face.Glyphs.
 func (f *sourceFace) Glyphs(text string) iter.Seq[Glyph] {
 	return func(yield func(Glyph) bool) {

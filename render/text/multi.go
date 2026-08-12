@@ -47,24 +47,45 @@ func (m *MultiFace) Metrics() Metrics {
 	return m.faces[0].Metrics()
 }
 
+// iterGlyphs walks text, resolving each rune to the face that covers it and
+// yielding one Glyph per rune with cumulative X (same layout rules as
+// sourceFace.iterGlyphs). Per-rune glyph lookup goes through glyphForRune to
+// avoid a per-rune string allocation (P7). Shared by Advance, Glyphs and
+// AppendGlyphs so the three cannot diverge.
+func (m *MultiFace) iterGlyphs(text string, visit func(g Glyph) bool) {
+	x := 0.0
+	byteIndex := 0
+
+	for i, r := range text {
+		face := m.faceForRune(r)
+		glyph, ok := glyphForRune(face, r, byteIndex, i)
+		if !ok {
+			byteIndex += utf8.RuneLen(r)
+			continue
+		}
+
+		// Position the glyph in the full-text run. Y stays zero (same as the
+		// previous per-rune single-glyph iterators).
+		glyph.X = x
+		glyph.OriginX = x
+
+		if !visit(glyph) {
+			return
+		}
+
+		x += glyph.Advance
+		byteIndex += utf8.RuneLen(r)
+	}
+}
+
 // Advance implements Face.Advance.
 // Calculates total advance using the appropriate face for each rune.
 func (m *MultiFace) Advance(text string) float64 {
 	totalAdvance := 0.0
-
-	for _, r := range text {
-		face := m.faceForRune(r)
-		// Get glyph advance from the selected face
-		// We can't call Advance on the face with the full text,
-		// so we need to calculate per-rune
-		glyphAdvance := 0.0
-		for glyph := range face.Glyphs(string(r)) {
-			glyphAdvance = glyph.Advance
-			break // Only one glyph for a single rune
-		}
-		totalAdvance += glyphAdvance
-	}
-
+	m.iterGlyphs(text, func(g Glyph) bool {
+		totalAdvance += g.Advance
+		return true
+	})
 	return totalAdvance
 }
 
@@ -83,57 +104,48 @@ func (m *MultiFace) HasGlyph(r rune) bool {
 // Returns an iterator over all glyphs, using the appropriate face for each rune.
 func (m *MultiFace) Glyphs(text string) iter.Seq[Glyph] {
 	return func(yield func(Glyph) bool) {
-		x := 0.0
-		byteIndex := 0
-
-		for i, r := range text {
-			face := m.faceForRune(r)
-
-			// Get the glyph from the selected face
-			for glyph := range face.Glyphs(string(r)) {
-				// Update position and index to match the full text
-				glyph.X = x
-				glyph.OriginX = x
-				glyph.Index = byteIndex
-				glyph.Cluster = i
-
-				if !yield(glyph) {
-					return
-				}
-
-				x += glyph.Advance
-			}
-
-			byteIndex += utf8.RuneLen(r)
-		}
+		m.iterGlyphs(text, yield)
 	}
 }
 
 // AppendGlyphs implements Face.AppendGlyphs.
 // Appends glyphs using the appropriate face for each rune.
 func (m *MultiFace) AppendGlyphs(dst []Glyph, text string) []Glyph {
-	x := 0.0
-	byteIndex := 0
-
-	for i, r := range text {
-		face := m.faceForRune(r)
-
-		// Get the glyph from the selected face
-		for glyph := range face.Glyphs(string(r)) {
-			// Update position and index to match the full text
-			glyph.X = x
-			glyph.OriginX = x
-			glyph.Index = byteIndex
-			glyph.Cluster = i
-
-			dst = append(dst, glyph)
-			x += glyph.Advance
-		}
-
-		byteIndex += utf8.RuneLen(r)
-	}
-
+	m.iterGlyphs(text, func(g Glyph) bool {
+		dst = append(dst, g)
+		return true
+	})
 	return dst
+}
+
+// glyphForRune resolves the rune to the covering face and builds its single
+// Glyph (zero position), without a per-rune string allocation (P7).
+func (m *MultiFace) glyphForRune(r rune, byteIndex, cluster int) (Glyph, bool) {
+	face := m.faceForRune(r)
+	return glyphForRune(face, r, byteIndex, cluster)
+}
+
+// glyphForRune builds the single Glyph for r (zero position) on any concrete
+// face, without a per-rune string allocation; ok=false for skipped control
+// characters or filtered runes. Used by composite iterators so mixed-script
+// text does not allocate string(r) per rune (P7). Unknown Face
+// implementations (e.g. test mocks, custom faces) fall back to the
+// single-rune Glyphs iterator, preserving the previous behavior.
+func glyphForRune(face Face, r rune, byteIndex, cluster int) (Glyph, bool) {
+	switch f := face.(type) {
+	case *sourceFace:
+		return f.glyphForRune(r, byteIndex, cluster)
+	case *FilteredFace:
+		return f.glyphForRune(r, byteIndex, cluster)
+	case *MultiFace:
+		return f.glyphForRune(r, byteIndex, cluster)
+	}
+	for glyph := range face.Glyphs(string(r)) {
+		glyph.Index = byteIndex
+		glyph.Cluster = cluster
+		return glyph, true
+	}
+	return Glyph{}, false
 }
 
 // Direction implements Face.Direction.
