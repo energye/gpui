@@ -17,6 +17,12 @@ const (
 	DisplayX11
 	// DisplayWayland forces wl_display / wl_surface.
 	DisplayWayland
+	// DisplayWin32 forces the Win32 backend (placeholder until S5; only
+	// succeeds on Windows builds).
+	DisplayWin32
+	// DisplayAppKit forces the macOS AppKit backend (placeholder until S5;
+	// only succeeds on darwin builds).
+	DisplayAppKit
 )
 
 // String implements fmt.Stringer.
@@ -26,19 +32,27 @@ func (b DisplayBackend) String() string {
 		return "x11"
 	case DisplayWayland:
 		return "wayland"
+	case DisplayWin32:
+		return "win32"
+	case DisplayAppKit:
+		return "appkit"
 	default:
 		return "auto"
 	}
 }
 
 // ParseDisplayBackend parses GPUI_DISPLAY / similar values.
-// Accepts: auto, x11, xlib, x, wayland, wl (case-insensitive).
+// Accepts: auto, x11, xlib, x, wayland, wl, win32, appkit (case-insensitive).
 func ParseDisplayBackend(s string) DisplayBackend {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "x11", "xlib", "x":
 		return DisplayX11
 	case "wayland", "wl":
 		return DisplayWayland
+	case "win32", "windows":
+		return DisplayWin32
+	case "appkit", "macos", "cocoa":
+		return DisplayAppKit
 	default:
 		return DisplayAuto
 	}

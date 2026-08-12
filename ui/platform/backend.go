@@ -67,6 +67,10 @@ func toPlatformKind(d DisplayBackend) PlatformKind {
 		return PlatformX11
 	case DisplayWayland:
 		return PlatformWayland
+	case DisplayWin32:
+		return PlatformWin32
+	case DisplayAppKit:
+		return PlatformAppKit
 	default:
 		return PlatformNone
 	}

@@ -9,6 +9,8 @@ const (
 	DisplayAuto DisplayBackend = iota
 	DisplayX11
 	DisplayWayland
+	DisplayWin32
+	DisplayAppKit
 )
 
 func (b DisplayBackend) String() string {
@@ -17,6 +19,10 @@ func (b DisplayBackend) String() string {
 		return "x11"
 	case DisplayWayland:
 		return "wayland"
+	case DisplayWin32:
+		return "win32"
+	case DisplayAppKit:
+		return "appkit"
 	default:
 		return "auto"
 	}

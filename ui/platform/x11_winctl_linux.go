@@ -24,22 +24,27 @@ type x11CtlLib struct {
 	openOnce sync.Once
 	lib      uintptr
 
-	moveWindow       func(dpy uintptr, w uintptr, x, y int) int
-	resizeWindow     func(dpy uintptr, w uintptr, wd, ht uint) int
-	mapWindow        func(dpy uintptr, w uintptr) int
-	unmapWindow      func(dpy uintptr, w uintptr) int
-	iconifyWindow    func(dpy uintptr, w uintptr, screen int) int
-	raiseWindow      func(dpy uintptr, w uintptr) int
-	setInputFocus    func(dpy uintptr, w uintptr, revertTo int, tm uintptr) int
-	sendEvent        func(dpy uintptr, w uintptr, propagate int, mask int64, ev *byte) int
-	internAtom       func(dpy uintptr, name *byte, onlyIf int) uintptr
-	changeProperty   func(dpy uintptr, w, prop, typ uintptr, format, mode int, data unsafe.Pointer, n int) int
-	createFontCursor func(dpy uintptr, shape uint) uintptr
-	defineCursor     func(dpy uintptr, w uintptr, cur uintptr) int
-	undefineCursor   func(dpy uintptr, w uintptr) int
-	freeCursor       func(dpy uintptr, cur uintptr) int
-	translateCoords  func(dpy uintptr, src, dst uintptr, sx, sy int, dx, dy *int, child *uintptr) int
-	setWMNormalHints func(dpy uintptr, w uintptr, hints *xSizeHints) int
+	moveWindow        func(dpy uintptr, w uintptr, x, y int) int
+	resizeWindow      func(dpy uintptr, w uintptr, wd, ht uint) int
+	mapWindow         func(dpy uintptr, w uintptr) int
+	unmapWindow       func(dpy uintptr, w uintptr) int
+	iconifyWindow     func(dpy uintptr, w uintptr, screen int) int
+	raiseWindow       func(dpy uintptr, w uintptr) int
+	setInputFocus     func(dpy uintptr, w uintptr, revertTo int, tm uintptr) int
+	sendEvent         func(dpy uintptr, w uintptr, propagate int, mask int64, ev *byte) int
+	internAtom        func(dpy uintptr, name *byte, onlyIf int) uintptr
+	changeProperty    func(dpy uintptr, w, prop, typ uintptr, format, mode int, data unsafe.Pointer, n int) int
+	createFontCursor  func(dpy uintptr, shape uint) uintptr
+	defineCursor      func(dpy uintptr, w uintptr, cur uintptr) int
+	undefineCursor    func(dpy uintptr, w uintptr) int
+	freeCursor        func(dpy uintptr, cur uintptr) int
+	translateCoords   func(dpy uintptr, src, dst uintptr, sx, sy int, dx, dy *int, child *uintptr) int
+	setWMNormalHints  func(dpy uintptr, w uintptr, hints *xSizeHints) int
+	rootWindow        func(dpy uintptr, screen int) uintptr
+	defaultScreen     func(dpy uintptr) int
+	getWindowProperty func(dpy uintptr, w, prop uintptr, longOffset, longLength int64, del int, reqType uintptr,
+		actualType *uintptr, actualFormat *int, nitems, bytesAfter *uint64, propReturn **byte) int
+	freeData func(ptr unsafe.Pointer) int
 }
 
 var ctlLib x11CtlLib
@@ -70,11 +75,51 @@ func (l *x11CtlLib) open() *x11CtlLib {
 		purego.RegisterLibFunc(&l.freeCursor, lib, "XFreeCursor")
 		purego.RegisterLibFunc(&l.translateCoords, lib, "XTranslateCoordinates")
 		purego.RegisterLibFunc(&l.setWMNormalHints, lib, "XSetWMNormalHints")
+		purego.RegisterLibFunc(&l.rootWindow, lib, "XRootWindow")
+		purego.RegisterLibFunc(&l.defaultScreen, lib, "XDefaultScreen")
+		purego.RegisterLibFunc(&l.getWindowProperty, lib, "XGetWindowProperty")
+		purego.RegisterLibFunc(&l.freeData, lib, "XFree")
 	})
 	return l
 }
 
 func (l *x11CtlLib) ok() bool { return l != nil && l.lib != 0 }
+
+// x11HasRunningWM reports whether an EWMH window manager is managing this
+// display (probe _NET_SUPPORTING_WM_CHECK on the root window). A WM takes
+// over map/unmap/visibility timing from the client; tests that assert
+// event-driven convergence (MapNotify/UnmapNotify) are only deterministic
+// on bare X servers (Xvfb/CI), so they degrade honestly when a WM runs.
+func x11HasRunningWM(dpy uintptr) bool {
+	lib := ctlLib.open()
+	if !lib.ok() || dpy == 0 || lib.rootWindow == nil || lib.getWindowProperty == nil {
+		return false
+	}
+	name := append([]byte("_NET_SUPPORTING_WM_CHECK"), 0)
+	a := lib.internAtom(dpy, &name[0], 1)
+	if a == 0 {
+		return false
+	}
+	root := lib.rootWindow(dpy, lib.defaultScreen(dpy))
+	var (
+		actualType   uintptr
+		actualFormat int
+		nitems       uint64
+		bytesAfter   uint64
+		data         *byte
+	)
+	st := lib.getWindowProperty(dpy, root, a, 0, 1, 0, 0,
+		&actualType, &actualFormat, &nitems, &bytesAfter, &data)
+	// XGetWindowProperty returns Status: 0 (Success) on success, negative on
+	// error — NOT a boolean like XQueryExtension.
+	if st == 0 && data != nil {
+		if lib.freeData != nil {
+			lib.freeData(unsafe.Pointer(data))
+		}
+		return true
+	}
+	return false
+}
 
 func (c *x11Controller) lib() *x11CtlLib {
 	return ctlLib.open()
