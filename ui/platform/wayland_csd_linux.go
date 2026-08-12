@@ -4,8 +4,11 @@ package platform
 
 import (
 	"fmt"
+	"sync"
 	"syscall"
+	"unsafe"
 
+	"github.com/ebitengine/purego"
 	"golang.org/x/sys/unix"
 )
 
@@ -74,26 +77,79 @@ const (
 // wl_shm_format ARGB8888 = 0.
 const wlShmFormatARGB8888 = 0
 
+// wl_cursor_theme (libwayland-cursor.so.0) — system cursor theme for resize
+// cursors. GNOME 42.9 lacks wp_cursor_shape_manager_v1, so this is the
+// standard fallback (same as GTK/Chromium pre-cursor-shape).
+var (
+	cursorLibOnce sync.Once
+	cursorLib     *wlCursorLib
+)
+
+type wlCursorLib struct {
+	themeLoad     func(name *byte, size int, shm uintptr) uintptr
+	themeGetCur   func(theme uintptr, name *byte) uintptr
+}
+
+func loadCursorLib() *wlCursorLib {
+	cursorLibOnce.Do(func() {
+		lib, err := purego.Dlopen("libwayland-cursor.so.0", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		if err != nil {
+			lib, err = purego.Dlopen("libwayland-cursor.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		}
+		if err != nil {
+			return
+		}
+		l := &wlCursorLib{}
+		purego.RegisterLibFunc(&l.themeLoad, lib, "wl_cursor_theme_load")
+		purego.RegisterLibFunc(&l.themeGetCur, lib, "wl_cursor_theme_get_cursor")
+		if l.themeLoad == nil || l.themeGetCur == nil {
+			return
+		}
+		cursorLib = l
+	})
+	return cursorLib
+}
+
+// wl_cursor_image layout (amd64): width,height,hotspot_x,hotspot_y,delay
+// (uint32 each) then wl_buffer* (uintptr).
+type wlCursorImageC struct {
+	Width     uint32
+	Height    uint32
+	HotX      uint32
+	HotY      uint32
+	Delay     uint32
+	_         uint32 // pad
+	Buffer    uintptr
+}
+
 // wlCSD manages the client-side decoration subsurfaces for one window.
+// GNOME Wayland has no server-side decorations, so we draw a title bar
+// (top subsurface) ourselves; the three other edges have NO visible border —
+// resize is driven by an invisible hot zone on the content surface's edges
+// (8px, all 8 directions), same as GTK CSD.
 type wlCSD struct {
 	win *wlWin
 
 	shm     uintptr // wl_shm proxy
 	subcomp uintptr // wl_subcompositor proxy
 
-	top    *csdSurface
-	left   *csdSurface
-	right  *csdSurface
-	bottom *csdSurface
+	top *csdSurface // title bar only
 
 	title string
-	// topSurfaceID lets pointer events know the pointer is over the title bar.
+	// topSurface lets pointer events know the pointer is over the title bar.
 	topSurface uintptr
 	// closeRequested is set by a click on the close button (drained in poll).
 	closeRequested bool
 	// maximized tracks xdg_toplevel state so the maximize button can draw
 	// either "maximize" or "restore" (updated from wlTopConfigure states).
 	maximized bool
+	// contentW/H: current content surface size (for edge hot-zone hit test).
+	contentW, contentH int
+
+	// Cursor state: cursor surface + theme for resize cursors.
+	cursorSurf  uintptr // wl_surface for the cursor image
+	cursorTheme uintptr // wl_cursor_theme*
+	curName     string  // last set cursor name (avoid redundant set_cursor)
 }
 
 // csdSurface is one decoration subsurface + its shm buffer.
@@ -107,8 +163,8 @@ type csdSurface struct {
 	w, h   int
 }
 
-// initCSD binds wl_shm + wl_subcompositor and creates the four decoration
-// subsurfaces. Called from waylandCreate when decorated is true. Returns nil
+// initCSD binds wl_shm + wl_subcompositor and creates the title-bar
+// subsurface. Called from waylandCreate when decorated is true. Returns nil
 // (silent degrade) when the compositor lacks wl_shm/wl_subcompositor.
 func (w *wlWin) initCSD(title string) *wlCSD {
 	if w == nil || w.lib == nil || w.surface == 0 {
@@ -133,27 +189,16 @@ func (w *wlWin) initCSD(title string) *wlCSD {
 	if ch < 1 {
 		ch = 480
 	}
+	csd.contentW, csd.contentH = cw, ch
 
+	// Title bar spans content width (no visible side/bottom borders — resize
+	// uses an invisible edge hot zone on the content surface).
 	var err error
-	// Top: title bar spanning content width + both borders.
-	if csd.top, err = csd.newSurface(cw+2*csdBorderW, csdTitleBarH, -csdBorderW, -csdTitleBarH); err != nil {
+	if csd.top, err = csd.newSurface(cw, csdTitleBarH, 0, -csdTitleBarH); err != nil {
 		csd.destroy()
 		return nil
 	}
 	csd.topSurface = csd.top.surf
-	// Left / right / bottom borders.
-	if csd.left, err = csd.newSurface(csdBorderW, ch, -csdBorderW, 0); err != nil {
-		csd.destroy()
-		return nil
-	}
-	if csd.right, err = csd.newSurface(csdBorderW, ch, cw, 0); err != nil {
-		csd.destroy()
-		return nil
-	}
-	if csd.bottom, err = csd.newSurface(cw+2*csdBorderW, csdBorderW, -csdBorderW, ch); err != nil {
-		csd.destroy()
-		return nil
-	}
 
 	csd.paint()
 	return csd
@@ -249,7 +294,7 @@ func (s *csdSurface) destroy() {
 	s.buffer, s.pool, s.sub, s.surf = 0, 0, 0, 0
 }
 
-// paint draws the title bar + borders and commits them.
+// paint draws the title bar and commits it.
 func (c *wlCSD) paint() {
 	if c == nil || c.win == nil || c.win.lib == nil {
 		return
@@ -259,25 +304,14 @@ func (c *wlCSD) paint() {
 		paintTitleBar(c.top.data, c.top.w, c.top.h, c.title, c.maximized)
 		c.top.commit(lib)
 	}
-	if c.left != nil {
-		paintLeftBorder(c.left.data, c.left.w, c.left.h)
-		c.left.commit(lib)
-	}
-	if c.right != nil {
-		paintRightBorder(c.right.data, c.right.w, c.right.h)
-		c.right.commit(lib)
-	}
-	if c.bottom != nil {
-		paintBottomBorder(c.bottom.data, c.bottom.w, c.bottom.h)
-		c.bottom.commit(lib)
-	}
 	lib.displayFlush(c.win.display)
 }
 
-// resize resizes the four decoration surfaces to a new content size (called
-// from poll when wlTopConfigure delivered a new toplevel size). Only the shm
-// buffers are recreated — the wl_surface / wl_subsurface objects stay alive
-// so an active interactive resize (pointer grab) is not disrupted.
+// resize resizes the title-bar surface to a new content size (called from
+// poll when wlTopConfigure delivered a new toplevel size) and updates the
+// content dims used for edge-zone hit testing. Only the shm buffer is
+// recreated — the wl_surface / wl_subsurface objects stay alive so an active
+// interactive resize (pointer grab) is not disrupted.
 func (c *wlCSD) resize(cw, ch int) {
 	if c == nil || c.win == nil || c.win.lib == nil {
 		return
@@ -288,19 +322,10 @@ func (c *wlCSD) resize(cw, ch int) {
 	if ch < 1 {
 		ch = 480
 	}
-	// Top: title bar spanning content width + both borders.
+	c.contentW, c.contentH = cw, ch
 	if c.top != nil {
-		c.resizeSurface(c.top, cw+2*csdBorderW, csdTitleBarH, -csdBorderW, -csdTitleBarH)
+		c.resizeSurface(c.top, cw, csdTitleBarH, 0, -csdTitleBarH)
 		c.topSurface = c.top.surf
-	}
-	if c.left != nil {
-		c.resizeSurface(c.left, csdBorderW, ch, -csdBorderW, 0)
-	}
-	if c.right != nil {
-		c.resizeSurface(c.right, csdBorderW, ch, cw, 0)
-	}
-	if c.bottom != nil {
-		c.resizeSurface(c.bottom, cw+2*csdBorderW, csdBorderW, -csdBorderW, ch)
 	}
 	c.paint()
 }
@@ -312,8 +337,11 @@ func (c *wlCSD) resizeSurface(s *csdSurface, w, h, x, y int) {
 		return
 	}
 	lib := c.win.lib
-	// Detach old buffer before destroying it.
-	lib.proxyMarshalArrayFlags(s.surf, wlSurfaceAttach, 0, 0, 0, nil)
+	// Detach old buffer (attach NULL + commit) before destroying it.
+	// wl_surface.attach signature is "oii" (buffer, x, y) — MUST pass the
+	// three args; passing nil makes libwayland read out of bounds → SIGSEGV.
+	detach := []wlArg{argO(0), argU(0), argU(0)}
+	lib.proxyMarshalArrayFlags(s.surf, wlSurfaceAttach, 0, 0, 0, &detach[0])
 	lib.proxyMarshalArrayFlags(s.surf, wlSurfaceCommit, 0, 0, 0, nil)
 	if s.buffer != 0 {
 		lib.proxyDestroy(s.buffer)
@@ -367,7 +395,7 @@ func (c *wlCSD) destroySurfaces() {
 		return
 	}
 	lib := c.win.lib
-	for _, s := range []*csdSurface{c.top, c.left, c.right, c.bottom} {
+	for _, s := range []*csdSurface{c.top} {
 		if s == nil {
 			continue
 		}
@@ -391,7 +419,7 @@ func (c *wlCSD) destroySurfaces() {
 		}
 		s.destroy()
 	}
-	c.top, c.left, c.right, c.bottom = nil, nil, nil, nil
+	c.top = nil
 	c.topSurface = 0
 }
 
@@ -436,8 +464,9 @@ const (
 const csdCorner = 8
 
 // hitTest maps a pointer press on a decoration surface to an action.
-// surface is the wl_surface the compositor reported (top/left/right/bottom
-// decoration subsurface), (x,y) is surface-local logical px.
+// surface is the wl_surface the compositor reported: the title-bar
+// subsurface (c.topSurface) or the content surface (c.win.surface). (x,y) is
+// surface-local logical px.
 func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 	if c == nil {
 		return csdHit{}
@@ -455,7 +484,7 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 		if x >= float64(w-3*csdCloseW) {
 			return csdHit{act: csdActMinimize}
 		}
-		// Top edge / corners (non-button area).
+		// Top edge resize (via the title bar — no visible border).
 		if y < csdCorner {
 			switch {
 			case x < csdCorner:
@@ -467,31 +496,24 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 			}
 		}
 		return csdHit{act: csdActMove}
-	case c.left.surf:
+	case c.win.surface:
+		// Content-surface edge hot zone (invisible resize border, GTK style).
+		// All 8 directions. Top edge is covered by the title bar; here we
+		// handle the remaining edges + corners against the content bounds.
+		cw, ch := c.contentW, c.contentH
+		nearL := x < csdCorner
+		nearR := x >= float64(cw-csdCorner)
+		nearB := y >= float64(ch-csdCorner)
 		switch {
-		case y < csdCorner:
-			return csdHit{act: csdActResize, edge: resizeTopLeft}
-		case y >= float64(c.left.h-csdCorner):
+		case nearL && nearB:
 			return csdHit{act: csdActResize, edge: resizeBottomLeft}
-		default:
+		case nearR && nearB:
+			return csdHit{act: csdActResize, edge: resizeBottomRight}
+		case nearL:
 			return csdHit{act: csdActResize, edge: resizeLeft}
-		}
-	case c.right.surf:
-		switch {
-		case y < csdCorner:
-			return csdHit{act: csdActResize, edge: resizeTopRight}
-		case y >= float64(c.right.h-csdCorner):
-			return csdHit{act: csdActResize, edge: resizeBottomRight}
-		default:
+		case nearR:
 			return csdHit{act: csdActResize, edge: resizeRight}
-		}
-	case c.bottom.surf:
-		switch {
-		case x < csdCorner:
-			return csdHit{act: csdActResize, edge: resizeBottomLeft}
-		case x >= float64(c.bottom.w-csdCorner):
-			return csdHit{act: csdActResize, edge: resizeBottomRight}
-		default:
+		case nearB:
 			return csdHit{act: csdActResize, edge: resizeBottom}
 		}
 	}
@@ -552,6 +574,123 @@ func (c *wlCSD) setMaximized(v bool) {
 		c.top.commit(c.win.lib)
 		c.win.lib.displayFlush(c.win.display)
 	}
+}
+
+// --- resize cursor (system cursor theme via wl_pointer.set_cursor) ---
+
+// cursorNameForEdge returns the X cursor name for a resize edge (or "" for a
+// non-resize hit → restore default pointer).
+func cursorNameForEdge(edge int) string {
+	switch edge {
+	case resizeTop:
+		return "sb_v_double_arrow"
+	case resizeBottom:
+		return "sb_v_double_arrow"
+	case resizeLeft:
+		return "sb_h_double_arrow"
+	case resizeRight:
+		return "sb_h_double_arrow"
+	case resizeTopLeft, resizeBottomRight:
+		return "top_left_corner"
+	case resizeTopRight, resizeBottomLeft:
+		return "top_right_corner"
+	}
+	return ""
+}
+
+// setCursor updates the pointer cursor for the current hit region. Called on
+// pointer enter/motion with the last enter serial. wl_pointer.set_cursor
+// (opcode 1, signature "ouii": serial, surface, hotspot_x, hotspot_y).
+func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
+	if c == nil || c.win == nil || c.win.lib == nil || c.win.ptr == nil {
+		return
+	}
+	name := ""
+	if hit.act == csdActResize {
+		name = cursorNameForEdge(hit.edge)
+	}
+	if name == "" {
+		// Restore default cursor: set_cursor(serial, NULL, 0, 0).
+		if c.curName != "" {
+			c.curName = ""
+			args := []wlArg{argU(uint32(serial)), argO(0), argU(0), argU(0)}
+			c.win.lib.proxyMarshalArrayFlags(c.win.ptr.ptr, wlPtrSetCursor, 0, 0, 0, &args[0])
+			c.win.lib.displayFlush(c.win.display)
+		}
+		return
+	}
+	if name == c.curName {
+		return
+	}
+	surf := c.ensureCursorSurface()
+	if surf == 0 {
+		return
+	}
+	c.applyCursorImage(name)
+	if c.curName == "" {
+		c.curName = name // even if image failed, avoid re-loop
+	}
+	args := []wlArg{argU(uint32(serial)), argO(surf), argU(0), argU(0)}
+	c.win.lib.proxyMarshalArrayFlags(c.win.ptr.ptr, wlPtrSetCursor, 0, 0, 0, &args[0])
+	c.win.lib.displayFlush(c.win.display)
+}
+
+// ensureCursorSurface loads the system cursor theme once and returns a
+// wl_surface holding the named cursor image (created lazily).
+func (c *wlCSD) ensureCursorSurface() uintptr {
+	if c == nil || c.win == nil || c.win.lib == nil || c.shm == 0 {
+		return 0
+	}
+	if c.cursorSurf != 0 {
+		return c.cursorSurf
+	}
+	lib := c.win.lib
+	l := loadCursorLib()
+	if l == nil {
+		return 0
+	}
+	// Create a dedicated wl_surface for the cursor image.
+	c.cursorSurf = c.win.ctor(c.win.comp, wlCompositorCreateSurface, lib.ifaceSurface, 4)
+	if c.cursorSurf == 0 {
+		return 0
+	}
+	// wl_cursor_theme_load(name, size, shm). NULL name → system default theme.
+	var name *byte
+	c.cursorTheme = l.themeLoad(name, 24, c.shm)
+	if c.cursorTheme == 0 {
+		return 0
+	}
+	return c.cursorSurf
+}
+
+// applyCursorImage loads the cursor image for name into cursorSurf.
+func (c *wlCSD) applyCursorImage(name string) {
+	if c == nil || c.cursorSurf == 0 || c.cursorTheme == 0 {
+		return
+	}
+	l := loadCursorLib()
+	if l == nil {
+		return
+	}
+	nb := append([]byte(name), 0)
+	cur := l.themeGetCur(c.cursorTheme, &nb[0])
+	if cur == 0 {
+		return
+	}
+	// wl_cursor { unsigned image_count; wl_cursor_image **images; char *name; }
+	imgPtr := *(*uintptr)(unsafe.Pointer(cur + 8)) // images[0]
+	if imgPtr == 0 {
+		return
+	}
+	img := (*wlCursorImageC)(unsafe.Pointer(imgPtr))
+	if img.Buffer == 0 {
+		return
+	}
+	// attach cursor buffer to cursor surface + commit (desync by default).
+	args := []wlArg{argO(img.Buffer), argU(0), argU(0)}
+	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceAttach, 0, 0, 0, &args[0])
+	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceCommit, 0, 0, 0, nil)
+	c.win.lib.displayFlush(c.win.display)
 }
 
 // --- minimal ARGB8888 painter (no external deps) ---

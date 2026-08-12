@@ -58,6 +58,8 @@ type wlPointerState struct {
 	surface uintptr
 	// lastX/lastY: last surface-local pointer position (for CSD hit-testing).
 	lastX, lastY float64
+	// enterSerial: serial of the last pointer.enter (needed for set_cursor).
+	enterSerial uintptr
 }
 
 // bindPointer creates a wl_pointer from the seat and adds the listener.
@@ -119,10 +121,15 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 		return
 	}
 	st.surface = surface
+	st.enterSerial = serial
 	// enter carries surface-local coords — record them so a press right after
 	// enter (without any motion) hit-tests correctly (button has no coords).
 	st.lastX = wlFixedToDouble(sx)
 	st.lastY = wlFixedToDouble(sy)
+	// Update cursor for the new region (title bar hover / resize edge).
+	if c := st.win.csd; c != nil {
+		c.setCursor(serial, c.hitTest(st.surface, st.lastX, st.lastY))
+	}
 }
 
 func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
@@ -141,6 +148,10 @@ func wlPtrMotionCB(data, ptr, time, sx, sy uintptr) {
 	}
 	st.lastX = wlFixedToDouble(sx)
 	st.lastY = wlFixedToDouble(sy)
+	// Update cursor while moving (resize edge hover).
+	if c := st.win.csd; c != nil {
+		c.setCursor(st.enterSerial, c.hitTest(st.surface, st.lastX, st.lastY))
+	}
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
 		Pointer: PointerMove,
