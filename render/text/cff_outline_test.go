@@ -288,11 +288,11 @@ func TestCFF2_VariationBlend(t *testing.T) {
 	if !own.hasCFF2Table() {
 		t.Fatal("need CFF2")
 	}
-	own.loadFvar()
-	if len(own.fvarAxes) == 0 {
+	axes := own.loadFvar()
+	if len(axes) == 0 {
 		t.Fatal("expected fvar axes on VF font")
 	}
-	axis := own.fvarAxes[0]
+	axis := axes[0]
 	const ppem = 64.0
 	maxVar := []FontVariation{{Tag: axis.Tag, Value: axis.MaxValue}}
 	// Pick a glyph whose outline actually moves under the axis (not all

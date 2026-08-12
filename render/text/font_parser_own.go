@@ -23,6 +23,54 @@ import (
 // ownParser implements FontParser using pure Go binary parsing.
 type ownParser struct{}
 
+// lazySlot lazily computes a value of type T at most once (thread-safe).
+// It replaces the former per-table sync.Once + sentinel-field boilerplate:
+// a zero value of T (nil pointer/slice, false flag) marks "not available",
+// and an optional error is cached alongside the value (cff/cff2 slots).
+type lazySlot[T any] struct {
+	once sync.Once
+	err  error
+	val  T
+}
+
+// load runs init at most once and returns the cached value/error.
+func (s *lazySlot[T]) load(init func() (T, error)) (T, error) {
+	s.once.Do(func() {
+		v, e := init()
+		s.val, s.err = v, e
+	})
+	return s.val, s.err
+}
+
+// Typed results of the lazy table slots on ownParsedFont. Each groups the
+// cache fields a table parse produces, replacing scattered sentinel fields.
+type hmtxLazy struct {
+	adv         []uint16 // advance widths from hmtx
+	lsb         []int16  // left side bearings from hmtx (unused currently, kept for GlyphBounds)
+	numHMetrics int      // from hhea.numberOfHMetrics
+	parsed      bool     // true if hmtx was parsed successfully
+}
+
+type vmtxLazy struct {
+	adv    []uint16 // advance heights from vmtx
+	tsb    []int16  // top side bearings from vmtx
+	parsed bool     // true if vmtx was parsed successfully
+	vhea   vheaMetrics
+	vheaOK bool // vhea present+valid (independent of vmtx)
+}
+
+type nameLazy struct {
+	family string
+	full   string
+}
+
+type metricsLazy struct {
+	hhea   hheaMetrics // from hhea table
+	os2    os2Metrics  // from OS/2 table
+	hheaOK bool        // true if hhea was parsed successfully
+	os2OK  bool        // true if OS/2 was parsed successfully
+}
+
 // Parse implements FontParser.Parse.
 func (p *ownParser) Parse(data []byte) (ParsedFont, error) {
 	return p.ParseIndex(data, 0)
@@ -78,82 +126,34 @@ type ownParsedFont struct {
 	upem      int
 	numGlyphs int
 
-	// Lazily parsed via sync.Once.
+	// Lazily parsed via lazySlot — each ensure*/load* method runs its init
+	// closure at most once; a zero value marks the table absent/unparseable.
 
-	cmapOnce sync.Once
-	cmap     *cmapLookup // nil if cmap parsing failed
-
-	hmtxOnce    sync.Once
-	hmtxAdv     []uint16 // advance widths from hmtx
-	hmtxLSB     []int16  // left side bearings from hmtx (unused currently, kept for GlyphBounds)
-	numHMetrics int      // from hhea.numberOfHMetrics
-	hmtxParsed  bool     // true if hmtx was parsed successfully
-
-	vmtxOnce    sync.Once
-	vmtxAdv     []uint16 // advance heights from vmtx
-	vmtxTSB     []int16  // top side bearings from vmtx
-	vmtxParsed  bool     // true if vmtx was parsed successfully
-	vhea        vheaMetrics
-	vheaOK      bool // true if vhea was parsed successfully
-
-	nameOnce   sync.Once
-	familyName string
-	fullName   string
-
-	metricsOnce sync.Once
-	hhea        hheaMetrics // from hhea table
-	os2         os2Metrics  // from OS/2 table
-	hheaOK      bool        // true if hhea was parsed successfully
-	os2OK       bool        // true if OS/2 was parsed successfully
-
-	// fvar axes — parsed independently, needed by both HVAR and gvar.
-	fvarOnce sync.Once
-	fvarAxes []fvarAxis // parsed fvar axes for coordinate normalization
-
-	// HVAR (reuse existing parser from hvar.go).
-	hvarOnce sync.Once
-	hvar     *hvarTable // nil if HVAR not present or failed to parse
-
-	// TT hint cache — lazy loading (thread-safe).
-	// Provides cached fpgm/prep execution results per ppem.
-	ttHintOnce  sync.Once
-	ttHintCache *ttHintCache // nil if font has no TT instructions
-
-	// gvar/avar — lazy loading (thread-safe).
-	// Provides variable font outline interpolation.
-	gvarOnce sync.Once
-	gvar     *gvarTable // nil if gvar not present or failed to parse
-	avarOnce sync.Once
-	avar     *avarTable // nil if avar not present
-
-	// glyf contour parser — reuses tables already loaded at ParseIndex so
-	// each glyph raster does not re-walk the sfnt directory (HUD/mask path).
-	glyfOnce  sync.Once
-	glyfCache *cachedGlyfParser
-
-	// CFF outline backend (sfnt) — only when tables have "CFF " and no glyf.
-	cffOnce sync.Once
-	cff     *cffOutlineSupport
-	cffErr  error
-
-	// CFF2 outline backend (go-text) — when tables have "CFF2" and no glyf.
-	cff2Once sync.Once
-	cff2     *cff2OutlineSupport
-	cff2Err  error
+	cmap    lazySlot[*cmapLookup]         // nil if cmap missing or unparseable
+	hmtx    lazySlot[hmtxLazy]            // hmtx advance widths (hhea+hmtx)
+	vmtx    lazySlot[vmtxLazy]            // vmtx heights + vhea (vertical metrics)
+	name    lazySlot[nameLazy]            // family/full names from name table
+	metrics lazySlot[metricsLazy]         // hhea + OS/2 font-level metrics
+	fvar    lazySlot[[]fvarAxis]          // fvar axes (HVAR/gvar coord normalization)
+	hvar    lazySlot[*hvarTable]          // HVAR deltas; nil if absent/failed
+	ttHint  lazySlot[*ttHintCache]        // TT bytecode hint cache; nil if no TT
+	gvar    lazySlot[*gvarTable]          // gvar deltas; nil if absent/failed
+	avar    lazySlot[*avarTable]          // avar remapping; nil if absent
+	glyf    lazySlot[*cachedGlyfParser]   // glyf/loca contour parser cache
+	cff     lazySlot[*cffOutlineSupport]  // CFF 1 outline backend (sfnt)
+	cff2    lazySlot[*cff2OutlineSupport] // CFF2 outline backend (go-text)
 }
 
 // --- ParsedFont interface ---
 
 // Name implements ParsedFont.Name.
 func (f *ownParsedFont) Name() string {
-	f.ensureName()
-	return f.familyName
+	return f.ensureName().family
 }
 
 // FullName implements ParsedFont.FullName.
 func (f *ownParsedFont) FullName() string {
-	f.ensureName()
-	return f.fullName
+	return f.ensureName().full
 }
 
 // NumGlyphs implements ParsedFont.NumGlyphs.
@@ -168,18 +168,17 @@ func (f *ownParsedFont) UnitsPerEm() int {
 
 // GlyphIndex implements ParsedFont.GlyphIndex.
 func (f *ownParsedFont) GlyphIndex(r rune) uint16 {
-	f.ensureCmap()
-	return f.cmap.glyphIndex(r)
+	return f.ensureCmap().glyphIndex(r)
 }
 
 // GlyphAdvance implements ParsedFont.GlyphAdvance.
 // Returns the advance width in pixels: advanceFU * ppem / upem.
 func (f *ownParsedFont) GlyphAdvance(glyphIndex uint16, ppem float64) float64 {
-	f.ensureHmtx()
-	if !f.hmtxParsed || f.upem == 0 {
+	hm := f.ensureHmtx()
+	if !hm.parsed || f.upem == 0 {
 		return 0
 	}
-	advFU := hmtxAdvance(f.hmtxAdv, f.numHMetrics, glyphIndex)
+	advFU := hmtxAdvance(hm.adv, hm.numHMetrics, glyphIndex)
 	return float64(advFU) * ppem / float64(f.upem)
 }
 
@@ -188,22 +187,22 @@ func (f *ownParsedFont) GlyphAdvance(glyphIndex uint16, ppem float64) float64 {
 // values (|sTypoAscender - sTypoDescender|) when vmtx is absent, matching
 // FreeType's TT_Get_VMetrics fallback (ttgload.c:110-169).
 func (f *ownParsedFont) GlyphVerticalAdvance(glyphIndex uint16, ppem float64) float64 {
-	f.ensureVmtx()
+	vm := f.ensureVmtx()
 	if f.upem == 0 {
 		return 0
 	}
-	if f.vmtxParsed && len(f.vmtxAdv) > 0 {
-		advFU := hmtxAdvance(f.vmtxAdv, len(f.vmtxAdv), glyphIndex)
+	if vm.parsed && len(vm.adv) > 0 {
+		advFU := hmtxAdvance(vm.adv, len(vm.adv), glyphIndex)
 		return float64(advFU) * ppem / float64(f.upem)
 	}
 	// Fallback: OS/2-derived advance height (same as FreeType when the
 	// vertical table is missing).
-	f.ensureMetrics()
-	asc := int32(f.os2.sTypoAscender)
-	desc := int32(f.os2.sTypoDescender)
+	m := f.ensureMetrics()
+	asc := int32(m.os2.sTypoAscender)
+	desc := int32(m.os2.sTypoDescender)
 	if asc == 0 && desc == 0 {
-		asc = int32(f.hhea.ascent)
-		desc = int32(f.hhea.descent)
+		asc = int32(m.hhea.ascent)
+		desc = int32(m.hhea.descent)
 	}
 	adv := asc - desc
 	if adv < 0 {
@@ -213,31 +212,34 @@ func (f *ownParsedFont) GlyphVerticalAdvance(glyphIndex uint16, ppem float64) fl
 }
 
 // ensureVmtx lazily parses the vhea and vmtx tables for vertical metrics.
-func (f *ownParsedFont) ensureVmtx() {
-	f.vmtxOnce.Do(func() {
+func (f *ownParsedFont) ensureVmtx() vmtxLazy {
+	v, _ := f.vmtx.load(func() (vmtxLazy, error) {
+		out := vmtxLazy{}
 		vheaData, ok := f.tables["vhea"]
 		if !ok {
-			return
+			return out, nil
 		}
 		vhea, ok := parseVheaTable(vheaData)
 		if !ok || vhea.numberOfVMetrics == 0 {
-			return
+			return out, nil
 		}
-		f.vhea = vhea
-		f.vheaOK = true
+		out.vhea = vhea
+		out.vheaOK = true // vheaOK is set even if vmtx is absent/broken
 
 		vmtxData, ok := f.tables["vmtx"]
 		if !ok {
-			return
+			return out, nil
 		}
 		adv, tsb, err := parseVmtx(vmtxData, vhea.numberOfVMetrics, f.numGlyphs)
 		if err != nil {
-			return
+			return out, nil
 		}
-		f.vmtxAdv = adv
-		f.vmtxTSB = tsb
-		f.vmtxParsed = true
+		out.adv = adv
+		out.tsb = tsb
+		out.parsed = true
+		return out, nil
 	})
+	return v
 }
 
 // GlyphBounds implements ParsedFont.GlyphBounds.
@@ -307,12 +309,12 @@ func (f *ownParsedFont) GlyphBounds(glyphIndex uint16, ppem float64) Rect {
 
 // Metrics implements ParsedFont.Metrics.
 func (f *ownParsedFont) Metrics(ppem float64) FontMetrics {
-	f.ensureMetrics()
-	if !f.hheaOK && !f.os2OK {
+	m := f.ensureMetrics()
+	if !m.hheaOK && !m.os2OK {
 		return FontMetrics{}
 	}
-	f.ensureVmtx()
-	return computeFontMetrics(f.hhea, f.os2, f.upem, ppem, f.vhea, f.vheaOK)
+	vm := f.ensureVmtx()
+	return computeFontMetrics(m.hhea, m.os2, f.upem, ppem, vm.vhea, vm.vheaOK)
 }
 
 // --- RawFontDataProvider ---
@@ -338,19 +340,12 @@ func (f *ownParsedFont) GlyfContours(gid GlyphID) (*GlyfContours, error) {
 	if f == nil {
 		return nil, fmt.Errorf("text: own parser: nil font")
 	}
-	f.glyfOnce.Do(func() {
-		cache, err := newCachedGlyfParserFromTables(f.tables)
-		if err != nil {
-			// Leave nil; GlyfContours falls back to FromTables.
-			return
+	cache := f.ensureGlyf()
+	if cache != nil {
+		if int(gid) >= cache.NumGlyphs() {
+			return nil, fmt.Errorf("text: glyf parser: glyph ID %d out of range (font has %d glyphs)", gid, cache.NumGlyphs())
 		}
-		f.glyfCache = cache
-	})
-	if f.glyfCache != nil {
-		if int(gid) >= f.glyfCache.NumGlyphs() {
-			return nil, fmt.Errorf("text: glyf parser: glyph ID %d out of range (font has %d glyphs)", gid, f.glyfCache.NumGlyphs())
-		}
-		return f.glyfCache.Contours(gid)
+		return cache.Contours(gid)
 	}
 	return ParseGlyfContoursFromTables(f.tables, gid)
 }
@@ -361,20 +356,21 @@ func (f *ownParsedFont) GlyfContours(gid GlyphID) (*GlyfContours, error) {
 // Returns the advance width in pixels adjusted by HVAR deltas for the
 // given font variations.
 func (f *ownParsedFont) GlyphAdvanceVar(glyphIndex uint16, ppem float64, variations []FontVariation) float64 {
-	f.loadHVAR()
+	hvar := f.loadHVAR()
+	axes := f.loadFvar()
 
 	// Get base advance.
 	baseAdvance := f.GlyphAdvance(glyphIndex, ppem)
 
-	if f.hvar == nil || len(f.fvarAxes) == 0 || len(variations) == 0 {
+	if hvar == nil || len(axes) == 0 || len(variations) == 0 {
 		return baseAdvance
 	}
 
 	// Normalize variation coordinates.
-	coords := normalizeCoords(f.fvarAxes, variations)
+	coords := normalizeCoords(axes, variations)
 
 	// Get HVAR delta (in font units).
-	delta := f.hvar.advanceDelta(glyphIndex, coords)
+	delta := hvar.advanceDelta(glyphIndex, coords)
 	if delta == 0 {
 		return baseAdvance
 	}
@@ -388,80 +384,88 @@ func (f *ownParsedFont) GlyphAdvanceVar(glyphIndex uint16, ppem float64, variati
 }
 
 // --- Lazy initialization helpers ---
+// Each ensure*/load* method runs its parse at most once via lazySlot and
+// returns the typed result; a zero value marks the table absent/unparseable.
 
 // ensureCmap lazily parses the cmap table.
-func (f *ownParsedFont) ensureCmap() {
-	f.cmapOnce.Do(func() {
+func (f *ownParsedFont) ensureCmap() *cmapLookup {
+	v, _ := f.cmap.load(func() (*cmapLookup, error) {
 		cmapData, ok := f.tables["cmap"]
 		if !ok {
-			return
+			return nil, nil
 		}
-		f.cmap = parseCmapTable(cmapData)
+		return parseCmapTable(cmapData), nil
 	})
+	return v
 }
 
 // ensureHmtx lazily parses the hhea and hmtx tables for advance widths.
-func (f *ownParsedFont) ensureHmtx() {
-	f.hmtxOnce.Do(func() {
+func (f *ownParsedFont) ensureHmtx() hmtxLazy {
+	v, _ := f.hmtx.load(func() (hmtxLazy, error) {
 		hheaData, ok := f.tables["hhea"]
 		if !ok {
-			return
+			return hmtxLazy{}, nil
 		}
 		hhea, ok := parseHheaTable(hheaData)
 		if !ok || hhea.numberOfHMetrics == 0 {
-			return
+			return hmtxLazy{}, nil
 		}
-
 		hmtxData, ok := f.tables["hmtx"]
 		if !ok {
-			return
+			return hmtxLazy{}, nil
 		}
-
 		advances, lsbs, err := parseHmtx(hmtxData, hhea.numberOfHMetrics, f.numGlyphs)
 		if err != nil {
-			return
+			return hmtxLazy{}, nil
 		}
-
-		f.hmtxAdv = advances
-		f.hmtxLSB = lsbs
-		f.numHMetrics = hhea.numberOfHMetrics
-		f.hmtxParsed = true
+		return hmtxLazy{
+			adv:         advances,
+			lsb:         lsbs,
+			numHMetrics: hhea.numberOfHMetrics,
+			parsed:      true,
+		}, nil
 	})
+	return v
 }
 
 // ensureName lazily parses the name table.
-func (f *ownParsedFont) ensureName() {
-	f.nameOnce.Do(func() {
+func (f *ownParsedFont) ensureName() nameLazy {
+	v, _ := f.name.load(func() (nameLazy, error) {
 		nameData, ok := f.tables["name"]
 		if !ok {
-			return
+			return nameLazy{}, nil
 		}
-		f.familyName, f.fullName = parseNameTable(nameData)
+		fam, full := parseNameTable(nameData)
+		return nameLazy{family: fam, full: full}, nil
 	})
+	return v
 }
 
 // ensureMetrics lazily parses hhea and OS/2 tables for font-level metrics.
-func (f *ownParsedFont) ensureMetrics() {
-	f.metricsOnce.Do(func() {
+func (f *ownParsedFont) ensureMetrics() metricsLazy {
+	v, _ := f.metrics.load(func() (metricsLazy, error) {
+		var out metricsLazy
 		if hheaData, ok := f.tables["hhea"]; ok {
-			f.hhea, f.hheaOK = parseHheaTable(hheaData)
+			out.hhea, out.hheaOK = parseHheaTable(hheaData)
 		}
 		if os2Data, ok := f.tables["OS/2"]; ok {
-			f.os2, f.os2OK = parseOS2Table(os2Data)
+			out.os2, out.os2OK = parseOS2Table(os2Data)
 		}
+		return out, nil
 	})
+	return v
 }
 
 // loadTTHintCache lazily initializes the TT bytecode hint cache.
-// Thread-safe via sync.Once. Returns nil if the font has no TT instructions.
+// Thread-safe via lazySlot. Returns nil if the font has no TT instructions.
 func (f *ownParsedFont) loadTTHintCache() *ttHintCache {
-	f.ttHintOnce.Do(func() {
+	v, _ := f.ttHint.load(func() (*ttHintCache, error) {
 		if f.rawData == nil {
-			return
+			return nil, nil
 		}
-		f.ttHintCache = newTTHintCache(f.rawData)
+		return newTTHintCache(f.rawData), nil
 	})
-	return f.ttHintCache
+	return v
 }
 
 // loadFvar lazily parses the fvar table to extract axis definitions.
@@ -470,57 +474,75 @@ func (f *ownParsedFont) loadTTHintCache() *ttHintCache {
 //
 // A font with gvar but no HVAR (e.g., Apple SFNS.ttf) still needs fvarAxes
 // for normalizeCoords to produce the correct-length coordinate array.
-func (f *ownParsedFont) loadFvar() {
-	f.fvarOnce.Do(func() {
+func (f *ownParsedFont) loadFvar() []fvarAxis {
+	v, _ := f.fvar.load(func() ([]fvarAxis, error) {
 		fvarRaw, ok := f.tables["fvar"]
 		if !ok {
-			return
+			return nil, nil
 		}
-		f.fvarAxes = parseFvarAxes(fvarRaw)
+		return parseFvarAxes(fvarRaw), nil
 	})
+	return v
 }
 
 // loadHVAR lazily parses the HVAR table.
 // Ensures fvar axes are also parsed (needed for coordinate normalization).
-func (f *ownParsedFont) loadHVAR() {
+func (f *ownParsedFont) loadHVAR() *hvarTable {
 	f.loadFvar()
-	f.hvarOnce.Do(func() {
+	v, _ := f.hvar.load(func() (*hvarTable, error) {
 		hvarRaw, ok := f.tables["HVAR"]
 		if !ok {
-			return
+			return nil, nil
 		}
 		hvar, err := parseHVAR(hvarRaw)
 		if err != nil {
-			return
+			return nil, nil
 		}
-		f.hvar = hvar
+		return hvar, nil
 	})
+	return v
 }
 
 // loadGvar lazily parses the gvar table.
-func (f *ownParsedFont) loadGvar() {
-	f.gvarOnce.Do(func() {
+func (f *ownParsedFont) loadGvar() *gvarTable {
+	v, _ := f.gvar.load(func() (*gvarTable, error) {
 		gvarRaw, ok := f.tables["gvar"]
 		if !ok {
-			return
+			return nil, nil
 		}
 		gvar, err := parseGvar(gvarRaw)
 		if err != nil {
-			return
+			return nil, nil
 		}
-		f.gvar = gvar
+		return gvar, nil
 	})
+	return v
 }
 
 // loadAvar lazily parses the avar table.
-func (f *ownParsedFont) loadAvar() {
-	f.avarOnce.Do(func() {
+func (f *ownParsedFont) loadAvar() *avarTable {
+	v, _ := f.avar.load(func() (*avarTable, error) {
 		avarRaw, ok := f.tables["avar"]
 		if !ok {
-			return
+			return nil, nil
 		}
-		f.avar = parseAvar(avarRaw)
+		return parseAvar(avarRaw), nil
 	})
+	return v
+}
+
+// ensureGlyf lazily builds the cached glyf/loca contour parser.
+// Returns nil when the cache cannot be built; callers fall back to
+// ParseGlyfContoursFromTables (same behavior as the former inline Once).
+func (f *ownParsedFont) ensureGlyf() *cachedGlyfParser {
+	v, _ := f.glyf.load(func() (*cachedGlyfParser, error) {
+		cache, err := newCachedGlyfParserFromTables(f.tables)
+		if err != nil {
+			return nil, err // fall back to ParseGlyfContoursFromTables
+		}
+		return cache, nil
+	})
+	return v
 }
 
 // applyVariations computes gvar deltas and applies them to the given
@@ -544,22 +566,21 @@ func (f *ownParsedFont) applyVariations(
 		return
 	}
 
-	f.loadFvar()
-	if len(f.fvarAxes) == 0 {
+	axes := f.loadFvar()
+	if len(axes) == 0 {
 		return
 	}
 
-	f.loadGvar()
-	if f.gvar == nil {
+	gvar := f.loadGvar()
+	if gvar == nil {
 		return
 	}
 
 	// Normalize variation coordinates.
-	coords := normalizeCoords(f.fvarAxes, variations)
+	coords := normalizeCoords(axes, variations)
 
 	// Apply avar remapping.
-	f.loadAvar()
-	f.avar.apply(coords)
+	f.loadAvar().apply(coords)
 
 	// Optimization: skip gvar delta computation when all normalized coords
 	// are zero (default instance). This is the common case when the user
@@ -583,7 +604,7 @@ func (f *ownParsedFont) applyVariations(
 	}
 
 	// Compute gvar deltas.
-	dx, dy := f.gvar.glyphVariationDeltas(glyphID, coords, numPoints, contourEnds, points)
+	dx, dy := gvar.glyphVariationDeltas(glyphID, coords, numPoints, contourEnds, points)
 	if dx == nil || dy == nil {
 		return
 	}

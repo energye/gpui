@@ -65,12 +65,12 @@ func TestM6VerticalFallback(t *testing.T) {
 	}
 	for _, c := range cases {
 		f := parseOwnFont(t, c.fontPath, 0)
-		f.ensureMetrics()
-		asc := int32(f.os2.sTypoAscender)
-		desc := int32(f.os2.sTypoDescender)
+		mtr := f.ensureMetrics()
+		asc := int32(mtr.os2.sTypoAscender)
+		desc := int32(mtr.os2.sTypoDescender)
 		if asc == 0 && desc == 0 {
-			asc = int32(f.hhea.ascent)
-			desc = int32(f.hhea.descent)
+			asc = int32(mtr.hhea.ascent)
+			desc = int32(mtr.hhea.descent)
 		}
 		upem := float64(f.upem)
 		wantFU := asc - desc

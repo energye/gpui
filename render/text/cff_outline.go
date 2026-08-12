@@ -75,19 +75,17 @@ func (f *ownParsedFont) hasPostScriptOutlines() bool {
 	return f.hasCFFTable() || f.hasCFF2Table()
 }
 
-func (f *ownParsedFont) ensureCFF() error {
+func (f *ownParsedFont) ensureCFF() (*cffOutlineSupport, error) {
 	if f == nil {
-		return fmt.Errorf("text: cff: nil font")
+		return nil, fmt.Errorf("text: cff: nil font")
 	}
-	f.cffOnce.Do(func() {
+	return f.cff.load(func() (*cffOutlineSupport, error) {
 		if !f.hasCFFTable() {
-			f.cffErr = fmt.Errorf("text: cff: no CFF table")
-			return
+			return nil, fmt.Errorf("text: cff: no CFF table")
 		}
 		src := f.rawData
 		if len(src) < 4 {
-			f.cffErr = fmt.Errorf("text: cff: empty font data")
-			return
+			return nil, fmt.Errorf("text: cff: empty font data")
 		}
 		var (
 			sf  *sfnt.Font
@@ -96,48 +94,40 @@ func (f *ownParsedFont) ensureCFF() error {
 		if binary.BigEndian.Uint32(src[0:4]) == tagTTCF {
 			col, cerr := sfnt.ParseCollection(src)
 			if cerr != nil {
-				f.cffErr = fmt.Errorf("text: cff: collection: %w", cerr)
-				return
+				return nil, fmt.Errorf("text: cff: collection: %w", cerr)
 			}
 			sf, err = col.Font(f.collectionIndex)
 		} else {
 			sf, err = sfnt.Parse(src)
 		}
 		if err != nil {
-			f.cffErr = fmt.Errorf("text: cff: parse: %w", err)
-			return
+			return nil, fmt.Errorf("text: cff: parse: %w", err)
 		}
-		f.cff = &cffOutlineSupport{font: sf}
+		return &cffOutlineSupport{font: sf}, nil
 	})
-	return f.cffErr
 }
 
-func (f *ownParsedFont) ensureCFF2() error {
+func (f *ownParsedFont) ensureCFF2() (*cff2OutlineSupport, error) {
 	if f == nil {
-		return fmt.Errorf("text: cff2: nil font")
+		return nil, fmt.Errorf("text: cff2: nil font")
 	}
-	f.cff2Once.Do(func() {
+	return f.cff2.load(func() (*cff2OutlineSupport, error) {
 		if !f.hasCFF2Table() {
-			f.cff2Err = fmt.Errorf("%w", ErrCFF2Unsupported)
-			return
+			return nil, fmt.Errorf("%w", ErrCFF2Unsupported)
 		}
 		raw, ok := f.tables["CFF2"]
 		if !ok || len(raw) == 0 {
-			f.cff2Err = fmt.Errorf("%w", ErrCFF2Unsupported)
-			return
+			return nil, fmt.Errorf("%w", ErrCFF2Unsupported)
 		}
 		parsed, err := cff.ParseCFF2(raw)
 		if err != nil {
-			f.cff2Err = fmt.Errorf("%w: %v", ErrCFF2Unsupported, err)
-			return
+			return nil, fmt.Errorf("%w: %v", ErrCFF2Unsupported, err)
 		}
 		if len(parsed.Charstrings) == 0 {
-			f.cff2Err = fmt.Errorf("%w: empty charstrings", ErrCFF2Unsupported)
-			return
+			return nil, fmt.Errorf("%w: empty charstrings", ErrCFF2Unsupported)
 		}
-		f.cff2 = &cff2OutlineSupport{font: parsed}
+		return &cff2OutlineSupport{font: parsed}, nil
 	})
-	return f.cff2Err
 }
 
 // fixed26_6ToFloat converts a 26.6 fixed-point value to float64 pixels.
@@ -152,13 +142,14 @@ func (f *ownParsedFont) extractCFFOutline(gid GlyphID, size float64) (*GlyphOutl
 	if f.hasCFF2Table() && !f.hasCFFTable() {
 		return f.extractCFF2Outline(gid, size, nil)
 	}
-	if err := f.ensureCFF(); err != nil {
+	sup, err := f.ensureCFF()
+	if err != nil {
 		return nil, err
 	}
 	if size <= 0 {
 		return nil, &FontError{Reason: "cff: non-positive size"}
 	}
-	sf := f.cff.font
+	sf := sup.font
 	if int(gid) >= sf.NumGlyphs() {
 		return nil, &FontError{Reason: fmt.Sprintf("cff: glyph ID %d out of range", gid)}
 	}
@@ -216,7 +207,8 @@ func (f *ownParsedFont) extractCFFOutline(gid GlyphID, size float64) (*GlyphOutl
 // go-text segments are font-unit Y-up; we scale to ppem and flip Y to match
 // the rest of the pipeline (Y-down pixels, same as sfnt CFF1 path).
 func (f *ownParsedFont) extractCFF2Outline(gid GlyphID, size float64, variations []FontVariation) (*GlyphOutline, error) {
-	if err := f.ensureCFF2(); err != nil {
+	sup, err := f.ensureCFF2()
+	if err != nil {
 		return nil, err
 	}
 	if size <= 0 {
@@ -226,13 +218,13 @@ func (f *ownParsedFont) extractCFF2Outline(gid GlyphID, size float64, variations
 	if upem == 0 {
 		return nil, &FontError{Reason: "cff2: zero unitsPerEm"}
 	}
-	cs := f.cff2.font.Charstrings
+	cs := sup.font.Charstrings
 	if int(gid) >= len(cs) {
 		return nil, &FontError{Reason: fmt.Sprintf("cff2: glyph ID %d out of range", gid)}
 	}
 
 	coords := f.cff2VariationCoords(variations)
-	segs, _, err := f.cff2.font.LoadGlyph(tables.GlyphID(gid), coords)
+	segs, _, err := sup.font.LoadGlyph(tables.GlyphID(gid), coords)
 	if err != nil {
 		return nil, fmt.Errorf("text: cff2 LoadGlyph: %w", err)
 	}
@@ -287,13 +279,12 @@ func (f *ownParsedFont) cff2VariationCoords(variations []FontVariation) []tables
 	if f == nil || len(variations) == 0 {
 		return nil
 	}
-	f.loadFvar()
-	if len(f.fvarAxes) == 0 {
+	axes := f.loadFvar()
+	if len(axes) == 0 {
 		return nil
 	}
-	coords := normalizeCoords(f.fvarAxes, variations)
-	f.loadAvar()
-	f.avar.apply(coords)
+	coords := normalizeCoords(axes, variations)
+	f.loadAvar().apply(coords)
 	allZero := true
 	for _, c := range coords {
 		if c != 0 {

@@ -1222,28 +1222,28 @@ func TestLoadFvar_IndependentOfHVAR(t *testing.T) {
 	}
 
 	// loadFvar must work independently.
-	noHvarFont.loadFvar()
+	axes := noHvarFont.loadFvar()
 
-	if len(noHvarFont.fvarAxes) == 0 {
+	if len(axes) == 0 {
 		t.Fatal("fvarAxes not loaded when HVAR is absent — loadFvar must not depend on HVAR")
 	}
 
 	// Verify axes match what we expect from Vazirmatn (1 axis: wght).
-	if len(noHvarFont.fvarAxes) != 1 {
-		t.Errorf("expected 1 axis, got %d", len(noHvarFont.fvarAxes))
+	if len(axes) != 1 {
+		t.Errorf("expected 1 axis, got %d", len(axes))
 	}
-	if noHvarFont.fvarAxes[0].Tag != [4]byte{'w', 'g', 'h', 't'} {
-		t.Errorf("expected wght axis, got %s", string(noHvarFont.fvarAxes[0].Tag[:]))
+	if axes[0].Tag != [4]byte{'w', 'g', 'h', 't'} {
+		t.Errorf("expected wght axis, got %s", string(axes[0].Tag[:]))
 	}
 
 	// HVAR must still be nil.
-	noHvarFont.loadHVAR()
-	if noHvarFont.hvar != nil {
+	hvar := noHvarFont.loadHVAR()
+	if hvar != nil {
 		t.Error("hvar should be nil when HVAR table is absent")
 	}
 
 	// fvarAxes must still be present after loadHVAR.
-	if len(noHvarFont.fvarAxes) == 0 {
+	if len(noHvarFont.loadFvar()) == 0 {
 		t.Fatal("fvarAxes lost after loadHVAR — sync.Once interaction bug")
 	}
 }

@@ -12,6 +12,7 @@
 | P3 OwnShaper cache 无上限 | ✅ 静态确认 | ✅ 加 64 上限 + 满时重置 | ✅ 221 PASS 0 FAIL |
 | P4 Glyphs/AppendGlyphs 重复 | ✅ 静态确认（130 行重复） | ✅ 抽 iterGlyphs 公共迭代器 | ✅ 221 PASS 0 FAIL |
 | P5 MultiFace/FilteredFace 逐字绘制 | ✅ 像素探针（见下） | ✅ 改按 FaceRun 连续 run 合并绘制 + 竖排修正 | ✅ Draw 路径 8 文件全绿 |
+| P6 ownParsedFont 懒解析模式 | ✅ 静态确认（13 个 sync.Once + 哨兵字段） | ✅ 泛型 lazySlot[T] 收敛 + typed 值结构 | ✅ 摘要探针前后一致 + 24 窗 PASS |
 
 ## 其它候选问题
 
@@ -64,10 +65,28 @@
   shape_result_cache_test / zz_m6_vertical_test / system_font_test / varfont_test
   / zz_dbg_png_test 全绿。
 
-### P6. ownParsedFont 14 个 sync.Once 模式分散（可读性，低）
-- 位置：`render/text/font_parser_own.go:83-140`
-- 现象：每个表一个 Once+缓存字段+ensure 函数，重复样板；虽有收益（懒解析），
-  但 14 份拷贝维护成本高。可收敛为「表加载器」辅助或统一 err/ok 模式。
+### P6. ownParsedFont 懒解析模式分散（可读性 ✅ 已修，2026-08-12）
+- 位置：`render/text/font_parser_own.go` + `cff_outline.go`
+- 现象：13 个表槽各自 `xxxOnce sync.Once` + 缓存字段 + 哨兵 bool（hmtxParsed /
+  vheaOK 等）+ 10~20 行 ensure 函数，重复样板，维护成本高。
+- 验证：写临时摘要探针（testdata 全字体 + DejaVu/NotoCJK-TTC/FreeSans 系统字体 ×
+  最多 3 个 collection index），对全部 13 个槽位跑 Name/FullName/GlyphIndex/
+  GlyphAdvance/GlyphVerticalAdvance/GlyphBounds/Metrics/GlyphAdvanceVar/hinted
+  Advance/GlyfContours/applyVariations(gvar+avar)/extractCFF/extractCFF2(含变体)
+  → sha256 摘要。重构前后摘要 **完全一致**（`718e59c0...d115`），行为逐字节等价。
+- 修复：引入泛型 `lazySlot[T]{once, err, val}`（`load(init) (T, error)`，init 至多
+  跑一次），13 个槽位全部改为 `xxx lazySlot[typed]`；多值槽位用 typed 结构
+  （hmtxLazy/vmtxLazy/nameLazy/metricsLazy）替代分散哨兵字段；每个 ensure*/load*
+  方法统一为「返回 typed 值」。语义逐一保持：
+  - vheaOK 独立于 vmtx（vhea 有效即置位，vmtx 缺失/损坏不回退）——原实现如此；
+  - cff/cff2 错误持久缓存（每次调用返回同一 err）；
+  - cmap 缺失 → ensureCmap 返回 nil → GlyphIndex 保持既有 nil-panic（潜在洞，
+    另行评估，本次不改行为）；
+  - glyf 缓存建失败 → 回退 ParseGlyfContoursFromTables（原行为）。
+- 回归：摘要探针（删前最后跑）一致 + 24 个测试窗（cff/cff2/gvar/hvar/avar/
+  varfont/varfont_outline/source/font_tables/parser_collection/glyf_parser/tt_glyph/
+  tt_engine/glyph_outline/draw/draw_aliased/multi/filtered/m6_vertical/shape_cache/
+  cache/face/wrap_tab）PASS=24 FAIL=0。
 
 ### P7. string(r) 与逐字分配（性能小）
 - `draw.go:348/394` `runeStr := string(r)` 每字分配；`runeToGlyphs` 等处同理。
@@ -92,10 +111,10 @@
 
 1. **P1/P5 合并修**（✅ 已完成）：drawMultiFace 改为「按 rune 用 Glyphs 迭代一次 + 同 face
    连续 run 合并绘制」（FaceRun 复用），消除逐字光栅与线性扫描；顺带用 glyph.Y 修正竖排。
-2. **P4**：抽 `iterGlyphs` 公共迭代器，Glyphs/AppendGlyphs 共用。
-3. **P2**：autohintCache 加 maxEntries + 简单淘汰（如容量超限重置/清除最旧）。
-4. **P3**：OwnShaper cache 加容量上限（如 64 源）+ 超限清空；保持 ClearCache 语义。
-5. **P6**：ownParsedFont 懒解析收敛（低优先，若回归风险大则仅整理注释）。
+2. **P4**（✅ 已完成）：抽 `iterGlyphs` 公共迭代器，Glyphs/AppendGlyphs 共用。
+3. **P2**（✅ 已完成）：autohintCache 加 maxEntries + 简单淘汰（如容量超限重置/清除最旧）。
+4. **P3**（✅ 已完成）：OwnShaper cache 加容量上限（如 64 源）+ 超限清空；保持 ClearCache 语义。
+5. **P6**（✅ 已完成）：ownParsedFont 懒解析收敛为泛型 lazySlot[T]（摘要探针证明前后等价）。
 6. **P7**：逐字 string(r) 改 range 直接传 rune（小改）。
 
 ## 四、约束

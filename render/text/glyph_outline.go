@@ -841,9 +841,9 @@ func (e *OutlineExtractor) extractFromOwnVariableImpl(
 
 		// Compute hmtx advance for phantom points.
 		var hmtxAdv int32
-		f.ensureHmtx()
-		if f.hmtxParsed && f.hmtxAdv != nil {
-			hmtxAdv = int32(hmtxAdvance(f.hmtxAdv, f.numHMetrics, uint16(gid)))
+		hm := f.ensureHmtx()
+		if hm.parsed && hm.adv != nil {
+			hmtxAdv = int32(hmtxAdvance(hm.adv, hm.numHMetrics, uint16(gid)))
 		}
 
 		// Phantom points: [nPts+0]=origin, [nPts+1]=advance, [nPts+2/3]=vertical.
