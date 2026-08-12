@@ -27,9 +27,11 @@ import (
 // enter/motion coords are in surface-local coordinate space *before* the
 // surface's scale is applied (wl_fixed). We treat them as logical px.
 
+// wl_pointer requests (wayland.xml authoritative): set_cursor(0) since 1,
+// release(1) since 3.
 const (
-	wlPtrRelease     = 0
-	wlPtrSetCursor   = 1
+	wlPtrRelease   = 1
+	wlPtrSetCursor = 0
 
 	wlPtrEnter        = 0
 	wlPtrLeave        = 1
@@ -47,9 +49,9 @@ const (
 // event_count exactly or proxyAddListener reads out of bounds → wild pointer
 // callbacks → SIGSEGV (system crash).
 type wlPointerState struct {
-	lib    *wlLib
-	win    *wlWin
-	ptr    uintptr // wl_pointer proxy
+	lib *wlLib
+	win *wlWin
+	ptr uintptr // wl_pointer proxy
 
 	listener [9]uintptr
 	selfPtr  uintptr
@@ -246,9 +248,9 @@ func wlPtrAxisCB(data, ptr, time, axis, value uintptr) {
 	st.win.pushPtr(ev)
 }
 
-func wlPtrFrameCB(data, ptr uintptr)              {}
-func wlPtrAxisSourceCB(data, ptr, source uintptr) {}
-func wlPtrAxisStopCB(data, ptr, time, axis uintptr) {}
+func wlPtrFrameCB(data, ptr uintptr)                        {}
+func wlPtrAxisSourceCB(data, ptr, source uintptr)           {}
+func wlPtrAxisStopCB(data, ptr, time, axis uintptr)         {}
 func wlPtrAxisDiscreteCB(data, ptr, axis, discrete uintptr) {}
 
 // pushPtr queues a pointer event for the next poll (thread-safe).

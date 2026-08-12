@@ -807,9 +807,14 @@ func (c *wlCSD) applyCursorImage(name string) {
 	if cur == 0 {
 		return
 	}
-	// wl_cursor { unsigned image_count; wl_cursor_image **images; char *name; }
-	// images pointer at offset 8 (after u32 count + pad).
-	imgPtr := *(*uintptr)(unsafe.Pointer(cur + 8))
+	// struct wl_cursor { unsigned image_count; wl_cursor_image **images;
+	// char *name; } — images is an ARRAY of pointers (wayland-cursor.h),
+	// so dereference twice: images@8 → images[0] → wl_cursor_image.
+	imgArr := *(*uintptr)(unsafe.Pointer(cur + 8))
+	if imgArr == 0 {
+		return
+	}
+	imgPtr := *(*uintptr)(unsafe.Pointer(imgArr))
 	if imgPtr == 0 {
 		return
 	}
