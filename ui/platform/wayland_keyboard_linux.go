@@ -117,11 +117,10 @@ type wlKeyboardState struct {
 // Returns nil when the seat/interface is unavailable (silent degrade: no
 // keyboard events reach the app).
 //
-// OPT-IN (safety): the keyboard binding is DISABLED by default. Set
-// GPUI_WL_KEYBOARD=1 to enable it. This keeps the default behavior at the
-// v0.8 proven level (IME protocol only) while the keyboard path is validated.
+// Enabled by default (keyboard is the plain-text + IME focus driver). Set
+// GPUI_WL_KEYBOARD=0 to disable as an escape hatch.
 func (w *wlWin) bindKeyboard() *wlKeyboardState {
-	if os.Getenv("GPUI_WL_KEYBOARD") != "1" {
+	if os.Getenv("GPUI_WL_KEYBOARD") == "0" {
 		return nil
 	}
 	if w == nil || w.lib == nil || w.seat == 0 || w.lib.ifaceKeyboard == 0 {

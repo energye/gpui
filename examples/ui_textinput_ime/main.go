@@ -33,19 +33,23 @@ import (
 
 // inputBox renders the editor text and caret-ish underline; it is the
 // EventTarget that receives pointer/key/text/ime from the InputRouter.
+// OnChange triggers ScheduleFrame so the window repaints on every edit.
 type inputBox struct {
 	*rendering.RenderBox
-	ed   *textinput.Editor
-	text *rendering.RenderText
+	ed     *textinput.Editor
+	text   *rendering.RenderText
+	sched  func() // set by the demo to trigger a repaint frame
+	focused bool
+	boxH   float64
 }
 
 func newInputBox(ed *textinput.Editor) *inputBox {
 	box := rendering.NewRenderBox()
-	b := &inputBox{RenderBox: box, ed: ed, text: rendering.NewRenderText("")}
+	b := &inputBox{RenderBox: box, ed: ed, text: rendering.NewRenderText(""), boxH: 48}
 	b.text.FontSize = 20
 	b.text.R, b.text.G, b.text.B, b.text.A = 0.05, 0.75, 0.95, 1
 	b.FixedWidth = 600
-	b.FixedHeight = 48
+	b.FixedHeight = b.boxH
 	b.AddChild(b.text)
 	ed.OnChange = func() { b.sync() }
 	b.sync()
@@ -59,6 +63,8 @@ func (b *inputBox) sync() {
 	t := b.ed.Text()
 	if b.ed.ComposeActive() {
 		t += "▌"
+	} else if b.focused {
+		t += "|"
 	} else if len(t) > 0 {
 		t += "|"
 	} else {
@@ -66,14 +72,24 @@ func (b *inputBox) sync() {
 	}
 	b.text.Text = t
 	b.text.MarkNeedsPaint()
+	if b.sched != nil {
+		b.sched()
+	}
 }
 
-// OnPointer implements input.PointerHandler: clicking focuses (the demo uses
-// a fixed caret; the InputRouter's TextEditor is pre-bound so text lands).
-func (b *inputBox) OnPointer(ev input.PointerEvent) {}
+// OnPointer implements input.PointerHandler: clicking focuses the box.
+func (b *inputBox) OnPointer(ev input.PointerEvent) {
+	if ev.Kind == input.PointerDown {
+		b.focused = true
+		b.sync()
+	}
+}
 
 // OnKey implements input.KeyHandler: editing keys.
 func (b *inputBox) OnKey(ev input.KeyEvent) {
+	if ev.Pressed && ev.Rune != 0 && ev.Rune != '\r' && ev.Rune != '\n' {
+		logf("key-press key=%s rune=%q", ev.Key, ev.Rune)
+	}
 	if !ev.Pressed {
 		return
 	}
@@ -108,7 +124,6 @@ func main() {
 	// Auto-enable IME when the editor is focused (demo: immediately).
 	router.OnIME = func(ev input.IMEEvent) { logf("ime-event kind=%d text=%q", ev.Kind, ev.Text) }
 	router.OnText = func(ev input.TextEvent) { logf("text-event %q", ev.Text) }
-
 	app := application.New(application.Config{
 		Name:    "ui_textinput_ime",
 		Backend: platform.DisplayWayland,
@@ -126,6 +141,10 @@ func main() {
 
 	box := newInputBox(ed)
 	box.SetOffset(rendering.Point{X: 40, Y: 60})
+	box.sched = func() { win.ScheduleFrame() } // repaint on every edit
+	box.focused = true                          // auto-focus the demo box
+	// Keyboard editing keys (Backspace/arrows) route to the box's OnKey.
+	router.OnKey = func(ke input.KeyEvent) { box.OnKey(ke) }
 
 	root := rendering.NewRenderBox()
 	title := rendering.NewRenderText("textinput + IME demo (click box, type, IME pre-edit live)")
@@ -141,7 +160,7 @@ func main() {
 	}
 	logf("stage=root-set")
 
-	// Auto-focus the editor so IME is enabled immediately (demonstration).
+	// Auto-enable IME so typing lands immediately.
 	if p := win.Platform(); p != nil && p.IME() != nil {
 		p.IME().EnableIME(platform.Rect{X: 40, Y: 60, W: 600, H: 48})
 		logf("stage=ime-enabled")
