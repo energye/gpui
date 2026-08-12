@@ -496,6 +496,16 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 			win.seatState.pendingKeys = os.Getenv("GPUI_WL_KEYBOARD") == "1"
 			win.seatState.pendingPtrs = os.Getenv("GPUI_WL_POINTER") == "1"
 			win.seatState.pendingTI = os.Getenv("GPUI_WL_TEXTINPUT") == "1"
+			// Dispatch until seat.capabilities arrives so the deferred device
+			// creation (wlSeatFlushPending) runs BEFORE the window is returned:
+			// the IME capability (win.ti) must already exist when imeFor() is
+			// evaluated below, otherwise Window.IME() reports nil.
+			seatDeadline := time.Now().Add(2 * time.Second)
+			for !win.seatState.capsSeen && time.Now().Before(seatDeadline) {
+				if lib.displayDispatch(dpy) < 0 {
+					break
+				}
+			}
 		}
 	}
 
