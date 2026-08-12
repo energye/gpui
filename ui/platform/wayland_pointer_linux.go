@@ -140,6 +140,16 @@ func wlPtrButtonCB(data, ptr, serial, time, button, state uintptr) {
 	if st == nil || st.win == nil {
 		return
 	}
+	// Pointer press = the user clicked the window/input box. Re-commit the
+	// text-input state here (GTK released_cb pattern): the compositor only
+	// feeds key events to the IME engine once focus_in ran, and focus_in
+	// requires a commit AFTER the engine (IBus) is ready — the initial
+	// enable+commit at window creation is dropped (surface not focused yet)
+	// and may race engine startup. Every click re-submits, so the engine
+	// activates reliably.
+	if state&0xff == 1 {
+		st.win.refreshTextInput()
+	}
 	btn := int(button)
 	// Map evdev button codes → 1/2/3 like platform convention.
 	switch btn {
