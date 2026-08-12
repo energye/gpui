@@ -123,6 +123,7 @@ type wlLib struct {
 	ifaceBuffer       uintptr
 	ifaceSubcompositor uintptr
 	ifaceSubsurface   uintptr
+	ifaceOutput       uintptr // wl_output (xdg_toplevel.set_fullscreen arg)
 }
 
 func loadWayland() (*wlLib, error) {
@@ -165,6 +166,7 @@ func loadWayland() (*wlLib, error) {
 		{"wl_buffer_interface", &l.ifaceBuffer},
 		{"wl_subcompositor_interface", &l.ifaceSubcompositor},
 		{"wl_subsurface_interface", &l.ifaceSubsurface},
+		{"wl_output_interface", &l.ifaceOutput},
 	} {
 		p, err := purego.Dlsym(lib, pair.name)
 		if err != nil || p == 0 {
@@ -194,8 +196,15 @@ var (
 		mDestroy, mGetXdg, mPong  []byte
 		mGetTop, mAck             []byte
 		mSetTitle, mSetApp        []byte
+		mSetParent, mShowMenu     []byte
+		mMove, mResize            []byte
+		mSetMinSize, mSetMaxSize  []byte
+		mSetMaxed, mUnsetMaxed    []byte
+		mSetFull, mUnsetFull      []byte
+		mSetMinimized             []byte
 		mGetDeco, mSetMode        []byte
 		sEmpty, sNo, sU, sN, sS   []byte
+		sO, sQo, sOu, sOuu, sOuii, sIi []byte
 		sNoTop                    []byte
 		ePing, eCfg, eClose       []byte
 		eCfgIia                   []byte
@@ -214,11 +223,28 @@ var (
 		mSetApp:   append([]byte("set_app_id"), 0),
 		mGetDeco:  append([]byte("get_toplevel_decoration"), 0),
 		mSetMode:  append([]byte("set_mode"), 0),
+		mSetParent: append([]byte("set_parent"), 0),
+		mShowMenu: append([]byte("show_window_menu"), 0),
+		mMove:     append([]byte("move"), 0),
+		mResize:   append([]byte("resize"), 0),
+		mSetMinSize: append([]byte("set_min_size"), 0),
+		mSetMaxSize: append([]byte("set_max_size"), 0),
+		mSetMaxed: append([]byte("set_maximized"), 0),
+		mUnsetMaxed: append([]byte("unset_maximized"), 0),
+		mSetFull:  append([]byte("set_fullscreen"), 0),
+		mUnsetFull: append([]byte("unset_fullscreen"), 0),
+		mSetMinimized: append([]byte("set_minimized"), 0),
 		sEmpty:    append([]byte(""), 0),
 		sNo:       append([]byte("no"), 0),
 		sU:        append([]byte("u"), 0),
 		sN:        append([]byte("n"), 0),
 		sS:        append([]byte("s"), 0),
+		sO:        append([]byte("o"), 0),
+		sQo:       append([]byte("?o"), 0),
+		sOu:       append([]byte("ou"), 0),
+		sOuu:      append([]byte("ouu"), 0),
+		sOuii:     append([]byte("ouii"), 0),
+		sIi:       append([]byte("ii"), 0),
 		sNoTop:    append([]byte("no"), 0),
 		ePing:     append([]byte("ping"), 0),
 		eCfg:      append([]byte("configure"), 0),
@@ -236,7 +262,7 @@ var (
 	msgWmBaseEv  [1]wlMessageC
 	msgXdgSurf   [5]wlMessageC
 	msgXdgSurfEv [1]wlMessageC
-	msgTop       [4]wlMessageC
+	msgTop       [14]wlMessageC
 	msgTopEv     [2]wlMessageC
 	msgDecoMgr   [2]wlMessageC
 	msgDecoTop   [3]wlMessageC
@@ -244,13 +270,20 @@ var (
 
 	typesXdgSurf [2]uintptr
 	typesTop     [1]uintptr
+	typesTopO    [1]uintptr // set_parent: ?o → xdg_toplevel
+	typesMenu    [4]uintptr // show_window_menu: o u i i
+	typesMove    [2]uintptr // move: o u
+	typesResize  [3]uintptr // resize: o u u
+	typesFull    [1]uintptr // set_fullscreen: ?o → wl_output
 	typesDeco    [2]uintptr
 	typesEmpty   [1]uintptr
 )
 
 func cstr(b []byte) uintptr { return uintptr(unsafe.Pointer(&b[0])) }
 
-func initXDGInterfaces(ifaceSurface uintptr) {
+func initXDGInterfaces(ifaceSurface, ifaceSeat, ifaceOutput uintptr) {
+	seatIface := ifaceSeat
+	outputIface := ifaceOutput
 	msgWmBase[0] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sEmpty), Types: 0}
 	msgWmBase[1] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sN), Types: 0}
 	typesXdgSurf[0] = 0
@@ -279,16 +312,36 @@ func initXDGInterfaces(ifaceSurface uintptr) {
 	}
 	typesXdgSurf[0] = uintptr(unsafe.Pointer(&ifaceXdgSurface))
 	typesTop[0] = uintptr(unsafe.Pointer(&ifaceXdgToplevel))
+	typesTopO[0] = uintptr(unsafe.Pointer(&ifaceXdgToplevel))
+	typesMenu[0] = seatIface
+	typesMove[0] = seatIface
+	typesResize[0] = seatIface
+	typesFull[0] = outputIface
 
+	// xdg_toplevel requests (authoritative xdg-shell.xml order):
+	//   destroy(0) set_parent(1) set_title(2) set_app_id(3)
+	//   show_window_menu(4) move(5) resize(6) set_max_size(7)
+	//   set_min_size(8) set_maximized(9) unset_maximized(10)
+	//   set_fullscreen(11) unset_fullscreen(12) set_minimized(13)
 	msgTop[0] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sEmpty), Types: 0}
-	msgTop[1] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sEmpty), Types: 0}
+	msgTop[1] = wlMessageC{Name: cstr(xdgNames.mSetParent), Signature: cstr(xdgNames.sQo), Types: uintptr(unsafe.Pointer(&typesTopO[0]))}
 	msgTop[2] = wlMessageC{Name: cstr(xdgNames.mSetTitle), Signature: cstr(xdgNames.sS), Types: 0}
 	msgTop[3] = wlMessageC{Name: cstr(xdgNames.mSetApp), Signature: cstr(xdgNames.sS), Types: 0}
+	msgTop[4] = wlMessageC{Name: cstr(xdgNames.mShowMenu), Signature: cstr(xdgNames.sOuii), Types: uintptr(unsafe.Pointer(&typesMenu[0]))}
+	msgTop[5] = wlMessageC{Name: cstr(xdgNames.mMove), Signature: cstr(xdgNames.sOu), Types: uintptr(unsafe.Pointer(&typesMove[0]))}
+	msgTop[6] = wlMessageC{Name: cstr(xdgNames.mResize), Signature: cstr(xdgNames.sOuu), Types: uintptr(unsafe.Pointer(&typesResize[0]))}
+	msgTop[7] = wlMessageC{Name: cstr(xdgNames.mSetMaxSize), Signature: cstr(xdgNames.sIi), Types: 0}
+	msgTop[8] = wlMessageC{Name: cstr(xdgNames.mSetMinSize), Signature: cstr(xdgNames.sIi), Types: 0}
+	msgTop[9] = wlMessageC{Name: cstr(xdgNames.mSetMaxed), Signature: cstr(xdgNames.sEmpty), Types: 0}
+	msgTop[10] = wlMessageC{Name: cstr(xdgNames.mUnsetMaxed), Signature: cstr(xdgNames.sEmpty), Types: 0}
+	msgTop[11] = wlMessageC{Name: cstr(xdgNames.mSetFull), Signature: cstr(xdgNames.sQo), Types: uintptr(unsafe.Pointer(&typesFull[0]))}
+	msgTop[12] = wlMessageC{Name: cstr(xdgNames.mUnsetFull), Signature: cstr(xdgNames.sEmpty), Types: 0}
+	msgTop[13] = wlMessageC{Name: cstr(xdgNames.mSetMinimized), Signature: cstr(xdgNames.sEmpty), Types: 0}
 	msgTopEv[0] = wlMessageC{Name: cstr(xdgNames.eCfg), Signature: cstr(xdgNames.eCfgIia), Types: 0}
 	msgTopEv[1] = wlMessageC{Name: cstr(xdgNames.eClose), Signature: cstr(xdgNames.sEmpty), Types: 0}
 	ifaceXdgToplevel = wlInterfaceC{
 		Name: cstr(xdgNames.toplevel), Version: 2,
-		MethodCount: 4, Methods: uintptr(unsafe.Pointer(&msgTop[0])),
+		MethodCount: 14, Methods: uintptr(unsafe.Pointer(&msgTop[0])),
 		EventCount: 2, Events: uintptr(unsafe.Pointer(&msgTopEv[0])),
 	}
 	typesTop[0] = uintptr(unsafe.Pointer(&ifaceXdgToplevel))
@@ -388,7 +441,7 @@ func waylandCreate(w, h int, title string, decorated bool) (*Window, error) {
 	if err != nil {
 		return nil, err
 	}
-	initXDGInterfaces(lib.ifaceSurface)
+	initXDGInterfaces(lib.ifaceSurface, lib.ifaceSeat, lib.ifaceOutput)
 
 	win := &wlWin{lib: lib, width: w, height: h}
 	if win.width < 1 {
