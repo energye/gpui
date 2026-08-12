@@ -126,9 +126,10 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 	// enter (without any motion) hit-tests correctly (button has no coords).
 	st.lastX = wlFixedToDouble(sx)
 	st.lastY = wlFixedToDouble(sy)
-	// Update cursor for the new region (title bar hover / resize edge).
+	// Update hover state + cursor for the new region.
 	if c := st.win.csd; c != nil {
-		c.setCursor(serial, c.hitTest(st.surface, st.lastX, st.lastY))
+		hit := c.onHover(st.surface, st.lastX, st.lastY)
+		c.setCursor(serial, hit)
 	}
 }
 
@@ -136,6 +137,11 @@ func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
 	st := ptrFrom(data)
 	if st == nil || st.win == nil {
 		return
+	}
+	// Leaving the window clears hover highlight + restores default cursor.
+	if c := st.win.csd; c != nil {
+		c.onHover(0, 0, 0)
+		c.setCursor(serial, csdHit{})
 	}
 	st.surface = 0
 }
@@ -148,9 +154,10 @@ func wlPtrMotionCB(data, ptr, time, sx, sy uintptr) {
 	}
 	st.lastX = wlFixedToDouble(sx)
 	st.lastY = wlFixedToDouble(sy)
-	// Update cursor while moving (resize edge hover).
+	// Update hover state + resize cursor while moving.
 	if c := st.win.csd; c != nil {
-		c.setCursor(st.enterSerial, c.hitTest(st.surface, st.lastX, st.lastY))
+		hit := c.onHover(st.surface, st.lastX, st.lastY)
+		c.setCursor(st.enterSerial, hit)
 	}
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
@@ -176,23 +183,16 @@ func wlPtrButtonCB(data, ptr, serial, time, button, state uintptr) {
 	// activates reliably.
 	if state&0xff == 1 {
 		st.win.refreshTextInput()
-		// CSD interaction: left-button press.
+		// CSD chrome interaction (left button only); if consumed, skip the
+		// normal pointer event (the chrome owns the press).
 		if btn := int(button); btn == 0x110 { // BTN_LEFT
-			if c := st.win.csd; c != nil {
-				hit := c.hitTest(st.surface, st.lastX, st.lastY)
-				switch hit.act {
-				case csdActClose:
-					c.closeRequested = true
-				case csdActMove:
-					c.requestMove(st.win.seat, serial)
-				case csdActResize:
-					c.requestResize(st.win.seat, serial, hit.edge)
-				case csdActMinimize:
-					c.requestMinimize()
-				case csdActMaximize:
-					c.toggleMaximize()
-				}
+			if c := st.win.csd; c != nil && c.onButtonPress(st.win.seat, serial, c.hitTest(st.surface, st.lastX, st.lastY)) {
+				return
 			}
+		}
+	} else {
+		if c := st.win.csd; c != nil {
+			c.onButtonRelease()
 		}
 	}
 	btn := int(button)

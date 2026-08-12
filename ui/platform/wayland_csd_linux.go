@@ -6,56 +6,58 @@ import (
 	"fmt"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"golang.org/x/sys/unix"
 )
 
-// Client-side decorations (CSD) for GNOME Wayland: GNOME/mutter does NOT
-// provide server-side decorations (zxdg_decoration_manager_v1 server-side is
-// a KDE feature), so a frameless xdg_toplevel shows no title bar. GTK and
-// most Wayland toolkits draw their own chrome. We do the same using four
-// wl_subsurfaces (title bar + left/right/bottom borders) rendered into
-// wl_shm buffers — the standard approach (same as gogpu/GTK CSD).
+// Client-side decorations (CSD) for GNOME Wayland — a complete standard
+// window chrome drawn by the client (GNOME 42.9 has NO server-side
+// decorations; zxdg_decoration_manager_v1 server-side is a KDE feature).
 //
-// Layout (parent = content surface):
+// Layout (parent = content surface, positions in content-local px):
 //
-//	┌──────────────────────────────────────┐  top (title bar) subsurface
-//	└┬────────────────────────────────────┬┘
-//	 left │         content surface        │ right  ← side borders
-//	 └────┴────────────────────────────────┴────┘
-//	              bottom border
+//	               top (title bar) subsurface
+//	┌──────────────────────────────────────┐
+//	│  left │   content surface    │ right │   ← border subsurfaces
+//	└──────────────────────────────────────┘
+//	               bottom subsurface
 //
-// Pointer interaction: dragging the title bar calls xdg_toplevel.move(seat,
-// serial); the close button emits a close request. All drawn with a minimal
-// ARGB8888 painter (no external deps).
-
-// CSD geometry (logical px).
-const (
-	csdTitleBarH = 32
-	csdBorderW   = 4 // resize grip area — wide enough to click
-	csdCloseW    = 44
-	csdPadLeft   = 10
-)
+// Four wl_subsurfaces (top/left/right/bottom) render the chrome; the content
+// surface is owned by the wgpu/render layer. All decoration surfaces use
+// set_desync so their commits apply immediately (independent of the parent's
+// commit cadence, fixing stale decoration after resize).
+//
+// Interaction (GTK CSD parity):
+//   - title-bar caption drag       → xdg_toplevel.move(seat, serial)
+//   - double-click caption         → toggle maximize
+//   - minimize / maximize/restore  / close buttons (hover + press states)
+//   - 8-direction edge/corner      → xdg_toplevel.resize(seat, serial, edge),
+//     hot zone on borders AND on the content edges (invisible 8px)
+//   - system cursor theme          → resize cursors via wl_cursor_theme
+//
+// See docs/ENGINE_WAYLAND_WINDOW_STANDARD.md (design source of truth).
 
 // wl_shm / wl_shm_pool / wl_buffer / wl_subcompositor / wl_subsurface
 // request opcodes (wayland.xml authoritative).
 const (
-	wlShmCreatePool        = 0 // create_pool(id: new_id, fd: fd, size: int)
-	wlShmPoolCreateBuffer  = 0 // create_buffer(id: new_id, offset, width, height, stride: int, format: uint)
+	wlShmCreatePool        = 0 // create_pool(id: new_id, fd, size)
+	wlShmPoolCreateBuffer  = 0 // create_buffer(id: new_id, offset, w, h, stride, format)
 	wlSubcompGetSubsurface = 1 // get_subsurface(id: new_id, surface, parent)
 	wlSubsurfaceDestroy    = 0
-	wlSubsurfaceSetPos     = 1 // set_position(x: int, y: int)
+	wlSubsurfaceSetPos     = 1 // set_position(x, y)
 	wlSubsurfaceSetSync    = 4 // set_sync()
 	wlSubsurfaceSetDesync  = 5 // set_desync()
+
 	// xdg_toplevel requests (xdg-shell.xml authoritative order):
 	//   destroy(0) set_parent(1) set_title(2) set_app_id(3)
 	//   show_window_menu(4) move(5) resize(6) set_max_size(7)
 	//   set_min_size(8) set_maximized(9) unset_maximized(10)
 	//   set_fullscreen(11) unset_fullscreen(12) set_minimized(13)
-	xdgToplevelMove        = 5
-	xdgToplevelResize      = 6
+	xdgToplevelMove         = 5
+	xdgToplevelResize       = 6
 	xdgToplevelSetMaximized = 9
 	xdgToplevelUnsetMaxim   = 10
 	xdgToplevelSetMinimized = 13
@@ -63,93 +65,43 @@ const (
 
 // xdg_toplevel resize edges (xdg-shell.xml resize_edge enum).
 const (
-	resizeNone       = 0
-	resizeTop        = 1
-	resizeBottom     = 2
-	resizeLeft       = 4
-	resizeTopLeft    = 5
-	resizeBottomLeft = 6
-	resizeRight      = 8
-	resizeTopRight   = 9
+	resizeNone        = 0
+	resizeTop         = 1
+	resizeBottom      = 2
+	resizeLeft        = 4
+	resizeTopLeft     = 5
+	resizeBottomLeft  = 6
+	resizeRight       = 8
+	resizeTopRight    = 9
 	resizeBottomRight = 10
 )
 
 // wl_shm_format ARGB8888 = 0.
 const wlShmFormatARGB8888 = 0
 
-// wl_cursor_theme (libwayland-cursor.so.0) — system cursor theme for resize
-// cursors. GNOME 42.9 lacks wp_cursor_shape_manager_v1, so this is the
-// standard fallback (same as GTK/Chromium pre-cursor-shape).
-var (
-	cursorLibOnce sync.Once
-	cursorLib     *wlCursorLib
-)
-
-type wlCursorLib struct {
-	themeLoad     func(name *byte, size int, shm uintptr) uintptr
-	themeGetCur   func(theme uintptr, name *byte) uintptr
-}
-
-func loadCursorLib() *wlCursorLib {
-	cursorLibOnce.Do(func() {
-		lib, err := purego.Dlopen("libwayland-cursor.so.0", purego.RTLD_NOW|purego.RTLD_GLOBAL)
-		if err != nil {
-			lib, err = purego.Dlopen("libwayland-cursor.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
-		}
-		if err != nil {
-			return
-		}
-		l := &wlCursorLib{}
-		purego.RegisterLibFunc(&l.themeLoad, lib, "wl_cursor_theme_load")
-		purego.RegisterLibFunc(&l.themeGetCur, lib, "wl_cursor_theme_get_cursor")
-		if l.themeLoad == nil || l.themeGetCur == nil {
-			return
-		}
-		cursorLib = l
-	})
-	return cursorLib
-}
-
-// wl_cursor_image layout (amd64): width,height,hotspot_x,hotspot_y,delay
-// (uint32 each) then wl_buffer* (uintptr).
-type wlCursorImageC struct {
-	Width     uint32
-	Height    uint32
-	HotX      uint32
-	HotY      uint32
-	Delay     uint32
-	_         uint32 // pad
-	Buffer    uintptr
-}
-
-// wlCSD manages the client-side decoration subsurfaces for one window.
-// GNOME Wayland has no server-side decorations, so we draw a title bar
-// (top subsurface) ourselves; the three other edges have NO visible border —
-// resize is driven by an invisible hot zone on the content surface's edges
-// (8px, all 8 directions), same as GTK CSD.
+// wlCSD manages the decoration subsurfaces for one window.
 type wlCSD struct {
 	win *wlWin
 
 	shm     uintptr // wl_shm proxy
 	subcomp uintptr // wl_subcompositor proxy
 
-	top *csdSurface // title bar only
+	top, left, right, bottom *csdSurface
 
-	title string
+	state csdState // title/focus/maximize + button hover/press
+
 	// topSurface lets pointer events know the pointer is over the title bar.
 	topSurface uintptr
-	// closeRequested is set by a click on the close button (drained in poll).
+	// closeRequested is drained in poll() → EventClose.
 	closeRequested bool
-	// maximized tracks xdg_toplevel state so the maximize button can draw
-	// either "maximize" or "restore" (updated from wlTopConfigure states).
-	maximized bool
-	// contentW/H: current content surface size (for edge hot-zone hit test).
-	contentW, contentH int
 
-	// Cursor state: cursor surface + theme for resize cursors.
-	cursorSurf  uintptr // wl_surface for the cursor image
+	// lastCaptionClick tracks double-click-on-caption (maximize toggle).
+	lastCaptionClick time.Time
+
+	// Cursor state (system cursor theme via libwayland-cursor).
+	cursorSurf  uintptr // cursor wl_surface
 	cursorTheme uintptr // wl_cursor_theme*
-	curName     string  // last set cursor name (avoid redundant set_cursor)
+	curName     string  // last set cursor name (dedupe set_cursor)
 }
 
 // csdSurface is one decoration subsurface + its shm buffer.
@@ -163,8 +115,8 @@ type csdSurface struct {
 	w, h   int
 }
 
-// initCSD binds wl_shm + wl_subcompositor and creates the title-bar
-// subsurface. Called from waylandCreate when decorated is true. Returns nil
+// initCSD binds wl_shm + wl_subcompositor and creates the four decoration
+// subsurfaces. Called from waylandCreate when decorated is true. Returns nil
 // (silent degrade) when the compositor lacks wl_shm/wl_subcompositor.
 func (w *wlWin) initCSD(title string) *wlCSD {
 	if w == nil || w.lib == nil || w.surface == 0 {
@@ -174,7 +126,10 @@ func (w *wlWin) initCSD(title string) *wlCSD {
 	if w.shmName == 0 || w.subcompName == 0 {
 		return nil
 	}
-	csd := &wlCSD{win: w, title: title}
+	csd := &wlCSD{win: w}
+	csd.state.Title = title
+	csd.state.Focused = true
+	csd.state.TitleAlignment = 0 // center
 	csd.shm = w.bind(w.registry, w.shmName, lib.ifaceShm, 1)
 	csd.subcomp = w.bind(w.registry, w.subcompName, lib.ifaceSubcompositor, 1)
 	if csd.shm == 0 || csd.subcomp == 0 {
@@ -189,16 +144,27 @@ func (w *wlWin) initCSD(title string) *wlCSD {
 	if ch < 1 {
 		ch = 480
 	}
-	csd.contentW, csd.contentH = cw, ch
 
-	// Title bar spans content width (no visible side/bottom borders — resize
-	// uses an invisible edge hot zone on the content surface).
 	var err error
-	if csd.top, err = csd.newSurface(cw, csdTitleBarH, 0, -csdTitleBarH); err != nil {
+	// Top (title bar): spans content width + both borders, above the content.
+	if csd.top, err = csd.newSurface(cw+2*csdBorderThick, csdTitleBarHeight, -csdBorderThick, -csdTitleBarHeight); err != nil {
 		csd.destroy()
 		return nil
 	}
 	csd.topSurface = csd.top.surf
+	// Left / right / bottom borders.
+	if csd.left, err = csd.newSurface(csdBorderThick, ch, -csdBorderThick, 0); err != nil {
+		csd.destroy()
+		return nil
+	}
+	if csd.right, err = csd.newSurface(csdBorderThick, ch, cw, 0); err != nil {
+		csd.destroy()
+		return nil
+	}
+	if csd.bottom, err = csd.newSurface(cw+2*csdBorderThick, csdBorderThick, -csdBorderThick, ch); err != nil {
+		csd.destroy()
+		return nil
+	}
 
 	csd.paint()
 	return csd
@@ -224,50 +190,53 @@ func (c *wlCSD) newSurface(w, h, x, y int) (*csdSurface, error) {
 	// set_position(x, y)
 	pos := []wlArg{argU(uint32(int32(x))), argU(uint32(int32(y)))}
 	lib.proxyMarshalArrayFlags(s.sub, wlSubsurfaceSetPos, 0, 0, 0, &pos[0])
-	// set_desync — decoration commits take effect immediately, independent of
-	// the parent (content) surface's commit cadence (the wgpu renderer owns
-	// the parent commit). Sync mode would defer decoration updates until the
-	// next content frame, causing stale/offset decoration after resize.
+	// set_desync — decoration commits apply immediately, not on parent commit.
 	lib.proxyMarshalArrayFlags(s.sub, wlSubsurfaceSetDesync, 0, 0, 0, nil)
 
-	// shm buffer: memfd → pool → buffer.
-	size := w * h * 4
-	fd, err := memfdCreate("gpui-csd")
-	if err != nil {
+	if err := c.createBufferWith(s, w, h); err != nil {
 		s.destroy()
 		return nil, err
-	}
-	s.fd = fd
-	if err := syscall.Ftruncate(fd, int64(size)); err != nil {
-		s.destroy()
-		return nil, err
-	}
-	buf, err := syscall.Mmap(fd, 0, size, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
-	if err != nil {
-		s.destroy()
-		return nil, err
-	}
-	s.data = buf
-
-	// wl_shm.create_pool(new_id, fd, size)
-	pargs := []wlArg{argNewID(), argO(uintptr(fd)), argU(uint32(size))}
-	s.pool = lib.proxyMarshalArrayCtor(c.shm, wlShmCreatePool, &pargs[0], lib.ifaceShmPool, 1)
-	if s.pool == 0 {
-		s.destroy()
-		return nil, fmt.Errorf("csd: create_pool failed")
-	}
-	// create_buffer(new_id, offset, width, height, stride, format)
-	bargs := []wlArg{argNewID(), argU(0), argU(uint32(w)), argU(uint32(h)), argU(uint32(w * 4)), argU(wlShmFormatARGB8888)}
-	s.buffer = lib.proxyMarshalArrayCtor(s.pool, wlShmPoolCreateBuffer, &bargs[0], lib.ifaceBuffer, 1)
-	if s.buffer == 0 {
-		s.destroy()
-		return nil, fmt.Errorf("csd: create_buffer failed")
 	}
 	return s, nil
 }
 
+// createBufferWith allocates a fresh memfd/shm-pool/buffer for w×h and maps
+// it (needs the wl_shm proxy from the owning wlCSD).
+func (c *wlCSD) createBufferWith(s *csdSurface, w, h int) error {
+	lib := c.win.lib
+	s.w, s.h = w, h
+	size := w * h * 4
+	fd, err := memfdCreate("gpui-csd")
+	if err != nil {
+		return err
+	}
+	s.fd = fd
+	if err := syscall.Ftruncate(fd, int64(size)); err != nil {
+		s.destroy()
+		return err
+	}
+	buf, err := syscall.Mmap(fd, 0, size, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+	if err != nil {
+		s.destroy()
+		return err
+	}
+	s.data = buf
+
+	pargs := []wlArg{argNewID(), argO(uintptr(fd)), argU(uint32(size))}
+	s.pool = lib.proxyMarshalArrayCtor(c.shm, wlShmCreatePool, &pargs[0], lib.ifaceShmPool, 1)
+	if s.pool == 0 {
+		return fmt.Errorf("csd: create_pool failed")
+	}
+	bargs := []wlArg{argNewID(), argU(0), argU(uint32(w)), argU(uint32(h)), argU(uint32(w * 4)), argU(wlShmFormatARGB8888)}
+	s.buffer = lib.proxyMarshalArrayCtor(s.pool, wlShmPoolCreateBuffer, &bargs[0], lib.ifaceBuffer, 1)
+	if s.buffer == 0 {
+		return fmt.Errorf("csd: create_buffer failed")
+	}
+	return nil
+}
+
 // commit attaches the buffer, damages the full area and commits the
-// subsurface (sync mode → applied with the next parent commit).
+// subsurface (desync → applies immediately).
 func (s *csdSurface) commit(lib *wlLib) {
 	if s == nil || s.surf == 0 || s.buffer == 0 {
 		return
@@ -294,22 +263,45 @@ func (s *csdSurface) destroy() {
 	s.buffer, s.pool, s.sub, s.surf = 0, 0, 0, 0
 }
 
-// paint draws the title bar and commits it.
+// paint draws the title bar + borders and commits them.
 func (c *wlCSD) paint() {
 	if c == nil || c.win == nil || c.win.lib == nil {
 		return
 	}
 	lib := c.win.lib
 	if c.top != nil {
-		paintTitleBar(c.top.data, c.top.w, c.top.h, c.title, c.maximized)
+		paintTitleBar(c.top.data, c.top.w, c.top.h, c.state)
 		c.top.commit(lib)
+	}
+	if c.left != nil {
+		paintBorder(c.left.data, c.left.w, c.left.h, csdEdgeLeft)
+		c.left.commit(lib)
+	}
+	if c.right != nil {
+		paintBorder(c.right.data, c.right.w, c.right.h, csdEdgeRight)
+		c.right.commit(lib)
+	}
+	if c.bottom != nil {
+		paintBorder(c.bottom.data, c.bottom.w, c.bottom.h, csdEdgeBottom)
+		c.bottom.commit(lib)
 	}
 	lib.displayFlush(c.win.display)
 }
 
-// resize resizes the title-bar surface to a new content size (called from
-// poll when wlTopConfigure delivered a new toplevel size) and updates the
-// content dims used for edge-zone hit testing. Only the shm buffer is
+// repaintTitle repaints only the title bar (button hover/press / focus /
+// maximize changes) without touching content or borders.
+func (c *wlCSD) repaintTitle() {
+	if c == nil || c.win == nil || c.win.lib == nil || c.top == nil {
+		return
+	}
+	paintTitleBar(c.top.data, c.top.w, c.top.h, c.state)
+	c.top.commit(c.win.lib)
+	c.win.lib.displayFlush(c.win.display)
+}
+
+// resize resizes the four decoration surfaces to a new content size (called
+// from poll when wlTopConfigure delivered a new toplevel size) and updates
+// the content dims used for edge-zone hit testing. Only the shm buffers are
 // recreated — the wl_surface / wl_subsurface objects stay alive so an active
 // interactive resize (pointer grab) is not disrupted.
 func (c *wlCSD) resize(cw, ch int) {
@@ -322,10 +314,18 @@ func (c *wlCSD) resize(cw, ch int) {
 	if ch < 1 {
 		ch = 480
 	}
-	c.contentW, c.contentH = cw, ch
 	if c.top != nil {
-		c.resizeSurface(c.top, cw, csdTitleBarH, 0, -csdTitleBarH)
+		c.resizeSurface(c.top, cw+2*csdBorderThick, csdTitleBarHeight, -csdBorderThick, -csdTitleBarHeight)
 		c.topSurface = c.top.surf
+	}
+	if c.left != nil {
+		c.resizeSurface(c.left, csdBorderThick, ch, -csdBorderThick, 0)
+	}
+	if c.right != nil {
+		c.resizeSurface(c.right, csdBorderThick, ch, cw, 0)
+	}
+	if c.bottom != nil {
+		c.resizeSurface(c.bottom, cw+2*csdBorderThick, csdBorderThick, -csdBorderThick, ch)
 	}
 	c.paint()
 }
@@ -363,39 +363,17 @@ func (c *wlCSD) resizeSurface(s *csdSurface, w, h, x, y int) {
 	// Update position on the (still-alive) subsurface.
 	pos := []wlArg{argU(uint32(int32(x))), argU(uint32(int32(y)))}
 	lib.proxyMarshalArrayFlags(s.sub, wlSubsurfaceSetPos, 0, 0, 0, &pos[0])
-
-	s.w, s.h = w, h
-	size := w * h * 4
-	fd, err := memfdCreate("gpui-csd")
-	if err != nil {
-		return
-	}
-	s.fd = fd
-	if err := syscall.Ftruncate(fd, int64(size)); err != nil {
-		return
-	}
-	buf, err := syscall.Mmap(fd, 0, size, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
-	if err != nil {
-		return
-	}
-	s.data = buf
-	pargs := []wlArg{argNewID(), argO(uintptr(fd)), argU(uint32(size))}
-	s.pool = lib.proxyMarshalArrayCtor(c.shm, wlShmCreatePool, &pargs[0], lib.ifaceShmPool, 1)
-	if s.pool == 0 {
-		return
-	}
-	bargs := []wlArg{argNewID(), argU(0), argU(uint32(w)), argU(uint32(h)), argU(uint32(w * 4)), argU(wlShmFormatARGB8888)}
-	s.buffer = lib.proxyMarshalArrayCtor(s.pool, wlShmPoolCreateBuffer, &bargs[0], lib.ifaceBuffer, 1)
+	_ = c.createBufferWith(s, w, h)
 }
 
 // destroySurfaces frees the four decoration surfaces but keeps wl_shm and
-// wl_subcompositor alive (used by destroy; resize keeps objects alive).
+// wl_subcompositor alive (used by destroy).
 func (c *wlCSD) destroySurfaces() {
 	if c == nil {
 		return
 	}
 	lib := c.win.lib
-	for _, s := range []*csdSurface{c.top} {
+	for _, s := range []*csdSurface{c.top, c.left, c.right, c.bottom} {
 		if s == nil {
 			continue
 		}
@@ -419,11 +397,11 @@ func (c *wlCSD) destroySurfaces() {
 		}
 		s.destroy()
 	}
-	c.top = nil
+	c.top, c.left, c.right, c.bottom = nil, nil, nil, nil
 	c.topSurface = 0
 }
 
-// destroy tears down all decoration subsurfaces and frees buffers.
+// destroy tears down all decoration subsurfaces, cursor and frees buffers.
 func (c *wlCSD) destroy() {
 	if c == nil {
 		return
@@ -431,6 +409,10 @@ func (c *wlCSD) destroy() {
 	c.destroySurfaces()
 	lib := c.win.lib
 	if lib != nil {
+		if c.cursorSurf != 0 {
+			lib.proxyDestroy(c.cursorSurf)
+			c.cursorSurf = 0
+		}
 		if c.subcomp != 0 {
 			lib.proxyDestroy(c.subcomp)
 			c.subcomp = 0
@@ -440,6 +422,39 @@ func (c *wlCSD) destroy() {
 			c.shm = 0
 		}
 	}
+	c.cursorTheme = 0
+}
+
+// --- window state (from xdg_toplevel.configure states) ---
+
+// xdg states (xdg-shell.xml xdg_toplevel_state enum): 1=maximized,
+// 2=fullscreen, 3=resizing, 4=activated, 5..8=tiled, 9=suspended.
+
+// setActivated updates focused state (title bar color).
+func (c *wlCSD) setActivated(v bool) {
+	if c == nil || c.state.Focused == v {
+		return
+	}
+	c.state.Focused = v
+	c.repaintTitle()
+}
+
+// setMaximized updates maximize flag + icon.
+func (c *wlCSD) setMaximized(v bool) {
+	if c == nil || c.state.Maximized == v {
+		return
+	}
+	c.state.Maximized = v
+	c.repaintTitle()
+}
+
+// setFullscreen updates fullscreen flag (no visible borders when fullscreen).
+func (c *wlCSD) setFullscreen(v bool) {
+	if c == nil || c.state.Fullscreen == v {
+		return
+	}
+	c.state.Fullscreen = v
+	c.paint()
 }
 
 // --- pointer interaction (called from wl_pointer callbacks) ---
@@ -460,51 +475,85 @@ const (
 	csdActResize
 )
 
-// csdCorner is the resize-grip corner size in px.
-const csdCorner = 8
-
 // hitTest maps a pointer press on a decoration surface to an action.
-// surface is the wl_surface the compositor reported: the title-bar
-// subsurface (c.topSurface) or the content surface (c.win.surface). (x,y) is
-// surface-local logical px.
+// surface is the wl_surface the compositor reported (title-bar subsurface vs
+// content surface); (x,y) is surface-local logical px.
+//
+// Priority: buttons (right of title bar) > resize grips > caption drag.
 func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 	if c == nil {
 		return csdHit{}
 	}
 	switch surface {
 	case c.topSurface:
-		w := c.top.w
-		// Buttons win over the top-right corner resize (GTK pattern).
-		if x >= float64(w-csdCloseW) {
+		wTop := c.top.w
+		// Buttons win over resize (GTK pattern).
+		closeX := float64(wTop - csdButtonW)
+		maxX := closeX - csdButtonW
+		minX := maxX - csdButtonW
+		switch {
+		case x >= closeX:
 			return csdHit{act: csdActClose}
-		}
-		if x >= float64(w-2*csdCloseW) {
+		case x >= maxX:
 			return csdHit{act: csdActMaximize}
-		}
-		if x >= float64(w-3*csdCloseW) {
+		case x >= minX:
 			return csdHit{act: csdActMinimize}
 		}
-		// Top edge resize (via the title bar — no visible border).
-		if y < csdCorner {
+		// Resize top edge/corners (non-button area of the title bar).
+		if y < csdCornerGrip {
 			switch {
-			case x < csdCorner:
+			case x < csdCornerGrip:
 				return csdHit{act: csdActResize, edge: resizeTopLeft}
-			case x >= float64(w-csdCorner):
+			case x >= float64(wTop-csdCornerGrip):
 				return csdHit{act: csdActResize, edge: resizeTopRight}
 			default:
 				return csdHit{act: csdActResize, edge: resizeTop}
 			}
 		}
 		return csdHit{act: csdActMove}
-	case c.win.surface:
-		// Content-surface edge hot zone (invisible resize border, GTK style).
-		// All 8 directions. Top edge is covered by the title bar; here we
-		// handle the remaining edges + corners against the content bounds.
-		cw, ch := c.contentW, c.contentH
-		nearL := x < csdCorner
-		nearR := x >= float64(cw-csdCorner)
-		nearB := y >= float64(ch-csdCorner)
+	case c.left.surf:
 		switch {
+		case y < csdCornerGrip:
+			return csdHit{act: csdActResize, edge: resizeTopLeft}
+		case y >= float64(c.left.h-csdCornerGrip):
+			return csdHit{act: csdActResize, edge: resizeBottomLeft}
+		default:
+			return csdHit{act: csdActResize, edge: resizeLeft}
+		}
+	case c.right.surf:
+		switch {
+		case y < csdCornerGrip:
+			return csdHit{act: csdActResize, edge: resizeTopRight}
+		case y >= float64(c.right.h-csdCornerGrip):
+			return csdHit{act: csdActResize, edge: resizeBottomRight}
+		default:
+			return csdHit{act: csdActResize, edge: resizeRight}
+		}
+	case c.bottom.surf:
+		switch {
+		case x < csdCornerGrip:
+			return csdHit{act: csdActResize, edge: resizeBottomLeft}
+		case x >= float64(c.bottom.w-csdCornerGrip):
+			return csdHit{act: csdActResize, edge: resizeBottomRight}
+		default:
+			return csdHit{act: csdActResize, edge: resizeBottom}
+		}
+	case c.win.surface:
+		// Content-surface edge hot zone (standard CSD: invisible resize
+		// border inside the content too). (x,y) is content-local.
+		if c.state.Fullscreen || c.state.Maximized {
+			return csdHit{}
+		}
+		cw, ch := c.stateW()
+		nearL := x < csdCornerGrip
+		nearR := x >= float64(cw-csdCornerGrip)
+		nearT := y < csdCornerGrip
+		nearB := y >= float64(ch-csdCornerGrip)
+		switch {
+		case nearL && nearT:
+			return csdHit{act: csdActResize, edge: resizeTopLeft}
+		case nearR && nearT:
+			return csdHit{act: csdActResize, edge: resizeTopRight}
 		case nearL && nearB:
 			return csdHit{act: csdActResize, edge: resizeBottomLeft}
 		case nearR && nearB:
@@ -513,11 +562,107 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 			return csdHit{act: csdActResize, edge: resizeLeft}
 		case nearR:
 			return csdHit{act: csdActResize, edge: resizeRight}
+		case nearT:
+			return csdHit{act: csdActResize, edge: resizeTop}
 		case nearB:
 			return csdHit{act: csdActResize, edge: resizeBottom}
 		}
 	}
 	return csdHit{}
+}
+
+// stateW returns current content w/h (for hot-zone tests).
+func (c *wlCSD) stateW() (int, int) {
+	if c == nil || c.win == nil {
+		return 640, 480
+	}
+	cw, ch := c.win.width, c.win.height
+	if cw < 1 {
+		cw = 640
+	}
+	if ch < 1 {
+		ch = 480
+	}
+	return cw, ch
+}
+
+// buttonHitFor maps a title-bar hit to button state indices (for hover press).
+func (c *wlCSD) buttonHitFor(hit csdHit) *csdButtonState {
+	switch hit.act {
+	case csdActClose:
+		return &c.state.Close
+	case csdActMaximize:
+		return &c.state.Maximize
+	case csdActMinimize:
+		return &c.state.Minimize
+	}
+	return nil
+}
+
+// onHover updates button hover states + cursor when the pointer moves.
+// Called from wlPtrMotionCB; returns the resulting cursor name ("" = default).
+func (c *wlCSD) onHover(surface uintptr, x, y float64) csdHit {
+	if c == nil {
+		return csdHit{}
+	}
+	hit := c.hitTest(surface, x, y)
+	// Clear all hover, then set for the current hit.
+	c.state.Close.Hovered = false
+	c.state.Maximize.Hovered = false
+	c.state.Minimize.Hovered = false
+	if surface == c.topSurface {
+		if b := c.buttonHitFor(hit); b != nil {
+			b.Hovered = true
+		}
+	}
+	c.repaintTitle()
+	return hit
+}
+
+// onButtonPress handles a button press on the chrome. Returns whether the
+// event was consumed (true = do not forward to content).
+func (c *wlCSD) onButtonPress(seat, serial uintptr, hit csdHit) bool {
+	if c == nil {
+		return false
+	}
+	if b := c.buttonHitFor(hit); b != nil {
+		b.Pressed = true
+		c.repaintTitle()
+	}
+	switch hit.act {
+	case csdActClose:
+		c.closeRequested = true
+	case csdActMove:
+		// Double-click on caption → toggle maximize (GTK behavior).
+		now := time.Now()
+		if !c.lastCaptionClick.IsZero() && now.Sub(c.lastCaptionClick) < 400*time.Millisecond {
+			c.lastCaptionClick = time.Time{}
+			c.toggleMaximize()
+		} else {
+			c.lastCaptionClick = now
+			c.requestMove(seat, serial)
+		}
+	case csdActResize:
+		c.requestResize(seat, serial, hit.edge)
+	case csdActMinimize:
+		c.requestMinimize()
+	case csdActMaximize:
+		c.toggleMaximize()
+	}
+	return true
+}
+
+// onButtonRelease clears pressed states after a chrome press.
+func (c *wlCSD) onButtonRelease() {
+	if c == nil {
+		return
+	}
+	if c.state.Close.Pressed || c.state.Maximize.Pressed || c.state.Minimize.Pressed {
+		c.state.Close.Pressed = false
+		c.state.Maximize.Pressed = false
+		c.state.Minimize.Pressed = false
+		c.repaintTitle()
+	}
 }
 
 // requestMove starts an interactive xdg_toplevel.move(seat, serial).
@@ -555,40 +700,21 @@ func (c *wlCSD) toggleMaximize() {
 		return
 	}
 	op := uint32(xdgToplevelSetMaximized)
-	if c.maximized {
+	if c.state.Maximized {
 		op = xdgToplevelUnsetMaxim
 	}
 	c.win.lib.proxyMarshalArrayFlags(c.win.toplevel, op, 0, 0, 0, nil)
 	c.win.lib.displayFlush(c.win.display)
 }
 
-// setMaximized updates the maximize icon (from xdg_toplevel.configure states)
-// and repaints the title bar.
-func (c *wlCSD) setMaximized(v bool) {
-	if c == nil || c.maximized == v {
-		return
-	}
-	c.maximized = v
-	if c.top != nil && c.win != nil && c.win.lib != nil {
-		paintTitleBar(c.top.data, c.top.w, c.top.h, c.title, c.maximized)
-		c.top.commit(c.win.lib)
-		c.win.lib.displayFlush(c.win.display)
-	}
-}
-
 // --- resize cursor (system cursor theme via wl_pointer.set_cursor) ---
 
-// cursorNameForEdge returns the X cursor name for a resize edge (or "" for a
-// non-resize hit → restore default pointer).
+// cursorNameForEdge returns the X cursor name for a resize edge.
 func cursorNameForEdge(edge int) string {
 	switch edge {
-	case resizeTop:
+	case resizeTop, resizeBottom:
 		return "sb_v_double_arrow"
-	case resizeBottom:
-		return "sb_v_double_arrow"
-	case resizeLeft:
-		return "sb_h_double_arrow"
-	case resizeRight:
+	case resizeLeft, resizeRight:
 		return "sb_h_double_arrow"
 	case resizeTopLeft, resizeBottomRight:
 		return "top_left_corner"
@@ -598,9 +724,9 @@ func cursorNameForEdge(edge int) string {
 	return ""
 }
 
-// setCursor updates the pointer cursor for the current hit region. Called on
-// pointer enter/motion with the last enter serial. wl_pointer.set_cursor
-// (opcode 1, signature "ouii": serial, surface, hotspot_x, hotspot_y).
+// setCursor updates the pointer cursor for the current hit region.
+// wl_pointer.set_cursor (opcode 1, signature "ouii": serial, surface,
+// hotspot_x, hotspot_y). Called on pointer enter/motion with enter serial.
 func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
 	if c == nil || c.win == nil || c.win.lib == nil || c.win.ptr == nil {
 		return
@@ -635,13 +761,13 @@ func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
 	c.win.lib.displayFlush(c.win.display)
 }
 
-// ensureCursorSurface loads the system cursor theme once and returns a
-// wl_surface holding the named cursor image (created lazily).
+// ensureCursorSurface loads the cursor theme once and returns the cursor
+// surface (created lazily).
 func (c *wlCSD) ensureCursorSurface() uintptr {
 	if c == nil || c.win == nil || c.win.lib == nil || c.shm == 0 {
 		return 0
 	}
-	if c.cursorSurf != 0 {
+	if c.cursorSurf != 0 && c.cursorTheme != 0 {
 		return c.cursorSurf
 	}
 	lib := c.win.lib
@@ -649,23 +775,22 @@ func (c *wlCSD) ensureCursorSurface() uintptr {
 	if l == nil {
 		return 0
 	}
-	// Create a dedicated wl_surface for the cursor image.
-	c.cursorSurf = c.win.ctor(c.win.comp, wlCompositorCreateSurface, lib.ifaceSurface, 4)
 	if c.cursorSurf == 0 {
-		return 0
+		c.cursorSurf = c.win.ctor(c.win.comp, wlCompositorCreateSurface, lib.ifaceSurface, 4)
+		if c.cursorSurf == 0 {
+			return 0
+		}
 	}
-	// wl_cursor_theme_load(name, size, shm). NULL name → system default theme.
-	var name *byte
-	c.cursorTheme = l.themeLoad(name, 24, c.shm)
 	if c.cursorTheme == 0 {
-		return 0
+		var name *byte
+		c.cursorTheme = l.themeLoad(name, 24, c.shm)
 	}
 	return c.cursorSurf
 }
 
 // applyCursorImage loads the cursor image for name into cursorSurf.
 func (c *wlCSD) applyCursorImage(name string) {
-	if c == nil || c.cursorSurf == 0 || c.cursorTheme == 0 {
+	if c == nil || c.win == nil || c.win.lib == nil || c.cursorSurf == 0 || c.cursorTheme == 0 {
 		return
 	}
 	l := loadCursorLib()
@@ -678,7 +803,8 @@ func (c *wlCSD) applyCursorImage(name string) {
 		return
 	}
 	// wl_cursor { unsigned image_count; wl_cursor_image **images; char *name; }
-	imgPtr := *(*uintptr)(unsafe.Pointer(cur + 8)) // images[0]
+	// images pointer at offset 8 (after u32 count + pad).
+	imgPtr := *(*uintptr)(unsafe.Pointer(cur + 8))
 	if imgPtr == 0 {
 		return
 	}
@@ -686,14 +812,56 @@ func (c *wlCSD) applyCursorImage(name string) {
 	if img.Buffer == 0 {
 		return
 	}
-	// attach cursor buffer to cursor surface + commit (desync by default).
 	args := []wlArg{argO(img.Buffer), argU(0), argU(0)}
 	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceAttach, 0, 0, 0, &args[0])
 	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceCommit, 0, 0, 0, nil)
 	c.win.lib.displayFlush(c.win.display)
 }
 
-// --- minimal ARGB8888 painter (no external deps) ---
+// wl_cursor_theme (libwayland-cursor.so.0) — system cursor theme.
+var (
+	cursorLibOnce sync.Once
+	cursorLib     *wlCursorLib
+)
+
+type wlCursorLib struct {
+	themeLoad   func(name *byte, size int, shm uintptr) uintptr
+	themeGetCur func(theme uintptr, name *byte) uintptr
+}
+
+func loadCursorLib() *wlCursorLib {
+	cursorLibOnce.Do(func() {
+		lib, err := purego.Dlopen("libwayland-cursor.so.0", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		if err != nil {
+			lib, err = purego.Dlopen("libwayland-cursor.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+		}
+		if err != nil {
+			return
+		}
+		l := &wlCursorLib{}
+		purego.RegisterLibFunc(&l.themeLoad, lib, "wl_cursor_theme_load")
+		purego.RegisterLibFunc(&l.themeGetCur, lib, "wl_cursor_theme_get_cursor")
+		if l.themeLoad == nil || l.themeGetCur == nil {
+			return
+		}
+		cursorLib = l
+	})
+	return cursorLib
+}
+
+// wl_cursor_image layout (amd64): width,height,hotspot_x,hotspot_y,delay
+// (uint32 each) then wl_buffer* (uintptr, 8-aligned).
+type wlCursorImageC struct {
+	Width  uint32
+	Height uint32
+	HotX   uint32
+	HotY   uint32
+	Delay  uint32
+	_      uint32 // pad
+	Buffer uintptr
+}
+
+// --- shared low-level pixel helpers ---
 
 // putPx writes one pixel (BGRA in memory for ARGB8888 little-endian), opaque.
 func putPx(buf []byte, stride, x, y int, r, g, b byte) {
@@ -712,15 +880,14 @@ func putPxA(buf []byte, stride, x, y int, r, g, b, a byte) {
 	buf[off+3] = a
 }
 
-func fillRect(buf []byte, stride, x0, y0, w, h int, r, g, b byte) {
+func fillRect(buf []byte, stride, x0, y0, w, h int, c [4]byte) {
 	for y := y0; y < y0+h; y++ {
 		for x := x0; x < x0+w; x++ {
-			putPx(buf, stride, x, y, r, g, b)
+			putPxA(buf, stride, x, y, c[2], c[1], c[0], c[3])
 		}
 	}
 }
 
-// clearRect sets a region fully transparent.
 func clearRect(buf []byte, stride, x0, y0, w, h int) {
 	for y := y0; y < y0+h; y++ {
 		for x := x0; x < x0+w; x++ {
@@ -729,184 +896,11 @@ func clearRect(buf []byte, stride, x0, y0, w, h int) {
 	}
 }
 
-// paintLeftBorder draws the visible line on the OUTER (left) edge; the rest
-// stays transparent. The subsurface is wider than the line purely as a
-// resize hit area.
-func paintLeftBorder(buf []byte, w, h int) {
-	clearRect(buf, w, 0, 0, w, h)
-	for y := 0; y < h; y++ {
-		putPx(buf, w, 0, y, 0x2B, 0x2D, 0x30)
-	}
-}
-
-// paintRightBorder draws the visible line on the OUTER (right) edge.
-func paintRightBorder(buf []byte, w, h int) {
-	clearRect(buf, w, 0, 0, w, h)
-	for y := 0; y < h; y++ {
-		putPx(buf, w, w-1, y, 0x2B, 0x2D, 0x30)
-	}
-}
-
-// paintBottomBorder draws the visible line on the OUTER (bottom) edge.
-func paintBottomBorder(buf []byte, w, h int) {
-	clearRect(buf, w, 0, 0, w, h)
-	for x := 0; x < w; x++ {
-		putPx(buf, w, x, h-1, 0x2B, 0x2D, 0x30)
-	}
-}
-
-func paintTitleBar(buf []byte, w, h int, title string, maximized bool) {
-	fillRect(buf, w, 0, 0, w, h, 0x2B, 0x2D, 0x30)
-
-	// Buttons right-to-left: [min] [max] [close], each csdCloseW wide.
-	minX := w - 3*csdCloseW
-	maxX := w - 2*csdCloseW
-	closeX := w - csdCloseW
-
-	// Close: red square + white X.
-	fillRect(buf, w, closeX, 0, csdCloseW, h, 0xC4, 0x2B, 0x1C)
-	cx := closeX + csdCloseW/2
-	cy := h / 2
-	for i := -5; i <= 5; i++ {
-		putPx(buf, w, cx+i, cy+i, 0xFF, 0xFF, 0xFF)
-		putPx(buf, w, cx+i, cy-i, 0xFF, 0xFF, 0xFF)
-		putPx(buf, w, cx+i+1, cy+i, 0xFF, 0xFF, 0xFF)
-		putPx(buf, w, cx+i+1, cy-i, 0xFF, 0xFF, 0xFF)
-	}
-
-	// Maximize / restore: square outline.
-	drawMaximizeIcon(buf, w, maxX, 0, csdCloseW, h, 0xDF, 0xE1, 0xE5, maximized)
-
-	// Minimize: horizontal line.
-	drawMinimizeIcon(buf, w, minX, 0, csdCloseW, h, 0xDF, 0xE1, 0xE5)
-
-	// Title text: simple 5x7 uppercase-ish glyphs (ASCII letters only).
-	drawTitle(buf, w, h, title)
-}
-
-// drawMinimizeIcon draws a horizontal line centered in the button area.
-func drawMinimizeIcon(buf []byte, stride, bx, by, bw, bh int, r, g, b byte) {
-	cx := bx + bw/2
-	cy := by + bh/2
-	for x := cx - 6; x <= cx+6; x++ {
-		putPx(buf, stride, x, cy, r, g, b)
-	}
-}
-
-// drawMaximizeIcon draws a square outline (or two overlapping squares when
-// maximized → restore icon).
-func drawMaximizeIcon(buf []byte, stride, bx, by, bw, bh int, r, g, b byte, maximized bool) {
-	cx := bx + bw/2
-	cy := by + bh/2
-	if maximized {
-		// Restore icon: two overlapping squares.
-		for x := cx - 6; x <= cx+3; x++ {
-			putPx(buf, stride, x, cy-5, r, g, b)
-			putPx(buf, stride, x, cy+4, r, g, b)
-		}
-		for y := cy - 5; y <= cy+4; y++ {
-			putPx(buf, stride, cx-6, y, r, g, b)
-			putPx(buf, stride, cx+3, y, r, g, b)
-		}
-		return
-	}
-	// Maximize icon: single square outline.
-	for x := cx - 6; x <= cx+6; x++ {
-		putPx(buf, stride, x, cy-5, r, g, b)
-		putPx(buf, stride, x, cy+5, r, g, b)
-	}
-	for y := cy - 5; y <= cy+5; y++ {
-		putPx(buf, stride, cx-6, y, r, g, b)
-		putPx(buf, stride, cx+6, y, r, g, b)
-	}
-}
-
-// drawTitle renders ASCII title using a minimal 5x7 bitmap font.
-func drawTitle(buf []byte, stride, h int, title string) {
-	x := csdPadLeft
-	y0 := (h - 7) / 2
-	maxX := stride - 3*csdCloseW - csdPadLeft
-	for _, r := range title {
-		if x+5 > maxX {
-			break
-		}
-		var g [7]byte
-		if r >= 'A' && r <= 'Z' {
-			g = font5x7[r-'A']
-		} else if r >= 'a' && r <= 'z' {
-			g = font5x7[r-'a']
-		} else if r >= '0' && r <= '9' {
-			g = font5x7[r-'0'+26]
-		} else {
-			g = font5x7[36] // '?' placeholder
-		}
-		for row := 0; row < 7; row++ {
-			for col := 0; col < 5; col++ {
-				if g[row]&(0x10>>uint(col)) != 0 {
-					putPx(buf, stride, x+col, y0+row, 0xDF, 0xE1, 0xE5)
-				}
-			}
-		}
-		x += 6
-	}
-}
-
-// font5x7: A-Z, 0-9, '?' — 37 glyphs (5x7, MSB = leftmost).
-var font5x7 = [37][7]byte{
-	// A..Z
-	{0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, // A
-	{0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E}, // B
-	{0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}, // C
-	{0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E}, // D
-	{0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F}, // E
-	{0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10}, // F
-	{0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F}, // G
-	{0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, // H
-	{0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E}, // I
-	{0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C}, // J
-	{0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11}, // K
-	{0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F}, // L
-	{0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11}, // M
-	{0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11}, // N
-	{0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, // O
-	{0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10}, // P
-	{0x0E, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0D}, // Q
-	{0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11}, // R
-	{0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E}, // S
-	{0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04}, // T
-	{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, // U
-	{0x11, 0x11, 0x11, 0x11, 0x0A, 0x0A, 0x04}, // V
-	{0x11, 0x11, 0x11, 0x15, 0x15, 0x15, 0x0A}, // W
-	{0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11}, // X
-	{0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04}, // Y
-	{0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}, // Z
-	// 0..9
-	{0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}, // 0
-	{0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}, // 1
-	{0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F}, // 2
-	{0x1F, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0E}, // 3
-	{0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02}, // 4
-	{0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E}, // 5
-	{0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E}, // 6
-	{0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08}, // 7
-	{0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E}, // 8
-	{0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C}, // 9
-	// '?'
-	{0x0E, 0x11, 0x01, 0x02, 0x04, 0x00, 0x04}, // ?
-}
-
 // memfdCreate is a small wrapper (avoids importing unix just for this).
 func memfdCreate(name string) (int, error) {
-	return memfdCreateImpl(name)
-}
-
-// memfdCreateImpl calls memfd_create(2) via golang.org/x/sys/unix (portable
-// across arches; raw syscall numbers differ per architecture).
-func memfdCreateImpl(name string) (int, error) {
 	fd, err := unix.MemfdCreate(name, unix.MFD_CLOEXEC)
 	if err != nil {
 		return -1, err
 	}
 	return fd, nil
 }
-

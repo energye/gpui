@@ -766,11 +766,14 @@ func wlTopConfigure(data, toplevel, width, height, states uintptr) {
 		return
 	}
 	// xdg_toplevel.configure states is a wl_array of uint32 enum values
-	// (1=maximized, 2=fullscreen, 3=resizing, 4=activated, ...), NOT a
-	// bitfield. Parse the array: struct wl_array { size_t size; void *alloc;
-	// void *data; } — size at +0, data at +16 on amd64.
+	// (1=maximized, 2=fullscreen, 3=resizing, 4=activated, 5..8=tiled,
+	// 9=suspended), NOT a bitfield. Parse the array: struct wl_array
+	// { size_t size; void *alloc; void *data; } — size@+0, data@+16 (amd64).
 	if w.csd != nil {
-		w.csd.setMaximized(wlArrayHasState(states, 1))
+		states := wlStatesOf(states)
+		w.csd.setMaximized(states.maximized)
+		w.csd.setFullscreen(states.fullscreen)
+		w.csd.setActivated(states.activated)
 	}
 	wi, hi := int32(width), int32(height)
 	if wi > 0 && hi > 0 {
@@ -782,25 +785,48 @@ func wlTopConfigure(data, toplevel, width, height, states uintptr) {
 	_ = toplevel
 }
 
-// wlArrayHasState reports whether the wl_array (pointer to struct wl_array)
-// contains the given uint32 value.
-func wlArrayHasState(arr uintptr, want uint32) bool {
+// wlToplevelStates is the decoded xdg_toplevel configure state set.
+type wlToplevelStates struct {
+	maximized  bool
+	fullscreen bool
+	resizing   bool
+	activated  bool
+	tiled      bool
+	suspended  bool
+}
+
+// wlStatesOf decodes the wl_array (pointer to struct wl_array) into a
+// wlToplevelStates. state enum (xdg-shell.xml): 1=maximized, 2=fullscreen,
+// 3=resizing, 4=activated, 5..8=tiled, 9=suspended.
+func wlStatesOf(arr uintptr) wlToplevelStates {
+	var s wlToplevelStates
 	if arr == 0 {
-		return false
+		return s
 	}
 	// struct wl_array: size (size_t, +0), alloc (void*, +8), data (void*, +16).
 	size := *(*uint64)(unsafe.Pointer(arr))
 	data := *(*uintptr)(unsafe.Pointer(arr + 16))
 	if data == 0 {
-		return false
+		return s
 	}
 	for i := uint64(0); i+4 <= size; i += 4 {
 		v := *(*uint32)(unsafe.Pointer(data + uintptr(i)))
-		if v == want {
-			return true
+		switch v {
+		case 1:
+			s.maximized = true
+		case 2:
+			s.fullscreen = true
+		case 3:
+			s.resizing = true
+		case 4:
+			s.activated = true
+		case 5, 6, 7, 8:
+			s.tiled = true
+		case 9:
+			s.suspended = true
 		}
 	}
-	return false
+	return s
 }
 
 func wlTopClose(data, toplevel uintptr) {
