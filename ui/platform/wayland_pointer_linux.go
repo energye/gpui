@@ -28,25 +28,30 @@ import (
 // surface's scale is applied (wl_fixed). We treat them as logical px.
 
 const (
-	wlPtrRelease = 0
-	wlPtrSetCursor = 1
+	wlPtrRelease     = 0
+	wlPtrSetCursor   = 1
 
-	wlPtrEnter    = 0
-	wlPtrLeave    = 1
-	wlPtrMotion   = 2
-	wlPtrButton   = 3
-	wlPtrAxis     = 4
-	wlPtrFrame    = 5
-	wlPtrAxisSource = 6
+	wlPtrEnter        = 0
+	wlPtrLeave        = 1
+	wlPtrMotion       = 2
+	wlPtrButton       = 3
+	wlPtrAxis         = 4
+	wlPtrFrame        = 5
+	wlPtrAxisSource   = 6
+	wlPtrAxisStop     = 7
+	wlPtrAxisDiscrete = 8
 )
 
 // wlPointerState holds the bound wl_pointer proxy + listener table.
+// wl_pointer_interface has 9 events (v1-v7); the listener array MUST match
+// event_count exactly or proxyAddListener reads out of bounds → wild pointer
+// callbacks → SIGSEGV (system crash).
 type wlPointerState struct {
 	lib    *wlLib
 	win    *wlWin
 	ptr    uintptr // wl_pointer proxy
 
-	listener [7]uintptr
+	listener [9]uintptr
 	selfPtr  uintptr
 }
 
@@ -64,6 +69,7 @@ func (w *wlWin) bindPointer() *wlPointerState {
 	if st.ptr == 0 {
 		return nil
 	}
+	// All 9 wl_pointer events must have a slot.
 	st.listener[wlPtrEnter] = purego.NewCallback(wlPtrEnterCB)
 	st.listener[wlPtrLeave] = purego.NewCallback(wlPtrLeaveCB)
 	st.listener[wlPtrMotion] = purego.NewCallback(wlPtrMotionCB)
@@ -71,6 +77,8 @@ func (w *wlWin) bindPointer() *wlPointerState {
 	st.listener[wlPtrAxis] = purego.NewCallback(wlPtrAxisCB)
 	st.listener[wlPtrFrame] = purego.NewCallback(wlPtrFrameCB)
 	st.listener[wlPtrAxisSource] = purego.NewCallback(wlPtrAxisSourceCB)
+	st.listener[wlPtrAxisStop] = purego.NewCallback(wlPtrAxisStopCB)
+	st.listener[wlPtrAxisDiscrete] = purego.NewCallback(wlPtrAxisDiscreteCB)
 	if w.lib.proxyAddListener(st.ptr, uintptr(unsafe.Pointer(&st.listener[0])), st.selfPtr) != 0 {
 		w.lib.proxyDestroy(st.ptr)
 		return nil
@@ -174,8 +182,10 @@ func wlPtrAxisCB(data, ptr, time, axis, value uintptr) {
 	st.win.pushPtr(ev)
 }
 
-func wlPtrFrameCB(data, ptr uintptr)         {}
+func wlPtrFrameCB(data, ptr uintptr)              {}
 func wlPtrAxisSourceCB(data, ptr, source uintptr) {}
+func wlPtrAxisStopCB(data, ptr, time, axis uintptr) {}
+func wlPtrAxisDiscreteCB(data, ptr, axis, discrete uintptr) {}
 
 // pushPtr queues a pointer event for the next poll (thread-safe).
 func (w *wlWin) pushPtr(ev Event) {

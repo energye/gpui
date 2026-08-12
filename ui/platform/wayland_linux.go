@@ -308,6 +308,8 @@ type wlWin struct {
 	tiMgrName         uint32 // zwp_text_input_manager_v3 global name (0 = absent)
 	seatName          uint32 // wl_seat global name (0 = absent)
 	seat              uintptr // bound wl_seat proxy
+	seatListener      [2]uintptr // capabilities(0) name(1)
+	seatCaps          uint32 // last seat capabilities bitmask (0/1/2 = ptr/kbd/touch)
 
 	width, height int
 	configured    bool
@@ -478,6 +480,15 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 	// are the base input channel; IME rides on keyboard focus).
 	if win.seatName != 0 {
 		win.seat = win.bind(win.registry, win.seatName, lib.ifaceSeat, 1)
+		// Seat listener (2 events: capabilities, name) — required so the seat
+		// proxy can dispatch; without it events accumulate and capabilities
+		// (keyboard/pointer/touch availability) are never observed.
+		win.seatListener[0] = purego.NewCallback(wlSeatCapabilitiesCB)
+		win.seatListener[1] = purego.NewCallback(wlSeatNameCB)
+		if lib.proxyAddListener(win.seat, uintptr(unsafe.Pointer(&win.seatListener[0])), win.selfPtr) != 0 {
+			lib.proxyDestroy(win.seat)
+			win.seat = 0
+		}
 	}
 	// Keyboard (wl_keyboard + xkb) — standard, drives plain text + IME focus.
 	if win.seat != 0 && lib.ifaceKeyboard != 0 {
@@ -621,6 +632,20 @@ func wlRegistryGlobal(data, registry, name, iface, version uintptr) {
 }
 
 func wlRegistryGlobalRemove(data, registry, name uintptr) {}
+
+// wlSeatCapabilitiesCB handles seat.capabilities(caps): bit 0 = pointer,
+// bit 1 = keyboard, bit 2 = touch. Recorded for diagnostics; the keyboard/
+// pointer proxies are bound unconditionally when the interfaces exist.
+func wlSeatCapabilitiesCB(data, seat, caps uintptr) {
+	w := winFrom(data)
+	if w == nil {
+		return
+	}
+	w.seatCaps = uint32(caps)
+}
+
+// wlSeatNameCB handles seat.name(name) (v2+); informational.
+func wlSeatNameCB(data, seat, name uintptr) {}
 
 func wlWmPing(data, wmBase, serial uintptr) {
 	w := winFrom(data)

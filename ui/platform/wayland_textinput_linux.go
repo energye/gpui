@@ -141,7 +141,8 @@ func initTIInterfaces(ifaceSurface, ifaceSeat uintptr) {
 
 	// zwp_text_input_v3 events.
 	msgTiEv[tiEvEnter] = wlMessageC{Name: cstr(tiNames.eEnter), Signature: cstr(tiNames.sO), Types: uintptr(unsafe.Pointer(&typesTiSurf[0]))}
-	msgTiEv[tiEvLeave] = wlMessageC{Name: cstr(tiNames.eLeave), Signature: cstr(tiNames.sEmpty), Types: 0}
+	// leave carries a wl_surface arg per protocol ("o"), same as enter.
+	msgTiEv[tiEvLeave] = wlMessageC{Name: cstr(tiNames.eLeave), Signature: cstr(tiNames.sO), Types: uintptr(unsafe.Pointer(&typesTiSurf[0]))}
 	msgTiEv[tiEvPreeditString] = wlMessageC{Name: cstr(tiNames.ePreedit), Signature: cstr(tiNames.sPreedit), Types: 0}
 	msgTiEv[tiEvCommitString] = wlMessageC{Name: cstr(tiNames.eCommitStr), Signature: cstr(tiNames.sS), Types: 0}
 	msgTiEv[tiEvDeleteSurrounding] = wlMessageC{Name: cstr(tiNames.eDeleteSurr), Signature: cstr(tiNames.sUu), Types: 0}
