@@ -117,10 +117,12 @@ type wlKeyboardState struct {
 // Returns nil when the seat/interface is unavailable (silent degrade: no
 // keyboard events reach the app).
 //
-// Enabled by default (keyboard is the plain-text + IME focus driver). Set
-// GPUI_WL_KEYBOARD=0 to disable as an escape hatch.
+// ⚠️ DISABLED BY DEFAULT: binding wl_keyboard has been observed to crash
+// GNOME Shell (mutter, signal 11) on this machine — the protocol interaction
+// or the xkb keymap handling is not yet safe. Keep it opt-in
+// (GPUI_WL_KEYBOARD=1) until the crash is root-caused and fixed.
 func (w *wlWin) bindKeyboard() *wlKeyboardState {
-	if os.Getenv("GPUI_WL_KEYBOARD") == "0" {
+	if os.Getenv("GPUI_WL_KEYBOARD") != "1" {
 		return nil
 	}
 	if w == nil || w.lib == nil || w.seat == 0 || w.lib.ifaceKeyboard == 0 {

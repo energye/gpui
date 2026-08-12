@@ -4,6 +4,7 @@ package platform
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -468,7 +469,10 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 	runtime.KeepAlive(win)
 
 	// Optional IME capability: bind zwp_text_input_v3 when advertised.
-	if win.tiMgrName != 0 && win.seatName != 0 {
+	// ⚠️ DISABLED BY DEFAULT: text-input binding + GPU rendering has been
+	// observed to crash GNOME Shell (mutter signal 11) on this machine.
+	// Keep opt-in (GPUI_WL_TEXTINPUT=1) until root-caused.
+	if win.tiMgrName != 0 && win.seatName != 0 && os.Getenv("GPUI_WL_TEXTINPUT") == "1" {
 		// Bind wl_seat (get_text_input needs the seat object).
 		win.seat = win.bind(win.registry, win.seatName, lib.ifaceSeat, 1)
 		initTIInterfaces(lib.ifaceSurface, lib.ifaceSeat)
