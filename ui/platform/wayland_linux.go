@@ -712,6 +712,10 @@ func wlTopConfigure(data, toplevel, width, height, states uintptr) {
 	if w == nil {
 		return
 	}
+	// xdg_toplevel.configure states bitfield: 1=maximized, 2=fullscreen.
+	if w.csd != nil {
+		w.csd.setMaximized(states&1 != 0)
+	}
 	wi, hi := int32(width), int32(height)
 	if wi > 0 && hi > 0 {
 		if w.width != int(wi) || w.height != int(hi) {
@@ -720,7 +724,6 @@ func wlTopConfigure(data, toplevel, width, height, states uintptr) {
 		}
 	}
 	_ = toplevel
-	_ = states
 }
 
 func wlTopClose(data, toplevel uintptr) {
@@ -975,6 +978,10 @@ func (h *wlHost) poll() []Event {
 	}
 	if w.resized {
 		w.resized = false
+		// Keep CSD decoration surfaces sized to the new content area.
+		if w.csd != nil {
+			w.csd.resize(w.width, w.height)
+		}
 		out = append(out, Event{
 			Type: EventResize, Width: w.width, Height: w.height, Scale: h.ScaleFactor(),
 		})

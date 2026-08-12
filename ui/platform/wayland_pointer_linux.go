@@ -161,15 +161,21 @@ func wlPtrButtonCB(data, ptr, serial, time, button, state uintptr) {
 	// activates reliably.
 	if state&0xff == 1 {
 		st.win.refreshTextInput()
-		// CSD interaction: left-button press over the title bar.
+		// CSD interaction: left-button press.
 		if btn := int(button); btn == 0x110 { // BTN_LEFT
-			if c := st.win.csd; c != nil && c.pointerInTitleBar(st.surface) {
-				if titleBarHitClose(st.lastX, c.top.w) {
-					// Close button → request window close.
+			if c := st.win.csd; c != nil {
+				hit := c.hitTest(st.surface, st.lastX, st.lastY)
+				switch hit.act {
+				case csdActClose:
 					c.closeRequested = true
-				} else {
-					// Title bar drag → xdg_toplevel.move(seat, serial).
+				case csdActMove:
 					c.requestMove(st.win.seat, serial)
+				case csdActResize:
+					c.requestResize(st.win.seat, serial, hit.edge)
+				case csdActMinimize:
+					c.requestMinimize()
+				case csdActMaximize:
+					c.toggleMaximize()
 				}
 			}
 		}

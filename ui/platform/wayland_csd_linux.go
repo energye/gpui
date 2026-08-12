@@ -31,7 +31,7 @@ import (
 // CSD geometry (logical px).
 const (
 	csdTitleBarH = 32
-	csdBorderW   = 1
+	csdBorderW   = 4 // resize grip area — wide enough to click
 	csdCloseW    = 44
 	csdPadLeft   = 10
 )
@@ -45,8 +45,29 @@ const (
 	wlSubsurfaceDestroy    = 0
 	wlSubsurfaceSetPos     = 1 // set_position(x: int, y: int)
 	wlSubsurfaceSetSync    = 4 // set_sync()
-	// xdg_toplevel move(seat, serial) — opcode 5 (xdg-shell.xml).
-	xdgToplevelMove = 5
+	// xdg_toplevel requests (xdg-shell.xml authoritative order):
+	//   destroy(0) set_parent(1) set_title(2) set_app_id(3)
+	//   show_window_menu(4) move(5) resize(6) set_max_size(7)
+	//   set_min_size(8) set_maximized(9) unset_maximized(10)
+	//   set_fullscreen(11) unset_fullscreen(12) set_minimized(13)
+	xdgToplevelMove        = 5
+	xdgToplevelResize      = 6
+	xdgToplevelSetMaximized = 9
+	xdgToplevelUnsetMaxim   = 10
+	xdgToplevelSetMinimized = 13
+)
+
+// xdg_toplevel resize edges (xdg-shell.xml resize_edge enum).
+const (
+	resizeNone       = 0
+	resizeTop        = 1
+	resizeBottom     = 2
+	resizeLeft       = 4
+	resizeTopLeft    = 5
+	resizeBottomLeft = 6
+	resizeRight      = 8
+	resizeTopRight   = 9
+	resizeBottomRight = 10
 )
 
 // wl_shm_format ARGB8888 = 0.
@@ -69,6 +90,9 @@ type wlCSD struct {
 	topSurface uintptr
 	// closeRequested is set by a click on the close button (drained in poll).
 	closeRequested bool
+	// maximized tracks xdg_toplevel state so the maximize button can draw
+	// either "maximize" or "restore" (updated from wlTopConfigure states).
+	maximized bool
 }
 
 // csdSurface is one decoration subsurface + its shm buffer.
@@ -115,6 +139,7 @@ func (w *wlWin) initCSD(title string) *wlCSD {
 		csd.destroy()
 		return nil
 	}
+	csd.topSurface = csd.top.surf
 	// Left / right / bottom borders.
 	if csd.left, err = csd.newSurface(csdBorderW, ch, -csdBorderW, 0); err != nil {
 		csd.destroy()
@@ -227,7 +252,7 @@ func (c *wlCSD) paint() {
 	}
 	lib := c.win.lib
 	if c.top != nil {
-		paintTitleBar(c.top.data, c.top.w, c.top.h, c.title)
+		paintTitleBar(c.top.data, c.top.w, c.top.h, c.title, c.maximized)
 		c.top.commit(lib)
 	}
 	for _, s := range []*csdSurface{c.left, c.right, c.bottom} {
@@ -239,8 +264,45 @@ func (c *wlCSD) paint() {
 	lib.displayFlush(c.win.display)
 }
 
-// destroy tears down all decoration subsurfaces and frees buffers.
-func (c *wlCSD) destroy() {
+// resize rebuilds the decoration subsurfaces for a new content size (called
+// from poll when wlTopConfigure delivered a new toplevel size). The wl_shm /
+// wl_subcompositor proxies are kept; only the four decoration surfaces are
+// recreated.
+func (c *wlCSD) resize(cw, ch int) {
+	if c == nil || c.win == nil || c.win.lib == nil {
+		return
+	}
+	c.destroySurfaces()
+	if cw < 1 {
+		cw = 640
+	}
+	if ch < 1 {
+		ch = 480
+	}
+	var err error
+	if c.top, err = c.newSurface(cw+2*csdBorderW, csdTitleBarH, -csdBorderW, -csdTitleBarH); err != nil {
+		c.destroy()
+		return
+	}
+	c.topSurface = c.top.surf
+	if c.left, err = c.newSurface(csdBorderW, ch, -csdBorderW, 0); err != nil {
+		c.destroy()
+		return
+	}
+	if c.right, err = c.newSurface(csdBorderW, ch, cw, 0); err != nil {
+		c.destroy()
+		return
+	}
+	if c.bottom, err = c.newSurface(cw+2*csdBorderW, csdBorderW, -csdBorderW, ch); err != nil {
+		c.destroy()
+		return
+	}
+	c.paint()
+}
+
+// destroySurfaces frees the four decoration surfaces but keeps wl_shm and
+// wl_subcompositor alive (used by resize).
+func (c *wlCSD) destroySurfaces() {
 	if c == nil {
 		return
 	}
@@ -269,6 +331,17 @@ func (c *wlCSD) destroy() {
 		}
 		s.destroy()
 	}
+	c.top, c.left, c.right, c.bottom = nil, nil, nil, nil
+	c.topSurface = 0
+}
+
+// destroy tears down all decoration subsurfaces and frees buffers.
+func (c *wlCSD) destroy() {
+	if c == nil {
+		return
+	}
+	c.destroySurfaces()
+	lib := c.win.lib
 	if lib != nil {
 		if c.subcomp != 0 {
 			lib.proxyDestroy(c.subcomp)
@@ -279,21 +352,90 @@ func (c *wlCSD) destroy() {
 			c.shm = 0
 		}
 	}
-	c.top, c.left, c.right, c.bottom = nil, nil, nil, nil
 }
 
 // --- pointer interaction (called from wl_pointer callbacks) ---
 
-// pointerInTitleBar reports whether the pointer is over our title bar
-// subsurface (surface is the wl_surface the compositor reported).
-func (c *wlCSD) pointerInTitleBar(surface uintptr) bool {
-	return c != nil && c.top != nil && surface == c.top.surf
+// csdHit describes what a press at (x,y) on the given decoration surface does.
+type csdHit struct {
+	act  int // csdAct*
+	edge int // resize edge (csdActResize)
 }
 
-// titleBarHitClose reports whether (x,y) in title-bar coords hits the close
-// button (right edge).
-func titleBarHitClose(x float64, w int) bool {
-	return x >= float64(w-csdCloseW)
+// csd actions.
+const (
+	csdActNone = iota
+	csdActMove
+	csdActClose
+	csdActMinimize
+	csdActMaximize
+	csdActResize
+)
+
+// csdCorner is the resize-grip corner size in px.
+const csdCorner = 8
+
+// hitTest maps a pointer press on a decoration surface to an action.
+// surface is the wl_surface the compositor reported (top/left/right/bottom
+// decoration subsurface), (x,y) is surface-local logical px.
+func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
+	if c == nil {
+		return csdHit{}
+	}
+	switch surface {
+	case c.topSurface:
+		w := c.top.w
+		// Buttons win over the top-right corner resize (GTK pattern).
+		if x >= float64(w-csdCloseW) {
+			return csdHit{act: csdActClose}
+		}
+		if x >= float64(w-2*csdCloseW) {
+			return csdHit{act: csdActMaximize}
+		}
+		if x >= float64(w-3*csdCloseW) {
+			return csdHit{act: csdActMinimize}
+		}
+		// Top edge / corners (non-button area).
+		if y < csdCorner {
+			switch {
+			case x < csdCorner:
+				return csdHit{act: csdActResize, edge: resizeTopLeft}
+			case x >= float64(w-csdCorner):
+				return csdHit{act: csdActResize, edge: resizeTopRight}
+			default:
+				return csdHit{act: csdActResize, edge: resizeTop}
+			}
+		}
+		return csdHit{act: csdActMove}
+	case c.left.surf:
+		switch {
+		case y < csdCorner:
+			return csdHit{act: csdActResize, edge: resizeTopLeft}
+		case y >= float64(c.left.h-csdCorner):
+			return csdHit{act: csdActResize, edge: resizeBottomLeft}
+		default:
+			return csdHit{act: csdActResize, edge: resizeLeft}
+		}
+	case c.right.surf:
+		switch {
+		case y < csdCorner:
+			return csdHit{act: csdActResize, edge: resizeTopRight}
+		case y >= float64(c.right.h-csdCorner):
+			return csdHit{act: csdActResize, edge: resizeBottomRight}
+		default:
+			return csdHit{act: csdActResize, edge: resizeRight}
+		}
+	case c.bottom.surf:
+		switch {
+		case x < csdCorner:
+			return csdHit{act: csdActResize, edge: resizeBottomLeft}
+		case x >= float64(c.bottom.w-csdCorner):
+			return csdHit{act: csdActResize, edge: resizeBottomRight}
+		default:
+			return csdHit{act: csdActResize, edge: resizeBottom}
+		}
+	}
+	return csdHit{}
 }
 
 // requestMove starts an interactive xdg_toplevel.move(seat, serial).
@@ -304,6 +446,52 @@ func (c *wlCSD) requestMove(seat, serial uintptr) {
 	args := []wlArg{argO(seat), argU(uint32(serial))}
 	c.win.lib.proxyMarshalArrayFlags(c.win.toplevel, xdgToplevelMove, 0, 0, 0, &args[0])
 	c.win.lib.displayFlush(c.win.display)
+}
+
+// requestResize starts an interactive xdg_toplevel.resize(seat, serial, edge).
+func (c *wlCSD) requestResize(seat, serial uintptr, edge int) {
+	if c == nil || c.win == nil || c.win.lib == nil || c.win.toplevel == 0 || seat == 0 || edge == resizeNone {
+		return
+	}
+	args := []wlArg{argO(seat), argU(uint32(serial)), argU(uint32(edge))}
+	c.win.lib.proxyMarshalArrayFlags(c.win.toplevel, xdgToplevelResize, 0, 0, 0, &args[0])
+	c.win.lib.displayFlush(c.win.display)
+}
+
+// requestMinimize calls xdg_toplevel.set_minimized.
+func (c *wlCSD) requestMinimize() {
+	if c == nil || c.win == nil || c.win.lib == nil || c.win.toplevel == 0 {
+		return
+	}
+	c.win.lib.proxyMarshalArrayFlags(c.win.toplevel, xdgToplevelSetMinimized, 0, 0, 0, nil)
+	c.win.lib.displayFlush(c.win.display)
+}
+
+// toggleMaximize calls xdg_toplevel.set/unset_maximized based on current state.
+func (c *wlCSD) toggleMaximize() {
+	if c == nil || c.win == nil || c.win.lib == nil || c.win.toplevel == 0 {
+		return
+	}
+	op := uint32(xdgToplevelSetMaximized)
+	if c.maximized {
+		op = xdgToplevelUnsetMaxim
+	}
+	c.win.lib.proxyMarshalArrayFlags(c.win.toplevel, op, 0, 0, 0, nil)
+	c.win.lib.displayFlush(c.win.display)
+}
+
+// setMaximized updates the maximize icon (from xdg_toplevel.configure states)
+// and repaints the title bar.
+func (c *wlCSD) setMaximized(v bool) {
+	if c == nil || c.maximized == v {
+		return
+	}
+	c.maximized = v
+	if c.top != nil && c.win != nil && c.win.lib != nil {
+		paintTitleBar(c.top.data, c.top.w, c.top.h, c.title, c.maximized)
+		c.top.commit(c.win.lib)
+		c.win.lib.displayFlush(c.win.display)
+	}
 }
 
 // --- minimal ARGB8888 painter (no external deps) ---
@@ -332,10 +520,15 @@ func paintBorder(buf []byte, w, h int) {
 	fillRect(buf, w, 0, 0, w, h, 0x2B, 0x2D, 0x30)
 }
 
-func paintTitleBar(buf []byte, w, h int, title string) {
+func paintTitleBar(buf []byte, w, h int, title string, maximized bool) {
 	fillRect(buf, w, 0, 0, w, h, 0x2B, 0x2D, 0x30)
-	// Close button: red square + white X.
+
+	// Buttons right-to-left: [min] [max] [close], each csdCloseW wide.
+	minX := w - 3*csdCloseW
+	maxX := w - 2*csdCloseW
 	closeX := w - csdCloseW
+
+	// Close: red square + white X.
 	fillRect(buf, w, closeX, 0, csdCloseW, h, 0xC4, 0x2B, 0x1C)
 	cx := closeX + csdCloseW/2
 	cy := h / 2
@@ -345,16 +538,61 @@ func paintTitleBar(buf []byte, w, h int, title string) {
 		putPx(buf, w, cx+i+1, cy+i, 0xFF, 0xFF, 0xFF)
 		putPx(buf, w, cx+i+1, cy-i, 0xFF, 0xFF, 0xFF)
 	}
+
+	// Maximize / restore: square outline.
+	drawMaximizeIcon(buf, w, maxX, 0, csdCloseW, h, 0xDF, 0xE1, 0xE5, maximized)
+
+	// Minimize: horizontal line.
+	drawMinimizeIcon(buf, w, minX, 0, csdCloseW, h, 0xDF, 0xE1, 0xE5)
+
 	// Title text: simple 5x7 uppercase-ish glyphs (ASCII letters only).
 	drawTitle(buf, w, h, title)
+}
+
+// drawMinimizeIcon draws a horizontal line centered in the button area.
+func drawMinimizeIcon(buf []byte, stride, bx, by, bw, bh int, r, g, b byte) {
+	cx := bx + bw/2
+	cy := by + bh/2
+	for x := cx - 6; x <= cx+6; x++ {
+		putPx(buf, stride, x, cy, r, g, b)
+	}
+}
+
+// drawMaximizeIcon draws a square outline (or two overlapping squares when
+// maximized → restore icon).
+func drawMaximizeIcon(buf []byte, stride, bx, by, bw, bh int, r, g, b byte, maximized bool) {
+	cx := bx + bw/2
+	cy := by + bh/2
+	if maximized {
+		// Restore icon: two overlapping squares.
+		for x := cx - 6; x <= cx+3; x++ {
+			putPx(buf, stride, x, cy-5, r, g, b)
+			putPx(buf, stride, x, cy+4, r, g, b)
+		}
+		for y := cy - 5; y <= cy+4; y++ {
+			putPx(buf, stride, cx-6, y, r, g, b)
+			putPx(buf, stride, cx+3, y, r, g, b)
+		}
+		return
+	}
+	// Maximize icon: single square outline.
+	for x := cx - 6; x <= cx+6; x++ {
+		putPx(buf, stride, x, cy-5, r, g, b)
+		putPx(buf, stride, x, cy+5, r, g, b)
+	}
+	for y := cy - 5; y <= cy+5; y++ {
+		putPx(buf, stride, cx-6, y, r, g, b)
+		putPx(buf, stride, cx+6, y, r, g, b)
+	}
 }
 
 // drawTitle renders ASCII title using a minimal 5x7 bitmap font.
 func drawTitle(buf []byte, stride, h int, title string) {
 	x := csdPadLeft
 	y0 := (h - 7) / 2
+	maxX := stride - 3*csdCloseW - csdPadLeft
 	for _, r := range title {
-		if x+5 > stride-csdCloseW {
+		if x+5 > maxX {
 			break
 		}
 		var g [7]byte
