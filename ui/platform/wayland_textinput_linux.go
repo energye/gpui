@@ -348,11 +348,18 @@ func tiFrom(data uintptr) *wlTIState {
 // compose session starts on the first preedit_string event. Do NOT push a
 // fake compose event here — an empty compose would begin (and could end) a
 // pre-edit session with no real text.
+//
+// This event is also the compositor's explicit "text-input activation" ack:
+// mutter 42.9 commit_state only calls clutter_input_method_focus_in (which
+// makes the IME engine handle Shift-switch etc.) when focus is NOT yet
+// focused; the keyboard-enter refresh alone lands too early (focus already
+// set → enable_panel only). Re-commit here so the engine actually focuses.
 func wlTiEnter(data, ti, surface uintptr) {
 	st := tiFrom(data)
 	if st == nil || st.win == nil {
 		return
 	}
+	st.win.refreshTextInput()
 }
 
 // wlTiLeave: leave(surface) — IME focus left this surface; cancel any active
