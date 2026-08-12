@@ -601,7 +601,7 @@ func waylandCreate(w, h int, title string, decorated bool) (*Window, error) {
 
 	host := &wlHost{win: win}
 	win.hostRef = host
-	return newWindow(host, PlatformWayland, imeFor(host), nil, host.destroy), nil
+	return newWindow(host, PlatformWayland, imeFor(host), nil, nil, host.destroy), nil
 }
 
 // imeFor returns the IME capability for a wayland host, or nil when the

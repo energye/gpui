@@ -22,14 +22,14 @@ func (f *fakeBackend) Create(opts Options) (*Window, error) {
 		return f.win, nil
 	}
 	h := NewStubHost(opts.Width, opts.Height)
-	return newWindow(h, f.kind, nil, nil, nil), nil
+	return newWindow(h, f.kind, nil, nil, nil, nil), nil
 }
 
 func (f *fakeBackend) Adopt(ns NativeSurface) (*Window, error) {
 	f.adopted.Add(1)
 	h := NewStubHost(1, 1)
 	h.SetNativeSurface(ns)
-	return newWindow(h, f.kind, nil, nil, nil), nil
+	return newWindow(h, f.kind, nil, nil, nil, nil), nil
 }
 
 // testKind avoids colliding with real backends on any OS.
@@ -177,7 +177,7 @@ func TestAdoptUnknownKind(t *testing.T) {
 func TestWindowCloseOnce(t *testing.T) {
 	var n atomic.Int32
 	h := NewStubHost(10, 10)
-	w := newWindow(h, testKind, nil, nil, func() { n.Add(1) })
+	w := newWindow(h, testKind, nil, nil, nil, func() { n.Add(1) })
 	if w.Closed() {
 		t.Fatal("new window should be open")
 	}
@@ -232,7 +232,7 @@ func TestToPlatformKind(t *testing.T) {
 func TestWindowHostEventPump(t *testing.T) {
 	// StubHost round-trips events through the Window wrapper.
 	h := NewStubHost(100, 100)
-	w := newWindow(h, testKind, nil, nil, nil)
+	w := newWindow(h, testKind, nil, nil, nil, nil)
 	h.Push(Event{Type: EventResize, Width: 200, Height: 150, Scale: 2})
 	evs := w.Host().WaitEvents(0)
 	if len(evs) != 1 || evs[0].Type != EventResize || evs[0].Width != 200 {

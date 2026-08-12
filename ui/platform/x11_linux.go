@@ -22,7 +22,7 @@ func (b *x11Backend) Kind() PlatformKind { return PlatformX11 }
 
 // Create opens an X11 window and returns it wired to an event pump.
 func (b *x11Backend) Create(opts Options) (*Window, error) {
-	return x11Create(opts.Width, opts.Height, opts.Title)
+	return x11Create(opts)
 }
 
 // Adopt binds an existing X11 Display*/Window pair (embedding).
@@ -36,18 +36,21 @@ func (b *x11Backend) Adopt(ns NativeSurface) (*Window, error) {
 		return nil, err
 	}
 	st := &x11State{
-		display:   ns.Display,
-		window:    ns.Window,
-		w:         640,
-		h:         480,
-		scale:     1,
+		display:         ns.Display,
+		window:          ns.Window,
+		w:               640,
+		h:               480,
+		scale:           1,
 		keycodeToKeysym: x11KeycodeToKeysym(lib),
 	}
 	if w, h, ok := x11GetGeometry(st); ok {
 		st.w, st.h = w, h
 	}
 	h := &x11Host{st: st, lib: lib}
-	return newWindow(h, PlatformX11, nil, nil, h.destroy), nil
+	// Atoms are resolved lazily by the controller (resolveAtoms on demand);
+	// root stays 0 here → EWMH ops (RequestMove/state toggles) return
+	// ErrUnsupported for adopted windows until atoms are probed.
+	return newWindow(h, PlatformX11, nil, nil, &x11Controller{h: h}, h.destroy), nil
 }
 
 // --- Xlib binding (purego, no CGO) ---
@@ -80,12 +83,23 @@ const (
 
 	xEventMask = xStructureNotifyMask | xExposureMask |
 		xButtonPressMask | xButtonReleaseMask | xPointerMotionMask |
-		xKeyPressMask | xKeyReleaseMask
+		xKeyPressMask | xKeyReleaseMask | xFocusChangeMask |
+		xVisibilityChangeMask | xEnterWindowMask | xLeaveWindowMask
+)
+
+// XSizeHints flags (Xutil.h PMinSize/PMaxSize/PBaseSize/PSize).
+const (
+	pSize     = 1 << 3
+	pMinSize  = 1 << 4
+	pMaxSize  = 1 << 5
+	pBaseSize = 1 << 8
 )
 
 // X event field offsets (linux amd64 Xlib layout — matches exhost verified).
 const (
 	xevTypeOff        = 0
+	xevXOff           = 48 // XConfigureEvent x
+	xevYOff           = 52 // XConfigureEvent y
 	xevWidthOff       = 56 // XConfigureEvent
 	xevHeightOff      = 60
 	xevClientData0Off = 56 // XClientMessageEvent.data.l[0]
@@ -93,6 +107,23 @@ const (
 	xevPointerYOff    = 68
 	xevButtonOff      = 84 // button (press/release) or keycode (key)
 	xevKeycodeOff     = 84
+	xevStateOff       = 88 // XVisibilityEvent.state
+)
+
+// X event codes + mask bits (X.h).
+const (
+	xFocusChangeMask      = 1 << 21
+	xVisibilityChangeMask = 1 << 16
+	xEnterWindowMask      = 1 << 4
+	xLeaveWindowMask      = 1 << 5
+	xFocusIn              = 9
+	xFocusOut             = 10
+	xVisibilityNotify     = 15
+	xEnterNotify          = 7
+	xLeaveNotify          = 8
+	xMapNotify            = 19
+	xUnmapNotify          = 18
+	xReparentNotify       = 21
 )
 
 // Common X11 keysyms.
@@ -154,7 +185,14 @@ func x11OpenLib() (*x11Lib, error) {
 
 // x11Create opens a new X11 window. Ported from the verified exhost host,
 // restructured so window lifecycle and event pumping are separate.
-func x11Create(w, h int, title string) (*Window, error) {
+func x11Create(opts Options) (*Window, error) {
+	w, h, title := opts.Width, opts.Height, opts.Title
+	if w < 1 {
+		w = 640
+	}
+	if h < 1 {
+		h = 480
+	}
 	if !HasX11Display() {
 		return nil, fmt.Errorf("x11: DISPLAY not set")
 	}
@@ -163,22 +201,22 @@ func x11Create(w, h int, title string) (*Window, error) {
 		return nil, err
 	}
 	var (
-		xInitThreads     func() int
-		xOpenDisplay     func(name *byte) uintptr
-		xDefaultScreen   func(dpy uintptr) int
-		xRootWindow      func(dpy uintptr, screen int) uintptr
-		xCreateSimple    func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
-		xSetBgPixmap     func(dpy uintptr, win uintptr, pixmap uintptr) int
-		xChangeAttr      func(dpy uintptr, win uintptr, valueMask uint64, attrs unsafe.Pointer) int
-		xMapWindow       func(dpy uintptr, win uintptr) int
-		xFlush           func(dpy uintptr) int
-		xDestroyWindow   func(dpy uintptr, win uintptr) int
-		xStoreName       func(dpy uintptr, win uintptr, name *byte) int
-		xSelectInput     func(dpy uintptr, win uintptr, mask int64) int
-		xPending         func(dpy uintptr) int
-		xNextEvent       func(dpy uintptr, ev *byte) int
-		xInternAtom      func(dpy uintptr, name *byte, onlyIfExists int) uintptr
-		xSetWMProtocols  func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
+		xInitThreads      func() int
+		xOpenDisplay      func(name *byte) uintptr
+		xDefaultScreen    func(dpy uintptr) int
+		xRootWindow       func(dpy uintptr, screen int) uintptr
+		xCreateSimple     func(dpy uintptr, parent uintptr, x, y int, width, height, borderWidth uint, border, background uint64) uintptr
+		xSetBgPixmap      func(dpy uintptr, win uintptr, pixmap uintptr) int
+		xChangeAttr       func(dpy uintptr, win uintptr, valueMask uint64, attrs unsafe.Pointer) int
+		xMapWindow        func(dpy uintptr, win uintptr) int
+		xFlush            func(dpy uintptr) int
+		xDestroyWindow    func(dpy uintptr, win uintptr) int
+		xStoreName        func(dpy uintptr, win uintptr, name *byte) int
+		xSelectInput      func(dpy uintptr, win uintptr, mask int64) int
+		xPending          func(dpy uintptr) int
+		xNextEvent        func(dpy uintptr, ev *byte) int
+		xInternAtom       func(dpy uintptr, name *byte, onlyIfExists int) uintptr
+		xSetWMProtocols   func(dpy uintptr, win uintptr, protocols *uintptr, count int) int
 		xSetWMNormalHints func(dpy uintptr, win uintptr, hints *xSizeHints) int
 		xSetClassHint     func(dpy uintptr, win uintptr, hint *xClassHint) int
 		xChangeProperty   func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
@@ -244,19 +282,34 @@ func x11Create(w, h int, title string) (*Window, error) {
 	ch := xClassHint{ResName: &resName[0], ResClass: &resClass[0]}
 	xSetClassHint(dpy, win, &ch)
 
-	const (
-		pSize     = 1 << 3
-		pMinSize  = 1 << 4
-		pBaseSize = 1 << 8
-	)
+	minW, minH := opts.MinWidth, opts.MinHeight
+	if minW < 1 {
+		minW = 160
+	}
+	if minH < 1 {
+		minH = 120
+	}
+	maxW, maxH := opts.MaxWidth, opts.MaxHeight
+	flags := int64(pSize | pMinSize | pBaseSize)
 	hints := xSizeHints{
-		Flags:      pSize | pMinSize | pBaseSize,
+		Flags:      flags,
 		Width:      int32(w),
 		Height:     int32(h),
-		MinWidth:   160,
-		MinHeight:  120,
-		BaseWidth:  160,
-		BaseHeight: 120,
+		MinWidth:   int32(minW),
+		MinHeight:  int32(minH),
+		BaseWidth:  int32(minW),
+		BaseHeight: int32(minH),
+	}
+	if maxW > 0 && maxH > 0 {
+		hints.Flags |= pMaxSize
+		hints.MaxWidth, hints.MaxHeight = int32(maxW), int32(maxH)
+	}
+	// Resizable=false locks the window to its initial size (min==max).
+	if !opts.Resizable {
+		if minW != w || minH != h {
+			hints.Flags |= pMaxSize
+			hints.MaxWidth, hints.MaxHeight = int32(w), int32(h)
+		}
 	}
 	xSetWMNormalHints(dpy, win, &hints)
 	xSelectInput(dpy, win, xEventMask)
@@ -292,6 +345,8 @@ func x11Create(w, h int, title string) (*Window, error) {
 	st := &x11State{
 		display:   dpy,
 		window:    win,
+		root:      root,
+		screen:    screen,
 		wmDelete:  0,
 		w:         w,
 		h:         h,
@@ -305,7 +360,13 @@ func x11Create(w, h int, title string) (*Window, error) {
 			}
 			return lib.keycodeToKeysym(dpy, keycode, index)
 		},
+		title:     title,
+		decorated: opts.Decorations == nil || *opts.Decorations,
+		resizable: opts.Resizable,
+		visible:   opts.Visible,
 	}
+	// Resolve EWMH atoms once; the controller and event pump share them.
+	st.resolveAtoms(dpy)
 	// Re-resolve wmDelete after drain (atom still valid).
 	{
 		delName := append([]byte("WM_DELETE_WINDOW"), 0)
@@ -323,7 +384,61 @@ func x11Create(w, h int, title string) (*Window, error) {
 		xDestroyWindow(dpy, win)
 		lib.closeDisplay(dpy)
 	}
-	return newWindow(host, PlatformX11, imeForX11(host), nil, host.destroy), nil
+	ctl := &x11Controller{h: host}
+
+	// Apply creation-time Options that cannot be expressed via XCreateSimple.
+	// Order matters: position/map first, then size states so the WM sees a
+	// consistent initial frame.
+	if opts.Position != nil {
+		ctl.SetPosition(opts.Position.X, opts.Position.Y)
+	}
+	if opts.Fullscreen {
+		ctl.SetFullscreen(true)
+	}
+	if opts.Maximized {
+		ctl.Maximize()
+	}
+	if opts.Cursor != CursorDefault {
+		ctl.SetCursor(opts.Cursor)
+	}
+	if opts.Decorations != nil && !*opts.Decorations {
+		ctl.SetDecorations(false)
+	}
+	if opts.Visible {
+		xMapWindow(dpy, win)
+	} else {
+		ctl.Hide() // created mapped by default; unmap for Visible=false
+	}
+	xFlush(dpy)
+	st.visible = opts.Visible
+	st.resizable = opts.Resizable
+
+	return newWindow(host, PlatformX11, imeForX11(host), nil, ctl, host.destroy), nil
+}
+
+// resolveAtoms resolves the EWMH atoms the controller and event pump share.
+// Runs once with a valid display right after window creation.
+func (st *x11State) resolveAtoms(dpy uintptr) {
+	if st == nil || dpy == 0 {
+		return
+	}
+	lib := ctlLib.open()
+	if !lib.ok() || lib.internAtom == nil {
+		return
+	}
+	atom := func(name string) uintptr {
+		b := append([]byte(name), 0)
+		return lib.internAtom(dpy, &b[0], 0)
+	}
+	st.atNetState = atom("_NET_WM_STATE")
+	st.atMaxV = atom("_NET_WM_STATE_MAXIMIZED_VERT")
+	st.atMaxH = atom("_NET_WM_STATE_MAXIMIZED_HORZ")
+	st.atFull = atom("_NET_WM_STATE_FULLSCREEN")
+	st.atAbove = atom("_NET_WM_STATE_ABOVE")
+	st.atActive = atom("_NET_WM_STATE_ACTIVE")
+	st.atNetName = atom("_NET_WM_NAME")
+	st.atUTF8 = atom("UTF8_STRING")
+	st.atMotifHints = atom("_MOTIF_WM_HINTS")
 }
 
 // imeForX11 returns the XIM-based IME capability, or nil when no input
@@ -339,6 +454,8 @@ func imeForX11(h *x11Host) IME {
 
 type x11State struct {
 	display, window uintptr
+	root            uintptr // root window (EWMH client-message target)
+	screen          int     // default screen index
 	wmDelete        uintptr
 	mu              sync.Mutex
 	w, h            int
@@ -347,6 +464,32 @@ type x11State struct {
 	nextEvent       func(ev *byte) int
 	flush           func()
 	keycodeToKeysym func(dpy uintptr, keycode uint, index int) uintptr
+
+	// EWMH atoms (resolved at Create).
+	atNetState, atMaxV, atMaxH uintptr
+	atFull, atAbove, atActive  uintptr
+	atNetName, atUTF8          uintptr
+	atMotifHints               uintptr
+	title                      string
+	decorated                  bool
+
+	// last reported screen position (EventMove dedup)
+	posX, posY int
+	posInit    bool
+
+	// Async window state (updated by events + controller).
+	maximized  bool
+	fullscreen bool
+	focused    bool
+	visible    bool
+	minimized  bool
+
+	// Resizable / constraints bookkeeping for hints lock-restore.
+	resizable          bool
+	userMinW, userMinH int
+	userMaxW, userMaxH int
+	hints              xSizeHints // last-applied normal hints
+	cursor             uintptr    // current X cursor (0 = default/undefined)
 }
 
 // x11Host implements Host for an X11 window (event pump). Destroying the
@@ -556,15 +699,45 @@ func (h *x11Host) drainX() []Event {
 		t := int(readI32(buf[:], xevTypeOff))
 		switch t {
 		case xConfigureNotify:
+			nx := int(readI32(buf[:], xevXOff))
+			ny := int(readI32(buf[:], xevYOff))
 			nw := int(readI32(buf[:], xevWidthOff))
 			nh := int(readI32(buf[:], xevHeightOff))
+			moved := false
+			st.mu.Lock()
+			if !st.posInit || st.posX != nx || st.posY != ny {
+				st.posX, st.posY, st.posInit = nx, ny, true
+				moved = true
+			}
+			st.mu.Unlock()
 			if nw > 0 && nh > 0 && h.setSize(nw, nh) {
 				out = append(out, Event{
 					Type: EventResize, Width: nw, Height: nh, Scale: h.ScaleFactor(),
 				})
 			}
+			if moved {
+				out = append(out, Event{Type: EventMove, MoveX: nx, MoveY: ny})
+			}
 		case xExpose:
 			out = append(out, Event{Type: EventExpose})
+		case xMapNotify:
+			st.mu.Lock()
+			st.visible = true
+			st.minimized = false // remapped = restored from iconify
+			st.mu.Unlock()
+		case xUnmapNotify:
+			st.mu.Lock()
+			st.visible = false
+			st.mu.Unlock()
+		case xVisibilityNotify:
+			// 0 = unobscured, 1 = partially, 2 = fully obscured.
+			state := int(readI32(buf[:], xevStateOff))
+			occluded := state == 2
+			out = append(out, Event{Type: EventOccluded, Occluded: occluded})
+		case xEnterNotify:
+			out = append(out, Event{Type: EventPointer, Pointer: PointerEnter})
+		case xLeaveNotify:
+			out = append(out, Event{Type: EventPointer, Pointer: PointerLeave})
 		case xButtonPress, xButtonRelease, xMotionNotify:
 			if ev, ok := h.decodePointer(t, buf[:]); ok {
 				out = append(out, ev)

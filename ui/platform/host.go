@@ -52,13 +52,24 @@ type EventType int
 
 const (
 	EventNone EventType = iota
+	// EventCloseRequested asks the app whether the window may close (title-bar
+	// ✕, WM_DELETE_WINDOW, xdg close). The window stays alive unless the app
+	// calls Window.Close; only after that (or native destruction) does
+	// EventClose fire.
+	EventCloseRequested
+	// EventClose reports that the window is already destroyed/unmapped.
+	// No further events will arrive for it.
 	EventClose
 	EventResize
 	EventExpose
+	EventMove     // window moved on screen (X11; Wayland has no event — see X/Y doc)
+	EventScale    // device pixel ratio changed (multi-monitor drag / OS scaling)
+	EventOccluded // window fully occluded or minimized (see Event.Occluded; stop rendering to save power)
 	EventPointer
 	EventKey
-	EventIME  // input-method session event (compose/commit/caret)
-	EventWake // WakeUp from another goroutine
+	EventIME   // input-method session event (compose/commit/caret)
+	EventFocus // keyboard focus changed (see Event.Focused)
+	EventWake  // WakeUp from another goroutine
 )
 
 // PointerKind classifies pointer events.
@@ -69,6 +80,8 @@ const (
 	PointerDown
 	PointerUp
 	PointerScroll
+	PointerEnter // pointer (or window-level grab) entered the window
+	PointerLeave // pointer left the window
 )
 
 // Event is a platform input or lifecycle event.
@@ -81,6 +94,11 @@ type Event struct {
 	Height int
 	Scale  float64 // device pixel ratio; 0 means unchanged / unknown
 
+	// EventOccluded: true = fully obscured / minimized (stop rendering),
+	// false = visible again. (X11 VisibilityNotify; Wayland suspended state;
+	// Win32 WM_SHOWWINDOW; AppKit occlusionState.)
+	Occluded bool
+
 	// Pointer (logical).
 	Pointer PointerKind
 	X, Y    float64
@@ -88,10 +106,17 @@ type Event struct {
 	ScrollX float64
 	ScrollY float64
 
+	// EventMove: window top-left screen position in logical pixels (X11
+	// reports it; Wayland has no event and silently omits moves).
+	MoveX, MoveY int
+
 	// Key
 	KeyCode int
 	Rune    rune
 	Pressed bool
+
+	// Focus / visibility (EventFocus)
+	Focused bool
 
 	// IME (EventIME): pre-edit / commit / caret events from the input method.
 	IMEKind  int    // 0 = compose (pre-edit), 1 = commit, 2 = caret move

@@ -19,6 +19,34 @@ type Options struct {
 	//     we draw a client-side title bar + borders (CSD) via wl_subsurface.
 	//   - nil = true (default): frameless apps pass &false.
 	Decorations *bool
+	// Min/Max size constraints (logical px; 0 = unconstrained).
+	MinWidth, MinHeight int
+	MaxWidth, MaxHeight int
+	// Position is the desired initial window position (X11 only; Wayland
+	// protocol forbids client-side positioning). nil = WM decides.
+	Position *Point
+	// Fullscreen requests the window start fullscreen (X11 EWMH hot zone /
+	// Wayland is a request that the compositor may defer until configure).
+	Fullscreen bool
+	// Cursor is the initial cursor (default CursorDefault).
+	Cursor Cursor
+	// Resizable controls whether the window can be resized by the user
+	// (X11 size hints: 0 = fixed; Wayland xdg_toplevel has no request —
+	// enforced via min==max when false).
+	Resizable bool
+	// Maximized requests the window start maximized (X11 EWMH initial
+	// _NET_WM_STATE_MAXIMIZED; Wayland set_maximized before first commit;
+	// Win32 SW_MAXIMIZE; AppKit zoom:).
+	Maximized bool
+	// Visible requests the window start visible (default true).
+	// X11: map control; Wayland: protocol has no control → ignored;
+	// Win32 SW_SHOW/SW_HIDE; AppKit orderFront:/orderOut:.
+	Visible bool
+}
+
+// Point is a window position in logical pixels (X11 screen coords).
+type Point struct {
+	X, Y int
 }
 
 // Window is the unified L0 platform window: native handles, the event pump
@@ -33,9 +61,20 @@ type Window struct {
 	kind    PlatformKind
 	ime     IME
 	clip    Clipboard
+	ctl     WindowController // window controls SPI; nil = not supported
 	mu      sync.Mutex
 	closed  bool
 	closeFn func()
+}
+
+// Controls returns the window-control SPI (title/size/state/cursor ops).
+// Returns nil when the backend does not support runtime window control;
+// callers must nil-check (optional capability, same pattern as IME).
+func (w *Window) Controls() WindowController {
+	if w == nil {
+		return nil
+	}
+	return w.ctl
 }
 
 // Open creates a native window through the registered backend for the
@@ -88,21 +127,21 @@ func Adopt(ns NativeSurface) (*Window, error) {
 }
 
 // newWindow wraps a backend-produced window. Backends call this from Create.
-func newWindow(host Host, kind PlatformKind, ime IME, clip Clipboard, closeFn func()) *Window {
+func newWindow(host Host, kind PlatformKind, ime IME, clip Clipboard, ctl WindowController, closeFn func()) *Window {
 	if closeFn == nil {
 		closeFn = func() {}
 	}
-	return &Window{host: host, kind: kind, ime: ime, clip: clip, closeFn: closeFn}
+	return &Window{host: host, kind: kind, ime: ime, clip: clip, ctl: ctl, closeFn: closeFn}
 }
 
 // WrapHost wraps an already-implemented Host into a Window, using the host's
-// native surface kind. No capability probing (IME/Clipboard stay nil).
-// Useful for tests and embedding hosts that already implement Host.
+// native surface kind. No capability probing (IME/Clipboard/Controls stay
+// nil). Useful for tests and embedding hosts that already implement Host.
 func WrapHost(host Host) *Window {
 	if host == nil {
 		return nil
 	}
-	return newWindow(host, host.NativeSurface().Kind, nil, nil, nil)
+	return newWindow(host, host.NativeSurface().Kind, nil, nil, nil, nil)
 }
 
 // Host returns the window's Host (event pump / size / scale). Never nil for a
