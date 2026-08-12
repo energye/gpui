@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"golang.org/x/sys/unix"
 )
 
 // waylandBackend implements Backend for Wayland (wl_display* + wl_surface*).
@@ -94,6 +95,10 @@ type wlLib struct {
 	displayDispatchPend    func(d uintptr) int
 	displayFlush           func(d uintptr) int
 	displayRoundtrip       func(d uintptr) int
+	displayGetFD           func(d uintptr) int
+	displayPrepareRead     func(d uintptr) int
+	displayReadEvents      func(d uintptr) int
+	displayCancelRead      func(d uintptr) int
 	proxyAddListener       func(proxy uintptr, impl uintptr, data uintptr) int
 	proxyMarshalArrayCtor  func(proxy uintptr, opcode uint32, args *wlArg, iface uintptr, version uint32) uintptr
 	proxyMarshalArrayFlags func(proxy uintptr, opcode uint32, iface uintptr, version uint32, flags uint32, args *wlArg) uintptr
@@ -123,6 +128,10 @@ func loadWayland() (*wlLib, error) {
 	purego.RegisterLibFunc(&l.displayDispatchPend, lib, "wl_display_dispatch_pending")
 	purego.RegisterLibFunc(&l.displayFlush, lib, "wl_display_flush")
 	purego.RegisterLibFunc(&l.displayRoundtrip, lib, "wl_display_roundtrip")
+	purego.RegisterLibFunc(&l.displayGetFD, lib, "wl_display_get_fd")
+	purego.RegisterLibFunc(&l.displayPrepareRead, lib, "wl_display_prepare_read")
+	purego.RegisterLibFunc(&l.displayReadEvents, lib, "wl_display_read_events")
+	purego.RegisterLibFunc(&l.displayCancelRead, lib, "wl_display_cancel_read")
 	purego.RegisterLibFunc(&l.proxyAddListener, lib, "wl_proxy_add_listener")
 	purego.RegisterLibFunc(&l.proxyMarshalArrayCtor, lib, "wl_proxy_marshal_array_constructor_versioned")
 	purego.RegisterLibFunc(&l.proxyMarshalArrayFlags, lib, "wl_proxy_marshal_array_flags")
@@ -711,9 +720,39 @@ func minU32(a, b uint32) uint32 {
 
 type wlHost struct {
 	win   *wlWin
-	wake  chan struct{}
 	mu    sync.Mutex
 	scale float64
+
+	// displayFD is wl_display_get_fd (cached at first use).
+	displayFD int
+	// wakePipe[0]=read, wakePipe[1]=write — unblocks poll on WakeUp.
+	wakePipe [2]int
+}
+
+func (h *wlHost) ensureWakePipe() {
+	if h == nil {
+		return
+	}
+	if h.wakePipe[0] != 0 || h.wakePipe[1] != 0 {
+		return
+	}
+	p := [2]int{-1, -1}
+	if err := unix.Pipe2(p[:], unix.O_NONBLOCK|unix.O_CLOEXEC); err == nil {
+		h.wakePipe = p
+	}
+}
+
+func (h *wlHost) drainWake() {
+	if h == nil || h.wakePipe[0] == 0 {
+		return
+	}
+	var buf [16]byte
+	for {
+		n, err := unix.Read(h.wakePipe[0], buf[:])
+		if n <= 0 || err != nil {
+			break
+		}
+	}
 }
 
 // hostForWake returns the event-pump host for this window (nil until
@@ -730,6 +769,14 @@ func (w *wlWin) hostForWake() *wlHost {
 func (h *wlHost) destroy() {
 	if h == nil || h.win == nil {
 		return
+	}
+	if h.wakePipe[0] != 0 {
+		_ = unix.Close(h.wakePipe[0])
+		h.wakePipe[0] = 0
+	}
+	if h.wakePipe[1] != 0 {
+		_ = unix.Close(h.wakePipe[1])
+		h.wakePipe[1] = 0
 	}
 	h.win.destroyNative()
 	h.win = nil
@@ -772,9 +819,11 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 	if h == nil || h.win == nil {
 		return nil
 	}
-	if h.wake == nil {
-		h.wake = make(chan struct{}, 1)
+	w := h.win
+	if w.lib == nil || w.display == 0 {
+		return nil
 	}
+	// Dispatch anything already buffered, then send pending requests.
 	if evs := h.poll(); len(evs) > 0 {
 		return evs
 	}
@@ -784,15 +833,92 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 	if timeout == 0 {
 		return h.poll()
 	}
-	select {
-	case <-h.wake:
-		if evs := h.poll(); len(evs) > 0 {
-			return evs
+	h.ensureWakePipe()
+
+	// Standard Wayland client wait protocol:
+	//   wl_display_prepare_read → poll(display fd, wake pipe)
+	//   → on fd readable: wl_display_read_events + dispatch_pending
+	fd := h.displayFD
+	if fd == 0 {
+		fd = w.lib.displayGetFD(w.display)
+		h.displayFD = fd
+	}
+	if fd <= 0 {
+		// No fd (connection lost?) — fall back to timed poll.
+		select {
+		case <-time.After(timeout):
 		}
-		return []Event{{Type: EventWake}}
-	case <-time.After(timeout):
 		return h.poll()
 	}
+
+	deadline := time.Now().Add(timeout)
+	for {
+		left := time.Until(deadline)
+		if left <= 0 {
+			break
+		}
+		if left > 16*time.Millisecond {
+			left = 16 * time.Millisecond
+		}
+		ms := int(left.Milliseconds())
+		if ms < 1 {
+			ms = 1
+		}
+
+		// Acquire the read lock; dispatch anything pending first.
+		if w.lib.displayPrepareRead(w.display) != 0 {
+			// Events already buffered; dispatch them and keep waiting.
+			if evs := h.poll(); len(evs) > 0 {
+				return evs
+			}
+			continue
+		}
+		// Flush our requests before blocking.
+		w.lib.displayFlush(w.display)
+
+		pfds := []unix.PollFd{
+			{Fd: int32(fd), Events: unix.POLLIN},
+			{Fd: int32(h.wakePipe[0]), Events: unix.POLLIN},
+		}
+		n, err := unix.Poll(pfds, ms)
+		if err != nil {
+			w.lib.displayCancelRead(w.display)
+			if err == unix.EINTR {
+				continue
+			}
+			break
+		}
+		if n == 0 {
+			// Timeout.
+			w.lib.displayCancelRead(w.display)
+			break
+		}
+		if pfds[1].Revents&unix.POLLIN != 0 {
+			// Woken up (thread wants us to re-poll / check quit).
+			h.drainWake()
+			w.lib.displayCancelRead(w.display)
+			if evs := h.poll(); len(evs) > 0 {
+				return evs
+			}
+			return []Event{{Type: EventWake}}
+		}
+		if pfds[0].Revents&unix.POLLIN != 0 {
+			if w.lib.displayReadEvents(w.display) < 0 {
+				w.lib.displayCancelRead(w.display)
+				break
+			}
+			if evs := h.poll(); len(evs) > 0 {
+				return evs
+			}
+			continue
+		}
+		if pfds[0].Revents&(unix.POLLHUP|unix.POLLERR) != 0 {
+			w.lib.displayCancelRead(w.display)
+			break
+		}
+		w.lib.displayCancelRead(w.display)
+	}
+	return h.poll()
 }
 
 func (h *wlHost) poll() []Event {
@@ -840,11 +966,11 @@ func (h *wlHost) WakeUp() {
 	if h == nil {
 		return
 	}
-	if h.wake == nil {
-		h.wake = make(chan struct{}, 1)
+	h.ensureWakePipe()
+	if h.wakePipe[1] == 0 {
+		return
 	}
-	select {
-	case h.wake <- struct{}{}:
-	default:
-	}
+	// Non-blocking: one byte is enough to unblock poll.
+	buf := []byte{1}
+	_, _ = unix.Write(h.wakePipe[1], buf)
 }
