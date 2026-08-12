@@ -13,6 +13,14 @@ import (
 	"github.com/energye/gpui/ui/scheduler"
 )
 
+// EventQuits reports whether the platform event must end the embedder main
+// loop — the §2.4 consumer contract: EventCloseRequested (interceptable ✕:
+// the window stays alive unless the app closes it, and EventClose then
+// fires) and EventClose (window already destroyed) are treated alike.
+func EventQuits(ev platform.Event) bool {
+	return ev.Type == platform.EventCloseRequested || ev.Type == platform.EventClose
+}
+
 // Options configures App.
 type Options struct {
 	// Clear is the PresentClear color (0–1). Default dark gray-blue.
@@ -170,9 +178,11 @@ func (a *App) Run() error {
 			if a.opts.OnEvent != nil {
 				a.opts.OnEvent(ev)
 			}
-			switch ev.Type {
-			case platform.EventClose:
+			if EventQuits(ev) {
 				a.quit.Store(true)
+				continue
+			}
+			switch ev.Type {
 			case platform.EventResize:
 				if a.target != nil && ev.Width > 0 && ev.Height > 0 {
 					scale := ev.Scale

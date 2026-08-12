@@ -533,9 +533,11 @@ func (a *PipelineApp) Run() error {
 			if a.opts.OnEvent != nil {
 				a.opts.OnEvent(ev)
 			}
-			switch ev.Type {
-			case platform.EventClose:
+			if EventQuits(ev) {
 				a.quit.Store(true)
+				continue
+			}
+			switch ev.Type {
 			case platform.EventResize:
 				if ev.Width > 0 && ev.Height > 0 {
 					sc := ev.Scale

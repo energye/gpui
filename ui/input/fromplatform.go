@@ -13,7 +13,7 @@ import "github.com/energye/gpui/ui/platform"
 // zero Event with Kind == KindNone; callers may filter on Kind).
 func FromPlatform(ev platform.Event, mods Modifiers) Event {
 	switch ev.Type {
-	case platform.EventClose:
+	case platform.EventCloseRequested, platform.EventClose:
 		return Event{Kind: KindClose}
 	case platform.EventResize:
 		e := Event{Kind: KindResize, Width: ev.Width, Height: ev.Height, Scale: ev.Scale}

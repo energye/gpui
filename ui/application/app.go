@@ -310,8 +310,8 @@ func (w *Window) SetRoot(root rendering.RenderObject) error {
 			if cfg.OnEvent != nil {
 				cfg.OnEvent(ev)
 			}
-			// Main window close → quit the whole app.
-			if ev.Type == platform.EventClose && w.main {
+			// Main window close (requested or destroyed) → quit the whole app.
+			if embedder.EventQuits(ev) && w.main {
 				w.app.Quit()
 			}
 		},

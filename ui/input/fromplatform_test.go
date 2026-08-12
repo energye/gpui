@@ -140,6 +140,7 @@ func TestFromPlatform_Lifecycle(t *testing.T) {
 		ev   platform.Event
 		kind Kind
 	}{
+		{platform.Event{Type: platform.EventCloseRequested}, KindClose},
 		{platform.Event{Type: platform.EventClose}, KindClose},
 		{platform.Event{Type: platform.EventWake}, KindWake},
 		{platform.Event{Type: platform.EventResize, Width: 800, Height: 600, Scale: 2}, KindResize},

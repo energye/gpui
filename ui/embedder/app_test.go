@@ -34,3 +34,32 @@ func TestApp_QuitWake(t *testing.T) {
 		// ok
 	}
 }
+
+// TestEventQuits pins the §2.4 consumer contract: EventCloseRequested (the
+// interceptable ✕ / WM_DELETE / xdg close) and EventClose (window already
+// destroyed) both end the embedder main loop; other events never do.
+func TestEventQuits(t *testing.T) {
+	closeEvs := []platform.Event{
+		{Type: platform.EventCloseRequested},
+		{Type: platform.EventClose},
+	}
+	for _, ev := range closeEvs {
+		if !embedder.EventQuits(ev) {
+			t.Errorf("EventQuits(%v) = false, want true", ev.Type)
+		}
+	}
+
+	keepEvs := []platform.Event{
+		{Type: platform.EventResize, Width: 100, Height: 100},
+		{Type: platform.EventExpose},
+		{Type: platform.EventFocus, Focused: true},
+		{Type: platform.EventPointer, Pointer: platform.PointerMove},
+		{Type: platform.EventKey, Pressed: true},
+		{Type: platform.EventWake},
+	}
+	for _, ev := range keepEvs {
+		if embedder.EventQuits(ev) {
+			t.Errorf("EventQuits(%v) = true, want false", ev.Type)
+		}
+	}
+}
