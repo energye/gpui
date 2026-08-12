@@ -95,24 +95,101 @@ func TestWaylandRealWindowEvents(t *testing.T) {
 	host.WaitEvents(250 * time.Millisecond)
 }
 
-// TestWaylandRealWindowControlsHonest: until the wlController lands (S2),
-// Controls() is nil — the app must nil-check, never assume. The moment S2
-// lands this test becomes the wlController presence check.
-func TestWaylandRealWindowControlsHonest(t *testing.T) {
+// TestWaylandRealWindowControls exercises the wlController (S2): title/size
+// round-trips on the tracked state, protocol-impossible ops answer
+// ErrUnsupported (§2.5.4 honesty — never a silent fake success), and
+// queries the protocol cannot answer return documented zero values (§2.5.3).
+func TestWaylandRealWindowControls(t *testing.T) {
 	win := openTestWayland(t)
 	defer win.Close()
 
 	ctl := win.Controls()
 	if ctl == nil {
-		t.Logf("note: Controls() nil on wayland (wlController lands in S2; OK today)")
-		return
+		t.Fatal("Controls() nil — wlController must be wired (S2)")
 	}
-	// S2+ path: controller exists — probe a protocol-impossible op; it must
-	// be ErrUnsupported, never a silent fake success (§2.5.4).
-	if ctl.Title() == "" {
-		t.Error("Title() empty on wayland controller")
+
+	// Title round-trip (tracked; xdg has no query).
+	ctl.SetTitle("wayland-test-t2")
+	if got := ctl.Title(); got != "wayland-test-t2" {
+		t.Errorf("Title() = %q after set, want wayland-test-t2", got)
 	}
-	if err := ctl.SetPosition(10, 10); err == nil || !strings.Contains(err.Error(), "not supported") {
-		t.Errorf("SetPosition on wayland: err=%v, want ErrUnsupported", err)
+
+	// Size: SetSize updates the tracked size optimistically; the compositor
+	// confirms with configure (EventResize) shortly after.
+	wantW, wantH := 500, 400
+	ctl.SetSize(wantW, wantH)
+	w, h := ctl.Size()
+	if w != wantW || h != wantH {
+		t.Errorf("Size() = (%d,%d) after SetSize, want (%d,%d)", w, h, wantW, wantH)
+	}
+
+	// Resizable toggle + query.
+	ctl.SetResizable(false)
+	if ctl.IsResizable() {
+		t.Error("IsResizable() = true after SetResizable(false)")
+	}
+	ctl.SetResizable(true)
+	if !ctl.IsResizable() {
+		t.Error("IsResizable() = false after SetResizable(true)")
+	}
+
+	// Constraints accept and track values (0 = unconstrained).
+	ctl.SetMinSize(320, 240)
+	ctl.SetMaxSize(1920, 1080)
+
+	// Protocol-impossible ops → ErrUnsupported (honesty contract §2.5.4).
+	for name, err := range map[string]error{
+		"SetPosition":    ctl.SetPosition(10, 10),
+		"Show":           ctl.Show(),
+		"Hide":           ctl.Hide(),
+		"Focus":          ctl.Focus(),
+		"SetAlwaysOnTop": ctl.SetAlwaysOnTop(true),
+		"SetDecorations": ctl.SetDecorations(true),
+	} {
+		if err == nil || !strings.Contains(err.Error(), "not supported") {
+			t.Errorf("%s on wayland: err=%v, want ErrUnsupported", name, err)
+		}
+	}
+
+	// Query semantics (§2.5.3): no client-side position → ok=false (zero ≠
+	// "at origin"); xdg windows are always visible once mapped (§3.2).
+	if x, y, ok := ctl.Position(); ok || x != 0 || y != 0 {
+		t.Errorf("Position() = (%d,%d,%v), want (0,0,false)", x, y, ok)
+	}
+	if !ctl.IsVisible() {
+		t.Error("IsVisible() = false, want true (xdg has no hidden state)")
+	}
+	if ctl.IsMinimized() {
+		t.Error("IsMinimized() = true on a fresh window")
+	}
+
+	// Best-effort ops must not panic when the compositor is quiet.
+	ctl.Minimize()
+	ctl.Maximize()
+	ctl.Unmaximize()
+	ctl.SetFullscreen(true)
+	ctl.SetFullscreen(false)
+	ctl.SetCursor(CursorText)
+	ctl.SetCursor(CursorDefault)
+
+	// Interactive move/resize need a valid enter serial; with no pointer
+	// interaction they must answer ErrUnsupported, not a fake success.
+	for name, err := range map[string]error{
+		"RequestMove":       ctl.RequestMove(),
+		"RequestResize":     ctl.RequestResize(WindowEdgeRight),
+		"RequestResizeNone": ctl.RequestResize(WindowEdgeNone),
+	} {
+		if err == nil || !strings.Contains(err.Error(), "not supported") {
+			t.Errorf("%s: err=%v, want ErrUnsupported (no enter serial / no edge)", name, err)
+		}
+	}
+
+	// SetIgnoreCursorEvents round-trip (wl_region empty / NULL region) must
+	// succeed on a working compositor and not corrupt the event loop.
+	if err := ctl.SetIgnoreCursorEvents(true); err != nil {
+		t.Errorf("SetIgnoreCursorEvents(true): err=%v, want nil", err)
+	}
+	if err := ctl.SetIgnoreCursorEvents(false); err != nil {
+		t.Errorf("SetIgnoreCursorEvents(false): err=%v, want nil", err)
 	}
 }

@@ -57,12 +57,12 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | Title | string | 窗口标题；空默认 "gpui" | ✅ `_NET_WM_NAME` | ✅ `set_title` | ⬜ `SetWindowTextW` | ⬜ `setTitle:` |
 | Backend | DisplayBackend | 显式选平台（Auto/X11/Wayland/**Win32/AppKit**）；Auto=探测（非 Linux 恒为该平台唯一后端）；Win32/AppKit 值用于显式请求对应后端——非目标 OS 或无实现时返回明确错误 | ✅ | ✅ | ⬜ | ⬜ |
 | Decorations | *bool | nil=true 标准装饰；&false 无框裸窗 | ⚠️ WM 决定 | ✅ CSD | ⬜ WS_CAPTION 族 | ⬜ styleMask |
-| Min/Max*Size | int | 尺寸约束；0=不限 | ✅ XSizeHints | 🔨 set_min/max_size（S5） | ⬜ WM_GETMINMAXINFO | ⬜ contentMin/MaxSize |
+| Min/Max*Size | int | 尺寸约束；0=不限 | ✅ XSizeHints | ✅ set_min/max_size | ⬜ WM_GETMINMAXINFO | ⬜ contentMin/MaxSize |
 | Position | *Point | 初始位置（客户区左上，屏幕坐标）；nil=系统决定 | ✅ | ⛔ | ⬜ SetWindowPos | ⬜ setFrameOrigin: |
-| Fullscreen | bool | 初始全屏 | ✅ EWMH | 🔨 创建后 set_fullscreen（S5） | ⬜ 屏幕铺满 | ⬜ toggleFullScreen: |
-| Cursor | Cursor | 初始光标（9 形状） | ✅ XCreateFontCursor | 🔨 wl_cursor_theme 初始光标（S5） | ⬜ LoadCursor | ⬜ NSCursor |
-| Resizable | bool | 用户可否调整尺寸；false=固定（min==max） | ✅ | 🔨 min==max 锁（S5） | ⬜ WS_THICKFRAME | ⬜ styleMask Resizable |
-| **Maximized** | bool | 初始最大化（新） | ✅ EWMH 初始 | 🔨 首 commit 前 set_maximized（S5） | ⬜ SW_MAXIMIZE | ⬜ zoom: |
+| Fullscreen | bool | 初始全屏 | ✅ EWMH | ✅ 创建后 set_fullscreen | ⬜ 屏幕铺满 | ⬜ toggleFullScreen: |
+| Cursor | Cursor | 初始光标（9 形状） | ✅ XCreateFontCursor | ✅ enter 时应用 wl_cursor_theme | ⬜ LoadCursor | ⬜ NSCursor |
+| Resizable | bool | 用户可否调整尺寸；false=固定（min==max） | ✅ | ✅ min==max 锁 | ⬜ WS_THICKFRAME | ⬜ styleMask Resizable |
+| **Maximized** | bool | 初始最大化（新） | ✅ EWMH 初始 | ✅ 首 commit 前 set_maximized | ⬜ SW_MAXIMIZE | ⬜ zoom: |
 | **Visible** | *bool | 初始可见（nil=默认 true；&false=初始隐藏）（新） | ✅ map 控制 | ⛔ 协议无控制→忽略（恒可见） | ⬜ SW_SHOW/SW_HIDE | ⬜ orderFront:/orderOut: |
 
 ### 2.2 窗口门面 `Window`
@@ -87,7 +87,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | Resizable | `SetResizable(r)/IsResizable()` | 运行时切换可调性 | ✅ hints 锁 | ✅ min==max 锁 | ⬜ WS_THICKFRAME | ⬜ styleMask |
 | 装饰 | `SetDecorations(dec) error/IsDecorated()` | 运行时切换装饰 | ✅ _MOTIF_WM_HINTS | ⛔ 创建期 CSD 不可重建 | ⬜ WS_CAPTION 增删 | ⬜ setStyleMask: |
 | 位置 | `Position()/SetPosition(x,y) error` | 客户区左上屏幕坐标（inner 语义） | ✅ | ⛔ | ⬜ GetWindowRect 换算/SetWindowPos | ⬜ frame 换算/setFrameOrigin: |
-| 最小化 | `Minimize()/IsMinimized()` | 图标化 + 查询（Win32/AppKit 真查询；X11 乐观跟踪；**Wayland 协议无 minimized 状态 → 乐观跟踪**） | ✅ XIconifyWindow + 跟踪 | 🔨 set_minimized + 乐观跟踪（S5） | ⬜ ShowWindow(SW_MINIMIZE) | ⬜ miniaturize:/isMiniaturized |
+| 最小化 | `Minimize()/IsMinimized()` | 图标化 + 查询（Win32/AppKit 真查询；X11 乐观跟踪；**Wayland 协议无 minimized 状态 → 乐观跟踪**） | ✅ XIconifyWindow + 跟踪 | ✅ set_minimized + 乐观跟踪（activated 回置） | ⬜ ShowWindow(SW_MINIMIZE) | ⬜ miniaturize:/isMiniaturized |
 | 最大化 | `Maximize()/Unmaximize()/IsMaximized()` | 状态机：请求→configure 回传 | ✅ EWMH | ✅ | ⬜ SW_MAXIMIZE/IsZoomed | ⬜ zoom:/isZoomed |
 | 全屏 | `SetFullscreen(fs)/IsFullscreen()` | 同 | ✅ EWMH | ✅ | ⬜ | ⬜ toggleFullScreen: |
 | 显隐 | `Show()/Hide()/IsVisible()` | 映射/取消映射 | ✅ | ⛔ | ⬜ SW_SHOW/HIDE | ⬜ orderFront:/orderOut: |
@@ -95,8 +95,8 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | 置顶 | `SetAlwaysOnTop(on) error` | 置顶切换 | ✅ EWMH ABOVE | ⛔ | ⬜ HWND_TOPMOST | ⬜ setLevel: NSFloatingWindowLevel |
 | 光标 | `SetCursor(c Cursor)` | 形状切换（9 形状） | ✅ | ✅ | ⬜ | ⬜ |
 | 穿透热区 | `SetIgnoreCursorEvents(ignore) error` | 指针穿透（覆盖层/点击穿透） | ⛔ XShape 未落地 | ✅ set_input_region | ⬜ WS_EX_TRANSPARENT | ⬜ ignoresMouseEvents |
-| 拖拽启动 | `RequestMove() error` | 按当前指针启动窗口拖动（无框窗必需） | ✅ _NET_WM_MOVERESIZE | 🔨 xdg move | ⬜ WM_NCLBUTTONDOWN HTCAPTION | ⬜ performWindowDragWithEvent: |
-| resize 启动 | `RequestResize(edge) error` | 按当前指针启动边缘 resize（无框窗必需） | ✅ _NET_WM_MOVERESIZE | 🔨 xdg resize | ⬜ WM_NCLBUTTONDOWN HT* | ⬜ performWindowDragWithEvent: |
+| 拖拽启动 | `RequestMove() error` | 按当前指针启动窗口拖动（无框窗必需） | ✅ _NET_WM_MOVERESIZE | ✅ xdg move | ⬜ WM_NCLBUTTONDOWN HTCAPTION | ⬜ performWindowDragWithEvent: |
+| resize 启动 | `RequestResize(edge) error` | 按当前指针启动边缘 resize（无框窗必需） | ✅ _NET_WM_MOVERESIZE | ✅ xdg resize | ⬜ WM_NCLBUTTONDOWN HT* | ⬜ performWindowDragWithEvent: |
 
 > `WindowEdge` 枚举（RequestResize 用）：None/Top/Bottom/Left/Right/TopLeft/TopRight/BottomLeft/BottomRight（9 值，对应各平台 resize 方向）。
 
@@ -124,7 +124,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 
 1. **Position = 客户区左上角屏幕坐标**（inner，逻辑像素，Y 向下）。外框位置留给平台扩展接口，禁止各平台习惯漂移。
 2. **SetSize × Resizable 交互**：`SetSize` 在 Wayland 走 min==max 钳位 → 调后窗口锁定不可手动调；解除 = `SetMinSize/SetMaxSize` 放开约束 或 `SetResizable(true)`。X11/Win32/AppKit 上 SetSize 立即生效且不锁定。禁止"只改记忆不锁窗"的假实现。
-3. **查询语义**：后端不能回答的查询返回零值（Wayland `IsVisible()`=false、`Position()` ok=false），零值≠"隐藏/在原点"；状态变化感知一律走事件。
+3. **查询语义**：后端不能回答的查询返回零值（Wayland `Position()` ok=false）；零值≠"隐藏/在原点"；状态变化感知一律走事件。例外：能回答的真实值不降级——Wayland xdg 一旦 mapped 恒可见，`IsVisible()`=true（真值，非零值）；`IsMaximized()/IsFullscreen()/IsFocused()` 以 configure states 回传为准（真值）。
 4. **错误契约**：非 nil error 只有两种含义——协议/API 不支持（`ErrUnsupported`）或原生调用失败；签名无 error 的方法（SetTitle/SetCursor 等）为 best-effort，失败静默记录。
 5. **线程契约**：Controller 方法可跨 goroutine 并发调用（X11 有 XInitThreads；Wayland 走 libwayland proxy 锁），backend 内各自加锁；状态快照不需要与事件流严格同步（异步状态机）。
 
@@ -153,8 +153,8 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
           # 前缀匹配（禁止加 $ 锚点，否则 0 测试假绿）；真窗；无 DISPLAY/WAYLAND_DISPLAY
           # → t.Skipf 带原因；WM 桌面（GNOME 等）→ Hide/UnmapNotify 断言诚实 Skip
           # （Xvfb/裸 X 严格断言）
-   A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPLAY=:1 19 项 PASS）
-         go run ./examples/ui_pf_wayland  # Wayland（wlController 落地前 = SKIP）
+A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPLAY=:1 19 项 PASS）
+          go run ./examples/ui_pf_wayland  # Wayland 全能力真窗（wlController S2 落地后 19 项 PASS）
          go run ./examples/ui_pf_win32    # 非 Windows = SKIP；Windows 上 S5 前 = placeholder
          go run ./examples/ui_pf_appkit   # 非 macOS = SKIP；macOS 上 S5 前 = placeholder
    A′ 层：export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so && \
@@ -173,7 +173,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 |---|---|---|
 | S0 接口定稿 | 四平台统一语义（v2.0 本文件） | ✅ |
 | S1 X11 | x11Controller 全方法 + 事件上报（Move/CloseRequested/Occluded/Enter/Leave）+ Options 全量 + 真窗例程 `ui_pf_x11` + 原生单测 `x11_window_linux_test.go` | ✅ |
-| S2 Wayland | wlController（xdg marshal/光标/热区/RequestMove/RequestResize）+ Options 全量 + 状态字段 + 事件上报（EventCloseRequested/EventFocus/EventOccluded/PointerEnter/Leave）——按 `ENGINE_WAYLAND_WINDOW_STANDARD.md` §2.4/§3.1/§3.2 执行；同步落真窗例程 `ui_pf_wayland` 全能力 + 原生单测 `wayland_window_linux_test.go`（§2.6 三层） | ⬜ |
+| S2 Wayland | wlController（xdg marshal/光标/热区/RequestMove/RequestResize）+ Options 全量 + 状态字段 + 事件上报（EventCloseRequested/EventFocus/EventOccluded/PointerEnter/Leave）——按 `ENGINE_WAYLAND_WINDOW_STANDARD.md` §2.4/§3.1/§3.2 执行；同步落真窗例程 `ui_pf_wayland` 全能力 + 原生单测 `wayland_window_linux_test.go`（§2.6 三层） | ✅ |
 | S3 消费方兼容 + 测试 | embedder/application 兼容 EventCloseRequested；上层抽象测试 `pfkit_test.go`（C 层）落定；单测；回归按文件 | ⬜ |
 | S4 真窗验收 | 用户跑 examples：X11 + Wayland 全能力（§2.6 A 层） | ⬜ |
 | S5 Win32/AppKit | 按 §2.3/§2.4 语义列落地（占位→实现）；同步落 `ui_pf_win32`/`ui_pf_appkit` 真窗例程 + 原生单测（§2.6 三层）；重跑能力矩阵 | ⬜ |
@@ -184,6 +184,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 
 ## 4. 修订
 
+- v2.4（2026-08-12）：**S2 Wayland wlController 落地**——§2.3/§2.1 Wayland 列的 🔨 全部转 ✅：Min/Max/Fullscreen/Cursor/Resizable/Maximized Options 接线（waylandCreate 全量）、Minimize+IsMinimized 乐观跟踪（configure activated 回置）、RequestMove/RequestResize（xdg move/resize，无合法 enter serial 时诚实 ErrUnsupported）、SetIgnoreCursorEvents（wl_region 空 region/NULL 恢复）、SetCursor（wl_cursor_theme 名映射 + enter/motion 持续应用）；configure states 回传对抗乐观：IsMaximized/IsFullscreen/IsFocused 为真值。**§2.5.3 契约修正**：Wayland `IsVisible()` 改为恒 true（xdg 无隐藏态，真值而非零值，与标准文档 §3.2 对齐）；§2.6 A 层 ui_pf_wayland 19 项全 PASS、B 层 TestWaylandRealWindowControls 落地。
 - v2.3（2026-08-12）：**P6 三层验收硬规则**——新增 §2.6 平台验收矩阵：每平台原生实现必须配套 A 真窗例程（`examples/ui_pf_x11/wayland/win32/appkit`，共享驱动）+ A′ 专项真窗例程（IME 专项：`ui_textinput_ime` Wayland zwp_text_input_v3 全链路 / `ui_ime_probe` X11 XIM，GUI 交互式无门禁）+ B 原生单测（build tag，无显示 `t.Skipf` 带原因）+ C 上层抽象测试（`pfkit_test.go`，fake controller + StubHost 恒绿）；§3 各 S 行把三层落地写成阶段验收标准（例程与平台同生，占位期验「明确未实现错误」）。
 - v2.2（2026-08-12）：**Wayland 列诚实化**——审查发现 S1 前 Wayland 若干格假绿：EventCloseRequested/EventFocus/EventOccluded/EventScale 的 Wayland 列改回 🔨（代码仅解析未上报）；IsMinimized 明确「协议无 minimized 状态 → 乐观跟踪」；Options 的 Min/Max/Fullscreen/Cursor/Resizable/Maximized 改 🔨（waylandCreate 仅接 4 参）。联动 `ENGINE_WAYLAND_WINDOW_STANDARD.md` v1.1（S5 对齐）。
 - v2.1（2026-08-12）：**S1 X11 controller 落地**——接口与 v2.0 完全对齐：Options.Maximized/Visible、IsMinimized、RequestMove/RequestResize（WindowEdge）+ _NET_WM_MOVERESIZE、EventOccluded（VisibilityNotify）、PointerEnter/Leave（Enter/LeaveNotify）、EventMove（ConfigureNotify 位置去重）；二维事件掩码补 VisibilityChange/EnterWindow/LeaveWindow；Create/Adopt 均接线 x11Controller；Create 全量应用 Options（Position/Fullscreen/Maximized/Cursor/Decorations/Visible/Resizable/min-max）。

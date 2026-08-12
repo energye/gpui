@@ -104,12 +104,12 @@ state 值：1=maximized 2=fullscreen 3=resizing 4=activated
 |---|---|
 | Width/Height/Title/Backend | ✅ 现有（waylandCreate 已接） |
 | Decorations | ✅ 现有（CSD / 无框） |
-| Min/Max Size | 🔨 set_min/max_size（S2） |
-| Resizable=false | 🔨 min==max 锁（S2） |
+| Min/Max Size | ✅ set_min/max_size（waylandCreate 全量） |
+| Resizable=false | ✅ min==max 锁（waylandCreate + SetResizable） |
 | Position | ⛔ 协议无客户端定位 |
-| Fullscreen | 🔨 创建后 set_fullscreen（S2） |
-| Cursor | 🔨 wl_cursor_theme 初始光标（S2） |
-| Maximized | 🔨 首 commit 前 set_maximized（S2） |
+| Fullscreen | ✅ 创建后 set_fullscreen(NULL→当前输出) |
+| Cursor | ✅ enter 时应用 wl_cursor_theme（win.cursor，9 形状映射） |
+| Maximized | ✅ 首 commit 前 set_maximized |
 | Visible | ⛔ 协议无控制 → 忽略（恒可见） |
 
 ---
@@ -205,7 +205,7 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 | S2 | CSD subsurface + painter（标题栏/边框/按钮/字体） | ✅ 已落地 |
 | S3 | 交互（move/resize 8 向/三按钮/双击最大化/焦点态/光标）| ✅ 已落地 |
 | S4 | 真窗验收（用户跑 ui_textinput_ime）| ✅ 已验收（窗口完整装饰 + 全行为）|
-| S5 | **主文档 S2 对齐**：wlController（Options 全量 §2.4 + IsMinimized/RequestMove/RequestResize）+ 事件上报（§3.1/§3.2 闭环：EventCloseRequested/EventFocus/EventOccluded/PointerEnter/Leave）| ⬜ 代码落地即同步主文档 §3 S2 |
+| S5 | **主文档 S2 对齐**：wlController（Options 全量 §2.4 + IsMinimized/RequestMove/RequestResize）+ 事件上报（§3.1/§3.2 闭环：EventCloseRequested/EventFocus/EventOccluded/PointerEnter/Leave）| ✅ 已落地（main doc S2 ✅；ui_pf_wayland 19 项 PASS + TestWaylandRealWindowControls） |
 
 **回归纪律**：`go test ./ui/platform/` 按文件跑，禁止一次全量；真窗由用户执行。
 
@@ -213,5 +213,6 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 
 ## 8. 修订
 
+- v1.2（2026-08-12）：**S5 落地（主文档 S2 ✅）**——§2.4 Options 表 🔨 全部转 ✅（waylandCreate 全量接线 + SetResizable 锁）；§3.2 状态查询口径实现闭环（IsMinimized 乐观跟踪 + activated 回置、IsVisible 恒 true、configure 真值查询）；§7 S5 ✅。
 - v1.1（2026-08-12）：**对齐主文档 v2.1**——CSD ✕ 动作改 EventCloseRequested（§5）；补 WindowEdge↔xdg resize_edge 映射（§2.2）；补事件上报闭环（§3.1）、状态查询口径（§3.2）、Options 全量接线表（§2.4）；分期补 S5（主文档 S2 对齐）。
 - v1.0（2026-08-12）：从"去边框"方案推翻重写，对齐 sctk/GTK/gogpu 标准 CSD。

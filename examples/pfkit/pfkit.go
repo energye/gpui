@@ -46,11 +46,11 @@ func OpenReal(opts platform.Options, backend platform.DisplayBackend) (*platform
 // ENGINE_WINDOW_API.md §2.5.4 is that non-nil errors are either
 // ErrUnsupported or a native failure; native failures are FAIL.
 //
-// When ctl is nil (backend capability not yet landed, e.g. Wayland before
-// wlController S5), a single SKIP row is reported — never a fake PASS.
+// When ctl is nil (backend capability not yet landed), a single SKIP row is
+// reported — never a fake PASS.
 func Drive(ctl platform.WindowController) []ResultRow {
 	if ctl == nil {
-		return []ResultRow{{Name: "Controller", OK: false, Detail: "SKIP: backend has no WindowController yet (S5)"}}
+		return []ResultRow{{Name: "Controller", OK: false, Detail: "SKIP: backend has no WindowController yet"}}
 	}
 	var rows []ResultRow
 	probe := func(name string, run func() (string, error)) {

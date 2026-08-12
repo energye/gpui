@@ -735,6 +735,11 @@ func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
 	if hit.act == csdActResize {
 		name = cursorNameForEdge(hit.edge)
 	}
+	if name == "" && c.win != nil {
+		// No resize-edge cursor: apply the controller-set active cursor
+		// (SetCursor / Options.Cursor), "" = default.
+		name = cursorThemeName(c.win.activeCursor())
+	}
 	if name == "" {
 		// Restore default cursor: set_cursor(serial, NULL, 0, 0).
 		if c.curName != "" {

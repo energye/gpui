@@ -36,8 +36,8 @@ func main() {
 	ctl := win.Controls()
 	var rows []pfkit.ResultRow
 	if ctl == nil {
-		// Backend capability not landed yet: honest SKIP, not fake PASS.
-		rows = append(rows, pfkit.ResultRow{Name: "Controller", OK: false, Detail: "SKIP: wlController lands in S5"})
+		// Backend capability not landed: honest SKIP, not fake PASS.
+		rows = append(rows, pfkit.ResultRow{Name: "Controller", OK: false, Detail: "SKIP: backend has no WindowController"})
 	} else {
 		rows = pfkit.Drive(ctl)
 	}

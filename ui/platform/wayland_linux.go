@@ -26,11 +26,7 @@ func (b *waylandBackend) Kind() PlatformKind { return PlatformWayland }
 
 // Create opens a Wayland window (xdg_toplevel, optional CSD decorations).
 func (b *waylandBackend) Create(opts Options) (*Window, error) {
-	dec := true // Wayland default: client-side decorations (GNOME has no SSD)
-	if opts.Decorations != nil {
-		dec = *opts.Decorations
-	}
-	return waylandCreate(opts.Width, opts.Height, opts.Title, dec)
+	return waylandCreate(opts)
 }
 
 // Adopt for Wayland requires an existing wl_display* and wl_surface*; the
@@ -46,10 +42,14 @@ func (b *waylandBackend) Adopt(ns NativeSurface) (*Window, error) {
 const (
 	wlRegistryBind            = 0
 	wlCompositorCreateSurface = 0
+	wlCompositorCreateRegion  = 1
 	wlSurfaceDestroy          = 0
 	wlSurfaceAttach           = 1
 	wlSurfaceDamage           = 2
+	wlSurfaceSetInputRegion   = 5
 	wlSurfaceCommit           = 6
+	wlRegionAdd               = 0
+	wlRegionDestroy           = 1
 	xdgWmBaseGetXdgSurface    = 2
 	xdgWmBasePong             = 3
 	xdgSurfaceGetToplevel     = 1
@@ -59,6 +59,15 @@ const (
 	xdgToplevelDestroy        = 0
 	xdgSurfaceDestroy         = 0
 	xdgWmBaseDestroy          = 0
+	// xdg_toplevel state requests (xdg-shell.xml authoritative order):
+	//   set_max_size(7) set_min_size(8) set_maximized(9) unset_maximized(10)
+	//   set_fullscreen(11) unset_fullscreen(12) set_minimized(13)
+	// (set_maximized/unset_maximized/set_minimized are declared in
+	// wayland_csd_linux.go — shared by CSD and the controller.)
+	xdgToplevelSetMaxSize      = 7
+	xdgToplevelSetMinSize      = 8
+	xdgToplevelSetFullscreen   = 11
+	xdgToplevelUnsetFullscreen = 12
 	// zxdg_decoration_manager_v1
 	xdgDecoMgrGetDecoration = 1
 	// zxdg_toplevel_decoration_v1
@@ -124,6 +133,7 @@ type wlLib struct {
 	ifaceSubcompositor uintptr
 	ifaceSubsurface   uintptr
 	ifaceOutput       uintptr // wl_output (xdg_toplevel.set_fullscreen arg)
+	ifaceRegion       uintptr // wl_region (wl_surface.set_input_region)
 }
 
 func loadWayland() (*wlLib, error) {
@@ -167,6 +177,7 @@ func loadWayland() (*wlLib, error) {
 		{"wl_subcompositor_interface", &l.ifaceSubcompositor},
 		{"wl_subsurface_interface", &l.ifaceSubsurface},
 		{"wl_output_interface", &l.ifaceOutput},
+		{"wl_region_interface", &l.ifaceRegion},
 	} {
 		p, err := purego.Dlsym(lib, pair.name)
 		if err != nil || p == 0 {
@@ -404,6 +415,20 @@ type wlWin struct {
 	activated bool // EventFocus dedup
 	suspended bool // EventOccluded dedup
 
+	// ctlMu guards the WindowController-tracked state below. Controller
+	// methods may be called from any goroutine (§2.5.5 thread contract);
+	// wlTopConfigure reconciles the configure-driven fields on the event
+	// thread.
+	ctlMu      sync.Mutex
+	title      string // tracked at Create/SetTitle
+	minW, minH int    // user min constraint (0 = unconstrained)
+	maxW, maxH int    // user max constraint (0 = unconstrained)
+	resizable  bool   // SetResizable flag (false = min==max locked)
+	minimized  bool   // optimistic: set_minimized → true; activated → false
+	maximized  bool   // configure states (true value, not optimistic)
+	fullscreen bool   // configure states (true value, not optimistic)
+	cursor     Cursor // active cursor (applied on pointer enter/motion)
+
 	// focusMu guards focusEvents (focus/occlusion) queued by callbacks on the
 	// event thread and drained by poll.
 	focusMu     sync.Mutex
@@ -443,7 +468,7 @@ var (
 	wlByPtr = map[uintptr]*wlWin{}
 )
 
-func waylandCreate(w, h int, title string, decorated bool) (*Window, error) {
+func waylandCreate(opts Options) (*Window, error) {
 	if !HasWaylandDisplay() {
 		return nil, fmt.Errorf("wayland: WAYLAND_DISPLAY not set")
 	}
@@ -453,12 +478,32 @@ func waylandCreate(w, h int, title string, decorated bool) (*Window, error) {
 	}
 	initXDGInterfaces(lib.ifaceSurface, lib.ifaceSeat, lib.ifaceOutput)
 
-	win := &wlWin{lib: lib, width: w, height: h}
-	if win.width < 1 {
-		win.width = 640
+	w, h := opts.Width, opts.Height
+	if w < 1 {
+		w = 640
 	}
-	if win.height < 1 {
-		win.height = 480
+	if h < 1 {
+		h = 480
+	}
+	title := opts.Title
+	if title == "" {
+		title = "gpui"
+	}
+	decorated := true // Wayland default: client-side decorations (GNOME has no SSD)
+	if opts.Decorations != nil {
+		decorated = *opts.Decorations
+	}
+
+	win := &wlWin{
+		lib:       lib,
+		width:     w,
+		height:    h,
+		title:     title,
+		resizable: true,
+		cursor:    opts.Cursor,
+	}
+	if opts.Maximized {
+		win.maximized = true
 	}
 
 	dpy := lib.displayConnect(nil)
@@ -558,6 +603,14 @@ func waylandCreate(w, h int, title string, decorated bool) (*Window, error) {
 		}
 	}
 
+	// Options.Maximized: set_maximized BEFORE the first commit so the
+	// compositor never shows a non-maximized frame (main doc §2.4: 首 commit
+	// 前 set_maximized; the requested size from the first configure is then
+	// the maximized size, which the CSD ignores when maximized).
+	if win.maximized {
+		lib.proxyMarshalArrayFlags(win.toplevel, xdgToplevelSetMaximized, 0, 0, 0, nil)
+	}
+
 	lib.proxyMarshalArrayFlags(win.surface, wlSurfaceCommit, 0, 0, 0, nil)
 
 	deadline := time.Now().Add(3 * time.Second)
@@ -571,6 +624,29 @@ func waylandCreate(w, h int, title string, decorated bool) (*Window, error) {
 		return nil, fmt.Errorf("wayland: xdg configure timeout")
 	}
 	runtime.KeepAlive(win)
+
+	// Creation-time size constraints (xdg has no creation hints; requests are
+	// applied once the toplevel is configured). 0 = unconstrained (unlimited).
+	win.top2i(xdgToplevelSetMinSize, opts.MinWidth, opts.MinHeight)
+	win.top2i(xdgToplevelSetMaxSize, opts.MaxWidth, opts.MaxHeight)
+	if !opts.Resizable {
+		// Fixed-size window: min==max locks at the initial size (§2.5.2
+		// Wayland clamp contract; unlock via SetMinSize/SetMaxSize/SetResizable).
+		win.ctlMu.Lock()
+		win.resizable = false
+		win.ctlMu.Unlock()
+		win.top2i(xdgToplevelSetMinSize, w, h)
+		win.top2i(xdgToplevelSetMaxSize, w, h)
+	}
+	if opts.Fullscreen {
+		win.ctlMu.Lock()
+		win.fullscreen = true
+		win.ctlMu.Unlock()
+		// set_fullscreen(NULL) → the compositor's current output (§2.4).
+		win.top1o(xdgToplevelSetFullscreen, 0)
+	}
+	// Options.Cursor is applied on the first pointer enter (set_cursor needs
+	// an enter serial; win.cursor already holds the initial value).
 
 	// Client-side decorations (CSD): GNOME provides no server-side chrome, so
 	// draw a title bar + borders via wl_subsurface when requested (default
@@ -611,7 +687,55 @@ func waylandCreate(w, h int, title string, decorated bool) (*Window, error) {
 
 	host := &wlHost{win: win}
 	win.hostRef = host
-	return newWindow(host, PlatformWayland, imeFor(host), nil, nil, host.destroy), nil
+	ctl := &waylandController{h: host}
+	return newWindow(host, PlatformWayland, imeFor(host), nil, ctl, host.destroy), nil
+}
+
+// topNoArg marshals a no-argument xdg_toplevel request and flushes.
+func (w *wlWin) topNoArg(op uint32) {
+	if w == nil || w.lib == nil || w.toplevel == 0 {
+		return
+	}
+	w.lib.proxyMarshalArrayFlags(w.toplevel, op, 0, 0, 0, nil)
+	w.lib.displayFlush(w.display)
+}
+
+// top2i marshals an "ii" xdg_toplevel request (set_min_size/set_max_size; a
+// negative or zero value is sent as-is, 0 = unconstrained per xdg semantics).
+func (w *wlWin) top2i(op uint32, a, b int) {
+	if w == nil || w.lib == nil || w.toplevel == 0 {
+		return
+	}
+	if a < 0 {
+		a = 0
+	}
+	if b < 0 {
+		b = 0
+	}
+	args := []wlArg{argU(uint32(a)), argU(uint32(b))}
+	w.lib.proxyMarshalArrayFlags(w.toplevel, op, 0, 0, 0, &args[0])
+	w.lib.displayFlush(w.display)
+}
+
+// top1o marshals a "?o" xdg_toplevel request (set_fullscreen → wl_output,
+// NULL = current output).
+func (w *wlWin) top1o(op uint32, obj uintptr) {
+	if w == nil || w.lib == nil || w.toplevel == 0 {
+		return
+	}
+	args := []wlArg{argO(obj)}
+	w.lib.proxyMarshalArrayFlags(w.toplevel, op, 0, 0, 0, &args[0])
+	w.lib.displayFlush(w.display)
+}
+
+// activeCursor returns the controller-set cursor ("" free of side effects).
+func (w *wlWin) activeCursor() Cursor {
+	if w == nil {
+		return CursorDefault
+	}
+	w.ctlMu.Lock()
+	defer w.ctlMu.Unlock()
+	return w.cursor
 }
 
 // imeFor returns the IME capability for a wayland host, or nil when the
@@ -785,6 +909,17 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 		w.csd.setFullscreen(states.fullscreen)
 		w.csd.setActivated(states.activated)
 	}
+	// Reconcile configure-driven state with the controller-tracked values
+	// (configure is the true value; controller requests are optimistic until
+	// the compositor confirms). Activated ⇒ the window was just restored from
+	// minimize (protocol has no minimized state → optimistic tracking, §3.2).
+	w.ctlMu.Lock()
+	w.maximized = states.maximized
+	w.fullscreen = states.fullscreen
+	if states.activated {
+		w.minimized = false
+	}
+	w.ctlMu.Unlock()
 	// Report focus + occlusion state changes (values only when changed).
 	if states.activated != w.activated {
 		w.activated = states.activated
