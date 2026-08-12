@@ -175,7 +175,7 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
 | S1 X11 | x11Controller 全方法 + 事件上报（Move/CloseRequested/Occluded/Enter/Leave）+ Options 全量 + 真窗例程 `ui_pf_x11` + 原生单测 `x11_window_linux_test.go` | ✅ |
 | S2 Wayland | wlController（xdg marshal/光标/热区/RequestMove/RequestResize）+ Options 全量 + 状态字段 + 事件上报（EventCloseRequested/EventFocus/EventOccluded/PointerEnter/Leave）——按 `ENGINE_WAYLAND_WINDOW_STANDARD.md` §2.4/§3.1/§3.2 执行；同步落真窗例程 `ui_pf_wayland` 全能力 + 原生单测 `wayland_window_linux_test.go`（§2.6 三层） | ✅ |
 | S3 消费方兼容 + 测试 | embedder/application 兼容 EventCloseRequested；上层抽象测试 `pfkit_test.go`（C 层）落定；单测；回归按文件 | ✅ |
-| S4 真窗验收 | 用户跑 examples：X11 + Wayland 全能力（§2.6 A 层） | ⬜ |
+| S4 真窗验收 | 用户跑 examples：X11 + Wayland 全能力（§2.6 A 层）；真实显示环境跑通——`ui_pf_x11` 19 项全 PASS + `ui_pf_wayland` 19 项全 PASS（含 ⛔ 诚实降级），B 层真窗单测同机全 PASS | ✅ |
 | S5 Win32/AppKit | 按 §2.3/§2.4 语义列落地（占位→实现）；同步落 `ui_pf_win32`/`ui_pf_appkit` 真窗例程 + 原生单测（§2.6 三层）；重跑能力矩阵 | ⬜ |
 
 **落地纪律**：S1–S3 逐行对照 §2.3/§2.4 实现，不跳步；每阶段跑对应单测 + 回归（按文件，禁止一次全量）+ §2.6 三层验收同步落地（例程与平台同生）；S5 落地时四条语义契约（§2.5）逐条核对。
@@ -184,6 +184,7 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
 
 ## 4. 修订
 
+- v2.6（2026-08-13）：**S4 真窗验收完成**——A 层在真实显示环境跑通：`ui_pf_x11` 19 项全 PASS（DISPLAY=:1，IgnoreCursorEvents 按 XShape 未落地 ⛔ 诚实降级）；`ui_pf_wayland` 19 项全 PASS（Position/Show/Hide/Focus/AlwaysOnTop/Decorations 切换/RequestMove/RequestResize 按协议 ⛔ 诚实降级，其余真 PASS）；B 层 `TestX11RealWindow*` 7 例 + `TestWaylandRealWindow*` 3 例同机全 PASS（真窗非 Skip）；C 层 pfkit 6 例恒绿。S3 承上（v2.5）。
 - v2.5（2026-08-12）：**S3 消费方兼容落定**——§2.4 消费方兼容约定落地：新增 `embedder.EventQuits(ev)`（EventCloseRequested 与 EventClose 同等退出主循环，单一判定点），embedder `app.go` 与 `pipeline_app.go` 两处主循环、application 主窗 quit（`embedder.EventQuits(ev) && w.main`）统一调用；`ui/input.FromPlatform` 把 EventCloseRequested 归为 KindClose；单测 `TestEventQuits`（embedder）+ fromplatform 生命周期加 EventCloseRequested→KindClose 断言；回归按文件全绿。
 - v2.4（2026-08-12）：**S2 Wayland wlController 落地**——§2.3/§2.1 Wayland 列的 🔨 全部转 ✅：Min/Max/Fullscreen/Cursor/Resizable/Maximized Options 接线（waylandCreate 全量）、Minimize+IsMinimized 乐观跟踪（configure activated 回置）、RequestMove/RequestResize（xdg move/resize，无合法 enter serial 时诚实 ErrUnsupported）、SetIgnoreCursorEvents（wl_region 空 region/NULL 恢复）、SetCursor（wl_cursor_theme 名映射 + enter/motion 持续应用）；configure states 回传对抗乐观：IsMaximized/IsFullscreen/IsFocused 为真值。**§2.5.3 契约修正**：Wayland `IsVisible()` 改为恒 true（xdg 无隐藏态，真值而非零值，与标准文档 §3.2 对齐）；§2.6 A 层 ui_pf_wayland 19 项全 PASS、B 层 TestWaylandRealWindowControls 落地。
 - v2.3（2026-08-12）：**P6 三层验收硬规则**——新增 §2.6 平台验收矩阵：每平台原生实现必须配套 A 真窗例程（`examples/ui_pf_x11/wayland/win32/appkit`，共享驱动）+ A′ 专项真窗例程（IME 专项：`ui_textinput_ime` Wayland zwp_text_input_v3 全链路 / `ui_ime_probe` X11 XIM，GUI 交互式无门禁）+ B 原生单测（build tag，无显示 `t.Skipf` 带原因）+ C 上层抽象测试（`pfkit_test.go`，fake controller + StubHost 恒绿）；§3 各 S 行把三层落地写成阶段验收标准（例程与平台同生，占位期验「明确未实现错误」）。
