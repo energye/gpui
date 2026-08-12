@@ -576,6 +576,105 @@ func TestOutlineCacheKey_Uniqueness(t *testing.T) {
 	}
 }
 
+// --- P8 复核收口：分片层上限 / 统计诚实 / GetOrCreate 淘汰 / 分片无退化 ---
+// 内存语义：entries map 总容量 = Σ 各 shard maxEntries（≈ MaxEntries，分片
+// 均摊向上取整），O(MaxEntries) 有界，不随文本/字形数增长；LRU 淘汰在
+// Set/GetOrCreate 内按分片触发，Maintain 按帧淘汰。
+
+// TestGlyphCache_ShardCapacity 验证容量淘汰的分片层硬上限：每个 shard 的
+// 条目数 ≤ shard.maxEntries，灌入 200× 容量后总条目仍受各片上限之和约束。
+func TestGlyphCache_ShardCapacity(t *testing.T) {
+	const maxEntries = 64
+	cache := NewGlyphCacheWithConfig(GlyphCacheConfig{MaxEntries: maxEntries, FrameLifetime: 64})
+	entriesPerShard := (maxEntries + numShards - 1) / numShards
+
+	const n = maxEntries * 200
+	for i := 0; i < n; i++ {
+		key := OutlineCacheKey{FontID: uint64(i%7) + 1, GID: GlyphID(i % 1000), Size: int16(i % 5)}
+		cache.Set(key, &GlyphOutline{GID: GlyphID(i)})
+	}
+
+	for i := 0; i < numShards; i++ {
+		s := cache.shards[i]
+		s.mu.RLock()
+		got, max := s.count, s.maxEntries
+		s.mu.RUnlock()
+		if got > max {
+			t.Errorf("shard %d count=%d exceeds maxEntries=%d", i, got, max)
+		}
+	}
+
+	if want := entriesPerShard * numShards; cache.Len() > want {
+		t.Errorf("Len=%d exceeds total capacity %d", cache.Len(), want)
+	}
+
+	_, _, evictions, _ := cache.Stats()
+	if evictions == 0 {
+		t.Error("expected capacity evictions after overfilling")
+	}
+}
+
+// TestGlyphCache_EvictionStatsMatch 验证淘汰统计诚实：单线程下（无 Delete/
+// Clear）Len == insertions − evictions，即淘汰计数与真实移除一一对应。
+func TestGlyphCache_EvictionStatsMatch(t *testing.T) {
+	cache := NewGlyphCacheWithConfig(GlyphCacheConfig{MaxEntries: 128, FrameLifetime: 64})
+
+	const n = 5000
+	for i := 0; i < n; i++ {
+		key := OutlineCacheKey{FontID: uint64(i%11) + 1, GID: GlyphID(i)}
+		cache.Set(key, &GlyphOutline{GID: GlyphID(i)})
+	}
+
+	_, _, evictions, insertions := cache.Stats()
+	if evictions == 0 {
+		t.Error("expected evictions")
+	}
+	if got := cache.Len(); got != int(insertions-evictions) {
+		t.Errorf("Len=%d, insertions-evictions=%d (stats not honest)", got, insertions-evictions)
+	}
+}
+
+// TestGlyphCache_GetOrCreate_Eviction 验证 GetOrCreate 路径同样走容量淘汰。
+func TestGlyphCache_GetOrCreate_Eviction(t *testing.T) {
+	cache := NewGlyphCacheWithConfig(GlyphCacheConfig{MaxEntries: 32, FrameLifetime: 64})
+
+	for i := 0; i < 500; i++ {
+		key := OutlineCacheKey{FontID: 1, GID: GlyphID(i), Size: 16}
+		cache.GetOrCreate(key, func() *GlyphOutline { return &GlyphOutline{GID: GlyphID(i)} })
+	}
+
+	if got := cache.Len(); got > 32 {
+		t.Errorf("Len=%d exceeds MaxEntries after GetOrCreate overfill", got)
+	}
+	_, _, evictions, _ := cache.Stats()
+	if evictions == 0 {
+		t.Error("expected evictions from GetOrCreate path")
+	}
+}
+
+// TestGlyphCache_AllShardsUsed 验证分片无退化：确定性构造（font 1..64 ×
+// 固定 gid/size，getShard 的哈希对 font 取模 16 遍历全部分片）下 16 片全用。
+func TestGlyphCache_AllShardsUsed(t *testing.T) {
+	cache := NewGlyphCache()
+	for font := uint64(1); font <= 64; font++ {
+		key := OutlineCacheKey{FontID: font, GID: 0, Size: 0, Hinting: HintingNone}
+		cache.Set(key, &GlyphOutline{GID: 0})
+	}
+
+	used := 0
+	for i := 0; i < numShards; i++ {
+		s := cache.shards[i]
+		s.mu.RLock()
+		if s.count > 0 {
+			used++
+		}
+		s.mu.RUnlock()
+	}
+	if used != numShards {
+		t.Errorf("used %d/%d shards — distribution degenerate", used, numShards)
+	}
+}
+
 // Benchmarks
 
 func BenchmarkGlyphCache_Get_Hit(b *testing.B) {

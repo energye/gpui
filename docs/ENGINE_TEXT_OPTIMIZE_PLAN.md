@@ -14,6 +14,13 @@
 | P5 MultiFace/FilteredFace 逐字绘制 | ✅ 像素探针（见下） | ✅ 改按 FaceRun 连续 run 合并绘制 + 竖排修正 | ✅ Draw 路径 8 文件全绿 |
 | P6 ownParsedFont 懒解析模式 | ✅ 静态确认（13 个 sync.Once + 哨兵字段） | ✅ 泛型 lazySlot[T] 收敛 + typed 值结构 | ✅ 摘要探针前后一致 + 24 窗 PASS |
 | P7 逐字 string(r) 分配 | ✅ 探针实测（MultiFace.Advance 64→0 allocs） | ✅ glyphForRune 免分配单字 + MultiFace iterGlyphs 收敛 | ✅ 摘要探针前后一致 + 17 窗 PASS |
+| P8 glyph_cache 上限复核 | ✅ 静态确认（淘汰已实现） | ✅ 补 4 个显式测试收口（分片上限/统计诚实/GetOrCreate/无退化） | ✅ glyph_cache 全窗 30 测试 PASS |
+
+> **本轮收口（2026-08-12）**：P1–P8 全部完成。正确性：P1 竖排斜移（drawGlyphs +
+> MultiFace 两处）+ P5 逐字光栅/线性扫 + P5 附带竖排 MultiFace 斜移；内存：
+> P2/P3 两处无上限缓存 + P6 懒解析收敛；性能：P5 run 合并、P7 逐字分配清零；
+> 可读性：P4/P6/P7 三处重复收敛。每项均以「修改前后行为等价」证据收口
+> （像素/摘要探针 + 对应测试窗回归），全程未改公共 API 语义。
 
 ## 其它候选问题
 
@@ -120,10 +127,22 @@
   MultiFace/FilteredFace/TTB，重构前后 sha256 一致 `143b7d6f...0fa`）+ 17 窗
   PASS=17 FAIL=0。
 
-### P8. glyph_cache.go / cache.go 上限复核（验证项，暂未动）
-- GlyphCache（4096 默认、分片）+ Cache[K,V] 的 evict 逻辑均已有实现与测试
-  （TestGlyphCache_LRUEviction / TestCacheLRUEviction / TestCacheLRUAccessUpdate），
-  复核结论：容量淘汰真实生效。可选补一个显式占用/上限内存测试收口（待确认）。
+### P8. glyph_cache.go 上限复核（验证项 ✅ 已收口，2026-08-12）
+- 复核结论：GlyphCache（默认 4096、16 分片）的容量淘汰真实生效——`Set`/
+  `GetOrCreate` 在分片满时 LRU 淘汰 tail，`Maintain` 按 FrameLifetime 帧淘汰；
+  `Cache[K,V]`（cache.go）同有 evict。**上限语义**：每片 ≤ shard.maxEntries
+  （= ceil(MaxEntries/16)），总条目 ≤ Σ 各片上限（MaxEntries 非 16 倍数时
+  可有向上取整 slack，如 MaxEntries=33 → 最多 48）——分片均摊的设计取舍，
+  非泄漏；旧测试用 32（整除）恰好掩盖此语义。
+- 收口（新增 4 个显式测试，glyph_cache_test.go，非临时探针）：
+  - `TestGlyphCache_ShardCapacity`：分片层硬上限 + 灌 200× 容量后总条目受各片
+    上限之和约束 + Evictions>0；
+  - `TestGlyphCache_EvictionStatsMatch`：单线程无 Delete/Clear 时
+    Len == insertions − evictions（淘汰计数诚实）；
+  - `TestGlyphCache_GetOrCreate_Eviction`：GetOrCreate 路径同走容量淘汰；
+  - `TestGlyphCache_AllShardsUsed`：确定性构造下 16 片全用（无退化）。
+- 内存语义记录：entries map 总容量 O(MaxEntries) 有界，不随文本/字形数增长。
+- 回归：glyph_cache_test.go 全窗（30 测试）PASS。
 
 ## 二、验证计划（每项如何证明「真实存在」）
 
