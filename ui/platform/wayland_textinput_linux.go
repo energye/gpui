@@ -73,7 +73,7 @@ var tiNames = struct {
 	mSetSurr, mSetCause, mSetContent, mSetRect, mCommit []byte
 	eEnter, eLeave, ePreedit, eCommitStr, eDeleteSurr, eDone []byte
 	sEmpty, sN, sO, sS, sU, sI []byte
-	sNo, sSui, sSuu, sIiii, sUu []byte
+	sNo, sPreedit, sSurr, sIiii, sUu []byte
 }{
 	mgr:     append([]byte("zwp_text_input_manager_v3"), 0),
 	ti:      append([]byte("zwp_text_input_v3"), 0),
@@ -99,8 +99,8 @@ var tiNames = struct {
 	sU:       append([]byte("u"), 0),
 	sI:       append([]byte("i"), 0),
 	sNo:      append([]byte("no"), 0),
-	sSui:     append([]byte("sui"), 0),
-	sSuu:     append([]byte("suu"), 0),
+	sPreedit: append([]byte("sii"), 0), // preedit_string: text,s cursor_begin,int cursor_end,int
+	sSurr:    append([]byte("sii"), 0), // set_surrounding_text: text,s cursor,int anchor,int
 	sIiii:    append([]byte("iiii"), 0),
 	sUu:      append([]byte("uu"), 0),
 }
@@ -133,7 +133,7 @@ func initTIInterfaces(ifaceSurface, ifaceSeat uintptr) {
 	msgTi[tiDestroy] = wlMessageC{Name: cstr(tiNames.mDestroy), Signature: cstr(tiNames.sEmpty), Types: 0}
 	msgTi[tiEnable] = wlMessageC{Name: cstr(tiNames.mEnable), Signature: cstr(tiNames.sO), Types: uintptr(unsafe.Pointer(&typesTiSurf[0]))}
 	msgTi[tiDisable] = wlMessageC{Name: cstr(tiNames.mDisable), Signature: cstr(tiNames.sO), Types: uintptr(unsafe.Pointer(&typesTiSurf[0]))}
-	msgTi[tiSetSurroundingText] = wlMessageC{Name: cstr(tiNames.mSetSurr), Signature: cstr(tiNames.sSuu), Types: 0}
+	msgTi[tiSetSurroundingText] = wlMessageC{Name: cstr(tiNames.mSetSurr), Signature: cstr(tiNames.sSurr), Types: 0}
 	msgTi[tiSetTextChangeCause] = wlMessageC{Name: cstr(tiNames.mSetCause), Signature: cstr(tiNames.sU), Types: 0}
 	msgTi[tiSetContentType] = wlMessageC{Name: cstr(tiNames.mSetContent), Signature: cstr(tiNames.sUu), Types: 0}
 	msgTi[tiSetCursorRectangle] = wlMessageC{Name: cstr(tiNames.mSetRect), Signature: cstr(tiNames.sIiii), Types: 0}
@@ -142,7 +142,7 @@ func initTIInterfaces(ifaceSurface, ifaceSeat uintptr) {
 	// zwp_text_input_v3 events.
 	msgTiEv[tiEvEnter] = wlMessageC{Name: cstr(tiNames.eEnter), Signature: cstr(tiNames.sO), Types: uintptr(unsafe.Pointer(&typesTiSurf[0]))}
 	msgTiEv[tiEvLeave] = wlMessageC{Name: cstr(tiNames.eLeave), Signature: cstr(tiNames.sEmpty), Types: 0}
-	msgTiEv[tiEvPreeditString] = wlMessageC{Name: cstr(tiNames.ePreedit), Signature: cstr(tiNames.sSui), Types: 0}
+	msgTiEv[tiEvPreeditString] = wlMessageC{Name: cstr(tiNames.ePreedit), Signature: cstr(tiNames.sPreedit), Types: 0}
 	msgTiEv[tiEvCommitString] = wlMessageC{Name: cstr(tiNames.eCommitStr), Signature: cstr(tiNames.sS), Types: 0}
 	msgTiEv[tiEvDeleteSurrounding] = wlMessageC{Name: cstr(tiNames.eDeleteSurr), Signature: cstr(tiNames.sUu), Types: 0}
 	msgTiEv[tiEvDone] = wlMessageC{Name: cstr(tiNames.eDone), Signature: cstr(tiNames.sU), Types: 0}
@@ -257,7 +257,8 @@ func (im *wlIme) SetComposing(text string, cursor int) {
 		return
 	}
 	tb := append([]byte(text), 0)
-	args := []wlArg{argS(cstr(tb)), argU(uint32(cursor)), argU(uint32(cursor))}
+	// cursor/anchor are int32 in the protocol ("sii").
+	args := []wlArg{argS(cstr(tb)), argU(uint32(int32(cursor))), argU(uint32(int32(cursor)))}
 	lib.proxyMarshalArrayFlags(ti, tiSetSurroundingText, 0, 0, 0, &args[0])
 	lib.proxyMarshalArrayFlags(ti, tiCommit, 0, 0, 0, nil)
 	lib.displayFlush(im.h.win.display)
