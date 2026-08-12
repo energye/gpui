@@ -202,9 +202,20 @@ func main() {
 		win.Host().NativeSurface().Display, win.Host().NativeSurface().Window)
 
 	// Drain events; a real composition would surface as EventIME here.
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		evs := win.Host().WaitEvents(200 * time.Millisecond)
+	// Stay open until the window is closed (or Ctrl+C) so REAL keyboard
+	// input can be exercised — synthetic XTest events are unreliable on
+	// XWayland, and a timed probe exits before a human can type.
+	fmt.Fprintf(os.Stderr, "probe: live — use your REAL keyboard.\n")
+	switch backend {
+	case platform.DisplayX11:
+		fmt.Fprintf(os.Stderr, "probe:   x11: type text; switch IME (e.g. Ctrl+Space) and type\n")
+		fmt.Fprintf(os.Stderr, "probe:   pinyin — committed text arrives as IME kind=1.\n")
+	case platform.DisplayWayland:
+		fmt.Fprintf(os.Stderr, "probe:   wayland: same — committed pre-edit arrives as IME kind=1.\n")
+	}
+	fmt.Fprintf(os.Stderr, "probe: Close the window or Ctrl+C to exit.\n")
+	for {
+		evs := win.Host().WaitEvents(500 * time.Millisecond)
 		for _, ev := range evs {
 			switch ev.Type {
 			case platform.EventIME:
@@ -221,7 +232,6 @@ func main() {
 			}
 		}
 	}
-	fmt.Fprintf(os.Stderr, "probe: done (no protocol error)\n")
 }
 
 func envOn(k string) string {
