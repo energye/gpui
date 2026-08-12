@@ -308,9 +308,10 @@ type wlWin struct {
 	decoTop           uintptr
 	tiMgrName         uint32 // zwp_text_input_manager_v3 global name (0 = absent)
 	seatName          uint32 // wl_seat global name (0 = absent)
-	seat              uintptr // bound wl_seat proxy
-	seatListener      [2]uintptr // capabilities(0) name(1)
-	seatCaps          uint32 // last seat capabilities bitmask (0/1/2 = ptr/kbd/touch)
+	seat              uintptr // bound wl_seat proxy (via seatState)
+	seatState         *wlSeatState
+	// hostRef is set by waylandCreate so seat callbacks can wake the loop.
+	hostRef *wlHost
 
 	width, height int
 	configured    bool
@@ -477,38 +478,29 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 	}
 	runtime.KeepAlive(win)
 
-	// Standard Wayland input: bind wl_seat unconditionally (keyboard + pointer
-	// are the base input channel; IME rides on keyboard focus).
-	// ⚠️ Each binding is an independent opt-in so a crash can be bisected:
-	//   GPUI_WL_KEYBOARD=1  GPIO_WL_POINTER=1  GPUI_WL_TEXTINPUT=1
-	// All are OFF by default (proven-stable window+render path).
-	if win.seatName != 0 && (os.Getenv("GPUI_WL_KEYBOARD") == "1" || os.Getenv("GPUI_WL_POINTER") == "1" || os.Getenv("GPUI_WL_TEXTINPUT") == "1") {
-		win.seat = win.bind(win.registry, win.seatName, lib.ifaceSeat, 1)
-		// Seat listener (2 events: capabilities, name) — required so the seat
-		// proxy can dispatch; without it events accumulate and capabilities
-		// (keyboard/pointer/touch availability) are never observed.
-		win.seatListener[0] = purego.NewCallback(wlSeatCapabilitiesCB)
-		win.seatListener[1] = purego.NewCallback(wlSeatNameCB)
-		if lib.proxyAddListener(win.seat, uintptr(unsafe.Pointer(&win.seatListener[0])), win.selfPtr) != 0 {
-			lib.proxyDestroy(win.seat)
-			win.seat = 0
+	// Standard Wayland input bootstrap: bind wl_seat and WAIT for the
+	// capabilities event before requesting keyboard/pointer. Requesting them
+	// before capabilities has been observed to crash GNOME 42.9's input JS
+	// layer (gjs signal 11 during dispatch), so ALL seat-derived objects
+	// (keyboard, pointer, text-input) are deferred until the seat callback
+	// fires (see wlSeatFlushPending).
+	// Each binding is an independent opt-in (all OFF by default):
+	//   GPUI_WL_KEYBOARD=1  GPUI_WL_POINTER=1  GPUI_WL_TEXTINPUT=1
+	seatEnabled := os.Getenv("GPUI_WL_KEYBOARD") == "1" ||
+		os.Getenv("GPUI_WL_POINTER") == "1" ||
+		os.Getenv("GPUI_WL_TEXTINPUT") == "1"
+	if win.seatName != 0 && seatEnabled {
+		win.seatState = win.bindSeat()
+		if win.seatState != nil {
+			win.seat = win.seatState.seat
+			win.seatState.pendingKeys = os.Getenv("GPUI_WL_KEYBOARD") == "1"
+			win.seatState.pendingPtrs = os.Getenv("GPUI_WL_POINTER") == "1"
+			win.seatState.pendingTI = os.Getenv("GPUI_WL_TEXTINPUT") == "1"
 		}
-	}
-	// Keyboard (wl_keyboard + xkb) — standard, drives plain text + IME focus.
-	if win.seat != 0 && lib.ifaceKeyboard != 0 && os.Getenv("GPUI_WL_KEYBOARD") == "1" {
-		win.kbd = win.bindKeyboard()
-	}
-	// Pointer (wl_pointer) — standard mouse events.
-	if win.seat != 0 && lib.ifacePointer != 0 && os.Getenv("GPUI_WL_POINTER") == "1" {
-		win.ptr = win.bindPointer()
-	}
-	// Optional IME capability: zwp_text_input_v3 when advertised.
-	if win.seat != 0 && win.tiMgrName != 0 && os.Getenv("GPUI_WL_TEXTINPUT") == "1" {
-		initTIInterfaces(lib.ifaceSurface, lib.ifaceSeat)
-		win.ti = win.bindTextInput()
 	}
 
 	host := &wlHost{win: win}
+	win.hostRef = host
 	return newWindow(host, PlatformWayland, imeFor(host), nil, host.destroy), nil
 }
 
@@ -555,8 +547,9 @@ func (w *wlWin) destroyNative() {
 		w.ptr.destroy()
 		w.ptr = nil
 	}
-	if w.seat != 0 {
-		lib.proxyDestroy(w.seat)
+	if w.seatState != nil {
+		w.seatState.destroy()
+		w.seatState = nil
 		w.seat = 0
 	}
 	if w.decoTop != 0 {
@@ -637,20 +630,6 @@ func wlRegistryGlobal(data, registry, name, iface, version uintptr) {
 
 func wlRegistryGlobalRemove(data, registry, name uintptr) {}
 
-// wlSeatCapabilitiesCB handles seat.capabilities(caps): bit 0 = pointer,
-// bit 1 = keyboard, bit 2 = touch. Recorded for diagnostics; the keyboard/
-// pointer proxies are bound unconditionally when the interfaces exist.
-func wlSeatCapabilitiesCB(data, seat, caps uintptr) {
-	w := winFrom(data)
-	if w == nil {
-		return
-	}
-	w.seatCaps = uint32(caps)
-}
-
-// wlSeatNameCB handles seat.name(name) (v2+); informational.
-func wlSeatNameCB(data, seat, name uintptr) {}
-
 func wlWmPing(data, wmBase, serial uintptr) {
 	w := winFrom(data)
 	if w == nil || w.lib == nil {
@@ -726,6 +705,17 @@ type wlHost struct {
 	wake  chan struct{}
 	mu    sync.Mutex
 	scale float64
+}
+
+// hostForWake returns the event-pump host for this window (nil until
+// waylandCreate installs it). Seat callbacks created by waylandCreate can
+// only fire from a later dispatch, by which time hostRef is set, so the nil
+// case is defensive only.
+func (w *wlWin) hostForWake() *wlHost {
+	if w == nil {
+		return nil
+	}
+	return w.hostRef
 }
 
 func (h *wlHost) destroy() {
