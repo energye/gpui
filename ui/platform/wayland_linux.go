@@ -479,23 +479,22 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 	runtime.KeepAlive(win)
 
 	// Standard Wayland input bootstrap: bind wl_seat and WAIT for the
-	// capabilities event before requesting keyboard/pointer. Requesting them
-	// before capabilities has been observed to crash GNOME 42.9's input JS
-	// layer (gjs signal 11 during dispatch), so ALL seat-derived objects
-	// (keyboard, pointer, text-input) are deferred until the seat callback
-	// fires (see wlSeatFlushPending).
-	// Each binding is an independent opt-in (all OFF by default):
-	//   GPUI_WL_KEYBOARD=1  GPUI_WL_POINTER=1  GPUI_WL_TEXTINPUT=1
-	seatEnabled := os.Getenv("GPUI_WL_KEYBOARD") == "1" ||
-		os.Getenv("GPUI_WL_POINTER") == "1" ||
-		os.Getenv("GPUI_WL_TEXTINPUT") == "1"
+	// capabilities event before requesting keyboard/pointer. ALL seat-derived
+	// objects (keyboard, pointer, text-input) are created only after the seat
+	// callback fires (wlSeatFlushPending) — this is the normal client order.
+	//
+	// Input is ON by default (standard Wayland client behavior; matches GTK/
+	// Chromium). To opt out of one or all bindings set the flag to "0":
+	//   GPUI_WL_KEYBOARD=0  GPUI_WL_POINTER=0  GPUI_WL_TEXTINPUT=0
+	// or disable everything with GPUI_WL_NO_INPUT=1.
+	seatEnabled := os.Getenv("GPUI_WL_NO_INPUT") != "1"
 	if win.seatName != 0 && seatEnabled {
 		win.seatState = win.bindSeat()
 		if win.seatState != nil {
 			win.seat = win.seatState.seat
-			win.seatState.pendingKeys = os.Getenv("GPUI_WL_KEYBOARD") == "1"
-			win.seatState.pendingPtrs = os.Getenv("GPUI_WL_POINTER") == "1"
-			win.seatState.pendingTI = os.Getenv("GPUI_WL_TEXTINPUT") == "1"
+			win.seatState.pendingKeys = os.Getenv("GPUI_WL_KEYBOARD") != "0"
+			win.seatState.pendingPtrs = os.Getenv("GPUI_WL_POINTER") != "0"
+			win.seatState.pendingTI = os.Getenv("GPUI_WL_TEXTINPUT") != "0"
 			// Dispatch until seat.capabilities arrives so the deferred device
 			// creation (wlSeatFlushPending) runs BEFORE the window is returned:
 			// the IME capability (win.ti) must already exist when imeFor() is
