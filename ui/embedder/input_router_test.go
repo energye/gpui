@@ -205,3 +205,42 @@ func TestRouterIMEWithoutEditorStillCallsOnIME(t *testing.T) {
 		t.Fatalf("OnIME not called: %v", imeGot.Load())
 	}
 }
+
+func TestRouterPlainKeyTypesIntoEditor(t *testing.T) {
+	// A printable key press without modifiers commits text into the focused
+	// editor (plain keyboard path, plan §4).
+	ed := textinput.New()
+	r := NewInputRouter(nil, nil)
+	r.TextEditor = ed
+	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyA, Rune: 'a', Pressed: true}})
+	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyB, Rune: 'b', Pressed: true}})
+	if ed.Text() != "ab" {
+		t.Fatalf("editor text = %q, want ab", ed.Text())
+	}
+}
+
+func TestRouterControlKeyNotTyped(t *testing.T) {
+	// Editing/control keys must NOT be inserted as text.
+	ed := textinput.New()
+	r := NewInputRouter(nil, nil)
+	r.TextEditor = ed
+	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyBackspace, Rune: 0, Pressed: true}})
+	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyArrowRight, Rune: 0, Pressed: true}})
+	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyEnter, Rune: '\n', Pressed: true}})
+	if ed.Text() != "" {
+		t.Fatalf("editor text = %q, want empty", ed.Text())
+	}
+}
+
+func TestRouterKeyDuringComposeNotDoubleInserted(t *testing.T) {
+	// While an IME composition is active, raw keys must not double-insert
+	// into the editor (the IME pre-edit owns them).
+	ed := textinput.New()
+	r := NewInputRouter(nil, nil)
+	r.TextEditor = ed
+	ed.BeginCompose("ni") // IME composing
+	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyN, Rune: 'n', Pressed: true}})
+	if ed.Text() != "ni" {
+		t.Fatalf("editor text = %q, want ni (no double insert)", ed.Text())
+	}
+}

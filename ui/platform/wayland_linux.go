@@ -103,6 +103,7 @@ type wlLib struct {
 	ifaceSurface    uintptr
 	ifaceRegistry   uintptr
 	ifaceSeat       uintptr
+	ifaceKeyboard   uintptr
 }
 
 func loadWayland() (*wlLib, error) {
@@ -134,6 +135,7 @@ func loadWayland() (*wlLib, error) {
 		{"wl_surface_interface", &l.ifaceSurface},
 		{"wl_registry_interface", &l.ifaceRegistry},
 		{"wl_seat_interface", &l.ifaceSeat},
+		{"wl_keyboard_interface", &l.ifaceKeyboard},
 	} {
 		p, err := purego.Dlsym(lib, pair.name)
 		if err != nil || p == 0 {
@@ -312,9 +314,14 @@ type wlWin struct {
 
 	// text-input (IME) optional capability.
 	ti *wlTIState
+	// keyboard (wl_keyboard + xkb) optional capability.
+	kbd *wlKeyboardState
 	// imeMu guards the pending IME event queue drained by poll.
 	imeMu     sync.Mutex
 	imeEvents []Event
+	// keyMu guards the pending key event queue drained by poll.
+	keyMu     sync.Mutex
+	keyEvents []Event
 
 	regListener [2]uintptr
 	wmListener  [1]uintptr
@@ -471,6 +478,10 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 			win.seat = 0
 		}
 	}
+	// Keyboard (wl_keyboard + xkb) — drives plain text and IME focus.
+	if win.seat != 0 && lib.ifaceKeyboard != 0 {
+		win.kbd = win.bindKeyboard()
+	}
 
 	host := &wlHost{win: win}
 	return newWindow(host, PlatformWayland, imeFor(host), nil, host.destroy), nil
@@ -510,6 +521,10 @@ func (w *wlWin) destroyNative() {
 	if w.ti != nil {
 		w.ti.destroy()
 		w.ti = nil
+	}
+	if w.kbd != nil {
+		w.kbd.destroy()
+		w.kbd = nil
 	}
 	if w.seat != 0 {
 		lib.proxyDestroy(w.seat)
@@ -762,6 +777,13 @@ func (h *wlHost) poll() []Event {
 		w.imeEvents = nil
 	}
 	w.imeMu.Unlock()
+	// Key events queued by the wl_keyboard callback.
+	w.keyMu.Lock()
+	if len(w.keyEvents) > 0 {
+		out = append(out, w.keyEvents...)
+		w.keyEvents = nil
+	}
+	w.keyMu.Unlock()
 	return out
 }
 

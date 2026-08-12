@@ -294,6 +294,16 @@ func (w *wlWin) pushIME(ev Event) {
 	w.imeMu.Unlock()
 }
 
+// pushKey queues a keyboard event for the next poll (thread-safe).
+func (w *wlWin) pushKey(ev Event) {
+	if w == nil {
+		return
+	}
+	w.keyMu.Lock()
+	w.keyEvents = append(w.keyEvents, ev)
+	w.keyMu.Unlock()
+}
+
 // --- event callbacks → platform.Event queue ---
 
 // tiFrom maps the callback userdata (*wlTIState) back to the host.

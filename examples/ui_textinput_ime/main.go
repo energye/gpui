@@ -100,15 +100,20 @@ func (b *inputBox) OnIME(ev input.IMEEvent) {}
 func main() {
 	const winW, winH = 900, 300
 	ed := textinput.New()
+	logf("stage=init")
 
 	// Route normalized text/IME into the focused editor automatically.
 	router := embedder.NewInputRouter(nil, nil)
 	router.TextEditor = ed
+	// Auto-enable IME when the editor is focused (demo: immediately).
+	router.OnIME = func(ev input.IMEEvent) { logf("ime-event kind=%d text=%q", ev.Kind, ev.Text) }
+	router.OnText = func(ev input.TextEvent) { logf("text-event %q", ev.Text) }
 
 	app := application.New(application.Config{
 		Name:    "ui_textinput_ime",
 		Backend: platform.DisplayWayland,
 	})
+	logf("stage=app-created")
 	win, err := app.NewWindow(application.WindowOptions{
 		Width: winW, Height: winH, Title: "gpui textinput + IME (zwp_text_input_v3)",
 	})
@@ -116,6 +121,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)
 	}
+	logf("stage=window-created kind=%s", win.Platform().Kind())
 	win.SetInput(router)
 
 	box := newInputBox(ed)
@@ -133,9 +139,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "root:", err)
 		os.Exit(1)
 	}
+	logf("stage=root-set")
 
 	// Auto-focus the editor so IME is enabled immediately (demonstration).
-	router.TextEditor = ed
+	if p := win.Platform(); p != nil && p.IME() != nil {
+		p.IME().EnableIME(platform.Rect{X: 40, Y: 60, W: 600, H: 48})
+		logf("stage=ime-enabled")
+	} else {
+		logf("stage=ime-unavailable")
+	}
 
 	t0 := time.Now()
 	if err := app.Run(); err != nil {
@@ -162,4 +174,8 @@ func main() {
 		fmt.Println(string(b))
 	}
 	fmt.Fprintf(os.Stderr, "ui_textinput_ime: ime=%s text=%q compose=%v\n", ime, ed.Text(), ed.ComposeActive())
+}
+
+func logf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "[ime-demo] "+format+"\n", args...)
 }

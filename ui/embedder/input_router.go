@@ -152,6 +152,27 @@ func (r *InputRouter) routePointer(ev input.Event) {
 
 func (r *InputRouter) routeKey(ev input.Event) {
 	ke := ev.Key
+	// Printable character without a modifier (or with shift) → committed
+	// text into the focused editor (plain keyboard path; IME compose goes
+	// through KindText/KindIME separately). Control keys (Backspace/arrows)
+	// are handled by the editor's OnKey consumer instead.
+	if ke.Pressed && r.TextEditor != nil && ke.Rune != 0 && ke.Rune != '\r' && ke.Rune != '\n' {
+		switch ke.Key {
+		case input.KeyBackspace, input.KeyDelete,
+			input.KeyArrowLeft, input.KeyArrowRight,
+			input.KeyArrowUp, input.KeyArrowDown,
+			input.KeyHome, input.KeyEnd,
+			input.KeyPageUp, input.KeyPageDown,
+			input.KeyEnter, input.KeyTab, input.KeyEscape:
+			// editing/control keys: leave to OnKey/focus
+		default:
+			// When an IME composition is active the raw keys feed the
+			// pre-edit (handled by the IME); do not double-insert.
+			if !r.mods.Control && !r.mods.Alt && !r.mods.Meta && !r.TextEditor.ComposeActive() {
+				r.TextEditor.Insert(string(ke.Rune))
+			}
+		}
+	}
 	// OnKey receives the event-time modifier state (ev.Key.Mods), which does
 	// not include the modifier key itself if it is the key being pressed.
 	if r.OnKey != nil {
