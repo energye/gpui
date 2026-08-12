@@ -226,8 +226,22 @@ func wlKbKeymapCB(data, kbd, format, fd, size uintptr) {
 	}
 }
 
-func wlKbEnterCB(data, kbd, serial, surface, keys uintptr) {}
-func wlKbLeaveCB(data, kbd, serial, surface uintptr)       {}
+// wlKbEnterCB: keyboard focus entered our surface. Per zwp_text_input_v3
+// (mutter 42.9 meta-wayland-text-input.c commit_state), the compositor only
+// activates the input method when a commit arrives while text_input->surface
+// is set — i.e. AFTER the keyboard focus reached the surface. An enable+commit
+// sent earlier (e.g. at window creation, before focus) is dropped because
+// surface==NULL. So re-send the text-input state on every keyboard focus-in
+// (GTK/Flutter do the same: IM context refresh on focus-in).
+func wlKbEnterCB(data, kbd, serial, surface, keys uintptr) {
+	st := kbFrom(data)
+	if st == nil || st.win == nil {
+		return
+	}
+	st.win.refreshTextInput()
+}
+
+func wlKbLeaveCB(data, kbd, serial, surface uintptr) {}
 
 // wlKbKeyCB handles key(serial, time, keycode, state): translates the
 // Wayland keycode into a keysym + utf8 via xkb and pushes a platform key

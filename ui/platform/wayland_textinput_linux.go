@@ -296,6 +296,27 @@ func (w *wlWin) pushIME(ev Event) {
 	w.imeMu.Unlock()
 }
 
+// refreshTextInput re-sends the text-input state (enable + content type +
+// commit) so the compositor activates the input method NOW that the surface
+// holds keyboard focus. mutter 42.9 drops a commit received while
+// text_input->surface is NULL (before focus); re-committing on keyboard
+// enter is the GTK/Flutter focus-in refresh pattern.
+func (w *wlWin) refreshTextInput() {
+	if w == nil || w.ti == nil || w.ti.ti == 0 || w.surface == 0 || w.lib == nil {
+		return
+	}
+	lib, ti := w.ti.lib, w.ti.ti
+	// enable(surface)
+	args := []wlArg{argO(w.surface)}
+	lib.proxyMarshalArrayFlags(ti, tiEnable, 0, 0, 0, &args[0])
+	// set_content_type(hint, purpose)
+	ct := []wlArg{argU(tiHintNone), argU(tiPurposeNormal)}
+	lib.proxyMarshalArrayFlags(ti, tiSetContentType, 0, 0, 0, &ct[0])
+	// commit — only now does mutter run commit_state with surface set.
+	lib.proxyMarshalArrayFlags(ti, tiCommit, 0, 0, 0, nil)
+	lib.displayFlush(w.display)
+}
+
 // pushKey queues a keyboard event for the next poll (thread-safe).
 func (w *wlWin) pushKey(ev Event) {
 	if w == nil {
@@ -316,21 +337,26 @@ func tiFrom(data uintptr) *wlTIState {
 	return (*wlTIState)(unsafe.Pointer(data))
 }
 
+// wlTiEnter: enter(surface) — the text-input is now active on this surface
+// (compositor granted IME focus). No pre-edit content yet; the editor's
+// compose session starts on the first preedit_string event. Do NOT push a
+// fake compose event here — an empty compose would begin (and could end) a
+// pre-edit session with no real text.
 func wlTiEnter(data, ti, surface uintptr) {
 	st := tiFrom(data)
 	if st == nil || st.win == nil {
 		return
 	}
-	st.win.pushIME(Event{Type: EventIME, IMEKind: 0, IMEText: ""})
 }
 
-func wlTiLeave(data, ti uintptr) {
+// wlTiLeave: leave(surface) — IME focus left this surface; cancel any active
+// composition. Also do not fabricate events; the editor cancels on its own
+// commit/delete lifecycle, and an empty compose event would corrupt it.
+func wlTiLeave(data, ti, surface uintptr) {
 	st := tiFrom(data)
 	if st == nil || st.win == nil {
 		return
 	}
-	// Leave: cancel any active composition.
-	st.win.pushIME(Event{Type: EventIME, IMEKind: 0, IMEText: ""})
 }
 
 // wlTiPreedit handles preedit_string(text, commit, index).
