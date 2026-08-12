@@ -73,7 +73,7 @@ var tiNames = struct {
 	mSetSurr, mSetCause, mSetContent, mSetRect, mCommit []byte
 	eEnter, eLeave, ePreedit, eCommitStr, eDeleteSurr, eDone []byte
 	sEmpty, sN, sO, sS, sU, sI []byte
-	sNo, sPreedit, sSurr, sIiii, sUu []byte
+	sNo, sPreedit, sCommit, sSurr, sIiii, sUu []byte
 }{
 	mgr:     append([]byte("zwp_text_input_manager_v3"), 0),
 	ti:      append([]byte("zwp_text_input_v3"), 0),
@@ -99,8 +99,14 @@ var tiNames = struct {
 	sU:       append([]byte("u"), 0),
 	sI:       append([]byte("i"), 0),
 	sNo:      append([]byte("no"), 0),
-	sPreedit: append([]byte("sii"), 0), // preedit_string: text,s cursor_begin,int cursor_end,int
-	sSurr:    append([]byte("sii"), 0), // set_surrounding_text: text,s cursor,int anchor,int
+	// preedit_string/commit_string text is allow-null in the protocol:
+	// compositors send NULL to clear the pre-edit. libwayland signature
+	// uses "?" for nullable — without it the event is dropped with
+	// "NULL string received on non-nullable type" and the editor's
+	// compose state never clears.
+	sPreedit: append([]byte("?sii"), 0), // preedit_string: text,?s cursor_begin,int cursor_end,int
+	sCommit:  append([]byte("?s"), 0),   // commit_string: text,?s
+	sSurr:    append([]byte("sii"), 0),  // set_surrounding_text: text,s cursor,int anchor,int
 	sIiii:    append([]byte("iiii"), 0),
 	sUu:      append([]byte("uu"), 0),
 }
@@ -144,7 +150,7 @@ func initTIInterfaces(ifaceSurface, ifaceSeat uintptr) {
 	// leave carries a wl_surface arg per protocol ("o"), same as enter.
 	msgTiEv[tiEvLeave] = wlMessageC{Name: cstr(tiNames.eLeave), Signature: cstr(tiNames.sO), Types: uintptr(unsafe.Pointer(&typesTiSurf[0]))}
 	msgTiEv[tiEvPreeditString] = wlMessageC{Name: cstr(tiNames.ePreedit), Signature: cstr(tiNames.sPreedit), Types: 0}
-	msgTiEv[tiEvCommitString] = wlMessageC{Name: cstr(tiNames.eCommitStr), Signature: cstr(tiNames.sS), Types: 0}
+	msgTiEv[tiEvCommitString] = wlMessageC{Name: cstr(tiNames.eCommitStr), Signature: cstr(tiNames.sCommit), Types: 0}
 	msgTiEv[tiEvDeleteSurrounding] = wlMessageC{Name: cstr(tiNames.eDeleteSurr), Signature: cstr(tiNames.sUu), Types: 0}
 	msgTiEv[tiEvDone] = wlMessageC{Name: cstr(tiNames.eDone), Signature: cstr(tiNames.sU), Types: 0}
 
