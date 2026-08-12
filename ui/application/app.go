@@ -55,6 +55,9 @@ type Config struct {
 type WindowOptions struct {
 	Width, Height int
 	Title         string
+	// Decorations controls window chrome (title bar + frame). Nil = default
+	// true (Wayland CSD / X11 WM frame). Pass &false for frameless.
+	Decorations *bool
 }
 
 // App is the multi-window application shell.
@@ -111,10 +114,11 @@ func (a *App) NewWindow(opts WindowOptions) (*Window, error) {
 		plat = platform.WrapHost(h)
 	} else {
 		p, err := platform.Open(platform.Options{
-			Width:   opts.Width,
-			Height:  opts.Height,
-			Title:   opts.Title,
-			Backend: a.cfg.Backend,
+			Width:       opts.Width,
+			Height:      opts.Height,
+			Title:       opts.Title,
+			Backend:     a.cfg.Backend,
+			Decorations: opts.Decorations,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("application: open window: %w", err)

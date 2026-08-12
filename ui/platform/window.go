@@ -13,6 +13,12 @@ type Options struct {
 	Title string
 	// Backend selects the display backend. DisplayAuto uses detection.
 	Backend DisplayBackend
+	// Decorations controls window chrome (title bar + frame).
+	//   - X11: the window manager always draws the frame; has no effect.
+	//   - Wayland: GNOME provides NO server-side decorations, so when enabled
+	//     we draw a client-side title bar + borders (CSD) via wl_subsurface.
+	//   - nil = true (default): frameless apps pass &false.
+	Decorations *bool
 }
 
 // Window is the unified L0 platform window: native handles, the event pump

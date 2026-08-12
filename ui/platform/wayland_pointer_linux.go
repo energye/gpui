@@ -53,6 +53,11 @@ type wlPointerState struct {
 
 	listener [9]uintptr
 	selfPtr  uintptr
+	// surface tracks the wl_surface under the pointer (set on enter, cleared
+	// on leave) so CSD title-bar / close-button interaction can be routed.
+	surface uintptr
+	// lastX/lastY: last surface-local pointer position (for CSD hit-testing).
+	lastX, lastY float64
 }
 
 // bindPointer creates a wl_pointer from the seat and adds the listener.
@@ -109,7 +114,11 @@ func wlFixedToDouble(f uintptr) float64 {
 }
 
 func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
-	// Mouse entered the surface; nothing to do (surface known implicitly).
+	st := ptrFrom(data)
+	if st == nil || st.win == nil {
+		return
+	}
+	st.surface = surface
 }
 
 func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
@@ -117,6 +126,7 @@ func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
 	if st == nil || st.win == nil {
 		return
 	}
+	st.surface = 0
 }
 
 // wlPtrMotionCB: motion(time, surface_x, surface_y). Surface-local logical px.
@@ -125,6 +135,8 @@ func wlPtrMotionCB(data, ptr, time, sx, sy uintptr) {
 	if st == nil || st.win == nil {
 		return
 	}
+	st.lastX = wlFixedToDouble(sx)
+	st.lastY = wlFixedToDouble(sy)
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
 		Pointer: PointerMove,
@@ -149,6 +161,18 @@ func wlPtrButtonCB(data, ptr, serial, time, button, state uintptr) {
 	// activates reliably.
 	if state&0xff == 1 {
 		st.win.refreshTextInput()
+		// CSD interaction: left-button press over the title bar.
+		if btn := int(button); btn == 0x110 { // BTN_LEFT
+			if c := st.win.csd; c != nil && c.pointerInTitleBar(st.surface) {
+				if titleBarHitClose(st.lastX, c.top.w) {
+					// Close button → request window close.
+					c.closeRequested = true
+				} else {
+					// Title bar drag → xdg_toplevel.move(seat, serial).
+					c.requestMove(st.win.seat, serial)
+				}
+			}
+		}
 	}
 	btn := int(button)
 	// Map evdev button codes → 1/2/3 like platform convention.

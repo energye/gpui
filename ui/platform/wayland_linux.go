@@ -24,9 +24,13 @@ func init() { Register(PlatformWayland, &waylandBackend{}) }
 
 func (b *waylandBackend) Kind() PlatformKind { return PlatformWayland }
 
-// Create opens a Wayland window (xdg_toplevel, optional SSD decorations).
+// Create opens a Wayland window (xdg_toplevel, optional CSD decorations).
 func (b *waylandBackend) Create(opts Options) (*Window, error) {
-	return waylandCreate(opts.Width, opts.Height, opts.Title)
+	dec := true // Wayland default: client-side decorations (GNOME has no SSD)
+	if opts.Decorations != nil {
+		dec = *opts.Decorations
+	}
+	return waylandCreate(opts.Width, opts.Height, opts.Title, dec)
 }
 
 // Adopt for Wayland requires an existing wl_display* and wl_surface*; the
@@ -43,6 +47,8 @@ const (
 	wlRegistryBind            = 0
 	wlCompositorCreateSurface = 0
 	wlSurfaceDestroy          = 0
+	wlSurfaceAttach           = 1
+	wlSurfaceDamage           = 2
 	wlSurfaceCommit           = 6
 	xdgWmBaseGetXdgSurface    = 2
 	xdgWmBasePong             = 3
@@ -111,6 +117,12 @@ type wlLib struct {
 	ifaceSeat       uintptr
 	ifaceKeyboard   uintptr
 	ifacePointer    uintptr
+	// CSD (client-side decorations) interfaces.
+	ifaceShm          uintptr
+	ifaceShmPool      uintptr
+	ifaceBuffer       uintptr
+	ifaceSubcompositor uintptr
+	ifaceSubsurface   uintptr
 }
 
 func loadWayland() (*wlLib, error) {
@@ -148,6 +160,11 @@ func loadWayland() (*wlLib, error) {
 		{"wl_seat_interface", &l.ifaceSeat},
 		{"wl_keyboard_interface", &l.ifaceKeyboard},
 		{"wl_pointer_interface", &l.ifacePointer},
+		{"wl_shm_interface", &l.ifaceShm},
+		{"wl_shm_pool_interface", &l.ifaceShmPool},
+		{"wl_buffer_interface", &l.ifaceBuffer},
+		{"wl_subcompositor_interface", &l.ifaceSubcompositor},
+		{"wl_subsurface_interface", &l.ifaceSubsurface},
 	} {
 		p, err := purego.Dlsym(lib, pair.name)
 		if err != nil || p == 0 {
@@ -317,6 +334,8 @@ type wlWin struct {
 	decoTop           uintptr
 	tiMgrName         uint32 // zwp_text_input_manager_v3 global name (0 = absent)
 	seatName          uint32 // wl_seat global name (0 = absent)
+	shmName           uint32 // wl_shm global name (0 = absent)
+	subcompName       uint32 // wl_subcompositor global name (0 = absent)
 	seat              uintptr // bound wl_seat proxy (via seatState)
 	seatState         *wlSeatState
 	// hostRef is set by waylandCreate so seat callbacks can wake the loop.
@@ -333,6 +352,9 @@ type wlWin struct {
 	kbd *wlKeyboardState
 	// pointer (wl_pointer) standard mouse input.
 	ptr *wlPointerState
+	// csd holds client-side decorations (title bar + borders), nil when
+	// frameless or the compositor lacks wl_shm/wl_subcompositor.
+	csd *wlCSD
 	// imeMu guards the pending IME event queue drained by poll.
 	imeMu     sync.Mutex
 	imeEvents []Event
@@ -358,7 +380,7 @@ var (
 	wlByPtr = map[uintptr]*wlWin{}
 )
 
-func waylandCreate(w, h int, title string) (*Window, error) {
+func waylandCreate(w, h int, title string, decorated bool) (*Window, error) {
 	if !HasWaylandDisplay() {
 		return nil, fmt.Errorf("wayland: WAYLAND_DISPLAY not set")
 	}
@@ -487,6 +509,13 @@ func waylandCreate(w, h int, title string) (*Window, error) {
 	}
 	runtime.KeepAlive(win)
 
+	// Client-side decorations (CSD): GNOME provides no server-side chrome, so
+	// draw a title bar + borders via wl_subsurface when requested (default
+	// true). Silent degrade if the compositor lacks wl_shm/wl_subcompositor.
+	if decorated {
+		win.csd = win.initCSD(title)
+	}
+
 	// Standard Wayland input bootstrap: bind wl_seat and WAIT for the
 	// capabilities event before requesting keyboard/pointer. ALL seat-derived
 	// objects (keyboard, pointer, text-input) are created only after the seat
@@ -565,6 +594,10 @@ func (w *wlWin) destroyNative() {
 		w.ptr.destroy()
 		w.ptr = nil
 	}
+	if w.csd != nil {
+		w.csd.destroy()
+		w.csd = nil
+	}
 	if w.seatState != nil {
 		w.seatState.destroy()
 		w.seatState = nil
@@ -642,6 +675,10 @@ func wlRegistryGlobal(data, registry, name, iface, version uintptr) {
 		w.tiMgrName = n
 	case "wl_seat":
 		w.seatName = n
+	case "wl_shm":
+		w.shmName = n
+	case "wl_subcompositor":
+		w.subcompName = n
 	}
 	_ = registry
 }
@@ -930,6 +967,10 @@ func (h *wlHost) poll() []Event {
 	w.lib.displayFlush(w.display)
 	var out []Event
 	if w.closed {
+		out = append(out, Event{Type: EventClose})
+	}
+	if w.csd != nil && w.csd.closeRequested {
+		w.csd.closeRequested = false
 		out = append(out, Event{Type: EventClose})
 	}
 	if w.resized {
