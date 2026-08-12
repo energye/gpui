@@ -135,6 +135,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | 层 | 形态 | 位置 | 验证什么 | 何时绿 |
 |---|---|---|---|---|
 | A 真窗例程 | 独立命令，开原生窗口跑全能力驱动 + 事件泵观察 + JSON 门禁 | `examples/ui_pf_x11` · `ui_pf_wayland` · `ui_pf_win32` · `ui_pf_appkit` | 统一 API 在该平台能真实驱动原生窗口的每一项能力 | 该平台 S 阶段落地时（win32/appkit 占位期只验「明确未实现错误」，S5 后同一例程自动转全能力） |
+| A′ 专项真窗例程 | 能力专项真窗（非全能力驱动）：IME 管线、输入法等 | `examples/ui_textinput_ime`（Wayland zwp_text_input_v3 全链路：platform.Event → InputRouter → Editor + 预编辑显示）· `examples/ui_ime_probe`（X11 XIM 探针） | 专项能力的端到端真实行为（IME compose/commit/caret 只可能在真窗+真输入法下验证） | 与对应能力 S 阶段同生；无输入法/无法交互时人工验收（GUI 演示，不出 JSON 门禁） |
 | B 原生单测 | 平台包内 build-tag 测试，直接断言原生行为（真假/去重/错误码） | `ui/platform/x11_window_linux_test.go` · `wayland_window_linux_test.go`（win32/appkit 随后端落地同步落，形态对齐 x11） | 每能力断言 + 事件流断言（EventCloseRequested≠EventClose、Focus/Occluded/Resize 到达等） | 有显示环境则必跑；无环境 `t.Skipf` 带原因（禁止静默假绿） |
 | C 上层抽象测试 | 无 GPU 窗口：fake controller + `StubHost` 驱动同一共享驱动 | `examples/pfkit/pfkit_test.go` | 驱动确定性——调用序列/计数固定、ErrUnsupported 容忍为 ⛔、其他错误标 FAIL、Report 计数 | 恒绿（CI 无显示也跑） |
 
@@ -156,7 +157,11 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
          go run ./examples/ui_pf_wayland  # Wayland（wlController 落地前 = SKIP）
          go run ./examples/ui_pf_win32    # 非 Windows = SKIP；Windows 上 S5 前 = placeholder
          go run ./examples/ui_pf_appkit   # 非 macOS = SKIP；macOS 上 S5 前 = placeholder
+   A′ 层：export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so && \
+           GPUI_DISPLAY=wayland go run ./examples/ui_textinput_ime   # IME 真窗（stage=ime-enabled）
+           GPUI_DISPLAY=x11     go run ./examples/ui_ime_probe      # XIM 探针
    ```
+   A′ 层为 GUI 交互式（人打字/Ibus 验证），无 JSON 门禁；启动到 `stage=ime-enabled` 即接线完整。
 
    P6 相关改动只跑这三层（平台其余测试/渲染层不在范围内）；完整平台回归（ui/platform 全部文件）留到各 S 阶段验收按文件跑。
 
@@ -179,7 +184,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 
 ## 4. 修订
 
-- v2.3（2026-08-12）：**P6 三层验收硬规则**——新增 §2.6 平台验收矩阵：每平台原生实现必须配套 A 真窗例程（`examples/ui_pf_x11/wayland/win32/appkit`，共享驱动）+ B 原生单测（build tag，无显示 `t.Skipf` 带原因）+ C 上层抽象测试（`pfkit_test.go`，fake controller + StubHost 恒绿）；§3 各 S 行把三层落地写成阶段验收标准（例程与平台同生，占位期验「明确未实现错误」）。
+- v2.3（2026-08-12）：**P6 三层验收硬规则**——新增 §2.6 平台验收矩阵：每平台原生实现必须配套 A 真窗例程（`examples/ui_pf_x11/wayland/win32/appkit`，共享驱动）+ A′ 专项真窗例程（IME 专项：`ui_textinput_ime` Wayland zwp_text_input_v3 全链路 / `ui_ime_probe` X11 XIM，GUI 交互式无门禁）+ B 原生单测（build tag，无显示 `t.Skipf` 带原因）+ C 上层抽象测试（`pfkit_test.go`，fake controller + StubHost 恒绿）；§3 各 S 行把三层落地写成阶段验收标准（例程与平台同生，占位期验「明确未实现错误」）。
 - v2.2（2026-08-12）：**Wayland 列诚实化**——审查发现 S1 前 Wayland 若干格假绿：EventCloseRequested/EventFocus/EventOccluded/EventScale 的 Wayland 列改回 🔨（代码仅解析未上报）；IsMinimized 明确「协议无 minimized 状态 → 乐观跟踪」；Options 的 Min/Max/Fullscreen/Cursor/Resizable/Maximized 改 🔨（waylandCreate 仅接 4 参）。联动 `ENGINE_WAYLAND_WINDOW_STANDARD.md` v1.1（S5 对齐）。
 - v2.1（2026-08-12）：**S1 X11 controller 落地**——接口与 v2.0 完全对齐：Options.Maximized/Visible、IsMinimized、RequestMove/RequestResize（WindowEdge）+ _NET_WM_MOVERESIZE、EventOccluded（VisibilityNotify）、PointerEnter/Leave（Enter/LeaveNotify）、EventMove（ConfigureNotify 位置去重）；二维事件掩码补 VisibilityChange/EnterWindow/LeaveWindow；Create/Adopt 均接线 x11Controller；Create 全量应用 Options（Position/Fullscreen/Maximized/Cursor/Decorations/Visible/Resizable/min-max）。
 - v2.0（2026-08-12）：**口径重写为四平台统一语义**——接口形状由四平台能共同表达的最高语义决定（P5）；删除旧版 Linux 主导表述与冗余章节；Options 增 Maximized/Visible；Controller 增 IsMinimized/RequestMove/RequestResize（WindowEdge）；事件增 EventScale/EventOccluded/PointerEnter/Leave；§2.3/§2.4 每行都给四平台实现列（Win32/AppKit 为占位语义，落地时不改接口）。
