@@ -208,10 +208,15 @@ func main() {
 	fmt.Fprintf(os.Stderr, "probe: live — use your REAL keyboard.\n")
 	switch backend {
 	case platform.DisplayX11:
-		fmt.Fprintf(os.Stderr, "probe:   x11: type text; switch IME (e.g. Ctrl+Space) and type\n")
-		fmt.Fprintf(os.Stderr, "probe:   pinyin — committed text arrives as IME kind=1.\n")
+		fmt.Fprintf(os.Stderr, "probe:   x11: 1) CLICK this window first (real keyboard\n")
+		fmt.Fprintf(os.Stderr, "probe:   focus is owned by GNOME, XSetInputFocus alone\n")
+		fmt.Fprintf(os.Stderr, "probe:   is not enough under Wayland/XWayland).\n")
+		fmt.Fprintf(os.Stderr, "probe:   2) type plain letters -> expect KEY lines.\n")
+		fmt.Fprintf(os.Stderr, "probe:   3) switch IME (Ctrl+Space) and type pinyin,\n")
+		fmt.Fprintf(os.Stderr, "probe:   press space/select -> expect IME kind=1 commit.\n")
 	case platform.DisplayWayland:
-		fmt.Fprintf(os.Stderr, "probe:   wayland: same — committed pre-edit arrives as IME kind=1.\n")
+		fmt.Fprintf(os.Stderr, "probe:   wayland: click the window, type text — KEY lines;\n")
+		fmt.Fprintf(os.Stderr, "probe:   switch IME and type pinyin — IME kind=1 commit.\n")
 	}
 	fmt.Fprintf(os.Stderr, "probe: Close the window or Ctrl+C to exit.\n")
 	for {
