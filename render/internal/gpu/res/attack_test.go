@@ -129,6 +129,52 @@ func TestCache_InvalidateThenAcquire(t *testing.T) {
 	c.Release(r2)
 }
 
+// ResolveStatistics: §6.2 gate — deferred resolution must count hits and
+// misses so the frame can assert ResolveMiss == 0 under resize.
+func TestRegistry_ResolveStatsCountsHitsAndMisses(t *testing.T) {
+	reg := NewRegistry()
+	h, m := reg.ResolveStats()
+	if h != 0 || m != 0 {
+		t.Fatalf("fresh registry must report 0/0, got %d/%d", h, m)
+	}
+
+	key := SourceKey{Kind: KindTextureView, Role: RoleSessionResolve}
+	ref := reg.Register(&fakeNative{tag: 1})
+	reg.Bind(key, ref)
+
+	r1, ok := reg.Resolve(key)
+	if !ok {
+		t.Fatal("resolve must succeed after bind")
+	}
+	reg.Release(r1)
+	h, m = reg.ResolveStats()
+	if h != 1 || m != 0 {
+		t.Fatalf("expected 1 hit 0 miss, got %d/%d", h, m)
+	}
+
+	// Miss: unresolvable key → miss counter increments.
+	if _, ok := reg.Resolve(SourceKey{Kind: KindTextureView, Role: RoleAtlasPage, Index: 9}); ok {
+		t.Fatal("unbound role must not resolve")
+	}
+	h, m = reg.ResolveStats()
+	if h != 1 || m != 1 {
+		t.Fatalf("expected 1 hit 1 miss, got %d/%d", h, m)
+	}
+
+	// Miss: retired bound instance (rebuild replaced it mid-flush).
+	ref2 := reg.Register(&fakeNative{tag: 2})
+	reg.Bind(key, ref2) // ref retired
+	if _, ok := reg.Resolve(key); !ok {
+		t.Fatal("resolving the new bound instance must succeed")
+	}
+	h, m = reg.ResolveStats()
+	if h != 2 {
+		t.Fatalf("expected 2 hits, got %d", h)
+	}
+	reg.Release(ref)
+	reg.Release(ref2)
+}
+
 func TestCache_ReleaseUnknownRefNoPanic(t *testing.T) {
 	reg := NewRegistry()
 	c := NewCache(reg, func(k CacheKey) (Native, error) { return &fakeNative{}, nil }, 0)

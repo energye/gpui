@@ -37,10 +37,18 @@ func (r Ref) IsNil() bool { return r.reg == nil || r.id == 0 }
 // never reused (uint64 semantics with uint32, no ABA problem). Actual native
 // destruction is deferred until refs==0 && inflight==0 && retire, mirroring
 // Skia command-buffer refs.
+//
+// Resolve hit/miss counters (§6.2): every deferred resolution increments one
+// side — a miss means a command referenced a role whose current active
+// instance was unavailable (rebuilt mid-flush / device loss). The frame gate
+// is ResolveMiss == 0 under resize storms.
 type Registry struct {
 	slots  map[uint32]*slot
 	nextID uint32
 	roles  map[roleKey]uint32 // role → current active instance id
+
+	resolveHits   uint64
+	resolveMisses uint64
 }
 
 // NewRegistry creates an empty registry.
@@ -125,6 +133,7 @@ func (r *Registry) Bind(key SourceKey, ref Ref) {
 // Resolve returns the current active instance for a role key, incrementing
 // its refcount (caller must Release the returned Ref). Resolution happens at
 // flush time; the resolved instance is by construction the current one.
+// Each call increments the hit or miss counter (§6.2 diagnostics).
 func (r *Registry) Resolve(key SourceKey) (Ref, bool) {
 	if r == nil {
 		return Ref{}, false
@@ -132,19 +141,33 @@ func (r *Registry) Resolve(key SourceKey) (Ref, bool) {
 	k := roleKey{kind: key.Kind, role: key.Role, idx: key.Index}
 	id, ok := r.roles[k]
 	if !ok || id == 0 {
+		r.resolveMisses++
 		return Ref{}, false
 	}
 	s, ok := r.slots[id]
 	if !ok {
+		r.resolveMisses++
 		return Ref{}, false
 	}
 	// A bound instance must not be retired-while-bound: Bind retires the
 	// predecessor, and Resolve runs before any rebuild in the same flush.
 	if s.retire {
+		r.resolveMisses++
 		return Ref{}, false
 	}
 	s.refs++
+	r.resolveHits++
 	return Ref{reg: r, id: id}, true
+}
+
+// ResolveStats returns the deferred-resolution hit/miss counters (§6.2).
+// The frame gate is: ResolveMiss must stay 0 under resize — a miss means a
+// command resolved to a role whose active instance was unavailable.
+func (r *Registry) ResolveStats() (hits, misses uint64) {
+	if r == nil {
+		return 0, 0
+	}
+	return r.resolveHits, r.resolveMisses
 }
 
 // markInflight adjusts the in-flight counter of an entry. Used by Submission.

@@ -679,6 +679,15 @@ func (s *GPURenderSession) Reg() *res.Registry {
 	return s.resReg
 }
 
+// ResolveStats returns the registry's deferred-resolution hit/miss counters
+// (§6.2 frame gate: ResolveMiss must stay 0 under resize).
+func (s *GPURenderSession) ResolveStats() (hits, misses uint64) {
+	if s == nil || s.resReg == nil {
+		return 0, 0
+	}
+	return s.resReg.ResolveStats()
+}
+
 // ResolveCommandView resolves a command View to its concrete texture view at
 // flush time (P3, GrSurfaceProxy instantiation timing):
 //   - deferred SourceKey → current active instance for the role (retry after
