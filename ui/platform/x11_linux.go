@@ -363,7 +363,7 @@ func x11Create(opts Options) (*Window, error) {
 		title:     title,
 		decorated: opts.Decorations == nil || *opts.Decorations,
 		resizable: opts.Resizable,
-		visible:   opts.Visible,
+		visible:   opts.Visible == nil || *opts.Visible,
 	}
 	// Resolve EWMH atoms once; the controller and event pump share them.
 	st.resolveAtoms(dpy)
@@ -404,13 +404,14 @@ func x11Create(opts Options) (*Window, error) {
 	if opts.Decorations != nil && !*opts.Decorations {
 		ctl.SetDecorations(false)
 	}
-	if opts.Visible {
+	visible := opts.Visible == nil || *opts.Visible
+	if visible {
 		xMapWindow(dpy, win)
 	} else {
 		ctl.Hide() // created mapped by default; unmap for Visible=false
 	}
 	xFlush(dpy)
-	st.visible = opts.Visible
+	st.visible = visible
 	st.resizable = opts.Resizable
 
 	return newWindow(host, PlatformX11, imeForX11(host), nil, ctl, host.destroy), nil

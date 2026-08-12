@@ -38,10 +38,11 @@ type Options struct {
 	// _NET_WM_STATE_MAXIMIZED; Wayland set_maximized before first commit;
 	// Win32 SW_MAXIMIZE; AppKit zoom:).
 	Maximized bool
-	// Visible requests the window start visible (default true).
-	// X11: map control; Wayland: protocol has no control → ignored;
-	// Win32 SW_SHOW/SW_HIDE; AppKit orderFront:/orderOut:.
-	Visible bool
+	// Visible controls the initial window visibility.
+	// nil = true (default, visible on open).
+	//   - X11: map control; Wayland: protocol has no control → ignored;
+	//   - Win32 SW_SHOW/SW_HIDE; AppKit orderFront:/orderOut:.
+	Visible *bool
 }
 
 // Point is a window position in logical pixels (X11 screen coords).

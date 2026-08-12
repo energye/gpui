@@ -131,6 +131,13 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 		hit := c.onHover(st.surface, st.lastX, st.lastY)
 		c.setCursor(serial, hit)
 	}
+	// Report enter to the upper layer (hover decision) alongside CSD use.
+	st.win.pushPtr(Event{
+		Type:    EventPointer,
+		Pointer: PointerEnter,
+		X:       st.lastX,
+		Y:       st.lastY,
+	})
 }
 
 func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
@@ -144,6 +151,8 @@ func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
 		c.setCursor(serial, csdHit{})
 	}
 	st.surface = 0
+	// Report leave to the upper layer (hover decision) alongside CSD use.
+	st.win.pushPtr(Event{Type: EventPointer, Pointer: PointerLeave})
 }
 
 // wlPtrMotionCB: motion(time, surface_x, surface_y). Surface-local logical px.

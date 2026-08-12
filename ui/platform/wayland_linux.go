@@ -397,7 +397,17 @@ type wlWin struct {
 	width, height int
 	configured    bool
 	closed        bool
+	closeReq      bool // xdg close / CSD ✕ request (→ EventCloseRequested)
 	resized       bool
+
+	// Async window state (configure-driven).
+	activated bool // EventFocus dedup
+	suspended bool // EventOccluded dedup
+
+	// focusMu guards focusEvents (focus/occlusion) queued by callbacks on the
+	// event thread and drained by poll.
+	focusMu     sync.Mutex
+	focusEvents []Event
 
 	// text-input (IME) optional capability.
 	ti *wlTIState
@@ -760,7 +770,7 @@ func wlXdgConfigure(data, xdgSurf, serial uintptr) {
 	}
 }
 
-func wlTopConfigure(data, toplevel, width, height, states uintptr) {
+func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	w := winFrom(data)
 	if w == nil {
 		return
@@ -769,11 +779,20 @@ func wlTopConfigure(data, toplevel, width, height, states uintptr) {
 	// (1=maximized, 2=fullscreen, 3=resizing, 4=activated, 5..8=tiled,
 	// 9=suspended), NOT a bitfield. Parse the array: struct wl_array
 	// { size_t size; void *alloc; void *data; } — size@+0, data@+16 (amd64).
+	states := wlStatesOf(statesArr)
 	if w.csd != nil {
-		states := wlStatesOf(states)
 		w.csd.setMaximized(states.maximized)
 		w.csd.setFullscreen(states.fullscreen)
 		w.csd.setActivated(states.activated)
+	}
+	// Report focus + occlusion state changes (values only when changed).
+	if states.activated != w.activated {
+		w.activated = states.activated
+		w.focusEvents = append(w.focusEvents, Event{Type: EventFocus, Focused: states.activated})
+	}
+	if states.suspended != w.suspended {
+		w.suspended = states.suspended
+		w.focusEvents = append(w.focusEvents, Event{Type: EventOccluded, Occluded: states.suspended})
 	}
 	wi, hi := int32(width), int32(height)
 	if wi > 0 && hi > 0 {
@@ -832,7 +851,9 @@ func wlStatesOf(arr uintptr) wlToplevelStates {
 func wlTopClose(data, toplevel uintptr) {
 	w := winFrom(data)
 	if w != nil {
-		w.closed = true
+		// xdg close = a request, not destruction: the app may veto it.
+		// Only Window.Close() (→ destroyNative) actually ends the window.
+		w.closeReq = true
 	}
 	_ = toplevel
 }
@@ -1075,9 +1096,15 @@ func (h *wlHost) poll() []Event {
 	if w.closed {
 		out = append(out, Event{Type: EventClose})
 	}
-	if w.csd != nil && w.csd.closeRequested {
+	// CSD ✕ / xdg close → EventCloseRequested (interceptable); the window
+	// stays alive unless the app calls Close(). Real destruction (surface
+	// gone / Close()) reports EventClose separately.
+	if w.closeReq {
+		w.closeReq = false
+		out = append(out, Event{Type: EventCloseRequested})
+	} else if w.csd != nil && w.csd.closeRequested {
 		w.csd.closeRequested = false
-		out = append(out, Event{Type: EventClose})
+		out = append(out, Event{Type: EventCloseRequested})
 	}
 	if w.resized {
 		w.resized = false
@@ -1110,6 +1137,13 @@ func (h *wlHost) poll() []Event {
 		w.ptrEvents = nil
 	}
 	w.ptrMu.Unlock()
+	// Focus / occlusion events queued by wlTopConfigure.
+	w.focusMu.Lock()
+	if len(w.focusEvents) > 0 {
+		out = append(out, w.focusEvents...)
+		w.focusEvents = nil
+	}
+	w.focusMu.Unlock()
 	return out
 }
 

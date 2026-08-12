@@ -72,6 +72,60 @@ const (
 	EventWake  // WakeUp from another goroutine
 )
 
+// String implements fmt.Stringer.
+func (t EventType) String() string {
+	switch t {
+	case EventNone:
+		return "none"
+	case EventCloseRequested:
+		return "close-requested"
+	case EventClose:
+		return "close"
+	case EventResize:
+		return "resize"
+	case EventExpose:
+		return "expose"
+	case EventMove:
+		return "move"
+	case EventScale:
+		return "scale"
+	case EventOccluded:
+		return "occluded"
+	case EventPointer:
+		return "pointer"
+	case EventKey:
+		return "key"
+	case EventIME:
+		return "ime"
+	case EventFocus:
+		return "focus"
+	case EventWake:
+		return "wake"
+	default:
+		return "unknown"
+	}
+}
+
+// String implements fmt.Stringer.
+func (k PointerKind) String() string {
+	switch k {
+	case PointerMove:
+		return "move"
+	case PointerDown:
+		return "down"
+	case PointerUp:
+		return "up"
+	case PointerScroll:
+		return "scroll"
+	case PointerEnter:
+		return "enter"
+	case PointerLeave:
+		return "leave"
+	default:
+		return "unknown"
+	}
+}
+
 // PointerKind classifies pointer events.
 type PointerKind int
 

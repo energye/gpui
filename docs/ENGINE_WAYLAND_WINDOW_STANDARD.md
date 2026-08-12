@@ -78,11 +78,39 @@ state 值：1=maximized 2=fullscreen 3=resizing 4=activated
 
 **resize_edge 枚举**：none=0 top=1 bottom=2 left=4 top_left=5 bottom_left=6 right=8 top_right=9 bottom_right=10。
 
+**WindowEdge ↔ xdg resize_edge 映射**（wlController.RequestResize 用；主文档 §2.3 WindowEdge 枚举与 xdg 值不同，必须以本表为准）：
+| WindowEdge | xdg resize_edge | 值 |
+|---|---|---|
+| None | none | 0 |
+| Top | top | 1 |
+| Bottom | bottom | 2 |
+| Left | left | 4 |
+| TopLeft | top_left | 5 |
+| BottomLeft | bottom_left | 6 |
+| Right | right | 8 |
+| TopRight | top_right | 9 |
+| BottomRight | bottom_right | 10 |
+请求 `RequestResize(edge)` 传 xdg 值，禁止按 WindowEdge 的 iota 顺序直传。
+
 ### 2.3 光标（GNOME 42.9 无 cursor-shape）
 - `wl_cursor_theme_load(NULL, 24, shm)` → theme；`wl_cursor_theme_get_cursor(theme, name)` → cursor image（含 `wl_buffer`）。
 - `wl_pointer.set_cursor(serial, surface, hotspot_x, hotspot_y)`（opcode 1，签名 `ouii`）。
 - 光标名：`sb_v_double_arrow`（N/S）、`sb_h_double_arrow`（E/W）、`top_left_corner`（NW/SE）、`top_right_corner`（NE/SW）、默认 `left_ptr`。
 - 创建专用 cursor wl_surface，attach cursor buffer + commit。
+
+### 2.4 Options 全量接线（与主文档 §2.1 对齐）
+
+| Options 字段 | Wayland 处理 |
+|---|---|
+| Width/Height/Title/Backend | ✅ 现有（waylandCreate 已接） |
+| Decorations | ✅ 现有（CSD / 无框） |
+| Min/Max Size | 🔨 set_min/max_size（S2） |
+| Resizable=false | 🔨 min==max 锁（S2） |
+| Position | ⛔ 协议无客户端定位 |
+| Fullscreen | 🔨 创建后 set_fullscreen（S2） |
+| Cursor | 🔨 wl_cursor_theme 初始光标（S2） |
+| Maximized | 🔨 首 commit 前 set_maximized（S2） |
+| Visible | ⛔ 协议无控制 → 忽略（恒可见） |
 
 ---
 
@@ -93,8 +121,28 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 ```
 
 - `wlTopConfigure`：**先累积** states/尺寸 → 记 `w.resized` + `w.csd.setWindowState(...)` → 渲染层读 EventResize；`wlXdgConfigure` 侧 ack_configure（协议要求 configure 必须先 ack）。
-- `activated`（focus）→ 标题栏聚焦/失焦底色切换。
+- `activated`（focus）→ 标题栏聚焦/失焦底色切换，并上报 `EventFocus{Focused}`（值变化才发）。
 - `maximized` → 最大化按钮图标 `□`→`❐`，且 maximized 无边框（标准行为：最大化时隐藏装饰边框）。
+- `suspended`（9）→ 上报 `EventOccluded{Occluded:true}`（停渲染省电）；解除 → `Occluded:false`。禁止把 suspended 当 minimized 处理。
+- 关闭：CSD ✕ 与 xdg close（`wlTopClose`）→ `EventCloseRequested`（可拦截）；surface 实际销毁（`wl_surface.destroy` / `wl_registry.global_remove`）→ `EventClose`。
+
+### 3.1 指针事件上报（wl_pointer → Event）
+
+| 协议事件 | 上报 Event |
+|---|---|
+| enter | `EventPointer{Pointer: PointerEnter, X, Y}` |
+| leave | `EventPointer{Pointer: PointerLeave}` |
+| motion | `PointerMove`（现有） |
+| button | `PointerDown/Up`（现有） |
+| axis | `PointerScroll`（现有） |
+
+> enter/leave 除驱动 CSD hover/光标外，必须同时上报给上层（hover 判定依赖）；CSD 消费与上报并存，不互斥。
+
+### 3.2 状态查询口径（协议无查询 = 乐观跟踪）
+
+- `IsMinimized()`：xdg configure **无 minimized 状态** → 乐观跟踪：`set_minimized` 后置 true；收到 `activated` 回传置 false；查询返回跟踪值（与 X11 同款注解）。
+- `IsVisible()`：xdg 无 unmapped 概念 → 恒 true（无隐藏），`Show/Hide` 返回 ErrUnsupported。
+- `IsMaximized()/IsFullscreen()`：configure states 回传为准（真实值，非乐观）。
 
 ---
 
@@ -126,7 +174,7 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 | 命 中 | 区域 | 动作 |
 |---|---|---|
 | CSDHitCaption | 标题栏非按钮区 | `xdg_toplevel.move(seat, serial)` |
-| CSDHitClose | 右 44px | 请求关闭（EventClose）|
+| CSDHitClose | 右 44px | 请求关闭（EventCloseRequested，可拦截）|
 | CSDHitMaximize | 右 88-44px | set/unset_maximized |
 | CSDHitMinimize | 右 132-88px | set_minimized |
 | CSDHitResizeN/S/E/W | 边框/边缘 | `xdg_toplevel.resize(seat, serial, edge)` |
@@ -153,10 +201,11 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 
 | 阶段 | 内容 | 验收 |
 |---|---|---|
-| S1 | 协议层完整（接口表/shm/subcompositor/cursor） | 编译 + 单测 |
-| S2 | CSD subsurface + painter（标题栏/边框/按钮/字体） | 编译 + 单测 |
-| S3 | 交互（move/resize 8 向/三按钮/双击最大化/焦点态/光标）| 编译 + 单测 |
-| S4 | 真窗验收（用户跑 ui_textinput_ime）| 窗口完整装饰 + 全行为 |
+| S1 | 协议层完整（接口表/shm/subcompositor/cursor） | ✅ 已落地 |
+| S2 | CSD subsurface + painter（标题栏/边框/按钮/字体） | ✅ 已落地 |
+| S3 | 交互（move/resize 8 向/三按钮/双击最大化/焦点态/光标）| ✅ 已落地 |
+| S4 | 真窗验收（用户跑 ui_textinput_ime）| ✅ 已验收（窗口完整装饰 + 全行为）|
+| S5 | **主文档 S2 对齐**：wlController（Options 全量 §2.4 + IsMinimized/RequestMove/RequestResize）+ 事件上报（§3.1/§3.2 闭环：EventCloseRequested/EventFocus/EventOccluded/PointerEnter/Leave）| ⬜ 代码落地即同步主文档 §3 S2 |
 
 **回归纪律**：`go test ./ui/platform/` 按文件跑，禁止一次全量；真窗由用户执行。
 
@@ -164,4 +213,5 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 
 ## 8. 修订
 
+- v1.1（2026-08-12）：**对齐主文档 v2.1**——CSD ✕ 动作改 EventCloseRequested（§5）；补 WindowEdge↔xdg resize_edge 映射（§2.2）；补事件上报闭环（§3.1）、状态查询口径（§3.2）、Options 全量接线表（§2.4）；分期补 S5（主文档 S2 对齐）。
 - v1.0（2026-08-12）：从"去边框"方案推翻重写，对齐 sctk/GTK/gogpu 标准 CSD。
