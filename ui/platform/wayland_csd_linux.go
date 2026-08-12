@@ -45,6 +45,7 @@ const (
 	wlSubsurfaceDestroy    = 0
 	wlSubsurfaceSetPos     = 1 // set_position(x: int, y: int)
 	wlSubsurfaceSetSync    = 4 // set_sync()
+	wlSubsurfaceSetDesync  = 5 // set_desync()
 	// xdg_toplevel requests (xdg-shell.xml authoritative order):
 	//   destroy(0) set_parent(1) set_title(2) set_app_id(3)
 	//   show_window_menu(4) move(5) resize(6) set_max_size(7)
@@ -178,8 +179,11 @@ func (c *wlCSD) newSurface(w, h, x, y int) (*csdSurface, error) {
 	// set_position(x, y)
 	pos := []wlArg{argU(uint32(int32(x))), argU(uint32(int32(y)))}
 	lib.proxyMarshalArrayFlags(s.sub, wlSubsurfaceSetPos, 0, 0, 0, &pos[0])
-	// set_sync — commits are atomic with the parent surface.
-	lib.proxyMarshalArrayFlags(s.sub, wlSubsurfaceSetSync, 0, 0, 0, nil)
+	// set_desync — decoration commits take effect immediately, independent of
+	// the parent (content) surface's commit cadence (the wgpu renderer owns
+	// the parent commit). Sync mode would defer decoration updates until the
+	// next content frame, causing stale/offset decoration after resize.
+	lib.proxyMarshalArrayFlags(s.sub, wlSubsurfaceSetDesync, 0, 0, 0, nil)
 
 	// shm buffer: memfd → pool → buffer.
 	size := w * h * 4
@@ -255,53 +259,109 @@ func (c *wlCSD) paint() {
 		paintTitleBar(c.top.data, c.top.w, c.top.h, c.title, c.maximized)
 		c.top.commit(lib)
 	}
-	for _, s := range []*csdSurface{c.left, c.right, c.bottom} {
-		if s != nil {
-			paintBorder(s.data, s.w, s.h)
-			s.commit(lib)
-		}
+	if c.left != nil {
+		paintLeftBorder(c.left.data, c.left.w, c.left.h)
+		c.left.commit(lib)
+	}
+	if c.right != nil {
+		paintRightBorder(c.right.data, c.right.w, c.right.h)
+		c.right.commit(lib)
+	}
+	if c.bottom != nil {
+		paintBottomBorder(c.bottom.data, c.bottom.w, c.bottom.h)
+		c.bottom.commit(lib)
 	}
 	lib.displayFlush(c.win.display)
 }
 
-// resize rebuilds the decoration subsurfaces for a new content size (called
-// from poll when wlTopConfigure delivered a new toplevel size). The wl_shm /
-// wl_subcompositor proxies are kept; only the four decoration surfaces are
-// recreated.
+// resize resizes the four decoration surfaces to a new content size (called
+// from poll when wlTopConfigure delivered a new toplevel size). Only the shm
+// buffers are recreated — the wl_surface / wl_subsurface objects stay alive
+// so an active interactive resize (pointer grab) is not disrupted.
 func (c *wlCSD) resize(cw, ch int) {
 	if c == nil || c.win == nil || c.win.lib == nil {
 		return
 	}
-	c.destroySurfaces()
 	if cw < 1 {
 		cw = 640
 	}
 	if ch < 1 {
 		ch = 480
 	}
-	var err error
-	if c.top, err = c.newSurface(cw+2*csdBorderW, csdTitleBarH, -csdBorderW, -csdTitleBarH); err != nil {
-		c.destroy()
-		return
+	// Top: title bar spanning content width + both borders.
+	if c.top != nil {
+		c.resizeSurface(c.top, cw+2*csdBorderW, csdTitleBarH, -csdBorderW, -csdTitleBarH)
+		c.topSurface = c.top.surf
 	}
-	c.topSurface = c.top.surf
-	if c.left, err = c.newSurface(csdBorderW, ch, -csdBorderW, 0); err != nil {
-		c.destroy()
-		return
+	if c.left != nil {
+		c.resizeSurface(c.left, csdBorderW, ch, -csdBorderW, 0)
 	}
-	if c.right, err = c.newSurface(csdBorderW, ch, cw, 0); err != nil {
-		c.destroy()
-		return
+	if c.right != nil {
+		c.resizeSurface(c.right, csdBorderW, ch, cw, 0)
 	}
-	if c.bottom, err = c.newSurface(cw+2*csdBorderW, csdBorderW, -csdBorderW, ch); err != nil {
-		c.destroy()
-		return
+	if c.bottom != nil {
+		c.resizeSurface(c.bottom, cw+2*csdBorderW, csdBorderW, -csdBorderW, ch)
 	}
 	c.paint()
 }
 
+// resizeSurface frees the old shm buffer/pool and creates a new buffer at the
+// given size/position, keeping the wl_surface and wl_subsurface proxies.
+func (c *wlCSD) resizeSurface(s *csdSurface, w, h, x, y int) {
+	if s == nil || c == nil || c.win == nil || c.win.lib == nil {
+		return
+	}
+	lib := c.win.lib
+	// Detach old buffer before destroying it.
+	lib.proxyMarshalArrayFlags(s.surf, wlSurfaceAttach, 0, 0, 0, nil)
+	lib.proxyMarshalArrayFlags(s.surf, wlSurfaceCommit, 0, 0, 0, nil)
+	if s.buffer != 0 {
+		lib.proxyDestroy(s.buffer)
+		s.buffer = 0
+	}
+	if s.pool != 0 {
+		lib.proxyDestroy(s.pool)
+		s.pool = 0
+	}
+	if s.data != nil {
+		syscall.Munmap(s.data)
+		s.data = nil
+	}
+	if s.fd > 0 {
+		syscall.Close(s.fd)
+		s.fd = 0
+	}
+
+	// Update position on the (still-alive) subsurface.
+	pos := []wlArg{argU(uint32(int32(x))), argU(uint32(int32(y)))}
+	lib.proxyMarshalArrayFlags(s.sub, wlSubsurfaceSetPos, 0, 0, 0, &pos[0])
+
+	s.w, s.h = w, h
+	size := w * h * 4
+	fd, err := memfdCreate("gpui-csd")
+	if err != nil {
+		return
+	}
+	s.fd = fd
+	if err := syscall.Ftruncate(fd, int64(size)); err != nil {
+		return
+	}
+	buf, err := syscall.Mmap(fd, 0, size, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+	if err != nil {
+		return
+	}
+	s.data = buf
+	pargs := []wlArg{argNewID(), argO(uintptr(fd)), argU(uint32(size))}
+	s.pool = lib.proxyMarshalArrayCtor(c.shm, wlShmCreatePool, &pargs[0], lib.ifaceShmPool, 1)
+	if s.pool == 0 {
+		return
+	}
+	bargs := []wlArg{argNewID(), argU(0), argU(uint32(w)), argU(uint32(h)), argU(uint32(w * 4)), argU(wlShmFormatARGB8888)}
+	s.buffer = lib.proxyMarshalArrayCtor(s.pool, wlShmPoolCreateBuffer, &bargs[0], lib.ifaceBuffer, 1)
+}
+
 // destroySurfaces frees the four decoration surfaces but keeps wl_shm and
-// wl_subcompositor alive (used by resize).
+// wl_subcompositor alive (used by destroy; resize keeps objects alive).
 func (c *wlCSD) destroySurfaces() {
 	if c == nil {
 		return
@@ -496,8 +556,13 @@ func (c *wlCSD) setMaximized(v bool) {
 
 // --- minimal ARGB8888 painter (no external deps) ---
 
-// putPx writes one pixel (BGRA in memory for ARGB8888 little-endian).
+// putPx writes one pixel (BGRA in memory for ARGB8888 little-endian), opaque.
 func putPx(buf []byte, stride, x, y int, r, g, b byte) {
+	putPxA(buf, stride, x, y, r, g, b, 0xFF)
+}
+
+// putPxA writes one pixel with explicit alpha (0x00 = fully transparent).
+func putPxA(buf []byte, stride, x, y int, r, g, b, a byte) {
 	off := (y*stride + x) * 4
 	if off+3 >= len(buf) {
 		return
@@ -505,7 +570,7 @@ func putPx(buf []byte, stride, x, y int, r, g, b byte) {
 	buf[off] = b
 	buf[off+1] = g
 	buf[off+2] = r
-	buf[off+3] = 0xFF
+	buf[off+3] = a
 }
 
 func fillRect(buf []byte, stride, x0, y0, w, h int, r, g, b byte) {
@@ -516,8 +581,39 @@ func fillRect(buf []byte, stride, x0, y0, w, h int, r, g, b byte) {
 	}
 }
 
-func paintBorder(buf []byte, w, h int) {
-	fillRect(buf, w, 0, 0, w, h, 0x2B, 0x2D, 0x30)
+// clearRect sets a region fully transparent.
+func clearRect(buf []byte, stride, x0, y0, w, h int) {
+	for y := y0; y < y0+h; y++ {
+		for x := x0; x < x0+w; x++ {
+			putPxA(buf, stride, x, y, 0, 0, 0, 0x00)
+		}
+	}
+}
+
+// paintLeftBorder draws the visible line on the OUTER (left) edge; the rest
+// stays transparent. The subsurface is wider than the line purely as a
+// resize hit area.
+func paintLeftBorder(buf []byte, w, h int) {
+	clearRect(buf, w, 0, 0, w, h)
+	for y := 0; y < h; y++ {
+		putPx(buf, w, 0, y, 0x2B, 0x2D, 0x30)
+	}
+}
+
+// paintRightBorder draws the visible line on the OUTER (right) edge.
+func paintRightBorder(buf []byte, w, h int) {
+	clearRect(buf, w, 0, 0, w, h)
+	for y := 0; y < h; y++ {
+		putPx(buf, w, w-1, y, 0x2B, 0x2D, 0x30)
+	}
+}
+
+// paintBottomBorder draws the visible line on the OUTER (bottom) edge.
+func paintBottomBorder(buf []byte, w, h int) {
+	clearRect(buf, w, 0, 0, w, h)
+	for x := 0; x < w; x++ {
+		putPx(buf, w, x, h-1, 0x2B, 0x2D, 0x30)
+	}
 }
 
 func paintTitleBar(buf []byte, w, h int, title string, maximized bool) {

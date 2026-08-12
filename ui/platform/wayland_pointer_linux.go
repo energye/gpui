@@ -119,6 +119,10 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 		return
 	}
 	st.surface = surface
+	// enter carries surface-local coords — record them so a press right after
+	// enter (without any motion) hit-tests correctly (button has no coords).
+	st.lastX = wlFixedToDouble(sx)
+	st.lastY = wlFixedToDouble(sy)
 }
 
 func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
