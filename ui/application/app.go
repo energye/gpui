@@ -55,9 +55,12 @@ type Config struct {
 type WindowOptions struct {
 	Width, Height int
 	Title         string
-	// Decorations controls window chrome (title bar + frame). Nil = default
-	// true (Wayland CSD / X11 WM frame). Pass &false for frameless.
-	Decorations *bool
+	// Decorations controls window chrome (title bar + frame). Default: true
+	// (Wayland CSD / X11 WM frame). Pass false for frameless.
+	Decorations bool
+	// Resizable controls whether the user can resize the window
+	// (min==max size hints when false). Pass true for resizable windows.
+	Resizable bool
 }
 
 // App is the multi-window application shell.
@@ -119,6 +122,7 @@ func (a *App) NewWindow(opts WindowOptions) (*Window, error) {
 			Title:       opts.Title,
 			Backend:     a.cfg.Backend,
 			Decorations: opts.Decorations,
+			Resizable:   opts.Resizable,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("application: open window: %w", err)
@@ -228,11 +232,11 @@ type Window struct {
 	opts WindowOptions
 	main bool
 
-	mu      sync.Mutex
-	pipe    *embedder.PipelineApp
-	root    rendering.RenderObject
-	input   *embedder.InputRouter
-	closed  bool
+	mu     sync.Mutex
+	pipe   *embedder.PipelineApp
+	root   rendering.RenderObject
+	input  *embedder.InputRouter
+	closed bool
 }
 
 // Main reports whether this is the first (main) window.

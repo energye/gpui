@@ -13,12 +13,11 @@ type Options struct {
 	Title string
 	// Backend selects the display backend. DisplayAuto uses detection.
 	Backend DisplayBackend
-	// Decorations controls window chrome (title bar + frame).
-	//   - X11: the window manager always draws the frame; has no effect.
-	//   - Wayland: GNOME provides NO server-side decorations, so when enabled
-	//     we draw a client-side title bar + borders (CSD) via wl_subsurface.
-	//   - nil = true (default): frameless apps pass &false.
-	Decorations *bool
+	// Decorations controls window chrome (title bar + frame). Default: true.
+	//   - X11: false sends _MOTIF_WM_HINTS to hide the WM frame.
+	//   - Wayland: GNOME provides NO server-side decorations; true draws a
+	//     client-side title bar + borders (CSD) via wl_subsurface.
+	Decorations bool
 	// Min/Max size constraints (logical px; 0 = unconstrained).
 	MinWidth, MinHeight int
 	MaxWidth, MaxHeight int

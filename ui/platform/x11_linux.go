@@ -361,7 +361,7 @@ func x11Create(opts Options) (*Window, error) {
 			return lib.keycodeToKeysym(dpy, keycode, index)
 		},
 		title:     title,
-		decorated: opts.Decorations == nil || *opts.Decorations,
+		decorated: opts.Decorations,
 		resizable: opts.Resizable,
 		visible:   opts.Visible == nil || *opts.Visible,
 	}
@@ -401,7 +401,7 @@ func x11Create(opts Options) (*Window, error) {
 	if opts.Cursor != CursorDefault {
 		ctl.SetCursor(opts.Cursor)
 	}
-	if opts.Decorations != nil && !*opts.Decorations {
+	if !opts.Decorations {
 		ctl.SetDecorations(false)
 	}
 	visible := opts.Visible == nil || *opts.Visible

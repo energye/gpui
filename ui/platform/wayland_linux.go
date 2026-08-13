@@ -127,13 +127,13 @@ type wlLib struct {
 	ifaceKeyboard   uintptr
 	ifacePointer    uintptr
 	// CSD (client-side decorations) interfaces.
-	ifaceShm          uintptr
-	ifaceShmPool      uintptr
-	ifaceBuffer       uintptr
+	ifaceShm           uintptr
+	ifaceShmPool       uintptr
+	ifaceBuffer        uintptr
 	ifaceSubcompositor uintptr
-	ifaceSubsurface   uintptr
-	ifaceOutput       uintptr // wl_output (xdg_toplevel.set_fullscreen arg)
-	ifaceRegion       uintptr // wl_region (wl_surface.set_input_region)
+	ifaceSubsurface    uintptr
+	ifaceOutput        uintptr // wl_output (xdg_toplevel.set_fullscreen arg)
+	ifaceRegion        uintptr // wl_region (wl_surface.set_input_region)
 }
 
 func loadWayland() (*wlLib, error) {
@@ -202,65 +202,65 @@ func (l *wlLib) displayGetRegistry(dpy uintptr) uintptr {
 
 var (
 	xdgNames = struct {
-		wmBase, surface, toplevel []byte
-		decoMgr, decoTop          []byte
-		mDestroy, mGetXdg, mPong  []byte
-		mGetTop, mAck             []byte
-		mSetTitle, mSetApp        []byte
-		mSetParent, mShowMenu     []byte
-		mMove, mResize            []byte
-		mSetMinSize, mSetMaxSize  []byte
-		mSetMaxed, mUnsetMaxed    []byte
-		mSetFull, mUnsetFull      []byte
-		mSetMinimized             []byte
-		mGetDeco, mSetMode        []byte
-		sEmpty, sNo, sU, sN, sS   []byte
+		wmBase, surface, toplevel      []byte
+		decoMgr, decoTop               []byte
+		mDestroy, mGetXdg, mPong       []byte
+		mGetTop, mAck                  []byte
+		mSetTitle, mSetApp             []byte
+		mSetParent, mShowMenu          []byte
+		mMove, mResize                 []byte
+		mSetMinSize, mSetMaxSize       []byte
+		mSetMaxed, mUnsetMaxed         []byte
+		mSetFull, mUnsetFull           []byte
+		mSetMinimized                  []byte
+		mGetDeco, mSetMode             []byte
+		sEmpty, sNo, sU, sN, sS        []byte
 		sO, sQo, sOu, sOuu, sOuii, sIi []byte
-		sNoTop                    []byte
-		ePing, eCfg, eClose       []byte
-		eCfgIia                   []byte
+		sNoTop                         []byte
+		ePing, eCfg, eClose            []byte
+		eCfgIia                        []byte
 	}{
-		wmBase:    append([]byte("xdg_wm_base"), 0),
-		surface:   append([]byte("xdg_surface"), 0),
-		toplevel:  append([]byte("xdg_toplevel"), 0),
-		decoMgr:   append([]byte("zxdg_decoration_manager_v1"), 0),
-		decoTop:   append([]byte("zxdg_toplevel_decoration_v1"), 0),
-		mDestroy:  append([]byte("destroy"), 0),
-		mGetXdg:   append([]byte("get_xdg_surface"), 0),
-		mPong:     append([]byte("pong"), 0),
-		mGetTop:   append([]byte("get_toplevel"), 0),
-		mAck:      append([]byte("ack_configure"), 0),
-		mSetTitle: append([]byte("set_title"), 0),
-		mSetApp:   append([]byte("set_app_id"), 0),
-		mGetDeco:  append([]byte("get_toplevel_decoration"), 0),
-		mSetMode:  append([]byte("set_mode"), 0),
-		mSetParent: append([]byte("set_parent"), 0),
-		mShowMenu: append([]byte("show_window_menu"), 0),
-		mMove:     append([]byte("move"), 0),
-		mResize:   append([]byte("resize"), 0),
-		mSetMinSize: append([]byte("set_min_size"), 0),
-		mSetMaxSize: append([]byte("set_max_size"), 0),
-		mSetMaxed: append([]byte("set_maximized"), 0),
-		mUnsetMaxed: append([]byte("unset_maximized"), 0),
-		mSetFull:  append([]byte("set_fullscreen"), 0),
-		mUnsetFull: append([]byte("unset_fullscreen"), 0),
+		wmBase:        append([]byte("xdg_wm_base"), 0),
+		surface:       append([]byte("xdg_surface"), 0),
+		toplevel:      append([]byte("xdg_toplevel"), 0),
+		decoMgr:       append([]byte("zxdg_decoration_manager_v1"), 0),
+		decoTop:       append([]byte("zxdg_toplevel_decoration_v1"), 0),
+		mDestroy:      append([]byte("destroy"), 0),
+		mGetXdg:       append([]byte("get_xdg_surface"), 0),
+		mPong:         append([]byte("pong"), 0),
+		mGetTop:       append([]byte("get_toplevel"), 0),
+		mAck:          append([]byte("ack_configure"), 0),
+		mSetTitle:     append([]byte("set_title"), 0),
+		mSetApp:       append([]byte("set_app_id"), 0),
+		mGetDeco:      append([]byte("get_toplevel_decoration"), 0),
+		mSetMode:      append([]byte("set_mode"), 0),
+		mSetParent:    append([]byte("set_parent"), 0),
+		mShowMenu:     append([]byte("show_window_menu"), 0),
+		mMove:         append([]byte("move"), 0),
+		mResize:       append([]byte("resize"), 0),
+		mSetMinSize:   append([]byte("set_min_size"), 0),
+		mSetMaxSize:   append([]byte("set_max_size"), 0),
+		mSetMaxed:     append([]byte("set_maximized"), 0),
+		mUnsetMaxed:   append([]byte("unset_maximized"), 0),
+		mSetFull:      append([]byte("set_fullscreen"), 0),
+		mUnsetFull:    append([]byte("unset_fullscreen"), 0),
 		mSetMinimized: append([]byte("set_minimized"), 0),
-		sEmpty:    append([]byte(""), 0),
-		sNo:       append([]byte("no"), 0),
-		sU:        append([]byte("u"), 0),
-		sN:        append([]byte("n"), 0),
-		sS:        append([]byte("s"), 0),
-		sO:        append([]byte("o"), 0),
-		sQo:       append([]byte("?o"), 0),
-		sOu:       append([]byte("ou"), 0),
-		sOuu:      append([]byte("ouu"), 0),
-		sOuii:     append([]byte("ouii"), 0),
-		sIi:       append([]byte("ii"), 0),
-		sNoTop:    append([]byte("no"), 0),
-		ePing:     append([]byte("ping"), 0),
-		eCfg:      append([]byte("configure"), 0),
-		eClose:    append([]byte("close"), 0),
-		eCfgIia:   append([]byte("iia"), 0),
+		sEmpty:        append([]byte(""), 0),
+		sNo:           append([]byte("no"), 0),
+		sU:            append([]byte("u"), 0),
+		sN:            append([]byte("n"), 0),
+		sS:            append([]byte("s"), 0),
+		sO:            append([]byte("o"), 0),
+		sQo:           append([]byte("?o"), 0),
+		sOu:           append([]byte("ou"), 0),
+		sOuu:          append([]byte("ouu"), 0),
+		sOuii:         append([]byte("ouii"), 0),
+		sIi:           append([]byte("ii"), 0),
+		sNoTop:        append([]byte("no"), 0),
+		ePing:         append([]byte("ping"), 0),
+		eCfg:          append([]byte("configure"), 0),
+		eClose:        append([]byte("close"), 0),
+		eCfgIia:       append([]byte("iia"), 0),
 	}
 
 	ifaceXdgWmBase   wlInterfaceC
@@ -396,10 +396,10 @@ type wlWin struct {
 	decoName, decoVer uint32
 	decoMgr           uintptr
 	decoTop           uintptr
-	tiMgrName         uint32 // zwp_text_input_manager_v3 global name (0 = absent)
-	seatName          uint32 // wl_seat global name (0 = absent)
-	shmName           uint32 // wl_shm global name (0 = absent)
-	subcompName       uint32 // wl_subcompositor global name (0 = absent)
+	tiMgrName         uint32  // zwp_text_input_manager_v3 global name (0 = absent)
+	seatName          uint32  // wl_seat global name (0 = absent)
+	shmName           uint32  // wl_shm global name (0 = absent)
+	subcompName       uint32  // wl_subcompositor global name (0 = absent)
 	seat              uintptr // bound wl_seat proxy (via seatState)
 	seatState         *wlSeatState
 	// hostRef is set by waylandCreate so seat callbacks can wake the loop.
@@ -489,10 +489,7 @@ func waylandCreate(opts Options) (*Window, error) {
 	if title == "" {
 		title = "gpui"
 	}
-	decorated := true // Wayland default: client-side decorations (GNOME has no SSD)
-	if opts.Decorations != nil {
-		decorated = *opts.Decorations
-	}
+	decorated := opts.Decorations // Wayland default: client-side decorations (GNOME has no SSD)
 
 	win := &wlWin{
 		lib:       lib,

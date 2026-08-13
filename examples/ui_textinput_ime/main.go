@@ -36,11 +36,11 @@ import (
 // OnChange triggers ScheduleFrame so the window repaints on every edit.
 type inputBox struct {
 	*rendering.RenderBox
-	ed     *textinput.Editor
-	text   *rendering.RenderText
-	sched  func() // set by the demo to trigger a repaint frame
+	ed      *textinput.Editor
+	text    *rendering.RenderText
+	sched   func() // set by the demo to trigger a repaint frame
 	focused bool
-	boxH   float64
+	boxH    float64
 }
 
 func newInputBox(ed *textinput.Editor) *inputBox {
@@ -126,11 +126,13 @@ func main() {
 	router.OnText = func(ev input.TextEvent) { logf("text-event %q", ev.Text) }
 	app := application.New(application.Config{
 		Name:    "ui_textinput_ime",
-		Backend: platform.DisplayWayland,
+		Backend: platform.DisplayX11,
 	})
 	logf("stage=app-created")
 	win, err := app.NewWindow(application.WindowOptions{
 		Width: winW, Height: winH, Title: "gpui textinput + IME (zwp_text_input_v3)",
+		Resizable:   true,
+		Decorations: true,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
@@ -142,7 +144,7 @@ func main() {
 	box := newInputBox(ed)
 	box.SetOffset(rendering.Point{X: 40, Y: 60})
 	box.sched = func() { win.ScheduleFrame() } // repaint on every edit
-	box.focused = true                          // auto-focus the demo box
+	box.focused = true                         // auto-focus the demo box
 	// Keyboard editing keys (Backspace/arrows) route to the box's OnKey.
 	router.OnKey = func(ke input.KeyEvent) { box.OnKey(ke) }
 
