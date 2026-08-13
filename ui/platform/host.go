@@ -62,6 +62,10 @@ const (
 	EventClose
 	EventResize
 	EventExpose
+	// EventResizeSync: the windowing system requested a frame via the resize
+	// sync protocol (_NET_WM_SYNC_REQUEST). The app must schedule a frame;
+	// once presented it is expected to advance the sync counter (FrameSync).
+	EventResizeSync
 	EventMove     // window moved on screen (X11; Wayland has no event — see X/Y doc)
 	EventScale    // device pixel ratio changed (multi-monitor drag / OS scaling)
 	EventOccluded // window fully occluded or minimized (see Event.Occluded; stop rendering to save power)
@@ -85,6 +89,8 @@ func (t EventType) String() string {
 		return "resize"
 	case EventExpose:
 		return "expose"
+	case EventResizeSync:
+		return "resize-sync"
 	case EventMove:
 		return "move"
 	case EventScale:
@@ -201,4 +207,15 @@ type Host interface {
 type VSyncWaiter interface {
 	// WaitVSync blocks until the next vertical blank (or returns error).
 	WaitVSync() error
+}
+
+// FrameSync is optional; a Host implementing it is notified after each
+// presented frame so the windowing system can advance its resize-sync
+// state. On X11 this is the _NET_WM_SYNC_REQUEST counter: without it the
+// compositor stretches stale content during interactive resize drags and
+// the app's live frames are never shown until the drag ends.
+type FrameSync interface {
+	// NotifyFrameDrawn is called after a frame has been submitted for
+	// presentation.
+	NotifyFrameDrawn()
 }

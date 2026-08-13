@@ -18,7 +18,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
@@ -47,7 +46,7 @@ func main() {
 
 	proc.Start()
 
-	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui ui_wr_r18_savelayer — SaveLayer 预算"})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_wr_r18_savelayer — SaveLayer 预算", Decorations: true, Resizable: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)
@@ -172,7 +171,7 @@ func main() {
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
 			case platform.EventClose:
-				fmt.Fprintf(os.Stderr, "ui_wr_r18_savelayer: close (%s)\n", win.Backend())
+				fmt.Fprintf(os.Stderr, "ui_wr_r18_savelayer: close (%s)\n", win.Kind())
 			case platform.EventResize:
 				// Responsive layout: re-lay the shell to the new window size
 				// (same wiring as ui_wr_r4b_multidamage). Without this the

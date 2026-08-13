@@ -131,6 +131,10 @@ type GPUShared struct {
 	// Resolved via resolveSampleCount() which probes the device.
 	sampleCount uint32
 
+	// msaaDowngraded latches when texture-allocation OOM forces the shared
+	// pipeline set to 1x (Skia/Flutter resource-pressure semantics).
+	msaaDowngraded bool
+
 	deviceReady    bool              // device available for texture/buffer ops (true on all strategies incl. rasterAtlas)
 	gpuReady       bool              // shape/text rendering pipelines initialized (false on rasterAtlas)
 	softwareMode   bool              // true when software/CPU adapter detected (informational, does not disable GPU)
@@ -534,6 +538,38 @@ func (s *GPUShared) SampleCount() uint32 {
 	return s.sampleCount
 }
 
+// RequestMSAADowngrade drops the shared MSAA sample count to 1 after a
+// device-memory OOM (e.g., multi-window stolen-memory budget on iGPUs).
+// Mirrors Skia/Flutter resource-pressure semantics: degrade quality instead
+// of failing frames. The 4x pipelines are destroyed so ensurePipelines
+// rebuilds them at 1x, and deviceGen bumps so every render context rebuilds
+// its session at the lower sample count on the next flush. Idempotent; the
+// first OOM latches the downgrade.
+func (s *GPUShared) RequestMSAADowngrade() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.msaaDowngraded || s.sampleCount <= 1 {
+		return
+	}
+	s.msaaDowngraded = true
+	s.sampleCount = 1
+	// Drain so pooled 4x textures are safe to destroy, then release every
+	// 4x-bound resource: MSAA/stencil pool, shape pipelines and glyph atlas.
+	if s.device != nil && !s.device.IsLost() {
+		_ = s.device.WaitIdle()
+	}
+	if s.texturePool != nil {
+		s.texturePool.DestroyAll()
+	}
+	s.destroyPipelinesLocked()
+	if s.glyphMaskEngine != nil {
+		s.glyphMaskEngine.Destroy(s.device)
+		s.glyphMaskEngine = nil
+	}
+	s.deviceGen++
+	slogger().Info("gpu-shared: OOM — MSAA downgraded to 1x, sessions rebuild at 1x")
+}
+
 // detectStrategy determines the rendering strategy based on adapter type and
 // MSAA support. Must be called with s.mu held, after softwareMode and
 // sampleCount are resolved.
@@ -664,7 +700,7 @@ func (s *GPUShared) initGPU() error {
 		s.softwareMode = true
 	}
 
-	device, err := adapter.RequestDevice(renderDeviceDescriptor("gg-shared"))
+	device, err := requestDeviceWithRetry(adapter, renderDeviceDescriptor("gg-shared"), "gg-shared")
 	if err != nil {
 		adapter.Release()
 		s.adapter = nil

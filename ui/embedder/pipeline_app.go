@@ -2,6 +2,8 @@ package embedder
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +38,10 @@ type PipelineOptions struct {
 	// (F16, W2 R18). 0 = unlimited. Rejections are counted in savelayer_reject.
 	SaveLayerMaxOps  int
 	SaveLayerMaxArea float64
+	// SnapshotPath (optional) saves a GPU readback PNG of the final frame
+	// before Close. Use for AA/pixel verification windows: xwd reads the X11
+	// backing store, which can lag/diverge from the composited GPU content.
+	SnapshotPath string
 }
 
 // boundaryFrameSnap is the last paintPresentTree frame's boundary cache counters.
@@ -563,6 +569,9 @@ func (a *PipelineApp) Run() error {
 					}
 					a.lastResizeW, a.lastResizeH = ev.Width, ev.Height
 					a.lastResizeScale = sc
+					if os.Getenv("WR_RESIZE_DBG") == "1" {
+						fmt.Fprintf(os.Stderr, "DBG ev resize %dx%d sc=%v\n", ev.Width, ev.Height, sc)
+					}
 					// Defer the actual swapchain reconfigure + relayout to the
 					// render frame boundary (applyPendingResize). A resize drag
 					// storm floods ConfigureNotify events; applying each one
@@ -578,6 +587,13 @@ func (a *PipelineApp) Run() error {
 			case platform.EventExpose:
 				// Damage/full present redraws on demand. Reacting to every Expose
 				// after Present causes a busy loop on X11.
+				if !a.sched.Pending() {
+					a.ScheduleFrame()
+				}
+			case platform.EventResizeSync:
+				// Flutter/Skia: the WM's resize-sync request is a promise to
+				// deliver a painted frame; schedule one now (the counter
+				// advances when the frame is presented via FrameSync).
 				if !a.sched.Pending() {
 					a.ScheduleFrame()
 				}
@@ -647,6 +663,9 @@ func (a *PipelineApp) Run() error {
 			m.SetBoundaryDiscovery(bc, bd)
 		}
 		pkt := rendering.BuildFramePacket(a.root, frameID, scale, float64(w), float64(h))
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			fmt.Fprintf(os.Stderr, "DBG frame %d viewport=%dx%d dirty=%v\n", frameID, w, h, pkt.DirtyLayerIDs)
+		}
 		if m := a.sched.Metrics(); m != nil {
 			m.SetPictureOpCount(scene.CountPictureOps(pkt))
 			mh, mm := rendering.TreeMeasureCacheStats(a.root)
@@ -694,6 +713,9 @@ func (a *PipelineApp) Run() error {
 		// buffers are undefined until fully written (render/present_target.go),
 		// and compositeOnly skips clean boundaries → black regions.
 		compositeOnly := a.useRetained.Load() && !force && !a.inFullRecovery()
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			fmt.Fprintf(os.Stderr, "DBG frame %d comp=%v force=%v recov=%v\n", frameID, compositeOnly, force, a.inFullRecovery())
+		}
 		// Retained textured path: drop stale layer textures on force frames
 		// (bootstrap/resize) so the next retained frame re-records everything.
 		if compositeOnly && a.pictureTex != nil && a.target != nil {
@@ -766,12 +788,39 @@ func (a *PipelineApp) Run() error {
 		// Async: never block UI on Present.
 		_ = a.loop.SubmitLatest(job)
 		a.presents.Add(1) // count submit as frame produced; present completes on raster thread
+		// FrameSync (X11 _NET_WM_SYNC_REQUEST): each submitted frame advances
+		// the windowing sync counter so the compositor unstretches live during
+		// interactive resize drags instead of freezing the pre-drag content.
+		if fs, ok := a.host.(platform.FrameSync); ok {
+			fs.NotifyFrameDrawn()
+		}
 		a.sched.ClearPending()
 		// Keep scheduling while tickers run.
 		if a.sched.Tickers().HasActive() {
 			a.ScheduleFrame()
 		}
 		a.sched.RecomputeMode()
+	}
+
+	// Final-frame snapshot (AA/pixel verification): xwd reads the X11 backing
+	// store which can lag/diverge from composited GPU content, and window
+	// presents are zero-readback (the context pixmap stays stale after
+	// FlushGPUWithView + EndFrame releases the view). Drain the raster loop,
+	// repaint the tree into the same context (the offscreen nil-view flush
+	// path reads back into the pixmap with the same GPU session/MSAA), then
+	// SavePNG the CPU pixmap.
+	if a.opts.SnapshotPath != "" {
+		a.loop.Stop() // wait for queued/in-flight presents before touching dc
+		if dc := a.target.Context(); dc != nil {
+			dc.BeginFrame()
+			paintPresentTree(dc, a.pipe, a.root, a.opts.Overlay,
+				a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, false)
+			if err := dc.SavePNG(a.opts.SnapshotPath); err != nil {
+				fmt.Fprintf(os.Stderr, "snapshot: %v\n", err)
+			} else {
+				fmt.Fprintf(os.Stderr, "snapshot: %s\n", a.opts.SnapshotPath)
+			}
+		}
 	}
 	return nil
 }

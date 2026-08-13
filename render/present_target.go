@@ -3,6 +3,8 @@ package render
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +24,33 @@ func presentDeviceDescriptor(label string) *webgpu.DeviceDescriptor {
 		Label:          label,
 		RequiredLimits: limits,
 	}
+}
+
+// requestPresentDeviceWithRetry retries device creation when the adapter is
+// temporarily out of GPU memory (multi-window stolen-memory budget on iGPUs).
+// Other windows/processes may release memory between retries; this mirrors
+// Flutter's degrade-not-crash behavior on transient resource pressure.
+// Implemented here rather than render/internal/gpu to avoid an import cycle.
+func requestPresentDeviceWithRetry(adapter *webgpu.Adapter, desc *webgpu.DeviceDescriptor, label string) (*webgpu.Device, error) {
+	if adapter == nil {
+		return nil, fmt.Errorf("adapter is nil")
+	}
+	var device *webgpu.Device
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		device, err = adapter.RequestDevice(desc)
+		if err == nil {
+			return device, nil
+		}
+		low := strings.ToLower(err.Error())
+		if !strings.Contains(low, "not enough memory") && !strings.Contains(low, "out of memory") {
+			return nil, err
+		}
+		// Present device creation is not on a hot path; a short backoff
+		// gives other processes time to release GPU memory.
+		time.Sleep(time.Second)
+	}
+	return nil, err
 }
 
 // PresentPlatform identifies the native windowing backend for surface creation.
@@ -131,7 +160,7 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		return nil, fmt.Errorf("render: RequestAdapter: %w", err)
 	}
 
-	device, err := adapter.RequestDevice(presentDeviceDescriptor("ui-l1-present"))
+	device, err := requestPresentDeviceWithRetry(adapter, presentDeviceDescriptor("ui-l1-present"), "ui-l1-present")
 	if err != nil {
 		adapter.Release()
 		surf.Release()
@@ -392,6 +421,9 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	frame, err := t.sc.BeginFrame()
 	if err != nil {
 		return out, fmt.Errorf("render: BeginFrame: %w", err)
+	}
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		fmt.Fprintf(os.Stderr, "DBG sc.frame %dx%d (logic %dx%d)\n", frame.Width, frame.Height, t.logicW, t.logicH)
 	}
 	// Failed/timeout BeginFrames above return early and do NOT consume the
 	// post-resize full budget: the next frame still owes a full write.

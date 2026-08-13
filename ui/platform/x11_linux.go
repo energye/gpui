@@ -316,8 +316,25 @@ func x11Create(opts Options) (*Window, error) {
 
 	delName := append([]byte("WM_DELETE_WINDOW"), 0)
 	if wmDelete := xInternAtom(dpy, &delName[0], 0); wmDelete != 0 {
-		atom := wmDelete
-		xSetWMProtocols(dpy, win, &atom, 1)
+		protos := []uintptr{wmDelete}
+		// _NET_WM_SYNC_REQUEST: interactive resize sync. Without it the
+		// compositor stretches stale content while the mouse is held during
+		// a resize drag and live frames are hidden until release.
+		syncName := append([]byte("_NET_WM_SYNC_REQUEST"), 0)
+		if atSync := xInternAtom(dpy, &syncName[0], 0); atSync != 0 {
+			protos = append(protos, atSync)
+			// Simple counter (mode 0): 64-bit value as two 32-bit words,
+			// initially 0. Every painted frame after a sync request advances
+			// it, which the compositor samples to stop stretching.
+			counterName := append([]byte("_NET_WM_SYNC_REQUEST_COUNTER"), 0)
+			if atCounter := xInternAtom(dpy, &counterName[0], 0); atCounter != 0 {
+				cardName := append([]byte("CARDINAL"), 0)
+				atCard := xInternAtom(dpy, &cardName[0], 0)
+				var zero [2]uint32
+				xChangeProperty(dpy, win, atCounter, atCard, 32, 0, (*byte)(unsafe.Pointer(&zero[0])), 2)
+			}
+		}
+		xSetWMProtocols(dpy, win, &protos[0], len(protos))
 	}
 
 	// _NET_WM_WINDOW_TYPE_NORMAL.
@@ -360,10 +377,11 @@ func x11Create(opts Options) (*Window, error) {
 			}
 			return lib.keycodeToKeysym(dpy, keycode, index)
 		},
-		title:     title,
-		decorated: opts.Decorations,
-		resizable: opts.Resizable,
-		visible:   opts.Visible == nil || *opts.Visible,
+		title:           title,
+		decorated:       opts.Decorations,
+		resizable:       opts.Resizable,
+		visible:         opts.Visible == nil || *opts.Visible,
+		xChangeProperty: xChangeProperty,
 	}
 	// Resolve EWMH atoms once; the controller and event pump share them.
 	st.resolveAtoms(dpy)
@@ -440,6 +458,9 @@ func (st *x11State) resolveAtoms(dpy uintptr) {
 	st.atNetName = atom("_NET_WM_NAME")
 	st.atUTF8 = atom("UTF8_STRING")
 	st.atMotifHints = atom("_MOTIF_WM_HINTS")
+	st.atSyncReq = atom("_NET_WM_SYNC_REQUEST")
+	st.atSyncCounter = atom("_NET_WM_SYNC_REQUEST_COUNTER")
+	st.atCardinal = atom("CARDINAL")
 }
 
 // imeForX11 returns the XIM-based IME capability, or nil when no input
@@ -471,6 +492,8 @@ type x11State struct {
 	atFull, atAbove, atActive  uintptr
 	atNetName, atUTF8          uintptr
 	atMotifHints               uintptr
+	atSyncReq, atSyncCounter   uintptr // _NET_WM_SYNC_REQUEST + counter property
+	atCardinal                 uintptr
 	title                      string
 	decorated                  bool
 
@@ -491,6 +514,16 @@ type x11State struct {
 	userMaxW, userMaxH int
 	hints              xSizeHints // last-applied normal hints
 	cursor             uintptr    // current X cursor (0 = default/undefined)
+
+	// _NET_WM_SYNC_REQUEST (resize sync). syncCounter is the last advertised
+	// frame counter; pendingSync is the latest request serial awaiting a
+	// painted frame; syncDirty marks a property write owed to the X thread
+	// (X calls must stay on the event pump thread, hence the flag).
+	syncCounter uint64
+	pendingSync uint64
+	syncDirty   bool
+	// xChangeProperty is bound at Create for the event thread flush.
+	xChangeProperty func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
 }
 
 // x11Host implements Host for an X11 window (event pump). Destroying the
@@ -572,6 +605,29 @@ func (h *x11Host) ScaleFactor() float64 {
 // WaitVSync uses DRM vblank when available; the scheduler falls back to a
 // software tick otherwise.
 func (h *x11Host) WaitVSync() error { return WaitDRMVBlank() }
+
+// NotifyFrameDrawn advances the _NET_WM_SYNC_REQUEST counter after a frame
+// has been submitted for presentation (FrameSync). The compositor samples
+// the counter to stop stretching stale content during interactive resize
+// drags; without this the visible content freezes at the pre-drag size
+// until the mouse is released. The actual X property write is deferred to
+// the event pump thread via syncDirty (Xlib is not thread-safe).
+func (h *x11Host) NotifyFrameDrawn() {
+	if h == nil || h.st == nil || h.st.atSyncCounter == 0 {
+		return
+	}
+	st := h.st
+	st.mu.Lock()
+	next := st.syncCounter + 1
+	if st.pendingSync != 0 && st.pendingSync+1 > next {
+		next = st.pendingSync + 1
+	}
+	st.syncCounter = next
+	st.pendingSync = 0
+	st.syncDirty = true
+	st.mu.Unlock()
+	h.WakeUp()
+}
 
 func (h *x11Host) setSize(w, ht int) bool {
 	if h == nil || h.st == nil {
@@ -693,6 +749,23 @@ func (h *x11Host) drainX() []Event {
 	if st == nil || st.pending == nil {
 		return nil
 	}
+	// Flush any owed _NET_WM_SYNC_REQUEST counter write. X calls must stay
+	// on the event pump thread; NotifyFrameDrawn only marks it dirty.
+	if st.atSyncCounter != 0 {
+		st.mu.Lock()
+		dirty := st.syncDirty
+		val := st.syncCounter
+		st.syncDirty = false
+		st.mu.Unlock()
+		if dirty && h.st.xChangeProperty != nil {
+			// format=32 data must be a long[] (8 bytes/elem); Xlib copies the
+			// low 32 bits of each long. Never pass a packed uint32 array here.
+			var v [2]int64
+			v[0] = int64(val)
+			v[1] = int64(val >> 32)
+			h.st.xChangeProperty(st.display, st.window, st.atSyncCounter, st.atCardinal, 32, 0, (*byte)(unsafe.Pointer(&v[0])), 2)
+		}
+	}
 	var out []Event
 	var buf [256]byte
 	for st.pending() > 0 {
@@ -769,8 +842,24 @@ func (h *x11Host) drainX() []Event {
 			}
 		case xClientMessage:
 			data0 := readU64(buf[:], xevClientData0Off)
-			if st.wmDelete != 0 && uintptr(data0) == st.wmDelete {
+			switch {
+			case st.wmDelete != 0 && uintptr(data0) == st.wmDelete:
 				out = append(out, Event{Type: EventClose})
+			case st.atSyncReq != 0 && uintptr(data0) == st.atSyncReq:
+				// _NET_WM_SYNC_REQUEST: l[1] = new size, l[2] = serial (low
+				// 32) + flags (high 32). Mode 0 (simple counter): the painted
+				// frame must advance the counter past serial before the
+				// compositor unstretches. Keep only the latest serial; a
+				// frame in flight covers all prior requests at once. Surface
+				// an EventResizeSync so the app schedules the promised frame
+				// (Flutter/Skia: sync requests drive frame production).
+				raw := readU64(buf[:], xevClientData0Off+16)
+				if uint32(raw>>32) == 0 { // simple counter mode
+					st.mu.Lock()
+					st.pendingSync = uint64(uint32(raw))
+					st.mu.Unlock()
+					out = append(out, Event{Type: EventResizeSync})
+				}
 			}
 		case xDestroyNotify:
 			out = append(out, Event{Type: EventClose})

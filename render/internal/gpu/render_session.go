@@ -314,6 +314,12 @@ type GPURenderSession struct {
 	queue       *webgpu.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// onTextureOOM is invoked when a session texture allocation fails with
+	// GPU OOM after the built-in retry chain. The render context wires this
+	// to GPUShared.RequestMSAADowngrade so the failure recovers as 1x
+	// rendering instead of a permanently black window.
+	onTextureOOM func()
+
 	// Shared textures (MSAA 4x color + depth/stencil + 1x resolve).
 	textures textureSet
 
@@ -639,6 +645,15 @@ func NewGPURenderSession(device *webgpu.Device, queue *webgpu.Queue, sampleCount
 		s.pendingTexRetire.Add(view, tex)
 	}
 	return s
+}
+
+// SetTextureOOMHook registers a callback invoked when a session texture
+// allocation fails with GPU memory exhaustion after the built-in retry
+// chain (flush callbacks, WaitIdle, per-texture MSAA downgrade). The render
+// context wires this to the shared MSAA downgrade so the failure recovers
+// as 1x rendering instead of a permanently black window.
+func (s *GPURenderSession) SetTextureOOMHook(fn func()) {
+	s.onTextureOOM = fn
 }
 
 // RetireBuffer hands a buffer to the deferred-release queue (P6 grow fix);
@@ -1131,6 +1146,9 @@ func (s *GPURenderSession) RenderFrame(
 	// vanished on the non-grouped path. RenderFrameGrouped already does this.
 	s.frameW, s.frameH = int(w), int(h)
 	if err := s.ensureTexturesForView(activeView, w, h); err != nil {
+		if s.onTextureOOM != nil && isOOMError(err) {
+			s.onTextureOOM()
+		}
 		return fmt.Errorf("ensure textures: %w", err)
 	}
 
@@ -1247,6 +1265,9 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	w, h := s.effectiveDimensions(target, activeView)
 	s.frameW, s.frameH = int(w), int(h)
 	if err := s.ensureTexturesForView(activeView, w, h); err != nil {
+		if s.onTextureOOM != nil && isOOMError(err) {
+			s.onTextureOOM()
+		}
 		return fmt.Errorf("ensure textures: %w", err)
 	}
 	// Clip bind layout must be created BEFORE pipelines, because pipeline

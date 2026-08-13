@@ -4,6 +4,8 @@ package gpu
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
@@ -75,12 +77,51 @@ func createDevice(adapter *webgpu.Adapter, label string) (*webgpu.Device, error)
 		return nil, fmt.Errorf("adapter is nil")
 	}
 
-	device, err := adapter.RequestDevice(renderDeviceDescriptor(label))
+	device, err := requestDeviceWithRetry(adapter, renderDeviceDescriptor(label), label)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create device: %w", err)
 	}
 
 	return device, nil
+}
+
+// isOOMError reports whether err is a GPU-memory exhaustion error.
+// wgpu-native surfaces device memory exhaustion as "Not enough memory left".
+func isOOMError(err error) bool {
+	if err == nil {
+		return false
+	}
+	low := strings.ToLower(err.Error())
+	return strings.Contains(low, "not enough memory") ||
+		strings.Contains(low, "out of memory") ||
+		strings.Contains(low, "out of device memory")
+}
+
+// requestDeviceWithRetry retries adapter.RequestDevice a few times when the
+// adapter is temporarily out of GPU memory (multi-window shared stolen-memory
+// budget on iGPUs). Other windows/processes may release memory between
+// retries; this mirrors Flutter's degrade-not-crash behavior on transient
+// resource pressure instead of failing the app outright.
+func requestDeviceWithRetry(adapter *webgpu.Adapter, desc *webgpu.DeviceDescriptor, label string) (*webgpu.Device, error) {
+	if adapter == nil {
+		return nil, fmt.Errorf("adapter is nil")
+	}
+	var device *webgpu.Device
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		device, err = adapter.RequestDevice(desc)
+		if err == nil {
+			return device, nil
+		}
+		if !isOOMError(err) {
+			return nil, err
+		}
+		slogger().Warn("RequestDevice OOM, retrying", "label", label, "attempt", attempt, "err", err)
+		// Device creation is not on a hot path; a short backoff gives
+		// other processes time to release GPU memory.
+		time.Sleep(time.Second)
+	}
+	return nil, err
 }
 
 // getDeviceQueue retrieves the queue associated with a device.

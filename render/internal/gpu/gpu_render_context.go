@@ -1913,6 +1913,10 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			sc = 1
 		}
 		rc.session = NewGPURenderSession(device, queue, sc)
+		// OOM-downgrade wiring: a 4x session texture allocation failure is
+		// non-fatal — drop shared MSAA to 1x and let the next flush rebuild
+		// this session at the lower sample count (Skia/Flutter pressure path).
+		rc.session.SetTextureOOMHook(func() { rc.shared.RequestMSAADowngrade() })
 		rc.deviceGen = sharedGen
 		// Effect/offscreen surfaces (preferSampleCount1) MUST own sampleCount-matched
 		// shape pipelines. Injecting the shared stencil/sdf/convex renderers thrashes

@@ -368,6 +368,9 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	} else {
 		e.bounds = image.Rectangle{}
 	}
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		fmt.Fprintf(os.Stderr, "DBG record full id=%d w=%d h=%d\n", id, c.width, c.height)
+	}
 	e.lastUse = c.stamp
 	e.recordedIn = c.recordFrame
 	c.usedNow[id] = struct{}{}
@@ -441,6 +444,9 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	}
 	e.bounds = b
 	e.off = b.Min
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		fmt.Fprintf(os.Stderr, "DBG record local id=%d w=%d h=%d b=%v\n", id, w, h, b)
+	}
 	e.lastUse = c.stamp
 	e.recordedIn = c.recordFrame
 	c.usedNow[id] = struct{}{}
@@ -545,6 +551,9 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 		return false
 	}
 	c.dc.DrawGPUTexture(s.view, float64(e.off.X), float64(e.off.Y), s.w, s.h)
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		fmt.Fprintf(os.Stderr, "DBG blit id=%d w=%d h=%d off=%v\n", id, s.w, s.h, e.off)
+	}
 	e.lastUse = c.stamp
 	c.usedNow[id] = struct{}{}
 	c.FrameSkip.Add(1)

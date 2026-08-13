@@ -1262,7 +1262,7 @@ func (a *VelloAccelerator) initGPU() error {
 		return fmt.Errorf("request adapter: %w", err)
 	}
 
-	device, err := adapter.RequestDevice(renderDeviceDescriptor("gg-vello"))
+	device, err := requestDeviceWithRetry(adapter, renderDeviceDescriptor("gg-vello"), "gg-vello")
 	if err != nil {
 		return fmt.Errorf("request device: %w", err)
 	}
