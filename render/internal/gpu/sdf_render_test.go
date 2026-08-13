@@ -265,9 +265,10 @@ func TestSDFRenderVertexLayout(t *testing.T) {
 		t.Errorf("expected stride %d, got %d", sdfRenderVertexStride, vbl.ArrayStride)
 	}
 
-	// 9 attributes: position, local, shape_kind, param1..4, half_stroke, is_stroked, color
-	if len(vbl.Attributes) != 9 {
-		t.Errorf("expected 9 attributes, got %d", len(vbl.Attributes))
+	// 11 attributes: position, local, shape_kind, param1..3, half_stroke,
+	// is_stroked, color, angle0, angle1 (kind 2 arc sectors).
+	if len(vbl.Attributes) != 11 {
+		t.Errorf("expected 11 attributes, got %d", len(vbl.Attributes))
 	}
 
 	// Verify first attribute is position at offset 0.
@@ -276,10 +277,10 @@ func TestSDFRenderVertexLayout(t *testing.T) {
 			vbl.Attributes[0].Offset, vbl.Attributes[0].ShaderLocation)
 	}
 
-	// Verify last attribute (color) at offset 40, location 8.
+	// Verify last attribute (angle1, kind 2 arc sector) at offset 60, location 10.
 	last := vbl.Attributes[len(vbl.Attributes)-1]
-	if last.Offset != 40 || last.ShaderLocation != 8 {
-		t.Errorf("last attribute: offset=%d location=%d, expected offset=40 location=8",
+	if last.Offset != 60 || last.ShaderLocation != 10 {
+		t.Errorf("last attribute: offset=%d location=%d, expected offset=60 location=10",
 			last.Offset, last.ShaderLocation)
 	}
 }

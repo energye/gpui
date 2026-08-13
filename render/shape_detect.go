@@ -20,6 +20,10 @@ const (
 
 	// ShapeRRect indicates a rounded rectangle path.
 	ShapeRRect
+
+	// ShapeArc indicates an open circular arc path (DrawArc: MoveTo + n×CubicTo,
+	// no Close). Parameters: CenterX/Y, RadiusX (=RadiusY), Angle0/Angle1.
+	ShapeArc
 )
 
 // DetectedShape holds parameters of a recognized geometric shape.
@@ -33,6 +37,8 @@ type DetectedShape struct {
 	Width        float64 // Total width for rect/rrect.
 	Height       float64 // Total height for rect/rrect.
 	CornerRadius float64 // Corner radius for rrect only.
+	Angle0       float64 // Arc start angle (radians), ShapeArc only.
+	Angle1       float64 // Arc end angle (radians), ShapeArc only.
 }
 
 // kappa is the cubic Bezier control point distance for circle approximation.
@@ -41,6 +47,10 @@ const kappa = 0.5522847498307936
 
 // shapeDetectTolerance is the maximum allowed error for shape detection.
 const shapeDetectTolerance = 1e-3
+
+// tanDotTol bounds |cos(angle between cubic control offset and radius)| for
+// circular-arc segments (0 for exact arcs; ellipse arcs deviate well beyond).
+const tanDotTol = 1e-3
 
 // DetectShape analyzes a Path and returns the identified shape if recognized.
 // Returns a DetectedShape with Kind == ShapeUnknown if the path cannot be
@@ -61,6 +71,15 @@ func DetectShape(path *Path) DetectedShape {
 	// Try circle/ellipse: MoveTo + 4xCubicTo + Close = 6 elements
 	if nv == 6 {
 		if shape, ok := detectCircleOrEllipse(verbs, coords); ok {
+			return shape
+		}
+	}
+
+	// Try arc: open path MoveTo + n×CubicTo (no Close), all endpoints on a
+	// common circle with sweep < 2π. GPU renders arc strokes through the SDF
+	// annular pipeline (smoothstep AA at 1x sample count).
+	if verbs[0] == MoveTo && verbs[nv-1] != Close {
+		if shape, ok := detectArc(verbs, coords); ok {
 			return shape
 		}
 	}
@@ -341,6 +360,144 @@ func detectRRect(verbs []PathVerb, coords []float64) (DetectedShape, bool) {
 		Height:       h,
 		CornerRadius: cornerR,
 	}, true
+}
+
+// detectArc checks for an open circular arc: MoveTo + n×CubicTo, no Close,
+// where all endpoints lie on a common circle with sweep angle < 2π. This is
+// the exact shape DrawArc emits (cubic arc approximation segments).
+func detectArc(verbs []PathVerb, coords []float64) (DetectedShape, bool) {
+	n := len(verbs)
+	if n < 2 {
+		return DetectedShape{}, false
+	}
+	for i := 1; i < n; i++ {
+		if verbs[i] != CubicTo {
+			return DetectedShape{}, false
+		}
+	}
+
+	// Collect endpoints: MoveTo point + each CubicTo endpoint.
+	pts := make([]Point, 0, n)
+	pts = append(pts, Pt(coords[0], coords[1]))
+	ci := 2
+	for i := 1; i < n; i++ {
+		pts = append(pts, Pt(coords[ci+4], coords[ci+5]))
+		ci += 6
+	}
+	if len(pts) < 3 {
+		return DetectedShape{}, false
+	}
+
+	// Fit a circle through the first, middle, and last endpoints, then verify
+	// consistency with two more endpoint triples. An ellipse arc drifts the
+	// fitted center/radius across triples (curvature varies); a true circular
+	// arc keeps them stable within tolerance.
+	cx, cy, r, ok := circleFromPoints(pts[0], pts[len(pts)/2], pts[len(pts)-1])
+	if !ok || r < shapeDetectTolerance {
+		return DetectedShape{}, false
+	}
+	ctol := arcCenterTolerance(r)
+	for _, tri := range [][3]Point{
+		{pts[0], pts[1], pts[len(pts)-1]},
+		{pts[0], pts[len(pts)-2], pts[len(pts)-1]},
+	} {
+		cx2, cy2, r2, ok2 := circleFromPoints(tri[0], tri[1], tri[2])
+		if !ok2 {
+			return DetectedShape{}, false
+		}
+		if math.Hypot(cx2-cx, cy2-cy) > ctol || math.Abs(r2-r) > ctol {
+			return DetectedShape{}, false
+		}
+	}
+	// All endpoints must lie on the fitted circle.
+	tol := arcRadiusTolerance(r)
+	for _, p := range pts {
+		if math.Abs(math.Hypot(p.X-cx, p.Y-cy)-r) > tol {
+			return DetectedShape{}, false
+		}
+	}
+	// Each cubic's first control point must lie on the tangent at its start
+	// endpoint (perpendicular to the radius). True for the circular-arc cubic
+	// approximation DrawArc emits; ellipse arcs deviate (tangent direction is
+	// not perpendicular to the radius in general) and are rejected here.
+	ci = 2
+	for i := 1; i < n; i++ {
+		p := pts[i-1]
+		tx, ty := coords[ci]-p.X, coords[ci+1]-p.Y // c1 offset
+		rx, ry := p.X-cx, p.Y-cy
+		tl := math.Hypot(tx, ty)
+		rl := math.Hypot(rx, ry)
+		if tl < 1e-9 || rl < 1e-9 {
+			return DetectedShape{}, false
+		}
+		if math.Abs(tx*rx+ty*ry) > tanDotTol*tl*rl {
+			return DetectedShape{}, false
+		}
+		ci += 6
+	}
+
+	a0 := math.Atan2(pts[0].Y-cy, pts[0].X-cx)
+	a1 := math.Atan2(pts[len(pts)-1].Y-cy, pts[len(pts)-1].X-cx)
+	// Normalize like DrawArc: sweep must be positive and less than a full turn.
+	for a1 < a0 {
+		a1 += 2 * math.Pi
+	}
+	if a1-a0 >= 2*math.Pi-shapeDetectTolerance {
+		return DetectedShape{}, false // full circle, not an open arc
+	}
+
+	return DetectedShape{
+		Kind: ShapeArc, CenterX: cx, CenterY: cy, RadiusX: r, RadiusY: r,
+		Angle0: a0, Angle1: a1,
+	}, true
+}
+
+// arcRadiusTolerance returns the endpoint radius check tolerance for an arc
+// of radius r: absolute floor plus a small relative allowance.
+func arcRadiusTolerance(r float64) float64 {
+	t := shapeDetectTolerance
+	if rt := r * 1e-4; rt > t {
+		t = rt
+	}
+	return t
+}
+
+// arcCenterTolerance returns the cross-triple center-consistency tolerance for
+// an arc of radius r. Tighter than the radius check: circular arcs fit stably,
+// ellipse arcs drift the fitted center well beyond this.
+func arcCenterTolerance(r float64) float64 {
+	t := shapeDetectTolerance * 10
+	if rt := r * 1e-3; rt > t {
+		t = rt
+	}
+	return t
+}
+
+// circleFromPoints returns the center (cx, cy) and radius r of the circle
+// through three non-collinear points, or ok=false for degenerate input.
+func circleFromPoints(p0, p1, p2 Point) (cx, cy, r float64, ok bool) {
+	// Perpendicular bisectors of p0-p1 and p1-p2.
+	ax, ay := p1.X-p0.X, p1.Y-p0.Y // direction of chord p0→p1
+	bx, by := p2.X-p1.X, p2.Y-p1.Y // direction of chord p1→p2
+	mx01, my01 := (p0.X+p1.X)/2, (p0.Y+p1.Y)/2
+	mx12, my12 := (p1.X+p2.X)/2, (p1.Y+p2.Y)/2
+
+	// Solve: mid01 + t·perp(ab) == mid12 + s·perp(bc), where perp(v)=( -v.y, v.x ).
+	// perp(ab) = (-ay, ax); perp(bc) = (-by, bx).
+	// Matrix: [ -ay,  by ] [t]   [ mx12-mx01 ]
+	//         [  ax, -bx ] [s] = [ my12-my01 ]
+	det := (-ay)*(-bx) - (by)*(ax) // (-ay)(-bx) - (by)(ax) = ay·bx - by·ax
+	if math.Abs(det) < 1e-12 {
+		return 0, 0, 0, false
+	}
+	dx := mx12 - mx01
+	dy := my12 - my01
+	// Cramer's rule
+	t := (dx*(-bx) - (by)*dy) / det
+	cx = mx01 + t*(-ay)
+	cy = my01 + t*ax
+	r = math.Hypot(p0.X-cx, p0.Y-cy)
+	return cx, cy, r, true
 }
 
 // pointsClose checks if two points are within tolerance.

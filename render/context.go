@@ -1604,12 +1604,47 @@ func (c *Context) arcSegment(cx, cy, r, a1, a2 float64) {
 
 // DrawEllipticalArc draws an elliptical arc (advanced).
 func (c *Context) DrawEllipticalArc(x, y, rx, ry, angle1, angle2 float64) {
-	// This is a simplified version; full implementation would handle rotation
-	c.Push()
-	c.Translate(x, y)
-	c.Scale(rx, ry)
-	c.DrawArc(0, 0, 1, angle1, angle2)
-	c.Pop()
+	// Build the arc from parametric ellipse points p(θ) = (x+rx·cosθ, y+ry·sinθ)
+	// with per-axis radii. A Translate+Scale+unit-DrawArc shortcut would lose
+	// rx/ry entirely: DrawArc only transforms the arc center through the CTM
+	// and uses its radius parameter unscaled in world space (observed: the arc
+	// collapsed to a ~1px dot at (x,y)). Points here are transformed per-vertex
+	// like MoveTo/CubicTo, so rotation / non-uniform CTMs apply to the ellipse.
+	const twoPi = 2 * math.Pi
+	for angle2 < angle1 {
+		angle2 += twoPi
+	}
+
+	const maxAngle = math.Pi / 2
+	numSegments := int(math.Ceil((angle2 - angle1) / maxAngle))
+	angleStep := (angle2 - angle1) / float64(numSegments)
+
+	for i := 0; i < numSegments; i++ {
+		a1 := angle1 + float64(i)*angleStep
+		a2 := a1 + angleStep
+		c.ellipseArcSegment(x, y, rx, ry, a1, a2)
+	}
+}
+
+// ellipseArcSegment appends one elliptical arc segment (≤90°) using the same
+// cubic approximation as arcSegment but with per-axis radii rx/ry. Endpoints
+// and control handles are transformed by the CTM before path insertion so the
+// ellipse participates in user transforms exactly like MoveTo/CubicTo.
+func (c *Context) ellipseArcSegment(x, y, rx, ry, a1, a2 float64) {
+	alpha := math.Sin(a2-a1) * (math.Sqrt(4+3*math.Tan((a2-a1)/2)*math.Tan((a2-a1)/2)) - 1) / 3
+
+	cos1, sin1 := math.Cos(a1), math.Sin(a1)
+	cos2, sin2 := math.Cos(a2), math.Sin(a2)
+
+	p1 := c.matrix.TransformPoint(Pt(x+rx*cos1, y+ry*sin1))
+	p2 := c.matrix.TransformPoint(Pt(x+rx*cos2, y+ry*sin2))
+	c1 := c.matrix.TransformPoint(Pt(x+rx*cos1-alpha*rx*sin1, y+ry*sin1+alpha*ry*cos1))
+	c2 := c.matrix.TransformPoint(Pt(x+rx*cos2+alpha*rx*sin2, y+ry*sin2-alpha*ry*cos2))
+
+	if c.path.isEmpty() {
+		c.path.MoveTo(p1.X, p1.Y)
+	}
+	c.path.CubicTo(c1.X, c1.Y, c2.X, c2.Y, p2.X, p2.Y)
 }
 
 // currentColor returns the current drawing color from the paint.
@@ -2204,7 +2239,7 @@ func (c *Context) tryGPUOp(
 // sdfAccelForShape maps a shape kind to its SDF acceleration capability.
 func sdfAccelForShape(kind ShapeKind) AcceleratedOp {
 	switch kind {
-	case ShapeCircle, ShapeEllipse:
+	case ShapeCircle, ShapeEllipse, ShapeArc:
 		return AccelCircleSDF
 	case ShapeRect, ShapeRRect:
 		return AccelRRectSDF

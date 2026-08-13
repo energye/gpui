@@ -31,7 +31,7 @@ var sdfRenderShaderSource string
 //	color    (vec4<f32>) = 16 bytes (location 8)
 //
 // Total = 56 bytes per vertex.
-const sdfRenderVertexStride = 56
+const sdfRenderVertexStride = 64
 
 // sdfRenderUniformSize is the byte size of the SDF render uniform buffer.
 // Layout: viewport (vec2<f32>) + padding (vec2<f32>) = 16 bytes.
@@ -709,18 +709,22 @@ func (p *SDFRenderPipeline) Size() (uint32, uint32) {
 // SDFRenderShape holds the parameters for a single shape to be rendered
 // via the SDF render pipeline.
 type SDFRenderShape struct {
-	Kind       uint32  // 0 = circle/ellipse, 1 = rrect
+	Kind       uint32  // 0 = circle/ellipse, 1 = rrect, 2 = annular arc sector
 	CenterX    float32 // Shape center X in pixel coordinates.
 	CenterY    float32 // Shape center Y in pixel coordinates.
-	Param1     float32 // radius_x (circle/ellipse) or half_width (rrect).
-	Param2     float32 // radius_y (circle/ellipse) or half_height (rrect).
-	Param3     float32 // corner_radius (rrect only, 0 for circle).
+	Param1     float32 // radius_x (circle/ellipse/arc) or half_width (rrect).
+	Param2     float32 // radius_y (circle/ellipse/arc) or half_height (rrect).
+	Param3     float32 // corner_radius (rrect only, 0 for circle/arc).
 	HalfStroke float32 // Half stroke width (0 for filled shapes).
 	IsStroked  float32 // 1.0 for stroked, 0.0 for filled.
 	ColorR     float32 // Premultiplied red.
 	ColorG     float32 // Premultiplied green.
 	ColorB     float32 // Premultiplied blue.
 	ColorA     float32 // Premultiplied alpha.
+	// Angle0/Angle1 delimit the annular arc sector (kind 2): parameter-space
+	// start/end angles in radians; Angle0 < Angle1 with sweep < 2π.
+	Angle0 float32
+	Angle1 float32
 }
 
 // DetectedShapeToRenderShape converts a render.DetectedShape and paint into an
@@ -737,6 +741,17 @@ func DetectedShapeToRenderShape(shape render.DetectedShape, paint *render.Paint,
 		rs.Param1 = float32(shape.Width / 2)
 		rs.Param2 = float32(shape.Height / 2)
 		rs.Param3 = float32(shape.CornerRadius)
+	case render.ShapeArc:
+		// Annular arc sector: only meaningful for strokes (a filled open arc
+		// implicitly closes across its chord, which kind 2 cannot express).
+		if !stroked {
+			return rs, false
+		}
+		rs.Kind = 2
+		rs.Param1 = float32(shape.RadiusX)
+		rs.Param2 = float32(shape.RadiusY)
+		rs.Angle0 = float32(shape.Angle0)
+		rs.Angle1 = float32(shape.Angle1)
 	default:
 		return rs, false
 	}
@@ -775,6 +790,8 @@ func sdfRenderVertexLayout() []types.VertexBufferLayout {
 				{Format: types.VertexFormatFloat32, Offset: 32, ShaderLocation: 6},   // half_stroke
 				{Format: types.VertexFormatFloat32, Offset: 36, ShaderLocation: 7},   // is_stroked
 				{Format: types.VertexFormatFloat32x4, Offset: 40, ShaderLocation: 8}, // color
+				{Format: types.VertexFormatFloat32, Offset: 56, ShaderLocation: 9},   // angle0 (kind 2)
+				{Format: types.VertexFormatFloat32, Offset: 60, ShaderLocation: 10},  // angle1 (kind 2)
 			},
 		},
 	}
@@ -853,6 +870,8 @@ func writeSDFRenderVertex(buf []byte, px, py, lx, ly float32, s *SDFRenderShape)
 	binary.LittleEndian.PutUint32(buf[44:48], math.Float32bits(s.ColorG))
 	binary.LittleEndian.PutUint32(buf[48:52], math.Float32bits(s.ColorB))
 	binary.LittleEndian.PutUint32(buf[52:56], math.Float32bits(s.ColorA))
+	binary.LittleEndian.PutUint32(buf[56:60], math.Float32bits(s.Angle0))
+	binary.LittleEndian.PutUint32(buf[60:64], math.Float32bits(s.Angle1))
 }
 
 // makeSDFRenderUniform creates the 16-byte uniform buffer.

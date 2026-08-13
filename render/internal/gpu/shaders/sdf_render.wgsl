@@ -22,13 +22,15 @@ struct Uniforms {
 struct VertexInput {
     @location(0) position: vec2<f32>,  // quad corner in pixel coords
     @location(1) local: vec2<f32>,     // offset from shape center
-    @location(2) shape_kind: f32,      // 0=circle/ellipse, 1=rrect (as f32)
+    @location(2) shape_kind: f32,      // 0=circle/ellipse, 1=rrect, 2=annular arc sector (as f32)
     @location(3) param1: f32,          // radius_x or half_width
     @location(4) param2: f32,          // radius_y or half_height
     @location(5) param3: f32,          // corner_radius (rrect) or 0
     @location(6) half_stroke: f32,     // half stroke width (0 for filled)
     @location(7) is_stroked: f32,      // 1.0 for stroked, 0.0 for filled
     @location(8) color: vec4<f32>,     // premultiplied RGBA
+    @location(9) angle0: f32,          // arc start angle (radians, parameter space), kind 2
+    @location(10) angle1: f32,         // arc end angle (radians, parameter space), kind 2
 }
 
 struct VertexOutput {
@@ -41,6 +43,8 @@ struct VertexOutput {
     @location(5) half_stroke: f32,
     @location(6) is_stroked: f32,
     @location(7) color: vec4<f32>,
+    @location(8) angle0: f32,
+    @location(9) angle1: f32,
 }
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -123,7 +127,42 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.half_stroke = in.half_stroke;
     out.is_stroked = in.is_stroked;
     out.color = in.color;
+    out.angle0 = in.angle0;
+    out.angle1 = in.angle1;
     return out;
+}
+
+// arc_angle_coverage returns 1.0 inside the arc's angular span, ramping to 0
+// over ~ang_aa radians at both ends (≈1.5px of arc travel at the min radius).
+// Kind 2 only; other kinds get 1.0. Parameter-space angle: θ = atan2(dy/ry, dx/rx),
+// matching the arc construction p(θ) = (cx + rx·cosθ, cy + ry·sinθ).
+fn arc_angle_coverage(kind_f: f32, local: vec2<f32>, p1: f32, p2: f32, a0: f32, a1: f32) -> f32 {
+    let arc_f = step(1.5, kind_f); // 1.0 for kind 2, 0.0 otherwise
+    let span = a1 - a0;            // positive, < 2π (DrawArc normalizes a2 > a1)
+    let rdiff = p1 - p2;
+    let rmin = (p1 + p2 - sqrt(rdiff * rdiff)) * 0.5;
+    // 1.0 / max(rmin, 0.001) via arithmetic max
+    let rinv = 1.0 / ((rmin + 0.001 + sqrt((rmin - 0.001) * (rmin - 0.001))) * 0.5);
+    let ang_aa = 1.5 * rinv;       // ~1.5px of arc at min radius, in radians
+    let th = atan2(local.y / p2, local.x / p1); // parameter angle in [-π, π]
+    let tshift = th - a0;
+    let two_pi = 6.283185307179586;
+    // tmod = (th - a0) mod 2π, in [0, 2π); inside arc when tmod <= span
+    let tmod = tshift - floor(tshift / two_pi) * two_pi;
+    // max(tmod - span, 0.0) via arithmetic
+    let d_after_end = (tmod - span + sqrt((tmod - span) * (tmod - span))) * 0.5;
+    // max(two_pi - tmod, 0.0) via arithmetic
+    let d_before_start = (two_pi - tmod + sqrt((two_pi - tmod) * (two_pi - tmod))) * 0.5;
+    // min(d_after_end, d_before_start) via arithmetic
+    let dd = d_after_end - d_before_start;
+    let d_end = (d_after_end + d_before_start - sqrt(dd * dd)) * 0.5;
+    // coverage ramps down over ang_aa: (1 - d/ang_aa) clamped via arithmetic
+    let ramp = (ang_aa - d_end + sqrt((ang_aa - d_end) * (ang_aa - d_end))) * 0.5;
+    let cov = ramp / max(ang_aa, 1e-6);
+    // min(cov, 1.0) via arithmetic
+    let cv = cov - 1.0;
+    let capped = (cov + 1.0 - sqrt(cv * cv)) * 0.5;
+    return 1.0 - arc_f + arc_f * capped;
 }
 
 @fragment
@@ -159,8 +198,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Select distance based on shape kind using arithmetic.
     let kind_f = in.shape_kind;
-    let kdiff = kind_f - 1.0;
-    let is_rrect = (kind_f + 1.0 - sqrt(kdiff * kdiff)) * 0.5;
+    // rrect only for kind exactly 1 (step(0.5,·)`·`step(1.5,·)); kind 2 (arc
+    // sector) uses the circle distance field with annular stroke + angle cut.
+    let is_rrect = step(0.5, kind_f) - step(1.5, kind_f);
     let is_circle = 1.0 - is_rrect;
     let d = d_circle * is_circle + d_rrect * is_rrect;
 
@@ -192,10 +232,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let aa_f = f32(u.anti_alias);
     let coverage = aa_f * aa_coverage + (1.0 - aa_f) * noaa_coverage;
 
+    // Angular cut for kind 2 (arc sectors): fade coverage at the arc ends.
+    let arc_cov = arc_angle_coverage(kind_f, in.local, in.param1, in.param2, in.angle0, in.angle1);
+    let final_cov0 = coverage * arc_cov;
+
     // Apply RRect clip + L.06 full-surface R8 mask coverage.
     let clip_cov = rrect_clip_coverage(in.clip_position.xy);
     let mask_cov = mask_coverage(in.clip_position.xy);
-    let final_coverage = coverage * clip_cov * mask_cov;
+    let final_coverage = final_cov0 * clip_cov * mask_cov;
 
     // Discard fully transparent pixels.
     if final_coverage < 1.0 / 255.0 {
