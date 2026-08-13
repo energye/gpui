@@ -727,6 +727,10 @@ func cursorNameForEdge(edge int) string {
 // setCursor updates the pointer cursor for the current hit region.
 // wl_pointer.set_cursor (opcode 1, signature "ouii": serial, surface,
 // hotspot_x, hotspot_y). Called on pointer enter/motion with enter serial.
+//
+// The compositor default cursor is left untouched until we have a real
+// replacement (resize edge or controller cursor): sending set_cursor with an
+// empty surface (or a failed image apply) makes the pointer invisible.
 func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
 	if c == nil || c.win == nil || c.win.lib == nil || c.win.ptr == nil {
 		return
@@ -741,7 +745,9 @@ func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
 		name = cursorThemeName(c.win.activeCursor())
 	}
 	if name == "" {
-		// Restore default cursor: set_cursor(serial, NULL, 0, 0).
+		// Back to the compositor default: only when a custom cursor is
+		// currently showing; set_cursor(NULL) restores the default theme.
+		// Never set one otherwise (the default cursor is already active).
 		if c.curName != "" {
 			c.curName = ""
 			args := []wlArg{argU(uint32(serial)), argO(0), argU(0), argU(0)}
@@ -753,21 +759,21 @@ func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
 	if name == c.curName {
 		return
 	}
-	surf := c.ensureCursorSurface()
-	if surf == 0 {
+	// Attach the image FIRST; only on success hand the surface to the
+	// compositor (an empty surface would hide the pointer).
+	if !c.applyCursorImage(name) {
 		return
 	}
-	c.applyCursorImage(name)
-	if c.curName == "" {
-		c.curName = name // even if image failed, avoid re-loop
-	}
-	args := []wlArg{argU(uint32(serial)), argO(surf), argU(0), argU(0)}
+	c.curName = name
+	args := []wlArg{argU(uint32(serial)), argO(c.cursorSurf), argU(0), argU(0)}
 	c.win.lib.proxyMarshalArrayFlags(c.win.ptr.ptr, wlPtrSetCursor, 0, 0, 0, &args[0])
 	c.win.lib.displayFlush(c.win.display)
 }
 
 // ensureCursorSurface loads the cursor theme once and returns the cursor
-// surface (created lazily).
+// surface (created lazily). Returns 0 until BOTH the surface and the theme
+// are ready — a cursor surface without an attached image would make the
+// pointer invisible (empty surface), so setCursor must never be given one.
 func (c *wlCSD) ensureCursorSurface() uintptr {
 	if c == nil || c.win == nil || c.win.lib == nil || c.shm == 0 {
 		return 0
@@ -776,10 +782,6 @@ func (c *wlCSD) ensureCursorSurface() uintptr {
 		return c.cursorSurf
 	}
 	lib := c.win.lib
-	l := loadCursorLib()
-	if l == nil {
-		return 0
-	}
 	if c.cursorSurf == 0 {
 		c.cursorSurf = c.win.ctor(c.win.comp, wlCompositorCreateSurface, lib.ifaceSurface, 4)
 		if c.cursorSurf == 0 {
@@ -787,45 +789,56 @@ func (c *wlCSD) ensureCursorSurface() uintptr {
 		}
 	}
 	if c.cursorTheme == 0 {
+		l := loadCursorLib()
+		if l == nil {
+			return 0
+		}
 		var name *byte
 		c.cursorTheme = l.themeLoad(name, 24, c.shm)
+		if c.cursorTheme == 0 {
+			return 0
+		}
 	}
 	return c.cursorSurf
 }
 
-// applyCursorImage loads the cursor image for name into cursorSurf.
-func (c *wlCSD) applyCursorImage(name string) {
+// applyCursorImage loads the cursor image for name into cursorSurf and
+// returns whether an image was actually attached. False when the theme,
+// cursor name or image is unavailable — the caller must NOT set_cursor with
+// an empty surface (the pointer would disappear).
+func (c *wlCSD) applyCursorImage(name string) bool {
 	if c == nil || c.win == nil || c.win.lib == nil || c.cursorSurf == 0 || c.cursorTheme == 0 {
-		return
+		return false
 	}
 	l := loadCursorLib()
 	if l == nil {
-		return
+		return false
 	}
 	nb := append([]byte(name), 0)
 	cur := l.themeGetCur(c.cursorTheme, &nb[0])
 	if cur == 0 {
-		return
+		return false
 	}
 	// struct wl_cursor { unsigned image_count; wl_cursor_image **images;
 	// char *name; } — images is an ARRAY of pointers (wayland-cursor.h),
 	// so dereference twice: images@8 → images[0] → wl_cursor_image.
 	imgArr := *(*uintptr)(unsafe.Pointer(cur + 8))
 	if imgArr == 0 {
-		return
+		return false
 	}
 	imgPtr := *(*uintptr)(unsafe.Pointer(imgArr))
 	if imgPtr == 0 {
-		return
+		return false
 	}
 	img := (*wlCursorImageC)(unsafe.Pointer(imgPtr))
 	if img.Buffer == 0 {
-		return
+		return false
 	}
 	args := []wlArg{argO(img.Buffer), argU(0), argU(0)}
 	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceAttach, 0, 0, 0, &args[0])
 	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceCommit, 0, 0, 0, nil)
 	c.win.lib.displayFlush(c.win.display)
+	return true
 }
 
 // wl_cursor_theme (libwayland-cursor.so.0) — system cursor theme.

@@ -43,7 +43,7 @@ const (
 var (
 	csdColorBgFocus    = [4]byte{0x30, 0x2D, 0x2B, 0xFF} // #2B2D30
 	csdColorBgUnfocus  = [4]byte{0x24, 0x22, 0x20, 0xFF} // #202224
-	csdColorBorder     = [4]byte{0x34, 0x31, 0x2F, 0xFF} // border slightly lighter than bg
+	csdColorBorder     = [4]byte{0x34, 0x31, 0x2F, 0xFF} // unused border line color (frame line removed)
 	csdColorBtnHover   = [4]byte{0x44, 0x41, 0x3E, 0xFF} // #3E4144
 	csdColorBtnPress   = [4]byte{0x38, 0x35, 0x33, 0xFF} // #333538
 	csdColorCloseHover = [4]byte{0x1C, 0x2B, 0xC4, 0xFF} // #C42B1C
@@ -100,10 +100,12 @@ func paintButton(buf []byte, stride, x, y, w, h int, st csdButtonState) {
 	}
 }
 
-// paintBorder renders one visible border edge (transparent outside the 1px
-// visible line region is NOT used — borders are solid, standard CSD look).
+// paintBorder renders one border edge — fully transparent. The frame line
+// is intentionally removed (system GTK CSD draws none either); the
+// subsurface is kept so pointer hit-testing still sees the edge for
+// interactive resize.
 func paintBorder(buf []byte, w, h int, edge csdEdge) {
-	fillRect(buf, w, 0, 0, w, h, csdColorBorder)
+	clearRect(buf, w, 0, 0, w, h)
 }
 
 // --- glyph drawing (ARGB8888, stride = w*4) ---

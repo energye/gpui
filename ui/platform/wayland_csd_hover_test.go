@@ -33,6 +33,14 @@ func TestWaylandCSDHoverEnter(t *testing.T) {
 		wlPtrEnterCB(uintptr(unsafe.Pointer(w.ptr)), w.ptr.ptr, serial, surface,
 			uintptr(int32(x*256)), uintptr(int32(y*256)))
 	}
+	// Entering plain content (the window interior) must NOT arm a cursor:
+	// setCursor must never hand the compositor an empty cursor surface (that
+	// makes the pointer invisible — the "no mouse in window" regression).
+	enter(w.surface, 200, 150)
+	if w.csd.curName != "" {
+		t.Fatalf("content enter armed cursor name %q — set_cursor must stay untouched", w.csd.curName)
+	}
+
 	enter(w.csd.topSurface, 500, 16)  // middle of the caption
 	enter(w.csd.topSurface, 960, 16)  // near the buttons (but not on them)
 	enter(w.csd.left.surf, 2, 100)    // left border
