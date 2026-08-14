@@ -48,15 +48,17 @@ type FanTessellator struct {
 	hasBounds bool
 
 	// Analytic-AA fringe state (TessellateAA):
-	// aaVerts — cover fan as (x, y, signedEdgeDist) triples.
-	// bandVerts — exterior band quads as (x, y, signedEdgeDist) triples.
+	// bandVerts — exterior band quads as (x, y, signedEdgeDist) triples
+	//   (d ∈ [-aaCoverHalfWidth, 0]) — SrcOver over the background.
+	// innerBandVerts — interior band quads (d ∈ [0, +aaCoverHalfWidth]) —
+	//   Replace blend over the binary cover.
 	// segments — flattened boundary edges; segContours maps each segment to
 	// its contour index; contourAreas accumulates the contour's signed 2×area.
-	aaVerts      []float32
-	bandVerts    []float32
-	segments     []aaSegment
-	segContours  []int
-	contourAreas []float64
+	bandVerts      []float32
+	innerBandVerts []float32
+	segments       []aaSegment
+	segContours    []int
+	contourAreas   []float64
 }
 
 // NewFanTessellator creates a new tessellator with pre-allocated capacity.
@@ -71,8 +73,8 @@ func (ft *FanTessellator) Reset() {
 	ft.vertices = ft.vertices[:0]
 	ft.bounds = [4]float32{}
 	ft.hasBounds = false
-	ft.aaVerts = ft.aaVerts[:0]
 	ft.bandVerts = ft.bandVerts[:0]
+	ft.innerBandVerts = ft.innerBandVerts[:0]
 	ft.segments = ft.segments[:0]
 	ft.segContours = ft.segContours[:0]
 	ft.contourAreas = ft.contourAreas[:0]
@@ -347,12 +349,21 @@ func (ft *FanTessellator) flattenCubicFanDepth(
 //
 // The binary stencil cover paints a bbox quad through a NotEqual(0) stencil
 // test — at 1x sample count that yields hard binary edges for non-convex
-// paths (e.g. stroked arc bands). The AA variant replaces the cover geometry
-// with the path's own fan triangles, each vertex carrying the signed distance
-// to the triangle's boundary edge. Distance to a line is affine, so fragment
-// interpolation is exact, and the cover shader converts it to smoothstep
-// coverage over the ±aaCoverHalfWidth band (Skia GrAATriangulator-style
-// analytic AA; convex paths already get this via BuildConvexVertices).
+// paths (e.g. stroked arc bands). The AA variant keeps the binary cover for
+// the interior and adds a symmetric analytical fringe around every boundary
+// edge (Skia-style "fringe coverage"; convex paths already get this via
+// BuildConvexVertices):
+//
+//   - bandVerts (exterior half): the edge extruded aaCoverHalfWidth outward,
+//     drawn with SrcOver + stencil Equal(0) BEFORE the cover so the outside
+//     half of the fringe composites partial coverage over the background.
+//   - innerBandVerts (interior half): the edge extruded aaCoverHalfWidth
+//     inward, drawn with Replace blend AFTER the cover so the just-inside
+//     pixels get their true partial coverage instead of full alpha.
+//
+// Both meshes carry (x, y, signedEdgeDist) per vertex; the signed distance to
+// the boundary line is affine so fragment interpolation is exact, and
+// cover_aa.wgsl converts it to smoothstep coverage over ±aaCoverHalfWidth.
 
 // aaCoverHalfWidth is the half width (px) of the analytic fringe band,
 // matching sdf_render.wgsl aa_hw and convexAAExpand (0.75px).
@@ -361,9 +372,10 @@ const aaCoverHalfWidth = 0.75
 // aaSegment is one flattened path-boundary edge in pixel coords.
 type aaSegment struct{ ax, ay, bx, by float64 }
 
-// aaVerts holds the AA cover fan as (x, y, signedEdgeDist) triples and
-// bandVerts the exterior band quads as (x, y, signedEdgeDist) triples
-// (dist ∈ [-aaCoverHalfWidth, 0]). Populated by TessellateAA.
+// aaVerts field removed in the fringe-band design (v2): coverage comes from
+// per-edge band quads on both sides of each boundary edge, not from fan
+// triangles. bandVerts = exterior halves (d ∈ [-aaCoverHalfWidth, 0]),
+// innerBandVerts = interior halves (d ∈ [0, aaCoverHalfWidth]).
 
 // aaAddSegment appends a flattened boundary edge and its contour's signed
 // 2×area contribution (cross(A,B)).
@@ -373,21 +385,20 @@ func (ft *FanTessellator) aaAddSegment(ax, ay, bx, by float64) {
 	ft.contourAreas[len(ft.contourAreas)-1] += ax*by - ay*bx
 }
 
-// TessellateAA flattens the path into boundary segments, then emits:
+// TessellateAA flattens the path into boundary segments and emits the
+// symmetric analytic fringe:
 //
-//  1. aaVerts: fan triangles (fanOrigin, A, B) per segment with signed pixel
-//     distance to edge A→B at the fan-origin vertex (0 at A/B). The sign is
-//     normalized by the contour's orientation so distances are positive on
-//     the fill-interior side.
-//  2. bandVerts: exterior band quads per segment (edge extruded ±aaCoverHalfWidth
-//     along the edge direction and -aaCoverHalfWidth along the outward normal),
-//     painted with stencil Equal(0) for the outside half of the fringe.
+//  1. bandVerts: exterior half-quads (edge extruded -aaCoverHalfWidth along
+//     the outward normal, d ∈ [-aa, 0]) — SrcOver + stencil Equal(0),
+//     painted before the binary cover over the background.
+//  2. innerBandVerts: interior half-quads (edge extruded +aaCoverHalfWidth
+//     inward, d ∈ [0, +aa]) — Replace blend, painted after the binary cover
+//     so just-inside pixels get true partial coverage instead of full alpha.
 //
-// Returns the number of AA cover vertices emitted (triple floats; each
-// triangle is 3 vertices).
+// Returns the exterior band vertex count (triple floats; a quad = 6 verts).
 func (ft *FanTessellator) TessellateAA(path *render.Path) int {
-	ft.aaVerts = ft.aaVerts[:0]
 	ft.bandVerts = ft.bandVerts[:0]
+	ft.innerBandVerts = ft.innerBandVerts[:0]
 	ft.segments = ft.segments[:0]
 	ft.segContours = ft.segContours[:0]
 	ft.contourAreas = ft.contourAreas[:0]
@@ -396,10 +407,10 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 	}
 
 	// Pass 1: flatten into boundary segments, accumulating per-contour
-	// signed area for the interior-side sign convention.
+	// signed area for the outward-normal sign convention.
 	ft.aaCollectSegments(path)
 
-	// Pass 2: emit AA fan + band from the flattened segments.
+	// Pass 2: emit the exterior + interior bands from the flattened segments.
 	seg := 0
 	for c := 0; c < len(ft.contourAreas); c++ {
 		orient := 1.0
@@ -414,24 +425,11 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 		if seg == start {
 			continue
 		}
-		// Fan origin = first segment's A (path contour start).
-		ox, oy := ft.segments[start].ax, ft.segments[start].ay
 		for i := start; i < seg; i++ {
-			s := ft.segments[i]
-			// Skip zero-length edges (they contribute no boundary).
-			ex, ey := s.bx-s.ax, s.by-s.ay
-			elen := math.Hypot(ex, ey)
-			if elen < 1e-9 {
-				continue
-			}
-			// Signed distance from the fan origin to the edge line, positive
-			// on the fill-interior side (orientation-normalized).
-			dO := orient * (ex*(oy-s.ay) - ey*(ox-s.ax)) / elen
-			ft.emitAATriangle(ox, oy, dO, s.ax, s.ay, 0, s.bx, s.by, 0)
-			ft.emitAABand(s.ax, s.ay, s.bx, s.by, orient)
+			ft.emitAABands(ft.segments[i].ax, ft.segments[i].ay, ft.segments[i].bx, ft.segments[i].by, orient)
 		}
 	}
-	return len(ft.aaVerts) / 3
+	return len(ft.bandVerts) / 3
 }
 
 // aaCollectSegments walks the path and flattens every edge into aaSegments
@@ -472,10 +470,9 @@ func (ft *FanTessellator) aaCollectSegments(path *render.Path) {
 				return
 			}
 			if prevX != closeX || prevY != closeY {
-				// Closing edge participates in the exterior band; the fan
-				// triangle for it is degenerate (origin==endpoint) so the
-				// closing edge's interior fringe is covered by the adjacent
-				// fan triangles' attr band only near the corners.
+				// The closing edge participates in both fringe bands; its
+				// interior half is only meaningful near the corners (the
+				// exact-close primitives emit a zero-length closing edge).
 				ft.aaAddSegment(prevX, prevY, closeX, closeY)
 			}
 			prevX, prevY = closeX, closeY
@@ -542,28 +539,21 @@ func (ft *FanTessellator) aaFlattenCubic(x0, y0, c1x, c1y, c2x, c2y, x1, y1, tol
 	ft.aaFlattenCubic(mx, my, bc2x, bc2y, ab3x, ab3y, x1, y1, tol, depth+1)
 }
 
-// emitAATriangle appends one fan triangle with per-vertex signed edge
-// distances (d at the boundary-edge endpoints is 0). Degenerate triangles
-// (zero area) are skipped, mirroring emitFanTriangle.
-func (ft *FanTessellator) emitAATriangle(v0x, v0y, d0, v1x, v1y, d1, v2x, v2y, d2 float64) {
-	ax, ay := v1x-v0x, v1y-v0y
-	bx, by := v2x-v0x, v2y-v0y
-	if ax*by-ay*bx == 0 {
-		return
-	}
-	ft.aaVerts = append(ft.aaVerts,
-		float32(v0x), float32(v0y), float32(d0),
-		float32(v1x), float32(v1y), float32(d1),
-		float32(v2x), float32(v2y), float32(d2),
-	)
-}
-
-// emitAABand appends the exterior band quad for one boundary edge A→B:
+// emitAABands appends the symmetric fringe bands for one boundary edge A→B:
 // the edge extruded aaCoverHalfWidth along the edge direction on both ends
-// (covers joints) and -aaCoverHalfWidth along the outward normal. Vertices
-// carry d = 0 on the boundary line and d = -aaCoverHalfWidth on the outside
-// edge, so the cover_aa.wgsl smoothstep fades 0.5 → 0 across the band.
-func (ft *FanTessellator) emitAABand(ax, ay, bx, by, orient float64) {
+// (covers joints), then:
+//
+//   - bandVerts (exterior): shifted +aa along the outward normal, vertices
+//     carry d ∈ [-aa, 0] (0 on the line, -aa at the outer fringe edge);
+//     SrcOver + stencil Equal(0), painted before the cover so the outside
+//     half of the fringe composites over the background.
+//   - innerBandVerts (interior): shifted -aa inward, d ∈ [0, +aa]; Replace
+//     blend, painted after the cover so just-inside pixels get their true
+//     partial coverage instead of full alpha.
+//
+// The cover_aa.wgsl smoothstep turns d into coverage: 0 at -aa, 0.5 on the
+// boundary line, 1 at +aa.
+func (ft *FanTessellator) emitAABands(ax, ay, bx, by, orient float64) {
 	ex, ey := bx-ax, by-ay
 	elen := math.Hypot(ex, ey)
 	if elen < 1e-9 {
@@ -573,18 +563,33 @@ func (ft *FanTessellator) emitAABand(ax, ay, bx, by, orient float64) {
 	tx, ty := ex/elen, ey/elen
 	// Outward normal: right of the direction for CCW (fill left), left for CW.
 	nx, ny := orient*ty, -orient*tx
-	// Band corners (d = 0 on the line, -aa outside).
+	// Chord corners extended ±aa along the edge (joint coverage).
 	b0x, b0y := ax-tx*aa, ay-ty*aa
 	b1x, b1y := bx+tx*aa, by+ty*aa
-	b2x, b2y := b0x-nx*aa, b0y-ny*aa
-	b3x, b3y := b1x-nx*aa, b1y-ny*aa
+
+	// Exterior half: d = 0 on the line, -aa outside (b0 + n̂·aa — n̂ points
+	// away from the fill in pixel coords for orientation-normalized contours).
+	e2x, e2y := b0x+nx*aa, b0y+ny*aa
+	e3x, e3y := b1x+nx*aa, b1y+ny*aa
 	ft.bandVerts = append(ft.bandVerts,
 		float32(b0x), float32(b0y), 0,
 		float32(b1x), float32(b1y), 0,
-		float32(b2x), float32(b2y), float32(-aa),
+		float32(e2x), float32(e2y), float32(-aa),
 		float32(b1x), float32(b1y), 0,
-		float32(b3x), float32(b3y), float32(-aa),
-		float32(b2x), float32(b2y), float32(-aa),
+		float32(e3x), float32(e3y), float32(-aa),
+		float32(e2x), float32(e2y), float32(-aa),
+	)
+
+	// Interior half: d = 0 on the line, +aa inside (b0 - n̂·aa).
+	i2x, i2y := b0x-nx*aa, b0y-ny*aa
+	i3x, i3y := b1x-nx*aa, b1y-ny*aa
+	ft.innerBandVerts = append(ft.innerBandVerts,
+		float32(b0x), float32(b0y), 0,
+		float32(b1x), float32(b1y), 0,
+		float32(i2x), float32(i2y), float32(aa),
+		float32(b1x), float32(b1y), 0,
+		float32(i3x), float32(i3y), float32(aa),
+		float32(i2x), float32(i2y), float32(aa),
 	)
 }
 
