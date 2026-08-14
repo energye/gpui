@@ -1,6 +1,8 @@
 package render
 
-import "math"
+import (
+	"math"
+)
 
 // ShapeKind identifies detected shapes for GPU SDF acceleration.
 type ShapeKind int
@@ -77,9 +79,15 @@ func DetectShape(path *Path) DetectedShape {
 
 	// Try arc: open path MoveTo + n×CubicTo (no Close), all endpoints on a
 	// common circle with sweep < 2π. GPU renders arc strokes through the SDF
-	// annular pipeline (smoothstep AA at 1x sample count).
+	// annular pipeline (smoothstep AA at 1x sample count). Circular arcs are
+	// detected first; axis-aligned elliptical arcs (DrawEllipticalArc) fall
+	// back to detectEllipticalArc and render through the same kind-2 SDF with
+	// per-axis radii.
 	if verbs[0] == MoveTo && verbs[nv-1] != Close {
 		if shape, ok := detectArc(verbs, coords); ok {
+			return shape
+		}
+		if shape, ok := detectEllipticalArc(verbs, coords); ok {
 			return shape
 		}
 	}
@@ -448,6 +456,219 @@ func detectArc(verbs []PathVerb, coords []float64) (DetectedShape, bool) {
 
 	return DetectedShape{
 		Kind: ShapeArc, CenterX: cx, CenterY: cy, RadiusX: r, RadiusY: r,
+		Angle0: a0, Angle1: a1,
+	}, true
+}
+
+// ellipseArcFitTolerance bounds the implicit-quadratic residual (in equation
+// units) accepted for an axis-aligned elliptical arc.
+var ellipseArcFitTolerance = 0.01
+
+// ellipseArcTanTol bounds |cos(angle between cubic control offset and the
+// ellipse tangent)| for elliptical-arc segments (the kappa construction is
+// exact; the least-squares radius fit adds ~0.1px noise → ~2e-3 rad — but the
+// per-axis kappa approximation of a flat ellipse (rx/ry ~1.6) adds up to
+// ~5e-3 rad, so the combined tolerance must stay above that).
+const ellipseArcTanTol = 0.01
+
+// detectEllipticalArc checks for an open axis-aligned elliptical arc:
+// MoveTo + n×CubicTo, no Close, matching DrawEllipticalArc's kappa cubic
+// construction (per-axis radii rx/ry, parameter angles a0..a1). The ellipse
+// is recovered with a linear least-squares fit of the implicit equation
+// A·x² + B·y² + C·x + D·y + E = 0 (axis-aligned, no xy term) over sampled
+// curve points, then verified by residual, tangent, and parameter-sweep
+// consistency. Rotated ellipses / arbitrary curves fail the fit and stay
+// ShapeUnknown (GPU falls back to the expand/stencil path).
+func detectEllipticalArc(verbs []PathVerb, coords []float64) (DetectedShape, bool) {
+	n := len(verbs)
+	if n < 2 {
+		return DetectedShape{}, false
+	}
+	for i := 1; i < n; i++ {
+		if verbs[i] != CubicTo {
+			return DetectedShape{}, false
+		}
+	}
+
+	// Sample each cubic at t ∈ {0, 0.25, 0.5, 0.75, 1} (4n+1 unique points).
+	pts := make([]Point, 0, 4*n+1)
+	ci := 2
+	prevX, prevY := coords[0], coords[1]
+	for i := 1; i < n; i++ {
+		c1x, c1y, c2x, c2y, x, y := coords[ci], coords[ci+1], coords[ci+2], coords[ci+3], coords[ci+4], coords[ci+5]
+		ci += 6
+		for _, t := range []float64{0, 0.25, 0.5, 0.75, 1}[1:] {
+			mt := 1 - t
+			a, b, c := mt*mt*mt, 3*mt*mt*t, 3*mt*t*t
+			d := t * t * t
+			pts = append(pts, Pt(a*prevX+b*c1x+c*c2x+d*x, a*prevY+b*c1y+c*c2y+d*y))
+		}
+		prevX, prevY = x, y
+	}
+	if len(pts) < 5 {
+		return DetectedShape{}, false
+	}
+
+	// Least squares on the implicit axis-aligned ellipse A·x² + B·y² + C·x +
+	// D·y + E' = 0 with the scale fixed by A + B = 1 (substituting A = 1−B
+	// turns the homogeneous problem into a well-conditioned linear fit with
+	// rhs = −x²; the E'=1 normalization degenerates for partial-arc data).
+	// Data is shifted by the point-cloud centroid and scaled to [-1,1] so the
+	// normal matrix stays well-conditioned; the fitted (u,v) = ((x-mx)/s,
+	// (y-my)/s) ellipse is converted back to pixel space afterwards.
+	mx, my := 0.0, 0.0
+	minX, maxX, minY, maxY := pts[0].X, pts[0].X, pts[0].Y, pts[0].Y
+	for _, p := range pts {
+		mx += p.X
+		my += p.Y
+		minX = math.Min(minX, p.X)
+		maxX = math.Max(maxX, p.X)
+		minY = math.Min(minY, p.Y)
+		maxY = math.Max(maxY, p.Y)
+	}
+	mx /= float64(len(pts))
+	my /= float64(len(pts))
+	s := math.Max(maxX-minX, maxY-minY) / 2
+	if s < 1e-9 {
+		return DetectedShape{}, false
+	}
+
+	// Solve (B,C,D,E') from (−u²+v²)·B + u·C + v·D + E' = −u².
+	var m [4][4]float64
+	var b [4]float64
+	for _, p := range pts {
+		u := (p.X - mx) / s
+		v := (p.Y - my) / s
+		u2, v2 := u*u, v*v
+		col := [4]float64{-u2 + v2, u, v, 1}
+		for i := 0; i < 4; i++ {
+			for j := 0; j < 4; j++ {
+				m[i][j] += col[i] * col[j]
+			}
+			b[i] += col[i] * (-u2)
+		}
+	}
+	return solveEllipseFit(m, b, pts, verbs, coords, n, mx, my, s)
+}
+
+// solveEllipseFit solves the 4x4 normal system (in centroid-normalized
+// (u,v) coords with the A+B=1 scale) and validates the recovered
+// axis-aligned ellipse against the sampled curve points.
+func solveEllipseFit(m [4][4]float64, b [4]float64, pts []Point, verbs []PathVerb, coords []float64, n int, mx, my, s float64) (DetectedShape, bool) {
+	// Gaussian elimination (partial pivot) on the augmented 4x4.
+	a := m
+	rhs := b
+	for col := 0; col < 4; col++ {
+		piv := col
+		for r := col + 1; r < 4; r++ {
+			if math.Abs(a[r][col]) > math.Abs(a[piv][col]) {
+				piv = r
+			}
+		}
+		if math.Abs(a[piv][col]) < 1e-14 {
+			return DetectedShape{}, false
+		}
+		if piv != col {
+			for j := 0; j < 4; j++ {
+				a[piv][j], a[col][j] = a[col][j], a[piv][j]
+			}
+			rhs[piv], rhs[col] = rhs[col], rhs[piv]
+		}
+		for r := col + 1; r < 4; r++ {
+			f := a[r][col] / a[col][col]
+			for j := col; j < 4; j++ {
+				a[r][j] -= f * a[col][j]
+			}
+			rhs[r] -= f * rhs[col]
+		}
+	}
+	sol := [4]float64{}
+	for i := 3; i >= 0; i-- {
+		sv := rhs[i]
+		for j := i + 1; j < 4; j++ {
+			sv -= a[i][j] * sol[j]
+		}
+		sol[i] = sv / a[i][i]
+	}
+	B, C, D, E := sol[0], sol[1], sol[2], sol[3]
+	A := 1 - B
+	// Convert to center/radii (u,v) → pixel space; require a real
+	// axis-aligned ellipse.
+	if A <= 0 || B <= 0 {
+		return DetectedShape{}, false
+	}
+	uc := -C / (2 * A)
+	vc := -D / (2 * B)
+	F := A*uc*uc + B*vc*vc - E
+	if F <= 0 {
+		return DetectedShape{}, false
+	}
+	cx := mx + uc*s
+	cy := my + vc*s
+	rx := s * math.Sqrt(F/A)
+	ry := s * math.Sqrt(F/B)
+	if rx < shapeDetectTolerance || ry < shapeDetectTolerance || ry < rx*1e-2 {
+		return DetectedShape{}, false
+	}
+
+	// Residual check on every sampled point (normalized equation units;
+	// 0.01 ≈ 0.45px deviation for a 90px-radius ellipse).
+	for _, p := range pts {
+		u := (p.X - mx) / s
+		v := (p.Y - my) / s
+		res := A*u*u + B*v*v + C*u + D*v + E
+		if math.Abs(res) > ellipseArcFitTolerance {
+			return DetectedShape{}, false
+		}
+	}
+
+	// Tangent consistency: each cubic's entry control point must be parallel
+	// to the ellipse tangent at the segment start (the kappa construction).
+	ci := 2
+	prevX, prevY := coords[0], coords[1]
+	for i := 1; i < n; i++ {
+		c1x, c1y := coords[ci], coords[ci+1]
+		ci += 6
+		tx, ty := c1x-prevX, c1y-prevY
+		nx, ny := (prevX-cx)/(rx*rx), (prevY-cy)/(ry*ry) // ellipse normal direction
+		tl := math.Hypot(tx, ty)
+		nl := math.Hypot(nx, ny)
+		if tl < 1e-9 || nl < 1e-9 {
+			return DetectedShape{}, false
+		}
+		if math.Abs(tx*nx+ty*ny) > ellipseArcTanTol*tl*nl {
+			return DetectedShape{}, false
+		}
+		prevX, prevY = coords[ci-2], coords[ci-1]
+	}
+
+	// Parameter-sweep consistency: all sampled points' parameter angles
+	// θ = atan2((y−cy)/ry, (x−cx)/rx) lie in [a0, a1] (wrap-normalized).
+	// a0/a1 come from the TRUE path endpoints (MoveTo point and last cubic's
+	// endpoint), not interior samples — otherwise the SDF angle window would
+	// cut ~(t_start·segment) radians off the arc's start cap.
+	startIdx := len(coords) - 2
+	a0 := math.Atan2((coords[1]-cy)/ry, (coords[0]-cx)/rx)
+	a1 := math.Atan2((coords[startIdx+1]-cy)/ry, (coords[startIdx]-cx)/rx)
+	for a1 < a0 {
+		a1 += 2 * math.Pi
+	}
+	if a1-a0 >= 2*math.Pi-shapeDetectTolerance {
+		return DetectedShape{}, false
+	}
+	const sweepTol = 0.02
+	for _, p := range pts {
+		th := math.Atan2((p.Y-cy)/ry, (p.X-cx)/rx)
+		for th < a0-sweepTol {
+			th += 2 * math.Pi
+		}
+		if th > a1+sweepTol {
+			return DetectedShape{}, false
+		}
+	}
+
+	return DetectedShape{
+		Kind: ShapeArc, CenterX: cx, CenterY: cy, RadiusX: rx, RadiusY: ry,
 		Angle0: a0, Angle1: a1,
 	}, true
 }

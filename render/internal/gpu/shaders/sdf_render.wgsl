@@ -177,7 +177,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // min(param1, param2) via arithmetic
     let rdiff = in.param1 - in.param2;
     let min_r = (in.param1 + in.param2 - sqrt(rdiff * rdiff)) * 0.5;
-    let d_circle = (elen - 1.0) * min_r;
+    // Pseudo-distance d_f=(elen-1)*min_r is only exact for circles. For an
+    // ellipse the gradient magnitude of d_f varies around the perimeter, so
+    // the same band value maps to wider strokes on the major axis (e.g. a
+    // 2px stroke renders ~1.6x wider) and an inflated cap near the vertex.
+    // Normalize by the gradient magnitude: d_true = d_f / |∇d_f|, where
+    //   |∇d_f| = min_r * sqrt((nx/p1)^2 + (ny/p2)^2) / elen
+    // Circles keep |∇d_f| ≡ 1 everywhere (band unchanged). elen is floored
+    // to avoid 0/0 at the centre; the stroke band always has |∇d_f| ≥
+    // min_r/max(p1,p2), and the 0.5 gradient floor keeps deep-inside
+    // pixels safely outside the band.
+    let gsq = nx * nx / (in.param1 * in.param1) + ny * ny / (in.param2 * in.param2);
+    let grad = min_r * sqrt(gsq) / max(elen, 1e-6);
+    let grad_safe = max(grad, 0.5);
+    let d_circle = (elen - 1.0) * min_r / grad_safe;
 
     // --- Rounded rectangle SDF (kind == 1) ---
     // abs via sqrt(x*x)
