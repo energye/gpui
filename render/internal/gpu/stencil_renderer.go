@@ -40,6 +40,7 @@ type StencilRenderer struct {
 	// Shader modules for stencil-then-cover rendering.
 	stencilFillShader *webgpu.ShaderModule
 	coverShader       *webgpu.ShaderModule
+	aaCoverShader     *webgpu.ShaderModule
 
 	// Bind group layout and pipeline layouts shared by both passes.
 	uniformLayout     *webgpu.BindGroupLayout
@@ -91,6 +92,12 @@ type StencilRenderer struct {
 	// nonZeroCoverPipeline draws the fill color where stencil != 0,
 	// then resets stencil to zero via PassOp. Shared by both fill rules.
 	nonZeroCoverPipeline *webgpu.RenderPipeline
+
+	// Analytic-AA cover pipelines (sampleCount==1 only, Skia-style fringe):
+	// aaCoverPipeline — fan-mesh cover, stencil NotEqual(0) + PassOp=Zero.
+	// aaBandPipeline — exterior band, stencil Equal(0), read-only stencil.
+	aaCoverPipeline *webgpu.RenderPipeline
+	aaBandPipeline  *webgpu.RenderPipeline
 
 	// coverBlendPipelines caches cover pipelines for non-SourceOver modes (B.02).
 	coverBlendPipelines map[render.BlendMode]*webgpu.RenderPipeline
@@ -269,6 +276,16 @@ type stencilCoverBuffers struct {
 	stencilBindGroup *webgpu.BindGroup
 	coverBindGroup   *webgpu.BindGroup
 	fanVertexCount   uint32
+	// Analytic-AA cover/band meshes (sampleCount==1): stride-12 (x, y, d)
+	// buffers uploaded from StencilPathCommand.VertsAA/BandAA. Empty when the
+	// path uses the binary bbox-quad cover (4x MSAA, pattern/textured, or AA
+	// disabled).
+	aaVertBuf       *webgpu.Buffer
+	aaVertBufCap    uint64
+	bandVertBuf     *webgpu.Buffer
+	bandVertBufCap  uint64
+	aaVertexCount   uint32
+	bandVertexCount uint32
 	// layoutEpoch matches StencilRenderer.pipelineEpoch when bind groups were built.
 	layoutEpoch uint64
 
@@ -313,9 +330,45 @@ func (b *stencilCoverBuffers) destroy() {
 	if b.fanVertBuf != nil {
 		b.fanVertBuf.Release()
 	}
+	if b.aaVertBuf != nil {
+		b.aaVertBuf.Release()
+		b.aaVertBuf = nil
+	}
+	if b.bandVertBuf != nil {
+		b.bandVertBuf.Release()
+		b.bandVertBuf = nil
+	}
 	b.isTextured = false
 	b.isPattern = false
 	b.coverUniCap = 0
+}
+
+// updateAACoverBuffers uploads the analytic-AA cover fan and exterior band
+// meshes (stride-12 x,y,d triples) for sampleCount==1 stencil covers.
+// Called every frame with the command's geometry; empty slices reset the
+// counts so a frame without AA data falls back to the binary bbox-quad cover.
+func (sr *StencilRenderer) updateAACoverBuffers(b *stencilCoverBuffers, aaVerts, bandVerts []float32) error {
+	if b == nil {
+		return nil
+	}
+	if len(aaVerts) == 0 && len(bandVerts) == 0 {
+		b.aaVertexCount = 0
+		b.bandVertexCount = 0
+		return nil
+	}
+	if len(aaVerts) > 0 {
+		if err := sr.updateVertexBuffer(&b.aaVertBuf, &b.aaVertBufCap, "stencil_aa_cover_verts", float32SliceToBytes(aaVerts)); err != nil {
+			return err
+		}
+		b.aaVertexCount = uint32(len(aaVerts) / 3) //nolint:gosec // triple floats
+	}
+	if len(bandVerts) > 0 {
+		if err := sr.updateVertexBuffer(&b.bandVertBuf, &b.bandVertBufCap, "stencil_aa_band_verts", float32SliceToBytes(bandVerts)); err != nil {
+			return err
+		}
+		b.bandVertexCount = uint32(len(bandVerts) / 3) //nolint:gosec // triple floats
+	}
+	return nil
 }
 
 // RenderPath renders a filled path using the stencil-then-cover algorithm.
@@ -865,6 +918,43 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	rp.SetBindGroup(0, bufs.stencilBindGroup, nil)
 	rp.SetVertexBuffer(0, bufs.fanVertBuf, 0)
 	rp.Draw(bufs.fanVertexCount, 1, 0, 0)
+
+	// Pass 2 (analytic-AA): sampleCount==1 solid covers replace the binary
+	// bbox-quad cover with the path's fan mesh carrying per-vertex signed
+	// edge distance (Skia GPU analytic-AA / fringe coverage). The exterior
+	// band paints the outside half of the fringe (stencil==0). MSAA surfaces
+	// (4x), pattern/textured covers, and depth-clip covers keep the binary
+	// cover — matching Skia's MSAA-vs-analytic mutual exclusion.
+	if sr.sampleCount == 1 && !useDepthClip && blendMode == render.BlendNormal &&
+		!bufs.isPattern && !bufs.isTextured && bufs.aaVertexCount > 0 {
+		if bufs.bandVertexCount > 0 && sr.aaBandPipeline != nil && bufs.coverBindGroup != nil {
+			rp.SetPipeline(sr.aaBandPipeline)
+			rp.SetBindGroup(0, bufs.coverBindGroup, nil)
+			if clipBG != nil {
+				rp.SetBindGroup(1, clipBG, nil)
+			}
+			if maskBG != nil {
+				rp.SetBindGroup(2, maskBG, nil)
+			}
+			rp.SetStencilReference(0)
+			rp.SetVertexBuffer(0, bufs.bandVertBuf, 0)
+			rp.Draw(bufs.bandVertexCount, 1, 0, 0)
+		}
+		if sr.aaCoverPipeline != nil && bufs.coverBindGroup != nil {
+			rp.SetPipeline(sr.aaCoverPipeline)
+			rp.SetBindGroup(0, bufs.coverBindGroup, nil)
+			if clipBG != nil {
+				rp.SetBindGroup(1, clipBG, nil)
+			}
+			if maskBG != nil {
+				rp.SetBindGroup(2, maskBG, nil)
+			}
+			rp.SetStencilReference(0)
+			rp.SetVertexBuffer(0, bufs.aaVertBuf, 0)
+			rp.Draw(bufs.aaVertexCount, 1, 0, 0)
+		}
+		return
+	}
 
 	// Pass 2: Cover (clip + L.06 mask applied here — writes color output).
 	if bufs.isPattern && bufs.texturedCoverBG != nil && sr.patternCoverPipeline != nil {

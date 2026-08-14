@@ -1500,13 +1500,18 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	}
 
 	// Fall back to stencil-then-cover (S4.3: reuse tessellation via pathGeomCache).
-	var fanVerts []float32
-	var coverQuad [12]float32
+	// sampleCount==1 solid covers use the analytic-AA fringe mesh (Skia-style
+	// edge distance); MSAA surfaces stay binary + hardware resolve.
 	aaOff := !rc.antiAlias
 	fr := paint.FillRule
+	useAA := rc.antiAlias && rc.shared != nil && rc.shared.SampleCount() == 1
+	var fanVerts []float32
+	var coverQuad [12]float32
+	var aaVerts, bandVerts []float32
 	if cache := rc.shared.PathGeomCache(); cache != nil {
-		if v, cq, ok := cache.GetOrTessellate(path, fr, aaOff); ok {
-			fanVerts, coverQuad = v, cq
+		v, cq, va, ba, cok := cache.GetOrTessellateAA(path, fr, aaOff, useAA)
+		if cok {
+			fanVerts, coverQuad, aaVerts, bandVerts = v, cq, va, ba
 		}
 	}
 	if fanVerts == nil {
@@ -1517,6 +1522,11 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 			return nil
 		}
 		coverQuad = tess.CoverQuad()
+		if useAA {
+			tess.TessellateAA(path)
+			aaVerts = tess.aaVerts
+			bandVerts = tess.bandVerts
+		}
 	}
 	if len(fanVerts) == 0 {
 		return nil
@@ -1525,6 +1535,8 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	cmd := StencilPathCommand{
 		Vertices:  fanVerts, // already owned copy from cache/miss path
 		CoverQuad: coverQuad,
+		VertsAA:   aaVerts,
+		BandAA:    bandVerts,
 		Color:     [4]float32{premulR, premulG, premulB, premulA},
 		FillRule:  paint.FillRule,
 		BlendMode: paintBlendMode(paint),

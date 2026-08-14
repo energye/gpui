@@ -18,6 +18,9 @@ var stencilFillShaderSource string
 //go:embed shaders/cover.wgsl
 var coverShaderSource string
 
+//go:embed shaders/cover_aa.wgsl
+var coverAAShaderSource string
+
 // stencilFillUniformSize is the byte size of the stencil fill uniform buffer.
 // Layout: viewport (vec2<f32>) + padding (vec2<f32>) = 16 bytes.
 const stencilFillUniformSize = 16
@@ -28,6 +31,25 @@ const coverUniformSize = 32
 
 // vertexStride is the byte stride per vertex: 2 x float32 (x, y) = 8 bytes.
 const vertexStride = 8
+
+// aaVertexStride is the byte stride per vertex of the analytic-AA cover/band
+// meshes: position (vec2<f32>) + signed edge distance (f32) = 12 bytes.
+const aaVertexStride = 12
+
+// aaVertexBufferLayout strips the fan/band AA meshes: pos at location 0,
+// signed edge distance at location 1 (see shaders/cover_aa.wgsl).
+func aaVertexBufferLayout() []types.VertexBufferLayout {
+	return []types.VertexBufferLayout{
+		{
+			ArrayStride: aaVertexStride,
+			StepMode:    types.VertexStepModeVertex,
+			Attributes: []types.VertexAttribute{
+				{Format: types.VertexFormatFloat32x2, Offset: 0, ShaderLocation: 0},
+				{Format: types.VertexFormatFloat32, Offset: 8, ShaderLocation: 1},
+			},
+		},
+	}
+}
 
 // createPipelines compiles shaders and creates the stencil fill and cover
 // render pipelines. Both pipelines share the same bind group layout (one
@@ -306,6 +328,106 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	}
 	sr.nonZeroCoverPipeline = nonZeroCoverPipeline
 
+	if err := sr.createAACoverPipelines(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// createAACoverPipelines creates the sampleCount==1 analytic-AA cover
+// pipelines (Skia GPU analytic-AA equivalent; see shaders/cover_aa.wgsl):
+//
+//   - aaCoverPipeline: stencil NotEqual(0) + PassOp=Zero (same gate/reset as
+//     the binary cover), draws the path's fan triangles with per-vertex edge
+//     distance → smoothstep coverage.
+//   - aaBandPipeline: stencil Equal(0), read-only — paints the outside half
+//     of the fringe (pixels just outside the boundary) so the AA band is
+//     symmetric around each boundary edge.
+//
+// Both use premultiplied SourceOver blending; non-SrcOver blend modes keep
+// the binary cover (as do pattern/textured and depth-clip covers).
+func (sr *StencilRenderer) createAACoverPipelines() error {
+	if sr.coverPipeLayout == nil || sr.coverShader == nil {
+		return nil // base pipelines not created yet — retried via createPipelines
+	}
+	if sr.aaCoverShader == nil {
+		sh, err := sr.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+			Label: "cover_aa_shader",
+			WGSL:  coverAAShaderSource,
+		})
+		if err != nil {
+			return fmt.Errorf("compile cover_aa shader: %w", err)
+		}
+		sr.aaCoverShader = sh
+	}
+	multisample := multisampleState(sr.sampleCount)
+	primitive := types.PrimitiveState{
+		Topology: types.PrimitiveTopologyTriangleList,
+		CullMode: types.CullModeNone,
+	}
+	premulBlend := types.BlendStatePremultiplied()
+	layout := aaVertexBufferLayout()
+
+	mk := func(label string, compare types.CompareFunction, passOp webgpu.StencilOperation, stencilWriteMask uint32) (*webgpu.RenderPipeline, error) {
+		return sr.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+			Label:  label,
+			Layout: sr.coverPipeLayout,
+			Vertex: webgpu.VertexState{
+				Module:     sr.aaCoverShader,
+				EntryPoint: shaderEntryVS,
+				Buffers:    layout,
+			},
+			Fragment: &webgpu.FragmentState{
+				Module:     sr.aaCoverShader,
+				EntryPoint: shaderEntryFS,
+				Targets: []types.ColorTargetState{
+					{
+						Format:    types.TextureFormatBGRA8Unorm,
+						Blend:     &premulBlend,
+						WriteMask: types.ColorWriteMaskAll,
+					},
+				},
+			},
+			DepthStencil: &webgpu.DepthStencilState{
+				Format:            types.TextureFormatDepth24PlusStencil8,
+				DepthWriteEnabled: false,
+				DepthCompare:      types.CompareFunctionAlways,
+				StencilFront: webgpu.StencilFaceState{
+					Compare:     compare,
+					FailOp:      webgpu.StencilOperationKeep,
+					DepthFailOp: webgpu.StencilOperationKeep,
+					PassOp:      passOp,
+				},
+				StencilBack: webgpu.StencilFaceState{
+					Compare:     compare,
+					FailOp:      webgpu.StencilOperationKeep,
+					DepthFailOp: webgpu.StencilOperationKeep,
+					PassOp:      passOp,
+				},
+				StencilReadMask:  0xFF,
+				StencilWriteMask: stencilWriteMask,
+			},
+			Multisample: multisample,
+			Primitive:   primitive,
+		})
+	}
+
+	// AA cover keeps the binary cover's stencil semantics: NotEqual(0) gate
+	// + PassOp=Zero reset (writes through) so covered pixels are cleared for
+	// the next path. The band is read-only (no stencil writes).
+	cover, err := mk("cover_aa_pipeline", types.CompareFunctionNotEqual, webgpu.StencilOperationZero, 0xFF)
+	if err != nil {
+		return fmt.Errorf("create AA cover pipeline: %w", err)
+	}
+	sr.aaCoverPipeline = cover
+
+	band, err := mk("cover_aa_band_pipeline", types.CompareFunctionEqual, webgpu.StencilOperationKeep, 0x00)
+	if err != nil {
+		cover.Release()
+		return fmt.Errorf("create AA band pipeline: %w", err)
+	}
+	sr.aaBandPipeline = band
 	return nil
 }
 
@@ -489,6 +611,19 @@ func (sr *StencilRenderer) destroyPipelines() {
 	sr.pipelineEpoch++
 	sr.releaseNoMask()
 	sr.coverPipeMaskLayout = nil
+	// Analytic-AA cover pipelines (sampleCount==1).
+	if sr.aaCoverPipeline != nil {
+		sr.aaCoverPipeline.Release()
+		sr.aaCoverPipeline = nil
+	}
+	if sr.aaBandPipeline != nil {
+		sr.aaBandPipeline.Release()
+		sr.aaBandPipeline = nil
+	}
+	if sr.aaCoverShader != nil {
+		sr.aaCoverShader.Release()
+		sr.aaCoverShader = nil
+	}
 	if sr.texturedCoverPipeline != nil {
 		sr.texturedCoverPipeline.Release()
 		sr.texturedCoverPipeline = nil

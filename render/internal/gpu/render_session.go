@@ -238,6 +238,12 @@ type StencilPathCommand struct {
 	// rectangle for the cover pass.
 	CoverQuad [12]float32
 
+	// VertsAA / BandAA hold the analytic-AA cover mesh (sampleCount==1):
+	// (x, y, signedEdgeDist) triples for the fan cover and the exterior band.
+	// Empty → binary bbox-quad cover (4x MSAA, pattern/textured, AA off).
+	VertsAA []float32
+	BandAA  []float32
+
 	// Color is the premultiplied RGBA fill color.
 	Color [4]float32
 
@@ -2922,6 +2928,16 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 				}
 			}
 			return nil, fmt.Errorf("build stencil resources for path %d: %w", i, err)
+		}
+		if err := s.stencilRenderer.updateAACoverBuffers(bufs, cmd.VertsAA, cmd.BandAA); err != nil {
+			for j := 0; j < i; j++ {
+				if s.stencilBufPool[j] != nil {
+					s.stencilBufPool[j].destroy()
+					s.stencilBufPool[j] = nil
+				}
+			}
+			bufs.destroy()
+			return nil, fmt.Errorf("build stencil AA resources for path %d: %w", i, err)
 		}
 		if cmd.PatW > 0 && cmd.PatH > 0 && len(cmd.PatTile) >= cmd.PatW*cmd.PatH*4 {
 			if err := s.stencilRenderer.updatePatternCoverResources(bufs, w, h, cmd); err != nil {

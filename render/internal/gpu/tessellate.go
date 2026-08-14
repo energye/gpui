@@ -46,6 +46,17 @@ type FanTessellator struct {
 
 	// hasBounds tracks whether any vertex has been added to the bounds.
 	hasBounds bool
+
+	// Analytic-AA fringe state (TessellateAA):
+	// aaVerts — cover fan as (x, y, signedEdgeDist) triples.
+	// bandVerts — exterior band quads as (x, y, signedEdgeDist) triples.
+	// segments — flattened boundary edges; segContours maps each segment to
+	// its contour index; contourAreas accumulates the contour's signed 2×area.
+	aaVerts      []float32
+	bandVerts    []float32
+	segments     []aaSegment
+	segContours  []int
+	contourAreas []float64
 }
 
 // NewFanTessellator creates a new tessellator with pre-allocated capacity.
@@ -60,6 +71,11 @@ func (ft *FanTessellator) Reset() {
 	ft.vertices = ft.vertices[:0]
 	ft.bounds = [4]float32{}
 	ft.hasBounds = false
+	ft.aaVerts = ft.aaVerts[:0]
+	ft.bandVerts = ft.bandVerts[:0]
+	ft.segments = ft.segments[:0]
+	ft.segContours = ft.segContours[:0]
+	ft.contourAreas = ft.contourAreas[:0]
 }
 
 // TessellatePath converts a render.Path into triangle fan vertices.
@@ -325,6 +341,251 @@ func (ft *FanTessellator) flattenCubicFanDepth(
 
 	ft.flattenCubicFanDepth(fanX, fanY, x0, y0, ab1x, ab1y, bc1x, bc1y, mx, my, tol, depth+1)
 	ft.flattenCubicFanDepth(fanX, fanY, mx, my, bc2x, bc2y, ab3x, ab3y, x1, y1, tol, depth+1)
+}
+
+// ---- Analytic-AA fringe tessellation (sampleCount==1 stencil covers) ----
+//
+// The binary stencil cover paints a bbox quad through a NotEqual(0) stencil
+// test — at 1x sample count that yields hard binary edges for non-convex
+// paths (e.g. stroked arc bands). The AA variant replaces the cover geometry
+// with the path's own fan triangles, each vertex carrying the signed distance
+// to the triangle's boundary edge. Distance to a line is affine, so fragment
+// interpolation is exact, and the cover shader converts it to smoothstep
+// coverage over the ±aaCoverHalfWidth band (Skia GrAATriangulator-style
+// analytic AA; convex paths already get this via BuildConvexVertices).
+
+// aaCoverHalfWidth is the half width (px) of the analytic fringe band,
+// matching sdf_render.wgsl aa_hw and convexAAExpand (0.75px).
+const aaCoverHalfWidth = 0.75
+
+// aaSegment is one flattened path-boundary edge in pixel coords.
+type aaSegment struct{ ax, ay, bx, by float64 }
+
+// aaVerts holds the AA cover fan as (x, y, signedEdgeDist) triples and
+// bandVerts the exterior band quads as (x, y, signedEdgeDist) triples
+// (dist ∈ [-aaCoverHalfWidth, 0]). Populated by TessellateAA.
+
+// aaAddSegment appends a flattened boundary edge and its contour's signed
+// 2×area contribution (cross(A,B)).
+func (ft *FanTessellator) aaAddSegment(ax, ay, bx, by float64) {
+	ft.segments = append(ft.segments, aaSegment{ax, ay, bx, by})
+	ft.segContours = append(ft.segContours, len(ft.contourAreas)-1)
+	ft.contourAreas[len(ft.contourAreas)-1] += ax*by - ay*bx
+}
+
+// TessellateAA flattens the path into boundary segments, then emits:
+//
+//  1. aaVerts: fan triangles (fanOrigin, A, B) per segment with signed pixel
+//     distance to edge A→B at the fan-origin vertex (0 at A/B). The sign is
+//     normalized by the contour's orientation so distances are positive on
+//     the fill-interior side.
+//  2. bandVerts: exterior band quads per segment (edge extruded ±aaCoverHalfWidth
+//     along the edge direction and -aaCoverHalfWidth along the outward normal),
+//     painted with stencil Equal(0) for the outside half of the fringe.
+//
+// Returns the number of AA cover vertices emitted (triple floats; each
+// triangle is 3 vertices).
+func (ft *FanTessellator) TessellateAA(path *render.Path) int {
+	ft.aaVerts = ft.aaVerts[:0]
+	ft.bandVerts = ft.bandVerts[:0]
+	ft.segments = ft.segments[:0]
+	ft.segContours = ft.segContours[:0]
+	ft.contourAreas = ft.contourAreas[:0]
+	if path == nil || path.NumVerbs() == 0 {
+		return 0
+	}
+
+	// Pass 1: flatten into boundary segments, accumulating per-contour
+	// signed area for the interior-side sign convention.
+	ft.aaCollectSegments(path)
+
+	// Pass 2: emit AA fan + band from the flattened segments.
+	seg := 0
+	for c := 0; c < len(ft.contourAreas); c++ {
+		orient := 1.0
+		if ft.contourAreas[c] < 0 {
+			orient = -1.0
+		}
+		// Skip degenerate contours (zero area).
+		start := seg
+		for seg < len(ft.segments) && ft.segContours[seg] == c {
+			seg++
+		}
+		if seg == start {
+			continue
+		}
+		// Fan origin = first segment's A (path contour start).
+		ox, oy := ft.segments[start].ax, ft.segments[start].ay
+		for i := start; i < seg; i++ {
+			s := ft.segments[i]
+			// Skip zero-length edges (they contribute no boundary).
+			ex, ey := s.bx-s.ax, s.by-s.ay
+			elen := math.Hypot(ex, ey)
+			if elen < 1e-9 {
+				continue
+			}
+			// Signed distance from the fan origin to the edge line, positive
+			// on the fill-interior side (orientation-normalized).
+			dO := orient * (ex*(oy-s.ay) - ey*(ox-s.ax)) / elen
+			ft.emitAATriangle(ox, oy, dO, s.ax, s.ay, 0, s.bx, s.by, 0)
+			ft.emitAABand(s.ax, s.ay, s.bx, s.by, orient)
+		}
+	}
+	return len(ft.aaVerts) / 3
+}
+
+// aaCollectSegments walks the path and flattens every edge into aaSegments
+// (same flatness tolerance and guards as TessellatePath).
+func (ft *FanTessellator) aaCollectSegments(path *render.Path) {
+	var (
+		prevX, prevY float64
+		contourOn    bool
+		closeX, closeY float64
+	)
+	path.Iterate(func(verb render.PathVerb, coords []float64) {
+		switch verb {
+		case render.MoveTo:
+			prevX, prevY = coords[0], coords[1]
+			closeX, closeY = coords[0], coords[1]
+			contourOn = true
+			ft.contourAreas = append(ft.contourAreas, 0)
+		case render.LineTo:
+			if !contourOn {
+				return
+			}
+			ft.aaAddSegment(prevX, prevY, coords[0], coords[1])
+			prevX, prevY = coords[0], coords[1]
+		case render.QuadTo:
+			if !contourOn {
+				return
+			}
+			ft.aaFlattenQuad(prevX, prevY, coords[0], coords[1], coords[2], coords[3], fanFlattenTolerance, 0)
+			prevX, prevY = coords[2], coords[3]
+		case render.CubicTo:
+			if !contourOn {
+				return
+			}
+			ft.aaFlattenCubic(prevX, prevY, coords[0], coords[1], coords[2], coords[3], coords[4], coords[5], fanFlattenTolerance, 0)
+			prevX, prevY = coords[4], coords[5]
+		case render.Close:
+			if !contourOn {
+				return
+			}
+			if prevX != closeX || prevY != closeY {
+				// Closing edge participates in the exterior band; the fan
+				// triangle for it is degenerate (origin==endpoint) so the
+				// closing edge's interior fringe is covered by the adjacent
+				// fan triangles' attr band only near the corners.
+				ft.aaAddSegment(prevX, prevY, closeX, closeY)
+			}
+			prevX, prevY = closeX, closeY
+			contourOn = false
+		}
+	})
+}
+
+func (ft *FanTessellator) aaFlattenQuad(x0, y0, cx, cy, x1, y1, tol float64, depth int) {
+	if depth > 32 || !isFinite6(x0, y0, cx, cy, x1, y1) {
+		if isFinite2(x0, y0) && isFinite2(x1, y1) {
+			ft.aaAddSegment(x0, y0, x1, y1)
+		}
+		return
+	}
+	midX := 0.25*x0 + 0.5*cx + 0.25*x1
+	midY := 0.25*y0 + 0.5*cy + 0.25*y1
+	chordMidX := 0.5 * (x0 + x1)
+	chordMidY := 0.5 * (y0 + y1)
+	dx := midX - chordMidX
+	dy := midY - chordMidY
+	if dx*dx+dy*dy <= tol*tol {
+		ft.aaAddSegment(x0, y0, x1, y1)
+		return
+	}
+	ax := 0.5 * (x0 + cx)
+	ay := 0.5 * (y0 + cy)
+	bx := 0.5 * (cx + x1)
+	by := 0.5 * (cy + y1)
+	mx := 0.5 * (ax + bx)
+	my := 0.5 * (ay + by)
+	ft.aaFlattenQuad(x0, y0, ax, ay, mx, my, tol, depth+1)
+	ft.aaFlattenQuad(mx, my, bx, by, x1, y1, tol, depth+1)
+}
+
+func (ft *FanTessellator) aaFlattenCubic(x0, y0, c1x, c1y, c2x, c2y, x1, y1, tol float64, depth int) {
+	if depth > 32 || !isFinite8(x0, y0, c1x, c1y, c2x, c2y, x1, y1) {
+		if isFinite2(x0, y0) && isFinite2(x1, y1) {
+			ft.aaAddSegment(x0, y0, x1, y1)
+		}
+		return
+	}
+	ux := 3*c1x - 2*x0 - x1
+	uy := 3*c1y - 2*y0 - y1
+	vx := 3*c2x - x0 - 2*x1
+	vy := 3*c2y - y0 - 2*y1
+	if ux*ux+uy*uy <= 16*tol*tol && vx*vx+vy*vy <= 16*tol*tol {
+		ft.aaAddSegment(x0, y0, x1, y1)
+		return
+	}
+	ab1x := 0.5 * (x0 + c1x)
+	ab1y := 0.5 * (y0 + c1y)
+	ab2x := 0.5 * (c1x + c2x)
+	ab2y := 0.5 * (c1y + c2y)
+	ab3x := 0.5 * (c2x + x1)
+	ab3y := 0.5 * (c2y + y1)
+	bc1x := 0.5 * (ab1x + ab2x)
+	bc1y := 0.5 * (ab1y + ab2y)
+	bc2x := 0.5 * (ab2x + ab3x)
+	bc2y := 0.5 * (ab2y + ab3y)
+	mx := 0.5 * (bc1x + bc2x)
+	my := 0.5 * (bc1y + bc2y)
+	ft.aaFlattenCubic(x0, y0, ab1x, ab1y, bc1x, bc1y, mx, my, tol, depth+1)
+	ft.aaFlattenCubic(mx, my, bc2x, bc2y, ab3x, ab3y, x1, y1, tol, depth+1)
+}
+
+// emitAATriangle appends one fan triangle with per-vertex signed edge
+// distances (d at the boundary-edge endpoints is 0). Degenerate triangles
+// (zero area) are skipped, mirroring emitFanTriangle.
+func (ft *FanTessellator) emitAATriangle(v0x, v0y, d0, v1x, v1y, d1, v2x, v2y, d2 float64) {
+	ax, ay := v1x-v0x, v1y-v0y
+	bx, by := v2x-v0x, v2y-v0y
+	if ax*by-ay*bx == 0 {
+		return
+	}
+	ft.aaVerts = append(ft.aaVerts,
+		float32(v0x), float32(v0y), float32(d0),
+		float32(v1x), float32(v1y), float32(d1),
+		float32(v2x), float32(v2y), float32(d2),
+	)
+}
+
+// emitAABand appends the exterior band quad for one boundary edge A→B:
+// the edge extruded aaCoverHalfWidth along the edge direction on both ends
+// (covers joints) and -aaCoverHalfWidth along the outward normal. Vertices
+// carry d = 0 on the boundary line and d = -aaCoverHalfWidth on the outside
+// edge, so the cover_aa.wgsl smoothstep fades 0.5 → 0 across the band.
+func (ft *FanTessellator) emitAABand(ax, ay, bx, by, orient float64) {
+	ex, ey := bx-ax, by-ay
+	elen := math.Hypot(ex, ey)
+	if elen < 1e-9 {
+		return
+	}
+	aa := aaCoverHalfWidth
+	tx, ty := ex/elen, ey/elen
+	// Outward normal: right of the direction for CCW (fill left), left for CW.
+	nx, ny := orient*ty, -orient*tx
+	// Band corners (d = 0 on the line, -aa outside).
+	b0x, b0y := ax-tx*aa, ay-ty*aa
+	b1x, b1y := bx+tx*aa, by+ty*aa
+	b2x, b2y := b0x-nx*aa, b0y-ny*aa
+	b3x, b3y := b1x-nx*aa, b1y-ny*aa
+	ft.bandVerts = append(ft.bandVerts,
+		float32(b0x), float32(b0y), 0,
+		float32(b1x), float32(b1y), 0,
+		float32(b2x), float32(b2y), float32(-aa),
+		float32(b1x), float32(b1y), 0,
+		float32(b3x), float32(b3y), float32(-aa),
+		float32(b2x), float32(b2y), float32(-aa),
+	)
 }
 
 func isFinite2(a, b float64) bool {

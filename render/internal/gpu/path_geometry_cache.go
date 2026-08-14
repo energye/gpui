@@ -30,7 +30,11 @@ type pathTessKey struct {
 type pathTessEntry struct {
 	vertices  []float32
 	coverQuad [12]float32
-	gen       uint64
+	// Analytic-AA fringe mesh (sampleCount==1): fan cover + exterior band as
+	// (x, y, signedEdgeDist) triples. Empty until an AA request misses.
+	vertsAA  []float32
+	bandAA   []float32
+	gen      uint64
 }
 
 // PathGeometryCache reuses path tessellation across draws/frames (S4.3/S6.6).
@@ -94,6 +98,68 @@ func (c *PathGeometryCache) GetOrTessellate(path *render.Path, fillRule render.F
 	c.entries[key] = &pathTessEntry{vertices: stored, coverQuad: cq, gen: c.gen}
 	// Return the stored slice (same immutability contract as hit).
 	return stored, cq, true
+}
+
+// GetOrTessellateAA returns fan vertices plus the analytic-AA cover meshes
+// (vertsAA, bandAA — empty when wantAA is false or the path does not need
+// AA). The AA geometry is tessellated lazily on the first AA miss and then
+// cached; the base fan/cover are shared with GetOrTessellate.
+func (c *PathGeometryCache) GetOrTessellateAA(path *render.Path, fillRule render.FillRule, aaOff, wantAA bool) (verts []float32, cover [12]float32, vertsAA, bandAA []float32, ok bool) {
+	if c == nil || path == nil || path.NumVerbs() == 0 {
+		return nil, cover, nil, nil, false
+	}
+	key := pathTessKey{
+		hash:     hashPathContent(path),
+		fillRule: fillRule,
+		aaOff:    aaOff,
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if e, found := c.entries[key]; found {
+		c.gen++
+		e.gen = c.gen
+		c.hits++
+		if wantAA && len(e.vertsAA) == 0 {
+			c.tessellateAALocked(e, path)
+		}
+		return e.vertices, e.coverQuad, e.vertsAA, e.bandAA, true
+	}
+
+	c.misses++
+	tess := NewFanTessellator()
+	tess.TessellatePath(path)
+	fv := tess.Vertices()
+	if len(fv) == 0 {
+		return nil, cover, nil, nil, false
+	}
+	stored := make([]float32, len(fv))
+	copy(stored, fv)
+	cq := tess.CoverQuad()
+
+	if len(c.entries) >= c.budget {
+		c.evictOldestLocked()
+	}
+	c.gen++
+	e := &pathTessEntry{vertices: stored, coverQuad: cq, gen: c.gen}
+	c.entries[key] = e
+	if wantAA {
+		c.tessellateAALocked(e, path)
+	}
+	return e.vertices, e.coverQuad, e.vertsAA, e.bandAA, true
+}
+
+// tessellateAALocked generates the analytic-AA fan + band meshes into an
+// existing entry. Caller holds c.mu.
+func (c *PathGeometryCache) tessellateAALocked(e *pathTessEntry, path *render.Path) {
+	tess := NewFanTessellator()
+	tess.TessellateAA(path)
+	if len(tess.aaVerts) == 0 {
+		return
+	}
+	e.vertsAA = append([]float32(nil), tess.aaVerts...)
+	e.bandAA = append([]float32(nil), tess.bandVerts...)
 }
 
 // Stats returns hit/miss/entry counts.
