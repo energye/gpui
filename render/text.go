@@ -142,6 +142,28 @@ func (c *Context) DrawString(s string, x, y float64) {
 	}
 }
 
+// needsOutlineTransform reports whether the current CTM contains rotation,
+// shear, or non-uniform scale — transforms under which fixed-resolution
+// bitmap/SDF text pipelines visibly degrade. Mirrors the CPU tier selection
+// (Tier 2 outlines) and Skia's transformed-text handling.
+func (c *Context) needsOutlineTransform() bool {
+	m := c.matrix
+	// Rotation or shear: off-axis columns in the affine matrix.
+	if m.B != 0 || m.D != 0 {
+		return true
+	}
+	// Non-uniform scale (including flip): X and Y scale magnitudes differ.
+	a := m.A
+	if a < 0 {
+		a = -a
+	}
+	e := m.E
+	if e < 0 {
+		e = -e
+	}
+	return a != e
+}
+
 // drawStringMultiFace renders fallback font runs (X.06). Each contiguous run
 // uses a single FontSource so the GPU glyph-mask path can operate correctly.
 func (c *Context) drawStringMultiFace(mf *text.MultiFace, s string, x, y float64) {
@@ -493,6 +515,14 @@ func (c *Context) selectTextStrategy() TextMode {
 	}
 	if c.textMode != TextModeAuto {
 		return c.textMode
+	}
+	// Transform quality gate (Skia: transformed text renders as vector paths):
+	// bitmap/SDF pipelines keep a fixed pixel range and blur when the CTM
+	// rotates, shears, or scales non-uniformly (edge transition grows with
+	// magnification). Route such text through outline paths (GPU stencil+cover
+	// or CPU Tier 2) regardless of glyph-mask/MSDF auto-selection.
+	if c.needsOutlineTransform() {
+		return TextModeVector
 	}
 	if c.shouldUseGlyphMask() {
 		return TextModeGlyphMask

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"image"
 	"log"
-
+	"os"
 
 	"github.com/energye/gpui/render"
 )
