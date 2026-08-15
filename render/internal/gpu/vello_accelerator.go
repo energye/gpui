@@ -27,9 +27,10 @@ import (
 // compute pipeline. It implements render.GPUAccelerator and render.ComputePipelineAware.
 //
 // Unlike SDFAccelerator which uses render passes (vertex/fragment shaders),
-// VelloAccelerator uses 8 compute shader stages to rasterize entire scenes:
-// pathtag_reduce -> pathtag_scan -> draw_reduce -> draw_leaf ->
+// VelloAccelerator uses 9 compute shader stages to rasterize entire scenes:
+// pathtag_reduce -> pathtag_scan -> draw_reduce -> draw_leaf -> clip_leaf ->
 // path_count -> backdrop -> coarse -> fine
+// (clip_leaf fixes up EndClip draw monoids for clip-layer scenes).
 //
 // The compute pipeline excels at complex scenes with many overlapping paths,
 // deep clip stacks, and high shape counts (>50 shapes per frame).
@@ -331,7 +332,7 @@ func (a *VelloAccelerator) StrokeShape(target render.GPURenderTarget, shape rend
 	return a.StrokePath(target, path, paint)
 }
 
-// Flush dispatches all accumulated paths through the 9-stage compute pipeline
+// Flush dispatches all accumulated paths through the 10-stage compute pipeline
 // and writes the result to the target pixel buffer. Returns nil if there are
 // no pending paths. After Flush, the accumulated scene is cleared.
 func (a *VelloAccelerator) Flush(target render.GPURenderTarget) error {
@@ -482,8 +483,8 @@ func snapPathToPixelGrid(path *render.Path) *render.Path {
 
 // RenderSceneCompute renders paths through the GPU compute pipeline.
 // This is exported for golden test use -- not part of the public accelerator API.
-// It runs the full 8-stage Vello compute pipeline (pathtag_reduce through fine)
-// on the given paths and returns the resulting RGBA image.
+// It runs the full 10-stage Vello compute pipeline (pathtag_reduce through fine,
+// including clip_leaf) on the given paths and returns the resulting RGBA image.
 func (a *VelloAccelerator) RenderSceneCompute(
 	width, height int,
 	bgColor [4]uint8,
@@ -499,39 +500,45 @@ func (a *VelloAccelerator) RenderSceneCompute(
 	return a.dispatchComputeScene(width, height, bgColor, paths)
 }
 
-// dispatchComputeScene runs the 8-stage compute pipeline on the given paths
-// and returns the resulting pixel buffer as an RGBA image.
+// RenderSceneComputeDef renders a scene defined by SceneElements (with clip
+// layers) through the GPU compute pipeline. This is exported for demo/golden
+// use -- not part of the public accelerator API.
 //
-// The flow:
-//  1. Encode scene via tilecompute.EncodeScene + PackScene.
-//  2. Build flat line and path arrays as uint32 slices for GPU upload.
-//  3. Compute VelloComputeConfig from scene layout.
-//  4. Allocate GPU buffers and upload scene data.
-//  5. Upload per-path metadata (pathTotalSegs, pathSegBase, pathStyles).
-//  6. Dispatch the 8-stage pipeline.
-//  7. Readback: copy output buffer to staging, read pixels.
-//  8. Convert packed premultiplied RGBA u32 to image.RGBA.
+// SceneElements can include Draw, BeginClip, and EndClip operations, matching
+// the CPU reference tilecompute.Rasterizer.RasterizeSceneDefPTCL. The scene is
+// encoded via EncodeSceneDef, EndClip draw monoids are fixed up by the
+// clip_leaf compute stage, and coarse/fine rasterize the clip layers.
+func (a *VelloAccelerator) RenderSceneComputeDef(
+	width, height int,
+	bgColor [4]uint8,
+	elements []tilecompute.SceneElement,
+) (*image.RGBA, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if !a.gpuReady || a.dispatcher == nil {
+		return nil, fmt.Errorf("vello-compute: GPU not ready")
+	}
+
+	return a.dispatchComputeSceneDef(width, height, bgColor, elements)
+}
+
+// dispatchComputeScene runs the 10-stage compute pipeline on the given paths
+// and returns the resulting pixel buffer as an RGBA image.
 func (a *VelloAccelerator) dispatchComputeScene(
 	width, height int,
 	bgColor [4]uint8,
 	paths []tilecompute.PathDef,
 ) (*image.RGBA, error) {
 	if len(paths) == 0 {
-		img := image.NewRGBA(image.Rect(0, 0, width, height))
-		bg := color.RGBA{R: bgColor[0], G: bgColor[1], B: bgColor[2], A: bgColor[3]}
-		for y := 0; y < height; y++ {
-			for x := 0; x < width; x++ {
-				img.SetRGBA(x, y, bg)
-			}
-		}
-		return img, nil
+		return solidBGImage(width, height, bgColor), nil
 	}
 
-	// Step 1: Encode and pack scene.
+	// Encode and pack scene.
 	enc := tilecompute.EncodeScene(paths)
 	scene := tilecompute.PackScene(enc)
 
-	// Step 2: Collect all lines with correct PathIx.
+	// Collect all lines with correct PathIx.
 	var allLines []tilecompute.LineSoup
 	for pathIx, pd := range paths {
 		for _, line := range pd.Lines {
@@ -542,9 +549,70 @@ func (a *VelloAccelerator) dispatchComputeScene(
 			})
 		}
 	}
+
+	return a.dispatchSceneCore(width, height, bgColor, scene, allLines, paths)
+}
+
+// dispatchComputeSceneDef runs the 10-stage compute pipeline on a clip-aware
+// SceneElement scene and returns the resulting pixel buffer as an RGBA image.
+//
+// Scene path layout mirrors the CPU RasterizeSceneDefPTCL:
+//   - Each Draw and BeginClip contributes a real path (its line soup).
+//   - Each EndClip contributes a dummy path with no lines (path index still
+//     increments; the clip_leaf stage redirects EndClip to its BeginClip).
+func (a *VelloAccelerator) dispatchComputeSceneDef(
+	width, height int,
+	bgColor [4]uint8,
+	elements []tilecompute.SceneElement,
+) (*image.RGBA, error) {
+	if len(elements) == 0 {
+		return solidBGImage(width, height, bgColor), nil
+	}
+
+	// Encode and pack scene (clip-aware).
+	enc := tilecompute.EncodeSceneDef(elements)
+	scene := tilecompute.PackScene(enc)
+
+	// Collect all lines with correct PathIx (element sequence order).
+	var allLines []tilecompute.LineSoup
+	var metaPaths []tilecompute.PathDef
+	for pathIdx, el := range elements {
+		switch el.Type {
+		case tilecompute.ElementDraw, tilecompute.ElementBeginClip:
+			for _, line := range el.Lines {
+				allLines = append(allLines, tilecompute.LineSoup{
+					PathIx: uint32(pathIdx),
+					P0:     line.P0,
+					P1:     line.P1,
+				})
+			}
+			metaPaths = append(metaPaths, tilecompute.PathDef{
+				Lines:    el.Lines,
+				Color:    el.Color,
+				FillRule: el.FillRule,
+			})
+		case tilecompute.ElementEndClip:
+			// EndClip dummy path: no lines, zero bbox, fill rule unused.
+			metaPaths = append(metaPaths, tilecompute.PathDef{})
+		}
+	}
+
+	return a.dispatchSceneCore(width, height, bgColor, scene, allLines, metaPaths)
+}
+
+// dispatchSceneCore runs the common GPU pipeline tail shared by the PathDef
+// and SceneElement dispatch paths: line packing, path metadata, config,
+// buffer allocation/upload, 10-stage dispatch, and pixel readback.
+func (a *VelloAccelerator) dispatchSceneCore(
+	width, height int,
+	bgColor [4]uint8,
+	scene *tilecompute.PackedScene,
+	allLines []tilecompute.LineSoup,
+	metaPaths []tilecompute.PathDef,
+) (*image.RGBA, error) {
 	numLines := uint32(len(allLines))
 
-	// Step 3: Pack lines as flat uint32 array (5 words per line).
+	// Pack lines as flat uint32 array (5 words per line).
 	linesU32 := make([]uint32, len(allLines)*5)
 	for i, line := range allLines {
 		off := i * 5
@@ -555,15 +623,15 @@ func (a *VelloAccelerator) dispatchComputeScene(
 		linesU32[off+4] = math.Float32bits(line.P1[1])
 	}
 
-	// Step 4: Build per-path metadata.
+	// Build per-path metadata.
 	widthInTiles := uint32((width + tilecompute.TileWidth - 1) / tilecompute.TileWidth)
 	heightInTiles := uint32((height + tilecompute.TileHeight - 1) / tilecompute.TileHeight)
 
 	pathsU32, pathStylesU32, totalPathTiles := buildPathMetadata(
-		paths, allLines, width, height, widthInTiles, heightInTiles,
+		metaPaths, allLines, width, height, widthInTiles, heightInTiles,
 	)
 
-	// Step 5: Compute config.
+	// Compute config.
 	config := VelloComputeConfig{
 		WidthInTiles:  widthInTiles,
 		HeightInTiles: heightInTiles,
@@ -582,14 +650,14 @@ func (a *VelloAccelerator) dispatchComputeScene(
 		BgColor:       uint32(bgColor[0]) | uint32(bgColor[1])<<8 | uint32(bgColor[2])<<16 | uint32(bgColor[3])<<24,
 	}
 
-	// Step 6: Allocate GPU buffers.
+	// Allocate GPU buffers.
 	bufs, err := a.dispatcher.AllocateBuffers(config, scene.Data, linesU32, pathsU32, numLines, totalPathTiles)
 	if err != nil {
 		return nil, fmt.Errorf("vello-compute: allocate buffers: %w", err)
 	}
 	defer a.dispatcher.DestroyBuffers(bufs)
 
-	// Step 7: Upload scene data, line segments, and path metadata to GPU.
+	// Upload scene data, line segments, and path metadata to GPU.
 	if err := a.queue.WriteBuffer(bufs.Scene, 0, uint32SliceToBytes(scene.Data)); err != nil {
 		return nil, fmt.Errorf("vello-compute: write scene buffer: %w", err)
 	}
@@ -600,28 +668,28 @@ func (a *VelloAccelerator) dispatchComputeScene(
 		return nil, fmt.Errorf("vello-compute: write paths buffer: %w", err)
 	}
 
-	// Step 8: Upload per-path auxiliary data.
+	// Upload per-path auxiliary data.
 	numPaths := int(scene.Layout.NumPaths)
 	if err := a.uploadPathAuxData(bufs, numPaths, pathStylesU32); err != nil {
 		return nil, fmt.Errorf("vello-compute: upload path aux data: %w", err)
 	}
 
-	// Step 9: Dispatch all 8 stages.
+	// Dispatch all 10 stages (pathtag_reduce ... fine, incl. clip_leaf).
 	if err := a.dispatcher.Dispatch(bufs, config); err != nil {
 		return nil, fmt.Errorf("vello-compute: dispatch: %w", err)
 	}
 
-	// Step 9b: Diagnostic readback — verify intermediate buffers have data.
+	// Diagnostic readback — verify intermediate buffers have data.
 	a.logPipelineDiagnostics(bufs, config, totalPathTiles)
 
-	// Step 10: Readback output pixels.
+	// Readback output pixels.
 	outputSize := uint64(width) * uint64(height) * 4
 	resultBytes, err := a.readbackBuffer(bufs.Output, outputSize)
 	if err != nil {
 		return nil, fmt.Errorf("vello-compute: readback: %w", err)
 	}
 
-	// Step 11: Convert packed premultiplied RGBA u32 to image.RGBA.
+	// Convert packed premultiplied RGBA u32 to image.RGBA.
 	img := unpackPixels(resultBytes, width, height)
 
 	slogger().Debug("vello-compute: scene rendered",
@@ -629,6 +697,18 @@ func (a *VelloAccelerator) dispatchComputeScene(
 		"paths", numPaths, "lines", numLines)
 
 	return img, nil
+}
+
+// solidBGImage fills an RGBA image with a solid straight-alpha color.
+func solidBGImage(width, height int, bgColor [4]uint8) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	bg := color.RGBA{R: bgColor[0], G: bgColor[1], B: bgColor[2], A: bgColor[3]}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.SetRGBA(x, y, bg)
+		}
+	}
+	return img
 }
 
 // buildPathMetadata computes per-path bounding boxes, tile offsets, and styles.

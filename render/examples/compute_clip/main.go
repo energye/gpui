@@ -3,12 +3,13 @@
 
 //go:build !nogpu
 
-// Command compute_clip is a visual demo exercising the Vello compute pipeline
-// with clip layers.
+// Command compute_clip is a visual demo exercising Vello compute-pipeline clip
+// layers.
 //
-// It renders a scene with BeginClip/EndClip through the CPU reference
-// implementation (tilecompute.RasterizeSceneDefPTCL) and optionally through
-// the GPU compute pipeline, producing a triptych comparison image.
+// The scene is described once as SceneElements (gpu.RenderSceneAuto): the
+// engine automatically renders it through the GPU compute pipeline when
+// available and falls back to the CPU reference otherwise — no manual
+// CPU/GPU branching in the example.
 //
 // Scene layout:
 //   - White background
@@ -21,16 +22,12 @@
 //
 // Output:
 //
-//	tmp/compute_clip_cpu.png         — CPU reference
-//	tmp/compute_clip_gpu.png         — GPU compute output (if available)
-//	tmp/compute_clip_comparison.png  — Side-by-side triptych with diff
+//	tmp/compute_clip.png  — rendered image (selected backend)
 package main
 
 import (
 	"fmt"
 	"image"
-	"image/color"
-	"image/draw"
 	"image/png"
 	"log/slog"
 	"math"
@@ -56,6 +53,8 @@ func main() {
 	// Enable debug logging for GPU init diagnostics.
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
 
+	// Scene is described once; the backend (GPU compute / CPU reference) is
+	// selected automatically by gpu.RenderSceneAuto.
 	elements := buildClipScene()
 
 	tilesX := (canvasWidth + tilecompute.TileWidth - 1) / tilecompute.TileWidth
@@ -63,23 +62,10 @@ func main() {
 	fmt.Printf("Scene: %d element(s) (draws + clips)\n", len(elements))
 	fmt.Printf("Canvas: %dx%d (%dx%d tiles)\n\n", canvasWidth, canvasHeight, tilesX, tilesY)
 
-	// --- CPU render ---
-	cpuStart := time.Now()
-	rast := tilecompute.NewRasterizer(canvasWidth, canvasHeight)
-	cpuImg := rast.RasterizeSceneDefPTCL(bgColor, elements)
-	cpuDur := time.Since(cpuStart)
-	fmt.Printf("CPU (tilecompute.RasterizeSceneDefPTCL)... %v done\n", cpuDur.Round(100*time.Microsecond))
-
-	// --- GPU render (PathDef only — clip not yet supported on GPU) ---
-	// GPU compute currently only supports PathDef (no SceneElement/clip).
-	// We render a subset of the scene without clips to verify the GPU pipeline
-	// is functional. The CPU vs GPU comparison is NOT pixel-exact because
-	// the GPU renders without clipping.
-	gpuImg, gpuDur, gpuErr := renderGPU()
-	if gpuErr != nil {
-		fmt.Printf("GPU (VelloAccelerator.RenderSceneCompute)... SKIP (%v)\n", gpuErr)
-	} else {
-		fmt.Printf("GPU (VelloAccelerator.RenderSceneCompute)... %v done (no-clip subset)\n", gpuDur.Round(100*time.Microsecond))
+	res := gpu.RenderSceneAuto(canvasWidth, canvasHeight, bgColor, elements)
+	fmt.Printf("Render (%s)... %v done\n", res.Backend, res.Duration.Round(100*time.Microsecond))
+	if res.GPUError != nil {
+		fmt.Printf("  (GPU attempted but failed: %v — fell back to CPU)\n", res.GPUError)
 	}
 	fmt.Println()
 
@@ -89,45 +75,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Save CPU image.
-	if err := savePNG(cpuImg, "tmp/compute_clip_cpu.png"); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: save CPU image: %v\n", err)
+	// Save the rendered image.
+	if err := savePNG(res.Img, "tmp/compute_clip.png"); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: save image: %v\n", err)
 		os.Exit(1)
 	}
 
 	// --- Diagnostics: check specific pixels ---
-	printDiagnostics(cpuImg)
-
-	// Compare and save if GPU is available.
-	if gpuImg == nil {
-		fmt.Println("\nOutput:")
-		fmt.Println("  CPU:        tmp/compute_clip_cpu.png")
-		fmt.Println("  GPU:        (skipped — clip not yet on GPU)")
-		return
-	}
-
-	if err := savePNG(gpuImg, "tmp/compute_clip_gpu.png"); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: save GPU image: %v\n", err)
-		os.Exit(1)
-	}
-
-	diffPercent, diffCount := comparePixels(cpuImg, gpuImg)
-	totalPixels := canvasWidth * canvasHeight
-
-	fmt.Println("\nComparison (CPU clip vs GPU no-clip — expected to differ):")
-	fmt.Printf("  Pixel diff: %d / %d (%.2f%%)\n", diffCount, totalPixels, diffPercent)
-	fmt.Println("  Note: GPU renders without clipping; diff is expected.")
-
-	triptych := buildTriptych(cpuImg, gpuImg)
-	if err := savePNG(triptych, "tmp/compute_clip_comparison.png"); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: save comparison: %v\n", err)
-		os.Exit(1)
-	}
+	printDiagnostics(res.Img)
 
 	fmt.Println("\nOutput:")
-	fmt.Println("  CPU:        tmp/compute_clip_cpu.png")
-	fmt.Println("  GPU:        tmp/compute_clip_gpu.png")
-	fmt.Println("  Comparison: tmp/compute_clip_comparison.png")
+	fmt.Println("  Image:   tmp/compute_clip.png")
+	fmt.Printf("  Backend: %s\n", res.Backend)
 }
 
 // buildClipScene creates a scene that exercises clip layers.
@@ -192,41 +151,6 @@ func buildClipScene() []tilecompute.SceneElement {
 			FillRule: tilecompute.FillRuleEvenOdd,
 		},
 	}
-}
-
-// renderGPU renders a non-clip reference scene via GPU compute (PathDef).
-// GPU clip rendering is not yet supported (RenderSceneCompute takes PathDef, not SceneElement).
-// Returns nil if GPU is unavailable.
-func renderGPU() (*image.RGBA, time.Duration, error) {
-	accel := &gpu.VelloAccelerator{}
-
-	debugLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	accel.SetLogger(debugLogger)
-
-	if err := accel.InitStandalone(); err != nil {
-		return nil, 0, fmt.Errorf("GPU init: %w", err)
-	}
-	defer accel.Close()
-
-	if !accel.CanCompute() {
-		return nil, 0, fmt.Errorf("compute pipeline not available")
-	}
-
-	// Build a simplified PathDef scene (no clips) for GPU comparison.
-	// This renders the same shapes without clipping to verify GPU pipeline works.
-	paths := []tilecompute.PathDef{
-		{Lines: rectLines(0, 0, canvasWidth, canvasHeight), Color: [4]uint8{60, 180, 60, 255}, FillRule: tilecompute.FillRuleNonZero},
-		{Lines: tilecompute.FlattenFill(circleCubics(200, 150, 30)), Color: [4]uint8{220, 40, 40, 220}, FillRule: tilecompute.FillRuleNonZero},
-		{Lines: starLines(50, 50, 35), Color: [4]uint8{230, 200, 0, 255}, FillRule: tilecompute.FillRuleEvenOdd},
-	}
-
-	start := time.Now()
-	img, err := accel.RenderSceneCompute(canvasWidth, canvasHeight, bgColor, paths)
-	dur := time.Since(start)
-	if err != nil {
-		return nil, 0, fmt.Errorf("render: %w", err)
-	}
-	return img, dur, nil
 }
 
 // printDiagnostics prints pixel values at key locations to verify clipping.
@@ -392,50 +316,6 @@ func starLines(cx, cy, r float32) []tilecompute.LineSoup {
 		}
 	}
 	return lines
-}
-
-// --- Image utilities ---
-
-func comparePixels(a, b *image.RGBA) (percent float64, count int) {
-	bounds := a.Bounds()
-	total := bounds.Dx() * bounds.Dy()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			ca := a.RGBAAt(x, y)
-			cb := b.RGBAAt(x, y)
-			if ca.R != cb.R || ca.G != cb.G || ca.B != cb.B || ca.A != cb.A {
-				count++
-			}
-		}
-	}
-	percent = float64(count) / float64(total) * 100
-	return
-}
-
-func buildTriptych(cpuImg, gpuImg *image.RGBA) *image.RGBA {
-	triptych := image.NewRGBA(image.Rect(0, 0, canvasWidth*3, canvasHeight))
-
-	// Panel 1: CPU reference.
-	draw.Draw(triptych, image.Rect(0, 0, canvasWidth, canvasHeight), cpuImg, image.Point{}, draw.Src)
-
-	// Panel 2: GPU compute.
-	draw.Draw(triptych, image.Rect(canvasWidth, 0, canvasWidth*2, canvasHeight), gpuImg, image.Point{}, draw.Src)
-
-	// Panel 3: Diff visualization.
-	for y := 0; y < canvasHeight; y++ {
-		for x := 0; x < canvasWidth; x++ {
-			ca := cpuImg.RGBAAt(x, y)
-			cb := gpuImg.RGBAAt(x, y)
-			if ca.R != cb.R || ca.G != cb.G || ca.B != cb.B || ca.A != cb.A {
-				triptych.SetRGBA(canvasWidth*2+x, y, color.RGBA{R: 255, G: 0, B: 0, A: 255})
-			} else {
-				gray := uint8((uint32(ca.R) + uint32(ca.G) + uint32(ca.B)) / 3)
-				triptych.SetRGBA(canvasWidth*2+x, y, color.RGBA{R: gray, G: gray, B: gray, A: 255})
-			}
-		}
-	}
-
-	return triptych
 }
 
 func savePNG(img *image.RGBA, path string) error {

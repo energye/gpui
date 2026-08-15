@@ -18,6 +18,11 @@ struct DrawMonoid {
     info_offset: u32,
 }
 
+struct ClipInp {
+    ix: u32,       // draw object index of the clip operation
+    path_ix: i32,  // BeginClip: positive path index; EndClip: ~draw_ix
+}
+
 struct Config {
     width_in_tiles: u32,
     height_in_tiles: u32,
@@ -41,6 +46,8 @@ struct Config {
 const WG_SIZE: u32 = 256u;
 const DRAWTAG_NOP: u32 = 0u;
 const DRAWTAG_COLOR: u32 = 0x44u;
+const DRAWTAG_BEGIN_CLIP: u32 = 0x9u;
+const DRAWTAG_END_CLIP: u32 = 0x21u;
 
 // --- Bindings ---
 
@@ -49,6 +56,7 @@ const DRAWTAG_COLOR: u32 = 0x44u;
 @group(0) @binding(2) var<storage, read> draw_reduced: array<DrawMonoid>;
 @group(0) @binding(3) var<storage, read_write> draw_monoids: array<DrawMonoid>;
 @group(0) @binding(4) var<storage, read_write> info: array<u32>;
+@group(0) @binding(5) var<storage, read_write> clip_inp: array<ClipInp>;
 
 // --- Workgroup shared memory ---
 
@@ -143,6 +151,19 @@ fn main(
             // SceneOffset is the cumulative offset into draw data.
             let scene_off = config.drawdata_base + result.scene_offset;
             info[result.info_offset] = scene[scene_off];
+        }
+        // Emit clip input data for clip operations (mirrors CPU drawLeafScan).
+        // Indexed by the draw monoid's exclusive clip_ix: each clip op gets
+        // a unique slot in clip_inp, consumed by the clip_leaf stage.
+        if tag == DRAWTAG_BEGIN_CLIP {
+            if result.clip_ix < config.n_clip {
+                clip_inp[result.clip_ix] = ClipInp(ix, i32(result.path_ix));
+            }
+        }
+        if tag == DRAWTAG_END_CLIP {
+            if result.clip_ix < config.n_clip {
+                clip_inp[result.clip_ix] = ClipInp(ix, ~i32(ix));
+            }
         }
     }
 }

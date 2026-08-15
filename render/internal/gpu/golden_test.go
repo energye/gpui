@@ -433,7 +433,7 @@ func computeGoldenTests() []computeGoldenTest {
 
 // TestVelloComputeGolden compares GPU compute pipeline output against the CPU
 // reference implementation (tilecompute.RasterizeScenePTCL). Both run the same
-// 8-stage Vello algorithm, so output should be pixel-identical or very close.
+// 10-stage Vello algorithm, so output should be pixel-identical or very close.
 func TestVelloComputeGolden(t *testing.T) {
 	// Initialize GPU.
 	accel := &VelloAccelerator{}
@@ -473,6 +473,132 @@ func TestVelloComputeGolden(t *testing.T) {
 			if diffPercent > tc.Threshold {
 				t.Errorf("GPU-CPU diff %.2f%% exceeds threshold %.2f%%",
 					diffPercent, tc.Threshold)
+			}
+		})
+	}
+}
+
+// TestVelloComputeClipGolden compares GPU clip-layer rendering
+// (RenderSceneComputeDef) against the CPU clip reference
+// (tilecompute.RasterizeSceneDefPTCL). Both run the same 10-stage Vello
+// algorithm on the same SceneElement scene, so output should match.
+func TestVelloComputeClipGolden(t *testing.T) {
+	// Initialize GPU.
+	accel := &VelloAccelerator{}
+	if err := accel.initGPU(); err != nil {
+		t.Skipf("GPU not available: %v", err)
+	}
+	defer accel.Close()
+
+	if !accel.CanCompute() {
+		t.Skip("compute pipeline not available")
+	}
+
+	const size = 64
+	bg := [4]uint8{255, 255, 255, 255}
+
+	tests := []struct {
+		name     string
+		elements []tilecompute.SceneElement
+	}{
+		{
+			name: "single_clip",
+			elements: []tilecompute.SceneElement{
+				{
+					Type:     tilecompute.ElementDraw,
+					Lines:    computeSquareLines(0, 0, size, size),
+					Color:    [4]uint8{60, 180, 60, 255},
+					FillRule: tilecompute.FillRuleNonZero,
+				},
+				{
+					Type:      tilecompute.ElementBeginClip,
+					Lines:     computeSquareLines(16, 16, 48, 48),
+					BlendMode: 0x8003,
+					Alpha:     1.0,
+				},
+				{
+					Type:     tilecompute.ElementDraw,
+					Lines:    computeSquareLines(0, 0, size, size),
+					Color:    [4]uint8{220, 40, 40, 220},
+					FillRule: tilecompute.FillRuleNonZero,
+				},
+				{
+					Type:     tilecompute.ElementDraw,
+					Lines:    tilecompute.FlattenFill(computeCircleCubics(32, 32, 10)),
+					Color:    [4]uint8{40, 40, 220, 255},
+					FillRule: tilecompute.FillRuleNonZero,
+				},
+				{Type: tilecompute.ElementEndClip},
+				{
+					Type:     tilecompute.ElementDraw,
+					Lines:    computeStarLines(),
+					Color:    [4]uint8{230, 200, 0, 255},
+					FillRule: tilecompute.FillRuleEvenOdd,
+				},
+			},
+		},
+		{
+			name: "nested_clip",
+			elements: []tilecompute.SceneElement{
+				{
+					Type:     tilecompute.ElementDraw,
+					Lines:    computeSquareLines(0, 0, size, size),
+					Color:    [4]uint8{60, 180, 60, 255},
+					FillRule: tilecompute.FillRuleNonZero,
+				},
+				{
+					Type:      tilecompute.ElementBeginClip,
+					Lines:     computeSquareLines(8, 8, 56, 56),
+					BlendMode: 0x8003,
+					Alpha:     1.0,
+				},
+				{
+					Type:     tilecompute.ElementDraw,
+					Lines:    computeSquareLines(0, 0, size, size),
+					Color:    [4]uint8{220, 40, 40, 255},
+					FillRule: tilecompute.FillRuleNonZero,
+				},
+				{
+					Type:      tilecompute.ElementBeginClip,
+					Lines:     computeSquareLines(20, 20, 44, 44),
+					BlendMode: 0x8003,
+					Alpha:     1.0,
+				},
+				{
+					Type:     tilecompute.ElementDraw,
+					Lines:    computeSquareLines(0, 0, size, size),
+					Color:    [4]uint8{40, 40, 220, 255},
+					FillRule: tilecompute.FillRuleNonZero,
+				},
+				{Type: tilecompute.ElementEndClip},
+				{Type: tilecompute.ElementEndClip},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// CPU clip reference.
+			rast := tilecompute.NewRasterizer(size, size)
+			cpuImg := rast.RasterizeSceneDefPTCL(bg, tc.elements)
+
+			// GPU compute (clip-aware entry).
+			gpuImg, err := accel.RenderSceneComputeDef(size, size, bg, tc.elements)
+			if err != nil {
+				t.Fatalf("GPU render failed: %v", err)
+			}
+
+			// Compare.
+			diffPercent, diffCount := compareImages(gpuImg, cpuImg)
+			t.Logf("GPU vs CPU: %d diff pixels (%.2f%%), threshold: 1.00%%",
+				diffCount, diffPercent)
+
+			// Save images for inspection.
+			saveComputeDiffImage(t, "clip_"+tc.name, gpuImg, cpuImg)
+
+			if diffPercent > 1.0 {
+				t.Errorf("GPU-CPU clip diff %.2f%% exceeds threshold 1.00%%",
+					diffPercent)
 			}
 		})
 	}

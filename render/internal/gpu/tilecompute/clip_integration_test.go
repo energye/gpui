@@ -325,6 +325,81 @@ func TestClipSceneDefPTCLMatchesPathDef(t *testing.T) {
 	}
 }
 
+// TestClipSceneEvenOddAfterEndClip verifies that an even-odd path drawn AFTER
+// an EndClip keeps its even-odd fill rule. Regression for the style-to-path
+// index misalignment: the EndClip dummy path consumes a path index but no
+// style entry, so the old StyleBase+pathIx mapping lost the even-odd flag of
+// every path after an EndClip (the last path read a zero style).
+func TestClipSceneEvenOddAfterEndClip(t *testing.T) {
+	const size = 64
+	rast := NewRasterizer(size, size)
+
+	// Pentagon outline (self-intersecting), even-odd: 5 spikes + hollow center.
+	star := []LineSoup{
+		{P0: [2]float32{32, 10}, P1: [2]float32{56, 50}},  // tip -> lower right
+		{P0: [2]float32{56, 50}, P1: [2]float32{15, 28}},  // -> left arm
+		{P0: [2]float32{15, 28}, P1: [2]float32{49, 28}},  // -> upper right
+		{P0: [2]float32{49, 28}, P1: [2]float32{8, 50}},   // -> lower left
+		{P0: [2]float32{8, 50}, P1: [2]float32{32, 10}},   // -> tip
+	}
+
+	elements := []SceneElement{
+		// Green background.
+		{
+			Type:     ElementDraw,
+			Lines:    rectLines(0, 0, size, size),
+			Color:    [4]uint8{60, 180, 60, 255},
+			FillRule: FillRuleNonZero,
+		},
+		// Clip: center rectangle (contains the lower half of the star).
+		{
+			Type:      ElementBeginClip,
+			Lines:     rectLines(16, 16, 48, 48),
+			BlendMode: 0x8003,
+			Alpha:     1.0,
+		},
+		{
+			Type:     ElementDraw,
+			Lines:    rectLines(0, 0, size, size),
+			Color:    [4]uint8{220, 40, 40, 255},
+			FillRule: FillRuleNonZero,
+		},
+		{Type: ElementEndClip},
+		// Even-odd star drawn AFTER EndClip (spans clip region and beyond).
+		{
+			Type:     ElementDraw,
+			Lines:    star,
+			Color:    [4]uint8{230, 200, 0, 255},
+			FillRule: FillRuleEvenOdd,
+		},
+	}
+
+	img := rast.RasterizeSceneDefPTCL([4]uint8{255, 255, 255, 255}, elements)
+
+	// The pentagram's center (32,32) is winding-2 (hollow under even-odd);
+	// must NOT be star-yellow. It sits inside the clip, so red underneath
+	// would show if the fill were wrong; correct result: hollow -> yellow
+	// star spikes only, center shows red-clipped-green.
+	center := img.RGBAAt(32, 32)
+	t.Logf("Star center (32,32): R=%d G=%d B=%d A=%d", center.R, center.G, center.B, center.A)
+	if center.R > 200 && center.G > 150 && center.B < 80 {
+		t.Errorf("Star center filled yellow: even-odd lost after EndClip (R=%d G=%d B=%d)",
+			center.R, center.G, center.B)
+	}
+	// If even-odd is lost (non-zero fill), the star covers the whole pentagram
+	// including the center. With background green at (32,16) (outside both red
+	// rect and star's center): hollow means green; star top spike means yellow.
+	// Only assert the anticorrelated case: center must differ from the spike.
+	spike := img.RGBAAt(32, 12)
+	t.Logf("Star spike (32,12): R=%d G=%d B=%d A=%d", spike.R, spike.G, spike.B, spike.A)
+	if spike.R > 200 && spike.G > 150 && spike.B < 80 {
+		// Spike is yellow (correct); center must be hollow (not yellow).
+		if center.R > 200 && center.G > 150 && center.B < 80 {
+			t.Error("both spike and center filled yellow: even-odd lost after EndClip")
+		}
+	}
+}
+
 func abs(x int) int {
 	if x < 0 {
 		return -x

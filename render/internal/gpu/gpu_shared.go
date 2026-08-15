@@ -728,7 +728,7 @@ func (s *GPUShared) initGPU() error {
 	s.gpuReady = true
 
 	// Vello compute is initialized lazily on first CanCompute/compute path
-	// (initVelloAccelerator). Eager init of 8 compute stages is costly on
+	// (initVelloAccelerator). Eager init of 10 compute stages is costly on
 	// low-VRAM hosts and is not needed for the default render-pass UI path.
 
 	// Standalone init: ensure filter graph is available even if callers

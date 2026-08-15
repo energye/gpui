@@ -5,7 +5,7 @@
 
 // vello_compute.go defines the GPU dispatch orchestration for the Vello-style
 // compute pipeline. It manages shader compilation, buffer allocation, and the
-// 8-stage dispatch sequence that mirrors the CPU reference in tilecompute/.
+// 10-stage dispatch sequence that mirrors the CPU reference in tilecompute/.
 
 package gpu
 
@@ -37,6 +37,9 @@ var shaderDrawReduce string
 
 //go:embed tilecompute/shaders/draw_leaf.wgsl
 var shaderDrawLeaf string
+
+//go:embed tilecompute/shaders/clip_leaf.wgsl
+var shaderClipLeaf string
 
 //go:embed tilecompute/shaders/path_count.wgsl
 var shaderPathCount string
@@ -93,8 +96,14 @@ const (
 	VelloStageDrawReduce
 
 	// VelloStageDrawLeaf performs DrawMonoid scan and extracts per-draw info (colors).
-	// Input: scene + draw_reduced. Output: draw_monoids + info.
+	// Input: scene + draw_reduced. Output: draw_monoids + info + clip_inp.
 	VelloStageDrawLeaf
+
+	// VelloStageClipLeaf matches BeginClip/EndClip pairs and fixes up EndClip
+	// draw monoids so coarse can emit clip-path coverage and read blend/alpha.
+	// Input: clip_inp + draw_monoids. Output: draw_monoids (fixed up in place).
+	// Single workgroup, sequential LIFO stack — mirrors CPU clipLeafScan.
+	VelloStageClipLeaf
 
 	// VelloStagePathCount performs DDA tile walk, backdrop computation, and segment counting.
 	// Input: lines + paths. Output: tiles (backdrop + segment counts via atomics).
@@ -134,6 +143,8 @@ func (s VelloComputeStage) String() string {
 		return "draw_reduce"
 	case VelloStageDrawLeaf:
 		return "draw_leaf"
+	case VelloStageClipLeaf:
+		return "clip_leaf"
 	case VelloStagePathCount:
 		return "path_count"
 	case VelloStageBackdrop:
@@ -278,6 +289,12 @@ type VelloComputeBuffers struct {
 	// Written by draw_leaf, read by coarse, fine.
 	Info *webgpu.Buffer
 
+	// ClipInp holds clip input data (one ClipInp per clip op, indexed by
+	// the draw monoid's exclusive clip_ix).
+	// Size: n_clip * sizeof(ClipInp) = n_clip * 2 * sizeof(u32).
+	// Written by draw_leaf, read by clip_leaf.
+	ClipInp *webgpu.Buffer
+
 	// Lines holds flattened line segments (LineSoup structs).
 	// Size: n_lines * sizeof(LineSoup) = n_lines * 5 * sizeof(u32).
 	// Read by path_count.
@@ -340,14 +357,15 @@ type VelloComputeBuffers struct {
 // =============================================================================
 
 // VelloComputeDispatcher orchestrates the Vello-style compute pipeline.
-// It manages shader compilation, buffer allocation, and the 8-stage
+// It manages shader compilation, buffer allocation, and the 10-stage
 // dispatch sequence that mirrors the CPU reference in tilecompute/.
 //
 // Pipeline stages (in dispatch order):
 //  1. pathtag_reduce -- parallel reduction of PathMonoid over path tags
 //  2. pathtag_scan   -- prefix scan of PathMonoid (two-level)
 //  3. draw_reduce    -- parallel reduction of DrawMonoid over draw tags
-//  4. draw_leaf      -- DrawMonoid scan + draw info extraction
+//  4. draw_leaf      -- DrawMonoid scan + draw info extraction + clip input emission
+//  5. clip_leaf      -- EndClip draw monoid fixup (LIFO clip/restore stack)
 //  5. path_count     -- DDA tile walk, backdrop, segment counting
 //  6. backdrop       -- left-to-right backdrop accumulation per tile row
 //  7. coarse         -- PTCL generation per tile
@@ -405,6 +423,7 @@ func NewVelloComputeDispatcher(device *webgpu.Device, queue *webgpu.Queue) *Vell
 		VelloStagePathtagScan:   shaderPathtagScan,
 		VelloStageDrawReduce:    shaderDrawReduce,
 		VelloStageDrawLeaf:      shaderDrawLeaf,
+		VelloStageClipLeaf:      shaderClipLeaf,
 		VelloStagePathCount:     shaderPathCount,
 		VelloStageBackdrop:      shaderBackdrop,
 		VelloStageCoarse:        shaderVelloCoarse,
@@ -473,8 +492,17 @@ func stageBindGroupLayoutEntries(stage VelloComputeStage) []types.BindGroupLayou
 		// @binding(2) storage(read) draw_reduced
 		// @binding(3) storage(read_write) draw_monoids
 		// @binding(4) storage(read_write) info
+		// @binding(5) storage(read_write) clip_inp
 		return []types.BindGroupLayoutEntry{
-			configUniform, storageRO(1), storageRO(2), storageRW(3), storageRW(4),
+			configUniform, storageRO(1), storageRO(2), storageRW(3), storageRW(4), storageRW(5),
+		}
+
+	case VelloStageClipLeaf:
+		// @binding(0) uniform config
+		// @binding(1) storage(read) clip_inp
+		// @binding(2) storage(read_write) draw_monoids
+		return []types.BindGroupLayoutEntry{
+			configUniform, storageRO(1), storageRW(2),
 		}
 
 	case VelloStagePathCount:
@@ -700,6 +728,15 @@ func (d *VelloComputeDispatcher) ComputeWorkgroupCount(stage VelloComputeStage, 
 		// workgroup performs the sequential left-to-right scan for that path.
 		return elementCount
 
+	case VelloStageClipLeaf:
+		// ClipLeaf runs as a single workgroup (sequential LIFO stack over
+		// all clip operations). One workgroup when there are clips, none when
+		// the scene has no clips.
+		if elementCount > 0 {
+			return 1
+		}
+		return 0
+
 	default:
 		// Standard ceiling division for parallel reduction/scan stages.
 		return (elementCount + d.wgSize - 1) / d.wgSize
@@ -715,6 +752,7 @@ type velloBufSizes struct {
 	drawReduced     uint64
 	drawMonoids     uint64
 	info            uint64
+	clipInp         uint64
 	lines           uint64
 	paths           uint64
 	tiles           uint64
@@ -764,6 +802,14 @@ func (d *VelloComputeDispatcher) computeBufferSizes(
 	maxTileCrossings := uint64(config.WidthInTiles + config.HeightInTiles)
 	estimatedSegments := uint64(numLines) * maxTileCrossings
 
+	// ClipInp buffer: one ClipInp (2 u32 = 8 bytes) per clip operation.
+	// Clamped to at least one struct: draw_leaf binding(5) declares
+	// array<ClipInp>, and WebGPU bind group validation requires the bound
+	// buffer size >= min binding size (8 bytes) even when n_clip == 0.
+	clipInpSize := uint64(config.NumClips) * 8
+	if clipInpSize < 8 {
+		clipInpSize = 8
+	}
 	// Blend spill buffer: conservative estimate for deep clip levels.
 	// Each clip level beyond BlendStackSplit needs TILE_WIDTH * TILE_HEIGHT u32s
 	// per tile. We estimate up to 4 extra levels (configurable).
@@ -778,6 +824,7 @@ func (d *VelloComputeDispatcher) computeBufferSizes(
 		drawReduced:     uint64(nDrawWG) * drawMonoidSize,
 		drawMonoids:     uint64(config.NumDrawObj) * drawMonoidSize,
 		info:            uint64(config.NumDrawObj) * 4,
+		clipInp:         clipInpSize,
 		lines:           uint64(lineWords) * 4,
 		paths:           uint64(pathWords) * 4,
 		tiles:           uint64(totalPathTiles) * tileSize, // per-path tile allocation, NOT global grid
@@ -866,6 +913,7 @@ func (d *VelloComputeDispatcher) AllocateBuffers(
 		{&bufs.DrawReduced, "vello_draw_reduced", sz.drawReduced, storageGPU, false},
 		{&bufs.DrawMonoids, "vello_draw_monoids", sz.drawMonoids, storageGPU | types.BufferUsageCopySrc, false},
 		{&bufs.Info, "vello_info", sz.info, storageGPU, false},
+		{&bufs.ClipInp, "vello_clip_inp", sz.clipInp, storageGPU, false},                       // written by draw_leaf
 		{&bufs.Lines, "vello_lines", sz.lines, storageCPU | types.BufferUsageCopySrc, false},
 		{&bufs.Paths, "vello_paths", sz.paths, storageCPU | types.BufferUsageCopySrc, false},
 		{&bufs.Tiles, "vello_tiles", sz.tiles, storageZero | types.BufferUsageCopySrc, true},              // atomicAdd in path_count
@@ -929,6 +977,7 @@ func (d *VelloComputeDispatcher) DestroyBuffers(bufs *VelloComputeBuffers) {
 	destroyBuf(bufs.DrawReduced)
 	destroyBuf(bufs.DrawMonoids)
 	destroyBuf(bufs.Info)
+	destroyBuf(bufs.ClipInp)
 	destroyBuf(bufs.Lines)
 	destroyBuf(bufs.Paths)
 	destroyBuf(bufs.Tiles)
@@ -987,6 +1036,14 @@ func stageBindGroupEntries(stage VelloComputeStage, bufs *VelloComputeBuffers) [
 			entry(2, bufs.DrawReduced),
 			entry(3, bufs.DrawMonoids),
 			entry(4, bufs.Info),
+			entry(5, bufs.ClipInp),
+		}
+
+	case VelloStageClipLeaf:
+		return []webgpu.BindGroupEntry{
+			entry(0, bufs.Config),
+			entry(1, bufs.ClipInp),
+			entry(2, bufs.DrawMonoids),
 		}
 
 	case VelloStagePathCount:
@@ -1061,7 +1118,7 @@ func (r *dispatchResources) cleanup() {
 	}
 }
 
-// Dispatch runs the complete 9-stage compute pipeline.
+// Dispatch runs the complete 10-stage compute pipeline.
 //
 // Each stage dispatches the appropriate shader with the correct buffer
 // bindings and workgroup counts. The stages must execute in order because
@@ -1071,12 +1128,13 @@ func (r *dispatchResources) cleanup() {
 //  1. pathtag_reduce: scene -> reduced (ceil(n_tag_words / 256) workgroups)
 //  2. pathtag_scan:   scene + reduced -> tag_monoids (ceil(n_tag_words / 256) workgroups)
 //  3. draw_reduce:    scene -> draw_reduced (ceil(n_drawobj / 256) workgroups)
-//  4. draw_leaf:      scene + draw_reduced -> draw_monoids + info (ceil(n_drawobj / 256) workgroups)
-//  5. path_count:     lines + paths -> tiles + seg_counts (ceil(n_lines / 256) workgroups)
-//  6. backdrop:       paths + tiles -> tiles (n_paths workgroups)
-//  7. coarse:         draw_monoids + paths + tiles + bump -> ptcl + tiles (ceil(n_drawobj / 256) wg)
-//  8. path_tiling:    seg_counts + lines + paths + tiles -> segments (ceil(n_lines*4 / 256) wg)
-//  9. fine:           ptcl + segments -> output (width_in_tiles * height_in_tiles workgroups)
+//  4. draw_leaf:      scene + draw_reduced -> draw_monoids + info + clip_inp (ceil(n_drawobj / 256) workgroups)
+//  5. clip_leaf:      clip_inp + draw_monoids -> draw_monoids fixed up (1 workgroup; skipped when n_clip=0)
+//  6. path_count:     lines + paths -> tiles + seg_counts (ceil(n_lines / 256) workgroups)
+//  7. backdrop:       paths + tiles -> tiles (n_paths workgroups)
+//  8. coarse:         draw_monoids + paths + tiles + bump -> ptcl + tiles (ceil(n_drawobj / 256) wg)
+//  9. path_tiling:    seg_counts + lines + paths + tiles -> segments (ceil(n_lines*4 / 256) wg)
+//  10. fine:          ptcl + segments -> output (width_in_tiles * height_in_tiles workgroups)
 //
 // Returns an error if any stage fails or if the dispatcher is not initialized.
 func (d *VelloComputeDispatcher) Dispatch(bufs *VelloComputeBuffers, config VelloComputeConfig) error {
@@ -1114,6 +1172,7 @@ func (d *VelloComputeDispatcher) Dispatch(bufs *VelloComputeBuffers, config Vell
 		{VelloStagePathtagScan, nTagWords, 0},
 		{VelloStageDrawReduce, config.NumDrawObj, 0},
 		{VelloStageDrawLeaf, config.NumDrawObj, 0},
+		{VelloStageClipLeaf, config.NumClips, 0},
 		{VelloStagePathCount, config.NumLines, 0},
 		{VelloStageBackdrop, config.NumPaths, 0},
 		{VelloStageCoarse, totalTiles, 0},

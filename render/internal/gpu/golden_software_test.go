@@ -36,7 +36,7 @@ import (
 //     validates that the software adapter routing produces correct output.
 //
 //  2. TestGoldenSoftware_GPUComputeVsCPU — compares GPU compute pipeline
-//     (Vello 9-stage) against CPU reference. Skips without GPU hardware.
+//     (Vello 10-stage) against CPU reference. Skips without GPU hardware.
 //
 // Reference: vello/vello_tests/tests/compare_gpu_cpu.rs
 //            vello/vello_tests/src/compare.rs

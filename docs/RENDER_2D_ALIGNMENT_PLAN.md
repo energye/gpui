@@ -4,7 +4,7 @@
 >
 > **对齐基准**：洞1 → Skia Ganesh（stencil-then-cover 任意路径裁剪）；洞2 → Skia `SkCubicResampler`（GPU 4×4 卷积，Flutter 无 bicubic，引擎已暴露 API 故以 Skia 为基准）；洞3 → Flutter SkParagraph 语义（UAX#14 断行 + 真实 advance；引擎 `render/text` 已实现该层，ui 层接通）。
 >
-> **实现状态（2026-08-15）**：洞1 ✅ 代码完成（管线激活 + 单测，GPU 真窗复测待有 GPU 环境）；洞2 ✅ 代码完成（shader + 管线变体 + 对照单测 + 负权重 bug 修复）；洞3 ✅ 代码完成（fitRunPrefix 词边界断行 + drawTextWrapped 接 WrapText + 单测）。全仓 `go build ./...` OK；`go test ./render ./ui/...` 失败集与 stash baseline 一致（零新增回归）。
+> **实现状态（2026-08-15）**：洞1 ✅ 代码完成（管线激活 + 单测，GPU 真窗复测待有 GPU 环境）；洞2 ✅ 代码完成（shader + 管线变体 + 对照单测 + 负权重 bug 修复）；洞3 ✅ 代码完成（fitRunPrefix 词边界断行 + drawTextWrapped 接 WrapText + 单测）；洞4 ✅ 实现并 GPU 验收（clip_leaf 阶段 + RenderSceneComputeDef 入口 + CPU 参考 even-odd 错位修复；`TestVelloComputeClipGolden`/`TestVelloComputeGolden` 真机 0.00% diff，compute_clip 示例 120000 像素 0 差异）。全仓 `go build ./...` OK。
 
 ---
 
@@ -106,6 +106,54 @@ Skia GPU 对 kCubic 采样用 fragment shader 做 4×4 双三次卷积（默认 
 
 ---
 
+## 洞4：Vello 计算管线 GPU 裁剪集成（compute_clip GPU vs CPU 结果不一致）
+
+### 4.1 现象与根因（已定位，代码证据）
+
+`render/examples/compute_clip`（Vello 计算管线裁剪演示）GPU 与 CPU 结果不一致、comparison 无意义、GPU 结果不正确。三层事实：
+
+- **着色器层——已实现但从未被使用**：`coarse.wgsl` 已有 `DRAWTAG_BEGIN_CLIP/END_CLIP` 的 PTCL 生成（含 clip_zero_depth 空裁剪优化）；`fine.wgsl` 已有 `CMD_BEGIN_CLIP/END_CLIP` 混合栈执行（`BLEND_STACK_SPLIT=4` + blend_spill 溢出）。主机侧从不构造带裁剪标签的场景 → 这些分支是死代码。
+- **管线编排层——功能缺失**：`vello_compute.go` 9 阶段无 clip_leaf 阶段、无 `ClipInp` 缓冲；`draw_leaf.wgsl` 不写 clip 配对输入。CPU 侧 `clipLeafScan`（`clip_leaf.go:24`，栈式配对）在 GPU 无对应物 → 即使塞入裁剪场景，EndClip 的 `draw_monoid.path_ix / scene_offset` 未修正，coarse 读到错误裁剪路径与混合参数 → 裁剪画穿（表现即 bug）。
+- **入口层——功能缺失**：`VelloAccelerator` 只有收 `PathDef`（无裁剪）的 `RenderSceneCompute`；`compute_clip/main.go` 只能让 GPU 渲染无裁剪子集。
+
+### 4.2 对齐设计（Skia/Flutter 裁剪语义，Vello 计算管线 tile 版 stencil-then-cover）
+
+Skia/Flutter 裁剪语义 → 本管线映射（全部已实现，本期只补驱动）：
+
+| Skia/Flutter 语义 | 本管线已实现载体 | 状态 |
+|------|------|------|
+| `save(); clipPath(path, kIntersect, aa); draw; restore()` 求交裁剪 | `CmdBeginClip`（清空像素=层隔离）+ `CmdEndClip`（clip 路径覆盖度 area 遮罩合成） | 着色器已写，本期激活 |
+| 嵌套裁剪逐层求交（LIFO） | fine 混合栈 push/pop；`clipLeafScan` 栈式配对 = 保存/恢复栈 | 需 clip_leaf 阶段激活 |
+| 裁剪边 AA 部分覆盖（Skia analytic AA） | clip 路径逐像素 area 覆盖度（`fill_path`） | 着色器已写 |
+| 空裁剪快速路径（Skia empty-clip） | `clip_zero_depth` 抑制后续 draw | 着色器已写 |
+| Flutter ClipPath+Opacity（层不透明度） | `CmdEndClip` 的 `alpha` 合成项（`fg = rgba*area*alpha`） | 着色器已写 |
+| 层内混合（source-over） | `blend=0` source-over（细粒度 blend 模式单列，非本期） | 已实现 |
+
+**实现缺口 = 驱动部分**：① `draw_leaf.wgsl` 写 `ClipInp`（BeginClip 记正 path_ix，EndClip 记 `~draw_ix` 补码，与 CPU `drawLeafScan` 一致）；② 新增 `clip_leaf.wgsl` 计算阶段：单 workgroup 串行栈遍历 `ClipInp`，把 EndClip 的 `draw_monoid.path_ix/scene_offset` 修正为 BeginClip 的（与 CPU `clipLeafScan` 1:1 移植，语义必然一致）；③ 主机入口 `RenderSceneComputeDef` 收 `[]SceneElement`，`EncodeSceneDef` 编码（CPU 已有，`scene_encode.go:205`），复用 `buildPathMetadata`（EndClip 空路径自然处理：零 bbox、不占 tile）。
+
+### 4.3 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| `render/internal/gpu/tilecompute/shaders/clip_leaf.wgsl` | 新增：`VelloStageClipLeaf` 计算阶段（`@workgroup_size(1)` 单 workgroup 串行栈） |
+| `render/internal/gpu/tilecompute/shaders/draw_leaf.wgsl` | `@binding(5)` 加 `clip_inp` storage；BeginClip/EndClip 写 `ClipInp`（镜像 CPU `drawLeafScan`） |
+| `render/internal/gpu/vello_compute.go` | 枚举插 `VelloStageClipLeaf`（draw_leaf 之后、path_count 之前）；`ClipInp` 缓冲（`n_clip*8` 字节）+ 绑定布局/entries + 派发 + `ComputeWorkgroupCount` 特例（n>0 → 1 workgroup） |
+| `render/internal/gpu/vello_accelerator.go` | 新增 `RenderSceneComputeDef(width,height,bg,elements)`；`dispatchComputeSceneDef` + 抽出 `dispatchSceneCore`（PathDef/SceneElement 共用上传→派发→读回） |
+| `render/internal/gpu/scene_auto.go` | 新增自动切换入口 `RenderSceneAuto`（收 `[]SceneElement`）：GPU 计算管线可用 → `gpu-compute`；否则回退 CPU 参考 `cpu-reference`（带回退原因），调用方零分支——示例不再手动区分 GPU/CPU |
+| `render/examples/compute_clip/main.go` | GPU 改用 `RenderSceneAuto` 渲染**同一** `buildClipScene()`（一套场景、一次调用），输出单图 `tmp/compute_clip.png` |
+| `render/internal/gpu/golden_test.go` | 新增 `TestVelloComputeClipGolden`：`RenderSceneComputeDef` vs CPU `RasterizeSceneDefPTCL`（GPU 门禁，无 GPU t.Skipf） |
+| `render/internal/gpu/clip_leaf_host_test.go` | 新增主机侧测试（无 GPU）：阶段布局、绑定 entries、clip 场景元数据与 CPU 布局一致 |
+
+### 4.4 验收标准
+
+1. **单测（无 GPU）**：`go test ./render/internal/gpu -run 'ClipLeaf|ClipScene|VelloCompute'` 全 PASS——阶段顺序含 clip_leaf、`ComputeWorkgroupCount(ClipLeaf)`、clip 场景 `buildPathMetadata`（NumPaths/空路径 bbox/样式位）与 CPU `PackScene` 布局一致
+2. **GPU golden（真机）**：`TestVelloComputeClipGolden` 通过——`RenderSceneComputeDef` 输出与 CPU `RasterizeSceneDefPTCL` 像素差 ≤ 1.0%；无 GPU 环境 `t.Skipf`（禁假绿）
+3. **示例（真机）**：`go run ./render/examples/compute_clip` → 一套场景代码 + `RenderSceneAuto` 自动切换（GPU 可用 `gpu-compute`/不可用回退 `cpu-reference`），输出 `tmp/compute_clip.png`；诊断像素（clip 内外/星形空心中心）正确；`TestVelloComputeClipGolden`/`TestRenderSceneAuto`（双后端 0 差异）真机全绿
+4. **回归**：既有 GPU golden（`TestVelloComputeGolden`）不回退——`dispatchSceneCore` 重构保持 PathDef 路径行为不变
+5. **文档**：`ENGINE_UI_WIDGET_RENDER.md` §10 追加修订行；本计划文档状态更新
+
+---
+
 ## 实现顺序与回归矩阵
 
 | 顺序 | 洞 | 层 | 风险 | 回归范围 |
@@ -113,6 +161,7 @@ Skia GPU 对 kCubic 采样用 fragment shader 做 4×4 双三次卷积（默认 
 | 1 | 洞1 深度裁剪激活 | `render/internal/gpu` | 高 | `go test ./render/internal/gpu/...` + clipping 真窗 + p12/context_clip 族 |
 | 2 | 洞2 Bicubic GPU | `render/` + `internal/gpu` | 高 | `go test ./render/...`（context_image/image 族）+ images 真窗 |
 | 3 | 洞3 排版接通 | `ui/rendering` | 低 | `go test ./ui/...` + ui_wr_* 真窗文本目测 |
+| 4 | 洞4 计算管线裁剪集成 | `render/internal/gpu` | 高 | `go test ./render/internal/gpu/...`（Vello 族）+ compute_clip 真窗（GPU vs CPU 同场景） |
 
 每洞完成后：跑该洞回归 → 更新 `RENDER_API_CATALOG.md`（§3.x/§7.3 状态 + 证据行）→ `ENGINE_UI_WIDGET_RENDER.md` §10 追加修订行（版本列写 `API目录同步` 或洞名）。
 

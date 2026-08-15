@@ -333,7 +333,7 @@ func generatePTCLs(
 ) {
 	numDrawObjects := int(scene.Layout.NumDrawObjects)
 	numTiles := out.WidthInTiles * out.HeightInTiles
-	pathFillRules := extractPathFillRules(scene)
+	pathFillRules := extractPathFillRules(scene, drawMonoids)
 
 	// Per-tile clip state (allocated once, indexed by global tile index).
 	clipState := make([]tileClipState, numTiles)
@@ -687,17 +687,45 @@ func tileSegRange(
 
 // extractPathFillRules determines the fill rule for each path from scene styles.
 // Returns true for even-odd, false for non-zero.
-func extractPathFillRules(scene *PackedScene) []bool {
+//
+// The style-to-path mapping must account for EndClip dummy paths: EncodeSceneDef
+// emits ONE style entry per path-creating draw (DrawTagColor, DrawTagBeginClip),
+// while EndClip inserts a dummy PATH tag with NO style entry. Direct indexing
+// (StyleBase + pathIx) misaligns every path after an EndClip — the last path
+// would read a zero style (even-odd lost). The draw monoid's PathIx plus the
+// draw tag stream reconstructs the exact mapping (same scheme as the GPU's
+// buildPathMetadata, which assigns each path its element's own fill rule).
+func extractPathFillRules(scene *PackedScene, drawMonoids []DrawMonoid) []bool {
 	numPaths := int(scene.Layout.NumPaths)
+	numDraws := int(scene.Layout.NumDrawObjects)
 	rules := make([]bool, numPaths)
 
-	// In our simplified encoding, each path has exactly one style at StyleBase + pathIx.
-	// Style flags: bit 1 = even-odd.
-	styleCount := scene.Layout.TransformBase - scene.Layout.StyleBase
-	for i := 0; i < numPaths && uint32(i) < styleCount; i++ {
-		styleIdx := scene.Layout.StyleBase + uint32(i)
-		if styleIdx < uint32(len(scene.Data)) {
-			rules[i] = scene.Data[styleIdx]&0x02 != 0
+	// Each path-creating draw consumes one style entry, in scene order.
+	// Styles live at the tail of the packed buffer: [StyleBase, len(Data)).
+	styleCount := len(scene.Data) - int(scene.Layout.StyleBase)
+	if styleCount < 0 {
+		styleCount = 0
+	}
+
+	styleIx := 0
+	for drawIx := 0; drawIx < numDraws && drawIx < len(drawMonoids); drawIx++ {
+		tag := scene.Data[scene.Layout.DrawTagBase+uint32(drawIx)]
+		pathIx := int(drawMonoids[drawIx].PathIx)
+		if pathIx < 0 || pathIx >= numPaths {
+			continue
+		}
+		switch tag {
+		case DrawTagColor, DrawTagBeginClip:
+			if styleIx < styleCount {
+				styleIdx := scene.Layout.StyleBase + uint32(styleIx)
+				if styleIdx < uint32(len(scene.Data)) {
+					rules[pathIx] = scene.Data[styleIdx]&0x02 != 0
+				}
+			}
+			styleIx++
+		case DrawTagEndClip:
+			// Dummy path: no style entry. Clip shapes are always non-zero fill.
+			rules[pathIx] = false
 		}
 	}
 
