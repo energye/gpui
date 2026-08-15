@@ -25,8 +25,8 @@ func TestImagesCPUvsGPUVisualDiagnostic(t *testing.T) {
 	cpuPath := filepath.Join(outDir, "images_cpu.png")
 	gpuPath := filepath.Join(outDir, "images_gpu.png")
 
-	cpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/images", nil, cpuPath)
-	gpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/images", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
+	cpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_images", nil, cpuPath)
+	gpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_images", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
 
 	cpuImg := decodePNGForVisualTest(t, cpuPath)
 	gpuImg := decodePNGForVisualTest(t, gpuPath)
@@ -80,6 +80,7 @@ func collectImagesMetrics(img image.Image) map[string]imagediff.RegionMetric {
 		"scaled":     imagediff.MeasureRegion(img, image.Rect(50, 260, 250, 460), isImageContent),
 		"opacity":    imagediff.MeasureRegion(img, image.Rect(300, 100, 400, 200), isImageContent),
 		"nearest":    imagediff.MeasureRegion(img, image.Rect(500, 100, 650, 250), isImageContent),
+		"bicubic":    imagediff.MeasureRegion(img, image.Rect(550, 430, 700, 580), isImageContent),
 		"src_rect":   imagediff.MeasureRegion(img, image.Rect(300, 260, 400, 360), isImageContent),
 		"multiply":   imagediff.MeasureRegion(img, image.Rect(500, 260, 600, 360), isImageContent),
 		"transform":  imagediff.MeasureRegion(img, image.Rect(65, 465, 235, 600), isImageContent),
@@ -94,6 +95,7 @@ func imagesMetricNames() []string {
 		"scaled",
 		"opacity",
 		"nearest",
+		"bicubic",
 		"src_rect",
 		"multiply",
 		"transform",
@@ -111,6 +113,7 @@ func collectImagesSamples(cpuImg, gpuImg image.Image) []imageSample {
 		{"scaled_center", 150, 360},
 		{"opacity_center", 350, 150},
 		{"nearest_center", 575, 175},
+		{"bicubic_center", 625, 505},
 		{"src_rect_center", 350, 310},
 		{"multiply_center", 550, 310},
 		{"transform_center", 150, 540},
@@ -157,7 +160,7 @@ func assertImagesVisualStrict(t *testing.T, diff imagediff.Stats, cpuMetrics, gp
 	}
 	for _, sample := range samples {
 		threshold := uint32(18)
-		if strings.Contains(sample.Name, "scaled") || strings.Contains(sample.Name, "transform") || strings.Contains(sample.Name, "pattern") {
+		if strings.Contains(sample.Name, "scaled") || strings.Contains(sample.Name, "transform") || strings.Contains(sample.Name, "pattern") || strings.Contains(sample.Name, "bicubic") {
 			threshold = 36
 		}
 		if sample.MaxDelta > threshold {

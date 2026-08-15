@@ -24,8 +24,8 @@ func TestSceneCPUvsGPUVisualDiagnostic(t *testing.T) {
 	cpuPath := filepath.Join(outDir, "scene_cpu.png")
 	gpuPath := filepath.Join(outDir, "scene_gpu.png")
 
-	cpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/scene", nil, cpuPath)
-	gpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/scene", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
+	cpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_scene", nil, cpuPath)
+	gpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_scene", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
 
 	cpuImg := decodePNGForVisualTest(t, cpuPath)
 	gpuImg := decodePNGForVisualTest(t, gpuPath)
@@ -121,8 +121,8 @@ func TestSceneGPUCPUvsGPUVisualDiagnostic(t *testing.T) {
 	cpuPath := filepath.Join(outDir, "scene_gpu_cpu.png")
 	gpuPath := filepath.Join(outDir, "scene_gpu_gpu.png")
 
-	cpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/scene_gpu", nil, cpuPath)
-	gpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/scene_gpu", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
+	cpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_scene_gpu", nil, cpuPath)
+	gpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_scene_gpu", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
 
 	cpuImg := decodePNGForVisualTest(t, cpuPath)
 	gpuImg := decodePNGForVisualTest(t, gpuPath)

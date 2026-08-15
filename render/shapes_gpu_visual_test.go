@@ -24,8 +24,8 @@ func TestShapesCPUvsGPUVisualDiagnostic(t *testing.T) {
 	cpuPath := filepath.Join(outDir, "shapes_cpu.png")
 	gpuPath := filepath.Join(outDir, "shapes_gpu.png")
 
-	cpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/shapes", nil, cpuPath)
-	gpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/shapes", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
+	cpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_shapes", nil, cpuPath)
+	gpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_shapes", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
 
 	cpuImg := decodePNGForVisualTest(t, cpuPath)
 	gpuImg := decodePNGForVisualTest(t, gpuPath)

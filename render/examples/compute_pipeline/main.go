@@ -11,9 +11,9 @@
 //
 // Output:
 //
-//	tmp/compute_cpu.png         — CPU reference
-//	tmp/compute_gpu.png         — GPU compute output
-//	tmp/compute_comparison.png  — Side-by-side triptych with diff
+//	tmp/compute_pipeline_cpu.png         — CPU reference
+//	tmp/compute_pipeline_gpu.png         — GPU compute output
+//	tmp/compute_pipeline_comparison.png  — Side-by-side triptych with diff
 package main
 
 import (
@@ -79,7 +79,7 @@ func main() {
 	}
 
 	// Save CPU image.
-	if err := savePNG(cpuImg, "tmp/compute_cpu.png"); err != nil {
+	if err := savePNG(cpuImg, "tmp/compute_pipeline_cpu.png"); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: save CPU image: %v\n", err)
 		os.Exit(1)
 	}
@@ -87,12 +87,12 @@ func main() {
 	// Compare and save if GPU is available.
 	if gpuImg == nil {
 		fmt.Println("Output:")
-		fmt.Println("  CPU:        tmp/compute_cpu.png")
+		fmt.Println("  CPU:        tmp/compute_pipeline_cpu.png")
 		fmt.Println("  GPU:        (skipped - no GPU)")
 		return
 	}
 
-	if err := savePNG(gpuImg, "tmp/compute_gpu.png"); err != nil {
+	if err := savePNG(gpuImg, "tmp/compute_pipeline_gpu.png"); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: save GPU image: %v\n", err)
 		os.Exit(1)
 	}
@@ -137,15 +137,15 @@ func main() {
 	fmt.Println()
 
 	triptych := buildTriptych(cpuImg, gpuImg)
-	if err := savePNG(triptych, "tmp/compute_comparison.png"); err != nil {
+	if err := savePNG(triptych, "tmp/compute_pipeline_comparison.png"); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: save comparison: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Println("Output:")
-	fmt.Println("  CPU:        tmp/compute_cpu.png")
-	fmt.Println("  GPU:        tmp/compute_gpu.png")
-	fmt.Println("  Comparison: tmp/compute_comparison.png")
+	fmt.Println("  CPU:        tmp/compute_pipeline_cpu.png")
+	fmt.Println("  GPU:        tmp/compute_pipeline_gpu.png")
+	fmt.Println("  Comparison: tmp/compute_pipeline_comparison.png")
 
 	if status == "FAIL" {
 		os.Exit(1)

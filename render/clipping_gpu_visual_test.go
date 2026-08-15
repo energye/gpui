@@ -24,8 +24,8 @@ func TestClippingCPUvsGPUVisualDiagnostic(t *testing.T) {
 	cpuPath := filepath.Join(outDir, "clipping_cpu.png")
 	gpuPath := filepath.Join(outDir, "clipping_gpu.png")
 
-	cpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/clipping", nil, cpuPath)
-	gpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/clipping", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
+	cpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_clipping", nil, cpuPath)
+	gpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_clipping", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
 
 	cpuImg := decodePNGForVisualTest(t, cpuPath)
 	gpuImg := decodePNGForVisualTest(t, gpuPath)

@@ -35,8 +35,8 @@ func TestTextTransformCPUvsGPUVisualDiagnostic(t *testing.T) {
 	cpuPath := filepath.Join(outDir, "text_transform_cpu.png")
 	gpuPath := filepath.Join(outDir, "text_transform_gpu.png")
 
-	cpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/text_transform", nil, cpuPath)
-	gpuLog := runVisualCommand(t, repoRoot, "./render/internal/visualcmd/text_transform", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
+	cpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_text_transform", nil, cpuPath)
+	gpuLog := runVisualCommand(t, repoRoot, "./examples/render_visual_text_transform", []string{"-tags", "gpui_visual_gpu"}, gpuPath)
 
 	cpuImg := decodePNGForVisualTest(t, cpuPath)
 	gpuImg := decodePNGForVisualTest(t, gpuPath)

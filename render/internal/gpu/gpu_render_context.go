@@ -993,6 +993,7 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 	u0, v0, u1, v1 float32,
 	nearest bool,
 	contentDirty bool,
+	bicubic ...bool,
 ) {
 	rc.ensureDrawOrder(drawTierImage)
 	minX := min4f(tlX, trX, brX, blX)
@@ -1025,6 +1026,7 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 		U1:             u1,
 		V1:             v1,
 		Nearest:        nearest,
+		Bicubic:        len(bicubic) > 0 && bicubic[0],
 		ContentDirty:   contentDirty,
 	}
 	rc.queueImageCmd(target, cmd)

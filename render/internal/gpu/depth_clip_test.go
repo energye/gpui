@@ -580,3 +580,104 @@ func TestClipPath_SurvivesDeepCopy(t *testing.T) {
 		t.Errorf("ClipDepthLevel = %d, want 1", owned[0].ClipDepthLevel)
 	}
 }
+
+// TestGPURenderSession_DepthClipPipelineConstructed verifies that
+// NewGPURenderSession eagerly constructs the depth-clip pipeline
+// (GPU-CLIP-003a). No GPU required: construction only stores pointers,
+// pipeline compilation happens lazily in ensurePipeline. Before this fix
+// the pipeline was never created in production, the hasDepthClip guard
+// was always false, and Clip() drew through the clip region on GPU.
+func TestGPURenderSession_DepthClipPipelineConstructed(t *testing.T) {
+	s := NewGPURenderSession(nil, nil, 1)
+	defer s.Destroy()
+	if s.depthClipPipeline == nil {
+		t.Fatal("NewGPURenderSession must construct depthClipPipeline (GPU-CLIP-003a)")
+	}
+}
+
+// TestGPURenderSession_DepthClipPipelineInitialized verifies that the
+// session depth-clip pipeline compiles on a native device.
+func TestGPURenderSession_DepthClipPipelineInitialized(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	defer s.Destroy()
+
+	if s.depthClipPipeline == nil {
+		t.Fatal("NewGPURenderSession must construct depthClipPipeline (GPU-CLIP-003a)")
+	}
+
+	// Lazy compile must succeed on the native device.
+	if err := s.depthClipPipeline.ensurePipeline(); err != nil {
+		t.Fatalf("depthClipPipeline.ensurePipeline failed: %v", err)
+	}
+	if s.depthClipPipeline.stencilFillPipeline == nil {
+		t.Error("expected stencilFillPipeline after ensurePipeline")
+	}
+	if s.depthClipPipeline.depthCoverPipeline == nil {
+		t.Error("expected depthCoverPipeline after ensurePipeline")
+	}
+}
+
+// TestGPURenderSession_EnsureStagePipelines_CreatesDepthClip verifies the
+// defensive re-creation path: if depthClipPipeline is nil when a frame
+// needs depth clipping, ensureStagePipelines reconstructs it.
+func TestGPURenderSession_EnsureStagePipelines_CreatesDepthClip(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	defer s.Destroy()
+
+	// Simulate a session built without the pipeline (defensive path).
+	s.depthClipPipeline = nil
+	if err := s.ensureStagePipelines(false, false, true); err != nil {
+		t.Fatalf("ensureStagePipelines(needDepthClip=true) failed: %v", err)
+	}
+	if s.depthClipPipeline == nil {
+		t.Fatal("ensureStagePipelines must re-create depthClipPipeline when nil")
+	}
+}
+
+// TestDepthClipResources_BuildAndReleaseFromSession verifies that a clip
+// path on a ScissorGroup produces buildable resources through the session
+// depth-clip pipeline (guarded by a non-nil pipeline).
+func TestDepthClipResources_BuildAndReleaseFromSession(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	defer s.Destroy()
+
+	if err := s.depthClipPipeline.ensurePipeline(); err != nil {
+		t.Fatalf("ensurePipeline failed: %v", err)
+	}
+
+	path := &render.Path{}
+	path.MoveTo(10, 10)
+	path.LineTo(110, 10)
+	path.LineTo(110, 110)
+	path.LineTo(10, 110)
+	path.Close()
+
+	// Same guard as render_session.go group build: non-nil pipeline +
+	// non-nil ClipPath must yield resources.
+	if s.depthClipPipeline == nil {
+		t.Fatal("depthClipPipeline is nil — ClipPath will never build resources")
+	}
+	res, err := s.depthClipPipeline.BuildClipResources(path, 800, 600)
+	if err != nil {
+		t.Fatalf("BuildClipResources failed: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected non-nil depth clip resources for triangle path")
+	}
+	defer res.Release()
+	if res.vertCount == 0 {
+		t.Error("expected fan vertices")
+	}
+	if res.coverCount != 6 {
+		t.Errorf("coverCount = %d, want 6", res.coverCount)
+	}
+}

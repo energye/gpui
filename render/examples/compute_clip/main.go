@@ -21,9 +21,9 @@
 //
 // Output:
 //
-//	tmp/clip_cpu.png         — CPU reference
-//	tmp/clip_gpu.png         — GPU compute output (if available)
-//	tmp/clip_comparison.png  — Side-by-side triptych with diff
+//	tmp/compute_clip_cpu.png         — CPU reference
+//	tmp/compute_clip_gpu.png         — GPU compute output (if available)
+//	tmp/compute_clip_comparison.png  — Side-by-side triptych with diff
 package main
 
 import (
@@ -90,7 +90,7 @@ func main() {
 	}
 
 	// Save CPU image.
-	if err := savePNG(cpuImg, "tmp/clip_cpu.png"); err != nil {
+	if err := savePNG(cpuImg, "tmp/compute_clip_cpu.png"); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: save CPU image: %v\n", err)
 		os.Exit(1)
 	}
@@ -101,12 +101,12 @@ func main() {
 	// Compare and save if GPU is available.
 	if gpuImg == nil {
 		fmt.Println("\nOutput:")
-		fmt.Println("  CPU:        tmp/clip_cpu.png")
+		fmt.Println("  CPU:        tmp/compute_clip_cpu.png")
 		fmt.Println("  GPU:        (skipped — clip not yet on GPU)")
 		return
 	}
 
-	if err := savePNG(gpuImg, "tmp/clip_gpu.png"); err != nil {
+	if err := savePNG(gpuImg, "tmp/compute_clip_gpu.png"); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: save GPU image: %v\n", err)
 		os.Exit(1)
 	}
@@ -119,15 +119,15 @@ func main() {
 	fmt.Println("  Note: GPU renders without clipping; diff is expected.")
 
 	triptych := buildTriptych(cpuImg, gpuImg)
-	if err := savePNG(triptych, "tmp/clip_comparison.png"); err != nil {
+	if err := savePNG(triptych, "tmp/compute_clip_comparison.png"); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: save comparison: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Println("\nOutput:")
-	fmt.Println("  CPU:        tmp/clip_cpu.png")
-	fmt.Println("  GPU:        tmp/clip_gpu.png")
-	fmt.Println("  Comparison: tmp/clip_comparison.png")
+	fmt.Println("  CPU:        tmp/compute_clip_cpu.png")
+	fmt.Println("  GPU:        tmp/compute_clip_gpu.png")
+	fmt.Println("  Comparison: tmp/compute_clip_comparison.png")
 }
 
 // buildClipScene creates a scene that exercises clip layers.

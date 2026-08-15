@@ -19,15 +19,15 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 94 · 顶层函数 109 · Context 导出方法 181 · const/var 若干 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
-| `render/text` | 包级导出 226（含字体/整形/布局/光栅化） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
-| `render/scene` | 顶层 132 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
-| `render/recording` | 顶层 78 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
-| `render/surface` | 顶层 47 | 🔌 无消费者 | surface 抽象（ImageSurface/GPUSurface）+ 注册表，未接入 render.Context |
+| `render`（主包） | 类型 94 · 顶层函数 111 · Context 导出方法 181 · 常量 120 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
+| `render/text` | 包级导出 239（含字体/整形/布局/光栅化；go doc 符号段口径） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
+| `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
+| `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
+| `render/surface` | 顶层 53 | 🔌 无消费者 | surface 抽象（ImageSurface/GPUSurface）+ 注册表，未接入 render.Context |
 | `render/svg` | 顶层 15 | 🔌 无消费者 | 图标风 SVG 渲染（Render/RenderWithColor/Parse） |
 | `render/filters` | 0（仅 init 副作用注册） | 🔗 经 render/gpu 副作用注册 | 让 DC.ApplyBlur 等可用；ui 侧 facade 无生产调用 |
 | `render/raster` | 0（仅 init 副作用注册） | 🔌 无消费者 | 独立 CPU tile 光栅注册入口；功能已并入 render/gpu |
-| `render/gpu` | 顶层 16（管理 API） | 🔗 真窗/门禁全量接线 | GPU 加速注册 + 设备生命周期/策略管理 |
+| `render/gpu` | 顶层 18（管理 API） | 🔗 真窗/门禁全量接线 | GPU 加速注册 + 设备生命周期/策略管理 |
 
 > text 子树内部还有分层子包（`render/text/hint` 等），非本次快照范围，改动时按其自身文档维护。
 
@@ -43,7 +43,7 @@
 | var `Black/White/Red/Green/Blue/Yellow/Cyan/Magenta/Transparent` | 常用命名色值常量 | 预置色 | ✅ |
 | `Point` + `Pt(x,y)` | 二维点类；Pt 构造一元：x 右增、y 下增（屏幕坐标） | 二维点 | ✅ |
 | `Vec2` + `V2(x,y)` / `PointToVec2` | 向量类（Point 的运算增强版）；V2 构造 | 向量 | ✅ |
-| `Rect` + `NewRect(p1,p2)` / `NewRectFromPoints` | 矩形（两点对角）；含 Width/Height/Contains/Union | 矩形 | ✅ |
+| `Rect` + `NewRect(p1,p2)` | 矩形（两点对角）；含 Width/Height/Contains/Union | 矩形 | ✅ |
 | `Line` + `NewLine(p0,p1)` | 线段几何（求值/分割/包围盒） | 线段 | 🔗 |
 | `QuadBez` + `NewQuadBez(p0,p1,p2)` / `CubicBez` + `NewCubicBez(p0,p1,p2,p3)` | 二次/三次贝塞尔几何求值族（Eval/Extrema/Subdivide） | 贝塞尔求值几何 | 🔗 |
 | `Matrix` + `Identity/Translate/Scale/Rotate/Shear` | 2D 仿射矩阵（x'=a·x+b·y+c，y'=d·x+e·y+f）；构造原语 + TransformPoint/Invert/ScaleFactor | 2D 仿射矩阵 | ✅ |
@@ -61,7 +61,7 @@
 
 | API | 功能说明 | 精简 | 状态 |
 |-----|---------|------|------|
-| `Path` + `NewPath()` | 即时路径：MoveTo/LineTo/QuadTo/CubicTo 追加；Rectangle/Circle/Ellipse/Arc/RoundedRectangle/EllipticalArc 形状；Close/Clone/Transform/Append/Iterate/Verbs/Coords；Bounds/Contains/Area/Winding 等查询 | 即时路径全部操作 | ✅ |
+| `Path` + `NewPath()` | 即时路径：MoveTo/LineTo/QuadraticTo/CubicTo 追加；Rectangle/Circle/Ellipse/Arc/RoundedRectangle/EllipticalArc 形状；Close/Clone/Transform/Append/Iterate/Verbs/Coords；Bounds/Contains/Area/Winding 等查询 | 即时路径全部操作 | ✅ |
 | `PathBuilder` + `BuildPath()` | 声明式路径构建链：MoveTo/LineTo/QuadTo/CubicTo/Rect/RoundRect/Circle/Ellipse/Polygon/Star → 收 Path() | 链式路径构建器 | ✅ |
 | `PathVerb`（MoveTo/LineTo/QuadTo/CubicTo/Close） | 路径指令枚举（Iterate 迭代产出） | 路径指令枚举 | ✅ |
 | `ApplyDash(p, dash)` | 把虚线序列应用到路径、生成带实线段的虚线化路径（描边内部用） | 路径虚线化 | 🔗 software/GPU 两腿都用 |
@@ -102,7 +102,7 @@
 |------|------|------|------|
 | `ClipRect(x,y,w,h)` | 矩形裁剪区（设备坐标），GPU 优先走硬件 scissor | 矩形裁剪 | ✅ GPU 有效（实测） |
 | `ClipRoundRect(x,y,w,h,r)` | 圆角矩形裁剪（GPU scissor+SDF / CPU 逐像素 SDF） | 圆角矩形裁剪 | ✅ GPU 有效（单测） |
-| `Clip()` / `ClipPreserve()` | **任意路径裁剪**（stencil+depth 管线；Preserve 保留路径） | 任意路径裁剪 | ⚠️ **GPU 真窗实测画穿，见 §7.3** |
+| `Clip()` / `ClipPreserve()` | **任意路径裁剪**（stencil+depth 管线；Preserve 保留路径） | 任意路径裁剪 | ⚠️ **GPU 真窗曾实测画穿（§7.3）**；2026-08-15 已激活 depth-clip 管线（render_session 初始化），GPU 真窗复测待做 |
 | `ResetClip()` | 清除全部裁剪，恢复全画布 | 清除裁剪 | ✅ |
 | `ClipRectOp(x,y,w,h,op)` / `ClipPathOp(op)`（ClipOpIntersect/Difference/Replace） | 带 ClipOp 运算的矩形/路径裁剪（非相交运算） | 运算式裁剪 | 🧪 仅测试（默认 intersect 是日常路径） |
 
@@ -121,13 +121,13 @@
 | `PushLayerIsolated(opacity)` | 强制创建隔离离屏层（Flutter saveLayer 语义） | 隔离离屏层 | ✅ |
 | `PushMaskLayer(mask)` | 建层并让整个层内容经 mask 调制后合成 | 蒙版层 | ✅ |
 | `PushBackdropLayer(blend, opacity)`（m4_extensions.go） | 用父画布快照预填充层（backdrop/毛玻璃底色播种） | 背景快照层 | 🔗 ui/scene/composite + ui/rendering/filter_draw 在用 |
-| `LayerPoolStats()/ResetLayerPoolStats()` | 读取/清零层表面池 gets/puts/hits/misses | 层池统计 | 🔗 |
+| `LayerPoolStats()/ResetLayerPoolStats()` | 读取/清零层表面池 gets/puts/hits/misses | 层池统计 | 🧪 仅测试（s6_4_layer_filter_test） |
 | `SetBlendMode(mode)` | 设置后续填充/描边的混合模式 | 混合模式 | ✅ |
 
 ### 3.5 context_image.go（13）· 图像族
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
-| `DrawImage/DrawImageEx` | 绘制图像（走 GPU QueueImageDraw；**Bicubic 显式回退 CPU**） | 图像绘制 | ✅ GPU 有效（双三次除外） |
+| `DrawImage/DrawImageEx` | 绘制图像（GPU QueueImageDraw；Bicubic 走 GPU 4×4 卷积变体 Catmull-Rom，GPU 失败回退 CPU） | 图像绘制 | ✅ GPU 有效 |
 | `DrawImageCircular/DrawImageRounded` | 在圆形/圆角矩形裁剪区内绘制图像 | 裁剪内画图 | 🔗 |
 | `DrawImageQuad(corners)`（m4_extensions.go） | 四角自由变换绘制（透视/梯形） | 透视贴图 | 🧪 仅测试 |
 | `DrawImageNine`（nine_patch.go） | 九宫格缩放绘制图像（四角不变、边拉伸） | 九宫格缩放 | 🔗 ui/rendering/image_draw.go 已接门面；**无 Widget 生产调用 🔌** |
@@ -162,7 +162,7 @@
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `SetFont/Font/LoadFontFace/LoadFontFaceWithVariations/FontVariationAxes` | 设置字体、读当前字体、加载 TTF/OTF 与可变字体轴 | 字体管理 | ✅ ui/rendering paint_context 在用 |
-| `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**StrokeString/Anchored/TextPath/DrawShapedGlyphs 🧪 仅测试**） |
+| `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs 🧪 仅测试**） |
 | `MeasureString/MeasureMultilineString/WordWrap` | 度量单行/多行文本、按宽度断词换行 | 文本度量 | 🔗 内部用（UI 布局未接，用自研估算） |
 | `TextMode`（Auto/MSDF/Vector/Bitmap/GlyphMask/Aliased）/ `LCDLayout`（None/RGB/BGR）/ `Align` | 文本渲染策略 / LCD 子像素布局 / 对齐枚举 | 文本模式 | ✅ |
 
@@ -170,7 +170,7 @@
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `DrawVertices(pos,cols,mode)` / `VertexMode` | 顶点数组绘制（三角扇/条带/列表） | 顶点数组 | 🔗 |
-| `DrawMesh(mesh)` / `Mesh` | 网格绘制（膨胀路径转三角形） | 网格绘制 | 🔗 |
+| `DrawMesh(mesh)` / `Mesh` | 网格绘制（膨胀路径转三角形） | 网格绘制 | 🧪 仅测试（p1_capability_matrix_closers_test） |
 | `DrawAtlas(img,sprites)` / `AtlasSprite` | 单纹理图集批量精灵绘制 | 图集绘制 | 🔗 |
 | `DrawRegularPolygon(n,x,y,r,rot)` | 正多边形形状追加到路径 | 正多边形 | 🔗 |
 
@@ -195,7 +195,7 @@
 | `AcceleratedOp`（Fill/Stroke/Scene/Text/Image/Gradient/CircleSDF/RRectSDF） | 加速操作位标记（加速器声明支持哪些 op） | 加速操作位 | 🔗 |
 | `CoverageFiller` + `RegisterCoverageFiller/GetCoverageFiller` + `ForceableFiller`（SparseFiller/ComputeFiller） | 覆盖率填充器接口与注册；AdaptiveFiller（4x4/16x16 tile）在此注册 | 覆盖率填充器 | ✅ |
 | `RasterizerMode`（Auto/Analytic/SparseStrips/TileCompute/SDF） | CPU 栅格化算法选择 | CPU 栅格化模式 | ✅ |
-| `PipelineMode`（Auto/RenderPass/Compute）+ `SelectPipeline` + `SceneStats` | GPU 管线模式选择（自动/渲染通道/计算） | GPU 管线模式 | ✅（SelectPipeline 仅测试调用 🔌） |
+| `PipelineMode`（Auto/RenderPass/Compute）+ `SelectPipeline` + `SceneStats` | GPU 管线模式选择（自动/渲染通道/计算） | GPU 管线模式 | ✅（SelectPipeline 生产调用：render/internal/gpu/gpu_render_context.go:2820，Auto 模式每帧） |
 | `DetectedShape/ShapeKind/DetectShape` | 从路径检测形状种类（Rect/RRect/Circle/Ellipse/Arc）供 SDF 快速路径 | 形状检测 | 🔗（Arc 检测仅测试） |
 | `RenderPathStats`（方法：LogLine） | GPU/CPU 路由计数快照（P1 门禁诊断，LogLine 输出日志行） | 路由计数 | 🔗 |
 | `CreateSharedEncoder/SubmitSharedEncoder` | 共享命令编码器创建与提交（ADR-017 单命令缓冲帧） | 共享编码器 | 🔗 |
@@ -213,7 +213,7 @@
 | `ExtendMode`（Pad/Repeat/Reflect）/ `ColorStop` | 渐变越界采样方式与色标 | 渐变参数 | ✅ |
 | `CustomBrush` + `NewCustomBrush/Checkerboard/HorizontalGradient/VerticalGradient/LinearGradient/RadialGradient/Stripes` | 以位置函数( ColorFunc)驱动的自定义画刷与内置纹理 | 函数式画刷 | 🔗 |
 | `Stroke` + `DefaultStroke/Thin/Thick/Bold/RoundStroke/SquareStroke/DashedStroke/DottedStroke`（WithWidth/WithCap/WithJoin/WithMiterLimit/WithDash/…） | 描边参数对象及预设（线宽/帽/接/斜接/虚线链式） | 描边参数 | ✅ |
-| `Paint` + `NewPaint`（SetColor/SetLineWidth/EffectiveLineWidth/EffectiveDash/…） | 绘制状态聚合（画刷+描边+生效值，Surface/旧路径用） | 绘制状态 | 🔗 |
+| `Paint` + `NewPaint`（/SetBrush/SetStroke/SolidColor/EffectiveLineWidth/EffectiveDash/…） | 绘制状态聚合（画刷+描边+生效值，Surface/旧路径用） | 绘制状态 | 🔗 |
 | `LineCap/LineJoin/FillRule` 及常量 | 线帽/线接/填充规则枚举 | 描边/填充规则 | ✅ |
 | `Painter` / `SolidPainter` / `FuncPainter` / `PainterFromPaint` | 像素填色抽象（软件逐像素上色接口） | 像素填色 | 🧪 仅测试（软渲染未启用） |
 
@@ -221,21 +221,21 @@
 
 ## 6. 子包目录
 
-### 6.1 render/text（包级导出 226）
+### 6.1 render/text（包级导出 239）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
-| 字体与文件 | `RegisterParser/FontSource/FontSourceID/LoadFontFace*/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…` | 字体解析器注册、字体源身份、字体文件加载、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
-| 整形 | `Shape/ShapeResult/ShapedGlyph/RunAdvance/CaretXForCluster/HitTestCluster/…` | 文本整形（复杂文字/阿拉伯、泰文等）、字形序列与簇命中 | 文本整形 | 🔗 |
+| 字体与文件 | `RegisterParser/FontSource/FontSourceID/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…` | 字体解析器注册、字体源身份、字体文件加载、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
+| 整形 | `Shape/ShapedGlyph/RunAdvance/CaretXForCluster/HitTestCluster/…` | 文本整形（复杂文字/阿拉伯、泰文等）、字形序列与簇命中 | 文本整形 | 🔗 |
 | 绘制 | `Draw/DrawAliased/DrawWithEmoji/Measure/MeasureText` | 字形到目标图像的绘制（含别名/emoji）、文本度量 | 字形绘制 | 🔗 |
 | 度量/量化 | `Quantize/QuantizePoint/SubpixelMode/SubpixelConfig` | 子像素量化（LCD/AA 的次像素定位） | 子像素量化 | 🔗 |
 | 缓存 | `ClearShapeResultCache/ClearMultiFaceRunsCache/ClearAutoHintCache/ClearFontScanFallbackCache/ResetShapeResultCacheStats` | 各缓存清理与统计复位（整形/多面/自动 hint/字体扫描） | 缓存管理 | 🔗 |
-| 光栅 | `RasterizeFT26/GlyphMaskFlags(ADI/LCD…)` | 轮廓点阵光栅化、字形掩码标志 | 字形光栅化 | 🔗 |
+| 光栅 | `RasterizeFT26/GlyphMaskFlagAliased/GlyphMaskFlagLCD/GlyphMaskFlagLCDBGR` | 轮廓点阵光栅化、字形掩码标志 | 字形光栅化 | 🔗 |
 | 特性/角色 | `FontRole/FontFeature/TabularNums/AxisWeight/DefaultMultiFontRoleChain/UnicodeRange/RangeBasicLatin/IsCJK/IsPunctuation/IsWhitespace…` | 字体角色链、OpenType 特性、Unicode 区间/分类判定 | 字体特性/分类 | 🔗 |
 | 错误/变量 | `ErrCFF2Unsupported/ErrUnsupportedFontType/…`、`DefaultTabWidth` 等 | 字体/格式错误、制表符宽默认 | 错误/常量 | — |
 
-> 完整 226 项请以 `go doc ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行）。
+> 完整 239 项请以 `go doc ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行）。
 
-### 6.2 render/scene（顶层 132）
+### 6.2 render/scene（顶层 143）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
 | 形状 | `Shape/PathBuilder`；Rect/RoundedRect/Circle/Ellipse/Line/Path/Polygon/RegularPolygon/Star/Arc/Pie/Transform/Composite Shape + New*Shape | 保留模式形状集合（矩形/圆角/圆/椭圆/线/路径/多边形/星/弧/扇/变换/组合） | 形状集合 | 🔗（render 内部 GPU 后端在用；ui/examples 零接线） |
@@ -246,7 +246,7 @@
 | 层/裁剪 | `LayerKind/LayerState/LayerStack/ClipState/ClipStack` | 图层栈与裁剪栈（retained 层绘） | 层/裁剪栈 | 🔗 |
 | 编码类型 | `Brush/SolidBrush/StrokeStyle/BlendMode/Affine/Rect/TextFlags/GlyphRunData/…` | 编码所需画刷/描边/混合/仿射/文本数据类型 | 编码数据类型 | 🔗 |
 
-### 6.3 render/recording（顶层 78）
+### 6.3 render/recording（顶层 85）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
 | 录制 | `Recorder/NewRecorder/Recording` | 录制绘制命令 → 不可变 Recording | 命令录制 | 🔌 仅测试/示例 |
@@ -254,7 +254,7 @@
 | 回放 | `Backend/BackendFactory/NewBackend/MustBackend/Register/Unregister/Backends/IsRegistered/Count`；`WriterBackend/FileBackend/PixmapBackend`；`CommandType/Command/InvalidRef`；`backends/raster` 内置 | 后端注册表与按名回放（内置 raster） | 后端回放 | 🔌（无生产消费者；PDF/SVG 后端仓外未接） |
 | 资源 | `ResourcePool/FontRef/PathRef/BrushRef/ImageRef` + 画刷（Solid/Linear/Radial/Sweep/Pattern/gradient stop/RepeatMode/ExtendMode） | 命令引用池与画刷类型 | 资源池/画刷 | 🔌 |
 
-### 6.4 render/surface（顶层 47）
+### 6.4 render/surface（顶层 53）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
 | Surface | `Surface/SubSurface/ResizableSurface/ClippableSurface/BlendableSurface/CapableSurface/Capabilities` | 渲染目标抽象接口家族（绘制/子面/resize/裁剪/混合/能力） | surface 接口 | 🔌 无消费者 |
@@ -274,7 +274,7 @@
 ### 6.7 render/raster（0 顶层）
 `init()` 副作用注册 AdaptiveFiller（4x4/16x16 tile 光栅）。**精简**：CPU tile 光栅独立注册入口。功能已并入 `render/gpu`（gpu 包 init 同时注册 SDFAccelerator + AdaptiveFiller）；本包是「只要 CPU tile 光栅不要 GPU」的入口，**状态：🔌**（无人走）。
 
-### 6.8 render/gpu（顶层 16）
+### 6.8 render/gpu（顶层 18）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
 | `SetDeviceProvider(provider)/ResetAccelerator/AbandonDevice/PurgeSurfaceResources` | 注入共享 GPU 设备、重建加速器、设备放弃、清理表面资源 | 设备生命周期 | 🔗 examples/ggcanvas 注入；**ui/embedder 生产未调 ⚠️** |
@@ -303,14 +303,14 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `Pattern/ImagePattern` 旧图案接口（SetFillPattern 等） | 仅测试/桥接；生产走 Brush |
 | `Painter/SolidPainter/FuncPainter/PainterFromPaint` | 仅测试 |
 | 文本描边/路径 `StrokeString/StrokeStringAnchored/TextPath/DrawShapedGlyphs` | 仅测试 |
-| `SelectPipeline`（管线模式选择） | 仅测试调用点 |
+| `DrawMesh`（网格绘制，Context.DrawMesh） | 无生产调用点（仅测试 render/p1_capability_matrix_closers_test.go:2918） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
 | `ui.SetMask` widget API（antd 文献提及） | 未实现（非 render 层） |
 
 ### 7.3 ⚠️ 半成品 / GPU 未生效（重点：真窗实测）
 | 功能 | 现象 | 证据与建议动作 |
 |------|------|------|
-| **任意路径裁剪 `Clip()`/`ClipPreserve()`（= ui `PushClipPath`）** | GPU 真窗下裁剪不生效：裁剪矩形内填红色/渐变/任意路径，全部画穿整个格；CPU 软路径（离屏单测 TestPushClipPath_TriangleClipsFill）正常 | 静态接线存在（setGPUClipPath → rc.SetClipPath → internal/gpu/render_session 引用 depthClipPipeline.BuildClipResources；depth_clip.go 完整 stencil+depth 管线）；2026-08 真窗 4 组复测（全格实色矩形/任意三角形/渐变路径 fill）全部画穿，参照块坐标验证无误。**疑似渲染会话内 depth clip 命令未实际生效，待 wr-debug/wr-engine 定位**。修复方向三选一：接通管线 / GPU 下显式回退 CPU 软裁 / API 标注不支持。当前能力声明（clip_rrect.go：「Does not claim … ClipPath」）不承诺该能力，不阻塞任何 R/C 关窗。 |
+| **任意路径裁剪 `Clip()`/`ClipPreserve()`（= ui `PushClipPath`）** | GPU 真窗下裁剪不生效（画穿整个格）；CPU 软路径正常 | **根因（已定位 2026-08-15）**：`render/internal/gpu` 的 `s.depthClipPipeline` 从未初始化——`NewDepthClipPipeline` 只有测试调用，`render_session.go:1538` 守卫恒 false，GPU-CLIP-003a 两阶段（stencil fill + cover 写深度）整条是死代码。**修复（已合，待 GPU 真窗复测）**：`NewGPURenderSession` 构造时初始化 `depthClipPipeline` + `ensureStagePipelines` 防御重建；新增会话级单测（无 GPU 环境 skip）。**复测验收**：`examples/render_clipping` 修复前画穿 → 修复后矩形内 fill/渐变/任意路径全部被裁剪（与 CPU 人工结果一致）。 |
 | `render/gpu` 设备生命周期 API 未进 ui/embedder | SetDeviceProvider/AbandonDevice 仅示例注入 | 真窗换设备/恢复场景未覆盖，属预留 |
 
 ### 7.4 仅测试/桥接（🧪）
@@ -356,12 +356,12 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 | 类型 | 导出方法 | 功能（做什么） | 精简 | 状态 |
 |------|---------|--------------|------|------|
-| `Path` | MoveTo/LineTo/QuadTo/CubicTo · Arc·Circle·Ellipse·Rectangle·RoundedRectangle · Append · Clone · Transform · Clear/Reset · Close · ComputeMetrics · TotalLength · PositionAt/TangentAt · Length · Area · BoundingBox/Bounds · Contains · Winding · Flatten/FlattenCallback · Reversed · Trim · WithCorners · Discrete · Iterate · Verbs/Coords · NumVerbs · HasCurves/HasCurrentPoint · CurrentPoint · Op | 路径构建、附加形状、克隆/变换、度量、查询与高级造型 | 即时路径全部操作 | ✅（Trim/WithCorners/Discrete/Op 🔌） |
+| `Path` | MoveTo/LineTo/QuadraticTo/CubicTo · Arc·Circle·Ellipse·Rectangle·RoundedRectangle · Append · Clone · Transform · Clear/Reset · Close · ComputeMetrics · TotalLength · PositionAt/TangentAt · Length · Area · BoundingBox/Bounds · Contains · Winding · Flatten/FlattenCallback · Reversed · Trim · WithCorners · Discrete · Iterate · Verbs/Coords · NumVerbs · HasCurves/HasCurrentPoint · CurrentPoint · Op | 路径构建、附加形状、克隆/变换、度量、查询与高级造型 | 即时路径全部操作 | ✅（Trim/WithCorners/Discrete/Op 🔌） |
 | `PathBuilder` | MoveTo/LineTo/QuadTo/CubicTo · Rect/RoundRect/Circle/Ellipse/Polygon/Star · Close · Build · Path | 链式声明形状后生成 Path（Rect/Circle/Ellipse 已委托 Path 实现，§7.5.1） | 链式构建器 | ✅ |
-| `Paint` | SetColor/SolidColor · SetBrush/GetBrush · ColorAt · SetStroke/GetStroke · SetLineWidth/EffectiveLineWidth · IsSolid/IsDashed · EffectiveDash · EffectiveLineCap/EffectiveLineJoin/EffectiveMiterLimit · Clone | 聚合画刷+描边状态并求生效值 | 绘制状态 | 🔗 |
+| `Paint` | SolidColor · SetBrush/GetBrush · ColorAt · SetStroke/GetStroke · EffectiveLineWidth · IsSolid/IsDashed · EffectiveDash · EffectiveLineCap/EffectiveLineJoin/EffectiveMiterLimit · Clone | 聚合画刷+描边状态并求生效值 | 绘制状态 | 🔗 |
 | `Mask` | At/Set/Fill/Clear/Invert/Clone · Data/Bounds/Width/Height | 蒙版像素读写/反转/裁剪 | alpha 蒙版 | 🔗 |
-| `Pixmap` | Width/Height · Data/Stride · At/Set/GetPixel/SetPixel/SetPixelPremul · FillRect · FillSpan/FillSpanBlend · Clear · ColorModel/Image/ImageView/ToImage · EncodePNG/EncodeJPEG/SavePNG · GenerationID/NotifyPixelsChanged · Bounds | CPU 像素缓冲：读写像素、行填充、编解码、世代号 | CPU 像素缓冲 | ✅ |
-| `SoftwareRenderer` | Fill/Stroke · Flush/Render/Resize/Clear · Capabilities · SetAntiAlias/SetDeviceScale | 软渲染器生命周期与绘制 | CPU 软渲染 | 🔗 |
+| `Pixmap` | Width/Height · Data · At/Set/GetPixel/SetPixel/SetPixelPremul · FillRect · FillSpan/FillSpanBlend · Clear · ColorModel/ImageView/ToImage · EncodePNG/EncodeJPEG/SavePNG · GenerationID/NotifyPixelsChanged · Bounds | CPU 像素缓冲：读写像素、行填充、编解码、世代号 | CPU 像素缓冲 | ✅ |
+| `SoftwareRenderer` | Fill/Stroke · Resize · SetAntiAlias/SetDeviceScale | 软渲染器生命周期与绘制 | CPU 软渲染 | 🔗 |
 | `Renderer`（接口） | Fill/Stroke | 渲染抽象入口 | 渲染器抽象 | 🔗 |
 | `SDFAccelerator` | Name/Init/Close · CanAccelerate · SetForceSDF · FillShape/FillPath/StrokeShape/StrokePath · Flush | 形状 SDF 快速填/描与强制开关 | CPU SDF 加速 | 🧪（生产仅内部 cpuFallback） |
 | `Scene`（scene 子包同名类型） | → 见 §6.2 | — | — | 🔗 |
@@ -375,7 +375,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `Stroke` | WithWidth/WithCap/WithJoin/WithMiterLimit · WithDash/WithDashPattern/WithDashOffset · IsDashed · Clone | 描边参数链式设置 | 描边参数链 | ✅ |
 | `Dash` | Clone · IsDashed · NormalizedOffset · PatternLength · Scale · WithOffset | 虚线序列运算（归一化/缩放/偏移） | 虚线序列 | 🔗 |
 | `Matrix` | Multiply · TransformPoint/TransformVector · Invert · IsIdentity/IsTranslation/IsTranslationOnly/IsScaleOnly · ScaleFactor/MaxScaleFactor | 仿射矩阵运算与性质查询 | 仿射矩阵 | ✅ |
-| `Point` | Add/Sub/Mul/Div · Dot/Cross · Length/LengthSquared · Normalize · Lerp · Distance · Rotate · Approx | 二维点算术/几何 | 点运算 | 🔗 |
+| `Point` | Add/Sub/Mul/Div · Dot/Cross · Length/LengthSquared · Normalize · Lerp · Distance · Rotate | 二维点算术/几何 | 点运算 | 🔗 |
 | `Vec2` | Add/Sub/Mul/Div/Neg · Dot/Cross · Length/LengthSq · Normalize · Perp/Rotate · Lerp · Angle/Atan2/Approx · IsZero · ToPoint | 向量算术/几何 | 向量运算 | 🔗 |
 | `RGBA` | RGBA · Premultiply/Unpremultiply · Lerp · Color | 颜色通道/预乘/插值 | 颜色值 | ✅ |
 | `Line` | End/Start/Midpoint · Length · BoundingBox · Reversed · Subdivide/Subsegment · Eval | 线段几何求值/分割 | 线段几何 | 🔗 |
@@ -392,13 +392,13 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 ---
 
-## 9. 主包常量与变量成员总表（2026-08-15 go/ast 提取，91 常量 + 11 变量）
+## 9. 主包常量与变量成员总表（2026-08-15 go/ast 提取，120 常量 + 11 变量）
 
 | 类型族 | 成员 |
 |--------|------|
 | `AcceleratedOp` | AccelFill · AccelStroke · AccelScene · AccelText · AccelImage · AccelGradient · AccelCircleSDF · AccelRRectSDF |
 | `Align` | AlignLeft · AlignCenter · AlignRight |
-| `BlendMode` | BlendNormal · BlendClear · BlendCopy · BlendPlus · BlendModulate · BlendDestinationOut · BlendSourceAtop · BlendXor · BlendDestinationOver · BlendSourceOver · BlendDestinationIn · BlendSourceIn · BlendDestinationAtop · BlendSourceOut · BlendColorBurn · BlendColorDodge · BlendColor · BlendDarken · BlendDifference · BlendExclusion · BlendHardLight · BlendHue · BlendLighten · BlendLuminosity · BlendMultiply · BlendOverlay · BlendSaturation · BlendScreen · BlendSoftLight |
+| `BlendMode` | BlendNormal · BlendClear · BlendCopy · BlendPlus · BlendModulate · BlendDestinationOut · BlendSourceAtop · BlendXor · BlendDestinationOver · BlendDestinationIn · BlendSourceIn · BlendDestinationAtop · BlendSourceOut · BlendColorBurn · BlendColorDodge · BlendColor · BlendDarken · BlendDifference · BlendExclusion · BlendHardLight · BlendHue · BlendLighten · BlendLuminosity · BlendMultiply · BlendOverlay · BlendSaturation · BlendScreen · BlendSoftLight |
 | `ClipOp` | ClipOpIntersect · ClipOpDifference · ClipOpReplace |
 | `ExtendMode` | ExtendPad · ExtendRepeat · ExtendReflect |
 | `FillRule` | FillRuleNonZero · FillRuleEvenOdd |
@@ -417,7 +417,6 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `ShapeKind` | ShapeUnknown · ShapeCircle · ShapeEllipse · ShapeRect · ShapeRRect · ShapeArc |
 | `TextDecoration` | TextDecorationNone · TextDecorationUnderline · TextDecorationOverline · TextDecorationLineThrough |
 | `TextMode` | TextModeAuto · TextModeMSDF · TextModeVector · TextModeBitmap · TextModeGlyphMask · TextModeAliased |
-| `TextureUsage` | TextureUsageCopySrc · TextureUsageCopyDst · TextureUsageTextureBinding · TextureUsageStorageBinding · TextureUsageRenderAttachment |
 | `VertexMode` | VertexModeTriangles · VertexModeTriangleFan |
 | `MSAASampleCount` | MSAASampleCount1(=1) · MSAASampleCount4(=4) |
 | 阈值/杂项 | MaxTrackedDamageRects · DamageFullCoverageThreshold · DamageMultiWasteRatio |
@@ -425,6 +424,8 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | var（错误） | ErrFallbackToCPU · ErrNilSurfaceView |
 
 > 本表由 go/ast 对 `render/` 主包（package render，非测试文件）顶层声明提取；增删常量时同步本表。
+>
+> 注：上一版此处曾列 `TextureUsage` 族 5 个常量——它们不在主包，属 `render/render` 子包（`render/render/device.go`，与主包同名但独立 import 路径），已从本表移除；需要时以 `go doc ./render/render` 为准。
 
 ---
 
@@ -439,7 +440,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 ## 11. 附录：子包顶层符号完整清单（机器生成，go doc 2026-08-15）
 
-> 本附录由 `go doc ./render/{scene,recording,surface,svg}` 顶层声明提取，与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 226 项改以 `go doc ./render/text` 为准（正文 §6.1 族级归纳）。
+> 本附录由 `go doc ./render/{scene,recording,surface,svg}` 顶层声明提取（含 const 块首行与缩进构造器），与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 239 项改以 `go doc ./render/text` 为准（正文 §6.1 族级归纳）。
 
 ```text
 scene      const DefaultMaxSizeMB = 64 ...
@@ -448,133 +449,143 @@ scene      func CanUseGPU() bool
 scene      func PutEncoding(enc *Encoding)
 scene      func TextAdvance(glyphs []*RenderedGlyph) float32
 scene      type Affine struct{ ... }
-scene      func AffineFromMatrix(m render.Matrix) Affine
-scene      func IdentityAffine() Affine
-scene      func NewAffine(a, b, c, d, e, f float32) Affine
-scene      func RotateAffine(angle float32) Affine
-scene      func ScaleAffine(x, y float32) Affine
-scene      func TranslateAffine(x, y float32) Affine
+scene          func AffineFromMatrix(m render.Matrix) Affine
+scene          func IdentityAffine() Affine
+scene          func NewAffine(a, b, c, d, e, f float32) Affine
+scene          func RotateAffine(angle float32) Affine
+scene          func ScaleAffine(x, y float32) Affine
+scene          func TranslateAffine(x, y float32) Affine
 scene      type ArcShape struct{ ... }
-scene      func NewArcShape(cx, cy, rx, ry, startAngle, endAngle float32, sweepClockwise bool) *ArcShape
+scene          func NewArcShape(cx, cy, rx, ry, startAngle, endAngle float32, sweepClockwise bool) *ArcShape
 scene      type BlendMode uint32
-scene      func AdvancedModes() []BlendMode
-scene      func AllBlendModes() []BlendMode
-scene      func BlendModeFromInternal(internal blend.BlendMode) BlendMode
-scene      func HSLModes() []BlendMode
-scene      func PaintBlendModeToScene(mode render.BlendMode) BlendMode
-scene      func PorterDuffModes() []BlendMode
+scene          const BlendNormal BlendMode = iota ...
+scene          func AdvancedModes() []BlendMode
+scene          func AllBlendModes() []BlendMode
+scene          func BlendModeFromInternal(internal blend.BlendMode) BlendMode
+scene          func HSLModes() []BlendMode
+scene          func PaintBlendModeToScene(mode render.BlendMode) BlendMode
+scene          func PorterDuffModes() []BlendMode
 scene      type Brush struct{ ... }
-scene      func SolidBrush(c render.RGBA) Brush
+scene          func SolidBrush(c render.RGBA) Brush
 scene      type BrushKind uint32
+scene          const BrushSolid BrushKind = iota ...
 scene      type CacheEntry struct{ ... }
 scene      type CacheStats struct{ ... }
 scene      type CircleShape struct{ ... }
-scene      func NewCircleShape(cx, cy, r float32) *CircleShape
+scene          func NewCircleShape(cx, cy, r float32) *CircleShape
 scene      type ClipStack struct{ ... }
-scene      func NewClipStack() *ClipStack
+scene          func NewClipStack() *ClipStack
 scene      type ClipState struct{ ... }
-scene      func NewClipState(shape Shape, transform Affine) *ClipState
+scene          func NewClipState(shape Shape, transform Affine) *ClipState
 scene      type CompositeShape struct{ ... }
-scene      func NewCompositeShape(shapes ...Shape) *CompositeShape
+scene          func NewCompositeShape(shapes ...Shape) *CompositeShape
 scene      type DamageTracker struct{ ... }
-scene      func NewDamageTracker() *DamageTracker
+scene          func NewDamageTracker() *DamageTracker
 scene      type Decoder struct{ ... }
-scene      func NewDecoder(enc *Encoding) *Decoder
+scene          func NewDecoder(enc *Encoding) *Decoder
 scene      type EllipseShape struct{ ... }
-scene      func NewEllipseShape(cx, cy, rx, ry float32) *EllipseShape
+scene          func NewEllipseShape(cx, cy, rx, ry float32) *EllipseShape
 scene      type Encoding struct{ ... }
-scene      func GetEncoding() *Encoding
-scene      func NewEncoding() *Encoding
+scene          func GetEncoding() *Encoding
+scene          func NewEncoding() *Encoding
 scene      type EncodingPool struct{ ... }
-scene      func NewEncodingPool() *EncodingPool
+scene          func NewEncodingPool() *EncodingPool
 scene      type FillStyle uint32
+scene          const FillNonZero FillStyle = 0 ...
 scene      type Filter interface{ ... }
 scene      type FilterChain struct{ ... }
-scene      func NewFilterChain(filters ...Filter) *FilterChain
+scene          func NewFilterChain(filters ...Filter) *FilterChain
 scene      type FilterType uint8
+scene          const FilterNone FilterType = iota ...
 scene      type GPUSceneRenderer struct{ ... }
-scene      func NewGPUSceneRenderer(dc *render.Context) *GPUSceneRenderer
+scene          func NewGPUSceneRenderer(dc *render.Context) *GPUSceneRenderer
 scene      type GlyphEntry struct{ ... }
 scene      type GlyphRunData struct{ ... }
 scene      type Image struct{ ... }
-scene      func NewImage(width, height int) *Image
+scene          func NewImage(width, height int) *Image
 scene      type Iterator struct{ ... }
 scene      type LayerCache struct{ ... }
-scene      func DefaultLayerCache() *LayerCache
-scene      func NewLayerCache(maxSizeMB int) *LayerCache
+scene          func DefaultLayerCache() *LayerCache
+scene          func NewLayerCache(maxSizeMB int) *LayerCache
 scene      type LayerKind uint8
+scene          const LayerRegular LayerKind = iota ...
 scene      type LayerStack struct{ ... }
-scene      func NewLayerStack() *LayerStack
+scene          func NewLayerStack() *LayerStack
 scene      type LayerState struct{ ... }
-scene      func NewClipLayer(clip Shape) *LayerState
-scene      func NewFilteredLayer(blend BlendMode, alpha float32) *LayerState
-scene      func NewLayerState(kind LayerKind, blend BlendMode, alpha float32) *LayerState
+scene          func NewClipLayer(clip Shape) *LayerState
+scene          func NewFilteredLayer(blend BlendMode, alpha float32) *LayerState
+scene          func NewLayerState(kind LayerKind, blend BlendMode, alpha float32) *LayerState
 scene      type LineCap uint32
+scene          const LineCapButt LineCap = iota ...
 scene      type LineJoin uint32
+scene          const LineJoinMiter LineJoin = iota ...
 scene      type LineShape struct{ ... }
-scene      func NewLineShape(x1, y1, x2, y2 float32) *LineShape
+scene          func NewLineShape(x1, y1, x2, y2 float32) *LineShape
 scene      type Path struct{ ... }
-scene      func NewPath() *Path
+scene          func NewPath() *Path
 scene      type PathBuilder interface{ ... }
 scene      type PathElement struct{ ... }
 scene      type PathPool struct{ ... }
-scene      func NewPathPool() *PathPool
+scene          func NewPathPool() *PathPool
 scene      type PathShape struct{ ... }
-scene      func NewGGPathShape(ggPath *render.Path) *PathShape
-scene      func NewPathShape(path *Path) *PathShape
+scene          func NewGGPathShape(ggPath *render.Path) *PathShape
+scene          func NewPathShape(path *Path) *PathShape
 scene      type PathVerb uint8
+scene          const MoveTo PathVerb = iota ...
 scene      type PieShape struct{ ... }
-scene      func NewPieShape(cx, cy, r, startAngle, endAngle float32, sweepClockwise bool) *PieShape
+scene          func NewPieShape(cx, cy, r, startAngle, endAngle float32, sweepClockwise bool) *PieShape
 scene      type Point struct{ ... }
 scene      type PolygonShape struct{ ... }
-scene      func NewPolygonShape(points ...float32) *PolygonShape
+scene          func NewPolygonShape(points ...float32) *PolygonShape
 scene      type Rect struct{ ... }
-scene      func EmptyRect() Rect
-scene      func TextBounds(glyphs []*RenderedGlyph) Rect
+scene          func EmptyRect() Rect
+scene          func TextBounds(glyphs []*RenderedGlyph) Rect
 scene      type RectShape struct{ ... }
-scene      func NewRectShape(x, y, width, height float32) *RectShape
+scene          func NewRectShape(x, y, width, height float32) *RectShape
 scene      type RegularPolygonShape struct{ ... }
-scene      func NewRegularPolygonShape(cx, cy, r float32, sides int, rotation float32) *RegularPolygonShape
+scene          func NewRegularPolygonShape(cx, cy, r float32, sides int, rotation float32) *RegularPolygonShape
 scene      type RenderStats struct{ ... }
 scene      type RenderedGlyph struct{ ... }
 scene      type Renderer struct{ ... }
-scene      func NewRenderer(width, height int, opts ...RendererOption) *Renderer
+scene          func NewRenderer(width, height int, opts ...RendererOption) *Renderer
 scene      type RendererOption func(*Renderer)
-scene      func WithCache(cache *LayerCache) RendererOption
-scene      func WithCacheSize(mb int) RendererOption
-scene      func WithTileSize(size int) RendererOption
-scene      func WithWorkers(n int) RendererOption
+scene          func WithCache(cache *LayerCache) RendererOption
+scene          func WithCacheSize(mb int) RendererOption
+scene          func WithTileSize(size int) RendererOption
+scene          func WithWorkers(n int) RendererOption
 scene      type RoundRectShape struct{ ... }
-scene      func NewRoundRectShape(rect Rect, rx, ry float32) *RoundRectShape
-scene      func NewRoundRectShapeUniform(rect Rect, r float32) *RoundRectShape
+scene          func NewRoundRectShape(rect Rect, rx, ry float32) *RoundRectShape
+scene          func NewRoundRectShapeUniform(rect Rect, r float32) *RoundRectShape
 scene      type RoundedRectShape struct{ ... }
-scene      func NewRoundedRectShape(x, y, width, height, radius float32) *RoundedRectShape
+scene          func NewRoundedRectShape(x, y, width, height, radius float32) *RoundedRectShape
 scene      type Scene struct{ ... }
-scene      func NewScene() *Scene
+scene          func NewScene() *Scene
 scene      type SceneBuilder struct{ ... }
-scene      func NewSceneBuilder() *SceneBuilder
-scene      func NewSceneBuilderFrom(scene *Scene) *SceneBuilder
+scene          func NewSceneBuilder() *SceneBuilder
+scene          func NewSceneBuilderFrom(scene *Scene) *SceneBuilder
 scene      type ScenePool struct{ ... }
-scene      func NewScenePool() *ScenePool
+scene          func NewScenePool() *ScenePool
 scene      type Shape interface{ ... }
 scene      type StarShape struct{ ... }
-scene      func NewStarShape(cx, cy, outerRadius, innerRadius float32, points int, rotation float32) *StarShape
+scene          func NewStarShape(cx, cy, outerRadius, innerRadius float32, points int, rotation float32) *StarShape
 scene      type StrokeStyle struct{ ... }
-scene      func DefaultStrokeStyle() *StrokeStyle
+scene          func DefaultStrokeStyle() *StrokeStyle
 scene      type Tag byte
+scene          const TagTransform Tag = 0x01 ...
 scene      type TaggedBounds struct{ ... }
 scene      type TextFlags uint16
+scene          const TextFlagHinting TextFlags = 1 << iota ...
 scene      type TextRenderer struct{ ... }
-scene      func NewTextRenderer() *TextRenderer
-scene      func NewTextRendererWithConfig(config TextRendererConfig) *TextRenderer
+scene          func NewTextRenderer() *TextRenderer
+scene          func NewTextRendererWithConfig(config TextRendererConfig) *TextRenderer
 scene      type TextRendererConfig struct{ ... }
-scene      func DefaultTextRendererConfig() TextRendererConfig
+scene          func DefaultTextRendererConfig() TextRendererConfig
 scene      type TextRendererPool struct{ ... }
-scene      func NewTextRendererPool() *TextRendererPool
+scene          func NewTextRendererPool() *TextRendererPool
 scene      type TextShape struct{ ... }
-scene      func NewTextShape(str string, face text.Face, x, y float32) (*TextShape, error)
+scene          func NewTextShape(str string, face text.Face, x, y float32) (*TextShape, error)
 scene      type TransformShape struct{ ... }
-scene      func NewTransformShape(shape Shape, transform Affine) *TransformShape
+scene          func NewTransformShape(shape Shape, transform Affine) *TransformShape
 recording  const InvalidRef = ^uint32(0)
 recording  func Backends() []string
 recording  func Count() int
@@ -582,54 +593,61 @@ recording  func IsRegistered(name string) bool
 recording  func Register(name string, factory BackendFactory)
 recording  func Unregister(name string)
 recording  type Backend interface{ ... }
-recording  func MustBackend(name string) Backend
-recording  func NewBackend(name string) (Backend, error)
+recording      func MustBackend(name string) Backend
+recording      func NewBackend(name string) (Backend, error)
 recording  type BackendFactory func() Backend
 recording  type Brush interface{ ... }
-recording  func BrushFromGG(b render.Brush) Brush
+recording      func BrushFromGG(b render.Brush) Brush
 recording  type BrushRef uint32
 recording  type ClearClipCommand struct{}
 recording  type ClipRoundRectCommand struct{ ... }
 recording  type Command interface{ ... }
 recording  type CommandType uint8
+recording      const CmdSave CommandType = iota ...
 recording  type DrawImageCommand struct{ ... }
 recording  type DrawTextCommand struct{ ... }
 recording  type ExtendMode int
+recording      const ExtendPad ExtendMode = iota ...
 recording  type FileBackend interface{ ... }
 recording  type FillPathCommand struct{ ... }
 recording  type FillRectCommand struct{ ... }
 recording  type FillRule uint8
+recording      const FillRuleNonZero FillRule = iota ...
 recording  type FontRef uint32
 recording  type GradientStop struct{ ... }
 recording  type ImageOptions struct{ ... }
-recording  func DefaultImageOptions() ImageOptions
+recording      func DefaultImageOptions() ImageOptions
 recording  type ImageRef uint32
 recording  type InterpolationMode uint8
+recording      const InterpolationNearest InterpolationMode = iota ...
 recording  type LineCap uint8
+recording      const LineCapButt LineCap = iota ...
 recording  type LineJoin uint8
+recording      const LineJoinMiter LineJoin = iota ...
 recording  type LinearGradientBrush struct{ ... }
-recording  func NewLinearGradientBrush(x0, y0, x1, y1 float64) *LinearGradientBrush
+recording      func NewLinearGradientBrush(x0, y0, x1, y1 float64) *LinearGradientBrush
 recording  type Matrix struct{ ... }
-recording  func Identity() Matrix
-recording  func Rotate(angle float64) Matrix
-recording  func Scale(sx, sy float64) Matrix
-recording  func Shear(x, y float64) Matrix
-recording  func Translate(x, y float64) Matrix
+recording      func Identity() Matrix
+recording      func Rotate(angle float64) Matrix
+recording      func Scale(sx, sy float64) Matrix
+recording      func Shear(x, y float64) Matrix
+recording      func Translate(x, y float64) Matrix
 recording  type PathRef uint32
 recording  type PatternBrush struct{ ... }
-recording  func NewPatternBrush(imageRef ImageRef) *PatternBrush
+recording      func NewPatternBrush(imageRef ImageRef) *PatternBrush
 recording  type PixmapBackend interface{ ... }
 recording  type RadialGradientBrush struct{ ... }
-recording  func NewRadialGradientBrush(cx, cy, startRadius, endRadius float64) *RadialGradientBrush
+recording      func NewRadialGradientBrush(cx, cy, startRadius, endRadius float64) *RadialGradientBrush
 recording  type Recorder struct{ ... }
-recording  func NewRecorder(width, height int) *Recorder
+recording      func NewRecorder(width, height int) *Recorder
 recording  type Recording struct{ ... }
 recording  type Rect struct{ ... }
-recording  func NewRect(x, y, width, height float64) Rect
-recording  func NewRectFromPoints(x1, y1, x2, y2 float64) Rect
+recording      func NewRect(x, y, width, height float64) Rect
+recording      func NewRectFromPoints(x1, y1, x2, y2 float64) Rect
 recording  type RepeatMode int
+recording      const RepeatBoth RepeatMode = iota ...
 recording  type ResourcePool struct{ ... }
-recording  func NewResourcePool() *ResourcePool
+recording      func NewResourcePool() *ResourcePool
 recording  type RestoreCommand struct{}
 recording  type SaveCommand struct{}
 recording  type SetAntiAliasCommand struct{ ... }
@@ -644,14 +662,14 @@ recording  type SetMiterLimitCommand struct{ ... }
 recording  type SetStrokeStyleCommand struct{ ... }
 recording  type SetTransformCommand struct{ ... }
 recording  type SolidBrush struct{ ... }
-recording  func NewSolidBrush(color render.RGBA) SolidBrush
+recording      func NewSolidBrush(color render.RGBA) SolidBrush
 recording  type Stroke struct{ ... }
-recording  func DefaultStroke() Stroke
+recording      func DefaultStroke() Stroke
 recording  type StrokePathCommand struct{ ... }
 recording  type StrokeRectCommand struct{ ... }
 recording  type StrokeTextCommand struct{ ... }
 recording  type SweepGradientBrush struct{ ... }
-recording  func NewSweepGradientBrush(cx, cy, startAngle float64) *SweepGradientBrush
+recording      func NewSweepGradientBrush(cx, cy, startAngle float64) *SweepGradientBrush
 recording  type WriterBackend interface{ ... }
 surface    var ErrNoBackendAvailable = errors.New("surface: no backend available")
 surface    func Available() []string
@@ -661,52 +679,57 @@ surface    func Unregister(name string)
 surface    type BackendNotFoundError struct{ ... }
 surface    type BackendUnavailableError struct{ ... }
 surface    type BlendMode uint8
+surface        const BlendModeSourceOver BlendMode = 0 ...
 surface    type BlendableSurface interface{ ... }
 surface    type Capabilities struct{ ... }
 surface    type CapableSurface interface{ ... }
 surface    type ClippableSurface interface{ ... }
 surface    type DrawImageOptions struct{ ... }
-surface    func DefaultDrawImageOptions() *DrawImageOptions
+surface        func DefaultDrawImageOptions() *DrawImageOptions
 surface    type FillRule uint8
+surface        const FillRuleNonZero FillRule = iota ...
 surface    type FillStyle struct{ ... }
-surface    func DefaultFillStyle() FillStyle
+surface        func DefaultFillStyle() FillStyle
 surface    type Filter uint8
+surface        const FilterNearest Filter = iota ...
 surface    type GPUBackend interface{ ... }
 surface    type GPUSurface struct{ ... }
-surface    func NewGPUSurface(width, height int, backend GPUBackend) (*GPUSurface, error)
+surface        func NewGPUSurface(width, height int, backend GPUBackend) (*GPUSurface, error)
 surface    type ImageSurface struct{ ... }
-surface    func NewImageSurface(width, height int) *ImageSurface
-surface    func NewImageSurfaceFromImage(img *image.RGBA) *ImageSurface
+surface        func NewImageSurface(width, height int) *ImageSurface
+surface        func NewImageSurfaceFromImage(img *image.RGBA) *ImageSurface
 surface    type LineCap uint8
+surface        const LineCapButt LineCap = iota ...
 surface    type LineJoin uint8
+surface        const LineJoinMiter LineJoin = iota ...
 surface    type Options struct{ ... }
-surface    func DefaultOptions(width, height int) Options
+surface        func DefaultOptions(width, height int) Options
 surface    type Path struct{ ... }
-surface    func NewPath() *Path
+surface        func NewPath() *Path
 surface    type Pattern interface{ ... }
 surface    type Point struct{ ... }
-surface    func Pt(x, y float64) Point
+surface        func Pt(x, y float64) Point
 surface    type Registry struct{ ... }
-surface    func NewRegistry() *Registry
+surface        func NewRegistry() *Registry
 surface    type RegistryEntry struct{ ... }
-surface    func Get(name string) (*RegistryEntry, bool)
+surface        func Get(name string) (*RegistryEntry, bool)
 surface    type ResizableSurface interface{ ... }
 surface    type SolidPattern struct{ ... }
 surface    type StrokeStyle struct{ ... }
-surface    func DefaultStrokeStyle() StrokeStyle
+surface        func DefaultStrokeStyle() StrokeStyle
 surface    type SubSurface interface{ ... }
 surface    type Surface interface{ ... }
-surface    func NewSurface(width, height int) (Surface, error)
-surface    func NewSurfaceByName(name string, width, height int) (Surface, error)
-surface    func NewSurfaceByNameWithOptions(name string, opts Options) (Surface, error)
-surface    func NewSurfaceWithOptions(opts Options) (Surface, error)
+surface        func NewSurface(width, height int) (Surface, error)
+surface        func NewSurfaceByName(name string, width, height int) (Surface, error)
+surface        func NewSurfaceByNameWithOptions(name string, opts Options) (Surface, error)
+surface        func NewSurfaceWithOptions(opts Options) (Surface, error)
 surface    type SurfaceFactory func(opts Options) (Surface, error)
 svg        func Render(data []byte, width, height int) (*image.RGBA, error)
 svg        func RenderWithColor(data []byte, width, height int, c color.Color) (*image.RGBA, error)
 svg        type Attrs struct{ ... }
 svg        type CircleElement struct{ ... }
 svg        type Document struct{ ... }
-svg        func Parse(data []byte) (*Document, error)
+svg            func Parse(data []byte) (*Document, error)
 svg        type Element interface{ ... }
 svg        type EllipseElement struct{ ... }
 svg        type GroupElement struct{ ... }
@@ -723,13 +746,26 @@ svg        type ViewBox struct{ ... }
 > 附录 A 只含顶层声明；此清单补枚举成员（各类型常量）。正文 §6 族表未逐个列出时以本清单为准；改动子包常量时同步本清单。
 
 ```text
-[scene] BlendDestination BlendClear BlendColor BlendColorBurn BlendColorDodge BlendCopy BlendDarken BlendDestinationAtop BlendDestinationIn BlendDestinationOut BlendDestinationOver BlendDifference BlendExclusion BlendHardLight BlendHue BlendLighten BlendLuminosity BlendModulate BlendMultiply BlendNormal BlendOverlay BlendPlus BlendSaturation BlendScreen BlendSoftLight BlendSourceAtop BlendSourceIn BlendSourceOut BlendSourceOver BlendXor
-[scene] BrushImage BrushLinearGradient BrushRadialGradient BrushSolid
-[scene] FillEvenOdd FillNonZero FilterBlur FilterColorMatrix FilterDropShadow FilterNone
-[scene] LayerClip LayerFiltered LayerRegular
-[scene] TagBeginClip TagBeginPath TagBrush TagClosePath TagCubicTo TagEndClip TagEndPath TagFill TagFillRoundRect TagImage TagLineTo TagMoveTo TagPopLayer TagPushLayer TagQuadTo TagSetAntiAlias TagStroke TagText TagTransform
-[scene] TextFlagCJK TextFlagHinting
-[recording] CmdClearClip CmdClipRoundRect CmdDrawImage CmdDrawText CmdFillPath CmdFillRect CmdRestore CmdSave CmdSetAntiAlias CmdSetClip CmdSetDash CmdSetFillRule CmdSetFillStyle CmdSetLineCap CmdSetLineJoin CmdSetLineWidth CmdSetMiterLimit CmdSetStrokeStyle CmdSetTransform CmdStrokePath CmdStrokeRect CmdStrokeText
-[recording] InterpolationBilinear InterpolationNearest RepeatBoth RepeatNone RepeatX RepeatY
-[surface] BlendModeClear BlendModeCopy BlendModeMultiply BlendModeOverlay BlendModeScreen BlendModeSourceOver FilterBilinear FilterNearest
+[scene] BlendMode: BlendClear BlendColor BlendColorBurn BlendColorDodge BlendCopy BlendDarken BlendDestination BlendDestinationAtop BlendDestinationIn BlendDestinationOut BlendDestinationOver BlendDifference BlendExclusion BlendHardLight BlendHue BlendLighten BlendLuminosity BlendMultiply BlendNormal BlendOverlay BlendPlus BlendSaturation BlendScreen BlendSoftLight BlendSourceAtop BlendSourceIn BlendSourceOut BlendSourceOver BlendXor
+[scene] BrushKind: BrushImage BrushLinearGradient BrushRadialGradient BrushSolid
+[scene] FillStyle: FillEvenOdd FillNonZero
+[scene] FilterType: FilterBlur FilterColorMatrix FilterDropShadow FilterNone
+[scene] LayerKind: LayerClip LayerFiltered LayerRegular
+[scene] LineCap: LineCapButt LineCapRound LineCapSquare
+[scene] LineJoin: LineJoinBevel LineJoinMiter LineJoinRound
+[scene] PathVerb: Close CubicTo LineTo MoveTo QuadTo
+[scene] Tag: TagBeginClip TagBeginPath TagBrush TagClosePath TagCubicTo TagEndClip TagEndPath TagFill TagFillRoundRect TagImage TagLineTo TagMoveTo TagPopLayer TagPushLayer TagQuadTo TagSetAntiAlias TagStroke TagText TagTransform
+[scene] TextFlags: TextFlagCJK TextFlagHinting
+[recording] CommandType: CmdClearClip CmdClipRoundRect CmdDrawImage CmdDrawText CmdFillPath CmdFillRect CmdRestore CmdSave CmdSetAntiAlias CmdSetClip CmdSetDash CmdSetFillRule CmdSetFillStyle CmdSetLineCap CmdSetLineJoin CmdSetLineWidth CmdSetMiterLimit CmdSetStrokeStyle CmdSetTransform CmdStrokePath CmdStrokeRect CmdStrokeText
+[recording] ExtendMode: ExtendPad ExtendReflect ExtendRepeat
+[recording] FillRule: FillRuleEvenOdd FillRuleNonZero
+[recording] InterpolationMode: InterpolationBilinear InterpolationNearest
+[recording] LineCap: LineCapButt LineCapRound LineCapSquare
+[recording] LineJoin: LineJoinBevel LineJoinMiter LineJoinRound
+[recording] RepeatMode: RepeatBoth RepeatNone RepeatX RepeatY
+[surface] BlendMode: BlendModeClear BlendModeCopy BlendModeMultiply BlendModeOverlay BlendModeScreen BlendModeSourceOver
+[surface] FillRule: FillRuleEvenOdd FillRuleNonZero
+[surface] Filter: FilterBilinear FilterNearest
+[surface] LineCap: LineCapButt LineCapRound LineCapSquare
+[surface] LineJoin: LineJoinBevel LineJoinMiter LineJoinRound
 ```

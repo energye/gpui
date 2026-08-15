@@ -15,6 +15,9 @@ import (
 //go:embed shaders/textured_quad.wgsl
 var texturedQuadShaderSource string
 
+//go:embed shaders/textured_quad_bicubic.wgsl
+var texturedQuadBicubicShaderSource string
+
 // imageVertexStride is the byte stride per vertex in the textured quad pipeline.
 // Layout per vertex:
 //
@@ -75,6 +78,10 @@ type ImageDrawCommand struct {
 	// Filter selects texture sampling (I.03). false = Linear (default), true = Nearest.
 	Nearest bool
 
+	// Bicubic selects GPU 4x4 bicubic convolution (I.03, textured_quad_bicubic.wgsl).
+	// Mutually exclusive with Nearest: Bicubic wins when both are set.
+	Bicubic bool
+
 	// ContentDirty: GenerationID is stable but pixel bytes changed (ExportImageBuf
 	// reuse). ImageCache re-uploads into the existing GPU texture in place.
 	ContentDirty bool
@@ -101,6 +108,10 @@ type TexturedQuadPipeline struct {
 	uniformLayout *webgpu.BindGroupLayout
 	pipeLayout    *webgpu.PipelineLayout
 
+	// Bicubic sampling shader (textured_quad_bicubic.wgsl) — 16-tap cubic
+	// convolution, same bind group layout as the linear shader.
+	bicubicShader *webgpu.ShaderModule
+
 	// Session-compatible pipeline variant with depth/stencil state.
 	// Used when images participate in a unified render pass that includes
 	// a stencil attachment. Stencil test is Always/Keep (images do not
@@ -110,6 +121,11 @@ type TexturedQuadPipeline struct {
 	// Depth-clipped pipeline variant (GPU-CLIP-003a). Same as pipelineWithStencil
 	// but with DepthCompare=GreaterEqual to test against the depth clip buffer.
 	pipelineWithDepthClip *webgpu.RenderPipeline
+
+	// Bicubic sampling variants (I.03): stencil + depth-clip, same depth/stencil
+	// state as their linear counterparts, different fragment shader.
+	pipelineWithBicubic          *webgpu.RenderPipeline
+	pipelineWithBicubicDepthClip *webgpu.RenderPipeline
 
 	// Non-MSAA blit pipeline for compositor fast path (ADR-016).
 	// SampleCount=1, no depth/stencil — used when the frame contains
@@ -235,6 +251,108 @@ func (p *TexturedQuadPipeline) ensureDepthClipPipeline() error {
 	}
 	p.pipelineWithDepthClip = pipeline
 	return nil
+}
+
+// ensureBicubicPipelines creates the bicubic sampling pipeline variants
+// (I.03): stencil + depth-clip, sharing the linear pipelines' bind group
+// layout (uniform + texture + sampler + clip). Only the fragment shader
+// differs (16-tap cubic convolution). Lazily compiled once.
+func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
+	if p.pipelineWithBicubic != nil {
+		return nil
+	}
+	if err := p.ensurePipelineWithStencil(); err != nil {
+		return err
+	}
+	if p.bicubicShader == nil {
+		shader, err := p.device.CreateShaderModule(&webgpu.ShaderModuleDescriptor{
+			Label: "textured_quad_bicubic_shader",
+			WGSL:  texturedQuadBicubicShaderSource,
+		})
+		if err != nil {
+			return fmt.Errorf("compile textured quad bicubic shader: %w", err)
+		}
+		p.bicubicShader = shader
+	}
+
+	premulBlend := types.BlendStatePremultiplied()
+	stencilPipe, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		Label:  "textured_quad_pipeline_bicubic",
+		Layout: p.pipeLayout,
+		Vertex: webgpu.VertexState{
+			Module:     p.bicubicShader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    imageVertexLayout(),
+		},
+		Fragment: &webgpu.FragmentState{
+			Module:     p.bicubicShader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     &premulBlend,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		DepthStencil: stencilPassthroughDepthStencil(),
+		Primitive:    triangleListPrimitive(),
+		Multisample:  multisampleState(p.sampleCount),
+	})
+	if err != nil {
+		return fmt.Errorf("create textured quad bicubic pipeline: %w", err)
+	}
+	p.pipelineWithBicubic = stencilPipe
+
+	// Depth-clip bicubic variant (GPU-CLIP-003a interaction: bicubic content
+	// must honor arbitrary path clipping like any other content tier).
+	depthPipe, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+		Label:  "textured_quad_pipeline_bicubic_depth_clip",
+		Layout: p.pipeLayout,
+		Vertex: webgpu.VertexState{
+			Module:     p.bicubicShader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    imageVertexLayout(),
+		},
+		Fragment: &webgpu.FragmentState{
+			Module:     p.bicubicShader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     &premulBlend,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		DepthStencil: depthClipDepthStencil(),
+		Primitive:    triangleListPrimitive(),
+		Multisample:  multisampleState(p.sampleCount),
+	})
+	if err != nil {
+		p.pipelineWithBicubic.Release()
+		p.pipelineWithBicubic = nil
+		return fmt.Errorf("create textured quad bicubic depth clip pipeline: %w", err)
+	}
+	p.pipelineWithBicubicDepthClip = depthPipe
+	return nil
+}
+
+// pipelineForDraw returns the render pipeline for a draw call, honoring
+// bicubic sampling and the depth-clip variant (GPU-CLIP-003a).
+func (p *TexturedQuadPipeline) pipelineForDraw(dc imageDrawCall, useDepthClip bool) *webgpu.RenderPipeline {
+	if dc.bicubic {
+		if useDepthClip && p.pipelineWithBicubicDepthClip != nil {
+			return p.pipelineWithBicubicDepthClip
+		}
+		if p.pipelineWithBicubic != nil {
+			return p.pipelineWithBicubic
+		}
+	}
+	if useDepthClip && p.pipelineWithDepthClip != nil {
+		return p.pipelineWithDepthClip
+	}
+	return p.pipelineWithStencil
 }
 
 // ensureBlitPipeline creates the non-MSAA pipeline variant for compositor
@@ -414,16 +532,24 @@ func (p *TexturedQuadPipeline) RecordDraws(rp *webgpu.RenderPassEncoder, res *im
 	useDepthClip := len(depthClipped) > 0 && depthClipped[0] && p.pipelineWithDepthClip != nil
 	// Clear prior bind groups before pipeline switch (incompatible group-0 layouts).
 	clearPassBindGroups(rp)
-	if useDepthClip {
-		rp.SetPipeline(p.pipelineWithDepthClip)
-	} else {
-		rp.SetPipeline(p.pipelineWithStencil)
-	}
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
 	}
 	rp.SetVertexBuffer(0, res.vertBuf, 0)
+	var lastPipe *webgpu.RenderPipeline
 	for _, dc := range res.drawCalls {
+		pipe := p.pipelineForDraw(dc, useDepthClip)
+		if pipe == nil {
+			continue
+		}
+		if pipe != lastPipe {
+			clearPassBindGroups(rp)
+			rp.SetPipeline(pipe)
+			if clipBG != nil {
+				rp.SetBindGroup(1, clipBG, nil)
+			}
+			lastPipe = pipe
+		}
 		rp.SetBindGroup(0, dc.bindGroup, nil)
 		// S4.1: vertexCount may cover multiple quads sharing one bind group.
 		rp.Draw(imageDrawVertexCount(dc), 1, dc.firstVertex, 0)
@@ -488,6 +614,7 @@ type imageDrawCall struct {
 	bindGroup   *webgpu.BindGroup
 	firstVertex uint32
 	vertexCount uint32 // 0 means 6 (single quad, backward compatible)
+	bicubic     bool   // uses bicubic pipeline variant (I.03), no merge with linear
 }
 
 // imageDrawVertexCount returns the vertex count for a draw call.
@@ -507,7 +634,7 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 	if a.GenerationID == 0 || a.GenerationID != b.GenerationID {
 		return false
 	}
-	if a.Nearest != b.Nearest || a.Opacity != b.Opacity {
+	if a.Nearest != b.Nearest || a.Bicubic != b.Bicubic || a.Opacity != b.Opacity {
 		return false
 	}
 	if a.ViewportWidth != b.ViewportWidth || a.ViewportHeight != b.ViewportHeight {
@@ -653,6 +780,8 @@ func putImageUniform(dst []byte, viewportW, viewportH uint32, opacity float32) {
 }
 
 // SamplerFor returns the sampler for the command filter mode (I.03).
+// Bicubic convolution taps samples manually with the nearest sampler
+// (hardware filtering must not re-interpolate between taps).
 func (p *TexturedQuadPipeline) SamplerFor(nearest bool) *webgpu.Sampler {
 	if nearest && p.nearestSampler != nil {
 		return p.nearestSampler

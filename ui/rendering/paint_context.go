@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
 )
 
 // PaintContext is the UI tree paint-walk cursor (not a second 2D engine).
@@ -360,7 +361,43 @@ func drawTextWrapped(pc *PaintContext, s string, x, y, width, lineSpacing float6
 	}
 	ax, ay := pc.Abs(x, y)
 	pc.DC.SetRGBA(r, g, b, a)
-	pc.DC.DrawStringWrapped(s, ax, ay, 0, 0, width, lineSpacing, align)
+	face := pc.DC.Font()
+	if face == nil {
+		// No font configured: fall back to the renderer's own wrap so the
+		// no-font degraded path keeps working.
+		pc.DC.DrawStringWrapped(s, ax, ay, 0, 0, width, lineSpacing, align)
+		return
+	}
+	// UAX#14 word-priority wrap via render/text (align Flutter/SkParagraph),
+	// then draw the wrapped lines with the same anchoring/alignment/line-height
+	// semantics as Context.DrawStringWrapped (ay=0: y is the block top).
+	lines := text.WrapText(s, face, width, text.WrapWordChar)
+	if len(lines) == 0 {
+		return
+	}
+	metrics := face.Metrics()
+	fh := metrics.LineHeight()
+	yBase := ay + metrics.Ascent // ay=0 → first baseline = top + ascent
+	xBase := ax
+	switch align {
+	case render.AlignCenter:
+		xBase += width / 2
+	case render.AlignRight:
+		xBase += width
+	}
+	for _, line := range lines {
+		drawX := xBase
+		switch align {
+		case render.AlignCenter:
+			lw, _ := text.Measure(line.Text, face)
+			drawX = xBase - lw/2
+		case render.AlignRight:
+			lw, _ := text.Measure(line.Text, face)
+			drawX = xBase - lw
+		}
+		pc.DC.DrawString(line.Text, drawX, yBase)
+		yBase += fh * lineSpacing
+	}
 }
 
 // EstimateTextSize estimates layout size without a font (rune-based).

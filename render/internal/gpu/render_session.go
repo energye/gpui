@@ -642,6 +642,10 @@ func NewGPURenderSession(device *webgpu.Device, queue *webgpu.Queue, sampleCount
 		antiAlias:   true,
 		resReg:      res.NewRegistry(),
 	}
+	// GPU-CLIP-003a: depth-clip pipeline for arbitrary path clipping
+	// (Skia stencil-then-cover). Constructed eagerly — no GPU work happens
+	// until ensurePipeline() compiles on first depth-clipped frame.
+	s.depthClipPipeline = NewDepthClipPipeline(device, queue, sampleCount)
 	// P6: submission-tracked deferred release (in-flight resources survive
 	// until the GPU finishes the submit).
 	s.sub = res.NewSubmission(s.resReg)
@@ -2144,6 +2148,11 @@ func (s *GPURenderSession) ensureImagePipeline() error {
 	if err := s.imagePipeline.ensurePipelineWithStencil(); err != nil {
 		return fmt.Errorf("image pipeline: %w", err)
 	}
+	// I.03: bicubic convolution variants (stencil + depth-clip) compile once,
+	// so bicubic draws never silently fall through with a nil pipeline.
+	if err := s.imagePipeline.ensureBicubicPipelines(); err != nil {
+		return fmt.Errorf("image bicubic pipeline: %w", err)
+	}
 	if s.imageCache == nil {
 		s.imageCache = NewImageCache(s.device, s.queue)
 	}
@@ -2178,6 +2187,12 @@ func (s *GPURenderSession) ensureStagePipelines(needStencil, needImage, needDept
 		}
 	}
 	if needDepthClip {
+		// Defensive: session constructors must create the depth-clip
+		// pipeline (NewGPURenderSession), but re-create if it was absent
+		// (e.g. future call sites) so GPU-CLIP-003a stays live.
+		if s.depthClipPipeline == nil {
+			s.depthClipPipeline = NewDepthClipPipeline(s.device, s.queue, s.sampleCount)
+		}
 		if err := s.ensureDepthClipPipelineVariants(); err != nil {
 			return err
 		}
@@ -3305,6 +3320,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		opacity              float32
 		texView              *webgpu.TextureView
 		nearest              bool
+		bicubic              bool
 		firstVertex, vertCnt uint32
 	}
 	// Reuse imageUniformScratch as slot meta is small; pack into grow-only staging.
@@ -3330,7 +3346,8 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		slots = append(slots, imageSlot{
 			opacity:     cmd.Opacity,
 			texView:     texView,
-			nearest:     cmd.Nearest,
+			nearest:     cmd.Nearest || cmd.Bicubic, // bicubic taps use the nearest sampler
+			bicubic:     cmd.Bicubic,
 			firstVertex: uint32(i * 6),       //nolint:gosec
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
 		})
@@ -3452,6 +3469,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			bindGroup:   bg,
 			firstVertex: slot.firstVertex,
 			vertexCount: slot.vertCnt,
+			bicubic:     slot.bicubic,
 		})
 	}
 

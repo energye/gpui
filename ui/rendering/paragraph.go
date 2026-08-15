@@ -389,6 +389,21 @@ func fitRunPrefix(t *RenderText, run TextRun, s string, budget float64) (chunk, 
 	if t.measureRunString(run, s) <= budget {
 		return s, ""
 	}
+	// UAX#14 word-priority wrap (align Flutter/SkParagraph line breaking):
+	// WrapText breaks at word boundaries with per-character fallback for
+	// over-long words, using the run's face at the run's font size.
+	if face := t.runFace(run); face != nil && budget > 0 {
+		lines := text.WrapText(s, face, budget, text.WrapWordChar)
+		if len(lines) > 0 && lines[0].End > 0 && lines[0].End < len(s) {
+			origChunk := s[:lines[0].End]
+			chunk = strings.TrimRight(origChunk, " \t")
+			// Keep the split lossless: trailing spaces of the wrapped line are
+			// excluded from the chunk width but stay at the front of rest
+			// (SkParagraph trims line-trailing whitespace, preserves text).
+			rest = origChunk[len(chunk):] + s[lines[0].End:]
+			return chunk, rest
+		}
+	}
 	runes := []rune(s)
 	// Binary search max prefix that fits.
 	lo, hi := 0, len(runes)

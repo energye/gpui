@@ -243,12 +243,13 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	}
 
 	// I.04 R1: Prefer GPU textured quads. UseMipmaps uses GPU bilinear (approx
-	// vs true mip chain). Bicubic remains CPU† for filter correctness.
-	if opts.Interpolation != InterpBicubic {
-		if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
-			return
-		}
-	} else {
+	// vs true mip chain). Bicubic uses a GPU 4x4 convolution variant
+	// (textured_quad_bicubic.wgsl, Catmull-Rom kernel matching the CPU path);
+	// GPU failure falls back to the CPU bicubic samplers below.
+	if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
+		return
+	}
+	if opts.Interpolation == InterpBicubic {
 		// Direct CPU DrawImage with bicubic sampling for correctness.
 		dstImg := c.pixmapToImageBuf(c.pixmap)
 		if dstImg != nil {
@@ -371,13 +372,14 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 	}
 
 	nearest := opts.Interpolation == InterpNearest
+	bicubic := opts.Interpolation == InterpBicubic
 	contentDirty := img.TakeGPUDirty()
 	rc.QueueImageDraw(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
 		float32(tl.X), float32(tl.Y),
 		float32(tr.X), float32(tr.Y),
 		float32(br.X), float32(br.Y),
 		float32(bl.X), float32(bl.Y),
-		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1, nearest, contentDirty)
+		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1, nearest, contentDirty, bicubic)
 	c.recordGPUOp()
 	return true
 }
