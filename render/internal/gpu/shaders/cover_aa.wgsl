@@ -99,7 +99,8 @@ fn fs_main(in: AAVertexOutput) -> @location(0) vec4<f32> {
     // edge, t=1 (d≥+aa) → 1.0 inside, t=0 (d≤−aa) → 0.0 outside. The positive
     // smoothstep t*t*(3-2t) is used because edge_d grows into the fill (the
     // clip/mask helpers below use the opposite sign convention).
-    let aa_hw = 0.75;
+    // aa_hw must match tessellate.go aaCoverHalfWidth (band geometry width).
+    let aa_hw = 0.35;
     let t_raw = in.edge_d / (2.0 * aa_hw) + 0.5;
     let t_pos = (t_raw + sqrt(t_raw * t_raw)) * 0.5;
     let t_diff = t_pos - 1.0;

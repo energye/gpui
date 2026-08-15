@@ -580,44 +580,54 @@ func TestEvenOddFillRouting_AutoModeUsesStencil(t *testing.T) {
 	}
 }
 
-// TestResolveSampleCount_NativeDevice verifies that resolveSampleCount returns 4
-// on a native device (which accepts any texture descriptor). With no explicit
-// code-level default (SetDefaultSampleCount(0)), the MSAA probe runs.
-func TestResolveSampleCount_NativeDevice(t *testing.T) {
-	// Isolate from any caller-set default so the MSAA probe path is exercised.
-	render.SetDefaultSampleCount(0)
-	defer render.SetDefaultSampleCount(0)
+// TestResolveSampleCount_Default verifies resolveSampleCount returns the
+// engine default of 1x when no explicit code-level default is set.
+func TestResolveSampleCount_Default(t *testing.T) {
+	render.SetMSAASampleCount(0)
+	defer render.SetMSAASampleCount(0)
 
 	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 
 	sc := resolveSampleCount(device)
-	if sc != 4 {
-		t.Errorf("resolveSampleCount(native) = %d, want 4", sc)
+	if sc != 1 {
+		t.Errorf("resolveSampleCount(default) = %d, want 1 (engine default 1x)", sc)
 	}
 }
 
-// TestResolveSampleCount_APIForce1 verifies the code-level default override:
-// SetDefaultSampleCount(MSAASampleCount1) makes resolveSampleCount return 1
-// without probing the device (low-VRAM host policy).
+// TestResolveSampleCount_APIForce4 verifies the code-level override:
+// SetMSAASampleCount(MSAASampleCount4) makes resolveSampleCount return 4
+// (explicit opt-in, no probing).
+func TestResolveSampleCount_APIForce4(t *testing.T) {
+	render.SetMSAASampleCount(render.MSAASampleCount4)
+	defer render.SetMSAASampleCount(0)
+	device, _, cleanup := createNativeDevice(t)
+	defer cleanup()
+	if sc := resolveSampleCount(device); sc != 4 {
+		t.Errorf("resolveSampleCount with SetMSAASampleCount(4) = %d, want 4", sc)
+	}
+}
+
+// TestResolveSampleCount_APIForce1 verifies the code-level override:
+// SetMSAASampleCount(MSAASampleCount1) makes resolveSampleCount return 1.
 func TestResolveSampleCount_APIForce1(t *testing.T) {
-	render.SetDefaultSampleCount(render.MSAASampleCount1)
-	defer render.SetDefaultSampleCount(0)
+	render.SetMSAASampleCount(render.MSAASampleCount1)
+	defer render.SetMSAASampleCount(0)
 	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 	if sc := resolveSampleCount(device); sc != 1 {
-		t.Errorf("resolveSampleCount with SetDefaultSampleCount(1) = %d, want 1", sc)
+		t.Errorf("resolveSampleCount with SetMSAASampleCount(1) = %d, want 1", sc)
 	}
 }
 
-// TestGPUShared_SampleCount_Default verifies the SampleCount accessor returns 4
-// before GPU initialization (safe default for pipeline descriptors).
+// TestGPUShared_SampleCount_Default verifies the SampleCount accessor returns 1
+// before GPU initialization (engine default).
 func TestGPUShared_SampleCount_Default(t *testing.T) {
 	s := NewGPUShared()
 	defer s.Close()
 
-	if sc := s.SampleCount(); sc != 4 {
-		t.Errorf("SampleCount() before init = %d, want 4", sc)
+	if sc := s.SampleCount(); sc != 1 {
+		t.Errorf("SampleCount() before init = %d, want 1", sc)
 	}
 }
 

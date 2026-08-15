@@ -2,8 +2,8 @@ package render
 
 import "testing"
 
-// TestMSAASampleCountConstants pins the documented default: engine = 4x,
-// opt-out = 1x (docs/RENDER_API_CATALOG.md §5 常量总表).
+// TestMSAASampleCountConstants pins the documented default: engine = 1x,
+// 4x is opt-in (docs/RENDER_API_CATALOG.md §9 常量总表).
 func TestMSAASampleCountConstants(t *testing.T) {
 	if MSAASampleCount1 != 1 {
 		t.Fatalf("MSAASampleCount1=%d want 1", MSAASampleCount1)
@@ -13,33 +13,33 @@ func TestMSAASampleCountConstants(t *testing.T) {
 	}
 }
 
-// TestDefaultSampleCount_DefaultUnset verifies the initial state is "auto" (0),
-// meaning the engine falls back to env/probe/4x.
-func TestDefaultSampleCount_DefaultUnset(t *testing.T) {
-	SetDefaultSampleCount(0) // reset
-	if got := DefaultSampleCount(); got != 0 {
-		t.Fatalf("DefaultSampleCount()=%d want 0 (auto)", got)
+// TestMSAASampleCount_DefaultUnset verifies the unset state returns the
+// engine default of 1x — callers use the result directly, no extra defaults.
+func TestMSAASampleCount_DefaultUnset(t *testing.T) {
+	SetMSAASampleCount(0) // reset
+	if got := MSAASampleCount(); got != MSAASampleCount1 {
+		t.Fatalf("MSAASampleCount()=%d want %d (engine default 1x)", got, MSAASampleCount1)
 	}
 }
 
-// TestDefaultSampleCount_SetAndReset covers the code-config contract:
-// set 1x/4x, read back, and reset to auto.
-func TestDefaultSampleCount_SetAndReset(t *testing.T) {
-	SetDefaultSampleCount(0)
-	defer SetDefaultSampleCount(0)
+// TestMSAASampleCount_SetAndReset covers the code-config contract:
+// set 1x/4x, read back, and reset to the engine default (1x).
+func TestMSAASampleCount_SetAndReset(t *testing.T) {
+	SetMSAASampleCount(0)
+	defer SetMSAASampleCount(0)
 
-	SetDefaultSampleCount(MSAASampleCount1)
-	if got := DefaultSampleCount(); got != MSAASampleCount1 {
-		t.Fatalf("after Set(1): DefaultSampleCount()=%d want 1", got)
+	SetMSAASampleCount(MSAASampleCount1)
+	if got := MSAASampleCount(); got != MSAASampleCount1 {
+		t.Fatalf("after Set(1): MSAASampleCount()=%d want 1", got)
 	}
 
-	SetDefaultSampleCount(MSAASampleCount4)
-	if got := DefaultSampleCount(); got != MSAASampleCount4 {
-		t.Fatalf("after Set(4): DefaultSampleCount()=%d want 4", got)
+	SetMSAASampleCount(MSAASampleCount4)
+	if got := MSAASampleCount(); got != MSAASampleCount4 {
+		t.Fatalf("after Set(4): MSAASampleCount()=%d want 4", got)
 	}
 
-	SetDefaultSampleCount(0)
-	if got := DefaultSampleCount(); got != 0 {
-		t.Fatalf("after reset: DefaultSampleCount()=%d want 0", got)
+	SetMSAASampleCount(0)
+	if got := MSAASampleCount(); got != MSAASampleCount1 {
+		t.Fatalf("after reset: MSAASampleCount()=%d want %d (engine default 1x)", got, MSAASampleCount1)
 	}
 }

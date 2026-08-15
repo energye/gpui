@@ -366,8 +366,11 @@ func (ft *FanTessellator) flattenCubicFanDepth(
 // cover_aa.wgsl converts it to smoothstep coverage over ±aaCoverHalfWidth.
 
 // aaCoverHalfWidth is the half width (px) of the analytic fringe band,
-// matching sdf_render.wgsl aa_hw and convexAAExpand (0.75px).
-const aaCoverHalfWidth = 0.75
+// kept narrow so edges stay crisp ("hard") while remaining continuous: with
+// MSAA hardware resolve on top, a wider band visibly softens diagonals.
+// 0.35px gives a ~0.7px full transition (CPU scanline-like) while the
+// smoothstep keeps coverage continuous (no 4-level MSAA stair-stepping).
+const aaCoverHalfWidth = 0.35
 
 // aaSegment is one flattened path-boundary edge in pixel coords.
 type aaSegment struct{ ax, ay, bx, by float64 }
@@ -436,8 +439,8 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 // (same flatness tolerance and guards as TessellatePath).
 func (ft *FanTessellator) aaCollectSegments(path *render.Path) {
 	var (
-		prevX, prevY float64
-		contourOn    bool
+		prevX, prevY   float64
+		contourOn      bool
 		closeX, closeY float64
 	)
 	path.Iterate(func(verb render.PathVerb, coords []float64) {

@@ -920,8 +920,9 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	rp.SetVertexBuffer(0, bufs.fanVertBuf, 0)
 	rp.Draw(bufs.fanVertexCount, 1, 0, 0)
 
-	// Analytic-AA fringe (sampleCount==1 solid SrcOver paths only; MSAA
-	// surfaces, pattern/textured covers and depth-clip covers keep the
+	// Analytic-AA fringe (solid SrcOver paths; MSAA surfaces also get the
+	// fringe — continuous edge coverage prevents 4-level MSAA stair-stepping
+	// on diagonals; pattern/textured covers and depth-clip covers keep the
 	// binary cover — matching Skia's MSAA-vs-analytic mutual exclusion):
 	//   1) exterior band: SrcOver + stencil Equal(0) — outside half of the
 	//      fringe over the background (stencil still holds this path's 1s).
@@ -930,7 +931,7 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	//      pixels get their true partial coverage instead of the cover's
 	//      full alpha (the interior-half quads lie inside the polygon except
 	//      bounded reflex-corner pokes).
-	if sr.sampleCount == 1 && !useDepthClip && blendMode == render.BlendNormal &&
+	if !useDepthClip && blendMode == render.BlendNormal &&
 		!bufs.isPattern && !bufs.isTextured && bufs.bandVertexCount > 0 {
 		if bufs.bandVertexCount > 0 && sr.aaBandPipeline != nil && bufs.coverBindGroup != nil {
 			rp.SetPipeline(sr.aaBandPipeline)
@@ -972,7 +973,7 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	rp.Draw(6, 1, 0, 0)
 
 	// Interior-half fringe after the cover (Replace blend, no stencil gate).
-	if sr.sampleCount == 1 && !useDepthClip && blendMode == render.BlendNormal &&
+	if !useDepthClip && blendMode == render.BlendNormal &&
 		!bufs.isPattern && !bufs.isTextured && bufs.innerBandVertexCount > 0 &&
 		sr.aaInnerBandPipeline != nil && bufs.coverBindGroup != nil {
 		rp.SetPipeline(sr.aaInnerBandPipeline)

@@ -290,27 +290,10 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	s.externalDevice = true
 	s.deviceGen++
 
-	// External/window devices sample count (UI chrome quality):
-	//
-	//	Default 4 — MSAA soft edges for circles / 1px borders / icons. Matches
-	//	CPU software AA used by visualtests and ui_ant_compare; sampleCount=1
-	//	produces hard binary coverage that looks "non-Ant" in the window.
-	//
-	//	Precedence: render.SetDefaultSampleCount (code config, highest) →
-	//	device probe (4x if supported) → 4.
-	if d := render.DefaultSampleCount(); d > 0 {
-		s.sampleCount = d
-	} else {
-		// Prefer device-probed 4x; fall back to resolveSampleCount.
-		resolved := resolveSampleCount(s.device)
-		if resolved >= 4 {
-			s.sampleCount = 4
-		} else if resolved > 0 {
-			s.sampleCount = resolved
-		} else {
-			s.sampleCount = 4
-		}
-	}
+	// MSAA sample count for the window/external device comes straight from
+	// render.MSAASampleCount() — the code-level config or the engine default
+	// of 1x (analytic fringe coverage, Skia kCoverage). No extra branching.
+	s.sampleCount = resolveSampleCount(s.device)
 
 	// Auto-detect rendering strategy (Skia PathRendererStrategy pattern).
 	s.strategy = s.detectStrategy()
@@ -530,11 +513,8 @@ func (s *GPUShared) Close() {
 
 func (s *GPUShared) SampleCount() uint32 {
 	if s.sampleCount == 0 {
-		// Default before init: honor code-level config, else 4x.
-		if d := render.DefaultSampleCount(); d > 0 {
-			return d
-		}
-		return 4 // default before init
+		// Before init: use the configured value or engine default (1x).
+		return render.MSAASampleCount()
 	}
 	return s.sampleCount
 }
@@ -595,35 +575,13 @@ func (s *GPUShared) detectStrategy() gpuRenderStrategy {
 	return strategyFull
 }
 
-// resolveSampleCount probes the device for 4x MSAA support by attempting
-// to create a small multisampled texture. If creation fails (e.g., software
-// Vulkan / llvmpipe), falls back to 1x. This follows the Skia Graphite
-// pattern (Caps::getCompatibleMSAASampleCount): try preferred, downgrade
-// on failure.
-//
-// The WebGPU spec guarantees sampleCount=4 for standard formats on compliant
-// implementations, but software backends may not be fully compliant.
-func resolveSampleCount(device *webgpu.Device) uint32 {
-	// Code-level config (SetDefaultSampleCount) wins over probing.
-	if d := render.DefaultSampleCount(); d > 0 {
-		return d
-	}
-	// Probe device support for 4x MSAA.
-	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
-		Label:         "msaa_probe",
-		Size:          webgpu.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},
-		MipLevelCount: 1,
-		SampleCount:   4,
-		Dimension:     types.TextureDimension2D,
-		Format:        types.TextureFormatBGRA8Unorm,
-		Usage:         types.TextureUsageRenderAttachment,
-	})
-	if err != nil {
-		slogger().Info("4x MSAA not supported, falling back to 1x", "error", err)
-		return 1
-	}
-	tex.Release()
-	return 4
+// resolveSampleCount returns the MSAA sample count for a GPU session:
+// render.MSAASampleCount() — the code-level config or the engine default of
+// 1x (analytic fringe coverage, Skia kCoverage). No device probing: the
+// engine default is 1 sample per pixel; 4x is an explicit opt-in via
+// SetMSAASampleCount.
+func resolveSampleCount(_ *webgpu.Device) uint32 {
+	return render.MSAASampleCount()
 }
 
 // ensureGPU lazily initializes a standalone GPU device if no shared device

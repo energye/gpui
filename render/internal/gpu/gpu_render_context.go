@@ -1501,12 +1501,14 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 		}
 	}
 
-	// Fall back to stencil-then-cover (S4.3: reuse tessellation via pathGeomCache).
-	// sampleCount==1 solid covers add the analytic-AA fringe bands (Skia-style
-	// edge distance); MSAA surfaces stay binary + hardware resolve.
+	// Skia-style analytic-AA fringe for stencil covers: coverage comes from
+	// per-edge signed distance (continuous), independent of MSAA. MSAA
+	// surfaces get both — hardware resolve smooths the fringe, the fringe
+	// prevents 4-level MSAA stair-stepping on diagonals (transform text/path
+	// edges). Depth-clipped and non-AA paths keep the binary cover.
 	aaOff := !rc.antiAlias
 	fr := paint.FillRule
-	useAA := rc.antiAlias && rc.shared != nil && rc.shared.SampleCount() == 1
+	useAA := rc.antiAlias
 	var fanVerts []float32
 	var coverQuad [12]float32
 	var bandVerts, innerBandVerts []float32

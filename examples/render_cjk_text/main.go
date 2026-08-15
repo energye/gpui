@@ -15,6 +15,7 @@ import (
 	"os"
 
 	"github.com/energye/gpui/render"
+	_ "github.com/energye/gpui/render/gpu"
 )
 
 var fontPath string

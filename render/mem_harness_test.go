@@ -160,8 +160,8 @@ func memRequireGPU(t *testing.T) {
 	t.Helper()
 	// Mem suite prefers 1x samples: 4x MSAA probe can abort the process on
 	// VRAM-exhausted hosts instead of returning an error.
-	render.SetDefaultSampleCount(render.MSAASampleCount1)
-	defer render.SetDefaultSampleCount(0)
+	render.SetMSAASampleCount(render.MSAASampleCount1)
+	defer render.SetMSAASampleCount(0)
 	if os.Getenv("WGPU_NATIVE_PATH") == "" {
 		t.Log("WGPU_NATIVE_PATH unset; relying on default lib discovery")
 	}

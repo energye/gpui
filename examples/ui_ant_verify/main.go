@@ -3,7 +3,7 @@
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=5 go run ./examples/ui_ant_verify   # 默认 4x MSAA（设备探测）
-//	1x 对比：main() 前调 render.SetDefaultSampleCount(render.MSAASampleCount1)
+//	1x 对比：main() 前调 render.SetMSAASampleCount(render.MSAASampleCount1)
 //
 // Window: 1200x800. 用 xwd 截图后对比六宫格边缘过渡带像素：
 //
@@ -32,11 +32,11 @@ import (
 const winW, winH = 1200.0, 800.0
 
 func modeName() (name, hint string) {
-	switch render.DefaultSampleCount() {
+	switch render.MSAASampleCount() {
 	case render.MSAASampleCount1:
-		return "1x 几何AA", "render.SetDefaultSampleCount(render.MSAASampleCount1)"
+		return "1x 几何AA", "render.SetMSAASampleCount(render.MSAASampleCount1)"
 	case render.MSAASampleCount4:
-		return "4x MSAA", "render.SetDefaultSampleCount(render.MSAASampleCount4)"
+		return "4x MSAA", "render.SetMSAASampleCount(render.MSAASampleCount4)"
 	default:
 		return "4x MSAA (默认)", "未设置 → 设备探测/默认 4x"
 	}

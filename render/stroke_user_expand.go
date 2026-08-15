@@ -19,13 +19,29 @@ func (c *Context) expandStrokeToPathSpace() *Path {
 	}
 
 	width := c.paint.EffectiveLineWidth()
-	hairline := width <= 0
-	if hairline {
-		// 1 device pixel in path space (path space is pre-deviceMatrix).
-		ds := c.deviceScale
-		if ds <= 0 {
-			ds = 1
+
+	// Skia hairline semantics: a stroke whose DEVICE-space width is ≤1px
+	// renders as a 1-device-pixel hairline (SkPaint lineWidth ≤ 1 → hairline,
+	// drawn as an AA 1px line by both raster and Ganesh). Map user-space width
+	// through the CTM scale + deviceScale to decide; when hairline, use
+	// 1 device pixel in path space (path space is pre-deviceMatrix).
+	scale := 1.0
+	if !c.matrix.IsIdentity() {
+		sx := math.Hypot(c.matrix.A, c.matrix.D)
+		sy := math.Hypot(c.matrix.B, c.matrix.E)
+		if sx > scale {
+			scale = sx
 		}
+		if sy > scale {
+			scale = sy
+		}
+	}
+	ds := c.deviceScale
+	if ds <= 0 {
+		ds = 1
+	}
+	hairline := width*scale*ds <= 1.0
+	if hairline {
 		width = 1.0 / ds
 	}
 
