@@ -2,8 +2,8 @@
 // 在 4x MSAA vs 1x 几何AA（fringe coverage + SDF smoothstep）下的边缘平滑度对比。
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	RUN_SECONDS=5 GPUI_SURFACE_SAMPLE_COUNT=4  go run ./examples/ui_ant_verify   # 4x MSAA（默认）
-//	RUN_SECONDS=5 GPUI_SURFACE_SAMPLE_COUNT=1  go run ./examples/ui_ant_verify   # 1x 几何AA
+//	RUN_SECONDS=5 go run ./examples/ui_ant_verify   # 默认 4x MSAA（设备探测）
+//	1x 对比：main() 前调 render.SetDefaultSampleCount(render.MSAASampleCount1)
 //
 // Window: 1200x800. 用 xwd 截图后对比六宫格边缘过渡带像素：
 //
@@ -21,24 +21,24 @@ import (
 
 	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/examples/wrkit"
+	"github.com/energye/gpui/render"
+	_ "github.com/energye/gpui/render/gpu"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
-
-	_ "github.com/energye/gpui/render/gpu"
 )
 
 const winW, winH = 1200.0, 800.0
 
 func modeName() (name, hint string) {
-	switch os.Getenv("GPUI_SURFACE_SAMPLE_COUNT") {
-	case "1":
-		return "1x 几何AA", "GPUI_SURFACE_SAMPLE_COUNT=1"
-	case "4":
-		return "4x MSAA", "GPUI_SURFACE_SAMPLE_COUNT=4"
+	switch render.DefaultSampleCount() {
+	case render.MSAASampleCount1:
+		return "1x 几何AA", "render.SetDefaultSampleCount(render.MSAASampleCount1)"
+	case render.MSAASampleCount4:
+		return "4x MSAA", "render.SetDefaultSampleCount(render.MSAASampleCount4)"
 	default:
-		return "4x MSAA (默认)", "未设 → 默认 4x"
+		return "4x MSAA (默认)", "未设置 → 设备探测/默认 4x"
 	}
 }
 

@@ -581,12 +581,12 @@ func TestEvenOddFillRouting_AutoModeUsesStencil(t *testing.T) {
 }
 
 // TestResolveSampleCount_NativeDevice verifies that resolveSampleCount returns 4
-// on a native device (which accepts any texture descriptor). When
-// GPUI_SURFACE_SAMPLE_COUNT=1 is set (low-VRAM host suites), probe is skipped
-// and returns 1 — that override is intentional production policy.
+// on a native device (which accepts any texture descriptor). With no explicit
+// code-level default (SetDefaultSampleCount(0)), the MSAA probe runs.
 func TestResolveSampleCount_NativeDevice(t *testing.T) {
-	// Isolate from suite env so the MSAA probe path is actually exercised.
-	t.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "")
+	// Isolate from any caller-set default so the MSAA probe path is exercised.
+	render.SetDefaultSampleCount(0)
+	defer render.SetDefaultSampleCount(0)
 
 	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
@@ -597,13 +597,16 @@ func TestResolveSampleCount_NativeDevice(t *testing.T) {
 	}
 }
 
-// TestResolveSampleCount_EnvForce1 verifies low-VRAM host override.
-func TestResolveSampleCount_EnvForce1(t *testing.T) {
-	t.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+// TestResolveSampleCount_APIForce1 verifies the code-level default override:
+// SetDefaultSampleCount(MSAASampleCount1) makes resolveSampleCount return 1
+// without probing the device (low-VRAM host policy).
+func TestResolveSampleCount_APIForce1(t *testing.T) {
+	render.SetDefaultSampleCount(render.MSAASampleCount1)
+	defer render.SetDefaultSampleCount(0)
 	device, _, cleanup := createNativeDevice(t)
 	defer cleanup()
 	if sc := resolveSampleCount(device); sc != 1 {
-		t.Errorf("resolveSampleCount with GPUI_SURFACE_SAMPLE_COUNT=1 = %d, want 1", sc)
+		t.Errorf("resolveSampleCount with SetDefaultSampleCount(1) = %d, want 1", sc)
 	}
 }
 

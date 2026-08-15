@@ -80,7 +80,8 @@ func openResizeX11(t *testing.T, w, h int) *resizeX11 {
 
 func newResizeTarget(t *testing.T, xw *resizeX11, w, h int) *render.PresentTarget {
 	t.Helper()
-	_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+	render.SetDefaultSampleCount(render.MSAASampleCount1)
+	defer render.SetDefaultSampleCount(0)
 	pt, err := render.NewPresentTarget(render.PresentNativeSurface{
 		Platform: render.PresentPlatformX11,
 		Display:  xw.display,

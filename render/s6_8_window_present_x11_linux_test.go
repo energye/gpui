@@ -28,7 +28,8 @@ func TestS68_WindowPresent_MultiFrameDraw(t *testing.T) {
 		t.Skip("no DISPLAY")
 	}
 
-	_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+	render.SetDefaultSampleCount(render.MSAASampleCount1)
+	defer render.SetDefaultSampleCount(0)
 	_ = rendgpu.ResetAccelerator()
 	t.Cleanup(func() { _ = rendgpu.ResetAccelerator() })
 
@@ -179,7 +180,8 @@ func TestS68_WindowPresent_IdleSkip(t *testing.T) {
 	if os.Getenv("GPUI_FORCE_NO_X11") == "1" || os.Getenv("DISPLAY") == "" {
 		t.Skip("no X11")
 	}
-	_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+	render.SetDefaultSampleCount(render.MSAASampleCount1)
+	defer render.SetDefaultSampleCount(0)
 	_ = rendgpu.ResetAccelerator()
 	t.Cleanup(func() { _ = rendgpu.ResetAccelerator() })
 

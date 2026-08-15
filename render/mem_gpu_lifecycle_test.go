@@ -101,7 +101,8 @@ func TestMem_T1_RetainedMultiSize(t *testing.T) {
 // TestMem_T2_ResetAccelerator — pressure then global reset reclaim.
 func TestMem_T2_ResetAccelerator(t *testing.T) {
 	// Prefer 1x samples so suite reclaim is testable on tight VRAM.
-	_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+	render.SetDefaultSampleCount(render.MSAASampleCount1)
+	defer render.SetDefaultSampleCount(0)
 	if render.Accelerator() == nil {
 		t.Skip("GPU accelerator not registered")
 	}

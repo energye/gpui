@@ -91,7 +91,8 @@ func TestP14_PresentWithAuto_IdleDoesNotPoisonSwapchain(t *testing.T) {
 	xw := openIdleX11(t, 320, 240)
 	t.Cleanup(xw.close)
 
-	_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+	render.SetDefaultSampleCount(render.MSAASampleCount1)
+	defer render.SetDefaultSampleCount(0)
 	_ = rendgpu.ResetAccelerator()
 
 	pt, err := render.NewPresentTarget(render.PresentNativeSurface{

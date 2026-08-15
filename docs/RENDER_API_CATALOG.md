@@ -55,6 +55,7 @@
 | `GPUContextCount()` | 活动 GPU 上下文注册数（设备切换/恢复诊断） | GPU 上下文计数 | 🔗 诊断 |
 | var `ErrFallbackToCPU` / `ErrNilSurfaceView` | 回退到 CPU 渲染的错误 / 空表面视图错误 | 回退/空表面错误 | 🔗 |
 | `SolveQuadratic/SolveCubic/SolveQuadraticInUnitInterval/SolveCubicInUnitInterval` | 多项式求根；InUnitInterval 各版本仅返回 [0,1] 实根 | 多项式求根工具 | 🔗 |
+| `SetDefaultSampleCount(n)` / `DefaultSampleCount()` + 常量 `MSAASampleCount1`(1) / `MSAASampleCount4`(4) | 全局默认 MSAA 采样数配置：Set(1)=全局 1x、Set(4)=4x、Set(0)=auto（设备探测 4x 支持，兜底 4x）；未设置时 DefaultSampleCount()=0。唯一配置入口（env `GPUI_SURFACE_SAMPLE_COUNT` 已移除，2026-08），作用于之后创建的 GPU 会话；特效离屏（SetEffectSurface）恒走 1x 不受影响 | 默认采样数配置 | ✅（render/sample_count.go，2026-08） |
 
 ## 2. 主包：路径
 
@@ -418,6 +419,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `TextMode` | TextModeAuto · TextModeMSDF · TextModeVector · TextModeBitmap · TextModeGlyphMask · TextModeAliased |
 | `TextureUsage` | TextureUsageCopySrc · TextureUsageCopyDst · TextureUsageTextureBinding · TextureUsageStorageBinding · TextureUsageRenderAttachment |
 | `VertexMode` | VertexModeTriangles · VertexModeTriangleFan |
+| `MSAASampleCount` | MSAASampleCount1(=1) · MSAASampleCount4(=4) |
 | 阈值/杂项 | MaxTrackedDamageRects · DamageFullCoverageThreshold · DamageMultiWasteRatio |
 | var（预置色） | Black · White · Red · Green · Blue · Yellow · Cyan · Magenta · Transparent |
 | var（错误） | ErrFallbackToCPU · ErrNilSurfaceView |

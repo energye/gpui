@@ -5,7 +5,6 @@ package gpu
 import (
 	"fmt"
 	"log/slog"
-	"os"
 
 	"sync"
 
@@ -297,10 +296,10 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 	//	CPU software AA used by visualtests and ui_ant_compare; sampleCount=1
 	//	produces hard binary coverage that looks "non-Ant" in the window.
 	//
-	//	GPUI_SURFACE_SAMPLE_COUNT=1 — opt out for tight VRAM (1GB dGPU / multi-app).
-	//	GPUI_SURFACE_SAMPLE_COUNT=4 — explicit MSAA (same as default).
-	if sc := os.Getenv("GPUI_SURFACE_SAMPLE_COUNT"); sc == "1" {
-		s.sampleCount = 1
+	//	Precedence: render.SetDefaultSampleCount (code config, highest) →
+	//	device probe (4x if supported) → 4.
+	if d := render.DefaultSampleCount(); d > 0 {
+		s.sampleCount = d
 	} else {
 		// Prefer device-probed 4x; fall back to resolveSampleCount.
 		resolved := resolveSampleCount(s.device)
@@ -309,9 +308,6 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 		} else if resolved > 0 {
 			s.sampleCount = resolved
 		} else {
-			s.sampleCount = 4
-		}
-		if sc == "4" {
 			s.sampleCount = 4
 		}
 	}
@@ -534,6 +530,10 @@ func (s *GPUShared) Close() {
 
 func (s *GPUShared) SampleCount() uint32 {
 	if s.sampleCount == 0 {
+		// Default before init: honor code-level config, else 4x.
+		if d := render.DefaultSampleCount(); d > 0 {
+			return d
+		}
 		return 4 // default before init
 	}
 	return s.sampleCount
@@ -604,12 +604,11 @@ func (s *GPUShared) detectStrategy() gpuRenderStrategy {
 // The WebGPU spec guarantees sampleCount=4 for standard formats on compliant
 // implementations, but software backends may not be fully compliant.
 func resolveSampleCount(device *webgpu.Device) uint32 {
-	// Prefer env override: on some drivers CreateTexture(4x) for the probe is an
-	// uncaptured abort ("Not enough memory") rather than a Go error — skip probe.
-	if os.Getenv("GPUI_SURFACE_SAMPLE_COUNT") == "1" {
-		slogger().Info("MSAA probe skipped (GPUI_SURFACE_SAMPLE_COUNT=1)")
-		return 1
+	// Code-level config (SetDefaultSampleCount) wins over probing.
+	if d := render.DefaultSampleCount(); d > 0 {
+		return d
 	}
+	// Probe device support for 4x MSAA.
 	tex, err := device.CreateTexture(&webgpu.TextureDescriptor{
 		Label:         "msaa_probe",
 		Size:          webgpu.Extent3D{Width: 4, Height: 4, DepthOrArrayLayers: 1},

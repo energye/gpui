@@ -30,7 +30,6 @@ func TestAutoRecover_SessionDepthAfterForceLost(t *testing.T) {
 			_ = os.Setenv("LD_LIBRARY_PATH", "lib:"+os.Getenv("LD_LIBRARY_PATH"))
 		}
 	}
-	_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
 
 	dpy, win, closeX, err := openTinyX11Window(320, 240)
 	if err != nil {

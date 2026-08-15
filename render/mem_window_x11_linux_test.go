@@ -26,7 +26,8 @@ func TestMem_T4_WindowComplex_ResizeChurn(t *testing.T) {
 	}
 	memRequireGPU(t)
 
-	_ = os.Setenv("GPUI_SURFACE_SAMPLE_COUNT", "1")
+	render.SetDefaultSampleCount(render.MSAASampleCount1)
+	defer render.SetDefaultSampleCount(0)
 	_ = rendgpu.ResetAccelerator()
 
 	frames := memEnvIters(48)
