@@ -54,9 +54,8 @@ func (p *Pool) DecodeFile(path string, done func(Result)) {
 	}
 }
 
-// DecodeBytes decodes image bytes on a worker.
-// Uses a temp path-less path: write not available — use render if exported.
-// For P4 MVP we decode via LoadImage only for files; bytes use image.Decode into CPU placeholder.
+// Run enqueues fn onto the decode worker pool for asynchronous execution.
+// A nil fn is a no-op. Results are delivered via the caller's own channel.
 func (p *Pool) Run(fn func()) {
 	if p == nil {
 		p = Default

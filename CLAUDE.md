@@ -33,3 +33,10 @@
 
 - 先读 AGENTS.md（本文），再读 `docs/` 真源，再执行。
 - 所有状态以真源为准，不凭记忆。
+
+## API 文档同步纪律（硬）
+
+- **render 公开 API 总账** = `docs/RENDER_API_CATALOG.md`（分类目录 + §7 接线状态 + §8 方法速查 + §9 常量总表 + §11 附录）。**每次增加/修改/删除 render（或 render/text、render/scene、render/recording、render/surface、render/svg、render/filters、render/raster、render/gpu）的公开 API（顶层 func/type/const/var、导出方法、签名、接线状态），必须同步更新该文档**：对应分类表补/改/删行、更新 §0 统计、§7 状态、§8 速查、§9 常量、§11 附录；并在主体文档 `docs/ENGINE_UI_WIDGET_RENDER.md` §10 修订表追加一行（版本列写 `API目录同步`）。
+- **机器校验（合入前必跑）**：`go run ./scripts/apidoc` 检查目录文档是否覆盖主包 + scene/recording/surface/svg 全部公开符号；非零退出 = 文档漏了，补完再合入。
+- 例外：`render/text` 目录文档采用族级归纳（226 项以 `go doc ./render/text` 为准）；`render/filters`、`render/raster` 为纯 init 副作用包（无顶层符号）不参与逐符号校验，但改其 init 行为要更新 §6 状态说明。
+- 状态标注必须可溯源：生产消费者 → 文件:行号；GPU 实测 → 真窗名/日期/现象（示例：任意路径裁剪 `Clip()`/`PushClipPath` GPU 画穿，见目录文档 §7.3）。禁止凭印象标注。

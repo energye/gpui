@@ -231,6 +231,7 @@ var _ io.Closer = (*Context)(nil)
 // When WithDeviceScale is used, the internal pixmap is allocated at physical
 // resolution (width*scale x height*scale) while Width/Height return the
 // logical dimensions. All drawing operations use logical coordinates.
+
 // NewContextForPixmap creates a Context backed by an existing Pixmap.
 // The Context renders directly into the provided pixmap without allocating
 // a new one. Used by scene.Renderer for GPU-accelerated scene rendering.
@@ -420,6 +421,7 @@ func (c *Context) Close() error {
 // If the registered accelerator implements PipelineModeAware, the mode is
 // propagated so the accelerator can route operations to the correct pipeline
 // (render pass vs compute).
+
 // DropGPURenderContext closes the per-context GPU session (device-bound textures
 // / pipelines bindings) without closing the Context itself. Call after
 // AutoRecover / SetDeviceProvider so the next Present rebuilds a clean session.
@@ -501,6 +503,7 @@ func (c *Context) AntiAlias() bool {
 // See TextMode constants for available strategies.
 //
 // The mode is per-Context — different contexts can use different strategies.
+
 // SetEffectSurface marks this Context as a continuous effect offscreen (glow,
 // blur tile, saveLayer-like RT). Forces 1x GPU samples so every-frame flushes
 // skip 4x MSAA allocate/resolve — Skia-class for small filtered RTs.
@@ -853,6 +856,9 @@ func (c *Context) FillRectCPU(x, y, w, h float64, col RGBA) {
 }
 
 // SetColor sets the current drawing color.
+//
+// Convergence (§7.5): compatibility convenience — equivalent to
+// Solid(FromColor(col)) + SetFillBrush. New code prefers Solid* + SetFillBrush.
 func (c *Context) SetColor(col color.Color) {
 	c.paint.solidColor = FromColor(col)
 	c.paint.isSolid = true
@@ -861,6 +867,7 @@ func (c *Context) SetColor(col color.Color) {
 }
 
 // SetRGB sets the current color using RGB values (0-1).
+// Convergence (§7.5): compatibility convenience for SolidRGB + SetFillBrush.
 func (c *Context) SetRGB(r, g, b float64) {
 	c.paint.solidColor = RGBA{R: r, G: g, B: b, A: 1}
 	c.paint.isSolid = true
@@ -1754,6 +1761,7 @@ func (c *Context) ResizeTarget() *Pixmap {
 // FlushGPU flushes any pending GPU accelerator operations to the pixel buffer.
 // Call this before reading pixel data (e.g., SavePNG, Image) when using a
 // batch-capable GPU accelerator. For immediate-mode accelerators this is a no-op.
+
 // SetSharedEncoder sets a shared command encoder for single-command-buffer
 // frames (ADR-017, Flutter Impeller pattern). When set, FlushGPU/FlushGPUWithView
 // record render passes into this encoder instead of creating their own and

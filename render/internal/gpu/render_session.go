@@ -1690,6 +1690,7 @@ func (s *GPURenderSession) Size() (uint32, uint32) {
 // Destroy releases all GPU resources held by the session. Safe to call
 // multiple times or on a session with no allocated resources.
 // The surface view is not destroyed -- it is owned by the caller.
+
 // PurgeSurfaceTextures releases MSAA/depth/resolve and in-flight command
 // buffers while keeping pipelines and the device binding (Skia freeGpuResources
 // for surface-sized attachments). Safe while the window is unpresentable.

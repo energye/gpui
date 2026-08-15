@@ -392,7 +392,7 @@ func (e *Editor) Paste(s string) bool {
 	return e.text != before
 }
 
-// selectAll selects the whole buffer.
+// SelectAll selects the whole buffer.
 func (e *Editor) SelectAll() {
 	if e == nil {
 		return

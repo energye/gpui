@@ -380,6 +380,8 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak        # soak
 
 视觉→Paint；尺寸→Layout；热点→Boundary；长列表→VirtualList；OnPaint 禁 IO/改树；动画优先层；浮层→Overlay；海量图→独立层；SaveLayer 走预算。
 
+> **API 维护义务（硬）：** 任何涉及 `render/` 公开 API 的改动（增/改/删符号、改签名、变接线状态）都必须**同步更新 `docs/RENDER_API_CATALOG.md`**（该文档是 render 公开 API 总账，含状态表），并在 §10 修订表追加一行记录。禁止只改代码不更新 API 目录。
+
 ### 2.4 非主能力（明确不做进 §R 关闭）
 
 Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、剪贴板/拖放产品、RTL 产品、母表几何 API 清零。
@@ -527,6 +529,9 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
+| API收敛 | **render 重复 API 收敛（按 §7.5 决定 + 扩展性评估）**：① `ClipRect`→委托 `ClipRectOp(Intersect)`（SkClipOp 默认，单一实现）；② `PathBuilder.Rect/Circle/Ellipse`→委托 `Path.Rectangle/Circle/Ellipse`（同实现；RoundRect 保留 skia 标准系数 k=0.5522847498）；③ `CustomBrush.Linear/Radial/Horizontal/VerticalGradient` 标 `Deprecated:`（数据式画刷取代，零生产消费者）；④ `Set*` 注释标注为 `Solid+SetFillBrush` 兼容别名；⑤ **扩展性保留**：recording（PDF/SVG 导出）、surface（第三方后端 RFC#46）、ColorFunc 机制不删。`go build/vet + 受影响测试（TestPath/PathBuilder/CustomBrush/Solid/ClipRect 族）全绿`（TestP12_ClipRectDifferenceGPU 为无 GPU 环境预存在失败，stash 基线复现一致）。详见 docs/RENDER_API_CATALOG.md §7.5.1。 |
+| API目录标准化 | **RENDER_API_CATALOG.md 三标准化 + 规则入整体**：① 3 轮源码级核对（主包顶层 0 缺失 + 方法级 0 缺失；scene/recording/surface/svg 子包 100% 覆盖，text 族级归纳）；② 全文档 API 行统一「功能说明 + 精简」两列格式（§1–§6/§8 重写，§8 增公开类型导出方法速查表，§9 常量总表，§11 附录入子包枚举成员）；③ 增 `scripts/apidoc` 一致性检查器（go/ast 提取全部导出符号对照目录文档，可挂 CI），同步义务写入 AGENTS.md + CLAUDE.md（API 文档同步纪律章节，合入前必跑 `go run ./scripts/apidoc`）。 |
+| API目录同步 | **新增 `docs/RENDER_API_CATALOG.md`（render 公开 API 总账）**：主包 94 类型 + 109 顶层函数 + Context 181 导出方法 + const/var，以及 `render/text`(226)/scene(132)/recording(78)/surface(47)/svg(15)/filters(0)/raster(0)/gpu(16) 子包，按功能域分类 + 接线状态标注。**已实现未接线**（🔌）：render/svg 整包、render/surface 整包、render/recording 整包、render/raster 独立注册、路径布尔 BooleanPath/PathOp*、ClipOpDifference/Replace、Path Trim/WithCorners/Discrete、SetDither/DrawImageQuad、Pattern/ImagePattern 旧接口、Painter 族、文本描边 StrokeString/TextPath 等。**半成品 GPU 未生效**（⚠️）：任意路径裁剪 `Clip()`/`PushClipPath`（代码接线存在、CPU 软路径正常，GPU 真窗 2026-08 复测画穿，待 wr-debug/wr-engine 定位）；render/gpu 设备生命周期 API 未进 ui/embedder。**从此硬规则（§2.3 + AGENTS.md）**：每次增/改/删 render 公开 API 或接线状态必须同步更新该文档并在此追加记录。 |
 | （初始） | 修订记录已清除；全部 R/C/W 状态回退初始 ⬜。待彻查收敛后重新关闭。 |
 | （重写中） | W1–W3 推翻重写（进行中）：ui 层 R 能力代码按文档全部删除重实现，对齐 skia/flutter 工业级控件基座。涉及 R= R2/R3/R3b/R4/R4b/R5/R7/R7b/R9/R10/R11/R12b/R13/R18/R19/R21，C= C1/C2/C3/C7。逐波执行：W1 → W2 → W3。 |
 | W1 波收口 | **W1 整波 GPU PASS**：ui 层重写 R2（局部 NeedsPaint + paint_visits）/ R3（BoundaryCache 通用录制 + non-cacheable 门禁 + tryReplay 位移）/ R3b（compositing bits 增量传播 + boundary_count/max_depth）/ R5（CountPictureOps + picture_op_count）/ R9（measure_cache_hit/miss 接线）/ R12b（debug repaint 接线）/ R19（snap.go 1px 对齐）；7 独立真窗 + C1 组合窗 GPU 全绿（fps≈60、skip/rerecord、hits≥miss、debug on/off）。 |

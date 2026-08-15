@@ -182,7 +182,7 @@ func (h *HybridFineRasterizer) SetFillRule(rule scene.FillStyle) {
 	h.cpu.SetFillRule(rule)
 }
 
-// raster.FillRule returns the current fill rule.
+// FillRule returns the current fill rule.
 func (h *HybridFineRasterizer) FillRule() scene.FillStyle {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

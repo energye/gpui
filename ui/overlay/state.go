@@ -161,7 +161,7 @@ func (s *State) HitTest(p rendering.Point) HitResult {
 	return HitResult{}
 }
 
-// HitTestStack is overlay-first then main root. Returns band + object.
+// Band identifies which band a hit-test result belongs to (main root vs overlay).
 type Band int
 
 const (
@@ -171,6 +171,7 @@ const (
 )
 
 // HitTestStack tests overlay then main.
+// HitTestStack is overlay-first then main root. Returns band + object.
 func HitTestStack(main rendering.RenderObject, ov *State, p rendering.Point) (Band, rendering.RenderObject, *Entry) {
 	if ov != nil {
 		hr := ov.HitTest(p)

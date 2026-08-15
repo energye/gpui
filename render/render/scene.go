@@ -329,7 +329,7 @@ func (s *Scene) drawCommands() []drawCommand {
 	return s.commands
 }
 
-// pathBuilder implements raster.PathLike for use with EdgeBuilder.
+// IsEmpty reports whether the path builder has no verbs yet.
 func (p *pathBuilder) IsEmpty() bool {
 	return len(p.verbs) == 0
 }

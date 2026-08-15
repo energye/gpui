@@ -71,7 +71,7 @@ func (b CustomBrush) WithName(name string) CustomBrush {
 //
 // Example:
 //
-//	gradient := render.HorizontalGradient(render.Red, render.Blue, 0, 100)
+//	gradient := render.HorizontalGradient(render.Red, render.Blue, 0, 100)// Deprecated: use NewLinearGradientBrush (data-driven, supports stops/extend). Superseded by the brush model; no production consumer (see docs/RENDER_API_CATALOG.md §7.5).
 func HorizontalGradient(c0, c1 RGBA, x0, x1 float64) CustomBrush {
 	return CustomBrush{
 		Func: func(x, _ float64) RGBA {
@@ -88,7 +88,7 @@ func HorizontalGradient(c0, c1 RGBA, x0, x1 float64) CustomBrush {
 //
 // Example:
 //
-//	gradient := render.VerticalGradient(render.White, render.Black, 0, 100)
+//	gradient := render.VerticalGradient(render.White, render.Black, 0, 100)// Deprecated: use NewLinearGradientBrush (data-driven, supports stops/extend). Superseded by the brush model; no production consumer (see docs/RENDER_API_CATALOG.md §7.5).
 func VerticalGradient(c0, c1 RGBA, y0, y1 float64) CustomBrush {
 	return CustomBrush{
 		Func: func(_, y float64) RGBA {
@@ -100,6 +100,10 @@ func VerticalGradient(c0, c1 RGBA, y0, y1 float64) CustomBrush {
 	}
 }
 
+// Deprecated: use NewLinearGradientBrush (data-driven, supports stops/extend).
+// The color-function form is superseded by the brush model; it has no production
+// consumer and lacks ExtendMode / multi-stop coverage (see docs/RENDER_API_CATALOG.md §7.5).
+//
 // LinearGradient creates a linear gradient along an arbitrary line.
 // The gradient is defined from point (x0, y0) to point (x1, y1).
 //
@@ -132,7 +136,12 @@ func LinearGradient(c0, c1 RGBA, x0, y0, x1, y1 float64) CustomBrush {
 	}
 }
 
+// Deprecated: use NewRadialGradientBrush (data-driven, supports focus/extend/stops).
+// The color-function form is superseded by the brush model; it has no production
+// consumer and lacks focal point / ExtendMode / multi-stop coverage (see §7.5).
+//
 // RadialGradient creates a radial gradient from center outward.
+//
 // The gradient is defined from the center (cx, cy) with radius r.
 // c0 is the center color, c1 is the edge color.
 //

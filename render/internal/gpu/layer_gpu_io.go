@@ -37,6 +37,7 @@ func (rc *GPURenderContext) ReadbackViewRGBA(view gpucontext.TextureView, w, h i
 
 // UploadRGBAToView writes tight RGBA8 into a BGRA8 offscreen texture view (seed layer RT).
 // Used by PushBackdropLayer / post-filter to keep GPU RT coherent with pixmap.
+
 // ReadbackViewStraightRGBA copies an RGBA8Unorm texture view into tight RGBA8
 // without BGRA channel swizzle. Used for F.03 filter publish textures.
 func (rc *GPURenderContext) ReadbackViewStraightRGBA(view gpucontext.TextureView, w, h int) ([]byte, error) {

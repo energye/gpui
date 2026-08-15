@@ -39,8 +39,8 @@ func CreateShaderModule(device *webgpu.Device, label string, wgslSource string) 
 	})
 }
 
-// DestroyGPUResources safely destroys common GPU resources.
-// This is a helper for the cleanup pattern used by all GPU rasterizers.
+// GPUResources holds the device, shader module and pipeline layout common to
+// GPU rasterizers; released via DestroyGPUResources.
 type GPUResources struct {
 	Device         *webgpu.Device
 	ShaderModule   *webgpu.ShaderModule

@@ -350,6 +350,7 @@ func (s *GPUShared) SetDeviceProvider(provider gpucontext.DeviceProvider) error 
 //
 // Session MSAA/depth must be Released *before* Device.Destroy; otherwise this
 // native build keeps VRAM pinned and the new device OOMs on CreateTexture.
+
 // PurgeAllSurfaceResources frees surface-bound GPU memory on every live
 // context (depth/MSAA/offscreen pools) without abandoning the device.
 // Call when the window is unpresentable (Skia freeGpuResources pattern).

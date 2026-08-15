@@ -1533,13 +1533,13 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	}
 
 	cmd := StencilPathCommand{
-		Vertices:  fanVerts, // already owned copy from cache/miss path
-		CoverQuad: coverQuad,
-		BandAA:    bandVerts,
+		Vertices:    fanVerts, // already owned copy from cache/miss path
+		CoverQuad:   coverQuad,
+		BandAA:      bandVerts,
 		InnerBandAA: innerBandVerts,
-		Color:     [4]float32{premulR, premulG, premulB, premulA},
-		FillRule:  paint.FillRule,
-		BlendMode: paintBlendMode(paint),
+		Color:       [4]float32{premulR, premulG, premulB, premulA},
+		FillRule:    paint.FillRule,
+		BlendMode:   paintBlendMode(paint),
 	}
 	rc.QueueStencil(target, cmd)
 	return nil
@@ -2912,6 +2912,7 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 
 // Close releases this context's GPU resources. Shared resources are NOT
 // released — they are owned by GPUShared.
+
 // PurgeSurfaceResources drops surface-sized GPU attachments and offscreen
 // pools without unregistering the context or destroying shared pipelines.
 func (rc *GPURenderContext) PurgeSurfaceResources() {

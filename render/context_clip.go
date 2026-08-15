@@ -56,26 +56,9 @@ func (c *Context) ClipPreserve() {
 // This is a faster alternative to creating a rectangular path and calling Clip().
 // The clip region is intersected with any existing clip regions.
 func (c *Context) ClipRect(x, y, w, h float64) {
-
-	if c.clipStack == nil {
-		c.initClipStack()
-	}
-
-	// Transform the rectangle corners to device coordinates.
-	tm := c.totalMatrix()
-	p1 := tm.TransformPoint(Pt(x, y))
-	p2 := tm.TransformPoint(Pt(x+w, y+h))
-
-	// Create clip rectangle in device coordinates
-	rect := clip.NewRect(
-		math.Min(p1.X, p2.X),
-		math.Min(p1.Y, p2.Y),
-		math.Abs(p2.X-p1.X),
-		math.Abs(p2.Y-p1.Y),
-	)
-
-	c.clipStack.PushRect(rect)
-	c.bumpClipMaskGPUGen()
+	// Convergence (§7.5): ClipRect is the ClipOpIntersect convenience alias of
+	// the general ClipRectOp (SkClipOp default). Single shared implementation.
+	c.ClipRectOp(x, y, w, h, ClipOpIntersect)
 }
 
 // ClipRoundRect sets a rounded rectangle clipping region.

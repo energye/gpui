@@ -50,7 +50,7 @@ func (fr *FineRasterizer) SetFillRule(rule scene.FillStyle) {
 	fr.grid.SetFillRule(rule)
 }
 
-// raster.FillRule returns the current fill rule.
+// FillRule returns the current fill rule.
 func (fr *FineRasterizer) FillRule() scene.FillStyle {
 	return fr.fillRule
 }

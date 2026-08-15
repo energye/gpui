@@ -83,7 +83,7 @@ func (ssr *SparseStripsRasterizer) SetFillRule(rule scene.FillStyle) {
 	ssr.strips.SetFillRule(rule)
 }
 
-// raster.FillRule returns the current fill rule.
+// FillRule returns the current fill rule.
 func (ssr *SparseStripsRasterizer) FillRule() scene.FillStyle {
 	return ssr.fillRule
 }

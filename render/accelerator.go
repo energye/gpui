@@ -351,8 +351,10 @@ func SetAcceleratorDeviceProvider(provider gpucontext.DeviceProvider) error {
 //
 // Use this to decide whether to attempt RenderDirect or go straight to
 // the universal CPU→texture→present path.
+
 // AbandonAcceleratorDevice drops GPU objects on the current accelerator device
 // without installing a replacement (Swapchain OnDeviceAbandon / AutoRecover).
+
 // PurgeAcceleratorSurfaceResources frees surface-bound GPU memory (session
 // depth/MSAA, offscreen pools, texture pool) without abandoning the device.
 // Call when the window is unpresentable (minimize / fully obscured).

@@ -47,15 +47,17 @@ func (b *PathBuilder) Close() *PathBuilder {
 
 // Rect adds a rectangle to the path.
 func (b *PathBuilder) Rect(x, y, w, h float64) *PathBuilder {
-	b.path.MoveTo(x, y)
-	b.path.LineTo(x+w, y)
-	b.path.LineTo(x+w, y+h)
-	b.path.LineTo(x, y+h)
-	b.path.Close()
+	// Convergence (§7.5): single shared implementation in Path.Rectangle
+	// (SkPath::addRect semantics). Same output as the former inline version.
+	b.path.Rectangle(x, y, w, h)
 	return b
 }
 
 // RoundRect adds a rounded rectangle to the path.
+//
+// NOTE: keeps its own Skia-standard corner coefficient k = 0.5522847498
+// (SkPath::addRRect). Path.RoundedRectangle arcs use the exact-circle formula
+// (alpha ≈ 0.5486) — not delegated to avoid changing corner geometry.
 func (b *PathBuilder) RoundRect(x, y, w, h, r float64) *PathBuilder {
 	// Clamp radius
 	r = min(r, min(w, h)/2)
@@ -76,20 +78,15 @@ func (b *PathBuilder) RoundRect(x, y, w, h, r float64) *PathBuilder {
 
 // Circle adds a circle to the path.
 func (b *PathBuilder) Circle(cx, cy, r float64) *PathBuilder {
-	return b.Ellipse(cx, cy, r, r)
+	// Convergence (§7.5): delegate to Path.Circle (same k = 4/3(√2-1)).
+	b.path.Circle(cx, cy, r)
+	return b
 }
 
 // Ellipse adds an ellipse to the path.
 func (b *PathBuilder) Ellipse(cx, cy, rx, ry float64) *PathBuilder {
-	kx := 0.5522847498 * rx
-	ky := 0.5522847498 * ry
-
-	b.path.MoveTo(cx+rx, cy)
-	b.path.CubicTo(cx+rx, cy+ky, cx+kx, cy+ry, cx, cy+ry)
-	b.path.CubicTo(cx-kx, cy+ry, cx-rx, cy+ky, cx-rx, cy)
-	b.path.CubicTo(cx-rx, cy-ky, cx-kx, cy-ry, cx, cy-ry)
-	b.path.CubicTo(cx+kx, cy-ry, cx+rx, cy-ky, cx+rx, cy)
-	b.path.Close()
+	// Convergence (§7.5): delegate to Path.Ellipse (same k).
+	b.path.Ellipse(cx, cy, rx, ry)
 	return b
 }
 

@@ -247,10 +247,8 @@ func rrectCoverage(px, py float64, rr *RRectClip) byte {
 	return byte(cov * 255) //nolint:gosec // cov is in [0,1], result fits byte
 }
 
-// IsRectOnly reports whether the clip stack contains only rectangular clips
-// (no path-based masks and no rounded rectangle clips). When true, clipping
-// can be applied by restricting the destination bounds rather than per-pixel
-// coverage, which preserves bitmap text quality and is significantly faster.
+// HasMaskClip reports whether the clip stack contains any mask-based clip
+// entries (path/mask clips requiring per-pixel coverage).
 func (cs *ClipStack) HasMaskClip() bool {
 	for i := range cs.entries {
 		if cs.entries[i].mask != nil {
@@ -260,6 +258,10 @@ func (cs *ClipStack) HasMaskClip() bool {
 	return false
 }
 
+// IsRectOnly reports whether the clip stack contains only rectangular clips
+// (no path-based masks and no rounded rectangle clips). When true, clipping
+// can be applied by restricting the destination bounds rather than per-pixel
+// coverage, which preserves bitmap text quality and is significantly faster.
 func (cs *ClipStack) IsRectOnly() bool {
 	for i := range cs.entries {
 		if cs.entries[i].mask != nil || cs.entries[i].rrect != nil {

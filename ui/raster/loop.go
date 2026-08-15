@@ -159,8 +159,8 @@ func (l *Loop) Submit(job FrameJob) {
 	l.jobs <- job
 }
 
-// SubmitReplace tries to enqueue; if full, runs the job on the caller only when
-// forceSync is true. For P0 tests we use TrySubmit semantics in App.
+// Depth returns the number of frames currently queued in the loop.
+// Returns 0 for a nil Loop.
 func (l *Loop) Depth() int {
 	if l == nil {
 		return 0
