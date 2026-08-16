@@ -681,3 +681,83 @@ func TestDepthClipResources_BuildAndReleaseFromSession(t *testing.T) {
 		t.Errorf("coverCount = %d, want 6", res.coverCount)
 	}
 }
+
+// TestDepthClip_ProductionPath_NoManualEnsure verifies that arbitrary path
+// clipping works through the production RenderFrameGrouped path WITHOUT any
+// manual ensurePipeline call. Regression for the render_clipping draw-through
+// bug: DepthClipPipeline.ensurePipeline() was never called in the production
+// path, uniformBGL stayed nil, BuildClipResources failed with "layout is nil",
+// groups got no depthClipRes, and Clip()/ClipPreserve() drew straight through
+// the clip region.
+func TestDepthClip_ProductionPath_NoManualEnsure(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	defer s.Destroy()
+
+	const W, H = 200, 200
+	if err := s.EnsureTextures(W, H); err != nil {
+		t.Fatalf("EnsureTextures: %v", err)
+	}
+
+	// Clip path: square (50,50)-(150,150). Production path must compile the
+	// depth-clip pipeline lazily via ensureStagePipelines(needDepthClip=true).
+	clipPath := &render.Path{}
+	clipPath.MoveTo(50, 50)
+	clipPath.LineTo(150, 50)
+	clipPath.LineTo(150, 150)
+	clipPath.LineTo(50, 150)
+	clipPath.Close()
+
+	// Content: full-width strip crossing the clip region.
+	strip := ConvexDrawCommand{
+		Points: []render.Point{
+			{X: 20, Y: 95},
+			{X: 180, Y: 95},
+			{X: 180, Y: 105},
+			{X: 20, Y: 105},
+		},
+		Color: [4]float32{0.5, 0.25, 0.0, 1},
+	}
+
+	groups := []ScissorGroup{
+		{
+			ClipPath:       clipPath,
+			ClipDepthLevel: 1,
+			ConvexCommands: []ConvexDrawCommand{strip},
+		},
+	}
+	target := render.GPURenderTarget{
+		Width: W, Height: H,
+		Data:   make([]uint8, W*H*4),
+		Stride: W * 4,
+	}
+	if err := s.RenderFrameGrouped(target, groups, nil, nil); err != nil {
+		t.Fatalf("RenderFrameGrouped: %v", err)
+	}
+
+	lum := func(x, y int) int {
+		i := (y*W + x) * 4
+		r, g, b := int(target.Data[i]), int(target.Data[i+1]), int(target.Data[i+2])
+		return (r + g + b) / 3
+	}
+	outsidePainted := 0
+	insidePainted := 0
+	for x := 20; x < 180; x++ {
+		if lum(x, 100) > 8 {
+			if x < 50 || x >= 150 {
+				outsidePainted++
+			} else {
+				insidePainted++
+			}
+		}
+	}
+	t.Logf("production depth clip: inside=%d outside=%d (clip square x 50..150)", insidePainted, outsidePainted)
+	if outsidePainted > 10 {
+		t.Errorf("production depth clip FAILED: %d px painted outside clip square — Clip() draws through", outsidePainted)
+	}
+	if insidePainted < 90 {
+		t.Errorf("production depth clip FAILED: only %d px painted inside clip square", insidePainted)
+	}
+}

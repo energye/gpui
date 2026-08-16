@@ -102,7 +102,7 @@
 |------|------|------|------|
 | `ClipRect(x,y,w,h)` | 矩形裁剪区（设备坐标），GPU 优先走硬件 scissor | 矩形裁剪 | ✅ GPU 有效（实测） |
 | `ClipRoundRect(x,y,w,h,r)` | 圆角矩形裁剪（GPU scissor+SDF / CPU 逐像素 SDF） | 圆角矩形裁剪 | ✅ GPU 有效（单测） |
-| `Clip()` / `ClipPreserve()` | **任意路径裁剪**（stencil+depth 管线；Preserve 保留路径） | 任意路径裁剪 | ⚠️ **GPU 真窗曾实测画穿（§7.3）**；2026-08-15 已激活 depth-clip 管线（render_session 初始化），GPU 真窗复测待做 |
+| `Clip()` / `ClipPreserve()` | **任意路径裁剪**（stencil+depth 管线；Preserve 保留路径） | 任意路径裁剪 | ✅ GPU 有效（2026-08-16 修复画穿+真窗复测，§7.3） |
 | `ResetClip()` | 清除全部裁剪，恢复全画布 | 清除裁剪 | ✅ |
 | `ClipRectOp(x,y,w,h,op)` / `ClipPathOp(op)`（ClipOpIntersect/Difference/Replace） | 带 ClipOp 运算的矩形/路径裁剪（非相交运算） | 运算式裁剪 | 🧪 仅测试（默认 intersect 是日常路径） |
 
@@ -310,7 +310,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 ### 7.3 ⚠️ 半成品 / GPU 未生效（重点：真窗实测）
 | 功能 | 现象 | 证据与建议动作 |
 |------|------|------|
-| **任意路径裁剪 `Clip()`/`ClipPreserve()`（= ui `PushClipPath`）** | GPU 真窗下裁剪不生效（画穿整个格）；CPU 软路径正常 | **根因（已定位 2026-08-15）**：`render/internal/gpu` 的 `s.depthClipPipeline` 从未初始化——`NewDepthClipPipeline` 只有测试调用，`render_session.go:1538` 守卫恒 false，GPU-CLIP-003a 两阶段（stencil fill + cover 写深度）整条是死代码。**修复（已合，待 GPU 真窗复测）**：`NewGPURenderSession` 构造时初始化 `depthClipPipeline` + `ensureStagePipelines` 防御重建；新增会话级单测（无 GPU 环境 skip）。**复测验收**：`examples/render_clipping` 修复前画穿 → 修复后矩形内 fill/渐变/任意路径全部被裁剪（与 CPU 人工结果一致）。 |
+| **任意路径裁剪 `Clip()`/`ClipPreserve()`（= ui `PushClipPath`）** | ~~GPU 真窗下裁剪不生效（画穿整个格）~~ → **已修复（2026-08-16）**：根因=`render/internal/gpu` `DepthClipPipeline.ensurePipeline()`（编译 shader+uniformBGL+stencil-fill/cover 两管线）在生产路径从未被调用，`uniformBGL` 恒 nil，`BuildClipResources` 的 `CreateBindGroup` 全败（`layout is nil`）→ 深度裁剪从未生效。修复=`ensureStagePipelines(needDepthClip)` 补调 `ensurePipeline()`（render_session.go）。**复测（真窗 `examples/render_clipping`，2026-08-16）**：圆外泄漏 100%→0.6%（仅边缘 AA）、星外条纹 744→0、复杂路径 clip 边界 AA 级残余；新回归单测 `TestDepthClip_ProductionPath_NoManualEnsure`。 |
 | `render/gpu` 设备生命周期 API 未进 ui/embedder | SetDeviceProvider/AbandonDevice 仅示例注入 | 真窗换设备/恢复场景未覆盖，属预留 |
 
 ### 7.4 仅测试/桥接（🧪）
@@ -347,7 +347,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 5 | 委托统一（已收敛，RoundRect 例外） | `PathBuilder.Rect/Circle/Ellipse` 委托 `Path.Rectangle/Circle/Ellipse`（同一实现）；**RoundRect 保留自身 skia 标准系数 k=0.5522847498**（≠ Path.RoundedRectangle 的精确圆弧公式 alpha≈0.5486，不委托以免改角几何） | TestPath + PathBuilder 相关 ✓ |
 | 4/6/7/8/9/10/11/12 | 不收敛 | 分层依赖（文本/呈现/滤镜/编解码/SDF）或有明确扩展目标（scene 内部在用；recording→PDF/SVG；surface→第三方后端） | — |
 
-> 未动：`Clip/ClipPreserve`（任意路径，GPU 半成品见 §7.3，修好前不启用）、`ClipPathOp`（clipPath 泛化）、`Path.RoundedRectangle`（Arc 精确公式实现，保留为 Path 方法组一部分）。
+> 未动：`ClipPathOp`（clipPath 泛化）、`Path.RoundedRectangle`（Arc 精确公式实现，保留为 Path 方法组一部分）。`Clip/ClipPreserve` 已修复（2026-08-16，见 §7.3）。
 ---
 
 ## 8. 主包公开类型的导出方法速查（方法级清单，2026-08-15 go/ast）

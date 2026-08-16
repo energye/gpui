@@ -126,7 +126,7 @@ func main() {
 	router.OnText = func(ev input.TextEvent) { logf("text-event %q", ev.Text) }
 	app := application.New(application.Config{
 		Name:    "ui_textinput_ime",
-		Backend: platform.DisplayX11,
+		Backend: platform.DisplayWayland,
 	})
 	logf("stage=app-created")
 	win, err := app.NewWindow(application.WindowOptions{

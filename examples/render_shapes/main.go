@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/energye/gpui/render"
+	_ "github.com/energye/gpui/render/gpu"
 )
 
 func main() {

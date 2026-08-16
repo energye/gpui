@@ -2193,6 +2193,14 @@ func (s *GPURenderSession) ensureStagePipelines(needStencil, needImage, needDept
 		if s.depthClipPipeline == nil {
 			s.depthClipPipeline = NewDepthClipPipeline(s.device, s.queue, s.sampleCount)
 		}
+		// GPU-CLIP-003a: compile the depth-clip pipeline (stencil fill +
+		// cover-to-depth) before any group builds depth clip resources.
+		// Without this, uniformBGL is nil, BuildClipResources fails with
+		// "layout is nil", the group gets no depthClipRes, and arbitrary
+		// path clips (Clip/ClipPreserve) draw straight through the region.
+		if err := s.depthClipPipeline.ensurePipeline(); err != nil {
+			return err
+		}
 		if err := s.ensureDepthClipPipelineVariants(); err != nil {
 			return err
 		}
