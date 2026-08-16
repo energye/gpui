@@ -11,30 +11,36 @@ import (
 )
 
 // TestGlyphMaskLightHintingFromFreeType guards the hinting choice: small
-// axis-aligned Latin/CJK text now uses HintingVertical (FT_LOAD_TARGET_LIGHT
+// axis-aligned Latin/CJK text now uses HintingFull (FT_LOAD_TARGET_LIGHT
 // parity) — the self-own light engine (CFF cf2 + glyf autofit + bytecode
 // composite + CFF2 variable) is verified point-identical to FreeType light
 // (hint 包 M1–M5 对照全绿, 2026-08-08). R21 时期自研 Vertical/Full 引擎与
 // FT 结构不一致，故当时退回 None；引擎对齐后解除硬编码。
 //
-// 旋转/倾斜矩阵、大字号（>48px）、CJK HiDPI（deviceScale≥2）仍走
-// HintingNone（规则见 selectGlyphMaskHinting 注释）。
+// 旋转/倾斜矩阵、CJK HiDPI（deviceScale≥2）仍走 HintingNone。大字号
+// （>48px）同样保留 HintingFull：无 hinting 的 GPU mask 斜边过渡与
+// CPU text.Draw（sourceFace 默认 HintingFull）不一致，64/72px CJK 显示
+// 文本发虚；保留 hinting 后 GPU/CPU 逐像素一致（规则见
+// selectGlyphMaskHinting 注释）。
 func TestGlyphMaskLightHintingFromFreeType(t *testing.T) {
 	for _, size := range []float64{8, 10, 11, 13, 16} {
-		if h := selectGlyphMaskHinting(size, render.Identity(), false, 1.0); h != text.HintingVertical {
-			t.Fatalf("Latin text at %vpx hinting = %v, want HintingVertical", size, h)
+		if h := selectGlyphMaskHinting(size, render.Identity(), false, 1.0, text.HintingFull); h != text.HintingFull {
+			t.Fatalf("Latin text at %vpx hinting = %v, want HintingFull", size, h)
 		}
-		if h := selectGlyphMaskHinting(size, render.Identity(), true, 1.0); h != text.HintingVertical {
-			t.Fatalf("CJK text at %vpx hinting = %v, want HintingVertical", size, h)
+		if h := selectGlyphMaskHinting(size, render.Identity(), true, 1.0, text.HintingFull); h != text.HintingFull {
+			t.Fatalf("CJK text at %vpx hinting = %v, want HintingFull", size, h)
 		}
 	}
-	if h := selectGlyphMaskHinting(13, render.Matrix{A: 1, B: 0.3, D: 0.3, E: 1}, false, 1.0); h != text.HintingNone {
+	if h := selectGlyphMaskHinting(13, render.Matrix{A: 1, B: 0.3, D: 0.3, E: 1}, false, 1.0, text.HintingFull); h != text.HintingNone {
 		t.Fatalf("skewed text hinting = %v, want HintingNone", h)
 	}
-	if h := selectGlyphMaskHinting(64, render.Identity(), false, 1.0); h != text.HintingNone {
-		t.Fatalf("64px Latin text hinting = %v, want HintingNone", h)
+	if h := selectGlyphMaskHinting(64, render.Identity(), false, 1.0, text.HintingFull); h != text.HintingFull {
+		t.Fatalf("64px Latin text hinting = %v, want HintingFull (CPU text.Draw parity)", h)
 	}
-	if h := selectGlyphMaskHinting(13, render.Identity(), true, 2.0); h != text.HintingNone {
+	if h := selectGlyphMaskHinting(64, render.Identity(), true, 1.0, text.HintingFull); h != text.HintingFull {
+		t.Fatalf("64px CJK text hinting = %v, want HintingFull (CPU text.Draw parity)", h)
+	}
+	if h := selectGlyphMaskHinting(13, render.Identity(), true, 2.0, text.HintingFull); h != text.HintingFull {
 		t.Fatalf("CJK HiDPI hinting = %v, want HintingNone", h)
 	}
 }

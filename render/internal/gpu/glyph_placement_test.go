@@ -13,7 +13,7 @@ import (
 // fracX=0.5), which produced broken/uneven strokes on CJK labels.
 func TestGlyphPlacementCJKVerticalSnapsX(t *testing.T) {
 	hinting := text.HintingVertical
-	absX, absY, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, hinting, 10.0, true)
+	absX, absY, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, 1.0, hinting, 10.0, true)
 	if fracX != 0 {
 		t.Fatalf("CJK Vertical hint: fracX = %v, want 0 (integer device X)", fracX)
 	}
@@ -30,7 +30,7 @@ func TestGlyphPlacementCJKVerticalSnapsX(t *testing.T) {
 
 // TestGlyphPlacementFullSnapsX guards the pre-existing Full-hint contract.
 func TestGlyphPlacementFullSnapsX(t *testing.T) {
-	absX, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, text.HintingFull, 10.0, true)
+	absX, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, 1.0, text.HintingFull, 10.0, true)
 	if fracX != 0 || absX != 10.0 {
 		t.Fatalf("Full hint: fracX=%v absX=%v, want 0/10.0", fracX, absX)
 	}
@@ -43,7 +43,7 @@ func TestGlyphPlacementFullSnapsX(t *testing.T) {
 // the X fraction picks the RGB subpixel phase and must survive even with no
 // hinting. Y still snaps to the integer baseline like every other mode.
 func TestGlyphPlacementNoneKeepsXFraction(t *testing.T) {
-	absX, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, text.HintingNone, 0, false)
+	absX, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, 1.0, text.HintingNone, 0, false)
 	if fracX == 0 {
 		t.Fatalf("None hint + snapX=false: fracX=0, want fractional X (LCD phase)")
 	}
@@ -59,7 +59,7 @@ func TestGlyphPlacementNoneKeepsXFraction(t *testing.T) {
 // (R21): unhinted masks also snap X to the rounded-advance grid, exactly like
 // hinted text, so advance spacing never jitters with the origin fraction.
 func TestGlyphPlacementNoneSnapsX(t *testing.T) {
-	absX, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, text.HintingNone, 10.0, true)
+	absX, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, 1.0, text.HintingNone, 10.0, true)
 	if fracX != 0 || absX != 10.0 {
 		t.Fatalf("None hint + snapX: fracX=%v absX=%v, want 0/10.0", fracX, absX)
 	}
@@ -68,11 +68,28 @@ func TestGlyphPlacementNoneSnapsX(t *testing.T) {
 	}
 }
 
+// TestGlyphPlacementScaledCTMXAxisFraction guards the scaled-CTM contract:
+// devScaleX runs at raster resolution (deviceScale*rasterScale) so the
+// sub-pixel phase aligns with CPU drawStringScaled's continuous placement,
+// while Y keeps the axis deviceScale (integer baseline).
+func TestGlyphPlacementScaledCTMXAxisFraction(t *testing.T) {
+	absX, absY, fracX, fracY := glyphPlacement(10.4, 3.7, 2.0, 1.0, text.HintingNone, 0, false)
+	if fracX < 0.799 || fracX > 0.801 {
+		t.Fatalf("scaled CTM: fracX = %v, want ~0.8 (raster-res fraction)", fracX)
+	}
+	if absX != 10.4 {
+		t.Fatalf("scaled CTM: absX = %v, want unchanged 10.4 (continuous user px)", absX)
+	}
+	if fracY != 0 || absY != 4.0 {
+		t.Fatalf("scaled CTM: fracY=%v absY=%v, want 0/4.0 (Y grid-fitted at deviceScale)", fracY, absY)
+	}
+}
+
 // TestGlyphPlacementLCDKeepsXPhase guards the LCD contract: the X fraction
 // selects the RGB subpixel phase and must survive even with hinting.
 func TestGlyphPlacementLCDKeepsXPhase(t *testing.T) {
 	// snapX=false is what the layout path passes for LCD (snapX excludes LCD).
-	_, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, text.HintingVertical, 0, false)
+	_, _, fracX, fracY := glyphPlacement(10.4, 3.7, 1.0, 1.0, text.HintingVertical, 0, false)
 	if fracX < 0.399 || fracX > 0.401 {
 		t.Fatalf("LCD-phase placement: fracX = %v, want ~0.4 (X phase preserved)", fracX)
 	}

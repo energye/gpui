@@ -3,6 +3,7 @@
 package gpu
 
 import (
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -166,34 +167,15 @@ func (e *GlyphMaskEngine) LayoutText(
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
-	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
-	fontSource := face.Source()
-	if fontSource == nil {
-		// MultiFace and other composites: caller should split runs (X.06).
-		return GlyphMaskBatch{}, fmt.Errorf("glyph mask: face has no FontSource")
+	p, err := e.resolveGlyphMaskParams(face, s, color, matrix, deviceScale, false)
+	if err != nil {
+		return GlyphMaskBatch{}, err
 	}
-	fontID := e.fontID(fontSource)
-	parsed := fontSource.Parsed()
-	if parsed == nil {
-		return GlyphMaskBatch{}, fmt.Errorf("glyph mask: parsed font unavailable")
-	}
-
-	// Detect CJK anywhere in the string (ADR-027). Mixed strings like
-	// "12px: 中文" must still use CJK reduced hinting for dense strokes;
-	// checking only the first rune mis-classifies Latin-prefixed body text.
-	isCJK := stringContainsCJK(s)
-	hinting := selectGlyphMaskHinting(fontSize, matrix, isCJK, deviceScale)
-
-	useLCD := e.lcdLayout != text.LCDLayoutNone && selectGlyphMaskLCD(fontSize, matrix)
-	lcdLayout := e.lcdLayout
-	lcdFilter := e.lcdFilter
-
-	premul := color.Premultiply()
-	batchColor := [4]float32{
-		float32(premul.R), float32(premul.G),
-		float32(premul.B), float32(premul.A),
-	}
+	fontSize, fontID, parsed := p.fontSize, p.fontID, p.parsed
+	rasterScale := p.rasterScale
+	isCJK, hinting := p.isCJK, p.hinting
+	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
+	batchColor := p.batchColor
 
 	// opt24: try layout template BEFORE LayoutGlyphs — shaped is unused on hit
 	// (layoutTemplateGet only needs key+origin). Static HUD/list strings skip
@@ -239,28 +221,19 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
-	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
-	fontSource := face.Source()
-	fontID := e.fontID(fontSource)
-	parsed := fontSource.Parsed()
-
-	isCJK := stringContainsCJK(s)
-	hinting := selectGlyphMaskHinting(fontSize, matrix, isCJK, deviceScale)
-
 	// Aliased text never uses LCD subpixel rendering — binary coverage
 	// is incompatible with 3x horizontal oversampling.
-	useLCD := false
-
-	premul := color.Premultiply()
-	batchColor := [4]float32{
-		float32(premul.R), float32(premul.G),
-		float32(premul.B), float32(premul.A),
+	p, err := e.resolveGlyphMaskParams(face, s, color, matrix, deviceScale, true)
+	if err != nil {
+		return GlyphMaskBatch{}, err
 	}
+	fontSize, fontID, parsed := p.fontSize, p.fontID, p.parsed
+	rasterScale := p.rasterScale
+	isCJK, hinting := p.isCJK, p.hinting
+	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
+	batchColor := p.batchColor
 
 	// opt24: template hit before shape (same as LayoutText).
-	lcdLayout := text.LCDLayoutNone
-	var lcdFilter text.LCDFilter
 	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, true, hinting, matrix); ok {
 		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
 			return batch, nil
@@ -297,22 +270,76 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	p, err := e.resolveGlyphMaskParams(face, "", color, matrix, deviceScale, false)
+	if err != nil {
+		return GlyphMaskBatch{}, err
+	}
+	fontSize, fontID, parsed := p.fontSize, p.fontID, p.parsed
+	rasterScale := p.rasterScale
+	isCJK, hinting := p.isCJK, p.hinting
+	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
+	batchColor := p.batchColor
+	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
+}
+
+// glyphMaskParams carries the common layout parameters resolved from a face
+// and CTM, shared by LayoutText / LayoutTextAliased / LayoutShapedGlyphs so
+// the three entry points cannot drift apart (hinting, LCD, color, metrics).
+type glyphMaskParams struct {
+	rasterScale float64
+	fontSize    float64
+	fontID      uint64
+	parsed      text.ParsedFont
+	isCJK       bool
+	hinting     text.Hinting
+	useLCD      bool
+	lcdLayout   text.LCDLayout
+	lcdFilter   text.LCDFilter
+	batchColor  [4]float32
+}
+
+// resolveGlyphMaskParams derives the per-text-run rendering parameters from
+// the face configuration and the current CTM: raster scale (from the matrix),
+// glyph-mask font size, font ID + parsed font for rasterization, CJK
+// detection, hinting (face-config, Skia single-cache semantic), LCD mode
+// (disabled for aliased runs — binary coverage is incompatible with 3x
+// horizontal subpixel oversampling) and the premultiplied batch color.
+func (e *GlyphMaskEngine) resolveGlyphMaskParams(face text.Face, s string, color render.RGBA, matrix render.Matrix, deviceScale float64, aliased bool) (glyphMaskParams, error) {
 	rasterScale := glyphMaskRasterScale(matrix, deviceScale)
 	fontSize := glyphMaskFontSize(face.Size(), deviceScale, rasterScale)
 	fontSource := face.Source()
+	if fontSource == nil {
+		// MultiFace and other composites: caller should split runs (X.06).
+		return glyphMaskParams{}, fmt.Errorf("glyph mask: face has no FontSource")
+	}
 	fontID := e.fontID(fontSource)
 	parsed := fontSource.Parsed()
-	hinting := selectGlyphMaskHinting(fontSize, matrix, isCJK, deviceScale)
+	if parsed == nil {
+		return glyphMaskParams{}, fmt.Errorf("glyph mask: parsed font unavailable")
+	}
+	isCJK := stringContainsCJK(s)
+	hinting := selectGlyphMaskHinting(fontSize, matrix, isCJK, deviceScale, face.Hinting())
 	useLCD := e.lcdLayout != text.LCDLayoutNone && selectGlyphMaskLCD(fontSize, matrix)
-
+	if aliased {
+		useLCD = false
+	}
 	premul := color.Premultiply()
 	batchColor := [4]float32{
 		float32(premul.R), float32(premul.G),
 		float32(premul.B), float32(premul.A),
 	}
-
-	lcdFilter := e.lcdFilter
-	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, e.lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false), nil
+	return glyphMaskParams{
+		rasterScale: rasterScale,
+		fontSize:    fontSize,
+		fontID:      fontID,
+		parsed:      parsed,
+		isCJK:       isCJK,
+		hinting:     hinting,
+		useLCD:      useLCD,
+		lcdLayout:   e.lcdLayout,
+		lcdFilter:   e.lcdFilter,
+		batchColor:  batchColor,
+	}, nil
 }
 
 func glyphMaskRasterScale(matrix render.Matrix, deviceScale float64) float64 {
@@ -371,16 +398,21 @@ func snapXGrid(glyphs []text.ShapedGlyph, x, deviceScale float64) []float64 {
 // the RGB subpixel phase. The fraction MUST be measured in device space: the
 // mask is rasterized at device size and the quad is scaled by deviceScale at
 // flush.
-func glyphPlacement(absX, absY, deviceScale float64, hinting text.Hinting, snappedDevX float64, snapX bool) (px, py, fracX, fracY float64) {
-	devX := absX * deviceScale
-	devY := absY * deviceScale
+//
+// devScaleX can differ from devScaleY for scaled CTMs: X sub-pixel phase is
+// measured at the raster resolution (deviceScale*rasterScale) so the mask's
+// pixel grid aligns with CPU text.Draw's continuous placement, while Y keeps
+// the axis deviceScale (integer baseline, CPU parity at scaled sizes).
+func glyphPlacement(absX, absY, devScaleX, devScaleY float64, hinting text.Hinting, snappedDevX float64, snapX bool) (px, py, fracX, fracY float64) {
+	devX := absX * devScaleX
+	devY := absY * devScaleY
 	fracX = devX - math.Floor(devX)
 	fracY = devY - math.Floor(devY)
 	fracY = 0
-	absY = math.Round(devY) / deviceScale
+	absY = math.Round(devY) / devScaleY
 	if snapX {
 		fracX = 0
-		absX = snappedDevX / deviceScale
+		absX = snappedDevX / devScaleX
 	}
 	return absX, absY, fracX, fracY
 }
@@ -411,27 +443,49 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	quads := e.quadScratch[:0]
 	var batchIsLCD bool
 
-	// Non-LCD masks render on an integer pixel grid (FreeType no-hint style):
-	// placement snaps X to the rounded-advance grid and Y to the baseline, so
-	// advance spacing never jitters with the text origin's sub-pixel fraction
-	// and unhinted glyphs match FreeType's integer-grid rasterization. LCD
-	// keeps the X sub-pixel phase (RGB subpixel coverage) and only Y snaps.
-	// Full/Vertical hinting also snapped X (ADR-027 follow-up): fractional X
-	// placement splits 1px vertical CJK stems into two half-coverage columns
-	// in the rasterizer, which produced broken/uneven strokes on CJK labels.
-	snapX := !useLCD
+	// Hinted non-LCD masks place glyphs on an integer pixel grid using the
+	// SAME pen as CPU text.Draw (drawGlyphs): snapPen starts at round(x)
+	// and advances by round(hinted advance) per glyph. The hinted advance
+	// (region.Advance) can differ from the raw hmtx advance (TT bytecode
+	// hinting adjusts it, e.g. Noto CJK 'w' at 20px: hinted 16.04 vs hmtx
+	// 12.12); using the hmtx value put GPU glyphs up to a pixel off the CPU
+	// bitmap. Unhinted/LCD text keeps the shaped (hmtx) advance grid.
+	//
+	// For a scaled/transformed CTM the snap grid is DEVICE space
+	// (deviceScale×rasterScale per user px): rounding on the pre-transform
+	// user grid lets the CTM multiply the error (Scale(2,2) shifted glyphs
+	// a full pixel right, the old ×rasterSize re-scale also halved scaled
+	// advances). The advance then comes from the SAME TT hint cache as CPU
+	// drawGlyphs (HintedAdvanceWidth, int-truncated ppem — the rasterizer's
+	// float-ppem advance grids differ at non-integer sizes and drift after
+	// rounding), so scaled snapPen matches CPU bit-exactly.
+	pixelGrid := matrix.B == 0 && matrix.D == 0 && matrix.A == 1 && matrix.E == 1
+	devScaleX := deviceScale
+	if !pixelGrid {
+		devScaleX = deviceScale * rasterScale
+	}
+	snapX := hinting != text.HintingNone && !useLCD
+	pen := math.Round(x * devScaleX)
 	var snappedDevX []float64
-	if snapX && len(glyphs) > 0 {
+	if !snapX && len(glyphs) > 0 && pixelGrid {
 		snappedDevX = snapXGrid(glyphs, x, deviceScale)
 	}
 
 	for i := range glyphs {
 		glyph := glyphs[i]
-		// GID 0 is .notdef. CPU text.Draw skips it (no ink), only advancing the
-		// pen. Rasterizing .notdef draws a tofu box, which massively inflates
-		// coverage for CJK-only fonts that lack Latin glyphs (e.g. DroidSansFallback
-		// mapping "12px:" to GID 0). Match CPU: skip missing glyphs.
+		// GID 0 is .notdef. CPU text.Draw skips it (no ink) but still advances
+		// the hint pen with the (unhinted) advance — TT phantom-only outlines
+		// give the integer advance; non-TT fonts fall back to the shaped diff.
 		if glyph.GID == 0 {
+			if snapX && i+1 < len(glyphs) {
+				if pixelGrid {
+					pen += math.Round((glyphs[i+1].X - glyphs[i].X) * deviceScale)
+				} else if ha, ok := text.HintedAdvanceWidth(parsed, glyph.GID, fontSize); ok {
+					pen += math.Round(ha)
+				} else {
+					pen += math.Round((glyphs[i+1].X - glyphs[i].X) * devScaleX)
+				}
+			}
 			continue
 		}
 		// Compute the device-space placement and sub-pixel fraction for this
@@ -439,9 +493,15 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		// is only consulted when snapX is set.
 		var snapped float64
 		if snapX {
+			snapped = pen
+		} else if len(snappedDevX) == len(glyphs) {
 			snapped = snappedDevX[i]
+		} else {
+			// Unhinted scaled/transformed CTM: continuous device position
+			// (fractional X picks the raster sub-pixel phase).
+			snapped = (x + glyph.X) * devScaleX
 		}
-		absX, absY, fracX, fracY := glyphPlacement(x+glyph.X, y+glyph.Y, deviceScale, hinting, snapped, snapX)
+		absX, absY, fracX, fracY := glyphPlacement(x+glyph.X, y+glyph.Y, devScaleX, deviceScale, hinting, snapped, snapX)
 
 		// Size bucket quantization (Skia pattern): under atlas pressure,
 		// rasterize at a coarse bucket size and scale quads to actual size.
@@ -474,6 +534,46 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		if rErr != nil {
 			slogger().Warn("glyph mask rasterize failed", "gid", glyph.GID, "err", rErr)
 			continue
+		}
+
+		// Advance the hint grid pen with the HINTED advance, exactly like CPU
+		// text.Draw (snapPen += round(outline.Advance)) — including empty
+		// glyphs (spaces) which carry an advance but no ink. region.Advance is
+		// the hinted advance when hinting is active; empty glyphs (spaces,
+		// rasterized as a zero region) fall back to the shaped hmtx advance,
+		// which equals the hinted one for ink-less glyphs. This keeps every
+		// glyph x-position identical to the CPU bitmap on multi-glyph lines.
+		if snapX && i+1 < len(glyphs) {
+			if pixelGrid {
+				adv := region.Advance
+				if region.Width <= 0 || region.Height <= 0 {
+					adv = float32(glyphs[i+1].X - glyphs[i].X)
+				} else {
+					// region.Advance is measured at rasterSize (which is
+					// fontSize×rasterScale, or a coarser bucket under atlas
+					// pressure). The pen must advance in SOURCE-face units:
+					// the quad is placed in user space and the CTM (including
+					// the uniform scale folded into rasterScale) scales it once
+					// at render time. Using the raster-size advance here would
+					// double the scale and open huge gaps between glyphs
+					// (e.g. Scale(2,2) rendered "Hello gg!" with 2× spacing).
+					adv *= float32(fontSize / (rasterScale * rasterSize))
+				}
+				pen += math.Round(float64(adv) * deviceScale)
+			} else {
+				// Scaled/transformed CTM: CPU drawGlyphs parity — same TT
+				// hint cache (int-truncated ppem), same round() per advance.
+				// Non-TT fonts (or unhintable glyphs) fall back to the
+				// rasterizer's float-ppem advance (or the shaped diff for
+				// empty glyphs).
+				adv := float64(region.Advance) * (fontSize / rasterSize)
+				if ha, ok := text.HintedAdvanceWidth(parsed, glyph.GID, fontSize); ok {
+					adv = ha
+				} else if region.Width <= 0 || region.Height <= 0 {
+					adv = (glyphs[i+1].X - glyphs[i].X) * devScaleX
+				}
+				pen += math.Round(adv)
+			}
 		}
 
 		// Empty glyph (e.g., space) — no quad needed.
@@ -570,26 +670,26 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 	case useLCD:
 		return e.rasterizeLCDGlyph(key, parsed, gid, size, fracX, fracY, hinting, lcdFilter, lcdLayout)
 	case aliased:
-		return e.atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, error) {
+		return e.atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, float32, error) {
 			result, err := e.rasterizer.RasterizeAliased(parsed, gid, size, fracX, fracY, hinting)
 			if err != nil {
-				return nil, 0, 0, 0, 0, err
+				return nil, 0, 0, 0, 0, 0, err
 			}
 			if result == nil {
-				return nil, 0, 0, 0, 0, nil // empty glyph (space)
+				return nil, 0, 0, 0, 0, 0, nil // empty glyph (space)
 			}
-			return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, nil
+			return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, result.Advance, nil
 		})
 	default:
-		return e.atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, error) {
+		return e.atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, float32, error) {
 			result, err := e.rasterizer.RasterizeHinted(parsed, gid, size, fracX, fracY, hinting)
 			if err != nil {
-				return nil, 0, 0, 0, 0, err
+				return nil, 0, 0, 0, 0, 0, err
 			}
 			if result == nil {
-				return nil, 0, 0, 0, 0, nil // empty glyph (space)
+				return nil, 0, 0, 0, 0, 0, nil // empty glyph (space)
 			}
-			return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, nil
+			return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, result.Advance, nil
 		})
 	}
 }
@@ -830,17 +930,14 @@ func (e *GlyphMaskEngine) rasterizeLCDGlyph(
 		return text.GlyphMaskRegion{}, nil // empty glyph (space)
 	}
 
-	return e.atlas.PutLCD(key, result.Mask, result.Width, result.Height, result.BearingX, result.BearingY)
+	// LCD layout keeps the shaped X phase (snapX=false) — pen advance unused.
+	return e.atlas.PutLCD(key, result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, 0)
 }
 
-// glyphMaskHintingMaxSize is the maximum font size in device pixels for which
-// hinting is auto-enabled. Above this size, outlines are smooth enough that
-// grid-fitting provides no visual benefit and can introduce distortion.
-const glyphMaskHintingMaxSize = 48.0
-
 // selectGlyphMaskHinting returns the hinting mode for glyph mask rendering.
-// Hinting is enabled for small text (≤48px) when the CTM is axis-aligned
-// (no rotation or skew), since grid-fitting requires an aligned pixel grid.
+// Hinting is enabled for axis-aligned text at any size (grid-fitting requires
+// an aligned pixel grid). It is disabled only for rotated/skewed text and
+// CJK HiDPI — see the rules in the function body.
 //
 // CJK text uses reduced hinting (ADR-027): full grid-fitting collapses thin
 // CJK strokes. FreeType afcjk module applies Y-direction only; DirectWrite
@@ -854,19 +951,14 @@ func stringContainsCJK(s string) bool {
 	return false
 }
 
-func selectGlyphMaskHinting(fontSize float64, matrix render.Matrix, isCJK bool, deviceScale float64) text.Hinting {
-	// 生产级 text quality (M0–M5 light 引擎切换，2026-08-08)：自研 light
-	// 引擎（CFF cf2 + glyf autofit + bytecode 复合字 + CFF2 可变）已逐点
-	// 对齐 FreeType light（hint 包 M1–M5 对照全绿），R21 时期的
-	// None 硬编码（当时自研 Vertical/Full 结构与 FT 不一致，差 40% 墨量）
-	// 解除，轴对齐小字号正式启用 HintingVertical（= FT_LOAD_TARGET_LIGHT）。
-	//
-	// 规则：
-	//   - 旋转/倾斜矩阵 → None（grid-fit 要求像素网格轴对齐）
-	//   - >48px 大字号 → None（像素足够，hinting 无收益）
-	//   - CJK HiDPI（deviceScale≥2）→ None（ADR-027：HiDPI 下 CJK 像素
-	//     密度足够，hinting 反而压缩细笔画）
-	//   - 其余（含非 CJK 小字号、CJK SDR）→ HintingVertical
+func selectGlyphMaskHinting(fontSize float64, matrix render.Matrix, isCJK bool, deviceScale float64, faceHinting text.Hinting) text.Hinting {
+	// The GPU glyph-mask rasterizer consumes the SAME hinting as the CPU
+	// text.Draw path — the face's configured hinting (WithHinting, default
+	// HintingFull) — Skia's single-glyph-cache semantic where CPU and GPU
+	// share one strikemaker configuration. No size/script/DPI policy is
+	// applied here: any such rule would diverge GPU output from the CPU
+	// bitmap. Grid-fitting is dropped only when the pixel grid is not
+	// axis-aligned (rotated/skewed CTM), where hinting cannot apply.
 	//
 	// 回退开关：GOGPU_TEXT_NO_HINT 强制 None（与 GOGPU_TEXT_NO_LCD 同模式）。
 	if os.Getenv("GOGPU_TEXT_NO_HINT") != "" {
@@ -878,18 +970,8 @@ func selectGlyphMaskHinting(fontSize float64, matrix render.Matrix, isCJK bool, 
 		return text.HintingNone
 	}
 
-	// Large text: hinting provides no benefit once stems are several px wide.
-	if fontSize > glyphMaskHintingMaxSize {
-		return text.HintingNone
-	}
-
-	// CJK HiDPI: pixel density is enough, hinting would collapse thin strokes.
-	if isCJK && deviceScale >= 2.0 {
-		return text.HintingNone
-	}
-
-	// Light hinting (FT_LOAD_TARGET_LIGHT parity): M1–M5 自研引擎全绿链。
-	return text.HintingVertical
+	// CPU text.Draw parity: use the face configuration verbatim.
+	return faceHinting
 }
 
 // glyphMaskLCDMaxSize is the maximum font size in device pixels for which
@@ -1225,4 +1307,65 @@ func (e *GlyphMaskEngine) ResetLayoutTemplateCacheStats() {
 	defer e.mu.Unlock()
 	e.layoutCacheHits = 0
 	e.layoutCacheMiss = 0
+}
+
+// PutTransformMask stores a whole-string alpha mask (kTransformedMask
+// semantic: rotated/sheared text or the CPU Tier2 outline path) in the
+// glyph-mask atlas. The mask is CPU-rasterized by the same Skia-AAA software
+// filler the CPU uses, so the GPU quad reproduces the CPU output bit-exactly.
+// The key is a content fingerprint (font + string + size + CTM + deviceScale),
+// so repeated draws reuse the stored region. bearing/advance are zero — the
+// whole-string quad is positioned by its device-space bounds, not per-glyph.
+func (e *GlyphMaskEngine) PutTransformMask(
+	face text.Face,
+	s string,
+	deviceScale float64,
+	matrix render.Matrix,
+	mask []byte,
+	w, h int,
+) (text.GlyphMaskRegion, error) {
+	if face == nil || s == "" || w <= 0 || h <= 0 {
+		return text.GlyphMaskRegion{}, render.ErrFallbackToCPU
+	}
+	source := face.Source()
+	if source == nil {
+		return text.GlyphMaskRegion{}, render.ErrFallbackToCPU
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	key := transformMaskKey(e.fontID(source), source.Name(), s, face.Size(), deviceScale, matrix)
+	return e.atlas.Put(key, mask, w, h, 0, 0, 0)
+}
+
+// transformMaskKey builds a content fingerprint for a whole-string transform
+// mask. The 96-bit space (64-bit FontID + 16-bit GlyphID + SizeQ4 + flags)
+// makes collisions with glyph entries practically impossible; the string and
+// CTM are folded into the hash so each distinct text+transform caches its
+// own mask.
+func transformMaskKey(fontID uint64, fontName, s string, fontSize, deviceScale float64, matrix render.Matrix) text.GlyphMaskKey {
+	h := fnv.New64a()
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], fontID)
+	_, _ = h.Write(buf[:])
+	_, _ = h.Write([]byte(fontName))
+	_, _ = h.Write([]byte(s))
+	for _, v := range [8]float64{fontSize, deviceScale, matrix.A, matrix.B, matrix.C, matrix.D, matrix.E, matrix.F} {
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(v))
+		_, _ = h.Write(buf[:])
+	}
+	fp := h.Sum64()
+	var sizeQ4 int16
+	switch {
+	case fontSize < 0:
+		sizeQ4 = 0
+	case fontSize > 2047:
+		sizeQ4 = 32767
+	default:
+		sizeQ4 = int16(fontSize * 16.0) //nolint:gosec // bounds checked above
+	}
+	return text.GlyphMaskKey{
+		FontID:  fp,
+		GlyphID: uint16(fp >> 48),
+		SizeQ4:  sizeQ4,
+	}
 }

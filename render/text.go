@@ -91,16 +91,27 @@ func (c *Context) DrawString(s string, x, y float64) {
 	defer c.setGPUClipRect()()
 	defer c.applyTextDecorations(s, x, y)
 
+	c.dispatchText(s, x, y)
+}
+
+// dispatchText routes one text run to the concrete rendering path selected by
+// selectTextStrategy. It is the SINGLE strategy switch, shared by DrawString
+// (top-level entry) and drawStringResolved (after MultiFace per-run
+// resolution) so both paths can never drift apart.
+//
+//   - GlyphMask (Tier 6): GPU bitmap quads; falls back to glyph outlines
+//     (Skia PathMask semantic — when the glyph atlas cannot hold the strike,
+//     the outlines are filled as ordinary paths). MSDF is only used via the
+//     explicit TextModeMSDF mode.
+//   - Aliased / MSDF / Vector / Bitmap: explicit pipelines.
+//   - default (TextModeAuto when no bitmap/stencil path applies): MSDF then CPU.
+func (c *Context) dispatchText(s string, x, y float64) {
 	switch c.selectTextStrategy() {
 	case TextModeGlyphMask:
-		// Try GPU glyph mask (Tier 6) first; fall back to MSDF, then CPU.
 		if c.tryGPUGlyphMaskText(s, x, y) {
 			return
 		}
-		if c.tryGPUText(s, x, y) {
-			return
-		}
-		c.drawStringCPU(s, x, y)
+		c.drawStringAsOutlines(s, x, y)
 	case TextModeAliased:
 		// Aliased text through glyph mask pipeline with binary rasterization.
 		// Same Tier 6 atlas + GPU path, but NoAAFiller instead of AnalyticFiller.
@@ -116,6 +127,13 @@ func (c *Context) DrawString(s string, x, y float64) {
 		}
 		c.drawStringCPU(s, x, y)
 	case TextModeVector:
+		// Auto-selected outlines (rotated/sheared/non-uniform CTM) render via
+		// a CPU-rasterized whole-string alpha mask (kTransformedMask semantic)
+		// so the GPU output matches the CPU Skia-AAA fill bit-exactly. An
+		// EXPLICIT TextModeVector is preserved as pure vector outlines.
+		if c.textMode != TextModeVector && c.tryGPUTransformMask(s, x, y) {
+			return
+		}
 		// Vector text is rendered as glyph outline paths through the normal
 		// fill pipeline (doFill). This routes through GPU stencil+cover when
 		// a SurfaceTarget is active, or CPU when standalone. No explicit
@@ -128,13 +146,6 @@ func (c *Context) DrawString(s string, x, y float64) {
 		c.flushGPUAccelerator()
 		c.drawStringCPU(s, x, y)
 	default: // TextModeAuto — current behavior
-		// ADR-027: CJK ≤64px → prefer Tier 6 (bitmap) over MSDF.
-		// MSDF at 64px reference produces stroke fusion on dense CJK characters.
-		if c.isCJKText(s) && c.glyphMaskDeviceSize() <= glyphMaskMaxSizeCJK {
-			if c.tryGPUGlyphMaskText(s, x, y) {
-				return
-			}
-		}
 		if c.tryGPUText(s, x, y) {
 			return
 		}
@@ -187,41 +198,8 @@ func (c *Context) drawStringMultiFace(mf *text.MultiFace, s string, x, y float64
 
 // drawStringResolved is DrawString after MultiFace resolution (no decorations/clip re-entry).
 func (c *Context) drawStringResolved(s string, x, y float64) {
-	switch c.selectTextStrategy() {
-	case TextModeGlyphMask:
-		if c.tryGPUGlyphMaskText(s, x, y) {
-			return
-		}
-		if c.tryGPUText(s, x, y) {
-			return
-		}
-		c.drawStringCPU(s, x, y)
-	case TextModeAliased:
-		if c.tryGPUGlyphMaskTextAliased(s, x, y) {
-			return
-		}
-		c.drawStringCPUAliased(s, x, y)
-	case TextModeMSDF:
-		if c.tryGPUText(s, x, y) {
-			return
-		}
-		c.drawStringCPU(s, x, y)
-	case TextModeVector:
-		c.drawStringAsOutlines(s, x, y)
-	case TextModeBitmap:
-		c.flushGPUAccelerator()
-		c.drawStringCPU(s, x, y)
-	default:
-		if c.isCJKText(s) && c.glyphMaskDeviceSize() <= glyphMaskMaxSizeCJK {
-			if c.tryGPUGlyphMaskText(s, x, y) {
-				return
-			}
-		}
-		if c.tryGPUText(s, x, y) {
-			return
-		}
-		c.drawStringCPU(s, x, y)
-	}
+	// Shared strategy dispatch — single source of truth with DrawString.
+	c.dispatchText(s, x, y)
 }
 
 // DrawShapedGlyphs renders pre-shaped glyphs through the GPU text pipeline
@@ -373,16 +351,14 @@ func (c *Context) tryGPUText(s string, x, y float64) bool {
 	return false
 }
 
-// glyphMaskMaxSize is the maximum font size (in device pixels) for which
-// the glyph mask pipeline is preferred over MSDF in TextModeAuto.
-// Above this threshold, MSDF provides better quality per atlas byte.
-const glyphMaskMaxSize = 48.0
-
-// glyphMaskMaxSizeCJK is the extended threshold for CJK text (ADR-027).
-// CJK glyphs use bitmap (Tier 6) up to 64px because MSDF at 64px reference
-// produces stroke fusion on dense characters. No production engine uses
-// MSDF for CJK body text (Skia, Vello, Flutter all use bitmap/vector).
-const glyphMaskMaxSizeCJK = 64.0
+// glyphMaskMaxSize is the maximum glyph-mask extent (device pixels) the GPU
+// atlas can serve in TextModeAuto. This is NOT a pipeline-quality threshold
+// (Skia/Flutter use DirectMask bitmaps for every axis-aligned size within the
+// glyph-atlas budget): it is the atlas page bound — a single R8 glyph mask
+// larger than the 1024px page cannot be packed. Strikes that exceed it (or
+// that fail to pack) fall back to glyph outlines (Skia PathMask semantic —
+// outlines filled as ordinary paths). MSDF is not part of auto-selection.
+const glyphMaskMaxSize = 1024.0
 
 // tryGPUGlyphMaskText attempts to render text via the GPU glyph mask pipeline
 // (Tier 6). Glyphs are CPU-rasterized at the exact device pixel size into an
@@ -428,6 +404,54 @@ func (c *Context) tryGPUGlyphMaskText(s string, x, y float64) bool {
 		return true
 	}
 	c.recordCPUFallbackReason("text:glyphmask-draw")
+	return false
+}
+
+// tryGPUTransformMask renders auto-selected vector text (rotated/sheared/
+// non-uniform CTM) through the kTransformedMask semantic: the whole string's
+// outline path — identical to the geometry the CPU Tier2 sketch path uses —
+// is handed to the GPU accelerator, which CPU-rasterizes it to an alpha mask
+// with the same Skia-AAA software filler and draws it as one textured quad.
+// The GPU output therefore matches the CPU rendering bit-exactly.
+func (c *Context) tryGPUTransformMask(s string, x, y float64) bool {
+	if !c.needsOutlineTransform() {
+		return false
+	}
+	path := c.textOutlinePath(s, x, y)
+	if path == nil {
+		return false
+	}
+	transformed := path.Transform(c.matrix)
+	devicePath := transformed
+	if !c.deviceMatrix.IsIdentity() {
+		devicePath = transformed.Transform(c.deviceMatrix)
+	}
+	if devicePath == nil || devicePath.Bounds().Empty() {
+		return false
+	}
+	target := c.gpuRenderTarget()
+	col := FromColor(c.currentColor())
+
+	if rc := c.gpuCtxOps(); rc != nil {
+		if ata, ok := rc.(GPUTransformMaskTextAccelerator); ok {
+			if ata.DrawGlyphMaskTransformText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale, devicePath) == nil {
+				c.trackTextDamage(s, x, y)
+				c.recordGPUOp()
+				return true
+			}
+		}
+	}
+	a := Accelerator()
+	if a == nil {
+		return false
+	}
+	if ata, ok := a.(GPUTransformMaskTextAccelerator); ok {
+		if ata.DrawGlyphMaskTransformText(target, c.face, s, x, y, col, c.totalMatrix(), c.deviceScale, devicePath) == nil {
+			c.trackTextDamage(s, x, y)
+			c.recordGPUOp()
+			return true
+		}
+	}
 	return false
 }
 
@@ -502,11 +526,10 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 
 // selectTextStrategy returns the effective text rendering strategy.
 //
-// When TextModeAuto, the strategy is selected based on the current
-// transformation matrix and font size:
-//   - Horizontal text (no rotation/skew) at size < 48px: GlyphMask (Tier 6)
-//     if a GPUGlyphMaskAccelerator is registered.
-//   - Everything else: falls through to TextModeAuto (MSDF -> CPU).
+// When TextModeAuto, the strategy is derived from the face + CTM alone:
+//   - rotated/sheared/non-uniform transforms → glyph outlines (kPath);
+//   - axis-aligned text within the glyph-mask size bound → glyph bitmaps;
+//   - otherwise → the default MSDF→CPU fallback.
 //
 // Explicit modes (MSDF, Vector, Bitmap, GlyphMask) are returned as-is.
 func (c *Context) selectTextStrategy() TextMode {
@@ -516,11 +539,12 @@ func (c *Context) selectTextStrategy() TextMode {
 	if c.textMode != TextModeAuto {
 		return c.textMode
 	}
-	// Transform quality gate (Skia: transformed text renders as vector paths):
-	// bitmap/SDF pipelines keep a fixed pixel range and blur when the CTM
-	// rotates, shears, or scales non-uniformly (edge transition grows with
-	// magnification). Route such text through outline paths (GPU stencil+cover
-	// or CPU Tier 2) regardless of glyph-mask/MSDF auto-selection.
+	// Transform-quality routing: rotated/sheared/non-uniform transforms render
+	// glyph outlines as paths (GPU stencil+cover / CPU Tier 2). Skia's
+	// kTransformedMask (rotated bitmap quads) is not enabled: the glyph-mask
+	// pipeline renders rotated quads incorrectly under multi-draw accumulation
+	// (observed black flooding in the 9-cell render_text_transform example) —
+	// routing into it would render falsely. Rotated text stays on outlines.
 	if c.needsOutlineTransform() {
 		return TextModeVector
 	}
@@ -531,8 +555,10 @@ func (c *Context) selectTextStrategy() TextMode {
 }
 
 // shouldUseGlyphMask returns true when auto-selection should prefer glyph
-// mask rendering (Tier 6). Conditions: GPU with glyph mask support, horizontal
-// matrix (no rotation/skew), font size in device pixels <= glyphMaskMaxSize.
+// mask rendering (Tier 6). Conditions: GPU with glyph mask support, font size
+// in device pixels <= glyphMaskMaxSize. Rotated/sheared/non-uniform matrices
+// were already routed to outlines by selectTextStrategy, so no axis check is
+// needed here.
 func (c *Context) shouldUseGlyphMask() bool {
 	a := Accelerator()
 	if a == nil {
@@ -542,30 +568,11 @@ func (c *Context) shouldUseGlyphMask() bool {
 		return false
 	}
 
-	// Check if the matrix is horizontal-only (no rotation or skew).
-	// Matrix [A B C; D E F]: B == 0 && D == 0 means no rotation/skew.
-	m := c.matrix
-	if m.B != 0 || m.D != 0 {
-		return false
-	}
-
 	if c.face == nil {
 		return false
 	}
 
 	return c.glyphMaskDeviceSize() <= glyphMaskMaxSize
-}
-
-// isCJKText reports whether s contains any CJK character (ADR-027).
-// Mixed strings such as "12px: 中文" must still prefer the CJK bitmap path;
-// checking only the first rune misroutes Latin-prefixed body text to MSDF.
-func (c *Context) isCJKText(s string) bool {
-	for _, r := range s {
-		if text.IsCJKRune(r) {
-			return true
-		}
-	}
-	return false
 }
 
 // glyphMaskDeviceSize returns the effective font size in device pixels,

@@ -249,6 +249,26 @@ type GPUShapedTextAccelerator interface {
 	DrawShapedGlyphMaskText(target GPURenderTarget, face any, glyphs []text.ShapedGlyph, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 }
 
+// GPUTransformMaskTextAccelerator is an optional interface for accelerators
+// that render transformed (rotated/sheared/non-uniform) text with the
+// kTransformedMask semantic: the whole string's outline — already converted
+// to device space by the caller — is CPU-rasterized into an alpha mask by the
+// same Skia-AAA software filler the CPU Tier2 outline path uses, uploaded to
+// the glyph-mask atlas, and drawn as a single textured quad.
+//
+// Because the mask is produced by the same rasterizer from the same geometry
+// as the CPU path, the GPU output matches the CPU rendering bit-exactly (the
+// vector-outline cover pass cannot reproduce Skia's scanline trapezoid
+// accumulation on densely overlapping edges).
+type GPUTransformMaskTextAccelerator interface {
+	// DrawGlyphMaskTransformText draws transformed text. devicePath is the
+	// whole-string outline in device (pixel) space — identical to the
+	// geometry the CPU Tier2 software fill consumes. color is the text color,
+	// matrix the context CTM (kept for atlas-key stability/merging). Returns
+	// ErrFallbackToCPU when the mask path is unavailable.
+	DrawGlyphMaskTransformText(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64, devicePath *Path) error
+}
+
 var (
 	accelMu sync.RWMutex
 	accel   GPUAccelerator

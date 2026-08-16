@@ -165,6 +165,24 @@ func (c *ttHintCache) hintedAdvanceWidth(glyphID uint16, ppem int32) (float64, b
 	return float64(advance26dot6) / 64.0, true
 }
 
+// HintedAdvanceWidth returns the TT-bytecode hinted advance for gid at ppem
+// in pixels — the exact value CPU drawGlyphs uses for positioning (same
+// ttHintCache, same int-truncated ppem). Returns 0, false when TT hinting is
+// unavailable for the font or the glyph, in which case callers fall back to
+// the raw hmtx advance. GPU glyph-mask layout uses this so scaled/transformed
+// CTM placement matches CPU text.Draw's snapPen grid bit-exactly.
+func HintedAdvanceWidth(parsed ParsedFont, gid GlyphID, ppem float64) (float64, bool) {
+	own, ok := parsed.(*ownParsedFont)
+	if !ok {
+		return 0, false
+	}
+	c := own.loadTTHintCache()
+	if c == nil {
+		return 0, false
+	}
+	return c.hintedAdvanceWidth(uint16(gid), int32(ppem))
+}
+
 // hintGlyphOutlineVar loads, applies gvar deltas, hints, and returns the
 // glyph outline for variable fonts. This is the variable-font counterpart
 // of hintGlyphOutline — it applies gvar deltas to unscaled points BEFORE

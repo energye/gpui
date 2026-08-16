@@ -171,7 +171,15 @@ func FromOutline(outline *text.GlyphOutline) *Shape {
 			}
 			// Skip degenerate lines
 			if endPoint.Sub(currentPos).LengthSquared() > 1e-12 {
-				edge := NewLinearEdge(currentPos, endPoint)
+				// Edges are built reversed (end → start) so the cross-product
+				// sign convention in SignedDistance (positive = left of the
+				// edge = inside for a CCW outer contour) matches the font
+				// outline orientation. Font outlines are extracted in
+				// FreeType's y-down space, where outer contours wind
+				// clockwise; without this reversal every outside pixel in the
+				// vertical padding band is classified as inside, producing a
+				// solid black box around large glyphs (e.g. 72px CJK MSDF).
+				edge := NewLinearEdge(endPoint, currentPos)
 				currentContour.AddEdge(edge)
 			}
 			currentPos = endPoint
@@ -188,7 +196,9 @@ func FromOutline(outline *text.GlyphOutline) *Shape {
 				X: float64(seg.Points[1].X),
 				Y: float64(seg.Points[1].Y),
 			}
-			edge := NewQuadraticEdge(currentPos, controlPoint, endPoint)
+			// Reversed as with LineTo (quadratic control point is unchanged
+			// when traversing the curve backwards).
+			edge := NewQuadraticEdge(endPoint, controlPoint, currentPos)
 			currentContour.AddEdge(edge)
 			currentPos = endPoint
 
@@ -208,7 +218,8 @@ func FromOutline(outline *text.GlyphOutline) *Shape {
 				X: float64(seg.Points[2].X),
 				Y: float64(seg.Points[2].Y),
 			}
-			edge := NewCubicEdge(currentPos, control1, control2, endPoint)
+			// Reversed as with LineTo; cubic control points swap on reversal.
+			edge := NewCubicEdge(endPoint, control2, control1, currentPos)
 			currentContour.AddEdge(edge)
 			currentPos = endPoint
 		}

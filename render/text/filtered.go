@@ -152,6 +152,10 @@ func (f *FilteredFace) Variations() []FontVariation {
 }
 
 // private implements the Face interface.
+func (f *FilteredFace) Hinting() Hinting {
+	return f.face.Hinting()
+}
+
 func (f *FilteredFace) private() {}
 
 // inRanges reports whether the rune is in any of the allowed ranges.

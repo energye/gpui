@@ -113,15 +113,15 @@ func TestG1a_VirtualList_ShapeAndAtlasBounded(t *testing.T) {
 					continue
 				}
 				key := MakeGlyphMaskKey(fontID, g.GID, ppem, 0, 0)
-				_, err := atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, error) {
+				_, err := atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, float32, error) {
 					res, rerr := rast.Rasterize(parsed, g.GID, ppem, 0, 0)
 					if rerr != nil {
-						return nil, 0, 0, 0, 0, rerr
+						return nil, 0, 0, 0, 0, 0, rerr
 					}
 					if res == nil {
-						return nil, 0, 0, 0, 0, nil
+						return nil, 0, 0, 0, 0, 0, nil
 					}
-					return res.Mask, res.Width, res.Height, res.BearingX, res.BearingY, nil
+					return res.Mask, res.Width, res.Height, res.BearingX, res.BearingY, res.Advance, nil
 				})
 				if err != nil {
 					t.Fatalf("atlas put: %v", err)

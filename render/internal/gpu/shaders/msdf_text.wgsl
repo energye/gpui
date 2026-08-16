@@ -147,7 +147,7 @@ fn sampleSD(uv: vec2<f32>) -> f32 {
 // ============================================================================
 
 // fs_main: Sample MSDF atlas and compute anti-aliased alpha.
-// Uses 2x2 supersampling of the signed distance for smoother edges.
+// Single SDF sample with fwidth-based AA (msdfgen reference / skia).
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Standard MSDF screenPxRange calculation (Chlumsky/msdfgen reference).
@@ -165,15 +165,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // the range would otherwise collapse below usable threshold.
     let screen_px_range = max(0.5 * dot(unit_range, screen_tex_size), 1.5);
 
-    // 2x2 supersampling of the signed distance.
-    // Offsets are ±0.25 texel in screen space via fwidth, giving a rotated
-    // grid pattern that smooths sub-pixel aliasing at small font sizes.
-    let offset = fwidth(in.tex_coord) * 0.25;
-    let sd0 = sampleSD(in.tex_coord + vec2<f32>(-offset.x, -offset.y));
-    let sd1 = sampleSD(in.tex_coord + vec2<f32>( offset.x, -offset.y));
-    let sd2 = sampleSD(in.tex_coord + vec2<f32>(-offset.x,  offset.y));
-    let sd3 = sampleSD(in.tex_coord + vec2<f32>( offset.x,  offset.y));
-    let sd = (sd0 + sd1 + sd2 + sd3) * 0.25;
+    // Single SDF sample: the transition band width is 1/screenPxRange,
+    // the msdfgen reference behavior. No supersampling — that widened the
+    // band and diverged from skia/msdfgen edge rendering.
+    let sd = sampleSD(in.tex_coord);
 
     // Stem darkening: counteract gamma-induced thinning at small sizes.
     // Adds a small positive bias that fades to zero at large screenPxRange.

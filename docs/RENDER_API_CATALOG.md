@@ -191,7 +191,7 @@
 | `SDFFilledCircleCoverage/SDFCircleCoverage/SDFFilledRRectCoverage/SDFRRectCoverage` | SDF 覆盖率函数（像素点→形状内覆盖率，填/描边） | SDF 覆盖率 | 🔗（CPU SDF/测试） |
 | `SDFAccelerator`（无构造器 `&render.SDFAccelerator{}`） | 独立注册的 CPU SDF 加速器（形状快速填充） | CPU SDF 加速 | 🧪 生产仅作为 GPU 加速器内部 cpuFallback |
 | `GPUAccelerator` 接口 + `Accelerator()/RegisterAccelerator/CloseAccelerator/SetAcceleratorDeviceProvider/PurgeAcceleratorSurfaceResources/AbandonAcceleratorDevice/AcceleratorCanRenderDirect/BeginAcceleratorFrame` | GPU 加速器注册/取回/关闭、设备提供者注入、表面资源清理、设备放弃、可直渲判定、帧开始 | GPU 加速管理 | ✅（gpu 包注册，全部真窗在用） |
-| 加速器能力接口群：`DeviceProviderAware/GPURenderContextProvider/FrameAware/MSAAAware/GPUTextAccelerator/GPUGlyphMaskAccelerator/GPUAliasedTextAccelerator/GPUShapedTextAccelerator/DirectRenderCapable/AdapterAware/ComputePipelineAware/PipelineModeAware/ForceSDFAware/ClipAware/RRectClipAware/PathClipAware/LCDLayoutAware/MaskAware/SceneStatsTracker` | 加速器可探测/可选择性实现的各项能力接口（宿主据此选路径） | 能力探测接口 | 🔗 |
+| 加速器能力接口群：`DeviceProviderAware/GPURenderContextProvider/FrameAware/MSAAAware/GPUTextAccelerator/GPUGlyphMaskAccelerator/GPUAliasedTextAccelerator/GPUShapedTextAccelerator/GPUTransformMaskTextAccelerator/DirectRenderCapable/AdapterAware/ComputePipelineAware/PipelineModeAware/ForceSDFAware/ClipAware/RRectClipAware/PathClipAware/LCDLayoutAware/MaskAware/SceneStatsTracker` | 加速器可探测/可选择性实现的各项能力接口（宿主据此选路径） | 能力探测接口 | 🔗 |
 | `AcceleratedOp`（Fill/Stroke/Scene/Text/Image/Gradient/CircleSDF/RRectSDF） | 加速操作位标记（加速器声明支持哪些 op） | 加速操作位 | 🔗 |
 | `CoverageFiller` + `RegisterCoverageFiller/GetCoverageFiller` + `ForceableFiller`（SparseFiller/ComputeFiller） | 覆盖率填充器接口与注册；AdaptiveFiller（4x4/16x16 tile）在此注册 | 覆盖率填充器 | ✅ |
 | `RasterizerMode`（Auto/Analytic/SparseStrips/TileCompute/SDF） | CPU 栅格化算法选择 | CPU 栅格化模式 | ✅ |

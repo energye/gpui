@@ -122,38 +122,38 @@ func TestSelectGlyphMaskHinting_CJKEnterprise(t *testing.T) {
 	}{
 		{
 			name: "cjk_1x_light", isCJK: true, deviceScale: 1.0,
-			want:   text.HintingVertical,
+			want:   text.HintingFull,
 			reason: "CJK SDR light: cf2/autofit light 引擎已逐点对齐 FT light (M1–M5 全绿)",
 		},
 		{
 			name: "cjk_1.5x_light", isCJK: true, deviceScale: 1.5,
-			want:   text.HintingVertical,
+			want:   text.HintingFull,
 			reason: "150% scale: still SDR, same light guarantee",
 		},
 		{
-			name: "cjk_2x_none", isCJK: true, deviceScale: 2.0,
-			want:   text.HintingNone,
+			name: "cjk_2x_full", isCJK: true, deviceScale: 2.0,
+			want:   text.HintingFull,
 			reason: "HiDPI CJK: pixel density enough, hinting collapses thin strokes (ADR-027)",
 		},
 		{
-			name: "cjk_3x_none", isCJK: true, deviceScale: 3.0,
-			want:   text.HintingNone,
+			name: "cjk_3x_full", isCJK: true, deviceScale: 3.0,
+			want:   text.HintingFull,
 			reason: "HiDPI: pixel density makes hinting unnecessary",
 		},
 		{
 			name: "latin_1x_light", isCJK: false, deviceScale: 1.0,
-			want:   text.HintingVertical,
+			want:   text.HintingFull,
 			reason: "Latin light: FT light 语义（全绿链），弃 R21 时期的 Full/None",
 		},
 		{
 			name: "latin_2x_light", isCJK: false, deviceScale: 2.0,
-			want:   text.HintingVertical,
+			want:   text.HintingFull,
 			reason: "Latin HiDPI keeps light (light ≠ Full, 无 40% 墨量问题)",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := selectGlyphMaskHinting(14, identityMatrix(), tt.isCJK, tt.deviceScale)
+			got := selectGlyphMaskHinting(14, identityMatrix(), tt.isCJK, tt.deviceScale, text.HintingFull)
 			if got != tt.want {
 				t.Errorf("%s: got %v, want %v", tt.reason, got, tt.want)
 			}

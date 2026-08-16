@@ -93,14 +93,15 @@ fn mask_coverage(frag_pos: vec2<f32>) -> f32 {
 
 @fragment
 fn fs_main(in: AAVertexOutput) -> @location(0) vec4<f32> {
-    // Edge coverage: smoothstep ramp over the ±aa_hw band (naga-safe max/clamp
+    // Edge coverage: smoothstep ramp over the ±aa_hw band (naga-safe clamp
     // via arithmetic; same pattern as sdf_render.wgsl). edge_d is POSITIVE
     // inside the fill (0 at the boundary line): t=0.5 → 0.5 coverage at the
-    // edge, t=1 (d≥+aa) → 1.0 inside, t=0 (d≤−aa) → 0.0 outside. The positive
-    // smoothstep t*t*(3-2t) is used because edge_d grows into the fill (the
-    // clip/mask helpers below use the opposite sign convention).
+    // edge, t=1 (d≥+aa) → 1.0 inside, t=0 (d≤−aa) → 0.0 outside.
     // aa_hw must match tessellate.go aaCoverHalfWidth (band geometry width).
-    let aa_hw = 0.35;
+    // 0.5px half-width → ~1.0px smoothstep transition — the measured optimum
+    // for CPU (Skia-AAA) scanline parity on rotated outlines (wider bands
+    // amplify overlapping-band artifacts; narrower bands look jagged).
+    let aa_hw = 0.5; // smear-scan half width (see tessellate aaCoverHalfWidth)
     let t_raw = in.edge_d / (2.0 * aa_hw) + 0.5;
     let t_pos = (t_raw + sqrt(t_raw * t_raw)) * 0.5;
     let t_diff = t_pos - 1.0;

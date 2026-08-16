@@ -1888,6 +1888,10 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	if rc.shared.device == nil {
 		if err := rc.shared.ensureGPU(); err != nil {
 			rc.shared.mu.Unlock()
+			// A flush attempt consumes the frame's counters: the caller
+			// falls back to CPU and the next GPU frame must start from
+			// zero, otherwise stats double-count paths across the failure.
+			rc.sceneStats = render.SceneStats{}
 			slogger().Warn("GPU init failed, using CPU fallback", "err", err)
 			return render.ErrFallbackToCPU
 		}
@@ -2017,8 +2021,8 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 
 	// Propagate shared atlas texture to this session (may differ from session's own).
 	// This ensures offscreen sessions see the atlas even if they didn't sync it.
-	if rc.shared.sharedAtlasView != nil {
-		rc.session.SetTextAtlasRef(rc.shared.sharedAtlasTex, rc.shared.sharedAtlasView)
+	if len(rc.shared.msdfAtlasViews) > 0 {
+		rc.session.SetTextAtlasPages(rc.shared.msdfAtlasViews)
 	}
 
 	// Propagate glyph mask atlas page views for offscreen sessions.
@@ -3230,29 +3234,40 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 
 		atlasSize := uint32(size) //nolint:gosec // atlas size always fits uint32
 
-		tex, err := s.device.CreateTexture(&webgpu.TextureDescriptor{
-			Label:         fmt.Sprintf("msdf_atlas_%d", idx),
-			Size:          webgpu.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
-			MipLevelCount: 1,
-			SampleCount:   1,
-			Dimension:     types.TextureDimension2D,
-			Format:        types.TextureFormatRGBA8Unorm,
-			Usage:         types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
-		})
-		if err != nil {
-			return fmt.Errorf("create atlas texture %d: %w", idx, err)
-		}
+		// Persistent per-page texture: create once, then update data on the
+		// same handle. Each page (Latin 0.., CJK cjkAtlasOffset..) keeps its
+		// own texture so MSDF batches bind the page matching their
+		// AtlasIndex — a single shared view was overwritten by the last
+		// uploaded page and shadowed the other script's text.
+		tex := s.msdfAtlasTexes[idx]
+		if tex == nil {
+			var err error
+			tex, err = s.device.CreateTexture(&webgpu.TextureDescriptor{
+				Label:         fmt.Sprintf("msdf_atlas_%d", idx),
+				Size:          webgpu.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
+				MipLevelCount: 1,
+				SampleCount:   1,
+				Dimension:     types.TextureDimension2D,
+				Format:        types.TextureFormatRGBA8Unorm,
+				Usage:         types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+			})
+			if err != nil {
+				return fmt.Errorf("create atlas texture %d: %w", idx, err)
+			}
 
-		view, err := s.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
-			Label:         fmt.Sprintf("msdf_atlas_%d_view", idx),
-			Format:        types.TextureFormatRGBA8Unorm,
-			Dimension:     types.TextureViewDimension2D,
-			Aspect:        types.TextureAspectAll,
-			MipLevelCount: 1,
-		})
-		if err != nil {
-			tex.Release()
-			return fmt.Errorf("create atlas texture view %d: %w", idx, err)
+			view, err := s.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+				Label:         fmt.Sprintf("msdf_atlas_%d_view", idx),
+				Format:        types.TextureFormatRGBA8Unorm,
+				Dimension:     types.TextureViewDimension2D,
+				Aspect:        types.TextureAspectAll,
+				MipLevelCount: 1,
+			})
+			if err != nil {
+				tex.Release()
+				return fmt.Errorf("create atlas texture view %d: %w", idx, err)
+			}
+			s.msdfAtlasTexes[idx] = tex
+			s.msdfAtlasViews[idx] = view
 		}
 
 		if err := s.queue.WriteTexture(
@@ -3265,19 +3280,9 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 			},
 			&webgpu.Extent3D{Width: atlasSize, Height: atlasSize, DepthOrArrayLayers: 1},
 		); err != nil {
-			tex.Release()
 			return fmt.Errorf("upload atlas texture %d: %w", idx, err)
 		}
 
-		// Store atlas in GPUShared (shared across all contexts).
-		if s.sharedAtlasView != nil {
-			s.sharedAtlasView.Release()
-		}
-		if s.sharedAtlasTex != nil {
-			s.sharedAtlasTex.Release()
-		}
-		s.sharedAtlasTex = tex
-		s.sharedAtlasView = view
 		s.textEngine.MarkClean(idx)
 	}
 	return nil

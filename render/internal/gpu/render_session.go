@@ -481,9 +481,10 @@ type GPURenderSession struct {
 	// Per-batch uniform buffers and bind groups (pool, grows as needed).
 	textUniformBufs []*webgpu.Buffer
 	textBindGroups  []*webgpu.BindGroup
-	// Atlas texture and view for current frame's text rendering.
-	textAtlasTex  *webgpu.Texture
-	textAtlasView *webgpu.TextureView
+	// MSDF atlas page views keyed by atlas index. Non-owning references —
+	// textures are owned by GPUShared and shared across sessions; each batch
+	// binds the page matching its AtlasIndex.
+	textAtlasViews map[int]*webgpu.TextureView
 	// CPU staging reuse (dynamic HUD rewrites verts every frame).
 	textQuadScratch      []TextQuad
 	textVertStaging      []byte
@@ -1974,8 +1975,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	}
 	// Atlas textures are owned by GPUShared (shared across sessions).
 	// Just clear refs, don't Release.
-	s.textAtlasView = nil
-	s.textAtlasTex = nil
+	s.textAtlasViews = nil
 	// Tier 6: Glyph mask text per-batch pools.
 	for i, bg := range s.glyphMaskBindGroups {
 		if bg != nil {
@@ -2998,9 +2998,9 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 		return nil, nil //nolint:nilnil // empty batch list is a valid no-op, not an error
 	}
 
-	// The bind group requires an atlas texture view.
-	if s.textAtlasView == nil {
-		slogger().Warn("text atlas view is nil, skipping text rendering")
+	// The bind group requires at least one atlas texture view.
+	if len(s.textAtlasViews) == 0 {
+		slogger().Warn("text atlas views are empty, skipping text rendering")
 		return nil, nil //nolint:nilnil // no atlas uploaded yet
 	}
 
@@ -3111,14 +3111,26 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 			return nil, fmt.Errorf("write text uniform[%d]: %w", i, err)
 		}
 
-		// Ensure bind group exists for this batch.
+		// Ensure bind group exists for this batch. The batch binds the
+		// atlas page matching its AtlasIndex; fall back to the first
+		// uploaded page if that index hasn't synced yet.
 		if s.textBindGroups[i] == nil {
+			view := s.textAtlasViews[batch.AtlasIndex]
+			if view == nil {
+				for _, v := range s.textAtlasViews {
+					view = v
+					break
+				}
+			}
+			if view == nil {
+				return nil, nil //nolint:nilnil // atlas map emptied concurrently
+			}
 			bg, err := s.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
 				Label:  fmt.Sprintf("session_text_bind_%d", i),
 				Layout: s.textPipeline.uniformLayout,
 				Entries: []webgpu.BindGroupEntry{
 					{Binding: 0, Buffer: s.textUniformBufs[i], Offset: 0, Size: textUniformSize},
-					{Binding: 1, TextureView: s.textAtlasView},
+					{Binding: 1, TextureView: view},
 					{Binding: 2, Sampler: s.textPipeline.sampler},
 				},
 			})
@@ -3176,43 +3188,38 @@ func (s *GPURenderSession) invalidateTextBindGroups() {
 	}
 }
 
-// SetTextAtlas sets the atlas texture and view for MSDF text rendering.
-// The session takes ownership of both the texture and view and will destroy
-// them when the session is destroyed or when a new atlas is set.
+// SetTextAtlasPages updates the MSDF atlas page views for this session.
+// Pages are non-owning references — textures are owned by GPUShared and
+// shared across sessions. Bind groups are invalidated only when the page
+// set actually changes: each page keeps a persistent texture, so the view
+// identity is stable across data uploads.
 //
 // Call this after uploading atlas data to the GPU (e.g., from
-// TextRenderer.SyncAtlases). The atlas view is used in the text bind group.
-func (s *GPURenderSession) SetTextAtlas(tex *webgpu.Texture, view *webgpu.TextureView) {
-	// Atlas textures now owned by GPUShared — don't Release old refs here.
-	s.textAtlasTex = tex
-	s.textAtlasView = view
+// GPURenderContext.syncTextAtlases).
+func (s *GPURenderSession) SetTextAtlasPages(views map[int]*webgpu.TextureView) {
+	if sameTextAtlasViews(s.textAtlasViews, views) {
+		return
+	}
+	s.textAtlasViews = views
 	s.invalidateTextBindGroups()
 }
 
-// SetTextAtlasRef sets the atlas texture view as a non-owning reference.
-// Unlike SetTextAtlas, this does NOT take ownership — the texture is owned
-// by GPUShared and shared across all sessions.
-func (s *GPURenderSession) SetTextAtlasRef(tex *webgpu.Texture, view *webgpu.TextureView) {
-	if s.textAtlasView == view {
-		return // already set
+func sameTextAtlasViews(a, b map[int]*webgpu.TextureView) bool {
+	if len(a) != len(b) {
+		return false
 	}
-	// Don't release old — it may be owned by GPUShared too.
-	// Only release if this session created its own (non-shared) atlas.
-	s.textAtlasTex = tex
-	s.textAtlasView = view
-	s.invalidateTextBindGroups()
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // TextPipelineRef returns the MSDF text pipeline. It is lazily created by
 // ensurePipelines, so may be nil before RenderFrame is called.
 func (s *GPURenderSession) TextPipelineRef() *MSDFTextPipeline {
 	return s.textPipeline
-}
-
-// TextAtlasView returns the current text atlas texture view, or nil if no
-// atlas has been uploaded yet.
-func (s *GPURenderSession) TextAtlasView() *webgpu.TextureView {
-	return s.textAtlasView
 }
 
 // SetTextPipeline sets an external MSDF text pipeline for the session to use.

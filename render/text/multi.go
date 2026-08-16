@@ -225,6 +225,13 @@ func (m *MultiFace) Variations() []FontVariation {
 }
 
 // private implements the Face interface.
+func (m *MultiFace) Hinting() Hinting {
+	if m == nil || len(m.faces) == 0 {
+		return HintingNone
+	}
+	return m.faces[0].Hinting()
+}
+
 func (m *MultiFace) private() {}
 
 // faceForRune returns the first face that has the glyph for the rune.

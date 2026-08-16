@@ -56,6 +56,13 @@ type GlyphMaskResult struct {
 	// BearingY is the vertical offset from the baseline to the top edge
 	// of the mask bounding box, in pixels. Positive = above baseline.
 	BearingY float32
+
+	// Advance is the glyph advance width in pixels, taken from the outline
+	// used for rasterization. With hinting active this is the HINTED advance
+	// (CPU text.Draw lays glyphs out with it), so the GPU glyph-mask layout
+	// can place glyphs at exactly the same x positions as the CPU bitmap.
+	// Unhinted outlines report the raw hmtx advance.
+	Advance float32
 }
 
 // RasterizeHintedFT26 renders a glyph through the FT-aligned rasterizer
@@ -342,6 +349,7 @@ func (r *GlyphMaskRasterizer) rasterizeOutlineCore(
 		Height:   maskH,
 		BearingX: bearingX,
 		BearingY: bearingY,
+		Advance:  float32(outline.Advance),
 	}, nil
 }
 

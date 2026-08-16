@@ -206,28 +206,36 @@ func TestSelectGlyphMaskHinting(t *testing.T) {
 		matrix      render.Matrix
 		isCJK       bool
 		deviceScale float64
+		faceHinting text.Hinting
 		want        text.Hinting
 	}{
 		{
 			name: "latin_small_identity", fontSize: 12, matrix: render.Identity(),
-			want: text.HintingVertical,
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
 		{
 			name: "latin_small_translation", fontSize: 16,
-			matrix: render.Matrix{A: 1, B: 0, C: 50, D: 0, E: 1, F: 30},
-			want:   text.HintingVertical,
+			matrix:      render.Matrix{A: 1, B: 0, C: 50, D: 0, E: 1, F: 30},
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
 		{
 			name: "latin_threshold_48px", fontSize: 48, matrix: render.Identity(),
-			want: text.HintingVertical,
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
+		// 大字号仍保留 light hinting（CPU text.Draw 同光栅化，避免
+		// 无 hinting GPU mask 斜边过渡与 CPU 不一致导致发虚）
 		{
 			name: "latin_above_threshold", fontSize: 49, matrix: render.Identity(),
-			want: text.HintingNone,
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
 		{
 			name: "latin_large_72px", fontSize: 72, matrix: render.Identity(),
-			want: text.HintingNone,
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
 		{
 			name: "rotated_small", fontSize: 12,
@@ -241,25 +249,31 @@ func TestSelectGlyphMaskHinting(t *testing.T) {
 		},
 		{
 			name: "latin_uniform_scale", fontSize: 12,
-			matrix: render.Matrix{A: 2, B: 0, C: 0, D: 0, E: 2, F: 0},
-			want:   text.HintingVertical,
+			matrix:      render.Matrix{A: 2, B: 0, C: 0, D: 0, E: 2, F: 0},
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
 		// ADR-027: CJK script-aware hinting（light 引擎全绿后，SDR 走
-		// HintingVertical=FT light；HiDPI 保持 None）
+		// HintingFull=FT light；HiDPI 保持 None）
 		{
 			name: "cjk_small_1x_light", fontSize: 14, matrix: render.Identity(),
 			isCJK: true, deviceScale: 1.0,
-			want: text.HintingVertical,
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
 		{
-			name: "cjk_small_2x_none", fontSize: 14, matrix: render.Identity(),
+			name: "cjk_small_2x_full", fontSize: 14, matrix: render.Identity(),
 			isCJK: true, deviceScale: 2.0,
-			want: text.HintingNone,
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
+		// 大字号保留 light hinting（CPU text.Draw 同光栅化；无 hinting 的
+		// GPU mask 斜边过渡与 CPU 不一致，64/72px 显示文本发虚）
 		{
-			name: "cjk_large_none", fontSize: 72, matrix: render.Identity(),
+			name: "cjk_large_light", fontSize: 72, matrix: render.Identity(),
 			isCJK: true, deviceScale: 1.0,
-			want: text.HintingNone,
+			faceHinting: text.HintingFull,
+			want:        text.HintingFull,
 		},
 		{
 			name: "cjk_rotated_none", fontSize: 14,
@@ -275,7 +289,7 @@ func TestSelectGlyphMaskHinting(t *testing.T) {
 			if ds == 0 {
 				ds = 1.0
 			}
-			got := selectGlyphMaskHinting(tt.fontSize, tt.matrix, tt.isCJK, ds)
+			got := selectGlyphMaskHinting(tt.fontSize, tt.matrix, tt.isCJK, ds, tt.faceHinting)
 			if got != tt.want {
 				t.Errorf("selectGlyphMaskHinting(%v, %v, cjk=%v, scale=%v) = %v, want %v",
 					tt.fontSize, tt.matrix, tt.isCJK, ds, got, tt.want)

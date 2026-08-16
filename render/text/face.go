@@ -52,6 +52,13 @@ type Face interface {
 	// Returns nil for faces created without variations.
 	Variations() []FontVariation
 
+	// Hinting returns the hinting mode configured for this face (set via
+	// [WithHinting], default HintingFull). Both the CPU text.Draw path and the
+	// GPU glyph-mask rasterizer consume the SAME face hinting so their masks
+	// are pixel-identical — Skia's single glyph-cache semantic where CPU and
+	// GPU text share one strikemaker configuration.
+	Hinting() Hinting
+
 	// private prevents external implementation
 	private()
 }
@@ -294,4 +301,14 @@ func (f *sourceFace) Variations() []FontVariation {
 }
 
 // private implements the Face interface.
+// Hinting returns the face's configured hinting mode (WithHinting, default
+// HintingFull) — the single source consumed by both CPU text.Draw and the
+// GPU glyph-mask rasterizer.
+func (f *sourceFace) Hinting() Hinting {
+	if f == nil {
+		return HintingNone
+	}
+	return f.config.hinting
+}
+
 func (f *sourceFace) private() {}

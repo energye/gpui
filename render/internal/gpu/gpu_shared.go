@@ -87,10 +87,14 @@ type GPUShared struct {
 	textEngine      *GPUTextEngine   // MSDF atlas (Tier 4)
 	glyphMaskEngine *GlyphMaskEngine // R8 alpha atlas (Tier 6)
 
-	// Shared atlas GPU textures (owned by GPUShared, NOT per-session).
-	// All contexts reference these — prevents stale atlas in offscreen sessions.
-	sharedAtlasTex  *webgpu.Texture
-	sharedAtlasView *webgpu.TextureView
+	// Per-atlas-index GPU textures for the MSDF atlas pages (owned by
+	// GPUShared, NOT per-session). All contexts reference these so offscreen
+	// sessions never see a stale atlas; each TextBatch binds the page that
+	// matches its AtlasIndex (Latin 0.., CJK cjkAtlasOffset..) instead of a
+	// single shared view — a single view meant the last-uploaded page
+	// shadowed all others when Latin and CJK text shared a frame.
+	msdfAtlasTexes  map[int]*webgpu.Texture
+	msdfAtlasViews  map[int]*webgpu.TextureView
 
 	// Compute pipeline.
 	velloAccel *VelloAccelerator
@@ -156,8 +160,10 @@ type GPUShared struct {
 // DX12/Metal device.
 func NewGPUShared() *GPUShared {
 	return &GPUShared{
-		texturePool: NewTexturePool(defaultTexturePoolBudgetMB),
-		liveCtxs:    make(map[*GPURenderContext]struct{}),
+		texturePool:   NewTexturePool(defaultTexturePoolBudgetMB),
+		liveCtxs:      make(map[*GPURenderContext]struct{}),
+		msdfAtlasTexes: make(map[int]*webgpu.Texture),
+		msdfAtlasViews: make(map[int]*webgpu.TextureView),
 	}
 }
 
@@ -442,14 +448,14 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 	}
 
 	s.textEngine = nil
-	if s.sharedAtlasView != nil {
-		s.sharedAtlasView.Release()
-		s.sharedAtlasView = nil
+	for _, v := range s.msdfAtlasViews {
+		v.Release()
 	}
-	if s.sharedAtlasTex != nil {
-		s.sharedAtlasTex.Release()
-		s.sharedAtlasTex = nil
+	for _, t := range s.msdfAtlasTexes {
+		t.Release()
 	}
+	s.msdfAtlasViews = nil
+	s.msdfAtlasTexes = nil
 	if s.glyphMaskEngine != nil {
 		if s.device != nil {
 			s.glyphMaskEngine.Destroy(s.device)

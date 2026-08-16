@@ -136,6 +136,12 @@ type GlyphMaskRegion struct {
 	// mask, in pixels. Positive = above baseline (standard glyph rendering).
 	BearingY float32
 
+	// Advance is the glyph advance width (device pixels) of the rasterized
+	// outline — the HINTED advance when hinting is active. The GPU glyph-mask
+	// layout uses it to advance the pen exactly like CPU text.Draw, keeping
+	// glyph x-positions identical between GPU and CPU rendering.
+	Advance float32
+
 	// UV coordinates [0, 1] for texture sampling.
 	// Inset by 0.5 texels to prevent bilinear bleed.
 	U0, V0, U1, V1 float32
@@ -549,75 +555,15 @@ func (a *GlyphMaskAtlas) TouchPage(index int) {
 // Put stores a rasterized glyph mask in the atlas.
 // The mask is an R8 alpha buffer of dimensions (maskW x maskH).
 // BearingX/BearingY are the glyph positioning offsets from the origin.
+// Advance is the (hinted) glyph advance width used for GPU pen placement.
 //
 // Returns the region where the mask was stored, or an error if the atlas is full.
-func (a *GlyphMaskAtlas) Put(key GlyphMaskKey, mask []byte, maskW, maskH int, bearingX, bearingY float32) (GlyphMaskRegion, error) {
+func (a *GlyphMaskAtlas) Put(key GlyphMaskKey, mask []byte, maskW, maskH int, bearingX, bearingY, advance float32) (GlyphMaskRegion, error) {
 	if maskW <= 0 || maskH <= 0 || len(mask) < maskW*maskH {
 		return GlyphMaskRegion{}, errors.New("text: invalid glyph mask dimensions")
 	}
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// Check if already cached (race with concurrent Put)
-	if entry, ok := a.lookup[key]; ok {
-		entry.lastAccessFrame = a.currentFrame.Load()
-		a.moveToFront(entry)
-		return entry.region, nil
-	}
-
-	// Evict LRU entries if at capacity
-	for len(a.lookup) >= a.config.MaxEntries {
-		a.evictTail()
-	}
-
-	// Find or create a page with space
-	page, err := a.findOrCreatePage(maskW, maskH)
-	if err != nil {
-		return GlyphMaskRegion{}, err
-	}
-
-	// Allocate space in the page
-	x, y, ok := page.allocator.Allocate(maskW, maskH)
-	if !ok {
-		return GlyphMaskRegion{}, fmt.Errorf("text: failed to allocate %dx%d glyph mask in atlas page %d", maskW, maskH, page.index)
-	}
-
-	// Copy mask data into the page
-	page.copyMask(mask, maskW, maskH, x, y)
-
-	frame := a.currentFrame.Load()
-	page.lastUsedFrame = frame
-	page.entryCount++
-
-	// Compute UV coordinates with half-texel inset
-	atlasSize := float32(a.config.Size)
-	halfTexel := float32(0.5) / atlasSize
-
-	region := GlyphMaskRegion{
-		AtlasIndex: page.index,
-		X:          x,
-		Y:          y,
-		Width:      maskW,
-		Height:     maskH,
-		BearingX:   bearingX,
-		BearingY:   bearingY,
-		U0:         float32(x)/atlasSize + halfTexel,
-		V0:         float32(y)/atlasSize + halfTexel,
-		U1:         float32(x+maskW)/atlasSize - halfTexel,
-		V1:         float32(y+maskH)/atlasSize - halfTexel,
-	}
-
-	// Create cache entry and add to LRU
-	entry := &glyphMaskEntry{
-		key:             key,
-		region:          region,
-		lastAccessFrame: frame,
-	}
-	a.lookup[key] = entry
-	a.addToFront(entry)
-
-	return region, nil
+	return a.store(key, mask, maskW, maskH, bearingX, bearingY, advance, false)
 }
 
 // PutLCD stores an LCD (ClearType) glyph mask in the atlas. The mask contains
@@ -627,12 +573,20 @@ func (a *GlyphMaskAtlas) Put(key GlyphMaskKey, mask []byte, maskW, maskH int, be
 //
 // The caller must convert the RGB triplets to row-major R8 data before calling:
 // for each row, the 3*logicalW bytes are stored sequentially in the atlas.
-func (a *GlyphMaskAtlas) PutLCD(key GlyphMaskKey, rgbMask []byte, logicalW, maskH int, bearingX, bearingY float32) (GlyphMaskRegion, error) {
+func (a *GlyphMaskAtlas) PutLCD(key GlyphMaskKey, rgbMask []byte, logicalW, maskH int, bearingX, bearingY, advance float32) (GlyphMaskRegion, error) {
 	atlasW := logicalW * 3 // width in R8 texels
 	if logicalW <= 0 || maskH <= 0 || len(rgbMask) < atlasW*maskH {
 		return GlyphMaskRegion{}, errors.New("text: invalid LCD glyph mask dimensions")
 	}
 
+	return a.store(key, rgbMask, atlasW, maskH, bearingX, bearingY, advance, true)
+}
+
+// store packs a raw R8 mask into the atlas LRU under key and returns its
+// region. Shared by Put (grayscale) and PutLCD (3x-wide ClearType subpixel
+// data) — the two public entry points only differ in validation and the
+// region width / IsLCD flag; packing, UVs, LRU bookkeeping are identical.
+func (a *GlyphMaskAtlas) store(key GlyphMaskKey, mask []byte, w, h int, bearingX, bearingY, advance float32, isLCD bool) (GlyphMaskRegion, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -648,24 +602,24 @@ func (a *GlyphMaskAtlas) PutLCD(key GlyphMaskKey, rgbMask []byte, logicalW, mask
 		a.evictTail()
 	}
 
-	// Find or create a page with space for the 3x-wide data.
-	page, err := a.findOrCreatePage(atlasW, maskH)
+	// Find or create a page with space.
+	page, err := a.findOrCreatePage(w, h)
 	if err != nil {
 		return GlyphMaskRegion{}, err
 	}
 
-	x, y, ok := page.allocator.Allocate(atlasW, maskH)
+	x, y, ok := page.allocator.Allocate(w, h)
 	if !ok {
-		return GlyphMaskRegion{}, fmt.Errorf("text: failed to allocate %dx%d LCD glyph mask in atlas page %d", atlasW, maskH, page.index)
+		return GlyphMaskRegion{}, fmt.Errorf("text: failed to allocate %dx%d glyph mask in atlas page %d", w, h, page.index)
 	}
 
-	// Copy the RGB data row by row into the R8 atlas at 3x width.
-	page.copyMask(rgbMask, atlasW, maskH, x, y)
+	page.copyMask(mask, w, h, x, y)
 
 	frame := a.currentFrame.Load()
 	page.lastUsedFrame = frame
 	page.entryCount++
 
+	// Compute UV coordinates with half-texel inset.
 	atlasSize := float32(a.config.Size)
 	halfTexel := float32(0.5) / atlasSize
 
@@ -673,15 +627,16 @@ func (a *GlyphMaskAtlas) PutLCD(key GlyphMaskKey, rgbMask []byte, logicalW, mask
 		AtlasIndex: page.index,
 		X:          x,
 		Y:          y,
-		Width:      atlasW, // 3x logical width in R8 texels
-		Height:     maskH,
+		Width:      w,
+		Height:     h,
 		BearingX:   bearingX,
 		BearingY:   bearingY,
+		Advance:    advance,
 		U0:         float32(x)/atlasSize + halfTexel,
 		V0:         float32(y)/atlasSize + halfTexel,
-		U1:         float32(x+atlasW)/atlasSize - halfTexel,
-		V1:         float32(y+maskH)/atlasSize - halfTexel,
-		IsLCD:      true,
+		U1:         float32(x+w)/atlasSize - halfTexel,
+		V1:         float32(y+h)/atlasSize - halfTexel,
+		IsLCD:      isLCD,
 	}
 
 	entry := &glyphMaskEntry{
@@ -705,7 +660,7 @@ func (a *GlyphMaskAtlas) PutLCD(key GlyphMaskKey, rgbMask []byte, logicalW, mask
 //   - err: any error during rasterization
 func (a *GlyphMaskAtlas) GetOrRasterize(
 	key GlyphMaskKey,
-	rasterize func() (mask []byte, maskW, maskH int, bearingX, bearingY float32, err error),
+	rasterize func() (mask []byte, maskW, maskH int, bearingX, bearingY, advance float32, err error),
 ) (GlyphMaskRegion, error) {
 	// Fast path: check cache
 	if region, ok := a.Get(key); ok {
@@ -713,7 +668,7 @@ func (a *GlyphMaskAtlas) GetOrRasterize(
 	}
 
 	// Slow path: rasterize and store
-	mask, maskW, maskH, bearingX, bearingY, err := rasterize()
+	mask, maskW, maskH, bearingX, bearingY, advance, err := rasterize()
 	if err != nil {
 		return GlyphMaskRegion{}, fmt.Errorf("text: glyph mask rasterization failed: %w", err)
 	}
@@ -723,7 +678,7 @@ func (a *GlyphMaskAtlas) GetOrRasterize(
 		return GlyphMaskRegion{}, nil
 	}
 
-	return a.Put(key, mask, maskW, maskH, bearingX, bearingY)
+	return a.Put(key, mask, maskW, maskH, bearingX, bearingY, advance)
 }
 
 // findOrCreatePage finds a page with space for the given dimensions, or creates a new one.

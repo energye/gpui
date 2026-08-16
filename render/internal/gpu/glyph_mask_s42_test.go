@@ -20,7 +20,7 @@ func TestS42_SyncAtlasTextures_PartialThenHit(t *testing.T) {
 		mask[i] = byte(i)
 	}
 	key := text.MakeGlyphMaskKey(9, 1, 14, 0, 0)
-	if _, err := atlas.Put(key, mask, 16, 16, 0, 0); err != nil {
+	if _, err := atlas.Put(key, mask, 16, 16, 0, 0, 0); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
 
@@ -51,7 +51,7 @@ func TestS42_SyncAtlasTextures_PartialThenHit(t *testing.T) {
 
 	// Add another small glyph → dirty again; texture exists → prefer partial.
 	key2 := text.MakeGlyphMaskKey(9, 2, 14, 0, 0)
-	if _, err := atlas.Put(key2, mask, 16, 16, 0, 0); err != nil {
+	if _, err := atlas.Put(key2, mask, 16, 16, 0, 0, 0); err != nil {
 		t.Fatalf("Put2: %v", err)
 	}
 	if err := eng.SyncAtlasTextures(device, queue); err != nil {

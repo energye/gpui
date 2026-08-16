@@ -365,12 +365,13 @@ func (ft *FanTessellator) flattenCubicFanDepth(
 // the boundary line is affine so fragment interpolation is exact, and
 // cover_aa.wgsl converts it to smoothstep coverage over ±aaCoverHalfWidth.
 
-// aaCoverHalfWidth is the half width (px) of the analytic fringe band,
-// kept narrow so edges stay crisp ("hard") while remaining continuous: with
-// MSAA hardware resolve on top, a wider band visibly softens diagonals.
-// 0.35px gives a ~0.7px full transition (CPU scanline-like) while the
-// smoothstep keeps coverage continuous (no 4-level MSAA stair-stepping).
-const aaCoverHalfWidth = 0.35
+// aaCoverHalfWidth is the half width (px) of the analytic fringe band.
+// 0.5px gives a full ~1.0px smoothstep transition — matching the CPU
+// scanline coverage width, so vector text (rotated/sheared outlines) and
+// shapes render with the same edge softness as the CPU path. A narrower
+// band (0.35px) made rotated-glyph edges visibly stepped/jagged against
+// the CPU reference.
+const aaCoverHalfWidth = 0.5
 
 // aaSegment is one flattened path-boundary edge in pixel coords.
 type aaSegment struct{ ax, ay, bx, by float64 }
