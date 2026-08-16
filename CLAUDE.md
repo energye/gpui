@@ -9,10 +9,7 @@
 - 所有 skill（wr-debug / wr-engine / wr-close / wr-rewrite / wr-implement / metrics-audit）的「停下报告」节点必须停，用 `question` 工具问用户确认方向后再继续，禁止跳过或自决。
 - 禁止在示例层绕引擎洞（改 `examples/` 而不改引擎层 `ui/` / `render/` / `gpu/`）。
 - JSON 门禁绿 ≠ 引擎洞已修；洞修了才能标 ✅v2。
-- wr-engine 分层风险与修复规则：
-  - `ui/rendering/` `ui/embedder/` `ui/scene/` `ui/io/` — **低**（能力实现层，可直接按场景修）
-  - `render/` — **高**（必须 question 确认后修）
-  - `gpu/` — **最高**（必须 question 确认后修）
+- **所有分层（`ui/rendering/` `ui/embedder/` `ui/scene/` `ui/io/` `render/` `gpu/`）按同一标准处理**：在能力实际所在位置直接实现/修复（示例层只做验证，不做绕过），不再设「高风险须先 question」门槛。修复前照常做影响面评估并停在「停下报告」节点征求方向确认（技能流程要求），确认后即可动手，无需额外分级审批。
 - wr-close 任一模式跑 GPU 发现底层不满足 → 交 wr-engine（禁止在示例里绕）。
 - wr-rewrite 是调度层，不直接写代码。
 
@@ -29,6 +26,12 @@
 - skill 内标记「停下报告」的节点必须用 question 工具停下，得到用户确认后再继续。
 - 禁止跳过 skill 中的任何一步直接修代码。
 
+## 实现和修复流程纪律（硬约束）
+
+- 渲染层新功能实现，统一对齐 Skia / Flutter 标准实现方案；
+- 渲染层问题修复先核查 Skia/Flutter 是否存在原生支持能力，优先复用避免冗余；存量代码未对齐标准的需重构对齐；
+- 所有渲染层变更需兼顾收敛性与性能优化，在保证功能正确基础上，提升代码可读性、扩展性、可维护性
+
 ## 每次新上下文
 
 - 先读 AGENTS.md（本文），再读 `docs/` 真源，再执行。
@@ -40,3 +43,19 @@
 - **机器校验（合入前必跑）**：`go run ./scripts/apidoc` 检查目录文档是否覆盖主包 + scene/recording/surface/svg 全部公开符号；非零退出 = 文档漏了，补完再合入。
 - 例外：`render/text` 目录文档采用族级归纳（226 项以 `go doc ./render/text` 为准）；`render/filters`、`render/raster` 为纯 init 副作用包（无顶层符号）不参与逐符号校验，但改其 init 行为要更新 §6 状态说明。
 - 状态标注必须可溯源：生产消费者 → 文件:行号；GPU 实测 → 真窗名/日期/现象（示例：任意路径裁剪 `Clip()`/`PushClipPath` GPU 画穿，见目录文档 §7.3）。禁止凭印象标注。
+
+## 对话回答（硬，对所有对话生效）
+
+- **回答一律用大白话**：不堆黑话、术语要用通俗话解释，像跟人聊天一样把事说清楚。适用所有对话、所有包，不只是 `render/text` 的字形对齐。
+- 给结论时先一句直话（是什么/行不行/差多少），再解释为什么。别上来就贴代码或指令。
+
+## 测试数据与阶段回归（硬）
+
+> **适用范围**：仅针对 `render/text` 下 Go 自研文本渲染功能的**阶段完成验收**（M0–Mx 各阶段）。其他功能的开发/验收**不需要走本流程**。
+
+- **测试数据一律入 `testdata/`**（各包 `xxx/testdata/`）：字体、字表（如 cjk3000.txt）、FT 对照工具等；`/tmp` 下仅允许 `t.TempDir()` 的进程级临时文件，禁止把外部路径（如 `/tmp/opencode`）写死在测试代码里。
+- **各语言标准测试字表文件**（`render/text/hint/testdata/`）：`cjk3000.txt`（3000 常用字）、`kr_all.txt`（韩文 11172 音节）、`th_all.txt`（泰文 128 码位）、`latin_all.txt`（254 字 = ASCII 95 + accent 29 + confusable 17 + 西里尔 66 + 希腊 48，实测 254=111+29+66+48）；测试一律读文件，**禁止在测试代码里用 range 循环/硬编码生成字表**；新增语言测试子集必须先落字表文件。
+- FT 度量衡二进制 = `render/text/hint/testdata/ftexp/`（源码 main.go + go.mod module ftexp，**不提交二进制**）；测试经 `ftexpBin(t)`（hint 包）解析：`$FTEXP_BIN` → 已构建产物 → 拷贝源码到 `t.TempDir()` 自动 `go build` 重建（需 go + purego 依赖）。禁止把 `/tmp/opencode/ftexp` 硬编码进测试。
+- 每阶段开发/验收必须回归**之前所有已完结阶段**：跑全量 `go test ./render/text/...`（含 M0–M3 各阶段全字集扫描对照，确保不破坏旧阶段），新阶段扫描坏字数不得回退。
+- **回归按测试文件逐个跑，禁止一次全量**：禁止直接跑 `go test ./render/text/...`（多包长测并发会卡死/超时）。回归时对每个 `*_test.go` 文件单独执行：`-run '^(文件内全部测试函数名，竖线分隔)$'` 按文件分组跑，一个文件跑完（PASS/SKIP/FAIL 记录）再跑下一个文件；长跑文件（全字集 scan）单独给足 `-timeout`。跑批脚本放 `/tmp/opencode/`，不写死进仓库测试代码。
+- 测试长跑（全字集 scan）与 require 外部字体（系统 Noto CJK/TTC）的用例，字体缺失时用 `t.Skipf` 提示原因，**禁止静默假绿**。
