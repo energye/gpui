@@ -83,12 +83,13 @@ func example2RectClip(dc *render.Context) {
 	// Use ClipRect for efficient rectangular clipping
 	dc.ClipRect(300, 50, 160, 160)
 
-	// Draw a colorful pattern
-	for y := 0; y < 200; y += 10 {
-		for x := 0; x < 200; x += 10 {
+	// Draw a colorful pattern covering the whole clip region (and beyond,
+	// so the clip boundary is visible on every side).
+	for y := 0; y < 240; y += 10 {
+		for x := 0; x < 240; x += 10 {
 			dc.SetRGB(
-				float64(x)/200.0,
-				float64(y)/200.0,
+				float64(x)/240.0,
+				float64(y)/240.0,
 				0.5,
 			)
 			dc.DrawRectangle(float64(250+x), float64(y), 10, 10)
@@ -149,8 +150,9 @@ func example4NestedClips(dc *render.Context) {
 	// First clip: Large rectangle
 	dc.ClipRect(300, 350, 160, 160)
 
-	// Draw background pattern
-	for y := 0; y < 200; y += 5 {
+	// Draw background pattern covering the whole clip region (and beyond,
+	// so the clip boundary is visible on every side).
+	for y := 0; y < 240; y += 5 {
 		dc.SetRGBA(0.2, 0.6, 0.9, 0.8)
 		dc.DrawRectangle(250, 300+float64(y), 250, 3)
 		dc.Fill()
