@@ -82,6 +82,10 @@ type PipelineApp struct {
 	// consecutive frames covers all swapchain buffers (observed black bursts
 	// after min/max resize cycles until a second full frame landed).
 	forceFullPresent atomic.Int64
+	// occluded latches window visibility: when fully obscured/minimized the
+	// frame loop stops rendering (Flutter lifecycle paused → stop frames);
+	// a visible-again event resumes scheduling.
+	occluded atomic.Bool
 	// lastResizeScale tracks the last DPR seen in EventResize; boundary
 	// Pictures are only invalidated when the DPR actually changes (pure size
 	// changes rely on tryReplay's size/fingerprint checks instead).
@@ -597,6 +601,16 @@ func (a *PipelineApp) Run() error {
 				if !a.sched.Pending() {
 					a.ScheduleFrame()
 				}
+			case platform.EventOccluded:
+				// Window fully obscured or minimized → stop rendering
+				// (Flutter lifecycle paused / Chrome hidden → no frames);
+				// visible again → resume.
+				a.occluded.Store(ev.Occluded)
+				if ev.Occluded {
+					a.sched.ClearPending()
+				} else {
+					a.ScheduleFrame()
+				}
 			}
 		}
 
@@ -611,6 +625,22 @@ func (a *PipelineApp) Run() error {
 		a.sched.RecomputeMode()
 
 		if !a.sched.Pending() && !a.sched.Tickers().HasActive() {
+			continue
+		}
+
+		// Window not visible (occluded/minimized): stop rendering entirely —
+		// no frames are produced until a visible-again event. The vsync
+		// listener may keep stamping, but the frame gate stays closed.
+		if a.occluded.Load() {
+			a.sched.ClearPending()
+			continue
+		}
+
+		// Flutter frame-callback gate (non-blocking): render only when a
+		// fresh vsync signal arrived or the software interval elapsed since
+		// the last rendered frame. Skipping here just re-enters WaitEvents,
+		// which keeps the cadence — the frame loop never blocks on vsync.
+		if !a.sched.FrameDue() {
 			continue
 		}
 

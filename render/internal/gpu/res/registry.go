@@ -20,6 +20,10 @@ type slot struct {
 	refs     int32 // strong usage refs (Ref / Acquire)
 	inflight int32 // referenced by submitted-but-unfinished command buffers
 	retire   bool  // marked for destruction (waits for refs==0 && inflight==0)
+	// borrowed marks views owned outside the res system (PictureTextureCache
+	// slots, swapchain views). The registry tracks them for lifetime/ABA
+	// safety but never calls Release — the owner decides when to destroy.
+	borrowed bool
 }
 
 // Ref is a strong usage reference (GrGpuResource::ref semantics). While a Ref
@@ -66,6 +70,20 @@ func (r *Registry) Register(res Native) Ref {
 	}
 	r.nextID++
 	s := &slot{id: r.nextID, res: res, refs: 1}
+	r.slots[s.id] = s
+	return Ref{reg: r, id: s.id}
+}
+
+// RegisterBorrowed tracks a view owned outside the res system (texture cache
+// slots, swapchain views). The entry protects the reference from ABA /
+// use-after-free bookkeeping exactly like Register, but removal never calls
+// the native Release — the external owner owns destruction.
+func (r *Registry) RegisterBorrowed(res Native) Ref {
+	if r == nil || res == nil {
+		return Ref{}
+	}
+	r.nextID++
+	s := &slot{id: r.nextID, res: res, refs: 1, borrowed: true}
 	r.slots[s.id] = s
 	return Ref{reg: r, id: s.id}
 }
@@ -205,12 +223,13 @@ func (r *Registry) InvalidateAll() {
 // registry. Used on session teardown while the device is still healthy —
 // NOT the device-loss path (use InvalidateAll there). Safe to call with
 // outstanding Refs: native Release is idempotent at the facade layer.
+// Borrowed entries are dropped without Release (their owner destroys them).
 func (r *Registry) ReleaseAll() {
 	if r == nil {
 		return
 	}
 	for _, s := range r.slots {
-		if s != nil && s.res != nil {
+		if s != nil && s.res != nil && !s.borrowed {
 			s.res.Release()
 		}
 	}
@@ -252,7 +271,7 @@ func (r *Registry) removeIfReady(s *slot) {
 	if s == nil || !s.retire || s.refs != 0 || s.inflight != 0 {
 		return
 	}
-	if s.res != nil {
+	if s.res != nil && !s.borrowed {
 		s.res.Release()
 	}
 	delete(r.slots, s.id)

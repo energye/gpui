@@ -3,6 +3,7 @@ package scheduler_test
 import (
 	"encoding/json"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,15 +12,28 @@ import (
 )
 
 // paceHost embeds StubHost and implements platform.VSyncWaiter for pace tests.
+// Fields are atomic: WaitVSync runs on the listener goroutine while the test
+// reads/updates them (race-detector clean).
 type paceHost struct {
 	*platform.StubHost
-	waitErr error
-	waits   int
+	waitErr atomic.Value // error (nil → success)
+	waits   atomic.Int32
 }
 
 func (h *paceHost) WaitVSync() error {
-	h.waits++
-	return h.waitErr
+	h.waits.Add(1)
+	if e := h.waitErr.Load(); e != nil {
+		return e.(error)
+	}
+	return nil
+}
+
+func newPaceHost(waitErr error) *paceHost {
+	h := &paceHost{StubHost: platform.NewStubHost(100, 100)}
+	if waitErr != nil {
+		h.waitErr.Store(waitErr) // atomic.Value cannot Store nil
+	}
+	return h
 }
 
 type onceTicker struct{ n int }
@@ -119,64 +133,134 @@ func TestMetrics_HitchCount(t *testing.T) {
 	}
 }
 
-func TestWaitFramePace_TrueVSyncPreferred(t *testing.T) {
+// TestFramePace_VsyncSignalDrivesFrames: a working vsync waiter feeds the
+// listener; the frame gate opens on fresh signals and metrics report "true".
+func TestFramePace_VsyncSignalDrivesFrames(t *testing.T) {
 	s := scheduler.New()
-	s.SetAnimTick(200 * time.Millisecond) // would be obvious if sleep path taken
+	s.SetAnimTick(200 * time.Millisecond) // software interval long — fallback would be obvious
 	s.SetMode(scheduler.ModePersistent)
-	h := &paceHost{StubHost: platform.NewStubHost(100, 100), waitErr: nil}
+	h := newPaceHost(nil)
 
-	t0 := time.Now()
-	s.WaitFramePace(h)
-	elapsed := time.Since(t0)
-	if h.waits != 1 {
-		t.Fatalf("WaitVSync calls=%d want 1", h.waits)
-	}
-	if elapsed > 50*time.Millisecond {
-		t.Fatalf("true WaitVSync path slept too long: %v (fallback animTick?)", elapsed)
+	s.WaitFramePace(h) // starts the listener; first call honestly reports fallback (no signal yet)
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		s.WaitFramePace(h)
+		if s.Metrics().Snapshot().VSyncSource == "true" && s.FrameDue() {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	m := s.Metrics().Snapshot()
 	if m.VSyncSource != "true" {
-		t.Fatalf("vsync_source=%q want true", m.VSyncSource)
+		t.Fatalf("vsync_source=%q want true after signal", m.VSyncSource)
 	}
-	if m.MissedVSync != 0 {
-		t.Fatalf("missed_vsync=%d want 0", m.MissedVSync)
+	if !s.FrameDue() {
+		t.Fatal("frame gate must be open on a fresh vsync signal")
+	}
+	if h.waits.Load() < 3 {
+		t.Fatalf("listener should keep consuming vsyncs, waits=%d", h.waits.Load())
 	}
 }
 
-func TestWaitFramePace_ErrorFallsBackAndMisses(t *testing.T) {
+// TestFramePace_VsyncErrorCountsMiss: WaitVSync error is an unavailable-vsync
+// signal — the listener counts a miss and pacing falls back (no blocking).
+func TestFramePace_VsyncErrorCountsMiss(t *testing.T) {
 	s := scheduler.New()
 	s.SetAnimTick(15 * time.Millisecond)
 	s.SetMode(scheduler.ModePersistent)
-	h := &paceHost{StubHost: platform.NewStubHost(100, 100), waitErr: errors.New("no vblank")}
+	h := newPaceHost(errors.New("no vblank"))
 
 	t0 := time.Now()
 	s.WaitFramePace(h)
-	elapsed := time.Since(t0)
-	if h.waits != 1 {
-		t.Fatalf("WaitVSync calls=%d", h.waits)
+	if time.Since(t0) > 500*time.Millisecond {
+		t.Fatalf("WaitFramePace blocked on vsync error: %v", time.Since(t0))
 	}
-	if elapsed < 10*time.Millisecond {
-		t.Fatalf("fallback should sleep animTick, elapsed=%v", elapsed)
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if m := s.Metrics().Snapshot(); m.MissedVSync > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	m := s.Metrics().Snapshot()
+	if m.MissedVSync == 0 {
+		t.Fatalf("listener should count vsync error as a miss, stats=%+v", m)
+	}
 	if m.VSyncSource != "fallback" {
 		t.Fatalf("vsync_source=%q want fallback", m.VSyncSource)
 	}
-	if m.MissedVSync != 1 {
-		t.Fatalf("missed_vsync=%d want 1", m.MissedVSync)
+}
+
+// TestFramePace_VsyncErrorRetryThrottled: WaitVSync error is retried, but
+// paced at the software interval — a busy-loop would blow past the bound.
+func TestFramePace_VsyncErrorRetryThrottled(t *testing.T) {
+	s := scheduler.New()
+	s.SetAnimTick(20 * time.Millisecond)
+	s.SetMode(scheduler.ModePersistent)
+	h := newPaceHost(errors.New("no vblank"))
+
+	s.WaitFramePace(h)
+	time.Sleep(300 * time.Millisecond)
+	// 300ms / (20ms retry sleep) ≈ 15 retries; an unthrottled loop would be far more.
+	if h.waits.Load() > 30 {
+		t.Fatalf("vsync error retry must be throttled, waits=%d in 300ms", h.waits.Load())
+	}
+	if h.waits.Load() < 3 {
+		t.Fatalf("listener should keep retrying on error, waits=%d", h.waits.Load())
 	}
 }
 
-func TestWaitFramePace_NoWaiter_Fallback(t *testing.T) {
+// TestFrameDue_VsyncStopsThenSoftwareCadence: the real failure sequence —
+// vblank was driving frames, then it stops; the fresh-signal window expires
+// and pacing must fall back to the software interval without blocking.
+func TestFrameDue_VsyncStopsThenSoftwareCadence(t *testing.T) {
+	s := scheduler.New()
+	s.SetAnimTick(15 * time.Millisecond)
+	s.SetMode(scheduler.ModePersistent)
+	h := newPaceHost(nil)
+
+	s.WaitFramePace(h)
+	// Wait for a vsync-driven gate: two consecutive FrameDue within ~5ms
+	// (the fresh-signal window; the 15ms software interval cannot do this).
+	gotSignal := false
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if s.FrameDue() && s.FrameDue() {
+			gotSignal = true
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !gotSignal {
+		t.Fatal("fresh vsync signal should open the gate")
+	}
+
+	// Vblank stops: the listener starts failing (simulated stop).
+	h.waitErr.Store(errors.New("vblank stopped"))
+	time.Sleep(80 * time.Millisecond) // > fresh window (33ms) + software interval
+	if !s.FrameDue() {
+		t.Fatal("software cadence must take over after the vsync signal expires")
+	}
+}
+
+// TestFrameDue_SoftwareInterval: without any vsync waiter the gate opens on
+// the software interval and never blocks.
+func TestFrameDue_SoftwareInterval(t *testing.T) {
 	s := scheduler.New()
 	s.SetAnimTick(12 * time.Millisecond)
 	s.SetMode(scheduler.ModePersistent)
 	h := platform.NewStubHost(64, 64) // no VSyncWaiter
+	s.WaitFramePace(h)                // sets metrics fallback; no listener
 
-	t0 := time.Now()
-	s.WaitFramePace(h)
-	if time.Since(t0) < 8*time.Millisecond {
-		t.Fatalf("expected software sleep")
+	if !s.FrameDue() {
+		t.Fatal("first gate must be open (no prior frame)")
+	}
+	if s.FrameDue() {
+		t.Fatal("immediate second gate must be closed (software interval)")
+	}
+	time.Sleep(20 * time.Millisecond)
+	if !s.FrameDue() {
+		t.Fatal("software interval should open the gate")
 	}
 	m := s.Metrics().Snapshot()
 	if m.VSyncSource != "fallback" {
@@ -194,5 +278,56 @@ func TestHostVSync_TypeAssert(t *testing.T) {
 	}
 	if platform.HostVSync(platform.NewStubHost(1, 1)) != nil {
 		t.Fatal("plain StubHost must not claim WaitVSync")
+	}
+}
+
+// hangHost implements a VSyncWaiter whose WaitVSync never returns — the
+// headless/software-Vulkan failure mode the listener design absorbs.
+type hangHost struct {
+	*platform.StubHost
+	waits int32
+}
+
+func (h *hangHost) WaitVSync() error {
+	atomic.AddInt32(&h.waits, 1)
+	select {} // simulate a hung DRM vblank wait
+}
+
+// TestFramePace_HungVsync_DoesNotBlock is the regression test for
+// "渲染运行一会自动停止": a WaitVSync that never returns must NOT freeze the
+// frame loop. The listener goroutine absorbs the hang (once); WaitFramePace
+// returns immediately and FrameDue falls back to the software interval.
+func TestFramePace_HungVsync_DoesNotBlock(t *testing.T) {
+	s := scheduler.New()
+	s.SetAnimTick(15 * time.Millisecond)
+	s.SetMode(scheduler.ModePersistent)
+	h := &hangHost{StubHost: platform.NewStubHost(100, 100)}
+
+	t0 := time.Now()
+	s.WaitFramePace(h)
+	if time.Since(t0) > 500*time.Millisecond {
+		t.Fatalf("WaitFramePace blocked on hung vsync: %v", time.Since(t0))
+	}
+	// The listener goroutine absorbs the hang asynchronously.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for atomic.LoadInt32(&h.waits) == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if atomic.LoadInt32(&h.waits) != 1 {
+		t.Fatalf("listener waits=%d want 1 (hang absorbed once)", atomic.LoadInt32(&h.waits))
+	}
+	if s.Metrics().Snapshot().VSyncSource != "fallback" {
+		t.Fatalf("vsync_source=%q want fallback (no signal)", s.Metrics().Snapshot().VSyncSource)
+	}
+	// Software cadence with no vsync signal: gate opens on the interval.
+	if !s.FrameDue() {
+		t.Fatal("first gate must be open (no prior frame)")
+	}
+	if s.FrameDue() {
+		t.Fatal("immediate second gate must be closed")
+	}
+	time.Sleep(30 * time.Millisecond) // > animTick
+	if !s.FrameDue() {
+		t.Fatal("software interval should open the gate")
 	}
 }

@@ -47,9 +47,13 @@ type shapeResultCache struct {
 	entries   map[shapeResultKey]*shapeResultEntry
 	softLimit int
 	tick      int64
-	hits      atomic.Uint64
-	misses    atomic.Uint64
-	evictions atomic.Uint64
+	// missSinceSweep counts inserts since the last never-hit sweep (see
+	// evictChurnLocked): bounds the sweep frequency so entries get a real
+	// hit window while churn stays short-lived.
+	missSinceSweep int
+	hits           atomic.Uint64
+	misses         atomic.Uint64
+	evictions      atomic.Uint64
 }
 
 type shapeResultEntry struct {
@@ -58,6 +62,11 @@ type shapeResultEntry struct {
 }
 
 const defaultShapeResultSoftLimit = 4096
+
+// missSweepWindow bounds how many miss inserts happen between never-hit
+// sweeps. At 60fps this keeps per-frame-unique churn alive ~1s (≤ ~64
+// entries) while giving alternating layout/shape reuse a real hit window.
+const missSweepWindow = 64
 
 var globalShapeResultCache = newShapeResultCache(defaultShapeResultSoftLimit)
 
@@ -130,7 +139,17 @@ func (c *shapeResultCache) set(key shapeResultKey, glyphs []ShapedGlyph) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.tick++
-	c.entries[key] = &shapeResultEntry{glyphs: glyphs, atime: c.tick}
+	// Miss-inserted entries start at atime 0 so never-hit entries
+	// (per-frame-unique HUD telemetry) become the first eviction candidates
+	// — LRU with a never-hit fast lane (Skia/Flutter caches are LRU +
+	// budget; this biases the same LRU toward entries proven to be reused).
+	// A later hit upgrades atime and makes the entry resident.
+	c.entries[key] = &shapeResultEntry{glyphs: glyphs, atime: 0}
+	c.missSinceSweep++
+	if c.missSinceSweep >= missSweepWindow {
+		c.missSinceSweep = 0
+		c.evictChurnLocked(key)
+	}
 	if c.softLimit > 0 && len(c.entries) > c.softLimit {
 		c.evictOldestLocked()
 	}
@@ -167,7 +186,19 @@ func (c *shapeResultCache) getOrCreate(key shapeResultKey, create func() []Shape
 		return g
 	}
 	c.tick++
-	c.entries[key] = &shapeResultEntry{glyphs: glyphs, atime: c.tick}
+	// Miss insert: atime 0 so never-hit entries (per-frame unique keys) are
+	// the first eviction candidates; a later hit upgrades them to resident.
+	c.entries[key] = &shapeResultEntry{glyphs: glyphs, atime: 0}
+	// Sweep stale never-hit entries on a miss counter: the sweep skips the
+	// current key and runs at most every missSweepWindow inserts — so an
+	// entry gets a real hit window (a layout/shape alternating text reuses
+	// its key within that window) while per-frame-unique HUD telemetry still
+	// lives only ~1s instead of pinning a slot until a batch eviction.
+	c.missSinceSweep++
+	if c.missSinceSweep >= missSweepWindow {
+		c.missSinceSweep = 0
+		c.evictChurnLocked(key)
+	}
 	if c.softLimit > 0 && len(c.entries) > c.softLimit {
 		c.evictOldestLocked()
 	}
@@ -176,15 +207,31 @@ func (c *shapeResultCache) getOrCreate(key shapeResultKey, create func() []Shape
 	return glyphs
 }
 
+// evictChurnLocked drops every never-hit entry (atime 0) except skip — the
+// entry inserted by the current call is given a hit window before it
+// qualifies as garbage. Caller holds c.mu.
+func (c *shapeResultCache) evictChurnLocked(skip shapeResultKey) {
+	for k, e := range c.entries {
+		if e.atime == 0 && k != skip {
+			delete(c.entries, k)
+			c.evictions.Add(1)
+		}
+	}
+}
+
 func (c *shapeResultCache) evictOldestLocked() {
 	target := c.softLimit * 3 / 4
 	if target < 1 {
 		target = 1
 	}
-	toEvict := len(c.entries) - target
-	if toEvict <= 0 {
+	// Drop every never-hit entry first (atime 0 — per-frame-unique churn like
+	// HUD telemetry): they are garbage by definition and clearing them in one
+	// pass collapses the cache back to the resident (hit) set.
+	c.evictChurnLocked(shapeResultKey{})
+	if len(c.entries) <= target {
 		return
 	}
+	toEvict := len(c.entries) - target
 	type pair struct {
 		key   shapeResultKey
 		atime int64

@@ -340,6 +340,13 @@ type GPURenderSession struct {
 	// time and deferred SourceKey resolution at flush time.
 	resReg *res.Registry
 
+	// pendingViewRetires holds the strong refs registered by viewToResView /
+	// ResolveCommandView (transient command views). They are released and
+	// retired at the next frame boundary (BeginFrame / readback sync point),
+	// once the commands referencing them have completed — never immediately,
+	// because a destroyed view must not be seen by in-flight command buffers.
+	pendingViewRetires []res.Ref
+
 	// Submission tracks in-flight resources until the GPU finishes the
 	// submission (P6). SubmitDone fires at the existing sync points
 	// (BeginFrame vsync/drainQueue; readback Map), never blocking the frame.
@@ -737,15 +744,43 @@ func (s *GPURenderSession) ResolveCommandView(view *res.View) (*webgpu.TextureVi
 	if view.Raw != nil {
 		// Queue-time fallback (session was nil at queue time): register now
 		// that the session exists, resolve, and release the transient ref.
+		// Borrowed: the raw view is owned by its producer (texture cache),
+		// never destroyed by registry retire.
 		tv := (*webgpu.TextureView)(view.Raw)
 		if tv == nil {
 			return nil, false
 		}
-		ref := s.resReg.Register(&texViewNative{tv})
+		ref := s.resReg.RegisterBorrowed(&texViewNative{tv})
+		s.notePendingViewRetire(ref)
 		defer s.resReg.Release(ref)
 		return s.commandViewOf(ref), true
 	}
 	return s.commandViewOf(view.Ref), true
+}
+
+// notePendingViewRetire records a transient command-view ref for release at
+// the next frame boundary (see pendingViewRetires).
+func (s *GPURenderSession) notePendingViewRetire(ref res.Ref) {
+	if s == nil || ref.IsNil() {
+		return
+	}
+	s.pendingViewRetires = append(s.pendingViewRetires, ref)
+}
+
+// retirePendingViews releases and retires every transient command-view ref
+// registered since the last frame boundary. Called only after the GPU has
+// finished the submissions that referenced the views (BeginFrame
+// vsync/drainQueue, readback Map), so retiring cannot destroy a view that an
+// in-flight command buffer still uses.
+func (s *GPURenderSession) retirePendingViews() {
+	if s == nil || s.resReg == nil || len(s.pendingViewRetires) == 0 {
+		return
+	}
+	for _, ref := range s.pendingViewRetires {
+		s.resReg.Release(ref)
+		s.resReg.Retire(ref)
+	}
+	s.pendingViewRetires = s.pendingViewRetires[:0]
 }
 
 // commandViewOf unwraps a registered resource to its *webgpu.TextureView.
@@ -901,6 +936,9 @@ func (s *GPURenderSession) BeginFrame() {
 	if s.sub != nil {
 		s.sub.SubmitDone()
 	}
+	// Transient command views registered last frame are now safe to retire:
+	// the frame's submissions have completed (vsync barrier / drainQueue above).
+	s.retirePendingViews()
 
 	s.frameRendered = false
 	s.lastView = nil
@@ -4697,6 +4735,9 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	if s.sub != nil {
 		s.sub.SubmitDone()
 	}
+	// Same sync point as BeginFrame: the readback Map proves the GPU finished,
+	// so transient command views registered for this work are safe to retire.
+	s.retirePendingViews()
 	rng, err := stagingBuf.MappedRange(0, stagingBufSize)
 	if err != nil {
 		if err := stagingBuf.Unmap(); err != nil {

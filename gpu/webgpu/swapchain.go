@@ -3,10 +3,12 @@
 package webgpu
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -22,6 +24,22 @@ import (
 //   - Auto reconfigure on suboptimal / outdated surface
 //   - EndFrameWithDamage hook
 //   - Present-mode preference (Fifo vs low-latency Mailbox)
+
+// acquireTimeout bounds a single surface acquire. Skia (Ganesh Vulkan) and
+// Flutter (Impeller) do NOT bound the acquire — they assume present/acquire
+// stay paired and recover only via swapchain recreate on VK_ERROR_OUT_OF_DATE
+// (the DiscardTexture+Configure path below is that alignment). This timeout
+// is an environment guard for software Vulkan (llvmpipe): once swapchain
+// images stop being returned (a lost/dropped present) wgpu-native's
+// GetCurrentTexture can block forever, and without a bound the frame loop
+// freezes. On timeout the hung latch routes later frames through the
+// recreate instead of re-entering the dead acquire.
+const acquireTimeout = 250 * time.Millisecond
+
+// ErrAcquireTimeout reports a surface acquire that did not return in time.
+// The swapchain is recreated (Configure) before the next acquire attempt.
+var ErrAcquireTimeout = errors.New("wgpu: surface acquire timed out")
+
 type Swapchain struct {
 	Surface     *Surface
 	Device      *Device
@@ -45,14 +63,22 @@ type Swapchain struct {
 	suboptHandledH uint32
 
 	// stats
-	acquires       uint64
-	presents       uint64
-	discards       uint64
-	reconfigures   uint64
-	suboptimal     uint64
-	acquireRetries uint64
-	lastAcquireNs  int64
-	lastPresentNs  int64
+	acquires        uint64
+	presents        uint64
+	discards        uint64
+	reconfigures    uint64
+	suboptimal      uint64
+	acquireRetries  uint64
+	acquireTimeouts uint64
+	lastAcquireNs   int64
+	lastPresentNs   int64
+
+	// acquireHung latches after a timed-out surface acquire (software Vulkan
+	// can block forever once swapchain images are exhausted). While set,
+	// BeginFrame skips the cgo acquire and routes to the throttled
+	// DiscardTexture+Configure recreate; a successful Configure clears it.
+	acquireHung  atomic.Bool
+	hungMarkedAt time.Time
 
 	// lastReconfig rate-limits native Surface.Configure. Continuous reconfigure
 	// under long stress (S14) can abort wgpu-native ("failed to initiate panic").
@@ -713,6 +739,14 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		return nil, err
 	}
 
+	// Hung-acquire gate: while latched, skip the cgo acquire and route into
+	// the throttled DiscardTexture+Configure recreate (Skia swapchain
+	// re-create on acquire failure). This keeps the frame loop alive on
+	// software Vulkan where acquire can block forever.
+	if err := sc.acquireHungLocked(); err != nil {
+		return nil, err
+	}
+
 	if sc.pendingReconfigure || !sc.configured {
 		if err := sc.reconfigureThrottled(); err != nil {
 			return nil, err
@@ -731,7 +765,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	}
 
 	t0 := time.Now()
-	st, suboptimal, err := sc.Surface.GetCurrentTexture()
+	st, suboptimal, err := sc.acquireSurfaceTexture()
 	if err != nil {
 		if isDeviceLostErr(err) || sc.deviceKnownLostLocked() {
 			// Recover here, but never Present in the same BeginFrame — session
@@ -747,7 +781,7 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 		} else if isSkipFrameSurfaceErr(err) {
 			return nil, err
 		} else {
-			// Outdated / surface error: one reconfigure then retry.
+			// Outdated / surface error / acquire timeout: one reconfigure then retry.
 			if sc.Surface != nil {
 				sc.Surface.DiscardTexture()
 			}
@@ -766,7 +800,11 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 			} else {
 				sc.lastReconfig = time.Now()
 				sc.acquireRetries++
-				st, suboptimal, err = sc.Surface.GetCurrentTexture()
+				// A fresh swapchain after the recreate: clear the hung latch so
+				// the retry acquire actually attempts (and future frames are
+				// not blocked by a stale latch).
+				sc.acquireHung.Store(false)
+				st, suboptimal, err = sc.acquireSurfaceTexture()
 				if err != nil {
 					if isDeviceLostErr(err) || sc.deviceKnownLostLocked() {
 						if rerr := sc.ensureDeviceLocked(); rerr != nil {
@@ -836,7 +874,63 @@ func (sc *Swapchain) reconfigureThrottled() error {
 		return err
 	}
 	sc.lastReconfig = time.Now()
+	// A fresh swapchain has new images: a hung acquire may recover here.
+	sc.acquireHung.Store(false)
 	return nil
+}
+
+// acquireSurfaceTexture calls Surface.GetCurrentTexture with a bounded wait.
+// On timeout the acquire is latched hung (see acquireHung) and the error
+// routes BeginFrame into the DiscardTexture+Configure recreate path — the
+// Skia/Flutter swapchain-recreate-on-failure model. The stuck cgo goroutine
+// is abandoned once; the latch prevents per-frame goroutine leaks.
+func (sc *Swapchain) acquireSurfaceTexture() (*SurfaceTexture, bool, error) {
+	if sc == nil || sc.Surface == nil {
+		return nil, false, ErrInvalidHandle
+	}
+	if sc.acquireHung.Load() {
+		return nil, false, ErrAcquireTimeout
+	}
+	type acqRes struct {
+		st  *SurfaceTexture
+		sub bool
+		err error
+	}
+	ch := make(chan acqRes, 1)
+	go func() {
+		st, sub, err := sc.Surface.GetCurrentTexture()
+		ch <- acqRes{st: st, sub: sub, err: err}
+	}()
+	select {
+	case r := <-ch:
+		return r.st, r.sub, r.err
+	case <-time.After(acquireTimeout):
+		sc.acquireHung.Store(true)
+		sc.hungMarkedAt = time.Now()
+		sc.acquireTimeouts++
+		return nil, false, ErrAcquireTimeout
+	}
+}
+
+// acquireHungLocked is the BeginFrame gate: while the acquire is latched
+// hung, skip the cgo call entirely and route to the throttled recreate so
+// the frame loop never blocks on a dead surface again (Chrome
+// SyntheticBeginFrameSource-style fallback for the swapchain). Caller holds
+// frameMu.
+func (sc *Swapchain) acquireHungLocked() error {
+	if sc == nil || !sc.acquireHung.Load() {
+		return nil
+	}
+	// Throttled recreate attempt: a new swapchain can unstick the acquire.
+	if sc.hungMarkedAt.IsZero() || time.Since(sc.hungMarkedAt) >= 500*time.Millisecond {
+		sc.hungMarkedAt = time.Now()
+		if err := sc.reconfigureThrottled(); err == nil {
+			sc.pendingReconfigure = true
+			sc.acquireHung.Store(false)
+			return nil
+		}
+	}
+	return ErrAcquireTimeout
 }
 
 // EndFrame presents the frame to the platform surface.
