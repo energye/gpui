@@ -361,10 +361,43 @@ func sfntSegmentToOutline(s sfnt.Segment) (OutlineSegment, bool) {
 }
 
 // glyphBoundsCFF returns glyph bounds from CFF segments (Y-down pixels).
+// cffBoundsKey keys the CFF glyph-bbox cache: bounds scale with the pixel
+// size, so the key carries the quantized size (Q4).
+type cffBoundsKey struct {
+	gid    uint16
+	sizeQ4 int16
+}
+
+// cffBoundsCacheCap bounds the per-font CFF bbox cache (glyphs × size
+// quanta); on overflow the cache is rebuilt (the active glyph set is small).
+const cffBoundsCacheCap = 4096
+
 func (f *ownParsedFont) glyphBoundsCFF(glyphIndex uint16, ppem float64) Rect {
+	if f == nil || ppem <= 0 {
+		return Rect{}
+	}
+	k := cffBoundsKey{gid: glyphIndex, sizeQ4: int16(ppem * 16)}
+	f.cffBoundsMu.Lock()
+	if b, ok := f.cffBounds[k]; ok {
+		f.cffBoundsMu.Unlock()
+		return b
+	}
+	f.cffBoundsMu.Unlock()
+
 	outline, err := f.extractCFFOutline(GlyphID(glyphIndex), ppem)
 	if err != nil || outline == nil {
 		return Rect{}
 	}
-	return outline.Bounds
+	b := outline.Bounds
+
+	f.cffBoundsMu.Lock()
+	if f.cffBounds == nil {
+		f.cffBounds = make(map[cffBoundsKey]Rect, 64)
+	}
+	if len(f.cffBounds) >= cffBoundsCacheCap {
+		f.cffBounds = make(map[cffBoundsKey]Rect, 64)
+	}
+	f.cffBounds[k] = b
+	f.cffBoundsMu.Unlock()
+	return b
 }

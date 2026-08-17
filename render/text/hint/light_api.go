@@ -55,11 +55,7 @@ func LightHintVar(raw []byte, faceIdx int, isCFF2 bool, gid uint16, px float64, 
 	var cs *csOutline
 	var fd *cffFD
 	if isCFF2 {
-		start, ln, err := cff2TableData(raw, faceIdx)
-		if err != nil {
-			return nil, nil, 0, err
-		}
-		cd, err := cff2ParseAll(raw[start:start+ln], upem)
+		cd, err := cff2ParseCached(raw, faceIdx)
 		if err != nil {
 			return nil, nil, 0, err
 		}
@@ -77,11 +73,7 @@ func LightHintVar(raw []byte, faceIdx int, isCFF2 bool, gid uint16, px float64, 
 			return nil, nil, 0, err
 		}
 	} else {
-		start, ln, err := cffTableData(raw, faceIdx)
-		if err != nil {
-			return nil, nil, 0, err
-		}
-		cd, err := cffParseAll(raw[start:start+ln], upem)
+		cd, err := cffParseCached(raw, faceIdx)
 		if err != nil {
 			return nil, nil, 0, err
 		}

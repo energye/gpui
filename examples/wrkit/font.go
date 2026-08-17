@@ -3,6 +3,7 @@ package wrkit
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/energye/gpui/render/text"
@@ -23,12 +24,15 @@ var (
 // Returns (face, path, err). On err, text will still layout by rune estimate
 // but will not paint — callers should log and avoid relying on invisible labels.
 //
-// Uses a MultiFace chain (UI + CJK + …) so Chinese labels in wr_* chrome
-// (TopBar titles, legends) actually paint — LoadDefaultFace alone resolves
-// only a Latin font whose glyphs lack CJK coverage (drawString skips them).
+// Default chain puts Source Han Sans SC (Noto Sans CJK SC — the open-source
+// Microsoft YaHei equivalent, covering Latin too) first, then the Latin UI
+// sans, Thai, Devanagari and Arabic role fallbacks. The system NotoSansCJK
+// TTC resolves to the JP sub-font by default collection index, so the SC
+// single-language file in the user font dir is preferred when present —
+// simplified-Han glyph forms with the YaHei-style design.
 func EnsureUIFace() (text.Face, string, error) {
 	uiFaceOnce.Do(func() {
-		uiFace, uiFacePath, uiFaceErr = text.LoadMultiFace(14)
+		uiFace, uiFacePath, uiFaceErr = loadUIChain()
 		if uiFaceErr != nil {
 			fmt.Fprintf(os.Stderr, "wrkit: UI font load failed: %v (text will be invisible)\n", uiFaceErr)
 		} else {
@@ -36,6 +40,23 @@ func EnsureUIFace() (text.Face, string, error) {
 		}
 	})
 	return uiFace, uiFacePath, uiFaceErr
+}
+
+// loadUIChain builds the ui_wr_* chrome MultiFace: CJK role first so the
+// YaHei-style Source Han Sans SC face drives both Han and Latin text.
+func loadUIChain() (text.Face, string, error) {
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		sc := filepath.Join(home, ".local", "share", "fonts", "NotoSansCJKsc-Regular.otf")
+		text.SetSystemFontPaths(text.FontRoleCJK, sc,
+			"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+	}
+	return text.LoadDefaultFaceFor(14, []text.FontRole{
+		text.FontRoleCJK,
+		text.FontRoleUI,
+		text.FontRoleThai,
+		text.FontRoleDevanagari,
+		text.FontRoleArabic,
+	})
 }
 
 // FaceAt returns a face scaled to points (falls back to EnsureUIFace base).
