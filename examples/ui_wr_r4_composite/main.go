@@ -89,10 +89,19 @@ func main() {
 	phaseLabel.SetRepaintBoundary(true)
 	shell.Body.Place(phaseLabel, 700, 520)
 
+	// SnapshotPath saves a GPU readback PNG of the final frame at close
+	// (pixel verification: xwd on the X11 backing store lags composite GPU
+	// content). Override with R4_SNAPSHOT; empty disables.
+	snapPath := os.Getenv("R4_SNAPSHOT")
+	if snapPath == "" {
+		snapPath = "r4_snapshot.png"
+	}
+
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       time.Duration(secs) * time.Second,
+		WarmUp:       true,
+		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_wr_r4_composite: close (%s)\n", win.Backend())

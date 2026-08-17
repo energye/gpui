@@ -224,7 +224,7 @@
 ### 6.1 render/text（包级导出 239）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
-| 字体与文件 | `RegisterParser/FontSource/FontSourceID/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…` | 字体解析器注册、字体源身份、字体文件加载、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
+| 字体与文件 | `RegisterParser/FontSource/FontSourceID/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…`、`MultiFace`（`AtSize`/`WithHinting` 等导出方法） | 字体解析器注册、字体源身份、字体文件加载、多字体链重建（尺寸/渲染选项保留）、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
 | 整形 | `Shape/ShapedGlyph/RunAdvance/CaretXForCluster/HitTestCluster/…` | 文本整形（复杂文字/阿拉伯、泰文等）、字形序列与簇命中 | 文本整形 | 🔗 |
 | 绘制 | `Draw/DrawAliased/DrawWithEmoji/Measure/MeasureText` | 字形到目标图像的绘制（含别名/emoji）、文本度量 | 字形绘制 | 🔗 |
 | 度量/量化 | `Quantize/QuantizePoint/SubpixelMode/SubpixelConfig` | 子像素量化（LCD/AA 的次像素定位） | 子像素量化 | 🔗 |

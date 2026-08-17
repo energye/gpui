@@ -39,6 +39,10 @@ func EnsureUIFace() (text.Face, string, error) {
 }
 
 // FaceAt returns a face scaled to points (falls back to EnsureUIFace base).
+// The MultiFace chain is re-pinned to the production hinting mode
+// (HintingVertical = FT light, matching the GPU glyph-mask pipeline, engine
+// default is HintingFull) — MultiFace.Source() is nil, so the re-pin goes
+// through the engine's MultiFace.WithHinting + AtSize (options preserved).
 func FaceAt(points float64) text.Face {
 	base, _, err := EnsureUIFace()
 	if err != nil || base == nil {
@@ -47,11 +51,15 @@ func FaceAt(points float64) text.Face {
 	if points <= 0 {
 		points = 14
 	}
-	// Prefer Source re-face when available so size tracks points. Explicit
-	// None hinting keeps the CPU fallback identical to the GPU mask pipeline
-	// (R21: unhinted renders pixel-identical to FreeType no-hint).
+	if mf, ok := base.(*text.MultiFace); ok {
+		if f := mf.WithHinting(text.HintingVertical); f != nil {
+			if f2 := f.AtSize(points); f2 != nil {
+				return f2
+			}
+		}
+	}
 	if src := base.Source(); src != nil {
-		if f := src.Face(points, text.WithHinting(text.HintingNone)); f != nil {
+		if f := src.Face(points, text.WithHinting(text.HintingVertical)); f != nil {
 			return f
 		}
 	}

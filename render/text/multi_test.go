@@ -290,3 +290,71 @@ func TestMultiFaceLanguage(t *testing.T) {
 		t.Errorf("expected language \"en\", got %q", mf.Language())
 	}
 }
+
+// TestMultiFaceAtSizePreservesHinting pins the AtSize option-preservation
+// fix: re-deriving at a new size must keep each component face's hinting,
+// not reset to the engine default HintingFull.
+func TestMultiFaceAtSizePreservesHinting(t *testing.T) {
+	src := loadTestFont(t)
+	defer src.Close()
+
+	mf, err := NewMultiFace(src.Face(14, WithHinting(HintingNone)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := mf.AtSize(20)
+	if got == nil {
+		t.Fatal("AtSize returned nil")
+	}
+	if got.Hinting() != HintingNone {
+		t.Fatalf("AtSize(20) hinting=%v want None (option must survive size re-derive)", got.Hinting())
+	}
+	if got.Size() != 20 {
+		t.Fatalf("AtSize size=%v want 20", got.Size())
+	}
+}
+
+// TestMultiFaceWithHinting re-pins every component face to a hinting mode
+// while preserving the face size.
+func TestMultiFaceWithHinting(t *testing.T) {
+	src := loadTestFont(t)
+	defer src.Close()
+
+	mf, err := NewMultiFace(src.Face(16))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := mf.WithHinting(HintingVertical)
+	if got == nil {
+		t.Fatal("WithHinting returned nil")
+	}
+	if got.Hinting() != HintingVertical {
+		t.Fatalf("WithHinting hinting=%v want Vertical (FT light)", got.Hinting())
+	}
+	if got.Size() != 16 {
+		t.Fatalf("WithHinting size=%v want 16 (size preserved)", got.Size())
+	}
+}
+
+// TestMultiFaceWithHintingThenAtSize exercises the UI-kit pattern: pin the
+// chain to a hinting mode, then re-derive at the target size — hinting must
+// survive the size change (AtSize preserves options).
+func TestMultiFaceWithHintingThenAtSize(t *testing.T) {
+	src := loadTestFont(t)
+	defer src.Close()
+
+	mf, err := NewMultiFace(src.Face(14))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := mf.WithHinting(HintingNone).AtSize(11)
+	if got == nil {
+		t.Fatal("WithHinting+AtSize returned nil")
+	}
+	if got.Hinting() != HintingNone {
+		t.Fatalf("hinting=%v want None after WithHinting+AtSize", got.Hinting())
+	}
+	if got.Size() != 11 {
+		t.Fatalf("size=%v want 11", got.Size())
+	}
+}

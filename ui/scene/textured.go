@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
 )
 
 // PictureTextureCache keeps offscreen GPU textures for PictureLayers across
@@ -455,14 +456,35 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 }
 
 // measureTextBounds estimates the layer-local bounds of a text-only picture
-// from font metrics (geometry ops have no tracked bounds, so text layers would
-// otherwise always record full-window textures with an empty damage rect).
+// (geometry ops have no tracked bounds, so text layers would otherwise always
+// record full-window textures with an empty damage rect).
+//
+// Bounds are computed per fallback run with each run face's own metrics and
+// glyph ink boxes (Flutter RenderParagraph / Skia glyph-bounds semantics):
+//   - A MultiFace's aggregate metrics reflect the first face only, and CJK
+//     ink can rise ~0.12em above the Latin ascent (top strokes of 局/屏/重/
+//     景/损 were clipped by the offscreen viewport).
+//   - Latin accents / descenders and right-side-bearing overhang exceed
+//     metrics/advance estimates too, so each glyph's outline bbox (scaled to
+//     pixels, Y-down from the baseline) is unioned in, padded by 2px to
+//     absorb raster pixel-fit and AA spread (Skia pads glyph bounds +1).
 func (c *PictureTextureCache) measureTextBounds(pic *Picture) (image.Rectangle, bool) {
 	if c == nil || c.dc == nil || pic == nil || pic.IsEmpty() {
 		return image.Rectangle{}, false
 	}
 	var b image.Rectangle
 	found := false
+	union := func(r image.Rectangle) {
+		if r.Empty() {
+			return
+		}
+		if !found {
+			b = r
+			found = true
+		} else {
+			b = b.Union(r)
+		}
+	}
 	for i := range pic.Ops {
 		op := &pic.Ops[i]
 		if op.Kind != OpDrawString || op.Text == "" {
@@ -475,18 +497,47 @@ func (c *PictureTextureCache) measureTextBounds(pic *Picture) (image.Rectangle, 
 		if face == nil {
 			continue
 		}
-		m := face.Metrics()
-		r := image.Rect(
-			int(math.Floor(op.X)),
-			int(math.Floor(op.Y-m.Ascent)),
-			int(math.Ceil(op.X+face.Advance(op.Text))),
-			int(math.Ceil(op.Y+m.Descent)),
-		)
-		if !found {
-			b = r
-			found = true
-		} else {
-			b = b.Union(r)
+		runs := []text.FaceRun{{Face: face, Text: op.Text, X: 0}}
+		if mf, ok := face.(*text.MultiFace); ok {
+			runs = mf.Runs(op.Text)
+		}
+		for _, run := range runs {
+			if run.Face == nil || run.Text == "" {
+				continue
+			}
+			m := run.Face.Metrics()
+			// Metrics floor (per-run face) so shaped/glyph-less cases still
+			// have a bound; per-glyph ink boxes below tighten it.
+			union(image.Rect(
+				int(math.Floor(op.X+run.X)),
+				int(math.Floor(op.Y-m.Ascent)),
+				int(math.Ceil(op.X+run.X+run.Face.Advance(run.Text))),
+				int(math.Ceil(op.Y+m.Descent)),
+			))
+			// Exact per-glyph ink bounds (glyf/CFF bbox scaled to pixels,
+			// Y-down from the baseline). The pen advances with the same
+			// per-glyph rounding as the glyph-mask engine (device-pixel grid
+			// snap, Skia strikeToSource), so long strings don't drift out of
+			// the estimate; the 2px inset absorbs raster pixel-fit + AA.
+			scale := c.dc.DeviceScale()
+			if scale <= 0 {
+				scale = 1
+			}
+			pen := 0.0
+			for g := range run.Face.Glyphs(run.Text) {
+				gb := g.Bounds
+				if gb.MinX == 0 && gb.MaxX == 0 && gb.MinY == 0 && gb.MaxY == 0 {
+					pen += math.Round(g.Advance * scale)
+					continue // space / empty glyph
+				}
+				union(image.Rect(
+					int(math.Floor(op.X+run.X+pen+gb.MinX)),
+					int(math.Floor(op.Y+g.Y+gb.MinY)),
+					int(math.Ceil(op.X+run.X+pen+gb.MaxX)),
+					int(math.Ceil(op.Y+g.Y+gb.MaxY)),
+				).Inset(-2))
+				pen += math.Round(g.Advance * scale)
+			}
 		}
 	}
 	return b, found

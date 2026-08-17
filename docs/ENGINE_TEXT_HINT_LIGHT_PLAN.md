@@ -44,7 +44,7 @@
 |---|---|
 | mask 管线 hinting | 恒 `HintingNone`（selectGlyphMaskHinting，已提交 d4f9b1f）；snapX = !useLCD 整数网格；Y 恒 snap（`render/internal/gpu/glyph_mask_engine.go`） |
 | GPU vs CPU | 同一 `GlyphMaskRasterizer` None 光栅 + 整数网格，链条一致 |
-| 例窗 | `examples/wrkit/font.go` FaceAt 显式 `HintingNone` |
+| 例窗 | `examples/wrkit/font.go` FaceAt 显式 `HintingNone`（R21 时期；**2026-08-17 起改为 `HintingVertical`（FT light）并修复 MultiFace.AtSize 丢选项 + FaceAt 对 MultiFace 不生效两个洞**，见 §2 下方修订注） |
 | 指标门禁 | `ui_wr_r21_shell: OK shell_rr_scroll shell_skip_scroll`（自然退出打印） |
 | 回归基线 | `go test ./render/...` 全绿（text/cache/emoji/hint/msdf） |
 

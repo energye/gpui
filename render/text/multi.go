@@ -165,6 +165,26 @@ func (m *MultiFace) Size() float64 {
 	return m.faces[0].Size()
 }
 
+// faceOptionsOf returns FaceOptions preserving a face's rendering
+// configuration (direction/hinting/features/variations/language) when the
+// face is re-derived. AtSize previously dropped every option — a MultiFace
+// pinned to HintingVertical (FT light) came back as the engine default
+// HintingFull after a size change.
+func faceOptionsOf(f Face) []FaceOption {
+	opts := make([]FaceOption, 0, 6)
+	opts = append(opts, WithDirection(f.Direction()), WithHinting(f.Hinting()))
+	if feats := f.Features(); len(feats) > 0 {
+		opts = append(opts, WithFeatures(feats...))
+	}
+	if vars := f.Variations(); len(vars) > 0 {
+		opts = append(opts, WithVariations(vars...))
+	}
+	if lang := f.Language(); lang != "" {
+		opts = append(opts, WithLanguage(lang))
+	}
+	return opts
+}
+
 // AtSize returns a MultiFace with every component face re-derived at size.
 // Source() is nil on MultiFace (composite), so callers that only do
 // Source().Face(size) would keep the old size or drop CJK fallbacks.
@@ -191,7 +211,37 @@ func (m *MultiFace) AtSize(size float64) Face {
 			continue
 		}
 		if src := f.Source(); src != nil {
-			out = append(out, src.Face(size))
+			out = append(out, src.Face(size, faceOptionsOf(f)...))
+			continue
+		}
+		out = append(out, f)
+	}
+	if len(out) == 0 {
+		return m
+	}
+	mf, err := NewMultiFace(out...)
+	if err != nil {
+		return m
+	}
+	return mf
+}
+
+// WithHinting returns a new MultiFace with every component face re-derived at
+// its current size with the given hinting mode; all other rendering options
+// (features/variations/language/direction) are preserved. UI chrome uses this
+// to pin its faces to the production hinting mode (HintingVertical = FT
+// light) instead of the engine default HintingFull.
+func (m *MultiFace) WithHinting(h Hinting) *MultiFace {
+	if m == nil || len(m.faces) == 0 {
+		return m
+	}
+	out := make([]Face, 0, len(m.faces))
+	for _, f := range m.faces {
+		if f == nil {
+			continue
+		}
+		if src := f.Source(); src != nil {
+			out = append(out, src.Face(f.Size(), append(faceOptionsOf(f), WithHinting(h))...))
 			continue
 		}
 		out = append(out, f)
