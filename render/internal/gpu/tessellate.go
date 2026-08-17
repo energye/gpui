@@ -164,6 +164,14 @@ func (ft *FanTessellator) Vertices() []float32 {
 	return ft.vertices
 }
 
+// BandVerts returns the analytic-AA exterior fringe band as (x, y, d)
+// float32 triples (stride 12). Empty unless TessellateAA ran. Used by the
+// depth-clip stencil-expansion pass to widen the depth-test region to the
+// coverage-mask fringe (GPU-CLIP-003a-AA).
+func (ft *FanTessellator) BandVerts() []float32 {
+	return ft.bandVerts
+}
+
 // Bounds returns the axis-aligned bounding box of all tessellated vertices.
 // Format: [minX, minY, maxX, maxY]. Returns zeroes if no vertices were emitted.
 func (ft *FanTessellator) Bounds() [4]float32 {
@@ -373,6 +381,14 @@ func (ft *FanTessellator) flattenCubicFanDepth(
 // the CPU reference.
 const aaCoverHalfWidth = 0.5
 
+// aaCoverBandPad extends the band triangle outer/inner edges beyond the
+// d=±aa fringe line by 0.5px (one pixel center) so edge pixels whose center
+// sits just outside the ideal fringe (ring inner edges, closed-stroke
+// outlines) are covered by a band triangle and get the intended partial
+// coverage instead of a hard background step. The extra strip carries the
+// end-cap d (±aa), so the smoothstep transition band is unchanged.
+const aaCoverBandPad = 0.5
+
 // aaSegment is one flattened path-boundary edge in pixel coords.
 type aaSegment struct{ ax, ay, bx, by float64 }
 
@@ -415,12 +431,54 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 	ft.aaCollectSegments(path)
 
 	// Pass 2: emit the exterior + interior bands from the flattened segments.
+	// Per-contour orientation: single contours (fill path / stroke expand)
+	// use the raw signed area to pick the outward normal. Multi-contour
+	// paths (rings from stroke expansion, holes) additionally flip the
+	// orient of any contour whose winding is OPPOSITE the dominant contour —
+	// that contour is a hole, and its "outside" faces the hole interior, not
+	// the fill. Without this, ring inner edges render the exterior band on
+	// the stroke side → inner boundary loses AA (aliased stroke inner edge).
+	mainSign := 1.0
+	if len(ft.contourAreas) > 0 {
+		best := ft.contourAreas[0]
+		for _, a := range ft.contourAreas[1:] {
+			if math.Abs(a) > math.Abs(best) {
+				best = a
+			}
+		}
+		if best < 0 {
+			mainSign = -1.0
+		}
+	}
 	seg := 0
 	for c := 0; c < len(ft.contourAreas); c++ {
 		orient := 1.0
 		if ft.contourAreas[c] < 0 {
 			orient = -1.0
 		}
+		// Hole contour: winding opposes the dominant contour → flip orient
+		// so the exterior band faces the hole (stencil==0 region), giving
+		// the ring's inner edge a real AA gradient.
+		isHole := (mainSign < 0 && ft.contourAreas[c] > 0) || (mainSign > 0 && ft.contourAreas[c] < 0)
+		if isHole && len(ft.contourAreas) > 1 {
+			orient = -orient
+		}
+		// Pad only hole-contour bands: their outer fringe faces a concave
+		// region (the hole) where pixel centers sit up to 0.5px outside the
+		// ideal line; outer (convex) contours already cover those centers.
+		bandPad := 0.0
+		if isHole && len(ft.contourAreas) > 1 {
+			bandPad = aaCoverBandPad
+		}
+		// Interior half: emitted for boundary segments up to aaInnerMaxSegLen
+		// (curved/flattened segments — glyph outlines, arc strokes, the eye's
+		// ring curves) subject to sharp-corner suppression/erosion. Long
+		// (effectively straight) segments skip it: the CPU reference (Skia
+		// AAA) paints their just-inside pixels full, and the per-edge Replace
+		// overpaint on long straight edges under-covers them (periodic
+		// under-coverage along the stroked-triangle sides, ui_render_graphics/
+		// basic), while at sharp corners it hollows the miter/hole-V wedge.
+		emitInner := true
 		// Skip degenerate contours (zero area).
 		start := seg
 		for seg < len(ft.segments) && ft.segContours[seg] == c {
@@ -429,11 +487,93 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 		if seg == start {
 			continue
 		}
-		for i := start; i < seg; i++ {
-			ft.emitAABands(ft.segments[i].ax, ft.segments[i].ay, ft.segments[i].bx, ft.segments[i].by, orient)
+		// Per-segment sharp-corner erosion of the interior half: compute the
+		// A/B corner turns from the adjacent segments of the same contour.
+		// Short corner-decoration segments (miter/bevel joins, hole V arms)
+		// suppressed entirely — their whole span sits inside the corner wedge
+		// the CPU reference fills fully; the wedge pixels project mid-segment
+		// so end erosion alone cannot spare them. Longer segments keep the
+		// interior band with the wedge ends eroded.
+		n := seg - start
+		for k := 0; k < n; k++ {
+			i := start + k
+			prev := ft.segments[start+(k-1+n)%n]
+			next := ft.segments[start+(k+1)%n]
+			s := ft.segments[i]
+			erosionA := aaCornerErosion(prev.bx-prev.ax, prev.by-prev.ay, s.bx-s.ax, s.by-s.ay)
+			erosionB := aaCornerErosion(s.bx-s.ax, s.by-s.ay, next.bx-next.ax, next.by-next.ay)
+			segLen := math.Hypot(s.bx-s.ax, s.by-s.ay)
+			// Long (effectively straight) boundary segments: the CPU reference
+			// paints their just-inside pixels full — no interior band.
+			emitThis := emitInner && segLen <= aaInnerMaxSegLen && !(segLen <= cornerSuppressLen && (erosionA > 0 || erosionB > 0))
+			ft.emitAABands(s.ax, s.ay, s.bx, s.by, orient, bandPad, emitThis, erosionA, erosionB)
 		}
 	}
 	return len(ft.bandVerts) / 3
+}
+
+// aaCornerSharp reports whether a corner (turn angle phi, radians between
+// consecutive boundary segments; the shape's interior angle is π−phi for
+// outer contours) triggers the interior-band corner treatment. The CPU
+// reference (Skia AAA) fills through the wedge of sharp joins while keeping
+// the interior AA of moderate/smooth ones. Empirically the ring (stroke
+// expansion) corners needing the treatment are:
+//
+//   - hole V arms at stroked-polygon vertices (turn ≈ 50°);
+//   - hole orthogonal corners at stroked-polygon bases (turn ≈ 90°);
+//   - outer miter/bevel join decorations (turn 115-130°).
+//
+// Smooth flattened curves (glyph outlines, round-join arcs — 1-25° per
+// segment), the arc's round caps (≈22°), and moderate joins (≈75°, eye-lens
+// tips) keep the interior AA the CPU reference also renders.
+func aaCornerSharp(phi float64) bool {
+	return (phi >= 40*math.Pi/180 && phi <= 60*math.Pi/180) ||
+		(phi >= 85*math.Pi/180 && phi <= 95*math.Pi/180) ||
+		phi >= 110*math.Pi/180
+}
+
+// cornerSuppressLen is the max segment length (px) for which a sharp-corner
+// segment's interior half is suppressed entirely. Miter/bevel join
+// decorations (stroked polygon corners) and hole V arms are short spans that
+// sit inside the corner wedge — end erosion alone leaves mid-segment pixels
+// under-covered. Long boundary edges (glyph outlines, arc strokes, ring
+// arms) keep the interior band with eroded wedge ends.
+const cornerSuppressLen = 4.0
+
+// aaInnerMaxSegLen is the max flattened-segment length (px) that still gets
+// an interior half. Flattening (fanFlattenTolerance) bounds curved-boundary
+// segments to a few px (glyph outlines, arcs); longer segments are
+// effectively straight, where the CPU reference paints just-inside pixels
+// full (no interior fade).
+const aaInnerMaxSegLen = 40.0
+
+// aaCornerErosion returns the length (px) the interior band's end must be
+// moved along the segment away from a corner formed by the incoming vector
+// (px,py) and the outgoing vector (qx,qy) (both non-zero). Returns 0 for
+// smooth (near-collinear) corners. The wedge extent along either edge is
+// aa/sin(φ/2) (inner miter point of the two fringe strips); eroding to that
+// plus aa removes the overlap region where both adjacent strips would
+// Replace partial coverage onto pixels the binary cover already fills.
+func aaCornerErosion(px, py, qx, qy float64) float64 {
+	pl := math.Hypot(px, py)
+	ql := math.Hypot(qx, qy)
+	if pl < 1e-9 || ql < 1e-9 {
+		return 0
+	}
+	dot := (px*qx + py*qy) / (pl * ql)
+	cross := math.Abs(px*qy-py*qx) / (pl * ql)
+	// Turn angle φ between the segments (atan2 with |cross| gives the angle
+	// in [0, π] — the obtuse V-angle; the shape's interior angle is π−φ).
+	phi := math.Atan2(cross, dot)
+	if !aaCornerSharp(phi) {
+		return 0
+	}
+	// The wedge the CPU reference fills through (Skia AAA merges the strips
+	// at the corner) extends roughly 2·aa/sin(φ/2) from the corner along
+	// either edge (the inner strips' overlap plus pixel-center coverage);
+	// erode that plus aa so the per-edge interior Replace cannot under-cover
+	// those pixels.
+	return aaCoverHalfWidth*(1+3/math.Sin(phi/2)) + aaCoverHalfWidth
 }
 
 // aaCollectSegments walks the path and flattens every edge into aaSegments
@@ -555,15 +695,31 @@ func (ft *FanTessellator) aaFlattenCubic(x0, y0, c1x, c1y, c2x, c2y, x1, y1, tol
 //     blend, painted after the cover so just-inside pixels get their true
 //     partial coverage instead of full alpha.
 //
+// The band geometry extends aaCoverBandPad px BEYOND the d=±aa fringe edge
+// (d stays clamped at ±aa there): the rasterizer samples pixel centers which
+// can sit up to 0.5px outside the ideal fringe line; without the pad those
+// edge pixels fall outside the triangles entirely and render as hard
+// background/fill instead of the intended partial coverage (aliased stroke
+// inner edge, ex5). The extra strip carries the end-cap d, so smoothstep
+// saturates at 0/1 there — the visible transition band is unchanged.
+//
 // The cover_aa.wgsl smoothstep turns d into coverage: 0 at -aa, 0.5 on the
 // boundary line, 1 at +aa.
-func (ft *FanTessellator) emitAABands(ax, ay, bx, by, orient float64) {
+//
+// erosionA/erosionB (px, 0 when smooth): sharp-corner erosion of the interior
+// half at the A/B ends — the wedge between two strips overlapping at a corner
+// would Replace partial coverage over pixels the binary cover already fills
+// (hollow join pixels on stroked shapes). The interior quad's end boundary is
+// moved along the segment past the wedge extent (aaCornerErosion), leaving the
+// just-inside AA intact on smooth edges.
+func (ft *FanTessellator) emitAABands(ax, ay, bx, by, orient, contourPad float64, emitInner bool, erosionA, erosionB float64) {
 	ex, ey := bx-ax, by-ay
 	elen := math.Hypot(ex, ey)
 	if elen < 1e-9 {
 		return
 	}
 	aa := aaCoverHalfWidth
+	pad := contourPad
 	tx, ty := ex/elen, ey/elen
 	// Outward normal: right of the direction for CCW (fill left), left for CW.
 	nx, ny := orient*ty, -orient*tx
@@ -573,8 +729,13 @@ func (ft *FanTessellator) emitAABands(ax, ay, bx, by, orient float64) {
 
 	// Exterior half: d = 0 on the line, -aa outside (b0 + n̂·aa — n̂ points
 	// away from the fill in pixel coords for orientation-normalized contours).
-	e2x, e2y := b0x+nx*aa, b0y+ny*aa
-	e3x, e3y := b1x+nx*aa, b1y+ny*aa
+	// e2/e3 extruded aa+pad along the outward normal so pixel centers sitting
+	// up to 0.5px beyond the ideal fringe line are still covered (their d
+	// interpolates 0 → -aa, saturating): without the pad the innermost edge
+	// pixels fall outside all band triangles and render as hard background.
+	// b0/b1 keep the aa joint extension (no pad — avoids bulge at corners).
+	e2x, e2y := b0x+nx*(aa+pad), b0y+ny*(aa+pad)
+	e3x, e3y := b1x+nx*(aa+pad), b1y+ny*(aa+pad)
 	ft.bandVerts = append(ft.bandVerts,
 		float32(b0x), float32(b0y), 0,
 		float32(b1x), float32(b1y), 0,
@@ -585,13 +746,41 @@ func (ft *FanTessellator) emitAABands(ax, ay, bx, by, orient float64) {
 	)
 
 	// Interior half: d = 0 on the line, +aa inside (b0 - n̂·aa).
-	i2x, i2y := b0x-nx*aa, b0y-ny*aa
-	i3x, i3y := b1x-nx*aa, b1y-ny*aa
+	// The A/B ends are eroded past sharp-corner wedges; a corner whose wedge
+	// covers the whole segment drops the quad (no pad on the interior half —
+	// extending it only widens the transition band beyond the CPU reference,
+	// y68 turned 43 instead of 0 in render_clipping ex5).
+	if !emitInner {
+		return
+	}
+	// Erode the end boundaries along the segment tangent: the interior quad
+	// then starts/ends past the corner wedge instead of poking into the
+	// adjacent strip's overlap region. Without erosion the boundaries keep
+	// the original ±aa tangent extension (joint coverage).
+	tail := -aa
+	head := elen + aa
+	if erosionA > 0 {
+		tail = erosionA
+	}
+	if erosionB > 0 {
+		head = elen - erosionB
+	}
+	if tail >= head {
+		return
+	}
+	// Rebuild the interior quad from the eroded chord endpoints: the on-line
+	// corners sit on the boundary line at t=tail..head, the interior corners
+	// at the ±aa inward offset from there. d stays 0 on the line, +aa inside
+	// (unchanged transition band).
+	px0, py0 := ax+tx*tail, ay+ty*tail
+	px1, py1 := ax+tx*head, ay+ty*head
+	i2x, i2y := px0-nx*aa, py0-ny*aa
+	i3x, i3y := px1-nx*aa, py1-ny*aa
 	ft.innerBandVerts = append(ft.innerBandVerts,
-		float32(b0x), float32(b0y), 0,
-		float32(b1x), float32(b1y), 0,
+		float32(px0), float32(py0), 0,
+		float32(px1), float32(py1), 0,
 		float32(i2x), float32(i2y), float32(aa),
-		float32(b1x), float32(b1y), 0,
+		float32(px1), float32(py1), 0,
 		float32(i3x), float32(i3y), float32(aa),
 		float32(i2x), float32(i2y), float32(aa),
 	)

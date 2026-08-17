@@ -11,6 +11,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/clip"
 )
 
 //go:embed shaders/depth_clip.wgsl
@@ -96,6 +97,16 @@ type DepthClipPipeline struct {
 	// Non-zero winding: front IncrementWrap, back DecrementWrap.
 	// DepthWriteEnabled=false, ColorWriteMask=None.
 	stencilFillPipeline *webgpu.RenderPipeline
+
+	// stencilExpandPipeline (sampleCount==1 only) performs the geometric
+	// stencil expansion half of GPU-CLIP-003a-AA: it paints the analytic-AA
+	// exterior band mesh (bandVerts, stride-12 x,y,d) with stencil Replace(1)
+	// so the depth-test pass region covers the same AA fringe that the R8
+	// coverage mask modulates. Without it, the binary fan-triangle stencil
+	// edge is tighter than the mask fringe: boundary pixels are rejected by
+	// the depth test before the mask can fade them, leaving aliased edges.
+	// DepthWriteEnabled=false, ColorWriteMask=None.
+	stencilExpandPipeline *webgpu.RenderPipeline
 
 	// depthCoverPipeline performs Phase 2: cover quad → depth write.
 	// StencilCompare=NotEqual(0), DepthCompare=Always, DepthWriteEnabled=true.
@@ -240,6 +251,74 @@ func (p *DepthClipPipeline) ensurePipeline() error { //nolint:funlen // GPU pipe
 	}
 	p.stencilFillPipeline = stencilFillPipeline
 
+	// --- sampleCount==1 stencil-expansion pipeline (GPU-CLIP-003a-AA) ---
+	//
+	// The binary fan stencil edge is tighter than the R8 coverage mask's AA
+	// fringe, so edge pixels get rejected by the depth test before the mask
+	// can fade them. This pipeline paints the exterior band mesh (stride-12
+	// x,y,d triples; d ignored — shader reads x,y only) with stencil
+	// Replace(1), widening the depth-pass region to exactly the mask fringe.
+	// Only created when sampleCount==1; guard in RecordDraw.
+	aaVertexBufLayout := []types.VertexBufferLayout{
+		{
+			ArrayStride: aaVertexStride, // 12 bytes (x,y + signed edge dist)
+			StepMode:    types.VertexStepModeVertex,
+			Attributes: []types.VertexAttribute{
+				{
+					Format:         types.VertexFormatFloat32x2,
+					Offset:         0,
+					ShaderLocation: 0,
+				},
+			},
+		},
+	}
+	if p.sampleCount == 1 {
+		stencilExpandPipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
+			Label:  "depth_clip_stencil_expand_pipeline",
+			Layout: p.pipeLayout,
+			Vertex: webgpu.VertexState{
+				Module:     p.shader,
+				EntryPoint: shaderEntryVS,
+				Buffers:    aaVertexBufLayout,
+			},
+			Fragment: &webgpu.FragmentState{
+				Module:     p.shader,
+				EntryPoint: shaderEntryFS,
+				Targets: []types.ColorTargetState{
+					{
+						Format:    types.TextureFormatBGRA8Unorm,
+						WriteMask: types.ColorWriteMaskNone,
+					},
+				},
+			},
+			DepthStencil: &webgpu.DepthStencilState{
+				Format:            types.TextureFormatDepth24PlusStencil8,
+				DepthWriteEnabled: false,
+				DepthCompare:      types.CompareFunctionAlways,
+				StencilFront: webgpu.StencilFaceState{
+					Compare:     types.CompareFunctionAlways,
+					FailOp:      webgpu.StencilOperationKeep,
+					DepthFailOp: webgpu.StencilOperationKeep,
+					PassOp:      webgpu.StencilOperationReplace,
+				},
+				StencilBack: webgpu.StencilFaceState{
+					Compare:     types.CompareFunctionAlways,
+					FailOp:      webgpu.StencilOperationKeep,
+					DepthFailOp: webgpu.StencilOperationKeep,
+					PassOp:      webgpu.StencilOperationReplace,
+				},
+				StencilReadMask:  0xFF,
+				StencilWriteMask: 0xFF,
+			},
+			Multisample: multisample,
+			Primitive:   primitive,
+		})
+		if err != nil {
+			return fmt.Errorf("create depth clip stencil expand pipeline: %w", err)
+		}
+		p.stencilExpandPipeline = stencilExpandPipeline
+	}
+
 	// --- Phase 2 pipeline: Cover quad → depth write ---
 	//
 	// Draws a bounding box quad. Only pixels where stencil != 0 (inside clip)
@@ -304,6 +383,27 @@ type DepthClipResources struct {
 	vertCount  uint32            // number of fan vertices (Phase 1)
 	coverCount uint32            // number of cover quad vertices (Phase 2, always 6)
 	owned      bool              // if true, vertBuf and coverBuf are per-call (must be released)
+
+	// maskTex / maskView / maskBG hold the analytic-AA coverage mask for the
+	// clip path when rendering at sampleCount==1 (Skia kCoverage / Flutter
+	// ClipMask pattern). The stencil+depth phases are binary at 1x — a pixel
+	// either passes the depth test or not — so the clip boundary itself
+	// aliases. The R8 mask (full-frame coverage, 0..255 with an AA fringe
+	// band around the clip edge) is bound to the L.06 @group(2) mask channel
+	// of content pipelines, which multiply the fragment alpha by the sampled
+	// coverage. Nil at sampleCount>1 (MSAA already provides sub-sample edge
+	// coverage through the depth test).
+	maskTex  *webgpu.Texture
+	maskView *webgpu.TextureView
+	maskBG   *webgpu.BindGroup
+
+	// bandBuf / bandCount hold the analytic-AA exterior fringe mesh
+	// (stride-12 x,y,d triples) for the stencil-expansion pass at
+	// sampleCount==1: the binary fan stencil edge is tighter than the mask
+	// fringe, so we paint this band with stencil Replace(1) to widen the
+	// depth-pass region to exactly the mask's AA band. Nil when sampleCount>1.
+	bandBuf   *webgpu.Buffer
+	bandCount uint32
 }
 
 // Release frees per-call GPU buffers if owned.
@@ -319,6 +419,190 @@ func (r *DepthClipResources) Release() {
 		r.coverBuf.Release()
 		r.coverBuf = nil
 	}
+	if r.bandBuf != nil {
+		r.bandBuf.Release()
+		r.bandBuf = nil
+		r.bandCount = 0
+	}
+	if r.maskBG != nil {
+		r.maskBG.Release()
+		r.maskBG = nil
+	}
+	if r.maskView != nil {
+		r.maskView.Release()
+		r.maskView = nil
+	}
+	if r.maskTex != nil {
+		r.maskTex.Release()
+		r.maskTex = nil
+	}
+}
+
+// clipPathCoverageMask rasterizes the clip path into a full-frame R8 coverage
+// mask using the same analytic-AA scanline algorithm as the CPU reference
+// (render/internal/clip.MaskClipper). Pixels inside the path are 255, outside
+// are 0, and the boundary band carries a smooth coverage gradient — this is
+// what the depth test alone cannot express at sampleCount==1.
+//
+// Returns a w*h byte slice (row-major) or nil when the path is empty.
+func clipPathCoverageMask(clipPath *render.Path, w, h int) []byte {
+	if clipPath == nil || clipPath.NumVerbs() == 0 {
+		return nil
+	}
+	bb := clipPath.Bounds()
+	if bb.Empty() {
+		return nil
+	}
+
+	// Bounds expand 1px around the path bbox so the AA fringe (±0.5px,
+	// MaskClipper's 4x Y-supersampling) is fully captured. MaskClipper
+	// rasterizes in local coordinates offset by the bounds origin.
+	const pad = 1.0
+	rect := clip.Rect{
+		X: float64(bb.Min.X) - pad,
+		Y: float64(bb.Min.Y) - pad,
+		W: float64(bb.Dx()) + 2*pad,
+		H: float64(bb.Dy()) + 2*pad,
+	}
+
+	// render.PathVerb and clip.PathVerb share the same byte values; convert
+	// so the CPU AA rasterizer can be reused directly.
+	verbs := clipPath.Verbs()
+	clipVerbs := make([]clip.PathVerb, len(verbs))
+	for i, v := range verbs {
+		clipVerbs[i] = clip.PathVerb(v)
+	}
+
+	mc, err := clip.NewMaskClipper(clipVerbs, clipPath.Coords(), rect, true)
+	if err != nil {
+		return nil
+	}
+	m := mc.Mask()
+	mw, mh := m.Width(), m.Height()
+	if mw <= 0 || mh <= 0 {
+		return nil
+	}
+
+	mask := make([]byte, w*h) // outside bbox → 0 coverage (depth test rejects anyway)
+	offX := int(rect.X)
+	offY := int(rect.Y)
+	for y := 0; y < mh; y++ {
+		gy := offY + y
+		if gy < 0 || gy >= h {
+			continue
+		}
+		row := gy * w
+		for x := 0; x < mw; x++ {
+			gx := offX + x
+			if gx < 0 || gx >= w {
+				continue
+			}
+			gray, _, _, _ := m.GetRGBA(x, y)
+			mask[row+gx] = gray
+		}
+	}
+	return mask
+}
+
+// BuildClipMask generates the analytic-AA coverage mask for the clip path and
+// uploads it as a full-frame R8 texture + bind group on res. This is the
+// Skia kCoverage / Flutter ClipMask half of GPU-CLIP-003a: at sampleCount==1
+// the stencil+depth phases are binary (a pixel either passes the depth test
+// or not), so the clip boundary aliases; the R8 mask is bound to content
+// pipelines' @group(2) mask channel (L.06) and multiplies the fragment alpha
+// by the sampled coverage, giving a smooth edge gradient.
+//
+// Skipped when sampleCount>1 (MSAA sub-sample coverage already softens the
+// depth-test boundary) or when any required resource is nil. Idempotent:
+// re-calling replaces the previous mask.
+func (p *DepthClipPipeline) BuildClipMask(
+	res *DepthClipResources,
+	clipPath *render.Path,
+	w, h uint32,
+	maskLayout *webgpu.BindGroupLayout,
+	sampler *webgpu.Sampler,
+	uniformOn *webgpu.Buffer,
+) error {
+	if res == nil || clipPath == nil || p.sampleCount > 1 {
+		return nil
+	}
+	if maskLayout == nil || sampler == nil || uniformOn == nil {
+		return nil
+	}
+
+	mask := clipPathCoverageMask(clipPath, int(w), int(h))
+	if mask == nil {
+		return nil
+	}
+
+	// Full-frame R8 texture. BytesPerRow must be aligned for upload.
+	tight := uint32(w) //nolint:gosec // bounded by caller
+	aligned := alignTextureBytesPerRow(tight)
+	upload := mask
+	if aligned != tight {
+		padded := make([]byte, int(aligned)*int(h))
+		for y := 0; y < int(h); y++ {
+			copy(padded[y*int(aligned):y*int(aligned)+int(tight)], mask[y*int(w):(y+1)*int(w)])
+		}
+		upload = padded
+	}
+
+	tex, err := p.device.CreateTexture(&webgpu.TextureDescriptor{
+		Label:         "depth_clip_mask",
+		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}, //nolint:gosec
+		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+		Format: types.TextureFormatR8Unorm,
+		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return fmt.Errorf("create depth clip mask texture: %w", err)
+	}
+	view, err := p.device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		Label: "depth_clip_mask_view", Format: types.TextureFormatR8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Release()
+		return fmt.Errorf("create depth clip mask view: %w", err)
+	}
+	if err := p.queue.WriteTexture(
+		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		upload,
+		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h}, //nolint:gosec
+		&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},   //nolint:gosec
+	); err != nil {
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("upload depth clip mask: %w", err)
+	}
+
+	bg, err := p.device.CreateBindGroup(&webgpu.BindGroupDescriptor{
+		Label:  "depth_clip_mask_bg",
+		Layout: maskLayout,
+		Entries: []webgpu.BindGroupEntry{
+			{Binding: 0, TextureView: view},
+			{Binding: 1, Sampler: sampler},
+			{Binding: 2, Buffer: uniformOn, Offset: 0, Size: maskParamsSize},
+		},
+	})
+	if err != nil {
+		view.Release()
+		tex.Release()
+		return fmt.Errorf("create depth clip mask bind group: %w", err)
+	}
+
+	// Replace previous mask (idempotent re-call).
+	if res.maskBG != nil {
+		res.maskBG.Release()
+	}
+	if res.maskView != nil {
+		res.maskView.Release()
+	}
+	if res.maskTex != nil {
+		res.maskTex.Release()
+	}
+	res.maskTex, res.maskView, res.maskBG = tex, view, bg
+	return nil
 }
 
 // BuildClipResources tessellates the clip path and uploads vertices + uniforms
@@ -337,6 +621,16 @@ func (p *DepthClipPipeline) BuildClipResources(
 	vertCount := p.tessellator.TessellatePath(clipPath)
 	if vertCount == 0 {
 		return nil, nil //nolint:nilnil // empty clip path, nothing to draw
+	}
+
+	// sampleCount==1: also tessellate the analytic-AA exterior fringe band
+	// (stride-12 x,y,d). Drives the stencil-expansion pass (RecordDraw Phase
+	// 1.5) so the depth-pass region covers the same edge band the R8 coverage
+	// mask modulates — without it the binary fan stencil rejects boundary
+	// pixels before the mask can fade them (aliased edges).
+	var bandCount int
+	if p.sampleCount == 1 {
+		bandCount = p.tessellator.TessellateAA(clipPath)
 	}
 
 	// Upload fan vertices (Phase 1: stencil fill).
@@ -408,14 +702,40 @@ func (p *DepthClipPipeline) BuildClipResources(
 		return nil, fmt.Errorf("write owned cover buffer: %w", wErr)
 	}
 
-	return &DepthClipResources{
+	// Owned band buffer (sampleCount==1 stencil expansion). Band verts are
+	// (x, y, d) float32 triples, stride 12.
+	res := &DepthClipResources{
 		vertBuf:    ownedVertBuf,
 		coverBuf:   ownedCoverBuf,
 		bindGroup:  p.bindGroup,
 		vertCount:  uint32(vertCount), //nolint:gosec // bounded by tessellator
 		coverCount: 6,
 		owned:      true, // mark for cleanup
-	}, nil
+	}
+	if bandCount > 0 {
+		band := p.tessellator.BandVerts()
+		ownedBandBuf, err := p.device.CreateBuffer(&webgpu.BufferDescriptor{
+			Label: "depth_clip_band_owned",
+			Size:  uint64(len(band)) * 4, //nolint:gosec // bounded by tessellator
+			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
+		})
+		if err != nil {
+			res.Release()
+			return nil, fmt.Errorf("create owned band buffer: %w", err)
+		}
+		bandData := make([]byte, len(band)*4)
+		for i, v := range band {
+			binary.LittleEndian.PutUint32(bandData[i*4:], math.Float32bits(v))
+		}
+		if wErr := p.queue.WriteBuffer(ownedBandBuf, 0, bandData); wErr != nil {
+			ownedBandBuf.Release()
+			res.Release()
+			return nil, fmt.Errorf("write owned band buffer: %w", wErr)
+		}
+		res.bandBuf = ownedBandBuf
+		res.bandCount = uint32(bandCount) //nolint:gosec // bounded by tessellator
+	}
+	return res, nil
 }
 
 // uploadFanVertices ensures the fan vertex buffer is large enough and uploads
@@ -547,6 +867,22 @@ func (p *DepthClipPipeline) RecordDraw(rp *webgpu.RenderPassEncoder, res *DepthC
 	rp.SetStencilReference(0)
 	rp.Draw(res.vertCount, 1, 0, 0)
 
+	// Phase 1.5 (sampleCount==1, GPU-CLIP-003a-AA): stencil expansion — paint
+	// the analytic-AA exterior fringe band with stencil Replace(1). The
+	// binary fan stencil edge is tighter than the R8 coverage mask's fringe;
+	// without this pass boundary pixels fail the depth test before the mask
+	// can fade them, leaving aliased edges. Phase 2's cover then writes
+	// depth where stencil != 0 — the widened region — and the content
+	// pipelines' @group(2) mask sample provides the smooth alpha gradient.
+	if res.bandCount > 0 && p.stencilExpandPipeline != nil {
+		clearPassBindGroups(rp)
+		rp.SetPipeline(p.stencilExpandPipeline)
+		rp.SetBindGroup(0, res.bindGroup, nil)
+		rp.SetVertexBuffer(0, res.bandBuf, 0)
+		rp.SetStencilReference(1)
+		rp.Draw(res.bandCount, 1, 0, 0)
+	}
+
 	// Phase 2: Cover quad — write depth where stencil != 0, reset stencil to 0.
 	// Only pixels inside the clip path (stencil != 0) receive depth Z=0.0.
 	// StencilPassOp=Zero cleans up stencil for subsequent Tier 2b rendering.
@@ -586,6 +922,10 @@ func (p *DepthClipPipeline) Destroy() {
 	if p.stencilFillPipeline != nil {
 		p.stencilFillPipeline.Release()
 		p.stencilFillPipeline = nil
+	}
+	if p.stencilExpandPipeline != nil {
+		p.stencilExpandPipeline.Release()
+		p.stencilExpandPipeline = nil
 	}
 	if p.pipeLayout != nil {
 		p.pipeLayout.Release()

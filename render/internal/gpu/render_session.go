@@ -1545,6 +1545,22 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 			if dcErr == nil && res != nil {
 				grpRes[i].depthClipRes = res
 				grpRes[i].hasDepthClip = true
+				// GPU-CLIP-003a-AA (Skia kCoverage): at sampleCount==1 the
+				// stencil+depth phases are binary — a pixel either passes the
+				// depth test or not — so the clip boundary aliases. Build a
+				// full-frame R8 coverage mask (CPU analytic AA, same algorithm
+				// as the software renderer) and let content pipelines sample
+				// it via the L.06 @group(2) mask channel.
+				if s.sampleCount <= 1 {
+					if err := s.ensureMaskDefaults(); err != nil {
+						slogger().Warn("depth clip mask defaults", "err", err)
+					} else if err := s.depthClipPipeline.BuildClipMask(
+						res, groups[i].ClipPath, w, h,
+						s.maskBindLayout, s.maskSampler, s.maskUniform,
+					); err != nil {
+						slogger().Warn("build depth clip mask", "err", err)
+					}
+				}
 			}
 		}
 
@@ -4858,19 +4874,29 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 		s.depthClipPipeline.RecordDraw(rp, gr.depthClipRes)
 	}
 
+	// At sampleCount==1, the depth-clip boundary is binary (aliased). When a
+	// per-group coverage mask was built (Skia kCoverage), bind it to the L.06
+	// @group(2) mask channel so content pipelines multiply fragment alpha by
+	// the clipped coverage gradient — a smooth edge instead of hard steps.
+	// Falls back to the frame mask (Context mask or disabled) when absent.
+	maskBG := s.frameMaskBindGroup()
+	if gr.hasDepthClip && gr.depthClipRes != nil && gr.depthClipRes.maskBG != nil {
+		maskBG = gr.depthClipRes.maskBG
+	}
+
 	// Tier 1: SDF shapes (no stencil interaction).
 	if gr.sdfRes != nil && len(gr.sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, gr.sdfRes, clipBG, s.frameMaskBindGroup(), gr.hasDepthClip)
+		s.sdfPipeline.RecordDraws(rp, gr.sdfRes, clipBG, maskBG, gr.hasDepthClip)
 	}
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
 	if gr.convexRes != nil {
-		s.convexRenderer.RecordDraws(rp, gr.convexRes, clipBG, s.frameMaskBindGroup(), gr.hasDepthClip)
+		s.convexRenderer.RecordDraws(rp, gr.convexRes, clipBG, maskBG, gr.hasDepthClip)
 	}
 
 	// Tier 2b: Stencil-then-cover paths.
 	for i, bufs := range gr.stencilRes {
-		s.stencilRenderer.RecordPath(rp, bufs, gr.stencilPaths[i].FillRule, clipBG, s.frameMaskBindGroup(), gr.stencilPaths[i].BlendMode, gr.hasDepthClip)
+		s.stencilRenderer.RecordPath(rp, bufs, gr.stencilPaths[i].FillRule, clipBG, maskBG, gr.stencilPaths[i].BlendMode, gr.hasDepthClip)
 	}
 
 	// Tier 3: Textured quad images (CPU-uploaded).

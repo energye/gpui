@@ -640,6 +640,142 @@ func TestGPURenderSession_EnsureStagePipelines_CreatesDepthClip(t *testing.T) {
 	}
 }
 
+// TestClipPathCoverageMask_AnalyticAA verifies the CPU analytic-AA coverage
+// mask generator (Skia kCoverage / Flutter ClipMask) that fixes aliased
+// depth-clip edges at sampleCount==1: pixels well inside the clip path are
+// 255, far outside are 0, and the boundary band carries intermediate values
+// (a smooth gradient instead of the binary depth test's hard step).
+func TestClipPathCoverageMask_AnalyticAA(t *testing.T) {
+	// Circle centered (100,100) radius 40.
+	p := &render.Path{}
+	p.MoveTo(100, 60)
+	for i := 1; i < 64; i++ {
+		a := float64(i) / 64 * 2 * math.Pi
+		p.LineTo(100+40*math.Cos(a), 100+40*math.Sin(a))
+	}
+	p.Close()
+	// (polygon circle approximation: inside tests tolerate the flat edges)
+
+	mask := clipPathCoverageMask(p, 200, 200)
+	if mask == nil {
+		t.Fatal("expected non-nil mask")
+	}
+	if len(mask) != 200*200 {
+		t.Fatalf("mask size = %d, want %d", len(mask), 200*200)
+	}
+
+	// Dead center: fully inside → 255.
+	if mask[100*200+100] != 255 {
+		t.Errorf("center coverage = %d, want 255", mask[100*200+100])
+	}
+	// Far outside (corner): 0.
+	if mask[5*200+5] != 0 {
+		t.Errorf("corner coverage = %d, want 0", mask[5*200+5])
+	}
+	// Edge band: some pixel on the boundary must be a partial value (1..254).
+	// The circle boundary crosses pixel row y=100 at x≈60 and x≈140; sample
+	// a few pixels around x=100,y=100+40 to find the gradient.
+	foundPartial := false
+	// scan a vertical line through the top of the circle (x=100, y from 55 to 65)
+	for y := 55; y <= 65; y++ {
+		v := mask[y*200+100]
+		if v > 0 && v < 255 {
+			foundPartial = true
+			break
+		}
+	}
+	if !foundPartial {
+		t.Error("expected partial coverage in circle edge band (no AA gradient)")
+	}
+
+	// Symmetry check: left and right edge should be roughly symmetric.
+	left := mask[100*200+59]
+	right := mask[100*200+141]
+	if left != right {
+		t.Logf("left edge coverage=%d right edge coverage=%d (AA may differ by rounding)", left, right)
+	}
+}
+
+// TestClipPathCoverageMask_EmptyPath returns nil for empty paths.
+func TestClipPathCoverageMask_EmptyPath(t *testing.T) {
+	mask := clipPathCoverageMask(&render.Path{}, 64, 64)
+	if mask != nil {
+		t.Error("expected nil mask for empty path")
+	}
+	if clipPathCoverageMask(nil, 64, 64) != nil {
+		t.Error("expected nil mask for nil path")
+	}
+}
+
+// TestBuildClipMask_SampleCount1 creates the coverage mask through the
+// production path (pipeline + mask defaults) and verifies the bind group
+// lands on the resources so recordGroupDraws can bind it at @group(2).
+func TestBuildClipMask_SampleCount1(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	p := &render.Path{}
+	p.MoveTo(20, 20)
+	p.LineTo(120, 20)
+	p.LineTo(120, 120)
+	p.LineTo(20, 120)
+	p.Close()
+
+	pipe := NewDepthClipPipeline(device, queue, 1) // force sampleCount==1
+	defer pipe.Destroy()
+	if err := pipe.ensurePipeline(); err != nil {
+		t.Fatalf("ensurePipeline: %v", err)
+	}
+
+	// Mask layout/sampler/uniform identical to the session's L.06 defaults.
+	layout, err := createMaskBindGroupLayout(device, "test_mask_layout")
+	if err != nil {
+		t.Fatalf("mask layout: %v", err)
+	}
+	defer layout.Release()
+	samp, err := device.CreateSampler(&webgpu.SamplerDescriptor{
+		Label: "test_mask_samp",
+		AddressModeU: types.AddressModeClampToEdge,
+		AddressModeV: types.AddressModeClampToEdge,
+		AddressModeW: types.AddressModeClampToEdge,
+		MagFilter:    types.FilterModeNearest,
+		MinFilter:    types.FilterModeNearest,
+		MipmapFilter: types.MipmapFilterModeNearest,
+	})
+	if err != nil {
+		t.Fatalf("sampler: %v", err)
+	}
+	defer samp.Release()
+	uOn := &MaskParams{Enabled: 1}
+	ubuf, err := device.CreateBuffer(&webgpu.BufferDescriptor{
+		Label: "test_mask_uniform", Size: maskParamsSize,
+		Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+	})
+	if err != nil {
+		t.Fatalf("uniform buf: %v", err)
+	}
+	defer ubuf.Release()
+	if err := queue.WriteBuffer(ubuf, 0, uOn.Bytes()); err != nil {
+		t.Fatalf("write uniform: %v", err)
+	}
+
+	res, err := pipe.BuildClipResources(p, 200, 200)
+	if err != nil {
+		t.Fatalf("BuildClipResources: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected resources")
+	}
+	defer res.Release()
+
+	if err := pipe.BuildClipMask(res, p, 200, 200, layout, samp, ubuf); err != nil {
+		t.Fatalf("BuildClipMask: %v", err)
+	}
+	if res.maskTex == nil || res.maskView == nil || res.maskBG == nil {
+		t.Fatal("expected mask texture/view/bind group after BuildClipMask")
+	}
+}
+
 // TestDepthClipResources_BuildAndReleaseFromSession verifies that a clip
 // path on a ScissorGroup produces buildable resources through the session
 // depth-clip pipeline (guarded by a non-nil pipeline).
