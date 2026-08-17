@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/energye/gpui/render"
+	//_ "github.com/energye/gpui/render/gpu"
 	"github.com/energye/gpui/render/text"
 )
 
