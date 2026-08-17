@@ -328,6 +328,8 @@ func TestClipRectFill(t *testing.T) {
 	dc.Fill()
 
 	// Inside clip (75, 75) should be red.
+	// GPU fills are deferred until flush; materialize for pixmap sampling.
+	_ = dc.FlushGPU()
 	inside := dc.pixmap.GetPixel(75, 75)
 	if inside.R < 0.9 || inside.G > 0.1 || inside.B > 0.1 {
 		t.Errorf("Inside clip (75,75): expected red, got R=%.2f G=%.2f B=%.2f", inside.R, inside.G, inside.B)
@@ -371,9 +373,12 @@ func TestClipNestedFill(t *testing.T) {
 	dc.Pop()
 
 	// Center (inside both clips) should be green.
+	// GPU fills are deferred until flush; materialize for pixmap sampling.
+	_ = dc.FlushGPU()
 	center := dc.pixmap.GetPixel(100, 100)
-	if center.G < 0.9 {
-		t.Errorf("Center (100,100): expected green, got G=%.2f", center.G)
+	if center.R > 0.1 || center.G < 0.9 || center.B > 0.1 {
+		t.Errorf("Center (100,100): expected green, got R=%.2f G=%.2f B=%.2f",
+			center.R, center.G, center.B)
 	}
 
 	// Inside rect but outside circle should be white.
@@ -638,6 +643,8 @@ func TestClipRoundRectFillSDF(t *testing.T) {
 	dc.Pop()
 
 	// Inside clip (100, 100) should be red — circle center, well inside clip.
+	// GPU fills are deferred until flush; materialize for pixmap sampling.
+	_ = dc.FlushGPU()
 	inside := dc.pixmap.GetPixel(100, 100)
 	if inside.R < 0.9 || inside.G > 0.1 || inside.B > 0.1 {
 		t.Errorf("Inside clip (100,100): expected red, got R=%.2f G=%.2f B=%.2f",
