@@ -107,8 +107,9 @@ type Surface struct {
 }
 
 // CreateSurface creates a rendering surface from platform-specific handles.
-// On Linux this uses SurfaceBackendAuto (env heuristic). Prefer CreateSurfaceFor
-// when the window system is already known (X11 vs Wayland handles must match).
+// On Linux this uses SurfaceBackendAuto (DISPLAY/WAYLAND_DISPLAY heuristic).
+// Prefer CreateSurfaceFor when the window system is already known (X11 vs
+// Wayland handles must match).
 //
 // displayHandle and windowHandle are platform-specific:
 //   - Windows: displayHandle=HINSTANCE (can be 0), windowHandle=HWND

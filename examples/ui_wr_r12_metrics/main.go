@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/ui/embedder"
@@ -77,7 +76,7 @@ func main() {
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui ui_wr_r12_metrics — 指标字段完备"})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_wr_r12_metrics — 指标字段完备", Decorations: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)

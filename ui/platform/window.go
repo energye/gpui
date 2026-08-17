@@ -13,7 +13,9 @@ type Options struct {
 	Title string
 	// Backend selects the display backend. DisplayAuto uses detection.
 	Backend DisplayBackend
-	// Decorations controls window chrome (title bar + frame). Default: true.
+	// Decorations enables the standard window frame (title bar + borders).
+	// false (default) is a frameless plain window; pass true for standard
+	// decorations (X11 WM frame / Wayland client-side decorations).
 	//   - X11: false sends _MOTIF_WM_HINTS to hide the WM frame.
 	//   - Wayland: GNOME provides NO server-side decorations; true draws a
 	//     client-side title bar + borders (CSD) via wl_subsurface.
@@ -159,6 +161,24 @@ func (w *Window) Kind() PlatformKind {
 		return PlatformNone
 	}
 	return w.kind
+}
+
+// Backend returns the display backend backing this window (DisplayAuto when
+// unknown/None). Mirrors exhost.Window.Backend for window-open reporting.
+func (w *Window) Backend() DisplayBackend {
+	if w == nil {
+		return DisplayAuto
+	}
+	switch w.kind {
+	case PlatformX11:
+		return DisplayX11
+	case PlatformWayland:
+		return DisplayWayland
+	case PlatformWin32:
+		return DisplayWin32
+	default:
+		return DisplayAuto
+	}
 }
 
 // IME returns the input-method capability, or nil when the backend does not

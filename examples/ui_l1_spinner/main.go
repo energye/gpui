@@ -3,7 +3,7 @@
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	go run ./examples/ui_l1_spinner
 //
-// Auto window backend: Wayland or X11 (see examples/exhost, GPUI_DISPLAY=wayland|x11|auto).
+// Auto window backend: Wayland or X11 (ui/platform.Open; force via platform.Options.Backend).
 // Duration: default 60s; override with RUN_SECONDS.
 // P0 closeout: RSS/CPU process samples in JSON (rss_*_kb, cpu_pct_avg).
 package main
@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/animation"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
@@ -26,13 +25,13 @@ import (
 
 func main() {
 	secs := runSeconds(60)
-	fmt.Fprintf(os.Stderr, "ui_l1_spinner: running %ds (RUN_SECONDS / GPUI_DISPLAY=wayland|x11|auto); close window to exit safely\n", secs)
+	fmt.Fprintf(os.Stderr, "ui_l1_spinner: running %ds (RUN_SECONDS); close window to exit safely\n", secs)
 	const winW, winH = 480, 320
 
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui L1 spinner (P3)"})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui L1 spinner (P3)", Decorations: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)

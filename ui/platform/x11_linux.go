@@ -4,11 +4,13 @@ package platform
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"golang.org/x/sys/unix"
 )
 
 // x11Backend implements Backend for Xlib (Display* + Window). It is split
@@ -220,6 +222,7 @@ func x11Create(opts Options) (*Window, error) {
 		xSetWMNormalHints func(dpy uintptr, win uintptr, hints *xSizeHints) int
 		xSetClassHint     func(dpy uintptr, win uintptr, hint *xClassHint) int
 		xChangeProperty   func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
+		xConnectionNumber func(dpy uintptr) int
 	)
 	purego.RegisterLibFunc(&xInitThreads, lib.lib, "XInitThreads")
 	purego.RegisterLibFunc(&xOpenDisplay, lib.lib, "XOpenDisplay")
@@ -240,6 +243,8 @@ func x11Create(opts Options) (*Window, error) {
 	purego.RegisterLibFunc(&xSetWMNormalHints, lib.lib, "XSetWMNormalHints")
 	purego.RegisterLibFunc(&xSetClassHint, lib.lib, "XSetClassHint")
 	purego.RegisterLibFunc(&xChangeProperty, lib.lib, "XChangeProperty")
+	purego.RegisterLibFunc(&xConnectionNumber, lib.lib, "XConnectionNumber")
+	xConnectionNumberFn = xConnectionNumber
 
 	if xInitThreads() == 0 {
 		return nil, fmt.Errorf("x11: XInitThreads failed")
@@ -526,6 +531,11 @@ type x11State struct {
 	xChangeProperty func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
 }
 
+// xConnectionNumberFn is bound at Create/Adopt from libX11. It is package-
+// level because the event pump (WaitEvents) reads the X connection fd for the
+// kernel poll loop, outside the window-creation closure that owns the binding.
+var xConnectionNumberFn func(dpy uintptr) int
+
 // x11Host implements Host for an X11 window (event pump). Destroying the
 // window is the Window.Close callback.
 type x11Host struct {
@@ -534,6 +544,16 @@ type x11Host struct {
 	wake      chan struct{}
 	destroyFn func()
 	xim       *ximState
+
+	// Kernel-poll plumbing: WaitEvents blocks on unix.Poll over the X
+	// connection fd + a self-pipe (WakeUp writes it) instead of a
+	// runtime-timer slice — matches the Flutter/Skia event-loop model and
+	// removes the Go timer dependency that the frame heartbeat compensated
+	// for. Lazily initialized (fallback to the timed path if unavailable).
+	pollOnce sync.Once
+	xfd      int
+	wakeR    *os.File
+	wakeW    *os.File
 
 	// imeMu guards the pending IME event queue drained by WaitEvents.
 	imeMu     sync.Mutex
@@ -666,6 +686,10 @@ func (h *x11Host) drain() []Event {
 // WaitEvents drains X11 events (pointer/key/configure/close) plus queued IME
 // events. Expose is always stripped: the GPU backend owns pixels; Expose is
 // not architectural IDLE. Resize / input / close still flow.
+//
+// The wait loop blocks on unix.Poll over the X connection fd + a self-pipe
+// (Flutter/Skia event-loop model: kernel-level wait, no runtime-timer
+// dependency). Falls back to a timed slice if the poll fds are unavailable.
 func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 	if h == nil || h.st == nil {
 		return nil
@@ -687,6 +711,56 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 	if timeout > 0 {
 		deadline = time.Now().Add(timeout)
 	}
+	if h.ensurePollFds() {
+		const pollSliceMs = 16
+		for {
+			if evs := filterXNoise(h.drain()); len(evs) > 0 {
+				return evs
+			}
+			timeoutMs := pollSliceMs
+			if !deadline.IsZero() {
+				left := time.Until(deadline)
+				if left <= 0 {
+					if h.st.flush != nil {
+						h.st.flush()
+					}
+					return filterXNoise(h.drain())
+				}
+				if leftMs := int(left / time.Millisecond); leftMs < timeoutMs {
+					timeoutMs = leftMs
+				}
+			}
+			fds := []unix.PollFd{
+				{Fd: int32(h.xfd), Events: unix.POLLIN},
+				{Fd: int32(h.wakeR.Fd()), Events: unix.POLLIN},
+			}
+			n, err := unix.Poll(fds, timeoutMs)
+			if err != nil {
+				if err == unix.EINTR {
+					continue
+				}
+				time.Sleep(time.Duration(pollSliceMs) * time.Millisecond) // degraded safety
+				continue
+			}
+			if n == 0 {
+				// Poll slice elapsed (or deadline) → re-check deadline/drain.
+				if h.st.flush != nil {
+					h.st.flush()
+				}
+				continue
+			}
+			if fds[1].Revents&unix.POLLIN != 0 {
+				h.drainWakePipe()
+				if evs := filterXNoise(h.drain()); len(evs) > 0 {
+					return evs
+				}
+				return []Event{{Type: EventWake}}
+			}
+			// X fd readable → the loop drains it on the next iteration.
+		}
+	}
+
+	// Fallback (poll fds unavailable): timed slice on the runtime timer.
 	const pollSlice = 16 * time.Millisecond
 	for {
 		if evs := filterXNoise(h.drain()); len(evs) > 0 {
@@ -719,8 +793,50 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 	}
 }
 
+// ensurePollFds lazily initializes the kernel-poll plumbing: the X
+// connection fd (XConnectionNumber) and a self-pipe for WakeUp. Returns true
+// when both are usable.
+func (h *x11Host) ensurePollFds() bool {
+	if h == nil {
+		return false
+	}
+	h.pollOnce.Do(func() {
+		if h.st == nil || h.st.display == 0 || xConnectionNumberFn == nil {
+			return
+		}
+		h.xfd = xConnectionNumberFn(h.st.display)
+		if h.xfd <= 0 {
+			// 0 would poll stdin — treat as unavailable and fall back.
+			return
+		}
+		r, w, err := os.Pipe()
+		if err != nil {
+			return
+		}
+		h.wakeR, h.wakeW = r, w
+	})
+	return h.wakeR != nil && h.wakeW != nil && h.xfd > 0
+}
+
+// drainWakePipe consumes the self-pipe wake byte after poll reports it
+// readable. Non-blocking + single read: a blocking Read would hang when a
+// previous drain already consumed the byte (the wake is a boolean signal).
+func (h *x11Host) drainWakePipe() {
+	if h == nil || h.wakeR == nil {
+		return
+	}
+	var buf [8]byte
+	_ = unix.SetNonblock(int(h.wakeR.Fd()), true)
+	_, _ = h.wakeR.Read(buf[:])
+}
+
 func (h *x11Host) WakeUp() {
 	if h == nil {
+		return
+	}
+	if h.wakeW != nil {
+		// Kernel-poll path: write the self-pipe to wake unix.Poll.
+		_, _ = h.wakeW.Write([]byte{1})
 		return
 	}
 	if h.wake == nil {

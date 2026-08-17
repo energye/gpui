@@ -3,7 +3,7 @@
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	go run ./examples/ui_l1_scroll
 //
-// Auto window backend: Wayland or X11 (GPUI_DISPLAY=wayland|x11|auto).
+// Auto window backend: Wayland or X11 (auto; force via platform.Options.Backend).
 // Duration: default 60s; override with RUN_SECONDS.
 // GPUI_VAR_EXTENT=1 enables mixed row heights (FScroll-VAR-EXTENT MVP).
 // Window is resizable; list + viewport follow client size.
@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
@@ -27,7 +26,7 @@ import (
 func main() {
 	secs := runSeconds(60)
 	varExtent := os.Getenv("GPUI_VAR_EXTENT") == "1" || os.Getenv("GPUI_VAR_EXTENT") == "true"
-	fmt.Fprintf(os.Stderr, "ui_l1_scroll: running %ds (RUN_SECONDS / GPUI_DISPLAY); close window to exit safely\n", secs)
+	fmt.Fprintf(os.Stderr, "ui_l1_scroll: running %ds (RUN_SECONDS); close window to exit safely\n", secs)
 	fmt.Fprintln(os.Stderr, "ui_l1_scroll: window is resizable — list tracks client size")
 	if varExtent {
 		fmt.Fprintln(os.Stderr, "ui_l1_scroll: GPUI_VAR_EXTENT=1 — variable row heights")
@@ -43,7 +42,7 @@ func main() {
 	if varExtent {
 		title = "gpui L1 scroll — variable extent"
 	}
-	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: title})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: title, Decorations: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)

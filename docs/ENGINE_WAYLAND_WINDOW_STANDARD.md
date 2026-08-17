@@ -13,7 +13,7 @@
 
 - W1：完整可用的 **Wayland 标准窗口**：完整窗口外观装饰 + 完整窗口行为。
 - W2：**不按用户早前"边框不要画"的临时说法做**——整体按成熟框架（sctk/winit/GTK/gogpu）的标准实现：标题栏 + 四边边框 + 8 方向 resize + 系统光标。
-- W3：可配置（`Options.Decorations`）：默认标准装饰；`&false` 无框裸窗。
+- W3：可配置（`Options.Decorations`）：**true=标准装饰；false/缺省=无框裸窗**（手动开启）。
 - W4：不崩溃、可 resize、可拖动、按钮全功能、焦点态、光标态。
 - W5：GNOME 42.9 无 SSD（`zxdg_decoration_manager_v1` server-side 是 KDE 特性）→ 标准 CSD。
 - W6：GNOME 42.9 **无 wp_cursor_shape_manager_v1** → resize 光标用 `wl_cursor_theme`（libwayland-cursor）系统主题。

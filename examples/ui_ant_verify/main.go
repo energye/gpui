@@ -19,12 +19,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
-	_ "github.com/energye/gpui/render/gpu"
-	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
+	//_ "github.com/energye/gpui/render/gpu"
+	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
 )
@@ -54,7 +53,7 @@ func main() {
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui ui_ant_verify — " + mode + " 圆角/斜边/细边框"})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_ant_verify — " + mode + " 圆角/斜边/细边框", Decorations: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)

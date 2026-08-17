@@ -5,7 +5,6 @@ package webgpu
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
 )
@@ -34,22 +33,15 @@ func createLinuxSurface(instance *rwgpu.Instance, backend SurfaceBackend, displa
 	}
 }
 
-// resolveLinuxBackend maps Auto + GPUI_SURFACE to a concrete backend.
+// resolveLinuxBackend maps Auto to a concrete backend.
 // Explicit Xlib/Wayland are returned unchanged.
 //
-// Env GPUI_SURFACE=x11|xlib|wayland overrides Auto only.
-// Auto without override: Wayland only if WAYLAND_DISPLAY set and DISPLAY empty
-// (pure Wayland client). If both are set (common XWayland), default Xlib —
-// callers with real wl_* handles must pass SurfaceBackendWayland explicitly.
+// Auto: Wayland only if WAYLAND_DISPLAY set and DISPLAY empty (pure Wayland
+// client). If both are set (common XWayland), default Xlib — callers with
+// real wl_* handles must pass SurfaceBackendWayland explicitly.
 func resolveLinuxBackend(backend SurfaceBackend) SurfaceBackend {
 	if backend == SurfaceBackendXlib || backend == SurfaceBackendWayland {
 		return backend
-	}
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("GPUI_SURFACE"))) {
-	case "wayland", "wl":
-		return SurfaceBackendWayland
-	case "x11", "xlib", "x":
-		return SurfaceBackendXlib
 	}
 	if os.Getenv("WAYLAND_DISPLAY") != "" && os.Getenv("DISPLAY") == "" {
 		return SurfaceBackendWayland

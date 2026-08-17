@@ -4,7 +4,7 @@
 // live.
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	GPUI_DISPLAY=wayland go run ./examples/ui_textinput_ime
+//	go run ./examples/ui_textinput_ime
 //
 // Controls:
 //   - Click the input box to focus it (enables IME via zwp_text_input_v3).

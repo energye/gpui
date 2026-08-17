@@ -3,7 +3,7 @@
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	go run ./examples/ui_l1_blank
 //
-// Auto window backend: Wayland or X11 (GPUI_DISPLAY=wayland|x11|auto).
+// Auto window backend: Wayland or X11 (auto; force via platform.Options.Backend).
 // Duration: default 60s; override with RUN_SECONDS.
 package main
 
@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/scheduler"
@@ -23,10 +22,10 @@ import (
 
 func main() {
 	secs := runSeconds(60)
-	fmt.Fprintf(os.Stderr, "ui_l1_blank: running %ds (RUN_SECONDS / GPUI_DISPLAY=wayland|x11|auto); close window to exit safely\n", secs)
+	fmt.Fprintf(os.Stderr, "ui_l1_blank: running %ds (RUN_SECONDS); close window to exit safely\n", secs)
 	const winW, winH = 480, 320
 
-	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui L1 blank (P0)"})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui L1 blank (P0)", Decorations: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)

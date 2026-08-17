@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
@@ -30,7 +29,7 @@ func main() {
 	proc.Start()
 
 	const winW, winH = 720, 560
-	win, err := exhost.Open(exhost.Options{Width: winW, Height: winH, Title: "gpui ClipLayer axis"})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ClipLayer axis", Decorations: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
 		os.Exit(1)

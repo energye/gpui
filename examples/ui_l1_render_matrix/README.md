@@ -28,8 +28,7 @@
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 RUN_SECONDS=15 go run ./examples/ui_l1_render_matrix
 
-# 可选
-GPUI_DISPLAY=wayland|x11|auto
+# 可选：后端在代码里指定 — platform.Options.Backend 取 DisplayAuto / DisplayX11 / DisplayWayland
 ```
 
 无头契约门禁（CI）：

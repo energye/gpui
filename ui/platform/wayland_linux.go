@@ -489,7 +489,7 @@ func waylandCreate(opts Options) (*Window, error) {
 	if title == "" {
 		title = "gpui"
 	}
-	decorated := opts.Decorations // Wayland default: client-side decorations (GNOME has no SSD)
+	decorated := opts.Decorations // true = client-side decorations (GNOME has no SSD)
 
 	win := &wlWin{
 		lib:       lib,

@@ -46,7 +46,7 @@ func main() {
 
 	proc.Start()
 
-	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_wr_r18_savelayer — SaveLayer 预算", Decorations: true, Resizable: true})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_wr_r18_savelayer — SaveLayer 预算", Resizable: true, Decorations: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)

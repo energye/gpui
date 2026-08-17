@@ -172,6 +172,7 @@ func main() {
 		envOn("GPUI_WL_KEYBOARD"), envOn("GPUI_WL_POINTER"), envOn("GPUI_WL_TEXTINPUT"))
 	win, err := platform.Open(platform.Options{
 		Width: 480, Height: 320, Title: "ime-probe", Backend: backend,
+		Decorations: true,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "probe: open failed: %v\n", err)

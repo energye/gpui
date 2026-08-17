@@ -28,9 +28,6 @@ func (b DisplayBackend) String() string {
 	}
 }
 
-// ParseDisplayBackend is a stub on non-Linux.
-func ParseDisplayBackend(s string) DisplayBackend { return DisplayAuto }
-
 // DetectDisplayBackend is a stub on non-Linux.
 func DetectDisplayBackend() DisplayBackend { return DisplayAuto }
 

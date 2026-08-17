@@ -56,7 +56,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | Width/Height | int | 初始客户区（逻辑像素）；<1 取默认 640×480 | ✅ | ✅ | ⬜ | ⬜ |
 | Title | string | 窗口标题；空默认 "gpui" | ✅ `_NET_WM_NAME` | ✅ `set_title` | ⬜ `SetWindowTextW` | ⬜ `setTitle:` |
 | Backend | DisplayBackend | 显式选平台（Auto/X11/Wayland/**Win32/AppKit**）；Auto=探测（非 Linux 恒为该平台唯一后端）；Win32/AppKit 值用于显式请求对应后端——非目标 OS 或无实现时返回明确错误 | ✅ | ✅ | ⬜ | ⬜ |
-| Decorations | *bool | nil=true 标准装饰；&false 无框裸窗 | ⚠️ WM 决定 | ✅ CSD | ⬜ WS_CAPTION 族 | ⬜ styleMask |
+| Decorations | bool | **true=标准装饰；false/缺省=无框裸窗**（手动开启） | ⚠️ WM 决定 | ✅ CSD | ⬜ WS_CAPTION 族 | ⬜ styleMask |
 | Min/Max*Size | int | 尺寸约束；0=不限 | ✅ XSizeHints | ✅ set_min/max_size | ⬜ WM_GETMINMAXINFO | ⬜ contentMin/MaxSize |
 | Position | *Point | 初始位置（客户区左上，屏幕坐标）；nil=系统决定 | ✅ | ⛔ | ⬜ SetWindowPos | ⬜ setFrameOrigin: |
 | Fullscreen | bool | 初始全屏 | ✅ EWMH | ✅ 创建后 set_fullscreen | ⬜ 屏幕铺满 | ⬜ toggleFullScreen: |
@@ -158,8 +158,8 @@ A 层：go run ./examples/ui_pf_x11      # X11 全能力真窗（本环境 DISPL
          go run ./examples/ui_pf_win32    # 非 Windows = SKIP；Windows 上 S5 前 = placeholder
          go run ./examples/ui_pf_appkit   # 非 macOS = SKIP；macOS 上 S5 前 = placeholder
    A′ 层：export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so && \
-           GPUI_DISPLAY=wayland go run ./examples/ui_textinput_ime   # IME 真窗（stage=ime-enabled）
-           GPUI_DISPLAY=x11     go run ./examples/ui_ime_probe      # XIM 探针
+           go run ./examples/ui_textinput_ime   # IME 真窗（stage=ime-enabled；代码指定 DisplayWayland）
+           go run ./examples/ui_ime_probe       # XIM 探针（auto：DISPLAY 存在即 X11）
    ```
    A′ 层为 GUI 交互式（人打字/Ibus 验证），无 JSON 门禁；启动到 `stage=ime-enabled` 即接线完整。
 

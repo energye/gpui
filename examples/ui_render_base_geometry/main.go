@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
@@ -37,10 +36,11 @@ func main() {
 	proc.Start()
 
 	const winW, winH = 660, 620
-	win, err := exhost.Open(exhost.Options{
-		Width:  winW,
-		Height: winH,
-		Title:  "gpui Geometry axis (P0 FC-DRAW)",
+	win, err := platform.Open(platform.Options{
+		Width:       winW,
+		Height:      winH,
+		Title:       "gpui Geometry axis (P0 FC-DRAW)",
+		Decorations: true,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)

@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
@@ -28,7 +27,7 @@ import (
 
 func main() {
 	secs := runSeconds(30)
-	fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: PARTIAL Flutter L1 contract smoke — %ds (RUN_SECONDS / GPUI_DISPLAY)\n", secs)
+	fmt.Fprintf(os.Stderr, "ui_l1_render_matrix: PARTIAL Flutter L1 contract smoke — %ds (RUN_SECONDS)\n", secs)
 	fmt.Fprintln(os.Stderr, "ui_l1_render_matrix: axes M1 spinner | M2 multi-BD | M3 list | M4 text | M5 gradient")
 	fmt.Fprintln(os.Stderr, "ui_l1_render_matrix: does NOT claim P6 dirty-rect partial present")
 
@@ -36,10 +35,11 @@ func main() {
 	proc.Start()
 
 	const winW, winH = 720, 400
-	win, err := exhost.Open(exhost.Options{
-		Width:  winW,
-		Height: winH,
-		Title:  "gpui L1 render matrix (PARTIAL)",
+	win, err := platform.Open(platform.Options{
+		Width:       winW,
+		Height:      winH,
+		Title:       "gpui L1 render matrix (PARTIAL)",
+		Decorations: true,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)

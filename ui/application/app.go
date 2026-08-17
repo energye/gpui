@@ -55,8 +55,9 @@ type Config struct {
 type WindowOptions struct {
 	Width, Height int
 	Title         string
-	// Decorations controls window chrome (title bar + frame). Default: true
-	// (Wayland CSD / X11 WM frame). Pass false for frameless.
+	// Decorations enables the standard window frame (title bar + borders).
+	// false (default) is a frameless plain window; pass true for standard
+	// decorations (Wayland CSD / X11 WM frame).
 	Decorations bool
 	// Resizable controls whether the user can resize the window
 	// (min==max size hints when false). Pass true for resizable windows.

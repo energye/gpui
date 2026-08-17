@@ -21,7 +21,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/energye/gpui/examples/exhost"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 
@@ -34,9 +33,10 @@ func main() {
 	fmt.Fprintf(os.Stderr, "ui_l2_shell: %ds — tap / pan / focus / overlay (example)\n", secs)
 	fmt.Fprintln(os.Stderr, "  green=tap  slate+blue handle=drag pan  grey/yellow=focus  blue btn / O=overlay")
 
-	win, err := exhost.Open(exhost.Options{
+	win, err := platform.Open(platform.Options{
 		Width: winW, Height: winH,
-		Title: "gpui L2 demo — tap · pan · focus · overlay",
+		Title:       "gpui L2 demo — tap · pan · focus · overlay",
+		Decorations: true,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "window:", err)
