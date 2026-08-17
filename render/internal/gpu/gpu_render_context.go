@@ -1088,7 +1088,11 @@ func (rc *GPURenderContext) viewToResView(view gpucontext.TextureView) res.View 
 		return res.ViewFromRaw(view.Pointer())
 	}
 	if v := extractTextureView(view); v != nil {
-		return res.ViewFromRef(rc.session.Reg().Register(&texViewNative{v}))
+		// Borrowed: the view is owned by its cache (PictureTextureCache slot),
+		// so the registry tracks it but never destroys it on retire.
+		ref := rc.session.Reg().RegisterBorrowed(&texViewNative{v})
+		rc.session.notePendingViewRetire(ref)
+		return res.ViewFromRef(ref)
 	}
 	return res.View{}
 }
@@ -1877,7 +1881,11 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			return rc.resolvePendingAdvancedLayers(target)
 		}
 		// rasterAtlas: CPU shapes already in pixmap, upload to offscreen texture.
-		if !target.View.IsNil() && rc.shared.strategy == strategyRasterAtlas {
+		// GOGPU_RENDER_MODE=cpu (render.CPUOnlyMode): every draw went through
+		// the CPU rasterizer, so the window present uploads the pixmap instead
+		// of the GPU session — the swapchain no longer depends on the GPU
+		// raster pipelines (they may fail on CPU-only setups — black window).
+		if !target.View.IsNil() && (rc.shared.strategy == strategyRasterAtlas || render.CPUOnlyMode()) {
 			return rc.uploadPixmapToView(target)
 		}
 		return rc.flushVello(target)
@@ -2810,12 +2818,43 @@ func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) er
 		bgra[i+3] = target.Data[i+3]
 	}
 
-	return queue.WriteTexture(
+	// WebGPU copy pitch must be 256-byte aligned (COPY_BYTES_PER_ROW_ALIGNMENT);
+	// an unaligned BytesPerRow (e.g. 1200×4=4800) makes wgpu reject the upload
+	// and the present target stays black (GOGPU_RENDER_MODE=cpu window path).
+	const copyPitchAlignment = 256
+	bpr := w * 4
+	aligned := (bpr + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
+	if aligned != bpr {
+		// Re-pack rows to the aligned pitch (the tail is padding, ignored by
+		// the texture copy extent).
+		packed := make([]byte, uint64(aligned)*uint64(h))
+		for row := uint32(0); row < h; row++ {
+			copy(packed[row*aligned:row*aligned+bpr], bgra[row*bpr:(row+1)*bpr])
+		}
+		bgra = packed
+	}
+	if err := queue.WriteTexture(
 		&webgpu.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		bgra,
-		&webgpu.ImageDataLayout{BytesPerRow: w * 4, RowsPerImage: h},
+		&webgpu.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h},
 		&webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
-	)
+	); err != nil {
+		return err
+	}
+	// The queued texture write only executes on a queue submit; without it the
+	// swapchain presents the uninitialized surface texture (black window).
+	// An empty command buffer submit flushes the write queue.
+	if enc, err := rc.shared.Device().CreateCommandEncoder(&webgpu.CommandEncoderDescriptor{Label: "cpu_present_flush"}); err != nil {
+		return err
+	} else if cmdBuf, err := enc.Finish(); err != nil {
+		return err
+	} else if _, err := queue.Submit(cmdBuf); err != nil {
+		return err
+	} else {
+		// wgpu-native does not drop the CB ref on Submit; release manually.
+		cmdBuf.Release()
+	}
+	return nil
 }
 
 // effectivePipelineMode determines the actual mode for this flush.

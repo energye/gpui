@@ -469,6 +469,16 @@ func renderMode() renderModeType {
 	}
 }
 
+// CPUOnlyMode reports whether GOGPU_RENDER_MODE=cpu forces every draw
+// (shapes, strokes, text) and the window present through the CPU rasterizer
+// (SoftwareRenderer into the pixmap, then pixmap upload to the present
+// target) instead of the GPU render session. The GPU stays in use only for
+// the swapchain texture upload — the window present no longer depends on
+// the GPU raster pipelines.
+func CPUOnlyMode() bool {
+	return renderMode() == renderModeCPU
+}
+
 // BeginAcceleratorFrame signals the start of a new rendering frame.
 // This resets per-frame state so that the first render pass clears the
 // surface. Must be called once per frame before any drawing operations

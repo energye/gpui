@@ -2319,6 +2319,12 @@ func (c *Context) doFill() error {
 	} else if _, isSW := c.renderer.(*SoftwareRenderer); !isSW {
 		// Custom Renderer DI: never intercept with the global GPU accelerator.
 		ok, cpuMode = false, mode
+	} else if CPUOnlyMode() {
+		// GOGPU_RENDER_MODE=cpu: route shapes to the CPU rasterizer so the
+		// window present can upload the pixmap without the GPU session
+		// (window presents depend on the GPU session, which may fail on
+		// CPU-only setups — black window).
+		ok, cpuMode = false, mode
 	} else {
 		ok, cpuMode = c.tryGPUFillWithMode(mode)
 	}
@@ -2397,7 +2403,7 @@ func (c *Context) doStroke() error {
 		// Intentional CPU layer path (no GPU RT on this layer).
 	} else if !isSoftwareRenderer {
 		// Custom Renderer DI: never intercept with the global GPU accelerator.
-	} else if !forceCPUClip && !userSpaceStroke {
+	} else if !forceCPUClip && !userSpaceStroke && !CPUOnlyMode() {
 		devicePath := c.deviceSpacePath()
 		origPath := c.path
 		origScale := c.paint.TransformScale

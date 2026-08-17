@@ -170,7 +170,11 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 
 	physW, physH := physicalSize(logicalW, logicalH, scale)
 	sc := webgpu.NewSwapchain(surf, device, physW, physH)
-	sc.Usage = types.TextureUsageRenderAttachment
+	// CopyDst allows GOGPU_RENDER_MODE=cpu window presents to upload the CPU
+	// rasterized pixmap directly into the swapchain texture
+	// (uploadPixmapToView — the CPU mode renders shapes on the CPU and the
+	// present no longer depends on the GPU raster pipelines).
+	sc.Usage = types.TextureUsageRenderAttachment | types.TextureUsageCopyDst
 	sc.SetPreferVSync()
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
 		surf.Release()

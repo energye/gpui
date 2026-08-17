@@ -539,6 +539,12 @@ func (c *Context) selectTextStrategy() TextMode {
 	if c.textMode != TextModeAuto {
 		return c.textMode
 	}
+	// GOGPU_RENDER_MODE=cpu: route text straight to the CPU bitmap pipeline —
+	// the window present (pixmap upload) must carry glyphs without the GPU
+	// session's glyph-mask/MSDF renderers.
+	if CPUOnlyMode() {
+		return TextModeBitmap
+	}
 	// Transform-quality routing: rotated/sheared/non-uniform transforms render
 	// glyph outlines as paths (GPU stencil+cover / CPU Tier 2). Skia's
 	// kTransformedMask (rotated bitmap quads) is not enabled: the glyph-mask

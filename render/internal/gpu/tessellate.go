@@ -502,10 +502,36 @@ func (ft *FanTessellator) TessellateAA(path *render.Path) int {
 			s := ft.segments[i]
 			erosionA := aaCornerErosion(prev.bx-prev.ax, prev.by-prev.ay, s.bx-s.ax, s.by-s.ay)
 			erosionB := aaCornerErosion(s.bx-s.ax, s.by-s.ay, next.bx-next.ax, next.by-next.ay)
+			// Decoration-end erosion: when this end's corner is smooth
+			// (collinear with the adjacent segment) but the adjacent segment
+			// is a SHORT join decoration whose FAR end is a sharp corner (a
+			// miter tip), the interior band would still poke into the
+			// decoration's wedge (stroked-triangle apex/base corners sit at
+			// the ends of long edges, whose end corner is collinear with the
+			// miter decoration). Erode the end by the decoration's wedge
+			// extent.
+			prevLen := math.Hypot(prev.bx-prev.ax, prev.by-prev.ay)
+			nextLen := math.Hypot(next.bx-next.ax, next.by-next.ay)
+			if erosionA == 0 && prevLen <= cornerSuppressLen {
+				pp := ft.segments[start+(k-2+n+n)%n]
+				if e := aaCornerErosion(pp.bx-pp.ax, pp.by-pp.ay, prev.bx-prev.ax, prev.by-prev.ay); e > 0 {
+					erosionA = e
+				}
+			}
+			if erosionB == 0 && nextLen <= cornerSuppressLen {
+				nn := ft.segments[start+(k+2)%n]
+				if e := aaCornerErosion(next.bx-next.ax, next.by-next.ay, nn.bx-nn.ax, nn.by-nn.ay); e > 0 {
+					erosionB = e
+				}
+			}
 			segLen := math.Hypot(s.bx-s.ax, s.by-s.ay)
-			// Long (effectively straight) boundary segments: the CPU reference
-			// paints their just-inside pixels full — no interior band.
-			emitThis := emitInner && segLen <= aaInnerMaxSegLen && !(segLen <= cornerSuppressLen && (erosionA > 0 || erosionB > 0))
+			// Short sharp-corner decorations suppressed entirely; everything
+			// else keeps the interior band so just-inside pixels get their
+			// partial coverage — matching the convex renderer's smooth both-
+			// side edge fade (ui_render_graphics/basic ③ lines vs ⑥ stroke:
+			// a binary interior makes the stroked triangle's edges look
+			// stepped where the convex shapes stay smooth).
+			emitThis := emitInner && !(segLen <= cornerSuppressLen && (erosionA > 0 || erosionB > 0))
 			ft.emitAABands(s.ax, s.ay, s.bx, s.by, orient, bandPad, emitThis, erosionA, erosionB)
 		}
 	}
@@ -540,13 +566,6 @@ func aaCornerSharp(phi float64) bool {
 // arms) keep the interior band with eroded wedge ends.
 const cornerSuppressLen = 4.0
 
-// aaInnerMaxSegLen is the max flattened-segment length (px) that still gets
-// an interior half. Flattening (fanFlattenTolerance) bounds curved-boundary
-// segments to a few px (glyph outlines, arcs); longer segments are
-// effectively straight, where the CPU reference paints just-inside pixels
-// full (no interior fade).
-const aaInnerMaxSegLen = 40.0
-
 // aaCornerErosion returns the length (px) the interior band's end must be
 // moved along the segment away from a corner formed by the incoming vector
 // (px,py) and the outgoing vector (qx,qy) (both non-zero). Returns 0 for
@@ -568,12 +587,13 @@ func aaCornerErosion(px, py, qx, qy float64) float64 {
 	if !aaCornerSharp(phi) {
 		return 0
 	}
-	// The wedge the CPU reference fills through (Skia AAA merges the strips
-	// at the corner) extends roughly 2·aa/sin(φ/2) from the corner along
-	// either edge (the inner strips' overlap plus pixel-center coverage);
-	// erode that plus aa so the per-edge interior Replace cannot under-cover
-	// those pixels.
-	return aaCoverHalfWidth*(1+3/math.Sin(phi/2)) + aaCoverHalfWidth
+	// The wedge the GPU must keep full (the CPU reference fills through it)
+	// extends roughly 2·aa/sin(φ/2) from the corner along either edge; the
+	// long boundary arms adjacent to the corner keep their interior band for
+	// the smooth just-inside fade (convex-renderer look), so the wedge ends
+	// of those arms are eroded past the wedge extent (plus aa for pixel
+	// centers) to avoid hollow corner pixels.
+	return aaCoverHalfWidth*(1+5/math.Sin(phi/2)) + aaCoverHalfWidth
 }
 
 // aaCollectSegments walks the path and flattens every edge into aaSegments

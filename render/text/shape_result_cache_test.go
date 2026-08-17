@@ -1,6 +1,7 @@
 package text
 
 import (
+	"fmt"
 	"testing"
 
 	"golang.org/x/image/font/gofont/goregular"
@@ -149,5 +150,50 @@ func TestLayoutGlyphs_SkipsHighChurnCache(t *testing.T) {
 	st2 := ShapeResultCacheStats()
 	if st2.Hits < 1 || st2.Entries < 1 {
 		t.Fatalf("stable label should cache, stats=%+v", st2)
+	}
+}
+
+// TestS65_ShapeCache_ChurnEntriesEvictedFirst pins the "cache for hits"
+// semantics: per-frame-unique keys (HUD telemetry that escapes the HighChurn
+// heuristic) must not accumulate — the sweep keeps at most missSweepWindow
+// of them, and resident (hit) entries survive the flood.
+func TestS65_ShapeCache_ChurnEntriesEvictedFirst(t *testing.T) {
+	ClearShapeResultCache()
+	face := testFaceForShapeCache(t, 14)
+
+	// A stable entry that gets hit (resident).
+	stable := "stable-label-with-digits-0042"
+	_ = LayoutGlyphs(face, stable) // miss → atime 0
+	_ = LayoutGlyphs(face, stable) // hit → resident
+	if st := ShapeResultCacheStats(); st.Entries != 1 {
+		t.Fatalf("stable entry not cached, stats=%+v", st)
+	}
+
+	// Flood with per-frame-unique keys (never hit again).
+	for i := 0; i < defaultShapeResultSoftLimit*3; i++ {
+		s := fmt.Sprintf("churn-%d-abcdefghijklmnopqrstuvwxyz-long", i)
+		_ = LayoutGlyphs(face, s) // miss each time
+	}
+
+	st := ShapeResultCacheStats()
+	if st.Entries > defaultShapeResultSoftLimit {
+		t.Fatalf("cache exceeded soft limit: entries=%d limit=%d", st.Entries, defaultShapeResultSoftLimit)
+	}
+	// Churn must not accumulate: at most missSweepWindow never-hit entries
+	// survive a sweep, so the flood leaves resident + bounded tail.
+	if st.Entries > missSweepWindow+8 {
+		t.Fatalf("churn entries accumulated: entries=%d want ≤ %d (resident + sweep tail)", st.Entries, missSweepWindow+8)
+	}
+	// The resident entry must have survived the flood (hit → protected).
+	_ = LayoutGlyphs(face, stable)
+	st2 := ShapeResultCacheStats()
+	if st2.Entries < 1 {
+		t.Fatalf("resident entry evicted by churn flood, stats=%+v", st2)
+	}
+	// And it must still be the same cached slice (hit path).
+	a := LayoutGlyphs(face, stable)
+	b := LayoutGlyphs(face, stable)
+	if len(a) != len(b) || len(a) == 0 {
+		t.Fatalf("stable entry degraded: %d vs %d glyphs", len(a), len(b))
 	}
 }

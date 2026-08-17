@@ -68,11 +68,11 @@ func TestTessellateAA_RingHoleBandDirection(t *testing.T) {
 
 // TestTessellateAA_ConvexBandUnaffected verifies a single contour (diamond)
 // keeps its exterior band facing AWAY from the fill after the hole-orient
-// fix: band d<0 verts above the top edge (y < boundary). The diamond's long
-// straight edges (> aaInnerMaxSegLen) get NO interior half — the CPU
-// reference paints the just-inside pixels of straight edges full, and the
-// per-edge Replace overpaint under-covers them (periodic hollow pixels along
-// stroked-triangle sides, ui_render_graphics/basic).
+// fix: band d<0 verts above the top edge (y < boundary), inner band d>0
+// below (y > boundary). The interior half is emitted for every non-corner
+// segment — just-inside pixels get their partial coverage so straight edges
+// fade smoothly like the convex renderer (ui_render_graphics/basic ③ lines
+// vs ⑥ stroke: a binary interior makes stroked edges look stepped).
 func TestTessellateAA_ConvexBandUnaffected(t *testing.T) {
 	d := &render.Path{}
 	d.MoveTo(50, 20) // top
@@ -86,24 +86,32 @@ func TestTessellateAA_ConvexBandUnaffected(t *testing.T) {
 	if len(tess.contourAreas) != 1 {
 		t.Fatalf("diamond should be a single contour, got %d", len(tess.contourAreas))
 	}
-	// Top edge: boundary near y≈20. Exterior d<0 verts → y < 20 (outside,
-	// away from fill).
-	var extAbove int
+	// Top edge's A-end corner (x≈50, y≈20): exterior d<0 verts sit above the
+	// boundary (y < 20 — away from the fill); interior d>0 verts below (y > 20).
+	// Band vertices live at the quad ends, so probe the corner region. The 90°
+	// corner ends are eroded by the sharp-corner interior treatment, but the
+	// interior half must still exist somewhere along the straight edges (the
+	// smooth both-side fade the convex renderer also produces).
+	var extAbove, innerNear int
 	for i := 0; i+2 < len(tess.bandVerts); i += 3 {
 		x, y, d := tess.bandVerts[i], tess.bandVerts[i+1], tess.bandVerts[i+2]
-		if x > 45 && x < 55 && y > 17 && y < 22 && d < 0 {
+		if x > 48 && x < 56 && y > 17 && y < 23 && d < 0 {
 			extAbove++
-			if y > 20 {
+			if y >= 20 {
 				t.Errorf("convex exterior band points INTO fill at (%.1f,%.1f)", x, y)
 			}
+		}
+	}
+	for i := 0; i+2 < len(tess.innerBandVerts); i += 3 {
+		_, y, d := tess.innerBandVerts[i], tess.innerBandVerts[i+1], tess.innerBandVerts[i+2]
+		if y > 20 && d > 0 {
+			innerNear++
 		}
 	}
 	if extAbove == 0 {
 		t.Fatal("expected diamond top-edge exterior band verts")
 	}
-	// Long straight edges (> aaInnerMaxSegLen) must not emit an interior
-	// half (the binary cover keeps just-inside pixels full, CPU-aligned).
-	if len(tess.innerBandVerts) != 0 {
-		t.Fatalf("long straight diamond edges must skip the interior half, got %d interior verts", len(tess.innerBandVerts))
+	if innerNear == 0 {
+		t.Fatal("expected diamond interior band verts (smooth just-inside fade)")
 	}
 }

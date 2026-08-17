@@ -45,7 +45,7 @@ func NewShell(winW, winH float64, abilityTitle string, legendLines []string) *Sh
 		if i >= 12 {
 			break
 		}
-		s.Legend.LabelAt(ln, 11, 12, 36+float64(i)*22, 0.70, 0.78, 0.88)
+		s.Legend.LabelAt(ln, 12, 12, 36+float64(i)*22, 0.70, 0.78, 0.88)
 	}
 
 	bodyX := gap + legendW + gap
