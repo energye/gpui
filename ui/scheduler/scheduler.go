@@ -113,18 +113,24 @@ func (s *FrameScheduler) FrameDue() bool {
 	s.vsyncMu.Lock()
 	lastV := s.lastVSync
 	s.vsyncMu.Unlock()
-	if !lastV.IsZero() && now.Sub(lastV) <= vsyncFreshWindow {
-		s.mu.Lock()
-		s.lastFrameAt = now
-		s.mu.Unlock()
-		return true
-	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !lastV.IsZero() && now.Sub(lastV) <= vsyncFreshWindow {
+		// One frame per vsync stamp (Flutter frame-callback semantics):
+		// render only when a NEW signal arrived since the last rendered
+		// frame. A frequently-stamped waiter (DRM vblank) paces at its own
+		// rate; without this per-stamp gate the loop spun the UI thread at
+		// thousands of submits/sec while "fresh" was always true.
+		due := s.lastFrameAt.IsZero() || s.lastFrameAt.Before(lastV)
+		if due {
+			s.lastFrameAt = now
+		}
+		return due
+	}
 	due := s.lastFrameAt.IsZero() || now.Sub(s.lastFrameAt) >= s.animTick
 	if due {
 		s.lastFrameAt = now
 	}
-	s.mu.Unlock()
 	return due
 }
 
