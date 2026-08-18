@@ -116,6 +116,16 @@ type PresentTarget struct {
 	resizeStormWindow time.Duration
 	lastResizeAt      time.Time
 
+	// swapchainPending marks a resize recorded by the UI thread (Resize) that
+	// the raster thread must apply at the next present boundary, serialized
+	// with BeginFrame/EndFrame (Skia/Flutter: the raster thread owns the
+	// surface). This keeps the expensive wgpu Surface.Configure off the UI
+	// thread (a ~40–100ms stall per resize step on llvmpipe) and removes the
+	// UI-configure-vs-raster-present race that left the swapchain stuck at a
+	// stale extent during interactive resize drags (frames then dropped on
+	// "surface outdated" and content froze at the old size).
+	swapchainPending bool
+
 	// lastOutcome / lastDamageArea are set by PresentWith / PresentWithAuto for metrics.
 	lastOutcome    PresentOutcome
 	lastDamageArea int64 // physical px² of last FrameDamage union (0 if idle/empty)
@@ -270,7 +280,10 @@ func (t *PresentTarget) SetResizeStormWindow(d time.Duration) {
 	t.resizeStormWindow = d
 }
 
-// Resize updates logical size / scale and reconfigures the swapchain.
+// Resize records a new logical size / scale. The swapchain reconfigure itself
+// is deferred to the raster present boundary (applyPendingSwapchain) so the
+// UI thread never blocks on the surface (and never races the raster thread's
+// present). Same-size calls are no-ops.
 func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 	if t == nil {
 		return errors.New("render: nil PresentTarget")
@@ -297,19 +310,35 @@ func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 		_ = t.dc.Resize(logicalW, logicalH)
 		t.dc.SetDeviceScale(scale)
 	}
-	pw, ph := physicalSize(logicalW, logicalH, scale)
-	if t.sc != nil {
-		if err := t.sc.Resize(pw, ph); err != nil {
-			return err
-		}
-		// Swapchain reconfigured → every buffer is undefined. Owe full frames
-		// so each buffer is fully written before retained LoadOpLoad frames
-		// read it again (otherwise resize storms leave black regions). Also
-		// arm the storm window so every present while the resize storm is
-		// active stays full even if the 3-frame budget is spent between steps.
-		t.postResizeFull = 3
-		t.lastResizeAt = time.Now()
+	t.swapchainPending = true
+	return nil
+}
+
+// applyPendingSwapchain reconfigures the swapchain to the recorded logical
+// size, then arms the post-resize full-write budget. Runs on the raster
+// thread at the present boundary (serialized with BeginFrame/EndFrame via
+// mu). Caller must hold mu.
+func (t *PresentTarget) applyPendingSwapchainLocked() error {
+	if t == nil || t.sc == nil || !t.swapchainPending {
+		return nil
 	}
+	t.swapchainPending = false
+	pw, ph := physicalSize(t.logicW, t.logicH, t.scale)
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		fmt.Fprintf(os.Stderr, "DBG swapchain apply %dx%d (logic %dx%d)\n", pw, ph, t.logicW, t.logicH)
+	}
+	if err := t.sc.Resize(pw, ph); err != nil {
+		// Keep the flag set: the next present retries the reconfigure.
+		t.swapchainPending = true
+		return err
+	}
+	// Swapchain reconfigured → every buffer is undefined. Owe full frames
+	// so each buffer is fully written before retained LoadOpLoad frames
+	// read it again (otherwise resize storms leave black regions). Also
+	// arm the storm window so every present while the resize storm is
+	// active stays full even if the 3-frame budget is spent between steps.
+	t.postResizeFull = 3
+	t.lastResizeAt = time.Now()
 	return nil
 }
 
@@ -334,7 +363,7 @@ func (t *PresentTarget) InFullRecovery() bool {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.postResizeFull > 0 || t.inResizeStormLocked()
+	return t.swapchainPending || t.postResizeFull > 0 || t.inResizeStormLocked()
 }
 
 // inResizeStormLocked reports whether a resize storm is active: the most
@@ -402,6 +431,13 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// written; owed full frames force the full path (Skia recreate semantics).
 	// During an active resize storm every present stays full too, so a buffer
 	// at an intermediate size is never LoadOpLoad'd half-written.
+	// Apply a swapchain resize recorded on the UI thread here — on the raster
+	// thread, serialized with BeginFrame/EndFrame — so the surface tracks the
+	// window without stalling the UI thread and without Configure/present
+	// races dropping frames during interactive resize drags.
+	if err := t.applyPendingSwapchainLocked(); err != nil {
+		return out, err
+	}
 	if t.postResizeFull > 0 || t.inResizeStormLocked() {
 		forceFull = true
 	}
@@ -424,6 +460,9 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 
 	frame, err := t.sc.BeginFrame()
 	if err != nil {
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			fmt.Fprintf(os.Stderr, "DBG present BeginFrame err=%v (logic %dx%d)\n", err, t.logicW, t.logicH)
+		}
 		return out, fmt.Errorf("render: BeginFrame: %w", err)
 	}
 	if os.Getenv("WR_RESIZE_DBG") == "1" {

@@ -785,6 +785,14 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 			if sc.Surface != nil {
 				sc.Surface.DiscardTexture()
 			}
+			// The window may have out-paced the last applied size (interactive
+			// resize drag): reconfigure at the CURRENT live window extent so
+			// the retry acquire matches the surface instead of looping on a
+			// stale configured size (which leaves every frame "outdated" and
+			// drops it — the window then keeps the pre-drag content).
+			if w, h, ok := sc.Surface.WindowSize(); ok && w > 0 && h > 0 {
+				sc.Width, sc.Height = w, h
+			}
 			if cfgErr := sc.Configure(); cfgErr != nil {
 				if isDeviceLostErr(cfgErr) || sc.deviceKnownLostLocked() {
 					if rerr := sc.ensureDeviceLocked(); rerr != nil {

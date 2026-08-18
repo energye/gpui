@@ -1059,7 +1059,7 @@ func x11GetGeometry(st *x11State) (w, h int, ok bool) {
 		return 0, 0, false
 	}
 	var (
-		xGetGeometry func(dpy, win, root uintptr, x, y *int32, w, h *uint, border *uint, depth *uint) int
+		xGetGeometry func(dpy, win uintptr, root *uintptr, x, y *int32, w, h *uint32, border *uint32, depth *uint32) int
 	)
 	purego.RegisterLibFunc(&xGetGeometry, lib.lib, "XGetGeometry")
 	if xGetGeometry == nil {
@@ -1068,11 +1068,13 @@ func x11GetGeometry(st *x11State) (w, h int, ok bool) {
 	var (
 		rootRet uintptr
 		x, y    int32
-		wd, ht  uint
-		border  uint
-		depth   uint
+		wd, ht  uint32
+		border  uint32
+		depth   uint32
 	)
-	if xGetGeometry(st.display, st.window, rootRet, &x, &y, &wd, &ht, &border, &depth) == 0 {
+	// XGetGeometry writes root_return unconditionally — a nil root pointer
+	// dereferences address 0 in the X server client library.
+	if xGetGeometry(st.display, st.window, &rootRet, &x, &y, &wd, &ht, &border, &depth) == 0 {
 		return 0, 0, false
 	}
 	return int(wd), int(ht), true

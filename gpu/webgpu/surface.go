@@ -89,6 +89,11 @@ type Surface struct {
 	device   *Device
 	released bool
 
+	// backend is the window-system the surface was created for (X11 vs
+	// Wayland vs ...). X11 surfaces can probe the live window extent
+	// (WindowSize) for stale-size reconfiguration during resize drags.
+	backend SurfaceBackend
+
 	// Platform handles for recreate after device-lost (AutoRecover).
 	// Force-Unconfigure after lost SIGSEGVs reconfigure on this .so; drop+recreate instead.
 	instance      *Instance
@@ -142,10 +147,28 @@ func (i *Instance) CreateSurfaceFor(backend SurfaceBackend, displayHandle, windo
 
 	return &Surface{
 		r:             rs,
+		backend:       backend,
 		instance:      i,
 		displayHandle: displayHandle,
 		windowHandle:  windowHandle,
 	}, nil
+}
+
+// WindowSize returns the current native window extent when the platform can
+// probe it (X11: XGetGeometry, fresh at call time). ok=false falls back to
+// the applied/configured swapchain size (Wayland/Windows/macOS are told the
+// size by the window system instead of probing).
+func (s *Surface) WindowSize() (width, height uint32, ok bool) {
+	if s == nil || s.released {
+		return 0, 0, false
+	}
+	if s.backend != SurfaceBackendXlib {
+		return 0, 0, false
+	}
+	if w, h, ok := x11WindowSize(s.displayHandle, s.windowHandle); ok {
+		return uint32(w), uint32(h), true
+	}
+	return 0, 0, false
 }
 
 // Configure configures the surface for presentation.
