@@ -39,21 +39,18 @@ func (b DisplayBackend) String() string {
 }
 
 // DetectDisplayBackend chooses a Linux window backend for the Auto path.
-// Prefer **X11** when DISPLAY is set (incl. XWayland) so the compositor/WM
-// draws a normal title bar; else native Wayland.
-//
-// Why X11 first on dual-stack desktops (GNOME/KDE Wayland + DISPLAY=:0):
-// native xdg_toplevel alone has **no** decorations on GNOME (no SSD; apps
-// must paint CSD). XWayland windows get the desktop title bar for free.
-// Force a backend in code via platform.Options.Backend (pure Wayland gets
-// SSD only if the compositor supports zxdg_decoration_manager_v1).
+// Prefer the session's native backend: a GNOME/KDE Wayland session exports
+// WAYLAND_DISPLAY (and DISPLAY too, via Xwayland). Native Wayland is the
+// actual compositor there — X11 means Xwayland, which carries interactive
+// resize/present limitations (swapchain reconfigure stalls; no sync-request
+// resize) — so Wayland wins whenever it is available. X11 is the fallback
+// for X11-only sessions.
 func DetectDisplayBackend() DisplayBackend {
-	// Prefer X11 (title bar via WM / XWayland) when available.
-	if os.Getenv("DISPLAY") != "" {
-		return DisplayX11
-	}
 	if os.Getenv("WAYLAND_DISPLAY") != "" {
 		return DisplayWayland
+	}
+	if os.Getenv("DISPLAY") != "" {
+		return DisplayX11
 	}
 	return DisplayAuto
 }

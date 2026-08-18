@@ -410,6 +410,11 @@ type wlWin struct {
 	closed        bool
 	closeReq      bool // xdg close / CSD ✕ request (→ EventCloseRequested)
 	resized       bool
+	// resizing mirrors the xdg_toplevel "resizing" configure state (3): the
+	// compositor sets it while an interactive move/resize drag is in flight
+	// and clears it when the drag ends. Read-only diagnostic for apps/tests
+	// (event thread); the resize events themselves drive the relayout.
+	resizing bool
 
 	// Async window state (configure-driven).
 	activated bool // EventFocus dedup
@@ -917,6 +922,9 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 		w.minimized = false
 	}
 	w.ctlMu.Unlock()
+	// The resizing state flips only at drag start/end — not on every step —
+	// so it is tracked outside the width/height dedup below.
+	w.resizing = states.resizing
 	// Report focus + occlusion state changes (values only when changed).
 	if states.activated != w.activated {
 		w.activated = states.activated

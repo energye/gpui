@@ -357,8 +357,9 @@ func x11Create(opts Options) (*Window, error) {
 
 	xMapWindow(dpy, win)
 	xFlush(dpy)
+	// Drain the map-time noise (map/configure/expose burst) so the app's
+	// first WaitEvents does not start with a stale batch.
 	time.Sleep(50 * time.Millisecond)
-	// Drain map noise.
 	var buf [256]byte
 	for xPending(dpy) > 0 {
 		xNextEvent(dpy, &buf[0])
@@ -387,6 +388,36 @@ func x11Create(opts Options) (*Window, error) {
 		resizable:       opts.Resizable,
 		visible:         opts.Visible == nil || *opts.Visible,
 		xChangeProperty: xChangeProperty,
+	}
+	// The WM may resize the window at map time (maximize / fit the work
+	// area), often animating the size over a few hundred ms. Wait until the
+	// client geometry stabilizes (draining configure events meanwhile), then
+	// use the ACTUAL size so the first frame and the initial EventResize
+	// match the window — otherwise the content starts clipped/offset until
+	// the first resize event (the Adopt path probes the same way). If the
+	// WM changed the size, drainX emits an initial EventResize on the first
+	// drain so the app re-lays-out at the real size.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	var gw, gh int
+	for time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+		for xPending(dpy) > 0 {
+			xNextEvent(dpy, &buf[0])
+		}
+		g, g2, ok := x11GetGeometry(st)
+		if !ok || g <= 0 || g2 <= 0 {
+			continue
+		}
+		if g == gw && g2 == gh {
+			break // stable across two samples
+		}
+		gw, gh = g, g2
+	}
+	if gw > 0 && gh > 0 {
+		if gw != w || gh != h {
+			st.initResizePending = true
+		}
+		st.w, st.h = gw, gh
 	}
 	// Resolve EWMH atoms once; the controller and event pump share them.
 	st.resolveAtoms(dpy)
@@ -505,6 +536,13 @@ type x11State struct {
 	// last reported screen position (EventMove dedup)
 	posX, posY int
 	posInit    bool
+
+	// A WM-applied map-time resize (maximize / work-area fit) never reaches
+	// the app as a ConfigureNotify after the startup drain (setSize reports
+	// "no change" against the probed size). Deliver it once as an initial
+	// EventResize so the first layout matches the actual window size
+	// (Flutter/Skia deliver initial window metrics at startup).
+	initResizePending bool
 
 	// Async window state (updated by events + controller).
 	maximized  bool
@@ -883,6 +921,15 @@ func (h *x11Host) drainX() []Event {
 		}
 	}
 	var out []Event
+	// Startup: the WM may have applied a map-time resize (maximize /
+	// work-area fit) whose ConfigureNotify was consumed by the Open drain.
+	// setSize below reports "no change" (the probed size is already
+	// st.w/st.h), so emit the initial size once — the app's first layout
+	// must match the actual window.
+	if st.initResizePending {
+		st.initResizePending = false
+		out = append(out, Event{Type: EventResize, Width: st.w, Height: st.h, Scale: h.ScaleFactor()})
+	}
 	var buf [256]byte
 	for st.pending() > 0 {
 		st.nextEvent(&buf[0])

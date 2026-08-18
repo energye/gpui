@@ -296,9 +296,16 @@ func main() {
 		w0, h0 = 1600, 1000
 		fmt.Fprintln(os.Stderr, "diag: DIAG_FULLSCREEN=1 -> huge start size (not fullscreen state)")
 	}
+	bk := platform.DisplayAuto
+	if os.Getenv("DIAG_BACKEND") == "wayland" {
+		bk = platform.DisplayWayland
+	} else if os.Getenv("DIAG_BACKEND") == "x11" {
+		bk = platform.DisplayX11
+	}
 	win, err := platform.Open(platform.Options{
 		Width: w0, Height: h0, Title: "gpui resize diag — rich GUI", Decorations: true,
 		Resizable: true,
+		Backend:   bk,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "diag: window:", err)

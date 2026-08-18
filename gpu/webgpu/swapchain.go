@@ -782,6 +782,9 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 			return nil, err
 		} else {
 			// Outdated / surface error / acquire timeout: one reconfigure then retry.
+			if os.Getenv("WR_RESIZE_DBG") == "1" {
+				fmt.Fprintf(os.Stderr, "DBG bf acquire-fail=%dms err=%v\n", time.Since(t0).Milliseconds(), err)
+			}
 			if sc.Surface != nil {
 				sc.Surface.DiscardTexture()
 			}
@@ -808,11 +811,17 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 			} else {
 				sc.lastReconfig = time.Now()
 				sc.acquireRetries++
+				if os.Getenv("WR_RESIZE_DBG") == "1" {
+					fmt.Fprintf(os.Stderr, "DBG bf retry-cfg=%dms (new %dx%d)\n", time.Since(t0).Milliseconds(), sc.Width, sc.Height)
+				}
 				// A fresh swapchain after the recreate: clear the hung latch so
 				// the retry acquire actually attempts (and future frames are
 				// not blocked by a stale latch).
 				sc.acquireHung.Store(false)
 				st, suboptimal, err = sc.acquireSurfaceTexture()
+				if os.Getenv("WR_RESIZE_DBG") == "1" && err != nil {
+					fmt.Fprintf(os.Stderr, "DBG bf retry-acq-fail=%dms err=%v\n", time.Since(t0).Milliseconds(), err)
+				}
 				if err != nil {
 					if isDeviceLostErr(err) || sc.deviceKnownLostLocked() {
 						if rerr := sc.ensureDeviceLocked(); rerr != nil {

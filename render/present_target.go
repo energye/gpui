@@ -169,6 +169,11 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		inst.Release()
 		return nil, fmt.Errorf("render: RequestAdapter: %w", err)
 	}
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		ai := adapter.Info()
+		fmt.Fprintf(os.Stderr, "DBG adapter=%q vendor=%q type=%v backend=%v\n",
+			ai.Name, ai.Vendor, ai.DeviceType, ai.Backend)
+	}
 
 	device, err := requestPresentDeviceWithRetry(adapter, presentDeviceDescriptor("ui-l1-present"), "ui-l1-present")
 	if err != nil {
@@ -318,19 +323,41 @@ func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 // size, then arms the post-resize full-write budget. Runs on the raster
 // thread at the present boundary (serialized with BeginFrame/EndFrame via
 // mu). Caller must hold mu.
+//
+// X11/Xwayland: the reconfigure is deferred to BeginFrame's outdated-retry
+// (outdated acquire → probe the live window size → Configure → re-acquire)
+// instead of a synchronous Configure here — on X11/Xwayland each Configure
+// costs 26–383ms (scaling with window size), so configuring synchronously on
+// every resize step — and again in BeginFrame when the window moved during
+// the Configure — doubled the per-step stall (the visible "content lags the
+// window" gap); measured +70% drag presents.
+//
+// Other platforms (Wayland/Windows/macOS/browser): wgpu does not report
+// "outdated" when the surface size changes, so the swapchain MUST be
+// reconfigured here or it stays at the stale extent (presented content
+// clipped/stretched); natively these Configure calls are ~1–5ms.
 func (t *PresentTarget) applyPendingSwapchainLocked() error {
 	if t == nil || t.sc == nil || !t.swapchainPending {
 		return nil
 	}
 	t.swapchainPending = false
-	pw, ph := physicalSize(t.logicW, t.logicH, t.scale)
-	if os.Getenv("WR_RESIZE_DBG") == "1" {
-		fmt.Fprintf(os.Stderr, "DBG swapchain apply %dx%d (logic %dx%d)\n", pw, ph, t.logicW, t.logicH)
-	}
-	if err := t.sc.Resize(pw, ph); err != nil {
-		// Keep the flag set: the next present retries the reconfigure.
-		t.swapchainPending = true
-		return err
+	if t.ns.Platform == PresentPlatformX11 {
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			pw, ph := physicalSize(t.logicW, t.logicH, t.scale)
+			fmt.Fprintf(os.Stderr, "DBG swapchain apply %dx%d (logic %dx%d, deferred)\n", pw, ph, t.logicW, t.logicH)
+		}
+		// The swapchain extent is reconfigured by BeginFrame's outdated-retry
+		// at the live window size; nothing to configure synchronously here.
+	} else {
+		pw, ph := physicalSize(t.logicW, t.logicH, t.scale)
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			fmt.Fprintf(os.Stderr, "DBG swapchain apply %dx%d (logic %dx%d)\n", pw, ph, t.logicW, t.logicH)
+		}
+		if err := t.sc.Resize(pw, ph); err != nil {
+			// Keep the flag set: the next present retries the reconfigure.
+			t.swapchainPending = true
+			return err
+		}
 	}
 	// Swapchain reconfigured → every buffer is undefined. Owe full frames
 	// so each buffer is fully written before retained LoadOpLoad frames
@@ -435,8 +462,18 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// thread, serialized with BeginFrame/EndFrame — so the surface tracks the
 	// window without stalling the UI thread and without Configure/present
 	// races dropping frames during interactive resize drags.
+	var pApply, pBegin, pEnd time.Time
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		pApply = time.Now()
+	}
 	if err := t.applyPendingSwapchainLocked(); err != nil {
 		return out, err
+	}
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		if d := time.Since(pApply); d > 20*time.Millisecond {
+			fmt.Fprintf(os.Stderr, "DBG phase apply=%dms\n", d.Milliseconds())
+		}
+		pBegin = time.Now()
 	}
 	if t.postResizeFull > 0 || t.inResizeStormLocked() {
 		forceFull = true
@@ -466,6 +503,12 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		return out, fmt.Errorf("render: BeginFrame: %w", err)
 	}
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
+		if d := time.Since(pBegin); d > 20*time.Millisecond {
+			fmt.Fprintf(os.Stderr, "DBG phase begin=%dms (frame %dx%d)\n", d.Milliseconds(), frame.Width, frame.Height)
+		}
+		pEnd = time.Now()
+	}
+	if os.Getenv("WR_RESIZE_DBG") == "1" {
 		fmt.Fprintf(os.Stderr, "DBG sc.frame %dx%d (logic %dx%d)\n", frame.Width, frame.Height, t.logicW, t.logicH)
 	}
 	// Failed/timeout BeginFrames above return early and do NOT consume the
@@ -473,6 +516,11 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	presentFn := func() error {
 		if err := t.sc.EndFrame(frame); err != nil {
 			return err
+		}
+		if os.Getenv("WR_RESIZE_DBG") == "1" {
+			if d := time.Since(pEnd); d > 20*time.Millisecond {
+				fmt.Fprintf(os.Stderr, "DBG phase endframe=%dms (frame %dx%d)\n", d.Milliseconds(), frame.Width, frame.Height)
+			}
 		}
 		if t.postResizeFull > 0 {
 			t.postResizeFull--
