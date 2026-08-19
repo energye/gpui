@@ -26,6 +26,13 @@ import (
 //
 // enter/motion coords are in surface-local coordinate space *before* the
 // surface's scale is applied (wl_fixed). We treat them as logical px.
+//
+// Window-level pointer model (GTK4 parity): the app sees ONE continuous
+// coordinate space over the whole window — content + CSD chrome. Pointer
+// coordinates from the decoration subsurfaces are translated into content
+// coordinates (negative y over the title bar); enter/leave are reported only
+// when the pointer crosses the WINDOW boundary, and internal
+// content↔chrome crossings arrive as motion.
 
 // wl_pointer requests (wayland.xml authoritative): set_cursor(0) since 1,
 // release(1) since 3.
@@ -62,6 +69,17 @@ type wlPointerState struct {
 	lastX, lastY float64
 	// enterSerial: serial of the last pointer.enter (needed for set_cursor).
 	enterSerial uintptr
+
+	// Window-level pointer state (whole window = content + CSD chrome).
+	// inWindow is true while the pointer is logically inside the window.
+	inWindow bool
+	// lastLeaveOurs: the last pointer event was a leave of one of our
+	// surfaces. It is consumed by the next enter on one of our surfaces
+	// (internal content↔chrome crossing → motion) or resolved in poll()
+	// (resolveDeferredLeave) as a window leave when nothing follows.
+	lastLeaveOurs bool
+	// lastLeaveSerial is the serial of the deferred leave (cursor restore).
+	lastLeaveSerial uintptr
 }
 
 // bindPointer creates a wl_pointer from the seat and adds the listener.
@@ -117,28 +135,120 @@ func wlFixedToDouble(f uintptr) float64 {
 	return float64(int32(f)) / 256.0
 }
 
+// isOurs reports whether the surface belongs to this window (content or CSD
+// chrome) — window-level pointer tracking treats them as one surface.
+func (st *wlPointerState) isOurs(surface uintptr) bool {
+	if st == nil || st.win == nil || surface == 0 {
+		return false
+	}
+	if surface == st.win.surface {
+		return true
+	}
+	if c := st.win.csd; c != nil {
+		return surface == c.topSurface || surface == c.left.surf ||
+			surface == c.right.surf || surface == c.bottom.surf
+	}
+	return false
+}
+
+// isChrome reports whether the surface is a CSD decoration subsurface
+// (title bar / borders) — chrome presses are consumed, never forwarded.
+func (st *wlPointerState) isChrome(surface uintptr) bool {
+	if st == nil || st.win == nil || surface == 0 || st.win.csd == nil {
+		return false
+	}
+	c := st.win.csd
+	return surface == c.topSurface || surface == c.left.surf ||
+		surface == c.right.surf || surface == c.bottom.surf
+}
+
+// appXY translates surface-local coords to the content (toplevel) space for
+// app-facing events (identity for the content surface).
+func (st *wlPointerState) appXY(surface uintptr, x, y float64) (float64, float64) {
+	if st == nil || st.win == nil || st.win.csd == nil {
+		return x, y
+	}
+	return st.win.csd.appCoords(surface, x, y)
+}
+
+// leaveWindow pushes the window-level PointerLeave and clears chrome state
+// (hover highlight + cursor).
+func (st *wlPointerState) leaveWindow(serial uintptr) {
+	if st == nil || st.win == nil {
+		return
+	}
+	st.inWindow = false
+	if c := st.win.csd; c != nil {
+		c.onHover(0, 0, 0)
+		c.setCursor(serial, csdHit{})
+	}
+	st.win.pushPtr(Event{Type: EventPointer, Pointer: PointerLeave})
+}
+
+// resolveDeferredLeave flushes an unconsumed leave of one of our surfaces as
+// a window-level PointerLeave. Called from poll() right after dispatch: an
+// internal content↔chrome crossing consumes lastLeaveOurs via its paired
+// enter; anything left over means the pointer left the window (possibly with
+// no enter at all — pointer over no surface).
+func (st *wlPointerState) resolveDeferredLeave() {
+	if st == nil || !st.lastLeaveOurs {
+		return
+	}
+	st.lastLeaveOurs = false
+	if st.inWindow {
+		st.leaveWindow(st.lastLeaveSerial)
+	}
+}
+
 func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 	st := ptrFrom(data)
 	if st == nil || st.win == nil {
 		return
 	}
+	x := wlFixedToDouble(sx)
+	y := wlFixedToDouble(sy)
+	st.win.lastSerial.Store(uint32(serial))
+	ours := st.isOurs(surface)
+	if ours && st.lastLeaveOurs {
+		// Internal content↔chrome crossing: motion (translated coords), not
+		// a window enter/leave pair.
+		st.lastLeaveOurs = false
+		st.surface = surface
+		st.enterSerial = serial
+		st.lastX, st.lastY = x, y
+		if c := st.win.csd; c != nil {
+			hit := c.onHover(surface, x, y)
+			c.setCursor(serial, hit)
+		}
+		ax, ay := st.appXY(surface, x, y)
+		st.win.pushPtr(Event{Type: EventPointer, Pointer: PointerMove, X: ax, Y: ay})
+		return
+	}
+	if !ours {
+		// Entered another window: the preceding leave was a window leave.
+		if st.inWindow {
+			st.leaveWindow(serial)
+		}
+		st.lastLeaveOurs = false
+		st.surface = 0
+		return
+	}
+	// Entered the window from outside.
+	st.inWindow = true
+	st.lastLeaveOurs = false
 	st.surface = surface
 	st.enterSerial = serial
-	// enter carries surface-local coords — record them so a press right after
-	// enter (without any motion) hit-tests correctly (button has no coords).
-	st.lastX = wlFixedToDouble(sx)
-	st.lastY = wlFixedToDouble(sy)
-	// Update hover state + cursor for the new region.
+	st.lastX, st.lastY = x, y
 	if c := st.win.csd; c != nil {
-		hit := c.onHover(st.surface, st.lastX, st.lastY)
+		hit := c.onHover(surface, x, y)
 		c.setCursor(serial, hit)
 	}
-	// Report enter to the upper layer (hover decision) alongside CSD use.
+	ax, ay := st.appXY(surface, x, y)
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
 		Pointer: PointerEnter,
-		X:       st.lastX,
-		Y:       st.lastY,
+		X:       ax,
+		Y:       ay,
 	})
 }
 
@@ -147,14 +257,16 @@ func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
 	if st == nil || st.win == nil {
 		return
 	}
-	// Leaving the window clears hover highlight + restores default cursor.
-	if c := st.win.csd; c != nil {
-		c.onHover(0, 0, 0)
-		c.setCursor(serial, csdHit{})
+	if !st.isOurs(surface) {
+		return // leave of a foreign surface — nothing to track
 	}
+	// Defer the decision: an internal crossing is followed by enter(ours)
+	// (consumed there); a window leave is resolved by the next enter
+	// (foreign) or by poll() (resolveDeferredLeave).
+	st.lastLeaveOurs = true
+	st.lastLeaveSerial = serial
 	st.surface = 0
-	// Report leave to the upper layer (hover decision) alongside CSD use.
-	st.win.pushPtr(Event{Type: EventPointer, Pointer: PointerLeave})
+	_ = ptr
 }
 
 // wlPtrMotionCB: motion(time, surface_x, surface_y). Surface-local logical px.
@@ -165,26 +277,30 @@ func wlPtrMotionCB(data, ptr, time, sx, sy uintptr) {
 	}
 	st.lastX = wlFixedToDouble(sx)
 	st.lastY = wlFixedToDouble(sy)
-	// Update hover state + resize cursor while moving.
+	// Update hover state + resize cursor while moving (surface-local coords;
+	// the CSD hit-test is per-surface).
 	if c := st.win.csd; c != nil {
 		hit := c.onHover(st.surface, st.lastX, st.lastY)
 		c.setCursor(st.enterSerial, hit)
 	}
+	ax, ay := st.appXY(st.surface, st.lastX, st.lastY)
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
 		Pointer: PointerMove,
-		X:       wlFixedToDouble(sx),
-		Y:       wlFixedToDouble(sy),
+		X:       ax,
+		Y:       ay,
 	})
 }
 
 // wlPtrButtonCB: button(serial, time, button, state). state 0=release, 1=press.
-// wl_pointer buttons are evdev codes (0x110=BTN_LEFT, 0x111=MI DDLE, 0x112=RIGHT).
+// wl_pointer buttons are evdev codes (0x110=BTN_LEFT, 0x111=BUTTON MIDDLE,
+// 0x112=BTN_RIGHT, 0x13d/0x13e=BTN_SIDE/EXTRA).
 func wlPtrButtonCB(data, ptr, serial, time, button, state uintptr) {
 	st := ptrFrom(data)
 	if st == nil || st.win == nil {
 		return
 	}
+	st.win.lastSerial.Store(uint32(serial))
 	// Pointer press = the user clicked the window/input box. Re-commit the
 	// text-input state here (GTK released_cb pattern): the compositor only
 	// feeds key events to the IME engine once focus_in ran, and focus_in
@@ -194,20 +310,49 @@ func wlPtrButtonCB(data, ptr, serial, time, button, state uintptr) {
 	// activates reliably.
 	if state&0xff == 1 {
 		st.win.refreshTextInput()
-		// CSD chrome interaction (left button only); if consumed, skip the
-		// normal pointer event (the chrome owns the press).
-		if btn := int(button); btn == 0x110 { // BTN_LEFT
-			if c := st.win.csd; c != nil && c.onButtonPress(st.win.seat, serial, c.hitTest(st.surface, st.lastX, st.lastY)) {
-				return
-			}
-		}
-	} else {
-		if c := st.win.csd; c != nil {
-			c.onButtonRelease()
-		}
 	}
 	btn := int(button)
-	// Map evdev button codes → 1/2/3 like platform convention.
+	pressed := state&0xff == 1
+
+	// Chrome (title bar / borders) owns every press — nothing reaches the
+	// content layer: left = caption drag / buttons / resize grips, right =
+	// caption window menu, middle = nothing (GTK4 event-separation model).
+	if st.isChrome(st.surface) {
+		if pressed {
+			switch btn {
+			case 0x110: // BTN_LEFT
+				if c := st.win.csd; c != nil {
+					c.onButtonPress(st.win.seat, serial, c.hitTest(st.surface, st.lastX, st.lastY))
+				}
+			case 0x112: // BTN_RIGHT
+				if c := st.win.csd; c != nil {
+					c.onRightPress(st.win.seat, serial, st.surface, st.lastX, st.lastY)
+				}
+			}
+		} else if btn == 0x110 {
+			if c := st.win.csd; c != nil {
+				c.onButtonRelease(st.surface, st.lastX, st.lastY)
+			}
+		}
+		return
+	}
+
+	// Content surface: the CSD only consumes invisible chrome actions
+	// (nothing remains with a CSD title bar — content never resizes), so
+	// presses/releases forward to the content layer.
+	if c := st.win.csd; c != nil && pressed {
+		hit := c.hitTest(st.surface, st.lastX, st.lastY)
+		if hit.act != csdActNone {
+			c.onButtonPress(st.win.seat, serial, hit)
+			return
+		}
+	}
+	if c := st.win.csd; c != nil && !pressed {
+		c.onButtonRelease(st.surface, st.lastX, st.lastY)
+	}
+
+	// Map evdev button codes → 1/2/3 like platform convention (X11 button
+	// numbers); side buttons map to 8/9 (GTK parity).
 	switch btn {
 	case 0x110: // BTN_LEFT
 		btn = 1
@@ -215,19 +360,24 @@ func wlPtrButtonCB(data, ptr, serial, time, button, state uintptr) {
 		btn = 2
 	case 0x112: // BTN_RIGHT
 		btn = 3
-	case 0x13d: // BTN_SIDE (thumb) → treat as middle-ish
-		btn = 2
+	case 0x13d: // BTN_SIDE
+		btn = 8
+	case 0x13e: // BTN_EXTRA
+		btn = 9
 	default:
 		btn = 1
 	}
 	k := PointerDown
-	if state == 0 {
+	if !pressed {
 		k = PointerUp
 	}
+	ax, ay := st.appXY(st.surface, st.lastX, st.lastY)
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
 		Pointer: k,
 		Button:  btn,
+		X:       ax,
+		Y:       ay,
 	})
 }
 

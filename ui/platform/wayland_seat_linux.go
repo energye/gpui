@@ -52,6 +52,7 @@ type wlSeatState struct {
 	pendingKeys  bool
 	pendingPtrs  bool
 	pendingTI    bool // zwp_text_input_v3 also needs the bound seat
+	pendingDD    bool // wl_data_device (clipboard + DnD) needs the bound seat
 }
 
 // bindSeat binds wl_seat and installs the capabilities/name listener.
@@ -134,6 +135,12 @@ func wlSeatFlushPending(st *wlSeatState) {
 			w.ti = w.bindTextInput()
 		}
 		st.pendingTI = false
+	}
+	if st.pendingDD && w.dds == nil {
+		if w.ddMgrName != 0 && st.lib.ifaceDataDevMgr != 0 {
+			w.dds = w.bindDataDevice()
+		}
+		st.pendingDD = false
 	}
 	// Wake the loop so poll drains any queued events promptly.
 	if h := w.hostForWake(); h != nil {

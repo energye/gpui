@@ -437,6 +437,9 @@ func (a *PipelineApp) Quit() {
 }
 
 // Open creates the present target.
+// Open creates the present target and wires the optional platform
+// notifications (swapchain size / hidden detach). Called automatically by
+// Run when the target is not yet open; examples may call it eagerly.
 func (a *PipelineApp) Open() error {
 	if a == nil || a.host == nil {
 		return errors.New("embedder: nil app/host")
@@ -448,8 +451,40 @@ func (a *PipelineApp) Open() error {
 	if err != nil {
 		return err
 	}
+	// The swapchain-resize notification lets the Wayland host declare xdg
+	// window geometry in the same wire batch as the new-size buffer (a
+	// geometry declared before the buffer catches up leaves mutter with
+	// negative frame extents, which corrupt the maximize/unmaximize restore
+	// size). Fires on the raster thread inside the present critical section.
+	t.SetOnSwapchainResized(func(logicalW, logicalH int) {
+		if ps, ok := a.host.(platform.SurfacePresenter); ok {
+			ps.OnSurfaceResized(logicalW, logicalH)
+		}
+	})
 	a.target = t
 	return nil
+}
+
+// parkNativeSurface implements the hide side of the Wayland hide/show cycle
+// (§6.2): wait for the raster thread to drain in-flight presents, close the
+// GPU present target (releases the wgpu WSI surface), then destroy the
+// platform surface stack via HiddenSurface — the wl_surface is only destroyed
+// once no GPU work references it (a detach/present race would hang Present).
+// Called on the event thread from the EventHidden{Hidden:true} branch.
+func (a *PipelineApp) parkNativeSurface() {
+	if a.loop != nil {
+		deadline := time.Now().Add(2 * time.Second)
+		for a.loop.InFlight() > 0 && time.Now().Before(deadline) {
+			time.Sleep(2 * time.Millisecond)
+		}
+	}
+	if a.target != nil {
+		_ = a.target.Close()
+		a.target = nil
+	}
+	if hs, ok := a.host.(platform.HiddenSurface); ok {
+		hs.ApplyHiddenDetach()
+	}
 }
 
 // Close stops raster and releases GPU.
@@ -605,6 +640,29 @@ func (a *PipelineApp) Run() error {
 				if ev.Occluded {
 					a.sched.ClearPending()
 				} else {
+					a.ScheduleFrame()
+				}
+			case platform.EventHidden:
+				// App-driven Hide/Show (Wayland §6.2): hide parks the render
+				// loop, closes the GPU present target (wgpu WSI surface) and
+				// then destroys the platform surface stack — the window truly
+				// unmaps (xdg has no unmap request; GTK4 parity). Show
+				// re-creates the stack on the platform side first; this event
+				// is delivered only after the new surface is re-mapped, so
+				// Open() below recreates the present target against the NEW
+				// wl_surface and frames resume.
+				a.occluded.Store(ev.Hidden)
+				if ev.Hidden {
+					a.sched.ClearPending()
+					a.parkNativeSurface()
+				} else {
+					if a.target == nil {
+						if err := a.Open(); err != nil {
+							fmt.Fprintf(os.Stderr, "embedder: reopen present target after Show: %v\n", err)
+							a.occluded.Store(true)
+							continue
+						}
+					}
 					a.ScheduleFrame()
 				}
 			}

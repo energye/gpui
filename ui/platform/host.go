@@ -73,7 +73,10 @@ const (
 	EventKey
 	EventIME   // input-method session event (compose/commit/caret)
 	EventFocus // keyboard focus changed (see Event.Focused)
-	EventWake  // WakeUp from another goroutine
+	EventWake  // WakeUp from another goroutine (kept before the wayland-only
+	// additions below so its numeric value never shifts across backends)
+	EventDrop   // external file(s) dropped onto the window (see Event.Files)
+	EventHidden // app-driven hide/show (see Event.Hidden; WindowController.Hide/Show)
 )
 
 // String implements fmt.Stringer.
@@ -105,6 +108,10 @@ func (t EventType) String() string {
 		return "ime"
 	case EventFocus:
 		return "focus"
+	case EventDrop:
+		return "drop"
+	case EventHidden:
+		return "hidden"
 	case EventWake:
 		return "wake"
 	default:
@@ -158,6 +165,11 @@ type Event struct {
 	// false = visible again. (X11 VisibilityNotify; Wayland suspended state;
 	// Win32 WM_SHOWWINDOW; AppKit occlusionState.)
 	Occluded bool
+	// EventHidden: app-driven hide/show state (WindowController.Hide/Show;
+	// Wayland only). true = the window content must be detached after the
+	// renderer stops; handled by the embedder like occlusion + surface
+	// detach.
+	Hidden bool
 
 	// Pointer (logical).
 	Pointer PointerKind
@@ -177,6 +189,11 @@ type Event struct {
 
 	// Focus / visibility (EventFocus)
 	Focused bool
+
+	// EventDrop: external files dropped onto the window (Wayland DnD;
+	// X11 URI-list drops reserved). Files holds absolute local paths
+	// (empty when the drop carried no text/uri-list payload).
+	Files []string
 
 	// IME (EventIME): pre-edit / commit / caret events from the input method.
 	IMEKind  int    // 0 = compose (pre-edit), 1 = commit, 2 = caret move
@@ -218,4 +235,35 @@ type FrameSync interface {
 	// NotifyFrameDrawn is called after a frame has been submitted for
 	// presentation.
 	NotifyFrameDrawn()
+}
+
+// SurfacePresenter is optional; a Host implementing it is notified as soon
+// as the renderer's present surface (swapchain) has been reconfigured to a
+// new logical size — before the first buffer at that size is committed. The
+// Wayland host uses the notification to declare xdg window geometry in the
+// same wire batch as the new-size buffer: declaring a geometry larger than
+// the current surface makes mutter cache negative frame extents, which
+// corrupt maximize/unmaximize restore size handling. The callback runs on
+// the raster thread; implementations must not block on UI-thread state.
+type SurfacePresenter interface {
+	// OnSurfaceResized reports that the render surface now serves buffers
+	// of logicalW×logicalH and the next commit carries one of them.
+	OnSurfaceResized(logicalW, logicalH int)
+}
+
+// HiddenSurface is optional; a Host implementing it lets the embedder tell
+// the platform to detach the window's content surface (attach NULL) once the
+// renderer has fully stopped. On Wayland the content surface is owned by the
+// renderer (wgpu Vulkan WSI): detaching it while a present is in flight
+// corrupts the swapchain (wgpu surface present hangs), so the detach must
+// happen only after frame production has drained — which only the embedder
+// can observe.
+type HiddenSurface interface {
+	// ApplyHiddenDetach unmaps the window by destroying its native surface
+	// stack (wayland: wl_surface + xdg_surface + xdg_toplevel + CSD — xdg has
+	// no unmap request, so hide = destroy, show = recreate, GTK parity). The
+	// embedder must close the GPU present target (which owns the wgpu WSI
+	// surface backed by the same wl_surface) BEFORE calling this — a detach
+	// while a present is in flight corrupts the swapchain (present hangs).
+	ApplyHiddenDetach()
 }

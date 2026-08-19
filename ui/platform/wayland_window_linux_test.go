@@ -19,10 +19,11 @@ func openTestWayland(t *testing.T) *Window {
 		t.Skipf("wayland real-window test skipped: WAYLAND_DISPLAY not set")
 	}
 	win, err := Open(Options{
-		Width:   400,
-		Height:  300,
-		Title:   "gpui wayland win test",
-		Backend: DisplayWayland, // force the wayland backend — Auto would pick X11 when DISPLAY is set
+		Width:      400,
+		Height:     300,
+		Title:      "gpui wayland win test",
+		Decorations: true, // standard CSD — exercises the chrome paths too
+		Backend:    DisplayWayland, // force the wayland backend — Auto would pick X11 when DISPLAY is set
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "connect failed") ||
@@ -138,10 +139,11 @@ func TestWaylandRealWindowControls(t *testing.T) {
 	ctl.SetMaxSize(1920, 1080)
 
 	// Protocol-impossible ops → ErrUnsupported (honesty contract §2.5.4).
+	// Show/Hide are real on wayland (§9 隐藏窗口) — asserted in
+	// TestWaylandHideShow; SetPosition/Focus/AlwaysOnTop/SetDecorations
+	// have no xdg-shell counterpart.
 	for name, err := range map[string]error{
 		"SetPosition":    ctl.SetPosition(10, 10),
-		"Show":           ctl.Show(),
-		"Hide":           ctl.Hide(),
 		"Focus":          ctl.Focus(),
 		"SetAlwaysOnTop": ctl.SetAlwaysOnTop(true),
 		"SetDecorations": ctl.SetDecorations(true),
@@ -152,12 +154,13 @@ func TestWaylandRealWindowControls(t *testing.T) {
 	}
 
 	// Query semantics (§2.5.3): no client-side position → ok=false (zero ≠
-	// "at origin"); xdg windows are always visible once mapped (§3.2).
+	// "at origin"); a fresh window is visible (Hide pulls it down, Show
+	// restores — §3.2).
 	if x, y, ok := ctl.Position(); ok || x != 0 || y != 0 {
 		t.Errorf("Position() = (%d,%d,%v), want (0,0,false)", x, y, ok)
 	}
 	if !ctl.IsVisible() {
-		t.Error("IsVisible() = false, want true (xdg has no hidden state)")
+		t.Error("IsVisible() = false on a fresh window, want true (only Hide sets it false)")
 	}
 	if ctl.IsMinimized() {
 		t.Error("IsMinimized() = true on a fresh window")

@@ -155,7 +155,7 @@
 | `PresentFrameAuto/PresentFrameFull`（frame.go） | 自动选路径 / 强制全帧呈现 | 自动/全帧呈现 | ✅（PresentFrameAuto 内部用） |
 | `PlanFramePresent/PlanPresent/FramePresentPlan/PresentOutcome/PresentMode` | 依据损伤区与 surface 尺寸规划呈现策略 | 呈现策略规划 | ✅（PresentFrameAuto 内部用） |
 | `CoalesceDamageRects` | 把多条损伤矩形合并/裁剪到上限 | 损伤合并 | 🔗 |
-| `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/InFullRecovery/SetResizeStormWindow/LogicalSize/Scale/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在） |
+| `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**） |
 | `PresentNativeSurface` / `PresentPlatform` / var `ErrNilSurfaceView` | 原生表面句柄、平台枚举、空表面错误 | 原生表面/平台 | ✅ |
 
 ### 3.8 text.go（15）+ text_decoration.go（2）+ text_mode.go · 文本族
@@ -383,7 +383,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `CubicBez` | Start/End · Eval/Extrema/Inflections/Deriv · Normal/Tangent · BoundingBox · Subdivide/Subsegment | 三次贝塞尔求值/拐点/切线 | 三次贝塞尔 | 🔗 |
 | `Rect` | Width/Height · Contains · Union · (NewRect) | 矩形尺寸/包含/合并 | 矩形 | ✅ |
 | `PathMetric` | IsEmpty · Length · PositionAt/TangentAt | 路径度量查询（取点/切线） | 路径度量 | 🔗 |
-| `PresentTarget` | Context/Resize/Scale · PresentWith/PresentWithAuto/PresentClear · LastPresentOutcome/LastDamageAreaPx · InFullRecovery/SetResizeStormWindow · LogicalSize · Close | 呈现目标绘制/呈现/恢复状态 | 呈现目标 | ✅ |
+| `PresentTarget` | Context/Resize/Scale · PresentWith/PresentWithAuto/PresentClear · LastPresentOutcome/LastDamageAreaPx · InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized · LogicalSize · Close | 呈现目标绘制/呈现/恢复状态（SetOnSwapchainResized：swapchain 换尺寸回调，Wayland 宿主用于 xdg 窗口几何声明） | 呈现目标 | ✅ |
 | `FuncPainter`/`SolidPainter` | PaintSpan | 逐像素填色段 | 像素填色器 | 🧪 |
 | 枚举类型通用方法 `String()` | PathVerb / PipelineMode / PresentMode / RasterizerMode / TextMode 均实现 String() 输出枚举名（日志/调试用） | 枚举打印 | 枚举调试 | 🔗 |
 | `GPUAccelerator` 各接口方法 | 见 §4 接口群 | 加速能力探测 | 能力探测 | 🔗 |

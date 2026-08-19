@@ -251,6 +251,7 @@ func wlKbKeyCB(data, kbd, serial, time, key, state uintptr) {
 	if st == nil || st.xkb == nil || st.state == 0 {
 		return
 	}
+	st.win.lastSerial.Store(uint32(serial))
 	// Wayland sends evdev keycodes; xkbcommon expects X11 keycodes
 	// (evdev + 8) — see XKBEvdevOffset in gogpu internal/platform/xkb.
 	kc := (key & 0xffff) + 8

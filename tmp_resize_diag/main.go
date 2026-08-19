@@ -288,6 +288,11 @@ func main() {
 	fmt.Fprintf(os.Stderr, "diag: resize-drag repro (rich GUI scene), window 400x400 -> drag 400<->1600, %ds\n", secs)
 	t0 := time.Now()
 	w0, h0 := 400, 400
+	if v := os.Getenv("DIAG_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 100 {
+			w0, h0 = n, n
+		}
+	}
 	big := os.Getenv("DIAG_FULLSCREEN") == "1"
 	if big {
 		// Big window (~full screen) but NOT fullscreen state: fullscreen
@@ -302,10 +307,12 @@ func main() {
 	} else if os.Getenv("DIAG_BACKEND") == "x11" {
 		bk = platform.DisplayX11
 	}
+	icon := os.Getenv("DIAG_ICON")
 	win, err := platform.Open(platform.Options{
 		Width: w0, Height: h0, Title: "gpui resize diag — rich GUI", Decorations: true,
 		Resizable: true,
 		Backend:   bk,
+		IconName:  icon, // Wayland: xdg app_id (taskbar icon); "" = default
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "diag: window:", err)
@@ -346,6 +353,16 @@ func main() {
 					scene.Resize(float64(ev.Width), float64(ev.Height))
 				}
 				fmt.Fprintf(os.Stderr, "DBG t=%5.1f EventResize %dx%d\n", time.Since(t0).Seconds(), ev.Width, ev.Height)
+			case platform.EventFocus:
+				fmt.Fprintf(os.Stderr, "DBG t=%5.1f EventFocus focused=%v\n", time.Since(t0).Seconds(), ev.Focused)
+			case platform.EventOccluded:
+				fmt.Fprintf(os.Stderr, "DBG t=%5.1f EventOccluded occluded=%v\n", time.Since(t0).Seconds(), ev.Occluded)
+			case platform.EventHidden:
+				fmt.Fprintf(os.Stderr, "DBG t=%5.1f EventHidden hidden=%v\n", time.Since(t0).Seconds(), ev.Hidden)
+			case platform.EventCloseRequested:
+				fmt.Fprintf(os.Stderr, "DBG t=%5.1f EventCloseRequested\n", time.Since(t0).Seconds())
+			case platform.EventScale:
+				fmt.Fprintf(os.Stderr, "DBG t=%5.1f EventScale scale=%v\n", time.Since(t0).Seconds(), ev.Scale)
 			case platform.EventResizeSync:
 				fmt.Fprintf(os.Stderr, "DBG t=%5.1f EventResizeSync\n", time.Since(t0).Seconds())
 			case platform.EventPointer:
@@ -357,6 +374,14 @@ func main() {
 				if os.Getenv("DIAG_TRACE") == "1" {
 					fmt.Fprintf(os.Stderr, "DBG t=%5.1f Expose\n", time.Since(t0).Seconds())
 				}
+			case platform.EventKey:
+				if os.Getenv("DIAG_TRACE") == "1" {
+					fmt.Fprintf(os.Stderr, "DBG t=%5.1f Key code=%d rune=%q pressed=%v\n",
+						time.Since(t0).Seconds(), ev.KeyCode, ev.Rune, ev.Pressed)
+				}
+			case platform.EventDrop:
+				fmt.Fprintf(os.Stderr, "DBG t=%5.1f EventDrop xy=%.0f,%.0f files=%v\n",
+					time.Since(t0).Seconds(), ev.X, ev.Y, ev.Files)
 			case platform.EventClose:
 				fmt.Fprintln(os.Stderr, "diag: window close")
 			}
@@ -459,6 +484,74 @@ func main() {
 				}
 			}
 			fmt.Fprintln(os.Stderr, "diag: storm done")
+		}()
+	}
+
+	// Optional window-state machinery (DIAG_STATE=1): drive the controller
+	// through maximize/restore/fullscreen/title/minimize cycles and log every
+	// state event — verifies the configure-driven state machine end to end.
+	if os.Getenv("DIAG_STATE") == "1" {
+		ctrl := win.Controls()
+		step := func(name string, fn func()) {
+			fmt.Fprintf(os.Stderr, "DBG state: %s\n", name)
+			fn()
+			time.Sleep(3 * time.Second)
+			w, h := ctrl.Size()
+			fmt.Fprintf(os.Stderr, "DBG state:   after -> size=%dx%d max=%v full=%v min=%v vis=%v\n",
+				w, h, ctrl.IsMaximized(), ctrl.IsFullscreen(), ctrl.IsMinimized(), ctrl.IsVisible())
+		}
+		go func() {
+			time.Sleep(4 * time.Second)
+			step("Maximize()", ctrl.Maximize)
+			step("Unmaximize()", ctrl.Unmaximize)
+			step("SetFullscreen(true)", func() { ctrl.SetFullscreen(true) })
+			step("SetFullscreen(false)", func() { ctrl.SetFullscreen(false) })
+			step("SetTitle", func() { ctrl.SetTitle("gpui resize diag — state cycled") })
+			step("Minimize()", ctrl.Minimize)
+			fmt.Fprintln(os.Stderr, "diag: state cycle done")
+		}()
+	}
+
+	// Optional §9 standard-features cycle (DIAG_FEATURES=1): app icon name
+	// (Options.IconName → set_app_id), state queries, clipboard set+get, and
+	// hide/show visibility round-trip with the renderer-stop events. Logs
+	// every step; the window stays alive and keeps presenting.
+	if os.Getenv("DIAG_FEATURES") == "1" {
+		ctrl := win.Controls()
+		clip := win.Clipboard()
+		go func() {
+			time.Sleep(3 * time.Second)
+			w, h := ctrl.Size()
+			fmt.Fprintf(os.Stderr, "DBG feat: query size=%dx%d max=%v full=%v min=%v focused=%v decorated=%v visible=%v\n",
+				w, h, ctrl.IsMaximized(), ctrl.IsFullscreen(), ctrl.IsMinimized(), ctrl.IsFocused(), ctrl.IsDecorated(), ctrl.IsVisible())
+			if clip != nil {
+				payload := fmt.Sprintf("gpui-diag-clip-%d", time.Now().Unix())
+				if err := clip.Set("text/plain", payload); err == nil {
+					if got, err := clip.Get("text/plain"); err == nil {
+						fmt.Fprintf(os.Stderr, "DBG feat: clipboard set+get ok equal=%v len=%d\n", got == payload, len(got))
+					} else {
+						fmt.Fprintf(os.Stderr, "DBG feat: clipboard get err=%v\n", err)
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "DBG feat: clipboard set err=%v\n", err)
+				}
+			} else {
+				fmt.Fprintln(os.Stderr, "DBG feat: clipboard unavailable (compositor lacks wl_data_device_manager)")
+			}
+			fmt.Fprintf(os.Stderr, "DBG feat: visible before Hide=%v\n", ctrl.IsVisible())
+			if os.Getenv("DIAG_NO_HIDE") != "1" {
+				if err := ctrl.Hide(); err != nil {
+					fmt.Fprintf(os.Stderr, "DBG feat: Hide err=%v\n", err)
+				}
+				time.Sleep(2 * time.Second)
+				fmt.Fprintf(os.Stderr, "DBG feat: visible after Hide=%v\n", ctrl.IsVisible())
+				if err := ctrl.Show(); err != nil {
+					fmt.Fprintf(os.Stderr, "DBG feat: Show err=%v\n", err)
+				}
+				time.Sleep(2 * time.Second)
+				fmt.Fprintf(os.Stderr, "DBG feat: visible after Show=%v\n", ctrl.IsVisible())
+			}
+			fmt.Fprintln(os.Stderr, "diag: features cycle done")
 		}()
 	}
 

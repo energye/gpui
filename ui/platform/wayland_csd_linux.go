@@ -3,7 +3,12 @@
 package platform
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/png"
+	"os"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -56,12 +61,17 @@ const (
 	//   show_window_menu(4) move(5) resize(6) set_max_size(7)
 	//   set_min_size(8) set_maximized(9) unset_maximized(10)
 	//   set_fullscreen(11) unset_fullscreen(12) set_minimized(13)
-	xdgToplevelMove         = 5
-	xdgToplevelResize       = 6
+	xdgToplevelShowMenu    = 4
+	xdgToplevelMove        = 5
+	xdgToplevelResize      = 6
 	xdgToplevelSetMaximized = 9
-	xdgToplevelUnsetMaxim   = 10
+	xdgToplevelUnsetMaxim  = 10
 	xdgToplevelSetMinimized = 13
 )
+
+// xdg_surface requests (xdg-shell.xml): destroy(0) get_toplevel(1)
+// get_popup(2) set_window_geometry(3) ack_configure(4).
+const xdgSurfaceSetWindowGeometry = 3
 
 // xdg_toplevel resize edges (xdg-shell.xml resize_edge enum).
 const (
@@ -97,6 +107,16 @@ type wlCSD struct {
 
 	// lastCaptionClick tracks double-click-on-caption (maximize toggle).
 	lastCaptionClick time.Time
+
+	// armedButton is the title-bar control button pressed but not yet
+	// released (GTK4 release-inside semantics: the action fires only when
+	// the pointer is still over the same button on release; dragging off
+	// cancels). csdActNone = no armed button.
+	armedButton int
+
+	// dumpW/dumpH track the last dumped top-surface size (GPUI_WL_DUMP_CSD
+	// appearance verification dumps only when the decoration changes size).
+	dumpW, dumpH int
 
 	// Cursor state (system cursor theme via libwayland-cursor).
 	cursorSurf  uintptr // cursor wl_surface
@@ -167,6 +187,7 @@ func (w *wlWin) initCSD(title string) *wlCSD {
 	}
 
 	csd.paint()
+	csd.setGeometry(cw, ch)
 	return csd
 }
 
@@ -269,23 +290,25 @@ func (c *wlCSD) paint() {
 		return
 	}
 	lib := c.win.lib
+	outline := !c.state.Maximized && !c.state.Fullscreen
 	if c.top != nil {
 		paintTitleBar(c.top.data, c.top.w, c.top.h, c.state)
 		c.top.commit(lib)
 	}
 	if c.left != nil {
-		paintBorder(c.left.data, c.left.w, c.left.h, csdEdgeLeft)
+		paintBorder(c.left.data, c.left.w, c.left.h, csdEdgeLeft, outline)
 		c.left.commit(lib)
 	}
 	if c.right != nil {
-		paintBorder(c.right.data, c.right.w, c.right.h, csdEdgeRight)
+		paintBorder(c.right.data, c.right.w, c.right.h, csdEdgeRight, outline)
 		c.right.commit(lib)
 	}
 	if c.bottom != nil {
-		paintBorder(c.bottom.data, c.bottom.w, c.bottom.h, csdEdgeBottom)
+		paintBorder(c.bottom.data, c.bottom.w, c.bottom.h, csdEdgeBottom, outline)
 		c.bottom.commit(lib)
 	}
 	lib.displayFlush(c.win.display)
+	c.dumpPNGs()
 }
 
 // repaintTitle repaints only the title bar (button hover/press / focus /
@@ -297,6 +320,39 @@ func (c *wlCSD) repaintTitle() {
 	paintTitleBar(c.top.data, c.top.w, c.top.h, c.state)
 	c.top.commit(c.win.lib)
 	c.win.lib.displayFlush(c.win.display)
+	c.dumpPNGs()
+}
+
+// dumpPNGs writes the decoration surfaces to PNG files for appearance
+// verification when GPUI_WL_DUMP_CSD=<dir> is set. Only the title bar is
+// dumped (it carries all the visible chrome); the borders are transparent
+// strips. Dumps once per size change, not per repaint.
+func (c *wlCSD) dumpPNGs() {
+	if c == nil || c.top == nil || c.top.data == nil {
+		return
+	}
+	dir := os.Getenv("GPUI_WL_DUMP_CSD")
+	if dir == "" {
+		return
+	}
+	if c.top.w == c.dumpW && c.top.h == c.dumpH {
+		return
+	}
+	c.dumpW, c.dumpH = c.top.w, c.top.h
+	_ = os.MkdirAll(dir, 0o755)
+	img := image.NewRGBA(image.Rect(0, 0, c.top.w, c.top.h))
+	for y := 0; y < c.top.h; y++ {
+		for x := 0; x < c.top.w; x++ {
+			o := (y*c.top.w + x) * 4
+			img.Pix[(y*c.top.w+x)*4+0] = c.top.data[o+2] // R
+			img.Pix[(y*c.top.w+x)*4+1] = c.top.data[o+1] // G
+			img.Pix[(y*c.top.w+x)*4+2] = c.top.data[o+0] // B
+			img.Pix[(y*c.top.w+x)*4+3] = c.top.data[o+3] // A
+		}
+	}
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, img)
+	_ = os.WriteFile(filepath.Join(dir, fmt.Sprintf("csd_title_%dx%d.png", c.top.w, c.top.h)), buf.Bytes(), 0o644)
 }
 
 // resize resizes the four decoration surfaces to a new content size (called
@@ -327,7 +383,87 @@ func (c *wlCSD) resize(cw, ch int) {
 	if c.bottom != nil {
 		c.resizeSurface(c.bottom, cw+2*csdBorderThick, csdBorderThick, -csdBorderThick, ch)
 	}
+	// The xdg window geometry is NOT declared here (from the configure
+	// event): the compositor applies a declared geometry at the next
+	// commit, and the renderer's buffer has not caught up to the new size
+	// yet (the swapchain reconfigures asynchronously) — declaring it now
+	// would make mutter cache negative frame extents (geometry > surface),
+	// which corrupt the maximize/unmaximize restore size. The geometry is
+	// declared by the renderer's swapchain-resize hook (OnSurfaceResized →
+	// setGeometryNoFlush) in the same wire batch as the new-size buffer.
 	c.paint()
+}
+
+// setVisible shows (true) or hides (false) the four decoration subsurfaces.
+// Hiding detaches each buffer (attach NULL + commit, desync → applies
+// immediately): the window then has no chrome — used by server-side
+// decoration negotiation (deco mode = server_side) and by window Hide().
+// Showing re-attaches the still-live shm buffers. Idempotent.
+func (c *wlCSD) setVisible(v bool) {
+	if c == nil || c.win == nil || c.win.lib == nil {
+		return
+	}
+	lib := c.win.lib
+	surfs := []*csdSurface{c.top, c.left, c.right, c.bottom}
+	for _, s := range surfs {
+		if s == nil {
+			continue
+		}
+		if v {
+			s.commit(lib)
+		} else {
+			detach := []wlArg{argO(0), argU(0), argU(0)}
+			lib.proxyMarshalArrayFlags(s.surf, wlSurfaceAttach, 0, 0, 0, &detach[0])
+			lib.proxyMarshalArrayFlags(s.surf, wlSurfaceCommit, 0, 0, 0, nil)
+		}
+	}
+	lib.displayFlush(c.win.display)
+}
+
+// setGeometry declares the xdg window geometry = the content area
+// (xdg_surface.set_window_geometry, GTK4 parity). With the chrome drawn in
+// subsurfaces OUTSIDE the content surface, the geometry is the content rect
+// itself: the compositor then treats the window (placement, maximize restore
+// saved_rect, configure sizes) as the content area only, and the configure
+// the client receives is exactly the content size — GTK reports the same
+// content-size semantics (a GTK 400x400 window has geometry 400x437
+// including its title bar; the app still sees 400x400). Without this call
+// the compositor defaults the geometry to the bounding box of surface +
+// subsurfaces (content + chrome), which inflates every size the compositor
+// tracks and breaks maximize/unmaximize restore (the window restores to a
+// garbage size and snaps back).
+func (c *wlCSD) setGeometry(cw, ch int) {
+	c.marshalGeometry(cw, ch, true)
+}
+
+// setGeometryNoFlush declares the geometry without flushing the display:
+// called from the renderer's swapchain-resize hook (OnSurfaceResized) on
+// the raster thread inside the present critical section, the request rides
+// the present's own wire batch (geometry → attach → commit) so the
+// compositor applies it together with a buffer of the same size. Flushing
+// here would race the UI thread's wl_display_flush in poll().
+func (c *wlCSD) setGeometryNoFlush(cw, ch int) {
+	c.marshalGeometry(cw, ch, false)
+}
+
+// marshalGeometry queues xdg_surface.set_window_geometry(0,0,cw,ch) and
+// optionally flushes. See wlCSD.setGeometry for the contract.
+func (c *wlCSD) marshalGeometry(cw, ch int, flush bool) {
+	if c == nil || c.win == nil || c.win.lib == nil || c.win.xdgSurf == 0 {
+		return
+	}
+	// mutter rejects a zero-size geometry (width/height == 0 → warning).
+	if cw < 1 {
+		cw = 1
+	}
+	if ch < 1 {
+		ch = 1
+	}
+	args := []wlArg{argU(0), argU(0), argU(uint32(cw)), argU(uint32(ch))}
+	c.win.lib.proxyMarshalArrayFlags(c.win.xdgSurf, xdgSurfaceSetWindowGeometry, 0, 0, 0, &args[0])
+	if flush {
+		c.win.lib.displayFlush(c.win.display)
+	}
 }
 
 // resizeSurface frees the old shm buffer/pool and creates a new buffer at the
@@ -445,7 +581,7 @@ func (c *wlCSD) setMaximized(v bool) {
 		return
 	}
 	c.state.Maximized = v
-	c.repaintTitle()
+	c.paint()
 }
 
 // setFullscreen updates fullscreen flag (no visible borders when fullscreen).
@@ -455,6 +591,24 @@ func (c *wlCSD) setFullscreen(v bool) {
 	}
 	c.state.Fullscreen = v
 	c.paint()
+}
+
+// setLocked enables/disables resize grips + cursors (SetSize min==max clamp /
+// SetResizable(false)); the buttons and caption keep working.
+func (c *wlCSD) setLocked(v bool) {
+	if c == nil || c.state.Locked == v {
+		return
+	}
+	c.state.Locked = v
+	// No repaint needed (grips are invisible); cursor updates on next motion.
+}
+
+// setTiled records the xdg tiled state (informational for now).
+func (c *wlCSD) setTiled(v bool) {
+	if c == nil || c.state.Tiled == v {
+		return
+	}
+	c.state.Tiled = v
 }
 
 // --- pointer interaction (called from wl_pointer callbacks) ---
@@ -480,10 +634,14 @@ const (
 // content surface); (x,y) is surface-local logical px.
 //
 // Priority: buttons (right of title bar) > resize grips > caption drag.
+// Resize grips are disabled when the window is maximized/fullscreen (nothing
+// to resize) or size-locked (SetSize min==max / SetResizable(false)) —
+// GTK4 parity: a fixed-size window shows no resize affordances.
 func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 	if c == nil {
 		return csdHit{}
 	}
+	noResize := c.state.Maximized || c.state.Fullscreen || c.state.Locked
 	switch surface {
 	case c.topSurface:
 		wTop := c.top.w
@@ -499,19 +657,29 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 		case x >= minX:
 			return csdHit{act: csdActMinimize}
 		}
-		// Resize top edge/corners (non-button area of the title bar).
-		if y < csdCornerGrip {
+		// Resize zone: top edge + the left/right flanks (the title bar spans
+		// the full window width, so its edge strips are the left/right resize
+		// grips — winit/sctk CSD layout). Disabled when maximized/fullscreen/
+		// size-locked.
+		if !noResize {
 			switch {
-			case x < csdCornerGrip:
+			case y < csdCornerGrip && x < csdCornerGrip:
 				return csdHit{act: csdActResize, edge: resizeTopLeft}
-			case x >= float64(wTop-csdCornerGrip):
+			case y < csdCornerGrip && x >= float64(wTop-csdCornerGrip):
 				return csdHit{act: csdActResize, edge: resizeTopRight}
-			default:
+			case x <= float64(csdBorderThick):
+				return csdHit{act: csdActResize, edge: resizeLeft}
+			case x >= float64(wTop-csdBorderThick):
+				return csdHit{act: csdActResize, edge: resizeRight}
+			case y < csdCornerGrip:
 				return csdHit{act: csdActResize, edge: resizeTop}
 			}
 		}
 		return csdHit{act: csdActMove}
 	case c.left.surf:
+		if noResize {
+			return csdHit{}
+		}
 		switch {
 		case y < csdCornerGrip:
 			return csdHit{act: csdActResize, edge: resizeTopLeft}
@@ -521,6 +689,9 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 			return csdHit{act: csdActResize, edge: resizeLeft}
 		}
 	case c.right.surf:
+		if noResize {
+			return csdHit{}
+		}
 		switch {
 		case y < csdCornerGrip:
 			return csdHit{act: csdActResize, edge: resizeTopRight}
@@ -530,6 +701,9 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 			return csdHit{act: csdActResize, edge: resizeRight}
 		}
 	case c.bottom.surf:
+		if noResize {
+			return csdHit{}
+		}
 		switch {
 		case x < csdCornerGrip:
 			return csdHit{act: csdActResize, edge: resizeBottomLeft}
@@ -539,34 +713,10 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 			return csdHit{act: csdActResize, edge: resizeBottom}
 		}
 	case c.win.surface:
-		// Content-surface edge hot zone (standard CSD: invisible resize
-		// border inside the content too). (x,y) is content-local.
-		if c.state.Fullscreen || c.state.Maximized {
-			return csdHit{}
-		}
-		cw, ch := c.stateW()
-		nearL := x < csdCornerGrip
-		nearR := x >= float64(cw-csdCornerGrip)
-		nearT := y < csdCornerGrip
-		nearB := y >= float64(ch-csdCornerGrip)
-		switch {
-		case nearL && nearT:
-			return csdHit{act: csdActResize, edge: resizeTopLeft}
-		case nearR && nearT:
-			return csdHit{act: csdActResize, edge: resizeTopRight}
-		case nearL && nearB:
-			return csdHit{act: csdActResize, edge: resizeBottomLeft}
-		case nearR && nearB:
-			return csdHit{act: csdActResize, edge: resizeBottomRight}
-		case nearL:
-			return csdHit{act: csdActResize, edge: resizeLeft}
-		case nearR:
-			return csdHit{act: csdActResize, edge: resizeRight}
-		case nearT:
-			return csdHit{act: csdActResize, edge: resizeTop}
-		case nearB:
-			return csdHit{act: csdActResize, edge: resizeBottom}
-		}
+		// Content never participates in window resize when a CSD title bar
+		// exists (user requirement: 有标题栏时内容区不参与窗口调整; GTK4 CSD
+		// resize handles live on the chrome, not the content).
+		return csdHit{}
 	}
 	return csdHit{}
 }
@@ -584,6 +734,29 @@ func (c *wlCSD) stateW() (int, int) {
 		ch = 480
 	}
 	return cw, ch
+}
+
+// appCoords translates decoration-surface-local pointer coords into the
+// content (toplevel) surface coordinate space — GTK4 parity: the app sees
+// one continuous coordinate space over the whole window, with negative y
+// over the title bar (the chrome surfaces sit outside the content).
+func (c *wlCSD) appCoords(surface uintptr, x, y float64) (float64, float64) {
+	if c == nil || surface == 0 {
+		return x, y
+	}
+	switch surface {
+	case c.topSurface:
+		return x - csdBorderThick, y - csdTitleBarHeight
+	case c.left.surf:
+		return x - csdBorderThick, y
+	case c.right.surf:
+		cw, _ := c.stateW()
+		return x + float64(cw), y
+	case c.bottom.surf:
+		_, ch := c.stateW()
+		return x - csdBorderThick, y + float64(ch)
+	}
+	return x, y
 }
 
 // buttonHitFor maps a title-bar hit to button state indices (for hover press).
@@ -619,19 +792,28 @@ func (c *wlCSD) onHover(surface uintptr, x, y float64) csdHit {
 	return hit
 }
 
-// onButtonPress handles a button press on the chrome. Returns whether the
-// event was consumed (true = do not forward to content).
+// onButtonPress handles a left-button press on the chrome. Returns whether
+// the event was consumed (true = do not forward to content).
+//
+// GTK4 semantics: control buttons (close/minimize/maximize) arm on press
+// (pressed state shown) and fire on release-inside (onButtonRelease); the
+// caption drag and resize grips act on press (a drag starts immediately).
 func (c *wlCSD) onButtonPress(seat, serial uintptr, hit csdHit) bool {
 	if c == nil {
 		return false
 	}
+	// Content presses (act none) are NOT chrome: forward to the content layer.
+	if hit.act == csdActNone {
+		return false
+	}
 	if b := c.buttonHitFor(hit); b != nil {
 		b.Pressed = true
+		c.armedButton = hit.act
 		c.repaintTitle()
 	}
 	switch hit.act {
-	case csdActClose:
-		c.closeRequested = true
+	case csdActClose, csdActMinimize, csdActMaximize:
+		// Armed; fires on release-inside.
 	case csdActMove:
 		// Double-click on caption → toggle maximize (GTK behavior).
 		now := time.Now()
@@ -644,25 +826,68 @@ func (c *wlCSD) onButtonPress(seat, serial uintptr, hit csdHit) bool {
 		}
 	case csdActResize:
 		c.requestResize(seat, serial, hit.edge)
+	}
+	return true
+}
+
+// onButtonRelease fires an armed control-button action when the pointer is
+// still over the same button at release (GTK4 release-inside; dragging off
+// cancels). surface/pos are the pointer's current surface + position.
+func (c *wlCSD) onButtonRelease(surface uintptr, x, y float64) {
+	if c == nil || c.armedButton == csdActNone {
+		return
+	}
+	act := c.armedButton
+	c.armedButton = csdActNone
+	if b := c.buttonHitFor(csdHit{act: act}); b != nil {
+		b.Pressed = false
+	}
+	c.repaintTitle()
+	// Fire only when the release is still inside the same button.
+	hit := c.hitTest(surface, x, y)
+	if hit.act != act {
+		return
+	}
+	switch act {
+	case csdActClose:
+		c.closeRequested = true
 	case csdActMinimize:
 		c.requestMinimize()
 	case csdActMaximize:
 		c.toggleMaximize()
 	}
+}
+
+// onRightPress handles a right-button press on the chrome: the caption (and
+// only the caption, not the buttons) opens the window menu via
+// xdg_toplevel.show_window_menu — the standard Wayland window menu (GTK3/
+// winit parity; the compositor renders restore/move/resize/minimize/maximize/
+// close). Any chrome right-press is consumed (the bar owns its presses);
+// the menu only fires on the caption.
+func (c *wlCSD) onRightPress(seat, serial uintptr, surface uintptr, x, y float64) bool {
+	if c == nil || surface != c.topSurface {
+		return false
+	}
+	hit := c.hitTest(surface, x, y)
+	if hit.act == csdActMove {
+		c.showWindowMenu(seat, serial, x, y)
+	}
 	return true
 }
 
-// onButtonRelease clears pressed states after a chrome press.
-func (c *wlCSD) onButtonRelease() {
-	if c == nil {
+// showWindowMenu asks the compositor to show the window menu at (x,y) in
+// surface-local coordinates of the toplevel (content) surface — the CSD
+// surfaces sit outside the content, so the coordinates are translated.
+func (c *wlCSD) showWindowMenu(seat, serial uintptr, x, y float64) {
+	if c == nil || c.win == nil || c.win.lib == nil || c.win.toplevel == 0 || seat == 0 || serial == 0 {
 		return
 	}
-	if c.state.Close.Pressed || c.state.Maximize.Pressed || c.state.Minimize.Pressed {
-		c.state.Close.Pressed = false
-		c.state.Maximize.Pressed = false
-		c.state.Minimize.Pressed = false
-		c.repaintTitle()
-	}
+	// top surface is offset (-border, -titleBarHeight) from the content.
+	cx := int32(x) + csdBorderThick
+	cy := int32(y) + csdTitleBarHeight
+	args := []wlArg{argO(seat), argU(uint32(serial)), argU(uint32(cx)), argU(uint32(cy))}
+	c.win.lib.proxyMarshalArrayFlags(c.win.toplevel, xdgToplevelShowMenu, 0, 0, 0, &args[0])
+	c.win.lib.displayFlush(c.win.display)
 }
 
 // requestMove starts an interactive xdg_toplevel.move(seat, serial).

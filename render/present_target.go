@@ -126,6 +126,18 @@ type PresentTarget struct {
 	// "surface outdated" and content froze at the old size).
 	swapchainPending bool
 
+	// onSwapchainResized is invoked on the raster thread inside the present
+	// critical section right after the swapchain has been reconfigured to a
+	// new logical size — i.e., just before the first buffer at that size is
+	// attached and committed. The X11 host/renderer uses the replace-call
+	// hook pattern; the Wayland host uses it to declare xdg window geometry
+	// so the declaration reaches the compositor in the same wire batch as
+	// the new-size buffer (declaring a geometry larger than the current
+	// surface makes mutter cache negative frame extents, which corrupt
+	// maximize/unmaximize restore: the size-hints round trip flips the
+	// restored size to work-area − content).
+	onSwapchainResized func(logicalW, logicalH int)
+
 	// lastOutcome / lastDamageArea are set by PresentWith / PresentWithAuto for metrics.
 	lastOutcome    PresentOutcome
 	lastDamageArea int64 // physical px² of last FrameDamage union (0 if idle/empty)
@@ -319,6 +331,20 @@ func (t *PresentTarget) Resize(logicalW, logicalH int, scale float64) error {
 	return nil
 }
 
+// SetOnSwapchainResized registers a callback fired on the raster thread
+// (inside the present critical section) immediately after the swapchain has
+// been reconfigured to a new logical size, before the first buffer of that
+// size is committed. The Wayland host uses it to declare xdg window geometry
+// in the same wire batch as the new-size buffer. A nil callback is a no-op.
+func (t *PresentTarget) SetOnSwapchainResized(fn func(logicalW, logicalH int)) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.onSwapchainResized = fn
+}
+
 // applyPendingSwapchain reconfigures the swapchain to the recorded logical
 // size, then arms the post-resize full-write budget. Runs on the raster
 // thread at the present boundary (serialized with BeginFrame/EndFrame via
@@ -357,6 +383,14 @@ func (t *PresentTarget) applyPendingSwapchainLocked() error {
 			// Keep the flag set: the next present retries the reconfigure.
 			t.swapchainPending = true
 			return err
+		}
+		// The swapchain now serves buffers at the new size; the next commit
+		// (this same present critical section) attaches one of them. Notify
+		// the host now — before that commit — so a platform that declares
+		// window geometry (Wayland xdg_surface.set_window_geometry) has it
+		// hit the compositor in the same batch as the new-size buffer.
+		if t.onSwapchainResized != nil {
+			t.onSwapchainResized(t.logicW, t.logicH)
 		}
 	}
 	// Swapchain reconfigured → every buffer is undefined. Owe full frames

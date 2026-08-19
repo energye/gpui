@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -134,6 +135,11 @@ type wlLib struct {
 	ifaceSubsurface    uintptr
 	ifaceOutput        uintptr // wl_output (xdg_toplevel.set_fullscreen arg)
 	ifaceRegion        uintptr // wl_region (wl_surface.set_input_region)
+	// Clipboard / DnD (wl_data_device_manager core protocol) interfaces.
+	ifaceDataDevMgr uintptr // wl_data_device_manager
+	ifaceDataDev    uintptr // wl_data_device
+	ifaceDataSource uintptr // wl_data_source
+	ifaceDataOffer  uintptr // wl_data_offer
 }
 
 func loadWayland() (*wlLib, error) {
@@ -178,6 +184,10 @@ func loadWayland() (*wlLib, error) {
 		{"wl_subsurface_interface", &l.ifaceSubsurface},
 		{"wl_output_interface", &l.ifaceOutput},
 		{"wl_region_interface", &l.ifaceRegion},
+		{"wl_data_device_manager_interface", &l.ifaceDataDevMgr},
+		{"wl_data_device_interface", &l.ifaceDataDev},
+		{"wl_data_source_interface", &l.ifaceDataSource},
+		{"wl_data_offer_interface", &l.ifaceDataOffer},
 	} {
 		p, err := purego.Dlsym(lib, pair.name)
 		if err != nil || p == 0 {
@@ -206,6 +216,7 @@ var (
 		decoMgr, decoTop               []byte
 		mDestroy, mGetXdg, mPong       []byte
 		mGetTop, mAck                  []byte
+		mGetPopup, mSetGeom            []byte
 		mSetTitle, mSetApp             []byte
 		mSetParent, mShowMenu          []byte
 		mMove, mResize                 []byte
@@ -216,7 +227,7 @@ var (
 		mGetDeco, mSetMode             []byte
 		sEmpty, sNo, sU, sN, sS        []byte
 		sO, sQo, sOu, sOuu, sOuii, sIi []byte
-		sNoTop                         []byte
+		sNoo, sIiii, sNoTop            []byte
 		ePing, eCfg, eClose            []byte
 		eCfgIia                        []byte
 	}{
@@ -230,6 +241,8 @@ var (
 		mPong:         append([]byte("pong"), 0),
 		mGetTop:       append([]byte("get_toplevel"), 0),
 		mAck:          append([]byte("ack_configure"), 0),
+		mGetPopup:     append([]byte("get_popup"), 0),
+		mSetGeom:      append([]byte("set_window_geometry"), 0),
 		mSetTitle:     append([]byte("set_title"), 0),
 		mSetApp:       append([]byte("set_app_id"), 0),
 		mGetDeco:      append([]byte("get_toplevel_decoration"), 0),
@@ -256,6 +269,8 @@ var (
 		sOuu:          append([]byte("ouu"), 0),
 		sOuii:         append([]byte("ouii"), 0),
 		sIi:           append([]byte("ii"), 0),
+		sNoo:          append([]byte("noo"), 0),
+		sIiii:         append([]byte("iiii"), 0),
 		sNoTop:        append([]byte("no"), 0),
 		ePing:         append([]byte("ping"), 0),
 		eCfg:          append([]byte("configure"), 0),
@@ -312,8 +327,12 @@ func initXDGInterfaces(ifaceSurface, ifaceSeat, ifaceOutput uintptr) {
 	typesTop[0] = 0
 	msgXdgSurf[0] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sEmpty), Types: 0}
 	msgXdgSurf[1] = wlMessageC{Name: cstr(xdgNames.mGetTop), Signature: cstr(xdgNames.sN), Types: uintptr(unsafe.Pointer(&typesTop[0]))}
-	msgXdgSurf[2] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sEmpty), Types: 0}
-	msgXdgSurf[3] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sEmpty), Types: 0}
+	// get_popup(2) and set_window_geometry(3) signatures MUST be exact:
+	// libwayland computes the wire message size from the signature, so a
+	// wrong/empty one desyncs the whole connection (the compositor then
+	// misparses every later request, including the renderer's wgpu traffic).
+	msgXdgSurf[2] = wlMessageC{Name: cstr(xdgNames.mGetPopup), Signature: cstr(xdgNames.sNoo), Types: 0}
+	msgXdgSurf[3] = wlMessageC{Name: cstr(xdgNames.mSetGeom), Signature: cstr(xdgNames.sIiii), Types: 0}
 	msgXdgSurf[4] = wlMessageC{Name: cstr(xdgNames.mAck), Signature: cstr(xdgNames.sU), Types: 0}
 	msgXdgSurfEv[0] = wlMessageC{Name: cstr(xdgNames.eCfg), Signature: cstr(xdgNames.sU), Types: 0}
 	ifaceXdgSurface = wlInterfaceC{
@@ -400,6 +419,7 @@ type wlWin struct {
 	seatName          uint32  // wl_seat global name (0 = absent)
 	shmName           uint32  // wl_shm global name (0 = absent)
 	subcompName       uint32  // wl_subcompositor global name (0 = absent)
+	ddMgrName         uint32  // wl_data_device_manager global name (0 = absent)
 	seat              uintptr // bound wl_seat proxy (via seatState)
 	seatState         *wlSeatState
 	// hostRef is set by waylandCreate so seat callbacks can wake the loop.
@@ -410,6 +430,9 @@ type wlWin struct {
 	closed        bool
 	closeReq      bool // xdg close / CSD ✕ request (→ EventCloseRequested)
 	resized       bool
+	hidden        bool // Hide()/Options.Visible=false: surface stack detached (window unmapped)
+	decorated     bool // Options.Decorations at create (re-applied on show re-create)
+	recreated     bool // showNative rebuilt the stack; poll emits EventHidden{false} after the re-map configure
 	// resizing mirrors the xdg_toplevel "resizing" configure state (3): the
 	// compositor sets it while an interactive move/resize drag is in flight
 	// and clears it when the drag ends. Read-only diagnostic for apps/tests
@@ -419,6 +442,7 @@ type wlWin struct {
 	// Async window state (configure-driven).
 	activated bool // EventFocus dedup
 	suspended bool // EventOccluded dedup
+	tiled     bool // xdg tiled state (5..8); informational (CSD)
 
 	// ctlMu guards the WindowController-tracked state below. Controller
 	// methods may be called from any goroutine (§2.5.5 thread contract);
@@ -429,6 +453,7 @@ type wlWin struct {
 	minW, minH int    // user min constraint (0 = unconstrained)
 	maxW, maxH int    // user max constraint (0 = unconstrained)
 	resizable  bool   // SetResizable flag (false = min==max locked)
+	locked     bool   // SetSize min==max clamp / SetResizable(false): size fixed
 	minimized  bool   // optimistic: set_minimized → true; activated → false
 	maximized  bool   // configure states (true value, not optimistic)
 	fullscreen bool   // configure states (true value, not optimistic)
@@ -448,6 +473,9 @@ type wlWin struct {
 	// csd holds client-side decorations (title bar + borders), nil when
 	// frameless or the compositor lacks wl_shm/wl_subcompositor.
 	csd *wlCSD
+	// dds owns clipboard + external DnD (wl_data_device), nil when the
+	// compositor lacks wl_data_device_manager (Clipboard() returns nil).
+	dds *wlDataDeviceState
 	// imeMu guards the pending IME event queue drained by poll.
 	imeMu     sync.Mutex
 	imeEvents []Event
@@ -457,15 +485,29 @@ type wlWin struct {
 	// ptrMu guards the pending pointer event queue drained by poll.
 	ptrMu     sync.Mutex
 	ptrEvents []Event
+	// dndMu guards the pending drop event queue (wayland_clipboard_linux.go).
+	dndMu     sync.Mutex
+	dndEvents []Event
 
 	regListener [2]uintptr
 	wmListener  [1]uintptr
 	xdgListener [1]uintptr
 	topListener [2]uintptr
+	decoListener [1]uintptr
 	selfPtr     uintptr
 
 	titlePin []byte
 	appPin   []byte
+
+	// decoMode mirrors the zxdg_toplevel_decoration configure(mode) result:
+	// 0=unknown/no global, 1=client_side, 2=server_side. Written on the
+	// event thread; read before/at CSD creation (same dispatch goroutine).
+	decoMode int
+
+	// lastSerial is the most recent input-event serial (pointer button /
+	// enter / keyboard key), stored atomically: the clipboard writer
+	// (wl_data_device.set_selection) needs a fresh serial from any goroutine.
+	lastSerial atomic.Uint32
 }
 
 var (
@@ -550,117 +592,37 @@ func waylandCreate(opts Options) (*Window, error) {
 	win.wmListener[0] = purego.NewCallback(wlWmPing)
 	lib.proxyAddListener(win.wmBase, uintptr(unsafe.Pointer(&win.wmListener[0])), win.selfPtr)
 
-	win.surface = win.ctor(win.comp, wlCompositorCreateSurface, lib.ifaceSurface, 4)
-	if win.surface == 0 {
-		win.destroyNative()
-		return nil, fmt.Errorf("wayland: create wl_surface failed")
-	}
-
-	{
-		args := []wlArg{argNewID(), argO(win.surface)}
-		win.xdgSurf = lib.proxyMarshalArrayCtor(win.wmBase, xdgWmBaseGetXdgSurface, &args[0],
-			uintptr(unsafe.Pointer(&ifaceXdgSurface)), 2)
-	}
-	if win.xdgSurf == 0 {
-		win.destroyNative()
-		return nil, fmt.Errorf("wayland: get_xdg_surface failed")
-	}
-	win.xdgListener[0] = purego.NewCallback(wlXdgConfigure)
-	lib.proxyAddListener(win.xdgSurf, uintptr(unsafe.Pointer(&win.xdgListener[0])), win.selfPtr)
-
-	{
-		args := []wlArg{argNewID()}
-		win.toplevel = lib.proxyMarshalArrayCtor(win.xdgSurf, xdgSurfaceGetToplevel, &args[0],
-			uintptr(unsafe.Pointer(&ifaceXdgToplevel)), 2)
-	}
-	if win.toplevel == 0 {
-		win.destroyNative()
-		return nil, fmt.Errorf("wayland: get_toplevel failed")
-	}
-	win.topListener[0] = purego.NewCallback(wlTopConfigure)
-	win.topListener[1] = purego.NewCallback(wlTopClose)
-	lib.proxyAddListener(win.toplevel, uintptr(unsafe.Pointer(&win.topListener[0])), win.selfPtr)
+	// Tracked window policy for the surface stack (min/max/resizable/
+	// fullscreen/decorations). Create-time constraints are applied via
+	// applySurfaceConfig after the first configure; the same tracked state
+	// is re-asserted verbatim when Show re-creates the stack (§6.2).
+	win.ctlMu.Lock()
+	win.minW, win.minH = opts.MinWidth, opts.MinHeight
+	win.maxW, win.maxH = opts.MaxWidth, opts.MaxHeight
+	win.resizable = opts.Resizable
+	win.fullscreen = opts.Fullscreen
+	win.decorated = decorated
+	win.ctlMu.Unlock()
 
 	win.titlePin = append([]byte(title), 0)
-	win.appPin = append([]byte("gpui.l1"), 0)
-	{
-		args := []wlArg{argS(cstr(win.titlePin))}
-		lib.proxyMarshalArrayFlags(win.toplevel, xdgToplevelSetTitle, 0, 0, 0, &args[0])
+	appID := opts.IconName
+	if appID == "" {
+		appID = "gpui.l1"
 	}
-	{
-		args := []wlArg{argS(cstr(win.appPin))}
-		lib.proxyMarshalArrayFlags(win.toplevel, xdgToplevelSetAppID, 0, 0, 0, &args[0])
-	}
+	win.appPin = append([]byte(appID), 0)
 
-	if win.decoName != 0 {
-		win.decoMgr = win.bind(reg, win.decoName, uintptr(unsafe.Pointer(&ifaceDecoMgr)), 1)
-		if win.decoMgr != 0 {
-			args := []wlArg{argNewID(), argO(win.toplevel)}
-			win.decoTop = lib.proxyMarshalArrayCtor(win.decoMgr, xdgDecoMgrGetDecoration, &args[0],
-				uintptr(unsafe.Pointer(&ifaceDecoTop)), 1)
-			if win.decoTop != 0 {
-				mode := []wlArg{argU(xdgDecoModeServerSide)}
-				lib.proxyMarshalArrayFlags(win.decoTop, xdgDecoSetMode, 0, 0, 0, &mode[0])
-			}
-		}
-	}
-
-	// Options.Maximized: set_maximized BEFORE the first commit so the
-	// compositor never shows a non-maximized frame (main doc §2.4: 首 commit
-	// 前 set_maximized; the requested size from the first configure is then
-	// the maximized size, which the CSD ignores when maximized).
-	if win.maximized {
-		lib.proxyMarshalArrayFlags(win.toplevel, xdgToplevelSetMaximized, 0, 0, 0, nil)
-	}
-
-	lib.proxyMarshalArrayFlags(win.surface, wlSurfaceCommit, 0, 0, 0, nil)
-
-	deadline := time.Now().Add(3 * time.Second)
-	for !win.configured && !win.closed && time.Now().Before(deadline) {
-		if lib.displayDispatch(dpy) < 0 {
-			break
-		}
-	}
-	if !win.configured {
+	if err := win.createSurfaceStack(false); err != nil {
 		win.destroyNative()
-		return nil, fmt.Errorf("wayland: xdg configure timeout")
+		return nil, err
 	}
 	runtime.KeepAlive(win)
-
-	// Creation-time size constraints (xdg has no creation hints; requests are
-	// applied once the toplevel is configured). 0 = unconstrained (unlimited).
-	win.top2i(xdgToplevelSetMinSize, opts.MinWidth, opts.MinHeight)
-	win.top2i(xdgToplevelSetMaxSize, opts.MaxWidth, opts.MaxHeight)
-	if !opts.Resizable {
-		// Fixed-size window: min==max locks at the initial size (§2.5.2
-		// Wayland clamp contract; unlock via SetMinSize/SetMaxSize/SetResizable).
-		win.ctlMu.Lock()
-		win.resizable = false
-		win.ctlMu.Unlock()
-		win.top2i(xdgToplevelSetMinSize, w, h)
-		win.top2i(xdgToplevelSetMaxSize, w, h)
-	}
-	if opts.Fullscreen {
-		win.ctlMu.Lock()
-		win.fullscreen = true
-		win.ctlMu.Unlock()
-		// set_fullscreen(NULL) → the compositor's current output (§2.4).
-		win.top1o(xdgToplevelSetFullscreen, 0)
-	}
-	// Options.Cursor is applied on the first pointer enter (set_cursor needs
-	// an enter serial; win.cursor already holds the initial value).
-
-	// Client-side decorations (CSD): GNOME provides no server-side chrome, so
-	// draw a title bar + borders via wl_subsurface when requested (default
-	// true). Silent degrade if the compositor lacks wl_shm/wl_subcompositor.
-	if decorated {
-		win.csd = win.initCSD(title)
-	}
+	win.applySurfaceConfig()
 
 	// Standard Wayland input bootstrap: bind wl_seat and WAIT for the
 	// capabilities event before requesting keyboard/pointer. ALL seat-derived
-	// objects (keyboard, pointer, text-input) are created only after the seat
-	// callback fires (wlSeatFlushPending) — this is the normal client order.
+	// objects (keyboard, pointer, text-input, data-device) are created only
+	// after the seat callback fires (wlSeatFlushPending) — normal client
+	// order.
 	//
 	// Input is ON by default (standard Wayland client behavior; matches GTK/
 	// Chromium). To opt out of one or all bindings set the flag to "0":
@@ -674,6 +636,10 @@ func waylandCreate(opts Options) (*Window, error) {
 			win.seatState.pendingKeys = os.Getenv("GPUI_WL_KEYBOARD") != "0"
 			win.seatState.pendingPtrs = os.Getenv("GPUI_WL_POINTER") != "0"
 			win.seatState.pendingTI = os.Getenv("GPUI_WL_TEXTINPUT") != "0"
+			// The data device (clipboard + DnD) needs the bound seat but no
+			// capability bit; it is created together with the other devices
+			// once capabilities arrive.
+			win.seatState.pendingDD = true
 			// Dispatch until seat.capabilities arrives so the deferred device
 			// creation (wlSeatFlushPending) runs BEFORE the window is returned:
 			// the IME capability (win.ti) must already exist when imeFor() is
@@ -687,10 +653,227 @@ func waylandCreate(opts Options) (*Window, error) {
 		}
 	}
 
+	// Options.Visible=false: open the window hidden (§9 二.2.1 隐藏窗口).
+	if opts.Visible != nil && !*opts.Visible {
+		win.hideNative()
+	}
+
 	host := &wlHost{win: win}
 	win.hostRef = host
 	ctl := &waylandController{h: host}
-	return newWindow(host, PlatformWayland, imeFor(host), nil, ctl, host.destroy), nil
+	return newWindow(host, PlatformWayland, imeFor(host), clipFor(host), ctl, host.destroy), nil
+}
+
+// createSurfaceStack builds the xdg surface stack (wl_surface → xdg_surface
+// → xdg_toplevel) on the already-bound display/registry/compositor/wm_base,
+// asserts the tracked title/app_id/decorations/maximized state and issues the
+// first commit (xdg-shell only sends the first configure after a commit).
+//
+// async=false blocks until the first configure is acked+committed (Open path
+// — single-threaded, before the event pump starts). async=true returns right
+// after the commit (Show-after-hide path): the pump thread is the only
+// dispatcher, so the non-pump goroutine never dispatches; wlXdgConfigure
+// acks the first new configure and maps the window, and poll emits
+// EventHidden{Hidden:false} once it observes the re-map (§6.2), which is when
+// the embedder recreates the GPU present target on the NEW wl_surface.
+func (w *wlWin) createSurfaceStack(async bool) error {
+	if w == nil || w.lib == nil {
+		return nil
+	}
+	lib := w.lib
+	if w.comp == 0 || w.wmBase == 0 || w.registry == 0 {
+		return fmt.Errorf("wayland: createSurfaceStack: missing compositor/wm_base")
+	}
+	w.configured = false
+	w.closeReq = false
+
+	w.surface = w.ctor(w.comp, wlCompositorCreateSurface, lib.ifaceSurface, 4)
+	if w.surface == 0 {
+		return fmt.Errorf("wayland: create wl_surface failed")
+	}
+	{
+		args := []wlArg{argNewID(), argO(w.surface)}
+		w.xdgSurf = lib.proxyMarshalArrayCtor(w.wmBase, xdgWmBaseGetXdgSurface, &args[0],
+			uintptr(unsafe.Pointer(&ifaceXdgSurface)), 2)
+	}
+	if w.xdgSurf == 0 {
+		return fmt.Errorf("wayland: get_xdg_surface failed")
+	}
+	if w.xdgListener[0] == 0 {
+		w.xdgListener[0] = purego.NewCallback(wlXdgConfigure)
+	}
+	lib.proxyAddListener(w.xdgSurf, uintptr(unsafe.Pointer(&w.xdgListener[0])), w.selfPtr)
+
+	{
+		args := []wlArg{argNewID()}
+		w.toplevel = lib.proxyMarshalArrayCtor(w.xdgSurf, xdgSurfaceGetToplevel, &args[0],
+			uintptr(unsafe.Pointer(&ifaceXdgToplevel)), 2)
+	}
+	if w.toplevel == 0 {
+		return fmt.Errorf("wayland: get_toplevel failed")
+	}
+	// The listener trampolines are created once (libwayland aborts when an
+	// opcode's listener is NULL) and survive hide/show re-creates.
+	if w.topListener[0] == 0 {
+		w.topListener[0] = purego.NewCallback(wlTopConfigure)
+	}
+	if w.topListener[1] == 0 {
+		w.topListener[1] = purego.NewCallback(wlTopClose)
+	}
+	lib.proxyAddListener(w.toplevel, uintptr(unsafe.Pointer(&w.topListener[0])), w.selfPtr)
+
+	{
+		args := []wlArg{argS(cstr(w.titlePin))}
+		lib.proxyMarshalArrayFlags(w.toplevel, xdgToplevelSetTitle, 0, 0, 0, &args[0])
+	}
+	{
+		args := []wlArg{argS(cstr(w.appPin))}
+		lib.proxyMarshalArrayFlags(w.toplevel, xdgToplevelSetAppID, 0, 0, 0, &args[0])
+	}
+
+	// Decoration negotiation (zxdg_decoration_manager_v1): the client asks
+	// for a preferred mode and the compositor answers with a configure(mode)
+	// event telling which side actually draws the chrome. GNOME 42 has no
+	// such global (decoName==0 → we always draw CSD). When it exists:
+	//   - decorated: request server_side (compositor chrome preferred, GTK
+	//     default); configure(server_side) hides our CSD, configure
+	//     (client_side) keeps it (engine docs §9 一.3 装饰协商).
+	//   - frameless: request none (no chrome at all).
+	if w.decoName != 0 {
+		w.decoMgr = w.bind(w.registry, w.decoName, uintptr(unsafe.Pointer(&ifaceDecoMgr)), 1)
+		if w.decoMgr != 0 {
+			args := []wlArg{argNewID(), argO(w.toplevel)}
+			w.decoTop = lib.proxyMarshalArrayCtor(w.decoMgr, xdgDecoMgrGetDecoration, &args[0],
+				uintptr(unsafe.Pointer(&ifaceDecoTop)), 1)
+			if w.decoTop != 0 {
+				// configure(mode) event: 0=none 1=client_side 2=server_side.
+				if w.decoListener[0] == 0 {
+					w.decoListener[0] = purego.NewCallback(wlDecoConfigure)
+				}
+				lib.proxyAddListener(w.decoTop, uintptr(unsafe.Pointer(&w.decoListener[0])), w.selfPtr)
+				var mode uint32
+				if w.decorated {
+					mode = xdgDecoModeServerSide
+				} else {
+					mode = 0 // none — frameless has no chrome from either side
+				}
+				args := []wlArg{argU(mode)}
+				lib.proxyMarshalArrayFlags(w.decoTop, xdgDecoSetMode, 0, 0, 0, &args[0])
+			}
+		}
+	}
+
+	// Maximized: set_maximized BEFORE the first commit so the compositor
+	// never shows a non-maximized frame (main doc §2.4: 首 commit 前
+	// set_maximized; the requested size from the first configure is then the
+	// maximized size, which the CSD ignores when maximized).
+	w.ctlMu.Lock()
+	maximized := w.maximized
+	w.ctlMu.Unlock()
+	if maximized {
+		lib.proxyMarshalArrayFlags(w.toplevel, xdgToplevelSetMaximized, 0, 0, 0, nil)
+	}
+
+	// First commit before any configure (empty commit is enough); the first
+	// acked configure maps the window (wlXdgConfigure).
+	lib.proxyMarshalArrayFlags(w.surface, wlSurfaceCommit, 0, 0, 0, nil)
+	if !async {
+		deadline := time.Now().Add(3 * time.Second)
+		for !w.configured && !w.closed && time.Now().Before(deadline) {
+			if lib.displayDispatch(w.display) < 0 {
+				break
+			}
+		}
+		if !w.configured {
+			return fmt.Errorf("wayland: xdg configure timeout")
+		}
+	}
+	return nil
+}
+
+// applySurfaceConfig re-applies the tracked window policy on the current
+// toplevel after its first configure: creation-time size constraints (0 =
+// unconstrained), the min==max fixed-size clamp (SetSize/SetResizable),
+// fullscreen, and the CSD. Uses the tracked state, so a hide/show re-create
+// re-asserts the same policy verbatim (§6.2).
+func (w *wlWin) applySurfaceConfig() {
+	if w == nil || w.lib == nil || w.toplevel == 0 {
+		return
+	}
+	w.ctlMu.Lock()
+	minW, minH, maxW, maxH := w.minW, w.minH, w.maxW, w.maxH
+	resizable, locked := w.resizable, w.locked
+	fullscreen := w.fullscreen
+	decorated := w.decorated
+	title := w.title
+	w.ctlMu.Unlock()
+
+	w.top2i(xdgToplevelSetMinSize, minW, minH)
+	w.top2i(xdgToplevelSetMaxSize, maxW, maxH)
+	if !resizable || locked {
+		// Fixed-size window: min==max locks at the current size (§2.5.2
+		// Wayland clamp contract; unlock via SetMinSize/SetMaxSize/SetResizable).
+		w.top2i(xdgToplevelSetMinSize, w.width, w.height)
+		w.top2i(xdgToplevelSetMaxSize, w.width, w.height)
+	}
+	if fullscreen {
+		// set_fullscreen(NULL) → the compositor's current output (§2.4).
+		w.top1o(xdgToplevelSetFullscreen, 0)
+	}
+	// Client-side decorations (CSD): GNOME provides no server-side chrome, so
+	// draw a title bar + borders via wl_subsurface when requested (default
+	// true). Silent degrade if the compositor lacks wl_shm/wl_subcompositor.
+	if decorated {
+		w.csd = w.initCSD(title)
+	}
+	// The deco configure(mode=server_side) may already have arrived during
+	// the initial dispatch (before initCSD ran): the compositor draws the
+	// chrome, so keep the CSD subsurfaces detached (hidden).
+	if w.csd != nil && w.decoMode == xdgDecoModeServerSide {
+		w.csd.setVisible(false)
+	}
+}
+
+// destroySurfaceStack tears down the xdg surface stack (CSD subsurfaces +
+// deco + toplevel + xdg_surface + wl_surface), leaving the display/registry/
+// compositor/wm_base and seat-derived devices (keyboard/pointer/IME/
+// data-device) alive. Destroying the wl_surface unmaps the window — xdg has
+// no unmap request, so destroy + recreate on Show is the standard approach
+// (GTK4 gdk_wayland_window_hide parity). Must run only after the GPU present
+// target backing this wl_surface has been closed (embedder order, §6.2).
+func (w *wlWin) destroySurfaceStack() {
+	if w == nil || w.lib == nil {
+		return
+	}
+	lib := w.lib
+	if w.csd != nil {
+		w.csd.destroy()
+		w.csd = nil
+	}
+	if w.decoTop != 0 {
+		lib.proxyDestroy(w.decoTop)
+		w.decoTop = 0
+	}
+	if w.decoMgr != 0 {
+		lib.proxyDestroy(w.decoMgr)
+		w.decoMgr = 0
+	}
+	if w.toplevel != 0 {
+		lib.proxyMarshalArrayFlags(w.toplevel, xdgToplevelDestroy, 0, 0, 0, nil)
+		lib.proxyDestroy(w.toplevel)
+		w.toplevel = 0
+	}
+	if w.xdgSurf != 0 {
+		lib.proxyMarshalArrayFlags(w.xdgSurf, xdgSurfaceDestroy, 0, 0, 0, nil)
+		lib.proxyDestroy(w.xdgSurf)
+		w.xdgSurf = 0
+	}
+	if w.surface != 0 {
+		lib.proxyMarshalArrayFlags(w.surface, wlSurfaceDestroy, 0, 0, 0, nil)
+		lib.proxyDestroy(w.surface)
+		w.surface = 0
+	}
+	w.configured = false
 }
 
 // topNoArg marshals a no-argument xdg_toplevel request and flushes.
@@ -775,6 +958,10 @@ func (w *wlWin) destroyNative() {
 		w.ti.destroy()
 		w.ti = nil
 	}
+	if w.dds != nil {
+		w.dds.destroy()
+		w.dds = nil
+	}
 	if w.kbd != nil {
 		w.kbd.destroy()
 		w.kbd = nil
@@ -783,38 +970,13 @@ func (w *wlWin) destroyNative() {
 		w.ptr.destroy()
 		w.ptr = nil
 	}
-	if w.csd != nil {
-		w.csd.destroy()
-		w.csd = nil
-	}
 	if w.seatState != nil {
 		w.seatState.destroy()
 		w.seatState = nil
 		w.seat = 0
 	}
-	if w.decoTop != 0 {
-		lib.proxyDestroy(w.decoTop)
-		w.decoTop = 0
-	}
-	if w.decoMgr != 0 {
-		lib.proxyDestroy(w.decoMgr)
-		w.decoMgr = 0
-	}
-	if w.toplevel != 0 {
-		lib.proxyMarshalArrayFlags(w.toplevel, xdgToplevelDestroy, 0, 0, 0, nil)
-		lib.proxyDestroy(w.toplevel)
-		w.toplevel = 0
-	}
-	if w.xdgSurf != 0 {
-		lib.proxyMarshalArrayFlags(w.xdgSurf, xdgSurfaceDestroy, 0, 0, 0, nil)
-		lib.proxyDestroy(w.xdgSurf)
-		w.xdgSurf = 0
-	}
-	if w.surface != 0 {
-		lib.proxyMarshalArrayFlags(w.surface, wlSurfaceDestroy, 0, 0, 0, nil)
-		lib.proxyDestroy(w.surface)
-		w.surface = 0
-	}
+	// Surface stack (CSD + deco + toplevel + xdg_surface + wl_surface).
+	w.destroySurfaceStack()
 	if w.wmBase != 0 {
 		lib.proxyMarshalArrayFlags(w.wmBase, xdgWmBaseDestroy, 0, 0, 0, nil)
 		lib.proxyDestroy(w.wmBase)
@@ -868,6 +1030,8 @@ func wlRegistryGlobal(data, registry, name, iface, version uintptr) {
 		w.shmName = n
 	case "wl_subcompositor":
 		w.subcompName = n
+	case "wl_data_device_manager":
+		w.ddMgrName = n
 	}
 	_ = registry
 }
@@ -890,9 +1054,19 @@ func wlXdgConfigure(data, xdgSurf, serial uintptr) {
 	}
 	args := []wlArg{argU(uint32(serial))}
 	w.lib.proxyMarshalArrayFlags(xdgSurf, xdgSurfaceAckConfigure, 0, 0, 0, &args[0])
-	w.configured = true
-	if w.surface != 0 {
-		w.lib.proxyMarshalArrayFlags(w.surface, wlSurfaceCommit, 0, 0, 0, nil)
+	// Commit only on the FIRST configure (maps the window per xdg-shell:
+	// the surface is mapped once a commit follows the first acked
+	// configure). Later configures are acked WITHOUT committing — an empty
+	// commit there would re-submit the stale pre-resize buffer, which
+	// confuses the compositor's size tracking during state changes
+	// (maximize/unmaximize restore gets aborted: it sees the window still
+	// at the old size and snaps it back). The render layer commits at the
+	// new size on its next present instead.
+	if !w.configured {
+		w.configured = true
+		if w.surface != 0 {
+			w.lib.proxyMarshalArrayFlags(w.surface, wlSurfaceCommit, 0, 0, 0, nil)
+		}
 	}
 }
 
@@ -918,6 +1092,7 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	w.ctlMu.Lock()
 	w.maximized = states.maximized
 	w.fullscreen = states.fullscreen
+	w.tiled = states.tiled
 	if states.activated {
 		w.minimized = false
 	}
@@ -925,6 +1100,9 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	// The resizing state flips only at drag start/end — not on every step —
 	// so it is tracked outside the width/height dedup below.
 	w.resizing = states.resizing
+	if w.csd != nil {
+		w.csd.setTiled(states.tiled)
+	}
 	// Report focus + occlusion state changes (values only when changed).
 	if states.activated != w.activated {
 		w.activated = states.activated
@@ -935,6 +1113,10 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 		w.focusEvents = append(w.focusEvents, Event{Type: EventOccluded, Occluded: states.suspended})
 	}
 	wi, hi := int32(width), int32(height)
+	if os.Getenv("GPUI_WL_TRACE_CFG") == "1" {
+		fmt.Fprintf(os.Stderr, "WLDBG configure %dx%d states={max:%v full:%v resizing:%v act:%v tiled:%v susp:%v}\n",
+			wi, hi, states.maximized, states.fullscreen, states.resizing, states.activated, states.tiled, states.suspended)
+	}
 	if wi > 0 && hi > 0 {
 		if w.width != int(wi) || w.height != int(hi) {
 			w.width, w.height = int(wi), int(hi)
@@ -998,6 +1180,23 @@ func wlTopClose(data, toplevel uintptr) {
 	_ = toplevel
 }
 
+// wlDecoConfigure: zxdg_toplevel_decoration_v1.configure(mode) — the
+// compositor confirms which side draws the chrome (0=none, 1=client_side,
+// 2=server_side). server_side → hide our CSD subsurfaces; client_side →
+// show them. The mode is recorded even before CSD creation (the event can
+// arrive during waylandCreate's initial dispatch, before initCSD runs).
+func wlDecoConfigure(data, decoTop, mode uintptr) {
+	w := winFrom(data)
+	if w == nil {
+		return
+	}
+	w.decoMode = int(mode)
+	if w.csd != nil {
+		w.csd.setVisible(mode != xdgDecoModeServerSide)
+	}
+	_ = decoTop
+}
+
 func goString(p uintptr) string {
 	if p == 0 {
 		return ""
@@ -1031,6 +1230,11 @@ type wlHost struct {
 	displayFD int
 	// wakePipe[0]=read, wakePipe[1]=write — unblocks poll on WakeUp.
 	wakePipe [2]int
+	// destroying gates WaitEvents against a concurrent Close from another
+	// goroutine: Close sets it + writes the wake pipe, so a parked poll
+	// wakes, sees the flag and returns instead of dispatching on a
+	// destroyed wl_display (native SIGSEGV).
+	destroying atomic.Int32
 }
 
 func (h *wlHost) ensureWakePipe() {
@@ -1074,6 +1278,17 @@ func (h *wlHost) destroy() {
 	if h == nil || h.win == nil {
 		return
 	}
+	// Gate + wake any WaitEvents parked in poll on another goroutine so it
+	// returns nil instead of dispatching on the torn-down display. The wake
+	// pipe stays open until after destroyNative (which disconnects the
+	// display) — closing it first would turn the parked poll's wakeup into
+	// POLLNVAL while the display is still referenced.
+	h.destroying.Store(1)
+	h.ensureWakePipe()
+	if h.wakePipe[1] != 0 {
+		_, _ = unix.Write(h.wakePipe[1], []byte{1})
+	}
+	h.win.destroyNative()
 	if h.wakePipe[0] != 0 {
 		_ = unix.Close(h.wakePipe[0])
 		h.wakePipe[0] = 0
@@ -1082,8 +1297,19 @@ func (h *wlHost) destroy() {
 		_ = unix.Close(h.wakePipe[1])
 		h.wakePipe[1] = 0
 	}
-	h.win.destroyNative()
 	h.win = nil
+}
+
+// ApplyHiddenDetach implements platform.HiddenSurface: called by the embedder
+// AFTER the GPU present target (wgpu WSI surface backed by the content
+// wl_surface) has been closed. Destroying the surface stack unmaps the window
+// (xdg has no unmap request; GTK4 parity: hide = destroy, show = recreate).
+// Seat-derived devices (keyboard/pointer/IME/data-device) survive.
+func (h *wlHost) ApplyHiddenDetach() {
+	if h == nil || h.win == nil {
+		return
+	}
+	h.win.destroySurfaceStack()
 }
 
 func (h *wlHost) NativeSurface() NativeSurface {
@@ -1116,11 +1342,29 @@ func (h *wlHost) ScaleFactor() float64 {
 	return h.scale
 }
 
+// OnSurfaceResized implements platform.SurfacePresenter: the renderer's
+// swapchain has just been reconfigured to logicalW×logicalH and the next
+// commit carries a buffer of that size. Declare the xdg window geometry now
+// so the compositor applies it together with the new-size buffer (a
+// geometry larger than the current buffer would leave negative frame
+// extents cached, corrupting maximize/unmaximize restore sizes). Called on
+// the raster thread inside the present critical section — the marshal is
+// queued without an explicit flush so it rides the present's own batch and
+// never races the UI thread's wl_display_flush.
+func (h *wlHost) OnSurfaceResized(logicalW, logicalH int) {
+	if h == nil || h.win == nil {
+		return
+	}
+	if h.win.csd != nil {
+		h.win.csd.setGeometryNoFlush(logicalW, logicalH)
+	}
+}
+
 // WaitVSync uses DRM vblank when available; scheduler falls back to software.
 func (h *wlHost) WaitVSync() error { return WaitDRMVBlank() }
 
 func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
-	if h == nil || h.win == nil {
+	if h == nil || h.win == nil || h.destroying.Load() != 0 {
 		return nil
 	}
 	w := h.win
@@ -1199,6 +1443,9 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 		}
 		if pfds[1].Revents&unix.POLLIN != 0 {
 			// Woken up (thread wants us to re-poll / check quit).
+			if h.destroying.Load() != 0 {
+				return nil // Close from another goroutine — never touch the display
+			}
 			h.drainWake()
 			w.lib.displayCancelRead(w.display)
 			if evs := h.poll(); len(evs) > 0 {
@@ -1207,6 +1454,9 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 			return []Event{{Type: EventWake}}
 		}
 		if pfds[0].Revents&unix.POLLIN != 0 {
+			if h.destroying.Load() != 0 {
+				return nil // Close from another goroutine — never touch the display
+			}
 			if w.lib.displayReadEvents(w.display) < 0 {
 				w.lib.displayCancelRead(w.display)
 				break
@@ -1217,8 +1467,14 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 			continue
 		}
 		if pfds[0].Revents&(unix.POLLHUP|unix.POLLERR) != 0 {
+			if h.destroying.Load() != 0 {
+				return nil
+			}
 			w.lib.displayCancelRead(w.display)
 			break
+		}
+		if h.destroying.Load() != 0 {
+			return nil
 		}
 		w.lib.displayCancelRead(w.display)
 	}
@@ -1232,6 +1488,17 @@ func (h *wlHost) poll() []Event {
 	}
 	w.lib.displayDispatchPend(w.display)
 	w.lib.displayFlush(w.display)
+	// Proxy destruction is deferred to the event thread (the only thread
+	// that dispatches proxy events): drain the clipboard/DnD queue now.
+	if w.dds != nil {
+		w.dds.drainPendingDestroys()
+	}
+	// Window-level pointer model: an unconsumed surface leave = the pointer
+	// left the window (internal content↔chrome crossings consume it via the
+	// paired enter and surface as motion).
+	if w.ptr != nil {
+		w.ptr.resolveDeferredLeave()
+	}
 	var out []Event
 	if w.closed {
 		out = append(out, Event{Type: EventClose})
@@ -1277,6 +1544,27 @@ func (h *wlHost) poll() []Event {
 		w.ptrEvents = nil
 	}
 	w.ptrMu.Unlock()
+	// External file drop events queued by the wl_data_device callback.
+	w.dndMu.Lock()
+	if len(w.dndEvents) > 0 {
+		out = append(out, w.dndEvents...)
+		w.dndEvents = nil
+	}
+	w.dndMu.Unlock()
+	// Show re-created the surface stack (async path): the re-map completes
+	// when the first new configure is acked+committed here on the event
+	// thread; only then does the embedder recreate the GPU present target
+	// against the NEW wl_surface (§6.2).
+	w.ctlMu.Lock()
+	if w.recreated && w.configured {
+		w.recreated = false
+		w.ctlMu.Unlock()
+		w.focusMu.Lock()
+		w.focusEvents = append(w.focusEvents, Event{Type: EventHidden, Hidden: false})
+		w.focusMu.Unlock()
+	} else {
+		w.ctlMu.Unlock()
+	}
 	// Focus / occlusion events queued by wlTopConfigure.
 	w.focusMu.Lock()
 	if len(w.focusEvents) > 0 {

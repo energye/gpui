@@ -35,6 +35,11 @@ type Options struct {
 	// (X11 size hints: 0 = fixed; Wayland xdg_toplevel has no request —
 	// enforced via min==max when false).
 	Resizable bool
+	// IconName is the application icon / app-id name shown by the window
+	// manager (taskbar icon). Wayland: xdg_toplevel.set_app_id (the
+	// compositor matches it against installed .desktop files to resolve
+	// the icon); X11/Win32/AppKit: not wired yet ("" = backend default).
+	IconName string
 	// Maximized requests the window start maximized (X11 EWMH initial
 	// _NET_WM_STATE_MAXIMIZED; Wayland set_maximized before first commit;
 	// Win32 SW_MAXIMIZE; AppKit zoom:).
