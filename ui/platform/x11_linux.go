@@ -110,6 +110,9 @@ const (
 	xevButtonOff      = 84 // button (press/release) or keycode (key)
 	xevKeycodeOff     = 84
 	xevStateOff       = 88 // XVisibilityEvent.state
+	// XPresentNotifyEvent.window (linux amd64: type@0 serial@8 send_event@16
+	// display@24 window@32 — Present extension).
+	xevPresentWindowOff = 32
 )
 
 // X event codes + mask bits (X.h).
@@ -223,6 +226,10 @@ func x11Create(opts Options) (*Window, error) {
 		xSetClassHint     func(dpy uintptr, win uintptr, hint *xClassHint) int
 		xChangeProperty   func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
 		xConnectionNumber func(dpy uintptr) int
+		// XPresent extension (frame-presented notice; Present protocol).
+		xPresentQueryExt   func(dpy uintptr, eventBase, errorBase *int32) int
+		xPresentSelectInp  func(dpy uintptr, win uintptr, mask int64) int
+		xPresentNotifyMSC  func(dpy uintptr, win uintptr, target, divisor, remainder uint64) int
 	)
 	purego.RegisterLibFunc(&xInitThreads, lib.lib, "XInitThreads")
 	purego.RegisterLibFunc(&xOpenDisplay, lib.lib, "XOpenDisplay")
@@ -244,6 +251,27 @@ func x11Create(opts Options) (*Window, error) {
 	purego.RegisterLibFunc(&xSetClassHint, lib.lib, "XSetClassHint")
 	purego.RegisterLibFunc(&xChangeProperty, lib.lib, "XChangeProperty")
 	purego.RegisterLibFunc(&xConnectionNumber, lib.lib, "XConnectionNumber")
+	// XPresent lives in libXpresent.so.1 (X11R7 extension client library),
+	// which is not installed on every system. Binding is best-effort: when
+	// the library or a symbol is missing, xPresentFuncsOK stays false and
+	// the scheduler falls back to the DRM vblank waiter (块2 fallback).
+	// RegisterLibFunc panics on a missing symbol, so probe with Dlsym first.
+	extLib, err := purego.Dlopen("libXpresent.so.1", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	if err != nil {
+		extLib, err = purego.Dlopen("libXpresent.so", purego.RTLD_NOW|purego.RTLD_GLOBAL)
+	}
+	if err == nil {
+		reg := func(fptr any, name string) bool {
+			if _, err := purego.Dlsym(extLib, name); err != nil {
+				return false
+			}
+			purego.RegisterLibFunc(fptr, extLib, name)
+			return true
+		}
+		xPresentFuncsOK = reg(&xPresentQueryExt, "XPresentQueryExtension") &&
+			reg(&xPresentSelectInp, "XPresentSelectInput") &&
+			reg(&xPresentNotifyMSC, "XPresentNotifyMSC")
+	}
 	xConnectionNumberFn = xConnectionNumber
 
 	if xInitThreads() == 0 {
@@ -388,6 +416,17 @@ func x11Create(opts Options) (*Window, error) {
 		resizable:       opts.Resizable,
 		visible:         opts.Visible == nil || *opts.Visible,
 		xChangeProperty: xChangeProperty,
+	}
+	// XPresent extension probe: the frame-presented notice source (块2).
+	// Unavailable X servers simply leave presentOK=false → the scheduler
+	// falls back to the DRM vblank waiter (still on-demand after 块1).
+	var presentBase, presentErr int32
+	if xPresentFuncsOK && xPresentQueryExt(dpy, &presentBase, &presentErr) != 0 {
+		st.presentBase = int(presentBase)
+		st.presentOK = true
+		// PresentCompleteNotifyMask = 1L<<0 (Present extension present.h).
+		xPresentSelectInp(dpy, win, 1)
+		st.xPresentNotifyMSC = xPresentNotifyMSC
 	}
 	// The WM may resize the window at map time (maximize / fit the work
 	// area), often animating the size over a few hundred ms. Wait until the
@@ -567,12 +606,27 @@ type x11State struct {
 	syncDirty   bool
 	// xChangeProperty is bound at Create for the event thread flush.
 	xChangeProperty func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
+
+	// XPresent extension (frame-presented notice, ENGINE_FRAME_PRESENT_STANDARD.md 块2):
+	// PresentCompleteNotify (event base + PresentCompleteNotify) arrives after
+	// the display server has shown a frame — the X11 compositor-notice source.
+	// presentOK=false → scheduler falls back to the DRM vblank waiter.
+	presentBase int
+	presentOK   bool
+	// xPresentNotifyMSC is bound at Create for RequestFrameNotify (raster thread).
+	xPresentNotifyMSC func(dpy uintptr, win uintptr, target, divisor, remainder uint64) int
 }
 
 // xConnectionNumberFn is bound at Create/Adopt from libX11. It is package-
 // level because the event pump (WaitEvents) reads the X connection fd for the
 // kernel poll loop, outside the window-creation closure that owns the binding.
 var xConnectionNumberFn func(dpy uintptr) int
+
+// xPresentFuncsOK reports whether the XPresent extension client functions
+// were bound successfully (libXpresent.so.1 present + all three symbols).
+// When false, RequestFrameNotify stays a no-op and the scheduler falls back
+// to the DRM vblank waiter (ENGINE_FRAME_PRESENT_STANDARD.md 块2 fallback).
+var xPresentFuncsOK bool
 
 // x11Host implements Host for an X11 window (event pump). Destroying the
 // window is the Window.Close callback.
@@ -663,6 +717,21 @@ func (h *x11Host) ScaleFactor() float64 {
 // WaitVSync uses DRM vblank when available; the scheduler falls back to a
 // software tick otherwise.
 func (h *x11Host) WaitVSync() error { return WaitDRMVBlank() }
+
+// RequestFrameNotify implements platform.FrameNotifier: asks the display
+// server to notify once the next vblank has been reached (XPresentNotifyMSC
+// with divisor=1 → next msc where msc%1==0). The notice arrives as a
+// PresentCompleteNotify event (drainX → EventFramePresented), the X11
+// compositor-notice pacing source (ENGINE_FRAME_PRESENT_STANDARD.md 块2).
+// Raster thread; Xlib marshaling is internally locked (XInitThreads active).
+// No-op while XPresent is unavailable (presentOK=false).
+func (h *x11Host) RequestFrameNotify() {
+	if h == nil || h.st == nil || !h.st.presentOK || h.st.xPresentNotifyMSC == nil {
+		return
+	}
+	st := h.st
+	st.xPresentNotifyMSC(st.display, st.window, 0, 1, 0)
+}
 
 // NotifyFrameDrawn advances the _NET_WM_SYNC_REQUEST counter after a frame
 // has been submitted for presentation (FrameSync). The compositor samples
@@ -935,6 +1004,10 @@ func (h *x11Host) drainX() []Event {
 		st.nextEvent(&buf[0])
 		t := int(readI32(buf[:], xevTypeOff))
 		switch t {
+		case st.presentBase: // PresentCompleteNotify (event base + 0): a frame was shown
+			if st.presentOK && uintptr(readU64(buf[:], xevPresentWindowOff)) == st.window {
+				out = append(out, Event{Type: EventFramePresented})
+			}
 		case xConfigureNotify:
 			nx := int(readI32(buf[:], xevXOff))
 			ny := int(readI32(buf[:], xevYOff))
@@ -1009,19 +1082,28 @@ func (h *x11Host) drainX() []Event {
 			case st.wmDelete != 0 && uintptr(data0) == st.wmDelete:
 				out = append(out, Event{Type: EventClose})
 			case st.atSyncReq != 0 && uintptr(data0) == st.atSyncReq:
-				// _NET_WM_SYNC_REQUEST: l[1] = new size, l[2] = serial (low
-				// 32) + flags (high 32). Mode 0 (simple counter): the painted
-				// frame must advance the counter past serial before the
-				// compositor unstretches. Keep only the latest serial; a
-				// frame in flight covers all prior requests at once. Surface
-				// an EventResizeSync so the app schedules the promised frame
-				// (Flutter/Skia: sync requests drive frame production).
-				raw := readU64(buf[:], xevClientData0Off+16)
+				// _NET_WM_SYNC_REQUEST (EWMH): l[1]=new width, l[2]=new
+				// height, l[3]=serial low 32 | flags high 32 (mode 0:
+				// flags=0), l[4]=serial high 32. Mode 0 (simple counter):
+				// the painted frame must advance the counter past serial
+				// before the compositor unstretches. Keep only the latest
+				// serial; a frame in flight covers all prior requests at
+				// once. XWayland/mutter drives an interactive drag with
+				// sync requests and no ConfigureNotify, so the geometry
+				// here is the only live-size signal — surface EventResize
+				// like the ConfigureNotify path does (setSize dedups).
+				sw := int(uint32(readU64(buf[:], xevClientData0Off+8)))
+				sh := int(uint32(readU64(buf[:], xevClientData0Off+16)))
+				raw := readU64(buf[:], xevClientData0Off+24)
 				if uint32(raw>>32) == 0 { // simple counter mode
+					serial := (uint64(uint32(readU64(buf[:], xevClientData0Off+32))) << 32) | uint64(uint32(raw))
 					st.mu.Lock()
-					st.pendingSync = uint64(uint32(raw))
+					st.pendingSync = serial
 					st.mu.Unlock()
 					out = append(out, Event{Type: EventResizeSync})
+					if sw > 0 && sh > 0 && h.setSize(sw, sh) {
+						out = append(out, Event{Type: EventResize, Width: sw, Height: sh, Scale: h.ScaleFactor()})
+					}
 				}
 			}
 		case xDestroyNotify:

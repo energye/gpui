@@ -154,8 +154,19 @@ func TestFramePace_VsyncSignalDrivesFrames(t *testing.T) {
 	if m.VSyncSource != "true" {
 		t.Fatalf("vsync_source=%q want true after signal", m.VSyncSource)
 	}
-	if !s.FrameDue() {
-		t.Fatal("frame gate must be open on a fresh vsync signal")
+	// One frame per stamp: the gate consumed by the loop break re-opens on
+	// the NEXT fresh signal (a stamp may land between two calls).
+	deadline2 := time.Now().Add(500 * time.Millisecond)
+	reopened := false
+	for time.Now().Before(deadline2) {
+		if s.FrameDue() {
+			reopened = true
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !reopened {
+		t.Fatal("frame gate must reopen on the next fresh vsync signal")
 	}
 	if h.waits.Load() < 3 {
 		t.Fatalf("listener should keep consuming vsyncs, waits=%d", h.waits.Load())
@@ -297,8 +308,7 @@ func (h *hangHost) WaitVSync() error {
 // "渲染运行一会自动停止": a WaitVSync that never returns must NOT freeze the
 // frame loop. The listener goroutine absorbs the hang (once); WaitFramePace
 // returns immediately and FrameDue falls back to the software interval.
-func TestFramePace_HungVsync_DoesNotBlock(t *testing.T) {
-	s := scheduler.New()
+func TestFramePace_HungVsync_DoesNotBlock(t *testing.T) {	s := scheduler.New()
 	s.SetAnimTick(15 * time.Millisecond)
 	s.SetMode(scheduler.ModePersistent)
 	h := &hangHost{StubHost: platform.NewStubHost(100, 100)}
@@ -329,5 +339,89 @@ func TestFramePace_HungVsync_DoesNotBlock(t *testing.T) {
 	time.Sleep(30 * time.Millisecond) // > animTick
 	if !s.FrameDue() {
 		t.Fatal("software interval should open the gate")
+	}
+}
+
+// frameNotifierHost implements platform.FrameNotifier (compositor-driven
+// pacing, ENGINE_FRAME_PRESENT_STANDARD.md 块2) and deliberately NOT
+// VSyncWaiter — the replacement for the client-side DRM waiter.
+type frameNotifierHost struct {
+	*platform.StubHost
+	requests atomic.Int32
+}
+
+func (h *frameNotifierHost) RequestFrameNotify() {
+	h.requests.Add(1)
+}
+
+// TestFramePace_FrameNotifierSkipsDRMListener: a Host implementing
+// FrameNotifier replaces the client-side waiter entirely (single pacing
+// source) — no DRM listener goroutine starts, no missed-vsync accounting,
+// pacing stays "fallback" until a NoteFramePresented stamps a signal.
+func TestFramePace_FrameNotifierSkipsDRMListener(t *testing.T) {
+	s := scheduler.New()
+	s.SetAnimTick(200 * time.Millisecond)
+	s.SetMode(scheduler.ModePersistent)
+	h := &frameNotifierHost{StubHost: platform.NewStubHost(100, 100)}
+
+	s.WaitFramePace(h)
+	time.Sleep(100 * time.Millisecond) // would let a DRM listener spin
+	s.WaitFramePace(h)
+	m := s.Metrics().Snapshot()
+	if m.MissedVSync != 0 {
+		t.Fatalf("missed_vsync=%d want 0 (no DRM listener)", m.MissedVSync)
+	}
+	if m.VSyncSource != "fallback" {
+		t.Fatalf("vsync_source=%q want fallback until a notice arrives", m.VSyncSource)
+	}
+}
+
+// TestFramePace_ListenerStampsButDoesNotSchedule: the DRM waiter (块1) only
+// stamps pacing — it must NOT schedule frames, so idle stays truly idle
+// (on-demand rendering: demand comes from events/tickers only).
+func TestFramePace_ListenerStampsButDoesNotSchedule(t *testing.T) {
+	s := scheduler.New()
+	s.SetAnimTick(200 * time.Millisecond) // software interval long — only a signal opens the gate
+	s.SetMode(scheduler.ModePersistent)
+	h := newPaceHost(nil)
+
+	s.WaitFramePace(h) // starts the DRM listener
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		s.WaitFramePace(h)
+		if s.Metrics().Snapshot().VSyncSource == "true" {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if s.Metrics().Snapshot().VSyncSource != "true" {
+		t.Fatal("working waiter must report vsync_source=true")
+	}
+	if s.Pending() {
+		t.Fatal("listener must not schedule frames (on-demand rendering 块1)")
+	}
+	if !s.FrameDue() {
+		t.Fatal("fresh stamp must open the frame gate")
+	}
+}
+
+// TestNoteFramePresented_StampsPacing: a compositor "frame shown" notice
+// (EventFramePresented → NoteFramePresented) opens the frame gate for the
+// next demanded frame but never creates render demand by itself (块1+块2).
+func TestNoteFramePresented_StampsPacing(t *testing.T) {
+	s := scheduler.New()
+	s.SetMode(scheduler.ModePersistent)
+	if !s.FrameDue() {
+		t.Fatal("first gate is open (no prior frame)")
+	}
+	if s.FrameDue() {
+		t.Fatal("second gate must be closed (software interval not elapsed)")
+	}
+	s.NoteFramePresented()
+	if !s.FrameDue() {
+		t.Fatal("gate must open on a fresh frame-presented notice")
+	}
+	if s.Pending() {
+		t.Fatal("notice must not create render demand (块1)")
 	}
 }

@@ -77,6 +77,11 @@ const (
 	// additions below so its numeric value never shifts across backends)
 	EventDrop   // external file(s) dropped onto the window (see Event.Files)
 	EventHidden // app-driven hide/show (see Event.Hidden; WindowController.Hide/Show)
+	// EventFramePresented: the compositor/display server has shown a frame
+	// committed by this client (Wayland wl_surface.frame callback; X11 XPresent
+	// PresentCompleteNotify). Drives frame pacing (scheduler.NoteFramePresented);
+	// only arrives when a RequestFrameNotify was outstanding (ENGINE_FRAME_PRESENT_STANDARD.md).
+	EventFramePresented
 )
 
 // String implements fmt.Stringer.
@@ -112,6 +117,8 @@ func (t EventType) String() string {
 		return "drop"
 	case EventHidden:
 		return "hidden"
+	case EventFramePresented:
+		return "frame-presented"
 	case EventWake:
 		return "wake"
 	default:

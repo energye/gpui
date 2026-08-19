@@ -126,6 +126,21 @@ type PresentTarget struct {
 	// "surface outdated" and content froze at the old size).
 	swapchainPending bool
 
+	// vsyncOn / vsyncPending implement the runtime present-mode switch
+	// (SetVsync): Fifo steady ↔ Mailbox/Immediate while an interactive resize
+	// storm is active. Like swapchainPending it is record-only — the mode
+	// change is applied by applyPendingSwapchainLocked at the next present
+	// boundary on the raster thread, so the UI thread never blocks on the
+	// surface.
+	//
+	// fixedNoVsync: platforms where present is permanently non-blocking
+	// (Wayland — the compositor swaps at vblank, a client-side Fifo wait
+	// would only block; ENGINE_FRAME_PRESENT_STANDARD.md 块3). SetVsync is a
+	// no-op there and the initial present mode is FifoRelaxed-preferring.
+	vsyncOn      bool
+	vsyncPending bool
+	fixedNoVsync bool
+
 	// onSwapchainResized is invoked on the raster thread inside the present
 	// critical section right after the swapchain has been reconfigured to a
 	// new logical size — i.e., just before the first buffer at that size is
@@ -202,7 +217,14 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 	// (uploadPixmapToView — the CPU mode renders shapes on the CPU and the
 	// present no longer depends on the GPU raster pipelines).
 	sc.Usage = types.TextureUsageRenderAttachment | types.TextureUsageCopyDst
-	sc.SetPreferVSync()
+	// 块3 present 策略：Wayland 恒无阻塞（合成器 vblank 换帧不撕裂，客户端
+	// 不必等）；X11 保持 Fifo 稳态（直接扫描出防撕裂）+ 风暴期 SetVsync 切换。
+	fixedNoVsync := ns.Platform == PresentPlatformWayland
+	if fixedNoVsync {
+		sc.SetPreferFifoRelaxed()
+	} else {
+		sc.SetPreferVSync()
+	}
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
 		surf.Release()
 		device.Release()
@@ -232,6 +254,11 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 		// Default storm window: 300ms ≈ 18 frames @60Hz — a drag-resize step
 		// arriving faster than this keeps the full path active continuously.
 		resizeStormWindow: 300 * time.Millisecond,
+		// Fifo (vsync) is the steady-state present mode; SetVsync(false)
+		// switches to Mailbox/Immediate during resize storms. Wayland
+		// (fixedNoVsync) stays non-blocking permanently instead.
+		vsyncOn:      !fixedNoVsync,
+		fixedNoVsync: fixedNoVsync,
 	}, nil
 }
 
@@ -345,6 +372,33 @@ func (t *PresentTarget) SetOnSwapchainResized(fn func(logicalW, logicalH int)) {
 	t.onSwapchainResized = fn
 }
 
+// SetVsync switches the swapchain present mode at the next present boundary
+// (raster thread, serialized with BeginFrame/EndFrame): true = Fifo (vsync,
+// steady UI), false = Mailbox/Immediate (low-latency — used while an
+// interactive resize storm is active so content tracks the window instead of
+// waiting one Fifo vblank per frame). Record-only, like Resize: the UI
+// thread never blocks on the surface. The swapchain buffers are undefined
+// after a mode switch, so the switch arms the post-resize full-write budget.
+func (t *PresentTarget) SetVsync(vsync bool) {
+	if t == nil || t.sc == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	// fixedNoVsync platforms (Wayland): present is permanently non-blocking
+	// (compositor vblank swap; ENGINE_FRAME_PRESENT_STANDARD.md 块3), so the
+	// Fifo↔low-latency switch is a no-op — the storm path already submits
+	// without waiting.
+	if t.fixedNoVsync {
+		return
+	}
+	if t.vsyncOn == vsync {
+		return
+	}
+	t.vsyncOn = vsync
+	t.vsyncPending = true
+}
+
 // applyPendingSwapchain reconfigures the swapchain to the recorded logical
 // size, then arms the post-resize full-write budget. Runs on the raster
 // thread at the present boundary (serialized with BeginFrame/EndFrame via
@@ -363,43 +417,63 @@ func (t *PresentTarget) SetOnSwapchainResized(fn func(logicalW, logicalH int)) {
 // reconfigured here or it stays at the stale extent (presented content
 // clipped/stretched); natively these Configure calls are ~1–5ms.
 func (t *PresentTarget) applyPendingSwapchainLocked() error {
-	if t == nil || t.sc == nil || !t.swapchainPending {
+	if t == nil || t.sc == nil {
 		return nil
 	}
-	t.swapchainPending = false
-	if t.ns.Platform == PresentPlatformX11 {
-		if os.Getenv("WR_RESIZE_DBG") == "1" {
+	if t.swapchainPending {
+		t.swapchainPending = false
+		if t.ns.Platform == PresentPlatformX11 {
+			if os.Getenv("WR_RESIZE_DBG") == "1" {
+				pw, ph := physicalSize(t.logicW, t.logicH, t.scale)
+				fmt.Fprintf(os.Stderr, "DBG swapchain apply %dx%d (logic %dx%d, deferred)\n", pw, ph, t.logicW, t.logicH)
+			}
+			// The swapchain extent is reconfigured by BeginFrame's outdated-retry
+			// at the live window size; nothing to configure synchronously here.
+		} else {
 			pw, ph := physicalSize(t.logicW, t.logicH, t.scale)
-			fmt.Fprintf(os.Stderr, "DBG swapchain apply %dx%d (logic %dx%d, deferred)\n", pw, ph, t.logicW, t.logicH)
+			if os.Getenv("WR_RESIZE_DBG") == "1" {
+				fmt.Fprintf(os.Stderr, "DBG swapchain apply %dx%d (logic %dx%d)\n", pw, ph, t.logicW, t.logicH)
+			}
+			if err := t.sc.Resize(pw, ph); err != nil {
+				// Keep the flag set: the next present retries the reconfigure.
+				t.swapchainPending = true
+				return err
+			}
+			// The swapchain now serves buffers at the new size; the next commit
+			// (this same present critical section) attaches one of them. Notify
+			// the host now — before that commit — so a platform that declares
+			// window geometry (Wayland xdg_surface.set_window_geometry) has it
+			// hit the compositor in the same batch as the new-size buffer.
+			if t.onSwapchainResized != nil {
+				t.onSwapchainResized(t.logicW, t.logicH)
+			}
 		}
-		// The swapchain extent is reconfigured by BeginFrame's outdated-retry
-		// at the live window size; nothing to configure synchronously here.
-	} else {
-		pw, ph := physicalSize(t.logicW, t.logicH, t.scale)
-		if os.Getenv("WR_RESIZE_DBG") == "1" {
-			fmt.Fprintf(os.Stderr, "DBG swapchain apply %dx%d (logic %dx%d)\n", pw, ph, t.logicW, t.logicH)
-		}
-		if err := t.sc.Resize(pw, ph); err != nil {
-			// Keep the flag set: the next present retries the reconfigure.
-			t.swapchainPending = true
-			return err
-		}
-		// The swapchain now serves buffers at the new size; the next commit
-		// (this same present critical section) attaches one of them. Notify
-		// the host now — before that commit — so a platform that declares
-		// window geometry (Wayland xdg_surface.set_window_geometry) has it
-		// hit the compositor in the same batch as the new-size buffer.
-		if t.onSwapchainResized != nil {
-			t.onSwapchainResized(t.logicW, t.logicH)
+		// Swapchain reconfigured → every buffer is undefined. Owe full frames
+		// so each buffer is fully written before retained LoadOpLoad frames
+		// read it again (otherwise resize storms leave black regions). Also
+		// arm the storm window so every present while the resize storm is
+		// active stays full even if the 3-frame budget is spent between steps.
+		t.postResizeFull = 3
+		t.lastResizeAt = time.Now()
+	}
+	// Runtime present-mode switch (SetVsync), applied at the same boundary so
+	// the surface mode never changes mid-frame. A mode change is also a
+	// surface reconfigure: buffers are undefined → owe full frames.
+	if t.vsyncPending {
+		t.vsyncPending = false
+		mode := t.sc.PresentModeForVsync(t.vsyncOn)
+		if mode != t.sc.PresentMode {
+			if os.Getenv("WR_RESIZE_DBG") == "1" {
+				fmt.Fprintf(os.Stderr, "DBG vsync %v -> %v\n", t.sc.PresentMode, mode)
+			}
+			if err := t.sc.SetPresentModeForce(mode); err != nil {
+				t.vsyncPending = true
+				return err
+			}
+			t.postResizeFull = 3
+			t.lastResizeAt = time.Now()
 		}
 	}
-	// Swapchain reconfigured → every buffer is undefined. Owe full frames
-	// so each buffer is fully written before retained LoadOpLoad frames
-	// read it again (otherwise resize storms leave black regions). Also
-	// arm the storm window so every present while the resize storm is
-	// active stays full even if the 3-frame budget is spent between steps.
-	t.postResizeFull = 3
-	t.lastResizeAt = time.Now()
 	return nil
 }
 

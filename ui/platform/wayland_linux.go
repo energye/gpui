@@ -47,6 +47,7 @@ const (
 	wlSurfaceDestroy          = 0
 	wlSurfaceAttach           = 1
 	wlSurfaceDamage           = 2
+	wlSurfaceFrame            = 3
 	wlSurfaceSetInputRegion   = 5
 	wlSurfaceCommit           = 6
 	wlRegionAdd               = 0
@@ -127,6 +128,7 @@ type wlLib struct {
 	ifaceSeat       uintptr
 	ifaceKeyboard   uintptr
 	ifacePointer    uintptr
+	ifaceCallback   uintptr // wl_callback (wl_surface.frame return; frame-presented notice)
 	// CSD (client-side decorations) interfaces.
 	ifaceShm           uintptr
 	ifaceShmPool       uintptr
@@ -177,6 +179,7 @@ func loadWayland() (*wlLib, error) {
 		{"wl_seat_interface", &l.ifaceSeat},
 		{"wl_keyboard_interface", &l.ifaceKeyboard},
 		{"wl_pointer_interface", &l.ifacePointer},
+		{"wl_callback_interface", &l.ifaceCallback},
 		{"wl_shm_interface", &l.ifaceShm},
 		{"wl_shm_pool_interface", &l.ifaceShmPool},
 		{"wl_buffer_interface", &l.ifaceBuffer},
@@ -439,6 +442,14 @@ type wlWin struct {
 	// (event thread); the resize events themselves drive the relayout.
 	resizing bool
 
+	// Frame-presented notice (ENGINE_FRAME_PRESENT_STANDARD.md 块2): while
+	// frameCB != 0 a wl_surface.frame request is in flight; the compositor
+	// answers with wlFrameDone once the committed frame was shown. frameDone
+	// is read by poll to emit EventFramePresented. RequestFrameNotify runs on
+	// the raster thread, wlFrameDone on the event thread → atomics.
+	frameCB   atomic.Uintptr // in-flight wl_callback proxy (0 = none)
+	frameDone atomic.Bool    // a frame-presented notice arrived since last poll
+
 	// Async window state (configure-driven).
 	activated bool // EventFocus dedup
 	suspended bool // EventOccluded dedup
@@ -494,7 +505,11 @@ type wlWin struct {
 	xdgListener [1]uintptr
 	topListener [2]uintptr
 	decoListener [1]uintptr
-	selfPtr     uintptr
+	// frameListener is the wl_callback_listener (single done entry); created
+	// once and re-attached per in-flight frame request (survives the
+	// callback proxy itself).
+	frameListener [1]uintptr
+	selfPtr       uintptr
 
 	titlePin []byte
 	appPin   []byte
@@ -1070,6 +1085,55 @@ func wlXdgConfigure(data, xdgSurf, serial uintptr) {
 	}
 }
 
+// wlFrameDone is the wl_callback done handler: the compositor has shown a
+// committed content frame (ENGINE_FRAME_PRESENT_STANDARD.md 块2). The
+// callback proxy is single-shot and dead after done; destroy it, clear the
+// in-flight slot and surface the notice as EventFramePresented on the next
+// poll. Event-thread (runs inside displayDispatchPend).
+func wlFrameDone(data, cb, cbData uintptr) {
+	w := winFrom(data)
+	if w == nil || w.lib == nil {
+		return
+	}
+	if w.frameCB.Load() == cb {
+		w.frameCB.Store(0)
+	}
+	// wl_callback_destroy is an inline wrapper over wl_proxy_destroy in this
+	// libwayland build (protocol request helpers are not exported).
+	w.lib.proxyDestroy(cb)
+	w.frameDone.Store(true)
+	if h := w.hostRef; h != nil {
+		h.WakeUp() // unblock WaitEvents so the notice is delivered promptly
+	}
+}
+
+// RequestFrameNotify implements platform.FrameNotifier: asks the compositor
+// to notify once the next committed content frame has been shown
+// (wl_surface.frame + wl_callback listener). No-op while a request is in
+// flight or before the content surface exists. Raster thread; libwayland
+// marshals are internally locked (safe cross-thread).
+func (h *wlHost) RequestFrameNotify() {
+	if h == nil || h.win == nil || h.win.lib == nil {
+		return
+	}
+	w := h.win
+	if w.surface == 0 || w.frameCB.Load() != 0 {
+		return
+	}
+	if w.frameListener[0] == 0 {
+		w.frameListener[0] = purego.NewCallback(wlFrameDone)
+	}
+	args := []wlArg{argNewID()}
+	cb := w.lib.proxyMarshalArrayCtor(w.surface, wlSurfaceFrame, &args[0], w.lib.ifaceCallback, 1)
+	if cb == 0 {
+		return
+	}
+	// wl_callback_add_listener is an inline wrapper over wl_proxy_add_listener
+	// in this libwayland build (protocol request helpers are not exported).
+	w.lib.proxyAddListener(cb, uintptr(unsafe.Pointer(&w.frameListener[0])), w.selfPtr)
+	w.frameCB.Store(cb)
+}
+
 func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	w := winFrom(data)
 	if w == nil {
@@ -1118,6 +1182,15 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 			wi, hi, states.maximized, states.fullscreen, states.resizing, states.activated, states.tiled, states.suspended)
 	}
 	if wi > 0 && hi > 0 {
+		// Maximized (not fullscreen): the compositor configures the FULL
+		// work area, but the content must shrink by the title-bar height —
+		// the bar (subsurface at (0,-32)) occupies the work area's top
+		// strip, so total window (content + chrome) == work area and the
+		// bar stays visible when maximized (§6). Fullscreen keeps the full
+		// configure size (no chrome shown).
+		if w.csd != nil && w.csd.visible && states.maximized && !states.fullscreen && hi > int32(csdTitleBarHeight) {
+			hi -= int32(csdTitleBarHeight)
+		}
 		if w.width != int(wi) || w.height != int(hi) {
 			w.width, w.height = int(wi), int(hi)
 			w.resized = true
@@ -1522,6 +1595,10 @@ func (h *wlHost) poll() []Event {
 		out = append(out, Event{
 			Type: EventResize, Width: w.width, Height: w.height, Scale: h.ScaleFactor(),
 		})
+	}
+	// Compositor frame-presented notice (wl_surface.frame callback done).
+	if w.frameDone.Swap(false) {
+		out = append(out, Event{Type: EventFramePresented})
 	}
 	// IME events queued by the text-input callbacks.
 	w.imeMu.Lock()

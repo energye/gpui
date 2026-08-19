@@ -3,10 +3,46 @@
 package platform
 
 import (
+	"fmt"
+	"os"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
 )
+
+// ptrDbg enables pointer-event diagnostics (GPUI_WL_DBG_PTR=1): every
+// enter/motion/leave prints its target surface and surface-local coords, so
+// compositor↔CSD interaction can be audited on a live window without a
+// second input device. The compositor decides which surface the pointer
+// events target; a mismatch (e.g. events on "content" while the pointer is
+// over the title bar) shows up here instantly.
+var ptrDbg = os.Getenv("GPUI_WL_DBG_PTR") == "1"
+
+// ptrSurfName classifies a wl_surface for diagnostics.
+func ptrSurfName(w *wlWin, surface uintptr) string {
+	if surface == 0 {
+		return "none"
+	}
+	if w == nil {
+		return "?"
+	}
+	if surface == w.surface {
+		return "content"
+	}
+	if c := w.csd; c != nil {
+		switch surface {
+		case c.topSurface:
+			return "top"
+		case c.left.surf:
+			return "left"
+		case c.right.surf:
+			return "right"
+		case c.bottom.surf:
+			return "bottom"
+		}
+	}
+	return "foreign"
+}
 
 // wl_pointer binding via purego. Standard Wayland client input: the seat's
 // pointer provides enter/leave/motion/button/axis events that drive mouse
@@ -207,6 +243,10 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 	}
 	x := wlFixedToDouble(sx)
 	y := wlFixedToDouble(sy)
+	if ptrDbg {
+		fmt.Fprintf(os.Stderr, "PTR enter surf=%s x=%.1f y=%.1f inWindow=%v lastLeave=%v\n",
+			ptrSurfName(st.win, surface), x, y, st.inWindow, st.lastLeaveOurs)
+	}
 	st.win.lastSerial.Store(uint32(serial))
 	ours := st.isOurs(surface)
 	if ours && st.lastLeaveOurs {
@@ -258,7 +298,13 @@ func wlPtrLeaveCB(data, ptr, serial, surface uintptr) {
 		return
 	}
 	if !st.isOurs(surface) {
+		if ptrDbg {
+			fmt.Fprintf(os.Stderr, "PTR leave surf=%s (foreign)\n", ptrSurfName(st.win, surface))
+		}
 		return // leave of a foreign surface — nothing to track
+	}
+	if ptrDbg {
+		fmt.Fprintf(os.Stderr, "PTR leave surf=%s\n", ptrSurfName(st.win, surface))
 	}
 	// Defer the decision: an internal crossing is followed by enter(ours)
 	// (consumed there); a window leave is resolved by the next enter
@@ -277,6 +323,9 @@ func wlPtrMotionCB(data, ptr, time, sx, sy uintptr) {
 	}
 	st.lastX = wlFixedToDouble(sx)
 	st.lastY = wlFixedToDouble(sy)
+	if ptrDbg {
+		fmt.Fprintf(os.Stderr, "PTR motion surf=%s x=%.1f y=%.1f\n", ptrSurfName(st.win, st.surface), st.lastX, st.lastY)
+	}
 	// Update hover state + resize cursor while moving (surface-local coords;
 	// the CSD hit-test is per-surface).
 	if c := st.win.csd; c != nil {

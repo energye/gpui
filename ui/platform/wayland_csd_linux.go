@@ -30,6 +30,12 @@ import (
 //	└──────────────────────────────────────┘
 //	               bottom subsurface
 //
+// The title bar is EXACTLY content-width and flush against the content below
+// it (no overhang, no seam): top = cw×32 at (0,-32). The left/right borders
+// span the full window height INCLUDING the title bar (4×(ch+32) at
+// (-4,-32)/(cw,-32)) so every corner/edge of the window box exists for
+// resize hit-testing; the bottom border is (cw+8)×4 at (-4,ch).
+//
 // Four wl_subsurfaces (top/left/right/bottom) render the chrome; the content
 // surface is owned by the wgpu/render layer. All decoration surfaces use
 // set_desync so their commits apply immediately (independent of the parent's
@@ -39,8 +45,10 @@ import (
 //   - title-bar caption drag       → xdg_toplevel.move(seat, serial)
 //   - double-click caption         → toggle maximize
 //   - minimize / maximize/restore  / close buttons (hover + press states)
-//   - 8-direction edge/corner      → xdg_toplevel.resize(seat, serial, edge),
-//     hot zone on borders AND on the content edges (invisible 8px)
+//   - 8-direction edge/corner      → xdg_toplevel.resize(seat, serial, edge):
+//     title-bar top-left/right corners + top edge, title-bar left/right
+//     flanks, border edges/corners, bottom edge. When the chrome is hidden
+//     (setVisible(false)) the CONTENT edges take over the same 8 zones.
 //   - system cursor theme          → resize cursors via wl_cursor_theme
 //
 // See docs/ENGINE_WAYLAND_WINDOW_STANDARD.md (design source of truth).
@@ -105,6 +113,11 @@ type wlCSD struct {
 	// closeRequested is drained in poll() → EventClose.
 	closeRequested bool
 
+	// visible tracks the chrome visibility (setVisible). When false the
+	// content edges take over the resize zones (frameless-style window:
+	// title-bar corners/edges map to the content's own corners/edges).
+	visible bool
+
 	// lastCaptionClick tracks double-click-on-caption (maximize toggle).
 	lastCaptionClick time.Time
 
@@ -122,6 +135,16 @@ type wlCSD struct {
 	cursorSurf  uintptr // cursor wl_surface
 	cursorTheme uintptr // wl_cursor_theme*
 	curName     string  // last set cursor name (dedupe set_cursor)
+	// cursorHotX/cursorHotY: hotspot of the currently attached cursor image
+	// (from wl_cursor_image). Passed to wl_pointer.set_cursor — the real
+	// hotspot both renders the arrow at its tip and (on mutter) forces the
+	// cursor-sprite texture refresh, so a zero hotspot leaves the pointer
+	// invisible over the window.
+	cursorHotX, cursorHotY uint32
+	// cursorBuf: the wl_buffer proxy (wl_cursor_image_get_buffer) attached to
+	// the cursor surface — diagnostics/tests assert it is a real proxy (a
+	// garbage value sent to attach kills the connection).
+	cursorBuf uintptr
 }
 
 // csdSurface is one decoration subsurface + its shm buffer.
@@ -166,18 +189,22 @@ func (w *wlWin) initCSD(title string) *wlCSD {
 	}
 
 	var err error
-	// Top (title bar): spans content width + both borders, above the content.
-	if csd.top, err = csd.newSurface(cw+2*csdBorderThick, csdTitleBarHeight, -csdBorderThick, -csdTitleBarHeight); err != nil {
+	// Top (title bar): EXACTLY content-width, flush above the content
+	// (overhang removed — the bar must match the window width and sit
+	// seamlessly against the content below it).
+	if csd.top, err = csd.newSurface(cw, csdTitleBarHeight, 0, -csdTitleBarHeight); err != nil {
 		csd.destroy()
 		return nil
 	}
 	csd.topSurface = csd.top.surf
-	// Left / right / bottom borders.
-	if csd.left, err = csd.newSurface(csdBorderThick, ch, -csdBorderThick, 0); err != nil {
+	// Left / right / bottom borders. Left/right span the FULL window height
+	// including the title bar, so every window-box corner/edge exists as a
+	// resize hot zone at title-bar level too.
+	if csd.left, err = csd.newSurface(csdBorderThick, ch+csdTitleBarHeight, -csdBorderThick, -csdTitleBarHeight); err != nil {
 		csd.destroy()
 		return nil
 	}
-	if csd.right, err = csd.newSurface(csdBorderThick, ch, cw, 0); err != nil {
+	if csd.right, err = csd.newSurface(csdBorderThick, ch+csdTitleBarHeight, cw, -csdTitleBarHeight); err != nil {
 		csd.destroy()
 		return nil
 	}
@@ -186,6 +213,7 @@ func (w *wlWin) initCSD(title string) *wlCSD {
 		return nil
 	}
 
+	csd.visible = true
 	csd.paint()
 	csd.setGeometry(cw, ch)
 	return csd
@@ -290,21 +318,20 @@ func (c *wlCSD) paint() {
 		return
 	}
 	lib := c.win.lib
-	outline := !c.state.Maximized && !c.state.Fullscreen
 	if c.top != nil {
 		paintTitleBar(c.top.data, c.top.w, c.top.h, c.state)
 		c.top.commit(lib)
 	}
 	if c.left != nil {
-		paintBorder(c.left.data, c.left.w, c.left.h, csdEdgeLeft, outline)
+		paintBorder(c.left.data, c.left.w, c.left.h)
 		c.left.commit(lib)
 	}
 	if c.right != nil {
-		paintBorder(c.right.data, c.right.w, c.right.h, csdEdgeRight, outline)
+		paintBorder(c.right.data, c.right.w, c.right.h)
 		c.right.commit(lib)
 	}
 	if c.bottom != nil {
-		paintBorder(c.bottom.data, c.bottom.w, c.bottom.h, csdEdgeBottom, outline)
+		paintBorder(c.bottom.data, c.bottom.w, c.bottom.h)
 		c.bottom.commit(lib)
 	}
 	lib.displayFlush(c.win.display)
@@ -371,14 +398,14 @@ func (c *wlCSD) resize(cw, ch int) {
 		ch = 480
 	}
 	if c.top != nil {
-		c.resizeSurface(c.top, cw+2*csdBorderThick, csdTitleBarHeight, -csdBorderThick, -csdTitleBarHeight)
+		c.resizeSurface(c.top, cw, csdTitleBarHeight, 0, -csdTitleBarHeight)
 		c.topSurface = c.top.surf
 	}
 	if c.left != nil {
-		c.resizeSurface(c.left, csdBorderThick, ch, -csdBorderThick, 0)
+		c.resizeSurface(c.left, csdBorderThick, ch+csdTitleBarHeight, -csdBorderThick, -csdTitleBarHeight)
 	}
 	if c.right != nil {
-		c.resizeSurface(c.right, csdBorderThick, ch, cw, 0)
+		c.resizeSurface(c.right, csdBorderThick, ch+csdTitleBarHeight, cw, -csdTitleBarHeight)
 	}
 	if c.bottom != nil {
 		c.resizeSurface(c.bottom, cw+2*csdBorderThick, csdBorderThick, -csdBorderThick, ch)
@@ -403,6 +430,7 @@ func (c *wlCSD) setVisible(v bool) {
 	if c == nil || c.win == nil || c.win.lib == nil {
 		return
 	}
+	c.visible = v
 	lib := c.win.lib
 	surfs := []*csdSurface{c.top, c.left, c.right, c.bottom}
 	for _, s := range surfs {
@@ -446,8 +474,18 @@ func (c *wlCSD) setGeometryNoFlush(cw, ch int) {
 	c.marshalGeometry(cw, ch, false)
 }
 
-// marshalGeometry queues xdg_surface.set_window_geometry(0,0,cw,ch) and
+// marshalGeometry queues xdg_surface.set_window_geometry(gx,gy,cw,ch) and
 // optionally flushes. See wlCSD.setGeometry for the contract.
+//
+// Maximized with the chrome visible (CSD mode; not fullscreen): the
+// geometry's top edge is declared at y=-csdTitleBarHeight so the compositor
+// anchors the surface 32px below the work-area top — the title bar
+// (subsurface at (0,-32)) then occupies the work area's top strip and the
+// content fills the rest (GTK4 parity: the app's canvas shrinks by the
+// title bar height when maximized; total window = content + chrome = work
+// area). The configure still arrives as the full work-area size, so
+// wlTopConfigure shrinks the content height by the title bar height to
+// match. Hidden chrome (server-side decoration mode) keeps (0,0,cw,ch).
 func (c *wlCSD) marshalGeometry(cw, ch int, flush bool) {
 	if c == nil || c.win == nil || c.win.lib == nil || c.win.xdgSurf == 0 {
 		return
@@ -459,7 +497,11 @@ func (c *wlCSD) marshalGeometry(cw, ch int, flush bool) {
 	if ch < 1 {
 		ch = 1
 	}
-	args := []wlArg{argU(0), argU(0), argU(uint32(cw)), argU(uint32(ch))}
+	gy := int32(0)
+	if c.state.Maximized && !c.state.Fullscreen && c.visible {
+		gy = -csdTitleBarHeight
+	}
+	args := []wlArg{argU(0), argU(uint32(gy)), argU(uint32(cw)), argU(uint32(ch))}
 	c.win.lib.proxyMarshalArrayFlags(c.win.xdgSurf, xdgSurfaceSetWindowGeometry, 0, 0, 0, &args[0])
 	if flush {
 		c.win.lib.displayFlush(c.win.display)
@@ -645,6 +687,19 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 	switch surface {
 	case c.topSurface:
 		wTop := c.top.w
+		// Corner grips win over the buttons at the title-bar's top strip
+		// (GTK4: the top edge is a resize grip and the buttons sit below it;
+		// without this the close button covers the top-right corner and no
+		// diagonal resize cursor ever shows there). Disabled when maximized/
+		// fullscreen/size-locked.
+		if !noResize {
+			switch {
+			case y < csdCornerGrip && x < csdCornerGrip:
+				return csdHit{act: csdActResize, edge: resizeTopLeft}
+			case y < csdCornerGrip && x >= float64(wTop-csdCornerGrip):
+				return csdHit{act: csdActResize, edge: resizeTopRight}
+			}
+		}
 		// Buttons win over resize (GTK pattern).
 		closeX := float64(wTop - csdButtonW)
 		maxX := closeX - csdButtonW
@@ -663,10 +718,6 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 		// size-locked.
 		if !noResize {
 			switch {
-			case y < csdCornerGrip && x < csdCornerGrip:
-				return csdHit{act: csdActResize, edge: resizeTopLeft}
-			case y < csdCornerGrip && x >= float64(wTop-csdCornerGrip):
-				return csdHit{act: csdActResize, edge: resizeTopRight}
 			case x <= float64(csdBorderThick):
 				return csdHit{act: csdActResize, edge: resizeLeft}
 			case x >= float64(wTop-csdBorderThick):
@@ -713,9 +764,36 @@ func (c *wlCSD) hitTest(surface uintptr, x, y float64) csdHit {
 			return csdHit{act: csdActResize, edge: resizeBottom}
 		}
 	case c.win.surface:
-		// Content never participates in window resize when a CSD title bar
-		// exists (user requirement: 有标题栏时内容区不参与窗口调整; GTK4 CSD
-		// resize handles live on the chrome, not the content).
+		// With the chrome visible the content never participates in window
+		// resize (GTK4 CSD parity: resize handles live on the chrome, and
+		// the content's top strip is the title-bar seam, not a grip).
+		//
+		// With the chrome HIDDEN (setVisible(false) — server-side decoration
+		// negotiation) the content edges take over the full 8-zone resize
+		// mapping: the title-bar's top-left/top-right corners and top edge
+		// become the window's own corners/edge (user requirement).
+		if !c.visible && !noResize {
+			cw, ch := c.stateW()
+			fw, fh := float64(cw), float64(ch)
+			switch {
+			case y < csdCornerGrip && x < csdCornerGrip:
+				return csdHit{act: csdActResize, edge: resizeTopLeft}
+			case y < csdCornerGrip && x >= fw-csdCornerGrip:
+				return csdHit{act: csdActResize, edge: resizeTopRight}
+			case y >= fh-csdCornerGrip && x < csdCornerGrip:
+				return csdHit{act: csdActResize, edge: resizeBottomLeft}
+			case y >= fh-csdCornerGrip && x >= fw-csdCornerGrip:
+				return csdHit{act: csdActResize, edge: resizeBottomRight}
+			case x <= float64(csdBorderThick):
+				return csdHit{act: csdActResize, edge: resizeLeft}
+			case x >= fw-float64(csdBorderThick):
+				return csdHit{act: csdActResize, edge: resizeRight}
+			case y < csdCornerGrip:
+				return csdHit{act: csdActResize, edge: resizeTop}
+			case y >= fh-float64(csdBorderThick):
+				return csdHit{act: csdActResize, edge: resizeBottom}
+			}
+		}
 		return csdHit{}
 	}
 	return csdHit{}
@@ -740,18 +818,20 @@ func (c *wlCSD) stateW() (int, int) {
 // content (toplevel) surface coordinate space — GTK4 parity: the app sees
 // one continuous coordinate space over the whole window, with negative y
 // over the title bar (the chrome surfaces sit outside the content).
+//
+// Layout: top at (0,-32), left/right at (-4,-32)/(cw,-32), bottom at (-4,ch).
 func (c *wlCSD) appCoords(surface uintptr, x, y float64) (float64, float64) {
 	if c == nil || surface == 0 {
 		return x, y
 	}
 	switch surface {
 	case c.topSurface:
-		return x - csdBorderThick, y - csdTitleBarHeight
+		return x, y - csdTitleBarHeight
 	case c.left.surf:
-		return x - csdBorderThick, y
+		return x - csdBorderThick, y - csdTitleBarHeight
 	case c.right.surf:
 		cw, _ := c.stateW()
-		return x + float64(cw), y
+		return x + float64(cw), y - csdTitleBarHeight
 	case c.bottom.surf:
 		_, ch := c.stateW()
 		return x - csdBorderThick, y + float64(ch)
@@ -774,12 +854,20 @@ func (c *wlCSD) buttonHitFor(hit csdHit) *csdButtonState {
 
 // onHover updates button hover states + cursor when the pointer moves.
 // Called from wlPtrMotionCB; returns the resulting cursor name ("" = default).
+//
+// The title bar is repainted ONLY when a button hover state actually
+// changed — motion over the caption/borders (e.g. during a resize drag,
+// where motion events arrive at high rate) must not re-commit the title
+// bar every event (flicker + needless shm traffic to the compositor).
 func (c *wlCSD) onHover(surface uintptr, x, y float64) csdHit {
 	if c == nil {
 		return csdHit{}
 	}
 	hit := c.hitTest(surface, x, y)
 	// Clear all hover, then set for the current hit.
+	wasClose := c.state.Close.Hovered
+	wasMax := c.state.Maximize.Hovered
+	wasMin := c.state.Minimize.Hovered
 	c.state.Close.Hovered = false
 	c.state.Maximize.Hovered = false
 	c.state.Minimize.Hovered = false
@@ -788,7 +876,18 @@ func (c *wlCSD) onHover(surface uintptr, x, y float64) csdHit {
 			b.Hovered = true
 		}
 	}
-	c.repaintTitle()
+	cur := c.state.Close.Hovered || c.state.Maximize.Hovered || c.state.Minimize.Hovered
+	// Repaint when ANY button's hover flips — including button→button moves
+	// (an any-vs-any comparison misses those and the highlight stays stuck
+	// on the previous button while the pointer moves between them).
+	changed := c.state.Close.Hovered != wasClose || c.state.Maximize.Hovered != wasMax || c.state.Minimize.Hovered != wasMin
+	if ptrDbg {
+		fmt.Fprintf(os.Stderr, "PTR hover surf=%s x=%.1f y=%.1f hit=%d prev=%v cur=%v repaint=%v\n",
+			ptrSurfName(c.win, surface), x, y, hit.act, wasClose || wasMax || wasMin, cur, changed)
+	}
+	if changed {
+		c.repaintTitle()
+	}
 	return hit
 }
 
@@ -882,8 +981,8 @@ func (c *wlCSD) showWindowMenu(seat, serial uintptr, x, y float64) {
 	if c == nil || c.win == nil || c.win.lib == nil || c.win.toplevel == 0 || seat == 0 || serial == 0 {
 		return
 	}
-	// top surface is offset (-border, -titleBarHeight) from the content.
-	cx := int32(x) + csdBorderThick
+	// top surface is offset (0, -titleBarHeight) from the content.
+	cx := int32(x)
 	cy := int32(y) + csdTitleBarHeight
 	args := []wlArg{argO(seat), argU(uint32(serial)), argU(uint32(cx)), argU(uint32(cy))}
 	c.win.lib.proxyMarshalArrayFlags(c.win.toplevel, xdgToplevelShowMenu, 0, 0, 0, &args[0])
@@ -934,24 +1033,31 @@ func (c *wlCSD) toggleMaximize() {
 
 // --- resize cursor (system cursor theme via wl_pointer.set_cursor) ---
 
-// cursorNameForEdge returns the X cursor name for a resize edge.
-func cursorNameForEdge(edge int) string {
+// cursorNamesForEdge returns candidate X cursor names for a resize edge, in
+// priority order. Corners use the standard diagonal double-arrow names
+// (nwse/nesw-resize) — what Yaru (the user's gsettings theme) draws as the
+// proper double arrow; classic themes (DMZ-White via the "default" fallback,
+// Adwaita) lack them, so top_left/top_right_corner (diagonal double arrows
+// in those themes) are the fallback.
+func cursorNamesForEdge(edge int) []string {
 	switch edge {
 	case resizeTop, resizeBottom:
-		return "sb_v_double_arrow"
+		return []string{"sb_v_double_arrow"}
 	case resizeLeft, resizeRight:
-		return "sb_h_double_arrow"
+		return []string{"sb_h_double_arrow"}
 	case resizeTopLeft, resizeBottomRight:
-		return "top_left_corner"
+		return []string{"nwse-resize", "top_left_corner"}
 	case resizeTopRight, resizeBottomLeft:
-		return "top_right_corner"
+		return []string{"nesw-resize", "top_right_corner"}
 	}
-	return ""
+	return nil
 }
 
 // setCursor updates the pointer cursor for the current hit region.
 // wl_pointer.set_cursor (opcode 1, signature "ouii": serial, surface,
 // hotspot_x, hotspot_y). Called on pointer enter/motion with enter serial.
+// The hotspot comes from the attached cursor image (applyCursorImage) so the
+// arrow renders at its tip and mutter's sprite refresh triggers on change.
 //
 // The compositor default cursor is left untouched until we have a real
 // replacement (resize edge or controller cursor): sending set_cursor with an
@@ -960,37 +1066,47 @@ func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
 	if c == nil || c.win == nil || c.win.lib == nil || c.win.ptr == nil {
 		return
 	}
-	name := ""
-	if hit.act == csdActResize {
-		name = cursorNameForEdge(hit.edge)
-	}
-	if name == "" && c.win != nil {
+	names := cursorNamesForEdge(hit.edge)
+	if len(names) == 0 {
 		// No resize-edge cursor: apply the controller-set active cursor
 		// (SetCursor / Options.Cursor), "" = default.
-		name = cursorThemeName(c.win.activeCursor())
+		names = []string{cursorThemeName(c.win.activeCursor())}
 	}
-	if name == "" {
-		// Back to the compositor default: only when a custom cursor is
-		// currently showing; set_cursor(NULL) restores the default theme.
-		// Never set one otherwise (the default cursor is already active).
-		if c.curName != "" {
-			c.curName = ""
-			args := []wlArg{argU(uint32(serial)), argO(0), argU(0), argU(0)}
-			c.win.lib.proxyMarshalArrayFlags(c.win.ptr.ptr, wlPtrSetCursor, 0, 0, 0, &args[0])
-			c.win.lib.displayFlush(c.win.display)
+	if names[0] == "" {
+		// Default pointer: set_cursor(NULL) makes the compositor HIDE the
+		// pointer on mutter (empty surface = invisible), so the "restore"
+		// must re-apply the theme's default arrow explicitly.
+		names[0] = "left_ptr"
+	}
+	if ptrDbg {
+		fmt.Fprintf(os.Stderr, "PTR cursor serial=%d name=%q cur=%q send=%v\n", serial, names[0], c.curName, names[0] != c.curName)
+	}
+	for _, n := range names {
+		if n == c.curName {
+			return
 		}
+	}
+	// Lazily create the cursor surface + theme — without them
+	// applyCursorImage always fails and no set_cursor is ever sent
+	// (the pointer stays at the compositor default on resize zones).
+	if c.ensureCursorSurface() == 0 {
 		return
 	}
-	if name == c.curName {
+	// Try the candidates in order (the theme may lack the modern
+	// double-arrow name); attach the image FIRST, only on success hand the
+	// surface to the compositor (an empty surface would hide the pointer).
+	applied := false
+	for _, name := range names {
+		if c.applyCursorImage(name) {
+			c.curName = name
+			applied = true
+			break
+		}
+	}
+	if !applied {
 		return
 	}
-	// Attach the image FIRST; only on success hand the surface to the
-	// compositor (an empty surface would hide the pointer).
-	if !c.applyCursorImage(name) {
-		return
-	}
-	c.curName = name
-	args := []wlArg{argU(uint32(serial)), argO(c.cursorSurf), argU(0), argU(0)}
+	args := []wlArg{argU(uint32(serial)), argO(c.cursorSurf), argU(c.cursorHotX), argU(c.cursorHotY)}
 	c.win.lib.proxyMarshalArrayFlags(c.win.ptr.ptr, wlPtrSetCursor, 0, 0, 0, &args[0])
 	c.win.lib.displayFlush(c.win.display)
 }
@@ -1056,13 +1172,26 @@ func (c *wlCSD) applyCursorImage(name string) bool {
 		return false
 	}
 	img := (*wlCursorImageC)(unsafe.Pointer(imgPtr))
-	if img.Buffer == 0 {
+	// The wl_buffer is NOT stored in wl_cursor_image (it is private) — it
+	// must come from wl_cursor_image_get_buffer(). Reading past the 20-byte
+	// struct yields heap garbage which, sent to attach, makes the compositor
+	// kill the connection: "invalid arguments for wl_surface@N.attach".
+	buf := l.imageGetBuf(imgPtr)
+	if buf == 0 {
 		return false
 	}
-	args := []wlArg{argO(img.Buffer), argU(0), argU(0)}
+	c.cursorBuf = buf
+	args := []wlArg{argO(buf), argU(0), argU(0)}
 	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceAttach, 0, 0, 0, &args[0])
+	// Full-surface damage: mutter's cursor-surface apply_state only refreshes
+	// the sprite texture when the commit carries damage (or on the first
+	// attach) — without damage the cursor image never appears/updates
+	// (invisible pointer over the window; GTK/Chromium always damage).
+	dam := []wlArg{argU(0), argU(0), argU(img.Width), argU(img.Height)}
+	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceDamage, 0, 0, 0, &dam[0])
 	c.win.lib.proxyMarshalArrayFlags(c.cursorSurf, wlSurfaceCommit, 0, 0, 0, nil)
 	c.win.lib.displayFlush(c.win.display)
+	c.cursorHotX, c.cursorHotY = img.HotX, img.HotY
 	return true
 }
 
@@ -1075,6 +1204,7 @@ var (
 type wlCursorLib struct {
 	themeLoad   func(name *byte, size int, shm uintptr) uintptr
 	themeGetCur func(theme uintptr, name *byte) uintptr
+	imageGetBuf func(image uintptr) uintptr
 }
 
 func loadCursorLib() *wlCursorLib {
@@ -1089,7 +1219,8 @@ func loadCursorLib() *wlCursorLib {
 		l := &wlCursorLib{}
 		purego.RegisterLibFunc(&l.themeLoad, lib, "wl_cursor_theme_load")
 		purego.RegisterLibFunc(&l.themeGetCur, lib, "wl_cursor_theme_get_cursor")
-		if l.themeLoad == nil || l.themeGetCur == nil {
+		purego.RegisterLibFunc(&l.imageGetBuf, lib, "wl_cursor_image_get_buffer")
+		if l.themeLoad == nil || l.themeGetCur == nil || l.imageGetBuf == nil {
 			return
 		}
 		cursorLib = l
@@ -1097,16 +1228,15 @@ func loadCursorLib() *wlCursorLib {
 	return cursorLib
 }
 
-// wl_cursor_image layout (amd64): width,height,hotspot_x,hotspot_y,delay
-// (uint32 each) then wl_buffer* (uintptr, 8-aligned).
+// wl_cursor_image layout (this libwayland): width,height,hotspot_x,hotspot_y,
+// delay — 20 bytes total. The wl_buffer is private; obtain it via
+// wl_cursor_image_get_buffer() (never read past this struct).
 type wlCursorImageC struct {
 	Width  uint32
 	Height uint32
 	HotX   uint32
 	HotY   uint32
 	Delay  uint32
-	_      uint32 // pad
-	Buffer uintptr
 }
 
 // --- shared low-level pixel helpers ---
@@ -1117,7 +1247,14 @@ func putPx(buf []byte, stride, x, y int, r, g, b byte) {
 }
 
 // putPxA writes one pixel with explicit alpha (0x00 = fully transparent).
+// Guards BOTH negative and out-of-range coordinates: the title bar is drawn
+// at window width, so on very narrow windows (interactive resize down to
+// ~1px) the right-aligned buttons land at negative x — an unprotected
+// negative offset is a Go slice index panic ("index out of range [-120]").
 func putPxA(buf []byte, stride, x, y int, r, g, b, a byte) {
+	if x < 0 || y < 0 || stride <= 0 {
+		return
+	}
 	off := (y*stride + x) * 4
 	if off+3 >= len(buf) {
 		return

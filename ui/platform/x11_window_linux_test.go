@@ -23,6 +23,7 @@ func openTestX11(t *testing.T) *Window {
 		Height:    300,
 		Title:     "gpui x11 win test",
 		Resizable: true,
+		Backend:   DisplayX11, // pin the backend — Auto prefers Wayland in a Wayland session
 	})
 	if err != nil {
 		t.Fatalf("Open(x11) failed: %v", err)
@@ -205,7 +206,7 @@ func TestX11RealWindowOptionVisibleFalse(t *testing.T) {
 		t.Skipf("x11 real-window test skipped: DISPLAY not set")
 	}
 	f := false
-	win, err := Open(Options{Width: 300, Height: 200, Title: "x11 hidden", Visible: &f})
+	win, err := Open(Options{Width: 300, Height: 200, Title: "x11 hidden", Visible: &f, Backend: DisplayX11})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

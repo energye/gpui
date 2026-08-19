@@ -2,15 +2,6 @@
 
 package platform
 
-// CSD edge identifiers (which subsurface is being painted).
-type csdEdge int
-
-const (
-	csdEdgeLeft csdEdge = iota
-	csdEdgeRight
-	csdEdgeBottom
-)
-
 // csdButtonState tracks interaction state for a title-bar control button.
 type csdButtonState struct {
 	Hovered bool
@@ -56,10 +47,6 @@ var (
 	csdColorClosePress = [4]byte{0x1A, 0x2A, 0xB2, 0xFF} // #B22A1A
 	csdColorIcon       = [4]byte{0xE5, 0xE1, 0xDF, 0xFF} // #DFE1E5
 	csdColorIconClose  = [4]byte{0xFF, 0xFF, 0xFF, 0xFF}
-	// csdColorOutline is the 1px window outline (GTK4 Adwaita parity): a
-	// subtle dark line around the window when it is not maximized/fullscreen.
-	// Drawn on the outer edge of the decoration surfaces.
-	csdColorOutline = [4]byte{0x00, 0x00, 0x00, 0x80} // 50% black
 )
 
 // paintTitleBar renders the title bar into an ARGB8888 buffer (stride=w*4).
@@ -69,6 +56,14 @@ func paintTitleBar(buf []byte, w, h int, st csdState) {
 		bg = csdColorBgUnfocus
 	}
 	fillRect(buf, w, 0, 0, w, h, bg)
+
+	// The buttons are right-aligned; on a window narrower than all three
+	// (interactive resize can configure down to ~1px) their left edge is
+	// negative. Skip them entirely — the resize grips and caption drag are
+	// hit-tested, not painted (putPxA also guards negative coords).
+	if w < csdButtonW*3 {
+		return
+	}
 
 	// Buttons right-aligned: [minimize] [maximize] [close]
 	closeX := w - csdButtonW
@@ -98,11 +93,6 @@ func paintTitleBar(buf []byte, w, h int, st csdState) {
 
 	// Title text (centered by default; falls back to left on narrow widths).
 	drawTitleText(buf, w, h, st.Title, csdColorIcon, minX)
-
-	// 1px outline on the outer edges (hidden when maximized/fullscreen).
-	if !st.Maximized && !st.Fullscreen {
-		drawOutline(buf, w, h)
-	}
 }
 
 // paintButton fills a hover/press button background.
@@ -115,43 +105,12 @@ func paintButton(buf []byte, stride, x, y, w, h int, st csdButtonState) {
 	}
 }
 
-// paintBorder renders one border edge — fully transparent except for the
-// 1px window outline on the outer edge (GTK4 Adwaita parity; hidden when
-// maximized/fullscreen). The subsurface is kept so pointer hit-testing still
-// sees the edge for interactive resize.
-func paintBorder(buf []byte, w, h int, edge csdEdge, outline bool) {
+// paintBorder renders one border edge — fully transparent. The subsurface
+// is kept (with an opaque shm buffer of the right size) so pointer
+// hit-testing still sees the edge for interactive resize; nothing is drawn
+// (GTK4 Adwaita has no 1px frame line around the window).
+func paintBorder(buf []byte, w, h int) {
 	clearRect(buf, w, 0, 0, w, h)
-	if !outline {
-		return
-	}
-	switch edge {
-	case csdEdgeLeft:
-		for y := 0; y < h; y++ {
-			putPxA(buf, w, 0, y, csdColorOutline[0], csdColorOutline[1], csdColorOutline[2], csdColorOutline[3])
-		}
-	case csdEdgeRight:
-		for y := 0; y < h; y++ {
-			putPxA(buf, w, w-1, y, csdColorOutline[0], csdColorOutline[1], csdColorOutline[2], csdColorOutline[3])
-		}
-	case csdEdgeBottom:
-		for x := 0; x < w; x++ {
-			putPxA(buf, w, x, 0, csdColorOutline[0], csdColorOutline[1], csdColorOutline[2], csdColorOutline[3])
-		}
-	}
-}
-
-// drawOutline paints a 1px outline on the four outer edges of a buffer
-// (used by the title bar, which spans the full window width including the
-// borders).
-func drawOutline(buf []byte, w, h int) {
-	for x := 0; x < w; x++ {
-		putPxA(buf, w, x, 0, csdColorOutline[0], csdColorOutline[1], csdColorOutline[2], csdColorOutline[3])
-		putPxA(buf, w, x, h-1, csdColorOutline[0], csdColorOutline[1], csdColorOutline[2], csdColorOutline[3])
-	}
-	for y := 0; y < h; y++ {
-		putPxA(buf, w, 0, y, csdColorOutline[0], csdColorOutline[1], csdColorOutline[2], csdColorOutline[3])
-		putPxA(buf, w, w-1, y, csdColorOutline[0], csdColorOutline[1], csdColorOutline[2], csdColorOutline[3])
-	}
 }
 
 // --- glyph drawing (ARGB8888, stride = w*4) ---

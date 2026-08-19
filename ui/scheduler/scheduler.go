@@ -60,11 +60,21 @@ type FrameScheduler struct {
 // unavailable-vsync signal: counted as a miss and retried at the software
 // interval. A hang leaves this single goroutine blocked and the timestamp
 // stale, which drops pacing to the software interval automatically.
+//
+// On-demand rendering (ENGINE_FRAME_PRESENT_STANDARD.md 块1/块2): the
+// listener only stamps the pacing timestamp — it never schedules frames.
+// Render demand comes exclusively from events/tickers (ScheduleFrame).
+// A Host implementing FrameNotifier (compositor "frame presented" notice)
+// replaces this client-side waiter entirely: single pacing source, and the
+// notice only arrives after a commit, so idle costs nothing.
 func (s *FrameScheduler) ensureVsyncListener(host platform.Host) {
 	if s == nil {
 		return
 	}
 	s.vsyncOnce.Do(func() {
+		if platform.HostFrameNotifier(host) != nil {
+			return // compositor-driven pacing; no client-side waiter
+		}
 		v := platform.HostVSync(host)
 		if v == nil {
 			return
@@ -75,7 +85,6 @@ func (s *FrameScheduler) ensureVsyncListener(host platform.Host) {
 					s.vsyncMu.Lock()
 					s.lastVSync = time.Now()
 					s.vsyncMu.Unlock()
-					s.ScheduleFrame()
 					continue
 				}
 				s.metrics.NoteMissedVSync()
@@ -86,6 +95,20 @@ func (s *FrameScheduler) ensureVsyncListener(host platform.Host) {
 			}
 		}()
 	})
+}
+
+// NoteFramePresented records a compositor "frame presented" notice as a
+// fresh pacing timestamp (ENGINE_FRAME_PRESENT_STANDARD.md 块2). Like the
+// DRM listener stamp it does NOT schedule a frame — on-demand rendering
+// keeps demand exclusively with events/tickers; this only opens the
+// FrameDue gate for the next demanded frame.
+func (s *FrameScheduler) NoteFramePresented() {
+	if s == nil {
+		return
+	}
+	s.vsyncMu.Lock()
+	s.lastVSync = time.Now()
+	s.vsyncMu.Unlock()
 }
 
 // vsyncFresh reports whether a vsync signal arrived recently enough to drive

@@ -56,6 +56,10 @@ type boundaryFrameSnap struct {
 // lastBoundaryFrame is published by paintPresentTree for metrics pickup.
 var lastBoundaryFrame atomic.Value // stores boundaryFrameSnap
 
+// resizeCalmWindow: after this long without a resize event the swapchain
+// switches back from Mailbox/Immediate to Fifo (vsync).
+const resizeCalmWindow = 200 * time.Millisecond
+
 // PipelineApp runs layout/paint → FramePacket → async raster present.
 // UI never blocks on Present (SubmitLatest).
 type PipelineApp struct {
@@ -100,7 +104,15 @@ type PipelineApp struct {
 	// applies the latest size once per frame (read from the host at the frame
 	// boundary), so a resize-drag event storm never monopolizes the event
 	// loop and rendering keeps its pace while tracking the final size.
+	// While set, the frame gate is bypassed (resize-storm immediate render).
 	pendingResize bool
+	// lowLatency / lastResizeAt drive the swapchain present-mode switch
+	// during resize storms: while a resize is fresher than resizeCalmWindow,
+	// the target presents with Mailbox/Immediate (SetVsync(false)) so content
+	// frames are not blocked ~16.5ms per Fifo vblank; after the storm ends
+	// (calm window elapsed with no new resize) the target returns to Fifo.
+	lowLatency   atomic.Bool
+	lastResizeAt time.Time
 	// debugRepaint enables R12b overlay on live paints (not cache Replay).
 	debugRepaint atomic.Bool
 	// debugRepaintDraws accumulates NoteDebugRepaint counts across presents.
@@ -617,6 +629,7 @@ func (a *PipelineApp) Run() error {
 					// the current host size, so the swapchain is sized to the
 					// window, not to a stale event).
 					a.pendingResize = true
+					a.lastResizeAt = time.Now()
 					a.ScheduleFrame()
 				}
 			case platform.EventExpose:
@@ -632,6 +645,11 @@ func (a *PipelineApp) Run() error {
 				if !a.sched.Pending() {
 					a.ScheduleFrame()
 				}
+			case platform.EventFramePresented:
+				// Compositor "frame shown" notice (块2): stamps a fresh pacing
+				// timestamp only — demand stays with events/tickers, so idle
+				// costs nothing (on-demand rendering, 块1).
+				a.sched.NoteFramePresented()
 			case platform.EventOccluded:
 				// Window fully obscured or minimized → stop rendering
 				// (Flutter lifecycle paused / Chrome hidden → no frames);
@@ -690,11 +708,30 @@ func (a *PipelineApp) Run() error {
 			continue
 		}
 
+		// Resize-storm present-mode restore: once no resize has arrived for
+		// the calm window, switch the swapchain back to Fifo (vsync). The
+		// switch is record-only (applied at the next present boundary).
+		if a.lowLatency.Load() && time.Since(a.lastResizeAt) > resizeCalmWindow {
+			a.lowLatency.Store(false)
+			if a.target != nil {
+				a.target.SetVsync(true)
+			}
+		}
+
 		// Flutter frame-callback gate (non-blocking): render only when a
 		// fresh vsync signal arrived or the software interval elapsed since
 		// the last rendered frame. Skipping here just re-enters WaitEvents,
 		// which keeps the cadence — the frame loop never blocks on vsync.
-		if !a.sched.FrameDue() {
+		//
+		// Resize-storm bypass: an unapplied resize (pendingResize) renders
+		// IMMEDIATELY, before the vsync gate. The CSD chrome tracks the
+		// pointer synchronously (its buffers are rebuilt on every configure),
+		// so a vsync-quantized content would visibly trail the title bar
+		// during a fast drag; rendering each resize step now keeps the
+		// content width in lockstep with the window. pendingResize clears
+		// after the frame, so the gate re-closes until the next resize event
+		// (no busy spin).
+		if !a.sched.FrameDue() && !a.pendingResize {
 			continue
 		}
 
@@ -730,6 +767,13 @@ func (a *PipelineApp) Run() error {
 			}
 			if a.pipe.FlushLayout(vp, true) {
 				a.layoutFrames.Add(1)
+			}
+			// First storm frame: switch the swapchain to Mailbox/Immediate so
+			// content frames present without waiting a Fifo vblank (~16.5ms)
+			// per frame — the CSD title bar is a separate subsurface updated
+			// per configure, so vsync-quantized content visibly trails it.
+			if !a.lowLatency.Swap(true) && a.target != nil {
+				a.target.SetVsync(false)
 			}
 		}
 		if a.pipe.FlushLayout(vp, false) {
@@ -848,6 +892,13 @@ func (a *PipelineApp) Run() error {
 				if err == nil {
 					if fs, ok := a.host.(platform.FrameSync); ok {
 						fs.NotifyFrameDrawn()
+					}
+					// Compositor frame-presented notice (块2): request the
+					// next "frame shown" notice so pacing follows the display
+					// server instead of a client-side waiter. No demand → no
+					// next frame → no next request → fully idle (块1).
+					if fn := platform.HostFrameNotifier(a.host); fn != nil {
+						fn.RequestFrameNotify()
 					}
 				}
 				if frameDraws > 0 {

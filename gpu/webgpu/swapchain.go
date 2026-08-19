@@ -54,6 +54,13 @@ type Swapchain struct {
 	// ConfigureFromCapabilities (S6.8). Empty → prefer Fifo then first available.
 	PreferPresentModes []PresentMode
 
+	// supportedPresentModes caches the adapter's surface capability list at
+	// ConfigureFromCapabilities time, so a runtime present-mode switch
+	// (SetPresentModeForce / PresentModeForVsync) can pick a supported mode
+	// without re-querying the adapter (the PresentTarget releases the adapter
+	// after init).
+	supportedPresentModes []PresentMode
+
 	configured         bool
 	pendingReconfigure bool
 	// suboptHandledW/H: last extent for which we already acted on a suboptimal
@@ -238,6 +245,19 @@ func (sc *Swapchain) SetPreferVSync() {
 	sc.PreferPresentModes = []PresentMode{PresentModeFifo, PresentModeFifoRelaxed, PresentModeMailbox, PresentModeImmediate}
 }
 
+// SetPreferFifoRelaxed selects the non-blocking but vsync-preferring mode
+// (ENGINE_FRAME_PRESENT_STANDARD.md 块3): FifoRelaxed waits for the vblank
+// when the frame is ready in time and submits immediately when late — the
+// steady Wayland mode, where the compositor's vblank swap guarantees no
+// tearing and a client-side Fifo wait would only block. Mailbox/Immediate
+// are fallbacks per availability.
+func (sc *Swapchain) SetPreferFifoRelaxed() {
+	if sc == nil {
+		return
+	}
+	sc.PreferPresentModes = []PresentMode{PresentModeFifoRelaxed, PresentModeMailbox, PresentModeImmediate}
+}
+
 // SetPreferLowLatency prefers Mailbox/Immediate when supported (gamesing; may tear).
 func (sc *Swapchain) SetPreferLowLatency() {
 	if sc == nil {
@@ -310,6 +330,7 @@ func (sc *Swapchain) ConfigureFromCapabilities(adapter *Adapter) error {
 			}
 		}
 		sc.PresentMode = pickPresentMode(caps.PresentModes, sc.PreferPresentModes)
+		sc.supportedPresentModes = append([]PresentMode(nil), caps.PresentModes...)
 		if len(caps.AlphaModes) > 0 {
 			sc.AlphaMode = caps.AlphaModes[0]
 			for _, am := range caps.AlphaModes {
@@ -368,6 +389,56 @@ func (sc *Swapchain) Resize(width, height uint32) error {
 	sc.Height = height
 	// Configure() marks suboptHandled for this extent so the first suboptimal
 	// present after resize does not immediately reconfigure again (double flash).
+	return sc.Configure()
+}
+
+// PresentModeForVsync picks the present mode for a runtime vsync switch from
+// the modes cached at ConfigureFromCapabilities. on=true → Fifo (steady UI,
+// no tearing); on=false → Mailbox (latest-frame-wins, no tearing), falling
+// back to FifoRelaxed/Immediate per availability — the low-latency path used
+// while an interactive resize storm is active so content tracks the window
+// instead of waiting one Fifo vblank (~16.5ms) per frame.
+func (sc *Swapchain) PresentModeForVsync(on bool) PresentMode {
+	if on {
+		return PresentModeFifo
+	}
+	for _, m := range []PresentMode{PresentModeMailbox, PresentModeFifoRelaxed, PresentModeImmediate} {
+		for _, s := range sc.supportedPresentModes {
+			if s == m {
+				return m
+			}
+		}
+	}
+	return PresentModeFifo
+}
+
+// SetSupportedPresentModesForTest overrides the cached surface-capability
+// list (test-only; ConfigureFromCapabilities normally populates it from the
+// adapter). Used to unit-test PresentModeForVsync without a real surface.
+func (sc *Swapchain) SetSupportedPresentModesForTest(modes []types.PresentMode) {
+	if sc == nil {
+		return
+	}
+	sc.supportedPresentModes = append([]types.PresentMode(nil), modes...)
+}
+
+// SetPresentModeForce reconfigures the surface with an explicit present mode
+// even when the extent is unchanged (Resize no-ops same-size calls). Used by
+// the runtime vsync switch (Fifo steady ↔ Mailbox/Immediate during resize).
+// A reconfigure invalidates the swapchain buffers — the caller owes full
+// frames until each buffer is fully written.
+func (sc *Swapchain) SetPresentModeForce(mode PresentMode) error {
+	if sc == nil {
+		return fmt.Errorf("wgpu: swapchain is nil")
+	}
+	if mode == 0 {
+		mode = PresentModeFifo
+	}
+	if sc.PresentMode == mode && sc.configured && !sc.pendingReconfigure {
+		return nil
+	}
+	sc.PresentMode = mode
+	sc.pendingReconfigure = true
 	return sc.Configure()
 }
 
