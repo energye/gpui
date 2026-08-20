@@ -173,33 +173,32 @@ func drawCloseGlyph(buf []byte, stride, bx, by, bw, bh int, c [4]byte) {
 	}
 }
 
-// drawTitleText renders the title: printable ASCII uses the embedded bitmap
-// font; non-ASCII runes are rasterized from a system font (wayland_csd_font.go,
-// e.g. Noto Sans CJK) and alpha-blended in. Widths are summed per rune so
-// mixed ASCII + CJK titles center correctly.
+// drawTitleText renders the title with the system font chain
+// (wayland_csd_font.go): every rune — Latin or CJK — is rasterized by the
+// first face that has it, at one shared size, so mixed-script titles look
+// coherent (GTK/Flutter parity). The embedded bitmap font is only the
+// no-system-font fallback ('?' for unsupported runes). Widths are summed per
+// rune so mixed ASCII + CJK titles center correctly.
 func drawTitleText(buf []byte, stride, h int, text string, c [4]byte, minX int) {
 	const padL = csdTitlePadLeft
 	if text == "" {
 		return
 	}
-	// Collect each rune's draw mode + pixel advance in one pass: bitmap glyphs
-	// are fixed 7px, system glyphs use their advance (CJK ≈13px em). System
-	// glyphs are rasterized here (and cached), so the paint pass below is a
-	// pure table walk with no locks.
+	// Collect each rune's draw mode + pixel advance in one pass. System glyphs
+	// are rasterized here (and cached), so the paint pass below is a pure
+	// table walk with no locks.
 	type item struct {
 		r   rune
 		adv int
 		g   csdGlyph
-		ok  bool // g valid (system face rendered this rune)
+		ok  bool // g valid (system font chain rendered this rune)
 	}
 	items := make([]item, 0, len(text))
 	var textW int
 	for _, r := range text {
 		it := item{r: r, adv: csdBitmapGlyphW}
-		if !isCSDBitmapRune(r) {
-			if g, ok := csdSysGlyph(r); ok {
-				it.g, it.ok, it.adv = g, true, g.advance
-			}
+		if g, ok := csdSysGlyph(r); ok {
+			it.g, it.ok, it.adv = g, true, g.advance
 		}
 		items = append(items, it)
 		textW += it.adv
@@ -217,23 +216,24 @@ func drawTitleText(buf []byte, stride, h int, text string, c [4]byte, minX int) 
 		yOff = 0
 	}
 
-	// System glyphs are vertically centered in the same 13px slot as the
-	// bitmap glyphs (yOff..yOff+glyphH), so ASCII + CJK align on one baseline
-	// regardless of the face's metrics.
 	cx := x
+	baseline := yOff + csdSysBaselineOffset()
 	for _, it := range items {
 		if cx+it.adv > limit {
 			break
 		}
 		switch {
+		case it.ok:
+			// One shared baseline for the whole line (metrics formula, see
+			// csdSysBaselineOffset), so Latin caps and CJK squares from
+			// different fallback faces sit on the same baseline.
+			blendCSDGlyph(buf, stride, cx+it.g.dx, baseline+it.g.dy, it.g, c)
 		case isCSDBitmapRune(it.r):
 			ch := byte(it.r)
 			if it.r == '–' || it.r == '—' {
 				ch = '-'
 			}
 			drawCSDBitmapGlyph(buf, stride, cx, yOff, h, ch, c)
-		case it.ok:
-			blendCSDGlyph(buf, stride, cx+it.g.dx, yOff+(csdBitmapGlyphH-it.g.height)/2, it.g, c)
 		default:
 			// No system face / missing glyph: keep the '?' placeholder.
 			drawCSDBitmapGlyph(buf, stride, cx, yOff, h, '?', c)

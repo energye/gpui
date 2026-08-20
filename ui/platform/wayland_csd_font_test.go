@@ -84,13 +84,38 @@ func TestBlendCSDGlyph(t *testing.T) {
 	}
 }
 
-// TestDrawTitleTextMixed renders an ASCII+CJK title into a 1200x32 title bar
-// and verifies the CJK rune lands after the ASCII prefix with real strokes
-// (not the '?' placeholder shape).
-func TestDrawTitleTextMixed(t *testing.T) {
-	g, ok := csdSysGlyph('层')
+// TestCSDSysGlyphLatin verifies Latin runes also render through the system
+// font chain (anti-aliased grayscale, not the hard-pixel bitmap font), so
+// ASCII and CJK share one visual size.
+func TestCSDSysGlyphLatin(t *testing.T) {
+	g, ok := csdSysGlyph('e')
 	if !ok {
-		t.Skipf("系统无 CJK 字体，跳过")
+		t.Skipf("系统无字体，跳过")
+	}
+	if g.width <= 0 || g.height <= 0 || g.advance <= 0 {
+		t.Fatalf("'e' 字形尺寸异常: %+v", g)
+	}
+	hasGray := false
+	for _, a := range g.alpha {
+		if a > 0 && a < 255 {
+			hasGray = true
+			break
+		}
+	}
+	if !hasGray {
+		t.Fatal("'e' 应为抗锯齿灰度字形（位图字体才是硬像素 0/255）")
+	}
+}
+
+// TestDrawTitleTextMixed renders an ASCII+CJK title into a 1200x32 title bar
+// and verifies all three runes land in their expected regions with real
+// strokes (system font chain; no '?' placeholder shape).
+func TestDrawTitleTextMixed(t *testing.T) {
+	ga, okA := csdSysGlyph('a')
+	gc, okC := csdSysGlyph('层')
+	gb, okB := csdSysGlyph('b')
+	if !okA || !okC || !okB {
+		t.Skipf("系统无字体，跳过")
 	}
 	const w, h = 1200, 32
 	buf := make([]byte, w*h*4)
@@ -99,57 +124,35 @@ func TestDrawTitleTextMixed(t *testing.T) {
 	}
 	drawTitleText(buf, w, h, "a层b", csdColorIcon, w-3*csdButtonW)
 
-	textW := 7 + g.advance + 7
+	textW := ga.advance + gc.advance + gb.advance
 	x := (w - textW) / 2
-	// ASCII 'a' occupies x..x+6 (bitmap glyph, 7px).
-	aPx := 0
-	for py := 0; py < h; py++ {
-		for col := 0; col < 7; col++ {
-			o := (py*w + x + col) * 4
-			if buf[o] == 0xE5 {
-				aPx++
+	regions := []struct {
+		name string
+		g    csdGlyph
+		off  int
+	}{
+		{"'a'", ga, 0},
+		{"'层'", gc, ga.advance},
+		{"'b'", gb, ga.advance + gc.advance},
+	}
+	for _, rg := range regions {
+		n := 0
+		base := x + rg.off + rg.g.dx
+		for py := 0; py < h; py++ {
+			for col := 0; col < rg.g.width; col++ {
+				px := base + col
+				if px < 0 || px >= w {
+					continue
+				}
+				o := (py*w + px) * 4
+				if buf[o] > 0x60 {
+					n++
+				}
 			}
 		}
-	}
-	if aPx == 0 {
-		t.Fatalf("ASCII 'a' 未绘制（x=%d）", x)
-	}
-	// CJK '层' occupies x+7 .. x+7+g.width. Glyph pixels are alpha-blended
-	// (anti-aliased), so assert "clearly brighter than the background"
-	// (bg B=0x2B, fg B=0xE5) instead of an exact match.
-	cjkPx := 0
-	for py := 0; py < h; py++ {
-		for col := 0; col < g.width; col++ {
-			px := x + 7 + col
-			if px < 0 || px >= w {
-				continue
-			}
-			o := (py*w + px) * 4
-			if buf[o] > 0x60 {
-				cjkPx++
-			}
+		if n == 0 {
+			t.Fatalf("%s 未绘制到标题栏 buffer（x=%d adv=%d）", rg.name, base, rg.g.advance)
 		}
-	}
-	if cjkPx == 0 {
-		t.Fatalf("'层' 未绘制到标题栏 buffer（x=%d adv=%d）", x, g.advance)
-	}
-	// The trailing 'b' must start at x+7+g.advance — ensure it exists
-	// beyond the CJK glyph (no overlap): count pixels in that band.
-	bPx := 0
-	for py := 0; py < h; py++ {
-		for col := 0; col < 7; col++ {
-			px := x + 7 + g.advance + col
-			if px < 0 || px >= w {
-				continue
-			}
-			o := (py*w + px) * 4
-			if buf[o] == 0xE5 {
-				bPx++
-			}
-		}
-	}
-	if bPx == 0 {
-		t.Fatalf("尾随 ASCII 'b' 未绘制（x=%d adv=%d）", x, g.advance)
 	}
 }
 
@@ -163,8 +166,8 @@ func benchTitleBar() []byte {
 	return buf
 }
 
-// BenchmarkDrawTitleTextASCII: pure-ASCII title (the common case) — no
-// system-font load, no glyph cache traffic.
+// BenchmarkDrawTitleTextASCII: pure-ASCII title (the common case) — all
+// runes render through the system font chain with the glyph cache hot.
 func BenchmarkDrawTitleTextASCII(b *testing.B) {
 	buf := benchTitleBar()
 	const text = "gpui ui_wr_r4_composite - Composite Present"
@@ -212,7 +215,11 @@ func BenchmarkCSDSysGlyphCold(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		r := rune(0x4E00 + i%600)
 		csdSysFontState.Lock()
-		delete(csdSysFontState.cache, r)
+		for k := range csdSysFontState.cache {
+			if k.r == r {
+				delete(csdSysFontState.cache, k)
+			}
+		}
 		csdSysFontState.Unlock()
 		csdSysGlyph(r)
 	}
@@ -230,4 +237,3 @@ func BenchmarkBlendCSDGlyph(b *testing.B) {
 		blendCSDGlyph(buf, 1200, 593, 9, g, csdColorIcon)
 	}
 }
-

@@ -1,21 +1,19 @@
 package platform
 
-// Wayland CSD 标题栏的非 ASCII 字形渲染。内嵌位图字体（wayland_csd_painter.go
-// 的 csdFont）只有 95 个可打印 ASCII 字形，标题含中文等多语言字符时全部回退
-// 成 '?'（乱码）。这里用系统字体（golang.org/x/image/font/opentype，纯 Go 无
-// cgo）栅格化非 ASCII rune，按 rune 缓存灰度位图，alpha 混合进标题栏的
-// ARGB8888 buffer——GTK parity：CSD 标题栏支持任意 UTF-8 标题。
+// Wayland CSD 标题栏文本渲染。内嵌位图字体（wayland_csd_painter.go 的 csdFont）
+// 只有 95 个可打印 ASCII 字形且字形内容偏小，与系统字体混排时中英文字号视觉
+// 不一致。这里标题栏文本整体走系统字体链（font fallback，GTK/Flutter 同款）：
+// 每个 rune 用链上第一个含其字形的 face 栅格化，英文中文同一字号同一度量，
+// 视觉协调；位图字体仅保留为「系统无任何字体」时的兜底（英文位图 + '?'）。
 //
-// 设计：ASCII（含 – — 的 '-' 映射）继续走内嵌位图字体（快、零依赖、与按钮
-// 图标同风格）；只有非 ASCII 才查系统字体。字形缓存 map[rune]csdGlyph 避免
-// 每次标题栏重绘（hover/按压/resize/title 变更）重复栅格化。找不到任何系统
-// 字体或字形缺失时回退 '?' 占位（保持可见，不崩）。
+// 字体链（按优先级）：全能 CJK 字体（自带 Latin，Noto Sans CJK 等）→ 纯 CJK
+// → 纯拉丁兜底（DejaVu）。字形按 (face, rune) 缓存灰度位图，alpha 混合进
+// 标题栏 ARGB8888 buffer。
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"golang.org/x/image/font"
@@ -23,13 +21,15 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// csdSysFontSize matches the embedded bitmap font height, so mixed ASCII +
-// CJK titles keep one visual size.
+// csdSysFontSize is the title text em size (px). It matches the bitmap font
+// slot height so the fallback path and the system path occupy the same strip.
 const csdSysFontSize = csdBitmapGlyphH
 
 // csdGlyph is a cached rasterized glyph: grayscale alpha (width*height,
-// row-major), pixel advance and the glyph's top-left offset (dx, dy) relative
-// to its placement point, derived from GlyphBounds (baseline-relative).
+// row-major), pixel advance, and the glyph's top-left offset (dx, dy)
+// relative to its baseline. dy comes from GlyphBounds (baseline-relative
+// fixed coordinates) rather than Glyph's dr rectangle, whose integer
+// coordinate space is not a stable placement reference across faces.
 type csdGlyph struct {
 	width, height int
 	advance       int
@@ -37,16 +37,24 @@ type csdGlyph struct {
 	alpha         []byte
 }
 
+// csdGlyphKey identifies a cached glyph by font-chain slot + rune.
+type csdGlyphKey struct {
+	face int
+	r    rune
+}
+
 var csdSysFontState = struct {
 	sync.Mutex
-	face    font.Face
+	faces   []font.Face
+	loaded  bool
 	loadErr error // cached first-load failure: don't rescan candidates per glyph
-	cache   map[rune]csdGlyph
-}{cache: make(map[rune]csdGlyph)} //nolint:gochecknoglobals // CSD 标题系统字体状态（懒加载 + 字形缓存）
+	cache   map[csdGlyphKey]csdGlyph
+}{cache: make(map[csdGlyphKey]csdGlyph)} //nolint:gochecknoglobals // CSD 标题字体链状态（懒加载 + 字形缓存）
 
-// csdSysFontCandidates lists system fonts able to render non-ASCII title
-// characters, CJK first (Noto Sans CJK ttc / AR PL UMing / WQY / user font
-// dir), DejaVu Sans as a last resort for non-CJK scripts.
+// csdSysFontCandidates lists system font files in chain order: all-capable
+// CJK fonts first (they carry Latin glyphs, so one face covers both scripts
+// with one visual style), then pure-CJK fonts, then a pure-Latin fallback
+// (DejaVu) for systems without any CJK font.
 func csdSysFontCandidates() []string {
 	home, _ := os.UserHomeDir()
 	return []string{
@@ -61,17 +69,18 @@ func csdSysFontCandidates() []string {
 	}
 }
 
-// loadCSDSysFace parses the first available system font candidate into a
-// font.Face. TTC collections take face 0 (e.g. Noto Sans CJK JP variants,
-// shape-compatible for the vast majority of han glyphs).
-func loadCSDSysFace() (font.Face, error) {
+// loadCSDSysFaces parses every available font candidate into a chain of
+// font.Face (priority order). TTC collections take face 0 (e.g. Noto Sans CJK
+// JP variants, shape-compatible for the vast majority of han glyphs).
+func loadCSDSysFaces() ([]font.Face, error) {
+	var faces []font.Face
 	for _, p := range csdSysFontCandidates() {
 		data, err := os.ReadFile(p)
 		if err != nil {
 			continue
 		}
 		var f *opentype.Font
-		if strings.EqualFold(filepath.Ext(p), ".ttc") {
+		if filepath.Ext(p) == ".ttc" {
 			c, err := opentype.ParseCollection(data)
 			if err != nil || c.NumFonts() == 0 {
 				continue
@@ -90,10 +99,13 @@ func loadCSDSysFace() (font.Face, error) {
 			Hinting: font.HintingFull,
 		})
 		if err == nil {
-			return face, nil
+			faces = append(faces, face)
 		}
 	}
-	return nil, fmt.Errorf("wayland csd: no system font for title text (tried %d candidates)", len(csdSysFontCandidates()))
+	if len(faces) == 0 {
+		return nil, fmt.Errorf("wayland csd: no system font for title text (tried %d candidates)", len(csdSysFontCandidates()))
+	}
+	return faces, nil
 }
 
 // fixedRound converts a 26.6 fixed value to the nearest integer pixel.
@@ -107,60 +119,82 @@ func fixedFloor(f fixed.Int26_6) int {
 	return int(f >> 6)
 }
 
-// csdSysGlyph returns the cached rasterized glyph for r, rasterizing on
-// miss. ok=false when no system face could be loaded or the glyph could not
-// be produced (caller falls back to '?').
+// csdSysGlyph returns the cached rasterized glyph for r, rasterizing on miss
+// with the first font-chain face that contains r (standard font fallback).
+// ok=false when no system face could be loaded or no face has the glyph
+// (caller falls back to the bitmap font / '?').
 func csdSysGlyph(r rune) (csdGlyph, bool) {
 	csdSysFontState.Lock()
 	defer csdSysFontState.Unlock()
-	if g, ok := csdSysFontState.cache[r]; ok {
-		return g, true
-	}
-	if csdSysFontState.face == nil {
+	if !csdSysFontState.loaded {
 		if csdSysFontState.loadErr == nil {
-			face, err := loadCSDSysFace()
+			faces, err := loadCSDSysFaces()
 			if err != nil {
 				csdSysFontState.loadErr = err
 			} else {
-				csdSysFontState.face = face
+				csdSysFontState.faces = faces
 			}
 		}
-		if csdSysFontState.face == nil {
-			return csdGlyph{}, false
+		csdSysFontState.loaded = true
+	}
+	for i, face := range csdSysFontState.faces {
+		key := csdGlyphKey{face: i, r: r}
+		if g, ok := csdSysFontState.cache[key]; ok {
+			return g, true
 		}
-	}
-	// Placement is derived from GlyphBounds (baseline-relative fixed
-	// coordinates) rather than Glyph's dr rectangle, whose integer
-	// coordinate space is not a stable placement reference across faces.
-	// Glyph is called at integer dot (0,0): the mask content is the glyph
-	// itself, dot only affects dr which we do not use.
-	gb, advance, ok := csdSysFontState.face.GlyphBounds(r)
-	if !ok {
-		return csdGlyph{}, false
-	}
-	_, mask, _, _, ok := csdSysFontState.face.Glyph(fixed.P(0, 0), r)
-	if !ok {
-		return csdGlyph{}, false
-	}
-	b := mask.Bounds()
-	g := csdGlyph{
-		width:   b.Dx(),
-		height:  b.Dy(),
-		advance: fixedRound(advance),
-		dx:      fixedFloor(gb.Min.X),
-		dy:      fixedFloor(gb.Min.Y),
-		alpha:   make([]byte, b.Dx()*b.Dy()),
-	}
-	i := 0
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			_, _, _, a := mask.At(x, y).RGBA()
-			g.alpha[i] = byte(a >> 8)
-			i++
+		// Font fallback: the first face that has the glyph wins.
+		gb, advance, ok := face.GlyphBounds(r)
+		if !ok {
+			continue
 		}
+		_, mask, _, _, ok := face.Glyph(fixed.P(0, 0), r)
+		if !ok {
+			continue
+		}
+		b := mask.Bounds()
+		g := csdGlyph{
+			width:   b.Dx(),
+			height:  b.Dy(),
+			advance: fixedRound(advance),
+			dx:      fixedFloor(gb.Min.X),
+			dy:      fixedFloor(gb.Min.Y),
+			alpha:   make([]byte, b.Dx()*b.Dy()),
+		}
+		i2 := 0
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				_, _, _, a := mask.At(x, y).RGBA()
+				g.alpha[i2] = byte(a >> 8)
+				i2++
+			}
+		}
+		csdSysFontState.cache[key] = g
+		// Defensive cap: titles are a few dozen runes; a pathological burst
+		// of distinct runes must not grow the map unbounded. A clear only
+		// re-rasterizes on next use, so the steady state is unaffected.
+		if len(csdSysFontState.cache) > 2048 {
+			csdSysFontState.cache = make(map[csdGlyphKey]csdGlyph)
+		}
+		return g, true
 	}
-	csdSysFontState.cache[r] = g
-	return g, true
+	return csdGlyph{}, false
+}
+
+// csdSysBaselineOffset returns the baseline's pixel offset from the strip
+// top (yOff), computed from the chain-head face's metrics so the text block
+// is vertically centered — Pango's formula, baseline = center -
+// (ascent+descent)/2 + ascent. One baseline is shared by every glyph on the
+// line, so fallback glyphs rasterized from different faces still sit on the
+// same baseline (each glyph's dy is baseline-relative).
+func csdSysBaselineOffset() int {
+	csdSysFontState.Lock()
+	defer csdSysFontState.Unlock()
+	if !csdSysFontState.loaded || len(csdSysFontState.faces) == 0 {
+		return csdBitmapGlyphH // bitmap fallback: slot bottom
+	}
+	m := csdSysFontState.faces[0].Metrics()
+	ascent, descent := fixedRound(m.Ascent), fixedRound(m.Descent)
+	return (csdBitmapGlyphH-ascent-descent)/2 + ascent
 }
 
 // blendCSDGlyph composites a cached glyph (grayscale alpha) into the
