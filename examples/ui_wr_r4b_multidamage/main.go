@@ -56,7 +56,7 @@ func main() {
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_wr_r4b_multidamage — DirtyLayerID + 多 damage", Decorations: true})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_wr_r4b_multidamage — DirtyLayerID + 多 damage", Decorations: true, Resizable: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)
