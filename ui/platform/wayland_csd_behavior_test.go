@@ -8,6 +8,57 @@ import (
 	"unsafe"
 )
 
+// TestWaylandCSDResizeFillsBeforeCommit: resizeSurface must swap the shm
+// buffer WITHOUT an empty gap — the new buffer is filled with the title-bar
+// content BEFORE it is attached/committed, and the old buffer/pool survive
+// until the new one is committed. Regression for "title-bar text blinks and
+// jumps position while resizing": the old order detached (attach NULL) and
+// destroyed the old buffer first, leaving the subsurface without a buffer
+// (applied immediately, desync) until paint() re-committed.
+func TestWaylandCSDResizeFillsBeforeCommit(t *testing.T) {
+	win := openTestWayland(t)
+	defer win.Close()
+
+	w := win.Host().(*wlHost).win
+	if w == nil || w.csd == nil {
+		t.Skipf("no CSD on this compositor")
+	}
+	csd := w.csd
+	top := csd.top
+	if top == nil || top.buffer == 0 || top.data == nil {
+		t.Skipf("CSD top surface not initialized")
+	}
+	oldBuf := top.buffer
+
+	csd.resize(800, 600)
+
+	if top.w != 800 || top.h != csdTitleBarHeight {
+		t.Fatalf("top after resize = %dx%d, want 800x%d", top.w, top.h, csdTitleBarHeight)
+	}
+	if top.buffer == 0 || top.data == nil {
+		t.Fatalf("resize lost the top buffer/data")
+	}
+	if top.buffer == oldBuf {
+		t.Fatalf("resize must allocate a NEW buffer, still holding the old one")
+	}
+	// The new buffer must already carry the drawn title bar (not blank/garbage
+	// at commit time): the title glyphs are bright (#DFE1E5) on the #2B2D30 bg.
+	found := false
+	for y := 0; y < top.h && !found; y++ {
+		for x := 0; x < top.w; x++ {
+			o := (y*top.w + x) * 4
+			b, g, r, a := top.data[o], top.data[o+1], top.data[o+2], top.data[o+3]
+			if a == 0xFF && r > 180 && g > 180 && b > 180 {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("top buffer after resize has no drawn title glyphs (blank before commit?)")
+	}
+}
+
 // Wayland CSD interaction-behavior tests (GTK4-aligned window capabilities):
 // release-inside button semantics, right-click caption window menu, fixed-size
 // windows showing no resize grips, and window-level pointer coordinates.

@@ -508,40 +508,64 @@ func (c *wlCSD) marshalGeometry(cw, ch int, flush bool) {
 	}
 }
 
-// resizeSurface frees the old shm buffer/pool and creates a new buffer at the
-// given size/position, keeping the wl_surface and wl_subsurface proxies.
+// fillSurface draws the surface's current buffer: the title bar (top) with
+// the full chrome, the borders fully transparent (hit-test zones only).
+func (c *wlCSD) fillSurface(s *csdSurface) {
+	if s == nil || s.data == nil {
+		return
+	}
+	if s == c.top {
+		paintTitleBar(s.data, s.w, s.h, c.state)
+	} else {
+		paintBorder(s.data, s.w, s.h)
+	}
+}
+
+// resizeSurface swaps a decoration surface to a new size/position WITHOUT an
+// empty gap: it creates the new shm buffer, draws its content, commits it
+// (desync → the compositor applies it immediately), and only then destroys
+// the old buffer/pool. The previous order — detach(NULL)+commit, destroy the
+// old buffer, recreate, then paint() — left the subsurface without a buffer
+// between the detach and the paint commit, which the compositor applies
+// right away (desync): the title bar (and its text) blinked and the text
+// jumped position on every resize step.
 func (c *wlCSD) resizeSurface(s *csdSurface, w, h, x, y int) {
 	if s == nil || c == nil || c.win == nil || c.win.lib == nil {
 		return
 	}
 	lib := c.win.lib
-	// Detach old buffer (attach NULL + commit) before destroying it.
-	// wl_surface.attach signature is "oii" (buffer, x, y) — MUST pass the
-	// three args; passing nil makes libwayland read out of bounds → SIGSEGV.
-	detach := []wlArg{argO(0), argU(0), argU(0)}
-	lib.proxyMarshalArrayFlags(s.surf, wlSurfaceAttach, 0, 0, 0, &detach[0])
-	lib.proxyMarshalArrayFlags(s.surf, wlSurfaceCommit, 0, 0, 0, nil)
-	if s.buffer != 0 {
-		lib.proxyDestroy(s.buffer)
-		s.buffer = 0
+	// Keep the OLD buffer/pool/mapping alive until the new one is committed
+	// (createBufferWith overwrites the fields).
+	old := *s
+	if err := c.createBufferWith(s, w, h); err != nil {
+		// Allocation failed: tear down whatever was allocated, restore the
+		// old buffer (still attached → keeps displaying).
+		s.destroy()
+		*s = old
+		return
 	}
-	if s.pool != 0 {
-		lib.proxyDestroy(s.pool)
-		s.pool = 0
-	}
-	if s.data != nil {
-		syscall.Munmap(s.data)
-		s.data = nil
-	}
-	if s.fd > 0 {
-		syscall.Close(s.fd)
-		s.fd = 0
-	}
-
+	// Fill the new buffer BEFORE it is shown, so the compositor never sees
+	// an empty or garbage decoration frame.
+	c.fillSurface(s)
 	// Update position on the (still-alive) subsurface.
 	pos := []wlArg{argU(uint32(int32(x))), argU(uint32(int32(y)))}
 	lib.proxyMarshalArrayFlags(s.sub, wlSubsurfaceSetPos, 0, 0, 0, &pos[0])
-	_ = c.createBufferWith(s, w, h)
+	// Attach the new buffer and commit (desync → applied immediately, with
+	// correct content — no empty window between sizes).
+	s.commit(lib)
+	// Now the old buffer is detached (replaced) — safe to tear down.
+	if old.buffer != 0 {
+		lib.proxyDestroy(old.buffer)
+	}
+	if old.pool != 0 {
+		lib.proxyDestroy(old.pool)
+	}
+	if old.data != nil {
+		syscall.Munmap(old.data)
+	}
+	if old.fd > 0 {
+		syscall.Close(old.fd)
+	}
 }
 
 // destroySurfaces frees the four decoration surfaces but keeps wl_shm and
