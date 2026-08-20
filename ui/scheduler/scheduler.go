@@ -310,8 +310,14 @@ func (s *FrameScheduler) WaitTimeout() time.Duration {
 		defer s.mu.Unlock()
 		d := s.animTick
 		if !s.lastFrameAt.IsZero() {
-			if left := time.Until(s.nextFrameBoundaryLocked()); left > 0 && left < d {
+			switch left := time.Until(s.nextFrameBoundaryLocked()); {
+			case left > 0 && left < d:
 				d = left
+			case left <= 0:
+				// Boundary already passed (a slow iteration overran it): do
+				// not sleep the full interval again — poll and let FrameDue
+				// open on the overdue deadline.
+				d = 0
 			}
 		}
 		return d
