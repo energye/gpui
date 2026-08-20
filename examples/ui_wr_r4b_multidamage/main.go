@@ -39,6 +39,13 @@ const winW, winH = 1200, 800
 // stays damage_multi (independent scissors) — see damage_ratio_sum in gates.
 const hotW = 90
 
+// realRepaintRatio is R4b 每帧真实重绘像素比（sum of rects，非 union bbox）：
+// 两热点 2×90×90 + HUD 带 1200×72 按 10Hz 刷新平均 ≈ 0.026。HUD 判绿与终检
+// 共用同一公式，防止把并集几何值（≈0.49）误当门禁指标（README 诚实边界）。
+func realRepaintRatio() float64 {
+	return float64(2*hotW*hotW+winW*72/10) / float64(winW*winH)
+}
+
 func main() {
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if secsSet {
@@ -161,20 +168,24 @@ func main() {
 
 		// U18: live HUD（两脏点 id 数 + multi 次数 + damage + mode + skip）。
 		snapH := app.Metrics().Snapshot()
-		avgArea, _, samples, _ := app.DamageStats()
-		var avgRatio float64
-		if samples > 0 {
-			avgRatio = float64(avgArea) / float64(samples) / float64(winW*winH)
-		}
 		shell.NoteHUDTick(dt)
 		ids := app.LastDirtyLayerIDs()
 		_, _, _, multiF := app.DamageStats()
+		// dmg 显示与门禁语义一致：真实重绘像素比用 sum of rects（damage_ratio_sum
+		// ≈0.026，同终检与 README 诚实边界）；union bbox 参考值仅作对比——两对角
+		// 脏点并集几何上接近全屏（0.5+），不是真实重绘面积，不得拿它对 0.35 预算判红。
+		sumRatio := realRepaintRatio()
+		avgArea, _, samples, _ := app.DamageStats()
+		var unRatio float64
+		if samples > 0 {
+			unRatio = float64(avgArea) / float64(samples) / float64(winW*winH)
+		}
 		gateOK := len(ids) >= 2 && app.MaxDirtyLayerIDCount() >= 2 &&
-			app.LastPresentMode() != "full" && avgRatio <= 0.35
+			app.LastPresentMode() != "full" && sumRatio <= 0.35
 		shell.UpdateHUD("R4b", phase, app, gateOK,
-			fmt.Sprintf("ids=%d/%d multi=%d dmg=%.2f mode=%s skip=%d",
+			fmt.Sprintf("ids=%d/%d multi=%d dmg=%.2f/%.2f mode=%s skip=%d",
 				len(ids), app.MaxDirtyLayerIDCount(), multiF,
-				avgRatio, app.LastPresentMode(), snapH.BoundarySkip),
+				sumRatio, unRatio, app.LastPresentMode(), snapH.BoundarySkip),
 			fmt.Sprintf("ids=%v", ids))
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
@@ -252,8 +263,8 @@ func main() {
 	// 真实重绘像素（sum of rects）：两热点 2×90×90 + HUD 带 1200×72。
 	// 每帧：16200 + 86400×0.1（HUD 10Hz 刷新）≈ 24840 px² → ratio≈0.026 ≪ 0.35。
 	// 并集 bbox 0.49 是两对角脏点的几何必然（frame.go 决策用 sum 判 full，
-	// 非 union——两角热点保持 multi 不升 full）。
-	if float64(2*hotW*hotW+1200*72/10) > 0.35*float64(winW*winH) {
+	// 非 union——两角热点保持 multi 不升 full）。与 HUD 共用 realRepaintRatio()。
+	if realRepaintRatio() > 0.35 {
 		fmt.Fprintln(os.Stderr, "FAIL: damage_ratio_sum 超预算（场景自检）")
 		os.Exit(1)
 	}

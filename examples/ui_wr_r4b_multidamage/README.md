@@ -24,7 +24,7 @@ GPU 真窗（X11 + wgpu）必需；无 GPU 环境 → `FAIL: window open (needs_
 | 中央 6×5 色格（各 100×80 + boundary） | 全程静止，retained 下不重绘（skip 累加） |
 | 中央 8 个 static 标签 | 全程静止，不重绘 |
 | 相位横幅 @ (360,30) | 仅相位切换时重录（STEADY→SPIKE→RECOVER） |
-| HUD 底栏 | `ids=N/MAX multi=M dmg=X mode=Y skip=Z` 实时可见；`ids≥2` 且绿色 = 门禁趋势达线 |
+| HUD 底栏 | `ids=N/MAX multi=M dmg=sum/union mode=Y skip=Z` 实时可见（sum=真实重绘像素比 damage_ratio_sum≈0.026，union=并集 bbox 参考≈0.5，几何必然非重绘面积）；`ids≥2` 且绿色 = 门禁趋势达线 |
 
 两脏点（左上+右下）同帧变脏 → 两独立 damage rect，并集不覆盖中央静区（damage_ratio≪1），present 走 damage_multi（多矩形独立 scissor）。
 
