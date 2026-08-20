@@ -52,6 +52,25 @@ type FrameScheduler struct {
 	vsyncOnce sync.Once
 	vsyncMu   sync.Mutex
 	lastVSync time.Time
+	// lastStampAt / lastStampInterval track vsync arrival cadence (all
+	// stamping paths go through stampVSyncLocked). FrameDue uses the interval
+	// to tell a fast vsync source (stamps closer than animTick — e.g. a
+	// 120Hz vblank, which must pace once per stamp) from a slow/batched one
+	// (compositor notices arriving slower than the software interval, which
+	// the software floor already covers — firing per stamp would over-render).
+	lastStampAt       time.Time
+	lastStampInterval time.Duration
+}
+
+// stampVSyncLocked records a vsync arrival with its interval. Caller holds
+// vsyncMu. Both stamping paths (compositor notice / DRM vblank) go through
+// here so FrameDue sees the same cadence signal.
+func (s *FrameScheduler) stampVSyncLocked(now time.Time) {
+	if !s.lastStampAt.IsZero() {
+		s.lastStampInterval = now.Sub(s.lastStampAt)
+	}
+	s.lastStampAt = now
+	s.lastVSync = now
 }
 
 // ensureVsyncListener starts the vsync listener goroutine once: it waits on
@@ -83,7 +102,7 @@ func (s *FrameScheduler) ensureVsyncListener(host platform.Host) {
 			for {
 				if err := v.WaitVSync(); err == nil {
 					s.vsyncMu.Lock()
-					s.lastVSync = time.Now()
+					s.stampVSyncLocked(time.Now())
 					s.vsyncMu.Unlock()
 					continue
 				}
@@ -107,7 +126,7 @@ func (s *FrameScheduler) NoteFramePresented() {
 		return
 	}
 	s.vsyncMu.Lock()
-	s.lastVSync = time.Now()
+	s.stampVSyncLocked(time.Now())
 	s.vsyncMu.Unlock()
 }
 
@@ -123,38 +142,63 @@ func (s *FrameScheduler) vsyncFresh() bool {
 	return !last.IsZero() && time.Since(last) <= vsyncFreshWindow
 }
 
+// nextFrameBoundaryLocked is the wall time the next frame may render: the
+// software interval (animTick) after the last rendered frame. Fast vsync
+// sources (stamps closer than animTick) pace via the per-stamp path in
+// FrameDue instead. Caller must hold s.mu.
+func (s *FrameScheduler) nextFrameBoundaryLocked() time.Time {
+	return s.lastFrameAt.Add(s.animTick)
+}
+
 // FrameDue is the non-blocking frame-pacing gate (Flutter frame callback
-// semantics): a frame may render when a fresh vsync signal arrived, or when
-// the software interval (animTick) has elapsed since the last rendered
-// frame. It never blocks; the caller skips rendering otherwise. The frame
-// timestamp advances only when the gate opens.
+// semantics): a frame may render when a fresh vsync signal arrived since the
+// last rendered frame, or when the software interval (animTick) has elapsed.
+// It never blocks; the caller skips rendering otherwise. The frame timestamp
+// advances only when the gate opens.
+//
+// The software floor is unconditional (not gated on the vsync signal being
+// stale): compositor frame-done notices can arrive much slower than the
+// display refresh (observed ~2×-delayed wl_surface.frame callbacks), and a
+// once-per-stamp gate alone would then throttle animation below the software
+// interval. A fresh stamp still opens the gate immediately (fast vsync
+// sources — e.g. 120Hz DRM vblank — pace at their own rate).
 func (s *FrameScheduler) FrameDue() bool {
 	if s == nil {
 		return false
 	}
 	now := time.Now()
 	s.vsyncMu.Lock()
-	lastV := s.lastVSync
-	s.vsyncMu.Unlock()
+	defer s.vsyncMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !lastV.IsZero() && now.Sub(lastV) <= vsyncFreshWindow {
-		// One frame per vsync stamp (Flutter frame-callback semantics):
-		// render only when a NEW signal arrived since the last rendered
-		// frame. A frequently-stamped waiter (DRM vblank) paces at its own
-		// rate; without this per-stamp gate the loop spun the UI thread at
-		// thousands of submits/sec while "fresh" was always true.
-		due := s.lastFrameAt.IsZero() || s.lastFrameAt.Before(lastV)
-		if due {
-			s.lastFrameAt = now
-		}
-		return due
-	}
-	due := s.lastFrameAt.IsZero() || now.Sub(s.lastFrameAt) >= s.animTick
-	if due {
+	if s.lastFrameAt.IsZero() {
+		// First frame renders unconditionally (bootstraps the pacing clock).
 		s.lastFrameAt = now
+		return true
 	}
-	return due
+	if !s.lastVSync.IsZero() && now.Sub(s.lastVSync) <= vsyncFreshWindow {
+		// Fast vsync source: stamps arriving closer than the software
+		// interval (e.g. a 120Hz vblank) pace once per stamp (Flutter
+		// frame-callback semantics). Interval 0 is the first stamp — no
+		// cadence known yet, treat it as a fresh boundary. Slow stamps
+		// (interval > animTick) are covered by the software floor below —
+		// firing per stamp would double-render between floor deadlines
+		// (observed ~2×-delayed wl_surface.frame callbacks pushing presents
+		// to ~80/s).
+		if !s.lastStampAt.IsZero() && s.lastStampInterval <= s.animTick &&
+			s.lastFrameAt.Before(s.lastVSync) {
+			s.lastFrameAt = now
+			return true
+		}
+	}
+	// Software interval pacing (also the floor while a fresh-stamp render is
+	// not due yet): the loop targets this boundary via WaitTimeout, so the
+	// gate opens on the deadline even when the loop only re-checks on events.
+	if !now.Before(s.nextFrameBoundaryLocked()) {
+		s.lastFrameAt = now
+		return true
+	}
+	return false
 }
 
 // New creates a FrameScheduler with default anim tick.
@@ -249,7 +293,10 @@ func (s *FrameScheduler) RecomputeMode() {
 }
 
 // WaitTimeout returns how long the host should WaitEvents.
-// IDLE → -1 (infinite); animating → animTick; transient with pending → 0 poll after wake.
+// IDLE → -1 (infinite); persistent → time until the next frame boundary
+// (≤animTick), so the event loop wakes exactly at the pacing deadline
+// instead of quantizing it to event-arrival boundaries; transient with
+// pending → 0 poll after wake.
 func (s *FrameScheduler) WaitTimeout() time.Duration {
 	if s == nil {
 		return -1
@@ -257,9 +304,16 @@ func (s *FrameScheduler) WaitTimeout() time.Duration {
 	s.RecomputeMode()
 	switch s.Mode() {
 	case ModePersistent:
+		s.vsyncMu.Lock()
+		defer s.vsyncMu.Unlock()
 		s.mu.Lock()
+		defer s.mu.Unlock()
 		d := s.animTick
-		s.mu.Unlock()
+		if !s.lastFrameAt.IsZero() {
+			if left := time.Until(s.nextFrameBoundaryLocked()); left > 0 && left < d {
+				d = left
+			}
+		}
 		return d
 	case ModeTransient:
 		if s.Pending() {

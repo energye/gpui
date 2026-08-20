@@ -432,7 +432,14 @@ func (a *PipelineApp) ScheduleFrame() {
 		return
 	}
 	a.sched.ScheduleFrame()
-	if a.host != nil {
+	// ModePersistent already runs WaitEvents on a ≤animTick (16ms) timeout,
+	// so the loop wakes by itself. Writing a wake byte here would only be
+	// consumed by the same thread's next WaitEvents call, which returns
+	// immediately on a wake and turns the pacing sleep into a busy spin:
+	// ticker callbacks (and their per-frame work) then run at spin rate
+	// while presents stay gated at 60fps. WakeUp stays for IDLE/TRANSIENT
+	// waits, which block indefinitely and need a cross-thread interrupt.
+	if a.host != nil && a.sched.Mode() != scheduler.ModePersistent {
 		a.host.WakeUp()
 	}
 }

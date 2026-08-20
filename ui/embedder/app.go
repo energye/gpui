@@ -106,7 +106,10 @@ func (a *App) Target() *render.PresentTarget {
 func (a *App) ScheduleFrame() {
 	if a != nil && a.sched != nil {
 		a.sched.ScheduleFrame()
-		if a.host != nil {
+		// ModePersistent runs WaitEvents on a ≤animTick (16ms) timeout, so
+		// the loop wakes by itself; a wake byte here would only be consumed
+		// by the same thread's next WaitEvents and spin the pacing sleep.
+		if a.host != nil && a.sched.Mode() != scheduler.ModePersistent {
 			a.host.WakeUp()
 		}
 	}
