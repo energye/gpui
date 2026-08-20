@@ -36,6 +36,14 @@ const (
 	csdCornerGrip     = 8
 )
 
+// Embedded title font metrics (csdFont glyphs, 6x13 each). The system-font
+// rasterizer (wayland_csd_font.go) renders at the same height so ASCII + CJK
+// titles share one visual size.
+const (
+	csdBitmapGlyphW = 7
+	csdBitmapGlyphH = 13
+)
+
 // CSD palette (ARGB8888 in memory: B,G,R,A).
 var (
 	csdColorBgFocus    = [4]byte{0x30, 0x2D, 0x2B, 0xFF} // #2B2D30
@@ -165,22 +173,37 @@ func drawCloseGlyph(buf []byte, stride, bx, by, bw, bh int, c [4]byte) {
 	}
 }
 
-// drawTitleText renders the title with the embedded bitmap font, centered by
-// default, clipped before the buttons (minX).
+// drawTitleText renders the title: printable ASCII uses the embedded bitmap
+// font; non-ASCII runes are rasterized from a system font (wayland_csd_font.go,
+// e.g. Noto Sans CJK) and alpha-blended in. Widths are summed per rune so
+// mixed ASCII + CJK titles center correctly.
 func drawTitleText(buf []byte, stride, h int, text string, c [4]byte, minX int) {
-	const (
-		glyphW = 7
-		glyphH = 13
-		padL   = csdTitlePadLeft
-	)
+	const padL = csdTitlePadLeft
 	if text == "" {
 		return
 	}
-	var runeCount int
-	for range text {
-		runeCount++
+	// Collect each rune's draw mode + pixel advance in one pass: bitmap glyphs
+	// are fixed 7px, system glyphs use their advance (CJK ≈13px em). System
+	// glyphs are rasterized here (and cached), so the paint pass below is a
+	// pure table walk with no locks.
+	type item struct {
+		r   rune
+		adv int
+		g   csdGlyph
+		ok  bool // g valid (system face rendered this rune)
 	}
-	textW := runeCount * glyphW
+	items := make([]item, 0, len(text))
+	var textW int
+	for _, r := range text {
+		it := item{r: r, adv: csdBitmapGlyphW}
+		if !isCSDBitmapRune(r) {
+			if g, ok := csdSysGlyph(r); ok {
+				it.g, it.ok, it.adv = g, true, g.advance
+			}
+		}
+		items = append(items, it)
+		textW += it.adv
+	}
 
 	// x: center in the full width, fall back to left pad when it would
 	// overlap the buttons.
@@ -188,48 +211,63 @@ func drawTitleText(buf []byte, stride, h int, text string, c [4]byte, minX int) 
 	limit := minX - padL
 	if x < padL || x+textW > limit {
 		x = padL
-		if x+textW > limit {
-			x = padL // clipped per-glyph below
-		}
 	}
-	yOff := (h - glyphH) / 2
+	yOff := (h - csdBitmapGlyphH) / 2
 	if yOff < 0 {
 		yOff = 0
 	}
 
+	// System glyphs are vertically centered in the same 13px slot as the
+	// bitmap glyphs (yOff..yOff+glyphH), so ASCII + CJK align on one baseline
+	// regardless of the face's metrics.
 	cx := x
-	for _, r := range text {
-		if cx+glyphW > limit {
+	for _, it := range items {
+		if cx+it.adv > limit {
 			break
 		}
-		var ch byte
 		switch {
-		case r >= 32 && r <= 126:
-			ch = byte(r)
-		case r == '–' || r == '—':
-			ch = '-'
+		case isCSDBitmapRune(it.r):
+			ch := byte(it.r)
+			if it.r == '–' || it.r == '—' {
+				ch = '-'
+			}
+			drawCSDBitmapGlyph(buf, stride, cx, yOff, h, ch, c)
+		case it.ok:
+			blendCSDGlyph(buf, stride, cx+it.g.dx, yOff+(csdBitmapGlyphH-it.g.height)/2, it.g, c)
 		default:
-			ch = '?'
+			// No system face / missing glyph: keep the '?' placeholder.
+			drawCSDBitmapGlyph(buf, stride, cx, yOff, h, '?', c)
 		}
-		g := csdFont[ch-32]
-		for row := 0; row < glyphH; row++ {
-			bits := g[row]
-			py := yOff + row
-			if py >= h {
-				break
-			}
-			for col := 0; col < 6; col++ {
-				if bits&(0x80>>uint(col)) != 0 {
-					putPx(buf, stride, cx+col, py, c[2], c[1], c[0])
-				}
+		cx += it.adv
+	}
+}
+
+// isCSDBitmapRune reports whether r is drawn by the embedded bitmap font:
+// printable ASCII, plus en/em dash mapped to '-'.
+func isCSDBitmapRune(r rune) bool {
+	return r >= 32 && r <= 126 || r == '–' || r == '—'
+}
+
+// drawCSDBitmapGlyph paints one embedded bitmap glyph at (x, yOff).
+func drawCSDBitmapGlyph(buf []byte, stride, x, yOff, h int, ch byte, c [4]byte) {
+	g := csdFont[ch-32]
+	for row := 0; row < csdBitmapGlyphH; row++ {
+		bits := g[row]
+		py := yOff + row
+		if py >= h {
+			break
+		}
+		for col := 0; col < 6; col++ {
+			if bits&(0x80>>uint(col)) != 0 {
+				putPx(buf, stride, x+col, py, c[2], c[1], c[0])
 			}
 		}
-		cx += glyphW
 	}
 }
 
 // csdFont: 95 glyphs for printable ASCII 32..126, 6x13 each
 // (stride 6, 13 rows, MSB = leftmost). Classic fixed-width font.
+//
 //nolint:gochecknoglobals // embedded font data
 var csdFont = [95][13]byte{
 	{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // ' '
