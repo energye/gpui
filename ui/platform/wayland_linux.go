@@ -433,9 +433,19 @@ type wlWin struct {
 	closed        bool
 	closeReq      bool // xdg close / CSD ✕ request (→ EventCloseRequested)
 	resized       bool
-	hidden        bool // Hide()/Options.Visible=false: surface stack detached (window unmapped)
-	decorated     bool // Options.Decorations at create (re-applied on show re-create)
-	recreated     bool // showNative rebuilt the stack; poll emits EventHidden{false} after the re-map configure
+	// maxContentH anchors the content height of the current maximized
+	// (chrome-visible) session. wlTopConfigure may receive the FULL work-area
+	// height (content + title bar → shrink by csdTitleBarHeight) OR — once
+	// the declared window geometry (content area) took effect — the content
+	// height itself (mutter switches between the two across focus toggles;
+	// observed 1868x1053 and 1868x1021 alternating on switch-away/back).
+	// Blindly subtracting the title-bar height double-counts on the
+	// content-height configure and shrinks the window bottom by 32px. Reset
+	// on non-maximized configures and work-area changes (width change).
+	maxContentH int
+	hidden      bool // Hide()/Options.Visible=false: surface stack detached (window unmapped)
+	decorated   bool // Options.Decorations at create (re-applied on show re-create)
+	recreated   bool // showNative rebuilt the stack; poll emits EventHidden{false} after the re-map configure
 	// resizing mirrors the xdg_toplevel "resizing" configure state (3): the
 	// compositor sets it while an interactive move/resize drag is in flight
 	// and clears it when the drag ends. Read-only diagnostic for apps/tests
@@ -500,10 +510,10 @@ type wlWin struct {
 	dndMu     sync.Mutex
 	dndEvents []Event
 
-	regListener [2]uintptr
-	wmListener  [1]uintptr
-	xdgListener [1]uintptr
-	topListener [2]uintptr
+	regListener  [2]uintptr
+	wmListener   [1]uintptr
+	xdgListener  [1]uintptr
+	topListener  [2]uintptr
 	decoListener [1]uintptr
 	// frameListener is the wl_callback_listener (single done entry); created
 	// once and re-attached per in-flight frame request (survives the
@@ -1183,13 +1193,33 @@ func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	}
 	if wi > 0 && hi > 0 {
 		// Maximized (not fullscreen): the compositor configures the FULL
-		// work area, but the content must shrink by the title-bar height —
-		// the bar (subsurface at (0,-32)) occupies the work area's top
-		// strip, so total window (content + chrome) == work area and the
-		// bar stays visible when maximized (§6). Fullscreen keeps the full
-		// configure size (no chrome shown).
+		// work area — the content must shrink by the title-bar height (the
+		// bar (subsurface at (0,-32)) occupies the work area's top strip,
+		// so total window (content + chrome) == work area and the bar stays
+		// visible when maximized, §6). Fullscreen keeps the full configure
+		// size (no chrome shown).
+		//
+		// BUT the configure may also arrive as the CONTENT height itself:
+		// once the declared window geometry (content area) took effect,
+		// mutter can switch the configured size between the frame-rect
+		// (work area, +32) and the geometry (content) size on the same
+		// focus/activate toggle. Blindly subtracting here double-counts and
+		// shrinks the window bottom by the title-bar height on switch-away/
+		// back. Anchor on the last maximized content height: a configure
+		// taller than it is a full-work-area configure (shrink), one equal
+		// to it is already content-sized (keep).
+		if w.width > 0 && int(wi) != w.width {
+			w.maxContentH = 0 // work-area / monitor change → re-anchor
+		}
 		if w.csd != nil && w.csd.visible && states.maximized && !states.fullscreen && hi > int32(csdTitleBarHeight) {
-			hi -= int32(csdTitleBarHeight)
+			if w.maxContentH <= 0 || int(hi) > w.maxContentH {
+				hi -= int32(csdTitleBarHeight)
+			}
+			if int(hi) > w.maxContentH {
+				w.maxContentH = int(hi)
+			}
+		} else {
+			w.maxContentH = 0
 		}
 		if w.width != int(wi) || w.height != int(hi) {
 			w.width, w.height = int(wi), int(hi)
