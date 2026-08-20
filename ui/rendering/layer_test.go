@@ -222,3 +222,49 @@ func TestCompositingBits_Propagate(t *testing.T) {
 		t.Fatal("leaf alwaysNeeds")
 	}
 }
+
+// TestBuildLayerTree_NestedBoundaryInnerDirtyOnly locks the retained
+// integration contract exposed by the C2 combined window: an inner repaint
+// boundary's repaint must produce exactly its own DirtyLayerID — nested
+// ancestors must NOT re-record (they only re-composite by blitting the
+// child's updated texture; Flutter RepaintBoundary semantics). Before the
+// layerSubtreeNeedsPaint fix, SubtreeNeedsPaint's penetrating walk forced
+// every nested ancestor into DirtyLayerIDs every frame → full re-record,
+// texture churn, RSS growth.
+func TestBuildLayerTree_NestedBoundaryInnerDirtyOnly(t *testing.T) {
+	scene.ResetLayerIDGen()
+	hot := rendering.NewRenderColorBox(10, 10, 1, 0, 0, 1)
+	inner := rendering.NewRenderBox(hot)
+	inner.FixedWidth, inner.FixedHeight = 40, 40
+	inner.SetRepaintBoundary(true)
+	outer := rendering.NewRenderBox(inner)
+	outer.FixedWidth, outer.FixedHeight = 80, 80
+	outer.SetRepaintBoundary(true)
+	root := rendering.NewRenderBox(outer)
+	root.FixedWidth, root.FixedHeight = 120, 120
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: 120, Height: 120}, true)
+	var v int64
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &v}, true)
+
+	// Inner-only dirty: the dirty set is exactly [inner boundary, hot content
+	// picture] — the outer boundary (ancestor) must NOT be in it (it only
+	// re-composites by blitting inner's updated texture). The tree has exactly
+	// two boundaries, so a penetrating walk (the bug) would also add outer → 3.
+	hot.MarkNeedsPaint()
+	b := rendering.BuildLayerTree(root)
+	pkt := b.BuildPacket(1, 1, 120, 120)
+	if len(pkt.DirtyLayerIDs) != 2 {
+		t.Fatalf("inner-only dirty must dirty only inner boundary + its content (2 ids), got %v (ancestors must not re-record)", pkt.DirtyLayerIDs)
+	}
+
+	// Outer self-dirty (its own background changed) must re-record outer.
+	var v2 int64
+	owner.FlushPaint(&rendering.PaintContext{PaintVisits: &v2}, true) // clear inner dirty
+	outer.MarkNeedsPaint()
+	b2 := rendering.BuildLayerTree(root)
+	pkt2 := b2.BuildPacket(2, 1, 120, 120)
+	if len(pkt2.DirtyLayerIDs) < 1 {
+		t.Fatalf("outer self-dirty must re-record outer, ids=%v", pkt2.DirtyLayerIDs)
+	}
+}

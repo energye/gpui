@@ -26,6 +26,34 @@ func BuildLayerTree(root RenderObject) *scene.LayerBuilder {
 	return b
 }
 
+// layerSubtreeNeedsPaint is the layer-build dirty check: like
+// SubtreeNeedsPaint but stops at nested repaint boundaries. A child
+// boundary's dirty state produces its own DirtyLayerID — it re-records
+// independently, and the ancestor only re-composites by blitting the child's
+// updated texture (Flutter RepaintBoundary semantics; BoundaryCache.tryReplay
+// documents the same contract). Without the stop the inner boundary's every
+// repaint forces every nested ancestor into DirtyLayerIDs → needless full
+// re-record (texture churn, RSS growth). Paint-walk callers keep the
+// penetrating SubtreeNeedsPaint (they must walk in to inspect child
+// boundaries), so this helper is layer-build only.
+func layerSubtreeNeedsPaint(n RenderObject) bool {
+	if n == nil {
+		return false
+	}
+	if n.NeedsPaint() {
+		return true
+	}
+	for _, c := range n.Children() {
+		if c.IsRepaintBoundary() {
+			continue // child boundary re-records itself; ancestor only re-composites
+		}
+		if layerSubtreeNeedsPaint(c) {
+			return true
+		}
+	}
+	return false
+}
+
 func appendNode(n RenderObject, b *scene.LayerBuilder) {
 	if n == nil || b == nil {
 		return
@@ -36,7 +64,7 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 	if tr, ok := n.(*RenderTransform); ok {
 		rot, sx, sy := tr.TransformParams()
 		if n.IsRepaintBoundary() {
-			b.PushBoundary(off.X, off.Y, "transform", n.NeedsPaint() || SubtreeNeedsPaint(n))
+			b.PushBoundary(off.X, off.Y, "transform", n.NeedsPaint() || layerSubtreeNeedsPaint(n))
 			b.PushTransform(0, 0, rot, sx, sy)
 			for _, ch := range n.Children() {
 				appendNode(ch, b)
@@ -63,7 +91,7 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 	// Offset establishes local origin; clip is (0,0,w,h) in that space so children nest under it.
 	if cr, ok := n.(*RenderClipRRect); ok {
 		w, h, radius := cr.ClipRRectParams()
-		dirty := n.NeedsPaint() || SubtreeNeedsPaint(n)
+		dirty := n.NeedsPaint() || layerSubtreeNeedsPaint(n)
 		if n.IsRepaintBoundary() {
 			b.PushBoundary(off.X, off.Y, "clip_rrect", dirty)
 			b.PushClipRRect(0, 0, w, h, radius)
@@ -91,7 +119,7 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 	}
 
 	if n.IsRepaintBoundary() {
-		b.PushBoundary(off.X, off.Y, typeName(n), n.NeedsPaint() || SubtreeNeedsPaint(n))
+		b.PushBoundary(off.X, off.Y, typeName(n), n.NeedsPaint() || layerSubtreeNeedsPaint(n))
 		addOwnContent(b, n)
 		for _, ch := range n.Children() {
 			appendNode(ch, b)
