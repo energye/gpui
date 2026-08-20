@@ -44,14 +44,14 @@ func TestWaylandCSDCursorNamesResolve(t *testing.T) {
 		return imgArr != 0 && *(*uintptr)(unsafe.Pointer(imgArr)) != 0
 	}
 	for edge, names := range map[int][]string{
-		resizeTop:              {"sb_v_double_arrow"},
-		resizeBottom:           {"sb_v_double_arrow"},
-		resizeLeft:             {"sb_h_double_arrow"},
-		resizeRight:            {"sb_h_double_arrow"},
-		resizeTopLeft:          {"nwse-resize", "top_left_corner"},
-		resizeBottomRight:      {"nwse-resize", "top_left_corner"},
-		resizeTopRight:         {"nesw-resize", "top_right_corner"},
-		resizeBottomLeft:       {"nesw-resize", "top_right_corner"},
+		resizeTop:         {"sb_v_double_arrow"},
+		resizeBottom:      {"sb_v_double_arrow"},
+		resizeLeft:        {"sb_h_double_arrow"},
+		resizeRight:       {"sb_h_double_arrow"},
+		resizeTopLeft:     {"nwse-resize", "top_left_corner", "bottom_right_corner"},
+		resizeTopRight:    {"nesw-resize", "top_right_corner", "bottom_left_corner"},
+		resizeBottomLeft:  {"nesw-resize", "bottom_left_corner", "top_right_corner"},
+		resizeBottomRight: {"nwse-resize", "bottom_right_corner", "top_left_corner"},
 	} {
 		ok := false
 		for _, n := range names {

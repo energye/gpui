@@ -69,11 +69,11 @@ const (
 	//   show_window_menu(4) move(5) resize(6) set_max_size(7)
 	//   set_min_size(8) set_maximized(9) unset_maximized(10)
 	//   set_fullscreen(11) unset_fullscreen(12) set_minimized(13)
-	xdgToplevelShowMenu    = 4
-	xdgToplevelMove        = 5
-	xdgToplevelResize      = 6
+	xdgToplevelShowMenu     = 4
+	xdgToplevelMove         = 5
+	xdgToplevelResize       = 6
 	xdgToplevelSetMaximized = 9
-	xdgToplevelUnsetMaxim  = 10
+	xdgToplevelUnsetMaxim   = 10
 	xdgToplevelSetMinimized = 13
 )
 
@@ -1034,21 +1034,30 @@ func (c *wlCSD) toggleMaximize() {
 // --- resize cursor (system cursor theme via wl_pointer.set_cursor) ---
 
 // cursorNamesForEdge returns candidate X cursor names for a resize edge, in
-// priority order. Corners use the standard diagonal double-arrow names
-// (nwse/nesw-resize) — what Yaru (the user's gsettings theme) draws as the
-// proper double arrow; classic themes (DMZ-White via the "default" fallback,
-// Adwaita) lack them, so top_left/top_right_corner (diagonal double arrows
-// in those themes) are the fallback.
+// priority order: the standard diagonal double-arrow names (nwse/nesw-resize
+// — what Yaru and other modern themes draw as the proper double arrow) first,
+// then the per-corner CLASSIC name (top_left/top_right/bottom_left/
+// bottom_right_corner). Classic themes (DMZ-White via the "default" fallback,
+// Adwaita) lack the modern names, and their classic corner cursors are drawn
+// head-at-that-corner — so the bottom corners MUST fall back to
+// bottom_left/bottom_right_corner, not the top-corner names (v1.12 only
+// added the top two: the bottom corners then showed the top-corner arrows,
+// "bottom corners look like top corners"). The same-direction opposite
+// corner name is the last resort (Adwaita lacks bottom_*_corner entirely).
 func cursorNamesForEdge(edge int) []string {
 	switch edge {
 	case resizeTop, resizeBottom:
 		return []string{"sb_v_double_arrow"}
 	case resizeLeft, resizeRight:
 		return []string{"sb_h_double_arrow"}
-	case resizeTopLeft, resizeBottomRight:
-		return []string{"nwse-resize", "top_left_corner"}
-	case resizeTopRight, resizeBottomLeft:
-		return []string{"nesw-resize", "top_right_corner"}
+	case resizeTopLeft:
+		return []string{"nwse-resize", "top_left_corner", "bottom_right_corner"}
+	case resizeTopRight:
+		return []string{"nesw-resize", "top_right_corner", "bottom_left_corner"}
+	case resizeBottomLeft:
+		return []string{"nesw-resize", "bottom_left_corner", "top_right_corner"}
+	case resizeBottomRight:
+		return []string{"nwse-resize", "bottom_right_corner", "top_left_corner"}
 	}
 	return nil
 }

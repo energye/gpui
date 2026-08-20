@@ -211,14 +211,14 @@ func TestWaylandCSDHiddenChromeResizeZones(t *testing.T) {
 		x, y float64
 		edge int
 	}{
-		{1, 1, resizeTopLeft},                 // 标题栏左上角 → 窗口左上角
-		{fw - 2, 1, resizeTopRight},           // 标题栏右上角 → 窗口右上角
-		{fw / 2, 1, resizeTop},                // 标题栏上边 → 窗口上边
-		{1, fh - 2, resizeBottomLeft},         // 窗口左下角
-		{fw - 2, fh - 2, resizeBottomRight},   // 窗口右下角
-		{1, fh / 2, resizeLeft},               // 窗口左边
-		{fw - 2, fh / 2, resizeRight},         // 窗口右边
-		{fw / 2, fh - 1, resizeBottom},        // 窗口下边
+		{1, 1, resizeTopLeft},               // 标题栏左上角 → 窗口左上角
+		{fw - 2, 1, resizeTopRight},         // 标题栏右上角 → 窗口右上角
+		{fw / 2, 1, resizeTop},              // 标题栏上边 → 窗口上边
+		{1, fh - 2, resizeBottomLeft},       // 窗口左下角
+		{fw - 2, fh - 2, resizeBottomRight}, // 窗口右下角
+		{1, fh / 2, resizeLeft},             // 窗口左边
+		{fw - 2, fh / 2, resizeRight},       // 窗口右边
+		{fw / 2, fh - 1, resizeBottom},      // 窗口下边
 	}
 	for _, z := range zones {
 		hit := csd.hitTest(w.surface, z.x, z.y)
@@ -321,8 +321,8 @@ func TestWaylandCSDCursorApply(t *testing.T) {
 		t.Fatalf("resize-left cursor = %q, want sb_h_double_arrow (theme/surface init failed?)", csd.curName)
 	}
 	csd.setCursor(901, csdHit{act: csdActResize, edge: resizeBottomRight})
-	if csd.curName != "top_left_corner" {
-		t.Fatalf("resize-BR cursor = %q, want top_left_corner", csd.curName)
+	if csd.curName != "bottom_right_corner" && csd.curName != "nwse-resize" && csd.curName != "top_left_corner" {
+		t.Fatalf("resize-BR cursor = %q, want bottom_right_corner, nwse-resize or top_left_corner (classic themes use the per-corner bottom name)", csd.curName)
 	}
 	// Back to the default arrow. mutter treats set_cursor(NULL) as "hide
 	// the pointer" (empty surface = invisible), so the restore must
@@ -377,6 +377,18 @@ func TestWaylandCSDCursorHotspot(t *testing.T) {
 	csd.setCursor(912, csdHit{act: csdActResize, edge: resizeTopRight})
 	if csd.curName != "nesw-resize" && csd.curName != "top_right_corner" {
 		t.Fatalf("top-right corner cursor = %q, want nesw-resize or top_right_corner", csd.curName)
+	}
+	// Bottom corners must resolve to their OWN classic name (bottom_left/
+	// bottom_right_corner) — classic themes lack nwse/nesw, and falling back
+	// to the top-corner names made the bottom corners show the top-corner
+	// arrows ("bottom corners look like top corners").
+	csd.setCursor(913, csdHit{act: csdActResize, edge: resizeBottomLeft})
+	if csd.curName != "nesw-resize" && csd.curName != "bottom_left_corner" && csd.curName != "top_right_corner" {
+		t.Fatalf("bottom-left corner cursor = %q, want nesw-resize, bottom_left_corner or top_right_corner", csd.curName)
+	}
+	csd.setCursor(914, csdHit{act: csdActResize, edge: resizeBottomRight})
+	if csd.curName != "nwse-resize" && csd.curName != "bottom_right_corner" && csd.curName != "top_left_corner" {
+		t.Fatalf("bottom-right corner cursor = %q, want nwse-resize, bottom_right_corner or top_left_corner", csd.curName)
 	}
 	// The cursor image's wl_buffer must come from wl_cursor_image_get_buffer
 	// (the struct does not store it). A garbage value sent to attach makes
