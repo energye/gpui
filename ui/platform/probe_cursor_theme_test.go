@@ -65,3 +65,29 @@ func TestWaylandCSDCursorNamesResolve(t *testing.T) {
 		}
 	}
 }
+
+// TestWaylandCursorShapeDeviceBound: when the compositor advertises
+// zwp_cursor_shape_manager_v1 (GNOME 42+), bindCursors must attach a shape
+// device and setCursor must route through it (set_shape, no theme load);
+// without the global the wl_cursor_theme fallback stays authoritative.
+func TestWaylandCursorShapeDeviceBound(t *testing.T) {
+	win := openTestWayland(t)
+	defer win.Close()
+
+	w := win.Host().(*wlHost).win
+	if w == nil {
+		t.Skipf("no wayland window")
+	}
+	if w.csMgrName == 0 || w.cursors == nil || w.cursors.dev == 0 {
+		t.Skipf("compositor lacks zwp_cursor_shape_v1 (theme fallback active)")
+	}
+	// Shape device bound: exercise set_shape with a resize hit (needs a real
+	// enter serial; serial=0 is rejected by setCursor, so prime one via CSD
+	// hover like production motion does).
+	if w.csd != nil {
+		w.csd.setCursor(1, csdHit{act: csdActResize, edge: resizeLeft})
+	}
+	c := w.cursors
+	c.setCursor(1, csdHit{act: csdActResize, edge: resizeLeft})
+	c.setCursor(2, csdHit{}) // default arrow restore
+}

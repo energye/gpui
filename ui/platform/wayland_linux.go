@@ -217,6 +217,7 @@ var (
 	xdgNames = struct {
 		wmBase, surface, toplevel      []byte
 		decoMgr, decoTop               []byte
+		cursorShapeMgr, cursorShapeDev []byte
 		mDestroy, mGetXdg, mPong       []byte
 		mGetTop, mAck                  []byte
 		mGetPopup, mSetGeom            []byte
@@ -239,6 +240,8 @@ var (
 		toplevel:      append([]byte("xdg_toplevel"), 0),
 		decoMgr:       append([]byte("zxdg_decoration_manager_v1"), 0),
 		decoTop:       append([]byte("zxdg_toplevel_decoration_v1"), 0),
+		cursorShapeMgr: append([]byte("zwp_cursor_shape_manager_v1"), 0),
+		cursorShapeDev: append([]byte("zwp_cursor_shape_device_v1"), 0),
 		mDestroy:      append([]byte("destroy"), 0),
 		mGetXdg:       append([]byte("get_xdg_surface"), 0),
 		mPong:         append([]byte("pong"), 0),
@@ -286,6 +289,8 @@ var (
 	ifaceXdgToplevel wlInterfaceC
 	ifaceDecoMgr     wlInterfaceC
 	ifaceDecoTop     wlInterfaceC
+	ifaceCursorShapeMgr   wlInterfaceC
+	ifaceCursorShapeDevice wlInterfaceC
 
 	msgWmBase    [4]wlMessageC
 	msgWmBaseEv  [1]wlMessageC
@@ -296,6 +301,8 @@ var (
 	msgDecoMgr   [2]wlMessageC
 	msgDecoTop   [3]wlMessageC
 	msgDecoTopEv [1]wlMessageC
+	msgCursorShapeMgr   [1]wlMessageC
+	msgCursorShapeDev   [1]wlMessageC
 
 	typesXdgSurf [2]uintptr
 	typesTop     [1]uintptr
@@ -397,6 +404,20 @@ func initXDGInterfaces(ifaceSurface, ifaceSeat, ifaceOutput uintptr) {
 		MethodCount: 2, Methods: uintptr(unsafe.Pointer(&msgDecoMgr[0])),
 		EventCount: 0, Events: 0,
 	}
+	// zwp_cursor_shape_manager_v1 requests: destroy + get_pointer_device(?o new_id).
+	msgCursorShapeMgr[0] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sEmpty), Types: 0}
+	ifaceCursorShapeMgr = wlInterfaceC{
+		Name: cstr(xdgNames.cursorShapeMgr), Version: 1,
+		MethodCount: 2, Methods: uintptr(unsafe.Pointer(&msgCursorShapeMgr[0])),
+		EventCount: 0, Events: 0,
+	}
+	// zwp_cursor_shape_device_v1 requests: destroy + set_shape(u serial, u shape).
+	msgCursorShapeDev[0] = wlMessageC{Name: cstr(xdgNames.mDestroy), Signature: cstr(xdgNames.sEmpty), Types: 0}
+	ifaceCursorShapeDevice = wlInterfaceC{
+		Name: cstr(xdgNames.cursorShapeDev), Version: 1,
+		MethodCount: 2, Methods: uintptr(unsafe.Pointer(&msgCursorShapeDev[0])),
+		EventCount: 0, Events: 0,
+	}
 	_ = typesEmpty
 }
 
@@ -416,6 +437,8 @@ type wlWin struct {
 	compName, compVer uint32
 	wmName, wmVer     uint32
 	decoName, decoVer uint32
+	csMgrName         uint32  // zwp_cursor_shape_manager_v1 global (0 = absent)
+	csMgrVer          uint32
 	decoMgr           uintptr
 	decoTop           uintptr
 	tiMgrName         uint32  // zwp_text_input_manager_v3 global name (0 = absent)
@@ -491,6 +514,12 @@ type wlWin struct {
 	kbd *wlKeyboardState
 	// pointer (wl_pointer) standard mouse input.
 	ptr *wlPointerState
+	// cursors holds the zwp_cursor_shape_v1 strategy (compositor-rendered
+	// cursor), nil when the manager global is absent — pointer handling then
+	// falls back to the wl_cursor_theme path in wlCSD.
+	cursors *wlCursors
+	// cursorThemeShm is the lazily bound wl_shm for the cursor fallback.
+	cursorThemeShm uintptr
 	// csd holds client-side decorations (title bar + borders), nil when
 	// frameless or the compositor lacks wl_shm/wl_subcompositor.
 	csd *wlCSD
@@ -939,6 +968,20 @@ func (w *wlWin) top1o(op uint32, obj uintptr) {
 }
 
 // activeCursor returns the controller-set cursor ("" free of side effects).
+// cursorShm returns a bound wl_shm for the cursor-theme fallback, binding
+// it on first use (independent of the CSD's shm — frameless windows need
+// cursors too). Returns 0 when wl_shm is unavailable.
+func (w *wlWin) cursorShm() uintptr {
+	if w == nil || w.lib == nil || w.shmName == 0 {
+		return 0
+	}
+	if w.cursorThemeShm != 0 {
+		return w.cursorThemeShm
+	}
+	w.cursorThemeShm = w.bind(w.registry, w.shmName, w.lib.ifaceShm, 1)
+	return w.cursorThemeShm
+}
+
 func (w *wlWin) activeCursor() Cursor {
 	if w == nil {
 		return CursorDefault
@@ -1047,6 +1090,10 @@ func wlRegistryGlobal(data, registry, name, iface, version uintptr) {
 		w.wmName, w.wmVer = n, v
 	case "zxdg_decoration_manager_v1":
 		w.decoName, w.decoVer = n, v
+	case "zwp_cursor_shape_manager_v1":
+		// Compositor-side cursor rendering (GTK4/GNOME 42+ model): the
+		// client sends one shape enum per enter/motion; no theme/shm needed.
+		w.csMgrName, w.csMgrVer = n, v
 	case "zwp_text_input_manager_v3":
 		w.tiMgrName = n
 	case "wl_seat":

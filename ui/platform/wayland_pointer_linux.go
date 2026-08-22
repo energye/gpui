@@ -132,6 +132,10 @@ func (w *wlWin) bindPointer() *wlPointerState {
 	if st.ptr == 0 {
 		return nil
 	}
+	// zwp_cursor_shape_device_v1 (compositor-rendered cursor): attach when
+	// the manager global was advertised; nil → callers fall back to the
+	// wl_cursor_theme path.
+	w.cursors = w.bindCursors(st.ptr)
 	// All 9 wl_pointer events must have a slot.
 	st.listener[wlPtrEnter] = purego.NewCallback(wlPtrEnterCB)
 	st.listener[wlPtrLeave] = purego.NewCallback(wlPtrLeaveCB)
@@ -152,6 +156,10 @@ func (w *wlWin) bindPointer() *wlPointerState {
 func (st *wlPointerState) destroy() {
 	if st == nil {
 		return
+	}
+	if st.win != nil && st.win.cursors != nil {
+		st.win.cursors.destroy()
+		st.win.cursors = nil
 	}
 	if st.ptr != 0 && st.lib != nil {
 		st.lib.proxyDestroy(st.ptr)
@@ -207,6 +215,23 @@ func (st *wlPointerState) appXY(surface uintptr, x, y float64) (float64, float64
 	return st.win.csd.appCoords(surface, x, y)
 }
 
+
+// applyCursor routes the cursor update: the zwp_cursor_shape_v1 device when
+// bound (compositor-rendered; no client image traffic), else the CSD
+// wl_cursor_theme path. hit==csdHit{} restores the default arrow.
+func (st *wlPointerState) applyCursor(serial uintptr, hit csdHit) {
+	if st == nil || st.win == nil {
+		return
+	}
+	if c := st.win.cursors; c != nil && c.dev != 0 {
+		c.setCursor(serial, hit)
+		return
+	}
+	if c := st.win.csd; c != nil {
+		c.setCursor(serial, hit)
+	}
+}
+
 // leaveWindow pushes the window-level PointerLeave and clears chrome state
 // (hover highlight + cursor).
 func (st *wlPointerState) leaveWindow(serial uintptr) {
@@ -256,10 +281,11 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 		st.surface = surface
 		st.enterSerial = serial
 		st.lastX, st.lastY = x, y
+		hit := csdHit{}
 		if c := st.win.csd; c != nil {
-			hit := c.onHover(surface, x, y)
-			c.setCursor(serial, hit)
+			hit = c.onHover(surface, x, y)
 		}
+		st.applyCursor(serial, hit)
 		ax, ay := st.appXY(surface, x, y)
 		st.win.pushPtr(Event{Type: EventPointer, Pointer: PointerMove, X: ax, Y: ay})
 		return
@@ -279,10 +305,11 @@ func wlPtrEnterCB(data, ptr, serial, surface, sx, sy uintptr) {
 	st.surface = surface
 	st.enterSerial = serial
 	st.lastX, st.lastY = x, y
+	hit := csdHit{}
 	if c := st.win.csd; c != nil {
-		hit := c.onHover(surface, x, y)
-		c.setCursor(serial, hit)
+		hit = c.onHover(surface, x, y)
 	}
+	st.applyCursor(serial, hit)
 	ax, ay := st.appXY(surface, x, y)
 	st.win.pushPtr(Event{
 		Type:    EventPointer,
