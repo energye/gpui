@@ -403,7 +403,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | **C5** | R6+R3+R4 | `ui_wr_c5_anim_over_static` | **1200×800** | **30** | 层动画盖在静态缓存上 | hitch；静不闪 | **W5** |
 | **C6** | R18+R3 | `ui_wr_c6_savelayer_group` | **1200×800** | **10** | 离屏组 + boundary | savelayer_* | W2/W5 |
 | **C7** | R11+R19+R3 | `ui_wr_c7_resize_dpr` | **1200×800** | **15** | 改尺寸/DPR 后缓存与 1px 线 | 一波 rerecord；线清晰 | **W2** ✅ 组合窗 |
-| **C8** | R13+R6+R8 | `ui_wr_c8_hit_overlay_xf` | **1200×800** | **15** | 变换/浮层下命中 | 命中 ID | W4+ |
+| **C8** | R13+R6+R8 | `ui_wr_c8_hit_overlay_xf` | **1200×800** | **15** | 变换/浮层下命中 | 命中 ID | **W4+** ✅（不代替 R6） |
 | **C9** | R14+R3+R7 | `ui_wr_c9_stress_cache` | **1200×800** | **60** | 多 boundary + 列表压缓存 | cache_entries、RSS | **W6** |
 | **C10** | R15+全主路径 | `ui_wr_c10_soak` | **1200×800** | **300** | 长跑组合 | 无崩；hitch 可报 | W2+ |
 | **C11** | R0→R4 策略切换 | `ui_wr_c11_policy_switch` | **1200×800** | **15** | full_paint↔retained 切换正确 | policy 字段；切换后静不丢 | **W6** |
@@ -470,7 +470,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | **W1** | **✅** | R2✅ R3✅ R3b✅ R5✅ R9✅ R12b✅ R19✅（各独立 `ui_wr_*` 真窗） | C1✅ |
 | **W2** | **✅** | **R4✅ R4b✅ R5✅v2 R11✅ R13✅ R18✅** · R21(可) R19(可) | **C2✅ C7✅ 组合窗** |
 | **W3** | **✅** | R7✅ · R7b✅ · R10✅（各独立 `ui_wr_*` 真窗） | C3✅ |
-| **W4** | **✅** | R8✅、R21✅ | C4✅、C8(可) |
+| **W4** | **✅** | R8✅、R21✅ | C4✅、C8✅（可选项已补，不代替 R6） |
 | **W5** | ⬜ | R6、R20(可) | C5、C6(可) |
 | **W6** | ⬜ | R14、默认 retained | C9、C11；回归 C0–C5 |
 
@@ -529,6 +529,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
+| C8 首次关闭 | **C8 R13+R6+R8 变换/浮层下命中 组合窗首次关闭（`ui_wr_c8_hit_overlay_xf` 1200×800·15s·GPU PASS，两连跑确定性 11/11 探针、fps 59.87/60.05）**：① **场景（§3.1.2 C8 行全达标）**——R6 层动画：持续旋转目标 XF-A（SetRotation paint-only + boundary 隔离，Spike 转速 ×2）+ 呼吸缩放目标 XF-B（0.85×–1.15×），静态密集 4×4 色格（嵌套 boundary）+8 标签全程不闪；R8 浮层：Spike 相位循环开合（开 1.6s/关 1.2s），模态对话框（全屏屏障+命名按钮+菜单叠层）与 Tooltip（无屏障）轮换，每次全新 entry；R13 命中：11 探针——主树 7（旋转中/缩放中目标实时反变换命中、圆角裁剪内、裁剪外拒绝、重叠取上层、空白区拒绝）+ 浮层带 4（屏障消费 BandOverlay obj=nil / 浮层内按钮命中 ov-button / 无屏障穿透回主树 lbl-7 / 关净后命中恢复）；**② 门禁（∪(R13,R8)+§2.2 族 A 硬线）**——scripted_ok=11==total 且 hit≥4、main_dirty_excess_frames=0（分带观测基线=稳态最坏值 6）、overlay_entries_on_open≥1、overlay_cycles=3、present_policy=retained、fps_interval=59.87/60.05≥55、p95=17.29/17.31≤22、hitch≤1/min、vsync_source=true、fallback_ops=0、cpu_ui=0.47/cpu_raster=26.2 非双 0；damage_ratio 终值=1 为收尾帧全量 present 语义（与 R8 同），门禁走 main_dirty_excess 分带口径不采终值。③ metrics-audit 串审 PASS（族 A–J 字段 PRESENT、诚实性 HONEST、阈值 AT_DEFAULT、观测 CONSISTENT、降画质 EARNED）。④ **集成要点**——同一探针点在四种状态分别得 BandMain(lbl-7)→屏障消费→穿透(BandMain)→恢复(BandMain)；刚 Insert 的 entry 布局要到下一帧构建才落位（首 tick 命中 miss 属引擎已知时序，探针逐帧重试至命中）。§3 C8 ⬜→✅；§5 W4 行 C4✅、C8✅ → W4 含可选项全绿；**注意：C8 不代替 R6 关闭（R6 单能力窗 `ui_wr_r6_layer_anim` 未建，W5 待做）。** |
 | C4 首次关闭 | **C4 壳+体内容+浮层 三层独立 组合窗首次关闭（`ui_wr_c4_shell_overlay` 1200×800·15s·GPU PASS，三连跑确定性 59.6/59.6/59.6 fps）**：① **场景（§3.1.2 C4 行全达标）**——壳带 TopBar 下整带一个 SetShellBoundary（标题+双按钮+字号样张，全程静止）；体内容 60 项虚拟列表持续滚动（Steady 慢/Spike 8px/帧/Recover，无限回绕）+ 静态密集区（4×4 色格嵌套 boundary+8 标签，R3）+ HOT live paint 全程活跃；浮层 Spike 相位循环开合（开 2s/关 1.5s，对话框+menu 叠层/下拉/tooltip 三种轮换，每次全新 entry，R8），Recover 关净；Legend 8 行、HUD 实时 shell_rr/skip/main=X/base/excess/ov=N/cyc=K；**② 门禁（∪(R3,R8,R21)+§2.2 族 A 硬线）**——shell_rerecord_scroll=0、shell_skip_scroll>0（~24000）、boundary_skip≥1（~10 万）、main_dirty_excess_frames=0（参考=closed 态全局 MAX，滚动 wrap 波在开/关两态同现天然抵消，wrap 后 8 帧沉降排除）、overlay_entries_on_open≥1、present_policy=retained（用户确认 Plan C 姿态）、fps_interval=59.5–59.7≥55、p95=17.2–17.6≤22、vsync_source 如实输出、cpu 非双 0、hitch≤16/min。③ metrics-audit 串审 PASS（族 A–J 字段 PRESENT、诚实性 HONEST 含 vsync fallback 如实、阈值 AT_DEFAULT、观测 CONSISTENT、降画质 EARNED）。④ **随窗暴露并修复引擎洞（见下两条）**。§3 C4 ⬜→✅；§5 W4 行 C4✅ → **W4 单能力窗+主组合窗全绿（C8 可选未做）**。 |
 | evictForNew 活层误逐（引擎洞） | **retained 纹理缓存驱逐误选活层导致偶发壳带重录修复（ui/scene + ui/embedder，C4 确定性复验暴露）**：**现象**——C4 多数跑全绿但 ~40% 概率在浮层首次 close 时刻冒出 1–3 层壳带重录（SHELLDBG 实证 dirty=false 的整带/单层 `!Has` 重录，时刻精确对齐 popup close）。**根因**——evictForNew 的 fallback「全局最老者」会选中本帧尚未 blit 的活层：phase1（record 脏层）先于 phase2（blit 全部），phase1 中途新分配触发驱逐时，活层的 lastUse 停留在上一帧 stamp，比刚插入的新条目更「老」→ 被误逐 → 下帧强制重录。EndFrame 驱逐已移除，这是唯一残留的活层误逐路径。**修复**——① `SetLiveKeys(keys)`：UI 线程每帧发布当帧全部 CacheKey 活集（`CollectCacheableKeys(pkt)` 与容量计数共用一次遍历）；② evictForNew victim 只从非活集条目挑（已关 popup 的孤儿纹理），无孤儿可用才回退最老者（正确性从不依赖缓存）。**验证**——C4 六连跑全绿（rr=0/excess=0），ui 全量回归绿，R8/R21 单窗 GPU 真窗零回退。 |
 | retained 纹理缓存容量洞 | **PictureTextureCache LRU 上限写死 64 导致密集场景每帧驱逐-重录抖动修复（ui/scene + ui/embedder，C4 首跑暴露，经用户确认修）**：**根因**——`NewPictureTextureCache(dc, 0)` 默认 max=64，C4 三层同屏 ~200 个 CacheKey 图层远超上限 → LRU 循环驱逐 → 每帧 ~123 次 GPU 离屏重录（frame_raster 83ms、fps 10.9、RSS 15s +290MB）。对照实验隔离：同一场景 full_paint 姿态 56fps 全绿（不走该路径）、R8 单窗（retained 但仅 ~30 层）绿——洞只在「retained+图层多」组合。**修复**——`EnsureCapacity(n)`（只增不减防中途收缩抖动）+ `CountCacheablePictureLayers(pkt)`（主带+浮层带 CacheKey 图层计数），embedder 建缓存时按当帧工作集设容量（+25% 余量 +16 吸收滚动瞬时层）。ui 全量回归绿。 |
