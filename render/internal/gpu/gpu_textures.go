@@ -36,6 +36,90 @@ type textureSet struct {
 	// earlier in the frame, so releasing them right away leaves dangling
 	// handles (the resize-crash root cause).
 	retireFn func(tex *webgpu.Texture, view *webgpu.TextureView)
+
+	// stencilPool caches depth/stencil textures by size for sc==1 surface
+	// passes (R8 engine hole). Within one retained frame, per-layer offscreen
+	// records alternate the pass target size (main band → body panel → hot
+	// spot), and without a pool each flip destroyed+recreated the shared
+	// stencil texture (~3 GPU alloc cycles per frame; 15s log showed 4293
+	// "created surface textures"). Pooled entries rotate instead. Capped and
+	// LRU-stamped; evicted entries go through retireFn like any other retired
+	// texture (in-flight CBs keep them alive until the GPU is done).
+	stencilPool    map[stencilPoolKey]*pooledStencil
+	stencilStamp   uint64
+}
+
+// stencilPoolKey identifies a pooled depth/stencil texture.
+type stencilPoolKey struct {
+	w, h uint32
+}
+
+// pooledStencil is one cached depth/stencil texture + its last-use stamp.
+type pooledStencil struct {
+	tex   *webgpu.Texture
+	view  *webgpu.TextureView
+	stamp uint64
+}
+
+// stencilPoolCap bounds the size-bucketed stencil cache. Retained frames
+// alternate a handful of layer-record sizes; 8 covers far more than any
+// observed working set while bounding VRAM (each entry is Depth24PlusStencil8,
+// RenderAttachment-only — cheap relative to color textures).
+const stencilPoolCap = 8
+
+// takePooledStencil fetches (or creates) a depth/stencil texture for (w,h).
+// Returns nil when the caller should fall back to direct creation (pool
+// disabled / OOM fallback path). sc must be 1 — MSAA textures are not pooled.
+func (ts *textureSet) takePooledStencil(device *webgpu.Device, w, h uint32, labelPrefix string) *webgpu.TextureView {
+	if ts.stencilPool == nil {
+		ts.stencilPool = make(map[stencilPoolKey]*pooledStencil)
+	}
+	key := stencilPoolKey{w: w, h: h}
+	ts.stencilStamp++
+	if e := ts.stencilPool[key]; e != nil {
+		e.stamp = ts.stencilStamp
+		return e.view
+	}
+	tex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
+		Label:         labelPrefix + "_depth_stencil",
+		Size:          webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        types.TextureFormatDepth24PlusStencil8,
+		Usage:         types.TextureUsageRenderAttachment,
+	})
+	if err != nil {
+		return nil
+	}
+	view, err := device.CreateTextureView(tex, &webgpu.TextureViewDescriptor{
+		Label:         labelPrefix + "_depth_stencil_view",
+		Format:        types.TextureFormatDepth24PlusStencil8,
+		Dimension:     types.TextureViewDimension2D,
+		Aspect:        types.TextureAspectAll,
+		MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Release()
+		return nil
+	}
+	// Evict LRU when at capacity (never the entry we are about to add).
+	for len(ts.stencilPool) >= stencilPoolCap {
+		var victimKey stencilPoolKey
+		var oldest uint64 = ^uint64(0)
+		for k, e := range ts.stencilPool {
+			if e.stamp < oldest {
+				oldest = e.stamp
+				victimKey = k
+			}
+		}
+		if v := ts.stencilPool[victimKey]; v != nil {
+			ts.releaseOrRetire(v.tex, v.view)
+		}
+		delete(ts.stencilPool, victimKey)
+	}
+	ts.stencilPool[key] = &pooledStencil{tex: tex, view: view, stamp: ts.stencilStamp}
+	return view
 }
 
 // ensureTextures creates or recreates textures if the requested dimensions
@@ -191,7 +275,6 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	}
 	needMSAA := sc > 1
 	haveMSAA := ts.msaaTex != nil && ts.msaaView != nil
-
 	// Surface mode does not use resolveTex. sc==1 draws directly to the surface
 	// view, so only depth/stencil is required (positive VRAM save on low-GPU hosts).
 	if ts.width == w && ts.height == h && ts.stencilView != nil && (!needMSAA || haveMSAA) {
@@ -219,6 +302,20 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	ts.destroyTextures()
 
 	size := webgpu.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
+
+	// sc==1 surface passes take depth/stencil from the size-keyed pool:
+	// retained frames alternate the pass target size per layer record (main
+	// band → body panel → hot spot) and a fresh stencil alloc per flip cost
+	// ~3 destroy/create cycles per frame (R8 hole). MSAA keeps its own path.
+	if !needMSAA {
+		if view := ts.takePooledStencil(device, w, h, labelPrefix); view != nil {
+			ts.stencilView = view
+			ts.stencilTex = nil // owned by the pool; never released here
+			ts.width = w
+			ts.height = h
+			return nil
+		}
+	}
 
 	if needMSAA {
 		msaaTex, err := createTextureRetryOOM(device, &webgpu.TextureDescriptor{
@@ -305,7 +402,26 @@ func (ts *textureSet) ensureSurfaceTextures(device *webgpu.Device, w, h uint32, 
 	return nil
 }
 
+// ClearStencilPool releases every pooled depth/stencil texture (session
+// teardown). Call only when the GPU is idle/drained.
+func (ts *textureSet) ClearStencilPool() {
+	if ts.stencilPool == nil {
+		return
+	}
+	for k, e := range ts.stencilPool {
+		if e != nil {
+			ts.releaseOrRetire(e.tex, e.view)
+		}
+		delete(ts.stencilPool, k)
+	}
+}
+
 func (ts *textureSet) destroyTextures() {
+	// Pool entries survive destroyTextures: their whole purpose is to ride
+	// out per-frame size flips of the pass target (R8 hole). Flushing here
+	// would evict every pooled stencil on each flip — the exact churn the
+	// pool exists to prevent. The pool drains via takePooledStencil LRU
+	// eviction and via ClearPool on session teardown.
 	if ts.resolveView != nil {
 		ts.releaseOrRetire(nil, ts.resolveView)
 		ts.resolveView = nil
@@ -315,12 +431,15 @@ func (ts *textureSet) destroyTextures() {
 		ts.resolveTex = nil
 	}
 	if ts.stencilView != nil {
-		ts.releaseOrRetire(nil, ts.stencilView)
+		// Pooled stencils are owned by the pool (destroyTextures flushes the
+		// pool separately above); releasing the view here would leave the
+		// pool entry dangling. Only release session-owned stencils.
+		if ts.stencilTex != nil {
+			ts.releaseOrRetire(nil, ts.stencilView)
+			ts.releaseOrRetire(ts.stencilTex, nil)
+			ts.stencilTex = nil
+		}
 		ts.stencilView = nil
-	}
-	if ts.stencilTex != nil {
-		ts.releaseOrRetire(ts.stencilTex, nil)
-		ts.stencilTex = nil
 	}
 	if ts.msaaView != nil {
 		ts.releaseOrRetire(nil, ts.msaaView)

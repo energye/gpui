@@ -302,6 +302,41 @@ func LastShellBoundaryFrame() (shellRerecord, shellSkip int64) {
 	return s.ShellRerecord, s.ShellSkip
 }
 
+// lastOverlayBandSnap is the last frame's band-separated dirty observation
+// (R8): main-band dirty id count vs overlay-band dirty id count. The main
+// count is taken from the packet BEFORE overlay ids are merged in, so an
+// overlay open/close must leave it at its pre-overlay level.
+type overlayBandSnap struct {
+	MainDirtyCount int
+	OverlayDirtyCount int
+}
+
+var lastOverlayBandFrame atomic.Value // stores overlayBandSnap
+
+// NoteOverlayBandFrame publishes the last frame's band dirty counts
+// (called by the frame loop around AttachToPacket).
+func noteOverlayBandFrame(mainDirty, overlayDirty int) {
+	lastOverlayBandFrame.Store(overlayBandSnap{
+		MainDirtyCount:    mainDirty,
+		OverlayDirtyCount: overlayDirty,
+	})
+}
+
+// LastOverlayBandFrame returns the last frame's band-separated dirty counts.
+// MainDirtyCount excludes overlay dirties; OverlayDirtyCount is the overlay
+// band portion only.
+func LastOverlayBandFrame() (mainDirty, overlayDirty int) {
+	v := lastOverlayBandFrame.Load()
+	if v == nil {
+		return 0, 0
+	}
+	s, ok := v.(overlayBandSnap)
+	if !ok {
+		return 0, 0
+	}
+	return s.MainDirtyCount, s.OverlayDirtyCount
+}
+
 // BoundaryCache returns the PipelineOwner's long-lived boundary Picture cache.
 func (a *PipelineApp) BoundaryCache() *rendering.BoundaryCache {
 	if a == nil || a.pipe == nil {
@@ -815,7 +850,12 @@ func (a *PipelineApp) Run() error {
 			m.SetMeasureCacheStats(mh, mm)
 		}
 		if a.opts.Overlay != nil {
+			// R8 band-separated dirty observation: sample the main-band
+			// dirty count BEFORE AttachToPacket merges overlay ids into
+			// DirtyLayerIDs; the overlay portion comes from the mirror list.
+			mainDirtyPre := len(pkt.DirtyLayerIDs)
 			a.opts.Overlay.AttachToPacket(pkt)
+			noteOverlayBandFrame(mainDirtyPre, len(pkt.OverlayDirtyLayerIDs))
 		}
 		if pkt != nil {
 			a.noteDirtyIDs(pkt.DirtyLayerIDs)
@@ -920,6 +960,12 @@ func (a *PipelineApp) Run() error {
 					metrics.NoteBoundaryFrame(rr, sk)
 					srr, ssk := LastShellBoundaryFrame()
 					metrics.NoteShellBoundaryFrame(srr, ssk)
+					// W3 R7/R7b: virtual-list bind window + cumulative scroll
+					// fresh-mount total (zero until a VirtualList has bound).
+					if bind, items := rendering.LastVirtualBind(); bind > 0 || items > 0 {
+						metrics.SetVirtualBind(bind, items)
+					}
+					metrics.SetScrollRerecord(rendering.ScrollRerecordTotal())
 					// W2 R18: accumulate SaveLayer budget outcomes this frame
 					// (per-frame delta of the cumulative stats).
 					if a.saveStats != nil {
@@ -1191,6 +1237,10 @@ func (a *PipelineApp) presentSyncFull() {
 		m.NoteBoundaryFrame(rr, sk)
 		srr, ssk := LastShellBoundaryFrame()
 		m.NoteShellBoundaryFrame(srr, ssk)
+		if bind, items := rendering.LastVirtualBind(); bind > 0 || items > 0 {
+			m.SetVirtualBind(bind, items)
+		}
+		m.SetScrollRerecord(rendering.ScrollRerecordTotal())
 		if a.saveStats != nil {
 			al, rj := a.saveStats.Allow.Load(), a.saveStats.Reject.Load()
 			m.NoteSaveLayer(al-a.lastSaveAllow, rj-a.lastSaveReject)

@@ -1858,6 +1858,9 @@ func (s *GPURenderSession) Destroy() {
 		s.textPipeline = nil
 	}
 	s.textures.destroyTextures()
+	// Session teardown: the size-keyed stencil pool survives destroyTextures
+	// by design (per-frame size flips), so it must be flushed explicitly here.
+	s.textures.ClearStencilPool()
 	// GPU drained above: release anything retired during teardown now (P4/P6).
 	s.pendingTexRetire.Drain()
 	s.pendingBufRetire.Drain()
