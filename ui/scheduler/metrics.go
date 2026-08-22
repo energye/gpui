@@ -80,7 +80,10 @@ type FrameMetrics struct {
 	RSSEndKB        int64 `json:"rss_end_kb,omitempty"`
 	RSSPeakKB       int64 `json:"rss_peak_kb,omitempty"`
 	RSSAfterCloseKB int64 `json:"rss_after_close_kb,omitempty"`
-	// RSSSlopeKBPerMin is (end-start)/elapsed_minutes (M-RSS-SLOPE). Positive = growth.
+	// RSSSlopeKBPerMin is the least-squares RSS trend over the steady-state
+	// segment of the run's decimated sample series (samples after 25% of
+	// elapsed; warmup equilibrium ramp discarded) (M-RSS-SLOPE). Positive =
+	// growth. A plateau folds to ~0; a sustained leak keeps its true slope.
 	// Zero when wall span is missing/negligible or RSS samples unavailable.
 	RSSSlopeKBPerMin float64 `json:"rss_slope_kb_per_min,omitempty"`
 	// RSSElapsedSec is wall seconds used for slope (honest denominator).
@@ -129,6 +132,17 @@ type FrameMetrics struct {
 	// (W1 R9). MeasureCacheMiss is the miss counterpart for hits≥miss proof.
 	MeasureCacheHit  int64 `json:"measure_cache_hit"`
 	MeasureCacheMiss int64 `json:"measure_cache_miss"`
+
+	// Virtual-list virtualization (W3 R7/R7b; per-frame sample by PipelineApp).
+	// BindCount/ItemCount describe the most recently rebound VirtualList: the
+	// R7 gate is bind_count ≪ item_count (only viewport cells mounted).
+	// Omitted while no VirtualList has bound (windows without lists).
+	BindCount int64 `json:"bind_count,omitempty"`
+	ItemCount int64 `json:"item_count,omitempty"`
+	// ScrollRerecord is the cumulative count of cells freshly mounted because
+	// they scrolled into the viewport (R7b/C3 scroll reuse); kept cells replay
+	// their cached Picture and are not counted.
+	ScrollRerecord int64 `json:"scroll_rerecord,omitempty"`
 
 	// H-family first-present observation (R16 M-WARMUP / M-TIME-TO-FIRST-PRESENT).
 	// Warmup is true when the Open-time warm-up full paint actually ran before
@@ -386,6 +400,28 @@ func (s *MetricsStore) SetPaintVisits(n int64) {
 	}
 	s.mu.Lock()
 	s.m.PaintVisits = n
+	s.mu.Unlock()
+}
+
+// SetVirtualBind samples the most recently rebound VirtualList window (R7):
+// bind = currently mounted cells, itemCount = logical row count.
+func (s *MetricsStore) SetVirtualBind(bind, itemCount int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.BindCount = bind
+	s.m.ItemCount = itemCount
+	s.mu.Unlock()
+}
+
+// SetScrollRerecord records the cumulative scroll fresh-mount total (R7b/C3).
+func (s *MetricsStore) SetScrollRerecord(n int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.ScrollRerecord = n
 	s.mu.Unlock()
 }
 

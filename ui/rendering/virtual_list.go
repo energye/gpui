@@ -1,6 +1,9 @@
 package rendering
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // ItemBuilder creates a row RenderObject for a logical index.
 type ItemBuilder func(index int) RenderObject
@@ -285,13 +288,19 @@ func (v *VirtualList) OnViewportScroll(offsetY, viewportH float64) {
 	if viewportH < 0 {
 		viewportH = 0
 	}
-	changed := offsetY != v.scrollY || viewportH != v.viewportH
+	scrolled := offsetY != v.scrollY
+	changed := scrolled || viewportH != v.viewportH
 	v.scrollY, v.viewportH = offsetY, viewportH
 	if !changed && len(v.mounted) > 0 {
 		v.mu.Unlock()
 		return
 	}
-	rebound := v.rebindWindowLocked()
+	rebound, fresh := v.rebindWindowLocked()
+	if rebound && scrolled {
+		// Cells first mounted because they scrolled into the viewport each
+		// record once (R7b/C3 scroll_rerecord). Kept cells are not counted.
+		scrollRerecordTotal.Add(int64(fresh))
+	}
 	v.mu.Unlock()
 	if rebound {
 		v.MarkNeedsLayout()
@@ -300,14 +309,16 @@ func (v *VirtualList) OnViewportScroll(offsetY, viewportH float64) {
 	}
 }
 
-// rebindWindowLocked updates mounted children. Returns true if set of indices
-// changed. Caller must hold v.mu.
-func (v *VirtualList) rebindWindowLocked() bool {
+// rebindWindowLocked updates mounted children. It reports whether the set of
+// indices changed and how many cells were freshly mounted this rebind (new
+// objects that must record once; R7b scroll-rerecord accounting). Caller must
+// hold v.mu.
+func (v *VirtualList) rebindWindowLocked() (changed bool, freshMount int) {
 	if v.ItemCount == 0 {
-		return v.clearMountedLocked()
+		return v.clearMountedLocked(), 0
 	}
 	if !v.variable() && v.ItemExtent <= 0 {
-		return v.clearMountedLocked()
+		return v.clearMountedLocked(), 0
 	}
 
 	vh := v.viewportH
@@ -359,7 +370,8 @@ func (v *VirtualList) rebindWindowLocked() bool {
 
 	if first == v.first && last == v.last && len(v.mounted) == last-first {
 		v.BindCount = len(v.mounted)
-		return false
+		v.publishBindLocked()
+		return false, 0
 	}
 	// Unmount outside
 	for idx, ch := range v.mounted {
@@ -368,28 +380,10 @@ func (v *VirtualList) rebindWindowLocked() bool {
 			delete(v.mounted, idx)
 		}
 	}
-	// Mount missing
-	if v.Builder != nil {
-		for idx := first; idx < last; idx++ {
-			if _, ok := v.mounted[idx]; ok {
-				continue
-			}
-			ch := v.Builder(idx)
-			if ch == nil {
-				continue
-			}
-			v.AddChild(ch)
-			v.mounted[idx] = ch
-		}
-	}
-	v.first, v.last = first, last
-	v.BindCount = len(v.mounted)
-	// Track which indices were freshly mounted this rebind (new objects that
-	// must record once). Others are already-mounted cells whose Picture cache
-	// stays valid across scroll offset changes (R7b scroll reuse).
-	freshlyMounted := make(map[int]bool, len(v.mounted))
-	var freshlyMountedCount int
-	// Mount missing
+	// Mount missing, tracking fresh indices: new objects must record once,
+	// while already-mounted cells keep their Picture cache valid across scroll
+	// offset changes (R7b scroll reuse).
+	freshlyMounted := make(map[int]bool, last-first)
 	if v.Builder != nil {
 		for idx := first; idx < last; idx++ {
 			if _, ok := v.mounted[idx]; ok {
@@ -402,20 +396,23 @@ func (v *VirtualList) rebindWindowLocked() bool {
 			v.AddChild(ch)
 			v.mounted[idx] = ch
 			freshlyMounted[idx] = true
-			freshlyMountedCount++
+			freshMount++
 		}
 	}
-	// Position children. For already-mounted cells (not fresh this rebind),
-	// SetOffset + MarkNeedsLayout would set needsPaint=true and invalidate the
-	// BoundaryCache entry (scroll reuse R7b). Clear needsPaint on those cells so
-	// their cached Picture replays (translated) instead of re-recording each frame.
+	v.first, v.last = first, last
+	v.BindCount = len(v.mounted)
+	v.publishBindLocked()
+	// Position children. Kept (non-fresh) cells have a stable cached Picture;
+	// clear any stale dirty bit so they replay translated instead of
+	// re-recording each frame. Fresh cells keep their dirty bit (Init set it)
+	// so they are recorded exactly once on the next paint.
 	for idx, ch := range v.mounted {
 		ch.SetOffset(Point{X: 0, Y: v.offsetOf(idx)})
 		if !freshlyMounted[idx] {
 			ch.clearPaintDirty()
 		}
 	}
-	return true
+	return true, freshMount
 }
 
 func (v *VirtualList) clearMountedLocked() bool {
@@ -428,6 +425,7 @@ func (v *VirtualList) clearMountedLocked() bool {
 	}
 	v.first, v.last = 0, 0
 	v.BindCount = 0
+	v.publishBindLocked()
 	return true
 }
 
@@ -460,7 +458,7 @@ func (v *VirtualList) Layout(c Constraints) Size {
 	out := c.Tighten(Size{Width: w, Height: h})
 	v.setSize(out)
 	v.mu.Lock()
-	v.rebindWindowLocked()
+	_, _ = v.rebindWindowLocked()
 	// Layout mounted children tightly to each row's height.
 	for idx, ch := range v.mounted {
 		ext := v.extentAt(idx)
@@ -469,6 +467,7 @@ func (v *VirtualList) Layout(c Constraints) Size {
 		ch.SetOffset(Point{X: 0, Y: v.offsetOf(idx)})
 	}
 	v.BindCount = len(v.mounted)
+	v.publishBindLocked()
 	v.mu.Unlock()
 	v.RememberConstraints(c)
 	v.clearLayoutDirty()
@@ -557,3 +556,35 @@ func (v *VirtualList) HitTest(p Point) RenderObject {
 	}
 	return nil
 }
+
+// ---- metrics pickup (R7/R7b; sampled by PipelineApp after present) ----
+
+// virtualBindSnap is the latest rebind window. Single-list windows are exact;
+// with several lists the most recent rebind wins.
+type virtualBindSnap struct {
+	Bind      int64 // currently mounted cells
+	ItemCount int64 // logical row count
+}
+
+var (
+	lastVirtualBind     atomic.Value // stores virtualBindSnap
+	scrollRerecordTotal atomic.Int64 // cumulative cells first-mounted by scrolling
+)
+
+func (v *VirtualList) publishBindLocked() {
+	lastVirtualBind.Store(virtualBindSnap{Bind: int64(v.BindCount), ItemCount: int64(v.ItemCount)})
+}
+
+// LastVirtualBind returns the most recent VirtualList bind window (R7 gate:
+// bind_count ≪ item_count). Zero until a list has bound.
+func LastVirtualBind() (bind, itemCount int64) {
+	if s, ok := lastVirtualBind.Load().(virtualBindSnap); ok {
+		return s.Bind, s.ItemCount
+	}
+	return 0, 0
+}
+
+// ScrollRerecordTotal returns the cumulative count of cells freshly mounted
+// because they scrolled into the viewport (R7b/C3). Each fresh cell records
+// once; kept cells replay their cached Picture and are not counted.
+func ScrollRerecordTotal() int64 { return scrollRerecordTotal.Load() }

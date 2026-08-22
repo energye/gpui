@@ -18,7 +18,16 @@ type ProcessTracker struct {
 	cpuSumPct   float64
 	cpuSamples  int
 	started     bool
+
+	// Decimated RSS series (≥rssSampleGapSec apart) for the least-squares
+	// M-RSS-SLOPE fit. Bounded: a 300s soak holds ~600 points.
+	rssT       []float64
+	rssV       []int64
+	lastStored float64
 }
+
+// rssSampleGapSec paces series storage (Sample may be called every frame).
+const rssSampleGapSec = 0.5
 
 // Start records baseline RSS and wall clock (and CPU jiffies when available).
 func (t *ProcessTracker) Start() {
@@ -31,6 +40,11 @@ func (t *ProcessTracker) Start() {
 	t.EndRSSKB = rss
 	t.wall0 = time.Now()
 	t.ElapsedSec = 0
+	t.rssT = t.rssT[:0]
+	t.rssV = t.rssV[:0]
+	t.lastStored = 0
+	t.rssT = append(t.rssT, 0)
+	t.rssV = append(t.rssV, rss)
 	if j, ok := readCPUTime(); ok {
 		t.cpuJiffies0 = j
 	}
@@ -51,6 +65,12 @@ func (t *ProcessTracker) Sample() {
 	t.SampleCount++
 	if !t.wall0.IsZero() {
 		t.ElapsedSec = time.Since(t.wall0).Seconds()
+		// Store decimated series points for the slope fit.
+		if t.ElapsedSec-t.lastStored >= rssSampleGapSec {
+			t.lastStored = t.ElapsedSec
+			t.rssT = append(t.rssT, t.ElapsedSec)
+			t.rssV = append(t.rssV, rss)
+		}
 	}
 	if j, ok := readCPUTime(); ok && !t.wall0.IsZero() {
 		elapsed := t.ElapsedSec
@@ -85,8 +105,16 @@ func (t *ProcessTracker) NoteAfterClose() {
 	t.AfterCloseKB = ReadRSSKB()
 }
 
-// RSSSlopeKBPerMin returns (End-Start)/elapsed_minutes (M-RSS-SLOPE).
-// Zero when not started, no wall span, or RSS samples unavailable (both 0).
+// RSSSlopeKBPerMin returns the least-squares RSS trend over the **steady-state**
+// segment of the decimated sample series (samples after 25% of elapsed wall),
+// in KB/min (M-RSS-SLOPE). The E-family question is "does it leak": heap and
+// GPU-driver equilibrium is established during warmup, so that quarter is
+// discarded; a plateau folds to ~0 while a sustained leak — including one that
+// starts mid-run — keeps its true slope. The previous two-point
+// (End-Start)/elapsed estimator conflated the one-time startup ramp with
+// ongoing growth. Falls back to the two-point estimate when fewer than 2
+// steady-state points exist. Zero when not started, no wall span, or stub
+// /proc (non-Linux) — honest unavailable.
 func (t *ProcessTracker) RSSSlopeKBPerMin() float64 {
 	if t == nil || !t.started || t.ElapsedSec <= 1e-9 {
 		return 0
@@ -94,11 +122,48 @@ func (t *ProcessTracker) RSSSlopeKBPerMin() float64 {
 	if t.StartRSSKB == 0 && t.EndRSSKB == 0 {
 		return 0 // stub /proc (non-Linux) — honest unavailable
 	}
-	minutes := t.ElapsedSec / 60.0
-	if minutes <= 1e-12 {
+	cut := t.ElapsedSec / 4
+	ts := make([]float64, 0, len(t.rssT))
+	vs := make([]int64, 0, len(t.rssV))
+	for i := range t.rssV {
+		if t.rssT[i] >= cut {
+			ts = append(ts, t.rssT[i])
+			vs = append(vs, t.rssV[i])
+		}
+	}
+	if len(vs) < 2 {
+		minutes := t.ElapsedSec / 60.0
+		if minutes <= 1e-12 {
+			return 0
+		}
+		return float64(t.EndRSSKB-t.StartRSSKB) / minutes
+	}
+	return rssSlopeLSQ(ts, vs)
+}
+
+// rssSlopeLSQ is the least-squares slope of the (t, v) series in KB/min.
+func rssSlopeLSQ(ts []float64, vs []int64) float64 {
+	n := len(vs)
+	if n < 2 {
 		return 0
 	}
-	return float64(t.EndRSSKB-t.StartRSSKB) / minutes
+	var mt, mv float64
+	for i := range vs {
+		mt += ts[i]
+		mv += float64(vs[i])
+	}
+	mt /= float64(n)
+	mv /= float64(n)
+	var num, den float64
+	for i := range vs {
+		dt := ts[i] - mt
+		num += dt * (float64(vs[i]) - mv)
+		den += dt * dt
+	}
+	if den <= 1e-9 {
+		return 0
+	}
+	return num / den * 60.0 // KB per second → KB per minute
 }
 
 // Apply copies tracker fields into the metrics store for JSON export,

@@ -42,7 +42,23 @@ type BoundaryCache struct {
 	ShellSkip          int64
 	FrameShellRerecord int64
 	FrameShellSkip     int64
+
+	// frame is the present-paint generation (BeginFrame counter); it drives
+	// generational eviction of untouched entries below.
+	frame uint64
 }
+
+// Generational eviction tuning: an entry untouched for evictFrames presents
+// (~2s at 60Hz) is dropped at the next sweep. Scrolled-out VirtualList cells
+// must release their recorded Pictures — without eviction a long scroll
+// retains every cell ever seen (R7: live heap ~85MB, RSS slope ≫ budget).
+// Live boundaries (shell, static panels) are touched every frame by
+// tryReplay/Store and are never evicted; a re-entered cell simply records
+// once again (honest scroll_rerecord cost).
+const (
+	evictFrames     = 120
+	evictSweepEvery = 30
+)
 
 type boundaryEntry struct {
 	pic        scene.Picture
@@ -51,6 +67,7 @@ type boundaryEntry struct {
 	contentKey uint64
 	valid      bool
 	cacheable  bool
+	lastSeen   uint64 // generation of last hit/store (eviction liveness)
 }
 
 var nextBoundaryCacheID uint64
@@ -60,7 +77,8 @@ func NewBoundaryCache() *BoundaryCache {
 	return &BoundaryCache{entries: make(map[uint64]*boundaryEntry)}
 }
 
-// BeginFrame resets per-frame skip/rerecord/miss counters (call once per present paint).
+// BeginFrame resets per-frame skip/rerecord/miss counters (call once per present paint)
+// and advances the eviction generation, periodically sweeping untouched entries.
 func (c *BoundaryCache) BeginFrame() {
 	if c == nil {
 		return
@@ -70,6 +88,14 @@ func (c *BoundaryCache) BeginFrame() {
 	c.FrameMiss = 0
 	c.FrameShellRerecord = 0
 	c.FrameShellSkip = 0
+	c.frame++
+	if c.frame%evictSweepEvery == 0 {
+		for id, e := range c.entries {
+			if c.frame-e.lastSeen > evictFrames {
+				delete(c.entries, id)
+			}
+		}
+	}
 }
 
 // ensureID assigns a stable cache id on Base.
@@ -136,7 +162,11 @@ func (c *BoundaryCache) HasValid(n RenderObject) bool {
 		return false
 	}
 	e := c.entries[b.cacheID]
-	return e != nil && e.valid && e.cacheable && e.pic.Valid && !e.pic.IsEmpty()
+	if e != nil && e.valid && e.cacheable && e.pic.Valid && !e.pic.IsEmpty() {
+		e.lastSeen = c.frame
+		return true
+	}
+	return false
 }
 
 // tryReplay returns true if this boundary's **own** Picture was drawn from cache.
@@ -197,6 +227,7 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	} else {
 		e.pic.Replay(pc.DC)
 	}
+	e.lastSeen = c.frame
 	c.Skip++
 	c.FrameSkip++
 	if shellOf(n) {
@@ -234,6 +265,7 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 		contentKey: contentKeyOf(n, sz.Width, sz.Height),
 		valid:      pic.Valid && !pic.IsEmpty(),
 		cacheable:  true,
+		lastSeen:   c.frame,
 	}
 	c.Rerecord++
 	c.FrameRerecord++
