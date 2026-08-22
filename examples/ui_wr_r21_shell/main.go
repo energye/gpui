@@ -279,15 +279,28 @@ func main() {
 			"topbar_shell_boundary":           true,
 			"static_dense_cells":              16,
 			"static_labels":                   8,
+			// RSS note: 15s runs sit inside the startup equilibrium ramp
+			// (Go heap + GPU driver); R8 600s soak proved the plateau
+			// (~167KB/min steady slope). Reported as observation here.
+			"rss_slope_semantics": "startup-ramp dominated at 15s; see ENGINE_UI_WIDGET_RENDER §10 R8 场景化长跑",
+			"impl_correctness":    "shell band (topbar) is one RepaintBoundary tagged SetShellBoundary; body scroll dirties only body layers — shell Picture Replays untouched (Flutter shell/content split)",
+			"impl_dirty":          "scroll updates viewport offset → only body boundary re-records; LastShellBoundaryFrame samples the shell partition per frame after warm-up",
+			"impl_cache":          "shell boundary cache entry survives scrolling (skip grows ~137/frame while rr stays 0); resize legally invalidates and is excluded from the gate window",
+			"impl_edge":           "resize frames excluded (3-frame settle) so external WM resizes can't false-fail the gate; infinite scroll wraps at content end; HUD/phase chips live OUTSIDE the shell boundary (self-dirty every frame would defeat the split)",
+			"impl_fail":           "any shell rerecord during scroll frames → FAIL (shell_rr_scroll!=0); no shell replay at all → FAIL (cache not engaged)",
+			"impl_visible":        "HUD shell_rr/shell_skip live numbers; topbar pixels never change while rows scroll beneath it",
 		},
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
 
-	// R21 gates (§2 主表: 滚体时顶栏 rerecord=0).
+	// R21 gates (§2 主表: 滚体时顶栏 rerecord=0) + §2.2 全族硬线.
 	if err := wrgate.EvaluateGates(report, wrgate.GateOptions{
 		MinPresents:            1,
 		RequireFullPaintPolicy: true,
+		RequirePersistentFPS:   true, // continuous scroll ticker
+		MinFPSWall:             55,
+		MaxP95Ms:               22,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL:", err)
 		os.Exit(1)
