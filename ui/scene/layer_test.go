@@ -245,3 +245,23 @@ func TestEnsureOverlayBand(t *testing.T) {
 		t.Fatalf("%v", o)
 	}
 }
+
+// TestFramePacket_CloneShallowCopiesOverlayDirtyIDs: the R8 band mirror must
+// be copied (not shared) by CloneShallow like the other dirty slices.
+func TestFramePacket_CloneShallowCopiesOverlayDirtyIDs(t *testing.T) {
+	scene.ResetLayerIDGen()
+	b := scene.NewLayerBuilder()
+	b.PushBoundary(0, 0, "spin", true)
+	b.AddPicture(true)
+	b.Pop()
+	p1 := b.BuildPacket(1, 1, 100, 100)
+	p1.OverlayDirtyLayerIDs = []uint64{42}
+	p2 := p1.CloneShallow()
+	if len(p2.OverlayDirtyLayerIDs) != 1 || p2.OverlayDirtyLayerIDs[0] != 42 {
+		t.Fatalf("overlay mirror not cloned: %v", p2.OverlayDirtyLayerIDs)
+	}
+	p2.OverlayDirtyLayerIDs[0] = 999
+	if p1.OverlayDirtyLayerIDs[0] == 999 {
+		t.Fatal("overlay mirror slice shared — CloneShallow must copy")
+	}
+}

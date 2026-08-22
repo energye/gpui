@@ -228,18 +228,22 @@ func (s *State) BuildOverlayBand() (scene.Layer, []uint64) {
 	return root, dirty
 }
 
-// AttachToPacket sets pkt.Overlay from this state and merges overlay dirty ids.
-// Main DirtyLayerIDs are left unchanged (D5: overlay open must not replace main dirties).
+// AttachToPacket sets pkt.Overlay from this state and records overlay dirty
+// ids. Main DirtyLayerIDs are left unchanged (D5: overlay open must not
+// replace main dirties); the overlay portion is additionally mirrored into
+// pkt.OverlayDirtyLayerIDs (F13) so consumers can assert band separation.
 func (s *State) AttachToPacket(pkt *scene.FramePacket) {
 	if pkt == nil {
 		return
 	}
 	if s == nil || s.Len() == 0 {
 		pkt.Overlay = scene.EnsureOverlayBand(nil)
+		pkt.OverlayDirtyLayerIDs = nil
 		return
 	}
 	layer, dirty := s.BuildOverlayBand()
 	pkt.Overlay = layer
+	pkt.OverlayDirtyLayerIDs = append([]uint64(nil), dirty...)
 	if len(dirty) > 0 {
 		pkt.DirtyLayerIDs = append(pkt.DirtyLayerIDs, dirty...)
 	}

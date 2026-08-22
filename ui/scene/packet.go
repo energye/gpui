@@ -59,6 +59,10 @@ type FramePacket struct {
 
 	// DirtyLayerIDs must re-raster (picture/boundary content).
 	DirtyLayerIDs []uint64
+	// OverlayDirtyLayerIDs is the overlay-band portion of the frame's dirty
+	// set (F13). Kept separate so consumers can assert "opening an overlay
+	// dirtied only the overlay band" — main-band ids stay in DirtyLayerIDs.
+	OverlayDirtyLayerIDs []uint64
 	// CompositorDirtyIDs only need attribute re-composite (opacity/offset).
 	CompositorDirtyIDs []uint64
 
@@ -78,6 +82,9 @@ func (p *FramePacket) CloneShallow() *FramePacket {
 	}
 	if p.DirtyLayerIDs != nil {
 		out.DirtyLayerIDs = append([]uint64(nil), p.DirtyLayerIDs...)
+	}
+	if p.OverlayDirtyLayerIDs != nil {
+		out.OverlayDirtyLayerIDs = append([]uint64(nil), p.OverlayDirtyLayerIDs...)
 	}
 	if p.CompositorDirtyIDs != nil {
 		out.CompositorDirtyIDs = append([]uint64(nil), p.CompositorDirtyIDs...)
