@@ -118,8 +118,33 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		return
 	}
 
+	// RenderViewport pushes boundary (it is its own repaint boundary) +
+	// clip-rect so scrolled-out content is clipped at composite time and
+	// never recorded into full-height textures (Flutter ViewportLayer
+	// semantics). restrictive() treats the clip as restrictive: descendants
+	// record into bounds-sized textures under the clip, not the surface.
+	if v, ok := n.(*RenderViewport); ok {
+		sz := n.Size()
+		bl := b.PushBoundary(off.X, off.Y, "viewport", n.NeedsPaint() || layerSubtreeNeedsPaint(n))
+		bl.Shell = v.IsShellBoundary()
+		b.PushClipRect(0, 0, sz.Width, sz.Height)
+		addOwnContent(b, n)
+		for _, ch := range n.Children() {
+			appendNode(ch, b)
+		}
+		if len(n.Children()) == 0 {
+			addLeafPicture(b, n)
+		}
+		b.Pop() // clip_rect
+		b.Pop() // boundary
+		return
+	}
+
 	if n.IsRepaintBoundary() {
-		b.PushBoundary(off.X, off.Y, typeName(n), n.NeedsPaint() || layerSubtreeNeedsPaint(n))
+		bl := b.PushBoundary(off.X, off.Y, typeName(n), n.NeedsPaint() || layerSubtreeNeedsPaint(n))
+		if bse, ok := baseOf(n); ok {
+			bl.Shell = bse.IsShellBoundary()
+		}
 		addOwnContent(b, n)
 		for _, ch := range n.Children() {
 			appendNode(ch, b)

@@ -258,6 +258,13 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
 		recordOwnContent(r, n, ox, oy)
 	})
+	// Nothing own to draw (all visual content lives in nested boundaries):
+	// an empty Picture can never replay usefully (tryReplay rejects empty
+	// entries), so do not create an entry — otherwise this boundary would
+	// re-store (and count a rerecord) every frame forever.
+	if pic.IsEmpty() {
+		return
+	}
 	c.entries[id] = &boundaryEntry{
 		pic: pic,
 		ox:  ox, oy: oy,

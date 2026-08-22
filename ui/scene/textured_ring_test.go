@@ -183,13 +183,14 @@ func TestTextureRing_ReallocOnSizeChange(t *testing.T) {
 	}
 }
 
-// TestTextureRing_EvictionReleasesBothSlots verifies eviction deferred-releases
-// both persistent slot views (EndFrame unused-entry path).
+// TestTextureRing_EvictionReleasesBothSlots verifies capacity-LRU eviction
+// (evictForNew, the sole eviction path since EndFrame stopped evicting)
+// deferred-releases both persistent slot views.
 func TestTextureRing_EvictionReleasesBothSlots(t *testing.T) {
 	dc := render.NewContext(20, 20)
 	defer dc.Close()
-	tex := NewPictureTextureCache(dc, 0)
-	alloc, allocs, released := fakeSlotFactory(t)
+	tex := NewPictureTextureCache(dc, 1) // cap=1: inserting id 2 evicts id 1
+	alloc, _, released := fakeSlotFactory(t)
 	tex.slotAlloc = alloc
 
 	tex.BeginFrame()
@@ -200,14 +201,22 @@ func TestTextureRing_EvictionReleasesBothSlots(t *testing.T) {
 	if e := tex.allocEntry(1, 10, 10); e == nil {
 		t.Fatalf("allocEntry2 failed")
 	}
-	tex.usedNow = map[uint64]struct{}{} // entry unused this frame
-	tex.EndFrame()
-	if tex.Len() != 0 {
-		t.Fatalf("Len=%d want 0 after eviction", tex.Len())
+	// Insert a second entry: cap=1 forces eviction of id 1 (LRU oldest).
+	tex.BeginFrame()
+	if e := tex.allocEntry(2, 12, 12); e == nil {
+		t.Fatalf("allocEntry3 failed")
+	}
+	if tex.Len() != 1 {
+		t.Fatalf("Len=%d want 1 after capacity eviction", tex.Len())
 	}
 	tex.BeginFrame() // drain (deferredFrames=2)
 	tex.BeginFrame()
-	if len(*released) != *allocs {
-		t.Fatalf("released=%d want %d (both slots)", len(*released), *allocs)
+	// id1 held two slots (double-buffer ring) — both must be released.
+	// id2 stays alive (capacity evicted only the LRU-oldest entry).
+	if len(*released) != 2 {
+		t.Fatalf("released=%d want 2 (id1's both slots)", len(*released))
+	}
+	if tex.Len() != 1 {
+		t.Fatalf("Len=%d want 1 (id2 alive)", tex.Len())
 	}
 }

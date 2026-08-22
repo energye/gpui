@@ -42,6 +42,12 @@ func NewRenderViewport(content RenderObject) *RenderViewport {
 	v := &RenderViewport{maxScrollY: -1}
 	v.Init(v)
 	v.SetRelayoutBoundary(true)
+	// The viewport is its own repaint boundary (Flutter-aligned: a scroll
+	// view clips into its own layer). Without it, every SetScrollOffset
+	// bubbles paint-dirty past the clip to the window root and re-records
+	// the full-surface root texture each frame (C4: damage_ratio pinned at
+	// 1.0, ~45 needless texture records/frame, RSS churn).
+	v.SetRepaintBoundary(true)
 	if content != nil {
 		v.AddChild(content)
 	}

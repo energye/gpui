@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
@@ -59,6 +60,9 @@ type PictureTextureCache struct {
 	height int
 	// entries keyed by stable CacheKey.
 	entries map[uint64]*pictureTextureEntry
+	// liveKeys is the current frame's in-tree cache keys (UI thread publishes
+	// via SetLiveKeys; evictForNew never victimizes a live key).
+	liveKeys map[uint64]struct{}
 	// stamp is a monotonically-increasing last-use counter for LRU eviction.
 	stamp   uint64
 	usedNow map[uint64]struct{}
@@ -128,6 +132,81 @@ func NewPictureTextureCache(dc *render.Context, max int) *PictureTextureCache {
 		c.slotAlloc = defaultSlotAlloc
 	}
 	return c
+}
+
+// EnsureCapacity grows the LRU cap to cover n entries (never shrinks — a
+// shrink mid-run would thrash evict→record every frame). Callers size the cap
+// from the current frame's cacheable picture-layer count so scenes with more
+// layers than the default 64 keep their whole working set cached instead of
+// cycling through the LRU (each eviction forces an offscreen re-record).
+//
+// SetLiveKeys records the current frame's cache keys so evictForNew never
+// picks a live-tree layer as its victim (a live layer not yet blitted this
+// frame would otherwise look "old" during phase 1 and get evicted mid-frame,
+// forcing a re-record next frame).
+func (c *PictureTextureCache) EnsureCapacity(n int) {
+	if c == nil || n <= c.max {
+		return
+	}
+	c.max = n
+}
+
+// SetLiveKeys publishes the frame's live cache-key set (UI thread, before the
+// raster job runs). Guarded by mu like every other cross-thread field.
+func (c *PictureTextureCache) SetLiveKeys(keys []uint64) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.liveKeys == nil {
+		c.liveKeys = make(map[uint64]struct{}, len(keys))
+	}
+	for k := range c.liveKeys {
+		delete(c.liveKeys, k)
+	}
+	for _, k := range keys {
+		c.liveKeys[k] = struct{}{}
+	}
+}
+
+func (c *PictureTextureCache) isLive(id uint64) bool {
+	if len(c.liveKeys) == 0 {
+		return false // no live info yet: behave as before
+	}
+	_, ok := c.liveKeys[id]
+	return ok
+}
+
+// CountCacheablePictureLayers walks pkt and counts picture layers that would
+// occupy a texture-cache entry (CacheKey != 0, main + overlay bands). Used to
+// size the texture cache to the frame's working set.
+func CountCacheablePictureLayers(pkt *FramePacket) int {
+	_, n := CollectCacheableKeys(pkt)
+	return n
+}
+
+// CollectCacheableKeys returns every cacheable picture-layer key in pkt
+// (main + overlay bands) plus its count — the frame's live working set.
+func CollectCacheableKeys(pkt *FramePacket) ([]uint64, int) {
+	if pkt == nil {
+		return nil, 0
+	}
+	var keys []uint64
+	n := 0
+	Walk(pkt.Root, func(l Layer) {
+		if pl, ok := l.(*PictureLayer); ok && pl.CacheKey != 0 {
+			keys = append(keys, pl.CacheKey)
+			n++
+		}
+	})
+	Walk(pkt.Overlay, func(l Layer) {
+		if pl, ok := l.(*PictureLayer); ok && pl.CacheKey != 0 {
+			keys = append(keys, pl.CacheKey)
+			n++
+		}
+	})
+	return keys, n
 }
 
 // defaultSlotAlloc allocates a fresh offscreen texture via the render context.
@@ -222,28 +301,22 @@ func (c *PictureTextureCache) BeginFrame() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.recordFrame++
+	c.stamp++ // advance the LRU clock once per composite frame
 	c.drainDeferred(c.recordFrame)
 }
 
-// EndFrame evicts entries unused this frame and resets frame counters.
-// Runs on the UI thread while the raster thread may still be compositing the
-// previous frame — mutex-guarded (see type doc).
+// EndFrame resets per-frame counters and the usedNow scratch set. It does NOT
+// evict: usedNow is filled by the raster thread's composite of the *previous*
+// job, so any UI-side eviction decision races the raster thread (whenever UI
+// runs ahead, every entry looks unused → full-band re-record bursts, measured
+// in C4). Eviction is handled solely by the capacity LRU in evictForNew
+// (oldest lastUse wins), which consults the stamp clock advanced by BeginFrame.
 func (c *PictureTextureCache) EndFrame() {
 	if c == nil {
 		return
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for id, e := range c.entries {
-		if e == nil {
-			delete(c.entries, id)
-			continue
-		}
-		if _, used := c.usedNow[id]; !used {
-			c.releaseEntryLocked(e)
-			delete(c.entries, id)
-		}
-	}
 	c.usedNow = make(map[uint64]struct{})
 	c.FrameRerecord.Store(0)
 	c.FrameSkip.Store(0)
@@ -294,8 +367,13 @@ func (c *PictureTextureCache) allocEntry(id uint64, w, h int) *pictureTextureEnt
 		}
 		ns, ok := c.slotAlloc(c, w, h)
 		if !ok {
-			// no GPU (or alloc failure): keep the slot's stale content and let
-			// callers fall back to direct vector replay this frame
+			// no GPU (or alloc failure): keep the slot's stale content and
+			// let callers fall back to direct vector replay this frame.
+			// A brand-new entry (no live slot yet) is dropped so the failed
+			// first alloc doesn't leave a husk that blocks later attempts.
+			if e.contentSlot < 0 {
+				delete(c.entries, id)
+			}
 			return nil
 		}
 		*s = *ns
@@ -544,30 +622,28 @@ func (c *PictureTextureCache) measureTextBounds(pic *Picture) (image.Rectangle, 
 }
 
 // evictForNew makes room for a new texture entry when the LRU cap is reached.
-// Prefers evicting an entry unused this frame; falls back to the globally
-// oldest. Always returns true (callers proceed with creation).
+// NEVER victimizes a live-tree key (see SetLiveKeys): a live layer not yet
+// blitted this frame looks "old" during phase 1 (lastUse = previous frame's
+// stamp), and evicting it forces a needless re-record next frame — measured
+// as sporadic single-layer shell rerecords in C4 at popup close. Victims come
+// from non-live entries first (dismissed popups' orphans); if none exist the
+// cache is genuinely over capacity with live content, so fall back to the
+// oldest entry (correctness never depends on the cache). Always returns true.
 func (c *PictureTextureCache) evictForNew() bool {
 	if c.max <= 0 || len(c.entries) < c.max {
 		return true
 	}
-	var victim uint64
-	var oldest uint64 = ^uint64(0)
-	for id, e := range c.entries {
-		if e == nil {
-			continue
-		}
-		if _, used := c.usedNow[id]; used {
-			continue
-		}
-		if e.lastUse < oldest {
-			oldest = e.lastUse
-			victim = id
-		}
-	}
-	if victim == 0 {
-		oldest = ^uint64(0)
+	pick := func(skipLive bool) uint64 {
+		var victim uint64
+		var oldest uint64 = ^uint64(0)
 		for id, e := range c.entries {
 			if e == nil {
+				continue
+			}
+			if _, used := c.usedNow[id]; used {
+				continue
+			}
+			if skipLive && c.isLive(id) {
 				continue
 			}
 			if e.lastUse < oldest {
@@ -575,6 +651,11 @@ func (c *PictureTextureCache) evictForNew() bool {
 				victim = id
 			}
 		}
+		return victim
+	}
+	victim := pick(true)
+	if victim == 0 {
+		victim = pick(false)
 	}
 	if victim != 0 {
 		if e := c.entries[victim]; e != nil {
@@ -668,6 +749,10 @@ type TexturedStats struct {
 	RasterLayerCount  int
 	SkippedLayerCount int
 	ReplayedOps       int
+	// ShellSkip / ShellRerecord are the shell-partition portions of this
+	// frame's blits / texture re-records (R21 shell/content layering).
+	ShellSkip     int64
+	ShellRerecord int64
 	// DamageRects are the dirty layer geometry rects (logical coords) for
 	// PresentFrameDamageRects / TrackDamageRect.
 	DamageRects []image.Rectangle
@@ -692,6 +777,9 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	for _, id := range pkt.DirtyLayerIDs {
 		dirty[id] = struct{}{}
 	}
+	// Shell partitioning (R21): shell-tagged boundaries report their
+	// skip/rerecord separately from the totals.
+	var frameShellSkip, frameShellRerecord atomic.Int64
 
 	// Phase 1: re-record every dirty / NeedsRaster PictureLayer into its
 	// texture, walking the same CTM/clip chain as the composite below so
@@ -703,59 +791,84 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// geometry records into a bounds-sized texture (recordLocal) instead of a
 	// full-surface one — that is what keeps a big grid within the GPU's
 	// texture budget.
-	var rasterWalk func(l Layer, restr int)
-	rasterWalk = func(l Layer, restr int) {
+	// underShell tracks whether the current walk path is inside a
+	// Shell-tagged boundary — re-records/blits there count into the shell
+	// partition (R21) instead of the main totals only.
+	var rasterWalk func(l Layer, restr int, underShell bool)
+	rasterWalk = func(l Layer, restr int, underShell bool) {
 		if l == nil {
 			return
 		}
 		pl, isPic := l.(*PictureLayer)
+		if bl, isBnd := l.(*BoundaryLayer); isBnd && bl.Shell {
+			underShell = true
+		}
 		pushCtx := pushCompositeCTM(dc, l)
 		if isPic {
 			_, dirtyID := dirty[pl.LayerID()]
 			if pl.CacheKey != 0 && (dirtyID || pl.NeedsRaster || !tex.Has(pl.CacheKey)) {
 				b := pl.Picture.Bounds
-				if b.Empty() && restr == 0 {
+				if b.Empty() {
 					if tb, ok := tex.measureTextBounds(&pl.Picture); ok {
 						b = tb
 					}
 				}
 				// OnPaint layers (RasterExtra) fall back to their declared
 				// paint bounds so they still get cheap bounds-sized textures.
-				if b.Empty() && restr == 0 && !pl.ExtraBounds.Empty() {
+				if b.Empty() && !pl.ExtraBounds.Empty() {
 					b = pl.ExtraBounds
 				}
 				var ok bool
-				if restr == 0 && !b.Empty() {
+				// Bounds-sized recordLocal also under clip/rotate CTM
+				// (restr > 0): the texture only covers the picture geometry;
+				// the composite-time scissor/clip crops it back, identical to
+				// what a full-surface texture would show. This keeps scrolled
+				// list cells (viewport clip → restr=1) off full-window
+				// textures — 200+ of those exhaust GPU memory (C4 measured
+				// "Not enough memory left" + endless shell re-records).
+				if !b.Empty() {
 					_, ok = tex.recordLocalWith(pl.CacheKey, &pl.Picture, b, pl.RasterExtra)
 				} else {
 					_, ok = tex.recordWith(pl.CacheKey, &pl.Picture, pl.RasterExtra)
 				}
 				if ok {
 					st.RasterLayerCount++
+					if underShell {
+						frameShellRerecord.Add(1)
+						if os.Getenv("WR_SHELL_DBG") == "1" {
+							fmt.Fprintf(os.Stderr, "SHELLDBG rr id=%d dirty=%v has=%v t=%v\n",
+								pl.CacheKey, dirtyID, tex.Has(pl.CacheKey), time.Now().Format("15:04:05.000"))
+						}
+					}
 				}
 				pl.NeedsRaster = false
 			}
 		}
 		for _, ch := range l.Children() {
-			rasterWalk(ch, restr+restrictive(l))
+			rasterWalk(ch, restr+restrictive(l), underShell)
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
-	rasterWalk(pkt.Root, 0)
-	rasterWalk(pkt.Overlay, 0)
+	rasterWalk(pkt.Root, 0, false)
+	rasterWalk(pkt.Overlay, 0, false)
 
 	// Phase 2: composite paint order — texture blits for cached pictures,
 	// vector replay fallback otherwise, attribute layers via canvas state.
 	// Damage rects for re-recorded layers are emitted here under the composite
 	// CTM (bounds are layer-local; TrackDamageRect needs surface coords).
-	var compositeWalk func(l Layer)
-	compositeWalk = func(l Layer) {
+	var compositeWalk func(l Layer, underShell bool)
+	compositeWalk = func(l Layer, underShell bool) {
 		if l == nil {
 			return
 		}
+		if bl, isBnd := l.(*BoundaryLayer); isBnd && bl.Shell {
+			underShell = true
+		}
 		if pl, ok := l.(*PictureLayer); ok {
 			if len(pl.Picture.Ops) > 0 || pl.RasterExtra != nil {
-				if pl.CacheKey == 0 || !tex.blit(pl.CacheKey) {
+				if underShell && pl.CacheKey != 0 && tex.blit(pl.CacheKey) {
+					frameShellSkip.Add(1)
+				} else if pl.CacheKey == 0 || !tex.blit(pl.CacheKey) {
 					// cache miss / no cache key: vector replay fallback
 					n := pl.Picture.OpCount()
 					pl.Picture.Replay(dc)
@@ -775,12 +888,12 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		switch t := l.(type) {
 		case *ContainerLayer:
 			for _, ch := range l.Children() {
-				compositeWalk(ch)
+				compositeWalk(ch, underShell)
 			}
 		case *OffsetLayer, *BoundaryLayer, *ClipRectLayer, *ClipRRectLayer,
 			*TransformLayer:
 			for _, ch := range l.Children() {
-				compositeWalk(ch)
+				compositeWalk(ch, underShell)
 			}
 		case *OpacityLayer:
 			op := t.Opacity
@@ -792,7 +905,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			}
 			if op >= 1-1e-9 {
 				for _, ch := range l.Children() {
-					compositeWalk(ch)
+					compositeWalk(ch, underShell)
 				}
 				break
 			}
@@ -803,7 +916,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			// vector draws) — keeps the frame blit-only.
 			dc.PushLayer(render.BlendNormal, op)
 			for _, ch := range l.Children() {
-				compositeWalk(ch)
+				compositeWalk(ch, underShell)
 			}
 			dc.PopLayer()
 		default:
@@ -814,8 +927,10 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
-	compositeWalk(pkt.Root)
-	compositeWalk(pkt.Overlay)
+	compositeWalk(pkt.Root, false)
+	compositeWalk(pkt.Overlay, false)
+	st.ShellSkip = frameShellSkip.Load()
+	st.ShellRerecord = frameShellRerecord.Load()
 	return st
 }
 

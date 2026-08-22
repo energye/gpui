@@ -223,6 +223,13 @@ func (s *State) BuildOverlayBand() (scene.Layer, []uint64) {
 			dirty = append(dirty, pl.LayerID())
 		}
 		root.Add(off)
+		// Retained texture path: this build consumed the entry's dirty state
+		// (its content is now captured in the band's layer tree / textures).
+		// Without clearing here the vector-paint clear (State.Paint) never
+		// runs under CompositeFramePacketTextured, so every subsequent frame
+		// would re-record all overlay layers (texture churn, shell-adjacent
+		// damage growth). Fresh inserts re-dirty via Insert(NeedsPaint=true).
+		e.NeedsPaint = false
 	}
 	s.LastDirtyIDs = append([]uint64(nil), dirty...)
 	return root, dirty

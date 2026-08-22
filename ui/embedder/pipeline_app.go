@@ -1164,6 +1164,16 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 		tex = scene.NewPictureTextureCache(dc, 0)
 		a.pictureTex = tex
 	}
+	// Size the texture LRU to the current frame's cacheable layer working
+	// set (never shrinks). The default cap of 64 thrashes on dense scenes:
+	// every eviction forces an offscreen re-record next frame (C4 measured
+	// ~123 re-records/frame at 83ms raster with a 200+ layer shell+body+
+	// overlay tree). +25% headroom absorbs transient scroll in/out layers.
+	// Publish the live key set so eviction can never victimize an in-tree
+	// layer (a live layer not yet blitted this frame looks "old" mid-phase-1).
+	liveKeys, liveCount := scene.CollectCacheableKeys(pkt)
+	tex.EnsureCapacity(liveCount + liveCount/4 + 16)
+	tex.SetLiveKeys(liveKeys)
 	pipe := a.pipe
 	draw := func(d *render.Context) {
 		// Clear: retained steady frames do not clear (LoadOpLoad keeps pixels);
@@ -1176,12 +1186,14 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 			d.TrackDamageRect(r)
 		}
 		// Boundary metrics: texture re-record = rerecord, cached blit = skip.
-		// Shell partitioning (R21) is reported by the vector paintPresentTree
-		// path (full_paint with BoundaryCache); the retained texture path has
-		// no shell ancestry on its ids and intentionally leaves shell=0.
+		// Shell partitioning (R21): shell-tagged BoundaryLayers report their
+		// skip/rerecord via TexturedStats so a scrolling body proves the
+		// shell textures never re-record under the retained path too.
 		lastBoundaryFrame.Store(boundaryFrameSnap{
-			Rerecord: tex.FrameRerecord.Load(),
-			Skip:     tex.FrameSkip.Load(),
+			Rerecord:      tex.FrameRerecord.Load(),
+			Skip:          tex.FrameSkip.Load(),
+			ShellRerecord: st.ShellRerecord,
+			ShellSkip:     st.ShellSkip,
 		})
 		// Paint-dirty marks are consumed by the layer tree (no live paint).
 		pipe.ConsumeNeedsPaint()

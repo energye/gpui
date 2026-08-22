@@ -318,6 +318,10 @@ type BoundaryLayer struct {
 	OffsetLayer
 	// Source is an optional debug tag (e.g. "spinner").
 	Source string
+	// Shell marks a window-shell boundary (R21 shell/content layering). The
+	// retained textured composite partitions its per-frame skip/rerecord by
+	// this flag so a scrolling body proves the shell texture never re-records.
+	Shell bool
 }
 
 // NewBoundaryLayer creates a repaint boundary layer at offset.
