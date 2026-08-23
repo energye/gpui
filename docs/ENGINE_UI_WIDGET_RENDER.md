@@ -109,7 +109,8 @@ L3–L5 Kit                       ← 暂缓
 
 > 母表定义见 [`ENGINE_UI_RENDER_BASE.md` §20.0–§20.2](./ENGINE_UI_RENDER_BASE.md)。  
 > **每个** `ui_wr_*` 真窗结束时必须输出 **一族不少的 JSON 块**（无数据填 `null`/`0` + `unavailable` 原因，**禁止默默省略**）。  
-> 下表 **「硬 FAIL」** 列：不满足则 `exit 1`（除非 README 声明本窗为 `gate=schema_only` 且仅用于 R12 字段存在性——**仅 R12 允许**）。
+> 下表 **「硬 FAIL」** 列：不满足则 `exit 1`（除非 README 声明本窗为 `gate=schema_only` 且仅用于 R12 字段存在性——**仅 R12 允许**）。  
+> 视觉正确性的像素级断言规范见 **§2.7（U21）**——逻辑指标之外，「画面对」必须按形态矩阵断言。  
 
 #### 2.2.1 指标族 × 真窗义务（§20.0）
 
@@ -374,6 +375,7 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak        # soak
 □ 1200×800 + RUN_SECONDS≥5 + wrkit.RequireMinRun
 □ 边界情况验证（脏传播止步、缓存命中/失效、预算拒批等）
 □ 控件支撑意义明确（Extra 中记录）
+□ 像素断言符合 §2.7 规范（形态×断言矩阵配齐 + 三证据合证）
 ```
 
 ### 2.3 作者纪律
@@ -385,6 +387,24 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak        # soak
 ### 2.4 非主能力（明确不做进 §R 关闭）
 
 Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、剪贴板/拖放产品、RTL 产品、母表几何 API 清零。
+
+### 2.7 像素级断言规范（真窗视觉正确性 · 硬 · U21）
+
+> **适用范围（硬）：所有 `ui_wr_*` 真窗中的一切可见图形**——哪个 R 有对应图形，就按本规范对相应形态做断言；不是 C8 专属。目标 = 支撑 GUI 工业级组件与任意图形绘制。
+> **标准对齐（Flutter/Skia 源码核实）：**
+> - **Golden 逐像素基线对比**（flutter_test `compareLists`）：同引擎基线默认零容差、尺寸不匹配即 FAIL、容差必须显式声明（`precisionTolerance` 语义）、失败产差异图。
+> - **captureImage 取 RepaintBoundary image**（`_matchers_io.dart`）：取样对象是渲染 image 不走窗口背存（本项目 `SnapshotPath` GPU readback 同理）。
+> - **hitTestable finder**（`finders.dart:1464`）：「画出来的 ≡ 点得到的」官方测试原语——像素断言必须与命中探针配对。
+> - **确定性帧推进**（`pumpFrames` + FakeAsync）：动画固定时间步逐帧推进，采样可复现；禁止真实墙钟盲采。
+
+**完整规范（形态×断言矩阵 F0–F9 / 采样纪律 / 容差语义 / 门禁化 / 三证据合证 / 反模式清单 / 各 R 能力适用对照）= [`docs/UI_PIXEL_ASSERTION_STANDARD.md`](./UI_PIXEL_ASSERTION_STANDARD.md)**，与本节一体执行、同步修订。要点：
+
+1. **动态图形不做「固定坐标=固定颜色」的点断言**——旋转/缩放用变换不变点 + 区域占比**区间**断言；占比→0 = 内容消失，最高优先 FAIL。
+2. **每个断言可复现**——连跑两次结论必须一致；不可复现的断言视为无效门禁。
+3. **容差分级**：Golden 同引擎基线对比默认零容差；对理论色的比对（含 AA/混合/舍入）≤8/通道，半透明混合 ≤12 且附公式；无声明放宽 = 阈值偷放。
+4. **门禁化**：像素结论入 ability_extra 由 `EvaluateGates` 判定，禁止只打印不进门禁；Golden 差异率 `pixel_golden_diff_pct` 超 README 声明 tolerance 即 FAIL。
+5. **三证据合证**：逻辑命中探针 + 像素断言 + Golden 快照对比缺一不可；首次运行只产基线不定 PASS，第二次运行起进入逐位对比门禁。
+6. **失败归因纪律**：视觉断言失败优先怀疑引擎洞；判「示例用法不对」必须给出布局链/变换链实测证据。
 
 ---
 
@@ -458,6 +478,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 □ GateOptions = ∪(各 R 门禁取并集)
 □ 集成边界验证（跨能力的脏传播/缓存/合成不互相干扰）
 □ 控件集成意义明确（Extra 中记录）
+□ 像素断言符合 §2.7 规范（形态×断言矩阵配齐 + 三证据合证）
 ```
 
 ---
@@ -601,6 +622,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 | R7b 首次关闭 | **R7b 滚动少重录 cell 独立真窗首次关闭（`ui_wr_r7b_scroll_reuse` 1200×800·60s·GPU PASS，一次过）**：① **能力侧就绪**（R7 关窗时已回流补齐）——`rebindWindowLocked` 单循环修复后 fresh-mount 追踪真实生效、`scroll_rerecord` 字段已接 FrameMetrics/pipeline_app、BoundaryCache 代际淘汰（120 帧未触碰逐出）使重入 cell 重录一次如实计数。② **真窗场景（U17 全达标）**：与 R7 同级 1200 项变高异构列表持续滚动 60s（Steady/Spike 2600px/s/Recover ping-pong）+ Align 布局驱动滚动条 thumb + 右栏静态密集区（4×4 色格嵌套 boundary + 8 标签）；HUD 实时 `rr=<累计> Δ=<本tick>/<上界> v=<违例>` 三数字 + PASS 预览色。③ **门禁双线判「静 cell 保持」**：累计线 `scroll_rerecord=1194 ≤ cap=3×item_count(3600)`；**结构线（本窗新增可机器判定证明）**——逐 tick 重录增量 ≤ 新进入行数上界 `⌊\|dy\|/44⌋+⌊\|dvh\|/44⌋+cache两侧+2`，违例 tick 数必须为 0（若每帧全量重录挂载 cell ≈11–15 个则稳态必超上界）；实测 viol=0、maxTick=1/8（余量 8 倍）、boundary_skip=67158>0（保留 cell 走缓存回放）。④ **全族**：fps_interval=60.0≥55、p95=17.5≤22、hitch=1.0/min≤5、rss_slope=6364≤30000（稳态最小二乘语义）、presents=3598、vsync_source 如实输出 fallback、cpu_fallback_ops=0、cpu_pct=42% 非双 0、depcheck 绿无 cgo；metrics-audit 串审 PASS（EARNED/HONEST/CONSISTENT/AT_DEFAULT/PRESENT）。§2 R7b ⬜→✅；§5 W3 行 R7b✅（整波仍 ⬜ 待 R10/C3）。 |
 | R10 首次关闭 | **R10 图异步→局部脏 独立真窗首次关闭（`ui_wr_r10_async_image` 1200×800·30s·GPU PASS）**：① **能力侧就绪**——`ui/io.Pool.DecodeFile` 异步解码 worker（真实文件 PNG，单测在）+ `RenderImage` 占位/加载/出图/SetError 全状态机 + `SetImage` paint-only（只 MarkNeedsPaint）；无新增 FrameMetrics 字段——门禁「出图后 rerecord 仅一格」用现有 `boundary_rerecord` 逐批采样增量判定（避免指标层变更）。② **真窗场景（U17 全达标）**：4×5=20 格独立 RepaintBoundary 图格占位符 → ui/io worker 真实解码逐格点亮（结果经 channel 回 UI 线程才变更树）+ HOT 动块 Align 布局驱动持续动画 + 右栏静态密集区；相位脚本 Steady 0.8s/张 → Spike 连发 → Recover 1.2s/张（能力行为随相位变化）。③ **门禁**：逐批记账 `boundary_rerecord 增量 ≤ 到达格数+1`、违例必须为 0——实测 rrViol=0、maxRRΔ=2（Spike 连发批量）、loaded=20/20、boundary_skip=64672>0（未出图格保持回放）、fps_interval=59.9≥55、p95=17.4≤22、hitch=2.0/min≤5、rss_slope=23696≤30000、presents=1798、vsync_source=true、cpu_fallback_ops=0、cpu_pct=26% 非双 0、depcheck 绿无 cgo。④ **首跑 FAIL 教训（门禁语义修正，非放阈值）**：初版用「每批 layout_count 增量==0」判 paint-only——但 LayoutCount 数的是**布局趟数**（任何脏节点含 HUD 文本更新都 +1），观测不成立；改为引擎级单测 `TestRenderImage_SetImage_PaintOnly`（SetImage 只标脏绘制不标脏布局）+ 窗内保留 rerecord 局部性为唯一窗口级证明；佐证 layout_count=29≈20 次出图状态文本更新+相位切换，出图本身零布局。metrics-audit 串审 PASS。§2 R10 ⬜→✅；§5 W3 行 R10✅（整波仍 ⬜ 待 C3）。 |
 | C3 首次关闭 | **C3 组合窗首次关闭（`ui_wr_c3_list_scroll` 1200×800·60s·GPU PASS，W3 整波收口）**：① **集成场景（U17 全达标，不代替任何单 R）**——1200 项变高异构虚拟列表持续滚动（R7 挂载 + R7b 回放）+ 图片行异步解码**边滚边点亮**（R10：24 张源图 ui/io worker 真实解码、channel 回 UI 线程、decoded 缓存 SetImageShared 共享使重挂载立即有图）+ 右栏静态密集区（R4 局部脏语义）+ Align 布局驱动滚动条 thumb；相位脚本 Steady/Spike/Recover ping-pong。② **组合专属门禁设计**：逐 tick 全部重录增量 ≤ `⌊\|dy\|/44⌋+⌊\|dvh\|/44⌋+cache两侧+2` + **出图额度池**（每张已应用出图 1 点、不过期、总量 ≤24）——出图重录可能延迟到 cell 重入视口的 tick，由额度诚实吸收而非放阈值；首跑 1 次违例为 lastBoundaryRR 未建立基线把 warmup 全量重录计入首 tick（窗口代码修正：首 tick 只采样不判定），非引擎洞。③ **门禁**：bind=14≪1200（cap64 ×10 双线）、scroll_rerecord=1193≤3600、tick_violations=0（max_tick_excess=0）、images_loaded=24/24、boundary_skip=67146>0、fps_interval=59.9≥55、p95=17.2≤22（本窗要点）、hitch=0≤5、rss_slope=4543≤30000、presents=3598、vsync_source=true、cpu_fallback_ops=0、cpu_pct=25% 非双 0、depcheck 绿无 cgo；metrics-audit 串审 PASS。§3 C3 ⬜→✅；§5 W3 行 R7✅·R7b✅·R10✅+C3✅ → **W3 整波 ✅**。 |
+| 像素断言规范（U21） | **新增 §2.7 像素级断言规范 + 独立文档 `docs/UI_PIXEL_ASSERTION_STANDARD.md`（真窗视觉正确性 · 硬 · 全 R 通用）**：C8 假绿复盘沉淀——逻辑探针全 ok 但画面内容消失（retained 纹理路径双重变换），证明「行为对」≠「画面对」。**适用范围 = 所有 ui_wr_* 真窗的一切可见图形**（哪个 R 有图形就按形态矩阵断言，非 C8 专属）；目标 = 支撑 GUI 工业级组件与任意图形绘制。**标准对齐 Flutter/Skia 源码核实（非凭印象）**：① Golden 逐像素基线对比（flutter_test `compareLists`——同引擎默认零容差、尺寸不匹配即 FAIL、容差须显式声明 precisionTolerance、失败产 maskedDiff/isolatedDiff 差异图）；② captureImage 取 RepaintBoundary image 不走窗口背存；③ hitTestable finder（`finders.dart:1464`）「画的 ≡ 点的」官方原语，像素断言必须与命中探针配对；④ pumpFrames+FakeAsync 确定性帧推进，采样可复现。核心条款：形态×断言矩阵 F0–F9（静态=点采样/旋转缩放=变换不变点+占比区间/裁剪=内外双断言/半透明=预公式混合色/文字=区域级/细线=多点偏离/浮层=双态/异步=事件同步）、采样纪律（稳定相位段+布局链坐标+容差分级 ≤8/≤12+临时视觉态必须验恢复帧+快照 ≥2 张且跨运行 Golden 对比）、门禁化（ability_extra + pixel_golden_diff_pct，禁止只打印）、三证据合证（探针+像素+Golden 缺一不可，首跑产基线不定 PASS）、反模式 11 条（metrics-audit 判 FAIL）、各 R 能力适用对照表。 |
 
 
 ---
