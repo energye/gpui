@@ -56,9 +56,12 @@ func TestCompositeFramePacketTextured_Fallback(t *testing.T) {
 	if st.RasterLayerCount != 0 {
 		t.Fatalf("RasterLayerCount=%d want 0 (no GPU)", st.RasterLayerCount)
 	}
-	// No-GPU: nothing recorded, nothing blitted, no damage rects.
+	// No-GPU: nothing recorded, nothing blitted. Clip subtrees stay
+	// cacheable (C8 pass-ownership rework) so the fallback frame reports no
+	// damage rect for them — the replay is a steady-state vector paint, not
+	// a change (damage comes from re-records, which need a GPU).
 	if len(st.DamageRects) != 0 {
-		t.Fatalf("DamageRects=%v want none (no texture recorded)", st.DamageRects)
+		t.Fatalf("DamageRects=%v want none (clip subtree replays as clean content)", st.DamageRects)
 	}
 	if st.ReplayedOps < 1 {
 		t.Fatalf("ReplayedOps=%d want ≥1 (vector fallback)", st.ReplayedOps)

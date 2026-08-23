@@ -25,6 +25,12 @@ type Entry struct {
 	NeedsPaint bool
 
 	removed bool
+	// laidOut gates hit testing until the first Layout pass after Insert:
+	// a just-inserted entry has no valid W/H (or a stale Child offset), so
+	// hitting it in the same tick would answer from geometry that is not on
+	// screen yet. Mirrors Flutter's _RenderDeferredLayoutBox: an overlay
+	// child participates only after its deferred layout has run.
+	laidOut bool
 }
 
 // ID returns the stable entry id (0 if not yet inserted).

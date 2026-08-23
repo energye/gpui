@@ -108,10 +108,13 @@ func (c *RenderClipRRect) Paint(pc *PaintContext) {
 	c.clearPaintDirty()
 }
 
-// HitTest uses the un-rounded AABB (corner holes still hit for now).
+// HitTest uses the exact rounded-rect containment (Flutter RRect.contains,
+// engine/src/flutter/lib/ui/geometry.dart): the un-rounded AABB rejects fast,
+// then points inside a corner quadrant are tested against the corner's unit
+// circle — corner holes no longer hit.
 func (c *RenderClipRRect) HitTest(p Point) RenderObject {
 	sz := c.size
-	if p.X >= 0 && p.Y >= 0 && p.X < sz.Width && p.Y < sz.Height {
+	if p.X >= 0 && p.Y >= 0 && p.X < sz.Width && p.Y < sz.Height && c.rrectContains(p.X, p.Y, sz.Width, sz.Height, c.Radius) {
 		for i := len(c.children) - 1; i >= 0; i-- {
 			ch := c.children[i]
 			off := ch.Offset()
@@ -122,4 +125,41 @@ func (c *RenderClipRRect) HitTest(p Point) RenderObject {
 		return c
 	}
 	return nil
+}
+
+// rrectContains is the uniform-radius form of RRect.contains: outside the
+// AABB → false; inside a corner quadrant (within radius of two adjacent
+// edges) → true iff the point lies in that corner's quarter circle.
+// Radius <= 0 degrades to the AABB test. Coordinates are clip-local
+// (0..w / 0..h), matching ClipRRectParams' (0,0,w,h) local bounds.
+func (c *RenderClipRRect) rrectContains(x, y, w, h, radius float64) bool {
+	if x < 0 || y < 0 || x >= w || y >= h {
+		return false
+	}
+	if radius <= 0 {
+		return true
+	}
+	// Clamp so an over-large radius behaves like Flutter scaleRadii: the
+	// effective corner extent never exceeds half the side.
+	r := radius
+	if r*2 > w {
+		r = w / 2
+	}
+	if r*2 > h {
+		r = h / 2
+	}
+	cx, cy := 0.0, 0.0 // offset from the nearest corner-circle center
+	switch {
+	case x < r && y < r: // top-left: center at (r,r)
+		cx, cy = x-r, y-r
+	case x >= w-r && y < r: // top-right: center at (w-r,r)
+		cx, cy = x-(w-r), y-r
+	case x >= w-r && y >= h-r: // bottom-right: center at (w-r,h-r)
+		cx, cy = x-(w-r), y-(h-r)
+	case x < r && y >= h-r: // bottom-left: center at (r,h-r)
+		cx, cy = x-r, y-(h-r)
+	default:
+		return true // inside, not in any corner area
+	}
+	return cx*cx+cy*cy <= r*r
 }

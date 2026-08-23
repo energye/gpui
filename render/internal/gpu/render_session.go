@@ -4969,10 +4969,29 @@ func (s *GPURenderSession) recordGroupDraws(rp *webgpu.RenderPassEncoder, gr *gr
 // framebuffer (w x h). When non-nil, the scissor clips to the given rect.
 func (s *GPURenderSession) applyGroupScissor(rp *webgpu.RenderPassEncoder, rect *[4]uint32, w, h uint32) {
 	if rect != nil {
-		rp.SetScissorRect(rect[0], rect[1], rect[2], rect[3])
+		// Clamp to the render target: wgpu requires scissor ⊆ target bounds
+		// and silently drops the whole encode when violated. Bounds-sized RTs
+		// (PictureTextureCache recordLocal) legitimately receive clip rects
+		// in surface coordinates that extend past the small offscreen view.
+		x0 := rect[0]
+		y0 := rect[1]
+		x1 := minU32(rect[0]+rect[2], w)
+		y1 := minU32(rect[1]+rect[3], h)
+		if x1 <= x0 || y1 <= y0 {
+			// Clip entirely outside this target — nothing can draw.
+			return
+		}
+		rp.SetScissorRect(x0, y0, x1-x0, y1-y0)
 	} else {
 		rp.SetScissorRect(0, 0, w, h)
 	}
+}
+
+func minU32(a, b uint32) uint32 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // applyGroupScissorWithDamage sets the scissor for a group, intersected with

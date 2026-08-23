@@ -62,6 +62,9 @@ type GPURenderContext struct {
 	// presentStash holds View-nil parent draws deferred across layer RT work (F1).
 	// Avoids mid-frame offscreen Flush of the whole base scene when entering a layer.
 	presentStash presentPendingStash
+	// offscreen suspends the main command stream during an isolated sub-pass
+	// (PictureTextureCache record → its own offscreen view). See offscreenPass.
+	offscreen offscreenPass
 
 	// Per-context clip state.
 	clipRect        *[4]uint32
@@ -454,6 +457,229 @@ type presentPendingStash struct {
 	glyphQuads      []GlyphMaskQuad
 	scissorSegments []scissorSegment
 	baseLayer       *GPUTextureDrawCommand
+}
+
+// offscreenPass holds the ENTIRE pending command stream while an isolated
+// sub-pass (PictureTextureCache.recordLocalWith → FlushGPUWithView to its own
+// offscreen texture) executes on the same GPURenderContext.
+//
+// This is suspend-and-restore, NOT stash-merge: the main pass's queues are
+// swapped out wholesale and swapped back untouched, so the sub-pass can never
+// interleave, merge, or consume main-pass commands — the root cause of the C8
+// black-texture bug, where a mid-frame sub-pass flush triggered prepareTarget
+// to stash the mixed queue and swallow the layer being recorded. It mirrors
+// Skia's per-surface GrRenderTargetContext.fOpsTask / Flutter's per-pass
+// EntityPass: each render target owns its command stream exclusively.
+type offscreenPass struct {
+	active bool
+	// Main-pass state suspended while the sub-pass owns the context.
+	target           render.GPURenderTarget
+	hasTarget        bool
+	shapes           []SDFRenderShape
+	convex           []ConvexDrawCommand
+	convexMeshPts    []render.Point
+	convexMeshVCs    [][4]float32
+	convexMeshPacked []byte
+	convexMeshIdx    []uint16
+	stencil          []StencilPathCommand
+	images           []ImageDrawCommand
+	gpuTex           []GPUTextureDrawCommand
+	text             []TextBatch
+	glyph            []GlyphMaskBatch
+	glyphQuads       []GlyphMaskQuad
+	baseLayer        *GPUTextureDrawCommand
+	clipRect         *[4]uint32
+	clipRRect        *ClipParams
+	clipPath         *render.Path
+	scissorSegments  []scissorSegment
+	textBatchSealed  bool
+	glyphBatchSealed bool
+	frameRendered    bool
+	lastView         *webgpu.TextureView
+	flushedToData    bool
+	pendingAdvLayers []pendingAdvancedLayer
+	layerReleaseHold []func()
+}
+
+// BeginOffscreenPass suspends the main pass entirely: every piece of pending
+// stream state moves into an offscreenPass record and the context starts from
+// a clean slate bound to `target`. While active, Queue*/SetClip*/Flush only
+// see sub-pass commands. Nested calls panic — a sub-pass must be a leaf; the
+// caller guarantees it via its own recursion structure.
+//
+// The returned restore func MUST be called (defer) after the sub-pass has
+// flushed; EndOffscreenPanics if no pass is active.
+func (rc *GPURenderContext) BeginOffscreenPass(target render.GPURenderTarget) func() {
+	if rc == nil {
+		return func() {}
+	}
+	if rc.offscreen.active {
+		panic("gpu: nested BeginOffscreenPass")
+	}
+	o := &rc.offscreen
+	o.active = true
+
+	// Suspend the whole main-pass stream state (move semantics: slices are
+	// taken over, not copied — capacity stays with whichever side last used).
+	o.target, o.hasTarget = rc.pendingTarget, rc.hasPendingTarget
+	rc.pendingTarget, rc.hasPendingTarget = target, true
+
+	o.shapes = append(o.shapes[:0], rc.pendingShapes...)
+	rc.pendingShapes = rc.pendingShapes[:0]
+	o.convex = append(o.convex[:0], rc.pendingConvexCommands...)
+	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
+	o.convexMeshPts = append(o.convexMeshPts[:0], rc.convexMeshPts...)
+	rc.convexMeshPts = rc.convexMeshPts[:0]
+	o.convexMeshVCs = append(o.convexMeshVCs[:0], rc.convexMeshVCs...)
+	rc.convexMeshVCs = rc.convexMeshVCs[:0]
+	o.convexMeshPacked = append(o.convexMeshPacked[:0], rc.convexMeshPacked...)
+	rc.convexMeshPacked = rc.convexMeshPacked[:0]
+	o.convexMeshIdx = append(o.convexMeshIdx[:0], rc.convexMeshIdx...)
+	rc.convexMeshIdx = rc.convexMeshIdx[:0]
+
+	o.stencil = append(o.stencil[:0], rc.pendingStencilPaths...)
+	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
+	o.images = append(o.images[:0], rc.pendingImageCommands...)
+	rc.pendingImageCommands = rc.pendingImageCommands[:0]
+	o.gpuTex = append(o.gpuTex[:0], rc.pendingGPUTextureCommands...)
+	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
+	o.text = append(o.text[:0], rc.pendingTextBatches...)
+	rc.pendingTextBatches = rc.pendingTextBatches[:0]
+	// Rehome glyph batch quad payloads into offscreen-owned storage so the
+	// truncated component store can be reused by sub-pass draws without
+	// clobbering main batches (same opt22 discipline as the stash).
+	o.glyph = o.glyph[:0]
+	for i := range rc.pendingGlyphMaskBatches {
+		g := &rc.pendingGlyphMaskBatches[i]
+		qb := len(o.glyphQuads)
+		o.glyphQuads = append(o.glyphQuads, g.Quads...)
+		gg := *g
+		gg.Quads = o.glyphQuads[qb : qb+len(g.Quads)]
+		o.glyph = append(o.glyph, gg)
+	}
+	rc.glyphMaskQuadStore = rc.glyphMaskQuadStore[:0]
+	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+
+	o.baseLayer, rc.baseLayer = rc.baseLayer, nil
+	o.clipRect, rc.clipRect = rc.clipRect, nil
+	o.clipRRect, rc.clipRRect = rc.clipRRect, nil
+	o.clipPath, rc.clipPath = rc.clipPath, nil
+	o.scissorSegments = append(o.scissorSegments[:0], rc.scissorSegments...)
+	rc.scissorSegments = rc.scissorSegments[:0]
+
+	o.textBatchSealed, rc.textBatchSealed = rc.textBatchSealed, false
+	o.glyphBatchSealed, rc.glyphBatchSealed = rc.glyphBatchSealed, false
+
+	// Frame tracking: the sub-pass targets a fresh offscreen view that has
+	// never been composited — it must get LoadOpClear regardless of what the
+	// main surface saw this frame. The main values are restored verbatim.
+	o.frameRendered, o.lastView = rc.frameRendered, rc.lastView
+	rc.frameRendered, rc.lastView = false, nil
+	if rc.session != nil {
+		rc.session.SetFrameState(false, nil)
+	}
+
+	o.flushedToData, rc.flushedPendingToData = rc.flushedPendingToData, false
+	o.pendingAdvLayers, rc.pendingAdvancedLayers = rc.pendingAdvancedLayers, nil
+	o.layerReleaseHold, rc.layerReleaseHold = rc.layerReleaseHold, nil
+
+	return func() { rc.EndOffscreenPass() }
+}
+
+// EndOffscreenPass flushes nothing by itself: the sub-pass body must have
+// flushed its commands into its own view already (recordLocalWith always does).
+// Any residual sub-pass commands are dropped with the same clear() discipline
+// as Flush's post-encode path (ownership was consumed or abandoned). The
+// suspended main pass is then restored exactly as it was left — queues,
+// clip timeline, frame/LoadOp tracking, deferred advanced layers.
+func (rc *GPURenderContext) EndOffscreenPass() {
+	if rc == nil || !rc.offscreen.active {
+		return
+	}
+	o := &rc.offscreen
+	o.active = false
+
+	clear(rc.pendingShapes)
+	clear(rc.pendingConvexCommands)
+	clear(rc.pendingStencilPaths)
+	clear(rc.pendingImageCommands)
+	clear(rc.pendingGPUTextureCommands)
+	clear(rc.pendingTextBatches)
+	clear(rc.pendingGlyphMaskBatches)
+	clear(rc.scissorSegments)
+
+	rc.pendingShapes = rc.pendingShapes[:0]
+	rc.pendingConvexCommands = rc.pendingConvexCommands[:0]
+	rc.convexMeshPts = rc.convexMeshPts[:0]
+	rc.convexMeshVCs = rc.convexMeshVCs[:0]
+	rc.convexMeshPacked = rc.convexMeshPacked[:0]
+	rc.convexMeshIdx = rc.convexMeshIdx[:0]
+	rc.pendingStencilPaths = rc.pendingStencilPaths[:0]
+	rc.pendingImageCommands = rc.pendingImageCommands[:0]
+	rc.pendingGPUTextureCommands = rc.pendingGPUTextureCommands[:0]
+	rc.pendingTextBatches = rc.pendingTextBatches[:0]
+	rc.pendingGlyphMaskBatches = rc.pendingGlyphMaskBatches[:0]
+	rc.glyphMaskQuadStore = rc.glyphMaskQuadStore[:0]
+	rc.scissorSegments = rc.scissorSegments[:0]
+	rc.baseLayer = nil
+	rc.hasPendingTarget = false
+	rc.textBatchSealed = true
+	rc.glyphBatchSealed = true
+
+	// Restore the suspended main pass verbatim (move back).
+	rc.pendingTarget, rc.hasPendingTarget = o.target, o.hasTarget
+	o.target, o.hasTarget = render.GPURenderTarget{}, false
+
+	rc.pendingShapes = append(rc.pendingShapes[:0], o.shapes...)
+	o.shapes = o.shapes[:0]
+	rc.pendingConvexCommands = append(rc.pendingConvexCommands[:0], o.convex...)
+	o.convex = o.convex[:0]
+	rc.convexMeshPts = append(rc.convexMeshPts[:0], o.convexMeshPts...)
+	o.convexMeshPts = o.convexMeshPts[:0]
+	rc.convexMeshVCs = append(rc.convexMeshVCs[:0], o.convexMeshVCs...)
+	o.convexMeshVCs = o.convexMeshVCs[:0]
+	// Mesh scratch comes home first so restored PackedVerts/Indices point into
+	// rc-owned buffers again (sub-pass could not have touched them: its mesh
+	// packs went through the same rc scratch after we took the main bytes away,
+	// which is why those were also moved out at Begin).
+	rc.convexMeshPacked = append(rc.convexMeshPacked[:0], o.convexMeshPacked...)
+	o.convexMeshPacked = o.convexMeshPacked[:0]
+	rc.convexMeshIdx = append(rc.convexMeshIdx[:0], o.convexMeshIdx...)
+	o.convexMeshIdx = o.convexMeshIdx[:0]
+
+	rc.pendingStencilPaths = append(rc.pendingStencilPaths[:0], o.stencil...)
+	o.stencil = o.stencil[:0]
+	rc.pendingImageCommands = append(rc.pendingImageCommands[:0], o.images...)
+	o.images = o.images[:0]
+	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands[:0], o.gpuTex...)
+	o.gpuTex = o.gpuTex[:0]
+	rc.pendingTextBatches = prependSlice(rc.pendingTextBatches[:0], o.text)
+	o.text = o.text[:0]
+	rc.glyphMaskQuadStore = append(rc.glyphMaskQuadStore[:0], o.glyphQuads...)
+	o.glyphQuads = o.glyphQuads[:0]
+	rc.pendingGlyphMaskBatches = append(rc.pendingGlyphMaskBatches[:0], o.glyph...)
+	o.glyph = o.glyph[:0]
+
+	rc.baseLayer, o.baseLayer = o.baseLayer, nil
+	rc.clipRect, o.clipRect = o.clipRect, nil
+	rc.clipRRect, o.clipRRect = o.clipRRect, nil
+	rc.clipPath, o.clipPath = o.clipPath, nil
+	rc.scissorSegments = append(rc.scissorSegments[:0], o.scissorSegments...)
+	o.scissorSegments = o.scissorSegments[:0]
+
+	rc.textBatchSealed, o.textBatchSealed = o.textBatchSealed, false
+	rc.glyphBatchSealed, o.glyphBatchSealed = o.glyphBatchSealed, false
+
+	rc.frameRendered, rc.lastView = o.frameRendered, o.lastView
+	o.frameRendered, o.lastView = false, nil
+	if rc.session != nil {
+		rc.session.SetFrameState(rc.frameRendered, rc.lastView)
+	}
+
+	rc.flushedPendingToData = o.flushedToData
+	o.flushedToData = false
+	rc.pendingAdvancedLayers, o.pendingAdvLayers = o.pendingAdvLayers, nil
+	rc.layerReleaseHold, o.layerReleaseHold = o.layerReleaseHold, nil
 }
 
 // relocateConvexMeshData copies PackedVerts/Indices into dstPacked/dstIdx and

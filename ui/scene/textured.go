@@ -423,6 +423,11 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	// targets the offscreen view, so its Fill/Stroke must not register damage
 	// on the surface dc (otherwise every re-record would add layer-local
 	// rects at the origin to the present damage union).
+	//
+	// Isolated sub-pass: same pass-ownership suspension as recordLocalWith —
+	// the record's commands/flush must not touch the suspended main stream
+	// (C8 root-cause fix; see the longer comment in recordLocalWith).
+	defer c.dc.BeginOffscreenPass()()
 	c.dc.SetDamageTracking(false)
 	if pic != nil {
 		pic.Replay(c.dc)
@@ -500,6 +505,12 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	if scale <= 0 {
 		scale = 1
 	}
+	// Isolated sub-pass: suspend the main frame stream so this record's
+	// commands and flush never interleave with (or stash away) the surface's
+	// queued ops — Skia per-surface GrRenderTargetContext ownership. Without
+	// it, the mid-frame flush triggered prepareTarget to stash the mixed
+	// queue and the texture recorded black (C8 root cause).
+	defer c.dc.BeginOffscreenPass()()
 	ox, oy := c.dc.TransformPoint(0, 0)
 	c.dc.Push()
 	c.dc.Translate(-ox/scale-float64(b.Min.X), -oy/scale-float64(b.Min.Y))
@@ -794,8 +805,22 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// underShell tracks whether the current walk path is inside a
 	// Shell-tagged boundary — re-records/blits there count into the shell
 	// partition (R21) instead of the main totals only.
-	var rasterWalk func(l Layer, restr int, underShell bool)
-	rasterWalk = func(l Layer, restr int, underShell bool) {
+	//
+	// Restrictive subtrees (rotation / non-1 scale, tracked by the noTex
+	// counter below) never touch the texture cache: the cache records
+	// axis-aligned bounds textures and blits them 1:1, which cannot
+	// represent rotated/scaled content (double transform / cropped shards).
+	// Flutter's raster cache makes the same decision at the same place —
+	// caching is decided while walking the layer tree, and a transform that
+	// is not a pure 2D translation disqualifies the subtree (Engine
+	// RasterCache::CanRasterCachePicture). Those layers vector-replay in
+	// phase 2 under the live CTM, which is always correct.
+	// Clip-only chains stay CACHEABLE: a clip does not bend coordinates
+	// (the CTM stays a pure translate), so recordLocalWith's translation
+	// cancel is exact and the composite-time clip crops the bounds texture
+	// back — this keeps viewport-clipped list cells on cheap textures (C4).
+	var rasterWalk func(l Layer, noTex int, underShell bool)
+	rasterWalk = func(l Layer, noTex int, underShell bool) {
 		if l == nil {
 			return
 		}
@@ -804,7 +829,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			underShell = true
 		}
 		pushCtx := pushCompositeCTM(dc, l)
-		if isPic {
+		if isPic && noTex == 0 {
 			_, dirtyID := dirty[pl.LayerID()]
 			if pl.CacheKey != 0 && (dirtyID || pl.NeedsRaster || !tex.Has(pl.CacheKey)) {
 				b := pl.Picture.Bounds
@@ -845,7 +870,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			}
 		}
 		for _, ch := range l.Children() {
-			rasterWalk(ch, restr+restrictive(l), underShell)
+			rasterWalk(ch, noTex+nonTranslating(l), underShell)
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
@@ -856,8 +881,12 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// vector replay fallback otherwise, attribute layers via canvas state.
 	// Damage rects for re-recorded layers are emitted here under the composite
 	// CTM (bounds are layer-local; TrackDamageRect needs surface coords).
-	var compositeWalk func(l Layer, underShell bool)
-	compositeWalk = func(l Layer, underShell bool) {
+	// Restrictive subtrees (noTex > 0: a rotation / non-1 scale ancestor)
+	// always vector-replay (phase 1 never textured them); their damage rect
+	// is the full four-corner CTM transform of the picture bounds so a
+	// rotated layer dirties its rotated footprint.
+	var compositeWalk func(l Layer, noTex int, underShell bool)
+	compositeWalk = func(l Layer, noTex int, underShell bool) {
 		if l == nil {
 			return
 		}
@@ -866,10 +895,18 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		if pl, ok := l.(*PictureLayer); ok {
 			if len(pl.Picture.Ops) > 0 || pl.RasterExtra != nil {
-				if underShell && pl.CacheKey != 0 && tex.blit(pl.CacheKey) {
-					frameShellSkip.Add(1)
-				} else if pl.CacheKey == 0 || !tex.blit(pl.CacheKey) {
-					// cache miss / no cache key: vector replay fallback
+				blitOK := false
+				if noTex == 0 && pl.CacheKey != 0 {
+					if underShell && tex.blit(pl.CacheKey) {
+						frameShellSkip.Add(1)
+						blitOK = true
+					} else {
+						blitOK = tex.blit(pl.CacheKey)
+					}
+				}
+				if !blitOK {
+					// cache miss / no cache key / non-translating ancestor:
+					// vector replay fallback
 					n := pl.Picture.OpCount()
 					pl.Picture.Replay(dc)
 					st.ReplayedOps += n
@@ -881,6 +918,14 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 						st.DamageRects = append(st.DamageRects, transformBounds(dc, b))
 					}
 				}
+				// Non-translating ancestor (vector replay): the picture's
+				// rotated / scaled footprint is the four-corner CTM transform
+				// of its bounds — an axis-aligned bounds transform would
+				// under-dirty the corners and leave stale shards on screen.
+				if noTex > 0 && !pl.Picture.Bounds.Empty() {
+					st.DamageRects = append(st.DamageRects,
+						transformBounds4(dc, pl.Picture.Bounds))
+				}
 			}
 			return // leaf
 		}
@@ -888,12 +933,13 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		switch t := l.(type) {
 		case *ContainerLayer:
 			for _, ch := range l.Children() {
-				compositeWalk(ch, underShell)
+				compositeWalk(ch, noTex, underShell)
 			}
 		case *OffsetLayer, *BoundaryLayer, *ClipRectLayer, *ClipRRectLayer,
 			*TransformLayer:
+			r := noTex + nonTranslating(l)
 			for _, ch := range l.Children() {
-				compositeWalk(ch, underShell)
+				compositeWalk(ch, r, underShell)
 			}
 		case *OpacityLayer:
 			op := t.Opacity
@@ -905,7 +951,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			}
 			if op >= 1-1e-9 {
 				for _, ch := range l.Children() {
-					compositeWalk(ch, underShell)
+					compositeWalk(ch, noTex, underShell)
 				}
 				break
 			}
@@ -916,7 +962,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			// vector draws) — keeps the frame blit-only.
 			dc.PushLayer(render.BlendNormal, op)
 			for _, ch := range l.Children() {
-				compositeWalk(ch, underShell)
+				compositeWalk(ch, noTex, underShell)
 			}
 			dc.PopLayer()
 		default:
@@ -927,16 +973,42 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
-	compositeWalk(pkt.Root, false)
-	compositeWalk(pkt.Overlay, false)
+	compositeWalk(pkt.Root, 0, false)
+	compositeWalk(pkt.Overlay, 0, false)
 	st.ShellSkip = frameShellSkip.Load()
 	st.ShellRerecord = frameShellRerecord.Load()
 	return st
 }
 
+// nonTranslating reports whether a layer applies a NON-translation transform
+// (rotation, or scale ≠ 1) to its subtree. Such subtrees are excluded from
+// the texture cache entirely: the cache records axis-aligned bounds textures
+// and blits them 1:1, which cannot represent rotated/scaled content — the
+// pre-C8 double-transform / cropped-shard bug. Flutter's raster cache makes
+// the same call at the same place (RasterCache::CanRasterCachePicture).
+// Clips are NOT in this set: a clip does not bend coordinates, so bounds
+// recording is exact; their mid-frame flush safety is owned by the gpu-side
+// offscreen pass (BeginOffscreenPass), not by refusing to cache (the earlier
+// clip noTextureCache workaround cost viewport-list blit throughput).
+func nonTranslating(l Layer) int {
+	switch t := l.(type) {
+	case *TransformLayer:
+		if t.Rotation != 0 {
+			return 1
+		}
+		sx, sy := t.EffectiveScale()
+		if sx != 1 || sy != 1 {
+			return 1
+		}
+	}
+	return 0
+}
+
 // restrictive reports whether a layer imposes a clip / rotation / scale —
 // i.e. whether its subtree must record into a full-surface texture (pure
-// translate is required for bounds-sized recordLocal).
+// translate is required for bounds-sized recordLocal). Retained for the
+// full-window-texture sizing decision in recordWith callers; the cache
+// EXCLUSION decision is nonTranslating() above.
 func restrictive(l Layer) int {
 	switch t := l.(type) {
 	case *ClipRectLayer:
@@ -997,11 +1069,19 @@ func pushCompositeCTM(dc *render.Context, l Layer) func() {
 		if t.TX != 0 || t.TY != 0 {
 			dc.Translate(t.TX, t.TY)
 		}
-		if t.Rotation != 0 {
-			dc.Rotate(t.Rotation)
-		}
-		if sx != 1 || sy != 1 {
-			dc.Scale(sx, sy)
+		// Pivot rotation/scale around the subtree center (CX,CY) — identical
+		// to RenderTransform.Paint's vector path. Rotating about the layer
+		// origin instead makes retained frames spin around the top-left
+		// corner while vector repaints (post-resize) spin around the center.
+		if t.Rotation != 0 || sx != 1 || sy != 1 {
+			dc.Translate(t.CX, t.CY)
+			if t.Rotation != 0 {
+				dc.Rotate(t.Rotation)
+			}
+			if sx != 1 || sy != 1 {
+				dc.Scale(sx, sy)
+			}
+			dc.Translate(-t.CX, -t.CY)
 		}
 		return dc.Pop
 	}
@@ -1054,4 +1134,90 @@ func transformBounds(dc *render.Context, b image.Rectangle) image.Rectangle {
 	apply(float64(b.Max.X), float64(b.Max.Y))
 	apply(float64(b.Min.X), float64(b.Max.Y))
 	return image.Rect(int(minX), int(minY), int(maxX), int(maxY))
+}
+
+// transformBounds4 is transformBounds with an explicit four-corner transform
+// (same math today, kept separate so call sites document WHY the damage rect
+// is computed: rotated/scaled replay footprints need all four corners mapped,
+// not just bounds corners — which are identical here but semantically
+// distinct from a blit-bounds rect).
+func transformBounds4(dc *render.Context, b image.Rectangle) image.Rectangle {
+	return transformBounds(dc, b)
+}
+
+// DebugDumpEntries logs every cache entry (id, size, offset) — C8 live-probe
+// diagnostics only, guarded by the caller.
+func (c *PictureTextureCache) DebugDumpEntries(tag string) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id, e := range c.entries {
+		if e == nil {
+			continue
+		}
+		s := &e.slots[e.contentSlot]
+		fmt.Fprintf(os.Stderr, "%s: id=%d tex=%dx%d off=(%d,%d) recordedIn=%d\n",
+			tag, id, s.w, s.h, e.off.X, e.off.Y, e.recordedIn)
+	}
+}
+
+// DebugDumpEntryTexture renders one cache entry's current content into a PNG
+// (C8 live-probe diagnostics).
+func (c *PictureTextureCache) DebugDumpEntryTexture(dc *render.Context, path string, id uint64) {
+	if c == nil || dc == nil {
+		return
+	}
+	c.mu.Lock()
+	e := c.entries[id]
+	if e == nil {
+		c.mu.Unlock()
+		fmt.Fprintf(os.Stderr, "dump %s: id=%d not in cache\n", path, id)
+		return
+	}
+	s := &e.slots[e.contentSlot]
+	w, h := s.w, s.h
+	view := s.view
+	c.mu.Unlock()
+	out := render.NewContext(w, h)
+	defer out.Close()
+	out.ClearWithColor(render.Black)
+	out.DrawGPUTexture(view, 0, 0, w, h)
+	_ = out.FlushGPU()
+	img := out.Image()
+	cc := map[[3]uint32]int{}
+	for y := 0; y < h; y += 2 {
+		for x := 0; x < w; x += 2 {
+			r, g, b, _ := img.At(x, y).RGBA()
+			cc[[3]uint32{r >> 8, g >> 8, b >> 8}]++
+		}
+	}
+	top := 0
+	var topc [3]uint32
+	for c, n := range cc {
+		if n > top {
+			top = n
+			topc = c
+		}
+	}
+	fmt.Fprintf(os.Stderr, "dump %s: id=%d %dx%d dominant rgb=%d,%d,%d count=%d\n",
+		path, id, w, h, topc[0], topc[1], topc[2], top)
+}
+
+// DebugEntrySlot exposes one entry's current content slot dimensions for
+// GPU-pixel diagnostics (gpupixel test package). Returns ok=false when the
+// entry is absent.
+func (c *PictureTextureCache) DebugEntrySlot(id uint64) (w, h int, ok bool) {
+	if c == nil {
+		return 0, 0, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e := c.entries[id]
+	if e == nil || e.contentSlot < 0 {
+		return 0, 0, false
+	}
+	s := &e.slots[e.contentSlot]
+	return s.w, s.h, !s.view.IsNil()
 }

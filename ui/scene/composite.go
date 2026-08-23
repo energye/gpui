@@ -131,11 +131,16 @@ func compositeLayer(l Layer, dc *render.Context, st *CompositeStats) {
 		if t.TX != 0 || t.TY != 0 {
 			dc.Translate(t.TX, t.TY)
 		}
-		if t.Rotation != 0 {
-			dc.Rotate(t.Rotation)
-		}
-		if sx != 1 || sy != 1 {
-			dc.Scale(sx, sy)
+		// Pivot around the subtree center — see textured.go pushCompositeCTM.
+		if t.Rotation != 0 || sx != 1 || sy != 1 {
+			dc.Translate(t.CX, t.CY)
+			if t.Rotation != 0 {
+				dc.Rotate(t.Rotation)
+			}
+			if sx != 1 || sy != 1 {
+				dc.Scale(sx, sy)
+			}
+			dc.Translate(-t.CX, -t.CY)
 		}
 		st.TransformsApplied++
 		for _, ch := range t.Children() {

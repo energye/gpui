@@ -152,8 +152,9 @@ func TestOverlay_BarrierEatsPointer(t *testing.T) {
 	main := rendering.NewRenderColorBox(200, 200, 0.2, 0.2, 0.2, 1)
 	layoutMain(main, 200, 200)
 	st := overlay.New()
-	// Barrier with no child content hit — still consumes.
+	// Barrier with no child content hit — still consumes (after Layout).
 	st.Insert(overlay.NewBarrierEntry(0, 0, 200, 200, nil))
+	st.Layout(200, 200)
 	band, hit, ent := overlay.HitTestStack(main, st, rendering.Point{X: 50, Y: 50})
 	if band != overlay.BandOverlay || hit != nil || ent == nil || !ent.Barrier {
 		t.Fatalf("barrier: band=%v hit=%T ent=%v", band, hit, ent)
@@ -235,5 +236,88 @@ func TestOverlay_AttachToPacket_EmptyClearsMirror(t *testing.T) {
 	st.AttachToPacket(pkt)
 	if len(pkt.OverlayDirtyLayerIDs) != 0 {
 		t.Fatalf("mirror not cleared: %v", pkt.OverlayDirtyLayerIDs)
+	}
+}
+
+// TestOverlay_HitGatedUntilLayout: a just-inserted entry must NOT answer
+// hit tests until the first Layout pass (Flutter _RenderDeferredLayoutBox:
+// overlay children participate only after deferred layout ran). C8 bug:
+// same-tick probes against a fresh entry silently missed.
+func TestOverlay_HitGatedUntilLayout(t *testing.T) {
+	st := overlay.New()
+	ov := rendering.NewRenderColorBox(40, 40, 1, 0, 0, 1)
+	st.Insert(overlay.NewEntry(ov, 10, 10, 40, 40))
+
+	// Same tick, before Layout: gated → miss falls through to main.
+	hr := st.HitTest(rendering.Point{X: 20, Y: 20})
+	if hr.Consumed || hr.Entry != nil || hr.Child != nil {
+		t.Fatalf("pre-layout hit consumed=%v entry=%v child=%T want none", hr.Consumed, hr.Entry, hr.Child)
+	}
+
+	// Next tick's Layout pass opens the gate.
+	st.Layout(200, 200)
+	hr = st.HitTest(rendering.Point{X: 20, Y: 20})
+	if !hr.Consumed || hr.Child != ov {
+		t.Fatalf("post-layout hit consumed=%v child=%T want ov", hr.Consumed, hr.Child)
+	}
+}
+
+// TestOverlay_BarrierAlsoGatedUntilLayout: barrier entries have no child but
+// their bounds are equally invalid before Layout — they must not eat pointer
+// events in the insert tick.
+func TestOverlay_BarrierAlsoGatedUntilLayout(t *testing.T) {
+	st := overlay.New()
+	st.Insert(overlay.NewBarrierEntry(0, 0, 200, 200, nil))
+
+	if hr := st.HitTest(rendering.Point{X: 100, Y: 100}); hr.Consumed {
+		t.Fatal("pre-layout barrier consumed the pointer")
+	}
+	st.Layout(200, 200)
+	if hr := st.HitTest(rendering.Point{X: 100, Y: 100}); !hr.Consumed || hr.Entry == nil || !hr.Entry.Barrier {
+		t.Fatalf("post-layout barrier: consumed=%v entry=%v", hr.Consumed, hr.Entry)
+	}
+}
+
+// TestOverlay_ReinsertRemovedEntryStaysDead: Remove is final — the id is
+// cleared and Insert refuses a removed entry. Reuse requires a fresh Entry
+// (a resurrected entry would ghost-hit at stale coordinates).
+func TestOverlay_ReinsertRemovedEntryStaysDead(t *testing.T) {
+	st := overlay.New()
+	e := overlay.NewEntry(rendering.NewRenderColorBox(40, 40, 1, 0, 0, 1), 10, 10, 40, 40)
+	st.Insert(e)
+	st.Layout(200, 200)
+	if !st.Remove(e) {
+		t.Fatal("remove failed")
+	}
+	if e.ID() != 0 {
+		t.Fatalf("removed entry keeps id %d want 0", e.ID())
+	}
+	st.Insert(e) // refused
+	if st.Len() != 0 {
+		t.Fatalf("removed entry resurrected, len=%d", st.Len())
+	}
+	if hr := st.HitTest(rendering.Point{X: 20, Y: 20}); hr.Consumed {
+		t.Fatal("dead entry answered a hit test")
+	}
+}
+
+// TestOverlay_FixedSizeAlsoGatedAndHit: fixed-size entries go through the
+// same gate even though W/H are known at Insert — the Child offset is only
+// valid after Layout, which is what the gate protects.
+func TestOverlay_FixedSizeAlsoGatedAndHit(t *testing.T) {
+	st := overlay.New()
+	ov := rendering.NewRenderColorBox(30, 30, 0, 1, 0, 1)
+	e := overlay.NewEntry(ov, 50, 50, 30, 30)
+	st.Insert(e)
+
+	if hr := st.HitTest(rendering.Point{X: 60, Y: 60}); hr.Consumed {
+		t.Fatal("fixed-size entry hit before Layout")
+	}
+	st.Layout(200, 200)
+	if e.W != 30 || e.H != 30 {
+		t.Fatalf("layout clobbered fixed size: %vx%v", e.W, e.H)
+	}
+	if hr := st.HitTest(rendering.Point{X: 60, Y: 60}); !hr.Consumed || hr.Child != ov {
+		t.Fatalf("fixed-size post-layout hit: consumed=%v child=%T", hr.Consumed, hr.Child)
 	}
 }

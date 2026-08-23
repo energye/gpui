@@ -63,9 +63,11 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 	// Transform nodes push scene.TransformLayer (P1).
 	if tr, ok := n.(*RenderTransform); ok {
 		rot, sx, sy := tr.TransformParams()
+		sz := n.Size()
+		cx, cy := sz.Width*0.5, sz.Height*0.5
 		if n.IsRepaintBoundary() {
 			b.PushBoundary(off.X, off.Y, "transform", n.NeedsPaint() || layerSubtreeNeedsPaint(n))
-			b.PushTransform(0, 0, rot, sx, sy)
+			b.PushTransform(0, 0, rot, sx, sy).SetPivot(cx, cy)
 			for _, ch := range n.Children() {
 				appendNode(ch, b)
 			}
@@ -76,7 +78,7 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 			b.Pop() // boundary
 			return
 		}
-		b.PushTransform(off.X, off.Y, rot, sx, sy)
+		b.PushTransform(off.X, off.Y, rot, sx, sy).SetPivot(cx, cy)
 		if len(n.Children()) == 0 {
 			addLeafPicture(b, n)
 		}

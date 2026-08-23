@@ -140,6 +140,11 @@ type TransformLayer struct {
 	TX, TY   float64 // translation (logical px, Y-down)
 	Rotation float64 // radians, clockwise in Y-down canvas matches render.Rotate
 	SX, SY   float64 // scale; treat 0 as 1 when applying
+	// CX, CY is the rotation/scale pivot in layer-local coordinates (the
+	// transformed node's content center). Zero values mean the layer origin —
+	// callers that know the subtree size should always set the center so the
+	// vector paint path and the retained composite path rotate identically.
+	CX, CY float64
 }
 
 // NewTransformLayer creates a transform layer. Pass sx,sy=1 for pure rotate/translate.
@@ -333,3 +338,12 @@ func NewBoundaryLayer(dx, dy float64, source string) *BoundaryLayer {
 }
 
 func (b *BoundaryLayer) Kind() string { return "boundary" }
+
+// SetPivot sets the rotation/scale pivot (subtree content center, layer-local).
+func (t *TransformLayer) SetPivot(cx, cy float64) *TransformLayer {
+	if t == nil {
+		return nil
+	}
+	t.CX, t.CY = cx, cy
+	return t
+}

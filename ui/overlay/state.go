@@ -43,6 +43,9 @@ func (s *State) Entries() []*Entry {
 }
 
 // Insert pushes e on top of the stack. Returns e (with id assigned).
+// The entry is hit-gated until the next Layout pass (laidOut), so a
+// same-tick HitTest cannot answer from geometry that is not on screen yet
+// (Flutter _RenderDeferredLayoutBox semantics).
 func (s *State) Insert(e *Entry) *Entry {
 	if s == nil || e == nil || e.removed {
 		return e
@@ -56,6 +59,7 @@ func (s *State) Insert(e *Entry) *Entry {
 	s.nextID++
 	e.id = s.nextID
 	e.removed = false
+	e.laidOut = false
 	e.NeedsPaint = true
 	s.entries = append(s.entries, e)
 	s.Generation++
@@ -63,6 +67,8 @@ func (s *State) Insert(e *Entry) *Entry {
 }
 
 // Remove pops e from the stack (by pointer or id). Invokes OnRemove once.
+// A removed entry is dead: its id is cleared, and re-inserting the same
+// pointer is refused — reuse requires a fresh Entry.
 func (s *State) Remove(e *Entry) bool {
 	if s == nil || e == nil {
 		return false
@@ -72,8 +78,10 @@ func (s *State) Remove(e *Entry) bool {
 			continue
 		}
 		s.entries = append(s.entries[:i], s.entries[i+1:]...)
+		x.laidOut = false
 		if !x.removed {
 			x.removed = true
+			x.id = 0 // dead entry: id gone, re-insert refused by Insert
 			if x.OnRemove != nil {
 				x.OnRemove()
 			}
@@ -95,12 +103,18 @@ func (s *State) Clear() {
 }
 
 // Layout lays out each entry child and fills zero W/H from child size.
+// Marks every entry laidOut so the next HitTest can see it (barrier-only
+// entries too — they have no child but their bounds are valid after this).
 func (s *State) Layout(viewportW, viewportH float64) {
 	if s == nil {
 		return
 	}
 	for _, e := range s.entries {
-		if e == nil || e.Child == nil {
+		if e == nil || e.removed {
+			continue
+		}
+		e.laidOut = true
+		if e.Child == nil {
 			continue
 		}
 		maxW, maxH := e.W, e.H
@@ -135,13 +149,15 @@ type HitResult struct {
 }
 
 // HitTest walks entries top → bottom. Point is window/logical coordinates.
+// Entries are skipped until their first Layout pass (laidOut gate) — a
+// just-inserted entry answers nothing this tick.
 func (s *State) HitTest(p rendering.Point) HitResult {
 	if s == nil {
 		return HitResult{}
 	}
 	for i := len(s.entries) - 1; i >= 0; i-- {
 		e := s.entries[i]
-		if e == nil || !e.Contains(p) {
+		if e == nil || !e.laidOut || !e.Contains(p) {
 			continue
 		}
 		local := rendering.Point{X: p.X - e.X, Y: p.Y - e.Y}

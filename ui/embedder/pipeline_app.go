@@ -154,6 +154,13 @@ type PipelineApp struct {
 	// cacheInvalidations counts programmatic boundary-cache invalidations
 	// issued via InvalidateBoundaryCache (R11 cache_invalidations metric).
 	cacheInvalidations atomic.Int64
+
+	// snapshotQueue holds snapshot closures from the UI thread, drained at the
+	// END of the next raster job — serialized with presents so readback never
+	// races the frame that owns the context/swapchain (§2.7/U21 pixel
+	// assertions). UI side waits on each request's done channel.
+	snapshotMu    sync.Mutex
+	snapshotQueue []func()
 }
 
 // SetDebugRepaint toggles R12b repaint visualization for subsequent presents.
@@ -170,6 +177,57 @@ func (a *PipelineApp) DebugRepaintDraws() int64 {
 		return 0
 	}
 	return a.debugRepaintDraws.Load()
+}
+
+// SnapshotAsync schedules fn to run at the end of the next raster frame and
+// waits for it. The raster thread owns the render context and swapchain, so
+// GPU readback (context.Image / SavePNG) must execute there — calling it from
+// the UI thread races the present that owns the texture and aborts wgpu
+// ("invalid texture for image copy texture"). This is the safe §2.7/U21
+// pixel-sampling path: deterministic frame point (the next presented frame),
+// serialized with the present.
+func (a *PipelineApp) SnapshotAsync(fn func()) {
+	if a == nil || fn == nil {
+		return
+	}
+	done := make(chan struct{})
+	a.snapshotMu.Lock()
+	a.snapshotQueue = append(a.snapshotQueue, func() {
+		defer close(done)
+		fn()
+	})
+	a.snapshotMu.Unlock()
+	a.ScheduleFrame()
+	// Bounded spin: the raster thread runs independently, but the frame gate
+	// may defer the next present by up to ~2 vsync intervals. Poll instead of
+	// blocking the full wait so a deferred frame cannot stall the UI loop.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for {
+		select {
+		case <-done:
+			return
+		case <-time.After(2 * time.Millisecond):
+		}
+		if time.Now().After(deadline) {
+			fmt.Fprintln(os.Stderr, "embedder: snapshot request timed out")
+			return
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+}
+
+// drainSnapshots executes queued snapshot closures on the raster thread.
+func (a *PipelineApp) drainSnapshots() {
+	if a == nil || a.snapshotQueue == nil {
+		return
+	}
+	a.snapshotMu.Lock()
+	q := a.snapshotQueue
+	a.snapshotQueue = nil
+	a.snapshotMu.Unlock()
+	for _, fn := range q {
+		fn()
+	}
 }
 
 // SetPresentPolicy sets window present strategy and metrics present_policy.
@@ -307,7 +365,7 @@ func LastShellBoundaryFrame() (shellRerecord, shellSkip int64) {
 // count is taken from the packet BEFORE overlay ids are merged in, so an
 // overlay open/close must leave it at its pre-overlay level.
 type overlayBandSnap struct {
-	MainDirtyCount int
+	MainDirtyCount    int
 	OverlayDirtyCount int
 }
 
@@ -343,6 +401,16 @@ func (a *PipelineApp) BoundaryCache() *rendering.BoundaryCache {
 		return nil
 	}
 	return a.pipe.BoundaryCache()
+}
+
+// PictureTextures returns the retained-path layer texture cache (raster-thread
+// owned; read-only inspection from snapshot closures is safe because drains
+// run serialized on the raster thread).
+func (a *PipelineApp) PictureTextures() *scene.PictureTextureCache {
+	if a == nil {
+		return nil
+	}
+	return a.pictureTex
 }
 
 // Overlay returns the overlay stack (may be nil).
@@ -427,6 +495,16 @@ func (a *PipelineApp) Pipeline() *rendering.PipelineOwner {
 		return nil
 	}
 	return a.pipe
+}
+
+// Target returns the present target (nil before Open). Pixel-verification
+// windows (§2.7/U21) use Target().Context().Image() to sample the composited
+// frame at deterministic phase points — the same readback path SavePNG uses.
+func (a *PipelineApp) Target() *render.PresentTarget {
+	if a == nil {
+		return nil
+	}
+	return a.target
 }
 
 // Metrics returns metrics store.
@@ -990,6 +1068,9 @@ func (a *PipelineApp) Run() error {
 						metrics.NoteGPUPathStats(st.GPUOps, st.CPUFallbackOps, st.FrameFlushes, st.LastCPUFallbackReason)
 					}
 				}
+				// End of job: run any §2.7 snapshot requests — after present completed, so
+				// readback sees this frame's composited pixels and cannot race the swapchain.
+				a.drainSnapshots()
 				return err
 			},
 		}

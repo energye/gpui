@@ -148,8 +148,14 @@ func TestRenderClipRRect_HitTest(t *testing.T) {
 		want string
 	}{
 		{"inside hits child", rendering.Point{X: 20, Y: 20}, "clipped"},
-		{"child local origin", rendering.Point{X: 10, Y: 10}, "clipped"},
-		{"clip edge still inside", rendering.Point{X: 10 + 39, Y: 10 + 39}, "clipped"},
+		// (10,10) is the clip's local (0,0): inside the AABB but outside the
+		// r=4 TL corner circle (d²=32>16) → rejected by exact RRect.contains
+		// (Flutter parity; the old AABB test expected a hit here).
+		{"corner pixel rejected", rendering.Point{X: 10, Y: 10}, ""},
+		// Local (39,39) is in the BR corner quadrant at d²=18 > 16 → hole.
+		{"br corner hole rejected", rendering.Point{X: 10 + 39, Y: 10 + 39}, ""},
+		// Straight edge points are unaffected by corner circles.
+		{"straight right edge", rendering.Point{X: 10 + 39, Y: 10 + 20}, "clipped"},
 		{"outside clip x rejected", rendering.Point{X: 10 + 50, Y: 20}, ""},
 		{"outside clip y rejected", rendering.Point{X: 20, Y: 10 + 50}, ""},
 		{"far outside nil", rendering.Point{X: 95, Y: 95}, ""},
@@ -182,5 +188,71 @@ func TestRenderClipRRect_HitTest_ChildOverflow(t *testing.T) {
 		// AbsoluteBox ancestor (no debug name) is the legal owner.
 	} else {
 		t.Fatalf("beyond clip but inside child: got %v want root or nil", rendering.HitDebugName(hit))
+	}
+}
+
+// TestRenderClipRRect_HitTest_CornerHole pins the exact RRect containment
+// (Flutter RRect.contains): a point inside the clip's AABB but outside the
+// rounded corner circle must NOT hit, while the same-distance point on the
+// straight edge must hit. Radius 10 on a 40×40 clip: (1,1) is in the TL
+// corner quadrant at distance² = 81+81 > 100 → rejected; (5,0) is on the top
+// edge but x < r with y=0 → also corner area, distance² = 25+100 = 125 → wait,
+// (5,0): center offset (-5,-10)? No — center is (r,r)=(10,10), so (5-10)²+(0-10)²
+// = 25+100 = 125 > 100 → rejected too. Use (9.5, 2): (−0.5)²+(−8)² = 64.25 ≤
+// 100 → accepted.
+func TestRenderClipRRect_HitTest_CornerHole(t *testing.T) {
+	child := rendering.NewRenderColorBox(40, 40, 1, 0, 0, 1)
+	child.SetDebugName("clipped")
+	clip := rendering.NewRenderClipRRect(child)
+	clip.FixedWidth, clip.FixedHeight = 40, 40
+	clip.SetRadius(10)
+	root := rendering.NewAbsoluteBox(100, 100)
+	root.Place(clip, 0, 0)
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
+
+	cases := []struct {
+		name string
+		p    rendering.Point
+		want string
+	}{
+		// TL corner hole: (1,1) — inside AABB, outside quarter circle.
+		{"corner hole rejected", rendering.Point{X: 1, Y: 1}, ""},
+		// Just across the corner arc boundary: center (10,10), point (4,4):
+		// 36+36=72 ≤ 100 → inside.
+		{"inside near corner arc", rendering.Point{X: 4, Y: 4}, "clipped"},
+		// Center of the shape obviously hits.
+		{"center hits", rendering.Point{X: 20, Y: 20}, "clipped"},
+		// Straight-edge point near the BR corner axis: (39,20) is not in any
+		// corner quadrant (y between r and h-r) → hits despite x ≥ w-r.
+		{"straight edge near corner hits", rendering.Point{X: 39, Y: 20}, "clipped"},
+		// BR corner hole: (39,39) — (29,29) offset from center (30,30):
+		// 1+1=2 ≤ 100 → actually inside! Use the extreme (39.5,39.5):
+	}
+	_ = cases
+
+	// Explicit numeric checks against the unit-circle rule:
+	// TL corner hole at (1,1): offset from center (10,10) = (-9,-9),
+	// d² = 162 > 100 → rejected.
+	if hit := root.HitTest(rendering.Point{X: 1, Y: 1}); rendering.HitDebugName(hit) != "" {
+		t.Fatalf("TL corner hole (1,1) hit %v want nil", rendering.HitDebugName(hit))
+	}
+	// Inside the arc at (4,4): d² = 72 ≤ 100 → child hit.
+	if hit := root.HitTest(rendering.Point{X: 4, Y: 4}); rendering.HitDebugName(hit) != "clipped" {
+		t.Fatalf("inside arc (4,4) got %q want clipped", rendering.HitDebugName(hit))
+	}
+	// BR corner hole at (39,39): offset from center (30,30) = (9,9),
+	// d² = 162 > 100 → rejected.
+	if hit := root.HitTest(rendering.Point{X: 39, Y: 39}); rendering.HitDebugName(hit) != "" {
+		t.Fatalf("BR corner hole (39,39) hit %v want nil", rendering.HitDebugName(hit))
+	}
+	// Straight edge beside the corner: (39,20) — y in [r,h-r], no corner test.
+	if hit := root.HitTest(rendering.Point{X: 39, Y: 20}); rendering.HitDebugName(hit) != "clipped" {
+		t.Fatalf("straight edge (39,20) got %q want clipped", rendering.HitDebugName(hit))
+	}
+	// Arc boundary equality: (10+7.071..., 10) ≈ on the circle → still inside
+	// (<=). Use (17,10): d² = 49 ≤ 100.
+	if hit := root.HitTest(rendering.Point{X: 17, Y: 10}); rendering.HitDebugName(hit) != "clipped" {
+		t.Fatalf("on-arc interior (17,10) got %q want clipped", rendering.HitDebugName(hit))
 	}
 }

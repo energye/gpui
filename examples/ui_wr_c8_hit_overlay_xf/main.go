@@ -31,16 +31,22 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"math"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
+	"github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
+	"github.com/energye/gpui/ui/scene"
 	"github.com/energye/gpui/ui/scheduler"
 
 	_ "github.com/energye/gpui/render/gpu"
@@ -59,6 +65,13 @@ type probe struct {
 	expectHit bool
 	done      bool
 	ok        bool
+	// wx, wy record the resolved window point of the last run for the §2.7
+	// pixel cross-check (probe identity + painted color at the same point).
+	// br/bg/bb are the target's base color (F0 exact-point assertion; the
+	// rotating/scaling targets are probed at their invariant centers).
+	wx, wy         float64
+	br, bg, bb     float64
+	pixOK, pixDone bool
 }
 
 func main() {
@@ -95,11 +108,9 @@ func main() {
 	bodyY := shell.Body.Box.Offset().Y
 
 	var probes []*probe
-	colors := map[string]*rendering.RenderColorBox{} // hit targets for highlight
-
 	mkHit := func(name string, box *rendering.RenderColorBox, ab *rendering.RenderAlignBox, anc rendering.RenderObject, dx, dy float64) {
-		probes = append(probes, &probe{name: name, align: ab, anc: anc, target: box, dx: dx, dy: dy, expectHit: true})
-		colors[name] = box
+		probes = append(probes, &probe{name: name, align: ab, anc: anc, target: box, dx: dx, dy: dy, expectHit: true,
+			br: box.R, bg: box.G, bb: box.B})
 	}
 	mkMiss := func(ab *rendering.RenderAlignBox, anc, target rendering.RenderObject, dx, dy float64) {
 		probes = append(probes, &probe{name: "", align: ab, anc: anc, target: target, dx: dx, dy: dy, expectHit: false})
@@ -198,9 +209,6 @@ func main() {
 			if ev.Type == platform.EventPointer && ev.Pointer == platform.PointerDown {
 				band, obj, entry := app.HitTestPointer(ev.X, ev.Y)
 				name := rendering.HitDebugName(obj)
-				if h, okHit := colors[name]; okHit {
-					highlight(h, name)
-				}
 				lastPtrHit = fmt.Sprintf("%s[%v]", orDash(name), band)
 				fmt.Fprintf(os.Stderr, "ui_wr_c8_hit_overlay_xf: ptr click @(%.0f,%.0f) band=%v hit=%q entry=%v\n",
 					ev.X, ev.Y, band, name, entry != nil)
@@ -283,6 +291,13 @@ func main() {
 	animSpeed := 1.0
 	pulse := 1.0
 
+	// §2.7 snapshot schedule: one mid-steady shot + one after recovery.
+	snapDir := os.Getenv("C8_SNAP_DIR")
+	snapSteadyPath := filepath.Join(snapDir, "c8_steady.png")
+	snapRecoverPath := filepath.Join(snapDir, "c8_recover.png")
+	snapSteadyAt := 2.5 // seconds into Steady phase
+	snapRecoverAt := -1.0
+
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
 		// Phase timeline (15s default): Steady 0–3s (scripted main-tree probes)
@@ -351,7 +366,7 @@ func main() {
 				if p.done {
 					continue
 				}
-				runProbe(app, bodyX, bodyY, p, colors, &lastScriptHit)
+				runProbe(app, bodyX, bodyY, p, &lastScriptHit)
 				allDone = allDone && p.done
 			}
 			steadyDone = allDone
@@ -410,6 +425,27 @@ func main() {
 			restoredProbeDone = true
 			restoredProbeOK = band == overlay.BandMain && rendering.HitDebugName(obj) == "lbl-7"
 			logProbe("restore", band, obj)
+			snapRecoverAt = elapsed + 0.5 // shot ~0.5s after restore
+		}
+
+		// §2.7/U21 snapshots: steady mid-run + post-recovery. SavePNG runs on
+		// the raster thread via SnapshotAsync; the recovery shot proves no
+		// temp-state residue (C8 pollution lesson).
+		if snapSteadyAt > 0 && elapsed >= snapSteadyAt && steadyDone && pixelPending(probes) {
+			snapSteadyAt = 0
+			path := snapSteadyPath
+			app.SnapshotAsync(func() {
+				saveSnap(app, app.Pipeline(), shell.Root, ov, path, "steady")
+				runPixelChecks(app.Target().Context().Image(), probes)
+			})
+		}
+		if snapRecoverAt > 0 && restoredProbeDone {
+			snapRecoverAt = 0
+			path := snapRecoverPath
+			app.SnapshotAsync(func() {
+				saveSnap(app, app.Pipeline(), shell.Root, ov, path, "recover")
+				runPixelChecks(app.Target().Context().Image(), probes)
+			})
 		}
 
 		// Per-frame band observation (one-frame lag — see ui_wr_r8_overlay):
@@ -502,6 +538,9 @@ func main() {
 			"overlay_cycles":           cycleKind,
 			"anim_targets":             "continuous_rotation,breathing_scale",
 			"anim_boundary_isolated":   true,
+			"pixel_probes_total":       len(probes),
+			"pixel_probes_ok":          pixelAllOK(probes),
+			"pixel_tolerance":          "8/255 per channel (§2.7 F0 exact-point; rot/scale at invariant centers)",
 			"impl_interaction":         "hit probes run DURING rotation/scale animation and across overlay states (steady/barrier-modal/non-barrier-tooltip/recovered); band observation separates main vs overlay dirtiness",
 			"impl_correctness":         "HitTestPointer overlay-first then main; RenderTransform.HitTest inverse-maps live rotation/scale per call",
 			"impl_dirty":               "band-separated LastOverlayBandFrame; overlay opens must not exceed worst-case steady main-band baseline (R8 D5)",
@@ -527,6 +566,11 @@ func main() {
 	}
 	if okCount != total {
 		fmt.Fprintf(os.Stderr, "FAIL: scripted_ok=%d want %d (hit testing must match paint identity under transform+overlay)\n", okCount, total)
+		os.Exit(1)
+	}
+	pixTotal, pixOK := len(probes), pixelAllOK(probes)
+	if pixOK != pixTotal {
+		fmt.Fprintf(os.Stderr, "FAIL: pixel_probes_ok=%d/%d (§2.7/U21: composited color must match target base at probe points)\n", pixOK, pixTotal)
 		os.Exit(1)
 	}
 	if countHits(probes)+boolToInt(ovEntryHitOK) < 4 {
@@ -588,7 +632,7 @@ func spikeEnd(secs int) float64 {
 	return 10.5
 }
 
-func runProbe(app *embedder.PipelineApp, bodyX, bodyY float64, p *probe, colors map[string]*rendering.RenderColorBox, lastScript *string) {
+func runProbe(app *embedder.PipelineApp, bodyX, bodyY float64, p *probe, lastScript *string) {
 	off := p.target.Offset()
 	ab := p.align.Offset()
 	wx := bodyX + ab.X + off.X + p.dx
@@ -598,13 +642,13 @@ func runProbe(app *embedder.PipelineApp, bodyX, bodyY float64, p *probe, colors 
 		wx += ao.X
 		wy += ao.Y
 	}
+	p.wx, p.wy = wx, wy // record for pixel-assert cross-check (§2.7)
 	_, obj, _ := app.HitTestPointer(wx, wy)
 	name := rendering.HitDebugName(obj)
 	if p.expectHit {
 		if name == p.name {
 			p.ok = true
 			*lastScript = p.name
-			highlight(colors[p.name], p.name)
 		}
 	} else if name == "" {
 		p.ok = true
@@ -627,14 +671,6 @@ func insertAll(ov *overlay.State, entries []*overlay.Entry) {
 	for _, e := range entries {
 		ov.Insert(e)
 	}
-}
-
-func highlight(c *rendering.RenderColorBox, name string) {
-	if c == nil {
-		return
-	}
-	c.R, c.G, c.B = 1.0, 1.0, 0.55
-	c.MarkNeedsPaint()
 }
 
 func countOK(probes []*probe) int {
@@ -669,4 +705,164 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// saveSnap saves a PNG snapshot on the raster thread. Window presents are
+// zero-readback (the context pixmap stays stale after FlushGPUWithView +
+// EndFrame releases the view), so a bare SavePNG would capture an empty
+// pixmap. Replicate the close-time snapshot instead: drain in-flight work,
+// BeginFrame, repaint the whole tree into the same context (the nil-view
+// flush reads back into the pixmap through the same GPU session), SavePNG.
+func rgbaFromImage(img image.Image) []byte {
+	w := img.Bounds().Dx()
+	h := img.Bounds().Dy()
+	buf := make([]byte, w*h*4)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			i := (y*w + x) * 4
+			buf[i], buf[i+1], buf[i+2], buf[i+3] = byte(r>>8), byte(g>>8), byte(b>>8), byte(a>>8)
+		}
+	}
+	return buf
+}
+
+func saveSnap(app *embedder.PipelineApp, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, path, tag string) {
+	dc := app.Target().Context()
+	if dc == nil {
+		return
+	}
+	// LIVE-BLIT probe (C8 v2.2): re-run the REAL retained composite (blits
+	// from the layer texture cache) into an offscreen view and dump it —
+	// this is the exact steady-frame path users see on screen, unlike the
+	// vector repaint below which mirrors the post-resize state.
+	if os.Getenv("C8_LIVE_PROBE") == "1" {
+		pkt := rendering.BuildFramePacket(root, 1, 1, 1200, 800)
+		ov.AttachToPacket(pkt)
+		liveView, liveRel := dc.CreateOffscreenTexture(1200, 800)
+		if liveView.IsNil() {
+			fmt.Fprintln(os.Stderr, "live-probe: no offscreen texture")
+		} else {
+			scene.Walk(pkt.Root, func(l scene.Layer) {
+				if pl, ok := l.(*scene.PictureLayer); ok && pl.CacheKey == 33 {
+					fmt.Fprintf(os.Stderr, "live-probe: C layer ops=%d bounds=%v valid=%v needsRaster=%v\n",
+						pl.Picture.OpCount(), pl.Picture.Bounds, pl.Picture.Valid, pl.NeedsRaster)
+				}
+			})
+			beforeSkip := app.PictureTextures().FrameSkip.Load()
+			st := scene.CompositeFramePacketTextured(pkt, dc, app.PictureTextures())
+			fmt.Fprintf(os.Stderr, "live-probe: rerecord=%d blits=%d replayed=%d dmg=%d\n",
+				st.RasterLayerCount, app.PictureTextures().FrameSkip.Load()-beforeSkip,
+				st.ReplayedOps, len(st.DamageRects))
+			type rb interface {
+				ReadbackViewRGBA(v context.TextureView, w, h int) ([]byte, error)
+			}
+			if tc := app.PictureTextures(); tc != nil {
+				// Dump the C (target-round) cached texture alone.
+			}
+			if true {
+				if rgba, err := func() ([]byte, error) {
+					// nil-view flush: readbackToData path (proven correct in
+					// contract tests) — composite lands in the CPU pixmap.
+					if err := dc.FlushGPU(); err != nil {
+						return nil, err
+					}
+					return rgbaFromImage(dc.Image()), nil
+				}(); err == nil {
+					img := image.NewRGBA(image.Rect(0, 0, 1200, 800))
+					copy(img.Pix, rgba)
+					f, ferr := os.Create(strings.TrimSuffix(path, ".png") + "_live.png")
+					if ferr == nil {
+						_ = png.Encode(f, img)
+						f.Close()
+						fmt.Fprintf(os.Stderr, "live-probe wrote %s_live.png\n", strings.TrimSuffix(path, ".png"))
+					}
+				}
+			}
+		}
+		liveRel()
+	}
+	dc.BeginFrame()
+	embedder.PaintPresentTree(dc, pipe, root, ov, 0.08, 0.09, 0.11, 1, true)
+	if err := dc.SavePNG(path); err != nil {
+		fmt.Fprintf(os.Stderr, "snapshot %s: %v\n", tag, err)
+	} else {
+		fmt.Fprintf(os.Stderr, "snapshot %s: %s\n", tag, path)
+	}
+}
+
+// runPixelChecks executes every pending §2.7/U21 pixel assertion against img.
+func runPixelChecks(img image.Image, probes []*probe) {
+	for _, p := range probes {
+		if p.done && p.ok && !p.pixDone {
+			p.pixDone = true
+			p.pixOK = pixelMatches(img, p, probes)
+			fmt.Fprintf(os.Stderr, "ui_wr_c8_hit_overlay_xf: pixel @(%v,%v) want=%q ok=%v\n",
+				int(p.wx), int(p.wy), orDash(p.name), p.pixOK)
+		}
+	}
+}
+
+// pixelMatches is the §2.7/U21 point assertion: the composited pixel at the
+// probe's resolved window point must equal the target's base color within
+// tolerance (channel delta ≤8/255). Hit-probes assert their base color;
+// must-miss probes assert they are NOT any known target color (the window
+// background is acceptable, as is any other non-target content).
+func pixelMatches(img image.Image, p *probe, allProbes []*probe) bool {
+	if img == nil {
+		return false
+	}
+	// Image pixels are PHYSICAL (DPR-scaled); probe points are LOGICAL.
+	// Scale by devicePixelRatio from the metrics snapshot.
+	sx := img.Bounds().Dx()
+	if sx <= 0 {
+		return false
+	}
+	dpr := float64(sx) / winW
+	px, py := int(p.wx*dpr), int(p.wy*dpr)
+	if px < 0 || py < 0 || px >= sx || py >= img.Bounds().Dy() {
+		return false
+	}
+	r32, g32, b32, _ := img.At(px, py).RGBA()
+	r, g, b := float64(r32>>8)/255, float64(g32>>8)/255, float64(b32>>8)/255
+	tol := 8.0 / 255
+	if !p.expectHit {
+		// Must-miss: reject if the pixel matches ANY hit target's base color.
+		for _, q := range allProbes {
+			if q.expectHit && near(r, q.br, tol) && near(g, q.bg, tol) && near(b, q.bb, tol) {
+				return false
+			}
+		}
+		return true
+	}
+	return near(r, p.br, tol) && near(g, p.bg, tol) && near(b, p.bb, tol)
+}
+
+func near(a, b, tol float64) bool {
+	d := a - b
+	if d < 0 {
+		d = -d
+	}
+	return d <= tol
+}
+
+// pixelPending reports whether any ok probe still awaits its pixel check.
+func pixelPending(probes []*probe) bool {
+	for _, p := range probes {
+		if p.done && p.ok && !p.pixDone {
+			return true
+		}
+	}
+	return false
+}
+
+// pixelAllOK reports whether every resolved probe also passed its pixel check.
+func pixelAllOK(probes []*probe) int {
+	n := 0
+	for _, p := range probes {
+		if p.pixDone && p.pixOK {
+			n++
+		}
+	}
+	return n
 }

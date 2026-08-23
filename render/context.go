@@ -68,6 +68,11 @@ type Context struct {
 	frameDamageRects      []image.Rectangle
 	damageTrackingEnabled bool
 
+	// offscreenPassDepth counts active offscreen recording sub-passes
+	// (BeginOffscreenPass). While > 0, the surface clip must not leak into
+	// the sub-pass stream (see resetGPUClipForPass).
+	offscreenPassDepth int
+
 	// Pipeline mode
 	pipelineMode PipelineMode // GPU pipeline selection mode
 
@@ -1956,6 +1961,77 @@ func (c *Context) FlushGPUWithView(view gpucontext.TextureView, width, height ui
 	return c.flushGPUWithViewCore(view, width, height, nil, "FlushGPUWithView", true)
 }
 
+// BeginOffscreenPass isolates an offscreen recording sub-pass from the main
+// frame stream: while active, all queued commands / clip timeline / LoadOp
+// tracking belong exclusively to the sub-pass target; the main pass state is
+// suspended and restored by the returned func. Callers MUST invoke the
+// restore func (defer) after flushing the sub-pass into its own view.
+//
+// This is what makes retained texture re-records safe mid-frame (Skia
+// GrRecordingContext / Flutter EntityPass pass-ownership semantics). With no
+// GPU ops interface it returns a no-op func.
+func (c *Context) BeginOffscreenPass() func() {
+	rc := c.gpuCtxOps()
+	bo, ok := rc.(interface {
+		BeginOffscreenPass(GPURenderTarget) func()
+	})
+	if !ok {
+		return func() {}
+	}
+	// The sub-pass records the FULL picture into its own view; the composite
+	// applies clip geometry when blitting. The caller's canvas clip must not
+	// leak into the pass in ANY form:
+	//   - rc scissor/RRect segments reference surface pixels far outside the
+	//     small offscreen viewport (out-of-bounds scissor kills the pass);
+	//   - doFill's setGPUClipRect re-fires on every fill while the Context
+	//     clipStack is active, re-queueing those segments onto the sub-pass
+	//     stream mid-record.
+	// Suspend the canvas clip for the whole pass and restore it after. The
+	// clipStack itself is untouched (the caller's clip must survive);
+	// offscreenPassDepth gates setGPUClipRect / applyClipToPaint instead.
+	restoreClip := c.resetGPUClipForPass()
+	restore := bo.BeginOffscreenPass(c.gpuRenderTarget())
+	return func() {
+		restore()
+		if restoreClip != nil {
+			restoreClip()
+		}
+	}
+}
+
+// resetGPUClipForPass suspends the context's active canvas clip for the
+// duration of an offscreen sub-pass: the GPU-side clip state is cleared and
+// offscreenPassActive goes true, so doFill's setGPUClipRect /
+// applyClipToPaint stay inert until the returned undo flips the flag and
+// re-applies the GPU clip. The canvas clipStack itself is untouched — the
+// caller's clip must survive verbatim. Returns nil when no clip is active.
+func (c *Context) resetGPUClipForPass() func() {
+	if !c.isClipActive() {
+		return nil
+	}
+	c.offscreenPassDepth++
+	savedPath := c.gpuClipPath
+	c.gpuClipPath = nil
+	if rc := c.gpuCtxOps(); rc != nil {
+		rc.ClearClipRect()
+		rc.ClearClipRRect()
+		rc.ClearClipPath()
+	}
+	return func() {
+		c.offscreenPassDepth--
+		if c.offscreenPassDepth == 0 {
+			c.gpuClipPath = savedPath
+			c.setGPUClipRect()
+		}
+	}
+}
+
+// offscreenPassSuspended reports whether an offscreen recording sub-pass is
+// active and the surface clip must not leak into it.
+func (c *Context) offscreenPassSuspended() bool {
+	return c.offscreenPassDepth > 0
+}
+
 // FlushGPUWithViewDamage flushes pending GPU operations with damage-aware
 // optimization. When damageRect is non-empty, the compositor uses LoadOpLoad
 // (preserves previous frame) and scissor-clips to the dirty region — only
@@ -2018,6 +2094,10 @@ type gpuContextOps interface {
 	// Must run before SetClipRect so scissor segments are not recorded on the
 	// wrong stream and later stashed unpaired into the parent.
 	PrepareTarget(target GPURenderTarget) error
+	// BeginOffscreenPass suspends the main command stream for an isolated
+	// sub-pass (retained texture record → its own offscreen view) and returns
+	// a restore func. EndOffscreenPass must be called (via the restore func)
+	// after the sub-pass flushed; see gpu.GPURenderContext.
 	SetClipRect(x, y, w, h uint32)
 	ClearClipRect()
 	SetClipRRect(x, y, w, h, radius float32)
@@ -2453,6 +2533,11 @@ func (c *Context) doStroke() error {
 // stack is active and has entries. This allows the renderer to apply per-pixel
 // clip masks during compositing.
 func (c *Context) applyClipToPaint() {
+	// Offscreen sub-pass: record the FULL picture — clip coverage applies at
+	// composite time, not at record time.
+	if c.offscreenPassSuspended() {
+		return
+	}
 	if c.clipStack == nil || c.clipStack.Depth() == 0 {
 		return
 	}
@@ -2491,6 +2576,11 @@ func (c *Context) isClipActive() bool {
 // If no clip is active or the accelerator doesn't support ClipAware, the
 // returned function is a no-op.
 func (c *Context) setGPUClipRect() func() {
+	// Offscreen sub-pass: the surface clip must not leak into the pass stream
+	// (its scissor coords are meaningless in the small offscreen viewport).
+	if c.offscreenPassSuspended() {
+		return func() {}
+	}
 	if !c.isClipActive() {
 		return func() {}
 	}
