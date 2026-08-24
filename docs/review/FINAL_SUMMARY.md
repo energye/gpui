@@ -1,98 +1,177 @@
-# 渲染引擎工业级能力审查·最终汇总（FINAL SUMMARY）
+# 渲染引擎工业级审查·最终汇总与问题台账（唯一结论真源）
 
-> 审查日期：2026-08-22 ~ 2026-08-23
-> 审查范围：`ui/`、`render/`、`gpu/` 全部生产代码（约 830 个非测试 Go 文件、34.8 万行）+ docs 真源 + examples 验收体系。
-> 审查方式：**三轮以上递进总结**
-> - 第 1 轮：7 个并行深审任务分模块产出独立文档 `R1–R7`；
-> - 第 2 轮：交叉复核 7 份文档，排查矛盾、归并重复、识别漏审，产出 `ROUND2_cross_review.md`；
-> - 第 3 轮：对证据链最弱的 12 条结论做源码级终审抽验 + 漏审模块快扫，产出 `ROUND3_final_review.md`。
-> 三轮全部落盘于 `docs/review/`，本文件为最终汇总。
+> 审查窗口：2026-08-22 ~ 2026-08-24。范围：ui/、render/、gpu/ 生产代码（约 830 个非测试 Go 文件、34.8 万行）+ docs 真源 + examples 验收体系。
+> 本文件是全部审查与复核的**唯一结论出口**：历轮（分模块详审 → 交叉复核 → 终审抽验 → 两轮复核）的判定已全部合并进第二节台账，中间过程文档已并入本文档与 git 历史。
+> 配套文档见下方「文档地图」；修复排期见 REPAIR_PLAN.md。
 
 ---
 
 ## 一句话直话结论
 
-**这个引擎当前不能称为工业级 GUI 组件库 / 通用 2D 图形库；但它不是空架子——默认单窗口路径的渲染质量与工程骨架已接近可发布水准，离工业级差的是一批明确的 P0（约 6 项）和 P1（约 30 项），其中大半有清晰行号和修法。**
+**这个引擎当前不能称为工业级 GUI 组件库 / 通用 2D 图形库；但不是空架子——默认单窗口路径的渲染质量与工程骨架接近可发布水准，离工业级差的是 5 项 P0 和 35 项 P1，其中绝大多数有清晰行号和修法。综合评分 61/100。**
 
 ---
 
-## 一、分模块评分总表
+## 文档地图（docs/review/ 的固定分类）
 
-> 说明：第 1 轮各文档评分口径不一（40 分制 / 50 分制 / 10 分制），此处按 ROUND2 M1 裁定统一折算为 **百分制（10 分制×10）**。
-
-| 模块 | 折算分 | 直话结论 | 文档 |
-|---|---|---|---|
-| R1 widget 层 + 测试验收体系 | 80 | 验收体系基本诚实可信（26 个真窗全实存、指标无假值）；widget 地基合格但撑不起组件库 | R1 |
-| R2 gpu 后端封装层 | 62.5 | 功能可用但有一个 P0 内存安全洞（C 字符串 use-after-free）和一批 WGSL 布局不合规 | R2 |
-| R3 ui/rendering+embedder | 64 | Flutter 式骨架是真的，但每帧全树重建、增量缓存是死代码、两处跨线程竞争 | R3 |
-| R4 scene/io/svg/recording | 48 | 不能算工业级：跨线程共享层树无同步、三套显示列表并存、recording/surface/svg 零消费者 | R4 |
-| R5 2D 绘图 API | 63.75 | 光栅化核心扎实可当 UI 引擎绘图层；但布尔运算是假货、裁剪语义错，挡住「独立 2D 库」资格 | R5 |
-| R6 文本栈 | 60 | 零件工业级、总装没完成：hinting 是真功夫，但主绘制管线根本没接 shaping | R6 |
-| R7 GPU 提交管线 | 58 | 默认 1x 主路径可发布；增量呈现整链是死的、非默认开关不可信 | R7 |
-| **加权综合** | **≈62/100** | 「能跑的演示级引擎 + 工业级的零件」，缺总装与安全收尾 | — |
-
-## 二、最终问题台账（经三轮验证后的定版）
-
-### P0——挡住「工业级」资格的 6 项（全部三轮维持，无一推翻）
-
-| # | 问题 | 位置 | 影响 |
-|---|---|---|---|
-| X01 | C 字符串 `unsafe.String` 未拷贝即返回（use-after-free） | gpu/rwgpu/adapter.go:556-571 | 随机崩溃/内存损坏 |
-| X02 | UI/raster 双线程无所有权纪律：BoundaryCache 无锁读写 + raster 线程清 UI 脏标志 | boundary_cache.go; pipeline_app.go:1199 | 数据竞争、丢帧、panic |
-| X03 | 跨线程共享缓存条目/脏标志原地写（第 3 轮已收窄范围：层树本身每帧新建，风险集中在缓存条目与同一 pkt 的两段访问） | rasterize.go:50-53 等 | 同上，需 `-race` 真窗实锤 |
-| X04 | 路径布尔运算是逐像素采样近似：EvenOdd 规则必错、2048 上限静默截断 | path_boolean.go:62-100 | 功能性错误结果 |
-| X05 | 主绘制管线绕过 shaping：GPU 文字路径只有 cmap+advance，连字/kerning/阿拉伯变形全丢 | internal/gpu/gpu_text.go:179 → face.go:160-220 | 复杂文种显示错误 |
-| X06 | 每帧全树重建+全量重录；增量 LayerCache 是零调用死代码 | layer_build.go; layer_cache.go | 性能地基缺失 |
-
-### P1——约 30 项，按修复批次分组（详见 ROUND2 第四节）
-
-- **批 A 并发安全**：acquire 锁黑洞恢复策略缺失、NextLayerID 非原子、HbShaper 竞态等 3 项
-- **批 B 错误结果**：clip 忽略绕向、Path.Reset 边界滚雪球、damage 无线宽外扩、focal 渐变忽略 StartRadius、CPU 渐变不受 CTM、bidi 半套、IME delete_surrounding 丢弃、变量字体 GPU 丢 variations、scene CPU tile 丢 alpha、recording 回放保真度破等约 13 项
-- **批 C 死链/死代码**：OS 增量呈现断链、MSAA 中帧 LoadOpLoad UB（需真机）、Auto 选管线死路由、compositor-only 动画断头、双路径行为分叉（viewport 滚动丢失/spinner retained 消失）、WGSL uniform 步长不合规等约 10 项
-- **批 D 性能/资源**：Map 忙等、渐变逐像素 pow、fallback 字体重复加载、缓存指纹弱哈希族、门禁公式估算等约 5 项
-- **批 E 工程卫生**：tmp 目录破坏构建（go build ./... 红）、根目录散落二进制、假注释文化等
-
-### P2 新增（第 3 轮快扫发现）
-
-semantics 未接平台可达性、wgpu-native 加载无 ABI 校验、lib 目录下载残留。漏审模块（filters/raster/focus/theme/input/gpu-context/platform 窗口层/third_party）均无 P0/P1。
-
-### 待真机复测尾巴（5 条）
-
-X03 `-race` 真窗、X05 连字行为真窗、MSAA UB 4x 复现、FifoRelaxed 时序压测、acquire 故障注入。
-
-## 三、「两个目标问题」的直接回答
-
-### 1. 能否实现工业级 GUI 组件库？
-
-**现状不能，架构可以。** 支撑判断：
-- **够得着的部分**：Flutter 式分层（RO 树/Layer 树/合成器）真实存在且能跑能测；验收体系诚实（26 个真窗全实存、门禁除零保护齐全）；调度器是标准 on-demand+Vsync 模型；软件回退光栅器非玩具。
-- **差的部分**：6 项 P0 里 3 项是内存/并发安全（工业级一票否决项）、1 项是性能地基（全帧重绘）、2 项是功能正确性；增量呈现/保留模式这两条工业级 GUI 的看家能力目前是断头路或死代码。
-- **工作量估计**：P0 全清 ≈ 数周级专项（X02/X03 线程纪律重构最大）；到「单窗口桌面应用可发布」≈ 1-2 个月；到「多窗口高 DPI 可达性齐全的组件库」还需补 platform 窗口层专项审计 + semantics 接线。
-
-### 2. 能否作为任意 2D 图形渲染库？
-
-**绘图层合格，图形库不合格。** 作为内嵌 UI 引擎的绘图后端（矩形/圆角/文本/图片/渐变/裁剪）质量尚可（R5 光栅化核心评价正面）；但作为独立通用 2D 库对比 Skia 缺硬能力：
-- 路径布尔运算是假实现（像素采样近似），必须重写为扫描线/曲面细分算法；
-- clip 语义错误（忽略绕向）、stroke 无 hairline 回退、dash 相位语义与 SVG 不符；
-- 无图像滤镜管线（filters 仅 6 个 CPU 滤镜注册且未系统审）、无模糊/阴影 GPU 路径成熟度证明；
-- 渐变语义偏离 Skia（focal StartRadius、CTM 独立性）。
-
-## 四、值得肯定的部分（避免只报忧）
-
-1. **测试与验收体系诚实度高**（R1 评 32/40）：真窗目录零造假、JSON 指标无固定值假绿，这在自研引擎项目里少见；
-2. **shader↔CPU uniform 六组布局逐字节一致**、Y 方向全链统一（R7 抽验）；
-3. **文本 hinting 栈是真功夫**（FreeType 对照精度达标，R6 正面确认）;
-4. **文档驱动开发**留下了完整真源与修订记录，使本次三轮审查能逐条溯源行号。
-
-## 五、建议的修复路线（按 ROI 排序）
-
-1. **止血**：X01 use-after-free（半天）、tmp 目录清理恢复 go build（半天）、shaper 注释矛盾修正（10 分钟）
-2. **线程纪律**：X02/X03——给 UI/raster 划清所有权，BoundaryCache 加锁或改消息传递（数天~一周）
-3. **文本总装**：X05 接通 shaping 管线（已有 HbShaper 与 ShapingCache 零件，缺接线）（数天）
-4. **布尔重写**：X04 换扫描线实现或引入成熟算法（一周级）
-5. **增量呈现**：打通 PresentWithDamage → OS partial present 链 + damage 外扩修正（一周级）
-6. 批 B/C 的语义对齐项按 Skia 对照逐个清（持续）
+| 层 | 文件 | 内容 |
+|---|---|---|
+| 结论层 | **本文件** | 最终结论、全量问题台账（含每条的验证状态）、评分、真实性与遗漏确认 |
+| 计划层 | REPAIR_PLAN.md | 修复批次排期、验收标准、进度登记（唯一排期真源） |
+| 详审层 | R1~R7 共 7 份 | 分模块深审原始报告（widget/测试体系、gpu 后端、ui 分层、scene/io/svg、2D API、文本栈、GPU 管线），行号级证据 |
+| 过程层 | archive/ 子目录（14 份） | ROUND2 交叉复核、ROUND3 终审、RECHECK 两轮复核——有效结论已全部并入本文件台账，原件存 docs/review/archive/ 可溯 |
 
 ---
 
-*本文档由三轮审查汇总而成；所有结论可在 R1–R7、ROUND2、ROUND3 及源码行号中溯源。审查过程只读代码、未改任何引擎文件；`docs/review/` 下 9 份文档为本次会话新增产物。*
+## 一、两个目标问题的回答
+
+### 能否实现工业级 GUI 组件库？
+**现状不能，架构可以。** Flutter 式分层（RO 树/Layer 树/合成器）、on-demand 调度、软件回退光栅都真实存在且能跑能测；差的是 3 项内存/并发安全 P0（一票否决）、性能地基（全帧重绘）和增量呈现断链。工作量估计：P0 清零数周级；单窗口桌面可发布 1-2 个月；多窗口高 DPI 可达性的组件库还需 platform 层专项。
+
+### 能否作为通用 2D 图形库？
+**绘图层合格，图形库不合格。** 作为 UI 引擎内嵌绘图后端质量尚可；作为独立 2D 库缺硬能力：布尔运算是像素采样近似（须重写扫描线算法）、clip 忽略绕向、无成熟 GPU 滤镜管线、渐变语义偏离 Skia。
+
+---
+
+## 二、最终问题台账（经四轮验证定版）
+
+> 判定标注：【成立】多条独立证据链证实；【成立·表述修正】问题真实但原描述范围/位置有偏差；【挂账】真实存在但归属待裁决。
+> 行号为最近一轮复核实测行号，动手前以行号核对报告（RECHECK2_linecheck，git 历史）校准。
+
+### P0（5 项，全部多轮证实）
+
+| # | 问题 | 位置 | 验证轮次 |
+|---|---|---|---|
+| X01 | stringViewToString 用 unsafe.String 包 C 内存零拷贝，调用后 :546 即 free（use-after-free）；回调路径同病 | gpu/rwgpu/adapter.go:556-571 | 初审→终审→复核源码级→动态测试环境佐证 |
+| X02 | UI/raster 双线程无所有权纪律：光栅线程闭包清 UI 脏标志（裸 bool）+ BoundaryCache 无锁被两线程读写 | pipeline_app.go:1280（原引 1199 已漂移）; boundary_cache.go:27-48 | 初审→交叉归并→复核调用链逐环坐实 |
+| X04 | 布尔运算逐像素采样近似（性能灾难架构）：主罪名成立；「EvenOdd 必错」「2048 静默截断」两条具体危害在动态实测中未复现（五角星自并集中心洞保留；30000px 斜率法精确生效），降级为「特定构造下待复现」；另有差集挖洞不生效的真红测佐证该族问题真实 | path_boolean.go:62-100; 差集红测 TestS3c_M3_PathBooleanDifference | 初审→对抗攻击→动态行为实测（本轮修正表述） |
+| X05 | GPU 位图主路（MSDF/GlyphMask，默认 Auto 走此路）绕过 shaping，连字/kerning/阿拉伯变形全丢；矢量档与显式 DrawShapedGlyphs 有完整 shaping（生产可达：旋转/斜切文本自动路由进矢量分支） | internal/gpu/gpu_text.go:179 → face.go:160-220; 对照 text.Shape 动态实测出连字 GID | 初审→复核收窄→对抗攻击维持→动态行为实测坐实差异 |
+| X06 | 每帧全树重建+无条件全量重录；增量 LayerCache 零生产调用者（死代码） | layer_build.go:20/222/242; layer_cache.go:31 | 初审→grep 复核→编译红灯实测（tmp_vlprobe 引用不存在符号） |
+
+原 X03（光栅线程原地写共享层树）经对抗复核确认**误报摘除**：被写对象每帧新建、channel 交接自带同步；其有效成分已在 X02 中。
+
+### P1（35 项，按修复批次分组）
+
+**批 A 并发安全（3 项，全部成立）**
+| 编号 | 问题 | 位置 |
+|---|---|---|
+| A1 | acquire 超时 hung 恢复只有 500ms 限流重试，无升级/放弃策略 | gpu/webgpu/swapchain.go:946,1009-1021 |
+| A2 | NextLayerID 裸 uint64++ 非原子 | ui/scene/layer.go:21-30 |
+| A3 | HbShaper mu 只护 faces map，XScale 直写共享 hbFont 无保护 | render/text/shaper_hb.go:67-68 |
+
+**批 B 算错结果类（13 项：12 成立 + B12 部分成立）**
+| 编号 | 问题 | 位置 |
+|---|---|---|
+| B1 | clip 忽略绕向：交点两两配对 even-odd，dir 字段是死代码 | render/internal/clip/mask.go:199-224,291-325 |
+| B2 | Path.Reset 不清 boundsValid，damage 越滚越大 | render/path.go:178-185 |
+| B3 | Path.Append 不合并边界 | render/path.go:187-196 |
+| B4 | damage 不含线宽外扩，粗描边残影 | render/context.go:1167/1180（原引 1162/1175 为注释行） |
+| B5 | focal 渐变忽略 StartRadius | render/gradient_radial.go:129-192 |
+| B6 | CPU 渐变不受 CTM：设备坐标直采，paint 链路无逆变换 | render/software.go:531,597,984 |
+| B7 | bidi 半套：层级拍平 0/1、run 不做视觉重排（无 UAX#9 L2） | render/text/segment.go:80-84; layout.go:276-337 |
+| B8 | IME delete_surrounding 负偏移被 editor 的 Start>=0 门槛吞掉 | wayland_textinput_linux.go:411-426; editor.go:345-348 |
+| B9 | preedit 字段错位：caret 塞在 Start，editor 却读 End（End 是 commit 标志恒 0/1） | wayland_textinput_linux.go:380-395; editor.go:353-359 |
+| B10 | 可变字体 GPU 光栅化丢 variations（wght=700 画成 regular；shape 层有 varHash 但光栅化层丢） | glyph_mask_engine.go:673-697; gpu_text.go:200-210,430-442 |
+| B11 | scene CPU tile 丢图层 alpha（`_ = alpha` TODO） | render/scene/renderer.go:717-722 |
+| B12 | recording 回放丢字体（face=nil）；clip 洞在 raster 后端（SetClip 只塞路径不生效、ClearClip 空体），非回放分发层 | recorder.go:173-183; recording/backends/raster/backend.go:119-136 |
+| B13 | 缓存指纹弱哈希族：textContentKey 截断 64 字节 / Encoding.Hash 不含 brushes / glyph 键漏 variations（字段存在无人赋值） | boundary_cache.go:420-443; encoding.go:752-800; text.go:1010-1016 |
+
+**批 C 死链/死代码/不一致类（10 项，全部成立；C4 属分期设计现状附保质期条款）**
+| 编号 | 问题 | 位置 |
+|---|---|---|
+| C1 | OS 增量呈现丢参数（PresentWithDamage 收 rects 直接 _）；DamageRectSetter 仅测试 mock | gpu/webgpu/surface.go:312-314; ggcanvas/canvas.go:630 |
+| C2 | MSAA 中帧 LoadOpLoad 读已 discard 内存（规范级 UB，需 4x MSAA 真机复现） | render/internal/gpu/render_session.go:4827-4831（决策本体）,1002-1020 |
+| C3 | Auto 选管线死路由：ClipDepth/OverlapFactor 判据生产不填充，且 Auto 每帧空转惰性初始化 | render/pipeline_mode.go:60,65; gpu_render_context.go:1457-1458 |
+| C4 | 默认 full_paint——事实成立但属分期设计（注释自述 W6 才全局默认 retained）。**保质期条款：W6 宣称完成时若默认仍 full_paint，恢复为缺陷** | ui/embedder/pipeline_app.go:365-371,176-186 |
+| C5 | compositor-only 动画断头：ClassifyDirty/Mutations 无生产消费者 | ui/scene/compositing.go:11; packet.go:56-67（目录已修正） |
+| C6 | viewport 滚动保留路径丢平移（对照直绘路径有 -scroll） | ui/rendering/layer_build.go:124-139 vs viewport.go:296-299 |
+| C7 | Spinner 在 retained 下消失：recordLeafContent 只认三叶且无 OnPaint 兜底 | layer_build.go:263-297; spinner.go:60-94 |
+| C8 | WGSL uniform 数组步长按自然对齐非 16 字节规范 | gpu/shader/wgsl/internal/lower/lower.go:818-831 |
+| C9 | WGSL MatrixStride 非 uniform 16 字节要求；uniformStructTypes 声明后从未写入 | spirv/internal/codegen/backend.go:1610-1636,155/196/236 |
+| C10 | Transform 子 PaintContext 手搓丢字段（LayerBudget/BoundaryCache 等） | ui/rendering/transform.go:113-121 |
+
+**批 D 性能/资源类（4 项成立 + D5 门禁公式化成立）**
+| 编号 | 问题 | 位置 |
+|---|---|---|
+| D1 | Buffer.Map 兜底 goroutine 纯自旋烧核 | gpu/rwgpu/map_pending.go:190-204 |
+| D2 | 渐变逐像素 math.Pow（查表优化已写好未上线，约快 200 倍） | gradient.go:98-133; internal/color/convert.go:8-23 |
+| D3 | 备选字体按 rune×size 反复整读文件无上限；死检查 fallbackKey 恒不命中 | render/text/fontscan_fallback.go:100-127 |
+| D5 | 真窗门禁公式估算：sumRatio 写死几何常数（C2/R4b 同族），改场景参数门禁自动绿 | examples/ui_wr_c2_retained_scene/main.go:57-66 |
+
+**批 E 工程卫生（2 项成立，动态验证扩充）**
+| 编号 | 问题 | 位置 |
+|---|---|---|
+| E1 | 构建红灯探针目录：tmp_vlprobe、render/tmp_ref_stroke（+wind 子包）、**tmp_c4dbg（动态验证新发现）** | 各目录 main 重复声明/引用不存在符号 |
+| E2 | shaper.go 注释矛盾：头部与 SetShaper 都说默认 OwnShaper，实际 HbShaper，同文件 :16-19 又说实话 | render/text/shaper.go:7,20-21,28-29 |
+
+**复核新增（N/M 系列，5 项）**
+| 编号 | 级别 | 问题 | 位置 |
+|---|---|---|---|
+| N1 | P1 | Wayland/X11 DPI 缩放恒为 1.0：scale 只读不写、协议侧未监听 wl_output.scale/fractional_scale，HiDPI 整链错误分辨率 | ui/platform/wayland_linux.go:1377,715; x11_linux.go:404 |
+| M1 | P1 | wrgate 门禁三处叠加放宽：短跑(<5s)静默跳过 FPS/P95 门禁 + 默认 55 非 60 + interval FPS 掩护 wall FPS——掉帧真窗可拿假绿 | examples/wrgate/report.go:340-360 |
+| M5 | P1(挂账) | render 根包 3 处真红测：dash 无间隙、描边像素反超填充、布尔差集挖洞不生效；另 3 处环境依赖失败。归属需裁决（工作区有其他会话改动） | render 包 TestContext_StrokeWithDash_Rectangle 等 |
+| N2/N3 | P2 | vsync 监听协程无退出泄漏；剪贴板 Get 最长阻塞 UI 线程 3 秒 | scheduler.go:100-116; wayland_clipboard_linux.go:469-505 |
+| R19 | P1 | 1px 对齐能力 ✅ 接近虚标：承诺采样/截图门禁，实际仅默认关闭的数学自检 + 硬编码 snapped_lines:46 | examples/ui_wr_r19_snap/main.go:168-201 |
+
+### P2（择要）
+
+semantics 未接平台可达性、wgpu-native 加载无 ABI 校验、lib 目录 zip 残留、animation Stop() 一刀切 Dismissed、AnimatedOpacity.Mutations 无上限、shader 四后端缺跨后端同源金标语料、vet 正式包告警（gpu unreachable / ui/rendering 自赋值 / platform unsafe 提示）。
+
+### 待真机/竞态实锤尾巴（随对应修复批次钉死）
+
+X02 `-race` 真窗、X05 连字画面级对比、C2 4x MSAA 复现、FifoRelaxed 时序压测、acquire 故障注入。
+
+---
+
+## 三、真实性与遗漏确认（用户专项质询的回答）
+
+### 这些问题都是真实的吗？——是，且有量化依据
+
+| 验证强度 | 条目 | 说明 |
+|---|---|---|
+| 四重以上验证（初审+交叉复核+源码级复核+对抗攻击/动态实测） | X01、X02、X04、X05、X06 全部 P0；B2/B4/B8/B13 等 | 每条至少两次独立回源码定位，关键条目有行为级实验（shaping GID 对比、布尔探针）或编译级实证（死代码引用编译失败） |
+| 三重验证（初审+复核+行号机械核对命中） | 批 A/C/D/E 绝大多数 | 32 条行号引用 81% 精确命中、19% 漂移但代码均在、0 条因核对被推翻 |
+| 摘除的误报 | X03（1 条） | 经对抗复核三方向攻击均无法击穿翻案，维持摘除 |
+| 降级/收窄 | X04 两条从罪、X05 范围、B12 定位、C4 性质 | 如实记录，不影响主定性 |
+| 归属待裁决 | M5 三处红测 | 工作区存在其他会话未提交改动，不排除在途线引入，挂账不冒进 |
+
+**误报率：37 项正式台账条目中 1 项（X03），且已被纠出并记录。**
+
+### 批次还有遗漏吗？——有，已全部并入 REPAIR_PLAN
+
+本轮发现的遗漏及处置：
+1. **tmp_c4dbg 编译红灯**（动态验证发现）→ 并入第一批 1.2；
+2. **wrgate 门禁放宽点 M1** → 第五批 5.3 扩大为「C2/R4b/R19 三处公式化或缺失门禁一并实测化 + wrgate 短跑免检/55 阈值/interval 掩护三处收紧」；
+3. **render 根包 3 红测**（dash/描边/差集）→ 第四批 4.1 金标集追加这三个场景；先裁决归属；
+4. **R19 采样门禁缺失** → 并入第五批门禁实测化；
+5. **N1 HiDPI 缩放** → 新增第七批 platform 专项；
+6. **vet 正式包告警**（unreachable/自赋值）→ 并入第一批卫生清理；
+7. **能力债（非缺陷，单列不占批次）**：手势竞技场孤岛（NewScrollable 生产零调用、InputRouter 不进 arena、全栈无人产 PointerCancel）、U21 Golden 逐位对比规范零落地（要么落地进 wrgate 要么文档降格为「逻辑门禁版 ✅」）、跨文档状态矛盾 5 处（基座文档 retained 未来时、API 目录裁剪前后矛盾、「26 窗」实为 27 等）——已记录，待产品节奏决定是否排期。
+
+---
+
+## 四、值得肯定的部分
+
+1. 验收体系骨架诚实：真窗目录零造假、⬜ 能力不建目录、多数门禁是真跑运行时指标（R7/R7b 甚至严于文档）；
+2. shader↔CPU uniform 六组布局逐字节一致、Y 方向全链统一；
+3. 文本 hinting 栈达 FreeType 对照精度；
+4. shader 编译器四后端各有充分自测（SPIR-V naga 金标回归、DXIL dxcvalidator 位流对照）；
+5. 34 处锁无重入风险、19 处 atomic 类型全对；
+6. 文档驱动开发留下完整真源，使全部问题可溯源到行号。
+
+## 五、评分（统一折算百分制）
+
+| 模块 | 得分 | 一句话 |
+|---|---|---|
+| R1 widget+验收体系 | 76（M1 门禁放宽点发现后下调） | 地基合格，门禁需堵三个放宽点 |
+| R2 gpu 后端 | 62.5 | 功能可用，一个 P0 内存洞 |
+| R3 ui 分层 | 64 | Flutter 式骨架真，增量缓存死代码 |
+| R4 scene/io/svg | 48 | 双实现冗余+线程竞争，不能算工业级 |
+| R5 2D API | 63.75 | 光栅核心扎实，布尔假货挡路 |
+| R6 文本栈 | 60 | 零件工业级，总装没完成 |
+| R7 GPU 管线 | 58 | 默认主路可发布，增量呈现断链 |
+| **综合** | **61/100** | 「能跑的演示级引擎 + 工业级的零件」 |
+
+## 六、方法论备忘
+
+静态审查的两个系统性风险在本轮被实证：①行号会漂移（引用必须带包路径，动手前以最新核对为准）；②「必错/恒错」级断言必须动态复现才准入账。后续若再复核，建议直接以修复过程的 -race/Golden 截图为载体，不再单独发文。
