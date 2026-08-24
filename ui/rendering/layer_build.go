@@ -130,6 +130,12 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		bl := b.PushBoundary(off.X, off.Y, "viewport", n.NeedsPaint() || layerSubtreeNeedsPaint(n))
 		bl.Shell = v.IsShellBoundary()
 		b.PushClipRect(0, 0, sz.Width, sz.Height)
+		// Scroll translation (Flutter ViewportLayer): content coordinates
+		// shift by -scroll inside the clip so the retained path can express
+		// scroll position. Without it rows drift out of the clip and are
+		// never replaced from below (C4 一行一行消失).
+		so := v.ScrollOffset()
+		b.PushTransform(-so.X, -so.Y, 0, 1, 1)
 		addOwnContent(b, n)
 		for _, ch := range n.Children() {
 			appendNode(ch, b)
@@ -137,6 +143,7 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		if len(n.Children()) == 0 {
 			addLeafPicture(b, n)
 		}
+		b.Pop() // scroll transform
 		b.Pop() // clip_rect
 		b.Pop() // boundary
 		return
