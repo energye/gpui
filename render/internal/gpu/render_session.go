@@ -2224,6 +2224,10 @@ func (s *GPURenderSession) ensureImageBlitPipeline() error {
 	if s.imagePipeline == nil {
 		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
 	}
+	// Wire the shared RRect clip layout: clipped subtrees are cacheable since
+	// C8, so compositor blits can carry a rounded clip (ensureBlitPipeline
+	// rebuilds its layout from this).
+	s.imagePipeline.SetClipBindLayout(s.clipBindLayout)
 	// Was recursive self-call → stack overflow on particle/image blit path.
 	if err := s.imagePipeline.ensureBlitPipeline(); err != nil {
 		return fmt.Errorf("blit pipeline: %w", err)
@@ -5242,6 +5246,15 @@ func (s *GPURenderSession) isBlitOnly(grpRes []groupResources, baseLayerRes *ima
 	return hasBase || hasOverlay
 }
 
+// blitClipBG returns the bind group a compositor blit must bind at @group(1):
+// the group's RRect clip when present, else the shared no-clip group.
+func (s *GPURenderSession) blitClipBG(gr *groupResources) *webgpu.BindGroup {
+	if gr != nil && gr.clipBindGroup != nil {
+		return gr.clipBindGroup
+	}
+	return s.noClipBindGroup
+}
+
 // encodeBlitOnlyPass renders textured quads directly to the swapchain surface
 // in a non-MSAA (1x) render pass. No MSAA texture, no depth/stencil, no resolve.
 // This is the compositor fast path (ADR-016) — 93% bandwidth reduction vs 4x MSAA.
@@ -5312,11 +5325,11 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 			dx, dy, dw, dh, valid := computeDamageScissor(nil, w, h, dr)
 			if valid {
 				rp.SetScissorRect(dx, dy, dw, dh)
-				s.imagePipeline.RecordBlitDraws(rp, baseLayerRes)
+				s.imagePipeline.RecordBlitDraws(rp, baseLayerRes, s.noClipBindGroup)
 			}
 		}
 	} else {
-		s.imagePipeline.RecordBlitDraws(rp, baseLayerRes)
+		s.imagePipeline.RecordBlitDraws(rp, baseLayerRes, s.noClipBindGroup)
 	}
 
 	// Draw GPU texture overlays (e.g., RepaintBoundary cached textures).
@@ -5326,7 +5339,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 		gr := &grpRes[i]
 		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
 			if fullSurface || s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
-				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes)
+				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
 			}
 		}
 	}
@@ -5561,11 +5574,11 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 			dx, dy, dw, dh, valid := computeDamageScissor(nil, w, h, dr)
 			if valid {
 				rp.SetScissorRect(dx, dy, dw, dh)
-				s.imagePipeline.RecordBlitDraws(rp, baseLayerRes)
+				s.imagePipeline.RecordBlitDraws(rp, baseLayerRes, s.noClipBindGroup)
 			}
 		}
 	} else {
-		s.imagePipeline.RecordBlitDraws(rp, baseLayerRes)
+		s.imagePipeline.RecordBlitDraws(rp, baseLayerRes, s.noClipBindGroup)
 	}
 
 	// R7.4: overlay scissor uses group-relevant damage (same as encodeBlitOnlyPass).
@@ -5573,7 +5586,7 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 		gr := &grpRes[i]
 		if gr.gpuTexRes != nil && len(gr.gpuTexRes.drawCalls) > 0 {
 			if s.applyGroupScissorWithDamageRects(rp, gr.scissorRect, w, h, damageRects) {
-				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes)
+				s.imagePipeline.RecordBlitDraws(rp, gr.gpuTexRes, s.blitClipBG(gr))
 			}
 		}
 	}

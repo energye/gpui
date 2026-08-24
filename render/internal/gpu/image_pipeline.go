@@ -131,7 +131,10 @@ type TexturedQuadPipeline struct {
 	// SampleCount=1, no depth/stencil — used when the frame contains
 	// only textured quads (base layer + overlays) with no vector shapes.
 	blitPipeline *webgpu.RenderPipeline
-	blitLayout   *webgpu.PipelineLayout // single bind group, no clip
+	blitLayout   *webgpu.PipelineLayout // uniform group (+ @group(1) clip when wired)
+	// blitLayoutHasClip tracks whether blitLayout includes the @group(1)
+	// RRect clip layout, so a SetClipBindLayout after creation rebuilds it.
+	blitLayoutHasClip bool
 
 	// Default sampler for image textures (bilinear filtering, clamp-to-edge).
 	sampler *webgpu.Sampler
@@ -361,24 +364,39 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 	if err := p.ensureBase(); err != nil {
 		return err
 	}
-	if p.blitPipeline != nil {
+	wantClip := p.clipBindLayout != nil
+	if p.blitPipeline != nil && p.blitLayoutHasClip == wantClip {
 		return nil
 	}
-
-	// Blit pipeline uses a single-bind-group layout (no clip group).
-	// The regular pipeLayout may have 2 bind groups (texture + clip),
-	// and RecordBlitDraws only sets group 0 — leaving group 1 undefined
-	// would cause GPU validation errors.
-	if p.blitLayout == nil {
-		layout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
-			Label:            "textured_quad_blit_layout",
-			BindGroupLayouts: []*webgpu.BindGroupLayout{p.uniformLayout},
-		})
-		if err != nil {
-			return fmt.Errorf("create blit pipeline layout: %w", err)
-		}
-		p.blitLayout = layout
+	// First build, or the clip wiring changed since the last one: drop the
+	// stale layout and pipeline so the blit path picks up (or drops) the
+	// @group(1) RRect clip group.
+	if p.blitPipeline != nil {
+		p.blitPipeline.Release()
+		p.blitPipeline = nil
 	}
+	if p.blitLayout != nil {
+		p.blitLayout.Release()
+		p.blitLayout = nil
+	}
+
+	// Blit pipeline layout: uniform group plus the shared @group(1) RRect
+	// clip group when the session wired one. Clipped subtrees are cacheable
+	// again since C8, so compositor blits can carry a rounded clip — the old
+	// single-group layout silently dropped it (sharp corners on screen).
+	layouts := []*webgpu.BindGroupLayout{p.uniformLayout}
+	if wantClip {
+		layouts = append(layouts, p.clipBindLayout)
+	}
+	layout, err := p.device.CreatePipelineLayout(&webgpu.PipelineLayoutDescriptor{
+		Label:            "textured_quad_blit_layout",
+		BindGroupLayouts: layouts,
+	})
+	if err != nil {
+		return fmt.Errorf("create blit pipeline layout: %w", err)
+	}
+	p.blitLayout = layout
+	p.blitLayoutHasClip = wantClip
 
 	premulBlend := types.BlendStatePremultiplied()
 	pipeline, err := p.device.CreateRenderPipeline(&webgpu.RenderPipelineDescriptor{
@@ -415,11 +433,17 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 
 // RecordBlitDraws records draw calls using the non-MSAA blit pipeline.
 // Used for compositor fast path when no vector shapes need MSAA.
-func (p *TexturedQuadPipeline) RecordBlitDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources) {
+// clipBG must be non-nil whenever the blit layout includes the @group(1)
+// RRect clip group (callers pass the group's clip bind group or the shared
+// no-clip one); it is ignored otherwise.
+func (p *TexturedQuadPipeline) RecordBlitDraws(rp *webgpu.RenderPassEncoder, res *imageFrameResources, clipBG *webgpu.BindGroup) {
 	if p.blitPipeline == nil || res == nil {
 		return
 	}
 	rp.SetPipeline(p.blitPipeline)
+	if p.blitLayoutHasClip && clipBG != nil {
+		rp.SetBindGroup(1, clipBG, nil)
+	}
 	rp.SetVertexBuffer(0, res.vertBuf, 0)
 	for _, dc := range res.drawCalls {
 		rp.SetBindGroup(0, dc.bindGroup, nil)

@@ -44,13 +44,34 @@ struct ClipParams {
 @group(1) @binding(0) var<uniform> clip: ClipParams;
 
 fn rrect_clip_coverage(frag_pos: vec2<f32>) -> f32 {
-    // Image shaders: no per-pixel SDF clip. Returns 1.0.
-    //
-    // Same reasoning as glyph_mask.wgsl: textureSample combined with
-    // complex SDF math causes Intel Vulkan register pressure issues.
-    // Image clipping is handled by hardware scissor (GPU-CLIP-001).
-    // RRect clip for images will use stencil buffer (GPU-CLIP-003).
-    return 1.0;
+    // Analytic RRect coverage, same math as sdf_render.wgsl. The retained
+    // composite (C8) caches clip subtrees as UNCLIPPED bounds textures and
+    // the composite-time RRect clip rounds the corners here at blit time.
+    // Branchless enable-select per GPU-CLIP-002 / naga SPIR-V codegen on
+    // Intel Vulkan; only sqrt() used (no abs/min/max/clamp/smoothstep).
+    let cx = (clip.clip_rect.x + clip.clip_rect.z) * 0.5;
+    let cy = (clip.clip_rect.y + clip.clip_rect.w) * 0.5;
+    let hw = (clip.clip_rect.z - clip.clip_rect.x) * 0.5;
+    let hh = (clip.clip_rect.w - clip.clip_rect.y) * 0.5;
+    let r = clip.clip_radius;
+    let dx = sqrt((frag_pos.x - cx) * (frag_pos.x - cx));
+    let dy = sqrt((frag_pos.y - cy) * (frag_pos.y - cy));
+    let qx = dx - hw + r;
+    let qy = dy - hh + r;
+    let mqx = (qx + sqrt(qx * qx)) * 0.5;
+    let mqy = (qy + sqrt(qy * qy)) * 0.5;
+    let outside = sqrt(mqx * mqx + mqy * mqy);
+    let qdiff = qx - qy;
+    let max_qxy = (qx + qy + sqrt(qdiff * qdiff)) * 0.5;
+    let inside = (max_qxy - sqrt(max_qxy * max_qxy)) * 0.5;
+    let d = outside + inside - r;
+    let aa_hw = 0.75;
+    let t_raw = d / (2.0 * aa_hw) + 0.5;
+    let t_pos = (t_raw + sqrt(t_raw * t_raw)) * 0.5;
+    let t_diff = t_pos - 1.0;
+    let t = (t_pos + 1.0 - sqrt(t_diff * t_diff)) * 0.5;
+    let sdf_cov = 1.0 - t * t * (3.0 - 2.0 * t);
+    return clip.clip_enabled * sdf_cov + (1.0 - clip.clip_enabled);
 }
 
 @vertex
