@@ -781,8 +781,20 @@ func (c *Context) compositeLayerMaskedGPU(layer *Layer, parent *Pixmap) bool {
 
 // drainLayerGPUReleases releases GPU layer textures whose composite draws have
 // already been flushed. Safe to call repeatedly.
+//
+// C5 fix (use-after-free): a queued-but-unencoded composite quad — pending OR
+// present-stashed — still references its layer texture. A later layer Pop's
+// mid-frame flush used to drain releases unconditionally, freeing a texture
+// whose composite quad was still stashed (earlier card vanished; R6 single
+// card never triggered it). Only release when the GPU side truly holds no
+// outstanding work; otherwise the releases ride to the next frame boundary
+// (BeginFrame fallback) — Skia GrSurfaceProxy keeps refs until submit, same
+// semantics.
 func (c *Context) drainLayerGPUReleases() {
 	if c == nil || len(c.layerGPUReleases) == 0 {
+		return
+	}
+	if rc := c.gpuCtxOps(); rc != nil && (rc.PendingCount() > 0 || rc.HasPendingStash()) {
 		return
 	}
 	for _, rel := range c.layerGPUReleases {

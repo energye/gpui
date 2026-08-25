@@ -89,6 +89,10 @@ func (c *Context) BeginFrame() {
 	if rc := c.gpuCtxOps(); rc != nil {
 		rc.BeginFrame()
 	}
+	// C5 fix fallback: releases deferred by the honest lifetime gate in
+	// drainLayerGPUReleases (stashed/pending composite quads) free here if no
+	// safe point arrived during the previous frame.
+	c.drainLayerGPUReleases()
 }
 
 // Invalidate marks a logical rectangle dirty (HiDPI-scaled to physical pixels).

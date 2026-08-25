@@ -2109,6 +2109,10 @@ type gpuContextOps interface {
 	SetAntiAlias(enabled bool)
 	SetPreferSampleCount1(enabled bool)
 	PendingCount() int
+	// HasPendingStash reports whether the F1 present-stash holds parent draws.
+	// Stashed composite quads may reference held layer textures — while active,
+	// those textures must stay alive (C5 use-after-free fix).
+	HasPendingStash() bool
 	// TakeBrushBootstrapReason returns G.04 ColorAt→GPU blit diagnostic, if any.
 	TakeBrushBootstrapReason() string
 	Close()

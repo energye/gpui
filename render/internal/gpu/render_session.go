@@ -1285,11 +1285,21 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	// an unsubmitted layer RT. Multiple layer fills still coalesce into one
 	// Submit via leadSubmitCBs.
 	//
+	// C5 fix: drain even while deferSurfaceSubmit is set. A deferred layer CB
+	// bakes references to the SHARED staging buffers (sdf verts/uniforms, gpu-tex
+	// slabs); queue.WriteBuffer from the NEXT layer's build overwrites them
+	// before the deferred CB executes — its geometry then draws with the wrong
+	// vertices inside its own damage scissor and resolves to an empty texture
+	// (two SaveLayer groups per frame lost the first card; a single card never
+	// triggered it). Draining here submits the previous layer pass while its
+	// staging data is still intact. opt21's coalescing still holds for the
+	// common single-layer steady frame (nothing to drain).
+	//
 	// opt34: do NOT drain when recording into sharedEncoder (opt32 dual-tex
 	// composite / ADR-017). Caller Finishes then submitWithLeading so layers +
 	// dual-tex + blit stay one Queue.Submit. Draining here forced a mid-frame
 	// Submit and left the composite CB alone (extra Finish/Submit tax on L3).
-	if !s.deferSurfaceSubmit && sharedEncoder == nil && len(s.leadSubmitCBs) > 0 {
+	if sharedEncoder == nil && len(s.leadSubmitCBs) > 0 {
 		if err := s.FlushLeadingSubmitsOnly(); err != nil {
 			return err
 		}
@@ -3623,6 +3633,9 @@ func (s *GPURenderSession) allocConvexVertSlot() int {
 func (s *GPURenderSession) SetDeferSurfaceSubmit(v bool) {
 	if s == nil {
 		return
+	}
+	if v && os.Getenv("GPUQNODEFER") == "1" { // TEMP decision-data probe
+		v = false
 	}
 	s.deferSurfaceSubmit = v
 }

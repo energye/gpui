@@ -700,6 +700,13 @@ func relocateConvexMeshData(cmds []ConvexDrawCommand, from int, dstPacked *[]byt
 	}
 }
 
+// HasPendingStash reports whether the F1 present-stash currently holds
+// parent-surface draws. While active, stashed composite quads may still
+// reference held layer textures, so those textures must not be released.
+func (rc *GPURenderContext) HasPendingStash() bool {
+	return rc != nil && rc.presentStash.active
+}
+
 func (rc *GPURenderContext) stashPresentPending() {
 	if rc == nil || !rc.hasPendingTarget {
 		return
