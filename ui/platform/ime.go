@@ -42,6 +42,21 @@ const (
 	PurposeTerminal ContentPurpose = 13
 )
 
+// ContentType bundles the purpose declaration with editing hints so every
+// backend receives one complete snapshot (design D8).
+type ContentType struct {
+	Purpose ContentPurpose
+	// Hints are advisory (autocap/spellcheck/private); Wayland maps the
+	// subset it supports, IMM32/TSF use InputScope, mac uses keyboardType.
+	Hints uint32
+}
+
+// FieldSnapshot is everything Enable needs about the focused field.
+type FieldSnapshot struct {
+	Rect Rect
+	Type ContentType
+}
+
 // IME is the optional cross-platform input-method capability. A backend that
 // does not support IME leaves Window.IME() nil; the UI layer silently degrades
 // to plain keyboard text (same pattern as the optional VSyncWaiter).

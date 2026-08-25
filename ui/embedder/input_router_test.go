@@ -239,10 +239,13 @@ func TestRouterKeyDuringComposeNotDoubleInserted(t *testing.T) {
 	ed := textinput.New()
 	r := NewInputRouter(nil, nil)
 	r.TextEditor = ed
-	ed.BeginCompose("ni") // IME composing
+	ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"}) // IME composing (overlay; buffer stays empty)
 	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyN, Rune: 'n', Pressed: true}})
-	if ed.Text() != "ni" {
-		t.Fatalf("editor text = %q, want ni (no double insert)", ed.Text())
+	if ed.Text() != "" {
+		t.Fatalf("editor text = %q, want empty buffer (compose owns the keys)", ed.Text())
+	}
+	if !ed.ComposeActive() {
+		t.Fatal("composition should still be active")
 	}
 }
 
@@ -289,6 +292,7 @@ func TestRouter_IMEAutoSession(t *testing.T) {
 	fm.Register(node)
 
 	r := NewInputRouter(nil, fm)
+	r.SurroundingUpdates = true // this suite asserts surrounding reporting
 	r.AttachIME(ime)
 
 	if ime.enabled != 0 || ime.disabled != 0 {
@@ -326,10 +330,10 @@ func TestRouter_IMEAutoSession(t *testing.T) {
 		t.Fatalf("surrounding after edit = %v", ime.surround)
 	}
 
-	// Compose + commit flow through the focused editor too; surrounding text
-	// must EXCLUDE the pre-edit region while composing.
+	// Compose + commit flow through the focused editor too. Design D1: the
+	// buffer NEVER contains the pre-edit — it stays "a" while composing.
 	r.Route(input.FromPlatform(platform.Event{Type: platform.EventIME, IMEKind: 0, IMEText: "ni"}, input.Modifiers{}))
-	if !ed.ComposeActive() || ed.Text() != "ani" {
+	if !ed.ComposeActive() || ed.Text() != "a" {
 		t.Fatalf("compose state = %q active=%v", ed.Text(), ed.ComposeActive())
 	}
 	for _, s := range ime.surround {
@@ -364,3 +368,45 @@ func TestRouter_TextEditorFallback(t *testing.T) {
 }
 
 func itoa(v int) string { return fmt.Sprintf("%d", v) }
+
+// TestRouter_PointerMotionDoesNotSpamIME locks the fix for "IME stopped
+// switching": mouse MOVE must not push cursor-rect/surrounding updates —
+// only edits (keys, text, ime) and pointer DOWN may.
+func TestRouter_PointerMotionDoesNotSpamIME(t *testing.T) {
+	ime := &recIME{}
+	ed := textinput.New()
+	tgt := &fakeTarget{ed: ed}
+	fm := focus.NewManager()
+	node := focus.NewFocusNode("field")
+	node.Target = tgt
+	fm.Register(node)
+	r := NewInputRouter(nil, fm)
+	r.AttachIME(ime)
+	node.RequestFocus()
+	if ime.enabled != 1 || len(ime.rects) != 1 {
+		t.Fatalf("focus-in: enabled=%d rects=%d", ime.enabled, len(ime.rects))
+	}
+
+	moves := input.FromPlatform(platform.Event{
+		Type: platform.EventPointer, Pointer: platform.PointerKind(input.PointerMove),
+		X: 55, Y: 70,
+	}, input.Modifiers{})
+	for i := 0; i < 50; i++ {
+		r.Route(moves)
+	}
+	if got := len(ime.cursorRect); got != 0 {
+		t.Fatalf("pointer motion spammed IME anchors: %d updates", got)
+	}
+	if len(ime.surround) > 1 {
+		t.Fatalf("pointer motion spammed surrounding pushes: %v", ime.surround)
+	}
+
+	down := input.FromPlatform(platform.Event{
+		Type: platform.EventPointer, Pointer: platform.PointerDown,
+		X: 55, Y: 70,
+	}, input.Modifiers{})
+	r.Route(down)
+	if len(ime.cursorRect) == 0 {
+		t.Fatal("pointer down did not refresh the anchor")
+	}
+}

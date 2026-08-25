@@ -178,3 +178,39 @@ func TestRenderText_SetMaxLines_DirtiesLayout(t *testing.T) {
 		t.Fatalf("layout count did not grow")
 	}
 }
+
+// TestRenderTextByteOffsetAt covers click-to-caret conversion: clamping and
+// rune-boundary snapping (CJK must never split mid-rune), independent of
+// whether a real font face is loaded.
+func TestRenderTextByteOffsetAt(t *testing.T) {
+	tt := rendering.NewRenderText("你好a")
+	tt.FontSize = 20
+
+	if got := tt.ByteOffsetAt(-5); got != 0 {
+		t.Fatalf("negative x = %d, want 0", got)
+	}
+	if got := tt.ByteOffsetAt(1e6); got != len("你好a") {
+		t.Fatalf("far x = %d, want %d", got, len("你好a"))
+	}
+	// Every returned offset must be a rune boundary of the buffer.
+	valid := map[int]bool{0: true, 3: true, 6: true, 7: true}
+	for _, x := range []float64{1, 5, 10, 15, 20, 25, 30, 40, 50, 60} {
+		if off := tt.ByteOffsetAt(x); !valid[off] {
+			t.Fatalf("ByteOffsetAt(%v) = %d, not a rune boundary", x, off)
+		}
+	}
+	// Monotonic non-decreasing along x.
+	last := 0
+	for x := 0.0; x <= 100; x += 2 {
+		off := tt.ByteOffsetAt(x)
+		if off < last {
+			t.Fatalf("non-monotonic at x=%v: %d < %d", x, off, last)
+		}
+		last = off
+	}
+
+	empty := rendering.NewRenderText("")
+	if empty.ByteOffsetAt(42) != 0 {
+		t.Fatal("empty text must map to 0")
+	}
+}

@@ -48,9 +48,10 @@ const (
 	boxY       = 60.0
 	boxW       = 600.0
 	boxH       = 48.0
-	// expectText is the self-test expectation: pinyin commit "你好" followed
-	// by one plain ASCII keystroke "a".
-	expectText = "你好a"
+	// expectText is the self-test expectation: pinyin commit "你好", one
+	// plain ASCII keystroke "a", then ArrowLeft + "b" proving the caret
+	// moved (b lands BEFORE a).
+	expectText = "你好ba"
 )
 
 // inputBox renders the editor text plus a caret/compose marker. It is an
@@ -61,8 +62,9 @@ type inputBox struct {
 	*rendering.RenderBox
 	ed      *textinput.Editor
 	text    *rendering.RenderText
-	node    *focus.FocusNode // registered with the window's focus manager
-	sched   func()           // set before Run: request a frame after edits
+	bar     *rendering.RenderColorBox // floating caret bar — layout-neutral
+	node    *focus.FocusNode          // registered with the window's focus manager
+	sched   func()                    // set before Run: request a frame after edits
 	focused bool
 	caretOn bool // idle-caret blink state (UI-thread only)
 	blinks  int  // completed blink toggles (evidence in exit JSON)
@@ -79,6 +81,11 @@ func newInputBox(ed *textinput.Editor) *inputBox {
 	b.FixedWidth = boxW
 	b.FixedHeight = boxH
 	b.AddChild(b.text)
+	// The caret is a FLOATING BAR positioned at the cursor offset — never a
+	// glyph inserted into the string: an inserted "|" split the neighboring
+	// glyphs apart while blinking and desynced click→caret mapping.
+	b.bar = rendering.NewRenderColorBox(2, 26, 0.05, 0.75, 0.95, 1)
+	b.AddChild(b.bar)
 	b.caretOn = true
 	b.node = focus.NewFocusNode("input-box")
 	b.node.Target = b // framework resolves the focused TextEditTarget via this
@@ -97,8 +104,13 @@ func newInputBox(ed *textinput.Editor) *inputBox {
 // Editor returns the editing state this box edits.
 func (b *inputBox) Editor() *textinput.Editor { return b.ed }
 
-// ContentPurpose declares a plain-text field.
+// ContentPurpose declares a plain-text field (TextEditTarget contract).
 func (b *inputBox) ContentPurpose() platform.ContentPurpose { return platform.PurposeNormal }
+
+// ContentType is the facade-facing declaration (FieldSnapshotProvider).
+func (b *inputBox) ContentType() platform.ContentType {
+	return platform.ContentType{Purpose: b.ContentPurpose()}
+}
 
 // IMERect anchors candidates at the caret: prefix width measured with the
 // same face/size the text paints with.
@@ -111,36 +123,57 @@ func (b *inputBox) IMERect() platform.Rect {
 	return platform.Rect{X: boxX + w, Y: boxY, W: 2, H: boxH}
 }
 
-// sync mirrors the editor into the RenderText. Must go through SetText (not
-// a raw field write): SetText also invalidates glyph layout, a paint-only
-// dirty would keep stale runs and never show newly typed characters.
+// sync mirrors the editor into the RenderText (the text string NEVER
+// contains caret glyphs — the caret is the floating bar, see layoutCaret).
+// Must go through SetText so glyph layout invalidates together with paint.
 func (b *inputBox) sync() {
 	if b == nil || b.text == nil || b.ed == nil {
 		return
 	}
-	t := b.ed.Text()
-	switch {
-	case b.ed.ComposeActive():
-		t += "▌" // pre-edit live region marker
-	case b.focused || len(t) > 0:
-		if b.caretOn {
-			t += "|"
-		}
-	default:
-		t = "…(click, type, IME)▏"
+	disp := b.ed.Text()
+	if disp == "" && !b.focused {
+		disp = "…(click, type, IME)▏"
 	}
-	b.text.SetText(t)
+	b.text.SetText(disp)
+	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
 	}
 }
 
+// layoutCaret positions the caret bar at the current cursor byte offset and
+// toggles its visibility for the blink. Position/alpha only — zero effect on
+// text layout, so neighboring glyphs never shift while blinking. Vertical:
+// centered on the text's laid-out line box.
+func (b *inputBox) layoutCaret() {
+	if b == nil || b.bar == nil {
+		return
+	}
+	cur := b.ed.Cursor()
+	if cur < 0 || cur > len(b.ed.Text()) {
+		cur = len(b.ed.Text())
+	}
+	x := b.text.MeasureWidth(b.ed.Text()[:cur])
+	th := b.text.Size().Height
+	y := (th - b.bar.Height) / 2
+	if y < 0 {
+		y = 0
+	}
+	b.bar.SetOffset(rendering.Point{X: x + 1, Y: y})
+	if b.caretOn && (b.focused || len(b.ed.Text()) > 0) {
+		b.bar.A = 1
+	} else {
+		b.bar.A = 0
+	}
+}
+
 // OnPointer implements input.PointerHandler: clicking focuses the box via
-// the focus manager — the framework opens/closes the IME session on the
-// transition itself.
+// the focus manager (the framework opens/closes the IME session on the
+// transition) and places the caret at the clicked position.
 func (b *inputBox) OnPointer(ev input.PointerEvent) {
 	if ev.Kind == input.PointerDown && b.node != nil {
 		b.node.RequestFocus()
+		b.ed.SetCaret(b.text.ByteOffsetAt(ev.X - boxX)) // window X → local → boundary
 	}
 }
 
@@ -278,20 +311,39 @@ func main() {
 
 	pass := true
 	if selftest {
-		// Pre-loop injection (race-free): each event takes the production
-		// path platform.Event → FromPlatform → InputRouter → Editor.
+		// Leg A (router path): production events platform.Event →
+		// FromPlatform → InputRouter → Editor.
 		steps := []platform.Event{
 			{Type: platform.EventIME, IMEKind: 0, IMEText: "ni", IMEStart: 2, IMEEnd: 2},      // pre-edit "ni", caret @2
 			{Type: platform.EventIME, IMEKind: 0, IMEText: "nihao", IMEStart: -1, IMEEnd: -1}, // pre-edit grows, caret @end
 			{Type: platform.EventIME, IMEKind: 1, IMEText: "你好"},                              // candidate selected → commit
 			{Type: platform.EventIME, IMEKind: 0, IMEText: ""},                                // post-commit empty preedit = reset (used to latch compose ON)
 			{Type: platform.EventKey, Pressed: true, KeyCode: 'a', Rune: 'a'},                 // plain key must insert after the reset
+			{Type: platform.EventKey, Pressed: true, KeyCode: 0xff51},                         // ArrowLeft: caret moves (visible via sync)
+			{Type: platform.EventKey, Pressed: true, KeyCode: 'b', Rune: 'b'},                 // inserts at the MOVED caret → "…ba"
 		}
 		for i, ev := range steps {
 			router.RoutePlatform(ev)
 			logf("selftest step=%d text=%q compose=%v", i, ed.Text(), ed.ComposeActive())
 		}
 		pass = ed.Text() == expectText && !ed.ComposeActive()
+
+		// Leg B (ImeSession facade — M1 new architecture): same semantics,
+		// driven through the facade instead of the router.
+		sessEd := textinput.New()
+		if win.IME() != nil {
+			sess := textinput.NewImeSession(embedder.NewImeAdapter(win.IME()))
+			sess.AttachEditor(sessEd, box) // box is a FieldSnapshotProvider too
+			sess.PreeditChanged(input.PreeditEvent{Text: "wo", Cursor: -1})
+			sess.Committed("我")
+			sess.DeleteSurrounding(0, 0)
+		}
+		facadeOK := sessEd.Text() == "我" && !sessEd.ComposeActive()
+		logf("selftest facade leg: text=%q ok=%v", sessEd.Text(), facadeOK)
+		if !facadeOK {
+			pass = false
+		}
+
 		if !pass {
 			logf("selftest MISMATCH got=%q want=%q", ed.Text(), expectText)
 		} else {

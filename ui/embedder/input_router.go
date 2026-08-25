@@ -1,6 +1,8 @@
 package embedder
 
 import (
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/energye/gpui/ui/focus"
@@ -56,6 +58,15 @@ type InputRouter struct {
 	// session belongs to the currently focused TextEditTarget.
 	ime     platform.IME
 	session TextEditTarget
+	// SurroundingUpdates enables periodic set_surrounding_text reporting
+	// (context for IME reconversion). OFF by default: each push is a
+	// commit_state round-trip and chatty reporting starved the input
+	// method (observed: engine switching stopped responding). Enable
+	// deliberately when a target needs context-aware IME features.
+	SurroundingUpdates bool
+	lastSurr           string // dedupe key of the last surrounding push ("text\x00cursor")
+	hasAnchor          bool   // lastAnchor valid?
+	lastAnchor         platform.Rect
 
 	mu   sync.Mutex
 	mods input.Modifiers
@@ -163,24 +174,36 @@ func (r *InputRouter) onFocusChange(from, to *focus.FocusNode) {
 		return
 	} else {
 		r.session = next
+		r.lastSurr = "" // new session must push fresh surrounding state
+		r.hasAnchor = false
 		r.mu.Unlock()
 		r.syncSession(ime, prev, next)
 	}
 }
 
-// syncSession closes the outgoing session (cancel live pre-edit → disable)
-// then opens the incoming one (purpose → enable at its anchor → surrounding).
+// debugIME logs protocol-relevant session transitions when
+// GPUI_IME_DEBUG=1 — the evidence trail for compositor/IME misbehavior.
+func (r *InputRouter) debugIME(format string, args ...any) {
+	if os.Getenv("GPUI_IME_DEBUG") != "1" {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[ime-router] "+format+"\n", args...)
+}
+
+// syncSession closes the outgoing session (drop live overlay → disable)
+// then opens the incoming one (purpose → enable at its anchor).
 func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 	if prev != nil {
+		r.debugIME("session close: cancel+disable")
 		if ed := prev.Editor(); ed != nil {
-			ed.CancelCompose()
+			ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""}) // R2 clear
 		}
 		ime.DisableIME()
 	}
 	if next != nil {
+		r.debugIME("session open: purpose=%v rect=%v", next.ContentPurpose(), next.IMERect())
 		ime.SetContentType(next.ContentPurpose())
 		ime.EnableIME(next.IMERect())
-		r.pushSurrounding(ime, next)
 	}
 }
 
@@ -208,7 +231,11 @@ func (r *InputRouter) editorFor() *textinput.Editor {
 
 // afterEdit refreshes the open session's candidate anchor and surrounding
 // text after an edit or caret move reached an editor (typing, IME commit,
-// arrows/backspace routed through the router).
+// arrows/backspace routed through the router). Both pushes are deduped:
+// compositor preedit ECHOES (mutter re-sends the current preedit in reply to
+// our commit_state) must not turn into another commit_state or they form a
+// protocol feedback loop — observed as dozens of identical preedit events
+// per keystroke.
 func (r *InputRouter) afterEdit() {
 	r.mu.Lock()
 	t, ime := r.session, r.ime
@@ -216,7 +243,14 @@ func (r *InputRouter) afterEdit() {
 	if t == nil || ime == nil {
 		return
 	}
-	ime.UpdateCursorRect(t.IMERect())
+	rect := t.IMERect()
+	r.mu.Lock()
+	same := r.hasAnchor && rect == r.lastAnchor
+	r.hasAnchor, r.lastAnchor = true, rect
+	r.mu.Unlock()
+	if !same {
+		ime.UpdateCursorRect(rect)
+	}
 	r.pushSurrounding(ime, t)
 }
 
@@ -225,23 +259,25 @@ func (r *InputRouter) afterEdit() {
 // not flow through the router (SetText, click-to-place-caret).
 func (r *InputRouter) RefreshIMEAnchor() { r.afterEdit() }
 
-// pushSurrounding reports buffer+caret as surrounding text. The pre-edit
-// region is EXCLUDED (the protocol reports preedit separately); caret byte
-// offsets are adjusted accordingly.
+// pushSurrounding reports buffer+caret as surrounding text. The committed
+// buffer NEVER contains the composition (design D1), so no offset surgery
+// is needed — Snapshot() is protocol-ready by construction.
 func (r *InputRouter) pushSurrounding(ime platform.IME, t TextEditTarget) {
+	if !r.SurroundingUpdates {
+		return // opt-in; see field doc
+	}
 	ed := t.Editor()
 	if ed == nil {
 		return
 	}
-	text, cursor := ed.Text(), ed.Cursor()
-	if s, e, ok := ed.ComposeRange(); ok {
-		text = text[:s] + text[e:]
-		switch {
-		case cursor >= e:
-			cursor -= e - s
-		case cursor > s:
-			cursor = s
-		}
+	text, cursor := ed.Snapshot()
+	key := fmt.Sprintf("%s\x00%d", text, cursor)
+	r.mu.Lock()
+	same := key == r.lastSurr
+	r.lastSurr = key
+	r.mu.Unlock()
+	if same {
+		return
 	}
 	ime.SetComposing(text, cursor)
 }
@@ -292,6 +328,14 @@ func (r *InputRouter) routePointer(ev input.Event) {
 	}
 	if r.OnPointer != nil {
 		r.OnPointer(ev.Pointer, target)
+	}
+	// Click-to-place-caret edits the buffer inside the handler — refresh the
+	// session anchor/surrounding like keyboard-driven edits do. ONLY on
+	// down events: motion/up never edit, and refreshing per mouse-move
+	// spams commit_state hundreds of times a second, starving the input
+	// method (observed: engine switching stopped responding).
+	if ev.Kind == input.KindPointer && ev.Pointer.Kind == input.PointerDown {
+		r.afterEdit()
 	}
 }
 

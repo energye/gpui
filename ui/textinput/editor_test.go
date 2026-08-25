@@ -6,357 +6,221 @@ import (
 	"github.com/energye/gpui/ui/input"
 )
 
-func TestNewEmpty(t *testing.T) {
-	e := New()
-	if !e.IsEmpty() || e.Text() != "" || e.LenRunes() != 0 {
-		t.Fatalf("new editor not empty: %q", e.Text())
-	}
-	if s, en := e.Selection(); s != 0 || en != 0 {
-		t.Fatalf("selection = (%d,%d)", s, en)
-	}
-}
+// --- buffer basics (committed text only; pre-edit never enters buf) ---
 
-func TestInsertASCII(t *testing.T) {
+func TestInsertBasics(t *testing.T) {
 	e := New()
 	e.Insert("a")
-	e.Insert("b")
-	if e.Text() != "ab" {
-		t.Fatalf("text = %q", e.Text())
-	}
-	if e.Cursor() != 2 {
-		t.Fatalf("cursor = %d", e.Cursor())
-	}
-}
-
-func TestInsertCJK(t *testing.T) {
-	e := New()
-	e.Insert("你好")
-	if e.Text() != "你好" {
-		t.Fatalf("text = %q", e.Text())
-	}
-	// CJK 3 bytes per rune.
-	if e.Cursor() != 6 {
-		t.Fatalf("cursor = %d (want 6 bytes)", e.Cursor())
+	e.Insert("你") // CJK = 3 bytes
+	if e.Text() != "a你" || e.Cursor() != 4 {
+		t.Fatalf("text=%q cursor=%d", e.Text(), e.Cursor())
 	}
 	if e.LenRunes() != 2 {
-		t.Fatalf("runes = %d", e.LenRunes())
+		t.Fatalf("runes=%d", e.LenRunes())
 	}
 }
 
-func TestInsertReplacesSelection(t *testing.T) {
+func TestEpochMonotonic(t *testing.T) {
 	e := New()
-	e.SetText("hello world")
-	e.SetSelection(0, 5) // select "hello"
-	e.Insert("hi")
-	if e.Text() != "hi world" {
-		t.Fatalf("text = %q", e.Text())
-	}
-	if e.Cursor() != 2 {
-		t.Fatalf("cursor = %d", e.Cursor())
+	e0 := e.Epoch()
+	e.Insert("x")
+	e1 := e.Epoch()
+	e.SetText("xy")
+	e2 := e.Epoch()
+	if !(e0 < e1 && e1 < e2) {
+		t.Fatalf("epoch not monotonic: %d %d %d", e0, e1, e2)
 	}
 }
 
-func TestDeleteBackward(t *testing.T) {
+func TestDeleteRuneBoundary(t *testing.T) {
 	e := New()
-	e.SetText("abc")
-	e.SetCaret(3)
-	e.DeleteBackward()
-	if e.Text() != "ab" || e.Cursor() != 2 {
-		t.Fatalf("text=%q cursor=%d", e.Text(), e.Cursor())
-	}
-	// CJK rune deletion.
 	e.SetText("a你b")
 	e.SetCaret(len("a你b"))
-	e.DeleteBackward() // deletes 'b'
-	if e.Text() != "a你" {
-		t.Fatalf("text = %q", e.Text())
-	}
-	e.DeleteBackward() // deletes 你 (3 bytes)
+	e.DeleteBackward() // b
+	e.DeleteBackward() // 你 (3 bytes, never split)
 	if e.Text() != "a" {
-		t.Fatalf("text = %q", e.Text())
+		t.Fatalf("text=%q", e.Text())
 	}
-}
-
-func TestDeleteSelection(t *testing.T) {
-	e := New()
-	e.SetText("hello")
-	e.SetSelection(1, 4) // "ell"
-	e.DeleteBackward()
-	if e.Text() != "ho" {
-		t.Fatalf("text = %q", e.Text())
-	}
-}
-
-func TestDeleteForward(t *testing.T) {
-	e := New()
-	e.SetText("abc")
 	e.SetCaret(0)
 	e.DeleteForward()
-	if e.Text() != "bc" || e.Cursor() != 0 {
-		t.Fatalf("text=%q cursor=%d", e.Text(), e.Cursor())
+	if e.Text() != "" {
+		t.Fatalf("after forward: %q", e.Text())
+	}
+}
+
+func TestDeleteSurroundingSnaps(t *testing.T) {
+	e := New()
+	e.SetText("你好")
+	e.SetCaret(3)
+	if !e.DeleteSurrounding(1, 0) { // misaligned → snaps to full 你
+		t.Fatal("should report change")
+	}
+	if e.Text() != "好" || e.Cursor() != 0 {
+		t.Fatalf("snap: text=%q cursor=%d", e.Text(), e.Cursor())
+	}
+	if e.DeleteSurrounding(0, 0) {
+		t.Fatal("no-op should return false")
 	}
 }
 
 func TestMoveCaretRunes(t *testing.T) {
 	e := New()
-	e.SetText("你好world")
+	e.SetText("你好w")
 	e.SetCaret(0)
-	e.MoveCaretRunes(1)
-	if e.Cursor() != 3 { // 你 = 3 bytes
-		t.Fatalf("cursor after +1 = %d", e.Cursor())
+	e.MoveCaretRunes(2)
+	if e.Cursor() != 6 {
+		t.Fatalf("+2 = %d", e.Cursor())
 	}
-	e.MoveCaretRunes(2) // 好 + w
-	if e.Cursor() != 3+3+1 {
-		t.Fatalf("cursor after +2 = %d", e.Cursor())
-	}
-	e.MoveCaretRunes(-3)
+	e.MoveCaretRunes(-2)
 	if e.Cursor() != 0 {
-		t.Fatalf("cursor after -3 = %d", e.Cursor())
+		t.Fatalf("-2 = %d", e.Cursor())
 	}
 }
 
-func TestOnChangeFires(t *testing.T) {
+// --- composition overlay (design D1: preedit NEVER enters the buffer) ---
+
+func TestComposeOverlayKeepsBufferPure(t *testing.T) {
 	e := New()
-	n := 0
-	e.OnChange = func() { n++ }
-	e.Insert("a")      // 1
-	e.Insert("b")      // 2
-	e.DeleteBackward() // 3
-	if n != 3 {
-		t.Fatalf("change fires = %d, want 3", n)
+	e.SetText("hi")
+	e.SetCaret(2)
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"})
+	if !e.ComposeActive() || e.CompositionText() != "ni" {
+		t.Fatalf("compose not active: %q", e.CompositionText())
+	}
+	if e.Text() != "hi" { // THE invariant: buffer untouched by preedit
+		t.Fatalf("buffer polluted: %q", e.Text())
+	}
+	v := e.View()
+	if v.Display != "hini" || v.CompStart != 2 || v.CompEnd != 4 {
+		t.Fatalf("view = %+v", v)
 	}
 }
 
-func TestComposeLifecycle(t *testing.T) {
+func TestEmptyPreeditOnlyTerminates(t *testing.T) {
 	e := New()
-	e.SetText("hello")
-	e.SetCaret(5)
-
-	// Begin compose: pre-edit "ni" inserted at caret.
-	e.BeginCompose("ni")
-	if e.Text() != "helloni" {
-		t.Fatalf("compose begin text = %q", e.Text())
-	}
-	if !e.ComposeActive() {
-		t.Fatal("compose should be active")
-	}
-	if s, en, ok := e.ComposeRange(); !ok || s != 5 || en != 7 {
-		t.Fatalf("compose range = (%d,%d,%v)", s, en, ok)
-	}
-	// Update compose.
-	e.UpdateCompose("nihao", 5)
-	if e.Text() != "hellonihao" {
-		t.Fatalf("compose update text = %q", e.Text())
-	}
-	// Commit: pre-edit stays as committed text.
-	e.CommitCompose()
-	if e.Text() != "hellonihao" {
-		t.Fatalf("compose commit text = %q", e.Text())
-	}
+	e.SetText("ab")
+	e.SetCaret(2)
+	// R2: empty preedit on inactive session must NOT start one.
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
 	if e.ComposeActive() {
-		t.Fatal("compose should be inactive after commit")
+		t.Fatal("empty preedit started a session")
 	}
-	if e.Cursor() != len("hellonihao") {
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "cd"})
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""}) // clear
+	if e.ComposeActive() || e.Text() != "ab" {
+		t.Fatalf("clear left residue: active=%v text=%q", e.ComposeActive(), e.Text())
+	}
+}
+
+func TestCommitReplacesOverlayAtomically(t *testing.T) {
+	e := New()
+	e.SetText("ab")
+	e.SetCaret(2)
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihao"})
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECommit, Text: "你好"})
+	if e.Text() != "ab你好" || e.ComposeActive() {
+		t.Fatalf("text=%q active=%v", e.Text(), e.ComposeActive())
+	}
+	if e.Cursor() != len("ab你好") {
 		t.Fatalf("cursor after commit = %d", e.Cursor())
 	}
 }
 
-func TestCancelComposeRollsBack(t *testing.T) {
-	e := New()
-	e.SetText("abc")
-	e.SetCaret(3)
-	e.BeginCompose("xyz")
-	if e.Text() != "abcxyz" {
-		t.Fatalf("before cancel: %q", e.Text())
-	}
-	e.CancelCompose()
-	if e.Text() != "abc" {
-		t.Fatalf("after cancel: %q", e.Text())
-	}
-	if e.ComposeActive() {
-		t.Fatal("compose should be inactive")
-	}
-}
+// --- ComposedView conversions (§4.5: the ONLY offset exit) ---
 
-func TestInsertCancelsCompose(t *testing.T) {
-	e := New()
-	e.SetText("abc")
-	e.SetCaret(3)
-	e.BeginCompose("xyz")
-	e.Insert("!")
-	// Insert cancels compose and replaces caret position text.
-	if e.Text() != "abc!" {
-		t.Fatalf("text = %q", e.Text())
-	}
-	if e.ComposeActive() {
-		t.Fatal("compose should be cancelled by insert")
-	}
-}
-
-func TestApplyTextEvent(t *testing.T) {
-	e := New()
-	if e.ApplyText(input.TextEvent{Text: "你好"}) != true {
-		t.Fatal("ApplyText should report change")
-	}
-	if e.Text() != "你好" {
-		t.Fatalf("text = %q", e.Text())
-	}
-	if e.ApplyText(input.TextEvent{Text: ""}) != false {
-		t.Fatal("empty ApplyText should not change")
-	}
-}
-
-func TestApplyIMEComposeAndCommit(t *testing.T) {
-	e := New()
-	// Compose event starts pre-edit.
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"})
-	if !e.ComposeActive() {
-		t.Fatal("compose not started")
-	}
-	// Commit event with text replaces pre-edit.
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECommit, Text: "你"})
-	if e.Text() != "你" {
-		t.Fatalf("text = %q", e.Text())
-	}
-	if e.ComposeActive() {
-		t.Fatal("compose should be done after commit")
-	}
-}
-
-func TestApplyIMEEmptyComposeResets(t *testing.T) {
+func TestComposedViewMappings(t *testing.T) {
 	e := New()
 	e.SetText("ab")
 	e.SetCaret(2)
-	// Compose starts, then the compositor sends an empty preedit (= reset).
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"})
-	if !e.ComposeActive() || e.Text() != "abni" {
-		t.Fatalf("compose active: text=%q", e.Text())
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "xyz"}) // view: ab[xyz]
+	v := e.View()
+
+	cases := []struct{ view, buf int }{
+		{0, 0}, {2, 2}, // before/at span start
+		{3, 2}, {5, 2}, // inside span → snap to start
+		{6, 3}, {8, 5}, // past end → shift back
 	}
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
-	if e.ComposeActive() {
-		t.Fatal("empty preedit must end the compose session")
+	for _, c := range cases {
+		if got := v.MapViewToBuf(c.view); got != c.buf {
+			t.Fatalf("MapViewToBuf(%d) = %d, want %d", c.view, got, c.buf)
+		}
 	}
-	if e.Text() != "ab" {
-		t.Fatalf("reset should roll back pre-edit, text=%q", e.Text())
+	if got := v.MapBufToViewExact(2, 1); got != 3 { // caret inside span
+		t.Fatalf("MapBufToViewExact = %d", got)
 	}
-	// An empty preedit with no active session must NOT start one (this is
-	// what latched compose state after a commit and blocked plain typing).
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
-	if e.ComposeActive() {
-		t.Fatal("empty preedit on inactive session must stay inactive")
+	// No-composition identity.
+	e2 := New()
+	e2.SetText("abc")
+	v2 := e2.View()
+	if v2.MapViewToBuf(1) != 1 || v2.CompStart != -1 {
+		t.Fatalf("identity mapping broken: %+v", v2)
 	}
 }
 
-func TestCutCopyPaste(t *testing.T) {
+func TestByteOffsetAtSnapsOutOfSpan(t *testing.T) {
+	e := New()
+	e.SetText("ab")
+	e.SetCaret(2)
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "xyz"})
+	widths := map[string]float64{}
+	w := func(s string) float64 { widths[s]++; return float64(len(s)) }
+	// Click deep inside the display string → buffer offset snaps to span start.
+	if got := e.ByteOffsetAt(4, w); got != 2 {
+		t.Fatalf("click in span → %d, want 2", got)
+	}
+	// Click past everything → end of buffer.
+	if got := e.ByteOffsetAt(999, w); got != 5-3 {
+		t.Fatalf("click past end → %d, want 2", got)
+	}
+}
+
+// --- snapshot & misc ---
+
+func TestSnapshotExcludesCompositionByConstruction(t *testing.T) {
+	e := New()
+	e.SetText("hi")
+	e.SetCaret(2)
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"})
+	text, cur := e.Snapshot()
+	if text != "hi" || cur != 2 {
+		t.Fatalf("snapshot = (%q,%d), want (hi,2)", text, cur)
+	}
+}
+
+func TestDeleteBlockedDuringComposition(t *testing.T) {
+	e := New()
+	e.SetText("hello")
+	e.SetCaret(5)
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "f"}) // IME owns backspace now
+	e.DeleteBackward()
+	if e.Text() != "hello" {
+		t.Fatalf("buffer mutated during composition: %q", e.Text())
+	}
+}
+
+func TestClipboardRoundtrip(t *testing.T) {
 	e := New()
 	e.SetText("hello")
 	e.SetSelection(1, 4)
 	if e.Copy() != "ell" {
 		t.Fatalf("copy = %q", e.Copy())
 	}
-	// Copy does not mutate.
-	if e.Text() != "hello" {
-		t.Fatalf("copy mutated: %q", e.Text())
+	if e.Cut() != "ell" || e.Text() != "ho" {
+		t.Fatalf("cut state = %q", e.Text())
 	}
-	if e.Cut() != "ell" {
-		t.Fatalf("cut = %q", e.Cut())
-	}
-	if e.Text() != "ho" {
-		t.Fatalf("after cut: %q", e.Text())
-	}
-	e.Paste("ELL")
-	if e.Text() != "hELLo" {
-		t.Fatalf("after paste: %q", e.Text())
+	if !e.Paste("ELL") || e.Text() != "hELLo" {
+		t.Fatalf("paste state = %q", e.Text())
 	}
 }
 
-func TestEditorStringAndTrim(t *testing.T) {
+func TestOnChangeFiresPerMutation(t *testing.T) {
 	e := New()
-	e.SetText("  hi  ")
-	if e.String() != "  hi  " {
-		t.Fatalf("string = %q", e.String())
-	}
-	if e.Trimmed() != "hi" {
-		t.Fatalf("trimmed = %q", e.Trimmed())
-	}
-}
-
-func TestApplyIMEComposeCaretIndex(t *testing.T) {
-	e := New()
-	e.SetText("hi")
-	e.SetCaret(2)
-	// First preedit event carries the caret index (end of "ni").
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni", Start: 2, End: 2})
-	if e.Text() != "hini" || e.Cursor() != len("hini") {
-		t.Fatalf("compose begin: text=%q cursor=%d", e.Text(), e.Cursor())
-	}
-	// Follow-up preedit with index -1 → caret at the end of the pre-edit.
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihao", Start: -1, End: -1})
-	if e.Cursor() != len("hinihao") {
-		t.Fatalf("caret at end: %d", e.Cursor())
-	}
-	// Caret inside the pre-edit (byte offset 3 = after "nih").
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihaoni", Start: 3, End: 3})
-	if e.Cursor() != len("hi")+3 {
-		t.Fatalf("caret mid pre-edit: %d", e.Cursor())
-	}
-}
-
-func TestApplyIMEDeleteSurrounding(t *testing.T) {
-	e := New()
-	e.SetText("hello")
-	e.SetCaret(5)
-	// Delete one byte before the caret: "hello" → "hell".
-	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -1, End: 0})
-	if e.Text() != "hell" || e.Cursor() != 4 {
-		t.Fatalf("delete before: text=%q cursor=%d", e.Text(), e.Cursor())
-	}
-	// Delete one byte on each side of the caret ("el"); caret lands on the
-	// deletion start.
-	e.SetCaret(2)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -1, End: 1})
-	if e.Text() != "hl" || e.Cursor() != 1 {
-		t.Fatalf("delete around: text=%q cursor=%d", e.Text(), e.Cursor())
-	}
-}
-
-func TestDeleteSurroundingCJKSnapsRuneBoundary(t *testing.T) {
-	e := New()
-	e.SetText("你好")
-	e.SetCaret(3) // boundary between 你 and 好
-	// A misaligned byte count (1) snaps back to the full 3-byte 你.
-	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -1, End: 0})
-	if e.Text() != "好" || e.Cursor() != 0 {
-		t.Fatalf("cjk snap: text=%q cursor=%d", e.Text(), e.Cursor())
-	}
-}
-
-func TestDeleteSurroundingCancelsOverlappingCompose(t *testing.T) {
-	e := New()
-	e.SetText("ab")
-	e.SetCaret(2)
-	e.BeginCompose("cd") // "abcd", compose [2,4)
-	// Deletion [0..3) crosses the pre-edit region → session cancelled.
-	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -2, End: 1})
-	if e.ComposeActive() {
-		t.Fatal("overlapping deletion should cancel compose")
-	}
-	if e.Text() != "d" || e.Cursor() != 0 {
-		t.Fatalf("text=%q cursor=%d", e.Text(), e.Cursor())
-	}
-}
-
-func TestDeleteSurroundingShiftsComposeRegion(t *testing.T) {
-	e := New()
-	e.SetText("ab")
-	e.SetCaret(2)
-	e.BeginCompose("xy") // "abxy", compose [2,4)
-	// Delete the two bytes before the pre-edit region → region shifts left.
-	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -2, End: 0})
-	if s, en, ok := e.ComposeRange(); !ok || s != 0 || en != 2 {
-		t.Fatalf("compose range after shift = (%d,%d,%v)", s, en, ok)
-	}
-	if e.Text() != "xy" {
-		t.Fatalf("text = %q", e.Text())
+	n := 0
+	e.OnChange = func() { n++ }
+	e.Insert("a")
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "b"})
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECommit, Text: "c"})
+	if n != 3 {
+		t.Fatalf("change fires = %d, want 3", n)
 	}
 }

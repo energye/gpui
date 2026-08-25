@@ -1385,10 +1385,28 @@ type wlHost struct {
 	// wakes, sees the flag and returns instead of dispatching on a
 	// destroyed wl_display (native SIGSEGV).
 	destroying atomic.Int32
+
+	// imeFlushQ carries text-input objects whose pending queue needs a
+	// flush+commit on the dispatch thread (C2: async producers post here
+	// instead of marshaling from timer goroutines). Drained by poll().
+	imeFlushMu  sync.Mutex
+	imeFlushSet map[*wlTIState]bool
 }
 
-func (h *wlHost) ensureWakePipe() {
-	if h == nil {
+// postImeFlush queues st for a flush+commit on the next poll (C2 channel).
+func (h *wlHost) postImeFlush(st *wlTIState) {
+	if h == nil || st == nil {
+		return
+	}
+	h.imeFlushMu.Lock()
+	if h.imeFlushSet == nil {
+		h.imeFlushSet = make(map[*wlTIState]bool)
+	}
+	h.imeFlushSet[st] = true
+	h.imeFlushMu.Unlock()
+}
+
+func (h *wlHost) ensureWakePipe() {	if h == nil {
 		return
 	}
 	if h.wakePipe[0] != 0 || h.wakePipe[1] != 0 {
@@ -1684,6 +1702,14 @@ func (h *wlHost) poll() []Event {
 		w.imeEvents = nil
 	}
 	w.imeMu.Unlock()
+	// C2: flush pending text-input state commits posted by async producers.
+	h.imeFlushMu.Lock()
+	set := h.imeFlushSet
+	h.imeFlushSet = nil
+	h.imeFlushMu.Unlock()
+	for st := range set {
+		st.flushCommit()
+	}
 	// Key events queued by the wl_keyboard callback.
 	w.keyMu.Lock()
 	if len(w.keyEvents) > 0 {

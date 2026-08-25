@@ -119,6 +119,10 @@ func TestWLKeyRepeatFiresAndCancels(t *testing.T) {
 	}
 
 	st.cancelRepeatIf(38) // the repeating key itself released
+	// A timer fire racing the cancel may have pushed one final event before
+	// the cancel landed — discard in-flight events, then assert QUIESCENCE
+	// (no pushes happen after heldKC=0).
+	drainKeyEvents(w)
 	time.Sleep(80 * time.Millisecond)
 	if n := len(drainKeyEvents(w)); n != 0 {
 		t.Fatalf("cancel did not stop repeats: %d more events", n)

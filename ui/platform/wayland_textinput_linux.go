@@ -3,10 +3,32 @@
 package platform
 
 import (
+	"fmt"
+	"os"
+	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
 )
+
+// tiRecheckDelay re-sends the activation round this long after keyboard
+// focus-in. Rationale (observed on mutter 42.9 + ibus): the FIRST
+// enable+commit after window show does not activate the IME engine — the
+// user cannot switch engines until the window loses and REGAINS focus (that
+// working path is a plain disable→enable round-trip). A delayed re-commit
+// reproduces that working sequence automatically.
+const tiRecheckDelay = 400 * time.Millisecond
+
+// tiDebug logs text-input protocol traffic when GPUI_IME_DEBUG=1 — the
+// evidence trail for compositor/IME misbehavior (enable/disable/commit
+// rounds, preedit/commit/done events).
+func tiDebug(format string, args ...any) {
+	if os.Getenv("GPUI_IME_DEBUG") != "1" {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[ime-wl] "+format+"\n", args...)
+}
 
 // zwp_text_input_v3 (stable text-input protocol) binding via purego.
 //
@@ -39,7 +61,7 @@ import (
 // text-input opcodes (zwp_text_input_v3 / manager v1, protocol order).
 // Manager requests: destroy(0), get_text_input(1)[new_id, seat].
 const (
-	tiMgrDestroy     = 0 // zwp_text_input_manager_v3: destroy
+	tiMgrDestroy      = 0 // zwp_text_input_manager_v3: destroy
 	tiMgrGetTextInput = 1 // zwp_text_input_manager_v3: get_text_input(id, seat)
 
 	tiDestroy            = 0 // zwp_text_input_v3: destroy
@@ -67,38 +89,38 @@ const (
 )
 
 var tiNames = struct {
-	mgr, ti          []byte
-	mDestroy, mGetTI []byte
-	mEnable, mDisable []byte
-	mSetSurr, mSetCause, mSetContent, mSetRect, mCommit []byte
+	mgr, ti                                                  []byte
+	mDestroy, mGetTI                                         []byte
+	mEnable, mDisable                                        []byte
+	mSetSurr, mSetCause, mSetContent, mSetRect, mCommit      []byte
 	eEnter, eLeave, ePreedit, eCommitStr, eDeleteSurr, eDone []byte
-	sEmpty, sN, sO, sS, sU, sI []byte
-	sNo, sPreedit, sCommit, sSurr, sIiii, sUu []byte
+	sEmpty, sN, sO, sS, sU, sI                               []byte
+	sNo, sPreedit, sCommit, sSurr, sIiii, sUu                []byte
 }{
-	mgr:     append([]byte("zwp_text_input_manager_v3"), 0),
-	ti:      append([]byte("zwp_text_input_v3"), 0),
-	mDestroy: append([]byte("destroy"), 0),
-	mGetTI:   append([]byte("get_text_input"), 0),
-	mEnable:  append([]byte("enable"), 0),
-	mDisable: append([]byte("disable"), 0),
-	mSetSurr: append([]byte("set_surrounding_text"), 0),
-	mSetCause: append([]byte("set_text_change_cause"), 0),
+	mgr:         append([]byte("zwp_text_input_manager_v3"), 0),
+	ti:          append([]byte("zwp_text_input_v3"), 0),
+	mDestroy:    append([]byte("destroy"), 0),
+	mGetTI:      append([]byte("get_text_input"), 0),
+	mEnable:     append([]byte("enable"), 0),
+	mDisable:    append([]byte("disable"), 0),
+	mSetSurr:    append([]byte("set_surrounding_text"), 0),
+	mSetCause:   append([]byte("set_text_change_cause"), 0),
 	mSetContent: append([]byte("set_content_type"), 0),
-	mSetRect: append([]byte("set_cursor_rectangle"), 0),
-	mCommit:  append([]byte("commit"), 0),
-	eEnter:   append([]byte("enter"), 0),
-	eLeave:   append([]byte("leave"), 0),
-	ePreedit: append([]byte("preedit_string"), 0),
-	eCommitStr: append([]byte("commit_string"), 0),
+	mSetRect:    append([]byte("set_cursor_rectangle"), 0),
+	mCommit:     append([]byte("commit"), 0),
+	eEnter:      append([]byte("enter"), 0),
+	eLeave:      append([]byte("leave"), 0),
+	ePreedit:    append([]byte("preedit_string"), 0),
+	eCommitStr:  append([]byte("commit_string"), 0),
 	eDeleteSurr: append([]byte("delete_surrounding_text"), 0),
-	eDone:    append([]byte("done"), 0),
-	sEmpty:   append([]byte(""), 0),
-	sN:       append([]byte("n"), 0),
-	sO:       append([]byte("o"), 0),
-	sS:       append([]byte("s"), 0),
-	sU:       append([]byte("u"), 0),
-	sI:       append([]byte("i"), 0),
-	sNo:      append([]byte("no"), 0),
+	eDone:       append([]byte("done"), 0),
+	sEmpty:      append([]byte(""), 0),
+	sN:          append([]byte("n"), 0),
+	sO:          append([]byte("o"), 0),
+	sS:          append([]byte("s"), 0),
+	sU:          append([]byte("u"), 0),
+	sI:          append([]byte("i"), 0),
+	sNo:         append([]byte("no"), 0),
 	// preedit_string/commit_string text is allow-null in the protocol:
 	// compositors send NULL to clear the pre-edit. libwayland signature
 	// uses "?" for nullable — without it the event is dropped with
@@ -186,6 +208,26 @@ type wlTIState struct {
 	// purpose is the content type sent with every state commit
 	// (set_content_type(hint=None, purpose)); defaults to PurposeNormal.
 	purpose ContentPurpose
+
+	// recheckMu guards the delayed activation round (see refreshTextInput).
+	recheckMu    sync.Mutex
+	recheckTimer *time.Timer // the pending delayed activation round
+
+	// queue: outbound actions pending the next commit (design D7).
+	queue tiPendingQueue
+}
+
+// cancelRecheck drops the pending delayed activation round. Called when the
+// engine shows signs of life (real preedit/commit traffic): the fallback
+// round exists only for the dropped-first-activation case, and firing it
+// mid-composition would interrupt the IME.
+func (st *wlTIState) cancelRecheck() {
+	st.recheckMu.Lock()
+	if st.recheckTimer != nil {
+		st.recheckTimer.Stop()
+		st.recheckTimer = nil
+	}
+	st.recheckMu.Unlock()
 }
 
 // bindTextInput binds zwp_text_input_manager_v3 (if advertised) and creates
@@ -235,35 +277,25 @@ type wlIme struct {
 	h *wlHost
 }
 
-// EnableIME enables the text input on this surface and reports the caret
-// rectangle (logical px, Y-down; converted to compositor coordinates as-is
-// since we treat the surface origin as top-left).
+// EnableIME opens a session: queues enable + anchor + purpose, then
+// flush-commits atomically (design D7: one commit per logical action).
 func (im *wlIme) EnableIME(rect Rect) {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
 	}
 	st := im.h.win.ti
-	lib, ti, win := st.lib, st.ti, st.win
-	if ti == 0 || win == nil || win.surface == 0 {
+	if st.ti == 0 || st.win.surface == 0 {
 		return
 	}
 	st.rect, st.hasRect = rect, true
-	// enable(surface)
-	args := []wlArg{argO(win.surface)}
-	lib.proxyMarshalArrayFlags(ti, tiEnable, 0, 0, 0, &args[0])
-	// set_cursor_rectangle(x,y,w,h)
-	rectArgs := []wlArg{argU(uint32(int32(rect.X))), argU(uint32(int32(rect.Y))), argU(uint32(int32(rect.W))), argU(uint32(int32(rect.H)))}
-	lib.proxyMarshalArrayFlags(ti, tiSetCursorRectangle, 0, 0, 0, &rectArgs[0])
-	// set_content_type(hint=None, purpose) — stored purpose (I6).
-	ct := []wlArg{argU(tiHintNone), argU(uint32(st.purpose))}
-	lib.proxyMarshalArrayFlags(ti, tiSetContentType, 0, 0, 0, &ct[0])
-	// commit
-	lib.proxyMarshalArrayFlags(ti, tiCommit, 0, 0, 0, nil)
-	lib.displayFlush(win.display)
+	tiDebug("enable rect=%v", rect)
+	st.queue.push(tiPendingAction{kind: tiPendingEnable})
+	st.queue.push(tiPendingAction{kind: tiPendingRect, rect: rect})
+	st.queue.push(tiPendingAction{kind: tiPendingContent, ct: ContentType{Purpose: st.purpose}})
+	st.flushCommit()
 }
 
-// SetContentType stores the editing purpose and publishes it immediately
-// (set_content_type + commit). Takes effect for the active session too.
+// SetContentType stores the editing purpose and publishes it immediately.
 func (im *wlIme) SetContentType(purpose ContentPurpose) {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
@@ -274,15 +306,14 @@ func (im *wlIme) SetContentType(purpose ContentPurpose) {
 		return
 	}
 	st.purpose = purpose
-	args := []wlArg{argU(tiHintNone), argU(uint32(purpose))}
-	st.lib.proxyMarshalArrayFlags(st.ti, tiSetContentType, 0, 0, 0, &args[0])
-	st.lib.proxyMarshalArrayFlags(st.ti, tiCommit, 0, 0, 0, nil)
-	st.lib.displayFlush(st.win.display)
+	st.queue.push(tiPendingAction{kind: tiPendingContent, ct: ContentType{Purpose: purpose}})
+	st.flushCommit()
 }
 
-// UpdateCursorRect moves the IME anchor to the current caret position
-// (set_cursor_rectangle + commit). Candidate windows anchor here, so this
-// must track every caret move / scroll.
+// UpdateCursorRect moves the IME anchor to the current caret position.
+// Identical consecutive rects are SKIPPED: every commit_state makes the
+// compositor re-send the current preedit, so a redundant push feeds a
+// protocol echo loop (dozens of duplicate preedit events per keystroke).
 func (im *wlIme) UpdateCursorRect(rect Rect) {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
@@ -291,39 +322,35 @@ func (im *wlIme) UpdateCursorRect(rect Rect) {
 	if st.ti == 0 {
 		return
 	}
-	st.rect, st.hasRect = rect, true
-	st.sendCursorRect(rect)
-}
-
-// sendCursorRect marshals set_cursor_rectangle + commit + flush.
-func (st *wlTIState) sendCursorRect(rect Rect) {
-	if st == nil || st.lib == nil || st.ti == 0 || st.win == nil || st.win.surface == 0 {
+	if st.hasRect && rect == st.rect {
+		st.cancelRecheck() // engine is alive; the fallback round would only disturb it
 		return
 	}
-	rectArgs := []wlArg{argU(uint32(int32(rect.X))), argU(uint32(int32(rect.Y))), argU(uint32(int32(rect.W))), argU(uint32(int32(rect.H)))}
-	st.lib.proxyMarshalArrayFlags(st.ti, tiSetCursorRectangle, 0, 0, 0, &rectArgs[0])
-	st.lib.proxyMarshalArrayFlags(st.ti, tiCommit, 0, 0, 0, nil)
-	st.lib.displayFlush(st.win.display)
+	st.rect, st.hasRect = rect, true
+	tiDebug("cursor-rect %v", rect)
+	st.queue.push(tiPendingAction{kind: tiPendingRect, rect: rect})
+	st.flushCommit()
 }
 
-// SetComposing reports the surrounding text and caret for IME editing. The
-// Wayland protocol expects the FULL surrounding text; the pre-edit is part
-// of it. cursor/anchor are byte offsets. We pass the current buffer with the
-// caret at the end (callers keep composition state in textinput.Editor).
+// sendCursorRect queues the anchor update and flushes (dispatch thread).
+func (st *wlTIState) sendCursorRect(rect Rect) {
+	st.queue.push(tiPendingAction{kind: tiPendingRect, rect: rect})
+	st.flushCommit()
+}
+
+// SetComposing reports the surrounding text and caret for IME editing (D2:
+// opt-in, local-change-driven only — the router gates this).
 func (im *wlIme) SetComposing(text string, cursor int) {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
 	}
-	lib, ti := im.h.win.ti.lib, im.h.win.ti.ti
-	if ti == 0 {
+	st := im.h.win.ti
+	if st.ti == 0 {
 		return
 	}
-	tb := append([]byte(text), 0)
-	// cursor/anchor are int32 in the protocol ("sii").
-	args := []wlArg{argS(cstr(tb)), argU(uint32(int32(cursor))), argU(uint32(int32(cursor)))}
-	lib.proxyMarshalArrayFlags(ti, tiSetSurroundingText, 0, 0, 0, &args[0])
-	lib.proxyMarshalArrayFlags(ti, tiCommit, 0, 0, 0, nil)
-	lib.displayFlush(im.h.win.display)
+	tiDebug("surrounding %d bytes", len(text))
+	st.queue.push(tiPendingAction{kind: tiPendingSurf, text: text, cur: cursor})
+	st.flushCommit()
 }
 
 // Commit sends the surrounding text with an input-method change cause.
@@ -331,19 +358,17 @@ func (im *wlIme) Commit(text string) {
 	im.SetComposing(text, len(text))
 }
 
-// DisableIME disables the text input on this surface.
+// DisableIME ends the session atomically.
 func (im *wlIme) DisableIME() {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
 	}
-	lib, ti, win := im.h.win.ti.lib, im.h.win.ti.ti, im.h.win.ti.win
-	if ti == 0 || win == nil || win.surface == 0 {
+	if im.h.win.ti.ti == 0 {
 		return
 	}
-	args := []wlArg{argO(win.surface)}
-	lib.proxyMarshalArrayFlags(ti, tiDisable, 0, 0, 0, &args[0])
-	lib.proxyMarshalArrayFlags(ti, tiCommit, 0, 0, 0, nil)
-	lib.displayFlush(win.display)
+	im.h.win.ti.queue.push(tiPendingAction{kind: tiPendingDisable})
+	im.h.win.ti.flushCommit()
+	tiDebug("disable round sent")
 }
 
 // pushIME queues an IME event for the next poll (thread-safe: called from
@@ -357,32 +382,58 @@ func (w *wlWin) pushIME(ev Event) {
 	w.imeMu.Unlock()
 }
 
-// refreshTextInput re-sends the text-input state (enable + content type +
-// commit) so the compositor activates the input method NOW that the surface
-// holds keyboard focus. mutter 42.9 drops a commit received while
+// refreshTextInput re-sends the text-input state (enable + purpose + anchor
+// + commit) so the compositor activates the input method NOW that the
+// surface holds keyboard focus. mutter 42.9 drops a commit received while
 // text_input->surface is NULL (before focus); re-committing on keyboard
 // enter is the GTK/Flutter focus-in refresh pattern.
 func (w *wlWin) refreshTextInput() {
 	if w == nil || w.ti == nil || w.ti.ti == 0 || w.surface == 0 || w.lib == nil {
 		return
 	}
-	lib, ti := w.ti.lib, w.ti.ti
-	// enable(surface)
-	args := []wlArg{argO(w.surface)}
-	lib.proxyMarshalArrayFlags(ti, tiEnable, 0, 0, 0, &args[0])
-	// set_content_type(hint=None, purpose) — stored purpose (I6).
-	ct := []wlArg{argU(tiHintNone), argU(uint32(w.ti.purpose))}
-	lib.proxyMarshalArrayFlags(ti, tiSetContentType, 0, 0, 0, &ct[0])
-	// Re-send the cursor rectangle: the initial enable+commit (sent before
-	// keyboard focus) was dropped by mutter along with its pending
+	tiDebug("keyboard focus-in → refresh (enable+rect+commit)")
+	st := w.ti
+	st.queue.push(tiPendingAction{kind: tiPendingEnable})
+	st.queue.push(tiPendingAction{kind: tiPendingContent, ct: ContentType{Purpose: st.purpose}})
+	// Re-send the cursor rectangle: the initial round (sent before keyboard
+	// focus) was dropped by mutter along with its pending
 	// set_cursor_rectangle — without this the candidate window anchors at
 	// the surface origin after focus-in.
-	if w.ti.hasRect {
-		w.ti.sendCursorRect(w.ti.rect)
+	if st.hasRect {
+		st.queue.push(tiPendingAction{kind: tiPendingRect, rect: st.rect})
 	}
-	// commit — only now does mutter run commit_state with surface set.
-	lib.proxyMarshalArrayFlags(ti, tiCommit, 0, 0, 0, nil)
-	lib.displayFlush(w.display)
+	st.flushCommit()
+
+	// Delayed activation re-check: the first round after window show is
+	// dropped by the IME engine (mutter+ibus); only a disable→enable cycle
+	// AFTER the engine attached activates switching. Reproduce it once,
+	// 400ms out — as a POSTED action, never marshaled from the timer
+	// goroutine (design §4.0 C2). A newer round cancels the older timer.
+	old := st.recheckTimer
+	var tm *time.Timer
+	tm = time.AfterFunc(tiRecheckDelay, func() {
+		st.recheckMu.Lock()
+		active := st.recheckTimer == tm && st.ti != 0 && st.win.surface != 0
+		st.recheckTimer = nil
+		st.recheckMu.Unlock()
+		if !active {
+			return // a newer round superseded this one
+		}
+		tiDebug("delayed re-activation posted (disable+enable+commit)")
+		// C2: queue the actions here (thread-safe), then ask the event loop
+		// to marshal + flush them on the dispatch thread.
+		st.queue.push(tiPendingAction{kind: tiPendingDisable})
+		st.queue.push(tiPendingAction{kind: tiPendingEnable})
+		if st.hasRect {
+			st.queue.push(tiPendingAction{kind: tiPendingRect, rect: st.rect})
+		}
+		st.queue.push(tiPendingAction{kind: tiPendingContent, ct: ContentType{Purpose: st.purpose}})
+		st.postFlush()
+	})
+	st.recheckTimer = tm
+	if old != nil {
+		old.Stop()
+	}
 }
 
 // pushKey queues a keyboard event for the next poll (thread-safe).
@@ -427,10 +478,22 @@ func wlTiEnter(data, ti, surface uintptr) {
 // wlTiLeave: leave(surface) — IME focus left this surface; cancel any active
 // composition. Also do not fabricate events; the editor cancels on its own
 // commit/delete lifecycle, and an empty compose event would corrupt it.
+//
+// The compositor deactivates the text-input here; send disable+commit so the
+// engine-side focus is dropped cleanly (mirrors the working manual
+// blur→refocus cycle that re-arms engine switching).
 func wlTiLeave(data, ti, surface uintptr) {
 	st := tiFrom(data)
 	if st == nil || st.win == nil {
 		return
+	}
+	w := st.win
+	if w.ti != nil && w.lib != nil && w.surface != 0 && w.ti.ti != 0 {
+		args := []wlArg{argO(w.surface)}
+		w.lib.proxyMarshalArrayFlags(w.ti.ti, tiDisable, 0, 0, 0, &args[0])
+		w.lib.proxyMarshalArrayFlags(w.ti.ti, tiCommit, 0, 0, 0, nil)
+		w.lib.displayFlush(w.display)
+		tiDebug("leave → disable+commit")
 	}
 }
 
@@ -447,6 +510,12 @@ func wlTiPreedit(data, ti, text, commit, index uintptr) {
 	s := ""
 	if text != 0 {
 		s = goString(text)
+	}
+	tiDebug("event preedit %q index=%d", s, int(int32(index)))
+	// Real engine output: the delayed fallback round is no longer needed —
+	// and firing it now would interrupt this composition.
+	if st.win.ti != nil {
+		st.win.ti.cancelRecheck()
 	}
 	st.win.pushIME(Event{
 		Type:    EventIME,
@@ -468,6 +537,7 @@ func wlTiCommit(data, ti, text uintptr) {
 	if text != 0 {
 		s = goString(text)
 	}
+	tiDebug("event commit %q", s)
 	st.win.pushIME(Event{Type: EventIME, IMEKind: 1, IMEText: s})
 }
 
@@ -498,6 +568,12 @@ func (st *wlTIState) destroy() {
 	if st == nil {
 		return
 	}
+	st.recheckMu.Lock()
+	if st.recheckTimer != nil {
+		st.recheckTimer.Stop()
+		st.recheckTimer = nil
+	}
+	st.recheckMu.Unlock()
 	if st.ti != 0 && st.lib != nil {
 		st.lib.proxyDestroy(st.ti)
 		st.ti = 0

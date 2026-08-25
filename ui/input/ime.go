@@ -37,9 +37,29 @@ func (k IMEKind) String() string {
 type IMEEvent struct {
 	Kind  IMEKind
 	Text  string // compose pre-edit / committed text
-	Start int    // text range start (bytes) affected by this event
-	End   int    // text range end (bytes); -1 = whole buffer
+	Start int    // compose: caret byte offset within Text (<0 = end)
+	End   int    // delete-surrounding: +after bytes (D3: no negative magic)
 }
+
+// PreeditEvent is the rich composition update from the platform adapter
+// path (design §4.1). Segments carry IME attributes in display offsets.
+type PreeditEvent struct {
+	Text     string
+	Cursor   int       // caret byte offset within Text (<0 = end)
+	Segments []Segment // nil = default underline styling
+}
+
+// Segment marks a styled range within pre-edit text.
+type Segment struct {
+	Start, End int // byte offsets into the pre-edit text
+	Attr       uint8
+}
+
+// Session event kind (design §4.1): engine-side activation news.
+const (
+	// IMESession reports session activation; Start=1 active / 0 inactive.
+	IMESession IMEKind = iota + 100
+)
 
 // TextEvent is committed text input destined for a focused editable control:
 // printable keyboard chars, paste, and IME commits all arrive here.

@@ -785,6 +785,25 @@ func (t *RenderText) paintRuns(pc *PaintContext) {
 	}
 }
 
+// ByteOffsetAt converts an x offset (logical px from the text origin) into
+// the nearest UTF-8 byte boundary of the single-line Text — click-to-place-
+// caret support. Boundaries snap to rune starts; x ≤ 0 → 0, x beyond the
+// text → len(Text). Wrap is not considered (single-line MVP, same as Paint).
+func (t *RenderText) ByteOffsetAt(x float64) int {
+	if t == nil || t.Text == "" || x <= 0 {
+		return 0
+	}
+	prev := 0.0
+	for idx, r := range t.Text {
+		right := t.measureLine(t.Text[:idx+utf8.RuneLen(r)])
+		if x < (prev+right)/2 {
+			return idx // nearest boundary is before this rune
+		}
+		prev = right
+	}
+	return len(t.Text)
+}
+
 // HitTest implements RenderObject.
 func (t *RenderText) HitTest(p Point) RenderObject {
 	sz := t.size
