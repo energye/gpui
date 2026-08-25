@@ -4,9 +4,9 @@ import "sync"
 
 // Shaper converts text to positioned glyphs.
 // Implementations provide different levels of text shaping support:
-//   - OwnShaper: Pure Go shaper with GSUB/GPOS support (default, ADR-048)
+//   - HbShaper: HarfBuzz Go port with full GSUB/GPOS shaping (default)
+//   - OwnShaper: Pure Go shaper with GSUB/GPOS support
 //   - BuiltinShaper: Simple LTR shaper for Latin, Cyrillic, Greek, CJK (no GSUB/GPOS)
-//   - BuiltinShaper: Simple LTR shaper for scripts without GSUB/GPOS (legacy)
 type Shaper interface {
 	// Shape converts text into positioned glyphs using the given face.
 	// The font size is obtained from face.Size().
@@ -26,7 +26,7 @@ var (
 )
 
 // SetShaper sets the global shaper used by Shape().
-// Pass nil to reset to the default OwnShaper (Pure Go GSUB/GPOS).
+// Pass nil to reset to the default HbShaper (HarfBuzz Go port).
 //
 // Example usage with a custom shaper:
 //

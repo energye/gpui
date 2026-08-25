@@ -548,8 +548,8 @@ func (a *Adapter) Info() (*AdapterInfoGo, error) {
 	return info, nil
 }
 
-// stringViewToString converts a StringView to a Go string.
-// This copies the data from C memory to Go memory.
+// stringViewToString converts a StringView to a Go string, copying the data
+// out of C memory (the source is freed or reused right after this call).
 //
 // Per webgpu.h: length may be WGPU_STRLEN (SIZE_MAX) for a null-terminated
 // C string. Treating SIZE_MAX as "too long" would drop such messages.
@@ -567,7 +567,11 @@ func stringViewToString(sv StringView) string {
 	if sv.Length > 1<<20 { // 1MB hard cap for explicit lengths
 		return ""
 	}
-	return unsafe.String((*byte)(ptrFromUintptr(sv.Data)), int(sv.Length))
+	// Copy into Go memory before returning: callers free the C buffer right
+	// after this call (Adapter.Info) or the callback's C frame reuses it
+	// (error callbacks), so a zero-copy unsafe.String would dangle.
+	b := unsafe.Slice((*byte)(ptrFromUintptr(sv.Data)), int(sv.Length))
+	return string(b)
 }
 
 // cStringAt reads a C string at ptr with a max byte budget (excluding NUL).
@@ -589,7 +593,8 @@ func cStringAt(ptr uintptr, max int) string {
 
 // callbackStringView decodes a WGPUStringView passed as two integer regs
 // (data, length) into purego callbacks — the SysV layout for the 16-byte
-// struct. Handles WGPU_STRLEN null-terminated messages.
+// struct. Handles WGPU_STRLEN null-terminated messages. The result is
+// copied out of C memory (see stringViewToString).
 func callbackStringView(data, length uintptr) string {
 	return stringViewToString(StringView{Data: data, Length: length})
 }

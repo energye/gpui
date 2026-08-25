@@ -67,7 +67,7 @@
 | `ApplyDash(p, dash)` | 把虚线序列应用到路径、生成带实线段的虚线化路径（描边内部用） | 路径虚线化 | 🔗 software/GPU 两腿都用 |
 | `Dash` + `NewDash(lengths...)` | 虚线间隔序列对象（等长或成对交替） | 虚线序列 | 🔗 |
 | `ParseSVGPath(d) (*Path, error)` | 解析 SVG path 数据串为 Path（`M/L/C/Q/A…`） | 字符串→路径 | 🔌（svg 包内部用，svg 包本身无消费者） |
-| `PathBooleanOp`（Union/Intersect/Difference/Xor）+ `BooleanPath(a,b,op)` / `Path.Op` | 路径布尔并/交/差/异或运算（非凸、自交路径也支持） | 路径布尔运算 | 🧪 仅测试 |
+| `PathBooleanOp`（Union/Intersect/Difference/Xor）+ `BooleanPath(a,b,op)` / `Path.Op` | 路径布尔并/交/差/异或。**实现为逐像素采样近似**：按整数网格采样 `Winding()` 后拼合像素级矩形（path_boolean.go:70-100），区域 >2048px 静默截断（:62-68），精度受采样网格限制且差集挖洞存在已知失效（红测 TestS3c_M3_PathBooleanDifference）；扫描线重写列入修复计划第四批 | 路径布尔运算（近似） | 🧪 仅测试 |
 | `PathMetric`（IsEmpty/Length/PositionAt/TangentAt 等）+ `Path.ComputeMetrics` | 对路径做度量：总长、某弧长处取点/切线 | 路径度量 | 🔗 |
 | Path 造型：`Trim` / `WithCorners` / `Discrete` / `Flatten` / `Reversed` / `Area` / `Winding` / `Contains` / `BoundingBox` | Flatten 细分为折线/多边形；Area/Winding/Contains/BoundingBox 查询；Trim(子段)/WithCorners(圆角化)/Discrete(随机点化) 高级造型 | 造型与查询 | 前四项内部用；**Trim/WithCorners/Discrete 🔌 仅测试** |
 
@@ -325,7 +325,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 |---|------|---------|------|------------|
 | 1 | 纯色上色 | `Context.SetRGB/SetRGBA/SetHexColor/SetColor` ↔ `Solid/SolidRGB/SolidRGBA/SolidHex` + `SetFillBrush/SetStrokeBrush` | D | 旧 fogleman/gg 风格（Set* 内部生成实色 Solid）与画刷体系并存。新代码走 Solid+Set*Brush；Set* 保留兼容。 |
 | 2 | 渐变 | `CustomBrush.LinearGradient/RadialGradient`（函数式）↔ `LinearGradientBrush/RadialGradientBrush`（色标式） | D | 两种实现机制交付同一视觉（两端线性 / 单位圆径向）。径向还多 `SetFocus`、色标 ∞；CustomBrush 仅两 stop。生产已验证走 Brush 数据式。 |
-| 3 | 裁剪 | `Context.ClipRect` ↔ `ClipRectOp(o=ClipOpIntersect)`；`Context.Clip` ↔ ui `PaintContext.PushClipPath`；`scene.ClipState/ClipStack` | D+W | ClipRectOp(Intersect) 是 ClipRect 的带运算泛化（默认相交=同义）；ui PushClipPath 是 Context.Clip 的封装（GPU 画穿见 §7.3）；scene 为保留模式第三套。 |
+| 3 | 裁剪 | `Context.ClipRect` ↔ `ClipRectOp(o=ClipOpIntersect)`；`Context.Clip` ↔ ui `PaintContext.PushClipPath`；`scene.ClipState/ClipStack` | D+W | ClipRectOp(Intersect) 是 ClipRect 的带运算泛化（默认相交=同义）；ui PushClipPath 是 Context.Clip 的封装（历史 GPU 画穿已修复，见 §7.3 2026-08-16 条目）；scene 为保留模式第三套。 |
 | 4 | 画图体系 | `Context`（即时）↔ `scene.Scene`（保留）↔ `recording.Recorder`（录制）↔ `surface`（目标抽象） | C | 四套都含 Fill/Stroke/Clip/Image 语义。**仅 Context 接入 ui 产线**；scene 只被 render 内部 GPU 后端消费；recording/surface 无消费者（§7.2）。最大的体系级重复，各自文档见 §3/§6。 |
 | 5 | 形状轮廓 | `Path.Rectangle/Circle/Ellipse/Arc/RoundedRectangle` ↔ `PathBuilder.Rect/RoundRect/Circle/Ellipse/Polygon/Star` ↔ `Context.Draw*`（DrawRectangle/DrawCircle/…） | D | 前三者都能往一条路径上追加矩形/圆/椭圆，**Path 与 PathBuilder 是两套独立实现、无桥接**（如 PathBuilder.Rect 自己 MoveTo/LineTo/Close，不调 Path.Rectangle）；Context.Draw* 是追加到当前路径的第三处。 |
 | 6 | 文本 | `Context.DrawString/MeasureString/DrawStringWrapped` ↔ `text.Draw/Measure/MeasureText` | W | Context 方法是 text 包的封装（ui 链路走 Context 层）；text 包直连 draw.Image 供底层/工具用。 |
