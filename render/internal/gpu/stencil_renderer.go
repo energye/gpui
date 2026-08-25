@@ -95,7 +95,9 @@ type StencilRenderer struct {
 
 	// Analytic-AA fringe pipelines (sampleCount==1 only, Skia-style fringe):
 	// aaBandPipeline — exterior half, SrcOver + stencil Equal(0), pre-cover.
-	// aaInnerBandPipeline — interior half, Replace blend, post-cover.
+	// aaInnerBandPipeline — interior half, SrcOver + stencil NotEqual(0) with
+	// PassOp=Zero, also pre-cover (blends over the intact background, then
+	// clears its pixels' stencil so the binary cover skips them).
 	aaBandPipeline      *webgpu.RenderPipeline
 	aaInnerBandPipeline *webgpu.RenderPipeline
 
@@ -923,16 +925,21 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	// Analytic-AA fringe (solid SrcOver paths; MSAA surfaces also get the
 	// fringe — continuous edge coverage prevents 4-level MSAA stair-stepping
 	// on diagonals; pattern/textured covers and depth-clip covers keep the
-	// binary cover — matching Skia's MSAA-vs-analytic mutual exclusion):
+	// binary cover — matching Skia's MSAA-vs-analytic mutual exclusion).
+	// BOTH bands run BEFORE the binary cover so partial-coverage pixels blend
+	// SrcOver over the still-intact background:
 	//   1) exterior band: SrcOver + stencil Equal(0) — outside half of the
-	//      fringe over the background (stencil still holds this path's 1s).
-	//   2) binary cover: fills the interior + resets stencil (unchanged).
-	//   3) interior band: Replace blend, no stencil gate — just-inside
-	//      pixels get their true partial coverage instead of the cover's
-	//      full alpha (the interior-half quads lie inside the polygon except
-	//      bounded reflex-corner pokes).
+	//      fringe over the background.
+	//   2) interior band: SrcOver + stencil NotEqual(0), PassOp=Zero —
+	//      inside-half fringe blends over the background, then clears those
+	//      pixels' stencil so the cover skips them. (The previous post-cover
+	//      Replace scheme lost the background term under partial pixels and
+	//      left dark speckles along curves/diagonals.)
+	//   3) binary cover: fills the remaining full-interior pixels + resets
+	//      stencil (unchanged). At d=0 the band coverage reaches 1.0, so band
+	//      and cover meet seamlessly.
 	if !useDepthClip && blendMode == render.BlendNormal &&
-		!bufs.isPattern && !bufs.isTextured && bufs.bandVertexCount > 0 {
+		!bufs.isPattern && !bufs.isTextured {
 		if bufs.bandVertexCount > 0 && sr.aaBandPipeline != nil && bufs.coverBindGroup != nil {
 			rp.SetPipeline(sr.aaBandPipeline)
 			rp.SetBindGroup(0, bufs.coverBindGroup, nil)
@@ -946,9 +953,24 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 			rp.SetVertexBuffer(0, bufs.bandVertBuf, 0)
 			rp.Draw(bufs.bandVertexCount, 1, 0, 0)
 		}
+		if bufs.innerBandVertexCount > 0 && sr.aaInnerBandPipeline != nil && bufs.coverBindGroup != nil {
+			rp.SetPipeline(sr.aaInnerBandPipeline)
+			rp.SetBindGroup(0, bufs.coverBindGroup, nil)
+			if clipBG != nil {
+				rp.SetBindGroup(1, clipBG, nil)
+			}
+			if maskBG != nil {
+				rp.SetBindGroup(2, maskBG, nil)
+			}
+			rp.SetStencilReference(0)
+			rp.SetVertexBuffer(0, bufs.innerBandVertBuf, 0)
+			rp.Draw(bufs.innerBandVertexCount, 1, 0, 0)
+		}
 	}
 
 	// Pass 2: Cover (clip + L.06 mask applied here — writes color output).
+	// Pixels already drawn (and stencil-cleared) by the interior band are
+	// skipped via the NotEqual(0) test.
 	if bufs.isPattern && bufs.texturedCoverBG != nil && sr.patternCoverPipeline != nil {
 		rp.SetPipeline(sr.patternCoverPipeline)
 		rp.SetBindGroup(0, bufs.texturedCoverBG, nil)
@@ -971,23 +993,6 @@ func (sr *StencilRenderer) RecordPath(rp *webgpu.RenderPassEncoder, bufs *stenci
 	rp.SetVertexBuffer(0, bufs.coverVertBuf, 0)
 	rp.SetStencilReference(0)
 	rp.Draw(6, 1, 0, 0)
-
-	// Interior-half fringe after the cover (Replace blend, no stencil gate).
-	if !useDepthClip && blendMode == render.BlendNormal &&
-		!bufs.isPattern && !bufs.isTextured && bufs.innerBandVertexCount > 0 &&
-		sr.aaInnerBandPipeline != nil && bufs.coverBindGroup != nil {
-		rp.SetPipeline(sr.aaInnerBandPipeline)
-		rp.SetBindGroup(0, bufs.coverBindGroup, nil)
-		if clipBG != nil {
-			rp.SetBindGroup(1, clipBG, nil)
-		}
-		if maskBG != nil {
-			rp.SetBindGroup(2, maskBG, nil)
-		}
-		rp.SetStencilReference(0)
-		rp.SetVertexBuffer(0, bufs.innerBandVertBuf, 0)
-		rp.Draw(bufs.innerBandVertexCount, 1, 0, 0)
-	}
 }
 
 func (sr *StencilRenderer) coverPipelineForBlend(mode render.BlendMode) *webgpu.RenderPipeline {
