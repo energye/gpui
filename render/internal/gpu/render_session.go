@@ -1681,12 +1681,38 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 
 	blitOnly := s.isBlitOnly(grpRes, baseLayerRes)
 
-	// ADR-021: true LoadOpLoad damage preserve is blit-only only.
-	// MSAA cannot LoadOpLoad after resolve (StoreOp=DontCare). S4.4 still
-	// intersects group scissor with damage union on MSAA to cut overdraw;
-	// outside-damage content is re-cleared/redrawn when the pass clears.
-	if !blitOnly && len(target.DamageRects) > 0 {
-		slogger().Debug("MSAA path: damage applied as scissor intersection only (no LoadOpLoad; ADR-021)")
+	// ADR-021 + R6 flicker fix: damage scissoring is only correct when the
+	// render pass PRESERVES the pixels outside the scissor. Two safe cases:
+	//   - blit-only frames: LoadOpLoad whenever damage exists (see
+	//     encodeBlitOnlyPass — swapchain images keep their previous frame);
+	//   - sampleCount==1 grouped passes: they draw DIRECTLY to the view with
+	//     StoreOp=Store and no resolve (colorAttachment), exactly like the
+	//     blit path — so with damage rects present the color attachment must
+	//     also LoadOpLoad. Previously these passes ran colorLoadOp=Clear every
+	//     frame (frameRendered is reset per acquired swapchain view under
+	//     FIFO) while groups were still damage-scissored/skipped → every
+	//     steady retained frame cleared then repainted only the damaged
+	//     bands, blanking static content for a frame (R6 "稳态闪屏、拖拽
+	//     resize 时正常": InFullRecovery forced full paints which hid it).
+	// Unsafe case: real MSAA (sampleCount>1). The pass renders into msaaView
+	// and resolves with StoreOp=DontCare, so previous swapchain content
+	// cannot be loaded after the resolve — drop the damage plan entirely.
+	//
+	// R6 round 2: LoadOpLoad alone is STILL wrong on a fresh swapchain view.
+	// The swapchain hands out a NEW TextureView every present (FIFO
+	// rotation), so `frameRendered` is false at frame start and the loaded
+	// buffer content is whatever an OLD frame left there — stale or
+	// undefined → flicker persists (user-verified). The blit path already
+	// handles this correctly: fullSurface := !s.frameRendered forces a FULL
+	// composite when the view is fresh ("swapchain image rotation with
+	// per-frame views"). Mirror exactly that semantics here for grouped
+	// passes: fresh view ⇒ full composite (Clear + every group at its own
+	// full scissor); only same-view continued flushes (mid-frame layer pops)
+	// may Load + damage-scissor. Dropping the rects also re-enables full
+	// group scissors via applyGroupScissorWithDamageRects' empty-damage
+	// branch.
+	if !blitOnly && len(target.DamageRects) > 0 && !(s.sampleCount == 1 && s.frameRendered) {
+		target.DamageRects = nil
 	}
 
 	// ADR-017: shared encoder → record render pass without submit.

@@ -89,6 +89,49 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		return
 	}
 
+	// Opacity nodes push scene.OpacityLayer (Flutter OpacityLayer): group
+	// opacity applies at composite time in the retained path; offset nests
+	// children under it. op>=1 is identity (Flutter skips the layer);
+	// op<=0 still emits structure so dirty bookkeeping survives, composite
+	// renders nothing.
+	if ro, ok := n.(*RenderOpacity); ok {
+		op := ro.OpacityParams()
+		pushOp := op > 0 && op < 1
+		dirty := n.NeedsPaint() || layerSubtreeNeedsPaint(n)
+		if n.IsRepaintBoundary() {
+			b.PushBoundary(off.X, off.Y, "opacity", dirty)
+			if pushOp {
+				b.PushOpacity(op)
+			}
+			for _, ch := range n.Children() {
+				appendNode(ch, b)
+			}
+			if len(n.Children()) == 0 {
+				addLeafPicture(b, n)
+			}
+			if pushOp {
+				b.Pop() // opacity
+			}
+			b.Pop() // boundary
+			return
+		}
+		b.PushOffset(off.X, off.Y)
+		if pushOp {
+			b.PushOpacity(op)
+		}
+		if len(n.Children()) == 0 {
+			addLeafPicture(b, n)
+		}
+		for _, ch := range n.Children() {
+			appendNode(ch, b)
+		}
+		if pushOp {
+			b.Pop() // opacity
+		}
+		b.Pop() // offset
+		return
+	}
+
 	// ClipRRect nodes push scene.ClipRRectLayer (Flutter ClipRRectLayer / pushClipRRect).
 	// Offset establishes local origin; clip is (0,0,w,h) in that space so children nest under it.
 	if cr, ok := n.(*RenderClipRRect); ok {

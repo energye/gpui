@@ -811,24 +811,39 @@ func (c *Context) DrawGPUTexture(view gpucontext.TextureView, x, y float64, widt
 // the specified opacity (0.0 = fully transparent, 1.0 = fully opaque).
 // Same as DrawGPUTexture but with alpha blending for fade transitions
 // and OpacityLayer compositing (Flutter pattern).
+//
+// R6 group-opacity fix: a texture blit inside an open opacity-group layer
+// (F1 PushLayer(Normal, α) fast path) must inherit the group alpha exactly
+// like vector fills do via applyLayerOpacityMul. Without this, an animating
+// RenderOpacity whose child rides a retained texture cache blits at full
+// strength every frame — the card stops breathing (vector snapshot paths
+// looked correct, masking the split). Skia saveLayer multiplies group alpha
+// into every draw record; same semantics here.
 func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y float64, width, height int, opacity float32) {
 	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
 	if !ok {
 		return
 	}
 	defer c.setGPUClipRect()()
+	if mul := c.layerOpacityMul(); mul < 1 {
+		opacity *= float32(mul)
+	}
 	g.rc.QueueGPUTextureDraw(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, opacity, g.vpW, g.vpH)
 	c.recordGPUOp()
 }
 
 // DrawGPUTextureWithOpacityUV composites a sub-rectangle of a GPU texture with
 // opacity. u0..v1 are normalized source UVs (F1 damage-tight layer composite).
+// Inherits open opacity-group alpha, same as DrawGPUTextureWithOpacity (R6 fix).
 func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y float64, width, height int, opacity float32, u0, v0, u1, v1 float32) {
 	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
 	if !ok {
 		return
 	}
 	defer c.setGPUClipRect()()
+	if mul := c.layerOpacityMul(); mul < 1 {
+		opacity *= float32(mul)
+	}
 
 	type uvDrawer interface {
 		QueueGPUTextureDrawUV(target GPURenderTarget, view gpucontext.TextureView,

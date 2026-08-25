@@ -72,7 +72,7 @@ L3–L5 Kit                       ← 暂缓
 | **R4** | 层 Composite Present | `ui_wr_r4_composite` | **1200×800** | **15** | `present_policy`；`damage_ratio` 门禁 | Retained 下静在、damage≪全屏 | **W2** | **✅** |
 | **R4b** | DirtyLayerID + 多 damage | `ui_wr_r4b_multidamage` | **1200×800** | **15** | `dirty_layer_ids`；rects/并集 | 两远离脏点更新，中间静在 | **W2** | **✅** |
 | **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；可选像素差 | 回放区≡直绘区 | **W1–W2** | **✅v2** |
-| **R6** | Opacity/Transform/Clip **层**动画 | `ui_wr_r6_layer_anim` | **1200×800** | **30** | `paint_count` 稳；`hitch_rate`；**fps≥55** | 转/淡/裁流畅；静背景不闪 | **W5** | ⬜ |
+| **R6** | Opacity/Transform/Clip **层**动画 | `ui_wr_r6_layer_anim` | **1200×800** | **30** | `paint_count` 稳；`hitch_rate`；**fps≥55** | 转/淡/裁流畅；静背景不闪 | **W5** | **✅** |
 | **R7** | 虚拟化宿主 | `ui_wr_r7_virtlist` | **1200×800** | **60** | **`bind_count≪item_count`**；p95/hitch；RSS | 仅视口 cell；快滑约定 | **W3** | **✅** |
 | **R7b** | 滚动少重录 cell | `ui_wr_r7b_scroll_reuse` | **1200×800** | **60** | **`scroll_rerecord` 上限**；fps | 静 cell 保持；新入视口才重录 | **W3** | **✅** |
 | **R8** | Overlay 独立合成 | `ui_wr_r8_overlay` | **1200×800** | **15** | 开浮层后主树 `paint_count` 不涨 | 面板盖上；底静仍在 | **W4** | **✅** |
@@ -339,7 +339,7 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak        # soak
 | **R4** | `ui_wr_r4_composite` | retained 模式：多 boundary 区域 + 局部动画 + 大面积静态背景 | 动画区持续变化，静态区不重绘 | `damage_ratio≤0.35`（远小于全屏）+ `present_mode` 非 full | 证明控件场景下 retained 合成省绘 |
 | **R4b** | `ui_wr_r4b_multidamage` | 两个远离脏点（左上+右下）+ 中间大面积静态 + 不同内容类型 | 两点独立脏，中间不脏 | `dirty_layer_id_max≥2` + `damage_multi_frames≥1` | 证明多脏区独立 scissor，中间区域不重绘 |
 | **R5** | `ui_wr_r5_picture` | 复杂 Picture（路径填充/描边 + 文字 + 色块 + 变换）+ 直绘 vs 回放对比区 | 每帧 Replay 回放 vs 直绘并排 | `picture_op_count≥3` + 回放像素 ≡ 直绘 | 证明 Picture 显示列表完全等价于直绘 |
-| **R6** | `ui_wr_r6_layer_anim` | Opacity 淡入淡出 + Transform 旋转/缩放 + Clip 裁剪动画 + 大面积静态背景 | 三种层动画同时运行，PhaseClock 控制节奏 | `fps≥55` + `hitch_rate` 合理 + 静背景不闪 | 证明控件层动画不影响静态缓存 |
+| **R6** | `ui_wr_r6_layer_anim` | Opacity 淡入淡出 + Transform 旋转/缩放 + Clip 裁剪动画 + 大面积静态背景 | 三种层动画同时运行，PhaseClock 控制节奏 | `fps≥55` + `hitch_rate` 合理 + 静背景不闪 | 证明控件层动画不影响静态缓存（2026-08-24 ✅，30s 关闭跑全门禁绿；稳态闪屏根因=damage×LoadOp 冲突已修，见 §10） |
 | **R7** | `ui_wr_r7_virtlist` | 1000+ 项虚拟列表 + 异构 item（文字行+色块+图片混排）+ 滚动条指示器 | 快速滚动 + 惯性滚动 + 变高行 | `bind_count≪item_count`（如 1000 项只绑 30）+ RSS slope 合理 | 证明控件长列表虚拟化正确 |
 | **R7b** | `ui_wr_r7b_scroll_reuse` | 滚动复用场景：大量 cell + 滚动时静态 cell 不重录 | 持续滚动 60s | `scroll_rerecord` 有上限 + `fps≥55` | 证明滚动时控件 cell Picture 缓存复用 |
 | **R8** | `ui_wr_r8_overlay` | 复杂主树内容 + 多层浮层叠加 + 浮层内有交互元素 | 开/关浮层 → 主树 `paint_count` 不涨 | 开 overlay 后主树不重绘 | 证明弹窗/菜单/Tooltip 不触发底层重绘 |
@@ -492,7 +492,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | **W2** | **✅** | **R4✅ R4b✅ R5✅v2 R11✅ R13✅ R18✅** · R21(可) R19(可) | **C2✅ C7✅ 组合窗** |
 | **W3** | **✅** | R7✅ · R7b✅ · R10✅（各独立 `ui_wr_*` 真窗） | C3✅ |
 | **W4** | **✅** | R8✅、R21✅ | C4✅v2（弃旧重写+U21）、C8✅（可选项已补，不代替 R6） |
-| **W5** | ⬜ | R6、R20(可) | C5、C6(可) |
+| **W5** | 🔄（R6 ✅，待 C5；C6/R20 可选） | R6✅、R20(可) | C5、C6(可) |
 | **W6** | ⬜ | R14、默认 retained | C9、C11；回归 C0–C5 |
 
 ```text
@@ -550,6 +550,8 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
+| R6 族 A 门禁交互语义补齐（用户实测驱动·四轮） | **拖拽污染跑显式 SKIP 族 A 并留痕（2026-08-25）**：用户长跑中途拖拽 → `FAIL: hitch_rate_per_min=7.16 > 5`。定性同前轮：拖拽期 resize 全量恢复成本按设计计入帧时，非稳态退化。处置（examples/ui_wr_r6_layer_anim/main.go，门禁阈值零改动）：`resizeLog` 升级为时间戳；JSON 新增 `last_resize_at_sec` / `calm_after_resize_sec` / `family_a_gate` 三字段；被拖拽的跑族 A（fps/p95/hitch）显式 SKIP 并打印原因与重跑指引，其余族（retained/boundary/CPU/paint_drift/像素断言/golden——跨尺寸时跳过）照常硬判。无人值守跑两连验证 `family_a_gate=enforced` 全门禁生效（fps 60.0/59.9、hitch 0/2）。关闭证据协议：**必须取一次不碰窗口的 RUN_SECONDS=30 跑**。 |
+| R6 独立真窗首次关闭 | **R6 Opacity/Transform/Clip 层动画独立真窗首次关闭（`examples/ui_wr_r6_layer_anim`，1200×800·30s·GPU PASS，§2.5 动画层档）**：场景 U17 五项齐——多区域壳（TopBar+图例+2×2 动画演示板+右侧静态密集区+底栏 HUD）；静态密集 4×4 嵌套 boundary 色格+8 标签+注记全程静止；动态热点 OPA 呼吸 α0.1–1.0（RenderOpacity→scene.OpacityLayer PushLayer α）/ ROT 持续旋转绕中心 / PULSE 缩放 0.85–1.15 / CLIP 圆角呼吸+静态对照卡四板同跑；能力专属压力=三种层动画同时驱动 retained 复合期；相位脚本 Steady5s→Spike5s(转速×2 幅度×1.5)→Recover5s 循环。像素断言 U21 §2.7：变换不变中心采样（旋转/缩放目标取几何中心与相位无关）+ 终帧精确公式解 op_blend=α·fill+(1−α)·bg（快照在 loop 停止后栅格线程拍终帧，期望取自同源节点状态）+ F6 文本密度区域断言共 6 探针全过；Golden 静态掩码（顶栏+图例+密集区 306280px）跨跑逐位一致零容差。U18 HUD：相位/fps/p95/paint/α·θ·scale·radius 实时可见。U20 六维齐备见 examples/ui_wr_r6_layer_anim/README.md。§2 R6 ⬜→✅；W5 待 C5/C6。 |
 | C4 交互模式 + 列表观感收尾 | **C4 交互态完善（2026-08-24）**：① 不设 RUN_SECONDS 时无限运行（RunFor=0，点 X 关闭），相位脚本 Spike↔Recover 以 6.5s 周期无限循环、弹层反复开合；关闭跑仍为 RUN_SECONDS=15 固定脚本。② 列表列加常驻背板（与行底色同族，延伸至 body 底），行间 4px 间隙不再露出 body 底色，「背景跟着滚动消失」的观感消除。③ CacheExtent=480（±11 行预挂载）：新行在进入视口前就完成纹理录制，消除周期性「突然卡顿」。全门禁两连跑 PASS（57.8/57.7 fps、hitch 2 次=8/min 在预算内）。 |
 | C4 main_dirty 基线窗口修正 | **excess 误报修复（用户环境 FAIL excess=65，2026-08-24）**：上一修订把 Spike closed 帧排除出基线采样（担心 popup build/remove 抬高基线），但 build/remove 脏本就在 overlay band（主带计数 pre-attach 采样），closed-Spike 帧与 Steady 帧的主带噪声（HUD/HOT/滚动对齐差）完全同源。交互/长跑模式下 Spike 占周期 77%，基线长期停留在 Steady 水平 → 每个 open 帧都被判 excess（累计 65）。修正：baseline = 所有 closed 帧（任意相位、!cycleOpen）的最坏值；open 帧仍须 ≤ baseline+2。验证：25s 关闭跑 PASS（base=66 excess=0）、60s 长跑 PASS（9 轮弹层、excess=0、fps 59.1）。 |
 | C4 弹窗时长 ≥5s + 关闭跑 25s | **弹窗开启时长按用户要求提至 5s（2026-08-24）**：openDur 1.6→5.0；关闭跑时长由弹层预算反推——Steady5 + 3×(开5+关1) + Recover 沉降 = **RUN_SECONDS 15→25**，§2.5/§3 两表与 README 同步。spikeEnd 改为 `spikeStart + 3×(openDur+closeDur)` 预算推导（长跑取 max 与 secs-3.5）；recoverTick 锚定首个 Recover。25s 全门禁 PASS：cyc=3 kinds=3、scripted 6/6、pixel 10/10、golden 0.00%、fps 58.6、hitch 2。交互模式（无 RUN_SECONDS）Spike↔Recover 无限循环不变。 |
