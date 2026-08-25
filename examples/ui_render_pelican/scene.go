@@ -197,6 +197,8 @@ type pelicanScene struct {
 	hudX, hudY     float64 // HUD 药丸在窗口中的位置（右下 fixed）
 	btnHover       bool
 	draggingSlider bool
+
+	speedLabelDup *rendering.RenderText // 仿粗体副本：右移重画一遍加浓笔画
 }
 
 // titleGlyph 标题单字节点；dup 为仿粗体副本（右移重画一遍模拟 font-weight:700）。
@@ -245,7 +247,9 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	}
 	root.Place(sc.tip, 18, winH-32)
 
-	// 速度标签（HUD 内动态文本）
+	// 速度标签（HUD 内动态文本）。原页面是 #hud 内的 <b>（默认加粗）+ #223
+	// 深色，天然盖在药丸上层；这里必须在 hudBox 之后 Place（后画者在上），
+	// 否则被 85% 半透明白药丸压住只剩 15% 墨色，看起来发浅。副本右移重画仿粗体。
 	sc.speedLabel = rendering.NewRenderText("×1.0")
 	sc.speedLabel.FontSize = 14
 	lr, lg, lb := rgb(0x222233)
@@ -253,7 +257,12 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	if faceErr == nil {
 		sc.speedLabel.SetFace(face)
 	}
-	root.Place(sc.speedLabel, 0, -100)
+	sc.speedLabelDup = rendering.NewRenderText("×1.0")
+	sc.speedLabelDup.FontSize = 14
+	sc.speedLabelDup.R, sc.speedLabelDup.G, sc.speedLabelDup.B, sc.speedLabelDup.A = lr, lg, lb, 1
+	if faceErr == nil {
+		sc.speedLabelDup.SetFace(face)
+	}
 
 	// HUD 药丸（右下 fixed）
 	sc.hudBox = rendering.NewRenderBox()
@@ -261,6 +270,8 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.hudBox.FixedHeight = hudH
 	sc.hudBox.OnPaint = sc.paintHUD
 	root.Place(sc.hudBox, winW-18-hudW, winH-18-hudH)
+	root.Place(sc.speedLabel, 0, -100)      // 先建后摆：标签必须晚于药丸入树
+	root.Place(sc.speedLabelDup, 0, -100)
 	sc.hudX, sc.hudY = winW-18-hudW, winH-18-hudH
 
 	sc.relayout(winW, winH)
@@ -324,7 +335,11 @@ func (sc *pelicanScene) relayout(w, h float64) {
 
 	sc.hudX, sc.hudY = w-18-hudW, h-18-hudH
 	sc.Root.Place(sc.hudBox, sc.hudX, sc.hudY)
-	sc.Root.Place(sc.speedLabel, sc.hudX+hudPadLR+hudBtnSize+hudGap+hudSliderW+hudGap+8, sc.hudY+15)
+	labelX := sc.hudX + hudPadLR + hudBtnSize + hudGap + hudSliderW + hudGap + 8
+	sc.Root.Place(sc.speedLabel, labelX, sc.hudY+15)
+	if sc.speedLabelDup != nil {
+		sc.Root.Place(sc.speedLabelDup, labelX+1.1, sc.hudY+15) // 仿粗体右移 ~8% 字号
+	}
 	sc.Root.Place(sc.tip, 18, h-32)
 	sc.Root.MarkNeedsLayout()
 }
@@ -351,6 +366,9 @@ func (sc *pelicanScene) setSpeed(v float64) {
 	}
 	sc.sim.speed = v
 	sc.speedLabel.SetText(fmt.Sprintf("×%.1f", v))
+	if sc.speedLabelDup != nil {
+		sc.speedLabelDup.SetText(sc.speedLabel.Text)
+	}
 }
 
 func (sc *pelicanScene) sliderX0() float64 {
