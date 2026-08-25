@@ -19,7 +19,7 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 94 · 顶层函数 111 · Context 导出方法 181 · 常量 120 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
+| `render`（主包） | 类型 94 · 顶层函数 111 · Context 导出方法 182 · 常量 120 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
 | `render/text` | 包级导出 239（含字体/整形/布局/光栅化；go doc 符号段口径） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
@@ -71,13 +71,13 @@
 | `PathMetric`（IsEmpty/Length/PositionAt/TangentAt 等）+ `Path.ComputeMetrics` | 对路径做度量：总长、某弧长处取点/切线 | 路径度量 | 🔗 |
 | Path 造型：`Trim` / `WithCorners` / `Discrete` / `Flatten` / `Reversed` / `Area` / `Winding` / `Contains` / `BoundingBox` | Flatten 细分为折线/多边形；Area/Winding/Contains/BoundingBox 查询；Trim(子段)/WithCorners(圆角化)/Discrete(随机点化) 高级造型 | 造型与查询 | 前四项内部用；**Trim/WithCorners/Discrete 🔌 仅测试** |
 
-## 3. 主包：绘制上下文 Context（181 导出方法）
+## 3. 主包：绘制上下文 Context（182 导出方法）
 
 > **构造器与选项**：`NewContext(width,height,opts...)` / `NewContextForPixmap(pm)` / `NewContextForImage(img,opts...)` / `NewContextWithScale(w,h,scale)`；`ContextOption` 模式：`WithRenderer/WithPixmap/WithPipelineMode/WithDeviceScale`。状态 ✅（embedder 生产链路）。
 
 > 按文件分组；⚠️/🔌 标注仅为该行方法，未标注行默认 ✅/🔗。
 
-### 3.1 context.go（105）
+### 3.1 context.go（106）
 > 功能/精简按族归纳（§3 逐方法见 §8 速查由 go doc 兜底；族内未标状态者默认 ✅/🔗）。
 
 | 方法族 | 功能（做什么） | 精简 | 状态 |
@@ -95,6 +95,7 @@
 | RasterizerMode/SetRasterizerMode/PipelineMode/SetPipelineMode/SetTextMode/TextMode/SetLCDLayout | 选择 CPU 栅格化器、GPU 管线模式（render pass/compute）、文本策略、LCD 子像素布局 | 渲染模式 | ✅ |
 | SetEffectSurface/SetSharedEncoder/CreateSharedEncoder/SubmitSharedEncoder | 特效离屏强制 1x 采样、共享命令编码器（单命令缓冲帧，ADR-017） | 离屏/编码器 | ✅ |
 | BeginGPUFrame/FlushGPU/FlushGPUWithView/FlushGPUWithViewDamage/FlushGPUWithViewDamageRects/GPURenderContext/DropGPURenderContext | 每帧 GPU 状态重置、把累积 GPU 命令提交并解析到 pixmap/视图（带单/多损伤区）、per-context GPU 会话 | GPU 提交 | ✅ |
+| `BeginOffscreenPass()` | 开离屏子通道并返回还原 func（调用方须 defer）：激活期间队列命令/裁剪时间线/LoadOp 跟踪独占归子目标，主通路状态挂起、还原时恢复；同时挂起画布裁剪防 scissor 泄漏进子视口。使帧中 retained 纹理重录安全（Skia GrRecordingContext / Flutter EntityPass pass-ownership 语义）；无 GPU ops 时返回空 func | 离屏子通道 | ✅ ui/scene/textured.go:430,513 retained 重录消费 |
 | RenderPathStats/ResetRenderPathStats/LastCPUFallbackReason/MemDigCmdBufs/Close | GPU/CPU 路由计数、最近 CPU 回退原因、残留命令缓冲诊断、关闭释放 | 诊断/资源 | 🔗 |
 
 ### 3.2 context_clip.go（5）· 裁剪族
