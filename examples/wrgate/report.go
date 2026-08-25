@@ -66,6 +66,8 @@ type Report struct {
 	// W1 boundary cache (from MetricsStore; also mirrored in ability_extra).
 	BoundaryRerecord int64 `json:"boundary_rerecord"`
 	BoundarySkip     int64 `json:"boundary_skip"`
+	// R20 filter layers applied in the last composite (0 on blit-cache hits).
+	FilterLayerCount int64 `json:"filter_layer_count"`
 	BoundaryCount    int64 `json:"boundary_count,omitempty"`
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
 	// W1 R5 / R9 / R12b counters.
@@ -156,6 +158,7 @@ func BuildReport(in BuildInput) Report {
 		ElapsedSec:             el,
 		BoundaryRerecord:       in.Snap.BoundaryRerecord,
 		BoundarySkip:           in.Snap.BoundarySkip,
+		FilterLayerCount:       in.Snap.FilterLayerCount,
 		BoundaryCount:          in.Snap.BoundaryCount,
 		BoundaryMaxDepth:       in.Snap.BoundaryMaxDepth,
 		PictureOpCount:         in.Snap.PictureOpCount,

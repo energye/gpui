@@ -58,6 +58,9 @@ type PictureTextureCache struct {
 	max    int
 	width  int
 	height int
+	// filterCache caches FILTERED ColorFilter/ImageFilter subtree results
+	// (R20): unchanged frames blit instead of re-paying the CPU filter pass.
+	filterCache *FilterResultCache
 	// entries keyed by stable CacheKey.
 	entries map[uint64]*pictureTextureEntry
 	// liveKeys is the current frame's in-tree cache keys (UI thread publishes
@@ -121,12 +124,13 @@ func NewPictureTextureCache(dc *render.Context, max int) *PictureTextureCache {
 		w, h = dc.Width(), dc.Height()
 	}
 	c := &PictureTextureCache{
-		dc:      dc,
-		max:     max,
-		width:   w,
-		height:  h,
-		entries: make(map[uint64]*pictureTextureEntry),
-		usedNow: make(map[uint64]struct{}),
+		dc:          dc,
+		max:         max,
+		width:       w,
+		height:      h,
+		entries:     make(map[uint64]*pictureTextureEntry),
+		usedNow:     make(map[uint64]struct{}),
+		filterCache: NewFilterResultCache(),
 	}
 	if dc != nil {
 		c.slotAlloc = defaultSlotAlloc
@@ -242,6 +246,7 @@ func (c *PictureTextureCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ClearLocked()
+	c.filterCache.Clear()
 }
 
 func (c *PictureTextureCache) ClearLocked() {
@@ -760,6 +765,9 @@ type TexturedStats struct {
 	RasterLayerCount  int
 	SkippedLayerCount int
 	ReplayedOps       int
+	// FiltersApplied counts color/image filter layers applied this frame
+	// (isolated vector fallback path; R20 filter_layer_count).
+	FiltersApplied int
 	// ShellSkip / ShellRerecord are the shell-partition portions of this
 	// frame's blits / texture re-records (R21 shell/content layering).
 	ShellSkip     int64
@@ -784,6 +792,9 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		return st
 	}
 	tex.BeginFrame()
+	if tex.filterCache != nil {
+		tex.filterCache.BeginFrame()
+	}
 	dirty := map[uint64]struct{}{}
 	for _, id := range pkt.DirtyLayerIDs {
 		dirty[id] = struct{}{}
@@ -965,11 +976,80 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				compositeWalk(ch, noTex, underShell)
 			}
 			dc.PopLayer()
-		default:
-			// Filter / backdrop / unknown layers: isolated vector path
-			// (honest blit-only fallback per layer).
+		case *ColorFilterLayer, *ImageFilterLayer:
+			// R20 filtered-subtree result cache: unchanged frames blit the
+			// previous result (DrawImage genID keeps the GPU image-cache
+			// entry warm → blit-only); only parameter changes or dirty
+			// subtrees re-pay the CPU filter pass. Transform subtrees keep
+			// the honest per-frame isolated path (bounds under rotation is
+			// not approximated here).
+			if fc := tex.filterCache; fc != nil && l.LayerID() != 0 {
+				if cf, ok := l.(*ColorFilterLayer); ok && cf.CacheKey != 0 && !subtreeHasTransform(l) {
+					key := cf.CacheKey
+					fp := filterFingerprint(l, dirty, fc.seed)
+					if e := fc.get(key, fp); e != nil {
+						dc.DrawImage(e.buf, float64(e.offX), float64(e.offY))
+						break
+					}
+					if b, okB := filterSubtreeBounds(l); okB {
+						const pad = 16
+						w, h := b.Dx()+2*pad, b.Dy()+2*pad
+						tmp := render.NewContext(w, h)
+						tmp.Translate(float64(-b.Min.X+pad), float64(-b.Min.Y+pad))
+						fst := CompositeStats{}
+						for _, ch := range l.Children() {
+							compositeLayer(ch, tmp, &fst)
+						}
+						tmp.ApplyColorMatrix(cf.Matrix)
+						var buf *render.ImageBuf
+						if tmp.ExportImageBuf(&buf) {
+							fc.put(key, fp, buf, b.Min.X-pad, b.Min.Y-pad, w, h)
+							dc.DrawImage(buf, float64(b.Min.X-pad), float64(b.Min.Y-pad))
+							st.FiltersApplied += fst.FiltersApplied + 1
+							break
+						}
+						// Export failed: fall through to the isolated path.
+					}
+				} else if imf, ok := l.(*ImageFilterLayer); ok && imf.CacheKey != 0 && !subtreeHasTransform(l) {
+					key := imf.CacheKey
+					fp := filterFingerprint(l, dirty, fc.seed)
+					if e := fc.get(key, fp); e != nil {
+						dc.DrawImage(e.buf, float64(e.offX), float64(e.offY))
+						break
+					}
+					if b, okB := filterSubtreeBounds(l); okB {
+						const pad = 16
+						w, h := b.Dx()+2*pad, b.Dy()+2*pad
+						tmp := render.NewContext(w, h)
+						tmp.Translate(float64(-b.Min.X+pad), float64(-b.Min.Y+pad))
+						fst := CompositeStats{}
+						for _, ch := range l.Children() {
+							compositeLayer(ch, tmp, &fst)
+						}
+						if imf.BlurRadius > 0 {
+							tmp.ApplyBlur(imf.BlurRadius)
+						}
+						var buf *render.ImageBuf
+						if tmp.ExportImageBuf(&buf) {
+							fc.put(key, fp, buf, b.Min.X-pad, b.Min.Y-pad, w, h)
+							dc.DrawImage(buf, float64(b.Min.X-pad), float64(b.Min.Y-pad))
+							st.FiltersApplied += fst.FiltersApplied + 1
+							break
+						}
+					}
+				}
+			}
+			// Filter layers on the cache-miss / unsupported path, plus
+			// backdrop / unknown layers: isolated vector path (honest
+			// blit-only fallback per layer).
 			fst := CompositeStats{}
 			compositeLayer(l, dc, &fst)
+			st.FiltersApplied += fst.FiltersApplied
+		default:
+			// Unknown layer kinds: isolated vector path.
+			fst := CompositeStats{}
+			compositeLayer(l, dc, &fst)
+			st.FiltersApplied += fst.FiltersApplied
 		}
 		popCompositeCTM(dc, pushCtx)
 	}

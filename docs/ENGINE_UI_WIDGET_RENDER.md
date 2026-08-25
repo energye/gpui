@@ -88,7 +88,7 @@ L3–L5 Kit                       ← 暂缓
 | **R17** | 不可见降频 | `ui_wr_r17_bg_throttle` | **1200×800** | **30** | 后台 interval 明显变大 | 后置 | 后置 | ⬜ |
 | **R18** | SaveLayer+预算 | `ui_wr_r18_savelayer` | **1200×800** | **10** | `savelayer_count`/reject | 组内半透明对；超预算可观测 | **W2** | **✅** |
 | **R19** | 1px/设备像素对齐 | `ui_wr_r19_snap` | **1200×800** | **5** | 约定 scale 下采样或截图门禁 | 1px 线清晰不糊 | W1–W2 | **✅** |
-| **R20** | Filter 层（可选） | `ui_wr_r20_filter` | **1200×800** | **10** | 局部 rerecord | 子树灰/糊，外不变 | 可选 | ⬜ |
+| **R20** | Filter 层（可选） | `ui_wr_r20_filter` | **1200×800** | **10** | 局部 rerecord | 子树灰/糊，外不变 | 可选 | **✅** |
 | **R21** | 壳/内容分层 | `ui_wr_r21_shell` | **1200×800** | **15** | 滚体时顶栏 `rerecord=0` | 顶栏静、体滚 | W2–W4 | **✅** |
 | **R22** | 选区/光标局部脏预留 | `ui_wr_r22_selection_stub` | **1200×800** | **5** | 字段可 0；API 存在 | stub 可空跑；防将来全窗刷 | 预留 | ⬜ |
 
@@ -355,7 +355,7 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak        # soak
 | **R17** | `ui_wr_r17_bg_throttle` | 前台正常内容 + 后台降频验证 | 窗口最小化/不可见 → interval 明显变大 | 后台 `interval` > 前台 2x | 证明控件后台不浪费 CPU |
 | **R18** | `ui_wr_r18_savelayer` | SaveLayer 半透明组 + 超预算拒批可视化 | 两个 SaveLayer：第一个允许，第二个拒批 | `savelayer_allow≥1` + `savelayer_reject≥1` | 证明控件离屏合成走预算 |
 | **R19** | `ui_wr_r19_snap` | 1px 线条网格 + 不同 DPR 下的清晰度对比 | DPR 变更 → 线条清晰度验证 | 约定 scale 下 1px 线不糊 | 证明控件 1px 边框/分割线清晰 |
-| **R20** | `ui_wr_r20_filter` | 模糊/灰度滤镜子树 + 外部不变内容 | 滤镜范围变化 → 只脏子树 | 局部 rerecord，外不变 | 证明控件滤镜效果局部化 |
+| **R20** | `ui_wr_r20_filter` | 模糊/灰度滤镜子树 + 外部不变内容 | 滤镜范围变化 → 只脏子树 | 局部 rerecord，外不变 | 证明控件滤镜效果局部化（2026-08-25 ✅，10s 关闭跑全门禁绿；引擎侧补 FilterResultCache——滤镜结果缓存根治未变帧重复付 CPU 全画布滤镜（首跑实测 51ms/帧·RSS+435MB→11ms/帧），见 §10） |
 | **R21** | `ui_wr_r21_shell` | 顶栏（标题+按钮）+ 可滚动体内容 | 体内容滚动 → 顶栏 `rerecord=0` | 顶栏 Picture 缓存不被滚动触发 | 证明控件壳/内容分层正确 |
 | **R22** | `ui_wr_r22_selection_stub` | 选区/光标 stub API + 防全窗刷预留 | stub 空跑 | API 存在 + 字段可 0 | 证明控件选区 API 预留就绪 |
 
@@ -492,7 +492,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | **W2** | **✅** | **R4✅ R4b✅ R5✅v2 R11✅ R13✅ R18✅** · R21(可) R19(可) | **C2✅ C7✅ 组合窗** |
 | **W3** | **✅** | R7✅ · R7b✅ · R10✅（各独立 `ui_wr_*` 真窗） | C3✅ |
 | **W4** | **✅** | R8✅、R21✅ | C4✅v2（弃旧重写+U21）、C8✅（可选项已补，不代替 R6） |
-| **W5** | 🔄（R6 ✅，待 C5；C6/R20 可选） | R6✅、R20(可) | C5、C6(可) |
+| **W5** | 🔄（R6✅ R20✅，待 C5；C6 可选） | R6✅、R20✅(可) | C5、C6(可) |
 | **W6** | ⬜ | R14、默认 retained | C9、C11；回归 C0–C5 |
 
 ```text
@@ -550,6 +550,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
+| R20 Filter 层独立真窗首次关闭 | **R20 Filter 层独立真窗首次关闭 + FilterResultCache 引擎洞修复（`examples/ui_wr_r20_filter`，1200×800·10s·GPU PASS 两连跑，§2.5 SaveLayer/Filter 档）**：① 能力（wr-implement）——`ui/rendering/filter_ro.go` 新增 RenderColorFilter/RenderImageFilter（SaveLayer→PushLayerIsolated 真离屏组隔离；identity/零半径省层；HitTest 滤镜盲区对齐 Flutter），layer_build 接线 scene.ColorFilterLayer/ImageFilterLayer（boundary 双路径）；指标 `filter_layer_count` 入 FrameMetrics+JSON 顶层。② 真窗——GRAY 板（灰度卡 Spike 切 identity=「滤镜范围变化」可观测）+ BLUR 板（半径相位阶跃 4↔8px）+ RAW 无滤镜对照卡（外不变硬证据）+ PULSE 持续动画热点 + DENSE 静区；U21 三证据：5 像素断言（矩阵公式解/外不变/blur 中心保持/中心不变量/F6）+ Golden 静态掩码 306280px 跨跑逐位零容差两连 + steady/recover 双张快照留档。③ **引擎洞（GPU 首跑暴露）**：滤镜层在 retained 复合期不可缓存→未变帧每帧重付 CPU 全画布滤镜（实测 raster 51ms/帧、fps22、RSS 10s+435MB 直至 wgpu OOM）。修复 `ui/scene/filter_cache.go` FilterResultCache（Skia layer raster cache 形态）：参数指纹+子树脏交集联合判定，命中帧 DrawImage blit（ImageBuf genID 保持 GPU image-cache 热）；多参数版本并存（循环回切不重复付费）；Transform 子树保守回退现路径；**指纹禁含 per-tree 层 id**（首版误含致每帧失效，已修+单测）。效果：raster 51→11ms/帧、fps 22→53.7、p95 34→17.3ms、vsync=true、golden 0%。④ 门禁：retained+skip/rerecord+filter_layer_count≥1+paint_drift≤40+fps≥45+p95≤22+hitch≤30/min（README 定性：稳态零 hitch，切换帧一次性重生成成本）+CPU 非双0+scripted 5/5。§2 R20 ⬜→✅；W5 待 C5/C6。 |
 | API目录同步 | **补登 `Context.BeginOffscreenPass()`（2026-08-25）**：C8 线提交引入的公开方法漏登 `RENDER_API_CATALOG.md`，`go run ./scripts/apidoc` 红屏阻塞合入。已在 §3.1 GPU 族补行（离屏子通道：队列命令/裁剪时间线/LoadOp 独占归子目标、挂起画布裁剪防 scissor 泄漏，Skia GrRecordingContext / Flutter EntityPass pass-ownership 语义；消费者 ui/scene/textured.go:430,513 retained 重录），同步 §0/§3/§3.1 计数（181→182、105→106）。 |
 | R6 族 A 门禁交互语义补齐（用户实测驱动·四轮） | **拖拽污染跑显式 SKIP 族 A 并留痕（2026-08-25）**：用户长跑中途拖拽 → `FAIL: hitch_rate_per_min=7.16 > 5`。定性同前轮：拖拽期 resize 全量恢复成本按设计计入帧时，非稳态退化。处置（examples/ui_wr_r6_layer_anim/main.go，门禁阈值零改动）：`resizeLog` 升级为时间戳；JSON 新增 `last_resize_at_sec` / `calm_after_resize_sec` / `family_a_gate` 三字段；被拖拽的跑族 A（fps/p95/hitch）显式 SKIP 并打印原因与重跑指引，其余族（retained/boundary/CPU/paint_drift/像素断言/golden——跨尺寸时跳过）照常硬判。无人值守跑两连验证 `family_a_gate=enforced` 全门禁生效（fps 60.0/59.9、hitch 0/2）。关闭证据协议：**必须取一次不碰窗口的 RUN_SECONDS=30 跑**。 |
 | R6 独立真窗首次关闭 | **R6 Opacity/Transform/Clip 层动画独立真窗首次关闭（`examples/ui_wr_r6_layer_anim`，1200×800·30s·GPU PASS，§2.5 动画层档）**：场景 U17 五项齐——多区域壳（TopBar+图例+2×2 动画演示板+右侧静态密集区+底栏 HUD）；静态密集 4×4 嵌套 boundary 色格+8 标签+注记全程静止；动态热点 OPA 呼吸 α0.1–1.0（RenderOpacity→scene.OpacityLayer PushLayer α）/ ROT 持续旋转绕中心 / PULSE 缩放 0.85–1.15 / CLIP 圆角呼吸+静态对照卡四板同跑；能力专属压力=三种层动画同时驱动 retained 复合期；相位脚本 Steady5s→Spike5s(转速×2 幅度×1.5)→Recover5s 循环。像素断言 U21 §2.7：变换不变中心采样（旋转/缩放目标取几何中心与相位无关）+ 终帧精确公式解 op_blend=α·fill+(1−α)·bg（快照在 loop 停止后栅格线程拍终帧，期望取自同源节点状态）+ F6 文本密度区域断言共 6 探针全过；Golden 静态掩码（顶栏+图例+密集区 306280px）跨跑逐位一致零容差。U18 HUD：相位/fps/p95/paint/α·θ·scale·radius 实时可见。U20 六维齐备见 examples/ui_wr_r6_layer_anim/README.md。§2 R6 ⬜→✅；W5 待 C5/C6。 |

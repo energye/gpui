@@ -56,6 +56,10 @@ type boundaryFrameSnap struct {
 // lastBoundaryFrame is published by paintPresentTree for metrics pickup.
 var lastBoundaryFrame atomic.Value // stores boundaryFrameSnap
 
+// lastFiltersApplied publishes the per-frame filter layer count from the
+// textured composite (raster thread) for metrics pickup (R20).
+var lastFiltersApplied atomic.Int64
+
 // resizeCalmWindow: after this long without a resize event the swapchain
 // switches back from Mailbox/Immediate to Fifo (vsync).
 const resizeCalmWindow = 200 * time.Millisecond
@@ -943,6 +947,7 @@ func (a *PipelineApp) Run() error {
 		a.sched.Metrics().NoteBuildMs(time.Since(t0).Seconds() * 1000)
 		if m := a.sched.Metrics(); m != nil {
 			m.SetRasterLayerCount(int64(stats.RasterLayerCount))
+			m.SetFilterLayerCount(lastFiltersApplied.Load())
 			// Wave P0: wire cumulative layout/paint flush counters into JSON metrics.
 			if a.pipe != nil {
 				m.SetLayoutCount(a.pipe.LayoutCount)
@@ -1260,6 +1265,7 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 		// Clear: retained steady frames do not clear (LoadOpLoad keeps pixels);
 		// only force frames (handled by presentTreeOpts) full-clear.
 		st := scene.CompositeFramePacketTextured(pkt, d, tex)
+		lastFiltersApplied.Store(int64(st.FiltersApplied))
 		for _, r := range st.DamageRects {
 			// Dirty layer geometry → damage rects (logical coords; dc scales
 			// to physical via deviceScale). Overlay-band dirties share the

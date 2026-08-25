@@ -53,6 +53,7 @@ type FrameMetrics struct {
 	PaintVisits         int64 `json:"paint_visits,omitempty"` // last frame node visits (R2)
 	RasterLayerCount    int64 `json:"raster_layer_count"`
 	CompositeLayerCount int64 `json:"composite_layer_count"`
+	FilterLayerCount    int64 `json:"filter_layer_count"` // color/image filter layers applied last composite (R20)
 
 	// Present locality (序13 dirty-rect path; 0/empty when unavailable).
 	// DamageAreaPx is physical-pixel area of the last present's FrameDamage union.
@@ -370,6 +371,16 @@ func (s *MetricsStore) SetRasterLayerCount(n int64) {
 	}
 	s.mu.Lock()
 	s.m.RasterLayerCount = n
+	s.mu.Unlock()
+}
+
+// SetFilterLayerCount records filter layers applied in the last composite (R20).
+func (s *MetricsStore) SetFilterLayerCount(n int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.FilterLayerCount = n
 	s.mu.Unlock()
 }
 

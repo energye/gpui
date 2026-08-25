@@ -132,6 +132,88 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		return
 	}
 
+	// ColorFilter nodes push scene.ColorFilterLayer (Flutter ColorFilterLayer):
+	// the 4×5 matrix applies to the subtree at composite time. Identity matrices
+	// are omitted so steady-state layer trees stay unchanged (same rule as the
+	// paint path).
+	if cf, ok := n.(*RenderColorFilter); ok {
+		matrix := cf.ColorMatrix()
+		pushFilter := !cf.isIdentity()
+		dirty := n.NeedsPaint() || layerSubtreeNeedsPaint(n)
+		if n.IsRepaintBoundary() {
+			b.PushBoundary(off.X, off.Y, "color_filter", dirty)
+			if pushFilter {
+				b.PushColorFilter(matrix).SetCacheKey(cf.EnsureCacheID())
+			}
+			for _, ch := range n.Children() {
+				appendNode(ch, b)
+			}
+			if len(n.Children()) == 0 {
+				addLeafPicture(b, n)
+			}
+			if pushFilter {
+				b.Pop() // color_filter
+			}
+			b.Pop() // boundary
+			return
+		}
+		b.PushOffset(off.X, off.Y)
+		if pushFilter {
+			b.PushColorFilter(matrix).SetCacheKey(cf.EnsureCacheID())
+		}
+		if len(n.Children()) == 0 {
+			addLeafPicture(b, n)
+		}
+		for _, ch := range n.Children() {
+			appendNode(ch, b)
+		}
+		if pushFilter {
+			b.Pop() // color_filter
+		}
+		b.Pop() // offset
+		return
+	}
+
+	// ImageFilter nodes push scene.ImageFilterLayer (Flutter ImageFiltered):
+	// uniform blur on the subtree at composite time. Radius ≤ 0 omits the layer.
+	if imf, ok := n.(*RenderImageFilter); ok {
+		radius := imf.BlurParams()
+		pushFilter := radius > 0
+		dirty := n.NeedsPaint() || layerSubtreeNeedsPaint(n)
+		if n.IsRepaintBoundary() {
+			b.PushBoundary(off.X, off.Y, "image_filter", dirty)
+			if pushFilter {
+				b.PushImageFilter(radius).SetCacheKey(imf.EnsureCacheID())
+			}
+			for _, ch := range n.Children() {
+				appendNode(ch, b)
+			}
+			if len(n.Children()) == 0 {
+				addLeafPicture(b, n)
+			}
+			if pushFilter {
+				b.Pop() // image_filter
+			}
+			b.Pop() // boundary
+			return
+		}
+		b.PushOffset(off.X, off.Y)
+		if pushFilter {
+			b.PushImageFilter(radius).SetCacheKey(imf.EnsureCacheID())
+		}
+		if len(n.Children()) == 0 {
+			addLeafPicture(b, n)
+		}
+		for _, ch := range n.Children() {
+			appendNode(ch, b)
+		}
+		if pushFilter {
+			b.Pop() // image_filter
+		}
+		b.Pop() // offset
+		return
+	}
+
 	// ClipRRect nodes push scene.ClipRRectLayer (Flutter ClipRRectLayer / pushClipRRect).
 	// Offset establishes local origin; clip is (0,0,w,h) in that space so children nest under it.
 	if cr, ok := n.(*RenderClipRRect); ok {

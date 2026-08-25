@@ -185,7 +185,13 @@ func (t *TransformLayer) EffectiveScale() (sx, sy float64) {
 type ColorFilterLayer struct {
 	ContainerLayer
 	Matrix [20]float32
+	// CacheKey is the stable cross-frame identity of the originating render
+	// object (EnsureCacheID) — per-tree layer ids cannot key result caches.
+	CacheKey uint64
 }
+
+// SetCacheKey binds the stable render-object identity (layer_build wiring).
+func (c *ColorFilterLayer) SetCacheKey(k uint64) { c.CacheKey = k }
 
 // NewColorFilterLayer creates a color-filter layer. Pass grayscale/sepia/etc. matrix.
 func NewColorFilterLayer(matrix [20]float32) *ColorFilterLayer {
@@ -219,7 +225,13 @@ type ImageFilterLayer struct {
 	ContainerLayer
 	// BlurRadius is the Gaussian blur sigma/radius in logical px (uniform).
 	BlurRadius float64
+	// CacheKey is the stable cross-frame identity of the originating render
+	// object (EnsureCacheID) — per-tree layer ids cannot key result caches.
+	CacheKey uint64
 }
+
+// SetCacheKey binds the stable render-object identity (layer_build wiring).
+func (i *ImageFilterLayer) SetCacheKey(k uint64) { i.CacheKey = k }
 
 // NewImageFilterLayer creates an image-filter layer with uniform blur radius.
 func NewImageFilterLayer(blurRadius float64) *ImageFilterLayer {
