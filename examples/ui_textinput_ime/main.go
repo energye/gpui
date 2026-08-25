@@ -68,6 +68,9 @@ type inputBox struct {
 	focused bool
 	caretOn bool // idle-caret blink state (UI-thread only)
 	blinks  int  // completed blink toggles (evidence in exit JSON)
+	// preeditEvents counts inbound compose events (P9 echo-storm guard:
+	// exit JSON asserts ≤2 per keystroke window).
+	preeditEvents int
 }
 
 func newInputBox(ed *textinput.Editor) *inputBox {
@@ -112,25 +115,36 @@ func (b *inputBox) ContentType() platform.ContentType {
 	return platform.ContentType{Purpose: b.ContentPurpose()}
 }
 
-// IMERect anchors candidates at the caret: prefix width measured with the
-// same face/size the text paints with.
+// IMERect anchors candidates at the caret: prefix width measured over the
+// DISPLAY string (committed prefix + live pre-edit — design §4.2 requires
+// the anchor to follow composition growth).
 func (b *inputBox) IMERect() platform.Rect {
-	cursor := b.ed.Cursor()
-	if cursor < 0 || cursor > len(b.ed.Text()) {
-		cursor = len(b.ed.Text())
+	v := b.ed.View()
+	cur := b.ed.Cursor()
+	if cur < 0 || cur > len(b.ed.Text()) {
+		cur = len(b.ed.Text())
 	}
-	w := b.text.MeasureWidth(b.ed.Text()[:cursor])
+	// Buffer caret → display caret (inside the span = at its start; the
+	// span grows rightward from there so the prefix is stable).
+	viewCur := v.MapBufToView(cur)
+	if viewCur > v.CompStart && v.CompStart >= 0 && cur == v.CompStart {
+		viewCur = v.CompEnd // composing: anchor rides the span's end
+	}
+	w := b.text.MeasureWidth(v.Display[:viewCur])
 	return platform.Rect{X: boxX + w, Y: boxY, W: 2, H: boxH}
 }
 
 // sync mirrors the editor into the RenderText (the text string NEVER
 // contains caret glyphs — the caret is the floating bar, see layoutCaret).
 // Must go through SetText so glyph layout invalidates together with paint.
+// sync mirrors the editor's DISPLAY form into the RenderText. Design D1:
+// ed.Text() is committed-only; the live composition lives in the overlay
+// and reaches pixels exclusively via ComposedView.View().Display.
 func (b *inputBox) sync() {
 	if b == nil || b.text == nil || b.ed == nil {
 		return
 	}
-	disp := b.ed.Text()
+	disp := b.ed.View().Display
 	if disp == "" && !b.focused {
 		disp = "…(click, type, IME)▏"
 	}
@@ -144,16 +158,22 @@ func (b *inputBox) sync() {
 // layoutCaret positions the caret bar at the current cursor byte offset and
 // toggles its visibility for the blink. Position/alpha only — zero effect on
 // text layout, so neighboring glyphs never shift while blinking. Vertical:
-// centered on the text's laid-out line box.
+// centered on the text's laid-out line box; horizontal: over the DISPLAY
+// string via ComposedView (during composition it rides the span's end).
 func (b *inputBox) layoutCaret() {
 	if b == nil || b.bar == nil {
 		return
 	}
+	v := b.ed.View()
 	cur := b.ed.Cursor()
 	if cur < 0 || cur > len(b.ed.Text()) {
 		cur = len(b.ed.Text())
 	}
-	x := b.text.MeasureWidth(b.ed.Text()[:cur])
+	viewCur := v.MapBufToView(cur)
+	if v.CompStart >= 0 && cur == v.CompStart && viewCur == v.CompStart {
+		viewCur = v.CompEnd // composing: caret rides the span end
+	}
+	x := b.text.MeasureWidth(v.Display[:viewCur])
 	th := b.text.Size().Height
 	y := (th - b.bar.Height) / 2
 	if y < 0 {
@@ -194,13 +214,22 @@ func (b *inputBox) OnKey(ev input.KeyEvent) {
 		b.ed.MoveCaretRunes(1)
 	case input.KeyEnter:
 		b.ed.Insert("\n")
+	case input.KeyEscape:
+		// P4: cancel the live composition — overlay vanishes, buffer intact.
+		b.ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
 	}
 }
 
 // OnText / OnIME implement input.TextHandler / input.IMEHandler. The router
 // already feeds TextEditor directly; these keep the demo an EventTarget.
 func (b *inputBox) OnText(ev input.TextEvent) {}
-func (b *inputBox) OnIME(ev input.IMEEvent)   {}
+func (b *inputBox) OnIME(ev input.IMEEvent) {
+	// P9 echo-storm guard evidence: count inbound compose events; the exit
+	// JSON asserts preedit events per keystroke stay ≤ 2.
+	if ev.Kind == input.IMECompose {
+		b.preeditEvents++
+	}
+}
 
 func main() {
 	selftest := os.Getenv("GPUI_IME_DEMO_SELFTEST") == "1"
@@ -326,7 +355,16 @@ func main() {
 			router.RoutePlatform(ev)
 			logf("selftest step=%d text=%q compose=%v", i, ed.Text(), ed.ComposeActive())
 		}
-		pass = ed.Text() == expectText && !ed.ComposeActive()
+
+		// P4 leg: compose → Esc cancel → buffer intact.
+		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "temp"})
+		p4Before := ed.Text()
+		router.Route(input.FromPlatform(platform.Event{
+			Type: platform.EventKey, Pressed: true, KeyCode: 0xff1b, // Escape
+		}, input.Modifiers{}))
+		p4OK := !ed.ComposeActive() && ed.Text() == p4Before
+		logf("selftest p4 esc-cancel: before=%q after=%q active=%v ok=%v", p4Before, ed.Text(), ed.ComposeActive(), p4OK)
+		pass = ed.Text() == expectText && !ed.ComposeActive() && p4OK
 
 		// Leg B (ImeSession facade — M1 new architecture): same semantics,
 		// driven through the facade instead of the router.
@@ -373,6 +411,8 @@ func main() {
 		"text":           ed.Text(),
 		"compose_active": ed.ComposeActive(),
 		"blink_ticks":    box.blinks,
+		// P9 evidence: inbound preedit events during the whole run.
+		"preedit_events": box.preeditEvents,
 	}
 	if snapPath != "" {
 		out["snapshot"] = snapPath
