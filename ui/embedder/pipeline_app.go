@@ -928,7 +928,7 @@ func (a *PipelineApp) Run() error {
 			bc, bd := rendering.CountRepaintBoundaries(a.root)
 			m.SetBoundaryDiscovery(bc, bd)
 		}
-		pkt := rendering.BuildFramePacket(a.root, frameID, scale, float64(w), float64(h))
+			pkt := rendering.BuildFramePacketWithSaveLayer(a.root, frameID, scale, float64(w), float64(h), a.saveStats, a.saveBudget)
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG frame %d viewport=%dx%d dirty=%v\n", frameID, w, h, pkt.DirtyLayerIDs)
 		}
@@ -1107,8 +1107,13 @@ func (a *PipelineApp) Run() error {
 		a.loop.Stop() // wait for queued/in-flight presents before touching dc
 		if dc := a.target.Context(); dc != nil {
 			dc.BeginFrame()
-			paintPresentTree(dc, a.pipe, a.root, a.opts.Overlay,
-				a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, false)
+			// Snapshot repaint must honor the same per-frame SaveLayer
+			// budget/stats as loop frames — otherwise the captured "final
+			// frame" diverges from what actually presented (C6: budgetless
+			// repaint wrongly allowed the second offscreen group).
+			paintPresentTreeWithOpts(dc, a.pipe, a.root, a.opts.Overlay,
+				a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, false,
+				paintPresentTreeOpts{layerStats: a.saveStats, layerBudget: a.saveBudget})
 			if err := dc.SavePNG(a.opts.SnapshotPath); err != nil {
 				fmt.Fprintf(os.Stderr, "snapshot: %v\n", err)
 			} else {
@@ -1251,6 +1256,11 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 	if dc == nil {
 		return render.PresentOutcome{}, errors.New("embedder: presentPacketTextured no context")
 	}
+	// Per-frame SaveLayer budget reset for the retained packet path: raster-
+	// time OnPaint (RasterExtra) SaveLayer requests are gated during this
+	// composite pass, so the whole frame shares one fresh budget — same
+	// per-frame semantics paintPresentTreeWithOpts gives the direct path.
+	opts.layerBudget.Reset()
 	tex := a.pictureTex
 	if tex == nil {
 		tex = scene.NewPictureTextureCache(dc, 0)

@@ -18,11 +18,26 @@ import (
 // lists to raster. CacheKey binds each picture to a stable RO identity
 // (EnsureCacheID) — layer ids are per-tree and cannot key cross-frame caches.
 func BuildLayerTree(root RenderObject) *scene.LayerBuilder {
+	return buildLayerTreeWired(root, nil)
+}
+
+// saveLayerWire carries the embedder-owned per-frame SaveLayer budget and
+// outcome stats into raster-time OnPaint callbacks (RasterExtra). Retained
+// mode defers RenderBox.OnPaint to texture-record time on the raster thread;
+// without the wire those SaveLayer requests bypass the budget entirely
+// (observed: C6 group B wrongly allowed under MaxOps=1). nil = legacy
+// unlimited path (tests / CPU builds).
+type saveLayerWire struct {
+	stats  *SaveLayerStats
+	budget *SaveLayerBudget
+}
+
+func buildLayerTreeWired(root RenderObject, wire *saveLayerWire) *scene.LayerBuilder {
 	b := scene.NewLayerBuilder()
 	if root == nil {
 		return b
 	}
-	appendNode(root, b)
+	appendNode(root, b, wire)
 	return b
 }
 
@@ -54,7 +69,7 @@ func layerSubtreeNeedsPaint(n RenderObject) bool {
 	return false
 }
 
-func appendNode(n RenderObject, b *scene.LayerBuilder) {
+func appendNode(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire) {
 	if n == nil || b == nil {
 		return
 	}
@@ -69,10 +84,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 			b.PushBoundary(off.X, off.Y, "transform", n.NeedsPaint() || layerSubtreeNeedsPaint(n))
 			b.PushTransform(0, 0, rot, sx, sy).SetPivot(cx, cy)
 			for _, ch := range n.Children() {
-				appendNode(ch, b)
+				appendNode(ch, b, wire)
 			}
 			if len(n.Children()) == 0 {
-				addLeafPicture(b, n)
+				addLeafPicture(b, n, wire)
 			}
 			b.Pop() // transform
 			b.Pop() // boundary
@@ -80,10 +95,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		}
 		b.PushTransform(off.X, off.Y, rot, sx, sy).SetPivot(cx, cy)
 		if len(n.Children()) == 0 {
-			addLeafPicture(b, n)
+			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range n.Children() {
-			appendNode(ch, b)
+			appendNode(ch, b, wire)
 		}
 		b.Pop()
 		return
@@ -104,10 +119,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 				b.PushOpacity(op)
 			}
 			for _, ch := range n.Children() {
-				appendNode(ch, b)
+				appendNode(ch, b, wire)
 			}
 			if len(n.Children()) == 0 {
-				addLeafPicture(b, n)
+				addLeafPicture(b, n, wire)
 			}
 			if pushOp {
 				b.Pop() // opacity
@@ -120,10 +135,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 			b.PushOpacity(op)
 		}
 		if len(n.Children()) == 0 {
-			addLeafPicture(b, n)
+			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range n.Children() {
-			appendNode(ch, b)
+			appendNode(ch, b, wire)
 		}
 		if pushOp {
 			b.Pop() // opacity
@@ -146,10 +161,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 				b.PushColorFilter(matrix).SetCacheKey(cf.EnsureCacheID())
 			}
 			for _, ch := range n.Children() {
-				appendNode(ch, b)
+				appendNode(ch, b, wire)
 			}
 			if len(n.Children()) == 0 {
-				addLeafPicture(b, n)
+				addLeafPicture(b, n, wire)
 			}
 			if pushFilter {
 				b.Pop() // color_filter
@@ -162,10 +177,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 			b.PushColorFilter(matrix).SetCacheKey(cf.EnsureCacheID())
 		}
 		if len(n.Children()) == 0 {
-			addLeafPicture(b, n)
+			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range n.Children() {
-			appendNode(ch, b)
+			appendNode(ch, b, wire)
 		}
 		if pushFilter {
 			b.Pop() // color_filter
@@ -186,10 +201,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 				b.PushImageFilter(radius).SetCacheKey(imf.EnsureCacheID())
 			}
 			for _, ch := range n.Children() {
-				appendNode(ch, b)
+				appendNode(ch, b, wire)
 			}
 			if len(n.Children()) == 0 {
-				addLeafPicture(b, n)
+				addLeafPicture(b, n, wire)
 			}
 			if pushFilter {
 				b.Pop() // image_filter
@@ -202,10 +217,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 			b.PushImageFilter(radius).SetCacheKey(imf.EnsureCacheID())
 		}
 		if len(n.Children()) == 0 {
-			addLeafPicture(b, n)
+			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range n.Children() {
-			appendNode(ch, b)
+			appendNode(ch, b, wire)
 		}
 		if pushFilter {
 			b.Pop() // image_filter
@@ -223,10 +238,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 			b.PushBoundary(off.X, off.Y, "clip_rrect", dirty)
 			b.PushClipRRect(0, 0, w, h, radius)
 			for _, ch := range n.Children() {
-				appendNode(ch, b)
+				appendNode(ch, b, wire)
 			}
 			if len(n.Children()) == 0 {
-				addLeafPicture(b, n)
+				addLeafPicture(b, n, wire)
 			}
 			b.Pop() // clip_rrect
 			b.Pop() // boundary
@@ -235,10 +250,10 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		b.PushOffset(off.X, off.Y)
 		b.PushClipRRect(0, 0, w, h, radius)
 		if len(n.Children()) == 0 {
-			addLeafPicture(b, n)
+			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range n.Children() {
-			appendNode(ch, b)
+			appendNode(ch, b, wire)
 		}
 		b.Pop() // clip_rrect
 		b.Pop() // offset
@@ -261,12 +276,12 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		// never replaced from below (C4 一行一行消失).
 		so := v.ScrollOffset()
 		b.PushTransform(-so.X, -so.Y, 0, 1, 1)
-		addOwnContent(b, n)
+		addOwnContent(b, n, wire)
 		for _, ch := range n.Children() {
-			appendNode(ch, b)
+			appendNode(ch, b, wire)
 		}
 		if len(n.Children()) == 0 {
-			addLeafPicture(b, n)
+			addLeafPicture(b, n, wire)
 		}
 		b.Pop() // scroll transform
 		b.Pop() // clip_rect
@@ -279,24 +294,24 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 		if bse, ok := baseOf(n); ok {
 			bl.Shell = bse.IsShellBoundary()
 		}
-		addOwnContent(b, n)
+		addOwnContent(b, n, wire)
 		for _, ch := range n.Children() {
-			appendNode(ch, b)
+			appendNode(ch, b, wire)
 		}
 		// Leaf content inside boundary: ensure a picture slot when no children.
 		if len(n.Children()) == 0 {
-			addLeafPicture(b, n)
+			addLeafPicture(b, n, wire)
 		}
 		b.Pop()
 		return
 	}
 	b.PushOffset(off.X, off.Y)
-	addOwnContent(b, n)
+	addOwnContent(b, n, wire)
 	if len(n.Children()) == 0 {
-		addLeafPicture(b, n)
+		addLeafPicture(b, n, wire)
 	}
 	for _, ch := range n.Children() {
-		appendNode(ch, b)
+		appendNode(ch, b, wire)
 	}
 	b.Pop()
 }
@@ -307,7 +322,7 @@ func appendNode(n RenderObject, b *scene.LayerBuilder) {
 // container backgrounds or OnPaint-only boxes (Flutter paint semantics: every
 // node's own paint is part of its display list). No-op for nodes with nothing
 // of their own to draw.
-func addOwnContent(b *scene.LayerBuilder, n RenderObject) {
+func addOwnContent(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
 	if n == nil || b == nil {
 		return
 	}
@@ -336,7 +351,7 @@ func addOwnContent(b *scene.LayerBuilder, n RenderObject) {
 		})
 		if pl != nil {
 			pl.RasterExtra = func(dc *render.Context) {
-				pc := &PaintContext{DC: dc, Scale: 1}
+				pc := &PaintContext{DC: dc, Scale: 1, LayerStats: wireStats(wire), LayerBudget: wireBudget(wire)}
 				onPaint(pc, sz)
 			}
 			pl.ExtraBounds = image.Rect(0, 0,
@@ -363,7 +378,7 @@ func addOwnPicture(b *scene.LayerBuilder, n RenderObject, needsRaster bool, reco
 // Leaves the layer builder can't faithfully record keep an empty picture and
 // a zero cache key (vector replay fallback paints nothing — the RO type has
 // no layer-tree representation, consistent with Flutter layer semantics).
-func addLeafPicture(b *scene.LayerBuilder, n RenderObject) {
+func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
 	pl := b.AddPicture(n.NeedsPaint())
 	if n == nil {
 		return
@@ -383,7 +398,7 @@ func addLeafPicture(b *scene.LayerBuilder, n RenderObject) {
 		sz := n.Size()
 		onPaint := box.OnPaint
 		pl.RasterExtra = func(dc *render.Context) {
-			pc := &PaintContext{DC: dc, Scale: 1}
+			pc := &PaintContext{DC: dc, Scale: 1, LayerStats: wireStats(wire), LayerBudget: wireBudget(wire)}
 			onPaint(pc, sz)
 		}
 		pl.ExtraBounds = image.Rect(0, 0,
@@ -451,6 +466,31 @@ func typeName(n RenderObject) string {
 func BuildFramePacket(root RenderObject, frameID uint64, dpr, w, h float64) *scene.FramePacket {
 	b := BuildLayerTree(root)
 	return b.BuildPacket(frameID, dpr, w, h)
+}
+
+// BuildFramePacketWithSaveLayer builds the packet like BuildFramePacket while
+// wiring the embedder-owned per-frame SaveLayer budget and outcome stats into
+// raster-time OnPaint callbacks. Retained mode defers RenderBox.OnPaint to
+// texture-record time; without this wiring a configured budget (PipelineOptions
+// SaveLayerMaxOps/MaxArea) never sees those requests. stats/budget may be nil
+// (= BuildFramePacket behavior).
+func BuildFramePacketWithSaveLayer(root RenderObject, frameID uint64, dpr, w, h float64, stats *SaveLayerStats, budget *SaveLayerBudget) *scene.FramePacket {
+	b := buildLayerTreeWired(root, &saveLayerWire{stats: stats, budget: budget})
+	return b.BuildPacket(frameID, dpr, w, h)
+}
+
+func wireStats(w *saveLayerWire) *SaveLayerStats {
+	if w == nil {
+		return nil
+	}
+	return w.stats
+}
+
+func wireBudget(w *saveLayerWire) *SaveLayerBudget {
+	if w == nil {
+		return nil
+	}
+	return w.budget
 }
 
 // BuildFramePacketOverlay builds the main packet then attaches ov to pkt.Overlay.
