@@ -5,6 +5,43 @@ type Rect struct {
 	X, Y, W, H float64
 }
 
+// ContentPurpose classifies an editing field so the input method can adapt
+// (layout, prediction, masking). Values mirror the zwp_text_input_v3
+// content_purpose enum (which itself follows Android InputType); backends
+// without purpose support ignore it.
+type ContentPurpose uint32
+
+const (
+	// PurposeNormal default text entry.
+	PurposeNormal ContentPurpose = 0
+	// PurposeAlpha alphabetic input.
+	PurposeAlpha ContentPurpose = 1
+	// PurposeDigits digits without numeric formatting (e.g. codes).
+	PurposeDigits ContentPurpose = 2
+	// PurposeNumber a number (with numeric formatting).
+	PurposeNumber ContentPurpose = 3
+	// PurposePhone a phone number.
+	PurposePhone ContentPurpose = 4
+	// PurposeURL a URL / file path.
+	PurposeURL ContentPurpose = 5
+	// PurposeEmail an email address.
+	PurposeEmail ContentPurpose = 6
+	// PurposeName a person name.
+	PurposeName ContentPurpose = 7
+	// PurposePassword a password (masking + no prediction).
+	PurposePassword ContentPurpose = 8
+	// PurposePin a PIN (numeric, masked).
+	PurposePin ContentPurpose = 9
+	// PurposeDate a date.
+	PurposeDate ContentPurpose = 10
+	// PurposeTime a time.
+	PurposeTime ContentPurpose = 11
+	// PurposeDatetime date and time.
+	PurposeDatetime ContentPurpose = 12
+	// PurposeTerminal shell input.
+	PurposeTerminal ContentPurpose = 13
+)
+
 // IME is the optional cross-platform input-method capability. A backend that
 // does not support IME leaves Window.IME() nil; the UI layer silently degrades
 // to plain keyboard text (same pattern as the optional VSyncWaiter).
@@ -18,6 +55,14 @@ type IME interface {
 	// EnableIME opens an input session for the focused field at rect
 	// (logical px, Y-down).
 	EnableIME(rect Rect)
+	// UpdateCursorRect moves the IME anchor to the current caret position
+	// (logical px, window-relative). Candidate windows anchor here; call it
+	// whenever the caret moves or the field scrolls.
+	UpdateCursorRect(rect Rect)
+	// SetContentType declares the editing purpose for subsequent state
+	// commits (digits/email/password…). Backends without purpose support
+	// ignore it.
+	SetContentType(purpose ContentPurpose)
 	// SetComposing updates the pre-edit text (e.g. pinyin romanization) and
 	// the caret position within it.
 	SetComposing(text string, cursor int)

@@ -437,6 +437,16 @@ func (t *RenderText) wrapLines() []string {
 // DisplayLines returns the visible lines after wrap + maxLines + overflow.
 // Layout and paint both use this so measured size matches what is drawn.
 // For multi-run content, each line is the concatenation of that line's span texts.
+// MeasureWidth returns the rendered width of s using this text's face and
+// font size (single line, no wrap). Heuristic estimate when no Face is set.
+// Used for caret/candidate anchoring (IME cursor rectangles).
+func (t *RenderText) MeasureWidth(s string) float64 {
+	if t == nil {
+		return 0
+	}
+	return t.measureLine(s)
+}
+
 func (t *RenderText) DisplayLines() []string {
 	if t == nil {
 		return nil

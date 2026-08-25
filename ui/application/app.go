@@ -311,6 +311,7 @@ func (w *Window) SetRoot(root rendering.RenderObject) error {
 		MaxFrames: cfg.MaxFrames,
 		RunFor:    cfg.RunFor,
 		Input:     w.input,
+		IME:       w.plat.IME(),
 		OnEvent: func(ev platform.Event) {
 			if cfg.OnEvent != nil {
 				cfg.OnEvent(ev)

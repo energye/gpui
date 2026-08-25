@@ -35,10 +35,11 @@ func FromPlatform(ev platform.Event, mods Modifiers) Event {
 }
 
 // fromIME maps a platform IME event into the normalized IME event. The
-// platform IMEKind (0=compose, 1=commit, 2=caret) aligns with input.IMEKind.
+// platform numeric IMEKind aligns with input.IMEKind (0=compose, 1=commit,
+// 2=caret, 3=delete-surrounding).
 func fromIME(ev platform.Event, mods Modifiers) Event {
 	kind := IMEKind(ev.IMEKind)
-	if kind < IMECompose || kind > IMECaretMove {
+	if kind < IMECompose || kind > IMEDeleteSurrounding {
 		kind = IMECompose
 	}
 	return Event{

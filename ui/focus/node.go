@@ -27,6 +27,12 @@ type FocusNode struct {
 	// OnActivate optional Space/Enter when OnKey is nil or does not consume.
 	OnActivate func()
 
+	// Target is the widget/control this node represents (optional payload).
+	// The framework reads it to route capability flows — e.g. an
+	// embedder.InputRouter resolves the focused control by type-asserting
+	// Target to TextEditTarget for IME session management (plan I4/I5).
+	Target any
+
 	mgr    *FocusManager
 	regSeq int // registration sequence for stable order
 }

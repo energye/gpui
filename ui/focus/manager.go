@@ -14,6 +14,11 @@ type FocusManager struct {
 	focusChanges int
 	// paintHints counts OnFocusChange invocations (gain+loss).
 	paintHints int
+
+	// observers are notified on every primary transition (after state
+	// update). Add via AddFocusObserver; used by the embedder's IME session
+	// management (I4) — keep callbacks fast, they run on the UI thread.
+	observers []func(from, to *FocusNode)
 }
 
 // NewManager creates an empty focus manager.
@@ -100,6 +105,22 @@ func (m *FocusManager) Blur() {
 	m.setPrimary(nil)
 }
 
+// AddFocusObserver registers fn to run after every primary transition with
+// (previous, current) nodes (either may be nil). Idempotent adds are NOT
+// deduplicated — register once at wiring time.
+func (m *FocusManager) AddFocusObserver(fn func(from, to *FocusNode)) {
+	if m == nil || fn == nil {
+		return
+	}
+	m.observers = append(m.observers, fn)
+}
+
+func (m *FocusManager) notifyObservers(from, to *FocusNode) {
+	for _, fn := range m.observers {
+		fn(from, to)
+	}
+}
+
 func (m *FocusManager) setPrimary(n *FocusNode) {
 	old := m.primary
 	if old == n {
@@ -119,6 +140,7 @@ func (m *FocusManager) setPrimary(n *FocusNode) {
 			n.OnFocusChange(true)
 		}
 	}
+	m.notifyObservers(old, n)
 }
 
 // Count returns registered node count.

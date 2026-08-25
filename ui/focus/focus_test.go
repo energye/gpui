@@ -228,3 +228,55 @@ func label(m *focus.FocusManager) string {
 	}
 	return m.Primary().DebugLabel
 }
+
+// TestFocus_ObserverTransitions verifies manager-level observers fire after
+// every primary transition with (from, to) — the embedder's IME session
+// management (I4) depends on this contract.
+func TestFocus_ObserverTransitions(t *testing.T) {
+	m := focus.NewManager()
+	a := focus.NewFocusNode("a")
+	b := focus.NewFocusNode("b")
+	m.Register(a)
+	m.Register(b)
+
+	var got [][2]string
+	m.AddFocusObserver(func(from, to *focus.FocusNode) {
+		f, t2 := "", ""
+		if from != nil {
+			f = from.DebugLabel
+		}
+		if to != nil {
+			t2 = to.DebugLabel
+		}
+		got = append(got, [2]string{f, t2})
+	})
+
+	if !m.RequestFocus(a) {
+		t.Fatal("RequestFocus(a) failed")
+	}
+	if !m.RequestFocus(b) {
+		t.Fatal("RequestFocus(b) failed")
+	}
+	m.Blur()
+	want := [][2]string{{"", "a"}, {"a", "b"}, {"b", ""}}
+	if len(got) != len(want) {
+		t.Fatalf("observer calls = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("transition[%d] = %v, want %v", i, got[i], want[i])
+		}
+	}
+}
+
+// TestFocus_NodeTarget verifies the Target payload round-trips (the
+// framework type-asserts it to TextEditTarget).
+func TestFocus_NodeTarget(t *testing.T) {
+	n := focus.NewFocusNode("x")
+	type box struct{ v int }
+	bx := &box{7}
+	n.Target = bx
+	if n.Target.(*box).v != 7 {
+		t.Fatal("target payload lost")
+	}
+}

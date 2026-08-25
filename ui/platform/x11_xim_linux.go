@@ -203,6 +203,15 @@ func (im *x11Ime) SetComposing(text string, cursor int) {
 	// XIM: pre-edit is IME-owned (PreeditNothing); nothing to send.
 }
 
+func (im *x11Ime) UpdateCursorRect(rect Rect) {
+	// XIM PreeditNothing: the input method owns candidate placement; no spot
+	// location is sent. (XNSpotLocation would need XIMPreeditPosition.)
+}
+
+func (im *x11Ime) SetContentType(purpose ContentPurpose) {
+	// XIM has no content-type negotiation; ignored (PreeditNothing mode).
+}
+
 func (im *x11Ime) Commit(text string) {
 	// XIM: committed text arrives via XFilterEvent/Xutf8LookupString.
 }

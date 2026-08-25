@@ -177,6 +177,15 @@ type wlTIState struct {
 	ti       uintptr // zwp_text_input_v3 proxy
 	listener [6]uintptr
 	selfPtr  uintptr // *wlTIState for callbacks
+	// rect is the last cursor rectangle sent (logical px); resent by
+	// refreshTextInput because a commit dropped pre-focus also drops the
+	// pending set_cursor_rectangle — without this, candidate windows anchor
+	// at the surface origin after keyboard focus-in.
+	rect    Rect
+	hasRect bool
+	// purpose is the content type sent with every state commit
+	// (set_content_type(hint=None, purpose)); defaults to PurposeNormal.
+	purpose ContentPurpose
 }
 
 // bindTextInput binds zwp_text_input_manager_v3 (if advertised) and creates
@@ -233,22 +242,68 @@ func (im *wlIme) EnableIME(rect Rect) {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
 	}
-	lib, ti, win := im.h.win.ti.lib, im.h.win.ti.ti, im.h.win.ti.win
+	st := im.h.win.ti
+	lib, ti, win := st.lib, st.ti, st.win
 	if ti == 0 || win == nil || win.surface == 0 {
 		return
 	}
+	st.rect, st.hasRect = rect, true
 	// enable(surface)
 	args := []wlArg{argO(win.surface)}
 	lib.proxyMarshalArrayFlags(ti, tiEnable, 0, 0, 0, &args[0])
 	// set_cursor_rectangle(x,y,w,h)
 	rectArgs := []wlArg{argU(uint32(int32(rect.X))), argU(uint32(int32(rect.Y))), argU(uint32(int32(rect.W))), argU(uint32(int32(rect.H)))}
 	lib.proxyMarshalArrayFlags(ti, tiSetCursorRectangle, 0, 0, 0, &rectArgs[0])
-	// set_content_type(hint, purpose)
-	ct := []wlArg{argU(tiHintNone), argU(tiPurposeNormal)}
+	// set_content_type(hint=None, purpose) — stored purpose (I6).
+	ct := []wlArg{argU(tiHintNone), argU(uint32(st.purpose))}
 	lib.proxyMarshalArrayFlags(ti, tiSetContentType, 0, 0, 0, &ct[0])
 	// commit
 	lib.proxyMarshalArrayFlags(ti, tiCommit, 0, 0, 0, nil)
 	lib.displayFlush(win.display)
+}
+
+// SetContentType stores the editing purpose and publishes it immediately
+// (set_content_type + commit). Takes effect for the active session too.
+func (im *wlIme) SetContentType(purpose ContentPurpose) {
+	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
+		return
+	}
+	st := im.h.win.ti
+	if st.ti == 0 || st.win.surface == 0 {
+		st.purpose = purpose
+		return
+	}
+	st.purpose = purpose
+	args := []wlArg{argU(tiHintNone), argU(uint32(purpose))}
+	st.lib.proxyMarshalArrayFlags(st.ti, tiSetContentType, 0, 0, 0, &args[0])
+	st.lib.proxyMarshalArrayFlags(st.ti, tiCommit, 0, 0, 0, nil)
+	st.lib.displayFlush(st.win.display)
+}
+
+// UpdateCursorRect moves the IME anchor to the current caret position
+// (set_cursor_rectangle + commit). Candidate windows anchor here, so this
+// must track every caret move / scroll.
+func (im *wlIme) UpdateCursorRect(rect Rect) {
+	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
+		return
+	}
+	st := im.h.win.ti
+	if st.ti == 0 {
+		return
+	}
+	st.rect, st.hasRect = rect, true
+	st.sendCursorRect(rect)
+}
+
+// sendCursorRect marshals set_cursor_rectangle + commit + flush.
+func (st *wlTIState) sendCursorRect(rect Rect) {
+	if st == nil || st.lib == nil || st.ti == 0 || st.win == nil || st.win.surface == 0 {
+		return
+	}
+	rectArgs := []wlArg{argU(uint32(int32(rect.X))), argU(uint32(int32(rect.Y))), argU(uint32(int32(rect.W))), argU(uint32(int32(rect.H)))}
+	st.lib.proxyMarshalArrayFlags(st.ti, tiSetCursorRectangle, 0, 0, 0, &rectArgs[0])
+	st.lib.proxyMarshalArrayFlags(st.ti, tiCommit, 0, 0, 0, nil)
+	st.lib.displayFlush(st.win.display)
 }
 
 // SetComposing reports the surrounding text and caret for IME editing. The
@@ -315,9 +370,16 @@ func (w *wlWin) refreshTextInput() {
 	// enable(surface)
 	args := []wlArg{argO(w.surface)}
 	lib.proxyMarshalArrayFlags(ti, tiEnable, 0, 0, 0, &args[0])
-	// set_content_type(hint, purpose)
-	ct := []wlArg{argU(tiHintNone), argU(tiPurposeNormal)}
+	// set_content_type(hint=None, purpose) — stored purpose (I6).
+	ct := []wlArg{argU(tiHintNone), argU(uint32(w.ti.purpose))}
 	lib.proxyMarshalArrayFlags(ti, tiSetContentType, 0, 0, 0, &ct[0])
+	// Re-send the cursor rectangle: the initial enable+commit (sent before
+	// keyboard focus) was dropped by mutter along with its pending
+	// set_cursor_rectangle — without this the candidate window anchors at
+	// the surface origin after focus-in.
+	if w.ti.hasRect {
+		w.ti.sendCursorRect(w.ti.rect)
+	}
 	// commit — only now does mutter run commit_state with surface set.
 	lib.proxyMarshalArrayFlags(ti, tiCommit, 0, 0, 0, nil)
 	lib.displayFlush(w.display)
@@ -372,11 +434,11 @@ func wlTiLeave(data, ti, surface uintptr) {
 	}
 }
 
-// wlTiPreedit handles preedit_string(text, commit, index).
-// commit==1 → the pre-edit should be treated as final (commit_string follows
-// in the same done round); index is the caret byte offset in the pre-edit
-// (-1 = end). We surface it as IMEKind 0 (compose) with the text; the
-// textinput editor manages the pre-edit lifecycle.
+// wlTiPreedit handles preedit_string(text, commit, index): the compositor's
+// current pre-edit string plus the caret byte offset within it. Surfaced as
+// IMEKind 0 (compose) with Start=End=index (-1 = end of the pre-edit); the
+// protocol commit boolean is advisory only — a real commit always arrives as
+// commit_string — so it is not forwarded.
 func wlTiPreedit(data, ti, text, commit, index uintptr) {
 	st := tiFrom(data)
 	if st == nil || st.win == nil {
@@ -387,11 +449,12 @@ func wlTiPreedit(data, ti, text, commit, index uintptr) {
 		s = goString(text)
 	}
 	st.win.pushIME(Event{
-		Type:   EventIME,
+		Type:    EventIME,
 		IMEKind: 0, // compose
 		IMEText: s,
+		// Caret byte offset within the pre-edit (begin = end; -1 = end).
 		IMEStart: int(int32(index)),
-		IMEEnd:   int(int32(commit)),
+		IMEEnd:   int(int32(index)),
 	})
 }
 
@@ -409,17 +472,17 @@ func wlTiCommit(data, ti, text uintptr) {
 }
 
 // wlTiDeleteSurr handles delete_surrounding_text(before, after): the IME asks
-// to remove text around the cursor. We surface it as a commit with a special
-// marker (negative start = delete before, end = after). The textinput editor
-// interprets Start<0 as a delete request.
+// to remove text around the cursor. Surfaced as IMEKind 3
+// (delete-surrounding) with Start=-before / End=after (byte counts relative
+// to the caret); the textinput editor performs the deletion.
 func wlTiDeleteSurr(data, ti, before, after uintptr) {
 	st := tiFrom(data)
 	if st == nil || st.win == nil {
 		return
 	}
 	st.win.pushIME(Event{
-		Type:   EventIME,
-		IMEKind: 2, // caret/delete marker
+		Type:     EventIME,
+		IMEKind:  3, // delete-surrounding (input.IMEDeleteSurrounding)
 		IMEStart: -int(int32(before)),
 		IMEEnd:   int(int32(after)),
 	})

@@ -237,23 +237,25 @@ func (e *Editor) BeginCompose(preedit string) {
 	e.fireChange()
 }
 
-// UpdateCompose replaces the current pre-edit text (cursor within the
-// pre-edit in bytes, -1 = end).
+// UpdateCompose replaces the current pre-edit text. cursor is the caret byte
+// offset within the pre-edit (clamped into the region); negative = end of
+// the pre-edit.
 func (e *Editor) UpdateCompose(preedit string, cursor int) {
 	if e == nil || e.composeStart < 0 {
 		return
 	}
 	e.replaceCompose(preedit)
+	pos := e.composeEnd // negative cursor = end of the pre-edit region
 	if cursor >= 0 {
-		pos := e.composeStart + cursor
+		pos = e.composeStart + cursor
 		if pos < e.composeStart {
 			pos = e.composeStart
 		}
 		if pos > e.composeEnd {
 			pos = e.composeEnd
 		}
-		e.selStart, e.selEnd = pos, pos
 	}
+	e.selStart, e.selEnd = pos, pos
 	e.fireChange()
 }
 
@@ -280,6 +282,58 @@ func (e *Editor) CancelCompose() {
 	e.cancelComposeLocked()
 	e.selStart, e.selEnd = start, start
 	e.fireChange()
+}
+
+// DeleteSurrounding removes `before` bytes preceding the caret and `after`
+// bytes following it (zwp_text_input_v3 delete_surrounding_text semantics:
+// byte counts relative to the caret). Boundaries snap outward to UTF-8 rune
+// starts so a multi-byte character is never split. A deletion crossing the
+// active pre-edit region cancels the composition; otherwise the compose
+// offsets shift with the removed span. Returns true when the buffer changed.
+func (e *Editor) DeleteSurrounding(before, after int) bool {
+	if e == nil || (before <= 0 && after <= 0) {
+		return false
+	}
+	caret := e.selEnd
+	start := caret - before
+	if start < 0 {
+		start = 0
+	}
+	end := caret + after
+	if end > len(e.text) {
+		end = len(e.text)
+	}
+	for start > 0 && !utf8.RuneStart(e.text[start]) {
+		start--
+	}
+	for end < len(e.text) && !utf8.RuneStart(e.text[end]) {
+		end++
+	}
+	if start >= end {
+		return false
+	}
+	composeActive := e.composeStart >= 0
+	overlap := composeActive && start < e.composeEnd && e.composeStart < end
+	removed := end - start
+	e.text = e.text[:start] + e.text[end:]
+	if composeActive {
+		if overlap {
+			e.cancelComposeLocked()
+		} else {
+			if e.composeStart >= end {
+				e.composeStart -= removed
+			}
+			if e.composeEnd >= end {
+				e.composeEnd -= removed
+			}
+			if e.composeEnd < e.composeStart {
+				e.cancelComposeLocked()
+			}
+		}
+	}
+	e.selStart, e.selEnd = start, start
+	e.fireChange()
+	return true
 }
 
 // replaceCompose swaps the current pre-edit region for preedit, keeping the
@@ -327,11 +381,19 @@ func (e *Editor) ApplyIME(ev input.IMEEvent) bool {
 	before := e.text
 	switch ev.Kind {
 	case input.IMECompose:
+		// Empty pre-edit text means "reset the pre-edit" (zwp_text_input_v3
+		// preedit_string semantics): end the active session instead of
+		// starting/updating an empty one — otherwise a stray empty preedit
+		// after a commit latches compose state on and blocks plain typing.
+		// A commit_string may follow in the same round and inserts fresh.
+		if ev.Text == "" {
+			e.CancelCompose()
+			break
+		}
 		if !e.ComposeActive() {
 			e.BeginCompose(ev.Text)
-		} else {
-			e.UpdateCompose(ev.Text, caretFromIME(ev))
 		}
+		e.UpdateCompose(ev.Text, caretFromIME(ev))
 	case input.IMECommit:
 		if ev.Text != "" {
 			// Commit replaces the whole pre-edit region with the committed text.
@@ -346,16 +408,23 @@ func (e *Editor) ApplyIME(ev input.IMEEvent) bool {
 		if ev.Start >= 0 && ev.End >= 0 {
 			e.SetSelection(ev.Start, ev.End)
 		}
+	case input.IMEDeleteSurrounding:
+		before, after := -ev.Start, ev.End
+		if before < 0 {
+			before = 0
+		}
+		if after < 0 {
+			after = 0
+		}
+		e.DeleteSurrounding(before, after)
 	}
 	return e.text != before
 }
 
-// caretFromIME extracts the pre-edit cursor byte offset (0 = start).
+// caretFromIME extracts the pre-edit caret byte offset carried by a compose
+// event (protocol index; negative = end of the pre-edit string).
 func caretFromIME(ev input.IMEEvent) int {
-	if ev.End >= 0 {
-		return ev.End
-	}
-	return 0
+	return ev.Start
 }
 
 // --- clipboard integration (optional; platform.Clipboard capability) ---

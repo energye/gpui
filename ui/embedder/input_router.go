@@ -47,10 +47,15 @@ type InputRouter struct {
 	// OnIME receives in-progress IME events.
 	OnIME func(ev input.IMEEvent)
 
-	// TextEditor is the focused editable control (if any). When set, KindText
-	// and KindIME events are routed to it automatically (plan §6), in addition
-	// to the OnText/OnIME callbacks.
+	// TextEditor is the FALLBACK editable control used when no focused
+	// TextEditTarget resolves (single-editor windows / tests). A focused
+	// target takes precedence (plan I5).
 	TextEditor *textinput.Editor
+
+	// ime + session implement automatic IME session management (I4): the
+	// session belongs to the currently focused TextEditTarget.
+	ime     platform.IME
+	session TextEditTarget
 
 	mu   sync.Mutex
 	mods input.Modifiers
@@ -73,14 +78,20 @@ func (r *InputRouter) SetHitTest(h HitTestFunc) {
 	r.mu.Unlock()
 }
 
-// SetFocus attaches the focus manager for key routing.
+// SetFocus attaches the focus manager for key routing. When the IME
+// capability is already attached, focus observation starts here.
 func (r *InputRouter) SetFocus(f *focus.FocusManager) {
 	if r == nil {
 		return
 	}
 	r.mu.Lock()
 	r.focus = f
+	ime := r.ime
 	r.mu.Unlock()
+	if ime != nil && f != nil {
+		f.AddFocusObserver(r.onFocusChange)
+		r.onFocusChange(nil, f.Primary())
+	}
 }
 
 // Modifiers returns the tracked modifier state (for FromPlatform).
@@ -103,6 +114,138 @@ func (r *InputRouter) RoutePlatform(ev platform.Event) {
 	r.Route(in)
 }
 
+// TextEditTarget is implemented by editable controls (kit Input/TextArea,
+// demo boxes) so the framework drives their IME session automatically
+// (plan §10.2 I4): focus-in opens the session, blur closes it (rolling back
+// any live pre-edit), edits keep the candidate anchor and surrounding text
+// fresh.
+type TextEditTarget interface {
+	// Editor returns the editing state this target edits (non-nil).
+	Editor() *textinput.Editor
+	// IMERect returns the current caret anchor rectangle in logical px,
+	// window-relative — candidate windows attach here. Compute it from the
+	// caret position (e.g. prefix width), not just the field bounds.
+	IMERect() platform.Rect
+	// ContentPurpose declares the field type for the input method.
+	ContentPurpose() platform.ContentPurpose
+}
+
+// AttachIME wires the optional IME capability for automatic session
+// management: focus transitions of registered TextEditTargets open/close
+// sessions; edits refresh the anchor and surrounding text. Re-evaluates the
+// current primary immediately; safe before or after SetFocus.
+func (r *InputRouter) AttachIME(ime platform.IME) {
+	if r == nil || ime == nil {
+		return
+	}
+	r.mu.Lock()
+	r.ime = ime
+	fm := r.focus
+	r.mu.Unlock()
+	if fm != nil {
+		fm.AddFocusObserver(r.onFocusChange)
+		r.onFocusChange(nil, fm.Primary())
+	}
+}
+
+// onFocusChange runs on UI-thread focus transitions and re-syncs the IME
+// session with the newly focused target.
+func (r *InputRouter) onFocusChange(from, to *focus.FocusNode) {
+	r.mu.Lock()
+	prev := r.session
+	var next TextEditTarget
+	if to != nil {
+		next, _ = to.Target.(TextEditTarget)
+	}
+	if ime := r.ime; ime == nil || prev == next {
+		r.session = prev // unchanged (or no capability yet)
+		r.mu.Unlock()
+		return
+	} else {
+		r.session = next
+		r.mu.Unlock()
+		r.syncSession(ime, prev, next)
+	}
+}
+
+// syncSession closes the outgoing session (cancel live pre-edit → disable)
+// then opens the incoming one (purpose → enable at its anchor → surrounding).
+func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
+	if prev != nil {
+		if ed := prev.Editor(); ed != nil {
+			ed.CancelCompose()
+		}
+		ime.DisableIME()
+	}
+	if next != nil {
+		ime.SetContentType(next.ContentPurpose())
+		ime.EnableIME(next.IMERect())
+		r.pushSurrounding(ime, next)
+	}
+}
+
+// currentTarget resolves the focused control when it is a text edit target.
+func (r *InputRouter) currentTarget() TextEditTarget {
+	if r.focus != nil {
+		n := r.focus.Primary()
+		if n != nil {
+			if tt, ok := n.Target.(TextEditTarget); ok && tt.Editor() != nil {
+				return tt
+			}
+		}
+	}
+	return nil
+}
+
+// editorFor returns the editor events apply to: the focused target's editor
+// when one is focused, else the static fallback (I5).
+func (r *InputRouter) editorFor() *textinput.Editor {
+	if t := r.currentTarget(); t != nil {
+		return t.Editor()
+	}
+	return r.TextEditor
+}
+
+// afterEdit refreshes the open session's candidate anchor and surrounding
+// text after an edit or caret move reached an editor (typing, IME commit,
+// arrows/backspace routed through the router).
+func (r *InputRouter) afterEdit() {
+	r.mu.Lock()
+	t, ime := r.session, r.ime
+	r.mu.Unlock()
+	if t == nil || ime == nil {
+		return
+	}
+	ime.UpdateCursorRect(t.IMERect())
+	r.pushSurrounding(ime, t)
+}
+
+// RefreshIMEAnchor re-sends the open session's cursor rect and surrounding
+// text. Widgets call it after programmatic buffer/caret mutations that did
+// not flow through the router (SetText, click-to-place-caret).
+func (r *InputRouter) RefreshIMEAnchor() { r.afterEdit() }
+
+// pushSurrounding reports buffer+caret as surrounding text. The pre-edit
+// region is EXCLUDED (the protocol reports preedit separately); caret byte
+// offsets are adjusted accordingly.
+func (r *InputRouter) pushSurrounding(ime platform.IME, t TextEditTarget) {
+	ed := t.Editor()
+	if ed == nil {
+		return
+	}
+	text, cursor := ed.Text(), ed.Cursor()
+	if s, e, ok := ed.ComposeRange(); ok {
+		text = text[:s] + text[e:]
+		switch {
+		case cursor >= e:
+			cursor -= e - s
+		case cursor > s:
+			cursor = s
+		}
+	}
+	ime.SetComposing(text, cursor)
+}
+
 // Route dispatches one normalized input event.
 func (r *InputRouter) Route(ev input.Event) {
 	if r == nil {
@@ -114,19 +257,21 @@ func (r *InputRouter) Route(ev input.Event) {
 	case input.KindKey:
 		r.routeKey(ev)
 	case input.KindText:
-		if r.TextEditor != nil {
-			r.TextEditor.ApplyText(ev.Text)
+		if ed := r.editorFor(); ed != nil {
+			ed.ApplyText(ev.Text)
 		}
 		if r.OnText != nil {
 			r.OnText(ev.Text)
 		}
+		r.afterEdit()
 	case input.KindIME:
-		if r.TextEditor != nil {
-			r.TextEditor.ApplyIME(ev.IME)
+		if ed := r.editorFor(); ed != nil {
+			ed.ApplyIME(ev.IME)
 		}
 		if r.OnIME != nil {
 			r.OnIME(ev.IME)
 		}
+		r.afterEdit()
 	}
 }
 
@@ -152,11 +297,12 @@ func (r *InputRouter) routePointer(ev input.Event) {
 
 func (r *InputRouter) routeKey(ev input.Event) {
 	ke := ev.Key
+	ed := r.editorFor()
 	// Printable character without a modifier (or with shift) → committed
 	// text into the focused editor (plain keyboard path; IME compose goes
 	// through KindText/KindIME separately). Control keys (Backspace/arrows)
 	// are handled by the editor's OnKey consumer instead.
-	if ke.Pressed && r.TextEditor != nil && ke.Rune != 0 && ke.Rune != '\r' && ke.Rune != '\n' {
+	if ke.Pressed && ed != nil && ke.Rune != 0 && ke.Rune != '\r' && ke.Rune != '\n' {
 		switch ke.Key {
 		case input.KeyBackspace, input.KeyDelete,
 			input.KeyArrowLeft, input.KeyArrowRight,
@@ -168,8 +314,8 @@ func (r *InputRouter) routeKey(ev input.Event) {
 		default:
 			// When an IME composition is active the raw keys feed the
 			// pre-edit (handled by the IME); do not double-insert.
-			if !r.mods.Control && !r.mods.Alt && !r.mods.Meta && !r.TextEditor.ComposeActive() {
-				r.TextEditor.Insert(string(ke.Rune))
+			if !r.mods.Control && !r.mods.Alt && !r.mods.Meta && !ed.ComposeActive() {
+				ed.Insert(string(ke.Rune))
 			}
 		}
 	}
@@ -214,6 +360,9 @@ func (r *InputRouter) routeKey(ev input.Event) {
 		}
 		_ = r.focus.HandleKey(fk)
 	}
+	// Editing keys (arrows/backspace via the OnKey consumer above) move the
+	// caret too — refresh anchor + surrounding like text edits do.
+	r.afterEdit()
 }
 
 // mapFocusKeyCode maps logical keys into the legacy focus key code space

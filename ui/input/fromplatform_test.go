@@ -212,6 +212,13 @@ func TestFromPlatform_IME(t *testing.T) {
 	if ev3.IME.Kind != IMECompose {
 		t.Fatalf("out-of-range kind = %+v", ev3.IME)
 	}
+	// Delete-surrounding kind (zwp delete_surrounding_text).
+	ev4 := FromPlatform(platform.Event{
+		Type: platform.EventIME, IMEKind: 3, IMEStart: -2, IMEEnd: 1,
+	}, Modifiers{})
+	if ev4.IME.Kind != IMEDeleteSurrounding || ev4.IME.Start != -2 || ev4.IME.End != 1 {
+		t.Fatalf("ime delete-surrounding = %+v", ev4.IME)
+	}
 }
 
 func TestKeySingleLetter(t *testing.T) {

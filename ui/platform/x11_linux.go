@@ -1055,16 +1055,20 @@ func (h *x11Host) drainX() []Event {
 		case xKeyPress, xKeyRelease:
 			// Route through the IME first (XIM). If the input method consumed
 			// the key (composing), skip it as a plain key. If it committed
-			// text, surface that as an IME event too — consumers split the
-			// payloads: textinput inserts the commit, focus/keys use the
-			// key event for shortcuts (a printable char still yields both).
+			// text, surface that as an IME event too. Text ownership: when
+			// the IME produced this key's characters, the decoded Key event
+			// drops its Rune — text enters the editor once via the IME
+			// commit channel, Key stays for shortcuts/focus (no double
+			// insert by router-level rune insertion).
 			skipKey := false
+			keyCommitted := ""
 			if h.xim != nil {
 				handled, committed := h.xim.filter(loadXIMFuncs(), &buf[0], h.st.window)
 				if handled {
 					skipKey = true // IME is composing; not a plain key
 				}
 				if committed != "" {
+					keyCommitted = committed
 					out = append(out, Event{
 						Type: EventIME, IMEKind: 1, // commit
 						IMEText: committed, IMEStart: -1, IMEEnd: -1,
@@ -1073,6 +1077,9 @@ func (h *x11Host) drainX() []Event {
 			}
 			if !skipKey {
 				if ev, ok := h.decodeKey(t, buf[:]); ok {
+					if keyCommitted != "" {
+						ev.Rune = 0
+					}
 					out = append(out, ev)
 				}
 			}

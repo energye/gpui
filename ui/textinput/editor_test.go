@@ -119,8 +119,8 @@ func TestOnChangeFires(t *testing.T) {
 	e := New()
 	n := 0
 	e.OnChange = func() { n++ }
-	e.Insert("a")  // 1
-	e.Insert("b")  // 2
+	e.Insert("a")      // 1
+	e.Insert("b")      // 2
 	e.DeleteBackward() // 3
 	if n != 3 {
 		t.Fatalf("change fires = %d, want 3", n)
@@ -223,6 +223,30 @@ func TestApplyIMEComposeAndCommit(t *testing.T) {
 	}
 }
 
+func TestApplyIMEEmptyComposeResets(t *testing.T) {
+	e := New()
+	e.SetText("ab")
+	e.SetCaret(2)
+	// Compose starts, then the compositor sends an empty preedit (= reset).
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"})
+	if !e.ComposeActive() || e.Text() != "abni" {
+		t.Fatalf("compose active: text=%q", e.Text())
+	}
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
+	if e.ComposeActive() {
+		t.Fatal("empty preedit must end the compose session")
+	}
+	if e.Text() != "ab" {
+		t.Fatalf("reset should roll back pre-edit, text=%q", e.Text())
+	}
+	// An empty preedit with no active session must NOT start one (this is
+	// what latched compose state after a commit and blocked plain typing).
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
+	if e.ComposeActive() {
+		t.Fatal("empty preedit on inactive session must stay inactive")
+	}
+}
+
 func TestCutCopyPaste(t *testing.T) {
 	e := New()
 	e.SetText("hello")
@@ -254,5 +278,85 @@ func TestEditorStringAndTrim(t *testing.T) {
 	}
 	if e.Trimmed() != "hi" {
 		t.Fatalf("trimmed = %q", e.Trimmed())
+	}
+}
+
+func TestApplyIMEComposeCaretIndex(t *testing.T) {
+	e := New()
+	e.SetText("hi")
+	e.SetCaret(2)
+	// First preedit event carries the caret index (end of "ni").
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni", Start: 2, End: 2})
+	if e.Text() != "hini" || e.Cursor() != len("hini") {
+		t.Fatalf("compose begin: text=%q cursor=%d", e.Text(), e.Cursor())
+	}
+	// Follow-up preedit with index -1 → caret at the end of the pre-edit.
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihao", Start: -1, End: -1})
+	if e.Cursor() != len("hinihao") {
+		t.Fatalf("caret at end: %d", e.Cursor())
+	}
+	// Caret inside the pre-edit (byte offset 3 = after "nih").
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihaoni", Start: 3, End: 3})
+	if e.Cursor() != len("hi")+3 {
+		t.Fatalf("caret mid pre-edit: %d", e.Cursor())
+	}
+}
+
+func TestApplyIMEDeleteSurrounding(t *testing.T) {
+	e := New()
+	e.SetText("hello")
+	e.SetCaret(5)
+	// Delete one byte before the caret: "hello" → "hell".
+	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -1, End: 0})
+	if e.Text() != "hell" || e.Cursor() != 4 {
+		t.Fatalf("delete before: text=%q cursor=%d", e.Text(), e.Cursor())
+	}
+	// Delete one byte on each side of the caret ("el"); caret lands on the
+	// deletion start.
+	e.SetCaret(2)
+	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -1, End: 1})
+	if e.Text() != "hl" || e.Cursor() != 1 {
+		t.Fatalf("delete around: text=%q cursor=%d", e.Text(), e.Cursor())
+	}
+}
+
+func TestDeleteSurroundingCJKSnapsRuneBoundary(t *testing.T) {
+	e := New()
+	e.SetText("你好")
+	e.SetCaret(3) // boundary between 你 and 好
+	// A misaligned byte count (1) snaps back to the full 3-byte 你.
+	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -1, End: 0})
+	if e.Text() != "好" || e.Cursor() != 0 {
+		t.Fatalf("cjk snap: text=%q cursor=%d", e.Text(), e.Cursor())
+	}
+}
+
+func TestDeleteSurroundingCancelsOverlappingCompose(t *testing.T) {
+	e := New()
+	e.SetText("ab")
+	e.SetCaret(2)
+	e.BeginCompose("cd") // "abcd", compose [2,4)
+	// Deletion [0..3) crosses the pre-edit region → session cancelled.
+	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -2, End: 1})
+	if e.ComposeActive() {
+		t.Fatal("overlapping deletion should cancel compose")
+	}
+	if e.Text() != "d" || e.Cursor() != 0 {
+		t.Fatalf("text=%q cursor=%d", e.Text(), e.Cursor())
+	}
+}
+
+func TestDeleteSurroundingShiftsComposeRegion(t *testing.T) {
+	e := New()
+	e.SetText("ab")
+	e.SetCaret(2)
+	e.BeginCompose("xy") // "abxy", compose [2,4)
+	// Delete the two bytes before the pre-edit region → region shifts left.
+	e.ApplyIME(input.IMEEvent{Kind: input.IMEDeleteSurrounding, Start: -2, End: 0})
+	if s, en, ok := e.ComposeRange(); !ok || s != 0 || en != 2 {
+		t.Fatalf("compose range after shift = (%d,%d,%v)", s, en, ok)
+	}
+	if e.Text() != "xy" {
+		t.Fatalf("text = %q", e.Text())
 	}
 }

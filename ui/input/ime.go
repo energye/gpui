@@ -12,6 +12,10 @@ const (
 	// IMECaretMove: the text-editing cursor/selection moved (from on-screen
 	// keyboards / IME UI), Start/End delimit the affected range.
 	IMECaretMove
+	// IMEDeleteSurrounding: the IME asks to remove text around the caret
+	// (zwp_text_input_v3 delete_surrounding_text). Start carries -before and
+	// End carries +after, both byte counts relative to the caret.
+	IMEDeleteSurrounding
 )
 
 func (k IMEKind) String() string {
@@ -22,6 +26,8 @@ func (k IMEKind) String() string {
 		return "commit"
 	case IMECaretMove:
 		return "caret"
+	case IMEDeleteSurrounding:
+		return "delete-surrounding"
 	default:
 		return "unknown"
 	}

@@ -1,6 +1,7 @@
 package embedder
 
 import (
+	"fmt"
 	"sync/atomic"
 	"testing"
 
@@ -36,8 +37,8 @@ func (t *testTarget) OnKey(ev input.KeyEvent) {
 	t.lastKey = ev.Key
 }
 
-func (t *testTarget) OnText(ev input.TextEvent)  {}
-func (t *testTarget) OnIME(ev input.IMEEvent)    {}
+func (t *testTarget) OnText(ev input.TextEvent) {}
+func (t *testTarget) OnIME(ev input.IMEEvent)   {}
 
 // fixedHit returns a fixed target at any point.
 func fixedHit(tgt rendering.RenderObject) HitTestFunc {
@@ -244,3 +245,122 @@ func TestRouterKeyDuringComposeNotDoubleInserted(t *testing.T) {
 		t.Fatalf("editor text = %q, want ni (no double insert)", ed.Text())
 	}
 }
+
+// recIME records every IME capability call for session-management asserts.
+type recIME struct {
+	enabled    int
+	disabled   int
+	rects      []platform.Rect
+	purposes   []platform.ContentPurpose
+	surround   []string // "text|cursor" snapshots from SetComposing
+	cursorRect []platform.Rect
+}
+
+func (r *recIME) EnableIME(rect platform.Rect) { r.enabled++; r.rects = append(r.rects, rect) }
+func (r *recIME) UpdateCursorRect(rt platform.Rect) {
+	r.cursorRect = append(r.cursorRect, rt)
+}
+func (r *recIME) SetContentType(p platform.ContentPurpose) { r.purposes = append(r.purposes, p) }
+func (r *recIME) SetComposing(text string, cursor int) {
+	r.surround = append(r.surround, fmt.Sprintf("%q|%d", text, cursor))
+}
+func (r *recIME) Commit(text string) {}
+func (r *recIME) DisableIME()        { r.disabled++ }
+
+// fakeTarget is a minimal TextEditTarget over a real editor.
+type fakeTarget struct{ ed *textinput.Editor }
+
+func (t *fakeTarget) Editor() *textinput.Editor               { return t.ed }
+func (t *fakeTarget) ContentPurpose() platform.ContentPurpose { return platform.PurposeEmail }
+func (t *fakeTarget) IMERect() platform.Rect                  { return platform.Rect{X: 10, Y: 20, W: 100, H: 30} }
+
+// TestRouter_IMEAutoSession drives the focus-driven IME lifecycle (I4/I5):
+// focus-in opens a session with purpose+anchor+surrounding; typed keys land
+// in the FOCUSED TARGET's editor and refresh anchor/surrounding; blur
+// cancels compose and disables.
+func TestRouter_IMEAutoSession(t *testing.T) {
+	ime := &recIME{}
+	ed := textinput.New()
+	tgt := &fakeTarget{ed: ed}
+
+	fm := focus.NewManager()
+	node := focus.NewFocusNode("field")
+	node.Target = tgt
+	fm.Register(node)
+
+	r := NewInputRouter(nil, fm)
+	r.AttachIME(ime)
+
+	if ime.enabled != 0 || ime.disabled != 0 {
+		t.Fatalf("no focus yet: enabled=%d disabled=%d", ime.enabled, ime.disabled)
+	}
+
+	// Focus-in → purpose + enable + surrounding push.
+	if !node.RequestFocus() {
+		t.Fatal("RequestFocus failed")
+	}
+	if ime.enabled != 1 || ime.disabled != 0 {
+		t.Fatalf("after focus-in: enabled=%d disabled=%d", ime.enabled, ime.disabled)
+	}
+	if len(ime.purposes) != 1 || ime.purposes[0] != platform.PurposeEmail {
+		t.Fatalf("purposes = %v", ime.purposes)
+	}
+	if len(ime.rects) != 1 || (ime.rects[0] != platform.Rect{X: 10, Y: 20, W: 100, H: 30}) {
+		t.Fatalf("anchor rects = %v", ime.rects)
+	}
+
+	// Dynamic editor resolution (I5): a plain key inserts into the focused
+	// TARGET's editor even though router.TextEditor is nil; the edit also
+	// refreshes anchor + surrounding.
+	r.Route(input.FromPlatform(platform.Event{
+		Type: platform.EventKey, Pressed: true, KeyCode: 'a', Rune: 'a',
+	}, input.Modifiers{}))
+	if ed.Text() != "a" {
+		t.Fatalf("target editor text = %q", ed.Text())
+	}
+	if len(ime.cursorRect) == 0 {
+		t.Fatal("edit did not refresh the cursor anchor")
+	}
+	last := ime.surround[len(ime.surround)-1]
+	if last != `"a"|1` {
+		t.Fatalf("surrounding after edit = %v", ime.surround)
+	}
+
+	// Compose + commit flow through the focused editor too; surrounding text
+	// must EXCLUDE the pre-edit region while composing.
+	r.Route(input.FromPlatform(platform.Event{Type: platform.EventIME, IMEKind: 0, IMEText: "ni"}, input.Modifiers{}))
+	if !ed.ComposeActive() || ed.Text() != "ani" {
+		t.Fatalf("compose state = %q active=%v", ed.Text(), ed.ComposeActive())
+	}
+	for _, s := range ime.surround {
+		if s == `"ani"|`+itoa(ed.Cursor()) && ed.ComposeActive() {
+			t.Fatalf("surrounding includes pre-edit: %v", ime.surround)
+		}
+	}
+	r.Route(input.FromPlatform(platform.Event{Type: platform.EventIME, IMEKind: 1, IMEText: "你"}, input.Modifiers{}))
+	if ed.Text() != "a你" {
+		t.Fatalf("commit result = %q", ed.Text())
+	}
+
+	// Blur → pre-edit canceled + session disabled.
+	fm.Blur()
+	if ime.disabled != 1 {
+		t.Fatalf("blur did not disable: %d", ime.disabled)
+	}
+}
+
+// TestRouter_TextEditorFallback keeps the static TextEditor path working
+// when no focus manager / no focused target exists (backward compat).
+func TestRouter_TextEditorFallback(t *testing.T) {
+	ed := textinput.New()
+	r := NewInputRouter(nil, nil)
+	r.TextEditor = ed
+	r.Route(input.FromPlatform(platform.Event{
+		Type: platform.EventKey, Pressed: true, KeyCode: 'b', Rune: 'b',
+	}, input.Modifiers{}))
+	if ed.Text() != "b" {
+		t.Fatalf("fallback editor text = %q", ed.Text())
+	}
+}
+
+func itoa(v int) string { return fmt.Sprintf("%d", v) }

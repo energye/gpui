@@ -30,6 +30,9 @@ type PipelineOptions struct {
 	// router; the per-example OnEvent input handling is not needed. Windows
 	// without Input keep the existing OnEvent path unchanged.
 	Input *InputRouter
+	// IME is the optional input-method capability; when both are set it is
+	// attached to Input for automatic session management (plan I4).
+	IME platform.IME
 	// WarmUp runs one full paint before the loop (F11).
 	WarmUp bool
 	// Overlay is the optional F13 overlay stack (P5d). Hit-test is overlay-first.
@@ -459,6 +462,9 @@ func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 	// Wire the unified input router to this app's hit-test (plan §4).
 	if opts.Input != nil {
 		opts.Input.SetHitTest(app.HitTestPointer)
+		if opts.IME != nil {
+			opts.Input.AttachIME(opts.IME)
+		}
 		app.input = opts.Input
 	}
 	return app

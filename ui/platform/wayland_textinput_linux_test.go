@@ -74,3 +74,24 @@ func TestWlImeNilSafety(t *testing.T) {
 		t.Fatalf("host without ti should have nil IME, got %T", got)
 	}
 }
+
+// TestContentPurposeValuesStable locks the wire values (mirror the
+// zwp_text_input_v3 content_purpose enum; append-only).
+func TestContentPurposeValuesStable(t *testing.T) {
+	if PurposeNormal != 0 || PurposeAlpha != 1 || PurposeDigits != 2 ||
+		PurposeNumber != 3 || PurposePhone != 4 || PurposeURL != 5 ||
+		PurposeEmail != 6 || PurposeName != 7 || PurposePassword != 8 ||
+		PurposePin != 9 || PurposeDate != 10 || PurposeTime != 11 ||
+		PurposeDatetime != 12 || PurposeTerminal != 13 {
+		t.Fatal("content purpose enum drifted from zwp_text_input_v3")
+	}
+}
+
+// TestWlImeSetContentTypeNilSafety extends the degrade contract. Note the
+// IME capability is an interface: a NIL INTERFACE must not be called on
+// (callers nil-check Window.IME() first, per platform/ime.go); here we
+// exercise the typed-nil receiver path.
+func TestWlImeSetContentTypeNilSafety(t *testing.T) {
+	var im *wlIme
+	im.SetContentType(PurposeEmail) // typed-nil receiver: must not panic
+}

@@ -20,7 +20,8 @@ const (
 	KindScroll
 	// KindText is committed text (keyboard chars, paste, or IME commit).
 	KindText
-	// KindIME is an in-progress IME session event (compose/caret).
+	// KindIME is an in-progress IME session event
+	// (compose/commit/caret/delete-surrounding).
 	KindIME
 	// KindWake is a cross-thread wake-up (no input payload).
 	KindWake
