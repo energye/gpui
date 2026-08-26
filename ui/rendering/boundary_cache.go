@@ -43,9 +43,16 @@ type BoundaryCache struct {
 	FrameShellRerecord int64
 	FrameShellSkip     int64
 
+	// Evictions is the cumulative count of entries dropped by the budget
+	// (explicit cap via SetMaxEntries) or by generational sweep (R14).
+	Evictions int64
+
 	// frame is the present-paint generation (BeginFrame counter); it drives
 	// generational eviction of untouched entries below.
 	frame uint64
+	// maxEntries is the explicit budget cap (R14; 0 = unlimited, the default —
+	// generational sweep still bounds long-run growth).
+	maxEntries int
 }
 
 // Generational eviction tuning: an entry untouched for evictFrames presents
@@ -93,8 +100,55 @@ func (c *BoundaryCache) BeginFrame() {
 		for id, e := range c.entries {
 			if c.frame-e.lastSeen > evictFrames {
 				delete(c.entries, id)
+				c.Evictions++
 			}
 		}
+	}
+	c.enforceBudgetLocked()
+}
+
+// SetMaxEntries sets the explicit budget cap (R14). 0 = unlimited (default;
+// generational sweep still bounds long-run growth). A cap below the current
+// entry count takes effect on the next Store: the oldest-lastSeen entries are
+// dropped first until under budget. Correctness never depends on the cache —
+// an evicted boundary simply re-records.
+func (c *BoundaryCache) SetMaxEntries(n int) {
+	if c == nil {
+		return
+	}
+	c.maxEntries = n
+	c.enforceBudgetLocked()
+}
+
+// MaxEntries returns the explicit budget cap (0 = unlimited).
+func (c *BoundaryCache) MaxEntries() int {
+	if c == nil {
+		return 0
+	}
+	return c.maxEntries
+}
+
+// enforceBudgetLocked drops oldest-lastSeen entries while over the explicit
+// cap. Runs after sweep/Store so both paths keep the map bounded; a no-op
+// without a cap.
+func (c *BoundaryCache) enforceBudgetLocked() {
+	if c.maxEntries <= 0 || len(c.entries) <= c.maxEntries {
+		return
+	}
+	for len(c.entries) > c.maxEntries {
+		var victim uint64
+		oldest := ^uint64(0)
+		for id, e := range c.entries {
+			if e != nil && e.lastSeen < oldest {
+				oldest = e.lastSeen
+				victim = id
+			}
+		}
+		if victim == 0 {
+			break
+		}
+		delete(c.entries, victim)
+		c.Evictions++
 	}
 }
 
@@ -274,6 +328,7 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 		cacheable:  true,
 		lastSeen:   c.frame,
 	}
+	c.enforceBudgetLocked()
 	c.Rerecord++
 	c.FrameRerecord++
 	if shellOf(n) {

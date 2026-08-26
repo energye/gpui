@@ -69,6 +69,9 @@ type PictureTextureCache struct {
 	// stamp is a monotonically-increasing last-use counter for LRU eviction.
 	stamp   uint64
 	usedNow map[uint64]struct{}
+	// explicitMax is the pinned budget from SetBudget (0 = automatic sizing
+	// via EnsureCapacity; the pinned value REPLACES it for eviction).
+	explicitMax int
 	// recordFrame is incremented per frame; entries store the frame they were
 	// re-recorded in so damage rects cover exactly the refreshed layers
 	// (blit also bumps lastUse, which must not count as a re-record).
@@ -86,6 +89,9 @@ type PictureTextureCache struct {
 	// (UI thread) resets them while the raster thread may still be reading.
 	FrameRerecord atomic.Int64
 	FrameSkip     atomic.Int64
+	// Evictions is the cumulative count of entries dropped by the capacity
+	// LRU in evictForNew (R14 observability). Guarded by mu.
+	Evictions int64
 }
 
 type pictureTextureSlot struct {
@@ -153,6 +159,45 @@ func (c *PictureTextureCache) EnsureCapacity(n int) {
 		return
 	}
 	c.max = n
+}
+
+// SetBudget pins an explicit entry budget (R14). 0 = automatic (default: the
+// composite path sizes the LRU to the live working set via EnsureCapacity).
+// When set, the pinned value REPLACES the automatic cap for eviction purposes.
+//
+// Correctness note: evictForNew never victimizes an entry used in the current
+// frame, so a budget BELOW the per-frame live working set cannot bind — entry
+// count floats up to the per-frame distinct-key count instead (same-frame
+// eviction would thrash re-records). A budget ABOVE the working set bounds the
+// cross-frame accumulation (scroll-in/out churn) and is the honest stress
+// configuration. Either way correctness never depends on the cache: an
+// evicted layer re-records (vector replay fallback).
+func (c *PictureTextureCache) SetBudget(n int) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.explicitMax = n
+}
+
+// Budget returns the pinned explicit budget (0 = automatic sizing).
+func (c *PictureTextureCache) Budget() int {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.explicitMax
+}
+
+// effMaxLocked is the effective LRU cap for eviction: the pinned budget when
+// set, otherwise the automatic working-set size.
+func (c *PictureTextureCache) effMaxLocked() int {
+	if c.explicitMax > 0 {
+		return c.explicitMax
+	}
+	return c.max
 }
 
 // SetLiveKeys publishes the frame's live cache-key set (UI thread, before the
@@ -276,7 +321,7 @@ func (c *PictureTextureCache) releaseDeferred(release func(), frame uint64) {
 		return
 	}
 	c.deferred = append(c.deferred, deferredRelease{release: release, frame: frame})
-	if len(c.deferred) > c.max*3 {
+	if len(c.deferred) > c.effMaxLocked()*3 {
 		c.drainDeferred(c.recordFrame)
 	}
 }
@@ -646,7 +691,8 @@ func (c *PictureTextureCache) measureTextBounds(pic *Picture) (image.Rectangle, 
 // cache is genuinely over capacity with live content, so fall back to the
 // oldest entry (correctness never depends on the cache). Always returns true.
 func (c *PictureTextureCache) evictForNew() bool {
-	if c.max <= 0 || len(c.entries) < c.max {
+	max := c.effMaxLocked()
+	if max <= 0 || len(c.entries) < max {
 		return true
 	}
 	pick := func(skipLive bool) uint64 {
@@ -678,6 +724,7 @@ func (c *PictureTextureCache) evictForNew() bool {
 			c.releaseEntryLocked(e)
 		}
 		delete(c.entries, victim)
+		c.Evictions++
 	}
 	return true
 }

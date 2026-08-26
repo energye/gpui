@@ -129,6 +129,14 @@ type FrameMetrics struct {
 	// PictureOpCount is last-frame display-list op count (W1 R5).
 	PictureOpCount int64 `json:"picture_op_count,omitempty"`
 
+	// Cache budget observability (W6 R14): CacheEntries is the current
+	// combined entry count of the two layer caches (boundary Picture cache +
+	// retained-path texture LRU); CacheEvictions is the cumulative count of
+	// entries dropped by the explicit budgets / capacity LRU / generational
+	// sweep. Sampled per frame by PipelineApp.
+	CacheEntries   int64 `json:"cache_entries,omitempty"`
+	CacheEvictions int64 `json:"cache_evictions,omitempty"`
+
 	// MeasureCacheHit is cumulative text-measure cache hits since last reset
 	// (W1 R9). MeasureCacheMiss is the miss counterpart for hits≥miss proof.
 	MeasureCacheHit  int64 `json:"measure_cache_hit"`
@@ -547,6 +555,19 @@ func (s *MetricsStore) NoteSaveLayer(allow, reject int64) {
 	s.mu.Lock()
 	s.m.SaveLayerAllow += allow
 	s.m.SaveLayerReject += reject
+	s.mu.Unlock()
+}
+
+// SetCacheBudget records the R14 cache-budget observability sample:
+// entries is the current combined boundary-Picture + texture-LRU entry count,
+// evictions the cumulative count of budget/LRU/sweep drops.
+func (s *MetricsStore) SetCacheBudget(entries, evictions int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.CacheEntries = entries
+	s.m.CacheEvictions = evictions
 	s.mu.Unlock()
 }
 
