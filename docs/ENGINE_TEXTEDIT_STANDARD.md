@@ -100,12 +100,13 @@ type TextLayout struct {
 ### F-A 光标与定位
 | # | 需求 | 验收要点 |
 |---|---|---|
-| F-A1 | 光标渲染：竖条、行盒高、闪烁 ~500ms、失焦隐藏 | 像素断言条盒=[baseline−ascent .. baseline+descent] |
-| F-A2 | 偏移→光标矩形（任意偏移、行尾/空行/超长串） | 以真窗**实际绘制字形**为真值：条列落在相邻墨迹间隙内（允许压字的窄缝除外） |
-| F-A3 | 点击→偏移（中点规则、换行感知） | 点 m 串第 k 字中部 → 落 k/k+1 边界；深部（30+ 字符）无漂移 |
-| F-A4 | 左右键按簇移动 | CJK 不劈半字 |
-| F-A5 | 上下键粘滞列移动 | 已实现，S1 迁移数据源 |
+| F-A1 | 光标渲染：竖条、行盒高、闪烁 ~500ms、失焦隐藏（S1） | 像素断言条盒=[baseline−ascent .. baseline+descent] |
+| F-A2 | 偏移→光标矩形（任意偏移、行尾/空行/超长串）（S1） | 以真窗**实际绘制字形**为真值：条列落在相邻墨迹间隙内（允许压字的窄缝除外） |
+| F-A3 | 点击→偏移（中点规则、换行感知）（S1） | 点 m 串第 k 字中部 → 落 k/k+1 边界；深部（30+ 字符）无漂移 |
+| F-A4 | 左右键按簇移动（S1 复验） | CJK 不劈半字 |
+| F-A5 | 上下键粘滞列移动（S1 迁移数据源） | 深部上下穿越列保持 |
 | F-A6 | Home/End/PageUp/PageDown/Ctrl+←→ 词跳 | ⬜ S3 |
+| F-A7 | **按键重复归一**：KeyRepeater 从 wayland_keyboard 迁 ui/input（主设计 D6 兑现），X11 服务端重复评估统一 | ⬜ S3（R5 补） |
 
 ### F-B 选区
 | # | 需求 | 状态 |
@@ -116,12 +117,24 @@ type TextLayout struct {
 | F-B4 | 选区高亮（行盒矩形并集，来自 TextLayout） | ⬜ S2 |
 | F-B5 | Copy/Cut/Paste 接线剪贴板 | 核心 ✅ / UI ⬜ S2 |
 
-### F-C 编辑操作
+### F-C 编辑操作与编辑器形态
 | # | 需求 | 状态 |
 |---|---|---|
 | F-C1 | 插入/前后删（rune 吸附） | ✅ |
 | F-C2 | Undo/Redo（一次组合=一步，主设计 §4.4） | ⬜ S3 |
-| F-C3 | 词删除 Ctrl+Backspace/Delete | ⬜ S3 |
+| F-C3 | 词删除 Ctrl+Backspace/Delete（对齐 Gio/Flutter 词边界） | ⬜ S3 |
+| F-C4 | **只读态 ReadOnly**：Editor 开关 + 编辑操作全拒 + 控件只读样式；IME 会话照常可开但 commit 拒绝写入（对齐 Gio ReadOnly / Flutter readOnly） | ⬜ S3（N4） |
+| F-C5 | **单行/多行模式建模**：单行=回车不换行、水平滚动、'
+' 输入被拒；多行反之（对齐 Gio SingleLine / Flutter maxLines） | ⬜ S3（N5） |
+| F-C6 | **提交动作**：Enter 触发 onSubmitted 回调 + TextInputAction 语义（done/go/search/send…映射 zwp keymap 无关的抽象动作），单行模式默认启用 | ⬜ S3（N6） |
+| F-C7 | **IME 组合期回车语义分层**：单行模式组合中回车=提交组合原文（commit as-is，Flutter AddText 同径），非组合回车=触发提交动作；多行模式组合中回车=换行插入。须成文+单测（对照 Flutter engine AddCodePoint/EndComposing 分工） | ⬜ S1.5（R2 补） |
+
+### F-D2 组合与选区交互语义（N1–N3 · 对齐 Flutter TextInputModel）
+| # | 需求 | 现状→目标 |
+|---|---|---|
+| F-S1 | **组合起点语义**：开始组合时若存在选区 → 组合 span 从选区头（sel[0]）开始并覆盖选中段；无选区 → 从 caret 起。当前实现固定 sel[1]，属未定义行为，须改 | ❌→S1.5 |
+| F-S2 | **组合期选区钳制**：组合期间选区（含点击/键盘造成的移动）钳制在组合范围内，不得跨出 | ❌→S1.5 |
+| F-S3 | **commit 替换既有选区语义成文**：commit 原子替换「选中文本或组合 span」——当前 Insert 的实现恰好如此但属巧合，须写成 Editor 契约 + 单测锁定 | 🔶→S1.5 |
 
 ### F-D IME（协议层归主设计；此处只列与光标几何交叉项）
 | # | 需求 | 状态 |
@@ -130,20 +143,31 @@ type TextLayout struct {
 | F-D2 | 组合光标骑 preedit 内部 | ✅ |
 | F-D3 | 候选锚点 = 光标矩形（同源） | ✅ 单源化后改读 TextLayout |
 | F-D4~D7 | surrounding/purpose/delete_surrounding/多字段 | ✅ |
-| F-D8 | 三平台矩阵 | Wayland ✅ / X11 🔶(I3 复测) / Win ⬜ M2 / mac ⬜ M3 |
+| F-D9 | **ContentType.Hint 建模落地（兑现已拖期的主设计 D8）**：Hint{Any,Text,Numeric,Email,URL,Telephone,Password…} 对齐 zwp content_hint / Gio InputHint；接口、平台透传（wl set_content_type hint 位）、purpose→hint 联动默认值 | ❌ S1.5（N7） |
+| F-D10 | **锚点刷新自动闭环**：Editor.OnChange → InputRouter.RefreshIMEAnchor 自动接线，消灭「程序化改动（SetText 等）绕过路由导致锚点过期」隐患 | ❌ S1 随手做（N9） |
+| F-D11 | **IME 主动改选区**（对齐 Gio SelectionEvent）：输入法可请求设置选区（如候选确认后的范围圈定）；入站词表补 IMESetSelection 或复用 IMEEvent 载荷 | ❌ S1.5（R2 补） |
+| F-D12 | 三平台矩阵 | Wayland ✅ / X11 🔶(I3 复测) / Win ⬜ M2 / mac ⬜ M3 |
 
-### F-E 滚动与裁剪
+### F-E 控件层与外观（kit BaseEditable，主设计 §6.1 兑现）
 | # | 需求 | 状态 |
 |---|---|---|
-| F-E1 | 输入/移动时自动滚动露出光标 | ⬜ S5 |
-| F-E2 | 单行字段水平滚动 | ⬜ S5 |
-| F-E3 | MaxLines/Ellipsis 与编辑态共存 | ⬜ S5 |
+| F-E0a | **BaseEditable 内嵌类型**：包办 Editor/IMERect/ContentPurpose/DrawPreedit 四件套，自定义控件 ≈15 行接入（主设计 §6.1 承诺） | ⬜ S2.5（N8） |
+| F-E0b | 占位符渲染（空+未聚焦时显示 hint 文本，不进缓冲） | ⬜ S2.5 |
+| F-E0c | 密码掩码渲染（PurposePassword 时圆点替换 + 关预测） | ⬜ S2.5 |
+| F-E0d | 只读/禁用视觉样式 | ⬜ S2.5 |
+
+### F-F 滚动与裁剪
+| # | 需求 | 状态 |
+|---|---|---|
+| F-F1 | 输入/移动时自动滚动露出光标 | ⬜ S5 |
+| F-F2 | 单行字段水平滚动 | ⬜ S5 |
+| F-F3 | MaxLines/Ellipsis 与编辑态共存 | ⬜ S5 |
 
 ---
 
 ## 3. 分期实施（推翻式重写，不打补丁）
 
-### S1 布局单源化（当前期 · 地基）
+### S1 布局单源化（地基 · 含 N9 锚点闭环）
 
 **重写范围**（可推翻现有代码）：
 - 新建 `ui/rendering/text_layout.go`：TextLayout 结构 + 构建（WrapText+Shape 组装）+ 查询 API：
@@ -163,19 +187,33 @@ type TextLayout struct {
 3. CJK/混合/composing 五场景快照不回归；
 4. 全 ui 包测试绿；apidoc 门禁绿（新公开类型/API 入 RENDER_API_CATALOG）。
 
+**随 S1 顺手做（N9）**：Editor.OnChange → RefreshIMEAnchor 自动接线（一行胶水 + 单测）。
+
 **明确不做**：不改条宽/颜色/避让策略；不新增测量 API；不碰 IME 协议层。
 
+### S1.5 组合×选区交互语义（N1–N3 语义正确性 · 紧跟 S1）
+F-S1 组合起点=选区头并覆盖选中段；F-S2 组合期选区钳制；F-S3 commit 替换选区契约成文+单测锁定；
+F-C7 组合期回车语义分层；F-D9 ContentType.Hint 建模落地（接口改传完整 ContentType，含 Hints 位）；
+F-D11 IME 主动改选区入站事件。
+门禁：选中一段文字直接打拼音→拼音替换选中段（真窗断言）；组合中点击钳制单测；
+单行组合回车 commit-as-is 单测；hint 位协议日志断言。
+
 ### S2 选区体系
-F-B1–B5；高亮矩形直接由 TextLayout 的行盒+边界 X 合成。门禁：拖选/双击/剪贴板互通真窗断言。
+F-B1–B4；高亮矩形直接由 TextLayout 的行盒+边界 X 合成。门禁：拖选/双击/剪贴板互通真窗断言。
+
+### S2.5 控件层 BaseEditable（N8 · 兑现主设计 §6.1）
+F-E0a–d：BaseEditable 四件套 + 占位符 + 密码掩码 + 只读样式。
+门禁：自定义控件接入 ≤15 行的示例编译+运行断言；密码框 purpose 日志 + 掩码像素断言。
 
 ### S3 编辑补全
-F-C2/C3、F-A6。门禁：undo 跨组合分组单测 + 词跳单测。
+F-C2/C3/C4/C5/C6、F-A6。门禁：undo 跨组合分组单测 + 词跳单测 + 只读态拒绝写入单测 +
+单行回车触发 onSubmitted 断言。
 
 ### S4 IME 收口
 F-D1 preedit 样式渲染；P2/P3/P8 真机销账；X11 I3 复测；M2/M3 盲写按 R-BLIND 纪律。
 
 ### S5 滚动露出
-F-E1–E3。门禁：长文输入光标始终可见的真窗断言。
+F-F1–F3。门禁：长文输入光标始终可见的真窗断言。
 
 ---
 
@@ -187,10 +225,47 @@ F-E1–E3。门禁：长文输入光标始终可见的真窗断言。
 3. **提交纪律**：每批改动停下报告，用户确认后才 git add/commit（AGENTS.md 硬约束）；
 4. **单一来源审计**：CI/grep 层面禁止 caret/hit 路径出现 `MeasureWidth(`、`Advance(` 累加。
 
+### 语义补充（R7 · 成熟 IME 行为对照后的明确化）
+
+| # | 语义 | 定案 |
+|---|---|---|
+| S-1 | 失焦时活组合的处理 | 取消组合、缓冲不变（DetachEditor 现行为 ✓，成文锁定） |
+| S-2 | 候选翻页/选词 | 合成器侧职责（zwp 架构），客户端只收 commit——非自绘候选窗的必然推论 |
+| S-3 | preedit 样式映射 | Segments{Attr}→下划线/粗下划线/背景色三档客户端自绘（zwp 无样式位的协议天花板，见 R3） |
+| S-4 | 多窗口实例粒度 | 每顶层窗口一个 adapter + 一个 ImeSession（主设计 §9 已定案 ✓） |
+| S-5 | 组合中程序化 SetText/SetCaret | 终止组合再应用（与 Esc 同径），杜绝 overlay 与新偏移叠加的未定义态 |
+
+### 非目标（本规范边界外）
+
+- 平台自动填充框架（autofill/password autofill）——属系统凭据管理域，非输入法通道职责；
+- 自绘候选窗（沿用主设计 §0）；
+- IME 引擎本身/手写语音（沿用主设计 §0）。
+
 ---
 
-## 5. 待用户定夺（已并入 §3 分期建议）
+## 5. 待用户复核（2026-08-26 补缺讨论后）
 
-1. S1 立即开工（建议：是）；
-2. F-A6/F-C3 并入 S3（建议：是）；
-3. 图素簇维持非目标（建议：是，CJK 不受影响）。
+1. N1–N9 九项缺失是否仍有遗漏（本轮已对照 Flutter TextInputModel/Gio Editor/zwp 协议面盘点，多轮复查继续）；
+2. F-S1–S3 组合×选区语义的 Flutter 对齐口径；
+3. Hint 枚举值域（对齐 zwp content_hint 位 + Gio InputHint 的并集裁剪）。
+
+---
+
+## 6. 已定夺（2026-08-26 用户确认）
+
+1. **九项缺失（N1–N9）成立**，按本文分期归属补入；
+2. **分期与实现路线同意**：S1 布局单源化 → S1.5 组合×选区语义 → S2 选区 → S2.5 控件层 BaseEditable → S3 编辑补全 → S4 IME 收口 → S5 滚动；
+3. **可推翻重写**：S1 范围内 RenderText 绘制/查询路径允许推翻式重写，不做兼容性补丁；
+4. **多轮复查**：文档补入后继续逐组对照成熟框架复查，新缺失随查随补（复查轮记录见下）。
+
+### 复查轮记录
+
+| 轮 | 对照物 | 结论 |
+|---|---|---|
+| R1 | Flutter engine TextInputModel / Gio Editor / zwp_text_input_v3 协议面 | 发现 N1–N9 九项缺失，已补入 §2/§3 |
+| R2 | Flutter TextInputPlugin（composing_rect_ + editabletext_transform_ 锚点机制）/ Gio InputHint+SelectionEvent / platform.ime.go 现状核对 | 发现：① ContentType.Hints 字段已存在但全链路断线（接口只传 Purpose）→ F-D9 细化；② Gio SelectionEvent「IME 主动改选区」缺失 → F-D11；③ 组合期回车语义未定义（单行=commit as-is vs 多行=换行）→ F-C7；④ Flutter 的 composing_rect+transform 锚点两件套已被 caretAnchor+IMERect 覆盖 ✓；⑤ autofill/password-autofill 属平台自动填充框架，超出输入法模块边界 → 记为非目标 |
+| R3 | zwp_text_input_v3 全请求/事件面 vs 引擎 L0 覆盖；GTK4 GtkIMContext 方法面 | ① zwp 七请求（enable/disable/set_surrounding_text/set_text_change_cause/set_content_type/set_cursor_rectangle/commit）引擎全实现 ✓；② set_text_change_cause 目前写死 input-method——本地编辑时应报 other，属协议礼貌性偏差，挂 I 系列低优先级（不阻塞）；③ GtkIMContext 的 get_preedit_string/set_cursor_location/get_surrounding 拉取模式与我们的推模式（D2 受控供给）为同构两面，已覆盖 ✓；④ 协议天花板：zwp v3 无 preedit 样式位（样式只能客户端自绘），F-D1 实现时按 Segments 自绘下划线/着色，不依赖协议位 ✓ 可行 |
+| R4 | Windows TSF/IMM32、mac NSTextInputClient 接口面（盲写前瞻） | TSF InputScope ≈ Purpose+Hints 并集 ✓ 建模可映射；mac firstRectForCharacterRange ← IMERect ✓；mac setMarkedText attributes → Segments ✓ 词表已预留。结论：现有抽象三端可承载，无需返工 |
+| R5 | 快捷键面（全选/复制/剪切/粘贴/撤销重做键位）+ 焦点丢失时组合处理 + KeyRepeater 归一 | ① Ctrl+A/Z/Y/X/C/V 键位路由未成文——并入 S2/S3 各自门禁；② 失焦取消组合已实现（DetachEditor/Detach 清 comp）✓；③ D6 KeyRepeater 迁 ui/input 未做 → 补 F-A7（S3）；④ zwp set_text_change_cause 本地编辑应报 other——R3 ②的协议偏差在 S4 一并修 |
+| R6 | 光标几何消费方全量清单 + Editor 焦点期数据同步 | 消费方=可见条/IME 锚点/点击命中/上下移动/未来选区高亮，五处全部声明走 TextLayout ✓；Gio Editor 有 OnFocusChange 时同步 Selection/Snippet 的语义——我们 AttachEditor 已带 field snapshot ✓；结论：无新增缺失，A1 单源化后自然收敛 |
+
