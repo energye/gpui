@@ -74,11 +74,13 @@ type inputBox struct {
 }
 
 func newInputBox(ed *textinput.Editor) *inputBox {
+	inner := rendering.NewRenderBox()
 	b := &inputBox{
-		RenderBox: rendering.NewRenderBox(),
+		RenderBox: inner,
 		ed:        ed,
 		text:      rendering.NewRenderText(""),
 	}
+	inner.Init(b) // Self = the OUTER inputBox so parent chains resolve to it
 	b.text.FontSize = 20
 	b.text.R, b.text.G, b.text.B, b.text.A = 0.05, 0.75, 0.95, 1
 	b.FixedWidth = boxW
@@ -89,7 +91,7 @@ func newInputBox(ed *textinput.Editor) *inputBox {
 	// glyphs apart while blinking and desynced click→caret mapping. Color is
 	// ORANGE — deliberately distinct from the cyan text so the pixel probe
 	// can locate the bar without glyph-stroke false positives.
-	b.bar = rendering.NewRenderColorBox(2, 26, 1.0, 0.55, 0.10, 1)
+	b.bar = rendering.NewRenderColorBox(1, 26, 1.0, 0.55, 0.10, 1)
 	b.AddChild(b.bar)
 	// Caret bar position must be applied AFTER layout (RenderBox.Layout
 	// resets child offsets to Pad on every pass — a MoveTo from sync/
@@ -161,17 +163,26 @@ func (b *inputBox) caretAnchor() (x, top, bottom float64, ok bool) {
 			lh = fs * 1.25
 		}
 	}
-	ascent := fs * 0.8 // heuristic fallback when no face metrics
-	if m, ok2 := b.text.Metrics(); ok2 && m.Ascent > 0 {
-		ascent = m.Ascent
-	}
 	baseline := fs + float64(lineIdx)*lh
-	// Bar spans from just above x-height to below the descender — visually
-	// "inside the text" (same shape as layoutCaret has always drawn).
-	barH := 26.0
-	top = baseline - ascent - (barH-(ascent+fs*0.28))/2
-	if top < float64(lineIdx)*lh-2 {
-		top = float64(lineIdx) * lh // clamp: never bleed into the previous line
+	// Flutter-style caret box: exactly the font's ink band for this line —
+	// from baseline−ascent to baseline+descent, centered on the line's
+	// baseline slot (lineHeight may exceed ascent+descent; center within it,
+	// matching TextPainter's cursor placement). No ad-hoc ratios.
+	var ascent, descent float64 = fs * 0.8, fs * 0.2 // heuristic fallback
+	if m, ok2 := b.text.Metrics(); ok2 && m.Ascent > 0 {
+		ascent, descent = m.Ascent, m.Descent
+	}
+	// Caret box height = ascent+descent (the font's ink band), grown by the
+	// line gap so it reads as a full-line caret without bleeding into
+	// neighbours; clamp to the line slot.
+	barH := ascent + descent
+	if extra := lh - (ascent + descent); extra > 0 {
+		barH += extra * 0.4 // modest extension; keep mostly within the band
+	}
+	top = baseline - ascent
+	if bottom := top + barH; bottom > float64(lineIdx+1)*lh {
+		bottom = float64(lineIdx+1) * lh
+		return penX, top, bottom, true
 	}
 	return penX, top, top + barH, true
 }
@@ -216,11 +227,14 @@ func (b *inputBox) layoutCaret() {
 	if b == nil || b.bar == nil {
 		return
 	}
-	x, top, _, ok := b.caretAnchor()
+	x, top, bottom, ok := b.caretAnchor()
 	if !ok {
 		return
 	}
 	b.bar.MoveTo(x-float64(b.bar.Width)/2, top)
+	if h := bottom - top; h > 0 && h != b.bar.Height { // keep bar == anchor box
+		b.bar.Height = h
+	}
 	if b.caretOn && (b.focused || len(b.ed.Text()) > 0) {
 		b.bar.SetAlpha(1)
 	} else {
@@ -382,6 +396,9 @@ func main() {
 		logf("stage=ime-unavailable")
 	}
 	box.sched = app.ScheduleFrame
+	router.OnPointer = func(pe input.PointerEvent, target rendering.RenderObject) {
+		logf("router-pointer %s at (%.1f,%.1f) target=%T", pe.Kind, pe.X, pe.Y, target)
+	}
 	router.OnKey = func(ke input.KeyEvent) {
 		// Full key trace: diagnoses "letters/backspace do nothing" — if a
 		// key never logs here it was consumed by the compositor's IME
@@ -513,6 +530,33 @@ func main() {
 		}
 		box.OnKey(input.KeyEvent{Pressed: true, Key: input.KeyArrowDown})
 		logf("scene=mixed-nav cursor=%d display=%q", ed.Cursor(), ed.View().Display)
+		app.SetInputRouter(router)
+	case "latin-caret":
+		// Problem repro: pure-latin "mmmm…" — caret placed at byte 3 via the
+		// production click path (x chosen INSIDE the 3rd 'm'). The bar must
+		// sit in the gap between m2 and m3, never on a glyph.
+		box.caretOn = true
+		const mm = "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+		ed.SetText(mm)
+		// click x: pen(3)=3*19.48=58.45 box-local; inside 3rd m means x∈[58.45+1.82, 58.45+17.78]
+		app.SetInputRouter(router)
+		clickIdx := 0
+		adv := ed.View().Display[:1]
+		_ = adv
+		app.Scheduler().Tickers().Add(&schedTicker{period: 0.25, fn: func() {
+			if clickIdx >= 9 {
+				return
+			}
+			byteTarget := (clickIdx + 1) * 4 // 4,8,12,...36
+			// click x = pen(byteTarget) box-local + half advance (mid-glyph)
+			x := boxX + float64(byteTarget)*19.48 + 9.7
+			router.RoutePlatform(platform.Event{
+				Type: platform.EventPointer, Pointer: platform.PointerDown,
+				X: x, Y: boxY + 12,
+			})
+			logf("scene=latin-caret target=%d caret=%d", byteTarget, ed.Cursor())
+			clickIdx++
+		}})
 	case "click":
 		box.caretOn = true
 		ed.SetText("row-one\nrow-two\nrow-three")
@@ -538,20 +582,21 @@ func main() {
 			{40 + 55, boxY + 1*26 + 10, 13, "row2 mid-word"},
 			{40 + 12, boxY + 0*26 + 10, 1, "row1 start"},
 		}
-		n := 0
-		app.Scheduler().Tickers().Add(&caretTicker{box: box})
-		go func() {
-			time.Sleep(300 * time.Millisecond)
-			for _, c := range clicks {
-				router.RoutePlatform(platform.Event{
-					Type: platform.EventPointer, Pointer: platform.PointerDown,
-					X: c.x, Y: c.y,
-				})
-				logf("scene=click-live %s caret=%d want=%d", c.label, ed.Cursor(), c.wantByte)
-				time.Sleep(200 * time.Millisecond)
+		// Drive clicks from the UI thread: a ticker tick fires each click on
+		// its scheduled turn (layout is done by then; no goroutine races).
+		clickIdx := 0
+		app.Scheduler().Tickers().Add(&schedTicker{period: 0.4, fn: func() {
+			if clickIdx >= len(clicks) {
+				return
 			}
-		}()
-		_ = n
+			c := clicks[clickIdx]
+			clickIdx++
+			router.RoutePlatform(platform.Event{
+				Type: platform.EventPointer, Pointer: platform.PointerDown,
+				X: c.x, Y: c.y,
+			})
+			logf("scene=click-live %s caret=%d want=%d", c.label, ed.Cursor(), c.wantByte)
+		}})
 	}
 
 	if err := app.Run(); err != nil {
@@ -608,6 +653,27 @@ type caretTicker struct {
 // pipeline scheduler; toggling also re-renders. caretTickerEnabled=false
 // freezes the bar ON (verification scenes).
 var caretTickerEnabled = true
+
+// schedTicker runs an arbitrary function on the UI thread at a fixed period
+// (verification-scene driver: fires clicks after layout is live).
+type schedTicker struct {
+	period float64
+	fn     func()
+	acc    float64
+	fired  int
+}
+
+func (t *schedTicker) Tick(dt float64) bool {
+	t.acc += dt
+	if t.acc >= t.period {
+		t.acc = 0
+		t.fired++
+		if t.fn != nil {
+			t.fn()
+		}
+	}
+	return true
+}
 
 func (t *caretTicker) Tick(dt float64) bool {
 	if !caretTickerEnabled {
