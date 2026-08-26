@@ -420,6 +420,32 @@ func (a *PipelineApp) PictureTextures() *scene.PictureTextureCache {
 	return a.pictureTex
 }
 
+// cacheEntryCount is the R14 combined live-entry count of both layer caches
+// (boundary Picture cache + retained-path texture LRU).
+func (a *PipelineApp) cacheEntryCount() int64 {
+	n := int64(0)
+	if c := a.BoundaryCache(); c != nil {
+		n += int64(c.Len())
+	}
+	if t := a.PictureTextures(); t != nil {
+		n += int64(t.Len())
+	}
+	return n
+}
+
+// cacheEvictions is the cumulative R14 eviction count across both caches
+// (explicit budget drops + capacity LRU + generational sweep).
+func (a *PipelineApp) cacheEvictions() int64 {
+	n := int64(0)
+	if c := a.BoundaryCache(); c != nil {
+		n += c.Evictions
+	}
+	if t := a.PictureTextures(); t != nil {
+		n += t.Evictions
+	}
+	return n
+}
+
 // Overlay returns the overlay stack (may be nil).
 func (a *PipelineApp) Overlay() *overlay.State {
 	if a == nil {
@@ -928,7 +954,7 @@ func (a *PipelineApp) Run() error {
 			bc, bd := rendering.CountRepaintBoundaries(a.root)
 			m.SetBoundaryDiscovery(bc, bd)
 		}
-			pkt := rendering.BuildFramePacketWithSaveLayer(a.root, frameID, scale, float64(w), float64(h), a.saveStats, a.saveBudget)
+		pkt := rendering.BuildFramePacketWithSaveLayer(a.root, frameID, scale, float64(w), float64(h), a.saveStats, a.saveBudget)
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG frame %d viewport=%dx%d dirty=%v\n", frameID, w, h, pkt.DirtyLayerIDs)
 		}
@@ -948,7 +974,11 @@ func (a *PipelineApp) Run() error {
 		if pkt != nil {
 			a.noteDirtyIDs(pkt.DirtyLayerIDs)
 		}
+		hitchRasterStart := time.Now()
 		stats := scene.RasterizeDirty(pkt)
+		if os.Getenv("HITCH_DIAG") == "1" {
+			HitchNoteStageUI("rasterize", time.Since(hitchRasterStart))
+		}
 		a.lastStats = stats
 		a.sched.Metrics().NoteBuildMs(time.Since(t0).Seconds() * 1000)
 		if m := a.sched.Metrics(); m != nil {
@@ -999,8 +1029,12 @@ func (a *PipelineApp) Run() error {
 		// texture on the next retained frame. Clearing here would force a full
 		// 58-layer re-record wave per resize step while dragging — re-record
 		// frames stall 60ms–1.5s because every layer submits independently.
+		jobFrameID := a.frameID.Load()
 		job := raster.FrameJob{
 			Run: func() error {
+				if os.Getenv("HITCH_DIAG") == "1" {
+					HitchSpanMark(jobFrameID, "run_start")
+				}
 				var frameDraws int64
 				var frameVisits int64
 				opts := paintPresentTreeOpts{
@@ -1055,6 +1089,9 @@ func (a *PipelineApp) Run() error {
 						metrics.SetVirtualBind(bind, items)
 					}
 					metrics.SetScrollRerecord(rendering.ScrollRerecordTotal())
+					// W6 R14: cache budget observability (combined entries +
+					// cumulative evictions of both layer caches).
+					metrics.SetCacheBudget(a.cacheEntryCount(), a.cacheEvictions())
 					// W2 R18: accumulate SaveLayer budget outcomes this frame
 					// (per-frame delta of the cumulative stats).
 					if a.saveStats != nil {
@@ -1082,10 +1119,16 @@ func (a *PipelineApp) Run() error {
 				// End of job: run any §2.7 snapshot requests — after present completed, so
 				// readback sees this frame's composited pixels and cannot race the swapchain.
 				a.drainSnapshots()
+				if os.Getenv("HITCH_DIAG") == "1" {
+					FrameDone(jobFrameID)
+				}
 				return err
 			},
 		}
 		// Async: never block UI on Present.
+		if os.Getenv("HITCH_DIAG") == "1" {
+			HitchSpanMark(jobFrameID, "submit")
+		}
 		_ = a.loop.SubmitLatest(job)
 		a.presents.Add(1) // count submit as frame produced; present completes on raster thread
 		a.sched.ClearPending()
@@ -1356,6 +1399,9 @@ func (a *PipelineApp) presentSyncFull() {
 			m.SetVirtualBind(bind, items)
 		}
 		m.SetScrollRerecord(rendering.ScrollRerecordTotal())
+		// W6 R14: cache budget observability (same-source sample as the
+		// retained frame path above).
+		m.SetCacheBudget(a.cacheEntryCount(), a.cacheEvictions())
 		if a.saveStats != nil {
 			al, rj := a.saveStats.Allow.Load(), a.saveStats.Reject.Load()
 			m.NoteSaveLayer(al-a.lastSaveAllow, rj-a.lastSaveReject)
@@ -1403,6 +1449,9 @@ func (a *PipelineApp) InvalidateBoundaryCache() {
 	}
 	if cache := a.pipe.BoundaryCache(); cache != nil {
 		cache.Clear()
+	}
+	if tex := a.PictureTextures(); tex != nil {
+		tex.Clear()
 	}
 	a.cacheInvalidations.Add(1)
 	if a.root != nil {
