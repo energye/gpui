@@ -320,11 +320,16 @@ func (r *InputRouter) routePointer(ev input.Event) {
 	}
 	_ = band
 	_ = entry
-	// Deliver to every control on the hit path implementing PointerHandler.
-	if target != nil {
-		if ph, ok := target.(input.PointerHandler); ok {
+	// Deliver to every control ON THE HIT PATH implementing PointerHandler:
+	// the deepest hit node first, then its ancestors (Flutter dispatches
+	// pointer events along the whole hit path). Without the ancestor walk a
+	// container-wrapped field (handler on the box, click landing on its text
+	// child) never sees the click — observed as click-to-caret doing nothing.
+	for n := target; n != nil; {
+		if ph, ok := n.(input.PointerHandler); ok {
 			ph.OnPointer(ev.Pointer)
 		}
+		n = n.Parent()
 	}
 	if r.OnPointer != nil {
 		r.OnPointer(ev.Pointer, target)

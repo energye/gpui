@@ -520,6 +520,38 @@ func main() {
 		// pointer handler so the exact production path is exercised.
 		box.OnPointer(input.PointerEvent{Kind: input.PointerDown, X: 40 + 30, Y: boxY + 2*26})
 		logf("scene=click caret=%d", ed.Cursor())
+	case "click-live":
+		// Full production path: platform pointer event → FromPlatform →
+		// router hit-test → OnPointer. Clicks row 2 mid-word ("row-tw|o"),
+		// then a second click at line 1 start ("|row-one") — caret must
+		// follow each click.
+		box.caretOn = true
+		ed.SetText("row-one\nrow-two\nrow-three")
+		app.SetInputRouter(router)
+		// Clicks must fire AFTER the first layout pass (hit-test needs real
+		// sizes) — defer to the frame loop via a one-shot ticker.
+		clicks := []struct {
+			x, y     float64
+			wantByte int
+			label    string
+		}{
+			{40 + 55, boxY + 1*26 + 10, 13, "row2 mid-word"},
+			{40 + 12, boxY + 0*26 + 10, 1, "row1 start"},
+		}
+		n := 0
+		app.Scheduler().Tickers().Add(&caretTicker{box: box})
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			for _, c := range clicks {
+				router.RoutePlatform(platform.Event{
+					Type: platform.EventPointer, Pointer: platform.PointerDown,
+					X: c.x, Y: c.y,
+				})
+				logf("scene=click-live %s caret=%d want=%d", c.label, ed.Cursor(), c.wantByte)
+				time.Sleep(200 * time.Millisecond)
+			}
+		}()
+		_ = n
 	}
 
 	if err := app.Run(); err != nil {
