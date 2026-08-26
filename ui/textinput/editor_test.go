@@ -148,6 +148,16 @@ func TestComposedViewMappings(t *testing.T) {
 	if got := v.MapBufToViewExact(2, 1); got != 3 { // caret inside span
 		t.Fatalf("MapBufToViewExact = %d", got)
 	}
+	// MapBufToView: buf offsets after the span shift by the span length.
+	bcases := []struct{ buf, view int }{
+		{0, 0}, {2, 2}, // at/before span start → pass through
+		{3, 6}, {5, 8}, // after span → +len(comp)
+	}
+	for _, c := range bcases {
+		if got := v.MapBufToView(c.buf); got != c.view {
+			t.Fatalf("MapBufToView(%d) = %d, want %d", c.buf, got, c.view)
+		}
+	}
 	// No-composition identity.
 	e2 := New()
 	e2.SetText("abc")

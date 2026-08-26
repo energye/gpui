@@ -43,6 +43,12 @@ type Editor struct {
 	comp  *Composition
 	epoch uint64 // increments on every real change; monotonic forever
 
+	// Sticky column for vertical caret movement (Flutter's desired-X):
+	// adopted on the first Up/Down of a run, reset by horizontal moves,
+	// clicks and edits. See MoveCaretVertically / ResetCaretColumn.
+	caretCol       float64
+	caretColValid  bool
+
 	// OnChange fires after every mutation (repaint / anchor refresh).
 	OnChange func()
 }
@@ -106,17 +112,15 @@ func (e *Editor) View() ComposedView {
 }
 
 // MapBufToView converts a buffer offset to display coordinates. Offsets at
-// or after the composition start shift by the composition length; offsets
-// INSIDE the composition span snap to its start (the span is indivisible
-// from the buffer's perspective).
+// or before the composition start pass through; offsets after it shift by
+// the composition length (the span occupies display space the buffer does
+// not have). There is no "inside" case in buffer coordinates — the span is
+// pure overlay, invisible to buf indices.
 func (v ComposedView) MapBufToView(off int) int {
 	if v.CompStart < 0 || off <= v.CompStart {
 		return off
 	}
-	if off >= v.CompEnd-v.CompStart+v.CompStart && off >= v.CompStart {
-		// off is past the whole composition (buffer coords): comp length is len-CompStart+CompEnd... see MapBufToViewClamped.
-	}
-	return off
+	return off + (v.CompEnd - v.CompStart)
 }
 
 // MapBufToViewExact converts precisely: buffer offsets inside the
@@ -207,7 +211,10 @@ func (e *Editor) SetSelection(start, end int) {
 }
 
 // SetCaret places the caret at a buffer offset.
-func (e *Editor) SetCaret(off int) { e.SetSelection(off, off) }
+func (e *Editor) SetCaret(off int) {
+	e.ResetCaretColumn() // any explicit placement starts a fresh vertical run
+	e.SetSelection(off, off)
+}
 
 // LenRunes returns the buffer length in runes.
 func (e *Editor) LenRunes() int { return utf8.RuneCountInString(e.Text()) }

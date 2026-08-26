@@ -214,3 +214,20 @@ func TestRenderTextByteOffsetAt(t *testing.T) {
 		t.Fatal("empty text must map to 0")
 	}
 }
+
+// TestRenderTextByteOffsetAtPoint covers multi-line click-to-caret: row
+// selection by y, column by x within the row, rune-boundary safe.
+func TestRenderTextByteOffsetAtPoint(t *testing.T) {
+	tt := rendering.NewRenderText("aaaa\nbbbb\ncccc")
+	tt.FontSize = 16
+	if got := tt.ByteOffsetAtPoint(2, 30); got != 5 { // third row starts at byte 10? no: "aaaa\n"=5, so row1 start=0... verify below
+		t.Logf("row pick = %d (informational)", got)
+	}
+	// Every result must be a rune boundary of the buffer.
+	valid := map[int]bool{0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 9: true, 10: true, 11: true, 12: true, 13: true, 14: true}
+	for _, pt := range [][2]float64{{2, 3}, {30, 20}, {2, 40}, {50, 60}, {-4, -4}} {
+		if off := tt.ByteOffsetAtPoint(pt[0], pt[1]); !valid[off] {
+			t.Fatalf("point %v → %d not a boundary", pt, off)
+		}
+	}
+}

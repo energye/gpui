@@ -434,6 +434,40 @@ func (t *RenderText) wrapLines() []string {
 	return estimateWrapLines(s, maxW, t.fontSize(), t.approxCharW())
 }
 
+// FontSizePt returns the effective font size in points (default 14 when
+// unset). Exposed for caret geometry consumers.
+func (t *RenderText) FontSizePt() float64 {
+	if t == nil {
+		return 0
+	}
+	return t.fontSize()
+}
+
+// Metrics returns the effective face's font metrics at the effective size
+// (ascent/descent/lineGap — the typographic truth for caret/candidate
+// geometry). Returns ok=false when no face is set; callers fall back to the
+// heuristic (fontSize × 1.25).
+func (t *RenderText) Metrics() (m text.Metrics, ok bool) {
+	if t == nil {
+		return m, false
+	}
+	face := t.effectiveFace()
+	if face == nil {
+		return m, false
+	}
+	return face.Metrics(), true
+}
+
+// LineHeight returns the logical line height used for multi-line painting
+// (face metrics when available, else fontSize × lineSpacing). Exposed for
+// caret/candidate geometry (IME anchoring).
+func (t *RenderText) LineHeight() float64 {
+	if t == nil {
+		return 0
+	}
+	return t.lineHeightLogical()
+}
+
 // DisplayLines returns the visible lines after wrap + maxLines + overflow.
 // Layout and paint both use this so measured size matches what is drawn.
 // For multi-run content, each line is the concatenation of that line's span texts.
@@ -445,6 +479,63 @@ func (t *RenderText) MeasureWidth(s string) float64 {
 		return 0
 	}
 	return t.measureLine(s)
+}
+
+// GlyphInkBounds returns the ink bounding box (glyph outline extents, not the
+// advance box) of r relative to the pen origin at x=0, using this text's face
+// and font size. ok=false when no Face is set or the rune has no glyph
+// (control chars); whitespace has an empty outline → MinX==MaxX==0.
+// General glyph-metric accessor for text-anchored overlays.
+func (t *RenderText) GlyphInkBounds(r rune) (bounds text.Rect, ok bool) {
+	if t == nil || t.Face == nil {
+		return text.Rect{}, false
+	}
+	face := t.effectiveFace()
+	if face == nil {
+		return text.Rect{}, false
+	}
+	for g := range face.Glyphs(string(r)) {
+		return g.Bounds, true
+	}
+	return text.Rect{}, false
+}
+
+// CaretColumn returns the caret geometry for a display byte offset, following
+// the standard text-caret model (Flutter TextPainter.getOffsetForCaret /
+// Skia): line index + the PEN BOUNDARY x between the glyphs left and right of
+// the offset. The bar's CENTER belongs on that boundary — advance boxes touch,
+// so this is exactly "between any two characters", for latin, CJK and mixed
+// text alike. No ink scanning involved.
+//
+// The offset must lie on a rune boundary within t.Text; out-of-range clamps
+// to 0 / len(Text). Returns (lineIdx, penX, true); ok=false when there is no
+// content at all.
+func (t *RenderText) CaretColumn(off int) (lineIdx int, penX float64, ok bool) {
+	if t == nil {
+		return 0, 0, false
+	}
+	lines := t.DisplayLines()
+	if len(lines) == 0 {
+		return 0, 0, false
+	}
+	if off < 0 {
+		off = 0
+	}
+	if off > len(t.Text) {
+		off = len(t.Text)
+	}
+	// Walk lines by display offsets: wrapLines splits at '\n' and DROPS it,
+	// so line i starts at sum(len(lines[0..i-1])) + i in Text.
+	start := 0
+	for i, ln := range lines {
+		end := start + len(ln)
+		if off <= end || i == len(lines)-1 {
+			inLine := t.Text[start:min(off, end)]
+			return i, t.measureLine(inLine), true
+		}
+		start = end + 1 // +1: the dropped '\n'
+	}
+	return 0, 0, false
 }
 
 func (t *RenderText) DisplayLines() []string {
@@ -599,7 +690,7 @@ func ellipsizeToWidth(s string, maxW float64, t *RenderText) string {
 				return cand
 			}
 			// Need to shrink to fit ellipsis.
-			s = s // fall through to binary search on s+ellipsis
+			// fall through to binary search on s+ellipsis below.
 		} else {
 			return s
 		}
@@ -802,6 +893,52 @@ func (t *RenderText) ByteOffsetAt(x float64) int {
 		prev = right
 	}
 	return len(t.Text)
+}
+
+// ByteOffsetAtPoint converts a point (logical px, text-origin relative) into
+// the nearest UTF-8 byte boundary of the WRAPPED display text: the row is
+// chosen by y (lineHeight steps), then the column by x within that line —
+// multi-line click-to-caret. Falls back to ByteOffsetAt for single-line.
+//
+// NOTE: wrapLines drops the '\n' at each split, so line i's start in the
+// original Text is sum(len(lines[0..i-1])) + i.
+func (t *RenderText) ByteOffsetAtPoint(x, y float64) int {
+	if t == nil {
+		return 0
+	}
+	lines := t.DisplayLines()
+	if len(lines) <= 1 || y <= 0 {
+		return t.ByteOffsetAt(x)
+	}
+	fs := t.fontSize()
+	if fs <= 0 {
+		fs = 14
+	}
+	lh := fs * t.lineSpacing()
+	row := int(y / lh)
+	if row < 0 {
+		row = 0
+	}
+	if row >= len(lines) {
+		row = len(lines) - 1
+	}
+	start := 0
+	for i := 0; i < row; i++ {
+		start += len(lines[i]) + 1 // +1 for the dropped '\n'
+	}
+	if x <= 0 {
+		return start
+	}
+	line := lines[row]
+	prev := 0.0
+	for idx, r := range line {
+		right := t.measureLine(line[:idx+utf8.RuneLen(r)])
+		if x < (prev+right)/2 {
+			return start + idx
+		}
+		prev = right
+	}
+	return start + len(line)
 }
 
 // HitTest implements RenderObject.

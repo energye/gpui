@@ -276,4 +276,6 @@ kit 提供 `BaseEditable` 内嵌类型包办四件套（Editor/IMERect 含 preed
 | 版本 | 说明 |
 |---|---|
 | v1.2 定稿 | 2026-08-25 用户审定通过 + 环境约束落档：Linux 全链先行（M0+M1 做扎实后开 M2/M3）；R-BLIND-1 盲写风险登记表、R-BLIND-2 验收欠账清单两纪律入 §8。本文转 **IME 线真源**，接口自 M0 起冻结。 |
+| v1.3 收敛检查 | 2026-08-26 按规划收敛核查：M0/M1 交付物与示例使用核对通过（ImeSession 门面、ComposedView 唯一换算出口、D2 surrounding 关断默认、C1–C4 并发契约未被新代码违反）；光标几何补齐标准实现（RenderText.CaretColumn 对标 getOffsetForCaret；Editor.MoveCaretVertically 粘滞列对标 desired-X）并经 6 确定性场景像素断言；示例 caretAnchor 单源化使可见条与 IMERect 锚点共用几何（§4.2 CaretMoved 触发时机兑现）。调试残留清理（dbg*_test.go ×9、编译产物 ×2）。P2/P3/P8 真机复测与 I3 X11 双场景仍为待办欠账。 |
+
 | v1.1 | 红队审查修订：**P0-1** 新增 §4.0 并发契约（C1–C4；现状 AfterFunc 直发列入重构）；**P0-2** §5.4 mac 路线改正为自建子类+重入护栏+成功率重估；**P1-1** 目标句改写为 ImeSession 门面形态+所有权三条；**P1-2** 新增 §4.5 ComposedView 唯一换算出口+CaretMoved 触发时机补 preedit 变化+拖选钳制语义；**P1-3** 适配器补 SetSurroundingProvider；**P1-4** 词汇表归一到 input.IMEEvent（+Segments/+IMESession）；**P1-5** editEpoch 全局凭据；**P1-6** 图素簇措辞+rune 限制声明；**P2** 包表述替代六层、BaseEditable 易用性承诺、测试矩阵补 P11–P13+平台差异矩阵、API 目录同步义务入里程碑、RTL/Undo 分组声明。 |

@@ -134,3 +134,35 @@ func TestRenderText_NoFaceStillHeuristic(t *testing.T) {
 		t.Fatalf("no-face width=%.2f want heuristic %.2f", sz.Width, want)
 	}
 }
+
+// TestRenderText_GlyphInkBounds pins the ink-bounds accessor used for caret
+// gap centering: ink box of a visible glyph must be non-empty and sit inside
+// its advance box; whitespace has an empty outline (MinX==MaxX).
+func TestRenderText_GlyphInkBounds(t *testing.T) {
+	face := loadTestFace(t, 20)
+	txt := rendering.NewRenderText("")
+	txt.SetFace(face)
+	txt.SetFontSize(20)
+
+	d, dok := txt.GlyphInkBounds('d')
+	if !dok || d.MinX >= d.MaxX {
+		t.Fatalf("'d' ink bounds=%v ok=%v — want non-empty outline", d, dok)
+	}
+	l, lok := txt.GlyphInkBounds('l')
+	if !lok || l.MinX >= l.MaxX {
+		t.Fatalf("'l' ink bounds=%v ok=%v — want non-empty outline", l, lok)
+	}
+	if l.MinX <= 0 || l.MinX > d.MaxX {
+		t.Fatalf("'l' ink-left=%.2f should be a positive left-side bearing within 'd' advance (%.2f)", l.MinX, d.MaxX)
+	}
+	sp, sok := txt.GlyphInkBounds(' ')
+	if !sok {
+		t.Skipf("face yields no glyph for space")
+	}
+	if sp.MinX != sp.MaxX {
+		t.Fatalf("space outline must be empty (MinX==MaxX), got [%v]", sp)
+	}
+	if _, ok := txt.GlyphInkBounds(0x01); ok {
+		t.Fatal("control char must report ok=false")
+	}
+}

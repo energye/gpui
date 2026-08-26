@@ -1,6 +1,7 @@
 package textinput
 
 import (
+	"strings"
 	"unicode/utf8"
 )
 
@@ -104,6 +105,7 @@ func (e *Editor) MoveCaretRunes(n int) {
 	if e == nil {
 		return
 	}
+	e.ResetCaretColumn() // horizontal move: next Up/Down re-adopts this column
 	pos := e.sel[1]
 	for i := 0; i < n; i++ {
 		if pos >= len(e.buf) {
@@ -124,6 +126,130 @@ func (e *Editor) MoveCaretRunes(n int) {
 
 // SelectAll selects the whole buffer.
 func (e *Editor) SelectAll() { e.SetSelection(0, len(e.Text())) }
+
+// setSelectionNoReset is SetSelection without touching the sticky vertical
+// column — internal use for vertical caret movement itself.
+func (e *Editor) setSelectionNoReset(start, end int) {
+	if e == nil {
+		return
+	}
+	start, end = e.clamp(start), e.clamp(end)
+	if start > end {
+		start, end = end, start
+	}
+	e.sel = [2]int{start, end}
+	e.changed()
+}
+
+// MoveCaretVertically moves the caret one display line up (n<0) or down
+// (n>0), keeping the horizontal position as close as possible to the
+// remembered column (Flutter VerticalCaretMovementRun). The column is
+// remembered across consecutive vertical moves and reset by any horizontal
+// movement / SetCaret / edit. Geometry comes from geo: lineCount and
+// penX(off) must be supplied by the view layer (RenderText.CaretColumn).
+// Returns false when there is no line to move to.
+func (e *Editor) MoveCaretVertically(n int, lineCount func() int, penX func(displayOff int) float64) bool {
+	if e == nil || n == 0 || lineCount == nil {
+		return false
+	}
+	v := e.View()
+	lines := lineCount()
+	if lines <= 0 {
+		return false
+	}
+	// Current caret in DISPLAY coordinates; composition rides its own caret.
+	disp := v.MapBufToView(e.sel[1])
+	if e.comp != nil {
+		if cc := e.CompositionCursor(); cc >= 0 {
+			disp = cc
+		}
+	}
+	// Locate current line: display offsets split at the newline char. The
+	// boundary directly AFTER a newline (previous byte is that newline) is
+	// the NEXT line's column 0 — the standard visual row of a caret at
+	// line start; no special case needed.
+	lineIdx := 0
+	for i := 0; i < disp; i++ {
+		if v.Display[i] == '\n' {
+			lineIdx++
+		}
+	}
+	target := lineIdx + n
+	if target < 0 {
+		target = 0
+	}
+	if target > lines-1 {
+		target = lines - 1
+	}
+	if target == lineIdx {
+		return false // already at first/last line
+	}
+	// Desired x for this vertical run: remembered sticky column, else the
+	// current boundary x (first vertical step adopts its starting column).
+	// The sticky column is COLUMN-RELATIVE: penX(off) reports the in-line
+	// pen of a boundary (same contract as RenderText.CaretColumn), so the
+	// adopted column is simply penX(disp) — no further subtraction.
+	wantX := e.caretCol
+	if !e.caretColValid {
+		if penX != nil && disp <= len(v.Display) {
+			wantX = penX(disp)
+		}
+		e.caretCol = wantX
+		e.caretColValid = true
+	}
+	// Target line's [start,end) in display offsets.
+	lineStart := 0
+	for i := 0; i < target; i++ {
+		nl := strings.IndexByte(v.Display[lineStart:], '\n')
+		if nl < 0 {
+			break
+		}
+		lineStart += nl + 1
+	}
+	lineEnd := len(v.Display)
+	if nl := strings.IndexByte(v.Display[lineStart:], '\n'); nl >= 0 {
+		lineEnd = lineStart + nl
+	}
+	// Walk the target line's RUNE boundaries to the one nearest wantX; the
+	// line-end boundary participates too (standard snap-to-line-end).
+	best, bestX := lineStart, -1.0
+	for idx := lineStart; idx <= lineEnd; {
+		var x float64
+		if idx < lineEnd && penX != nil {
+			x = penX(idx)
+		} else {
+			x = wantX * 2 // past-end sentinel: never wins unless it IS the end…
+			if lineEnd >= 0 {
+				x = penX(lineEnd) // …use the real end boundary instead
+			}
+		}
+		if bestX < 0 || absF(x-wantX) < absF(bestX-wantX) {
+			best, bestX = idx, x
+		}
+		if idx >= lineEnd {
+			break
+		}
+		_, sz := utf8.DecodeRuneInString(v.Display[idx:])
+		idx += sz
+	}
+	e.setSelectionNoReset(v.MapViewToBuf(best), v.MapViewToBuf(best))
+	return true
+}
+
+// ResetCaretColumn drops the sticky vertical-move column (horizontal moves,
+// clicks and edits call this so the next Up/Down re-adopts the new column).
+func (e *Editor) ResetCaretColumn() {
+	if e != nil {
+		e.caretColValid = false
+	}
+}
+
+func absF(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
 
 // ByteOffsetAt converts an x offset (logical px from text origin) into the
 // nearest UTF-8 byte boundary of the DISPLAY string — click-to-caret.

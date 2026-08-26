@@ -86,9 +86,19 @@ func newInputBox(ed *textinput.Editor) *inputBox {
 	b.AddChild(b.text)
 	// The caret is a FLOATING BAR positioned at the cursor offset — never a
 	// glyph inserted into the string: an inserted "|" split the neighboring
-	// glyphs apart while blinking and desynced click→caret mapping.
-	b.bar = rendering.NewRenderColorBox(2, 26, 0.05, 0.75, 0.95, 1)
+	// glyphs apart while blinking and desynced click→caret mapping. Color is
+	// ORANGE — deliberately distinct from the cyan text so the pixel probe
+	// can locate the bar without glyph-stroke false positives.
+	b.bar = rendering.NewRenderColorBox(2, 26, 1.0, 0.55, 0.10, 1)
 	b.AddChild(b.bar)
+	// Caret bar position must be applied AFTER layout (RenderBox.Layout
+	// resets child offsets to Pad on every pass — a MoveTo from sync/
+	// OnChange gets wiped by the next layout). The OnPaint hook runs right
+	// before children paint, i.e. after this frame's layout: reposition the
+	// bar there. It draws itself as a normal child afterwards.
+	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		b.layoutCaret()
+	}
 	b.caretOn = true
 	b.node = focus.NewFocusNode("input-box")
 	b.node.Target = b // framework resolves the focused TextEditTarget via this
@@ -115,23 +125,66 @@ func (b *inputBox) ContentType() platform.ContentType {
 	return platform.ContentType{Purpose: b.ContentPurpose()}
 }
 
-// IMERect anchors candidates at the caret: prefix width measured over the
-// DISPLAY string (committed prefix + live pre-edit — design §4.2 requires
-// the anchor to follow composition growth).
-func (b *inputBox) IMERect() platform.Rect {
+// caretAnchor computes the caret's WINDOW coordinates (logical px): the
+// pen boundary between the characters around the caret, plus the line's
+// top/bottom. THE single source of caret geometry — both the visible bar
+// (layoutCaret) and the IME candidate anchor (IMERect) derive from it, so
+// the two can never drift apart. During a composition the caret rides the
+// IME's own position inside the span.
+func (b *inputBox) caretAnchor() (x, top, bottom float64, ok bool) {
+	if b == nil || b.text == nil {
+		return 0, 0, 0, false
+	}
 	v := b.ed.View()
-	cur := b.ed.Cursor()
-	if cur < 0 || cur > len(b.ed.Text()) {
-		cur = len(b.ed.Text())
+	viewCur := v.MapBufToView(b.ed.Cursor())
+	if b.ed.ComposeActive() {
+		if cc := b.ed.CompositionCursor(); cc >= 0 {
+			viewCur = cc
+		} else {
+			viewCur = v.CompEnd
+		}
 	}
-	// Buffer caret → display caret (inside the span = at its start; the
-	// span grows rightward from there so the prefix is stable).
-	viewCur := v.MapBufToView(cur)
-	if viewCur > v.CompStart && v.CompStart >= 0 && cur == v.CompStart {
-		viewCur = v.CompEnd // composing: anchor rides the span's end
+	lineIdx, penX, kok := b.text.CaretColumn(min(viewCur, len(b.text.Text)))
+	if !kok {
+		return 0, 0, 0, false
 	}
-	w := b.text.MeasureWidth(v.Display[:viewCur])
-	return platform.Rect{X: boxX + w, Y: boxY, W: 2, H: boxH}
+	fs := b.text.FontSizePt()
+	if fs <= 0 {
+		fs = 20
+	}
+	lh := b.text.LineHeight()
+	if lh <= 0 {
+		m, ok2 := b.text.Metrics()
+		if ok2 {
+			lh = m.LineHeight()
+		} else {
+			lh = fs * 1.25
+		}
+	}
+	ascent := fs * 0.8 // heuristic fallback when no face metrics
+	if m, ok2 := b.text.Metrics(); ok2 && m.Ascent > 0 {
+		ascent = m.Ascent
+	}
+	baseline := fs + float64(lineIdx)*lh
+	// Bar spans from just above x-height to below the descender — visually
+	// "inside the text" (same shape as layoutCaret has always drawn).
+	barH := 26.0
+	top = baseline - ascent - (barH-(ascent+fs*0.28))/2
+	if top < float64(lineIdx)*lh-2 {
+		top = float64(lineIdx) * lh // clamp: never bleed into the previous line
+	}
+	return penX, top, top + barH, true
+}
+
+// IMERect anchors candidates at the caret via caretAnchor — window coords,
+// wrap-aware Y, and the anchor rides the composition exactly like the
+// visible bar does (design §4.2: candidates follow composition growth).
+func (b *inputBox) IMERect() platform.Rect {
+	x, top, bottom, ok := b.caretAnchor()
+	if !ok {
+		return platform.Rect{X: boxX, Y: boxY, W: 2, H: boxH}
+	}
+	return platform.Rect{X: boxX + x, Y: boxY + top, W: 2, H: bottom - top}
 }
 
 // sync mirrors the editor into the RenderText (the text string NEVER
@@ -155,45 +208,35 @@ func (b *inputBox) sync() {
 	}
 }
 
-// layoutCaret positions the caret bar at the current cursor byte offset and
-// toggles its visibility for the blink. Position/alpha only — zero effect on
-// text layout, so neighboring glyphs never shift while blinking. Vertical:
-// centered on the text's laid-out line box; horizontal: over the DISPLAY
-// string via ComposedView (during composition it rides the span's end).
+// layoutCaret positions the visible bar from caretAnchor — the shared
+// geometry source with IMERect (candidate window anchor). Standard caret
+// placement: the bar's CENTER goes on the pen BOUNDARY between adjacent
+// characters (Flutter TextPainter.getOffsetForCaret).
 func (b *inputBox) layoutCaret() {
 	if b == nil || b.bar == nil {
 		return
 	}
-	v := b.ed.View()
-	cur := b.ed.Cursor()
-	if cur < 0 || cur > len(b.ed.Text()) {
-		cur = len(b.ed.Text())
+	x, top, _, ok := b.caretAnchor()
+	if !ok {
+		return
 	}
-	viewCur := v.MapBufToView(cur)
-	if v.CompStart >= 0 && cur == v.CompStart && viewCur == v.CompStart {
-		viewCur = v.CompEnd // composing: caret rides the span end
-	}
-	x := b.text.MeasureWidth(v.Display[:viewCur])
-	th := b.text.Size().Height
-	y := (th - b.bar.Height) / 2
-	if y < 0 {
-		y = 0
-	}
-	b.bar.SetOffset(rendering.Point{X: x + 1, Y: y})
+	b.bar.MoveTo(x-float64(b.bar.Width)/2, top)
 	if b.caretOn && (b.focused || len(b.ed.Text()) > 0) {
-		b.bar.A = 1
+		b.bar.SetAlpha(1)
 	} else {
-		b.bar.A = 0
+		b.bar.SetAlpha(0)
 	}
 }
 
 // OnPointer implements input.PointerHandler: clicking focuses the box via
 // the focus manager (the framework opens/closes the IME session on the
-// transition) and places the caret at the clicked position.
+// transition) and places the caret at the clicked position — wrap-aware
+// (ByteOffsetAtPoint picks the row by y, then the column by x).
 func (b *inputBox) OnPointer(ev input.PointerEvent) {
 	if ev.Kind == input.PointerDown && b.node != nil {
 		b.node.RequestFocus()
-		b.ed.SetCaret(b.text.ByteOffsetAt(ev.X - boxX)) // window X → local → boundary
+		localY := ev.Y - boxY
+		b.ed.SetCaret(b.text.ByteOffsetAtPoint(ev.X-boxX, localY))
 	}
 }
 
@@ -212,6 +255,19 @@ func (b *inputBox) OnKey(ev input.KeyEvent) {
 		b.ed.MoveCaretRunes(-1)
 	case input.KeyArrowRight:
 		b.ed.MoveCaretRunes(1)
+	case input.KeyArrowUp, input.KeyArrowDown:
+		// Vertical caret movement (standard sticky-column model): geometry
+		// comes from this box's RenderText — line count and pen boundaries.
+		n := -1
+		if ev.Key == input.KeyArrowDown {
+			n = 1
+		}
+		b.ed.MoveCaretVertically(n,
+			func() int { return len(b.text.DisplayLines()) },
+			func(dispOff int) float64 {
+				_, x, _ := b.text.CaretColumn(min(dispOff, len(b.text.Text)))
+				return x
+			})
 	case input.KeyEnter:
 		b.ed.Insert("\n")
 	case input.KeyEscape:
@@ -233,7 +289,11 @@ func (b *inputBox) OnIME(ev input.IMEEvent) {
 
 func main() {
 	selftest := os.Getenv("GPUI_IME_DEMO_SELFTEST") == "1"
-	logf("stage=init selftest=%v", selftest)
+	// Caret verification scenes (M1.5): GPUI_IME_CARET_SCENE=<multiline|composing|click>
+	// seeds a deterministic state so the snapshot pixel probe can assert the
+	// caret bar's actual position against the expected line/column.
+	caretScene := os.Getenv("GPUI_IME_CARET_SCENE")
+	logf("stage=init selftest=%v scene=%q", selftest, caretScene)
 
 	ed := textinput.New()
 
@@ -294,7 +354,7 @@ func main() {
 		IME:    win.IME(), // automatic session management (I4)
 	}
 	snapPath := ""
-	if selftest {
+	if selftest || caretScene != "" {
 		// Bounded run; final-frame snapshot = render evidence.
 		opts.RunFor = 3 * time.Second
 		snapDir := os.Getenv("IME_SNAP_DIR")
@@ -302,7 +362,11 @@ func main() {
 			snapDir = "/tmp/ime_textinput_ime"
 		}
 		os.MkdirAll(snapDir, 0o755)
-		snapPath = filepath.Join(snapDir, "final.png")
+		name := "final.png"
+		if caretScene != "" {
+			name = "caret_" + caretScene + ".png"
+		}
+		snapPath = filepath.Join(snapDir, name)
 		opts.SnapshotPath = snapPath
 	}
 	var app *embedder.PipelineApp
@@ -393,10 +457,76 @@ func main() {
 	// tick on the UI thread): toggling here also re-renders the text. The
 	// previous background-goroutine version only flipped a flag and never
 	// re-rendered, so the caret never visibly blinked.
+	//
+	// Caret verification scenes freeze the bar ON (blink would make the
+	// snapshot probe flaky — 3s run × 0.53s period lands ~50% off states).
 	app.Scheduler().Tickers().Add(&caretTicker{box: box})
+	if caretScene != "" {
+		box.caretOn = true
+		caretTickerEnabled = false
+	}
+
+	// Caret verification scenes: deterministic state + caret frozen ON so
+	// the snapshot probe can locate it (blink would make position flaky).
+	switch caretScene {
+	case "multiline":
+		box.caretOn = true
+		ed.SetText("first line text\nsecond line content")
+		ed.SetCaret(len("first line text\nsecond ")) // line 2, mid-content
+		logf("scene=multiline caretLine=1 (0-based)")
+	case "composing":
+		box.caretOn = true
+		ed.SetText("committed ")
+		ed.SetCaret(len("committed "))
+		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "pinyin", Start: -1, End: -1})
+		logf("scene=composing composing=%v", ed.ComposeActive())
+	case "composing-mid":
+		// Composition with text AFTER the span: caret rides INSIDE the
+		// preedit ("piny|in") while committed text follows it. This is the
+		// bar-over-right-text case: the bar must sit in the ink gap between
+		// the preedit glyphs and never overlap the committed text.
+		box.caretOn = true
+		ed.SetText("committed after")
+		ed.SetCaret(len("committed "))
+		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "pinyin", Start: 4, End: 4})
+		logf("scene=composing-mid composing=%v cursorInSpan=%d display=%q",
+			ed.ComposeActive(), ed.CompositionCursor(), ed.View().Display)
+	case "composing-cjk":
+		// Realistic Chinese IME state: committed CJK sentence, caret parked
+		// mid-sentence, live pinyin preedit inserted there. Full-width glyphs
+		// leave ~1px side bearings, so this is the harshest overlap test.
+		box.caretOn = true
+		ed.SetText("你好世界，光标测试文本")
+		ed.SetCaret(len("你好世界，"))
+		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihao", Start: -1, End: -1})
+		logf("scene=composing-cjk composing=%v display=%q",
+			ed.ComposeActive(), ed.View().Display)
+	case "mixed-nav":
+		// Problem 2/4 reproduction: mixed CJK+latin line, caret parked mid-
+		// text; then ArrowRight x3 + ArrowDown x1 driven through OnKey so the
+		// exact production key path is exercised. Exit JSON records positions.
+		box.caretOn = true
+		ed.SetText("中文abc混合text\n第二行")
+		ed.SetCaret(len("中文abc"))
+		for i := 0; i < 3; i++ {
+			box.OnKey(input.KeyEvent{Pressed: true, Key: input.KeyArrowRight})
+		}
+		box.OnKey(input.KeyEvent{Pressed: true, Key: input.KeyArrowDown})
+		logf("scene=mixed-nav cursor=%d display=%q", ed.Cursor(), ed.View().Display)
+	case "click":
+		box.caretOn = true
+		ed.SetText("row-one\nrow-two\nrow-three")
+		// Simulate a click on row 3 at x≈30px: route through the box's own
+		// pointer handler so the exact production path is exercised.
+		box.OnPointer(input.PointerEvent{Kind: input.PointerDown, X: 40 + 30, Y: boxY + 2*26})
+		logf("scene=click caret=%d", ed.Cursor())
+	}
 
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "run:", err)
+	}
+	if caretScene != "" {
+		logf("post-run: text=%q compose=%v display=%q", ed.Text(), ed.ComposeActive(), ed.View().Display)
 	}
 
 	// Geometry probe: did layout actually give the children extents?
@@ -442,7 +572,15 @@ type caretTicker struct {
 	acc float64
 }
 
+// caretTicker blinks the idle caret (~2Hz). Runs on the UI thread from the
+// pipeline scheduler; toggling also re-renders. caretTickerEnabled=false
+// freezes the bar ON (verification scenes).
+var caretTickerEnabled = true
+
 func (t *caretTicker) Tick(dt float64) bool {
+	if !caretTickerEnabled {
+		return true
+	}
 	t.acc += dt
 	if t.acc >= 0.53 {
 		t.acc = 0
