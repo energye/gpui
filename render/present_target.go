@@ -217,9 +217,14 @@ func NewPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale flo
 	// (uploadPixmapToView — the CPU mode renders shapes on the CPU and the
 	// present no longer depends on the GPU raster pipelines).
 	sc.Usage = types.TextureUsageRenderAttachment | types.TextureUsageCopyDst
-	// 块3 present 策略：Wayland 恒无阻塞（合成器 vblank 换帧不撕裂，客户端
-	// 不必等）；X11 保持 Fifo 稳态（直接扫描出防撕裂）+ 风暴期 SetVsync 切换。
-	fixedNoVsync := ns.Platform == PresentPlatformWayland
+	// 块3 present 策略：Wayland 与 X11 同为 Fifo 稳态（阻塞式 vsync 把提交
+	// 相位锁到显示刷新）。历史上 Wayland 用 FifoRelaxed 恒不阻塞，但实测
+	// （pelican GNOME/mutter 2026-08-26）UI 软件边界 16.0ms 与显示刷新
+	// 16.7ms 自由漂移 → 周期性错过合成 deadline → 上屏内容步距忽大忽小
+	// judder；X11 的 Fifo 阻塞语义天然锁相无此问题。Fifo 在 wayland(wgpu)
+	// 下由 frame callback 节流、raster 线程阻塞在 present（UI 线程异步，
+	// pipeline depth=2 可提前构建），不会卡 UI。
+	fixedNoVsync := false
 	if fixedNoVsync {
 		sc.SetPreferFifoRelaxed()
 	} else {

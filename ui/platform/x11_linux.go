@@ -718,6 +718,15 @@ func (h *x11Host) ScaleFactor() float64 {
 // software tick otherwise.
 func (h *x11Host) WaitVSync() error { return WaitDRMVBlank() }
 
+// FrameNotifyAvailable implements platform.NotifierAvailability: the
+// XPresent notice path only works when the extension probe succeeded
+// (libXpresent loaded + Present ext registered). When false, the scheduler's
+// HostFrameNotifier returns nil and pacing falls back to the DRM vblank
+// listener instead of a no-op notifier.
+func (h *x11Host) FrameNotifyAvailable() bool {
+	return h != nil && h.st != nil && h.st.presentOK && h.st.xPresentNotifyMSC != nil
+}
+
 // RequestFrameNotify implements platform.FrameNotifier: asks the display
 // server to notify once the next vblank has been reached (XPresentNotifyMSC
 // with divisor=1 → next msc where msc%1==0). The notice arrives as a

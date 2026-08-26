@@ -18,6 +18,7 @@ func HostVSync(h Host) VSyncWaiter {
 // DRM vblank fallback (ENGINE_FRAME_PRESENT_STANDARD.md 块2):
 //   - Wayland: wl_surface.frame callback (compositor vblank, no client wait)
 //   - X11: XPresent PresentCompleteNotify (X server display-complete notice)
+//
 // The scheduler prefers FrameNotifier over VSyncWaiter and never starts the
 // DRM listener while one is present (single pacing source, no double stamp).
 type FrameNotifier interface {
@@ -28,11 +29,32 @@ type FrameNotifier interface {
 	RequestFrameNotify()
 }
 
-// HostFrameNotifier returns h as FrameNotifier if implemented.
+// NotifierAvailability lets a Host report whether its frame-presented
+// notification path is actually functional (optional interface). A Host whose
+// underlying protocol extension is missing (e.g. X11 without libXpresent)
+// must return false so the scheduler falls back to the VSyncWaiter listener
+// instead of trusting a no-op notifier — otherwise pacing silently degrades
+// to software-interval guessing with ms-level jitter (visible scroll judder).
+type NotifierAvailability interface {
+	// FrameNotifyAvailable reports whether RequestFrameNotify will actually
+	// deliver EventFramePresented notices.
+	FrameNotifyAvailable() bool
+}
+
+// HostFrameNotifier returns h as FrameNotifier if implemented AND the
+// notification path is functional: hosts that also implement
+// NotifierAvailability must report true, so a no-op notifier (missing
+// protocol extension) does not suppress the VSyncWaiter fallback.
 func HostFrameNotifier(h Host) FrameNotifier {
 	if h == nil {
 		return nil
 	}
-	f, _ := h.(FrameNotifier)
+	f, ok := h.(FrameNotifier)
+	if !ok {
+		return nil
+	}
+	if av, capable := h.(NotifierAvailability); capable && !av.FrameNotifyAvailable() {
+		return nil
+	}
 	return f
 }

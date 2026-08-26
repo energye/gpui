@@ -235,74 +235,74 @@ var (
 		ePing, eCfg, eClose            []byte
 		eCfgIia                        []byte
 	}{
-		wmBase:        append([]byte("xdg_wm_base"), 0),
-		surface:       append([]byte("xdg_surface"), 0),
-		toplevel:      append([]byte("xdg_toplevel"), 0),
-		decoMgr:       append([]byte("zxdg_decoration_manager_v1"), 0),
-		decoTop:       append([]byte("zxdg_toplevel_decoration_v1"), 0),
+		wmBase:         append([]byte("xdg_wm_base"), 0),
+		surface:        append([]byte("xdg_surface"), 0),
+		toplevel:       append([]byte("xdg_toplevel"), 0),
+		decoMgr:        append([]byte("zxdg_decoration_manager_v1"), 0),
+		decoTop:        append([]byte("zxdg_toplevel_decoration_v1"), 0),
 		cursorShapeMgr: append([]byte("zwp_cursor_shape_manager_v1"), 0),
 		cursorShapeDev: append([]byte("zwp_cursor_shape_device_v1"), 0),
-		mDestroy:      append([]byte("destroy"), 0),
-		mGetXdg:       append([]byte("get_xdg_surface"), 0),
-		mPong:         append([]byte("pong"), 0),
-		mGetTop:       append([]byte("get_toplevel"), 0),
-		mAck:          append([]byte("ack_configure"), 0),
-		mGetPopup:     append([]byte("get_popup"), 0),
-		mSetGeom:      append([]byte("set_window_geometry"), 0),
-		mSetTitle:     append([]byte("set_title"), 0),
-		mSetApp:       append([]byte("set_app_id"), 0),
-		mGetDeco:      append([]byte("get_toplevel_decoration"), 0),
-		mSetMode:      append([]byte("set_mode"), 0),
-		mSetParent:    append([]byte("set_parent"), 0),
-		mShowMenu:     append([]byte("show_window_menu"), 0),
-		mMove:         append([]byte("move"), 0),
-		mResize:       append([]byte("resize"), 0),
-		mSetMinSize:   append([]byte("set_min_size"), 0),
-		mSetMaxSize:   append([]byte("set_max_size"), 0),
-		mSetMaxed:     append([]byte("set_maximized"), 0),
-		mUnsetMaxed:   append([]byte("unset_maximized"), 0),
-		mSetFull:      append([]byte("set_fullscreen"), 0),
-		mUnsetFull:    append([]byte("unset_fullscreen"), 0),
-		mSetMinimized: append([]byte("set_minimized"), 0),
-		sEmpty:        append([]byte(""), 0),
-		sNo:           append([]byte("no"), 0),
-		sU:            append([]byte("u"), 0),
-		sN:            append([]byte("n"), 0),
-		sS:            append([]byte("s"), 0),
-		sO:            append([]byte("o"), 0),
-		sQo:           append([]byte("?o"), 0),
-		sOu:           append([]byte("ou"), 0),
-		sOuu:          append([]byte("ouu"), 0),
-		sOuii:         append([]byte("ouii"), 0),
-		sIi:           append([]byte("ii"), 0),
-		sNoo:          append([]byte("noo"), 0),
-		sIiii:         append([]byte("iiii"), 0),
-		sNoTop:        append([]byte("no"), 0),
-		ePing:         append([]byte("ping"), 0),
-		eCfg:          append([]byte("configure"), 0),
-		eClose:        append([]byte("close"), 0),
-		eCfgIia:       append([]byte("iia"), 0),
+		mDestroy:       append([]byte("destroy"), 0),
+		mGetXdg:        append([]byte("get_xdg_surface"), 0),
+		mPong:          append([]byte("pong"), 0),
+		mGetTop:        append([]byte("get_toplevel"), 0),
+		mAck:           append([]byte("ack_configure"), 0),
+		mGetPopup:      append([]byte("get_popup"), 0),
+		mSetGeom:       append([]byte("set_window_geometry"), 0),
+		mSetTitle:      append([]byte("set_title"), 0),
+		mSetApp:        append([]byte("set_app_id"), 0),
+		mGetDeco:       append([]byte("get_toplevel_decoration"), 0),
+		mSetMode:       append([]byte("set_mode"), 0),
+		mSetParent:     append([]byte("set_parent"), 0),
+		mShowMenu:      append([]byte("show_window_menu"), 0),
+		mMove:          append([]byte("move"), 0),
+		mResize:        append([]byte("resize"), 0),
+		mSetMinSize:    append([]byte("set_min_size"), 0),
+		mSetMaxSize:    append([]byte("set_max_size"), 0),
+		mSetMaxed:      append([]byte("set_maximized"), 0),
+		mUnsetMaxed:    append([]byte("unset_maximized"), 0),
+		mSetFull:       append([]byte("set_fullscreen"), 0),
+		mUnsetFull:     append([]byte("unset_fullscreen"), 0),
+		mSetMinimized:  append([]byte("set_minimized"), 0),
+		sEmpty:         append([]byte(""), 0),
+		sNo:            append([]byte("no"), 0),
+		sU:             append([]byte("u"), 0),
+		sN:             append([]byte("n"), 0),
+		sS:             append([]byte("s"), 0),
+		sO:             append([]byte("o"), 0),
+		sQo:            append([]byte("?o"), 0),
+		sOu:            append([]byte("ou"), 0),
+		sOuu:           append([]byte("ouu"), 0),
+		sOuii:          append([]byte("ouii"), 0),
+		sIi:            append([]byte("ii"), 0),
+		sNoo:           append([]byte("noo"), 0),
+		sIiii:          append([]byte("iiii"), 0),
+		sNoTop:         append([]byte("no"), 0),
+		ePing:          append([]byte("ping"), 0),
+		eCfg:           append([]byte("configure"), 0),
+		eClose:         append([]byte("close"), 0),
+		eCfgIia:        append([]byte("iia"), 0),
 	}
 
-	ifaceXdgWmBase   wlInterfaceC
-	ifaceXdgSurface  wlInterfaceC
-	ifaceXdgToplevel wlInterfaceC
-	ifaceDecoMgr     wlInterfaceC
-	ifaceDecoTop     wlInterfaceC
-	ifaceCursorShapeMgr   wlInterfaceC
+	ifaceXdgWmBase         wlInterfaceC
+	ifaceXdgSurface        wlInterfaceC
+	ifaceXdgToplevel       wlInterfaceC
+	ifaceDecoMgr           wlInterfaceC
+	ifaceDecoTop           wlInterfaceC
+	ifaceCursorShapeMgr    wlInterfaceC
 	ifaceCursorShapeDevice wlInterfaceC
 
-	msgWmBase    [4]wlMessageC
-	msgWmBaseEv  [1]wlMessageC
-	msgXdgSurf   [5]wlMessageC
-	msgXdgSurfEv [1]wlMessageC
-	msgTop       [14]wlMessageC
-	msgTopEv     [2]wlMessageC
-	msgDecoMgr   [2]wlMessageC
-	msgDecoTop   [3]wlMessageC
-	msgDecoTopEv [1]wlMessageC
-	msgCursorShapeMgr   [1]wlMessageC
-	msgCursorShapeDev   [1]wlMessageC
+	msgWmBase         [4]wlMessageC
+	msgWmBaseEv       [1]wlMessageC
+	msgXdgSurf        [5]wlMessageC
+	msgXdgSurfEv      [1]wlMessageC
+	msgTop            [14]wlMessageC
+	msgTopEv          [2]wlMessageC
+	msgDecoMgr        [2]wlMessageC
+	msgDecoTop        [3]wlMessageC
+	msgDecoTopEv      [1]wlMessageC
+	msgCursorShapeMgr [1]wlMessageC
+	msgCursorShapeDev [1]wlMessageC
 
 	typesXdgSurf [2]uintptr
 	typesTop     [1]uintptr
@@ -437,7 +437,7 @@ type wlWin struct {
 	compName, compVer uint32
 	wmName, wmVer     uint32
 	decoName, decoVer uint32
-	csMgrName         uint32  // zwp_cursor_shape_manager_v1 global (0 = absent)
+	csMgrName         uint32 // zwp_cursor_shape_manager_v1 global (0 = absent)
 	csMgrVer          uint32
 	decoMgr           uintptr
 	decoTop           uintptr
@@ -1191,6 +1191,13 @@ func (h *wlHost) RequestFrameNotify() {
 	w.frameCB.Store(cb)
 }
 
+// FrameNotifyAvailable implements platform.NotifierAvailability. Returns
+// false: one-frame-in-flight gating on these notices locked animation at
+// ~22fps in real-window tests (2026-08-26) — our async UI→raster pipeline
+// cannot turn a done notice into a committed frame within one refresh slot.
+// Free-running software pacing with a display period learned from DRM
+// vblank stamps measured 5× lower inter-frame jitter, so the scheduler uses
+// the VSyncWaiter path here (same as X11).
 func wlTopConfigure(data, toplevel, width, height, statesArr uintptr) {
 	w := winFrom(data)
 	if w == nil {
@@ -1406,7 +1413,8 @@ func (h *wlHost) postImeFlush(st *wlTIState) {
 	h.imeFlushMu.Unlock()
 }
 
-func (h *wlHost) ensureWakePipe() {	if h == nil {
+func (h *wlHost) ensureWakePipe() {
+	if h == nil {
 		return
 	}
 	if h.wakePipe[0] != 0 || h.wakePipe[1] != 0 {

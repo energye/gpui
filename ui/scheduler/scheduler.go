@@ -60,6 +60,36 @@ type FrameScheduler struct {
 	// the software floor already covers — firing per stamp would over-render).
 	lastStampAt       time.Time
 	lastStampInterval time.Duration
+	// displayPeriod is the learned display refresh interval (EMA of stamp
+	// intervals). Wayland/X11 software-boundary pacing uses it instead of
+	// the hardcoded DefaultAnimTick so the UI commit cadence matches the
+	// actual display (e.g. 16.7ms at 60Hz) — free-running faster than the
+	// display causes periodic skipped refreshes (judder, worse at higher
+	// animation speeds where each skipped slot doubles the visible step).
+	displayPeriod time.Duration
+	stampCount    int
+}
+
+// boundaryPeriodLocked returns the software-boundary interval: the learned
+// display period once enough stamps arrived, else DefaultAnimTick.
+// Clamped to [animTick*0.8, 100ms] so a bogus source cannot stall frames.
+// Caller holds s.mu.
+func (s *FrameScheduler) boundaryPeriodLocked() time.Duration {
+	if s.displayPeriod <= 0 {
+		return s.animTick
+	}
+	min := s.animTick * 8 / 10
+	if min < 4*time.Millisecond {
+		min = 4 * time.Millisecond
+	}
+	p := s.displayPeriod
+	if p < min {
+		p = min
+	}
+	if p > 100*time.Millisecond {
+		p = 100 * time.Millisecond
+	}
+	return p
 }
 
 // stampVSyncLocked records a vsync arrival with its interval. Caller holds
@@ -71,6 +101,25 @@ func (s *FrameScheduler) stampVSyncLocked(now time.Time) {
 	}
 	s.lastStampAt = now
 	s.lastVSync = now
+}
+
+// learnDisplayPeriod feeds a hardware vblank interval into the display-period
+// estimate used by the software boundary (boundaryPeriodLocked). Only the
+// DRM vblank listener calls this — compositor frame-done notices arrive at
+// the compositor's mercy (batched/delayed) and would poison the estimate.
+func (s *FrameScheduler) learnDisplayPeriod(iv time.Duration) {
+	if iv <= 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if iv >= 8*time.Millisecond && iv <= 100*time.Millisecond {
+		if s.displayPeriod <= 0 {
+			s.displayPeriod = iv
+		} else {
+			s.displayPeriod += (iv - s.displayPeriod) / 8 // EMA α=1/8
+		}
+	}
 }
 
 // ensureVsyncListener starts the vsync listener goroutine once: it waits on
@@ -99,11 +148,17 @@ func (s *FrameScheduler) ensureVsyncListener(host platform.Host) {
 			return
 		}
 		go func() {
+			var last time.Time
 			for {
 				if err := v.WaitVSync(); err == nil {
+					now := time.Now()
 					s.vsyncMu.Lock()
-					s.stampVSyncLocked(time.Now())
+					if !last.IsZero() {
+						s.learnDisplayPeriod(now.Sub(last))
+					}
+					s.stampVSyncLocked(now)
 					s.vsyncMu.Unlock()
+					last = now
 					continue
 				}
 				s.metrics.NoteMissedVSync()
@@ -147,7 +202,7 @@ func (s *FrameScheduler) vsyncFresh() bool {
 // sources (stamps closer than animTick) pace via the per-stamp path in
 // FrameDue instead. Caller must hold s.mu.
 func (s *FrameScheduler) nextFrameBoundaryLocked() time.Time {
-	return s.lastFrameAt.Add(s.animTick)
+	return s.lastFrameAt.Add(s.boundaryPeriodLocked())
 }
 
 // FrameDue is the non-blocking frame-pacing gate (Flutter frame callback
@@ -180,11 +235,7 @@ func (s *FrameScheduler) FrameDue() bool {
 		// Fast vsync source: stamps arriving closer than the software
 		// interval (e.g. a 120Hz vblank) pace once per stamp (Flutter
 		// frame-callback semantics). Interval 0 is the first stamp — no
-		// cadence known yet, treat it as a fresh boundary. Slow stamps
-		// (interval > animTick) are covered by the software floor below —
-		// firing per stamp would double-render between floor deadlines
-		// (observed ~2×-delayed wl_surface.frame callbacks pushing presents
-		// to ~80/s).
+		// cadence known yet, treat it as a fresh boundary.
 		if !s.lastStampAt.IsZero() && s.lastStampInterval <= s.animTick &&
 			s.lastFrameAt.Before(s.lastVSync) {
 			s.lastFrameAt = now
@@ -309,6 +360,11 @@ func (s *FrameScheduler) WaitTimeout() time.Duration {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		d := s.animTick
+		if p := s.boundaryPeriodLocked(); s.lastFrameAt.IsZero() || p < 4*time.Millisecond {
+			// no learned period yet — keep the animTick ceiling
+		} else if p < d {
+			d = p
+		}
 		if !s.lastFrameAt.IsZero() {
 			switch left := time.Until(s.nextFrameBoundaryLocked()); {
 			case left > 0 && left < d:
