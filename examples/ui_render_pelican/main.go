@@ -54,7 +54,7 @@ func main() {
 		Width:       winW,
 		Height:      winH,
 		Title:       "gpui ui_render_pelican — 鹈鹕骑行 · Pelican Rider",
-		Decorations: true,
+		Decorations: os.Getenv("PELICAN_NODECOR") != "1", // PELICAN_NODECOR=1: 无 CSD 单 surface（合成路径对照）
 		Resizable:   true,
 		Backend:     runBackend(),
 	})
@@ -94,6 +94,9 @@ func main() {
 		app.ScheduleFrame()
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
+	// retained 呈现（R4）：持续动画只重画脏层，raster ~16→5ms——为块2
+	// vsync 在途门控腾帧预算（raster 超过半个刷新周期时互斥会掉帧）。
+	app.SetPresentPolicy(scheduler.PresentPolicyRetained)
 
 	t0 := time.Now()
 	if err := app.Open(); err != nil {
@@ -111,6 +114,7 @@ func main() {
 	if elapsed < 0.001 {
 		elapsed = 0.001
 	}
+	stepDiagReport()
 	presents := app.PresentCount()
 	fps := float64(presents) / elapsed
 

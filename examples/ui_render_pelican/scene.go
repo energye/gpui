@@ -351,6 +351,7 @@ func (sc *pelicanScene) onTick(dt float64) {
 		return
 	}
 	sc.sim.tick(dt)
+	stepDiagRecord(sc.sim.dist)
 	sc.stageBox.MarkNeedsPaint()
 	sc.hudBox.MarkNeedsPaint()
 }

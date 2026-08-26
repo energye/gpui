@@ -47,6 +47,8 @@ SNAPSHOT=tmp/pelican_shot.png RUN_SECONDS=5 go run ./examples/ui_render_pelican
 | `PELICAN_T=秒` | 把仿真冻结到确定时刻（云/鸟/视差/曲柄全部确定），供逐像素对比 |
 | `GOLDEN_PNG=path` | 不开窗，用软件光栅渲染 `PELICAN_T` 单帧存 PNG（配合 `GOGPU_RENDER_MODE=cpu` 得纯 CPU 基准） |
 | `GPUI_BACKEND=x11\|wayland` | 强制显示后端（x11 后端可用 `xwd -id <窗口>` 抓真实上屏内容） |
+| `PELICAN_STEPDIAG=1` | 帧步距诊断：结束时打印 tick dt 分位数/直方图与 dist 步距异常统计（0 步=丢帧、>1.9x=追帧） |
+| `PELICAN_STEPRAW=1` | 配合 STEPDIAG 每帧输出 `STEPRAW <dt_ms>` 原始 tick 间隔流（stderr），供外部游程/拍频分析 |
 
 标准复现流程（同帧三方对比）：
 
