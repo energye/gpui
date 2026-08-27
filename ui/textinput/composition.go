@@ -1,11 +1,7 @@
 package textinput
 
-import (
-	"github.com/energye/gpui/ui/input"
-)
+import "github.com/energye/gpui/ui/input"
 
-// ApplyIME applies one normalized IME event. Returns true when visible state changed.
-// Now delegates to Flutter-aligned four-tuple: preedit stays in text via UpdateComposingText.
 func (e *Editor) ApplyIME(ev input.IMEEvent) bool {
 	if e == nil {
 		return false
@@ -19,7 +15,6 @@ func (e *Editor) ApplyIME(ev input.IMEEvent) bool {
 			}
 			return e.text != before
 		}
-		// batch Begin+Update into single epoch (old test expects one fire)
 		was := e.composing
 		if !was {
 			e.BeginBatchEdit()
@@ -56,16 +51,4 @@ func (e *Editor) ApplyText(ev input.TextEvent) bool {
 	before := e.text
 	e.AddText(ev.Text)
 	return e.text != before
-}
-
-// CompositionCursor legacy: caret within composing span in display coords
-func (e *Editor) CompositionCursor() int {
-	if e == nil || !e.composing {
-		return -1
-	}
-	v := e.View()
-	off := e.selection.Extent - e.composingRange.Start()
-	compText := e.CompositionText()
-	b := byteOffsetForUtf16(compText, off)
-	return v.CompStart + b
 }

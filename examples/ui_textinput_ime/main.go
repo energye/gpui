@@ -488,12 +488,12 @@ func main() {
 	switch caretScene {
 	case "multiline":
 		box.caretOn = true
-		ed.SetText("first line text\nsecond line content")
+		ed.SetTextSimple("first line text\nsecond line content")
 		ed.SetCaret(len("first line text\nsecond ")) // line 2, mid-content
 		logf("scene=multiline caretLine=1 (0-based)")
 	case "composing":
 		box.caretOn = true
-		ed.SetText("committed ")
+		ed.SetTextSimple("committed ")
 		ed.SetCaret(len("committed "))
 		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "pinyin", Start: -1, End: -1})
 		logf("scene=composing composing=%v", ed.ComposeActive())
@@ -503,7 +503,7 @@ func main() {
 		// bar-over-right-text case: the bar must sit in the ink gap between
 		// the preedit glyphs and never overlap the committed text.
 		box.caretOn = true
-		ed.SetText("committed after")
+		ed.SetTextSimple("committed after")
 		ed.SetCaret(len("committed "))
 		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "pinyin", Start: 4, End: 4})
 		logf("scene=composing-mid composing=%v cursorInSpan=%d display=%q",
@@ -513,7 +513,7 @@ func main() {
 		// mid-sentence, live pinyin preedit inserted there. Full-width glyphs
 		// leave ~1px side bearings, so this is the harshest overlap test.
 		box.caretOn = true
-		ed.SetText("你好世界，光标测试文本")
+		ed.SetTextSimple("你好世界，光标测试文本")
 		ed.SetCaret(len("你好世界，"))
 		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihao", Start: -1, End: -1})
 		logf("scene=composing-cjk composing=%v display=%q",
@@ -523,7 +523,7 @@ func main() {
 		// text; then ArrowRight x3 + ArrowDown x1 driven through OnKey so the
 		// exact production key path is exercised. Exit JSON records positions.
 		box.caretOn = true
-		ed.SetText("中文abc混合text\n第二行")
+		ed.SetTextSimple("中文abc混合text\n第二行")
 		ed.SetCaret(len("中文abc"))
 		for i := 0; i < 3; i++ {
 			box.OnKey(input.KeyEvent{Pressed: true, Key: input.KeyArrowRight})
@@ -537,7 +537,7 @@ func main() {
 		// sit in the gap between m2 and m3, never on a glyph.
 		box.caretOn = true
 		const mm = "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
-		ed.SetText(mm)
+		ed.SetTextSimple(mm)
 		// click x: pen(3)=3*19.48=58.45 box-local; inside 3rd m means x∈[58.45+1.82, 58.45+17.78]
 		app.SetInputRouter(router)
 		clickIdx := 0
@@ -559,7 +559,7 @@ func main() {
 		}})
 	case "click":
 		box.caretOn = true
-		ed.SetText("row-one\nrow-two\nrow-three")
+		ed.SetTextSimple("row-one\nrow-two\nrow-three")
 		// Simulate a click on row 3 at x≈30px: route through the box's own
 		// pointer handler so the exact production path is exercised.
 		box.OnPointer(input.PointerEvent{Kind: input.PointerDown, X: 40 + 30, Y: boxY + 2*26})
@@ -570,7 +570,7 @@ func main() {
 		// then a second click at line 1 start ("|row-one") — caret must
 		// follow each click.
 		box.caretOn = true
-		ed.SetText("row-one\nrow-two\nrow-three")
+		ed.SetTextSimple("row-one\nrow-two\nrow-three")
 		app.SetInputRouter(router)
 		// Clicks must fire AFTER the first layout pass (hit-test needs real
 		// sizes) — defer to the frame loop via a one-shot ticker.

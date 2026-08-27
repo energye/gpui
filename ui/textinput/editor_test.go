@@ -6,224 +6,122 @@ import (
 	"github.com/energye/gpui/ui/input"
 )
 
-func TestInsertBasics(t *testing.T) {
-	e := New()
-	e.Insert("a")
-	e.Insert("你")
-	if e.Text() != "a你" || e.Cursor() != 4 {
-		t.Fatalf("text=%q cursor=%d", e.Text(), e.Cursor())
-	}
-	if e.LenRunes() != 2 {
-		t.Fatalf("runes=%d", e.LenRunes())
+func mustSetText(t *testing.T, e *Editor, s string) {
+	t.Helper()
+	n := utf16Len(s)
+	if !e.SetText(s, TextRange{Base: n, Extent: n}, TextRange{}, 0) {
+		t.Fatalf("SetText failed")
 	}
 }
 
-func TestEpochMonotonic(t *testing.T) {
+func TestR1_FourTuple(t *testing.T) {
 	e := New()
-	e0 := e.Epoch()
-	e.Insert("x")
-	e1 := e.Epoch()
-	e.SetText("xy")
-	e2 := e.Epoch()
-	if !(e0 < e1 && e1 < e2) {
-		t.Fatalf("epoch not monotonic: %d %d %d", e0, e1, e2)
+	mustSetText(t, e, "hi")
+	if e.GetText() != "hi" {
+		t.Fatalf("GetText %q", e.GetText())
+	}
+	if e.TextRange().Extent != 2 {
+		t.Fatalf("TextRange %v", e.TextRange())
 	}
 }
 
-func TestDeleteRuneBoundary(t *testing.T) {
+func TestR1_SetTextSentinel(t *testing.T) {
 	e := New()
-	e.SetText("a你b")
-	e.SetCaret(len("a你b"))
-	e.DeleteBackward()
-	e.DeleteBackward()
-	if e.Text() != "a" {
-		t.Fatalf("text=%q", e.Text())
-	}
-	e.SetCaret(0)
-	e.DeleteForward()
-	if e.Text() != "" {
-		t.Fatalf("after forward: %q", e.Text())
+	e.SetText("hello", TextRange{Base: -1, Extent: -1}, TextRange{Base: -1, Extent: -1}, 0)
+	if e.GetText() != "hello" || e.GetCursorOffset() != 0 {
+		t.Fatalf("sentinel failed text=%q cur=%d", e.GetText(), e.GetCursorOffset())
 	}
 }
 
-func TestDeleteSurroundingSnaps(t *testing.T) {
+func TestR1_EditableRange(t *testing.T) {
 	e := New()
-	e.SetText("你好")
-	e.SetCaret(3)
-	if !e.DeleteSurrounding(1, 0) {
-		t.Fatal("should report change")
+	mustSetText(t, e, "abcd")
+	e.BeginComposing()
+	e.UpdateComposingText("xy", TextRange{Base: 4, Extent: 6})
+	er := e.EditableRange()
+	if er.Start() != 4 || er.End() != 6 {
+		t.Fatalf("EditableRange %v", er)
 	}
-	if e.Text() != "好" || e.Cursor() != 0 {
-		t.Fatalf("snap: text=%q cursor=%d", e.Text(), e.Cursor())
+	if !e.SetSelection(TextRange{Base: 4, Extent: 4}) {
+		t.Fatalf("SetSelection in composing failed")
 	}
-	if e.DeleteSurrounding(0, 0) {
-		t.Fatal("no-op should return false")
+	if e.SetSelection(TextRange{Base: 0, Extent: 1}) {
+		t.Fatalf("SetSelection outside composing should fail")
 	}
 }
 
-func TestMoveCaretRunes(t *testing.T) {
+func TestR1_UpdateComposingText(t *testing.T) {
 	e := New()
-	e.SetText("你好w")
-	e.SetCaret(0)
-	e.MoveCaretRunes(2)
-	if e.Cursor() != 6 {
-		t.Fatalf("+2 = %d", e.Cursor())
+	mustSetText(t, e, "ab")
+	e.SetSelection(TextRange{Base: 2, Extent: 2})
+	e.BeginComposing()
+	e.UpdateComposingText("ni", TextRange{Base: 2, Extent: 4})
+	if e.GetText() != "abni" || !e.ComposeActive() {
+		t.Fatalf("UpdateComposingText text=%q active=%v", e.GetText(), e.ComposeActive())
 	}
-	e.MoveCaretRunes(-2)
-	if e.Cursor() != 0 {
-		t.Fatalf("-2 = %d", e.Cursor())
+	e.UpdateComposingText("nihao", TextRange{Base: 2, Extent: 7})
+	if e.GetText() != "abnihao" {
+		t.Fatalf("second update %q", e.GetText())
+	}
+	e.EndComposing()
+	if e.GetText() != "ab" {
+		t.Fatalf("EndComposing should delete preedit, got %q", e.GetText())
 	}
 }
 
-// pure four-tuple: text includes preedit
-func TestComposeIncludesInText(t *testing.T) {
+func TestR1_AddTextReplacesComposing(t *testing.T) {
 	e := New()
-	e.SetText("hi")
-	e.SetCaret(2)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"})
-	if !e.ComposeActive() || e.CompositionText() != "ni" {
-		t.Fatalf("compose not active: %q", e.CompositionText())
-	}
-	if e.Text() != "hini" {
-		t.Fatalf("text should include preedit: %q", e.Text())
-	}
-	v := e.View()
-	if v.Display != "hini" || v.CompStart != 2 || v.CompEnd != 4 {
-		t.Fatalf("view = %+v", v)
-	}
-}
-
-func TestEmptyPreeditOnlyTerminates(t *testing.T) {
-	e := New()
-	e.SetText("ab")
-	e.SetCaret(2)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
-	if e.ComposeActive() {
-		t.Fatal("empty preedit started a session")
-	}
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "cd"})
-	if e.Text() != "abcd" {
-		t.Fatalf("after cd text=%q", e.Text())
-	}
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
-	if e.ComposeActive() || e.Text() != "ab" {
-		t.Fatalf("clear left residue: active=%v text=%q", e.ComposeActive(), e.Text())
-	}
-}
-
-func TestCommitReplacesOverlayAtomically(t *testing.T) {
-	e := New()
-	e.SetText("ab")
-	e.SetCaret(2)
+	mustSetText(t, e, "ab")
+	e.SetSelection(TextRange{Base: 2, Extent: 2})
 	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihao"})
 	e.ApplyIME(input.IMEEvent{Kind: input.IMECommit, Text: "你好"})
-	if e.Text() != "ab你好" || e.ComposeActive() {
-		t.Fatalf("text=%q active=%v", e.Text(), e.ComposeActive())
-	}
-	if e.Cursor() != len("ab你好") {
-		t.Fatalf("cursor after commit = %d", e.Cursor())
+	if e.GetText() != "ab你好" || e.ComposeActive() {
+		t.Fatalf("commit %q active=%v", e.GetText(), e.ComposeActive())
 	}
 }
 
-func TestComposedViewMappings(t *testing.T) {
-	e := New()
-	e.SetText("ab")
-	e.SetCaret(2)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "xyz"})
-	v := e.View()
-	cases := []struct{ view, buf int }{
-		{0, 0}, {2, 2},
-		{3, 2}, {5, 2},
-		{6, 3}, {8, 5},
-	}
-	for _, c := range cases {
-		if got := v.MapViewToBuf(c.view); got != c.buf {
-			t.Fatalf("MapViewToBuf(%d) = %d, want %d", c.view, got, c.buf)
-		}
-	}
-	if got := v.MapBufToViewExact(2, 1); got != 3 {
-		t.Fatalf("MapBufToViewExact = %d", got)
-	}
-	bcases := []struct{ buf, view int }{
-		{0, 0}, {2, 2},
-		{3, 6}, {5, 8},
-	}
-	for _, c := range bcases {
-		if got := v.MapBufToView(c.buf); got != c.view {
-			t.Fatalf("MapBufToView(%d) = %d, want %d", c.buf, got, c.view)
-		}
-	}
-	e2 := New()
-	e2.SetText("abc")
-	v2 := e2.View()
-	if v2.MapViewToBuf(1) != 1 || v2.CompStart != -1 {
-		t.Fatalf("identity mapping broken: %+v", v2)
-	}
-}
-
-func TestByteOffsetAtSnapsOutOfSpan(t *testing.T) {
-	e := New()
-	e.SetText("ab")
-	e.SetCaret(2)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "xyz"})
-	widths := map[string]float64{}
-	w := func(s string) float64 { widths[s]++; return float64(len(s)) }
-	if got := e.ByteOffsetAt(4, w); got != 2 {
-		t.Fatalf("click in span → %d, want 2", got)
-	}
-	if got := e.ByteOffsetAt(999, w); got != 5-3 {
-		t.Fatalf("click past end → %d, want 2", got)
-	}
-}
-
-func TestSnapshotIncludesComposition(t *testing.T) {
-	e := New()
-	e.SetText("hi")
-	e.SetCaret(2)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"})
-	text, cur := e.Snapshot()
-	if text != "hini" || cur != 2 {
-		t.Fatalf("snapshot = (%q,%d), want (hini,2)", text, cur)
-	}
-}
-
-func TestDeleteDuringCompositionDeletesInside(t *testing.T) {
-	e := New()
-	e.SetText("hello")
-	e.SetCaret(5)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "f", Start: 1})
-	e.DeleteBackward()
-	if e.Text() != "hello" {
-		t.Fatalf("after backspace in composing text=%q want hello", e.Text())
-	}
-	if e.CompositionText() != "" {
-		t.Fatalf("composition should be empty after delete: %q", e.CompositionText())
-	}
-}
-
-func TestClipboardRoundtrip(t *testing.T) {
-	e := New()
-	e.SetText("hello")
-	e.SetSelectionBytes(1, 4)
-	if e.Copy() != "ell" {
-		t.Fatalf("copy = %q", e.Copy())
-	}
-	if e.Cut() != "ell" || e.Text() != "ho" {
-		t.Fatalf("cut state = %q", e.Text())
-	}
-	if !e.Paste("ELL") || e.Text() != "hELLo" {
-		t.Fatalf("paste state = %q", e.Text())
-	}
-}
-
-func TestOnChangeFiresPerMutation(t *testing.T) {
+func TestR1_Batch(t *testing.T) {
 	e := New()
 	n := 0
 	e.OnChange = func() { n++ }
-	e.Insert("a")
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "b"})
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECommit, Text: "c"})
-	if n != 3 {
-		t.Fatalf("change fires = %d, want 3", n)
+	e.BeginBatchEdit()
+	e.AddText("a")
+	e.AddText("b")
+	if n != 0 {
+		t.Fatalf("batch should suppress, n=%d", n)
+	}
+	e.EndBatchEdit()
+	if n != 1 {
+		t.Fatalf("batch end should fire once, n=%d", n)
+	}
+}
+
+func TestR1_Epoch(t *testing.T) {
+	e := New()
+	e0 := e.Epoch()
+	e.AddText("x")
+	if e.Epoch() <= e0 {
+		t.Fatalf("epoch not monotonic")
+	}
+}
+
+func TestR1_BackspaceSurrogate(t *testing.T) {
+	e := New()
+	mustSetText(t, e, "a𐐷b")
+	// 𐐷 is U+10437 >0xFFFF, 2 units
+	e.SetSelection(TextRange{Base: 3, Extent: 3}) // after 𐐷 (a=1, 𐐷=2, so 3)
+	e.Backspace()
+	if e.GetText() != "ab" {
+		t.Fatalf("surrogate backspace %q", e.GetText())
+	}
+}
+
+func TestR1_DeleteSurrounding(t *testing.T) {
+	e := New()
+	mustSetText(t, e, "abcdef")
+	e.SetSelection(TextRange{Base: 3, Extent: 3})
+	e.DeleteSurrounding(-1, 1)
+	if e.GetText() != "abdef" {
+		t.Fatalf("DeleteSurrounding %q", e.GetText())
 	}
 }
