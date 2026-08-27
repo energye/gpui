@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	"strings"
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render/text"
@@ -28,7 +29,6 @@ type TextLayout struct {
 }
 
 // BuildTextLayout produces single-source layout.
-// textStr is the full display text (already contains preedit).
 func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64) *TextLayout {
 	if textStr == "" {
 		return &TextLayout{FontSize: fontSize}
@@ -37,10 +37,22 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 		fontSize = 14
 	}
 	var lines []TextLayoutLine
-	// Wrap into visual lines
-	wrapped := text.WrapText(textStr, face, maxWidth, text.WrapWord)
-	if len(wrapped) == 0 {
-		wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
+	var wrapped []text.WrapResult
+	if maxWidth <= 0 {
+		parts := strings.Split(textStr, "\n")
+		off := 0
+		for _, p := range parts {
+			wrapped = append(wrapped, text.WrapResult{Text: p, Start: off, End: off + len(p)})
+			off += len(p) + 1
+		}
+		if len(wrapped) == 0 {
+			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
+		}
+	} else {
+		wrapped = text.WrapText(textStr, face, maxWidth, text.WrapWord)
+		if len(wrapped) == 0 {
+			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
+		}
 	}
 	for _, w := range wrapped {
 		lineText := w.Text
