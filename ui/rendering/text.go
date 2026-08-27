@@ -59,6 +59,9 @@ type RenderText struct {
 	measureCache map[string]float64
 	measureHits  int64
 	measureMiss  int64
+
+	// textLayout is the single-source layout (R2). Nil = dirty.
+	textLayout *TextLayout
 }
 
 // NewRenderText creates a text node.
@@ -359,7 +362,23 @@ func (t *RenderText) invalidateMeasureCache() {
 		return
 	}
 	t.measureCache = nil
+	t.textLayout = nil
 }
+
+// ensureLayout returns the single-source TextLayout, building if dirty.
+func (t *RenderText) ensureLayout() *TextLayout {
+	if t == nil {
+		return nil
+	}
+	if t.textLayout != nil {
+		return t.textLayout
+	}
+	t.textLayout = BuildTextLayout(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing())
+	return t.textLayout
+}
+
+// TextLayout returns the cached single-source layout (builds if needed).
+func (t *RenderText) TextLayout() *TextLayout { return t.ensureLayout() }
 
 // MeasureCacheStats returns R9 hit/miss counters (cumulative since last reset).
 func (t *RenderText) MeasureCacheStats() (hits, misses int64) {
@@ -509,10 +528,13 @@ func (t *RenderText) GlyphInkBounds(r rune) (bounds text.Rect, ok bool) {
 //
 // The offset must lie on a rune boundary within t.Text; out-of-range clamps
 // to 0 / len(Text). Returns (lineIdx, penX, true); ok=false when there is no
-// content at all.
+// content at all. Single-source: reads from TextLayout Carets.
 func (t *RenderText) CaretColumn(off int) (lineIdx int, penX float64, ok bool) {
 	if t == nil {
 		return 0, 0, false
+	}
+	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
+		return lay.CaretForOffset(off)
 	}
 	lines := t.DisplayLines()
 	if len(lines) == 0 {
@@ -524,8 +546,6 @@ func (t *RenderText) CaretColumn(off int) (lineIdx int, penX float64, ok bool) {
 	if off > len(t.Text) {
 		off = len(t.Text)
 	}
-	// Walk lines by display offsets: wrapLines splits at '\n' and DROPS it,
-	// so line i starts at sum(len(lines[0..i-1])) + i in Text.
 	start := 0
 	for i, ln := range lines {
 		end := start + len(ln)
@@ -533,7 +553,7 @@ func (t *RenderText) CaretColumn(off int) (lineIdx int, penX float64, ok bool) {
 			inLine := t.Text[start:min(off, end)]
 			return i, t.measureLine(inLine), true
 		}
-		start = end + 1 // +1: the dropped '\n'
+		start = end + 1
 	}
 	return 0, 0, false
 }
@@ -789,7 +809,7 @@ func (t *RenderText) Layout(c Constraints) Size {
 	return out
 }
 
-// Paint implements RenderObject.
+// Paint implements RenderObject — single-source via TextLayout + DrawShapedGlyphs.
 func (t *RenderText) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
@@ -801,28 +821,41 @@ func (t *RenderText) Paint(pc *PaintContext) {
 	if t.hasRuns() {
 		t.paintRuns(pc)
 	} else {
+		lay := t.ensureLayout()
 		lines := t.DisplayLines()
-		if len(lines) > 0 {
+		if len(lines) > 0 && lay != nil {
 			a := t.A
 			if a == 0 && (t.R != 0 || t.G != 0 || t.B != 0) {
 				a = 1
 			}
-			// Apply size-synced face before DrawString (DrawString no-ops without Font).
-			if face := t.effectiveFace(); face != nil && pc.DC != nil {
+			face := t.effectiveFace()
+			if face != nil && pc.DC != nil {
 				pc.DC.SetFont(face)
 			}
 			if pc.DC != nil {
 				pc.DC.SetTextDecoration(t.Decoration)
 			}
+			if pc.DC != nil {
+				pc.DC.SetRGBA(t.R, t.G, t.B, a)
+			}
 			fs := t.fontSize()
 			lh := t.lineHeightLogical()
-			// Y uses FontSize as first baseline (single-line MVP convention); subsequent lines step by lh.
 			for i, line := range lines {
 				if line == "" {
 					continue
 				}
 				y := fs + float64(i)*lh
-				drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
+				if face != nil && pc.DC != nil {
+					glyphs := text.Shape(line, face)
+					if len(glyphs) > 0 {
+						ax, ay := pc.Abs(0, y)
+						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
+					} else {
+						drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
+					}
+				} else {
+					drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
+				}
 			}
 			if pc.DC != nil {
 				pc.DC.SetTextDecoration(render.TextDecorationNone)
@@ -877,18 +910,22 @@ func (t *RenderText) paintRuns(pc *PaintContext) {
 }
 
 // ByteOffsetAt converts an x offset (logical px from the text origin) into
-// the nearest UTF-8 byte boundary of the single-line Text — click-to-place-
-// caret support. Boundaries snap to rune starts; x ≤ 0 → 0, x beyond the
-// text → len(Text). Wrap is not considered (single-line MVP, same as Paint).
+// the nearest UTF-8 byte boundary — single-source via TextLayout.
 func (t *RenderText) ByteOffsetAt(x float64) int {
-	if t == nil || t.Text == "" || x <= 0 {
+	if t == nil || t.Text == "" {
+		return 0
+	}
+	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
+		return lay.HitTest(x, 0, t.lineHeightLogical())
+	}
+	if x <= 0 {
 		return 0
 	}
 	prev := 0.0
 	for idx, r := range t.Text {
 		right := t.measureLine(t.Text[:idx+utf8.RuneLen(r)])
 		if x < (prev+right)/2 {
-			return idx // nearest boundary is before this rune
+			return idx
 		}
 		prev = right
 	}
@@ -896,15 +933,13 @@ func (t *RenderText) ByteOffsetAt(x float64) int {
 }
 
 // ByteOffsetAtPoint converts a point (logical px, text-origin relative) into
-// the nearest UTF-8 byte boundary of the WRAPPED display text: the row is
-// chosen by y (lineHeight steps), then the column by x within that line —
-// multi-line click-to-caret. Falls back to ByteOffsetAt for single-line.
-//
-// NOTE: wrapLines drops the '\n' at each split, so line i's start in the
-// original Text is sum(len(lines[0..i-1])) + i.
+// the nearest UTF-8 byte boundary — single-source via TextLayout.
 func (t *RenderText) ByteOffsetAtPoint(x, y float64) int {
 	if t == nil {
 		return 0
+	}
+	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
+		return lay.HitTest(x, y, t.lineHeightLogical())
 	}
 	lines := t.DisplayLines()
 	if len(lines) <= 1 || y <= 0 {
@@ -924,7 +959,7 @@ func (t *RenderText) ByteOffsetAtPoint(x, y float64) int {
 	}
 	start := 0
 	for i := 0; i < row; i++ {
-		start += len(lines[i]) + 1 // +1 for the dropped '\n'
+		start += len(lines[i]) + 1
 	}
 	if x <= 0 {
 		return start
