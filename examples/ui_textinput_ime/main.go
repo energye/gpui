@@ -83,6 +83,7 @@ func newInputBox(ed *textinput.Editor) *inputBox {
 	inner.Init(b) // Self = the OUTER inputBox so parent chains resolve to it
 	b.text.FontSize = 20
 	b.text.R, b.text.G, b.text.B, b.text.A = 0.05, 0.75, 0.95, 1
+	b.text.SetMaxWidth(boxW - 8)
 	b.FixedWidth = boxW
 	b.FixedHeight = boxH
 	b.AddChild(b.text)
@@ -232,15 +233,15 @@ func (b *inputBox) layoutCaret() {
 	}
 }
 
-// OnPointer implements input.PointerHandler: clicking focuses the box via
-// the focus manager (the framework opens/closes the IME session on the
-// transition) and places the caret at the clicked position — wrap-aware
-// (ByteOffsetAtPoint picks the row by y, then the column by x).
+// OnPointer — R2 单源点选：直接读 TextLayout HitTest，日志便于真人验缝
 func (b *inputBox) OnPointer(ev input.PointerEvent) {
 	if ev.Kind == input.PointerDown && b.node != nil {
 		b.node.RequestFocus()
 		localY := ev.Y - boxY
-		b.ed.SetCaret(b.text.ByteOffsetAtPoint(ev.X-boxX, localY))
+		localX := ev.X - boxX
+		off := b.text.ByteOffsetAtPoint(localX, localY)
+		b.ed.SetCaret(off)
+		logf("click at (%.1f,%.1f) local (%.1f,%.1f) -> off %d text %q", ev.X, ev.Y, localX, localY, off, b.ed.GetText())
 	}
 }
 
