@@ -58,6 +58,9 @@ func newManualInputBox(ed *textinput.Editor, w, h float64) *manualInputBox {
 	}
 	inner.Init(b)
 	b.text.FontSize = 16
+	if face := wrkit.FaceAt(16); face != nil {
+		b.text.SetFace(face)
+	}
 	b.text.R, b.text.G, b.text.B, b.text.A = 0.05, 0.75, 0.95, 1
 	b.FixedWidth = w
 	b.FixedHeight = h
