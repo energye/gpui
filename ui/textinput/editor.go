@@ -36,6 +36,7 @@ type Editor struct {
 	selection      TextRange
 	composingRange TextRange
 	composing      bool
+	enableDeltaModel bool
 	batchDepth         int
 	lastFrameworkText  string
 	lastFrameworkSel   TextRange
@@ -156,6 +157,18 @@ func (e *Editor) ShouldSkipFrameworkUpdate(text string, sel, comp TextRange) boo
 		return false
 	}
 	return text == e.lastFrameworkText && sel == e.lastFrameworkSel && comp == e.lastFrameworkComp
+}
+func (e *Editor) SetConfiguration(cfg TextInputConfiguration) {
+	if e == nil {
+		return
+	}
+	e.enableDeltaModel = cfg.EnableDeltaModel
+}
+func (e *Editor) EnableDeltaModel() bool {
+	if e == nil {
+		return false
+	}
+	return e.enableDeltaModel
 }
 
 func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {

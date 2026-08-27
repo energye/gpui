@@ -339,7 +339,7 @@ func (st *wlTIState) sendCursorRect(rect Rect) {
 }
 
 // SetComposing reports the surrounding text and caret for IME editing (D2:
-// opt-in, local-change-driven only — the router gates this).
+// opt-in, local-change-driven only — the router gates this). Truncates to 4000 bytes centered at cursor (R3).
 func (im *wlIme) SetComposing(text string, cursor int) {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
@@ -348,7 +348,40 @@ func (im *wlIme) SetComposing(text string, cursor int) {
 	if st.ti == 0 {
 		return
 	}
-	tiDebug("surrounding %d bytes", len(text))
+	// R3: 4000 bytes including NUL, centered at cursor
+	if len(text)+1 > 4000 {
+		// Centered truncation
+		budget := 3999
+		half := budget / 2
+		start := cursor - half
+		if start < 0 {
+			start = 0
+		}
+		end := start + budget
+		if end > len(text) {
+			end = len(text)
+			start = end - budget
+			if start < 0 {
+				start = 0
+			}
+		}
+		// Snap to rune boundaries
+		for start > 0 && start < len(text) && (text[start]&0xC0) == 0x80 {
+			start--
+		}
+		for end < len(text) && (text[end]&0xC0) == 0x80 {
+			end++
+		}
+		text = text[start:end]
+		cursor -= start
+		if cursor < 0 {
+			cursor = 0
+		}
+		if cursor > len(text) {
+			cursor = len(text)
+		}
+	}
+	tiDebug("surrounding %d bytes cur=%d", len(text), cursor)
 	st.queue.push(tiPendingAction{kind: tiPendingSurf, text: text, cur: cursor})
 	st.flushCommit()
 }

@@ -259,19 +259,18 @@ func (r *InputRouter) afterEdit() {
 // not flow through the router (SetText, click-to-place-caret).
 func (r *InputRouter) RefreshIMEAnchor() { r.afterEdit() }
 
-// pushSurrounding reports buffer+caret as surrounding text. The committed
-// buffer NEVER contains the composition (design D1), so no offset surgery
-// is needed — Snapshot() is protocol-ready by construction.
+// pushSurrounding reports buffer+caret as surrounding text. Truncates to 4000 bytes centered at cursor (R3).
 func (r *InputRouter) pushSurrounding(ime platform.IME, t TextEditTarget) {
 	if !r.SurroundingUpdates {
-		return // opt-in; see field doc
+		return
 	}
 	ed := t.Editor()
 	if ed == nil {
 		return
 	}
 	text, cursor := ed.Snapshot()
-	key := fmt.Sprintf("%s\x00%d", text, cursor)
+	trText, trCur := textinput.TruncateSurrounding(text, cursor)
+	key := fmt.Sprintf("%s\x00%d", trText, trCur)
 	r.mu.Lock()
 	same := key == r.lastSurr
 	r.lastSurr = key
@@ -279,7 +278,7 @@ func (r *InputRouter) pushSurrounding(ime platform.IME, t TextEditTarget) {
 	if same {
 		return
 	}
-	ime.SetComposing(text, cursor)
+	ime.SetComposing(trText, trCur)
 }
 
 // Route dispatches one normalized input event.
