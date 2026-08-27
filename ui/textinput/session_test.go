@@ -72,12 +72,21 @@ func TestSessionComposingLeg(t *testing.T) {
 func TestSessionCaretMovedDedup(t *testing.T) {
 	s, ed, ad := newTestSession()
 	s.AttachEditor(ed, fakeField{})
+	// R4: non-composing is preheat only, no push
 	n := len(ad.rects)
 	r := platform.Rect{X: 1, Y: 2, W: 3, H: 4}
 	s.CaretMoved(r)
-	s.CaretMoved(r)
-	if len(ad.rects)-n != 1 {
-		t.Fatalf("dedup failed")
+	if len(ad.rects)-n != 0 {
+		t.Fatalf("non-composing should be preheat, not push")
+	}
+	// composing should push and dedup
+	s.PreeditChanged(input.PreeditEvent{Text: "a", Cursor: 1})
+	n2 := len(ad.rects)
+	r2 := platform.Rect{X: 9, Y: 9, W: 3, H: 4}
+	s.CaretMoved(r2)
+	s.CaretMoved(r2)
+	if len(ad.rects)-n2 != 1 {
+		t.Fatalf("composing dedup failed")
 	}
 }
 

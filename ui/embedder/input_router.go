@@ -229,13 +229,7 @@ func (r *InputRouter) editorFor() *textinput.Editor {
 	return r.TextEditor
 }
 
-// afterEdit refreshes the open session's candidate anchor and surrounding
-// text after an edit or caret move reached an editor (typing, IME commit,
-// arrows/backspace routed through the router). Both pushes are deduped:
-// compositor preedit ECHOES (mutter re-sends the current preedit in reply to
-// our commit_state) must not turn into another commit_state or they form a
-// protocol feedback loop — observed as dozens of identical preedit events
-// per keystroke.
+// afterEdit refreshes anchor (R4: only composing 实报，非 composing 预热) and surrounding.
 func (r *InputRouter) afterEdit() {
 	r.mu.Lock()
 	t, ime := r.session, r.ime
@@ -244,11 +238,13 @@ func (r *InputRouter) afterEdit() {
 		return
 	}
 	rect := t.IMERect()
+	ed := t.Editor()
+	composing := ed != nil && ed.ComposeActive()
 	r.mu.Lock()
 	same := r.hasAnchor && rect == r.lastAnchor
 	r.hasAnchor, r.lastAnchor = true, rect
 	r.mu.Unlock()
-	if !same {
+	if !same && composing {
 		ime.UpdateCursorRect(rect)
 	}
 	r.pushSurrounding(ime, t)

@@ -118,7 +118,10 @@ func (s *ImeSession) CaretMoved(rect platform.Rect) {
 		return
 	}
 	s.lastRect, s.hasRect = rect, true
-	s.adapter.CaretMoved(rect)
+	// R4 F-D3: composing 时必报，非 composing 仅预热不报
+	if s.ed != nil && s.ed.composing {
+		s.adapter.CaretMoved(rect)
+	}
 }
 
 func (s *ImeSession) PushSurroundingIfDirty(lastPushed uint64) bool {

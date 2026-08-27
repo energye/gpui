@@ -37,6 +37,8 @@ type Editor struct {
 	composingRange TextRange
 	composing      bool
 	enableDeltaModel bool
+	isPassword     bool
+	readOnly       bool
 	batchDepth         int
 	lastFrameworkText  string
 	lastFrameworkSel   TextRange
@@ -170,6 +172,33 @@ func (e *Editor) EnableDeltaModel() bool {
 	}
 	return e.enableDeltaModel
 }
+func (e *Editor) SetPassword(v bool) {
+	if e == nil {
+		return
+	}
+	e.isPassword = v
+	if v && e.composing {
+		e.EndComposing()
+	}
+}
+func (e *Editor) IsPassword() bool {
+	if e == nil {
+		return false
+	}
+	return e.isPassword
+}
+func (e *Editor) SetReadOnly(v bool) {
+	if e == nil {
+		return
+	}
+	e.readOnly = v
+}
+func (e *Editor) IsReadOnly() bool {
+	if e == nil {
+		return false
+	}
+	return e.readOnly
+}
 
 func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	if e == nil {
@@ -253,7 +282,7 @@ func (e *Editor) SetComposingRange(r TextRange, cursorOffset int) bool {
 }
 
 func (e *Editor) BeginComposing() {
-	if e == nil || e.composing {
+	if e == nil || e.composing || e.isPassword || e.readOnly {
 		return
 	}
 	e.composing = true
@@ -262,7 +291,7 @@ func (e *Editor) BeginComposing() {
 }
 
 func (e *Editor) UpdateComposingText(text string, sel TextRange) {
-	if e == nil {
+	if e == nil || e.isPassword || e.readOnly {
 		return
 	}
 	if text == "" && e.composingRange.Collapsed() {
@@ -335,7 +364,7 @@ func (e *Editor) EndBatchEdit() {
 }
 
 func (e *Editor) DeleteSelected() bool {
-	if e == nil || e.selection.Collapsed() {
+	if e == nil || e.selection.Collapsed() || e.readOnly {
 		return false
 	}
 	if e.composing && !e.selection.Collapsed() {
@@ -357,7 +386,7 @@ func (e *Editor) DeleteSelected() bool {
 }
 
 func (e *Editor) AddText(text string) {
-	if e == nil || text == "" {
+	if e == nil || text == "" || e.readOnly {
 		return
 	}
 	er := e.EditableRange()
@@ -384,7 +413,7 @@ func (e *Editor) AddText(text string) {
 }
 
 func (e *Editor) DeleteSurrounding(before, after int) bool {
-	if e == nil {
+	if e == nil || e.readOnly {
 		return false
 	}
 	er := e.EditableRange()
@@ -732,3 +761,72 @@ func (e *Editor) Paste(s string) bool {
 	return e.text != before
 }
 func (e *Editor) SelectAll() { e.SetSelection(e.TextRange()) }
+func isWordChar(r rune) bool {
+	if r >= 0x4E00 && r <= 0x9FFF {
+		return true
+	}
+	if r >= 0x3400 && r <= 0x4DBF {
+		return true
+	}
+	return (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_'
+}
+func (e *Editor) SelectWordAt(byteOff int) bool {
+	if e == nil || e.text == "" {
+		return false
+	}
+	if byteOff < 0 {
+		byteOff = 0
+	}
+	if byteOff > len(e.text) {
+		byteOff = len(e.text)
+	}
+	// Snap to rune start
+	for byteOff > 0 && byteOff < len(e.text) && (e.text[byteOff]&0xC0) == 0x80 {
+		byteOff--
+	}
+	// Find rune index
+	runeIdx := 0
+	for i := range e.text[:byteOff] {
+		if (e.text[i]&0xC0) != 0x80 {
+			runeIdx++
+		}
+	}
+	runes := []rune(e.text)
+	if runeIdx >= len(runes) {
+		runeIdx = len(runes) - 1
+	}
+	if !isWordChar(runes[runeIdx]) {
+		return false
+	}
+	start, end := runeIdx, runeIdx
+	for start > 0 && isWordChar(runes[start-1]) {
+		start--
+	}
+	for end < len(runes) && isWordChar(runes[end]) {
+		end++
+	}
+	// Convert to utf16
+	cs, ce := 0, 0
+	for _, r := range runes[:start] {
+		if r > 0xFFFF {
+			cs += 2
+		} else {
+			cs++
+		}
+	}
+	for _, r := range runes[:end] {
+		if r > 0xFFFF {
+			ce += 2
+		} else {
+			ce++
+		}
+	}
+	er := e.EditableRange()
+	if cs < er.Start() {
+		cs = er.Start()
+	}
+	if ce > er.End() {
+		ce = er.End()
+	}
+	return e.SetSelection(TextRange{Base: cs, Extent: ce})
+}
