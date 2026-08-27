@@ -18,6 +18,7 @@ type TextLayoutLine struct {
 	EndByte   int
 	Carets    []GlyphCaret
 	Width     float64
+	Glyphs    []text.ShapedGlyph
 }
 
 // TextLayout is the single source for paint + queries.
@@ -45,16 +46,14 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 		lineText := w.Text
 		start := w.Start
 		end := w.End
-		carets, width := buildCaretsForLine(lineText, face)
-		// Convert line-local byte offsets to global
+		carets, width, glyphs := buildCaretsForLine(lineText, face)
 		for i := range carets {
 			carets[i].ByteOff += start
 		}
-		// Ensure line has at least boundaries 0..len
+		// Adjust glyph X to be relative to line start (already 0) and keep
 		if len(carets) == 0 {
 			carets = []GlyphCaret{{ByteOff: start, X: 0}, {ByteOff: end, X: 0}}
 		} else {
-			// Ensure final boundary exists
 			if carets[len(carets)-1].ByteOff != end {
 				carets = append(carets, GlyphCaret{ByteOff: end, X: width})
 			}
@@ -64,38 +63,41 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 			EndByte:   end,
 			Carets:    carets,
 			Width:     width,
+			Glyphs:    glyphs,
 		})
 	}
 	return &TextLayout{Lines: lines, FontSize: fontSize}
 }
 
-func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64) {
+func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []text.ShapedGlyph) {
 	if line == "" {
-		return []GlyphCaret{{ByteOff: 0, X: 0}}, 0
+		return []GlyphCaret{{ByteOff: 0, X: 0}}, 0, nil
 	}
 	if face == nil {
-		// fallback: uniform advance
 		var carets []GlyphCaret
+		var glyphs []text.ShapedGlyph
 		x := 0.0
-		adv := 10.0 // approximate; caller passes fontSize*approx but we lack it here, keep constant for layout coherence
+		adv := 10.0
 		carets = append(carets, GlyphCaret{ByteOff: 0, X: 0})
-		for idx := range line {
+		for idx, r := range line {
+			glyphs = append(glyphs, text.ShapedGlyph{GID: 0, Cluster: 0, X: x, XAdvance: adv})
 			x += adv
-			// idx is byte offset of rune start; need next rune boundary
 			_, sz := utf8.DecodeRuneInString(line[idx:])
 			next := idx + sz
 			carets = append(carets, GlyphCaret{ByteOff: next, X: x})
 			if next >= len(line) {
 				break
 			}
+			_ = r
 		}
-		return carets, x
+		return carets, x, glyphs
 	}
 	glyphs := text.Shape(line, face)
 	if len(glyphs) == 0 {
-		// MultiFace or shaping failed: use Measure for X (still single source via shape cache's Measure path)
 		var carets []GlyphCaret
+		var sg []text.ShapedGlyph
 		carets = append(carets, GlyphCaret{ByteOff: 0, X: 0})
+		x := 0.0
 		for idx := range line {
 			if !utf8.RuneStart(line[idx]) {
 				continue
@@ -103,13 +105,17 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64) {
 			_, sz := utf8.DecodeRuneInString(line[idx:])
 			next := idx + sz
 			w, _ := text.Measure(line[:next], face)
+			prevW, _ := text.Measure(line[:idx], face)
+			adv := w - prevW
+			sg = append(sg, text.ShapedGlyph{GID: 0, Cluster: 0, X: prevW, XAdvance: adv})
 			carets = append(carets, GlyphCaret{ByteOff: next, X: w})
+			_ = x
 			if next >= len(line) {
 				break
 			}
 		}
 		w, _ := text.Measure(line, face)
-		return carets, w
+		return carets, w, sg
 	}
 	// Build map from cluster (rune index) to X and byte offset
 	// Cluster is rune index in line
@@ -141,7 +147,7 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64) {
 		last := glyphs[len(glyphs)-1]
 		width = last.X + last.XAdvance
 	}
-	return carets, width
+	return carets, width, glyphs
 }
 
 // CaretForOffset returns line index and X for a global byte offset.

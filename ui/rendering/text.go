@@ -845,11 +845,23 @@ func (t *RenderText) Paint(pc *PaintContext) {
 					continue
 				}
 				y := fs + float64(i)*lh
-				if face != nil && pc.DC != nil {
-					glyphs := text.Shape(line, face)
-					if len(glyphs) > 0 {
+				if face != nil && pc.DC != nil && len(lay.Lines) > i {
+					glyphs := lay.Lines[i].Glyphs
+					if len(glyphs) > 0 && glyphs[0].GID != 0 {
 						ax, ay := pc.Abs(0, y)
 						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
+					} else if face.Source() == nil {
+						for byteOff, r := range line {
+							var x float64
+							for _, c := range lay.Lines[i].Carets {
+								if c.ByteOff == byteOff+lay.Lines[i].StartByte {
+									x = c.X
+									break
+								}
+							}
+							ax, ay := pc.Abs(x, y)
+							pc.DC.DrawString(string(r), ax, ay)
+						}
 					} else {
 						drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
 					}
