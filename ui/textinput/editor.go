@@ -1,8 +1,14 @@
 package textinput
 
 import (
-	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/energye/gpui/ui/platform"
+)
+
+const (
+	AffinityDownstream = 0
+	AffinityUpstream   = 1
 )
 
 type TextRange struct {
@@ -39,6 +45,7 @@ type Editor struct {
 	enableDeltaModel bool
 	isPassword     bool
 	readOnly       bool
+	contentType    platform.ContentType
 	batchDepth         int
 	lastFrameworkText  string
 	lastFrameworkSel   TextRange
@@ -160,11 +167,26 @@ func (e *Editor) ShouldSkipFrameworkUpdate(text string, sel, comp TextRange) boo
 	}
 	return text == e.lastFrameworkText && sel == e.lastFrameworkSel && comp == e.lastFrameworkComp
 }
-func (e *Editor) SetConfiguration(cfg TextInputConfiguration) {
+func (e *Editor) SetClient(cfg TextInputConfiguration) {
 	if e == nil {
 		return
 	}
 	e.enableDeltaModel = cfg.EnableDeltaModel
+}
+func (e *Editor) SetConfiguration(cfg TextInputConfiguration) {
+	e.SetClient(cfg)
+}
+func (e *Editor) ContentType() platform.ContentType {
+	if e == nil {
+		return platform.ContentType{}
+	}
+	return e.contentType
+}
+func (e *Editor) SetContentType(ct platform.ContentType) {
+	if e == nil {
+		return
+	}
+	e.contentType = ct
 }
 func (e *Editor) EnableDeltaModel() bool {
 	if e == nil {
@@ -290,12 +312,15 @@ func (e *Editor) BeginComposing() {
 	e.changed()
 }
 
-func (e *Editor) UpdateComposingText(text string, sel TextRange) {
+func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {
 	if e == nil || e.isPassword || e.readOnly {
-		return
+		return false
+	}
+	if text == "" && sel.Collapsed() && e.composingRange.Collapsed() && e.selection.Collapsed() {
+		return false
 	}
 	if text == "" && e.composingRange.Collapsed() {
-		return
+		return false
 	}
 	var replaceRange TextRange
 	if e.composingRange.Collapsed() {
@@ -316,6 +341,7 @@ func (e *Editor) UpdateComposingText(text string, sel TextRange) {
 	e.selection = sel
 	e.changed()
 	e.caretColValid = false
+	return true
 }
 
 func (e *Editor) CommitComposing() {
@@ -385,13 +411,13 @@ func (e *Editor) DeleteSelected() bool {
 	return true
 }
 
-func (e *Editor) AddText(text string) {
+func (e *Editor) AddText(text string) bool {
 	if e == nil || text == "" || e.readOnly {
-		return
+		return false
 	}
 	er := e.EditableRange()
 	if e.selection.Start() < er.Start() || e.selection.End() > er.End() {
-		return
+		return false
 	}
 	var replaceRange TextRange
 	if e.composing {
@@ -410,55 +436,24 @@ func (e *Editor) AddText(text string) {
 	}
 	e.changed()
 	e.caretColValid = false
+	return true
 }
 
-func (e *Editor) DeleteSurrounding(before, after int) bool {
+func (e *Editor) AddCodePoint(r rune) bool {
 	if e == nil || e.readOnly {
 		return false
 	}
-	er := e.EditableRange()
-	caret := e.selection.Extent
-	var start, end int
-	if before >= 0 && after >= 0 && (before > 0 || after > 0) && before <= 10000 {
-		caretByte := byteOffsetForUtf16(e.text, caret)
-		sByte := caretByte - before
-		if sByte < 0 {
-			sByte = 0
-		}
-		eByte := caretByte + after
-		if eByte > len(e.text) {
-			eByte = len(e.text)
-		}
-		for sByte > 0 && !utf8.RuneStart(e.text[sByte]) {
-			sByte--
-		}
-		for eByte < len(e.text) && !utf8.RuneStart(e.text[eByte]) {
-			eByte++
-		}
-		if sByte >= eByte {
-			return false
-		}
-		start = 0
-		for _, r := range e.text[:sByte] {
-			if r > 0xFFFF {
-				start += 2
-			} else {
-				start++
-			}
-		}
-		end = start
-		for _, r := range e.text[sByte:eByte] {
-			if r > 0xFFFF {
-				end += 2
-			} else {
-				end++
-			}
-		}
-		_ = utf16.Encode
-	} else {
-		start = caret + before
-		end = start + after
+	return e.AddText(string(r))
+}
+
+func (e *Editor) DeleteSurrounding(offset, count int) bool {
+	if e == nil || e.readOnly || count <= 0 {
+		return false
 	}
+	caret := e.selection.Extent
+	start := caret + offset
+	end := start + count
+	er := e.EditableRange()
 	if start < er.Start() {
 		start = er.Start()
 	}
@@ -475,13 +470,8 @@ func (e *Editor) DeleteSurrounding(before, after int) bool {
 	}
 	e.text = e.text[:startByte] + e.text[endByte:]
 	delta := end - start
-	if before > 0 {
+	if offset < 0 {
 		e.selection = TextRange{Base: start, Extent: start}
-	} else if before <= 0 && after > 0 {
-	} else {
-		if before <= 0 {
-			e.selection = TextRange{Base: start, Extent: start}
-		}
 	}
 	if e.composing && e.composingRange.End() > start {
 		newEnd := e.composingRange.End() - delta
@@ -491,6 +481,7 @@ func (e *Editor) DeleteSurrounding(before, after int) bool {
 		e.composingRange = TextRange{Base: e.composingRange.Start(), Extent: newEnd}
 	}
 	e.changed()
+	e.caretColValid = false
 	return true
 }
 
@@ -611,7 +602,80 @@ func (e *Editor) MoveCursorForward() bool {
 	return e.SetSelection(TextRange{Base: caret + cu, Extent: caret + cu})
 }
 
-func (e *Editor) ComposeActive() bool { return e != nil && e.composing }
+func (e *Editor) MoveCursorUp() bool {
+	if e == nil {
+		return false
+	}
+	lines := splitLines(e.text)
+	caret := e.selection.Extent
+	idx, col := lineColForOffset(lines, e.text, caret)
+	if idx <= 0 {
+		return false
+	}
+	target := idx - 1
+	off := offsetForLineCol(lines, e.text, target, col)
+	return e.SetSelection(TextRange{Base: off, Extent: off})
+}
+
+func (e *Editor) MoveCursorDown() bool {
+	if e == nil {
+		return false
+	}
+	lines := splitLines(e.text)
+	caret := e.selection.Extent
+	idx, col := lineColForOffset(lines, e.text, caret)
+	if idx >= len(lines)-1 {
+		return false
+	}
+	target := idx + 1
+	off := offsetForLineCol(lines, e.text, target, col)
+	return e.SetSelection(TextRange{Base: off, Extent: off})
+}
+
+func (e *Editor) MoveCursorByWord(forward bool) bool {
+	if e == nil {
+		return false
+	}
+	caret := e.selection.Extent
+	runes := []rune(e.text)
+	// map utf16 caret to rune index
+	runeIdx := utf16ToRuneIndex(e.text, caret)
+	if forward {
+		if runeIdx >= len(runes) {
+			return false
+		}
+		// skip current word if inside
+		if isWordChar(runes[runeIdx]) {
+			for runeIdx < len(runes) && isWordChar(runes[runeIdx]) {
+				runeIdx++
+			}
+		}
+		for runeIdx < len(runes) && !isWordChar(runes[runeIdx]) {
+			runeIdx++
+		}
+		for runeIdx < len(runes) && isWordChar(runes[runeIdx]) {
+			runeIdx++
+		}
+		// stop at word end; if we skipped spaces, we are at start of next word, back to start
+		// Actually for Ctrl+Right, move to end of next word; our loop does that.
+	} else {
+		if runeIdx <= 0 {
+			return false
+		}
+		runeIdx--
+		for runeIdx > 0 && !isWordChar(runes[runeIdx]) {
+			runeIdx--
+		}
+		for runeIdx > 0 && isWordChar(runes[runeIdx-1]) {
+			runeIdx--
+		}
+	}
+	off := runeIndexToUtf16(runes, runeIdx)
+	return e.SetSelection(TextRange{Base: off, Extent: off})
+}
+
+func (e *Editor) IsComposing() bool { return e != nil && e.composing }
+func (e *Editor) ComposeActive() bool { return e.IsComposing() }
 func (e *Editor) CompositionText() string {
 	if e == nil || !e.composing {
 		return ""
@@ -761,6 +825,97 @@ func (e *Editor) Paste(s string) bool {
 	return e.text != before
 }
 func (e *Editor) SelectAll() { e.SetSelection(e.TextRange()) }
+
+func splitLines(s string) []string {
+	if s == "" {
+		return []string{""}
+	}
+	var lines []string
+	start := 0
+	for i, r := range s {
+		if r == '\n' {
+			lines = append(lines, s[start:i])
+			start = i + 1
+		}
+	}
+	lines = append(lines, s[start:])
+	return lines
+}
+
+func lineColForOffset(lines []string, text string, off int) (int, int) {
+	if len(lines) == 0 {
+		return 0, 0
+	}
+	acc := 0
+	for i, ln := range lines {
+		lnUnits := utf16Len(ln)
+		if off <= acc+lnUnits {
+			return i, off - acc
+		}
+		acc += lnUnits + 1 // '\n' is 1 unit
+		if i == len(lines)-1 {
+			return i, lnUnits
+		}
+	}
+	return len(lines) - 1, utf16Len(lines[len(lines)-1])
+}
+
+func offsetForLineCol(lines []string, text string, line, col int) int {
+	if line < 0 {
+		line = 0
+	}
+	if line >= len(lines) {
+		line = len(lines) - 1
+	}
+	acc := 0
+	for i := 0; i < line; i++ {
+		acc += utf16Len(lines[i]) + 1
+	}
+	lnUnits := utf16Len(lines[line])
+	if col < 0 {
+		col = 0
+	}
+	if col > lnUnits {
+		col = lnUnits
+	}
+	return acc + col
+}
+
+func utf16ToRuneIndex(s string, utf16Off int) int {
+	off := 0
+	idx := 0
+	for _, r := range s {
+		if off >= utf16Off {
+			break
+		}
+		sz := 1
+		if r > 0xFFFF {
+			sz = 2
+		}
+		off += sz
+		idx++
+	}
+	return idx
+}
+
+func runeIndexToUtf16(runes []rune, idx int) int {
+	if idx < 0 {
+		idx = 0
+	}
+	if idx > len(runes) {
+		idx = len(runes)
+	}
+	n := 0
+	for _, r := range runes[:idx] {
+		if r > 0xFFFF {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
+}
+
 func isWordChar(r rune) bool {
 	if r >= 0x4E00 && r <= 0x9FFF {
 		return true
