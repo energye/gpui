@@ -110,24 +110,17 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []t
 		var sg []text.ShapedGlyph
 		carets = append(carets, GlyphCaret{ByteOff: 0, X: 0})
 		x := 0.0
-		for idx := range line {
-			if !utf8.RuneStart(line[idx]) {
-				continue
-			}
-			_, sz := utf8.DecodeRuneInString(line[idx:])
-			next := idx + sz
-			w, _ := text.Measure(line[:next], face)
-			prevW, _ := text.Measure(line[:idx], face)
-			adv := w - prevW
-			sg = append(sg, text.ShapedGlyph{GID: 0, Cluster: 0, X: prevW, XAdvance: adv})
-			carets = append(carets, GlyphCaret{ByteOff: next, X: w})
-			_ = x
+		for byteOff, r := range line {
+			adv, _ := text.Measure(string(r), face)
+			sg = append(sg, text.ShapedGlyph{GID: 0, Cluster: 0, X: x, XAdvance: adv})
+			x += adv
+			next := byteOff + utf8.RuneLen(r)
+			carets = append(carets, GlyphCaret{ByteOff: next, X: x})
 			if next >= len(line) {
 				break
 			}
 		}
-		w, _ := text.Measure(line, face)
-		return carets, w, sg
+		return carets, x, sg
 	}
 	// Build map from cluster (rune index) to X and byte offset
 	// Cluster is rune index in line
