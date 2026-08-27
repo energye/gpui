@@ -237,66 +237,12 @@ func (b *manualInputBox) OnKey(ev input.KeyEvent) {
 	}
 }
 func (b *manualInputBox) moveVisual(delta int) {
-	if b == nil || b.text == nil || b.ed == nil {
+	if b == nil || b.ed == nil {
 		return
 	}
 	lay := b.text.TextLayout()
-	if lay == nil || len(lay.Lines) == 0 {
-		if delta < 0 {
-			b.ed.MoveCaretRunes(-1)
-		} else {
-			b.ed.MoveCaretRunes(1)
-		}
-		return
-	}
-	curByte := b.ed.GetCursorOffset()
-	ln := lay.Lines[0]
-	// 用 HitTest 找最近缝，比精确匹配更鲁棒（中文 3 字节缝也能对上）
-	_, penX, _ := lay.CaretForOffset(curByte)
-	hit := lay.HitTest(penX, 0, b.text.LineHeight())
-	// 在 Carets 里找 hit 对应的索引
-	idx := -1
-	for j, c := range ln.Carets {
-		if c.ByteOff == hit {
-			idx = j
-			break
-		}
-	}
-	if idx < 0 {
-		// 回退：找最近
-		best, bestDist := -1, 1<<30
-		for j, c := range ln.Carets {
-			d := c.ByteOff - curByte
-			if d < 0 {
-				d = -d
-			}
-			if d < bestDist {
-				bestDist = d
-				best = j
-			}
-		}
-		idx = best
-	}
-	if idx < 0 {
-		if delta < 0 {
-			b.ed.MoveCaretRunes(-1)
-		} else {
-			b.ed.MoveCaretRunes(1)
-		}
-		return
-	}
-	ni := idx + delta
-	if ni < 0 {
-		ni = 0
-	}
-	if ni >= len(ln.Carets) {
-		ni = len(ln.Carets) - 1
-	}
-	if ni == idx {
-		return
-	}
-	off := ln.Carets[ni].ByteOff
-	b.ed.SetCaret(off)
+	// Shipped visual path: single-source TextLayout seam table, same as unit test
+	b.ed.MoveVisual(delta, lay)
 }
 func (b *manualInputBox) OnText(ev input.TextEvent) {}
 func (b *manualInputBox) OnIME(ev input.IMEEvent)    {}
