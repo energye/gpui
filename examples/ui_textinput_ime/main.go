@@ -127,26 +127,21 @@ func (b *inputBox) ContentType() platform.ContentType {
 	return platform.ContentType{Purpose: b.ContentPurpose()}
 }
 
-// caretAnchor computes the caret's WINDOW coordinates (logical px): the
-// pen boundary between the characters around the caret, plus the line's
-// top/bottom. THE single source of caret geometry — both the visible bar
-// (layoutCaret) and the IME candidate anchor (IMERect) derive from it, so
-// the two can never drift apart. During a composition the caret rides the
-// IME's own position inside the span.
+// caretAnchor — R2 单源：直接读 TextLayout 的 Carets，Paint 也读同一份，不再经 View 映射
 func (b *inputBox) caretAnchor() (x, top, bottom float64, ok bool) {
 	if b == nil || b.text == nil {
 		return 0, 0, 0, false
 	}
-	v := b.ed.View()
-	viewCur := v.MapBufToView(b.ed.Cursor())
-	if b.ed.ComposeActive() {
-		if cc := b.ed.CompositionCursor(); cc >= 0 {
-			viewCur = cc
-		} else {
-			viewCur = v.CompEnd
-		}
+	curByte := b.ed.GetCursorOffset()
+	lay := b.text.TextLayout()
+	var lineIdx int
+	var penX float64
+	var kok bool
+	if lay != nil && len(lay.Lines) > 0 {
+		lineIdx, penX, kok = lay.CaretForOffset(curByte)
+	} else {
+		lineIdx, penX, kok = b.text.CaretColumn(min(curByte, len(b.text.Text)))
 	}
-	lineIdx, penX, kok := b.text.CaretColumn(min(viewCur, len(b.text.Text)))
 	if !kok {
 		return 0, 0, 0, false
 	}
@@ -198,17 +193,12 @@ func (b *inputBox) IMERect() platform.Rect {
 	return platform.Rect{X: boxX + x, Y: boxY + top, W: 2, H: bottom - top}
 }
 
-// sync mirrors the editor into the RenderText (the text string NEVER
-// contains caret glyphs — the caret is the floating bar, see layoutCaret).
-// Must go through SetText so glyph layout invalidates together with paint.
-// sync mirrors the editor's DISPLAY form into the RenderText. Design D1:
-// ed.Text() is committed-only; the live composition lives in the overlay
-// and reaches pixels exclusively via ComposedView.View().Display.
+// sync — R2 单源：Editor.GetText() 已含 preedit，直接喂给 RenderText，RenderText 一份 TextLayout 供画与查
 func (b *inputBox) sync() {
 	if b == nil || b.text == nil || b.ed == nil {
 		return
 	}
-	disp := b.ed.View().Display
+	disp := b.ed.GetText()
 	if disp == "" && !b.focused {
 		disp = "…(click, type, IME)▏"
 	}
@@ -507,7 +497,7 @@ func main() {
 		ed.SetCaret(len("committed "))
 		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "pinyin", Start: 4, End: 4})
 		logf("scene=composing-mid composing=%v cursorInSpan=%d display=%q",
-			ed.ComposeActive(), ed.CompositionCursor(), ed.View().Display)
+			ed.ComposeActive(), ed.GetCursorOffset(), ed.GetText())
 	case "composing-cjk":
 		// Realistic Chinese IME state: committed CJK sentence, caret parked
 		// mid-sentence, live pinyin preedit inserted there. Full-width glyphs
@@ -517,7 +507,7 @@ func main() {
 		ed.SetCaret(len("你好世界，"))
 		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "nihao", Start: -1, End: -1})
 		logf("scene=composing-cjk composing=%v display=%q",
-			ed.ComposeActive(), ed.View().Display)
+			ed.ComposeActive(), ed.GetText())
 	case "mixed-nav":
 		// Problem 2/4 reproduction: mixed CJK+latin line, caret parked mid-
 		// text; then ArrowRight x3 + ArrowDown x1 driven through OnKey so the
@@ -529,7 +519,7 @@ func main() {
 			box.OnKey(input.KeyEvent{Pressed: true, Key: input.KeyArrowRight})
 		}
 		box.OnKey(input.KeyEvent{Pressed: true, Key: input.KeyArrowDown})
-		logf("scene=mixed-nav cursor=%d display=%q", ed.Cursor(), ed.View().Display)
+		logf("scene=mixed-nav cursor=%d display=%q", ed.Cursor(), ed.GetText())
 		app.SetInputRouter(router)
 	case "latin-caret":
 		// Problem repro: pure-latin "mmmm…" — caret placed at byte 3 via the
@@ -541,7 +531,7 @@ func main() {
 		// click x: pen(3)=3*19.48=58.45 box-local; inside 3rd m means x∈[58.45+1.82, 58.45+17.78]
 		app.SetInputRouter(router)
 		clickIdx := 0
-		adv := ed.View().Display[:1]
+		adv := ed.GetText()[:1]
 		_ = adv
 		app.Scheduler().Tickers().Add(&schedTicker{period: 0.25, fn: func() {
 			if clickIdx >= 9 {
@@ -603,7 +593,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "run:", err)
 	}
 	if caretScene != "" {
-		logf("post-run: text=%q compose=%v display=%q", ed.Text(), ed.ComposeActive(), ed.View().Display)
+		logf("post-run: text=%q compose=%v display=%q", ed.Text(), ed.ComposeActive(), ed.GetText())
 	}
 
 	// Geometry probe: did layout actually give the children extents?
