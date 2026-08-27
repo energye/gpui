@@ -437,13 +437,13 @@ func main() {
 			logf("selftest step=%d text=%q compose=%v", i, ed.Text(), ed.ComposeActive())
 		}
 
-		// P4 leg: compose → Esc cancel → buffer intact.
+		// P4 leg: compose → Esc cancel → preedit removed, buffer back to expect.
 		ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "temp"})
 		p4Before := ed.Text()
 		router.Route(input.FromPlatform(platform.Event{
 			Type: platform.EventKey, Pressed: true, KeyCode: 0xff1b, // Escape
 		}, input.Modifiers{}))
-		p4OK := !ed.ComposeActive() && ed.Text() == p4Before
+		p4OK := !ed.ComposeActive() && ed.Text() == expectText
 		logf("selftest p4 esc-cancel: before=%q after=%q active=%v ok=%v", p4Before, ed.Text(), ed.ComposeActive(), p4OK)
 		pass = ed.Text() == expectText && !ed.ComposeActive() && p4OK
 

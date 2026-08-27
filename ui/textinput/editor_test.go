@@ -6,12 +6,10 @@ import (
 	"github.com/energye/gpui/ui/input"
 )
 
-// --- buffer basics (committed text only; pre-edit never enters buf) ---
-
 func TestInsertBasics(t *testing.T) {
 	e := New()
 	e.Insert("a")
-	e.Insert("你") // CJK = 3 bytes
+	e.Insert("你")
 	if e.Text() != "a你" || e.Cursor() != 4 {
 		t.Fatalf("text=%q cursor=%d", e.Text(), e.Cursor())
 	}
@@ -36,8 +34,8 @@ func TestDeleteRuneBoundary(t *testing.T) {
 	e := New()
 	e.SetText("a你b")
 	e.SetCaret(len("a你b"))
-	e.DeleteBackward() // b
-	e.DeleteBackward() // 你 (3 bytes, never split)
+	e.DeleteBackward()
+	e.DeleteBackward()
 	if e.Text() != "a" {
 		t.Fatalf("text=%q", e.Text())
 	}
@@ -52,7 +50,7 @@ func TestDeleteSurroundingSnaps(t *testing.T) {
 	e := New()
 	e.SetText("你好")
 	e.SetCaret(3)
-	if !e.DeleteSurrounding(1, 0) { // misaligned → snaps to full 你
+	if !e.DeleteSurrounding(1, 0) {
 		t.Fatal("should report change")
 	}
 	if e.Text() != "好" || e.Cursor() != 0 {
@@ -77,9 +75,8 @@ func TestMoveCaretRunes(t *testing.T) {
 	}
 }
 
-// --- composition overlay (design D1: preedit NEVER enters the buffer) ---
-
-func TestComposeOverlayKeepsBufferPure(t *testing.T) {
+// pure four-tuple: text includes preedit
+func TestComposeIncludesInText(t *testing.T) {
 	e := New()
 	e.SetText("hi")
 	e.SetCaret(2)
@@ -87,8 +84,8 @@ func TestComposeOverlayKeepsBufferPure(t *testing.T) {
 	if !e.ComposeActive() || e.CompositionText() != "ni" {
 		t.Fatalf("compose not active: %q", e.CompositionText())
 	}
-	if e.Text() != "hi" { // THE invariant: buffer untouched by preedit
-		t.Fatalf("buffer polluted: %q", e.Text())
+	if e.Text() != "hini" {
+		t.Fatalf("text should include preedit: %q", e.Text())
 	}
 	v := e.View()
 	if v.Display != "hini" || v.CompStart != 2 || v.CompEnd != 4 {
@@ -100,13 +97,15 @@ func TestEmptyPreeditOnlyTerminates(t *testing.T) {
 	e := New()
 	e.SetText("ab")
 	e.SetCaret(2)
-	// R2: empty preedit on inactive session must NOT start one.
 	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
 	if e.ComposeActive() {
 		t.Fatal("empty preedit started a session")
 	}
 	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "cd"})
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""}) // clear
+	if e.Text() != "abcd" {
+		t.Fatalf("after cd text=%q", e.Text())
+	}
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
 	if e.ComposeActive() || e.Text() != "ab" {
 		t.Fatalf("clear left residue: active=%v text=%q", e.ComposeActive(), e.Text())
 	}
@@ -126,39 +125,34 @@ func TestCommitReplacesOverlayAtomically(t *testing.T) {
 	}
 }
 
-// --- ComposedView conversions (§4.5: the ONLY offset exit) ---
-
 func TestComposedViewMappings(t *testing.T) {
 	e := New()
 	e.SetText("ab")
 	e.SetCaret(2)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "xyz"}) // view: ab[xyz]
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "xyz"})
 	v := e.View()
-
 	cases := []struct{ view, buf int }{
-		{0, 0}, {2, 2}, // before/at span start
-		{3, 2}, {5, 2}, // inside span → snap to start
-		{6, 3}, {8, 5}, // past end → shift back
+		{0, 0}, {2, 2},
+		{3, 2}, {5, 2},
+		{6, 3}, {8, 5},
 	}
 	for _, c := range cases {
 		if got := v.MapViewToBuf(c.view); got != c.buf {
 			t.Fatalf("MapViewToBuf(%d) = %d, want %d", c.view, got, c.buf)
 		}
 	}
-	if got := v.MapBufToViewExact(2, 1); got != 3 { // caret inside span
+	if got := v.MapBufToViewExact(2, 1); got != 3 {
 		t.Fatalf("MapBufToViewExact = %d", got)
 	}
-	// MapBufToView: buf offsets after the span shift by the span length.
 	bcases := []struct{ buf, view int }{
-		{0, 0}, {2, 2}, // at/before span start → pass through
-		{3, 6}, {5, 8}, // after span → +len(comp)
+		{0, 0}, {2, 2},
+		{3, 6}, {5, 8},
 	}
 	for _, c := range bcases {
 		if got := v.MapBufToView(c.buf); got != c.view {
 			t.Fatalf("MapBufToView(%d) = %d, want %d", c.buf, got, c.view)
 		}
 	}
-	// No-composition identity.
 	e2 := New()
 	e2.SetText("abc")
 	v2 := e2.View()
@@ -174,44 +168,43 @@ func TestByteOffsetAtSnapsOutOfSpan(t *testing.T) {
 	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "xyz"})
 	widths := map[string]float64{}
 	w := func(s string) float64 { widths[s]++; return float64(len(s)) }
-	// Click deep inside the display string → buffer offset snaps to span start.
 	if got := e.ByteOffsetAt(4, w); got != 2 {
 		t.Fatalf("click in span → %d, want 2", got)
 	}
-	// Click past everything → end of buffer.
 	if got := e.ByteOffsetAt(999, w); got != 5-3 {
 		t.Fatalf("click past end → %d, want 2", got)
 	}
 }
 
-// --- snapshot & misc ---
-
-func TestSnapshotExcludesCompositionByConstruction(t *testing.T) {
+func TestSnapshotIncludesComposition(t *testing.T) {
 	e := New()
 	e.SetText("hi")
 	e.SetCaret(2)
 	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"})
 	text, cur := e.Snapshot()
-	if text != "hi" || cur != 2 {
-		t.Fatalf("snapshot = (%q,%d), want (hi,2)", text, cur)
+	if text != "hini" || cur != 2 {
+		t.Fatalf("snapshot = (%q,%d), want (hini,2)", text, cur)
 	}
 }
 
-func TestDeleteBlockedDuringComposition(t *testing.T) {
+func TestDeleteDuringCompositionDeletesInside(t *testing.T) {
 	e := New()
 	e.SetText("hello")
 	e.SetCaret(5)
-	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "f"}) // IME owns backspace now
+	e.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "f", Start: 1})
 	e.DeleteBackward()
 	if e.Text() != "hello" {
-		t.Fatalf("buffer mutated during composition: %q", e.Text())
+		t.Fatalf("after backspace in composing text=%q want hello", e.Text())
+	}
+	if e.CompositionText() != "" {
+		t.Fatalf("composition should be empty after delete: %q", e.CompositionText())
 	}
 }
 
 func TestClipboardRoundtrip(t *testing.T) {
 	e := New()
 	e.SetText("hello")
-	e.SetSelection(1, 4)
+	e.SetSelectionBytes(1, 4)
 	if e.Copy() != "ell" {
 		t.Fatalf("copy = %q", e.Copy())
 	}

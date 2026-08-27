@@ -75,9 +75,9 @@ func TestSessionComposingLeg(t *testing.T) {
 	s, ed, _ := newTestSession()
 	s.AttachEditor(ed, fakeField{})
 
-	// Preedit starts composing; buffer stays pure (D1).
+	// Preedit starts composing; text now includes preedit (pure four-tuple).
 	s.PreeditChanged(input.PreeditEvent{Text: "ni", Cursor: 2})
-	if s.State() != StateComposing || ed.Text() != "" || !ed.ComposeActive() {
+	if s.State() != StateComposing || ed.Text() != "ni" || !ed.ComposeActive() {
 		t.Fatalf("compose: state=%v buf=%q", s.State(), ed.Text())
 	}
 

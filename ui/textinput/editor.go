@@ -262,7 +262,7 @@ func (e *Editor) SetTextWithSelection(text string, sel, comp TextRange, affinity
 	return changed
 }
 
-func (e *Editor) SetSelectionRange(r TextRange) bool {
+func (e *Editor) SetSelection(r TextRange) bool {
 	if e == nil {
 		return false
 	}
@@ -622,14 +622,14 @@ func (e *Editor) MoveCursorToBeginning() bool {
 		return false
 	}
 	er := e.EditableRange()
-	return e.SetSelectionRange(TextRange{Base: er.Start(), Extent: er.Start()})
+	return e.SetSelection(TextRange{Base: er.Start(), Extent: er.Start()})
 }
 func (e *Editor) MoveCursorToEnd() bool {
 	if e == nil {
 		return false
 	}
 	er := e.EditableRange()
-	return e.SetSelectionRange(TextRange{Base: er.End(), Extent: er.End()})
+	return e.SetSelection(TextRange{Base: er.End(), Extent: er.End()})
 }
 func (e *Editor) MoveCursorBack() bool {
 	if e == nil {
@@ -647,7 +647,7 @@ func (e *Editor) MoveCursorBack() bool {
 	if r > 0xFFFF {
 		cu = 2
 	}
-	return e.SetSelectionRange(TextRange{Base: caret - cu, Extent: caret - cu})
+	return e.SetSelection(TextRange{Base: caret - cu, Extent: caret - cu})
 }
 func (e *Editor) MoveCursorForward() bool {
 	if e == nil {
@@ -663,92 +663,41 @@ func (e *Editor) MoveCursorForward() bool {
 	if r > 0xFFFF {
 		cu = 2
 	}
-	return e.SetSelectionRange(TextRange{Base: caret + cu, Extent: caret + cu})
+	return e.SetSelection(TextRange{Base: caret + cu, Extent: caret + cu})
 }
 
-// --- legacy shims for existing call sites & tests ---
+// --- pure API: names kept for call-site migration, semantics = new four-tuple ---
 
-func (e *Editor) Text() string {
-	if e == nil {
-		return ""
-	}
-	// legacy: committed buffer (strip composing range)
-	if !e.composing || e.composingRange.Collapsed() {
-		return e.text
-	}
-	s := byteOffsetForUtf16(e.text, e.composingRange.Start())
-	en := byteOffsetForUtf16(e.text, e.composingRange.End())
-	return e.text[:s] + e.text[en:]
-}
-
-func (e *Editor) Cursor() int {
-	if e == nil {
-		return 0
-	}
-	// legacy byte offset
-	if e.composing {
-		// map selection inside composing to committed caret
-		s := byteOffsetForUtf16(e.text, e.composingRange.Start())
-		off := e.selection.Extent - e.composingRange.Start()
-		// convert off utf16 to bytes within composing text
-		compText := e.text[byteOffsetForUtf16(e.text, e.composingRange.Start()):byteOffsetForUtf16(e.text, e.composingRange.End())]
-		b := byteOffsetForUtf16(compText, off)
-		return s + b
-	}
-	return byteOffsetForUtf16(e.text, e.selection.Extent)
-}
-
+func (e *Editor) Text() string      { return e.GetText() }
+func (e *Editor) Cursor() int       { return e.GetCursorOffset() }
 func (e *Editor) Selection() (int, int) {
 	if e == nil {
 		return 0, 0
 	}
-	if e.composing {
-		// legacy selection is in committed coords; when composing, selection is collapsed at caret in committed buffer
-		c := e.Cursor()
-		return c, c
-	}
-	s := byteOffsetForUtf16(e.text, e.selection.Start())
-	en := byteOffsetForUtf16(e.text, e.selection.End())
-	return s, en
+	return byteOffsetForUtf16(e.text, e.selection.Start()), byteOffsetForUtf16(e.text, e.selection.End())
 }
-
 func (e *Editor) SetCaret(off int) {
 	if e == nil {
 		return
 	}
 	off = e.clamp(off)
 	cu := utf16OffsetForByte(e.text, off)
-	e.SetSelectionRange(TextRange{Base: cu, Extent: cu})
+	e.SetSelection(TextRange{Base: cu, Extent: cu})
 }
-
-func (e *Editor) SetSelection(start, end int) {
+func (e *Editor) SetSelectionBytes(start, end int) {
 	if e == nil {
 		return
 	}
 	start = e.clamp(start)
 	end = e.clamp(end)
-	cuStart := utf16OffsetForByte(e.text, start)
-	cuEnd := utf16OffsetForByte(e.text, end)
-	e.SetSelectionRange(TextRange{Base: cuStart, Extent: cuEnd})
+	e.SetSelection(TextRange{Base: utf16OffsetForByte(e.text, start), Extent: utf16OffsetForByte(e.text, end)})
 }
-
-func (e *Editor) SetSelectionLegacy(start, end int) { e.SetSelection(start, end) }
-
-func (e *Editor) SetSelectionBytes(start, end int) { e.SetSelection(start, end) }
-
-// SetSelection with two ints preserved for old tests (byte offsets)
-func (e *Editor) SetSelectionInts(start, end int) { e.SetSelection(start, end) }
-
-// New spec alias
-func (e *Editor) SetSelectionTR(r TextRange) bool { return e.SetSelectionRange(r) }
-
-// LenRunes legacy
-func (e *Editor) LenRunes() int { return utf8.RuneCountInString(e.Text()) }
-
-// SetText legacy: old single-arg API used by tests (committed buffer)
-func (e *Editor) SetText(s string) {
-	e.SetTextLegacy(s)
-}
+func (e *Editor) SetSelectionLegacy(start, end int) { e.SetSelectionBytes(start, end) }
+func (e *Editor) SetSelectionInts(start, end int)    { e.SetSelectionBytes(start, end) }
+func (e *Editor) SetSelectionTR(r TextRange) bool    { return e.SetSelection(r) }
+func (e *Editor) SetSelectionOld(start, end int)     { e.SetSelectionBytes(start, end) }
+func (e *Editor) LenRunes() int                      { return utf8.RuneCountInString(e.text) }
+func (e *Editor) SetText(s string)                   { e.SetTextLegacy(s) }
 func (e *Editor) SetTextLegacy(s string) {
 	if e == nil {
 		return
@@ -760,22 +709,9 @@ func (e *Editor) SetTextLegacy(s string) {
 	e.changed()
 	e.ResetCaretColumn()
 }
-
-// Insert legacy (committed path)
-func (e *Editor) Insert(s string) {
-	if e == nil {
-		return
-	}
-	e.AddText(s)
-}
-
-func (e *Editor) DeleteBackward() {
-	e.Backspace()
-}
-func (e *Editor) DeleteForward() {
-	e.Delete()
-}
-
+func (e *Editor) Insert(s string)       { e.AddText(s) }
+func (e *Editor) DeleteBackward()       { e.Backspace() }
+func (e *Editor) DeleteForward()        { e.Delete() }
 func (e *Editor) MoveCaretRunes(n int) {
 	if n == 0 {
 		return
@@ -788,24 +724,18 @@ func (e *Editor) MoveCaretRunes(n int) {
 		e.MoveCursorBack()
 	}
 }
-
 func (e *Editor) SelectAll() {
 	if e == nil {
 		return
 	}
 	n := utf16Len(e.text)
-	er := e.EditableRange()
-	_ = er
-	e.SetSelectionRange(TextRange{Base: 0, Extent: n})
+	e.SetSelection(TextRange{Base: 0, Extent: n})
 }
-
 func (e *Editor) Copy() string {
 	if e == nil || e.selection.Collapsed() {
 		return ""
 	}
-	s := byteOffsetForUtf16(e.text, e.selection.Start())
-	en := byteOffsetForUtf16(e.text, e.selection.End())
-	return e.text[s:en]
+	return e.text[byteOffsetForUtf16(e.text, e.selection.Start()):byteOffsetForUtf16(e.text, e.selection.End())]
 }
 func (e *Editor) Cut() string {
 	if e == nil || e.selection.Collapsed() {
@@ -823,17 +753,14 @@ func (e *Editor) Paste(s string) bool {
 	e.AddText(s)
 	return e.text != before
 }
-
 func (e *Editor) ComposeActive() bool { return e != nil && e.composing }
 func (e *Editor) CompositionText() string {
 	if e == nil || !e.composing {
 		return ""
 	}
-	s := byteOffsetForUtf16(e.text, e.composingRange.Start())
-	en := byteOffsetForUtf16(e.text, e.composingRange.End())
-	return e.text[s:en]
+	return e.text[byteOffsetForUtf16(e.text, e.composingRange.Start()):byteOffsetForUtf16(e.text, e.composingRange.End())]
 }
-func (e *Editor) Snapshot() (string, int) { return e.Text(), e.Cursor() }
+func (e *Editor) Snapshot() (string, int) { return e.GetText(), e.GetCursorOffset() }
 
 // View and mapping for legacy ComposeView tests
 
@@ -1008,9 +935,3 @@ func (e *Editor) setSelectionNoReset(r TextRange) {
 	e.selection = r
 	e.changed()
 }
-
-// SetSelection override for int pair (legacy calls e.SetSelection(0, len))
-// We keep above SetSelection(TextRange) but Go will resolve; legacy callers use ints -> need wrapper
-// To avoid conflict, we expose SetSelectionRange for TextRange and keep old name for ints via build tag? Instead rename new to SetSelectionRange and keep old.
-// However new spec expects SetSelection(TextRange). Keep both via type switch hack: provide SetSelection2
-func (e *Editor) SetSelectionOld(start, end int) { e.SetSelection(start, end) }
