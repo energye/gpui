@@ -174,6 +174,23 @@ func NewRenderColorBox(w, h, r, g, b, a float64) *RenderColorBox {
 	return c
 }
 
+// MoveTo repositions the box and dirties paint — the runtime-safe way to
+// move an absolutely-placed child (Base.SetOffset writes the field only;
+// without a dirty flag retained/CompositeOnly frames never repaint it).
+func (c *RenderColorBox) MoveTo(x, y float64) {
+	c.SetOffset(Point{X: x, Y: y})
+	c.MarkNeedsPaint()
+}
+
+// SetAlpha updates opacity and dirties paint (same rationale as MoveTo).
+func (c *RenderColorBox) SetAlpha(a float64) {
+	if c.A == a {
+		return
+	}
+	c.A = a
+	c.MarkNeedsPaint()
+}
+
 // Layout implements RenderObject.
 func (c *RenderColorBox) Layout(cons Constraints) Size {
 	if sz, ok := c.LayoutSkipIfClean(cons); ok {
