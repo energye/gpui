@@ -62,15 +62,14 @@ type inputBox struct {
 	*rendering.RenderBox
 	ed      *textinput.Editor
 	text    *rendering.RenderText
-	bar     *rendering.RenderColorBox // floating caret bar — layout-neutral
-	node    *focus.FocusNode          // registered with the window's focus manager
-	sched   func()                    // set before Run: request a frame after edits
+	bar     *rendering.RenderColorBox
+	node    *focus.FocusNode
+	sched   func()
 	focused bool
-	caretOn bool // idle-caret blink state (UI-thread only)
-	blinks  int  // completed blink toggles (evidence in exit JSON)
-	// preeditEvents counts inbound compose events (P9 echo-storm guard:
-	// exit JSON asserts ≤2 per keystroke window).
+	caretOn bool
+	blinks  int
 	preeditEvents int
+	scrollX float64
 }
 
 func newInputBox(ed *textinput.Editor) *inputBox {
@@ -83,7 +82,7 @@ func newInputBox(ed *textinput.Editor) *inputBox {
 	inner.Init(b) // Self = the OUTER inputBox so parent chains resolve to it
 	b.text.FontSize = 20
 	b.text.R, b.text.G, b.text.B, b.text.A = 0.05, 0.75, 0.95, 1
-	b.text.SetMaxWidth(boxW - 8)
+	b.text.SetMaxWidth(0)
 	b.FixedWidth = boxW
 	b.FixedHeight = boxH
 	b.AddChild(b.text)
@@ -128,7 +127,7 @@ func (b *inputBox) ContentType() platform.ContentType {
 	return platform.ContentType{Purpose: b.ContentPurpose()}
 }
 
-// caretAnchor — R2 单源：直接读 TextLayout 的 Carets，Paint 也读同一份，不再经 View 映射
+// caretAnchor — R2 单源 + 横滚
 func (b *inputBox) caretAnchor() (x, top, bottom float64, ok bool) {
 	if b == nil || b.text == nil {
 		return 0, 0, 0, false
@@ -140,8 +139,10 @@ func (b *inputBox) caretAnchor() (x, top, bottom float64, ok bool) {
 	var kok bool
 	if lay != nil && len(lay.Lines) > 0 {
 		lineIdx, penX, kok = lay.CaretForOffset(curByte)
+		penX -= b.scrollX
 	} else {
 		lineIdx, penX, kok = b.text.CaretColumn(min(curByte, len(b.text.Text)))
+		penX -= b.scrollX
 	}
 	if !kok {
 		return 0, 0, 0, false
@@ -194,7 +195,7 @@ func (b *inputBox) IMERect() platform.Rect {
 	return platform.Rect{X: boxX + x, Y: boxY + top, W: 2, H: bottom - top}
 }
 
-// sync — R2 单源：Editor.GetText() 已含 preedit，直接喂给 RenderText，RenderText 一份 TextLayout 供画与查
+// sync — R2 单源 + 横滚：保证光标可见
 func (b *inputBox) sync() {
 	if b == nil || b.text == nil || b.ed == nil {
 		return
@@ -204,6 +205,28 @@ func (b *inputBox) sync() {
 		disp = "…(click, type, IME)▏"
 	}
 	b.text.SetText(disp)
+	// 横滚：光标始终可见
+	curByte := b.ed.GetCursorOffset()
+	if lay := b.text.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+		_, caretX, _ := lay.CaretForOffset(curByte)
+		visW := boxW - 8
+		if caretX-b.scrollX > visW-4 {
+			b.scrollX = caretX - visW + 4
+		}
+		if caretX-b.scrollX < 4 {
+			b.scrollX = caretX - 4
+		}
+		if b.scrollX < 0 {
+			b.scrollX = 0
+		}
+		if lay.Lines[0].Width > 0 && b.scrollX > lay.Lines[0].Width-visW {
+			b.scrollX = lay.Lines[0].Width - visW
+			if b.scrollX < 0 {
+				b.scrollX = 0
+			}
+		}
+		b.text.SetOffset(rendering.Point{X: -b.scrollX, Y: 0})
+	}
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
@@ -233,15 +256,15 @@ func (b *inputBox) layoutCaret() {
 	}
 }
 
-// OnPointer — R2 单源点选：直接读 TextLayout HitTest，日志便于真人验缝
+// OnPointer — 含横滚修正
 func (b *inputBox) OnPointer(ev input.PointerEvent) {
 	if ev.Kind == input.PointerDown && b.node != nil {
 		b.node.RequestFocus()
 		localY := ev.Y - boxY
-		localX := ev.X - boxX
+		localX := ev.X - boxX + b.scrollX
 		off := b.text.ByteOffsetAtPoint(localX, localY)
 		b.ed.SetCaret(off)
-		logf("click at (%.1f,%.1f) local (%.1f,%.1f) -> off %d text %q", ev.X, ev.Y, localX, localY, off, b.ed.GetText())
+		logf("click at (%.1f,%.1f) local (%.1f,%.1f) scroll %.1f -> off %d text %q", ev.X, ev.Y, localX, localY, b.scrollX, off, b.ed.GetText())
 	}
 }
 
