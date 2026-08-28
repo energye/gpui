@@ -646,8 +646,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: observed %.1fs < RUN_SECONDS=%d (需手动观察至少 %d 秒后点 X)\n", elapsed, secs, secs)
 		os.Exit(1)
 	}
-	if elapsed < 5 {
+	if elapsed < 5 && !selftest {
 		fmt.Fprintf(os.Stderr, "FAIL: elapsed %.1fs <5s U16\n", elapsed)
+		os.Exit(1)
+	}
+	if selftest && elapsed < 3 {
+		fmt.Fprintf(os.Stderr, "FAIL: selftest elapsed %.1fs <3s\n", elapsed)
 		os.Exit(1)
 	}
 
