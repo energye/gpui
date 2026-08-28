@@ -129,12 +129,23 @@ func main() {
 	lblLong := wrkit.Label(fmt.Sprintf("5000 字单行横滚（%d 字）— scrollX 与 Caret.X 联动，横拖可见", len(runes)), 10, 0.6, 0.7, 0.8)
 	shell.Body.Place(lblLong, 340, 120)
 
+	// 8) Third InputBox 20px single line (W2 ≥3 focusable boxes)
+	edThird := textinput.New()
+	edThird.SetText("Aa@10 你好@16 Hello@12 混排", textinput.TextRange{Base: 2, Extent: 2}, textinput.TextRange{}, 0)
+	boxThird := textinput.NewInputBox(edThird, 320, 28, 20)
+	if f := wrkit.FaceAt(20); f != nil {
+		boxThird.SetFace(f)
+	}
+	shell.Body.Place(boxThird, 20, 345)
+	lblThird := wrkit.Label("20px 单行（第3可输框，W2≥3）— 点击获焦可打字", 10, 0.6, 0.8, 0.7)
+	shell.Body.Place(lblThird, 20, 378)
+
 	// Empty line case
 	tEmpty := wrkit.Label("\n", 14, 0.5, 0.5, 0.5)
 	tEmpty.SetFace(wrkit.FaceAt(14))
 	shell.Body.Place(tEmpty, 340, 340)
 
-	shell.Body.LabelAt("点击任意输入框获焦后可真实打字/退格/方向键/粘贴（与 R1 同）", 10, 12, 360, 0.65, 0.85, 0.95)
+	shell.Body.LabelAt("点击任意输入框获焦后可真实打字/退格/方向键/粘贴（与 R1 同，3框均可）", 10, 12, 395, 0.65, 0.85, 0.95)
 
 	// ── 真实人工输入：与 R1 同款 focus/IME/剪贴板 接线 ──
 	fm := focus.NewManager()
@@ -142,12 +153,15 @@ func main() {
 	router.TextEditor = edSticky
 	fm.Register(boxSticky.Node)
 	fm.Register(boxLong.Node)
+	fm.Register(boxThird.Node)
 	// 切换焦点时 IME 目标跟着切（R1 多框同款逻辑）
 	fm.AddFocusObserver(func(from, to *focus.FocusNode) {
 		if to == boxSticky.Node {
 			router.TextEditor = edSticky
 		} else if to == boxLong.Node {
 			router.TextEditor = edLong
+		} else if to == boxThird.Node {
+			router.TextEditor = edThird
 		}
 	})
 	// 按键分发到获焦框（R1 同款：router.OnKey → Box.OnKey，含方向键/退格等）
@@ -160,11 +174,16 @@ func main() {
 			boxLong.OnKey(ke)
 			return
 		}
+		if boxThird.IsFocused() {
+			boxThird.OnKey(ke)
+			return
+		}
 		boxSticky.OnKey(ke)
 	}
 	clip := win.Clipboard()
 	boxSticky.SetClipboard(clip)
 	boxLong.SetClipboard(clip)
+	boxThird.SetClipboard(clip)
 	// 点框即获焦，便于直接打字
 	_ = boxSticky.Node.RequestFocus()
 
@@ -304,6 +323,7 @@ func main() {
 			"")
 		_ = phase
 	}})
+	boxThird.SetSchedule(app.ScheduleFrame)
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
 	if err := app.Open(); err != nil {
@@ -386,6 +406,33 @@ func main() {
 	if snap.CPUFallbackOps != 0 {
 		fmt.Fprintf(os.Stderr, "FAIL: cpu_fallback %d !=0\n", snap.CPUFallbackOps)
 		os.Exit(1)
+	}
+	// D 族 CPU 门禁（10.4.2）：5s <50% / 15s 长串 <65%；以 RUN_SECONDS 档位选限，elapsed 仅作提示
+	// llvmpipe 软光栅可用 GPUI_R2_SOFTRAST=1 豁免 CPU 阈值
+	if snap.CPUPctAvg > 0 {
+		limit := 50.0
+		if secs >= 14 {
+			limit = 65.0
+		}
+		if snap.CPUPctAvg > limit && os.Getenv("GPUI_R2_SOFTRAST") != "1" {
+			fmt.Fprintf(os.Stderr, "FAIL: cpu_pct_avg %.1f >%.0f (D族 RUN_SECONDS=%d elapsed=%.1fs，llvmpipe 可设 GPUI_R2_SOFTRAST=1 豁免)\n", snap.CPUPctAvg, limit, secs, elapsed)
+			os.Exit(1)
+		}
+	}
+	// E 族 RSS slope：<15s 短窗 slope_gate=off 仅告警；≥14s 长窗 <20000 硬门禁（以 RUN_SECONDS 档位为准）
+	// llvmpipe 软光栅下 RSS 含 Mesa 驱动常驻，审计可用 GPUI_R2_SOFTRAST=1 临时豁免（真显卡仍硬卡）
+	if secs >= 14 {
+		if snap.RSSSlopeKBPerMin > 20000 && os.Getenv("GPUI_R2_SOFTRAST") != "1" {
+			fmt.Fprintf(os.Stderr, "FAIL: rss_slope %.0f >20000 KB/min (E族 RUN_SECONDS=%d elapsed=%.1fs)\n", snap.RSSSlopeKBPerMin, secs, elapsed)
+			os.Exit(1)
+		}
+		if snap.RSSSlopeKBPerMin > 20000 && os.Getenv("GPUI_R2_SOFTRAST") == "1" {
+			fmt.Fprintf(os.Stderr, "WARN: rss_slope %.0f >20000 but GPUI_R2_SOFTRAST=1 soft-raster豁免 (E族仅告警，真显卡仍硬卡)\n", snap.RSSSlopeKBPerMin)
+		}
+	} else {
+		if snap.RSSSlopeKBPerMin > 30000 {
+			fmt.Fprintf(os.Stderr, "WARN: rss_slope %.0f high but short window slope_gate=off (RUN_SECONDS=%d，E族仅告警)\n", snap.RSSSlopeKBPerMin, secs)
+		}
 	}
 	// fps/hitch gates when enough time
 	if elapsed >= 4.5 {
