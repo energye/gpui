@@ -360,11 +360,17 @@ func main() {
 			blocked := !ed.IsComposing()
 			ed.SetSelection(textinput.TextRange{Base: 0, Extent: 5})
 			copied := ed.Copy()
-			masked := copied == strings.Repeat("●", 5)
+			ch := ed.ObscuringCharacter()
+			masked := copied == strings.Repeat(string(ch), 5)
+			// 额外验证自定义字符（*）也按同一路径走
+			ed.SetObscuringCharacter('*')
+			ed.SetSelection(textinput.TextRange{Base: 0, Extent: 5})
+			maskedCustom := ed.Copy() == strings.Repeat("*", 5)
+			ed.SetObscuringCharacter('•')
 			ed.SetPassword(false)
 			ed.BeginComposing()
 			allowed := ed.IsComposing()
-			p.PasswordOK = blocked && masked && allowed
+			p.PasswordOK = blocked && masked && maskedCustom && allowed
 		}
 		// 4. ReadOnly / NONE: AddText blocked but MoveCursor allowed
 		{
@@ -650,9 +656,10 @@ func main() {
 	}
 
 	pixelOK := snap.PaintVisits > 0 && snap.MeasureCacheHit >= 1
-	// F6 text pixel: ensure password box masked text not equal to raw, and selection boxes have paint
+	// F6 text pixel: ensure password box masked with obscuringCharacter (可自定义) and selection boxes have paint
 	maskedCopy := ed20.Copy()
-	maskedPixelOK := maskedCopy == strings.Repeat("●", len([]rune("密码掩码"))) || strings.Contains(maskedCopy, "●") || ed20.IsPassword()
+	ch20 := ed20.ObscuringCharacter()
+	maskedPixelOK := maskedCopy == strings.Repeat(string(ch20), len([]rune(ed20.GetText()))) || strings.Contains(maskedCopy, string(ch20)) || ed20.IsPassword()
 	_ = maskedPixelOK
 
 	extra := map[string]any{

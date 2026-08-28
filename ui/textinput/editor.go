@@ -45,6 +45,7 @@ type Editor struct {
 	composing      bool
 	enableDeltaModel bool
 	isPassword     bool
+	obscuringChar  rune // 0 means default '•' (Flutter TextField.obscuringCharacter)
 	readOnly       bool
 	contentType    platform.ContentType
 	batchDepth         int
@@ -209,6 +210,33 @@ func (e *Editor) IsPassword() bool {
 		return false
 	}
 	return e.isPassword
+}
+
+// ObscuringCharacter returns the password masking rune, default '•' (U+2022) per Flutter TextField.obscuringCharacter.
+func (e *Editor) ObscuringCharacter() rune {
+	if e == nil {
+		return '•'
+	}
+	if e.obscuringChar == 0 {
+		return '•'
+	}
+	return e.obscuringChar
+}
+
+// SetObscuringCharacter customizes the password mask; pass 0 to reset to default '•'.
+// Aligns Flutter TextField.obscuringCharacter (customizable, default '•').
+func (e *Editor) SetObscuringCharacter(r rune) {
+	if e == nil {
+		return
+	}
+	if r == 0 {
+		e.obscuringChar = 0
+	} else {
+		e.obscuringChar = r
+	}
+	if e.isPassword && e.OnChange != nil {
+		e.OnChange()
+	}
 }
 func (e *Editor) SetReadOnly(v bool) {
 	if e == nil {
@@ -831,11 +859,10 @@ func (e *Editor) Copy() string {
 	if e == nil || e.selection.Collapsed() {
 		return ""
 	}
-	// F-B5：PurposePassword 时只给 ●，且限 editable_range（Flutter obscureText 语义）
+	// F-B5：PurposePassword 时只给 obscuringCharacter，且限 editable_range（Flutter obscureText 语义）
 	if e.isPassword {
-		// 用 ● 按选中 rune 数重复，避免泄露真实长度仍给占位符；单 ● 也符合“仅 ●”的字面
+		ch := e.ObscuringCharacter()
 		selLen := e.selection.Length()
-		// selLen 是 utf16 长度，转 rune 数更准
 		raw := e.text[byteOffsetForUtf16(e.text, e.selection.Start()):byteOffsetForUtf16(e.text, e.selection.End())]
 		n := len([]rune(raw))
 		if n == 0 {
@@ -844,7 +871,7 @@ func (e *Editor) Copy() string {
 				n = 1
 			}
 		}
-		return strings.Repeat("●", n)
+		return strings.Repeat(string(ch), n)
 	}
 	// 限 editable_range：选区若完全在可编辑区外则不给
 	er := e.EditableRange()

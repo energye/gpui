@@ -50,3 +50,33 @@ func TestR4_SelectWord(t *testing.T) {
 		t.Fatalf("select word got %q", selText)
 	}
 }
+
+func TestR4_PasswordCustomChar(t *testing.T) {
+	e := New()
+	mustSetText(t, e, "hello")
+	e.SetPassword(true)
+	// default is '•' per Flutter
+	if e.ObscuringCharacter() != '•' {
+		t.Fatalf("default obscuring char = %q want '•'", e.ObscuringCharacter())
+	}
+	e.SetSelection(TextRange{Base: 0, Extent: 5})
+	if got := e.Copy(); got != "•••••" {
+		t.Fatalf("default masked copy = %q want •••••", got)
+	}
+	e.SetObscuringCharacter('*')
+	if e.ObscuringCharacter() != '*' {
+		t.Fatalf("custom char failed")
+	}
+	if got := e.Copy(); got != "*****" {
+		t.Fatalf("custom masked copy = %q want *****", got)
+	}
+	e.SetObscuringCharacter('●')
+	if got := e.Copy(); got != "●●●●●" {
+		t.Fatalf("custom ● copy = %q", got)
+	}
+	// reset to default
+	e.SetObscuringCharacter(0)
+	if e.ObscuringCharacter() != '•' {
+		t.Fatalf("reset to default failed")
+	}
+}

@@ -69,6 +69,22 @@ func (b *InputBox) TickCaret(dt float64) {
 		b.MarkNeedsPaint()
 	}
 }
+
+// SetObscuringCharacter 自定义密码掩码字符，对齐 Flutter TextField.obscuringCharacter（默认 '•'）
+func (b *InputBox) SetObscuringCharacter(r rune) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	b.ed.SetObscuringCharacter(r)
+}
+
+// ObscuringCharacter 返回当前掩码字符
+func (b *InputBox) ObscuringCharacter() rune {
+	if b == nil || b.ed == nil {
+		return '•'
+	}
+	return b.ed.ObscuringCharacter()
+}
 func (b *InputBox) Sync() { b.sync() }
 
 // NewInputBox creates a single-line box. fontSize <=0 defaults to 16.
@@ -184,10 +200,15 @@ func (b *InputBox) caretAnchor() (float64, float64, float64, bool) {
 		// 单行居中时 off.Y 已是 textY，空串也用它
 		return off.X, off.Y, off.Y + lh, true
 	}
-	// 密码框：光标按掩码串的缝表，不走原文 byte
+	// 密码框：光标按掩码串的缝表，不走原文 byte（掩码字符可自定义，对齐 Flutter obscuringCharacter）
 	if b.ed.IsPassword() {
+		ch := b.ed.ObscuringCharacter()
+		chBytes := len(string(ch))
+		if chBytes <= 0 {
+			chBytes = 3
+		}
 		runeIdx := utf16ToRuneIndex(b.ed.GetText(), b.ed.SelectionRange().Extent)
-		maskedByte := runeIdx * 3 // "●" 3 bytes
+		maskedByte := runeIdx * chBytes
 		aff := b.ed.TextRange().Affinity
 		lay := b.txt.TextLayout()
 		if lay != nil && len(lay.Lines) > 0 {
@@ -198,7 +219,7 @@ func (b *InputBox) caretAnchor() (float64, float64, float64, bool) {
 		}
 		// fallback: estimate by runeIdx * charW
 		off := b.txt.Offset()
-		charW := b.txt.MeasureWidth("●")
+		charW := b.txt.MeasureWidth(string(ch))
 		if charW <= 0 {
 			charW = 12
 		}
@@ -287,11 +308,12 @@ func (b *InputBox) sync() {
 	if b == nil || b.txt == nil || b.ed == nil {
 		return
 	}
-	// F-E0c 密码掩码：显示 ●，保持与 rune 数一致
+	// F-E0c 密码掩码：显示 obscuringCharacter（可自定义，对齐 Flutter TextField.obscuringCharacter，默认 '•'），保持与 rune 数一致
 	isPassword := b.ed.IsPassword()
 	disp := b.ed.GetText()
 	if isPassword && disp != "" {
-		disp = strings.Repeat("●", len([]rune(disp)))
+		ch := b.ed.ObscuringCharacter()
+		disp = strings.Repeat(string(ch), len([]rune(disp)))
 	} else if disp == "" && !b.focused {
 		disp = "（点此获焦）"
 	}
@@ -455,9 +477,14 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
 			aff = rendering.AffinityDownstream
 		}
-		// 密码框：掩码 byte( runeIdx*3 ) 转原文 utf16
+		// 密码框：掩码 byte( runeIdx*chBytes ) 转原文 utf16（掩码字符可自定义）
 		if b.ed.IsPassword() {
-			runeIdx := byteOff / 3
+			ch := b.ed.ObscuringCharacter()
+			chBytes := len(string(ch))
+			if chBytes <= 0 {
+				chBytes = 3
+			}
+			runeIdx := byteOff / chBytes
 			if runeIdx < 0 {
 				runeIdx = 0
 			}
@@ -541,6 +568,11 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 	case input.PointerMove:
 		if b.dragging {
 			if b.ed.IsPassword() {
+				ch := b.ed.ObscuringCharacter()
+				chBytes := len(string(ch))
+				if chBytes <= 0 {
+					chBytes = 3
+				}
 				lay := b.txt.TextLayout()
 				var byteOff int
 				if lay != nil {
@@ -548,7 +580,7 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 				} else {
 					byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
 				}
-				runeIdx := byteOff / 3
+				runeIdx := byteOff / chBytes
 				if runeIdx < 0 {
 					runeIdx = 0
 				}
