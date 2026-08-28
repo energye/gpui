@@ -78,6 +78,7 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 func (b *InputBox) SetFace(face text.Face) {
 	if b != nil && b.txt != nil {
 		b.txt.SetFace(face)
+		b.sync()
 	}
 }
 
@@ -363,6 +364,7 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 func (b *MultiLineInputBox) SetFace(face text.Face) {
 	if b != nil && b.txt != nil {
 		b.txt.SetFace(face)
+		b.sync()
 	}
 }
 func (b *MultiLineInputBox) SetClipboard(c platform.Clipboard) { b.clipboard = c }
