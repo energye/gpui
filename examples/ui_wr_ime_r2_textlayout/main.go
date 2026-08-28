@@ -1,9 +1,9 @@
 // Command ui_wr_ime_r2_textlayout is the IME R2 real-window: TextLayout single source.
 //
-//  Window: 1200x800, 手动关闭（无自动关闭，RunFor=0 无限运行，点 X 关闭）。
-//  最小观察时长 RUN_SECONDS>=5，5000 长串建议观察 ≥15s。
-//  Scenarios (7): 36×m deep, newline affinity, sticky column, fallback mixed,
-//  HiDPI 1px, MaxLines/Ellipsis, 5000 long + scrollX linkage.
+//	Window: 1200x800, 手动关闭（无自动关闭，RunFor=0 无限运行，点 X 关闭）。
+//	最小观察时长 RUN_SECONDS>=5，5000 长串建议观察 ≥15s。
+//	Scenarios (7): 36×m deep, newline affinity, sticky column, fallback mixed,
+//	HiDPI 1px, MaxLines/Ellipsis, 5000 long + scrollX linkage.
 package main
 
 import (
@@ -45,7 +45,8 @@ func main() {
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
-	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_wr_ime_r2_textlayout — IME R2 单源布局", Decorations: true})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "gpui ui_wr_ime_r2_textlayout — IME R2 单源布局",
+		Decorations: true, Resizable: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)
@@ -169,15 +170,15 @@ func main() {
 
 	// Probe data for JSON
 	type probe struct {
-		DeepOK      bool    `json:"deep_ok"`
-		AffinityOK  bool    `json:"affinity_ok"`
-		StickyOK    bool    `json:"sticky_ok"`
-		FallbackOK  bool    `json:"fallback_ok"`
-		EllipsisOK  bool    `json:"ellipsis_ok"`
-		LongBuildMs float64 `json:"long_build_ms"`
-		LongOK      bool    `json:"long_ok"`
-		BoxesOK     bool    `json:"boxes_ok"`
-		GenerationOK bool   `json:"generation_ok"`
+		DeepOK       bool    `json:"deep_ok"`
+		AffinityOK   bool    `json:"affinity_ok"`
+		StickyOK     bool    `json:"sticky_ok"`
+		FallbackOK   bool    `json:"fallback_ok"`
+		EllipsisOK   bool    `json:"ellipsis_ok"`
+		LongBuildMs  float64 `json:"long_build_ms"`
+		LongOK       bool    `json:"long_ok"`
+		BoxesOK      bool    `json:"boxes_ok"`
+		GenerationOK bool    `json:"generation_ok"`
 	}
 	var lastProbe probe
 
