@@ -20,7 +20,7 @@
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
 | `render`（主包） | 类型 94 · 顶层函数 111 · Context 导出方法 182 · 常量 120 · 变量 11 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里 |
-| `render/text` | 包级导出 239（含字体/整形/布局/光栅化；go doc 符号段口径） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
+| `render/text` | 包级导出 240（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
 | `render/surface` | 顶层 53 | 🔌 无消费者 | surface 抽象（ImageSurface/GPUSurface）+ 注册表，未接入 render.Context |
@@ -228,7 +228,7 @@
 |----|---------|------|------|------|
 | 字体与文件 | `RegisterParser/FontSource/FontSourceID/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…`、`MultiFace`（`AtSize`/`WithHinting` 等导出方法） | 字体解析器注册、字体源身份、字体文件加载、多字体链重建（尺寸/渲染选项保留）、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
 | 整形 | `Shape/ShapedGlyph/RunAdvance/CaretXForCluster/HitTestCluster/…` | 文本整形（复杂文字/阿拉伯、泰文等）、字形序列与簇命中 | 文本整形 | 🔗 |
-| 绘制 | `Draw/DrawAliased/DrawWithEmoji/Measure/MeasureText` | 字形到目标图像的绘制（含别名/emoji）、文本度量 | 字形绘制 | 🔗 |
+| 绘制 | `Draw/DrawAliased/DrawWithEmoji/Measure/MeasureText/RuneAdvance` | 字形到目标图像的绘制（含别名/emoji）、文本度量；`RuneAdvance` 为单字形无分配推进（P7 5000 视口） | 字形绘制 | 🔗 |
 | 度量/量化 | `Quantize/QuantizePoint/SubpixelMode/SubpixelConfig` | 子像素量化（LCD/AA 的次像素定位） | 子像素量化 | 🔗 |
 | 缓存 | `ClearShapeResultCache/ClearMultiFaceRunsCache/ClearAutoHintCache/ClearFontScanFallbackCache/ResetShapeResultCacheStats` | 各缓存清理与统计复位（整形/多面/自动 hint/字体扫描） | 缓存管理 | 🔗 |
 | 光栅 | `RasterizeFT26/GlyphMaskFlagAliased/GlyphMaskFlagLCD/GlyphMaskFlagLCDBGR` | 轮廓点阵光栅化、字形掩码标志 | 字形光栅化 | 🔗 |
