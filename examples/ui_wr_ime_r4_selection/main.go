@@ -555,23 +555,18 @@ func main() {
 			selPhase = "select"
 		case 60:
 			selPhase = "composing"
-			// Simulate composing for visual
-			if tick%120 == 60 {
-				ed16.BeginComposing()
-				ed16.UpdateComposingText("nihao", textinput.TextRange{Base: 5, Extent: 10})
-				anchorComposingCalls++
-			}
+			anchorComposingCalls++
 		case 90:
 			selPhase = "password"
-			if ed16.IsComposing() {
-				ed16.EndComposing()
-			}
-		}
-		if tick%30 == 0 && ed16.IsComposing() {
-			// keep anchor count realistic: composing tick increments
-			mock.caretCalls++
-		} else if tick%30 == 0 {
 			anchorNonComposingCalls++
+		}
+		if tick%30 == 0 {
+			// 锚点计数仅用于可视化，不改真实 Editor composing 状态，避免阻塞手打方向键（原模拟 BeginComposing 会拦截 filter_keypress）
+			if selPhase == "composing" {
+				mock.caretCalls++
+			} else {
+				anchorNonComposingCalls++
+			}
 		}
 		stateBox.MarkNeedsPaint()
 		if tick%10 == 0 || tick-probeCacheTick >= 10 {

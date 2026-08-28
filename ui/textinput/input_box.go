@@ -153,6 +153,32 @@ func (b *InputBox) caretAnchor() (float64, float64, float64, bool) {
 	if b == nil || b.txt == nil || b.ed == nil {
 		return 0, 0, 0, false
 	}
+	// 密码框：光标按掩码串的缝表，不走原文 byte
+	if b.ed.IsPassword() {
+		runeIdx := utf16ToRuneIndex(b.ed.GetText(), b.ed.SelectionRange().Extent)
+		maskedByte := runeIdx * 3 // "●" 3 bytes
+		aff := b.ed.TextRange().Affinity
+		lay := b.txt.TextLayout()
+		if lay != nil && len(lay.Lines) > 0 {
+			if x, y, h, ok := lay.GetOffsetForCaret(maskedByte, aff, 1.5); ok {
+				off := b.txt.Offset()
+				return off.X + x, off.Y + y, off.Y + y + h, true
+			}
+		}
+		// fallback: estimate by runeIdx * charW
+		off := b.txt.Offset()
+		charW := b.txt.MeasureWidth("●")
+		if charW <= 0 {
+			charW = 12
+		}
+		x := off.X + float64(runeIdx)*charW
+		top := off.Y
+		lh := b.txt.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		return x, top, top + lh, true
+	}
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
@@ -395,6 +421,55 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
 			aff = rendering.AffinityDownstream
 		}
+		// 密码框：掩码 byte( runeIdx*3 ) 转原文 utf16
+		if b.ed.IsPassword() {
+			runeIdx := byteOff / 3
+			if runeIdx < 0 {
+				runeIdx = 0
+			}
+			if runeIdx > len([]rune(b.ed.GetText())) {
+				runeIdx = len([]rune(b.ed.GetText()))
+			}
+			byteOff = runeIdx // dummy, will map via runeIdx
+			// 单击直接按 runeIdx 设光标
+			now := time.Now()
+			dx := localX - b.lastClickX
+			if dx < 0 {
+				dx = -dx
+			}
+			dy := localY - b.lastClickY
+			if dy < 0 {
+				dy = -dy
+			}
+			if now.Sub(b.lastClickAt) < 500*time.Millisecond && dx < 4 && dy < 4 {
+				b.clickCount++
+			} else {
+				b.clickCount = 1
+			}
+			b.lastClickAt = now
+			b.lastClickX = localX
+			b.lastClickY = localY
+			if b.clickCount >= 2 {
+				b.ed.SelectAll()
+				b.dragging = false
+				if b.clickCount > 3 {
+					b.clickCount = 3
+				}
+			} else {
+				utf16Off := 0
+				for _, r := range []rune(b.ed.GetText())[:runeIdx] {
+					if r > 0xFFFF {
+						utf16Off += 2
+					} else {
+						utf16Off++
+					}
+				}
+				b.ed.SetSelection(TextRange{Base: utf16Off, Extent: utf16Off})
+				b.dragStart = utf16Off
+				b.dragging = true
+			}
+			return
+		}
 		now := time.Now()
 		dx := localX - b.lastClickX
 		dy := localY - b.lastClickY
@@ -425,28 +500,49 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 			b.dragging = false
 			b.clickCount = 3 // clamp
 		} else {
-			// Shift+click 扩展
-			if b.ed != nil {
-				// Check shift is held via last pointer modifiers? InputEvent carries modifiers but PointerEvent doesn't.
-				// For mouse, shift extension is handled via keyboard Shift+click path through InputRouter modifiers.
-				// Here treat as normal place; shift handling done in OnKey and via dragging with shift flag in router.
-			}
 			b.ed.SetCaretWithAffinity(byteOff, aff)
 			b.dragStart = b.ed.utf16ForByte(byteOff)
 			b.dragging = true
 		}
 	case input.PointerMove:
 		if b.dragging {
-			lay := b.txt.TextLayout()
-			var byteOff int
-			if lay != nil {
-				byteOff, _ = lay.GetPositionForOffset(localX, localY)
+			if b.ed.IsPassword() {
+				lay := b.txt.TextLayout()
+				var byteOff int
+				if lay != nil {
+					byteOff, _ = lay.GetPositionForOffset(localX, localY)
+				} else {
+					byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+				}
+				runeIdx := byteOff / 3
+				if runeIdx < 0 {
+					runeIdx = 0
+				}
+				runes := []rune(b.ed.GetText())
+				if runeIdx > len(runes) {
+					runeIdx = len(runes)
+				}
+				cur := 0
+				for _, r := range runes[:runeIdx] {
+					if r > 0xFFFF {
+						cur += 2
+					} else {
+						cur++
+					}
+				}
+				b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
 			} else {
-				byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+				lay := b.txt.TextLayout()
+				var byteOff int
+				if lay != nil {
+					byteOff, _ = lay.GetPositionForOffset(localX, localY)
+				} else {
+					byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+				}
+				cur := b.ed.utf16ForByte(byteOff)
+				// F-B2 拖选限 editable_range，SetSelection 内部会夹紧
+				b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
 			}
-			cur := b.ed.utf16ForByte(byteOff)
-			// F-B2 拖选限 editable_range，SetSelection 内部会夹紧
-			b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
 		}
 	case input.PointerUp:
 		b.dragging = false
@@ -556,6 +652,39 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 
 func (b *InputBox) extendVisual(delta int) {
 	if b == nil || b.ed == nil {
+		return
+	}
+	// 密码框：按 rune 单步，不走缝表
+	if b.ed.IsPassword() {
+		sel := b.ed.SelectionRange()
+		base := sel.Base
+		if sel.Collapsed() {
+			base = sel.Start()
+		}
+		cur := sel.Extent
+		if delta > 0 {
+			if cur < utf16Len(b.ed.GetText()) {
+				// 按簇：surrogate 2
+				bRunes := []rune(b.ed.GetText())
+				runeIdx := utf16ToRuneIndex(b.ed.GetText(), cur)
+				if runeIdx < len(bRunes) && bRunes[runeIdx] > 0xFFFF {
+					cur += 2
+				} else {
+					cur += 1
+				}
+			}
+		} else {
+			if cur > 0 {
+				bRunes := []rune(b.ed.GetText())
+				runeIdx := utf16ToRuneIndex(b.ed.GetText(), cur)
+				if runeIdx > 0 && bRunes[runeIdx-1] > 0xFFFF {
+					cur -= 2
+				} else {
+					cur -= 1
+				}
+			}
+		}
+		b.ed.SetSelection(TextRange{Base: base, Extent: cur})
 		return
 	}
 	sel := b.ed.SelectionRange()
@@ -734,6 +863,14 @@ func textinputDup(e *Editor) *Editor {
 
 func (b *InputBox) moveVisual(delta int) {
 	if b == nil || b.ed == nil {
+		return
+	}
+	if b.ed.IsPassword() {
+		if delta > 0 {
+			b.ed.MoveCursorForward()
+		} else {
+			b.ed.MoveCursorBack()
+		}
 		return
 	}
 	b.ed.MoveVisual(delta, b.txt.TextLayout())
