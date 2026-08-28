@@ -38,600 +38,28 @@ const (
 	longBase = "你好Hello世界"
 )
 
-// manualInputBox 是中栏可交互的文本框：点一下获焦，键盘直接打字，IME 预编辑跟随光标。
-type manualInputBox struct {
-	*rendering.RenderBox
-	ed        *textinput.Editor
-	text      *rendering.RenderText
-	bar       *rendering.RenderColorBox
-	node      *focus.FocusNode
-	sched     func()
-	focused   bool
-	caretOn   bool
-	scrollX   float64
-	clipboard platform.Clipboard
-}
+// manualInputBox / multilineInputBox now provided by ui/textinput engine (R5 BaseEditable).
+// R示例只做测试，不实现输入框功能。
+type manualInputBox = textinput.InputBox
+type multilineInputBox = textinput.MultiLineInputBox
 
 func newManualInputBox(ed *textinput.Editor, w, h float64, fontSize float64) *manualInputBox {
-	if fontSize <= 0 {
-		fontSize = 16
-	}
-	inner := rendering.NewRenderBox()
-	b := &manualInputBox{
-		RenderBox: inner,
-		ed:        ed,
-		text:      rendering.NewRenderText(""),
-	}
-	inner.Init(b)
-	b.text.FontSize = fontSize
-	if face := wrkit.FaceAt(fontSize); face != nil {
-		b.text.SetFace(face)
-	}
-	b.text.R, b.text.G, b.text.B, b.text.A = 0.05, 0.75, 0.95, 1
-	b.FixedWidth = w
-	b.FixedHeight = h
-	b.AddChild(b.text)
-	// 光标宽度固定 1.5px，高度由 caretAnchor 的行盒决定（不同字号自适应）
-	b.bar = rendering.NewRenderColorBox(1.5, 22, 1.0, 0.85, 0.2, 1)
-	b.AddChild(b.bar)
-	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		b.layoutCaret()
-	}
-	b.caretOn = true
-	b.node = focus.NewFocusNode(fmt.Sprintf("r1-input-%.0f", fontSize))
-	b.node.Target = b
-	b.node.OnFocusChange = func(on bool) {
-		b.focused = on
-		b.sync()
-	}
-	ed.OnChange = func() { b.sync() }
-	b.sync()
-	return b
+    b := textinput.NewInputBox(ed, w, h, fontSize)
+    if face := wrkit.FaceAt(fontSize); face != nil {
+        b.SetFace(face)
+    }
+    return b
 }
-
-func (b *manualInputBox) SetClipboard(c platform.Clipboard) {
-	if b != nil {
-		b.clipboard = c
-	}
-}
-
-// 兼容旧调用（默认 16px）
 func newManualInputBoxDefault(ed *textinput.Editor, w, h float64) *manualInputBox {
-	return newManualInputBox(ed, w, h, 16)
+    return newManualInputBox(ed, w, h, 16)
 }
-
-// multilineInputBox 是可换行的多行输入框（R1 演示换行能力）。
-// 与单行框不同：MaxWidth 限宽自动换行，Enter 插入 '\n'，支持垂直滚动，
-// 光标行盒按 TextLayout 的每行 Height / LineTop 来（多段混排也正确）。
-type multilineInputBox struct {
-	*rendering.RenderBox
-	ed        *textinput.Editor
-	text      *rendering.RenderText
-	bar       *rendering.RenderColorBox
-	node      *focus.FocusNode
-	sched     func()
-	focused   bool
-	caretOn   bool
-	scrollX   float64
-	scrollY   float64
-	clipboard platform.Clipboard
-}
-
 func newMultilineInputBox(ed *textinput.Editor, w, h float64, fontSize float64) *multilineInputBox {
-	if fontSize <= 0 {
-		fontSize = 14
-	}
-	inner := rendering.NewRenderBox()
-	b := &multilineInputBox{
-		RenderBox: inner,
-		ed:        ed,
-		text:      rendering.NewRenderText(""),
-	}
-	inner.Init(b)
-	b.text.FontSize = fontSize
-	if face := wrkit.FaceAt(fontSize); face != nil {
-		b.text.SetFace(face)
-	}
-	b.text.R, b.text.G, b.text.B, b.text.A = 0.06, 0.85, 0.60, 1
-	b.text.MaxWidth = w - 16 // 左右各 8px 内边距后换行
-	b.FixedWidth = w
-	b.FixedHeight = h
-	b.AddChild(b.text)
-	b.bar = rendering.NewRenderColorBox(1.5, 22, 1.0, 0.85, 0.2, 1)
-	b.AddChild(b.bar)
-	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		b.layoutCaret()
-	}
-	b.caretOn = true
-	b.node = focus.NewFocusNode(fmt.Sprintf("r1-multi-%.0f", fontSize))
-	b.node.Target = b
-	b.node.OnFocusChange = func(on bool) {
-		b.focused = on
-		b.sync()
-	}
-	ed.OnChange = func() { b.sync() }
-	b.sync()
-	return b
+    b := textinput.NewMultiLineInputBox(ed, w, h, fontSize)
+    if face := wrkit.FaceAt(fontSize); face != nil {
+        b.SetFace(face)
+    }
+    return b
 }
-
-func (b *multilineInputBox) SetClipboard(c platform.Clipboard) {
-	if b != nil {
-		b.clipboard = c
-	}
-}
-
-func (b *multilineInputBox) Layout(c rendering.Constraints) rendering.Size {
-	textOff := b.text.Offset()
-	barOff := b.bar.Offset()
-	sz := b.RenderBox.Layout(c)
-	b.text.SetOffset(textOff)
-	b.bar.SetOffset(barOff)
-	return sz
-}
-
-func (b *multilineInputBox) Editor() *textinput.Editor { return b.ed }
-func (b *multilineInputBox) ContentPurpose() platform.ContentPurpose { return platform.PurposeNormal }
-func (b *multilineInputBox) ContentType() platform.ContentType {
-	return platform.ContentType{Purpose: b.ContentPurpose()}
-}
-func (b *multilineInputBox) caretAnchor() (float64, float64, float64, bool) {
-	if b == nil || b.text == nil || b.ed == nil {
-		return 0, 0, 0, false
-	}
-	curByte := b.ed.GetCursorOffset()
-	aff := b.ed.TextRange().Affinity
-	if sel := b.ed.TextRange(); sel.Collapsed() {
-		aff = sel.Affinity
-	} else {
-		// For non-collapsed, use extent affinity.
-		aff = sel.Affinity
-	}
-	// Also check Editor's selection affinity via GetCursorAffinity (stored on selection).
-	lay := b.text.TextLayout()
-	var x, y, h float64
-	var ok bool
-	if lay != nil && len(lay.Lines) > 0 {
-		x, y, h, ok = lay.GetOffsetForCaret(curByte, aff, 1.5)
-		if ok {
-			textOff := b.text.Offset()
-			return textOff.X + x, textOff.Y + y, textOff.Y + y + h, true
-		}
-	}
-	// Fallback via CaretColumn
-	lineIdx, penX, ok2 := b.text.CaretColumn(min(curByte, len(b.text.Text)))
-	if !ok2 {
-		return 0, 0, 0, false
-	}
-	textOff := b.text.Offset()
-	x = textOff.X + penX
-	var top, bottom float64
-	if lay != nil && len(lay.Lines) > lineIdx {
-		top = textOff.Y + lay.LineTop(lineIdx)
-		bottom = top + lay.LineHeight(lineIdx)
-	} else {
-		lh := b.text.LineHeight()
-		if lh <= 0 {
-			lh = 22
-		}
-		top = textOff.Y + float64(lineIdx)*lh
-		bottom = top + lh
-	}
-	return x, top, bottom, true
-}
-func (b *multilineInputBox) IMERect() platform.Rect {
-	x, top, bottom, ok := b.caretAnchor()
-	if !ok {
-		return platform.Rect{X: 384, Y: 254, W: 2, H: 22}
-	}
-	abs := absoluteOrigin(b)
-	return platform.Rect{X: abs.X + x, Y: abs.Y + top, W: 2, H: bottom - top}
-}
-func (b *multilineInputBox) sync() {
-	if b == nil || b.text == nil || b.ed == nil {
-		return
-	}
-	disp := b.ed.GetText()
-	if disp == "" && !b.focused {
-		disp = "（多行：点获焦，Enter 换行，长句自动换行）"
-	}
-	b.text.SetText(disp)
-	curByte := b.ed.GetCursorOffset()
-	aff := b.ed.TextRange().Affinity
-	lay := b.text.TextLayout()
-	var caretX, caretY, caretH float64
-	var lineIdx int
-	if lay != nil && len(lay.Lines) > 0 {
-		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
-			caretX, caretY, caretH = x, y, h
-			// Map y to lineIdx.
-			for i := range lay.Lines {
-				top := lay.LineTop(i)
-				ht := lay.LineHeight(i)
-				if y >= top-0.01 && y < top+ht-0.01 {
-					lineIdx = i
-					break
-				}
-			}
-		} else {
-			lineIdx, caretX, _ = lay.CaretForOffset(curByte)
-			caretY = lay.LineTop(lineIdx)
-			caretH = lay.LineHeight(lineIdx)
-		}
-	} else {
-		lineIdx, caretX, _ = b.text.CaretColumn(min(curByte, len(b.text.Text)))
-		lh := b.text.LineHeight()
-		if lh <= 0 {
-			lh = 22
-		}
-		caretY = float64(lineIdx) * lh
-		caretH = lh
-	}
-	_ = caretH
-	visW := b.FixedWidth - 16
-	visH := b.FixedHeight - 16
-	// 水平：保证光标在可视区
-	if caretX-b.scrollX > visW-4 {
-		b.scrollX = caretX - visW + 4
-	}
-	if caretX-b.scrollX < 4 {
-		b.scrollX = caretX - 4
-	}
-	if b.scrollX < 0 {
-		b.scrollX = 0
-	}
-	// 垂直：按行盒保证可视
-	var lineH float64
-	if lay != nil && len(lay.Lines) > lineIdx {
-		lineH = lay.LineHeight(lineIdx)
-	} else {
-		lh := b.text.LineHeight()
-		if lh <= 0 {
-			lh = 22
-		}
-		lineH = lh
-	}
-	if caretY-b.scrollY < 4 {
-		b.scrollY = caretY - 4
-	}
-	if caretY+lineH-b.scrollY > visH-4 {
-		b.scrollY = caretY + lineH - visH + 4
-	}
-	if b.scrollY < 0 {
-		b.scrollY = 0
-	}
-	// 限制最大滚动（文本总高 - 可视高）
-	if lay != nil && len(lay.Lines) > 0 {
-		totalH := lay.LineTop(len(lay.Lines)-1) + lay.LineHeight(len(lay.Lines)-1)
-		maxY := totalH - visH
-		if maxY < 0 {
-			maxY = 0
-		}
-		if b.scrollY > maxY {
-			b.scrollY = maxY
-		}
-	}
-	b.text.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: 8 - b.scrollY})
-	b.layoutCaret()
-	if b.sched != nil {
-		b.sched()
-	}
-}
-func (b *multilineInputBox) layoutCaret() {
-	if b == nil || b.bar == nil {
-		return
-	}
-	x, top, bottom, ok := b.caretAnchor()
-	if !ok {
-		return
-	}
-	b.bar.MoveTo(x-b.bar.Width/2, top)
-	if h := bottom - top; h > 0 {
-		b.bar.Height = h
-	}
-	if b.caretOn && b.focused {
-		b.bar.SetAlpha(1)
-	} else {
-		b.bar.SetAlpha(0)
-	}
-}
-func (b *multilineInputBox) OnPointer(ev input.PointerEvent) {
-	if ev.Kind == input.PointerDown && b.node != nil {
-		b.node.RequestFocus()
-		abs := absoluteOrigin(b)
-		textOff := b.text.Offset()
-		localX := ev.X - abs.X - textOff.X
-		localY := ev.Y - abs.Y - textOff.Y
-		lay := b.text.TextLayout()
-		var off, aff int
-		if lay != nil {
-			off, aff = lay.GetPositionForOffset(localX, localY)
-		} else {
-			off = b.text.ByteOffsetAtPoint(localX, localY)
-			aff = rendering.AffinityDownstream
-		}
-		n := 0
-		if lay != nil {
-			n = len(lay.Lines)
-		}
-		fmt.Fprintf(os.Stderr, "[r1-click] multi win(%.1f,%.1f) local(%.1f,%.1f) -> byte %d aff %d text %s caret %d lines %d\n", ev.X, ev.Y, localX, localY, off, aff, b.ed.GetText(), b.ed.GetCursorOffset(), n)
-		b.ed.SetCaretWithAffinity(off, aff)
-	}
-}
-func (b *multilineInputBox) OnKey(ev input.KeyEvent) {
-	if !ev.Pressed {
-		return
-	}
-	if ev.Mods.Control || ev.Mods.Meta {
-		switch ev.Key {
-		case input.KeyA:
-			b.ed.SelectAll()
-			return
-		case input.KeyC:
-			s := b.ed.Copy()
-			if s != "" && b.clipboard != nil {
-				_ = b.clipboard.Set("text/plain", s)
-			}
-			return
-		case input.KeyX:
-			s := b.ed.Cut()
-			if s != "" && b.clipboard != nil {
-				_ = b.clipboard.Set("text/plain", s)
-			}
-			return
-		case input.KeyV:
-			return
-		}
-	}
-	switch ev.Key {
-	case input.KeyBackspace:
-		b.ed.DeleteBackward()
-	case input.KeyDelete:
-		b.ed.DeleteForward()
-	case input.KeyArrowLeft:
-		b.moveVisual(-1)
-	case input.KeyArrowRight:
-		b.moveVisual(1)
-	case input.KeyArrowUp:
-		b.ed.MoveCursorUp()
-	case input.KeyArrowDown:
-		b.ed.MoveCursorDown()
-	case input.KeyEnter:
-		b.ed.Insert("\n")
-	case input.KeyEscape:
-		b.ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
-	}
-}
-func (b *multilineInputBox) moveVisual(delta int) {
-	if b == nil || b.ed == nil {
-		return
-	}
-	lay := b.text.TextLayout()
-	b.ed.MoveVisual(delta, lay)
-}
-func (b *multilineInputBox) OnText(ev input.TextEvent) {}
-func (b *multilineInputBox) OnIME(ev input.IMEEvent)    {}
-
-func (b *manualInputBox) Layout(c rendering.Constraints) rendering.Size {
-	// RenderBox.Layout 会把子节点重置到 Pad(0,0)，导致文本靠上。
-	// 这里保存 sync() 已算好的文本/光标偏移，布局后再恢复，保证单源排版位置不被覆盖。
-	textOff := b.text.Offset()
-	barOff := b.bar.Offset()
-	sz := b.RenderBox.Layout(c)
-	b.text.SetOffset(textOff)
-	b.bar.SetOffset(barOff)
-	return sz
-}
-
-func (b *manualInputBox) Editor() *textinput.Editor { return b.ed }
-func (b *manualInputBox) ContentPurpose() platform.ContentPurpose {
-	return platform.PurposeNormal
-}
-func (b *manualInputBox) ContentType() platform.ContentType {
-	return platform.ContentType{Purpose: b.ContentPurpose()}
-}
-// caretAnchor 返回光标在 inputBox 局部坐标系的矩形（Flutter GetOffsetForCaret 对齐）。
-func (b *manualInputBox) caretAnchor() (float64, float64, float64, bool) {
-	if b == nil || b.text == nil || b.ed == nil {
-		return 0, 0, 0, false
-	}
-	curByte := b.ed.GetCursorOffset()
-	aff := b.ed.TextRange().Affinity
-	lay := b.text.TextLayout()
-	if lay != nil && len(lay.Lines) > 0 {
-		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
-			textOff := b.text.Offset()
-			return textOff.X + x, textOff.Y + y, textOff.Y + y + h, true
-		}
-	}
-	lineIdx, penX, ok := b.text.CaretColumn(min(curByte, len(b.text.Text)))
-	if !ok {
-		return 0, 0, 0, false
-	}
-	textOff := b.text.Offset()
-	x := textOff.X + penX
-	var top, bottom float64
-	if lay != nil && len(lay.Lines) > lineIdx {
-		top = textOff.Y + lay.LineTop(lineIdx)
-		bottom = top + lay.LineHeight(lineIdx)
-	} else {
-		lh := b.text.LineHeight()
-		if lh <= 0 {
-			lh = 22
-		}
-		top = textOff.Y + float64(lineIdx)*lh
-		bottom = top + lh
-	}
-	return x, top, bottom, true
-}
-
-// absoluteOrigin 累加 Parent 链 Offset 得到窗口绝对坐标（Flutter RenderObject.localToGlobal 近似）。
-func absoluteOrigin(n rendering.RenderObject) rendering.Point {
-	x, y := 0.0, 0.0
-	for cur := n; cur != nil; cur = cur.Parent() {
-		off := cur.Offset()
-		x += off.X
-		y += off.Y
-	}
-	return rendering.Point{X: x, Y: y}
-}
-
-func (b *manualInputBox) IMERect() platform.Rect {
-	x, top, bottom, ok := b.caretAnchor()
-	if !ok {
-		return platform.Rect{X: 384, Y: 254, W: 2, H: 22}
-	}
-	abs := absoluteOrigin(b)
-	return platform.Rect{X: abs.X + x, Y: abs.Y + top, W: 2, H: bottom - top}
-}
-func (b *manualInputBox) sync() {
-	if b == nil || b.text == nil || b.ed == nil {
-		return
-	}
-	disp := b.ed.GetText()
-	if disp == "" && !b.focused {
-		disp = "（点此获焦，手打验证 R1）"
-	}
-	b.text.SetText(disp)
-	curByte := b.ed.GetCursorOffset()
-	aff := b.ed.TextRange().Affinity
-	lh := b.text.LineHeight()
-	if lh <= 0 {
-		lh = 22
-	}
-	textY := (b.FixedHeight - lh) / 2
-	if textY < 0 {
-		textY = 0
-	}
-	if lay := b.text.TextLayout(); lay != nil && len(lay.Lines) > 0 {
-		caretX := 0.0
-		if x, _, _, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
-			caretX = x
-		} else {
-			_, caretX, _ = lay.CaretForOffset(curByte)
-		}
-		visW := b.FixedWidth - 16
-		if caretX-b.scrollX > visW-4 {
-			b.scrollX = caretX - visW + 4
-		}
-		if caretX-b.scrollX < 4 {
-			b.scrollX = caretX - 4
-		}
-		if b.scrollX < 0 {
-			b.scrollX = 0
-		}
-		b.text.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: textY})
-	} else {
-		b.text.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: textY})
-	}
-	b.layoutCaret()
-	if b.sched != nil {
-		b.sched()
-	}
-}
-func (b *manualInputBox) layoutCaret() {
-	if b == nil || b.bar == nil {
-		return
-	}
-	x, top, bottom, ok := b.caretAnchor()
-	if !ok {
-		return
-	}
-	b.bar.MoveTo(x-b.bar.Width/2, top)
-	if h := bottom - top; h > 0 {
-		b.bar.Height = h
-	}
-	if b.caretOn && b.focused {
-		b.bar.SetAlpha(1)
-	} else {
-		b.bar.SetAlpha(0)
-	}
-}
-func (b *manualInputBox) OnPointer(ev input.PointerEvent) {
-	if ev.Kind == input.PointerDown && b.node != nil {
-		b.node.RequestFocus()
-		abs := absoluteOrigin(b)
-		textOff := b.text.Offset()
-		localX := ev.X - abs.X - textOff.X
-		localY := ev.Y - abs.Y - textOff.Y
-		lay := b.text.TextLayout()
-		var off, aff int
-		if lay != nil {
-			off, aff = lay.GetPositionForOffset(localX, localY)
-		} else {
-			off = b.text.ByteOffsetAtPoint(localX, localY)
-			aff = rendering.AffinityDownstream
-		}
-		n := 0
-		var carets string
-		if lay != nil {
-			n = len(lay.Lines)
-			if len(lay.Lines) > 0 {
-				for i, c := range lay.Lines[0].Carets {
-					if i > 0 {
-						carets += " "
-					}
-					carets += fmt.Sprintf("%d:%.1f", c.ByteOff, c.X)
-				}
-			}
-		}
-		fmt.Fprintf(os.Stderr, "[r1-click] %.0fpx single win(%.1f,%.1f) local(%.1f,%.1f) -> byte %d aff %d text %s caret %d lines %d carets [%s] scrollX %.1f\n", b.text.FontSize, ev.X, ev.Y, localX, localY, off, aff, b.ed.GetText(), b.ed.GetCursorOffset(), n, carets, b.scrollX)
-		b.ed.SetCaretWithAffinity(off, aff)
-		fmt.Fprintf(os.Stderr, "[r1-caret] after SetCaret caret %d byte %d aff %d\n", b.ed.TextRange().Extent, b.ed.GetCursorOffset(), b.ed.TextRange().Affinity)
-	}
-}
-func (b *manualInputBox) OnKey(ev input.KeyEvent) {
-	if !ev.Pressed {
-		return
-	}
-	if ev.Mods.Control || ev.Mods.Meta {
-		switch ev.Key {
-		case input.KeyA:
-			b.ed.SelectAll()
-			return
-		case input.KeyC:
-			s := b.ed.Copy()
-			if s != "" && b.clipboard != nil {
-				_ = b.clipboard.Set("text/plain", s)
-			}
-			return
-		case input.KeyX:
-			s := b.ed.Cut()
-			if s != "" && b.clipboard != nil {
-				_ = b.clipboard.Set("text/plain", s)
-			}
-			return
-		case input.KeyV:
-			// 粘贴走异步由外层 router 统一处理，避免 wayland Get 在 UI 线程阻塞 3s
-			return
-		}
-	}
-	switch ev.Key {
-	case input.KeyBackspace:
-		b.ed.DeleteBackward()
-	case input.KeyDelete:
-		b.ed.DeleteForward()
-	case input.KeyArrowLeft:
-		b.moveVisual(-1)
-	case input.KeyArrowRight:
-		b.moveVisual(1)
-	case input.KeyArrowUp:
-		b.ed.MoveCursorUp()
-	case input.KeyArrowDown:
-		b.ed.MoveCursorDown()
-	case input.KeyEscape:
-		b.ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
-	}
-}
-func (b *manualInputBox) moveVisual(delta int) {
-	if b == nil || b.ed == nil {
-		return
-	}
-	lay := b.text.TextLayout()
-	// Shipped visual path: single-source TextLayout seam table, same as unit test
-	b.ed.MoveVisual(delta, lay)
-}
-func (b *manualInputBox) OnText(ev input.TextEvent) {}
-func (b *manualInputBox) OnIME(ev input.IMEEvent)    {}
 
 func main() {
 	selftest := os.Getenv("GPUI_R1_SELFTEST") == "1"
@@ -874,11 +302,11 @@ func main() {
 	fm := focus.NewManager()
 	router := embedder.NewInputRouter(nil, fm)
 	router.TextEditor = ed
-	fm.Register(inputBox.node)
-	fm.Register(box10.node)
-	fm.Register(box12.node)
-	fm.Register(box20.node)
-	fm.Register(multilineBox.node)
+	fm.Register(inputBox.Node)
+	fm.Register(box10.Node)
+	fm.Register(box12.Node)
+	fm.Register(box20.Node)
+	fm.Register(multilineBox.Node)
 	clip := win.Clipboard()
 	box10.SetClipboard(clip)
 	box12.SetClipboard(clip)
@@ -886,7 +314,7 @@ func main() {
 	box20.SetClipboard(clip)
 	multilineBox.SetClipboard(clip)
 	// 启动即获焦，方便直接打字
-	_ = inputBox.node.RequestFocus()
+	_ = inputBox.Node.RequestFocus()
 
 	// 自检：在真正开窗前先跑一遍“缝”单源校验（可无头验证，不依赖 GPU）
 	if selftest {
@@ -908,7 +336,7 @@ func main() {
 	var probes []probe
 	tick := 0
 	ed.OnChange = func() {
-		inputBox.sync()
+		inputBox.Sync()
 		probeLabel.SetText(fmt.Sprintf("probe: len=%d sel=%v comp=%v compo=%v epoch=%d", len(ed.GetText()), ed.TextRange().Extent, ed.EditableRange(), ed.IsComposing(), ed.Epoch()))
 		probeLabel.MarkNeedsPaint()
 		// 用 %s 明文显示中文，避免 %q 把“手动”变成 \u624b\u5de5
@@ -944,6 +372,10 @@ func main() {
 		runFor = 3 * time.Second
 		snapPath = "/tmp/r1_selftest.png"
 		os.MkdirAll("/tmp", 0755)
+	} else if v := os.Getenv("GPUI_R1_RUN_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			runFor = time.Duration(n) * time.Second
+		}
 	}
 	app = embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR:       0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
@@ -998,11 +430,11 @@ func main() {
 			}
 		},
 	})
-	inputBox.sched = app.ScheduleFrame
-	box10.sched = app.ScheduleFrame
-	box12.sched = app.ScheduleFrame
-	box20.sched = app.ScheduleFrame
-	multilineBox.sched = app.ScheduleFrame
+	inputBox.SetSchedule(app.ScheduleFrame)
+	box10.SetSchedule(app.ScheduleFrame)
+	box12.SetSchedule(app.ScheduleFrame)
+	box20.SetSchedule(app.ScheduleFrame)
+	multilineBox.SetSchedule(app.ScheduleFrame)
 
 	// 仅保留光标闪烁 + 右形变 + HUD 的 ticker，不再自动改 text
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
@@ -1023,13 +455,9 @@ func main() {
 		// 光标闪烁（四个独立字号框 + 多行框同步闪）
 		if tick%30 == 0 {
 			for _, b := range []*manualInputBox{inputBox, box10, box12, box20} {
-				b.caretOn = !b.caretOn
-				b.layoutCaret()
-				b.MarkNeedsPaint()
+				b.SetCaretOn(!b.IsCaretOn())
 			}
-			multilineBox.caretOn = !multilineBox.caretOn
-			multilineBox.layoutCaret()
-			multilineBox.MarkNeedsPaint()
+			multilineBox.SetCaretOn(!multilineBox.IsCaretOn())
 		}
 		shapeBox.MarkNeedsPaint()
 		phaseLabel.SetText(fmt.Sprintf("人工验证中 tick=%d  请手打验证上表 8 项", tick))
@@ -1073,7 +501,7 @@ func main() {
 			// 额外：用 moveVisual 走一遍，看是否每格一跳
 			ed.SetText("Aa你好Hello😀", textinput.TextRange{Base: 0, Extent: 0}, textinput.TextRange{}, 0)
 			for i := 0; i < len(lay.Lines[0].Carets)-1; i++ {
-				inputBox.moveVisual(1)
+				inputBox.MoveVisual(1)
 				cur := ed.GetCursorOffset()
 				exp := lay.Lines[0].Carets[i+1].ByteOff
 				if cur != exp {
@@ -1095,21 +523,21 @@ func main() {
 			var edTarget *textinput.Editor
 			var clip platform.Clipboard
 			isSingle := true
-			if multilineBox.focused {
-				edTarget = multilineBox.ed
-				clip = multilineBox.clipboard
+			if multilineBox.IsFocused() {
+				edTarget = multilineBox.Editor()
+				clip = multilineBox.Clipboard()
 				isSingle = false
 			} else {
 				for _, b := range []*manualInputBox{box10, box12, inputBox, box20} {
-					if b.focused {
-						edTarget = b.ed
-						clip = b.clipboard
+					if b.IsFocused() {
+						edTarget = b.Editor()
+						clip = b.Clipboard()
 						break
 					}
 				}
 				if edTarget == nil {
-					edTarget = inputBox.ed
-					clip = inputBox.clipboard
+					edTarget = inputBox.Editor()
+					clip = inputBox.Clipboard()
 				}
 			}
 			if edTarget != nil && clip != nil {
@@ -1146,12 +574,12 @@ func main() {
 			return
 		}
 		// 其他键按焦点分发
-		if multilineBox.focused {
+		if multilineBox.IsFocused() {
 			multilineBox.OnKey(ke)
 			return
 		}
 		for _, b := range []*manualInputBox{box10, box12, inputBox, box20} {
-			if b.focused {
+			if b.IsFocused() {
 				b.OnKey(ke)
 				return
 			}
