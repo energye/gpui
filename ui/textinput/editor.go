@@ -880,6 +880,79 @@ func (e *Editor) Paste(s string) bool {
 	return e.text != before
 }
 func (e *Editor) SelectAll() { e.SetSelection(e.TextRange()) }
+func (e *Editor) SelectionRange() TextRange {
+	if e == nil {
+		return TextRange{}
+	}
+	return e.selection
+}
+
+// SelectLineAt selects the line containing byteOff (for triple-click).
+func (e *Editor) SelectLineAt(byteOff int) bool {
+	if e == nil || e.text == "" {
+		return false
+	}
+	if byteOff < 0 {
+		byteOff = 0
+	}
+	if byteOff > len(e.text) {
+		byteOff = len(e.text)
+	}
+	for byteOff > 0 && byteOff < len(e.text) && (e.text[byteOff]&0xC0) == 0x80 {
+		byteOff--
+	}
+	// find line start/end in utf16
+	accBytes := 0
+	accUnits := 0
+	lines := splitLines(e.text)
+	for _, ln := range lines {
+		lnBytes := len(ln)
+		lineStartByte := accBytes
+		lineEndByte := accBytes + lnBytes
+		// include '\n' break after line except last
+		if byteOff >= lineStartByte && byteOff <= lineEndByte {
+			cs := accUnits
+			ce := accUnits + utf16Len(ln)
+			er := e.EditableRange()
+			if cs < er.Start() {
+				cs = er.Start()
+			}
+			if ce > er.End() {
+				ce = er.End()
+			}
+			return e.SetSelection(TextRange{Base: cs, Extent: ce})
+		}
+		accBytes += lnBytes + 1 // '\n'
+		accUnits += utf16Len(ln) + 1
+	}
+	e.SelectAll()
+	return true
+}
+
+// utf16ForByte returns utf16 offset for a byte offset (clamped to rune boundary).
+func (e *Editor) utf16ForByte(byteOff int) int {
+	if e == nil {
+		return 0
+	}
+	if byteOff <= 0 {
+		return 0
+	}
+	if byteOff >= len(e.text) {
+		return utf16Len(e.text)
+	}
+	for byteOff > 0 && byteOff < len(e.text) && (e.text[byteOff]&0xC0) == 0x80 {
+		byteOff--
+	}
+	n := 0
+	for _, r := range e.text[:byteOff] {
+		if r > 0xFFFF {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
+}
 
 func splitLines(s string) []string {
 	if s == "" {

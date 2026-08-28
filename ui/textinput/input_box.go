@@ -3,6 +3,8 @@ package textinput
 import (
 	"fmt"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/focus"
@@ -19,12 +21,21 @@ type InputBox struct {
 	ed        *Editor
 	txt       *rendering.RenderText
 	bar       *rendering.RenderColorBox
+	clip      *rendering.RenderClipRRect
 	Node      *focus.FocusNode
 	sched     func()
 	focused   bool
 	caretOn   bool
 	scrollX   float64
 	clipboard platform.Clipboard
+	// R4: double/triple click and drag
+	lastClickAt time.Time
+	lastClickX  float64
+	lastClickY  float64
+	clickCount  int
+	dragging    bool
+	dragStart   int // utf16 offset at drag start
+	highlights  []*rendering.RenderColorBox
 }
 
 func (b *InputBox) IsFocused() bool { return b != nil && b.focused }
@@ -67,6 +78,7 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 	clip.FixedWidth = w
 	clip.FixedHeight = h
 	clip.SetRadius(3)
+	b.clip = clip
 	b.AddChild(clip)
 	clip.AddChild(b.txt)
 	b.bar = rendering.NewRenderColorBox(1.5, 22, 1.0, 0.85, 0.2, 1)
@@ -218,12 +230,36 @@ func (b *InputBox) sync() {
 	if b == nil || b.txt == nil || b.ed == nil {
 		return
 	}
+	// F-E0c 密码掩码：显示 ●，保持与 rune 数一致
+	isPassword := b.ed.IsPassword()
 	disp := b.ed.GetText()
-	if disp == "" && !b.focused {
+	if isPassword && disp != "" {
+		disp = strings.Repeat("●", len([]rune(disp)))
+	} else if disp == "" && !b.focused {
 		disp = "（点此获焦）"
 	}
 	b.txt.SetText(disp)
+	// 密码模式下光标按 rune 索引映射到掩码串
 	curByte := b.ed.GetCursorOffset()
+	if isPassword {
+		// ed 的 byte 转 rune 索引，再转掩码 byte
+		runes := []rune(b.ed.GetText())
+		runeIdx := 0
+		for i := range b.ed.GetText()[:min(curByte, len(b.ed.GetText()))] {
+			if (b.ed.GetText()[i]&0xC0) != 0x80 {
+				runeIdx++
+			}
+		}
+		if runeIdx > len(runes) {
+			runeIdx = len(runes)
+		}
+		maskedRunes := []rune(disp)
+		if runeIdx > len(maskedRunes) {
+			runeIdx = len(maskedRunes)
+		}
+		curByte = len(string(maskedRunes[:runeIdx]))
+		_ = utf8.RuneCountInString
+	}
 	aff := b.ed.TextRange().Affinity
 	lh := b.txt.LineHeight()
 	if lh <= 0 {
@@ -255,10 +291,57 @@ func (b *InputBox) sync() {
 		b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: textY})
 	}
 	b.txt.SetViewportHint(b.scrollX, visW)
+	b.syncSelectionHighlight()
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
 	}
+}
+
+// syncSelectionHighlight draws F-B4 selection using BoxesForRange (TextLayout single source).
+func (b *InputBox) syncSelectionHighlight() {
+	if b == nil || b.clip == nil || b.txt == nil || b.ed == nil {
+		return
+	}
+	// clear old
+	for _, h := range b.highlights {
+		if h != nil {
+			b.clip.RemoveChild(h)
+		}
+	}
+	b.highlights = nil
+	if b.ed.IsPassword() {
+		return
+	}
+	selRange := b.ed.SelectionRange()
+	if selRange.Collapsed() {
+		return
+	}
+	// Convert utf16 range to byte offsets
+	sByte := byteOffsetForUtf16(b.ed.GetText(), selRange.Start())
+	eByte := byteOffsetForUtf16(b.ed.GetText(), selRange.End())
+	// For password we already returned; for normal, map to display bytes (same as text)
+	lay := b.txt.TextLayout()
+	if lay == nil || len(lay.Lines) == 0 {
+		return
+	}
+	boxes := lay.BoxesForRange(sByte, eByte)
+	if len(boxes) == 0 {
+		return
+	}
+	off := b.txt.Offset()
+	for _, r := range boxes {
+		hb := rendering.NewRenderColorBox(r.Size().Width, r.Size().Height, 0.22, 0.45, 0.85, 0.35)
+		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y)
+		b.clip.AddChild(hb)
+		// keep behind text: ensure txt is on top (re-add txt and bar after)
+		b.highlights = append(b.highlights, hb)
+	}
+	// Reorder: highlights behind txt/bar
+	b.clip.RemoveChild(b.txt)
+	b.clip.RemoveChild(b.bar)
+	b.clip.AddChild(b.txt)
+	b.clip.AddChild(b.bar)
 }
 
 func (b *InputBox) layoutCaret() {
@@ -292,12 +375,18 @@ func (b *InputBox) Layout(c rendering.Constraints) rendering.Size {
 }
 
 func (b *InputBox) OnPointer(ev input.PointerEvent) {
-	if ev.Kind == input.PointerDown && b.Node != nil {
-		b.Node.RequestFocus()
-		abs := absoluteOrigin(b)
-		off := b.txt.Offset()
-		localX := ev.X - abs.X - off.X
-		localY := ev.Y - abs.Y - off.Y
+	if b == nil || b.ed == nil {
+		return
+	}
+	abs := absoluteOrigin(b)
+	off := b.txt.Offset()
+	localX := ev.X - abs.X - off.X
+	localY := ev.Y - abs.Y - off.Y
+	switch ev.Kind {
+	case input.PointerDown:
+		if b.Node != nil {
+			b.Node.RequestFocus()
+		}
 		lay := b.txt.TextLayout()
 		var byteOff, aff int
 		if lay != nil {
@@ -306,7 +395,61 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
 			aff = rendering.AffinityDownstream
 		}
-		b.ed.SetCaretWithAffinity(byteOff, aff)
+		now := time.Now()
+		dx := localX - b.lastClickX
+		dy := localY - b.lastClickY
+		if dx < 0 {
+			dx = -dx
+		}
+		if dy < 0 {
+			dy = -dy
+		}
+		if now.Sub(b.lastClickAt) < 500*time.Millisecond && dx < 4 && dy < 4 {
+			b.clickCount++
+		} else {
+			b.clickCount = 1
+		}
+		b.lastClickAt = now
+		b.lastClickX = localX
+		b.lastClickY = localY
+		if b.clickCount == 2 {
+			if !b.ed.SelectWordAt(byteOff) {
+				b.ed.SetCaretWithAffinity(byteOff, aff)
+			}
+			b.dragging = false
+		} else if b.clickCount >= 3 {
+			// F-B3 三击选段：整行或全选
+			if !b.ed.SelectLineAt(byteOff) {
+				b.ed.SelectAll()
+			}
+			b.dragging = false
+			b.clickCount = 3 // clamp
+		} else {
+			// Shift+click 扩展
+			if b.ed != nil {
+				// Check shift is held via last pointer modifiers? InputEvent carries modifiers but PointerEvent doesn't.
+				// For mouse, shift extension is handled via keyboard Shift+click path through InputRouter modifiers.
+				// Here treat as normal place; shift handling done in OnKey and via dragging with shift flag in router.
+			}
+			b.ed.SetCaretWithAffinity(byteOff, aff)
+			b.dragStart = b.ed.utf16ForByte(byteOff)
+			b.dragging = true
+		}
+	case input.PointerMove:
+		if b.dragging {
+			lay := b.txt.TextLayout()
+			var byteOff int
+			if lay != nil {
+				byteOff, _ = lay.GetPositionForOffset(localX, localY)
+			} else {
+				byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+			}
+			cur := b.ed.utf16ForByte(byteOff)
+			// F-B2 拖选限 editable_range，SetSelection 内部会夹紧
+			b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
+		}
+	case input.PointerUp:
+		b.dragging = false
 	}
 }
 
@@ -325,7 +468,6 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 	}
 	// F-D3/filter_keypress: composing 时 Home/End/Page/Arrow/Enter 由 IME 优先消费，避免光标在 composingRange 外
 	if b.ed != nil && b.ed.IsComposing() && isComposingFilterKey(ev.Key) {
-		// 单行时 Enter 为组合提交由 IME 通道处理，非 composing 换行；此处直接拦截
 		if ev.Key == input.KeyEnter && b.ed.IsComposing() {
 			return
 		}
@@ -352,6 +494,42 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 			return
 		case input.KeyV:
 			return
+		case input.KeyBackspace:
+			// F-C3 词删除 Ctrl+Backspace 限 editable_range
+			b.deleteWord(false)
+			return
+		case input.KeyDelete:
+			b.deleteWord(true)
+			return
+		case input.KeyArrowLeft:
+			b.moveWord(false, ev.Mods.Shift)
+			return
+		case input.KeyArrowRight:
+			b.moveWord(true, ev.Mods.Shift)
+			return
+		}
+	}
+	// Shift+方向扩展选区
+	if ev.Mods.Shift {
+		switch ev.Key {
+		case input.KeyArrowLeft:
+			b.extendVisual(-1)
+			return
+		case input.KeyArrowRight:
+			b.extendVisual(1)
+			return
+		case input.KeyArrowUp:
+			b.extendVertical(-1)
+			return
+		case input.KeyArrowDown:
+			b.extendVertical(1)
+			return
+		case input.KeyHome:
+			b.extendToBoundary(false)
+			return
+		case input.KeyEnd:
+			b.extendToBoundary(true)
+			return
 		}
 	}
 	switch ev.Key {
@@ -367,9 +545,191 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 		b.ed.MoveCursorUp()
 	case input.KeyArrowDown:
 		b.ed.MoveCursorDown()
+	case input.KeyHome:
+		b.ed.MoveCursorToBeginning()
+	case input.KeyEnd:
+		b.ed.MoveCursorToEnd()
 	case input.KeyEscape:
 		b.ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
 	}
+}
+
+func (b *InputBox) extendVisual(delta int) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	sel := b.ed.SelectionRange()
+	var base int
+	if sel.Collapsed() {
+		base = sel.Start()
+	} else {
+		// 已经有选区，锚点取 Base 侧
+		base = sel.Base
+	}
+	// 计算新 Extent
+	cur := sel.Extent
+	lay := b.txt.TextLayout()
+	newOff := cur
+	if lay != nil && len(lay.Lines) > 0 {
+		curByte := byteOffsetForUtf16(b.ed.GetText(), cur)
+		lineIdx, _, ok := lay.CaretForOffset(curByte)
+		if ok {
+			ln := lay.Lines[lineIdx]
+			idx := -1
+			for j, c := range ln.Carets {
+				if c.ByteOff == curByte {
+					idx = j
+					break
+				}
+			}
+			if idx >= 0 {
+				if delta > 0 && idx+1 < len(ln.Carets) {
+					newOff = b.ed.utf16ForByte(ln.Carets[idx+1].ByteOff)
+				} else if delta < 0 && idx-1 >= 0 {
+					newOff = b.ed.utf16ForByte(ln.Carets[idx-1].ByteOff)
+				} else if delta > 0 && lineIdx+1 < len(lay.Lines) {
+					newOff = b.ed.utf16ForByte(lay.Lines[lineIdx+1].Carets[0].ByteOff)
+				} else if delta < 0 && lineIdx-1 >= 0 {
+					prev := lay.Lines[lineIdx-1]
+					newOff = b.ed.utf16ForByte(prev.Carets[len(prev.Carets)-1].ByteOff)
+				}
+			} else {
+				// fallback
+				if delta > 0 {
+					newOff = cur + 1
+				} else {
+					newOff = cur - 1
+				}
+			}
+		}
+	} else {
+		if delta > 0 {
+			newOff = cur + 1
+		} else {
+			newOff = cur - 1
+		}
+	}
+	b.ed.SetSelection(TextRange{Base: base, Extent: newOff})
+}
+
+func (b *InputBox) extendVertical(dir int) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	sel := b.ed.SelectionRange()
+	base := sel.Base
+	lay := b.txt.TextLayout()
+	curByte := byteOffsetForUtf16(b.ed.GetText(), sel.Extent)
+	lineIdx, _, ok := lay.CaretForOffset(curByte)
+	if !ok {
+		if dir < 0 {
+			b.ed.MoveCursorUp()
+		} else {
+			b.ed.MoveCursorDown()
+		}
+		return
+	}
+	target := lineIdx + dir
+	if target < 0 || target >= len(lay.Lines) {
+		return
+	}
+	// 粘滞列
+	curX, _, _, _ := lay.GetOffsetForCaret(curByte, rendering.AffinityDownstream, 1.5)
+	tln := lay.Lines[target]
+	best := 0
+	bestDist := 1e12
+	for i, c := range tln.Carets {
+		d := c.X - curX
+		if d < 0 {
+			d = -d
+		}
+		if d < bestDist {
+			bestDist = d
+			best = i
+		}
+	}
+	newOff := b.ed.utf16ForByte(tln.Carets[best].ByteOff)
+	b.ed.SetSelection(TextRange{Base: base, Extent: newOff})
+}
+
+func (b *InputBox) extendToBoundary(toEnd bool) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	base := b.ed.SelectionRange().Base
+	var off int
+	if toEnd {
+		off = b.ed.EditableRange().End()
+	} else {
+		off = b.ed.EditableRange().Start()
+	}
+	b.ed.SetSelection(TextRange{Base: base, Extent: off})
+}
+
+func (b *InputBox) moveWord(forward, extend bool) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	if extend {
+		base := b.ed.SelectionRange().Base
+		cur := b.ed.SelectionRange().Extent
+		// 临时移动再取新 Extent
+		_ = cur
+		b.ed.MoveCursorByWord(forward)
+		newOff := b.ed.SelectionRange().Start()
+		// 恢复 anchor
+		b.ed.SetSelection(TextRange{Base: base, Extent: newOff})
+	} else {
+		b.ed.MoveCursorByWord(forward)
+	}
+}
+
+func (b *InputBox) deleteWord(forward bool) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	if !b.ed.SelectionRange().Collapsed() {
+		b.ed.DeleteSelected()
+		return
+	}
+	cur := b.ed.SelectionRange().Start()
+	er := b.ed.EditableRange()
+	// 找词边界：沿用 Editor 的词划分
+	start := cur
+	end := cur
+	if forward {
+		// 删后词
+		dup := textinputDup(b.ed)
+		dup.MoveCursorByWord(true)
+		end = dup.SelectionRange().Start()
+		if end > er.End() {
+			end = er.End()
+		}
+		if end > start {
+			b.ed.SetSelection(TextRange{Base: start, Extent: end})
+			b.ed.DeleteSelected()
+		}
+	} else {
+		dup := textinputDup(b.ed)
+		dup.MoveCursorByWord(false)
+		start = dup.SelectionRange().Start()
+		if start < er.Start() {
+			start = er.Start()
+		}
+		if start < cur {
+			b.ed.SetSelection(TextRange{Base: start, Extent: cur})
+			b.ed.DeleteSelected()
+		}
+	}
+}
+
+// textinputDup creates a shallow copy of Editor for word boundary calculation without mutating original.
+func textinputDup(e *Editor) *Editor {
+	if e == nil {
+		return nil
+	}
+	c := *e
+	return &c
 }
 
 func (b *InputBox) moveVisual(delta int) {
@@ -394,6 +754,7 @@ type MultiLineInputBox struct {
 	ed        *Editor
 	txt       *rendering.RenderText
 	bar       *rendering.RenderColorBox
+	clip      *rendering.RenderClipRRect
 	Node      *focus.FocusNode
 	sched     func()
 	focused   bool
@@ -401,6 +762,13 @@ type MultiLineInputBox struct {
 	scrollX   float64
 	scrollY   float64
 	clipboard platform.Clipboard
+	lastClickAt time.Time
+	lastClickX  float64
+	lastClickY  float64
+	clickCount  int
+	dragging    bool
+	dragStart   int
+	highlights  []*rendering.RenderColorBox
 }
 
 func (b *MultiLineInputBox) IsFocused() bool { return b != nil && b.focused }
@@ -437,6 +805,7 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 	clip.FixedWidth = w
 	clip.FixedHeight = h
 	clip.SetRadius(3)
+	b.clip = clip
 	b.AddChild(clip)
 	clip.AddChild(b.txt)
 	b.bar = rendering.NewRenderColorBox(1.5, 22, 1.0, 0.85, 0.2, 1)
@@ -570,6 +939,7 @@ func (b *MultiLineInputBox) sync() {
 		disp = "（多行：点获焦，Enter 换行）"
 	}
 	b.txt.SetText(disp)
+	// delayed highlight handled after layout
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
@@ -642,10 +1012,48 @@ func (b *MultiLineInputBox) sync() {
 		}
 	}
 	b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: 8 - b.scrollY})
+	b.syncMultiHighlight()
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
 	}
+}
+
+func (b *MultiLineInputBox) syncMultiHighlight() {
+	if b == nil || b.clip == nil || b.txt == nil || b.ed == nil {
+		return
+	}
+	for _, h := range b.highlights {
+		if h != nil {
+			b.clip.RemoveChild(h)
+		}
+	}
+	b.highlights = nil
+	sel := b.ed.SelectionRange()
+	if sel.Collapsed() {
+		return
+	}
+	sByte := byteOffsetForUtf16(b.ed.GetText(), sel.Start())
+	eByte := byteOffsetForUtf16(b.ed.GetText(), sel.End())
+	lay := b.txt.TextLayout()
+	if lay == nil || len(lay.Lines) == 0 {
+		return
+	}
+	boxes := lay.BoxesForRange(sByte, eByte)
+	if len(boxes) == 0 {
+		return
+	}
+	off := b.txt.Offset()
+	for _, r := range boxes {
+		hb := rendering.NewRenderColorBox(r.Size().Width, r.Size().Height, 0.22, 0.45, 0.85, 0.35)
+		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y)
+		b.clip.AddChild(hb)
+		b.highlights = append(b.highlights, hb)
+	}
+	b.clip.RemoveChild(b.txt)
+	b.clip.RemoveChild(b.bar)
+	b.clip.AddChild(b.txt)
+	b.clip.AddChild(b.bar)
 }
 
 func (b *MultiLineInputBox) layoutCaret() {
@@ -677,12 +1085,18 @@ func (b *MultiLineInputBox) Layout(c rendering.Constraints) rendering.Size {
 }
 
 func (b *MultiLineInputBox) OnPointer(ev input.PointerEvent) {
-	if ev.Kind == input.PointerDown && b.Node != nil {
-		b.Node.RequestFocus()
-		abs := absoluteOrigin(b)
-		off := b.txt.Offset()
-		localX := ev.X - abs.X - off.X
-		localY := ev.Y - abs.Y - off.Y
+	if b == nil || b.ed == nil {
+		return
+	}
+	abs := absoluteOrigin(b)
+	off := b.txt.Offset()
+	localX := ev.X - abs.X - off.X
+	localY := ev.Y - abs.Y - off.Y
+	switch ev.Kind {
+	case input.PointerDown:
+		if b.Node != nil {
+			b.Node.RequestFocus()
+		}
 		lay := b.txt.TextLayout()
 		var byteOff, aff int
 		if lay != nil {
@@ -691,7 +1105,53 @@ func (b *MultiLineInputBox) OnPointer(ev input.PointerEvent) {
 			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
 			aff = rendering.AffinityDownstream
 		}
-		b.ed.SetCaretWithAffinity(byteOff, aff)
+		now := time.Now()
+		dx := localX - b.lastClickX
+		dy := localY - b.lastClickY
+		if dx < 0 {
+			dx = -dx
+		}
+		if dy < 0 {
+			dy = -dy
+		}
+		if now.Sub(b.lastClickAt) < 500*time.Millisecond && dx < 4 && dy < 4 {
+			b.clickCount++
+		} else {
+			b.clickCount = 1
+		}
+		b.lastClickAt = now
+		b.lastClickX = localX
+		b.lastClickY = localY
+		if b.clickCount == 2 {
+			if !b.ed.SelectWordAt(byteOff) {
+				b.ed.SetCaretWithAffinity(byteOff, aff)
+			}
+			b.dragging = false
+		} else if b.clickCount >= 3 {
+			if !b.ed.SelectLineAt(byteOff) {
+				b.ed.SelectAll()
+			}
+			b.dragging = false
+			b.clickCount = 3
+		} else {
+			b.ed.SetCaretWithAffinity(byteOff, aff)
+			b.dragStart = b.ed.utf16ForByte(byteOff)
+			b.dragging = true
+		}
+	case input.PointerMove:
+		if b.dragging {
+			lay := b.txt.TextLayout()
+			var byteOff int
+			if lay != nil {
+				byteOff, _ = lay.GetPositionForOffset(localX, localY)
+			} else {
+				byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+			}
+			cur := b.ed.utf16ForByte(byteOff)
+			b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
+		}
+	case input.PointerUp:
+		b.dragging = false
 	}
 }
 
@@ -724,6 +1184,40 @@ func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 			return
 		case input.KeyV:
 			return
+		case input.KeyBackspace:
+			b.deleteWordMulti(false)
+			return
+		case input.KeyDelete:
+			b.deleteWordMulti(true)
+			return
+		case input.KeyArrowLeft:
+			b.moveWordMulti(false, ev.Mods.Shift)
+			return
+		case input.KeyArrowRight:
+			b.moveWordMulti(true, ev.Mods.Shift)
+			return
+		}
+	}
+	if ev.Mods.Shift {
+		switch ev.Key {
+		case input.KeyArrowLeft:
+			b.extendVisualMulti(-1)
+			return
+		case input.KeyArrowRight:
+			b.extendVisualMulti(1)
+			return
+		case input.KeyArrowUp:
+			b.extendVerticalMulti(-1)
+			return
+		case input.KeyArrowDown:
+			b.extendVerticalMulti(1)
+			return
+		case input.KeyHome:
+			b.extendToBoundaryMulti(false)
+			return
+		case input.KeyEnd:
+			b.extendToBoundaryMulti(true)
+			return
 		}
 	}
 	switch ev.Key {
@@ -747,10 +1241,161 @@ func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 		} else {
 			b.ed.MoveCursorDown()
 		}
+	case input.KeyHome:
+		b.ed.MoveCursorToBeginning()
+	case input.KeyEnd:
+		b.ed.MoveCursorToEnd()
 	case input.KeyEnter:
 		b.ed.Insert("\n")
 	case input.KeyEscape:
 		b.ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
+	}
+}
+
+func (b *MultiLineInputBox) extendVisualMulti(delta int) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	sel := b.ed.SelectionRange()
+	base := sel.Base
+	cur := sel.Extent
+	lay := b.txt.TextLayout()
+	if lay != nil && len(lay.Lines) > 0 {
+		curByte := byteOffsetForUtf16(b.ed.GetText(), cur)
+		lineIdx, _, ok := lay.CaretForOffset(curByte)
+		if ok {
+			ln := lay.Lines[lineIdx]
+			idx := -1
+			for j, c := range ln.Carets {
+				if c.ByteOff == curByte {
+					idx = j
+					break
+				}
+			}
+			if idx >= 0 {
+				if delta > 0 && idx+1 < len(ln.Carets) {
+					cur = b.ed.utf16ForByte(ln.Carets[idx+1].ByteOff)
+				} else if delta < 0 && idx-1 >= 0 {
+					cur = b.ed.utf16ForByte(ln.Carets[idx-1].ByteOff)
+				} else if delta > 0 && lineIdx+1 < len(lay.Lines) {
+					cur = b.ed.utf16ForByte(lay.Lines[lineIdx+1].Carets[0].ByteOff)
+				} else if delta < 0 && lineIdx-1 >= 0 {
+					prev := lay.Lines[lineIdx-1]
+					cur = b.ed.utf16ForByte(prev.Carets[len(prev.Carets)-1].ByteOff)
+				}
+			}
+		}
+	} else {
+		if delta > 0 {
+			cur++
+		} else {
+			cur--
+		}
+	}
+	b.ed.SetSelection(TextRange{Base: base, Extent: cur})
+}
+
+func (b *MultiLineInputBox) extendVerticalMulti(dir int) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	base := b.ed.SelectionRange().Base
+	lay := b.txt.TextLayout()
+	if lay == nil || len(lay.Lines) == 0 {
+		if dir < 0 {
+			b.ed.MoveCursorUp()
+		} else {
+			b.ed.MoveCursorDown()
+		}
+		return
+	}
+	curByte := byteOffsetForUtf16(b.ed.GetText(), b.ed.SelectionRange().Extent)
+	lineIdx, _, ok := lay.CaretForOffset(curByte)
+	if !ok {
+		return
+	}
+	target := lineIdx + dir
+	if target < 0 || target >= len(lay.Lines) {
+		return
+	}
+	curX, _, _, _ := lay.GetOffsetForCaret(curByte, rendering.AffinityDownstream, 1.5)
+	tln := lay.Lines[target]
+	best := 0
+	bestDist := 1e12
+	for i, c := range tln.Carets {
+		d := c.X - curX
+		if d < 0 {
+			d = -d
+		}
+		if d < bestDist {
+			bestDist = d
+			best = i
+		}
+	}
+	newOff := b.ed.utf16ForByte(tln.Carets[best].ByteOff)
+	b.ed.SetSelection(TextRange{Base: base, Extent: newOff})
+}
+
+func (b *MultiLineInputBox) extendToBoundaryMulti(toEnd bool) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	base := b.ed.SelectionRange().Base
+	var off int
+	if toEnd {
+		off = b.ed.EditableRange().End()
+	} else {
+		off = b.ed.EditableRange().Start()
+	}
+	b.ed.SetSelection(TextRange{Base: base, Extent: off})
+}
+
+func (b *MultiLineInputBox) moveWordMulti(forward, extend bool) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	if extend {
+		base := b.ed.SelectionRange().Base
+		b.ed.MoveCursorByWord(forward)
+		newOff := b.ed.SelectionRange().Start()
+		b.ed.SetSelection(TextRange{Base: base, Extent: newOff})
+	} else {
+		b.ed.MoveCursorByWord(forward)
+	}
+}
+
+func (b *MultiLineInputBox) deleteWordMulti(forward bool) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	if !b.ed.SelectionRange().Collapsed() {
+		b.ed.DeleteSelected()
+		return
+	}
+	cur := b.ed.SelectionRange().Start()
+	er := b.ed.EditableRange()
+	if forward {
+		dup := textinputDup(b.ed)
+		dup.MoveCursorByWord(true)
+		end := dup.SelectionRange().Start()
+		if end > er.End() {
+			end = er.End()
+		}
+		if end > cur {
+			b.ed.SetSelection(TextRange{Base: cur, Extent: end})
+			b.ed.DeleteSelected()
+		}
+	} else {
+		dup := textinputDup(b.ed)
+		dup.MoveCursorByWord(false)
+		start := dup.SelectionRange().Start()
+		if start < er.Start() {
+			start = er.Start()
+		}
+		if start < cur {
+			b.ed.SetSelection(TextRange{Base: start, Extent: cur})
+			b.ed.DeleteSelected()
+		}
 	}
 }
 
