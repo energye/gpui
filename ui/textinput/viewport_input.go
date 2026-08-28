@@ -97,6 +97,7 @@ type ViewportInputBox struct {
 	focused   bool
 	caretOn   bool
 	clipboard platform.Clipboard
+	blinkElapsed float64
 }
 
 func (b *ViewportInputBox) IsFocused() bool                         { return b != nil && b.focused }
@@ -126,13 +127,42 @@ func (b *ViewportInputBox) SetCaretOn(v bool) {
 		return
 	}
 	b.caretOn = v
+	b.blinkElapsed = 0
 	b.layoutCaret()
 	b.MarkNeedsPaint()
+}
+
+func (b *ViewportInputBox) TickCaret(dt float64) {
+	if b == nil || !b.focused {
+		if b != nil && b.caretOn {
+			b.caretOn = false
+			b.layoutCaret()
+		}
+		return
+	}
+	b.blinkElapsed += dt
+	if b.blinkElapsed >= 0.5 {
+		b.blinkElapsed = 0
+		b.caretOn = !b.caretOn
+		b.layoutCaret()
+		b.MarkNeedsPaint()
+	}
 }
 
 func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {
 	if b == nil || b.txt == nil || b.ed == nil || b.Viewport == nil {
 		return 0, 0, 0, false
+	}
+	if b.txt.Text == "" {
+		vpOff := b.Viewport.ScrollOffset()
+		txtOff := b.txt.Offset()
+		lh := b.txt.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		cx := txtOff.X - vpOff.X + 1
+		cy := txtOff.Y + 1
+		return cx, cy, cy + lh, true
 	}
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity

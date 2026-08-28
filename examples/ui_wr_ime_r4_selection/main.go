@@ -589,12 +589,11 @@ func main() {
 		extraLabel.SetText(fmt.Sprintf("phase=%s tick=%d sel=%v ro=%q", phase, tick, ed16.TextRange(), edRO.GetText()))
 		extraLabel.MarkNeedsPaint()
 
-		if tick%30 == 0 {
-			for _, b := range []*textinput.InputBox{box10, box16, box20, roBox} {
-				b.SetCaretOn(!b.IsCaretOn())
-			}
-			multiBox.SetCaretOn(!multiBox.IsCaretOn())
+		// 严格对齐 Flutter 500ms 闪烁：每框独立 TickCaret，编辑后已重置为常亮
+		for _, b := range []*textinput.InputBox{box10, box16, box20, roBox} {
+			b.TickCaret(dt)
 		}
+		multiBox.TickCaret(dt)
 		_ = phase
 		app.ScheduleFrame()
 		proc.Sample()

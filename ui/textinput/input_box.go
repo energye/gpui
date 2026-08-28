@@ -36,6 +36,8 @@ type InputBox struct {
 	dragging    bool
 	dragStart   int // utf16 offset at drag start
 	highlights  []*rendering.RenderColorBox
+	// 严格对齐 Flutter 闪烁：~500ms 周期，编辑/获焦后重置为常亮
+	blinkElapsed float64
 }
 
 func (b *InputBox) IsFocused() bool { return b != nil && b.focused }
@@ -45,8 +47,27 @@ func (b *InputBox) SetCaretOn(v bool) {
 		return
 	}
 	b.caretOn = v
+	b.blinkElapsed = 0
 	b.layoutCaret()
 	b.MarkNeedsPaint()
+}
+
+// TickCaret 按 Flutter 500ms 周期推进闪烁，获焦时编辑后已重置为常亮，需每帧调用
+func (b *InputBox) TickCaret(dt float64) {
+	if b == nil || !b.focused {
+		if b != nil && b.caretOn {
+			b.caretOn = false
+			b.layoutCaret()
+		}
+		return
+	}
+	b.blinkElapsed += dt
+	if b.blinkElapsed >= 0.5 {
+		b.blinkElapsed = 0
+		b.caretOn = !b.caretOn
+		b.layoutCaret()
+		b.MarkNeedsPaint()
+	}
 }
 func (b *InputBox) Sync() { b.sync() }
 
@@ -152,6 +173,16 @@ func absoluteOrigin(n rendering.RenderObject) rendering.Point {
 func (b *InputBox) caretAnchor() (float64, float64, float64, bool) {
 	if b == nil || b.txt == nil || b.ed == nil {
 		return 0, 0, 0, false
+	}
+	// 空串获焦：TextLayout 可能 0 行，仍需在 padding 8 处给 caret
+	if b.txt.Text == "" {
+		off := b.txt.Offset()
+		lh := b.txt.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		// 单行居中时 off.Y 已是 textY，空串也用它
+		return off.X, off.Y, off.Y + lh, true
 	}
 	// 密码框：光标按掩码串的缝表，不走原文 byte
 	if b.ed.IsPassword() {
@@ -318,8 +349,9 @@ func (b *InputBox) sync() {
 	}
 	b.txt.SetViewportHint(b.scrollX, visW)
 	b.syncSelectionHighlight()
-	// 清空后光标必须立即可见：编辑后重置闪烁为常亮（对齐 Flutter EditableText）
+	// 严格对齐 Flutter：编辑/同步后光标立即可见且闪烁计时重置为 0
 	b.caretOn = true
+	b.blinkElapsed = 0
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
@@ -908,6 +940,7 @@ type MultiLineInputBox struct {
 	dragging    bool
 	dragStart   int
 	highlights  []*rendering.RenderColorBox
+	blinkElapsed float64
 }
 
 func (b *MultiLineInputBox) IsFocused() bool { return b != nil && b.focused }
@@ -917,8 +950,26 @@ func (b *MultiLineInputBox) SetCaretOn(v bool) {
 		return
 	}
 	b.caretOn = v
+	b.blinkElapsed = 0
 	b.layoutCaret()
 	b.MarkNeedsPaint()
+}
+
+func (b *MultiLineInputBox) TickCaret(dt float64) {
+	if b == nil || !b.focused {
+		if b != nil && b.caretOn {
+			b.caretOn = false
+			b.layoutCaret()
+		}
+		return
+	}
+	b.blinkElapsed += dt
+	if b.blinkElapsed >= 0.5 {
+		b.blinkElapsed = 0
+		b.caretOn = !b.caretOn
+		b.layoutCaret()
+		b.MarkNeedsPaint()
+	}
 }
 func (b *MultiLineInputBox) Sync() { b.sync() }
 
@@ -999,6 +1050,14 @@ func (b *MultiLineInputBox) ContentType() platform.ContentType {
 func (b *MultiLineInputBox) caretAnchor() (float64, float64, float64, bool) {
 	if b == nil || b.txt == nil || b.ed == nil {
 		return 0, 0, 0, false
+	}
+	if b.txt.Text == "" {
+		off := b.txt.Offset()
+		lh := b.txt.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		return off.X, off.Y, off.Y + lh, true
 	}
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
