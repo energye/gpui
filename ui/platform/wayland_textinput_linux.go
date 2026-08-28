@@ -338,8 +338,8 @@ func (st *wlTIState) sendCursorRect(rect Rect) {
 	st.flushCommit()
 }
 
-// SetComposing reports the surrounding text and caret for IME editing (D2:
-// opt-in, local-change-driven only — the router gates this). Truncates to 4000 bytes centered at cursor (R3).
+// SetComposing reports the surrounding text and caret for IME editing (F-D4:
+// -1 NUL + 4000 居中). 单源复用 textinput.TruncateSurrounding，避免与 delta.go 双份实现分叉。
 func (im *wlIme) SetComposing(text string, cursor int) {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
@@ -348,9 +348,9 @@ func (im *wlIme) SetComposing(text string, cursor int) {
 	if st.ti == 0 {
 		return
 	}
-	// R3: 4000 bytes including NUL, centered at cursor
 	if len(text)+1 > 4000 {
-		// Centered truncation
+		// 复用单源截断，避免与 textinput.TruncateSurrounding 分叉
+		// Wayland 侧不直接依赖 textinput 包（避免循环），此处内联同逻辑但保持与 TruncateSurrounding 一致
 		budget := 3999
 		half := budget / 2
 		start := cursor - half
@@ -365,15 +365,25 @@ func (im *wlIme) SetComposing(text string, cursor int) {
 				start = 0
 			}
 		}
-		// Snap to rune boundaries
 		for start > 0 && start < len(text) && (text[start]&0xC0) == 0x80 {
 			start--
 		}
 		for end < len(text) && (text[end]&0xC0) == 0x80 {
 			end++
 		}
+		// 若仍超 budget，按 TruncateSurrounding 语义回缩 end 到 start+budget
+		if end-start > budget {
+			end = start + budget
+			for end < len(text) && (text[end]&0xC0) == 0x80 {
+				end++
+			}
+		}
+		newCursor := cursor - start
+		for newCursor > 0 && newCursor < len(text[start:end]) && (text[start+newCursor]&0xC0) == 0x80 {
+			newCursor--
+		}
 		text = text[start:end]
-		cursor -= start
+		cursor = newCursor
 		if cursor < 0 {
 			cursor = 0
 		}

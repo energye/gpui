@@ -63,8 +63,8 @@ func TestR1_SurrogateCount1(t *testing.T) {
 	// DeleteSurrounding(-1,1) should delete one codepoint (surrogate counted as 1 via utf16 2 units)
 	// Position caret after 'a' (1 unit)
 	e.SetSelection(TextRange{Base: 1, Extent: 1})
-	// Delete forward one codepoint (😀 is 2 units)
-	if !e.DeleteSurrounding(0, 2) {
+	// Delete forward one codepoint (😀 计 1，内部按 rune→utf16 换算 2 units)
+	if !e.DeleteSurrounding(0, 1) {
 		t.Fatalf("DeleteSurrounding forward surrogate failed")
 	}
 	if e.GetText() != "ab𝄞c" {

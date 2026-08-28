@@ -32,14 +32,34 @@ func (e *Editor) ApplyIME(ev input.IMEEvent) bool {
 	case input.IMECommit:
 		e.AddText(ev.Text)
 	case input.IMEDeleteSurrounding:
-		before_, after := -ev.Start, ev.End
-		if before_ < 0 {
-			before_ = 0
+		beforeBytes, afterBytes := -ev.Start, ev.End
+		if beforeBytes < 0 {
+			beforeBytes = 0
 		}
-		if after < 0 {
-			after = 0
+		if afterBytes < 0 {
+			afterBytes = 0
 		}
-		e.DeleteSurrounding(-before_, after)
+		// F-D5: 平台 delete_surrounding 的 before/after 为 UTF8 字节数，需按 code point 换算
+		caretByte := byteOffsetForUtf16(e.text, e.selection.Extent)
+		beforeRunes := 0
+		if beforeBytes > 0 && caretByte >= beforeBytes {
+			beforeRunes = len([]rune(e.text[caretByte-beforeBytes : caretByte]))
+		} else if beforeBytes > 0 {
+			beforeRunes = len([]rune(e.text[:caretByte]))
+			if beforeRunes > beforeBytes {
+				beforeRunes = beforeBytes
+			}
+		}
+		afterRunes := 0
+		if afterBytes > 0 && caretByte+afterBytes <= len(e.text) {
+			afterRunes = len([]rune(e.text[caretByte : caretByte+afterBytes]))
+		} else if afterBytes > 0 {
+			afterRunes = len([]rune(e.text[caretByte:]))
+			if afterRunes > afterBytes {
+				afterRunes = afterBytes
+			}
+		}
+		e.DeleteSurrounding(-beforeRunes, beforeRunes+afterRunes)
 	}
 	return e.text != before
 }

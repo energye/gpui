@@ -172,6 +172,40 @@ func (b *InputBox) caretAnchor() (float64, float64, float64, bool) {
 }
 
 func (b *InputBox) IMERect() platform.Rect {
+	// F-D3: composing 时必报 composing_rect（Flutter firstRectForCharacterRange），
+	// 非 composing 仅预热 caret 矩形。composing_rect 取 composingRange 的 BoxesForRange 并集。
+	if b != nil && b.ed != nil && b.ed.IsComposing() {
+		if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+			cr := b.ed.ComposingRange()
+			// ComposingRange 是 UTF16，需转 byte 再取盒
+			s := byteOffsetForUtf16(b.ed.GetText(), cr.Start())
+			e := byteOffsetForUtf16(b.ed.GetText(), cr.End())
+			if s < e {
+				if boxes := lay.BoxesForRange(s, e); len(boxes) > 0 {
+					// 并集
+					minX, minY := boxes[0].Min.X, boxes[0].Min.Y
+					maxX, maxY := boxes[0].Max.X, boxes[0].Max.Y
+					for _, r := range boxes[1:] {
+						if r.Min.X < minX {
+							minX = r.Min.X
+						}
+						if r.Min.Y < minY {
+							minY = r.Min.Y
+						}
+						if r.Max.X > maxX {
+							maxX = r.Max.X
+						}
+						if r.Max.Y > maxY {
+							maxY = r.Max.Y
+						}
+					}
+					off := b.txt.Offset()
+					abs := absoluteOrigin(b)
+					return platform.Rect{X: abs.X + off.X + minX, Y: abs.Y + off.Y + minY, W: maxX - minX, H: maxY - minY}
+				}
+			}
+		}
+	}
 	x, top, bottom, ok := b.caretAnchor()
 	if !ok {
 		return platform.Rect{X: 0, Y: 0, W: 2, H: 22}
@@ -276,9 +310,28 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 	}
 }
 
+func isComposingFilterKey(k input.Key) bool {
+	switch k {
+	case input.KeyHome, input.KeyEnd, input.KeyPageUp, input.KeyPageDown,
+		input.KeyArrowLeft, input.KeyArrowRight, input.KeyArrowUp, input.KeyArrowDown,
+		input.KeyEnter:
+		return true
+	}
+	return false
+}
 func (b *InputBox) OnKey(ev input.KeyEvent) {
 	if !ev.Pressed {
 		return
+	}
+	// F-D3/filter_keypress: composing 时 Home/End/Page/Arrow/Enter 由 IME 优先消费，避免光标在 composingRange 外
+	if b.ed != nil && b.ed.IsComposing() && isComposingFilterKey(ev.Key) {
+		// 单行时 Enter 为组合提交由 IME 通道处理，非 composing 换行；此处直接拦截
+		if ev.Key == input.KeyEnter && b.ed.IsComposing() {
+			return
+		}
+		if ev.Key != input.KeyEnter {
+			return
+		}
 	}
 	if ev.Mods.Control || ev.Mods.Meta {
 		switch ev.Key {
@@ -470,6 +523,36 @@ func (b *MultiLineInputBox) caretAnchor() (float64, float64, float64, bool) {
 }
 
 func (b *MultiLineInputBox) IMERect() platform.Rect {
+	if b != nil && b.ed != nil && b.ed.IsComposing() {
+		if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+			cr := b.ed.ComposingRange()
+			s := byteOffsetForUtf16(b.ed.GetText(), cr.Start())
+			e := byteOffsetForUtf16(b.ed.GetText(), cr.End())
+			if s < e {
+				if boxes := lay.BoxesForRange(s, e); len(boxes) > 0 {
+					minX, minY := boxes[0].Min.X, boxes[0].Min.Y
+					maxX, maxY := boxes[0].Max.X, boxes[0].Max.Y
+					for _, r := range boxes[1:] {
+						if r.Min.X < minX {
+							minX = r.Min.X
+						}
+						if r.Min.Y < minY {
+							minY = r.Min.Y
+						}
+						if r.Max.X > maxX {
+							maxX = r.Max.X
+						}
+						if r.Max.Y > maxY {
+							maxY = r.Max.Y
+						}
+					}
+					off := b.txt.Offset()
+					abs := absoluteOrigin(b)
+					return platform.Rect{X: abs.X + off.X + minX, Y: abs.Y + off.Y + minY, W: maxX - minX, H: maxY - minY}
+				}
+			}
+		}
+	}
 	x, top, bottom, ok := b.caretAnchor()
 	if !ok {
 		return platform.Rect{X: 0, Y: 0, W: 2, H: 22}
@@ -614,6 +697,12 @@ func (b *MultiLineInputBox) OnPointer(ev input.PointerEvent) {
 
 func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 	if !ev.Pressed {
+		return
+	}
+	if b.ed != nil && b.ed.IsComposing() && isComposingFilterKey(ev.Key) {
+		if ev.Key == input.KeyEnter {
+			return
+		}
 		return
 	}
 	if ev.Mods.Control || ev.Mods.Meta {

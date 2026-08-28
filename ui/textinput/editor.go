@@ -451,9 +451,21 @@ func (e *Editor) DeleteSurrounding(offset, count int) bool {
 	if e == nil || e.readOnly || count <= 0 {
 		return false
 	}
+	// F-D5/Spec: offset/count 按 code point（rune）计，surrogate 计 1。
+	// caret 为 UTF16，需经 rune 索引换算，避免劈半 surrogate（Flutter RuneCount 校准）。
 	caret := e.selection.Extent
-	start := caret + offset
-	end := start + count
+	runes := []rune(e.text)
+	runeCaret := utf16ToRuneIndex(e.text, caret)
+	startRune := runeCaret + offset
+	endRune := startRune + count
+	if startRune < 0 {
+		startRune = 0
+	}
+	if endRune > len(runes) {
+		endRune = len(runes)
+	}
+	start := runeIndexToUtf16(runes, startRune)
+	end := runeIndexToUtf16(runes, endRune)
 	er := e.EditableRange()
 	if start < er.Start() {
 		start = er.Start()
@@ -494,14 +506,8 @@ func (e *Editor) Backspace() bool {
 		if e.selection.Extent <= e.composingRange.Start() {
 			return false
 		}
-		caret := e.selection.Extent
-		prev := caret - 1
-		b := byteOffsetForUtf16(e.text, prev)
-		r, _ := utf8.DecodeRuneInString(e.text[b:])
-		if r > 0xFFFF && prev > e.composingRange.Start() {
-			prev--
-		}
-		return e.DeleteSurrounding(prev-caret, caret-prev)
+		// 按 code point 删 1 个，DeleteSurrounding 内部会按 rune→utf16 换算避免劈 surrogate
+		return e.DeleteSurrounding(-1, 1)
 	}
 	if !e.selection.Collapsed() {
 		return e.DeleteSelected()
@@ -510,15 +516,7 @@ func (e *Editor) Backspace() bool {
 	if caret == 0 {
 		return false
 	}
-	b := byteOffsetForUtf16(e.text, caret)
-	_, sz := utf8.DecodeLastRuneInString(e.text[:b])
-	r, _ := utf8.DecodeLastRuneInString(e.text[:b])
-	cu := 1
-	if r > 0xFFFF {
-		cu = 2
-	}
-	_ = sz
-	return e.DeleteSurrounding(-cu, cu)
+	return e.DeleteSurrounding(-1, 1)
 }
 
 func (e *Editor) Delete() bool {
@@ -529,14 +527,7 @@ func (e *Editor) Delete() bool {
 		if e.selection.Extent >= e.composingRange.End() {
 			return false
 		}
-		caret := e.selection.Extent
-		b := byteOffsetForUtf16(e.text, caret)
-		r, _ := utf8.DecodeRuneInString(e.text[b:])
-		cu := 1
-		if r > 0xFFFF {
-			cu = 2
-		}
-		return e.DeleteSurrounding(0, cu)
+		return e.DeleteSurrounding(0, 1)
 	}
 	if !e.selection.Collapsed() {
 		return e.DeleteSelected()
@@ -545,13 +536,7 @@ func (e *Editor) Delete() bool {
 	if caret >= utf16Len(e.text) {
 		return false
 	}
-	b := byteOffsetForUtf16(e.text, caret)
-	r, _ := utf8.DecodeRuneInString(e.text[b:])
-	cu := 1
-	if r > 0xFFFF {
-		cu = 2
-	}
-	return e.DeleteSurrounding(0, cu)
+	return e.DeleteSurrounding(0, 1)
 }
 
 func (e *Editor) MoveCursorToBeginning() bool {
@@ -677,6 +662,24 @@ func (e *Editor) MoveCursorByWord(forward bool) bool {
 
 func (e *Editor) IsComposing() bool { return e != nil && e.composing }
 func (e *Editor) ComposeActive() bool { return e.IsComposing() }
+func (e *Editor) ComposingRange() TextRange {
+	if e == nil {
+		return TextRange{}
+	}
+	return e.composingRange
+}
+func (e *Editor) ComposingStartByte() int {
+	if e == nil || !e.composing {
+		return -1
+	}
+	return byteOffsetForUtf16(e.text, e.composingRange.Start())
+}
+func (e *Editor) ComposingEndByte() int {
+	if e == nil || !e.composing {
+		return -1
+	}
+	return byteOffsetForUtf16(e.text, e.composingRange.End())
+}
 func (e *Editor) CompositionText() string {
 	if e == nil || !e.composing {
 		return ""
