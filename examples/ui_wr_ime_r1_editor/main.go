@@ -49,7 +49,10 @@ type manualInputBox struct {
 	scrollX float64
 }
 
-func newManualInputBox(ed *textinput.Editor, w, h float64) *manualInputBox {
+func newManualInputBox(ed *textinput.Editor, w, h float64, fontSize float64) *manualInputBox {
+	if fontSize <= 0 {
+		fontSize = 16
+	}
 	inner := rendering.NewRenderBox()
 	b := &manualInputBox{
 		RenderBox: inner,
@@ -57,21 +60,22 @@ func newManualInputBox(ed *textinput.Editor, w, h float64) *manualInputBox {
 		text:      rendering.NewRenderText(""),
 	}
 	inner.Init(b)
-	b.text.FontSize = 16
-	if face := wrkit.FaceAt(16); face != nil {
+	b.text.FontSize = fontSize
+	if face := wrkit.FaceAt(fontSize); face != nil {
 		b.text.SetFace(face)
 	}
 	b.text.R, b.text.G, b.text.B, b.text.A = 0.05, 0.75, 0.95, 1
 	b.FixedWidth = w
 	b.FixedHeight = h
 	b.AddChild(b.text)
+	// 光标宽度固定 1.5px，高度由 caretAnchor 的行盒决定（不同字号自适应）
 	b.bar = rendering.NewRenderColorBox(1.5, 22, 1.0, 0.85, 0.2, 1)
 	b.AddChild(b.bar)
 	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		b.layoutCaret()
 	}
 	b.caretOn = true
-	b.node = focus.NewFocusNode("r1-input")
+	b.node = focus.NewFocusNode(fmt.Sprintf("r1-input-%.0f", fontSize))
 	b.node.Target = b
 	b.node.OnFocusChange = func(on bool) {
 		b.focused = on
@@ -82,6 +86,241 @@ func newManualInputBox(ed *textinput.Editor, w, h float64) *manualInputBox {
 	return b
 }
 
+// 兼容旧调用（默认 16px）
+func newManualInputBoxDefault(ed *textinput.Editor, w, h float64) *manualInputBox {
+	return newManualInputBox(ed, w, h, 16)
+}
+
+// multilineInputBox 是可换行的多行输入框（R1 演示换行能力）。
+// 与单行框不同：MaxWidth 限宽自动换行，Enter 插入 '\n'，支持垂直滚动，
+// 光标行盒按 TextLayout 的每行 Height / LineTop 来（多段混排也正确）。
+type multilineInputBox struct {
+	*rendering.RenderBox
+	ed      *textinput.Editor
+	text    *rendering.RenderText
+	bar     *rendering.RenderColorBox
+	node    *focus.FocusNode
+	sched   func()
+	focused bool
+	caretOn bool
+	scrollX float64
+	scrollY float64
+}
+
+func newMultilineInputBox(ed *textinput.Editor, w, h float64, fontSize float64) *multilineInputBox {
+	if fontSize <= 0 {
+		fontSize = 14
+	}
+	inner := rendering.NewRenderBox()
+	b := &multilineInputBox{
+		RenderBox: inner,
+		ed:        ed,
+		text:      rendering.NewRenderText(""),
+	}
+	inner.Init(b)
+	b.text.FontSize = fontSize
+	if face := wrkit.FaceAt(fontSize); face != nil {
+		b.text.SetFace(face)
+	}
+	b.text.R, b.text.G, b.text.B, b.text.A = 0.06, 0.85, 0.60, 1
+	b.text.MaxWidth = w - 16 // 左右各 8px 内边距后换行
+	b.FixedWidth = w
+	b.FixedHeight = h
+	b.AddChild(b.text)
+	b.bar = rendering.NewRenderColorBox(1.5, 22, 1.0, 0.85, 0.2, 1)
+	b.AddChild(b.bar)
+	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		b.layoutCaret()
+	}
+	b.caretOn = true
+	b.node = focus.NewFocusNode(fmt.Sprintf("r1-multi-%.0f", fontSize))
+	b.node.Target = b
+	b.node.OnFocusChange = func(on bool) {
+		b.focused = on
+		b.sync()
+	}
+	ed.OnChange = func() { b.sync() }
+	b.sync()
+	return b
+}
+
+func (b *multilineInputBox) Editor() *textinput.Editor { return b.ed }
+func (b *multilineInputBox) ContentPurpose() platform.ContentPurpose { return platform.PurposeNormal }
+func (b *multilineInputBox) ContentType() platform.ContentType {
+	return platform.ContentType{Purpose: b.ContentPurpose()}
+}
+func (b *multilineInputBox) caretAnchor() (float64, float64, float64, bool) {
+	if b == nil || b.text == nil || b.ed == nil {
+		return 0, 0, 0, false
+	}
+	curByte := b.ed.GetCursorOffset()
+	lay := b.text.TextLayout()
+	var lineIdx int
+	var penX float64
+	var ok bool
+	if lay != nil && len(lay.Lines) > 0 {
+		lineIdx, penX, ok = lay.CaretForOffset(curByte)
+	} else {
+		lineIdx, penX, ok = b.text.CaretColumn(min(curByte, len(b.text.Text)))
+	}
+	if !ok {
+		return 0, 0, 0, false
+	}
+	textOff := b.text.Offset()
+	x := textOff.X + penX
+	var top, bottom float64
+	if lay != nil && len(lay.Lines) > lineIdx {
+		top = textOff.Y + lay.LineTop(lineIdx)
+		bottom = top + lay.LineHeight(lineIdx)
+	} else {
+		lh := b.text.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		top = textOff.Y + float64(lineIdx)*lh
+		bottom = top + lh
+	}
+	return x, top, bottom, true
+}
+func (b *multilineInputBox) IMERect() platform.Rect {
+	x, top, bottom, ok := b.caretAnchor()
+	if !ok {
+		return platform.Rect{X: 384, Y: 254, W: 2, H: 22}
+	}
+	abs := absoluteOrigin(b)
+	return platform.Rect{X: abs.X + x, Y: abs.Y + top, W: 2, H: bottom - top}
+}
+func (b *multilineInputBox) sync() {
+	if b == nil || b.text == nil || b.ed == nil {
+		return
+	}
+	disp := b.ed.GetText()
+	if disp == "" && !b.focused {
+		disp = "（多行：点获焦，Enter 换行，长句自动换行）"
+	}
+	b.text.SetText(disp)
+	curByte := b.ed.GetCursorOffset()
+	lay := b.text.TextLayout()
+	var lineIdx int
+	var caretX float64
+	if lay != nil && len(lay.Lines) > 0 {
+		lineIdx, caretX, _ = lay.CaretForOffset(curByte)
+	} else {
+		lineIdx, caretX, _ = b.text.CaretColumn(min(curByte, len(b.text.Text)))
+	}
+	visW := b.FixedWidth - 16
+	visH := b.FixedHeight - 16
+	// 水平：保证光标在可视区
+	if caretX-b.scrollX > visW-4 {
+		b.scrollX = caretX - visW + 4
+	}
+	if caretX-b.scrollX < 4 {
+		b.scrollX = caretX - 4
+	}
+	if b.scrollX < 0 {
+		b.scrollX = 0
+	}
+	// 垂直：按行盒保证可视
+	var caretY, lineH float64
+	if lay != nil && len(lay.Lines) > lineIdx {
+		caretY = lay.LineTop(lineIdx)
+		lineH = lay.LineHeight(lineIdx)
+	} else {
+		lh := b.text.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		caretY = float64(lineIdx) * lh
+		lineH = lh
+	}
+	if caretY-b.scrollY < 4 {
+		b.scrollY = caretY - 4
+	}
+	if caretY+lineH-b.scrollY > visH-4 {
+		b.scrollY = caretY + lineH - visH + 4
+	}
+	if b.scrollY < 0 {
+		b.scrollY = 0
+	}
+	// 限制最大滚动（文本总高 - 可视高）
+	if lay != nil && len(lay.Lines) > 0 {
+		totalH := lay.LineTop(len(lay.Lines)-1) + lay.LineHeight(len(lay.Lines)-1)
+		maxY := totalH - visH
+		if maxY < 0 {
+			maxY = 0
+		}
+		if b.scrollY > maxY {
+			b.scrollY = maxY
+		}
+	}
+	b.text.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: 8 - b.scrollY})
+	b.layoutCaret()
+	if b.sched != nil {
+		b.sched()
+	}
+}
+func (b *multilineInputBox) layoutCaret() {
+	if b == nil || b.bar == nil {
+		return
+	}
+	x, top, bottom, ok := b.caretAnchor()
+	if !ok {
+		return
+	}
+	b.bar.MoveTo(x-b.bar.Width/2, top)
+	if h := bottom - top; h > 0 {
+		b.bar.Height = h
+	}
+	if b.caretOn && b.focused {
+		b.bar.SetAlpha(1)
+	} else {
+		b.bar.SetAlpha(0)
+	}
+}
+func (b *multilineInputBox) OnPointer(ev input.PointerEvent) {
+	if ev.Kind == input.PointerDown && b.node != nil {
+		b.node.RequestFocus()
+		abs := absoluteOrigin(b)
+		textOff := b.text.Offset()
+		localX := ev.X - abs.X - textOff.X
+		localY := ev.Y - abs.Y - textOff.Y
+		off := b.text.ByteOffsetAtPoint(localX, localY)
+		b.ed.SetCaret(off)
+	}
+}
+func (b *multilineInputBox) OnKey(ev input.KeyEvent) {
+	if !ev.Pressed {
+		return
+	}
+	switch ev.Key {
+	case input.KeyBackspace:
+		b.ed.DeleteBackward()
+	case input.KeyDelete:
+		b.ed.DeleteForward()
+	case input.KeyArrowLeft:
+		b.moveVisual(-1)
+	case input.KeyArrowRight:
+		b.moveVisual(1)
+	case input.KeyArrowUp:
+		b.ed.MoveCursorUp()
+	case input.KeyArrowDown:
+		b.ed.MoveCursorDown()
+	case input.KeyEnter:
+		b.ed.Insert("\n")
+	case input.KeyEscape:
+		b.ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
+	}
+}
+func (b *multilineInputBox) moveVisual(delta int) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	lay := b.text.TextLayout()
+	b.ed.MoveVisual(delta, lay)
+}
+func (b *multilineInputBox) OnText(ev input.TextEvent) {}
+func (b *multilineInputBox) OnIME(ev input.IMEEvent)    {}
+
 func (b *manualInputBox) Editor() *textinput.Editor { return b.ed }
 func (b *manualInputBox) ContentPurpose() platform.ContentPurpose {
 	return platform.PurposeNormal
@@ -89,58 +328,64 @@ func (b *manualInputBox) ContentPurpose() platform.ContentPurpose {
 func (b *manualInputBox) ContentType() platform.ContentType {
 	return platform.ContentType{Purpose: b.ContentPurpose()}
 }
+// caretAnchor 返回光标在 inputBox 局部坐标系的矩形（Flutter 对齐）。
+// 水平：TextLayout 单源 CaretForOffset 的 penX + text 偏移（含 8px 内边距与 -scrollX）；
+// 垂直：完全按 TextLayout 的行盒来（lineTop + lineHeight），行盒来自 BuildRenderTextLayout
+// 的单源结果——单字号就是 lh，多段混排就是该行最大 run 的高度，
+// 与 Paint 的 y = lineTop + ascent 同源（Flutter Paragraph 行盒语义）。
 func (b *manualInputBox) caretAnchor() (float64, float64, float64, bool) {
-	if b == nil || b.text == nil {
+	if b == nil || b.text == nil || b.ed == nil {
 		return 0, 0, 0, false
 	}
 	curByte := b.ed.GetCursorOffset()
 	lay := b.text.TextLayout()
+	var lineIdx int
 	var penX float64
 	var ok bool
 	if lay != nil && len(lay.Lines) > 0 {
-		_, penX, ok = lay.CaretForOffset(curByte)
-		penX -= b.scrollX
+		lineIdx, penX, ok = lay.CaretForOffset(curByte)
 	} else {
-		_, penX, ok = b.text.CaretColumn(min(curByte, len(b.text.Text)))
-		penX -= b.scrollX
+		lineIdx, penX, ok = b.text.CaretColumn(min(curByte, len(b.text.Text)))
 	}
 	if !ok {
 		return 0, 0, 0, false
 	}
-	// 光标高度自适应当前字号，且与文本同垂直居中
-	fs := b.text.FontSizePt()
-	if fs <= 0 {
-		fs = 16
+	textOff := b.text.Offset()
+	x := textOff.X + penX
+	var top, bottom float64
+	if lay != nil && len(lay.Lines) > lineIdx {
+		top = textOff.Y + lay.LineTop(lineIdx)
+		bottom = top + lay.LineHeight(lineIdx)
+	} else {
+		// Fallback：单值行高（历史路径）
+		lh := b.text.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		top = textOff.Y + float64(lineIdx)*lh
+		bottom = top + lh
 	}
-	m, _ := b.text.Metrics()
-	ascent, descent := fs*0.8, fs*0.2
-	if m.Ascent > 0 {
-		ascent, descent = m.Ascent, m.Descent
-	}
-	barH := ascent + descent
-	h := b.FixedHeight
-	if h <= 0 {
-		h = 72
-	}
-	lh := b.text.LineHeight()
-	if lh <= 0 {
-		lh = barH * 1.25
-	}
-	textY := (h - lh) / 2
-	if textY < 0 {
-		textY = 0
-	}
-	top := textY + (lh-barH)/2
-	return penX + 8, top, top + barH, true
+	return x, top, bottom, true
 }
+
+// absoluteOrigin 累加 Parent 链 Offset 得到窗口绝对坐标（Flutter RenderObject.localToGlobal 近似）。
+func absoluteOrigin(n rendering.RenderObject) rendering.Point {
+	x, y := 0.0, 0.0
+	for cur := n; cur != nil; cur = cur.Parent() {
+		off := cur.Offset()
+		x += off.X
+		y += off.Y
+	}
+	return rendering.Point{X: x, Y: y}
+}
+
 func (b *manualInputBox) IMERect() platform.Rect {
 	x, top, bottom, ok := b.caretAnchor()
 	if !ok {
 		return platform.Rect{X: 384, Y: 254, W: 2, H: 22}
 	}
-	// inputBox 窗口坐标：shell.Body(364,60)+inputBox(12,176)=(376,236)，x已含+8，top已含textY
-	baseX, baseY := 376.0, 236.0
-	return platform.Rect{X: baseX + x, Y: baseY + top, W: 2, H: bottom - top}
+	abs := absoluteOrigin(b)
+	return platform.Rect{X: abs.X + x, Y: abs.Y + top, W: 2, H: bottom - top}
 }
 func (b *manualInputBox) sync() {
 	if b == nil || b.text == nil || b.ed == nil {
@@ -202,18 +447,11 @@ func (b *manualInputBox) layoutCaret() {
 func (b *manualInputBox) OnPointer(ev input.PointerEvent) {
 	if ev.Kind == input.PointerDown && b.node != nil {
 		b.node.RequestFocus()
-		// 精确映射：窗口 -> 盒子局部 -> 文本局部（8px左内边距 + textY居中 + 横滚）
-		const boxWinX, boxWinY = 376.0, 236.0
-		lh := b.text.LineHeight()
-		if lh <= 0 {
-			lh = 22
-		}
-		textY := (b.FixedHeight - lh) / 2
-		if textY < 0 {
-			textY = 0
-		}
-		localX := ev.X - boxWinX - 8 + b.scrollX
-		localY := ev.Y - boxWinY - textY
+		abs := absoluteOrigin(b)
+		textOff := b.text.Offset()
+		// 窗口 -> 文本局部：先去盒子绝对，再去文本偏移
+		localX := ev.X - abs.X - textOff.X
+		localY := ev.Y - abs.Y - textOff.Y
 		off := b.text.ByteOffsetAtPoint(localX, localY)
 		b.ed.SetCaret(off)
 	}
@@ -392,112 +630,107 @@ func main() {
 	}
 	sep := rendering.NewRenderColorBox(midW-24, 1, 0.35, 0.40, 0.50, 1)
 	shell.Body.Place(sep, 12, 125)
-	shell.Body.LabelAt("R1 人工真实测试（点输入框获焦，手打）", 12, 12, 138, 0.55, 0.95, 0.75)
-	shell.Body.LabelAt("请依次手试：打字→退格→方向键→选区拖→拼音预编辑→Esc取消→长文粘贴", 10, 12, 158, 0.65, 0.75, 0.85)
+	shell.Body.LabelAt("R1 人工真实测试（点不同字号框获焦，手打）", 12, 12, 138, 0.55, 0.95, 0.75)
+	shell.Body.LabelAt("请依次点 10/12/16/20px 框：打字→退格→方向键→拖选→拼音→Esc→粘贴", 10, 12, 158, 0.65, 0.75, 0.85)
 
-	ed := textinput.New()
-	ed.SetText(strings.Repeat(mixedCJK, 1), textinput.TextRange{Base: 10, Extent: 10}, textinput.TextRange{}, 0)
-	inputBox := newManualInputBox(ed, midW-24, 72)
-	shell.Body.Place(inputBox, 12, 176)
+	// 四个独立字号输入框（同行不同字号混排用 Runs，此处为独立单字号框，直观对比光标是否贴缝）
+	ed10 := textinput.New()
+	ed10.SetText("10px Aa你好Hello", textinput.TextRange{Base: 2, Extent: 2}, textinput.TextRange{}, 0)
+	ed12 := textinput.New()
+	ed12.SetText("12px Aa你好Hello", textinput.TextRange{Base: 2, Extent: 2}, textinput.TextRange{}, 0)
+	ed16 := textinput.New()
+	ed16.SetText(strings.Repeat(mixedCJK, 1), textinput.TextRange{Base: 10, Extent: 10}, textinput.TextRange{}, 0)
+	ed20 := textinput.New()
+	ed20.SetText("20px Aa你好Hello😀", textinput.TextRange{Base: 2, Extent: 2}, textinput.TextRange{}, 0)
+	// 主框保留 16px 兼容自检
+	ed := ed16
+	shell.Body.LabelAt("10px 输入框（点获焦）", 10, 12, 172, 0.85, 0.85, 0.90)
+	box10 := newManualInputBox(ed10, midW-24, 48, 10)
+	shell.Body.Place(box10, 12, 186)
+	shell.Body.LabelAt("12px 输入框", 10, 12, 238, 0.75, 0.95, 0.85)
+	box12 := newManualInputBox(ed12, midW-24, 52, 12)
+	shell.Body.Place(box12, 12, 252)
+	shell.Body.LabelAt("16px 输入框（主）", 10, 12, 308, 0.95, 0.85, 0.55)
+	inputBox := newManualInputBox(ed16, midW-24, 56, 16)
+	shell.Body.Place(inputBox, 12, 322)
+	shell.Body.LabelAt("20px 输入框", 10, 12, 382, 0.95, 0.65, 0.55)
+	box20 := newManualInputBox(ed20, midW-24, 60, 20)
+	shell.Body.Place(box20, 12, 396)
 
-	probeLabel := wrkit.Label("probe: init", 11, 0.92, 0.95, 0.98)
-	shell.Body.Place(probeLabel, 12, 258)
-	scenarioLabel := wrkit.Label("手工：点框获焦后键盘验证", 10, 0.75, 0.85, 0.95)
-	shell.Body.Place(scenarioLabel, 12, 278)
-	surroundLabel := wrkit.Label("surrounding: -", 10, 0.65, 0.75, 0.85)
-	shell.Body.Place(surroundLabel, 12, 296)
-	phaseLabel := wrkit.Label("等待人工输入…", 12, 0.95, 0.95, 0.4)
-	shell.Body.Place(phaseLabel, 12, 316)
-
-	// 多字号/字体样式同屏：光标自适应测试
-	shell.Body.LabelAt("多字号光标自适应（同屏 12/16/20/24px）", 10, 12, 340, 0.55, 0.85, 0.95)
-	mixedBox := rendering.NewRenderBox()
-	mixedBox.FixedWidth = midW - 24
-	mixedBox.FixedHeight = 140
-	mixedBox.SetRepaintBoundary(true)
-	shell.Body.Place(mixedBox, 12, 360)
-	mixedBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		if pc == nil || pc.DC == nil {
+	// 同行多字号混排演示（单行内 10+16+12 混排，验证缝表按段累加）
+	shell.Body.LabelAt("同行混排 10+16+12px（单行内多段）", 10, 12, 462, 0.55, 0.85, 0.95)
+	mixedRunBox := rendering.NewRenderBox()
+	mixedRunBox.FixedWidth = midW - 24
+	mixedRunBox.FixedHeight = 48
+	mixedRunBox.SetRepaintBoundary(true)
+	shell.Body.Place(mixedRunBox, 12, 476)
+	// 用 Paragraph Runs 画一行 10/16/12 混排，光标位置由多段缝表决定
+	mixedRunText := rendering.NewRenderText("")
+	mixedRunText.FontSize = 14
+	mixedRunText.MaxWidth = 0
+	{
+		pb := rendering.NewParagraphBuilder()
+		if f, _, _ := text.LoadMultiFace(10); f != nil {
+			pb.AddRun(rendering.TextRun{Text: "Aa", Face: f, FontSize: 10, R: 0.85, G: 0.85, B: 0.90, A: 1})
+		}
+		if f, _, _ := text.LoadMultiFace(16); f != nil {
+			pb.AddRun(rendering.TextRun{Text: "你好", Face: f, FontSize: 16, R: 0.75, G: 0.95, B: 0.85, A: 1})
+		}
+		if f, _, _ := text.LoadMultiFace(12); f != nil {
+			pb.AddRun(rendering.TextRun{Text: "Hello", Face: f, FontSize: 12, R: 0.95, G: 0.85, B: 0.55, A: 1})
+		}
+		pb.Apply(mixedRunText)
+		mixedRunText.R, mixedRunText.G, mixedRunText.B, mixedRunText.A = 0.9, 0.9, 0.9, 1
+	}
+	mixedRunBox.AddChild(mixedRunText)
+	mixedRunText.SetOffset(rendering.Point{X: 8, Y: 12})
+	// 在该行第 4 个字符后（Aa你 后）画一条标尺光标，证明多段行内缝正确
+	mixedCaretBar := rendering.NewRenderColorBox(1.5, 24, 1.0, 0.85, 0.2, 1)
+	mixedRunBox.AddChild(mixedCaretBar)
+	mixedRunBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		lay := mixedRunText.TextLayout()
+		if lay == nil || len(lay.Lines) == 0 {
 			return
 		}
-		x, y, w, h := pc.OriginX, pc.OriginY, size.Width, size.Height
-		pc.DC.SetRGBA(0.14, 0.16, 0.20, 1)
-		pc.DC.DrawRectangle(x, y, w, h)
-		_ = pc.DC.Fill()
-		pc.DC.SetRGBA(0.35, 0.45, 0.60, 1)
-		pc.DC.SetLineWidth(1)
-		pc.DC.DrawRectangle(x, y, w, h)
-		_ = pc.DC.Stroke()
-		samples := []struct {
-			fs   float64
-			text string
-			r, g, b float64
-		}{
-			{12, "12px 样例 Aa你好😀 R1", 0.85, 0.85, 0.90},
-			{16, "16px 样例 Aa你好😀 R1", 0.75, 0.95, 0.85},
-			{20, "20px 样例 Aa你好😀 R1", 0.95, 0.85, 0.55},
-			{24, "24px 样例 Aa你好😀 R1", 0.95, 0.65, 0.55},
+		// 取全局 byte 2+3=5（Aa + 你）后的缝
+		off := 2 + len("你")
+		_, penX, ok := lay.CaretForOffset(off)
+		if !ok {
+			return
 		}
-		// 光标统一放在第 4 个字符后（"Aa你" 后），看不同字号下高度/基线是否自适应且不压字
-		caretIndex := 4
-		for i, s := range samples {
-			ly := y + 10 + float64(i)*32
-			face := wrkit.FaceAt(s.fs)
-			if face != nil {
-				pc.DC.SetFont(face)
-			}
-			pc.DC.SetRGBA(s.r, s.g, s.b, 1)
-			pc.DC.DrawString(s.text, x+8, ly+ s.fs*0.8)
-			// 测量 caret X：前缀宽度
-			prefix := ""
-			runes := []rune(s.text)
-			if caretIndex < len(runes) {
-				prefix = string(runes[:caretIndex])
-			} else {
-				prefix = s.text
-			}
-			var cw float64
-			if face != nil {
-				cw, _ = text.Measure(prefix, face)
-				if cw == 0 {
-					cw = float64(len([]rune(prefix))) * s.fs * 0.6
-				}
-			} else {
-				cw = float64(len([]rune(prefix))) * s.fs * 0.6
-			}
-			// 尝试用 text.Measure 更准
-			// 光标高度 = ascent+descent，自适应字号
-			ascent, descent := s.fs*0.8, s.fs*0.2
-			if face != nil {
-				m := face.Metrics()
-				if m.Ascent > 0 {
-					ascent, descent = m.Ascent, m.Descent
-				}
-			}
-			cx := x + 8 + cw
-			// 基线对齐：文本基线在 ly + ascent*0.8 附近， caret 顶 = 基线 - ascent
-			baseline := ly + s.fs*0.8
-			top := baseline - ascent
-			pc.DC.SetRGBA(1, 0.85, 0.2, 1)
-			pc.DC.SetLineWidth(1.8)
-			pc.DC.DrawLine(cx, top, cx, top+ascent+descent)
-			_ = pc.DC.Stroke()
-			// 字号标签
-			pc.DC.SetRGBA(0.55, 0.65, 0.75, 1)
-			if f2 := wrkit.FaceAt(9); f2 != nil {
-				pc.DC.SetFont(f2)
-			}
-			pc.DC.DrawString(fmt.Sprintf("%.0fpx h=%.0f", s.fs, ascent+descent), x+w-70, ly+10)
-			if face != nil {
-				pc.DC.SetFont(face)
-			}
-		}
+		textOff := mixedRunText.Offset()
+		x := textOff.X + penX
+		top := textOff.Y + lay.LineTop(0)
+		h := lay.LineHeight(0)
+		mixedCaretBar.MoveTo(x-0.75, top)
+		mixedCaretBar.Height = h
+		mixedCaretBar.SetAlpha(1)
 	}
+
+	// 多行换行输入框（R1 换行能力演示：Enter 换行 + 长句自动换行按 MaxWidth）
+	shell.Body.LabelAt("多行输入框（Enter 换行，长句自动换行）", 10, 12, 530, 0.85, 0.90, 0.60)
+	edMulti := textinput.New()
+	edMulti.SetText("多行换行测试\n第二行 中英 Hello 12px\n第三行 长句自动换行测试 abcdefghijklmnopqrstuvwxyz 你好世界 Hello", textinput.TextRange{Base: 0, Extent: 0}, textinput.TextRange{}, 0)
+	multilineBox := newMultilineInputBox(edMulti, midW-24, 56, 14)
+	shell.Body.Place(multilineBox, 12, 546)
+
+	probeLabel := wrkit.Label("probe: init", 11, 0.92, 0.95, 0.98)
+	shell.Body.Place(probeLabel, 12, 608)
+	scenarioLabel := wrkit.Label("手工：点框获焦后键盘验证", 10, 0.75, 0.85, 0.95)
+	shell.Body.Place(scenarioLabel, 12, 622)
+	surroundLabel := wrkit.Label("surrounding: -", 10, 0.65, 0.75, 0.85)
+	shell.Body.Place(surroundLabel, 12, 636)
+	phaseLabel := wrkit.Label("等待人工输入…", 12, 0.95, 0.95, 0.4)
+	shell.Body.Place(phaseLabel, 12, 650)
 
 	fm := focus.NewManager()
 	router := embedder.NewInputRouter(nil, fm)
 	router.TextEditor = ed
 	fm.Register(inputBox.node)
+	fm.Register(box10.node)
+	fm.Register(box12.node)
+	fm.Register(box20.node)
+	fm.Register(multilineBox.node)
 	// 启动即获焦，方便直接打字
 	_ = inputBox.node.RequestFocus()
 
@@ -565,22 +798,66 @@ func main() {
 				fmt.Fprintf(os.Stderr, "ui_wr_ime_r1_editor: close (%s)\n", win.Backend())
 			case platform.EventResize:
 				if ev.Width > 0 && ev.Height > 0 {
-					shell.Resize(float64(ev.Width), float64(ev.Height))
+					newW, newH := float64(ev.Width), float64(ev.Height)
+					// 保留 R1 自定义的 leftW/midW，rightPanel 随窗口自适应；不用 shell.Resize 的 260 默认覆盖
+					legH2 := newH - topH - hudH - gap*2
+					if legH2 < 200 {
+						legH2 = 200
+					}
+					rightW2 := newW - leftW - midW - gap*4
+					if rightW2 < 200 {
+						rightW2 = 200
+					}
+					shell.Root.FixedWidth, shell.Root.FixedHeight = newW, newH
+					shell.Root.MarkNeedsLayout()
+					shell.Top.W, shell.Top.H = newW, topH
+					shell.Top.Box.FixedWidth, shell.Top.Box.FixedHeight = newW, topH
+					shell.Top.Box.MarkNeedsLayout()
+					shell.Legend.W, shell.Legend.H = leftW, legH2
+					shell.Legend.Box.FixedWidth, shell.Legend.Box.FixedHeight = leftW, legH2
+					shell.Legend.Box.MarkNeedsLayout()
+					shell.Body.W, shell.Body.H = midW, legH2
+					shell.Body.Box.FixedWidth, shell.Body.Box.FixedHeight = midW, legH2
+					shell.Body.Box.MarkNeedsLayout()
+					shell.Root.Place(shell.Legend.Box, gap, topH+gap)
+					shell.Root.Place(shell.Body.Box, gap+leftW+gap, topH+gap)
+					shell.Root.Place(rightPanel.Box, gap+leftW+gap+midW+gap, topH+gap)
+					rightPanel.W, rightPanel.H = rightW2, legH2
+					rightPanel.Box.FixedWidth, rightPanel.Box.FixedHeight = rightW2, legH2
+					rightPanel.Box.MarkNeedsLayout()
+					shapeBox.FixedWidth = rightW2 - 24
+					shapeBox.FixedHeight = legH2 - 60
+					shapeBox.MarkNeedsLayout()
+					if shell.HUD != nil {
+						shell.HUD.Width, shell.HUD.Height = newW, hudH
+						shell.HUD.Box.FixedWidth = newW
+						shell.Root.Place(shell.HUD.Box, 0, newH-hudH)
+						shell.HUD.Box.MarkNeedsLayout()
+					}
 				}
 			}
 		},
 	})
 	inputBox.sched = app.ScheduleFrame
+	box10.sched = app.ScheduleFrame
+	box12.sched = app.ScheduleFrame
+	box20.sched = app.ScheduleFrame
+	multilineBox.sched = app.ScheduleFrame
 
 	// 仅保留光标闪烁 + 右形变 + HUD 的 ticker，不再自动改 text
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		tick++
 		shapeTick = tick
-		// 光标闪烁
+		// 光标闪烁（四个独立字号框 + 多行框同步闪）
 		if tick%30 == 0 {
-			inputBox.caretOn = !inputBox.caretOn
-			inputBox.layoutCaret()
-			inputBox.MarkNeedsPaint()
+			for _, b := range []*manualInputBox{inputBox, box10, box12, box20} {
+				b.caretOn = !b.caretOn
+				b.layoutCaret()
+				b.MarkNeedsPaint()
+			}
+			multilineBox.caretOn = !multilineBox.caretOn
+			multilineBox.layoutCaret()
+			multilineBox.MarkNeedsPaint()
 		}
 		shapeBox.MarkNeedsPaint()
 		phaseLabel.SetText(fmt.Sprintf("人工验证中 tick=%d  请手打验证上表 8 项", tick))
@@ -637,9 +914,22 @@ func main() {
 	}
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
-	// 路由日志
+	// 路由日志（按焦点分发到对应字号框）
 	router.OnPointer = func(pe input.PointerEvent, target rendering.RenderObject) {}
-	router.OnKey = func(ke input.KeyEvent) { inputBox.OnKey(ke) }
+	router.OnKey = func(ke input.KeyEvent) {
+		// 哪个框获焦就让哪个处理方向键/退格等
+		if multilineBox.focused {
+			multilineBox.OnKey(ke)
+			return
+		}
+		for _, b := range []*manualInputBox{box10, box12, inputBox, box20} {
+			if b.focused {
+				b.OnKey(ke)
+				return
+			}
+		}
+		inputBox.OnKey(ke)
+	}
 	router.OnText = func(ev input.TextEvent) {}
 	router.OnIME = func(ev input.IMEEvent) {}
 

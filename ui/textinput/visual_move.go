@@ -8,6 +8,7 @@ import "github.com/energye/gpui/ui/rendering"
 // re-implement caret stepping via SetCaret.
 //
 // delta is +1 (right) or -1 (left). Returns true if the cursor moved.
+// 多行时按可视行盒走缝，跨行时自动跳到相邻行的行首/行尾（Flutter TextPainter 可视缝语义）。
 func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
 	if e == nil || lay == nil || len(lay.Lines) == 0 {
 		if delta < 0 {
@@ -16,19 +17,29 @@ func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
 		return e.MoveCursorForward()
 	}
 	curByte := e.GetCursorOffset()
-	ln := lay.Lines[0]
-	// Find nearest seam via HitTest (robust for inside multi-byte)
-	_, penX, _ := lay.CaretForOffset(curByte)
-	hit := lay.HitTest(penX, 0, lay.FontSize*1.25)
+	lineIdx, _, ok := lay.CaretForOffset(curByte)
+	if !ok {
+		if delta < 0 {
+			return e.MoveCursorBack()
+		}
+		return e.MoveCursorForward()
+	}
+	if lineIdx < 0 {
+		lineIdx = 0
+	}
+	if lineIdx >= len(lay.Lines) {
+		lineIdx = len(lay.Lines) - 1
+	}
+	ln := lay.Lines[lineIdx]
+	// 在该行内找当前缝的下标（精确 ByteOff 匹配，找不到就最近）
 	idx := -1
 	for j, c := range ln.Carets {
-		if c.ByteOff == hit {
+		if c.ByteOff == curByte {
 			idx = j
 			break
 		}
 	}
 	if idx < 0 {
-		// fallback: nearest
 		best, bestDist := -1, 1<<30
 		for j, c := range ln.Carets {
 			d := c.ByteOff - curByte
@@ -48,17 +59,33 @@ func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
 		}
 		return e.MoveCursorForward()
 	}
-	ni := idx + delta
-	if ni < 0 {
-		ni = 0
-	}
-	if ni >= len(ln.Carets) {
-		ni = len(ln.Carets) - 1
-	}
-	if ni == idx {
+	// 行内移动
+	if delta > 0 {
+		if idx+1 < len(ln.Carets) {
+			off := ln.Carets[idx+1].ByteOff
+			e.SetCaret(off)
+			return true
+		}
+		// 已在行尾，跳到下一行行首
+		if lineIdx+1 < len(lay.Lines) {
+			off := lay.Lines[lineIdx+1].Carets[0].ByteOff
+			e.SetCaret(off)
+			return true
+		}
 		return false
 	}
-	off := ln.Carets[ni].ByteOff
-	e.SetCaret(off)
-	return true
+	// delta < 0
+	if idx-1 >= 0 {
+		off := ln.Carets[idx-1].ByteOff
+		e.SetCaret(off)
+		return true
+	}
+	// 已在行首，跳到上一行行尾
+	if lineIdx-1 >= 0 {
+		prev := lay.Lines[lineIdx-1]
+		off := prev.Carets[len(prev.Carets)-1].ByteOff
+		e.SetCaret(off)
+		return true
+	}
+	return false
 }

@@ -366,6 +366,9 @@ func (t *RenderText) invalidateMeasureCache() {
 }
 
 // ensureLayout returns the single-source TextLayout, building if dirty.
+// For multi-run paragraphs (mixed sizes) it builds a per-run layout so
+// CaretForOffset / HitTest use per-run advances and per-line max heights
+// (Flutter Paragraph / SkParagraph semantics).
 func (t *RenderText) ensureLayout() *TextLayout {
 	if t == nil {
 		return nil
@@ -373,7 +376,11 @@ func (t *RenderText) ensureLayout() *TextLayout {
 	if t.textLayout != nil {
 		return t.textLayout
 	}
-	t.textLayout = BuildTextLayout(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing())
+	if t.hasRuns() {
+		t.textLayout = BuildRenderTextLayout(t)
+	} else {
+		t.textLayout = BuildTextLayout(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing())
+	}
 	return t.textLayout
 }
 
@@ -838,13 +845,18 @@ func (t *RenderText) Paint(pc *PaintContext) {
 			if pc.DC != nil {
 				pc.DC.SetRGBA(t.R, t.G, t.B, a)
 			}
+			// Flutter SkParagraph 行盒语义：行高按该行最大 run 撑开，基线 = 行顶 + 最大 ascent
+			// 单字号时退化为 lh = ascent+descent(+gap)，与 caret 的 lineTop/lineHeight 同源。
 			fs := t.fontSize()
-			lh := t.lineHeightLogical()
+			ascent := fs * 0.8
+			if m, ok := t.Metrics(); ok && m.Ascent > 0 {
+				ascent = m.Ascent
+			}
 			for i, line := range lines {
 				if line == "" {
 					continue
 				}
-				y := fs + float64(i)*lh
+				y := ascent + lay.LineTop(i)
 				if face != nil && pc.DC != nil && len(lay.Lines) > i {
 					glyphs := lay.Lines[i].Glyphs
 					if len(glyphs) > 0 && glyphs[0].GID != 0 {
@@ -882,12 +894,32 @@ func (t *RenderText) paintRuns(pc *PaintContext) {
 	if len(lines) == 0 {
 		return
 	}
-	// First baseline uses parent FontSize (same convention as single-string path).
-	baseline := t.fontSize()
-	for i, ln := range lines {
-		if i > 0 {
-			baseline += lines[i-1].Height
+	lineTop := 0.0
+	for _, ln := range lines {
+		// 行内最大 ascent 决定基线（Flutter SkParagraph：行盒按最大 run 撑开，基线 = 行顶 + 最大 ascent）
+		maxAscent := 0.0
+		for _, sp := range ln.Spans {
+			a := sp.FontSize * 0.8
+			if sp.Face != nil {
+				if m := sp.Face.Metrics(); m.Ascent > 0 {
+					a = m.Ascent
+				}
+			} else if m, ok := t.Metrics(); ok && m.Ascent > 0 {
+				// Fallback to parent metrics when span has no face.
+				_ = m
+			}
+			if a > maxAscent {
+				maxAscent = a
+			}
 		}
+		if maxAscent == 0 {
+			if m, ok := t.Metrics(); ok && m.Ascent > 0 {
+				maxAscent = m.Ascent
+			} else {
+				maxAscent = t.fontSize() * 0.8
+			}
+		}
+		baseline := lineTop + maxAscent
 		for _, sp := range ln.Spans {
 			if sp.Text == "" {
 				continue
@@ -918,6 +950,7 @@ func (t *RenderText) paintRuns(pc *PaintContext) {
 				pc.DC.SetTextDecoration(render.TextDecorationNone)
 			}
 		}
+		lineTop += ln.Height
 	}
 }
 
