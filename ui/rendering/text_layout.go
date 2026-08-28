@@ -171,7 +171,7 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []t
 		carets = append(carets, GlyphCaret{ByteOff: 0, X: 0})
 		x := 0.0
 		for byteOff, r := range line {
-			adv, _ := text.Measure(string(r), face)
+			adv := text.RuneAdvance(face, r)
 			sg = append(sg, text.ShapedGlyph{GID: 0, Cluster: 0, X: x, XAdvance: adv})
 			x += adv
 			next := byteOff + utf8.RuneLen(r)

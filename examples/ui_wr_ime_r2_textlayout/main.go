@@ -121,7 +121,7 @@ func main() {
 	longStr := string(runes)
 	edLong := textinput.New()
 	edLong.SetText(longStr, textinput.TextRange{Base: 0, Extent: 0}, textinput.TextRange{}, 0)
-	boxLong := textinput.NewInputBox(edLong, 560, 36, 12)
+	boxLong := textinput.NewViewportInputBox(edLong, 560, 36, 12)
 	if f := wrkit.FaceAt(12); f != nil {
 		boxLong.SetFace(f)
 	}

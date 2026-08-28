@@ -63,6 +63,22 @@ type Face interface {
 	private()
 }
 
+// RuneAdvance returns the horizontal advance for a single rune on face
+// without allocating a per-rune string. Flutter-aligned fast path for
+// 5000-char single-line viewports where per-rune string(r) would allocate
+// 5000 strings per layout and dominate the frame (P7).
+func RuneAdvance(face Face, r rune) float64 {
+	if face == nil {
+		return 0
+	}
+	if g, ok := glyphForRune(face, r, 0, 0); ok {
+		return g.Advance
+	}
+	// Fallback for unknown Face implementations (test mocks).
+	w, _ := Measure(string(r), face)
+	return w
+}
+
 // sourceFace is the internal implementation of Face.
 type sourceFace struct {
 	source *FontSource

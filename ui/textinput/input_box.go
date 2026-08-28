@@ -51,6 +51,12 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 		txt:       rendering.NewRenderText(""),
 	}
 	inner.Init(b)
+	// Flutter RenderEditable is both RelayoutBoundary and RepaintBoundary:
+	// typing 5000 chars must not relayout the whole window nor repaint
+	// siblings. Without this, each keystroke bubbles MarkNeedsLayout/Paint
+	// to the shell root, collapsing fps and causing input lag.
+	inner.SetRelayoutBoundary(true)
+	inner.SetRepaintBoundary(true)
 	b.txt.FontSize = fontSize
 	// Face is optional; caller may set via SetFace or via rendering.LoadMultiFace.
 	b.txt.R, b.txt.G, b.txt.B, b.txt.A = 0.05, 0.75, 0.95, 1
@@ -193,6 +199,7 @@ func (b *InputBox) sync() {
 	if textY < 0 {
 		textY = 0
 	}
+	visW := b.FixedWidth - 16
 	if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
 		caretX := 0.0
 		if x, _, _, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
@@ -200,7 +207,6 @@ func (b *InputBox) sync() {
 		} else {
 			_, caretX, _ = lay.CaretForOffset(curByte)
 		}
-		visW := b.FixedWidth - 16
 		if caretX-b.scrollX > visW-4 {
 			b.scrollX = caretX - visW + 4
 		}
@@ -214,6 +220,7 @@ func (b *InputBox) sync() {
 	} else {
 		b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: textY})
 	}
+	b.txt.SetViewportHint(b.scrollX, visW)
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
@@ -366,6 +373,8 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 		txt:       rendering.NewRenderText(""),
 	}
 	inner.Init(b)
+	inner.SetRelayoutBoundary(true)
+	inner.SetRepaintBoundary(true)
 	b.txt.FontSize = fontSize
 	b.txt.R, b.txt.G, b.txt.B, b.txt.A = 0.06, 0.85, 0.60, 1
 	b.txt.MaxWidth = w - 16

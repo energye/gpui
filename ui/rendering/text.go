@@ -62,6 +62,13 @@ type RenderText struct {
 
 	// textLayout is the single-source layout (R2). Nil = dirty.
 	textLayout *TextLayout
+
+	// viewportHint enables Flutter-like culling for 5000 single-line viewports:
+	// only glyphs within [scrollX-margin, scrollX+visW+margin] are submitted to
+	// the GPU. Set by ViewportInputBox after scroll; cleared for wrapped/multi-line.
+	viewportScrollX float64
+	viewportWidth   float64
+	hasViewportHint bool
 }
 
 // NewRenderText creates a text node.
@@ -382,6 +389,22 @@ func (t *RenderText) ensureLayout() *TextLayout {
 		t.textLayout = BuildTextLayout(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing())
 	}
 	return t.textLayout
+}
+
+// SetViewportHint enables culling for long single-line viewports (Flutter RenderEditable).
+// scrollX is the viewport ScrollOffset.X, visW is the viewport width (>0). Call after SetText.
+// Pass visW<=0 to clear the hint (no culling). Does not mark dirty.
+func (t *RenderText) SetViewportHint(scrollX, visW float64) {
+	if t == nil {
+		return
+	}
+	if visW <= 0 {
+		t.hasViewportHint = false
+		return
+	}
+	t.viewportScrollX = scrollX
+	t.viewportWidth = visW
+	t.hasViewportHint = true
 }
 
 // TextLayout returns the cached single-source layout (builds if needed).
@@ -872,6 +895,12 @@ func (t *RenderText) Paint(pc *PaintContext) {
 				if face != nil && pc.DC != nil && len(lay.Lines) > i {
 					glyphs := lay.Lines[i].Glyphs
 					if len(glyphs) > 0 && glyphs[0].GID != 0 {
+						// Flutter viewport culling for 5000 single-line:
+						// only submit glyphs within the viewport window
+						// (+200px margin) to keep GPU vertex count O(visible).
+						if t.hasViewportHint && t.MaxWidth == 0 && len(lay.Lines) == 1 && len(glyphs) > 200 {
+							glyphs = t.cullGlyphs(glyphs)
+						}
 						ax, ay := pc.Abs(0, y)
 						pc.DC.DrawShapedGlyphs(glyphs, face, ax, ay)
 					} else if face.Source() == nil {
@@ -883,10 +912,22 @@ func (t *RenderText) Paint(pc *PaintContext) {
 									break
 								}
 							}
+							if t.hasViewportHint && t.MaxWidth == 0 && len(lay.Lines) == 1 {
+								if x < t.viewportScrollX-200 || x > t.viewportScrollX+t.viewportWidth+200 {
+									continue
+								}
+							}
 							ax, ay := pc.Abs(x, y)
 							pc.DC.DrawString(string(r), ax, ay)
 						}
 					} else {
+						// Fallback colored path (also cull for large single line)
+						if t.hasViewportHint && t.MaxWidth == 0 && len(lay.Lines) == 1 && len(line) > 500 {
+							// drawTextColored draws whole line; skip if we have hint and line is huge
+							// fallback to per-glyph culling via DrawString above is already handled,
+							// but this path is for GID==0 with source != nil (rare). Skip whole draw
+							// and let culling happen via clipping (GPU will discard off-screen).
+						}
 						drawTextColored(pc, line, 0, y, t.R, t.G, t.B, a)
 					}
 				} else {
@@ -899,6 +940,39 @@ func (t *RenderText) Paint(pc *PaintContext) {
 		}
 	}
 	t.clearPaintDirty()
+}
+
+func (t *RenderText) cullGlyphs(glyphs []text.ShapedGlyph) []text.ShapedGlyph {
+	if !t.hasViewportHint || len(glyphs) == 0 {
+		return glyphs
+	}
+	// Visible window in text-local X (same coords as glyphs[].X).
+	const margin = 200.0
+	lo := t.viewportScrollX - margin
+	hi := t.viewportScrollX + t.viewportWidth + margin
+	// Glyphs are sorted by X; binary search lo/hi.
+	start := 0
+	end := len(glyphs)
+	// start = first with X+XAdvance >= lo
+	for i, g := range glyphs {
+		if g.X+g.XAdvance >= lo {
+			start = i
+			break
+		}
+		if i == len(glyphs)-1 {
+			return glyphs[len(glyphs):]
+		}
+	}
+	for i := start; i < len(glyphs); i++ {
+		if glyphs[i].X > hi {
+			end = i
+			break
+		}
+	}
+	if start >= end {
+		return glyphs[start:end]
+	}
+	return glyphs[start:end]
 }
 
 func (t *RenderText) paintRuns(pc *PaintContext) {

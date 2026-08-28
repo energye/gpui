@@ -13,6 +13,12 @@ import (
 type MultiFace struct {
 	faces     []Face
 	direction Direction
+	// runeFaceCache avoids repeated HasGlyph scans for 5000-char
+	// single-line viewports (Flutter RenderEditable pattern). The text
+	// repeats a small rune alphabet (e.g. "你好Hello世界" 9 runes) and
+	// re-resolving 5000 times on every keystroke dominates layout.
+	// Cache is keyed by rune, safe for concurrent reads via sync.Map.
+	runeFaceCache sync.Map // map[rune]Face
 }
 
 // NewMultiFace creates a MultiFace from faces.
@@ -288,17 +294,26 @@ func (m *MultiFace) private() {}
 // If no face has the glyph, falls back to the system font index
 // (fontscan, M3) and then to the first face.
 func (m *MultiFace) faceForRune(r rune) Face {
+	if v, ok := m.runeFaceCache.Load(r); ok {
+		if f, ok2 := v.(Face); ok2 && f != nil {
+			return f
+		}
+	}
 	for _, face := range m.faces {
 		if face.HasGlyph(r) {
+			m.runeFaceCache.Store(r, face)
 			return face
 		}
 	}
 	// M3: missing-glyph fallback against the system font index.
 	if fc := globalFallback.resolveFace(r, m.Size()); fc != nil {
+		m.runeFaceCache.Store(r, fc)
 		return fc
 	}
 	// Fallback to first face if no face has the glyph
-	return m.faces[0]
+	fb := m.faces[0]
+	m.runeFaceCache.Store(r, fb)
+	return fb
 }
 
 // FaceRun is a contiguous substring rendered with one fallback face (X.06).
@@ -395,9 +410,8 @@ func (m *MultiFace) runsUncached(text string) []FaceRun {
 			runX = x
 		}
 		b.WriteRune(r)
-		// Advance using selected face metrics for this rune.
-		// Face.Advance on a single-rune string avoids Glyphs iterator allocs.
-		x += face.Advance(string(r))
+		// Advance without per-rune string allocation (P7, 5000 viewport).
+		x += RuneAdvance(face, r)
 	}
 	flush()
 	return runs
