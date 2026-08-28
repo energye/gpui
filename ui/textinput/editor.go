@@ -1,6 +1,7 @@
 package textinput
 
 import (
+	"strings"
 	"unicode/utf8"
 
 	"github.com/energye/gpui/ui/platform"
@@ -705,6 +706,9 @@ func (e *Editor) MoveCaretRunes(n int) {
 	}
 }
 func (e *Editor) SetCaret(off int) {
+	e.SetCaretWithAffinity(off, AffinityDownstream)
+}
+func (e *Editor) SetCaretWithAffinity(off int, affinity int) {
 	if e == nil {
 		return
 	}
@@ -714,6 +718,18 @@ func (e *Editor) SetCaret(off int) {
 	if off > len(e.text) {
 		off = len(e.text)
 	}
+	// Snap to grapheme start per affinity (Flutter: inside a cluster snap to boundary).
+	for off > 0 && off < len(e.text) && (e.text[off]&0xC0) == 0x80 {
+		if affinity == AffinityUpstream {
+			off--
+		} else {
+			off++
+			for off < len(e.text) && (e.text[off]&0xC0) == 0x80 {
+				off++
+			}
+			break
+		}
+	}
 	cu := 0
 	for _, r := range e.text[:off] {
 		if r > 0xFFFF {
@@ -722,7 +738,7 @@ func (e *Editor) SetCaret(off int) {
 			cu++
 		}
 	}
-	e.SetSelection(TextRange{Base: cu, Extent: cu})
+	e.SetSelection(TextRange{Base: cu, Extent: cu, Affinity: affinity})
 }
 func (e *Editor) SetSelectionBytes(s, en int) {
 	if e == nil {
@@ -812,14 +828,50 @@ func (e *Editor) Copy() string {
 	if e == nil || e.selection.Collapsed() {
 		return ""
 	}
-	return e.text[byteOffsetForUtf16(e.text, e.selection.Start()):byteOffsetForUtf16(e.text, e.selection.End())]
+	// F-B5：PurposePassword 时只给 ●，且限 editable_range（Flutter obscureText 语义）
+	if e.isPassword {
+		// 用 ● 按选中 rune 数重复，避免泄露真实长度仍给占位符；单 ● 也符合“仅 ●”的字面
+		selLen := e.selection.Length()
+		// selLen 是 utf16 长度，转 rune 数更准
+		raw := e.text[byteOffsetForUtf16(e.text, e.selection.Start()):byteOffsetForUtf16(e.text, e.selection.End())]
+		n := len([]rune(raw))
+		if n == 0 {
+			n = selLen
+			if n == 0 {
+				n = 1
+			}
+		}
+		return strings.Repeat("●", n)
+	}
+	// 限 editable_range：选区若完全在可编辑区外则不给
+	er := e.EditableRange()
+	if e.selection.End() <= er.Start() || e.selection.Start() >= er.End() {
+		return ""
+	}
+	// 夹到可编辑区内再取
+	s := e.selection.Start()
+	en := e.selection.End()
+	if s < er.Start() {
+		s = er.Start()
+	}
+	if en > er.End() {
+		en = er.End()
+	}
+	return e.text[byteOffsetForUtf16(e.text, s):byteOffsetForUtf16(e.text, en)]
 }
 func (e *Editor) Cut() string {
+	if e == nil || e.readOnly {
+		return ""
+	}
 	s := e.Copy()
+	// Cut 受同一钳制：DeleteSelected 已限 editable_range / composing
 	e.DeleteSelected()
 	return s
 }
 func (e *Editor) Paste(s string) bool {
+	if e == nil || e.readOnly || s == "" {
+		return false
+	}
 	before := e.text
 	e.AddText(s)
 	return e.text != before

@@ -85,6 +85,9 @@ type wlDataDeviceState struct {
 	selOffer  uintptr // current selection data_offer (0 = no selection)
 	ownSource uintptr // our wl_data_source (held while we own the clipboard)
 	ownData   string  // Set() copy — served to peers on send(), readable locally
+	cachedData string // last external Get result, for fast second paste without re-reading pipe
+	cachedKind string
+	cachedOffer uintptr
 	// DnD (external file drops).
 	dragOffer    uintptr   // data_offer of the in-flight drag (0 = none)
 	dragMimes    []string  // mimes announced via wl_data_offer.offer
@@ -379,6 +382,12 @@ func wlDDSelectionCB(data, dd, offer uintptr) {
 	st.mu.Lock()
 	old := st.selOffer
 	st.selOffer = offer
+	// 选区变了，之前缓存的外部数据失效
+	if offer != st.cachedOffer {
+		st.cachedData = ""
+		st.cachedKind = ""
+		st.cachedOffer = 0
+	}
 	st.mu.Unlock()
 	if old != 0 && old != offer {
 		st.destroyOffer(old)
@@ -472,36 +481,57 @@ func (st *wlDataDeviceState) readOffer(offer uintptr, mime string) ([]byte, erro
 		return nil, fmt.Errorf("wayland: readOffer: no offer")
 	}
 	p := [2]int{-1, -1}
-	if err := unix.Pipe2(p[:], unix.O_CLOEXEC|unix.O_NONBLOCK); err != nil {
+	if err := unix.Pipe2(p[:], unix.O_CLOEXEC); err != nil {
 		return nil, err
 	}
 	pin := append([]byte(mime), 0)
 	args := []wlArg{argS(cstr(pin)), argO(uintptr(p[1]))}
 	lib.proxyMarshalArrayFlags(offer, wlDataOfferReceive, 0, 0, 0, &args[0])
 	lib.displayFlush(st.win.display)
+	// 立刻关闭写端在客户端的副本，否则读端永远看不到 EOF（peer 关闭后仍有本端写端打开）。
+	_ = unix.Close(p[1])
+	p[1] = -1
 
 	var buf []byte
 	tmp := make([]byte, 8192)
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		n, err := unix.Read(p[0], tmp)
-		if n > 0 {
-			buf = append(buf, tmp[:n]...)
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
 		}
-		if err == nil && n > 0 {
-			continue
+		// 用 Poll 等待可读，避免忙等；外部粘贴通常 <50ms 内到达
+		fds := []unix.PollFd{{Fd: int32(p[0]), Events: unix.POLLIN}}
+		n, err := unix.Poll(fds, int(remaining.Milliseconds()))
+		if err != nil || n == 0 {
+			break
 		}
-		if err == unix.EAGAIN {
-			if time.Now().After(deadline) {
+		if fds[0].Revents&(unix.POLLHUP|unix.POLLERR) != 0 {
+			// 对端已关闭，尽量把剩余数据读完
+			for {
+				n, _ := unix.Read(p[0], tmp)
+				if n > 0 {
+					buf = append(buf, tmp[:n]...)
+				} else {
+					break
+				}
+			}
+			break
+		}
+		if fds[0].Revents&unix.POLLIN != 0 {
+			n, err := unix.Read(p[0], tmp)
+			if n > 0 {
+				buf = append(buf, tmp[:n]...)
+			}
+			if err != nil || n == 0 {
 				break
 			}
-			time.Sleep(2 * time.Millisecond)
-			continue
 		}
-		break // EOF (n==0) or read error
 	}
 	_ = unix.Close(p[0])
-	_ = unix.Close(p[1])
+	if p[1] != -1 {
+		_ = unix.Close(p[1])
+	}
 	return buf, nil
 }
 
@@ -547,17 +577,23 @@ func (c *wlClipboard) Get(kind string) (string, error) {
 	defer st.offerMu.Unlock()
 	st.mu.Lock()
 	if st.selOffer != 0 && st.ownSource == 0 {
-		// External selection offer: receive + drain it.
+		// Fast path：同一 offer 同一 kind 已缓存过，直接返回，不再走 pipe（第二次粘贴秒回）
+		if st.cachedOffer == st.selOffer && st.cachedKind == kind && st.cachedData != "" {
+			d := st.cachedData
+			st.mu.Unlock()
+			return d, nil
+		}
 		offer := st.selOffer
 		st.mu.Unlock()
 		buf, err := st.readOffer(offer, kind)
 		st.mu.Lock()
-		if st.selOffer == offer {
-			st.selOffer = 0
+		// 保留 offer 不销毁，缓存结果供下一次粘贴秒回；下一次 selection 事件会整体替换并清缓存
+		if err == nil {
+			st.cachedData = string(buf)
+			st.cachedKind = kind
+			st.cachedOffer = offer
 		}
-		st.queueDestroyLocked(offer, wlDataOfferDestroy)
 		st.mu.Unlock()
-		st.wakeForDestroy()
 		if err != nil {
 			return "", err
 		}
@@ -634,6 +670,10 @@ func (c *wlClipboard) Set(kind, data string) error {
 	old := st.ownSource
 	st.ownSource = src
 	st.ownData = data
+	// 新的本端拥有会覆盖外部缓存，下次 Get 走本端快路径
+	st.cachedData = ""
+	st.cachedKind = ""
+	st.cachedOffer = 0
 	serial := st.win.lastSerial.Load()
 	st.mu.Unlock()
 	if old != 0 {

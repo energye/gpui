@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -39,14 +41,15 @@ const (
 // manualInputBox 是中栏可交互的文本框：点一下获焦，键盘直接打字，IME 预编辑跟随光标。
 type manualInputBox struct {
 	*rendering.RenderBox
-	ed      *textinput.Editor
-	text    *rendering.RenderText
-	bar     *rendering.RenderColorBox
-	node    *focus.FocusNode
-	sched   func()
-	focused bool
-	caretOn bool
-	scrollX float64
+	ed        *textinput.Editor
+	text      *rendering.RenderText
+	bar       *rendering.RenderColorBox
+	node      *focus.FocusNode
+	sched     func()
+	focused   bool
+	caretOn   bool
+	scrollX   float64
+	clipboard platform.Clipboard
 }
 
 func newManualInputBox(ed *textinput.Editor, w, h float64, fontSize float64) *manualInputBox {
@@ -86,6 +89,12 @@ func newManualInputBox(ed *textinput.Editor, w, h float64, fontSize float64) *ma
 	return b
 }
 
+func (b *manualInputBox) SetClipboard(c platform.Clipboard) {
+	if b != nil {
+		b.clipboard = c
+	}
+}
+
 // 兼容旧调用（默认 16px）
 func newManualInputBoxDefault(ed *textinput.Editor, w, h float64) *manualInputBox {
 	return newManualInputBox(ed, w, h, 16)
@@ -96,15 +105,16 @@ func newManualInputBoxDefault(ed *textinput.Editor, w, h float64) *manualInputBo
 // 光标行盒按 TextLayout 的每行 Height / LineTop 来（多段混排也正确）。
 type multilineInputBox struct {
 	*rendering.RenderBox
-	ed      *textinput.Editor
-	text    *rendering.RenderText
-	bar     *rendering.RenderColorBox
-	node    *focus.FocusNode
-	sched   func()
-	focused bool
-	caretOn bool
-	scrollX float64
-	scrollY float64
+	ed        *textinput.Editor
+	text      *rendering.RenderText
+	bar       *rendering.RenderColorBox
+	node      *focus.FocusNode
+	sched     func()
+	focused   bool
+	caretOn   bool
+	scrollX   float64
+	scrollY   float64
+	clipboard platform.Clipboard
 }
 
 func newMultilineInputBox(ed *textinput.Editor, w, h float64, fontSize float64) *multilineInputBox {
@@ -144,6 +154,21 @@ func newMultilineInputBox(ed *textinput.Editor, w, h float64, fontSize float64) 
 	return b
 }
 
+func (b *multilineInputBox) SetClipboard(c platform.Clipboard) {
+	if b != nil {
+		b.clipboard = c
+	}
+}
+
+func (b *multilineInputBox) Layout(c rendering.Constraints) rendering.Size {
+	textOff := b.text.Offset()
+	barOff := b.bar.Offset()
+	sz := b.RenderBox.Layout(c)
+	b.text.SetOffset(textOff)
+	b.bar.SetOffset(barOff)
+	return sz
+}
+
 func (b *multilineInputBox) Editor() *textinput.Editor { return b.ed }
 func (b *multilineInputBox) ContentPurpose() platform.ContentPurpose { return platform.PurposeNormal }
 func (b *multilineInputBox) ContentType() platform.ContentType {
@@ -154,20 +179,31 @@ func (b *multilineInputBox) caretAnchor() (float64, float64, float64, bool) {
 		return 0, 0, 0, false
 	}
 	curByte := b.ed.GetCursorOffset()
+	aff := b.ed.TextRange().Affinity
+	if sel := b.ed.TextRange(); sel.Collapsed() {
+		aff = sel.Affinity
+	} else {
+		// For non-collapsed, use extent affinity.
+		aff = sel.Affinity
+	}
+	// Also check Editor's selection affinity via GetCursorAffinity (stored on selection).
 	lay := b.text.TextLayout()
-	var lineIdx int
-	var penX float64
+	var x, y, h float64
 	var ok bool
 	if lay != nil && len(lay.Lines) > 0 {
-		lineIdx, penX, ok = lay.CaretForOffset(curByte)
-	} else {
-		lineIdx, penX, ok = b.text.CaretColumn(min(curByte, len(b.text.Text)))
+		x, y, h, ok = lay.GetOffsetForCaret(curByte, aff, 1.5)
+		if ok {
+			textOff := b.text.Offset()
+			return textOff.X + x, textOff.Y + y, textOff.Y + y + h, true
+		}
 	}
-	if !ok {
+	// Fallback via CaretColumn
+	lineIdx, penX, ok2 := b.text.CaretColumn(min(curByte, len(b.text.Text)))
+	if !ok2 {
 		return 0, 0, 0, false
 	}
 	textOff := b.text.Offset()
-	x := textOff.X + penX
+	x = textOff.X + penX
 	var top, bottom float64
 	if lay != nil && len(lay.Lines) > lineIdx {
 		top = textOff.Y + lay.LineTop(lineIdx)
@@ -200,14 +236,37 @@ func (b *multilineInputBox) sync() {
 	}
 	b.text.SetText(disp)
 	curByte := b.ed.GetCursorOffset()
+	aff := b.ed.TextRange().Affinity
 	lay := b.text.TextLayout()
+	var caretX, caretY, caretH float64
 	var lineIdx int
-	var caretX float64
 	if lay != nil && len(lay.Lines) > 0 {
-		lineIdx, caretX, _ = lay.CaretForOffset(curByte)
+		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
+			caretX, caretY, caretH = x, y, h
+			// Map y to lineIdx.
+			for i := range lay.Lines {
+				top := lay.LineTop(i)
+				ht := lay.LineHeight(i)
+				if y >= top-0.01 && y < top+ht-0.01 {
+					lineIdx = i
+					break
+				}
+			}
+		} else {
+			lineIdx, caretX, _ = lay.CaretForOffset(curByte)
+			caretY = lay.LineTop(lineIdx)
+			caretH = lay.LineHeight(lineIdx)
+		}
 	} else {
 		lineIdx, caretX, _ = b.text.CaretColumn(min(curByte, len(b.text.Text)))
+		lh := b.text.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		caretY = float64(lineIdx) * lh
+		caretH = lh
 	}
+	_ = caretH
 	visW := b.FixedWidth - 16
 	visH := b.FixedHeight - 16
 	// 水平：保证光标在可视区
@@ -221,16 +280,14 @@ func (b *multilineInputBox) sync() {
 		b.scrollX = 0
 	}
 	// 垂直：按行盒保证可视
-	var caretY, lineH float64
+	var lineH float64
 	if lay != nil && len(lay.Lines) > lineIdx {
-		caretY = lay.LineTop(lineIdx)
 		lineH = lay.LineHeight(lineIdx)
 	} else {
 		lh := b.text.LineHeight()
 		if lh <= 0 {
 			lh = 22
 		}
-		caretY = float64(lineIdx) * lh
 		lineH = lh
 	}
 	if caretY-b.scrollY < 4 {
@@ -284,13 +341,46 @@ func (b *multilineInputBox) OnPointer(ev input.PointerEvent) {
 		textOff := b.text.Offset()
 		localX := ev.X - abs.X - textOff.X
 		localY := ev.Y - abs.Y - textOff.Y
-		off := b.text.ByteOffsetAtPoint(localX, localY)
-		b.ed.SetCaret(off)
+		lay := b.text.TextLayout()
+		var off, aff int
+		if lay != nil {
+			off, aff = lay.GetPositionForOffset(localX, localY)
+		} else {
+			off = b.text.ByteOffsetAtPoint(localX, localY)
+			aff = rendering.AffinityDownstream
+		}
+		n := 0
+		if lay != nil {
+			n = len(lay.Lines)
+		}
+		fmt.Fprintf(os.Stderr, "[r1-click] multi win(%.1f,%.1f) local(%.1f,%.1f) -> byte %d aff %d text %s caret %d lines %d\n", ev.X, ev.Y, localX, localY, off, aff, b.ed.GetText(), b.ed.GetCursorOffset(), n)
+		b.ed.SetCaretWithAffinity(off, aff)
 	}
 }
 func (b *multilineInputBox) OnKey(ev input.KeyEvent) {
 	if !ev.Pressed {
 		return
+	}
+	if ev.Mods.Control || ev.Mods.Meta {
+		switch ev.Key {
+		case input.KeyA:
+			b.ed.SelectAll()
+			return
+		case input.KeyC:
+			s := b.ed.Copy()
+			if s != "" && b.clipboard != nil {
+				_ = b.clipboard.Set("text/plain", s)
+			}
+			return
+		case input.KeyX:
+			s := b.ed.Cut()
+			if s != "" && b.clipboard != nil {
+				_ = b.clipboard.Set("text/plain", s)
+			}
+			return
+		case input.KeyV:
+			return
+		}
 	}
 	switch ev.Key {
 	case input.KeyBackspace:
@@ -321,6 +411,17 @@ func (b *multilineInputBox) moveVisual(delta int) {
 func (b *multilineInputBox) OnText(ev input.TextEvent) {}
 func (b *multilineInputBox) OnIME(ev input.IMEEvent)    {}
 
+func (b *manualInputBox) Layout(c rendering.Constraints) rendering.Size {
+	// RenderBox.Layout 会把子节点重置到 Pad(0,0)，导致文本靠上。
+	// 这里保存 sync() 已算好的文本/光标偏移，布局后再恢复，保证单源排版位置不被覆盖。
+	textOff := b.text.Offset()
+	barOff := b.bar.Offset()
+	sz := b.RenderBox.Layout(c)
+	b.text.SetOffset(textOff)
+	b.bar.SetOffset(barOff)
+	return sz
+}
+
 func (b *manualInputBox) Editor() *textinput.Editor { return b.ed }
 func (b *manualInputBox) ContentPurpose() platform.ContentPurpose {
 	return platform.PurposeNormal
@@ -328,25 +429,21 @@ func (b *manualInputBox) ContentPurpose() platform.ContentPurpose {
 func (b *manualInputBox) ContentType() platform.ContentType {
 	return platform.ContentType{Purpose: b.ContentPurpose()}
 }
-// caretAnchor 返回光标在 inputBox 局部坐标系的矩形（Flutter 对齐）。
-// 水平：TextLayout 单源 CaretForOffset 的 penX + text 偏移（含 8px 内边距与 -scrollX）；
-// 垂直：完全按 TextLayout 的行盒来（lineTop + lineHeight），行盒来自 BuildRenderTextLayout
-// 的单源结果——单字号就是 lh，多段混排就是该行最大 run 的高度，
-// 与 Paint 的 y = lineTop + ascent 同源（Flutter Paragraph 行盒语义）。
+// caretAnchor 返回光标在 inputBox 局部坐标系的矩形（Flutter GetOffsetForCaret 对齐）。
 func (b *manualInputBox) caretAnchor() (float64, float64, float64, bool) {
 	if b == nil || b.text == nil || b.ed == nil {
 		return 0, 0, 0, false
 	}
 	curByte := b.ed.GetCursorOffset()
+	aff := b.ed.TextRange().Affinity
 	lay := b.text.TextLayout()
-	var lineIdx int
-	var penX float64
-	var ok bool
 	if lay != nil && len(lay.Lines) > 0 {
-		lineIdx, penX, ok = lay.CaretForOffset(curByte)
-	} else {
-		lineIdx, penX, ok = b.text.CaretColumn(min(curByte, len(b.text.Text)))
+		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
+			textOff := b.text.Offset()
+			return textOff.X + x, textOff.Y + y, textOff.Y + y + h, true
+		}
 	}
+	lineIdx, penX, ok := b.text.CaretColumn(min(curByte, len(b.text.Text)))
 	if !ok {
 		return 0, 0, 0, false
 	}
@@ -357,7 +454,6 @@ func (b *manualInputBox) caretAnchor() (float64, float64, float64, bool) {
 		top = textOff.Y + lay.LineTop(lineIdx)
 		bottom = top + lay.LineHeight(lineIdx)
 	} else {
-		// Fallback：单值行高（历史路径）
 		lh := b.text.LineHeight()
 		if lh <= 0 {
 			lh = 22
@@ -397,6 +493,7 @@ func (b *manualInputBox) sync() {
 	}
 	b.text.SetText(disp)
 	curByte := b.ed.GetCursorOffset()
+	aff := b.ed.TextRange().Affinity
 	lh := b.text.LineHeight()
 	if lh <= 0 {
 		lh = 22
@@ -406,7 +503,12 @@ func (b *manualInputBox) sync() {
 		textY = 0
 	}
 	if lay := b.text.TextLayout(); lay != nil && len(lay.Lines) > 0 {
-		_, caretX, _ := lay.CaretForOffset(curByte)
+		caretX := 0.0
+		if x, _, _, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
+			caretX = x
+		} else {
+			_, caretX, _ = lay.CaretForOffset(curByte)
+		}
 		visW := b.FixedWidth - 16
 		if caretX-b.scrollX > visW-4 {
 			b.scrollX = caretX - visW + 4
@@ -449,16 +551,59 @@ func (b *manualInputBox) OnPointer(ev input.PointerEvent) {
 		b.node.RequestFocus()
 		abs := absoluteOrigin(b)
 		textOff := b.text.Offset()
-		// 窗口 -> 文本局部：先去盒子绝对，再去文本偏移
 		localX := ev.X - abs.X - textOff.X
 		localY := ev.Y - abs.Y - textOff.Y
-		off := b.text.ByteOffsetAtPoint(localX, localY)
-		b.ed.SetCaret(off)
+		lay := b.text.TextLayout()
+		var off, aff int
+		if lay != nil {
+			off, aff = lay.GetPositionForOffset(localX, localY)
+		} else {
+			off = b.text.ByteOffsetAtPoint(localX, localY)
+			aff = rendering.AffinityDownstream
+		}
+		n := 0
+		var carets string
+		if lay != nil {
+			n = len(lay.Lines)
+			if len(lay.Lines) > 0 {
+				for i, c := range lay.Lines[0].Carets {
+					if i > 0 {
+						carets += " "
+					}
+					carets += fmt.Sprintf("%d:%.1f", c.ByteOff, c.X)
+				}
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[r1-click] %.0fpx single win(%.1f,%.1f) local(%.1f,%.1f) -> byte %d aff %d text %s caret %d lines %d carets [%s] scrollX %.1f\n", b.text.FontSize, ev.X, ev.Y, localX, localY, off, aff, b.ed.GetText(), b.ed.GetCursorOffset(), n, carets, b.scrollX)
+		b.ed.SetCaretWithAffinity(off, aff)
+		fmt.Fprintf(os.Stderr, "[r1-caret] after SetCaret caret %d byte %d aff %d\n", b.ed.TextRange().Extent, b.ed.GetCursorOffset(), b.ed.TextRange().Affinity)
 	}
 }
 func (b *manualInputBox) OnKey(ev input.KeyEvent) {
 	if !ev.Pressed {
 		return
+	}
+	if ev.Mods.Control || ev.Mods.Meta {
+		switch ev.Key {
+		case input.KeyA:
+			b.ed.SelectAll()
+			return
+		case input.KeyC:
+			s := b.ed.Copy()
+			if s != "" && b.clipboard != nil {
+				_ = b.clipboard.Set("text/plain", s)
+			}
+			return
+		case input.KeyX:
+			s := b.ed.Cut()
+			if s != "" && b.clipboard != nil {
+				_ = b.clipboard.Set("text/plain", s)
+			}
+			return
+		case input.KeyV:
+			// 粘贴走异步由外层 router 统一处理，避免 wayland Get 在 UI 线程阻塞 3s
+			return
+		}
 	}
 	switch ev.Key {
 	case input.KeyBackspace:
@@ -500,6 +645,9 @@ func main() {
 		os.Exit(1)
 	}
 	host := win.Host()
+	var app *embedder.PipelineApp
+	var pasteMu sync.Mutex
+	var pendingPastes []func()
 
 	shell := wrkit.NewShell(winW, winH, "R1 Editor 四元组 — 人工手动验证真窗", []string{})
 	const gap = 12.0
@@ -731,6 +879,12 @@ func main() {
 	fm.Register(box12.node)
 	fm.Register(box20.node)
 	fm.Register(multilineBox.node)
+	clip := win.Clipboard()
+	box10.SetClipboard(clip)
+	box12.SetClipboard(clip)
+	inputBox.SetClipboard(clip)
+	box20.SetClipboard(clip)
+	multilineBox.SetClipboard(clip)
 	// 启动即获焦，方便直接打字
 	_ = inputBox.node.RequestFocus()
 
@@ -757,7 +911,13 @@ func main() {
 		inputBox.sync()
 		probeLabel.SetText(fmt.Sprintf("probe: len=%d sel=%v comp=%v compo=%v epoch=%d", len(ed.GetText()), ed.TextRange().Extent, ed.EditableRange(), ed.IsComposing(), ed.Epoch()))
 		probeLabel.MarkNeedsPaint()
-		scenarioLabel.SetText(fmt.Sprintf("text=%q sel=%v", ed.GetText()[:min(12, len(ed.GetText()))], ed.TextRange()))
+		// 用 %s 明文显示中文，避免 %q 把“手动”变成 \u624b\u5de5
+		t := ed.GetText()
+		rs := []rune(t)
+		if len(rs) > 12 {
+			t = string(rs[:12])
+		}
+		scenarioLabel.SetText(fmt.Sprintf("text=%s sel=%v", t, ed.TextRange()))
 		scenarioLabel.MarkNeedsPaint()
 		// surrounding 实时
 		cur := ed.GetCursorOffset()
@@ -765,7 +925,7 @@ func main() {
 		surroundLabel.SetText(fmt.Sprintf("surrounding: cur=%d trunc=%d/%d", nc, nc, len(tr)))
 		surroundLabel.MarkNeedsPaint()
 		probes = append(probes, probe{
-			Text:     fmt.Sprintf("%q", ed.GetText()[:min(12, len(ed.GetText()))]),
+			Text:     t,
 			Sel:      fmt.Sprintf("%v", ed.TextRange()),
 			Comp:     fmt.Sprintf("%v", ed.EditableRange()),
 			CompBool: ed.IsComposing(),
@@ -785,7 +945,7 @@ func main() {
 		snapPath = "/tmp/r1_selftest.png"
 		os.MkdirAll("/tmp", 0755)
 	}
-	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
+	app = embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR:       0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		WarmUp:       true,
 		Input:        router,
@@ -846,6 +1006,18 @@ func main() {
 
 	// 仅保留光标闪烁 + 右形变 + HUD 的 ticker，不再自动改 text
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
+		// 异步粘贴：wayland Get 会阻塞 3s，不能在 UI 线程里做，OnKey 里只发 go routine，这里在 UI 线程真正 Paste
+		pasteMu.Lock()
+		if len(pendingPastes) > 0 {
+			fns := pendingPastes
+			pendingPastes = nil
+			pasteMu.Unlock()
+			for _, fn := range fns {
+				fn()
+			}
+		} else {
+			pasteMu.Unlock()
+		}
 		tick++
 		shapeTick = tick
 		// 光标闪烁（四个独立字号框 + 多行框同步闪）
@@ -917,7 +1089,63 @@ func main() {
 	// 路由日志（按焦点分发到对应字号框）
 	router.OnPointer = func(pe input.PointerEvent, target rendering.RenderObject) {}
 	router.OnKey = func(ke input.KeyEvent) {
-		// 哪个框获焦就让哪个处理方向键/退格等
+		// 粘贴要异步：wayland 的 Get 会阻塞 UI 线程 3s，这里只发 go routine，真正 Paste 在 ticker 的 UI 线程里做
+		// 单行框按 Flutter 单行语义过滤 '\n'（F-C5），多行框保留换行
+		if ke.Pressed && (ke.Mods.Control || ke.Mods.Meta) && ke.Key == input.KeyV {
+			var edTarget *textinput.Editor
+			var clip platform.Clipboard
+			isSingle := true
+			if multilineBox.focused {
+				edTarget = multilineBox.ed
+				clip = multilineBox.clipboard
+				isSingle = false
+			} else {
+				for _, b := range []*manualInputBox{box10, box12, inputBox, box20} {
+					if b.focused {
+						edTarget = b.ed
+						clip = b.clipboard
+						break
+					}
+				}
+				if edTarget == nil {
+					edTarget = inputBox.ed
+					clip = inputBox.clipboard
+				}
+			}
+			if edTarget != nil && clip != nil {
+				go func(c platform.Clipboard, e *textinput.Editor, single bool) {
+					s, err := c.Get("text/plain")
+					if err != nil || s == "" {
+						return
+					}
+					// Wayland 外部粘贴有时拿到的是 JSON 转义的 \uXXXX（复制自终端 JSON 报告），解回真实字符
+					s = maybeDecodeClipboard(s)
+					if single {
+						s = strings.ReplaceAll(s, "\r", "")
+						s = strings.ReplaceAll(s, "\n", "")
+						if s == "" {
+							return
+						}
+					}
+					rawLen := len(s)
+					decoded := s
+					pasteMu.Lock()
+					pendingPastes = append(pendingPastes, func() {
+						before := e.GetText()
+						beforeCaret := e.GetCursorOffset()
+						ok := e.Paste(decoded)
+						after := e.GetText()
+						fmt.Fprintf(os.Stderr, "[r1-paste] rawLen %d -> decodedLen %d ok %v before %q caret %d -> after %q caret %d\n", rawLen, len(decoded), ok, before, beforeCaret, after, e.GetCursorOffset())
+					})
+					pasteMu.Unlock()
+					if app != nil {
+						app.ScheduleFrame()
+					}
+				}(clip, edTarget, isSingle)
+			}
+			return
+		}
+		// 其他键按焦点分发
 		if multilineBox.focused {
 			multilineBox.OnKey(ke)
 			return
@@ -1035,6 +1263,30 @@ func verifyMixedCaret() (bool, string) {
 		}
 	}
 	return true, "ok"
+}
+
+func maybeDecodeClipboard(s string) string {
+	if s == "" {
+		return s
+	}
+	if !strings.Contains(s, "\\u") {
+		return s
+	}
+	// 只有纯 ASCII 且含 \u 时才尝试解（raw 中文已含非 ASCII，不会误解）
+	hasNonASCII := false
+	for _, r := range s {
+		if r > 127 {
+			hasNonASCII = true
+			break
+		}
+	}
+	if hasNonASCII {
+		return s
+	}
+	if decoded, err := strconv.Unquote(`"` + s + `"`); err == nil && decoded != s {
+		return decoded
+	}
+	return s
 }
 
 func min(a, b int) int {

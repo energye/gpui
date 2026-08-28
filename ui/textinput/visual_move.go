@@ -59,17 +59,17 @@ func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
 		}
 		return e.MoveCursorForward()
 	}
-	// 行内移动
+	// 行内移动 — Flutter visual seam, affinity downstream except cross-line trailing.
 	if delta > 0 {
 		if idx+1 < len(ln.Carets) {
 			off := ln.Carets[idx+1].ByteOff
-			e.SetCaret(off)
+			e.SetCaretWithAffinity(off, rendering.AffinityDownstream)
 			return true
 		}
-		// 已在行尾，跳到下一行行首
+		// 已在行尾，跳到下一行行首 (downstream at new line).
 		if lineIdx+1 < len(lay.Lines) {
 			off := lay.Lines[lineIdx+1].Carets[0].ByteOff
-			e.SetCaret(off)
+			e.SetCaretWithAffinity(off, rendering.AffinityDownstream)
 			return true
 		}
 		return false
@@ -77,14 +77,14 @@ func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
 	// delta < 0
 	if idx-1 >= 0 {
 		off := ln.Carets[idx-1].ByteOff
-		e.SetCaret(off)
+		e.SetCaretWithAffinity(off, rendering.AffinityDownstream)
 		return true
 	}
-	// 已在行首，跳到上一行行尾
+	// 已在行首，跳到上一行行尾 (upstream → trailing of prev line).
 	if lineIdx-1 >= 0 {
 		prev := lay.Lines[lineIdx-1]
 		off := prev.Carets[len(prev.Carets)-1].ByteOff
-		e.SetCaret(off)
+		e.SetCaretWithAffinity(off, rendering.AffinityUpstream)
 		return true
 	}
 	return false

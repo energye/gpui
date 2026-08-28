@@ -25,6 +25,7 @@ type TextLayoutLine struct {
 
 // TextLayout is the single source for paint + queries.
 type TextLayout struct {
+	Text     string
 	Lines    []TextLayoutLine
 	FontSize float64
 	// LineSpacing is the multiplier used when building this layout; kept for HitTest fallback.
@@ -50,7 +51,7 @@ func lineHeightFor(face text.Face, fontSize, lineSpacing float64) float64 {
 // BuildTextLayout produces single-source layout.
 func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64) *TextLayout {
 	if textStr == "" {
-		return &TextLayout{FontSize: fontSize, LineSpacing: lineSpacing}
+		return &TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing}
 	}
 	if fontSize <= 0 {
 		fontSize = 14
@@ -102,7 +103,7 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 			Glyphs:    glyphs,
 		})
 	}
-	return &TextLayout{Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing}
+	return &TextLayout{Text: textStr, Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing}
 }
 
 // LineTop returns the Y offset of line idx from the text origin (sum of previous line heights).
@@ -208,40 +209,25 @@ func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []t
 	return carets, width, glyphs
 }
 
-// CaretForOffset returns line index and X for a global byte offset.
+// CaretForOffset returns line index and X for a global byte offset (downstream affinity).
 func (l *TextLayout) CaretForOffset(off int) (lineIdx int, x float64, ok bool) {
 	if l == nil || len(l.Lines) == 0 {
 		return 0, 0, false
 	}
-	if off < 0 {
-		off = 0
+	x, y, _, ok := l.GetOffsetForCaret(off, AffinityDownstream, 1.5)
+	if !ok {
+		return 0, 0, false
 	}
-	for i, ln := range l.Lines {
-		if off >= ln.StartByte && off <= ln.EndByte {
-			// find nearest caret
-			for _, c := range ln.Carets {
-				if c.ByteOff == off {
-					return i, c.X, true
-				}
-			}
-			// between boundaries: interpolate by nearest
-			// find insertion
-			for j := 0; j < len(ln.Carets)-1; j++ {
-				if off > ln.Carets[j].ByteOff && off < ln.Carets[j+1].ByteOff {
-					return i, ln.Carets[j].X, true
-				}
-			}
-			if len(ln.Carets) > 0 {
-				return i, ln.Carets[len(ln.Carets)-1].X, true
-			}
+	// Map y back to line index via LineTop.
+	for i := range l.Lines {
+		top := l.LineTop(i)
+		h := l.LineHeight(i)
+		if y >= top-0.01 && y < top+h-0.01 {
+			return i, x, true
 		}
 	}
-	// past end
-	last := l.Lines[len(l.Lines)-1]
-	if len(last.Carets) > 0 {
-		return len(l.Lines) - 1, last.Carets[len(last.Carets)-1].X, true
-	}
-	return len(l.Lines) - 1, last.Width, true
+	// Past end.
+	return len(l.Lines) - 1, x, true
 }
 
 // HitTest returns byte offset for a point (x,y) in text-local coords.
@@ -258,7 +244,7 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 	}
 	// Multi-run paragraph: per-run shaping + per-line max height.
 	if t.Text == "" {
-		return &TextLayout{FontSize: t.fontSize(), LineSpacing: t.lineSpacing()}
+		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: t.lineSpacing()}
 	}
 	maxW := t.MaxWidth
 	lineSpacing := t.lineSpacing()
@@ -368,90 +354,208 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 		// Ellipsis/clip would alter last line width but caret beyond truncation is not needed for editor.
 	}
 	if len(lines) == 0 {
-		return &TextLayout{FontSize: t.fontSize(), LineSpacing: lineSpacing}
+		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing}
 	}
-	return &TextLayout{Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing}
+	return &TextLayout{Text: t.Text, Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing}
 }
 
-func (l *TextLayout) HitTest(x, y float64, lineHeight float64) int {
-	if l == nil || len(l.Lines) == 0 {
+// Flutter-aligned caret APIs — TextPainter.getOffsetForCaret / getPositionForOffset / getFullHeightForCaret
+const (
+	AffinityDownstream = 0
+	AffinityUpstream   = 1
+)
+
+// isNewlineAt checks if text[byteOff-1] is a hard line break (mirrors WordBoundary._isNewline).
+func isNewlineAt(text string, byteOff int) bool {
+	if byteOff <= 0 || byteOff > len(text) {
+		return false
+	}
+	// Only need to check the single byte before, as our text uses '\n' for breaks.
+	// For multi-byte newline variants (0x2028 etc.) we check rune.
+	r, _ := utf8.DecodeLastRuneInString(text[:byteOff])
+	switch r {
+	case '\n', 0x0085, 0x000B, 0x000C, 0x2028, 0x2029:
+		return true
+	}
+	return false
+}
+
+// snapToGraphemeBoundary snaps byteOff to a grapheme start per affinity.
+// Our carets are per-rune (each rune = one grapheme for now; surrogate+ZWJ clusters would need text/segment).
+func (l *TextLayout) snapToGraphemeBoundary(byteOff int, affinity int) int {
+	if l == nil || l.Text == "" {
+		return byteOff
+	}
+	if byteOff < 0 {
 		return 0
 	}
-	// Use per-line heights when available (mixed-size paragraph: Flutter SkParagraph).
-	if len(l.Lines) > 0 && l.Lines[0].Height > 0 {
-		yTop := 0.0
-		row := 0
-		for i, ln := range l.Lines {
-			h := ln.Height
-			if h <= 0 {
-				h = lineHeight
-				if h <= 0 {
-					h = l.FontSize * 1.2
+	if byteOff > len(l.Text) {
+		return len(l.Text)
+	}
+	// If already on a rune start, keep.
+	if byteOff == 0 || byteOff == len(l.Text) || utf8.RuneStart(l.Text[byteOff]) {
+		return byteOff
+	}
+	// Inside a multi-byte rune: snap per affinity.
+	if affinity == AffinityUpstream {
+		for byteOff > 0 && byteOff < len(l.Text) && (l.Text[byteOff]&0xC0) == 0x80 {
+			byteOff--
+		}
+	} else {
+		for byteOff < len(l.Text) && (l.Text[byteOff]&0xC0) == 0x80 {
+			byteOff++
+		}
+	}
+	return byteOff
+}
+
+// GetOffsetForCaret mirrors Flutter TextPainter.getOffsetForCaret.
+// byteOff is a UTF-8 byte offset on a grapheme boundary, affinity selects leading vs trailing edge.
+// caretWidth is the prototype width (1.5) for RTL adjustment.
+func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth float64) (x, y, h float64, ok bool) {
+	if l == nil || len(l.Lines) == 0 {
+		return 0, 0, 0, false
+	}
+	if l.Text == "" {
+		// Empty paragraph: top-left.
+		return 0, 0, l.LineHeight(0), true
+	}
+	byteOff = l.snapToGraphemeBoundary(byteOff, affinity)
+	if byteOff < 0 {
+		byteOff = 0
+	}
+	if byteOff > len(l.Text) {
+		byteOff = len(l.Text)
+	}
+	// Flutter affinity rules:
+	// 0 -> leading (downstream). Upstream with newline-1 -> still leading at new line.
+	// Otherwise upstream -> trailing of previous grapheme.
+	effectiveOff := byteOff
+	effectiveAffinity := affinity
+	if affinity == AffinityUpstream {
+		if byteOff == 0 {
+			effectiveOff = 0
+			effectiveAffinity = AffinityDownstream
+		} else if isNewlineAt(l.Text, byteOff) {
+			effectiveOff = byteOff
+			effectiveAffinity = AffinityDownstream
+		} else {
+			// Trailing edge of previous grapheme: keep byteOff but mark as trailing.
+			// For X we will use the caret at byteOff (which is start of next grapheme)
+			// but if that caret is at line start, upstream should be previous line end.
+			// So detect line-start case below.
+		}
+		_ = effectiveAffinity
+	}
+	// Find line for effectiveOff.
+	lineIdx := -1
+	var lineX float64
+	for i, ln := range l.Lines {
+		if effectiveOff >= ln.StartByte && effectiveOff <= ln.EndByte {
+			// If upstream and effectiveOff == StartByte of this line and not first line,
+			// Flutter's upstream at line start should be trailing of prev line.
+			if affinity == AffinityUpstream && effectiveOff == ln.StartByte && i > 0 && !isNewlineAt(l.Text, effectiveOff) {
+				prev := l.Lines[i-1]
+				// Return trailing of previous line.
+				if len(prev.Carets) > 0 {
+					last := prev.Carets[len(prev.Carets)-1]
+					return last.X, l.LineTop(i-1), prev.Height, true
 				}
 			}
-			if y < yTop+h || i == len(l.Lines)-1 {
-				row = i
-				break
-			}
-			yTop += h
-		}
-		ln := l.Lines[row]
-		if x <= 0 {
-			return ln.StartByte
-		}
-		best := ln.Carets[0]
-		if len(ln.Carets) == 1 {
-			return best.ByteOff
-		}
-		for i := 0; i < len(ln.Carets)-1; i++ {
-			a := ln.Carets[i]
-			b := ln.Carets[i+1]
-			mid := (a.X + b.X) * 0.5
-			if x < mid {
-				return a.ByteOff
-			}
-			if x < b.X {
-				if x < mid {
-					return a.ByteOff
+			// Normal: find X within this line.
+			for _, c := range ln.Carets {
+				if c.ByteOff == effectiveOff {
+					return c.X, l.LineTop(i), ln.Height, true
 				}
-				return b.ByteOff
 			}
+			// Fallback mid-grapheme (should not happen after snap).
+			for j := 0; j < len(ln.Carets)-1; j++ {
+				if effectiveOff > ln.Carets[j].ByteOff && effectiveOff < ln.Carets[j+1].ByteOff {
+					return ln.Carets[j].X, l.LineTop(i), ln.Height, true
+				}
+			}
+			if len(ln.Carets) > 0 {
+				return ln.Carets[len(ln.Carets)-1].X, l.LineTop(i), ln.Height, true
+			}
+			lineIdx = i
+			lineX = ln.Width
+			break
 		}
-		return ln.Carets[len(ln.Carets)-1].ByteOff
 	}
-	if lineHeight <= 0 {
-		lineHeight = l.FontSize * 1.2
+	if lineIdx >= 0 {
+		return lineX, l.LineTop(lineIdx), l.Lines[lineIdx].Height, true
 	}
-	row := int(y / lineHeight)
-	if row < 0 {
-		row = 0
+	// Past end → end-of-text caret (Flutter _endOfTextCaretMetrics).
+	last := l.Lines[len(l.Lines)-1]
+	if len(last.Carets) > 0 {
+		x = last.Carets[len(last.Carets)-1].X
+	} else {
+		x = last.Width
 	}
-	if row >= len(l.Lines) {
-		row = len(l.Lines) - 1
+	// RTL shift would be x - caretWidth, but we are LTR.
+	if caretWidth != 0 {
+		_ = caretWidth
+	}
+	return x, l.LineTop(len(l.Lines)-1), last.Height, true
+}
+
+// GetFullHeightForCaret mirrors TextPainter.getFullHeightForCaret.
+func (l *TextLayout) GetFullHeightForCaret(byteOff int, affinity int) float64 {
+	if _, _, h, ok := l.GetOffsetForCaret(byteOff, affinity, 1.5); ok {
+		return h
+	}
+	return l.LineHeight(0)
+}
+
+// GetPositionForOffset mirrors TextPainter.getPositionForOffset.
+// Returns byte offset + affinity for a visual point (x,y) in text-local coords.
+func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity int) {
+	if l == nil || len(l.Lines) == 0 {
+		return 0, AffinityDownstream
+	}
+	// Find line by y (per-line heights).
+	yTop := 0.0
+	row := 0
+	for i, ln := range l.Lines {
+		h := ln.Height
+		if h <= 0 {
+			h = l.FontSize * 1.2
+		}
+		if y < yTop+h || i == len(l.Lines)-1 {
+			row = i
+			break
+		}
+		yTop += h
 	}
 	ln := l.Lines[row]
 	if x <= 0 {
-		return ln.StartByte
+		return ln.StartByte, AffinityDownstream
 	}
-	// find nearest caret by X mid-point rule
-	best := ln.Carets[0]
+	if len(ln.Carets) == 0 {
+		return ln.StartByte, AffinityDownstream
+	}
 	if len(ln.Carets) == 1 {
-		return best.ByteOff
+		return ln.Carets[0].ByteOff, AffinityDownstream
 	}
+	// Mid-point rule for nearest caret, but also set affinity:
+	// If x is in left half of a grapheme, affinity downstream (leading), else upstream (trailing).
+	// For line-start/end edge, follow Flutter's line-break affinity.
 	for i := 0; i < len(ln.Carets)-1; i++ {
 		a := ln.Carets[i]
 		b := ln.Carets[i+1]
 		mid := (a.X + b.X) * 0.5
 		if x < mid {
-			return a.ByteOff
+			return a.ByteOff, AffinityDownstream
 		}
 		if x < b.X {
-			// choose nearer
-			if x < mid {
-				return a.ByteOff
-			}
-			return b.ByteOff
+			// Between mid and b.X -> nearer to b.
+			return b.ByteOff, AffinityDownstream
 		}
 	}
-	return ln.Carets[len(ln.Carets)-1].ByteOff
+	return ln.Carets[len(ln.Carets)-1].ByteOff, AffinityDownstream
+}
+
+func (l *TextLayout) HitTest(x, y float64, lineHeight float64) int {
+	off, _ := l.GetPositionForOffset(x, y)
+	return off
 }

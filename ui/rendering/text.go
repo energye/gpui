@@ -535,13 +535,25 @@ func (t *RenderText) GlyphInkBounds(r rune) (bounds text.Rect, ok bool) {
 //
 // The offset must lie on a rune boundary within t.Text; out-of-range clamps
 // to 0 / len(Text). Returns (lineIdx, penX, true); ok=false when there is no
-// content at all. Single-source: reads from TextLayout Carets.
+// content at all. Single-source: Flutter-aligned via GetOffsetForCaret.
 func (t *RenderText) CaretColumn(off int) (lineIdx int, penX float64, ok bool) {
 	if t == nil {
 		return 0, 0, false
 	}
 	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
-		return lay.CaretForOffset(off)
+		x, y, _, ok := lay.GetOffsetForCaret(off, AffinityDownstream, 1.5)
+		if !ok {
+			return 0, 0, false
+		}
+		// Map y to lineIdx.
+		for i := range lay.Lines {
+			top := lay.LineTop(i)
+			h := lay.LineHeight(i)
+			if y >= top-0.01 && y < top+h-0.01 {
+				return i, x, true
+			}
+		}
+		return len(lay.Lines) - 1, x, true
 	}
 	lines := t.DisplayLines()
 	if len(lines) == 0 {
@@ -955,13 +967,14 @@ func (t *RenderText) paintRuns(pc *PaintContext) {
 }
 
 // ByteOffsetAt converts an x offset (logical px from the text origin) into
-// the nearest UTF-8 byte boundary — single-source via TextLayout.
+// the nearest UTF-8 byte boundary — single-source via TextLayout (Flutter GetPositionForOffset).
 func (t *RenderText) ByteOffsetAt(x float64) int {
 	if t == nil || t.Text == "" {
 		return 0
 	}
 	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
-		return lay.HitTest(x, 0, t.lineHeightLogical())
+		off, _ := lay.GetPositionForOffset(x, 0)
+		return off
 	}
 	if x <= 0 {
 		return 0
@@ -978,13 +991,14 @@ func (t *RenderText) ByteOffsetAt(x float64) int {
 }
 
 // ByteOffsetAtPoint converts a point (logical px, text-origin relative) into
-// the nearest UTF-8 byte boundary — single-source via TextLayout.
+// the nearest UTF-8 byte boundary — single-source via TextLayout (Flutter GetPositionForOffset).
 func (t *RenderText) ByteOffsetAtPoint(x, y float64) int {
 	if t == nil {
 		return 0
 	}
 	if lay := t.ensureLayout(); lay != nil && len(lay.Lines) > 0 {
-		return lay.HitTest(x, y, t.lineHeightLogical())
+		off, _ := lay.GetPositionForOffset(x, y)
+		return off
 	}
 	lines := t.DisplayLines()
 	if len(lines) <= 1 || y <= 0 {
@@ -1021,8 +1035,21 @@ func (t *RenderText) ByteOffsetAtPoint(x, y float64) int {
 	return start + len(line)
 }
 
-// HitTest implements RenderObject.
+// HitTest implements RenderObject — single-source via TextLayout (Flutter Paragraph).
 func (t *RenderText) HitTest(p Point) RenderObject {
+	if lay := t.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+		maxW := 0.0
+		for _, ln := range lay.Lines {
+			if ln.Width > maxW {
+				maxW = ln.Width
+			}
+		}
+		totalH := lay.LineTop(len(lay.Lines)-1) + lay.LineHeight(len(lay.Lines)-1)
+		if p.X >= 0 && p.Y >= 0 && p.X < maxW+0.5 && p.Y < totalH+0.5 {
+			return t
+		}
+		return nil
+	}
 	sz := t.size
 	if p.X >= 0 && p.Y >= 0 && p.X < sz.Width && p.Y < sz.Height {
 		return t
