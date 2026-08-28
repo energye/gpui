@@ -198,6 +198,7 @@ func (b *ViewportInputBox) sync() {
 	}
 	b.Viewport.SetScrollOffset(scrollX, 0)
 	b.txt.SetViewportHint(scrollX, visW)
+	b.caretOn = true
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()

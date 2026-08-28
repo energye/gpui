@@ -318,6 +318,8 @@ func (b *InputBox) sync() {
 	}
 	b.txt.SetViewportHint(b.scrollX, visW)
 	b.syncSelectionHighlight()
+	// 清空后光标必须立即可见：编辑后重置闪烁为常亮（对齐 Flutter EditableText）
+	b.caretOn = true
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
@@ -1150,6 +1152,7 @@ func (b *MultiLineInputBox) sync() {
 	}
 	b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: 8 - b.scrollY})
 	b.syncMultiHighlight()
+	b.caretOn = true
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
