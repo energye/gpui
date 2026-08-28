@@ -214,6 +214,9 @@ func (b *ViewportInputBox) sync() {
 		disp = b.placeholder
 	}
 	b.txt.SetText(disp)
+	if disp == "" {
+		b.Viewport.SetScrollOffset(0, 0)
+	}
 	lh := b.txt.LineHeight()
 	if lh <= 0 {
 		lh = 22

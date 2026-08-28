@@ -335,6 +335,9 @@ func (b *InputBox) sync() {
 		disp = b.placeholder
 	}
 	b.txt.SetText(disp)
+	if disp == "" {
+		b.scrollX = 0
+	}
 	// 密码模式下光标按 rune 索引映射到掩码串
 	curByte := b.ed.GetCursorOffset()
 	if isPassword {
@@ -1203,6 +1206,10 @@ func (b *MultiLineInputBox) sync() {
 		disp = b.placeholder
 	}
 	b.txt.SetText(disp)
+	if disp == "" {
+		b.scrollX = 0
+		b.scrollY = 0
+	}
 	// delayed highlight handled after layout
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
