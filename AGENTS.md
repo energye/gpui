@@ -33,6 +33,12 @@
 - 渲染层问题修复先核查 Skia/Flutter 是否存在原生支持能力，优先复用避免冗余；存量代码未对齐标准的需重构对齐；
 - 所有渲染层变更需兼顾收敛性与性能优化，在保证功能正确基础上，提升代码可读性、扩展性、可维护性。
 
+## 引擎层硬编码纪律（硬）
+
+- **引擎层禁止写死用户可控变量**：`ui/`（`ui/rendering` / `ui/embedder` / `ui/scene` / `ui/io`）与 `render/` / `gpu/` 禁止出现用户可控的文案/占位/业务值硬编码（例如 `“（点此获焦）”` `“（多行：点获焦，Enter 换行）”` `“（5000 横滚）”` `“●”` 等），除非是引擎内部自洽的默认值且通过可配置 API 暴露（如密码 `obscuringCharacter` 默认 `•` 但提供 `SetObscuringCharacter`）；
+- 用户可控值必须通过 API 传入（`SetPlaceholder(string)` / `SetObscuringCharacter(rune)` 等），引擎默认给空或内部安全默认值，示例/应用层显式设置；
+- 回归检查：`grep -rn "（" ui/ --include="*.go"` 必须为空（无业务中文硬编码），`grep -rn "●" ui/ --include="*.go"` 必须为空（掩码已参数化）；合入前必跑。
+
 ## 每次新上下文
 
 - 先读 AGENTS.md（本文），再读 `docs/` 真源，再执行。

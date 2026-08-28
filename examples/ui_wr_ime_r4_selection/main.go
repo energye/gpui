@@ -93,6 +93,7 @@ func main() {
 	if f := wrkit.FaceAt(10); f != nil {
 		box10.SetFace(f)
 	}
+	box10.SetPlaceholder("（点此获焦）")
 	shell.Body.Place(box10, 16, 96)
 	shell.Body.LabelAt("10px 单行（双击选词）", 9, 16, 138, 0.70, 0.80, 0.88)
 
@@ -100,6 +101,7 @@ func main() {
 	if f := wrkit.FaceAt(16); f != nil {
 		box16.SetFace(f)
 	}
+	box16.SetPlaceholder("（点此获焦）")
 	shell.Body.Place(box16, 16, 154)
 	shell.Body.LabelAt("16px 单行（主，Shift扩展+拖选）", 9, 16, 202, 0.75, 0.95, 0.85)
 
@@ -107,6 +109,7 @@ func main() {
 	if f := wrkit.FaceAt(20); f != nil {
 		box20.SetFace(f)
 	}
+	box20.SetPlaceholder("（密码）")
 	shell.Body.Place(box20, 16, 218)
 	shell.Body.LabelAt("20px 密码 PurposePassword（圆点+禁组合）", 9, 16, 270, 0.95, 0.65, 0.55)
 
@@ -114,6 +117,7 @@ func main() {
 	if f := wrkit.FaceAt(14); f != nil {
 		multiBox.SetFace(f)
 	}
+	multiBox.SetPlaceholder("（多行：点获焦，Enter 换行）")
 	shell.Body.Place(multiBox, 16, 286)
 	shell.Body.LabelAt("14px 多行（跨行选区 BoxesForRange）", 9, 16, 354, 0.60, 0.80, 0.90)
 
@@ -121,6 +125,7 @@ func main() {
 	if f := wrkit.FaceAt(12); f != nil {
 		roBox.SetFace(f)
 	}
+	roBox.SetPlaceholder("（只读）")
 	shell.Body.Place(roBox, 16, 370)
 	shell.Body.LabelAt("12px 只读（禁写但可移动）", 9, 16, 412, 0.80, 0.70, 0.60)
 

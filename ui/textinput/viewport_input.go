@@ -97,7 +97,24 @@ type ViewportInputBox struct {
 	focused   bool
 	caretOn   bool
 	clipboard platform.Clipboard
+	placeholder string
 	blinkElapsed float64
+}
+
+func (b *ViewportInputBox) SetPlaceholder(s string) {
+	if b == nil {
+		return
+	}
+	b.placeholder = s
+	if b.txt != nil && b.ed != nil && b.ed.GetText() == "" {
+		b.sync()
+	}
+}
+func (b *ViewportInputBox) Placeholder() string {
+	if b == nil {
+		return ""
+	}
+	return b.placeholder
 }
 
 func (b *ViewportInputBox) IsFocused() bool                         { return b != nil && b.focused }
@@ -193,8 +210,8 @@ func (b *ViewportInputBox) sync() {
 		return
 	}
 	disp := b.ed.GetText()
-	if disp == "" && !b.focused {
-		disp = "（5000 横滚）"
+	if disp == "" && !b.focused && b.placeholder != "" {
+		disp = b.placeholder
 	}
 	b.txt.SetText(disp)
 	lh := b.txt.LineHeight()

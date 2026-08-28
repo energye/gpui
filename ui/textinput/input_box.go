@@ -28,6 +28,7 @@ type InputBox struct {
 	caretOn   bool
 	scrollX   float64
 	clipboard platform.Clipboard
+	placeholder string // 用户可控占位（hint），引擎不写死，空则无占位
 	// R4: double/triple click and drag
 	lastClickAt time.Time
 	lastClickX  float64
@@ -38,6 +39,22 @@ type InputBox struct {
 	highlights  []*rendering.RenderColorBox
 	// 严格对齐 Flutter 闪烁：~500ms 周期，编辑/获焦后重置为常亮
 	blinkElapsed float64
+}
+
+func (b *InputBox) SetPlaceholder(s string) {
+	if b == nil {
+		return
+	}
+	b.placeholder = s
+	if b.txt != nil && b.ed != nil && b.ed.GetText() == "" {
+		b.sync()
+	}
+}
+func (b *InputBox) Placeholder() string {
+	if b == nil {
+		return ""
+	}
+	return b.placeholder
 }
 
 func (b *InputBox) IsFocused() bool { return b != nil && b.focused }
@@ -314,8 +331,8 @@ func (b *InputBox) sync() {
 	if isPassword && disp != "" {
 		ch := b.ed.ObscuringCharacter()
 		disp = strings.Repeat(string(ch), len([]rune(disp)))
-	} else if disp == "" && !b.focused {
-		disp = "（点此获焦）"
+	} else if disp == "" && !b.focused && b.placeholder != "" {
+		disp = b.placeholder
 	}
 	b.txt.SetText(disp)
 	// 密码模式下光标按 rune 索引映射到掩码串
@@ -965,6 +982,7 @@ type MultiLineInputBox struct {
 	scrollX   float64
 	scrollY   float64
 	clipboard platform.Clipboard
+	placeholder string
 	lastClickAt time.Time
 	lastClickX  float64
 	lastClickY  float64
@@ -973,6 +991,22 @@ type MultiLineInputBox struct {
 	dragStart   int
 	highlights  []*rendering.RenderColorBox
 	blinkElapsed float64
+}
+
+func (b *MultiLineInputBox) SetPlaceholder(s string) {
+	if b == nil {
+		return
+	}
+	b.placeholder = s
+	if b.txt != nil && b.ed != nil && b.ed.GetText() == "" {
+		b.sync()
+	}
+}
+func (b *MultiLineInputBox) Placeholder() string {
+	if b == nil {
+		return ""
+	}
+	return b.placeholder
 }
 
 func (b *MultiLineInputBox) IsFocused() bool { return b != nil && b.focused }
@@ -1165,8 +1199,8 @@ func (b *MultiLineInputBox) sync() {
 		return
 	}
 	disp := b.ed.GetText()
-	if disp == "" && !b.focused {
-		disp = "（多行：点获焦，Enter 换行）"
+	if disp == "" && !b.focused && b.placeholder != "" {
+		disp = b.placeholder
 	}
 	b.txt.SetText(disp)
 	// delayed highlight handled after layout
