@@ -30,6 +30,8 @@ type TextLayout struct {
 	FontSize float64
 	// LineSpacing is the multiplier used when building this layout; kept for HitTest fallback.
 	LineSpacing float64
+	Generation uint64
+	MaxWidth   float64
 }
 
 func lineHeightFor(face text.Face, fontSize, lineSpacing float64) float64 {
@@ -48,10 +50,13 @@ func lineHeightFor(face text.Face, fontSize, lineSpacing float64) float64 {
 	return fontSize * 1.25 * lineSpacing
 }
 
+var textLayoutGen uint64
+
 // BuildTextLayout produces single-source layout.
 func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64) *TextLayout {
 	if textStr == "" {
-		return &TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing}
+		textLayoutGen++
+		return &TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth}
 	}
 	if fontSize <= 0 {
 		fontSize = 14
@@ -103,7 +108,8 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 			Glyphs:    glyphs,
 		})
 	}
-	return &TextLayout{Text: textStr, Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing}
+	textLayoutGen++
+	return &TextLayout{Text: textStr, Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth}
 }
 
 // LineTop returns the Y offset of line idx from the text origin (sum of previous line heights).
@@ -243,11 +249,12 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 		return BuildTextLayout(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing())
 	}
 	// Multi-run paragraph: per-run shaping + per-line max height.
-	if t.Text == "" {
-		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: t.lineSpacing()}
-	}
 	maxW := t.MaxWidth
 	lineSpacing := t.lineSpacing()
+	if t.Text == "" {
+		textLayoutGen++
+		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW}
+	}
 	// Helper to flush current line.
 	var lines []TextLayoutLine
 	curStart := 0
@@ -354,9 +361,65 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 		// Ellipsis/clip would alter last line width but caret beyond truncation is not needed for editor.
 	}
 	if len(lines) == 0 {
-		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing}
+		textLayoutGen++
+		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW}
 	}
-	return &TextLayout{Text: t.Text, Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing}
+	textLayoutGen++
+	return &TextLayout{Text: t.Text, Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW}
+}
+
+// BoxesForRange mirrors Flutter getBoxesForRange — line-box union for a byte range.
+// Returned boxes are in text-local coords (X from Carets, Y from LineTop, H from LineHeight).
+// Empty or out-of-range input returns nil. Boxes are clipped to the line's carets.
+func (l *TextLayout) BoxesForRange(startByte, endByte int) []Rect {
+	if l == nil || len(l.Lines) == 0 || startByte >= endByte {
+		return nil
+	}
+	if startByte < 0 {
+		startByte = 0
+	}
+	if endByte > len(l.Text) {
+		endByte = len(l.Text)
+	}
+	var out []Rect
+	for i, ln := range l.Lines {
+		if endByte <= ln.StartByte || startByte >= ln.EndByte {
+			continue
+		}
+		s := startByte
+		if s < ln.StartByte {
+			s = ln.StartByte
+		}
+		e := endByte
+		if e > ln.EndByte {
+			e = ln.EndByte
+		}
+		var x0, x1 float64
+		found0, found1 := false, false
+		for _, c := range ln.Carets {
+			if !found0 && c.ByteOff == s {
+				x0 = c.X
+				found0 = true
+			}
+			if !found1 && c.ByteOff == e {
+				x1 = c.X
+				found1 = true
+			}
+		}
+		if !found0 {
+			x0 = 0
+		}
+		if !found1 {
+			x1 = ln.Width
+		}
+		y := l.LineTop(i)
+		h := ln.Height
+		if x1 < x0 {
+			x1 = x0
+		}
+		out = append(out, NewRect(x0, y, x1-x0, h))
+	}
+	return out
 }
 
 // Flutter-aligned caret APIs — TextPainter.getOffsetForCaret / getPositionForOffset / getFullHeightForCaret

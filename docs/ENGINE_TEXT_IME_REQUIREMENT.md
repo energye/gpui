@@ -304,16 +304,16 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 
 ### 10.3 真窗硬性几何与时长（继承 `ENGINE_UI_WIDGET_RENDER.md §2.5`）
 
-- 客户区 **1200×800** 逻辑像素，`RUN_SECONDS≥5` 硬底线；各 R 关闭用时长见 §10.4。
+- 客户区 **1200×800** 逻辑像素，`RUN_SECONDS≥5` 最小观察时长硬底线（**所有 `ui_wr_ime_r*` 真窗均为手动关闭，无自动关闭**：`RunFor=0` 无限运行，需人工点窗口 `X` 关闭；`RUN_SECONDS` 仅为门禁的最小观察时长，不触发自动退出）；各 R 最小观察时长见 §10.4。
 - 窗口标题含 `ability_id`（如 `ime_r2_textlayout`），结束打全族 JSON，不达标 `FAIL:`+`exit 1`。
 
 ### 10.4 R×指标族×场景×门禁矩阵（每个 R 独立真窗，禁止复用）
 
-> **读法**：每行一个 R，对应一个独立 `examples/ui_wr_ime_r*` 真窗（1200×800，`RUN_SECONDS` 取本节值）；**A–J 10 族全硬**（阈值见 10.4.1–10.4.5），单测与真窗同源同数同判据。
+> **读法**：每行一个 R，对应一个独立 `examples/ui_wr_ime_r*` 真窗（1200×800，`RUN_SECONDS` 为最小观察时长；**所有真窗均为手动关闭，无自动关闭**）；**A–J 10 族全硬**（阈值见 10.4.1–10.4.5），单测与真窗同源同数同判据。
 
 #### 10.4.0 总览（5 窗总表，硬阈值以 10.4.1–10.4.5 细表为准）
 
-| R | 能力（F 覆盖） | 10 族门禁（A–J 全采，细表为硬阈值真源） | 关键场景数 | 单测入口 | 真窗名 | 关闭用 RUN_SECONDS | 证据 |
+| R | 能力（F 覆盖） | 10 族门禁（A–J 全采，细表为硬阈值真源） | 关键场景数 | 单测入口 | 真窗名 | 最小观察时长 RUN_SECONDS（手动关闭） | 证据 |
 |---|---|---|---|---|---|---|---|
 | **R1 Editor** | F-D1/D2/D4/D5/D8, F-S1–S3（四元组+affinity+batch+surrogate+4000 居中） | 全采，硬阈值见 10.4.1（A 仅告警，其余硬） | 8 场景（含空/单字/surrogate/4 锚点/嵌套 batch） | `TestEditor_*` | `ui_wr_ime_r1_editor` | **5** | 单测全绿+全族 JSON+四元组探针 |
 | **R2 TextLayout 单源** | F-A2/A3/A5, F-B4（Carets 单源） | 全采，硬阈值见 10.4.2（长串 15s 时 G 硬） | 7 场景（含 36×m/affinity/长串/Fallback/HiDPI） | `TestTextLayout_*` | `ui_wr_ime_r2_textlayout` | **5**（长串 15） | 探针+像素+Golden |
@@ -461,7 +461,25 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 6. **新增** 单行拒 `\n`、多行允 `\n`，`MaxLines` 裁剪不影响 `TextRange`
 7. 首帧 `warmup:true` + 滚动首帧有内容（`ENGINE_UI_WIDGET_RENDER.md §2.2 H`）
 
-> **门禁执行**：每个 R 关闭时必须 `RUN_SECONDS` 取上表「关闭用」值（可更长不可更短）跑 `go run ./examples/ui_wr_ime_r*`，输出 **A–J 10 族 JSON**，按本节阈值 `metrics-audit` 审，三证据（探针+像素 F0–F9+Golden）齐才可回写 `ENGINE_UI_WIDGET_RENDER.md §2/§3` 或本文 §11 状态；任一族 FAIL → 走 `gpui-wr-debug` 定位分层 → `gpui-wr-engine` 或 `gpui-metrics-audit` 修复后重跑。
+> **门禁执行**：每个 R 关闭时必须至少观察上表「最小观察时长」值（可更长不可更短，**手动关闭，无自动关闭**）后点 `X` 关闭并输出 **A–J 10 族 JSON**，按本节阈值 `metrics-audit` 审，三证据（探针+像素 F0–F9+Golden）齐才可回写 `ENGINE_UI_WIDGET_RENDER.md §2/§3` 或本文 §11 状态；任一族 FAIL → 走 `gpui-wr-debug` 定位分层 → `gpui-wr-engine` 或 `gpui-metrics-audit` 修复后重跑。
+
+#### 10.4.6 R 真窗示例规范（人工可难度 + 指标族全覆盖 · 硬）
+
+> **本节为 `ui_wr_ime_r*` 真窗的“怎么做窗、怎么验输入、怎么算过”硬规范**，与 `ENGINE_UI_WIDGET_RENDER.md §2.6` 对位，所有 `R1–R5` 真窗必须同时满足；缺一项即 `metrics-audit` 判 FAIL。
+
+| 项 | 要求 | 说明 | 违者 |
+|---|---|---|---|
+| **W1 窗体与壳** | `1200×800` 逻辑像素 + `wrkit.NewShell`（TopBar + Legend≥5行色块 + Body + LiveHUD）+ `PhaseClock`（Steady→Spike→Recover）+ `EnsureUIFace` | 每个 `ui_wr_ime_r*` 必须有完整壳与 HUD，禁止裸 `RenderBox` 就当窗；LiveHUD 实时显 `fps/p95/hitch/policy/paint/presents/cpu + 探针` | 判 **假窗** |
+| **W2 真实可输** | 每个真窗至少 **3 个可获焦 `InputBox`/`MultiLineInputBox`**（`ui/textinput` 引擎，`NewInputBox`/`NewMultiLineInputBox` + `SetFace` + `FocusManager` + `InputRouter` + `Clipboard` + `IME`，`RunFor=0` 手动关闭） | 字号/形态必须拉开：`10/12/16/20px` 单行各一 + `14px` 多行 `MaxWidth=w-16/56h` + 混排 `Aa@10+你好@16+Hello@12`；点击获焦、打字、退格、方向键、粘贴、拼音预编辑均走 `TextLayout` 单源缝表，禁止在 `examples/` 里自绘输入框绕引擎 | 无可输框即 FAIL |
+| **W3 人工可难度** | 8–9 项 **手打必现** 场景（与单测同源同阈）：空/单字/surrogate `😀𝄞`、中英 `你好Hello` 混排 200 字、`DeleteSurrounding` 计 1、4000 截断 4 锚点、嵌套 batch、UTF16 往返、组合中退格/Esc、点击深部 36×m 第 k 字中部、换行 `affinity`、粘滞列 `caretCol`、Fallback `中文+😀+مرحبا`、HiDPI 1px、5000 字横滚 | 每项必须配 **手打路径**：点不同字号框获焦→输 `你好Hello`→`←→` 跨字→`↑↓` 跨行→拖选→`Ctrl+C/V`→拼音 `nihao`→`Esc`，深部用 `ByteOffsetAtPoint` 中点规则手点验证；禁止只跑 `a/b` 三字节就过 | 场景不足即 FAIL |
+| **W4 指标族全硬** | 每个真窗结束必须打 **A–J 10 族全量 JSON**（同 `WIDGET_RENDER §2.2`），**每族必有阈值**（见 10.4.1–10.4.5），`cpu_fallback==0`、`measure_cache_hit` 必采、`paint_count` 可解释、`damage_ratio` 如实（`full_paint` 允许≈1）、`time_to_first<800/1000` | 无数据填 `null`+显式原因并经 `metrics-audit` 认可，禁止默默省略；短窗 `<15s` 允许 `rss_slope` 写 `slope_gate=off` 但须 README 显式 | 缺族即 FAIL |
+| **W5 画面对** | `F0–F9` 选型 + 容差显式（`F6` 文字区域非背景像素≥阈值 + `F0` 色块中心点容差≤8）+ `Golden` 掩码逐位对比（静态区 `diff=0`）+ `SnapshotAsync` 双张（稳态+恢复） | 逻辑探针绿≠画面对；快照必须 `raster` 线程重画完整路径，禁止 `CompositeOnly` 丢静态 | 假绿即 FAIL |
+| **W6 关闭方式** | `RunFor=0` 无限运行，**点 `X` 手动关闭**，`RUN_SECONDS` 仅校验最小观察时长（`<5 → FAIL`） | 所有 `ui_wr_ime_r*` 禁止 `RunFor>0` 自动关闭；自检 `GPUI_R*_SELFTEST` 例外（3s 定时仅用于 CI 探针，不作关闭证据） | 自动关闭即 FAIL |
+
+**各 R 窗口必含清单（在 W1–W6 之上）：**
+- **R1**：4 字号单行 + 1 多行 + 1 行内混排 `10+16+12`（同缝表验证）+ `probe/surrounding/epoch` 实时标签 + 右侧动态异形边框（证 `paint_count`）
+- **R2**：`36×m` 单行 + `你好\n世界\nFlutter` 换行 + `0123456789×3` 多行粘滞 + `中文+😀+مرحبا` Fallback + `HiDPI` 标签 + `MaxLines=1 Ellipsis` + `5000` 横滚（200 字可见 + 5000 离屏 `Build <100ms`）+ 实时 `probe{deep/affinity/sticky/fallback/ellipsis/long/boxes/generation}`
+- **R3–R5**：在 R1/R2 基座上叠加 `preedit 高亮/风暴锁/死键/autofill/密码掩码/拖选` 等，窗内必须保留 **至少 2 个可输框** 供手打验证，后续按本节 W1–W6 逐项加严。
 
 ---
 
@@ -488,6 +506,8 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | **v3.4 2026-08-27** | 补全覆盖：G3 收紧为 10 族全采且每族有阈值、新增 G6 多轮；§10.4 拆 10.4.0+10.4.1–10.4.5 分 R 10 族阈值表，补 12 漏场景（4 锚点/嵌套 batch/HiDPI/ellipsis/Fallback/autofill/死键/只读移动/撤销分组/组合期横滚）；§11 同步 |
 | **v3.5 2026-08-27** | 全量复核 34 项：标题 v3.2→v3.5；§1 非目标 autofill 改透传；§2 哨兵/epoch/affinity；§3 补 Delta/Win/mac；§4 A1 Generation/A2 y-=scroll/A3 code point；§5 补闪烁500ms/剪贴板密码/簇口径/MaxLines；§6 补 SetClient/AddCodePoint/IsNonTextUpdate；§7 补 Delta 分支/死键；§8 Wayland done 互斥；§9 IMERect 减 scrollX；§10 修 G1 按 R/补 P16/P17/对齐总览与细表口径；§11 门禁对齐 |
 | **v3.6 2026-08-28** | 补硬纪律：`R` 真窗只测不实现——`IME` 输入框实现必须落 `ui/`（`ui/textinput` + `ui/rendering` 单源 + `ui/embedder`），`examples/ui_wr_ime_r*` 只做 ≤15 行接入与真窗验证，禁止在示例层实现输入框（绕引擎洞） |
+| **v3.7 2026-08-28** | 去自动关闭：所有 `ui_wr_ime_r*` 真窗改为**手动关闭（无自动关闭，`RunFor=0` 无限运行，点 X 关闭）**；`RUN_SECONDS` 仅为最小观察时长，见 §10.3/§10.4 与 `ENGINE_UI_WIDGET_RENDER.md §2.5` |
+| **v3.8 2026-08-28** | 补 `R` 真窗示例规范 §10.4.6：`W1–W6` 窗体/壳/真实可输/人工可难度/指标族全硬/画面对/手动关闭 + 各 `R1–R5` 窗口必含清单（多字号/多行/混排/Fallback/5000 等），对齐 `WIDGET_RENDER §2.6` 硬度 |
 
 ## 附录：偏移与截断
 

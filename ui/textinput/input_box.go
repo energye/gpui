@@ -56,10 +56,31 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 	b.txt.R, b.txt.G, b.txt.B, b.txt.A = 0.05, 0.75, 0.95, 1
 	b.FixedWidth = w
 	b.FixedHeight = h
-	b.AddChild(b.txt)
+	// 内容裁剪：超长/多行文本在框外不可见（R1/R2 手工验证溢出）
+	clip := rendering.NewRenderClipRRect()
+	clip.FixedWidth = w
+	clip.FixedHeight = h
+	clip.SetRadius(3)
+	b.AddChild(clip)
+	clip.AddChild(b.txt)
 	b.bar = rendering.NewRenderColorBox(1.5, 22, 1.0, 0.85, 0.2, 1)
-	b.AddChild(b.bar)
+	clip.AddChild(b.bar)
 	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc != nil && pc.DC != nil {
+			// 外边框：一眼可辨是输入框；获焦蓝框，未获焦灰框（与 R1 手工可难度对齐）
+			if b.focused {
+				pc.DC.SetRGBA(0.30, 0.58, 0.95, 1)
+			} else {
+				pc.DC.SetRGBA(0.38, 0.46, 0.56, 1)
+			}
+			pc.DC.SetLineWidth(1.4)
+			pc.DC.DrawRectangle(pc.OriginX+0.7, pc.OriginY+0.7, size.Width-1.4, size.Height-1.4)
+			_ = pc.DC.Stroke()
+			// 内底：深灰底让文字可读，边框更突出（在 clip 外绘制，不被裁剪）
+			pc.DC.SetRGBA(0.13, 0.15, 0.18, 1)
+			pc.DC.DrawRectangle(pc.OriginX+1, pc.OriginY+1, size.Width-2, size.Height-2)
+			_ = pc.DC.Fill()
+		}
 		b.layoutCaret()
 	}
 	b.caretOn = true
@@ -67,6 +88,7 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 	b.Node.Target = b
 	b.Node.OnFocusChange = func(on bool) {
 		b.focused = on
+		b.MarkNeedsPaint()
 		b.sync()
 	}
 	ed.OnChange = func() { b.sync() }
@@ -297,6 +319,12 @@ func (b *InputBox) moveVisual(delta int) {
 	b.ed.MoveVisual(delta, b.txt.TextLayout())
 }
 func (b *InputBox) MoveVisual(delta int) { b.moveVisual(delta) }
+func (b *InputBox) TextLayout() *rendering.TextLayout {
+	if b == nil || b.txt == nil {
+		return nil
+	}
+	return b.txt.TextLayout()
+}
 func (b *InputBox) OnText(ev input.TextEvent) {}
 func (b *InputBox) OnIME(ev input.IMEEvent)    {}
 
@@ -343,10 +371,28 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 	b.txt.MaxWidth = w - 16
 	b.FixedWidth = w
 	b.FixedHeight = h
-	b.AddChild(b.txt)
+	clip := rendering.NewRenderClipRRect()
+	clip.FixedWidth = w
+	clip.FixedHeight = h
+	clip.SetRadius(3)
+	b.AddChild(clip)
+	clip.AddChild(b.txt)
 	b.bar = rendering.NewRenderColorBox(1.5, 22, 1.0, 0.85, 0.2, 1)
-	b.AddChild(b.bar)
+	clip.AddChild(b.bar)
 	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc != nil && pc.DC != nil {
+			if b.focused {
+				pc.DC.SetRGBA(0.30, 0.58, 0.95, 1)
+			} else {
+				pc.DC.SetRGBA(0.38, 0.46, 0.56, 1)
+			}
+			pc.DC.SetLineWidth(1.4)
+			pc.DC.DrawRectangle(pc.OriginX+0.7, pc.OriginY+0.7, size.Width-1.4, size.Height-1.4)
+			_ = pc.DC.Stroke()
+			pc.DC.SetRGBA(0.13, 0.15, 0.18, 1)
+			pc.DC.DrawRectangle(pc.OriginX+1, pc.OriginY+1, size.Width-2, size.Height-2)
+			_ = pc.DC.Fill()
+		}
 		b.layoutCaret()
 	}
 	b.caretOn = true
@@ -354,6 +400,7 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 	b.Node.Target = b
 	b.Node.OnFocusChange = func(on bool) {
 		b.focused = on
+		b.MarkNeedsPaint()
 		b.sync()
 	}
 	ed.OnChange = func() { b.sync() }
@@ -591,9 +638,17 @@ func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 	case input.KeyArrowRight:
 		b.moveVisual(1)
 	case input.KeyArrowUp:
-		b.ed.MoveCursorUp()
+		if lay := b.txt.TextLayout(); lay != nil {
+			b.ed.MoveVisualUp(lay)
+		} else {
+			b.ed.MoveCursorUp()
+		}
 	case input.KeyArrowDown:
-		b.ed.MoveCursorDown()
+		if lay := b.txt.TextLayout(); lay != nil {
+			b.ed.MoveVisualDown(lay)
+		} else {
+			b.ed.MoveCursorDown()
+		}
 	case input.KeyEnter:
 		b.ed.Insert("\n")
 	case input.KeyEscape:
@@ -606,6 +661,12 @@ func (b *MultiLineInputBox) moveVisual(delta int) {
 	b.ed.MoveVisual(delta, lay)
 }
 func (b *MultiLineInputBox) MoveVisual(delta int) { b.moveVisual(delta) }
+func (b *MultiLineInputBox) TextLayout() *rendering.TextLayout {
+	if b == nil || b.txt == nil {
+		return nil
+	}
+	return b.txt.TextLayout()
+}
 func (b *MultiLineInputBox) OnText(ev input.TextEvent) {}
 func (b *MultiLineInputBox) OnIME(ev input.IMEEvent)    {}
 

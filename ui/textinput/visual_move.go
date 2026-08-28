@@ -1,6 +1,8 @@
 package textinput
 
-import "github.com/energye/gpui/ui/rendering"
+import (
+	"github.com/energye/gpui/ui/rendering"
+)
 
 // MoveVisual moves the cursor by one visual seam (gap) using the single-source
 // TextLayout. It is the shipped path used by the true window's manualInputBox
@@ -88,4 +90,73 @@ func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool {
 		return true
 	}
 	return false
+}
+
+// MoveVisualUp / MoveVisualDown implement Flutter sticky-column caret movement.
+// caretCol is captured from the current penX on first up/down and reused until
+// a horizontal move, click, SetCaret, Home/End clears it (mirrors F-A5).
+func (e *Editor) MoveVisualUp(lay *rendering.TextLayout) bool { return e.moveVisualVertical(lay, -1) }
+func (e *Editor) MoveVisualDown(lay *rendering.TextLayout) bool { return e.moveVisualVertical(lay, 1) }
+
+func (e *Editor) moveVisualVertical(lay *rendering.TextLayout, dir int) bool {
+	if e == nil || lay == nil || len(lay.Lines) == 0 {
+		if dir < 0 {
+			return e.MoveCursorUp()
+		}
+		return e.MoveCursorDown()
+	}
+	curByte := e.GetCursorOffset()
+	lineIdx, _, ok := lay.CaretForOffset(curByte)
+	if !ok {
+		if dir < 0 {
+			return e.MoveCursorUp()
+		}
+		return e.MoveCursorDown()
+	}
+	target := lineIdx + dir
+	if target < 0 || target >= len(lay.Lines) {
+		return false
+	}
+	// Capture sticky column from current caret X on first vertical move.
+	sticky := e.caretCol
+	stickyValid := e.caretColValid
+	if !stickyValid {
+		if x, _, _, ok := lay.GetOffsetForCaret(curByte, rendering.AffinityDownstream, 1.5); ok {
+			sticky = x
+			stickyValid = true
+		}
+	}
+	// Find caret in target line whose X is nearest to sticky column.
+	tln := lay.Lines[target]
+	bestIdx := 0
+	bestDist := 1e12
+	for i, c := range tln.Carets {
+		d := c.X - sticky
+		if d < 0 {
+			d = -d
+		}
+		if d < bestDist {
+			bestDist = d
+			bestIdx = i
+		}
+	}
+	off := tln.Carets[bestIdx].ByteOff
+	cu := 0
+	for _, r := range e.text[:off] {
+		if r > 0xFFFF {
+			cu += 2
+		} else {
+			cu++
+		}
+	}
+	// Directly set selection without clearing sticky semantics — bypass SetSelection's reset.
+	e.selection = TextRange{Base: cu, Extent: cu}
+	e.caretCol = sticky
+	e.caretColValid = stickyValid
+	// Keep sticky valid for continued vertical travel.
+	if !e.caretColValid {
+		e.caretColValid = true
+	}
+	e.changed()
+	return true
 }
