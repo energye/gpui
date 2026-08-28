@@ -254,6 +254,8 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 ```
 ≤15 行接入（`grep -c` 含嵌入计行），`IMERect` 取 `TextLayout.CaretForOffset(selection.extent)` 的 `X - scrollX`（单行横滚补偿），`affinity` 参与换行处归属，`caretOn` 节拍 ~500ms。
 
+> **硬纪律（R 示例只测不实现）**：`IME` 输入框控件的实现**必须**落在 `ui/` 引擎层（`ui/textinput` 的 `BaseEditable` / `InputBox` + `ui/rendering` 单源排版 + `ui/embedder` 会话），`examples/ui_wr_ime_r*` 真窗**只做测试**（摆控件、走输入、跑探针/像素/Golden），**禁止**在 `examples/` 里实现输入框功能（在示例层写输入框即视为绕引擎洞，按 `AGENTS.md` 禁止）。
+
 ---
 
 ## 10. 测试与验收（R1–R5 指标族全覆盖 · 硬）
@@ -485,6 +487,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | **v3.3 2026-08-27** | 新增 §10 G1–G5 与 §10.4 矩阵：R1–R5 独立 `ui_wr_ime_r*` 真窗、A–J 全采、单测与真窗同源同数同判据、复杂场景（cjk3000/latin、36×m、5000 字、surrogate、风暴、双引擎）、三证据+3 轮审查；§11 回写全族 JSON |
 | **v3.4 2026-08-27** | 补全覆盖：G3 收紧为 10 族全采且每族有阈值、新增 G6 多轮；§10.4 拆 10.4.0+10.4.1–10.4.5 分 R 10 族阈值表，补 12 漏场景（4 锚点/嵌套 batch/HiDPI/ellipsis/Fallback/autofill/死键/只读移动/撤销分组/组合期横滚）；§11 同步 |
 | **v3.5 2026-08-27** | 全量复核 34 项：标题 v3.2→v3.5；§1 非目标 autofill 改透传；§2 哨兵/epoch/affinity；§3 补 Delta/Win/mac；§4 A1 Generation/A2 y-=scroll/A3 code point；§5 补闪烁500ms/剪贴板密码/簇口径/MaxLines；§6 补 SetClient/AddCodePoint/IsNonTextUpdate；§7 补 Delta 分支/死键；§8 Wayland done 互斥；§9 IMERect 减 scrollX；§10 修 G1 按 R/补 P16/P17/对齐总览与细表口径；§11 门禁对齐 |
+| **v3.6 2026-08-28** | 补硬纪律：`R` 真窗只测不实现——`IME` 输入框实现必须落 `ui/`（`ui/textinput` + `ui/rendering` 单源 + `ui/embedder`），`examples/ui_wr_ime_r*` 只做 ≤15 行接入与真窗验证，禁止在示例层实现输入框（绕引擎洞） |
 
 ## 附录：偏移与截断
 
