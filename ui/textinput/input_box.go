@@ -135,6 +135,18 @@ func (b *InputBox) SetOverflow(o rendering.TextOverflow) {
 
 func (b *InputBox) IsFocused() bool { return b != nil && b.focused }
 func (b *InputBox) IsCaretOn() bool { return b != nil && b.caretOn }
+func (b *InputBox) ScrollX() float64 {
+	if b == nil {
+		return 0
+	}
+	return b.scrollX
+}
+func (b *InputBox) ScrollY() float64 {
+	if b == nil {
+		return 0
+	}
+	return 0
+}
 func (b *InputBox) SetCaretOn(v bool) {
 	if b == nil {
 		return
@@ -475,6 +487,20 @@ func (b *InputBox) sync() {
 		}
 		if b.scrollX < 0 {
 			b.scrollX = 0
+		}
+		// 对齐 Flutter RenderEditable ensureCaretVisible + 溢出回滚：
+		// 删除后总宽变小，scrollX 若仍停在旧 max 会在右侧留白、前面字不回移。
+		// 按实际行宽计算 maxScroll 并夹紧，自动适配任意字号/字体。
+		maxW := lay.Lines[0].Width
+		if maxW < caretX {
+			maxW = caretX
+		}
+		maxScroll := maxW - visW + 4
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if b.scrollX > maxScroll {
+			b.scrollX = maxScroll
 		}
 		b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: textY})
 	} else {
@@ -1390,6 +1416,18 @@ func (b *MultiLineInputBox) WrapMode() text.WrapMode {
 	}
 	return text.WrapWordChar
 }
+func (b *MultiLineInputBox) ScrollX() float64 {
+	if b == nil {
+		return 0
+	}
+	return b.scrollX
+}
+func (b *MultiLineInputBox) ScrollY() float64 {
+	if b == nil {
+		return 0
+	}
+	return b.scrollY
+}
 func (b *MultiLineInputBox) SetCaretOn(v bool) {
 	if b == nil {
 		return
@@ -1650,6 +1688,25 @@ func (b *MultiLineInputBox) sync() {
 	}
 	if b.scrollX < 0 {
 		b.scrollX = 0
+	}
+	// 横向 maxScroll 夹紧：删除后总宽变小，前面文本自动回移
+	if lay != nil && len(lay.Lines) > 0 {
+		maxW := 0.0
+		for _, ln := range lay.Lines {
+			if ln.Width > maxW {
+				maxW = ln.Width
+			}
+		}
+		if maxW < caretX {
+			maxW = caretX
+		}
+		maxScrollX := maxW - visW + 4
+		if maxScrollX < 0 {
+			maxScrollX = 0
+		}
+		if b.scrollX > maxScrollX {
+			b.scrollX = maxScrollX
+		}
 	}
 	var lineH float64
 	if lay != nil && len(lay.Lines) > lineIdx {

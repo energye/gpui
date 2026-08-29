@@ -192,6 +192,18 @@ func (b *ViewportInputBox) ClearPadding() {
 func (b *ViewportInputBox) Padding() float64 { return resolvePad(b.padHas, b.pad) }
 
 func (b *ViewportInputBox) IsFocused() bool                         { return b != nil && b.focused }
+func (b *ViewportInputBox) ScrollX() float64 {
+	if b == nil || b.Viewport == nil {
+		return 0
+	}
+	return b.Viewport.ScrollOffset().X
+}
+func (b *ViewportInputBox) ScrollY() float64 {
+	if b == nil || b.Viewport == nil {
+		return 0
+	}
+	return b.Viewport.ScrollOffset().Y
+}
 func (b *ViewportInputBox) SetClipboard(c platform.Clipboard)       { b.clipboard = c }
 func (b *ViewportInputBox) Clipboard() platform.Clipboard           { return b.clipboard }
 func (b *ViewportInputBox) SetSchedule(fn func())                   { b.sched = fn }
@@ -407,6 +419,23 @@ func (b *ViewportInputBox) sync() {
 	}
 	if scrollX < 0 {
 		scrollX = 0
+	}
+	// 同 InputBox：按行宽算 maxScroll，删除后自动回移，适配任意字号
+	maxW := 0.0
+	if lay != nil && len(lay.Lines) > 0 {
+		maxW = lay.Lines[0].Width
+		if maxW < caretX {
+			maxW = caretX
+		}
+	} else {
+		maxW = b.txt.MeasureWidth(b.txt.Text)
+	}
+	maxScroll := maxW - visW + 4
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if scrollX > maxScroll {
+		scrollX = maxScroll
 	}
 	b.Viewport.SetScrollOffset(scrollX, 0)
 	b.txt.SetViewportHint(scrollX, visW)
