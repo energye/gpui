@@ -53,7 +53,9 @@ func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *ViewportInputBox {
 
 	outer.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc != nil && pc.DC != nil {
-			if vb.focused {
+			if vb.Disabled() {
+				pc.DC.SetRGBA(0.28, 0.30, 0.34, 1)
+			} else if vb.focused {
 				pc.DC.SetRGBA(0.30, 0.58, 0.95, 1)
 			} else {
 				pc.DC.SetRGBA(0.38, 0.46, 0.56, 1)
@@ -61,7 +63,11 @@ func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *ViewportInputBox {
 			pc.DC.SetLineWidth(1.4)
 			pc.DC.DrawRectangle(pc.OriginX+0.7, pc.OriginY+0.7, size.Width-1.4, size.Height-1.4)
 			_ = pc.DC.Stroke()
-			pc.DC.SetRGBA(0.13, 0.15, 0.18, 1)
+			if vb.Disabled() {
+				pc.DC.SetRGBA(0.18, 0.19, 0.21, 1)
+			} else {
+				pc.DC.SetRGBA(0.13, 0.15, 0.18, 1)
+			}
 			pc.DC.DrawRectangle(pc.OriginX+1, pc.OriginY+1, size.Width-2, size.Height-2)
 			_ = pc.DC.Fill()
 		}
@@ -145,6 +151,17 @@ func (b *ViewportInputBox) SetDisabled(v bool) {
 		return
 	}
 	b.BaseEditable.SetDisabled(v)
+	if b.Node != nil {
+		b.Node.Enabled = !v
+		if v && b.focused {
+			b.focused = false
+			b.caretOn = false
+			b.layoutCaret()
+			if b.Node.HasFocus() {
+				b.Node.Unfocus()
+			}
+		}
+	}
 	b.MarkNeedsPaint()
 }
 func (b *ViewportInputBox) Disabled() bool {
@@ -928,8 +945,16 @@ func (b *ViewportInputBox) startViewportAutoScroll() {
 	time.AfterFunc(50*time.Millisecond, func() { b.doViewportAutoScroll() })
 }
 
-func (b *ViewportInputBox) OnText(ev input.TextEvent) {}
-func (b *ViewportInputBox) OnIME(ev input.IMEEvent)   {}
+func (b *ViewportInputBox) OnText(ev input.TextEvent) {
+	if b == nil || b.Disabled() {
+		return
+	}
+}
+func (b *ViewportInputBox) OnIME(ev input.IMEEvent) {
+	if b == nil || b.Disabled() {
+		return
+	}
+}
 
 func viewportMin(a, b int) int {
 	if a < b {

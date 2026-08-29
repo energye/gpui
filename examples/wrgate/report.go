@@ -150,9 +150,8 @@ func BuildReport(in BuildInput) Report {
 		CPUFallbackOps:    in.Snap.CPUFallbackOps,
 		FrameFlushes:      in.Snap.FrameFlushes,
 		LastCPUFallback:   in.Snap.LastCPUFallbackReason,
-		// R16: observed warm-up/first-present wins; BuildInput.Warmup is the
-		// legacy fallback for callers without PipelineApp observation.
-		Warmup:                 in.Snap.Warmup || in.Warmup,
+		// R16: warmup 诚实观测 — 仅认 PipelineApp 观测的 Snap.Warmup，禁止用 BuildInput.Warmup 硬写覆盖（R5 假绿修复）
+		Warmup:                 in.Snap.Warmup,
 		TimeToFirstPresentMs:   in.Snap.TimeToFirstPresentMs,
 		FirstPresentPaintCount: in.Snap.FirstPresentPaintCount,
 		ElapsedSec:             el,

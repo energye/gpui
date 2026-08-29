@@ -73,6 +73,17 @@ func (b *InputBox) SetDisabled(v bool) {
 	if b.BaseEditable != nil {
 		b.BaseEditable.SetDisabled(v)
 	}
+	if b.Node != nil {
+		b.Node.Enabled = !v
+		if v && b.focused {
+			b.focused = false
+			b.caretOn = false
+			b.layoutCaret()
+			if b.Node.HasFocus() {
+				b.Node.Unfocus()
+			}
+		}
+	}
 	b.MarkNeedsPaint()
 }
 func (b *InputBox) Disabled() bool {
@@ -121,10 +132,8 @@ func (b *InputBox) Padding() float64 { return resolvePad(b.padHas, b.pad) }
 
 // SetMaxLines 仅多行语义：单行忽略但保证 Ellipsis 不进 editable_range。
 func (b *InputBox) SetMaxLines(n int) {
-	if b == nil || b.txt == nil {
-		return
-	}
-	b.txt.SetMaxLines(n)
+	// F-C5 单行显式忽略：单行不接受 MaxLines，保留 editable_range 完整
+	return
 }
 func (b *InputBox) SetOverflow(o rendering.TextOverflow) {
 	if b == nil || b.txt == nil {
@@ -1259,8 +1268,16 @@ func (b *InputBox) startInputBoxAutoScroll() {
 	time.AfterFunc(50*time.Millisecond, func() { b.doInputBoxAutoScroll() })
 }
 
-func (b *InputBox) OnText(ev input.TextEvent) {}
-func (b *InputBox) OnIME(ev input.IMEEvent)    {}
+func (b *InputBox) OnText(ev input.TextEvent) {
+	if b == nil || b.Disabled() {
+		return
+	}
+}
+func (b *InputBox) OnIME(ev input.IMEEvent) {
+	if b == nil || b.Disabled() {
+		return
+	}
+}
 
 // MultiLineInputBox is a wrapping editor. It scrolls both axes.
 type MultiLineInputBox struct {
@@ -1339,6 +1356,17 @@ func (b *MultiLineInputBox) SetDisabled(v bool) {
 		return
 	}
 	b.BaseEditable.SetDisabled(v)
+	if b.Node != nil {
+		b.Node.Enabled = !v
+		if v && b.focused {
+			b.focused = false
+			b.caretOn = false
+			b.layoutCaret()
+			if b.Node.HasFocus() {
+				b.Node.Unfocus()
+			}
+		}
+	}
 	b.MarkNeedsPaint()
 }
 func (b *MultiLineInputBox) Disabled() bool {
@@ -1492,7 +1520,9 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 	clip.AddChild(b.bar)
 	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc != nil && pc.DC != nil {
-			if b.focused {
+			if b.Disabled() {
+				pc.DC.SetRGBA(0.28, 0.30, 0.34, 1)
+			} else if b.focused {
 				pc.DC.SetRGBA(0.30, 0.58, 0.95, 1)
 			} else {
 				pc.DC.SetRGBA(0.38, 0.46, 0.56, 1)
@@ -1500,7 +1530,11 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 			pc.DC.SetLineWidth(1.4)
 			pc.DC.DrawRectangle(pc.OriginX+0.7, pc.OriginY+0.7, size.Width-1.4, size.Height-1.4)
 			_ = pc.DC.Stroke()
-			pc.DC.SetRGBA(0.13, 0.15, 0.18, 1)
+			if b.Disabled() {
+				pc.DC.SetRGBA(0.18, 0.19, 0.21, 1)
+			} else {
+				pc.DC.SetRGBA(0.13, 0.15, 0.18, 1)
+			}
 			pc.DC.DrawRectangle(pc.OriginX+1, pc.OriginY+1, size.Width-2, size.Height-2)
 			_ = pc.DC.Fill()
 		}
@@ -1510,6 +1544,9 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 	b.Node = focus.NewFocusNode(fmt.Sprintf("multi-%p", b))
 	b.Node.Target = b
 	b.Node.OnFocusChange = func(on bool) {
+		if b.Disabled() && on {
+			return
+		}
 		b.focused = on
 		b.MarkNeedsPaint()
 		b.sync()
@@ -2332,8 +2369,16 @@ func (b *MultiLineInputBox) TextLayout() *rendering.TextLayout {
 	}
 	return b.txt.TextLayout()
 }
-func (b *MultiLineInputBox) OnText(ev input.TextEvent) {}
-func (b *MultiLineInputBox) OnIME(ev input.IMEEvent)    {}
+func (b *MultiLineInputBox) OnText(ev input.TextEvent) {
+	if b == nil || b.Disabled() {
+		return
+	}
+}
+func (b *MultiLineInputBox) OnIME(ev input.IMEEvent) {
+	if b == nil || b.Disabled() {
+		return
+	}
+}
 
 func min(a, b int) int {
 	if a < b {

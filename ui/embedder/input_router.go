@@ -147,6 +147,16 @@ type TextEditTarget interface {
 	ContentPurpose() platform.ContentPurpose
 }
 
+func targetIsDisabled(t TextEditTarget) bool {
+	if t == nil {
+		return false
+	}
+	if d, ok := t.(interface{ Disabled() bool }); ok && d.Disabled() {
+		return true
+	}
+	return false
+}
+
 // AttachIME wires the optional IME capability for automatic session
 // management: focus transitions of registered TextEditTargets open/close
 // sessions; edits refresh the anchor and surrounding text. Re-evaluates the
@@ -173,6 +183,9 @@ func (r *InputRouter) onFocusChange(from, to *focus.FocusNode) {
 	var next TextEditTarget
 	if to != nil {
 		next, _ = to.Target.(TextEditTarget)
+		if targetIsDisabled(next) {
+			next = nil
+		}
 	}
 	if ime := r.ime; ime == nil || prev == next {
 		r.session = prev // unchanged (or no capability yet)
@@ -219,6 +232,10 @@ func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 		ime.DisableIME()
 	}
 	if next != nil {
+		if targetIsDisabled(next) {
+			r.debugIME("session disabled: skip enable")
+			return
+		}
 		if ed := next.Editor(); ed != nil && ed.IsNone() {
 			r.debugIME("session NONE: skip enable (focus_out)")
 			return
@@ -238,6 +255,9 @@ func (r *InputRouter) currentTarget() TextEditTarget {
 		n := r.focus.Primary()
 		if n != nil {
 			if tt, ok := n.Target.(TextEditTarget); ok && tt.Editor() != nil {
+				if targetIsDisabled(tt) {
+					return nil
+				}
 				return tt
 			}
 		}
@@ -334,7 +354,9 @@ func (r *InputRouter) Route(ev input.Event) {
 	case input.KindKey:
 		r.routeKey(ev)
 	case input.KindText:
-		if ed := r.editorFor(); ed != nil {
+		if t := r.currentTarget(); t != nil && targetIsDisabled(t) {
+			// F-E0d: disabled must not accept text/IME
+		} else if ed := r.editorFor(); ed != nil {
 			ed.ApplyText(ev.Text)
 		}
 		if r.OnText != nil {
@@ -342,7 +364,8 @@ func (r *InputRouter) Route(ev input.Event) {
 		}
 		r.afterEdit()
 	case input.KindIME:
-		if ed := r.editorFor(); ed != nil {
+		if t := r.currentTarget(); t != nil && targetIsDisabled(t) {
+		} else if ed := r.editorFor(); ed != nil {
 			ed.ApplyIME(ev.IME)
 		}
 		if r.OnIME != nil {
@@ -416,6 +439,45 @@ func isComposingFilterKey(k input.Key) bool {
 
 func (r *InputRouter) routeKey(ev input.Event) {
 	ke := ev.Key
+	// F-E0d: disabled focused target must swallow rune insertion even though currentTarget returns nil
+	if r.focus != nil {
+		if n := r.focus.Primary(); n != nil {
+			if tt, ok := n.Target.(TextEditTarget); ok && targetIsDisabled(tt) {
+				if r.OnKey != nil {
+					r.OnKey(ke)
+				}
+				if ke.Pressed {
+					switch ke.Key {
+					case input.KeyShift:
+						r.mods.Shift = true
+					case input.KeyControl:
+						r.mods.Control = true
+					case input.KeyAlt:
+						r.mods.Alt = true
+					case input.KeyMeta:
+						r.mods.Meta = true
+					}
+				} else {
+					switch ke.Key {
+					case input.KeyShift:
+						r.mods.Shift = false
+					case input.KeyControl:
+						r.mods.Control = false
+					case input.KeyAlt:
+						r.mods.Alt = false
+					case input.KeyMeta:
+						r.mods.Meta = false
+					}
+				}
+				if r.focus != nil {
+					fk := focus.KeyEvent{KeyCode: mapFocusKeyCode(ke.Key, ke.Rune), Rune: ke.Rune, Pressed: ke.Pressed, Shift: ke.Mods.Shift}
+					_ = r.focus.HandleKey(fk)
+				}
+				r.afterEdit()
+				return
+			}
+		}
+	}
 	ed := r.editorFor()
 	// §7.1 filter_keypress 优先：composing 时 Home/End/Page/Arrow/Enter 由 IME 优先消费，避免光标在 composingRange 外
 	if ke.Pressed && ed != nil && ed.IsComposing() && isComposingFilterKey(ke.Key) {
