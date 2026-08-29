@@ -111,6 +111,8 @@ type ViewportInputBox struct {
 	lastClickX  float64
 	lastClickY  float64
 	clickCount  int
+	selHas                bool
+	selR, selG, selB, selA float64
 }
 
 func (b *ViewportInputBox) SetPlaceholder(s string) {
@@ -140,6 +142,24 @@ func (b *ViewportInputBox) Disabled() bool {
 		return false
 	}
 	return b.BaseEditable.Disabled()
+}
+func (b *ViewportInputBox) SetSelectionColor(r, g, b2, a float64) {
+	if b == nil {
+		return
+	}
+	b.selHas = true
+	b.selR, b.selG, b.selB, b.selA = r, g, b2, a
+	b.MarkNeedsPaint()
+}
+func (b *ViewportInputBox) ClearSelectionColor() {
+	if b == nil {
+		return
+	}
+	b.selHas = false
+	b.MarkNeedsPaint()
+}
+func (b *ViewportInputBox) SelectionColor() (r, g, b2, a float64) {
+	return resolveSelColor(b.selHas, b.selR, b.selG, b.selB, b.selA)
 }
 
 func (b *ViewportInputBox) IsFocused() bool                         { return b != nil && b.focused }
@@ -308,9 +328,29 @@ func (b *ViewportInputBox) syncHighlight() {
 		return
 	}
 	off := b.txt.Offset()
-	for _, r := range boxes {
-		hb := rendering.NewRenderColorBox(r.Size().Width, r.Size().Height, 0.22, 0.45, 0.85, 0.35)
-		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y)
+	for idx, r := range boxes {
+		h := r.Size().Height
+		pad := 0.0
+		if idx == 0 {
+			if m, ok := b.txt.Metrics(); ok {
+				pad = (b.txt.LineHeight() - (m.Ascent + m.Descent)) / 2
+				if pad < 1 {
+					pad = 1
+				} else if pad > 4 {
+					pad = 4
+				}
+			} else {
+				pad = h * 0.08
+				if pad < 1 {
+					pad = 1
+				} else if pad > 3 {
+					pad = 3
+				}
+			}
+		}
+		sr, sg, sb, sa := b.SelectionColor()
+		hb := rendering.NewRenderColorBox(r.Size().Width, h+pad, sr, sg, sb, sa)
+		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y-pad)
 		b.content.AddChild(hb)
 		b.highlights = append(b.highlights, hb)
 	}

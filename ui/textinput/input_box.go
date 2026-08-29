@@ -29,6 +29,8 @@ type InputBox struct {
 	caretOn   bool
 	scrollX   float64
 	clipboard platform.Clipboard
+	selHas                bool
+	selR, selG, selB, selA float64
 	// R4: double/triple click and drag
 	lastClickAt time.Time
 	lastClickX  float64
@@ -74,6 +76,24 @@ func (b *InputBox) Disabled() bool {
 	}
 	return b.BaseEditable.Disabled()
 }
+
+// SetSelectionColor 自定义选中高亮色（per-box），未设时走全局 SetDefaultSelectionColor / 引擎默认
+func (b *InputBox) SetSelectionColor(r, g, b2, a float64) {
+	if b == nil {
+		return
+	}
+	b.selHas = true
+	b.selR, b.selG, b.selB, b.selA = r, g, b2, a
+	b.MarkNeedsPaint()
+}
+func (b *InputBox) ClearSelectionColor() {
+	if b == nil {
+		return
+	}
+	b.selHas = false
+	b.MarkNeedsPaint()
+}
+func (b *InputBox) SelectionColor() (r, g, b2, a float64) { return resolveSelColor(b.selHas, b.selR, b.selG, b.selB, b.selA) }
 
 // SetMaxLines 仅多行语义：单行忽略但保证 Ellipsis 不进 editable_range。
 func (b *InputBox) SetMaxLines(n int) {
@@ -475,14 +495,34 @@ func (b *InputBox) syncSelectionHighlight() {
 		return
 	}
 	off := b.txt.Offset()
-	for _, r := range boxes {
-		hb := rendering.NewRenderColorBox(r.Size().Width, r.Size().Height, 0.22, 0.45, 0.85, 0.35)
-		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y)
+	for idx, r := range boxes {
+		h := r.Size().Height
+		// 只给首行上面多留一点，下面不动；pad 按字体度量自动算，避免小字过大、大字过小
+		// 多行时只有第一段加 pad，其余段保持行盒，避免上下两段重叠变深（对齐 Flutter 选区）
+		pad := 0.0
+		if idx == 0 {
+			if m, ok := b.txt.Metrics(); ok {
+				pad = (b.txt.LineHeight() - (m.Ascent + m.Descent)) / 2
+				if pad < 1 {
+					pad = 1
+				} else if pad > 4 {
+					pad = 4
+				}
+			} else {
+				pad = h * 0.08
+				if pad < 1 {
+					pad = 1
+				} else if pad > 3 {
+					pad = 3
+				}
+			}
+		}
+		sr, sg, sb, sa := b.SelectionColor()
+		hb := rendering.NewRenderColorBox(r.Size().Width, h+pad, sr, sg, sb, sa)
+		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y-pad)
 		b.clip.AddChild(hb)
-		// keep behind text: ensure txt is on top (re-add txt and bar after)
 		b.highlights = append(b.highlights, hb)
 	}
-	// Reorder: highlights behind txt/bar
 	b.clip.RemoveChild(b.txt)
 	b.clip.RemoveChild(b.bar)
 	b.clip.AddChild(b.txt)
@@ -1061,6 +1101,8 @@ type MultiLineInputBox struct {
 	scrollX   float64
 	scrollY   float64
 	clipboard platform.Clipboard
+	selHas                bool
+	selR, selG, selB, selA float64
 	lastClickAt time.Time
 	lastClickX  float64
 	lastClickY  float64
@@ -1101,6 +1143,24 @@ func (b *MultiLineInputBox) Disabled() bool {
 		return false
 	}
 	return b.BaseEditable.Disabled()
+}
+func (b *MultiLineInputBox) SetSelectionColor(r, g, b2, a float64) {
+	if b == nil {
+		return
+	}
+	b.selHas = true
+	b.selR, b.selG, b.selB, b.selA = r, g, b2, a
+	b.MarkNeedsPaint()
+}
+func (b *MultiLineInputBox) ClearSelectionColor() {
+	if b == nil {
+		return
+	}
+	b.selHas = false
+	b.MarkNeedsPaint()
+}
+func (b *MultiLineInputBox) SelectionColor() (r, g, b2, a float64) {
+	return resolveSelColor(b.selHas, b.selR, b.selG, b.selB, b.selA)
 }
 func (b *MultiLineInputBox) SetMaxLines(n int) {
 	if b == nil || b.txt == nil {
@@ -1422,9 +1482,29 @@ func (b *MultiLineInputBox) syncMultiHighlight() {
 		return
 	}
 	off := b.txt.Offset()
-	for _, r := range boxes {
-		hb := rendering.NewRenderColorBox(r.Size().Width, r.Size().Height, 0.22, 0.45, 0.85, 0.35)
-		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y)
+	for idx, r := range boxes {
+		h := r.Size().Height
+		pad := 0.0
+		if idx == 0 {
+			if m, ok := b.txt.Metrics(); ok {
+				pad = (b.txt.LineHeight() - (m.Ascent + m.Descent)) / 2
+				if pad < 1 {
+					pad = 1
+				} else if pad > 4 {
+					pad = 4
+				}
+			} else {
+				pad = h * 0.08
+				if pad < 1 {
+					pad = 1
+				} else if pad > 3 {
+					pad = 3
+				}
+			}
+		}
+		sr, sg, sb, sa := b.SelectionColor()
+		hb := rendering.NewRenderColorBox(r.Size().Width, h+pad, sr, sg, sb, sa)
+		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y-pad)
 		b.clip.AddChild(hb)
 		b.highlights = append(b.highlights, hb)
 	}
