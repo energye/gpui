@@ -76,42 +76,67 @@ func (e *Editor) ApplyDelta(d TextEditingDelta) bool {
 		return false
 	}
 	if d.IsNonTextUpdate() {
+		// §6.3 IsNonTextUpdate 要求 OldText==text 且 deltaText==""
+		if d.OldText != e.text {
+			return false
+		}
 		e.selection = d.Selection
 		e.composingRange = d.Composing
 		e.composing = d.Composing.Length() > 0
 		e.changed()
+		e.lastFrameworkText = e.text
+		e.lastFrameworkSel = e.selection
+		e.lastFrameworkComp = e.composingRange
 		return true
 	}
-	// last-write-wins with OldText base
-	if d.OldText != e.text && d.OldText != "" {
-		// For simplicity, if OldText mismatches, treat as SetText
-	}
+	// §6.3 last-write-wins：以 OldText 为基底计算，不发明 e.text 范围
 	startByte := byteOffsetForUtf16(d.OldText, d.DeltaStart)
 	endByte := byteOffsetForUtf16(d.OldText, d.DeltaEnd)
-	// If OldText is current text, use it, else use e.text as base for mismatch
-	base := e.text
-	if d.OldText == e.text {
-		base = d.OldText
-		startByte = byteOffsetForUtf16(base, d.DeltaStart)
-		endByte = byteOffsetForUtf16(base, d.DeltaEnd)
-	} else {
-		// fallback: replace based on e.text range
-		startByte = byteOffsetForUtf16(e.text, d.DeltaStart)
-		endByte = byteOffsetForUtf16(e.text, d.DeltaEnd)
-		if startByte > len(e.text) {
-			startByte = len(e.text)
-		}
-		if endByte > len(e.text) {
-			endByte = len(e.text)
-		}
+	if startByte < 0 {
+		startByte = 0
 	}
-	newText := base[:startByte] + d.DeltaText + base[endByte:]
+	if endByte < startByte {
+		endByte = startByte
+	}
+	if startByte > len(d.OldText) {
+		startByte = len(d.OldText)
+	}
+	if endByte > len(d.OldText) {
+		endByte = len(d.OldText)
+	}
+	// Rune 边界吸附（对齐 F-D5 换算）
+	for startByte > 0 && startByte < len(d.OldText) && (d.OldText[startByte]&0xC0) == 0x80 {
+		startByte--
+	}
+	for endByte > 0 && endByte < len(d.OldText) && (d.OldText[endByte]&0xC0) == 0x80 {
+		endByte--
+	}
+	newText := d.OldText[:startByte] + d.DeltaText + d.OldText[endByte:]
 	e.text = newText
-	e.selection = d.Selection
-	e.composingRange = d.Composing
-	e.composing = d.Composing.Length() > 0
+	e.selection = clampRangeForText(newText, d.Selection)
+	e.composingRange = clampRangeForText(newText, d.Composing)
+	e.composing = e.composingRange.Length() > 0
 	e.changed()
+	e.lastFrameworkText = e.text
+	e.lastFrameworkSel = e.selection
+	e.lastFrameworkComp = e.composingRange
 	return true
+}
+func clampRangeForText(text string, r TextRange) TextRange {
+	n := utf16Len(text)
+	if r.Base < 0 {
+		r.Base = 0
+	}
+	if r.Extent < 0 {
+		r.Extent = 0
+	}
+	if r.Base > n {
+		r.Base = n
+	}
+	if r.Extent > n {
+		r.Extent = n
+	}
+	return r
 }
 
 // TruncateSurrounding implements 4000 bytes including NUL, centered at cursor.

@@ -44,11 +44,15 @@ type Editor struct {
 	composingRange TextRange
 	composing      bool
 	enableDeltaModel bool
+	deltaModelLocked bool
 	isPassword     bool
 	obscuringChar  rune // 0 means default '•' (Flutter TextField.obscuringCharacter)
 	readOnly       bool
 	singleLine   bool
 	contentType    platform.ContentType
+	inputType      string
+	inputAction    string
+	autofillHints  []string
 	batchDepth         int
 	lastFrameworkText  string
 	lastFrameworkSel   TextRange
@@ -188,7 +192,48 @@ func (e *Editor) SetClient(cfg TextInputConfiguration) {
 	if e == nil {
 		return
 	}
-	e.enableDeltaModel = cfg.EnableDeltaModel
+	// §6.3 定值不可变：首次 SetClient 锁定 enableDeltaModel，后续翻转忽略（对齐 Flutter TextInputModel）
+	if !e.deltaModelLocked {
+		e.enableDeltaModel = cfg.EnableDeltaModel
+		e.deltaModelLocked = true
+	}
+	e.inputType = cfg.InputType
+	e.inputAction = cfg.InputAction
+	if len(cfg.AutofillHints) > 0 {
+		e.autofillHints = append([]string(nil), cfg.AutofillHints...)
+	} else {
+		e.autofillHints = nil
+	}
+	// §5 F-D6 透传：InputType/InputAction/autofillHints → ContentPurpose/Hints
+	if purpose := purposeFromInputType(cfg.InputType); purpose != platform.PurposeNormal || cfg.InputType == "text" || cfg.InputType == "multiline" {
+		e.contentType.Purpose = purpose
+	}
+	// password 类型联动 isPassword（对齐 Windows TYPE_TEXT_VARIATION_PASSWORD）
+	if cfg.InputType == "visiblePassword" || cfg.InputType == "password" {
+		e.isPassword = true
+	}
+}
+func purposeFromInputType(t string) platform.ContentPurpose {
+	switch t {
+	case "emailAddress":
+		return platform.PurposeEmail
+	case "number":
+		return platform.PurposeNumber
+	case "phone":
+		return platform.PurposePhone
+	case "url":
+		return platform.PurposeURL
+	case "name":
+		return platform.PurposeName
+	case "datetime", "date", "time":
+		return platform.PurposeDatetime
+	case "visiblePassword", "password":
+		return platform.PurposePassword
+	case "multiline":
+		return platform.PurposeNormal
+	default:
+		return platform.PurposeNormal
+	}
 }
 func (e *Editor) SetConfiguration(cfg TextInputConfiguration) {
 	e.SetClient(cfg)
@@ -294,6 +339,10 @@ func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	if changed {
 		e.changed()
 	}
+	// §8 C4 自动维护：框架侧 SetText 即视为 lastFramework 已同步，便于 ShouldSkip 去重
+	e.lastFrameworkText = text
+	e.lastFrameworkSel = sel
+	e.lastFrameworkComp = comp
 	e.caretColValid = false
 	return changed
 }
@@ -351,9 +400,21 @@ func (e *Editor) BeginComposing() {
 	if e == nil || e.composing || e.isPassword || e.readOnly {
 		return
 	}
+	// F-S1 有选区时先删选中段再起 preedit，批内合并为一次 epoch/OnChange
+	wasBatch := e.batchDepth > 0
+	if !wasBatch {
+		e.BeginBatchEdit()
+	}
+	if !e.selection.Collapsed() {
+		e.DeleteSelected()
+	}
 	e.composing = true
 	e.composingRange = TextRange{Base: e.selection.Extent, Extent: e.selection.Extent}
-	e.changed()
+	if !wasBatch {
+		e.EndBatchEdit()
+	} else {
+		e.changed()
+	}
 }
 
 func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {

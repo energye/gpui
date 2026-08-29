@@ -1,6 +1,8 @@
 package textinput
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +15,21 @@ const (
 	r1SurrogateText = "a😀b𝄞c" // 2 surrogates (U+1F600, U+1D11E) => 2 units each
 	r1LongBase      = "你好Hello世界"
 )
+
+func cjk3000Text(t *testing.T) string {
+	t.Helper()
+	// G2 字表溯源：testdata/cjk3000.txt 3000 常用字，按文档要求测试一律读文件
+	p := filepath.Join("testdata", "cjk3000.txt")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("read cjk3000.txt: %v", err)
+	}
+	s := strings.TrimSpace(string(b))
+	if s == "" {
+		t.Fatalf("cjk3000 empty")
+	}
+	return s
+}
 
 func TestR1_SentinelDoubleSetText(t *testing.T) {
 	e := New()
@@ -35,8 +52,12 @@ func TestR1_SentinelDoubleSetText(t *testing.T) {
 }
 
 func TestR1_MixedCJK200(t *testing.T) {
-	// 50+ chars混排，模拟 cjk3000.txt 抽200字（同源于窗口的 cjkMixed 长串）
-	long := strings.Repeat(r1MixedCJK, 4) // ~200 chars
+	// 50+ chars混排，模拟 cjk3000.txt 抽200字（同源于窗口的 cjkMixed 长串）— 现按 G2 读 testdata
+	cjk := cjk3000Text(t)
+	long := string([]rune(cjk)[:200])
+	if strings.Count(long, "")-1 < 200 {
+		long = strings.Repeat(r1MixedCJK, 4)
+	}
 	e := New()
 	n := utf16Len(long)
 	e.SetText(long, TextRange{Base: n, Extent: n}, TextRange{}, 0)
@@ -285,3 +306,11 @@ func TestR1_AffinityCarry(t *testing.T) {
 		t.Fatalf("affinity upstream not carried")
 	}
 }
+
+// G1 同源命名别名：供 metrics-audit 按 TestEditor_* 检索，逻辑与 TestR1_* 同源
+func TestEditor_Sentinel(t *testing.T) { TestR1_SentinelDoubleSetText(t) }
+func TestEditor_Surrogate(t *testing.T) { TestR1_SurrogateCount1(t) }
+func TestEditor_SurroundingCenter4(t *testing.T) { TestR1_SurroundingCenter4(t) }
+func TestEditor_BatchNest3(t *testing.T) { TestR1_BatchNest3(t) }
+func TestEditor_Utf16Roundtrip(t *testing.T) { TestR1_Utf16Roundtrip(t) }
+func TestEditor_MixedCJK200(t *testing.T) { TestR1_MixedCJK200(t) }

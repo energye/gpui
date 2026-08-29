@@ -39,24 +39,32 @@ func (e *Editor) ApplyIME(ev input.IMEEvent) bool {
 		if afterBytes < 0 {
 			afterBytes = 0
 		}
-		// F-D5: 平台 delete_surrounding 的 before/after 为 UTF8 字节数，需按 code point 换算
+		// F-D5: 平台 delete_surrounding 的 before/after 为 UTF8 字节数，需按 code point 换算，RuneStart 吸附避免劈半
 		caretByte := byteOffsetForUtf16(e.text, e.selection.Extent)
 		beforeRunes := 0
-		if beforeBytes > 0 && caretByte >= beforeBytes {
-			beforeRunes = len([]rune(e.text[caretByte-beforeBytes : caretByte]))
-		} else if beforeBytes > 0 {
-			beforeRunes = len([]rune(e.text[:caretByte]))
-			if beforeRunes > beforeBytes {
-				beforeRunes = beforeBytes
+		if beforeBytes > 0 {
+			start := caretByte - beforeBytes
+			if start < 0 {
+				start = 0
+			}
+			for start > 0 && start < len(e.text) && (e.text[start]&0xC0) == 0x80 {
+				start--
+			}
+			if start < caretByte {
+				beforeRunes = len([]rune(e.text[start:caretByte]))
 			}
 		}
 		afterRunes := 0
-		if afterBytes > 0 && caretByte+afterBytes <= len(e.text) {
-			afterRunes = len([]rune(e.text[caretByte : caretByte+afterBytes]))
-		} else if afterBytes > 0 {
-			afterRunes = len([]rune(e.text[caretByte:]))
-			if afterRunes > afterBytes {
-				afterRunes = afterBytes
+		if afterBytes > 0 {
+			end := caretByte + afterBytes
+			if end > len(e.text) {
+				end = len(e.text)
+			}
+			for end > caretByte && end < len(e.text) && (e.text[end]&0xC0) == 0x80 {
+				end--
+			}
+			if end > caretByte {
+				afterRunes = len([]rune(e.text[caretByte:end]))
 			}
 		}
 		e.DeleteSurrounding(-beforeRunes, beforeRunes+afterRunes)
