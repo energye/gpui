@@ -20,10 +20,11 @@ func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *ViewportInputBox {
 	}
 	outer := rendering.NewRenderBox()
 	vb := &ViewportInputBox{
-		RenderBox: outer,
-		ed:        ed,
-		txt:       rendering.NewRenderText(""),
-		content:   rendering.NewRenderBox(),
+		RenderBox:    outer,
+		BaseEditable: NewBaseEditable(ed),
+		ed:           ed,
+		txt:          rendering.NewRenderText(""),
+		content:      rendering.NewRenderBox(),
 	}
 	outer.Init(vb)
 	outer.SetRelayoutBoundary(true)
@@ -91,6 +92,7 @@ func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *ViewportInputBox {
 // Retained Present therefore keeps damage small (viewport band + HUD only).
 type ViewportInputBox struct {
 	*rendering.RenderBox
+	*BaseEditable
 	Viewport  *rendering.RenderViewport
 	content   *rendering.RenderBox
 	txt       *rendering.RenderText
@@ -101,7 +103,6 @@ type ViewportInputBox struct {
 	focused   bool
 	caretOn   bool
 	clipboard platform.Clipboard
-	placeholder string
 	blinkElapsed float64
 	dragging    bool
 	dragStart   int
@@ -113,19 +114,32 @@ type ViewportInputBox struct {
 }
 
 func (b *ViewportInputBox) SetPlaceholder(s string) {
-	if b == nil {
+	if b == nil || b.BaseEditable == nil {
 		return
 	}
-	b.placeholder = s
+	b.BaseEditable.SetPlaceholder(s)
 	if b.txt != nil && b.ed != nil && b.ed.GetText() == "" {
 		b.sync()
 	}
 }
 func (b *ViewportInputBox) Placeholder() string {
-	if b == nil {
+	if b == nil || b.BaseEditable == nil {
 		return ""
 	}
-	return b.placeholder
+	return b.BaseEditable.Placeholder()
+}
+func (b *ViewportInputBox) SetDisabled(v bool) {
+	if b == nil || b.BaseEditable == nil {
+		return
+	}
+	b.BaseEditable.SetDisabled(v)
+	b.MarkNeedsPaint()
+}
+func (b *ViewportInputBox) Disabled() bool {
+	if b == nil || b.BaseEditable == nil {
+		return false
+	}
+	return b.BaseEditable.Disabled()
 }
 
 func (b *ViewportInputBox) IsFocused() bool                         { return b != nil && b.focused }

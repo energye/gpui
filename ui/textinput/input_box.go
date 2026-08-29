@@ -18,6 +18,7 @@ import (
 // pointer-to-caret mapping via the single-source TextLayout (Flutter-aligned).
 type InputBox struct {
 	*rendering.RenderBox
+	*BaseEditable
 	ed        *Editor
 	txt       *rendering.RenderText
 	bar       *rendering.RenderColorBox
@@ -26,10 +27,8 @@ type InputBox struct {
 	sched     func()
 	focused   bool
 	caretOn   bool
-	disabled  bool
 	scrollX   float64
 	clipboard platform.Clipboard
-	placeholder string // 用户可控占位（hint），引擎不写死，空则无占位
 	// R4: double/triple click and drag
 	lastClickAt time.Time
 	lastClickX  float64
@@ -46,26 +45,35 @@ func (b *InputBox) SetPlaceholder(s string) {
 	if b == nil {
 		return
 	}
-	b.placeholder = s
+	if b.BaseEditable != nil {
+		b.BaseEditable.SetPlaceholder(s)
+	}
 	if b.txt != nil && b.ed != nil && b.ed.GetText() == "" {
 		b.sync()
 	}
 }
 func (b *InputBox) Placeholder() string {
-	if b == nil {
+	if b == nil || b.BaseEditable == nil {
 		return ""
 	}
-	return b.placeholder
+	return b.BaseEditable.Placeholder()
 }
 
 func (b *InputBox) SetDisabled(v bool) {
 	if b == nil {
 		return
 	}
-	b.disabled = v
+	if b.BaseEditable != nil {
+		b.BaseEditable.SetDisabled(v)
+	}
 	b.MarkNeedsPaint()
 }
-func (b *InputBox) Disabled() bool { if b == nil { return false }; return b.disabled }
+func (b *InputBox) Disabled() bool {
+	if b == nil || b.BaseEditable == nil {
+		return false
+	}
+	return b.BaseEditable.Disabled()
+}
 
 // SetMaxLines 仅多行语义：单行忽略但保证 Ellipsis 不进 editable_range。
 func (b *InputBox) SetMaxLines(n int) {
@@ -138,9 +146,10 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 	}
 	inner := rendering.NewRenderBox()
 	b := &InputBox{
-		RenderBox: inner,
-		ed:        ed,
-		txt:       rendering.NewRenderText(""),
+		RenderBox:   inner,
+		BaseEditable: NewBaseEditable(ed),
+		ed:          ed,
+		txt:         rendering.NewRenderText(""),
 	}
 	inner.Init(b)
 	// Flutter RenderEditable is both RelayoutBoundary and RepaintBoundary:
@@ -1040,6 +1049,7 @@ func (b *InputBox) OnIME(ev input.IMEEvent)    {}
 // MultiLineInputBox is a wrapping editor. It scrolls both axes.
 type MultiLineInputBox struct {
 	*rendering.RenderBox
+	*BaseEditable
 	ed        *Editor
 	txt       *rendering.RenderText
 	bar       *rendering.RenderColorBox
@@ -1051,7 +1061,6 @@ type MultiLineInputBox struct {
 	scrollX   float64
 	scrollY   float64
 	clipboard platform.Clipboard
-	placeholder string
 	lastClickAt time.Time
 	lastClickX  float64
 	lastClickY  float64
@@ -1063,30 +1072,35 @@ type MultiLineInputBox struct {
 }
 
 func (b *MultiLineInputBox) SetPlaceholder(s string) {
-	if b == nil {
+	if b == nil || b.BaseEditable == nil {
 		return
 	}
-	b.placeholder = s
+	b.BaseEditable.SetPlaceholder(s)
 	if b.txt != nil && b.ed != nil && b.ed.GetText() == "" {
 		b.sync()
 	}
 }
 func (b *MultiLineInputBox) Placeholder() string {
-	if b == nil {
+	if b == nil || b.BaseEditable == nil {
 		return ""
 	}
-	return b.placeholder
+	return b.BaseEditable.Placeholder()
 }
 
 func (b *MultiLineInputBox) IsFocused() bool { return b != nil && b.focused }
 func (b *MultiLineInputBox) IsCaretOn() bool { return b != nil && b.caretOn }
 func (b *MultiLineInputBox) SetDisabled(v bool) {
-	if b == nil {
+	if b == nil || b.BaseEditable == nil {
 		return
 	}
-	// disabled is visual only; editing still uses readOnly, but we grey out
-	_ = v
+	b.BaseEditable.SetDisabled(v)
 	b.MarkNeedsPaint()
+}
+func (b *MultiLineInputBox) Disabled() bool {
+	if b == nil || b.BaseEditable == nil {
+		return false
+	}
+	return b.BaseEditable.Disabled()
 }
 func (b *MultiLineInputBox) SetMaxLines(n int) {
 	if b == nil || b.txt == nil {
@@ -1139,9 +1153,10 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 	}
 	inner := rendering.NewRenderBox()
 	b := &MultiLineInputBox{
-		RenderBox: inner,
-		ed:        ed,
-		txt:       rendering.NewRenderText(""),
+		RenderBox:    inner,
+		BaseEditable: NewBaseEditable(ed),
+		ed:           ed,
+		txt:          rendering.NewRenderText(""),
 	}
 	inner.Init(b)
 	inner.SetRelayoutBoundary(true)
