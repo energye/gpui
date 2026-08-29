@@ -43,6 +43,9 @@ type InputBox struct {
 	highlights  []*rendering.RenderColorBox
 	// 严格对齐 Flutter 闪烁：~500ms 周期，编辑/获焦后重置为常亮
 	blinkElapsed float64
+	dragLastX             float64
+	dragLastY             float64
+	autoScrollRunning     bool
 }
 
 func (b *InputBox) SetPlaceholder(s string) {
@@ -656,6 +659,9 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 				b.ed.SetSelection(TextRange{Base: utf16Off, Extent: utf16Off})
 				b.dragStart = utf16Off
 				b.dragging = true
+				b.dragLastX = ev.X
+				b.dragLastY = ev.Y
+				b.startInputBoxAutoScroll()
 			}
 			return
 		}
@@ -692,8 +698,13 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 			b.ed.SetCaretWithAffinity(byteOff, aff)
 			b.dragStart = b.ed.utf16ForByte(byteOff)
 			b.dragging = true
+			b.dragLastX = ev.X
+			b.dragLastY = ev.Y
+			b.startInputBoxAutoScroll()
 		}
 	case input.PointerMove:
+		b.dragLastX = ev.X
+		b.dragLastY = ev.Y
 		if b.dragging {
 			pad := b.Padding()
 			abs2 := absoluteOrigin(b)
@@ -791,6 +802,9 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 	if !ev.Pressed {
 		return
 	}
+	if b.Disabled() {
+		return
+	}
 	// F-D3/filter_keypress: composing 时 Home/End/Page/Arrow/Enter 由 IME 优先消费，避免光标在 composingRange 外
 	if b.ed != nil && b.ed.IsComposing() && isComposingFilterKey(ev.Key) {
 		if ev.Key == input.KeyEnter && b.ed.IsComposing() {
@@ -804,6 +818,16 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 		switch ev.Key {
 		case input.KeyA:
 			b.ed.SelectAll()
+			return
+		case input.KeyZ:
+			if ev.Mods.Shift {
+				b.ed.Redo()
+			} else {
+				b.ed.Undo()
+			}
+			return
+		case input.KeyY:
+			b.ed.Redo()
 			return
 		case input.KeyC:
 			s := b.ed.Copy()
@@ -1117,6 +1141,98 @@ func (b *InputBox) TextLayout() *rendering.TextLayout {
 	}
 	return b.txt.TextLayout()
 }
+
+func (b *InputBox) doInputBoxAutoScroll() {
+	if b == nil || !b.dragging {
+		b.autoScrollRunning = false
+		return
+	}
+	pad := b.Padding()
+	abs := absoluteOrigin(b)
+	w := b.FixedWidth
+	visW := w - 2*pad
+	if visW < 0 {
+		visW = 0
+	}
+	layTmp := b.txt.TextLayout()
+	maxX := 0.0
+	if layTmp != nil && len(layTmp.Lines) > 0 {
+		maxX = layTmp.Lines[0].Width
+	}
+	maxScroll := maxX - visW + 4
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	did := false
+	if b.dragLastX < abs.X+pad && b.scrollX > 0 {
+		b.scrollX -= 28
+		if b.scrollX < 0 {
+			b.scrollX = 0
+		}
+		b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: b.txt.Offset().Y})
+		b.txt.SetViewportHint(b.scrollX, visW)
+		did = true
+	} else if b.dragLastX > abs.X+w-pad && b.scrollX < maxScroll {
+		b.scrollX += 28
+		if b.scrollX > maxScroll {
+			b.scrollX = maxScroll
+		}
+		b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: b.txt.Offset().Y})
+		b.txt.SetViewportHint(b.scrollX, visW)
+		did = true
+	}
+	if did {
+		localX := b.dragLastX - abs.X - b.txt.Offset().X
+		localY := b.dragLastY - abs.Y - b.txt.Offset().Y
+		var byteOff int
+		if layTmp != nil {
+			byteOff, _ = layTmp.GetPositionForOffset(localX, localY)
+		} else {
+			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+		}
+		if b.ed.IsPassword() {
+			ch := b.ed.ObscuringCharacter()
+			chBytes := len(string(ch))
+			if chBytes <= 0 {
+				chBytes = 3
+			}
+			runeIdx := byteOff / chBytes
+			runes := []rune(b.ed.GetText())
+			if runeIdx < 0 {
+				runeIdx = 0
+			}
+			if runeIdx > len(runes) {
+				runeIdx = len(runes)
+			}
+			cur := 0
+			for _, r := range runes[:runeIdx] {
+				if r > 0xFFFF {
+					cur += 2
+				} else {
+					cur++
+				}
+			}
+			b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
+		} else {
+			cur := b.ed.utf16ForByte(byteOff)
+			b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
+		}
+	}
+	if b.dragging {
+		time.AfterFunc(50*time.Millisecond, func() { b.doInputBoxAutoScroll() })
+	} else {
+		b.autoScrollRunning = false
+	}
+}
+
+func (b *InputBox) startInputBoxAutoScroll() {
+	if b.autoScrollRunning {
+		return
+	}
+	b.autoScrollRunning = true
+	time.AfterFunc(50*time.Millisecond, func() { b.doInputBoxAutoScroll() })
+}
+
 func (b *InputBox) OnText(ev input.TextEvent) {}
 func (b *InputBox) OnIME(ev input.IMEEvent)    {}
 
@@ -1146,7 +1262,10 @@ type MultiLineInputBox struct {
 	dragging    bool
 	dragStart   int
 	highlights  []*rendering.RenderColorBox
-	blinkElapsed float64
+	blinkElapsed         float64
+	dragLastX            float64
+	dragLastY            float64
+	autoScrollRunning    bool
 }
 
 func (b *MultiLineInputBox) SetPadding(pad float64) {
@@ -1612,8 +1731,97 @@ func (b *MultiLineInputBox) Layout(c rendering.Constraints) rendering.Size {
 	return sz
 }
 
+func (b *MultiLineInputBox) doMultiAutoScroll() {
+	if b == nil || !b.dragging {
+		b.autoScrollRunning = false
+		return
+	}
+	pad := b.Padding()
+	abs := absoluteOrigin(b)
+	w, h := b.FixedWidth, b.FixedHeight
+	visW := w - 2*pad
+	visH := h - 2*pad
+	if visW < 0 {
+		visW = 0
+	}
+	if visH < 0 {
+		visH = 0
+	}
+	lay := b.txt.TextLayout()
+	maxX, maxY := 0.0, 0.0
+	if lay != nil && len(lay.Lines) > 0 {
+		for _, ln := range lay.Lines {
+			if ln.Width > maxX {
+				maxX = ln.Width
+			}
+		}
+		totalH := lay.LineTop(len(lay.Lines)-1) + lay.LineHeight(len(lay.Lines)-1)
+		maxY = totalH - visH
+		if maxY < 0 {
+			maxY = 0
+		}
+	}
+	maxScrollX := maxX - visW + 4
+	if maxScrollX < 0 {
+		maxScrollX = 0
+	}
+	did := false
+	if b.dragLastX < abs.X+pad && b.scrollX > 0 {
+		b.scrollX -= 28
+		if b.scrollX < 0 {
+			b.scrollX = 0
+		}
+		did = true
+	} else if b.dragLastX > abs.X+w-pad && b.scrollX < maxScrollX {
+		b.scrollX += 28
+		if b.scrollX > maxScrollX {
+			b.scrollX = maxScrollX
+		}
+		did = true
+	}
+	if b.dragLastY < abs.Y+pad && b.scrollY > 0 {
+		b.scrollY -= 14
+		if b.scrollY < 0 {
+			b.scrollY = 0
+		}
+		did = true
+	} else if b.dragLastY > abs.Y+h-pad && b.scrollY < maxY {
+		b.scrollY += 14
+		if b.scrollY > maxY {
+			b.scrollY = maxY
+		}
+		did = true
+	}
+	if did {
+		b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: pad - b.scrollY})
+		localX := b.dragLastX - abs.X - b.txt.Offset().X
+		localY := b.dragLastY - abs.Y - b.txt.Offset().Y
+		var byteOff int
+		if lay != nil {
+			byteOff, _ = lay.GetPositionForOffset(localX, localY)
+		} else {
+			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+		}
+		cur := b.ed.utf16ForByte(byteOff)
+		b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
+	}
+	if b.dragging {
+		time.AfterFunc(50*time.Millisecond, func() { b.doMultiAutoScroll() })
+	} else {
+		b.autoScrollRunning = false
+	}
+}
+
+func (b *MultiLineInputBox) startMultiAutoScroll() {
+	if b.autoScrollRunning {
+		return
+	}
+	b.autoScrollRunning = true
+	time.AfterFunc(50*time.Millisecond, func() { b.doMultiAutoScroll() })
+}
+
 func (b *MultiLineInputBox) OnPointer(ev input.PointerEvent) {
-	if b == nil || b.ed == nil {
+	if b == nil || b.ed == nil || b.Disabled() {
 		return
 	}
 	abs := absoluteOrigin(b)
@@ -1665,9 +1873,76 @@ func (b *MultiLineInputBox) OnPointer(ev input.PointerEvent) {
 			b.ed.SetCaretWithAffinity(byteOff, aff)
 			b.dragStart = b.ed.utf16ForByte(byteOff)
 			b.dragging = true
+			b.dragLastX = ev.X
+			b.dragLastY = ev.Y
+			b.startMultiAutoScroll()
 		}
 	case input.PointerMove:
+		b.dragLastX = ev.X
+		b.dragLastY = ev.Y
 		if b.dragging {
+			pad := b.Padding()
+			abs2 := absoluteOrigin(b)
+			w2, h2 := b.FixedWidth, b.FixedHeight
+			visW := w2 - 2*pad
+			visH := h2 - 2*pad
+			if visW < 0 {
+				visW = 0
+			}
+			if visH < 0 {
+				visH = 0
+			}
+			layTmp := b.txt.TextLayout()
+			maxX, maxY := 0.0, 0.0
+			if layTmp != nil && len(layTmp.Lines) > 0 {
+				for _, ln := range layTmp.Lines {
+					if ln.Width > maxX {
+						maxX = ln.Width
+					}
+				}
+				totalH := layTmp.LineTop(len(layTmp.Lines)-1) + layTmp.LineHeight(len(layTmp.Lines)-1)
+				maxY = totalH - visH
+				if maxY < 0 {
+					maxY = 0
+				}
+			}
+			maxScrollX := maxX - visW + 4
+			if maxScrollX < 0 {
+				maxScrollX = 0
+			}
+			if ev.X < abs2.X+pad && b.scrollX > 0 {
+				b.scrollX -= 28
+				if b.scrollX < 0 {
+					b.scrollX = 0
+				}
+				b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: pad - b.scrollY})
+				localX = ev.X - abs2.X - b.txt.Offset().X
+			} else if ev.X > abs2.X+w2-pad && b.scrollX < maxScrollX {
+				b.scrollX += 28
+				if b.scrollX > maxScrollX {
+					b.scrollX = maxScrollX
+				}
+				b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: pad - b.scrollY})
+				localX = ev.X - abs2.X - b.txt.Offset().X
+				if localX > maxX {
+					localX = maxX
+				}
+			}
+			if ev.Y < abs2.Y+pad && b.scrollY > 0 {
+				b.scrollY -= 14
+				if b.scrollY < 0 {
+					b.scrollY = 0
+				}
+				b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: pad - b.scrollY})
+				localY = ev.Y - abs2.Y - b.txt.Offset().Y
+			} else if ev.Y > abs2.Y+h2-pad && b.scrollY < maxY {
+				b.scrollY += 14
+				if b.scrollY > maxY {
+					b.scrollY = maxY
+				}
+				b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: pad - b.scrollY})
+				localY = ev.Y - abs2.Y - b.txt.Offset().Y
+			}
 			lay := b.txt.TextLayout()
 			var byteOff int
 			if lay != nil {
@@ -1687,6 +1962,9 @@ func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 	if !ev.Pressed {
 		return
 	}
+	if b.Disabled() {
+		return
+	}
 	if b.ed != nil && b.ed.IsComposing() && isComposingFilterKey(ev.Key) {
 		if ev.Key == input.KeyEnter {
 			return
@@ -1697,6 +1975,16 @@ func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 		switch ev.Key {
 		case input.KeyA:
 			b.ed.SelectAll()
+			return
+		case input.KeyZ:
+			if ev.Mods.Shift {
+				b.ed.Redo()
+			} else {
+				b.ed.Undo()
+			}
+			return
+		case input.KeyY:
+			b.ed.Redo()
 			return
 		case input.KeyC:
 			s := b.ed.Copy()

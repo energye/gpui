@@ -149,14 +149,15 @@ func (e *Editor) moveVisualVertical(lay *rendering.TextLayout, dir int) bool {
 			cu++
 		}
 	}
-	// Directly set selection without clearing sticky semantics — bypass SetSelection's reset.
-	e.selection = TextRange{Base: cu, Extent: cu}
+	// F-S2: must go through SetSelection to enforce composing && !collapsed and EditableRange clamp.
+	if !e.SetSelection(TextRange{Base: cu, Extent: cu}) {
+		return false
+	}
+	// Restore sticky semantics cleared by SetSelection.
 	e.caretCol = sticky
 	e.caretColValid = stickyValid
-	// Keep sticky valid for continued vertical travel.
 	if !e.caretColValid {
 		e.caretColValid = true
 	}
-	e.changed()
 	return true
 }

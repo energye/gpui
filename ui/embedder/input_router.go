@@ -213,6 +213,7 @@ func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 	if prev != nil {
 		r.debugIME("session close: cancel+disable")
 		if ed := prev.Editor(); ed != nil {
+			ed.OnAnchor = nil
 			ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""}) // R2 clear
 		}
 		ime.DisableIME()
@@ -223,6 +224,9 @@ func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 			return
 		}
 		r.debugIME("session open: purpose=%v rect=%v", next.ContentPurpose(), next.IMERect())
+		if ed := next.Editor(); ed != nil {
+			ed.OnAnchor = func() { r.afterEdit() }
+		}
 		ime.SetContentType(next.ContentPurpose())
 		ime.EnableIME(next.IMERect())
 	}

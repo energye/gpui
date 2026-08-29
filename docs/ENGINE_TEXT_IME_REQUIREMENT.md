@@ -490,7 +490,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | R1 Editor 重构 ✅已落 2026-08-29 | 四元组+affinity+batch+去重，按 UTF16 | 单测全绿 + `ui_wr_ime_r1_editor` 10 族全采（A 仅告警，其余硬） + 四元组探针 + 4 锚点 + 5000 字 |
 | R2 TextLayout 单源 ✅已落 2026-08-29 | 新建 `text_layout.go`，Paint 改 DrawShapedGlyphs，Carets 查表 | `ui_wr_ime_r2_textlayout` 10 族全采（长串 15s 时 G 硬） + P14/P5 三证据（探针+像素+Golden）+ 5000 字 <100ms + HiDPI/ellipsis |
 | R3 通道与平台 ✅已落 2026-08-29 | Delta+enableDeltaModel 定值，6 信号+surrounding 拉取+filter_keypress 命中拦截+二次覆盖 | 仿真全绿 + `ui_wr_ime_r3_channel` **10 族全硬** + P2/P9/P15/死键/autofill 日志 + ≥3 轮 `metrics-audit` |
-| R4 选区与编辑 | F-B/F-C4 密码禁组合/F-C2-6/F-S/锚点预热+仅 composing 报 | `ui_wr_ime_r4_selection` 10 族全采（A/C/D/E/J 硬） + 拖选/双三击/密码像素+hint 日志 |
+| R4 选区与编辑 ✅已落 2026-08-29 | F-B/F-C4 密码禁组合/F-C2-6/F-S/锚点预热+仅 composing 报 | `ui_wr_ime_r4_selection` 10 族全采（A/C/D/E/J 硬） + 拖选/双三击/密码像素+hint 日志 |
 | R5 控件与滚动 | BaseEditable+F-E+F-F | `ui_wr_ime_r5_control` **10 族全硬** + 样板窗 + 5000 字横滚（含组合期）+ 首帧有内容 |
 | M2/M3 | Win IMM32/TSF、mac objc 子类，复用同逻辑 | 双引擎 P12 + 10 族全采（硬阈值见细表） |
 
@@ -522,17 +522,17 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | R3 ✅ | P1 ✅ | `batchDepth/done(serial)` 互斥（§8 C4） | `wlTiDone` 唤醒 + `IsInBatch` 抑制 `pushDelta/pushSurrounding` | 已落 |
 | R3 ✅ | P1 ✅ | 锚点双流 `translate_coordinates`（§7.1） | `UpdateCursorRect` 按 `ScaleFactor` 换算 `rect*scale` | 已落 |
 | R3 ✅ | P2 ✅ | `NONE/show/hide/首焦预热`、`4000` 单源去重、风暴/死键双引擎守护 | `IsNone()` 跳过 `Enable` + 首焦预热 `Disable`，`4000` 单源复用 | 已落 |
-| **R4** | **P0** | Undo/Redo 历史栈 `Ctrl+Z/Y` 一次组合=1 步（F-C2） | 全仓无 `history`，`editor.go` 仅 `epoch`，例窗探针软判定 | **J 硬 FAIL** |
-| R4 | **P0** | `MoveVisualUp/Down` 走 `SetSelection` 钳制（F-S2） | `visual_move.go:142` 直赋 `e.selection` 跳过 `composing&&!collapsed` 与 `EditableRange` | 组合期可越界 |
-| R4 | **P0** | Viewport 密码/锚点/高亮三漏（F-E0c/F-D3） | `viewport_input.go:275` 未掩码、`263` 无 `composingRange` 分支、`syncHighlight` 未判密码 | 泄露/锚错 |
-| R4 | P1 | 拖选自滚动 timer + 多行自滚（F-B2/F-F1） | `input_box:698` 28px 步进无 timer，`multi:1667` 完全无自滚 | 停拖不滚 |
-| R4 | P1 | 三击语义统一 `SelectLineAt`（F-B3） | Viewport 三击 `SelectAll`，他处 `SelectLineAt` | 不一致 |
-| R4 | P2 | `OnChange→RefreshIMEAnchor` 程序化 `SetText` 闭环（F-D10） | `Editor.OnChange=b.sync` 未调 `RefreshIMEAnchor`，路由仅 `Key/Text/IME/Down` 推 | 锚点滞后 |
+| **R4 ✅已落 2026-08-29** | **P0 ✅** | Undo/Redo 历史栈 `Ctrl+Z/Y` 一次组合=1 步（F-C2） | 已补：`Editor.Undo/Redo` 历史栈 100 步 + `composingSnapshot` 分组，`InputBox/Viewport/Multi Ctrl+Z/Y` | 已落 |
+| R4 ✅ | **P0 ✅** | `MoveVisualUp/Down` 走 `SetSelection` 钳制（F-S2） | `visual_move.go:142` 改走 `SetSelection` + 粘滞恢复 | 已落 |
+| R4 ✅ | **P0 ✅** | Viewport 密码/锚点/高亮三漏（F-E0c/F-D3） | `viewport_input.go` 已补：`sync` 密码掩码 + `caretAnchor` 密码 + `IMERect` composing 分支 + `syncHighlight` 密码判空 | 已落 |
+| R4 ✅ | P1 ✅ | 拖选自滚动 timer + 多行自滚（F-B2/F-F1） | `input_box` 单行/`viewport` 单行/`multi` 双向 50ms `AutoScroll` 计时器 + `PointerMove` 28px/14px 步进 | 已落 |
+| R4 ✅ | P1 ✅ | 三击语义统一 `SelectLineAt`（F-B3） | Viewport 三击改 `SelectLineAt` 与他处一致 | 已落 |
+| R4 ✅ | P2 ✅ | `OnChange→RefreshIMEAnchor` 程序化 `SetText` 闭环（F-D10） | `Editor.OnAnchor` + `InputRouter.syncSession` 设置 `OnAnchor=afterEdit`，`changed`/`EndBatchEdit` 调 `OnAnchor` | 已落 |
 | **R5** | P1 | 禁用态键盘拦截（F-E0d） | `InputBox.OnKey:790` / `Viewport:560` / `Multi` 无 `Disabled()` 早退，`BaseEditable.disabled` 未联动 `readOnly` | 禁用仍可输 |
 | R5 | P2 | 单行 `SetMaxLines` 显式忽略（F-C5） | `input_box:119` 透传 `txt.SetMaxLines`，注释与实现不符 | 潜在截断 |
 | R5 | P2 | `warmup` 观测诚实性（§10.4.5-7/W1–W6） | `r5/main.go:370` 硬写 `WarmupOK=true`，`report.go:153` 覆盖 `Snap.Warmup` | 假绿风险 |
 
-> 已落地（不计入待补）：`padding.go` 可扩展（`SetDefaultPadding/SetPadding/ClearPadding` 默认 8，对齐 Flutter `contentPadding`）与 `viewport` 清空后空文本光标、`\u` 解码、`Ctrl+V` 剪贴板；Wayland 5-mime 互通与 `selMimes/offerMimes` 跟踪（`3011ae5`）；**R1 6 项已落 `929f53f`、R2 7 项已落 `dce5ace`、R3 7 项已落 `da44676`**。
+> 已落地（不计入待补）：`padding.go` 可扩展（`SetDefaultPadding/SetPadding/ClearPadding` 默认 8，对齐 Flutter `contentPadding`）与 `viewport` 清空后空文本光标、`\u` 解码、`Ctrl+V` 剪贴板；Wayland 5-mime 互通与 `selMimes/offerMimes` 跟踪（`3011ae5`）；**R1 6 项已落 `929f53f`、R2 7 项已落 `dce5ace`、R3 7 项已落 `da44676`、R4 6 项已落（本提交）**。
 
 ## 13. 修订
 
@@ -550,6 +550,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | **v3.10 2026-08-29** | R1 已落：§12 中 R1 6 项标 ✅（`SetClient` 透传/定值锁、`lastFramework` 自动、`F-S1` 先删、`ApplyDelta` OldText 基底、`DeleteSurrounding` 吸附、`cjk3000.txt` 溯源），§11 R1 行标 ✅，对应实现 `929f53f` |
 | **v3.11 2026-08-29** | R2 已落：§12 中 R2 7 项标 ✅（`Face` 溯源、`HiDPI` SnapPixel/`SnappedX` 1.25/2.0、`5000` 真面形 `LoadMultiFace` <100ms、`Generation` 属性化、`Caret` 单源、`Ellipsis` 一致、粘滞/回退），§11 R2 行标 ✅，对应实现 `dce5ace` |
 | **v3.12 2026-08-29** | R3 已落：§12 中 R3 7 项标 ✅（`delta` 真通道 `OnDelta` + 定值锁、`filter_keypress` 路由优先、`-1` NUL、`二次覆盖` `ApplyFrameworkState`、`batch/done` 唤醒、`translate_coordinates` Scale、`NONE` 跳过），§11 R3 行标 ✅，对应实现 `da44676` |
+| **v3.13 2026-08-29** | R4 已落：§12 中 R4 6 项标 ✅（`Undo/Redo` 历史栈+分组、`MoveVisualUp/Down` 钳制、`Viewport` 密码/锚点/高亮、`拖选 timer` 双向、`三击` 统一、`OnChange→Anchor` 闭环），§11 R4 行标 ✅，同时修 `BaseEditable.SetDisabled→readOnly` 联动与 `Viewport` 获焦 `Disabled` 拦截 |
 
 ## 附录：偏移与截断
 

@@ -48,7 +48,15 @@ func (b *BaseEditable) SetPlaceholder(s string) { if b != nil { b.placeholder = 
 func (b *BaseEditable) Placeholder() string { if b == nil { return "" }; return b.placeholder }
 
 // SetDisabled 设置禁用态（样式置灰，编辑仍由 Editor.readOnly 控制）。
-func (b *BaseEditable) SetDisabled(v bool) { if b != nil { b.disabled = v } }
+func (b *BaseEditable) SetDisabled(v bool) {
+	if b == nil {
+		return
+	}
+	b.disabled = v
+	if b.ed != nil {
+		b.ed.SetReadOnly(v)
+	}
+}
 
 // Disabled 返回禁用态。
 func (b *BaseEditable) Disabled() bool { if b == nil { return false }; return b.disabled }

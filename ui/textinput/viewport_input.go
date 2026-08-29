@@ -2,7 +2,9 @@ package textinput
 
 import (
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/focus"
@@ -68,6 +70,9 @@ func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *ViewportInputBox {
 	vb.Node = focus.NewFocusNode(fmt.Sprintf("viewport-input-%p", vb))
 	vb.Node.Target = vb
 	vb.Node.OnFocusChange = func(on bool) {
+		if vb.Disabled() && on {
+			return
+		}
 		vb.focused = on
 		vb.MarkNeedsPaint()
 		vb.sync()
@@ -115,6 +120,9 @@ type ViewportInputBox struct {
 	selR, selG, selB, selA float64
 	padHas                bool
 	pad                   float64
+	dragLastX             float64
+	dragLastY             float64
+	autoScrollRunning     bool
 }
 
 func (b *ViewportInputBox) SetPlaceholder(s string) {
@@ -247,6 +255,37 @@ func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {
 		cy := txtOff.Y + 1
 		return cx, cy, cy + lh, true
 	}
+	// Password: map runeIdx to masked byte like InputBox.
+	if b.ed.IsPassword() {
+		ch := b.ed.ObscuringCharacter()
+		chBytes := len(string(ch))
+		if chBytes <= 0 {
+			chBytes = 3
+		}
+		runeIdx := utf16ToRuneIndex(b.ed.GetText(), b.ed.SelectionRange().Extent)
+		maskedByte := runeIdx * chBytes
+		aff := b.ed.TextRange().Affinity
+		lay := b.txt.TextLayout()
+		if lay != nil && len(lay.Lines) > 0 {
+			if x, y, h, ok := lay.GetOffsetForCaret(maskedByte, aff, 1.5); ok {
+				cx := txtOff.X + x - vpOff.X + 1
+				cy := txtOff.Y + y + 1
+				return cx, cy, cy + h, true
+			}
+		}
+		off := txtOff
+		charW := b.txt.MeasureWidth(string(ch))
+		if charW <= 0 {
+			charW = 12
+		}
+		x := off.X + float64(runeIdx)*charW - vpOff.X + 1
+		top := off.Y + 1
+		lh := b.txt.LineHeight()
+		if lh <= 0 {
+			lh = 22
+		}
+		return x, top, top + lh, true
+	}
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
@@ -261,6 +300,37 @@ func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {
 }
 
 func (b *ViewportInputBox) IMERect() platform.Rect {
+	if b != nil && b.ed != nil && b.ed.IsComposing() {
+		if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
+			cr := b.ed.ComposingRange()
+			s := byteOffsetForUtf16(b.ed.GetText(), cr.Start())
+			e := byteOffsetForUtf16(b.ed.GetText(), cr.End())
+			if s < e {
+				if boxes := lay.BoxesForRange(s, e); len(boxes) > 0 {
+					minX, minY := boxes[0].Min.X, boxes[0].Min.Y
+					maxX, maxY := boxes[0].Max.X, boxes[0].Max.Y
+					for _, r := range boxes[1:] {
+						if r.Min.X < minX {
+							minX = r.Min.X
+						}
+						if r.Min.Y < minY {
+							minY = r.Min.Y
+						}
+						if r.Max.X > maxX {
+							maxX = r.Max.X
+						}
+						if r.Max.Y > maxY {
+							maxY = r.Max.Y
+						}
+					}
+					off := b.txt.Offset()
+					vpOff := b.Viewport.ScrollOffset()
+					abs := absoluteOrigin(b)
+					return platform.Rect{X: abs.X + off.X + minX - vpOff.X + 1, Y: abs.Y + off.Y + minY + 1, W: maxX - minX, H: maxY - minY}
+				}
+			}
+		}
+	}
 	x, top, bottom, ok := b.caretAnchor()
 	if !ok {
 		return platform.Rect{X: 0, Y: 0, W: 2, H: 22}
@@ -275,8 +345,12 @@ func (b *ViewportInputBox) sync() {
 	if b == nil || b.txt == nil || b.ed == nil || b.Viewport == nil {
 		return
 	}
+	isPassword := b.ed.IsPassword()
 	disp := b.ed.GetText()
-	if disp == "" && !b.focused && b.placeholder != "" {
+	if isPassword && disp != "" {
+		ch := b.ed.ObscuringCharacter()
+		disp = strings.Repeat(string(ch), len([]rune(disp)))
+	} else if disp == "" && !b.focused && b.placeholder != "" {
 		disp = b.placeholder
 	}
 	b.txt.SetText(disp)
@@ -294,6 +368,24 @@ func (b *ViewportInputBox) sync() {
 	pad := b.Padding()
 	b.txt.SetOffset(rendering.Point{X: pad, Y: textY})
 	curByte := b.ed.GetCursorOffset()
+	if isPassword {
+		runes := []rune(b.ed.GetText())
+		runeIdx := 0
+		for i := range b.ed.GetText()[:viewportMin(curByte, len(b.ed.GetText()))] {
+			if (b.ed.GetText()[i]&0xC0) != 0x80 {
+				runeIdx++
+			}
+		}
+		if runeIdx > len(runes) {
+			runeIdx = len(runes)
+		}
+		maskedRunes := []rune(disp)
+		if runeIdx > len(maskedRunes) {
+			runeIdx = len(maskedRunes)
+		}
+		curByte = len(string(maskedRunes[:runeIdx]))
+		_ = utf8.RuneCountInString
+	}
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
 	var caretX float64
@@ -336,6 +428,9 @@ func (b *ViewportInputBox) syncHighlight() {
 		}
 	}
 	b.highlights = nil
+	if b.ed.IsPassword() {
+		return
+	}
 	sel := b.ed.SelectionRange()
 	if sel.Collapsed() {
 		return
@@ -452,7 +547,7 @@ func (b *ViewportInputBox) Layout(c rendering.Constraints) rendering.Size {
 }
 
 func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
-	if b == nil || b.ed == nil {
+	if b == nil || b.ed == nil || b.Disabled() {
 		return
 	}
 	abs := absoluteOrigin(b)
@@ -498,15 +593,22 @@ func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
 			}
 			b.dragging = false
 		} else if b.clickCount >= 3 {
-			b.ed.SelectAll()
+			if !b.ed.SelectLineAt(byteOff) {
+				b.ed.SelectAll()
+			}
 			b.dragging = false
 			b.clickCount = 3
 		} else {
 			b.ed.SetCaretWithAffinity(byteOff, aff)
 			b.dragStart = b.ed.utf16ForByte(byteOff)
 			b.dragging = true
+			b.dragLastX = ev.X
+			b.dragLastY = ev.Y
+			b.startViewportAutoScroll()
 		}
 	case input.PointerMove:
+		b.dragLastX = ev.X
+		b.dragLastY = ev.Y
 		if b.dragging {
 			pad := b.Padding()
 			abs2 := absoluteOrigin(b)
@@ -564,6 +666,9 @@ func (b *ViewportInputBox) OnKey(ev input.KeyEvent) {
 	if !ev.Pressed {
 		return
 	}
+	if b.Disabled() {
+		return
+	}
 	if b.ed != nil && b.ed.IsComposing() && isComposingFilterKey(ev.Key) {
 		if ev.Key == input.KeyEnter {
 			return
@@ -596,6 +701,16 @@ func (b *ViewportInputBox) OnKey(ev input.KeyEvent) {
 					b.ed.Paste(s)
 				}
 			}
+			return
+		case input.KeyZ:
+			if ev.Mods.Shift {
+				b.ed.Redo()
+			} else {
+				b.ed.Undo()
+			}
+			return
+		case input.KeyY:
+			b.ed.Redo()
 			return
 		case input.KeyArrowLeft:
 			if ev.Mods.Shift {
@@ -715,5 +830,81 @@ func (b *ViewportInputBox) MoveVisual(delta int) {
 	}
 	b.ed.MoveVisual(delta, b.txt.TextLayout())
 }
+
+func (b *ViewportInputBox) doViewportAutoScroll() {
+	if b == nil || !b.dragging {
+		b.autoScrollRunning = false
+		return
+	}
+	pad := b.Padding()
+	abs := absoluteOrigin(b)
+	w := b.FixedWidth
+	visW := w - 2 - 2*pad
+	if visW < 0 {
+		visW = 0
+	}
+	scrollX := b.Viewport.ScrollOffset().X
+	layTmp := b.txt.TextLayout()
+	maxX := 0.0
+	if layTmp != nil && len(layTmp.Lines) > 0 {
+		maxX = layTmp.Lines[0].Width
+	}
+	maxScroll := maxX - visW + 4
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	did := false
+	if b.dragLastX < abs.X+pad && scrollX > 0 {
+		scrollX -= 28
+		if scrollX < 0 {
+			scrollX = 0
+		}
+		b.Viewport.SetScrollOffset(scrollX, 0)
+		b.txt.SetViewportHint(scrollX, visW)
+		did = true
+	} else if b.dragLastX > abs.X+w-pad && scrollX < maxScroll {
+		scrollX += 28
+		if scrollX > maxScroll {
+			scrollX = maxScroll
+		}
+		b.Viewport.SetScrollOffset(scrollX, 0)
+		b.txt.SetViewportHint(scrollX, visW)
+		did = true
+	}
+	if did {
+		localX := b.dragLastX - abs.X - 1 - pad + scrollX
+		localY := b.dragLastY - abs.Y - 1 + b.Viewport.ScrollOffset().Y - b.txt.Offset().Y
+		lay := b.txt.TextLayout()
+		var byteOff int
+		if lay != nil {
+			byteOff, _ = lay.GetPositionForOffset(localX, localY)
+		} else {
+			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+		}
+		cur := b.ed.utf16ForByte(byteOff)
+		b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
+	}
+	if b.dragging {
+		time.AfterFunc(50*time.Millisecond, func() { b.doViewportAutoScroll() })
+	} else {
+		b.autoScrollRunning = false
+	}
+}
+
+func (b *ViewportInputBox) startViewportAutoScroll() {
+	if b.autoScrollRunning {
+		return
+	}
+	b.autoScrollRunning = true
+	time.AfterFunc(50*time.Millisecond, func() { b.doViewportAutoScroll() })
+}
+
 func (b *ViewportInputBox) OnText(ev input.TextEvent) {}
 func (b *ViewportInputBox) OnIME(ev input.IMEEvent)   {}
+
+func viewportMin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
