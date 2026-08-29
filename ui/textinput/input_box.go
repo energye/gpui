@@ -792,6 +792,7 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 		case input.KeyV:
 			if b.clipboard != nil {
 				if s, err := b.clipboard.Get("text/plain"); err == nil && s != "" {
+					s = decodeUnicodeEscapes(s)
 					b.ed.Paste(s)
 				}
 			}
@@ -1648,6 +1649,7 @@ func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 		case input.KeyV:
 			if b.clipboard != nil {
 				if s, err := b.clipboard.Get("text/plain"); err == nil && s != "" {
+					s = decodeUnicodeEscapes(s)
 					b.ed.Paste(s)
 				}
 			}
