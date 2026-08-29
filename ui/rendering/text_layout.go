@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	"math"
 	"strings"
 	"unicode/utf8"
 
@@ -32,6 +33,7 @@ type TextLayout struct {
 	LineSpacing float64
 	Generation uint64
 	MaxWidth   float64
+	Face       text.Face
 }
 
 func lineHeightFor(face text.Face, fontSize, lineSpacing float64) float64 {
@@ -52,11 +54,31 @@ func lineHeightFor(face text.Face, fontSize, lineSpacing float64) float64 {
 
 var textLayoutGen uint64
 
+// SnapPixel 对齐到物理像素（HiDPI 1.25/2.0 1px 采样，F0–F9）.
+func SnapPixel(x, scale float64) float64 {
+	if scale <= 0 {
+		return x
+	}
+	return math.Round(x*scale) / scale
+}
+
+// TextLayout.SnappedX 返回按 scale 像素对齐的 caret X（HiDPI）。
+func (l *TextLayout) SnappedX(byteOff int, scale float64) (float64, bool) {
+	if l == nil || len(l.Lines) == 0 {
+		return 0, false
+	}
+	_, x, ok := l.CaretForOffset(byteOff)
+	if !ok {
+		return 0, false
+	}
+	return SnapPixel(x, scale), true
+}
+
 // BuildTextLayout produces single-source layout.
 func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64) *TextLayout {
 	if textStr == "" {
 		textLayoutGen++
-		return &TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth}
+		return &TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face}
 	}
 	if fontSize <= 0 {
 		fontSize = 14
@@ -109,7 +131,7 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 		})
 	}
 	textLayoutGen++
-	return &TextLayout{Text: textStr, Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth}
+	return &TextLayout{Text: textStr, Lines: lines, FontSize: fontSize, LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxWidth, Face: face}
 }
 
 // LineTop returns the Y offset of line idx from the text origin (sum of previous line heights).
@@ -253,7 +275,7 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 	lineSpacing := t.lineSpacing()
 	if t.Text == "" {
 		textLayoutGen++
-		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW}
+		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace()}
 	}
 	// Helper to flush current line.
 	var lines []TextLayoutLine
@@ -362,10 +384,10 @@ func BuildRenderTextLayout(t *RenderText) *TextLayout {
 	}
 	if len(lines) == 0 {
 		textLayoutGen++
-		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW}
+		return &TextLayout{Text: t.Text, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace()}
 	}
 	textLayoutGen++
-	return &TextLayout{Text: t.Text, Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW}
+	return &TextLayout{Text: t.Text, Lines: lines, FontSize: t.fontSize(), LineSpacing: lineSpacing, Generation: textLayoutGen, MaxWidth: maxW, Face: t.effectiveFace()}
 }
 
 // BoxesForRange mirrors Flutter getBoxesForRange — line-box union for a byte range.

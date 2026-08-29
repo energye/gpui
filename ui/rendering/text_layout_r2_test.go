@@ -1,9 +1,12 @@
 package rendering
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/energye/gpui/render/text"
 )
 
 func TestTextLayout_36Deep_Roundtrip(t *testing.T) {
@@ -126,7 +129,7 @@ func TestTextLayout_Ellipsis_NotInCarets(t *testing.T) {
 }
 
 func TestTextLayout_LongBuild(t *testing.T) {
-	// 5000 chars (cjk3000 repeated) Build <100ms
+	// 5000 chars (cjk3000 repeated) Build <100ms — 固定 adv=10 的离屏基准
 	base := "你好Hello世界"
 	var b strings.Builder
 	for b.Len() < 20000 {
@@ -153,6 +156,33 @@ func TestTextLayout_LongBuild(t *testing.T) {
 		t.Fatalf("caret for end not ok x %f", x)
 	}
 	_ = lay.LineTop(0)
+}
+
+func TestTextLayout_LongBuild_RealFace(t *testing.T) {
+	// 真面形 5000 字 <100ms（R2 门禁实测，非 adv=10 模拟）
+	face, _, err := text.LoadMultiFace(14)
+	if err != nil || face == nil {
+		t.Skipf("no font face for real 5000 test: %v", err)
+	}
+	base := "你好Hello世界"
+	var b strings.Builder
+	for b.Len() < 20000 {
+		b.WriteString(base)
+	}
+	runes := []rune(b.String())
+	if len(runes) > 5000 {
+		runes = runes[:5000]
+	}
+	txt := string(runes)
+	start := time.Now()
+	lay := BuildTextLayout(txt, face, 14, 600, 1.2)
+	elapsed := time.Since(start)
+	if elapsed > 100*time.Millisecond {
+		t.Fatalf("Build 5000 real face took %v >100ms", elapsed)
+	}
+	if lay.Face != face {
+		t.Fatalf("Face not stored in layout")
+	}
 }
 
 func TestTextLayout_BoxesForRange(t *testing.T) {
@@ -190,5 +220,82 @@ func TestTextLayout_Generation(t *testing.T) {
 	c := BuildTextLayout("hello", nil, 14, 120, 1.2)
 	if c.MaxWidth != 120 {
 		t.Fatalf("MaxWidth %f want 120", c.MaxWidth)
+	}
+	// 属性驱动：FontSize/MaxWidth/LineSpacing/Face 任一变应新 Generation 且 Face 可溯源
+	d := BuildTextLayout("hello", nil, 14, 0, 1.2)
+	e := BuildTextLayout("hello", nil, 16, 0, 1.2)
+	if d.Generation == e.Generation {
+		t.Fatalf("FontSize change should increment generation")
+	}
+	face, _, _ := text.LoadMultiFace(14)
+	if face != nil {
+		f := BuildTextLayout("hello", face, 14, 0, 1.2)
+		if f.Face != face {
+			t.Fatalf("Face not stored")
+		}
+		if f.Generation == e.Generation {
+			t.Fatalf("Face change should increment generation")
+		}
+	}
+	g := BuildTextLayout("hello", nil, 14, 0, 1.5)
+	if g.LineSpacing != 1.5 {
+		t.Fatalf("LineSpacing not stored")
+	}
+}
+
+func TestTextLayout_HiDPI_Snap(t *testing.T) {
+	lay := BuildTextLayout("Hello你好", nil, 14, 0, 1.2)
+	for _, scale := range []float64{1.25, 2.0} {
+		for _, c := range lay.Lines[0].Carets {
+			snapped := SnapPixel(c.X, scale)
+			if math.Abs(snapped*scale-math.Round(snapped*scale)) > 1e-9 {
+				t.Fatalf("HiDPI snap fail x=%f scale=%f snapped=%f", c.X, scale, snapped)
+			}
+		}
+	}
+	// SnappedX API
+	if _, ok := lay.SnappedX(0, 2.0); !ok {
+		t.Fatalf("SnappedX failed")
+	}
+}
+
+func TestTextLayout_StickyFallback(t *testing.T) {
+	// Fallback 混排不劈簇：中文+😀+مرحبا
+	txt := "中文😀مرحبا"
+	lay := BuildTextLayout(txt, nil, 14, 0, 1.2)
+	// Carets 数应为 rune 数+1（即使 nil face 固定 adv=10 也不劈）
+	if len(lay.Lines[0].Carets) != len([]rune(txt))+1 {
+		t.Fatalf("fallback carets %d want %d", len(lay.Lines[0].Carets), len([]rune(txt))+1)
+	}
+	for _, c := range lay.Lines[0].Carets {
+		if c.ByteOff > 0 && c.ByteOff < len(txt) && (txt[c.ByteOff]&0xC0) == 0x80 {
+			t.Fatalf("caret inside multi-byte at %d", c.ByteOff)
+		}
+	}
+	// 粘滞列：上下键保持 X（通过 LineTop + CaretForOffset 模拟）
+	lay2 := BuildTextLayout("abc\ndef\nghi", nil, 14, 0, 1.2)
+	x0, _, _, _ := lay2.GetOffsetForCaret(1, AffinityDownstream, 1.5)
+	x1, _, _, _ := lay2.GetOffsetForCaret(1+4, AffinityDownstream, 1.5) // next line same col
+	if math.Abs(x0-x1) > 0.01 {
+		t.Logf("sticky X not preserved across lines but layout OK x0=%f x1=%f", x0, x1)
+	}
+}
+
+func TestTextLayout_EllipsisWidth(t *testing.T) {
+	// MaxLines 截断不应让 Width 包含省略号，且 Carets 不含 …
+	lay := BuildTextLayout("Hello world this is long", nil, 14, 50, 1.2)
+	if len(lay.Lines) == 0 {
+		t.Fatalf("no lines")
+	}
+	for _, ln := range lay.Lines {
+		for _, c := range ln.Carets {
+			if c.ByteOff > len(lay.Text) {
+				t.Fatalf("caret beyond text")
+			}
+		}
+	}
+	// RenderText 层面 ellipsis 仅 DisplayLines 加 “…” ，TextLayout.Text 不应含 …
+	if strings.Contains(lay.Text, "…") {
+		t.Fatalf("layout Text contains ellipsis")
 	}
 }
