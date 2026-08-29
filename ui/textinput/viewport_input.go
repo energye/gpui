@@ -367,6 +367,24 @@ func (b *ViewportInputBox) layoutCaret() {
 	if b.txt == nil || b.ed == nil {
 		return
 	}
+	// 空文本也要显示光标：走 caretAnchor 的空分支，避免 GetOffsetForCaret 在 Lines==0 时直接 return
+	if b.txt.Text == "" {
+		_, top, bottom, ok := b.caretAnchor()
+		if !ok {
+			return
+		}
+		txtOff := b.txt.Offset()
+		b.bar.MoveTo(-b.bar.Width/2, txtOff.Y)
+		if h := bottom - top; h > 0 {
+			b.bar.Height = h
+		}
+		if b.caretOn && b.focused {
+			b.bar.SetAlpha(1)
+		} else {
+			b.bar.SetAlpha(0)
+		}
+		return
+	}
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
@@ -376,6 +394,19 @@ func (b *ViewportInputBox) layoutCaret() {
 		x, y, h, ok = lay.GetOffsetForCaret(curByte, aff, 1.5)
 	}
 	if !ok {
+		// 回退到空文本逻辑
+		if _, top, bottom, ok2 := b.caretAnchor(); ok2 {
+			txtOff := b.txt.Offset()
+			b.bar.MoveTo(-b.bar.Width/2, txtOff.Y)
+			if hh := bottom - top; hh > 0 {
+				b.bar.Height = hh
+			}
+			if b.caretOn && b.focused {
+				b.bar.SetAlpha(1)
+			} else {
+				b.bar.SetAlpha(0)
+			}
+		}
 		return
 	}
 	txtOff := b.txt.Offset()
