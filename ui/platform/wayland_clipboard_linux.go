@@ -82,9 +82,11 @@ type wlDataDeviceState struct {
 	// operations (receive vs destroy marshal) are serialized here.
 	offerMu sync.Mutex
 	// Clipboard (selection).
-	selOffer  uintptr // current selection data_offer (0 = no selection)
-	ownSource uintptr // our wl_data_source (held while we own the clipboard)
-	ownData   string  // Set() copy — served to peers on send(), readable locally
+	selOffer   uintptr // current selection data_offer (0 = no selection)
+	selMimes   []string // mimes announced for selOffer
+	offerMimes map[uintptr][]string // pending data_offer -> mimes (cleared on selection)
+	ownSource  uintptr // our wl_data_source (held while we own the clipboard)
+	ownData    string  // Set() copy — served to peers on send(), readable locally
 	cachedData string // last external Get result, for fast second paste without re-reading pipe
 	cachedKind string
 	cachedOffer uintptr
@@ -121,7 +123,7 @@ func (w *wlWin) bindDataDevice() *wlDataDeviceState {
 		return nil
 	}
 	lib := w.lib
-	st := &wlDataDeviceState{lib: lib, win: w}
+	st := &wlDataDeviceState{lib: lib, win: w, offerMimes: make(map[uintptr][]string)}
 	st.selfPtr = uintptr(unsafe.Pointer(st))
 	st.mgr = w.bind(w.registry, w.ddMgrName, lib.ifaceDataDevMgr, 1)
 	if st.mgr == 0 {
@@ -237,6 +239,8 @@ func (st *wlDataDeviceState) destroyNow() {
 	st.mu.Lock()
 	sel, drag, src := st.selOffer, st.dragOffer, st.ownSource
 	st.selOffer, st.dragOffer, st.ownSource = 0, 0, 0
+	st.selMimes = nil
+	st.offerMimes = nil
 	st.mu.Unlock()
 	if sel != 0 {
 		st.lib.proxyMarshalArrayFlags(sel, wlDataOfferDestroy, 0, 0, 0, nil)
@@ -256,13 +260,19 @@ func (st *wlDataDeviceState) destroyNow() {
 
 // wlDDDataOfferCB: data_offer(id) — the compositor created a new data offer
 // (selection or DnD). Install the offer listener so the announced mime list
-// is collected (needed for DnD; the clipboard Get does not depend on it).
+// is collected (needed for DnD + clipboard mime fallback).
 func wlDDDataOfferCB(data, dd, id uintptr) {
 	st := ddsFrom(data)
 	if st == nil || st.lib == nil || id == 0 {
 		return
 	}
 	st.lib.proxyAddListener(id, uintptr(unsafe.Pointer(&st.offerListener[0])), st.selfPtr)
+	st.mu.Lock()
+	if st.offerMimes == nil {
+		st.offerMimes = make(map[uintptr][]string)
+	}
+	st.offerMimes[id] = nil
+	st.mu.Unlock()
 }
 
 // wlOfferMimeCB: wl_data_offer.offer(mime) — one announced mime type.
@@ -275,6 +285,14 @@ func wlOfferMimeCB(data, offer, mime uintptr) {
 	st.mu.Lock()
 	if offer == st.dragOffer {
 		st.dragMimes = append(st.dragMimes, s)
+	}
+	if st.offerMimes != nil {
+		if _, ok := st.offerMimes[offer]; ok {
+			st.offerMimes[offer] = append(st.offerMimes[offer], s)
+		} else {
+			// offer seen before data_offer (rare reordering) or drag offer
+			st.offerMimes[offer] = []string{s}
+		}
 	}
 	st.mu.Unlock()
 }
@@ -382,6 +400,23 @@ func wlDDSelectionCB(data, dd, offer uintptr) {
 	st.mu.Lock()
 	old := st.selOffer
 	st.selOffer = offer
+	if st.offerMimes != nil {
+		if m, ok := st.offerMimes[offer]; ok {
+			st.selMimes = m
+			delete(st.offerMimes, offer)
+		} else {
+			st.selMimes = nil
+		}
+		// clean other pending offers that never became selection
+		for k := range st.offerMimes {
+			if k != offer && k != st.dragOffer {
+				delete(st.offerMimes, k)
+			}
+		}
+	}
+	if offer == 0 {
+		st.selMimes = nil
+	}
 	// 选区变了，之前缓存的外部数据失效
 	if offer != st.cachedOffer {
 		st.cachedData = ""
@@ -584,18 +619,52 @@ func (c *wlClipboard) Get(kind string) (string, error) {
 			return d, nil
 		}
 		offer := st.selOffer
+		// 选择最匹配的 mime，避免对未提供的 mime 发 3s 超时的 readOffer
+		selMimesCopy := append([]string(nil), st.selMimes...)
 		st.mu.Unlock()
-		buf, err := st.readOffer(offer, kind)
+		cands := clipboardMimes(kind)
+		var tryMimes []string
+		if len(selMimesCopy) > 0 {
+			for _, c := range cands {
+				for _, o := range selMimesCopy {
+					if c == o {
+						tryMimes = append(tryMimes, c)
+						break
+					}
+				}
+			}
+			if len(tryMimes) == 0 {
+				tryMimes = cands
+			}
+		} else {
+			tryMimes = cands
+		}
+		var buf []byte
+		var lastErr error
+		for _, m := range tryMimes {
+			b, err := st.readOffer(offer, m)
+			if err == nil && len(b) > 0 {
+				buf = b
+				lastErr = nil
+				break
+			}
+			if err != nil {
+				lastErr = err
+			}
+		}
 		st.mu.Lock()
 		// 保留 offer 不销毁，缓存结果供下一次粘贴秒回；下一次 selection 事件会整体替换并清缓存
-		if err == nil {
+		if len(buf) > 0 {
 			st.cachedData = string(buf)
 			st.cachedKind = kind
 			st.cachedOffer = offer
 		}
 		st.mu.Unlock()
-		if err != nil {
-			return "", err
+		if len(buf) == 0 {
+			if lastErr != nil {
+				return "", lastErr
+			}
+			return "", fmt.Errorf("wayland: clipboard is empty or unsupported mime %q", kind)
 		}
 		return string(buf), nil
 	}
@@ -640,6 +709,16 @@ func (st *wlDataDeviceState) wakeForDestroy() {
 
 // Set writes data of kind ("" → text/plain) to the selection. The payload
 // is copied locally and served to pulling peers via wl_data_source.send.
+func clipboardMimes(kind string) []string {
+	if kind == "" {
+		kind = "text/plain"
+	}
+	if kind == "text/plain" {
+		return []string{"text/plain", "text/plain;charset=utf-8", "UTF8_STRING", "STRING", "TEXT"}
+	}
+	return []string{kind}
+}
+
 func (c *wlClipboard) Set(kind, data string) error {
 	if kind == "" {
 		kind = "text/plain"
@@ -662,9 +741,11 @@ func (c *wlClipboard) Set(kind, data string) error {
 		lib.proxyDestroy(src)
 		return fmt.Errorf("wayland: source listener failed")
 	}
-	pin := append([]byte(kind), 0)
-	oargs := []wlArg{argS(cstr(pin))}
-	lib.proxyMarshalArrayFlags(src, wlDataSourceOffer, 0, 0, 0, &oargs[0])
+	for _, m := range clipboardMimes(kind) {
+		pin := append([]byte(m), 0)
+		oargs := []wlArg{argS(cstr(pin))}
+		lib.proxyMarshalArrayFlags(src, wlDataSourceOffer, 0, 0, 0, &oargs[0])
+	}
 
 	st.mu.Lock()
 	old := st.ownSource
