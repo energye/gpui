@@ -100,7 +100,7 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
 		}
 	} else {
-		wrapped = text.WrapText(textStr, face, maxWidth, text.WrapWord)
+		wrapped = text.WrapText(textStr, face, maxWidth, text.WrapWordChar)
 		if len(wrapped) == 0 {
 			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
 		}

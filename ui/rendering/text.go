@@ -470,7 +470,7 @@ func (t *RenderText) wrapLines() []string {
 		return strings.Split(s, "\n")
 	}
 	if face := t.effectiveFace(); face != nil {
-		res := text.WrapText(s, face, maxW, text.WrapWord)
+		res := text.WrapText(s, face, maxW, text.WrapWordChar)
 		out := make([]string, len(res))
 		for i, r := range res {
 			out[i] = r.Text

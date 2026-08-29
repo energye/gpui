@@ -142,6 +142,7 @@ func TestScroll_MaxLinesEllipsisNotEditable(t *testing.T) {
 	ed.SetSingleLine(false)
 	ed.SetText("hello world this is a long line that should be ellipsized beyond width", TextRange{Base: 0, Extent: 0}, TextRange{}, 0)
 	box := NewMultiLineInputBox(ed, 260, 40, 12)
+	box.SetWrap(true)
 	box.SetMaxLines(1)
 	box.SetOverflow(rendering.TextOverflowEllipsis)
 	lay := box.TextLayout()
@@ -192,6 +193,7 @@ func TestScroll_SingleRejectMultiAllow(t *testing.T) {
 	}
 	// MaxLines clip should not affect TextRange
 	box := NewMultiLineInputBox(edM, 260, 40, 12)
+	box.SetWrap(true)
 	box.SetMaxLines(1)
 	box.SetOverflow(rendering.TextOverflowEllipsis)
 	if edM.TextRange().End() != utf16Len(edM.GetText()) {

@@ -1266,6 +1266,8 @@ type MultiLineInputBox struct {
 	dragLastX            float64
 	dragLastY            float64
 	autoScrollRunning    bool
+	wrap                 bool
+	wrapMode             text.WrapMode
 }
 
 func (b *MultiLineInputBox) SetPadding(pad float64) {
@@ -1351,6 +1353,43 @@ func (b *MultiLineInputBox) SetOverflow(o rendering.TextOverflow) {
 	b.txt.SetOverflow(o)
 	b.sync()
 }
+
+// SetWrap 控制多行是否自动换行，默认 false（不换行，超出宽度水平滚动）。
+// 对齐 Flutter softWrap：true 时按 MaxWidth 软换行，false 时仅硬换行 \n。
+func (b *MultiLineInputBox) SetWrap(v bool) {
+	if b == nil {
+		return
+	}
+	b.wrap = v
+	b.sync()
+}
+func (b *MultiLineInputBox) Wrap() bool {
+	if b == nil {
+		return false
+	}
+	return b.wrap
+}
+
+// SetWrapMode 控制换行时的断行策略，默认 WrapWordChar（词优先+字符兜底，对齐 Flutter）。
+func (b *MultiLineInputBox) SetWrapMode(m text.WrapMode) {
+	if b == nil {
+		return
+	}
+	b.wrapMode = m
+	b.sync()
+}
+func (b *MultiLineInputBox) WrapMode() text.WrapMode {
+	if b == nil {
+		return text.WrapWordChar
+	}
+	if b.wrapMode == text.WrapNone && !b.wrap {
+		return text.WrapNone
+	}
+	if b.wrapMode != 0 {
+		return b.wrapMode
+	}
+	return text.WrapWordChar
+}
 func (b *MultiLineInputBox) SetCaretOn(v bool) {
 	if b == nil {
 		return
@@ -1400,10 +1439,10 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 	b.txt.R, b.txt.G, b.txt.B, b.txt.A = 0.06, 0.85, 0.60, 1
 	b.FixedWidth = w
 	b.FixedHeight = h
-	b.txt.MaxWidth = w - 2*b.Padding()
-	if b.txt.MaxWidth < 0 {
-		b.txt.MaxWidth = 0
-	}
+	// 默认不自动换行（满足 R4 测试要求），需换行时显式 SetWrap(true)
+	b.wrap = false
+	b.wrapMode = text.WrapWordChar
+	b.txt.MaxWidth = 0
 	clip := rendering.NewRenderClipRRect()
 	clip.FixedWidth = w
 	clip.FixedHeight = h
@@ -1549,6 +1588,15 @@ func (b *MultiLineInputBox) sync() {
 	if disp == "" && !b.focused && b.placeholder != "" {
 		disp = b.placeholder
 	}
+	pad := b.Padding()
+	if b.wrap {
+		b.txt.MaxWidth = b.FixedWidth - 2*pad
+		if b.txt.MaxWidth < 0 {
+			b.txt.MaxWidth = 0
+		}
+	} else {
+		b.txt.MaxWidth = 0
+	}
 	b.txt.SetText(disp)
 	if disp == "" {
 		b.scrollX = 0
@@ -1586,11 +1634,6 @@ func (b *MultiLineInputBox) sync() {
 		caretH = lh
 	}
 	_ = caretH
-	pad := b.Padding()
-	b.txt.MaxWidth = b.FixedWidth - 2*pad
-	if b.txt.MaxWidth < 0 {
-		b.txt.MaxWidth = 0
-	}
 	visW := b.FixedWidth - 2*pad
 	visH := b.FixedHeight - 2*pad
 	if visW < 0 {

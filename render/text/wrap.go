@@ -544,6 +544,9 @@ func measureRune(r rune, face Face) float64 {
 	// Use shaping for accurate measurement
 	glyphs := Shape(string(r), face)
 	if len(glyphs) == 0 {
+		if face != nil {
+			return RuneAdvance(face, r)
+		}
 		return 0
 	}
 
@@ -562,6 +565,12 @@ func MeasureText(text string, face Face) float64 {
 	}
 
 	glyphs := Shape(text, face)
+	if len(glyphs) == 0 {
+		if face != nil {
+			return face.Advance(text)
+		}
+		return 0
+	}
 	var width float64
 	for i := range glyphs {
 		width += glyphs[i].XAdvance
