@@ -790,6 +790,11 @@ func (b *InputBox) OnKey(ev input.KeyEvent) {
 			}
 			return
 		case input.KeyV:
+			if b.clipboard != nil {
+				if s, err := b.clipboard.Get("text/plain"); err == nil && s != "" {
+					b.ed.Paste(s)
+				}
+			}
 			return
 		case input.KeyBackspace:
 			// F-C3 词删除 Ctrl+Backspace 限 editable_range
@@ -1641,6 +1646,11 @@ func (b *MultiLineInputBox) OnKey(ev input.KeyEvent) {
 			}
 			return
 		case input.KeyV:
+			if b.clipboard != nil {
+				if s, err := b.clipboard.Get("text/plain"); err == nil && s != "" {
+					b.ed.Paste(s)
+				}
+			}
 			return
 		case input.KeyBackspace:
 			b.deleteWordMulti(false)

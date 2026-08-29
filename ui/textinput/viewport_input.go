@@ -533,6 +533,11 @@ func (b *ViewportInputBox) OnKey(ev input.KeyEvent) {
 			}
 			return
 		case input.KeyV:
+			if b.clipboard != nil {
+				if s, err := b.clipboard.Get("text/plain"); err == nil && s != "" {
+					b.ed.Paste(s)
+				}
+			}
 			return
 		case input.KeyArrowLeft:
 			if ev.Mods.Shift {
