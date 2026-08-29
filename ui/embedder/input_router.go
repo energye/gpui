@@ -48,6 +48,8 @@ type InputRouter struct {
 	OnText func(ev input.TextEvent)
 	// OnIME receives in-progress IME events.
 	OnIME func(ev input.IMEEvent)
+	// OnDelta receives TextEditingDelta when enableDeltaModel==true (R3).
+	OnDelta func(delta textinput.TextEditingDelta)
 
 	// TextEditor is the FALLBACK editable control used when no focused
 	// TextEditTarget resolves (single-editor windows / tests). A focused
@@ -67,6 +69,10 @@ type InputRouter struct {
 	lastSurr           string // dedupe key of the last surrounding push ("text\x00cursor")
 	hasAnchor          bool   // lastAnchor valid?
 	lastAnchor         platform.Rect
+	// delta tracking (R3)
+	lastDeltaText string
+	lastDeltaSel  textinput.TextRange
+	lastDeltaComp textinput.TextRange
 
 	mu   sync.Mutex
 	mods input.Modifiers
@@ -176,6 +182,16 @@ func (r *InputRouter) onFocusChange(from, to *focus.FocusNode) {
 		r.session = next
 		r.lastSurr = "" // new session must push fresh surrounding state
 		r.hasAnchor = false
+		if next != nil && next.Editor() != nil {
+			ed := next.Editor()
+			r.lastDeltaText = ed.GetText()
+			r.lastDeltaSel = ed.SelectionRange()
+			r.lastDeltaComp = ed.ComposingRange()
+		} else {
+			r.lastDeltaText = ""
+			r.lastDeltaSel = textinput.TextRange{}
+			r.lastDeltaComp = textinput.TextRange{}
+		}
 		r.mu.Unlock()
 		r.syncSession(ime, prev, next)
 	}
@@ -192,6 +208,7 @@ func (r *InputRouter) debugIME(format string, args ...any) {
 
 // syncSession closes the outgoing session (drop live overlay → disable)
 // then opens the incoming one (purpose → enable at its anchor).
+// F-D7 / §7.1: input_type==NONE 按 focus_out 处理，不 Enable；首焦预热已在 new 时 focus_out 完成。
 func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 	if prev != nil {
 		r.debugIME("session close: cancel+disable")
@@ -201,6 +218,10 @@ func (r *InputRouter) syncSession(ime platform.IME, prev, next TextEditTarget) {
 		ime.DisableIME()
 	}
 	if next != nil {
+		if ed := next.Editor(); ed != nil && ed.IsNone() {
+			r.debugIME("session NONE: skip enable (focus_out)")
+			return
+		}
 		r.debugIME("session open: purpose=%v rect=%v", next.ContentPurpose(), next.IMERect())
 		ime.SetContentType(next.ContentPurpose())
 		ime.EnableIME(next.IMERect())
@@ -239,15 +260,36 @@ func (r *InputRouter) afterEdit() {
 	}
 	rect := t.IMERect()
 	ed := t.Editor()
-	composing := ed != nil && ed.ComposeActive()
 	r.mu.Lock()
 	same := r.hasAnchor && rect == r.lastAnchor
 	r.hasAnchor, r.lastAnchor = true, rect
 	r.mu.Unlock()
-	if !same && composing {
+	if !same {
 		ime.UpdateCursorRect(rect)
 	}
 	r.pushSurrounding(ime, t)
+	r.pushDelta(ed)
+}
+func (r *InputRouter) pushDelta(ed *textinput.Editor) {
+	if r.OnDelta == nil || ed == nil || !ed.EnableDeltaModel() || ed.IsInBatch() {
+		return
+	}
+	r.mu.Lock()
+	oldText := r.lastDeltaText
+	oldSel := r.lastDeltaSel
+	oldComp := r.lastDeltaComp
+	r.mu.Unlock()
+	d := ed.ToDelta(oldText, oldSel, oldComp)
+	// F-D8 要求 IsNonTextUpdate 时 OldText==text，空 delta 去重
+	if d.IsNonTextUpdate() && oldText == ed.GetText() && d.Selection == oldSel && d.Composing == oldComp {
+		return
+	}
+	r.mu.Lock()
+	r.lastDeltaText = ed.GetText()
+	r.lastDeltaSel = ed.SelectionRange()
+	r.lastDeltaComp = ed.ComposingRange()
+	r.mu.Unlock()
+	r.OnDelta(d)
 }
 
 // RefreshIMEAnchor re-sends the open session's cursor rect and surrounding
@@ -358,14 +400,23 @@ func (r *InputRouter) routePointer(ev input.Event) {
 	}
 }
 
+func isComposingFilterKey(k input.Key) bool {
+	switch k {
+	case input.KeyHome, input.KeyEnd, input.KeyPageUp, input.KeyPageDown,
+		input.KeyArrowLeft, input.KeyArrowRight, input.KeyArrowUp, input.KeyArrowDown,
+		input.KeyEnter:
+		return true
+	}
+	return false
+}
+
 func (r *InputRouter) routeKey(ev input.Event) {
 	ke := ev.Key
 	ed := r.editorFor()
-	// Printable character without a modifier (or with shift) → committed
-	// text into the focused editor (plain keyboard path; IME compose goes
-	// through KindText/KindIME separately). Control keys (Backspace/arrows)
-	// are handled by the editor's OnKey consumer instead.
-	if ke.Pressed && ed != nil && ke.Rune != 0 && ke.Rune != '\r' && ke.Rune != '\n' {
+	// §7.1 filter_keypress 优先：composing 时 Home/End/Page/Arrow/Enter 由 IME 优先消费，避免光标在 composingRange 外
+	if ke.Pressed && ed != nil && ed.IsComposing() && isComposingFilterKey(ke.Key) {
+		// 命中即拦截：不 Insert，仍让 OnKey 有机会做 IME 侧处理（InputBox 会早退）
+	} else if ke.Pressed && ed != nil && ke.Rune != 0 && ke.Rune != '\r' && ke.Rune != '\n' {
 		switch ke.Key {
 		case input.KeyBackspace, input.KeyDelete,
 			input.KeyArrowLeft, input.KeyArrowRight,

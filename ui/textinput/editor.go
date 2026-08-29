@@ -310,7 +310,27 @@ func (e *Editor) IsReadOnly() bool {
 	}
 	return e.readOnly
 }
+func (e *Editor) IsInBatch() bool {
+	if e == nil {
+		return false
+	}
+	return e.batchDepth > 0
+}
+func (e *Editor) IsNone() bool {
+	if e == nil {
+		return false
+	}
+	return e.inputType == "none"
+}
 
+func (e *Editor) ApplyFrameworkState(text string, sel, comp TextRange, affinity int) bool {
+	// F-D8 二次覆盖：框架侧 set_editing_state 按 -1 哨兵→显式→Sel→Composing 四步原子
+	// 这里合并为一次 SetText，但保留哨兵语义与 lastFramework 去重
+	if e == nil {
+		return false
+	}
+	return e.SetText(text, sel, comp, affinity)
+}
 func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool {
 	if e == nil {
 		return false

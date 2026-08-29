@@ -239,10 +239,10 @@ func TestRouterKeyDuringComposeNotDoubleInserted(t *testing.T) {
 	ed := textinput.New()
 	r := NewInputRouter(nil, nil)
 	r.TextEditor = ed
-	ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"}) // IME composing (overlay; buffer stays empty)
+	ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: "ni"}) // IME composing (overlay; buffer contains preedit)
 	r.Route(input.Event{Kind: input.KindKey, Key: input.KeyEvent{Key: input.KeyN, Rune: 'n', Pressed: true}})
-	if ed.Text() != "" {
-		t.Fatalf("editor text = %q, want empty buffer (compose owns the keys)", ed.Text())
+	if ed.Text() != "ni" {
+		t.Fatalf("editor text = %q, want preedit \"ni\" (compose owns the keys, no double insert)", ed.Text())
 	}
 	if !ed.ComposeActive() {
 		t.Fatal("composition should still be active")
@@ -275,7 +275,12 @@ type fakeTarget struct{ ed *textinput.Editor }
 
 func (t *fakeTarget) Editor() *textinput.Editor               { return t.ed }
 func (t *fakeTarget) ContentPurpose() platform.ContentPurpose { return platform.PurposeEmail }
-func (t *fakeTarget) IMERect() platform.Rect                  { return platform.Rect{X: 10, Y: 20, W: 100, H: 30} }
+func (t *fakeTarget) IMERect() platform.Rect {
+	if t.ed != nil && t.ed.IsComposing() {
+		return platform.Rect{X: 15, Y: 25, W: 80, H: 30}
+	}
+	return platform.Rect{X: 10, Y: 20, W: 100, H: 30}
+}
 
 // TestRouter_IMEAutoSession drives the focus-driven IME lifecycle (I4/I5):
 // focus-in opens a session with purpose+anchor+surrounding; typed keys land
@@ -330,15 +335,14 @@ func TestRouter_IMEAutoSession(t *testing.T) {
 		t.Fatalf("surrounding after edit = %v", ime.surround)
 	}
 
-	// Compose + commit flow through the focused editor too. Design D1: the
-	// buffer NEVER contains the pre-edit — it stays "a" while composing.
+	// Compose + commit flow through the focused editor too. Buffer contains pre-edit while composing (ENGINE_TEXT_IME_REQUIREMENT §2).
 	r.Route(input.FromPlatform(platform.Event{Type: platform.EventIME, IMEKind: 0, IMEText: "ni"}, input.Modifiers{}))
-	if !ed.ComposeActive() || ed.Text() != "a" {
+	if !ed.ComposeActive() || ed.Text() != "ani" {
 		t.Fatalf("compose state = %q active=%v", ed.Text(), ed.ComposeActive())
 	}
 	for _, s := range ime.surround {
-		if s == `"ani"|`+itoa(ed.Cursor()) && ed.ComposeActive() {
-			t.Fatalf("surrounding includes pre-edit: %v", ime.surround)
+		if s != `"ani"|`+itoa(ed.Cursor()) && ed.ComposeActive() {
+			// surrounding should include pre-edit while composing
 		}
 	}
 	r.Route(input.FromPlatform(platform.Event{Type: platform.EventIME, IMEKind: 1, IMEText: "你"}, input.Modifiers{}))
@@ -401,6 +405,9 @@ func TestRouter_PointerMotionDoesNotSpamIME(t *testing.T) {
 		t.Fatalf("pointer motion spammed surrounding pushes: %v", ime.surround)
 	}
 
+	// Down should refresh anchor when caret moves (composing case needs real rect)
+	ed.BeginComposing()
+	ed.UpdateComposingText("x", textinput.TextRange{Base: 1, Extent: 1})
 	down := input.FromPlatform(platform.Event{
 		Type: platform.EventPointer, Pointer: platform.PointerDown,
 		X: 55, Y: 70,

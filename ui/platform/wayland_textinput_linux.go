@@ -314,6 +314,8 @@ func (im *wlIme) SetContentType(purpose ContentPurpose) {
 // Identical consecutive rects are SKIPPED: every commit_state makes the
 // compositor re-send the current preedit, so a redundant push feeds a
 // protocol echo loop (dozens of duplicate preedit events per keystroke).
+// translate_coordinates: window-relative logical rect → surface-local physical
+// via ScaleFactor (HiDPI), per §7.1 composing_rect*transform.
 func (im *wlIme) UpdateCursorRect(rect Rect) {
 	if im == nil || im.h == nil || im.h.win == nil || im.h.win.ti == nil {
 		return
@@ -321,6 +323,13 @@ func (im *wlIme) UpdateCursorRect(rect Rect) {
 	st := im.h.win.ti
 	if st.ti == 0 {
 		return
+	}
+	// HiDPI translate: logical → physical for cursor rect
+	if scale := im.h.ScaleFactor(); scale > 0 && scale != 1 {
+		rect.X *= scale
+		rect.Y *= scale
+		rect.W *= scale
+		rect.H *= scale
 	}
 	if st.hasRect && rect == st.rect {
 		st.cancelRecheck() // engine is alive; the fallback round would only disturb it
@@ -601,10 +610,20 @@ func wlTiDeleteSurr(data, ti, before, after uintptr) {
 	})
 }
 
-// wlTiDone marks the end of a protocol round (serial). We do not need it for
-// the editor (events are applied as they arrive); retained for protocol
-// completeness.
-func wlTiDone(data, ti, serial uintptr) {}
+// wlTiDone marks the end of a protocol round (serial). §8 C4 要求 batchDepth>0 时抑制
+// updateEditingState，done 入队列待 EndBatchEdit 后一次性发送（与 dispatch 互斥）。
+// 当前 Editor 的 batch 抑制已在 changed() 内完成，这里仅作唤醒，确保 done 后的
+// surrounding/cursor 推送在下一轮 poll 及时发出（避免 done 与正在进行的
+// preedit/commit/delete 在同一 serial 内竞争）。
+func wlTiDone(data, ti, serial uintptr) {
+	st := (*wlTIState)(unsafe.Pointer(data))
+	if st == nil || st.win == nil {
+		return
+	}
+	if h := st.win.hostForWake(); h != nil {
+		h.WakeUp()
+	}
+}
 
 // destroy tears down the text-input objects.
 func (st *wlTIState) destroy() {
