@@ -2,6 +2,7 @@ package textinput
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/focus"
@@ -13,6 +14,9 @@ import (
 func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *ViewportInputBox {
 	if fontSize <= 0 {
 		fontSize = 12
+	}
+	if ed != nil {
+		ed.SetSingleLine(true)
 	}
 	outer := rendering.NewRenderBox()
 	vb := &ViewportInputBox{
@@ -99,6 +103,13 @@ type ViewportInputBox struct {
 	clipboard platform.Clipboard
 	placeholder string
 	blinkElapsed float64
+	dragging    bool
+	dragStart   int
+	highlights  []*rendering.RenderColorBox
+	lastClickAt time.Time
+	lastClickX  float64
+	lastClickY  float64
+	clickCount  int
 }
 
 func (b *ViewportInputBox) SetPlaceholder(s string) {
@@ -205,6 +216,8 @@ func (b *ViewportInputBox) IMERect() platform.Rect {
 	return platform.Rect{X: abs.X + x, Y: abs.Y + top, W: 2, H: bottom - top}
 }
 
+func (b *ViewportInputBox) Sync() { b.sync() }
+
 func (b *ViewportInputBox) sync() {
 	if b == nil || b.txt == nil || b.ed == nil || b.Viewport == nil {
 		return
@@ -248,11 +261,49 @@ func (b *ViewportInputBox) sync() {
 	}
 	b.Viewport.SetScrollOffset(scrollX, 0)
 	b.txt.SetViewportHint(scrollX, visW)
+	b.syncHighlight()
 	b.caretOn = true
 	b.layoutCaret()
 	if b.sched != nil {
 		b.sched()
 	}
+}
+
+func (b *ViewportInputBox) syncHighlight() {
+	if b == nil || b.content == nil || b.txt == nil || b.ed == nil {
+		return
+	}
+	for _, h := range b.highlights {
+		if h != nil {
+			b.content.RemoveChild(h)
+		}
+	}
+	b.highlights = nil
+	sel := b.ed.SelectionRange()
+	if sel.Collapsed() {
+		return
+	}
+	sByte := byteOffsetForUtf16(b.ed.GetText(), sel.Start())
+	eByte := byteOffsetForUtf16(b.ed.GetText(), sel.End())
+	lay := b.txt.TextLayout()
+	if lay == nil || len(lay.Lines) == 0 {
+		return
+	}
+	boxes := lay.BoxesForRange(sByte, eByte)
+	if len(boxes) == 0 {
+		return
+	}
+	off := b.txt.Offset()
+	for _, r := range boxes {
+		hb := rendering.NewRenderColorBox(r.Size().Width, r.Size().Height, 0.22, 0.45, 0.85, 0.35)
+		hb.MoveTo(off.X+r.Min.X, off.Y+r.Min.Y)
+		b.content.AddChild(hb)
+		b.highlights = append(b.highlights, hb)
+	}
+	b.content.RemoveChild(b.txt)
+	b.content.RemoveChild(b.bar)
+	b.content.AddChild(b.txt)
+	b.content.AddChild(b.bar)
 }
 
 func (b *ViewportInputBox) layoutCaret() {
@@ -295,13 +346,19 @@ func (b *ViewportInputBox) Layout(c rendering.Constraints) rendering.Size {
 }
 
 func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
-	if ev.Kind == input.PointerDown && b.Node != nil {
-		b.Node.RequestFocus()
-		abs := absoluteOrigin(b)
-		vpOff := b.Viewport.ScrollOffset()
-		txtOff := b.txt.Offset()
-		localX := ev.X - abs.X - 1 + vpOff.X
-		localY := ev.Y - abs.Y - 1 + vpOff.Y - txtOff.Y
+	if b == nil || b.ed == nil {
+		return
+	}
+	abs := absoluteOrigin(b)
+	vpOff := b.Viewport.ScrollOffset()
+	txtOff := b.txt.Offset()
+	localX := ev.X - abs.X - 1 + vpOff.X
+	localY := ev.Y - abs.Y - 1 + vpOff.Y - txtOff.Y
+	switch ev.Kind {
+	case input.PointerDown:
+		if b.Node != nil {
+			b.Node.RequestFocus()
+		}
 		lay := b.txt.TextLayout()
 		var byteOff, aff int
 		if lay != nil {
@@ -310,13 +367,99 @@ func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
 			byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
 			aff = rendering.AffinityDownstream
 		}
-		b.ed.SetCaretWithAffinity(byteOff, aff)
+		now := time.Now()
+		dx := localX - b.lastClickX
+		if dx < 0 {
+			dx = -dx
+		}
+		dy := localY - b.lastClickY
+		if dy < 0 {
+			dy = -dy
+		}
+		if now.Sub(b.lastClickAt) < 500*time.Millisecond && dx < 4 && dy < 4 {
+			b.clickCount++
+		} else {
+			b.clickCount = 1
+		}
+		b.lastClickAt = now
+		b.lastClickX = localX
+		b.lastClickY = localY
+		if b.clickCount == 2 {
+			if !b.ed.SelectWordAt(byteOff) {
+				b.ed.SetCaretWithAffinity(byteOff, aff)
+			}
+			b.dragging = false
+		} else if b.clickCount >= 3 {
+			b.ed.SelectAll()
+			b.dragging = false
+			b.clickCount = 3
+		} else {
+			b.ed.SetCaretWithAffinity(byteOff, aff)
+			b.dragStart = b.ed.utf16ForByte(byteOff)
+			b.dragging = true
+		}
+	case input.PointerMove:
+		if b.dragging {
+			// 拖出视口自动滚：指针在框外时按方向滚 28px/帧，并更新选区；到头就停，不滚出空白（F-F1/F-F2）
+			abs2 := absoluteOrigin(b)
+			w2 := b.FixedWidth
+			visW := w2 - 2
+			scrollX := b.Viewport.ScrollOffset().X
+			layTmp := b.txt.TextLayout()
+			maxX := 0.0
+			if layTmp != nil && len(layTmp.Lines) > 0 {
+				maxX = layTmp.Lines[0].Width
+			}
+			maxScroll := maxX - visW + 4
+			if maxScroll < 0 {
+				maxScroll = 0
+			}
+			if ev.X < abs2.X+8 && scrollX > 0 {
+				scrollX -= 28
+				if scrollX < 0 {
+					scrollX = 0
+				}
+				b.Viewport.SetScrollOffset(scrollX, 0)
+				b.txt.SetViewportHint(scrollX, visW)
+				localX = ev.X - abs2.X - 1 + scrollX
+			} else if ev.X > abs2.X+w2-8 && scrollX < maxScroll {
+				scrollX += 28
+				if scrollX > maxScroll {
+					scrollX = maxScroll
+				}
+				b.Viewport.SetScrollOffset(scrollX, 0)
+				b.txt.SetViewportHint(scrollX, visW)
+				localX = ev.X - abs2.X - 1 + scrollX
+				if localX > maxX {
+					localX = maxX
+				}
+			}
+			lay := b.txt.TextLayout()
+			var byteOff int
+			if lay != nil {
+				byteOff, _ = lay.GetPositionForOffset(localX, localY)
+			} else {
+				byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
+			}
+			cur := b.ed.utf16ForByte(byteOff)
+			b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
+		}
+	case input.PointerUp:
+		b.dragging = false
 	}
 }
 
 func (b *ViewportInputBox) OnKey(ev input.KeyEvent) {
 	if !ev.Pressed {
 		return
+	}
+	if b.ed != nil && b.ed.IsComposing() && isComposingFilterKey(ev.Key) {
+		if ev.Key == input.KeyEnter {
+			return
+		}
+		if ev.Key != input.KeyEnter {
+			return
+		}
 	}
 	if ev.Mods.Control || ev.Mods.Meta {
 		switch ev.Key {
@@ -337,6 +480,36 @@ func (b *ViewportInputBox) OnKey(ev input.KeyEvent) {
 			return
 		case input.KeyV:
 			return
+		case input.KeyArrowLeft:
+			if ev.Mods.Shift {
+				b.extendVisual(-1)
+			} else {
+				b.ed.MoveVisual(-1, b.txt.TextLayout())
+			}
+			return
+		case input.KeyArrowRight:
+			if ev.Mods.Shift {
+				b.extendVisual(1)
+			} else {
+				b.ed.MoveVisual(1, b.txt.TextLayout())
+			}
+			return
+		}
+	}
+	if ev.Mods.Shift {
+		switch ev.Key {
+		case input.KeyArrowLeft:
+			b.extendVisual(-1)
+			return
+		case input.KeyArrowRight:
+			b.extendVisual(1)
+			return
+		case input.KeyHome:
+			b.extendToBoundary(false)
+			return
+		case input.KeyEnd:
+			b.extendToBoundary(true)
+			return
 		}
 	}
 	switch ev.Key {
@@ -352,7 +525,71 @@ func (b *ViewportInputBox) OnKey(ev input.KeyEvent) {
 		b.ed.MoveVisualUp(b.txt.TextLayout())
 	case input.KeyArrowDown:
 		b.ed.MoveVisualDown(b.txt.TextLayout())
+	case input.KeyHome:
+		b.ed.MoveCursorToBeginning()
+	case input.KeyEnd:
+		b.ed.MoveCursorToEnd()
+	case input.KeyEscape:
+		b.ed.ApplyIME(input.IMEEvent{Kind: input.IMECompose, Text: ""})
 	}
+}
+
+func (b *ViewportInputBox) extendVisual(delta int) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	sel := b.ed.SelectionRange()
+	base := sel.Base
+	if !sel.Collapsed() {
+		base = sel.Base
+	} else {
+		base = sel.Start()
+	}
+	cur := sel.Extent
+	lay := b.txt.TextLayout()
+	newOff := cur
+	if lay != nil && len(lay.Lines) > 0 {
+		curByte := byteOffsetForUtf16(b.ed.GetText(), cur)
+		lineIdx, _, ok := lay.CaretForOffset(curByte)
+		if ok {
+			ln := lay.Lines[lineIdx]
+			idx := -1
+			for j, c := range ln.Carets {
+				if c.ByteOff == curByte {
+					idx = j
+					break
+				}
+			}
+			if idx >= 0 {
+				if delta > 0 && idx+1 < len(ln.Carets) {
+					newOff = b.ed.utf16ForByte(ln.Carets[idx+1].ByteOff)
+				} else if delta < 0 && idx-1 >= 0 {
+					newOff = b.ed.utf16ForByte(ln.Carets[idx-1].ByteOff)
+				}
+			}
+		}
+	} else {
+		if delta > 0 {
+			newOff = cur + 1
+		} else {
+			newOff = cur - 1
+		}
+	}
+	b.ed.SetSelection(TextRange{Base: base, Extent: newOff})
+}
+
+func (b *ViewportInputBox) extendToBoundary(toEnd bool) {
+	if b == nil || b.ed == nil {
+		return
+	}
+	base := b.ed.SelectionRange().Base
+	var off int
+	if toEnd {
+		off = b.ed.EditableRange().End()
+	} else {
+		off = b.ed.EditableRange().Start()
+	}
+	b.ed.SetSelection(TextRange{Base: base, Extent: off})
 }
 
 func (b *ViewportInputBox) MoveVisual(delta int) {

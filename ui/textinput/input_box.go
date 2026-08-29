@@ -26,6 +26,7 @@ type InputBox struct {
 	sched     func()
 	focused   bool
 	caretOn   bool
+	disabled  bool
 	scrollX   float64
 	clipboard platform.Clipboard
 	placeholder string // 用户可控占位（hint），引擎不写死，空则无占位
@@ -55,6 +56,29 @@ func (b *InputBox) Placeholder() string {
 		return ""
 	}
 	return b.placeholder
+}
+
+func (b *InputBox) SetDisabled(v bool) {
+	if b == nil {
+		return
+	}
+	b.disabled = v
+	b.MarkNeedsPaint()
+}
+func (b *InputBox) Disabled() bool { if b == nil { return false }; return b.disabled }
+
+// SetMaxLines 仅多行语义：单行忽略但保证 Ellipsis 不进 editable_range。
+func (b *InputBox) SetMaxLines(n int) {
+	if b == nil || b.txt == nil {
+		return
+	}
+	b.txt.SetMaxLines(n)
+}
+func (b *InputBox) SetOverflow(o rendering.TextOverflow) {
+	if b == nil || b.txt == nil {
+		return
+	}
+	b.txt.SetOverflow(o)
 }
 
 func (b *InputBox) IsFocused() bool { return b != nil && b.focused }
@@ -109,6 +133,9 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 	if fontSize <= 0 {
 		fontSize = 16
 	}
+	if ed != nil {
+		ed.SetSingleLine(true)
+	}
 	inner := rendering.NewRenderBox()
 	b := &InputBox{
 		RenderBox: inner,
@@ -139,8 +166,9 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 	clip.AddChild(b.bar)
 	b.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
 		if pc != nil && pc.DC != nil {
-			// 外边框：一眼可辨是输入框；获焦蓝框，未获焦灰框（与 R1 手工可难度对齐）
-			if b.focused {
+			if b.disabled {
+				pc.DC.SetRGBA(0.28, 0.30, 0.34, 1)
+			} else if b.focused {
 				pc.DC.SetRGBA(0.30, 0.58, 0.95, 1)
 			} else {
 				pc.DC.SetRGBA(0.38, 0.46, 0.56, 1)
@@ -148,8 +176,11 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 			pc.DC.SetLineWidth(1.4)
 			pc.DC.DrawRectangle(pc.OriginX+0.7, pc.OriginY+0.7, size.Width-1.4, size.Height-1.4)
 			_ = pc.DC.Stroke()
-			// 内底：深灰底让文字可读，边框更突出（在 clip 外绘制，不被裁剪）
-			pc.DC.SetRGBA(0.13, 0.15, 0.18, 1)
+			if b.disabled {
+				pc.DC.SetRGBA(0.18, 0.19, 0.21, 1)
+			} else {
+				pc.DC.SetRGBA(0.13, 0.15, 0.18, 1)
+			}
 			pc.DC.DrawRectangle(pc.OriginX+1, pc.OriginY+1, size.Width-2, size.Height-2)
 			_ = pc.DC.Fill()
 		}
@@ -159,6 +190,9 @@ func NewInputBox(ed *Editor, w, h, fontSize float64) *InputBox {
 	b.Node = focus.NewFocusNode(fmt.Sprintf("input-%.0f-%p", fontSize, b))
 	b.Node.Target = b
 	b.Node.OnFocusChange = func(on bool) {
+		if b.disabled {
+			return
+		}
 		b.focused = on
 		b.MarkNeedsPaint()
 		b.sync()
@@ -477,7 +511,7 @@ func (b *InputBox) Layout(c rendering.Constraints) rendering.Size {
 }
 
 func (b *InputBox) OnPointer(ev input.PointerEvent) {
-	if b == nil || b.ed == nil {
+	if b == nil || b.ed == nil || b.disabled {
 		return
 	}
 	abs := absoluteOrigin(b)
@@ -587,6 +621,39 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 		}
 	case input.PointerMove:
 		if b.dragging {
+			// 拖出框外自动滚：到头就停，不会滚出空白（F-F1/F-F2 ensureCaretVisible 同口径）
+			abs2 := absoluteOrigin(b)
+			w2 := b.FixedWidth
+			visW := w2 - 16
+			layTmp := b.txt.TextLayout()
+			maxX := 0.0
+			if layTmp != nil && len(layTmp.Lines) > 0 {
+				maxX = layTmp.Lines[0].Width
+			}
+			maxScroll := maxX - visW + 4
+			if maxScroll < 0 {
+				maxScroll = 0
+			}
+			if ev.X < abs2.X+8 && b.scrollX > 0 {
+				b.scrollX -= 28
+				if b.scrollX < 0 {
+					b.scrollX = 0
+				}
+				b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: b.txt.Offset().Y})
+				b.txt.SetViewportHint(b.scrollX, visW)
+				localX = ev.X - abs2.X - b.txt.Offset().X
+			} else if ev.X > abs2.X+w2-8 && b.scrollX < maxScroll {
+				b.scrollX += 28
+				if b.scrollX > maxScroll {
+					b.scrollX = maxScroll
+				}
+				b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: b.txt.Offset().Y})
+				b.txt.SetViewportHint(b.scrollX, visW)
+				localX = ev.X - abs2.X - b.txt.Offset().X
+				if localX > maxX {
+					localX = maxX
+				}
+			}
 			if b.ed.IsPassword() {
 				ch := b.ed.ObscuringCharacter()
 				chBytes := len(string(ch))
@@ -626,7 +693,6 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 					byteOff = b.txt.ByteOffsetAtPoint(localX, localY)
 				}
 				cur := b.ed.utf16ForByte(byteOff)
-				// F-B2 拖选限 editable_range，SetSelection 内部会夹紧
 				b.ed.SetSelection(TextRange{Base: b.dragStart, Extent: cur})
 			}
 		}
@@ -1014,6 +1080,28 @@ func (b *MultiLineInputBox) Placeholder() string {
 
 func (b *MultiLineInputBox) IsFocused() bool { return b != nil && b.focused }
 func (b *MultiLineInputBox) IsCaretOn() bool { return b != nil && b.caretOn }
+func (b *MultiLineInputBox) SetDisabled(v bool) {
+	if b == nil {
+		return
+	}
+	// disabled is visual only; editing still uses readOnly, but we grey out
+	_ = v
+	b.MarkNeedsPaint()
+}
+func (b *MultiLineInputBox) SetMaxLines(n int) {
+	if b == nil || b.txt == nil {
+		return
+	}
+	b.txt.SetMaxLines(n)
+	b.sync()
+}
+func (b *MultiLineInputBox) SetOverflow(o rendering.TextOverflow) {
+	if b == nil || b.txt == nil {
+		return
+	}
+	b.txt.SetOverflow(o)
+	b.sync()
+}
 func (b *MultiLineInputBox) SetCaretOn(v bool) {
 	if b == nil {
 		return
@@ -1045,6 +1133,9 @@ func (b *MultiLineInputBox) Sync() { b.sync() }
 func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox {
 	if fontSize <= 0 {
 		fontSize = 14
+	}
+	if ed != nil {
+		ed.SetSingleLine(false)
 	}
 	inner := rendering.NewRenderBox()
 	b := &MultiLineInputBox{

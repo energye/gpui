@@ -47,6 +47,7 @@ type Editor struct {
 	isPassword     bool
 	obscuringChar  rune // 0 means default '•' (Flutter TextField.obscuringCharacter)
 	readOnly       bool
+	singleLine   bool
 	contentType    platform.ContentType
 	batchDepth         int
 	lastFrameworkText  string
@@ -59,7 +60,21 @@ type Editor struct {
 	OnChange           func()
 }
 
-func New() *Editor { return &Editor{} }
+func New() *Editor { return &Editor{singleLine: true} }
+
+func (e *Editor) SetSingleLine(v bool) {
+	if e == nil {
+		return
+	}
+	e.singleLine = v
+}
+
+func (e *Editor) IsSingleLine() bool {
+	if e == nil {
+		return true
+	}
+	return e.singleLine
+}
 
 func utf16Len(s string) int {
 	n := 0
@@ -345,6 +360,9 @@ func (e *Editor) UpdateComposingText(text string, sel TextRange) bool {
 	if e == nil || e.isPassword || e.readOnly {
 		return false
 	}
+	if e.singleLine && strings.Contains(text, "\n") {
+		text = strings.ReplaceAll(text, "\n", "")
+	}
 	if text == "" && sel.Collapsed() && e.composingRange.Collapsed() && e.selection.Collapsed() {
 		return false
 	}
@@ -443,6 +461,13 @@ func (e *Editor) DeleteSelected() bool {
 func (e *Editor) AddText(text string) bool {
 	if e == nil || text == "" || e.readOnly {
 		return false
+	}
+	// F-C5/F-F3: single-line must reject '\n' (Flutter single-line behavior).
+	if e.singleLine && strings.Contains(text, "\n") {
+		text = strings.ReplaceAll(text, "\n", "")
+		if text == "" {
+			return false
+		}
 	}
 	er := e.EditableRange()
 	if e.selection.Start() < er.Start() || e.selection.End() > er.End() {

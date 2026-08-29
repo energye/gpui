@@ -326,6 +326,25 @@ func (r *InputRouter) routePointer(ev input.Event) {
 		}
 		n = n.Parent()
 	}
+	// 拖选时鼠标移出框外，hit 已不在框上，但仍需让获焦的文本框收到 Move/Up 以实现自动滚动选区（Flutter RenderEditable 行为）
+	if ev.Pointer.Kind == input.PointerMove || ev.Pointer.Kind == input.PointerUp {
+		if cur := r.currentTarget(); cur != nil {
+			if ph, ok := cur.(input.PointerHandler); ok {
+				hitContains := false
+				if ro, ok2 := cur.(rendering.RenderObject); ok2 {
+					for n := target; n != nil; n = n.Parent() {
+						if n == ro {
+							hitContains = true
+							break
+						}
+					}
+				}
+				if !hitContains {
+					ph.OnPointer(ev.Pointer)
+				}
+			}
+		}
+	}
 	if r.OnPointer != nil {
 		r.OnPointer(ev.Pointer, target)
 	}
