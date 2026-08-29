@@ -113,6 +113,8 @@ type ViewportInputBox struct {
 	clickCount  int
 	selHas                bool
 	selR, selG, selB, selA float64
+	padHas                bool
+	pad                   float64
 }
 
 func (b *ViewportInputBox) SetPlaceholder(s string) {
@@ -161,6 +163,25 @@ func (b *ViewportInputBox) ClearSelectionColor() {
 func (b *ViewportInputBox) SelectionColor() (r, g, b2, a float64) {
 	return resolveSelColor(b.selHas, b.selR, b.selG, b.selB, b.selA)
 }
+func (b *ViewportInputBox) SetPadding(pad float64) {
+	if b == nil {
+		return
+	}
+	if pad < 0 {
+		pad = 0
+	}
+	b.padHas = true
+	b.pad = pad
+	b.sync()
+}
+func (b *ViewportInputBox) ClearPadding() {
+	if b == nil {
+		return
+	}
+	b.padHas = false
+	b.sync()
+}
+func (b *ViewportInputBox) Padding() float64 { return resolvePad(b.padHas, b.pad) }
 
 func (b *ViewportInputBox) IsFocused() bool                         { return b != nil && b.focused }
 func (b *ViewportInputBox) SetClipboard(c platform.Clipboard)       { b.clipboard = c }
@@ -215,9 +236,9 @@ func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {
 	if b == nil || b.txt == nil || b.ed == nil || b.Viewport == nil {
 		return 0, 0, 0, false
 	}
+	txtOff := b.txt.Offset()
+	vpOff := b.Viewport.ScrollOffset()
 	if b.txt.Text == "" {
-		vpOff := b.Viewport.ScrollOffset()
-		txtOff := b.txt.Offset()
 		lh := b.txt.LineHeight()
 		if lh <= 0 {
 			lh = 22
@@ -231,9 +252,7 @@ func (b *ViewportInputBox) caretAnchor() (float64, float64, float64, bool) {
 	lay := b.txt.TextLayout()
 	if lay != nil && len(lay.Lines) > 0 {
 		if x, y, h, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
-			vpOff := b.Viewport.ScrollOffset()
-			txtOff := b.txt.Offset()
-			cx := x - vpOff.X + 1
+			cx := txtOff.X + x - vpOff.X + 1
 			cy := txtOff.Y + y + 1
 			return cx, cy, cy + h, true
 		}
@@ -272,7 +291,8 @@ func (b *ViewportInputBox) sync() {
 	if textY < 0 {
 		textY = 0
 	}
-	b.txt.SetOffset(rendering.Point{X: 0, Y: textY})
+	pad := b.Padding()
+	b.txt.SetOffset(rendering.Point{X: pad, Y: textY})
 	curByte := b.ed.GetCursorOffset()
 	aff := b.ed.TextRange().Affinity
 	lay := b.txt.TextLayout()
@@ -282,7 +302,10 @@ func (b *ViewportInputBox) sync() {
 			caretX = x
 		}
 	}
-	visW := b.FixedWidth - 2
+	visW := b.FixedWidth - 2 - 2*pad
+	if visW < 0 {
+		visW = 0
+	}
 	scrollX := b.Viewport.ScrollOffset().X
 	if caretX-scrollX > visW-4 {
 		scrollX = caretX - visW + 4
@@ -367,14 +390,15 @@ func (b *ViewportInputBox) layoutCaret() {
 	if b.txt == nil || b.ed == nil {
 		return
 	}
+	txtOff := b.txt.Offset()
 	// 空文本也要显示光标：走 caretAnchor 的空分支，避免 GetOffsetForCaret 在 Lines==0 时直接 return
 	if b.txt.Text == "" {
 		_, top, bottom, ok := b.caretAnchor()
 		if !ok {
 			return
 		}
-		txtOff := b.txt.Offset()
-		b.bar.MoveTo(-b.bar.Width/2, txtOff.Y)
+		// bar 在 content 内，x 已含 pad（txtOff.X），直接用 content 坐标
+		b.bar.MoveTo(txtOff.X-b.bar.Width/2, txtOff.Y)
 		if h := bottom - top; h > 0 {
 			b.bar.Height = h
 		}
@@ -394,10 +418,8 @@ func (b *ViewportInputBox) layoutCaret() {
 		x, y, h, ok = lay.GetOffsetForCaret(curByte, aff, 1.5)
 	}
 	if !ok {
-		// 回退到空文本逻辑
 		if _, top, bottom, ok2 := b.caretAnchor(); ok2 {
-			txtOff := b.txt.Offset()
-			b.bar.MoveTo(-b.bar.Width/2, txtOff.Y)
+			b.bar.MoveTo(txtOff.X-b.bar.Width/2, txtOff.Y)
 			if hh := bottom - top; hh > 0 {
 				b.bar.Height = hh
 			}
@@ -409,8 +431,7 @@ func (b *ViewportInputBox) layoutCaret() {
 		}
 		return
 	}
-	txtOff := b.txt.Offset()
-	b.bar.MoveTo(x-b.bar.Width/2, txtOff.Y+y)
+	b.bar.MoveTo(txtOff.X+x-b.bar.Width/2, txtOff.Y+y)
 	if h > 0 {
 		b.bar.Height = h
 	}
@@ -437,8 +458,10 @@ func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
 	abs := absoluteOrigin(b)
 	vpOff := b.Viewport.ScrollOffset()
 	txtOff := b.txt.Offset()
-	localX := ev.X - abs.X - 1 + vpOff.X
+	pad := b.Padding()
+	localX := ev.X - abs.X - 1 - pad + vpOff.X
 	localY := ev.Y - abs.Y - 1 + vpOff.Y - txtOff.Y
+	_ = pad
 	switch ev.Kind {
 	case input.PointerDown:
 		if b.Node != nil {
@@ -485,10 +508,13 @@ func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
 		}
 	case input.PointerMove:
 		if b.dragging {
-			// 拖出视口自动滚：指针在框外时按方向滚 28px/帧，并更新选区；到头就停，不滚出空白（F-F1/F-F2）
+			pad := b.Padding()
 			abs2 := absoluteOrigin(b)
 			w2 := b.FixedWidth
-			visW := w2 - 2
+			visW := w2 - 2 - 2*pad
+			if visW < 0 {
+				visW = 0
+			}
 			scrollX := b.Viewport.ScrollOffset().X
 			layTmp := b.txt.TextLayout()
 			maxX := 0.0
@@ -499,22 +525,22 @@ func (b *ViewportInputBox) OnPointer(ev input.PointerEvent) {
 			if maxScroll < 0 {
 				maxScroll = 0
 			}
-			if ev.X < abs2.X+8 && scrollX > 0 {
+			if ev.X < abs2.X+pad && scrollX > 0 {
 				scrollX -= 28
 				if scrollX < 0 {
 					scrollX = 0
 				}
 				b.Viewport.SetScrollOffset(scrollX, 0)
 				b.txt.SetViewportHint(scrollX, visW)
-				localX = ev.X - abs2.X - 1 + scrollX
-			} else if ev.X > abs2.X+w2-8 && scrollX < maxScroll {
+				localX = ev.X - abs2.X - 1 - pad + scrollX
+			} else if ev.X > abs2.X+w2-pad && scrollX < maxScroll {
 				scrollX += 28
 				if scrollX > maxScroll {
 					scrollX = maxScroll
 				}
 				b.Viewport.SetScrollOffset(scrollX, 0)
 				b.txt.SetViewportHint(scrollX, visW)
-				localX = ev.X - abs2.X - 1 + scrollX
+				localX = ev.X - abs2.X - 1 - pad + scrollX
 				if localX > maxX {
 					localX = maxX
 				}

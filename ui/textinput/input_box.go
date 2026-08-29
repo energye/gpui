@@ -31,6 +31,8 @@ type InputBox struct {
 	clipboard platform.Clipboard
 	selHas                bool
 	selR, selG, selB, selA float64
+	padHas                bool
+	pad                   float64
 	// R4: double/triple click and drag
 	lastClickAt time.Time
 	lastClickX  float64
@@ -94,6 +96,25 @@ func (b *InputBox) ClearSelectionColor() {
 	b.MarkNeedsPaint()
 }
 func (b *InputBox) SelectionColor() (r, g, b2, a float64) { return resolveSelColor(b.selHas, b.selR, b.selG, b.selB, b.selA) }
+func (b *InputBox) SetPadding(pad float64) {
+	if b == nil {
+		return
+	}
+	if pad < 0 {
+		pad = 0
+	}
+	b.padHas = true
+	b.pad = pad
+	b.sync()
+}
+func (b *InputBox) ClearPadding() {
+	if b == nil {
+		return
+	}
+	b.padHas = false
+	b.sync()
+}
+func (b *InputBox) Padding() float64 { return resolvePad(b.padHas, b.pad) }
 
 // SetMaxLines 仅多行语义：单行忽略但保证 Ellipsis 不进 editable_range。
 func (b *InputBox) SetMaxLines(n int) {
@@ -431,7 +452,11 @@ func (b *InputBox) sync() {
 	if textY < 0 {
 		textY = 0
 	}
-	visW := b.FixedWidth - 16
+	pad := b.Padding()
+	visW := b.FixedWidth - 2*pad
+	if visW < 0 {
+		visW = 0
+	}
 	if lay := b.txt.TextLayout(); lay != nil && len(lay.Lines) > 0 {
 		caretX := 0.0
 		if x, _, _, ok := lay.GetOffsetForCaret(curByte, aff, 1.5); ok {
@@ -448,9 +473,9 @@ func (b *InputBox) sync() {
 		if b.scrollX < 0 {
 			b.scrollX = 0
 		}
-		b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: textY})
+		b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: textY})
 	} else {
-		b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: textY})
+		b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: textY})
 	}
 	b.txt.SetViewportHint(b.scrollX, visW)
 	b.syncSelectionHighlight()
@@ -670,10 +695,13 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 		}
 	case input.PointerMove:
 		if b.dragging {
-			// 拖出框外自动滚：到头就停，不会滚出空白（F-F1/F-F2 ensureCaretVisible 同口径）
+			pad := b.Padding()
 			abs2 := absoluteOrigin(b)
 			w2 := b.FixedWidth
-			visW := w2 - 16
+			visW := w2 - 2*pad
+			if visW < 0 {
+				visW = 0
+			}
 			layTmp := b.txt.TextLayout()
 			maxX := 0.0
 			if layTmp != nil && len(layTmp.Lines) > 0 {
@@ -683,20 +711,20 @@ func (b *InputBox) OnPointer(ev input.PointerEvent) {
 			if maxScroll < 0 {
 				maxScroll = 0
 			}
-			if ev.X < abs2.X+8 && b.scrollX > 0 {
+			if ev.X < abs2.X+pad && b.scrollX > 0 {
 				b.scrollX -= 28
 				if b.scrollX < 0 {
 					b.scrollX = 0
 				}
-				b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: b.txt.Offset().Y})
+				b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: b.txt.Offset().Y})
 				b.txt.SetViewportHint(b.scrollX, visW)
 				localX = ev.X - abs2.X - b.txt.Offset().X
-			} else if ev.X > abs2.X+w2-8 && b.scrollX < maxScroll {
+			} else if ev.X > abs2.X+w2-pad && b.scrollX < maxScroll {
 				b.scrollX += 28
 				if b.scrollX > maxScroll {
 					b.scrollX = maxScroll
 				}
-				b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: b.txt.Offset().Y})
+				b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: b.txt.Offset().Y})
 				b.txt.SetViewportHint(b.scrollX, visW)
 				localX = ev.X - abs2.X - b.txt.Offset().X
 				if localX > maxX {
@@ -1109,6 +1137,8 @@ type MultiLineInputBox struct {
 	clipboard platform.Clipboard
 	selHas                bool
 	selR, selG, selB, selA float64
+	padHas                bool
+	pad                   float64
 	lastClickAt time.Time
 	lastClickX  float64
 	lastClickY  float64
@@ -1118,6 +1148,26 @@ type MultiLineInputBox struct {
 	highlights  []*rendering.RenderColorBox
 	blinkElapsed float64
 }
+
+func (b *MultiLineInputBox) SetPadding(pad float64) {
+	if b == nil {
+		return
+	}
+	if pad < 0 {
+		pad = 0
+	}
+	b.padHas = true
+	b.pad = pad
+	b.sync()
+}
+func (b *MultiLineInputBox) ClearPadding() {
+	if b == nil {
+		return
+	}
+	b.padHas = false
+	b.sync()
+}
+func (b *MultiLineInputBox) Padding() float64 { return resolvePad(b.padHas, b.pad) }
 
 func (b *MultiLineInputBox) SetPlaceholder(s string) {
 	if b == nil || b.BaseEditable == nil {
@@ -1229,9 +1279,12 @@ func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *MultiLineInputBox
 	inner.SetRepaintBoundary(true)
 	b.txt.FontSize = fontSize
 	b.txt.R, b.txt.G, b.txt.B, b.txt.A = 0.06, 0.85, 0.60, 1
-	b.txt.MaxWidth = w - 16
 	b.FixedWidth = w
 	b.FixedHeight = h
+	b.txt.MaxWidth = w - 2*b.Padding()
+	if b.txt.MaxWidth < 0 {
+		b.txt.MaxWidth = 0
+	}
 	clip := rendering.NewRenderClipRRect()
 	clip.FixedWidth = w
 	clip.FixedHeight = h
@@ -1414,8 +1467,19 @@ func (b *MultiLineInputBox) sync() {
 		caretH = lh
 	}
 	_ = caretH
-	visW := b.FixedWidth - 16
-	visH := b.FixedHeight - 16
+	pad := b.Padding()
+	b.txt.MaxWidth = b.FixedWidth - 2*pad
+	if b.txt.MaxWidth < 0 {
+		b.txt.MaxWidth = 0
+	}
+	visW := b.FixedWidth - 2*pad
+	visH := b.FixedHeight - 2*pad
+	if visW < 0 {
+		visW = 0
+	}
+	if visH < 0 {
+		visH = 0
+	}
 	if caretX-b.scrollX > visW-4 {
 		b.scrollX = caretX - visW + 4
 	}
@@ -1454,7 +1518,7 @@ func (b *MultiLineInputBox) sync() {
 			b.scrollY = maxY
 		}
 	}
-	b.txt.SetOffset(rendering.Point{X: 8 - b.scrollX, Y: 8 - b.scrollY})
+	b.txt.SetOffset(rendering.Point{X: pad - b.scrollX, Y: pad - b.scrollY})
 	b.syncMultiHighlight()
 	b.caretOn = true
 	b.layoutCaret()
