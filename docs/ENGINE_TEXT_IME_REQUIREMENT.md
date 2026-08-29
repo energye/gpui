@@ -487,7 +487,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 
 | 期 | 内容 | 门禁（A–J 10 族全采 + 三证据 + 3 轮，硬阈值见 §10.4.1–§10.4.5） |
 |---|---|---|
-| R1 Editor 重构 | 四元组+affinity+batch+去重，按 UTF16 | 单测全绿 + `ui_wr_ime_r1_editor` 10 族全采（A 仅告警，其余硬） + 四元组探针 + 4 锚点 + 5000 字 |
+| R1 Editor 重构 ✅已落 2026-08-29 | 四元组+affinity+batch+去重，按 UTF16 | 单测全绿 + `ui_wr_ime_r1_editor` 10 族全采（A 仅告警，其余硬） + 四元组探针 + 4 锚点 + 5000 字 |
 | R2 TextLayout 单源 | 新建 `text_layout.go`，Paint 改 DrawShapedGlyphs，Carets 查表 | `ui_wr_ime_r2_textlayout` 10 族全采（长串 15s 时 G 硬） + P14/P5 三证据（探针+像素+Golden）+ 5000 字 <100ms + HiDPI/ellipsis |
 | R3 通道与平台 | Delta+enableDeltaModel 定值，6 信号+surrounding 拉取+filter_keypress 命中拦截+二次覆盖 | 仿真全绿 + `ui_wr_ime_r3_channel` **10 族全硬** + P2/P9/P15/死键/autofill 日志 + ≥3 轮 `metrics-audit` |
 | R4 选区与编辑 | F-B/F-C4 密码禁组合/F-C2-6/F-S/锚点预热+仅 composing 报 | `ui_wr_ime_r4_selection` 10 族全采（A/C/D/E/J 硬） + 拖选/双三击/密码像素+hint 日志 |
@@ -502,12 +502,12 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 
 | R | 级别 | 待补项（按规范） | 现状与证据 | 影响 |
 |---|---|---|---|---|
-| **R1** | P1 | `SetClient` 透传 `contentType/InputType/autofillHints→GtkInputPurpose`（§6.1） | `editor.go:188` 仅写 `enableDeltaModel`，`contentType` 走单独 `SetContentType`，`InputType` 未缓存 | F-D6 映射不全，`metrics-audit` 查映射表时扣分 |
-| R1 | P1 | `enableDeltaModel` 定值不可变卫栏（§6.3） | `SetClient` 无重复覆盖保护 | 运行中翻转会破 last-write-wins |
-| R1 | P2 | `lastFramework*/epoch` 自动维护（§6.1/§8 C4） | `editor.go:53` 字段从未在 `changed()` 内赋值，靠外层 `session.go:127` 手动 | 易忘去重，surrounding 重推 |
-| R1 | P2 | F-S1 有选区先 `DeleteSelected` 再 `erase(composingRange)` 原子性 | `BeginComposing` 未做，靠 `composition.go:20` 调用方 | 单测未锁定 |
-| R1 | P2 | `ApplyDelta` 以 `OldText` 为底一致性（§6.3） | `delta.go:88` 用本机 `e.text` 重算 `startByte`，与 Flutter 语义分叉 | 并发 apply 偏差 |
-| R1 | P2 | 单测溯源 G2 字表 `testdata/cjk3000.txt` | `TestR1_MixedCJK200` 用硬编码 `r1MixedCJK`，命名亦非 `TestEditor_*` | G1/G2 同源判假绿 |
+| **R1 ✅已落 2026-08-29** | P1 ✅ | `SetClient` 透传 `contentType/InputType/autofillHints→GtkInputPurpose`（§6.1） | `929f53f` 已补：`purposeFromInputType` 映射 + `deltaModelLocked` 卫栏 + `autofillHints` 缓存 | 已落 |
+| R1 ✅ | P1 ✅ | `enableDeltaModel` 定值不可变卫栏（§6.3） | `SetClient` 首次锁定，后续翻转忽略 | 已落 |
+| R1 ✅ | P2 ✅ | `lastFramework*/epoch` 自动维护（§6.1/§8 C4） | `SetText/ApplyDelta` 末尾自动写 `lastFramework*`，`ShouldSkip` 去重闭环 | 已落 |
+| R1 ✅ | P2 ✅ | F-S1 有选区先 `DeleteSelected` 再 `erase(composingRange)` 原子性 | `BeginComposing` 批内先删选区再起 `composing`（`editor.go:350`） | 已落 |
+| R1 ✅ | P2 ✅ | `ApplyDelta` 以 `OldText` 为底一致性（§6.3） | `delta.go:73` 纯 `OldText` 基底 + RuneStart 吸附 + `NonTextUpdate` 严格 `OldText==e.text` | 已落 |
+| R1 ✅ | P2 ✅ | 单测溯源 G2 字表 `testdata/cjk3000.txt` | `testdata/cjk3000.txt` 3000 字落地，`TestR1_MixedCJK200` 改读文件，新增 `TestEditor_*` 别名 | 已落 |
 | **R2** | **P0** | `TextLayout.Face` 字段溯源（§4 A1） | `text_layout.go:26` 无 `Face`，换 Face 不失效 | 溯源断 |
 | R2 | **P0** | HiDPI 1.25/2.0 1px 对齐 F0–F9 采样（§10.4.2-5） | 全仓无 `scale` 乘取整，例窗仅标签 | 直接 FAIL |
 | R2 | **P0** | 5000 字真面形 `<100ms` 压测（§10.4.2-7） | 单测/例窗均 `face==nil` 固定 `adv=10`，非 `MultiFace+Shape` | 性能门禁虚 |
@@ -532,7 +532,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | R5 | P2 | 单行 `SetMaxLines` 显式忽略（F-C5） | `input_box:119` 透传 `txt.SetMaxLines`，注释与实现不符 | 潜在截断 |
 | R5 | P2 | `warmup` 观测诚实性（§10.4.5-7/W1–W6） | `r5/main.go:370` 硬写 `WarmupOK=true`，`report.go:153` 覆盖 `Snap.Warmup` | 假绿风险 |
 
-> 已落地（不计入待补）：`padding.go` 可扩展（`SetDefaultPadding/SetPadding/ClearPadding` 默认 8，对齐 Flutter `contentPadding`）与 `viewport` 清空后空文本光标、`\u` 解码、`Ctrl+V` 剪贴板；Wayland 5-mime 互通与 `selMimes/offerMimes` 跟踪（`3011ae5`）。
+> 已落地（不计入待补）：`padding.go` 可扩展（`SetDefaultPadding/SetPadding/ClearPadding` 默认 8，对齐 Flutter `contentPadding`）与 `viewport` 清空后空文本光标、`\u` 解码、`Ctrl+V` 剪贴板；Wayland 5-mime 互通与 `selMimes/offerMimes` 跟踪（`3011ae5`）；**R1 6 项已落 `929f53f`**。
 
 ## 13. 修订
 
@@ -547,6 +547,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | **v3.7 2026-08-28** | 去自动关闭：所有 `ui_wr_ime_r*` 真窗改为**手动关闭（无自动关闭，`RunFor=0` 无限运行，点 X 关闭）**；`RUN_SECONDS` 仅为最小观察时长，见 §10.3/§10.4 与 `ENGINE_UI_WIDGET_RENDER.md §2.5` |
 | **v3.8 2026-08-28** | 补 `R` 真窗示例规范 §10.4.6：`W1–W6` 窗体/壳/真实可输/人工可难度/指标族全硬/画面对/手动关闭 + 各 `R1–R5` 窗口必含清单（多字号/多行/混排/Fallback/5000 等），对齐 `WIDGET_RENDER §2.6` 硬度 |
 | **v3.9 2026-08-29** | 新增 §12 待补实现清单：R1–R5 复盘 23 项（P0 硬拦 9 / P1 门禁 9 / P2 小缺 5），含 R2 Face/HiDPI/5000 真面形、R3 Delta 定值+6 信号+filter 优先+二次覆盖+done 组批、R4 Undo/钳制绕过/Viewport 3 漏/拖滚、R5 禁用拦截/warmup 诚实；已落地 padding 5-mime 不计入 |
+| **v3.10 2026-08-29** | R1 已落：§12 中 R1 6 项标 ✅（`SetClient` 透传/定值锁、`lastFramework` 自动、`F-S1` 先删、`ApplyDelta` OldText 基底、`DeleteSurrounding` 吸附、`cjk3000.txt` 溯源），§11 R1 行标 ✅，对应实现 `929f53f` |
 
 ## 附录：偏移与截断
 
