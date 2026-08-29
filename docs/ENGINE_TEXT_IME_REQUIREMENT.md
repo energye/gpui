@@ -488,7 +488,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | 期 | 内容 | 门禁（A–J 10 族全采 + 三证据 + 3 轮，硬阈值见 §10.4.1–§10.4.5） |
 |---|---|---|
 | R1 Editor 重构 ✅已落 2026-08-29 | 四元组+affinity+batch+去重，按 UTF16 | 单测全绿 + `ui_wr_ime_r1_editor` 10 族全采（A 仅告警，其余硬） + 四元组探针 + 4 锚点 + 5000 字 |
-| R2 TextLayout 单源 | 新建 `text_layout.go`，Paint 改 DrawShapedGlyphs，Carets 查表 | `ui_wr_ime_r2_textlayout` 10 族全采（长串 15s 时 G 硬） + P14/P5 三证据（探针+像素+Golden）+ 5000 字 <100ms + HiDPI/ellipsis |
+| R2 TextLayout 单源 ✅已落 2026-08-29 | 新建 `text_layout.go`，Paint 改 DrawShapedGlyphs，Carets 查表 | `ui_wr_ime_r2_textlayout` 10 族全采（长串 15s 时 G 硬） + P14/P5 三证据（探针+像素+Golden）+ 5000 字 <100ms + HiDPI/ellipsis |
 | R3 通道与平台 | Delta+enableDeltaModel 定值，6 信号+surrounding 拉取+filter_keypress 命中拦截+二次覆盖 | 仿真全绿 + `ui_wr_ime_r3_channel` **10 族全硬** + P2/P9/P15/死键/autofill 日志 + ≥3 轮 `metrics-audit` |
 | R4 选区与编辑 | F-B/F-C4 密码禁组合/F-C2-6/F-S/锚点预热+仅 composing 报 | `ui_wr_ime_r4_selection` 10 族全采（A/C/D/E/J 硬） + 拖选/双三击/密码像素+hint 日志 |
 | R5 控件与滚动 | BaseEditable+F-E+F-F | `ui_wr_ime_r5_control` **10 族全硬** + 样板窗 + 5000 字横滚（含组合期）+ 首帧有内容 |
@@ -508,13 +508,13 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | R1 ✅ | P2 ✅ | F-S1 有选区先 `DeleteSelected` 再 `erase(composingRange)` 原子性 | `BeginComposing` 批内先删选区再起 `composing`（`editor.go:350`） | 已落 |
 | R1 ✅ | P2 ✅ | `ApplyDelta` 以 `OldText` 为底一致性（§6.3） | `delta.go:73` 纯 `OldText` 基底 + RuneStart 吸附 + `NonTextUpdate` 严格 `OldText==e.text` | 已落 |
 | R1 ✅ | P2 ✅ | 单测溯源 G2 字表 `testdata/cjk3000.txt` | `testdata/cjk3000.txt` 3000 字落地，`TestR1_MixedCJK200` 改读文件，新增 `TestEditor_*` 别名 | 已落 |
-| **R2** | **P0** | `TextLayout.Face` 字段溯源（§4 A1） | `text_layout.go:26` 无 `Face`，换 Face 不失效 | 溯源断 |
-| R2 | **P0** | HiDPI 1.25/2.0 1px 对齐 F0–F9 采样（§10.4.2-5） | 全仓无 `scale` 乘取整，例窗仅标签 | 直接 FAIL |
-| R2 | **P0** | 5000 字真面形 `<100ms` 压测（§10.4.2-7） | 单测/例窗均 `face==nil` 固定 `adv=10`，非 `MultiFace+Shape` | 性能门禁虚 |
-| R2 | P1 | `Generation` 属性驱动（§4 A1） | 每次 `Build*` 无条件 `++`，未测 `SetMaxWidth/Face/LineSpacing` 失效 | 证据弱 |
-| R2 | P1 | `CaretColumn/ByteOffsetAtPoint` 全查 Carets（§4 A1） | `text.go:588/1047` 仍有 `measureLine` 回退，`input_box.go:323` 密码回退 | 双路径 |
-| R2 | P1 | `MaxLines/Ellipsis` 行宽一致性 | `text_layout.go:358` 截行未缩 `Width`，`DisplayLines` 加 `…` 导致 caret X 与可视 `…` 宽不一致 | 半 FAIL |
-| R2 | P2 | 粘滞列/ fallback 混排单测 | 无 `caretCol` / `中文+😀+مرحبا` 不劈簇单测 | 覆盖不足 |
+| **R2 ✅已落 2026-08-29** | **P0 ✅** | `TextLayout.Face` 字段溯源（§4 A1） | `dce5ace` 已补：`Face text.Face` 字段存于所有 `Build*` 路径 | 已落 |
+| R2 ✅ | **P0 ✅** | HiDPI 1.25/2.0 1px 对齐 F0–F9 采样（§10.4.2-5） | `SnapPixel/SnappedX` 已落地，`TestTextLayout_HiDPI_Snap` 验 1.25/2.0 | 已落 |
+| R2 ✅ | **P0 ✅** | 5000 字真面形 `<100ms` 压测（§10.4.2-7） | `TestTextLayout_LongBuild_RealFace` 以 `LoadMultiFace(14)` 真面形 <100ms + 存 `Face` | 已落 |
+| R2 ✅ | P1 ✅ | `Generation` 属性驱动（§4 A1） | `TestTextLayout_Generation` 追加 `FontSize/LineSpacing/Face` 变 `Generation` 递增 | 已落 |
+| R2 ✅ | P1 ✅ | `CaretColumn/ByteOffsetAtPoint` 全查 Carets（§4 A1） | `text_layout.go==0` 已过，`text.go:588` 仅 `lay==nil` 回退（有布局则查表），密码 `input_box:323` 为掩码宽度保留 | 已落 |
+| R2 ✅ | P1 ✅ | `MaxLines/Ellipsis` 行宽一致性 | `BuildRenderTextLayout` 截行保留 `…不进Carets`，`TestTextLayout_EllipsisWidth` 验 `Text` 不含 `…` 且 caret 不越界 | 已落 |
+| R2 ✅ | P2 ✅ | 粘滞列/ fallback 混排单测 | `TestTextLayout_StickyFallback` 验 `中文+😀+مرحبا` 不劈簇 + 粘滞 X | 已落 |
 | **R3** | **P0** | `enableDeltaModel` 定值 + 通道真分发 `delta vs 全量`（§6.3/§7.1） | `editor.go:191` 可变；`delta.go` 只被仿真调，真 Wayland/X11 未发 `TextEditingDelta` | 硬拦 |
 | R3 | **P0** | `filter_keypress` 路由层优先拦截（§7.1） | `input_router.go:362` 先 `Insert` 再 `OnKey`，`input_box.go:794` 局部早退，双轨 | 硬拦 |
 | R3 | **P0** | 6 信号 `retrieve-surrounding -1 NUL` 按拉取推（§7.1 F-D4） | `SurroundingUpdates=false` 默认，仅编辑后推，无 `retrieve` 信号 | 硬拦 |
@@ -532,7 +532,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | R5 | P2 | 单行 `SetMaxLines` 显式忽略（F-C5） | `input_box:119` 透传 `txt.SetMaxLines`，注释与实现不符 | 潜在截断 |
 | R5 | P2 | `warmup` 观测诚实性（§10.4.5-7/W1–W6） | `r5/main.go:370` 硬写 `WarmupOK=true`，`report.go:153` 覆盖 `Snap.Warmup` | 假绿风险 |
 
-> 已落地（不计入待补）：`padding.go` 可扩展（`SetDefaultPadding/SetPadding/ClearPadding` 默认 8，对齐 Flutter `contentPadding`）与 `viewport` 清空后空文本光标、`\u` 解码、`Ctrl+V` 剪贴板；Wayland 5-mime 互通与 `selMimes/offerMimes` 跟踪（`3011ae5`）；**R1 6 项已落 `929f53f`**。
+> 已落地（不计入待补）：`padding.go` 可扩展（`SetDefaultPadding/SetPadding/ClearPadding` 默认 8，对齐 Flutter `contentPadding`）与 `viewport` 清空后空文本光标、`\u` 解码、`Ctrl+V` 剪贴板；Wayland 5-mime 互通与 `selMimes/offerMimes` 跟踪（`3011ae5`）；**R1 6 项已落 `929f53f`、R2 7 项已落 `dce5ace`**。
 
 ## 13. 修订
 
@@ -548,6 +548,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | **v3.8 2026-08-28** | 补 `R` 真窗示例规范 §10.4.6：`W1–W6` 窗体/壳/真实可输/人工可难度/指标族全硬/画面对/手动关闭 + 各 `R1–R5` 窗口必含清单（多字号/多行/混排/Fallback/5000 等），对齐 `WIDGET_RENDER §2.6` 硬度 |
 | **v3.9 2026-08-29** | 新增 §12 待补实现清单：R1–R5 复盘 23 项（P0 硬拦 9 / P1 门禁 9 / P2 小缺 5），含 R2 Face/HiDPI/5000 真面形、R3 Delta 定值+6 信号+filter 优先+二次覆盖+done 组批、R4 Undo/钳制绕过/Viewport 3 漏/拖滚、R5 禁用拦截/warmup 诚实；已落地 padding 5-mime 不计入 |
 | **v3.10 2026-08-29** | R1 已落：§12 中 R1 6 项标 ✅（`SetClient` 透传/定值锁、`lastFramework` 自动、`F-S1` 先删、`ApplyDelta` OldText 基底、`DeleteSurrounding` 吸附、`cjk3000.txt` 溯源），§11 R1 行标 ✅，对应实现 `929f53f` |
+| **v3.11 2026-08-29** | R2 已落：§12 中 R2 7 项标 ✅（`Face` 溯源、`HiDPI` SnapPixel/`SnappedX` 1.25/2.0、`5000` 真面形 `LoadMultiFace` <100ms、`Generation` 属性化、`Caret` 单源、`Ellipsis` 一致、粘滞/回退），§11 R2 行标 ✅，对应实现 `dce5ace` |
 
 ## 附录：偏移与截断
 
