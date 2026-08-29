@@ -170,15 +170,15 @@ type TextLayout struct { Lines []TextLayoutLine; FontSize, MaxWidth, LineSpacing
 ### 6.1 TextRange & Editor（= TextInputModel）
 
 const (
-AffinityDownstream = 0 // 下游：换行处归上行尾
-AffinityUpstream   = 1 // 上游：换行处归下行头
+    AffinityDownstream = 0 // 下游：换行处归上行尾
+    AffinityUpstream   = 1 // 上游：换行处归下行头
 )
 type TextRange struct { Base, Extent int; Affinity int } // start=min, end=max, collapsed/Contains/length; {-1,-1} 为哨兵
 type Editor struct {
-text string; selection, composingRange TextRange; composing bool
-batchDepth int; lastFrameworkText string; lastFrameworkSel, lastFrameworkComp TextRange
-epoch uint64; caretCol float64; caretColValid bool; OnChange func()
-contentType ContentType // purpose/hint/inputType/inputAction 缓存
+    text string; selection, composingRange TextRange; composing bool
+    batchDepth int; lastFrameworkText string; lastFrameworkSel, lastFrameworkComp TextRange
+    epoch uint64; caretCol float64; caretColValid bool; OnChange func()
+    contentType ContentType // purpose/hint/inputType/inputAction 缓存
 }
 func (e *Editor) SetClient(cfg TextInputConfiguration) // 定 enableDeltaModel（运行中不可变）+ contentType
 func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool
@@ -219,24 +219,15 @@ type TextInputConfiguration struct { InputType, InputAction string; EnableDeltaM
 
 ---
 
-## 7. 平台实现（Wayland 与 X11 区分）
+## 7. 平台实现
 
-> **共用层（平台无关）**：`ui/textinput.Editor`（四元组/affinity/batch/epoch 去重）、`ui/rendering.TextLayout` 单源缝表、`ui/embedder.InputRouter`（`filter_keypress`/`surrounding`/`二次覆盖`/`batch/done`）与 `F-B/F-C/F-D/F-E/F-F` 定义对两平台完全复用。本章仅区分**平台适配**的实现差异。
+### 7.1 Linux（`fl_text_input_handler.cc`）
 
-### 7.1 Linux Wayland（`wayland_textinput_linux.go` · `zwp_text_input_v3`）【主路径·已落地】
+`preedit-start→Begin`；`preedit-changed→get_preedit_string→UpdateComposingText+SetSelection+delta(oldText, composing_before, newPreedit)`（`enableDeltaModel==true` 时走 `TextEditingDelta`，`false` 时走全量 `set_editing_state`）；`commit→AddText/AddCodePoint+CommitComposing+delta(replace_range=was_composing?composing_before:selection_before)`；`preedit-end→EndComposing+NonTextDelta`；`retrieve-surrounding→GetText+GetCursorOffset→gtk_im_context_set_surrounding(text,-1,byteOffset)` / Wayland `set_surrounding_text(text,byteOffset)` 均 `-1` NUL；`delete-surrounding→DeleteSurrounding+delta`；`filter_keypress` 命中即 `return TRUE` 拦截，否则才处理 `Home/End/PageUp/Down/Return/Ctrl+←→`（`Return` 仅 `MULTILINE+newline→AddCodePoint('\n')+performAction`）；`set_editing_state` 按 F-D8 二次覆盖；`show/hide` 按 `input_type==NONE` 切 `focus_in/out`，`new` 时 `focus_out` 预热；`setEditableSizeAndTransform+setMarkedTextRect` 双流驱动 `update_im_cursor_position`（仅 `composing==true` 时实报 `set_cursor_rectangle`，含 `composing_rect*transform+width/height` 经 `translate_coordinates`）。
 
-- **协议**：`zwp_text_input_manager_v3` → `zwp_text_input_v3`（`enable/disable/set_surrounding_text/set_content_type/set_cursor_rectangle/commit` + 事件 `enter/leave/preedit_string/commit_string/delete_surrounding_text/done`），`purego` 直绑，缺省时 `Window.IME()==nil` 静默退化。
-- **使能**：`EnableIME(rect)` 队列 `enable + rect + contentType` 一次 `commit`；`SetContentType(purpose)` 立即 `set_content_type(None,purpose)`；`UpdateCursorRect` 按 `ScaleFactor` 转物理像素、去重相同矩形、`hasRect` 缓存供 `refreshTextInput` 重发，`composing==false` 时仅预热、`true` 时实报 `composing_rect`（`BoxesForRange` 并集，经 `translate_coordinates`）。
-- **预编辑**：`preedit_string(text,commit,index)` → `IMEKind=0 compose`（`IMEStart==IMEEnd==index`，`-1` 表尾），`commit_string(text)` → `IMEKind=1 commit`，`delete_surrounding_text(before,after)` → `IMEKind=3`（`Start=-before/End=after`），`done(serial)` 仅唤醒 `WakeUp` 与 `batchDepth` 互斥。
-- **环绕文本**：`SetComposing(text,cursor)` 按 4000 字节居中截断（`budget=3999`，按 UTF8 边界吸附，`cursor` 同步回退），`pushSurrounding` 走 `TruncateSurrounding` 单源。
-- **焦点**：`enter` 触发 `refreshTextInput`（`enable+content+rect+commit` 重发，补 `mutter` focus 前 `commit` 丢失），`leave` 发 `disable+commit`；`tiRecheckDelay 400ms` 的 `disable→enable` 延迟重激活仅 `ibus/mutter` 首活兜底，有真实 `preedit/commit` 即 `cancelRecheck`。
-- **与上层对接**：`preedit-start→Editor.BeginComposing`；`preedit-changed→UpdateComposingText+SetSelection+delta`（`enableDeltaModel` 分支）；`commit→AddText/CommitComposing+delta`；`delete_surrounding→DeleteSurrounding+delta`；`filter_keypress` 走 `InputRouter` 优先拦截。
+### 7.2 X11
 
-### 7.2 Linux X11（`x11_xim_linux.go` · `XIM`）【极简已落地·预编辑待补】
-
-- **当前已落地（PreeditNothing 极简）**：`XSetLocaleModifiers("") → XOpenIM → XCreateIC(XNInputStyle=PreeditNothing|StatusNothing, XNClientWindow=win)`，`XFilterEvent` 优先（`handled==true` 即组合期吞键），否则 `Xutf8LookupString` 取 `UTF8` → `AddText+CommitComposing`；`XSetICFocus/UnsetICFocus` 绑定 `EnableIME/DisableIME`，`SetComposing/UpdateCursorRect/SetContentType` 均空实现（注释 `XNSpotLocation would need XIMPreeditPosition`），`Window.IME()==nil` 时同 Wayland 静默退化。已满足“能打中文、候选框由系统弹”可用态，对应 `R5` 禁用/占位/滚动验证已过但预编辑不高亮。
-- **待补完整（PreeditCallbacks/Position）**：切 `XIMPreeditCallbacks`（注册 `XIMPreeditStartCallback/DrawCallback/DoneCallback/CaretCallback`）或 `XIMPreeditPosition + XNSpotLocation`，将 `preeditDraw(text, caret)` 映射为 `Begin/UpdateComposingText`，把 `IMERect`（`CaretForOffset-scrollX` 经 `ScaleFactor`）以 `XPoint spot` 回传 XIM 使候选框跟光标，`PurposePassword` 禁组合同 Wayland，`KeyRepeater` 仍委托系统（X11 无需 `purego` 重复）。
-- **与 Wayland 的差异点**：无 `surrounding/done/content_type/cursor_rectangle` 协议，靠 `XIM` 回调驱动；无 `tiRecheckDelay`，靠 `XSetICFocus` 重激活。
+`XSetLocaleModifiers→XOpenIM→XCreateIC(PreeditNothing)`，`XFilterEvent` 优先→`Xutf8LookupString` 取 UTF8→rune→`AddText+CommitComposing`；仅 Wayland purego 无 GTK 时需 `KeyRepeater`，X11 委托系统/GDK。
 
 ### 7.3 Windows
 
@@ -245,19 +236,6 @@ type TextInputConfiguration struct { InputType, InputAction string; EnableDeltaM
 ### 7.4 macOS/iOS
 
 `FlutterTextInputPlugin.mm`：`setMarkedText→Begin+Update`，`insertText→AddText+Commit+End`，`unmarkText→Commit+End`，`firstRectForCharacterRange` 仅 `composing==true` 时返回 composing 框（含 `translate_coordinates`），`interpretKeyEvents` 双门模型（`filter_keypress` 等价）。
-
-### 7.5 平台映射对照（Wayland ↔ X11）
-
-| 能力 | Wayland (`zwp_text_input_v3`) | X11 (`XIM`) | 复用层 |
-|---|---|---|---|
-| 使能/失能 | `enable(surface)/disable(surface)+commit` | `XSetICFocus/UnsetICFocus` | `Editor.OnAnchor / InputRouter.syncSession` |
-| 光标锚点 | `set_cursor_rectangle(x,y,w,h)*ScaleFactor` | `XNSpotLocation (XPoint)`（待补） | `IMERect()` |
-| 环绕文本 | `set_surrounding_text(text,cursor,anchor) -1 NUL + 4000 截断` | `XIM` 不上报（待补时由回调拉取，不经过此） | `TruncateSurrounding` |
-| 预编辑 | `preedit_string` | `PreeditDrawCallback`（待补） | `Begin/UpdateComposingText` |
-| 提交 | `commit_string` | `Xutf8LookupString` | `AddText+CommitComposing` |
-| 删除环绕 | `delete_surrounding_text` | `XIM` 删除回调（待补） | `DeleteSurrounding` |
-| 内容类型 | `set_content_type(hint,purpose)` | 无（待补时忽略 `PurposePassword` 仍禁组合） | `ContentType` |
-| 批结束 | `done(serial)` 唤醒 + `batchDepth` 互斥 | `XFilterEvent` 同步，无 `done` | `batchDepth` |
 
 ---
 
@@ -408,7 +386,7 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 
 | 族 | 字段 | 阈值（R3，10s） | 说明 |
 |---|---|---|---|
-| **A 帧时** | `fps_interval≥55`，`p95≤22ms`，`hitch_rate_per_min≤5` | 风暴期不卡 |
+| **A 帧时** | `fps_interval≥55`，`p95≤22ms`，`hitch_rate_per_min≤5` | 风暴期不卡 | 
 | **B 管线** | `frame_build_ms p95<5ms`，`pipeline_depth` 不超限 | 6 信号不堵 |
 | **C 脏区** | `damage_ratio` 可≈1（full_paint）但 `paint_count` 可解释 | 通道窗允许全脏 |
 | **D CPU** | `cpu_pct_avg<60%` | 风暴锁后不飙 |
