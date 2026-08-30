@@ -1,8 +1,9 @@
 # 文本编辑 + IME X11 生产级实现需求文档（复用 Wayland 版 v3.5 · X11 完整版 v2.3 · 完全对齐 Flutter）
 
-> **复用声明**：本文件为 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 主真源 v3.5）的 **X11 完整镜像**，`R1-R5` 功能（`F-A/B/C/D/E/F/S`）、`§6 统一模型`、`§8 并发`、`§9 控件接入`、`§10 测试与验收`（含 R1-R5 单测与真窗同源同数同判据、三证据、A-J 10族全硬）**全部直接复用 Wayland 版，禁止修改已可用的 R1-R5 测试**；差异仅在 `§7 平台实现` 重写为 **X11 D-Bus** 完整实现（`org.freedesktop.IBus / org.fcitx.Fcitx5` 的 `SetCursorLocation` 框内预编辑，`XIM` 已彻底移除，**纯 Go 无 cgo**），格式与 Wayland 版 §7 逐段对照。
+> **复用声明**：本文件为 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 主真源 v3.5）的 **X11 完整镜像**，`R1-R5` 功能（`F-A/B/C/D/E/F/S`）、`§6 统一模型`、`§8 并发`、`§9 控件接入`、`§10 测试与验收`（含 R1-R5 单测与真窗同源同数同判据、三证据、A-J 10族全硬）**全部直接复用 Wayland 版，禁止修改已可用的 R1-R5 测试**；差异仅在 `§7 平台实现` 重写为 **X11 D-Bus** 完整实现（`org.freedesktop.IBus / org.fcitx.Fcitx5`），格式与 Wayland 版 §7 逐段对照。
+> **纪律**：**禁止使用 XIM / cgo，仅使用 D-Bus ibus/fcitx5（`godbus/dbus/v5` 纯 Go）**。
 > **工业级**：Wayland 与 X11 双平台可投产、单测+仿真+真窗像素三级门禁。
-> **变更说明 v2.3（2026-08-30）**：于 `v2.2` 之上，将 `ibus↔fcitx5` 热切改为“脏标记→下次输入懒重探”（`NameOwnerChanged` 仅置 `imeDirty`，`EnableIME/ProcessKeyEvent` 入口重探），满足“切换后下次输入自动用当前生效输入法”；`X11` 与 `Wayland` 统一走现代输入法总线：`Wayland` 走 `zwp_text_input_v3`，`X11` 走 `D-Bus` 的 `ibus/fcitx5`，候选窗跟随改由 `SetCursorLocation` 直接搬运，无 `cgo`。
+> **变更说明 v2.3（2026-08-30）**：于 `v2.2` 之上，将 `ibus↔fcitx5` 热切改为“脏标记→下次输入懒重探”（`NameOwnerChanged` 仅置 `imeDirty`，`EnableIME/ProcessKeyEvent` 入口重探），满足“切换后下次输入自动用当前生效输入法”；`X11` 走 `D-Bus ibus/fcitx5`，`Wayland` 走 `zwp_text_input_v3`。
 
 ---
 
@@ -222,11 +223,11 @@ type TextInputConfiguration struct { InputType, InputAction string; EnableDeltaM
 
 ## 7. 平台实现（X11 D-Bus 完整 · 框内预编辑）
 
-> **复用声明**：本章为 **X11 专属完整实现**，功能层（`§4 架构 / §5 功能 / §6 模型 / §8 并发 / §9 控件 / §10 测试`）完全复用 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 版），`R1-R5` 单测与真窗禁止修改。本章仅描述 X11 平台适配，不含 Wayland 细节。`XIM` 相关代码（`x11_xim_linux.go / x11_xim_linux_test.go` 及 `x11_linux.go` 中的 `XFilterEvent / XIMPreeditCallbacks` 分支）已于 `v2.0` 彻底清空，`X11` 侧不再依赖 `libX11` 的 `XIM`。
+> **复用声明**：本章为 **X11 专属完整实现**，功能层（`§4 架构 / §5 功能 / §6 模型 / §8 并发 / §9 控件 / §10 测试`）完全复用 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 版），`R1-R5` 单测与真窗禁止修改。本章仅描述 X11 平台适配。
 
-### 7.1 X11 D-Bus 框内预编辑（`x11_dbus_ime_linux.go` · `org.freedesktop.IBus / org.fcitx.Fcitx5` 纯 Go）【本文件主路径】
+### 7.1 X11 D-Bus 框内预编辑（`x11_dbus_ime_linux.go` · `org.freedesktop.IBus / org.fcitx.Fcitx5`）【本文件主路径】
 
-> **设计取舍**：`X11` 与 `Wayland` 统一走现代输入法总线——`Wayland` 走 `zwp_text_input_v3`，`X11` 走 `D-Bus` 的 `ibus/fcitx5`。`XIM（XIMPreeditCallbacks + XNSpotLocation）` 整套 `cgo + libX11` 代码已删除，`X11` 侧不再受 `libX11 <1.8.2` 的 `XNSpotLocation` 拦截影响，候选窗跟随改由 `SetCursorLocation` 直接搬运。**禁止 cgo**：**参考一家成熟框架 `GTK gtkimcontextibus.c` 的 `D-Bus ibus` 总线语义（`CreateInputContext/SetCursorLocation/ProcessKeyEvent` 时序与信号归一）**，**实现层用 `github.com/godbus/dbus/v5` 纯 Go**（`DBUS_SESSION_BUS_ADDRESS` / `SessionBusPrivate` 自管理，不引入 `cgo/libdbus`/`GTK`）。本节为**成熟库校正后的落地契约**，所有名/路径/签名均以 `busctl introspect` 与 `godbus` 实测为准，`fcitx5` 侧同型适配。
+> **纪律**：**禁止使用 XIM / cgo，仅使用 D-Bus ibus/fcitx5（`github.com/godbus/dbus/v5` 纯 Go）**。参考 `GTK gtkimcontextibus.c` 的 `D-Bus ibus` 时序与信号归一。
 
 - **依赖与会话总线（无 cgo）**：`go get github.com/godbus/dbus/v5`，`dbus.SessionBus()` / `dbus.SessionBusPrivate(opts…)` 自动解析 `DBUS_SESSION_BUS_ADDRESS`（回退 `unix:path=/run/user/<uid>/bus`），`Hello` 取 `unique name`，`BusObject.Call("org.freedesktop.DBus.AddMatch", "type='signal',sender='org.freedesktop.IBus'")` 与 `sender='org.fcitx.Fcitx5'` 分别订阅；有 `BUS` 无守护时静默退化 `Window.IME()==nil`（英文直通，与 `Wayland` 一致，无 `XIM` 回退）；连接失败不阻塞建窗，`GPUI_IME_DEBUG=1` 打印 `dbus dial/hello/match`。
 - **打开与探测（双引擎统一 · 官方签名）**：以 `godbus` `BusObject.Call` 同步探测，先 `ibus` 再 `fcitx5`，超时 `500ms`，`GPUI_IME_DEBUG` 记失败并退化——
@@ -581,6 +582,6 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 
 - `TextRange` 以 UTF16 记（`{-1,-1}` 哨兵），Go 边界 `Utf8ToUtf16/Utf16ToUtf8` 互转，surrogate 对按 2 计仅换算时 ×2；
 - `surrounding` 4000 bytes 超长以光标为中心 4 锚点截断，末尾含 NUL，GTK/Wayland 共用 `-1`；`X11 D-Bus` 的 `cursor/anchor` 为 `UTF8 byte` 偏移（`anchor==cursor` 无选区），`offset/n` 按 `code point`，均复用 `textinput.TruncateSurrounding`，`godbus` 侧 `int32` 传参；
-- `X11` 侧 `XIM` 已移除，`PreeditNothing` 等 `XIM` 样式不再使用，`X11` 与 `Wayland` 统一走 `SetCursorLocation(x,y,w=2,h)` 的 `2×行高` 光标矩形，经 `XTranslateCoordinates` 到根窗口，`ScaleFactor` 转物理像素；
+- `X11` 统一走 `SetCursorLocation/SetCursorRect(x,y,w=2,h)` 的 `2×行高` 光标矩形，经 `XTranslateCoordinates` 到根窗口，`ScaleFactor` 转物理像素；
 - 闪烁 `caretOn` 节拍 ~500ms，`BaseEditable` ≤15 行 `grep -c` 审计；
-- `D-Bus` 依赖 `github.com/godbus/dbus/v5` **纯 Go 无 cgo**（`go vet` 禁 `import "C"`，`grep -r cgo ui/platform/x11_dbus` 为空），会话总线 `dbus.SessionBus()` 自解析 `DBUS_SESSION_BUS_ADDRESS`，`X11` 每窗口一 `InputContext` 对象路径，`Destroy` 于 `Window.Close`；**成熟框架对标仅一家 `GTK gtkimcontextibus.c` 的 `D-Bus ibus` 实现**，实现库为 `godbus/dbus/v5`，**不另引 `winit-XIM/cgo/GTK`**。
+- `D-Bus` 依赖 `github.com/godbus/dbus/v5` **纯 Go 无 cgo**，会话总线 `dbus.SessionBus()` 自解析 `DBUS_SESSION_BUS_ADDRESS`，`X11` 每窗口一 `InputContext` 对象路径，`Destroy` 于 `Window.Close`；参考 `GTK gtkimcontextibus.c`，实现库 `godbus/dbus/v5`。
