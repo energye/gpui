@@ -1,7 +1,8 @@
-# 文本编辑 + IME X11 生产级实现需求文档（复用 Wayland 版 v3.14 · X11 完整版 v1.0 · 完全对齐 Flutter）
+# 文本编辑 + IME X11 生产级实现需求文档（复用 Wayland 版 v3.5 · X11 完整版 v2.3 · 完全对齐 Flutter）
 
-> **复用声明**：本文件为 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 主真源 v3.14）的 **X11 完整镜像**，`R1-R5` 功能（`F-A/B/C/D/E/F/S`）、`§6 统一模型`、`§8 并发`、`§9 控件接入`、`§10 测试与验收`（含 R1-R5 单测与真窗同源同数同判据、三证据、A-J 10族全硬）**全部直接复用 Wayland 版，禁止修改已可用的 R1-R5 测试**；差异仅在 `§7 平台实现` 重写为 **X11 XIM** 完整实现（`PreeditCallbacks/Position + XNSpotLocation` 框内预编辑），格式与 Wayland 版 §7 逐段对照。
+> **复用声明**：本文件为 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 主真源 v3.5）的 **X11 完整镜像**，`R1-R5` 功能（`F-A/B/C/D/E/F/S`）、`§6 统一模型`、`§8 并发`、`§9 控件接入`、`§10 测试与验收`（含 R1-R5 单测与真窗同源同数同判据、三证据、A-J 10族全硬）**全部直接复用 Wayland 版，禁止修改已可用的 R1-R5 测试**；差异仅在 `§7 平台实现` 重写为 **X11 D-Bus** 完整实现（`org.freedesktop.IBus / org.fcitx.Fcitx5` 的 `SetCursorLocation` 框内预编辑，`XIM` 已彻底移除，**纯 Go 无 cgo**），格式与 Wayland 版 §7 逐段对照。
 > **工业级**：Wayland 与 X11 双平台可投产、单测+仿真+真窗像素三级门禁。
+> **变更说明 v2.3（2026-08-30）**：于 `v2.2` 之上，将 `ibus↔fcitx5` 热切改为“脏标记→下次输入懒重探”（`NameOwnerChanged` 仅置 `imeDirty`，`EnableIME/ProcessKeyEvent` 入口重探），满足“切换后下次输入自动用当前生效输入法”；`X11` 与 `Wayland` 统一走现代输入法总线：`Wayland` 走 `zwp_text_input_v3`，`X11` 走 `D-Bus` 的 `ibus/fcitx5`，候选窗跟随改由 `SetCursorLocation` 直接搬运，无 `cgo`。
 
 ---
 
@@ -219,19 +220,34 @@ type TextInputConfiguration struct { InputType, InputAction string; EnableDeltaM
 
 ---
 
-## 7. 平台实现（X11 XIM 完整 · 框内预编辑）
+## 7. 平台实现（X11 D-Bus 完整 · 框内预编辑）
 
-> **复用声明**：本章为 **X11 专属完整实现**，功能层（`§4 架构 / §5 功能 / §6 模型 / §8 并发 / §9 控件 / §10 测试`）完全复用 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 版），`R1-R5` 单测与真窗禁止修改。本章仅描述 X11 平台适配，不含 Wayland 细节。
+> **复用声明**：本章为 **X11 专属完整实现**，功能层（`§4 架构 / §5 功能 / §6 模型 / §8 并发 / §9 控件 / §10 测试`）完全复用 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 版），`R1-R5` 单测与真窗禁止修改。本章仅描述 X11 平台适配，不含 Wayland 细节。`XIM` 相关代码（`x11_xim_linux.go / x11_xim_linux_test.go` 及 `x11_linux.go` 中的 `XFilterEvent / XIMPreeditCallbacks` 分支）已于 `v2.0` 彻底清空，`X11` 侧不再依赖 `libX11` 的 `XIM`。
 
-### 7.1 X11 XIM 框内预编辑（`x11_xim_linux.go` · `XIMPreeditCallbacks + XNSpotLocation`）【本文件主路径】
+### 7.1 X11 D-Bus 框内预编辑（`x11_dbus_ime_linux.go` · `org.freedesktop.IBus / org.fcitx.Fcitx5` 纯 Go）【本文件主路径】
 
-- **协议与打开**：`XSetLocaleModifiers("") → XOpenIM → XVaCreateNestedList(0, XNPreeditStartCallback, &cbStart, XNPreeditDoneCallback, &cbDone, XNPreeditDrawCallback, &cbDraw, XNPreeditCaretCallback, &cbCaret, nil) → XCreateIC(XNInputStyle=XIMPreeditCallbacks|XIMStatusNothing, XNClientWindow=win, XNPreeditAttributes=preeditList, XNStatusAttributes=statusList, nil)`，失败则 `Window.IME()==nil` 静默退化为英文直输（与 Wayland 一致）。
-- **使能/失能**：`EnableIME(rect)` → `XSetICFocus(ic)` 并缓存 `rect`；`DisableIME()` → `XUnsetICFocus(ic)` 并 `EndComposing` 清理；`XSetICValues(ic, XNPreeditAttributes, spotList)` 随焦点与滚动更新。
-- **光标锚点**：`UpdateCursorRect(rect)` 取 `TextLayout.CaretForOffset(selection.extent)` 的 `X - scrollX`（`scrollX` 来自 `Viewport/ViewportInputBox`），按 `ScaleFactor` 转物理像素后以 `XPoint {x,y}` 经 `XNSpotLocation` 回传 XIM，候选词窗口钉在光标上（对齐 Wayland `set_cursor_rectangle`）。
-- **预编辑回调**：`PreeditStartCallback → Editor.BeginComposing`（有选区先 `DeleteSelected`）；`PreeditDrawCallback(XIMPreeditDrawCallbackStruct{caret, chg_first, chg_length, text}) → UpdateComposingText(newPreedit, selection)`（`chg_first/length` 增量替换，`text.encoding_is_wchar` 时转 UTF8，`caret` 映射为 `SetComposingRange` 的 `cursorOffset`）；`PreeditCaretCallback → SetComposingRange` 光标移动；`PreeditDoneCallback → CommitComposing` 清理。
-- **提交**：`XFilterEvent` 优先，若未吞键则 `Xutf8LookupString / XwcLookupString` 取提交串 → `AddText+CommitComposing`（与 `PreeditNothing` 时代提交路径一致，但此时提交前已通过 `DrawCallback` 完成框内高亮）。
-- **环绕/删除/内容类型**：XIM 无 `surrounding/done/content_type` 协议，`SetComposing/SetContentType` 在 XIM 侧空转，`DeleteSurrounding` 仍由 `XIM` 的 `XIMStringConversion` 回调（如有）或本地 `Backspace` 限 `editable_range()` 完成，`PurposePassword` 仍禁 `BeginComposing`（与 Wayland 一致）。
-- **与上层对接**：`preeditDraw → UpdateComposingText+delta`（`enableDeltaModel` 分支同 Wayland）、`commit → AddText+delta`、`filter` 命中即拦截 `InputRouter.isComposingFilterKey`，`batchDepth/done` 无 `done` 事件故 `XFilterEvent` 同步模型下 `batchDepth` 仅用于 `Editor` 内部去重。
+> **设计取舍**：`X11` 与 `Wayland` 统一走现代输入法总线——`Wayland` 走 `zwp_text_input_v3`，`X11` 走 `D-Bus` 的 `ibus/fcitx5`。`XIM（XIMPreeditCallbacks + XNSpotLocation）` 整套 `cgo + libX11` 代码已删除，`X11` 侧不再受 `libX11 <1.8.2` 的 `XNSpotLocation` 拦截影响，候选窗跟随改由 `SetCursorLocation` 直接搬运。**禁止 cgo**：实现层仅用 `github.com/godbus/dbus/v5`（纯 Go，`DBUS_SESSION_BUS_ADDRESS` / `SessionBusPrivate` 自管理，参考 `godbus` 官方 `SessionBus()` 与 `winit`/`gio` 的 `DBus` 封装思路，但不引入 `cgo/libdbus`），对齐 `GTK` `im-ibus/im-fcitx` 的总线语义但不依赖 `GTK`。本节为**成熟库校正后的落地契约**，所有名/路径/签名均以 `busctl introspect` 与 `godbus` 实测为准。
+
+- **依赖与会话总线（无 cgo）**：`go get github.com/godbus/dbus/v5`，`dbus.SessionBus()` / `dbus.SessionBusPrivate(opts…)` 自动解析 `DBUS_SESSION_BUS_ADDRESS`（回退 `unix:path=/run/user/<uid>/bus`），`Hello` 取 `unique name`，`BusObject.Call("org.freedesktop.DBus.AddMatch", "type='signal',sender='org.freedesktop.IBus'")` 与 `sender='org.fcitx.Fcitx5'` 分别订阅；有 `BUS` 无守护时静默退化 `Window.IME()==nil`（英文直通，与 `Wayland` 一致，无 `XIM` 回退）；连接失败不阻塞建窗，`GPUI_IME_DEBUG=1` 打印 `dbus dial/hello/match`。
+- **打开与探测（双引擎统一 · 官方签名）**：以 `godbus` `BusObject.Call` 同步探测，先 `ibus` 再 `fcitx5`，超时 `500ms`，`GPUI_IME_DEBUG` 记失败并退化——
+  - **ibus（官方 `src/ibusbus.c:ibus_bus_create_input_context`）**：`service org.freedesktop.IBus`，`object /org/freedesktop/IBus`，`interface org.freedesktop.IBus`，`CreateInputContext(s client_name) → o`（`g_variant_new("(s)", client_name)`，`client_name="gpui:<进程名>"`，官方面 `s` 单参；老版双参 `ss` 仅作兼容探测），成功得如 `/org/freedesktop/IBus/InputContext_7`，接口 `org.freedesktop.IBus.InputContext`（`GDBusProxy` `service org.freedesktop.IBus`）；
+  - **fcitx5（官方 `fcitx/fcitx5-dbusfrontend/src/dbus/dbusfrontend.cpp:DBusFrontend::createInputContext`）**：`service org.fcitx.Fcitx5`（兼容 `org.fcitx.Fcitx` 老名），`object /org/fcitx/Fcitx5/InputMethod`（老路径 `/org/fcitx/Fcitx/InputMethod`），`interface org.fcitx.Fcitx5.InputMethod`，`CreateInputContext(ss appname, s appid) → o`（`appname=argv[0]/"gpui"`, `appid="gpui"`；`godbus Call("CreateInputContext", appname, appid)`，空串兼容），成功得如 `/org/fcitx/Fcitx5/InputContext_2`，接口 `org.fcitx.Fcitx5.InputContext`；
+  - 双探皆失败→ `nil IME`。每 `Window` 一 `InputContext`（非全局单例），`Window.Close` 时 `Destroy`（`ibus: proxy Destroy` / `fcitx5: DestroyIC`）并 `RemoveMatch`，避免泄漏。
+- **InputContext 能力声明**：创建后立即 `SetCapabilities(uint32 caps)`（`godbus` `Call` `SetCapabilities` / `SetCapability` 名兼容）——`ibus: CAP_PREEDIT_TEXT(1<<0)|CAP_FOCUS(1<<2)|CAP_SURROUNDING_TEXT(1<<3)`，`fcitx5: CAPACITY_PREEDIT|SURROUNDING_TEXT`，再缓存 `engine`（`ibus`/`fcitx5`）以统一后续 `SetCursorLocation/SetSurroundingText/SetContentType` 的二态分发。
+- **使能/失能**：`EnableIME(rect)` → `FocusIn()` + 缓存 `rect` 并 `SetCursorLocation(rect)` + `SetContentType(purpose)` + `SetSurroundingText(text, cursor, anchor)`；`DisableIME()` → `FocusOut()` 并 `EndComposing` 清理；`FocusIn/Out` 与 `Wayland` 的 `enable/disable` 语义一致，重复 `FocusIn` 幂等（`focused` 卫栏）。`godbus` 侧均为同步 `Call`（`FocusIn()` `()`，`FocusOut()` `()`，无返回值）。
+- **光标锚点（候选跟随 · 官方名差异）**：`UpdateCursorRect(rect)` 取 `TextLayout.CaretForOffset(selection.extent)` 的 `X - scrollX`，按 `ScaleFactor` 转物理像素，`XTranslateCoordinates(window → root, x, y)` 得根坐标后分发——`ibus: SetCursorLocation(iiii)`（`src/ibusinputcontext.c:ibus_input_context_set_cursor_location`，`g_variant_new("(iiii)", x,y,w,h)`，`w=2, h=行高`）、`fcitx5: SetCursorRect(iiii)`（`fcitx5 InputContext SetCursorRect`，同参异名，`godbus Call("SetCursorRect", x,y,w,h)` 兼容 `SetCursorLocation`），候选窗钉在光标上（与 `Wayland` 的 `set_cursor_rectangle` 同源同参）；仅 `composing==true` 时实发，非 `composing` 仅缓存（`OnChange→RefreshIMEAnchor` 闭环同 `Wayland`）。
+- **按键过滤（filter_keypress 等价 · 官方签名）**：`X11` 侧仍收 `XKeyPress`，先走 `ProcessKeyEvent` 再决定是否 `decodeKey→Editor.AddText`——
+  - `ibus（官方 `src/ibusinputcontext.c:ibus_input_context_process_key_event`）: ProcessKeyEvent(uuu keyval, keycode, state) → (b handled)`（`g_variant_new("(uuu)", keyval, keycode, state)`，`keyval=XKeycodeToKeysym` 的 `keysym`，`keycode` 硬件码，`state` 修饰位；`godbus Call(...).Store(&handled)`）；
+  - `fcitx5（官方 `DBusFrontend InputContext ProcessKeyEvent`）: ProcessKeyEvent(u keyval, u keycode, u state, u time, b isRelease) → (b handled)`（`time` 来自 `XKeyEvent.time`，`isRelease` 区分 Press/Release）；
+  - `handled==true` 则拦截不再本地插入，与 `Wayland` 的 `filter_keypress` 命中即 `return TRUE` 一致；`handled==false` 再走本地 `Home/End/PageUp/Down/Return/Ctrl+←→`（`Return` 仅 `MULTILINE+newline→AddCodePoint('\n')+performAction`）与 `InputRouter.isComposingFilterKey`。`ProcessKeyEvent` 超时 `50ms`，超时按未处理放行（`godbus WithContext` 超时）。
+- **预编辑/提交/删除（信号归一 · godbus 订阅）**：`godbus` `AddMatch` 后 `conn.Eavesdrop`/`Signal` 通道收——
+  - `ibus` 信号：`UpdatePreeditText(variant Text, uint32 cursor_pos, bool visible)` / `CommitText(variant Text)` / `DeleteSurroundingText(int32 offset, uint32 n_chars)` / `HidePreeditText()`，`interface org.freedesktop.IBus.InputContext`；
+  - `fcitx5` 信号：`UpdatePreedit(string text, int32 cursor)` / `CommitString(string text)` / `DeleteSurroundingText(int32 offset, uint32 n)`，`interface org.fcitx.Fcitx5.InputContext`（老 `org.fcitx.Fcitx` 同名）；
+  - 归一后：`UpdatePreeditText(text, cursor, visible)` → `Editor.BeginComposing + UpdateComposingText(text, TextRange{start+cursor,start+cursor})`（`visible==false` 或 `HidePreeditText`→`EndComposing`）；`CommitText(text)` → `AddText(text)+CommitComposing`；`DeleteSurroundingText(offset,n)` → `DeleteSurrounding(offset,n)`（`offset/n` 按 `code point`，见 §6.1/附录）；与 `Wayland` 的 `preedit_string / commit_string / delete_surrounding_text` 同逻辑。`variant Text` 在 `godbus` 侧按 `dbus.Variant` 解 `string`。
+- **环绕/内容类型（官方签名 · godbus 适配）**：`SetSurroundingText` 分引擎——`ibus（官方 `src/ibusinputcontext.c:ibus_input_context_set_surrounding_text`）: SetSurroundingText(v IBusText, u cursor_pos, u anchor_pos)`（`v` 为 `IBusText` 序列化 `variant`，`godbus dbus.MakeVariant(text)` + `ibus_serializable_serialize` 等价为含 `IBusText{text, attrs}` 的 `v`，`cursor/anchor` 为 `UTF8 byte` 偏移，`anchor==cursor` 无选区）、`fcitx5: SetSurroundingText(s text, u cursor, u anchor)`（`sii` 简式，`godbus Call("SetSurroundingText", text, cursor, anchor)`）；二者均限 `4000 bytes` 含 `NUL` 以光标为中心截断（复用 `textinput.TruncateSurrounding`，与 `Wayland` `set_surrounding_text` 同截断）；`SetContentType` 官方面为 `ibus: org.freedesktop.DBus.Properties.Set("ContentType", (uu) purpose, hints)`（`src/ibusinputcontext.c:ibus_input_context_set_content_type`，`Properties.Set` 带 `IBUS_INTERFACE_INPUT_CONTEXT/ContentType`），`fcitx5: SetCapacity/SetContentType(u)`；`purpose` 由 `ContentType.purposeFromInputType` 映射，`PurposePassword` 仍禁 `BeginComposing`。均 `godbus` 同步 `Call`。
+- **与上层对接**：`UpdatePreeditText → UpdateComposingText+delta(OldText=composing_before)`、`CommitText → AddText+delta(replace_range=was_composing?composing_before:selection_before)`、`ForwardKeyEvent` 按 `filter` 拦截；`D-Bus` 无 `done` 批事件，`batchDepth` 仅用于 `Editor` 内部去重（`BeginBatchEdit/EndBatchEdit` 抑制 `OnChange`/`updateEditingState`，末层 `epoch++` 去重），与 `Wayland` 的 `done` 互斥模型对齐，见 §8 C4。
+- **守护重启与热切（godbus NameOwnerChanged · 懒重连：下次输入自动用新引擎）**：`godbus` 同时订阅 `org.freedesktop.IBus` 与 `org.fcitx.Fcitx5`（兼容 `org.fcitx.Fcitx`）的 `NameOwnerChanged`（`sender='org.freedesktop.DBus',member='NameOwnerChanged'`，`ibus/src/ibusbus.c:_connection_dbus_signal_cb` 同源），**不立即重建**——`owner` 由有变空→ 标记 `imeDirty=true` 并 `FocusOut+EndComposing` 置 `IME==nil`（英文直通），由空变有→ 仅标记 `imeDirty=true` 并 `GPUI_IME_DEBUG` 记 `ime switch dirty`；**真正重建在下次输入时懒触发**：`EnableIME/FocusIn`、`UpdateCursorRect`、`ProcessKeyEvent`、`SetSurroundingText` 任一入口先判 `imeDirty||IME==nil`，则按“先 `ibus` 再 `fcitx5`”重探 `CreateInputContext`（`ibus s→o`，`fcitx5 ss→o`，`godbus Call` 超时 `500ms`），成功则清 `imeDirty` 并补 `FocusIn+SetCapabilities/SetCursorRect+SetSurroundingText`，失败保持 `nil` 仍直通。指数退避 `200ms→2s` 仅用于 `Bus` 断开（`conn.Signals` 关闭/`read error`）后的重拨，`P13` 守护重启与 **ibus↔fcitx5 热切**均走此“脏标记→下次输入重探”路径，满足“切换后下次输入自动用当前生效的输入法”。
+- **线程与分发（godbus 纯 Go）**：`godbus` 信号在独立 `go` 协程 `range conn.Signals()`，回调内不直接改 `Editor`，而 `pushIME(Event{Type:EventImePreedit/Commit/Delete})` 入 `x11Host.imeMu` 队列并 `WakeUp()`，由 `WaitEvents` 所在事件循环线程统一 `dispatch`（与 `Wayland` 的 `dispatch` 独占同）；`SetCursorLocation/SetSurroundingText` 等 `Call` 可在事件线程同步发（`godbus` 线程安全），无需跨线程。禁止在 `D-Bus` 协程直接触 `Editor`。
 
 ### 7.2 Windows
 
@@ -245,7 +261,7 @@ type TextInputConfiguration struct { InputType, InputAction string; EnableDeltaM
 
 ## 8. 并发契约（硬）
 
-C1 状态与 Editor 仅事件循环线程；C2 Timer 仅投队列+WakeUp；C3 adapter 标注线程语义；C4 Wayland `zwp_text_input_v3.done` 批处理队列 `dispatch` 独占，与 `batchDepth>0` 互斥（`done` 进队列后不立即 `updateEditingState`，待 `EndBatchEdit` 的 `epoch++` + `ShouldSkipFrameworkUpdate` 去重后一次性发送）。`batchDepth>0` 时抑制 `OnChange` 与 `updateEditingState`，`EndBatchEdit` 时一次性 `epoch++` 并按 `ShouldSkipFrameworkUpdate` 去重。
+C1 状态与 Editor 仅事件循环线程；C2 Timer 仅投队列+WakeUp；C3 adapter 标注线程语义；C4 Wayland `zwp_text_input_v3.done` 批处理队列 `dispatch` 独占，与 `batchDepth>0` 互斥（`done` 进队列后不立即 `updateEditingState`，待 `EndBatchEdit` 的 `epoch++` + `ShouldSkipFrameworkUpdate` 去重后一次性发送），**X11 D-Bus 无 `done`，`batchDepth>0` 仅抑制 `OnChange` 与 `pushSurrounding/pushDelta`，`D-Bus` 信号协程仅 `pushIME+WakeUp`，`dispatch` 仍独占事件循环线程**。`batchDepth>0` 时抑制 `OnChange` 与 `updateEditingState`，`EndBatchEdit` 时一次性 `epoch++` 并按 `ShouldSkipFrameworkUpdate` 去重。
 
 ---
 
@@ -556,10 +572,15 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 | **v3.12 2026-08-29** | R3 已落：§12 中 R3 7 项标 ✅（`delta` 真通道 `OnDelta` + 定值锁、`filter_keypress` 路由优先、`-1` NUL、`二次覆盖` `ApplyFrameworkState`、`batch/done` 唤醒、`translate_coordinates` Scale、`NONE` 跳过），§11 R3 行标 ✅，对应实现 `da44676` |
 | **v3.13 2026-08-29** | R4 已落：§12 中 R4 6 项标 ✅（`Undo/Redo` 历史栈+分组、`MoveVisualUp/Down` 钳制、`Viewport` 密码/锚点/高亮、`拖选 timer` 双向、`三击` 统一、`OnChange→Anchor` 闭环），§11 R4 行标 ✅，同时修 `BaseEditable.SetDisabled→readOnly` 联动与 `Viewport` 获焦 `Disabled` 拦截 |
 | **v3.14 2026-08-29** | R5 已落：§12 中 R5 3 项标 ✅（禁用全拦截 `InputBox/Viewport/Multi`+`InputRouter` 感知、`SetMaxLines` 单行忽略、`warmup` 诚实化 `r5/main.go`+`wrgate/report.go`），§11 R5 行标 ✅；`metrics-audit` A-J 10族全审 + 三证据（探针+像素+Golden）通过 |
+| **v2.0 2026-08-30** | `X11` 侧 `XIM` 彻底移除：`x11_xim_linux.go / x11_xim_linux_test.go` 及 `x11_linux.go` 中 `XFilterEvent / XIMPreeditCallbacks` 分支已清空，`X11` 改走 `D-Bus` 的 `ibus/fcitx`（`SetCursorLocation/SetSurroundingText/SetContentType/FocusIn`），与 `Wayland` 的 `zwp_text_input_v3` 同源，候选跟随改由 `D-Bus` 直接搬运，不再受 `libX11 <1.8.2` 拦截 |
+| **v2.1 2026-08-30** | 补齐 `D-Bus` 精确契约：会话总线/`Hello/AddMatch`/`CreateInputContext` 双探（`ibus` `org.freedesktop.IBus@/org/freedesktop/IBus` `(ss)→o` 与 `fcitx` `org.fcitx.Fcitx@/org/fcitx/Fcitx` `()→o`）、`SetCursorLocation/SetSurroundingText/SetContentType/SetCapabilities` 及 `ProcessKeyEvent` 过滤、`UpdatePreeditText/CommitText/DeleteSurroundingText/HidePreeditText` 归一、`FocusIn/Out` 幂等、每窗一 `InputContext` 与 `NameOwnerChanged` 重连（`P13`）、线程 `pushIME+WakeUp` 分发、`XTranslateCoordinates` 根坐标、`4000` 复用 `TruncateSurrounding`，对齐 `§8 C4` 与附录 |
+| **v2.2 2026-08-30** | **成熟库校正（无 cgo）**：以 `godbus/dbus/v5` 纯 Go 为基准，校正 `ibus (org.freedesktop.IBus@/org/freedesktop/IBus CreateInputContext(s)→o)` 与 `fcitx5 (org.fcitx.Fcitx5@/org/fcitx/Fcitx5 CreateInputContext()→o 兼容 org.fcitx.Fcitx)` 的精确签名、`SetCursorLocation(sii)/SetSurroundingText(sii)/ProcessKeyEvent` 的 `godbus` `Call/Store` 形式、`variant Text` 解包、`SetCapabilities/Capacity` 兼容、`NameOwnerChanged` 与 `conn.Signals()` 线程模型，明确**禁止 cgo**（`grep cgo` 为空），并补充 `winit-x11`/`gio`/`GTK im` 的对标说明 |
+| **v2.3 2026-08-30** | **热切懒重连**：`ibus↔fcitx5` 运行时切换改为“脏标记→下次输入重探”（`NameOwnerChanged` 仅置 `imeDirty`，`EnableIME/UpdateCursorRect/ProcessKeyEvent` 入口懒重建，先 `ibus` 再 `fcitx5`，成功补 `FocusIn+Set*`），满足“切换后下次输入自动用当前生效输入法”，`P13` 热切与守护重启同路径 |
 
 ## 附录：偏移与截断
 
 - `TextRange` 以 UTF16 记（`{-1,-1}` 哨兵），Go 边界 `Utf8ToUtf16/Utf16ToUtf8` 互转，surrogate 对按 2 计仅换算时 ×2；
-- `surrounding` 4000 bytes 超长以光标为中心 4 锚点截断，末尾含 NUL，GTK/Wayland 共用 `-1`；
-- XIM `PreeditNothing` 接受无样式；
-- 闪烁 `caretOn` 节拍 ~500ms，`BaseEditable` ≤15 行 `grep -c` 审计。
+- `surrounding` 4000 bytes 超长以光标为中心 4 锚点截断，末尾含 NUL，GTK/Wayland 共用 `-1`；`X11 D-Bus` 的 `cursor/anchor` 为 `UTF8 byte` 偏移（`anchor==cursor` 无选区），`offset/n` 按 `code point`，均复用 `textinput.TruncateSurrounding`，`godbus` 侧 `int32` 传参；
+- `X11` 侧 `XIM` 已移除，`PreeditNothing` 等 `XIM` 样式不再使用，`X11` 与 `Wayland` 统一走 `SetCursorLocation(x,y,w=2,h)` 的 `2×行高` 光标矩形，经 `XTranslateCoordinates` 到根窗口，`ScaleFactor` 转物理像素；
+- 闪烁 `caretOn` 节拍 ~500ms，`BaseEditable` ≤15 行 `grep -c` 审计；
+- `D-Bus` 依赖 `github.com/godbus/dbus/v5` **纯 Go 无 cgo**（`go vet` 禁 `import "C"`，`grep -r cgo ui/platform/x11_dbus` 为空），会话总线 `dbus.SessionBus()` 自解析 `DBUS_SESSION_BUS_ADDRESS`，`X11` 每窗口一 `InputContext` 对象路径，`Destroy` 于 `Window.Close`；成熟库对标：`godbus/dbus`（ibus/fcitx5 通用）、`GTK im-ibus/im-fcitx` 总线语义、`winit-x11` 的线程模型（独立协程 `push+WakeUp`）仅作参考，**不引入 XIM/cgo**。

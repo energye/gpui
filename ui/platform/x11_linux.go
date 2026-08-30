@@ -466,14 +466,9 @@ func x11Create(opts Options) (*Window, error) {
 		st.wmDelete = xInternAtom(dpy, &delName[0], 0)
 	}
 	host := &x11Host{st: st, lib: lib}
-	// Optional IME capability via XIM (ibus/fcitx). Silent degrade when the
-	// input method server is absent.
-	host.xim = ximOpen(dpy, win)
+	// XIM removed in v2.0; X11 IME now via D-Bus (see x11_dbus_ime_linux.go).
+	// No ximOpen here; Window.IME() will be nil until D-Bus IME lands (plain keyboard degrade).
 	host.destroyFn = func() {
-		if host.xim != nil {
-			host.xim.close()
-			host.xim = nil
-		}
 		xDestroyWindow(dpy, win)
 		lib.closeDisplay(dpy)
 	}
@@ -538,14 +533,11 @@ func (st *x11State) resolveAtoms(dpy uintptr) {
 	st.atCardinal = atom("CARDINAL")
 }
 
-// imeForX11 returns the XIM-based IME capability, or nil when no input
-// method is available (silent degrade).
-func imeForX11(h *x11Host) IME {
-	if h == nil || h.xim == nil {
-		return nil
-	}
-	return &x11Ime{h: h}
-}
+// imeForX11 returns the D-Bus IME capability for X11.
+// XIM has been removed in v2.0 (see ENGINE_TEXT_IME_X11_REQUIREMENT.md);
+// X11 now uses D-Bus ibus/fcitx, so this stub returns nil until the
+// D-Bus implementation (x11_dbus_ime_linux.go) lands.
+func imeForX11(h *x11Host) IME { return nil }
 
 // --- window state ---
 
@@ -635,7 +627,9 @@ type x11Host struct {
 	lib       *x11Lib
 	wake      chan struct{}
 	destroyFn func()
-	xim       *ximState
+	// XIM removed in v2.0; X11 IME now via D-Bus (see x11_dbus_ime_linux.go).
+	// The xim field is kept as placeholder until D-Bus lands, but always nil.
+	_ximPlaceholder *struct{}
 
 	// Kernel-poll plumbing: WaitEvents blocks on unix.Poll over the X
 	// connection fd + a self-pipe (WakeUp writes it) instead of a
@@ -652,21 +646,9 @@ type x11Host struct {
 	imeEvents []Event
 }
 
-// ximFocus activates/deactivates the XIM input context.
-func (h *x11Host) ximFocus(on bool) {
-	if h == nil || h.xim == nil {
-		return
-	}
-	f := loadXIMFuncs()
-	if f == nil {
-		return
-	}
-	if on {
-		h.xim.setFocus(f)
-	} else {
-		h.xim.unsetFocus(f)
-	}
-}
+// ximFocus is a stub after XIM removal in v2.0.
+// X11 IME now via D-Bus, so this is a no-op kept for ABI.
+func (h *x11Host) ximFocus(on bool) {}
 
 // pushIME queues an IME event for the next WaitEvents (thread-safe).
 func (h *x11Host) pushIME(ev Event) {
@@ -1062,35 +1044,11 @@ func (h *x11Host) drainX() []Event {
 				out = append(out, ev)
 			}
 		case xKeyPress, xKeyRelease:
-			// Route through the IME first (XIM). If the input method consumed
-			// the key (composing), skip it as a plain key. If it committed
-			// text, surface that as an IME event too. Text ownership: when
-			// the IME produced this key's characters, the decoded Key event
-			// drops its Rune — text enters the editor once via the IME
-			// commit channel, Key stays for shortcuts/focus (no double
-			// insert by router-level rune insertion).
-			skipKey := false
-			keyCommitted := ""
-			if h.xim != nil {
-				handled, committed := h.xim.filter(loadXIMFuncs(), &buf[0], h.st.window)
-				if handled {
-					skipKey = true // IME is composing; not a plain key
-				}
-				if committed != "" {
-					keyCommitted = committed
-					out = append(out, Event{
-						Type: EventIME, IMEKind: 1, // commit
-						IMEText: committed, IMEStart: -1, IMEEnd: -1,
-					})
-				}
-			}
-			if !skipKey {
-				if ev, ok := h.decodeKey(t, buf[:]); ok {
-					if keyCommitted != "" {
-						ev.Rune = 0
-					}
-					out = append(out, ev)
-				}
+			// XIM removed in v2.0; X11 IME now via D-Bus (see x11_dbus_ime_linux.go).
+			// Keys are decoded directly; composing is handled via D-Bus
+			// UpdatePreeditText/CommitText signals, not XFilterEvent.
+			if ev, ok := h.decodeKey(t, buf[:]); ok {
+				out = append(out, ev)
 			}
 		case xClientMessage:
 			data0 := readU64(buf[:], xevClientData0Off)
