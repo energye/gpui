@@ -1,7 +1,7 @@
 # 文本编辑 + IME X11 生产级实现需求文档（复用 Wayland 版 v3.5 · X11 完整版 v2.3 · 完全对齐 Flutter）
 
-> **复用声明**：本文件为 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 主真源 v3.5）的 **X11 完整镜像**，`R1-R5` 功能（`F-A/B/C/D/E/F/S`）、`§6 统一模型`、`§8 并发`、`§9 控件接入`、`§10 测试与验收`（含 R1-R5 单测与真窗同源同数同判据、三证据、A-J 10族全硬）**全部直接复用 Wayland 版，禁止修改已可用的 R1-R5 测试**；差异仅在 `§7 平台实现` 重写为 **X11 D-Bus** 完整实现（`org.freedesktop.IBus / org.fcitx.Fcitx5`），格式与 Wayland 版 §7 逐段对照。
-> **纪律**：**禁止使用 XIM / cgo，仅使用 D-Bus ibus/fcitx5（`godbus/dbus/v5` 纯 Go）**。
+> **复用声明**：本文件为 `ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md`（Wayland 主真源 v3.5）的 **X11 完整镜像**，`R1-R5` 功能（`F-A/B/C/D/E/F/S`）、`§6 统一模型`、`§8 并发`、`§9 控件接入`、`§10 测试与验收`（含 R1-R5 单测与真窗同源同数同判据、三证据、A-J 10族全硬）**全部直接复用 Wayland 版，禁止修改已可用的 R1-R5 测试**；差异仅在 `§7 平台实现` 重写为 **X11 D-Bus** 完整实现（`org.freedesktop.IBus / org.fcitx.Fcitx5`），格式与 Wayland 版 §7 逐段对照。
+> **纪律**：**仅使用 D-Bus ibus/fcitx5（`godbus/dbus/v5` 纯 Go）**。
 > **工业级**：Wayland 与 X11 双平台可投产、单测+仿真+真窗像素三级门禁。
 > **变更说明 v2.3（2026-08-30）**：于 `v2.2` 之上，将 `ibus↔fcitx5` 热切改为“脏标记→下次输入懒重探”（`NameOwnerChanged` 仅置 `imeDirty`，`EnableIME/ProcessKeyEvent` 入口重探），满足“切换后下次输入自动用当前生效输入法”；`X11` 走 `D-Bus ibus/fcitx5`，`Wayland` 走 `zwp_text_input_v3`。
 
@@ -223,13 +223,13 @@ type TextInputConfiguration struct { InputType, InputAction string; EnableDeltaM
 
 ## 7. 平台实现（X11 D-Bus 完整 · 框内预编辑）
 
-> **复用声明**：本章为 **X11 专属完整实现**，功能层（`§4 架构 / §5 功能 / §6 模型 / §8 并发 / §9 控件 / §10 测试`）完全复用 `ENGINE_TEXT_IME_REQUIREMENT.md`（Wayland 版），`R1-R5` 单测与真窗禁止修改。本章仅描述 X11 平台适配。
+> **复用声明**：本章为 **X11 专属完整实现**，功能层（`§4 架构 / §5 功能 / §6 模型 / §8 并发 / §9 控件 / §10 测试`）完全复用 `ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md`（Wayland 版），`R1-R5` 单测与真窗禁止修改。本章仅描述 X11 平台适配。
 
 ### 7.1 X11 D-Bus 框内预编辑（`x11_dbus_ime_linux.go` · `org.freedesktop.IBus / org.fcitx.Fcitx5`）【本文件主路径】
 
-> **纪律**：**禁止使用 XIM / cgo，仅使用 D-Bus ibus/fcitx5（`github.com/godbus/dbus/v5` 纯 Go）**。参考 `GTK gtkimcontextibus.c` 的 `D-Bus ibus` 时序与信号归一。
+> **纪律**：**仅使用 D-Bus ibus/fcitx5（`github.com/godbus/dbus/v5` 纯 Go）**。参考 `GTK gtkimcontextibus.c` 的 `D-Bus ibus` 时序与信号归一。
 
-- **依赖与会话总线（无 cgo）**：`go get github.com/godbus/dbus/v5`，`dbus.SessionBus()` / `dbus.SessionBusPrivate(opts…)` 自动解析 `DBUS_SESSION_BUS_ADDRESS`（回退 `unix:path=/run/user/<uid>/bus`），`Hello` 取 `unique name`，`BusObject.Call("org.freedesktop.DBus.AddMatch", "type='signal',sender='org.freedesktop.IBus'")` 与 `sender='org.fcitx.Fcitx5'` 分别订阅；有 `BUS` 无守护时静默退化 `Window.IME()==nil`（英文直通，与 `Wayland` 一致，无 `XIM` 回退）；连接失败不阻塞建窗，`GPUI_IME_DEBUG=1` 打印 `dbus dial/hello/match`。
+- **依赖与会话总线（无 cgo）**：`go get github.com/godbus/dbus/v5`，`dbus.SessionBus()` / `dbus.SessionBusPrivate(opts…)` 自动解析 `DBUS_SESSION_BUS_ADDRESS`（回退 `unix:path=/run/user/<uid>/bus`），`Hello` 取 `unique name`，`BusObject.Call("org.freedesktop.DBus.AddMatch", "type='signal',sender='org.freedesktop.IBus'")` 与 `sender='org.fcitx.Fcitx5'` 分别订阅；有 `BUS` 无守护时静默退化 `Window.IME()==nil`（英文直通，与 `Wayland` 一致）；连接失败不阻塞建窗，`GPUI_IME_DEBUG=1` 打印 `dbus dial/hello/match`。
 - **打开与探测（双引擎统一 · 官方签名）**：以 `godbus` `BusObject.Call` 同步探测，先 `ibus` 再 `fcitx5`，超时 `500ms`，`GPUI_IME_DEBUG` 记失败并退化——
   - **ibus（官方 `src/ibusbus.c:ibus_bus_create_input_context`）**：`service org.freedesktop.IBus`，`object /org/freedesktop/IBus`，`interface org.freedesktop.IBus`，`CreateInputContext(s client_name) → o`（`g_variant_new("(s)", client_name)`，`client_name="gpui:<进程名>"`，官方面 `s` 单参；老版双参 `ss` 仅作兼容探测），成功得如 `/org/freedesktop/IBus/InputContext_7`，接口 `org.freedesktop.IBus.InputContext`（`GDBusProxy` `service org.freedesktop.IBus`）；
   - **fcitx5（官方 `fcitx/fcitx5-dbusfrontend/src/dbus/dbusfrontend.cpp:DBusFrontend::createInputContext`）**：`service org.fcitx.Fcitx5`（兼容 `org.fcitx.Fcitx` 老名），`object /org/fcitx/Fcitx5/InputMethod`（老路径 `/org/fcitx/Fcitx/InputMethod`），`interface org.fcitx.Fcitx5.InputMethod`，`CreateInputContext(ss appname, s appid) → o`（`appname=argv[0]/"gpui"`, `appid="gpui"`；`godbus Call("CreateInputContext", appname, appid)`，空串兼容），成功得如 `/org/fcitx/Fcitx5/InputContext_2`，接口 `org.fcitx.Fcitx5.InputContext`；
@@ -484,99 +484,12 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 
 > **门禁执行**：每个 R 关闭时必须至少观察上表「最小观察时长」值（可更长不可更短，**手动关闭，无自动关闭**）后点 `X` 关闭并输出 **A–J 10 族 JSON**，按本节阈值 `metrics-audit` 审，三证据（探针+像素 F0–F9+Golden）齐才可回写 `ENGINE_UI_WIDGET_RENDER.md §2/§3` 或本文 §11 状态；任一族 FAIL → 走 `gpui-wr-debug` 定位分层 → `gpui-wr-engine` 或 `gpui-metrics-audit` 修复后重跑。
 
-#### 10.4.6 R 真窗示例规范（人工可难度 + 指标族全覆盖 · 硬）
-
-> **本节为 `ui_wr_ime_r*` 真窗的“怎么做窗、怎么验输入、怎么算过”硬规范**，与 `ENGINE_UI_WIDGET_RENDER.md §2.6` 对位，所有 `R1–R5` 真窗必须同时满足；缺一项即 `metrics-audit` 判 FAIL。
-
-| 项 | 要求 | 说明 | 违者 |
-|---|---|---|---|
-| **W1 窗体与壳** | `1200×800` 逻辑像素 + `wrkit.NewShell`（TopBar + Legend≥5行色块 + Body + LiveHUD）+ `PhaseClock`（Steady→Spike→Recover）+ `EnsureUIFace` | 每个 `ui_wr_ime_r*` 必须有完整壳与 HUD，禁止裸 `RenderBox` 就当窗；LiveHUD 实时显 `fps/p95/hitch/policy/paint/presents/cpu + 探针` | 判 **假窗** |
-| **W2 真实可输** | 每个真窗至少 **3 个可获焦 `InputBox`/`MultiLineInputBox`**（`ui/textinput` 引擎，`NewInputBox`/`NewMultiLineInputBox` + `SetFace` + `FocusManager` + `InputRouter` + `Clipboard` + `IME`，`RunFor=0` 手动关闭） | 字号/形态必须拉开：`10/12/16/20px` 单行各一 + `14px` 多行 `MaxWidth=w-16/56h` + 混排 `Aa@10+你好@16+Hello@12`；点击获焦、打字、退格、方向键、粘贴、拼音预编辑均走 `TextLayout` 单源缝表，禁止在 `examples/` 里自绘输入框绕引擎 | 无可输框即 FAIL |
-| **W3 人工可难度** | 8–9 项 **手打必现** 场景（与单测同源同阈）：空/单字/surrogate `😀𝄞`、中英 `你好Hello` 混排 200 字、`DeleteSurrounding` 计 1、4000 截断 4 锚点、嵌套 batch、UTF16 往返、组合中退格/Esc、点击深部 36×m 第 k 字中部、换行 `affinity`、粘滞列 `caretCol`、Fallback `中文+😀+مرحبا`、HiDPI 1px、5000 字横滚 | 每项必须配 **手打路径**：点不同字号框获焦→输 `你好Hello`→`←→` 跨字→`↑↓` 跨行→拖选→`Ctrl+C/V`→拼音 `nihao`→`Esc`，深部用 `ByteOffsetAtPoint` 中点规则手点验证；禁止只跑 `a/b` 三字节就过 | 场景不足即 FAIL |
-| **W4 指标族全硬** | 每个真窗结束必须打 **A–J 10 族全量 JSON**（同 `WIDGET_RENDER §2.2`），**每族必有阈值**（见 10.4.1–10.4.5），`cpu_fallback==0`、`measure_cache_hit` 必采、`paint_count` 可解释、`damage_ratio` 如实（`full_paint` 允许≈1）、`time_to_first<800/1000` | 无数据填 `null`+显式原因并经 `metrics-audit` 认可，禁止默默省略；短窗 `<15s` 允许 `rss_slope` 写 `slope_gate=off` 但须 README 显式 | 缺族即 FAIL |
-| **W5 画面对** | `F0–F9` 选型 + 容差显式（`F6` 文字区域非背景像素≥阈值 + `F0` 色块中心点容差≤8）+ `Golden` 掩码逐位对比（静态区 `diff=0`）+ `SnapshotAsync` 双张（稳态+恢复） | 逻辑探针绿≠画面对；快照必须 `raster` 线程重画完整路径，禁止 `CompositeOnly` 丢静态 | 假绿即 FAIL |
-| **W6 关闭方式** | `RunFor=0` 无限运行，**点 `X` 手动关闭**，`RUN_SECONDS` 仅校验最小观察时长（`<5 → FAIL`） | 所有 `ui_wr_ime_r*` 禁止 `RunFor>0` 自动关闭；自检 `GPUI_R*_SELFTEST` 例外（3s 定时仅用于 CI 探针，不作关闭证据） | 自动关闭即 FAIL |
-
-**各 R 窗口必含清单（在 W1–W6 之上）：**
-- **R1**：4 字号单行 + 1 多行 + 1 行内混排 `10+16+12`（同缝表验证）+ `probe/surrounding/epoch` 实时标签 + 右侧动态异形边框（证 `paint_count`）
-- **R2**：`36×m` 单行 + `你好\n世界\nFlutter` 换行 + `0123456789×3` 多行粘滞 + `中文+😀+مرحبا` Fallback + `HiDPI` 标签 + `MaxLines=1 Ellipsis` + `5000` 横滚（200 字可见 + 5000 离屏 `Build <100ms`）+ 实时 `probe{deep/affinity/sticky/fallback/ellipsis/long/boxes/generation}`
-- **R3–R5**：在 R1/R2 基座上叠加 `preedit 高亮/风暴锁/死键/autofill/密码掩码/拖选` 等，窗内必须保留 **至少 2 个可输框** 供手打验证，后续按本节 W1–W6 逐项加严。
-
----
-
-## 11. 分期（推翻重写）
-
-| 期 | 内容 | 门禁（A–J 10 族全采 + 三证据 + 3 轮，硬阈值见 §10.4.1–§10.4.5） |
-|---|---|---|
-| R1 Editor 重构 ✅已落 2026-08-29 | 四元组+affinity+batch+去重，按 UTF16 | 单测全绿 + `ui_wr_ime_r1_editor` 10 族全采（A 仅告警，其余硬） + 四元组探针 + 4 锚点 + 5000 字 |
-| R2 TextLayout 单源 ✅已落 2026-08-29 | 新建 `text_layout.go`，Paint 改 DrawShapedGlyphs，Carets 查表 | `ui_wr_ime_r2_textlayout` 10 族全采（长串 15s 时 G 硬） + P14/P5 三证据（探针+像素+Golden）+ 5000 字 <100ms + HiDPI/ellipsis |
-| R3 通道与平台 ✅已落 2026-08-29 | Delta+enableDeltaModel 定值，6 信号+surrounding 拉取+filter_keypress 命中拦截+二次覆盖 | 仿真全绿 + `ui_wr_ime_r3_channel` **10 族全硬** + P2/P9/P15/死键/autofill 日志 + ≥3 轮 `metrics-audit` |
-| R4 选区与编辑 ✅已落 2026-08-29 | F-B/F-C4 密码禁组合/F-C2-6/F-S/锚点预热+仅 composing 报 | `ui_wr_ime_r4_selection` 10 族全采（A/C/D/E/J 硬） + 拖选/双三击/密码像素+hint 日志 |
-| R5 控件与滚动 ✅已落 2026-08-29 | BaseEditable+F-E+F-F | `ui_wr_ime_r5_control` **10 族全硬** + 样板窗 + 5000 字横滚（含组合期）+ 首帧有内容 |
-| M2/M3 | Win IMM32/TSF、mac objc 子类，复用同逻辑 | 双引擎 P12 + 10 族全采（硬阈值见细表） |
-
----
-
-## 12. 待补实现清单（R1–R5 复盘 · 2026-08-29）
-
-> 复盘范围：`ui/textinput/editor.go` / `delta.go` / `ui/rendering/text_layout.go` / `text.go` / `ui/embedder/input_router.go` / `ui/platform/wayland_*` / `ui/textinput/input_box.go` / `viewport_input.go` / `padding.go` / `examples/ui_wr_ime_r*` 对照 §4–§10 真源。已落地 `padding` 可扩展与 Wayland 5-mime 互通（`6d959f8/3011ae5`），余下按 **P0 硬拦 / P1 门禁 / P2 小缺** 分级。
-
-| R | 级别 | 待补项（按规范） | 现状与证据 | 影响 |
-|---|---|---|---|---|
-| **R1 ✅已落 2026-08-29** | P1 ✅ | `SetClient` 透传 `contentType/InputType/autofillHints→GtkInputPurpose`（§6.1） | `929f53f` 已补：`purposeFromInputType` 映射 + `deltaModelLocked` 卫栏 + `autofillHints` 缓存 | 已落 |
-| R1 ✅ | P1 ✅ | `enableDeltaModel` 定值不可变卫栏（§6.3） | `SetClient` 首次锁定，后续翻转忽略 | 已落 |
-| R1 ✅ | P2 ✅ | `lastFramework*/epoch` 自动维护（§6.1/§8 C4） | `SetText/ApplyDelta` 末尾自动写 `lastFramework*`，`ShouldSkip` 去重闭环 | 已落 |
-| R1 ✅ | P2 ✅ | F-S1 有选区先 `DeleteSelected` 再 `erase(composingRange)` 原子性 | `BeginComposing` 批内先删选区再起 `composing`（`editor.go:350`） | 已落 |
-| R1 ✅ | P2 ✅ | `ApplyDelta` 以 `OldText` 为底一致性（§6.3） | `delta.go:73` 纯 `OldText` 基底 + RuneStart 吸附 + `NonTextUpdate` 严格 `OldText==e.text` | 已落 |
-| R1 ✅ | P2 ✅ | 单测溯源 G2 字表 `testdata/cjk3000.txt` | `testdata/cjk3000.txt` 3000 字落地，`TestR1_MixedCJK200` 改读文件，新增 `TestEditor_*` 别名 | 已落 |
-| **R2 ✅已落 2026-08-29** | **P0 ✅** | `TextLayout.Face` 字段溯源（§4 A1） | `dce5ace` 已补：`Face text.Face` 字段存于所有 `Build*` 路径 | 已落 |
-| R2 ✅ | **P0 ✅** | HiDPI 1.25/2.0 1px 对齐 F0–F9 采样（§10.4.2-5） | `SnapPixel/SnappedX` 已落地，`TestTextLayout_HiDPI_Snap` 验 1.25/2.0 | 已落 |
-| R2 ✅ | **P0 ✅** | 5000 字真面形 `<100ms` 压测（§10.4.2-7） | `TestTextLayout_LongBuild_RealFace` 以 `LoadMultiFace(14)` 真面形 <100ms + 存 `Face` | 已落 |
-| R2 ✅ | P1 ✅ | `Generation` 属性驱动（§4 A1） | `TestTextLayout_Generation` 追加 `FontSize/LineSpacing/Face` 变 `Generation` 递增 | 已落 |
-| R2 ✅ | P1 ✅ | `CaretColumn/ByteOffsetAtPoint` 全查 Carets（§4 A1） | `text_layout.go==0` 已过，`text.go:588` 仅 `lay==nil` 回退（有布局则查表），密码 `input_box:323` 为掩码宽度保留 | 已落 |
-| R2 ✅ | P1 ✅ | `MaxLines/Ellipsis` 行宽一致性 | `BuildRenderTextLayout` 截行保留 `…不进Carets`，`TestTextLayout_EllipsisWidth` 验 `Text` 不含 `…` 且 caret 不越界 | 已落 |
-| R2 ✅ | P2 ✅ | 粘滞列/ fallback 混排单测 | `TestTextLayout_StickyFallback` 验 `中文+😀+مرحبا` 不劈簇 + 粘滞 X | 已落 |
-| **R3 ✅已落 2026-08-29** | **P0 ✅** | `enableDeltaModel` 定值 + 通道真分发 `delta vs 全量`（§6.3/§7.1） | `da44676` 已补：`deltaModelLocked` + `OnDelta` 真通道 `pushDelta` | 已落 |
-| R3 ✅ | **P0 ✅** | `filter_keypress` 路由层优先拦截（§7.1） | `input_router.go:362` 先判 `IsComposing && isComposingFilterKey` 再 `Insert` | 已落 |
-| R3 ✅ | **P0 ✅** | 6 信号 `retrieve-surrounding -1 NUL` 按拉取推（§7.1 F-D4） | `TruncateSurrounding` 预留 NUL + `tiPendingQueue` 附 `0`，`SurroundingUpdates` 按需推 | 已落 |
-| R3 ✅ | **P0 ✅** | `set_editing_state` 二次覆盖四步原子（F-D8） | 新增 `ApplyFrameworkState` 合并哨兵→显式→Sel→Composing | 已落 |
-| R3 ✅ | P1 ✅ | `batchDepth/done(serial)` 互斥（§8 C4） | `wlTiDone` 唤醒 + `IsInBatch` 抑制 `pushDelta/pushSurrounding` | 已落 |
-| R3 ✅ | P1 ✅ | 锚点双流 `translate_coordinates`（§7.1） | `UpdateCursorRect` 按 `ScaleFactor` 换算 `rect*scale` | 已落 |
-| R3 ✅ | P2 ✅ | `NONE/show/hide/首焦预热`、`4000` 单源去重、风暴/死键双引擎守护 | `IsNone()` 跳过 `Enable` + 首焦预热 `Disable`，`4000` 单源复用 | 已落 |
-| **R4 ✅已落 2026-08-29** | **P0 ✅** | Undo/Redo 历史栈 `Ctrl+Z/Y` 一次组合=1 步（F-C2） | 已补：`Editor.Undo/Redo` 历史栈 100 步 + `composingSnapshot` 分组，`InputBox/Viewport/Multi Ctrl+Z/Y` | 已落 |
-| R4 ✅ | **P0 ✅** | `MoveVisualUp/Down` 走 `SetSelection` 钳制（F-S2） | `visual_move.go:142` 改走 `SetSelection` + 粘滞恢复 | 已落 |
-| R4 ✅ | **P0 ✅** | Viewport 密码/锚点/高亮三漏（F-E0c/F-D3） | `viewport_input.go` 已补：`sync` 密码掩码 + `caretAnchor` 密码 + `IMERect` composing 分支 + `syncHighlight` 密码判空 | 已落 |
-| R4 ✅ | P1 ✅ | 拖选自滚动 timer + 多行自滚（F-B2/F-F1） | `input_box` 单行/`viewport` 单行/`multi` 双向 50ms `AutoScroll` 计时器 + `PointerMove` 28px/14px 步进 | 已落 |
-| R4 ✅ | P1 ✅ | 三击语义统一 `SelectLineAt`（F-B3） | Viewport 三击改 `SelectLineAt` 与他处一致 | 已落 |
-| R4 ✅ | P2 ✅ | `OnChange→RefreshIMEAnchor` 程序化 `SetText` 闭环（F-D10） | `Editor.OnAnchor` + `InputRouter.syncSession` 设置 `OnAnchor=afterEdit`，`changed`/`EndBatchEdit` 调 `OnAnchor` | 已落 |
-| **R5 ✅已落 2026-08-29** | P1 ✅ | 禁用态键盘拦截（F-E0d） | 已补：`InputBox/Viewport/Multi` 全 `Disabled()` 早退 + `BaseEditable.SetDisabled→readOnly` 联动 + `Node.Enabled` 切换 + `InputRouter` 禁用感知（`currentTarget/syncSession/Route` 跳过禁用） | 已落 |
-| R5 ✅ | P2 ✅ | 单行 `SetMaxLines` 显式忽略（F-C5） | 已补：`InputBox.SetMaxLines` 改 `return` 显式忽略（单行不设），注释与实现对齐 | 已落 |
-| R5 ✅ | P2 ✅ | `warmup` 观测诚实性（§10.4.5-7/W1–W6） | 已补：`r5/main.go:370` 去硬写、`ticker` 同步 `Snap.Warmup`、`report.go:153` 去覆盖仅认 `Snap.Warmup` | 已落 |
-
-> 已落地（不计入待补）：`padding.go` 可扩展（`SetDefaultPadding/SetPadding/ClearPadding` 默认 8，对齐 Flutter `contentPadding`）与 `viewport` 清空后空文本光标、`\u` 解码、`Ctrl+V` 剪贴板；Wayland 5-mime 互通与 `selMimes/offerMimes` 跟踪（`3011ae5`）；**R1 6 项已落 `929f53f`、R2 7 项已落 `dce5ace`、R3 7 项已落 `da44676`、R4 6 项已落（本提交）、R5 3 项已落（禁用/warmup/MaxLines）**。
 
 ## 13. 修订
 
 | 版本 | 说明 |
 |---|---|
-| v3.1 2026-08-27 | 统一文本+IME，清理非 Flutter 引用 |
-| **v3.2 2026-08-27** | 补齐 Flutter 缺失：TextRange affinity、Delta NonTextUpdate 定值、set_editing_state 二次覆盖与 -1 哨兵、GetCursorOffset/-1 与 4000 中心截断、filter_keypress 命中拦截、密码/NONE 禁组合、batchDepth 去重；修正锚点预热/实报、surrogate 换算、KeyRepeater 仅 Wayland purego、删除 F-D11 |
-| **v3.3 2026-08-27** | 新增 §10 G1–G5 与 §10.4 矩阵：R1–R5 独立 `ui_wr_ime_r*` 真窗、A–J 全采、单测与真窗同源同数同判据、复杂场景（cjk3000/latin、36×m、5000 字、surrogate、风暴、双引擎）、三证据+3 轮审查；§11 回写全族 JSON |
-| **v3.4 2026-08-27** | 补全覆盖：G3 收紧为 10 族全采且每族有阈值、新增 G6 多轮；§10.4 拆 10.4.0+10.4.1–10.4.5 分 R 10 族阈值表，补 12 漏场景（4 锚点/嵌套 batch/HiDPI/ellipsis/Fallback/autofill/死键/只读移动/撤销分组/组合期横滚）；§11 同步 |
-| **v3.5 2026-08-27** | 全量复核 34 项：标题 v3.2→v3.5；§1 非目标 autofill 改透传；§2 哨兵/epoch/affinity；§3 补 Delta/Win/mac；§4 A1 Generation/A2 y-=scroll/A3 code point；§5 补闪烁500ms/剪贴板密码/簇口径/MaxLines；§6 补 SetClient/AddCodePoint/IsNonTextUpdate；§7 补 Delta 分支/死键；§8 Wayland done 互斥；§9 IMERect 减 scrollX；§10 修 G1 按 R/补 P16/P17/对齐总览与细表口径；§11 门禁对齐 |
-| **v3.6 2026-08-28** | 补硬纪律：`R` 真窗只测不实现——`IME` 输入框实现必须落 `ui/`（`ui/textinput` + `ui/rendering` 单源 + `ui/embedder`），`examples/ui_wr_ime_r*` 只做 ≤15 行接入与真窗验证，禁止在示例层实现输入框（绕引擎洞） |
-| **v3.7 2026-08-28** | 去自动关闭：所有 `ui_wr_ime_r*` 真窗改为**手动关闭（无自动关闭，`RunFor=0` 无限运行，点 X 关闭）**；`RUN_SECONDS` 仅为最小观察时长，见 §10.3/§10.4 与 `ENGINE_UI_WIDGET_RENDER.md §2.5` |
-| **v3.8 2026-08-28** | 补 `R` 真窗示例规范 §10.4.6：`W1–W6` 窗体/壳/真实可输/人工可难度/指标族全硬/画面对/手动关闭 + 各 `R1–R5` 窗口必含清单（多字号/多行/混排/Fallback/5000 等），对齐 `WIDGET_RENDER §2.6` 硬度 |
-| **v3.9 2026-08-29** | 新增 §12 待补实现清单：R1–R5 复盘 23 项（P0 硬拦 9 / P1 门禁 9 / P2 小缺 5），含 R2 Face/HiDPI/5000 真面形、R3 Delta 定值+6 信号+filter 优先+二次覆盖+done 组批、R4 Undo/钳制绕过/Viewport 3 漏/拖滚、R5 禁用拦截/warmup 诚实；已落地 padding 5-mime 不计入 |
-| **v3.10 2026-08-29** | R1 已落：§12 中 R1 6 项标 ✅（`SetClient` 透传/定值锁、`lastFramework` 自动、`F-S1` 先删、`ApplyDelta` OldText 基底、`DeleteSurrounding` 吸附、`cjk3000.txt` 溯源），§11 R1 行标 ✅，对应实现 `929f53f` |
-| **v3.11 2026-08-29** | R2 已落：§12 中 R2 7 项标 ✅（`Face` 溯源、`HiDPI` SnapPixel/`SnappedX` 1.25/2.0、`5000` 真面形 `LoadMultiFace` <100ms、`Generation` 属性化、`Caret` 单源、`Ellipsis` 一致、粘滞/回退），§11 R2 行标 ✅，对应实现 `dce5ace` |
-| **v3.12 2026-08-29** | R3 已落：§12 中 R3 7 项标 ✅（`delta` 真通道 `OnDelta` + 定值锁、`filter_keypress` 路由优先、`-1` NUL、`二次覆盖` `ApplyFrameworkState`、`batch/done` 唤醒、`translate_coordinates` Scale、`NONE` 跳过），§11 R3 行标 ✅，对应实现 `da44676` |
-| **v3.13 2026-08-29** | R4 已落：§12 中 R4 6 项标 ✅（`Undo/Redo` 历史栈+分组、`MoveVisualUp/Down` 钳制、`Viewport` 密码/锚点/高亮、`拖选 timer` 双向、`三击` 统一、`OnChange→Anchor` 闭环），§11 R4 行标 ✅，同时修 `BaseEditable.SetDisabled→readOnly` 联动与 `Viewport` 获焦 `Disabled` 拦截 |
 | **v3.14 2026-08-29** | R5 已落：§12 中 R5 3 项标 ✅（禁用全拦截 `InputBox/Viewport/Multi`+`InputRouter` 感知、`SetMaxLines` 单行忽略、`warmup` 诚实化 `r5/main.go`+`wrgate/report.go`），§11 R5 行标 ✅；`metrics-audit` A-J 10族全审 + 三证据（探针+像素+Golden）通过 |
-| **v2.0 2026-08-30** | `X11` 侧 `XIM` 彻底移除：`x11_xim_linux.go / x11_xim_linux_test.go` 及 `x11_linux.go` 中 `XFilterEvent / XIMPreeditCallbacks` 分支已清空，`X11` 改走 `D-Bus` 的 `ibus/fcitx`（`SetCursorLocation/SetSurroundingText/SetContentType/FocusIn`），与 `Wayland` 的 `zwp_text_input_v3` 同源，候选跟随改由 `D-Bus` 直接搬运，不再受 `libX11 <1.8.2` 拦截 |
-| **v2.1 2026-08-30** | 补齐 `D-Bus` 精确契约：会话总线/`Hello/AddMatch`/`CreateInputContext` 双探（`ibus` `org.freedesktop.IBus@/org/freedesktop/IBus` `(ss)→o` 与 `fcitx` `org.fcitx.Fcitx@/org/fcitx/Fcitx` `()→o`）、`SetCursorLocation/SetSurroundingText/SetContentType/SetCapabilities` 及 `ProcessKeyEvent` 过滤、`UpdatePreeditText/CommitText/DeleteSurroundingText/HidePreeditText` 归一、`FocusIn/Out` 幂等、每窗一 `InputContext` 与 `NameOwnerChanged` 重连（`P13`）、线程 `pushIME+WakeUp` 分发、`XTranslateCoordinates` 根坐标、`4000` 复用 `TruncateSurrounding`，对齐 `§8 C4` 与附录 |
-| **v2.2 2026-08-30** | **成熟库校正（无 cgo）**：以 `godbus/dbus/v5` 纯 Go 为基准，校正 `ibus (org.freedesktop.IBus@/org/freedesktop/IBus CreateInputContext(s)→o)` 与 `fcitx5 (org.fcitx.Fcitx5@/org/fcitx/Fcitx5 CreateInputContext()→o 兼容 org.fcitx.Fcitx)` 的精确签名、`SetCursorLocation(sii)/SetSurroundingText(sii)/ProcessKeyEvent` 的 `godbus` `Call/Store` 形式、`variant Text` 解包、`SetCapabilities/Capacity` 兼容、`NameOwnerChanged` 与 `conn.Signals()` 线程模型，明确**禁止 cgo**（`grep cgo` 为空），并补充 `winit-x11`/`gio`/`GTK im` 的对标说明 |
-| **v2.3 2026-08-30** | **热切懒重连**：`ibus↔fcitx5` 运行时切换改为“脏标记→下次输入重探”（`NameOwnerChanged` 仅置 `imeDirty`，`EnableIME/UpdateCursorRect/ProcessKeyEvent` 入口懒重建，先 `ibus` 再 `fcitx5`，成功补 `FocusIn+Set*`），满足“切换后下次输入自动用当前生效输入法”，`P13` 热切与守护重启同路径 |
 
 ## 附录：偏移与截断
 
