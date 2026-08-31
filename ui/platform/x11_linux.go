@@ -110,6 +110,8 @@ const (
 	xevButtonOff      = 84 // button (press/release) or keycode (key)
 	xevKeycodeOff     = 84
 	xevStateOff       = 88 // XVisibilityEvent.state
+	xevKeyStateOff    = 80 // XKeyEvent.state
+	xevKeyTimeOff     = 56 // XKeyEvent.time (Time is 8 bytes)
 	// XPresentNotifyEvent.window (linux amd64: type@0 serial@8 send_event@16
 	// display@24 window@32 — Present extension).
 	xevPresentWindowOff = 32
@@ -168,10 +170,11 @@ type xClassHint struct {
 }
 
 type x11Lib struct {
-	lib uintptr
+	lib                 uintptr
 	// dynamic funcs (set per open to keep the struct small)
-	keycodeToKeysym func(dpy uintptr, keycode uint, index int) uintptr
-	closeDisplay    func(dpy uintptr) int
+	keycodeToKeysym      func(dpy uintptr, keycode uint, index int) uintptr
+	closeDisplay         func(dpy uintptr) int
+	translateCoordinates func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
 }
 
 func x11OpenLib() (*x11Lib, error) {
@@ -185,7 +188,26 @@ func x11OpenLib() (*x11Lib, error) {
 	x := &x11Lib{lib: lib}
 	purego.RegisterLibFunc(&x.keycodeToKeysym, lib, "XKeycodeToKeysym")
 	purego.RegisterLibFunc(&x.closeDisplay, lib, "XCloseDisplay")
+	purego.RegisterLibFunc(&x.translateCoordinates, lib, "XTranslateCoordinates")
 	return x, nil
+}
+
+// x11TranslateToRoot 将窗口内坐标经 XTranslateCoordinates 转根窗口物理坐标
+func x11TranslateToRoot(st *x11State, x, y int) (int, int, bool) {
+	if st == nil || st.display == 0 || st.window == 0 || st.root == 0 {
+		return x, y, false
+	}
+	lib, err := x11OpenLib()
+	if err != nil || lib.translateCoordinates == nil {
+		return x, y, false
+	}
+	var dx, dy int32
+	var child uintptr
+	ok := lib.translateCoordinates(st.display, st.window, st.root, int32(x), int32(y), &dx, &dy, &child)
+	if ok == 0 {
+		return x, y, false
+	}
+	return int(dx), int(dy), true
 }
 
 // x11Create opens a new X11 window. Ported from the verified exhost host,
@@ -502,7 +524,9 @@ func x11Create(opts Options) (*Window, error) {
 	st.visible = visible
 	st.resizable = opts.Resizable
 
-	return newWindow(host, PlatformX11, imeForX11(host), nil, ctl, host.destroy), nil
+	ime := imeForX11(host)
+	host.ime = ime
+	return newWindow(host, PlatformX11, ime, nil, ctl, host.destroy), nil
 }
 
 // resolveAtoms resolves the EWMH atoms the controller and event pump share.
@@ -533,11 +557,7 @@ func (st *x11State) resolveAtoms(dpy uintptr) {
 	st.atCardinal = atom("CARDINAL")
 }
 
-// imeForX11 returns the D-Bus IME capability for X11.
-// XIM has been removed in v2.0 (see ENGINE_TEXT_IME_X11_REQUIREMENT.md);
-// X11 now uses D-Bus ibus/fcitx, so this stub returns nil until the
-// D-Bus implementation (x11_dbus_ime_linux.go) lands.
-func imeForX11(h *x11Host) IME { return nil }
+
 
 // --- window state ---
 
@@ -627,6 +647,8 @@ type x11Host struct {
 	lib       *x11Lib
 	wake      chan struct{}
 	destroyFn func()
+	// S2: per-window D-Bus IME，共享 Conn 但每窗一 InputContext
+	ime IME
 	// XIM removed in v2.0; X11 IME now via D-Bus (see x11_dbus_ime_linux.go).
 	// The xim field is kept as placeholder until D-Bus lands, but always nil.
 	_ximPlaceholder *struct{}
@@ -661,7 +683,17 @@ func (h *x11Host) pushIME(ev Event) {
 }
 
 func (h *x11Host) destroy() {
-	if h == nil || h.destroyFn == nil {
+	if h == nil {
+		return
+	}
+	// S2: per-window Destroy InputContext，避免泄漏
+	if h.ime != nil {
+		if closer, ok := h.ime.(interface{ Close() }); ok {
+			closer.Close()
+		}
+		h.ime = nil
+	}
+	if h.destroyFn == nil {
 		return
 	}
 	h.destroyFn()
@@ -1044,9 +1076,21 @@ func (h *x11Host) drainX() []Event {
 				out = append(out, ev)
 			}
 		case xKeyPress, xKeyRelease:
-			// XIM removed in v2.0; X11 IME now via D-Bus (see x11_dbus_ime_linux.go).
-			// Keys are decoded directly; composing is handled via D-Bus
-			// UpdatePreeditText/CommitText signals, not XFilterEvent.
+			// S4: X11 先走 D-Bus ProcessKeyEvent 再决定是否本地插入
+			if h.ime != nil {
+				keycode := uint32(readU32(buf[:], xevKeycodeOff))
+				state := uint32(readU32(buf[:], xevKeyStateOff))
+				isPress := t == xKeyPress
+				if x, ok := h.ime.(*x11Ime); ok && x != nil {
+					if x.ProcessKeyEvent(keycode, state, isPress) {
+						// 被输入法消费，拦截不再本地插入（与 Wayland filter_keypress 一致）
+						continue
+					}
+				} else if h.ime != nil {
+					// 非 x11Ime 的 IME（测试桩）按不拦截
+				}
+			}
+			// 未消费则走本地 Home/End/PageUp/Down/Return 分流及 XLookupString 死键兜底
 			if ev, ok := h.decodeKey(t, buf[:]); ok {
 				out = append(out, ev)
 			}
