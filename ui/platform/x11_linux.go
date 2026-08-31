@@ -38,12 +38,13 @@ func (b *x11Backend) Adopt(ns NativeSurface) (*Window, error) {
 		return nil, err
 	}
 	st := &x11State{
-		display:         ns.Display,
-		window:          ns.Window,
-		w:               640,
-		h:               480,
-		scale:           1,
-		keycodeToKeysym: x11KeycodeToKeysym(lib),
+		display:              ns.Display,
+		window:               ns.Window,
+		w:                    640,
+		h:                    480,
+		scale:                1,
+		keycodeToKeysym:      x11KeycodeToKeysym(lib),
+		translateCoordinates: lib.translateCoordinates,
 	}
 	if w, h, ok := x11GetGeometry(st); ok {
 		st.w, st.h = w, h
@@ -170,7 +171,7 @@ type xClassHint struct {
 }
 
 type x11Lib struct {
-	lib                 uintptr
+	lib uintptr
 	// dynamic funcs (set per open to keep the struct small)
 	keycodeToKeysym      func(dpy uintptr, keycode uint, index int) uintptr
 	closeDisplay         func(dpy uintptr) int
@@ -197,13 +198,12 @@ func x11TranslateToRoot(st *x11State, x, y int) (int, int, bool) {
 	if st == nil || st.display == 0 || st.window == 0 || st.root == 0 {
 		return x, y, false
 	}
-	lib, err := x11OpenLib()
-	if err != nil || lib.translateCoordinates == nil {
-		return x, y, false
-	}
 	var dx, dy int32
 	var child uintptr
-	ok := lib.translateCoordinates(st.display, st.window, st.root, int32(x), int32(y), &dx, &dy, &child)
+	if st.translateCoordinates == nil {
+		return x, y, false
+	}
+	ok := st.translateCoordinates(st.display, st.window, st.root, int32(x), int32(y), &dx, &dy, &child)
 	if ok == 0 {
 		return x, y, false
 	}
@@ -249,9 +249,9 @@ func x11Create(opts Options) (*Window, error) {
 		xChangeProperty   func(dpy uintptr, win uintptr, property, typ uintptr, format int, mode int, data *byte, nelements int) int
 		xConnectionNumber func(dpy uintptr) int
 		// XPresent extension (frame-presented notice; Present protocol).
-		xPresentQueryExt   func(dpy uintptr, eventBase, errorBase *int32) int
-		xPresentSelectInp  func(dpy uintptr, win uintptr, mask int64) int
-		xPresentNotifyMSC  func(dpy uintptr, win uintptr, target, divisor, remainder uint64) int
+		xPresentQueryExt  func(dpy uintptr, eventBase, errorBase *int32) int
+		xPresentSelectInp func(dpy uintptr, win uintptr, mask int64) int
+		xPresentNotifyMSC func(dpy uintptr, win uintptr, target, divisor, remainder uint64) int
 	)
 	purego.RegisterLibFunc(&xInitThreads, lib.lib, "XInitThreads")
 	purego.RegisterLibFunc(&xOpenDisplay, lib.lib, "XOpenDisplay")
@@ -433,11 +433,12 @@ func x11Create(opts Options) (*Window, error) {
 			}
 			return lib.keycodeToKeysym(dpy, keycode, index)
 		},
-		title:           title,
-		decorated:       opts.Decorations,
-		resizable:       opts.Resizable,
-		visible:         opts.Visible == nil || *opts.Visible,
-		xChangeProperty: xChangeProperty,
+		translateCoordinates: lib.translateCoordinates,
+		title:                title,
+		decorated:            opts.Decorations,
+		resizable:            opts.Resizable,
+		visible:              opts.Visible == nil || *opts.Visible,
+		xChangeProperty:      xChangeProperty,
 	}
 	// XPresent extension probe: the frame-presented notice source (块2).
 	// Unavailable X servers simply leave presentOK=false → the scheduler
@@ -557,22 +558,21 @@ func (st *x11State) resolveAtoms(dpy uintptr) {
 	st.atCardinal = atom("CARDINAL")
 }
 
-
-
 // --- window state ---
 
 type x11State struct {
-	display, window uintptr
-	root            uintptr // root window (EWMH client-message target)
-	screen          int     // default screen index
-	wmDelete        uintptr
-	mu              sync.Mutex
-	w, h            int
-	scale           float64
-	pending         func() int
-	nextEvent       func(ev *byte) int
-	flush           func()
-	keycodeToKeysym func(dpy uintptr, keycode uint, index int) uintptr
+	display, window      uintptr
+	root                 uintptr // root window (EWMH client-message target)
+	screen               int     // default screen index
+	wmDelete             uintptr
+	mu                   sync.Mutex
+	w, h                 int
+	scale                float64
+	pending              func() int
+	nextEvent            func(ev *byte) int
+	flush                func()
+	keycodeToKeysym      func(dpy uintptr, keycode uint, index int) uintptr
+	translateCoordinates func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
 
 	// EWMH atoms (resolved at Create).
 	atNetState, atMaxV, atMaxH uintptr

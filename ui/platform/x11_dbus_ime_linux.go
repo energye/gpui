@@ -14,6 +14,35 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
+const (
+	dbusServiceIBus   = "org.freedesktop.IBus"
+	dbusPathIBusBus   = "/org/freedesktop/IBus"
+	dbusIfaceIBus     = "org.freedesktop.IBus"
+	dbusIfaceIBusCtx  = "org.freedesktop.IBus.InputContext"
+	dbusServiceFcitx5 = "org.fcitx.Fcitx5"
+	dbusPathFcitx5IM  = "/org/fcitx/Fcitx5/InputMethod"
+	dbusIfaceFcitx5IM = "org.fcitx.Fcitx5.InputMethod"
+	dbusServiceFcitx  = "org.fcitx.Fcitx"
+	dbusPathFcitxIM   = "/org/fcitx/Fcitx/InputMethod"
+	dbusIfaceFcitxIM  = "org.fcitx.Fcitx.InputMethod"
+	dbusServiceDBus   = "org.freedesktop.DBus"
+
+	ibusCaps  uint32 = 1<<0 | 1<<3 | 1<<5 // 41: PREEDIT|FOCUS|SURROUNDING (ibustypes.h)
+	fcitxCaps uint32 = 16                 // CAPACITY_PREEDIT|SURROUNDING
+
+	defaultCursorW = 2
+	defaultCursorH = 16
+
+	syntheticFcitxPrefix = "/org/fcitx/Fcitx/InputContext_"
+)
+
+var dbusMatchRules = []string{
+	"type='signal',sender='org.freedesktop.IBus'",
+	"type='signal',sender='org.fcitx.Fcitx5'",
+	"type='signal',sender='org.fcitx.Fcitx'",
+	"type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",
+}
+
 // x11Ime 是 X11 D-Bus IME 的 S1+S2+S3 实现：会话总线 + 上下文 + 会话与锚点
 // S1: 单 Conn 复用 + AddMatch + 无守护降级 + GPUI_IME_DEBUG
 // S2: 探针顺序 + CreateInputContext 双引擎 + SetCapabilities + 异步化 + per-window Destroy
@@ -68,35 +97,42 @@ func x11UnregisterIme(im *x11Ime) {
 	}
 	x11ImesMu.Lock()
 	delete(x11Imes, im)
+	empty := len(x11Imes) == 0
 	x11ImesMu.Unlock()
+	if empty && x11SharedConn != nil {
+		// Last window closed: clean global matches to avoid leaking bus resources.
+		for _, rule := range dbusMatchRules[:2] {
+			_ = x11SharedConn.BusObject().Call(dbusServiceDBus+".RemoveMatch", 0, rule).Err
+		}
+	}
 }
 
 func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
-	// 仅关心 ibus/fcitx 三名
-	if name != "org.freedesktop.IBus" && name != "org.fcitx.Fcitx5" && name != "org.fcitx.Fcitx" {
+	if name != dbusServiceIBus && name != dbusServiceFcitx5 && name != dbusServiceFcitx {
 		return
 	}
+	// Collect affected IMEs without holding global lock during bus calls.
 	x11ImesMu.Lock()
-	defer x11ImesMu.Unlock()
+	imes := make([]*x11Ime, 0, len(x11Imes))
 	for im := range x11Imes {
+		imes = append(imes, im)
+	}
+	x11ImesMu.Unlock()
+
+	var toFocusOut []*x11Ime
+	for _, im := range imes {
 		im.mu.Lock()
-		// 有→空：FocusOut+EndComposing 置 nil 逻辑
 		if oldOwner != "" && newOwner == "" {
 			x11ImeDebug("NameOwnerChanged %s %q->%q imeDirty=true FocusOut", name, oldOwner, newOwner)
-			// 标记脏并清 focused/composing
 			im.imeDirty = true
 			wasFocused := im.focused
 			im.focused = false
 			im.composing = false
-			im.mu.Unlock()
-			if wasFocused {
-				im.callFocusOut()
-			}
-			// 清路径以便下次懒重探
-			im.mu.Lock()
-			// 保留 engine 供日志，但清 path 以触发重探
 			im.objectPath = ""
 			im.mu.Unlock()
+			if wasFocused {
+				toFocusOut = append(toFocusOut, im)
+			}
 		} else if oldOwner == "" && newOwner != "" {
 			x11ImeDebug("NameOwnerChanged %s %q->%q imeDirty=true", name, oldOwner, newOwner)
 			im.imeDirty = true
@@ -104,6 +140,9 @@ func x11MarkDirtyForOwnerChange(name, oldOwner, newOwner string) {
 		} else {
 			im.mu.Unlock()
 		}
+	}
+	for _, im := range toFocusOut {
+		im.callFocusOut()
 	}
 }
 
@@ -114,7 +153,6 @@ func x11ImeDebug(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "[ime-x11] "+format+"\n", args...)
 }
 
-// sharedDBusConn 返回进程级单例会话总线连接。
 func sharedDBusConn() (*dbus.Conn, error) {
 	x11SharedOnce.Do(func() {
 		x11ImeDebug("dbus dial start addr=%q", os.Getenv("DBUS_SESSION_BUS_ADDRESS"))
@@ -125,13 +163,8 @@ func sharedDBusConn() (*dbus.Conn, error) {
 			return
 		}
 		x11ImeDebug("dbus hello ok")
-		for _, rule := range []string{
-			"type='signal',sender='org.freedesktop.IBus'",
-			"type='signal',sender='org.fcitx.Fcitx5'",
-			"type='signal',sender='org.fcitx.Fcitx'",
-			"type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",
-		} {
-			if err := c.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, rule).Err; err != nil {
+		for _, rule := range dbusMatchRules {
+			if err := c.BusObject().Call(dbusServiceDBus+".AddMatch", 0, rule).Err; err != nil {
 				x11ImeDebug("dbus AddMatch %q failed: %v", rule, err)
 			} else {
 				x11ImeDebug("dbus AddMatch %q ok", rule)
@@ -141,9 +174,7 @@ func sharedDBusConn() (*dbus.Conn, error) {
 		x11SharedMu.Lock()
 		x11SharedConn = c
 		x11SharedMu.Unlock()
-		// S6: 启动全局 NameOwnerChanged 监听
 		go x11GlobalNameOwnerLoop(c)
-		// S6: Bus 断开退避重拨（200ms→2s）
 		go x11BusWatchLoop(c)
 	})
 	x11SharedMu.Lock()
@@ -159,7 +190,7 @@ func x11GlobalNameOwnerLoop(conn *dbus.Conn) {
 	conn.Signal(ch)
 	defer conn.RemoveSignal(ch)
 	for sig := range ch {
-		if sig.Name != "org.freedesktop.DBus.NameOwnerChanged" {
+		if sig.Name != dbusServiceDBus+".NameOwnerChanged" {
 			continue
 		}
 		if len(sig.Body) < 3 {
@@ -176,10 +207,6 @@ func x11BusWatchLoop(conn *dbus.Conn) {
 	if conn == nil {
 		return
 	}
-	// Godbus 的 Signals 通道关闭代表 Bus 断开
-	// 这里用一个独立的通道监听 conn 的关闭
-	// 由于 godbus 不直接暴露关闭信号，我们通过轮询 NameHasOwner 失败来判断
-	// 简化：监听 conn 的错误通道（若有）或定期检查
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -187,7 +214,6 @@ func x11BusWatchLoop(conn *dbus.Conn) {
 			continue
 		}
 		x11ImeDebug("bus disconnect detected, backoff reconnect")
-		// 指数退避 200ms→2s 重拨
 		backoff := 200 * time.Millisecond
 		for {
 			time.Sleep(backoff)
@@ -207,18 +233,11 @@ func x11BusWatchLoop(conn *dbus.Conn) {
 			x11SharedConn = c
 			x11SharedErr = nil
 			x11SharedMu.Unlock()
-			// 重新订阅
-			for _, rule := range []string{
-				"type='signal',sender='org.freedesktop.IBus'",
-				"type='signal',sender='org.fcitx.Fcitx5'",
-				"type='signal',sender='org.fcitx.Fcitx'",
-				"type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",
-			} {
-				_ = c.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, rule).Err
+			for _, rule := range dbusMatchRules {
+				_ = c.BusObject().Call(dbusServiceDBus+".AddMatch", 0, rule).Err
 			}
 			go x11GlobalNameOwnerLoop(c)
 			go x11BusWatchLoop(c)
-			// 标记所有 IME 脏，下次输入懒重探
 			x11ImesMu.Lock()
 			for im := range x11Imes {
 				im.mu.Lock()
@@ -238,15 +257,13 @@ func dbusHasOwner(conn *dbus.Conn, name string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
 	defer cancel()
 	var has bool
-	err := conn.BusObject().CallWithContext(ctx, "org.freedesktop.DBus.NameHasOwner", 0, name).Store(&has)
+	err := conn.BusObject().CallWithContext(ctx, dbusServiceDBus+".NameHasOwner", 0, name).Store(&has)
 	if err != nil {
 		return false, err
 	}
 	return has, nil
 }
 
-// x11ProbeOrder 按 GTK_IM_MODULE/QT_IM_MODULE/XMODIFIERS 定探测顺序
-// 优先级 GTK > QT > XMODIFIERS，含 ibus 则 ibus 优先，含 fcitx 则 fcitx 优先，空值默认 ibus
 func x11ProbeOrder() []string {
 	gtk := strings.ToLower(os.Getenv("GTK_IM_MODULE"))
 	qt := strings.ToLower(os.Getenv("QT_IM_MODULE"))
@@ -299,6 +316,10 @@ func x11AppName() string {
 	return base
 }
 
+func isSyntheticPath(p dbus.ObjectPath) bool {
+	return strings.HasPrefix(string(p), syntheticFcitxPrefix)
+}
+
 // imeForX11 供 x11_linux.go 调用：有总线且有守护时返回 x11Ime，
 // 探测全异步化，建窗不阻塞（500ms 超时 per engine）。
 func imeForX11(h *x11Host) IME {
@@ -307,9 +328,9 @@ func imeForX11(h *x11Host) IME {
 		x11ImeDebug("imeForX11 no bus: %v", err)
 		return nil
 	}
-	hasIbus, _ := dbusHasOwner(conn, "org.freedesktop.IBus")
-	hasFcitx5, _ := dbusHasOwner(conn, "org.fcitx.Fcitx5")
-	hasFcitx, _ := dbusHasOwner(conn, "org.fcitx.Fcitx")
+	hasIbus, _ := dbusHasOwner(conn, dbusServiceIBus)
+	hasFcitx5, _ := dbusHasOwner(conn, dbusServiceFcitx5)
+	hasFcitx, _ := dbusHasOwner(conn, dbusServiceFcitx)
 	if !hasIbus && !hasFcitx5 && !hasFcitx {
 		x11ImeDebug("imeForX11 no daemon owner (ibus=%v fcitx5=%v fcitx=%v) degrade nil", hasIbus, hasFcitx5, hasFcitx)
 		return nil
@@ -320,25 +341,22 @@ func imeForX11(h *x11Host) IME {
 		host: h,
 	}
 	x11RegisterIme(im)
-	// S2 异步探测：后台建 InputContext，前台立即返回不卡建窗
 	go im.asyncProbe()
 	return im
 }
 
-// S6: 懒重探，脏标记或无对象时按 S2 顺序同步重探
+// ensureReprobe 懒重探，脏标记或无对象时按 S2 顺序同步重探
 func (im *x11Ime) ensureReprobe() {
 	if im == nil {
 		return
 	}
 	im.mu.Lock()
-	dirty := im.imeDirty
-	need := dirty || im.objectPath == ""
+	need := im.imeDirty || im.objectPath == ""
 	im.mu.Unlock()
 	if !need {
 		return
 	}
-	x11ImeDebug("lazy reprobe triggered dirty=%v path=%q", dirty, im.ObjectPath())
-	// 同步重探，500ms 超时
+	x11ImeDebug("lazy reprobe triggered dirty=%v path=%q", im.imeDirty, im.ObjectPath())
 	order := x11ProbeOrder()
 	for _, eng := range order {
 		var obj dbus.ObjectPath
@@ -354,9 +372,9 @@ func (im *x11Ime) ensureReprobe() {
 		}
 		x11ImeDebug("lazy reprobe %s ok %s", eng, obj)
 		if eng == "ibus" {
-			_ = im.setCapabilitiesIbus(obj, 41)
+			_ = im.setCapabilitiesIbus(obj, ibusCaps)
 		} else {
-			_ = im.setCapabilitiesFcitx(obj, 16)
+			_ = im.setCapabilitiesFcitx(obj, fcitxCaps)
 		}
 		im.mu.Lock()
 		if im.closed {
@@ -367,18 +385,19 @@ func (im *x11Ime) ensureReprobe() {
 		im.engine = eng
 		im.objectPath = obj
 		im.imeDirty = false
-		// 补 FocusIn+Cursor+Surrounding
 		hasRect := im.hasRect
 		rect := im.lastRect
+		lastText := im.lastText
+		lastCursor := im.lastCursor
+		lastAnchor := im.lastAnchor
 		im.mu.Unlock()
 		x11ImeDebug("lazy reprobe success engine=%s path=%s", eng, obj)
 		im.callFocusIn()
-		_ = im.setCapabilitiesIbus(obj, 41)
 		if hasRect {
 			im.callSetCursorLocation(rect)
 		}
-		if im.lastText != "" {
-			im.callSetSurroundingText(im.lastText, im.lastCursor, im.lastAnchor)
+		if lastText != "" {
+			im.callSetSurroundingText(lastText, lastCursor, lastAnchor)
 		}
 		im.startSignalLoop()
 		return
@@ -389,7 +408,6 @@ func (im *x11Ime) ensureReprobe() {
 	im.mu.Unlock()
 }
 
-// asyncProbe 后台按顺序探 CreateInputContext 并 SetCapabilities
 func (im *x11Ime) asyncProbe() {
 	order := x11ProbeOrder()
 	x11ImeDebug("asyncProbe start order=%v", order)
@@ -406,25 +424,22 @@ func (im *x11Ime) asyncProbe() {
 			continue
 		}
 		x11ImeDebug("CreateInputContext %s ok objectPath=%s", eng, obj)
-		// SetCapabilities
 		if eng == "ibus" {
-			if err := im.setCapabilitiesIbus(obj, 41); err != nil {
+			if err := im.setCapabilitiesIbus(obj, ibusCaps); err != nil {
 				x11ImeDebug("SetCapabilities ibus failed: %v", err)
 			} else {
 				x11ImeDebug("SetCapabilities 41 ok")
 			}
 		} else {
-			if err := im.setCapabilitiesFcitx(obj, 16); err != nil {
+			if err := im.setCapabilitiesFcitx(obj, fcitxCaps); err != nil {
 				x11ImeDebug("SetCapacity fcitx5 failed: %v", err)
 			} else {
 				x11ImeDebug("SetCapacity ok")
 			}
 		}
 		im.mu.Lock()
-		// 避免 Close 后又被写
 		if im.closed {
 			im.mu.Unlock()
-			// 已关闭，立即销毁刚建的上下文避免泄漏
 			im.destroyObject(obj, eng)
 			return
 		}
@@ -450,17 +465,14 @@ func (im *x11Ime) tryCreateIbus(timeout time.Duration) (dbus.ObjectPath, error) 
 	defer cancel()
 	clientName := x11ClientName()
 	x11ImeDebug("ibus CreateInputContext(s) client_name=%q", clientName)
-	obj := im.conn.Object("org.freedesktop.IBus", "/org/freedesktop/IBus")
+	obj := im.conn.Object(dbusServiceIBus, dbusPathIBusBus)
 	var path dbus.ObjectPath
-	// 首选单参 s（官方 src/ibusbus.c:ibus_bus_create_input_context），老版双参 ss 兼容探测放在失败后重试
-	err := obj.CallWithContext(ctx, "org.freedesktop.IBus.CreateInputContext", 0, clientName).Store(&path)
+	err := obj.CallWithContext(ctx, dbusIfaceIBus+".CreateInputContext", 0, clientName).Store(&path)
 	if err != nil {
-		// 尝试双参兼容（老版）
 		x11ImeDebug("ibus single param failed, try dual: %v", err)
 		ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
 		defer cancel2()
-		err2 := obj.CallWithContext(ctx2, "org.freedesktop.IBus.CreateInputContext", 0, clientName, clientName).Store(&path)
-		if err2 != nil {
+		if err2 := obj.CallWithContext(ctx2, dbusIfaceIBus+".CreateInputContext", 0, clientName, clientName).Store(&path); err2 != nil {
 			return "", err2
 		}
 	}
@@ -476,14 +488,13 @@ func (im *x11Ime) tryCreateFcitx5(timeout time.Duration) (dbus.ObjectPath, error
 	}
 	appName := x11AppName()
 	appID := "gpui"
-	// 优先新服务/路径 (Fcitx5 5.0+)
 	try := []struct {
 		service string
 		path    string
 		iface   string
 	}{
-		{"org.fcitx.Fcitx5", "/org/fcitx/Fcitx5/InputMethod", "org.fcitx.Fcitx5.InputMethod"},
-		{"org.fcitx.Fcitx", "/org/fcitx/Fcitx/InputMethod", "org.fcitx.Fcitx.InputMethod"},
+		{dbusServiceFcitx5, dbusPathFcitx5IM, dbusIfaceFcitx5IM},
+		{dbusServiceFcitx, dbusPathFcitxIM, dbusIfaceFcitxIM},
 	}
 	for _, t := range try {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -499,30 +510,26 @@ func (im *x11Ime) tryCreateFcitx5(timeout time.Duration) (dbus.ObjectPath, error
 			x11ImeDebug("fcitx %s failed: %v", t.service, err)
 		}
 	}
-	// 兼容旧 fcitx (Fcitx 4.x) 的 CreateICv3(si) -> int id，合成路径
-	for _, svc := range []string{"org.fcitx.Fcitx-0", "org.fcitx.Fcitx"} {
+	for _, svc := range []string{"org.fcitx.Fcitx-0", dbusServiceFcitx} {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		x11ImeDebug("fcitx CreateICv3(si) %s /inputmethod appname=%q", svc, appName)
 		obj := im.conn.Object(svc, "/inputmethod")
 		var icid int32
 		var ok bool
 		var v0, v1, v2, v3 uint32
-		// 兼容两种签名: CreateICv3(si) -> (i b uuuu) 或 (i b ...)
-		err := obj.CallWithContext(ctx, "org.fcitx.Fcitx.InputMethod.CreateICv3", 0, appName, int32(0)).Store(&icid, &ok, &v0, &v1, &v2, &v3)
+		err := obj.CallWithContext(ctx, dbusIfaceFcitxIM+".CreateICv3", 0, appName, int32(0)).Store(&icid, &ok, &v0, &v1, &v2, &v3)
 		cancel()
 		if err == nil {
 			x11ImeDebug("fcitx CreateICv3 ok id=%d ok=%v", icid, ok)
-			// 合成对象路径以保持每窗唯一，供 Destroy 时识别
-			return dbus.ObjectPath(fmt.Sprintf("/org/fcitx/Fcitx/InputContext_%d", icid)), nil
+			return dbus.ObjectPath(fmt.Sprintf(syntheticFcitxPrefix+"%d", icid)), nil
 		}
 		x11ImeDebug("fcitx CreateICv3 %s failed: %v", svc, err)
-		// 再试简化版 si -> i
 		ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
 		var id int32
-		err2 := obj.CallWithContext(ctx2, "org.fcitx.Fcitx.InputMethod.CreateICv3", 0, appName, int32(0)).Store(&id)
+		err2 := obj.CallWithContext(ctx2, dbusIfaceFcitxIM+".CreateICv3", 0, appName, int32(0)).Store(&id)
 		cancel2()
 		if err2 == nil {
-			return dbus.ObjectPath(fmt.Sprintf("/org/fcitx/Fcitx/InputContext_%d", id)), nil
+			return dbus.ObjectPath(fmt.Sprintf(syntheticFcitxPrefix+"%d", id)), nil
 		}
 	}
 	return "", fmt.Errorf("fcitx CreateInputContext all failed")
@@ -534,15 +541,12 @@ func (im *x11Ime) setCapabilitiesIbus(obj dbus.ObjectPath, caps uint32) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	// ibus InputContext SetCapabilities(u)
-	o := im.conn.Object("org.freedesktop.IBus", obj)
-	// 兼容两种名：SetCapabilities / SetCapability
-	err := o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.SetCapabilities", 0, caps).Err
+	o := im.conn.Object(dbusServiceIBus, obj)
+	err := o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetCapabilities", 0, caps).Err
 	if err != nil {
 		ctx2, cancel2 := context.WithTimeout(context.Background(), 300*time.Millisecond)
 		defer cancel2()
-		err2 := o.CallWithContext(ctx2, "org.freedesktop.IBus.InputContext.SetCapability", 0, caps).Err
-		if err2 == nil {
+		if err2 := o.CallWithContext(ctx2, dbusIfaceIBusCtx+".SetCapability", 0, caps).Err; err2 == nil {
 			return nil
 		}
 		return err
@@ -554,73 +558,59 @@ func (im *x11Ime) setCapabilitiesFcitx(obj dbus.ObjectPath, caps uint32) error {
 	if im == nil || im.conn == nil {
 		return fmt.Errorf("nil conn")
 	}
-	// 旧 fcitx CreateICv3 合成的路径无需 SetCapacity，直接成功
-	if strings.HasPrefix(string(obj), "/org/fcitx/Fcitx/InputContext_") {
+	if isSyntheticPath(obj) {
 		x11ImeDebug("fcitx old IC synthetic path %s skip SetCapacity", obj)
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	// fcitx InputContext 在对象上，服务名为创建时的服务，尝试两套名
-	for _, svc := range []string{"org.fcitx.Fcitx5", "org.fcitx.Fcitx"} {
+	for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
 		o := im.conn.Object(svc, obj)
 		for _, meth := range []string{
-			"org.fcitx.Fcitx5.InputContext.SetCapacity",
-			"org.fcitx.Fcitx.InputContext.SetCapacity",
-			"org.fcitx.Fcitx5.InputContext.SetCapability",
+			dbusIfaceFcitx5IM + ".SetCapacity",
+			dbusIfaceFcitxIM + ".SetCapacity",
+			dbusIfaceFcitx5IM + ".SetCapability",
 		} {
-			err := o.CallWithContext(ctx, meth, 0, caps).Err
-			if err == nil {
+			if err := o.CallWithContext(ctx, meth, 0, caps).Err; err == nil {
 				return nil
 			}
 		}
 	}
-	// 最后尝试不带接口前缀的短名
-	o := im.conn.Object("org.fcitx.Fcitx5", obj)
-	err := o.CallWithContext(ctx, "SetCapacity", 0, caps).Err
-	if err == nil {
+	o := im.conn.Object(dbusServiceFcitx5, obj)
+	if err := o.CallWithContext(ctx, "SetCapacity", 0, caps).Err; err == nil {
 		return nil
 	}
-	return err
+	return fmt.Errorf("SetCapacity failed for %s", obj)
 }
 
 func (im *x11Ime) destroyObject(obj dbus.ObjectPath, engine string) {
 	if im == nil || im.conn == nil || obj == "" {
 		return
 	}
-	// 旧 fcitx 合成路径无需真实 Destroy，记日志即算清理
-	if strings.HasPrefix(string(obj), "/org/fcitx/Fcitx/InputContext_") {
+	if isSyntheticPath(obj) {
 		x11ImeDebug("DestroyIC fcitx old synthetic %s (no-op)", obj)
-	} else {
-		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-		defer cancel()
-		if engine == "ibus" {
-			o := im.conn.Object("org.freedesktop.IBus", obj)
-			err := o.CallWithContext(ctx, "org.freedesktop.IBus.Service.Destroy", 0).Err
-			if err != nil {
-				err = o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.Destroy", 0).Err
-			}
-			if err != nil {
-				err = o.CallWithContext(ctx, "Destroy", 0).Err
-			}
-			x11ImeDebug("Destroy ibus %s err=%v", obj, err)
-		} else {
-			for _, svc := range []string{"org.fcitx.Fcitx5", "org.fcitx.Fcitx"} {
-				o := im.conn.Object(svc, obj)
-				_ = o.CallWithContext(ctx, "org.fcitx.Fcitx5.InputContext.DestroyIC", 0).Err
-				_ = o.CallWithContext(ctx, "DestroyIC", 0).Err
-			}
-			x11ImeDebug("DestroyIC fcitx %s", obj)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if engine == "ibus" {
+		o := im.conn.Object(dbusServiceIBus, obj)
+		err := o.CallWithContext(ctx, dbusServiceIBus+".Service.Destroy", 0).Err
+		if err != nil {
+			err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".Destroy", 0).Err
 		}
+		if err != nil {
+			err = o.CallWithContext(ctx, "Destroy", 0).Err
+		}
+		x11ImeDebug("Destroy ibus %s err=%v", obj, err)
+	} else {
+		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
+			o := im.conn.Object(svc, obj)
+			_ = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".DestroyIC", 0).Err
+			_ = o.CallWithContext(ctx, "DestroyIC", 0).Err
+		}
+		x11ImeDebug("DestroyIC fcitx %s", obj)
 	}
-	// RemoveMatch 仅在最后窗口时有意义，这里每窗都尝试一次，失败忽略
-	for _, rule := range []string{
-		"type='signal',sender='org.freedesktop.IBus'",
-		"type='signal',sender='org.fcitx.Fcitx5'",
-	} {
-		_ = im.conn.BusObject().Call("org.freedesktop.DBus.RemoveMatch", 0, rule).Err
-	}
-	x11ImeDebug("RemoveMatch tried")
 }
 
 // Close 由 x11Host.destroy 调用，per-window Destroy
@@ -647,6 +637,7 @@ func (im *x11Ime) Close() {
 }
 
 // S5: 信号循环
+
 func (im *x11Ime) startSignalLoop() {
 	if im == nil || im.conn == nil || im.ObjectPath() == "" {
 		return
@@ -709,21 +700,18 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 	if im == nil || sig == nil {
 		return
 	}
-	// 仅处理本 InputContext 的信号
-	if sig.Path != im.ObjectPath() {
-		// 对 fcitx 旧合成路径，Path 可能不同，需要放行所有 fcitx 信号
-		if !strings.HasPrefix(string(im.ObjectPath()), "/org/fcitx/") {
+	path := im.ObjectPath()
+	if sig.Path != path {
+		if !isSyntheticPath(path) {
 			return
 		}
-		// 对于合成路径，放宽过滤：只要 sender 是 fcitx 且 member 匹配即处理
-		if sig.Sender != "org.fcitx.Fcitx-0" && sig.Sender != "org.fcitx.Fcitx5" && sig.Sender != "org.fcitx.Fcitx" {
+		if sig.Sender != "org.fcitx.Fcitx-0" && sig.Sender != dbusServiceFcitx5 && sig.Sender != dbusServiceFcitx {
 			return
 		}
 	}
 	x11ImeDebug("signal %s %s path=%s body=%v", sig.Sender, sig.Name, sig.Path, sig.Body)
 	switch sig.Name {
-	// ibus
-	case "org.freedesktop.IBus.InputContext.UpdatePreeditText", "UpdatePreeditText":
+	case dbusIfaceIBusCtx + ".UpdatePreeditText", "UpdatePreeditText":
 		if len(sig.Body) >= 3 {
 			if v, ok := sig.Body[0].(dbus.Variant); ok {
 				text, segs := DecodeIBusVariant(v)
@@ -733,12 +721,11 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 				if !visible || text == "" {
 					im.pushPreedit("", 0, false)
 				} else {
-					// cursor_pos 是 byte 偏移？按 spec 是 uint32，传给 UpdateComposingText
 					im.pushPreedit(text, int(cursor), true)
 				}
 			}
 		}
-	case "org.freedesktop.IBus.InputContext.CommitText", "CommitText":
+	case dbusIfaceIBusCtx + ".CommitText", "CommitText":
 		if len(sig.Body) >= 1 {
 			if v, ok := sig.Body[0].(dbus.Variant); ok {
 				text, _ := DecodeIBusVariant(v)
@@ -746,7 +733,7 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 				im.pushCommit(text)
 			}
 		}
-	case "org.freedesktop.IBus.InputContext.DeleteSurroundingText", "DeleteSurroundingText":
+	case dbusIfaceIBusCtx + ".DeleteSurroundingText", "DeleteSurroundingText":
 		if len(sig.Body) >= 2 {
 			var offset int32
 			var n uint32
@@ -767,10 +754,9 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 			x11ImeDebug("DeleteSurroundingText offset=%d n=%d", offset, n)
 			im.pushDeleteSurrounding(int(offset), int(n))
 		}
-	case "org.freedesktop.IBus.InputContext.HidePreeditText", "HidePreeditText":
+	case dbusIfaceIBusCtx + ".HidePreeditText", "HidePreeditText":
 		x11ImeDebug("HidePreeditText")
 		im.pushPreedit("", 0, false)
-	// fcitx
 	case "org.fcitx.Fcitx.InputMethod.UpdatePreedit", "UpdatePreedit", "org.fcitx.Fcitx5.InputContext.UpdatePreedit":
 		if len(sig.Body) >= 2 {
 			if text, ok := sig.Body[0].(string); ok {
@@ -803,11 +789,9 @@ func (im *x11Ime) pushPreedit(text string, cursor int, visible bool) {
 		return
 	}
 	if !visible || text == "" {
-		// EndComposing
 		im.mu.Lock()
 		im.composing = false
 		im.mu.Unlock()
-		// 推送空 preedit 结束
 		im.host.pushIME(Event{Type: EventIME, IMEKind: 0, IMEText: "", IMEStart: -1, IMEEnd: -1})
 		im.host.WakeUp()
 		x11ImeDebug("push Preedit end")
@@ -816,7 +800,6 @@ func (im *x11Ime) pushPreedit(text string, cursor int, visible bool) {
 	im.mu.Lock()
 	im.composing = true
 	im.mu.Unlock()
-	// Start/End 为 cursor 偏移，-1 表示末尾
 	start := cursor
 	if start < 0 || start > len(text) {
 		start = -1
@@ -842,7 +825,6 @@ func (im *x11Ime) pushDeleteSurrounding(offset, n int) {
 	if im == nil || im.host == nil {
 		return
 	}
-	// offset/n 按 code point，platform.Event 用 IMEStart=-before, IMEEnd=+after
 	im.host.pushIME(Event{Type: EventIME, IMEKind: 3, IMEStart: offset, IMEEnd: n})
 	im.host.WakeUp()
 	x11ImeDebug("push DeleteSurrounding %d %d", offset, n)
@@ -886,13 +868,11 @@ func (im *x11Ime) EnableIME(rect Rect) {
 		x11ImeDebug("EnableIME focused guard skip rect=%v", rect)
 		return
 	}
-	x11ImeDebug("EnableIME rect=%v engine=%s path=%s purpose=%d dirty=%v", rect, im.Engine(), im.ObjectPath(), purpose, im.imeDirty)
-	// S3: FocusIn + Cursor + ContentType + Surrounding
+	engine, path := im.Engine(), im.ObjectPath()
+	x11ImeDebug("EnableIME rect=%v engine=%s path=%s purpose=%d dirty=%v", rect, engine, path, purpose, im.imeDirty)
 	im.callFocusIn()
 	im.callSetCursorLocation(rect)
 	im.callSetContentType(purpose)
-	// surrounding: need text, but EnableIME only has rect; surrounding will be pushed via SetComposing from UI
-	// For S3 we also push an empty surrounding to prime the context
 	im.callSetSurroundingText("", 0, 0)
 }
 
@@ -912,7 +892,6 @@ func (im *x11Ime) UpdateCursorRect(rect Rect) {
 		x11ImeDebug("UpdateCursorRect skip same rect=%v", rect)
 		return
 	}
-	// S3: 仅 composing 时实发，非 composing 仅缓存（防回声）
 	if !focused {
 		x11ImeDebug("UpdateCursorRect preheat (not focused) rect=%v", rect)
 		return
@@ -921,7 +900,8 @@ func (im *x11Ime) UpdateCursorRect(rect Rect) {
 		x11ImeDebug("UpdateCursorRect preheat (not composing) rect=%v", rect)
 		return
 	}
-	x11ImeDebug("UpdateCursorRect rect=%v engine=%s composing=%v dirty=%v", rect, im.Engine(), composing, im.imeDirty)
+	engine, composingVal := im.Engine(), composing
+	x11ImeDebug("UpdateCursorRect rect=%v engine=%s composing=%v dirty=%v", rect, engine, composingVal, im.imeDirty)
 	im.callSetCursorLocation(rect)
 }
 
@@ -933,12 +913,13 @@ func (im *x11Ime) SetContentType(purpose ContentPurpose) {
 	im.mu.Lock()
 	im.purpose = purpose
 	focused := im.focused
+	path := im.objectPath
 	im.mu.Unlock()
-	x11ImeDebug("SetContentType purpose=%d engine=%s focused=%v dirty=%v", purpose, im.Engine(), focused, im.imeDirty)
-	if !focused || im.ObjectPath() == "" {
+	engine := im.Engine()
+	x11ImeDebug("SetContentType purpose=%d engine=%s focused=%v dirty=%v", purpose, engine, focused, im.imeDirty)
+	if !focused || path == "" {
 		return
 	}
-	// 密码框禁组合：PurposePassword 时不做额外处理，仍需告知对端
 	im.callSetContentType(purpose)
 }
 
@@ -947,30 +928,25 @@ func (im *x11Ime) SetComposing(text string, cursor int) {
 		return
 	}
 	im.ensureReprobe()
-	// S3: 更新 composing 状态 + 环绕文本
 	composing := text != ""
 	im.mu.Lock()
 	im.composing = composing
 	im.lastText = text
 	im.lastCursor = cursor
 	im.lastAnchor = cursor
+	rect := im.lastRect
+	hasRect := im.hasRect
+	purpose := im.purpose
+	engine := im.engine
 	im.mu.Unlock()
-	x11ImeDebug("SetComposing len=%d cur=%d engine=%s composing=%v dirty=%v", len(text), cursor, im.Engine(), composing, im.imeDirty)
-	// 密码时禁组合：直接不发 surrounding
-	if im.purpose == PurposePassword {
+	x11ImeDebug("SetComposing len=%d cur=%d engine=%s composing=%v dirty=%v", len(text), cursor, engine, composing, im.imeDirty)
+	if purpose == PurposePassword {
 		x11ImeDebug("SetComposing skip password purpose")
 		return
 	}
 	im.callSetSurroundingText(text, cursor, cursor)
-	// composing 变化后若有缓存 rect，则补发一次 cursor
-	if composing {
-		im.mu.Lock()
-		rect := im.lastRect
-		has := im.hasRect
-		im.mu.Unlock()
-		if has {
-			im.callSetCursorLocation(rect)
-		}
+	if composing && hasRect {
+		im.callSetCursorLocation(rect)
 	}
 }
 
@@ -979,11 +955,9 @@ func (im *x11Ime) Commit(text string) {
 		return
 	}
 	x11ImeDebug("Commit len=%d engine=%s", len(text), im.Engine())
-	// Commit 后 composing 清零
 	im.mu.Lock()
 	im.composing = false
 	im.mu.Unlock()
-	// 可选：提交后更新 surrounding 为空或新文本，这里交由上层 SetComposing 清理
 }
 
 func (im *x11Ime) DisableIME() {
@@ -1015,16 +989,15 @@ func (im *x11Ime) callFocusIn() {
 	eng := im.Engine()
 	var err error
 	if eng == "ibus" {
-		o := im.conn.Object("org.freedesktop.IBus", dbus.ObjectPath(obj))
-		err = o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.FocusIn", 0).Err
+		o := im.conn.Object(dbusServiceIBus, dbus.ObjectPath(obj))
+		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".FocusIn", 0).Err
 		if err != nil {
 			err = o.CallWithContext(ctx, "FocusIn", 0).Err
 		}
 	} else {
-		// fcitx
-		for _, svc := range []string{"org.fcitx.Fcitx5", "org.fcitx.Fcitx", "org.fcitx.Fcitx-0"} {
+		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx, "org.fcitx.Fcitx-0"} {
 			o := im.conn.Object(svc, dbus.ObjectPath(obj))
-			err = o.CallWithContext(ctx, "org.fcitx.Fcitx.InputMethod.FocusIn", 0).Err
+			err = o.CallWithContext(ctx, dbusIfaceFcitxIM+".FocusIn", 0).Err
 			if err == nil {
 				break
 			}
@@ -1033,7 +1006,7 @@ func (im *x11Ime) callFocusIn() {
 				break
 			}
 		}
-		if strings.HasPrefix(obj, "/org/fcitx/Fcitx/InputContext_") {
+		if isSyntheticPath(dbus.ObjectPath(obj)) {
 			err = nil
 			x11ImeDebug("FocusIn fcitx synthetic no-op %s", obj)
 		}
@@ -1052,25 +1025,24 @@ func (im *x11Ime) callFocusOut() {
 	eng := im.Engine()
 	var err error
 	if eng == "ibus" {
-		o := im.conn.Object("org.freedesktop.IBus", dbus.ObjectPath(obj))
-		err = o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.FocusOut", 0).Err
+		o := im.conn.Object(dbusServiceIBus, dbus.ObjectPath(obj))
+		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".FocusOut", 0).Err
 		if err != nil {
 			err = o.CallWithContext(ctx, "FocusOut", 0).Err
 		}
 	} else {
-		for _, svc := range []string{"org.fcitx.Fcitx5", "org.fcitx.Fcitx", "org.fcitx.Fcitx-0"} {
+		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx, "org.fcitx.Fcitx-0"} {
 			o := im.conn.Object(svc, dbus.ObjectPath(obj))
 			err = o.CallWithContext(ctx, "FocusOut", 0).Err
 			if err == nil {
 				break
 			}
 		}
-		if strings.HasPrefix(obj, "/org/fcitx/Fcitx/InputContext_") {
+		if isSyntheticPath(dbus.ObjectPath(obj)) {
 			err = nil
 		}
 	}
 	x11ImeDebug("FocusOut %s err=%v", obj, err)
-	// EndComposing 清理
 	x11ImeDebug("EndComposing after FocusOut")
 }
 
@@ -1079,7 +1051,6 @@ func (im *x11Ime) callSetCursorLocation(rect Rect) {
 		x11ImeDebug("SetCursorLocation skip no object rect=%v", rect)
 		return
 	}
-	// 物理坐标：逻辑 rect * ScaleFactor → 根窗口
 	px, py, pw, ph := im.translateRect(rect)
 	x11ImeDebug("SetCursorLocation ii ii rect=%v -> phys x=%d y=%d w=%d h=%d", rect, px, py, pw, ph)
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -1088,21 +1059,20 @@ func (im *x11Ime) callSetCursorLocation(rect Rect) {
 	eng := im.Engine()
 	var err error
 	if eng == "ibus" {
-		o := im.conn.Object("org.freedesktop.IBus", obj)
-		err = o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.SetCursorLocation", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
+		o := im.conn.Object(dbusServiceIBus, obj)
+		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetCursorLocation", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
 		if err != nil {
 			err = o.CallWithContext(ctx, "SetCursorLocation", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
 		}
 		x11ImeDebug("ibus SetCursorLocation(%d,%d,%d,%d) err=%v", px, py, pw, ph, err)
 	} else {
-		// fcitx5 SetCursorRect
-		if strings.HasPrefix(string(obj), "/org/fcitx/Fcitx/InputContext_") {
+		if isSyntheticPath(obj) {
 			x11ImeDebug("SetCursorRect fcitx synthetic skip %v", rect)
 			return
 		}
-		for _, svc := range []string{"org.fcitx.Fcitx5", "org.fcitx.Fcitx"} {
+		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
 			o := im.conn.Object(svc, obj)
-			err = o.CallWithContext(ctx, "org.fcitx.Fcitx.InputContext.SetCursorRect", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
+			err = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".SetCursorRect", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
 			if err == nil {
 				break
 			}
@@ -1110,7 +1080,7 @@ func (im *x11Ime) callSetCursorLocation(rect Rect) {
 			if err == nil {
 				break
 			}
-			err = o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.SetCursorLocation", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
+			err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetCursorLocation", 0, int32(px), int32(py), int32(pw), int32(ph)).Err
 			if err == nil {
 				break
 			}
@@ -1124,7 +1094,6 @@ func (im *x11Ime) callSetSurroundingText(text string, cursor, anchor int) {
 		x11ImeDebug("SetSurroundingText skip no object len=%d", len(text))
 		return
 	}
-	// 4000 居中截断
 	t, c, a := x11TruncateSurrounding(text, cursor, anchor)
 	x11ImeDebug("SetSurroundingText len=%d->%d cursor=%d->%d anchor=%d->%d", len(text), len(t), cursor, c, anchor, a)
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -1133,23 +1102,21 @@ func (im *x11Ime) callSetSurroundingText(text string, cursor, anchor int) {
 	eng := im.Engine()
 	var err error
 	if eng == "ibus" {
-		// ibus: SetSurroundingText(v IBusText, u cursor, u anchor)  v 含 IBusText{文本, 属性}
-		// 属性可空，类型必为 v 包 IBusText，用 dbus.MakeVariant 包装文本
 		v := dbus.MakeVariant(t)
-		o := im.conn.Object("org.freedesktop.IBus", obj)
-		err = o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
+		o := im.conn.Object(dbusServiceIBus, obj)
+		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
 		if err != nil {
 			err = o.CallWithContext(ctx, "SetSurroundingText", 0, v, uint32(c), uint32(a)).Err
 		}
 		x11ImeDebug("ibus SetSurroundingText err=%v", err)
 	} else {
-		if strings.HasPrefix(string(obj), "/org/fcitx/Fcitx/InputContext_") {
+		if isSyntheticPath(obj) {
 			x11ImeDebug("SetSurroundingText fcitx synthetic skip")
 			return
 		}
-		for _, svc := range []string{"org.fcitx.Fcitx5", "org.fcitx.Fcitx"} {
+		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
 			o := im.conn.Object(svc, obj)
-			err = o.CallWithContext(ctx, "org.fcitx.Fcitx.InputContext.SetSurroundingText", 0, t, uint32(c), uint32(a)).Err
+			err = o.CallWithContext(ctx, dbusIfaceFcitx5IM+".SetSurroundingText", 0, t, uint32(c), uint32(a)).Err
 			if err == nil {
 				break
 			}
@@ -1173,38 +1140,35 @@ func (im *x11Ime) callSetContentType(purpose ContentPurpose) {
 	eng := im.Engine()
 	var err error
 	if eng == "ibus" {
-		o := im.conn.Object("org.freedesktop.IBus", obj)
-		// 官方：org.freedesktop.DBus.Properties.Set("org.freedesktop.IBus.InputContext", "ContentType", v((uu)))
+		o := im.conn.Object(dbusServiceIBus, obj)
 		type ibusContentType struct {
 			Purpose uint32
 			Hints   uint32
 		}
 		v := dbus.MakeVariant(ibusContentType{Purpose: uint32(purpose), Hints: 0})
-		err = o.CallWithContext(ctx, "org.freedesktop.DBus.Properties.Set", 0, "org.freedesktop.IBus.InputContext", "ContentType", v).Err
+		err = o.CallWithContext(ctx, dbusServiceDBus+".Properties.Set", 0, dbusIfaceIBusCtx, "ContentType", v).Err
 		if err != nil {
-			// 回退直接方法
-			err = o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.SetContentType", 0, uint32(purpose), uint32(0)).Err
+			err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".SetContentType", 0, uint32(purpose), uint32(0)).Err
 		}
 		if err != nil {
 			err = o.CallWithContext(ctx, "SetContentType", 0, uint32(purpose), uint32(0)).Err
 		}
-		// 再试单参
 		if err != nil {
-			err = o.CallWithContext(ctx, "org.freedesktop.DBus.Properties.Set", 0, "org.freedesktop.IBus.InputContext", "ContentType", dbus.MakeVariant(uint32(purpose))).Err
+			err = o.CallWithContext(ctx, dbusServiceDBus+".Properties.Set", 0, dbusIfaceIBusCtx, "ContentType", dbus.MakeVariant(uint32(purpose))).Err
 		}
 		x11ImeDebug("ibus SetContentType purpose=%d err=%v", purpose, err)
 	} else {
-		if strings.HasPrefix(string(obj), "/org/fcitx/Fcitx/InputContext_") {
+		if isSyntheticPath(obj) {
 			x11ImeDebug("SetContentType fcitx synthetic skip purpose=%d", purpose)
 			return
 		}
-		for _, svc := range []string{"org.fcitx.Fcitx5", "org.fcitx.Fcitx"} {
+		for _, svc := range []string{dbusServiceFcitx5, dbusServiceFcitx} {
 			o := im.conn.Object(svc, obj)
 			err = o.CallWithContext(ctx, "SetContentType", 0, uint32(purpose)).Err
 			if err == nil {
 				break
 			}
-			err = o.CallWithContext(ctx, "org.fcitx.Fcitx.InputContext.SetContentType", 0, uint32(purpose)).Err
+			err = o.CallWithContext(ctx, dbusIfaceFcitxIM+".SetContentType", 0, uint32(purpose)).Err
 			if err == nil {
 				break
 			}
@@ -1216,7 +1180,6 @@ func (im *x11Ime) callSetContentType(purpose ContentPurpose) {
 // translateRect 逻辑 rect -> 物理根窗口坐标
 func (im *x11Ime) translateRect(r Rect) (int, int, int, int) {
 	if im == nil || im.host == nil || im.host.st == nil {
-		// 回退：直接按逻辑值取整
 		return int(r.X), int(r.Y), int(r.W), int(r.H)
 	}
 	st := im.host.st
@@ -1224,24 +1187,21 @@ func (im *x11Ime) translateRect(r Rect) (int, int, int, int) {
 	if scale <= 0 {
 		scale = 1
 	}
-	// w=2 h=行高：若传入的 W/H 为 0，按 2x行高 兜底
 	w := r.W
 	h := r.H
 	if w <= 0 {
-		w = 2
+		w = defaultCursorW
 	}
 	if h <= 0 {
-		h = 16
+		h = defaultCursorH
 	}
-	// 逻辑 -> 物理
-	px := int((r.X) * scale)
-	py := int((r.Y) * scale)
+	px := int(r.X * scale)
+	py := int(r.Y * scale)
 	pw := int(w * scale)
 	ph := int(h * scale)
 	if pw < 1 {
-		pw = 2
+		pw = defaultCursorW
 	}
-	// XTranslateCoordinates：window -> root
 	if st.display != 0 && st.window != 0 && st.root != 0 {
 		if x, y, ok := x11TranslateToRoot(st, px, py); ok {
 			px, py = x, y
@@ -1253,55 +1213,56 @@ func (im *x11Ime) translateRect(r Rect) (int, int, int, int) {
 // ProcessKeyEvent S4：先走 D-Bus 判 consumed，再本地 Home/End 等分流
 // keycode 为 X 硬件码，state 为 X 修饰位，isPress true=Press false=Release
 // 返回 handled==true 则拦截不再本地插入，50ms 超时按未处理放行
+// ibus 的 ProcessKeyEvent 无 isRelease，Release 事件直接放行避免重复触发。
 func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool) bool {
 	im.ensureReprobe()
 	if im == nil || im.conn == nil || im.ObjectPath() == "" {
 		x11ImeDebug("ProcessKeyEvent skip no object keycode=%d state=%d press=%v dirty=%v", keycode, state, isPress, im.imeDirty)
 		return false
 	}
-	// 合成路径无真实 InputContext，直接放行
-	if strings.HasPrefix(string(im.ObjectPath()), "/org/fcitx/Fcitx/InputContext_") {
+	if isSyntheticPath(im.ObjectPath()) {
 		x11ImeDebug("ProcessKeyEvent fcitx synthetic skip")
 		return false
 	}
-	// keyval = XKeycodeToKeysym(dpy, keycode, Shift?1:0)  Xlib index0=裸键 index1=Shift
+	// Single lock acquisition for engine to avoid double locking.
+	im.mu.Lock()
+	eng := im.engine
+	im.mu.Unlock()
+	if eng == "ibus" && !isPress {
+		x11ImeDebug("ProcessKeyEvent ibus release skip keycode=%d", keycode)
+		return false
+	}
 	var keysym uint32
 	if im.host != nil && im.host.st != nil && im.host.st.keycodeToKeysym != nil && im.host.st.display != 0 {
 		idx := 0
-		if state&1 != 0 { // ShiftMask
+		if state&1 != 0 {
 			idx = 1
 		}
 		ks := im.host.st.keycodeToKeysym(im.host.st.display, uint(keycode), idx)
 		keysym = uint32(ks)
 		x11ImeDebug("ProcessKeyEvent keysym=%#x keycode=%d state=%d idx=%d", keysym, keycode, state, idx)
 	}
-	eng := im.Engine()
 	obj := im.ObjectPath()
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	var handled bool
 	var err error
 	if eng == "ibus" {
-		// ibus: ProcessKeyEvent(uuu keyval,keycode,state)->b
-		o := im.conn.Object("org.freedesktop.IBus", obj)
-		err = o.CallWithContext(ctx, "org.freedesktop.IBus.InputContext.ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
+		o := im.conn.Object(dbusServiceIBus, obj)
+		err = o.CallWithContext(ctx, dbusIfaceIBusCtx+".ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
 		if err != nil {
 			err = o.CallWithContext(ctx, "ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
 		}
 		x11ImeDebug("ibus ProcessKeyEvent uuu (%#x,%d,%d)->%v err=%v", keysym, keycode, state, handled, err)
 	} else {
-		// fcitx5: ProcessKeyEvent(uuuub keyval,keycode,state,time,isRelease)->b
-		o := im.conn.Object("org.fcitx.Fcitx5", obj)
-		// time 用当前毫秒，isRelease 取反 isPress
+		o := im.conn.Object(dbusServiceFcitx5, obj)
 		t := uint32(time.Now().UnixNano() / 1e6 & 0xffffffff)
 		isRelease := !isPress
-		// 尝试多套名
-		err = o.CallWithContext(ctx, "org.fcitx.Fcitx.InputMethod.ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state), t, isRelease).Store(&handled)
+		err = o.CallWithContext(ctx, dbusIfaceFcitxIM+".ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state), t, isRelease).Store(&handled)
 		if err != nil {
 			err = o.CallWithContext(ctx, "ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state), t, isRelease).Store(&handled)
 		}
 		if err != nil {
-			// 再试不带 time/isRelease 的旧签
 			ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Millisecond)
 			defer cancel2()
 			err = o.CallWithContext(ctx2, "ProcessKeyEvent", 0, uint32(keysym), uint32(keycode), uint32(state)).Store(&handled)
@@ -1321,7 +1282,6 @@ func x11TruncateSurrounding(text string, cursor, anchor int) (string, int, int) 
 		return text, cursor, anchor
 	}
 	budget := 3999
-	// 以 cursor 为中心
 	c := cursor
 	if c < 0 {
 		c = 0
