@@ -506,6 +506,52 @@ func (b *BaseEditable) DrawPreedit(pc *PaintContext, text string, composing Text
 
 > **落盘顺序**：`S1→S2` 连做（无 `InputContext` 后续无意义），随后 `S3→S4→S5→S6` 线性推进；每阶段 PR 以 `feat/ime-x11: S{n} ...` 为前缀，合入前 `go vet ./ui/platform ./ui/textinput` 0 且对应 P 子集仿真通，`S5` 通后跑 `ui_wr_ime_r3_channel` 真窗双引擎 `P1-P9`，`S6` 通后满足 `§10.4 R3` **10族全硬**方可关窗。**已删**：`S7 候选词列表/翻页`（撞 §1.2 非目标，自绘候选窗另起 R）、`S7 GlobalEngineChanged`（与 `NameOwnerChanged` 重复）、`S8 XIM 降级`（撞“仅 D-Bus”纪律）、`S9 16ms 定时节流`（改为相同 `rect` 跳过）。
 
+### 14.1 分阶段“验什么 / 什么效果 / 输出什么”总表（真窗手打验收，每阶段必过）
+
+> **怎么验**：统一开 `GPUI_IME_DEBUG=1 go run ./examples/ui_wr_ime_r3_channel`（1200×800，`RunFor=0` 手动点 X 关，`RUN_SECONDS` 仅校验最小观察时长）。**三证据**：① `GPUI_IME_DEBUG` 日志 ② 真窗画面（以实际绘制墨迹为真值，`F0-F9` 选型）③ 结束 `A-J 10族 JSON`。下表每行一个功能点，说明“验什么、看到什么效果、留下什么输出”。
+
+| 阶段 | 功能点（§7 黑点） | 验什么（输入交互） | 预期效果（画面/行为） | 输出什么（日志/JSON/文件） |
+|---|---|---|---|---|
+| **S1 总线** | 会话总线接通 + 单 `dbus.Conn` 复用 | `go run` 开 2 个窗分别点获焦；`ss -x` / `dbus-monitor --session` 看连接数 | 两窗共享 1 个 `dbus.Conn`，建窗不阻塞，1 秒内现窗 | `stderr: dbus dial/hello/match` 各 1 次（`GPUI_IME_DEBUG=1`）；`go vet 0` |
+| S1 | `AddMatch` 订阅 ibus/fcitx5 | 有守护与无守护各建窗一次 | 有守护正常，无守护 `Window.IME()==nil` 英文直通不崩 | 日志 `AddMatch org.freedesktop.IBus / org.fcitx.Fcitx5`；`P8 首焦前 nil 降级` PASS |
+| S1 | `GPUI_IME_DEBUG` 打点 | `GPUI_IME_DEBUG=1` 建窗 | 仅调试态打点，默认静默 | 日志含 `dial/hello/match` 明文，无则 FAIL |
+| **S2 上下文** | 探测顺序 `GTK_IM_MODULE/QT_IM_MODULE/XMODIFIERS` 定优 | `GTK_IM_MODULE=ibus` / `=fcitx` / 空 各跑一次，点框获焦 | `ibus→先 ibus`，`fcitx→先 fcitx5`，空值 `ibus→fcitx5`，符合系统默认 | 日志 `probe order: ibus / fcitx5` + `CreateInputContext(s)→o / (ss)→o` 各 500ms 超时记录 |
+| S2 | `CreateInputContext` 官方签名 | 任一引擎下建窗获焦 | `ibus client_name="gpui:<进程名>"` 得 `InputContext_7`，`fcitx5 appname/appid="gpui"` 得 `InputContext_2`，双探失败则 `nil` | 日志 `engine=ibus/fcitx5 objectPath=/org/.../InputContext_*` |
+| S2 | `SetCapabilities` | 获焦后紧接打字前 | `ibus CAP 1<<0|1<<2|1<<3=41` / `fcitx5 PREEDIT\|SURROUNDING` 已发 | 日志 `SetCapabilities 41 / SetCapacity` 各 1 次 |
+| S2 | 全异步化不卡建窗 | 故意 `systemctl --user stop ibus` 让一端 500ms 超时，立即点框打 `hello` | 探测未完成前 `IME==nil` 直通，打字不卡 | `wrgate: time_to_first_present_ms <1000`（`wrgate/report.go` JSON H 族） |
+| S2 | 每窗一 `InputContext` + `Destroy+RemoveMatch` | 开双窗再关一窗，`dbus-monitor` 观察 | 关窗路径消失，不串扰，另一窗仍可用 | 日志 `Destroy / RemoveMatch`；`lsof` fd 不涨，`-race` 0 |
+| **S3 会话与锚点** | `EnableIME→FocusIn幂等` | 点框 A→框 B→回 A，快速来回点 | 重复 `FocusIn` 不刷屏，仅首次生效，画面不闪 | 日志 `FocusIn` 1 次/获焦，重复幂等 `focused guard` |
+| S3 | `DisableIME→FocusOut+EndComposing` | 点外部失焦 / `Esc` | `composing` 清零，候选消失 | 日志 `FocusOut + EndComposing` |
+| S3 | `UpdateCursorRect` 经 `TextLayout.CaretForOffset - scrollX × ScaleFactor → XTranslateCoordinates→根窗口` + `RandR` 多显修正 | 输 `nihao` 进 preedit，拖窗跨主/副屏，`scale 1.25/2.0`，单行横滚后看 | 候选窗死钉光标，跨屏/HiDPI 不漂移，`w=2 h=行高` | 日志 `SetCursorLocation(iiii) / SetCursorRect(iiii) x,y,w=2,h` 物理像素；`P14 36×m` 真窗像素 `F0-F9` 墨迹间隙 PASS |
+| S3 | 仅 `composing==true` 实发 + 相同 `rect` 跳过 | 空闲移动光标 vs preedit 中移动光标 | 非组合期 0 上报，组合期 1 次/变更，相同 rect 不重发防回声 | 日志 `composing_rect real-report 1 / preheat 0 + skip same rect`；`OnChange→RefreshIMEAnchor` 闭环日志 |
+| S3 | `SetSurroundingText` 4000 居中 + `-1` NUL | 贴 5000 字长文，光标放 0/1/4/3/4/末尾触发 `retrieve-surrounding` | 超长以光标为中心截断含 NUL，不崩不丢 | 日志 `SetSurroundingText len<=4000 centered`；`P15 4锚点` 单测 `TestSurroundingCenter4` 与真窗同阈值 PASS |
+| S3 | `SetContentType` `purposeFromInputType` | 普通框 vs `PurposePassword` 框分别获焦 | 密码框关预测，`composing` 禁止 | 日志 `SetContentType purpose/password`；密码真窗掩码像素 `●` + 日志无候选 |
+| S3 | `XTranslateCoordinates` 多绑 | `x11OpenLib` 符号检查 | 无 `undefined symbol` | `go vet 0` + `ldd` 无缺符号 |
+| **S4 按键过滤** | `ProcessKeyEvent` 分流 `handled==true` 拦截 | preedit 中按 `← → Home End PageUp/Down` 再按字母 `a` | 被输入法消费的键不进 `Editor.AddText`，未消费才走本地 | 日志 `ProcessKeyEvent uuu/uuuub handled=true/false`；`P9 风暴锁` 单键≤2 preedit |
+| S4 | `keyval = XKeycodeToKeysym(dpy,keycode, (state&ShiftMask)?1:0)` | 按 `a` vs `Shift+a`，`Ctrl+←→` | 大小写与词跳正确，`index0=裸键 index1=Shift` | 日志 `keyval/keysym` 与 `XLookupString` 一致 |
+| S4 | `50ms` 超时放行 + `client_id==Unset` 放行 | 拔守护模拟超时；未建 `InputContext` 时直接打字 | 超时后本地插入不丢字，`Unset` 时直接放行 | 日志 `ProcessKeyEvent timeout 50ms → pass-through` |
+| S4 | 特殊键分流 `Return(仅MULTILINE+newline→AddCodePoint)` | 单行按回车 vs 多行按回车 | 单行 `onSubmitted`，多行换行+`performAction` | 日志 `Return→AddCodePoint('\n')` 仅多行 |
+| S4 | 死键兜底 `XLookupString→AddText` | 按 `´` 再按 `e` | 出 `é` 重音正确 | 真窗字符 `é` 像素 + 日志 `deadkey → AddText é`；`P11` PASS |
+| **S5 通道归一** | `godbus Signal` 归一四信号 | `nihao→你好` 选词上屏；`Backspace` 缩拼音；`Esc` 清；`DeleteSurrounding` 触发 | `ibus UpdatePreedit(v,u,b)/Commit(v)/Delete(i,u)/Hide` 与 `fcitx5 UpdatePreedit(s,i)/CommitString(s)/Delete(i,u)` 均归一到 `Begin+UpdateComposing / AddText+Commit / DeleteSurrounding` | 日志 `UpdatePreeditText / CommitText / DeleteSurroundingText` 归一；`dbus.Variant→string` 解码日志 |
+| S5 | `delta replace_range = was_composing?composing_before:selection_before` | 有选区时打拼音替换，提交看 | 原子替换选中段或 `composing_range`，不残留 | 日志 `delta OldText/composing_before/selection_before/DeltaStart`；单测 `TestDelta_NonTextUpdate` 同阈值 |
+| S5 | `AttrList→Segment` 高亮还原 | 看 preedit 下划线/高亮/选中段（三段式） | 下划线/选中段颜色与 `IBus AttrList / Fcitx5 format` 一致 | 真窗像素 `F6` 选型 + `ime_format.go: Segment{underline/highlight/selected}` 日志；`P16` PASS |
+| S5 | `batchDepth` 抑 `OnChange`（无 `done`） | 快速连击中看 | `D-Bus` 无 `done`，`batchDepth>0` 仅抑 `OnChange/pushSurrounding/pushDelta`，末层 `epoch++` 去重 | 日志 `batchDepth>0 suppress OnChange` + `epoch++ ShouldSkipFrameworkUpdate` |
+| S5 | `variant Text` 解 `string` | `CommitText(v)` 含 `IBusText{attrs,text}` | `godbus dbus.Variant` 正确解 `string`，`attrs` 可空但类型为 `v` | 日志 `variant IBusText decoded` |
+| **S6 稳定与分发** | `NameOwnerChanged` 仅置 `imeDirty=true` 懒重探 | 运行中 `killall ibus-daemon; fcitx5 &` 热切 `ibus↔fcitx5`，下次再打字 | 有→空 `FocusOut+EndComposing→nil` 英文直通；空→有仅脏标记，下次输入按 S2 顺序 500ms 重探成功清脏并补 `FocusIn+SetCapabilities+SetCursorRect+Surrounding` | 日志 `NameOwnerChanged owner有→空/空→有 imeDirty=true` + `lazy reprobe success/clear dirty`；`P13` PASS |
+| S6 | `Bus` 断开 `200ms→2s` 退避 | `dbus-daemon` 重启 / `conn.Signals` 关闭 | 仅 Bus 断开走退避，普通 `NameOwnerChanged` 不退避 | 日志 `bus disconnect backoff 200ms→2s` |
+| S6 | `godbus range Signals` 独立协程仅 `pushIME+WakeUp`，`dispatch` 独占 | preedit 中狂拖选、快速切焦点、连打 | `D-Bus` 协程不直接改 `Editor`，事件循环线程统一 `dispatch`，`-race` 0 | 日志 `pushIME EventImePreedit/Commit/Delete + WakeUp`；`x11Host.imeMu queue` 深度日志 |
+| S6 | 极端用例 1000 次 | 脚本连续开关窗 1000 次、焦点快速来回切、守护反复重启 | 无泄漏无错乱无崩 | `P17` PASS；`rss_after_close <= rss_peak`；`go test -count 1000 -run TestX11ImeCloseLeak` |
+| S6 | `A-J 10族全硬` 关窗 | 开窗 ≥10s（`RUN_SECONDS=10` 仅校验最小观察时长，`RunFor=0` 手动点 X 关） | `metrics-audit` 全绿才可回写 `§11` | `stderr JSON: A fps_interval≥55 p95≤22 hitch≤5, B build p95<5, C damage_ratio可≈1但paint可解释, D cpu<60%, E rss_slope<15000, F cpu_fallback==0, G measure_cache必采, H ttfp<1000, I baseline<10%必开, J vet==0+filter日志` + 像素 `F0-F9` + `Golden` 三证据 |
+
+### 14.2 每阶段真窗手打验收清单（在 `ui_wr_ime_r3_channel` 里逐项点）
+
+- **S1**：开 2 窗看单连接 → 无守护建窗打 `hello` → `GPUI_IME_DEBUG` 有 `dial/hello/match` → `go vet 0` → 点 X 看 `H ttfp<1000`
+- **S2**：`GTK_IM_MODULE` 三态各开一次 → 双窗路径不同 → 关窗 `Destroy/RemoveMatch` → `P12` 探针 `engine` 分别为 `ibus/fcitx5` → `wrgate JSON engine` 字段可溯源
+- **S3**：`nihao` preedit 跨屏拖窗 → `Scale 1.25/2.0` → 横滚后光标仍钉候选 → 空/末/1/4/3/4 四锚点各贴 5000 字 → 密码框输 → 程序化 `SetText` 看锚点闭环 → 结束 `C paint_count` 可解释
+- **S4**：preedit 中 `←→HomeEnd` 不越界 → `10ms 内 20 键` 风暴 → `´+e=é` → 单/多行回车分流 → `client_id Unset` 放行 → 超时 50ms 放行 → `A hitch≤5`
+- **S5**：`拼音→候选→上屏` 原子替换 → 选中段拼音替换 → 组合中退格/Esc → 提交后 `composing==false` → 三段高亮段像素 → `delta replace_range` 日志 → `B build p95<5`
+- **S6**：`kill ibus/fcitx5` 热切下次输入自动换 → `Bus` 断开退避 → 快切焦点 → 1000 次开关窗 → ≥10s 后点 X → `A-J 10族全硬 + 三证据` → `metrics-audit` 审过才标 ✅
+
 ## 附录：偏移与截断
 
 - `TextRange` 以 UTF16 记（`{-1,-1}` 哨兵），Go 边界 `Utf8ToUtf16/Utf16ToUtf8` 互转，surrogate 对按 2 计仅换算时 ×2；
