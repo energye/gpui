@@ -159,23 +159,16 @@ func dialIbusPrivate() (*dbus.Conn, error) {
 			return
 		}
 		x11ImeDebug("ibus private dial addr=%q", addr)
-		c, err := dialWithTimeout(addr, 500)
+		c, err := dialWithTimeout(addr, 800)
 		if err != nil {
-			x11ImeDebug("ibus private dial failed: %v, fallback to session", err)
-			// 回退到会话总线（兼容：多数发行版 ibus 同时在会话总线拥有名字）
-			c, err = dbus.SessionBus()
-			if err != nil {
-				x11ImeDebug("ibus fallback session dial failed: %v", err)
-				x11IbusErr = err
-				return
-			}
-			x11ImeDebug("ibus fallback session ok")
-		} else {
-			x11ImeDebug("ibus private dial ok addr=%q", addr)
+			x11ImeDebug("ibus private dial failed: %v", err)
+			x11IbusErr = err
+			return
 		}
+		x11ImeDebug("ibus private dial ok addr=%q", addr)
 		// 私有/回退总线订阅 NameOwnerChanged（与会话总线一致）及 ibus 信号
 		for _, rule := range dbusMatchRules {
-			ctx2, cancel2 := context.WithTimeout(context.Background(), 300*time.Millisecond)
+			ctx2, cancel2 := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			err := c.BusObject().CallWithContext(ctx2, dbusServiceDBus+".AddMatch", 0, rule).Err
 			cancel2()
 			if err != nil {
@@ -202,7 +195,7 @@ func dialWithTimeout(addr string, ms int) (*dbus.Conn, error) {
 	}
 	ch := make(chan res, 1)
 	go func() {
-		c, err := dbus.Dial(addr)
+		c, err := dbus.Connect(addr)
 		ch <- res{c, err}
 	}()
 	select {

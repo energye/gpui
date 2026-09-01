@@ -308,10 +308,10 @@ func dbusHasOwner(conn *dbus.Conn, name string) (bool, error) {
 	if conn == nil {
 		return false, fmt.Errorf("nil conn")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
 	var has bool
-	err := conn.BusObject().CallWithContext(ctx, dbusServiceDBus+".NameHasOwner", 0, name).Store(&has)
+	err := conn.BusObject().CallWithContext(ctx, dbusServiceDBus+".NameHasOwner", dbus.FlagNoAutoStart, name).Store(&has)
 	if err != nil {
 		return false, err
 	}
@@ -361,16 +361,6 @@ func imeForX11(h *x11Host) IME {
 		}
 		has, _ := dbusHasOwner(conn, dbusServiceIBus)
 		if !has {
-			// 私有总线可能不响应 NameHasOwner，尝试会话总线
-			if c2, err2 := dbus.SessionBus(); err2 == nil && c2 != nil {
-				if has2, _ := dbusHasOwner(c2, dbusServiceIBus); has2 {
-					x11ImeDebug("imeForX11 ibus private no owner, fallback session has owner, use session conn=%p", c2)
-					conn = c2
-					has = true
-				}
-			}
-		}
-		if !has {
 			x11ImeDebug("imeForX11 ibus private no owner degrade nil")
 			return nil
 		}
@@ -390,11 +380,9 @@ func imeForX11(h *x11Host) IME {
 		x11ImeDebug("imeForX11 fcitx session conn=%p hasFcitx5=%v hasFcitx=%v", conn, hasFcitx5, hasFcitx)
 	}
 	im := &x11Ime{
-		conn:   conn,
-		engine: eng,
-		host:   h,
+		conn: conn,
+		host: h,
 	}
-	// engine 已按单选预填，asyncProbe 将只探该引擎（FlagNoAutoStart 已在 tryCreate 内）
 	x11RegisterIme(im)
 	go im.asyncProbe()
 	return im
