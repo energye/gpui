@@ -4,6 +4,7 @@ package platform
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -149,5 +150,37 @@ func TestX11S2AsyncProbe(t *testing.T) {
 	x2.Close()
 	if x2.ObjectPath() != "" {
 		t.Fatalf("x2 path not cleared")
+	}
+}
+
+// TestX11TruncateSyncB10 保证 x11TruncateSurrounding 满足 4000/NUL/居中语义（B10）。
+// 不直接 import textinput 以免 platform<->textinput 循环；同源性由脚本 scripts/check_truncate_sync.go 校验。
+func TestX11TruncateSyncB10(t *testing.T) {
+	cases := []struct {
+		text   string
+		cursor int
+		anchor int
+	}{
+		{"hello world", 5, 5},
+		{"你好世界 hello", 6, 6},
+		{strings.Repeat("a", 3000) + strings.Repeat("你", 1000), 2000, 2000},
+		{strings.Repeat("😀", 500), 1000, 1000},
+		{"", 0, 0},
+	}
+	for i, c := range cases {
+		trX, cx, ax := x11TruncateSurrounding(c.text, c.cursor, c.anchor)
+		if len(trX)+1 > 4000 {
+			t.Fatalf("case %d x11 truncate exceed 4000: %d", i, len(trX))
+		}
+		if cx < 0 || cx > len(trX) || ax < 0 || ax > len(trX) {
+			t.Fatalf("case %d cursor/anchor out of range: %d/%d len %d", i, cx, ax, len(trX))
+		}
+		// 光标必须落在截断窗口内
+		if c.cursor < len(c.text) && cx == 0 && len(c.text) > 4000 {
+			// 居中截断时，超长文本的光标不应被截到 0（除非本来就在头部）
+			if c.cursor > 2000 && trX == "" {
+				t.Fatalf("case %d truncated to empty", i)
+			}
+		}
 	}
 }

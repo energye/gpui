@@ -226,7 +226,12 @@ func (b *ViewportInputBox) Clipboard() platform.Clipboard           { return b.c
 func (b *ViewportInputBox) SetSchedule(fn func())                   { b.sched = fn }
 func (b *ViewportInputBox) FocusNode() *focus.FocusNode             { return b.Node }
 func (b *ViewportInputBox) Editor() *Editor                         { return b.ed }
-func (b *ViewportInputBox) ContentPurpose() platform.ContentPurpose { return platform.PurposeNormal }
+func (b *ViewportInputBox) ContentPurpose() platform.ContentPurpose {
+	if b != nil && b.BaseEditable != nil {
+		return b.BaseEditable.ContentType().Purpose
+	}
+	return platform.PurposeNormal
+}
 func (b *ViewportInputBox) ContentType() platform.ContentType {
 	return platform.ContentType{Purpose: b.ContentPurpose()}
 }

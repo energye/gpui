@@ -11,6 +11,7 @@ type BaseEditable struct {
 	ed          *Editor
 	placeholder string
 	disabled    bool
+	purpose     platform.ContentPurpose
 }
 
 // NewBaseEditable 创建基座，ed 非空。
@@ -19,10 +20,23 @@ func NewBaseEditable(ed *Editor) *BaseEditable { return &BaseEditable{ed: ed} }
 // Editor 返回编辑状态。
 func (b *BaseEditable) Editor() *Editor { if b == nil { return nil }; return b.ed }
 
-// ContentType 返回输入法类型（默认 Normal）。
+// ContentType 返回输入法类型（可配置，默认 Normal，B13）。
 func (b *BaseEditable) ContentType() platform.ContentType {
-	return platform.ContentType{Purpose: platform.PurposeNormal}
+	if b == nil {
+		return platform.ContentType{Purpose: platform.PurposeNormal}
+	}
+	return platform.ContentType{Purpose: b.purpose}
 }
+
+// SetContentType 设置输入法类型（B13：替代硬编码 Normal）。
+func (b *BaseEditable) SetContentType(p platform.ContentPurpose) {
+	if b != nil {
+		b.purpose = p
+	}
+}
+
+// SetPurpose 兼容别名
+func (b *BaseEditable) SetPurpose(p platform.ContentPurpose) { b.SetContentType(p) }
 
 // IMERect 返回零（嵌入方应覆盖为 caret/composing 锚点）。
 func (b *BaseEditable) IMERect() platform.Rect { return platform.Rect{} }

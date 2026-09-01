@@ -296,7 +296,12 @@ func (b *InputBox) FocusNode() *focus.FocusNode { return b.Node }
 
 // Editor returns the backing editor.
 func (b *InputBox) Editor() *Editor { return b.ed }
-func (b *InputBox) ContentPurpose() platform.ContentPurpose { return platform.PurposeNormal }
+func (b *InputBox) ContentPurpose() platform.ContentPurpose {
+	if b != nil && b.BaseEditable != nil {
+		return b.BaseEditable.ContentType().Purpose
+	}
+	return platform.PurposeNormal
+}
 func (b *InputBox) ContentType() platform.ContentType {
 	return platform.ContentType{Purpose: b.ContentPurpose()}
 }
@@ -1568,6 +1573,9 @@ func (b *MultiLineInputBox) SetSchedule(fn func())             { b.sched = fn }
 func (b *MultiLineInputBox) FocusNode() *focus.FocusNode       { return b.Node }
 func (b *MultiLineInputBox) Editor() *Editor                   { return b.ed }
 func (b *MultiLineInputBox) ContentPurpose() platform.ContentPurpose {
+	if b != nil && b.BaseEditable != nil {
+		return b.BaseEditable.ContentType().Purpose
+	}
 	return platform.PurposeNormal
 }
 func (b *MultiLineInputBox) ContentType() platform.ContentType {

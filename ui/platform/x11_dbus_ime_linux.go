@@ -66,6 +66,8 @@ type x11Ime struct {
 	lastAnchor int
 	sigCh      chan *dbus.Signal
 	sigStop    chan struct{}
+	// B9: last preedit segments for debug / future DrawPreedit
+	lastSegs []ImeSegment
 	// B2/B4 退避：探测全失败时记录，下次 ensureReprobe 需间隔
 	lastProbeFail time.Time
 }
@@ -811,9 +813,9 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 				visible, _ := sig.Body[2].(bool)
 				x11ImeDebug("UpdatePreeditText text=%q cursor=%d visible=%v segs=%v", text, cursor, visible, segs)
 				if !visible || text == "" {
-					im.pushPreedit("", 0, false)
+					im.pushPreedit("", 0, false, segs)
 				} else {
-					im.pushPreedit(text, int(cursor), true)
+					im.pushPreedit(text, int(cursor), true, segs)
 				}
 			}
 		}
@@ -848,7 +850,7 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 		}
 	case dbusIfaceIBusCtx + ".HidePreeditText", "HidePreeditText":
 		x11ImeDebug("HidePreeditText")
-		im.pushPreedit("", 0, false)
+		im.pushPreedit("", 0, false, nil)
 	case "org.fcitx.Fcitx.InputMethod.UpdatePreedit", "UpdatePreedit", "org.fcitx.Fcitx5.InputContext.UpdatePreedit":
 		if len(sig.Body) >= 2 {
 			if text, ok := sig.Body[0].(string); ok {
@@ -863,7 +865,7 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 				}
 				clean, segs := parseFcitxPreedit(text)
 				x11ImeDebug("fcitx UpdatePreedit %q cursor=%d segs=%v", clean, cursor, segs)
-				im.pushPreedit(clean, int(cursor), clean != "")
+				im.pushPreedit(clean, int(cursor), clean != "", segs)
 			}
 		}
 	case "CommitString", "org.fcitx.Fcitx.InputMethod.CommitString", "org.fcitx.Fcitx5.InputContext.CommitString":
@@ -876,21 +878,27 @@ func (im *x11Ime) handleSignal(sig *dbus.Signal) {
 	}
 }
 
-func (im *x11Ime) pushPreedit(text string, cursor int, visible bool) {
+func (im *x11Ime) pushPreedit(text string, cursor int, visible bool, segs ...[]ImeSegment) {
 	if im == nil || im.host == nil {
 		return
+	}
+	var segList []ImeSegment
+	if len(segs) > 0 {
+		segList = segs[0]
 	}
 	if !visible || text == "" {
 		im.mu.Lock()
 		im.composing = false
+		im.lastSegs = nil
 		im.mu.Unlock()
 		im.host.pushIME(Event{Type: EventIME, IMEKind: 0, IMEText: "", IMEStart: -1, IMEEnd: -1})
 		im.host.WakeUp()
-		x11ImeDebug("push Preedit end")
+		x11ImeDebug("push Preedit end segs=%v", segList)
 		return
 	}
 	im.mu.Lock()
 	im.composing = true
+	im.lastSegs = segList
 	im.mu.Unlock()
 	start := cursor
 	if start < 0 || start > len(text) {
@@ -898,7 +906,7 @@ func (im *x11Ime) pushPreedit(text string, cursor int, visible bool) {
 	}
 	im.host.pushIME(Event{Type: EventIME, IMEKind: 0, IMEText: text, IMEStart: start, IMEEnd: start})
 	im.host.WakeUp()
-	x11ImeDebug("push Preedit %q cursor=%d", text, cursor)
+	x11ImeDebug("push Preedit %q cursor=%d segs=%v", text, cursor, segList)
 }
 
 func (im *x11Ime) pushCommit(text string) {
@@ -1481,6 +1489,8 @@ func (im *x11Ime) translateRect(r Rect) (int, int, int, int) {
 		if x, y, ok := x11TranslateToRoot(st, px, py); ok {
 			px, py = x, y
 		}
+		// B6: RandR 多显修正（查询 monitor 几何，预留 per-monitor scale）
+		px, py = x11RandRAdjust(st, px, py)
 	}
 	return px, py, pw, ph
 }
@@ -1640,13 +1650,13 @@ func x11TruncateSurrounding(text string, cursor, anchor int) (string, int, int) 
 	for start > 0 && start < len(text) && (text[start]&0xC0) == 0x80 {
 		start--
 	}
-	for end < len(text) && (text[end]&0xC0) == 0x80 {
-		end++
+	for end > start && end < len(text) && (text[end]&0xC0) == 0x80 {
+		end--
 	}
 	if end-start > budget {
 		end = start + budget
-		for end < len(text) && (text[end]&0xC0) == 0x80 {
-			end++
+		for end > start && end < len(text) && (text[end]&0xC0) == 0x80 {
+			end--
 		}
 	}
 	newCursor := c - start
@@ -1662,6 +1672,14 @@ func x11TruncateSurrounding(text string, cursor, anchor int) (string, int, int) 
 	}
 	for newAnchor > 0 && newAnchor < len(text[start:end]) && (text[start+newAnchor]&0xC0) == 0x80 {
 		newAnchor--
+	}
+	if len(text[start:end])+1 > 4000 {
+		// strict cap: trim to 3999 bytes at rune boundary
+		end = start + 3999
+		for end > start && end < len(text) && (text[end]&0xC0) == 0x80 {
+			end--
+		}
+		return text[start:end], newCursor, newAnchor
 	}
 	return text[start:end], newCursor, newAnchor
 }
