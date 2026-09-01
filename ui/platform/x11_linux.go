@@ -143,6 +143,9 @@ const (
 	xkShiftR = 0xffe2
 )
 
+const xShiftMask = 1 << 0 // X11 ShiftMask
+const xLockMask = 1 << 1  // X11 LockMask (CapsLock)
+
 // xSizeHints subset (Xutil.h) — layout matches linux/amd64 libX11.
 type xSizeHints struct {
 	Flags      int64
@@ -1084,6 +1087,7 @@ func (h *x11Host) drainX() []Event {
 				if x, ok := h.ime.(*x11Ime); ok && x != nil {
 					if x.ProcessKeyEvent(keycode, state, isPress) {
 						// 被输入法消费，拦截不再本地插入（与 Wayland filter_keypress 一致）
+						// 修饰键/英文非组合导航键已在 ProcessKeyEvent 内部转 pass-through，此处仅拦截真正需要输入法处理的字符/预编辑导航
 						continue
 					}
 				} else if h.ime != nil {
@@ -1091,7 +1095,8 @@ func (h *x11Host) drainX() []Event {
 				}
 			}
 			// 未消费则走本地 Home/End/PageUp/Down/Return 分流及 XLookupString 死键兜底
-			if ev, ok := h.decodeKey(t, buf[:]); ok {
+			stateForDecode := uint32(readU32(buf[:], xevKeyStateOff))
+			if ev, ok := h.decodeKey(t, buf[:], stateForDecode); ok {
 				out = append(out, ev)
 			}
 		case xClientMessage:
@@ -1161,12 +1166,52 @@ func (h *x11Host) decodePointer(t int, buf []byte) (Event, bool) {
 	return Event{}, false
 }
 
-func (h *x11Host) decodeKey(t int, buf []byte) (Event, bool) {
+func xKeysymForState(st *x11State, keycode uint, state uint32) uintptr {
+	if st == nil || st.keycodeToKeysym == nil || st.display == 0 {
+		return 0
+	}
+	ks0 := st.keycodeToKeysym(st.display, keycode, 0)
+	ks1 := st.keycodeToKeysym(st.display, keycode, 1)
+	isLetter := (ks0 >= 'a' && ks0 <= 'z') || (ks0 >= 'A' && ks0 <= 'Z') || (ks1 >= 'a' && ks1 <= 'z') || (ks1 >= 'A' && ks1 <= 'Z')
+	if isLetter {
+		shift := state&xShiftMask != 0
+		caps := state&xLockMask != 0
+		wantUpper := shift != caps // CapsLock 与 Shift 异或决定大小写
+		if wantUpper {
+			if ks1 >= 'A' && ks1 <= 'Z' {
+				return ks1
+			}
+			if ks0 >= 'a' && ks0 <= 'z' {
+				return uintptr(rune(ks0) - 'a' + 'A')
+			}
+			if ks0 >= 'A' && ks0 <= 'Z' {
+				return ks0
+			}
+			return ks1
+		}
+		if ks0 >= 'a' && ks0 <= 'z' {
+			return ks0
+		}
+		if ks1 >= 'a' && ks1 <= 'z' {
+			return ks1
+		}
+		if ks0 >= 'A' && ks0 <= 'Z' {
+			return uintptr(rune(ks0) - 'A' + 'a')
+		}
+		return ks0
+	}
+	if state&xShiftMask != 0 && ks1 != 0 {
+		return ks1
+	}
+	return ks0
+}
+
+func (h *x11Host) decodeKey(t int, buf []byte, state uint32) (Event, bool) {
 	st := h.st
 	keycode := uint(readU32(buf, xevKeycodeOff))
 	ev := Event{Type: EventKey, Pressed: t == xKeyPress, KeyCode: int(keycode)}
 	if st != nil && st.keycodeToKeysym != nil && keycode != 0 {
-		ks := st.keycodeToKeysym(st.display, keycode, 0)
+		ks := xKeysymForState(st, keycode, state)
 		ev.KeyCode = int(ks)
 		if ks >= 0x20 && ks <= 0x7e {
 			ev.Rune = rune(ks)

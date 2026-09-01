@@ -1210,6 +1210,45 @@ func (im *x11Ime) translateRect(r Rect) (int, int, int, int) {
 	return px, py, pw, ph
 }
 
+// IsComposing reports whether a pre-edit session is active.
+func (im *x11Ime) IsComposing() bool {
+	if im == nil {
+		return false
+	}
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	return im.composing
+}
+
+func isX11ModifierKeysym(ks uint32) bool {
+	switch ks {
+	case 0xffe1, 0xffe2, // Shift L/R
+		0xffe3, 0xffe4, // Control L/R
+		0xffe9, 0xffea, // Alt L/R
+		0xffeb, 0xffec: // Super/Meta L/R
+		return true
+	}
+	return false
+}
+
+func isX11NavKeysym(ks uint32) bool {
+	switch ks {
+	case 0xff50, // Home
+		0xff57, // End
+		0xff55, // Page_Up
+		0xff56, // Page_Down
+		0xff51, // Left
+		0xff52, // Up
+		0xff53, // Right
+		0xff54, // Down
+		0xff09, // Tab
+		0xff0d, // Return
+		0xff1b: // Escape
+		return true
+	}
+	return false
+}
+
 // ProcessKeyEvent S4：先走 D-Bus 判 consumed，再本地 Home/End 等分流
 // keycode 为 X 硬件码，state 为 X 修饰位，isPress true=Press false=Release
 // 返回 handled==true 则拦截不再本地插入，50ms 超时按未处理放行
@@ -1234,13 +1273,9 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool) bo
 	}
 	var keysym uint32
 	if im.host != nil && im.host.st != nil && im.host.st.keycodeToKeysym != nil && im.host.st.display != 0 {
-		idx := 0
-		if state&1 != 0 {
-			idx = 1
-		}
-		ks := im.host.st.keycodeToKeysym(im.host.st.display, uint(keycode), idx)
+		ks := xKeysymForState(im.host.st, uint(keycode), uint32(state))
 		keysym = uint32(ks)
-		x11ImeDebug("ProcessKeyEvent keysym=%#x keycode=%d state=%d idx=%d", keysym, keycode, state, idx)
+		x11ImeDebug("ProcessKeyEvent keysym=%#x keycode=%d state=%d", keysym, keycode, state)
 	}
 	obj := im.ObjectPath()
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -1271,6 +1306,16 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool) bo
 	}
 	if err != nil {
 		x11ImeDebug("ProcessKeyEvent err %v -> pass-through", err)
+		return false
+	}
+	// 修饰键（Shift/Ctrl/Alt/Meta）不拦截：需让本地感知修饰状态，否则 Shift+字母/方向 的后续组合会丢失修饰
+	if handled && isX11ModifierKeysym(keysym) {
+		x11ImeDebug("ProcessKeyEvent modifier %#x handled but not blocking (preserve local mods)", keysym)
+		return false
+	}
+	// 英文非组合态：输入法已无 preedit，方向/翻页等导航键应直通本地编辑器（Shift+方向选区等快捷键才有效）
+	if handled && !im.IsComposing() && isX11NavKeysym(keysym) {
+		x11ImeDebug("ProcessKeyEvent nav %#x handled but not composing -> pass-through (english mode shortcut)", keysym)
 		return false
 	}
 	return handled
