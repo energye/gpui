@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/energye/gpui/ui/imeutil"
 	"github.com/godbus/dbus/v5"
 )
 
@@ -1623,65 +1624,7 @@ func (im *x11Ime) ProcessKeyEvent(keycode uint32, state uint32, isPress bool, xT
 
 // x11TruncateSurrounding 复用 textinput.TruncateSurrounding 语义：4000 居中，UTF8 边界安全
 func x11TruncateSurrounding(text string, cursor, anchor int) (string, int, int) {
-	if len(text)+1 <= 4000 {
-		return text, cursor, anchor
-	}
-	budget := 3999
-	c := cursor
-	if c < 0 {
-		c = 0
-	}
-	if c > len(text) {
-		c = len(text)
-	}
-	half := budget / 2
-	start := c - half
-	if start < 0 {
-		start = 0
-	}
-	end := start + budget
-	if end > len(text) {
-		end = len(text)
-		start = end - budget
-		if start < 0 {
-			start = 0
-		}
-	}
-	for start > 0 && start < len(text) && (text[start]&0xC0) == 0x80 {
-		start--
-	}
-	for end > start && end < len(text) && (text[end]&0xC0) == 0x80 {
-		end--
-	}
-	if end-start > budget {
-		end = start + budget
-		for end > start && end < len(text) && (text[end]&0xC0) == 0x80 {
-			end--
-		}
-	}
-	newCursor := c - start
-	for newCursor > 0 && newCursor < len(text[start:end]) && (text[start+newCursor]&0xC0) == 0x80 {
-		newCursor--
-	}
-	newAnchor := anchor - start
-	if newAnchor < 0 {
-		newAnchor = newCursor
-	}
-	if newAnchor > len(text[start:end]) {
-		newAnchor = len(text[start:end])
-	}
-	for newAnchor > 0 && newAnchor < len(text[start:end]) && (text[start+newAnchor]&0xC0) == 0x80 {
-		newAnchor--
-	}
-	if len(text[start:end])+1 > 4000 {
-		// strict cap: trim to 3999 bytes at rune boundary
-		end = start + 3999
-		for end > start && end < len(text) && (text[end]&0xC0) == 0x80 {
-			end--
-		}
-		return text[start:end], newCursor, newAnchor
-	}
-	return text[start:end], newCursor, newAnchor
+	return imeutil.TruncateSurroundingWithAnchor(text, cursor, anchor)
 }
 
 func resetSharedDBusConnForTest() {

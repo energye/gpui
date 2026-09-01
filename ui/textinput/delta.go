@@ -1,6 +1,6 @@
 package textinput
 
-import "unicode/utf8"
+import "github.com/energye/gpui/ui/imeutil"
 
 type TextEditingDelta struct {
 	OldText     string
@@ -139,46 +139,7 @@ func clampRangeForText(text string, r TextRange) TextRange {
 	return r
 }
 
-// TruncateSurrounding implements 4000 bytes including NUL, centered at cursor.
+// TruncateSurrounding delegates to imeutil single source (B10 convergence).
 func TruncateSurrounding(text string, cursorByte int) (string, int) {
-	const max = 4000
-	if len(text)+1 <= max {
-		return text, cursorByte
-	}
-	// Need to keep window of max-1 bytes (reserve 1 for NUL) centered at cursor
-	budget := max - 1
-	half := budget / 2
-	start := cursorByte - half
-	if start < 0 {
-		start = 0
-	}
-	end := start + budget
-	if end > len(text) {
-		end = len(text)
-		start = end - budget
-		if start < 0 {
-			start = 0
-		}
-	}
-	// Snap to rune boundaries
-	for start > 0 && start < len(text) && !utf8.RuneStart(text[start]) {
-		start--
-	}
-	for end < len(text) && !utf8.RuneStart(text[end]) {
-		end++
-		if end-start > budget {
-			break
-		}
-	}
-	if end-start > budget {
-		end = start + budget
-		for end < len(text) && !utf8.RuneStart(text[end]) {
-			end++
-		}
-	}
-	newCursor := cursorByte - start
-	for newCursor > 0 && newCursor < len(text[start:end]) && !utf8.RuneStart(text[start+newCursor]) {
-		newCursor--
-	}
-	return text[start:end], newCursor
+	return imeutil.TruncateSurrounding(text, cursorByte)
 }

@@ -183,7 +183,6 @@ type x11Lib struct {
 	translateCoordinates   func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
 	xkbGetState            func(dpy uintptr, deviceSpec uint, state unsafe.Pointer) int
 	xkbKeycodeToKeysym     func(dpy uintptr, keycode uint, group int, level int) uintptr
-	xutf8LookupString      func(ic uintptr, ev unsafe.Pointer, str *byte, nbytes int, keysym *uintptr, status *int) int
 	xLookupString          func(ev unsafe.Pointer, str *byte, nbytes int, keysym *uintptr, status unsafe.Pointer) int
 	xRefreshKeyboardMapping func(ev unsafe.Pointer) int
 }
@@ -206,12 +205,6 @@ func x11OpenLib() (*x11Lib, error) {
 	}
 	if _, err := purego.Dlsym(lib, "XkbKeycodeToKeysym"); err == nil {
 		purego.RegisterLibFunc(&x.xkbKeycodeToKeysym, lib, "XkbKeycodeToKeysym")
-	}
-	// B7: Xutf8LookupString is bound for future XIM path; X11 IME now uses D-Bus, so
-	// XIM is removed in v2.0 and this symbol is intentionally unused (dead code).
-	// Kept for diagnostic / fallback, not wired to decodeKey (which uses XLookupString).
-	if _, err := purego.Dlsym(lib, "Xutf8LookupString"); err == nil {
-		purego.RegisterLibFunc(&x.xutf8LookupString, lib, "Xutf8LookupString")
 	}
 	if _, err := purego.Dlsym(lib, "XLookupString"); err == nil {
 		purego.RegisterLibFunc(&x.xLookupString, lib, "XLookupString")

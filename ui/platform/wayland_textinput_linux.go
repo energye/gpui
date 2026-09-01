@@ -9,6 +9,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/energye/gpui/ui/imeutil"
 	"github.com/ebitengine/purego"
 )
 
@@ -358,56 +359,26 @@ func (im *wlIme) SetComposing(text string, cursor int) {
 		return
 	}
 	if len(text)+1 > 4000 {
-		// 复用单源截断，避免与 textinput.TruncateSurrounding 分叉
-		// Wayland 侧不直接依赖 textinput 包（避免循环），此处内联同逻辑但保持与 TruncateSurrounding 一致
-		budget := 3999
-		half := budget / 2
-		start := cursor - half
-		if start < 0 {
-			start = 0
-		}
-		end := start + budget
-		if end > len(text) {
-			end = len(text)
-			start = end - budget
-			if start < 0 {
-				start = 0
-			}
-		}
-		for start > 0 && start < len(text) && (text[start]&0xC0) == 0x80 {
-			start--
-		}
-		for end < len(text) && (text[end]&0xC0) == 0x80 {
-			end++
-		}
-		// 若仍超 budget，按 TruncateSurrounding 语义回缩 end 到 start+budget
-		if end-start > budget {
-			end = start + budget
-			for end < len(text) && (text[end]&0xC0) == 0x80 {
-				end++
-			}
-		}
-		newCursor := cursor - start
-		for newCursor > 0 && newCursor < len(text[start:end]) && (text[start+newCursor]&0xC0) == 0x80 {
-			newCursor--
-		}
-		text = text[start:end]
-		cursor = newCursor
-		if cursor < 0 {
-			cursor = 0
-		}
-		if cursor > len(text) {
-			cursor = len(text)
-		}
+		text, cursor = imeutil.TruncateSurrounding(text, cursor)
 	}
 	tiDebug("surrounding %d bytes cur=%d", len(text), cursor)
 	st.queue.push(tiPendingAction{kind: tiPendingSurf, text: text, cur: cursor})
 	st.flushCommit()
 }
 
-// Commit sends the surrounding text with an input-method change cause.
+// Commit explicitly commits text (B12: unify with X11 – push IME Commit so Editor.AddText runs).
 func (im *wlIme) Commit(text string) {
+	if im == nil {
+		return
+	}
+	tiDebug("Commit len=%d", len(text))
 	im.SetComposing(text, len(text))
+	if text != "" && im.h != nil && im.h.win != nil {
+		im.h.win.pushIME(Event{Type: EventIME, IMEKind: 1, IMEText: text, IMEStart: -1, IMEEnd: -1})
+		if h := im.h.win.hostForWake(); h != nil {
+			h.WakeUp()
+		}
+	}
 }
 
 // DisableIME ends the session atomically.
